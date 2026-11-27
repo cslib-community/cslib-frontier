@@ -12,6 +12,8 @@ public import CslibFrontier.Computability.Complexity.FineGrained.CountingExponen
 public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingSparsificationUniform
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingQuantitative
+public import CslibFrontier.Computability.Complexity.Problems.SAT.Declared
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.BitString.Cut
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingParametersPolyTime
 import CslibFrontier.Logics.Propositional.CNF.ModelCount.DenseRelabel
@@ -33,6 +35,8 @@ equivalences remain open in #8457.
 * `polyBounded_nodeBound_powerBudget`: a polynomial bound on the encoded leaf formulas.
 * `exists_computableInO_searchDeclared_powerBudget`: exact declared counting and separate time
   and workspace bounds from a certified leaf counter.
+* `exists_computableInO_seededSearch_powerBudget`: a seed-carrying decision machine and
+  its error bound from a certified leaf verifier.
 * `ComputableInPowerExpTime.SharpKSAT_numVars_of_size`: transfer a size-based power saving
   to a power saving in occurring variables.
 * `DecidableInPowerExpTime.KSAT_numVars_of_size`: the decision transfer using positive
@@ -254,6 +258,147 @@ theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪
     ((by decide : 1 ≤ 2).trans hM2) hK hM2 le_rfl
     (countingTreeBound_countingThresholdBase hK (one_le_countingPowerBudget d declared))
     (fun ψ _ hw hsp hsub hlen => hcorrect _ ψ hw hsp hsub hlen) formula
+
+/-- Compile a declared-variable verifier with a shared seed into the power-budget search.
+The machine truncates the shared seed to the width requested by each leaf and tests the search
+output for positivity. The clock includes the framed seed length and the allowance for computing
+a leaf width and running the leaf verifier. Invalid declared formulas are rejected, and on valid
+formulas the error fraction is bounded by the leaf error times the leaf-count bound. -/
+theorem exists_computableInO_seededSearch_powerBudget {k d : ℕ} (hk : 2 ≤ k) (hd : 1 ≤ d)
+    {width : DeclaredCNF → ℕ} {V : DeclaredCNF × List Bool → Bool}
+    {Tw Sw : DeclaredCNF → ℕ} {Tv Sv : DeclaredCNF × List Bool → ℕ}
+    (hwidth : ComputableInO width encDeclaredCNF encUnary Tw Sw)
+    (hV : ComputableInO V (encPair encDeclaredCNF encBits) encBool Tv Sv)
+    {R Q : List Bool × ℕ × CNF ℕ → ℕ}
+    (hresources : ∀ (seed : List Bool) (a : DeclaredCNF) (ψ : CNF ℕ),
+      let M := countingThresholdBase k (countingPowerBudget d a.numVars)
+      let leaf : DeclaredCNF := ⟨a.numVars, ψ⟩
+      let leafSize := (encPair (encPair encBits encUnary) encCNF ((seed, a.numVars), ψ)).length
+      let query := (leaf, seed.take (width leaf))
+      (∀ c ∈ ψ, c.length ≤ k) → isSparse (countingThreshold M) k ψ = true →
+      ψ.vars.toFinset ⊆ Finset.range a.numVars → ψ.length ≤ occBound k M * a.numVars + 1 →
+      (encCNF ψ).length ≤ nodeBound k (countingDepthCoeff k M) a.formula →
+      5 * leafSize + Tw leaf + Tv query ≤ R (seed, a.numVars, a.formula) ∧
+      5 * leafSize + Sw leaf + Sv query ≤ Q (seed, a.numVars, a.formula)) :
+    let encInput := encPair encBits (encPair encUnary encCNF)
+    ∃ (verify : List Bool × ℕ × CNF ℕ → Bool) (T S : List Bool × ℕ × CNF ℕ → ℕ) (c e b : ℕ),
+      ComputableInO verify encInput encBool T S ∧
+      (∀ (seed : List Bool) (a : DeclaredCNF),
+        (T (seed, a.numVars, a.formula) : ℝ) ≤
+          6 * 2 ^ (3 * (a.numVars + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹)) *
+            (c * (((encInput (seed, a.numVars, a.formula)).length : ℝ) + 1) ^ e +
+              R (seed, a.numVars, a.formula)) + (a.numVars + 2 : ℝ) ^ b) ∧
+      (∀ (seed : List Bool) (a : DeclaredCNF),
+        validDeclaredInput k a.numVars a.formula = false →
+        verify (seed, a.numVars, a.formula) = false) ∧
+      ∀ (a : DeclaredCNF) (n : ℕ) (ε : ℝ), 0 ≤ ε →
+        validDeclaredInput k a.numVars a.formula = true →
+        (∀ ψ : CNF ℕ,
+          let M := countingThresholdBase k (countingPowerBudget d a.numVars)
+          let leaf : DeclaredCNF := ⟨a.numVars, ψ⟩
+          CountingNormalized k ψ → (∀ c ∈ ψ, c.length ≤ k) →
+          isSparse (countingThreshold M) k ψ = true →
+          ψ.vars.toFinset ⊆ Finset.range a.numVars → ψ.length ≤ occBound k M * a.numVars + 1 →
+          (encCNF ψ).length ≤ nodeBound k (countingDepthCoeff k M) a.formula →
+          width leaf ≤ n ∧
+            (acceptCount (fun p => V p != decide (0 < p.1.formula.modelCount))
+              leaf (width leaf) : ℝ) ≤ ε * (2 : ℝ) ^ width leaf) →
+        (acceptCount (fun p => verify (p.2, p.1.numVars, p.1.formula) !=
+          decide (0 < p.1.formula.modelCount)) a n : ℝ) ≤
+          (2 : ℝ) ^ (a.formula.numVars / countingPowerBudget d a.numVars + 1) *
+            (ε * (2 : ℝ) ^ n) := by
+  intro encInput
+  let encContext := encPair encBits encUnary
+  let encLeaf := encPair encContext encCNF
+  let input (x : (List Bool × ℕ) × CNF ℕ) : DeclaredCNF :=
+    let ((_, declared), formula) := x
+    ⟨declared, formula⟩
+  let seed (x : (List Bool × ℕ) × CNF ℕ) := x.1.1
+  let query (x : (List Bool × ℕ) × CNF ℕ) :=
+    (input x, (seed x).take (width (input x)))
+  let g (x : (List Bool × ℕ) × CNF ℕ) := (V (query x)).toNat
+  have hinput : ComputableInO input encLeaf encDeclaredCNF
+      (fun x => 2 * (encLeaf x).length) (fun x => 2 * (encLeaf x).length) := by
+    have hctx := ComputableInO.fst encContext encCNF
+    have hf := ComputableInO.snd encContext encCNF
+    simpa only [two_mul] using (hctx.snd'.prod hf).of_enc_eq (g := input) fun _ => rfl
+  have hseed : ComputableInO seed encLeaf encBits
+      (fun x => (encLeaf x).length) (fun x => (encLeaf x).length) :=
+    (ComputableInO.fst encContext encCNF).fst'
+  have htake := ComputableInO.of_linear ComputableInDegree.bitsTake
+  have hquery := hinput.prod (htake.comp_linear (hseed.prod (hwidth.comp hinput)))
+  have hnat : ComputableInO Bool.toNat encBool encNat
+      (fun x => (encBool x).length) (fun x => (encBool x).length) :=
+    ComputableInO.of_linear (ComputableInDegree.of_finite Bool.toNat)
+  have hg : ComputableInO g encLeaf encNat
+      (fun x => 5 * (encLeaf x).length + Tw (input x) + Tv (query x))
+      (fun x => 5 * (encLeaf x).length + Sw (input x) + Sv (query x)) := by
+    convert hnat.comp_linear (hV.comp hquery) using 1 <;> funext x <;> dsimp [query] <;> omega
+  obtain ⟨Tc, Sc, c, e, hcount, _, htime⟩ := declaredSearch_resources encBits hk hd
+    (R := R) (Q := Q) hg
+    (fun p ψ _ _ _ _ => (Bool.toNat_le (V (query (p, ψ)))).trans Nat.one_le_two_pow) (by
+      rintro ⟨seed, declared, formula⟩ ψ hw hs hv hl hlen
+      exact hresources seed ⟨declared, formula⟩ ψ hw hs hv hl hlen)
+  obtain ⟨b, _, hpos⟩ := ComputableInPolyTime.binary_pos.exists_degree
+  let verify (x : List Bool × ℕ × CNF ℕ) := decide (0 < declaredSearch k d g x)
+  refine ⟨verify, _, _, c, e, b, hpos.inO.comp hcount, ?_, ?_, ?_⟩
+  · intro seed a
+    let x : List Bool × ℕ × CNF ℕ := (seed, a.numVars, a.formula)
+    have hM2 := two_le_countingThresholdBase k (countingPowerBudget d a.numVars)
+    have hK : 1 ≤ k := by omega
+    have hlen := length_encNat_searchDeclaredWith_le
+      (NOf := Prod.snd) (MOf := base k d) (BOf := budget d) (p := (seed, a.numVars))
+      ((by decide : 1 ≤ 2).trans hM2) hK hM2 le_rfl
+      (countingTreeBound_countingThresholdBase hK (one_le_countingPowerBudget d a.numVars))
+      g a.formula
+    have hpow := Nat.pow_le_pow_left (Nat.succ_le_succ hlen) b
+    change ((Tc x + ((encNat (declaredSearch k d g x)).length + 1) ^ b : ℕ) : ℝ) ≤ _
+    push_cast
+    exact add_le_add (htime x) (by exact_mod_cast hpow)
+  · intro seed a ha
+    simp only [verify, declaredSearch, searchDeclaredWith_eq_ite_mul, ha, Bool.false_eq_true,
+      ite_false, lt_self_iff_false, decide_false]
+  · intro a n ε hε ha hleaf
+    obtain ⟨hw, hv⟩ := validDeclaredInput_eq_true_iff.mp ha
+    have hK : 1 ≤ k := by omega
+    have hM2 := two_le_countingThresholdBase k (countingPowerBudget d a.numVars)
+    have hvars : a.formula.numVars ≤ a.numVars := by
+      simpa only [CNF.numVars, Finset.card_range] using Finset.card_le_card hv
+    let W (p : CNF ℕ × List Bool) := decide (0 < search
+      (countingThresholdBase k (countingPowerBudget d a.numVars)) k k
+      (countingPowerBudget d a.numVars) (fun ψ =>
+        (V (⟨a.numVars, ψ⟩, p.2.take (width ⟨a.numVars, ψ⟩))).toNat) p.1) !=
+      decide (0 < p.1.modelCount)
+    have hW := acceptCount_search_pos_error_le ((by decide : 1 ≤ 2).trans hM2) hK hM2 le_rfl
+      (countingTreeBound_countingThresholdBase hK (one_le_countingPowerBudget d a.numVars)) hw
+      (fun p => (V (⟨a.numVars, p.1⟩, p.2)).toNat) (fun ψ => width ⟨a.numVars, ψ⟩)
+      n hε (by
+        intro ψ hnorm hw hsp hsub hl hlen
+        obtain ⟨hwidth', herr⟩ := hleaf ψ hnorm hw hsp (hsub.trans hv)
+          (hl.trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ hvars) 1)) hlen
+        refine ⟨hwidth', ?_⟩
+        have hcountEq : acceptCount (fun p : CNF ℕ × List Bool =>
+            decide (0 < (V (⟨a.numVars, p.1⟩, p.2)).toNat) != decide (0 < p.1.modelCount))
+            ψ (width ⟨a.numVars, ψ⟩) =
+            acceptCount (fun p => V p != decide (0 < p.1.formula.modelCount))
+              ⟨a.numVars, ψ⟩ (width ⟨a.numVars, ψ⟩) := by
+          unfold acceptCount
+          congr 1
+          ext bits
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+          cases V (⟨a.numVars, ψ⟩, List.ofFn bits) <;> rfl
+        rw [hcountEq]
+        exact herr)
+    have hcongr : acceptCount (fun p => verify (p.2, p.1.numVars, p.1.formula) !=
+        decide (0 < p.1.formula.modelCount)) a n = acceptCount W a.formula n := by
+      unfold acceptCount
+      congr 1
+      ext bits
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, verify, declaredSearch,
+        searchDeclaredWith_eq_ite_mul, ha, ↓reduceIte, CanonicallyOrderedAdd.mul_pos,
+        Nat.two_pow_pos, W, g, query, input, seed, base, budget]
+    rw [hcongr]
+    exact hW
 
 private theorem exists_budget_power_lt_one {p : ℝ} (hp1 : p < 1) (k : ℕ) :
     ∃ d : ℕ, 1 ≤ d ∧ (1 + (2 * k : ℝ) / d) * p < 1 := by

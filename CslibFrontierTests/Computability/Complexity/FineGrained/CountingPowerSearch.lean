@@ -42,6 +42,33 @@ open Cslib.Complexity Cslib.Complexity.CountingSparsify
 open Cslib.Complexity.SubexponentialSAT (interpolationScale)
 open Turing.MultiTapeTM
 
+/-- The seeded search rejects an out-of-range variable even with an always-accepting
+leaf verifier and an empty supplied seed. -/
+example :
+    ∃ (verify : List Bool × ℕ × CNF ℕ → Bool) (T S : List Bool × ℕ × CNF ℕ → ℕ),
+      ComputableInO verify (encPair encBits (encPair encUnary encCNF)) encBool T S ∧
+      verify ([], 0, [[(0, true)]]) = false := by
+  let allowance (x : List Bool × ℕ × CNF ℕ) :=
+    let (seed, declared, formula) := x
+    let M := countingThresholdBase 2 (countingPowerBudget 2 declared)
+    8 * (2 * (encPair encBits encUnary (seed, declared)).length + 2 +
+      nodeBound 2 (countingDepthCoeff 2 M) formula)
+  obtain ⟨verify, T, S, _, _, _, hverify, _, hreject, _⟩ :=
+    exists_computableInO_seededSearch_powerBudget (k := 2) (d := 2)
+      le_rfl (by decide) (R := allowance) (Q := allowance)
+      (ComputableInO.constZero (encIn := encDeclaredCNF) (encMid := encUnary) 0)
+      (ComputableInO.constZero (encIn := encPair encDeclaredCNF encBits) (encMid := encBool) true)
+      (by
+        intro seed a ψ
+        dsimp only
+        intro _ _ _ _ hlen
+        have hdecl : encDeclaredCNF ⟨a.numVars, ψ⟩ = encPair encUnary encCNF (a.numVars, ψ) := rfl
+        dsimp only [allowance]
+        simp only [hdecl, length_encPair, List.take_zero, encBits_apply, List.length_nil,
+          encUnary_apply, List.length_replicate]
+        constructor <;> omega)
+  exact ⟨verify, T, S, hverify, hreject [] ⟨0, [[(0, true)]]⟩ (by decide)⟩
+
 private abbrev Input := Unit × ℕ × CNF ℕ
 private abbrev encInput := encPair encUnit (encPair encUnary encCNF)
 private abbrev encLeaf := encPair (encPair encUnit encUnary) encCNF
