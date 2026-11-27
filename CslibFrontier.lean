@@ -7700,6 +7700,7 @@ public import CslibFrontier.Probability.PairwiseIndependentHash.ProductValidated
 public import CslibFrontier.Algorithms.Lean.MaxFlow.MinCostFlow
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ShiftedLabel
 public import CslibFrontier.Computability.Circuit.Boolean.Razborov.Natural
+public import CslibFrontier.Logics.Propositional.CNF.LRATRat
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Littlestone
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving.Decompositions
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.DrawingClauseVertices
