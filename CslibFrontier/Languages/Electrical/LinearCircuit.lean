@@ -65,7 +65,8 @@ the descriptor system: `(φ, i)` is a trajectory if and only if `Fin.append φ i
 
 ## Certified stability and realizations
 
-`Netlist.isExponentiallyStable_of_check` composes the semantics with the exact checkers of
+`Netlist.isExponentiallyStable_of_decoupling` composes the semantics with any index-one
+decoupling of the equations, and `Netlist.isExponentiallyStable_of_check` with the exact checkers of
 `CslibFrontier.Algorithms.LinearAlgebra.DescriptorCertificate`: a well-formed netlist, an
 accepted index-one decoupling of its equations, an exactly checked equilibrium `z₀` and
 exponential stability of the checked reduced matrix (for instance from an accepted dense or
@@ -108,8 +109,11 @@ decoupling.
 * `Cslib.Electrical.Netlist.isTrajectoryOn_iff`: circuit trajectories are exactly the solutions
   of the modified nodal equations.
 * `Cslib.Electrical.Netlist.probeRows_mulVec`: the probe rows compute the probed quantities.
-* `Cslib.Electrical.Netlist.isExponentiallyStable_of_check`: end-to-end certified exponential
-  stability of every trajectory about the checked operating point, with existence.
+* `Cslib.Electrical.Netlist.isExponentiallyStable_of_decoupling`: exponential stability of every
+  trajectory about an operating point, with existence, from any index-one decoupling of the
+  modified nodal equations whose state matrix is exponentially stable.
+* `Cslib.Electrical.Netlist.isExponentiallyStable_of_check`: its end-to-end certified instance
+  for an accepted `Cslib.LinearAlgebra.DecouplingCert` and a checked operating point.
 * `Cslib.Electrical.Netlist.isTrajectoryOn_iff_realization`: the checked proper realization for
   selected inputs and outputs.
 -/
@@ -622,6 +626,38 @@ private theorem append_split (z : Fin c.size → ℝ) :
     Fin.append (fun j => z (Fin.castAdd _ j)) (fun b => z (Fin.natAdd _ b)) = z :=
   Fin.append_castAdd_natAdd
 
+/-- **Exponential stability of a circuit from a decoupling.** Let the netlist be well formed, `D`
+an index-one decoupling of its modified nodal equations, `z₀` an equilibrium, and `ẋ = A x`
+exponentially stable for the state matrix of `D`. Then, with zero input, `z₀` is a circuit
+trajectory, every differential state `x₀` (read through `D.Q₁'`) starts a circuit trajectory on
+`[0, ∞)`, and every circuit trajectory on `[0, ∞)` converges to `z₀` exponentially in the
+Euclidean norm of all potentials and branch currents. -/
+theorem isExponentiallyStable_of_decoupling {κ ρ : Type*} [Fintype κ] [Fintype ρ]
+    [DecidableEq κ] [DecidableEq ρ] (hc : c.check = true) (D : c.mna.IndexOneDecoupling κ ρ)
+    {z₀ : Fin c.size → ℝ} (heq : c.mna.IsEquilibrium z₀)
+    (hA : (toEuclideanCLM (𝕜 := ℝ) D.A).IsExponentiallyStable) :
+    c.IsTrajectoryOn 0 (fun _ j => z₀ (Fin.castAdd _ j)) (fun _ b => z₀ (Fin.natAdd _ b))
+        (Ici 0) ∧
+      (∀ x₀ : κ → ℝ, ∃ φ i, c.IsTrajectoryOn 0 φ i (Ici 0) ∧
+        D.Q₁' *ᵥ Fin.append (φ 0) (i 0) = x₀) ∧
+      ∃ M α : ℝ, 0 < α ∧ ∀ φ i, c.IsTrajectoryOn 0 φ i (Ici 0) → ∀ t ≥ 0,
+        ‖WithLp.toLp 2 (Fin.append (φ t) (i t) - z₀)‖ ≤
+          M * Real.exp (-(α * t)) * ‖WithLp.toLp 2 (Fin.append (φ 0) (i 0) - z₀)‖ := by
+  have hs := uniqueDiffOn_Ici (0 : ℝ)
+  refine ⟨?_, fun x₀ => ?_, ?_⟩
+  · rw [isTrajectoryOn_iff hc hs]
+    simpa only [append_split] using heq.isSolutionOn (Ici 0)
+  · obtain ⟨z, hz, h0⟩ := (D.exists_isSolutionOn_Ici_iff (u := 0) continuousOn_const
+      (D.reconstruct x₀ 0)).2
+      (by rw [DescriptorSystem.IndexOneDecoupling.Q₁'_mulVec_reconstruct]; rfl)
+    refine ⟨fun t j => z t (Fin.castAdd _ j), fun t b => z t (Fin.natAdd _ b), ?_, ?_⟩
+    · rw [isTrajectoryOn_iff hc hs]
+      simpa only [append_split] using hz
+    · rw [append_split, h0]
+      exact DescriptorSystem.IndexOneDecoupling.Q₁'_mulVec_reconstruct (D := D) x₀ 0
+  · obtain ⟨M, α, hα, hM⟩ := D.isExponentiallyStableAt heq hA
+    exact ⟨M, α, hα, fun φ i h t ht => hM _ ((isTrajectoryOn_iff hc hs).1 h) t ht⟩
+
 /-- **Certified exponential stability of a circuit.** Let the netlist be well formed, let `d`
 be an accepted index-one decoupling of its modified nodal equations, `z₀` an exactly checked
 equilibrium (`F z₀ + b = 0`), and let `ẋ = A x` be exponentially stable for the checked reduced
@@ -632,7 +668,9 @@ matrix `d.A`, for instance by an accepted Lyapunov certificate
 2. every differential state `x₀`, read through `Q₁'`, starts a circuit trajectory on `[0, ∞)`;
 3. every circuit trajectory on `[0, ∞)` converges to `z₀` exponentially: for constants `M` and
    `α > 0` independent of the trajectory, `‖(φ t, i t) - z₀‖ ≤ M exp (-α t) ‖(φ 0, i 0) - z₀‖`
-   in the Euclidean norm of all potentials and branch currents. -/
+   in the Euclidean norm of all potentials and branch currents.
+
+This is `isExponentiallyStable_of_decoupling` for `DecouplingCert.toDecoupling`. -/
 theorem isExponentiallyStable_of_check {d : DecouplingCert} {z₀ : List ℚ}
     (hc : c.check = true) (hd : d.check c.size c.eRows c.fRows = true)
     (hz : isEquilibriumRows c.size c.fRows c.bList z₀ = true)
@@ -644,27 +682,11 @@ theorem isExponentiallyStable_of_check {d : DecouplingCert} {z₀ : List ℚ}
       ∃ M α : ℝ, 0 < α ∧ ∀ φ i, c.IsTrajectoryOn 0 φ i (Ici 0) → ∀ t ≥ 0,
         ‖WithLp.toLp 2 (Fin.append (φ t) (i t) - realOfList c.size z₀)‖ ≤
           M * Real.exp (-(α * t)) *
-            ‖WithLp.toLp 2 (Fin.append (φ 0) (i 0) - realOfList c.size z₀)‖ := by
-  have hs := uniqueDiffOn_Ici (0 : ℝ)
-  have heq : c.mna.IsEquilibrium (realOfList c.size z₀) := isEquilibrium_of_isEquilibriumRows hz
-  set D := DecouplingCert.toDecoupling (m := c.inputs) (G := c.gRows) (b := c.bList) hd
-  refine ⟨?_, fun x₀ => ?_, ?_⟩
-  · rw [isTrajectoryOn_iff hc hs]
-    simpa only [append_split] using heq.isSolutionOn (Ici 0)
-  · obtain ⟨z, hz, h0⟩ := (D.exists_isSolutionOn_Ici_iff (u := 0) continuousOn_const
-      (D.reconstruct x₀ 0)).2
-      (by rw [DescriptorSystem.IndexOneDecoupling.Q₁'_mulVec_reconstruct]; rfl)
-    refine ⟨fun t j => z t (Fin.castAdd _ j), fun t b => z t (Fin.natAdd _ b), ?_, ?_⟩
-    · have hz' : c.mna.IsSolutionOn 0 z (Ici 0) := hz
-      rw [isTrajectoryOn_iff hc hs]
-      convert hz' using 1
-      funext t
-      exact append_split (z t)
-    · rw [append_split, h0]
-      exact DescriptorSystem.IndexOneDecoupling.Q₁'_mulVec_reconstruct (D := D) x₀ 0
-  · obtain ⟨M, α, hα, hM⟩ := DecouplingCert.isExponentiallyStableAt_of_check
-      (m := c.inputs) (G := c.gRows) hd hz hA
-    exact ⟨M, α, hα, fun φ i h t ht => hM _ ((isTrajectoryOn_iff hc hs).1 h) t ht⟩
+            ‖WithLp.toLp 2 (Fin.append (φ 0) (i 0) - realOfList c.size z₀)‖ :=
+  isExponentiallyStable_of_decoupling hc
+    (DecouplingCert.toDecoupling (m := c.inputs) (G := c.gRows) (b := c.bList) hd)
+    (isEquilibrium_of_isEquilibriumRows hz)
+    (DecouplingCert.A_toDecoupling (m := c.inputs) (G := c.gRows) (b := c.bList) hd ▸ hA)
 
 /-- The checked realization of a circuit for the probes `probes` and its input ports, with the
 rational matrices computed from the decoupling `d` (`DecouplingCert.A`, `reducedB`,
