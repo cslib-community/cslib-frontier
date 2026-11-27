@@ -25,8 +25,7 @@ protocol of the functionality `F`.
 
 The simulator is chosen after the adversary and before the environment, so one simulator serves
 every environment. Like every `ExecAdversary`, it is a family `S κ C` that receives the static
-corruption set `C`, as in static-corruption UC; only the environment and its auxiliary input are
-quantified after it. Emulation is reflexive with zero error
+corruption set `C`, as in static-corruption UC. Emulation is reflexive with zero error
 (`UC.EmulatesWithin.refl`) and transitive (`UC.EmulatesWithin.trans`): the simulators compose and
 the errors add, the second error being evaluated at the budget `g₁₂.comp (X + pA)` of the
 intermediate simulator, which requires that error to be monotone in the adversary's budget.
