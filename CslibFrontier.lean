@@ -1927,6 +1927,7 @@ public import CslibFrontier.Crypto.Protocols.AnonymousToken.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.UP
 public import CslibFrontier.Computability.QueryComplexity.Quantum.AmbainisAdversary.WeightLayers
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.RefuterSearch
+public import CslibFrontier.Computability.Complexity.Classes.PCP.ProofWord
 public import CslibFrontier.DataStructure.Dictionary.CellProbe.LowerBound.Query
 public import CslibFrontier.Foundations.Data.Finset.OrderGlue
 public import CslibFrontier.Computability.Circuit.Arithmetic.RootFormula
