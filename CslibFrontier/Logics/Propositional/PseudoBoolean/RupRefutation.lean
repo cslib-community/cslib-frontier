@@ -61,6 +61,7 @@ open PBConstr
 /-- **The blocking clause** `∑_{ℓ ∈ ρ} ¬ℓ ≥ 1` of the literals `ρ`: some literal of `ρ` is false. -/
 def blocking (ρ : List (Literal ℕ)) : PBConstr := Clause.toPB (ρ.map Std.Sat.Literal.negate)
 
+/-- The blocking clause holds exactly when some literal of `ρ` is false. -/
 theorem holds_blocking (σ : ℕ → Bool) (ρ : List (Literal ℕ)) :
     (blocking ρ).Holds σ ↔ ¬ Consistent σ ρ := by
   simp only [blocking, Clause.holds_toPB_iff, Clause.eval_eq_true_iff, List.mem_map,
@@ -112,6 +113,7 @@ private theorem size_succ (k : ℕ) : 2 ^ (k + 1 + 1) - 1 = 2 * (2 ^ (k + 1) - 1
   rw [pow_succ]
   omega
 
+/-- A tree over `k` variables has `2 ^ (k + 1) - 1` steps. -/
 theorem length_treeSteps (db : List (ℕ × PBConstr)) :
     ∀ (n : ℕ) (K : List (Literal ℕ)) (xs : List ℕ),
       (treeSteps db n K xs).length = 2 ^ (xs.length + 1) - 1
@@ -127,6 +129,8 @@ theorem length_refuteSteps (db : List (ℕ × PBConstr)) (n : ℕ) (vs : List �
     (refuteSteps db n vs).length = 2 ^ (vs.length + 1) - 1 :=
   length_treeSteps db n [] vs
 
+/-- Each step of a tree is a `rup` step of a blocking clause of its decisions and at most the
+variables below, with at most three hints. -/
 theorem exists_eq_rup_of_mem_treeSteps (db : List (ℕ × PBConstr)) :
     ∀ (n : ℕ) (K : List (Literal ℕ)) (xs : List ℕ), ∀ st ∈ treeSteps db n K xs,
       ∃ K' hs, st = .rup (blocking K') hs ∧ K'.length ≤ K.length + xs.length ∧ hs.length ≤ 3

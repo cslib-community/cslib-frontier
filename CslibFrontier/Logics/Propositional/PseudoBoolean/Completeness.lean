@@ -702,6 +702,7 @@ def assignments : List ℕ → List (ℕ → Bool)
   | x :: xs =>
     (assignments xs).flatMap fun σ => [Function.update σ x true, Function.update σ x false]
 
+/-- There are `2 ^ |vs|` assignments of `vs`. -/
 theorem length_assignments : ∀ vs : List ℕ, (assignments vs).length = 2 ^ vs.length
   | [] => rfl
   | x :: xs => by
@@ -726,6 +727,7 @@ theorem exists_mem_assignments (σ : ℕ → Bool) :
 def solutionsOn (F : List PBConstr) (vs : List ℕ) : List (ℕ → Bool) :=
   (assignments vs).filter fun σ => F.all fun c => decide (c.Holds σ)
 
+/-- The members of `solutionsOn F vs` are solutions of `F`. -/
 theorem holds_of_mem_solutionsOn {F : List PBConstr} {vs : List ℕ} {σ : ℕ → Bool}
     (h : σ ∈ solutionsOn F vs) : ∀ c ∈ F, c.Holds σ := by
   simpa [solutionsOn] using (List.mem_filter.1 h).2
