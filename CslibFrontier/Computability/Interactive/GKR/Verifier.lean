@@ -16,6 +16,7 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.Time
 public import CslibFrontier.Languages.Probabilistic.Iteration
 public import CslibFrontier.Languages.Probabilistic.UniformNat
 public import CslibFrontier.Languages.Probabilistic.Vector
+import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -2304,49 +2305,6 @@ private theorem mul_div_coinBits_le {p M : ℕ} (hp : 0 < p) :
   rw [ENNReal.ofReal_div_of_pos (by positivity), ENNReal.ofReal_natCast]
   exact hENN
 
-private theorem closeTo_replicateFin_sampleModNat {p cw : ℕ} [NeZero p] :
-    ∀ k : ℕ, Probability.CloseTo
-      (ProbComp.eval (ProbComp.uniform (Fin k → ZMod p)))
-      (ProbComp.eval (OracleComp.replicateFin k (Nat.cast <$> sampleModNat cw p)))
-      ((k : ℝ≥0∞) * ENNReal.ofReal ((p : ℝ) / 2 ^ cw))
-  | 0 => by
-      have h1 : ProbComp.eval (ProbComp.uniform (Fin 0 → ZMod p)) = PMF.pure Fin.elim0 := by
-        rw [ProbComp.eval_uniform]
-        ext f
-        have hf : f = Fin.elim0 := funext fun i => i.elim0
-        subst hf
-        simp
-      rw [h1, OracleComp.replicateFin_zero, ProbComp.eval_pure]
-      simp
-  | k + 1 => by
-      have h1 : ProbComp.eval (ProbComp.uniform (Fin (k + 1) → ZMod p)) =
-          ProbComp.eval (OracleComp.replicateFin (k + 1) (ProbComp.uniform (ZMod p))) := by
-        rw [OracleComp.replicateFin_eq_pi, ProbComp.eval_pi_uniform, ProbComp.eval_uniform]
-      rw [h1, OracleComp.replicateFin_succ, OracleComp.replicateFin_succ, ProbComp.eval_bind,
-        ProbComp.eval_bind]
-      have hSingle :
-          Probability.CloseTo (ProbComp.eval (ProbComp.uniform (ZMod p)))
-            (ProbComp.eval (Nat.cast <$> sampleModNat cw p))
-            (ENNReal.ofReal ((p : ℝ) / 2 ^ cw)) := by
-        rw [ProbComp.eval_uniform, ProbComp.eval_map]
-        exact (closeTo_of_dist_le_ofReal (ProbComp.dist_map_natCast_eval_sampleModNat_le cw p)).symm
-      have hRest := closeTo_replicateFin_sampleModNat (p := p) (cw := cw) k
-      have hCont :
-          ∀ ch ∈ (ProbComp.eval ((Nat.cast : ℕ → ZMod p) <$> sampleModNat cw p)).support,
-            Probability.CloseTo
-              (ProbComp.eval (Fin.cons (α := fun _ => ZMod p) ch <$>
-                OracleComp.replicateFin k (ProbComp.uniform (ZMod p))))
-              (ProbComp.eval
-                (Fin.cons (α := fun _ => ZMod p) ch <$>
-                  OracleComp.replicateFin k ((Nat.cast : ℕ → ZMod p) <$> sampleModNat cw p)))
-              ((k : ℝ≥0∞) * ENNReal.ofReal ((p : ℝ) / 2 ^ cw)) := by
-        intro ch _
-        rw [ProbComp.eval_map, ProbComp.eval_map, OracleComp.replicateFin_eq_pi,
-          ProbComp.eval_pi_uniform, ← ProbComp.eval_uniform (Fin k → ZMod p)]
-        exact hRest.map (Fin.cons (α := fun _ : Fin (k + 1) => ZMod p) ch)
-      have hBind := hSingle.bind hCont
-      simpa only [Nat.cast_add, Nat.cast_one, add_mul, one_mul, add_comm] using hBind
-
 private noncomputable def sumcheckCloseErrors (p : ℕ) [Fact p.Prime] (ε : ℝ≥0∞) :
     (k : ℕ) → PerChallenge (fun _ => ℝ≥0∞) (iterSpec (fun _ => Sumcheck.roundSpec (ZMod p)) k)
   | 0 => ()
@@ -2477,7 +2435,9 @@ private theorem closeTo_gkrSamplers (C : LayeredCircuit) {p cw : ℕ} [Fact p.Pr
       (ProbComp.uniform _, ()) (C.descend x C.depth).verifier.samplers)
     (gkrSamplers C p cw) (gkrCloseErrors C p cw)
   refine closeTo_perChallenge_append ⟨?_, trivial⟩ (closeTo_descendSamplers C x C.depth)
-  exact closeTo_replicateFin_sampleModNat (C.width C.depth)
+  rw [ProbComp.eval_uniform]
+  simpa only [ENNReal.ofReal_mul (Nat.cast_nonneg _), ENNReal.ofReal_natCast] using
+    (closeTo_of_dist_le_ofReal (dist_replicateFin_sampleModNat_le (C.width C.depth) cw p)).symm
 
 /-- A verifier-side, efficient-wiring-MLE (`HasPolyTimeWiringMLE`) step toward
 [Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 (§3; see also
