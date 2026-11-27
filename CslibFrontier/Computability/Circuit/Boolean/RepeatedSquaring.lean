@@ -32,8 +32,8 @@ not add the diagonal. For a reflexive relation, once `N ≤ 2 ^ t`, a walk of `2
 reachability (`eval_iterate_squareCircuit_iff_reflTransGen`). With `t = ⌈log₂ N⌉` this computes
 reflexive-transitive closure on reflexive adjacency matrices in depth `2 ⌈log₂ N⌉` and
 `⌈log₂ N⌉ * (N ^ 2 * (N + 1))` gates, the matrix-powering circuit step of
-[AroraBarak07, Chapter 6, Exercise 9] toward `NL ⊆ AC¹ ⊆ NC²` (configuration-graph reduction and
-class inclusion tracked in [#4224](https://github.com/cslib-community/cslib-frontier/issues/4224)).
+[Arora and Barak, Chapter 6, Exercise 9][AroraBarak07].
+`Cslib.Complexity.NL_subset_AC_one` applies it to machine configuration graphs.
 
 ## Main definitions
 

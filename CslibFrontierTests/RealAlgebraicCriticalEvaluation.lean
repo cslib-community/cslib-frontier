@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPowerSection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeCoefficient
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeValue
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
@@ -729,5 +730,23 @@ example (P : MvPolynomial (Fin (2 + 1)) ℤ) (a : ℕ)
     (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate ∈
       CountingFunction a (encEvaluation encBits) encNat :=
   (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate_mem
+
+-- The penalty becomes a power of the value, and the parameter retains its own coordinate.
+example :
+    let P : MvPolynomial (Fin (1 + 2)) ℤ := X (Fin.succ 0) + X (Fin.succ (Fin.succ 0))
+    eval₂ (RingHom.id ℤ) (Fin.cons 2 (fun _ => 5)) (MvPolynomial.powerSection 3 P) = 13 := by
+  intro P
+  rw [eval₂_powerSection]
+  simp only [P, eval₂_add, eval₂_X, Fin.cons_succ, Fin.cons_zero]
+  norm_num
+
+-- Taking the fixed-power section of a relative family drops an arity slot at the same level.
+example (P : MvPolynomial (Fin (1 + 1)) ℤ)
+    (C : Controlled (fun _ : ℕ => P) encNat 0) :
+    let Q : Controlled (n := fun _ => 2) _ encNat 10 :=
+      C.relativeValueSection (n := fun _ => 1) (m := fun _ => 1) Decoder.nat (.const 1) (.const 1)
+    Q.evaluate ∈ CountingFunction 10 (encEvaluation encNat) encNat := by
+  intro Q
+  exact Q.evaluate_mem
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
