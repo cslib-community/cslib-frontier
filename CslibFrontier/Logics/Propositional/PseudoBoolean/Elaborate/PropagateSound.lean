@@ -3914,16 +3914,44 @@ private theorem add_eq (s : EState) (c : PBConstr) (h : Hint) :
   simp only [Id.run]
   split <;> rfl
 
+/-- No constraint has the next engine index. -/
+private theorem InvCore.none_of_size {s : EState} {G : ℕ → Option PBConstr} (h : InvCore s G) :
+    G s.cons.size = none := by
+  cases hg : G s.cons.size with
+  | none => rfl
+  | some _ => have := ((h.live s.cons.size).1 (by simp [hg])).1; omega
+
+/-- After a constraint is pushed, the slack counters of the others are still right. -/
+private theorem slack_push {s₁ s₂ : EState} {G : ℕ → Option PBConstr} {pc : PBConstr} {r : CRec}
+    (h : InvCore s₁ G) (hs : SlackOk s₁ G) (hcons : s₂.cons = s₁.cons.push r)
+    (hsl : ∀ c, c < s₁.cons.size → s₂.slack[c]! = s₁.slack[c]!) (hv : s₂.vars = s₁.vars)
+    (ha : s₂.asg = s₁.asg) (hq : s₂.qhead = s₁.qhead) :
+    ∀ c pc', Function.update G s₁.cons.size (some pc) c = some pc' → reg s₂.cons[c]! = true →
+      c ≠ s₁.cons.size → s₂.slack[c]! = VeriPB.slack (tlits s₂.vars s₂.asg.trail s₂.qhead) pc' := by
+  intro c pc' hc hreg hne
+  have hG : G c = some pc' := by simpa [Function.update, hne] using hc
+  have hlt : c < s₁.cons.size := ((h.live c).1 (by simp [hG])).1
+  have hcc : s₂.cons[c]! = s₁.cons[c]! := by
+    rw [hcons, getElem!_eq, getElem!_eq, Array.getElem?_push]
+    simp [show c ≠ s₁.cons.size by omega]
+  rw [hsl c hlt, hs c pc' hG (hcc ▸ hreg), hv, ha, hq]
+
+/-- The state `rupHints` and `extend` start from: the root level rebuilt if it must be. -/
+private theorem rebuilt_spec {s : EState} {G : ℕ → Option PBConstr} (h : Inv s G) :
+    Inv (if s.dirty = true then s.rebuild else s) G ∧
+      (if s.dirty = true then s.rebuild else s).cons = s.cons ∧
+      (if s.dirty = true then s.rebuild else s).dirty = false := by
+  split
+  · exact rebuild_spec h.toInvCore h.slack
+  · rename_i hd; exact ⟨h, rfl, by simpa using hd⟩
+
 /-- **Adding a constraint** keeps the invariant, the constraint taking the next engine index. -/
 private theorem add_spec {s : EState} {G : ℕ → Option PBConstr} (h : Inv s G) (c : PBConstr)
     (hh : Hint) :
     (s.add c hh).2 = s.cons.size ∧ Inv (s.add c hh).1 (Function.update G s.cons.size (some c)) ∧
     (s.add c hh).1.cons = s.cons.push (s.add c hh).1.cons[s.cons.size]! ∧
     (s.add c hh).1.cons[s.cons.size]!.hint = hh := by
-  have hGi : G s.cons.size = none := by
-    cases hg : G s.cons.size with
-    | none => rfl
-    | some _ => have := ((h.live s.cons.size).1 (by simp [hg])).1; omega
+  have hGi := h.toInvCore.none_of_size
   obtain ⟨⟨vI, vs, val, rea, tp, wa, oc, hc1⟩, hI₁, hS₁, hvx, hax, hperm, hlt⟩ :=
     codes_spec h.toInvCore h.slack c
   rw [add_eq]
@@ -3986,16 +4014,9 @@ private theorem add_spec {s : EState} {G : ℕ → Option PBConstr} (h : Inv s G
     have hI₃ : InvCore { s₂ with roots := R } (Function.update G s.cons.size (some c)) :=
       { hI₂ with roots := hRok }
     have hv21 : s₂.vars = s₁.vars := by rw [hc2]
-    have hS₂ : ∀ c' pc', Function.update G s.cons.size (some c) c' = some pc' →
-        reg s₂.cons[c']! = true → c' ≠ s.cons.size →
-        s₂.slack[c']! = VeriPB.slack (tlits s₂.vars s₂.asg.trail s₂.qhead) pc' := by
-      intro c' pc' hc' hreg hne
-      have hG : G c' = some pc' := by simpa [Function.update, hne] using hc'
-      have hlt' : c' < s₁.cons.size := ((hI₁.live c').1 (by simp [hG])).1
-      have hcc : s₂.cons[c']! = s₁.cons[c']! := by
-        rw [hc2, getElem!_eq, getElem!_eq, Array.getElem?_push]
-        simp [show c' ≠ s₁.cons.size by omega]
-      rw [hsl₂ c' hlt', hS₁ c' pc' hG (hcc ▸ hreg), hc2]
+    have hS₂ := slack_push (pc := c) hI₁ hS₁ (by rw [hc2]) hsl₂ (by rw [hc2]) (by rw [hc2])
+      (by rw [hc2])
+    rw [hcs] at hS₂
     have hGi' : Function.update G s.cons.size (some c) s.cons.size = some c := by simp
     have hrep := hI₂.rep _ _ hGi'
     have hdirty : ∀ X : EState, InvCore X (Function.update G s.cons.size (some c)) →
@@ -4509,10 +4530,37 @@ private theorem occ_split {s₂ s₃ X : EState} {G : ℕ → Option PBConstr} (
     congr 2
     exact List.filter_eq_self.2 fun p hp => by rw [h2 p hp]; simpa using hal
 
+/-- A state with the root trail, the reasons and the root marks of an invariant state, and more
+variables, has its root level. -/
+private theorem Inv.of_root {s₁ X : EState} {G : ℕ → Option PBConstr} (h₁ : Inv s₁ G)
+    (hd₁ : s₁.dirty = false) (hX : InvCore X G) (hXS : SlackOk X G)
+    (e2 : X.rootLen = s₁.rootLen) (e3 : X.rootConflict = s₁.rootConflict)
+    (htr : X.asg.trail = s₁.asg.trail)
+    (hre : ∀ ℓ ∈ s₁.asg.trail, X.asg.reason[ℓ / 2]! = s₁.asg.reason[ℓ / 2]!)
+    (hv : s₁.vars.toList <+: X.vars.toList)
+    (hrr : ∀ j, (G j).isSome → X.rootReason.get! j = s₁.rootReason.get! j) : Inv X G := by
+  have hch := ((h₁.chain hd₁).vars_ext hv h₁.asg.trail_lt).congr htr hre
+  refine { hX with
+    slack := hXS
+    rootLen := fun _ => by rw [e2, htr]; exact h₁.rootLen hd₁
+    rr := fun _ k hk => ?_
+    chain := fun _ => hch
+    conflict := fun _ k hk => ?_ }
+  · obtain ⟨pc, hpc, -⟩ := hch k hk (Nat.zero_le _)
+    have hk' : k < s₁.asg.trail.size := by rw [← htr]; exact hk
+    have htk : X.asg.trail[k] = s₁.asg.trail[k] := by simp [htr]
+    rw [hrr _ (by rw [hpc]; rfl), htk, hre _ (by simp)]
+    exact h₁.rr hd₁ k hk'
+  · rw [e3] at hk
+    obtain ⟨pc, hpc, hsl⟩ := h₁.conflict hd₁ k hk
+    refine ⟨pc, hpc, ?_⟩
+    rw [htr, tlits_ext hv h₁.asg.trail_lt]
+    exact hsl
+
 /-- **Removing the negation** after backtracking restores the invariant of the database. -/
 private theorem removal_spec {s₁ s₆ : EState} {G : ℕ → Option PBConstr} {neg : PBConstr}
     {ts : Array (ℕ × ℕ)} {d start : ℕ} {res : Option (Array Hint)}
-    (h₁ : Inv s₁ G) (hd₁ : s₁.dirty = false) (hrc₁ : s₁.rootConflict = none)
+    (h₁ : Inv s₁ G) (hd₁ : s₁.dirty = false)
     (hGi : G s₁.cons.size = none)
     (hI₆ : InvCore s₆ (Function.update G s₁.cons.size (some neg)))
     (hS₆ : SlackOk s₆ (Function.update G s₁.cons.size (some neg)))
@@ -4520,7 +4568,7 @@ private theorem removal_spec {s₁ s₆ : EState} {G : ℕ → Option PBConstr} 
     (hcons : s₆.cons = s₁.cons.push s₆.cons[s₁.cons.size]!)
     (hcl : s₆.cons[s₁.cons.size]!.clause = false) (hst : s₆.cons[s₁.cons.size]!.start = start)
     (hrr : ∀ j, j ≠ s₁.cons.size → s₆.rootReason.get! j = s₁.rootReason.get! j)
-    (hd6 : s₆.dirty = s₁.dirty) (hrl : s₆.rootLen = s₁.rootLen)
+    (hrl : s₆.rootLen = s₁.rootLen)
     (hrc6 : s₆.rootConflict = s₁.rootConflict) (hroots : s₆.roots = s₁.roots)
     (hocc : ∀ ℓ : ℕ, ∃ PA PB : List (ℕ × ℕ), s₆.occ[ℓ]!.toList = flatL (PA ++ PB) ∧
       (∀ p ∈ PA, p.1 ≠ s₁.cons.size) ∧ (∀ p ∈ PB, p.1 = s₁.cons.size) ∧
@@ -4550,29 +4598,6 @@ private theorem removal_spec {s₁ s₆ : EState} {G : ℕ → Option PBConstr} 
       simp
     rw [this, hrl₁]
     exact (List.prefix_iff_eq_take.1 he.1).symm.trans (by simp)
-  have hroot : ∀ X : EState, InvCore X G → SlackOk X G → X.dirty = s₁.dirty →
-      X.rootLen = s₁.rootLen → X.rootConflict = s₁.rootConflict → X.asg = s₇.asg →
-      X.vars = s₆.vars → (∀ j, j ≠ s₁.cons.size → X.rootReason.get! j = s₁.rootReason.get! j) →
-      Inv X G := by
-    intro X hX hXS e1 e2 e3 e4 e5 e6
-    refine { hX with
-      slack := hXS
-      rootLen := fun hd => by rw [e2, e4, htr]; exact h₁.rootLen (e1 ▸ hd)
-      rr := fun hd k hk => ?_
-      chain := fun hd => ?_
-      conflict := fun hd k hk => by rw [e3, hrc₁] at hk; cases hk }
-    · have hk' : k < s₁.asg.trail.size := by rw [← htr, ← e4]; exact hk
-      have htk : X.asg.trail[k] = s₁.asg.trail[k] := by simp [e4, htr]
-      have hrk : X.asg.reason[X.asg.trail[k] / 2]! = s₁.asg.reason[s₁.asg.trail[k] / 2]! := by
-        rw [htk, e4, hre₇]; exact he.2 _ (by simp)
-      rw [hrk]
-      obtain ⟨pc, hpc, -⟩ := h₁.chain hd₁ k hk' (Nat.zero_le _)
-      have := ((h₁.live _).1 (by rw [hpc]; rfl)).1
-      rw [e6 _ (by omega)]
-      exact h₁.rr hd₁ k hk'
-    · rw [e5, e4]
-      refine ((h₁.chain hd₁).vars_ext hv h₁.asg.trail_lt).congr htr fun ℓ hℓ => ?_
-      rw [hre₇]; exact he.2 ℓ hℓ
   have hfin : ∀ occ : Array (Array ℕ), occ.size = s₇.occ.size →
       (∀ ℓ : ℕ, occ[ℓ]!.toList = flatL (PA ℓ)) →
       Inv { s₇ with occ := occ
@@ -4587,12 +4612,14 @@ private theorem removal_spec {s₁ s₆ : EState} {G : ℕ → Option PBConstr} 
     obtain ⟨hc, hs⟩ := removeNeg_core (s := s₇) (occ := occ) (PA := PA) (st := start) hI₇ hS₇
       hGi hi1 hi (by rw [hc7]; exact hcl) hroots₇ (by rw [hc7]; exact hst) hsz
       (fun ℓ => ⟨hF ℓ, (hPA ℓ).2.1, PB ℓ, by rw [ho7]; exact (hPA ℓ).1, (hPA ℓ).2.2.1⟩)
-    refine ⟨hroot _ hc hs (show s₇.dirty = s₁.dirty by rw [h7]; exact hd6)
-      (show s₇.rootLen = s₁.rootLen by rw [h7]; exact hrl)
-      (show s₇.rootConflict = s₁.rootConflict by rw [h7]; exact hrc6) rfl
-      (show s₇.vars = s₆.vars by rw [h7]) (fun j hj => ?_), ?_⟩
+    have hv7 : s₇.vars = s₆.vars := by rw [h7]
+    refine ⟨Inv.of_root h₁ hd₁ hc hs (show s₇.rootLen = s₁.rootLen by rw [h7]; exact hrl)
+      (show s₇.rootConflict = s₁.rootConflict by rw [h7]; exact hrc6) htr
+      (fun ℓ hℓ => by change s₇.asg.reason[ℓ / 2]! = _; rw [hre₇]; exact he.2 ℓ hℓ)
+      (by change s₁.vars.toList <+: s₇.vars.toList; rw [hv7]; exact hv) (fun j hj => ?_), ?_⟩
     · change s₇.rootReason.get! j = s₁.rootReason.get! j
-      rw [h7]; exact hrr j hj
+      have hlt := ((h₁.live j).1 hj).1
+      rw [h7]; exact hrr j (by omega)
     · rw [hc7, hcons]; simp
   unfold removeTail
   simp only [Id.run]
@@ -4621,12 +4648,7 @@ private theorem rupHints_spec {s : EState} {G : ℕ → Option PBConstr} (h : In
     ∀ {db : List (ℕ × PBConstr)},
       (∀ c pc, G c = some pc → resolve db neg s.cons[c]!.hint = some pc) →
       (s.rupHints neg).2.isSome = true → ∃ hs, VeriPB.rupHints db neg hs [] = true := by
-  have h1 : Inv (if s.dirty = true then s.rebuild else s) G ∧
-      (if s.dirty = true then s.rebuild else s).cons = s.cons ∧
-      (if s.dirty = true then s.rebuild else s).dirty = false := by
-    split
-    · exact rebuild_spec h.toInvCore h.slack
-    · rename_i hd; exact ⟨h, rfl, by simpa using hd⟩
+  have h1 := rebuilt_spec h
   unfold EState.rupHints
   simp only [Id.run]
   generalize (if s.dirty = true then s.rebuild else s) = s₁ at h1 ⊢
@@ -4643,10 +4665,7 @@ private theorem rupHints_spec {s : EState} {G : ℕ → Option PBConstr} (h : In
     · obtain ⟨pc, hpc, hsl⟩ := h₁.conflict hd₁ k hk
       exact rup_of_chain (h₁.chain hd₁) hres hpc hsl
   · rename_i hk
-    have hGi : G s₁.cons.size = none := by
-      cases hg : G s₁.cons.size with
-      | none => rfl
-      | some _ => have := ((h₁.live s₁.cons.size).1 (by simp [hg])).1; omega
+    have hGi := h₁.toInvCore.none_of_size
     obtain ⟨⟨vI, vs, val, rea, tp, wa, oc, hc2⟩, hI₂, hS₂, hvx, hax, hperm, hlt⟩ :=
       codes_spec h₁.toInvCore h₁.slack neg
     generalize s₁.codes neg = p at hc2 hI₂ hS₂ hvx hax hperm hlt ⊢
@@ -4667,16 +4686,9 @@ private theorem rupHints_spec {s : EState} {G : ℕ → Option PBConstr} (h : In
     have hrec : s₃.cons[s₁.cons.size]! = ⟨s₂.lits.size, ts.size, neg.degree, 0, false, .neg⟩ := by
       rw [hc3, hcs, getElem!_eq, Array.getElem?_push]; simp
     have hsize₃ : s₁.cons.size + 1 = s₃.cons.size := by rw [hcons₃]; simp
-    have hS₃ : ∀ c' pc', Function.update G s₁.cons.size (some neg) c' = some pc' →
-        reg s₃.cons[c']! = true → c' ≠ s₁.cons.size →
-        s₃.slack[c']! = VeriPB.slack (tlits s₃.vars s₃.asg.trail s₃.qhead) pc' := by
-      intro c' pc' hc' hreg hne
-      have hG : G c' = some pc' := by simpa [Function.update, hne] using hc'
-      have hlt' : c' < s₂.cons.size := ((hI₂.live c').1 (by simp [hG])).1
-      have hcc : s₃.cons[c']! = s₂.cons[c']! := by
-        rw [hc3, getElem!_eq, getElem!_eq, Array.getElem?_push]
-        simp [show c' ≠ s₂.cons.size by omega]
-      rw [hsl₃ c' hlt', hS₂ c' pc' hG (hcc ▸ hreg), hc3]
+    have hS₃ := slack_push (pc := neg) hI₂ hS₂ (by rw [hc3]) hsl₃ (by rw [hc3]) (by rw [hc3])
+      (by rw [hc3])
+    rw [hcs] at hS₃
     obtain ⟨⟨li4, wa4, sl4, as4, h4⟩, hI₄, hS₄, he₄, hn₄, hk₄⟩ :=
       checkFresh_spec hI₃ hS₃ hGi' hsize₃ (by simpa [hv32] using hal₃) hw₃
     generalize s₃.checkFresh s₁.cons.size = q at h4 hI₄ hS₄ he₄ hn₄ hk₄ ⊢
@@ -4711,7 +4723,7 @@ private theorem rupHints_spec {s : EState} {G : ℕ → Option PBConstr} (h : In
         InvCore X (Function.update G s₁.cons.size (some neg)) →
         SlackOk X (Function.update G s₁.cons.size (some neg)) → AsgExt s₃.asg X.asg →
         X.vars = s₃.vars → X.cons = s₃.cons → X.rootReason = s₃.rootReason →
-        X.dirty = s₃.dirty → X.rootLen = s₃.rootLen → X.rootConflict = s₃.rootConflict →
+        X.rootLen = s₃.rootLen → X.rootConflict = s₃.rootConflict →
         X.roots = s₃.roots → X.occ.size = s₃.occ.size →
         (∀ ℓ : ℕ, X.occ[ℓ]! = s₃.occ[ℓ]! ∨ X.occ[ℓ]!.toList =
           flatL ((pairsL s₃.occ[ℓ]!.toList).filter fun p => s₃.alive.get! p.1 != 0)) →
@@ -4727,20 +4739,16 @@ private theorem rupHints_spec {s : EState} {G : ℕ → Option PBConstr} (h : In
             (removeTail (X.backtrack s₁.rootLen) ts neg.degree s₁.cons.size
               s₃.cons[s₁.cons.size]!.start res).2.isSome = true →
             ∃ hs, VeriPB.rupHints db neg hs [] = true := by
-      intro X res hIX hSX heX hvX hcX hrX hdX hrlX hrcX hroX hosX hoX hsound
+      intro X res hIX hSX heX hvX hcX hrX hrlX hrcX hroX hosX hoX hsound
       have hocc := occ_split (X := X) hI₂ (by rw [hcs]; exact hocc₃) hal3 hoX
       rw [hcs] at hocc
-      have hk' : s₁.rootConflict = none := by
-        cases h' : s₁.rootConflict with
-        | none => rfl
-        | some k => exact (hk k h').elim
       obtain ⟨hinv, hcons⟩ := removal_spec (neg := neg) (res := res)
-        (start := s₃.cons[s₁.cons.size]!.start) h₁ hd₁ hk' hGi hIX hSX
+        (start := s₃.cons[s₁.cons.size]!.start) h₁ hd₁ hGi hIX hSX
         (by rw [e3.2.2.2.2.1] at heX; exact hax.trans heX)
         (by rw [hvX, hv32]; exact hvx) (by rw [hcX]; exact hcons₃)
         (by rw [hcX, hrec]) (by rw [hcX])
         (fun j hj => by rw [hrX, hrr₃ j hj, e3.2.2.2.2.2])
-        (by rw [hdX, e3.1]) (by rw [hrlX, e3.2.1]) (by rw [hrcX, e3.2.2.1])
+        (by rw [hrlX, e3.2.1]) (by rw [hrcX, e3.2.2.1])
         (by rw [hroX, e3.2.2.2.1]) hocc
         (fun p hp => by
           rw [hosX, hI₃.occ_size, hv32]; exact hlt p hp)
@@ -4755,7 +4763,7 @@ private theorem rupHints_spec {s : EState} {G : ℕ → Option PBConstr} (h : In
       dsimp only
       rw [hseen]
       exact leaf { s₄ with seen } (some (s₄.analyze k).2) { hI₄ with } hS₄ he₄ e4.1 e4.2.1
-        e4.2.2.1 e4.2.2.2.1 e4.2.2.2.2.1
+        e4.2.2.1 e4.2.2.2.2.1
         e4.2.2.2.2.2.1 e4.2.2.2.2.2.2.1 (by simp [e4.2.2.2.2.2.2.2])
         (fun ℓ => Or.inl (by simp [e4.2.2.2.2.2.2.2]))
         (fun hres _ => by
@@ -4790,7 +4798,7 @@ private theorem rupHints_spec {s : EState} {G : ℕ → Option PBConstr} (h : In
         obtain ⟨seen, hseen⟩ := analyze_fst s₅ k
         rw [hseen]
         exact leaf { s₅ with seen } (some (s₅.analyze k).2) { hI₅ with } hS₅ (he₄.trans he₅)
-          e5.1 e5.2.1 e5.2.2.1 e5.2.2.2.1
+          e5.1 e5.2.1 e5.2.2.1
           e5.2.2.2.2.1 e5.2.2.2.2.2.1 e5.2.2.2.2.2.2 hos5 ho5
           (fun hres _ => by
             obtain ⟨pc, hpc, hsl⟩ := hk₅ k rfl
@@ -4801,46 +4809,14 @@ private theorem rupHints_spec {s : EState} {G : ℕ → Option PBConstr} (h : In
               exact (hch.ext he₄ hn₄).ext he₅ (by rw [← e4.1]; exact hn₅)
             · rw [e5.2.1]; exact hres' hres)
       | none =>
-        exact leaf _ _ hI₅ hS₅ (he₄.trans he₅) e5.1 e5.2.1 e5.2.2.1 e5.2.2.2.1
+        exact leaf _ _ hI₅ hS₅ (he₄.trans he₅) e5.1 e5.2.1 e5.2.2.1
           e5.2.2.2.2.1 e5.2.2.2.2.2.1 e5.2.2.2.2.2.2 hos5 ho5 (fun _ h => by simp at h)
-
-/-- A state with the root trail, the reasons and the root marks of an invariant state, and more
-variables, has its root level. -/
-private theorem Inv.of_root {s₁ X : EState} {G : ℕ → Option PBConstr} (h₁ : Inv s₁ G)
-    (hd₁ : s₁.dirty = false) (hX : InvCore X G) (hXS : SlackOk X G)
-    (e2 : X.rootLen = s₁.rootLen) (e3 : X.rootConflict = s₁.rootConflict)
-    (htr : X.asg.trail = s₁.asg.trail)
-    (hre : ∀ ℓ ∈ s₁.asg.trail, X.asg.reason[ℓ / 2]! = s₁.asg.reason[ℓ / 2]!)
-    (hv : s₁.vars.toList <+: X.vars.toList)
-    (hrr : ∀ j, (G j).isSome → X.rootReason.get! j = s₁.rootReason.get! j) : Inv X G := by
-  have hch := ((h₁.chain hd₁).vars_ext hv h₁.asg.trail_lt).congr htr hre
-  refine { hX with
-    slack := hXS
-    rootLen := fun _ => by rw [e2, htr]; exact h₁.rootLen hd₁
-    rr := fun _ k hk => ?_
-    chain := fun _ => hch
-    conflict := fun _ k hk => ?_ }
-  · obtain ⟨pc, hpc, -⟩ := hch k hk (Nat.zero_le _)
-    have hk' : k < s₁.asg.trail.size := by rw [← htr]; exact hk
-    have htk : X.asg.trail[k] = s₁.asg.trail[k] := by simp [htr]
-    rw [hrr _ (by rw [hpc]; rfl), htk, hre _ (by simp)]
-    exact h₁.rr hd₁ k hk'
-  · rw [e3] at hk
-    obtain ⟨pc, hpc, hsl⟩ := h₁.conflict hd₁ k hk
-    refine ⟨pc, hpc, ?_⟩
-    rw [htr, tlits_ext hv h₁.asg.trail_lt]
-    exact hsl
 
 /-- **Extending an assignment** keeps the invariant. -/
 private theorem extend_spec {s : EState} {G : ℕ → Option PBConstr} (h : Inv s G)
     (ls : List (Literal ℕ)) :
     Inv (s.extend ls).1 G ∧ (s.extend ls).1.cons = s.cons := by
-  have h1 : Inv (if s.dirty = true then s.rebuild else s) G ∧
-      (if s.dirty = true then s.rebuild else s).cons = s.cons ∧
-      (if s.dirty = true then s.rebuild else s).dirty = false := by
-    split
-    · exact rebuild_spec h.toInvCore h.slack
-    · rename_i hd; exact ⟨h, rfl, by simpa using hd⟩
+  have h1 := rebuilt_spec h
   unfold EState.extend
   simp only [Id.run]
   generalize (if s.dirty = true then s.rebuild else s) = s₁ at h1 ⊢
