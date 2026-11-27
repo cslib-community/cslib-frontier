@@ -275,6 +275,34 @@ theorem listAppend {f₁ f₂ : α → List β}
       (f₁ a).flatMap (frame ∘ encOut) ++ (f₂ a).flatMap (frame ∘ encOut)
     exact List.flatMap_append
 
+/-- Copy the payload bits of a sequence of frames. A true marker introduces the next payload
+bit; a false marker ends the current frame. -/
+private def framePayloadsT : Transducer Bool Bool where
+  q₀ := false
+  step
+    | false, b => (b, [])
+    | true, b => (false, [b])
+  final _ := []
+  length_step_le q b := by cases q <;> simp
+  length_final_le _ := by simp
+
+private theorem framePayloadsT_run_frame (w rest : List Bool) :
+    framePayloadsT.run false (frame w ++ rest) = w ++ framePayloadsT.run false rest := by
+  induction w with
+  | nil => rfl
+  | cons b w ih => simpa [frame_cons, Transducer.run_cons, framePayloadsT] using ih
+
+/-- Removing the outer framing of a list of framed lists concatenates their contents in
+logarithmic space. The transducer reads once from left to right. -/
+theorem listFlatten (enc : β ↪ List Bool) :
+    ComputableInLogSpace List.flatten (encList (encList enc)) (encList enc) :=
+  framePayloadsT.computableInLogSpace fun l => by
+    induction l with
+    | nil => rfl
+    | cons a l ih =>
+      change _ = framePayloadsT.run false _ at ih ⊢
+      rw [encList_cons, framePayloadsT_run_frame, ← ih, List.flatten_cons, encList_append]
+
 /-- Reading the head of a framed list with a default value `d` in logarithmic space. -/
 theorem listHeadD (d : β) :
     ComputableInLogSpace (fun l : List β => l.headD d) (encList encOut) encOut :=
