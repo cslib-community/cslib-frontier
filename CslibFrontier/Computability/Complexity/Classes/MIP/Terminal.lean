@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.MIP.CorrectionProbability
 public import CslibFrontier.Computability.Complexity.Classes.MIP.ConstraintCheck
 public import CslibFrontier.Computability.Complexity.Classes.MIP.SuccinctDecoder
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
@@ -56,13 +57,11 @@ theorem isOraclePPTOn_checkTerminal {α : Type} {enc : α ↪ List Bool}
     (hclaim : ComputableInPolyTime claim enc encNat) :
     IsOraclePPTOn enc encBool (fun a => checkTerminal (x a) (p a) (precision a) (r a) (z a)
       (claim a)) := by
-  have toBinary {f : α → List ℕ} (hf : ComputableInPolyTime f enc (encList encUnary)) :
-      ComputableInPolyTime f enc (encList encNat) := by
-    simpa using (ComputableInPolyTime.map (f := id) ComputableInPolyTime.unary_to_binary).comp hf
   apply isOraclePPTOn_verifyConstraint (ComputableInPolyTime.unary_to_binary.comp hp)
     (ComputableInPolyTime.unary_to_binary.comp (encSuccinct3CNF_clauseBits_polyTime hx))
     ((ComputableInPolyTime.fst _ _).comp (encSuccinct3CNF_code_polyTime hx))
-    (toBinary hr) (toBinary hz) (Succinct3CNFInstance.computableInPolyTime_signWires.comp hx) hclaim
+    (hr.reencodeList .unary_to_binary) (hz.reencodeList .unary_to_binary)
+    (Succinct3CNFInstance.computableInPolyTime_signWires.comp hx) hclaim
   intro j
   apply isOraclePPTOn_correctPoint hp (encSuccinct3CNF_labelBits_polyTime hx) hprec
   apply ComputableInPolyTime.mapWithInput
