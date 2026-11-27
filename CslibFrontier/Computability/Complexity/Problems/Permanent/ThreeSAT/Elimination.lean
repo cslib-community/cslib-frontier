@@ -199,25 +199,30 @@ theorem mem_gadget (u : Fin (size φ)) :
   · intro h
     exact ⟨⟨(u.val - numAux φ) % 8, by omega⟩, by fin_index [gadgetEmb_val]⟩
 
-theorem mem_gadgetExits (Q : Finset (Fin 3)) (u : Fin (size φ)) :
-    u ∈ (Q.map exitE).map (gadgetEmb φ k hk) ↔ ∃ p ∈ Q, u.val = exitIdx φ (3 * k + p.val) := by
+private theorem mem_gadget_map (e : Fin 3 ↪ Fin 8) (idx : ℕ → ℕ)
+    (hidx : ∀ p : Fin 3, idx (3 * k + p.val) = numAux φ + 8 * k + (e p).val)
+    (Q : Finset (Fin 3)) (u : Fin (size φ)) :
+    u ∈ (Q.map e).map (gadgetEmb φ k hk) ↔ ∃ p ∈ Q, u.val = idx (3 * k + p.val) := by
   simp only [mem_map]
-  have hE (p : Fin 3) : (exitE p).val = p.val + 3 := rfl
   constructor
   · rintro ⟨b, ⟨p, hp, rfl⟩, rfl⟩
-    exact ⟨p, hp, by simp only [gadgetEmb_val, hE, exitIdx]; omega⟩
+    exact ⟨p, hp, by rw [hidx, gadgetEmb_val]⟩
   · rintro ⟨p, hp, he⟩
-    exact ⟨exitE p, ⟨p, hp, rfl⟩, Fin.ext (by simp only [gadgetEmb_val, he, hE, exitIdx]; omega)⟩
+    exact ⟨e p, ⟨p, hp, rfl⟩, Fin.ext (by rw [gadgetEmb_val, he, hidx])⟩
+
+theorem mem_gadgetExits (Q : Finset (Fin 3)) (u : Fin (size φ)) :
+    u ∈ (Q.map exitE).map (gadgetEmb φ k hk) ↔ ∃ p ∈ Q, u.val = exitIdx φ (3 * k + p.val) :=
+  mem_gadget_map hk exitE (exitIdx φ) (fun p => by
+    change _ = numAux φ + 8 * k + (p.val + 3)
+    simp only [exitIdx]
+    omega) Q u
 
 theorem mem_gadgetEntries (Q : Finset (Fin 3)) (u : Fin (size φ)) :
-    u ∈ (Q.map entryE).map (gadgetEmb φ k hk) ↔ ∃ p ∈ Q, u.val = entryIdx φ (3 * k + p.val) := by
-  simp only [mem_map]
-  have hE (p : Fin 3) : (entryE p).val = p.val := rfl
-  constructor
-  · rintro ⟨b, ⟨p, hp, rfl⟩, rfl⟩
-    exact ⟨p, hp, by simp only [gadgetEmb_val, hE, entryIdx]; omega⟩
-  · rintro ⟨p, hp, he⟩
-    exact ⟨entryE p, ⟨p, hp, rfl⟩, Fin.ext (by simp only [gadgetEmb_val, he, hE, entryIdx]; omega)⟩
+    u ∈ (Q.map entryE).map (gadgetEmb φ k hk) ↔ ∃ p ∈ Q, u.val = entryIdx φ (3 * k + p.val) :=
+  mem_gadget_map hk entryE (entryIdx φ) (fun p => by
+    change _ = numAux φ + 8 * k + p.val
+    simp only [entryIdx]
+    omega) Q u
 
 /-- The kept vertices after eliminating the gadgets before `k`, keeping the vertices `idx o` of the
 occurrences `o ∈ P`; `stageRows` and `stageCols` are the instances `idx = exitIdx φ` and
