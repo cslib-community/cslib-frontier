@@ -31,8 +31,11 @@ elaboration of it.
   which CakePB rejects: labels in subproofs and around an order, a `dom` step with a scope, a
   label given again, and the rejection of an undefined label, of two labels before one rule and
   of a label before `deld`. Where such a proof is accepted, CakePB accepts VeriPB's elaboration of
-  it, which numbers the labelled constraints as the front end does. The kernel front end also
-  checks `def_order_labels` and a kernel form of the specification labels below.
+  it, which numbers the labelled constraints as the front end does. The acceptance of the proofs
+  with labels of the instance, with labels in subproofs and for a DIMACS formula is decided by
+  `decide +kernel`; the other verdicts, among them that on the proof with an order and `dom`, are
+  run by `#guard`, which evaluates the same front end. The kernel front end also checks
+  `def_order_labels` and a kernel form of the specification labels below.
 * **Augmented proofs**, elaborated by `Cslib.Logic.PL.VeriPB.Elab.checkAugmented` and run by
   `#guard`: references to the labels of the instance; a later label of the same name, in the
   instance or in the proof, takes precedence; VeriPB's test `def_order_labels`, where a label
@@ -142,50 +145,50 @@ example : ∃ I, parseOPB eqOPB = some I ∧ ∀ σ : ℕ → Bool, ¬ ∀ c ∈
   not_satisfiable_of_checkOPB eqLabelled_accepted
 
 -- An undefined label, and two labels before one rule, are rejected.
-example : checkOPB eqOPB "pseudo-Boolean proof version 3.0
+#guard checkOPB eqOPB "pseudo-Boolean proof version 3.0
 f 4;
 @c pol @both_hi @three + @two + ;
 output NONE;
 conclusion UNSAT : @c;
 end pseudo-Boolean proof;
-" = none := by decide +kernel
+" == none
 
-example : checkOPB eqOPB "pseudo-Boolean proof version 3.0
+#guard checkOPB eqOPB "pseudo-Boolean proof version 3.0
 f 4;
 @a @b pol @both_hi @one + @two + ;
 output NONE;
 conclusion UNSAT : @a;
 end pseudo-Boolean proof;
-" = none := by decide +kernel
+" == none
 
 -- So is a label before a rule that derives no constraint.
-example : checkOPB eqOPB "pseudo-Boolean proof version 3.0
+#guard checkOPB eqOPB "pseudo-Boolean proof version 3.0
 f 4;
 @d deld 3;
 output NONE;
 conclusion NONE;
 end pseudo-Boolean proof;
-" = none := by decide +kernel
+" == none
 
 -- A label before `e C : j` names `j`, as in VeriPB.
-example : checkOPB eqOPB "pseudo-Boolean proof version 3.0
+#guard checkOPB eqOPB "pseudo-Boolean proof version 3.0
 f 4;
 @h e 1 ~x1 1 ~x2 >= 1 : 2;
 @c pol @h @one + @two + ;
 output NONE;
 conclusion UNSAT : @c;
 end pseudo-Boolean proof;
-" = some (.unsat 5) := by decide +kernel
+" == some (.unsat 5)
 
 -- A label given again names its new constraint from then on, here `~x1 >= 1`.
-example : checkOPB eqOPB "pseudo-Boolean proof version 3.0
+#guard checkOPB eqOPB "pseudo-Boolean proof version 3.0
 f 4;
 @one pol @both_hi @two + ;
 @c pol @one 3 + ;
 output NONE;
 conclusion UNSAT : @c;
 end pseudo-Boolean proof;
-" = some (.unsat 6) := by decide +kernel
+" == some (.unsat 6)
 
 /-- Labels in subproofs: `@r` names the constraint of a `red` step after its subproof, `@g` a
 constraint derived in a `proofgoal` block, `@n` one derived in the subproof of `pbc`, and `@p`
@@ -280,24 +283,20 @@ end pseudo-Boolean proof;
 "
 
 -- A label before `sol`, which adds no constraint, is rejected, as by VeriPB.
-example : checkOPB sym2OPB "pseudo-Boolean proof version 3.0
+#guard checkOPB sym2OPB "pseudo-Boolean proof version 3.0
 f 1;
 @s sol ~x1 x2;
 output NONE;
 conclusion NONE;
 end pseudo-Boolean proof;
-" = none := by decide +kernel
+" == none
 
-theorem domLabelled_accepted :
-    checkOPB sym2OPB domLabelled = some (.bounds (some 1) 10 (some 1) none) := by
-  decide +kernel
-
--- So the optimum of `x1 + x2` subject to `x1 + x2 >= 1` is at least `1`, and `1` is reached.
-example : ∃ I f, parseOPB sym2OPB = some I ∧ I.objective = some f ∧
-    (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) → ∃ l, some 1 = some l ∧ l ≤ f.eval σ) ∧
-    ∀ u, some (1 : ℤ) = some u → ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧
-      f.eval σ ≤ u :=
-  bounds_of_checkOPB domLabelled_accepted
+-- The proof with an order and `dom` is run by `#guard`, as kernel evaluation of the checker on
+-- it is costly; `CslibFrontierTests.Logics.Propositional.VeriPBTextDecide` decides the unlabelled
+-- `domAuxObjProof` and applies the soundness theorem to it.
+#guard checkOPB sym2OPB domLabelled == some (.bounds (some 1) 10 (some 1) none)
+-- After the order, `@t` names the axiom `x1 >= 0`, which does not imply `x1 >= 1`.
+#guard checkOPB sym2OPB (domLabelled.replace "e 1 x1 >= 0 : @t;" "e 1 x1 >= 1 : @t;") == none
 
 -- A DIMACS formula has no labels, but its proof may have some.
 example : checkDIMACS "p cnf 1 2\n1 0\n-1 0\n" "pseudo-Boolean proof version 3.0
