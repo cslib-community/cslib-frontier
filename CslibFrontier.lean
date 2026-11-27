@@ -9968,6 +9968,7 @@ public import CslibFrontier.Computability.Complexity.Classes.PH.OracleCollapse
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Components
 public import CslibFrontier.Computability.Circuit.Prefix.OptimalDepth.TreeBound
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.IndepCount
+public import CslibFrontier.Computability.Complexity.Problems.SAT.SingleTape
 public import CslibFrontier.Foundations.Quantum.Measurement.Restrict
 public import CslibFrontier.Computability.LogSpaceDerandomization.HeavyCountTail
 public import CslibFrontier.Computability.Complexity.Classes.Space.Basic
