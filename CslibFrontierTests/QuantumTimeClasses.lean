@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Computability.Circuit.Quantum.PhaseOracle
+import CslibFrontier.Computability.Complexity.Classes.BQP.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.BQP.TensorContraction
 import CslibFrontier.Computability.Complexity.Classes.PostBQP
 import CslibFrontier.Computability.Circuit.Quantum.RandomTag
@@ -52,12 +54,24 @@ example : 0 < coin.acceptProb [] ∧ coin.acceptProb [] ≠ 1 := by
   rw [acceptProb_coin]
   norm_num
 
+-- Opposite phases on the two equally likely outputs cancel the return amplitude.
+example : (Circuit.run (Circuit.ofCodes 1 (GateCode.phaseOracleCodes [(true, 0, [])] 0))
+    (inputState 1 [])).ofLp (inputState 1 []) = 0 := by
+  rw [Circuit.run_phaseOracleCodes_input (by decide) (by decide)]
+  change 1 - 2 * (coin.acceptProb [] : ℂ) = 0
+  rw [acceptProb_coin]
+  norm_num
+
 /-- The coin puts the instance into `NQTIME`. -/
 theorem univ_mem_NQTIME : (Set.univ : Set Unit) ∈ NQTIME encUnit fun _ => 1 :=
   ⟨coin, 0, 1, fun _ => le_rfl, fun _ => by
     change _ ↔ 0 < coin.acceptProb []
     rw [acceptProb_coin]
     norm_num⟩
+
+-- A fair coin has enough acceptance probability for NQP on the singleton universe.
+example : (Set.univ : Set Unit) ∈ NQP encUnit :=
+  NQP_eq_iUnion_NQTIME ▸ Set.mem_iUnion.mpr ⟨0, by simpa using univ_mem_NQTIME⟩
 
 example : (Set.univ : Set Unit) ∈ ⋃ C, DTIME encUnit fun n =>
     2 ^ (C * (n + 2) / Nat.sqrt (Nat.log 2 (n + 2))) :=
