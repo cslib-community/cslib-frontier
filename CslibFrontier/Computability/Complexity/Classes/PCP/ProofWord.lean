@@ -49,27 +49,37 @@ theorem value_lt_two_pow (π : List Bool → Bool) (key : List Bool) (width : �
   simpa only [value, List.length_ofFn] using ofBits_lt_two_pow
     (List.ofFn fun i : Fin width => π (encPair encBits encNat (key, i.val)))
 
-/-- Read `width` bits at distinct addresses framed by `key`, and return their binary value. -/
-def readValue (key : List Bool) (width : ℕ) : WordOracleComp Unit ℕ :=
-  OracleComp.interpret ProbOracleComp.query (ofBits <$> readBitsProgram
+/-- Read exactly the requested bits at a field of the static proof. Trailing zeros remain
+available to fixed-width decoders. -/
+def readBits (key : List Bool) (width : ℕ) : WordOracleComp Unit (List Bool) :=
+  OracleComp.interpret ProbOracleComp.query (readBitsProgram
     (fun (p : List Bool × ℕ) i => encPair encBits encNat (p.1, i)) Prod.snd (key, width))
 
-/-- Polynomial-time keys and unary widths give a strict oracle-PPT binary read. -/
-theorem isOraclePPTOn_readValue {α : Type} {enc : α ↪ List Bool}
+/-- Polynomial-time keys and unary widths give a strict fixed-width bit read. -/
+theorem isOraclePPTOn_readBits {α : Type} {enc : α ↪ List Bool}
     {key : α → List Bool} {width : α → ℕ} (hk : ComputableInPolyTime key enc encBits)
     (hw : ComputableInPolyTime width enc encUnary) :
-    IsOraclePPTOn enc encNat (fun a => readValue (key a) (width a)) := by
+    IsOraclePPTOn enc encBits (fun a => readBits (key a) (width a)) := by
   let e := encPair encBits encUnary
   let req (p : List Bool × ℕ) (i : ℕ) := encPair encBits encNat (p.1, i)
   have hreq : ComputableInPolyTime (fun p : (List Bool × ℕ) × ℕ => req p.1 p.2)
       (encPair e encUnary) encBits :=
     .encoding_comp (((ComputableInPolyTime.fst _ _).comp (.fst _ _)).prod
       (ComputableInPolyTime.unary_to_binary.comp (.snd _ _)))
-  have hread := isOraclePPTOn_readBitsProgram (req := req) hreq (ComputableInPolyTime.snd _ _)
-  apply IsOraclePPTOn.preprocess (program := fun p : List Bool × ℕ => readValue p.1 p.2) _
+  exact (isOraclePPTOn_readBitsProgram (req := req) hreq (ComputableInPolyTime.snd _ _)).preprocess
     (hk.prod hw)
-  simpa only [readValue, OracleComp.interpret_map] using
-    hread.map_with (f := fun _ bits => ofBits bits) (ComputableInPolyTime.bitsToNat.comp (.snd _ _))
+
+/-- Read `width` bits at distinct addresses framed by `key`, and return their binary value. -/
+def readValue (key : List Bool) (width : ℕ) : WordOracleComp Unit ℕ :=
+  ofBits <$> readBits key width
+
+/-- Polynomial-time keys and unary widths give a strict oracle-PPT binary read. -/
+theorem isOraclePPTOn_readValue {α : Type} {enc : α ↪ List Bool}
+    {key : α → List Bool} {width : α → ℕ} (hk : ComputableInPolyTime key enc encBits)
+    (hw : ComputableInPolyTime width enc encUnary) :
+    IsOraclePPTOn enc encNat (fun a => readValue (key a) (width a)) :=
+  (isOraclePPTOn_readBits hk hw).map_with (f := fun _ bits => ofBits bits)
+    (ComputableInPolyTime.bitsToNat.comp (.snd _ _))
 
 /-- Read a list of proof keys at one common bit width, preserving the order of the keys. -/
 def readValues (keys : List (List Bool)) (width : ℕ) : WordOracleComp Unit (List ℕ) :=
@@ -87,40 +97,41 @@ theorem isOraclePPTOn_readValues {α : Type} {enc : α ↪ List Bool}
   apply IsOraclePPTOn.mapM_with_of_bounded_output [] hk
     (isOraclePPTOn_readValue (.snd _ _) (hw.comp (.fst _ _))) hw
   intro a key r hr
-  change r ∈ OracleComp.supportWith _ (OracleComp.interpret _ _) at hr
-  rw [OracleComp.supportWith_interpret] at hr
   obtain ⟨bits, hb, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hr
+  rw [readBits, OracleComp.supportWith_interpret] at hb
   refine (length_encNat_ofBits_le bits).trans (le_of_eq ?_)
   apply OracleComp.iterate_invariant (fun i (xs : List Bool) => xs.length = i) rfl _ bits hb
   intro i xs _ hi ys hys
   obtain ⟨b, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hys
   simp [hi]
 
-/-- Reading a fixed proof table returns its value with certainty, including when the key is
-queried repeatedly from different verifier histories. -/
-theorem run_readValue (π : List Bool → Bool) (key : List Bool) (width : ℕ) :
-    (Prover.ofProof π).run (readValue key width) () = PMF.pure (value π key width, ()) := by
+/-- Reading a bit word against a fixed table returns the bits at its framed addresses in
+the same order, even when the key has been queried previously. -/
+theorem run_readBits (π : List Bool → Bool) (key : List Bool) (width : ℕ) :
+    (Prover.ofProof π).run (readBits key width) () = PMF.pure
+      (List.ofFn (fun i : Fin width => π (encPair encBits encNat (key, i.val))), ()) := by
   classical
   let A : Set (List Bool) := {q | π q}
-  let program := ofBits <$> readBitsProgram
-    (fun (p : List Bool × ℕ) i => encPair encBits encNat (p.1, i)) Prod.snd (key, width)
   have hquery (q : Unit × List Bool) (s : Unit) :
       ProbOracleComp.runWith (Prover.ofProof π).respond (ProbOracleComp.query q) s =
         (PMF.pure (languageOracle A q)).map (·, s) := by
     simp [ProbOracleComp.runWith_query, Prover.ofProof, languageOracle_apply, A]
-  rw [readValue, Prover.run_eq_runWith, ProbOracleComp.runWith_interpret]
-  change OracleComp.runWith _ program () = _
+  rw [readBits, Prover.run_eq_runWith, ProbOracleComp.runWith_interpret]
   rw [funext (fun q => funext (hquery q))]
-  rw [OracleComp.runWith_memoryless, OracleComp.evalWith_pure_oracle]
-  rw [PMF.pure_map]
+  rw [OracleComp.runWith_memoryless, OracleComp.evalWith_pure_oracle, PMF.pure_map]
   congr 2
-  change OracleComp.interpret (m := Id) (languageOracle A) (ofBits <$> _) = _
-  rw [OracleComp.interpret_map, interpret_readBitsProgram]
-  change ofBits (List.ofFn _) = _
-  apply congrArg ofBits
+  change OracleComp.interpret (m := Id) (languageOracle A) (readBitsProgram _ _ _) = _
+  rw [interpret_readBitsProgram]
   apply congrArg List.ofFn
   funext i
   exact Bool.eq_iff_iff.mpr (@decide_eq_true_iff _ (Classical.propDecidable _))
+
+/-- Reading a fixed proof table returns its value with certainty, including when the key is
+queried repeatedly from different verifier histories. -/
+theorem run_readValue (π : List Bool → Bool) (key : List Bool) (width : ℕ) :
+    (Prover.ofProof π).run (readValue key width) () = PMF.pure (value π key width, ()) := by
+  rw [readValue, ← bind_pure_comp, Prover.run_bind, run_readBits, PMF.pure_bind, Prover.run_pure]
+  rfl
 
 /-- A traversal of fixed keys obtains the corresponding values of the same proof table. -/
 theorem run_readValues (π : List Bool → Bool) (keys : List (List Bool)) (width : ℕ) :
