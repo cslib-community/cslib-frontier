@@ -79,6 +79,22 @@ private theorem initial_spec (darts : List ℕ) :
     initial.Nodup ∧ (∀ d ∈ initial, d ∈ darts) ∧ initial.length = min 1 darts.length := by
   cases darts <;> simp
 
+private theorem iterate_advance_induction {I : FixedRotationInput} {v : ℕ} {initial : List ℕ}
+    (P : ℕ → List ℕ → Prop) (h0 : P 0 initial)
+    (hs : ∀ i previous w, P i previous → advance I v (some previous) = some w → P (i + 1) w)
+    (i : ℕ) {w : List ℕ} (hi : (advance I v)^[i] (some initial) = some w) : P i w := by
+  induction i generalizing w with
+  | zero =>
+    have hw : initial = w := Option.some.inj hi
+    exact hw ▸ h0
+  | succ i ih =>
+    rw [Function.iterate_succ_apply'] at hi
+    cases hx : (advance I v)^[i] (some initial) with
+    | none => simp [hx, advance] at hi
+    | some previous =>
+      rw [hx] at hi
+      exact hs i previous w (ih hx) hi
+
 /-- A successful recovered word uses at most the actual fiber length, with no repeated or invalid
 binary dart index. This holds on malformed input too. -/
 theorem recoverWord_invariant {I : FixedRotationInput} {v : ℕ} {word : List ℕ}
@@ -91,21 +107,14 @@ theorem recoverWord_invariant {I : FixedRotationInput} {v : ℕ} {word : List �
       initial.length = min 1 darts.length := initial_spec darts
   have step (i : ℕ) {w : List ℕ}
       (hi : (advance I v)^[i] (some initial) = some w) :
-      w.Nodup ∧ (∀ d ∈ w, d ∈ darts) ∧ w.length ≤ initial.length + i := by
-    induction i generalizing w with
-    | zero =>
-      have hw : initial = w := Option.some.inj hi
-      subst w
-      exact ⟨hinit.1, hinit.2.1, by omega⟩
-    | succ i ih =>
-      rw [Function.iterate_succ_apply'] at hi
-      cases hx : (advance I v)^[i] (some initial) with
-      | none => simp [hx, advance] at hi
-      | some previous =>
-        rw [hx] at hi
-        obtain ⟨hn, hm, hl⟩ := ih hx
+      w.Nodup ∧ (∀ d ∈ w, d ∈ darts) ∧ w.length ≤ initial.length + i :=
+    iterate_advance_induction
+      (fun i w => w.Nodup ∧ (∀ d ∈ w, d ∈ darts) ∧ w.length ≤ initial.length + i)
+      ⟨hinit.1, hinit.2.1, by omega⟩
+      (fun _ _ _ ⟨hn, hm, hl⟩ hi => by
         obtain ⟨hn', hm', _, hl'⟩ := advance_invariant hi hn hm
-        exact ⟨hn', hm', by omega⟩
+        exact ⟨hn', hm', by omega⟩)
+      i hi
   have hstep := step (darts.length - 1) h
   have := hinit.2.2
   exact ⟨hstep.1, hstep.2.1, by change word.length ≤ darts.length; omega⟩
@@ -120,19 +129,11 @@ theorem recoverWord_enumerates {I : FixedRotationInput} {v : ℕ} {word : List �
       initial.length = min 1 darts.length := initial_spec darts
   have step (i : ℕ) {w : List ℕ}
       (hi : (advance I v)^[i] (some initial) = some w) :
-      w.Nodup ∧ (∀ d ∈ w, d ∈ darts) ∧ min darts.length (initial.length + i) ≤ w.length := by
-    induction i generalizing w with
-    | zero =>
-      have hw := Option.some.inj hi
-      subst w
-      exact ⟨hinit.1, hinit.2.1, by omega⟩
-    | succ i ih =>
-      rw [Function.iterate_succ_apply'] at hi
-      cases hx : (advance I v)^[i] (some initial) with
-      | none => simp [hx, advance] at hi
-      | some previous =>
-        rw [hx] at hi
-        obtain ⟨hn, hm, hl⟩ := ih hx
+      w.Nodup ∧ (∀ d ∈ w, d ∈ darts) ∧ min darts.length (initial.length + i) ≤ w.length :=
+    iterate_advance_induction
+      (fun i w => w.Nodup ∧ (∀ d ∈ w, d ∈ darts) ∧ min darts.length (initial.length + i) ≤ w.length)
+      ⟨hinit.1, hinit.2.1, by omega⟩
+      (fun _ previous w ⟨hn, hm, hl⟩ hi => by
         obtain ⟨hn', hm', _, _⟩ := advance_invariant hi hn hm
         refine ⟨hn', hm', ?_⟩
         rcases advance_some hi with ⟨he, hw⟩ | ⟨d, _, _, hw⟩
@@ -145,7 +146,8 @@ theorem recoverWord_enumerates {I : FixedRotationInput} {v : ℕ} {word : List �
             contradiction
           exact (Nat.min_le_left _ _).trans ((nodup_fiber I.graph v).length_le_of_subset hsub)
         · rw [hw, List.length_append, List.length_singleton]
-          omega
+          omega)
+      i hi
   have hstep := step (darts.length - 1) h
   obtain ⟨hn, hm, hu⟩ := recoverWord_invariant h
   change word.length ≤ darts.length at hu
