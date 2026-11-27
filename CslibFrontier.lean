@@ -7827,6 +7827,7 @@ public import CslibFrontier.GameTheory.Congestion.Pricing.ParallelSerial
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount.DenseRelabel
 public import CslibFrontier.Foundations.Combinatorics.MinIsolation.BaseSix
 public import CslibFrontier.GameTheory.RandomAssignment.ProbabilisticSerial
+public import CslibFrontier.Computability.Complexity.Classes.MIP.SumcheckVerifier
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.VisitorInitialize
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.FineNondeterministicExponentialTime
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.LinearStrongExtractor
@@ -10156,6 +10157,7 @@ public import CslibFrontier.Computability.QueryComplexity.SensitivitySeparation.
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Trees.ThinTrees
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.SpecU2
 public import CslibFrontier.Tactic.PolyTime.Init
+public import CslibFrontier.Computability.Complexity.Classes.MIP.SumcheckVerifier.Completeness
 public import CslibFrontier.Foundations.NumberTheory.Primality.Miller
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Chosen
 public import CslibFrontier.Logics.FirstOrder.Ordered.DomainInterpretation
