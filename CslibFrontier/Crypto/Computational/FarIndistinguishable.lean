@@ -83,19 +83,18 @@ theorem one_sub_div_le_of_closeTo_generatorEnsemble (generator : List Bool → L
     obtain ⟨r, -, rfl⟩ := hword
     exact Finset.mem_coe.2 (Finset.mem_image_of_mem _ (Finset.mem_univ r))
   have hcard : (image.card : ℝ≥0∞) ≤ 2 ^ n := by
-    have h := Finset.card_image_le (s := (Finset.univ : Finset (Fin n → Bool)))
-      (f := fun r => generator (List.ofFn r))
-    simp only [Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at h
-    exact_mod_cast h
+    simpa only [Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
+      Nat.cast_pow, Nat.cast_ofNat] using
+      (Nat.cast_le (α := ℝ≥0∞)).2
+        (Finset.card_image_le (s := (Finset.univ : Finset (Fin n → Bool)))
+          (f := fun r => generator (List.ofFn r)))
   have hideal : (BitString.uniformList m).toOuterMeasure image ≤ 2 ^ n / 2 ^ m := by
     refine (BitString.toOuterMeasure_uniformList_finset_le m image).trans ?_
     rw [← mul_div_assoc, mul_one]
     exact ENNReal.div_le_div_right hcard _
-  have hclose := h image
-  rw [hreal] at hclose
   calc 1 - 2 ^ n / 2 ^ m ≤ 1 - (BitString.uniformList m).toOuterMeasure image :=
         tsub_le_tsub_left hideal 1
-    _ ≤ ε := tsub_le_iff_left.2 hclose
+    _ ≤ ε := tsub_le_iff_left.2 (hreal ▸ h image)
 
 /-- The constructible form of a generator ensemble: sample a seed, then evaluate. -/
 private theorem eval_map_sampleList (generator : List Bool → List Bool) (n : ℕ) :
@@ -116,8 +115,11 @@ theorem PseudorandomGenerator.exists_far_indistinguishable
   have hg := h.polyTime
   have hl := h.polyTime_length
   refine ⟨fun n => generator <$> BitString.sampleList n,
-    fun n => BitString.sampleList (length n), by ppt, by ppt, ?_, fun n ε hε => ?_⟩
-  · simpa only [eval_map_sampleList, BitString.eval_sampleList] using h.indistinguishable
+    fun n => BitString.sampleList (length n), ?_, ?_,
+    by simpa only [eval_map_sampleList, BitString.eval_sampleList] using h.indistinguishable,
+    fun n ε hε => ?_⟩
+  · ppt
+  · ppt
   · simp only [eval_map_sampleList, BitString.eval_sampleList] at hε
     refine le_trans ?_ (one_sub_div_le_of_closeTo_generatorEnsemble generator n (length n) hε)
     have hpow : (2 : ℝ≥0∞) ^ (n + 1) ≤ 2 ^ length n :=
@@ -145,26 +147,21 @@ private theorem closeTo_generatorEnsemble_hardCoreIdeal (f : List Bool → List 
     (predicate : List Bool → Bool) (n : ℕ) :
     CloseTo (generatorEnsemble (fun seed => f seed ++ [predicate seed]) n) (hardCoreIdeal f n)
       (1 / 2) := by
-  have hhalf : ENNReal.ofReal (1 - 1 / 2) = 2⁻¹ := by
-    rw [show (1 : ℝ) - 1 / 2 = 2⁻¹ by norm_num, ENNReal.ofReal_inv_of_pos two_pos]
+  have hhalf : ENNReal.ofReal (1 / 2) = 2⁻¹ := by
+    rw [one_div, ENNReal.ofReal_inv_of_pos two_pos]
     simp
-  have hpoint (word : List Bool) :
-      ENNReal.ofReal (1 - 1 / 2) * generatorEnsemble (fun seed => f seed ++ [predicate seed]) n word
-        ≤ hardCoreIdeal f n word := by
-    rw [hhalf, generatorEnsemble, ← PMF.bind_pure_comp, hardCoreIdeal_eq_bind, PMF.bind_apply,
-      PMF.bind_apply, ← ENNReal.tsum_mul_left]
-    refine tsum_le_tsum fun seed => ?_
-    rw [mul_left_comm]
-    gcongr
-    simp only [Function.comp_apply, PMF.pure_apply]
-    split_ifs with hword
-    · rw [mul_one, PMF.map_apply]
-      refine le_trans ?_ (le_tsum _ (predicate seed))
-      simp [hword]
-    · simp
-  have h := (CloseTo.of_le_apply (by norm_num) hpoint).symm
-  rwa [show ENNReal.ofReal (1 / 2) = 1 / 2 by
-    rw [one_div, ENNReal.ofReal_inv_of_pos two_pos]; simp] at h
+  refine (show ENNReal.ofReal (1 / 2) = 1 / 2 by rw [hhalf, one_div]) ▸
+    (CloseTo.of_le_apply (by norm_num) fun word => ?_).symm
+  rw [show (1 : ℝ) - 1 / 2 = 1 / 2 by norm_num, hhalf, generatorEnsemble, ← PMF.bind_pure_comp,
+    hardCoreIdeal_eq_bind, PMF.bind_apply, PMF.bind_apply, ← ENNReal.tsum_mul_left]
+  refine tsum_le_tsum fun seed => ?_
+  rw [mul_left_comm]
+  gcongr
+  simp only [Function.comp_apply, PMF.pure_apply]
+  split_ifs with hword
+  · rw [mul_one, PMF.map_apply]
+    exact le_trans (by simp [hword]) (le_tsum _ (predicate seed))
+  · simp
 
 /-- **Hiding the bit of a one-to-one image moves the law by exactly `1 / 2`**: if `f` is
 one-to-one on `n`-bit words, then `f(x) b(x)` and `f(x) σ`, for a uniform `n`-bit `x` and an
@@ -197,20 +194,16 @@ theorem closeTo_generatorEnsemble_hardCoreIdeal_iff {f : List Bool → List Bool
             rw [PMF.toOuterMeasure_map_apply]
             calc (PMF.uniformOfFintype Bool).toOuterMeasure ((fun bit => f seed ++ [bit]) ⁻¹' event)
                 ≤ (PMF.uniformOfFintype Bool).toOuterMeasure {predicate seed} := by
-                  refine (PMF.uniformOfFintype Bool).toOuterMeasure.mono fun bit hbit => ?_
-                  obtain ⟨other, hother, heq⟩ := hbit
+                  refine (PMF.uniformOfFintype Bool).toOuterMeasure.mono
+                    fun bit ⟨other, hother, heq⟩ => ?_
                   obtain ⟨himage, hbit⟩ := List.append_inj' heq rfl
-                  have := hf (BitString.length_of_mem_support_uniformList hseed) hother himage
-                  subst this
+                  cases hf (BitString.length_of_mem_support_uniformList hseed) hother himage
                   simpa using hbit
               _ = 2⁻¹ := by simp
-          · rw [(PMF.apply_eq_zero_iff _ _).2 hseed]
-            simp
+          · simp [(PMF.apply_eq_zero_iff _ _).2 hseed]
       _ = 2⁻¹ := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-  have hclose := h event
-  rw [hreal] at hclose
   calc (1 : ℝ≥0∞) / 2 = 1 - 2⁻¹ := by rw [one_div, ENNReal.one_sub_inv_two]
-    _ ≤ ε := tsub_le_iff_left.2 (hclose.trans (add_le_add_left hideal ε))
+    _ ≤ ε := tsub_le_iff_left.2 ((hreal ▸ h event).trans (add_le_add_left hideal ε))
 
 /-- The padded function `(x, r) ↦ (f(x), r)` of a one-to-one `f` is one-to-one on each length. -/
 private theorem injOn_paddedFunction {f : List Bool → List Bool} (hf : Function.Injective f)
@@ -235,7 +228,6 @@ theorem OneWay.exists_far_indistinguishable_of_injective {f : List Bool → List
         (fun n => ProbComp.eval (Y n)) ∧
       ∀ n ε, CloseTo (ProbComp.eval (X n)) (ProbComp.eval (Y n)) ε ↔ 1 / 2 ≤ ε := by
   have hg := GoldreichLevin.polyTime_paddedFunction hf.polyTime
-  have hb := GoldreichLevin.polyTime_paddedPredicate
   have hideal (n : ℕ) : ProbComp.eval (do
       let seed ← BitString.sampleList n
       let bit ← ProbComp.uniform Bool
@@ -243,29 +235,24 @@ theorem OneWay.exists_far_indistinguishable_of_injective {f : List Bool → List
         hardCoreIdeal (GoldreichLevin.paddedFunction f) n := by
     simp [hardCoreIdeal_eq_bind, PMF.map, Function.comp_def]
   have hsample := (ComputableInPolyTime.id' (encIn := encUnary)).sampleList
-  have hrealPPT := hsample.map (ComputableInPolyTime.bitsAppend hg
-    (ComputableInPolyTime.bitsCons hb (ComputableInPolyTime.const [])))
-  have hbit := isPPTOn_uniform_bool encBits
   have hp := ComputableInPolyTime.id' (encIn := encPair encBits encBool)
-  have hpost : ComputableInPolyTime
-      (fun pair : List Bool × Bool => GoldreichLevin.paddedFunction f pair.1 ++ [pair.2])
-      (encPair encBits encBool) encBits :=
-    ComputableInPolyTime.bitsAppend (hg.comp hp.fst')
-      (ComputableInPolyTime.bitsCons hp.snd' (ComputableInPolyTime.const []))
-  have hcontinue : IsPPTOn encBits encBits (fun seed : List Bool =>
-      (fun bit => GoldreichLevin.paddedFunction f seed ++ [bit]) <$> ProbComp.uniform Bool) :=
-    hbit.map_with (f := fun seed bit => GoldreichLevin.paddedFunction f seed ++ [bit]) hpost
-  have hidealPPT := hsample.bind hcontinue
   refine ⟨fun n => (fun seed => GoldreichLevin.paddedFunction f seed ++
       [GoldreichLevin.paddedPredicate seed]) <$> BitString.sampleList n,
     fun n => do
       let seed ← BitString.sampleList n
       let bit ← ProbComp.uniform Bool
-      return GoldreichLevin.paddedFunction f seed ++ [bit], hrealPPT, by
-        simpa only [bind_pure_comp] using hidealPPT, ?_, fun n ε => ?_⟩
-  · simpa only [eval_map_sampleList, hideal] using
-      (GoldreichLevin.padded_hardCore hf).indistinguishable
-  · simp only [eval_map_sampleList, hideal]
-    exact closeTo_generatorEnsemble_hardCoreIdeal_iff _ (injOn_paddedFunction hinj n)
+      return GoldreichLevin.paddedFunction f seed ++ [bit],
+    hsample.map (ComputableInPolyTime.bitsAppend hg
+      (ComputableInPolyTime.bitsCons GoldreichLevin.polyTime_paddedPredicate
+        (ComputableInPolyTime.const []))),
+    by simpa only [bind_pure_comp] using hsample.bind ((isPPTOn_uniform_bool encBits).map_with
+      (f := fun seed bit => GoldreichLevin.paddedFunction f seed ++ [bit])
+      (ComputableInPolyTime.bitsAppend (hg.comp hp.fst')
+        (ComputableInPolyTime.bitsCons hp.snd' (ComputableInPolyTime.const [])))),
+    by simpa only [eval_map_sampleList, hideal] using
+      (GoldreichLevin.padded_hardCore hf).indistinguishable,
+    fun n ε => by
+      simp only [eval_map_sampleList, hideal]
+      exact closeTo_generatorEnsemble_hardCoreIdeal_iff _ (injOn_paddedFunction hinj n)⟩
 
 end Cslib.Crypto

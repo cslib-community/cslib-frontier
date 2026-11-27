@@ -119,10 +119,8 @@ seed. -/
 /-- **The sample space is small**: fewer than `4 n` points for `n ≥ 1` variables. -/
 theorem length_parityCandidates_lt {vs : List V} (hvs : vs ≠ []) :
     (parityCandidates vs).length < 4 * vs.length := by
-  rw [length_parityCandidates]
-  have hlt := Nat.pow_clog_lt_mul Nat.one_lt_two (List.length_pos_iff.2 hvs).ne'
-  rw [pow_succ]
-  omega
+  have := Nat.pow_clog_lt_mul Nat.one_lt_two (List.length_pos_iff.2 hvs).ne'
+  rw [length_parityCandidates, pow_succ]; omega
 
 /-! ### Binary positions -/
 
@@ -139,13 +137,12 @@ private theorem testBit_idxOf_injOn {d : ℕ} {vs : List V} (hd : vs.length ≤ 
     {v w : V} (hv : v ∈ vs) (hw : w ∈ vs)
     (h : (fun i : Fin d => (vs.idxOf v).testBit i) = fun i : Fin d => (vs.idxOf w).testBit i) :
     v = w := by
-  have hv' := (List.idxOf_lt_length_of_mem hv).trans_le hd
-  have hw' := (List.idxOf_lt_length_of_mem hw).trans_le hd
   refine (List.idxOf_inj hv).1 (Nat.eq_of_testBit_eq fun i => ?_)
   rcases Nat.lt_or_ge i d with hi | hi
   · exact congrFun h ⟨i, hi⟩
-  · rw [Nat.testBit_lt_two_pow (hv'.trans_le (Nat.pow_le_pow_right (by norm_num) hi)),
-      Nat.testBit_lt_two_pow (hw'.trans_le (Nat.pow_le_pow_right (by norm_num) hi))]
+  · have hpow := Nat.pow_le_pow_right (by norm_num : 0 < 2) hi
+    rw [Nat.testBit_lt_two_pow (((List.idxOf_lt_length_of_mem hv).trans_le hd).trans_le hpow),
+      Nat.testBit_lt_two_pow (((List.idxOf_lt_length_of_mem hw).trans_le hd).trans_le hpow)]
 
 /-! ### Correctness -/
 
@@ -156,19 +153,18 @@ theorem exists_mem_parityCandidates_two_pow_mul_countUnsat_le {k : ℕ} (hk3 : k
     {φ : CNF V} {vs : List V} (hvs : ∀ v ∈ φ.vars, v ∈ vs)
     (hk : ∀ c ∈ φ, k ≤ c.toFinset.card) :
     ∃ T ∈ parityCandidates vs, 2 ^ k * φ.countUnsat (fun v => decide (v ∈ T)) ≤ φ.length := by
-  obtain ⟨d, hd'⟩ : ∃ d, Nat.clog 2 vs.length = d := ⟨_, rfl⟩
-  have hd : vs.length ≤ 2 ^ d := hd' ▸ Nat.le_pow_clog (by norm_num) _
+  set d := Nat.clog 2 vs.length
+  have hd : vs.length ≤ 2 ^ d := Nat.le_pow_clog (by norm_num) _
   obtain ⟨t, ht⟩ := exists_two_pow_mul_countUnsat_le
     ((LinearHash.isKWiseIndependentHash_dotProduct_cons_true d).mono hk3)
     (e := fun v (i : Fin d) => (vs.idxOf v).testBit i)
     (fun v hv w hw hvw => testBit_idxOf_injOn hd (hvs v hv) (hvs w hw) hvw) hk
   refine ⟨vs.filter (paritySample vs (List.ofFn t)),
-    List.mem_map.2 ⟨List.ofFn t, by simp [hd'], rfl⟩, ?_⟩
-  rw [CNF.countUnsat_congr (τ := fun v => t ⬝ᵥ Fin.cons true fun i : Fin d =>
+    List.mem_map.2 ⟨List.ofFn t, by simp [d], rfl⟩, ?_⟩
+  rwa [CNF.countUnsat_congr (τ := fun v => t ⬝ᵥ Fin.cons true fun i : Fin d =>
     (vs.idxOf v).testBit i) fun v hv => by
       rw [← paritySample_ofFn]
       simp [hvs v hv]]
-  exact ht
 
 /-- Folding `Cslib.Logic.PL.betterCandidate` finds a list falsifying no more clauses than the
 starting list and than every candidate. -/
@@ -187,10 +183,8 @@ theorem countUnsat_foldl_betterCandidate_le (φ : CNF V) (cands : List (List V))
           φ.countUnsat (fun v => decide (v ∈ T)) := by
       unfold betterCandidate
       split <;> omega
-    refine ⟨h1.trans hstep.1, fun T' hT' => ?_⟩
-    rcases List.mem_cons.1 hT' with rfl | hT'
-    · exact h1.trans hstep.2
-    · exact h2 T' hT'
+    exact ⟨h1.trans hstep.1, fun T' hT' =>
+      (List.mem_cons.1 hT').elim (· ▸ h1.trans hstep.2) (h2 T')⟩
 
 /-- **Correctness of the search**: if every clause of `φ` has at least `k ≤ 3` distinct literals,
 `Cslib.Logic.PL.paritySearch` falsifies at most `2 ^ -k` of the clauses. -/

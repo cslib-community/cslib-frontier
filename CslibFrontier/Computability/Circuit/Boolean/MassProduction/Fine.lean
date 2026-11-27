@@ -137,18 +137,14 @@ theorem exists_complexity_le_of_bounds {A₁ E₁ A₂ E₂ : ℕ} (hS : Schedul
   -- The code and its rate.
   obtain ⟨C, hC⟩ := HighRate.exists_lineCode (K := K) h m hℓh hcard
   obtain ⟨N, hNdef⟩ : ∃ N, N = Fintype.card K ^ ℓ := ⟨_, rfl⟩
-  have hN : N = (2 ^ (h * ℓ)) ^ m := by
-    rw [hNdef, hcard, ← pow_mul, ← pow_mul, hbdef]; ring_nf
   have hNb : N = 2 ^ (ℓ * b) := by rw [hNdef, hcard, ← pow_mul, mul_comm]
   have hrate' : X * N ≤ (X + 1) * C.info.card := by
-    rw [hC, hN]
+    rw [hNb, hbdef, ← mul_assoc, mul_comm ℓ h, pow_mul, hC]
     exact HighRate.retainedDimension_rate _ m X hm hrate
   have hNpos : 0 < N := by rw [hNb]; positivity
-  have hKpos : 0 < C.info.card := by
-    by_contra h0
-    have : C.info.card = 0 := by omega
-    rw [this, Nat.mul_zero] at hrate'
-    exact absurd hrate' (by have := Nat.mul_pos hX hNpos; omega)
+  have hKpos : 0 < C.info.card := Nat.pos_of_ne_zero fun h0 => by
+    have := Nat.mul_pos hX hNpos
+    rw [h0, Nat.mul_zero] at hrate'; omega
   set copies := HighRate.packingCopies (2 ^ p) C.info.card b with hcopies
   obtain ⟨emb⟩ := HighRate.nonempty_embedding_packingCopies (I := C.info) (2 ^ p) b
     (by rwa [Fintype.card_coe]) (by omega)
@@ -157,87 +153,56 @@ theorem exists_complexity_le_of_bounds {A₁ E₁ A₂ E₂ : ℕ} (hS : Schedul
     (BitString.equivFin p).toEmbedding.trans emb
   -- Menus and the scheduler.
   have hbudget' : 512 * 2 ^ D * Fintype.card K ≤ Fintype.card K ^ (ℓ - 1) := by
-    rw [hcard, ← pow_mul, show 512 = 2 ^ 9 by rfl, ← pow_add, ← pow_add]
-    apply Nat.pow_le_pow_right (by norm_num)
-    have : b * (ℓ - 1) = (ℓ - 2) * b + b := by
-      rw [show ℓ - 1 = ℓ - 2 + 1 by omega]; ring
-    omega
+    have h512 : 512 = 2 ^ 9 := rfl
+    have hℓ1 : ℓ - 1 = ℓ - 2 + 1 := by omega
+    rw [hcard, ← pow_mul, h512, ← pow_add, ← pow_add]
+    refine Nat.pow_le_pow_right two_pos ?_
+    rw [hℓ1, Nat.mul_add, Nat.mul_one, Nat.mul_comm]; omega
   have hmenu : ∀ k, 0 < k → k ≤ 2 ^ D → ∃ r, k * r ≤ 2 ^ D * (2 + 3 * (ℓ * b)) + 2 * k ∧
-      ∃ menu : Fin r → Fin k → Fin ℓ → K, IsUniversalMenu (2 ^ D) menu := by
-    intro k hk hkt
-    refine ⟨menuLength (2 ^ D) k (ℓ * b), ?_, exists_isUniversalMenu hcard hbudget' hk hkt⟩
-    have := mul_menuLength_le (2 ^ D) k (ℓ * b)
-    nlinarith
+      ∃ menu : Fin r → Fin k → Fin ℓ → K, IsUniversalMenu (2 ^ D) menu := fun k hk hkt =>
+    ⟨menuLength (2 ^ D) k (ℓ * b), by nlinarith [mul_menuLength_le (2 ^ D) k (ℓ * b)],
+      exists_isUniversalMenu hcard hbudget' hk hkt⟩
   obtain ⟨sched, hsched, hsize⟩ := hS K ℓ b (2 ^ b - 1) D bits scalar hmenu
   have hpipe := hP K ℓ b (2 ^ b - 1) (2 ^ D) p w copies L bits scalar C place sched hsched hL f
-  rw [← hNdef, hs1] at hpipe
-  have hpow : (2 ^ b) ^ ℓ = N := by rw [hNdef, hcard]
-  rw [hpow] at hpipe
-  have hlossN : X * (N * b) ≤ 2 ^ p := by
-    rw [hNb]
-    calc X * (2 ^ (ℓ * b) * b) = X * b * 2 ^ (ℓ * b) := by ring
-      _ ≤ 2 ^ p := hloss
+  rw [← hNdef, hs1, ← pow_mul, mul_comm b ℓ, ← hNb] at hpipe
+  have hlossN : X * (N * b) ≤ 2 ^ p := by rw [hNb]; linarith
   refine ⟨copies * N * b, sched.size + A₂ * (2 ^ p + 2 ^ D * 2 ^ b + copies * N) *
       (p + w + ℓ * b + Nat.log 2 (2 ^ D + copies) + 2) ^ E₂,
     hpipe.trans (le_of_eq (by ring)), ?_, ?_⟩
   -- The resource bank.
-  · have hstore := HighRate.mul_packingCopies_mul_le (2 ^ p) C.info.card N b X hrate'
-    linarith
+  · linarith [HighRate.mul_packingCopies_mul_le (2 ^ p) C.info.card N b X hrate']
   -- The overhead.
   · have hcN : copies * N ≤ 3 * 2 ^ p := by
       have hN2 : N ≤ 2 * C.info.card := by nlinarith
-      have hNp : N ≤ 2 ^ p := by
-        have : N ≤ X * (N * b) := by
-          calc N = 1 * (N * 1) := by ring
-            _ ≤ X * (N * b) := by gcongr <;> omega
-        omega
+      have hNp : N ≤ 2 ^ p :=
+        ((Nat.le_mul_of_pos_right N (by omega)).trans (Nat.le_mul_of_pos_left _ hX)).trans hlossN
       have hq := Nat.div_mul_le_self (2 ^ p) (C.info.card * b)
       rw [hcopies, HighRate.packingCopies]
-      have hmul : 2 ^ p / (C.info.card * b) * (2 * C.info.card) ≤
-          2 * (2 ^ p / (C.info.card * b) * (C.info.card * b)) := by
-        have : C.info.card ≤ C.info.card * b := Nat.le_mul_of_pos_right _ (by omega)
-        calc 2 ^ p / (C.info.card * b) * (2 * C.info.card)
-            = 2 * (2 ^ p / (C.info.card * b) * C.info.card) := by ring
-          _ ≤ 2 * (2 ^ p / (C.info.card * b) * (C.info.card * b)) := by gcongr
-      calc (2 ^ p / (C.info.card * b) + 1) * N
-          = 2 ^ p / (C.info.card * b) * N + N := by ring
-        _ ≤ 2 ^ p / (C.info.card * b) * (2 * C.info.card) + N := by gcongr
-        _ ≤ 3 * 2 ^ p := by omega
+      linarith [Nat.mul_le_mul_left (2 ^ p / (C.info.card * b)) hN2,
+        Nat.mul_le_mul_left (2 ^ p / (C.info.card * b))
+          (Nat.le_mul_of_pos_right C.info.card (by omega : 0 < b))]
     have hcopies_le : copies ≤ 2 ^ p + 1 := by
       rw [hcopies, HighRate.packingCopies]
-      have := Nat.div_le_self (2 ^ p) (C.info.card * b)
-      omega
+      linarith [Nat.div_le_self (2 ^ p) (C.info.card * b)]
     set B := 2 * (p + w) + ℓ * b + D + 4 with hB
     have hB1 : 1 ≤ B := by omega
-    have hlog : Nat.log 2 (2 ^ D + copies) ≤ D + p + 1 := by
-      have : 2 ^ D + copies < 2 ^ (D + p + 2) := by
-        have h1 : 2 ^ D ≤ 2 ^ (D + p) := Nat.pow_le_pow_right (by norm_num) (by omega)
-        have h2 : 2 ^ p ≤ 2 ^ (D + p) := Nat.pow_le_pow_right (by norm_num) (by omega)
-        have h3 : 2 ^ (D + p + 2) = 4 * 2 ^ (D + p) := by rw [pow_add]; ring
-        have h4 : 1 ≤ 2 ^ (D + p) := Nat.one_le_two_pow
-        omega
-      have := Nat.log_lt_of_lt_pow (by positivity) this
-      omega
+    have hlog : Nat.log 2 (2 ^ D + copies) ≤ D + p + 1 :=
+      Nat.le_of_lt_succ <| Nat.log_lt_of_lt_pow (by positivity) <| by
+        have h1 : 2 ^ D ≤ 2 ^ (D + p) := Nat.pow_le_pow_right two_pos (by omega)
+        have h2 : 2 ^ p ≤ 2 ^ (D + p) := Nat.pow_le_pow_right two_pos (by omega)
+        rw [pow_add 2 (D + p) 2]
+        linarith [@Nat.one_le_two_pow (D + p)]
     have hDb : 2 ^ D * 2 ^ b = 2 ^ (D + b) := (pow_add 2 D b).symm
     have hsched_le : sched.size ≤ A₁ * (2 ^ p + 2 ^ (D + b)) * B ^ (E₁ + E₂) := by
       calc sched.size ≤ A₁ * 2 ^ D * (2 ^ b - 1 + 1) * (D + ℓ * b + 2) ^ E₁ := hsize
         _ = A₁ * 2 ^ (D + b) * (D + ℓ * b + 2) ^ E₁ := by rw [hs1, ← hDb]; ring
         _ ≤ A₁ * (2 ^ p + 2 ^ (D + b)) * B ^ (E₁ + E₂) := by gcongr <;> omega
-    have hpipe_le : A₂ * (2 ^ p + 2 ^ D * 2 ^ b + copies * N) *
-        (p + w + ℓ * b + Nat.log 2 (2 ^ D + copies) + 2) ^ E₂ ≤
-        4 * A₂ * (2 ^ p + 2 ^ (D + b)) * B ^ (E₁ + E₂) := by
-      have hmid : 2 ^ p + 2 ^ D * 2 ^ b + copies * N ≤ 4 * (2 ^ p + 2 ^ (D + b)) := by
-        rw [hDb]; omega
-      calc A₂ * (2 ^ p + 2 ^ D * 2 ^ b + copies * N) *
-            (p + w + ℓ * b + Nat.log 2 (2 ^ D + copies) + 2) ^ E₂
-          ≤ A₂ * (4 * (2 ^ p + 2 ^ (D + b))) * B ^ (E₁ + E₂) :=
-            Nat.mul_le_mul (Nat.mul_le_mul_left _ hmid)
-              (pow_le_pow (by omega) hB1 (Nat.le_add_left _ _))
-        _ = 4 * A₂ * (2 ^ p + 2 ^ (D + b)) * B ^ (E₁ + E₂) := by ring
-    calc sched.size + A₂ * (2 ^ p + 2 ^ D * 2 ^ b + copies * N) *
-          (p + w + ℓ * b + Nat.log 2 (2 ^ D + copies) + 2) ^ E₂
-        ≤ A₁ * (2 ^ p + 2 ^ (D + b)) * B ^ (E₁ + E₂) +
-          4 * A₂ * (2 ^ p + 2 ^ (D + b)) * B ^ (E₁ + E₂) := Nat.add_le_add hsched_le hpipe_le
+    have hmid : 2 ^ p + 2 ^ D * 2 ^ b + copies * N ≤ 4 * (2 ^ p + 2 ^ (D + b)) := by
+      rw [hDb]; omega
+    calc _ ≤ A₁ * (2 ^ p + 2 ^ (D + b)) * B ^ (E₁ + E₂) +
+          A₂ * (4 * (2 ^ p + 2 ^ (D + b))) * B ^ (E₁ + E₂) :=
+        Nat.add_le_add hsched_le <| Nat.mul_le_mul (Nat.mul_le_mul_left _ hmid)
+          (pow_le_pow (by omega) hB1 (Nat.le_add_left _ _))
       _ = (A₁ + 4 * A₂) * (2 ^ p + 2 ^ (D + b)) * B ^ (E₁ + E₂) := by ring
 
 /-- The pipeline of `MassProduction.Pipeline` satisfies the composition contract. -/
@@ -276,25 +241,17 @@ theorem fineMassProducesThrough_of_bounds {A₁ E₁ A₂ E₂ : ℕ} (hS : Sche
   set L := (X + 1) * 2 ^ w / (X * w) with hLdef
   have hXw : 0 < X * w := Nat.mul_pos hX (by omega)
   have hL : ∀ g : BooleanFunction w, complexity Boolean.interpretation (single g) ≤ L := fun g =>
-    (Nat.le_div_iff_mul_le hXw).mpr (by
-      have := hm₀ w (by omega) g
-      calc complexity Boolean.interpretation (single g) * (X * w) =
-            X * w * complexity Boolean.interpretation (single g) := by ring
-        _ ≤ (X + 1) * 2 ^ w := this)
+    (Nat.le_div_iff_mul_le hXw).mpr ((mul_comm _ _).trans_le (hm₀ w (by omega) g))
   have hLspec : X * w * L ≤ (X + 1) * 2 ^ w := by
     rw [mul_comm]; exact Nat.div_mul_le_self _ _
   -- Transport `f` to the split input.
   let f' : BooleanFunction (p + w) := fun y => f (y ∘ Fin.cast hsplit)
-  have hff' : (fun x : Fin n → Bool => f' (x ∘ Fin.cast hsplit.symm)) = f := by
-    funext x
-    simp only [f']
-    congr 1
   obtain ⟨R, O, hcomp, hR, hO⟩ := exists_complexity_le_of_bounds (D := D) (h := h) (ℓ := ℓ)
     (m := m) (p := p) (w := w) hS hP hX Fine.blockWidth_pos (by omega)
     Fine.dimension_le_two_pow_blockWidth (by omega) hbud hloss hL f'
   have hcost : massComplexity f k ≤ (R * L + O : ℕ) := by
     calc massComplexity f k = massComplexity (fun x : Fin n → Bool =>
-          f' (x ∘ Fin.cast hsplit.symm)) k := by rw [hff']
+          f' (x ∘ Fin.cast hsplit.symm)) k := rfl
       _ ≤ massComplexity f' k := massComplexity_comp_wiring_le _ k
       _ ≤ complexity Boolean.interpretation (directProduct f' k) := massComplexity_le_complexity
       _ ≤ complexity Boolean.interpretation (directProduct f' (2 ^ D)) := by
@@ -306,16 +263,14 @@ theorem fineMassProducesThrough_of_bounds {A₁ E₁ A₂ E₂ : ℕ} (hS : Sche
     have h2 := Fine.prefixWidth_le (X := X) hnd.le n
     have h3 : D ≤ n + 1 := by
       rw [hD, Fine.depth]
-      have : num * n / den ≤ n := Nat.div_le_of_le_mul (by nlinarith)
-      omega
+      linarith [Nat.div_le_of_le_mul (Nat.mul_le_mul_right n hnd.le)]
     have h4 : ℓ * (h * m) ≤ n := by
       rcases h1 with h1 | h1
       · rw [← hℓ, ← hp] at h1; unfold Fine.fieldWidth at h1; rw [← hh, ← hm] at h1; omega
       · unfold Fine.fieldWidth at h1; rw [← hh, ← hm] at h1; rw [h1, Nat.mul_zero]; omega
     omega
   have hO' : 2 * P * (den - num) * n * O ≤ den * 2 ^ n := by
-    refine le_trans ?_ hover
-    apply Nat.mul_le_mul_left
+    refine (Nat.mul_le_mul_left _ ?_).trans hover
     calc O ≤ (A₁ + 4 * A₂) * (2 ^ p + 2 ^ (D + h * m)) *
           (2 * (p + w) + ℓ * (h * m) + D + 4) ^ (E₁ + E₂) := hO
       _ ≤ (A₁ + 4 * A₂) * (2 ^ p + 2 ^ (D + h * m)) * (5 * (n + 1)) ^ (E₁ + E₂) := by

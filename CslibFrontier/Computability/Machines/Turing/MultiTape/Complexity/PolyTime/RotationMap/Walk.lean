@@ -60,25 +60,28 @@ def powRotWithInput (T : ℕ) (p : P × (W × (Fin T → D))) : W × (Fin T → 
 
 /-- Follow the labels, retaining the original graph input at every rotation call. After all labels
 have been used, the walk stays at its endpoint. -/
-def walkAtWithInput {T : ℕ} (p : P × (W × (Fin T → D))) (m : ℕ) : W :=
-  (powRotWithInput rotate (min m T)
-    (p.1, p.2.1, Fin.take (min m T) (Nat.min_le_right m T) p.2.2)).1
+def walkAtWithInput {T : ℕ} : P × (W × (Fin T → D)) → ℕ → W
+  | (input, v, k), m =>
+    (powRotWithInput rotate (min m T)
+      (input, v, Fin.take (min m T) (Nat.min_le_right m T) k)).1
 
 /-- A killed power reverses only the used prefix, preserving unused labels and kill signals. -/
 def killedPowRotWithInput (T q : ℕ) [NeZero q]
-    (p : P × (W × ((Fin T → D) × (Fin T → Fin q)))) : W × ((Fin T → D) × (Fin T → Fin q)) :=
-  let stopped := powRotWithInput rotate (killTime p.2.2.2)
-    (p.1, p.2.1, Fin.take _ (killTime_le p.2.2.2) p.2.2.1)
-  (stopped.1, fun i => if h : i.val < killTime p.2.2.2 then stopped.2 ⟨i.val, h⟩ else p.2.2.1 i,
-    p.2.2.2)
+    (p : P × KilledDart W D T q) : KilledDart W D T q :=
+  let stopped := powRotWithInput rotate (killTime p.2.signals)
+    (p.1, p.2.vertex, Fin.take _ (killTime_le p.2.signals) p.2.labels)
+  (stopped.1,
+    fun i => if h : i.val < killTime p.2.signals then stopped.2 ⟨i.val, h⟩ else p.2.labels i,
+    p.2.signals)
 
 /-- Once the stopping time is known, the dependent prefix has that concrete length. -/
 theorem killedPowRotWithInput_of_killTime {T q : ℕ} [NeZero q]
-    (p : P × (W × ((Fin T → D) × (Fin T → Fin q)))) {n : ℕ} (hn : n ≤ T)
-    (hc : killTime p.2.2.2 = n) :
+    (p : P × KilledDart W D T q) {n : ℕ} (hn : n ≤ T)
+    (hc : killTime p.2.signals = n) :
     killedPowRotWithInput rotate T q p =
-      let stopped := powRotWithInput rotate n (p.1, p.2.1, Fin.take n hn p.2.2.1)
-      (stopped.1, fun i => if h : i.val < n then stopped.2 ⟨i.val, h⟩ else p.2.2.1 i, p.2.2.2) := by
+      let stopped := powRotWithInput rotate n (p.1, p.2.vertex, Fin.take n hn p.2.labels)
+      (stopped.1, fun i => if h : i.val < n then stopped.2 ⟨i.val, h⟩ else p.2.labels i,
+        p.2.signals) := by
   subst n
   rfl
 
@@ -133,13 +136,11 @@ private theorem polytime_finTail (T : ℕ) :
 
 private theorem polytime_finSnoc (T : ℕ) :
     ComputableInPolyTime (fun p : (Fin T → D) × D => Fin.snoc p.1 p.2)
-      (encPair (encPi label) label) (encPi label) := by
-  apply pi
-  intro i
-  refine Fin.lastCases ?_ (fun j => ?_) i
-  · simpa only [Fin.snoc_last] using snd (encPi label) label
-  · simpa only [Fin.snoc_castSucc, Function.comp_def] using
-      (pi_apply label j).comp (fst (encPi label) label)
+      (encPair (encPi label) label) (encPi label) :=
+  pi <| Fin.lastCases (by simpa only [Fin.snoc_last] using snd (encPi label) label)
+    fun j => by
+      simpa only [Fin.snoc_castSucc, Function.comp_def] using
+        (pi_apply label j).comp (fst (encPi label) label)
 
 private theorem polytime_finTake {T n : ℕ} (hn : n ≤ T) :
     ComputableInPolyTime (Fin.take n hn (α := fun _ => D)) (encPi label) (encPi label) :=
@@ -169,8 +170,12 @@ include hrotate in
 theorem rotationMap_walkAtWithInput (T m : ℕ) :
     ComputableInPolyTime
       (fun p : P × (V × (Fin T → D)) => RotationMap.walkAtWithInput rotate p m)
-      (encPair input (encPair vertex (encPi label))) vertex :=
-  ((rotationMap_powRotWithInput hrotate (min m T)).comp
+      (encPair input (encPair vertex (encPi label))) vertex := by
+  rw [show (fun p : P × (V × (Fin T → D)) => RotationMap.walkAtWithInput rotate p m) =
+      fun p => (RotationMap.powRotWithInput rotate (min m T)
+        (p.1, p.2.1, Fin.take (min m T) (Nat.min_le_right m T) p.2.2)).1 from
+    funext fun ⟨_, _, _⟩ => rfl]
+  exact ((rotationMap_powRotWithInput hrotate (min m T)).comp
     ((fst _ _).prod (((snd _ _).fst').prod
       ((polytime_finTake (Nat.min_le_right m T)).comp ((snd _ _).snd'))))).fst'
 
@@ -198,10 +203,7 @@ theorem rotationMap_killedPowRotWithInput (T q : ℕ) [NeZero q] (signal : Fin q
         ((fst _ _).prod (((snd _ _).fst').prod
           ((polytime_finTake (killTime_le c)).comp ((snd _ _).snd'.fst'))))
     dsimp only [RotationMap.killedPowRotWithInput]
-    apply hwalk.fst'.prod
-    apply prod ?_ (const c)
-    apply pi
-    intro i
+    refine hwalk.fst'.prod (prod (pi fun i => ?_) (const c))
     by_cases hi : i.val < killTime c
     · simpa only [dite_eq_left hi, Function.comp_def] using
         (pi_apply label ⟨i.val, hi⟩).comp hwalk.snd'

@@ -81,13 +81,8 @@ theorem convexOn_squaredLoss (x : E) (y : ℝ) :
 theorem hasFDerivAt_squaredLoss (w x : E) (y : ℝ) :
     HasFDerivAt (fun w => squaredLoss w x y) ((inner ℝ w x - y) • innerSL ℝ x) w := by
   have hlin : HasFDerivAt (fun w : E => inner ℝ w x - y) (innerSL ℝ x) w := by
-    have h : HasFDerivAt (fun w : E => inner ℝ x w) (innerSL ℝ x) w := by
-      simpa only [coe_innerSL_apply] using (innerSL ℝ x).hasFDerivAt (x := w)
-    have hf : (fun w : E => inner ℝ w x - y) = fun w => inner ℝ x w - y := by
-      funext w
-      rw [real_inner_comm]
-    rw [hf]
-    exact h.sub_const y
+    simpa only [coe_innerSL_apply, real_inner_comm x] using
+      ((innerSL ℝ x).hasFDerivAt (x := w)).sub_const y
   have h := (hlin.mul hlin).const_mul (1 / 2 : ℝ)
   convert h using 1
   · funext w
@@ -159,9 +154,6 @@ theorem IsRLM.integral_trueRisk_squaredLoss_le_add {Z : Type*} [MeasurableSpace 
     (fun w z => squaredLoss_nonneg w (φ z) (y z)) (fun z => ?_) hε hε1 hB hm0
     (by rwa [NNReal.coe_one, mul_one]) hr D hint hint' (Set.mem_univ w) hwB hwint
   rw [squaredLoss_zero]
-  have : y z ^ 2 ≤ 1 := by
-    rw [← sq_abs]
-    exact pow_le_one₀ (abs_nonneg _) (hy z)
-  linarith
+  linarith [sq_abs (y z), pow_le_one₀ (n := 2) (abs_nonneg _) (hy z)]
 
 end Cslib.MachineLearning

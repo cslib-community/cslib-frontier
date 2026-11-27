@@ -41,12 +41,10 @@ theorem Covers.next {es : Log F} {remaining : List (Occurrence F)}
     Covers (e :: es) ((remaining.erase e.input).filter
       fun a => decide (a ∉ Log.used (e :: es))) := by
   intro o ho
-  apply List.mem_filter.mpr
-  refine ⟨?_, by simpa only [decide_eq_true_eq] using ho⟩
   have hne : o ≠ e.input := fun he => ho (he ▸ List.mem_cons_self)
-  have hold : o ∉ es.used := fun hm =>
-    ho (List.mem_cons_of_mem _ (List.mem_append_right _ hm))
-  exact (List.mem_erase_of_ne hne).mpr (hc o hold)
+  refine List.mem_filter.mpr ⟨(List.mem_erase_of_ne hne).mpr
+    (hc o fun hm => ho (List.mem_cons_of_mem _ (List.mem_append_right _ hm))), ?_⟩
+  simpa only [decide_eq_true_eq] using ho
 
 /-- A returned exhausted forest has no unused port at a visited variable, provided its
 initial work list covered every unused port. No event or optimality property is assumed. -/
@@ -59,10 +57,8 @@ theorem run_exhausted_frontier (sem : Rel → List Bool → Bool)
   split at hr
   next hn =>
     cases hr
-    intro o hv
-    by_contra hu
-    have hnone := List.find?_eq_none.mp hn o (hc o hu)
-    exact hnone (by simpa only [decide_eq_true_eq] using hv)
+    exact fun o hv => by_contra fun hu =>
+      List.find?_eq_none.mp hn o (hc o hu) (by simpa only [decide_eq_true_eq] using hv)
   next input hi =>
     split at hr
     next os o =>
@@ -71,12 +67,7 @@ theorem run_exhausted_frontier (sem : Rel → List Bool → Bool)
     next os hs =>
       exact run_exhausted_frontier sem f rs _ _ (hc.next _) hr
 termination_by remaining.length
-decreasing_by
-  have hm : _ ∈ remaining := List.mem_of_find?_eq_some (by assumption)
-  have hp : 0 < remaining.length := List.length_pos_of_mem hm
-  apply Nat.lt_of_le_of_lt (List.length_filter_le _ _)
-  rw [List.length_erase_of_mem hm]
-  omega
+decreasing_by exact length_filter_erase_lt (List.mem_of_find?_eq_some ‹_›)
 
 /-- Fresh-run exhaustion of step 2, paid for by the actual incidence list. This does not
 replace the separate optimality conclusion of source Lemma 45. -/

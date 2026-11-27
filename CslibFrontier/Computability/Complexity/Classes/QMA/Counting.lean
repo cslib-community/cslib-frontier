@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.QMA
-public import CslibFrontier.Computability.Complexity.Classes.PP
+public import CslibFrontier.Computability.Complexity.Classes.A0PP
 public import CslibFrontier.Computability.Circuit.Quantum.AcceptOperator
 import CslibFrontier.Computability.Complexity.Classes.BQP.Counting
 import CslibFrontier.Computability.Complexity.Classes.PP.Characterization
@@ -22,7 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Tactic.PolyTime
 
 /-!
-# `QMA ⊆ PP`
+# `QMA ⊆ A₀PP ⊆ PP`
 
 For a quantum verifier with `m` witness qubits and `h` Hadamard gates, the trace of the `d`-th
 power of its acceptance operator `Q_x` is the integer `traceGap x d` divided by `2^{hd}`
@@ -31,15 +31,18 @@ paths of `d` steps through the `2^m` basis witnesses of products of pair gaps, s
 computed in polynomial time it is a `GapP` function of the instance
 (`Cslib.Complexity.traceGap_mem_GapP`). Since `Q_x` is positive, its largest eigenvalue `λ` is the
 maximum acceptance probability and `λ^d ≤ tr(Q_x^d) ≤ 2^m λ^d`. With completeness `c` and soundness
-`s < c`, a power `d` linear in `m` separates the two cases: for naturals `B, D` with
-`s ≤ B / D` and `(B + 1) / D ≤ c` and `d = B (m + 1)`,
+`s < c`, a power `d` linear in `m` separates the two cases: for positive naturals `B, D` with
+`s ≤ B / D` and `(B + 1) / D < c` and `d = B (m + 1)`,
 
-* on yes-instances, `tr(Q_x^d) ≥ c^d ≥ ((B + 1) / D)^d`;
+* on yes-instances, `tr(Q_x^d) ≥ c^d > ((B + 1) / D)^d`;
 * on no-instances, `tr(Q_x^d) ≤ 2^m s^d ≤ 2^m (B / D)^d ≤ ((B + 1) / D)^d / 2`, by Bernoulli's
   inequality `(B + 1)^B ≥ 2 B^B`.
 
-So the `GapP` function `2 D^d traceGap - ((B + 1) 2^h)^d` is positive on yes-instances and not on
-no-instances, which places the promise problem in `PP` (`Cslib.Complexity.mem_PP_iff_exists_GapP`).
+After clearing denominators, this gives a nonnegative GapP count `g` and a binary FP threshold
+`T` with `T < g` on yes-instances and `2 g ≤ T` on no-instances. Replacing them with
+`2 g` and `2 T + 1` gives both strict inequalities of A₀PP on languages
+(`Cslib.Complexity.QMA_subset_A0PP`). Comparing the count with its threshold also gives
+a PP separator for promise problems, even when the count takes intermediate values off the promise.
 
 The same argument works when `c` and `s` depend on the input length `n`, provided `B` and `D` are
 computed in polynomial time (in unary), so that the power `d` stays polynomial. A grid point
@@ -52,14 +55,13 @@ and for inverse-polynomial gaps, with no error reduction, and `QMA ⊆ PP`
 (`Cslib.Complexity.QMA_subset_PP`).
 
 `QMA ⊆ PP` was noted without proof by Kitaev and Watrous [Kitaev, Watrous][KitaevWatrous2000] and
-proved by Vyalyi [Vyalyi][Vyalyi2003], who showed the stronger `QMA ⊆ A₀PP`; see
-[Marriott, Watrous][MarriottWatrous2005], Section 1. The argument here follows the proof of
-Theorem 3.4 of [Marriott, Watrous][MarriottWatrous2005]: the acceptance operator is positive, its
+proved by Vyalyi [Vyalyi][Vyalyi2003], Theorem 1, through the stronger `QMA ⊆ A₀PP`.
+The argument here follows his trace-power proof. The acceptance operator is positive, its
 quadratic form is the acceptance probability, and its entries are `GapP` functions over a power of
-two. Marriott and Watrous first reduce the error below `2^{-m-2}` without lengthening the witness
-and then compare `tr(Q_x)` with `1/2`. Their strong error reduction is not formalized here, so this
-file compares `tr(Q_x^d)` for `d` linear in `m` instead. The path sums are those of Fortnow and
-Rogers [Fortnow, Rogers][FortnowRogers1999], Lemma 3.2, as in `Cslib.Complexity.BQP_subset_AWPP`.
+two. In [Marriott, Watrous][MarriottWatrous2005], Theorem 3.4, the authors first reduce the
+error below `2^{-m-2}` without lengthening the witness and then compare `tr(Q_x)` with `1/2`.
+The path sums follow [Fortnow, Rogers][FortnowRogers1999], Lemma 3.2, as in
+`Cslib.Complexity.BQP_subset_AWPP`.
 
 ## Main results
 
@@ -69,7 +71,7 @@ Rogers [Fortnow, Rogers][FortnowRogers1999], Lemma 3.2, as in `Cslib.Complexity.
 * `Cslib.Complexity.PromiseQMA_subset_promiseClass_PP_of_gap`: `QMA(c, s) ⊆ PP` for an
   inverse-polynomial gap.
 * `Cslib.Complexity.PromiseQMA_subset_promiseClass_PP`: `QMA(c, s) ⊆ PP` for constants `s < c`.
-* `Cslib.Complexity.QMA_subset_PP`: `QMA ⊆ PP`.
+* `Cslib.Complexity.QMA_subset_A0PP`, `Cslib.Complexity.QMA_subset_PP`: `QMA ⊆ A₀PP ⊆ PP`.
 
 ## References
 
@@ -112,7 +114,7 @@ theorem traceGap_mem_GapP (V : UniformVerifierFamily) {d : α → ℕ}
   let reg' : (α × List Bool) × ℕ → List Bool := fun x => reg (x.1, x.2 + 1)
   have hreg' : ComputableInPolyTime reg' (encPair (encPair enc encBits) encUnary) encBits :=
     hreg.comp (by fun_prop)
-  have hprod := GapP.prod_range_mem (onesPairGap_zero_mem_GapP hgs hreg hreg')
+  have hprod := GapP.prod_range_mem (onesPairGap_mem_GapP [0] hgs hreg hreg')
     (r := fun x : α × List Bool => d x.1) (by fun_prop)
   let closed : α × List Bool → Bool := fun x =>
     decide (BitString.listBlock (m x.1) x.2 0 = BitString.listBlock (m x.1) x.2 (d x.1))
@@ -154,14 +156,15 @@ private theorem two_pow_mul_pow_le {B : ℕ} (hB : 1 ≤ B) (m : ℕ) :
   rw [pow_mul, pow_mul, ← mul_pow]
   exact pow_le_pow_left₀ (by positivity) h1 _
 
-/-- `QMA(c, s) ⊆ PP` when naturals `B n ≥ 1` and `D n`, computed in polynomial time, satisfy
-`s n D n ≤ B n` and `B n + 1 < c n D n`. -/
-private theorem PromiseQMA_subset_promiseClass_PP_of_threshold {c s : ℕ → ℝ} {B D : ℕ → ℕ}
+/-- A trace-power count and a polynomial-time threshold with a factor-two gap on the promise. -/
+private theorem exists_trace_gap_threshold {c s : ℕ → ℝ} {B D : ℕ → ℕ}
     (hBp : ComputableInPolyTime B encUnary encUnary)
     (hDp : ComputableInPolyTime D encUnary encUnary) (hB : ∀ n, 1 ≤ B n)
-    (hsB : ∀ n, s n * D n ≤ B n) (hBc : ∀ n, (B n + 1 : ℝ) < c n * D n) :
-    PromiseQMA c s enc ⊆ promiseClass (PP enc) := by
-  rintro Q ⟨V, hV⟩
+    (hsB : ∀ n, s n * D n ≤ B n) (hBc : ∀ n, (B n + 1 : ℝ) < c n * D n)
+    {Q : PromiseProblem α} (hQ : Q ∈ PromiseQMA c s enc) :
+    ∃ g ∈ GapP enc, ∃ T : α → ℤ, ComputableInPolyTime T enc encIntBin ∧
+      ∀ a, (a ∈ Q.yes → T a < g a) ∧ (a ∈ Q.no → 0 ≤ g a ∧ 2 * g a ≤ T a) := by
+  obtain ⟨V, hV⟩ := hQ
   have hgates := V.computableInPolyTime_gates
   have hwit := V.computableInPolyTime_witnessLength
   let b : α → ℕ := fun a => B (enc a).length
@@ -175,28 +178,19 @@ private theorem PromiseQMA_subset_promiseClass_PP_of_threshold {c s : ℕ → �
     simp only [h, hadamardCount_eq_countP]
     fun_prop
   have hJ : ComputableInPolyTime J enc encUnary := by dsimp only [J, m]; fun_prop
-  -- the separating gap function
-  let G : α → ℤ := fun a =>
-    2 * (e a : ℤ) ^ J a * V.traceGap (enc a) (J a) - (((b a : ℤ) + 1) * 2 ^ h a) ^ J a
-  have hG : G ∈ GapP enc := by
-    have hT := traceGap_mem_GapP V hJ
-    have hbZ : ComputableInPolyTime (fun a => (b a : ℤ)) enc encIntBin :=
-      ComputableInPolyTime.intBin_natCast.comp (ComputableInPolyTime.unary_to_binary.comp hb)
-    have heZ : ComputableInPolyTime (fun a => (e a : ℤ)) enc encIntBin :=
-      ComputableInPolyTime.intBin_natCast.comp (ComputableInPolyTime.unary_to_binary.comp he)
-    have hD' : (fun a => (e a : ℤ) ^ J a) ∈ GapP enc :=
-      GapP.pow_mem_polyTime (mem_GapP_of_polyTime heZ) hJ
-    have hX : (fun a => ((b a : ℤ) + 1) * 2 ^ h a) ∈ GapP enc :=
-      mem_GapP_of_polyTime (by fun_prop)
-    exact GapP.sub_mem'
-      (GapP.mul_mem (GapP.mul_mem (mem_GapP_of_polyTime (ComputableInPolyTime.const 2)) hD') hT)
-      (GapP.pow_mem_polyTime hX hJ)
-  refine ⟨{a | 0 < G a}, (mem_PP_iff_exists_GapP).2 ⟨G, hG, fun _ => Iff.rfl⟩, fun a ha => ?_,
-    Set.disjoint_left.2 fun a ha hno => ?_⟩
+  let g : α → ℤ := fun a => (e a : ℤ) ^ J a * V.traceGap (enc a) (J a)
+  let T : α → ℤ := fun a => (((b a : ℤ) + 1) * 2 ^ h a) ^ J a
+  have hbZ : ComputableInPolyTime (fun a => (b a : ℤ)) enc encIntBin :=
+    ComputableInPolyTime.intBin_natCast.comp (ComputableInPolyTime.unary_to_binary.comp hb)
+  have heZ : ComputableInPolyTime (fun a => (e a : ℤ)) enc encIntBin :=
+    ComputableInPolyTime.intBin_natCast.comp (ComputableInPolyTime.unary_to_binary.comp he)
+  have hg : g ∈ GapP enc :=
+    GapP.mul_mem (GapP.pow_mem_polyTime (mem_GapP_of_polyTime heZ) hJ) (traceGap_mem_GapP V hJ)
+  have hT : ComputableInPolyTime T enc encIntBin := by dsimp only [T]; fun_prop
+  refine ⟨g, hg, T, hT, fun a => ⟨fun ha => ?_, fun hno => ?_⟩⟩
   all_goals
-    have hGr : (G a : ℝ) = 2 * (e a : ℝ) ^ J a * V.traceGap (enc a) (J a) -
-        ((b a : ℝ) + 1) ^ J a * 2 ^ (h a * J a) := by
-      simp only [G]
+    have hTr : (T a : ℝ) = ((b a : ℝ) + 1) ^ J a * 2 ^ (h a * J a) := by
+      simp only [T]
       push_cast
       rw [mul_pow, ← pow_mul]
     have hX : (0 : ℝ) < 2 ^ (h a * J a) := by positivity
@@ -204,11 +198,9 @@ private theorem PromiseQMA_subset_promiseClass_PP_of_threshold {c s : ℕ → �
     have hsB' : s (enc a).length * e a ≤ b a := hsB _
     have hb1 : 1 ≤ b a := hB _
   · -- yes-instances: `((B + 1) / D)^J < c^J ≤ tr(Q^J)`
-    have hepos : (0 : ℝ) < e a := by
-      rcases (Nat.cast_nonneg (α := ℝ) (e a)).eq_or_lt with h0 | h0
-      · rw [← h0, mul_zero] at hBc'
-        linarith [(Nat.cast_nonneg (α := ℝ) (b a))]
-      · exact h0
+    have hepos : (0 : ℝ) < e a := (Nat.cast_nonneg _).lt_of_ne fun h0 => by
+      rw [← h0, mul_zero] at hBc'
+      linarith [(Nat.cast_nonneg (α := ℝ) (b a))]
     have hc : 0 < c (enc a).length :=
       lt_of_mul_lt_mul_right (by rw [zero_mul]; linarith [(Nat.cast_nonneg (α := ℝ) (b a))])
         hepos.le
@@ -218,17 +210,12 @@ private theorem PromiseQMA_subset_promiseClass_PP_of_threshold {c s : ℕ → �
     have hlt : ((b a : ℝ) + 1) ^ J a < (c (enc a).length * e a) ^ J a :=
       pow_lt_pow_left₀ hBc' (by positivity) hJpos
     rw [mul_pow] at hlt
-    have : (0 : ℝ) < G a := by
-      rw [hGr, sub_pos]
+    have : (T a : ℝ) < (e a : ℝ) ^ J a * V.traceGap (enc a) (J a) := by
+      rw [hTr]
       calc ((b a : ℝ) + 1) ^ J a * 2 ^ (h a * J a)
-          < c (enc a).length ^ J a * (e a : ℝ) ^ J a * 2 ^ (h a * J a) :=
-            mul_lt_mul_of_pos_right hlt hX
+          < c (enc a).length ^ J a * (e a : ℝ) ^ J a * 2 ^ (h a * J a) := by gcongr
         _ = (e a : ℝ) ^ J a * (c (enc a).length ^ J a * 2 ^ (h a * J a)) := by ring
         _ ≤ (e a : ℝ) ^ J a * V.traceGap (enc a) (J a) := mul_le_mul_of_nonneg_left hT hDJ.le
-        _ ≤ 2 * (e a : ℝ) ^ J a * V.traceGap (enc a) (J a) := by
-          have : (0 : ℝ) ≤ (e a : ℝ) ^ J a * V.traceGap (enc a) (J a) :=
-            mul_nonneg hDJ.le ((mul_nonneg (pow_nonneg hc.le _) hX.le).trans hT)
-          linarith
     exact_mod_cast this
   · -- no-instances: `tr(Q^J) ≤ 2^m s^J ≤ ((B + 1) / D)^J / 2`
     have hs : 0 ≤ s (enc a).length :=
@@ -236,15 +223,22 @@ private theorem PromiseQMA_subset_promiseClass_PP_of_threshold {c s : ℕ → �
     have hT := V.traceGap_le (enc a) ((hV a).2 hno) (J a)
     have hsD : (s (enc a).length * e a) ^ J a ≤ (b a : ℝ) ^ J a := by gcongr
     have hbern := two_pow_mul_pow_le hb1 (m a)
-    have : (G a : ℝ) ≤ 0 := by
-      rw [hGr, sub_nonpos]
+    have : 2 * (e a : ℝ) ^ J a * V.traceGap (enc a) (J a) ≤ (T a : ℝ) := by
+      rw [hTr]
       calc 2 * (e a : ℝ) ^ J a * V.traceGap (enc a) (J a)
-          ≤ 2 * (e a : ℝ) ^ J a * (2 ^ m a * s (enc a).length ^ J a * 2 ^ (h a * J a)) :=
-            mul_le_mul_of_nonneg_left hT (by positivity)
+          ≤ 2 * (e a : ℝ) ^ J a * (2 ^ m a * s (enc a).length ^ J a * 2 ^ (h a * J a)) := by gcongr
         _ = 2 ^ (m a + 1) * (s (enc a).length * e a) ^ J a * 2 ^ (h a * J a) := by ring
         _ ≤ 2 ^ (m a + 1) * (b a : ℝ) ^ J a * 2 ^ (h a * J a) := by gcongr
         _ ≤ ((b a : ℝ) + 1) ^ J a * 2 ^ (h a * J a) := by gcongr
-    exact absurd (show (0 : ℝ) < G a by exact_mod_cast ha) (not_lt.2 this)
+    have hnonneg := V.pow_mul_le_traceGap (enc a) (c := 0) le_rfl
+      ⟨ket 0, norm_ket _, V.acceptProb_nonneg _ _⟩ (J a)
+    have htrace : (0 : ℝ) ≤ V.traceGap (enc a) (J a) :=
+      (mul_nonneg (pow_nonneg le_rfl _) hX.le).trans hnonneg
+    change 0 ≤ (e a : ℤ) ^ J a * _ ∧ 2 * ((e a : ℤ) ^ J a * _) ≤ _
+    constructor
+    · exact mul_nonneg (pow_nonneg (by positivity) _) (by exact_mod_cast htrace)
+    · rw [← mul_assoc]
+      exact_mod_cast this
 
 /-- **`QMA(c, s) ⊆ PP` across a grid step**: if naturals `σ n` and `D n`, computed in polynomial
 time, satisfy `s n ≤ σ n / D n` and `(σ n + 1) / D n ≤ c n` for every `n`, then every promise
@@ -255,11 +249,19 @@ theorem PromiseQMA_subset_promiseClass_PP_of_grid {c s : ℕ → ℝ} {σ D : �
     (hσp : ComputableInPolyTime σ encUnary encUnary)
     (hDp : ComputableInPolyTime D encUnary encUnary)
     (hsσ : ∀ n, s n * D n ≤ σ n) (hσc : ∀ n, (σ n + 1 : ℝ) ≤ c n * D n) :
-    PromiseQMA c s enc ⊆ promiseClass (PP enc) :=
-  PromiseQMA_subset_promiseClass_PP_of_threshold (B := fun n => 3 * σ n + 1)
+    PromiseQMA c s enc ⊆ promiseClass (PP enc) := by
+  intro Q hQ
+  obtain ⟨g, hg, T, hT, h⟩ := exists_trace_gap_threshold (B := fun n => 3 * σ n + 1)
     (D := fun n => 3 * D n) (by fun_prop) (by fun_prop) (fun _ => by omega)
     (fun n => by have := hsσ n; push_cast; linarith)
-    (fun n => by have := hσc n; push_cast; linarith)
+    (fun n => by have := hσc n; push_cast; linarith) hQ
+  refine ⟨{a | T a < g a}, mem_PP_iff_exists_GapP.mpr
+    ⟨_, GapP.sub_mem' hg (mem_GapP_of_polyTime hT), fun a =>
+      show T a < g a ↔ 0 < g a - T a from sub_pos.symm⟩,
+    fun a => (h a).1, Set.disjoint_left.mpr fun a ha hno => ?_⟩
+  obtain ⟨hpos, hle⟩ := (h a).2 hno
+  change T a < g a at ha
+  omega
 
 /-- **`QMA(c, s) ⊆ PP` for an inverse-polynomial gap**: if `c n - s n ≥ 1 / q n` for a function `q`
 computed in polynomial time, and the soundness is computable to precision `1 / (2 q n)` from above,
@@ -312,10 +314,29 @@ theorem PromiseQMA_subset_promiseClass_PP {c s : ℝ} (hcs : s < c) :
   have := (hV a).2 hno (ket 0) (norm_ket _)
   linarith [V.acceptProb_nonneg (enc a) (ket 0)]
 
+/-- **`QMA ⊆ A₀PP`** [Vyalyi][Vyalyi2003], Theorem 1 (ECCC TR03-021). For the library's
+length-uniform Hadamard/NOT/CNOT/Toffoli circuits with encoded input and pure witnesses,
+completeness at least `2/3` and soundness at most `1/3` suffice. Vyalyi uses input-uniform
+Shor-basis circuits and strict bounds. The trace-power count meets his Definition 2. -/
+theorem QMA_subset_A0PP : QMA enc ⊆ A0PP enc := by
+  intro A hA
+  obtain ⟨g, hg, T, hT, h⟩ := exists_trace_gap_threshold (B := fun _ => 2) (D := fun _ => 6)
+    (.const _) (.const _) (fun _ => by decide) (fun _ => by norm_num) (fun _ => by norm_num)
+    (show PromiseProblem.ofSet A ∈ PromiseQMA (fun _ => 2 / 3) (fun _ => 1 / 3) enc from hA)
+  refine ⟨g + g, GapP.add_mem hg hg, fun a => 2 * T a + 1, by fun_prop, fun a => ?_⟩
+  obtain ⟨hyes, hno⟩ := h a
+  change (a ∈ A → 2 * T a + 1 < g a + g a) ∧
+    (a ∉ A → 0 ≤ g a + g a ∧ 2 * (g a + g a) < 2 * T a + 1)
+  constructor
+  · intro ha
+    have := hyes ha
+    omega
+  · intro ha
+    obtain ⟨_, _⟩ := hno ha
+    omega
+
 /-- **`QMA ⊆ PP`** [Kitaev, Watrous][KitaevWatrous2000]; [Vyalyi][Vyalyi2003];
 [Marriott, Watrous][MarriottWatrous2005], Theorem 3.4. -/
-theorem QMA_subset_PP : QMA enc ⊆ PP enc := fun A hA =>
-  ofSet_mem_promiseClass.mp
-    (PromiseQMA_subset_promiseClass_PP (by norm_num) hA)
+theorem QMA_subset_PP : QMA enc ⊆ PP enc := QMA_subset_A0PP.trans A0PP_subset_PP
 
 end Cslib.Complexity

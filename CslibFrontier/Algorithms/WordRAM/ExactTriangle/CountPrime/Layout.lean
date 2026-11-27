@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.RegisterFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Program
 
 /-!
@@ -89,100 +90,30 @@ theorem exec_layout {w n p k scratch : ℕ} (x : Data 128)
     (h2 : x.regs Reg.two = 2) (hw : Fits w (layoutWordBound n p k scratch)) :
     ∃ y, ExecWithin w layout x y (4 * k + 20) ∧ LayoutRegisters n p k scratch y ∧
       y.mem = x.mem ∧ ∀ i, ¬LayoutLocal i → y.regs i = x.regs i := by
-  let N := 2 ^ k
-  let area := 4 ^ k * p
-  let z := (x.set Reg.low2 2).set Reg.low3 k
-  have hargs : ExecWithin (B := .standard) w
-      (ram[ Reg.low2 ← Reg.two; Reg.low3 ← Reg.depth ]) x z 2 := by
-    ram_eval [z, h2, hk, Reg.low2, Reg.low3, Reg.two, Reg.depth]
-  let f : Fin 5 → Fin 128 := Fin.castLE (by decide)
-  obtain ⟨s, he, value, _, _, memory, _, _⟩ := Power.exec 2 k (by decide) (z.comap f)
-    (by simp +decide [z, f, Data.comap, Power.base, Reg.low2, Reg.low3])
-    (by simp [z, f, Data.comap, Power.exponent, Reg.low3])
-    (hw.of_le (by unfold layoutWordBound; omega))
-  let t := s.extend f z
-  have hcall := he.rename (Fin.castLE_injective _)
-  have tvalue : t.regs Reg.low0 = N :=
-    (Data.extend_regs_of_eq (Fin.castLE_injective _) s z Power.value Reg.low0 rfl).trans value
-  have thigh (i : Fin 128) (hi : 5 ≤ i.val) : t.regs i = x.regs i := by
-    refine (Data.extend_castLE_regs_of_le s z i hi).trans ?_
-    simp only [z, Data.set,
-      Function.update_of_ne (show i ≠ Reg.low2 by intro he; subst i; contradiction),
-      Function.update_of_ne (show i ≠ Reg.low3 by intro he; subst i; contradiction)]
-  have tn := (thigh Reg.side (by decide)).trans hn
-  have tp := (thigh Reg.modulus (by decide)).trans hpr
-  have ts := (thigh Reg.scratch (by decide)).trans hs
-  have tt := (thigh Reg.two (by decide)).trans h2
-  have hsquare : N * N = 4 ^ k := by dsimp only [N]; rw [← mul_pow]; rfl
-  have harea : 4 ^ k ≤ area := by
-    have hm := Nat.mul_le_mul_left (4 ^ k) (Nat.succ_le_of_lt hp)
-    simpa only [Nat.mul_one] using hm
-  have fit (v : ℕ) (hv : v ≤ layoutWordBound n p k scratch) : Fits w v := hw.of_le hv
-  refine ⟨?y, ?run, ?fields, ?memory, ?regs⟩
-  case run =>
-    have tailRun : ExecWithin w (ram[
-      Reg.paddedSide ← Reg.low0; Reg.cells ← Reg.side * Reg.side;
-      Reg.paddedCells ← Reg.paddedSide * Reg.paddedSide;
-      Reg.area ← Reg.paddedCells * Reg.modulus; Reg.encodedModulus ← Reg.modulus * Reg.two;
-      Reg.residueAB ← Reg.scratch; Reg.residueBC ← Reg.residueAB + Reg.cells;
-      Reg.residueAC ← Reg.residueBC + Reg.cells; Reg.spread ← Reg.residueAC + Reg.cells;
-      Reg.matrixP ← Reg.spread + Reg.paddedSide; Reg.matrixQ ← Reg.matrixP + Reg.area;
-      Reg.matrixR ← Reg.matrixQ + Reg.area;
-      Reg.productScratch ← Reg.matrixR + Reg.area ]) t ?y 13 := by
-      ram_eval [area, tvalue, tn, tp, ts, tt, hsquare,
-        fit (n * n) (by unfold layoutWordBound; omega),
-        fit (4 ^ k) (by unfold layoutWordBound; omega),
-        fit area (by unfold layoutWordBound; dsimp [area]; omega),
-        fit (p * 2) (by unfold layoutWordBound; omega),
-        fit (scratch + n * n) (by unfold layoutWordBound; omega),
-        fit (scratch + n * n + n * n) (by unfold layoutWordBound; omega),
-        fit (scratch + n * n + n * n + n * n) (by unfold layoutWordBound; omega),
-        fit (scratch + n * n + n * n + n * n + N) (by unfold layoutWordBound; omega),
-        fit (scratch + n * n + n * n + n * n + N + area)
-          (by unfold layoutWordBound; dsimp [area]; omega),
-        fit (scratch + n * n + n * n + n * n + N + area + area)
-          (by unfold layoutWordBound; dsimp [area]; omega),
-        fit (scratch + n * n + n * n + n * n + N + area + area + area)
-          (by unfold layoutWordBound; dsimp [area]; omega),
-        Reg.paddedSide, Reg.low0, Reg.cells, Reg.side, Reg.paddedCells, Reg.area,
-        Reg.modulus, Reg.encodedModulus, Reg.two, Reg.residueAB, Reg.scratch,
-        Reg.residueBC, Reg.residueAC, Reg.spread, Reg.matrixP, Reg.matrixQ, Reg.matrixR,
-        Reg.productScratch]
-    obtain ⟨nSteps, hnSteps, argsRun⟩ := hargs
-    obtain ⟨mSteps, hmSteps, restRun⟩ := hcall.seq tailRun
-    cases argsRun with
-    | seq h₁ h₂ => exact ⟨_, by omega, .seq h₁ (.seq h₂ restRun)⟩
-  case fields =>
-    constructor <;> simp +decide [Data.set, thigh, hn, hpr, hk, hs, N,
-      Reg.side, Reg.modulus, Reg.depth, Reg.scratch, Reg.paddedSide, Reg.cells,
-      Reg.paddedCells, Reg.area, Reg.encodedModulus, Reg.residueAB, Reg.residueBC,
-      Reg.residueAC, Reg.spread, Reg.matrixP, Reg.matrixQ, Reg.matrixR, Reg.productScratch,
-      Nat.add_assoc, Nat.mul_two, two_mul, show 3 * (n * n) = n * n + n * n + n * n by omega,
-      show 3 * (4 ^ k * p) = 4 ^ k * p + 4 ^ k * p + 4 ^ k * p by omega]
-  case memory => exact memory
-  case regs =>
-    intro i hi
-    have hn (j : Fin 128) (hj : LayoutLocal j) : i ≠ j := by
-      intro he
-      subst i
-      exact hi hj
-    have hval : 5 ≤ i.val := by
-      have hh : ¬i.val < 5 := fun h => hi (Or.inl h)
-      omega
-    simp only [Data.set,
-      Function.update_of_ne (hn Reg.paddedSide (by decide)),
-      Function.update_of_ne (hn Reg.cells (by decide)),
-      Function.update_of_ne (hn Reg.paddedCells (by decide)),
-      Function.update_of_ne (hn Reg.area (by decide)),
-      Function.update_of_ne (hn Reg.encodedModulus (by decide)),
-      Function.update_of_ne (hn Reg.residueAB (by decide)),
-      Function.update_of_ne (hn Reg.residueBC (by decide)),
-      Function.update_of_ne (hn Reg.residueAC (by decide)),
-      Function.update_of_ne (hn Reg.spread (by decide)),
-      Function.update_of_ne (hn Reg.matrixP (by decide)),
-      Function.update_of_ne (hn Reg.matrixQ (by decide)),
-      Function.update_of_ne (hn Reg.matrixR (by decide)),
-      Function.update_of_ne (hn Reg.productScratch (by decide))]
-    exact thigh i hval
+  have hsquare : 2 ^ k * 2 ^ k = 4 ^ k := by rw [← mul_pow]; rfl
+  have harea : 4 ^ k ≤ 4 ^ k * p := by
+    simpa only [Nat.mul_one] using Nat.mul_le_mul_left (4 ^ k) (Nat.succ_le_of_lt hp)
+  have hwb : Fits w (scratch + 3 * (n * n) + 2 ^ k + 4 * (4 ^ k * p) + k + 2 * p + 16) := hw
+  refine WP.exists_execWithin ?_
+  unfold layout
+  wram_exec [h2, hk]
+  wram_call (Power.exec 2 k (by decide) _
+    (by wram_simp) (by wram_simp) (hwb.of_le (by omega)))
+    canonical (Fin.castLE_injective _) with s ⟨value, _, _, memory, _, _⟩
+  have value' : s.regs 0 = 2 ^ k := value
+  wram_exec [value', hn, hpr, hs, h2, hsquare]
+  refine ⟨⟨by wram_simp [hn], by wram_simp [hpr], by wram_simp [hk], by wram_simp [hs],
+      by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp; omega, by wram_simp, by wram_simp,
+      by wram_simp; omega, by wram_simp; omega, by wram_simp; omega,
+      by wram_simp; omega, by wram_simp; omega, by wram_simp; omega⟩,
+    by wram_simp [memory], fun i hi => ?_⟩
+  have hn' (j : Fin 128) (hj : LayoutLocal j) : i ≠ j := fun he => hi (he ▸ hj)
+  have hval : 5 ≤ i.val := Nat.le_of_not_lt fun h => hi (Or.inl h)
+  have hne2 : i ≠ Reg.low2 ∧ i ≠ Reg.low3 := by
+    constructor <;> (intro h; subst i; contradiction)
+  repeat rw [Data.set_regs_of_ne (hn' _ (by decide))]
+  rw [Data.extend_castLE_regs_of_le _ _ i hval]
+  wram_simp [hne2.1, hne2.2]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

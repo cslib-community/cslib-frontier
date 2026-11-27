@@ -129,47 +129,38 @@ theorem mem_routedPayloads {S : RoutedScaffold} {I : SeededInstance} {b p : Wang
 
 private theorem primrec_completePayloads : Primrec completePayloads := by
   have hc : Primrec palette :=
-    Primrec.list_cons.comp (Primrec.const 0) (Primrec.list_flatMap Primrec.id
-      (Primrec₂.mk ((Primrec.list_cons.comp primrec_top
-        (Primrec.list_cons.comp primrec_bottom (Primrec.list_cons.comp primrec_left
-          (Primrec.list_cons.comp primrec_right (Primrec.const []))))).comp Primrec.snd)))
-  unfold completePayloads
-  refine Primrec.list_flatMap hc (Primrec₂.mk ?_)
-  refine Primrec.list_flatMap (hc.comp Primrec.fst) (Primrec₂.mk ?_)
-  refine Primrec.list_flatMap (hc.comp (Primrec.fst.comp Primrec.fst)) (Primrec₂.mk ?_)
-  refine Primrec.list_map (hc.comp (Primrec.fst.comp (Primrec.fst.comp Primrec.fst)))
-    (Primrec₂.mk ?_)
-  exact primrec_mk (Primrec.snd.comp (Primrec.fst.comp (Primrec.fst.comp Primrec.fst)))
-    (Primrec.snd.comp (Primrec.fst.comp Primrec.fst))
-    (Primrec.snd.comp Primrec.fst) Primrec.snd
+    Primrec.list_cons.comp (.const 0) (.list_flatMap .id (.mk ((Primrec.list_cons.comp primrec_top
+      (Primrec.list_cons.comp primrec_bottom (Primrec.list_cons.comp primrec_left
+        (Primrec.list_cons.comp primrec_right (.const []))))).comp .snd)))
+  exact Primrec.list_flatMap hc (.mk <| .list_flatMap (hc.comp .fst) (.mk <|
+    .list_flatMap (hc.comp (.comp .fst .fst)) (.mk <|
+      .list_map (hc.comp (.comp .fst (.comp .fst .fst))) (.mk <|
+        primrec_mk (.comp .snd (.comp .fst (.comp .fst .fst)))
+          (.comp .snd (.comp .fst .fst)) (.comp .snd .fst) .snd))))
 
 /-- The combination is primitive recursive on the seeded instance code: only the finitely many
 roles on the fixed scaffold alphabet matter, so no computability premise on `S.role` is needed. -/
 theorem primrec_combine (S : RoutedScaffold) : Primrec (combine S) := by
   have hp (b : WangTile) : Primrec (fun I => routedPayloads S I b) := by
+    have hcp := primrec_completePayloads.comp SeededInstance.primrec_tiles
     cases h : S.role b
-    · exact (primrec_completePayloads.comp SeededInstance.primrec_tiles).of_eq
-        (by intro I; simp [routedPayloads, h])
-    · exact ((Primrec.listFilter (Primrec.eq.comp primrec_left primrec_right)).comp
-        (primrec_completePayloads.comp SeededInstance.primrec_tiles)).of_eq
-          (by intro I; simp [routedPayloads, h])
-    · exact ((Primrec.listFilter (Primrec.eq.comp primrec_bottom primrec_top)).comp
-        (primrec_completePayloads.comp SeededInstance.primrec_tiles)).of_eq
-          (by intro I; simp [routedPayloads, h])
-    · exact SeededInstance.primrec_tiles.of_eq (by intro I; simp [routedPayloads, h])
+    · exact hcp.of_eq fun _ => by simp [routedPayloads, h]
+    · exact ((Primrec.listFilter (Primrec.eq.comp primrec_left primrec_right)).comp hcp).of_eq
+        fun _ => by simp [routedPayloads, h]
+    · exact ((Primrec.listFilter (Primrec.eq.comp primrec_bottom primrec_top)).comp hcp).of_eq
+        fun _ => by simp [routedPayloads, h]
+    · exact SeededInstance.primrec_tiles.of_eq fun _ => by simp [routedPayloads, h]
     · exact ((PrimrecRel.listFilter Primrec.eq).comp SeededInstance.primrec_tiles
-        SeededInstance.primrec_seed).of_eq (by intro I; simp [routedPayloads, h])
+        SeededInstance.primrec_seed).of_eq fun _ => by simp [routedPayloads, h]
   have hl (b : WangTile) : Primrec (layer b) :=
-    primrec_mk (Primrec₂.natPair.comp (Primrec.const b.top) primrec_top)
-      (Primrec₂.natPair.comp (Primrec.const b.bottom) primrec_bottom)
-      (Primrec₂.natPair.comp (Primrec.const b.left) primrec_left)
-      (Primrec₂.natPair.comp (Primrec.const b.right) primrec_right)
+    primrec_mk (Primrec₂.natPair.comp (.const b.top) primrec_top)
+      (Primrec₂.natPair.comp (.const b.bottom) primrec_bottom)
+      (Primrec₂.natPair.comp (.const b.left) primrec_left)
+      (Primrec₂.natPair.comp (.const b.right) primrec_right)
   unfold combine
   induction S.tiles with
-  | nil => exact Primrec.const []
-  | cons b bs ih =>
-    exact Primrec.list_append.comp
-      (Primrec.list_map (hp b) (Primrec₂.mk ((hl b).comp Primrec.snd))) ih
+  | nil => exact .const []
+  | cons b _ ih => exact Primrec.list_append.comp (.list_map (hp b) (.mk ((hl b).comp .snd))) ih
 
 /-- A matching plane, bundled for geometric constructions. This uses exactly `TilesPlane`. -/
 structure Plane (τ : List WangTile) where
@@ -183,13 +174,9 @@ structure Plane (τ : List WangTile) where
   vertical : ∀ x y, (tile x y).top = (tile x (y + 1)).bottom
 
 /-- The bundled and existential plane predicates describe the same tilings. -/
-theorem nonempty_plane_iff (τ : List WangTile) : Nonempty (Plane τ) ↔ TilesPlane τ := by
-  constructor
-  · rintro ⟨p⟩
-    exact ⟨p.tile, fun x y => ⟨p.mem x y, p.horizontal x y, p.vertical x y⟩⟩
-  · rintro ⟨f, hf⟩
-    exact ⟨⟨f, fun x y => (hf x y).1, fun x y => (hf x y).2.1,
-      fun x y => (hf x y).2.2⟩⟩
+theorem nonempty_plane_iff (τ : List WangTile) : Nonempty (Plane τ) ↔ TilesPlane τ :=
+  ⟨fun ⟨p⟩ => ⟨p.tile, fun x y => ⟨p.mem x y, p.horizontal x y, p.vertical x y⟩⟩,
+   fun ⟨f, hf⟩ => ⟨⟨f, fun x y => (hf x y).1, fun x y => (hf x y).2.1, fun x y => (hf x y).2.2⟩⟩⟩
 
 /-- A matching routed plane separated into its scaffold and payload layers. -/
 structure RoutedPlane (S : RoutedScaffold) (I : SeededInstance) where
@@ -210,14 +197,10 @@ theorem nonempty_routedPlane_of_tilesPlane {S : RoutedScaffold} {I : SeededInsta
   classical
   obtain ⟨f, hf⟩ := h
   choose b hb p hp he using fun x y => mem_combine.mp (hf x y).1
-  have hh x y := Nat.pair_eq_pair.mp (show
-      Nat.pair (b x y).right (p x y).right =
-        Nat.pair (b (x + 1) y).left (p (x + 1) y).left by
-    simpa only [← he, layer] using (hf x y).2.1)
-  have hv x y := Nat.pair_eq_pair.mp (show
-      Nat.pair (b x y).top (p x y).top =
-        Nat.pair (b x (y + 1)).bottom (p x (y + 1)).bottom by
-    simpa only [← he, layer] using (hf x y).2.2)
+  have hh x y := Nat.pair_eq_pair.mp (by simpa only [← he, layer] using (hf x y).2.1 :
+    Nat.pair (b x y).right (p x y).right = Nat.pair (b (x + 1) y).left (p (x + 1) y).left)
+  have hv x y := Nat.pair_eq_pair.mp (by simpa only [← he, layer] using (hf x y).2.2 :
+    Nat.pair (b x y).top (p x y).top = Nat.pair (b x (y + 1)).bottom (p x (y + 1)).bottom)
   exact ⟨⟨⟨b, hb, fun x y => (hh x y).1, fun x y => (hv x y).1⟩,
     p, hp, fun x y => (hh x y).2, fun x y => (hv x y).2⟩⟩
 
@@ -308,11 +291,8 @@ private theorem transmit {incoming outgoing : ℤ → ℕ} (a b : ℤ) (hab : a 
     (step : ∀ x, outgoing x = incoming (x + 1))
     (wire : ∀ x, a < x → x < b → incoming x = outgoing x) :
     outgoing a = incoming b := by
-  have h : ∀ x, a + 1 ≤ x → x ≤ b → outgoing a = incoming x := by
-    apply Int.leInduction
-    · intro _
-      exact step a
-    · intro x hx ih hxb
+  have h : ∀ x, a + 1 ≤ x → x ≤ b → outgoing a = incoming x :=
+    Int.leInduction (fun _ => step a) fun x _ ih _ => by
       rw [← step x, ← wire x (by omega) (by omega)]
       exact ih (by omega)
   exact h b (by omega) le_rfl
@@ -354,8 +334,7 @@ theorem forces_of_routedGrids {S : RoutedScaffold}
     (grids : ∀ (P : Plane S.tiles) n, Nonempty (RoutedGrid S P n)) : Forces S := by
   intro I h n
   obtain ⟨P⟩ := nonempty_routedPlane_of_tilesPlane h
-  obtain ⟨G⟩ := grids P.base n
-  exact ⟨G.seededSquare P⟩
+  exact (grids P.base n).map (·.seededSquare P)
 
 private def fillIncoming {n : ℕ} (carry : Fin n → Bool) (incoming outgoing : Fin n → ℕ)
     (i : Fin n) : ℕ :=
@@ -382,34 +361,15 @@ private theorem fill_match {n : ℕ} (carry : Fin n → Bool) (incoming outgoing
   by_cases hc : carry i = true <;>
     by_cases hn : carry ⟨i.val + 1, hi⟩ = true
   · simpa [fillOutgoing, fillIncoming, hc, hn] using h i hi hc hn
-  · simp [fillOutgoing, fillIncoming, hc, hn]
-  · simp [fillOutgoing, fillIncoming, hc, hn, hi]
-  · simp [fillOutgoing, fillIncoming, hc, hn, hi]
+  all_goals simp [fillOutgoing, fillIncoming, hc, hn, hi]
 
 private theorem fill_mem {n : ℕ} (carry : Fin n → Bool) (incoming outgoing : Fin n → ℕ)
     (colors : List ℕ) (hz : 0 ∈ colors)
     (hin : ∀ i, incoming i ∈ colors) (hout : ∀ i, outgoing i ∈ colors) (i : Fin n) :
     fillIncoming carry incoming outgoing i ∈ colors ∧
       fillOutgoing carry incoming outgoing i ∈ colors := by
-  constructor
-  · unfold fillIncoming
-    split
-    · exact hin _
-    · split
-      · dsimp only
-        split
-        · exact hout _
-        · exact hz
-      · exact hz
-  · unfold fillOutgoing
-    split
-    · exact hout _
-    · split
-      · dsimp only
-        split
-        · exact hin _
-        · exact hz
-      · exact hz
+  unfold fillIncoming fillOutgoing
+  constructor <;> repeat' first | split | dsimp only | exact hin _ | exact hout _ | exact hz
 
 private def addressedPayload {τ : List WangTile} (P : Plane τ) (role : RouteRole)
     (point horizontalSource verticalSource : ℤ × ℤ) : WangTile :=
@@ -425,11 +385,9 @@ private def addressedPayload {τ : List WangTile} (P : Plane τ) (role : RouteRo
 
 private theorem addressedPayload_mem {τ : List WangTile} (P : Plane τ) (r : RouteRole)
     (p h v : ℤ × ℤ) : addressedPayload P r p h v ∈ completePayloads τ := by
-  have ep := mem_completePayloads.mp (mem_completePayloads_of_mem (P.mem p.1 p.2))
-  have eh := mem_completePayloads.mp (mem_completePayloads_of_mem (P.mem h.1 h.2))
-  have ev := mem_completePayloads.mp (mem_completePayloads_of_mem (P.mem v.1 v.2))
+  have e (q : ℤ × ℤ) := mem_completePayloads.mp (mem_completePayloads_of_mem (P.mem q.1 q.2))
   have hz : 0 ∈ palette τ := List.mem_cons_self
-  cases r <;> simp [addressedPayload, mem_completePayloads, ep, eh, ev, hz]
+  cases r <;> simp [addressedPayload, mem_completePayloads, e p, e h, e v, hz]
 
 private def addressedRectangle {S : RoutedScaffold} {n : ℕ} (A : AddressedSquare S n)
     {I : SeededInstance} (P : Plane I.tiles) (seed : P.tile 0 0 = I.seed) :
@@ -547,24 +505,19 @@ from neighboring carriers or zero, then ordinary finite-square compactness gives
 theorem realizes_of_addressedSquares {S : RoutedScaffold}
     (squares : ∀ n, ∃ m, n ≤ m ∧ Nonempty (AddressedSquare S m)) : Realizes S := by
   rintro I ⟨f, hf, hm⟩
-  let P : Plane I.tiles := ⟨f, fun x y => (hm x y).1,
-    fun x y => (hm x y).2.1, fun x y => (hm x y).2.2⟩
-  apply (tilesPlane_iff_squares _).mpr
-  intro n
+  refine (tilesPlane_iff_squares _).mpr fun n => ?_
   obtain ⟨m, hnm, ⟨A⟩⟩ := squares n
-  exact ⟨(addressedRectangle A P hf).crop (by omega) (by omega)⟩
+  exact ⟨(addressedRectangle A ⟨f, fun x y => (hm x y).1,
+    fun x y => (hm x y).2.1, fun x y => (hm x y).2.2⟩ hf).crop (by omega) (by omega)⟩
 
 /-- A generic seed-removal step, not the domino theorem: both geometric obligations remain
 hypotheses. Finite extended squares decode to source squares, while a source quadrant extends
 to the pointed plane required by realization. -/
 theorem tilesPlane_combine_pointedExtension_iff_of_forces_of_realizes
     {S : RoutedScaffold} (forces : Forces S) (realizes : Realizes S) (I : SeededInstance) :
-    TilesPlane (combine S (pointedExtension I)) ↔ TilesQuadrant I := by
-  constructor
-  · intro h
-    exact (tilesQuadrant_iff_seededSquares I).mpr fun n =>
-      seededSquare_of_pointedExtension (forces _ h n)
-  · intro h
-    exact realizes _ ((tilesAtOrigin_pointedExtension_iff I).mpr h)
+    TilesPlane (combine S (pointedExtension I)) ↔ TilesQuadrant I :=
+  ⟨fun h => (tilesQuadrant_iff_seededSquares I).mpr fun n =>
+      seededSquare_of_pointedExtension (forces _ h n),
+    fun h => realizes _ ((tilesAtOrigin_pointedExtension_iff I).mpr h)⟩
 
 end Cslib.WangTile

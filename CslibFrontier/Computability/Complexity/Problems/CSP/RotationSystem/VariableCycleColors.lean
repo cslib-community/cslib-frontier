@@ -57,15 +57,9 @@ theorem colors_rotate_rotationOfVariableCycles (cycles : List (List ℕ))
       (fun j => Dart.colorAtIndex P (2 * j))
       (fun j => Dart.colorAtIndex P (2 * j + 1)) color hc (incidenceEdgeIndex o) how
     rw [rotate_rotationOfVariableCycles_false]
-    let next := List.finiteCyclePermutation cycles hcover
-      ⟨incidenceEdgeIndex o, incidenceEdgeIndex_lt o⟩
-    have hnext : P (next, false) = Dart.colorAtIndex P (2 * next.val) :=
-      (Dart.colorAtIndex_index P (next, false)).symm
-    change P (next, false) = P (incidenceDart o true)
-    rw [hnext]
-    change Dart.colorAtIndex P
-      (2 * (List.finiteCyclePermutation cycles hcover
-        ⟨incidenceEdgeIndex o, incidenceEdgeIndex_lt o⟩).val) = _
+    refine Eq.trans (b := Dart.colorAtIndex P (2 * (List.finiteCyclePermutation cycles hcover
+        ⟨incidenceEdgeIndex o, incidenceEdgeIndex_lt o⟩).val))
+      (Dart.colorAtIndex_index P (_, false)).symm ?_
     rw [List.val_finiteCyclePermutation,
       List.cyclePermutation_apply_of_mem cycles hn word hw _ how, he]
     exact Dart.colorAtIndex_index P (incidenceDart o true)

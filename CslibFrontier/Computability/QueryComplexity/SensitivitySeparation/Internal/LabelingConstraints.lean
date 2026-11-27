@@ -55,20 +55,14 @@ theorem labelingConstraint_iff {α β : Type} [Nonempty α]
     (A : (Fin k × Fin k) → β) :
     (∀ i ∈ s, ∀ j ∈ s, T.Adj (v i) (v j) → A (v i,v j) = m j) ↔
       ∀ p ∈ T.internalEdges (s.image v), A p = m (Function.invFun v p.2) := by
-  constructor
-  · intro h p hp
-    obtain ⟨⟨hp₁,hp₂⟩,ha⟩ := T.mem_internalEdges.mp hp
-    obtain ⟨i,hi,hvi⟩ := Finset.mem_image.mp hp₁
-    obtain ⟨j,hj,hvj⟩ := Finset.mem_image.mp hp₂
-    have he : p = (v i,v j) := Prod.ext hvi.symm hvj.symm
-    subst p
-    rw [Function.leftInverse_invFun hv j]
-    exact h i hi j hj ha
-  · intro h i hi j hj ha
-    have hp : (v i,v j) ∈ T.internalEdges (s.image v) :=
-      T.mem_internalEdges.mpr ⟨⟨Finset.mem_image.mpr ⟨i,hi,rfl⟩,
-        Finset.mem_image.mpr ⟨j,hj,rfl⟩⟩,ha⟩
-    simpa only [Function.leftInverse_invFun hv j] using h (v i,v j) hp
+  refine ⟨fun h ⟨x, y⟩ hp => ?_, fun h i hi j hj ha => ?_⟩
+  · obtain ⟨⟨hx, hy⟩, ha⟩ := T.mem_internalEdges.mp hp
+    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hx
+    obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hy
+    simpa only [Function.leftInverse_invFun hv j] using h i hi j hj ha
+  · have hp : (v i, v j) ∈ T.internalEdges (s.image v) :=
+      T.mem_internalEdges.mpr ⟨⟨Finset.mem_image_of_mem v hi, Finset.mem_image_of_mem v hj⟩, ha⟩
+    simpa only [Function.leftInverse_invFun hv j] using h (v i, v j) hp
 
 end Internal.Tournament
 

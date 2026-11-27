@@ -105,18 +105,9 @@ theorem gaifmanGraph_structure {V : Type*} (G : SimpleGraph V) :
   let := G.structure
   ext x y
   rw [gaifmanGraph_adj]
-  constructor
-  · rintro ⟨hne, l, R, t, hR, ⟨i, rfl⟩, j, rfl⟩
-    cases R
-    have h01 : ∀ p : Fin 2, p = 0 ∨ p = 1 := fun p => by fin_cases p <;> simp
-    change G.Adj (t 0) (t 1) at hR
-    rcases h01 i with rfl | rfl <;> rcases h01 j with rfl | rfl
-    · exact absurd rfl hne
-    · exact hR
-    · exact hR.symm
-    · exact absurd rfl hne
-  · intro h
-    exact ⟨h.ne, 2, .adj, ![x, y], h, ⟨0, rfl⟩, 1, rfl⟩
+  refine ⟨?_, fun h => ⟨h.ne, 2, .adj, ![x, y], h, ⟨0, rfl⟩, 1, rfl⟩⟩
+  rintro ⟨hne, _, ⟨⟩, t, hR, ⟨i, rfl⟩, j, rfl⟩
+  fin_cases i <;> fin_cases j <;> first | exact absurd rfl hne | exact hR | exact hR.symm
 
 /-! ### Distances -/
 
@@ -249,8 +240,7 @@ theorem edist_le (H : IsNbhdIso L r a b h) :
     ∀ {s l : ℕ} {x y : M}, l + s ≤ r → x ∈ ball L a l → (gaifmanGraph L M).edist x y ≤ s →
       (gaifmanGraph L N).edist (h x) (h y) ≤ s
   | 0, _, x, y, _, _, hxy => by
-    have : x = y := SimpleGraph.edist_eq_zero_iff.1 (nonpos_iff_eq_zero.1 (by exact_mod_cast hxy))
-    subst this
+    obtain rfl := SimpleGraph.edist_eq_zero_iff.1 (nonpos_iff_eq_zero.1 (by exact_mod_cast hxy))
     simp
   | s + 1, l, x, y, hls, hx, hxy => by
     rcases exists_adj_of_edist_le_succ hxy with rfl | ⟨z, hxz, hzy⟩
@@ -276,10 +266,9 @@ theorem symm [Nonempty M] (H : IsNbhdIso L r a b h) :
   refine ⟨H.bijOn.symm hinv.symm, fun i => ?_, fun R t ht => ?_⟩
   · rw [← H.map_tuple i]
     exact hinv.1 (mem_ball_self a r i)
-  · have hmaps := (H.bijOn.symm hinv.symm).mapsTo
-    rw [← H.relMap_iff R (Function.invFunOn h (ball L a r) ∘ t) (fun i => hmaps (ht i))]
-    have : h ∘ (Function.invFunOn h (ball L a r) ∘ t) = t := funext fun i => hinv.2 (ht i)
-    rw [this]
+  · have hcomp : h ∘ (Function.invFunOn h (ball L a r) ∘ t) = t := funext fun i => hinv.2 (ht i)
+    rw [← H.relMap_iff R (Function.invFunOn h (ball L a r) ∘ t)
+      (fun i => (H.bijOn.symm hinv.symm).mapsTo (ht i)), hcomp]
 
 theorem refl (r : ℕ) (a : Fin k → M) : IsNbhdIso L r a a id :=
   ⟨Set.bijOn_id _, fun _ => rfl, fun _ _ _ => Iff.rfl⟩
@@ -310,9 +299,8 @@ theorem restrict {m : ℕ} {x : Fin m → M} {l d : ℕ} (H : IsNbhdIso L r a b 
     rwa [H.bijOn.invOn_invFunOn.1 (ball_mono (by omega) (hx i))] at this
 
 /-- Restriction to a smaller radius ([Libkin, Lemma 4.8][Libkin2004], first item). -/
-theorem mono {d : ℕ} (H : IsNbhdIso L r a b h) (hd : d ≤ r) : IsNbhdIso L d a b h := by
-  have := H.restrict (x := a) (l := 0) (d := d) (fun i => mem_ball_self a 0 i) (by omega)
-  rwa [show h ∘ a = b from funext H.map_tuple] at this
+theorem mono {d : ℕ} (H : IsNbhdIso L r a b h) (hd : d ≤ r) : IsNbhdIso L d a b h :=
+  funext H.map_tuple ▸ H.restrict (fun i => mem_ball_self a 0 i) (by simpa using hd)
 
 open Classical in
 /-- Neighborhoods of far-apart tuples combine ([Libkin, Lemma 4.8][Libkin2004], third item, for a
@@ -328,62 +316,37 @@ theorem snoc {h₁ h₂ : M → N} {c : M} {c' : N} (H₁ : IsNbhdIso L r a b h�
   set S' := ball L (fun _ : Fin 1 => c) r
   set T := ball L b r
   set T' := ball L (fun _ : Fin 1 => c') r
-  have farM : ∀ y ∈ S, ∀ z ∈ S', 1 < (gaifmanGraph L M).edist y z := by
-    rintro y ⟨i, hy⟩ z hz
-    exact one_lt_edist_of_far (hc i) hy (mem_ball_const.1 hz)
-  have farN : ∀ y ∈ T, ∀ z ∈ T', 1 < (gaifmanGraph L N).edist y z := by
-    rintro y ⟨i, hy⟩ z hz
-    exact one_lt_edist_of_far (hc' i) hy (mem_ball_const.1 hz)
-  have neM : ∀ y ∈ S, ∀ z ∈ S', y ≠ z := fun y hy z hz hyz => by
-    have := farM y hy z hz
-    rw [hyz, SimpleGraph.edist_self] at this
-    exact absurd this (by simp)
-  have neN : ∀ y ∈ T, ∀ z ∈ T', y ≠ z := fun y hy z hz hyz => by
-    have := farN y hy z hz
-    rw [hyz, SimpleGraph.edist_self] at this
-    exact absurd this (by simp)
+  have farM : ∀ y ∈ S, ∀ z ∈ S', 1 < (gaifmanGraph L M).edist y z := fun _ ⟨i, hy⟩ _ hz =>
+    one_lt_edist_of_far (hc i) hy (mem_ball_const.1 hz)
+  have farN : ∀ y ∈ T, ∀ z ∈ T', 1 < (gaifmanGraph L N).edist y z := fun _ ⟨i, hy⟩ _ hz =>
+    one_lt_edist_of_far (hc' i) hy (mem_ball_const.1 hz)
+  have disjM : Disjoint S S' := Set.disjoint_left.2 fun x hx hx' => by
+    simpa using farM x hx x hx'
+  have disjN : Disjoint T T' := Set.disjoint_left.2 fun x hx hx' => by
+    simpa using farN x hx x hx'
   let H : M → N := fun x => if x ∈ S then h₁ x else h₂ x
   have HS : Set.EqOn H h₁ S := fun x hx => by simp [H, hx]
-  have HS' : Set.EqOn H h₂ S' := fun x hx => by
-    simp [H, show x ∉ S from fun h => neM x h x hx rfl]
+  have HS' : Set.EqOn H h₂ S' := fun x hx => ite_eq_right (disjM.notMem_of_mem_right hx)
   have hb1 : Set.BijOn H S T := H₁.bijOn.congr HS.symm
   have hb2 : Set.BijOn H S' T' := H₂.bijOn.congr HS'.symm
   refine ⟨H, ⟨?_, fun i => ?_, fun R t ht => ?_⟩⟩
   · rw [ball_snoc, ball_snoc]
-    refine hb1.union hb2 ?_
-    rw [Set.injOn_union (Set.disjoint_left.2 fun x hx hx' => neM x hx x hx' rfl)]
-    exact ⟨hb1.injOn, hb2.injOn, fun x hx y hy hxy =>
-      neN _ (hb1.mapsTo hx) _ (hb2.mapsTo hy) hxy⟩
+    exact hb1.union hb2 ((Set.injOn_union disjM).2
+      ⟨hb1.injOn, hb2.injOn, fun _ hx _ hy => disjN.ne_of_mem (hb1.mapsTo hx) (hb2.mapsTo hy)⟩)
   · induction i using Fin.lastCases with
-    | last =>
-      simp only [Fin.snoc_last]
-      rw [HS' (mem_ball_self _ r 0)]
-      exact H₂.map_tuple 0
-    | cast i =>
-      simp only [Fin.snoc_castSucc]
-      rw [HS (mem_ball_self _ r i)]
-      exact H₁.map_tuple i
-  · have ht' : ∀ i, t i ∈ S ∨ t i ∈ S' := fun i => mem_ball_snoc.1 (ht i)
-    by_cases hS : ∀ i, t i ∈ S
-    · have : H ∘ t = h₁ ∘ t := funext fun i => HS (hS i)
-      rw [this]
-      exact H₁.relMap_iff R t hS
+    | last => simpa only [Fin.snoc_last, HS' (mem_ball_self _ r 0)] using H₂.map_tuple 0
+    | cast i => simpa only [Fin.snoc_castSucc, HS (mem_ball_self _ r i)] using H₁.map_tuple i
+  · by_cases hS : ∀ i, t i ∈ S
+    · exact (funext fun i => HS (hS i) : H ∘ t = h₁ ∘ t) ▸ H₁.relMap_iff R t hS
     by_cases hS' : ∀ i, t i ∈ S'
-    · have : H ∘ t = h₂ ∘ t := funext fun i => HS' (hS' i)
-      rw [this]
-      exact H₂.relMap_iff R t hS'
-    simp only [not_forall] at hS hS'
-    obtain ⟨i, hi⟩ := hS
-    obtain ⟨j, hj⟩ := hS'
-    have hi' : t i ∈ S' := (ht' i).resolve_left hi
-    have hj' : t j ∈ S := (ht' j).resolve_right hj
-    have hHi : H (t i) ∈ T' := by rw [HS' hi']; exact H₂.bijOn.mapsTo hi'
-    have hHj : H (t j) ∈ T := by rw [HS hj']; exact H₁.bijOn.mapsTo hj'
-    constructor
-    · intro hR
-      exact absurd (edist_le_one_of_relMap hR j i) (not_le.2 (farN _ hHj _ hHi))
-    · intro hR
-      exact absurd (edist_le_one_of_relMap hR j i) (not_le.2 (farM _ hj' _ hi'))
+    · exact (funext fun i => HS' (hS' i) : H ∘ t = h₂ ∘ t) ▸ H₂.relMap_iff R t hS'
+    obtain ⟨i, hi⟩ := not_forall.1 hS
+    obtain ⟨j, hj⟩ := not_forall.1 hS'
+    have hi' : t i ∈ S' := (mem_ball_snoc.1 (ht i)).resolve_left hi
+    have hj' : t j ∈ S := (mem_ball_snoc.1 (ht j)).resolve_right hj
+    refine iff_of_false (fun hR => ?_) (fun hR => ?_)
+    · exact (farN _ (hb1.mapsTo hj') _ (hb2.mapsTo hi')).not_ge (edist_le_one_of_relMap hR j i)
+    · exact (farM _ hj' _ hi').not_ge (edist_le_one_of_relMap hR j i)
 
 end IsNbhdIso
 

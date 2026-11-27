@@ -99,23 +99,19 @@ theorem CiphertextHitBound.collision_le {PK Msg C : Type} [DecidableEq C]
     simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_apply, PMF.pure_apply]
     rw [tsum_option_eq]
     simp [p₁, p₂]
-  have hle : ∑' c : C, p₁ (some c) * p₂ (some c) ≤ (ε : ℝ≥0∞) := by
+  have hle : ∑' c : C, p₁ (some c) * p₂ (some c) ≤ (ε : ℝ≥0∞) :=
     calc ∑' c : C, p₁ (some c) * p₂ (some c)
-        ≤ ∑' c : C, p₁ (some c) * (ε : ℝ≥0∞) := by
-          refine tsum_le_tsum fun c => ?_
-          have hp2 : p₂ (some c) ≤ (ε : ℝ≥0∞) :=
-            (ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)).symm ▸
-              ENNReal.coe_le_coe.mpr (h pk₂ m₂ c)
+        ≤ ∑' c : C, p₁ (some c) * (ε : ℝ≥0∞) := tsum_le_tsum fun c => by
           gcongr
+          exact (ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)).symm ▸
+            ENNReal.coe_le_coe.mpr (h pk₂ m₂ c)
       _ = (∑' c : C, p₁ (some c)) * (ε : ℝ≥0∞) := ENNReal.tsum_mul_right
       _ ≤ 1 * (ε : ℝ≥0∞) := by
           gcongr
-          have hsum : ∑' c : Option C, p₁ c = 1 := p₁.tsum_coe
-          rw [← hsum, tsum_option_eq]
+          rw [← p₁.tsum_coe, tsum_option_eq]
           exact le_add_self
       _ = (ε : ℝ≥0∞) := one_mul _
-  rw [heval]
-  exact (ENNReal.toNNReal_mono ENNReal.coe_ne_top hle).trans_eq (ENNReal.toNNReal_coe ε)
+  exact heval ▸ (ENNReal.toNNReal_mono ENNReal.coe_ne_top hle).trans_eq (ENNReal.toNNReal_coe ε)
 
 /-- **Strongly unpredictable ciphertexts** ([BonehShoup2023], §21.4.1, p. 872) for a family of
 fallible encryption algorithms `encrypt : ∀ n, PK n → Msg n → ProbComp (Option (C n))` (`none`
@@ -151,47 +147,33 @@ theorem stronglyUnpredictable_iff_forall {PK Msg C : ℕ → Type}
         x = ((ProbComp.eval (encrypt n pk m)) (some c)).toNNReal}
     have hne (n : ℕ) : (S n).Nonempty :=
       ⟨_, Classical.arbitrary _, Classical.arbitrary _, Classical.arbitrary _, rfl⟩
-    have hbdd (n : ℕ) : BddAbove (S n) := by
-      refine ⟨1, ?_⟩
-      rintro x ⟨pk, m, c, rfl⟩
+    have hbdd (n : ℕ) : BddAbove (S n) := ⟨1, by
+      rintro _ ⟨pk, m, c, rfl⟩
       exact (ENNReal.toNNReal_mono ENNReal.one_ne_top (PMF.coe_le_one _ _)).trans_eq
-        ENNReal.toNNReal_one
+        ENNReal.toNNReal_one⟩
     let ε : ℕ → ℝ≥0 := fun n => sSup (S n)
-    have hbound (n : ℕ) : CiphertextHitBound (encrypt n) (ε n) :=
-      fun pk m c => le_csSup (hbdd n) ⟨pk, m, c, rfl⟩
-    refine ⟨ε, ?_, hbound⟩
+    refine ⟨ε, ?_, fun n pk m c => le_csSup (hbdd n) ⟨pk, m, c, rfl⟩⟩
     by_contra hnot
     rw [negligible_iff] at hnot
     push Not at hnot
-    rcases hnot with ⟨k, δ, hδpos, hbad⟩
-    have hhalf_pos : (0 : ℝ≥0) < δ / 2 := half_pos hδpos
-    have hhalf_lt : δ / 2 < δ := NNReal.half_lt_self hδpos.ne'
+    obtain ⟨k, δ, hδpos, hbad⟩ := hnot
     have hwitness (n : ℕ) :
         ∃ (pk : PK n) (m : Msg n) (c : C n),
           δ ≤ (n : ℝ≥0) ^ k * ε n →
             δ / 2 < (n : ℝ≥0) ^ k * ((ProbComp.eval (encrypt n pk m)) (some c)).toNNReal := by
       by_cases hcond : δ ≤ (n : ℝ≥0) ^ k * ε n
-      · have hnk_pos : (0 : ℝ≥0) < (n : ℝ≥0) ^ k := by
-          by_contra h0
-          have hnk0 : (n : ℝ≥0) ^ k = 0 := le_antisymm (not_lt.mp h0) zero_le
-          rw [hnk0, zero_mul] at hcond
-          exact not_le_of_gt hδpos hcond
-        have hlt_sup : (δ / 2) / (n : ℝ≥0) ^ k < sSup (S n) := by
-          rw [div_lt_iff₀ hnk_pos, mul_comm]
-          exact hhalf_lt.trans_le hcond
-        rcases (lt_csSup_iff (hbdd n) (hne n)).mp hlt_sup with ⟨x, ⟨pk, m, c, rfl⟩, hx⟩
-        refine ⟨pk, m, c, fun _ => ?_⟩
-        rwa [div_lt_iff₀ hnk_pos, mul_comm] at hx
+      · have hnk : (0 : ℝ≥0) < (n : ℝ≥0) ^ k := pos_iff_ne_zero.mpr fun h0 =>
+          not_le_of_gt hδpos (by simpa [h0] using hcond)
+        have hlt : (δ / 2) / (n : ℝ≥0) ^ k < sSup (S n) := by
+          rw [div_lt_iff₀ hnk, mul_comm]
+          exact (NNReal.half_lt_self hδpos.ne').trans_le hcond
+        obtain ⟨_, ⟨pk, m, c, rfl⟩, hx⟩ := (lt_csSup_iff (hbdd n) (hne n)).mp hlt
+        exact ⟨pk, m, c, fun _ => by rwa [div_lt_iff₀ hnk, mul_comm] at hx⟩
       · exact ⟨Classical.arbitrary _, Classical.arbitrary _, Classical.arbitrary _,
-          fun h => False.elim (hcond h)⟩
-    let pkSeq : ∀ n, PK n := fun n => (hwitness n).choose
-    let mSeq : ∀ n, Msg n := fun n => (hwitness n).choose_spec.choose
-    let cSeq : ∀ n, C n := fun n => (hwitness n).choose_spec.choose_spec.choose
-    have hspec (n : ℕ) := (hwitness n).choose_spec.choose_spec.choose_spec
-    have hneg := hforall pkSeq mSeq cSeq
-    rw [negligible_iff] at hneg
-    rcases hneg k (δ / 2) hhalf_pos with ⟨M, hM⟩
-    rcases hbad M with ⟨n, hnM, hnδ⟩
+          fun h => (hcond h).elim⟩
+    choose pkSeq mSeq cSeq hspec using hwitness
+    obtain ⟨M, hM⟩ := (negligible_iff _).mp (hforall pkSeq mSeq cSeq) k (δ / 2) (half_pos hδpos)
+    obtain ⟨n, hnM, hnδ⟩ := hbad M
     exact not_lt_of_gt (hspec n hnδ) (hM n hnM)
 
 /-- If `encrypt` has strongly unpredictable ciphertexts, then two independent invocations (even

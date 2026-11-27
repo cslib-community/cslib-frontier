@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Rank
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Strict packed sketch ranks
@@ -122,9 +123,8 @@ theorem exec {w b n q : ℕ} (s : ℕ → ℕ) (x : Data 10) (hn : 0 < n)
   have hsub : Fits w (n - countGuards b n s q) := hnfit.of_le (Nat.sub_le _ _)
   simp only [countGuards, guardFlags, packedDifference] at hdiff hmask hflag hcount hdiv hmod hsub
   refine ⟨?_, ?_, rfl⟩
-  · ram_eval [code, result, hxq, hxn, hxc, hxg, hxb, hxm, hxr, hxn',
-      hrep, hdiff, hmask, hflag, hcount, hdiv, hmod, hsub,
-      countGuards, guardFlags, packedDifference]
+  · simp only [code, result, countGuards, guardFlags, packedDifference]
+    wram_exec *
   · simpa only [result, Data.set_regs, Function.update_self] using
       countGuards_complement s hn hb hs hq
 

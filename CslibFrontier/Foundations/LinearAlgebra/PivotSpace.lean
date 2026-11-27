@@ -129,7 +129,6 @@ theorem sum_finrank_pivotSpace [FiniteDimensional K M] (V : Submodule K (Fin r â
     ext v
     simp [mem_lowerZero]
   rw [hV] at h0
-  rw [h0]
-  exact Finset.sum_congr (by simp) fun _ _ => rfl
+  simpa using h0.symm
 
 end Cslib

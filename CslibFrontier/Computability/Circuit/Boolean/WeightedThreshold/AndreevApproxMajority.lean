@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.AndreevLowerBound
 import CslibFrontier.Foundations.Combinatorics.ApproximateMajority
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Approximate majorities of depth-two threshold circuits for Andreev's function
@@ -88,12 +89,9 @@ private theorem le_half_of_card_eval_eq_andreev_ge {b m : ℕ} {ε : ℝ}
     ε ≤ 1 / 2 := by
   have hle : (#{w : BitString (2 ^ b + b * m) | c.eval interpretation w 0 = andreev b m w} : ℝ) ≤
       (2 : ℝ) ^ (2 ^ b + b * m) := by
-    have h := card_filter_le (univ : Finset (BitString (2 ^ b + b * m)))
-      fun w => c.eval interpretation w 0 = andreev b m w
-    rw [card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] at h
-    exact_mod_cast h
-  have hpos : (0 : ℝ) < (2 : ℝ) ^ (2 ^ b + b * m) := by positivity
-  nlinarith
+    simpa [Fintype.card_bool] using (Nat.cast_le (α := ℝ)).mpr
+      (card_filter_le (univ : Finset (BitString (2 ^ b + b * m))) _)
+  nlinarith [(by positivity : (0 : ℝ) < (2 : ℝ) ^ (2 ^ b + b * m))]
 
 /-! ### Gate and wire bounds for approximate majorities -/
 
@@ -170,12 +168,11 @@ theorem wireCount_ge_of_approxMajority_andreev_of_le_two_pow {b m t : ℕ} (hm :
 /-- A strict majority of `t` votes is a `1 / (2 t)`-approximate majority. -/
 private theorem mul_half_add_inv_le_of_lt_two_mul {t k : ℕ} (h : t < 2 * k) :
     (t : ℝ) * (1 / 2 + 1 / (2 * t)) ≤ k := by
-  have h' : (t : ℝ) + 1 ≤ 2 * k := by exact_mod_cast h
   rcases Nat.eq_zero_or_pos t with rfl | ht
   · simp
   · have htinv : (t : ℝ) * (1 / (2 * t)) = 1 / 2 := by field_simp
     rw [mul_add, htinv]
-    linarith
+    cast_linarith [h]
 
 /-- On every input strictly more than half of the votes are correct, so the family is nonempty. -/
 private theorem pos_of_majorityVote {b m t : ℕ} (C : Fin t → Circuit signature (2 ^ b + b * m) 1)
@@ -191,10 +188,8 @@ private theorem pos_of_majorityVote {b m t : ℕ} (C : Fin t → Circuit signatu
 private theorem le_four_mul_sq_mul_of_mul_inv_sq_le {t : ℕ} (ht : 0 < t) {L R : ℝ}
     (h : L * (1 / (2 * (t : ℝ))) ^ 2 ≤ R) : L ≤ 4 * (t : ℝ) ^ 2 * R := by
   have htpos : (0 : ℝ) < t := Nat.cast_pos.mpr ht
-  have hL : L = 4 * (t : ℝ) ^ 2 * (L * (1 / (2 * (t : ℝ))) ^ 2) := by
-    field_simp; ring
-  rw [hL]
-  exact mul_le_mul_of_nonneg_left h (by positivity)
+  have hL : L = 4 * (t : ℝ) ^ 2 * (L * (1 / (2 * (t : ℝ))) ^ 2) := by field_simp; ring
+  exact hL.trans_le (mul_le_mul_of_nonneg_left h (by positivity))
 
 /-- **Top fan-in, gates.** If on every input strictly more than half of the depth-two circuits
 `C i` (each with at most `s` gates) output Andreev's function, and
@@ -209,9 +204,8 @@ theorem size_ge_of_majorityVote_andreev {b m t : ℕ} (hm : 0 < m)
       144 * (t : ℝ) ^ 2 * ((b : ℝ) + 2 + Real.log (s + 1)) * (s : ℝ) *
         Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
   have ht := pos_of_majorityVote C hvote
-  have h := le_four_mul_sq_mul_of_mul_inv_sq_le ht (size_ge_of_approxMajority_andreev hm ht hb C hd
-    hs fun w => mul_half_add_inv_le_of_lt_two_mul (hvote w))
-  linarith
+  linarith [le_four_mul_sq_mul_of_mul_inv_sq_le ht (size_ge_of_approxMajority_andreev hm ht hb C hd
+    hs fun w => mul_half_add_inv_le_of_lt_two_mul (hvote w))]
 
 /-- **Top fan-in, gates**, with a linear counting loss in `b`, valid when `m ≤ 2 ^ b`: a majority
 vote as in `size_ge_of_majorityVote_andreev` has `m · 2^b ≤ 576 (b + 2) t² s √n`. -/
@@ -224,9 +218,8 @@ theorem size_ge_of_majorityVote_andreev_of_le_two_pow {b m t : ℕ} (hm : 0 < m)
     (m : ℝ) * (2 : ℝ) ^ b ≤
       576 * ((b : ℝ) + 2) * (t : ℝ) ^ 2 * (s : ℝ) * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
   have ht := pos_of_majorityVote C hvote
-  have h := le_four_mul_sq_mul_of_mul_inv_sq_le ht (size_ge_of_approxMajority_andreev_of_le_two_pow
-    hm hmN ht hb C hd hs fun w => mul_half_add_inv_le_of_lt_two_mul (hvote w))
-  linarith
+  linarith [le_four_mul_sq_mul_of_mul_inv_sq_le ht (size_ge_of_approxMajority_andreev_of_le_two_pow
+    hm hmN ht hb C hd hs fun w => mul_half_add_inv_le_of_lt_two_mul (hvote w))]
 
 /-- **Top fan-in, wires.** If on every input strictly more than half of the depth-two circuits
 `C i` (each with at most `s` active wires) output Andreev's function, and
@@ -240,9 +233,8 @@ theorem wireCount_ge_of_majorityVote_andreev {b m t : ℕ} (hm : 0 < m)
     (m : ℝ) * Real.sqrt (m : ℝ) * (2 : ℝ) ^ b ≤
       144 * (t : ℝ) ^ 2 * ((b : ℝ) + 2 + Real.log (s + 1)) * (s : ℝ) := by
   have ht := pos_of_majorityVote C hvote
-  have h := le_four_mul_sq_mul_of_mul_inv_sq_le ht (wireCount_ge_of_approxMajority_andreev hm ht hb
-    C hd hs fun w => mul_half_add_inv_le_of_lt_two_mul (hvote w))
-  linarith
+  linarith [le_four_mul_sq_mul_of_mul_inv_sq_le ht (wireCount_ge_of_approxMajority_andreev hm ht hb
+    C hd hs fun w => mul_half_add_inv_le_of_lt_two_mul (hvote w))]
 
 /-- **Top fan-in, wires**, with a linear counting loss in `b`, valid when `m ≤ 2 ^ b`: a majority
 vote as in `wireCount_ge_of_majorityVote_andreev` has `m · √m · 2^b ≤ 576 (b + 2) t² s`. -/
@@ -255,9 +247,8 @@ theorem wireCount_ge_of_majorityVote_andreev_of_le_two_pow {b m t : ℕ} (hm : 0
     (m : ℝ) * Real.sqrt (m : ℝ) * (2 : ℝ) ^ b ≤
       576 * ((b : ℝ) + 2) * (t : ℝ) ^ 2 * (s : ℝ) := by
   have ht := pos_of_majorityVote C hvote
-  have h := le_four_mul_sq_mul_of_mul_inv_sq_le ht
+  linarith [le_four_mul_sq_mul_of_mul_inv_sq_le ht
     (wireCount_ge_of_approxMajority_andreev_of_le_two_pow hm hmN ht hb C hd hs
-      fun w => mul_half_add_inv_le_of_lt_two_mul (hvote w))
-  linarith
+      fun w => mul_half_add_inv_le_of_lt_two_mul (hvote w))]
 
 end Cslib.Circuits.Boolean.WeightedThreshold

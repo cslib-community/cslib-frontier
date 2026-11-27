@@ -69,21 +69,17 @@ theorem polyTimeHard_DP_iff : PolyTimeHard @DP enc A ↔ DPHard enc A := Iff.rfl
 theorem polyTimeComplete_DP_iff : PolyTimeComplete @DP enc A ↔ DPComplete enc A := Iff.rfl
 
 /-- DP is exactly the differences of two NP languages. -/
-theorem mem_DP_iff_diff : A ∈ DP enc ↔ ∃ B ∈ NP enc, ∃ C ∈ NP enc, A = B \ C := by
-  constructor
-  · rintro ⟨B, hB, C, hC, rfl⟩
-    exact ⟨B, hB, Cᶜ, hC, by simp⟩
-  · rintro ⟨B, hB, C, hC, rfl⟩
-    exact ⟨B, hB, Cᶜ, by simpa [mem_coNP] using hC, rfl⟩
+theorem mem_DP_iff_diff : A ∈ DP enc ↔ ∃ B ∈ NP enc, ∃ C ∈ NP enc, A = B \ C :=
+  exists_congr fun _ => and_congr_right fun _ =>
+    ⟨fun ⟨C, hC, h⟩ => ⟨Cᶜ, hC, by simpa using h⟩,
+      fun ⟨C, hC, h⟩ => ⟨Cᶜ, by simpa [mem_coNP] using hC, h⟩⟩
 
 /-- DP is closed under intersection. -/
 theorem inter_mem_DP (hA : A ∈ DP enc) (hB : B ∈ DP enc) : A ∩ B ∈ DP enc := by
   obtain ⟨A₁, hA₁, A₂, hA₂, rfl⟩ := hA
   obtain ⟨B₁, hB₁, B₂, hB₂, rfl⟩ := hB
-  exact ⟨A₁ ∩ B₁, inter_mem_NP hA₁ hB₁, A₂ ∩ B₂, inter_mem_coNP hA₂ hB₂, by
-    ext a
-    simp only [Set.mem_inter_iff]
-    tauto⟩
+  exact ⟨A₁ ∩ B₁, inter_mem_NP hA₁ hB₁, A₂ ∩ B₂, inter_mem_coNP hA₂ hB₂,
+    Set.inter_inter_inter_comm A₁ A₂ B₁ B₂⟩
 
 /-- DP is closed under polynomial-time reductions. -/
 theorem PolyTimeReducible.mem_DP {encB : β ↪ List Bool} {B : Set β}
@@ -122,9 +118,8 @@ theorem mem_coDP_iff_union : A ∈ coDP enc ↔
     ∃ B ∈ NP enc, ∃ C ∈ coNP enc, A = B ∪ C := by
   constructor
   · rintro ⟨B, hB, C, hC, h⟩
-    refine ⟨Cᶜ, hC, Bᶜ, by simpa [mem_coNP] using hB, ?_⟩
-    have := congrArg Compl.compl h
-    simpa [Set.compl_inter, Set.union_comm] using this
+    exact ⟨Cᶜ, hC, Bᶜ, by simpa [mem_coNP] using hB,
+      by simpa [Set.compl_inter, Set.union_comm] using congrArg Compl.compl h⟩
   · rintro ⟨B, hB, C, hC, rfl⟩
     exact ⟨Cᶜ, hC, Bᶜ, by simpa [mem_coNP] using hB, by
       simp [Set.inter_comm]⟩

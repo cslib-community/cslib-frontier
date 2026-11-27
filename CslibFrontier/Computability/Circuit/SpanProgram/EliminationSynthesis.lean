@@ -109,8 +109,7 @@ theorem full_recombination (tailDim : ℕ) (rowDim : Fin N → ℕ)
     (fun i row c => Set.mem_union_left _ (Set.mem_union_left _ (hM i row c)))
     (fun i => Set.mem_union_left _ (Set.mem_union_left _ (hχ i))))
   have hA : ∀ k c, A k c ∈ build.wires := fun k c => Set.mem_union_right _ ⟨(k, c), rfl⟩
-  have hb : ∀ c, b c ∈ build.wires := by
-    intro c
+  have hb : ∀ c, b c ∈ build.wires := fun c => by
     by_cases hc : c = 0
     · simp only [b, ite_eq_left hc]
       exact Set.mem_union_left _ (Set.mem_union_right _ rfl)
@@ -123,9 +122,7 @@ theorem full_recombination (tailDim : ℕ) (rowDim : Fin N → ℕ)
     have hbx : (fun l => b l x) =
         (MonotoneSpanProgram.mk tailDim rowDim fun i row c => M i row c x).target := by
       funext l
-      by_cases hl : l = 0
-      · simp [b, MonotoneSpanProgram.target, hl]
-      · simp [b, MonotoneSpanProgram.target, hl]
+      by_cases hl : l = 0 <;> simp [b, MonotoneSpanProgram.target, hl]
     simp only [MonotoneSpanProgram.recombination, hbx, e, A]
   · have hmul : (∑ i, rowDim i) * (tailDim + 2) = (∑ i, rowDim i) * (tailDim + 1) + ∑ i, rowDim i :=
       Nat.mul_succ _ _
@@ -202,17 +199,11 @@ theorem full_normalForm (tailDim : ℕ) (rowDim : Fin N → ℕ)
             M i row c.succ :=
         funext fun x => MonotoneSpanProgram.normalForm_matrix_succ
           (MonotoneSpanProgram.mk tailDim rowDim fun i row c => M i row c x) _ i row c
-      have hmem : (fun x => ((MonotoneSpanProgram.mk tailDim rowDim fun i row c =>
-          M i row c x).normalForm (univ.filter fun i => χ i x ≠ 0)).matrix i row c.succ) ∈
-            src := by
-        rw [hfun]
-        exact hM i row c.succ
-      exact Set.mem_union_left _ (Set.mem_union_left _ hmem)
+      dsimp only [Function.uncurry]
+      rw [hfun]
+      exact Set.mem_union_left _ (hM' i row c.succ)
   · have hmul : (∑ i, rowDim i) * (3 * tailDim + 4) =
-        (∑ i, rowDim i) * (tailDim + 1) + (∑ i, rowDim i) * (2 * (tailDim + 1) + 1) := by
-      rw [← Nat.mul_add]
-      congr 1
-      omega
+        (∑ i, rowDim i) * (tailDim + 1) + (∑ i, rowDim i) * (2 * (tailDim + 1) + 1) := by ring
     dsimp +zetaDelta [Builder.add, Builder.start]
     simp only [sum_const, card_univ, Fintype.card_sigma, Fintype.card_fin, smul_eq_mul]
     omega

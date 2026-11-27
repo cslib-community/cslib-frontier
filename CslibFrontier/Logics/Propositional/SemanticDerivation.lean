@@ -116,22 +116,18 @@ def IsSemanticRefutation (init : Set (Set W)) (D : Fin k → Set W) : Prop :=
 -/
 theorem IsSemanticDerivation.mem_of_forall_mem {init : Set (Set W)} {D : Fin k → Set W}
     (hD : IsSemanticDerivation init D) {w : W} (hw : ∀ S ∈ init, w ∈ S) (j : Fin k) : w ∈ D j := by
-  induction j using WellFoundedLT.induction with
-  | _ j ih =>
-    rcases hD j with h | h | ⟨i₁, i₂, h₁, h₂, h⟩
-    · exact hw _ h
-    · rw [h]
-      exact Set.mem_univ w
-    · exact h ⟨ih i₁ h₁, ih i₂ h₂⟩
+  induction j using WellFoundedLT.induction with | _ j ih => ?_
+  rcases hD j with h | h | ⟨i₁, i₂, h₁, h₂, h⟩
+  · exact hw _ h
+  · simp [h]
+  · exact h ⟨ih i₁ h₁, ih i₂ h₂⟩
 
 /-- A semantic refutation certifies that no point lies in every initial set. -/
 theorem IsSemanticRefutation.not_exists_forall_mem {init : Set (Set W)} {D : Fin k → Set W}
     (hD : IsSemanticRefutation init D) : ¬ ∃ w, ∀ S ∈ init, w ∈ S := by
   rintro ⟨w, hw⟩
   obtain ⟨j, hj⟩ := hD.2
-  have := hD.1.mem_of_forall_mem hw j
-  rw [hj] at this
-  exact this
+  exact absurd (hD.1.mem_of_forall_mem hw j) (by simp [hj])
 
 namespace SemanticDerivation
 
@@ -155,17 +151,13 @@ def initSets (𝒜 : Set (Set (X ⊕ Y → Bool))) (ℬ : Set (Set (X ⊕ Z → 
 
 theorem mem_leftCylinder {S : Set (X ⊕ Y → Bool)} {a : X → Bool} {y : Y → Bool}
     {z : Z → Bool} : Sum.elim a (Sum.elim y z) ∈ leftCylinder S ↔ Sum.elim a y ∈ S := by
-  have : Sum.elim a (Sum.elim y z) ∘ Sum.map id Sum.inl = Sum.elim a y := by
-    funext w
-    cases w <;> rfl
-  rw [leftCylinder, Set.mem_preimage, this]
+  rw [leftCylinder, Set.mem_preimage]
+  exact Eq.to_iff (congrArg (· ∈ S) (funext fun | .inl _ | .inr _ => rfl))
 
 theorem mem_rightCylinder {S : Set (X ⊕ Z → Bool)} {a : X → Bool} {y : Y → Bool}
     {z : Z → Bool} : Sum.elim a (Sum.elim y z) ∈ rightCylinder S ↔ Sum.elim a z ∈ S := by
-  have : Sum.elim a (Sum.elim y z) ∘ Sum.map id Sum.inr = Sum.elim a z := by
-    funext w
-    cases w <;> rfl
-  rw [rightCylinder, Set.mem_preimage, this]
+  rw [rightCylinder, Set.mem_preimage]
+  exact Eq.to_iff (congrArg (· ∈ S) (funext fun | .inl _ | .inr _ => rfl))
 
 /-- The **models** of a family of sets of assignments to `X ⊕ Y`, as pairs of assignments to `X`
 and to `Y`: those lying in every set of the family. -/
@@ -254,47 +246,31 @@ private theorem nodeStep_spec (hD : IsSemanticDerivation (initSets 𝒜 ℬ) D)
     ((nodeStep 𝒜 D mp sp j).run a b = none ↔ MemRight (D j) a b) ∧
       ∀ s, (nodeStep 𝒜 D mp sp j).run a b = some s →
         s.elim (fun i => ¬ MemRight (D (Fin.castLE j.isLt.le i)) a b) (R a.1 b.1) := by
-  have hm : ∀ i, (mp i).run a b = true ↔ MemRight (D i) a b := fun i => hmp i a ha b hb
+  have hm (i) : (mp i).run a b = true ↔ MemRight (D i) a b := hmp i a ha b hb
   unfold nodeStep
   split_ifs with h hA
   · obtain ⟨h₁, h₂, hsub⟩ := h.choose_spec.choose_spec
-    simp only [Protocol.run_bind]
     cases hj : (mp j).run a b
-    · have hnj : ¬ MemRight (D j) a b := by rw [← hm, hj]; exact Bool.false_ne_true
-      simp only [Bool.cond_false, Protocol.run_bind, Protocol.run_output, reduceCtorEq, hnj,
-        true_and, Option.some.injEq]
-      rintro s rfl
-      cases hi : (mp h.choose).run a b
-      · simp only [Bool.cond_false, Sum.elim_inl, Fin.castLE_mk, Fin.eta]
-        rw [← hm, hi]
-        exact Bool.false_ne_true
-      · simp only [Bool.cond_true, Sum.elim_inl, Fin.castLE_mk, Fin.eta]
-        exact fun h' => hnj (hsub ⟨(hm _).1 hi, h'⟩)
-    · simp only [Bool.cond_true, Protocol.run_output, (hm j).1 hj, reduceCtorEq, false_imp_iff,
-        implies_true, and_self]
+    · have hnj : ¬ MemRight (D j) a b := fun h' => Bool.false_ne_true (hj ▸ (hm j).2 h')
+      simp only [Protocol.run_bind, hj, Bool.cond_false, Protocol.run_output, reduceCtorEq, hnj,
+        true_and, Option.some.injEq, forall_eq']
+      cases hi : (mp h.choose).run a b <;> simp only [Bool.cond_false, Bool.cond_true,
+        Sum.elim_inl, Fin.castLE_mk, Fin.eta]
+      · exact fun h' => Bool.false_ne_true (hi ▸ (hm _).2 h')
+      · exact fun h' => hnj (hsub ⟨(hm _).1 hi, h'⟩)
+    · simp [Protocol.run_bind, hj, (hm j).1 hj]
   · obtain ⟨S, hS, hSD, hsol⟩ := hsp j hA
-    simp only [Protocol.run_bind]
     cases hj : (mp j).run a b
-    · have hnj : ¬ MemRight (D j) a b := by rw [← hm, hj]; exact Bool.false_ne_true
-      have hnS : Sum.elim b.1 a.2 ∉ S := by
-        rwa [MemRight, ← hSD, mem_leftCylinder] at hnj
-      obtain ⟨i, hi, hR⟩ := hsol a ha b hb (ha S hS) hnS
-      rw [Option.mem_def] at hi
-      simp only [Bool.cond_false, Protocol.run_map, hi, Option.map_some, reduceCtorEq, hnj,
-        Option.some.injEq, true_and]
-      rintro s rfl
-      exact hR
-    · simp only [Bool.cond_true, Protocol.run_output, (hm j).1 hj, reduceCtorEq, false_imp_iff,
-        implies_true, and_self]
-  · have hmem : MemRight (D j) a b := by
-      rcases hD j with (⟨S, hS, hSD⟩ | ⟨S, hS, hSD⟩) | huniv | hder
-      · exact absurd ⟨S, hS, hSD⟩ hA
-      · rw [MemRight, ← hSD, mem_rightCylinder]
-        exact hb S hS
-      · rw [MemRight, huniv]
-        exact Set.mem_univ _
-      · exact absurd hder h
-    simp only [Protocol.run_output, hmem, reduceCtorEq, false_imp_iff, implies_true, and_self]
+    · have hnj : ¬ MemRight (D j) a b := fun h' => Bool.false_ne_true (hj ▸ (hm j).2 h')
+      obtain ⟨i, hi, hR⟩ := hsol a ha b hb (ha S hS)
+        (by rwa [MemRight, ← hSD, mem_leftCylinder] at hnj)
+      simp [Protocol.run_bind, hj, Option.mem_def.1 hi, hnj, hR]
+    · simp [Protocol.run_bind, hj, (hm j).1 hj]
+  · rcases hD j with (hA' | ⟨S, hS, hSD⟩) | huniv | hder
+    · exact absurd hA' hA
+    · simp [MemRight, ← hSD, mem_rightCylinder, hb S hS]
+    · simp [MemRight, huniv]
+    · exact absurd hder h
 
 /-- The dag-like protocol of the proof of [Krajíček, Theorem 5.1][Krajicek1997]: one inner node
 per line, the source at the line `D j₀ = ∅`, and the tree protocols `nodeStep` run on the inputs
@@ -331,17 +307,14 @@ private theorem semanticProtocol_solves {j₀ : Fin k}
 private theorem depth_semanticProtocol_le {j₀ : Fin k} (hmp : ∀ j, (mp j).depth ≤ t)
     (hsp : ∀ j, (sp j).depth ≤ t) : (semanticProtocol 𝒜 ℬ D mp sp j₀).depth ≤ 2 * t := by
   refine Finset.sup_le fun j _ => ?_
-  simp only [semanticProtocol, Protocol.depth_comap]
-  unfold nodeStep
+  simp only [semanticProtocol, Protocol.depth_comap, nodeStep]
   split_ifs
-  · refine (Protocol.depth_bind_le (d := t) fun b => ?_).trans (by have := hmp j; omega)
-    cases b
+  · refine (Protocol.depth_bind_le (d := t) ?_).trans (by have := hmp j; omega)
+    rintro (_ | _)
     · exact (Protocol.depth_bind_le (d := 0) fun _ => le_rfl).trans (by simpa using hmp _)
     · simp
-  · refine (Protocol.depth_bind_le (d := t) fun b => ?_).trans (by have := hmp j; omega)
-    cases b
-    · simpa using hsp j
-    · simp
+  · refine (Protocol.depth_bind_le (d := t) ?_).trans (by have := hmp j; omega)
+    rintro (_ | _) <;> simp [hsp j]
   · simp
 
 end Construction
@@ -369,25 +342,24 @@ theorem IsSemanticRefutation.exists_dagProtocol {R : (X → Bool) → (X → Boo
       P.Solves R {u | ∃ q, (u, q) ∈ Models 𝒜} {v | ∃ r, (v, r) ∈ Models ℬ} := by
   obtain ⟨hder, j₀, hj₀⟩ := hD
   choose mp hmp hmpd using fun j => Protocol.ecomplexity_le_iff.1 (hmem j)
-  have : ∀ j, ∃ p : Protocol ((X → Bool) × (Y → Bool)) ((X → Bool) × (Z → Bool)) (Option X),
-      p.depth ≤ t ∧ ((∃ S ∈ 𝒜, leftCylinder S = D j) →
+  have hsp_ex (j) : ∃ p : Protocol _ _ (Option X), p.depth ≤ t ∧
+      ((∃ S ∈ 𝒜, leftCylinder S = D j) →
         ∃ S ∈ 𝒜, leftCylinder S = D j ∧ p.Solves (Search S R) (Models 𝒜) (Models ℬ)) := by
-    intro j
     by_cases hA : ∃ S ∈ 𝒜, leftCylinder S = D j
     · obtain ⟨S, hS, hSD⟩ := hA
       obtain ⟨p, hp, hd⟩ := Protocol.ecomplexity_le_iff.1 (hsearch j S hS hSD)
       exact ⟨p, hd, fun _ => ⟨S, hS, hSD, hp⟩⟩
     · exact ⟨.output none, by simp, fun h => absurd h hA⟩
-  choose sp hspd hsp using this
+  choose sp hspd hsp using hsp_ex
   exact ⟨semanticProtocol 𝒜 ℬ D mp sp j₀, depth_semanticProtocol_le hmpd hspd,
     semanticProtocol_solves hder hj₀ hmp hsp⟩
 
 /-- `(k · 2 ^ d + 1) · 2 ^ (d + 1)` is monotone in `d`. -/
 private theorem size_bound_mono {d e : ℕ} (h : d ≤ e) :
-    (k * 2 ^ d + 1) * 2 ^ (d + 1) ≤ (k * 2 ^ e + 1) * 2 ^ (e + 1) := by
-  have h₁ : 2 ^ d ≤ 2 ^ e := Nat.pow_le_pow_right Nat.two_pos h
-  have h₂ : 2 ^ (d + 1) ≤ 2 ^ (e + 1) := Nat.pow_le_pow_right Nat.two_pos (by omega)
-  exact Nat.mul_le_mul (Nat.add_le_add_right (Nat.mul_le_mul_left k h₁) 1) h₂
+    (k * 2 ^ d + 1) * 2 ^ (d + 1) ≤ (k * 2 ^ e + 1) * 2 ^ (e + 1) :=
+  Nat.mul_le_mul
+    (Nat.add_le_add_right (Nat.mul_le_mul_left k (Nat.pow_le_pow_right Nat.two_pos h)) 1)
+    (Nat.pow_le_pow_right Nat.two_pos (Nat.succ_le_succ h))
 
 /-- **Interpolation for semantic refutations.** Under the hypotheses of
 `IsSemanticRefutation.exists_dagProtocol` for `DiffersAt`, a circuit with at most
@@ -528,18 +500,12 @@ theorem IsSemanticRefutation.exists_monotone_circuit_of_monotoneCommComplexity_l
   · obtain ⟨p, hp, hd⟩ := Protocol.ecomplexity_le_iff.1 (((le_max_right _ _).trans (hmcc j) :) :)
     refine (Protocol.ecomplexity_le_depth (p := p) ?_).trans (by exact_mod_cast hd)
     intro a ha b _ h₁ h₂
-    have hl : MemLeft (D j) a b := by rw [MemLeft, ← hSD, mem_leftCylinder]; exact h₁
-    have hr : ¬ MemRight (D j) a b := by rw [MemRight, ← hSD, mem_leftCylinder]; exact h₂
-    have := hp a trivial b trivial hl hr
-    cases ho : p.run a b with
-    | none =>
-      rw [ho] at this
-      obtain ⟨u', hu', hn⟩ := this
-      refine absurd ?_ hn
-      rw [MemLeft, ← hSD, mem_leftCylinder]
-      exact hmono a.1 u' a.2 ha hu' S hS
-    | some i =>
-      rw [ho] at this
-      exact ⟨i, rfl, this⟩
+    have hrun := hp a trivial b trivial (by rwa [MemLeft, ← hSD, mem_leftCylinder])
+      (by rwa [MemRight, ← hSD, mem_leftCylinder])
+    cases ho : p.run a b <;> rw [ho] at hrun
+    · obtain ⟨u', hu', hn⟩ := hrun
+      rw [MemLeft, ← hSD, mem_leftCylinder] at hn
+      exact absurd (hmono a.1 u' a.2 ha hu' S hS) hn
+    · exact ⟨_, rfl, hrun⟩
 
 end Cslib.Logic.PL

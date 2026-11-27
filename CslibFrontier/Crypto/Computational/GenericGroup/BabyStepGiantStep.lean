@@ -119,30 +119,23 @@ private theorem evalPure_walk (hO : ∀ β₁ β₂, O (.op (L β₁) (L β₂) 
     (s : ZMod q) (k : ℕ) (β : ZMod q) :
     (walk (L s) (L β) k).evalPure O = (List.range (k + 1)).map fun i : ℕ => L (β + i * s) := by
   induction k generalizing β with
-  | zero => simp only [walk, OracleComp.evalPure_pure, Nat.zero_add, List.range_one,
-      List.map_cons, List.map_nil, Nat.cast_zero, zero_mul, add_zero]
+  | zero => simp [walk]
   | succ k ih =>
     simp only [walk, OracleComp.evalPure_bind, OracleComp.evalPure_query, hO,
-      OracleComp.evalPure_map, ih]
-    rw [List.range_succ_eq_map (n := k + 1)]
-    simp only [List.map_cons, List.map_map, Nat.cast_zero, zero_mul, add_zero, List.cons.injEq,
-      true_and]
-    refine List.map_congr_left fun i _ => ?_
-    simp only [Function.comp_apply, Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one]
-    congr 1
-    ring
+      OracleComp.evalPure_map, ih, List.range_succ_eq_map (n := k + 1), List.map_cons,
+      List.map_map, Nat.cast_zero, zero_mul, add_zero, List.cons.injEq, true_and]
+    exact List.map_congr_left fun i _ => congrArg L (by simp [Nat.succ_eq_add_one]; ring)
 
 /-- A pair found by `firstMatch` indexes the same label in both lists. -/
 private theorem firstMatch_eq_some [DecidableEq S] {baby giant : List S} {β γ : ℕ}
     (h : firstMatch baby giant = some (β, γ)) :
     ∃ ℓ, baby[β]? = some ℓ ∧ giant[γ]? = some ℓ := by
   obtain ⟨⟨ℓ, γ'⟩, hmem, hf⟩ := List.exists_of_findSome?_eq_some h
-  by_cases hℓ : ℓ ∈ baby
-  · simp only [hℓ, ite_true, Option.some.injEq, Prod.mk.injEq] at hf
-    obtain ⟨rfl, rfl⟩ := hf
-    exact ⟨ℓ, by simp [List.getElem?_eq_getElem (List.idxOf_lt_length_of_mem hℓ)],
-      List.mem_zipIdx_iff_getElem?.mp hmem⟩
-  · simp [hℓ] at hf
+  dsimp only at hf
+  split_ifs at hf with hℓ
+  obtain ⟨rfl, rfl⟩ := Option.some.inj hf
+  exact ⟨ℓ, by simp [List.getElem?_eq_getElem (List.idxOf_lt_length_of_mem hℓ)],
+    List.mem_zipIdx_iff_getElem?.mp hmem⟩
 
 /-- If `firstMatch` finds nothing, no giant label is a baby label. -/
 private theorem not_mem_of_firstMatch_eq_none [DecidableEq S] {baby giant : List S}
@@ -163,19 +156,21 @@ private theorem exists_add_one_mul_eq_add_mul [NeZero q] {m n : ℕ} (t : ZMod q
   set s := ((m : ZMod w) - (α.val : ZMod w)).val with hs_def
   have hs : s < w := ZMod.val_lt _
   refine ⟨m - 1 - s % m, by omega, s / m, (Nat.div_lt_iff_lt_mul hm).mpr (by nlinarith), ?_⟩
-  have hmod_mul (k : ℕ) : (k : ZMod q) * t = ((k % w : ℕ) : ZMod q) * t := by
+  have hmod (k : ℕ) : (k : ZMod q) * t = ((k % w : ℕ) : ZMod q) * t := by
     rw [← nsmul_eq_mul, ← nsmul_eq_mul, hw_def, mod_addOrderOf_nsmul]
-  have h₁ : ((1 + (m - 1 - s % m) + s % m : ℕ) : ZMod w) = m := by
-    congr 1; have := Nat.mod_lt s hm; omega
+  have h₁ : ((1 + (m - 1 - s % m) + s % m : ℕ) : ZMod w) = m :=
+    congrArg Nat.cast (by have := Nat.mod_lt s hm; omega)
   have h₂ : ((s : ℕ) : ZMod w) = ((s % m + m * (s / m) : ℕ) : ZMod w) := by rw [Nat.mod_add_div]
   have h₃ : ((s : ℕ) : ZMod w) = m - α.val := by rw [hs_def, ZMod.natCast_zmod_val]
   push_cast at h₁ h₂
   have hz : ((1 + (m - 1 - s % m) : ℕ) : ZMod w) = ((α.val + (s / m) * m : ℕ) : ZMod w) := by
-    push_cast; linear_combination h₁ + h₂ - h₃
+    push_cast
+    linear_combination h₁ + h₂ - h₃
   have hval := congr_arg ZMod.val hz
   simp only [ZMod.val_natCast] at hval
-  rw [hmod_mul (1 + (m - 1 - s % m)), hval, ← hmod_mul (α.val + (s / m) * m)]
-  push_cast; rw [ZMod.natCast_zmod_val]
+  rw [hmod (1 + (m - 1 - s % m)), hval, ← hmod (α.val + (s / m) * m)]
+  push_cast
+  rw [ZMod.natCast_zmod_val]
 
 /-- Correctness against any oracle that multiplies labels of an injective labeling, for a base `t`
 of any order `addOrderOf t ≤ m * n`. -/
@@ -184,18 +179,18 @@ private theorem evalPure_babyStepGiantStep_mul_of_op [NeZero q] [DecidableEq S]
     {m n : ℕ} (t : ZMod q) (hmn : addOrderOf t ≤ m * n) (α : ZMod q) :
     (babyStepGiantStep m n (L t) (L (α * t))).evalPure O * t = α * t := by
   have hmn' := (addOrderOf_pos t).trans_le hmn
-  have hm := Nat.pos_of_mul_pos_right hmn'
-  have hn := Nat.pos_of_mul_pos_left hmn'
   have hbaby : (walk (L t) (L t) (m - 1)).evalPure O =
       (List.range m).map fun i : ℕ => L ((1 + i) * t) := by
-    rw [evalPure_walk hO, Nat.sub_add_cancel hm]; congr 1; ext i; congr 1; ring
-  have hlast : ((List.range m).map fun i : ℕ => L ((1 + i) * t)).getLastD (L t) =
-      L (m * t) := by
+    rw [evalPure_walk hO, Nat.sub_add_cancel (Nat.pos_of_mul_pos_right hmn')]
+    exact List.map_congr_left fun i _ => congrArg L (by ring)
+  have hlast : ((List.range m).map fun i : ℕ => L ((1 + i) * t)).getLastD (L t) = L (m * t) := by
+    have hm := Nat.pos_of_mul_pos_right hmn'
     rw [List.getLastD_eq_getLast?, List.getLast?_map, List.getLast?_range, ite_eq_right hm.ne',
       Option.map_some, Option.getD_some, Nat.cast_pred hm, add_sub_cancel]
   have hgiant : (walk (L (m * t)) (L (α * t)) (n - 1)).evalPure O =
       (List.range n).map fun j : ℕ => L ((α + j * m) * t) := by
-    rw [evalPure_walk hO, Nat.sub_add_cancel hn]; congr 1; ext j; congr 1; ring
+    rw [evalPure_walk hO, Nat.sub_add_cancel (Nat.pos_of_mul_pos_left hmn')]
+    exact List.map_congr_left fun j _ => congrArg L (by ring)
   unfold babyStepGiantStep
   simp only [OracleComp.evalPure_bind, OracleComp.evalPure_pure, hbaby, hlast, hgiant]
   split
@@ -203,14 +198,11 @@ private theorem evalPure_babyStepGiantStep_mul_of_op [NeZero q] [DecidableEq S]
     obtain ⟨ℓ, hb, hg⟩ := firstMatch_eq_some h
     simp only [List.getElem?_eq_some_iff, List.length_map, List.length_range, List.getElem_map,
       List.getElem_range] at hb hg
-    obtain ⟨-, rfl⟩ := hb
-    obtain ⟨-, heq⟩ := hg
-    linear_combination -hL heq
+    linear_combination hL (hb.2.trans hg.2.symm)
   · rename_i h
     obtain ⟨β, hβ, γ, hγ, heq⟩ := exists_add_one_mul_eq_add_mul t hmn α
-    exfalso
-    refine not_mem_of_firstMatch_eq_none h
-      (List.mem_map_of_mem (f := fun j : ℕ => L ((α + j * m) * t)) (List.mem_range.mpr hγ)) ?_
+    refine False.elim (not_mem_of_firstMatch_eq_none h
+      (List.mem_map_of_mem (f := fun j : ℕ => L ((α + j * m) * t)) (List.mem_range.mpr hγ)) ?_)
     rw [← heq]
     push_cast
     exact List.mem_map_of_mem (f := fun i : ℕ => L ((1 + i) * t)) (List.mem_range.mpr hβ)
@@ -235,10 +227,9 @@ theorem evalPure_groupAnswer_babyStepGiantStep [NeZero q] {G : Type} [AddCommGro
     [Module (ZMod q) G] [DecidableEq G] {g : G} (hg : Function.Injective fun β : ZMod q => β • g)
     {m n : ℕ} (hmn : q ≤ m * n) (α : ZMod q) :
     (babyStepGiantStep m n g (α • g)).evalPure (groupAnswer q g) = α := by
-  have h := evalPure_babyStepGiantStep_mul_of_op (O := groupAnswer q g) hg
-    (fun β₁ β₂ => by simp only [groupAnswer, one_smul, add_smul]) 1
+  simpa only [one_smul, mul_one] using evalPure_babyStepGiantStep_mul_of_op
+    (O := groupAnswer q g) hg (fun _ _ => by simp only [groupAnswer, one_smul, add_smul]) 1
     (by rwa [ZMod.addOrderOf_one]) α
-  rwa [one_smul, mul_one, mul_one] at h
 
 end Correctness
 
@@ -248,12 +239,10 @@ end Correctness
 private theorem queriesSatisfy_walk (step : S) (k : ℕ) (start : S) :
     OracleComp.QueriesSatisfy GroupQuery.IsProduct (walk (q := q) step start k) := by
   induction k generalizing start with
-  | zero => exact OracleComp.QueriesSatisfy.pure _
+  | zero => exact .pure _
   | succ k ih =>
-    refine OracleComp.QueriesSatisfy.bind (OracleComp.QueriesSatisfy.query ⟨rfl, rfl⟩) fun r => ?_
-    cases r with
-    | none => exact OracleComp.QueriesSatisfy.pure _
-    | some next => exact (OracleComp.queriesSatisfy_map_iff _ _).mpr (ih next)
+    exact .bind (.query ⟨rfl, rfl⟩) <| Option.rec (.pure _) fun next =>
+      (OracleComp.queriesSatisfy_map_iff _ _).mpr (ih next)
 
 /-- `walk` with `k` steps makes at most `k` calls. -/
 private theorem isQueryBounded_walk (step : S) (k : ℕ) (start : S) :
@@ -261,9 +250,8 @@ private theorem isQueryBounded_walk (step : S) (k : ℕ) (start : S) :
   induction k generalizing start with
   | zero => exact .pure _ _
   | succ k ih =>
-    refine (OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.query _) fun r => ?_).mono
-      (Nat.add_comm 1 k).le
-    cases r with
+    refine (OracleComp.IsCostBounded.bind (.query _) fun x => ?_).mono (Nat.add_comm 1 k).le
+    cases x with
     | none => exact .pure _ _
     | some next => exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (ih next)
 
@@ -299,12 +287,10 @@ theorem babyStepGiantStep_sqrt [NeZero q] [DecidableEq S] {L : ZMod q → S}
         (babyStepGiantStep (q := q) (Nat.sqrt (q - 1) + 1) (Nat.sqrt (q - 1) + 1) (L 1) (L α))
         (2 * Nat.sqrt (q - 1)) := by
   have hq := NeZero.ne q
-  refine ⟨evalPure_babyStepGiantStep hL ?_ α, ?_⟩
-  · have := Nat.lt_succ_sqrt (q - 1)
-    rw [Nat.succ_eq_add_one] at this
-    omega
-  · simpa [two_mul] using isQueryBounded_babyStepGiantStep (q := q)
-      (Nat.sqrt (q - 1) + 1) (Nat.sqrt (q - 1) + 1) (L 1) (L α)
+  have := Nat.lt_succ_sqrt (q - 1)
+  refine ⟨evalPure_babyStepGiantStep hL (by rw [Nat.succ_eq_add_one] at this; omega) α, ?_⟩
+  simpa [two_mul] using isQueryBounded_babyStepGiantStep (q := q)
+    (Nat.sqrt (q - 1) + 1) (Nat.sqrt (q - 1) + 1) (L 1) (L α)
 
 /-- Baby-step/giant-step in a subgroup of order `w`, with `m = n = Nat.sqrt (w - 1) + 1` and the
 residue modulo `w` as output. -/
@@ -320,15 +306,16 @@ theorem evalPure_subgroupDlog [NeZero q] [DecidableEq S] {L : ZMod q → S}
     (hO : ∀ β₁ β₂, O (.op (L β₁) (L β₂) 1 1) = some (L (β₁ + β₂)))
     {w : ℕ} {t : ZMod q} (ht : addOrderOf t = w) {a : ℕ} (ha : a < w) :
     (subgroupDlog w (L t) (L (a * t))).evalPure O = a := by
-  have hw : 0 < w := ht ▸ addOrderOf_pos t
-  have hsq : addOrderOf t ≤ (Nat.sqrt (w - 1) + 1) * (Nat.sqrt (w - 1) + 1) := by
-    have := Nat.lt_succ_sqrt (w - 1); rw [Nat.succ_eq_add_one] at this; omega
-  have hmul := evalPure_babyStepGiantStep_mul_of_op hL hO t hsq a
-  rw [subgroupDlog, OracleComp.evalPure_map]
   subst ht
-  refine nsmul_injOn_Iio_addOrderOf (Nat.mod_lt _ hw) ha ?_
+  have hsq :
+      addOrderOf t ≤ (Nat.sqrt (addOrderOf t - 1) + 1) * (Nat.sqrt (addOrderOf t - 1) + 1) := by
+    have := Nat.lt_succ_sqrt (addOrderOf t - 1)
+    rw [Nat.succ_eq_add_one] at this; omega
+  rw [subgroupDlog, OracleComp.evalPure_map]
+  refine nsmul_injOn_Iio_addOrderOf (Nat.mod_lt _ (addOrderOf_pos t)) ha ?_
   beta_reduce
-  rw [mod_addOrderOf_nsmul, nsmul_eq_mul, nsmul_eq_mul, ZMod.natCast_zmod_val, hmul]
+  rw [mod_addOrderOf_nsmul, nsmul_eq_mul, nsmul_eq_mul, ZMod.natCast_zmod_val,
+    evalPure_babyStepGiantStep_mul_of_op hL hO t hsq a]
 
 /-- Every query made by `subgroupDlog` is a product (`GroupQuery.IsProduct`). -/
 theorem queriesSatisfy_subgroupDlog [DecidableEq S] (w : ℕ) (g u : S) :

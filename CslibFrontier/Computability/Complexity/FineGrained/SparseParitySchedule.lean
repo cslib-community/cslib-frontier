@@ -177,10 +177,8 @@ theorem CNF.card_le_two_mul_freeVar_parityRowSystem [Fintype V] [DecidableEq V]
       2 ^ (Fintype.card V / s_div) := by
   have hM := CNF.totalIncidence_mul_le_of_card_equationScope_le
     (CNF.card_equationScope_parityRowSystem_le hk hW) hlen h_thresh
-  exact ⟨card_le_two_mul_freeVar_of_heavyVars univ
-      (fun j => equationScope (φ.parityRowSystem rows j)) hs_div hM e,
-    card_branchAssignments_heavyVars_le_two_pow_div univ
-      (fun j => equationScope (φ.parityRowSystem rows j)) (by omega) hM⟩
+  exact ⟨card_le_two_mul_freeVar_of_heavyVars univ _ hs_div hM e,
+    card_branchAssignments_heavyVars_le_two_pow_div univ _ (by omega) hM⟩
 
 /-- **Section 5.5 & 6.3 (per-factor scope width $\le \max(k W 2^k, 1)$ for `CNF.parityRowSystem`):**
 when `∀ c ∈ φ, c.length ≤ k` and `∀ r ∈ rows, weight r ≤ W`, every factor `f` of
@@ -266,10 +264,9 @@ theorem CNF.exists_branch_schedule_parityRowSystem {β : ℕ} (hβ : 1 ≤ β) :
                     (numNodes n') (numGroups n') (intervalStart β n')
                     (rowBound β n') (tauRat n')) := by
   obtain ⟨n₀, hn₀20, hsched⟩ := exists_branch_schedule_replacementDesign hβ
-  refine ⟨n₀, hn₀20,
-    fun {V _ _ φ n' k W b₀} hk {rows} hW e hn' hb₀ hw_pow b => ?_⟩
-  exact hsched univ univ (φ.parityRowSystem rows) (Subset.refl _) e hn' hb₀ hw_pow
-    (fun j _ => CNF.card_equationScope_parityRowSystem_le hk hW j) b
+  exact ⟨n₀, hn₀20, fun {V _ _ φ n' k W b₀} hk {rows} hW e hn' hb₀ hw_pow b =>
+    hsched univ univ (φ.parityRowSystem rows) (Subset.refl _) e hn' hb₀ hw_pow
+      (fun j _ => CNF.card_equationScope_parityRowSystem_le hk hW j) b⟩
 
 /-- **Section 6.3 single-branch domain-examination bound for `CNF.parityRowSystem` ($c = 6$):**
 For any parity-row list `rows : List (Fin φ.length → Bool)` with `rows.length ≤ 6 * Fintype.card V`
@@ -306,12 +303,10 @@ theorem CNF.branch_domainExaminationBound_parityRowSystem_le [Fintype V]
           (1028 * ((β : ℝ) + 3) * (Nat.clog 2 (Nat.clog 2 n') : ℝ) ^ 2 /
             Real.sqrt (Nat.clog 2 n'))) := by
   intro d q C
-  have hcard : #(univ : Finset (Fin rows.length)) ≤ 6 * Fintype.card V := by
-    simpa only [card_univ, Fintype.card_fin] using hlen
-  have hbound := hF.branch_domainExaminationBound_le (ι := V) (k := k) (c := 6)
-    (univ : Finset (Fin rows.length)) D s hcard hn
   have h16 : k * (2 * 6 + 4) + 4 = 16 * k + 4 := by ring
-  simpa only [card_univ, Fintype.card_fin, h16] using hbound
+  simpa only [card_univ, Fintype.card_fin, h16] using
+    hF.branch_domainExaminationBound_le (ι := V) (k := k) (c := 6)
+      (univ : Finset (Fin rows.length)) D s (by simpa using hlen) hn
 
 /-- **Section 6.3 multi-branch domain-examination bound across `branchAssignments` for
 `CNF.parityRowSystem`**:
@@ -420,15 +415,12 @@ theorem CNF.exists_greedy_parityRowSystem_branch_schedule {β : ℕ} (hβ : 1 �
                         (rowBound β n') (tauRat n')) := by
   obtain ⟨n₀, hn₀20, hsched⟩ := exists_branch_schedule_replacementDesign hβ
   refine ⟨n₀, hn₀20, fun {V _ _} φ {k B} hk hn hB hm => ?_⟩
-  intro D₀ P
   obtain ⟨A₀, hlen0, hw0, hgreedy⟩ := φ.exists_initialTests_commonZeroCount_greedy hk hn hB hm
-  refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ => ?_⟩
-  obtain ⟨hcount, hstage⟩ := hgreedy A γ h0 hA hγ
-  refine ⟨hcount, fun i hi => ?_⟩
-  obtain ⟨hlen_i, hscope_i⟩ := hstage i hi
-  refine ⟨hlen_i, fun {n' b₀} e hn' hb₀ hw_pow b => ?_⟩
-  exact hsched univ univ (φ.parityRowSystem (A i)) (Subset.refl _) e hn' hb₀ hw_pow
-    (fun j _ => (hscope_i j).2.2) b
+  refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ => ⟨(hgreedy A γ h0 hA hγ).1, fun i hi => ?_⟩⟩
+  obtain ⟨hlen_i, hscope_i⟩ := (hgreedy A γ h0 hA hγ).2 i hi
+  exact ⟨hlen_i, fun {n' b₀} e hn' hb₀ hw_pow b =>
+    hsched univ univ (φ.parityRowSystem (A i)) (Subset.refl _) e hn' hb₀ hw_pow
+      (fun j _ => (hscope_i j).2.2) b⟩
 
 /-! ### 4. Unconditional polylogarithmic schedule discharge for `B ≤ C_B * (Nat.clog 2 n) ^ β_B` -/
 
@@ -446,35 +438,22 @@ theorem CNF.initialRowWeightBound_le_mul_pow_clog {n m B C_B β_B : ℕ}
     initialRowWeightBound B m ≤
       CNF.initialRowWeightCoeff C_B β_B * Nat.clog 2 n ^ (2 * β_B + 3) := by
   set lam := Nat.clog 2 n
-  have hlam1 : 1 ≤ lam :=
-    (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega : 2 ^ 0 < n)
+  have hlam1 : 1 ≤ lam := (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega)
   have hn_pow : n ≤ 2 ^ lam := Nat.le_pow_clog one_lt_two n
-  have hlam_pow : lam ^ β_B ≤ 2 ^ (lam * β_B) := by
-    calc lam ^ β_B ≤ (2 ^ lam) ^ β_B := Nat.pow_le_pow_left lam.lt_two_pow_self.le β_B
-      _ = 2 ^ (lam * β_B) := (pow_mul 2 lam β_B).symm
-  have hCB_pow : C_B ≤ 2 ^ (C_B * lam) := by
-    calc C_B ≤ 2 ^ C_B := C_B.lt_two_pow_self.le
-      _ ≤ 2 ^ (C_B * lam) := Nat.pow_le_pow_right two_pos (Nat.le_mul_of_pos_right C_B hlam1)
+  have hlam_pow : lam ^ β_B ≤ 2 ^ (lam * β_B) :=
+    (Nat.pow_le_pow_left lam.lt_two_pow_self.le β_B).trans_eq (pow_mul 2 lam β_B).symm
+  have hCB_pow : C_B ≤ 2 ^ (C_B * lam) := C_B.lt_two_pow_self.le.trans
+    (Nat.pow_le_pow_right two_pos (Nat.le_mul_of_pos_right C_B hlam1))
   have hm_pow : m ≤ 2 ^ ((C_B + β_B + 1) * lam) := by
     calc m ≤ B * n := hm
       _ ≤ C_B * lam ^ β_B * n := Nat.mul_le_mul_right n hB
       _ ≤ 2 ^ (C_B * lam) * 2 ^ (lam * β_B) * 2 ^ lam := by gcongr
       _ = 2 ^ ((C_B + β_B + 1) * lam) := by rw [← pow_add, ← pow_add]; ring_nf
   have hlog : Nat.log 2 m + 1 ≤ (C_B + β_B + 2) * lam := by
-    have hlog_le : Nat.log 2 m ≤ (C_B + β_B + 1) * lam := by
-      calc Nat.log 2 m ≤ Nat.log 2 (2 ^ ((C_B + β_B + 1) * lam)) := Nat.log_mono_right hm_pow
-        _ = (C_B + β_B + 1) * lam := Nat.log_pow one_lt_two _
-    nlinarith
-  have hB2 : B ^ 2 ≤ C_B ^ 2 * lam ^ (2 * β_B) := by
-    calc B ^ 2 ≤ (C_B * lam ^ β_B) ^ 2 := Nat.pow_le_pow_left hB 2
-      _ = C_B ^ 2 * lam ^ (2 * β_B) := by rw [mul_pow, ← pow_mul]; ring
-  have hlog3 : (Nat.log 2 m + 1) ^ 3 ≤ (C_B + β_B + 2) ^ 3 * lam ^ 3 := by
-    calc (Nat.log 2 m + 1) ^ 3 ≤ ((C_B + β_B + 2) * lam) ^ 3 := Nat.pow_le_pow_left hlog 3
-      _ = (C_B + β_B + 2) ^ 3 * lam ^ 3 := mul_pow _ _ 3
+    linarith [(Nat.log_mono_right hm_pow).trans_eq (Nat.log_pow one_lt_two _)]
   unfold initialRowWeightBound CNF.initialRowWeightCoeff
   calc 320000 * B ^ 2 * (Nat.log 2 m + 1) ^ 3
-      ≤ 320000 * (C_B ^ 2 * lam ^ (2 * β_B)) * ((C_B + β_B + 2) ^ 3 * lam ^ 3) :=
-        Nat.mul_le_mul (Nat.mul_le_mul_left 320000 hB2) hlog3
+      ≤ 320000 * (C_B * lam ^ β_B) ^ 2 * ((C_B + β_B + 2) * lam) ^ 3 := by gcongr
     _ = 320000 * C_B ^ 2 * (C_B + β_B + 2) ^ 3 * lam ^ (2 * β_B + 3) := by
         rw [pow_add]; ring
 
@@ -498,16 +477,11 @@ private theorem parityBranchThreshold_succ_and_width_le_clog_pow {n n' m B W k C
     max (k * (W * 2 ^ k)) 1 ≤ Nat.clog 2 n' ^ (2 * β_B + 5) := by
   set lam := Nat.clog 2 n
   set lam' := Nat.clog 2 n'
-  have hlam1 : 1 ≤ lam :=
-    (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega : 2 ^ 0 < n)
+  have hlam1 : 1 ≤ lam := (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega)
   have hsqrt1 : 1 ≤ lam.sqrt := Nat.le_sqrt.mpr (by omega)
   have hmax_le : max (k * (W * 2 ^ k)) 1 ≤ CNF.parityBranchThreshold k W n + 1 := by
-    unfold CNF.parityBranchThreshold
-    have hmul : k * (W * 2 ^ k) ≤ (6 * (k * (W * 2 ^ k))) * (Nat.clog 2 n).sqrt := by
-      calc k * (W * 2 ^ k) = (k * (W * 2 ^ k)) * 1 := (mul_one _).symm
-        _ ≤ (6 * (k * (W * 2 ^ k))) * (Nat.clog 2 n).sqrt :=
-            Nat.mul_le_mul (Nat.le_mul_of_pos_left _ (by decide)) hsqrt1
-    omega
+    have := Nat.le_mul_of_pos_right (6 * (k * (W * 2 ^ k))) hsqrt1
+    dsimp only [CNF.parityBranchThreshold, lam] at *; omega
   have hW_le : W ≤ CNF.initialRowWeightCoeff C_B β_B * lam ^ (2 * β_B + 3) :=
     hW.trans (CNF.initialRowWeightBound_le_mul_pow_clog hn hm hB)
   have hterm :
@@ -520,15 +494,9 @@ private theorem parityBranchThreshold_succ_and_width_le_clog_pow {n n' m B W k C
       _ = (6 * k * 2 ^ k * CNF.initialRowWeightCoeff C_B β_B) * lam ^ (2 * β_B + 4) := by
           rw [pow_succ]; ring
   have h1_pow : 1 ≤ lam ^ (2 * β_B + 4) := Nat.one_le_pow _ lam hlam1
-  have hthresh_lam :
-      CNF.parityBranchThreshold k W n + 1 ≤
-        (6 * k * 2 ^ k * CNF.initialRowWeightCoeff C_B β_B + 2) * lam ^ (2 * β_B + 4) := by
-    unfold CNF.parityBranchThreshold
-    calc (6 * (k * (W * 2 ^ k))) * lam.sqrt + 1 + 1
-        ≤ (6 * k * 2 ^ k * CNF.initialRowWeightCoeff C_B β_B) * lam ^ (2 * β_B + 4) +
-            2 * lam ^ (2 * β_B + 4) := by linarith
-      _ = (6 * k * 2 ^ k * CNF.initialRowWeightCoeff C_B β_B + 2) * lam ^ (2 * β_B + 4) := by
-          ring
+  have hthresh_lam : CNF.parityBranchThreshold k W n + 1 ≤
+      (6 * k * 2 ^ k * CNF.initialRowWeightCoeff C_B β_B + 2) * lam ^ (2 * β_B + 4) := by
+    rw [CNF.parityBranchThreshold]; linarith
   have hlam_pow : lam ^ (2 * β_B + 4) ≤ 2 ^ (2 * β_B + 4) * lam' ^ (2 * β_B + 4) := by
     calc lam ^ (2 * β_B + 4) ≤ (2 * lam') ^ (2 * β_B + 4) :=
           Nat.pow_le_pow_left (Nat.clog_two_le_two_mul_of_le_two_mul hn_le hn') _
@@ -547,9 +515,8 @@ private theorem parityBranchThreshold_succ_and_width_le_clog_pow {n n' m B W k C
 
 /-- The Section 5.5 branching divisor `(Nat.clog 2 n).sqrt` is at least `2` once `20 ≤ n`. -/
 private theorem two_le_sqrt_clog_two {n : ℕ} (hn : 20 ≤ n) : 2 ≤ (Nat.clog 2 n).sqrt := by
-  refine Nat.le_sqrt.mpr ?_
   have hclog : 3 < Nat.clog 2 n := (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega)
-  omega
+  exact Nat.le_sqrt.mpr (by omega)
 
 /-- Schedule hypotheses at the threshold `max (2 * n₀) (2 ^ (C + 1)) ≤ N` of the
 `_of_le_clog_pow` theorems: once `N ≤ 2 * n'`, the free-variable count `n'` satisfies `n₀ ≤ n'`
@@ -616,20 +583,14 @@ theorem CNF.exists_branch_schedule_parityRowSystem_of_le_clog_pow (k C_B β_B : 
   refine ⟨max (2 * n₀) (2 ^ (C + 1)), by omega,
     fun {V _ _ φ n' B W} hk hN₀ hm hB hW_bound {rows} hW hlen => ?_⟩
   intro b₀ e
-  have hn20 : 20 ≤ Fintype.card V := by
-    have : 2 * n₀ ≤ Fintype.card V := (le_max_left _ _).trans hN₀
-    omega
-  have hsqrt := two_le_sqrt_clog_two hn20
-  have hthresh : (6 * (k * (W * 2 ^ k))) * (Nat.clog 2 (Fintype.card V)).sqrt ≤ b₀ :=
-    Nat.le_succ _
+  have hsqrt :=
+    two_le_sqrt_clog_two ((by omega : 20 ≤ 2 * n₀).trans ((le_max_left _ _).trans hN₀))
   obtain ⟨⟨hn_le, hn_div⟩, hbranches⟩ :=
-    CNF.card_le_two_mul_freeVar_parityRowSystem hk hW hlen hsqrt hthresh e
+    CNF.card_le_two_mul_freeVar_parityRowSystem hk hW hlen hsqrt (Nat.le_succ _) e
   obtain ⟨hn₀_le, hcoeff⟩ := le_and_le_clog_of_max_le hN₀ hn_le
-  obtain ⟨hb₀_pow, hw_pow⟩ :=
-    parityBranchThreshold_succ_and_width_le_clog_pow (by omega) hn_le (by omega) hm hB hW_bound
-      hcoeff
-  exact ⟨hsqrt, ⟨hn_le, hn_div⟩, hbranches,
-    fun b => hsched hk hW e hn₀_le hb₀_pow hw_pow b⟩
+  obtain ⟨hb₀_pow, hw_pow⟩ := parityBranchThreshold_succ_and_width_le_clog_pow
+    (by omega) hn_le (by omega) hm hB hW_bound hcoeff
+  exact ⟨hsqrt, ⟨hn_le, hn_div⟩, hbranches, hsched hk hW e hn₀_le hb₀_pow hw_pow⟩
 
 /-- **Unconditional Section 6.3 greedy parity-test schedule theorem for
 `B ≤ C_B * (Nat.clog 2 n) ^ β_B`**:
@@ -702,40 +663,22 @@ theorem CNF.exists_greedy_parityRowSystem_branch_schedule_of_le_clog_pow (k C_B 
   intro D₀ P b₀
   obtain ⟨A₀, hlen0, hw0, hgreedy⟩ :=
     φ.exists_initialTests_commonZeroCount_greedy hk (by omega) hB1 hm
-  refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ => ?_⟩
-  obtain ⟨hcount, hstage⟩ := hgreedy A γ h0 hA hγ
-  refine ⟨hcount, fun i hi => ?_⟩
-  obtain ⟨hlen_i, hscope_i⟩ := hstage i hi
+  refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ => ⟨(hgreedy A γ h0 hA hγ).1, fun i hi => ?_⟩⟩
+  obtain ⟨hlen_i, hscope_i⟩ := (hgreedy A γ h0 hA hγ).2 i hi
   refine ⟨hlen_i, fun {n'} e => ?_⟩
   have hscope_D₀ : ∀ j : Fin (A i).length,
       #(equationScope (φ.parityRowSystem (A i) j)) ≤ k * (D₀ * 2 ^ k) := fun j => by
     simpa only [D₀, P, max_initialRowWeightBound_greedyRowListLength] using (hscope_i j).2.2
-  have hn20 : 20 ≤ Fintype.card V := by
-    have : 2 * n₀ ≤ Fintype.card V := (le_max_left _ _).trans hN₀
-    omega
-  have hsqrt := two_le_sqrt_clog_two hn20
-  have hM_le :
-      totalIncidence (univ : Finset (Fin (A i).length))
-          (fun j => equationScope (φ.parityRowSystem (A i) j)) *
-        (Nat.clog 2 (Fintype.card V)).sqrt ≤
-      b₀ * Fintype.card V :=
-    CNF.totalIncidence_mul_le_of_card_equationScope_le hscope_D₀ hlen_i (Nat.le_succ _)
-  have hcard : Fintype.card V ≤ 2 * n' ∧ Fintype.card V / 2 ≤ n' :=
-    card_le_two_mul_freeVar_of_heavyVars univ
-      (fun j => equationScope (φ.parityRowSystem (A i) j)) hsqrt hM_le e
-  have hbr :
-      #(branchAssignments
-          (heavyVars univ (univ : Finset (Fin (A i).length))
-            (fun j => equationScope (φ.parityRowSystem (A i) j)) b₀)) ≤
-        2 ^ (Fintype.card V / (Nat.clog 2 (Fintype.card V)).sqrt) :=
-    card_branchAssignments_heavyVars_le_two_pow_div univ
-      (fun j => equationScope (φ.parityRowSystem (A i) j)) (by omega) hM_le
+  have hsqrt :=
+    two_le_sqrt_clog_two ((by omega : 20 ≤ 2 * n₀).trans ((le_max_left _ _).trans hN₀))
+  have hM_le :=
+    CNF.totalIncidence_mul_le_of_card_equationScope_le hscope_D₀ hlen_i (Nat.le_succ _ : _ ≤ b₀)
+  have hcard := card_le_two_mul_freeVar_of_heavyVars univ _ hsqrt hM_le e
   obtain ⟨hn₀_le, hcoeff⟩ := le_and_le_clog_of_max_le hN₀ hcard.1
   obtain ⟨hb₀_pow, hw_pow⟩ :=
     parityBranchThreshold_succ_and_width_le_clog_pow (by omega) hcard.1 (by omega) hm hB_le
       le_rfl hcoeff
-  refine ⟨hcard, hbr, fun b => ?_⟩
-  exact hsched univ univ (φ.parityRowSystem (A i)) (Subset.refl _) e hn₀_le hb₀_pow hw_pow
-    (fun j _ => hscope_D₀ j) b
+  exact ⟨hcard, card_branchAssignments_heavyVars_le_two_pow_div univ _ (by omega) hM_le,
+    fun b => hsched univ univ _ (Subset.refl _) e hn₀_le hb₀_pow hw_pow (fun j _ => hscope_D₀ j) b⟩
 
 end Cslib.Logic.PL

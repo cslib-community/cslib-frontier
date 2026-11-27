@@ -72,18 +72,15 @@ theorem extractNat_cast {q : ℕ} [Fact q.Prime] {c z c' z' : ℕ}
     rw [ZMod.natCast_mod, Nat.cast_sub ((Nat.mod_lt _ (Fact.out : q.Prime).pos).le.trans
       (Nat.le_add_left _ _)), Nat.cast_add, ZMod.natCast_mod, ZMod.natCast_mod, ZMod.natCast_self,
       add_zero]
-  have hne : (c : ZMod q) - c' ≠ 0 := sub_ne_zero.mpr hc
-  have hinv : ((c : ZMod q) - c') ^ (q - 2) = ((c : ZMod q) - c')⁻¹ :=
-    ZMod.pow_card_sub_two_eq_inv hne
-  simp only [extractNat, Nat.cast_mul, ZMod.natCast_mod, Nat.cast_pow, hsub, hinv]
+  simp only [extractNat, Nat.cast_mul, ZMod.natCast_mod, Nat.cast_pow, hsub,
+    ZMod.pow_card_sub_two_eq_inv (sub_ne_zero.mpr hc)]
 
 /-- Modulo a prime `q`, `extractNat` on canonical `ZMod q` representatives computes
 `(c - c')⁻¹ * (z - z')` whenever `c ≠ c'`. -/
 theorem extractNat_zmod_val {q : ℕ} [Fact q.Prime] {c z c' z' : ZMod q} (hc : c ≠ c') :
     (extractNat q c.val z.val c'.val z'.val : ZMod q) = (c - c')⁻¹ * (z - z') := by
-  have hcast : ((c.val : ℕ) : ZMod q) ≠ (c'.val : ℕ) := by
-    simpa only [ZMod.natCast_zmod_val] using hc
-  simpa only [ZMod.natCast_zmod_val] using extractNat_cast (z := z.val) (z' := z'.val) hcast
+  simpa only [ZMod.natCast_zmod_val] using extractNat_cast (q := q) (c := c.val) (z := z.val)
+    (c' := c'.val) (z' := z'.val) (by rwa [ZMod.natCast_zmod_val, ZMod.natCast_zmod_val])
 
 variable {F : PrimeOrderGroupFamily}
 
@@ -104,10 +101,7 @@ theorem computableInPolyTime_extractNat {α : Type} {input : α ↪ List Bool}
         (fun a => (x a % F.order (d a) + F.order (d a) - y a % F.order (d a)) % F.order (d a))
         input encNat :=
     .binary_mod' (.binary_sub' (.binary_add' (.binary_mod' hx hq) hq) (.binary_mod' hy hq)) hq
-  have hpow := (ComputableInPolyTime.binary_powMod
-    (hdiff hc hc')
-    (.binary_sub' hq (.const 2))
-    hq fun a => (F.prime_order (d a)).pos)
-  exact .binary_mod' (.binary_mul' hpow (hdiff hz hz')) hq
+  exact .binary_mod' (.binary_mul' (.binary_powMod (hdiff hc hc') (.binary_sub' hq (.const 2))
+    hq fun a => (F.prime_order (d a)).pos) (hdiff hz hz')) hq
 
 end Cslib.Crypto.PrimeOrderGroupFamily

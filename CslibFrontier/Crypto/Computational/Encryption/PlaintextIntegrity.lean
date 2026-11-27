@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Encryption.EncForge
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Crypto.Computational.Encryption.CCAToCPA
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.QueryBoundedSimulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 import CslibFrontier.Probability.BitString.List
@@ -162,16 +163,7 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
   have hres : ComputableInPolyTime
       (fun pair : ((ℕ × List Bool) × List Bool) × List Bool =>
         ctBound pair.1.1.1 + 2 * pair.2.length + 4) (encPair ECaller encBits) encUnary := by
-    dsimp only [ECaller]
-    have hct : ComputableInPolyTime
-        (fun pair : ((ℕ × List Bool) × List Bool) × List Bool => ctBound pair.1.1.1)
-        (encPair (encPair (encPair encUnary encBits) encBits) encBits) encUnary :=
-      hctBound.comp (by fun_prop)
-    have hqlen : ComputableInPolyTime
-        (fun pair : ((ℕ × List Bool) × List Bool) × List Bool => 2 * pair.2.length + 4)
-        (encPair (encPair (encPair encUnary encBits) encBits) encBits) encUnary := by
-      fun_prop
-    exact ComputableInPolyTime.unary_add.comp (hct.prod hqlen)
+    dsimp only [ECaller]; fun_prop
   have hrun : IsOraclePPTOn (Operation := Bool) ECaller (encPair encBits EState)
       (fun caller : (ℕ × List Bool) × List Bool =>
         (OracleComp.interpret
@@ -192,14 +184,13 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
     split_ifs at hresult with hlenEq
     · obtain ⟨ct, hct, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨_, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hct
-      have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
-      subst hresEq
+      rcases OracleComp.eq_of_mem_supportWith_pure hresult with rfl
       refine ⟨trivial, (List.length_take_le _ _).trans (by lia), ?_⟩
       have hcl : (BitString.listRow caller.1.1 state.1 caller.2).length = request.2.length :=
         (BitString.length_listRow _ _ _).trans (beq_iff_eq.mp hlenEq).symm
-      dsimp only [EState]; enc_len
-    · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
-      subst hresEq
+      dsimp only [EState]
+      enc_len
+    · rcases OracleComp.eq_of_mem_supportWith_pure hresult with rfl
       exact ⟨trivial, by simp, by simp⟩
   ppt [ciToCCAAdversary]
 
@@ -224,9 +215,7 @@ theorem isOraclePPT_ciToRandEncForgeAdversary {ctBound Q : ℕ → ℕ}
   have hres : ComputableInPolyTime
       (fun pair : ((ℕ × List Bool) × List Bool) × List Bool => ctBound pair.1.1.1 + 1)
       (encPair ECaller encBits) encUnary := by
-    dsimp only [ECaller]
-    exact ComputableInPolyTime.unary_add.comp
-      ((hctBound.comp (by fun_prop)).prod (ComputableInPolyTime.const 1))
+    dsimp only [ECaller]; fun_prop
   have hrun : IsOraclePPTOn (Operation := Unit) ECaller (encPair encBits encUnary)
       (fun caller : (ℕ × List Bool) × List Bool =>
         (OracleComp.interpret
@@ -245,11 +234,9 @@ theorem isOraclePPT_ciToRandEncForgeAdversary {ctBound Q : ℕ → ℕ}
     split_ifs at hresult
     · obtain ⟨ct, hct, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨_, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hct
-      have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
-      subst hresEq
+      rcases OracleComp.eq_of_mem_supportWith_pure hresult with rfl
       exact ⟨trivial, (List.length_take_le _ _).trans (by lia), by enc_len⟩
-    · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
-      subst hresEq
+    · rcases OracleComp.eq_of_mem_supportWith_pure hresult with rfl
       exact ⟨trivial, by simp, by simp⟩
   ppt [ciToRandEncForgeAdversary]
 
@@ -316,12 +303,11 @@ private theorem length_le_of_mem_support_runWith_ciPairOracle (E : SymmetricCiph
     unfold SymmetricCipher.ciPairOracle at hstep
     split_ifs at hstep
     · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hstep
-      obtain ⟨ct, _, hstepEq⟩ := hstep
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hstepEq
+        PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+      rcases hstep with ⟨_, _, rfl, rfl⟩
       simp only [List.length_cons]; omega
-    · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hstep
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hstep
+    · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+      rcases hstep with ⟨rfl, rfl⟩
       omega
 
 /-- The first `k` random chunks of `rawBits`, most recent first. -/
@@ -362,12 +348,10 @@ private theorem eval_run_ciToCCAHandler_false (E : SymmetricCipher) (n ctBound :
   by_cases hlen : msg.length = n
   · have hchunkLen : (BitString.listRow n pairs.length rawBits).length = n :=
       BitString.length_listRow n pairs.length rawBits
-    simp only [StateT.run, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
-      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
-      SymmetricCipher.ccaOracle, Bool.false_eq_true, unframe_encPair_encBits,
-      dropFrame_encPair_encBits, hlen, hchunkLen, beq_self_eq_true, Bool.and_self,
-      PMF.bind_bind, PMF.map_bind, PMF.pure_bind, PMF.pure_map, Prod.map_apply, id_eq]
+    simp only [StateT.run, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
+      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, SymmetricCipher.ccaOracle,
+      Bool.false_eq_true, unframe_encPair_encBits, dropFrame_encPair_encBits, hlen, hchunkLen,
+      beq_self_eq_true, Bool.and_self, Prod.map_apply, id_eq, pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun ct hct => ?_
     simp only [List.take_of_length_le (hctBound k hk msg hlen ct hct),
       List.length_cons, List.map_cons, chunksBelow]
@@ -538,7 +522,7 @@ private theorem length_of_mem_support_ccaTruePairOracle (E : SymmetricCipher) (n
   split_ifs at hstep
   · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff] at hstep
-    obtain ⟨ct, _, hstepEq⟩ := hstep
+    obtain ⟨_, _, hstepEq⟩ := hstep
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj hstepEq
     intro r hr
     rcases List.mem_cons.mp hr with rfl | hr'
@@ -567,12 +551,10 @@ private theorem eval_run_ccaTruePairOracle_proj_cca (E : SymmetricCipher) (n ctB
   by_cases hlen : msg.length = n
   · have hchunkLen : (BitString.listRow n idx rawBits).length = n :=
       BitString.length_listRow n idx rawBits
-    simp only [StateT.run, ↓reduceIte, SymmetricCipher.ccaOracle,
-      Bool.false_eq_true, unframe_encPair_encBits, dropFrame_encPair_encBits, hlen, hchunkLen,
-      beq_self_eq_true, Bool.and_self, ProbComp.eval_bind, ProbComp.eval_pure,
-      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-      ProbOracleComp.runWith_pure, PMF.bind_bind, PMF.map_bind, PMF.pure_bind,
-      PMF.pure_map, Prod.map_apply, id_eq]
+    simp only [StateT.run, ↓reduceIte, SymmetricCipher.ccaOracle, Bool.false_eq_true,
+      unframe_encPair_encBits, dropFrame_encPair_encBits, hlen, hchunkLen, beq_self_eq_true,
+      Bool.and_self, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
+      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, Prod.map_apply, id_eq, pmf_norm]
   · simp only [StateT.run, beq_false_of_ne hlen, Bool.false_eq_true, ↓reduceIte,
       ProbOracleComp.runWith_pure, ProbComp.eval_pure, PMF.pure_map]
 
@@ -596,10 +578,8 @@ private theorem eval_run_ccaTruePairOracle_proj_encForge (E : SymmetricCipher) (
   · have hchunkLen : (BitString.listRow n idx rawBits).length = n :=
       BitString.length_listRow n idx rawBits
     simp only [StateT.run, beq_iff_eq.mpr hlen, ↓reduceIte, SymmetricCipher.encForgeOracle,
-      hchunkLen, beq_self_eq_true, ProbComp.eval_bind, ProbComp.eval_pure,
-      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-      ProbOracleComp.runWith_pure, PMF.bind_bind, PMF.map_bind, PMF.pure_bind, PMF.pure_map,
-      Prod.map_apply, id_eq]
+      hchunkLen, beq_self_eq_true, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
+      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, Prod.map_apply, id_eq, pmf_norm]
   · simp only [StateT.run, beq_false_of_ne hlen, Bool.false_eq_true, ↓reduceIte,
       ProbOracleComp.runWith_pure, ProbComp.eval_pure, PMF.pure_map]
 

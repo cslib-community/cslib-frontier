@@ -26,7 +26,7 @@ private theorem code_inSpace :
     ComputableInSpace (fun p : Bool × ℕ => code p.1 p.2) (encPair encBool encNat) encBool
       (fun p => (encPair encBool encNat p).length) :=
   budget_boolAnd (fst encBool encNat)
-    (budget_boolNot (budget_natEq (snd encBool encNat) (budget_const 1 (.refl _))))
+    (budget_boolNot (budget_natEq (snd encBool encNat) (budget_const 1)))
 
 /-- The middle seed bit is masked out by the code callback. -/
 example : ((SeedDigits.machine code true).run [true, true, true] 4).accumulator = 37 := by
@@ -46,7 +46,7 @@ example :
       (fun seed => scaleAccumulatedWeight 12 (SeedDigits.maskedPrefix (code true) seed seed.length))
       encBits encNat List.length := by
   have hscan := SeedDigits.maskedSeed_inSpace encBool code true code_inSpace
-  have hpack := budget_prod (budget_const (encB := encNat) 12 (.refl _)) hscan
+  have hpack := budget_prod (budget_const (encB := encNat) 12) hscan
   exact (budget_comp_linear scaleAccumulatedWeight_inSpace hpack).of_enc_eq fun _ => rfl
 
 open Cslib.Code.JustesenFamily in

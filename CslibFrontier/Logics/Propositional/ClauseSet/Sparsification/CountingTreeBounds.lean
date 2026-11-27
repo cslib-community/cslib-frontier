@@ -146,17 +146,13 @@ theorem support_of_mem_reduce_nontautological {ψ : ClauseSet V} {declared : Fin
 clause containing both `l` and `Std.Sat.Literal.negate l` is satisfied by every assignment. -/
 theorem sat_nontautological_iff (ψ : ClauseSet V) (x : V → Bool) :
     (nontautological ψ).Sat x ↔ ψ.Sat x := by
-  constructor
-  · intro hx C hC
-    by_cases hnt : ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C
-    · exact hx C (mem_nontautological.mpr ⟨hC, hnt⟩)
-    · push Not at hnt
-      obtain ⟨⟨v, b⟩, hl, hneg⟩ := hnt
-      by_cases hxv : x v = b
-      · exact ⟨(v, b), hl, hxv⟩
-      · refine ⟨(v, !b), hneg, ?_⟩
-        cases h : x v <;> cases b <;> simp_all
-  · exact fun hx C hC => hx C (nontautological_subset ψ hC)
+  refine ⟨fun hx C hC => ?_, fun hx C hC => hx C (nontautological_subset ψ hC)⟩
+  by_cases hnt : ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C
+  · exact hx C (mem_nontautological.mpr ⟨hC, hnt⟩)
+  · push Not at hnt
+    obtain ⟨⟨v, b⟩, hl, hneg⟩ := hnt
+    exact if h : x v = b then ⟨(v, b), hl, h⟩ else
+      ⟨(v, !b), hneg, by cases hx' : x v <;> cases b <;> simp_all⟩
 
 /-- Combined nontautological filtering and subsumption reduction preserve `ClauseSet.Sat`. -/
 theorem sat_reduce_nontautological_iff (ψ : ClauseSet V) (x : V → Bool) :
@@ -170,8 +166,7 @@ theorem modelCountOn_toCNF_nontautological (ψ : ClauseSet V) (declared : Finset
   unfold CNF.modelCountOn
   congr 1
   ext σ
-  simp only [mem_filter, mem_univ, true_and, ClauseSet.eval_toCNF_eq_true_iff,
-    sat_nontautological_iff]
+  simp [ClauseSet.eval_toCNF_eq_true_iff, sat_nontautological_iff]
 
 /-- Normalizing a clause set with `reduce (nontautological ψ)` preserves `CNF.modelCountOn` on any
 declared variable set. -/
@@ -219,23 +214,6 @@ decreasing_by
     exact potential_countingChild_lt_of_two_le_card_flower
       (choice_chooseBranch h.1).1.1 (choice_chooseBranch h.1).1.2.1 h.2 true
 
-private theorem countingLeafWords_of_sparse {θ : ℕ → ℕ} {ψ : ClauseSet V} (h : Sparse θ ψ) :
-    countingLeafWords θ ψ = [[]] := by
-  rw [countingLeafWords]
-  exact ite_eq_right fun h' => h'.1 h
-
-private theorem countingLeafWords_of_not_sparse {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j → 2 ≤ θ j)
-    {ψ : ClauseSet V} (h : ¬ Sparse θ ψ) :
-    countingLeafWords θ ψ =
-      (countingLeafWords θ (countingChild ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 false)).map
-          (false :: ·) ++
-        (countingLeafWords θ (countingChild ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 true)).map
-          (true :: ·) := by
-  have hz : 2 ≤ (flower ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2).card :=
-    two_le_card_flower_of_heavy hθ (choice_chooseBranch h).1
-  rw [countingLeafWords]
-  exact ite_eq_left ⟨h, hz⟩
-
 /-- Walking `countingTreeRule θ` from `ψ` along the branch-word addresses in
 `countingLeafWords θ ψ` reproduces `countingLeaves θ ψ` in exact list order, preserving
 multiplicity across equal or unsatisfiable leaf clause sets. -/
@@ -277,51 +255,21 @@ theorem length_countingLeaves_eq_card_toFinset_countingLeafWords (θ : ℕ → �
   rw [length_countingLeaves_eq_length_countingLeafWords,
     List.toFinset_card_of_nodup (nodup_countingLeafWords θ ψ)]
 
-private theorem mem_countingLeafWords_cons_iff {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j → 2 ≤ θ j)
-    {ψ : ClauseSet V} (hs : ¬ Sparse θ ψ) {b : Bool} {u : List Bool} :
-    b :: u ∈ countingLeafWords θ ψ ↔
-      u ∈ countingLeafWords θ (countingChild ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 b) := by
-  rw [countingLeafWords_of_not_sparse hθ hs, List.mem_append, List.mem_map, List.mem_map]
-  cases b with
-  | false =>
-    constructor
-    · rintro (⟨u', hu', heq⟩ | ⟨u', -, heq⟩)
-      · exact (List.cons.inj heq).2 ▸ hu'
-      · exact absurd (List.cons.inj heq).1.symm Bool.false_ne_true
-    · intro hu
-      exact Or.inl ⟨u, hu, rfl⟩
-  | true =>
-    constructor
-    · rintro (⟨u', -, heq⟩ | ⟨u', hu', heq⟩)
-      · exact absurd (List.cons.inj heq).1 Bool.false_ne_true
-      · exact (List.cons.inj heq).2 ▸ hu'
-    · intro hu
-      exact Or.inr ⟨u, hu, rfl⟩
-
 /-- When `∀ j, 1 ≤ j → 2 ≤ θ j`, `countingLeafWords θ ψ` enumerates data-exact the leaf words of
 `countingTreeRule θ` starting from `ψ`. -/
 theorem mem_countingLeafWords_iff_isLeafWord {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j → 2 ≤ θ j)
     (ψ : ClauseSet V) (w : List Bool) :
     w ∈ countingLeafWords θ ψ ↔ (countingTreeRule θ).tree.IsLeafWord ψ w := by
-  induction hp : potential ψ using Nat.strong_induction_on generalizing ψ w with
-  | _ n ih =>
-    by_cases hs : Sparse θ ψ
-    · rw [countingLeafWords_of_sparse hs, List.mem_singleton]
-      cases w with
-      | nil => exact ⟨fun _ => hs, fun _ => rfl⟩
-      | cons b u =>
-        exact ⟨fun h => absurd h (List.cons_ne_nil b u), fun hw => absurd hs hw.1⟩
-    · cases w with
-      | nil =>
-        rw [countingLeafWords_of_not_sparse hθ hs, List.mem_append, List.mem_map, List.mem_map]
-        refine ⟨?_, fun hw => absurd hw hs⟩
-        rintro (⟨u, -, h⟩ | ⟨u, -, h⟩)
-        · exact absurd h (List.cons_ne_nil false u)
-        · exact absurd h (List.cons_ne_nil true u)
-      | cons b u =>
-        have hlt := potential_countingChild_lt hθ (choice_chooseBranch hs).1 b
-        rw [mem_countingLeafWords_cons_iff hθ hs, ih _ (hp ▸ hlt) _ u rfl]
-        exact ⟨fun hu => ⟨hs, hu⟩, fun hw => hw.2⟩
+  fun_induction countingLeafWords θ ψ generalizing w with
+  | case1 ψ hsplit ch ih₀ ih₁ => -- not sparse, flower ≥ 2: branch
+    cases w with
+    | nil => simpa [BinaryBranching.IsLeafWord, countingTreeRule] using hsplit.1
+    | cons b u =>
+      cases b <;> simp [BinaryBranching.IsLeafWord, countingTreeRule, hsplit.1, ch, ih₀, ih₁]
+  | case2 ψ hleaf => -- leaf
+    have hs : Sparse θ ψ := of_not_not fun hs =>
+      hleaf ⟨hs, two_le_card_flower_of_heavy hθ (choice_chooseBranch hs).1⟩
+    cases w <;> simp [BinaryBranching.IsLeafWord, countingTreeRule, hs]
 
 /-- When `∀ j, 1 ≤ j → 2 ≤ θ j`, every address `w ∈ countingLeafWords θ ψ` is a leaf word of
 `countingTreeRule θ` starting from `ψ`. -/
@@ -346,12 +294,11 @@ theorem length_countingLeaves_pow_le {k M : ℕ} (hM : 2 ≤ M)
     (countingLeaves (M ^ ·) ψ).length ≤
       ∑ j ∈ range (countingBChoiceCoeff k * declared.card / M + 1),
         (countingDepthCoeff k M * declared.card).choose j := by
-  have hθ : ∀ j, 1 ≤ j → 2 ≤ M ^ j := fun j hj =>
-    hM.trans (by simpa only [pow_one] using Nat.pow_le_pow_right (by omega : 0 < M) hj)
   rw [length_countingLeaves_eq_card_toFinset_countingLeafWords]
   exact CountingBranchingRule.card_le_of_isLeafWord (R := countingTreeRule (M ^ ·))
     hM hred hnt hk declared hsupport (countingLeafWords (M ^ ·) ψ).toFinset
-    (fun w hw => isLeafWord_of_mem_countingLeafWords hθ (List.mem_toFinset.mp hw))
+    fun _ hw => isLeafWord_of_mem_countingLeafWords
+      (fun _ hj => hM.trans (Nat.le_self_pow (by omega) M)) (List.mem_toFinset.mp hw)
 
 /-- **Leaf-count bound under explicit Appendix A.3 parameter-test hypotheses.**
 When `2 ≤ M`, `1 ≤ B`, and (for `2 ≤ k`) `M` passes the integer budget test of Appendix A.3,
@@ -365,13 +312,12 @@ theorem length_countingLeaves_pow_le_two_pow_of_budget {k M B : ℕ}
     (hk : ∀ C ∈ ψ, C.card ≤ k) (declared : Finset V)
     (hsupport : ∀ C ∈ ψ, ∀ l ∈ C, l.1 ∈ declared) {n : ℕ} (hn : declared.card ≤ n) :
     (countingLeaves (M ^ ·) ψ).length ≤ 2 ^ (n / B + 1) := by
-  have hθ : ∀ j, 1 ≤ j → 2 ≤ M ^ j := fun j hj =>
-    hM.trans (by simpa only [pow_one] using Nat.pow_le_pow_right (by omega : 0 < M) hj)
   rw [length_countingLeaves_eq_card_toFinset_countingLeafWords]
-  refine (CountingBranchingRule.card_le_two_pow_of_isLeafWord (R := countingTreeRule (M ^ ·))
+  exact (CountingBranchingRule.card_le_two_pow_of_isLeafWord (R := countingTreeRule (M ^ ·))
     hM hred hnt hk declared hsupport hB hbudget (countingLeafWords (M ^ ·) ψ).toFinset
-    (fun w hw => isLeafWord_of_mem_countingLeafWords hθ (List.mem_toFinset.mp hw))).trans ?_
-  gcongr
+    fun _ hw => isLeafWord_of_mem_countingLeafWords
+      (fun _ hj => hM.trans (Nat.le_self_pow (by omega) M))
+      (List.mem_toFinset.mp hw)).trans (by gcongr)
 
 /-- **Appendix A.3 `2 ^ (n / B + 1)` leaf-count bound at `countingThresholdBase k B`.**
 For any width `k : ℕ`, inverse error budget `1 ≤ B`, and reduced, nontautological clause set `ψ`
@@ -386,6 +332,11 @@ theorem length_countingLeaves_countingThresholdBase_le {k B : ℕ} (hB : 1 ≤ B
   length_countingLeaves_pow_le_two_pow_of_budget (two_le_countingThresholdBase k B) hB
     (fun hk2 => countingThresholdBase_spec hk2 hB) hred hnt hk declared hsupport hn
 
+private theorem one_le_of_two_le {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j → 2 ≤ θ j) (hθ0 : 1 ≤ θ 0) :
+    ∀ j, 1 ≤ θ j
+  | 0 => hθ0
+  | j + 1 => Nat.le_of_succ_le (hθ _ (Nat.succ_pos j))
+
 /-! ### Leaf occurrence and clause-count bounds for `countingLeaves` -/
 
 /-- Every leaf `L ∈ countingLeaves θ ψ` of a width-`≤ k` root has variable occurrence degree at most
@@ -393,13 +344,8 @@ theorem length_countingLeaves_countingThresholdBase_le {k B : ℕ} (hB : 1 ≤ B
 theorem occurrences_le_of_mem_countingLeaves {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j → 2 ≤ θ j)
     (hθ0 : 1 ≤ θ 0) {ψ L : ClauseSet V} {k : ℕ} (hk : ∀ C ∈ ψ, C.card ≤ k)
     (hL : L ∈ countingLeaves θ ψ) (v : V) :
-    L.occurrences v ≤ 2 * ∑ c ∈ range k, θ c := by
-  have hθ1 : ∀ j, 1 ≤ θ j := by
-    intro j
-    rcases j with _ | j
-    · exact hθ0
-    · exact (by decide : 1 ≤ 2).trans (hθ (j + 1) (by omega))
-  exact occurrences_le_of_sparse hθ1 (sparse_of_mem_countingLeaves hθ hL)
+    L.occurrences v ≤ 2 * ∑ c ∈ range k, θ c :=
+  occurrences_le_of_sparse (one_le_of_two_le hθ hθ0) (sparse_of_mem_countingLeaves hθ hL)
     (card_le_of_mem_countingLeaves hk hL) v
 
 /-- Every leaf `L ∈ countingLeaves θ ψ` of a width-`≤ k` root supported on `declared` has at most
@@ -408,13 +354,8 @@ theorem card_le_of_mem_countingLeaves_of_support {θ : ℕ → ℕ} (hθ : ∀ j
     (hθ0 : 1 ≤ θ 0) {ψ L : ClauseSet V} {k : ℕ} (hk : ∀ C ∈ ψ, C.card ≤ k)
     {declared : Finset V} (hsupport : ∀ C ∈ ψ, ∀ l ∈ C, l.1 ∈ declared)
     (hL : L ∈ countingLeaves θ ψ) :
-    L.card ≤ 2 * (∑ c ∈ range k, θ c) * declared.card + 1 := by
-  have hθ1 : ∀ j, 1 ≤ θ j := by
-    intro j
-    rcases j with _ | j
-    · exact hθ0
-    · exact (by decide : 1 ≤ 2).trans (hθ (j + 1) (by omega))
-  exact card_le_of_sparse hθ1 (sparse_of_mem_countingLeaves hθ hL)
+    L.card ≤ 2 * (∑ c ∈ range k, θ c) * declared.card + 1 :=
+  card_le_of_sparse (one_le_of_two_le hθ hθ0) (sparse_of_mem_countingLeaves hθ hL)
     (card_le_of_mem_countingLeaves hk hL) declared (support_of_mem_countingLeaves hsupport hL)
 
 /-- Every leaf CNF `L.toCNF` (`L ∈ countingLeaves θ ψ`) of a width-`≤ k` root supported on
@@ -429,19 +370,18 @@ theorem length_toCNF_le_of_mem_countingLeaves_of_support {θ : ℕ → ℕ} (hθ
 
 /-! ### Unconditional CNF counting-sparsification corollaries -/
 
-private theorem card_le_of_mem_toClauseSet {φ : CNF V} {k : ℕ} (hk : ∀ c ∈ φ, c.length ≤ k)
-    {C : Finset (Literal V)} (hC : C ∈ φ.toClauseSet) : C.card ≤ k := by
-  simp only [CNF.toClauseSet, List.mem_toFinset, List.mem_map] at hC
-  obtain ⟨c, hc, rfl⟩ := hC
-  exact List.toFinset_card_le c |>.trans (hk c hc)
+private theorem card_le_of_mem_toClauseSet {φ : CNF V} {k : ℕ} (hk : ∀ c ∈ φ, c.length ≤ k) :
+    ∀ C ∈ reduce (nontautological φ.toClauseSet), C.card ≤ k :=
+  fun _ => card_le_of_mem_reduce_nontautological fun _ hC => by
+    obtain ⟨c, hc, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hC)
+    exact (List.toFinset_card_le c).trans (hk c hc)
 
 private theorem support_of_mem_toClauseSet {φ : CNF V} {declared : Finset V}
-    (hvars : φ.vars.toFinset ⊆ declared) {C : Finset (Literal V)} (hC : C ∈ φ.toClauseSet) :
-    ∀ l ∈ C, l.1 ∈ declared := by
-  intro l hl
-  simp only [CNF.toClauseSet, List.mem_toFinset, List.mem_map] at hC
-  obtain ⟨c, hc, rfl⟩ := hC
-  exact hvars (List.mem_toFinset.mpr (CNF.mem_vars.mpr ⟨c, hc, l.2, List.mem_toFinset.mp hl⟩))
+    (hvars : φ.vars.toFinset ⊆ declared) :
+    ∀ C ∈ reduce (nontautological φ.toClauseSet), ∀ l ∈ C, l.1 ∈ declared :=
+  fun _ => support_of_mem_reduce_nontautological fun _ hC l hl => by
+    obtain ⟨c, hc, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hC)
+    exact hvars (List.mem_toFinset.mpr (CNF.mem_vars.mpr ⟨c, hc, l.2, List.mem_toFinset.mp hl⟩))
 
 /-- **Normalized CNF assignment partition.**
 Evaluating `L.toCNF` across the leaves of `reduce (nontautological φ.toClauseSet)` accepts each
@@ -476,11 +416,8 @@ theorem length_countingLeaves_nontautological_pow_le {k M : ℕ} (hM : 2 ≤ M)
       ∑ j ∈ range (countingBChoiceCoeff k * declared.card / M + 1),
         (countingDepthCoeff k M * declared.card).choose j :=
   length_countingLeaves_pow_le hM (reduced_reduce _)
-    (fun _ hC => nontautological_of_mem_reduce_nontautological hC)
-    (fun _ hC => card_le_of_mem_reduce_nontautological (fun _ => card_le_of_mem_toClauseSet hk) hC)
-    declared
-    (fun _ hC => support_of_mem_reduce_nontautological (fun _ => support_of_mem_toClauseSet hvars)
-      hC)
+    (fun _ => nontautological_of_mem_reduce_nontautological)
+    (card_le_of_mem_toClauseSet hk) declared (support_of_mem_toClauseSet hvars)
 
 /-- **CNF `2 ^ (n / B + 1)` leaf-count bound at `countingThresholdBase k B`.**
 For any width `k : ℕ`, inverse error budget `1 ≤ B`, and width-`≤ k` formula `φ : CNF V` with
@@ -494,12 +431,8 @@ theorem length_countingLeaves_nontautological_thresholdBase_le {k B : ℕ}
         (reduce (nontautological φ.toClauseSet))).length ≤
       2 ^ (n / B + 1) :=
   length_countingLeaves_countingThresholdBase_le hB (reduced_reduce _)
-    (fun _ hC => nontautological_of_mem_reduce_nontautological hC)
-    (fun _ hC => card_le_of_mem_reduce_nontautological (fun _ => card_le_of_mem_toClauseSet hk) hC)
-    declared
-    (fun _ hC => support_of_mem_reduce_nontautological (fun _ => support_of_mem_toClauseSet hvars)
-      hC)
-    hn
+    (fun _ => nontautological_of_mem_reduce_nontautological)
+    (card_le_of_mem_toClauseSet hk) declared (support_of_mem_toClauseSet hvars) hn
 
 /-- **Combined Lemma 6.3 / Appendix A counting-sparsification leaf decomposition for CNFs.**
 For any width `k : ℕ`, inverse error budget `1 ≤ B`, and width-`≤ k` formula `φ : CNF V` with
@@ -531,23 +464,18 @@ theorem countingLeaves_nontautological_thresholdBase_spec {k B : ℕ}
           (∀ v, L.occurrences v ≤ 2 * ∑ c ∈ range k, θ c) ∧
           L.card ≤ 2 * (∑ c ∈ range k, θ c) * declared.card + 1 := by
   intro θ ψ₀
-  have hM : 2 ≤ countingThresholdBase k B := two_le_countingThresholdBase k B
-  have hθ : ∀ j, 1 ≤ j → 2 ≤ θ j := fun j hj =>
-    hM.trans (by simpa only [θ, pow_one] using Nat.pow_le_pow_right (by omega) hj)
-  have hθ1 : ∀ r, 1 ≤ θ r := fun r => Nat.one_le_pow r _ (by omega)
-  have hred : Reduced ψ₀ := reduced_reduce _
-  have hnt : ∀ C ∈ ψ₀, ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C :=
-    fun _ hC => nontautological_of_mem_reduce_nontautological hC
-  have hk0 : ∀ C ∈ ψ₀, C.card ≤ k :=
-    fun _ hC => card_le_of_mem_reduce_nontautological (fun _ => card_le_of_mem_toClauseSet hk) hC
-  have hsup0 : ∀ C ∈ ψ₀, ∀ l ∈ C, l.1 ∈ declared :=
-    fun _ hC => support_of_mem_reduce_nontautological (fun _ => support_of_mem_toClauseSet hvars) hC
-  refine ⟨sum_modelCountOn_countingLeaves_nontautological θ φ declared,
+  have hθ : ∀ j, 1 ≤ j → 2 ≤ θ j :=
+    fun _ hj => (two_le_countingThresholdBase k B).trans (Nat.le_self_pow (by omega) _)
+  have hθ1 : ∀ r, 1 ≤ θ r := one_le_of_two_le hθ (Nat.le_refl 1)
+  have hk0 := card_le_of_mem_toClauseSet hk
+  have hsup0 := support_of_mem_toClauseSet hvars
+  exact ⟨sum_modelCountOn_countingLeaves_nontautological θ φ declared,
     countP_eval_toCNF_countingLeaves_nontautological θ φ,
     length_countingLeaves_nontautological_thresholdBase_le hB φ hk declared hvars hn,
     fun L hL => ⟨sparse_of_mem_countingLeaves hθ hL,
-      reduced_of_mem_countingLeaves hred hL,
-      nontautological_of_mem_countingLeaves hθ1 hnt hL,
+      reduced_of_mem_countingLeaves (reduced_reduce _) hL,
+      nontautological_of_mem_countingLeaves hθ1
+        (fun _ => nontautological_of_mem_reduce_nontautological) hL,
       card_le_of_mem_countingLeaves hk0 hL,
       support_of_mem_countingLeaves hsup0 hL,
       occurrences_le_of_mem_countingLeaves hθ (hθ1 0) hk0 hL,

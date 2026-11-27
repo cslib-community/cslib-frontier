@@ -4,7 +4,9 @@ output and, when Lean is available, on a compiled module (`CompiledFixtureTests`
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -49,7 +51,7 @@ def reading(theorems: dict[str, tuple[str, tuple[str, ...]]],
     return r
 
 
-def run(text: str, r: c.Reading, results: str = "") -> c.Problems:
+def run(text: str, r: c.Reading, results: Iterable[str] = ()) -> c.Problems:
     rows, errors = c.parse_inventory(text)
     return c.check(rows, errors, r, KEYS, results, pathlib.Path("."))
 
@@ -176,10 +178,28 @@ class CheckTests(unittest.TestCase):
     def test_results_inventory_never_lists_a_novel_assumption(self) -> None:
         r = reading({"Cslib.Crypto.AdvicePRG.gmw": ("", (ADVICE,)),
                      "Cslib.Crypto.elGamal": ("", (DDH,))})
-        results = "theorems := [Cslib.Crypto.AdvicePRG.gmw, Cslib.Crypto.elGamal]"
+        results = {"Cslib.Crypto.AdvicePRG.gmw", "Cslib.Crypto.elGamal"}
         errors = run(INVENTORY, r, results).errors
         self.assertEqual(len(errors), 1)
         self.assertIn("results inventory lists `AdvicePRG.gmw`", errors[0])
+
+    def test_exported_result_theorems_enforces_resolved_names(self) -> None:
+        manifest = {
+            "schema_version": 1,
+            "results": [
+                {"id": "elgamal", "theorems": ["Cslib.Crypto.elGamal"]},
+                {"id": "gmw", "theorems": ["Cslib.Crypto.AdvicePRG.gmw"]},
+            ],
+        }
+        resolved = c.exported_result_theorems(manifest)
+        self.assertEqual(resolved, {"Cslib.Crypto.elGamal", "Cslib.Crypto.AdvicePRG.gmw"})
+        r = reading({"Cslib.Crypto.AdvicePRG.gmw": ("", (ADVICE,)),
+                     "Cslib.Crypto.elGamal": ("", (DDH,))})
+        errors = run(INVENTORY, r, resolved).errors
+        self.assertEqual(len(errors), 1)
+        self.assertIn("results inventory lists `AdvicePRG.gmw`", errors[0])
+        with self.assertRaises(ValueError):
+            c.exported_result_theorems({"schema_version": 1, "results": "bad"})
 
     def test_nonvacuity_links(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -267,7 +287,75 @@ class CompiledFixtureTests(unittest.TestCase):
                               "--assumptions"], cwd=c.ROOT,
                              input="CslibFrontier.Crypto.Fixture\n", capture_output=True,
                              text=True, check=True).stdout
+        cls.root = root
         cls.reading = c.read(out)
+
+    def test_short_registered_name_under_open_is_resolved_and_enforced(self) -> None:
+        """A topic module registering `theorems := [fromHard]` under `open Cslib.Crypto` exports
+        the resolved `Cslib.Crypto.fromHard`, which `check` catches on a novel assumption."""
+        lean_bin = subprocess.check_output(
+            ["lake", "env", "sh", "-c", "command -v lean"], cwd=c.ROOT, text=True).strip()
+        lean_env = subprocess.check_output(
+            ["lake", "env", "sh", "-c", "printf '%s' \"$LEAN_PATH\""], cwd=c.ROOT, text=True)
+        env = {**os.environ, "LEAN_PATH": f"{self.root / 'build'}{os.pathsep}{lean_env}"}
+        reg_src = self.root / "src/CslibFrontierResults/Registry.lean"
+        reg_olean = self.root / "build/CslibFrontierResults/Registry.olean"
+        reg_src.parent.mkdir(parents=True, exist_ok=True)
+        reg_olean.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(c.ROOT / "CslibFrontierResults/Registry.lean", reg_src)
+        subprocess.run([lean_bin, f"--root={self.root / 'src'}", "-o", str(reg_olean),
+                        str(reg_src)], cwd=c.ROOT, env=env, check=True, capture_output=True)
+        topic_src = self.root / "src/CslibFrontierResults/Entries/Crypto.lean"
+        topic_olean = self.root / "build/CslibFrontierResults/Entries/Crypto.olean"
+        topic_src.parent.mkdir(parents=True, exist_ok=True)
+        topic_olean.parent.mkdir(parents=True, exist_ok=True)
+        entry_text = """import CslibFrontierResults.Registry
+import CslibFrontier.Crypto.Fixture
+
+open Cslib.Crypto in
+register_result "fixture-short-name" where
+  title := "Fixture theorem registered by short name"
+  topic := "cryptography"
+  sources := [{ paper := BonehShoup2023, theorem := "Theorem 1", locator := "p. 1" }]
+  theorems := [fromHard]
+  scope := "Fixture."
+"""
+        topic_src.write_text(entry_text, encoding="utf-8")
+        self.assertNotIn("Cslib.Crypto.fromHard", entry_text)
+        subprocess.run([lean_bin, f"--root={self.root / 'src'}", "-o", str(topic_olean),
+                        str(topic_src)], cwd=c.ROOT, env=env, check=True, capture_output=True)
+        exporter = self.root / "ExportFixture.lean"
+        exporter.write_text("""import CslibFrontierResults.Registry
+open Lean CslibFrontierResults
+unsafe def main : IO Unit := do
+  initSearchPath (← findSysroot)
+  enableInitializersExecution
+  let env ← importModules #[{ module := `CslibFrontierResults.Entries.Crypto }] {} (loadExts := true)
+  let records := entries.getState env
+  IO.println (Json.mkObj [
+    ("schema_version", toJson (1 : Nat)),
+    ("results", Json.arr (records.map Entry.json))]).compress
+""", encoding="utf-8")
+        exported = subprocess.run([lean_bin, "--run", str(exporter)], cwd=c.ROOT, env=env,
+                                  text=True, check=True, capture_output=True).stdout
+        resolved = c.exported_result_theorems(json.loads(exported))
+        self.assertEqual(resolved, {"Cslib.Crypto.fromHard"})
+        fixture_inv = """# Inventory
+
+| Assumption | Status | Source definition | Deviations or relation | Nonvacuity |
+|---|---|---|---|---|
+| `Hard` | novel | — | Novel test assumption. | — |
+| `HardToo` | vocabulary | — | Helper wrapper. | — |
+| `Secure` | vocabulary | — | Helper wrapper. | — |
+| `KeysIndistinguishable` | vocabulary | — | Helper wrapper. | — |
+| `Game.Indistinguishable` | vocabulary | — | Generic vocabulary. | — |
+"""
+        problems = run(fixture_inv, self.reading, resolved)
+        self.assertTrue(
+            any("results inventory lists `fromHard`, which rests on the novel assumption `Hard`" in e
+                for e in problems.errors),
+            problems.errors,
+        )
 
     def test_named_assumptions(self) -> None:
         """No name is excluded: generic `Game.Indistinguishable` and a library-specific

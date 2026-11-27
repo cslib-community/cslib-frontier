@@ -36,31 +36,19 @@ theorem IsDense.map_restrict_toReal_le (hX : IsDense τ F X) (hτ : 0 < τ)
     (((PMF.uniformOfFinset X hne).map (fun x (i : I) => x i)) a).toReal ≤
       (τ ^ I.card)⁻¹ := by
   classical
-  let x₀ := hne.choose
-  let α : Fin n → Fin m := fun i => if hi : i ∈ I then a ⟨i, hi⟩ else x₀ i
+  let α : Fin n → Fin m := fun i => if hi : i ∈ I then a ⟨i, hi⟩ else hne.choose i
   have heq : (fun x : Fin n → Fin m => (fun i : I => x i) = a) =
       (fun x => ∀ i ∈ I, x i = α i) := by
-    funext x
-    apply propext
-    constructor
-    · intro h i hi
-      simpa [α, hi] using congrFun h ⟨i, hi⟩
-    · intro h
-      funext i
-      simpa [α, i.property] using h i i.property
+    ext x
+    simp +contextual [funext_iff, Subtype.forall, α]
   rw [← _root_.PMF.toOuterMeasure_apply_singleton,
     _root_.PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_uniformOfFinset_toReal]
-  simp only [Set.mem_preimage, Set.mem_singleton_iff]
-  simp only [heq]
-  have hcard : (0 : ℝ) < X.card := by exact_mod_cast hne.card_pos
-  have hp : 0 < τ ^ I.card := pow_pos hτ _
-  apply (div_le_iff₀ hcard).2
-  rw [mul_comm, ← div_eq_mul_inv]
-  apply (le_div_iff₀ hp).2
+  simp only [Set.mem_preimage, Set.mem_singleton_iff, heq]
+  rw [div_le_iff₀ (by exact_mod_cast hne.card_pos), mul_comm, ← div_eq_mul_inv,
+    le_div_iff₀ (pow_pos hτ _)]
   change ((X.filter fun x => ∀ i ∈ I, x i = α i).card : ℝ) * τ ^ I.card ≤ _
-  rcases I.eq_empty_or_nonempty with hI | hI
-  · subst I
-    simp
+  rcases I.eq_empty_or_nonempty with rfl | hI
+  · simp
   · simpa [div_eq_mul_inv, mul_comm] using hX I hIF hI α
 
 /-- Independent uniform sources from dense sets have small projected parity bias whenever the
@@ -131,15 +119,10 @@ theorem IsDense.card_agreeOn_agreeOn_mul_pow_le (hX : IsDense τ F X)
     simpa only [agreeOn] using (agreeOn_union_ite (W := X) hdisj α β).symm
   rw [heq]
   rcases (J ∪ I).eq_empty_or_nonempty with h | h
-  · have hJ : J = ∅ := (union_eq_empty.mp h).1
-    have hI : I = ∅ := (union_eq_empty.mp h).2
-    subst J
-    subst I
+  · obtain ⟨rfl, rfl⟩ := union_eq_empty.mp h
     simp [agreeOn]
-  · have hcard : (J ∪ I).card = I.card + J.card := by
-      rw [card_union_of_disjoint hdisj, Nat.add_comm]
-    simpa [hcard, agreeOn] using hX (J ∪ I) (union_subset hJF hIF) h
-      (fun i => if i ∈ J then α i else β i)
+  · simpa [card_union_of_disjoint hdisj, Nat.add_comm, agreeOn] using
+      hX (J ∪ I) (union_subset hJF hIF) h (fun i => if i ∈ J then α i else β i)
 
 /-- The conditional atom cap expressed as a ratio of finite fiber sizes. The denominator is
 the conditioning event's probability times the density power for both sets of coordinates. -/
@@ -149,14 +132,11 @@ theorem IsDense.card_agreeOn_agreeOn_div_le (hX : IsDense τ F X) (hτ : 0 < τ)
     ((agreeOn (agreeOn X J α) I β).card : ℝ) / (agreeOn X J α).card ≤
       (X.card : ℝ) / ((agreeOn X J α).card * τ ^ (I.card + J.card)) := by
   have hc : (0 : ℝ) < (agreeOn X J α).card := by exact_mod_cast hne.card_pos
-  have hp : 0 < τ ^ (I.card + J.card) := pow_pos hτ _
-  apply (div_le_iff₀ hc).2
-  rw [div_mul_eq_div_mul_one_div]
-  have heq : (X.card : ℝ) / (agreeOn X J α).card * (1 / τ ^ (I.card + J.card)) *
-      (agreeOn X J α).card = X.card / τ ^ (I.card + J.card) := by
-    field_simp
-  rw [heq]
-  exact (le_div_iff₀ hp).2 (hX.card_agreeOn_agreeOn_mul_pow_le hIF hJF hdisj α β)
+  rw [div_le_iff₀ hc, div_mul_eq_div_mul_one_div,
+    show (X.card : ℝ) / (agreeOn X J α).card * (1 / τ ^ (I.card + J.card)) *
+      (agreeOn X J α).card = X.card / τ ^ (I.card + J.card) by field_simp,
+    le_div_iff₀ (pow_pos hτ _)]
+  exact hX.card_agreeOn_agreeOn_mul_pow_le hIF hJF hdisj α β
 
 /-- The projected atom bound after conditioning on a disjoint block assignment. -/
 theorem IsDense.map_restrict_agreeOn_toReal_le (hX : IsDense τ F X) (hτ : 0 < τ)

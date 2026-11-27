@@ -53,21 +53,11 @@ theorem contractBlocks_pullbackCut {n m : ℕ} (part : Fin n → Fin (m + 1)) {u
       fun i => pullbackCut (contractPart part u v huv) {i} := by
   funext i
   ext x
-  have hiv : embedCompact v i ≠ v := embedCompact_ne v i
-  have key : contractPart part u v huv x = i ↔
-      (if part x = v then u else part x) = embedCompact v i := by
-    constructor
-    · rintro rfl
-      exact (embedCompact_contractPart part u v huv x).symm
-    · intro h
-      exact embedCompact_injective v ((embedCompact_contractPart part u v huv x).trans h)
-  rw [mem_pullbackCut, Finset.mem_singleton, key]
-  by_cases hiu : embedCompact v i = u
-  · by_cases hxv : part x = v
-    · simp [contractBlocks, mem_pullbackCut, hiu, hxv]
-    · simp [contractBlocks, mem_pullbackCut, hiu, hxv]
-  · by_cases hxv : part x = v
-    · simp [contractBlocks, mem_pullbackCut, hiu, hxv, Ne.symm hiu, Ne.symm hiv]
-    · simp [contractBlocks, mem_pullbackCut, hiu, hxv]
+  rw [mem_pullbackCut, Finset.mem_singleton, ← (embedCompact_injective v).eq_iff,
+    embedCompact_contractPart]
+  rcases eq_or_ne (embedCompact v i) u with hiu | hiu
+  · by_cases hxv : part x = v <;> simp [contractBlocks, mem_pullbackCut, hiu, hxv]
+  · by_cases hxv : part x = v <;>
+      simp [contractBlocks, mem_pullbackCut, hiu, hxv, hiu.symm, (embedCompact_ne v i).symm]
 
 end Cslib.WeightedCut

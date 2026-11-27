@@ -42,22 +42,23 @@ variable {P V W D α : Type*}
 
 /-- Runtime graph input, a killed walk, and its two endpoint opinions. -/
 abbrev PowerInput (P W D α : Type*) (T q : ℕ) :=
-  P × ((W × ((Fin T → D) × (Fin T → Fin q))) ×
+  P × (KilledDart W D T q ×
     ((WalkLabels D T → α) × (WalkLabels D T → α)))
 
 /-- Check every used step. Unused steps accept, and each endpoint opinion is read at the exact
 forward or reverse prefix specified by the mathematical powered constraint. -/
 def powerRelationWithInput (rotate : P × (W × D) → W × D)
-    (rel : P × ((W × D) × (α × α)) → Bool) (T q : ℕ) [NeZero q]
-    (p : PowerInput P W D α T q) : Bool :=
-  let returned := killedPowRotWithInput rotate T q (p.1, p.2.1)
-  (List.finRange T).all fun i =>
-    if i.val < killTime p.2.1.2.2 then
-      rel (p.1, (walkAtWithInput rotate (p.1, p.2.1.1, p.2.1.2.1) i.val, p.2.1.2.1 i),
-        p.2.2.1 (.take i.val i.isLt.le p.2.1.2.1),
-        p.2.2.2 (.take (killTime p.2.1.2.2 - (i.val + 1))
-          ((Nat.sub_le _ _).trans (killTime_le _)) returned.2.1))
-    else true
+    (rel : P × ((W × D) × (α × α)) → Bool) (T q : ℕ) [NeZero q] :
+    PowerInput P W D α T q → Bool
+  | (input, dart, a, b) =>
+    let returned := killedPowRotWithInput rotate T q (input, dart)
+    (List.finRange T).all fun i =>
+      if i.val < killTime dart.signals then
+        rel (input, (walkAtWithInput rotate (input, dart.vertex, dart.labels) i.val, dart.labels i),
+          a (.take i.val i.isLt.le dart.labels),
+          b (.take (killTime dart.signals - (i.val + 1))
+            ((Nat.sub_le _ _).trans (killTime_le _)) returned.labels))
+      else true
 
 /-- Valid encoded trajectories and original constraints give exactly the mathematical powered
 constraint, including the reverse opinion queried at each step. -/

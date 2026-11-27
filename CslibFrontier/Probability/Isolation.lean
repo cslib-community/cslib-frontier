@@ -81,9 +81,8 @@ theorem mem_minWeightSets {val : W → G} {w : U → W} {F : Finset (Finset U)}
 
 /-- A nonempty finite family has a set of minimum weight. -/
 theorem minWeightSets_nonempty (val : W → G) (w : U → W) {F : Finset (Finset U)}
-    (hF : F.Nonempty) : (minWeightSets val w F).Nonempty := by
-  obtain ⟨S, hS, hmin⟩ := F.exists_min_image (setWeight val w) hF
-  exact ⟨S, mem_minWeightSets.2 ⟨hS, hmin⟩⟩
+    (hF : F.Nonempty) : (minWeightSets val w F).Nonempty :=
+  (F.exists_min_image (setWeight val w) hF).imp fun _ h => mem_minWeightSets.2 h
 
 /-- An element is *ambiguous* when some set of minimum weight contains it and some does not. -/
 def Ambiguous (val : W → G) (w : U → W) (F : Finset (Finset U)) (i : U) : Prop :=
@@ -94,8 +93,8 @@ private theorem exists_ambiguous_of_card_ne_one (val : W → G) (w : U → W)
     {F : Finset (Finset U)} (hF : F.Nonempty) (h : (minWeightSets val w F).card ≠ 1) :
     ∃ i, Ambiguous val w F i := by
   classical
-  obtain ⟨S, hS, T, hT, hST⟩ := one_lt_card.1 (lt_of_le_of_ne
-    (card_pos.2 (minWeightSets_nonempty val w hF)) (Ne.symm h))
+  obtain ⟨S, hS, T, hT, hST⟩ := one_lt_card.1
+    (lt_of_le_of_ne (card_pos.2 (minWeightSets_nonempty val w hF)) (Ne.symm h))
   obtain ⟨i, hi⟩ : ∃ i, ¬(i ∈ S ↔ i ∈ T) := by
     by_contra! h'
     exact hST (ext h')
@@ -116,9 +115,9 @@ theorem setWeight_add_eq_of_mem {val : W → G} {w w' : U → W} {i : U}
     (hw : ∀ j, j ≠ i → w j = w' j) {S : Finset U} (hi : i ∈ S) :
     setWeight val w S + val (w' i) = setWeight val w' S + val (w i) := by
   classical
-  have hR : ∑ j ∈ S.erase i, val (w j) = ∑ j ∈ S.erase i, val (w' j) :=
+  have herase : ∑ j ∈ S.erase i, val (w j) = ∑ j ∈ S.erase i, val (w' j) :=
     setWeight_eq_of_notMem hw (notMem_erase i S)
-  rw [setWeight, setWeight, ← add_sum_erase _ _ hi, ← add_sum_erase _ _ hi, hR]
+  rw [setWeight, setWeight, ← add_sum_erase _ _ hi, ← add_sum_erase _ _ hi, herase]
   ac_rfl
 
 variable [IsOrderedCancelAddMonoid G]
@@ -132,18 +131,15 @@ private theorem val_le_of_mem_of_notMem {val : W → G} {w w' : U → W} {F : Fi
   rw [mem_minWeightSets] at hS hT
   have hA : setWeight val w S ≤ setWeight val w' S :=
     (hS.2 _ hT.1).trans ((setWeight_eq_of_notMem (val := val) hw hiT).trans_le (hT.2 _ hS.1))
-  have : setWeight val w S + val (w i) ≤ setWeight val w S + val (w' i) := by
-    rw [setWeight_add_eq_of_mem hw hiS]
-    exact add_le_add_left hA _
-  exact le_of_add_le_add_left this
+  exact le_of_add_le_add_left ((add_le_add_left hA _).trans_eq
+    (setWeight_add_eq_of_mem hw hiS).symm)
 
 /-- **At most one label makes an element ambiguous**, once the other labels are fixed: both
 labels give the sets containing `i` the minimum weight of the sets without `i`. -/
 theorem val_eq_of_ambiguous {val : W → G} {w w' : U → W} {F : Finset (Finset U)} {i : U}
     (hw : ∀ j, j ≠ i → w j = w' j) (h : Ambiguous val w F i) (h' : Ambiguous val w' F i) :
     val (w i) = val (w' i) := by
-  obtain ⟨⟨S, hS, hiS⟩, T, hT, hiT⟩ := h
-  obtain ⟨⟨S', hS', hiS'⟩, T', hT', hiT'⟩ := h'
+  rcases h, h' with ⟨⟨⟨S, hS, hiS⟩, T, hT, hiT⟩, ⟨S', hS', hiS'⟩, T', hT', hiT'⟩
   exact le_antisymm (val_le_of_mem_of_notMem hw hS hiS hT' hiT')
     (val_le_of_mem_of_notMem (fun j hj => (hw j hj).symm) hS' hiS' hT hiT)
 
@@ -161,13 +157,11 @@ private theorem card_ambiguous_mul_le (hval : Function.Injective val) (F : Finse
   rintro ⟨w, x⟩ hwx ⟨w', x'⟩ hwx' heq
   simp only [coe_product, coe_filter, mem_univ, true_and, Set.mem_prod, Set.mem_ofPred_eq,
     coe_univ, Set.mem_univ, and_true] at hwx hwx'
-  have hx : x = x' := by simpa using congrFun heq i
   have hw : ∀ j, j ≠ i → w j = w' j := fun j hj => by
     simpa [Function.update_of_ne hj] using congrFun heq j
-  have hwi : w i = w' i := hval (val_eq_of_ambiguous hw hwx hwx')
-  refine Prod.ext (funext fun j => ?_) hx
-  by_cases hj : j = i
-  · subst hj; exact hwi
+  refine Prod.ext (funext fun j => ?_) (by simpa using congrFun heq i)
+  rcases eq_or_ne j i with rfl | hj
+  · exact hval (val_eq_of_ambiguous hw hwx hwx')
   · exact hw j hj
 
 open Classical in
@@ -180,16 +174,13 @@ theorem dens_minWeightSets_card_ne_one_le [Nonempty W] (hval : Function.Injectiv
     dens (univ.filter fun w : U → W => (minWeightSets val w F).card ≠ 1) ≤
       Fintype.card U / Fintype.card W := by
   have hsub : (univ.filter fun w : U → W => (minWeightSets val w F).card ≠ 1) ⊆
-      univ.biUnion fun i => univ.filter fun w => Ambiguous val w F i := by
-    intro w hw
-    obtain ⟨i, hi⟩ := exists_ambiguous_of_card_ne_one val w hF (mem_filter.1 hw).2
-    exact mem_biUnion.2 ⟨i, mem_univ _, mem_filter.2 ⟨mem_univ _, hi⟩⟩
+      univ.biUnion fun i => univ.filter fun w => Ambiguous val w F i := fun w hw =>
+    let ⟨i, hi⟩ := exists_ambiguous_of_card_ne_one val w hF (mem_filter.1 hw).2
+    mem_biUnion.2 ⟨i, mem_univ _, mem_filter.2 ⟨mem_univ _, hi⟩⟩
   have hcard : (univ.filter fun w : U → W => (minWeightSets val w F).card ≠ 1).card *
-      Fintype.card W ≤ Fintype.card U * Fintype.card (U → W) := by
-    calc _ ≤ (univ.biUnion fun i => univ.filter fun w : U → W => Ambiguous val w F i).card *
-          Fintype.card W := Nat.mul_le_mul_right _ (card_le_card hsub)
-      _ ≤ (∑ i, (univ.filter fun w : U → W => Ambiguous val w F i).card) * Fintype.card W :=
-          Nat.mul_le_mul_right _ card_biUnion_le
+      Fintype.card W ≤ Fintype.card U * Fintype.card (U → W) :=
+    calc _ ≤ (∑ i, (univ.filter fun w : U → W => Ambiguous val w F i).card) * Fintype.card W :=
+          Nat.mul_le_mul_right _ ((card_le_card hsub).trans card_biUnion_le)
       _ = ∑ i, (univ.filter fun w : U → W => Ambiguous val w F i).card * Fintype.card W :=
           Finset.sum_mul _ _ _
       _ ≤ ∑ _i : U, Fintype.card (U → W) :=
@@ -223,11 +214,10 @@ theorem half_le_dens_minWeightSets_card_eq_one {N : ℕ} [NeZero N] (hN : 2 * Fi
   refine le_trans ?_ (one_sub_le_dens_minWeightSets_card_eq_one
     (val := fun x : Fin N => x.val + 1) (fun x y h => Fin.ext (by simpa using h)) hF)
   rw [Fintype.card_fin]
-  have hN' : (0 : ℚ≥0) < N := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
-  have : (Fintype.card U : ℚ≥0) / N ≤ 1 / 2 := by
-    rw [div_le_div_iff₀ hN' (by norm_num)]
-    exact_mod_cast (by omega : Fintype.card U * 2 ≤ 1 * N)
+  have hle : (Fintype.card U : ℚ≥0) / N ≤ 1 / 2 :=
+    (div_le_div_iff₀ (by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)) (by norm_num)).2
+      (by exact_mod_cast (by omega : Fintype.card U * 2 ≤ 1 * N))
   calc (1 : ℚ≥0) / 2 = 1 - 1 / 2 := eq_tsub_of_add_eq (add_halves 1)
-    _ ≤ 1 - Fintype.card U / N := tsub_le_tsub_left this 1
+    _ ≤ 1 - Fintype.card U / N := tsub_le_tsub_left hle 1
 
 end Cslib.Probability

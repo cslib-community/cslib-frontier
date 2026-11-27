@@ -203,30 +203,22 @@ variable {σ v φ}
 on the free variables of the body of a quantifier over that variable. -/
 private theorem update_eq_update {τ : V → Bool} (h : ∀ w ∈ (ex v φ).freeVars, σ w = τ w) (b : Bool)
     (w : V) (hw : w ∈ φ.freeVars) : Function.update σ v b w = Function.update τ v b w := by
-  by_cases hwv : w = v
-  · subst hwv
-    simp only [Function.update_self]
-  · rw [Function.update_of_ne hwv, Function.update_of_ne hwv]
-    exact h w (Finset.mem_erase.2 ⟨hwv, hw⟩)
+  rcases eq_or_ne w v with rfl | hwv
+  · simp
+  · simpa [hwv] using h w (Finset.mem_erase.2 ⟨hwv, hw⟩)
 
 /-- **Agreement on free variables.** The value of a formula depends only on the values of its free
 variables. -/
 theorem eval_congr {τ : V → Bool} (h : ∀ w ∈ φ.freeVars, σ w = τ w) : φ.eval σ = φ.eval τ := by
   induction φ generalizing σ τ with
   | var v => exact h v (Finset.mem_singleton_self v)
-  | top => rfl
-  | bot => rfl
-  | not φ ih => rw [eval_not, eval_not, ih h]
-  | and φ ψ ihφ ihψ =>
-    rw [eval_and, eval_and, ihφ fun w hw => h w (Finset.mem_union_left _ hw),
+  | top | bot => rfl
+  | not φ ih => exact congrArg Bool.not (ih h)
+  | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
+    simp only [eval_and, eval_or, ihφ fun w hw => h w (Finset.mem_union_left _ hw),
       ihψ fun w hw => h w (Finset.mem_union_right _ hw)]
-  | or φ ψ ihφ ihψ =>
-    rw [eval_or, eval_or, ihφ fun w hw => h w (Finset.mem_union_left _ hw),
-      ihψ fun w hw => h w (Finset.mem_union_right _ hw)]
-  | ex v φ ih =>
-    rw [eval_ex, eval_ex, ih (update_eq_update h false), ih (update_eq_update h true)]
-  | all v φ ih =>
-    rw [eval_all, eval_all, ih (update_eq_update h false), ih (update_eq_update h true)]
+  | ex v φ ih | all v φ ih =>
+    simp only [eval_ex, eval_all, ih (update_eq_update h false), ih (update_eq_update h true)]
 
 /-- Updating a variable that is not free does not change the value of a formula. -/
 theorem eval_update_of_notMem_freeVars (hv : v ∉ φ.freeVars) (σ : V → Bool) (b : Bool) :
@@ -236,13 +228,12 @@ theorem eval_update_of_notMem_freeVars (hv : v ∉ φ.freeVars) (σ : V → Bool
 /-- A quantifier `∃ v` over a variable that is not free in its body can be dropped. -/
 theorem eval_ex_of_notMem_freeVars (hv : v ∉ φ.freeVars) (σ : V → Bool) :
     (ex v φ).eval σ = φ.eval σ := by
-  rw [eval_ex, eval_update_of_notMem_freeVars hv, eval_update_of_notMem_freeVars hv, Bool.or_self]
+  simp [eval_ex, eval_update_of_notMem_freeVars hv]
 
 /-- A quantifier `∀ v` over a variable that is not free in its body can be dropped. -/
 theorem eval_all_of_notMem_freeVars (hv : v ∉ φ.freeVars) (σ : V → Bool) :
     (all v φ).eval σ = φ.eval σ := by
-  rw [eval_all, eval_update_of_notMem_freeVars hv, eval_update_of_notMem_freeVars hv,
-    Bool.and_self]
+  simp [eval_all, eval_update_of_notMem_freeVars hv]
 
 /-! ### Variables and size -/
 
@@ -374,13 +365,10 @@ private theorem agree_of_agree_update {β : Type*} {σ τ : V → β} {v : V} {b
 /-- An assignment agreeing with `σ` outside `v :: vs` agrees with `Function.update σ v (τ v)`
 outside `vs`. -/
 private theorem agree_update_of_agree {β : Type*} {σ τ : V → β} {v : V} {vs : List V}
-    (hτ : ∀ x ∉ v :: vs, τ x = σ x) : ∀ x ∉ vs, τ x = Function.update σ v (τ v) x := by
-  intro x hx
-  by_cases hxv : x = v
-  · subst hxv
-    simp
-  · rw [Function.update_of_ne hxv]
-    exact hτ x (by simp [hxv, hx])
+    (hτ : ∀ x ∉ v :: vs, τ x = σ x) : ∀ x ∉ vs, τ x = Function.update σ v (τ v) x := fun x hx => by
+  rcases eq_or_ne x v with rfl | hxv
+  · simp
+  · simpa [hxv] using hτ x (by simp [hxv, hx])
 
 /-- **A block of existential quantifiers** ranges over the assignments that agree with the given
 one outside the block. -/
@@ -388,32 +376,25 @@ theorem eval_exs_eq_true_iff (vs : List V) (φ : QBF V) :
     (exs vs φ).eval σ = true ↔ ∃ τ, (∀ x ∉ vs, τ x = σ x) ∧ φ.eval τ = true := by
   induction vs generalizing σ with
   | nil => exact ⟨fun h => ⟨σ, fun _ _ => rfl, h⟩, fun ⟨τ, hτ, h⟩ =>
-      (funext fun x => hτ x (List.not_mem_nil)) ▸ h⟩
+      (funext fun x => hτ x List.not_mem_nil) ▸ h⟩
   | cons v vs ih =>
     simp only [exs, List.foldr_cons] at ih ⊢
-    rw [eval_ex_eq_true_iff]
-    constructor
-    · rintro ⟨b, hb⟩
-      obtain ⟨τ, hτ, h⟩ := (ih _).mp hb
-      exact ⟨τ, agree_of_agree_update hτ, h⟩
-    · rintro ⟨τ, hτ, h⟩
-      exact ⟨τ v, (ih _).mpr ⟨τ, agree_update_of_agree hτ, h⟩⟩
+    simp only [eval_ex_eq_true_iff, ih]
+    exact ⟨fun ⟨_, τ, hτ, h⟩ => ⟨τ, agree_of_agree_update hτ, h⟩,
+      fun ⟨τ, hτ, h⟩ => ⟨τ v, τ, agree_update_of_agree hτ, h⟩⟩
 
 /-- **A block of universal quantifiers** ranges over the assignments that agree with the given one
 outside the block. -/
 theorem eval_alls_eq_true_iff (vs : List V) (φ : QBF V) :
     (alls vs φ).eval σ = true ↔ ∀ τ, (∀ x ∉ vs, τ x = σ x) → φ.eval τ = true := by
   induction vs generalizing σ with
-  | nil => exact ⟨fun h τ hτ => (funext fun x => hτ x (List.not_mem_nil)) ▸ h,
+  | nil => exact ⟨fun h τ hτ => (funext fun x => hτ x List.not_mem_nil) ▸ h,
       fun h => h σ fun _ _ => rfl⟩
   | cons v vs ih =>
     simp only [alls, List.foldr_cons] at ih ⊢
-    rw [eval_all_eq_true_iff]
-    constructor
-    · intro h τ hτ
-      exact (ih _).mp (h (τ v)) τ (agree_update_of_agree hτ)
-    · intro h b
-      exact (ih _).mpr fun τ hτ => h τ (agree_of_agree_update hτ)
+    simp only [eval_all_eq_true_iff, ih]
+    exact ⟨fun h τ hτ => h (τ v) τ (agree_update_of_agree hτ),
+      fun h _ τ hτ => h τ (agree_of_agree_update hτ)⟩
 
 /-- The conjunction of a list `l` evaluates to `true` iff every formula in `l` evaluates to
 `true`. -/
@@ -434,8 +415,7 @@ theorem eval_alls_eq_true_iff (vs : List V) (φ : QBF V) :
 
 /-- A literal `lit v b` evaluates to `true` iff `σ v` equals `b`. -/
 @[simp] theorem eval_lit (v : V) (b : Bool) : (lit v b).eval σ = (σ v == b) := by
-  cases b <;> simp only [lit, eval_var, eval_not, Bool.false_eq_true, ite_false, ite_true] <;>
-    cases σ v <;> rfl
+  cases b <;> simp [lit]
 
 /-- Embedding a clause via `ofClause` preserves its truth value under `σ`. -/
 @[simp] theorem eval_ofClause (c : Clause V) : (ofClause c).eval σ = Clause.eval σ c := by
@@ -462,10 +442,8 @@ theorem freeVars_exs (vs : List V) (φ : QBF V) :
   | nil => simp [exs]
   | cons v vs ih =>
     simp only [exs, List.foldr_cons] at ih ⊢
-    rw [freeVars_ex, ih, List.toFinset_cons]
-    ext x
-    simp only [Finset.mem_erase, Finset.mem_sdiff, Finset.mem_insert]
-    tauto
+    ext
+    simp [ih]; tauto
 
 /-- Quantifying universally over `vs` removes `vs.toFinset` from the free variables of `φ`. -/
 theorem freeVars_alls (vs : List V) (φ : QBF V) :
@@ -474,10 +452,8 @@ theorem freeVars_alls (vs : List V) (φ : QBF V) :
   | nil => simp [alls]
   | cons v vs ih =>
     simp only [alls, List.foldr_cons] at ih ⊢
-    rw [freeVars_all, ih, List.toFinset_cons]
-    ext x
-    simp only [Finset.mem_erase, Finset.mem_sdiff, Finset.mem_insert]
-    tauto
+    ext
+    simp [ih]; tauto
 
 /-- A variable is free in `conj l` if and only if it is free in some formula of `l`. -/
 theorem mem_freeVars_conj {l : List (QBF V)} {x : V} :
@@ -493,9 +469,8 @@ theorem mem_freeVars_conj {l : List (QBF V)} {x : V} :
 
 /-- The free variables of `iff φ ψ` are the union of those of `φ` and `ψ`. -/
 @[simp] theorem freeVars_iff (φ ψ : QBF V) : (iff φ ψ).freeVars = φ.freeVars ∪ ψ.freeVars := by
-  ext x
-  simp only [iff, freeVars_or, freeVars_and, freeVars_not, Finset.mem_union]
-  tauto
+  ext
+  simp [iff]
 
 /-- The only free variable of `lit v b` is `v`. -/
 @[simp] theorem freeVars_lit (v : V) (b : Bool) : (lit v b).freeVars = {v} := by
@@ -507,15 +482,13 @@ theorem mem_freeVars_ofCNF {x : V} {φ : CNF V} : x ∈ (ofCNF φ).freeVars ↔ 
     induction c with
     | nil => simp [ofClause]
     | cons l c ih =>
-      change x ∈ ((lit l.1 l.2).or (ofClause c)).freeVars ↔ _
-      rw [freeVars_or, Finset.mem_union, ih, freeVars_lit, Finset.mem_singleton]
-      simp [eq_comm]
+      simp only [ofClause, List.foldr_cons] at ih ⊢
+      simp [ih, eq_comm]
   induction φ with
   | nil => simp [ofCNF, CNF.vars]
   | cons c φ ih =>
-    change x ∈ ((ofClause c).and (ofCNF φ)).freeVars ↔ _
-    simp only [freeVars_and, Finset.mem_union, ih, hc]
-    simp [CNF.vars]
+    simp only [ofCNF, List.foldr_cons] at ih ⊢
+    simp [CNF.vars, hc, ih]
 
 end QBF
 
