@@ -16,8 +16,8 @@ Checked instantiations and boundary tests for
 encapsulation:
 
 * concrete `ValidCircuit`, `ValidTopo`, and `ValidShape` encodings (through the public equation
-  `encValidShape_apply`), separating circuits by
-  shape/topology while confirming `phiSize` identifies distinct wirings of the same shape;
+  `encValidShape_apply`), separating circuits by shape/topology while confirming `phiSize`
+  identifies distinct wirings of the same shape;
 * strict polynomial-time (`ComputableInPolyTime`) and `IsPPTOn` certificates for `phiTopo`,
   `phiSize`, `phiCirc`, `evalCirc`, `mTopo`, `mSize`, `mTopoInv`, `mSizeInv`, and a concrete
   `Scheme.IsCircuitScheme`;
