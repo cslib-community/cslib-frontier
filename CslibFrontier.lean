@@ -5065,6 +5065,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.
 public import CslibFrontier.Computability.Complexity.FineGrained.SingleSubexp
 public import CslibFrontier.Computability.Circuit.Fusion.Basic
 public import CslibFrontier.Logics.FirstOrder.FiniteVariable.WeisfeilerLeman
+public import CslibFrontier.Computability.Complexity.Classes.SZK.ArthurMerlin
 public import CslibFrontier.Foundations.Data.List.Lex
 public import CslibFrontier.Computability.PCP.Encoded.Verifier.Reduction
 public import CslibFrontier.DataStructure.Paging.Marking
