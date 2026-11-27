@@ -22,7 +22,7 @@ addressed by the external challenges and the preceding entries of the tape.
 ## Main definitions
 
 * `Cslib.Complexity.MIP.SumcheckProof.verifyRounds` queries the proof on a supplied challenge tape.
-* `Cslib.Complexity.MIP.SumcheckProof.transcript` computes the same state from an explicit bit table.
+* `Cslib.Complexity.MIP.SumcheckProof.transcript` computes that state from an explicit bit table.
 
 ## Main results
 
