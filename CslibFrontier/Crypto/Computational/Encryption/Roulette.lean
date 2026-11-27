@@ -169,12 +169,8 @@ theorem succProbability_idealRouletteExperiment {K C : Type}
       ProbComp.eval (idealRouletteExperiment E sampleKey A) =
         (ProbComp.eval (sampleKey >>= fun k => E.encrypt k 0 >>= A)).bind fun bet =>
           (PMF.uniformOfFintype (Fin 37)).map fun r => rouletteWin r bet := by
-    simp only [idealRouletteExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbComp.eval_pure, PMF.bind_bind]
-    rw [PMF.bind_comm]
-    congr 1; funext k
-    rw [PMF.bind_comm]
-    congr 1; funext ct
+    simp only [idealRouletteExperiment, ← bind_assoc, ProbComp.eval_bind, ProbComp.eval_uniform,
+      ProbComp.eval_pure]
     rw [PMF.bind_comm]
     rfl
   have htrue :
@@ -184,8 +180,9 @@ theorem succProbability_idealRouletteExperiment {K C : Type}
     refine Probability.PMF.bind_apply_of_forall _ fun bet => ?_
     rw [← ENNReal.ofReal_toReal (PMF.apply_ne_top _ true)]
     exact congrArg ENNReal.ofReal (succProbability_uniform_rouletteWin bet)
+  have hnn : (0 : ℝ) ≤ 18 / 37 := by norm_num
   change ((ProbComp.eval (idealRouletteExperiment E sampleKey A)) true).toReal = 18 / 37
-  rw [htrue, ENNReal.toReal_ofReal (by norm_num)]
+  rw [htrue, ENNReal.toReal_ofReal hnn]
 
 /-- Internet roulette advantage `IRadv[A] := |Pr[W(r, bet) = 1] - 18 / 37|` ([BonehShoup2023],
 Section 2.2.4, p. 22), packaged as a nonnegative real via `nndist`. -/
@@ -302,14 +299,11 @@ private theorem isPPT_rouletteToDEMAdversary_choose {encIndex : Fin 37 ↪ List 
         encNat encIndex :=
     ((ComputableInPolyTime.unary_finMod (by decide : 0 < 37) encIndex).comp hmod_unary).of_enc_eq
       (fun x => congrArg encIndex (Fin.ext (Nat.mod_mod x 37).symm))
-  have hpack :
-      ComputableInPolyTime
-        (fun r : Fin 37 => ((r, (0 : Fin 37)), encUnary r.val))
-        encIndex (encChoiceOut encIndex) :=
-    ComputableInPolyTime.of_finite _
   exact IsPPTOn.isPPT (by
     simpa [rouletteToDEMAdversary, rouletteReduction, bind_assoc, pure_bind,
-      Function.comp_def] using hsample.map (hpack.comp hfin))
+      Function.comp_def] using hsample.map
+        ((ComputableInPolyTime.of_finite (encOut := encChoiceOut encIndex)
+          fun r : Fin 37 => ((r, (0 : Fin 37)), encUnary r.val)).comp hfin))
 
 private theorem isPPT_rouletteToDEMAdversary_guess (width : ℕ → ℕ)
     {encBet : RouletteBet ↪ List Bool}
@@ -318,9 +312,8 @@ private theorem isPPT_rouletteToDEMAdversary_guess (width : ℕ → ℕ)
       (fun p => (rouletteToDEMAdversary width A).guess p.1 p.2.1 p.2.2) := by
   let encFin37 : Fin 37 ↪ List Bool := encFinite (Fin 37)
   have hfirst :
-      IsPPTOn encGuessInput encBet (fun p : ℕ × List Bool × List Bool => A p.1 p.2.2) := by
-    apply hA.on.preprocess (prepare := fun p : ℕ × List Bool × List Bool => (p.1, p.2.2))
-    fun_prop
+      IsPPTOn encGuessInput encBet (fun p : ℕ × List Bool × List Bool => A p.1 p.2.2) :=
+    hA.on.preprocess (prepare := fun p : ℕ × List Bool × List Bool => (p.1, p.2.2)) (by fun_prop)
   have hidx :
       ComputableInPolyTime
         (fun p : (ℕ × List Bool × List Bool) × RouletteBet =>
@@ -328,11 +321,9 @@ private theorem isPPT_rouletteToDEMAdversary_guess (width : ℕ → ℕ)
         (encPair encGuessInput encBet) encFin37 :=
     (ComputableInPolyTime.unary_finMod (by decide : 0 < 37) encFin37).comp
       (ComputableInPolyTime.length_bits_comp (by fun_prop))
-  have hwin :
-      ComputableInPolyTime (fun q : Fin 37 × RouletteBet => rouletteWin q.1 q.2)
-        (encPair encFin37 encBet) encBool :=
-    ComputableInPolyTime.of_finite _
-  simpa [rouletteToDEMAdversary] using hfirst.map_with (hwin.comp (hidx.prod (by fun_prop)))
+  simpa [rouletteToDEMAdversary] using hfirst.map_with
+    ((ComputableInPolyTime.of_finite (encOut := encBool)
+      fun q : Fin 37 × RouletteBet => rouletteWin q.1 q.2).comp (hidx.prod (by fun_prop)))
 
 /-- Whenever `width` is polynomial-time computable in unary and `A` is uniform strict PPT,
 `rouletteToDEMAdversary width A` is a uniform strict PPT `AdversaryOf (Fin 37)`. -/
@@ -419,23 +410,12 @@ theorem rouletteDEMAdvantage_le_demKeyGame_add (width keyLen : ℕ → ℕ)
         (74 : ℝ≥0) / 2 ^ width n := by
   let E : Cipher (List Bool) (Fin 37) (List Bool) := wordCipher encryptSym (fun _ _ _ => none) n
   let sampleKey := BitString.sampleList (keyLen n)
-  let realExp := rouletteExperiment E sampleKey (A n)
-  let idealExp := idealRouletteExperiment E sampleKey (A n)
-  let dem0 := demKeyGame keyLen encryptSym (rouletteToDEMAdversary width A) false n
-  let dem1 := demKeyGame keyLen encryptSym (rouletteToDEMAdversary width A) true n
-  have h0 : Game.advantage (ProbComp.eval realExp) (ProbComp.eval dem0) ≤
-      (37 : ℝ≥0) / 2 ^ width n := by
-    rw [Game.advantage_comm]
-    simpa [realExp, dem0, E, sampleKey, rouletteDEMExperiment] using
-      advantage_demKeyGame_rouletteMod_le width keyLen encryptSym A false n
-  have h1 : Game.advantage (ProbComp.eval idealExp) (ProbComp.eval dem1) ≤
-      (37 : ℝ≥0) / 2 ^ width n := by
-    rw [Game.advantage_comm]
-    simpa [idealExp, dem1, E, sampleKey] using
-      advantage_demKeyGame_rouletteMod_le width keyLen encryptSym A true n
-  have hrew : rouletteDEMAdvantage keyLen encryptSym A n = rouletteAdvantage E sampleKey (A n) :=
-    rfl
-  rw [hrew, rouletteAdvantage_eq_advantage_ideal]
+  have h0 := (Game.advantage_comm _ _).trans_le
+    (advantage_demKeyGame_rouletteMod_le width keyLen encryptSym A false n)
+  have h1 := (Game.advantage_comm _ _).trans_le
+    (advantage_demKeyGame_rouletteMod_le width keyLen encryptSym A true n)
+  change rouletteAdvantage E sampleKey (A n) ≤ _
+  rw [rouletteAdvantage_eq_advantage_ideal]
   exact (Game.advantage_four_hop_le h0 h1).trans_eq (by ring)
 
 /-- Asymptotic Theorem 2.9 ([BonehShoup2023], Section 2.2.4, p. 23): under
@@ -453,9 +433,8 @@ theorem DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage
         (demKeyGame keyLen encryptSym (rouletteToDEMAdversary id A) true n)) :=
     hdem (rouletteToDEMAdversary id A)
       (isPPT_rouletteToDEMAdversary ComputableInPolyTime.id' hA)
-  have hstat : Negligible (fun n => (74 : ℝ≥0) / 2 ^ id n) := by
-    simpa only [Nat.cast_ofNat, id_eq] using negligible_const_div_two_pow 74
-  exact negligible_of_le (hadv.add_fun hstat)
+  exact negligible_of_le
+    (hadv.add_fun (by simpa only [Nat.cast_ofNat, id_eq] using negligible_const_div_two_pow 74))
     (rouletteDEMAdvantage_le_demKeyGame_add id keyLen encryptSym A)
 
 end Cslib.Crypto.Encryption

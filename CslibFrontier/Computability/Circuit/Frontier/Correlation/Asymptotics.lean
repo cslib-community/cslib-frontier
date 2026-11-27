@@ -175,16 +175,11 @@ theorem eventually_abs_correlation_quadForm_le_multiarySize {A c τ γ : ℝ} (h
     refine H.trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_)
     have hfloor : (⌊B⌋₊ : ℝ) ≤ B := Nat.floor_le hB
     have hcycle : ((Compiler.graph C').cycleRank : ℝ) ≤ (c - 1 + θ) * n + 1 := by
-      linarith [show (c - 1 + θ) * n = c * n - n + θ * n by ring]
-    have hcyc0 : (0 : ℝ) ≤ (Compiler.graph C').cycleRank := Nat.cast_nonneg _
+      nlinarith only [hrank, hcompl, hd, hsize]
     have hBle : B ≤ (A + η) * ((c - 1 + θ) * n + 1) + η * ((20 * c + 16) * n + 11) + C₀ := by
-      have h1 := mul_le_mul_of_nonneg_left hcycle (by positivity : (0 : ℝ) ≤ A + η)
-      have h2 : η * (Nat.card (Compiler.Vertex C') : ℝ) ≤ η * ((20 * c + 16) * n + 11) := by
-        refine mul_le_mul_of_nonneg_left ?_ hη.le
-        linarith [show (20 * c + 16) * n = 20 * (c * n) + 16 * n by ring]
-      change (A + η) * (Compiler.graph C').cycleRank +
-        η * Nat.card (Compiler.Vertex C') + C₀ ≤ _
-      linarith
+      have hV' : (Nat.card (Compiler.Vertex C') : ℝ) ≤ (20 * c + 16) * n + 11 := by
+        nlinarith only [hV, hsize]
+      nlinarith only [hcycle, hV', hA, hη]
     have hexp : (A + η) * ((c - 1 + θ) * n + 1) + η * ((20 * c + 16) * n + 11) =
         (A * (c - 1 + θ) - 1 / 2) * n + n / 2 + η * (21 * c + 15 + θ) * n + A + 12 * η := by
       ring
@@ -236,9 +231,7 @@ theorem eventually_abs_correlation_quadForm_le_of_isLittleO_multiarySize {A c γ
   refine eventually_abs_correlation_quadForm_le_multiarySize hA hlayout hc (τ := τ)
     (by rw [hτ]; linarith) Q ?_
   filter_upwards [hQ, he.bound hτpos] with n hQn hen U hU
-  have h₁ := hQn U hU
-  have h₂ : e n ≤ τ * n := by grind [Real.norm_eq_abs, Nat.abs_cast]
-  linarith
+  linarith [hQn U hU, (le_abs_self (e n)).trans (by simpa [Real.norm_eq_abs] using hen)]
 
 /-- **Exponentially small correlation, sublinear deficiency.** Under `LayoutBound 3 A`, if every
 set of `⌊n/2⌋` coordinates has cut rank at least `⌊n/2⌋ - o(n)` in `Q_n + Q_nᵀ`, then for every

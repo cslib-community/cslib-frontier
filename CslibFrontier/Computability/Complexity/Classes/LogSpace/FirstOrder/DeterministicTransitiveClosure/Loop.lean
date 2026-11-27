@@ -75,8 +75,7 @@ stops or after `n ^ k` steps. -/
 
 @[simp] theorem length_dtcCode (b base k : ℕ) (src dst : Fin k → Expr) (body : List Instr)
     (T F : ℕ) : (dtcCode b base k src dst body T F).length = 3 * k + 12 + body.length := by
-  simp only [dtcCode, List.length_append, length_assignsCode, List.length_cons, List.length_nil]
-  omega
+  simp [dtcCode, length_assignsCode]; omega
 
 /-- The instructions and blocks of `dtcCode`, at their labels. -/
 theorem dtcCode_parts {P : CounterProgram} {b base k : ℕ} {src dst : Fin k → Expr}
@@ -109,14 +108,11 @@ theorem dtcCode_parts {P : CounterProgram} {b base k : ℕ} {src dst : Fin k →
     List.length_cons, List.length_nil] at hP
   obtain ⟨⟨⟨⟨⟨⟨h1, h2, h3, h4, h5, h6, h7, -⟩, h8⟩, h9⟩, h10, h11, h12, h13, h14, -⟩, h15⟩,
     h16, -⟩ := hP
-  refine ⟨h1, h2, ?_, ?_, ?_, ?_, ?_, codeAt_of_eq h8 (by omega), codeAt_of_eq h9 (by omega),
-    ?_, ?_, ?_, ?_, ?_, codeAt_of_eq h15 (by omega), instr_of_eq h16 (by omega)⟩ <;>
-    first
-    | exact instr_of_eq h3 (by omega) | exact instr_of_eq h4 (by omega)
-    | exact instr_of_eq h5 (by omega) | exact instr_of_eq h6 (by omega)
-    | exact instr_of_eq h7 (by omega) | exact instr_of_eq h10 (by omega)
-    | exact instr_of_eq h11 (by omega) | exact instr_of_eq h12 (by omega)
-    | exact instr_of_eq h13 (by omega) | exact instr_of_eq h14 (by omega)
+  exact ⟨h1, h2, instr_of_eq h3 (by omega), instr_of_eq h4 (by omega),
+    instr_of_eq h5 (by omega), instr_of_eq h6 (by omega), instr_of_eq h7 (by omega),
+    codeAt_of_eq h8 (by omega), codeAt_of_eq h9 (by omega), instr_of_eq h10 (by omega),
+    instr_of_eq h11 (by omega), instr_of_eq h12 (by omega), instr_of_eq h13 (by omega),
+    instr_of_eq h14 (by omega), codeAt_of_eq h15 (by omega), instr_of_eq h16 (by omega)⟩
 
 section Loop
 
@@ -192,8 +188,7 @@ private theorem reaches_lt_no {c : ℕ} {x y : Expr} {yes no : ℕ} {regs : List
 
 private theorem flag_lt_one {regs : List ℕ} {f x : ℕ} (hf : regs.getD f 0 = x) :
     (reg f).eval regs < (const 1).eval regs ↔ x = 0 := by
-  rw [Expr.eval_reg, Expr.eval_const, hf]
-  omega
+  rw [Expr.eval_reg, Expr.eval_const, hf]; omega
 
 variable {E : (Fin k → Fin n) → (Fin k → Fin n) → Prop}
 
@@ -221,8 +216,7 @@ private theorem loop_scan (hP : P.CodeAt b (dtcCode b base k src dst body T F))
   intro e
   induction e with
   | zero =>
-    intro j regs he hj hscan
-    obtain ⟨hmain, hc, hcase⟩ := hscan
+    rintro j regs he hj ⟨hmain, hc, hcase⟩
     have hjN : j = n ^ k := by omega
     have hl : regs.length = regs₀.length := hmain.kept.length_eq
     have hN : (pow (reg 0) k).eval regs = n ^ k :=
@@ -237,22 +231,20 @@ private theorem loop_scan (hP : P.CodeAt b (dtcCode b base k src dst body T F))
     · obtain ⟨regs₁, hr₂, hl₁, hout₁, hin₁, hB₁⟩ := reaches_digitsCode (w := w) h15
         (by omega) hbase (by omega) ((hmain.kept.getD_eq 0 hbase).trans h0) hnB hmain.kept.bounded
         (finFunctionFinEquiv y) hs
-      have ht₁ : regs₁.getD (base + 2 * k + 1) 0 = m := by
-        rw [hout₁ _ (by omega), hmain.counter]
       refine ⟨regs₁.set (base + 2 * k + 1) (m + 1), Or.inr ⟨y, ⟨hy, fun y' hy' => huniq y'
         (hjN ▸ (finFunctionFinEquiv y').isLt) hy'⟩, ?_, ?_⟩⟩
       · refine hr₁.trans (reaches_lt_no h14 hmain.kept.bounded
           (fun h => absurd ((flag_lt_one hf).mp h) one_ne_zero) (hr₂.trans ?_))
-        refine reaches_assign (instr_of_eq h16 (by omega)) hB₁
-          (by rw [Expr.eval_add, Expr.eval_reg, Expr.eval_const, ht₁]) (Reaches.refl _)
+        exact reaches_assign (instr_of_eq h16 (by omega)) hB₁
+          (by rw [Expr.eval_add, Expr.eval_reg, Expr.eval_const, hout₁ _ (by omega), hmain.counter])
+          (Reaches.refl _)
       · refine ⟨⟨by rw [List.length_set, hl₁, hl], fun i hi => ?_,
           List.forall_mem_set_of_forall_mem hB₁ (by omega)⟩, fun i => ?_, ?_⟩
         · rw [List.getD_set_ne (by omega), hout₁ i (by omega), hmain.kept.getD_eq i hi]
         · rw [List.getD_set_ne (by omega), hin₁ i, Equiv.symm_apply_apply]
         · exact List.getD_set_self (by rw [hl₁, hl]; omega)
   | succ e ih =>
-    intro j regs he hj hscan
-    obtain ⟨hmain, hc, hcase⟩ := hscan
+    rintro j regs he hj ⟨hmain, hc, hcase⟩
     have hjN : j < n ^ k := by omega
     have hl : regs.length = regs₀.length := hmain.kept.length_eq
     have hr0 : regs.getD 0 0 = n := (hmain.kept.getD_eq 0 hbase).trans h0
@@ -263,8 +255,8 @@ private theorem loop_scan (hP : P.CodeAt b (dtcCode b base k src dst body T F))
     -- decode the candidate
     obtain ⟨regs₁, hr₁, hl₁, hout₁, hin₁, hB₁⟩ := reaches_digitsCode (w := w) h8
       (by omega) (by omega) (by omega) hr0 hnB hmain.kept.bounded ⟨j, hjN⟩ hc
-    have hY₁ : ∀ i : Fin k, regs₁.getD (base + k + i) 0 = ys i := fun i => by
-      rw [hin₁ i, hsym]
+    have hY₁ : ∀ i : Fin k, regs₁.getD (base + k + i) 0 = ys i :=
+      fun i => (hin₁ i).trans (congrArg (fun x => (x i : ℕ)) hsym)
     have hmain₁ : MainInv n B base k regs₀ us m regs₁ :=
       hmain.of_agree hl₁ hB₁ fun i hi => hout₁ i (by omega)
     -- run the body
@@ -279,22 +271,20 @@ private theorem loop_scan (hP : P.CodeAt b (dtcCode b base k src dst body T F))
       rw [hk₂.getD_eq _ (by omega), hout₁ _ (by omega)]
     have hs₂ : regs₂.getD (base + 2 * k + 3) 0 = regs.getD (base + 2 * k + 3) 0 := by
       rw [hk₂.getD_eq _ (by omega), hout₁ _ (by omega)]
+    have hbk : b + k + 6 + k = b + 2 * k + 6 := by omega
     have hpre : P.Reaches w (P.Running B) (b + k + 5, regs)
         (if res then b + 2 * k + 6 + body.length else b + 2 * k + 9 + body.length, regs₂) :=
-      reaches_lt_yes h7 hmain.kept.bounded (by rw [Expr.eval_reg, hc, eval_pow_reg0 hr0]; exact hjN)
-        (hr₁.trans (by rw [show b + k + 6 + k = b + 2 * k + 6 by omega]; exact hr₂))
+      reaches_lt_yes h7 hmain.kept.bounded
+        (by simpa only [Expr.eval_reg, hc, eval_pow_reg0 hr0] using hjN)
+        (hr₁.trans (hbk ▸ hr₂))
     -- continue the scan with the next candidate
     have he' : n ^ k - (j + 1) = e := by rw [Nat.sub_add_eq, he, Nat.add_sub_cancel]
-    have cont : ∀ regs₃, P.Reaches w (P.Running B) (b + k + 5, regs) (b + k + 5, regs₃) →
-        ScanInv n B base k regs₀ E us m (j + 1) regs₃ →
-        ∃ regs', (P.Reaches w (P.Running B) (b + k + 5, regs) (F, regs') ∧
-            Kept B base regs₀ regs' ∧ ∀ y, ¬ DTC.deterministicReduct E us y) ∨
-          ∃ y, DTC.deterministicReduct E us y ∧
-            P.Reaches w (P.Running B) (b + k + 5, regs) (b + k + 1, regs') ∧
-            MainInv n B base k regs₀ y (m + 1) regs' := fun regs₃ hr₃ hscan₃ => by
-      obtain ⟨regs', h | ⟨y, hy, hr', hinv'⟩⟩ := ih (j + 1) regs₃ he' hjN hscan₃
-      · exact ⟨regs', Or.inl ⟨hr₃.trans h.1, h.2⟩⟩
-      · exact ⟨regs', Or.inr ⟨y, hy, hr₃.trans hr', hinv'⟩⟩
+    have cont (regs₃ : List ℕ)
+        (hr₃ : P.Reaches w (P.Running B) (b + k + 5, regs) (b + k + 5, regs₃))
+        (hscan₃ : ScanInv n B base k regs₀ E us m (j + 1) regs₃) :=
+      (ih (j + 1) regs₃ he' hjN hscan₃).imp fun _ =>
+        Or.imp (fun h => And.intro (hr₃.trans h.1) h.2)
+          (Exists.imp fun _ ⟨hy, hr', hinv'⟩ => And.intro hy (And.intro (hr₃.trans hr') hinv'))
     cases res with
     | true =>
       have hE : E us ys := hres.mp rfl
@@ -321,9 +311,8 @@ private theorem loop_scan (hP : P.CodeAt b (dtcCode b base k src dst body T F))
             List.getD_set_self (by omega)]
         · rw [List.getD_set_ne (by omega),
             List.getD_set_self (by simp only [List.length_set]; omega), hys]
-        · rcases Nat.lt_succ_iff_lt_or_eq.mp hy' with hlt | heq
-          · exact absurd hE' (hnone y' hlt)
-          · exact finFunctionFinEquiv.injective (Fin.ext (heq.trans hys.symm))
+        · exact (Nat.lt_succ_iff_lt_or_eq.mp hy').elim (fun hlt => absurd hE' (hnone y' hlt))
+            fun heq => finFunctionFinEquiv.injective (Fin.ext (heq.trans hys.symm))
       · -- a second successor: the walk stops
         refine ⟨regs₂, Or.inl ⟨hpre.trans (reaches_lt_no h10 hB₂
           (fun h => one_ne_zero ((flag_lt_one (hf₂.trans hf)).mp h)) (Reaches.refl _)),
@@ -338,15 +327,13 @@ private theorem loop_scan (hP : P.CodeAt b (dtcCode b base k src dst body T F))
         ⟨hmain₂.set (j := base + 2 * k) le_rfl (by omega) (by omega),
           List.getD_set_self (by omega), ?_⟩
       rw [List.getD_set_ne (by omega), List.getD_set_ne (by omega), hf₂, hs₂]
-      rcases hcase with ⟨hf, hnone⟩ | ⟨y, hf, hs, hyj, hy, huniq⟩
-      · refine Or.inl ⟨hf, fun y' hy' hE' => ?_⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hy' with hlt | heq
-        · exact hnone y' hlt hE'
-        · exact hE (finFunctionFinEquiv.injective (Fin.ext (heq.trans hys.symm)) ▸ hE')
-      · refine Or.inr ⟨y, hf, hs, by omega, hy, fun y' hy' hE' => ?_⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hy' with hlt | heq
-        · exact huniq y' hlt hE'
-        · exact absurd (finFunctionFinEquiv.injective (Fin.ext (heq.trans hys.symm)) ▸ hE') hE
+      have hlt_j (y' : Fin k → Fin n) (hy' : (finFunctionFinEquiv y' : ℕ) < j + 1)
+          (hE' : E us y') : (finFunctionFinEquiv y' : ℕ) < j :=
+        Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp hy') fun heq =>
+          hE (finFunctionFinEquiv.injective (Fin.ext (heq.trans hys.symm)) ▸ hE')
+      exact hcase.imp (fun ⟨hf, hnone⟩ => ⟨hf, fun y' hy' hE' => hnone y' (hlt_j y' hy' hE') hE'⟩)
+        fun ⟨y, hf, hs, _, hy, huniq⟩ =>
+          ⟨y, hf, hs, by omega, hy, fun y' hy' hE' => huniq y' (hlt_j y' hy' hE') hE'⟩
 
 private theorem loop_test_eq (hP : P.CodeAt b (dtcCode b base k src dst body T F))
     {us z₀ : Fin k → Fin n} {m : ℕ} {regs : List ℕ} (hinv : MainInv n B base k regs₀ us m regs)
@@ -400,14 +387,13 @@ private theorem loop_main (hP : P.CodeAt b (dtcCode b base k src dst body T F))
     intro m us regs he hm hinv
     by_cases heq : us = z₀
     · exact hat m us regs hinv heq
-    refine ⟨false, regs, iff_of_false Bool.false_ne_true fun h => heq ?_,
+    refine ⟨false, regs, iff_of_false Bool.false_ne_true fun h =>
+        heq (Relation.RelatesWithinSteps.zero (he ▸ h)),
       (loop_test_ne hP hinv hdst heq).trans (reaches_lt_no h4 hinv.kept.bounded
         (by
           rw [Expr.eval_reg, hinv.counter, eval_pow_reg0 ((hinv.kept.getD_eq 0 hbase).trans h0)]
           omega)
         (Reaches.refl _)), hinv.kept⟩
-    rw [show n ^ k - m = 0 by omega] at h
-    exact Relation.RelatesWithinSteps.zero h
   | succ e ih =>
     intro m us regs he hm hinv
     by_cases heq : us = z₀
@@ -424,26 +410,23 @@ private theorem loop_main (hP : P.CodeAt b (dtcCode b base k src dst body T F))
     have hr : P.Reaches w (P.Running B) (b + k + 1, regs)
         (b + k + 5, (regs.set (base + 2 * k + 2) 0).set (base + 2 * k) 0) :=
       (loop_test_ne hP hinv hdst heq).trans (reaches_lt_yes h4 hinv.kept.bounded
-        (by rw [Expr.eval_reg, hinv.counter, eval_pow_reg0 ((hinv.kept.getD_eq 0 hbase).trans h0)]
-            exact hmN)
+        (by simpa only [Expr.eval_reg, hinv.counter,
+          eval_pow_reg0 ((hinv.kept.getD_eq 0 hbase).trans h0)] using hmN)
         (reaches_assign h5 hinv.kept.bounded (Expr.eval_const ..)
           (reaches_assign h6 (List.forall_mem_set_of_forall_mem hinv.kept.bounded (Nat.zero_le _))
             (Expr.eval_const ..) (Reaches.refl _))))
     obtain ⟨regs', ⟨hr', hk', hnone⟩ | ⟨y, hD, hr', hinv'⟩⟩ :=
       loop_scan hP hbase hlen h0 hNB hnB h1B hbody us m hmN _ 0 _ rfl (Nat.zero_le _) hscan
     · refine ⟨false, regs', iff_of_false Bool.false_ne_true ?_, hr.trans hr', hk'⟩
-      rintro ⟨i, -, hi⟩
-      cases i with
-      | zero => exact heq hi.zero
-      | succ i =>
-        obtain ⟨t, ht, -⟩ := Relation.RelatesInSteps.succ'_iff.mp hi
-        exact hnone t ht
+      rintro ⟨_ | i, -, hi⟩
+      · exact heq hi.zero
+      · exact Exists.elim (Relation.RelatesInSteps.succ'_iff.mp hi) fun t ht => hnone t ht.1
     · obtain ⟨res, regs'', hres, hr'', hk''⟩ :=
         ih (m + 1) y regs' (by omega) hmN hinv'
+      have hsub : n ^ k - m = n ^ k - (m + 1) + 1 := by omega
       refine ⟨res, regs'', ?_, (hr.trans hr').trans hr'', hk''⟩
-      rw [hres, show n ^ k - m = n ^ k - (m + 1) + 1 by omega,
-        Relation.RelatesWithinSteps.succ_iff_of_unique hD
-          (fun y' hy' => DTC.rightUnique_deterministicReduct E hy' hD) heq]
+      rw [hres, hsub, Relation.RelatesWithinSteps.succ_iff_of_unique hD
+        (fun y' hy' => DTC.rightUnique_deterministicReduct E hy' hD) heq]
 
 end Loop
 
@@ -483,8 +466,7 @@ theorem reaches_dtcCode {P : CounterProgram} {w : List Bool} {n B b base k T F :
     loop_main hP hbase hlen h0 hNB hnB h1B hdst hbody _ 0 s₀ _ rfl (Nat.zero_le _) hinv
   refine ⟨res, regs', ?_, hr₁.trans (reaches_assign h2 hB₁ (Expr.eval_const ..) hr'), hk'⟩
   have hcard : Nat.card (Fin k → Fin n) ≤ n ^ k + 1 := by
-    rw [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]
-    omega
+    simp only [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_fin]; omega
   rw [hres, Nat.sub_zero, Relation.reflTransGen_iff_relatesWithinSteps hcard]
 
 end Cslib.Logic.FO.Ordered.DTCModelChecker

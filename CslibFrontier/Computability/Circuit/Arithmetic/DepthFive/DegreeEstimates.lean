@@ -59,44 +59,40 @@ theorem Good.q_le_one (hp : p.Good) : p.q ≤ 1 := hp.q_le_half.trans (by norm_n
 
 /-- `q ^ (1 / 4) ≤ 1 / 4`. -/
 theorem Good.q_rpow_quarter_le (hp : p.Good) : p.q ^ (1 / 4 : ℝ) ≤ 1 / 4 := by
-  have hn : (2 : ℝ) ^ 20 ≤ p.n := by exact_mod_cast hp.n_ge
   calc p.q ^ (1 / 4 : ℝ) ≤ ((p.n : ℝ) ^ (-(2 : ℝ) / 5)) ^ (1 / 4 : ℝ) :=
         Real.rpow_le_rpow hp.q_pos.le hp.q_le_rpow (by norm_num)
     _ = (p.n : ℝ) ^ (-(1 : ℝ) / 10) := by
         rw [← Real.rpow_mul p.n.cast_nonneg]; norm_num
     _ ≤ ((2 : ℝ) ^ 20) ^ (-(1 : ℝ) / 10) :=
-        Real.rpow_le_rpow_of_nonpos (by positivity) hn (by norm_num)
+        Real.rpow_le_rpow_of_nonpos (by positivity) (by exact_mod_cast hp.n_ge) (by norm_num)
     _ = 1 / 4 := by
-        rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]; norm_num
+        rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]
+        norm_num
 
 /-- `λ e = e / 2 - s e / (2 n)`. -/
 theorem Good.lam_mul (hp : p.Good) (e : ℝ) : p.lam * e = e / 2 - p.s * e / (2 * p.n) := by
   have hn := hp.cast_n_pos
-  have h : (p.n : ℝ) = 2 * p.k + p.s := by
-    exact_mod_cast (by have := p.hkm; have := p.hks; lia : p.n = 2 * p.k + p.s)
+  have h : p.n = 2 * p.k + p.s := by linarith [p.hkm, p.hks]
   rw [lam]
   field_simp
-  rw [h]
+  simp only [h, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat]
   ring
 
 /-- If `n ≤ 4 s e`, then `√n ≤ 4 e`. -/
 theorem Good.sqrt_le_of_le (hp : p.Good) {e : ℕ} (he : p.n ≤ 4 * p.s * e) :
     √(p.n : ℝ) ≤ 4 * e := by
+  refine le_of_mul_le_mul_left ?_ (Real.sqrt_pos.2 hp.cast_n_pos)
   have h : (p.n : ℝ) ≤ 4 * p.s * e := by exact_mod_cast he
-  have hs := Real.sqrt_pos.2 hp.cast_n_pos
-  refine le_of_mul_le_mul_left ?_ hs
   nlinarith [Real.mul_self_sqrt hp.cast_n_pos.le, hp.s_le, e.cast_nonneg (α := ℝ)]
 
 /-- If `x ≥ √n / 40`, then `q ^ x ≤ n ^ (-√n / 100)`. -/
 theorem Good.q_rpow_le (hp : p.Good) {x : ℝ} (hx : √(p.n : ℝ) / 40 ≤ x) :
     p.q ^ x ≤ (p.n : ℝ) ^ (-√(p.n : ℝ) / 100) := by
-  have h1 : (1 : ℝ) ≤ p.n := by exact_mod_cast hp.n_pos
   calc p.q ^ x ≤ ((p.n : ℝ) ^ (-(2 : ℝ) / 5)) ^ x :=
-        Real.rpow_le_rpow hp.q_pos.le hp.q_le_rpow
-          (le_trans (by positivity) hx)
-    _ = (p.n : ℝ) ^ (-(2 : ℝ) / 5 * x) := by rw [← Real.rpow_mul p.n.cast_nonneg]
+        Real.rpow_le_rpow hp.q_pos.le hp.q_le_rpow (le_trans (by positivity) hx)
+    _ = (p.n : ℝ) ^ (-(2 : ℝ) / 5 * x) := (Real.rpow_mul p.n.cast_nonneg _ _).symm
     _ ≤ (p.n : ℝ) ^ (-√(p.n : ℝ) / 100) :=
-        Real.rpow_le_rpow_of_exponent_le h1 (by linarith)
+        Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast hp.n_pos) (by linarith)
 
 theorem Good.H_nonneg (hp : p.Good) (e : ℕ) : 0 ≤ p.H e :=
   sum_nonneg fun _ _ => Real.rpow_nonneg hp.q_pos.le _
@@ -107,20 +103,17 @@ theorem Good.H_le_of_mid (hp : p.Good) {e i₀ : ℕ} (h₀ : i₀ + 3 / 8 ≤ p
   have hq := hp.q_pos
   have h := Real.sum_range_rpow_abs_sub_le hq hp.q_le_half (e + 1) (i₀ := i₀)
     (x := p.lam * e) (by linarith) (by linarith)
-  have h38 : p.q ^ (3 / 8 : ℝ) = p.q ^ (1 / 8 : ℝ) * p.q ^ (1 / 4 : ℝ) := by
-    rw [← Real.rpow_add hq]; norm_num
   have ha : p.q ^ (p.lam * e - i₀) ≤ p.q ^ (3 / 8 : ℝ) :=
     Real.rpow_le_rpow_of_exponent_ge hq hp.q_le_one (by linarith)
   have hb : p.q ^ (i₀ + 1 - p.lam * e) ≤ p.q ^ (3 / 8 : ℝ) :=
     Real.rpow_le_rpow_of_exponent_ge hq hp.q_le_one (by linarith)
-  have h8 := Real.rpow_pos_of_pos hq (1 / 8)
-  have h4 := hp.q_rpow_quarter_le
-  have hmul : p.q ^ (1 / 8 : ℝ) * p.q ^ (1 / 4 : ℝ) ≤ p.q ^ (1 / 8 : ℝ) * (1 / 4) := by gcongr
-  refine h.trans ?_
+  have hmul : p.q ^ (3 / 8 : ℝ) ≤ p.q ^ (1 / 8 : ℝ) * (1 / 4) := by
+    rw [show (3 / 8 : ℝ) = 1 / 8 + 1 / 4 by norm_num, Real.rpow_add hq]
+    exact mul_le_mul_of_nonneg_left hp.q_rpow_quarter_le (Real.rpow_pos_of_pos hq _).le
   have h2 : 1 + 2 * p.q ≤ 2 := by linarith [hp.q_le_half]
-  calc (1 + 2 * p.q) * (p.q ^ (p.lam * e - i₀) + p.q ^ (i₀ + 1 - p.lam * e))
-      ≤ 2 * (p.q ^ (3 / 8 : ℝ) + p.q ^ (3 / 8 : ℝ)) := by gcongr
-    _ ≤ p.q ^ (1 / 8 : ℝ) := by rw [h38]; linarith
+  calc p.H e ≤ (1 + 2 * p.q) * (p.q ^ (p.lam * e - i₀) + p.q ^ (i₀ + 1 - p.lam * e)) := h
+    _ ≤ 2 * (p.q ^ (3 / 8 : ℝ) + p.q ^ (3 / 8 : ℝ)) := by gcongr
+    _ ≤ p.q ^ (1 / 8 : ℝ) := by linarith
 
 /-- `H 1 ≤ q ^ (1 / 8)`. -/
 theorem Good.H_one_le (hp : p.Good) : p.H 1 ≤ p.q ^ (1 / 8 : ℝ) := by
@@ -138,21 +131,15 @@ private theorem rpow_add_rpow_le {q ε : ℝ} (hq : 0 < q) (hq1 : q ≤ 1)
   have hw := Real.rpow_pos_of_pos hq (1 - 3 * (ε / 2))
   have hw4 : q ^ (1 - 3 * (ε / 2)) ≤ 1 / 4 :=
     (Real.rpow_le_rpow_of_exponent_ge hq hq1 (by linarith)).trans hq4
-  have e1 : q ^ (1 - ε) = q ^ (1 - 3 * (ε / 2)) * q ^ (ε / 2) := by
-    rw [← Real.rpow_add hq]; congr 1; ring
-  have e2 : q ^ ε = q ^ (ε / 2) * q ^ (ε / 2) := by
-    rw [← Real.rpow_add hq]; congr 1; ring
   have e3 : q ^ (1 - 3 * (ε / 2)) * (q ^ (ε / 2)) ^ 3 = q := by
-    rw [← Real.rpow_natCast, ← Real.rpow_mul hq.le, ← Real.rpow_add hq]
-    convert Real.rpow_one q using 2
-    push_cast
-    ring
-  rw [e1, e2, ← add_mul]
+    rw [← Real.rpow_natCast, ← Real.rpow_mul hq.le, ← Real.rpow_add hq,
+      show 1 - 3 * (ε / 2) + ε / 2 * (3 : ℕ) = 1 by push_cast; ring, Real.rpow_one]
+  rw [show 1 - ε = 1 - 3 * (ε / 2) + ε / 2 by ring, Real.rpow_add hq,
+    show q ^ ε = q ^ (ε / 2) * q ^ (ε / 2) by rw [← Real.rpow_add hq, add_halves], ← add_mul]
   refine mul_le_mul_of_nonneg_right ?_ hz.le
   rcases le_total (q ^ (ε / 2)) (1 / 4) with h | h
   · linarith
-  · have h3 := mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by norm_num) h 3) hw.le
-    linarith
+  · linarith [mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by norm_num) h 3) hw.le]
 
 /-- A factor of low degree: if `4 s e < n`, then `H e ≤ q ^ (s e / (4 n)) * exp (132 e / √n)`. -/
 theorem Good.H_le_of_low (hp : p.Good) {e : ℕ} (he : 4 * p.s * e < p.n) :
@@ -161,9 +148,8 @@ theorem Good.H_le_of_low (hp : p.Good) {e : ℕ} (he : 4 * p.s * e < p.n) :
   have hn := hp.cast_n_pos
   have hε0 : (0 : ℝ) ≤ p.s * e / (2 * p.n) := by positivity
   have hε1 : (p.s * e / (2 * p.n) : ℝ) < 1 / 8 := by
-    have h : (4 * p.s * e : ℝ) < p.n := by exact_mod_cast he
     rw [div_lt_iff₀ (by positivity)]
-    linarith
+    linarith [show (4 * p.s * e : ℝ) < p.n by exact_mod_cast he]
   have hexp : (p.s * e / (4 * p.n) : ℝ) = p.s * e / (2 * p.n) / 2 := by ring
   have hlam := hp.lam_mul e
   obtain ⟨c, rfl | rfl⟩ := e.even_or_odd'
@@ -175,30 +161,25 @@ theorem Good.H_le_of_low (hp : p.Good) {e : ℕ} (he : 4 * p.s * e < p.n) :
     have hE := rpow_add_rpow_le hq hp.q_le_one hp.q_rpow_quarter_le hε0 hε1.le
     rw [show p.lam * (2 * (c + 1)) - c = 1 - p.s * (2 * (c + 1)) / (2 * p.n) by linarith,
       show c + 1 - p.lam * (2 * (c + 1)) = p.s * (2 * (c + 1)) / (2 * p.n) by linarith] at h
-    have hsq := Real.sqrt_pos.2 hn
     have h66 : 66 * p.q ≤ 132 * (2 * (c + 1)) / √(p.n : ℝ) := by
       have := hp.q_le
-      rw [le_div_iff₀ hsq] at this ⊢
+      rw [le_div_iff₀ (Real.sqrt_pos.2 hn)] at this ⊢
       nlinarith [c.cast_nonneg (α := ℝ)]
-    have hpos := Real.rpow_pos_of_pos hq (p.s * (2 * (c + 1)) / (2 * p.n) / 2)
     calc p.H (2 * (c + 1)) ≤ _ := by simpa [H] using h
-      _ ≤ (1 + 2 * p.q) * ((1 + 64 * p.q) * p.q ^ (p.s * (2 * (c + 1)) / (2 * p.n) / 2 : ℝ)) :=
-          mul_le_mul_of_nonneg_left hE (by positivity)
-      _ = p.q ^ (p.s * (2 * (c + 1)) / (2 * p.n) / 2 : ℝ) *
-            ((1 + 2 * p.q) * (1 + 64 * p.q)) := by ring
+      _ ≤ p.q ^ (p.s * (2 * (c + 1)) / (2 * p.n) / 2 : ℝ) *
+            ((1 + 2 * p.q) * (1 + 64 * p.q)) := by
+          linarith [mul_le_mul_of_nonneg_left hE (by positivity : 0 ≤ 1 + 2 * p.q)]
       _ ≤ p.q ^ (p.s * (2 * (c + 1)) / (2 * p.n) / 2 : ℝ) *
             (Real.exp (2 * p.q) * Real.exp (64 * p.q)) := by
-          gcongr
-          · linarith [Real.add_one_le_exp (2 * p.q)]
-          · linarith [Real.add_one_le_exp (64 * p.q)]
+          gcongr <;> linarith [Real.add_one_le_exp (2 * p.q), Real.add_one_le_exp (64 * p.q)]
       _ ≤ _ := by
           rw [← Real.exp_add, hexp]
           gcongr
           linarith
   · push_cast at hlam hε0 hε1 hexp ⊢
-    have h := hp.H_le_of_mid (e := 2 * c + 1) (i₀ := c) (by push_cast; linarith)
-      (by push_cast; linarith)
-    calc p.H (2 * c + 1) ≤ p.q ^ (1 / 8 : ℝ) := h
+    calc p.H (2 * c + 1) ≤ p.q ^ (1 / 8 : ℝ) :=
+          hp.H_le_of_mid (e := 2 * c + 1) (i₀ := c) (by push_cast; linarith)
+            (by push_cast; linarith)
       _ ≤ p.q ^ (p.s * (2 * c + 1) / (4 * p.n) : ℝ) :=
           Real.rpow_le_rpow_of_exponent_ge hq hp.q_le_one (by linarith)
       _ ≤ _ := le_mul_of_one_le_right (Real.rpow_nonneg hq.le _)
@@ -217,10 +198,8 @@ theorem Good.H_le_exp (hp : p.Good) (e : ℕ) : p.H e ≤ Real.exp (132 * e / �
       Real.rpow_le_one hq.le hp.q_le_one (sub_nonneg.2 (Nat.floor_le hx))
     have hb : p.q ^ (⌊p.lam * e⌋₊ + 1 - p.lam * e) ≤ 1 :=
       Real.rpow_le_one hq.le hp.q_le_one (sub_nonneg.2 (Nat.lt_floor_add_one _).le)
-    have hsq := Real.sqrt_pos.2 hp.cast_n_pos
-    have h33 : (33 : ℝ) ≤ 132 * e / √(p.n : ℝ) := by
-      rw [le_div_iff₀ hsq]
-      linarith [hp.sqrt_le_of_le (not_lt.1 he)]
+    have h33 : (33 : ℝ) ≤ 132 * e / √(p.n : ℝ) :=
+      (le_div_iff₀ (Real.sqrt_pos.2 hp.cast_n_pos)).2 (by linarith [hp.sqrt_le_of_le (not_lt.1 he)])
     calc p.H e ≤ (1 + 2 * p.q) * (1 + 1) := h.trans (by gcongr)
       _ ≤ 132 * e / √(p.n : ℝ) + 1 := by linarith [hp.q_le_half]
       _ ≤ _ := Real.add_one_le_exp _
@@ -247,17 +226,13 @@ theorem Good.prod_H_le_of_low (hp : p.Good) (he : ∑ j, e j = p.n)
   have h : (∑ j, (e j : ℝ)) = p.n := by exact_mod_cast he
   calc ∏ j, p.H (e j)
       ≤ ∏ j, p.q ^ (p.s * e j / (4 * p.n) : ℝ) * Real.exp (132 * e j / √(p.n : ℝ)) :=
-        prod_le_prod₀ (fun j _ => hp.H_nonneg _) fun j _ => hp.H_le_of_low (hlow j)
+        prod_le_prod₀ (fun _ _ => hp.H_nonneg _) fun j _ => hp.H_le_of_low (hlow j)
     _ = Real.exp (132 * √(p.n : ℝ)) * p.q ^ (p.s / 4 : ℝ) := by
+        have hs : p.s * (p.n : ℝ) / (4 * p.n) = p.s / 4 := by field_simp
         rw [prod_mul_distrib, ← Real.exp_sum, ← Real.rpow_sum_of_pos hp.q_pos, ← sum_div,
-          ← sum_div, ← mul_sum, ← mul_sum, h, mul_comm]
-        congr 1
-        · rw [mul_div_assoc, Real.div_sqrt]
-        · congr 1
-          field_simp
-    _ ≤ _ := by
-        gcongr
-        exact hp.q_rpow_le (by linarith [hp.le_s])
+          ← sum_div, ← mul_sum, ← mul_sum, h, mul_comm, mul_div_assoc, Real.div_sqrt, hs]
+    _ ≤ _ := mul_le_mul_of_nonneg_left (hp.q_rpow_le (by linarith [hp.le_s]))
+        (Real.exp_nonneg _)
 
 /-- The weights of `d ≥ n / (4 s)` linear factors and further factors, of total degree `n`,
 multiply to at most `exp (132 √n) n ^ (-√n / 100)`. -/

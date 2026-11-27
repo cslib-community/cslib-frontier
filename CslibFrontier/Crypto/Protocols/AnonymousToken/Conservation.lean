@@ -431,24 +431,17 @@ private theorem not_hasSpentNullifier_of_validTraceFrom
   | cons req rest ih =>
     simp only [validTraceFrom, Bool.and_eq_true] at h
     intro s hs
+    have hprev (hs' : s ∈ spends rest) : hasSpentNullifier acc s.ctx s.nullifier = false :=
+      Bool.eq_false_iff.mpr fun htrue =>
+        Bool.false_ne_true ((ih h.2 s hs').symm.trans
+          (hasSpentNullifier_append_left acc [req] s.ctx s.nullifier htrue))
     cases req with
-    | issue ir =>
-      rw [spends_cons_issue] at hs
-      have hsub := ih h.2 s hs
-      by_contra htrue
-      have hfalse := Bool.eq_true_of_not_eq_false htrue
-      have := hasSpentNullifier_append_left acc [.issue ir] s.ctx s.nullifier hfalse
-      simp [hsub] at this
+    | issue ir => exact hprev hs
     | spend sr =>
-      rw [spends_cons_spend, List.mem_cons] at hs
-      rcases hs with rfl | hs
+      rcases List.mem_cons.mp hs with rfl | hs
       · exact Bool.eq_false_iff.mpr (by
           simpa [acceptRequest, Bool.and_eq_true] using (Bool.and_eq_true_iff.mp h.1).2)
-      · have hsub := ih h.2 s hs
-        by_contra htrue
-        have hfalse := Bool.eq_true_of_not_eq_false htrue
-        have := hasSpentNullifier_append_left acc [.spend sr] s.ctx s.nullifier hfalse
-        simp [hsub] at this
+      · exact hprev hs
 
 private theorem nodup_spends_of_validTraceFrom
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
@@ -463,21 +456,15 @@ private theorem nodup_spends_of_validTraceFrom
   | cons req rest ih =>
     simp only [validTraceFrom, Bool.and_eq_true] at h
     cases req with
-    | issue ir =>
-      rw [spends_cons_issue]
-      exact ih h.2
+    | issue ir => simpa only [spends_cons_issue] using ih h.2
     | spend sr =>
       rw [spends_cons_spend, List.map_cons, List.nodup_cons]
-      refine ⟨?_, ih h.2⟩
-      intro hmem
+      refine ⟨fun hmem => ?_, ih h.2⟩
       obtain ⟨s, hs, heq⟩ := List.mem_map.mp hmem
-      have hfalse := not_hasSpentNullifier_of_validTraceFrom h.2 s hs
-      have htrue : hasSpentNullifier (acc ++ [.spend sr]) s.ctx s.nullifier = true := by
-        simp only [hasSpentNullifier, List.any_eq_true]
-        refine ⟨.spend sr, by simp, ?_⟩
-        simp only [decide_eq_true_eq]
-        exact ⟨(Prod.mk.inj heq).1.symm, (Prod.mk.inj heq).2.symm⟩
-      simp [hfalse] at htrue
+      have htrue : hasSpentNullifier (acc ++ [.spend sr]) s.ctx s.nullifier = true :=
+        List.any_eq_true.mpr ⟨.spend sr, by simp,
+          decide_eq_true ⟨(Prod.mk.inj heq).1.symm, (Prod.mk.inj heq).2.symm⟩⟩
+      simp [not_hasSpentNullifier_of_validTraceFrom h.2 s hs] at htrue
 
 /-- Every request in a `validTrace` satisfies its local check (`acceptLocal`). -/
 theorem acceptLocal_of_validTrace
@@ -505,13 +492,9 @@ private theorem mem_reqs_of_mem_spends
     {reqs : List (Request Nullifier Context Opening Commitment Sig)}
     {s : SpendRequest Nullifier Context Opening Commitment Sig}
     (hs : s ∈ spends reqs) : Request.spend s ∈ reqs := by
-  simp only [spends, List.mem_filterMap] at hs
-  obtain ⟨r, hr, hsome⟩ := hs
-  cases r with
-  | issue _ => simp at hsome
-  | spend sr =>
-    cases hsome
-    exact hr
+  obtain ⟨ir | sr, hr, hsome⟩ := List.mem_filterMap.mp hs
+  · simp at hsome
+  · exact Option.some.inj hsome ▸ hr
 
 /-- The `(V3)` balance equation of every spend in a list whose requests pass `acceptLocal`. -/
 private theorem balance_of_acceptLocal [DecidableEq Commitment]
@@ -522,9 +505,8 @@ private theorem balance_of_acceptLocal [DecidableEq Commitment]
     (hlocal : ∀ r ∈ reqs, acceptLocal com tag S pk r = true) :
     ∀ s ∈ spends reqs, s.oldCredit + s.oldRefund = s.newCredit + s.debit := by
   intro s hs
-  have hr := hlocal (.spend s) (mem_reqs_of_mem_spends hs)
-  simp only [acceptLocal, Bool.and_eq_true, decide_eq_true_eq] at hr
-  exact hr.2
+  exact of_decide_eq_true
+    (Bool.and_eq_true_iff.mp (hlocal (.spend s) (mem_reqs_of_mem_spends hs))).2
 
 /-- Every spend in a trace accepted by `validTrace` satisfies the `(V3)` balance equation, the
 first premise of `spentDebit_le_of_certified`. -/
@@ -549,25 +531,17 @@ private theorem sum_balance_outputPayload_filter [DecidableEq Context]
   | cons r rest ih =>
     cases r with
     | issue ir =>
-      by_cases hctx : ir.ctx = ctx
-      · simp only [List.filter_cons, Request.ctx, hctx, decide_true, ↓reduceIte, List.map_cons,
-          Request.outputPayload, Credit.Note.balance, List.sum_cons, issuedAmount,
-          issuesIn_cons_issue, spendsIn_cons_issue, grantedRefund] at ih ⊢
-        omega
-      · simp only [List.filter_cons, Request.ctx, hctx, decide_false, Bool.false_eq_true,
-          ↓reduceIte, issuedAmount, issuesIn_cons_issue, spendsIn_cons_issue, grantedRefund]
-          at ih ⊢
-        exact ih
+      by_cases hctx : ir.ctx = ctx <;>
+        simp only [List.filter_cons, Request.ctx, hctx, decide_true, decide_false,
+          Bool.false_eq_true, ↓reduceIte, List.map_cons, Request.outputPayload,
+          Credit.Note.balance, List.sum_cons, issuedAmount, issuesIn_cons_issue,
+          spendsIn_cons_issue, grantedRefund] at ih ⊢ <;> omega
     | spend sr =>
-      by_cases hctx : sr.ctx = ctx
-      · simp only [List.filter_cons, Request.ctx, hctx, decide_true, ↓reduceIte, List.map_cons,
-          Request.outputPayload, Credit.Note.balance, List.sum_cons, issuedAmount,
-          issuesIn_cons_spend, spendsIn_cons_spend, grantedRefund] at ih ⊢
-        omega
-      · simp only [List.filter_cons, Request.ctx, hctx, decide_false, Bool.false_eq_true,
-          ↓reduceIte, issuedAmount, issuesIn_cons_spend, spendsIn_cons_spend, grantedRefund]
-          at ih ⊢
-        exact ih
+      by_cases hctx : sr.ctx = ctx <;>
+        simp only [List.filter_cons, Request.ctx, hctx, decide_true, decide_false,
+          Bool.false_eq_true, ↓reduceIte, List.map_cons, Request.outputPayload,
+          Credit.Note.balance, List.sum_cons, issuedAmount, issuesIn_cons_spend,
+          spendsIn_cons_spend, grantedRefund] at ih ⊢ <;> omega
 
 private theorem sum_balance_inputNote_list
     (l : List (SpendRequest Nullifier Context Opening Commitment Sig))
@@ -619,38 +593,27 @@ theorem spentDebit_le_of_certified [DecidableEq Context]
   let reqsCtx := reqs.filter fun r => decide (r.ctx = ctx)
   let inList := spCtx.map SpendRequest.inputNote
   let outList := reqsCtx.map fun r => r.outputPayload.message
-  have hnodup_key : (spCtx.map fun s => (s.ctx, s.nullifier)).Nodup :=
-    hnodup.sublist (List.filter_sublist.map _)
   have hnodup_in : inList.Nodup := by
-    have hcomp :
-        (inList.map fun n => (n.context, n.nullifier)) =
-          spCtx.map fun s => (s.ctx, s.nullifier) := by
-      simp [inList, List.map_map, Function.comp_def, SpendRequest.inputNote]
-    exact List.Nodup.of_map (fun n => (n.context, n.nullifier)) (hcomp ▸ hnodup_key)
+    refine List.Nodup.of_map (fun n => (n.context, n.nullifier)) ?_
+    simpa only [inList, spCtx, spendsIn, List.map_map, Function.comp_def,
+      SpendRequest.inputNote] using hnodup.sublist (List.filter_sublist.map _)
   have hsub_in_out : ∀ n ∈ inList, n ∈ outList := by
     intro n hn
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hn
     obtain ⟨hsp, hsctx⟩ := List.mem_filter.mp hs
     obtain ⟨r, hr, hreq⟩ := List.mem_map.mp (hcertified s hsp)
-    have hrctx : r.ctx = ctx := by
-      have hctx_note := congrArg Credit.Note.context hreq
-      rw [outputPayload_context] at hctx_note
-      exact hctx_note.trans (of_decide_eq_true hsctx)
+    have hrctx : r.ctx = ctx :=
+      (outputPayload_context r ▸ congrArg Credit.Note.context hreq).trans (of_decide_eq_true hsctx)
     refine List.mem_map.mpr ⟨r, List.mem_filter.mpr ⟨hr, decide_eq_true hrctx⟩, hreq⟩
   have hsum_le := sum_map_le_sum_map_of_nodup inList outList Credit.Note.balance hnodup_in
     hsub_in_out
   have hin :
       (inList.map Credit.Note.balance).sum =
-        (spCtx.map SpendRequest.newCredit).sum + spentDebit reqs ctx := by
+        ((spendsIn reqs ctx).map SpendRequest.newCredit).sum + spentDebit reqs ctx := by
     simpa only [inList, spCtx, spentDebit, List.map_map, Function.comp_def] using
-      sum_balance_inputNote_list (spendsIn reqs ctx) fun s hs =>
-        hbalance s (List.mem_filter.mp hs).1
-  have hout :
-      (outList.map Credit.Note.balance).sum =
-        issuedAmount reqs ctx + ((spCtx.map SpendRequest.newCredit).sum + grantedRefund reqs ctx) :=
-    by
-    simpa only [outList, List.map_map, Function.comp_def] using
-      sum_balance_outputPayload_filter reqs ctx
+      sum_balance_inputNote_list spCtx fun s hs => hbalance s (List.mem_filter.mp hs).1
+  have hout := sum_balance_outputPayload_filter reqs ctx
+  simp only [outList, reqsCtx, List.map_map, Function.comp_def] at hsum_le
   omega
 
 /-- `findNoteForgery reqs = none` iff every spend in `reqs` uses a certified input note. -/
@@ -658,14 +621,8 @@ theorem findNoteForgery_eq_none_iff [DecidableEq Nullifier] [DecidableEq Context
     (reqs : List (Request Nullifier Context Opening Commitment Sig)) :
     findNoteForgery reqs = none ↔
       ∀ s ∈ spends reqs, s.inputNote ∈ reqs.map (fun r => r.outputPayload.message) := by
-  simp only [findNoteForgery, List.findSome?_eq_none_iff]
-  constructor
-  · intro h s hs
-    by_contra hnot
-    have := h s hs
-    simp [hnot] at this
-  · intro h s hs
-    simp [h s hs]
+  simp only [findNoteForgery, List.findSome?_eq_none_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not]
 
 /-- If `findNoteForgery reqs = some tok`, then `tok` is the payload/signature pair of some spend
 in `reqs` whose input note never appeared among the output notes in `reqs`. -/
@@ -676,14 +633,9 @@ theorem findNoteForgery_eq_some [DecidableEq Nullifier] [DecidableEq Context]
     ∃ s ∈ spends reqs,
       tok = ⟨s.inputPayload, s.signature⟩ ∧
         s.inputNote ∉ reqs.map (fun r => r.outputPayload.message) := by
-  simp only [findNoteForgery, List.findSome?_eq_some_iff] at h
-  obtain ⟨prefixSp, s, suffixSp, hsp, hfound, hnone⟩ := h
-  by_cases hmem : s.inputNote ∈ reqs.map (fun r => r.outputPayload.message)
-  · simp [hmem] at hfound
-  · simp only [hmem, ↓reduceIte, Option.some.injEq] at hfound
-    refine ⟨s, ?_, hfound.symm, hmem⟩
-    rw [hsp]
-    simp
+  obtain ⟨_, s, _, hsp, hfound, _⟩ := List.findSome?_eq_some_iff.mp h
+  split_ifs at hfound with hmem
+  exact ⟨s, by simp [hsp], (Option.some.inj hfound).symm, hmem⟩
 
 /-! ### Part II: Adaptive game, reduction to `AnonymousToken`, and probability bound -/
 
@@ -803,26 +755,16 @@ theorem noteForger_queryBound
     (A : ExtractedAdversary Nullifier Context Opening Commitment PK Sig) (pk : PK) {q : ℕ}
     (hA : (A pk).IsQueryBounded q) :
     (noteForger com tag S A pk).IsQueryBounded q := by
-  have hbody :
-      ((OracleComp.interpret
-        (OracleComp.sumHandler
-          (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-          (noteForgerHandler com tag S pk))
-        (A pk)).run []).IsQueryBounded q := by
-    refine OracleComp.IsCostBounded.run_interpret (fun r accepted => ?_) hA []
-    rcases r with k | req
-    · simpa [OracleComp.sumHandler, StateT.run, StateT.lift] using
-        (ProbOracleComp.IsQueryBounded.sample
-          (spec := fun _ : Payload (Credit.Note Nullifier Context) Opening => Sig)
-          (ProbComp.unifFin k)).bind fun a => OracleComp.IsCostBounded.pure (a, accepted) 0
-    · simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, noteForgerHandler]
-      split_ifs
-      · exact (ProbOracleComp.IsQueryBounded.query
-          (spec := fun _ : Payload (Credit.Note Nullifier Context) Opening => Sig)
-          req.outputPayload).bind fun σ =>
-            OracleComp.IsCostBounded.pure (some σ, accepted ++ [req]) 0
-      · exact OracleComp.IsCostBounded.pure (none, accepted) 1
-  exact hbody.bind fun _ => OracleComp.IsCostBounded.pure _ 0
+  refine (OracleComp.IsCostBounded.run_interpret (fun r accepted => ?_) hA []).bind
+    fun _ => OracleComp.IsCostBounded.pure _ 0
+  rcases r with k | req
+  · exact (ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
+      fun a => .pure (a, accepted) 0
+  · simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, noteForgerHandler]
+    split_ifs
+    · exact (ProbOracleComp.IsQueryBounded.query req.outputPayload).bind fun σ =>
+        .pure (some σ, accepted ++ [req]) 0
+    · exact .pure (none, accepted) 1
 
 /-- A `q`-query adversary logs at most `q` accepted requests in `runExtractedConservation`. -/
 theorem runExtractedConservation_log_length_le
@@ -881,16 +823,12 @@ private theorem runLogWith_extractedIssuerOracle_invariant
   split_ifs at hstep with hacc
   · simp only [Functor.map_map, ProbComp.eval_map, PMF.mem_support_map_iff, Prod.mk.injEq] at hstep
     obtain ⟨σ, -, rfl, rfl⟩ := hstep
-    refine ⟨?_, ?_⟩
+    refine ⟨?_, fun p hp => ?_⟩
     · rw [List.map_append, List.map_cons, List.map_nil]
-      change validTraceFrom com tag S keys.1 [] (log.map Prod.fst ++ [req]) = true
-      rw [validTraceFrom_append]
-      exact Bool.and_eq_true_iff.mpr ⟨hvalid, hacc⟩
-    · intro p hp
-      rcases List.mem_append.mp hp with hp | hp
+      simpa only [validTrace, validTraceFrom_append, Bool.and_eq_true] using ⟨hvalid, hacc⟩
+    · rcases List.mem_append.mp hp with hp | hp
       · exact hsome p hp
-      · obtain rfl := List.mem_singleton.mp hp
-        rfl
+      · simp [List.mem_singleton.mp hp]
   · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
     obtain ⟨-, rfl⟩ := hstep
     exact ⟨hvalid, hsome⟩
@@ -941,12 +879,11 @@ private theorem runExtracted_noteForger_eq
             (out, (represent log).2) := by
     rw [← ProbOracleComp.runLogWith_some, ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
     dsimp only [noteForger]
-    rw [ProbOracleComp.runWith_bind]
-    rw [ProbOracleComp.runWith_run_interpret
-      (noteForgerHandler com tag S pk)
-      (fun payload sigLog => ProbComp.eval (ProbOracleComp.logOracle targetSigner payload sigLog))
-      (A pk) [] []]
-    rw [PMF.bind_map]
+    rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_run_interpret
+        (noteForgerHandler com tag S pk)
+        (fun payload sigLog => ProbComp.eval (ProbOracleComp.logOracle targetSigner payload sigLog))
+        (A pk) [] [],
+      PMF.bind_map]
     have hsim :
         (ProbOracleComp.runWith
           (fun req log =>
@@ -973,8 +910,7 @@ private theorem runExtracted_noteForger_eq
         simp [represent, Function.comp_def]
       · simp only [represent, ProbComp.eval_pure, ProbOracleComp.runWith_pure, PMF.pure_map]
         rfl
-    rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
-    rw [← hsim, PMF.bind_map]
+    rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState, ← hsim, PMF.bind_map]
     simp only [PMF.map, ProbOracleComp.runWith_pure, Function.comp_def]
   rw [hrun, PMF.bind_map, PMF.map_bind]
   refine PMF.bind_congr_on_support _ _ _ fun ⟨ctx, log⟩ _ => ?_
@@ -996,38 +932,26 @@ private theorem extractedConservationAccept_imp_extractedAccept
       ((run.log.filterMap fun p => p.2.map fun σ => (p.1.outputPayload, σ)).map
           fun entry => entry.1.message) =
         reqs.map (fun r => r.outputPayload.message) := by
-    clear hvalid hwin
     dsimp only [reqs]
     generalize run.log = rawLog at hsome ⊢
     induction rawLog with
-    | nil => simp
+    | nil => rfl
     | cons hd tl ih =>
-      obtain ⟨r, resp⟩ := hd
-      have hhd := hsome (r, resp) List.mem_cons_self
-      cases resp with
-      | none => simp at hhd
-      | some σ =>
-        have htl := ih (fun p hp => hsome p (List.mem_cons_of_mem _ hp))
-        simpa using htl
+      rcases hd with ⟨r, _ | σ⟩
+      · exact absurd (hsome (r, none) List.mem_cons_self) (by simp)
+      · simpa using ih fun p hp => hsome p (List.mem_cons_of_mem _ hp)
   cases hforg : findNoteForgery reqs with
   | none =>
-    exfalso
-    have hcert := (findNoteForgery_eq_none_iff reqs).mp hforg
-    have hle := spentDebit_le_of_certified reqs (balance_of_validTrace hvalid)
-      (nodup_spends_of_validTrace hvalid) hcert run.targetCtx
-    simp only [extractedConservationAccept, decide_eq_true_eq] at hwin
-    exact (Nat.not_le.mpr hwin) hle
+    exact absurd (spentDebit_le_of_certified reqs (balance_of_validTrace hvalid)
+      (nodup_spends_of_validTrace hvalid) ((findNoteForgery_eq_none_iff reqs).mp hforg)
+      run.targetCtx) (Nat.not_le.mpr (of_decide_eq_true hwin))
   | some tok =>
     obtain ⟨s, hs, rfl, hnotmem⟩ := findNoteForgery_eq_some hforg
     have hloc := acceptLocal_of_validTrace hvalid (.spend s) (mem_reqs_of_mem_spends hs)
     simp only [acceptLocal, Bool.and_eq_true] at hloc
     simp only [extractedAccept, toExtractedExecution, reqs, hforg, Option.getD_some,
       Token.valid, SpendRequest.inputPayload, Bool.and_eq_true, decide_eq_true_eq]
-    refine ⟨hloc.1.1, ?_⟩
-    change ((run.log.filterMap fun p => p.2.map fun σ => (p.1.outputPayload, σ)).map
-        fun entry => entry.1.message) |> (s.inputNote ∉ ·)
-    rw [hlog_map]
-    exact hnotmem
+    exact ⟨hloc.1.1, by rwa [hlog_map]⟩
 
 /-- Extracted-model reduction step, original to this library; it couples the
 credit-conservation game to `Cslib.Crypto.AnonymousToken.extractedExperiment`. Any adversary
@@ -1094,23 +1018,11 @@ theorem checkBindingWitness_prod_mk_iff
             w.first.opening =
           com w.second.message.nullifier w.second.message.context w.second.message.credit
             w.second.opening := by
-  simp only [checkBindingWitness, Credit.target, decide_eq_true_eq, Prod.mk.injEq]
-  constructor
-  · rintro ⟨hne, hcom, href⟩
-    refine ⟨href, ?_, hcom⟩
-    intro htri
-    apply hne
-    rcases w with ⟨⟨⟨nf₁, ctx₁, t₁, x₁⟩, r₁⟩, ⟨⟨nf₂, ctx₂, t₂, x₂⟩, r₂⟩⟩
-    dsimp only at href htri
-    rcases Prod.mk.inj htri with ⟨rfl, hrest⟩
-    rcases Prod.mk.inj hrest with ⟨rfl, rfl⟩
-    cases href
-    rfl
-  · rintro ⟨href, htri, hcom⟩
-    refine ⟨?_, hcom, href⟩
-    intro hnote
-    apply htri
-    rw [hnote]
+  rcases w with ⟨⟨⟨nf₁, ctx₁, t₁, x₁⟩, r₁⟩, ⟨⟨nf₂, ctx₂, t₂, x₂⟩, r₂⟩⟩
+  simp only [checkBindingWitness, Credit.target, decide_eq_true_eq, ne_eq, Prod.mk.injEq,
+    Credit.Note.mk.injEq]
+  exact ⟨fun ⟨hne, hcom, rfl⟩ => ⟨rfl, fun ⟨rfl, rfl, rfl⟩ => hne ⟨rfl, rfl, rfl, rfl⟩, hcom⟩,
+    fun ⟨href, htri, hcom⟩ => ⟨fun ⟨rfl, rfl, rfl, _⟩ => htri ⟨rfl, rfl, rfl⟩, hcom, href⟩⟩
 
 end
 
@@ -1142,12 +1054,7 @@ private theorem isBindingCollision_noteBindingCollision
     (h : checkBindingWitness (Credit.target com Prod.mk) w = true) :
     CS.isBindingCollision k (noteBindingCollision com w) = true := by
   have ⟨_, hne, hcom⟩ := (checkBindingWitness_prod_mk_iff com w).mp h
-  simp only [Crypto.Commitment.Scheme.isBindingCollision, noteBindingCollision, Bool.and_eq_true]
-  refine ⟨⟨decide_eq_true hne, ?_⟩, ?_⟩
-  · rw [hverify]
-    exact decide_eq_true rfl
-  · rw [hverify]
-    exact decide_eq_true hcom.symm
+  simp [Crypto.Commitment.Scheme.isBindingCollision, noteBindingCollision, hverify, hne, hcom]
 
 /-- `noteBindingCollision` on a found witness. With no witness it returns a trivial pair that
 opens `com default default 0 default` twice to the same message, which is never a collision. -/
@@ -1221,12 +1128,10 @@ theorem bindingExperiment_prod_mk_le_commitment
   change (μ.map fun witness => witness.any (checkBindingWitness (Credit.target com Prod.mk)))
       true ≤
     (μ.map fun witness => CS.isBindingCollision k (noteBindingCollisionOrTrivial com witness)) true
-  refine PMF.map_true_mono μ fun witness _ hwin => ?_
-  cases witness with
-  | none => simp at hwin
-  | some w =>
-    simp only [Option.any_some] at hwin
-    exact isBindingCollision_noteBindingCollision com CS hverify hwin
+  refine PMF.map_true_mono μ ?_
+  rintro (_ | w) _ hwin
+  · simp at hwin
+  · exact isBindingCollision_noteBindingCollision com CS hverify hwin
 
 /-- Extracted-model reduction step, original to this library: at `tag = Prod.mk`, any adversary
 winning the extracted credit-conservation game yields either a target forgery via `targetForger`

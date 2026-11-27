@@ -145,13 +145,8 @@ theorem ArborescenceInput.expectedParentList_eq_nil_iff (I : ArborescenceInput) 
     simp only [true_iff]
     exact edmonds_eq_none_iff.mp h
   | some p =>
-    have hne : ((List.finRange I.n).map fun v => (p v).1) ≠ [] := by
-      intro hnil
-      have hlen := congrArg List.length hnil
-      simp only [List.length_map, List.length_finRange, List.length_nil] at hlen
-      exact Nat.ne_of_gt I.root.pos hlen
-    refine ⟨fun hnil => absurd hnil hne, fun hall => ?_⟩
-    exact absurd (edmonds_spec.1 p h).1 (hall p)
+    exact ⟨fun hnil => (Nat.ne_of_gt I.root.pos (by simpa using congrArg List.length hnil)).elim,
+      fun hall => absurd (edmonds_spec.1 p h).1 (hall p)⟩
 
 /-- Whenever `I.expectedParentList` is nonempty, it encodes the parent map of a minimum-cost
 spanning in-arborescence of `I.digraph` rooted at `I.root`. -/
@@ -190,13 +185,8 @@ theorem ArborescenceInput.expectedOutParentList_eq_nil_iff (I : ArborescenceInpu
     simp only [true_iff]
     exact edmondsOut_spec.2 h
   | some p =>
-    have hne : ((List.finRange I.n).map fun v => (p v).1) ≠ [] := by
-      intro hnil
-      have hlen := congrArg List.length hnil
-      simp only [List.length_map, List.length_finRange, List.length_nil] at hlen
-      exact Nat.ne_of_gt I.root.pos hlen
-    refine ⟨fun hnil => absurd hnil hne, fun hall => ?_⟩
-    exact absurd (edmondsOut_spec.1 p h).1 (hall p)
+    exact ⟨fun hnil => (Nat.ne_of_gt I.root.pos (by simpa using congrArg List.length hnil)).elim,
+      fun hall => absurd (edmondsOut_spec.1 p h).1 (hall p)⟩
 
 /-- Whenever `I.expectedOutParentList` is nonempty, it encodes the parent map of a minimum-cost
 spanning out-arborescence of `I.digraph` rooted at `I.root`. -/

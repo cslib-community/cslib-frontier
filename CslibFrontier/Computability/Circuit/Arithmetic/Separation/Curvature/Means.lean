@@ -97,11 +97,10 @@ theorem meanNorm_le_meanLength : meanNorm W g ≤ meanLength W g := by
 
 /-- A lower bound on `N` needs all `S`. -/
 theorem le_meanNorm {c : ℝ} (h : ∀ S : ℕ, 0 < S → c * S ≤ meanLength W (S • g)) :
-    c ≤ meanNorm W g := by
-  refine (meanNorm_isGLB W g).2 ?_
-  rintro _ ⟨S, hS, rfl⟩
-  rw [le_div_iff₀ (by exact_mod_cast hS)]
-  exact h S hS
+    c ≤ meanNorm W g :=
+  (meanNorm_isGLB W g).2 <| by
+    rintro _ ⟨S, hS, rfl⟩
+    exact (le_div_iff₀ (Nat.cast_pos.2 hS)).2 (h S hS)
 
 theorem meanNorm_nonneg : 0 ≤ meanNorm W g :=
   le_meanNorm W g fun S _ => by rw [zero_mul]; exact meanLength_nonneg _ _
@@ -136,11 +135,10 @@ theorem meanNorm_eq_homogenization (hW : ∀ n, IsPrice K (W n))
     meanNorm W = (crossingLength_meanLength hW hΛ).homogenization := by
   set hν := crossingLength_meanLength hW hΛ
   funext g
-  refine le_antisymm (hν.le_homogenization fun S hS => ?_) (le_meanNorm W g fun S _ => ?_)
-  · rw [← le_div_iff₀ (by exact_mod_cast hS)]
-    exact meanNorm_le W g hS
-  · rw [mul_comm, ← hν.isHomogeneous_homogenization S g]
-    exact hν.homogenization_le _
+  exact le_antisymm
+    (hν.le_homogenization fun S hS => (le_div_iff₀ (Nat.cast_pos.2 hS)).1 (meanNorm_le W g hS))
+    (le_meanNorm W g fun S _ =>
+      (mul_comm _ (S : ℝ)).trans_le (hν.isHomogeneous_homogenization S g ▸ hν.homogenization_le _))
 
 /-! ### The proof of Lemma C.2
 
@@ -170,18 +168,15 @@ private theorem lem_means_display (hN : CrossingLength N) (hh : IsHomogeneous N)
       τ * (N p ^ 2 + N q ^ 2) + (N a ^ 2 + N b ^ 2) / (2 * τ) := by
   unfold meansDiff
   have h := hN.crossing p (-p) q (-q) a (-a) b (-b) τ hτ
-  have e1 : ∀ Z : ℤ × ℤ, N (Z - -Z) = 2 * N Z := by
-    intro Z
-    rw [show Z - -Z = 2 • Z by module, hh]
+  have e1 (Z : ℤ × ℤ) : N (Z - -Z) = 2 * N Z := by
+    have hz : Z - -Z = 2 • Z := by module
+    rw [hz, hh]
     norm_num
-  have e2 : N (-p - -a) = N (p - a) := by rw [← hN.neg]; congr 1; module
-  have e3 : N (-p - -b) = N (p - b) := by rw [← hN.neg]; congr 1; module
-  have e4 : N (-q - -a) = N (q - a) := by rw [← hN.neg]; congr 1; module
-  have e5 : N (-q - b) = N (q - -b) := by rw [← hN.neg]; congr 1; module
-  rw [e1 p, e1 q, e1 a, e1 b, e2, e3, e4, e5] at h
+  have en (X Y : ℤ × ℤ) : N (-X - Y) = N (X - -Y) :=
+    (congrArg N (by module : -X - Y = -(X - -Y))).trans (hN.neg _)
   have e6 : ((2 * N a) ^ 2 + (2 * N b) ^ 2) / (2 * τ) = 4 * ((N a ^ 2 + N b ^ 2) / (2 * τ)) := by
     ring
-  rw [e6] at h
+  rw [e1 p, e1 q, e1 a, e1 b, en p (-a), en p (-b), en q (-a), en q b, neg_neg, neg_neg, e6] at h
   linarith
 
 /-- `∂A_i + ∂(A_i - a) = 2 (N(A_i) - N(A_i - c)) + δ_i - δ_{i+1}`, for every function `N`. -/
@@ -189,11 +184,10 @@ private theorem lem_means_identity (a b : ℤ × ℤ) (M i : ℕ) :
     meansDiff N a b (meansPt a b M i) + meansDiff N a b (meansPt a b M i - a) =
       2 * (N (meansPt a b M i) - N (meansPt a b M i - (a + b)))
         + (meansDelta N a b M i - meansDelta N a b M (i + 1)) := by
-  simp only [meansDiff, meansDelta, meansPt]
-  have e1 : M • (a + b) + (i + 1) • (a - b) - a = M • (a + b) + i • (a - b) - b := by module
-  have e2 : M • (a + b) + i • (a - b) - b - a = M • (a + b) + i • (a - b) - (a + b) := by module
-  have e3 : M • (a + b) + i • (a - b) - a - b = M • (a + b) + i • (a - b) - (a + b) := by module
-  rw [e1, e2, e3]
+  have hpt : meansPt a b M (i + 1) - a = meansPt a b M i - b := by
+    simp only [meansPt]
+    module
+  simp only [meansDiff, meansDelta, hpt, sub_sub, add_comm b a]
   ring
 
 /-- Since `t ↦ N(t c + i e)` is convex, the first difference on the right is at least
@@ -204,11 +198,9 @@ private theorem lem_means_convex (hN : CrossingLength N) (hh : IsHomogeneous N) 
     N c - 2 * N s / M ≤ N (M • c + s) - N (M • c + s - c) := by
   have hmono : Monotone fun t : ℕ => N ((t + 1) • c + s) - N (t • c + s) := by
     refine monotone_nat_of_le_succ fun t => ?_
-    have h1 := hN.add ((t + 1 + 1) • c + s) (t • c + s)
-    have h2 : (t + 1 + 1) • c + s + (t • c + s) = 2 • ((t + 1) • c + s) := by module
-    rw [h2, hh] at h1
-    push_cast at h1
-    linarith
+    have hadd : (t + 1 + 1) • c + s + (t • c + s) = 2 • ((t + 1) • c + s) := by module
+    have h1 := hh 2 ((t + 1) • c + s) ▸ hadd ▸ hN.add ((t + 1 + 1) • c + s) (t • c + s)
+    push_cast at h1; linarith
   obtain ⟨M, rfl⟩ : ∃ M', M = M' + 1 := ⟨M - 1, by omega⟩
   have h1 := Finset.sum_range_sub (fun t : ℕ => N (t • c + s)) (M + 1)
   have h2 : ∑ t ∈ range (M + 1), (N ((t + 1) • c + s) - N (t • c + s)) ≤
@@ -217,12 +209,8 @@ private theorem lem_means_convex (hN : CrossingLength N) (hh : IsHomogeneous N) 
   rw [h1, Finset.sum_const, Finset.card_range, nsmul_eq_mul (α := ℝ), zero_smul, zero_add] at h2
   have h3 := hN.sub_le ((M + 1) • c + s) s
   rw [add_sub_cancel_right, hh] at h3
-  have h4 : (M + 1) • c + s - c = M • c + s := by module
-  rw [h4]
-  have hM' : (0 : ℝ) < ((M + 1 : ℕ) : ℝ) := by positivity
-  have h5 : N c - 2 * N s / ((M + 1 : ℕ) : ℝ) =
-      (((M + 1 : ℕ) : ℝ) * N c - 2 * N s) / ((M + 1 : ℕ) : ℝ) := by field_simp
-  rw [h5, div_le_iff₀ hM']
+  have hsub : (M + 1) • c + s - c = M • c + s := by module
+  rw [hsub, sub_le_comm, le_div_iff₀ (by positivity)]
   linarith
 
 /-- The `δ_i` are bounded and telescope: the sum of `∂A_i + ∂(A_i - a)` over `0 ≤ i < R` is at least
@@ -240,22 +228,16 @@ private theorem lem_means_telescope (hN : CrossingLength N) (hh : IsHomogeneous 
     rw [lem_means_identity]
     have h3 := lem_means_convex hN hh (i • (a - b)) (a + b) M hM
     rw [hh] at h3
-    have h4 : 2 * ((i : ℝ) * N (a - b)) / M ≤ 2 * R * N (a - b) / M := by
-      apply div_le_div_of_nonneg_right _ hM'.le
-      have : (i : ℝ) ≤ R := by exact_mod_cast (Finset.mem_range.1 hi).le
-      nlinarith [hN.nonneg (a - b)]
+    have h4 : 2 * ((i : ℝ) * N (a - b)) / M ≤ 2 * R * N (a - b) / M :=
+      div_le_div_of_nonneg_right (by
+        nlinarith [hN.nonneg (a - b), (Nat.cast_le (α := ℝ)).mpr (Finset.mem_range.1 hi).le]) hM'.le
     simp only [meansPt]
     linarith
   have h5 := Finset.sum_le_sum h2
   rw [Finset.sum_add_distrib, Finset.sum_range_sub', Finset.sum_const, Finset.card_range,
     nsmul_eq_mul (α := ℝ)] at h5
-  have h6 : meansDelta N a b M R ≤ N a := by
-    unfold meansDelta
-    linarith [hN.le_sub_add (meansPt a b M R - a) a]
-  have h7 : -N a ≤ meansDelta N a b M 0 := by
-    unfold meansDelta
-    linarith [hN.sub_le (meansPt a b M 0 - a) a]
-  linarith
+  unfold meansDelta at h5
+  linarith [hN.le_sub_add (meansPt a b M R - a) a, hN.sub_le (meansPt a b M 0 - a) a]
 
 /-- `N(p) = M f + O(R)` at the points `p = M c + i e` and `p = M c + i e - a` with `i < R`: the
 error is at most `2 R κ` if `N(a), N(e) ≤ κ`. -/
@@ -265,17 +247,14 @@ private theorem lem_means_near (hN : CrossingLength N) (hh : IsHomogeneous N)
     |N (M • c + i • e) - M * N c| ≤ 2 * R * κ ∧ |N (M • c + i • e - a) - M * N c| ≤ 2 * R * κ := by
   have hi' : (i : ℝ) + 1 ≤ R := by exact_mod_cast hi
   have hi0 : (0 : ℝ) ≤ i := Nat.cast_nonneg i
+  have he0 : 0 ≤ N e := hN.nonneg e
   rw [← hh]
-  constructor
-  · have h1 := hN.abs_sub_le (M • c + i • e) (M • c)
-    rw [add_sub_cancel_left, hh i e] at h1
-    nlinarith [hN.nonneg e]
-  · have h1 := hN.abs_sub_le (M • c + i • e - a) (M • c)
-    have h2 : M • c + i • e - a - M • c = i • e - a := by module
-    rw [h2] at h1
-    have h3 := hN.sub_le (i • e) a
-    rw [hh i e] at h3
-    nlinarith [hN.nonneg e]
+  refine ⟨?_, ?_⟩
+  · have h1 := add_sub_cancel_left (M • c) (i • e) ▸ hN.abs_sub_le (M • c + i • e) (M • c)
+    rw [hh i e] at h1; nlinarith
+  · have hsub : M • c + i • e - a - M • c = i • e - a := by module
+    have h1 := hsub ▸ hN.abs_sub_le (M • c + i • e - a) (M • c)
+    nlinarith [hh i e ▸ hN.sub_le (i • e) a]
 
 /-- `∂` is bounded by `N(a) + N(b)`, so `N(p) ∂p = M f ∂p + O(R)`, and the same for `∂'` at `q` with
 `f'`. With `τ = 1/(2M)` the display becomes
@@ -296,47 +275,28 @@ private theorem lem_means_estimate (hN : CrossingLength N) (hh : IsHomogeneous N
   have e1 : (N a ^ 2 + N b ^ 2) / (2 * (1 / (2 * (M : ℝ)))) = M * (N a ^ 2 + N b ^ 2) := by
     field_simp
   rw [e1] at h1
-  have hxp : |meansDiff N a b p| ≤ κ := by
-    unfold meansDiff
-    have h2 := hN.abs_sub_le p (p - a)
-    have h3 := hN.abs_sub_le p (p - b)
-    rw [sub_sub_cancel] at h2 h3
-    rw [abs_le] at h2 h3 ⊢
+  have hdiff (u z : ℤ × ℤ) (hz : N a + N z ≤ κ) : |meansDiff N a z u| ≤ κ := by
+    have h2 := abs_le.1 (sub_sub_cancel u a ▸ hN.abs_sub_le u (u - a))
+    have h3 := abs_le.1 (sub_sub_cancel u z ▸ hN.abs_sub_le u (u - z))
+    rw [meansDiff, abs_le]
     constructor <;> linarith
-  have hxq : |meansDiff N a (-b) q| ≤ κ := by
-    unfold meansDiff
-    have h2 := hN.abs_sub_le q (q - a)
-    have h3 := hN.abs_sub_le q (q - -b)
-    rw [sub_sub_cancel] at h2 h3
-    rw [hN.neg] at h3
-    rw [abs_le] at h2 h3 ⊢
-    constructor <;> linarith
-  have low : ∀ (A B x : ℝ), |A - B| ≤ 2 * R * κ → |x| ≤ κ → B * x - 2 * R * κ ^ 2 ≤ A * x := by
-    intro A B x hA hx
-    have h2 : |(A - B) * x| ≤ 2 * R * κ * κ := by
-      rw [abs_mul]
-      exact mul_le_mul hA hx (abs_nonneg _) (by positivity)
-    have h3 := (abs_le.1 h2).1
+  have low (A B x : ℝ) (hA : |A - B| ≤ 2 * R * κ) (hx : |x| ≤ κ) :
+      B * x - 2 * R * κ ^ 2 ≤ A * x := by
+    have h2 := (abs_le.1 (abs_mul (A - B) x ▸
+      mul_le_mul hA hx (abs_nonneg _) (by positivity))).1
     nlinarith
-  have sq : ∀ (Z c : ℤ × ℤ), N c ≤ κ → |N Z - M * N c| ≤ 2 * R * κ →
+  have sq (Z c : ℤ × ℤ) (hc : N c ≤ κ) (hZ : |N Z - M * N c| ≤ 2 * R * κ) :
       1 / (2 * M) * N Z ^ 2 ≤ M * N c ^ 2 / 2 + 4 * R * κ ^ 2 := by
-    intro Z c hc hZ
-    have h2 : N Z ≤ M * N c + 2 * R * κ := by linarith [(abs_le.1 hZ).2]
-    have h3 : N Z ^ 2 ≤ (M * N c + 2 * R * κ) ^ 2 := pow_le_pow_left₀ (hN.nonneg Z) h2 2
-    have h4 : (M * N c + 2 * R * κ) ^ 2 ≤ M ^ 2 * N c ^ 2 + 8 * M * R * κ ^ 2 := by
-      have h5 : (M : ℝ) * R * (N c * κ) ≤ M * R * κ ^ 2 := by
-        rw [sq κ]
-        exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hc hκ0) (by positivity)
-      have h6 : (R : ℝ) * R * κ ^ 2 ≤ M * R * κ ^ 2 :=
-        mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hR' hR0) (sq_nonneg _)
-      nlinarith
+    have h3 : N Z ^ 2 ≤ (M * N c + 2 * R * κ) ^ 2 :=
+      pow_le_pow_left₀ (hN.nonneg Z) (by linarith [(abs_le.1 hZ).2]) 2
+    have h5 : (M : ℝ) * R * (N c * κ) ≤ M * R * (κ * κ) :=
+      mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hc hκ0) (by positivity)
+    have h6 : (R : ℝ) * R * κ ^ 2 ≤ M * R * κ ^ 2 :=
+      mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hR' hR0) (sq_nonneg _)
     rw [div_mul_eq_mul_div, one_mul, div_le_iff₀ (by positivity)]
     nlinarith
-  have l1 := low _ _ _ hp hxp
-  have l2 := low _ _ _ hq hxq
-  have s1 := sq _ _ hc hp
-  have s2 := sq _ _ he hq
-  linarith
+  linarith [low _ _ _ hp (hdiff p b hκ), low _ _ _ hq (hdiff q (-b) (by rwa [hN.neg])),
+    sq _ _ hc hp, sq _ _ he hq]
 
 /-- The arithmetic of averaging over `i` and dividing by `2M`, with `M = m²`, `f, f', n = N(a)` at
 most `κ`, and `Q = N(a)² + N(b)²`. -/
@@ -349,27 +309,17 @@ private theorem means_arith {m f f' n Q κ : ℝ} (hm : 0 < m) (hf0 : 0 ≤ f) (
         + (m ^ 2 * ((f ^ 2 + f' ^ 2) / 2 + Q) + 12 * m * κ ^ 2))) :
     f ^ 2 + f' ^ 2 ≤ 2 * Q + 36 * κ ^ 2 * (1 / m) := by
   have hκ0 : 0 ≤ κ := hf0.trans hf
-  have q1 : f * f' ≤ κ ^ 2 := by rw [sq]; exact mul_le_mul hf hf' hf0' hκ0
-  have q2 : f * n ≤ κ ^ 2 := by rw [sq]; exact mul_le_mul hf hn hn0 hκ0
-  have q3 : f' * n ≤ κ ^ 2 := by rw [sq]; exact mul_le_mul hf' hn hn0 hκ0
-  have e3 : m ^ 2 * f * (2 * m * (f - 2 * m * f' / m ^ 2) - 2 * n) =
-      2 * m ^ 3 * f ^ 2 - 4 * (f * f') * m ^ 2 - 2 * (f * n) * m ^ 2 := by
+  have el (x y : ℝ) : m ^ 2 * x * (2 * m * (x - 2 * m * y / m ^ 2) - 2 * n) =
+      2 * m ^ 3 * x ^ 2 - 4 * (x * y) * m ^ 2 - 2 * (x * n) * m ^ 2 := by
     field_simp
     ring
-  have e4 : m ^ 2 * f' * (2 * m * (f' - 2 * m * f / m ^ 2) - 2 * n) =
-      2 * m ^ 3 * f' ^ 2 - 4 * (f * f') * m ^ 2 - 2 * (f' * n) * m ^ 2 := by
+  rw [el f f', el f' f, mul_comm f' f] at h
+  refine le_of_mul_le_mul_left (a := m ^ 3) ?_ (by positivity)
+  have e5 : m ^ 3 * (2 * Q + 36 * κ ^ 2 * (1 / m)) = 2 * m ^ 3 * Q + 36 * κ ^ 2 * m ^ 2 := by
     field_simp
-    ring
-  rw [e3, e4] at h
-  have h5 : m ^ 3 * (f ^ 2 + f' ^ 2) ≤ m ^ 3 * (2 * Q + 36 * κ ^ 2 * (1 / m)) := by
-    have e5 : m ^ 3 * (2 * Q + 36 * κ ^ 2 * (1 / m)) = 2 * m ^ 3 * Q + 36 * κ ^ 2 * m ^ 2 := by
-      field_simp
-    rw [e5]
-    have w1 := mul_le_mul_of_nonneg_right q1 (sq_nonneg m)
-    have w2 := mul_le_mul_of_nonneg_right q2 (sq_nonneg m)
-    have w3 := mul_le_mul_of_nonneg_right q3 (sq_nonneg m)
-    linarith
-  exact le_of_mul_le_mul_left h5 (by positivity)
+  rw [e5]
+  nlinarith [mul_le_mul hf hf' hf0' hκ0, mul_le_mul hf hn hn0 hκ0, mul_le_mul hf' hn hn0 hκ0,
+    sq_nonneg m]
 
 /-- With `τ = 1/(2M)`, adding the two inequalities, averaging over `i` and dividing by `2M` gives
 `f² + f'² ≤ ½ (f² + f'²) + N(a)² + N(b)² + O(1/R)`, where `M = R²`. Here the inequality is doubled
@@ -397,34 +347,24 @@ private theorem lem_means_average (hN : CrossingLength N) (hh : IsHomogeneous N)
           (lem_means_near hN hh ha hc _ (Finset.mem_range.1 hi)).2)
   have hp := Finset.sum_le_sum p
   rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul (α := ℝ)] at hp
-  have hp2 : ((R ^ 2 : ℕ) : ℝ) * N (a + b) *
-        (2 * R * (N (a + b) - 2 * R * N (a - b) / (R ^ 2 : ℕ)) - 2 * N a)
-      + ((R ^ 2 : ℕ) : ℝ) * N (a - b) *
-        (2 * R * (N (a - b) - 2 * R * N (a + b) / (R ^ 2 : ℕ)) - 2 * N a) ≤
-      R * (((R ^ 2 : ℕ) : ℝ) * ((N (a + b) ^ 2 + N (a - b) ^ 2) / 2 + (N a ^ 2 + N b ^ 2))
-        + 12 * R * κ ^ 2 + (((R ^ 2 : ℕ) : ℝ) * ((N (a + b) ^ 2 + N (a - b) ^ 2) / 2
-        + (N a ^ 2 + N b ^ 2)) + 12 * R * κ ^ 2)) := by
-    refine le_trans ?_ hp
-    refine le_trans (add_le_add
-      (mul_le_mul_of_nonneg_left s1 (mul_nonneg (Nat.cast_nonneg _) (hN.nonneg _)))
-      (mul_le_mul_of_nonneg_left s2 (mul_nonneg (Nat.cast_nonneg _) (hN.nonneg _)))) ?_
+  have hp2 := ((add_le_add
+      (mul_le_mul_of_nonneg_left s1 (mul_nonneg (Nat.cast_nonneg (R ^ 2)) (hN.nonneg (a + b))))
+      (mul_le_mul_of_nonneg_left s2
+        (mul_nonneg (Nat.cast_nonneg (R ^ 2)) (hN.nonneg (a - b))))).trans_eq <| by
     rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
-    exact Finset.sum_le_sum fun i _ => le_of_eq (by ring)
+    exact Finset.sum_congr rfl fun _ _ => by ring).trans hp
   push_cast at hp2
+  rw [← hκ] at hp2
   exact means_arith (by exact_mod_cast hR) (hN.nonneg _) hc (hN.nonneg _) he (hN.nonneg _) ha hp2
 
 /-- Hence `N(a + b)² + N(a - b)² ≤ 2 N(a)² + 2 N(b)²`. -/
 private theorem lem_means_parallelogram_le (hN : CrossingLength N) (hh : IsHomogeneous N)
     (a b : ℤ × ℤ) :
     N (a + b) ^ 2 + N (a - b) ^ 2 ≤ 2 * (N a ^ 2 + N b ^ 2) := by
-  have h1 : Tendsto (fun R : ℕ => 2 * (N a ^ 2 + N b ^ 2) + 36 * (N a + N b) ^ 2 * (1 / (R : ℝ)))
-      atTop
-      (𝓝 (2 * (N a ^ 2 + N b ^ 2) + 36 * (N a + N b) ^ 2 * 0)) :=
-    (tendsto_one_div_atTop_nhds_zero_nat.const_mul _).const_add _
+  have h1 := (tendsto_one_div_atTop_nhds_zero_nat.const_mul (36 * (N a + N b) ^ 2)).const_add
+    (2 * (N a ^ 2 + N b ^ 2))
   rw [mul_zero, add_zero] at h1
-  refine ge_of_tendsto h1 ?_
-  filter_upwards [eventually_gt_atTop 0] with R hR
-  exact lem_means_average hN hh a b hR
+  exact ge_of_tendsto h1 ((eventually_gt_atTop 0).mono fun R => lem_means_average hN hh a b)
 
 end Parallelogram
 
@@ -435,8 +375,9 @@ theorem _root_.Cslib.Circuits.Arithmetic.Separation.CrossingLength.parallelogram
     N (a + b) ^ 2 + N (a - b) ^ 2 = 2 * N a ^ 2 + 2 * N b ^ 2 := by
   refine le_antisymm (by linarith [lem_means_parallelogram_le hN hh a b]) ?_
   have h := lem_means_parallelogram_le hN hh (a + b) (a - b)
-  rw [show a + b + (a - b) = (2 : ℕ) • a by rw [two_nsmul]; abel,
-    show a + b - (a - b) = (2 : ℕ) • b by rw [two_nsmul]; abel, hh, hh] at h
+  have hab₁ : a + b + (a - b) = (2 : ℕ) • a := by module
+  have hab₂ : a + b - (a - b) = (2 : ℕ) • b := by module
+  rw [hab₁, hab₂, hh, hh] at h
   push_cast at h
   linarith
 
@@ -457,8 +398,7 @@ theorem meanNorm_parallelogram (hW : ∀ n, IsPrice K (W n))
 theorem tendsto_meanLength_div (hW : ∀ n, IsPrice K (W n))
     (hΛ : ∀ n b (P g : ℤ × ℤ), W n (b, P) (b, P + g) ≤ Λ * (|(g.1 : ℝ)| + |(g.2 : ℝ)|))
     (g : ℤ × ℤ) :
-    Tendsto (fun S : ℕ => meanLength W (S • g) / S) atTop (𝓝 (meanNorm W g)) := by
-  rw [meanNorm_eq_homogenization hW hΛ]
-  exact (crossingLength_meanLength hW hΛ).tendsto_homogenization g
+    Tendsto (fun S : ℕ => meanLength W (S • g) / S) atTop (𝓝 (meanNorm W g)) :=
+  meanNorm_eq_homogenization hW hΛ ▸ (crossingLength_meanLength hW hΛ).tendsto_homogenization g
 
 end Cslib.Circuits.Arithmetic.Separation.Curvature

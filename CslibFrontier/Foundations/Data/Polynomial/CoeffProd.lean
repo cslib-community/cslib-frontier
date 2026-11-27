@@ -51,17 +51,13 @@ theorem coeff_prod_eq_zero_of_lt (s : Finset κ) (Q : κ → A[X]) (d : κ → �
   | empty => simp only [card_empty, zero_add, sum_empty, Nat.not_lt_zero] at ht
   | insert a s ha ih =>
     rw [prod_insert ha, coeff_mul]
-    rw [sum_insert ha, card_insert_of_notMem ha] at ht
-    refine sum_eq_zero fun uw huw => ?_
-    rw [mem_antidiagonal] at huw
-    by_cases hu : k * (1 + 2 * uw.1) < d a
-    · rw [hQ a (mem_insert_self a s) uw.1 hu, zero_mul]
+    refine sum_eq_zero fun p hp => ?_
+    rw [mem_antidiagonal] at hp
+    rw [sum_insert ha, card_insert_of_notMem ha, ← hp] at ht
+    by_cases hu : k * (1 + 2 * p.1) < d a
+    · rw [hQ a (mem_insert_self a s) p.1 hu, zero_mul]
     · refine mul_eq_zero_of_right _ (ih (fun i hi => hQ i (mem_insert_of_mem hi)) ?_)
-      have e₁ : k * (#s + 1 + 2 * t) = k * #s + k + 2 * (k * uw.1) + 2 * (k * uw.2) := by
-        rw [← huw]
-        ring
-      have e₂ : k * (1 + 2 * uw.1) = k + 2 * (k * uw.1) := by ring
-      have e₃ : k * (#s + 2 * uw.2) = k * #s + 2 * (k * uw.2) := by ring
+      have h : k * (#s + 1 + 2 * (p.1 + p.2)) = k * (1 + 2 * p.1) + k * (#s + 2 * p.2) := by ring
       omega
 
 end Polynomial

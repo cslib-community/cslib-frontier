@@ -105,17 +105,13 @@ theorem firstFreeColor_lt (Δ : ℕ) (used : Finset ℕ) : firstFreeColor Δ use
 from `used`. -/
 theorem firstFreeColor_notMem {Δ : ℕ} {used : Finset ℕ} (hcard : used.card ≤ Δ) :
     firstFreeColor Δ used ∉ used := by
-  have hex : ∃ c ∈ List.range (Δ + 1), c ∉ used := by
-    by_contra! hall
-    have hle := Finset.card_le_card (s := Finset.range (Δ + 1)) fun c hc =>
-      hall c (List.mem_range.2 (Finset.mem_range.1 hc))
-    rw [Finset.card_range] at hle
-    omega
   unfold firstFreeColor
   cases h : (List.range (Δ + 1)).find? (fun c => decide (c ∉ used)) with
   | none =>
-    obtain ⟨c, hc_mem, hc_not⟩ := hex
-    exact absurd (by simpa using List.find?_eq_none.1 h c hc_mem) hc_not
+    have hle := Finset.card_le_card (s := Finset.range (Δ + 1)) fun c hc => by
+      simpa using List.find?_eq_none.1 h c (List.mem_range.2 (Finset.mem_range.1 hc))
+    rw [Finset.card_range] at hle
+    omega
   | some c => simpa using List.find?_some h
 
 /-- One step of greedy local-maximum color reduction ([Hirvonen and Suomela][HirvonenSuomela2020],
@@ -184,21 +180,19 @@ theorem greedyColorReduction_run {V : Type*} [Fintype V]
       (greedyColorReduction Δ).state G x s u := fun _ _ => rfl
   simp only [hrun_eq]
   induction r with
-  | zero =>
-    exact ⟨hx, fun u => (hq u).trans_le (by have := hq u; omega)⟩
+  | zero => exact ⟨hx, fun u => (hq u).trans_le (Nat.le_max_left (q - 0) _)⟩
   | succ r ih =>
     obtain ⟨ih_ne, ih_lt⟩ := ih
-    have hst : ∀ w, (greedyColorReduction Δ).state G x (r + 1) w =
+    have hst (w) : (greedyColorReduction Δ).state G x (r + 1) w =
         greedyStep Δ ((greedyColorReduction Δ).state G x r w)
-          ((G.neighborFinset w).image ((greedyColorReduction Δ).state G x r)) := fun w => by
+          ((G.neighborFinset w).image ((greedyColorReduction Δ).state G x r)) := by
       rw [BroadcastProtocol.state_succ]
       dsimp only [greedyColorReduction, BroadcastProtocol.fullInfo]
       rw [multiset_map_toFinset_eq_image]
     refine ⟨fun u v huv => by rw [hst u, hst v]; exact greedyStep_ne_of_adj hdeg ih_ne huv,
       fun u => ?_⟩
-    have hlt := greedyStep_lt (Δ := Δ) ih_ne ih_lt u
     rw [hst u]
-    omega
+    exact (greedyStep_lt (Δ := Δ) ih_ne ih_lt u).trans_le (by omega)
 
 /-! ### Kuhn–Wattenhofer one-round disjoint-block palette compression -/
 
@@ -218,22 +212,18 @@ private theorem le_kwBound_add_div (Δ m : ℕ) :
   have hq_div := Nat.div_add_mod q (Δ + 1)
   have hq_mod : q % (Δ + 1) < Δ + 1 := Nat.mod_lt q (by omega)
   have hsplit : (Δ + 2) * q = (Δ + 1) * q + q := Nat.succ_mul _ _
-  have h3 : (Δ + 1) * m < (Δ + 1) * (q + (q / (Δ + 1) + 1)) := by
+  have h4 : m < q + (q / (Δ + 1) + 1) := Nat.lt_of_mul_lt_mul_left (a := Δ + 1) <| by
     rw [Nat.mul_add, Nat.mul_add, Nat.mul_one, Nat.mul_comm (Δ + 1) m]
     omega
-  have h4 : m < q + (q / (Δ + 1) + 1) := Nat.lt_of_mul_lt_mul_left h3
   omega
 
 /-- Whenever `Δ + 2 ≤ m`, `kwBound Δ m` strictly shrinks the palette (`kwBound Δ m < m`) while
 remaining at least `Δ + 1`. -/
 theorem kwBound_lt {Δ m : ℕ} (hm : Δ + 2 ≤ m) : Δ + 1 ≤ kwBound Δ m ∧ kwBound Δ m < m := by
   unfold kwBound
-  have hdiv := Nat.div_add_mod (m * (Δ + 1) + (Δ + 1)) (Δ + 2)
-  have hmod := Nat.mod_lt (m * (Δ + 1) + (Δ + 1)) (by omega : 0 < Δ + 2)
-  constructor
-  · have hlow : (Δ + 2) * (Δ + 1) ≤ m * (Δ + 1) + (Δ + 1) :=
+  refine ⟨(Nat.le_div_iff_mul_le (by omega)).2 ?_, ?_⟩
+  · exact Nat.mul_comm (Δ + 1) (Δ + 2) ▸
       le_trans (Nat.mul_le_mul_right (Δ + 1) hm) (Nat.le_add_right _ _)
-    exact (Nat.le_div_iff_mul_le (by omega)).2 (by rw [Nat.mul_comm]; exact hlow)
   · rw [Nat.div_lt_iff_lt_mul (by omega)]
     calc m * (Δ + 1) + (Δ + 1) < m * (Δ + 1) + m := by omega
       _ = m * (Δ + 2) := by rw [← Nat.mul_succ]
@@ -264,8 +254,8 @@ theorem kwCompressProtocol_run {V : Type*} [Fintype V]
     (∀ u v, G.Adj u v → (kwCompressProtocol Δ m).run G x 1 u ≠
       (kwCompressProtocol Δ m).run G x 1 v) ∧
       ∀ u, (kwCompressProtocol Δ m).run G x 1 u < kwBound Δ m := by
-  have hrun : ∀ w, (kwCompressProtocol Δ m).run G x 1 w =
-      kwCompress Δ m (x w) ((G.neighborFinset w).image x) := fun w => by
+  have hrun (w) : (kwCompressProtocol Δ m).run G x 1 w =
+      kwCompress Δ m (x w) ((G.neighborFinset w).image x) := by
     change kwCompress Δ m (x w) (((G.neighborFinset w).val.map x).toFinset) = _
     rw [multiset_map_toFinset_eq_image]
   have hcard_used : ∀ w base,
@@ -274,12 +264,10 @@ theorem kwCompressProtocol_run {V : Type*} [Fintype V]
     Finset.card_image_le.trans
       ((Finset.card_filter_le _ _).trans
         (Finset.card_image_le.trans ((G.degree_le_maxDegree w).trans hΔ)))
-  have hnot_nbr : ∀ w base,
-      base + firstFreeColor Δ
-        ((((G.neighborFinset w).image x).filter fun b => base ≤ b).image fun b => b - base) ∉
-        (G.neighborFinset w).image x := by
-    intro w base hmem
-    exact firstFreeColor_notMem (hcard_used w base) <| Finset.mem_image.2
+  have hnot_nbr (w base) (hmem : base + firstFreeColor Δ
+      ((((G.neighborFinset w).image x).filter fun b => base ≤ b).image fun b => b - base) ∈
+      (G.neighborFinset w).image x) : False :=
+    firstFreeColor_notMem (hcard_used w base) <| Finset.mem_image.2
       ⟨_, Finset.mem_filter.2 ⟨hmem, Nat.le_add_right _ _⟩, Nat.add_sub_cancel_left _ _⟩
   refine ⟨fun u v huv => ?_, fun u => ?_⟩
   · rw [hrun u, hrun v]
@@ -288,8 +276,7 @@ theorem kwCompressProtocol_run {V : Type*} [Fintype V]
       Finset.mem_image.2 ⟨u, (G.mem_neighborFinset v u).2 huv.symm, rfl⟩
     have hxv_in_u : x v ∈ (G.neighborFinset u).image x :=
       Finset.mem_image.2 ⟨v, (G.mem_neighborFinset u v).2 huv, rfl⟩
-    unfold kwCompress
-    dsimp only
+    dsimp only [kwCompress]
     split_ifs with hu hv
     · exact hne
     · exact fun heq => hnot_nbr v ((x v - kwBound Δ m) * (Δ + 1)) (heq ▸ hxu_in_v)
@@ -299,8 +286,7 @@ theorem kwCompressProtocol_run {V : Type*} [Fintype V]
       simp [Nat.mul_comm _ (Δ + 1), Nat.mul_add_div, Nat.div_eq_of_lt (firstFreeColor_lt _ _)] at h
       omega
   · rw [hrun u]
-    unfold kwCompress
-    dsimp only
+    dsimp only [kwCompress]
     split_ifs with hu
     · exact hu
     · have hi_lt : x u - kwBound Δ m < kwBound Δ m / (Δ + 1) := by
@@ -426,10 +412,9 @@ private instance (x : V → ℕ) (k : ℕ) : (partialGraph G x k).LocallyFinite 
 
 private theorem partialGraph_degree_le (x : V → ℕ) (k : ℕ) (u : V) :
     (partialGraph G x k).degree u ≤ G.degree u := by
-  rw [← SimpleGraph.card_neighborFinset_eq_degree, ← SimpleGraph.card_neighborFinset_eq_degree]
-  refine Finset.card_le_card fun w hw => ?_
-  exact (SimpleGraph.mem_neighborFinset _ _ _).2
-    ((SimpleGraph.mem_neighborFinset _ _ _).1 hw).1
+  simp only [← SimpleGraph.card_neighborFinset_eq_degree]
+  exact Finset.card_le_card fun w hw =>
+    (SimpleGraph.mem_neighborFinset _ _ _).2 ((SimpleGraph.mem_neighborFinset _ _ _).1 hw).1
 
 private theorem partialGraph_zero_not_adj (x : V → ℕ) (u v : V) :
     ¬ (partialGraph G x 0).Adj u v := by
@@ -459,16 +444,12 @@ private theorem state_nbrUIDs_of_pos (Δ C : ℕ) (x : V → ℕ) {r : ℕ} (hr 
   clear hr
   induction t generalizing u with
   | zero =>
-    change ((deltaPlusOneColoring Δ C).state G x (0 + 1) u).nbrUIDs = nbrList G x u
-    rw [deltaPlusOneColoring_state_succ]
-    dsimp only [deltaPlusOneStep, nbrList]
-    simp only [↓reduceIte, Multiset.map_map]
-    rfl
+    rw [Nat.add_comm 1 0, deltaPlusOneColoring_state_succ]
+    simp only [deltaPlusOneStep, nbrList, ↓reduceIte, Multiset.map_map]; rfl
   | succ t ih =>
     have hpos : 1 + t ≠ 0 := by omega
     rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
-    dsimp only [deltaPlusOneStep]
-    simp only [hpos, ↓reduceIte]
+    simp only [deltaPlusOneStep, hpos, ↓reduceIte]
     split_ifs <;> exact ih u
 
 private theorem two_le_iterate_cvBound {C : ℕ} (hC : 2 ≤ C) (s : ℕ) :
@@ -533,48 +514,44 @@ private theorem state_cv_phase {Δ C : ℕ} {x : V → ℕ} (hx : Function.Injec
       fun i u => by cases s <;> simpa using ih_lt i u
     have hnz : 1 + s ≠ 0 := by omega
     have hlt : 1 + s < 1 + Nat.logStar C := by omega
-    have hstep_eq : ∀ (i : Fin Δ) (u : V),
-        ((deltaPlusOneColoring Δ C).state G x (1 + (s + 1)) u).slotColor i =
-          match (nbrList G x u)[i.val]? with
-          | none =>
-            let a := ((deltaPlusOneColoring Δ C).state G x (1 + s) u).slotColor i
-            cvColor a (if a = 0 then 1 else 0)
-          | some tid =>
-            let target :=
-              ((((G.neighborFinset u).val.map
-                ((deltaPlusOneColoring Δ C).state G x (1 + s))).filterMap fun m =>
-                  if m.uid = tid then some (m.slotColor i) else none).sort (· ≤ ·)).headD 0
-            cvColor (((deltaPlusOneColoring Δ C).state G x (1 + s) u).slotColor i) target := by
-      intro i u
+    let st := (deltaPlusOneColoring Δ C).state G x (1 + s)
+    let st' := (deltaPlusOneColoring Δ C).state G x (1 + (s + 1))
+    have hunfold (u : V) : st' u = deltaPlusOneStep Δ C (1 + s) (st u)
+        ((G.neighborFinset u).val.map st) := by
+      dsimp only [st', st]
       rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
-      dsimp only [deltaPlusOneStep]
-      simp only [hnz, ↓reduceIte, hlt, ↓reduceDIte]
-      rw [state_nbrUIDs_of_pos G Δ C x (by omega : 1 ≤ 1 + s) u]
-    have hm_succ : ∀ u, ((deltaPlusOneColoring Δ C).state G x (1 + (s + 1)) u).mergedColor = 0 := by
-      intro u
-      rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
-      dsimp only [deltaPlusOneStep]
-      simp only [hnz, ↓reduceIte, hlt, ↓reduceDIte]
-      exact ih_m u
+    have hslot_some {i : Fin Δ} {u w : V} (huw : G.Adj u w)
+        (hout : (nbrList G x u)[i.val]? = some (x w)) :
+        (st' u).slotColor i = cvColor ((st u).slotColor i) ((st w).slotColor i) := by
+      rw [hunfold u]
+      simp only [deltaPlusOneStep, hnz, ↓reduceIte, hlt, ↓reduceDIte,
+        state_nbrUIDs_of_pos G Δ C x (by omega : 1 ≤ 1 + s) u, st, hout]
+      rw [filterMap_unique_neighbor G hx (1 + s) u w huw i]
+    have hm_succ (u : V) : (st' u).mergedColor = 0 := by
+      rw [hunfold u]
+      simp [deltaPlusOneStep, hlt, st, ih_m u]
     refine ⟨fun i u w huw hout => ?_, fun i u => ?_, hm_succ⟩
-    · rw [hstep_eq i u, hout]
-      dsimp only
-      rw [filterMap_unique_neighbor G hx (1 + s) u w huw i, hstep_eq i w]
-      cases (nbrList G x w)[i.val]? <;> exact cvColor_ne (ih_ne i u w huw hout)
+    · change (st' u).slotColor i ≠ (st' w).slotColor i
+      rw [hslot_some huw hout, hunfold w]
+      simp only [deltaPlusOneStep, hnz, ↓reduceIte, hlt, ↓reduceDIte]
+      cases (st w).nbrUIDs[i.val]? <;> exact cvColor_ne (ih_ne i u w huw hout)
     · simp only [Nat.succ_ne_zero, ↓reduceIte, Function.iterate_succ_apply']
-      rw [hstep_eq i u]
       have h2B : 2 ≤ cvBound^[s] C := two_le_iterate_cvBound hC2 s
       cases hopt : (nbrList G x u)[i.val]? with
       | none =>
-        dsimp only
-        have ha := ih_lt' i u
-        exact cvColor_lt (by split_ifs <;> omega) ha (by split_ifs <;> omega)
+        change (st' u).slotColor i < _
+        rw [hunfold u]
+        simp only [deltaPlusOneStep, hnz, ↓reduceIte, hlt, ↓reduceDIte,
+          state_nbrUIDs_of_pos G Δ C x (by omega : 1 ≤ 1 + s) u, st, hopt]
+        split_ifs with ha0
+        · exact cvColor_lt (ha0 ▸ Nat.zero_ne_one) (ih_lt' i u) h2B
+        · exact cvColor_lt ha0 (ih_lt' i u) (Nat.zero_lt_of_lt h2B)
       | some tid =>
         obtain ⟨w, hw_mem, rfl⟩ :=
           Multiset.mem_map.1 ((Multiset.mem_sort _).1 (List.mem_of_getElem? hopt))
         have huw : G.Adj u w := (G.mem_neighborFinset u w).1 hw_mem
-        dsimp only
-        rw [filterMap_unique_neighbor G hx (1 + s) u w huw i]
+        change (st' u).slotColor i < _
+        rw [hslot_some huw hopt]
         exact cvColor_lt (ih_ne i u w huw hopt) (ih_lt' i u) (ih_lt' i w)
 
 /-- After `1 + Nat.logStar C` rounds, all `Δ` slot colorings stay fixed for all subsequent rounds,
@@ -589,16 +566,15 @@ private theorem slotColor_after_cv {Δ C : ℕ} {x : V → ℕ} (hx : Function.I
     ∀ (i : Fin Δ) (u : V),
       ((deltaPlusOneColoring Δ C).state G x (1 + Nat.logStar C) u).slotColor i < 6 := by
   obtain ⟨hcv_ne, hcv_lt, _⟩ := state_cv_phase G hx hC le_rfl
-  refine ⟨fun t => ?_, hcv_ne, fun i u => ?_⟩
-  · induction t with
-    | zero => intro u; rfl
+  refine ⟨?_, hcv_ne, fun i u => ?_⟩
+  · intro t u
+    induction t generalizing u with
+    | zero => rfl
     | succ t ih =>
-      intro u
       have hnz : 1 + Nat.logStar C + t ≠ 0 := by omega
       have hnlt : ¬ 1 + Nat.logStar C + t < 1 + Nat.logStar C := by omega
       rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
-      dsimp only [deltaPlusOneStep]
-      simp only [hnz, ↓reduceIte, hnlt, ↓reduceDIte]
+      simp only [deltaPlusOneStep, hnz, ↓reduceIte, hnlt, ↓reduceDIte]
       split_ifs <;> exact ih u
   · have h := hcv_lt i u
     split_ifs at h with hs0
@@ -748,14 +724,14 @@ theorem deltaPlusOneColoring_state_add (Δ C : ℕ) (x : V → ℕ) (t : ℕ) (u
   induction t generalizing u with
   | zero => rfl
   | succ t ih =>
-    have hnz : deltaPlusOneRounds Δ C + t ≠ 0 := by unfold deltaPlusOneRounds; omega
-    have hnlt1 : ¬ deltaPlusOneRounds Δ C + t < 1 + Nat.logStar C := by
+    have h1 : ¬ deltaPlusOneRounds Δ C + t < 1 + Nat.logStar C := by
       unfold deltaPlusOneRounds; omega
-    have hnlt2 : ¬ deltaPlusOneRounds Δ C + t < 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) := by
-      unfold deltaPlusOneRounds; rw [Nat.mul_comm 5 Δ, Nat.mul_assoc]; omega
+    have h2 : ¬ deltaPlusOneRounds Δ C + t < 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) := by
+      unfold deltaPlusOneRounds
+      rw [Nat.mul_comm 5 Δ, Nat.mul_assoc]; omega
+    have h0 : deltaPlusOneRounds Δ C + t ≠ 0 := by omega
     rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
-    dsimp only [deltaPlusOneStep]
-    simp only [hnz, ↓reduceIte, hnlt1, hnlt2, ↓reduceDIte]
+    simp only [deltaPlusOneStep, h0, ↓reduceIte, h1, h2, ↓reduceDIte]
     exact ih u
 
 /-- Step towards `#7505` (not the cited endpoint, after [Cole and Vishkin][ColeVishkin1986],
@@ -773,14 +749,11 @@ theorem deltaPlusOneColoring_isProperColoring {Δ C : ℕ} (hΔ : G.maxDegree �
   have hR : 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) = deltaPlusOneRounds Δ C := by
     unfold deltaPlusOneRounds; rw [Nat.mul_comm 5 Δ, Nat.mul_assoc]
   rw [hR] at hprop hlt
-  rw [SimpleGraph.isProperColoring_iff]
-  intro u v huv heq
-  rw [deltaPlusOneColoring_run_eq, deltaPlusOneColoring_run_eq] at heq
-  have hst_u := deltaPlusOneColoring_state_add G Δ C x t u
-  have hst_v := deltaPlusOneColoring_state_add G Δ C x t v
+  refine (G.isProperColoring_iff).2 fun u v huv heq => ?_
   have hval := congrArg Fin.val heq
-  rw [hst_u, hst_v, Fin.coe_clamp, Fin.coe_clamp,
-    Nat.min_eq_left (Nat.le_of_lt_succ (hlt u)),
+  rw [deltaPlusOneColoring_run_eq, deltaPlusOneColoring_run_eq,
+    deltaPlusOneColoring_state_add G Δ C x t u, deltaPlusOneColoring_state_add G Δ C x t v,
+    Fin.coe_clamp, Fin.coe_clamp, Nat.min_eq_left (Nat.le_of_lt_succ (hlt u)),
     Nat.min_eq_left (Nat.le_of_lt_succ (hlt v))] at hval
   exact hprop u v ((partialGraph_eq_self G hΔ hx).2 huv) hval
 

@@ -73,27 +73,24 @@ private theorem load_edge_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (j : Fin 
     exact_mod_cast Nat.mul_pos hρ.r_pos (Fintype.card_pos_iff.2 ⟨T.e0 e⟩)
   have h1 : (load lhat n o (.edge j e) : ℝ) ^ 2 ≤
       ∑ e', (edgeLoads (load lhat n o) j e' : ℝ) ^ 2 := by
-    rw [show (load lhat n o (.edge j e)) = edgeLoads (load lhat n o) j e from
-      (edgeLoads_of_lt _ j.2 e).symm]
+    rw [← edgeLoads_of_lt (load lhat n o) j.2 e]
     exact single_le_sum (f := fun e' => (edgeLoads (load lhat n o) j e' : ℝ) ^ 2)
       (fun _ _ => sq_nonneg _) (mem_univ e)
-  have h2 := Tower.kap_sq (edgeLoads (load lhat n o) j)
   have h3 := sum_nonneg fun e' (_ : e' ∈ univ) => sq_nonneg (edgeLoads (load lhat n o) j e' : ℝ)
-  have h4 := pow_le_pow_left₀ (Tower.kap_nonneg _) hk 2
   have hk0 := normBound_nonneg (FL := FL) (Uu := Uu) (A := A) (lhat := lhat)
   refine (pow_le_pow_iff_left₀ (Nat.cast_nonneg _) (by positivity) two_ne_zero).1 ?_
-  nlinarith [mul_le_mul_of_nonneg_right hrX h3]
+  nlinarith [Tower.kap_sq (edgeLoads (load lhat n o) j), pow_le_pow_left₀ (Tower.kap_nonneg _) hk 2,
+    mul_le_mul_of_nonneg_right hrX h3]
 
 /-- The number of units at a vertex is at most `3 b` times the bound for the norms, plus one. -/
 private theorem minUnits_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (l : VertexMove FL) :
     (l.minUnits (load lhat n o) : ℝ) ≤ 3 * b * normBound FL Uu A lhat + 1 := by
   obtain ⟨j, i, ω, d⟩ := l
   set nf : T.Ed j → ℕ := fun e => load lhat n o (.edge j.castSucc e)
-  have hk : T.kap nf ≤ normBound FL Uu A lhat := by
-    rw [show nf = edgeLoads (load lhat n o) j from
-      funext fun e => (edgeLoads_of_lt (load lhat n o) (by omega) e).symm]
-    exact kap_le_normBound hρ hρ1 (by omega)
-  have hk0 := Tower.kap_nonneg nf
+  have hk : T.kap nf ≤ normBound FL Uu A lhat :=
+    (show nf = edgeLoads (load lhat n o) j from
+      funext fun e => (edgeLoads_of_lt (load lhat n o) (Nat.lt_succ_of_lt j.2) e).symm) ▸
+        kap_le_normBound hρ hρ1 j.2.le
   have hb : (1 : ℝ) ≤ b := by exact_mod_cast hρ.b_pos
   have ha : (1 : ℝ) ≤ FL.scale := by exact_mod_cast FL.scale_pos
   have hX : (1 : ℝ) ≤ Fintype.card (T.X (j + 1)) := by
@@ -102,24 +99,25 @@ private theorem minUnits_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (l : Verte
   have h1 : (FL.scale : ℝ) * (⟨j, i, ω, d⟩ : VertexMove FL).minUnits (load lhat n o) ≤
       √(T.NN2 (T.nEnd i nf ω)) + FL.scale :=
     VertexMove.scale_mul_minUnits_le _ _ fun q => load_segment_le j i ω q
-  have h2 := T.end_norm j.2 hρ.b_pos hρ.b_le (i := i) (n := nf)
   have h3 : √(T.NN2 (T.nEnd i nf ω)) ^ 2 ≤ ∑ ω', √(T.NN2 (T.nEnd i nf ω')) ^ 2 :=
     single_le_sum (f := fun ω' => √(T.NN2 (T.nEnd i nf ω')) ^ 2) (fun _ _ => sq_nonneg _)
       (mem_univ ω)
   have h4 : (r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (T.ty · = i), (nf e : ℝ) ^ 2 ≤
-      T.kap nf ^ 2 := by
-    rw [Tower.kap_sq]
-    gcongr
-    exact subset_univ _
+      T.kap nf ^ 2 :=
+    Tower.kap_sq nf ▸ mul_le_mul_of_nonneg_left
+      (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => sq_nonneg _) (by positivity)
   have h5 : √(T.NN2 (T.nEnd i nf ω)) ^ 2 ≤ 8 * b * T.kap nf ^ 2 := by
     have h6 := (mul_le_mul_of_nonneg_left h3 (by positivity : (0 : ℝ) ≤
-      Fintype.card (T.X (j + 1)) / b)).trans (h2.trans (mul_le_mul_of_nonneg_left h4 (by norm_num)))
+      Fintype.card (T.X (j + 1)) / b)).trans
+        ((T.end_norm j.2 hρ.b_pos hρ.b_le (i := i) (n := nf)).trans
+          (mul_le_mul_of_nonneg_left h4 (by norm_num)))
     rw [div_mul_eq_mul_div, div_le_iff₀ (by positivity)] at h6
     nlinarith [sq_nonneg (√(T.NN2 (T.nEnd i nf ω)))]
+  have hk0 := Tower.kap_nonneg nf
   have h7 : √(T.NN2 (T.nEnd i nf ω)) ≤ 3 * b * T.kap nf :=
     (pow_le_pow_iff_left₀ (Real.sqrt_nonneg _) (by positivity) two_ne_zero).1 (by nlinarith)
-  have hk0' := normBound_nonneg (FL := FL) (Uu := Uu) (A := A) (lhat := lhat)
   refine le_of_mul_le_mul_left ?_ (by positivity : (0 : ℝ) < FL.scale)
+  have hk0' := normBound_nonneg (FL := FL) (Uu := Uu) (A := A) (lhat := lhat)
   nlinarith [mul_le_mul_of_nonneg_left hk (by positivity : (0 : ℝ) ≤ 3 * b),
     mul_le_mul_of_nonneg_right ha (by positivity : (0 : ℝ) ≤ 3 * b * normBound FL Uu A lhat)]
 
@@ -137,27 +135,19 @@ private theorem moveCount_le_moveCap (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1)
     exact_mod_cast this.trans ((by nlinarith : 2 * normBound FL Uu A lhat ≤
       3 * b * normBound FL Uu A lhat).trans hceil)
   unfold moveCap
-  rcases mv with ⟨x, hx⟩ | l
-  · rcases x with ⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e
-    · have := moveCount_start_le (lhat := lhat) (n := n) (o := o) hx
-      have := batchSize_le (ch := ch) (lhat := lhat) (n := n) a c γ
-      have := (Nat.div_le_self (n a c) (Fintype.card (T.X 0))).trans (hn a c)
-      omega
-    · have := (moveCount_relay_le _ hx).trans (hedge j.castSucc e)
-      omega
-    · have := (moveCount_middle_le (lhat := lhat) (n := n) (o := o) hx).trans
-        (by split_ifs; exacts [hedge j.castSucc e, Nat.zero_le _])
-      omega
-    · have := (moveCount_relay_le _ hx).trans (hedge (Fin.last J) e)
-      omega
-  · have h1 := moveCount_vertex_le (lhat := lhat) (n := n) (o := o) l
-    have h2 := minUnits_le (lhat := lhat) (n := n) (o := o) (Uu := Uu) (A := A) hρ hρ1 l
-    have h3 : (l.minUnits (load lhat n o) : ℝ) <
-        (⌈3 * (b : ℝ) * normBound FL Uu A lhat⌉₊ + 2 : ℕ) := by
-      push_cast
-      linarith
-    have := Nat.cast_lt.1 h3
+  rcases mv with ⟨⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e, hx⟩ | l
+  · have := (Nat.div_le_self (n a c) (Fintype.card (T.X 0))).trans (hn a c)
+    linarith [moveCount_start_le (lhat := lhat) (n := n) (o := o) hx,
+      batchSize_le (ch := ch) (lhat := lhat) (n := n) a c γ]
+  · exact ((moveCount_relay_le _ hx).trans (hedge j.castSucc e)).trans (Nat.le_add_left _ _)
+  · have := (moveCount_middle_le (lhat := lhat) (n := n) (o := o) hx).trans
+      (by split_ifs; exacts [hedge j.castSucc e, Nat.zero_le _])
     omega
+  · exact ((moveCount_relay_le _ hx).trans (hedge (Fin.last J) e)).trans (Nat.le_add_left _ _)
+  · refine (moveCount_vertex_le l).trans (Nat.cast_le (α := ℝ) |>.1 ?_)
+    push_cast
+    linarith [minUnits_le (lhat := lhat) (n := n) (o := o) (Uu := Uu) (A := A) hρ hρ1 l,
+      (U0.cast_nonneg : (0 : ℝ) ≤ U0)]
 
 /-- **The tower plan obeys the rules** ([AnthropicVPVNP2026], proof of Theorem H.2, pp. 46–48),
 with the bound `moveCap` for the numbers of units of its moves; the rate `ρ ≤ 1` bounds the norms
@@ -212,42 +202,33 @@ theorem edgeUnitBound_pow_le (hD : 0 < D) (hρ : 0 ≤ ρ) (hh : 0 < h)
     (edgeUnitBound FL Uu A lhat ρ : ℝ) ^ q * (Fintype.card (T.X 0) : ℝ) ^ p ≤
       (2 * (h : ℝ)) ^ q * normBound FL Uu A lhat ^ q := by
   have hD1 : (1 : ℝ) ≤ D := by exact_mod_cast hD
-  have h2h : (1 : ℝ) ≤ 2 * h := by
-    have : (1 : ℝ) ≤ h := by exact_mod_cast hh
-    linarith
+  have h2h : (1 : ℝ) ≤ 2 * h := by exact_mod_cast (by omega : 1 ≤ 2 * h)
   have hk := normBound_nonneg (FL := FL) (Uu := Uu) (A := A) (lhat := lhat)
-  have hDJ : (D : ℝ) ^ J ≤ Fintype.card (T.X 0) := by
-    have : (1 : ℝ) ≤ Fintype.card (T.X J) := by exact_mod_cast hX
-    rw [show (Fintype.card (T.X 0) : ℝ) = D ^ J * Fintype.card (T.X J) by
-      exact_mod_cast T.card_X_zero le_rfl]
-    exact le_mul_of_one_le_right (by positivity) this
+  have hDJ : (D : ℝ) ^ J ≤ Fintype.card (T.X 0) := by exact_mod_cast Tower.pow_le_card_X_zero hX
   set x : ℝ := (Fintype.card (T.X 0) : ℝ)
   have hx : 0 < x := (one_le_pow₀ hD1).trans_lt' one_pos |>.trans_le hDJ
   set M := max 1 (√D * ρ) with hMdef
   have hM : (M ^ 2) ^ q ≤ (D : ℝ) ^ (q - 2 * p) := by
     rcases le_total (√D * ρ) 1 with hle | hle
-    · rw [hMdef, max_eq_left hle, one_pow, one_pow]
-      exact one_le_pow₀ hD1
+    · simpa only [hMdef, max_eq_left hle, one_pow] using one_le_pow₀ hD1
     · rw [hMdef, max_eq_right hle, mul_pow, Real.sq_sqrt (zero_le_one.trans hD1)]
       calc ((D : ℝ) * ρ ^ 2) ^ q = (D : ℝ) ^ (q - 2 * p) * (ρ ^ q * (D : ℝ) ^ p) ^ 2 := by
             rw [mul_pow, ← pow_mul, mul_pow, ← pow_mul, ← pow_mul, mul_comm q 2]
             nth_rewrite 1 [← Nat.sub_add_cancel hpq]
             ring
         _ ≤ (D : ℝ) ^ (q - 2 * p) * 1 := by
-            gcongr
-            exact pow_le_one₀ (by positivity) hgain
+          gcongr
+          exact pow_le_one₀ (by positivity) hgain
         _ = _ := mul_one _
   have hb : 0 ≤ edgeBound FL Uu A lhat ρ := by unfold edgeBound; positivity
   have key : (edgeBound FL Uu A lhat ρ ^ q * x ^ p) ^ 2 ≤
       ((2 * (h : ℝ)) ^ q * normBound FL Uu A lhat ^ q) ^ 2 := by
-    have ha : √(2 * h / x) ^ 2 = 2 * h / x := Real.sq_sqrt (by positivity)
+    have haq : (2 * h / x) ^ q = (√(2 * h / x) ^ 2) ^ q := by rw [Real.sq_sqrt (by positivity)]
     have hxq : x ^ (q - 2 * p) * (x ^ p) ^ 2 = x ^ q := by
-      rw [← pow_mul, ← pow_add]
-      congr 1
-      omega
+      rw [← pow_mul, ← pow_add, mul_comm p 2, Nat.sub_add_cancel hpq]
     calc (edgeBound FL Uu A lhat ρ ^ q * x ^ p) ^ 2 =
         (2 * h / x) ^ q * ((M ^ 2) ^ q) ^ J * (normBound FL Uu A lhat ^ q) ^ 2 * (x ^ p) ^ 2 := by
-          rw [edgeBound, ← hMdef, show (2 * h / x) ^ q = (√(2 * h / x) ^ 2) ^ q by rw [ha]]
+          rw [edgeBound, ← hMdef, haq]
           ring
       _ ≤ (2 * h / x) ^ q * ((D : ℝ) ^ J) ^ (q - 2 * p) * (normBound FL Uu A lhat ^ q) ^ 2 *
           (x ^ p) ^ 2 := by
@@ -278,15 +259,12 @@ theorem normBound_le (hm : 1 ≤ m) (hUu : Uu ≤ 2 * Fintype.card (T.X 0) * m)
     Uu * (lhat / X + 2 * A) ≤ 2 * X * m * (lhat / X + 2 * X) := by gcongr
     _ = 2 * m * (X * (lhat / X) + 2 * X ^ 2) := by ring
     _ ≤ _ := by gcongr; exact Nat.mul_div_le lhat X
-  have hnR : (startBound T Uu A lhat : ℝ) ≤ 2 * m * (lhat + 2 * (X : ℝ) ^ 2) := by
-    exact_mod_cast hn
-  have hX1 : (1 : ℝ) ≤ X := by exact_mod_cast hX
-  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
   have h1 : (1 : ℝ) ≤ m * (lhat + 2 * (X : ℝ) ^ 2) := by
-    nlinarith [(lhat.cast_nonneg : (0 : ℝ) ≤ lhat)]
-  have hC := Real.sqrt_nonneg FL.contraction
+    nlinarith [(mod_cast hX : (1 : ℝ) ≤ X), (mod_cast hm : (1 : ℝ) ≤ m),
+      (lhat.cast_nonneg : (0 : ℝ) ≤ lhat)]
   have p1 : √h * (r * X / 2) * startBound T Uu A lhat ≤
-      √h * (r * X / 2) * (2 * m * (lhat + 2 * (X : ℝ) ^ 2)) := by gcongr
+      √h * (r * X / 2) * (2 * m * (lhat + 2 * (X : ℝ) ^ 2)) :=
+    mul_le_mul_of_nonneg_left (by exact_mod_cast hn) (by positivity)
   have p2 : √FL.contraction * FL.scale / b * X ≤
       √FL.contraction * FL.scale * X * (m * (lhat + 2 * (X : ℝ) ^ 2)) := calc
     _ ≤ √FL.contraction * FL.scale * X * 1 := by
@@ -295,6 +273,6 @@ theorem normBound_le (hm : 1 ≤ m) (hUu : Uu ≤ 2 * Fintype.card (T.X 0) * m)
         exact div_le_self (by positivity) (by exact_mod_cast hb)
     _ ≤ _ := by gcongr
   unfold normBound
-  nlinarith [p1, p2]
+  nlinarith [Real.sqrt_nonneg FL.contraction, p1, p2]
 
 end Cslib.Circuits.Arithmetic.Separation.TowerPlan

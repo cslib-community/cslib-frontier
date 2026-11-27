@@ -44,7 +44,12 @@ inductive Tree where
   | nil
   /-- a tree with two subtrees -/
   | cons (a b : Tree)
-  deriving DecidableEq
+
+/- The derived decision procedure is exposed: evaluation proofs decide equalities of trees by
+unfolding. -/
+@[expose] section
+deriving instance DecidableEq for Tree
+end
 
 namespace Tree
 

@@ -46,10 +46,8 @@ theorem abs_bandValue_le {L m N β : ℕ} (side : Bool) (matrix : ℕ → ℕ �
     (a : Fin (7 ^ L)) : |bandValue L m N β side matrix a.val| ≤ A := by
   cases side <;> unfold bandValue <;> simp only [Bool.false_eq_true, ↓reduceIte]
   all_goals
-    split_ifs with hq hr
-    · simpa only [abs_zero] using hA
-    · exact hmat _ hr _ (selected_parts_bounds a hq).2
-    · simpa only [abs_zero] using hA
+    split_ifs with hq hr <;>
+      first | simpa only [abs_zero] using hA | exact hmat _ hr _ (selected_parts_bounds a hq).2
 
 /-- A real call of the unchanged encoder in its low 32-register bank. Parameters in the
 other registers, arbitrary input headers and arbitrary outside memory are preserved. -/
@@ -69,10 +67,8 @@ theorem exec_encoderKernel {w L m N : ℕ} (hw : 0 < w) (side : Bool)
   obtain ⟨y, hy, ⟨hv, hf, _, _⟩, hframe⟩ := ExecWithin.rename_post encoderRegisters_injective
     (Encoding.exec hw side arr (x.comap encoderRegisters) hheader hinput A hA ha hmag
       (encoder_fits hfit))
-  refine ⟨y, hy, hv, hf, fun i hi => hframe i ?_⟩
-  intro j hj
-  have hv := congrArg Fin.val hj
-  change j.val = i.val at hv
+  refine ⟨y, hy, hv, hf, fun i hi => hframe i fun j hj => ?_⟩
+  have hv : j.val = i.val := congrArg Fin.val hj
   omega
 
 /-- Native cost of preparing, encoding and collecting one shared band. -/
@@ -111,10 +107,9 @@ theorem exec_band {w L m N : ℕ} (hw : 0 < w) (side : Bool) (β : ℕ) (x : Dat
   refine ⟨y, ?_, hyp, hyb, ?_, ?_⟩
   · simpa only [bandTime, Nat.add_assoc] using hep.seq (hee.seq hec)
   · intro p hp
-    have heq : catalogueAddress L m N side β p =
-        catalogueAddress L m N side β 0 + p := by simp [catalogueAddress]
-    rw [heq, hmem, ArrayCopy.copyPrefix_read hp]
-    exact hev p hp
+    have heq : catalogueAddress L m N side β p = catalogueAddress L m N side β 0 + p := by
+      simp [catalogueAddress]
+    simpa only [heq, hmem, ArrayCopy.copyPrefix_read hp, catalogueValue] using hev p hp
   · intro b hb hc
     rw [hmem, ArrayCopy.copyPrefix_outside hc]
     calc

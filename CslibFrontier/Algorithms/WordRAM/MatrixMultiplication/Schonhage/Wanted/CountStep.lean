@@ -64,10 +64,10 @@ theorem exec_countStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ �
   have ht : key n < B ^ 2 := tileKey_lt hm _ hpair.1 hpair.2
   have hβ : β < B := bandOf_lt_numBands hm N I hpair.1
   have hγ : γ < B := bandOf_lt_numBands hm N J hpair.2
-  have hB : B ≤ B ^ 2 := by nlinarith only [hβ]
+  have hB : B ≤ B ^ 2 := Nat.le_self_pow (by decide) B
   have hBeq : B ^ 2 = numBands L m N ^ 2 := rfl
   have h10 := Nat.zero_le (10 ^ L)
-  have hprod : β * B ≤ key n := by dsimp [key, tileKey, Function.comp_def, β, B, I]; omega
+  have hprod : β * B ≤ key n := Nat.le_add_right _ _
   have hcle : c ≤ n := Nat.count_le _
   have hl := local_fits hfit
   have hend := memoryLimit_eq L m N Q
@@ -84,10 +84,8 @@ theorem exec_countStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ �
   have hcf : Fits w (countAddress L Q + key n) :=
     hf _ (by unfold countAddress tableAddress inputLimit; omega)
   have hload : x.mem (countAddress L Q + key n) = c := hcounts _ ht
-  have hI : x.mem (n * 2 + 5) = I :=
-    (congrArg x.mem (by omega : n * 2 + 5 = 5 + 2 * n)).trans hinput.1
-  have hJ : x.mem (n * 2 + 5 + 1) = J :=
-    (congrArg x.mem (by omega : n * 2 + 5 + 1 = 5 + 2 * n + 1)).trans hinput.2
+  obtain ⟨hI, hJ⟩ : x.mem (n * 2 + 5) = I ∧ x.mem (n * 2 + 5 + 1) = J := by
+    simpa only [Nat.mul_comm n 2, Nat.add_comm (2 * n) 5] using hinput
   dsimp only [β, γ, B, I, J, bandOf] at hβf hγf hpf
   dsimp only [I, J] at hI hJ
   dsimp only [key, Function.comp_def, tileKey, bandOf] at hkf hcf hload

@@ -111,9 +111,7 @@ instance (body : RawFormula L (k :: Γ) (α ⊕ Fin k)) : Decidable (Positive bo
 theorem inner_positive_eq_headMark :
     @Operator.Marking.inner Γ [k] (policy.positive k (0 : Fin 1)) = @headMark Γ k := by
   funext n r
-  cases r with
-  | here => rfl
-  | there r => rfl
+  cases r <;> rfl
 
 /-- An LFP is well formed exactly when its body is well formed and positive in its own relation. -/
 @[simp] theorem wellFormed_lfp (body : RawFormula L (k :: Γ) (α ⊕ Fin k))
@@ -123,11 +121,7 @@ theorem inner_positive_eq_headMark :
   change (∀ i : Fin 1, body.wellFormed policy = true ∧
     body.checkPolarity policy.variance true
       (Operator.Marking.inner (policy.positive k i)) = true) ↔ _
-  simp only [Fin.forall_fin_one, Positive]
-  have hcheck := congrArg
-    (fun mark : Operator.Marking (k :: Γ) => body.checkPolarity policy.variance true mark)
-    (inner_positive_eq_headMark (Γ := Γ) (k := k))
-  rw [hcheck]
+  simp only [Fin.forall_fin_one, inner_positive_eq_headMark, Positive]
 
 namespace Formula
 

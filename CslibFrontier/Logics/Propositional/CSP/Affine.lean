@@ -147,14 +147,10 @@ theorem exists_separating_affineEquation [Finite V] {R : Set (V → Bool)}
     obtain ⟨f, hf, hker⟩ :=
       Submodule.exists_le_ker_of_notMem (K := ZMod 2) (p := W) hnot
     let g : (V → Bool) → Bool := fun x => decide (f x ≠ 0)
-    have hadd : ∀ x y, g (x + y) = (g x ^^ g y) := by
-      intro x y
-      change decide (f (x + y) ≠ 0) = _
-      rw [map_add]
-      have h (s t : ZMod 2) : decide (s + t ≠ 0) =
-          (decide (s ≠ 0) ^^ decide (t ≠ 0)) := by
+    have hadd (x y : V → Bool) : g (x + y) = (g x ^^ g y) := by
+      have h (s t : ZMod 2) : decide (s + t ≠ 0) = (decide (s ≠ 0) ^^ decide (t ≠ 0)) := by
         fin_cases s <;> fin_cases t <;> decide
-      exact h _ _
+      simpa only [g, map_add] using h (f x) (f y)
     obtain ⟨S, hS⟩ := Cslib.BitString.exists_eq_parityOn_iff.mpr hadd
     have hg (b : V → Bool) (hb : b ∈ R) : g b = g c := by
       have hmem : b + c ∈ W := by
@@ -171,9 +167,8 @@ theorem exists_separating_affineEquation [Finite V] {R : Set (V → Bool)}
       exact (congrFun hS b).symm.trans ((hg b hb).trans (congrFun hS c))
     · intro he
       have hgc : g a = g c := by
-        rw [hS]
-        simpa only [AffineEquation.Holds, Finset.sum_map_toList,
-          ← Cslib.parityOn_eq_sum] using he
+        simpa only [hS, AffineEquation.Holds, Finset.sum_map_toList, ← Cslib.parityOn_eq_sum]
+          using he
       have hgac : g (a + c) = false := by rw [hadd, hgc, Bool.xor_self]
       exact Bool.false_ne_true (hgac.symm.trans (by simpa [g] using hf))
   · exact ⟨⟨[], true⟩, fun b hb => (hne ⟨b, hb⟩).elim, by simp [AffineEquation.Holds]⟩
@@ -205,7 +200,6 @@ theorem isPolymorphism_parity_iff_exists_affineSystem [Finite V] (R : Set (V →
       exact hbad a ha (hF _ (List.mem_map.mpr ⟨a, by simp, rfl⟩))
   · rintro ⟨F, hF⟩
     have hset : R = {a | F.Holds a} := Set.ext hF
-    rw [hset]
-    exact F.isPolymorphism_parity
+    exact hset ▸ F.isPolymorphism_parity
 
 end Cslib.Logic.PL

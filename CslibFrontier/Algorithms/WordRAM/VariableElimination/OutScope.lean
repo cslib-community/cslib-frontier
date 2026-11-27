@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.FlattenScope
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -289,10 +290,8 @@ theorem buildOutScope_spec {w : ℕ} {args : BuildOutScopeArgs}
         2 + args.bucketLen * (3 + 2 * maxScope + maxScope * (2 + W_out)) := by
   dsimp only
   unfold buildOutScope
-  have hK_le : (bucket.flatMap FactorTable.scope).length ≤ args.bucketLen * maxScope := by
-    rw [← hlen, List.length_flatMap]
-    simpa using
-      List.sum_le_length_nsmul (bucket.map (·.scope.length)) maxScope (by simpa using hmax)
+  have hK_le : (bucket.flatMap FactorTable.scope).length ≤ args.bucketLen * maxScope :=
+    hlen ▸ List.length_flatMap_le hmax
   have hss_cost := sumScopeLen_cost ⟨args.bucketPtr, args.bucketLen⟩ s
   obtain ⟨hfl_val, hfl_fr, hfl_pres, hfl_res, hfl_holds, hfl_cost⟩ :=
     flattenScopes_spec (w := w) (args := ⟨args.bucketPtr, args.bucketLen, _⟩) hwf hb hlen rfl hmax
@@ -310,7 +309,7 @@ theorem buildOutScope_spec {w : ℕ} {args : BuildOutScopeArgs}
       (bucketOutScope_eq_foldr args.x bucket ▸ hW) (hfit.of_le (by dsimp only at hfl_fr ⊢; omega))
   dsimp only at hss_cost hfl_cost hdd_cost hfl_fr hdd_fr
   refine ⟨⟨sumScopeLen_valid hb hlen, hfl_val, hdd_val⟩, by omega,
-    hfl_pres.trans (hdd_pres.mono_bound hfl_pres.2.1), hfl_pres.2.1.trans hdd_lo, hdd_len,
+    hfl_pres.trans_frontier hdd_pres, hfl_pres.2.1.trans hdd_lo, hdd_len,
     hdd_holds, ?_⟩
   have hK_cost := Nat.mul_le_mul_right (2 + W_out) hK_le
   calc _ ≤ args.bucketLen + ((1 + args.bucketLen * (2 + 2 * maxScope)) +

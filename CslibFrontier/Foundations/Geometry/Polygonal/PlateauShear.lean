@@ -45,13 +45,11 @@ public section
 
 namespace Cslib.Polygonal
 
-
 private noncomputable def profile (h r y : ℝ) : ℝ :=
   max 0 (min 1 (2 - 2 * |y - h| / r))
 
 private theorem profile_continuous (h r : ℝ) : Continuous (profile h r) := by
-  unfold profile
-  fun_prop
+  fun_prop [profile]
 
 private theorem profile_inner {h r y : ℝ} (hr : 0 < r) (hy : |y - h| ≤ r / 2) :
     profile h r y = 1 := by
@@ -250,17 +248,15 @@ theorem plateauShear_zero (p : Route) (h r : ℝ) : p.plateauShear h r 0 = p := 
 theorem plateauShear_eq_self {p : Route} {h r : ℝ} (hr : 0 < r) (d : ℝ)
     (hp : (∀ i, (p.point i).im ≤ h - r) ∨ (∀ i, h + r ≤ (p.point i).im)) :
     p.plateauShear h r d = p := by
-  unfold plateauShear
-  split_ifs <;> simp_all [untouched, not_le.mpr hr]
+  simp [plateauShear, untouched, hp, hr.not_ge]
 
 /-- Each original segment contributes between one and five actual image pieces. -/
 theorem segments_plateauShear (p : Route) (h r d : ℝ) :
     p.segments ≤ (p.plateauShear h r d).segments ∧
       (p.plateauShear h r d).segments ≤ 5 * p.segments := by
   unfold plateauShear
-  have h5 : p.segments ≤ 5 * p.segments := by omega
   split_ifs
-  iterate 3 exact ⟨le_rfl, h5⟩
+  iterate 3 exact ⟨le_rfl, Nat.le_mul_of_pos_left p.segments (by decide)⟩
   have hb := segments_mapAtCuts p (levels h r) Complex.imCLM.toLinearMap.toAffineMap
     (Cslib.Polygonal.plateauShear h r d)
   exact ⟨hb.1, hb.2.trans (Nat.mul_le_mul_right _ (Nat.add_le_add_right Finset.card_le_four 1))⟩
@@ -277,15 +273,11 @@ theorem segments_plateauShear_eq {h r : ℝ} (hr : 0 < r) (p : Route) {d : ℝ} 
         ((levels.image fun y => (y-a.im)/(b.im-a.im)).filter fun t => 0<t ∧ t<1)
       1+C.card := by
   change (p.plateauShear h r d).segments =
-    Finset.univ.sum (fun (i : Fin p.segments) =>
-      1+(strictCuts h r (p.point i.castSucc) (p.point i.succ)).card)
-  rw [plateauShear, ite_eq_right hd, ite_eq_right (not_le.mpr hr)]
-  by_cases hu : untouched p h r
-  · rw [ite_eq_left hu]
-    simp only [strictCuts_eq_empty_of_untouched hr hu, Finset.card_empty, add_zero,
-      Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one]
-  · rw [ite_eq_right hu]
-    exact segments_mapAtCuts_eq p (levels h r) Complex.imCLM.toLinearMap.toAffineMap
+    ∑ i : Fin p.segments, (1 + (strictCuts h r (p.point i.castSucc) (p.point i.succ)).card)
+  rw [plateauShear, ite_eq_right hd, ite_eq_right hr.not_ge]
+  split_ifs with hu
+  · simp [strictCuts_eq_empty_of_untouched hr hu]
+  · exact segments_mapAtCuts_eq p (levels h r) Complex.imCLM.toLinearMap.toAffineMap
       (Cslib.Polygonal.plateauShear h r d)
 
 /-- Actual continuum parameter transport. The old interval is strictly positive and lies
@@ -302,20 +294,20 @@ theorem eval_plateauShear {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ)
   revert i
   by_cases hs : d = 0 ∨ untouched p h r
   · obtain ⟨hp, hfix⟩ : p.plateauShear h r d = p ∧ ∀ i t, t ∈ Set.Icc (0 : ℝ) 1 →
-        p.eval i t = Cslib.Polygonal.plateauShear h r d (p.eval i t) := by
-      rcases hs with rfl | hu
-      · exact ⟨plateauShear_zero p h r, fun i t _ => (plateauShear_zero_apply h r _).symm⟩
-      · exact ⟨plateauShear_eq_self hr d hu, fun i t ht => (untouched_eval hr hu d i ht).symm⟩
+        p.eval i t = Cslib.Polygonal.plateauShear h r d (p.eval i t) :=
+      hs.elim
+        (fun hd => ⟨hd ▸ plateauShear_zero p h r,
+          fun _ _ _ => (hd ▸ plateauShear_zero_apply h r _).symm⟩)
+        (fun hu => ⟨plateauShear_eq_self hr d hu, fun i t ht => (untouched_eval hr hu d i ht).symm⟩)
     rw [hp]
-    refine fun i => ⟨i, 0, 1, le_rfl, zero_lt_one, le_rfl, fun t ht => ?_⟩
-    simp only [AffineMap.lineMap_apply_ring', sub_zero, mul_one, add_zero]
-    exact ⟨hfix i t ht, fun _ => True.intro⟩
+    exact fun i => ⟨i, 0, 1, le_rfl, zero_lt_one, le_rfl, fun t ht => by
+      simpa [AffineMap.lineMap_apply_ring'] using hfix i t ht⟩
   obtain ⟨hd, hu⟩ := not_or.1 hs
   rw [plateauShear, ite_eq_right hd, ite_eq_right (not_le.mpr hr), ite_eq_right hu]
-  intro i
-  obtain ⟨j, α, β, hα, hαβ, hβ, _, he⟩ :=
-    eval_mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap) (shear_lineMap h hr d) p i
-  exact ⟨j, α, β, hα, hαβ, hβ, he⟩
+  exact fun i =>
+    let ⟨j, α, β, hα, hαβ, hβ, _, he⟩ :=
+      eval_mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap) (shear_lineMap h hr d) p i
+    ⟨j, α, β, hα, hαβ, hβ, he⟩
 
 /-- Either tagged endpoint is mapped by the actual shear, for every width and displacement. -/
 theorem endpoint_plateauShear (p : Route) (h r d : ℝ) (b : Bool) :
@@ -337,13 +329,12 @@ theorem support_plateauShear (p : Route) (h r d : ℝ) :
     (p.plateauShear h r d).support = Cslib.Polygonal.plateauShear h r d '' p.support := by
   unfold plateauShear
   split_ifs with hd hn hu
-  · subst hd
-    exact (Set.EqOn.image_eq_self fun z _ => plateauShear_zero_apply h r z).symm
-  · rw [support_translate]
-    exact Set.image_congr fun z _ => (plateauShear_of_nonpos hn d z).symm
-  · refine (Set.EqOn.image_eq_self fun z hz => ?_).symm
-    obtain ⟨i, t, ht, rfl⟩ := (p.mem_support_iff z).mp hz
-    exact untouched_eval (lt_of_not_ge hn) hu d i ht
+  · exact hd ▸ (Set.EqOn.image_eq_self fun z _ => plateauShear_zero_apply h r z).symm
+  · simpa only [support_translate] using
+      Set.image_congr fun z _ => (plateauShear_of_nonpos hn d z).symm
+  · exact (Set.EqOn.image_eq_self fun z hz => by
+      obtain ⟨i, t, ht, rfl⟩ := (p.mem_support_iff z).mp hz
+      exact untouched_eval (lt_of_not_ge hn) hu d i ht).symm
   · exact support_mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap)
       (shear_lineMap h (lt_of_not_ge hn) d) p
 
@@ -352,12 +343,9 @@ theorem IsSimple.plateauShear {p : Route} (hp : p.IsSimple) (h r d : ℝ) :
     (p.plateauShear h r d).IsSimple := by
   unfold Route.plateauShear
   split_ifs with hd hn hu
-  · exact hp
-  · exact hp.translate _
-  · exact hp
-  · exact IsSimple.mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap)
-      (shear_lineMap h (lt_of_not_ge hn) d) hp
-      (Cslib.Polygonal.plateauShear h r d).injective
+  exacts [hp, hp.translate _, hp,
+    IsSimple.mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap)
+      (shear_lineMap h (lt_of_not_ge hn) d) hp (Cslib.Polygonal.plateauShear h r d).injective]
 
 end Route
 
@@ -391,72 +379,42 @@ private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b 
   change ∀ y ∈ levels h r, ¬(min (p.eval j α).im (p.eval j β).im < y ∧
     y < max (p.eval j α).im (p.eval j β).im) at hn
   have hzero : q.AtEnd (q.endSegment b) (Route.endTime b 0) b := by
-    rw [Route.AtEnd, q.position_near_end]
-    cases b <;> simp
-  have htzero := Route.endTime_mem b (Set.left_mem_Icc.2 zero_le_one)
-  have hpzero := ((he (Route.endTime b 0) htzero).2 b).mp hzero
-  change p.position j (AffineMap.lineMap α β (Route.endTime b 0)) =
-    (if b then (p.segments : ℝ) else 0) at hpzero
+    cases b <;> simp [Route.AtEnd, q.position_near_end]
+  have hpzero : p.position j (AffineMap.lineMap α β (Route.endTime b 0)) =
+      if b then (p.segments : ℝ) else 0 :=
+    ((he (Route.endTime b 0) (Route.endTime_mem b (Set.left_mem_Icc.2 zero_le_one))).2 b).mp hzero
   cases b
   · simp only [Route.endTime, Bool.false_eq_true, ↓reduceIte, AffineMap.lineMap_apply_zero,
       Route.position] at hpzero
-    obtain rfl : j = 0 := Fin.ext (show j.val = 0 by cast_linarith)
+    have hj0 : j.val = 0 := by cast_linarith
+    obtain rfl : j = 0 := Fin.ext hj0
     obtain rfl : α = 0 := by cast_linarith
-    have hn' : ∀ y ∈ levels h r, ¬(min p.start.im (p.eval 0 β).im < y ∧
-        y < max p.start.im (p.eval 0 β).im) := by
-      simpa only [Route.eval, AffineMap.lineMap_apply_zero, Route.start,
-        Fin.castSucc_zero] using hn
-    have hdif := shear_difference_flat hr d ha hn'
+    have hdif := shear_difference_flat hr d ha (b := p.eval 0 β) (by
+      simpa only [Route.eval, AffineMap.lineMap_apply_zero, Route.endpoint, Bool.false_eq_true,
+        ↓reduceIte, Route.start, Fin.castSucc_zero] using hn)
     refine ⟨β, by linarith, ?_⟩
-    have hq1 := (he 1 (Set.right_mem_Icc.2 zero_le_one)).1
-    rw [AffineMap.lineMap_apply_one] at hq1
-    change q.eval (q.endSegment false) (Route.endTime false 1) = _ at hq1
-    have hstart := Route.endpoint_mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap)
-      (shear_lineMap h hr d) p false
-    rw [q.eval_near_end false 1, hstart, one_smul] at hq1
-    have hp1 := p.eval_near_end false β
-    dsimp only [Route.endSegment, Route.endTime, Bool.false_eq_true, ↓reduceIte] at hp1
-    change plateauShear h r d (p.eval 0 β) - plateauShear h r d p.start = _ at hdif
-    have heval : q.germ false = plateauShear h r d (p.eval 0 β) -
-        plateauShear h r d p.start := by
-      change plateauShear h r d p.start + q.germ false = _ at hq1
-      exact eq_sub_iff_add_eq.mpr (by simpa only [add_comm] using hq1)
-    change p.eval 0 β = p.start + β • p.germ false at hp1
-    rw [heval, hdif, hp1]
-    simp only [Route.endpoint, Bool.false_eq_true, ↓reduceIte, add_sub_cancel_left]
-  · have hβ1 : β = 1 := by
-      simp only [Route.endTime, ↓reduceIte, sub_zero, AffineMap.lineMap_apply_one,
-        Route.position] at hpzero
-      cast_linarith [j.isLt]
-    have hjlast : j = Fin.last p.bends := by
-      apply Fin.ext
-      simp only [Route.endTime, ↓reduceIte, sub_zero, AffineMap.lineMap_apply_one,
-        Route.position, hβ1, Route.segments, Nat.cast_add, Nat.cast_one] at hpzero
-      exact_mod_cast (show (j.val : ℝ) = p.bends by linarith)
-    have hn' : ∀ y ∈ levels h r, ¬(min p.finish.im (p.eval (Fin.last p.bends) α).im < y ∧
-        y < max p.finish.im (p.eval (Fin.last p.bends) α).im) := by
-      simpa only [hjlast, hβ1, Route.eval, AffineMap.lineMap_apply_one, Route.finish,
-        Fin.succ_last, Route.segments, min_comm, max_comm] using hn
-    have hdif := shear_difference_flat hr d ha hn'
+    have hp1 : p.eval 0 β = p.endpoint false + β • p.germ false := p.eval_near_end false β
+    rw [← one_smul ℝ (q.germ false), eq_sub_of_add_eq' (q.eval_near_end false 1).symm,
+      Route.endTime, ite_eq_right Bool.false_ne_true, (he 1 (Set.right_mem_Icc.2 zero_le_one)).1,
+      AffineMap.lineMap_apply_one, Route.endpoint_mapAtCuts
+        (c := Complex.imCLM.toLinearMap.toAffineMap) (shear_lineMap h hr d) p false,
+      hdif, hp1, add_sub_cancel_left]
+  · simp only [Route.endTime, ↓reduceIte, sub_zero, AffineMap.lineMap_apply_one,
+      Route.position, Route.segments, Nat.cast_add, Nat.cast_one] at hpzero
+    obtain rfl : β = 1 := by cast_linarith [j.isLt]
+    obtain rfl : j = Fin.last p.bends := Fin.ext (by cast_linarith)
+    have hdif := shear_difference_flat hr d ha (b := p.eval (Fin.last p.bends) α) (by
+      simpa only [Route.eval, AffineMap.lineMap_apply_one, Route.endpoint, ↓reduceIte,
+        Route.finish, Fin.succ_last, Route.segments, min_comm, max_comm] using hn)
     refine ⟨1 - α, by linarith, ?_⟩
-    have hq1 := (he 0 (Set.left_mem_Icc.2 zero_le_one)).1
-    rw [AffineMap.lineMap_apply_zero, hjlast] at hq1
-    have heval := q.eval_near_end true 1
-    simp only [Route.endTime, ↓reduceIte, sub_self, one_smul] at heval
-    change (rawShear p h r d).eval (q.endSegment true) 0 = _ at heval
-    have hfinish := Route.endpoint_mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap)
-      (shear_lineMap h hr d) p true
-    rw [hq1, hfinish] at heval
-    have hp1 := p.eval_near_end true (1 - α)
-    simp only [Route.endTime, Route.endSegment, ↓reduceIte, sub_sub_cancel] at hp1
-    have heval' : q.germ true = plateauShear h r d (p.eval (Fin.last p.bends) α) -
-        plateauShear h r d p.finish := by
-      exact eq_sub_iff_add_eq.mpr (by simpa only [Route.endpoint, ↓reduceIte, add_comm] using
-        heval.symm)
-    change plateauShear h r d (p.eval (Fin.last p.bends) α) -
-      plateauShear h r d p.finish = _ at hdif
-    change p.eval (Fin.last p.bends) α = p.finish + (1-α) • p.germ true at hp1
-    rw [heval', hdif, hp1]; simp only [Route.endpoint, ↓reduceIte, add_sub_cancel_left]
+    have hp1 : p.eval (Fin.last p.bends) α = p.endpoint true + (1 - α) • p.germ true := by
+      simpa only [Route.endTime, Route.endSegment, ↓reduceIte, sub_sub_cancel] using
+        p.eval_near_end true (1 - α)
+    rw [← one_smul ℝ (q.germ true), eq_sub_of_add_eq' (q.eval_near_end true 1).symm,
+      Route.endTime, ite_eq_left rfl, sub_self, (he 0 (Set.left_mem_Icc.2 zero_le_one)).1,
+      AffineMap.lineMap_apply_zero, Route.endpoint_mapAtCuts
+        (c := Complex.imCLM.toLinearMap.toAffineMap) (shear_lineMap h hr d) p true,
+      hdif, hp1, add_sub_cancel_left]
 
 namespace Route
 
@@ -468,10 +426,8 @@ theorem germ_plateauShear {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b : Bo
     ∃ c : ℝ, 0 < c ∧ (p.plateauShear h r d).germ b = c • p.germ b := by
   unfold plateauShear
   split_ifs with hd hn hu
-  · exact ⟨1, zero_lt_one, (one_smul ℝ _).symm⟩
-  · exact False.elim (not_le_of_gt hr hn)
-  · exact ⟨1, zero_lt_one, (one_smul ℝ _).symm⟩
-  · exact rawShear_germ hr p d b ha
+  exacts [⟨1, zero_lt_one, (one_smul ℝ _).symm⟩, (not_le_of_gt hr hn).elim,
+    ⟨1, zero_lt_one, (one_smul ℝ _).symm⟩, rawShear_germ hr p d b ha]
 
 end Route
 end Cslib.Polygonal

@@ -73,7 +73,7 @@ theorem realizes_epochTickStage4Gen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hh := fastMemHdrs hrep
     have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
       rcases hcore.curEp_or with h01 | h01 <;> simp [FastState.oldEp, h01]
     have hbo := hcore.bufOld_valid
@@ -107,7 +107,7 @@ theorem epochTickStage4GenProg_fastStep {c U V w n_max base : ℕ}
     memoryCost prog s ≤ 124 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (epochTickStage4 fs) s s' := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   set cp := mkWhpCoreParams c U V w n_max
   have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
     rcases hc.curEp_or with h | h <;> simp [FastState.oldEp, h]

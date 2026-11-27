@@ -49,26 +49,23 @@ theorem image_le_of_lipschitzWith_hasFDerivAt {f : E → ℝ} {f' : E → E →L
     f y ≤ f x + f' x (y - x) + β / 2 * ‖y - x‖ ^ 2 := by
   set h := y - x
   -- Along the segment, `φ t = f (x + t h) - t f' x h` grows at most like `β t² ‖h‖² / 2`.
-  set φ : ℝ → ℝ := fun t => f (x + t • h) - t * f' x h with hφ_def
-  set φ' : ℝ → ℝ := fun t => f' (x + t • h) h - f' x h with hφ'_def
-  have hφ : ∀ t, HasDerivAt φ (φ' t) t := fun t => by
-    have hline : HasDerivAt (fun t : ℝ => x + t • h) h t := by
-      simpa using ((hasDerivAt_id t).smul_const h).const_add x
-    exact ((hf (x + t • h)).comp_hasDerivAt t hline).sub (hasDerivAt_mul_const (f' x h))
-  set B : ℝ → ℝ := fun t => f x + β / 2 * ‖h‖ ^ 2 * t ^ 2 with hB_def
-  have hB : ∀ t, HasDerivAt B (β * ‖h‖ ^ 2 * t) t := fun t => by
-    have := ((hasDerivAt_pow 2 t).const_mul ((β : ℝ) / 2 * ‖h‖ ^ 2)).const_add (f x)
-    convert this using 1
-    norm_num
+  set φ : ℝ → ℝ := fun t => f (x + t • h) - t * f' x h
+  set φ' : ℝ → ℝ := fun t => f' (x + t • h) h - f' x h
+  have hφ (t : ℝ) : HasDerivAt φ (φ' t) t :=
+    ((hf (x + t • h)).comp_hasDerivAt t
+      (by simpa using ((hasDerivAt_id t).smul_const h).const_add x)).sub
+      (hasDerivAt_mul_const (f' x h))
+  set B : ℝ → ℝ := fun t => f x + β / 2 * ‖h‖ ^ 2 * t ^ 2
+  have hB (t : ℝ) : HasDerivAt B (β * ‖h‖ ^ 2 * t) t := by
+    convert ((hasDerivAt_pow 2 t).const_mul ((β : ℝ) / 2 * ‖h‖ ^ 2)).const_add (f x) using 1
     ring
   have hbound : ∀ t ∈ Ico (0 : ℝ) 1, φ' t ≤ β * ‖h‖ ^ 2 * t := fun t ht => by
     have hdist : ‖f' (x + t • h) - f' x‖ ≤ β * (t * ‖h‖) := by
-      have := hlip.dist_le_mul (x + t • h) x
-      rwa [dist_eq_norm, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg ht.1]
-        at this
+      simpa only [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg ht.1] using
+        hlip.dist_le_mul (x + t • h) x
     calc φ' t = (f' (x + t • h) - f' x) h := by simp [φ']
-      _ ≤ ‖(f' (x + t • h) - f' x) h‖ := Real.le_norm_self _
-      _ ≤ ‖f' (x + t • h) - f' x‖ * ‖h‖ := ContinuousLinearMap.le_opNorm _ _
+      _ ≤ ‖f' (x + t • h) - f' x‖ * ‖h‖ :=
+        (Real.le_norm_self _).trans (ContinuousLinearMap.le_opNorm _ _)
       _ ≤ β * (t * ‖h‖) * ‖h‖ := by gcongr
       _ = β * ‖h‖ ^ 2 * t := by ring
   have key := image_le_of_deriv_right_le_deriv_boundary
@@ -76,9 +73,7 @@ theorem image_le_of_lipschitzWith_hasFDerivAt {f : E → ℝ} {f' : E → E →L
     (fun t _ => (hφ t).hasDerivWithinAt) (by simp [φ, B])
     (fun t _ => (hB t).continuousAt.continuousWithinAt)
     (fun t _ => (hB t).hasDerivWithinAt) hbound (right_mem_Icc.2 zero_le_one)
-  simp only [φ, B, one_smul, one_mul, one_pow, mul_one] at key
-  have hy : x + h = y := add_sub_cancel x y
-  rw [hy] at key
+  simp only [φ, B, one_smul, one_mul, one_pow, mul_one, h, add_sub_cancel] at key
   linarith
 
 /-- **Self-boundedness** [ShalevShwartzBenDavid2014, (12.6)]: if `f ≥ 0` has derivative `f' x` at
@@ -89,20 +84,18 @@ theorem norm_sq_le_of_lipschitzWith_hasFDerivAt {f : E → ℝ} {f' : E → E �
   have hfx := hf0 x
   -- In each direction `h`, `0 ≤ f (x + s h) ≤ f x + s f' x h + β/2 s² ‖h‖²` for every `s`, so the
   -- discriminant `(f' x h)² - 2β ‖h‖² f x` of this quadratic in `s` is nonpositive.
-  have hdir : ∀ h, |f' x h| ≤ √(2 * β * f x) * ‖h‖ := fun h => by
-    have hq : ∀ s : ℝ, 0 ≤ (β / 2 * ‖h‖ ^ 2) * (s * s) + f' x h * s + f x := fun s => by
+  have hdir (h : E) : |f' x h| ≤ √(2 * β * f x) * ‖h‖ := by
+    have hq (s : ℝ) : 0 ≤ (β / 2 * ‖h‖ ^ 2) * (s * s) + f' x h * s + f x := by
       have := image_le_of_lipschitzWith_hasFDerivAt hf hlip x (x + s • h)
       rw [add_sub_cancel_left, map_smul, smul_eq_mul, norm_smul, Real.norm_eq_abs, mul_pow,
         sq_abs] at this
-      have := hf0 (x + s • h)
-      nlinarith
+      nlinarith [hf0 (x + s • h)]
     have hd := discrim_le_zero hq
     rw [discrim] at hd
     rw [← Real.sqrt_sq (norm_nonneg h), ← Real.sqrt_mul (by positivity), ← Real.sqrt_sq_eq_abs]
     exact Real.sqrt_le_sqrt (by nlinarith)
   have hop : ‖f' x‖ ≤ √(2 * β * f x) :=
-    ContinuousLinearMap.opNorm_le_bound _ (Real.sqrt_nonneg _) fun h => by
-      rw [Real.norm_eq_abs]
-      exact hdir h
+    ContinuousLinearMap.opNorm_le_bound _ (Real.sqrt_nonneg _) fun h =>
+      Real.norm_eq_abs _ ▸ hdir h
   calc ‖f' x‖ ^ 2 ≤ √(2 * β * f x) ^ 2 := by gcongr
     _ = 2 * β * f x := Real.sq_sqrt (by positivity)

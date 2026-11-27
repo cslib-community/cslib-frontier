@@ -81,13 +81,8 @@ theorem opNorm_residual_le_card_div_sixteen (S : Finset (Fin n)) (ω : Coins n)
     ‖Matrix.toEuclideanCLM (𝕜 := ℝ)
       ((signedAdjacency (sample S ω)).map (Int.castRingHom ℝ) - cliqueSignal S)‖ ≤
       (S.card : ℝ) / 16 := by
-  have hnreal : (1 : ℝ) ≤ n := by exact_mod_cast hn
   have hsqrt : (1 : ℝ) ≤ Real.sqrt n := by
-    simpa only [Real.sqrt_one] using Real.sqrt_le_sqrt hnreal
-  have hresidual := opNorm_signedAdjacency_sample_sub_cliqueSignal_le S ω
-  have hbound : ‖Matrix.toEuclideanCLM (𝕜 := ℝ)
-      ((signedAdjacency (sample S ω)).map (Int.castRingHom ℝ) - cliqueSignal S)‖ ≤
-      37 * Real.sqrt n := by linarith
-  linarith
+    simpa only [Real.sqrt_one] using Real.sqrt_le_sqrt (by exact_mod_cast hn : (1 : ℝ) ≤ n)
+  linarith [opNorm_signedAdjacency_sample_sub_cliqueSignal_le S ω]
 
 end Cslib.Algorithms.PlantedClique

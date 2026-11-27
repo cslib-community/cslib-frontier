@@ -103,18 +103,14 @@ private theorem computableInPolyTime_litValue : ComputableInPolyTime
 attribute [local fun_prop] computableInPolyTime_litValue
 
 private theorem computableInPolyTime_termValue : ComputableInPolyTime
-    (fun p : Ctx × Term ℕ => termValue p.1 p.2) (encPair encCtx encTerm) encBool := by
-  have : (fun p : Ctx × Term ℕ => termValue p.1 p.2) = fun p => p.2.all (litValue p.1) := rfl
-  rw [this]
-  fun_prop
+    (fun p : Ctx × Term ℕ => termValue p.1 p.2) (encPair encCtx encTerm) encBool :=
+  show ComputableInPolyTime (fun p : Ctx × Term ℕ => p.2.all (litValue p.1)) _ _ by fun_prop
 
 attribute [local fun_prop] computableInPolyTime_termValue
 
 private theorem computableInPolyTime_dnfValue : ComputableInPolyTime
-    (fun p : Ctx × DNF ℕ => dnfValue p.1 p.2) (encPair encCtx encDNF) encBool := by
-  have : (fun p : Ctx × DNF ℕ => dnfValue p.1 p.2) = fun p => p.2.any (termValue p.1) := rfl
-  rw [this]
-  fun_prop
+    (fun p : Ctx × DNF ℕ => dnfValue p.1 p.2) (encPair encCtx encDNF) encBool :=
+  show ComputableInPolyTime (fun p : Ctx × DNF ℕ => p.2.any (termValue p.1)) _ _ by fun_prop
 
 attribute [local fun_prop] computableInPolyTime_dnfValue
 
@@ -131,11 +127,10 @@ attribute [local fun_prop] computableInPolyTime_context
 
 private theorem computableInPolyTime_firstHit_proj : ComputableInPolyTime
     (fun q : DNF ℕ × ℕ × List Bool => firstHit q.1 q.2.1 q.2.2)
-    (encPair encDNF (encPair encUnary encBits)) encBool := by
-  have : (fun q : DNF ℕ × ℕ × List Bool => firstHit q.1 q.2.1 q.2.2) = fun q =>
-      termValue (context q) (q.1.getD q.2.1 []) && !dnfValue (context q) (q.1.take q.2.1) := rfl
-  rw [this]
-  fun_prop
+    (encPair encDNF (encPair encUnary encBits)) encBool :=
+  show ComputableInPolyTime (fun q : DNF ℕ × ℕ × List Bool =>
+      termValue (context q) (q.1.getD q.2.1 []) && !dnfValue (context q) (q.1.take q.2.1)) _ _ by
+    fun_prop
 
 attribute [local fun_prop] computableInPolyTime_firstHit_proj
 
@@ -150,11 +145,10 @@ theorem computableInPolyTime_firstHit : ComputableInPolyTime
 /-- The width of a term, in unary. -/
 theorem computableInPolyTime_width :
     ComputableInPolyTime (Term.width (V := ℕ)) encTerm encUnary := by
-  have : (Term.width (V := ℕ)) = fun t => CNF.numVars [t] := by
-    funext t
-    simp [Term.width, CNF.numVars, CNF.vars]
-  rw [this]
-  have h := CNF.computableInPolyTime_numVars encNat
+  have h : (Term.width (V := ℕ)) = fun t => CNF.numVars [t] :=
+    funext fun t => by simp [Term.width, CNF.numVars, CNF.vars]
+  rw [h]
+  have := CNF.computableInPolyTime_numVars encNat
   fun_prop
 
 attribute [local fun_prop] computableInPolyTime_width
@@ -184,9 +178,8 @@ attribute [local fun_prop] computableInPolyTime_belowWidths
 /-- The minimum width of a consistent term, in unary. -/
 theorem computableInPolyTime_minWidth :
     ComputableInPolyTime (minWidth (V := ℕ)) encDNF encUnary := by
-  have : (minWidth (V := ℕ)) = fun φ => (List.range (CNF.numVars φ)).countP (belowWidths φ) := rfl
-  rw [this]
-  have h := CNF.computableInPolyTime_numVars encNat
+  have := CNF.computableInPolyTime_numVars encNat
+  change ComputableInPolyTime (fun φ => (List.range (CNF.numVars φ)).countP (belowWidths φ)) _ _
   fun_prop
 
 attribute [local fun_prop] computableInPolyTime_minWidth
@@ -202,10 +195,9 @@ attribute [local fun_prop] computableInPolyTime_padding
 private theorem computableInPolyTime_accepts_proj : ComputableInPolyTime
     (fun q : DNF ℕ × ℕ × List Bool => accepts q.1 q.2.1 q.2.2)
     (encPair encDNF (encPair encUnary encBits)) encBool := by
-  have : (fun q : DNF ℕ × ℕ × List Bool => accepts q.1 q.2.1 q.2.2) = fun q =>
-      !(q.2.2.take (padding q.1 q.2.1)).any id &&
-        firstHit q.1 q.2.1 (q.2.2.drop (padding q.1 q.2.1)) := rfl
-  rw [this]
+  change ComputableInPolyTime (fun q : DNF ℕ × ℕ × List Bool =>
+    !(q.2.2.take (padding q.1 q.2.1)).any id &&
+      firstHit q.1 q.2.1 (q.2.2.drop (padding q.1 q.2.1))) _ _
   have htake : ComputableInPolyTime
       (fun q : DNF ℕ × ℕ × List Bool => (q.2.2.take (padding q.1 q.2.1)).any id)
       (encPair encDNF (encPair encUnary encBits)) encBool :=
@@ -267,22 +259,14 @@ theorem computableInPolyTime_trialBudget : ComputableInPolyTime
 formula and the unary parameters `p` and `t`, with the estimate written in binary. -/
 theorem isPPTOn_estimate : IsPPTOn (encPair encDNF (encPair encUnary encUnary))
     (encPair encNat encNat) (Function.uncurry fun φ : DNF ℕ => Function.uncurry (estimate φ)) := by
-  have hcount : IsPPTOn (encPair encDNF (encPair encUnary encUnary)) encUnary
-      (fun x : DNF ℕ × ℕ × ℕ => OracleComp.countTrue (trialBudget x.1 x.2.1 x.2.2) (trial x.1)) :=
-    IsPPTOn.countTrue (program := fun x : DNF ℕ × ℕ × ℕ => trial x.1)
-      (IsPPTOn.preprocess (program := trial) (prepare := fun x : DNF ℕ × ℕ × ℕ => x.1)
-        isPPTOn_trial (ComputableInPolyTime.fst _ _)) computableInPolyTime_trialBudget_proj
-  have hout : ComputableInPolyTime
-      (fun r : (DNF ℕ × ℕ × ℕ) × ℕ =>
-        (r.2 * 2 ^ (CNF.numVars r.1.1 - minWidth r.1.1), 3 * (r.1.2.2 + 1) * r.1.2.1 ^ 2))
-      (encPair (encPair encDNF (encPair encUnary encUnary)) encUnary)
-      (encPair encNat encNat) := by
-    have hnv := CNF.computableInPolyTime_numVars encNat
-    fun_prop
+  have hnv := CNF.computableInPolyTime_numVars encNat
   exact IsPPTOn.map_with (program := fun x : DNF ℕ × ℕ × ℕ =>
       OracleComp.countTrue (trialBudget x.1 x.2.1 x.2.2) (trial x.1))
     (f := fun x s => (s * 2 ^ (CNF.numVars x.1 - minWidth x.1), 3 * (x.2.2 + 1) * x.2.1 ^ 2))
-    hcount hout
+    (IsPPTOn.countTrue (program := fun x : DNF ℕ × ℕ × ℕ => trial x.1)
+      (IsPPTOn.preprocess (program := trial) (prepare := fun x : DNF ℕ × ℕ × ℕ => x.1)
+        isPPTOn_trial (ComputableInPolyTime.fst _ _)) computableInPolyTime_trialBudget_proj)
+    (by fun_prop)
 
 end KarpLubyMadras
 

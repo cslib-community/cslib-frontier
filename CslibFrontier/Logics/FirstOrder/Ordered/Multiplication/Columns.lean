@@ -81,31 +81,28 @@ theorem realize_columnWord (x y j w : (language L).Term α) (v : α → Fin n) :
   fo_simp [columnWord]
   constructor
   · intro hf
-    apply Nat.eq_of_testBit_eq
-    intro b
-    apply Bool.eq_iff_iff.mpr
+    refine Nat.eq_of_testBit_eq fun b => Bool.eq_iff_iff.mpr ?_
     rw [BitString.mulColumnWord_testBit]
-    constructor
-    · intro hb
-      have hbn : b < n := lt_trans
-        (lt_of_lt_of_le Nat.lt_two_pow_self (Nat.ge_two_pow_of_testBit hb)) (w.realize v).isLt
-      obtain ⟨hx, u, hu, hy⟩ := (hf (fun _ => ⟨b, hbn⟩)).mp hb
-      exact ⟨hx, by lia, by simpa only [show (j.realize v).val - b = (u ()).val by lia] using hy⟩
-    · rintro ⟨hx, hb, hy⟩
-      have hbn : b < n := lt_of_le_of_lt hb (j.realize v).isLt
-      have hd : (j.realize v).val - b < n :=
-        lt_of_le_of_lt (Nat.sub_le _ _) (j.realize v).isLt
-      exact (hf (fun _ => ⟨b, hbn⟩)).mpr ⟨hx, (fun _ => ⟨_, hd⟩), by dsimp; lia, hy⟩
+    refine ⟨fun hb => ?_, fun ⟨hx, hb, hy⟩ => ?_⟩
+    · have hbn : b < n := (Nat.lt_two_pow_self.trans_le
+        (Nat.ge_two_pow_of_testBit hb)).trans (w.realize v).isLt
+      obtain ⟨hx, u, hu, hy⟩ := (hf fun _ => ⟨b, hbn⟩).mp hb
+      have hsub : (u ()).val = (j.realize v).val - b := by lia
+      exact ⟨hx, by lia, hsub ▸ hy⟩
+    · refine (hf fun _ => ⟨b, lt_of_le_of_lt hb (j.realize v).isLt⟩).mpr
+        ⟨hx, fun _ => ⟨_, lt_of_le_of_lt (Nat.sub_le _ _) (j.realize v).isLt⟩, ?_, hy⟩
+      dsimp
+      lia
   · intro hw b
     rw [hw, BitString.mulColumnWord_testBit]
     constructor
     · rintro ⟨hx, hb, hy⟩
-      have hd : (j.realize v).val - (b ()).val < n :=
-        lt_of_le_of_lt (Nat.sub_le _ _) (j.realize v).isLt
-      exact ⟨hx, (fun _ => ⟨_, hd⟩), by dsimp; lia, hy⟩
+      refine ⟨hx, fun _ => ⟨_, lt_of_le_of_lt (Nat.sub_le _ _) (j.realize v).isLt⟩, ?_, hy⟩
+      dsimp
+      lia
     · rintro ⟨hx, u, hu, hy⟩
-      exact ⟨hx, by lia,
-        by simpa only [show (j.realize v).val - (b ()).val = (u ()).val by lia] using hy⟩
+      have hsub : (u ()).val = (j.realize v).val - (b ()).val := by lia
+      exact ⟨hx, by lia, hsub ▸ hy⟩
 
 /-- `columnCount L x y j a` holds exactly when `a` is the number of rows contributing to column
 `j` of the product of `x` and `y` (`BitString.mulColumn`). -/
@@ -114,13 +111,9 @@ theorem realize_columnCount (x y j a : (language L).Term α) (v : α → Fin n) 
     (columnCount L x y j a).Realize v ↔ (a.realize v).val =
       BitString.mulColumn (x.realize v).val (y.realize v).val (j.realize v).val := by
   fo_simp [columnCount]
-  constructor
-  · rintro ⟨u, hu, ha⟩
-    simpa only [hu, BitString.mulColumn] using ha
-  · intro ha
-    have hw := lt_of_le_of_lt (BitString.mulColumnWord_le (x.realize v).val
-      (y.realize v).val (j.realize v).val) (x.realize v).isLt
-    exact ⟨(fun _ => ⟨_, hw⟩), rfl, ha⟩
+  exact ⟨fun ⟨u, hu, ha⟩ => by simpa only [hu, BitString.mulColumn] using ha,
+    fun ha => ⟨fun _ => ⟨_, (BitString.mulColumnWord_le _ _ _).trans_lt (x.realize v).isLt⟩,
+      rfl, ha⟩⟩
 
 /-- `carryStep L x y z i c c'` holds exactly when the carry `c` into column `i` plus its column
 count is bit `i` of `z` plus twice the outgoing carry `c'`, and that sum fits in the universe. -/
@@ -135,13 +128,12 @@ theorem realize_carryStep (x y z i c c' : (language L).Term α) (v : α → Fin 
   fo_simp [carryStep, and_assoc, Fin.ext_iff]
   constructor
   · rintro ⟨u, ha, hc, hd, hs⟩
-    have hn := (u 1).isLt
+    have := (u 1).isLt
     rcases hs with ⟨hb, he⟩ | ⟨hb, he⟩
     · rw [hb]
       simp only [Bool.toNat_true]
       lia
-    · have hb' := Bool.eq_false_iff.mpr hb
-      rw [hb']
+    · rw [Bool.eq_false_iff.mpr hb]
       simp only [Bool.toNat_false]
       lia
   · rintro ⟨he, hn⟩
@@ -149,8 +141,8 @@ theorem realize_carryStep (x y z i c c' : (language L).Term α) (v : α → Fin 
         (i.realize v).val < n := by lia
     have hd : 2 * (c'.realize v).val < n := by lia
     refine ⟨![⟨_, ha⟩, ⟨_, hn⟩, ⟨_, hd⟩], rfl, rfl, rfl, ?_⟩
-    cases hb : (z.realize v).val.testBit (i.realize v).val with
-    | false => exact Or.inr ⟨by decide, by simpa [hb] using he⟩
-    | true => exact Or.inl ⟨rfl, by simpa [hb] using he.symm⟩
+    cases hb : (z.realize v).val.testBit (i.realize v).val
+    · exact Or.inr ⟨by decide, by simpa [hb] using he⟩
+    · exact Or.inl ⟨rfl, by simpa [hb] using he.symm⟩
 
 end Cslib.Logic.FO.Ordered.Multiplication

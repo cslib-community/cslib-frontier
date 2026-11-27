@@ -51,9 +51,7 @@ attribute [local simp] clientResult_pure_whp clientState_pure_whp
 /-- A conditional single-slot update leaves every other slot unchanged. -/
 private theorem ite_update_apply_of_ne {α : Type} {p : Prop} [Decidable p] {f : ℕ → α}
     {i k : ℕ} {x : α} (h : k ≠ i) : (if p then Function.update f i x else f) k = f k := by
-  split_ifs
-  · exact Function.update_of_ne h _ _
-  · rfl
+  split_ifs <;> simp [Function.update_of_ne h]
 
 /-- Core `WhpCoreParams` removal sequence (`buf`, `liveSlice`, `overmarsSlice`) for
 `fastDeleteRemoveGenProg`. -/
@@ -90,49 +88,140 @@ private theorem realizes_delRemCoreGen :
     dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv, hb, hld,
       rfl, hfp_lt⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    obtain rfl := henv.2.2.1
     obtain ⟨hb0, hb1, _, _, _, hne_lo, _, _, ⟨hlic_le, lm, hv_l⟩, hom_fn, _⟩ :=
       validFastState_delete_bounds hv hb
     set st_del := fs.locState b loc_del
     obtain ⟨_, _, hst1⟩ := delRemBufGenProg_fastStep henv
       (fun h2 => (hb0 loc_del hld h2).2.2) (fun h3 => (hb1 loc_del hld h3).2.2)
       hseed hrep (st_del := st_del) (rKey_u := rKey_u) (s := s)
-    set s1 := (Memory.spec 0).clientState s
-      (delRemBufGenProg (((mkWhpCoreParams c U V w n_max, base), st_del), rKey_u))
-    set buf1 :=
+    let buf1 := if st_del = 2 then
+      Function.update fs.buf 0 (bufDelete (cTabWhp c) (bCharWhp n_max) (fs.buf 0) rKey_u)
+    else if st_del = 3 then
+      Function.update fs.buf 1 (bufDelete (cTabWhp c) (bCharWhp n_max) (fs.buf 1) rKey_u)
+    else fs.buf
+    obtain ⟨_, _, hst2⟩ := delRemLiveGenProg_fastStep (fs := { fs with buf := buf1 }) henv
+      hv.curEp_or hb (hv.roles_valid b hb).1 hlic_le hv_l hfp_lt hst1.2.1 hst1.2.2.1
+      (st_del := st_del)
+    first
+    | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep,
+        fun h2 => (hb0 loc_del hld h2).2.2, fun h3 => (hb1 loc_del hld h3).2.2⟩
+    | exact ⟨c, U, V, w, n_max, _, lm, henv, rfl, hst1.2.2.1, hv.curEp_or, hb,
+        (hv.roles_valid b hb).1, hlic_le, hv_l, hfp_lt⟩
+    | exact ⟨c, U, V, w, n_max, _, henv, rfl, hst2.2.2.1, hv.curEp_or, hb,
+        (hv.roles_valid b hb).2.1, fun ha1 => by
+          obtain ⟨hins_o, om, hv_o⟩ := hom_fn ha1
+          refine ⟨hins_o.le, om, ?_⟩
+          change ValidWhpSlice n_max (fs.overmarsInsCount b)
+            ((if _ then Function.update fs.slices (fs.liveSliceIdx b) _ else fs.slices)
+              (fs.overmarsSliceIdx b)) om
+          rwa [ite_update_apply_of_ne hne_lo.symm], hfp_lt⟩
+  )
+
+private theorem delRemCoreGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
+    {θ : SeedWhp c U n_max} {fs : FastState} {dict : State U} {s : Memory.State}
+    (u : Fin U)
+    (henv : WhpLargeEnv c U V w n_max w base)
+    (hseed : SeedWhpMemRep base c U w n_max θ s.mem)
+    (hrep : FastMemRep base c U V w n_max fs s.mem)
+    (hv : ValidFastState c U V n_max θ fs dict)
+    (hb : b < numBucketsWhp n_max)
+    (hld : loc_del < fs.bktCount b) :
+    let st_del := fs.locState b loc_del
+    let rKey_u := fpReducedKey c U n_max θ.2 u
+    let fp_live_u := fpOfSalt c U n_max θ.2 (fs.bktSalt b) u
+    let buf1 :=
       if st_del = 2 then
         Function.update fs.buf 0 (bufDelete (cTabWhp c) (bCharWhp n_max) (fs.buf 0) rKey_u)
       else if st_del = 3 then
         Function.update fs.buf 1 (bufDelete (cTabWhp c) (bCharWhp n_max) (fs.buf 1) rKey_u)
       else fs.buf
-    set fs_b : FastState := { fs with buf := buf1 }
-    obtain ⟨_, _, hst2⟩ := delRemLiveGenProg_fastStep (fs := fs_b) henv hv.curEp_or hb
-      (hv.roles_valid b hb).1 hlic_le hv_l hfp_lt hst1.2.1 hst1.2.2.1 (st_del := st_del) (s := s1)
-    set slices1 :=
+    let slices1 :=
       if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del then
         Function.update fs.slices (fs.liveSliceIdx b)
           (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
             (fs.slices (fs.liveSliceIdx b)) fp_live_u)
       else fs.slices
-    set fs_l : FastState := { fs_b with slices := slices1 }
-    have hom_fn2 : fs_l.overmarsActive b = 1 →
-        fs_l.overmarsInsCount b ≤ 8 * (slabScale n_max) ^ 12 ∧
-        ∃ om, ValidWhpSlice n_max (fs_l.overmarsInsCount b)
-          (fs_l.slices (fs_l.overmarsSliceIdx b)) om := by
-      intro ha1
-      obtain ⟨hins_o, om, hv_o⟩ := hom_fn ha1
-      refine ⟨hins_o.le, om, ?_⟩
-      change ValidWhpSlice n_max (fs.overmarsInsCount b) (slices1 (fs.overmarsSliceIdx b)) om
-      dsimp only [slices1]
-      rwa [ite_update_apply_of_ne hne_lo.symm]
-    first
-    | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep,
-        fun h2 => (hb0 loc_del hld h2).2.2, fun h3 => (hb1 loc_del hld h3).2.2⟩
-    | exact ⟨c, U, V, w, n_max, fs_b, lm, henv, rfl, hst1.2.2.1, hv.curEp_or, hb,
-        (hv.roles_valid b hb).1, hlic_le, hv_l, hfp_lt⟩
-    | exact ⟨c, U, V, w, n_max, fs_l, henv, rfl, hst2.2.2.1, hv.curEp_or, hb,
-        (hv.roles_valid b hb).2.1, hom_fn2, hfp_lt⟩
-  )
+    let slices2 :=
+      if fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
+          inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del then
+        Function.update slices1 (fs.overmarsSliceIdx b)
+          (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+            (slices1 (fs.overmarsSliceIdx b)) fp_live_u)
+      else slices1
+    let fs_o : FastState := { fs with buf := buf1, slices := slices2 }
+    let prog := delRemCoreGenProg
+      ((((mkWhpCoreParams c U V w n_max, base), b), loc_del), (st_del, (rKey_u, fp_live_u)))
+    let s' := (Memory.spec 0).clientState s prog
+    fp_live_u < 2 ^ fpBitsWhp n_max ∧
+    CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s prog s' () (2 * cTabWhp c + 573) ∧
+    FastStateStep base c U V w n_max θ fs_o s s' ∧
+    (fs_o.curEp = 0 ∨ fs_o.curEp = 1) ∧
+    fs_o.rebSliceIdx b < 3 * numBucketsWhp n_max ∧
+    (decide (fs_o.rebStage = 2 ∧ fs_o.dirtyIdx < fs_o.dirtyCount ∧
+        fs_o.dirtyBuckets fs_o.dirtyIdx = b ∧ fs_o.rebCandSalt < sMaxWhp c n_max ∧
+        fs_o.rebCollision = 0) = true →
+      fs_o.rebInsCount ≤ 8 * (slabScale n_max) ^ 12 ∧
+      ∃ rm, ValidWhpSlice n_max fs_o.rebInsCount (fs_o.slices (fs_o.rebSliceIdx b)) rm) := by
+  set cp := mkWhpCoreParams c U V w n_max
+  obtain ⟨hb0, hb1, _, _, hr_lt, hne_lo, hne_lr, hne_or, ⟨hlic_le, lm, hv_l⟩, hom_fn, hreb_fn⟩ :=
+    validFastState_delete_bounds hv hb
+  have hfp_lt : fpOfSalt c U n_max θ.2 (fs.bktSalt b) u < 2 ^ fpBitsWhp n_max := by
+    unfold fpOfSalt
+    split_ifs with hs
+    exacts [fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u, Nat.two_pow_pos _]
+  set st_del := fs.locState b loc_del
+  set rKey_u := fpReducedKey c U n_max θ.2 u
+  set fp_live_u := fpOfSalt c U n_max θ.2 (fs.bktSalt b) u
+  obtain ⟨hmc1, hvp1, hst1⟩ := delRemBufGenProg_fastStep henv
+    (fun h2 => (hb0 loc_del hld h2).2.2) (fun h3 => (hb1 loc_del hld h3).2.2)
+    hseed hrep (st_del := st_del) (rKey_u := rKey_u) (s := s)
+  set s1 := (Memory.spec 0).clientState s (delRemBufGenProg (((cp, base), st_del), rKey_u))
+  set buf1 :=
+    if st_del = 2 then
+      Function.update fs.buf 0 (bufDelete (cTabWhp c) (bCharWhp n_max) (fs.buf 0) rKey_u)
+    else if st_del = 3 then
+      Function.update fs.buf 1 (bufDelete (cTabWhp c) (bCharWhp n_max) (fs.buf 1) rKey_u)
+    else fs.buf
+  set fs_b : FastState := { fs with buf := buf1 }
+  obtain ⟨hmc2, hvp2, hst2⟩ := delRemLiveGenProg_fastStep (fs := fs_b) henv hv.curEp_or hb
+    (hv.roles_valid b hb).1 hlic_le hv_l hfp_lt hst1.2.1 hst1.2.2.1 (st_del := st_del) (s := s1)
+  set s2 := (Memory.spec 0).clientState s1
+    (delRemLiveGenProg (((cp, base), b), (st_del, fp_live_u)))
+  set slices1 :=
+    if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del then
+      Function.update fs.slices (fs.liveSliceIdx b)
+        (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+          (fs.slices (fs.liveSliceIdx b)) fp_live_u)
+    else fs.slices
+  set fs_l : FastState := { fs_b with slices := slices1 }
+  have hom_fn2 : fs_l.overmarsActive b = 1 →
+      fs_l.overmarsInsCount b ≤ 8 * (slabScale n_max) ^ 12 ∧
+      ∃ om, ValidWhpSlice n_max (fs_l.overmarsInsCount b)
+        (fs_l.slices (fs_l.overmarsSliceIdx b)) om := fun ha1 => by
+    obtain ⟨hins_o, om, hv_o⟩ := hom_fn ha1
+    refine ⟨hins_o.le, om, ?_⟩
+    change ValidWhpSlice n_max (fs.overmarsInsCount b) (slices1 (fs.overmarsSliceIdx b)) om
+    dsimp only [slices1]
+    rwa [ite_update_apply_of_ne hne_lo.symm]
+  obtain ⟨hmc3, hvp3, hst3⟩ := delRemOmGenProg_fastStep (fs := fs_l) henv hv.curEp_or hb
+    (hv.roles_valid b hb).2.1 hom_fn2 hfp_lt hst2.2.1 hst2.2.2.1
+    (loc_del := loc_del) (st_del := st_del) (s := s2)
+  set s3 := (Memory.spec 0).clientState s2
+    (delRemOmGenProg ((((cp, base), b), loc_del), (st_del, fp_live_u)))
+  have hcore : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (delRemCoreGenProg ((((cp, base), b), loc_del), (st_del, (rKey_u, fp_live_u)))) s3 ()
+      (2 * cTabWhp c + 573) := by
+    unfold delRemCoreGenProg
+    exact .mono (.bind ⟨rfl, rfl, hmc1, hvp1⟩ <|
+      .bind ⟨rfl, rfl, hmc2, hvp2⟩ ⟨rfl, rfl, hmc3, hvp3⟩) (by omega)
+  dsimp only
+  rw [hcore.clientState_eq]
+  refine ⟨hfp_lt, hcore, (hst1.trans hst2).trans hst3, hv.curEp_or, hr_lt, fun hrbt => ?_⟩
+  obtain ⟨hins_r, rm, hv_r⟩ := hreb_fn hrbt
+  refine ⟨hins_r.le, rm, ?_⟩
+  change ValidWhpSlice n_max fs.rebInsCount ((ite _ _ _ : _ → _) (fs.rebSliceIdx b)) rm
+  rwa [ite_update_apply_of_ne hne_or.symm, ite_update_apply_of_ne hne_lr.symm]
 
 /-- Complete Substep 1 (`fastDeleteRemove`): remove `(u, loc_del)` from epoch buffers and slices
 (`d = ((((wp, base), b), loc_del), u_val)`). -/
@@ -167,93 +256,23 @@ theorem realizes_fastDeleteRemoveGen :
     rcases d with ⟨⟨⟨⟨wp, base⟩, b⟩, loc_del⟩, u_val⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, henv, heq_wp, hseed, hrep, hv, hb, hld, hu⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
-    have hth := henv.2.2.2.1
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv, hb, hld, hu⟩ := h
+    obtain rfl := henv.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-      simp [mkWhpParams, Nat.not_lt.mpr hth]
+      simp [mkWhpParams, Nat.not_lt.mpr henv.2.2.2.1]
     set u : Fin U := ⟨u_val, hu⟩
     have hld_tl : loc_del < totalLocalCoordsWhp n_max := hld.trans_le (hv.bktCount_le b hb)
-    obtain ⟨hb0, hb1, _, _, hr_lt, hne_lo, hne_lr, hne_or,
-      ⟨hlic_le, lm, hv_l⟩, hom_fn, hreb_fn⟩ := validFastState_delete_bounds hv hb
     obtain ⟨hri_st, hri_res, _, _⟩ :=
       delRemReadInfoGenProg_spec u henv hseed hrep hb hld_tl (s := s)
     dsimp only [u] at hri_st hri_res
-    have hfp_lt : fpOfSalt c U n_max θ.2 (fs.bktSalt b) u < 2 ^ fpBitsWhp n_max := by
-      unfold fpOfSalt
-      by_cases hs : fs.bktSalt b < sMaxWhp c n_max
-      · simp only [hs, ↓reduceDIte]; exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
-      · simp only [hs, ↓reduceDIte]; exact Nat.two_pow_pos _
-    set st_del := fs.locState b loc_del
-    set rKey_u := fpReducedKey c U n_max θ.2 u
-    set fp_live_u := fpOfSalt c U n_max θ.2 (fs.bktSalt b) u
-    obtain ⟨_, _, hst1⟩ := delRemBufGenProg_fastStep henv
-      (fun h2 => (hb0 loc_del hld h2).2.2) (fun h3 => (hb1 loc_del hld h3).2.2)
-      hseed hrep (st_del := st_del) (rKey_u := rKey_u) (s := s)
-    set s1 := (Memory.spec 0).clientState s
-      (delRemBufGenProg (((mkWhpCoreParams c U V w n_max, base), st_del), rKey_u))
-    set buf1 :=
-      if st_del = 2 then
-        Function.update fs.buf 0 (bufDelete (cTabWhp c) (bCharWhp n_max) (fs.buf 0) rKey_u)
-      else if st_del = 3 then
-        Function.update fs.buf 1 (bufDelete (cTabWhp c) (bCharWhp n_max) (fs.buf 1) rKey_u)
-      else fs.buf
-    set fs_b : FastState := { fs with buf := buf1 }
-    obtain ⟨_, _, hst2⟩ := delRemLiveGenProg_fastStep (fs := fs_b) henv hv.curEp_or hb
-      (hv.roles_valid b hb).1 hlic_le hv_l hfp_lt hst1.2.1 hst1.2.2.1 (st_del := st_del) (s := s1)
-    set s2 := (Memory.spec 0).clientState s1
-      (delRemLiveGenProg (((mkWhpCoreParams c U V w n_max, base), b), (st_del, fp_live_u)))
-    set slices1 :=
-      if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del then
-        Function.update fs.slices (fs.liveSliceIdx b)
-          (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (fs.slices (fs.liveSliceIdx b)) fp_live_u)
-      else fs.slices
-    set fs_l : FastState := { fs_b with slices := slices1 }
-    have hom_fn2 : fs_l.overmarsActive b = 1 →
-        fs_l.overmarsInsCount b ≤ 8 * (slabScale n_max) ^ 12 ∧
-        ∃ om, ValidWhpSlice n_max (fs_l.overmarsInsCount b)
-          (fs_l.slices (fs_l.overmarsSliceIdx b)) om := by
-      intro ha1
-      obtain ⟨hins_o, om, hv_o⟩ := hom_fn ha1
-      refine ⟨hins_o.le, om, ?_⟩
-      change ValidWhpSlice n_max (fs.overmarsInsCount b) (slices1 (fs.overmarsSliceIdx b)) om
-      dsimp only [slices1]
-      rwa [ite_update_apply_of_ne hne_lo.symm]
-    obtain ⟨_, _, hst3⟩ := delRemOmGenProg_fastStep (fs := fs_l) henv hv.curEp_or hb
-      (hv.roles_valid b hb).2.1 hom_fn2 hfp_lt hst2.2.1 hst2.2.2.1
-      (loc_del := loc_del) (st_del := st_del) (s := s2)
-    set slices2 :=
-      if fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-          inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del then
-        Function.update slices1 (fs.overmarsSliceIdx b)
-          (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (slices1 (fs.overmarsSliceIdx b)) fp_live_u)
-      else slices1
-    set fs_o : FastState := { fs_l with slices := slices2 }
-    have hcore_st : (Memory.spec 0).clientState s
-        (delRemCoreGenProg ((((mkWhpCoreParams c U V w n_max, base), b), loc_del),
-          (st_del, (rKey_u, fp_live_u)))) =
-        (Memory.spec 0).clientState s2
-          (delRemOmGenProg ((((mkWhpCoreParams c U V w n_max, base), b), loc_del),
-            (st_del, fp_live_u))) := by
-      unfold delRemCoreGenProg; dsimp only
-      rw [clientState_bind, clientState_bind]
-    rw [hcp_eq] at *
-    rw [hri_st] at *
-    rw [hri_res] at *
-    rw [hcore_st] at *
-    dsimp only at *
+    obtain ⟨hfp_lt, _, hst_core, hce_o, hr_lt_o, hreb_fn_o⟩ :=
+      delRemCoreGenProg_fastStep u henv hseed hrep hv hb hld (s := s)
+    rw [hcp_eq, hri_st, hri_res] at *
     first
     | exact ⟨c, U, V, w, n_max, θ, fs, henv, rfl, hseed, hrep, hb, hld_tl⟩
     | exact ⟨c, U, V, w, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv, hb, hld, rfl, hfp_lt⟩
-    | (refine ⟨c, U, V, w, n_max, θ, fs_o, henv, rfl, hst3.2.1, hst3.2.2.1, hv.curEp_or, hb, hr_lt,
-         fun hrbt => ?_⟩
-       obtain ⟨hins_r, rm, hv_r⟩ := hreb_fn hrbt
-       refine ⟨hins_r.le, rm, ?_⟩
-       change ValidWhpSlice n_max fs.rebInsCount (slices2 (fs.rebSliceIdx b)) rm
-       dsimp only [slices2, slices1]
-       rwa [ite_update_apply_of_ne hne_or.symm, ite_update_apply_of_ne hne_lr.symm])
+    | exact ⟨c, U, V, w, n_max, θ, _, henv, rfl, hst_core.2.1, hst_core.2.2.1,
+        hce_o, hb, hr_lt_o, hreb_fn_o⟩
   )
 
 theorem fastDeleteRemoveGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
@@ -271,95 +290,21 @@ theorem fastDeleteRemoveGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
     memoryCost prog s ≤ 2 * cTabWhp c + 2 * hashEvalCostWhp c + 870 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (fastDeleteRemove c U n_max θ fs u b loc_del) s s' := by
-  have hth := henv.2.2.2.1
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-    simp [mkWhpParams, Nat.not_lt.mpr hth]
-  set cp := mkWhpCoreParams c U V w n_max
+    simp [mkWhpParams, Nat.not_lt.mpr henv.2.2.2.1]
   have hld_tl : loc_del < totalLocalCoordsWhp n_max := hld.trans_le (hv.bktCount_le b hb)
-  obtain ⟨hb0, hb1, _, _, hr_lt, hne_lo, hne_lr, hne_or,
-    ⟨hlic_le, lm, hv_l⟩, hom_fn, hreb_fn⟩ := validFastState_delete_bounds hv hb
   obtain ⟨hri_st, hri_res, hri_mc, hri_vp⟩ :=
     delRemReadInfoGenProg_spec u henv hseed hrep hb hld_tl (s := s)
-  have hfp_lt : fpOfSalt c U n_max θ.2 (fs.bktSalt b) u < 2 ^ fpBitsWhp n_max := by
-    unfold fpOfSalt
-    by_cases hs : fs.bktSalt b < sMaxWhp c n_max
-    · simp only [hs, ↓reduceDIte]; exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
-    · simp only [hs, ↓reduceDIte]; exact Nat.two_pow_pos _
-  set st_del := fs.locState b loc_del
-  set rKey_u := fpReducedKey c U n_max θ.2 u
-  set fp_live_u := fpOfSalt c U n_max θ.2 (fs.bktSalt b) u
-  obtain ⟨hmc1, hvp1, hst1⟩ := delRemBufGenProg_fastStep henv
-    (fun h2 => (hb0 loc_del hld h2).2.2) (fun h3 => (hb1 loc_del hld h3).2.2)
-    hseed hrep (st_del := st_del) (rKey_u := rKey_u) (s := s)
-  set s1 := (Memory.spec 0).clientState s (delRemBufGenProg (((cp, base), st_del), rKey_u))
-  set buf1 :=
-    if st_del = 2 then
-      Function.update fs.buf 0 (bufDelete (cTabWhp c) (bCharWhp n_max) (fs.buf 0) rKey_u)
-    else if st_del = 3 then
-      Function.update fs.buf 1 (bufDelete (cTabWhp c) (bCharWhp n_max) (fs.buf 1) rKey_u)
-    else fs.buf
-  set fs_b : FastState := { fs with buf := buf1 }
-  obtain ⟨hmc2, hvp2, hst2⟩ := delRemLiveGenProg_fastStep (fs := fs_b) henv hv.curEp_or hb
-    (hv.roles_valid b hb).1 hlic_le hv_l hfp_lt hst1.2.1 hst1.2.2.1
-    (st_del := st_del) (s := s1)
-  set s2 := (Memory.spec 0).clientState s1
-    (delRemLiveGenProg (((cp, base), b), (st_del, fp_live_u)))
-  set slices1 :=
-    if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del then
-      Function.update fs.slices (fs.liveSliceIdx b)
-        (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-          (fs.slices (fs.liveSliceIdx b)) fp_live_u)
-    else fs.slices
-  set fs_l : FastState := { fs_b with slices := slices1 }
-  have hom_fn2 : fs_l.overmarsActive b = 1 →
-      fs_l.overmarsInsCount b ≤ 8 * (slabScale n_max) ^ 12 ∧
-      ∃ om, ValidWhpSlice n_max (fs_l.overmarsInsCount b)
-        (fs_l.slices (fs_l.overmarsSliceIdx b)) om := by
-    intro ha1
-    obtain ⟨hins_o, om, hv_o⟩ := hom_fn ha1
-    refine ⟨hins_o.le, om, ?_⟩
-    change ValidWhpSlice n_max (fs.overmarsInsCount b) (slices1 (fs.overmarsSliceIdx b)) om
-    dsimp only [slices1]
-    rwa [ite_update_apply_of_ne hne_lo.symm]
-  obtain ⟨hmc3, hvp3, hst3⟩ := delRemOmGenProg_fastStep (fs := fs_l) henv hv.curEp_or hb
-    (hv.roles_valid b hb).2.1 hom_fn2 hfp_lt hst2.2.1 hst2.2.2.1
-    (loc_del := loc_del) (st_del := st_del) (s := s2)
-  set s3 := (Memory.spec 0).clientState s2
-    (delRemOmGenProg ((((cp, base), b), loc_del), (st_del, fp_live_u)))
-  set slices2 :=
-    if fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-        inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del then
-      Function.update slices1 (fs.overmarsSliceIdx b)
-        (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-          (slices1 (fs.overmarsSliceIdx b)) fp_live_u)
-    else slices1
-  set fs_o : FastState := { fs_l with slices := slices2 }
-  have hreb_fn3 : decide (fs_o.rebStage = 2 ∧ fs_o.dirtyIdx < fs_o.dirtyCount ∧
-      fs_o.dirtyBuckets fs_o.dirtyIdx = b ∧ fs_o.rebCandSalt < sMaxWhp c n_max ∧
-      fs_o.rebCollision = 0) = true →
-      fs_o.rebInsCount ≤ 8 * (slabScale n_max) ^ 12 ∧
-      ∃ rm, ValidWhpSlice n_max fs_o.rebInsCount (fs_o.slices (fs_o.rebSliceIdx b)) rm := by
-    intro hrbt
-    obtain ⟨hins_r, rm, hv_r⟩ := hreb_fn hrbt
-    refine ⟨hins_r.le, rm, ?_⟩
-    change ValidWhpSlice n_max fs.rebInsCount (slices2 (fs.rebSliceIdx b)) rm
-    dsimp only [slices2, slices1]
-    rwa [ite_update_apply_of_ne hne_or.symm, ite_update_apply_of_ne hne_lr.symm]
-  obtain ⟨hmc4, hvp4, hst4⟩ := delRemRebGenProg_fastStep (fs := fs_o) u henv hv.curEp_or hb
-    hr_lt hreb_fn3 hst3.2.1 hst3.2.2.1 (loc_del := loc_del) (st_del := st_del) (s := s3)
-  have hcore : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
-      (delRemCoreGenProg ((((cp, base), b), loc_del), (st_del, (rKey_u, fp_live_u)))) s3 ()
-      (2 * cTabWhp c + 573) := by
-    unfold delRemCoreGenProg; dsimp only
-    exact .mono (.bind ⟨rfl, rfl, hmc1, hvp1⟩ <|
-      .bind ⟨rfl, rfl, hmc2, hvp2⟩ ⟨rfl, rfl, hmc3, hvp3⟩) (by omega)
-  dsimp only
+  obtain ⟨_, hcore, hst_core, hce_o, hr_lt_o, hreb_fn_o⟩ :=
+    delRemCoreGenProg_fastStep u henv hseed hrep hv hb hld (s := s)
+  obtain ⟨hmc4, hvp4, hst4⟩ := delRemRebGenProg_fastStep u henv hce_o hb hr_lt_o hreb_fn_o
+    hst_core.2.1 hst_core.2.2.1 (loc_del := loc_del) (st_del := fs.locState b loc_del)
   unfold fastDeleteRemoveGenProg
   dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+  rw [hwp1]
   exact CostBoundedStep.elim
     (.bind ⟨hri_st, hri_res, hri_mc, hri_vp⟩ <| .bind hcore ⟨rfl, rfl, hmc4, hvp4⟩)
-    (by omega) (((hst1.trans hst2).trans hst3).trans hst4)
+    (by omega) (hst_core.trans hst4)
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

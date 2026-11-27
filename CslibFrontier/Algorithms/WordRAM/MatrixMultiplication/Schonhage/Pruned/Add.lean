@@ -57,16 +57,10 @@ theorem exec_addValue {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w a)
   have huq : u.regs query = q := by
     rw [hreg query (Or.inr (by decide))]
     wram_simp [hq]
-  have hsum' : u.regs result = encode (a + b) := hsum
-  wram_exec [huv, huq, hsum', hp]
-  refine ⟨?_, fun i hi => ?_⟩
-  · wram_simp
-    rw [hmem]
-    rfl
-  · simp only [AddValueLocal, not_or, not_lt] at hi
-    rcases hi with ⟨hi9, had, hsuf⟩
-    wram_simp
-    rw [hreg i (Or.inr hi9)]
-    wram_simp
+  wram_exec [huv, huq, show u.regs result = encode (a + b) from hsum, hp]
+  refine ⟨by wram_simp [hmem], fun i hi => ?_⟩
+  simp only [AddValueLocal, not_or, not_lt] at hi
+  rcases hi with ⟨hi9, had, hsuf⟩
+  wram_simp [hreg i (Or.inr hi9)]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

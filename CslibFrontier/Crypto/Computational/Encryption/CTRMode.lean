@@ -190,17 +190,10 @@ theorem isQueryBounded_ctrMaskQueriesFrom (counter : BitString n → ℕ → Bit
     (iv : BitString n) (i k : ℕ) :
     ProbOracleComp.IsQueryBounded (ctrMaskQueriesFrom counter iv i k) k := by
   induction k generalizing i with
-  | zero =>
-    simp only [ctrMaskQueriesFrom]
-    exact OracleComp.IsCostBounded.pure _ _
+  | zero => exact OracleComp.IsCostBounded.pure _ _
   | succ k ih =>
-    simp only [ctrMaskQueriesFrom]
-    exact OracleComp.IsCostBounded.mono
-      (OracleComp.IsCostBounded.bind
-        (OracleComp.IsCostBounded.query (Sum.inr (counter iv i))) fun y =>
-          OracleComp.IsCostBounded.bind (ih (i + 1)) fun ys =>
-            OracleComp.IsCostBounded.pure (y :: ys) 0)
-      (by simp only [Sum.elim_inr]; omega)
+    exact ((OracleComp.IsCostBounded.query (Sum.inr (counter iv i))).bind fun y =>
+      (ih (i + 1)).bind fun ys => .pure (y :: ys) 0).mono (by simp only [Sum.elim_inr]; omega)
 
 /-- If `adversary` asks at most `K` blocks in total, `ctrReduction counter ℓ b adversary` makes at
 most `K` oracle calls. -/
@@ -230,9 +223,7 @@ private theorem length_ctrCache (c : List (BitString n × BitString n))
     (ctrCache c counter iv i us).length = c.length + us.length := by
   induction us generalizing c i with
   | nil => simp [ctrCache]
-  | cons u us ih =>
-    simp only [ctrCache, ih, List.length_cons]
-    omega
+  | cons u us ih => simp only [ctrCache, ih, List.length_cons]; omega
 
 private theorem ctrAnyHit_cons_eq (c : List (BitString n × BitString n))
     (counter : BitString n → ℕ → BitString n) (iv : BitString n) (u : BitString n)
@@ -241,15 +232,11 @@ private theorem ctrAnyHit_cons_eq (c : List (BitString n × BitString n))
   induction k generalizing i with
   | zero => rfl
   | succ k ih =>
-    have h0 : counter iv i ≠ counter iv i₀ := by simpa using hdistinct 0 (Nat.zero_lt_succ k)
-    have hbeq : (counter iv i == counter iv i₀) = false := by simpa using h0
-    have hhead : (((counter iv i₀, u) :: c).lookup (counter iv i)).isSome =
-        (c.lookup (counter iv i)).isSome := by
-      simp [List.lookup, hbeq]
+    have hbeq : (counter iv i == counter iv i₀) = false :=
+      beq_eq_false_iff_ne.mpr (by simpa using hdistinct 0 (Nat.zero_lt_succ k))
     have htail := ih (i + 1) fun j hj => by
-      have := hdistinct (j + 1) (Nat.add_lt_add_right hj 1)
-      simpa [Nat.add_assoc, Nat.add_comm 1 j] using this
-    simp only [ctrAnyHit, hhead, htail]
+      simpa [Nat.add_assoc, Nat.add_comm 1 j] using hdistinct (j + 1) (Nat.add_lt_add_right hj 1)
+    simp [ctrAnyHit, List.lookup, hbeq, htail]
 
 private theorem ctrAnyHit_eq_true_iff (c : List (BitString n × BitString n))
     (counter : BitString n → ℕ → BitString n) (iv : BitString n) (i k : ℕ) :
@@ -264,13 +251,10 @@ private theorem ctrAnyHit_eq_true_iff (c : List (BitString n × BitString n))
           by simpa using List.mem_map.2 ⟨p, hp, (beq_iff_eq.1 hpe).symm⟩⟩
       · exact ⟨j + 1, Nat.add_lt_add_right hj 1,
           by simpa [Nat.add_assoc, Nat.add_comm 1 j] using hmem⟩
-    · rintro ⟨j, hj, hmem⟩
-      cases j with
-      | zero =>
-        obtain ⟨v, hv⟩ : ∃ v, (counter iv i, v) ∈ c := by simpa using hmem
+    · rintro ⟨_ | j, hj, hmem⟩
+      · obtain ⟨v, hv⟩ : ∃ v, (counter iv i, v) ∈ c := by simpa using hmem
         exact Or.inl ⟨(counter iv i, v), hv, beq_self_eq_true _⟩
-      | succ j =>
-        exact Or.inr ⟨j, Nat.lt_of_add_lt_add_right hj,
+      · exact Or.inr ⟨j, Nat.lt_of_add_lt_add_right hj,
           by simpa [Nat.add_assoc, Nat.add_comm 1 j] using hmem⟩
 
 private theorem runWith_freshStep_ctrMaskQueriesFrom
@@ -283,9 +267,6 @@ private theorem runWith_freshStep_ctrMaskQueriesFrom
   induction k generalizing i s with
   | zero => simp [ctrMaskQueriesFrom, ctrCache, ctrAnyHit]
   | succ k ih =>
-    have hsub : ∀ a b, i + 1 ≤ a → a < i + 1 + k → i + 1 ≤ b → b < i + 1 + k → a ≠ b →
-        counter iv a ≠ counter iv b := fun a b ha₀ ha₁ hb₀ hb₁ hab =>
-      hinj a b (by omega) (by omega) (by omega) (by omega) hab
     have hdistinct : ∀ j < k, counter iv (i + 1 + j) ≠ counter iv i := fun j hj =>
       hinj (i + 1 + j) i (by omega) (by omega) le_rfl (by omega) (by omega)
     simp only [ctrMaskQueriesFrom, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
@@ -294,17 +275,24 @@ private theorem runWith_freshStep_ctrMaskQueriesFrom
       (ProbOracleComp.runWith freshStep (ctrMaskQueriesFrom counter iv (i + 1) k) p.2).map
         fun q => (p.1 :: q.1, q.2)) = _
     simp only [freshStep, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind]
-    have hstep : ∀ u : BitString n,
-        ProbOracleComp.runWith freshStep (ctrMaskQueriesFrom counter iv (i + 1) k)
-          ((counter iv i, u) :: s.1, s.2 || (s.1.lookup (counter iv i)).isSome) =
-          (uniformBlocks k).map fun us =>
-            (us, (ctrCache ((counter iv i, u) :: s.1) counter iv (i + 1) us,
-              s.2 || ((s.1.lookup (counter iv i)).isSome || ctrAnyHit s.1 counter iv (i + 1) k))) :=
-      fun u => by
-        rw [ih (i + 1) _ hsub, ctrAnyHit_cons_eq s.1 counter iv u i (i + 1) k hdistinct]
-        simp only [Bool.or_assoc]
-    simp only [hstep, uniformBlocks_succ, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind,
+    simp_rw [ih (i + 1) _ fun a b ha₀ ha₁ hb₀ hb₁ =>
+        hinj a b (by omega) (by omega) (by omega) (by omega),
+      ctrAnyHit_cons_eq s.1 counter iv _ i (i + 1) k hdistinct, Bool.or_assoc]
+    simp only [uniformBlocks_succ, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind,
       PMF.pure_bind, ctrCache, ctrAnyHit]
+
+private theorem runWith_freshStep_ctrMaskQueriesFrom_blocks
+    (counter : BitString n → ℕ → BitString n) (ℓ : ℕ) (q : BlockModeQuery n)
+    (iv : BitString n) (s : FlagState n)
+    (hintra : ∀ iv i j, i < ℓ → j < ℓ → i ≠ j → counter iv i ≠ counter iv j) :
+    ProbOracleComp.runWith freshStep (ctrMaskQueriesFrom counter iv 0 (blockModeBlocks ℓ q)) s =
+      (uniformBlocks (blockModeBlocks ℓ q)).map fun us =>
+        (us, (ctrCache s.1 counter iv 0 us,
+          s.2 || ctrAnyHit s.1 counter iv 0 (blockModeBlocks ℓ q))) :=
+  runWith_freshStep_ctrMaskQueriesFrom counter iv 0 (blockModeBlocks ℓ q) s
+    fun a b' _ ha _ hb hab =>
+      hintra iv a b' (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q))
+        (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q)) hab
 
 private theorem runWith_freshStep_ctrQueryProgram
     (counter : BitString n → ℕ → BitString n) (ℓ : ℕ) (b : Bool) (q : BlockModeQuery n)
@@ -320,11 +308,7 @@ private theorem runWith_freshStep_ctrQueryProgram
     ProbOracleComp.runWith_sample, ProbComp.eval_uniform, length_blockModeSelect, Function.comp_def,
     ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind]
   refine PMF.bind_congr_on_support _ _ _ fun iv _ => ?_
-  have hinj : ∀ a b', 0 ≤ a → a < 0 + blockModeBlocks ℓ q → 0 ≤ b' → b' < 0 + blockModeBlocks ℓ q →
-      a ≠ b' → counter iv a ≠ counter iv b' := fun a b' _ ha _ hb hab =>
-    hintra iv a b' (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q))
-      (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q)) hab
-  rw [runWith_freshStep_ctrMaskQueriesFrom counter iv 0 (blockModeBlocks ℓ q) s hinj]
+  rw [runWith_freshStep_ctrMaskQueriesFrom_blocks counter ℓ q iv s hintra]
   simp only [ProbOracleComp.runWith_pure, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind,
     PMF.pure_bind]
 
@@ -337,8 +321,7 @@ private theorem length_of_mem_support_freshQuery
     x.2.1.length = s.1.length + blockModeBlocks ℓ q := by
   rw [runWith_freshStep_ctrQueryProgram counter ℓ b q s hintra, PMF.support_map] at hx
   obtain ⟨⟨iv, us⟩, hp, rfl⟩ := hx
-  have hlen : us.length = blockModeBlocks ℓ q := length_snd_of_mem_support_uniformDraws hp
-  simp only [length_ctrCache, hlen]
+  rw [length_ctrCache, length_snd_of_mem_support_uniformDraws hp]
 
 private theorem toOuterMeasure_exists_ctr_mem_le
     (counter : BitString n → ℕ → BitString n) (ks : List (BitString n)) (k : ℕ)
@@ -385,17 +368,15 @@ private theorem toOuterMeasure_bad_freshQuery_le
         {x | x.2.2 = true} ≤
       ((blockModeBlocks ℓ q * s.1.length : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
   rw [runWith_freshStep_ctrQueryProgram counter ℓ b q s hintra, PMF.toOuterMeasure_map_apply]
-  have hs' : s.2 = false := by simpa using hs
   have hpre :
       ((fun p : BitString n × List (BitString n) =>
           ((p.1, List.zipWith (· + ·) p.2 (blockModeSelect ℓ b q)),
             (ctrCache s.1 counter p.1 0 p.2,
               s.2 || ctrAnyHit s.1 counter p.1 0 (blockModeBlocks ℓ q)))) ⁻¹'
         {x | x.2.2 = true}) =
-      {p : BitString n × List (BitString n) |
-        ctrAnyHit s.1 counter p.1 0 (blockModeBlocks ℓ q) = true} := by
+      {p | ctrAnyHit s.1 counter p.1 0 (blockModeBlocks ℓ q) = true} := by
     ext p
-    simp [hs']
+    simp [Bool.eq_false_iff.2 hs]
   rw [hpre, PMF.toOuterMeasure_bind_apply]
   calc ∑' iv, (PMF.uniformOfFintype (BitString n)) iv *
         ((uniformBlocks (n := n) (blockModeBlocks ℓ q)).map (iv, ·)).toOuterMeasure
@@ -405,18 +386,10 @@ private theorem toOuterMeasure_bad_freshQuery_le
         refine tsum_le_tsum fun iv => mul_le_mul_of_nonneg_left ?_ zero_le
         rw [PMF.toOuterMeasure_map_apply]
         by_cases hhit : ctrAnyHit s.1 counter iv 0 (blockModeBlocks ℓ q) = true
-        · have hex :
-              iv ∈ {iv' | ∃ j < blockModeBlocks ℓ q, counter iv' j ∈ s.1.map Prod.fst} := by
-            simpa using (ctrAnyHit_eq_true_iff s.1 counter iv 0 (blockModeBlocks ℓ q)).1 hhit
-          rw [Set.indicator_of_mem hex, Pi.one_apply]
+        · rw [Set.indicator_of_mem (by
+            simpa using (ctrAnyHit_eq_true_iff s.1 counter iv 0 _).1 hhit), Pi.one_apply]
           exact PMF.toOuterMeasure_le_one _ _
-        · have hpre2 :
-              ((iv, ·) ⁻¹' {p : BitString n × List (BitString n) |
-                ctrAnyHit s.1 counter p.1 0 (blockModeBlocks ℓ q) = true}) = ∅ := by
-            ext us
-            simp [hhit]
-          rw [hpre2]
-          simp
+        · simp [Set.preimage, hhit]
     _ = (PMF.uniformOfFintype (BitString n)).toOuterMeasure
           {iv' | ∃ j < blockModeBlocks ℓ q, counter iv' j ∈ s.1.map Prod.fst} := by
         rw [← PMF.toOuterMeasure_eq_tsum_mul_indicator]
@@ -461,15 +434,11 @@ private theorem toOuterMeasure_bad_fresh_le
       rw [PMF.snd_eq_of_mem_support_lift hx]
       exact le_add_right (le_add_right le_rfl)
     | inr q =>
-      have hlen := length_of_mem_support_freshQuery counter ℓ b q s hintra hx
-      simp only [hlen, blockModeCost, Sum.elim_inr]
-      refine le_of_eq ?_
-      push_cast
-      ring
+      simp only [length_of_mem_support_freshQuery counter ℓ b q s hintra hx, blockModeCost,
+        Sum.elim_inr, Nat.cast_add]
+      exact le_of_eq (by ring)
   · exact fun _ _ _ _ _ _ => zero_le
-  · simp only [List.length_nil, Nat.cast_mul, Nat.cast_zero, zero_mul, zero_add, add_zero,
-      mul_zero]
-    ring
+  · simp only [List.length_nil, Nat.cast_mul, Nat.cast_zero, zero_mul, zero_add, add_zero]; ring
 
 /-! ### Section 4: Security of CTR Mode and Modular Counter Instantiation -/
 
@@ -488,13 +457,7 @@ theorem advantage_idealExperiment_ctrReduction_le
       (K : ℝ) ^ 2 / 2 ^ n := by
   have hfresh := freshGame_eq_blockModeIdealExperiment
     (fun iv k => ctrMaskQueriesFrom counter iv 0 k) ℓ b adversary fun q iv s => by
-      have hinj : ∀ a b', 0 ≤ a → a < 0 + blockModeBlocks ℓ q → 0 ≤ b' →
-          b' < 0 + blockModeBlocks ℓ q → a ≠ b' → counter iv a ≠ counter iv b' :=
-        fun a b' _ ha _ hb hab =>
-          hintra iv a b' (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q))
-            (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q)) hab
-      rw [runWith_freshStep_ctrMaskQueriesFrom counter iv 0 (blockModeBlocks ℓ q) s hinj,
-        PMF.map_comp]
+      rw [runWith_freshStep_ctrMaskQueriesFrom_blocks counter ℓ q iv s hintra, PMF.map_comp]
       exact PMF.map_id _
   rw [ctrReduction, ← hfresh]
   refine (advantage_idealExperiment_freshStep_le _).trans ?_
@@ -514,16 +477,12 @@ theorem advantage_ctrCpaGame_randomFunction_le
         (ctrCpaGame counter (fun f : BitString n → BitString n => f) ℓ false adversary)
         (ctrCpaGame counter (fun f : BitString n → BitString n => f) ℓ true adversary) : ℝ) ≤
       2 * ((K : ℝ) ^ 2 / 2 ^ n) := by
-  have e : ∀ b,
-      ctrCpaGame counter (fun f : BitString n → BitString n => f) ℓ b adversary =
-        ProbComp.eval (PRF.idealExperiment (ctrReduction counter ℓ b adversary)) := fun b => by
-    rw [ctrCpaGame_eq_realExperiment]
-    rfl
-  rw [e, e]
-  have h₀ := advantage_idealExperiment_ctrReduction_le counter ℓ false h hintra hiv
-  have h₁ := advantage_idealExperiment_ctrReduction_le counter ℓ true h hintra hiv
+  rw [ctrCpaGame_eq_realExperiment, ctrCpaGame_eq_realExperiment]
+  change (Game.advantage (ProbComp.eval (PRF.idealExperiment _))
+    (ProbComp.eval (PRF.idealExperiment _)) : ℝ) ≤ _
   refine (advantage_le_two _ (ProbComp.eval (blockModeIdealExperiment ℓ adversary)) _).trans ?_
-  linarith
+  linarith [advantage_idealExperiment_ctrReduction_le counter ℓ false h hintra hiv,
+    advantage_idealExperiment_ctrReduction_le counter ℓ true h hintra hiv]
 
 /-- **CTR mode is CPA-secure for a pseudorandom function** ([KatzLindell2020], Section 3.6.3,
 Theorem 3.33, p. 93): if `adversary` asks at most `K` blocks in total and at most `ℓ` blocks per
@@ -542,13 +501,12 @@ theorem advantage_ctrCpaGame_le {Key : Type} (counter : BitString n → ℕ → 
       PRF.advantage F (ctrReduction counter ℓ false adversary) +
         PRF.advantage F (ctrReduction counter ℓ true adversary) + 2 * ((K : ℝ) ^ 2 / 2 ^ n) := by
   rw [ctrCpaGame_eq_realExperiment, ctrCpaGame_eq_realExperiment]
-  have h₀ := advantage_idealExperiment_ctrReduction_le counter ℓ false h hintra hiv
-  have h₁ := advantage_idealExperiment_ctrReduction_le counter ℓ true h hintra hiv
   refine (advantage_le_four _
     (ProbComp.eval (PRF.idealExperiment (ctrReduction counter ℓ false adversary)))
     (ProbComp.eval (blockModeIdealExperiment ℓ adversary))
     (ProbComp.eval (PRF.idealExperiment (ctrReduction counter ℓ true adversary))) _).trans ?_
-  linarith
+  linarith [advantage_idealExperiment_ctrReduction_le counter ℓ false h hintra hiv,
+    advantage_idealExperiment_ctrReduction_le counter ℓ true h hintra hiv]
 
 /-- Canonical modular-addition counter schedule `iv + i mod 2 ^ n` ([KatzLindell2020], Figure 3.9),
 via `BitString.equivFin`. -/
@@ -561,27 +519,19 @@ def ctrModCounter (iv : BitString n) (i : ℕ) : BitString n :=
 theorem ctrModCounter_injective_left (i : ℕ) :
     Function.Injective (fun iv : BitString n => ctrModCounter iv i) := by
   intro iv₁ iv₂ h
-  have hv := congrArg (fun x => (BitString.equivFin n x).val) h
-  simp only [ctrModCounter, Equiv.apply_symm_apply] at hv
-  have hmod : (BitString.equivFin n iv₁).val ≡ (BitString.equivFin n iv₂).val [MOD 2 ^ n] :=
-    Nat.ModEq.add_right_cancel' i hv
-  have heq : (BitString.equivFin n iv₁).val = (BitString.equivFin n iv₂).val := by
-    rw [← Nat.mod_eq_of_lt (BitString.equivFin n iv₁).isLt,
-      ← Nat.mod_eq_of_lt (BitString.equivFin n iv₂).isLt]
-    exact hmod
-  exact (BitString.equivFin n).injective (Fin.ext heq)
+  refine (BitString.equivFin n).injective (Fin.ext ?_)
+  rw [← Nat.mod_eq_of_lt (BitString.equivFin n iv₁).isLt,
+    ← Nat.mod_eq_of_lt (BitString.equivFin n iv₂).isLt]
+  exact Nat.ModEq.add_right_cancel' i (congrArg Fin.val ((BitString.equivFin n).symm.injective h))
 
 /-- Whenever `ℓ ≤ 2 ^ n`, distinct offsets below `ℓ` yield distinct `ctrModCounter iv i` blocks. -/
 theorem ctrModCounter_injOn {ℓ : ℕ} (hℓ : ℓ ≤ 2 ^ n) (iv : BitString n)
     {i j : ℕ} (hi : i < ℓ) (hj : j < ℓ) (hij : i ≠ j) :
     ctrModCounter iv i ≠ ctrModCounter iv j := by
   intro h
-  apply hij
-  have hv := congrArg (fun x => (BitString.equivFin n x).val) h
-  simp only [ctrModCounter, Equiv.apply_symm_apply] at hv
-  have hmod : i ≡ j [MOD 2 ^ n] := Nat.ModEq.add_left_cancel' (BitString.equivFin n iv).val hv
-  rw [← Nat.mod_eq_of_lt (lt_of_lt_of_le hi hℓ), ← Nat.mod_eq_of_lt (lt_of_lt_of_le hj hℓ)]
-  exact hmod
+  rw [← Nat.mod_eq_of_lt (hi.trans_le hℓ), ← Nat.mod_eq_of_lt (hj.trans_le hℓ)] at hij
+  exact hij (Nat.ModEq.add_left_cancel' (BitString.equivFin n iv).val
+    (congrArg Fin.val ((BitString.equivFin n).symm.injective h)))
 
 /-- Modular CTR mode with a uniform random function when `ℓ ≤ 2 ^ n`. -/
 theorem advantage_ctrCpaGame_ctrModCounter_randomFunction_le {ℓ : ℕ} (hℓ : ℓ ≤ 2 ^ n)

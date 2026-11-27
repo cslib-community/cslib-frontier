@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.CrossingSequence
+public import Mathlib.Data.Nat.Log
 
 /-!
 # Crossing sequences on a communication rectangle
@@ -123,5 +124,27 @@ theorem AbsCfg.card_mul_le_sum_time {κ : Type*} (cfg : κ → tm.AbsCfg) (time 
     _ = ∑ p ∈ S, ∑ k ∈ K, ((cfg p).crossings k (time p)).length := Finset.sum_comm
     _ ≤ ∑ p ∈ S, time p := Finset.sum_le_sum fun p _ =>
       (cfg p).sum_length_crossings_le K (time p)
+
+/-- Choosing a crossing-length threshold from `bits` after reserving `r` bits bounds the
+short-sequence count factor by `2 ^ bits` while losing at most a factor of two from rounding. -/
+theorem exists_crossing_length_of_bits (tm : SingleTapeTM Symbol) {r bits : ℕ} (hr : 1 ≤ r)
+    (hbits : 2 * Nat.clog 2 (Fintype.card tm.State + 2) + 2 * (r - 1) ≤ bits) :
+    ∃ L, 2 ^ r * (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ bits ∧
+      bits ≤ 2 * (Nat.clog 2 (Fintype.card tm.State + 2) * L) := by
+  let d := Nat.clog 2 (Fintype.card tm.State + 2)
+  let L := (bits - r) / d
+  have hd : 0 < d := Nat.clog_pos one_lt_two (by omega)
+  have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d := by
+    rw [Fintype.card_option]
+    exact Nat.le_pow_clog one_lt_two _
+  have hdiv : d * L + (bits - r) % d = bits - r := Nat.div_add_mod (bits - r) d
+  have hmod := Nat.mod_lt (bits - r) hd
+  have hbits' : 2 * d + 2 * (r - 1) ≤ bits := hbits
+  have hbitsL : bits ≤ 2 * (d * L) := by omega
+  refine ⟨L, ?_, hbitsL⟩
+  calc 2 ^ r * (Fintype.card (Option tm.State) + 1) ^ L
+      ≤ 2 ^ r * (2 ^ d) ^ L := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hpow L)
+    _ = 2 ^ (r + d * L) := by rw [← pow_mul, ← pow_add]
+    _ ≤ 2 ^ bits := Nat.pow_le_pow_right (Nat.succ_pos 1) (by omega)
 
 end Cslib.Turing.SingleTapeTM

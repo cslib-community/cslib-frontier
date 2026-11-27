@@ -118,10 +118,8 @@ theorem hasDerivAt_movingAverage (hφ : Continuous φ) (s : ℝ) :
     HasDerivAt (movingAverage h φ) (h⁻¹ * (φ (s + h) - φ s)) s := by
   have hΦ (u : ℝ) : HasDerivAt (fun u => ∫ t in (0 : ℝ)..u, φ t) (φ u) u :=
     (hφ.integral_hasStrictDerivAt 0 u).hasDerivAt
-  have h1 : HasDerivAt (fun u => ∫ t in (0 : ℝ)..u + h, φ t) (φ (s + h)) s :=
-    (hΦ (s + h)).comp_add_const s h
-  rw [show movingAverage h φ = _ from funext (movingAverage_eq hφ)]
-  exact HasDerivAt.const_mul h⁻¹ (h1.sub (hΦ s))
+  rw [funext (movingAverage_eq hφ)]
+  exact (((hΦ (s + h)).comp_add_const s h).sub (hΦ s)).const_mul h⁻¹
 
 /-- The moving average of a continuous function is continuous. -/
 theorem continuous_movingAverage (hφ : Continuous φ) : Continuous (movingAverage h φ) :=
@@ -179,18 +177,13 @@ private theorem iteratedDeriv_iterate_movingAverage (k : ℕ) :
 /-- The `m`-fold moving average of a continuous function is of class `Cᵐ`. -/
 theorem contDiff_iterate_movingAverage (hφ : Continuous φ) (m : ℕ) :
     ContDiff ℝ m ((movingAverage h)^[m] φ) := by
-  have hcont (k : ℕ) : Continuous ((diffQuot h)^[k] φ) := by
-    induction k with
-    | zero => exact hφ
-    | succ k ih =>
-      rw [Function.iterate_succ_apply']
-      exact continuous_diffQuot ih
+  have hcont (k : ℕ) : Continuous ((diffQuot h)^[k] φ) :=
+    Nat.recOn k hφ fun k ih => Function.iterate_succ_apply' _ k φ ▸ continuous_diffQuot ih
   refine contDiff_iff_iteratedDeriv.2 ⟨fun k hk => ?_, fun k hk => ?_⟩
-  · have hk : k ≤ m := by exact_mod_cast hk
-    rw [iteratedDeriv_iterate_movingAverage k m φ hφ hk]
+  · rw [iteratedDeriv_iterate_movingAverage k m φ hφ (by exact_mod_cast hk)]
     exact continuous_iterate_movingAverage (hcont k) _
-  · have hk : k < m := by exact_mod_cast hk
-    rw [iteratedDeriv_iterate_movingAverage k m φ hφ hk.le,
+  · have hk' : k < m := by exact_mod_cast hk
+    rw [iteratedDeriv_iterate_movingAverage k m φ hφ hk'.le,
       show m - k = (m - k - 1) + 1 by omega, Function.iterate_succ_apply']
     exact fun s => (hasDerivAt_movingAverage
       (continuous_iterate_movingAverage (hcont k) _) s).differentiableAt
@@ -252,12 +245,10 @@ protected theorem movingAverage (hψ : LipschitzWith c ψ) (h : ℝ) :
 /-- A moving average with window `h > 0` moves a `c`-Lipschitz function by at most `c h`. -/
 theorem abs_movingAverage_sub_le (hψ : LipschitzWith c ψ) (hh : 0 < h) (s : ℝ) :
     |movingAverage h ψ s - ψ s| ≤ c * h := by
-  have hint : (∫ t in (0 : ℝ)..h, ψ (s + t)) - h * ψ s =
-      ∫ t in (0 : ℝ)..h, (ψ (s + t) - ψ s) := by
-    rw [integral_sub (intervalIntegrable_comp_add hψ.continuous _ _ _)
-      intervalIntegrable_const, integral_const, smul_eq_mul, sub_zero]
   have : movingAverage h ψ s - ψ s = h⁻¹ * ∫ t in (0 : ℝ)..h, (ψ (s + t) - ψ s) := by
-    rw [← hint, movingAverage_def, mul_sub, inv_mul_cancel_left₀ hh.ne']
+    rw [integral_sub (intervalIntegrable_comp_add hψ.continuous _ _ _) intervalIntegrable_const,
+      integral_const, smul_eq_mul, sub_zero, movingAverage_def, mul_sub,
+      inv_mul_cancel_left₀ hh.ne']
   rw [this]
   refine abs_inv_mul_integral_le (by positivity) fun t ht => ?_
   rw [uIoc_of_le hh.le] at ht
@@ -271,12 +262,8 @@ theorem abs_movingAverage_sub_le (hψ : LipschitzWith c ψ) (hh : 0 < h) (s : �
 `m c h`. -/
 theorem abs_iterate_movingAverage_sub_le (hψ : LipschitzWith c ψ) (hh : 0 < h) (m : ℕ)
     (s : ℝ) : |(movingAverage h)^[m] ψ s - ψ s| ≤ m * c * h := by
-  have hlip (j : ℕ) : LipschitzWith c ((movingAverage h)^[j] ψ) := by
-    induction j with
-    | zero => exact hψ
-    | succ j ih =>
-      rw [Function.iterate_succ']
-      exact ih.movingAverage h
+  have hlip (j : ℕ) : LipschitzWith c ((movingAverage h)^[j] ψ) :=
+    Nat.recOn j hψ fun j ih => Function.iterate_succ_apply' _ j ψ ▸ ih.movingAverage h
   induction m with
   | zero => simp
   | succ m ih =>
@@ -321,17 +308,14 @@ theorem exists_contDiff_smoothing (hψ : LipschitzWith c ψ) (m : ℕ) {η : ℝ
     ∃ ψ' : ℝ → ℝ, ContDiff ℝ m ψ' ∧ (∀ s, |ψ' s - ψ s| ≤ c * η) ∧
       ∀ k, k < m → ∀ s, |iteratedDeriv (k + 1) ψ' s| ≤ (2 * m) ^ k * c / η ^ k := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · exact ⟨ψ, contDiff_zero.2 hψ.continuous, fun s => by simp only [sub_self, abs_zero]; positivity,
-      fun k hk => absurd hk k.not_lt_zero⟩
-  have hm' : (0 : ℝ) < m := by exact_mod_cast hm
-  have hh : 0 < η / m := div_pos hη hm'
+  · exact ⟨ψ, contDiff_zero.2 hψ.continuous, fun _ => by simpa using mul_nonneg c.2 hη.le,
+      fun _ hk => absurd hk (by omega)⟩
+  have hh : 0 < η / m := div_pos hη (Nat.cast_pos.2 hm)
   refine ⟨(movingAverage (η / m))^[m] ψ, contDiff_iterate_movingAverage hψ.continuous m,
-    fun s => ?_, fun k hk s => ?_⟩
-  · refine (hψ.abs_iterate_movingAverage_sub_le hh m s).trans_eq ?_
-    field_simp
-  · refine (hψ.abs_iteratedDeriv_iterate_movingAverage_le hh hk s).trans_eq ?_
-    rw [div_pow, mul_pow]
-    field_simp
+    fun s => (hψ.abs_iterate_movingAverage_sub_le hh m s).trans_eq (by field_simp),
+    fun k hk s => (hψ.abs_iteratedDeriv_iterate_movingAverage_le hh hk s).trans_eq ?_⟩
+  rw [div_pow, mul_pow]
+  field_simp
 
 end LipschitzWith
 

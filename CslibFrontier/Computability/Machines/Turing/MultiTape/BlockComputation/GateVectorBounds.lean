@@ -51,10 +51,7 @@ theorem prefixState_encoding_le (params : Params) (values : ℕ → ℕ) (j : �
   have hc := length_encNat_mono hj
   have hl := length_encList_le encNat
     (List.ofFn fun i : Fin j => values i % p) (b := (encNat p).length)
-    (by
-      intro a ha
-      obtain ⟨i, rfl⟩ := List.mem_ofFn.mp ha
-      exact length_encNat_mono (Nat.mod_lt _ hp).le)
+    (fun _ ha => (List.mem_ofFn.mp ha).elim fun _ h => h ▸ length_encNat_mono (Nat.mod_lt _ hp).le)
   simp only [List.length_ofFn] at hl
   have hmul := Nat.mul_le_mul_right (2 * (encNat p).length + 1) hj
   dsimp only at hc hmul
@@ -80,10 +77,8 @@ theorem runFrom_one_encoding_le (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
   rw [← resume_prefix params values j _ hanswer] at hnext
   refine QueryMachine.withCalls_runFrom_call_encoding_le caller (Interpolation.machine M e)
     request resume w encCaller Interpolation.encState ?_ ?_ hpre hhalt hcaller hnext hsize t ht
-  · change decide (params.2 ≤ j) = false
-    exact decide_eq_false (by omega)
-  · change (if j < params.2 then some (start (prefixState params values j)) else none) = _
-    simp only [hj, ↓reduceIte]
+  · exact decide_eq_false (Nat.not_le.mpr hj)
+  · exact ite_eq_left hj
 
 /-- Concatenated coordinate calls obey one bound at all physical clocks. -/
 theorem exists_runFrom_prefix_encoding_le (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
@@ -189,20 +184,15 @@ theorem exists_runFrom_gateExtension_bounded {p q r m : ℕ} [Fact p.Prime]
       omega
   obtain ⟨T, hT, hbound⟩ := exists_runFrom_prefix_encoding_le M e params w values B
     (Fact.out : p.Prime).pos hsupplier r le_rfl
-  refine ⟨T, _, hT, ?_, ?_, ?_, ?_, ?_⟩
-  · exact List.length_ofFn
+  refine ⟨T, _, hT, List.length_ofFn, ?_, fun j => ?_, ?_, fun t ht => ?_⟩
   · intro value hvalue
-    change value ∈ List.ofFn (fun j : Fin r => values j % p) at hvalue
     obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hvalue
     exact Nat.mod_lt _ (Fact.out : p.Prime).pos
-  · intro j
-    rw [List.getD_ofFn_of_lt _ j.isLt 0, ZMod.natCast_mod]
+  · rw [List.getD_ofFn_of_lt _ j.isLt 0, ZMod.natCast_mod]
     simpa only [values, j.isLt, ↓reduceDIte] using hscalar j
   · rw [hT]
-    change decide (r ≤ r) = true
-    simp
-  · intro t ht
-    have hbnd := hbound t ht
+    exact decide_eq_true le_rfl
+  · have hbnd := hbound t ht
     dsimp only [B, params, maxParams, maxContext] at hbnd ⊢
     omega
 

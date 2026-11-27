@@ -81,20 +81,14 @@ private theorem lintegral_gaussianWeight_discreteGaussian (r s t : ℝ)
       ENNReal.ofReal (gaussianWeight t x *
         gaussianMass L (r * s / t) ((r / t) ^ 2 • x - u) /
           (s ^ finrank ℝ E * gaussianMass L r (-u))) := by
-  have hm : Measurable (fun z : L ↦ (z : E) + u) := by fun_prop
-  rw [lintegral_map (by unfold gaussianWeight; fun_prop) hm,
-    lintegral_countable']
+  rw [lintegral_map (by unfold gaussianWeight; fun_prop)
+    (measurable_subtype_coe.add_const u), lintegral_countable']
   have hp : 0 < s ^ finrank ℝ E := pow_pos hs _
   have hmass := gaussianMass_pos L r hr (-u)
   have hh : 0 < r * s / t := div_pos (mul_pos hr hs) ht
   have hsum := (summable_gaussianWeight L (r * s / t) hh
     ((r / t) ^ 2 • x - u)).mul_left (gaussianWeight t x)
-  rw [show gaussianWeight t x * gaussianMass L (r * s / t) ((r / t) ^ 2 • x - u) /
-      (s ^ finrank ℝ E * gaussianMass L r (-u)) =
-      ∑' z : L, gaussianWeight t x *
-        gaussianWeight (r * s / t) ((z : E) - ((r / t) ^ 2 • x - u)) /
-          (s ^ finrank ℝ E * gaussianMass L r (-u)) by
-    rw [tsum_div_const, tsum_mul_left]; rfl]
+  rw [gaussianMass, ← tsum_mul_left, ← tsum_div_const]
   rw [ENNReal.ofReal_tsum_of_nonneg (fun z ↦ div_nonneg
     (mul_nonneg (gaussianWeight_pos _ _).le (gaussianWeight_pos _ _).le)
     (mul_pos hp hmass).le) (hsum.div_const _)]
@@ -104,8 +98,10 @@ private theorem lintegral_gaussianWeight_discreteGaussian (r s t : ℝ)
     ← ENNReal.ofReal_mul (div_nonneg (gaussianWeight_pos _ _).le hp.le)]
   congr 1
   have hsq := gaussianWeight_mul_complete_square r s t hr hs ht ht2 x ((z : E) + u)
-  rw [show (z : E) + u - (r / t) ^ 2 • x = (z : E) - ((r / t) ^ 2 • x - u) by abel] at hsq
-  rw [sub_neg_eq_add, show -((z : E) + u) + x = x - ((z : E) + u) by abel, div_mul_div_comm,
+  have hsub1 : (z : E) + u - (r / t) ^ 2 • x = (z : E) - ((r / t) ^ 2 • x - u) := by abel
+  have hsub2 : -((z : E) + u) + x = x - ((z : E) + u) := by abel
+  rw [hsub1] at hsq
+  rw [sub_neg_eq_add, hsub2, div_mul_div_comm,
     mul_comm (gaussianWeight s _) (gaussianWeight r _), hsq]
 
 /-- The actual coset discrete Gaussian convolved with a normalized continuous Gaussian has
@@ -177,15 +173,14 @@ theorem tvDist_conv_discreteGaussian_le (r s t : ℝ)
   have hlin : ∫⁻ x, f x ∂ν = 1 := by
     simpa only [withDensity_apply f MeasurableSet.univ, Measure.restrict_univ] using
       (measure_univ (μ := ν.withDensity f))
-  have hfi : Integrable f ν := by
-    refine ⟨hf.aestronglyMeasurable, ?_⟩
-    rw [hasFiniteIntegral_iff_eNorm]
-    simpa only [eNorm_eq_self, hlin] using (show (1 : ℝ≥0∞) < ∞ by simp)
+  have hfi : Integrable f ν :=
+    ⟨hf.aestronglyMeasurable, by simp [hasFiniteIntegral_iff_eNorm, hlin]⟩
   have hbound (x : E) : |1 - (f x).toReal| ≤ (δ h + δ r) / A r (-u) := by
     have hnum : 0 < A h ((r / t) ^ 2 • x - u) :=
       mul_pos (div_pos (covolume_pos L volume) (pow_pos hh _)) (gaussianMass_pos L h hh _)
-    rw [show (f x).toReal = A h ((r / t) ^ 2 • x - u) / A r (-u) from
-      ENNReal.toReal_ofReal (div_pos hnum hA).le, one_sub_div hA.ne', abs_div, abs_of_pos hA]
+    have hfx : (f x).toReal = A h ((r / t) ^ 2 • x - u) / A r (-u) :=
+      ENNReal.toReal_ofReal (div_pos hnum hA).le
+    rw [hfx, one_sub_div hA.ne', abs_div, abs_of_pos hA]
     apply div_le_div_of_nonneg_right _ hA.le
     calc
       _ ≤ |A r (-u) - 1| + |1 - A h ((r / t) ^ 2 • x - u)| := abs_sub_le _ _ _
@@ -222,13 +217,12 @@ theorem tvDist_conv_discreteGaussian_le_of_dual_mass_le (r s t : ℝ)
   have hA := (abs_le.mp ((abs_gaussianMass_normalized_sub_one_le L r hr (-u)).trans hdr)).1
   have hpos : 0 < covolume L / r ^ finrank ℝ E * gaussianMass L r (-u) :=
     mul_pos (div_pos (covolume_pos L volume) (pow_pos hr _)) (gaussianMass_pos L r hr (-u))
-  apply (tvDist_conv_discreteGaussian_le L r s t hr hs ht ht2 u).trans
-  apply (div_le_iff₀ hpos).mpr
+  refine (tvDist_conv_discreteGaussian_le L r s t hr hs ht ht2 u).trans ((div_le_iff₀ hpos).mpr ?_)
   calc
-    _ ≤ 2 * ε := by change (gaussianMass D _ 0 - 1) + (gaussianMass D _ 0 - 1) ≤ _; linarith
+    (gaussianMass D (1 / (r * s / t)) 0 - 1) + (gaussianMass D (1 / r) 0 - 1)
+      ≤ 2 * ε := by linarith
     _ ≤ 4 * ε * (1 - ε) := by nlinarith
-    _ ≤ 4 * ε * (covolume L / r ^ finrank ℝ E * gaussianMass L r (-u)) := by gcongr; linarith
-  rfl
+    _ ≤ _ := mul_le_mul_of_nonneg_left (by linarith) (by positivity)
 
 /-- A positive dual gap and the explicit Gaussian tail criterion suffice for the actual
 coset convolution bound. This discharges the small-dual-mass premise quantitatively. -/

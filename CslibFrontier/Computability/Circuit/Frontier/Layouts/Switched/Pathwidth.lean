@@ -85,24 +85,19 @@ noncomputable def rank (y : Fin n → ℝ) (v : Fin n) : ℕ :=
 theorem rank_lt_rank {y : Fin n → ℝ} {u v : Fin n} (h : y u < y v) :
     rank y u < rank y v := by
   classical
-  apply Finset.card_lt_card
-  rw [Finset.ssubset_iff_of_subset]
-  · exact ⟨u, by simp [h], by simp⟩
-  · intro x hx
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx ⊢
-    exact hx.trans h
+  refine Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun x hx => ?_).2
+    ⟨u, by simp [h], by simp⟩)
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx ⊢
+  exact hx.trans h
 
 /-- For injective `y`, rank order equals label order. -/
 theorem rank_lt_iff {y : Fin n → ℝ} (hy : Function.Injective y) {u v : Fin n} :
     rank y u < rank y v ↔ y u < y v := by
-  constructor
-  · intro h
-    rcases lt_trichotomy (y u) (y v) with h' | h' | h'
-    · exact h'
-    · rw [hy h'] at h
-      exact absurd h (lt_irrefl _)
-    · exact absurd (rank_lt_rank h') (not_lt.mpr h.le)
-  · exact rank_lt_rank
+  refine ⟨fun h => ?_, rank_lt_rank⟩
+  rcases lt_trichotomy (y u) (y v) with h' | h' | h'
+  · exact h'
+  · exact absurd (hy h' ▸ h) (lt_irrefl _)
+  · exact absurd (rank_lt_rank h') h.not_gt
 
 /-- For injective `y`, weak rank order equals weak label order. -/
 theorem rank_le_iff {y : Fin n → ℝ} (hy : Function.Injective y) {u v : Fin n} :
@@ -117,10 +112,8 @@ theorem rank_injective {y : Fin n → ℝ} (hy : Function.Injective y) :
 /-- Every rank is strictly below `n`. -/
 theorem rank_lt_n (y : Fin n → ℝ) (v : Fin n) : rank y v < n := by
   classical
-  have h : (Finset.univ.filter fun u => y u < y v) ⊂ Finset.univ := by
-    rw [Finset.ssubset_iff_of_subset (Finset.subset_univ _)]
-    exact ⟨v, Finset.mem_univ v, by simp⟩
-  simpa only [rank, Finset.card_univ, Fintype.card_fin] using Finset.card_lt_card h
+  simpa only [rank, Finset.card_univ, Fintype.card_fin] using Finset.card_lt_card
+    ((Finset.ssubset_iff_of_subset (Finset.subset_univ _)).2 ⟨v, Finset.mem_univ v, by simp⟩)
 
 /-- Every index below `n` is realized as the rank of some vertex. -/
 theorem exists_rank_eq {y : Fin n → ℝ} (hy : Function.Injective y) {i : ℕ} (hi : i < n) :
@@ -132,41 +125,21 @@ theorem exists_rank_eq {y : Fin n → ℝ} (hy : Function.Injective y) {i : ℕ}
 
 /-- At most one vertex has a given rank when `y` is injective. -/
 theorem card_rank_eq_le {y : Fin n → ℝ} (hy : Function.Injective y) (i : ℕ) :
-    (Finset.univ.filter fun v => rank y v = i).card ≤ 1 := by
-  rw [Finset.card_le_one]
-  intro a ha b hb
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha hb
-  exact rank_injective hy (ha.trans hb.symm)
+    (Finset.univ.filter fun v => rank y v = i).card ≤ 1 :=
+  Finset.card_le_one.2 fun _ ha _ hb =>
+    rank_injective hy ((Finset.mem_filter.1 ha).2.trans (Finset.mem_filter.1 hb).2.symm)
 
 /-- The vertices with rank below `#{u | y u ≤ 0}` are precisely those with `y v ≤ 0`. -/
 theorem rank_lt_lowerCount_iff (y : Fin n → ℝ) (v : Fin n) :
     rank y v < (Finset.univ.filter fun u => y u ≤ 0).card ↔ y v ≤ 0 := by
   classical
-  constructor
-  · intro h
-    by_contra hv
-    push Not at hv
-    apply absurd h
-    apply not_lt.mpr
-    apply Finset.card_le_card
-    intro u hu
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
+  refine ⟨fun h => by_contra fun hv => h.not_ge (Finset.card_le_card fun u hu => ?_), fun hv => ?_⟩
+  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
     linarith
-  · intro hv
-    apply lt_of_lt_of_le _ (Finset.card_le_card
-      (s := Finset.univ.filter fun u => y u < y v ∨ u = v) _)
-    · rw [Finset.filter_or, Finset.card_union_of_disjoint]
-      · simp only [rank, Finset.filter_eq', Finset.mem_univ, ite_true, Finset.card_singleton]
-        omega
-      · rw [Finset.disjoint_left]
-        intro u hu hu'
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu hu'
-        exact lt_irrefl _ (hu' ▸ hu)
-    · intro u hu
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
-      rcases hu with hu | rfl
-      · linarith
-      · exact hv
+  · refine Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun u hu => ?_).2
+      ⟨v, by simp [hv], by simp⟩)
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
+    exact hu.le.trans hv
 
 end Rank
 
@@ -214,14 +187,11 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
   have hscore_inj : Function.Injective score := fun a b hab => eIdx.injective <| Fin.ext <| by
     simpa only [hscore_eq, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (hidx _)] using
       congrArg (· % K) hab
-  have hmed_exists : ∀ v, ∃ m, G.IsMedian score v m := fun v => G.exists_isMedian (h3 v) score
-  choose med hmed using hmed_exists
+  choose med hmed using fun v => G.exists_isMedian (h3 v) score
   obtain ⟨π, hπ⟩ := Layout.exists_threshold med
   refine ⟨π, (G.width_le_iff π).2 fun t => ?_⟩
-  rcases lt_or_ge t (Nat.card V) with htlt | htge
-  swap
-  · rw [G.frontier_of_card_le π htge, ncard_empty]
-    omega
+  rcases le_or_gt (Nat.card V) t with htge | htlt
+  · simp [G.frontier_of_card_le π htge]
   obtain ⟨m, hP, hPc⟩ := hπ t htlt
   let P : Set V := π.initial t
   have hdiv_mem (a : E) : score a / K = tE a := by
@@ -238,21 +208,16 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
   let F_lt : Set E := {a ∈ G.edgeCut P | score a < m}
   let F_eq : Set E := {a ∈ G.edgeCut P | score a = m}
   let F_gt : Set E := {a ∈ G.edgeCut P | m < score a}
-  have hpart : G.edgeCut P ⊆ F_lt ∪ F_eq ∪ F_gt := by
-    intro a ha
-    rcases lt_trichotomy (score a) m with h | h | h
-    · exact Or.inl (Or.inl ⟨ha, h⟩)
-    · exact Or.inl (Or.inr ⟨ha, h⟩)
-    · exact Or.inr ⟨ha, h⟩
-  have hmem_t (v : V) (a : E) (hav : a ∈ G.incidenceSet v) : s v ≤ tE a ∧ tE a ≤ e v := by
-    rcases hav with rfl | rfl
-    · exact ⟨htE_sl a, htE_sr a⟩
-    · exact ⟨htE_tl a, htE_tr a⟩
+  have hpart : G.edgeCut P ⊆ F_lt ∪ F_eq ∪ F_gt := fun a ha =>
+    Or.elim (lt_trichotomy (score a) m) (fun h => Or.inl (Or.inl ⟨ha, h⟩))
+      (Or.imp (fun h => Or.inr ⟨ha, h⟩) fun h => ⟨ha, h⟩)
+  have hmem_t (v : V) (a : E) : a ∈ G.incidenceSet v → s v ≤ tE a ∧ tE a ≤ e v
+    | Or.inl rfl => ⟨htE_sl a, htE_sr a⟩
+    | Or.inr rfl => ⟨htE_tl a, htE_tr a⟩
   -- `F_eq` has at most one element by injectivity of `score`.
   have hFeq : F_eq.ncard ≤ 1 := by
     rw [ncard_le_one_iff]
-    rintro a b ⟨_, ha⟩ ⟨_, hb⟩
-    exact hscore_inj (ha.trans hb.symm)
+    exact fun ⟨_, ha⟩ ⟨_, hb⟩ => hscore_inj (ha.trans hb.symm)
   -- `F_lt` injects into `(intervalBag s e i : Set V) \ P`.
   let outEnd : E → V := fun a => if G.src a ∈ P then G.tgt a else G.src a
   have houtEnd {a : E} (ha : a ∈ G.edgeCut P) : outEnd a ∉ P ∧ a ∈ G.incidenceSet (outEnd a) := by
@@ -266,11 +231,8 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
     · rintro a ⟨ha, hlt⟩
       obtain ⟨hvP, hav⟩ := houtEnd ha
       obtain ⟨a', ha', hle'⟩ := (hmed (outEnd a)).exists_le_score
-      have h1 : tE a ≤ i := hm_le_i hlt.le
-      have h2 : i ≤ tE a' := hi_le_m ((hPc _ hvP).trans hle')
-      have hs1 := (hmem_t _ a hav).1
-      have he2 := (hmem_t _ a' ha').2
-      exact ⟨mem_intervalBag.2 ⟨by omega, by omega⟩, hvP⟩
+      exact ⟨mem_intervalBag.2 ⟨(hmem_t _ a hav).1.trans (hm_le_i hlt.le),
+        (hi_le_m ((hPc _ hvP).trans hle')).trans (hmem_t _ a' ha').2⟩, hvP⟩
     · rintro a ⟨ha, hlt⟩ b ⟨hb, hlt'⟩ heq
       obtain ⟨hvP, hav⟩ := houtEnd ha
       obtain ⟨_, hbv⟩ := houtEnd hb
@@ -290,11 +252,8 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
     · rintro a ⟨ha, hgt⟩
       obtain ⟨huP, hau⟩ := hinEnd ha
       obtain ⟨a', ha', hle'⟩ := (hmed (inEnd a)).exists_score_le
-      have h1 : tE a' ≤ i := hm_le_i (hle'.trans (hP _ huP))
-      have h2 : i ≤ tE a := hi_le_m hgt.le
-      have hs1 := (hmem_t _ a' ha').1
-      have he2 := (hmem_t _ a hau).2
-      exact ⟨mem_intervalBag.2 ⟨by omega, by omega⟩, huP⟩
+      exact ⟨mem_intervalBag.2 ⟨(hmem_t _ a' ha').1.trans (hm_le_i (hle'.trans (hP _ huP))),
+        (hi_le_m hgt.le).trans (hmem_t _ a hau).2⟩, huP⟩
     · rintro a ⟨ha, hgt⟩ b ⟨hb, hgt'⟩ heq
       obtain ⟨huP, hau⟩ := hinEnd ha
       obtain ⟨_, hbu⟩ := hinEnd hb

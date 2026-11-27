@@ -147,9 +147,7 @@ theorem eq_of_eval_eq {F V : Type*} [Field F] [AddCommGroup V] [Module F V]
       _ = 0 := by rw [h₀, h₁, sub_self]
   have hslope : line₁.slope = line₂.slope :=
     sub_eq_zero.mp ((smul_eq_zero.mp hsub).resolve_left hd)
-  have hinter : line₁.intercept = line₂.intercept := by
-    simpa [KOSLine.eval, hslope] using h₀
-  ext <;> assumption
+  exact KOSLine.ext hslope (by simpa [KOSLine.eval, hslope] using h₀)
 
 end KOSLine
 
@@ -246,16 +244,13 @@ p. 98): three openings in `responses` at pairwise distinct challenges have a non
 never satisfy `HasKOSBadTriple`. -/
 theorem not_hasKOSBadTriple_of_length_le_two (h : V →ₗ[F] W) {responses : List (F × V)}
     (hlen : responses.length ≤ 2) : ¬ HasKOSBadTriple h responses := by
+  classical
   rintro ⟨p₀, hp₀, p₁, hp₁, p₂, hp₂, hne₀₁, hne₀₂, hne₁₂, _, _⟩
-  obtain ⟨i₀, rfl⟩ := List.mem_iff_get.mp hp₀
-  obtain ⟨i₁, rfl⟩ := List.mem_iff_get.mp hp₁
-  obtain ⟨i₂, rfl⟩ := List.mem_iff_get.mp hp₂
-  have hi₀₁ : i₀.val ≠ i₁.val := fun heq => hne₀₁ (by rw [Fin.ext heq])
-  have hi₀₂ : i₀.val ≠ i₂.val := fun heq => hne₀₂ (by rw [Fin.ext heq])
-  have hi₁₂ : i₁.val ≠ i₂.val := fun heq => hne₁₂ (by rw [Fin.ext heq])
-  have := i₀.isLt
-  have := i₁.isLt
-  have := i₂.isLt
+  have hsub : ({p₀.1, p₁.1, p₂.1} : Finset F) ⊆ (responses.map Prod.fst).toFinset := by
+    simp [Finset.insert_subset_iff, List.mem_map_of_mem hp₀, List.mem_map_of_mem hp₁,
+      List.mem_map_of_mem hp₂]
+  have hcard := (Finset.card_le_card hsub).trans (List.toFinset_card_le _)
+  rw [Finset.card_eq_three.mpr ⟨_, _, _, hne₀₁, hne₀₂, hne₁₂, rfl⟩, List.length_map] at hcard
   omega
 
 /-- Shared accepted-opening selector for `kosExtract` and `kosFailureWitness`: filters `responses`
@@ -274,14 +269,9 @@ private theorem selectAccepted_eq_none [DecidableEq F] [DecidableEq W]
     (hsel : selectAccepted h responses target = none) :
     ∀ p ∈ responses, h p.2 ≠ target.eval p.1 := by
   intro p hp heq
-  have hmem : p ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) :=
-    List.mem_filter.mpr ⟨hp, decide_eq_true heq⟩
-  unfold selectAccepted at hsel
-  split at hsel
-  · rename_i hfilt
-    rw [hfilt] at hmem
-    cases hmem
-  · cases hsel
+  cases hfilt : responses.filter (fun p => decide (h p.2 = target.eval p.1)) with
+  | nil => exact List.ne_nil_of_mem (List.mem_filter.mpr ⟨hp, decide_eq_true heq⟩) hfilt
+  | cons _ _ => simp [selectAccepted, hfilt] at hsel
 
 omit [AddCommGroup V] [Module F V] in
 private theorem selectAccepted_eq_some_none [DecidableEq F] [DecidableEq W]
@@ -289,22 +279,16 @@ private theorem selectAccepted_eq_some_none [DecidableEq F] [DecidableEq W]
     (hsel : selectAccepted h responses target = some (p₀, none)) :
     p₀ ∈ responses ∧ h p₀.2 = target.eval p₀.1 ∧
       ∀ p ∈ responses, h p.2 = target.eval p.1 → p.1 = p₀.1 := by
-  unfold selectAccepted at hsel
-  split at hsel
-  · cases hsel
-  · rename_i q₀ rest hfilt
-    obtain ⟨rfl, hfind⟩ := Prod.mk.inj (Option.some.inj hsel)
-    have hp₀_acc : q₀ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
-      rw [hfilt]
-      exact List.mem_cons_self
-    obtain ⟨hp₀_mem, hp₀_dec⟩ := List.mem_filter.mp hp₀_acc
-    refine ⟨hp₀_mem, of_decide_eq_true hp₀_dec, fun p hp hhash => ?_⟩
-    have hp_acc : p ∈ q₀ :: rest := by
-      rw [← hfilt]
-      exact List.mem_filter.mpr ⟨hp, decide_eq_true hhash⟩
-    rcases List.mem_cons.mp hp_acc with rfl | hrest
+  cases hfilt : responses.filter (fun p => decide (h p.2 = target.eval p.1)) with
+  | nil => simp [selectAccepted, hfilt] at hsel
+  | cons q₀ rest =>
+    simp only [selectAccepted, hfilt, Option.some.injEq, Prod.mk.injEq] at hsel
+    obtain ⟨rfl, hfind⟩ := hsel
+    obtain ⟨hp₀, h₀⟩ := List.mem_filter.mp (hfilt ▸ List.mem_cons_self)
+    refine ⟨hp₀, of_decide_eq_true h₀, fun p hp hhash => ?_⟩
+    rcases List.mem_cons.mp (hfilt ▸ List.mem_filter.mpr ⟨hp, decide_eq_true hhash⟩) with rfl | hr
     · rfl
-    · simpa using List.find?_eq_none.mp hfind p hrest
+    · simpa using List.find?_eq_none.mp hfind p hr
 
 omit [AddCommGroup V] [Module F V] in
 private theorem selectAccepted_eq_some_some [DecidableEq F] [DecidableEq W]
@@ -312,20 +296,15 @@ private theorem selectAccepted_eq_some_some [DecidableEq F] [DecidableEq W]
     (hsel : selectAccepted h responses target = some (p₀, some p₁)) :
     p₀ ∈ responses ∧ h p₀.2 = target.eval p₀.1 ∧
       p₁ ∈ responses ∧ h p₁.2 = target.eval p₁.1 ∧ p₁.1 ≠ p₀.1 := by
-  unfold selectAccepted at hsel
-  split at hsel
-  · cases hsel
-  · rename_i q₀ rest hfilt
-    obtain ⟨rfl, hfind⟩ := Prod.mk.inj (Option.some.inj hsel)
-    have hp₀_acc : q₀ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
-      rw [hfilt]
-      exact List.mem_cons_self
-    have hp₁_acc : p₁ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
-      rw [hfilt]
-      exact List.mem_cons_of_mem q₀ (List.mem_of_find?_eq_some hfind)
-    obtain ⟨hp₀_mem, hp₀_dec⟩ := List.mem_filter.mp hp₀_acc
-    obtain ⟨hp₁_mem, hp₁_dec⟩ := List.mem_filter.mp hp₁_acc
-    exact ⟨hp₀_mem, of_decide_eq_true hp₀_dec, hp₁_mem, of_decide_eq_true hp₁_dec,
+  cases hfilt : responses.filter (fun p => decide (h p.2 = target.eval p.1)) with
+  | nil => simp [selectAccepted, hfilt] at hsel
+  | cons q₀ rest =>
+    simp only [selectAccepted, hfilt, Option.some.injEq, Prod.mk.injEq] at hsel
+    obtain ⟨rfl, hfind⟩ := hsel
+    obtain ⟨hp₀, h₀⟩ := List.mem_filter.mp (hfilt.symm ▸ List.mem_cons_self)
+    obtain ⟨hp₁, h₁⟩ := List.mem_filter.mp
+      (hfilt.symm ▸ List.mem_cons_of_mem q₀ (List.mem_of_find?_eq_some hfind))
+    exact ⟨hp₀, of_decide_eq_true h₀, hp₁, of_decide_eq_true h₁,
       by simpa using List.find?_some hfind⟩
 
 /-- Executable, total KOS affine-line extractor ([BaumEtAl2026FAEST], §10.6, Lemma 10.26 and
@@ -474,9 +453,7 @@ private theorem kosAffineDefect_index_perm_eq_or_neg (responses : List (F × V))
   rcases hm₀ with rfl | rfl | rfl <;>
     rcases hm₁ with rfl | rfl | rfl <;>
     rcases hm₂ with rfl | rfl | rfl
-  all_goals try exact False.elim (hi₀₁ rfl)
-  all_goals try exact False.elim (hi₀₂ rfl)
-  all_goals try exact False.elim (hi₁₂ rfl)
+  all_goals try contradiction
   · exact Or.inl rfl
   · exact Or.inr (kosAffineDefect_swap₁₂ _ _ _)
   · exact Or.inr (kosAffineDefect_swap₀₁ _ _ _)
@@ -513,10 +490,8 @@ theorem toOuterMeasure_hasKOSBadPair_le
     rintro s ⟨p₀, hp₀, p₁, hp₁, _, hqne, hcoll⟩ hinj
     exact hqne (hinj (List.mem_toFinset.mpr (List.mem_map_of_mem hp₀))
       (List.mem_toFinset.mpr (List.mem_map_of_mem hp₁)) hcoll)
-  have hcard : S.card ≤ responses.length := by
-    simpa [S] using List.toFinset_card_le (responses.map Prod.snd)
-  have hchoose : (S.card.choose 2 : ℝ≥0∞) ≤ (responses.length.choose 2 : ℝ≥0∞) := by
-    exact_mod_cast Nat.choose_le_choose 2 hcard
+  have hchoose : (S.card.choose 2 : ℝ≥0∞) ≤ (responses.length.choose 2 : ℝ≥0∞) :=
+    mod_cast Nat.choose_le_choose 2 ((List.toFinset_card_le _).trans_eq (List.length_map _))
   calc
     seed.toOuterMeasure {s | HasKOSBadPair (h s) responses}
         ≤ seed.toOuterMeasure {s | ¬ Set.InjOn (h s) S} := seed.toOuterMeasure.mono hsub
@@ -549,33 +524,22 @@ theorem toOuterMeasure_hasKOSBadTriple_le
     have hi₀₁ : i₀ ≠ i₁ := fun heq => hne₀₁ (by rw [heq])
     have hi₀₂ : i₀ ≠ i₂ := fun heq => hne₀₂ (by rw [heq])
     have hi₁₂ : i₁ ≠ i₂ := fun heq => hne₁₂ (by rw [heq])
-    let T : Finset (Fin responses.length) := {i₀, i₁, i₂}
-    have hTcard : T.card = 3 :=
-      Finset.card_eq_three.mpr ⟨i₀, i₁, i₂, hi₀₁, hi₀₂, hi₁₂, rfl⟩
-    have hT : T ∈ triples := Finset.mem_powersetCard.mpr ⟨Finset.subset_univ _, hTcard⟩
-    refine Set.mem_iUnion₂.mpr ⟨⟨T, hT⟩, Finset.mem_attach _ _, ?_⟩
-    have hTeq := chooseTriple_spec (Finset.mem_powersetCard.mp hT).2
-    set u := chooseTriple (Finset.mem_powersetCard.mp hT).2
-    have hperm := kosAffineDefect_index_perm_eq_or_neg responses hTeq hi₀₁ hi₀₂ hi₁₂
-    change repDefect ⟨T, hT⟩ ≠ 0 ∧ H s (repDefect ⟨T, hT⟩) = 0
-    have hrep : repDefect ⟨T, hT⟩ =
-        kosAffineDefect (responses.get u.1) (responses.get u.2.1) (responses.get u.2.2) := rfl
-    rw [hrep]
-    rcases hperm with heq | hneg
+    have hT : ({i₀, i₁, i₂} : Finset (Fin responses.length)) ∈ triples :=
+      Finset.mem_powersetCard.mpr
+        ⟨Finset.subset_univ _, Finset.card_eq_three.mpr ⟨i₀, i₁, i₂, hi₀₁, hi₀₂, hi₁₂, rfl⟩⟩
+    refine Set.mem_iUnion₂.mpr ⟨⟨_, hT⟩, Finset.mem_attach _ _, ?_⟩
+    dsimp only [badSet, repDefect]
+    rcases kosAffineDefect_index_perm_eq_or_neg responses
+        (chooseTriple_spec (Finset.mem_powersetCard.mp hT).2) hi₀₁ hi₀₂ hi₁₂ with heq | hneg
     · exact ⟨heq ▸ hdef, heq ▸ hzero⟩
-    · refine ⟨fun hr => hdef (by rw [hneg, hr, neg_zero]), ?_⟩
-      rwa [hneg, map_neg, neg_eq_zero] at hzero
+    · exact ⟨by rwa [hneg, neg_ne_zero] at hdef,
+        by rwa [hneg, map_neg, neg_eq_zero] at hzero⟩
   have hterm (T : {T // T ∈ triples}) (_ : T ∈ triples.attach) :
       seed.toOuterMeasure (badSet T) ≤ ε := by
     by_cases hr : repDefect T = 0
-    · have hemp : badSet T = ∅ := by
-        ext s
-        simp [badSet, hr]
-      simp [hemp]
-    · refine (seed.toOuterMeasure.mono ?_).trans (hH (repDefect T) 0 hr)
-      intro s hs
-      change H s (repDefect T) = H s 0
-      rw [hs.2, map_zero]
+    · simp [badSet, hr]
+    · exact (seed.toOuterMeasure.mono fun s (hs : s ∈ badSet T) =>
+        hs.2.trans (map_zero (H s)).symm).trans (hH (repDefect T) 0 hr)
   calc
     seed.toOuterMeasure {s | HasKOSBadTriple (H s) responses}
         ≤ seed.toOuterMeasure (⋃ T ∈ triples.attach, badSet T) :=
@@ -601,11 +565,9 @@ theorem toOuterMeasure_kosExtract_graph_failure_le [DecidableEq F] [DecidableEq 
         p ∈ responses ∧ H s p.2 = target.eval p.1 ∧
           (kosExtract (H s) responses target).eval p.1 ≠ p.2} ≤
       ε * (responses.length.choose 3 : ℝ≥0∞) := by
-  refine (seed.toOuterMeasure.mono fun s hs => ?_).trans
-    (toOuterMeasure_hasKOSBadTriple_le hH responses)
-  rcases hs with ⟨target, p, hp, hhash, hfail⟩
-  by_contra hnobad
-  exact hfail (kosExtract_eval_eq_of_not_hasKOSBadTriple (H s) hgraph hnobad target hp hhash)
+  refine le_trans ?_ (toOuterMeasure_hasKOSBadTriple_le hH responses)
+  exact seed.toOuterMeasure.mono fun s ⟨target, p, hp, hhash, hfail⟩ => not_not.mp fun hnobad =>
+    hfail (kosExtract_eval_eq_of_not_hasKOSBadTriple (H s) hgraph hnobad target hp hhash)
 
 /-- Abstract universal-hash step of [BaumEtAl2026FAEST], §10.6, Lemma 10.26 (pp. 97–98), not the
 concrete `VOLEHash` instantiation (tracked in #4987): on an arbitrary finite opening list
@@ -631,26 +593,19 @@ theorem toOuterMeasure_kosExtract_failure_le [DecidableEq F] [DecidableEq W]
     · exact Or.inl hpair
     · right
       let accepted := responses.filter (fun q => decide (H s q.2 = target.eval q.1))
-      have hgraph_acc : IsResponseGraph accepted := by
-        intro p₁ hp₁ p₂ hp₂ hfst
-        have hp₁' := List.mem_filter.mp hp₁
-        have hp₂' := List.mem_filter.mp hp₂
+      have hgraph_acc : IsResponseGraph accepted := fun p₁ hp₁ p₂ hp₂ hfst => by
+        obtain ⟨hp₁_mem, hp₁_eq⟩ := List.mem_filter.mp hp₁
+        obtain ⟨hp₂_mem, hp₂_eq⟩ := List.mem_filter.mp hp₂
         by_contra hne
-        exact hpair ⟨p₁, hp₁'.1, p₂, hp₂'.1, hfst, hne,
-          (of_decide_eq_true hp₁'.2).trans
-            (hfst ▸ (of_decide_eq_true hp₂'.2).symm)⟩
+        exact hpair ⟨p₁, hp₁_mem, p₂, hp₂_mem, hfst, hne,
+          (of_decide_eq_true hp₁_eq).trans (hfst ▸ (of_decide_eq_true hp₂_eq).symm)⟩
       have hext_acc : kosExtract (H s) responses target = kosExtract (H s) accepted target := by
         simp [kosExtract, selectAccepted, accepted, List.filter_filter]
       have hp_acc : p ∈ accepted := List.mem_filter.mpr ⟨hp, decide_eq_true hhash⟩
-      have hfail_acc : (kosExtract (H s) accepted target).eval p.1 ≠ p.2 := by
-        rwa [← hext_acc]
-      have hbad_acc : HasKOSBadTriple (H s) accepted := by
-        by_contra hnobad
-        exact hfail_acc
-          (kosExtract_eval_eq_of_not_hasKOSBadTriple (H s) hgraph_acc hnobad target hp_acc hhash)
-      rcases hbad_acc with ⟨q₀, hq₀, q₁, hq₁, q₂, hq₂, hne₀₁, hne₀₂, hne₁₂, hdef, hzero⟩
-      exact ⟨q₀, (List.mem_filter.mp hq₀).1, q₁, (List.mem_filter.mp hq₁).1,
-        q₂, (List.mem_filter.mp hq₂).1, hne₀₁, hne₀₂, hne₁₂, hdef, hzero⟩
+      let w := kosFailureWitness (H s) hgraph_acc hp_acc hhash (hext_acc ▸ hfail)
+      exact ⟨w.p₀, List.mem_of_mem_filter w.p₀_mem, w.p₁, List.mem_of_mem_filter w.p₁_mem,
+        w.p₂, List.mem_of_mem_filter w.p₂_mem, w.challenge_ne₀₁, w.challenge_ne₀₂,
+        w.challenge_ne₁₂, w.defect_ne_zero, w.map_defect_eq_zero⟩
   calc
     seed.toOuterMeasure
         {s | ∃ (target : KOSLine W) (p : F × V),

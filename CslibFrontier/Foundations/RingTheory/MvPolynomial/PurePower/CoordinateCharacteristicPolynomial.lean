@@ -56,6 +56,14 @@ theorem parametricCoordinatePolynomial_natDegree (hell : 1 ≤ ell)
   rw [parametricCoordinatePolynomial, Matrix.charpoly_natDegree_eq_dim]
   simp [NormalIndex]
 
+/-- Each deformation coefficient has coordinate degree at most the quotient dimension. -/
+theorem natDegree_coeff_swap_parametricCoordinatePolynomial_le (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (i : Fin n) (j : ℕ) :
+    ((Polynomial.Bivariate.swap (parametricCoordinatePolynomial hell F hF i)).coeff j).natDegree
+      ≤ ell ^ n := by
+  refine (Polynomial.Bivariate.natDegree_coeff_le_natDegree_swap _ _).trans_eq ?_
+  rw [Polynomial.Bivariate.swap_swap_apply, parametricCoordinatePolynomial_natDegree]
+
 /-- The leading coefficient in the deformation parameter is a nonzero polynomial in the
 coordinate value. -/
 theorem leadingCoeff_swap_parametricCoordinatePolynomial_ne_zero (hell : 1 ≤ ell)
@@ -134,5 +142,19 @@ theorem parametricCoordinatePolynomial_bivariateCoeffNorm1_le {n ell b : ℕ} (h
   exact bivariateCoeffNorm1_multiplicationMatrix_charpoly_le_pow_two (Ω := 1) (bv := 0)
     (br := ell.size + b) hell r hr hrnorm (X i) (totalDegree_X_le i)
     (by simp only [ParameterCoeffNorm.X, pow_zero, le_refl])
+
+/-- The leading deformation coefficient inherits the coordinate degree and norm bounds. -/
+theorem leadingCoeff_swap_parametricCoordinatePolynomial_bounds {b : ℕ} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b)
+    (i : Fin n) :
+    let P := parametricCoordinatePolynomial (by omega : 1 ≤ ell) F hF i
+    let Q := (Polynomial.Bivariate.swap P).leadingCoeff
+    Q.natDegree ≤ ell ^ n ∧ Q.coeffNorm1 ≤ 2 ^ parametricCoordinateCoeffNormExponent n ell b := by
+  intro P Q
+  rw [show Q = (Polynomial.Bivariate.swap P).coeff (Polynomial.Bivariate.swap P).natDegree
+    from Polynomial.coeff_natDegree.symm]
+  exact ⟨natDegree_coeff_swap_parametricCoordinatePolynomial_le (by omega) F hF i _,
+    (Polynomial.coeffNorm1_coeff_swap_le P _).trans
+      (parametricCoordinatePolynomial_bivariateCoeffNorm1_le hell F hF hb i)⟩
 
 end MvPolynomial.CriticalSystem

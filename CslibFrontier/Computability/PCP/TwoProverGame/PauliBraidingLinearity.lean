@@ -72,18 +72,15 @@ private theorem winProb_fixedBasis_le
   change game.commutingWinProb S ≤ _
   rw [SeededGame.commutingWinProb_eq_sum, SeededGame.commutingWinProb_eq_sum]
   refine sum_le_sum fun r _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-  unfold pauliBraidingLinearityStrategy
-  rw [S.sum_ite_prob_map]
+  rw [pauliBraidingLinearityStrategy, S.sum_ite_prob_map]
   have hq : game.query r = (.basis basis (sym.query r).1, .basis basis (sym.query r).2) := by
     simp only [game, SeededGame.pullbackSeed, Function.comp_apply, pauliBraidingGame,
       pauliBraidingBranchGame, sym]
   rw [hq]
   refine sum_le_sum fun p _ => sum_le_sum fun q _ => ?_
-  split_ifs with h₁ h₂ h₂
-  · exact le_rfl
+  split_ifs with h₁ h₂ h₂ <;> try exact le_rfl
   · cases p <;> cases q <;> first | exact (h₂ h₁).elim | exact h₁.elim
   · exact S.prob_nonneg _ _ _ _
-  · exact le_rfl
 
 /-- For either basis, the rejection of the decoded symmetric strategy is at most twice
 the combined verifier's linearity rejection. -/
@@ -99,9 +96,8 @@ theorem rejection_pauliBraidingLinearityStrategy_le
     (Probability.PMF.uniformOfFintype Bool)
     (fun b => law.map (PauliBraidingSeed.linearity b)) S.answers basis
   rw [← game.answersWinProb_pullbackSeed law (PauliBraidingSeed.linearity basis) S.answers,
-    Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv] at h
-  have hmass : (↑(Fintype.card Bool) : ℝ≥0∞).toReal = 2 := by norm_num
-  rw [hmass] at h
+    Probability.PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat, ENNReal.toReal_inv,
+    ENNReal.toReal_ofNat] at h
   have hdecode := winProb_fixedBasis_le G special decode S basis
   change (2 : ℝ)⁻¹ * (1 - (game.pullbackSeed law (.linearity basis)).commutingWinProb S) ≤
     1 - (pauliBraidingBranchGame n G special decode 0).commutingWinProb S at h
@@ -127,9 +123,7 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_pauliBraidingLinearity
         (T.alice (a + b)).observable)).re := by
   intro R T
   have hscore : 1 - 2 * ε ≤ (symmetricLinearityGame n).commutingWinProb R := by
-    have h : 1 - (symmetricLinearityGame n).commutingWinProb R ≤ _ :=
-      rejection_pauliBraidingLinearityStrategy_le G special decode S basis
-    linarith
+    linarith [rejection_pauliBraidingLinearityStrategy_le G special decode S basis]
   have h := R.one_sub_le_expect_re_apply_mul_mul_of_symmetricLinearityGame
     (fun q => (hA basis q).map _) (fun q => (hB basis q).map _) hscore roles
   dsimp only at h
@@ -160,13 +154,8 @@ theorem observable_asymmetricLinearity_eq_pointMeasurement
   refine expect_congr rfl fun d _ => ?_
   let read (r : Bool × Bool) := (cond (lexSwap c d) Prod.swap id r).1
   have hread : read ∘ Sum.elim id (fun _ : A => (false, false)) =
-      Sum.elim read (fun _ => false) := by
-    funext a
-    cases a with
-    | inl r => rfl
-    | inr a =>
-      change (cond (lexSwap c d) Prod.swap id (false, false)).1 = false
-      cases lexSwap c d <;> rfl
+      Sum.elim read (fun _ => false) := funext fun a => by
+    cases a <;> cases h : lexSwap c d <;> simp [read, h]
   change (Measurement.map read ((cond roles R R.swap).alice _)).observable =
     (Measurement.map (Sum.elim read (fun _ => false)) _).observable
   cases roles <;>
@@ -235,9 +224,8 @@ theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
       have h := expect_prob_mismatch_pauliBraidingDiagonal_le G special decode (!roles) true S
       dsimp only at h
       have hdecode : (fun a => first a ^^ second a) =
-          Sum.elim (fun bits : Bool × Bool => bits.1 ^^ bits.2) (fun _ => false) := by
-        funext a
-        cases a <;> rfl
+          Sum.elim (fun bits : Bool × Bool => bits.1 ^^ bits.2) (fun _ => false) :=
+        funext fun a => by cases a <;> rfl
       simp only [bad, tie, hdecode, size]
       cases roles <;> exact h
     simp only [ite_true, AlgState.norm_nnqsmul, NNRat.cast_inv, NNRat.cast_natCast, mul_pow]
@@ -248,9 +236,7 @@ theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
           (tie c).norm_observable_map_sub_sq_le S.state first second
         simpa only [mul_assoc, mul_left_comm (((size : ℝ)⁻¹) ^ 2) 4] using
           mul_le_mul_of_nonneg_left h (sq_nonneg ((size : ℝ)⁻¹))
-      _ = (4 / size) * ((𝔼 c, bad c) / size) := by
-        rw [← mul_expect]
-        ring
+      _ = (4 / size) * ((𝔼 c, bad c) / size) := by rw [← mul_expect]; ring
       _ ≤ _ := by
         rw [show (48 : ℝ) / size = (4 / size) * 12 by ring, mul_assoc]
         exact mul_le_mul_of_nonneg_left hweighted (by positivity)

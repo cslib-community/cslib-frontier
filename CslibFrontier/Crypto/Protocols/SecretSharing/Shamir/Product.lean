@@ -56,15 +56,10 @@ theorem uniformOfFintype_map_restrict_share_pi {F Party κ : Type*} [Field F] [F
           (fun r k (i : I) => share params (r k) (secret k) i) =
         PMF.uniformOfFintype (κ → I → F) := by
     rw [← PMF.pi_uniformOfFintype,
-      ← PMF.pi_map
-        (fun _ : κ => PMF.uniformOfFintype (Randomness params))
-        (fun k coeffs (i : I) => share params coeffs (secret k) i)]
+      ← PMF.pi_map _ (fun k coeffs (i : I) => share params coeffs (secret k) i)]
     simp only [uniformOfFintype_map_restrict_share params I hI, PMF.pi_uniformOfFintype]
-  have hcomp :
-      (fun (r : κ → Randomness params) (i : I) k => share params (r k) (secret k) i) =
-        (Equiv.piComm fun (_ : κ) (_ : I) => F) ∘
-          fun (r : κ → Randomness params) k (i : I) => share params (r k) (secret k) i := rfl
-  rw [hcomp, ← PMF.map_comp, hpi]
-  exact PMF.uniformOfFintype_map_equiv (Equiv.piComm fun (_ : κ) (_ : I) => F)
+  exact (PMF.map_comp _ _ _).symm.trans
+    ((congrArg _ hpi).trans
+      (PMF.uniformOfFintype_map_equiv (Equiv.piComm fun (_ : κ) (_ : I) => F)))
 
 end Cslib.Crypto.Protocols.SecretSharing.Shamir

@@ -112,30 +112,21 @@ theorem Valid.size_eq {α : Type*} [AddCommMonoid α] {t : FenwickTree α} {s : 
 /-- Canonical representation uniqueness: `Valid t s` uniquely determines `t`. -/
 theorem Valid.unique {α : Type*} [AddCommMonoid α]
     {t₁ t₂ : FenwickTree α} {s : List α} (h₁ : Valid t₁ s) (h₂ : Valid t₂ s) : t₁ = t₂ := by
-  cases t₁ with
-  | mk a₁ =>
-    cases t₂ with
-    | mk a₂ =>
-      congr 1
-      refine Array.ext (h₁.1.trans h₂.1.symm) fun i hi₁ hi₂ => ?_
-      have hval₁ := h₁.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₁)
-      have hval₂ := h₂.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₂)
-      simpa only [Nat.add_sub_cancel] using hval₁.trans hval₂.symm
+  rcases t₁, t₂ with ⟨⟨a₁⟩, ⟨a₂⟩⟩
+  congr 1
+  refine Array.ext (h₁.1.trans h₂.1.symm) fun i hi₁ hi₂ => ?_
+  simpa only [Nat.add_sub_cancel] using
+    (h₁.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₁)).trans
+      (h₂.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₂)).symm
 
 /-- On a natural-number Fenwick tree valid for `s`, every stored cell is at most `s.sum`. -/
 theorem Valid.getElem_le_sum {t : FenwickTree ℕ} {s : List ℕ} (hv : Valid t s)
     {i : ℕ} (hi : i < t.tree.size) : t.tree[i] ≤ s.sum := by
   have hm := hv.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi)
-  simp only [Nat.add_sub_cancel] at hm
-  rw [hm]
-  have h1 : ((s.take (i + 1)).drop (i + 1 - lowbit (i + 1))).sum ≤ (s.take (i + 1)).sum := by
-    conv_rhs => rw [← List.take_append_drop (i + 1 - lowbit (i + 1)) (s.take (i + 1)),
-      List.sum_append]
-    omega
-  have h2 : (s.take (i + 1)).sum ≤ s.sum := by
-    conv_rhs => rw [← List.take_append_drop (i + 1) s, List.sum_append]
-    omega
-  exact h1.trans h2
+  have h1 := congrArg List.sum (List.take_append_drop (i + 1 - lowbit (i + 1)) (s.take (i + 1)))
+  have h2 := congrArg List.sum (List.take_append_drop (i + 1) s)
+  simp only [Nat.add_sub_cancel, List.sum_append] at hm h1 h2
+  omega
 
 /-! ## Bridging `List` slice sums and `Finset.Ico` sums -/
 
@@ -148,24 +139,21 @@ private theorem sum_drop_take_eq_sum_Ico {α : Type*} [AddCommMonoid α]
       Finset.sum_empty]
   | succ r ih =>
     rcases le_or_gt (r + 1) l with hle | hlt
-    · have hdrop : (s.take (r + 1)).drop l = [] :=
-        List.drop_eq_nil_of_le ((List.length_take_le (r + 1) s).trans hle)
-      rw [hdrop, List.sum_nil, Finset.Ico_eq_empty (by omega), Finset.sum_empty]
+    · rw [List.drop_eq_nil_of_le ((List.length_take_le (r + 1) s).trans hle), List.sum_nil,
+        Finset.Ico_eq_empty (by omega), Finset.sum_empty]
     · have hrl : l ≤ r := by omega
       have hrs : r < s.length := by omega
       have htake : s.take (r + 1) = s.take r ++ [s[r]'hrs] := by
         rw [List.take_add_one, getElem?_pos s r hrs, Option.toList_some]
       have hlen_r : (s.take r).length = r := List.length_take_of_le (Nat.le_of_lt hrs)
-      have hico : Finset.Ico l (r + 1) = insert r (Finset.Ico l r) := by
-        ext x
-        simp only [Finset.mem_Ico, Finset.mem_insert]
-        omega
-      have hr_not : r ∉ Finset.Ico l r := by grind
       rw [htake, List.drop_append_of_le_length (by rw [hlen_r]; exact hrl),
         List.sum_append, List.sum_singleton, ih (Nat.le_of_lt hrs),
-        hico, Finset.sum_insert hr_not, add_comm]
-      congr 1
-      exact (List.getD_eq_getElem _ _ hrs).symm
+        Nat.Ico_succ_right_eq_insert_Ico hrl, Finset.sum_insert Finset.right_notMem_Ico,
+        List.getD_eq_getElem _ _ hrs, add_comm]
+
+private theorem take_eq_take_append_drop {α : Type*} (s : List α) {l r : ℕ} (h : l ≤ r) :
+    s.take r = s.take l ++ (s.take r).drop l := by
+  simpa only [List.take_take, Nat.min_eq_left h] using (List.take_append_drop l (s.take r)).symm
 
 private theorem valid_iff_sum_Ico {α : Type*} [AddCommMonoid α]
     {t : FenwickTree α} {s : List α} :
@@ -173,12 +161,8 @@ private theorem valid_iff_sum_Ico {α : Type*} [AddCommMonoid α]
       ∀ (m : ℕ) (_ : 1 ≤ m) (_ : m ≤ t.tree.size),
         t.tree[m - 1]'(by omega) = ∑ i ∈ Finset.Ico (m - lowbit m) m, s.getD i 0 := by
   unfold Valid
-  constructor
-  · rintro ⟨hsz, hval⟩
-    exact ⟨hsz, fun m hm1 hm => (hval m hm1 hm).trans (sum_drop_take_eq_sum_Ico s (hsz ▸ hm))⟩
-  · rintro ⟨hsz, hval⟩
-    exact ⟨hsz,
-      fun m hm1 hm => (hval m hm1 hm).trans (sum_drop_take_eq_sum_Ico s (hsz ▸ hm)).symm⟩
+  exact and_congr_right fun hsz => forall₃_congr fun m _ hm =>
+    by rw [sum_drop_take_eq_sum_Ico s (hsz ▸ hm)]
 
 /-! ## Zero-initialized Fenwick tree -/
 
@@ -192,10 +176,7 @@ theorem size_zeros {α : Type*} [Zero α] (n : ℕ) : (zeros n : FenwickTree α)
 
 theorem valid_zeros {α : Type*} [AddCommMonoid α] (n : ℕ) :
     Valid (zeros n : FenwickTree α) (List.replicate n 0) := by
-  rw [valid_iff_sum_Ico]
-  refine ⟨by simp only [zeros, Array.size_replicate, List.length_replicate],
-    fun m _ _ => ?_⟩
-  simp [zeros]
+  simp [valid_iff_sum_Ico, zeros]
 
 /-! ## Prefix queries (`prefixSum`) -/
 
@@ -217,9 +198,7 @@ p. 330). Clamps `len` to `t.size`. -/
 @[simp]
 theorem prefixSum_zero {α : Type*} [AddCommMonoid α] (t : FenwickTree α) :
     prefixSum t 0 = 0 := by
-  unfold prefixSum
-  rw [Nat.zero_min, prefixSumLoop]
-  simp only [Nat.lt_irrefl, false_and, ↓reduceDIte]
+  simp [prefixSum, prefixSumLoop]
 
 private theorem prefixSumLoop_eq {α : Type*} [AddCommMonoid α]
     {t : FenwickTree α} {s : List α} (hv : Valid t s)
@@ -229,10 +208,7 @@ private theorem prefixSumLoop_eq {α : Type*} [AddCommMonoid α]
   | case1 m acc hguard ih =>
     have hlt : m - lowbit m < m := Nat.sub_lt hguard.1 (lowbit_pos hguard.1)
     rw [ih (by omega), hv.2 m hguard.1 hguard.2]
-    have hsplit : s.take m = s.take (m - lowbit m) ++ (s.take m).drop (m - lowbit m) := by
-      have h := (List.take_append_drop (m - lowbit m) (s.take m)).symm
-      rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hlt)] at h
-    conv_rhs => rw [hsplit, List.sum_append]
+    conv_rhs => rw [take_eq_take_append_drop s (Nat.le_of_lt hlt), List.sum_append]
     rw [add_assoc, add_comm ((s.take m).drop (m - lowbit m)).sum]
   | case2 m acc hguard =>
     obtain rfl : m = 0 := by have := hv.1; omega
@@ -244,12 +220,8 @@ p. 330): on any valid tree for `s`, `prefixSum t len` equals `(s.take len).sum` 
 theorem prefixSum_eq {α : Type*} [AddCommMonoid α]
     {t : FenwickTree α} {s : List α} (hv : Valid t s) (len : ℕ) :
     prefixSum t len = (s.take len).sum := by
-  unfold prefixSum
-  rw [hv.1, prefixSumLoop_eq hv (Nat.min_le_right len s.length) 0, zero_add]
-  rcases le_or_gt len s.length with hle | hgt
-  · rw [Nat.min_eq_left hle]
-  · rw [Nat.min_eq_right (Nat.le_of_lt hgt), List.take_length,
-      List.take_of_length_le (Nat.le_of_lt hgt)]
+  rw [prefixSum, hv.1, prefixSumLoop_eq hv (Nat.min_le_right len s.length) 0, zero_add,
+    ← List.take_take, List.take_length]
 
 /-! ## Point increments (`addLoop`, `add`) -/
 
@@ -341,11 +313,10 @@ theorem valid_add {α : Type*} [AddCommMonoid α]
       Finset.sum_congr rfl fun i _ => by
         rw [PrefixSums.getD_addAt s δ hpos_s i]; split_ifs <;> simp only [add_zero]
     rw [hsum_eq, Finset.sum_add_distrib]
-    by_cases hmem : pos ∈ Finset.Ico (idx - lowbit idx) idx
-    · rw [ite_eq_left hmem, Finset.sum_eq_single_of_mem pos hmem fun i _ hne => ite_eq_right hne,
-        ite_eq_left rfl]
-    · rw [ite_eq_right hmem, Finset.sum_eq_zero fun i hi =>
-        ite_eq_right fun (h : i = pos) => hmem (h ▸ hi), add_zero]
+    split_ifs with hmem
+    · simp only [Finset.sum_eq_single_of_mem pos hmem fun _ _ hne => ite_eq_right hne, ↓reduceIte]
+    · simp only [Finset.sum_eq_zero fun _ hi =>
+        ite_eq_right fun h => hmem (Eq.mp (congrArg (· ∈ _) h) hi), add_zero]
   · have hge : s.length ≤ pos := by have := hv.1; omega
     rwa [PrefixSums.addAt_of_length_le δ hge]
 
@@ -354,16 +325,13 @@ theorem size_add {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (add t pos δ).size = t.size := by
   unfold add size
-  split_ifs with hpos
-  · simp only [addLoop_size]
-  · rfl
+  split_ifs <;> simp
 
 theorem add_of_size_le {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) {pos : ℕ} (δ : α) (h : t.size ≤ pos) :
     add t pos δ = t := by
-  unfold add
-  have hnot : ¬ pos < t.tree.size := by unfold size at h; omega
-  simp only [hnot, ↓reduceIte]
+  unfold add size at *
+  exact ite_eq_right (by omega)
 
 /-! ## Immediate-parent propagation construction (`buildLoop`, `ofArray`, `ofList`) -/
 
@@ -442,9 +410,7 @@ theorem BuildInv.step {α : Type*} [AddCommMonoid α]
         Finset.sum_insert (notMem_biUnion_fenwickChildren m),
         Finset.sum_biUnion (pairwiseDisjoint_fenwickChildren m)]
   set p := m + lowbit m
-  have hp_gt : m < p := by
-    have := lowbit_pos hm1
-    omega
+  have hp_gt : m < p := Nat.lt_add_of_pos_right (lowbit_pos hm1)
   set tree' :=
     if p ≤ s.length then tree.modify (p - 1) (· + tree[m - 1]'(by omega)) else tree
   have hsz' : tree'.size = s.length := by
@@ -464,12 +430,7 @@ theorem BuildInv.step {α : Type*} [AddCommMonoid α]
       have hp_le : p ≤ s.length := hsz' ▸ hidx_sz'
       have htree'_p : tree'[p - 1]'(by omega) =
           tree[p - 1]'(by omega) + tree[m - 1]'(by omega) := by
-        generalize_proofs pf1 pf2 pf3
-        revert pf1
-        dsimp only [tree']
-        simp only [hp_le, ↓reduceIte]
-        intro pf1
-        simp only [Array.getElem_modify, ↓reduceIte]
+        simp [tree', hp_le, Array.getElem_modify_self]
       rw [htree'_p, hinv.todo_eq p hidx1 (by omega) hidx_sz, hm_val]
       have hm_mem : m ∈ fenwickChildren p := by
         simp only [fenwickChildren, Finset.mem_filter, Finset.mem_Icc]
@@ -479,11 +440,8 @@ theorem BuildInv.step {α : Type*} [AddCommMonoid α]
         ext c
         simp only [Finset.mem_filter, Finset.mem_insert]
         grind
-      have hm_not : m ∉ (fenwickChildren p).filter (· < m) := by
-        simp only [Finset.mem_filter, Nat.lt_irrefl, and_false, not_false_eq_true]
-      rw [hfilt_eq, Finset.sum_insert hm_not, add_assoc]
-      congr 1
-      rw [add_comm]
+      rw [hfilt_eq, Finset.sum_insert (by simp), add_assoc]
+      exact congrArg (_ + ·) (add_comm _ _)
     · have htree'_ne : tree'[idx - 1]'(by omega) = tree[idx - 1]'(by omega) := by grind
       rw [htree'_ne, hinv.todo_eq idx hidx1 (by omega) hidx_sz]
       have hfilt_eq : (fenwickChildren idx).filter (· < m + 1) =
@@ -499,20 +457,16 @@ theorem BuildInv.to_valid {α : Type*} [AddCommMonoid α]
     {s : List α} {tree : Array α} (hinv : BuildInv s (s.length + 1) tree) :
     Valid ⟨tree⟩ s := by
   rw [valid_iff_sum_Ico]
-  refine ⟨hinv.size_eq, fun m hm1 hm => ?_⟩
-  dsimp only at hm
-  exact hinv.done_eq m hm1 (by have := hinv.size_eq; omega) hm
+  exact ⟨hinv.size_eq, fun m hm1 hm =>
+    hinv.done_eq m hm1 (Nat.lt_succ_of_le (hinv.size_eq ▸ hm)) hm⟩
 
 /-- Over `ℕ`, every intermediate array entry under `BuildInv s m tree` is bounded by `s.sum`. -/
 theorem BuildInv.getElem_le_sum {s : List ℕ} {m : ℕ} {tree : Array ℕ}
     (hinv : BuildInv s m tree) {idx : ℕ} (hidx1 : 1 ≤ idx) (hidx_sz : idx ≤ tree.size) :
     tree[idx - 1]'(by omega) ≤ s.sum := by
   have hico_le : (∑ i ∈ Finset.Ico (idx - lowbit idx) idx, s.getD i 0) ≤ s.sum := by
-    have hsub : Finset.Ico (idx - lowbit idx) idx ⊆ Finset.Ico 0 s.length := by
-      intro i hi
-      simp only [Finset.mem_Ico] at hi ⊢
-      have := hinv.size_eq
-      omega
+    have hsub : Finset.Ico (idx - lowbit idx) idx ⊆ Finset.Ico 0 s.length :=
+      Finset.Ico_subset_Ico (Nat.zero_le _) (hinv.size_eq ▸ hidx_sz)
     calc ∑ i ∈ Finset.Ico (idx - lowbit idx) idx, s.getD i 0
         ≤ ∑ i ∈ Finset.Ico 0 s.length, s.getD i 0 :=
           Finset.sum_le_sum_of_subset hsub
@@ -548,12 +502,7 @@ theorem BuildInv.parent_add_le_sum {s : List ℕ} {m : ℕ} {tree : Array ℕ}
       tree[m - 1]'(by have := hinv.size_eq; omega) ≤ s.sum := by
   have hinv' := hinv.step hm1 hms
   simp only [hp, ↓reduceIte] at hinv'
-  have hp1 : 1 ≤ m + lowbit m := by omega
-  have hpsz : m + lowbit m ≤ (tree.modify (m + lowbit m - 1)
-      (· + tree[m - 1]'(by have := hinv.size_eq; omega))).size := by
-    rw [Array.size_modify, hinv.size_eq]
-    exact hp
-  have hle := hinv'.getElem_le_sum hp1 hpsz
+  have hle := hinv'.getElem_le_sum (by omega) ((Array.size_modify.trans hinv.size_eq).symm ▸ hp)
   simpa only [Array.getElem_modify, ↓reduceIte] using hle
 
 private theorem buildLoop_spec {α : Type*} [AddCommMonoid α]
@@ -577,13 +526,11 @@ theorem valid_ofArray {α : Type*} [AddCommMonoid α] (a : Array α) :
 @[simp]
 theorem size_ofArray {α : Type*} [AddCommMonoid α] (a : Array α) :
     (ofArray a).size = a.size := by
-  have hv := (valid_ofArray a).1
-  simpa only [size, Array.length_toList] using hv
+  simpa only [size, Array.length_toList] using (valid_ofArray a).1
 
 theorem valid_ofList {α : Type*} [AddCommMonoid α] (s : List α) :
     Valid (ofList s) s := by
-  change Valid (ofArray s.toArray) s
-  simpa only [List.toList_toArray] using valid_ofArray s.toArray
+  simpa only [ofList, List.toList_toArray] using valid_ofArray s.toArray
 
 @[simp]
 theorem size_ofList {α : Type*} [AddCommMonoid α] (s : List α) :
@@ -608,14 +555,9 @@ theorem rangeSum_eq {α : Type*} [AddCommGroup α]
   unfold rangeSum
   split_ifs with hlt
   · rw [prefixSum_eq hv r, prefixSum_eq hv l]
-    have hsplit : s.take r = s.take l ++ (s.take r).drop l := by
-      have h := (List.take_append_drop l (s.take r)).symm
-      rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hlt)] at h
-    conv_lhs => rw [hsplit, List.sum_append]
+    conv_lhs => rw [take_eq_take_append_drop s (Nat.le_of_lt hlt), List.sum_append]
     exact add_sub_cancel_left _ _
-  · have hdrop : (s.take r).drop l = [] :=
-      List.drop_eq_nil_of_le ((List.length_take_le r s).trans (by omega))
-    rw [hdrop, List.sum_nil]
+  · rw [List.drop_eq_nil_of_le ((List.length_take_le r s).trans (by omega)), List.sum_nil]
 
 /-- Point query at `0`-based index `pos` (`0` out of bounds). -/
 @[expose] def get {α : Type*} [AddCommGroup α] (t : FenwickTree α) (pos : ℕ) : α :=
@@ -633,9 +575,8 @@ theorem get_eq {α : Type*} [AddCommGroup α]
     rw [htake, List.drop_append_of_le_length (by rw [hlen]),
       List.drop_eq_nil_of_le (by rw [hlen]), List.nil_append, List.sum_singleton,
       List.getD_eq_getElem _ _ hlt]
-  · have hdrop : (s.take (pos + 1)).drop pos = [] :=
-      List.drop_eq_nil_of_le ((List.length_take_le' (pos + 1) s).trans hge)
-    rw [hdrop, List.sum_nil, List.getD_eq_default _ _ hge]
+  · rw [List.drop_eq_nil_of_le ((List.length_take_le' (pos + 1) s).trans hge), List.sum_nil,
+      List.getD_eq_default _ _ hge]
 
 /-- Point assignment setting `s[pos] := v` (`no-op` when `t.size ≤ pos`). -/
 @[expose] def set {α : Type*} [AddCommGroup α]
@@ -647,28 +588,21 @@ theorem valid_set {α : Type*} [AddCommGroup α]
     Valid (set t pos v) (s.set pos v) := by
   unfold set
   split_ifs with hpos
-  · rw [get_eq hv]
-    have hadd := valid_add hv pos (v - s.getD pos 0)
-    unfold PrefixSums.addAt at hadd
-    rwa [add_sub_cancel] at hadd
-  · have hge : s.length ≤ pos := by have := hv.1; omega
-    rwa [List.set_eq_of_length_le hge]
+  · simpa only [get_eq hv, PrefixSums.addAt, add_sub_cancel] using valid_add hv pos (v - get t pos)
+  · rwa [List.set_eq_of_length_le (by have := hv.1; omega)]
 
 @[simp]
 theorem size_set {α : Type*} [AddCommGroup α]
     (t : FenwickTree α) (pos : ℕ) (v : α) :
     (set t pos v).size = t.size := by
   unfold set
-  split_ifs with hpos
-  · exact size_add _ _ _
-  · rfl
+  split_ifs <;> simp
 
 theorem set_of_size_le {α : Type*} [AddCommGroup α]
     (t : FenwickTree α) {pos : ℕ} (v : α) (h : t.size ≤ pos) :
     set t pos v = t := by
-  unfold set
-  have hnot : ¬ pos < t.tree.size := by unfold size at h; omega
-  simp only [hnot, ↓reduceIte]
+  unfold set size at *
+  exact ite_eq_right (by omega)
 
 end FenwickTree
 

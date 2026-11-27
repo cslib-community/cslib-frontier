@@ -172,14 +172,11 @@ private noncomputable def down (a t : ℝ) : ℝ := if t ≤ a then 1 else 0
 private theorem up_nonneg (a t : ℝ) : 0 ≤ up a t := by unfold up; split_ifs <;> norm_num
 private theorem up_le_one (a t : ℝ) : up a t ≤ 1 := by unfold up; split_ifs <;> norm_num
 private theorem up_of_le {a t : ℝ} (h : t ≤ a) : up a t = 0 := by simp only [up, h, ↓reduceIte]
-private theorem up_of_lt {a t : ℝ} (h : a < t) : up a t = 1 := by
-  simp only [up, not_le.mpr h, ↓reduceIte]
+private theorem up_of_lt {a t : ℝ} (h : a < t) : up a t = 1 := ite_eq_right (not_le.mpr h)
 private theorem down_nonneg (a t : ℝ) : 0 ≤ down a t := by unfold down; split_ifs <;> norm_num
 private theorem down_le_one (a t : ℝ) : down a t ≤ 1 := by unfold down; split_ifs <;> norm_num
-private theorem down_of_le {a t : ℝ} (h : t ≤ a) : down a t = 1 := by
-  simp only [down, h, ↓reduceIte]
-private theorem down_of_lt {a t : ℝ} (h : a < t) : down a t = 0 := by
-  simp only [down, not_le.mpr h, ↓reduceIte]
+private theorem down_of_le {a t : ℝ} (h : t ≤ a) : down a t = 1 := ite_eq_left h
+private theorem down_of_lt {a t : ℝ} (h : a < t) : down a t = 0 := ite_eq_right (not_le.mpr h)
 private theorem down_antitone (a : ℝ) : Antitone (down a) := fun s t hst => by
   unfold down; split_ifs with h1 h2 <;> first | exact absurd (hst.trans h1) h2 | norm_num
 
@@ -193,7 +190,6 @@ complements remain open. -/
 theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
     Nonempty (HierarchyParams q cπ Cπ Cpair Cvar) := by
   set θ : ℝ := 1 / (4 * q)
-  have hθ : 0 < θ := by positivity
   obtain ⟨k, hk⟩ := exists_factorial_bound_le θ 1 (δ := 1 / (4 * q)) (by positivity)
   set m : ℕ := ⌈q⌉₊ * (k + 1)
   set J : ℕ := ⌈4 * Cπ * m * k * (k + 1)⌉₊ + 1
@@ -225,14 +221,13 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
     le_Q := fun _ => le_max_left _ _
     Q_mono := fun _ _ h => max_le_max (by linarith) le_rfl
     Q_lipschitz := fun s t _ => ?_
-    θ_pos := hθ
+    θ_pos := by positivity
     L_nonneg := zero_le_one
     truncation := ?_
     χ_nonneg := up_nonneg _
     χ_le_one := up_le_one _
     χ_zero := fun _ h => up_of_le h
-    χ_one := fun t h => up_of_lt (lt_of_lt_of_le (by
-      rw [div_lt_div_iff_of_pos_left one_pos (by positivity) hq]; linarith) h)
+    χ_one := fun _ h => up_of_lt ((one_div_lt_one_div_of_lt hq (lt_two_mul_self hq)).trans_le h)
     τ₁_le := le_rfl
     copies := ?_
     δ₀_pos := by norm_num
@@ -257,20 +252,13 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
     gate := Nat.le_ceil _
     R_rank := by linarith [abs_nonneg Cvar]
     R_var := by linarith [le_abs_self Cvar] }⟩
-  · have := le_max_left (s - θ) 0
-    have := le_max_right (s - θ) 0
-    have : max (t - θ) 0 ≤ max (s - θ) 0 + (t - s) := max_le (by linarith) (by linarith)
-    linarith
-  · have h2 : (1 : ℝ) / (2 * q) = 1 / (4 * q) + 1 / (4 * q) := by field_simp; norm_num
-    rw [h2]
-    exact add_le_add le_rfl hk
+  · linarith [max_le (a := t - θ) (b := 0)
+      (by linarith [le_max_left (s - θ) 0] : t - θ ≤ max (s - θ) 0 + (t - s))
+      (by linarith [le_max_right (s - θ) 0])]
+  · exact (add_le_add (le_refl (1 / (4 * q))) hk).trans_eq (by field_simp; norm_num)
   · rw [div_le_div_iff₀ (by positivity) hq, one_mul]
-    push_cast [m]
-    nlinarith [Nat.le_ceil q, (Nat.cast_nonneg (α := ℝ) k)]
-  · have h1 : 4 * Cπ * m * k * (k + 1) ≤ (J : ℝ) := by
-      simp only [J]; push_cast
-      exact (Nat.le_ceil _).trans (by linarith)
-    linarith
+    push_cast [m]; nlinarith [Nat.le_ceil q, (Nat.cast_nonneg (α := ℝ) k)]
+  · push_cast [J]; linarith [Nat.le_ceil (4 * Cπ * m * k * (k + 1))]
 
 variable (P : HierarchyParams q cπ Cπ Cpair Cvar)
 
@@ -331,9 +319,8 @@ noncomputable def proj [DecidableEq V] : Matrix (Lex (V × Fin (P.m + 1))) V ℝ
 /-- Apply the copy projection by reading its parent and multiplying by its copy weight. -/
 theorem proj_mulVec [DecidableEq V] (v : V → ℝ) (a : Lex (V × Fin (P.m + 1))) :
     (P.proj X Y f C *ᵥ v) a =
-      P.weight X Y f C (ofLex a).2 (ofLex a).1 * v (ofLex a).1 := by
-  change (copyWeight (P.weight X Y f C) *ᵥ v) (ofLex a) = _
-  exact copyWeight_mulVec _ _ _
+      P.weight X Y f C (ofLex a).2 (ofLex a).1 * v (ofLex a).1 :=
+  copyWeight_mulVec _ _ _
 
 variable {X Y f C}
 
@@ -341,26 +328,24 @@ theorem cutoff_nonneg (hf : 0 < f) (t : ℝ) : 0 ≤ P.cutoff f t :=
   mul_nonneg hf.le (P.Q_nonneg _)
 
 theorem cutoff_le (hf : 0 < f) (t : ℝ) : P.cutoff f t ≤ max (t - P.θ * f) 0 := by
-  have h := P.Q_le (t / f)
   calc P.cutoff f t = f * P.Q (t / f) := rfl
-    _ ≤ f * max (t / f - P.θ) 0 := mul_le_mul_of_nonneg_left h hf.le
+    _ ≤ f * max (t / f - P.θ) 0 := mul_le_mul_of_nonneg_left (P.Q_le (t / f)) hf.le
     _ = max (t - P.θ * f) 0 := by
         rw [mul_max_of_nonneg _ _ hf.le, mul_zero, mul_sub, mul_div_cancel₀ _ hf.ne', mul_comm]
 
 theorem le_cutoff (hf : 0 < f) (t : ℝ) : t - P.θ₂ * f ≤ P.cutoff f t := by
-  have h := mul_le_mul_of_nonneg_left (P.le_Q (t / f)) hf.le
-  rw [mul_sub, mul_div_cancel₀ _ hf.ne'] at h
-  simp only [cutoff]; linarith
+  simpa only [cutoff, mul_sub, mul_div_cancel₀ _ hf.ne', mul_comm f P.θ₂] using
+    mul_le_mul_of_nonneg_left (P.le_Q (t / f)) hf.le
 
 theorem cutoff_mono (hf : 0 < f) : Monotone (P.cutoff f) := fun _ _ h =>
   mul_le_mul_of_nonneg_left (P.Q_mono (div_le_div_of_nonneg_right h hf.le)) hf.le
 
 theorem cutoff_lipschitz (hf : 0 < f) (s t : ℝ) (h : s ≤ t) :
     P.cutoff f t - P.cutoff f s ≤ P.L * (t - s) := by
-  have hl := P.Q_lipschitz (s / f) (t / f) (div_le_div_of_nonneg_right h hf.le)
   calc P.cutoff f t - P.cutoff f s = f * (P.Q (t / f) - P.Q (s / f)) := by
         simp only [cutoff]; ring
-    _ ≤ f * (P.L * (t / f - s / f)) := mul_le_mul_of_nonneg_left hl hf.le
+    _ ≤ f * (P.L * (t / f - s / f)) :=
+        mul_le_mul_of_nonneg_left (P.Q_lipschitz _ _ (div_le_div_of_nonneg_right h hf.le)) hf.le
     _ = P.L * (t - s) := by field_simp
 
 private theorem phi_nonneg (hf : 0 < f) (y : V) (t : ℝ) :
@@ -404,56 +389,45 @@ theorem stage_rates [LinearOrder V] {π : ℝ} (hch : RetentionChannels X Y f π
     hτ₀ (fun t => P.χ_nonneg _) (fun t => P.χ_le_one _)
     (fun t ht => P.χ_zero _ (by rwa [div_le_iff₀ hf])) (fun t ht => P.χ_one _ (by
       rwa [le_div_iff₀ hf])) hτ₁ hcopies
-  refine ⟨fun a b => h1 (ofLex a) (ofLex b), ?_, fun a b h => h3 _ _ h, h4⟩
-  have hl : P.next X Y f C * P.proj X Y f C =
-      (copyStage (P.copyCutoff f) P.m (P.weight X Y f C) (P.residual X Y f C) *
-        copyWeight (P.weight X Y f C)).submatrix ofLex id :=
-    submatrix_mul _ _ _ _ _ ofLex.bijective
-  have hr : P.proj X Y f C * P.residual X Y f C =
-      (copyWeight (P.weight X Y f C) * P.residual X Y f C).submatrix ofLex id := rfl
-  rw [hl, hr]
-  exact congrArg (fun M => M.submatrix ofLex id) h2
+  refine ⟨fun a b => h1 (ofLex a) (ofLex b),
+    (submatrix_mul _ _ _ _ _ ofLex.bijective).trans (congrArg (fun M => M.submatrix ofLex id) h2),
+    fun a b h => h3 _ _ h, h4⟩
 
 /-- The next matrix is strictly upper triangular for the lexicographic order on the copies. -/
 theorem next_isStrictUpperTriangular [LinearOrder V] (hf : 0 < f)
-    (hC : C.IsStrictUpperTriangular) : (P.next X Y f C).IsStrictUpperTriangular := by
-  unfold next residual correction
-  exact copyStage_isStrictUpperTriangular <|
+    (hC : C.IsStrictUpperTriangular) : (P.next X Y f C).IsStrictUpperTriangular :=
+  copyStage_isStrictUpperTriangular <|
     cutoffCorrection_residual_isStrictUpperTriangular
       (φ := fun y t => P.cutoff f t * P.γ (P.pilot X Y f C y)) (P.phi_nonneg hf) (P.phi_le hf)
-      (by positivity) hC P.k
+      (mul_pos P.θ_pos hf).le hC P.k
 
 theorem residual_nonneg (hf : 0 < f) (hC0 : ∀ x y, 0 ≤ C x y) (x y : V) :
-    0 ≤ P.residual X Y f C x y := by
-  unfold residual correction
-  exact cutoffCorrection_residual_nonneg (φ := fun y t => P.cutoff f t * P.γ (P.pilot X Y f C y))
-    hC0 (P.phi_nonneg hf) (P.phi_le hf) (P.phi_mono hf) (by positivity) P.k x y
+    0 ≤ P.residual X Y f C x y :=
+  cutoffCorrection_residual_nonneg (φ := fun y t => P.cutoff f t * P.γ (P.pilot X Y f C y))
+    hC0 (P.phi_nonneg hf) (P.phi_le hf) (P.phi_mono hf) (mul_pos P.θ_pos hf).le P.k x y
 
 variable (X Y) in
 /-- Public application bound for the actual residual, from the finite correction sequence. -/
 theorem residual_le_mul (hf : 0 < f) (hC : ∀ x y, 0 ≤ C x y)
     (hCf : ∀ x y, C x y ≤ f) (hC1 : C *ᵥ 1 ≤ 1) (x y : V) :
-    P.residual X Y f C x y ≤ ((P.k : ℝ) + 1) * f := by
-  exact cutoffCorrection_residual_le_mul hC (P.phi_nonneg hf) (P.phi_le hf)
-    (by positivity) hCf hf.le hC1 P.k x y
+    P.residual X Y f C x y ≤ ((P.k : ℝ) + 1) * f :=
+  cutoffCorrection_residual_le_mul hC (P.phi_nonneg hf) (P.phi_le hf)
+    (mul_pos P.θ_pos hf).le hCf hf.le hC1 P.k x y
 
 variable (X Y) in
 /-- Actual residual row mass is at most one, directly from correction nonnegativity. -/
 theorem residual_sum_le_one (hf : 0 < f)
     (hC1 : C *ᵥ 1 ≤ 1) (x : V) : ∑ y, P.residual X Y f C x y ≤ 1 := by
   have hE := cutoffCorrectionIter_nonneg (C := C) (P.phi_nonneg (X := X) (Y := Y) (C := C) hf) P.k
-  have hm := (correction_mulVec_one_le hE hC1 x).trans (hC1 x)
-  simpa only [residual, correction, mulVec, dotProduct, Pi.one_apply, mul_one] using hm
+  simpa only [residual, correction, mulVec, dotProduct, Pi.one_apply, mul_one] using
+    (correction_mulVec_one_le hE hC1 x).trans (hC1 x)
 
-theorem weight_nonneg (j : Fin (P.m + 1)) (x : V) : 0 ≤ P.weight X Y f C j x := by
-  unfold weight detectorWeight; split_ifs
-  · exact zero_le_one
-  · exact P.κ_nonneg _
+theorem weight_nonneg (j : Fin (P.m + 1)) (x : V) : 0 ≤ P.weight X Y f C j x :=
+  ite_nonneg zero_le_one (P.κ_nonneg _)
 
 theorem weight_le_one (j : Fin (P.m + 1)) (x : V) : P.weight X Y f C j x ≤ 1 := by
-  unfold weight detectorWeight; split_ifs
-  · exact le_rfl
-  · exact P.κ_le_one _
+  rw [weight, detectorWeight]
+  split_ifs <;> linarith [P.κ_le_one (P.pilot X Y f C x)]
 
 theorem next_nonneg (hf : 0 < f) (hC0 : ∀ x y, 0 ≤ C x y) (a b : Lex (V × Fin (P.m + 1))) :
     0 ≤ P.next X Y f C a b :=
@@ -461,42 +435,29 @@ theorem next_nonneg (hf : 0 < f) (hC0 : ∀ x y, 0 ≤ C x y) (a b : Lex (V × F
     (P.residual_nonneg hf hC0) (fun _ => P.χ_nonneg _) (fun _ => P.χ_le_one _) _ _
 
 theorem next_mulVec_one_le (hf : 0 < f) (hC0 : ∀ x y, 0 ≤ C x y) (hC1 : C *ᵥ 1 ≤ 1) :
-    P.next X Y f C *ᵥ 1 ≤ 1 := by
+    P.next X Y f C *ᵥ 1 ≤ 1 := fun a => by
   have h := copyStage_mulVec_one_le (χ := P.copyCutoff f)
-    (P.weight_nonneg (X := X) (Y := Y) (f := f) (C := C)) (P.weight_le_one (X := X) (Y := Y)
-      (f := f) (C := C)) (P.residual_nonneg hf hC0) (D := P.residual X Y f C) ?_
-  · intro a
-    have h' := h (ofLex a)
-    simp only [mulVec, dotProduct, Pi.one_apply, mul_one] at h' ⊢
-    calc ∑ i, P.next X Y f C a i
-        = ∑ x, copyStage (P.copyCutoff f) P.m (P.weight X Y f C) (P.residual X Y f C)
-            (ofLex a) x := Fintype.sum_equiv ofLex _ _ fun _ => rfl
-      _ ≤ 1 := h'
-  · unfold residual correction
-    exact (correction_mulVec_one_le (fun x y => cutoffCorrectionIter_nonneg
-      (φ := fun y t => P.cutoff f t * P.γ (P.pilot X Y f C y)) (P.phi_nonneg hf) _ x y)
-      hC1).trans hC1
+    (P.weight_nonneg (X := X) (Y := Y) (f := f) (C := C))
+    (P.weight_le_one (X := X) (Y := Y) (f := f) (C := C)) (P.residual_nonneg hf hC0)
+    (fun x => by simpa only [mulVec, dotProduct, Pi.one_apply, mul_one] using
+      P.residual_sum_le_one X Y hf hC1 x) (ofLex a)
+  simp only [mulVec, dotProduct, Pi.one_apply, mul_one] at h ⊢
+  calc ∑ i, P.next X Y f C a i
+      = ∑ x, copyStage (P.copyCutoff f) P.m (P.weight X Y f C) (P.residual X Y f C)
+          (ofLex a) x := Fintype.sum_equiv ofLex _ _ fun _ => rfl
+    _ ≤ 1 := h
 
 theorem proj_nonneg [DecidableEq V] (a : Lex (V × Fin (P.m + 1))) (x : V) :
-    0 ≤ P.proj X Y f C a x := by
-  simp only [proj, submatrix_apply, copyWeight, of_apply, id]
-  split_ifs
-  · exact P.weight_nonneg _ _
-  · exact le_rfl
+    0 ≤ P.proj X Y f C a x :=
+  ite_nonneg (P.weight_nonneg _ _) le_rfl
 
-theorem proj_mulVec_one_le [DecidableEq V] : P.proj X Y f C *ᵥ 1 ≤ 1 := by
-  intro a
-  have h := copyWeight_mulVec (P.weight X Y f C) 1 (ofLex a)
-  simp only [Pi.one_apply, mul_one] at h
-  have : (P.proj X Y f C *ᵥ 1) a = (copyWeight (P.weight X Y f C) *ᵥ 1) (ofLex a) := rfl
-  rw [this, h]
-  exact P.weight_le_one _ _
+theorem proj_mulVec_one_le [DecidableEq V] : P.proj X Y f C *ᵥ 1 ≤ 1 := fun a => by
+  simpa only [proj_mulVec, Pi.one_apply, mul_one] using P.weight_le_one (ofLex a).2 (ofLex a).1
 
 /-- The primary copy projects to its parent with weight one. -/
 theorem proj_primary [DecidableEq V] (x w : V) :
-    P.proj X Y f C (toLex (x, 0)) w = if w = x then 1 else 0 := by
-  simp only [proj, submatrix_apply, id, ofLex_toLex]
-  exact copyWeight_apply_of_eq_one (by simp [weight, detectorWeight]) w
+    P.proj X Y f C (toLex (x, 0)) w = if w = x then 1 else 0 :=
+  copyWeight_apply_of_eq_one (by simp [weight, detectorWeight]) w
 
 end Stage
 

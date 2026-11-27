@@ -66,9 +66,8 @@ private theorem le_lengthBound_mul (hr : 0 < r) (hb : 0 < b) {l : VertexMove FL}
         (mem_univ c)
     _ ≤ r * b * ∑ c', o ⟨.vertex l, c'⟩ ^ 2 := Nat.le_mul_of_pos_left _ (Nat.mul_pos hr hb)
     _ ≤ FL.lengthBound * t ^ 2 := hs
-    _ ≤ (FL.lengthBound * t) ^ 2 := by
-      rw [mul_pow]
-      exact Nat.mul_le_mul_right _ (Nat.le_self_pow two_ne_zero _))
+    _ ≤ (FL.lengthBound * t) ^ 2 :=
+      Nat.mul_pow FL.lengthBound t 2 ▸ Nat.mul_le_mul_right _ (Nat.le_self_pow two_ne_zero _))
 
 /-- The roles of a move at the node `P` read at most `1 + s` times the units given in the move at
 `P`, if the law of the move has `s` slots. -/
@@ -158,10 +157,9 @@ private theorem heldCount_le {ℓf : ℕ} (P : T.Node)
     split_ifs with hB
     · obtain ⟨a₀, rfl⟩ := hB
       simp only [Tower.Node.ofChamber_inj, ch.injective.eq_iff]
-      refine le_trans (sum_le_sum fun a _ => sum_le_sum fun c _ =>
-        (show _ ≤ (if a = a₀ then (n a c : ℕ) else 0) +
-          if c = a₀ then (n a c : ℕ) else 0 by
-          split_ifs <;> omega)) ?_
+      refine le_trans (sum_le_sum fun a _ => sum_le_sum
+        (g := fun c => (if a = a₀ then (n a c : ℕ) else 0) + if c = a₀ then (n a c : ℕ) else 0)
+        fun c _ => by split_ifs <;> omega) ?_
       simpa [sum_add_distrib, sum_ite_eq'] using hini a₀ rfl
     · exact (sum_eq_zero fun a _ => sum_eq_zero fun c _ => ite_eq_right fun h =>
         hB (h.elim (fun h => ⟨a, h⟩) fun h => ⟨c, h⟩)).le
@@ -192,8 +190,8 @@ theorem heldCount_add_sum_roleUnits_le (hr : 0 < r) (hb : 0 < b) (hh : 0 < h)
             3 * T.childUnits hh (edgeLoads (load lhat (initialCounts n) (outcomeOf R FL Pl o))) j c)
             (∑ e, edgeLoads (load lhat (initialCounts n) (outcomeOf R FL Pl o)) J e) := by
   have hg' (mv : Move R ch FL) :
-      GoodOutcome lhat (initialCounts n) (outcomeOf R FL Pl o) mv := by
-    exact (moveOrder R ch FL).apply_symm_apply mv ▸ hg _
+      GoodOutcome lhat (initialCounts n) (outcomeOf R FL Pl o) mv :=
+    (moveOrder R ch FL).apply_symm_apply mv ▸ hg _
   -- the channels and the roles, by the moves
   have hch : (∑ ν, ∑ d, if (moves R FL Pl).channelParty ν d = Pl.party P then (o ν : ℕ)
       else 0) =
@@ -226,40 +224,32 @@ theorem heldCount_add_sum_roleUnits_le (hr : 0 < r) (hb : 0 < b) (hh : 0 < h)
     rw [Move.sum_eq, mul_sum, mul_sum]
     refine add_le_add (sum_le_sum fun x _ => ?_) (sum_le_sum fun l _ => ?_)
     · split_ifs with hx
-      · have h1 := relay_ends_le hg' hx P
-        have h2 := sum_roles_le (lhat := lhat) (n := initialCounts n) (o := outcomeOf R FL Pl o)
-          P (.relay x hx)
-        have h3 : Fintype.card (Move.relay x hx : Move R ch FL).law.Slot = 1 := Fintype.card_unit
-        have h4 : (∑ q : RelayRole, if x.party R ch q = P then
-            moveCount lhat (initialCounts n) (outcomeOf R FL Pl o) (.relay x hx) else 0) =
-            unitsAt lhat (initialCounts n) (outcomeOf R FL Pl o) P (.relay x hx) := rfl
-        rw [h3] at h2
-        rw [h4] at h1
-        exact (add_le_add h1 h2).trans_eq (by ring)
+      · have h1 : _ ≤ 2 * unitsAt lhat (initialCounts n) (outcomeOf R FL Pl o) P (.relay x hx) :=
+          relay_ends_le hg' hx P
+        refine (add_le_add h1 (sum_roles_le P (.relay x hx))).trans_eq ?_
+        erw [Fintype.card_unit]
+        ring
       · exact le_rfl
-    · have h1 := vertex_ends_le hr hb hg' P l
-      have h2 := sum_roles_le (lhat := lhat) (n := initialCounts n) (o := outcomeOf R FL Pl o)
-        P (.vertex l)
-      have h3 := Nat.mul_le_mul_right (unitsAt lhat (initialCounts n) (outcomeOf R FL Pl o) P
-        (.vertex l)) (Nat.add_le_add_left (hSm l.kind) 1)
-      exact (add_le_add h1 (h2.trans h3)).trans_eq (by ring)
+    · exact (add_le_add (vertex_ends_le hr hb hg' P l)
+        ((sum_roles_le P (.vertex l)).trans
+          (Nat.mul_le_mul_right _ (Nat.add_le_add_left (hSm l.kind) 1)))).trans_eq (by ring)
   have h1 := heldCount_le (R := R) (FL := FL) (Pl := Pl) (n := n) (o := o) P hini
   have h2 := sum_unitsAt_relay_le hh hg' P
-  have h3 := sum_unitsAt_vertex_le hg' hnr P
   set L := edgeLoads (load lhat (initialCounts n) (outcomeOf R FL Pl o))
   set G := P.lift (fun j c => 8 * T.parentUnits L j c + 3 * T.childUnits hh L j c) (∑ e, L J e)
   set K := 2 * Fintype.card T.Nr * FL.lengthBound + 1 + Sm
   have h4 : K * ∑ l, unitsAt lhat (initialCounts n) (outcomeOf R FL Pl o) P (.vertex l) ≤
       K * Fintype.card FL.Kind * G := calc
-    _ ≤ K * (Fintype.card FL.Kind * P.lift (T.parentUnits L) 0) := Nat.mul_le_mul_left _ h3
+    _ ≤ K * (Fintype.card FL.Kind * P.lift (T.parentUnits L) 0) :=
+      Nat.mul_le_mul_left _ (sum_unitsAt_vertex_le hg' hnr P)
     _ ≤ K * (Fintype.card FL.Kind * G) := by
       gcongr
       cases P <;> simp [Tower.Node.lift, G]
       omega
     _ = _ := by ring
   rw [hch] at h1
-  rw [hro, show (4 + K * Fintype.card FL.Kind) * G = 4 * G + K * Fintype.card FL.Kind * G by ring]
   rw [sum_add_distrib] at hmv
+  rw [hro, add_mul]
   have h5 : 8 * m * lhat = 4 * (2 * m * lhat) := by ring
   split_ifs at h1 h2 ⊢ <;> omega
 

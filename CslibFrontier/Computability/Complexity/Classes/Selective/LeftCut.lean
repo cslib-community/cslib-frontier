@@ -106,13 +106,11 @@ theorem leftCut_mem_PSel (r : ℕ → Bool) : leftCut r ∈ PSel encBits :=
 prefixes. -/
 theorem leftCut_injective : Function.Injective leftCut := by
   intro r r' h
-  have hpre (n : ℕ) : (List.range n).map r = (List.range n).map r' := by
-    have h₁ : (List.range n).map r ∈ leftCut r' := h ▸ map_range_mem_leftCut r n
-    have h₂ : (List.range n).map r' ∈ leftCut r := h ▸ map_range_mem_leftCut r' n
-    rw [mem_leftCut, List.length_map, List.length_range] at h₁ h₂
-    exact le_antisymm h₁ h₂
   funext i
-  simpa using congrArg (·[i]?) (hpre (i + 1))
+  have h₁ : (List.range (i + 1)).map r ∈ leftCut r' := h ▸ map_range_mem_leftCut r (i + 1)
+  have h₂ : (List.range (i + 1)).map r' ∈ leftCut r := h ▸ map_range_mem_leftCut r' (i + 1)
+  rw [mem_leftCut, List.length_map, List.length_range] at h₁ h₂
+  simpa using congrArg (·[i]?) (le_antisymm h₁ h₂)
 
 /-- **There are uncountably many P-selective sets**: the left cuts of the uncountably many infinite
 binary sequences are distinct and P-selective. -/
@@ -120,14 +118,12 @@ theorem not_countable_PSel : ¬(PSel encBits).Countable := by
   classical
   intro h
   have := h.to_subtype
-  have hcut : Function.Injective
-      fun r : ℕ → Bool => (⟨leftCut r, leftCut_mem_PSel r⟩ : PSel encBits) :=
-    fun r r' hr => leftCut_injective (congrArg Subtype.val hr)
-  have := hcut.countable
-  have hset : Function.Injective fun (s : Set ℕ) (n : ℕ) => decide (n ∈ s) := fun s t hst => by
+  have hinj : Function.Injective fun s : Set ℕ =>
+      (⟨leftCut (fun n => decide (n ∈ s)), leftCut_mem_PSel _⟩ : PSel encBits) := by
+    intro s t hst
     ext n
-    simpa using congrFun hst n
-  have := hset.countable
+    simpa using congrFun (leftCut_injective (congrArg Subtype.val hst)) n
+  have := hinj.countable
   obtain ⟨f, hf⟩ := exists_injective_nat (Set ℕ)
   exact Function.cantor_injective f hf
 

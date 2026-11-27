@@ -63,44 +63,6 @@ private def insertNew (L : List β) : Option β → List β
   | none => L
   | some b => if b ∈ L then L else L ++ [b]
 
-private theorem distinctValues_succ_eq_insertNew (f : ℕ → Option β) (n : ℕ) :
-    distinctValues f (n + 1) = insertNew (distinctValues f n) (f n) := by
-  rw [distinctValues]
-  cases f n <;> rfl
-
-private theorem prefix_insertNew (L : List β) (o : Option β) : L <+: insertNew L o := by
-  cases o with
-  | none => exact List.prefix_refl L
-  | some b =>
-    simp only [insertNew]
-    split_ifs
-    · exact List.prefix_refl L
-    · exact List.prefix_append L [b]
-
-private theorem mem_insertNew {L : List β} {o : Option β} {b : β} :
-    b ∈ insertNew L o ↔ b ∈ L ∨ o = some b := by
-  cases o with
-  | none => simp [insertNew]
-  | some c =>
-    simp only [insertNew]
-    split_ifs with hc
-    · refine ⟨Or.inl, ?_⟩
-      rintro (h | h)
-      · exact h
-      · cases h
-        exact hc
-    · simp [eq_comm]
-
-private theorem nodup_insertNew {L : List β} (hL : L.Nodup) (o : Option β) :
-    (insertNew L o).Nodup := by
-  cases o with
-  | none => exact hL
-  | some c =>
-    simp only [insertNew]
-    split_ifs with hc
-    · exact hL
-    · exact hL.append (List.nodup_singleton c) (by simpa using hc)
-
 @[simp]
 theorem distinctValues_zero (f : ℕ → Option β) : distinctValues f 0 = [] := rfl
 
@@ -109,9 +71,15 @@ theorem distinctValues_prefix (f : ℕ → Option β) {m n : ℕ} (h : m ≤ n) 
     distinctValues f m <+: distinctValues f n := by
   induction h with
   | refl => exact List.prefix_refl _
-  | step _ ih =>
-    rw [distinctValues_succ_eq_insertNew]
-    exact ih.trans (prefix_insertNew _ _)
+  | @step n _ ih =>
+    rw [distinctValues]
+    cases f n with
+    | none => exact ih
+    | some b =>
+      dsimp only
+      split_ifs
+      · exact ih
+      · exact ih.trans (List.prefix_append _ _)
 
 /-- The distinct values up to `n` are the values `f j = some b` with `j < n`. -/
 theorem mem_distinctValues {f : ℕ → Option β} {n : ℕ} {b : β} :
@@ -119,54 +87,51 @@ theorem mem_distinctValues {f : ℕ → Option β} {n : ℕ} {b : β} :
   induction n with
   | zero => simp
   | succ n ih =>
-    rw [distinctValues_succ_eq_insertNew, mem_insertNew, ih]
-    constructor
-    · rintro (⟨j, hj, h⟩ | h)
-      · exact ⟨j, by omega, h⟩
-      · exact ⟨n, by omega, h⟩
-    · rintro ⟨j, hj, h⟩
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | rfl
-      · exact Or.inl ⟨j, hj, h⟩
-      · exact Or.inr h
+    have hstep : b ∈ distinctValues f (n + 1) ↔ b ∈ distinctValues f n ∨ f n = some b := by
+      rw [distinctValues]
+      cases f n with
+      | none => simp
+      | some c =>
+        dsimp only
+        split_ifs with hc <;> simp [eq_comm]
+        grind
+    rw [hstep, ih]
+    exact ⟨fun | .inl ⟨j, hj, h⟩ => ⟨j, by omega, h⟩ | .inr h => ⟨n, by omega, h⟩,
+      fun ⟨j, hj, h⟩ => match Nat.lt_succ_iff_lt_or_eq.mp hj with
+        | .inl hj => .inl ⟨j, hj, h⟩ | .inr rfl => .inr h⟩
 
 theorem nodup_distinctValues (f : ℕ → Option β) (n : ℕ) : (distinctValues f n).Nodup := by
   induction n with
   | zero => exact List.nodup_nil
   | succ n ih =>
-    rw [distinctValues_succ_eq_insertNew]
-    exact nodup_insertNew ih _
+    rw [distinctValues]
+    cases f n with
+    | none => exact ih
+    | some c =>
+      dsimp only
+      split_ifs with hc
+      · exact ih
+      · exact ih.append (List.nodup_singleton c) (by simpa using hc)
 
 /-- For a finite range, the lists of distinct values are no longer than the range. -/
 theorem length_distinctValues_le_ncard {f : ℕ → Option β} (hf : {b | ∃ n, f n = some b}.Finite)
     (n : ℕ) : (distinctValues f n).length ≤ {b | ∃ n, f n = some b}.ncard := by
-  have hsub : (distinctValues f n).toFinset ⊆ hf.toFinset := fun c hc => by
+  rw [← List.toFinset_card_of_nodup (nodup_distinctValues f n), Set.ncard_eq_toFinset_card _ hf]
+  exact Finset.card_le_card fun c hc => by
     obtain ⟨j, -, hj⟩ := mem_distinctValues.mp (List.mem_toFinset.mp hc)
     exact hf.mem_toFinset.mpr ⟨j, hj⟩
-  rw [← List.toFinset_card_of_nodup (nodup_distinctValues f n), Set.ncard_eq_toFinset_card _ hf]
-  exact Finset.card_le_card hsub
 
 /-- For a finite range, the list of distinct values eventually contains the whole range. -/
 theorem exists_length_distinctValues_eq_ncard {f : ℕ → Option β}
     (hf : {b | ∃ n, f n = some b}.Finite) :
     ∃ N, (distinctValues f N).length = {b | ∃ n, f n = some b}.ncard := by
-  have key : ∀ t : Finset β, (∀ b ∈ t, ∃ n, f n = some b) →
-      ∃ N, ∀ b ∈ t, b ∈ distinctValues f N := by
-    intro t
-    induction t using Finset.induction_on with
-    | empty => exact fun _ => ⟨0, by simp⟩
-    | @insert b t hb ih =>
-      intro h
-      obtain ⟨N, hN⟩ := ih fun c hc => h c (Finset.mem_insert_of_mem hc)
-      obtain ⟨n, hn⟩ := h b (Finset.mem_insert_self b t)
-      refine ⟨max N (n + 1), fun c hc => ?_⟩
-      rcases Finset.mem_insert.mp hc with rfl | hc
-      · exact (distinctValues_prefix f (le_max_right _ _)).subset
-          (mem_distinctValues.mpr ⟨n, by omega, hn⟩)
-      · exact (distinctValues_prefix f (le_max_left _ _)).subset (hN c hc)
-  obtain ⟨N, hN⟩ := key hf.toFinset fun b hb => hf.mem_toFinset.mp hb
+  choose g hg using fun x : hf.toFinset => hf.mem_toFinset.mp x.2
+  let N := Finset.univ.sup g + 1
   refine ⟨N, le_antisymm (length_distinctValues_le_ncard hf N) ?_⟩
   rw [← List.toFinset_card_of_nodup (nodup_distinctValues f N), Set.ncard_eq_toFinset_card _ hf]
-  exact Finset.card_le_card fun b hb => List.mem_toFinset.mpr (hN b hb)
+  exact Finset.card_le_card fun b hb => List.mem_toFinset.mpr <|
+    mem_distinctValues.mpr ⟨g ⟨b, hb⟩,
+      Nat.lt_succ_of_le (Finset.le_sup (Finset.mem_univ (⟨b, hb⟩ : hf.toFinset))), hg ⟨b, hb⟩⟩
 
 /-- The `i`-th distinct value of the sequence `f`, in order of first appearance: the search for a
 bound `n` such that `distinctValues f n` has an `i`-th entry. -/
@@ -227,7 +192,10 @@ theorem Primrec.distinctValues {f : α → ℕ → Option β} (hf : Primrec₂ f
       (hf.comp₂ Primrec₂.left (Primrec.fst.comp₂ Primrec₂.right)))).of_eq fun a n => ?_
   induction n with
   | zero => rfl
-  | succ n ih => rw [Nat.distinctValues_succ_eq_insertNew, ← ih]
+  | succ n ih =>
+    dsimp only
+    rw [Nat.distinctValues, ← ih]
+    cases f a n <;> rfl
 
 /-- The `i`-th distinct value of a sequence depending primitive recursively on a parameter is
 partial recursive in the parameter and `i`. -/

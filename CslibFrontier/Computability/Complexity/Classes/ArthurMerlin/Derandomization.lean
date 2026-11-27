@@ -61,16 +61,14 @@ theorem MA_subset_NP_of_PromiseBPP_subset_PromiseP
   rintro A ⟨q, p, V, hV, hMA⟩
   -- Arthur's check of a fixed proof `w` on instance `a`
   let arthur (w : List Bool) : α × List Bool → Bool := fun y => V (y.1, w ++ y.2)
-  have hdisj (z : α × List Bool) (htrue : BoundedErrorAt enc p (arthur z.2) z.1 true)
-      (hfalse : BoundedErrorAt enc p (arthur z.2) z.1 false) : False := by
-    rw [boundedErrorAt_true_iff] at htrue
-    rw [boundedErrorAt_false_iff] at hfalse
-    have := Nat.one_le_two_pow (n := p.eval (enc z.1).length)
-    omega
   let Q : PromiseProblem (α × List Bool) :=
     { yes := {z | BoundedErrorAt enc p (arthur z.2) z.1 true}
       no := {z | BoundedErrorAt enc p (arthur z.2) z.1 false}
-      disjoint := Set.disjoint_left.2 fun z hyes hno => hdisj z hyes hno }
+      disjoint := Set.disjoint_left.2 fun z htrue hfalse => by
+        rw [Set.mem_ofPred_eq, boundedErrorAt_true_iff] at htrue
+        rw [Set.mem_ofPred_eq, boundedErrorAt_false_iff] at hfalse
+        have := Nat.one_le_two_pow (n := p.eval (enc z.1).length)
+        omega }
   -- on pairs, Arthur reads the first `p (|a|)` bits of a random string of length `p (|(a, w)|)`
   let V' : (α × List Bool) × List Bool → Bool := fun x =>
     V (x.1.1, x.1.2 ++ x.2.take (p.eval (enc x.1.1).length))
@@ -86,23 +84,21 @@ theorem MA_subset_NP_of_PromiseBPP_subset_PromiseP
     have hkK : k ≤ K := Polynomial.monotone_eval p (by
       simp only [encPair_apply, List.length_append, length_frame]
       omega)
-    have hcount := BitString.card_filter_take hkK fun u => V (z.1, z.2 ++ u) = b
     simp only [BoundedErrorAt]
     change 2 * 2 ^ K ≤ 3 * #{r : Fin K → Bool |
         V (z.1, z.2 ++ (List.ofFn r).take k) = b} ↔
       2 * 2 ^ k ≤ 3 * #{r : Fin k → Bool | V (z.1, z.2 ++ List.ofFn r) = b}
-    rw [hcount, ← Nat.sub_add_cancel hkK, pow_add, Nat.add_sub_cancel,
-      mul_left_comm 2, mul_left_comm 3, mul_le_mul_iff_right₀ (Nat.two_pow_pos _)]
-  have hQ : Q ∈ PromiseBPP (encPair enc encBits) :=
-    ⟨p, V', hV', fun z => ⟨fun hz => (htransfer z true).2 hz, fun hz => (htransfer z false).2 hz⟩⟩
-  obtain ⟨f, hf, hyes, hno⟩ := mem_PromiseP_iff.1 (h hQ)
+    rw [BitString.card_filter_take hkK fun u => V (z.1, z.2 ++ u) = b,
+      ← Nat.sub_add_cancel hkK, pow_add, Nat.add_sub_cancel, mul_left_comm 2, mul_left_comm 3,
+      mul_le_mul_iff_right₀ (Nat.two_pow_pos _)]
+  obtain ⟨f, hf, hyes, hno⟩ := mem_PromiseP_iff.1 <|
+    @h Q ⟨p, V', hV', fun z => ⟨(htransfer z true).2, (htransfer z false).2⟩⟩
   refine ⟨q, f, hf, fun a => ⟨fun ha => ?_, fun ⟨w, hw, hfw⟩ => ?_⟩⟩
   · obtain ⟨y, hy⟩ := (hMA a).1 ha
     exact ⟨List.ofFn y, List.length_ofFn, hyes (a, List.ofFn y) hy⟩
   · by_contra ha
-    have h' := (hMA a).2 ha (BitString.ofList _ w)
-    rw [BitString.ofFn_ofList hw] at h'
-    exact Bool.false_ne_true (hno (a, w) h' ▸ hfw)
+    exact Bool.false_ne_true <|
+      (hno (a, w) (BitString.ofFn_ofList hw ▸ (hMA a).2 ha (BitString.ofList _ w))) ▸ hfw
 
 /-- **Average-case hardness in `E` collapses `MA` to `NP`** [Arora and Barak,
 Exercise 16.4][AroraBarak07] (web draft 2007-01-08, printed p. 318, PDF p. 334). Let `L` be a

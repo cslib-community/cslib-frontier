@@ -21,7 +21,8 @@ of each length, and its slice at `n` is a constant or the conjunction of the `n`
 circuits of `n + 1` gates (`mem_SIZE_of_unary`). Since the circuits at different lengths need not be
 related, unary languages that no machine decides are in `P/poly` [Arora and Barak, Section
 6.1][AroraBarak09]. The class `Cslib.Complexity.SPARSE` counts the words of length at most `n`
-rather than exactly `n`; its members are in `P/poly` as well (`PPoly.of_mem_SPARSE`).
+rather than exactly `n`; its members are in `P/poly` as well (`PPoly.of_mem_SPARSE`), and so is
+every sparse problem, under any encoding of its instances (`SPARSE_subset_PPolyOn`).
 
 ## Main results
 
@@ -30,6 +31,8 @@ rather than exactly `n`; its members are in `P/poly` as well (`PPoly.of_mem_SPAR
 * `Cslib.Circuits.Boolean.PPoly.of_sparse`: sparse languages are in `P/poly`.
 * `Cslib.Circuits.Boolean.PPoly.of_mem_SPARSE`: languages in `Cslib.Complexity.SPARSE` are in
   `P/poly`.
+* `Cslib.Circuits.Boolean.SPARSE_subset_PPolyOn`: `SPARSE ⊆ P/poly`, for problems with any encoding
+  of their instances.
 * `Cslib.Circuits.Boolean.mem_SIZE_of_unary`, `Cslib.Circuits.Boolean.PPoly.of_unary`: unary
   languages have circuits of `n + 1` gates, so they are in `P/poly`.
 
@@ -57,7 +60,7 @@ theorem complexity_slice_le_of_card_le {n k : ℕ}
   have hfun : (fun x => decide (∃ w ∈ W, decide ((fun i => x (id i)) = w) = true)) =
       L.slice n := by
     funext x
-    rw [Bool.eq_iff_iff, decide_eq_true_iff]
+    rw [Bool.eq_iff_iff]
     simp [W]
   rw [hfun, sum_const, smul_eq_mul] at hs
   exact hs.complexity_le.trans (Nat.add_le_add_right (Nat.mul_le_mul_right _ h) 1)
@@ -75,17 +78,23 @@ theorem PPoly.of_mem_SPARSE
     (h : (L : Set (List Bool)) ∈ Complexity.SPARSE Turing.MultiTapeTM.encBits) : L ∈ PPoly := by
   obtain ⟨p, hp, hL⟩ := h
   refine PPoly.of_sparse hp fun n => ?_
-  have hsub : ((({x : BitString n | L.slice n x = true} : Finset (BitString n)).image
-      List.ofFn : Finset (List Bool)) : Set (List Bool)) ⊆
-      {w ∈ (L : Set (List Bool)) | (Turing.MultiTapeTM.encBits w).length ≤ n} := by
-    intro w hw
-    simp only [coe_image, coe_filter, mem_univ, true_and, Set.mem_image, Set.mem_ofPred_eq,
-      Language.slice_eq_true_iff] at hw
-    obtain ⟨x, hx, rfl⟩ := hw
-    exact ⟨hx, by simp⟩
-  have hle := (Set.encard_le_encard hsub).trans (hL n)
+  have hle := (Set.encard_le_encard (show ((({x : BitString n | L.slice n x = true} :
+      Finset (BitString n)).image List.ofFn : Finset (List Bool)) : Set (List Bool)) ⊆
+      {w ∈ (L : Set (List Bool)) | (Turing.MultiTapeTM.encBits w).length ≤ n} from fun w hw => by
+        simp only [coe_image, coe_filter, mem_univ, true_and, Set.mem_image, Set.mem_ofPred_eq,
+          Language.slice_eq_true_iff] at hw
+        obtain ⟨x, hx, rfl⟩ := hw
+        exact ⟨hx, by simp⟩)).trans (hL n)
   rw [Set.encard_coe_eq_coe_finsetCard, card_image_of_injective _ List.ofFn_injective] at hle
   exact Nat.cast_le.mp hle
+
+/-- **SPARSE ⊆ P/poly**, for problems with any encoding `enc` of their instances: the encodings of
+the members of a sparse problem form a sparse language
+(`Cslib.Complexity.image_mem_SPARSE_encBits_iff`), which has circuits of polynomial size. -/
+theorem SPARSE_subset_PPolyOn {α : Type*} {enc : α ↪ List Bool} :
+    Complexity.SPARSE enc ⊆ PPolyOn enc := fun S hS =>
+  ⟨enc '' S, PPoly.of_mem_SPARSE (Complexity.image_mem_SPARSE_encBits_iff.mpr hS),
+    fun _ => enc.injective.mem_set_image.symm⟩
 
 /-- The word of length `n` is all `true` exactly when every one of its bits is. -/
 private theorem ofFn_eq_replicate_true_iff {n : ℕ} {x : BitString n} :
@@ -107,9 +116,9 @@ theorem mem_SIZE_of_unary (hL : ∀ w ∈ L, ∀ b ∈ w, b = true) : L ∈ SIZE
       funext x
       rw [Bool.eq_iff_iff]
       simp [hmem, hn]
-    have hc := (Synthesis.forall_mem (s := inputs n) univ (fun i (x : BitString n) => x i)
-      (fun _ => 0) fun i _ => Synthesis.of_mem ⟨i, rfl⟩).complexity_le
-    simpa [hslice] using hc
+    simpa [hslice] using (Synthesis.forall_mem (s := inputs n) univ
+      (fun i (x : BitString n) => x i) (fun _ => 0)
+      fun i _ => Synthesis.of_mem ⟨i, rfl⟩).complexity_le
   · have hslice : L.slice n = fun _ => false := by
       funext x
       rw [Bool.eq_iff_iff]
@@ -121,7 +130,6 @@ theorem mem_SIZE_of_unary (hL : ∀ w ∈ L, ∀ b ∈ w, b = true) : L ∈ SIZE
 theorem PPoly.of_unary (hL : ∀ w ∈ L, ∀ b ∈ w, b = true) : L ∈ PPoly :=
   mem_PPoly_iff_exists_mem_SIZE.2 ⟨2, SIZE_mono (fun n => by
     have := Nat.le_self_pow two_ne_zero (n + 1)
-    dsimp only
-    omega) (mem_SIZE_of_unary hL)⟩
+    dsimp only; omega) (mem_SIZE_of_unary hL)⟩
 
 end Cslib.Circuits.Boolean

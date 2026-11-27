@@ -586,10 +586,8 @@ theorem IsBasic.profileValue_le_expected_step_gain {G : UtilityGame ι S} [Nonem
 omit [DecidableEq ι] in
 private theorem one_sub_two_div_card_nonneg (hn2 : 2 ≤ Fintype.card ι) :
     0 ≤ 1 - 2 / (Fintype.card ι : ℝ) := by
-  have hn_pos : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.mpr (by omega)
-  have hn_real : (2 : ℝ) ≤ Fintype.card ι := by exact_mod_cast hn2
-  rw [sub_nonneg, div_le_one hn_pos]
-  exact hn_real
+  rw [sub_nonneg, div_le_one (Nat.cast_pos.mpr (by omega))]
+  exact_mod_cast hn2
 
 /-- **Multi-step geometric contraction** ([TardosWexler2007], proof of Theorem 19.20, p. 506):
 when `n = Fintype.card ι ≥ 2`, the expected welfare gap `V(o) - 2 * E[V(S_t)]` shrinks by at least
@@ -676,24 +674,16 @@ theorem IsBasic.mul_profileValue_le_expectedWalkValue {G : UtilityGame ι S} [No
     exact hneg.trans (expectedWalkValue_nonneg h0 hmono br s₀ t)
   · push Not at hε_half
     rcases Nat.lt_or_ge (Fintype.card ι) 2 with hn1 | hn2
-    · have hcard1 : Fintype.card ι = 1 := by
-        have hpos := Fintype.card_pos (α := ι)
-        omega
-      have hlog_pos : 0 < Real.log (1 / ε) := by
-        apply Real.log_pos
-        rw [one_lt_div hε]
-        linarith
-      have ht_pos : 0 < t := by
-        by_contra ht0
-        have ht_zero : t = 0 := by omega
-        subst ht_zero
+    · have hcard1 : Fintype.card ι = 1 := by have := Fintype.card_pos (α := ι); omega
+      have hlog_pos : 0 < Real.log (1 / ε) := Real.log_pos (by rw [one_lt_div hε]; linarith)
+      have ht_pos : 0 < t := Nat.pos_of_ne_zero fun ht0 => by
+        subst ht0
         rw [hcard1, Nat.cast_one, Nat.cast_zero] at ht
         linarith
       obtain ⟨t', rfl⟩ := Nat.exists_eq_succ_of_ne_zero ht_pos.ne'
       obtain ⟨i₀, hi₀⟩ := Fintype.card_eq_one_iff.mp hcard1
-      have ho_eq : o = Function.update s₀ i₀ (o i₀) := by
-        ext j
-        rw [hi₀ j, Function.update_self]
+      have ho_eq : o = Function.update s₀ i₀ (o i₀) :=
+        funext fun j => by rw [hi₀ j, Function.update_self]
       have hstep_opt : G.profileValue o ≤ G.profileValue (Function.update s₀ i₀ (br i₀ s₀)) := by
         rw [ho_eq]
         have h1 := hbr i₀ s₀ (o i₀)
@@ -714,37 +704,27 @@ theorem IsBasic.mul_profileValue_le_expectedWalkValue {G : UtilityGame ι S} [No
           Finset.sum_le_sum fun seq _ => hall seq
         simpa only [Finset.sum_const, Finset.card_univ, Fintype.card_pi, hcard1,
           Finset.prod_const_one, one_smul] using hsum
-      have hhalf : (1 / 2 - ε) * G.profileValue o ≤ G.profileValue o :=
-        mul_le_of_le_one_left hVo (by linarith)
-      exact hhalf.trans hexp
+      exact (mul_le_of_le_one_left hVo (by linarith)).trans hexp
     · have hn_pos : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.mpr (by omega)
       have hfactor_nonneg : 0 ≤ 1 - 2 / (Fintype.card ι : ℝ) := one_sub_two_div_card_nonneg hn2
       have hdecay := hG.profileValue_sub_two_mul_expectedWalkValue_le hmono hbr hn2 s₀ o t
       have hinit : G.profileValue o - 2 * G.profileValue s₀ ≤ G.profileValue o := by linarith
-      have hpow_exp : (1 - 2 / (Fintype.card ι : ℝ)) ^ t ≤ ε := by
-        have hexp1 : 1 - 2 / (Fintype.card ι : ℝ) ≤ Real.exp (-(2 / (Fintype.card ι : ℝ))) :=
-          Real.one_sub_le_exp_neg (2 / (Fintype.card ι : ℝ))
-        have hexp_pow : (1 - 2 / (Fintype.card ι : ℝ)) ^ t ≤
-            Real.exp ((t : ℝ) * (-(2 / (Fintype.card ι : ℝ)))) := by
-          calc
-            (1 - 2 / (Fintype.card ι : ℝ)) ^ t
-              ≤ Real.exp (-(2 / (Fintype.card ι : ℝ))) ^ t :=
-                pow_le_pow_left₀ hfactor_nonneg hexp1 t
-            _ = Real.exp ((t : ℝ) * (-(2 / (Fintype.card ι : ℝ)))) :=
-                (Real.exp_nat_mul _ t).symm
-        have hexponent : (t : ℝ) * (-(2 / (Fintype.card ι : ℝ))) ≤ Real.log ε := by
-          have hlog_inv : Real.log (1 / ε) = -Real.log ε := by
-            rw [one_div, Real.log_inv]
-          have ht' : (Fintype.card ι : ℝ) * Real.log (1 / ε) ≤ 2 * (t : ℝ) := by linarith
-          have hdiv : Real.log (1 / ε) ≤ 2 * (t : ℝ) / (Fintype.card ι : ℝ) := by
-            rwa [le_div_iff₀ hn_pos, mul_comm]
-          have hrew : (t : ℝ) * (-(2 / (Fintype.card ι : ℝ))) =
-              -(2 * (t : ℝ) / (Fintype.card ι : ℝ)) := by ring
-          linarith
-        exact hexp_pow.trans ((Real.exp_le_exp.mpr hexponent).trans_eq (Real.exp_log hε))
-      have hbound : G.profileValue o - 2 * G.expectedWalkValue br s₀ t ≤ ε * G.profileValue o := by
-        calc
-          G.profileValue o - 2 * G.expectedWalkValue br s₀ t
+      -- `(1 - 2 / n) ^ t ≤ exp (-2 t / n) ≤ ε`.
+      have hpow_exp : (1 - 2 / (Fintype.card ι : ℝ)) ^ t ≤ ε :=
+        calc (1 - 2 / (Fintype.card ι : ℝ)) ^ t
+            ≤ Real.exp (-(2 / (Fintype.card ι : ℝ))) ^ t :=
+              pow_le_pow_left₀ hfactor_nonneg (Real.one_sub_le_exp_neg _) t
+          _ = Real.exp ((t : ℝ) * -(2 / (Fintype.card ι : ℝ))) := (Real.exp_nat_mul _ t).symm
+          _ ≤ Real.exp (Real.log ε) := Real.exp_le_exp.mpr <| by
+              have hdiv : Real.log (1 / ε) ≤ 2 * (t : ℝ) / (Fintype.card ι : ℝ) := by
+                rw [le_div_iff₀ hn_pos]; linarith
+              rw [one_div, Real.log_inv] at hdiv
+              have hrew : (t : ℝ) * -(2 / (Fintype.card ι : ℝ)) = -(2 * t / Fintype.card ι) := by
+                ring
+              linarith
+          _ = ε := Real.exp_log hε
+      have hbound : G.profileValue o - 2 * G.expectedWalkValue br s₀ t ≤ ε * G.profileValue o :=
+        calc G.profileValue o - 2 * G.expectedWalkValue br s₀ t
             ≤ (1 - 2 / (Fintype.card ι : ℝ)) ^ t * (G.profileValue o - 2 * G.profileValue s₀) :=
               hdecay
           _ ≤ (1 - 2 / (Fintype.card ι : ℝ)) ^ t * G.profileValue o :=
@@ -940,13 +920,8 @@ private theorem closedNeighborhood_starPlusIsolates_center (k : ℕ) :
   rw [mem_closedNeighborhood, mem_map]
   dsimp only [starPlusIsolates]
   rcases v with r | j
-  · constructor
-    · intro _
-      exact ⟨r, mem_univ r, rfl⟩
-    · intro _
-      by_cases hr : r = 0
-      · exact Or.inl (congrArg Sum.inl hr)
-      · exact Or.inr (Or.inl ⟨rfl, r, hr, rfl⟩)
+  · exact ⟨fun _ => ⟨r, mem_univ r, rfl⟩, fun _ => (eq_or_ne r 0).elim
+      (fun hr => Or.inl (congrArg Sum.inl hr)) fun hr => Or.inr (Or.inl ⟨rfl, r, hr, rfl⟩)⟩
   · constructor
     · rintro (h | ⟨_, r, _, h⟩ | ⟨h, _⟩) <;> cases h
     · rintro ⟨r, _, h⟩
@@ -957,18 +932,12 @@ private theorem closedNeighborhood_starPlusIsolates_inr (k : ℕ) (j : Fin (k + 
   ext v
   rw [mem_closedNeighborhood, mem_singleton]
   dsimp only [starPlusIsolates]
-  rcases v with r | j'
-  · constructor
-    · rintro (h | ⟨h, _⟩ | ⟨_, _, _, h⟩) <;> cases h
-    · intro h
-      cases h
-  · constructor
-    · rintro (h | ⟨h, _⟩ | ⟨_, _, _, h⟩)
-      · exact h
-      · cases h
-      · cases h
-    · intro h
-      exact Or.inl h
+  rcases v with r | j' <;> constructor
+  · rintro (h | ⟨h, _⟩ | ⟨_, _, _, h⟩) <;> cases h
+  · intro h
+    cases h
+  · rintro (h | ⟨h, _⟩ | ⟨_, _, _, h⟩) <;> first | exact h | cases h
+  · exact Or.inl
 
 private theorem closedNeighborhood_starPlusIsolates_inl_subset (k : ℕ) (r : Fin (k + 2)) :
     closedNeighborhood (starPlusIsolates k) (Sum.inl r) ⊆
@@ -986,9 +955,8 @@ private theorem center_mem_closedNeighborhood_inl (k : ℕ) (r : Fin (k + 2)) :
     (Sum.inl 0 : Fin (k + 2) ⊕ Fin (k + 1)) ∈
       closedNeighborhood (starPlusIsolates k) (Sum.inl r) := by
   rw [mem_closedNeighborhood]
-  by_cases hr : r = 0
-  · exact Or.inl (congrArg Sum.inl hr.symm)
-  · exact Or.inr (Or.inr ⟨rfl, r, hr, rfl⟩)
+  exact (eq_or_ne r 0).elim (fun hr => Or.inl (congrArg Sum.inl hr.symm))
+    fun hr => Or.inr (Or.inr ⟨rfl, r, hr, rfl⟩)
 
 /-- **Exercise 19.16(a)** ([TardosWexler2007], p. 515): the price of anarchy of the
 closed-neighborhood wealth-sharing location game can be arbitrarily close to `2` (for every
@@ -1047,10 +1015,8 @@ theorem exists_neighborhoodGame_isPureNash_mul_lt {ε : ℝ} (hε : 0 < ε) :
         rw [Function.Embedding.inl_apply]
         have hfilt : (Finset.univ.filter fun _ : Fin (k + 2) =>
             (Sum.inl 0 : Fin (k + 2) ⊕ Fin (k + 1)) ∈
-              closedNeighborhood (starPlusIsolates k) (Sum.inl r)) = Finset.univ := by
-          ext _
-          simp only [mem_filter, mem_univ, true_and, iff_true]
-          exact center_mem_closedNeighborhood_inl k r
+              closedNeighborhood (starPlusIsolates k) (Sum.inl r)) = Finset.univ :=
+          Finset.filter_true_of_mem fun _ _ => center_mem_closedNeighborhood_inl k r
         rw [hfilt, card_univ, Fintype.card_fin]
       rw [Finset.sum_congr rfl hcongr, Finset.sum_const, card_map, card_univ, Fintype.card_fin,
         nsmul_eq_mul]
@@ -1070,8 +1036,7 @@ theorem exists_neighborhoodGame_isPureNash_mul_lt {ε : ℝ} (hε : 0 < ε) :
         have hfilt : (Finset.univ.filter fun j' : Fin (k + 2) =>
             Function.update s i (Sum.inl r) j' ∈
               closedNeighborhood (starPlusIsolates k) (Sum.inl r')) = Finset.univ := by
-          ext j'
-          simp only [mem_filter, mem_univ, true_and, iff_true]
+          refine Finset.filter_true_of_mem fun j' _ => ?_
           by_cases hji : j' = i
           · subst hji
             rw [Function.update_self]

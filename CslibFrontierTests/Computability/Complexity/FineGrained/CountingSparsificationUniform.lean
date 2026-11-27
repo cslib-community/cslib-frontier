@@ -74,6 +74,29 @@ example :
     (encNat (rounds 1 twoUnits)).length = 5 ∧
     rounds 0 ([] : CNF ℕ) = 4 := by
   decide
+
+-- One bit per leaf suffices for detection. Declaring too few variables rejects the same formula.
+example :
+    let g : Context × CNF ℕ → ℕ := fun x => min 1 x.2.modelCount
+    let disjunction : CNF ℕ := [[(0, true), (1, true)]]
+    0 < searchDeclaredWith Prod.snd MOf BOf 2 2 g (true, 2) disjunction ∧
+      ¬ (0 < searchDeclaredWith Prod.snd MOf BOf 2 2 g (true, 1) disjunction) := by
+  intro g disjunction
+  have hM2 : 2 ≤ countingThresholdBase 2 1 := two_le_countingThresholdBase _ _
+  have hM : 1 ≤ countingThresholdBase 2 1 := (by decide : 1 ≤ 2).trans hM2
+  have hTB := countingTreeBound_countingThresholdBase (by decide : 1 ≤ 2) (by decide : 1 ≤ 1)
+  have hcorrect (n : ℕ) :
+      0 < searchDeclaredWith Prod.snd MOf BOf 2 2 g (true, n) disjunction ↔
+        CNF.validDeclaredInput 2 n disjunction = true ∧ disjunction.Satisfiable :=
+    searchDeclaredWith_pos_iff_of_normalized (NOf := Prod.snd) (MOf := MOf) (BOf := BOf)
+      (k := 2) (p := (true, n)) (g := g) hM (by decide : 1 ≤ 2) hM2 le_rfl hTB
+      (fun ψ _ _ _ _ _ => by
+        change 0 < min 1 ψ.modelCount ↔ ψ.Satisfiable
+        simp only [lt_min_iff, zero_lt_one, true_and, CNF.modelCount_pos_iff]) disjunction
+  have hsat : disjunction.Satisfiable := ⟨fun _ => true, by decide⟩
+  have hinvalid : CNF.validDeclaredInput 2 1 disjunction ≠ true := by decide
+  exact ⟨(hcorrect 2).mpr ⟨by decide, hsat⟩, fun h => hinvalid ((hcorrect 1).mp h).1⟩
+
 example (payload : Bool) (N : ℕ) (φ : CNF ℕ) :
     (encInput ((payload, N), φ)).length = 2 * N + 7 + (encCNF φ).length := by
   simp only [encInput, encContext, length_encPair, encUnary_apply, List.length_replicate,
@@ -187,11 +210,15 @@ example : ∃ d c e, ComputableInO
       (fun x : Bool × ℕ × CNF ℕ =>
         searchDeclaredWith Prod.snd varyingM varyingB 2 2 occurringProbe (x.1, x.2.1) x.2.2)
       (encPair encBool (encPair encUnary encCNF)) encNat
-      (fun x => c * ((encPair encBool (encPair encUnary encCNF) x).length + 1) ^ e +
-        (rounds (varyingB (x.1, x.2.1)) x.2.2 + 1) *
-          (c * ((encPair encBool (encPair encUnary encCNF) x).length + 1) ^ e +
-            2 ^ x.2.1 *
-              (2 * (encContext (x.1, x.2.1)).length + 2 + nodeBound 2 4 x.2.2) ^ d))
+      (fun x =>
+        let (context, declared, formula) := x
+        c * ((encPair encBool (encPair encUnary encCNF) x).length + 1) ^ e +
+          if CNF.validDeclaredInput 2 declared formula then
+            (rounds (varyingB (context, declared)) formula + 1) *
+              (c * ((encPair encBool (encPair encUnary encCNF) x).length + 1) ^ e +
+                2 ^ declared *
+                  (2 * (encContext (context, declared)).length + 2 + nodeBound 2 4 formula) ^ d)
+          else 0)
       (fun x => c * ((encPair encBool (encPair encUnary encCNF) x).length + 1) ^ e +
         (2 * (encContext (x.1, x.2.1)).length + 2 + nodeBound 2 4 x.2.2) ^ d) ∧
     PolyBounded
@@ -218,7 +245,7 @@ example : ∃ d c e, ComputableInO
     have ht := countingTreeBound_countingThresholdBase (by decide : 1 ≤ 2) hBpos
     simpa only [varyingM, countingDepthCoeff, Nat.reduceSub, Finset.range_one, Finset.sum_singleton,
       pow_zero, Nat.mul_one] using ht
-  obtain ⟨c, e, hc⟩ := exists_computableInO_searchDeclaredWith
+  obtain ⟨c, e, hc, hs⟩ := exists_computableInO_searchDeclaredWith
     hB varying_comparison hM (by decide : 1 ≤ 2) hM2 (by decide : 2 ≤ 2) hTB
     (PolyBounded.const 4) hcounter
     (fun x _ i _ _ => by
@@ -230,7 +257,6 @@ example : ∃ d c e, ComputableInO
       (Nat.pow_le_pow_left (varying_leaf_input_bound occurringProbe x i hactive) d))
     (fun x _ i _ hactive =>
       Nat.pow_le_pow_left (varying_leaf_input_bound occurringProbe x i hactive) d)
-    (varying_leaf_allowance_poly d)
-  exact ⟨d, c, e, hc⟩
+  exact ⟨d, c, e, hc, hs (varying_leaf_allowance_poly d)⟩
 
 end CountingSparsificationUniformTests

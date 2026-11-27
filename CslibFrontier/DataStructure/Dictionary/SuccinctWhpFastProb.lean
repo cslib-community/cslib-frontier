@@ -102,74 +102,64 @@ theorem isFastStepHit_of_goodSeedOnWindow {c U V n_max : ℕ}
     ((Dynamic.spec U V n_max).validHistory_append _ ops_prev [op]).mp hvh
   set dict_prev := ((Dynamic.spec U V n_max).run (Dictionary.empty U) ops_prev).1
   have hval_op : Dynamic.valid V n_max dict_prev op := hv_op_singleton.1
-  have hclean_prev :
-      ∃ fs, whpRunPure c U n_max θ ops_prev = .fast fs ∧
-        CleanWindowFast c U V n_max θ W_keys BadIns fs dict_prev ∧
-        ∃ l, suf = l ++ [op] ∧ ((Dynamic.spec U V n_max).run s_start l).1 = dict_prev := by
-    set k := ops.length - windowLenWhp n_max
-    have hlen : ops.length = ops_prev.length + 1 := by
-      rw [List.length_append, List.length_singleton]
-    have hk_le : k ≤ ops_prev.length := by dsimp only [k, windowLenWhp]; omega
-    have htake_eq : ops.take k = ops_prev.take k := List.take_append_of_le_length hk_le
-    have hsuf_eq : suf = ops_prev.drop k ++ [op] := List.drop_append_of_le_length hk_le
-    have hs_eq : s_start =
-        ((Dynamic.spec U V n_max).run (Dictionary.empty U) (ops_prev.take k)).1 := by
-      dsimp only [s_start, windowStartState]
-      rw [htake_eq]
-      exact spec_run_fst_irrel (V₁ := 0) (n₁ := 0) (V₂ := V) (n₂ := n_max) _ _
-    have hvh_take : (Dynamic.spec U V n_max).ValidHistory (Dictionary.empty U)
-        (ops_prev.take k) := by
-      rw [← htake_eq]; exact validHistory_take k hvh
-    -- Short histories start from the clean initial state with budget `0`; long ones start from
-    -- any valid state with the full epoch budget, which the `≥ qEpochWhp` window suffix exhausts.
-    obtain ⟨b, hbud0, hb⟩ : ∃ b, HasBurnInBudget c U V n_max θ W_keys BadIns
-        (whpRunPure c U n_max θ (ops_prev.take k)) s_start b ∧
-        b - (ops_prev.drop k).length = 0 := by
-      by_cases hle : ops.length ≤ windowLenWhp n_max
-      · have hk0 : k = 0 := Nat.sub_eq_zero_of_le hle
-        refine ⟨0, Or.inl ⟨emptyFastState n_max, ?_, ?_⟩, Nat.zero_sub _⟩
-        · rw [hk0, List.take_zero]; exact ite_eq_right (not_lt.mpr hth)
-        · rw [hs_eq, hk0, List.take_zero]
-          exact CleanWindowFast.of_clean_fast (validFastState_empty hth θ) rfl rfl
-            (fun h => by cases h)
-      · refine ⟨_, HasBurnInBudget.of_validWhpState hth (V := V) ?_, ?_⟩
-        · rw [hs_eq]; exact whpRunPure_spec hnU θ hvh_take
-        rw [List.length_drop]
-        dsimp only [k, windowLenWhp] at hle ⊢
-        omega
-    have hv_split : (Dynamic.spec U V n_max).ValidHistory (Dictionary.empty U)
-        (ops_prev.take k ++ ops_prev.drop k) := by
-      rwa [List.take_append_drop]
-    have hv_drop : (Dynamic.spec U V n_max).ValidHistory s_start (ops_prev.drop k) := by
-      rw [hs_eq]; exact (((Dynamic.spec U V n_max).validHistory_append _ _ _).mp hv_split).2
-    have hbud_end := HasBurnInBudget.run hnU hg hbad_def hbad_lt (ops_prev.drop k) hbud0 hv_drop
-      (fun s hs => by
-        change s ∈ stateSeq s_start suf
-        rw [hsuf_eq]; exact mem_stateSeq_append_left _ _ _ s hs)
-      (by
-        change opInsKeys (ops_prev.drop k) ⊆ W_ins
-        dsimp only [W_ins]; rw [hsuf_eq, opInsKeys_append]; exact subset_union_left)
-    have hrun_eq : whpRunFrom c U n_max θ
-        (whpRunPure c U n_max θ (ops_prev.take k)) (ops_prev.drop k) =
-        whpRunPure c U n_max θ ops_prev := by
-      dsimp only [whpRunPure]
-      rw [← whpRunFrom_append, List.take_append_drop]
-    have hdict_eq : ((Dynamic.spec U V n_max).run s_start (ops_prev.drop k)).1 = dict_prev := by
-      rw [hs_eq, ← spec_run_fst_append, List.take_append_drop]
-    rw [hb, hrun_eq, hdict_eq] at hbud_end
-    rcases hbud_end with ⟨fs, hfs, hcw_fs⟩ | ⟨h10, _⟩
-    · exact ⟨fs, hfs, hcw_fs, ops_prev.drop k, hsuf_eq, hdict_eq⟩
-    · omega
-  obtain ⟨fs, hfs, hcw, l, hsuf_l, hdict_l⟩ := hclean_prev
+  set k := ops.length - windowLenWhp n_max
+  have hlen : ops.length = ops_prev.length + 1 := by
+    rw [List.length_append, List.length_singleton]
+  have hk_le : k ≤ ops_prev.length := by dsimp only [k, windowLenWhp]; omega
+  have htake_eq : ops.take k = ops_prev.take k := List.take_append_of_le_length hk_le
+  have hsuf_eq : suf = ops_prev.drop k ++ [op] := List.drop_append_of_le_length hk_le
+  have hs_eq : s_start =
+      ((Dynamic.spec U V n_max).run (Dictionary.empty U) (ops_prev.take k)).1 := by
+    dsimp only [s_start, windowStartState]
+    rw [htake_eq]
+    exact spec_run_fst_irrel (V₁ := 0) (n₁ := 0) (V₂ := V) (n₂ := n_max) _ _
+  have hvh_take : (Dynamic.spec U V n_max).ValidHistory (Dictionary.empty U)
+      (ops_prev.take k) := htake_eq ▸ validHistory_take k hvh
+  -- Short histories start from the clean initial state with budget `0`; long ones start from
+  -- any valid state with the full epoch budget, which the `≥ qEpochWhp` window suffix exhausts.
+  obtain ⟨b, hbud0, hb⟩ : ∃ b, HasBurnInBudget c U V n_max θ W_keys BadIns
+      (whpRunPure c U n_max θ (ops_prev.take k)) s_start b ∧
+      b - (ops_prev.drop k).length = 0 := by
+    by_cases hle : ops.length ≤ windowLenWhp n_max
+    · have hk0 : k = 0 := Nat.sub_eq_zero_of_le hle
+      refine ⟨0, Or.inl ⟨emptyFastState n_max, ?_, ?_⟩, Nat.zero_sub _⟩
+      · rw [hk0, List.take_zero]
+        exact ite_eq_right (not_lt.mpr hth)
+      · rw [hs_eq, hk0, List.take_zero]
+        exact CleanWindowFast.of_clean_fast (validFastState_empty hth θ) rfl rfl nofun
+    · refine ⟨_, HasBurnInBudget.of_validWhpState hth (V := V)
+        (hs_eq ▸ whpRunPure_spec hnU θ hvh_take), ?_⟩
+      rw [List.length_drop]
+      dsimp only [k, windowLenWhp] at hle ⊢
+      omega
+  have hv_drop : (Dynamic.spec U V n_max).ValidHistory s_start (ops_prev.drop k) :=
+    hs_eq ▸ (((Dynamic.spec U V n_max).validHistory_append _ _ _).mp
+      (by rwa [List.take_append_drop])).2
+  have hbud_end := HasBurnInBudget.run hnU hg hbad_def hbad_lt (ops_prev.drop k) hbud0 hv_drop
+    (fun s hs => by
+      change s ∈ stateSeq s_start suf
+      rw [hsuf_eq]
+      exact mem_stateSeq_append_left _ _ _ s hs)
+    (by
+      change opInsKeys (ops_prev.drop k) ⊆ W_ins
+      simp only [W_ins, hsuf_eq, opInsKeys_append]
+      exact subset_union_left)
+  have hrun_eq : whpRunFrom c U n_max θ
+      (whpRunPure c U n_max θ (ops_prev.take k)) (ops_prev.drop k) =
+      whpRunPure c U n_max θ ops_prev := by
+    dsimp only [whpRunPure]
+    rw [← whpRunFrom_append, List.take_append_drop]
+  have hdict_eq : ((Dynamic.spec U V n_max).run s_start (ops_prev.drop k)).1 = dict_prev := by
+    rw [hs_eq, ← spec_run_fst_append, List.take_append_drop]
+  rw [hb, hrun_eq, hdict_eq] at hbud_end
+  obtain ⟨fs, hfs, hcw⟩ := hbud_end.resolve_right fun h => by omega
   have hprev_mem : dict_prev ∈ stateSeq s_start suf := by
-    rw [← hdict_l, hsuf_l]
+    rw [← hdict_eq, hsuf_eq]
     exact mem_stateSeq_append_left _ _ _ _
-      (spec_run_fst_mem_stateSeq (V := V) (n_max := n_max) s_start l)
+      (spec_run_fst_mem_stateSeq (V := V) (n_max := n_max) s_start (ops_prev.drop k))
   have hnxt_mem : (Dynamic.step dict_prev op).1 ∈ stateSeq s_start suf := by
-    have heq : (Dynamic.step dict_prev op).1 =
-        ((Dynamic.spec U V n_max).run s_start suf).1 := by
-      rw [hsuf_l, spec_run_fst_append, hdict_l]; rfl
-    rw [heq]; exact spec_run_fst_mem_stateSeq (V := V) (n_max := n_max) s_start suf
+    have h := spec_run_fst_mem_stateSeq (V := V) (n_max := n_max) s_start suf
+    rwa [hsuf_eq, spec_run_fst_append, hdict_eq, ← hsuf_eq] at h
   have hdom_prev : (Dictionary.dom dict_prev : Set (Fin U)) ⊆ (W_keys : Set (Fin U)) := by
     exact_mod_cast dom_subset_union_opInsKeys s_start suf _ hprev_mem
   have hdom_nxt :
@@ -178,13 +168,12 @@ theorem isFastStepHit_of_goodSeedOnWindow {c U V n_max : ℕ}
   have hop_ins : ∀ u v, op = .insert u v → u ∈ W_ins ∧ u ∈ W_keys := by
     rintro u v rfl
     have hu : u ∈ W_ins := by
-      dsimp only [W_ins]; rw [hsuf_l, opInsKeys_append]
+      simp only [W_ins, hsuf_eq, opInsKeys_append]
       exact mem_union_right _ (mem_insert_self u ∅)
     exact ⟨hu, mem_union_right _ hu⟩
   obtain ⟨fs', res, hf, _⟩ := CleanWindowFast.step hnU hcw hval_op hdom_prev hdom_nxt hop_ins
     hg.1 (hg.2.1 _ hnxt_mem) hg.2.2.2.1 hbad_def hbad_lt
-  dsimp only [IsFastStepHit]
-  rw [hfs]; dsimp only; rw [hf]; rfl
+  simp only [IsFastStepHit, hfs, hf, Option.isSome_some]
 
 /-- **Master per-operation slow-fallback probability bound**:
 Across **all** capacities `n_max ≤ U` (both `< whpThreshold c` and `≥ whpThreshold c`), on any
@@ -205,13 +194,8 @@ theorem toOuterMeasure_not_isFastStepHit_le {c U V n_max : ℕ} (hnU : n_max ≤
       (toOuterMeasure_not_goodSeedOnWindow_le hth hvh)
   · have hemp : {θ | ¬ IsFastStepHit c U n_max ops_prev op θ} = ∅ := by
       ext θ
-      simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, not_not]
-      dsimp only [IsFastStepHit, whpRunPure]
-      have hinit : whpInitPure c n_max = .small emptySmallState :=
-        ite_eq_left (Nat.lt_of_not_ge hth)
-      rw [hinit]
       obtain ⟨sm', hsm'⟩ := whpRunFrom_small θ ops_prev emptySmallState
-      rw [hsm']; trivial
+      simp [IsFastStepHit, whpRunPure, whpInitPure, Nat.lt_of_not_ge hth, hsm']
     simp only [hemp, MeasureTheory.measure_empty, zero_le]
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp

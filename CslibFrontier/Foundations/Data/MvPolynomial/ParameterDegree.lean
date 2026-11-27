@@ -44,10 +44,8 @@ theorem monomial (m : ι →₀ ℕ) (a : Polynomial R) (ha : a.natDegree ≤ h)
     HasParameterDegree (MvPolynomial.monomial m a) h := by
   intro j
   classical
-  simp only [coeff_monomial]
-  split_ifs
-  · exact ha
-  · simp
+  rw [coeff_monomial]
+  split_ifs <;> simp [ha]
 
 /-- The parameter degree of an outer constant is bounded by its coefficient's degree. -/
 theorem C (a : Polynomial R) (ha : a.natDegree ≤ h) :
@@ -83,9 +81,8 @@ theorem mul (hp : HasParameterDegree p h) (hq : HasParameterDegree q k) :
   intro m
   classical
   rw [coeff_mul]
-  apply Polynomial.natDegree_sum_le_of_forall_le
-  intro j _
-  exact Polynomial.natDegree_mul_le.trans (Nat.add_le_add (hp j.1) (hq j.2))
+  exact Polynomial.natDegree_sum_le_of_forall_le _ _ fun j _ =>
+    Polynomial.natDegree_mul_le.trans (Nat.add_le_add (hp j.1) (hq j.2))
 
 /-- Powers multiply the parameter-degree bound by the exponent. -/
 theorem pow (hp : HasParameterDegree p h) (j : ℕ) : HasParameterDegree (p ^ j) (j * h) := by
@@ -116,18 +113,15 @@ theorem pderiv (hp : HasParameterDegree p h) (i : ι) :
     HasParameterDegree (MvPolynomial.pderiv i p) h := by
   intro m
   rw [coeff_pderiv]
-  have hm := hp (m + Finsupp.single i 1)
-  have ha : ((m i : Polynomial R) + 1).natDegree = 0 := by
-    simpa only [Nat.cast_add, Nat.cast_one] using Polynomial.natDegree_natCast (R := R) (m i + 1)
   refine Polynomial.natDegree_mul_le.trans ?_
-  simpa only [ha, Nat.add_zero] using hm
+  simpa only [← Nat.cast_add_one, Polynomial.natDegree_natCast, Nat.add_zero] using
+    hp (m + Finsupp.single i 1)
 
 /-- Negation preserves the bound on the parameter degree. -/
 theorem neg {R : Type*} [CommRing R] {p : MvPolynomial ι (Polynomial R)}
     (hp : HasParameterDegree p h) : HasParameterDegree (-p) h := by
   intro m
-  simp only [AddMonoidAlgebra.coeff_neg, Finsupp.neg_apply, Polynomial.natDegree_neg]
-  exact hp m
+  simpa only [AddMonoidAlgebra.coeff_neg, Finsupp.neg_apply, Polynomial.natDegree_neg] using hp m
 
 /-- The difference of two polynomials has parameter degree at most the larger bound. -/
 theorem sub {R : Type*} [CommRing R] {p q : MvPolynomial ι (Polynomial R)}

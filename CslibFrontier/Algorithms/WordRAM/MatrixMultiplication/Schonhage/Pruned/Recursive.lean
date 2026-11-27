@@ -84,34 +84,29 @@ theorem exec_ready {w L f a0 b0 A B : ℕ} (n : ℕ) {d p E : ℕ}
           have hpushLoop := ExecWithin.loop_iter
             (by simp only [Cond.holds_lt, hu.regs.nil_eq, hu.active_eq]; decide) hpush hchildLoop
           refine (hprevious endState _ hpushLoop).mono ?_
-          have hweight := childWeightPrefix_succ S t
-          simp only [hne, ↓reduceIte] at hweight
-          change childWeightPrefix S (k + 1) = childWeightPrefix S k +
-            traceWeight (childSet S (Encoding.termDigits t)) at hweight
-          simp only [Nat.add_mul, Nat.one_mul]
-          omega
+          have hweight : childWeightPrefix S (k + 1) =
+              childWeightPrefix S k + traceWeight (childSet S (Encoding.termDigits t)) := by
+            simpa only [hne, ↓reduceIte, t] using childWeightPrefix_succ S t
+          simp only [Nat.add_mul, Nat.one_mul]; omega
         · have hempty := Finset.not_nonempty_iff_eq_empty.mp hne
           obtain ⟨v, hskip, hv⟩ := exec_progress_empty S a b x u hx t hu hempty hfit
           refine ⟨v, hv, fun endState U hend => ?_⟩
           have hskipLoop := ExecWithin.loop_iter
             (by simp only [Cond.holds_lt, hu.regs.nil_eq, hu.active_eq]; decide) hskip hend
           refine (hprevious endState _ hskipLoop).mono ?_
-          have hweight := childWeightPrefix_succ S t
-          simp only [hne, ↓reduceIte, Nat.add_zero] at hweight
-          change childWeightPrefix S (k + 1) = childWeightPrefix S k at hweight
-          simp only [Nat.add_mul, Nat.one_mul]
-          omega
+          have hweight : childWeightPrefix S (k + 1) = childWeightPrefix S k := by
+            simpa only [hne, ↓reduceIte, Nat.add_zero, t] using childWeightPrefix_succ S t
+          simp only [Nat.add_mul, Nat.one_mul]; omega
     obtain ⟨u, hu, hchildren⟩ := hterms 10 (by omega)
     obtain ⟨z, hfinish, hz⟩ := exec_progress_finish S a b x u hx hu hfit
     refine ⟨z, hz, fun endState U hend => ?_⟩
     have hfinishLoop := ExecWithin.loop_iter
       (by simp only [Cond.holds_lt, hu.regs.nil_eq, hu.active_eq]; decide) hfinish hend
-    have hchildrenLoop := hchildren endState _ hfinishLoop
     refine (ExecWithin.loop_iter
       (by simp only [Cond.holds_lt, hx.regs.nil_eq, hx.active_eq]; decide) henter
-      hchildrenLoop).mono ?_
+      (hchildren endState _ hfinishLoop)).mono ?_
     rw [traceWeight_succ_prefix]
-    have hc := node_local_cost_le S.card
+    have := node_local_cost_le S.card
     omega
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

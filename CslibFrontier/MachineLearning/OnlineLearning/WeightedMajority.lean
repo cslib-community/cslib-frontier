@@ -118,8 +118,7 @@ theorem wm_mistakes_le {η : ℝ} (hη : 0 < η) (hη' : η ≤ 1 / 2) (pred : �
   have hmaster := sum_log_le_log_card_add hφ i
   -- the factors of expert `i`: `log (1 - η) ≥ -(η + η ^ 2)` per mistake
   have hcount_i : ∑ t ∈ range T, ℓ t i = #{t ∈ range T | advice t i ≠ outcome t} := by
-    simp only [hℓdef, expertLoss]
-    rw [sum_boole]
+    simp only [hℓdef, expertLoss, sum_boole]
   have hlow : -((η + η ^ 2) * ∑ t ∈ range T, ℓ t i) ≤
       ∑ t ∈ range T, log (mwFactor η (ℓ t i)) := by
     rw [mul_sum, ← sum_neg_distrib]
@@ -139,15 +138,12 @@ theorem wm_mistakes_le {η : ℝ} (hη : 0 < η) (hη' : η ≤ 1 / 2) (pred : �
         (∑ j with advice t j = pred t, weight (mwFactor η) ℓ t j) / potential (mwFactor η) ℓ t := by
       rw [sum_filter, sum_div]
       refine sum_congr rfl fun j _ => ?_
-      simp only [prob, hℓdef, expertLoss]
       have hb : (advice t j ≠ outcome t) ↔ advice t j = pred t := by
-        revert hne; cases advice t j <;> cases pred t <;> cases outcome t <;> simp
-      simp only [hb]
-      split_ifs <;> simp
-    rw [hfilt, le_div_iff₀ hΦ]
+        cases hp : pred t <;> cases ho : outcome t <;> simp [hp, ho] at hne ⊢
+      by_cases hadv : advice t j = pred t <;> simp [prob, hℓdef, expertLoss, hb, hadv, hne]
+    rw [hfilt, le_div_iff₀ hΦ, potential]
     have := hpred t ht
     simp only [ne_eq] at this
-    unfold potential
     linarith
   -- so the potential shrinks by `1 - η / 2` in every round with a mistake
   have hup : ∑ t ∈ range T, log (∑ j, prob (mwFactor η) ℓ t j * mwFactor η (ℓ t j)) ≤
@@ -163,8 +159,7 @@ theorem wm_mistakes_le {η : ℝ} (hη : 0 < η) (hη' : η ≤ 1 / 2) (pred : �
       sum_nonneg fun j _ => mul_nonneg (prob_nonneg hφt j)
         (by rcases hℓ01 t j with h | h <;> simp only [h, le_refl, zero_le_one])
     split_ifs with hm
-    · have := hhalf t ht' hm
-      nlinarith
+    · nlinarith [hhalf t ht' hm]
     · nlinarith
   rw [hcount_i] at hlow
   rw [add_div' _ _ _ hη.ne', le_div_iff₀ hη]

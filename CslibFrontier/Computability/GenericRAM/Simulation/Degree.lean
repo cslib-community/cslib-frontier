@@ -220,23 +220,20 @@ theorem evalInstrCertificate_hasDegree (enc : M.Encoding)
   | jump target =>
     exact resumeCertificate_hasDegree enc N config c target h1 hN hk hc
   | branch test target =>
-    cases test with
-    | test f args =>
-      have hpullK := pull_hasDegree (ed := encBool) config hk h1
-      have hpullC := pull_hasDegree (ed := encBool) c hc h1
-      refine (option_hasDegree _ _ _
-        (comp_hasDegree _ _ (hN.test f) (prod_hasDegree _ _ hk
-          (operands_hasDegree enc c args hc)))
-        (const_hasDegree none h1)
-        (branch_hasDegree _ _ _
-          (payload_hasDegree ei encBool h1)
-          (resumeCertificate_hasDegree enc N _ _ target h1 hN hpullK hpullC)
-          (resumeCertificate_hasDegree enc N _ _ nextPC h1 hN hpullK hpullC)) h1).of_eq _
-        rfl rfl fun a => ?_
-      simp only [Function.comp_apply, evalInstr]
-      cases h : M.evalTest (k a) f ((s a).regs ∘ args) with
-      | none => rfl
-      | some b => cases b <;> rfl
+    rcases test with ⟨f, args⟩
+    have hpullK := pull_hasDegree (ed := encBool) config hk h1
+    have hpullC := pull_hasDegree (ed := encBool) c hc h1
+    refine (option_hasDegree _ _ _
+      (comp_hasDegree _ _ (hN.test f) (prod_hasDegree _ _ hk
+        (operands_hasDegree enc c args hc)))
+      (const_hasDegree none h1)
+      (branch_hasDegree _ _ _
+        (payload_hasDegree ei encBool h1)
+        (resumeCertificate_hasDegree enc N _ _ target h1 hN hpullK hpullC)
+        (resumeCertificate_hasDegree enc N _ _ nextPC h1 hN hpullK hpullC)) h1).of_eq _
+      rfl rfl fun a => ?_
+    simp only [Function.comp_apply, evalInstr]
+    rcases M.evalTest (k a) f ((s a).regs ∘ args) with _ | _ | _ <;> rfl
   | halt idx =>
     exact branch_hasDegree _ _ _
       (comp_hasDegree _ _ hN.validMove (prod_hasDegree _ _ hk (register_hasDegree enc c idx hc)))
@@ -266,8 +263,7 @@ theorem dispatchCertificate_hasDegree (enc : M.Encoding)
   induction p generalizing pc with
   | nil => exact const_hasDegree none (by omega)
   | cons i p ih =>
-    refine congr_hasDegree _ _ ?_
-    exact (branch_hasDegree _ _ _
+    exact congr_hasDegree _ _ (branch_hasDegree _ _ _
       (pcEquals_hasDegree enc c pc (by omega) hc)
       (evalInstrCertificate_hasDegree enc N config c (pc + 1) i hD hN hk hc)
       (ih (pc + 1)))
@@ -347,8 +343,8 @@ theorem runTime_le (enc : M.Encoding) (N : M.NativePrimitives enc) (p : Program 
       (n + 1) * (C * (2 * (enc.config k).length + B + 2) ^ D +
         (2 * (enc.config k).length + B + 2) + ((encNat n).length + 1) ^ 2) := by
   obtain ⟨hc, hL⟩ := round_bounds enc p hround hB
-  have hT := maxRoundTime_le (roundCertificate enc N p) n (k, Option.some (.inl s)) hc
-  have hsum := Nat.mul_le_mul_left (n + 1) (Nat.add_le_add_right (Nat.add_le_add hT hL)
+  have hsum := Nat.mul_le_mul_left (n + 1) (Nat.add_le_add_right
+    (Nat.add_le_add (maxRoundTime_le (roundCertificate enc N p) n (k, Option.some (.inl s)) hc) hL)
     (((encNat n).length + 1) ^ 2))
   simp only [runTime, runCertificate, congr_time, snd_time, iterate_time, initLoopCertificate,
     prod_time, fst_time, some_time, inl_time, linear_time]
@@ -412,19 +408,11 @@ theorem transport_inO_of_hasDegree (enc : M.Encoding) (N : M.NativePrimitives en
       _ = (Ct + 1) * ((steps a + 1) * (X ^ D + S)) := Nat.mul_left_comm _ _ _
       _ ≤ (Ct + Cs + 4) * ((steps a + 1) * (X ^ D + S)) := Nat.mul_le_mul_right _ (by omega)
     have hlin := Nat.mul_le_mul_right (cSteps.time a + cCfg.time a + cInit.time a +
-      (runInputEncoding enc (steps a, (cfg a, initState a))).length)
-      (show 3 ≤ Ct + Cs + 4 by omega)
+      (runInputEncoding enc (steps a, (cfg a, initState a))).length) (Nat.le_add_left 4 (Ct + Cs))
     rw [Nat.mul_add, Nat.mul_add]; omega
   · have hrun := runSpace_le enc N p hCs (steps a) (cfg a) (initState a) (hOutLen a)
     set X := 2 * (enc.config (cfg a)).length + B a + 2
     have hX : X ≤ X ^ D := Nat.le_self_pow (by omega) X
-    have hXD : Cs * X ^ D + X ≤ (Ct + Cs + 4) * X ^ D :=
-      (show Cs * X ^ D + X ≤ (Cs + 1) * X ^ D by rw [Nat.add_mul, one_mul]; omega).trans
-        (Nat.mul_le_mul_right _ (by omega))
-    have hlin := Nat.mul_le_mul_right (cSteps.space a + cCfg.space a + cInit.space a +
-      (runInputEncoding enc (steps a, (cfg a, initState a))).length)
-      (show 3 ≤ Ct + Cs + 4 by omega)
-    have hlog := Nat.le_mul_of_pos_left (encNat (steps a)).length (show 0 < Ct + Cs + 4 by omega)
-    rw [Nat.mul_add, Nat.mul_add, Nat.mul_add]; omega
+    simp only [Nat.add_mul, Nat.mul_add]; omega
 
 end Cslib.GenericRAM.FiniteState

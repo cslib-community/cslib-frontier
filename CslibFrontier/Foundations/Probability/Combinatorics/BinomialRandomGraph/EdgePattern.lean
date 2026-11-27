@@ -59,15 +59,14 @@ theorem binomialRandom_edgePattern [Countable V] (p : I) (t : Finset (Sym2 V))
       rw [and_iff_left (show e ∉ Sym2.diagSet from ht e he)]
   rw [this, Measure.infinitePi_pi _ (fun _ _ => measurableSet_singleton _)]
   refine Finset.prod_congr rfl fun e he => ?_
-  have hd : ¬e.IsDiag := ht e he
   cases b e
   · rw [bernoulliMeasure_apply_of_notMem_of_mem p (measurableSet_singleton _)]
     · simp
-    · simpa using hd
+    · simpa using ht e he
     · simp
   · rw [bernoulliMeasure_apply_of_mem_of_notMem p (measurableSet_singleton _)]
     · simp
-    · simpa using hd
+    · simpa using ht e he
     · simp
 
 /-- **Edge independence in `G(V, p)`.** `G(V, p)` gives a finite set `t` of non-diagonal pairs the
@@ -89,14 +88,9 @@ theorem binomialRandom_real_edgePattern_of_injective [Countable V] {ι : Type*} 
     G(V, p).real {G | ∀ i, (f i ∈ G.edgeSet ↔ c i = true)} =
       ∏ i, (if c i then (p : ℝ) else 1 - p) := by
   classical
-  have ht : ∀ e ∈ univ.map ⟨f, hf⟩, ¬e.IsDiag := by
-    simp only [mem_map, mem_univ, true_and, Function.Embedding.coeFn_mk, forall_exists_index,
-      forall_apply_eq_imp_iff]
-    exact hd
-  have h := binomialRandom_real_edgePattern p (univ.map ⟨f, hf⟩) ht
-    (Function.extend f c fun _ => false)
-  simp only [forall_mem_map, mem_univ, forall_const, Function.Embedding.coeFn_mk,
-    hf.extend_apply, prod_map] at h
-  exact h
+  simpa only [forall_mem_map, mem_univ, forall_const, Function.Embedding.coeFn_mk,
+    hf.extend_apply, prod_map] using
+    binomialRandom_real_edgePattern p (univ.map ⟨f, hf⟩) (forall_mem_map.2 fun i _ => hd i)
+      (Function.extend f c fun _ => false)
 
 end SimpleGraph

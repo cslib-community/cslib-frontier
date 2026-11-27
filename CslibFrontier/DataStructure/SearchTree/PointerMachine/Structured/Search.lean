@@ -86,9 +86,7 @@ private theorem loop (t : BinaryTree (Label M extra)) (x : State M (layout extra
       refine (il _ (some a.address) (by exact rep.2.1) (by simp) (by simp [nil])).mono ?_
       rintro y n ⟨time, found, key⟩
       refine ⟨?_, by simpa [keys, BinaryTree.map, contains, less] using found, fun b hb => ?_⟩
-      · simp only [keys, BinaryTree.map, searchVisits, less, ↓reduceIte] at time ⊢
-        simp at time
-        omega
+      · simp [keys, BinaryTree.map, searchVisits, less] at time ⊢; omega
       · obtain ⟨path, label, get, address, same⟩ := key b hb
         exact ⟨.bit0 path, label, get, address, by simpa using same⟩
     · by_cases greater : a.data 0 < x.data 0
@@ -98,9 +96,7 @@ private theorem loop (t : BinaryTree (Label M extra)) (x : State M (layout extra
         rintro y n ⟨time, found, key⟩
         refine ⟨?_, by simpa [keys, BinaryTree.map, contains, less, greater] using found,
           fun b hb => ?_⟩
-        · simp only [keys, BinaryTree.map, searchVisits, less, greater, ↓reduceIte] at time ⊢
-          simp at time
-          omega
+        · simp [keys, BinaryTree.map, searchVisits, less, greater] at time ⊢; omega
         · obtain ⟨path, label, get, address, same⟩ := key b hb
           exact ⟨.bit1 path, label, get, address, by simpa using same⟩
       · pm_exec [searchStep, read, record, compare, less, greater]
@@ -118,16 +114,14 @@ theorem search_correct (x : State M (layout extra regs))
     (rep : Represents x.heap parent t) (cursor : x.ptr 0 = root t) :
     ∃ y, ExecWithin (search lt) x y (7 * searchVisits (x.data 0) (keys t) + 3) ∧
       SearchResult x y t := by
-  have main : ∃ y, ExecWithin (search lt) x y (7 * searchVisits (x.data 0) (keys t) + 3) ∧
-      Found (x.data 0) t y := by
+  obtain ⟨y, run, found, key⟩ :
+      ∃ y, ExecWithin (search lt) x y (7 * searchVisits (x.data 0) (keys t) + 3) ∧
+        Found (x.data 0) t y := by
     apply WP.exists_execWithin
     pm_exec [search]
-    refine (loop lt compare t _ parent (by exact rep) ?_ ?_).mono ?_
-    · exact cursor
-    · rfl
+    refine (loop lt compare t _ parent (by exact rep) (by exact cursor) rfl).mono ?_
     rintro y n ⟨time, post⟩
     exact ⟨by simp at time; omega, post⟩
-  obtain ⟨y, run, found, key⟩ := main
   have heap := run.heap_eq (by pm_frame)
   refine ⟨y, run, heap, fun i hi => run.data_keep [1] (by pm_frame) (by simpa using hi),
     fun i h0 h5 => run.ptr_keep [0, 5] (by pm_frame) (by simp [h0, h5]), found, fun a ha => ?_⟩

@@ -72,15 +72,11 @@ theorem mem_rgs {K : Type} [DecidableEq K] (b : Bool) (z : Zc K) :
 
 private theorem card_rgs {K : Type} [DecidableEq K] (b : Bool) :
     (rgs (K := K) b : Finset (Zc K)).card = 5 := by
-  rw [rgs, Finset.card_image_of_injective, Finset.card_univ, Fintype.card_fin]
-  intro i j h
-  simpa using h
+  rw [rgs, card_image_of_injective _ fun _ _ h => by simpa using h, card_univ, Fintype.card_fin]
 
 private theorem flatMap_unit {γ : Type*} (l : List Unit) (a : γ) :
     (l.flatMap fun _ => [a]) = List.replicate l.length a := by
-  induction l with
-  | nil => rfl
-  | cons _ l ih => rw [List.flatMap_cons, ih]; rfl
+  induction l <;> simp [List.replicate_succ, *]
 
 /-- Repeat a fixed non-empty channel emission `w` arbitrarily many times. -/
 theorem runs_rep {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [DecidableEq K]
@@ -88,8 +84,8 @@ theorem runs_rep {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [D
     Runs (2 * ∑ z, (w z).length + 1 + 1)
       (fun (l : List Unit) z => l.flatMap fun _ => w z) (fun _ => (1 : A)) := by
   classical
-  have h := (Runs.const (F := A) w).kstar fun _ => hw
-  exact h.congr (Equiv.refl _) (fun _ _ => rfl) fun _ => by simp
+  exact ((Runs.const (F := A) w).kstar fun _ => hw).congr (Equiv.refl _) (fun _ _ => rfl)
+    fun _ => by simp
 
 /-- Counter value before an increment: `u ++ false :: true^k`. -/
 @[expose] def cn (r : List Bool × List Unit) : List Bool :=
@@ -126,16 +122,14 @@ theorem runs_ct {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [De
       fun _ => rfl, fun _ => rfl⟩
     (fun r z => ?_) fun _ => by simp).mono ?_
   · obtain ⟨w, l⟩ := r
-    simp only [Equiv.coe_fn_mk, emCt, cn, cn1, bw]
-    by_cases hz1 : z = tp .cp true
-    · subst hz1; simp [on, flatMap_unit]
-    · by_cases hz2 : z = tp .fr false
-      · subst hz2; simp [on, flatMap_unit]
-      · by_cases hz3 : z = tp .cp false
-        · subst hz3; simp [on, flatMap_unit]
-        · simp [on, hz1, hz2, hz3]
-  · simp only [List.length_append, Finset.sum_add_distrib, sum_on, hc, hc2]
-    simp
+    rcases eq_or_ne z (tp .cp true) with rfl | h1
+    · simp [emCt, cn, bw, on, flatMap_unit]
+    rcases eq_or_ne z (tp .fr false) with rfl | h2
+    · simp [emCt, cn, bw, on, flatMap_unit]
+    rcases eq_or_ne z (tp .cp false) with rfl | h3
+    · simp [emCt, cn1, bw, on, flatMap_unit]
+    simp [emCt, on, h1, h2, h3]
+  · simp [List.length_append, Finset.sum_add_distrib, sum_on, hc, hc2]
 
 /-- Initial register word: `0` of length `l.length + 1`. -/
 @[expose] def i0 (l : List Unit) : List Bool := List.replicate (l.length + 1) false
@@ -166,19 +160,16 @@ theorem runs_in {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [De
   refine (((h1.mul h2).mul h3).congr
     ⟨fun l => (((), l), ()), fun ((_, l), _) => l, fun _ => rfl, fun _ => rfl⟩
     (fun l z => ?_) fun _ => by simp).mono ?_
-  · simp only [Equiv.coe_fn_mk, emIn, i0, i1, bw, rec'_eq]
-    by_cases hz1 : z ∈ rgs false
-    · obtain ⟨i, rfl⟩ := (mem_rgs _ _).1 hz1
-      simp [on, mem_rgs, flatMap_unit, List.replicate_succ']
-    · by_cases hz2 : z = tp .cp false
-      · subst hz2; simp [on, mem_rgs, flatMap_unit]
-      · by_cases hz3 : z = lsF
-        · subst hz3; simp [on, mem_rgs, flatMap_unit, List.replicate_succ']
-        · simp [on, hz1, hz2, hz3]
-  · have hc : (insert (tp .cp false) (rgs false) : Finset (Zc K)).card = 6 := by
-      rw [Finset.card_insert_of_notMem (by simp [mem_rgs]), card_rgs]
-    simp only [List.length_append, Finset.sum_add_distrib, sum_on, hc, card_rgs]
-    simp
+  · by_cases h1 : z ∈ rgs false
+    · obtain ⟨i, rfl⟩ := (mem_rgs _ _).1 h1
+      simp [emIn, i0, bw, on, mem_rgs, flatMap_unit, List.replicate_succ']
+    rcases eq_or_ne z (tp .cp false) with rfl | h2
+    · simp [emIn, i1, bw, on, mem_rgs, flatMap_unit]
+    rcases eq_or_ne z lsF with rfl | h3
+    · simp [emIn, rec'_eq, on, mem_rgs, flatMap_unit, List.replicate_succ']
+    simp [emIn, on, h1, h2, h3]
+  · simp [List.length_append, Finset.sum_add_distrib, sum_on, Finset.card_insert_of_notMem,
+      mem_rgs, card_rgs]
 
 section Steps
 
@@ -238,29 +229,12 @@ variable {A : Type} {M K : Type} (P : Mach A M K)
 private theorem emSt_eq (x : P.Rl × List (Fin 9 → Bool)) (z : Zc K) :
     st0 P x.1 z ++ (x.2.flatMap (fun v => st1 P x.1 v z) ++ st2 z) = emSt P x z := by
   obtain ⟨r, w⟩ := x
-  match z with
-  | .tp (.rg i) s =>
-    simp only [st0, st1, st2, emSt, rgw, bw, List.nil_append, cw]
-    cases s <;> simp [← List.map_eq_flatMap, List.map_map, Function.comp_def]
-  | .tp .md s => simp [st0, st1, st2, emSt]
-  | .tp .cp s => simp [st0, st1, st2, emSt]
-  | .tp .fr s =>
-    cases s
-    · simp [st0, st1, st2, emSt]
-    · simp [st0, st1, st2, emSt, ← List.map_eq_flatMap, bw, cw, List.map_map, Function.comp_def]
-  | .tp .lk s =>
-    cases s
-    · simp [st0, st1, st2, emSt, ← List.map_eq_flatMap, rec'_eq, ldc, List.map_map,
-        Function.comp_def]
-    · simp [st0, st1, st2, emSt]
-  | .tp .ls s =>
-    cases s
-    · simp [st0, st1, st2, emSt, ← List.map_eq_flatMap, rec'_eq, alc, List.map_map,
-        Function.comp_def]
-    · simp [st0, st1, st2, emSt]
-  | .tp (.bk b) s => simp [st0, st1, st2, emSt]
-  | .tp (.cm k) s => simp [st0, st1, st2, emSt]
-  | .inp j => simp [st0, st1, st2, emSt]
+  cases z with
+  | tp s b =>
+    cases s <;> cases b <;>
+      simp [st0, st1, st2, emSt, rgw, bw, cw, rec'_eq, ldc, alc, ← List.map_eq_flatMap,
+        List.map_map, Function.comp_def]
+  | inp _ => simp [st0, st1, st2, emSt]
 
 private theorem st1_ne (r : P.Rl) (v : Fin 9 → Bool) : ∃ z, st1 P r v z ≠ [] :=
   ⟨tp .fr true, by simp [st1]⟩
@@ -281,12 +255,9 @@ theorem runs_st [CommRing A] [Finite M] [Fintype K] [DecidableEq K] :
       (((Runs.pick (F := A) (fun v : Fin 9 → Bool => st1 P r v) fun _ => 1).kstar
           fun v => st1_ne P r v).mul
         (Runs.const (F := A) (st2 : Zc K → List (Sy M K))))
-  refine (h.congr
+  exact (h.congr
     ⟨fun x => ⟨x.1, ((), x.2, ())⟩, fun ⟨r, (_, w, _)⟩ => (r, w), fun _ => rfl, fun _ => rfl⟩
-    (fun x z => emSt_eq P x z) fun _ => by simp).mono ?_
-  unfold dimSt
-  refine Finset.sum_le_sum fun r _ => ?_
-  simp
+    (fun x z => emSt_eq P x z) fun _ => by simp).mono (Finset.sum_le_sum fun _ _ => by simp)
 
 end Steps
 
@@ -322,23 +293,13 @@ theorem runs_ed {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [De
       fun _ => rfl, fun _ => rfl⟩
     (fun x z => ?_) fun _ => by simp).mono ?_
   · obtain ⟨w, u⟩ := x
-    simp only [Equiv.coe_fn_mk]
     match z with
-    | .tp (.rg i) s =>
-      cases s
-      · simp [ed1, emEd, on, mem_rgs]
-      · simp [ed1, emEd, on, mem_rgs, ← List.map_eq_flatMap, bw, List.map_map,
-          Function.comp_def]
-    | .tp .md s => cases s <;> simp [ed1, emEd, on, mem_rgs]
-    | .tp .cp s => cases s <;> simp [ed1, emEd, on, mem_rgs, bw]
-    | .tp .fr s => simp [ed1, emEd, on, mem_rgs]
-    | .tp .lk s => simp [ed1, emEd, on, mem_rgs]
-    | .tp .ls s => simp [ed1, emEd, on, mem_rgs]
-    | .tp (.bk b) s => simp [ed1, emEd, on, mem_rgs]
-    | .tp (.cm k) s => simp [ed1, emEd, on, mem_rgs]
-    | .inp j => simp [ed1, emEd, on, mem_rgs]
-  · simp only [List.length_append, Finset.sum_add_distrib, sum_on, card_rgs]
-    simp
+    | .tp (.rg i) true =>
+      simp [ed1, emEd, on, mem_rgs, ← List.map_eq_flatMap, bw, List.map_map, Function.comp_def]
+    | .tp .cp true => simp [ed1, emEd, on, mem_rgs, bw]
+    | .tp (.rg _) false | .tp .md _ | .tp .cp false | .tp .fr _ | .tp .lk _ | .tp .ls _
+    | .tp (.bk _) _ | .tp (.cm _) _ | .inp _ => simp [ed1, emEd, on, mem_rgs]
+  · simp [List.length_append, Finset.sum_add_distrib, sum_on, card_rgs]
 
 /-- Emissions copying the lookup tape onto the list tape followed by the block separator `bar`. -/
 @[expose] def emAp {M K : Type} [DecidableEq K] (w : List (Sy M K)) :
@@ -348,13 +309,11 @@ theorem runs_ed {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [De
 theorem runs_ap {A : Type*} [CommRing A] {M K : Type} [Fintype M] [Fintype K] [DecidableEq K] :
     Runs (Fintype.card (Sy M K) * 5 + 1 + 3)
       (emAp : List (Sy M K) → Zc K → List (Sy M K)) (fun _ => (1 : A)) := by
-  have hc : ({tp .lk true, lsF} : Finset (Zc K)).card = 2 := Finset.card_pair (by simp)
   have h := (Runs.wordstar (F := A) (Z := Zc K) {tp .lk true, lsF} ⟨lsF, by simp⟩
     (fun γ : Sy M K => γ)).mul
     (Runs.word (F := A) (Z := Zc K) {lsF} [(Sy.bar : Sy M K)])
   refine (h.congr ⟨fun w => (w, ()), Prod.fst, fun _ => rfl, fun _ => rfl⟩
     (fun w z => by simp [emAp]) fun _ => by simp).mono ?_
-  rw [hc]
   simp
 
 /-- A complete structured run of the universal tape program simulating pointer machine `P`. -/

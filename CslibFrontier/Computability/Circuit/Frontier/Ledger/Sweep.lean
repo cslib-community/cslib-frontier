@@ -162,40 +162,27 @@ private theorem wiresIn_insert_signal (w₀ : Compiler.Signal (liveCircuit p spe
     wiresIn (insert (.signal w₀) P) = insert (signalWire w₀) (wiresIn P) := by
   ext w
   simp only [wiresIn, signalWire, mem_ofPred_eq, mem_insert_iff]
-  constructor
-  · rintro ⟨hw, h | h⟩
-    · exact Or.inl (congrArg Subtype.val (Compiler.Vertex.signal.inj h))
-    · exact Or.inr ⟨hw, h⟩
-  · rintro (rfl | ⟨hw, h⟩)
-    · exact ⟨w₀.2, Or.inl rfl⟩
-    · exact ⟨hw, Or.inr h⟩
+  refine ⟨fun ⟨hw, h⟩ => h.imp (congrArg Subtype.val ∘ Compiler.Vertex.signal.inj) (⟨hw, ·⟩), ?_⟩
+  rintro (rfl | ⟨hw, h⟩)
+  · exact ⟨w₀.2, .inl rfl⟩
+  · exact ⟨hw, .inr h⟩
 
 private theorem wiresIn_insert_junction (j : Compiler.Junction (liveCircuit p special))
     (P : Set (Compiler.Vertex (liveCircuit p special))) :
     wiresIn (insert (.junction j) P) = wiresIn P := by
   ext w
-  simp only [wiresIn, mem_ofPred_eq, mem_insert_iff]
-  refine ⟨?_, fun ⟨hw, h⟩ => ⟨hw, Or.inr h⟩⟩
-  rintro ⟨hw, h | h⟩
-  · cases h
-  · exact ⟨hw, h⟩
+  simp [wiresIn]
 
 private theorem wiresIn_insert_output (o : Fin (Nat.card {w // Live p special w}))
     (P : Set (Compiler.Vertex (liveCircuit p special))) :
     wiresIn (insert (.output o) P) = wiresIn P := by
   ext w
-  simp only [wiresIn, mem_ofPred_eq, mem_insert_iff]
-  refine ⟨?_, fun ⟨hw, h⟩ => ⟨hw, Or.inr h⟩⟩
-  rintro ⟨hw, h | h⟩
-  · cases h
-  · exact ⟨hw, h⟩
+  simp [wiresIn]
 
 private theorem notMem_wiresIn_of_signal_notMem {w₀ : Compiler.Signal (liveCircuit p special)}
     {P : Set (Compiler.Vertex (liveCircuit p special))} (h : .signal w₀ ∉ P) :
-    signalWire w₀ ∉ wiresIn P := by
-  rintro ⟨hw, hmem⟩
-  have heq : (⟨w₀.1, hw⟩ : Compiler.Signal (liveCircuit p special)) = w₀ := Subtype.ext rfl
-  exact h (heq ▸ hmem)
+    signalWire w₀ ∉ wiresIn P :=
+  fun ⟨_, hmem⟩ => h hmem
 
 namespace Ledger
 
@@ -226,34 +213,27 @@ value in a run depends only on the guess. -/
 private theorem run_eq_of_not_reach (m : M) {w : Wire n s}
     (hw : ¬Compiler.Reach (liveCircuit p special) w) (x y : Fin n → U) :
     L.run m x w = L.run m y w := by
-  have hlive : ¬Live p special w := fun h => hw (reach_of_live h)
+  have hlive : ¬Live p special w := mt reach_of_live hw
   cases w with
-  | input i => exact absurd trivial hlive
+  | input => exact absurd trivial hlive
   | gate g =>
     by_cases hs : special g
     · rw [L.run_gate_of_special m x hs, L.run_gate_of_special m y hs]
-    · have h0 : σ.Arity (p.lines g).op = 0 := by
-        by_contra h
-        exact hlive ⟨hs, h⟩
+    · have h0 : σ.Arity (p.lines g).op = 0 := Classical.byContradiction fun h => hlive ⟨hs, h⟩
       rw [L.run_gate_of_not_special m x hs, L.run_gate_of_not_special m y hs]
-      congr 1 with a : 1
-      have := a.isLt
-      omega
+      exact congrArg _ (funext fun a => Fin.elim0 (h0 ▸ a))
 
 omit [DecidablePred special] in
 private theorem totalOn_insert {u : Wire n s} {Q : Set (Wire n s)} (hu : u ∉ Q)
     (v : Wire n s → U) :
     L.totalOn (insert u Q) v = L.contribution u (v u) * L.totalOn Q v := by
   classical
-  let sQ : Finset (Wire n s) := Finset.univ.filter (· ∈ Q)
-  have hnot : u ∉ sQ := by simp [sQ, hu]
-  have h1 : L.totalOn (insert u Q) v = ∏ w ∈ insert u sQ, L.contribution w (v w) := by
-    rw [totalOn]
-    refine Finset.prod_congr ?_ fun _ _ => rfl
-    ext w
-    simp [sQ]
-  have h2 : L.totalOn Q v = ∏ w ∈ sQ, L.contribution w (v w) := rfl
-  rw [h1, h2, Finset.prod_insert hnot]
+  rw [totalOn, totalOn]
+  trans ∏ w ∈ insert u (Finset.univ.filter (· ∈ Q)), L.contribution w (v w)
+  · refine Finset.prod_congr ?_ fun _ _ => rfl
+    ext
+    simp
+  · exact Finset.prod_insert (by simp [hu])
 
 /-! ### Splicing -/
 
@@ -272,41 +252,37 @@ theorem trace_of_splice {P : Set (Compiler.Vertex (liveCircuit p special))} {x y
     (w : Wire n s) :
     (w ∈ wiresIn P → p.trace I z w = p.trace I x w) ∧
       (w ∉ wiresIn P → p.trace I z w = p.trace I y w) := by
-  have hαx0 := L.satisfies_network (L.total (p.trace I x)) x
-  rw [L.run_total_trace] at hαx0
-  have hαx : (L.network (L.total (p.trace I y))).Satisfies x
-      fun e => p.trace I x e.signal.1 := by
-    simpa only [network, hread] using hαx0
-  have hαy := L.satisfies_network (L.total (p.trace I y)) y
-  rw [L.run_total_trace] at hαy
+  have hαy := L.run_total_trace y ▸ L.satisfies_network (L.total (p.trace I y)) y
+  have hαx : (L.network (L.total (p.trace I y))).Satisfies x fun e => p.trace I x e.signal.1 := by
+    simpa only [network, hread, L.run_total_trace] using
+      L.satisfies_network (L.total (p.trace I x)) x
   generalize hmdef : L.total (p.trace I y) = m at hαx hαy
   obtain ⟨γ, hγ, hγx, hγy⟩ := hαx.splice hαy hcut hzx hzy
   have hwire (u : Wire n s) : (u ∈ wiresIn P → L.run m z u = p.trace I x u) ∧
       (u ∉ wiresIn P → L.run m z u = p.trace I y u) := by
     by_cases hreach : Compiler.Reach (liveCircuit p special) u
     · rw [← show γ (Compiler.head ⟨u, hreach⟩) = L.run m z u from L.eq_run_of_satisfies hγ _]
-      refine ⟨fun ⟨_, hu⟩ => hγx (Or.inl hu), fun hu => ?_⟩
-      have hu' : (.signal ⟨u, hreach⟩ : Compiler.Vertex (liveCircuit p special)) ∉ P :=
-        fun h => hu ⟨hreach, h⟩
+      refine ⟨fun ⟨_, hu⟩ => hγx (.inl hu), fun hu => ?_⟩
       by_cases ht : Compiler.head ⟨u, hreach⟩ ∈ (L.network m).touching P
-      · rw [hγx ht]
-        refine hcut ?_
-        rcases ht with ht | ht
-        · exact absurd ht hu'
-        · exact fun h => hu' (h.mpr ht)
+      · exact (hγx ht).trans (hcut (ht.elim (fun h => absurd ⟨hreach, h⟩ hu)
+          fun h hiff => hu ⟨hreach, hiff.mpr h⟩))
       · exact hγy ht
-    · refine ⟨fun ⟨h, _⟩ => absurd h hreach, fun _ => ?_⟩
-      rw [L.run_eq_of_not_reach m hreach z y, ← hmdef, L.run_total_trace]
-  have htotal : L.total (L.run m z) = m := by
-    rw [L.total_eq_mul (wiresIn P)]
-    conv_rhs => rw [← hmdef, L.total_eq_mul (wiresIn P) (p.trace I y)]
-    congr 1
-    · rw [← hpart, totalOn, totalOn]
-      exact Finset.prod_congr rfl fun u hu => by rw [(hwire u).1 (by simpa using hu)]
-    · rw [totalOn, totalOn]
-      exact Finset.prod_congr rfl fun u hu => by rw [(hwire u).2 (by simpa using hu)]
-  rw [← L.run_eq_trace htotal]
-  exact hwire w
+    · exact ⟨fun ⟨h, _⟩ => absurd h hreach,
+        fun _ => (L.run_eq_of_not_reach m hreach z y).trans
+          (hmdef ▸ congrFun (L.run_total_trace y) u)⟩
+  have htotal : L.total (L.run m z) = m := calc
+    L.total (L.run m z)
+      = L.totalOn (wiresIn P) (L.run m z) * L.totalOn (wiresIn P)ᶜ (L.run m z) :=
+        L.total_eq_mul (wiresIn P) _
+    _ = L.totalOn (wiresIn P) (p.trace I x) * L.totalOn (wiresIn P)ᶜ (p.trace I y) := by
+        unfold totalOn
+        exact congrArg₂ (· * · : M → M → M)
+          (Finset.prod_congr rfl fun u hu =>
+            congrArg (L.contribution u) ((hwire u).1 (by simpa using hu)))
+          (Finset.prod_congr rfl fun u hu =>
+            congrArg (L.contribution u) ((hwire u).2 (by simpa using hu)))
+    _ = m := by rw [hpart, ← L.total_eq_mul, hmdef]
+  exact L.run_eq_trace htotal ▸ hwire w
 
 /-- **Splicing two inputs with the same message.** Let `x` and `y` be inputs whose value at the
 wire `o` lies in `Acc`. If their runs have the same readout on the special gates, the same ledger
@@ -374,24 +350,18 @@ theorem extra_succ_eq {t : ℕ} (ht : t < Nat.card (Compiler.Vertex (liveCircuit
     (hw : ∀ w₀ : Compiler.Signal (liveCircuit p special),
       π.symm ⟨t, ht⟩ = .signal w₀ → p.trace I x w₀.1 = p.trace I y w₀.1) :
     L.extra π (t + 1) x = L.extra π (t + 1) y := by
-  have ht_le : t ≤ Nat.card (Compiler.Vertex (liveCircuit p special)) := ht.le
-  have ht1_le : t + 1 ≤ Nat.card (Compiler.Vertex (liveCircuit p special)) := ht
-  simp only [extra, ht_le, ↓reduceIte, Prod.mk.injEq] at h₀
-  simp only [extra, ht1_le, ↓reduceIte, Prod.mk.injEq]
+  simp only [extra, ht.le, show t + 1 ≤ _ from ht, ↓reduceIte, Prod.mk.injEq] at h₀ ⊢
   refine ⟨h₀.1, ?_⟩
   rw [π.initial_succ ht]
-  have hnot_init : π.symm ⟨t, ht⟩ ∉ π.initial t := by
-    simp [Layout.mem_initial]
   cases hv : π.symm ⟨t, ht⟩ with
   | signal w₀ =>
     have hnot : signalWire w₀ ∉ wiresIn (π.initial t) :=
-      notMem_wiresIn_of_signal_notMem (hv ▸ hnot_init)
-    have htrace : p.trace I x (signalWire w₀) = p.trace I y (signalWire w₀) := hw w₀ hv
-    rw [wiresIn_insert_signal, L.totalOn_insert hnot, L.totalOn_insert hnot, htrace, h₀.2]
-  | junction j =>
-    rw [wiresIn_insert_junction, h₀.2]
-  | output out =>
-    rw [wiresIn_insert_output, h₀.2]
+      notMem_wiresIn_of_signal_notMem (hv ▸ by simp [Layout.mem_initial])
+    rw [wiresIn_insert_signal, L.totalOn_insert hnot, L.totalOn_insert hnot]
+    dsimp only [signalWire]
+    rw [hw w₀ hv, h₀.2]
+  | junction => rw [wiresIn_insert_junction, h₀.2]
+  | output => rw [wiresIn_insert_output, h₀.2]
 
 private theorem head_mem_frontier_union {t : ℕ}
     (ht : t < Nat.card (Compiler.Vertex (liveCircuit p special)))
@@ -402,19 +372,11 @@ private theorem head_mem_frontier_union {t : ℕ}
   have hsrc : G.src (Compiler.head w₀) = π.symm ⟨t, ht⟩ := hv.symm
   have hv_not : π.symm ⟨t, ht⟩ ∉ π.initial t := by simp [Layout.mem_initial]
   by_cases htgt : G.tgt (Compiler.head w₀) ∈ π.initial t
-  · left
-    change ¬(G.src (Compiler.head w₀) ∈ π.initial t ↔ G.tgt (Compiler.head w₀) ∈ π.initial t)
-    rw [hsrc]
-    exact fun h => hv_not (h.mpr htgt)
-  · right
+  · exact .inl fun h => hv_not (hsrc ▸ h.mpr htgt)
+  · refine .inr ?_
     rw [Multigraph.frontier, π.initial_succ ht]
-    change ¬(G.src (Compiler.head w₀) ∈ insert (π.symm ⟨t, ht⟩) (π.initial t) ↔
-      G.tgt (Compiler.head w₀) ∈ insert (π.symm ⟨t, ht⟩) (π.initial t))
-    have hne : G.tgt (Compiler.head w₀) ≠ π.symm ⟨t, ht⟩ := by
-      rw [← hsrc]
-      exact (Compiler.loopless (Compiler.head w₀)).symm
-    rw [hsrc]
-    exact fun h => (mem_insert_iff.mp (h.mp (mem_insert _ _))).elim hne htgt
+    exact fun h => (mem_insert_iff.mp (h.mp (hsrc ▸ mem_insert _ _))).elim
+      (hsrc ▸ (Compiler.loopless (Compiler.head w₀)).symm) htgt
 
 /-- The extra message at time `t` takes at most `min (|U| ^ k) |M| * |M|` values, where `k` is the
 number of special gates: the readout lies in `{g // special g} → U` as well as in the image of `M`,
@@ -483,30 +445,25 @@ theorem ncard_transition_le_readIn [Finite U] [Finite M] {t : ℕ}
   have h := (L.sweep o Acc π).ncard_transition_le_of_factorsThrough (t := t) (D := Q → U)
     (L.extra π t) (fun x => Q.domRestrict x) fun x _ y _ h₀ hg => by
       rw [domRestrict_eq_domRestrict_iff] at hg
-      have ht_le : t ≤ Nat.card (Compiler.Vertex (liveCircuit p special)) := ht.le
       have hread : L.readout (L.total (p.trace I x)) = L.readout (L.total (p.trace I y)) := by
-        simpa only [extra, ht_le, ↓reduceIte, Prod.mk.injEq] using congrArg Prod.fst h₀
+        simpa only [extra, ht.le, ↓reduceIte] using congrArg Prod.fst h₀
       -- The values on the edges at `W` depend only on the readout and the inputs read in `W`.
       have hval : EqOn (fun e => p.trace I x e.signal.1) (fun e => p.trace I y e.signal.1)
           (G.touching W) := fun e he => by
         change p.trace I x e.signal.1 = p.trace I y e.signal.1
-        rw [← L.run_total_trace x, ← L.run_total_trace y]
         have hrun_eq : L.run (L.total (p.trace I x)) y = L.run (L.total (p.trace I y)) y := by
           rw [run, run, hread]
-        rw [← hrun_eq]
+        rw [← L.run_total_trace x, ← L.run_total_trace y, ← hrun_eq]
         exact L.run_eq_of_eqOn_readIn _ hW hg he
-      have hsucc : L.extra π (t + 1) x = L.extra π (t + 1) y :=
-        L.extra_succ_eq π ht h₀ fun w₀ hvw₀ => @hval (Compiler.head w₀) (Or.inl (by
-          change Compiler.Vertex.signal w₀ ∈ W
-          rw [← hvw₀]
-          exact hv))
+      have hsucc := L.extra_succ_eq π ht h₀ fun w₀ hvw₀ =>
+        @hval (Compiler.head w₀) (.inl (show Compiler.Vertex.signal w₀ ∈ W from hvw₀ ▸ hv))
       simp only [Sweep.transition, sweep, Network.frontierSweep, Prod.mk.injEq,
         Network.frontierValues_eq_iff, domRestrict_eq_domRestrict_iff]
-      refine ⟨⟨h₀, hval.mono (subset_union_left.trans hC)⟩,
-        ⟨hsucc, hval.mono (subset_union_right.trans hC)⟩, fun i hi => hg ?_⟩
-      exact ⟨_, hv, G.revealedBy_succ_diff_subset π ht hi⟩
-  refine h.trans (Nat.mul_le_mul (L.ncard_extra_le π t) ?_)
-  rw [Nat.card_fun, Nat.card_coe_set_eq]
+      exact ⟨⟨h₀, hval.mono (subset_union_left.trans hC)⟩,
+        ⟨hsucc, hval.mono (subset_union_right.trans hC)⟩,
+        fun i hi => hg ⟨_, hv, G.revealedBy_succ_diff_subset π ht hi⟩⟩
+  exact h.trans (Nat.mul_le_mul (L.ncard_extra_le π t)
+    (by rw [Nat.card_fun, Nat.card_coe_set_eq]))
 
 /-- At the last step `L.extra π (|V| + 1)` is constant and every input has been read, so the
 transition is determined by `L.extra π |V|`. -/
@@ -514,19 +471,17 @@ private theorem ncard_transition_last_le [Finite U] [Finite M] :
     ((L.sweep o Acc π).transition (Nat.card (Compiler.Vertex (liveCircuit p special))) ''
       {x | p.trace I x o ∈ Acc}).ncard ≤
         min (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M := by
-  set V := Nat.card (Compiler.Vertex (liveCircuit p special))
+  let V := Nat.card (Compiler.Vertex (liveCircuit p special))
   have h : ((L.sweep o Acc π).transition V '' {x | p.trace I x o ∈ Acc}).ncard ≤
       ((fun x => (L.extra π V x, L.extra π (V + 1) x)) ''
           {x | p.trace I x o ∈ Acc}).ncard * Nat.card U ^ (liveNetwork p special U).readᶜ.ncard :=
     (liveNetwork p special U).ncard_transition_last_le
   have hextra : ((fun x => (L.extra π V x, L.extra π (V + 1) x)) ''
-      {x | p.trace I x o ∈ Acc}).ncard ≤ (L.extra π V '' {x | p.trace I x o ∈ Acc}).ncard := by
-    refine ncard_image_le_ncard_image_of_factorsThrough (toFinite _) fun x _ y _ hxy => ?_
-    have hnot : ¬V + 1 ≤ Nat.card (Compiler.Vertex (liveCircuit p special)) := by omega
-    simp only [Prod.mk.injEq, hxy, true_and]
-    simp only [extra, hnot, ↓reduceIte]
-  replace h := h.trans (Nat.mul_le_mul_right _ (hextra.trans (L.ncard_extra_le π V)))
-  rwa [read_liveNetwork, compl_univ, ncard_empty, pow_zero, mul_one] at h
+      {x | p.trace I x o ∈ Acc}).ncard ≤
+      min (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M :=
+    (ncard_image_le_ncard_image_of_factorsThrough (g := L.extra π V) (toFinite _)
+      fun _ _ _ _ hxy => Prod.ext hxy (by simp [extra, V])).trans (L.ncard_extra_le π V)
+  simpa [read_liveNetwork] using h.trans (Nat.mul_le_mul_right _ hextra)
 
 include L in
 /-- **Counting along a layout of the components.** Suppose that, at each step of a layout, the

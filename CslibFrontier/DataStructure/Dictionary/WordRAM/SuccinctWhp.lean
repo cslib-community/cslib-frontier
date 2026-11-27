@@ -159,9 +159,8 @@ private noncomputable def scratchWhp : ℕ :=
 noncomputable def rWhp : ℕ :=
   132 + scratchWhp
 
-private theorem le_rWhp : 132 ≤ rWhp := by
-  dsimp only [rWhp]
-  omega
+private theorem le_rWhp : 132 ≤ rWhp :=
+  Nat.le_add_right 132 _
 
 /-- Canonical embedding `Fin 132 → Fin rWhp` for fixed hash, control, ABI, and parameter
 registers. -/
@@ -373,35 +372,27 @@ private theorem val_srcInit (i : Fin (WordEncoding.width (WhpCoreParams × ℕ))
   · rw [Fin.append_left, val_coreParamReg]; right; omega
   · rw [Fin.append_right]; fin_cases i₁; left; rfl
 
-private theorem tmpInit_injective : Function.Injective tmpInit := by
-  intro a b h
-  have hv := congrArg Fin.val h
-  rw [val_tmpInit, val_tmpInit] at hv
+private theorem tmpInit_injective : Function.Injective tmpInit := fun _ _ h => by
+  have hv := (val_tmpInit _).symm.trans ((congrArg Fin.val h).trans (val_tmpInit _))
   exact Fin.ext (by omega)
 
 private theorem srcInit_ne_tmpInit (i : Fin (WordEncoding.width (WhpCoreParams × ℕ)))
     (j : Fin (0 + realizes_initFastGen.scratchSize + 1)) :
-    srcInit i ≠ tmpInit j := by
-  intro h
-  have hv := congrArg Fin.val h
+    srcInit i ≠ tmpInit j := fun h => by
+  have hv := (congrArg Fin.val h).trans (val_tmpInit j)
   have hs := val_srcInit i
-  rw [val_tmpInit] at hv
   omega
 
 private theorem tmpInit_ne_frontier (j : Fin (0 + realizes_initFastGen.scratchSize + 1)) :
-    tmpInit j ≠ frontierReg := by
-  intro h
-  have hv := congrArg Fin.val h
+    tmpInit j ≠ frontierReg := fun h => by
+  have hv : (tmpInit j).val = 17 := congrArg Fin.val h
   rw [val_tmpInit] at hv
-  change 132 + j.val = 17 at hv
   omega
 
 private theorem srcInit_ne_frontier (i : Fin (WordEncoding.width (WhpCoreParams × ℕ))) :
-    srcInit i ≠ frontierReg := by
-  intro h
-  have hv := congrArg Fin.val h
+    srcInit i ≠ frontierReg := fun h => by
+  have hv : (srcInit i).val = 17 := congrArg Fin.val h
   have hs := val_srcInit i
-  change (srcInit i).val = 17 at hv
   omega
 
 private theorem val_srcStep
@@ -434,35 +425,25 @@ private theorem tmpStep_injective : Function.Injective tmpStep := by
 private theorem srcStep_ne_tmpStep
     (i : Fin (WordEncoding.width (((WhpParams × ℕ) × ℕ) × (ℕ × ℕ))))
     (j : Fin (2 + realizes_whpStepPureGen.scratchSize + 1)) :
-    srcStep i ≠ tmpStep j := by
-  intro h
-  have hv := congrArg Fin.val h
+    srcStep i ≠ tmpStep j := fun h => by
+  have hv := (congrArg Fin.val h).trans (val_tmpStep j)
   have hs := val_srcStep i
-  rw [val_tmpStep] at hv
-  rcases hs with hs_set | ⟨hlo, hhi⟩
-  · simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hs_set
-    split_ifs at hv <;> omega
-  · split_ifs at hv <;> omega
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hs
+  split_ifs at hv <;> omega
 
 private theorem tmpStep_ne_frontier (j : Fin (2 + realizes_whpStepPureGen.scratchSize + 1)) :
-    tmpStep j ≠ frontierReg := by
-  intro h
-  have hv := congrArg Fin.val h
+    tmpStep j ≠ frontierReg := fun h => by
+  have hv : (tmpStep j).val = 17 := congrArg Fin.val h
   rw [val_tmpStep] at hv
-  change (if j.val = 0 then 25 else if j.val = 1 then 26 else 132 + j.val) = 17 at hv
   split_ifs at hv <;> omega
 
 private theorem srcStep_ne_frontier
     (i : Fin (WordEncoding.width (((WhpParams × ℕ) × ℕ) × (ℕ × ℕ)))) :
-    srcStep i ≠ frontierReg := by
-  intro h
-  have hv := congrArg Fin.val h
+    srcStep i ≠ frontierReg := fun h => by
+  have hv : (srcStep i).val = 17 := congrArg Fin.val h
   have hs := val_srcStep i
-  change (srcStep i).val = 17 at hv
-  rcases hs with hs_set | ⟨hlo, hhi⟩
-  · simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hs_set
-    omega
-  · omega
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hs
+  omega
 
 private theorem not_readsWidth_loadVecUpTo {m : ℕ} (reg : Fin m → Fin rWhp) (vals : Fin m → ℕ)
     (k : ℕ) (hk : k < m) :
@@ -487,14 +468,9 @@ private theorem not_readsWidth_initSetupCode (c U V w n_max : ℕ) :
       tmpInit_injective srcInit_ne_tmpInit tmpInit_ne_frontier srcInit_ne_frontier).1
     have hload := not_readsWidth_loadVecUpTo coreParamReg (mkWhpCoreParams c U V w n_max) 67
       (by decide)
-    have hbkt := not_readsWidth_resampleCode w (w0Whp U) (cTabWhp c) (dTabWhp c)
-      (bCharWhp n_max) (bWhp n_max)
-    have hfp := not_readsWidth_resampleCode w (w0Whp U) (cTabWhp c) (dTabWhp c)
-      (bCharWhp n_max) (fpBitsWhp n_max)
-    simp only [initLargeCode, setResampleBaseCode, resampleBktCode, resampleFpCode,
+    simp [initLargeCode, setResampleBaseCode, resampleBktCode, resampleFpCode,
       loadCoreParamsCode, initFastCode, Code.ReadsWidth, Code.readsWidth_rename,
-      Op.ReadsWidth, Op.exactBin]
-    tauto
+      Op.ReadsWidth, Op.exactBin, not_readsWidth_resampleCode, hload, hfast]
 
 private theorem not_readsWidth_opCode (c U V w n_max : ℕ) :
     ¬(opCode c U V w n_max).ReadsWidth := by
@@ -512,17 +488,9 @@ theorem not_readsWidth_subroutineCode (c U V w n_max : ℕ) :
     ¬(subroutineCode c U V w n_max).initFresh.ReadsWidth ∧
     ¬(subroutineCode c U V w n_max).initClear.ReadsWidth ∧
     ¬(subroutineCode c U V w n_max).code.ReadsWidth := by
-  have hsetup := not_readsWidth_initSetupCode c U V w n_max
-  have hop := not_readsWidth_opCode c U V w n_max
-  have halloc : ¬(subroutineCode c U V w n_max).allocSpan.ReadsWidth := by
-    simp [subroutineCode, Code.ReadsWidth, Op.ReadsWidth, Op.exactBin]
-  have hzero : ¬(subroutineCode c U V w n_max).zeroFillCode.ReadsWidth := by
-    simp [SubroutineCode.zeroFillCode, subroutineCode, Code.ReadsWidth, Op.ReadsWidth, Op.exactBin]
-  refine ⟨?_, ?_, hop⟩
-  · simp only [SubroutineCode.initFresh, Code.ReadsWidth]
-    exact not_or.mpr ⟨halloc, hsetup⟩
-  · simp only [SubroutineCode.initClear, Code.ReadsWidth]
-    tauto
+  simp [SubroutineCode.initFresh, SubroutineCode.initClear, SubroutineCode.zeroFillCode,
+    subroutineCode, Code.ReadsWidth, Op.ReadsWidth, Op.exactBin,
+    not_readsWidth_initSetupCode, not_readsWidth_opCode]
 
 /-- `c`-only deterministic worst-case instruction budget for a single dictionary operation
 (`100` parameter-load instructions plus the `Realizes` instruction budget for
@@ -624,12 +592,7 @@ noncomputable def argMatch {U : ℕ} (o : Dynamic.Op U) (regs : Fin rWhp → ℕ
 private theorem input_sReg_eq_false {c U V w n_max : ℕ} {i : Fin 132}
     (h1 : i ≠ 21) (h2 : i ≠ 22) (h3 : i ≠ 23) :
     (subroutineCode c U V w n_max).input (sReg i) = false := by
-  dsimp only [subroutineCode]
-  rw [decide_eq_false_iff_not]
-  rintro (h | h | h)
-  · exact h1 (sReg_injective h)
-  · exact h2 (sReg_injective h)
-  · exact h3 (sReg_injective h)
+  simp only [subroutineCode, sReg_inj, h1, h2, h3, or_self, decide_false]
 
 /-- Output registers `resTagReg` and `resValReg` are disjoint from `subroutineCode.input`. -/
 @[simp] theorem input_resRegs_eq_false (c U V w n_max : ℕ) :
@@ -652,17 +615,12 @@ private theorem regs_comp_append {α β : Type} [WordEncoding α] [WordEncoding 
     (h₁ : x.regs ∘ src₁ = WordEncoding.encode a)
     (h₂ : x.regs ∘ src₂ = WordEncoding.encode b) :
     x.regs ∘ Fin.append src₁ src₂ = WordEncoding.encode (α := α × β) (a, b) := by
+  change x.regs ∘ Fin.append src₁ src₂ = Fin.append (WordEncoding.encode a) (WordEncoding.encode b)
   funext i
   refine i.addCases (fun i₀ => ?_) (fun i₁ => ?_)
-  · change x.regs (Fin.append src₁ src₂ (Fin.castAdd (WordEncoding.width β) i₀)) =
-      Fin.append (WordEncoding.encode a) (WordEncoding.encode b)
-        (Fin.castAdd (WordEncoding.width β) i₀)
-    rw [Fin.append_left, Fin.append_left]
+  · simp only [Function.comp_apply, Fin.append_left]
     exact congrFun h₁ i₀
-  · change x.regs (Fin.append src₁ src₂ (Fin.natAdd (WordEncoding.width α) i₁)) =
-      Fin.append (WordEncoding.encode a) (WordEncoding.encode b)
-        (Fin.natAdd (WordEncoding.width α) i₁)
-    rw [Fin.append_right, Fin.append_right]
+  · simp only [Function.comp_apply, Fin.append_right]
     exact congrFun h₂ i₁
 
 private theorem regs_comp_singleton {x : Data rWhp} (reg : Fin rWhp) (v : ℕ)
@@ -680,28 +638,20 @@ private theorem fits_encode_mkWhpParams {base c U V w n_max : ℕ}
     Fits w (WordEncoding.encode (α := WhpParams) (mkWhpParams c U V w n_max) i) := by
   obtain ⟨hcore, hhash⟩ := fits_mkWhpParams hw hnU hU hV hfit
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-    unfold mkWhpParams; split_ifs <;> rfl
+    unfold mkWhpParams
+    split_ifs <;> rfl
+  change Fits w (Fin.append (WordEncoding.encode (mkWhpParams c U V w n_max).1)
+    (WordEncoding.encode (mkWhpParams c U V w n_max).2) i)
   refine i.addCases (fun i₀ => ?_) (fun i₁ => ?_)
-  · change Fits w (Fin.append (WordEncoding.encode (mkWhpParams c U V w n_max).1)
-      (WordEncoding.encode (mkWhpParams c U V w n_max).2)
-      (Fin.castAdd (WordEncoding.width (BitPackedDoubleTabulation.HashParams ×
-        BitPackedDoubleTabulation.HashParams)) i₀))
-    rw [Fin.append_left, hwp1]
+  · rw [Fin.append_left, hwp1]
     exact hcore i₀
-  · change Fits w (Fin.append (WordEncoding.encode (mkWhpParams c U V w n_max).1)
-      (WordEncoding.encode (mkWhpParams c U V w n_max).2)
-      (Fin.natAdd (WordEncoding.width WhpCoreParams) i₁))
-    rw [Fin.append_right]
+  · rw [Fin.append_right]
+    change Fits w (Fin.append (WordEncoding.encode (wpHash1 (mkWhpParams c U V w n_max)))
+      (WordEncoding.encode (wpHash2 (mkWhpParams c U V w n_max))) i₁)
     refine i₁.addCases (fun j₀ => ?_) (fun j₁ => ?_)
-    · change Fits w (Fin.append (WordEncoding.encode (wpHash1 (mkWhpParams c U V w n_max)))
-        (WordEncoding.encode (wpHash2 (mkWhpParams c U V w n_max)))
-        (Fin.castAdd (WordEncoding.width BitPackedDoubleTabulation.HashParams) j₀))
-      rw [Fin.append_left]
+    · rw [Fin.append_left]
       exact (hhash j₀).1
-    · change Fits w (Fin.append (WordEncoding.encode (wpHash1 (mkWhpParams c U V w n_max)))
-        (WordEncoding.encode (wpHash2 (mkWhpParams c U V w n_max)))
-        (Fin.natAdd (WordEncoding.width BitPackedDoubleTabulation.HashParams) j₁))
-      rw [Fin.append_right]
+    · rw [Fin.append_right]
       exact (hhash j₁).2
 
 private theorem exec_loadVecUpTo {w m : ℕ} {reg : Fin m → Fin rWhp} {vals : Fin m → ℕ}
@@ -876,8 +826,8 @@ private theorem exec_initFastTail {c U V w n_max base : ℕ} {θ : SeedWhp c U n
       FastMemRep base c U V w n_max (emptyFastState n_max) z_det.1.mem ∧
       (∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → z_det.1.mem a = y₂.mem a) := by
   have ⟨_, hw, _, hth, hnU, hU, hV, hfit⟩ := henv
-  have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := by
-    unfold whpSpace; exact ite_eq_right (Nat.not_lt.mpr hth)
+  have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max :=
+    ite_eq_right (Nat.not_lt.mpr hth)
   obtain ⟨hcore_fit, _⟩ := fits_mkWhpParams hw hnU hU hV hfit
   obtain ⟨y₃, ⟨n₁, hn₁, he₁⟩, hy₃_bdd, hy₃_mem, hparam₃, hlow₃⟩ :=
     exec_loadVecUpTo val_coreParamReg hcore_fit hy₂_bdd 67 (by decide)
@@ -888,15 +838,11 @@ private theorem exec_initFastTail {c U V w n_max base : ℕ} {θ : SeedWhp c U n
   have hin : y₃.regs ∘ srcInit = WordEncoding.encode (α := WhpCoreParams × ℕ) (cp, base) :=
     regs_comp_append (funext fun i => hparam₃ i (by omega))
       (regs_comp_singleton baseReg base hy₃_base)
-  have hseed₃ : SeedWhpMemRep base c U w n_max θ (memoryState frontierReg y₃).mem := by
-    change SeedWhpMemRep base c U w n_max θ y₃.mem; rwa [hy₃_mem]
-  have hz_hdr₃ : ∀ a, base ≤ a → a < base + 32 → (memoryState frontierReg y₃).mem a = 0 := by
-    intro a ha1 ha2; change y₃.mem a = 0; rw [hy₃_mem]; exact hz_hdr a ha1 ha2
-  have hz_body₃ : ∀ a, base + offQuotWhp c w n_max ≤ a →
-      a < base + largeSpaceWhp c U V w n_max → (memoryState frontierReg y₃).mem a = 0 := by
-    intro a ha1 ha2; change y₃.mem a = 0; rw [hy₃_mem]; exact hz_body a ha1 ha2
   obtain ⟨hseed', hfast', hfr_st, hmc, hvp, hout⟩ :=
-    initFastGenProg_spec henv hseed₃ hz_hdr₃ hz_body₃
+    initFastGenProg_spec (s := memoryState frontierReg y₃) henv
+      (hy₃_mem.symm ▸ hseed)
+      (fun a ha1 ha2 => (congrFun hy₃_mem a).trans (hz_hdr a ha1 ha2))
+      (fun a ha1 ha2 => (congrFun hy₃_mem a).trans (hz_body a ha1 ha2))
   have hvh_mem := hvp.validHistory (wellFormed_memoryState hy₃_bdd)
     (by change _ ≤ y₃.regs frontierReg; omega)
   have hsafe : WhpLargeEnvGen w cp base := ⟨c, U, V, w, n_max, henv, rfl⟩
@@ -907,28 +853,19 @@ private theorem exec_initFastTail {c U V w n_max base : ℕ} {θ : SeedWhp c U n
   rw [clientState_width w] at hm₄
   have hmem₄ : y₄.mem = ((Memory.spec 0).clientState (memoryState frontierReg y₃)
       (initFastGenProg (cp, base))).mem := congrArg Memory.State.mem hm₄
-  have hfr₄ : y₄.regs frontierReg = base + whpSpace c U V w n_max := by
-    have hf := congrArg Memory.State.frontier hm₄
-    change y₄.regs frontierReg = _ at hf
-    rw [hf]
-    exact hfr_st.trans hy₃_fr
-  have hbase₄ : y₄.regs baseReg = base := by
-    have hnot_tmp : ∀ j, tmpInit j ≠ baseReg := by
-      intro j hj
-      have hv := congrArg Fin.val hj
-      rw [val_tmpInit] at hv
-      change 132 + j.val = 16 at hv
-      omega
-    exact (hframe₄ baseReg (sReg_ne (by decide)) hnot_tmp).trans hy₃_base
+  have hfr₄ : y₄.regs frontierReg = base + whpSpace c U V w n_max :=
+    (congrArg Memory.State.frontier hm₄).trans (hfr_st.trans hy₃_fr)
+  have hbase₄ : y₄.regs baseReg = base :=
+    (hframe₄ baseReg (sReg_ne (by decide))
+      fun j hj => by
+        have hv : (tmpInit j).val = 16 := congrArg Fin.val hj
+        rw [val_tmpInit] at hv; omega).trans hy₃_base
   have hy₄_bdd : y₄.Bounded w := he₂.bounded hy₃_bdd
   have hn₂' : n₂ ≤ realizes_initFastGen.factor * (initFastCostWhp n_max + 1) := by
-    dsimp only [cp] at hn₂
-    rwa [hmc, Nat.add_zero] at hn₂
+    simpa only [cp, hmc, Nat.add_zero] using hn₂
   refine ⟨(y₄, n₁ + n₂), by omega, he₁.seq he₂, hy₄_bdd, hbase₄, hfr₄,
-    hmem₄ ▸ hseed', hmem₄ ▸ hfast', fun a ha => ?_⟩
-  dsimp only
-  rw [hmem₄, hout a ha]
-  exact congrFun hy₃_mem a
+    hmem₄ ▸ hseed', hmem₄ ▸ hfast',
+    fun a ha => (congrFun hmem₄ a).trans ((hout a ha).trans (congrFun hy₃_mem a))⟩
 
 private theorem setup_exec_whp {c U V w n_max base : ℕ}
     (hc : 0 < c) (hw : 0 < w) (hnU : n_max ≤ U) (hU : Fits w U) (hV : Fits w V)
@@ -950,71 +887,49 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
         Modifies (Block.mk base (whpSpace c U V w n_max)).footprint x₁.mem p.2.mem := by
   classical
   by_cases hsm : n_max < whpThreshold c
-  · have hsp : whpSpace c U V w n_max = smallSpaceWhp U V w n_max := by
-      unfold whpSpace; exact ite_eq_left hsm
+  · have hsp : whpSpace c U V w n_max = smallSpaceWhp U V w n_max := ite_eq_left hsm
     let x₁' := x₁.set zeroReg 0
     let m₀ : ProbComp (Data rWhp × ℕ) := pure (x₁', 1)
     let ν₀ : PMF (SeedWhp c U n_max × Data rWhp) :=
       (seedLawWhp c U n_max).map fun θ => (θ, x₁')
     have hex : ExecRand w (subroutineCode c U V w n_max).initSetup x₁ m₀ := by
-      change ExecRand w (initSetupCode c U V w n_max) x₁ (pure (x₁', 1))
-      unfold initSetupCode
-      rw [ite_eq_left hsm]
+      simp only [subroutineCode, initSetupCode, hsm, ↓reduceIte]
       exact (Exec.const (Nat.two_pow_pos w)).execRand
     have hqb : OracleComp.IsQueryBounded m₀ (initSetupRandCalls c w n_max) := by
-      unfold initSetupRandCalls
-      rw [ite_eq_left hsm]
+      simp only [initSetupRandCalls, hsm, ↓reduceIte]
       exact .pure _ 0
-    have htime : ∀ z ∈ m₀.support, z.2 ≤ initSetupSteps c w n_max := by
-      intro z hz_mem
-      cases OracleComp.eq_of_mem_supportWith_pure hz_mem
-      unfold initSetupSteps
-      rw [ite_eq_left hsm]
+    have htime : ∀ z ∈ m₀.support, z.2 ≤ initSetupSteps c w n_max := fun _ hz_mem => by
+      simp [OracleComp.eq_of_mem_supportWith_pure hz_mem, initSetupSteps, hsm]
     have hsnd : ν₀.map Prod.snd = (Prod.fst <$> m₀).eval := by
-      dsimp only [ν₀, m₀]
       rw [PMF.map_comp, map_pure, ProbComp.eval_pure]
       exact PMF.map_const _ x₁'
-    have hfst : ∀ θ, (ν₀.map Prod.fst) θ ≤ 1 * (seedLawWhp c U n_max) θ := by
-      intro θ
-      dsimp only [ν₀]
+    have hfst : ∀ θ, (ν₀.map Prod.fst) θ ≤ 1 * (seedLawWhp c U n_max) θ := fun θ => by
       rw [PMF.map_comp, one_mul]
-      change ((seedLawWhp c U n_max).map id) θ ≤ _
-      rw [PMF.map_id]
+      exact (congrArg (· θ) (PMF.map_id _)).le
     refine ⟨m₀, ν₀, hex, hqb, htime, hsnd, hfst, fun p hp => ?_⟩
-    rw [PMF.mem_support_map_iff] at hp
-    obtain ⟨θ, _, rfl⟩ := hp
+    obtain ⟨θ, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
     have hend := smallOffsets_eq U V w n_max
     have hs1 : offSmallPres = 32 := rfl
     have hs2 : offSmallKeys U w n_max = offSmallPres + packedWords n_max 1 w := rfl
     have hs3 : offSmallVals U w n_max = offSmallKeys U w n_max + packedWords n_max (keyBits U) w :=
       rfl
-    have hz_in : ∀ a, base ≤ a → a < base + smallSpaceWhp U V w n_max → x₁'.mem a = 0 := by
-      intro a ha1 ha2
-      refine hz a ?_
-      simp only [Block.mem_footprint, Block.Owns, hsp]
-      exact ⟨ha1, ha2⟩
-    have hsm_rep : SmallMemRep base U V w n_max emptySmallState x₁'.mem := by
-      refine ⟨?_, fun i hi => ⟨?_, ?_, ?_⟩⟩
-      · dsimp only [hdrMode]; rw [Nat.add_zero]; exact hz_in base le_rfl (by omega)
-      · exact readPacked_eq_zero_of_zero_range hw hi
-          (fun a ha1 ha2 => hz_in a (by omega) (by omega))
-      · exact readPacked_eq_zero_of_zero_range hw hi
-          (fun a ha1 ha2 => hz_in a (by omega) (by omega))
-      · exact readPacked_eq_zero_of_zero_range hw hi
-          (fun a ha1 ha2 => hz_in a (by omega) (by omega))
-    have hinit_eq : whpRunPure c U n_max θ [] = .small emptySmallState := by
-      change whpInitPure c n_max = _
-      exact ite_eq_left hsm
+    have hz_in (a : ℕ) (ha1 : base ≤ a) (ha2 : a < base + smallSpaceWhp U V w n_max) :
+        x₁'.mem a = 0 :=
+      hz a (by simp [Block.mem_footprint, Block.Owns, hsp, ha1, ha2])
+    have hsm_rep : SmallMemRep base U V w n_max emptySmallState x₁'.mem :=
+      ⟨hz_in base le_rfl (by omega), fun i hi =>
+        ⟨readPacked_eq_zero_of_zero_range hw hi fun a _ _ => hz_in a (by omega) (by omega),
+         readPacked_eq_zero_of_zero_range hw hi fun a _ _ => hz_in a (by omega) (by omega),
+         readPacked_eq_zero_of_zero_range hw hi fun a _ _ => hz_in a (by omega) (by omega)⟩⟩
+    have hinit_eq : whpRunPure c U n_max θ [] = .small emptySmallState := ite_eq_left hsm
     have hx₁'_bdd : x₁'.Bounded w := hx₁.set (Nat.two_pow_pos w)
     have hx₁'_fr : x₁'.regs frontierReg = base + whpSpace c U V w n_max :=
       (set_regs_sReg_ne _ (by decide) _).trans hfr
-    refine ⟨hx₁'_fr, ⟨hx₁'_bdd, (set_regs_sReg_ne _ (by decide) _).trans hbase, hx₁'_fr, ?_,
-      whpRunPure_spec hnU θ trivial, rfl, trivial⟩, Modifies.refl _ _⟩
-    rw [hinit_eq]
-    exact ⟨hsm, hsm_rep⟩
+    exact ⟨hx₁'_fr, ⟨hx₁'_bdd, (set_regs_sReg_ne _ (by decide) _).trans hbase, hx₁'_fr,
+      hinit_eq.symm ▸ ⟨hsm, hsm_rep⟩, whpRunPure_spec hnU θ trivial, rfl, trivial⟩,
+      Modifies.refl _ _⟩
   · have hth : whpThreshold c ≤ n_max := Nat.le_of_not_lt hsm
-    have hsp : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := by
-      unfold whpSpace; exact ite_eq_right hsm
+    have hsp : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := ite_eq_right hsm
     have henv : WhpLargeEnv c U V w n_max w base := ⟨hc, hw, rfl, hth, hnU, hU, hV, hfit⟩
     have hw0_le : w0Whp U ≤ w := w0Whp_le_w hw hU
     have hlog_w := log_n_max_lt_w hth hnU hU
@@ -1022,19 +937,15 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
     have hell := Dynamic.one_le_logLogFactor n_max
     have hbc_le : bCharWhp n_max ≤ w := ((Nat.div_le_self _ 4).trans_lt hlog_w).le
     have hb_le : bWhp n_max ≤ w := ((Nat.sub_le _ _).trans_lt hlog_w).le
-    have hfp_le : fpBitsWhp n_max ≤ w := by
-      have : fpBitsWhp n_max ≤ Nat.log 2 n_max := by unfold fpBitsWhp; omega
-      exact (this.trans_lt hlog_w).le
+    have hfp_le : fpBitsWhp n_max ≤ w := by dsimp only [fpBitsWhp]; omega
     have hfit_bkt_end : Fits w ((base + offHashBkt) +
         BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max)
-          (bWhp n_max)) := by
-      refine hfit.of_le ?_
-      rw [hsp]; dsimp only [largeSpaceWhp, offHashBkt]; omega
+          (bWhp n_max)) :=
+      hfit.of_le (by simp only [hsp, largeSpaceWhp, offHashBkt]; omega)
     have hfit_fp_end : Fits w ((base + offHashFp c w n_max) +
         BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max)
-          (fpBitsWhp n_max)) := by
-      refine hfit.of_le ?_
-      rw [hsp]; dsimp only [largeSpaceWhp, offHashFp, offHashBkt, bktHashWords]; omega
+          (fpBitsWhp n_max)) :=
+      hfit.of_le (by simp only [hsp, largeSpaceWhp, offHashFp, offHashBkt, bktHashWords]; omega)
     let m₁ := resampleStage w (w0Whp U) base offHashBkt (cTabWhp c) (dTabWhp c) (bCharWhp n_max)
       (bWhp n_max) x₁
     let m₂_of := resampleStage w (w0Whp U) base (offHashFp c w n_max) (cTabWhp c) (dTabWhp c)
@@ -1058,11 +969,9 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
       (resampleStage_execRand hw hw0_le hfit_bkt_end hbase).seq (m₂ := m₂_of) fun _ hz₁ =>
         resampleStage_execRand hw hw0_le hfit_fp_end
           ((mem_support_resampleStage hw hw0_le hfit_bkt_end hx₁ hz₁).2.1.trans hbase)
-    have hz_in : ∀ a, base ≤ a → a < base + largeSpaceWhp c U V w n_max → x₁.mem a = 0 := by
-      intro a ha1 ha2
-      refine hz a ?_
-      simp only [Block.mem_footprint, Block.Owns, hsp]
-      exact ⟨ha1, ha2⟩
+    have hz_in (a : ℕ) (ha1 : base ≤ a) (ha2 : a < base + largeSpaceWhp c U V w n_max) :
+        x₁.mem a = 0 :=
+      hz a (by simp [Block.mem_footprint, Block.Owns, hsp, ha1, ha2])
     let hasInv (y₂ : Data rWhp) : Prop :=
       y₂.Bounded w ∧
       y₂.regs baseReg = base ∧
@@ -1132,29 +1041,19 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
     let ν₀ : PMF (SeedWhp c U n_max × Data rWhp) :=
       m₁₂.eval.map fun z₁₂ => (extPair z₁₂.1, (detOut z₁₂.1).1)
     have hex_all : ExecRand w (subroutineCode c U V w n_max).initSetup x₁ m₀ := by
-      change ExecRand w (initSetupCode c U V w n_max) x₁ m₀
-      unfold initSetupCode
-      rw [ite_eq_right hsm]
+      simp only [subroutineCode, initSetupCode, hsm, ↓reduceIte]
       refine ExecRand.seq hex₁₂ (m₂ := m_tail) fun z₁₂ hz₁₂ => ?_
       have hi : hasInv z₁₂.1 := (hm₁₂_supp z₁₂ hz₁₂).1
-      have hspec := Classical.choose_spec (tailEx z₁₂.1 hi)
-      have hd_eq : detOut z₁₂.1 = Classical.choose (tailEx z₁₂.1 hi) := dite_eq_left hi
-      dsimp only [m_tail]
-      rw [hd_eq]
-      exact hspec.2.1.execRand
+      dsimp only [m_tail, detOut]
+      rw [dite_eq_left hi]
+      exact (Classical.choose_spec (tailEx z₁₂.1 hi)).2.1.execRand
     have hqb : OracleComp.IsQueryBounded m₀ (initSetupRandCalls c w n_max) := by
       unfold initSetupRandCalls
       rw [ite_eq_right hsm]
       have hqb₁₂ : m₁₂.IsQueryBounded _ :=
         (isQueryBounded_resampleStage _).bind fun _ =>
           (isQueryBounded_resampleStage _).bind fun _ => .pure _ 0
-      have hqb_tail : ∀ z₁₂ : Data rWhp × ℕ,
-          (do let z_t ← m_tail z₁₂.1; pure (z_t.1, z₁₂.2 + z_t.2)).IsQueryBounded 0 := by
-        intro z₁₂
-        dsimp only [m_tail]
-        simp only [pure_bind]
-        exact .pure _ 0
-      simpa only [Nat.add_zero] using hqb₁₂.bind hqb_tail
+      simpa only [m₀, m_tail, pure_bind, Nat.add_zero] using hqb₁₂.bind fun _ => .pure _ 0
     have htime : ∀ z ∈ m₀.support, z.2 ≤ initSetupSteps c w n_max := by
       intro z hz_mem
       dsimp only [m₀] at hz_mem
@@ -1163,96 +1062,66 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
       cases OracleComp.eq_of_mem_supportWith_pure hz_t
       cases OracleComp.eq_of_mem_supportWith_pure hp
       obtain ⟨hi, _, hst₁₂⟩ := hm₁₂_supp z₁₂ hz₁₂
-      have hspec := Classical.choose_spec (tailEx z₁₂.1 hi)
-      have hd_eq : detOut z₁₂.1 = Classical.choose (tailEx z₁₂.1 hi) := dite_eq_left hi
       have hle_t : (detOut z₁₂.1).2 ≤
           68 + realizes_initFastGen.factor * (initFastCostWhp n_max + 1) := by
-        rw [hd_eq]; exact hspec.1
-      unfold initSetupSteps
-      rw [ite_eq_right hsm]
-      dsimp only
+        simpa only [detOut, hi, ↓reduceDIte] using (Classical.choose_spec (tailEx z₁₂.1 hi)).1
+      simp only [initSetupSteps, hsm, ↓reduceIte]
       omega
     have hsnd : ν₀.map Prod.snd = (Prod.fst <$> m₀).eval := by
-      dsimp only [ν₀, m₀, m_tail]
-      rw [PMF.map_comp]
-      have hm₀_eq : (Prod.fst <$> (do
-          let z₁₂ ← m₁₂
-          let z_t ← pure (detOut z₁₂.1)
-          pure (z_t.1, z₁₂.2 + z_t.2))) = (fun z₁₂ => (detOut z₁₂.1).1) <$> m₁₂ := by
-        simp [← bind_pure_comp, bind_assoc]
+      have hm₀_eq : (Prod.fst <$> m₀) = (fun z₁₂ => (detOut z₁₂.1).1) <$> m₁₂ := by
+        simp [m₀, m_tail, ← bind_pure_comp, bind_assoc]
       rw [hm₀_eq, ProbComp.eval_map]
-      rfl
+      simp [ν₀, PMF.map_comp, Function.comp_def]
     have hfst : ∀ θ, (ν₀.map Prod.fst) θ ≤ 1 * (seedLawWhp c U n_max) θ := by
       have hmap_fst : ν₀.map Prod.fst = seedLawWhp c U n_max := by
-        dsimp only [ν₀]
-        rw [PMF.map_comp]
-        change m₁₂.eval.map (fun z₁₂ => extPair z₁₂.1) = _
-        dsimp only [m₁₂]
-        rw [ProbComp.eval_bind, PMF.map_bind]
+        have hunif {off M : ℕ} (hM : M ≤ w) (y : Data rWhp) :
+            (resampleStage w (w0Whp U) base off (cTabWhp c) (dTabWhp c)
+              (bCharWhp n_max) M y).eval.map
+              (fun z : Data rWhp × ℕ => BitPackedDoubleTabulation.extractSeed (base + off) w
+                (w0Whp U) (cTabWhp c) (dTabWhp c) (bCharWhp n_max) M z.1.mem) =
+            PMF.uniformOfFintype _ := by
+          rw [resampleStage, ProbComp.eval_map, PMF.map_comp]
+          exact BitPackedDoubleTabulation.map_extractSeed_eval_resampleComp hw hbc_le hM _
+        dsimp only [ν₀, m₁₂]
+        rw [PMF.map_comp, Function.comp_def, ProbComp.eval_bind, PMF.map_bind]
         have hinner : ∀ z₁ ∈ m₁.eval.support,
             ((do let z₂ ← m₂_of z₁.1; pure (z₂.1, z₁.2 + z₂.2)).eval).map
               (fun z₁₂ : Data rWhp × ℕ => extPair z₁₂.1) =
             (PMF.uniformOfFintype (FpSeed c U n_max)).map
-              (fun θ₂ => (ext₁ z₁.1.mem, θ₂)) := by
-          intro z₁ hz₁
+              (fun θ₂ => (ext₁ z₁.1.mem, θ₂)) := fun z₁ hz₁ => by
           rw [ProbComp.support_eval] at hz₁
-          have hd : (do let z₂ ← m₂_of z₁.1; pure (z₂.1, z₁.2 + z₂.2)) =
-              (fun z₂ : Data rWhp × ℕ => (z₂.1, z₁.2 + z₂.2)) <$> m₂_of z₁.1 :=
-            bind_pure_comp _ _
-          rw [hd, ProbComp.eval_map, PMF.map_comp]
+          rw [bind_pure_comp, ProbComp.eval_map, PMF.map_comp]
           have hcongr : (m₂_of z₁.1).eval.map
               ((fun z₁₂ : Data rWhp × ℕ => extPair z₁₂.1) ∘
                 fun z₂ : Data rWhp × ℕ => (z₂.1, z₁.2 + z₂.2)) =
-              (m₂_of z₁.1).eval.map (fun z₂ : Data rWhp × ℕ => (ext₁ z₁.1.mem, ext₂ z₂.1.mem)) := by
-            refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun z₂ hz₂ => ?_
-            rw [ProbComp.support_eval] at hz₂
-            exact (hy₂_pair z₁ hz₁ z₂ hz₂).1
-          rw [hcongr]
-          have hm₂_unif : (m₂_of z₁.1).eval.map (fun z₂ : Data rWhp × ℕ => ext₂ z₂.1.mem) =
-              PMF.uniformOfFintype (FpSeed c U n_max) := by
-            dsimp only [m₂_of, resampleStage]
-            rw [ProbComp.eval_map, PMF.map_comp]
-            exact BitPackedDoubleTabulation.map_extractSeed_eval_resampleComp hw hbc_le hfp_le _
-          rw [← hm₂_unif, PMF.map_comp]
-          rfl
+              (m₂_of z₁.1).eval.map
+                ((fun θ₂ => (ext₁ z₁.1.mem, θ₂)) ∘ fun z₂ : Data rWhp × ℕ => ext₂ z₂.1.mem) :=
+            Cslib.Probability.PMF.map_congr_on_support _ _ _ fun z₂ hz₂ =>
+              (hy₂_pair z₁ hz₁ z₂ (ProbComp.support_eval _ ▸ hz₂)).1
+          rw [hcongr, ← PMF.map_comp, hunif hfp_le z₁.1]
         rw [Cslib.Probability.PMF.bind_congr_on_support _ _ _ hinner]
-        have hm₁_unif : m₁.eval.map (fun z₁ : Data rWhp × ℕ => ext₁ z₁.1.mem) =
-            PMF.uniformOfFintype (BktSeed c U n_max) := by
-          dsimp only [m₁, resampleStage]
-          rw [ProbComp.eval_map, PMF.map_comp]
-          exact BitPackedDoubleTabulation.map_extractSeed_eval_resampleComp hw hbc_le hb_le _
-        have hprod :
-            (m₁.eval.map (fun z₁ : Data rWhp × ℕ => ext₁ z₁.1.mem)).bind
-              (fun θ₁ =>
-                (PMF.uniformOfFintype (FpSeed c U n_max)).map (fun θ₂ => (θ₁, θ₂))) =
-            seedLawWhp c U n_max := by
-          rw [hm₁_unif]
-          exact PMF.uniformOfFintype_prod _ _
-        rwa [PMF.bind_map] at hprod
-      intro θ
-      rw [hmap_fst, one_mul]
+        refine (PMF.bind_map _ (fun z₁ : Data rWhp × ℕ => ext₁ z₁.1.mem)
+          (fun θ₁ => (PMF.uniformOfFintype (FpSeed c U n_max)).map (fun θ₂ => (θ₁, θ₂)))).symm.trans
+          ?_
+        rw [hunif hb_le x₁]
+        exact PMF.uniformOfFintype_prod _ _
+      exact fun θ => by rw [hmap_fst, one_mul]
     refine ⟨m₀, ν₀, hex_all, hqb, htime, hsnd, hfst, fun p hp => ?_⟩
-    dsimp only [ν₀] at hp
-    rw [PMF.mem_support_map_iff] at hp
-    obtain ⟨z₁₂, hz₁₂, rfl⟩ := hp
+    obtain ⟨z₁₂, hz₁₂, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
     rw [ProbComp.support_eval] at hz₁₂
     obtain ⟨hi, hzo, _⟩ := hm₁₂_supp z₁₂ hz₁₂
-    have hspec := Classical.choose_spec (tailEx z₁₂.1 hi)
     have hd_eq : detOut z₁₂.1 = Classical.choose (tailEx z₁₂.1 hi) := dite_eq_left hi
-    obtain ⟨_, _, hy₄_bdd, hy₄_base, hy₄_fr, hy₄_seed, hy₄_fast, hy₄_out⟩ := hspec
+    obtain ⟨_, _, hy₄_bdd, hy₄_base, hy₄_fr, hy₄_seed, hy₄_fast, hy₄_out⟩ :=
+      Classical.choose_spec (tailEx z₁₂.1 hi)
     rw [← hd_eq] at hy₄_bdd hy₄_base hy₄_fr hy₄_seed hy₄_fast hy₄_out
-    have hinit_eq : whpRunPure c U n_max (extPair z₁₂.1) [] = .fast (emptyFastState n_max) := by
-      change whpInitPure c n_max = _
-      exact ite_eq_right hsm
+    have hinit_eq : whpRunPure c U n_max (extPair z₁₂.1) [] = .fast (emptyFastState n_max) :=
+      ite_eq_right hsm
     have hmod : Modifies (Block.mk base (whpSpace c U V w n_max)).footprint
-        x₁.mem (detOut z₁₂.1).1.mem := by
-      intro a ha
+        x₁.mem (detOut z₁₂.1).1.mem := fun a ha => by
       simp only [Block.mem_footprint, Block.Owns, hsp, not_and_or, not_le, not_lt] at ha
       exact (hy₄_out a ha).trans (hzo a ha)
-    refine ⟨hy₄_fr, ⟨hy₄_bdd, hy₄_base, hy₄_fr, ?_, whpRunPure_spec hnU _ trivial, rfl, trivial⟩,
-      hmod⟩
-    rw [hinit_eq]
-    exact ⟨hth, hy₄_seed, hy₄_fast⟩
+    exact ⟨hy₄_fr, ⟨hy₄_bdd, hy₄_base, hy₄_fr, hinit_eq.symm ▸ ⟨hth, hy₄_seed, hy₄_fast⟩,
+      whpRunPure_spec hnU _ trivial, rfl, trivial⟩, hmod⟩
 
 /-! ## Section 5: Per-Operation Deterministic Execution (`exec_opCode`) -/
 
@@ -1268,15 +1137,12 @@ private theorem whpRunPure_snoc (c U n_max : ℕ) (θ : SeedWhp c U n_max)
     (ops : List (Dynamic.Op U)) (o : Dynamic.Op U) :
     whpRunPure c U n_max θ (ops ++ [o]) =
       (whpStepPure c U n_max θ (whpRunPure c U n_max θ ops) o).1 := by
-  dsimp only [whpRunPure]
-  have haux : ∀ st (l : List (Dynamic.Op U)),
-      whpRunFrom c U n_max θ st (l ++ [o]) =
-        (whpStepPure c U n_max θ (whpRunFrom c U n_max θ st l) o).1 := by
-    intro st l
-    induction l generalizing st with
-    | nil => rfl
-    | cons hd tl ih => exact ih _
-  exact haux _ ops
+  suffices ∀ st l, whpRunFrom c U n_max θ st (l ++ [o]) =
+      (whpStepPure c U n_max θ (whpRunFrom c U n_max θ st l) o).1 from this _ ops
+  intro st l
+  induction l generalizing st with
+  | nil => rfl
+  | cons _ _ ih => exact ih _
 
 private theorem exec_opCode {c U V w n_max base : ℕ}
     (hc : 0 < c) (hw : 0 < w) (hnU : n_max ≤ U) (hU : Fits w U) (hV : Fits w V)
@@ -1300,34 +1166,25 @@ private theorem exec_opCode {c U V w n_max base : ℕ}
   have hx₀_base : x₀.regs baseReg = base := (hlow₀ baseReg (by decide)).trans hbase
   have hx₀_fr : x₀.regs frontierReg = base + whpSpace c U V w n_max :=
     (hlow₀ frontierReg (by decide)).trans hfr
-  have hx₀_tag : x₀.regs tagReg = x.regs tagReg := hlow₀ tagReg (by decide)
-  have hx₀_u : x₀.regs argUReg = x.regs argUReg := hlow₀ argUReg (by decide)
-  have hx₀_v : x₀.regs argVReg = x.regs argVReg := hlow₀ argVReg (by decide)
   let wp := mkWhpParams c U V w n_max
   let enc := encodeOpWhp o
   let d_in : ((WhpParams × ℕ) × ℕ) × (ℕ × ℕ) := (((wp, base), enc.1), enc.2)
-  have henc_x₀ : enc = (x₀.regs tagReg, (x₀.regs argUReg, x₀.regs argVReg)) := by
-    dsimp only [enc]
-    rw [hx₀_tag, hx₀_u, hx₀_v]
-    exact harg
+  have henc_x₀ : (x₀.regs tagReg, (x₀.regs argUReg, x₀.regs argVReg)) = enc := by
+    rw [hlow₀ tagReg (by decide), hlow₀ argUReg (by decide), hlow₀ argVReg (by decide)]
+    exact harg.symm
   have hin : x₀.regs ∘ srcStep =
-      WordEncoding.encode (α := ((WhpParams × ℕ) × ℕ) × (ℕ × ℕ)) d_in := by
-    have hwp_enc : x₀.regs ∘ whpParamReg = WordEncoding.encode (α := WhpParams) wp :=
-      funext fun i => hparam₀ i (by have := i.isLt; change i.val < 68 + (16 + 16) at this; omega)
-    have h1 := regs_comp_append (α := WhpParams) (β := ℕ) hwp_enc
-      (regs_comp_singleton baseReg base hx₀_base)
-    have h2 := regs_comp_append (α := WhpParams × ℕ) (β := ℕ) h1
-      (regs_comp_singleton tagReg enc.1 (congrArg Prod.fst henc_x₀).symm)
-    have h3 := regs_comp_append (α := ℕ) (β := ℕ)
-      (regs_comp_singleton argUReg enc.2.1
-        (congrArg (fun p => p.2.1) henc_x₀).symm)
-      (regs_comp_singleton argVReg enc.2.2
-        (congrArg (fun p => p.2.2) henc_x₀).symm)
-    exact regs_comp_append h2 h3
+      WordEncoding.encode (α := ((WhpParams × ℕ) × ℕ) × (ℕ × ℕ)) d_in :=
+    regs_comp_append
+      (regs_comp_append
+        (regs_comp_append
+          (funext fun i => hparam₀ i (by have hk : i.val < 68 + (16 + 16) := i.isLt; omega))
+          (regs_comp_singleton baseReg base hx₀_base))
+        (regs_comp_singleton tagReg enc.1 (congrArg Prod.fst henc_x₀)))
+      (regs_comp_append
+        (regs_comp_singleton argUReg enc.2.1 (congrArg (·.2.1) henc_x₀))
+        (regs_comp_singleton argVReg enc.2.2 (congrArg (·.2.2) henc_x₀)))
   have hrep₀ : WhpMemRep base c U V w n_max θ (whpRunPure c U n_max θ ops)
-      (memoryState frontierReg x₀).mem := by
-    change WhpMemRep base c U V w n_max θ (whpRunPure c U n_max θ ops) x₀.mem
-    rwa [hx₀_mem]
+      (memoryState frontierReg x₀).mem := by simpa only [memoryState, hx₀_mem] using hrep_mem
   obtain ⟨hrep', hres', hfr_st, hvp, hout, hfast_mc⟩ :=
     whpStepPureGenProg_spec hc hw hnU hU hV hfit hrep₀ hv_st hval_op
   have hvh_mem := hvp.validHistory (wellFormed_memoryState hx₀_bdd) hx₀_fr.ge
@@ -1341,27 +1198,17 @@ private theorem exec_opCode {c U V w n_max base : ℕ}
   rw [clientState_width w] at hm_y
   have hmem_y : y.mem = ((Memory.spec 0).clientState (memoryState frontierReg x₀)
       (whpStepPureGenProg d_in)).mem := congrArg Memory.State.mem hm_y
-  have hfr_y : y.regs frontierReg = base + whpSpace c U V w n_max := by
-    have hf := congrArg Memory.State.frontier hm_y
-    change y.regs frontierReg = _ at hf
-    rw [hf]
-    exact hfr_st.trans hx₀_fr
-  have hbase_y : y.regs baseReg = base := by
-    have hnot_tmp : ∀ j, tmpStep j ≠ baseReg := by
-      intro j hj
-      have hv := congrArg Fin.val hj
-      rw [val_tmpStep] at hv
-      change (if j.val = 0 then 25 else if j.val = 1 then 26 else 132 + j.val) = 16 at hv
-      split_ifs at hv <;> omega
-    exact (hframe_y baseReg (sReg_ne (by decide)) hnot_tmp).trans hx₀_base
+  have hfr_y : y.regs frontierReg = base + whpSpace c U V w n_max :=
+    (congrArg Memory.State.frontier hm_y).trans (hfr_st.trans hx₀_fr)
+  have hbase_y : y.regs baseReg = base :=
+    (hframe_y baseReg (sReg_ne (by decide))
+      fun j hj => by
+        have hv : (tmpStep j).val = 16 := congrArg Fin.val hj
+        rw [val_tmpStep] at hv
+        split_ifs at hv <;> omega).trans hx₀_base
   have hy_bdd : y.Bounded w := he₂.bounded hx₀_bdd
-  have hout0 := hout_y 0
-  have hout1 := hout_y 1
-  rw [clientResult_width, hres'] at hout0 hout1
-  have htmp0 : tmpStep (Fin.castAdd (realizes_whpStepPureGen.scratchSize + 1) 0) = resTagReg := rfl
-  have htmp1 : tmpStep (Fin.castAdd (realizes_whpStepPureGen.scratchSize + 1) 1) = resValReg := rfl
-  rw [htmp0] at hout0
-  rw [htmp1] at hout1
+  have hout0 : y.regs resTagReg = _ := (hout_y 0).trans (by rw [clientResult_width, hres'])
+  have hout1 : y.regs resValReg = _ := (hout_y 1).trans (by rw [clientResult_width, hres'])
   obtain ⟨hv_st', hres_opt⟩ := whpStepPure_spec hnU θ hv_st hval_op
   have hdec : decode o y.regs = some ((Dynamic.spec U V n_max).stepFn s_abs o).2 := by
     cases o with
@@ -1380,22 +1227,14 @@ private theorem exec_opCode {c U V w n_max base : ℕ}
     exact congrFun hx₀_mem a
   have hvh_snoc : (Dynamic.spec U V n_max).ValidHistory (Dictionary.empty U) (ops ++ [o]) :=
     ((Dynamic.spec U V n_max).validHistory_append _ ops [o]).mpr ⟨hvh, hs_eq ▸ hval_op, trivial⟩
-  have hs_next_eq : ((Dynamic.spec U V n_max).stepFn s_abs o).1 =
-      ((Dynamic.spec U V n_max).run (Dictionary.empty U) (ops ++ [o])).1 := by
-    rw [run_fst_snoc, ← hs_eq]
-  have hgrep' : GhostRep c U V w n_max base (ops ++ [o]) θ
-      ((Dynamic.spec U V n_max).stepFn s_abs o).1 y := by
-    refine ⟨hy_bdd, hbase_y, hfr_y, ?_, ?_, hs_next_eq, hvh_snoc⟩
-    · rw [whpRunPure_snoc, hmem_y]; exact hrep'
-    · rw [whpRunPure_snoc]; exact hv_st'
-  refine ⟨(y, n₁ + n₂), he₁.seq he₂, hdec, hgrep', hmod, fun hhit => ?_⟩
+  refine ⟨(y, n₁ + n₂), he₁.seq he₂, hdec, ⟨hy_bdd, hbase_y, hfr_y, ?_, ?_,
+    by rw [run_fst_snoc, ← hs_eq], hvh_snoc⟩, hmod, fun hhit => ?_⟩
+  · rwa [whpRunPure_snoc, hmem_y]
+  · rwa [whpRunPure_snoc]
   have hmc_le := hfast_mc ops rfl hhit
-  have hn₂_le : n₂ ≤ realizes_whpStepPureGen.factor * (whpFastBranchCost c + 1) := by
-    have h1 : memoryCost (whpStepPureGenProg d_in) (memoryState frontierReg x₀) + 0 + 1 ≤
-        whpFastBranchCost c + 1 := by
-      dsimp only [d_in, wp, enc]
-      omega
-    exact hn₂.trans (Nat.mul_le_mul_left _ h1)
+  dsimp only [d_in, wp, enc] at hn₂
+  have hn₂_le : n₂ ≤ realizes_whpStepPureGen.factor * (whpFastBranchCost c + 1) :=
+    hn₂.trans (Nat.mul_le_mul_left _ (Nat.succ_le_succ hmc_le))
   dsimp only [worstCaseTimeWhp]
   omega
 
@@ -1561,10 +1400,9 @@ succinct dynamic dictionary (`Dynamic.spec U V n_max`). -/
 private theorem packedWords_le_bits_add_two {N k w : ℕ} (hw : 0 < w) :
     packedWords N k w ≤ N * k + 2 := by
   unfold packedWords
-  have h1 : N * k ≤ (N * k) * w := Nat.le_mul_of_pos_right _ hw
   have hlt : N * k + w - 1 < w * (N * k + 1) := by
-    rw [Nat.mul_add_one, Nat.mul_comm w]
-    omega
+    have : N * k ≤ N * k * w := Nat.le_mul_of_pos_right _ hw
+    rw [Nat.mul_add_one, Nat.mul_comm w]; omega
   have hdiv : (N * k + w - 1) / w ≤ N * k := Nat.lt_succ_iff.mp (Nat.div_lt_of_lt_mul hlt)
   omega
 
@@ -1620,14 +1458,12 @@ private theorem execWhpSteps_modifies {B : Basis} {r_ds n_par : ℕ}
   | nil _ => exact hinit
   | @cons o os τ τ_final m_op μ_step hstep _ ih =>
     refine ih fun tr' htr' => ?_
-    rw [PMF.mem_support_bind_iff] at htr'
-    obtain ⟨tr, htr, hmap⟩ := htr'
-    rw [PMF.mem_support_map_iff] at hmap
-    obtain ⟨p, hp, rfl⟩ := hmap
+    obtain ⟨tr, htr, hmap⟩ := (PMF.mem_support_bind_iff _ _ _).mp htr'
+    obtain ⟨p, hp, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hmap
     have ht_cur : tr.current ∈ (τ.map WhpSeqOutcome.current).support :=
       (PMF.mem_support_map_iff _ _ _).mpr ⟨tr, htr, rfl⟩
-    have hmod_step := ((hstep tr.current ht_cur).2.2.2.2 p hp).2.2.2.2
-    exact fun a ha => (hmod_step a ha).trans (hinit tr htr a ha)
+    exact fun a ha => (((hstep tr.current ht_cur).2.2.2.2 p hp).2.2.2.2 a ha).trans
+      (hinit tr htr a ha)
 
 /-- **Headline whole-sequence with-high-probability theorem (`seq_whp`)**:
 Starting from zeroed memory on `[base, base + whpSpace c U V w n_max)`, fresh initialization halts
@@ -1676,12 +1512,11 @@ theorem seq_whp {c U V w n_max base : ℕ}
   obtain ⟨ν₀, τ_final, hhalts, heval₀, hsupp₀, hex, hsupp_fin, hfail, hsucc⟩ :=
     C.seq_whp_ofFn outReg ops hx hfr (fun j => Fin.elim0 j) hz hv
   have hmod_fin := execWhpSteps_modifies hex (m₀ := x.mem) fun tr htr => by
-    rw [PMF.mem_support_map_iff] at htr
-    obtain ⟨p, hp, rfl⟩ := htr
+    obtain ⟨p, hp, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp htr
     exact (hsupp₀ p hp).2.2.2
-  refine ⟨ν₀, τ_final, hhalts, heval₀, hsupp₀, hex, fun tr htr => ?_, hfail, hsucc⟩
-  obtain ⟨hst, htrans, hrep⟩ := hsupp_fin tr htr
-  exact ⟨hst, htrans, hrep, hmod_fin tr htr⟩
+  exact ⟨ν₀, τ_final, hhalts, heval₀, hsupp₀, hex, fun tr htr =>
+    let ⟨hst, htrans, hrep⟩ := hsupp_fin tr htr
+    ⟨hst, htrans, hrep, hmod_fin tr htr⟩, hfail, hsucc⟩
 
 /-- **Polynomial-horizon whole-sequence corollary (`poly_seq_whp`)**:
 Instantiating the dictionary at exponent `c + c₀` (`0 < c`) guarantees that starting from `⟨0, x⟩`,
@@ -1729,18 +1564,15 @@ theorem poly_seq_whp {c c₀ U V w n_max base : ℕ}
   intro C
   obtain ⟨ν₀, τ_final, hhalts, heval₀, hsupp₀, hex, hsupp_fin, hfail, _⟩ :=
     seq_whp (Nat.add_pos_left hc c₀) hw hnU hU hV hfit ops hx hfr hz hv
-  have hpoly : (ops.length : ℝ≥0∞) * (max n_max 1 : ℝ≥0∞)⁻¹ ^ (c + c₀) ≤
+  have hfail_poly : τ_final.toOuterMeasure {tr | worstCaseTimeWhp (c + c₀) < tr.maxSteps} ≤
       (max n_max 1 : ℝ≥0∞)⁻¹ ^ c := by
     have hcast : ((max n_max 1 : ℕ) : ℝ≥0∞) = max (n_max : ℝ≥0∞) 1 := by
-      rcases n_max with _ | n_max
-      · simp
-      · have h1 : (1 : ℝ≥0∞) ≤ ((n_max + 1 : ℕ) : ℝ≥0∞) := by norm_cast; omega
-        rw [Nat.max_eq_left (by omega : 1 ≤ n_max + 1), max_eq_left h1]
-    have hp := C.poly_seq_failureProb_le hlen (c := c) ?_
-    · rwa [hcast] at hp
-    · change (max (n_max : ℝ≥0∞) 1)⁻¹ ^ (c + c₀) ≤ _
-      rw [hcast]
-  have hfail_poly := hfail.trans hpoly
+      simpa only [Nat.cast_one] using
+        Monotone.map_max (fun _ _ => Nat.cast_le.2) (a := n_max) (b := 1)
+    have hp := C.poly_seq_failureProb_le hlen (c := c) (by
+      change (max (n_max : ℝ≥0∞) 1)⁻¹ ^ (c + c₀) ≤ _
+      rw [hcast])
+    exact hfail.trans (by rwa [hcast] at hp)
   have hcompl := Cslib.Probability.PMF.one_sub_le_toOuterMeasure_compl τ_final _ hfail_poly
   refine ⟨ν₀, τ_final, hhalts, heval₀, hsupp₀, hex, hsupp_fin, hfail_poly, hcompl.trans ?_⟩
   rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply]
@@ -1810,29 +1642,21 @@ theorem reachable_step_whp {c U V w n_max base : ℕ}
   obtain ⟨ν₀, τ_pref, hhalts₀, heval₀, hsupp₀, hex, hrep_pref, hseed_pref, _, _⟩ :=
     C.seq_whp outReg ops hx hfr (fun j => Fin.elim0 j) hz hv_rel
   have htr_eq := hex.transcript_eq_ofFn (s := Dictionary.empty U) (acc := []) fun tr htr => by
-    rw [PMF.mem_support_map_iff] at htr
-    obtain ⟨_, _, rfl⟩ := htr
+    obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp htr
     exact ⟨rfl, rfl⟩
   have hmod_pref := execWhpSteps_modifies hex (m₀ := x.mem) fun tr htr => by
-    rw [PMF.mem_support_map_iff] at htr
-    obtain ⟨p, hp, rfl⟩ := htr
+    obtain ⟨p, hp, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp htr
     exact (hsupp₀ p hp).2.2.2
   let ν_cur : PMF (SeedWhp c U n_max × Data rWhp) :=
     τ_pref.map fun tr => (tr.current.seed, tr.current.data)
-  have hseed_cur : ∀ θ, (ν_cur.map Prod.fst) θ ≤ C.seedSlack * C.seedLaw θ := by
-    intro θ
+  have hseed_cur : ∀ θ, (ν_cur.map Prod.fst) θ ≤ C.seedSlack * C.seedLaw θ := fun θ => by
     have heq : ν_cur.map Prod.fst = (τ_pref.map WhpSeqOutcome.current).map CoupledState.seed := by
-      dsimp only [ν_cur]
-      rw [PMF.map_comp, PMF.map_comp]
-      rfl
-    rw [heq]
-    exact hseed_pref θ
+      simp only [ν_cur, PMF.map_comp]; rfl
+    exact heq ▸ hseed_pref θ
   have hrep_cur : ∀ p ∈ ν_cur.support,
       C.ghostRep (C.ghostRun C.ghostInit ops) p.1
-        ((Dynamic.spec U V n_max).run (Dictionary.empty U) ops).1 p.2 := by
-    intro p hp
-    rw [PMF.mem_support_map_iff] at hp
-    obtain ⟨tr, htr, rfl⟩ := hp
+        ((Dynamic.spec U V n_max).run (Dictionary.empty U) ops).1 p.2 := fun p hp => by
+    obtain ⟨tr, htr, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
     exact (htr_eq tr htr).1 ▸ hrep_pref tr htr
   have hstep := C.step_whp_ofFn outReg o ν_cur hvo hseed_cur hrep_cur
   refine ⟨ν₀, τ_pref, hhalts₀, heval₀, hsupp₀, hex, fun tr htr => ?_,
@@ -1843,10 +1667,8 @@ theorem reachable_step_whp {c U V w n_max base : ℕ}
       hmod_pref tr htr⟩
   · obtain ⟨p, q, hp, rfl, hdec, hgrep, hbdd, hmod_pq⟩ := hcfg
     obtain ⟨tr, htr, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
-    have hp_mod : Modifies (Block.mk base (whpSpace c U V w n_max)).footprint x.mem
-        tr.current.data.mem := hmod_pref tr htr
     exact ⟨(tr.current.seed, tr.current.data), q, hp, rfl, hdec, ⟨_, hgrep⟩, hbdd, hmod_pq,
-      fun a ha => (hmod_pq a ha).trans (hp_mod a ha)⟩
+      fun a ha => (hmod_pq a ha).trans (hmod_pref tr htr a ha)⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

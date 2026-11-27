@@ -74,21 +74,17 @@ variable {Γ Q : Type*} [Inhabited Q]
 
 private theorem finish_left (M : TM0.Machine Γ Q) (p : PairCfg Γ Q) :
     Reaches₁ (step M) (.moving .leftStart p)
-      (.stable ⟨p.state, p.first, p.left, p.second :: p.right⟩) := by
-  have h1 : Reaches₁ (step M) (.moving .leftStart p) (.moving .leftBoth p) :=
-    .single (by simp only [step, Option.mem_def])
-  have h2 : Reaches₁ (step M) (.moving .leftStart p) (.moving .leftEnd p) :=
-    h1.tail (by simp only [step, Option.mem_def])
-  exact h2.tail (by simp only [step, Option.mem_def])
+      (.stable ⟨p.state, p.first, p.left, p.second :: p.right⟩) :=
+  .head (Option.mem_def.mpr rfl : MicroCfg.moving .leftBoth p ∈ _)
+    (.head (Option.mem_def.mpr rfl : MicroCfg.moving .leftEnd p ∈ _)
+      (.single (Option.mem_def.mpr rfl)))
 
 private theorem finish_right (M : TM0.Machine Γ Q) (p : PairCfg Γ Q) :
     Reaches₁ (step M) (.moving .rightStart p)
-      (.stable ⟨p.state, p.second, p.first :: p.left, p.right⟩) := by
-  have h1 : Reaches₁ (step M) (.moving .rightStart p) (.moving .rightBoth p) :=
-    .single (by simp only [step, Option.mem_def])
-  have h2 : Reaches₁ (step M) (.moving .rightStart p) (.moving .rightEnd p) :=
-    h1.tail (by simp only [step, Option.mem_def])
-  exact h2.tail (by simp only [step, Option.mem_def])
+      (.stable ⟨p.state, p.second, p.first :: p.left, p.right⟩) :=
+  .head (Option.mem_def.mpr rfl : MicroCfg.moving .rightBoth p ∈ _)
+    (.head (Option.mem_def.mpr rfl : MicroCfg.moving .rightEnd p ∈ _)
+      (.single (Option.mem_def.mpr rfl)))
 
 private theorem run_of_step {M : TM0.Machine Γ Q} {c d : Cfg Γ Q}
     (h : Turing.TM0Window.step M c = some d) : Reaches₁ (step M) (.stable c) (.stable d) := by
@@ -111,43 +107,36 @@ private theorem run_of_step {M : TM0.Machine Γ Q} {c d : Cfg Γ Q}
         | cons b L =>
           simp only [Turing.TM0Window.step, hM] at h
           cases h
-          let p : PairCfg Γ Q := ⟨q', b, a, L, R⟩
-          have hs : MicroCfg.moving .leftStart p ∈ step M (.stable ⟨q, a, b :: L, R⟩) := by
-            simp only [step, Turing.TM0Window.step, hM, Option.map_some, Option.mem_def, p]
-          exact .head hs (finish_left M p)
+          exact .head
+            (by simp only [step, Turing.TM0Window.step, hM, Option.map_some, Option.mem_def])
+            (finish_left M ⟨q', b, a, L, R⟩)
       | right =>
         cases R with
         | nil => simp only [Turing.TM0Window.step, hM] at h; contradiction
         | cons b R =>
           simp only [Turing.TM0Window.step, hM] at h
           cases h
-          let p : PairCfg Γ Q := ⟨q', a, b, L, R⟩
-          have hs : MicroCfg.moving .rightStart p ∈ step M (.stable ⟨q, a, L, b :: R⟩) := by
-            simp only [step, Turing.TM0Window.step, hM, Option.map_some, Option.mem_def, p]
-          exact .head hs (finish_right M p)
+          exact .head
+            (by simp only [step, Turing.TM0Window.step, hM, Option.map_some, Option.mem_def])
+            (finish_right M ⟨q', a, b, L, R⟩)
 
 /-- Each original window instruction has its exact finite micro-computation. -/
 theorem respects (M : TM0.Machine Γ Q) :
-    Respects (Turing.TM0Window.step M) (step M) (fun c d => MicroCfg.stable c = d) := by
-  apply fun_respects.mpr
-  intro c
-  cases hc : Turing.TM0Window.step M c with
-  | none => simp only [FRespects, step, hc, Option.map_none]
-  | some d => exact run_of_step hc
+    Respects (Turing.TM0Window.step M) (step M) (fun c d => MicroCfg.stable c = d) :=
+  fun_respects.mpr fun c => by
+    cases hc : Turing.TM0Window.step M c with
+    | none => simp only [FRespects, step, hc, Option.map_none]
+    | some _ => exact run_of_step hc
 
 /-- The phase expansion preserves reachability of each stable halted target. -/
 theorem reaches_halted_iff (M : TM0.Machine Γ Q) (c d : Cfg Γ Q)
     (hd : Turing.TM0Window.step M d = none) :
     Reaches (step M) (.stable c) (.stable d) ↔ Reaches (Turing.TM0Window.step M) c d := by
-  constructor
-  · intro hr
-    have hd' : step M (.stable d) = none := by simp only [step, hd, Option.map_none]
-    have hh := mem_eval.mpr ⟨hr, hd'⟩
-    obtain ⟨e, he, heval⟩ := tr_eval_rev (respects M) rfl hh
-    cases MicroCfg.stable.inj he
-    exact (mem_eval.mp heval).1
-  · intro hr
-    obtain ⟨e, he, hre⟩ := tr_reaches (respects M) rfl hr
+  refine ⟨fun hr => ?_, fun hr => ?_⟩
+  · obtain ⟨e, he, heval⟩ := tr_eval_rev (respects M) rfl
+      (mem_eval.mpr ⟨hr, by simp only [step, hd, Option.map_none]⟩)
+    exact MicroCfg.stable.inj he ▸ (mem_eval.mp heval).1
+  · obtain ⟨e, he, hre⟩ := tr_reaches (respects M) rfl hr
     exact he ▸ hre
 
 end Phases

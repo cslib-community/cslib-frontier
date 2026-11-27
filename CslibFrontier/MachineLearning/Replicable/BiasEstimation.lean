@@ -240,35 +240,28 @@ private theorem replicableBiasProg_toAlgorithm_eq (w : ℝ) (N m : ℕ) [NeZero 
   ext S i
   simp [empiricalBias_eq_empiricalMean]
 
+private theorem boolIndicator_mem_Icc (b : Bool) :
+    (if b then (1 : ℝ) else 0) ∈ Set.Icc (0 : ℝ) 1 := by
+  cases b <;> simp
+
 /-- Strong `(w / 2 + δ, 2 * exp (-2 * m * δ^2))`-estimation accuracy of `replicableBiasProg`
 for estimating `coinBias D` across all Bernoulli distributions `D : PMF Bool`. -/
 theorem estimates_replicableBiasProg {w δ : ℝ} (hw : 0 < w) (hδ : 0 ≤ δ) (N m : ℕ)
     [NeZero N] [NeZero m] :
     Estimates (replicableBiasProg w N m).toAlgorithm coinBias
       (w / 2 + δ) (2 * Real.exp (-2 * (m : ℝ) * δ ^ 2)) := by
-  have hf : ∀ b : Bool, (if b then (1 : ℝ) else 0) ∈ Set.Icc (0 : ℝ) 1 := fun b => by
-    cases b <;> simp
-  have hest := estimates_replicableMeanProg (fun b : Bool => if b then (1 : ℝ) else 0) hf hw hδ
-    N m
-  rw [show max ((1 : ℝ) - 0) 1 = 1 by norm_num, one_pow, div_one] at hest
   intro D hD
-  dsimp only
-  rw [replicableBiasProg_toAlgorithm_eq, coinBias_eq_distExpectation]
-  exact hest D hD
+  simpa [replicableBiasProg_toAlgorithm_eq, coinBias_eq_distExpectation] using
+    estimates_replicableMeanProg _ boolIndicator_mem_Icc hw hδ N m D hD
 
 /-- Strong `ρ`-replicability of `replicableBiasProg` across all distributions `D : PMF Bool`. -/
 theorem isReplicable_replicableBiasProg {w δ : ℝ} (hw : 0 < w) (hδ : 0 ≤ δ) (N m : ℕ)
     [NeZero N] [NeZero m] :
     IsReplicable (replicableBiasProg w N m).toAlgorithm
       (2 * δ / w + 1 / N + 2 * (2 * Real.exp (-2 * (m : ℝ) * δ ^ 2))) := by
-  have hf : ∀ b : Bool, (if b then (1 : ℝ) else 0) ∈ Set.Icc (0 : ℝ) 1 := fun b => by
-    cases b <;> simp
-  have hrep := isReplicable_replicableMeanProg (fun b : Bool => if b then (1 : ℝ) else 0) hf hw hδ
-    N m
-  rw [show max ((1 : ℝ) - 0) 1 = 1 by norm_num, one_pow, div_one] at hrep
   intro D hD
-  rw [replicableBiasProg_toAlgorithm_eq]
-  exact hrep D hD
+  simpa [replicableBiasProg_toAlgorithm_eq] using
+    isReplicable_replicableMeanProg _ boolIndicator_mem_Icc hw hδ N m D hD
 
 /-- **Replicable coin bias-estimation theorem** [ImpagliazzoLeiPitassiSorrell2022]: for any
 `ε > 0`, `ρ > 0`, and `β > 0`, there exist `w > 0` and `N, m ≥ 1` such that
@@ -278,16 +271,12 @@ theorem exists_replicableBiasProg {ε ρ β : ℝ} (hε : 0 < ε) (hρ : 0 < ρ)
     ∃ (w : ℝ) (N m : ℕ) (_ : NeZero N) (_ : NeZero m), 0 < w ∧
       IsReplicable (replicableBiasProg w N m).toAlgorithm ρ ∧
       Estimates (replicableBiasProg w N m).toAlgorithm coinBias ε β := by
-  have hf : ∀ b : Bool, (if b then (1 : ℝ) else 0) ∈ Set.Icc (0 : ℝ) 1 := fun b => by
-    cases b <;> simp
   obtain ⟨w, N, m, hN, hm, hw, hrep, hest⟩ :=
-    exists_replicableMeanProg (fun b : Bool => if b then (1 : ℝ) else 0) hf hε hρ hβ
-  refine ⟨w, N, m, hN, hm, hw, fun D hD => ?_, fun D hD => ?_⟩
-  · rw [replicableBiasProg_toAlgorithm_eq]
-    exact hrep D hD
-  · dsimp only
-    rw [replicableBiasProg_toAlgorithm_eq, coinBias_eq_distExpectation]
-    exact hest D hD
+    exists_replicableMeanProg _ boolIndicator_mem_Icc hε hρ hβ
+  exact ⟨w, N, m, hN, hm, hw,
+    fun D hD => by simpa [replicableBiasProg_toAlgorithm_eq] using hrep D hD,
+    fun D hD => by
+      simpa [replicableBiasProg_toAlgorithm_eq, coinBias_eq_distExpectation] using hest D hD⟩
 
 end CoinBias
 

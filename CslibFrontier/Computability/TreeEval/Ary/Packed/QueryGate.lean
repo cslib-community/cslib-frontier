@@ -104,12 +104,6 @@ theorem sumState_counter (q : Params γ) (table : ℕ → ℕ) (j : ℕ) :
   | zero => rfl
   | succ j ih =>
     rw [sumState, Function.iterate_succ_apply']
-    change ((gridSumStep q.modulus q.alphabet q.coords table q.point)
-      ((gridSumStep q.modulus q.alphabet q.coords table q.point)^[j] (0, 0))).1 = j + 1
-    change ((gridSumStep q.modulus q.alphabet q.coords table q.point)^[j]
-      (0, 0)).1 = j at ih
-    change ((gridSumStep q.modulus q.alphabet q.coords table q.point)^[j]
-      (0, 0)).1 + 1 = j + 1
     exact congrArg (· + 1) ih
 
 /-- Every caller-prefix accumulator is reduced; no earlier table values are retained. -/
@@ -154,8 +148,7 @@ theorem runFrom_one (q : Params γ) (N : QueryMachine τ) (start : State γ → 
     exact decide_eq_false (by omega)
   · change (if (sumState q table j).counter < q.limit then
       some (start (sumState q table j)) else none) = _
-    rw [hc]
-    simp only [hj, ↓reduceIte]
+    simp only [hc, hj, ↓reduceIte]
   · exact hpre
   · exact hhalt
 
@@ -192,13 +185,8 @@ theorem exists_runFrom_interpolateGrid (q : Params γ) (N : QueryMachine τ)
       .inl (q, q.limit,
         interpolateGrid q.modulus q.alphabet q.coords table q.point) := by
   obtain ⟨T, hT⟩ := exists_runFrom_sumState q N start answer w table hsupplier q.limit le_rfl
-  refine ⟨T, hT.trans ?_⟩
-  congr 1
-  apply Prod.ext
-  · rfl
-  · apply Prod.ext
-    · exact sumState_counter q table q.limit
-    · simp only [sumState, interpolateGrid, hlimit]
+  refine ⟨T, hT.trans (congrArg Sum.inl (Prod.ext rfl (Prod.ext (sumState_counter ..) ?_)))⟩
+  simp only [sumState, interpolateGrid, hlimit]
 
 /-- The one-entry table consumed by the existing counter gate extension. -/
 def gateTable {s b d r : ℕ} (hs : 0 < s)

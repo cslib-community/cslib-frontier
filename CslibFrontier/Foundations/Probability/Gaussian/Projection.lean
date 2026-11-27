@@ -95,20 +95,11 @@ theorem tvDist_conv_map_inner_discreteGaussian_le_of_dual_mass_le
   have hmap := tvDist_map_le (Measure.conv μ (ν s)) (ν t)
     (f := innerSL ℝ z) (by fun_prop)
   rw [Measure.map_conv_continuousLinearMap] at hmap
-  have hi : (innerSL ℝ z : E → ℝ) = (fun x ↦ ⟪z, x⟫) := by
-    ext x
-    simp only [innerSL_apply_apply]
-  simp_rw [hi] at hmap
-  have hinput : (ν s).map (fun x ↦ ⟪z, x⟫) =
-      gaussianReal 0 ((α ^ 2 / (2 * Real.pi)).toNNReal) := by
-    simpa only [ν, hsn] using gaussianWeight_withDensity_map_inner s hs z
+  rw [show (innerSL ℝ z : E → ℝ) = fun x ↦ ⟪z, x⟫ from rfl] at hmap
   have hvar : (t * ‖z‖) ^ 2 = (r * ‖z‖) ^ 2 + α ^ 2 := by
     rw [mul_pow, ht2, add_mul, ← mul_pow, ← mul_pow, hsn]
-  have houtput : (ν t).map (fun x ↦ ⟪z, x⟫) =
-      gaussianReal 0 ((((r * ‖z‖) ^ 2 + α ^ 2) / (2 * Real.pi)).toNNReal) := by
-    simpa only [ν, hvar] using gaussianWeight_withDensity_map_inner t ht z
-  rw [hinput, houtput] at hmap
-  exact hmap.trans hbound
+  simpa only [ν, hsn, hvar, gaussianWeight_withDensity_map_inner s hs z,
+    gaussianWeight_withDensity_map_inner t ht z] using hmap.trans hbound
 
 /-- The explicit dual-gap criterion discharges the scalar experiment's small-dual-mass premise. -/
 theorem tvDist_conv_map_inner_discreteGaussian_le_of_gap
@@ -127,11 +118,10 @@ theorem tvDist_conv_map_inner_discreteGaussian_le_of_gap
         (gaussianReal 0 ((α ^ 2 / (2 * Real.pi)).toNNReal)))
       (gaussianReal 0 ((((r * ‖z‖) ^ 2 + α ^ 2) / (2 * Real.pi)).toNNReal)) ≤
       4 * ε := by
-  apply tvDist_conv_map_inner_discreteGaussian_le_of_dual_mass_le L r α hr hα u z
-    ε hε.le hεhalf
-  have hh : 0 < 1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2) := by positivity
+  refine tvDist_conv_map_inner_discreteGaussian_le_of_dual_mass_le L r α hr hα u z
+    ε hε.le hεhalf ?_
   simpa only [one_div_one_div] using gaussianMass_dual_sub_one_le_of_gap L
-    (1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2)) hh a ha hgap ε hε hnum
+    (1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2)) (by positivity) a ha hgap ε hε hnum
 
 /-- The same full-L1 bound holds for the actual canonical pushforwards to `UnitAddCircle`.
 The target is a mapped Gaussian probability measure, without a periodic-density-series premise. -/
@@ -208,10 +198,9 @@ theorem tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_smoothingParame
         (gaussianReal 0 ((α ^ 2 / (2 * Real.pi)).toNNReal))).map
           (fun x : ℝ ↦ (x : UnitAddCircle)))
       ((gaussianReal 0 ((((r * ‖z‖) ^ 2 + α ^ 2) / (2 * Real.pi)).toNNReal)).map
-        (fun x : ℝ ↦ (x : UnitAddCircle))) ≤ 4 * ε := by
-  have hh : 0 < 1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2) := by positivity
-  refine tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_dual_mass_le L r α hr hα u z
-    ε hε.le hεhalf ?_
-  simpa only [one_div_one_div] using (smoothingParameter_le_iff L hh hε).mp hη
+        (fun x : ℝ ↦ (x : UnitAddCircle))) ≤ 4 * ε :=
+  (tvDist_map_le _ _ (by fun_prop)).trans
+    (tvDist_conv_map_inner_discreteGaussian_le_of_smoothingParameter_le L r α hr hα u z
+      ε hε hεhalf hη)
 
 end ZLattice

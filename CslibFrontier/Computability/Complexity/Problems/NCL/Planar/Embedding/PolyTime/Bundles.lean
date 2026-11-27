@@ -50,28 +50,19 @@ open Diagram
 private theorem sourceProgram_cons (ws : List Wire) (wss : List (List Wire)) (k : ℕ) :
     sourceProgram (ws :: wss) k = (k, sourceOpcode ws) :: sourceProgram wss (k + 3) := by
   simp only [sourceProgram, List.zipIdx_cons', List.map_cons, List.map_map,
-    Nat.mul_zero, Nat.add_zero]
-  congr 1
-  apply List.map_congr_left
-  rintro ⟨w, i⟩ _hi
-  change (k + 3 * (i + 1), _) = (k + 3 + 3 * i, _)
-  congr 1
-  omega
+    Nat.mul_zero, Nat.add_zero, List.cons.injEq, true_and]
+  exact List.map_congr_left fun ⟨_, i⟩ _ => Prod.ext (by dsimp; omega) rfl
 
 private theorem source_bits {Label : Type} (wire : Label → Wire) (p q r : Label) :
     labelledBits (Sources.one (fun a => (wire a).color) [p, q, r] 2).labeling
       (fun a => (wire a).bit) =
       (sourceOpcode [wire p, wire q, wire r]).configuration := by
-  have h : (fun a => (wire a).bit) ∘
-      (Sources.one (fun a => (wire a).color) [p, q, r] 2).labeling.label =
-      Sum.elim Fin.elim0 (fun i : Fin 3 => ![(wire p).bit, (wire q).bit, (wire r).bit] i) := by
-    funext i
-    rcases i with i | i
-    · exact i.elim0
-    · fin_cases i <;> rfl
-  exact (congrArg (extendedBits (gen (.source [(wire p).color, (wire q).color,
-    (wire r).color] 2))) h).trans
-      (extendedBits_source _ _ _ ![(wire p).bit, (wire q).bit, (wire r).bit])
+  refine (congrArg (extendedBits (gen (.source [(wire p).color, (wire q).color,
+      (wire r).color] 2))) (funext ?_)).trans
+    (extendedBits_source _ _ _ ![(wire p).bit, (wire q).bit, (wire r).bit])
+  rintro (i | i)
+  · exact i.elim0
+  · fin_cases i <;> rfl
 
 /-- Source instructions are exactly the actual source bundle's primitive word. -/
 theorem expand_sourceProgram {E : Type} (wire : Port E → Wire) (vs : List (Vertex E))
@@ -82,15 +73,12 @@ theorem expand_sourceProgram {E : Type} (wire : Port E → Wire) (vs : List (Ver
   induction vs generalizing k with
   | nil => rfl
   | cons v vs ih =>
-    obtain ⟨hl, hm⟩ := hs v (List.mem_cons_self ..)
-    obtain ⟨p, q, r, hp⟩ := List.length_eq_three.mp hl
-    cases v with
-    | mk ps need =>
-      dsimp only at hp hm
-      subst ps need
-      rw [List.map_cons, sourceProgram_cons, expand_cons]
-      rw [ih (fun w hw => hs w (List.mem_cons_of_mem _ hw))]
-      rfl
+    rcases v with ⟨ps, need⟩
+    obtain ⟨hl, rfl⟩ := hs _ (List.mem_cons_self ..)
+    obtain ⟨p, q, r, rfl⟩ := List.length_eq_three.mp hl
+    rw [List.map_cons, sourceProgram_cons, expand_cons,
+      ih (fun w hw => hs w (List.mem_cons_of_mem _ hw))]
+    rfl
 
 /-- Source instructions serialize the exact canonical extension of the labeled source bundle. -/
 theorem configurationBits_sourceProgram {E : Type} (wire : Port E → Wire)
@@ -101,16 +89,13 @@ theorem configurationBits_sourceProgram {E : Type} (wire : Port E → Wire)
   induction vs generalizing k with
   | nil => rfl
   | cons v vs ih =>
-    obtain ⟨hl, hm⟩ := hs v (List.mem_cons_self ..)
-    obtain ⟨p, q, r, hp⟩ := List.length_eq_three.mp hl
-    cases v with
-    | mk ps need =>
-      dsimp only at hp hm
-      subst ps need
-      rw [List.map_cons, sourceProgram_cons, configurationBits_cons]
-      rw [ih (fun w hw => hs w (List.mem_cons_of_mem _ hw))]
-      exact ((labelledBits_tensor _ _ _).trans
-        (congrArg (· ++ _) (source_bits wire ..))).symm
+    rcases v with ⟨ps, need⟩
+    obtain ⟨hl, rfl⟩ := hs _ (List.mem_cons_self ..)
+    obtain ⟨p, q, r, rfl⟩ := List.length_eq_three.mp hl
+    rw [List.map_cons, sourceProgram_cons, configurationBits_cons,
+      ih (fun w hw => hs w (List.mem_cons_of_mem _ hw))]
+    exact ((labelledBits_tensor _ _ _).trans
+      (congrArg (· ++ _) (source_bits wire ..))).symm
 
 /-- Emit one cap per listed edge, always at the same remaining-wire offset. -/
 @[expose] def capProgram {E : Type} (color : E → Color) (u : Port E → Bool)
@@ -125,21 +110,16 @@ theorem expand_capProgram {E : Type} (color : E → Color) (u : Port E → Bool)
   induction es with
   | nil => rfl
   | cons e es ih =>
-    change expand ((k, Opcode.cap (color e) (u ⟨e, false⟩) (u ⟨e, true⟩)) ::
-      capProgram color u es k) = _
-    rw [expand_cons, ih]
+    rw [capProgram, List.map_cons, expand_cons, ← capProgram, ih]
     rfl
 
 private theorem cap_bits {Label : Type} (c : Color) (p q : Label) (u : Label → Bool) :
     labelledBits (Sinks.cap c p q).labeling u = (Opcode.cap c (u p) (u q)).configuration := by
-  have h : u ∘ (Sinks.cap c p q).labeling.label =
-      Sum.elim (fun i : Fin 2 => ![u p, u q] i) Fin.elim0 := by
-    funext i
-    rcases i with i | i
-    · fin_cases i <;> rfl
-    · exact i.elim0
-  exact (congrArg (extendedBits (gen (.cap c))) h).trans
+  refine (congrArg (extendedBits (gen (.cap c))) (funext ?_)).trans
     (extendedBits_cap c ![u p, u q])
+  rintro (i | i)
+  · fin_cases i <;> rfl
+  · exact i.elim0
 
 /-- Cap instructions serialize the actual canonical cap extensions in edge order. -/
 theorem configurationBits_capProgram {E : Type} (color : E → Color) (u : Port E → Bool)
@@ -149,10 +129,7 @@ theorem configurationBits_capProgram {E : Type} (color : E → Color) (u : Port 
   induction es with
   | nil => rfl
   | cons e es ih =>
-    change configurationBits ((k, Opcode.cap (color e) (u ⟨e, false⟩) (u ⟨e, true⟩)) ::
-      capProgram color u es k) = _
-    rw [configurationBits_cons, ih]
-    exact ((labelledBits_tensor _ _ _).trans
-      (congrArg (· ++ _) (cap_bits ..))).symm
+    rw [capProgram, List.map_cons, configurationBits_cons, ← capProgram, ih]
+    exact ((labelledBits_tensor _ _ _).trans (congrArg (· ++ _) (cap_bits ..))).symm
 
 end Cslib.Complexity.NCL.Planar.Embedding.PolyTime

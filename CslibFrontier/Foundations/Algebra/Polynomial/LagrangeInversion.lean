@@ -93,43 +93,32 @@ variable {F R : Type*} [CommRing R] (J : Ideal R)
 
 variable {J}
 
-theorem hasWeight_zero (Q : R[X]) : HasWeight J 0 Q := fun j => by
-  rw [show (0 - j + 1) / 2 = 0 by omega, pow_zero, Ideal.one_eq_top]
-  exact Submodule.mem_top
+theorem hasWeight_zero (Q : R[X]) : HasWeight J 0 Q := fun _ => by simp
 
 theorem HasWeight.mul {m n : ℕ} {Q Q' : R[X]} (h : HasWeight J m Q) (h' : HasWeight J n Q') :
     HasWeight J (m + n) (Q * Q') := fun j => by
   rw [coeff_mul]
   refine Submodule.sum_mem _ fun x hx => ?_
   have hx' := mem_antidiagonal.1 hx
-  have hmul := Ideal.mul_mem_mul (h x.1) (h' x.2)
-  rw [← pow_add] at hmul
-  exact Ideal.pow_le_pow_right (by omega) hmul
+  exact Ideal.pow_le_pow_right (by omega) (pow_add J _ _ ▸ Ideal.mul_mem_mul (h x.1) (h' x.2))
 
 theorem HasWeight.pow {n : ℕ} {Q : R[X]} (h : HasWeight J n Q) (k : ℕ) :
     HasWeight J (n * k) (Q ^ k) := by
   induction k with
   | zero => exact hasWeight_zero _
-  | succ k ih =>
-    rw [pow_succ, Nat.mul_succ]
-    exact ih.mul h
+  | succ k ih => simpa only [pow_succ, Nat.mul_succ] using ih.mul h
 
 /-- A polynomial whose coefficients of `1` and `y` lie in `J` has weight at least `2`. -/
 theorem hasWeight_two_of_coeff_mem {G : R[X]} (h0 : G.coeff 0 ∈ J) (h1 : G.coeff 1 ∈ J) :
-    HasWeight J 2 G := fun j => by
-  rcases j with _ | _ | j
-  · change G.coeff 0 ∈ J ^ 1; rwa [pow_one]
-  · change G.coeff 1 ∈ J ^ 1; rwa [pow_one]
-  · rw [show (2 - (j + 2) + 1) / 2 = 0 by omega, pow_zero, Ideal.one_eq_top]
-    exact Submodule.mem_top
+    HasWeight J 2 G := fun
+  | 0 => by simpa [HasWeight] using h0
+  | 1 => by simpa [HasWeight] using h1
+  | j + 2 => by simp [Nat.sub_eq_zero_of_le (Nat.le_add_left 2 j)]
 
 /-- A polynomial whose constant coefficient lies in `J` has weight at least `1`. -/
-theorem hasWeight_one_of_coeff_mem {D : R[X]} (h0 : D.coeff 0 ∈ J) : HasWeight J 1 D :=
-  fun j => by
-  rcases j with _ | j
-  · change D.coeff 0 ∈ J ^ 1; rwa [pow_one]
-  · rw [show (1 - (j + 1) + 1) / 2 = 0 by omega, pow_zero, Ideal.one_eq_top]
-    exact Submodule.mem_top
+theorem hasWeight_one_of_coeff_mem {D : R[X]} (h0 : D.coeff 0 ∈ J) : HasWeight J 1 D := fun
+  | 0 => by simpa [HasWeight] using h0
+  | j + 1 => by simp [Nat.sub_eq_zero_of_le (Nat.le_add_left 1 j)]
 
 /-! ### Telescoping -/
 
@@ -178,9 +167,7 @@ theorem sum_coeff_one_sub_derivative [Field F] [CharZero F] [Algebra F R] (G : R
       (G ^ n).coeff n - (G ^ (n + 1)).coeff (n + 1) := fun n => by
     rw [sub_mul, one_mul, coeff_sub, coeff_derivative_mul_pow_eq (F := F) G n n,
       mul_inv_cancel₀ (by exact_mod_cast Nat.succ_ne_zero n), one_smul]
-  simp only [hterm]
-  rw [sum_range_sub' (fun n => (G ^ n).coeff n), pow_zero]
-  simp only [coeff_one, ↓reduceIte]
+  simp only [hterm, sum_range_sub' (fun n => (G ^ n).coeff n), pow_zero, coeff_one, ↓reduceIte]
 
 /-! ### The fixed point -/
 
@@ -200,28 +187,22 @@ theorem sum_coeff_mul_pow_sub_eval_mem [Field F] [CharZero F] [Algebra F R] {G :
     ∑ n ∈ range (N + 1), (H * (1 - derivative G) * G ^ n).coeff n - H.eval f ∈ J ^ e := by
   have hG : HasWeight J 2 G := hasWeight_two_of_coeff_mem h0 h1
   -- `G - f = (y - f) D` with `D` of weight at least one
-  obtain ⟨D, hD⟩ : X - C f ∣ G - C f := by
-    have h := X_sub_C_dvd_sub_C_eval (a := f) (p := G)
-    rwa [hfix] at h
+  obtain ⟨D, hD⟩ : X - C f ∣ G - C f := hfix ▸ X_sub_C_dvd_sub_C_eval
   have hD0 : D.coeff 0 ∈ J := by
     have h := congrArg (fun Q : R[X] => Q.coeff 1) hD
     simp only [coeff_sub, coeff_C_succ, sub_zero, sub_mul, coeff_X_mul, coeff_C_mul] at h
-    have h' : D.coeff 0 = G.coeff 1 + f * D.coeff 1 := by rw [h]; ring
-    rw [h']
-    exact Ideal.add_mem _ h1 (Ideal.mul_mem_right _ _ hf)
+    have h' : D.coeff 0 = G.coeff 1 + f * D.coeff 1 := by linear_combination -h
+    exact h' ▸ Ideal.add_mem _ h1 (Ideal.mul_mem_right _ _ hf)
   have hDw : HasWeight J 1 D := hasWeight_one_of_coeff_mem hD0
   have hfac : X - G = (X - C f) * (1 - D) := by linear_combination -hD
   -- `H = H (f) + (y - f) K`
   obtain ⟨K, hK⟩ : X - C f ∣ H - C (H.eval f) := X_sub_C_dvd_sub_C_eval
-  set E := ∑ i ∈ range (2 * e), D ^ i with hE
+  set E := ∑ i ∈ range (2 * e), D ^ i
   have hgeom : (X - C f) * K * (1 - derivative G) =
       (X - G) * (K * (1 - derivative G) * E) +
         (X - C f) * K * (1 - derivative G) * D ^ (2 * e) := by
-    have h : (1 - D) * E = 1 - D ^ (2 * e) := by
-      rw [hE]
-      exact mul_neg_geom_sum D (2 * e)
     rw [hfac]
-    linear_combination (-((X - C f) * K * (1 - derivative G))) * h
+    linear_combination (-((X - C f) * K * (1 - derivative G))) * mul_neg_geom_sum D (2 * e)
   have hH : H * (1 - derivative G) = C (H.eval f) * (1 - derivative G) +
       ((X - G) * (K * (1 - derivative G) * E) +
         (X - C f) * K * (1 - derivative G) * D ^ (2 * e)) := by
@@ -242,10 +223,9 @@ theorem sum_coeff_mul_pow_sub_eval_mem [Field F] [CharZero F] [Algebra F R] {G :
     Ideal.pow_le_pow_right (by omega)
       (((hasWeight_zero (J := J) (K * (1 - derivative G) * E)).mul (hG.pow (N + 1))) N)
   have e3 : ∑ n ∈ range (N + 1),
-      ((X - C f) * K * (1 - derivative G) * D ^ (2 * e) * G ^ n).coeff n ∈ J ^ e := by
-    have hw : HasWeight J (0 + 1 * (2 * e)) ((X - C f) * K * (1 - derivative G) * D ^ (2 * e)) :=
-      (hasWeight_zero _).mul (hDw.pow (2 * e))
-    exact Ideal.pow_le_pow_right (by omega) (sum_coeff_mul_pow_mem hG hw N)
+      ((X - C f) * K * (1 - derivative G) * D ^ (2 * e) * G ^ n).coeff n ∈ J ^ e :=
+    Ideal.pow_le_pow_right (by omega)
+      (sum_coeff_mul_pow_mem hG ((hasWeight_zero _).mul (hDw.pow (2 * e))) N)
   convert Ideal.add_mem _ (Ideal.neg_mem_iff _ |>.2 (Ideal.mul_mem_left _ (H.eval f) e1))
     (Ideal.add_mem _ (Ideal.neg_mem_iff _ |>.2 e2) e3) using 1
   rw [hsum]
@@ -281,11 +261,9 @@ theorem sub_sum_coeff_pow_mem_of_eval_eq [Field F] [CharZero F] [Algebra F R] {G
         (((n : F) + 1) * ((n : F) + 2)⁻¹) • (G ^ (n + 2)).coeff (n + 1) =
         ∑ n ∈ range N, ((n : F) * ((n : F) + 1)⁻¹) • (G ^ (n + 1)).coeff n +
           ((N : F) * ((N : F) + 1)⁻¹) • (G ^ (N + 1)).coeff N := by
-      have h := sum_range_succ' (fun n => ((n : F) * ((n : F) + 1)⁻¹) • (G ^ (n + 1)).coeff n) N
-      rw [sum_range_succ] at h
-      simp only [Nat.cast_zero, zero_mul, zero_smul, add_zero, Nat.cast_add, Nat.cast_one,
-        add_assoc, one_add_one_eq_two] at h
-      exact h.symm
+      simpa only [sum_range_succ, Nat.cast_zero, zero_mul, zero_smul, add_zero, Nat.cast_add,
+        Nat.cast_one, add_assoc, one_add_one_eq_two] using
+        (sum_range_succ' (fun n => ((n : F) * ((n : F) + 1)⁻¹) • (G ^ (n + 1)).coeff n) N).symm
     rw [hshift, ← sub_sub, ← sum_sub_distrib]
     congr 1
     refine sum_congr rfl fun m _ => ?_

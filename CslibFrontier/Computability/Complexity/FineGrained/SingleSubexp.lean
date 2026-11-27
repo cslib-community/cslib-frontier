@@ -111,8 +111,7 @@ private theorem isLittleO_comp_linear {s : ℕ → ℝ}
       (IsBigO.of_bound (c + d) (eventually_atTop.2 ⟨1, fun n hn => ?_⟩))
     have : (1 : ℝ) ≤ n := by exact_mod_cast hn
     simp only [Function.comp, Real.norm_natCast]
-    push_cast
-    nlinarith
+    push_cast; nlinarith
 
 /-! ### Single-machine subexponential decision and function computation -/
 
@@ -142,12 +141,11 @@ theorem decidableInSingleSubexpTime_iff_exists_computableInSingleSubexpTime {A :
     DecidableInSingleSubexpTime A enc μ ↔
       ∃ g : α → Bool, (∀ a, a ∈ A ↔ g a = true) ∧
         ComputableInSingleSubexpTime g enc encBool μ := by
-  constructor
-  · rintro ⟨s, e, hnn, hs_o, h⟩
-    obtain ⟨g, hA, hg⟩ := decidableInTimeO_iff_exists_computableInTimeO.mp h
-    exact ⟨g, hA, s, e, hnn, hs_o, hg⟩
-  · rintro ⟨g, hA, s, e, hnn, hs_o, hg⟩
-    exact ⟨s, e, hnn, hs_o, decidableInTimeO_iff_exists_computableInTimeO.mpr ⟨g, hA, hg⟩⟩
+  refine ⟨fun ⟨s, e, hnn, hs_o, h⟩ =>
+      let ⟨g, hA, hg⟩ := decidableInTimeO_iff_exists_computableInTimeO.mp h
+      ⟨g, hA, s, e, hnn, hs_o, hg⟩,
+    fun ⟨g, hA, s, e, hnn, hs_o, hg⟩ =>
+      ⟨s, e, hnn, hs_o, decidableInTimeO_iff_exists_computableInTimeO.mpr ⟨g, hA, hg⟩⟩⟩
 
 /-- **Single-machine implies family subexponential decision.** -/
 theorem DecidableInSingleSubexpTime.decidableInSubexpTime {A : Set α} {enc : α ↪ List Bool}
@@ -215,10 +213,7 @@ private theorem exists_isLittleO_of_forall_exp_bound {t : α → ℕ} {enc : α 
     have hlog := Real.logb_le_logb_of_le one_lt_two (hRpos n) (hR_le n)
     rwa [Real.logb_mul hKpos.ne' (by positivity), Real.logb_rpow two_pos (by norm_num)] at hlog
   refine eventually_atTop.mpr ⟨⌈2 * L / ε⌉₊, fun n hn => ?_⟩
-  have hLn : L ≤ (ε / 2) * n := by
-    have hceil : 2 * L / ε ≤ (n : ℝ) := (Nat.le_ceil _).trans (by exact_mod_cast hn)
-    rw [div_le_iff₀ hε] at hceil
-    linarith
+  have hceil := (div_le_iff₀ hε).mp ((Nat.le_ceil _).trans (Nat.cast_le.mpr hn))
   rw [Real.norm_of_nonneg (hnn n), Real.norm_of_nonneg (Nat.cast_nonneg n)]
   linarith [hs_le n]
 
@@ -241,13 +236,10 @@ theorem computableInSingleSubexpTime_iff_exists_machine {f : α → β} {encIn :
       (L := (encIn a).length) (e := e) (hK (μ a))) (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀)
     have hpos := mul_nonneg (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀)
       (by positivity : (0 : ℝ) ≤ 2 ^ (δ * μ a) * (((encIn a).length : ℝ) + 1) ^ e)
-    push_cast
-    linarith
+    push_cast; linarith
   · rintro ⟨t, sp, e, hcomp, h⟩
     obtain ⟨s, hnn, hs_o, hbound⟩ := exists_isLittleO_of_forall_exp_bound h
-    refine ⟨s, e, hnn, hs_o, 1, t, sp, fun a => ?_, hcomp⟩
-    push_cast
-    linarith [hbound a]
+    exact ⟨s, e, hnn, hs_o, 1, t, sp, fun a => by push_cast; linarith [hbound a], hcomp⟩
 
 /-- **Machine-quantifier characterization of `DecidableInSingleSubexpTime`.** Single-machine
 `2 ^ o(μ)` decision is equivalent to having *one* machine (`DecidableInTimeAndSpace A enc t sp`)
@@ -260,13 +252,12 @@ theorem decidableInSingleSubexpTime_iff_exists_machine {A : Set α} {enc : α �
         ∀ δ : ℝ, 0 < δ → ∃ c : ℕ,
           ∀ a, (t a : ℝ) ≤ c * (2 ^ (δ * μ a) * ((enc a).length + 1) ^ e) + c := by
   rw [decidableInSingleSubexpTime_iff_exists_computableInSingleSubexpTime]
-  constructor
-  · rintro ⟨g, hA, hg⟩
-    obtain ⟨t, sp, e, hcomp, h⟩ := computableInSingleSubexpTime_iff_exists_machine.mp hg
-    exact ⟨t, sp, e, decidableInTimeAndSpace_iff.mpr ⟨g, hcomp, hA⟩, h⟩
-  · rintro ⟨t, sp, e, hdec, h⟩
-    obtain ⟨g, hcomp, hA⟩ := decidableInTimeAndSpace_iff.mp hdec
-    exact ⟨g, hA, computableInSingleSubexpTime_iff_exists_machine.mpr ⟨t, sp, e, hcomp, h⟩⟩
+  refine ⟨fun ⟨g, hA, hg⟩ =>
+      let ⟨t, sp, e, hcomp, h⟩ := computableInSingleSubexpTime_iff_exists_machine.mp hg
+      ⟨t, sp, e, decidableInTimeAndSpace_iff.mpr ⟨g, hcomp, hA⟩, h⟩,
+    fun ⟨t, sp, e, hdec, h⟩ =>
+      let ⟨g, hcomp, hA⟩ := decidableInTimeAndSpace_iff.mp hdec
+      ⟨g, hA, computableInSingleSubexpTime_iff_exists_machine.mpr ⟨t, sp, e, hcomp, h⟩⟩⟩
 
 /-! ### Measure rescaling and reduction transfers -/
 
@@ -283,8 +274,7 @@ theorem ComputableInSingleSubexpTime.mono_measure {f : α → β} {encIn : α �
     hO.mono 1 (fun a => ?_) fun _ => by positivity⟩
   have h := two_rpow_mul_pow_le_two_rpow_mul_pow (L := (encIn a).length) (d := e) (e := e)
     ((hle (μ a)).trans (hmono (hμ a))) le_rfl
-  push_cast
-  linarith
+  push_cast; linarith
 
 /-- Single-machine subexponential decision transfers to any parameter at least linear in `μ`. -/
 theorem DecidableInSingleSubexpTime.mono_measure {A : Set α} {enc : α ↪ List Bool}
@@ -306,16 +296,14 @@ theorem DecidableInSingleSubexpTime.of_computableInPolyTime {A : Set α} {μ : �
     {g : α → Bool} (hg : ComputableInPolyTime g encIn encBool) (hA : ∀ a, a ∈ A ↔ g a = true) :
     DecidableInSingleSubexpTime A encIn μ := by
   obtain ⟨e, hO⟩ := DecidableInExpTime.of_computableInPolyTime (μ := μ) hg hA
-  refine ⟨fun _ => 0, e, fun _ => le_rfl, by simp, ?_⟩
-  simpa only [zero_mul] using hO
+  exact ⟨0, e, fun _ => le_rfl, isLittleO_zero _ _, by simpa [Pi.zero_apply] using hO⟩
 
 /-- Polynomial-time computable functions are computable in single-machine subexponential time. -/
 theorem ComputableInSingleSubexpTime.of_computableInPolyTime {f : α → β} {μ : α → ℕ}
     (hf : ComputableInPolyTime f encIn encMid) :
     ComputableInSingleSubexpTime f encIn encMid μ := by
   obtain ⟨e, hO⟩ := ComputableInExpTime.of_computableInPolyTime (μ := μ) hf
-  refine ⟨fun _ => 0, e, fun _ => le_rfl, by simp, ?_⟩
-  simpa only [zero_mul] using hO
+  exact ⟨0, e, fun _ => le_rfl, isLittleO_zero _ _, by simpa [Pi.zero_apply] using hO⟩
 
 /-- Guarding a single-machine subexponential function by a polynomial-time test and fallback
 preserves single-machine subexponential time. -/
@@ -338,9 +326,8 @@ theorem DecidableInSingleSubexpTime.of_computableInSingleSubexpTime_polyBounded
     {test : β → Bool} (htest : ComputableInPolyTime test encMid encBool) :
     DecidableInSingleSubexpTime {a | test (f a) = true} encIn μ := by
   obtain ⟨s, e, hnn, hs_o, hf⟩ := hf
-  obtain ⟨e', h⟩ :=
-    DecidableInTimeO.of_computableInTimeO_polyBounded (fun a => hnn (μ a)) hf hlen htest
-  exact ⟨s, e', hnn, hs_o, h⟩
+  exact ⟨s, (DecidableInTimeO.of_computableInTimeO_polyBounded (fun a => hnn (μ a)) hf hlen
+    htest).imp fun _ h => ⟨hnn, hs_o, h⟩⟩
 
 /-- **Transfer along linear-parameter parsimonious reductions (`SingleSubexp`).** -/
 theorem ComputableInSingleSubexpTime.of_reduction {μA : α → ℕ} {μB : β → ℕ}
@@ -349,35 +336,29 @@ theorem ComputableInSingleSubexpTime.of_reduction {μA : α → ℕ} {μB : β �
     (hμ : ∀ a, μB (r a) ≤ c * μA a + c)
     (hg : ComputableInSingleSubexpTime g encMid encOut μB) :
     ComputableInSingleSubexpTime (g ∘ r) encIn encOut μA := by
+  refine ComputableInSingleSubexpTime.mono_measure (μ := fun a => μB (r a)) hμ ?_
   obtain ⟨s, e, hnn, hs_o, hg_time⟩ := hg
-  obtain ⟨sBar, hmono, hnnBar, hle, hsBar_o⟩ := exists_monotone_isLittleO_ge hnn hs_o
   obtain ⟨t, k, hgO, ht⟩ := hg_time.exists_computableInO
   obtain ⟨d, _, hr'⟩ := hr.exists_degree
   obtain ⟨l, hl⟩ := hr'.inO.length_le_time
-  let s' (n : ℕ) : ℝ := sBar (c * n + c)
-  refine ⟨s', d * (e + 1), fun n => hnnBar _,
-    isLittleO_comp_linear hsBar_o c c,
+  refine ⟨s, d * (e + 1), hnn, hs_o,
     (ComputableInTimeO.of_computableInO (hgO.comp hr'.inO) fun _ => le_rfl).mono
       (1 + k * (2 * l + 1) ^ e + k) (fun a => ?_) fun _ => by positivity⟩
   set P : ℝ := (((encIn a).length : ℝ) + 1) ^ d
-  set X : ℝ := (2 : ℝ) ^ s' (μA a)
+  set X : ℝ := (2 : ℝ) ^ s (μB (r a))
   have hP : 1 ≤ P := one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _))
-  have hX : 1 ≤ X := Real.one_le_rpow (by norm_num) (hnnBar _)
+  have hX : 1 ≤ X := Real.one_le_rpow (by norm_num) (hnn _)
   have hn : ((encMid (r a)).length : ℝ) ≤ l * (P + 1) := by
     dsimp only [P]
     exact_mod_cast hl a
-  have hexp : (2 : ℝ) ^ s (μB (r a)) ≤ X := by
-    refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
-    exact (hle _).trans (hmono (hμ a))
-  have hsum := reduction_add_time_le (C := 1) (Y := (2 : ℝ) ^ s (μB (r a)))
-    hP hX (by norm_num) hn (by simpa only [one_mul] using hexp) (ht (r a))
+  have hsum := reduction_add_time_le (C := 1) (Y := X)
+    hP hX (by norm_num) hn (by simp only [one_mul, le_rfl]) (ht (r a))
   simp only [mul_one] at hsum
   change ((((encIn a).length + 1) ^ d + t (r a) : ℕ) : ℝ) ≤ _
   have hc_nn : (0 : ℝ) ≤ (1 + k * (2 * l + 1) ^ e + k : ℕ) := Nat.cast_nonneg _
   push_cast at hc_nn ⊢
   rw [pow_mul]
-  dsimp only [P, X] at hsum ⊢
-  linarith
+  dsimp only [P, X] at hsum ⊢; linarith
 
 /-- **Transfer along linear-parameter polynomial-time reductions (`SingleSubexp` decision).** -/
 theorem DecidableInSingleSubexpTime.of_reduction {A : Set α} {B : Set β}
@@ -435,11 +416,7 @@ theorem ComputableInSingleSubexpTime.of_uniformFamily {f : α → β} {μ : α �
   obtain ⟨cs, ds, hs_len⟩ := hsched.polyBounded_length.exists_le
   have hcomp_eq : (evalAt ∘ fun a : α => PrecisionInput.mk (sched a) a) = f :=
     funext fun a => hcorrect (sched a) a
-  have hfO : ComputableInO f encIn encOut
-      (fun a => ((encIn a).length + 1) ^ dp + T { precision := sched a, input := a })
-      (fun a => ((encIn a).length + 1) ^ dp + S { precision := sched a, input := a }) := by
-    rw [← hcomp_eq]
-    exact heval.comp hmk_deg.inO
+  have hfO := hcomp_eq ▸ heval.comp hmk_deg.inO
   have hforall : ∀ δ : ℝ, 0 < δ → ∃ C : ℕ, ∀ a : α,
       ((((encIn a).length + 1) ^ dp + T { precision := sched a, input := a } : ℕ) : ℝ) ≤
         C * (2 ^ (δ * μ a) * ((encIn a).length + 1) ^ (dp + ds * d + e)) + C := by
@@ -455,19 +432,14 @@ theorem ComputableInSingleSubexpTime.of_uniformFamily {f : α → β} {μ : α �
     set L1 : ℝ := ((encIn a).length : ℝ) + 1
     have hL1 : 1 ≤ L1 := le_add_of_nonneg_left (Nat.cast_nonneg _)
     have hsched_bound : ((sched a : ℝ) + 1) ^ d ≤ (C_sched : ℝ) * L1 ^ (ds * d) := by
-      have hsl := hs_len a
-      rw [encUnary_apply, List.length_replicate] at hsl
       have hcast : (sched a : ℝ) ≤ cs * L1 ^ ds := by
-        dsimp only [L1]
-        exact_mod_cast hsl
+        simpa [L1] using Nat.cast_le (α := ℝ).mpr (hs_len a)
       calc ((sched a : ℝ) + 1) ^ d
           ≤ ((cs + 1 : ℝ) * L1 ^ ds) ^ d := by
             gcongr
             linarith [one_le_pow₀ (n := ds) hL1]
         _ = (C_sched : ℝ) * L1 ^ (ds * d) := by
-          simp only [C_sched, mul_pow, ← pow_mul]
-          push_cast
-          rfl
+          simp only [C_sched, mul_pow, ← pow_mul, Nat.cast_pow, Nat.cast_add, Nat.cast_one]
     have hexp_bound : (2 : ℝ) ^ ((μ a : ℝ) / (sched a + 1)) ≤
         (2 ^ N : ℝ) * 2 ^ (δ * μ a) := by
       have hδμ : 0 ≤ δ * μ a := by positivity
@@ -496,18 +468,16 @@ theorem ComputableInSingleSubexpTime.of_uniformFamily {f : α → β} {μ : α �
         _ = (C_sched * 2 ^ N : ℝ) * (2 ^ (δ * μ a) * (L1 ^ (ds * d) * L1 ^ e)) := by ring
         _ ≤ (C_sched * 2 ^ N : ℝ) * (2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e)) :=
             by gcongr
+    set X : ℝ := 2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e)
     have hc_prod := mul_le_mul_of_nonneg_left hprod (Nat.cast_nonneg c : (0 : ℝ) ≤ c)
     have hX1 : (1 : ℝ) ≤ 2 ^ (δ * μ a) := Real.one_le_rpow (by norm_num) (by positivity)
-    have hdp_le : L1 ^ dp ≤ 2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e) :=
+    have hdp_le : L1 ^ dp ≤ X :=
       (pow_le_pow_right₀ hL1 (by omega)).trans (le_mul_of_one_le_left (by positivity) hX1)
-    have hc_one : (0 : ℝ) ≤ (c : ℝ) * (2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e)) := by positivity
-    set X : ℝ := 2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e)
     have hring : (1 + (c : ℝ) * C_sched * 2 ^ N + c) * X =
         X + (c : ℝ) * ((C_sched * 2 ^ N : ℝ) * X) + (c : ℝ) * X := by ring
-    have hnn_extra : (0 : ℝ) ≤ 1 + (c : ℝ) * C_sched * 2 ^ N := by positivity
-    dsimp only [C_total, L1, X] at hT_le hc_prod hdp_le hc_one hring hnn_extra ⊢
-    push_cast at hc_prod ⊢
-    linarith
+    have hnn_rem : (0 : ℝ) ≤ (c : ℝ) * X + (1 + c * C_sched * 2 ^ N) := by positivity
+    dsimp only [C_total, L1, X] at hT_le hc_prod hdp_le hring hnn_rem ⊢
+    push_cast at hc_prod ⊢; linarith
   obtain ⟨s, hnn, hs_o, hbound⟩ := exists_isLittleO_of_forall_exp_bound hforall
   exact ⟨s, dp + ds * d + e, hnn, hs_o, ComputableInTimeO.of_computableInO hfO hbound⟩
 
@@ -559,12 +529,10 @@ theorem DecidableInSingleSubexpTime.KSAT_of_SharpKSAT {k : ℕ}
   have hpos : ComputableInPolyTime (fun n : ℕ => decide (0 < n)) encNat encBool :=
     ComputableInPolyTime.binary_lt.comp
       ((ComputableInPolyTime.const 0).prod ComputableInPolyTime.id')
-  have hdec := DecidableInSingleSubexpTime.of_computableInSingleSubexpTime_polyBounded h
+  have heq : {φ : CNF ℕ | decide (0 < SharpKSAT k φ) = true} = KSAT k :=
+    Set.ext fun _ => by simp [mem_KSAT_iff_pos_SharpKSAT]
+  exact heq ▸ .of_computableInSingleSubexpTime_polyBounded h
     (polyBounded_length_encNat_SharpKSAT k) hpos
-  have heq : {φ : CNF ℕ | decide (0 < SharpKSAT k φ) = true} = KSAT k := by
-    ext φ
-    simp only [Set.mem_ofPred_eq, decide_eq_true_eq, mem_KSAT_iff_pos_SharpKSAT]
-  rwa [heq] at hdec
 
 /-- Single-machine decision hardness implies single-machine counting hardness
 (`SingleETH → SingleSharpETH`). -/

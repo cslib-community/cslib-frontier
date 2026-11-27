@@ -178,24 +178,8 @@ theorem DirectedPath.flip_later_subgraph {sem : Rel → List Bool → Bool}
     have hm : s ∈ ss ++ [s] := List.mem_append_right _ (List.mem_singleton_self _)
     have ha := hp.incoming s hm
     have hb := hp.outgoing s hm
-    have hterm : (terminalPair (inArc time s) (outArc time s)).Supported := by
-      intro a ha'
-      rcases (show a = inArc time s ∨ a = outArc time s by
-        simpa only [terminalPair, Finset.mem_insert, Finset.mem_singleton] using ha') with rfl | rfl
-      · exact ⟨by simp [terminalPair], Finset.mem_singleton_self _⟩
-      · exact ⟨by simp [terminalPair], Finset.mem_singleton.mpr hc.symm⟩
-    have hsub : (terminalPair (inArc time s) (outArc time s)).Subgraph T := by
-      refine ⟨?_, ?_, ?_⟩
-      · intro u hu
-        rcases (show u = s.1.var ∨ u = s.2.var by
-          simpa [terminalPair, inArc, outArc] using hu) with rfl | rfl
-        · exact (h.supported _ ha).1
-        · exact (h.supported _ hb).1
-      · exact fun c hc' => Finset.mem_singleton.mp hc' ▸ (h.supported _ ha).2
-      · intro a ha'
-        rcases (show a = inArc time s ∨ a = outArc time s by
-          simpa only [terminalPair, Finset.mem_insert, Finset.mem_singleton] using ha') with
-          rfl | rfl <;> assumption
+    have hterm := supported_terminalPair hc
+    have hsub := terminalPair_subgraph h.supported ha hb
     let U := S.union (terminalPair (inArc time s) (outArc time s))
     have hu : U.IsFDAG sem ((⟨v, ss⟩ : Walk F).flip f) := by
       apply ih (hst.union hsub) (hs.union hterm) hinit ho'.1

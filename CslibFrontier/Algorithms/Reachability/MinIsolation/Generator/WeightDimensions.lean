@@ -99,9 +99,8 @@ private theorem length_canonicalInput_le_encodedDimensions :
     ∃ C : ℕ, ∀ {w n : ℕ} (seed : Fin (codeLength w n) → Bool) (z : Fin (n + 1) × Fin w),
       (encInput (canonicalInput seed z)).length + 2 ≤
         C * ((encPair encNat encNat (w, n)).length + 1) := by
-  have hlength : (fun p : ℕ × ℕ => codeLength p.1 p.2) ≼
+  obtain ⟨S, hS⟩ : (fun p : ℕ × ℕ => codeLength p.1 p.2) ≼
       fun p => (encPair encNat encNat p).length := ⟨_, codeLength_le_encodedDimensions⟩
-  obtain ⟨S, hS⟩ := hlength
   refine ⟨S + 11, fun {w n} seed z => ?_⟩
   let x := canonicalInput seed z
   let dim := (encPair encNat encNat (w, n)).length + 1
@@ -113,7 +112,6 @@ private theorem length_canonicalInput_le_encodedDimensions :
     omega
   have hseed : x.seed.length ≤ S * dim := by
     simpa only [x, canonicalInput, Input.seed, List.length_ofFn, dim] using hS (w, n)
-  have hpos : 1 ≤ dim := Nat.le_add_left _ _
   change (encInput x).length + 2 ≤ (S + 11) * dim
   rw [length_encInput, Nat.add_mul]
   omega
@@ -134,14 +132,10 @@ theorem generatedWeight_computesInTimeAndSpace :
   obtain ⟨C, hC⟩ := length_canonicalInput_le_encodedDimensions
   refine ⟨time, A * C, k, State, hfinite, tm, fun {w n} seed z => ?_⟩
   intro x budget
-  have hweight : SeedWeight.weight (load x).inner x.seed = generatedWeight seed z :=
-    weight_eq_generatedWeight seed z
-  have hbound : A * ((encInput x).length + 2) ≤ budget := by
-    dsimp only [budget]
-    rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul_left A (hC seed z)
+  have hbound : A * ((encInput x).length + 2) ≤ budget :=
+    (Nat.mul_le_mul_left A (hC seed z)).trans_eq (Nat.mul_assoc _ _ _).symm
   obtain ⟨houtput, htime, hspace⟩ := hrun x
-  rw [← hweight]
+  rw [← weight_eq_generatedWeight seed z]
   exact ⟨⟨houtput, htime, hspace.mono hbound⟩, (hout x).trans hbound⟩
 
 end Cslib.Reachability.Hoza.SeedWeight.Dimensions

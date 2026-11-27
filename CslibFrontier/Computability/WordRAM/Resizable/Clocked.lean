@@ -107,12 +107,9 @@ def advGrowMem (w : ℕ) (init : ℕ → ℕ) (L k : ℕ) (mem : ℕ → ℕ) : 
 theorem demonicGrow_advGrowMem (w : ℕ) (init : ℕ → ℕ) (L k : ℕ) (mem : ℕ → ℕ) :
     DemonicGrow w L k mem (advGrowMem w init L k mem) := by
   refine ⟨fun a ha => by simp [advGrowMem, ha], fun a hlo hhi => ?_, fun a ha => ?_⟩
-  · have hnot : ¬a < L := by omega
-    simp only [advGrowMem, hnot, ↓reduceIte, hhi]
-    exact Nat.mod_lt _ (Nat.two_pow_pos w)
-  · have h1 : ¬a < L := by omega
-    have h2 : ¬a < L + k := by omega
-    simp [advGrowMem, h1, h2]
+  · simpa only [Fits, advGrowMem, Nat.not_lt.mpr hlo, ↓reduceIte, hhi] using
+      Nat.mod_lt _ (Nat.two_pow_pos w)
+  · simp [advGrowMem, Nat.not_lt.mpr ((Nat.le_add_right L k).trans ha), Nat.not_lt.mpr ha]
 
 /-- Single step of randomized execution of `p : RProgram B r` at word width `w` under single-step
 growth initializer `advStep : RState r → ℕ → ℕ`. Halted and faulted configurations are absorbing. -/
@@ -280,16 +277,11 @@ theorem evalRandDemonic_halted_mono (w : ℕ) (adv : RAdv r) (p : RProgram B r) 
     (v : ℕ) (d : RData r) :
     Monotone fun t => evalRandDemonic w adv p t s (.halted v d) := by
   refine monotone_nat_of_le_succ fun t => ?_
-  have hstep : evalRandDemonic w adv p (t + 1) s = (evalRandDemonic w adv p t s).bind
-      fun cfg => (stepRandResizable w ((adv.shift t) 0) p cfg).eval := by
-    simp only [evalRandDemonic, runRandResizable_add w adv p t 1, ProbComp.eval_bind,
-      runRandResizable_succ, runRandResizable_zero, bind_pure]
-  rw [hstep, PMF.bind_apply]
-  have heq : evalRandDemonic w adv p t s (.halted v d) *
-      (stepRandResizable w ((adv.shift t) 0) p (.halted v d)).eval (.halted v d) =
-      evalRandDemonic w adv p t s (.halted v d) := by simp [stepRandResizable_halted]
-  exact heq ▸ le_tsum (f := fun cfg => evalRandDemonic w adv p t s cfg *
-    (stepRandResizable w ((adv.shift t) 0) p cfg).eval (.halted v d)) (.halted v d)
+  simp only [evalRandDemonic, runRandResizable_add w adv p t 1, ProbComp.eval_bind,
+    runRandResizable_succ, runRandResizable_zero, bind_pure, PMF.bind_apply]
+  refine le_of_eq_of_le ?_ (le_tsum (f := fun cfg => (runRandResizable w adv p t (.running s)).eval
+    cfg * (stepRandResizable w ((adv.shift t) 0) p cfg).eval (.halted v d)) (.halted v d))
+  simp [stepRandResizable_halted]
 
 /-- Any deterministic transition `stepRandResizable w (adv 0) p (.running s) = pure (.running s')`
 transports supremum halting probabilities from `(adv.shift 1, s')` to `(adv, s)`. -/
@@ -322,15 +314,11 @@ theorem RCfg.SafeBounded.ne_faulted {L_peak : ℕ} {cfg : RCfg r} (h : cfg.SafeB
 
 theorem RCfg.SafeBounded.frontierLe {L_peak : ℕ} {cfg : RCfg r} (h : cfg.SafeBounded L_peak) :
     cfg.FrontierLe L_peak := by
-  cases cfg with
-  | running _ | halted _ _ => exact h
-  | faulted => exact h.elim
+  cases cfg <;> first | exact h | exact h.elim
 
 theorem RCfg.SafeBounded.mono {L₁ L₂ : ℕ} {cfg : RCfg r} (hL : L₁ ≤ L₂)
     (h : cfg.SafeBounded L₁) : cfg.SafeBounded L₂ := by
-  cases cfg with
-  | running _ | halted _ _ => exact h.trans hL
-  | faulted => exact h
+  cases cfg <;> first | exact h.trans hL | exact h
 
 /-- Zero-fault invariant across all adaptive adversaries `adv : RAdv r` and all horizons `t : ℕ`. -/
 def RDemonicFaultFree (w : ℕ) (p : RProgram B r) (s : RState r) : Prop :=
@@ -344,12 +332,8 @@ def PeakFrontierLe (w L_peak : ℕ) (p : RProgram B r) (s : RState r) : Prop :=
     cfg ∈ (evalRandDemonic w adv p t s).support → cfg.FrontierLe L_peak
 
 theorem PeakFrontierLe.mono {w L₁ L₂ : ℕ} {p : RProgram B r} {s : RState r}
-    (hL : L₁ ≤ L₂) (h : PeakFrontierLe w L₁ p s) : PeakFrontierLe w L₂ p s := by
-  intro adv t cfg hcfg
-  have h1 := h adv t cfg hcfg
-  cases cfg with
-  | running _ | halted _ _ => exact h1.trans hL
-  | faulted => trivial
+    (hL : L₁ ≤ L₂) (h : PeakFrontierLe w L₁ p s) : PeakFrontierLe w L₂ p s :=
+  fun adv t cfg hcfg => by cases cfg <;> first | exact (h adv t _ hcfg).trans hL | trivial
 
 /-- Almost-sure halting across all adaptive adversaries `adv : RAdv r`. -/
 def AlmostSurelyHaltsDemonic (w : ℕ) (p : RProgram B r) (s : RState r) : Prop :=
@@ -412,9 +396,8 @@ theorem iSup_supExpectedStepsWithin (w : ℕ) (p : RProgram B r) (cfg : RCfg r) 
 
 theorem supExpectedStepsWithin_le_expectedStepsFromDemonic (w : ℕ) (p : RProgram B r) (N : ℕ)
     (cfg : RCfg r) :
-    supExpectedStepsWithin w p N cfg ≤ expectedStepsFromDemonic w p cfg := by
-  rw [← iSup_supExpectedStepsWithin]
-  exact le_iSup (fun K => supExpectedStepsWithin w p K cfg) N
+    supExpectedStepsWithin w p N cfg ≤ expectedStepsFromDemonic w p cfg :=
+  iSup_supExpectedStepsWithin w p cfg ▸ le_iSup (fun K => supExpectedStepsWithin w p K cfg) N
 
 /-- 1-step Bellman equation for `expectedStepsWithinAdv`. -/
 theorem expectedStepsWithinAdv_running_succ (w : ℕ) (adv : RAdv r) (p : RProgram B r) (N : ℕ)
@@ -424,7 +407,7 @@ theorem expectedStepsWithinAdv_running_succ (w : ℕ) (adv : RAdv r) (p : RProgr
         (expectedStepsWithinAdv w (adv.shift 1) p N) := by
   rw [expectedStepsWithinAdv, Finset.sum_range_succ', add_comm]
   simp only [runRandResizable_zero, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-    show RCfg.running s ∈ RCfg.runningSet r from ⟨s, rfl⟩, ↓reduceIte,
+    RCfg.mem_runningSet_iff, RCfg.running.injEq, exists_eq', ↓reduceIte,
     runRandResizable_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply]
   rw [← Summable.tsum_finsetSum (fun _ _ => CompleteLattice.summable)]
   simp only [ProbComp.expect, expectedStepsWithinAdv, Finset.mul_sum]
@@ -448,7 +431,7 @@ theorem expectedStepsFromAdv_running (w : ℕ) (adv : RAdv r) (p : RProgram B r)
         (expectedStepsFromAdv w (adv.shift 1) p) := by
   rw [expectedStepsFromAdv, tsum_eq_zero_add' CompleteLattice.summable]
   simp only [runRandResizable_zero, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-    show RCfg.running s ∈ RCfg.runningSet r from ⟨s, rfl⟩, ↓reduceIte,
+    RCfg.mem_runningSet_iff, RCfg.running.injEq, exists_eq', ↓reduceIte,
     runRandResizable_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply,
     ProbComp.expect, expectedStepsFromAdv]
   rw [tsum_comm]
@@ -477,12 +460,10 @@ private theorem indicator_haltedSet_evalRandDemonic_mono (w : ℕ) (adv : RAdv r
     (p : RProgram B r) (s : RState r) (cfg : RCfg r) :
     Monotone fun t => Set.indicator (RCfg.haltedSet r) (evalRandDemonic w adv p t s) cfg := by
   intro t₁ t₂ ht
-  dsimp only
   by_cases hmem : cfg ∈ RCfg.haltedSet r
-  · have hmem' := hmem
-    obtain ⟨v, d, rfl⟩ := hmem
-    rw [Set.indicator_of_mem hmem', Set.indicator_of_mem hmem']
-    exact evalRandDemonic_halted_mono w adv p s v d ht
+  · obtain ⟨v, d, rfl⟩ := hmem
+    simpa [Set.indicator_of_mem (RCfg.mem_haltedSet_iff.mpr ⟨v, d, rfl⟩)] using
+      evalRandDemonic_halted_mono w adv p s v d ht
   · simp [Set.indicator_of_notMem hmem]
 
 /-- The sum of limiting halting probabilities over states is bounded by the total halted mass. -/
@@ -515,19 +496,14 @@ theorem iSup_evalRandDemonic_halted_eq {w L_peak : ℕ} {p : RProgram B r} {out 
     {x : RData r} {μ : PMF (RData r)} {T : ℝ≥0∞}
     (h : ExecRProgramDist w p out x μ T L_peak) (adv : RAdv r) (y₀ : RData r) :
     (⨆ t : ℕ, evalRandDemonic w adv p t ⟨0, x⟩ (.halted (y₀.regs out) y₀)) = μ y₀ := by
-  classical
   let f : RData r → ℝ≥0∞ := fun y => ⨆ t, evalRandDemonic w adv p t ⟨0, x⟩ (.halted (y.regs out) y)
-  have htsum_f : ∑' y, f y ≤ 1 := (tsum_iSup_halted_le w adv p out x).trans
-    (iSup_le fun _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
-  refine le_antisymm ?_ (h.halted_le adv y₀)
-  have hμ : μ y₀ + (∑' y, if y = y₀ then (0 : ℝ≥0∞) else μ y) = 1 :=
-    (tsum_eq_add_tsum_ite (f := μ) y₀).symm.trans μ.tsum_coe
-  have hrest : (∑' y, if y = y₀ then (0 : ℝ≥0∞) else μ y) ≤ ∑' y, if y = y₀ then 0 else f y :=
-    tsum_le_tsum fun y => by split_ifs <;> [exact le_rfl; exact h.halted_le adv y]
-  exact (ENNReal.add_le_add_iff_right
-    (ne_top_of_le_ne_top ENNReal.one_ne_top (le_add_self.trans_eq hμ))).mp
-    ((add_le_add le_rfl hrest).trans ((tsum_eq_add_tsum_ite y₀).symm.trans_le htsum_f |>.trans_eq
-      hμ.symm))
+  have hsub : ∑' y, (f y - μ y) = 0 := by
+    refine nonpos_iff_eq_zero.mp ((ENNReal.add_le_add_iff_left ENNReal.one_ne_top).mp ?_)
+    rw [← μ.tsum_coe, ← tsum_add, μ.tsum_coe, add_zero,
+      tsum_congr fun y => add_tsub_cancel_of_le (h.halted_le adv y)]
+    exact (tsum_iSup_halted_le w adv p out x).trans
+      (iSup_le fun _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
+  exact le_antisymm (tsub_eq_zero_iff_le.mp (tsum_eq_zero_iff.mp hsub y₀)) (h.halted_le adv y₀)
 
 /-- Every `ExecRProgramDist` halts almost surely under every adaptive adversary. -/
 theorem almostSurelyHaltsDemonic {w L_peak : ℕ} {p : RProgram B r} {out : Fin r}
@@ -612,14 +588,9 @@ theorem demonicSafeWithin_of_pure {w L_peak T_hor : ℕ} {p : RProgram B r}
     (hstep : ∀ f, stepRandResizable w f p (.running s) = pure (.running (s' f)))
     (hnext : ∀ f k, k + 1 ≤ T_hor → DemonicSafeWithin w L_peak k p (s' f)) :
     DemonicSafeWithin w L_peak T_hor p s := by
-  intro adv t ht cfg hcfg
-  cases t with
-  | zero =>
-    rw [evalRandDemonic, runRandResizable_zero, ProbComp.eval_pure, PMF.support_pure,
-      Set.mem_singleton_iff] at hcfg
-    exact hcfg ▸ hfr
-  | succ k =>
-    rw [evalRandDemonic, runRandResizable_succ, hstep (adv 0), pure_bind] at hcfg
+  rintro adv (_ | k) ht cfg hcfg
+  · exact (by simpa [evalRandDemonic] using hcfg : cfg = .running s) ▸ hfr
+  · rw [evalRandDemonic, runRandResizable_succ, hstep (adv 0), pure_bind] at hcfg
     exact hnext (adv 0) k ht (adv.shift 1) k le_rfl cfg hcfg
 
 theorem demonicSafeWithin_of_rand {w L_peak T_hor : ℕ} {p : RProgram B r}
@@ -628,14 +599,9 @@ theorem demonicSafeWithin_of_rand {w L_peak T_hor : ℕ} {p : RProgram B r}
     (hnext : ∀ (j : Fin (x.regs src + 1)) (k : ℕ), k + 1 ≤ T_hor →
       DemonicSafeWithin w L_peak k p ⟨pc + 1, x.set dst j.val⟩) :
     DemonicSafeWithin w L_peak T_hor p ⟨pc, x⟩ := by
-  intro adv t ht cfg hcfg
-  cases t with
-  | zero =>
-    rw [evalRandDemonic, runRandResizable_zero, ProbComp.eval_pure, PMF.support_pure,
-      Set.mem_singleton_iff] at hcfg
-    exact hcfg ▸ hfr
-  | succ k =>
-    rw [evalRandDemonic, runRandResizable_succ,
+  rintro adv (_ | k) ht cfg hcfg
+  · exact (by simpa [evalRandDemonic] using hcfg : cfg = .running ⟨pc, x⟩) ▸ hfr
+  · rw [evalRandDemonic, runRandResizable_succ,
       stepRandResizable_rand_of_fits (s := ⟨pc, x⟩) hp hfit, bind_assoc, ProbComp.eval_bind,
       PMF.mem_support_bind_iff] at hcfg
     obtain ⟨j, _, hcfg'⟩ := hcfg
@@ -655,9 +621,8 @@ theorem supExpectedStepsWithin_le_of_const {w N : ℕ} {p : RProgram B r}
     {s s₁ : RState r}
     (hstep : ∀ f, stepRandResizable w f p (.running s) = pure (.running s₁)) :
     supExpectedStepsWithin w p N (.running s) ≤
-      1 + supExpectedStepsWithin w p N (.running s₁) := by
-  refine (supExpectedStepsWithin_le_of_pure hstep).trans ?_
-  exact add_le_add le_rfl (iSup_le fun _ => le_rfl)
+      1 + supExpectedStepsWithin w p N (.running s₁) :=
+  (supExpectedStepsWithin_le_of_pure hstep).trans (add_le_add le_rfl (iSup_le fun _ => le_rfl))
 
 /-- Worst-case-adversary supremum halting probability at `.halted v d` from `⟨pc, y⟩`. -/
 noncomputable def haltedReach (w : ℕ) (p : RProgram B r) (v : ℕ) (d : RData r)
@@ -668,8 +633,7 @@ theorem haltedReach_le_of_pure {w v : ℕ} {p : RProgram B r} {d : RData r}
     {s : RState r} {s' : (RState r → ℕ → ℕ) → RState r}
     (hstep : ∀ f, stepRandResizable w f p (.running s) = pure (.running (s' f))) :
     (⨅ f, haltedReach w p v d (s' f).pc (s' f).data) ≤ haltedReach w p v d s.pc s.data := by
-  refine le_iInf fun adv => ?_
-  refine (iInf_le _ (adv 0)).trans ((iInf_le _ (adv.shift 1)).trans ?_)
+  refine le_iInf fun adv => (iInf_le _ (adv 0)).trans ((iInf_le _ (adv.shift 1)).trans ?_)
   exact iSup_evalRandDemonic_halted_le_of_step (hstep (adv 0)) v d
 
 theorem haltedReach_le_of_const {w v : ℕ} {p : RProgram B r} {d : RData r}
@@ -746,8 +710,8 @@ theorem RDemonicExec.supExpectedStepsWithin_assemble {w L_peak n pc N : ℕ} {c 
     refine (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_branch_pos hp.branch_head hc).trans ?_
     refine (add_le_add le_rfl (ih hp.branch_pos)).trans_eq ?_
-    rw [Nat.cast_add, Nat.cast_one, show pc + neg.size + 2 + pos.size =
-      pc + (RCode.branch c pos neg).size by simp only [RCode.size]; omega, add_left_comm, add_assoc]
+    simp only [RCode.size, Nat.add_assoc, Nat.add_comm 2 pos.size, Nat.cast_add, Nat.cast_one]
+    ac_rfl
   | @branch_neg c pos neg x T P hc _ ih =>
     refine (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_branch_neg hp.branch_head hc).trans ?_
@@ -755,16 +719,15 @@ theorem RDemonicExec.supExpectedStepsWithin_assemble {w L_peak n pc N : ℕ} {c 
       (supExpectedStepsWithin_le_of_const fun _ =>
         stepRandResizable_jump hp.branch_jump).trans (add_le_add le_rfl
           (le_iSup₂_of_le y hy le_rfl)))))).trans_eq ?_
-    rw [show pc + neg.size + pos.size + 2 = pc + (RCode.branch c pos neg).size by
-      simp only [RCode.size]; omega, Nat.cast_add, Nat.cast_ofNat, ← one_add_one_eq_two]
+    simp only [RCode.size, Nat.add_assoc, Nat.cast_add, Nat.cast_one, ← one_add_one_eq_two]
     ac_rfl
   | @loop_exit c body x P _ hc hp_y =>
     refine (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_branch_neg hp.head hc).trans ?_
     refine (add_le_add le_rfl (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_jump hp.loop_exit)).trans ?_
-    rw [← add_assoc, one_add_one_eq_two, show pc + body.size + 3 = pc + (RCode.loop c body).size
-      by simp only [RCode.size]; omega]
+    rw [← add_assoc, one_add_one_eq_two]
+    simp only [RCode.size, Nat.add_assoc]
     exact add_le_add (by simp) (le_iSup₂_of_le x hp_y le_rfl)
   | @loop_iter c body x T₁ T₂ Q P hc _ _ ihb ihl =>
     refine (supExpectedStepsWithin_le_of_const fun _ =>
@@ -772,8 +735,7 @@ theorem RDemonicExec.supExpectedStepsWithin_assemble {w L_peak n pc N : ℕ} {c 
     refine (add_le_add le_rfl ((ihb hp.loop_body).trans (add_le_add le_rfl (iSup₂_le fun y hy =>
       (supExpectedStepsWithin_le_of_const fun _ => stepRandResizable_jump hp.loop_back).trans
         (add_le_add le_rfl (ihl y hy hp)))))).trans_eq ?_
-    simp only [Nat.cast_add, Nat.cast_ofNat]
-    rw [show (2 : ℝ≥0∞) = 1 + 1 from one_add_one_eq_two.symm]
+    simp only [Nat.cast_add, Nat.cast_one, ← one_add_one_eq_two]
     ac_rfl
   | mono _ hT hPQ ih =>
     exact (ih hp).trans (add_le_add (Nat.cast_le.mpr hT)
@@ -805,22 +767,20 @@ theorem RDemonicExec.demonicSafeWithin_assemble {w L_peak n pc T_hor : ℕ} {c :
     refine demonicSafeWithin_of_pure hpos.frontier_le
       (fun _ => stepRandResizable_branch_pos hp.branch_head hc) fun _ _ _ =>
       ih hp.branch_pos fun y hy => ?_
-    simpa [RCode.size, show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) by omega]
-      using (hcont y hy).anti (by omega)
+    simpa only [RCode.size, Nat.add_assoc, Nat.add_comm 2 pos.size] using
+      (hcont y hy).anti (by omega)
   | @branch_neg _ pos neg _ _ _ hc hneg ih =>
     refine demonicSafeWithin_of_pure hneg.frontier_le
       (fun _ => stepRandResizable_branch_neg hp.branch_head hc) fun _ _ _ =>
       ih hp.branch_neg fun y hy =>
         demonicSafeWithin_of_pure (hcont y hy).frontier_le
           (fun _ => stepRandResizable_jump hp.branch_jump) fun _ _ _ => ?_
-    simpa [RCode.size, show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
-      using (hcont y hy).anti (by omega)
+    simpa only [RCode.size, Nat.add_assoc] using (hcont y hy).anti (by omega)
   | @loop_exit _ body _ _ hL hc hp_y =>
     refine demonicSafeWithin_of_pure hL (fun _ => stepRandResizable_branch_neg hp.head hc)
       fun _ _ _ => demonicSafeWithin_of_pure hL (fun _ => stepRandResizable_jump hp.loop_exit)
         fun _ _ _ => ?_
-    simpa [RCode.size, show pc + body.size + 3 = pc + (body.size + 3) by omega]
-      using (hcont _ hp_y).anti (by omega)
+    simpa only [RCode.size, Nat.add_assoc] using (hcont _ hp_y).anti (by omega)
   | @loop_iter _ body _ _ _ _ _ hc hbody hloop ihb ihl =>
     exact demonicSafeWithin_of_pure hbody.frontier_le
       (fun _ => stepRandResizable_branch_pos hp.head hc) fun _ _ _ =>

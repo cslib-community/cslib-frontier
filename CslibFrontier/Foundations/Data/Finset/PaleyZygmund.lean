@@ -79,11 +79,8 @@ theorem sq_one_sub_mul_expect_le_dens_mul_expect_sq {f : ι → 𝕜} (hf : ∀ 
         _ = θ * μ + 𝔼 i, E i * f i := by rw [expect_add_distrib, Fintype.expect_const]
   have hlow : 0 ≤ (1 - θ) * μ := mul_nonneg (by linarith) hμ0
   have hle : (1 - θ) * μ ≤ 𝔼 i, E i * f i := by linarith
-  have hcs := expect_mul_sq_le_sq_mul_sq univ E f
-  have hE2 : 𝔼 i, E i ^ 2 = (dens {i | θ * μ < f i} : 𝕜) := Fintype.expect_boole_sq _
-  rw [hE2] at hcs
   calc ((1 - θ) * μ) ^ 2 ≤ (𝔼 i, E i * f i) ^ 2 := pow_le_pow_left₀ hlow hle 2
-    _ ≤ _ := hcs
+    _ ≤ _ := by simpa only [hE, Fintype.expect_boole_sq] using expect_mul_sq_le_sq_mul_sq univ E f
 
 /-- **Reasonable random variables have light tails**: if `𝔼 f ^ 4 ≤ B (𝔼 f ^ 2) ^ 2` and
 `f ≢ 0`, then `Pr[|f| ≥ t ‖f‖₂] ≤ B / t ^ 4` for `t ≥ 0`, in the form
@@ -101,13 +98,11 @@ theorem pow_four_mul_dens_le_of_expect_pow_four_le {f : ι → ℝ} {B : ℝ}
     have h4 := pow_le_pow_left₀ (mul_nonneg ht (Real.sqrt_nonneg _)) hi 4
     rwa [mul_pow, show √m ^ 4 = (√m ^ 2) ^ 2 by ring, Real.sq_sqrt hf.le,
       show |f i| ^ 4 = (|f i| ^ 2) ^ 2 by ring, sq_abs, ← pow_mul] at h4
-  have hd : (dens ({i | t * √m ≤ |f i|} : Finset ι) : ℝ) ≤
-      (dens ({i | t ^ 4 * m ^ 2 ≤ f i ^ 4} : Finset ι) : ℝ) := by
-    exact_mod_cast dens_le_dens hsub
   refine le_of_mul_le_mul_right ?_ (pow_pos hf 2)
   calc t ^ 4 * (dens {i | t * √m ≤ |f i|} : ℝ) * m ^ 2
       ≤ t ^ 4 * m ^ 2 * (dens {i | t ^ 4 * m ^ 2 ≤ f i ^ 4} : ℝ) := by
-        rw [mul_right_comm]; exact mul_le_mul_of_nonneg_left hd (by positivity)
+        rw [mul_right_comm]
+        exact mul_le_mul_of_nonneg_left (NNRat.cast_le.2 (dens_le_dens hsub)) (by positivity)
     _ ≤ 𝔼 i, f i ^ 4 := hmk
     _ ≤ B * m ^ 2 := hB
 
@@ -164,11 +159,10 @@ theorem mul_expect_pow_four_le_of_le_dens {f : ι → 𝕜} {l : 𝕜}
         intro j hj
         simp only [mem_filter, mem_univ, true_and] at hj ⊢
         rw [hj]
-      have hd : (dens ({j | f j = f i₀} : Finset ι) : 𝕜) ≤ (dens {i | M ≤ f i ^ 2} : 𝕜) := by
-        exact_mod_cast dens_le_dens hsub
       calc l * M ≤ (dens {j | f j = f i₀} : 𝕜) * M :=
             mul_le_mul_of_nonneg_right (hl i₀) (sq_nonneg _)
-        _ ≤ (dens {i | M ≤ f i ^ 2} : 𝕜) * M := mul_le_mul_of_nonneg_right hd (sq_nonneg _)
+        _ ≤ (dens {i | M ≤ f i ^ 2} : 𝕜) * M :=
+            mul_le_mul_of_nonneg_right (NNRat.cast_le.2 (dens_le_dens hsub)) (sq_nonneg _)
         _ = M * (dens {i | M ≤ f i ^ 2} : 𝕜) := mul_comm _ _
         _ ≤ _ := hmk
     by_cases hl0 : l ≤ 0

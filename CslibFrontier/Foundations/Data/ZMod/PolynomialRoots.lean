@@ -83,8 +83,7 @@ theorem card_filter_eval_eq_zero_le {n : ℕ} [NeZero n] {f : (ZMod n)[X]} (hf :
       ZMod.intCast_surjective (f.coeff k))
   have hFnat : F.natDegree = f.natDegree := natDegree_eq_of_degree_eq hFdeg
   obtain ⟨i, hi⟩ : ∃ i, ¬(n : ℤ) ∣ F.coeff i := by
-    by_contra h
-    push Not at h
+    by_contra! h
     apply hf
     rw [← hFmap]
     ext i
@@ -101,14 +100,10 @@ theorem card_filter_eval_eq_zero_le {n : ℕ} [NeZero n] {f : (ZMod n)[X]} (hf :
     simpa using Nat.find_min hex (show k - 1 < Nat.find hex by omega)
   obtain ⟨G, hG⟩ := hdvd
   have hpow0 : (p : ℤ) ^ (k - 1) ≠ 0 := pow_ne_zero _ (by exact_mod_cast hp.ne_zero)
-  have hGmap : G.map (Int.castRingHom (ZMod p)) ≠ 0 := by
-    intro h0
-    have hpG : C (p : ℤ) ∣ G := by
-      rw [C_dvd_iff_dvd_coeff]
-      intro j
-      have h := congrArg (fun g => g.coeff j) h0
-      simp only [coeff_map, eq_intCast, coeff_zero] at h
-      exact (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).1 h
+  have hGmap : G.map (Int.castRingHom (ZMod p)) ≠ 0 := fun h0 => by
+    have hpG : C (p : ℤ) ∣ G := (C_dvd_iff_dvd_coeff _ _).2 fun j =>
+      (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).1
+        (by simpa [coeff_map] using congrArg (·.coeff j) h0)
     apply Nat.find_spec hex
     rw [← hk, hG, show k = (k - 1) + 1 by omega, pow_succ, C_mul]
     exact mul_dvd_mul_left _ hpG
@@ -123,13 +118,10 @@ theorem card_filter_eval_eq_zero_le {n : ℕ} [NeZero n] {f : (ZMod n)[X]} (hf :
     rw [Multiset.mem_toFinset, mem_roots hGmap, IsRoot, ZMod.castHom_apply, ZMod.cast_eq_val,
       ← Int.cast_natCast, eval_intCast_map, eq_intCast, ZMod.intCast_zmod_eq_zero_iff_dvd]
     have hx' : (n : ℤ) ∣ F.eval (x.val : ℤ) := by
-      have h := congrArg (fun g => g.eval ((x.val : ℤ) : ZMod n)) hFmap
+      have h := congrArg (Polynomial.eval ((x.val : ℤ) : ZMod n)) hFmap
       simp only [eval_intCast_map, eq_intCast] at h
-      have hxc : ((x.val : ℤ) : ZMod n) = x := by
-        rw [Int.cast_natCast, ZMod.natCast_zmod_val]
-      rw [hxc, hx] at h
-      rw [← ZMod.intCast_zmod_eq_zero_iff_dvd]
-      exact_mod_cast h
+      simpa only [Int.cast_natCast, ZMod.natCast_zmod_val, hx,
+        ZMod.intCast_zmod_eq_zero_iff_dvd] using h
     have h1 : (p : ℤ) ^ (k - 1) * p ∣ (p : ℤ) ^ (k - 1) * G.eval (x.val : ℤ) := by
       rw [← pow_succ, ← eval_C (a := (p : ℤ) ^ (k - 1)) (x := (x.val : ℤ)), ← eval_mul, ← hG]
       refine dvd_trans (pow_dvd_pow (p : ℤ) (show k - 1 + 1 ≤ e by omega)) (dvd_trans ?_ hx')

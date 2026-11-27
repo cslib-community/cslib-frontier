@@ -57,11 +57,8 @@ private theorem advance_spec (s : ScaleState) :
     refine ⟨Nat.div_le_self _ _, hdiv, ?_⟩
     simp only [scaleAccumulatedWeight, Nat.padicValNat_def, hdiv, ← mul_assoc, ← pow_succ,
       Nat.sub_add_cancel hpos]
-  · have hzero : multiplicity 2 s.remaining = 0 := by
-      rw [Nat.multiplicity_eq_zero_iff]
-      by_cases hz : s.remaining = 0
-      · exact Or.inr (Or.inl hz)
-      · exact Or.inr (Or.inr fun hd => h ⟨hz, hd⟩)
+  · have hzero : multiplicity 2 s.remaining = 0 :=
+      Nat.multiplicity_eq_zero_iff.2 (by tauto)
     exact ⟨le_rfl, by simp [hzero], rfl⟩
 
 private def run (p : ℕ × ℕ) (j : ℕ) : ScaleState :=
@@ -75,17 +72,13 @@ private theorem run_spec (p : ℕ × ℕ) (j : ℕ) :
   induction j with
   | zero => exact ⟨le_rfl, (Nat.sub_zero _).symm, rfl⟩
   | succ j ih =>
-    have hstep : run p (j + 1) = advance (run p j) := by
-      simp only [run, Function.iterate_succ_apply']
-    rw [hstep]
+    rw [show run p (j + 1) = advance (run p j) from Function.iterate_succ_apply' _ _ _]
     obtain ⟨hle, hval, hweight⟩ := advance_spec (run p j)
     exact ⟨hle.trans ih.1, by rw [hval, ih.2.1, Nat.sub_sub], hweight.trans ih.2.2⟩
 
 private theorem multiplicity_le_size (layer : ℕ) :
-    multiplicity 2 layer ≤ layer.size := by
-  have h := multiplicity_le_nat_log (p := 2) layer
-  rw [← Nat.log2_eq_log_two] at h
-  exact h.trans (Nat.log2_le_size layer)
+    multiplicity 2 layer ≤ layer.size :=
+  (Nat.log2_eq_log_two ▸ multiplicity_le_nat_log (p := 2) layer).trans (Nat.log2_le_size layer)
 
 private theorem length_run_le (p : ℕ × ℕ) (j : ℕ) :
     (encScaleState (run p j)).length ≤ 3 * ((encArguments p).length + 1) := by
@@ -106,8 +99,7 @@ private theorem length_run_le (p : ℕ × ℕ) (j : ℕ) :
 
 private theorem advance_inSpace :
     ComputableInSpace advance encScaleState encScaleState (fun s => (encScaleState s).length) := by
-  have hin := BigOLe.refl fun s => (encScaleState s).length
-  have hid := budget_id hin
+  have hid := budget_id (BigOLe.refl fun s => (encScaleState s).length)
   have hrem := encScaleState_remaining_budget hid
   have hv := encScaleState_value_budget hid
   have htwo :=
@@ -115,9 +107,8 @@ private theorem advance_inSpace :
       2
   have hcond := budget_boolAnd (budget_boolNot (budget_natIsZero hrem))
     (budget_natIsZero (budget_natMod hrem htwo))
-  have hnext := encScaleState_mk_budget (budget_natDiv hrem htwo)
-    (budget_natMul (budget_const 6) hv)
-  exact (budget_ite hcond hnext hid).of_enc_eq fun s => by
+  exact (budget_ite hcond (encScaleState_mk_budget (budget_natDiv hrem htwo)
+    (budget_natMul (budget_const 6) hv)) hid).of_enc_eq fun s => by
     simp [advance, Nat.dvd_iff_mod_eq_zero]
 
 /-- Compute the exact layer scaling in space linear in the binary layer and accumulator. -/

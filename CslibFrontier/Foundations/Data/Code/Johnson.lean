@@ -111,9 +111,8 @@ theorem card_mul_sub_le_of_le_card_of_card_inter_le {κ : Type*} [DecidableEq ι
   · simp [hL]
   obtain ⟨c₀, hc₀⟩ := card_pos.1 hL
   have han : a ≤ n := (ha c₀ hc₀).trans (card_le_univ (S c₀))
-  have hat : t ≤ a := by
-    by_contra! hta
-    nlinarith [Nat.mul_le_mul_left n hta.le, Nat.mul_le_mul_right a han]
+  have hat : t ≤ a := by_contra fun hta => by
+    nlinarith [Nat.mul_le_mul_left n (not_le.1 hta).le, Nat.mul_le_mul_right a han]
   zify [h.le, hat, Nat.one_le_iff_ne_zero.2 hL.ne'] at key ⊢
   nlinarith
 
@@ -128,9 +127,7 @@ theorem card_mul_le_two_mul_of_le_card_of_card_inter_le {κ : Type*} [DecidableE
   rcases Nat.eq_zero_or_pos a with rfl | ha0
   · simp
   have hsub := card_mul_sub_le_of_le_card_of_card_inter_le L S ha ht
-  have h2' : a ^ 2 ≤ 2 * (a ^ 2 - Fintype.card ι * t) := by
-    have : 2 * (Fintype.card ι * t) ≤ a ^ 2 := by linarith
-    omega
+  have h2' : a ^ 2 ≤ 2 * (a ^ 2 - Fintype.card ι * t) := by rw [Nat.mul_assoc] at h2; omega
   refine Nat.le_of_mul_le_mul_right ?_ ha0
   nlinarith [Nat.mul_le_mul_left #L h2', Nat.mul_le_mul_left (Fintype.card ι) (Nat.sub_le a t)]
 
@@ -144,13 +141,11 @@ private theorem card_inter_filter_eq_le_of_le_minDist [DecidableEq ι] {C : Fins
     (hd : (d : ℕ∞) ≤ minDist (C : Set (ι → α))) (w : ι → α) {c c' : ι → α}
     (hc : c ∈ C) (hc' : c' ∈ C) (hne : c ≠ c') :
     #(({i | c i = w i} : Finset ι) ∩ ({i | c' i = w i} : Finset ι)) ≤ Fintype.card ι - d := by
-  have hsub : ({i | c i = w i} : Finset ι) ∩ ({i | c' i = w i} : Finset ι) ⊆
-      ({i | c i = c' i} : Finset ι) := fun i => by
-    simp only [mem_inter, mem_filter, mem_univ, true_and]
-    exact fun h => h.1.trans h.2.symm
+  have hsub : #(({i | c i = w i} : Finset ι) ∩ ({i | c' i = w i} : Finset ι)) ≤
+      #({i | c i = c' i} : Finset ι) :=
+    card_le_card fun i => by simp +contextual
   have h1 := card_filter_eq_add_hammingDist c c'
   have h2 := Nat.cast_le.1 (le_minDist_iff.1 hd c hc c' hc' hne)
-  have := card_le_card hsub
   omega
 
 /-- **The Johnson bound**, in agreement form: for a code of length `n` and minimum distance at
@@ -203,19 +198,15 @@ theorem exists_listCode_listDecodes {M : Type*} [Finite M] [Nonempty M]
       C.encode = enc ∧ C.ListDecodes (e / Fintype.card ι) := by
   classical
   have := Fintype.ofFinite M
-  have hrange : Set.range enc = ((univ.image enc : Finset (ι → α)) : Set (ι → α)) := by
-    rw [coe_image, coe_univ, Set.image_univ]
-  have hC : (d : ℕ∞) ≤ minDist ((univ.image enc : Finset (ι → α)) : Set (ι → α)) :=
-    hrange ▸ hd
+  have hrange : Set.range enc = ((univ.image enc : Finset (ι → α)) : Set (ι → α)) := by simp
   have hn : (Fintype.card ι : ℝ) ≠ 0 := Nat.cast_ne_zero.2 fun h0 => by simp [h0] at h
   rw [← isListDecodable_range_iff_exists_listCode henc, hrange, isListDecodable_finset_iff]
   intro w
   calc #{c ∈ univ.image enc |
           (hammingDist c w : ℝ) ≤ (e : ℝ) / Fintype.card ι * Fintype.card ι}
-      = #{c ∈ univ.image enc | hammingDist c w ≤ e} := by
-        refine congrArg Finset.card (filter_congr fun c _ => ?_)
-        rw [div_mul_cancel₀ _ hn, Nat.cast_le]
-    _ ≤ Fintype.card ι * (d - e) := card_filter_hammingDist_le_le hC h w
+      = #{c ∈ univ.image enc | hammingDist c w ≤ e} :=
+        congrArg Finset.card (filter_congr fun _ _ => by rw [div_mul_cancel₀ _ hn, Nat.cast_le])
+    _ ≤ Fintype.card ι * (d - e) := card_filter_hammingDist_le_le (hrange ▸ hd) h w
 
 /-! ### The q-ary Johnson bound -/
 
@@ -267,14 +258,11 @@ private theorem card_filter_hammingDist_le_mul_le_of_mul_le_int [Nonempty α]
   set A : ℤ := ∑ i, (a i : ℤ)
   have hA : (#L : ℤ) * ((n : ℤ) - e) ≤ A := by
     have hswap : A = ∑ x ∈ L, (#({i | x i = w i} : Finset ι) : ℤ) := by
-      simp only [A, a, card_filter]
-      push_cast
-      rw [sum_comm]
+      simpa only [A, a, card_filter, Nat.cast_sum] using (sum_comm : ∑ i : ι, ∑ x ∈ L, _ = _)
     rw [hswap, ← nsmul_eq_mul]
-    refine card_nsmul_le_sum _ _ _ fun x hx => ?_
-    have h1 := card_filter_eq_add_hammingDist x w
-    have h2 := (mem_filter.1 hx).2
-    omega
+    exact card_nsmul_le_sum _ _ _ fun x hx => by
+      have := le_card_filter_eq_of_hammingDist_le (mem_filter.1 hx).2
+      omega
   -- pairwise distances and agreements
   set P : ℕ := ∑ i, ∑ x ∈ L, ∑ y ∈ L, (if x i = y i then 1 else 0)
   have hDP : ∑ x ∈ L, ∑ y ∈ L, hammingDist x y + P = n * #L ^ 2 := by
@@ -285,8 +273,7 @@ private theorem card_filter_hammingDist_le_mul_le_of_mul_le_int [Nonempty α]
   have hD := card_mul_card_sub_one_mul_le_sum_sum_hammingDist
     (hd.trans (minDist_anti fun x (hx : x ∈ L) => (mem_filter.1 hx).1))
   rcases Nat.eq_zero_or_pos #L with hM | hM
-  · rw [hM, Nat.cast_zero, zero_mul]
-    exact mul_nonneg (mul_nonneg hq1 hn) d.cast_nonneg
+  · simpa [hM] using mul_nonneg (mul_nonneg hq1 hn) d.cast_nonneg
   set M := #L
   have hPZ : (P : ℤ) ≤ n * (M : ℤ) ^ 2 - M * ((M : ℤ) - 1) * d := by
     zify [hM] at hDP hD
@@ -294,18 +281,16 @@ private theorem card_filter_hammingDist_le_mul_le_of_mul_le_int [Nonempty α]
   -- sum the column bounds
   have hcol : ((q : ℤ) - 1) * ∑ i, (a i : ℤ) ^ 2 + ∑ i, ((M : ℤ) - a i) ^ 2 ≤
       ((q : ℤ) - 1) * P := by
-    rw [mul_sum, ← sum_add_distrib]
-    simp only [P]
-    push_cast
-    rw [mul_sum]
+    push_cast [P]
+    rw [mul_sum, mul_sum, ← sum_add_distrib]
     exact sum_le_sum fun i _ => sub_one_mul_sq_add_sq_le_sub_one_mul_sum_sum_ite L w i
   -- Cauchy–Schwarz on both sums
   have hcs1 : A ^ 2 ≤ n * ∑ i, (a i : ℤ) ^ 2 := by
-    have := sq_sum_le_card_mul_sum_sq (s := (univ : Finset ι)) (f := fun i => (a i : ℤ))
-    rwa [card_univ] at this
+    simpa only [card_univ] using sq_sum_le_card_mul_sum_sq (s := (univ : Finset ι))
+      (f := fun i => (a i : ℤ))
   have hcs2 : ((n : ℤ) * M - A) ^ 2 ≤ n * ∑ i, ((M : ℤ) - a i) ^ 2 := by
-    have := sq_sum_le_card_mul_sum_sq (s := (univ : Finset ι)) (f := fun i => (M : ℤ) - a i)
-    rwa [card_univ, sum_sub_distrib, sum_const, card_univ, nsmul_eq_mul] at this
+    simpa only [card_univ, sum_sub_distrib, sum_const, nsmul_eq_mul] using
+      sq_sum_le_card_mul_sum_sq (s := (univ : Finset ι)) (f := fun i => (M : ℤ) - a i)
   -- the left side increases in `A` beyond `n M / q`, and `A ≥ M (n - e) ≥ n M / q`
   have hM0 : (0 : ℤ) < M := by exact_mod_cast hM
   have hA0 : (n : ℤ) * M ≤ q * (M * ((n : ℤ) - e)) := by
@@ -339,8 +324,7 @@ theorem card_filter_hammingDist_le_mul_le_of_mul_le [Nonempty α] {C : Finset (�
   have hq : 1 ≤ q := Fintype.card_pos
   have hen : e ≤ n := Nat.le_of_mul_le_mul_left (he.trans (Nat.mul_le_mul_right n (q.sub_le 1))) hq
   rcases le_or_gt ((q - 1) * (n - e) ^ 2 + e ^ 2) ((q - 1) * n * (n - d)) with hBX | hBX
-  · rw [Nat.sub_eq_zero_of_le hBX, mul_zero]
-    exact Nat.zero_le _
+  · simp [Nat.sub_eq_zero_of_le hBX]
   -- `(q - 1) n (n - d)` over `ℕ` is at least its value over `ℤ`, with equality when `d ≤ n`
   have hdn : (n : ℤ) - d ≤ ((n - d : ℕ) : ℤ) := by omega
   have hq1 : (0 : ℤ) ≤ (q : ℤ) - 1 := sub_nonneg.2 (Nat.one_le_cast.2 hq)

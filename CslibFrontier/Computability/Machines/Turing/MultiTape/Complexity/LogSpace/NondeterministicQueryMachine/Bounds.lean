@@ -49,10 +49,8 @@ theorem head_drop_check {input : List Bool} (p : (machine I P F C).RunPath input
     (hcheck : p i.castSucc = wordsCfg input (some .check) ws out) :
     (p.drop i.succ).head =
       wordsCfg input (some (if ws C = [] then .finish F.q₀ else .choose)) ws out := by
-  have hstep := p.step i
-  change (machine I P F C).Step (p i.castSucc) (p i.succ) at hstep
-  rw [hcheck] at hstep
-  obtain ⟨coin, hcoin⟩ := (step_iff I P F C).mp hstep
+  have hstep : (machine I P F C).Step (p i.castSucc) (p i.succ) := p.step i
+  obtain ⟨coin, hcoin⟩ := (step_iff I P F C).mp (hcheck ▸ hstep)
   rw [step_check_words I P F C coin] at hcoin
   simpa only [RelSeries.head_drop] using hcoin.symm
 
@@ -72,13 +70,8 @@ private theorem inWindow_of_drop {k' : ℕ} {S : Type} {ntm : MultiTapeNTM k' Bo
   · exact hpre j hj i
   · have hindex : j.val - cut.val < (p.drop cut).length + 1 := by
       simp only [RelSeries.drop_length]; omega
-    have h := htail _ ⟨⟨j.val - cut.val, hindex⟩, rfl⟩ i
-    have heq : (p.drop cut) ⟨j.val - cut.val, hindex⟩ = p j := by
-      dsimp [RelSeries.drop]
-      congr 1
-      apply Fin.ext
-      simp only [Nat.sub_add_cancel (by omega : cut.val ≤ j.val)]
-    rwa [heq] at h
+    simpa [RelSeries.drop, Nat.sub_add_cancel (Nat.not_lt.mp hj)] using
+      htail _ ⟨⟨j.val - cut.val, hindex⟩, rfl⟩ i
 
 /-- Any prefix begun at a finalizer stays in its deterministic window, including arbitrary
 halted self-loop padding after the finalizer ends. -/
@@ -90,9 +83,8 @@ theorem finish_inWindow {input : List Bool} {ws : Fin k → List Bool} {out : Li
     (hhead : p.head = wordsCfg input (some (.finish F.q₀)) ws out) : p.InWindow s := by
   obtain ⟨ws', e, _, q₀, hqhead, hqlast, _, hspace⟩ := hF input ws out ⟨rfl, rfl⟩
   obtain ⟨q, hhead', hlast', _, hmem⟩ := q₀.exists_running (by rw [hqlast]; rfl)
-  have hmap : p.head = q.head.mapState finishState := by
-    rw [hhead', hqhead, mapState_wordsCfg]
-    exact hhead
+  have hmap : p.head = q.head.mapState finishState :=
+    hhead.trans (by simp [hhead', hqhead, mapState_wordsCfg, finishState])
   have hwin := MultiTapeNTM.RunPath.inWindow_of_space_le (p := q₀)
     (by simp [hqhead]) hspace
   rintro _ ⟨n, rfl⟩ i
@@ -133,10 +125,8 @@ theorem choose_inWindow {input : List Bool} (Inv : (Fin k → List Bool) → Pro
         obtain rfl : j = 0 := by omega
         exact head_mem_window I P F C hhead i
       have hone : 1 < p.length + 1 := by omega
-      have hfirst := p.step ⟨0, by omega⟩
-      change (machine I P F C).Step p.head (p ⟨1, hone⟩) at hfirst
-      rw [hhead] at hfirst
-      obtain ⟨b, hb⟩ := (step_iff I P F C).mp hfirst
+      have hfirst : (machine I P F C).Step p.head (p ⟨1, hone⟩) := p.step ⟨0, by omega⟩
+      obtain ⟨b, hb⟩ := (step_iff I P F C).mp (hhead ▸ hfirst)
       rw [step_choose I P F C b _ rfl, withState_wordsCfg] at hb
       let p₁ := p.drop ⟨1, hone⟩
       obtain ⟨t, ht⟩ := hP b ws hInv
@@ -152,10 +142,8 @@ theorem choose_inWindow {input : List Bool} (Inv : (Fin k → List Bool) → Pro
         cases j with
         | zero => exact head_mem_window I P F C hhead
         | succ j =>
-          have hp : j < p₁.length + 1 := by simp only [p₁, RelSeries.drop_length]; omega
-          have hq : j < q.length + 1 := by omega
-          have heq : p ⟨j + 1, hj⟩ = (q ⟨j, hq⟩).mapState (passState b) :=
-            follows_pass I P F C b p₁ q hmap j hp hq
+          have heq : p ⟨j + 1, hj⟩ = _ := follows_pass I P F C b p₁ q hmap j
+            (by simp only [p₁, RelSeries.drop_length]; omega) (Nat.lt_of_succ_le hj')
           intro i
           rw [heq]
           exact hwin _ (hmem _ ⟨_, rfl⟩) i
@@ -203,8 +191,7 @@ private theorem check_inWindow {input : List Bool} (Inv : (Fin k → List Bool) 
     · obtain ⟨tF, htF⟩ := hF ws hInv
       exact finish_inWindow I P F C htF _ (by simpa [hblank] using hroute)
     · exact choose_inWindow I P F C Inv hP hF _ hInv (by simpa [hblank] using hroute)
-  apply inWindow_of_drop p ⟨1, by omega⟩ _ htail
-  intro j hj i
+  refine inWindow_of_drop p ⟨1, by omega⟩ (fun j hj i => ?_) htail
   obtain rfl : j = 0 := Fin.ext (by simpa using hj)
   exact head_mem_window I P F C hhead i
 

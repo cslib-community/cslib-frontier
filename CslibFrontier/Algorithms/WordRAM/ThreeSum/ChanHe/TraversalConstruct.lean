@@ -88,26 +88,22 @@ theorem construct_exec {w : ℕ} (x : Data 128) (values : Fin 3 → ℕ → ℤ)
   have huHeap : u.regs heap = x.regs heap := hu _ (by decide) (by decide)
   have huGroups : u.regs groups = x.regs groups := hu _ (by decide) (by decide)
   have huMagnitude : u.regs magnitude = x.regs magnitude := hu _ (by decide) (by decide)
-  have hL : NodePacking.layout ((nodeState u).comap kernel) = recordLayout x M := by
-    rw [nodeState_layout, hus]
-    exact recordLayout_congr x u M hu
+  have hL : NodePacking.layout ((nodeState u).comap kernel) = recordLayout x M :=
+    (nodeState_layout u).trans (hus ▸ recordLayout_congr x u M hu)
   have hwidth : GenericRAM.Signed.Fits w
-      ((NodePacking.layout ((nodeState u).comap kernel)).budget : ℤ) := by
-    rw [hL]
-    exact hnode M hMpos hMle
+      ((NodePacking.layout ((nodeState u).comap kernel)).budget : ℤ) :=
+    hL ▸ hnode M hMpos hMle
   obtain ⟨b, hb, hout, hpb⟩ := callNode_exec u values (by omega)
     (by rw [hus, huGroups]; omega) hwidth
-    (by intro j; rw [huSource j, huLength j, huHeap]; exact hsrc j)
-    (by intro j i hi; rw [huMagnitude]; exact hbdd j i ((huLength j) ▸ hi))
+    (fun j => by simpa only [huSource j, huLength j, huHeap] using hsrc j)
+    (fun j i hi => huMagnitude ▸ hbdd j i (huLength j ▸ hi))
     (fun j i hi => by
-      have hi' : i < x.regs (arrayLength j) := (huLength j) ▸ hi
+      have hi' : i < x.regs (arrayLength j) := huLength j ▸ hi
       have hs := hsrc j
-      rw [huSource j]
-      exact (hprefix _ (by omega)).trans (hinput j i hi'))
-    (by intro j; simpa only [huLength] using hinj j)
+      exact huSource j ▸ (hprefix _ (by omega)).trans (hinput j i hi'))
+    (fun j => huLength j ▸ hinj j)
   rw [hL] at hb hout
   refine ⟨M, u, b, ?_, hu, hus, hprefix, hout, hpb, hMpos, hMle, hM⟩
-  have he := ha.seq (hcopy.within.seq hb)
-  exact he.mono (by dsimp only [recordLayout] at he ⊢; omega)
+  exact (ha.seq (hcopy.within.seq hb)).mono (by dsimp only [recordLayout]; omega)
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

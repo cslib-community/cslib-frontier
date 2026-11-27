@@ -141,10 +141,8 @@ private theorem length_scanSteps [DecidableEq P] {α : Type*} (E : Execution P) 
   induction k with
   | zero => rfl
   | succ k ih =>
-    have hlt : k < E.steps.length := Nat.lt_of_succ_le hk
-    rw [E.scanSteps_succ_of_lt init next hlt]
-    simp only [scanStepAux, List.length_append, List.length_singleton]
-    rw [ih hlt.le]
+    rw [E.scanSteps_succ_of_lt init next (Nat.lt_of_succ_le hk)]
+    simp [scanStepAux, ih (Nat.le_of_succ_le hk)]
 
 private theorem scanSteps_fst_lt [DecidableEq P] {α : Type*} (E : Execution P) (init : P → α)
     (next : P → α → Option α → α) {i k : ℕ} (hik : i < k) (hk : k ≤ E.steps.length) :
@@ -154,10 +152,9 @@ private theorem scanSteps_fst_lt [DecidableEq P] {α : Type*} (E : Execution P) 
   | succ k ih =>
     have hlt : k < E.steps.length := Nat.lt_of_succ_le hk
     rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hik) with hik' | rfl
-    · rw [E.scanSteps_succ_of_lt init next hlt]
-      simp only [scanStepAux]
-      rw [List.getElem?_append_left (by rw [E.length_scanSteps init next hlt.le]; exact hik')]
-      exact ih hik' hlt.le
+    · rw [E.scanSteps_succ_of_lt init next hlt, scanStepAux,
+        List.getElem?_append_left (by simp [E.length_scanSteps init next hlt.le, hik']),
+        ih hik' hlt.le]
     · rfl
 
 /-- Evaluate a `scanSteps` clock at event `e` (running the prefix up to `e.idx + 1`). -/
@@ -174,9 +171,8 @@ private theorem scanSteps_fst_succ_self [DecidableEq P] {α : Type*} (E : Execut
           | _ => none)) := by
   have hlen : (E.scanSteps init next e.idx.val).1.length = e.idx.val :=
     E.length_scanSteps init next e.idx.isLt.le
-  rw [E.scanSteps_succ_of_lt init next e.idx.isLt]
-  simp only [scanStepAux]
-  rw [List.getElem?_append_right hlen.le, hlen, Nat.sub_self, List.getElem?_cons_zero]
+  rw [E.scanSteps_succ_of_lt init next e.idx.isLt, scanStepAux,
+    List.getElem?_append_right hlen.le, hlen, Nat.sub_self, List.getElem?_cons_zero]
   rfl
 
 private theorem evalScan_step_eq [DecidableEq P] {α : Type*} (E : Execution P)
@@ -186,8 +182,7 @@ private theorem evalScan_step_eq [DecidableEq P] {α : Type*} (E : Execution P)
         (match e.step with
           | .recv _ sIdx => (E.scanSteps init next e.idx.val).1[sIdx]?
           | _ => none) := by
-  unfold evalScan
-  rw [E.scanSteps_fst_succ_self init next e, Option.getD_some]
+  rw [evalScan, E.scanSteps_fst_succ_self init next e, Option.getD_some]
 
 private theorem scanSteps_fst_eq_some_evalScan [DecidableEq P] {α : Type*} (E : Execution P)
     (defaultVal : α) (init : P → α) (next : P → α → Option α → α) {k : ℕ}
@@ -204,19 +199,15 @@ private theorem evalScan_of_recv [DecidableEq P] {α : Type*} (E : Execution P)
         (some (E.evalScan defaultVal init next eSend)) := by
   have hlt : eSend.idx.val < eRecv.idx.val :=
     E.causalStep_idx_lt (.inr (E.messageOrder_of_recv hrecv))
-  rw [E.evalScan_step_eq defaultVal init next eRecv, hrecv]
-  dsimp only
-  rw [E.scanSteps_fst_eq_some_evalScan defaultVal init next eRecv.idx.isLt.le eSend hlt]
+  simp only [E.evalScan_step_eq defaultVal init next eRecv, hrecv,
+    E.scanSteps_fst_eq_some_evalScan defaultVal init next eRecv.idx.isLt.le eSend hlt]
 
 private theorem scanSteps_snd_succ_self [DecidableEq P] {α : Type*} (E : Execution P)
     (defaultVal : α) (init : P → α) (next : P → α → Option α → α) (e : E.Event) :
     (E.scanSteps init next (e.idx.val + 1)).2 e.actor =
       E.evalScan defaultVal init next e := by
   rw [E.evalScan_step_eq defaultVal init next e, E.scanSteps_succ_of_lt init next e.idx.isLt]
-  simp only [scanStepAux]
-  change Function.update (E.scanSteps init next e.idx.val).2 e.actor _ e.actor = _
-  rw [Function.update_self]
-  rfl
+  simp only [scanStepAux, Event.actor, Event.step, Fin.getElem_fin, Function.update_self]; rfl
 
 private theorem scanSteps_snd_mono [DecidableEq P] {α : Type*} [Preorder α] (E : Execution P)
     (init : P → α) (next : P → α → Option α → α)
@@ -227,15 +218,9 @@ private theorem scanSteps_snd_mono [DecidableEq P] {α : Type*} [Preorder α] (E
   | zero => obtain rfl := Nat.eq_zero_of_le_zero hk₁₂; exact le_rfl
   | succ k ih =>
     rcases Nat.lt_or_eq_of_le hk₁₂ with hlt | rfl
-    · have hk_lt : k < E.steps.length := Nat.lt_of_succ_le hk₂
-      refine (ih (Nat.le_of_lt_succ hlt) hk_lt.le).trans ?_
-      rw [E.scanSteps_succ_of_lt init next hk_lt]
-      simp only [scanStepAux]
-      by_cases hq : q = (E.steps[k]).actor
-      · subst hq
-        rw [Function.update_self]
-        exact hstep _ _ _
-      · rw [Function.update_of_ne hq]
+    · refine (ih (Nat.le_of_lt_succ hlt) (Nat.le_of_succ_le hk₂)).trans ?_
+      rw [E.scanSteps_succ_of_lt init next (Nat.lt_of_succ_le hk₂)]
+      by_cases hq : q = (E.steps[k]).actor <;> simp [scanStepAux, hstep, hq]
     · exact le_rfl
 
 private theorem evalScan_le_snd_of_lt [DecidableEq P] {α : Type*} [Preorder α] (E : Execution P)
@@ -258,12 +243,10 @@ private theorem scanSteps_snd_provenance [DecidableEq P] {α : Type*} (E : Execu
     have hk_lt : k < E.steps.length := Nat.lt_of_succ_le hk
     let ek : E.Event := ⟨⟨k, hk_lt⟩⟩
     by_cases hq : q = ek.actor
-    · refine .inr ⟨ek, Nat.lt_succ_self k, hq.symm, ?_⟩
-      rw [hq]
-      exact E.scanSteps_snd_succ_self defaultVal init next ek
-    · rw [E.scanSteps_succ_of_lt init next hk_lt]
-      simp only [scanStepAux]
-      rw [Function.update_of_ne (show q ≠ (E.steps[k]).actor from hq)]
+    · exact .inr ⟨ek, Nat.lt_succ_self k, hq.symm,
+        hq ▸ E.scanSteps_snd_succ_self defaultVal init next ek⟩
+    · have hq' : q ≠ (E.steps[k]).actor := hq
+      simp only [E.scanSteps_succ_of_lt init next hk_lt, scanStepAux, Function.update_of_ne hq']
       exact (ih hk_lt.le).imp_right fun ⟨x, hxk, hact, heq⟩ =>
         ⟨x, Nat.lt_succ_of_lt hxk, hact, heq⟩
 
@@ -297,13 +280,9 @@ private theorem causalStep_imp_lamportClock_lt [DecidableEq P] {E : Execution P}
     conv_rhs => rw [lamportClock, E.evalScan_step_eq 0 (fun _ => 0) lamportNext e₂]
     simp only [lamportNext]
     omega
-  · have hrecv : e₂.step = .recv e₂.actor e₁.idx.val := hmsg
-    have hm := E.evalScan_of_recv 0 (fun _ => 0) lamportNext hrecv
-    change E.lamportClock e₂ =
-      lamportNext e₂.actor _ (some (E.lamportClock e₁)) at hm
-    rw [hm]
+  · conv_rhs => rw [lamportClock, E.evalScan_of_recv 0 (fun _ => 0) lamportNext hmsg]
     simp only [lamportNext, Option.getD_some]
-    omega
+    exact lt_of_le_of_lt (le_max_right _ _) (Nat.lt_succ_self _)
 
 /-- **Strict causal monotonicity of Lamport clocks** ([Lamport1978]):
 `e₁ ≺ e₂ → E.lamportClock e₁ < E.lamportClock e₂`. -/
@@ -380,21 +359,18 @@ causally well-formed execution on `P` admitting *no* order-embedding into any `L
 theorem not_exists_1d_characterization {P : Type u} [Fintype P] (hP : 2 ≤ Fintype.card P) :
     ∃ E : Execution P, ∀ {α : Type v} [LinearOrder α] (f : E.Event → α),
       ¬ ∀ e₁ e₂ : E.Event, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂ := by
-  have hnt : Nontrivial P := Fintype.one_lt_card_iff_nontrivial.mp (by omega)
-  obtain ⟨p₀, p₁, hpne⟩ := hnt
+  obtain ⟨p₀, p₁, hpne⟩ := Fintype.one_lt_card_iff_nontrivial.mp (by omega : 1 < Fintype.card P)
   let E : Execution P := Execution.ofInternal [p₀, p₁]
   refine ⟨E, fun {α} _ f hf => ?_⟩
   let e₀ : E.Event := ⟨⟨0, Nat.zero_lt_succ 1⟩⟩
   let e₁ : E.Event := ⟨⟨1, Nat.lt_succ_self 1⟩⟩
-  have hact₀ : e₀.actor = p₀ := rfl
-  have hact₁ : e₁.actor = p₁ := rfl
   rcases le_total (f e₀) (f e₁) with hle | hge
   · rcases Execution.ofInternal_happensBeforeLe_iff.mp ((hf e₀ e₁).mpr hle) with heq | ⟨hact, _⟩
     · exact Nat.zero_ne_one (congrArg (fun e => e.idx.val) heq)
-    · exact hpne (hact₀ ▸ hact₁ ▸ hact)
+    · exact hpne hact
   · rcases Execution.ofInternal_happensBeforeLe_iff.mp ((hf e₁ e₀).mpr hge) with heq | ⟨hact, _⟩
     · exact Nat.one_ne_zero (congrArg (fun e => e.idx.val) heq)
-    · exact hpne (hact₀ ▸ hact₁ ▸ hact.symm)
+    · exact hpne hact.symm
 
 namespace Execution
 
@@ -415,34 +391,25 @@ RA1–RA4, which additionally increment the sender's entry upon receive). -/
   E.evalScan 0 (fun _ => 0) vcNext e
 
 private theorem le_vcNext [DecidableEq P] (p : P) (cur : VectorClock P)
-    (msg? : Option (VectorClock P)) : cur ≤ vcNext p cur msg? := by
-  intro q
-  simp only [vcNext]
-  by_cases hq : q = p
-  · subst hq
-    rw [Function.update_self]
-    simp only [Pi.sup_apply]
-    omega
-  · rw [Function.update_of_ne hq]
-    exact le_sup_left
+    (msg? : Option (VectorClock P)) : cur ≤ vcNext p cur msg? := fun q => by
+  rcases eq_or_ne q p with rfl | hq
+  · simp only [vcNext, Function.update_self, Pi.sup_apply]; omega
+  · simp [vcNext, Function.update_of_ne hq]
 
 /-- At every event `e`, its executing process's own vector-clock entry is strictly positive. -/
 theorem vc_actor_pos [DecidableEq P] (E : Execution P) (e : E.Event) :
     0 < E.vc e e.actor := by
   rw [vc, E.evalScan_step_eq]
-  simp only [vcNext, Function.update_self]
-  omega
+  simp only [vcNext, Function.update_self]; omega
 
 /-- Along events of the same process, that process's vector-clock coordinate is strictly
 increasing. -/
 theorem vc_actor_strictMono_of_sameActor [DecidableEq P] {E : Execution P} {e₁ e₂ : E.Event}
     (hact : e₁.actor = e₂.actor) (hlt : e₁.idx < e₂.idx) :
     E.vc e₁ e₁.actor < E.vc e₂ e₂.actor := by
-  have hle : E.vc e₁ ≤ (E.scanSteps (fun _ => 0) vcNext e₂.idx.val).2 e₁.actor :=
-    E.evalScan_le_snd_of_lt 0 (fun _ => 0) vcNext le_vcNext hlt e₂.idx.isLt.le
   have hcoord : E.vc e₁ e₁.actor ≤
-      (E.scanSteps (fun _ => 0) vcNext e₂.idx.val).2 e₂.actor e₂.actor := by
-    simpa only [hact] using hle e₁.actor
+      (E.scanSteps (fun _ => 0) vcNext e₂.idx.val).2 e₂.actor e₂.actor :=
+    hact ▸ E.evalScan_le_snd_of_lt 0 (fun _ => 0) vcNext le_vcNext hlt e₂.idx.isLt.le e₁.actor
   have heq := congrFun (E.evalScan_step_eq 0 (fun _ => 0) vcNext e₂) e₂.actor
   change E.vc e₂ e₂.actor = _ at heq
   simp only [vcNext, Function.update_self, Pi.sup_apply] at heq
@@ -456,15 +423,11 @@ private theorem causalStep_imp_vc_le [DecidableEq P] {E : Execution P} {e₁ e�
     rw [hact] at hle
     conv_rhs => rw [vc, E.evalScan_step_eq 0 (fun _ => 0) vcNext e₂]
     exact hle.trans (le_vcNext _ _ _)
-  · have hrecv : e₂.step = .recv e₂.actor e₁.idx.val := hmsg
-    have hm := E.evalScan_of_recv 0 (fun _ => 0) vcNext hrecv
-    change E.vc e₂ = vcNext e₂.actor _ (some (E.vc e₁)) at hm
-    rw [hm]
+  · conv_rhs => rw [vc, E.evalScan_of_recv 0 (fun _ => 0) vcNext hmsg]
     intro q
-    simp only [vcNext, Option.getD_some, Function.update_apply, Pi.sup_apply]
-    split_ifs with hq
-    · subst hq; omega
-    · omega
+    by_cases hq : q = e₂.actor
+    · simp only [hq, vc, vcNext, Option.getD_some, Function.update_self, Pi.sup_apply]; omega
+    · simp only [vc, vcNext, Option.getD_some, Function.update_of_ne hq, Pi.sup_apply]; omega
 
 /-- Vector clocks are monotone with respect to `HappensBeforeLe`. -/
 theorem vc_mono [DecidableEq P] (E : Execution P) : Monotone E.vc := by
@@ -492,28 +455,25 @@ private theorem vc_eq_zero_or_exists_le [DecidableEq P] (E : Execution P) :
               E.vc x p = (E.scanSteps (fun _ => 0) vcNext j).2 ej.actor p := by
         rcases E.scanSteps_snd_provenance 0 (fun _ => 0) vcNext hj.le ej.actor with h0 |
           ⟨y, hyj, hyact, hyeq⟩
-        · rw [h0]; exact .inl rfl
+        · exact .inl (congrFun h0 p)
         · change _ = E.vc y at hyeq
           have hyej : E.HappensBefore y ej := E.programOrder_happensBefore hyact hyj
           rcases ih y.idx.val hyj y.idx.isLt p with hz0 | ⟨x, hxact, hxy, hxeq⟩
-          · left; rw [hyeq]; exact hz0
+          · exact .inl ((congrFun hyeq p).trans hz0)
           · exact .inr ⟨x, hxact, hxy.trans hyej.happensBeforeLe, by rw [hyeq, hxeq]⟩
       cases hstep : ej.step with
       | internal _ | send _ _ =>
-        have heq := congrFun (E.evalScan_step_eq 0 (fun _ => 0) vcNext ej) p
-        change E.vc ej p = _ at heq
-        simp only [hstep, vcNext, Function.update_of_ne hp, Option.getD_none, Pi.sup_apply,
-          Pi.zero_apply, max_eq_left (Nat.zero_le _)] at heq
-        rw [heq]
-        exact hloc_prov
+        have heq : E.vc ej p = (E.scanSteps (fun _ => 0) vcNext j).2 ej.actor p := by
+          rw [vc, E.evalScan_step_eq]
+          simp only [ej, hstep, vcNext, Function.update_of_ne hp, Option.getD_none, Pi.sup_apply,
+            Pi.zero_apply, max_eq_left (Nat.zero_le _)]
+        rwa [heq]
       | recv q sIdx =>
         obtain ⟨eSend, hval, hlt, _, _⟩ := E.recv_sendEvent hstep
         have hrecv : ej.step = .recv q eSend.idx.val := hval.symm ▸ hstep
-        have hm := congrFun (E.evalScan_of_recv 0 (fun _ => 0) vcNext hrecv) p
-        change E.vc ej p =
-          vcNext ej.actor ((E.scanSteps (fun _ => 0) vcNext j).2 ej.actor)
-            (some (E.vc eSend)) p at hm
-        simp only [vcNext, Function.update_of_ne hp, Option.getD_some, Pi.sup_apply] at hm
+        have hm : E.vc ej p = (E.scanSteps (fun _ => 0) vcNext j).2 ej.actor p ⊔ E.vc eSend p := by
+          rw [vc, E.evalScan_of_recv 0 (fun _ => 0) vcNext hrecv]
+          simp only [ej, vc, vcNext, Function.update_of_ne hp, Option.getD_some, Pi.sup_apply]
         rcases max_choice
             ((E.scanSteps (fun _ => 0) vcNext j).2 ej.actor p) (E.vc eSend p) with hmax | hmax <;>
           rw [hm, hmax]
@@ -529,12 +489,10 @@ private theorem vc_eq_zero_or_exists_le [DecidableEq P] (E : Execution P) :
 theorem happensBeforeLe_iff_coord_le [DecidableEq P] {E : Execution P} {e₁ e₂ : E.Event} :
     E.HappensBeforeLe e₁ e₂ ↔ E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor := by
   refine ⟨fun hle => E.vc_mono hle e₁.actor, fun hcoord => ?_⟩
-  have hpos : 0 < E.vc e₁ e₁.actor := E.vc_actor_pos e₁
   rcases E.vc_eq_zero_or_exists_le e₂ e₁.actor with h0 | ⟨x, hxact, hxe₂, hxeq⟩
-  · omega
+  · exact absurd (hcoord.trans_eq h0) (not_le_of_gt (E.vc_actor_pos e₁))
   · refine (E.programOrder_happensBeforeLe hxact.symm (le_of_not_gt fun hlt => ?_)).trans hxe₂
-    have hvc_lt := E.vc_actor_strictMono_of_sameActor hxact hlt
-    rw [hxact] at hvc_lt
+    have hvc_lt := hxact ▸ E.vc_actor_strictMono_of_sameActor hxact hlt
     omega
 
 /-- **Single-coordinate comparison of given timestamps (`≺`)** ([Mattern1989], §8, Theorem 11):
@@ -595,8 +553,7 @@ theorem isConsistentCut_cutOfFrontier_iff [DecidableEq P] {E : Execution P}
     · omega
     · have hx_mem := hcut.mem_of_happensBeforeLe hxfq (by rw [mem_cutOfFrontier, hact q])
       rw [mem_cutOfFrontier, hxact] at hx_mem
-      rw [← hxeq]
-      exact E.vc_mono (E.programOrder_happensBeforeLe (hxact.trans (hact p).symm) hx_mem) p
+      exact hxeq ▸ E.vc_mono (E.programOrder_happensBeforeLe (hxact.trans (hact p).symm) hx_mem) p
   · intro hmax e₁ e₂ hhb he₂
     rw [mem_cutOfFrontier] at he₂ ⊢
     have he₁_fq : E.HappensBeforeLe e₁ (frontier e₂.actor) :=

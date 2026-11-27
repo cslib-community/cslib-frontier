@@ -24,13 +24,13 @@ register_result "cakepb-clique-encode-correct" where
   ]
   theorems := [
     Cslib.Logic.PL.VeriPB.Graph.forall_holds_cliqueConstraints_iff,
-    Cslib.Logic.PL.VeriPB.Graph.exists_chosen_eq,
     Cslib.Logic.PL.VeriPB.Graph.eval_cliqueObjective
   ]
   scope := "For every n and every graph G : SimpleGraph (Fin n) with decidable adjacency, an \
     assignment satisfies the constraints of encodeClique G (~x + ~y ≥ 1 for each non-edge \
     x < y, in CakePB's mk_constraint order) exactly when the vertices it chooses form a \
-    clique; every set of vertices is chosen by some assignment; and the objective, written in \
+    clique; every set of vertices is chosen by some assignment (the shared \
+    Cslib.Logic.PL.VeriPB.exists_chosen_eq); and the objective, written in \
     normal form as ∑ᵥ -xᵥ + n instead of CakePB's ∑ᵥ ~xᵥ, has value n minus the number of \
     vertices chosen. CakePB's good_graph (v, e) is the type SimpleGraph (Fin n), is_clique is \
     SimpleGraph.IsClique on a Finset, and a listed loop is dropped. The maximal clique \

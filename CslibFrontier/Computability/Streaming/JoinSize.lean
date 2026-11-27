@@ -147,13 +147,9 @@ private theorem stateFrom_joinSketch (ω : Fin (2 * r) → Fin k → ι) (q : Jo
       add_zero]
   | cons x s ih =>
     rw [Algorithm.stateFrom_cons, ih]
-    cases x with
-    | inl a =>
-      simp only [joinSketch, Sum.elim_inl, List.filterMap_cons, Sum.getLeft?_inl,
-        Sum.getRight?_inl, List.map_cons, List.sum_cons, add_assoc]
-    | inr a =>
-      simp only [joinSketch, Sum.elim_inr, List.filterMap_cons, Sum.getLeft?_inr,
-        Sum.getRight?_inr, List.map_cons, List.sum_cons, add_assoc]
+    cases x <;> simp only [joinSketch, Sum.elim_inl, Sum.elim_inr, List.filterMap_cons,
+      Sum.getLeft?_inl, Sum.getRight?_inl, Sum.getLeft?_inr, Sum.getRight?_inr,
+      List.map_cons, List.sum_cons, add_assoc]
 
 /-- After the stream `s`, the counters with seed `θ` hold `∑_{a ∈ F} sgn (h θ a)` and
 `∑_{a ∈ G} sgn (h θ a)`, where `F` and `G` are the items tagged `Sum.inl` and `Sum.inr`. -/
@@ -180,8 +176,7 @@ theorem joinSketch_state_right (ω : Fin (2 * r) → Fin k → ι) (s : List (α
 private theorem cast_sum_map_sign [DecidableEq α] (u : List α) (θ : ι) :
     (((u.map fun a => sgn (h θ a)).sum : ℤ) : ℝ) =
       ∑ a ∈ u.toFinset, (u.count a : ℝ) * sgn (h θ a) := by
-  rw [Finset.sum_list_map_count, Int.cast_sum]
-  simp only [nsmul_eq_mul, Int.cast_mul, Int.cast_natCast]
+  simp [Finset.sum_list_map_count]
 
 /-- The answer of the join sketch is the median of means of the products of the tug-of-war sums of
 the two relations. -/
@@ -216,25 +211,19 @@ private theorem dens_medianOfMeans_joinSize_error_le [Fintype ι] [DecidableEq �
     rw [Fintype.expect_eq_sum_div_card, ← Int.cast_sum, hsum, Int.cast_zero, zero_div]
   set T := u.toFinset ∪ v.toFinset
   have hsub {w : List α} (hw : w.toFinset ⊆ T) (θ : ι) :
-      ∑ a ∈ w.toFinset, (w.count a : ℝ) * sgn (h θ a) = ∑ a ∈ T, (w.count a : ℝ) * sgn (h θ a) := by
-    refine Finset.sum_subset hw fun a _ ha => ?_
-    rw [List.mem_toFinset, ← List.count_eq_zero] at ha
-    rw [ha, Nat.cast_zero, zero_mul]
+      ∑ a ∈ w.toFinset, (w.count a : ℝ) * sgn (h θ a) = ∑ a ∈ T, (w.count a : ℝ) * sgn (h θ a) :=
+    Finset.sum_subset hw fun a _ ha => by
+      simp [List.count_eq_zero.2 (List.mem_toFinset.not.1 ha)]
   have hF {w : List α} (hw : w.toFinset ⊆ T) :
       ((freqMoment 2 w : ℕ) : ℝ) = ∑ a ∈ T, ((w.count a : ℝ)) ^ 2 := by
-    rw [freqMoment_eq_sum_of_subset two_ne_zero hw]
-    push_cast
-    rfl
+    simp only [freqMoment_eq_sum_of_subset two_ne_zero hw, Nat.cast_sum, Nat.cast_pow]
   have hJ : ((joinSize u v : ℕ) : ℝ) = ∑ a ∈ T, (u.count a : ℝ) * v.count a := by
-    rw [joinSize_eq_sum_of_subset (T := T) subset_union_left]
-    push_cast
-    rfl
+    simp only [joinSize_eq_sum_of_subset (T := T) subset_union_left, Nat.cast_sum, Nat.cast_mul]
   set g : ι → ℝ := fun θ => (∑ a ∈ T, (u.count a : ℝ) * sgn (h θ a)) *
     ∑ a ∈ T, (v.count a : ℝ) * sgn (h θ a)
   have hg : (fun θ => (∑ a ∈ u.toFinset, (u.count a : ℝ) * sgn (h θ a)) *
-      ∑ a ∈ v.toFinset, (v.count a : ℝ) * sgn (h θ a)) = g := by
-    funext θ
-    rw [hsub subset_union_left θ, hsub subset_union_right θ]
+      ∑ a ∈ v.toFinset, (v.count a : ℝ) * sgn (h θ a)) = g :=
+    funext fun θ => by rw [hsub subset_union_left θ, hsub subset_union_right θ]
   have hmean : 𝔼 θ, g θ = joinSize u v := by
     rw [hJ]
     exact (hh.mono (by norm_num)).expect_sum_mul_sign_mul_sum_mul_sign hε hε₀ T _ _
@@ -307,9 +296,8 @@ theorem solves_joinSketchRandom [Fintype ι] [Nonempty ι] [DecidableEq α] [Fin
           freqMoment 2 (s.filterMap Sum.getRight?))) m := by
   classical
   intro s _
-  rw [errorProb_joinSketchRandom]
-  simp only [not_le]
-  exact (dens_joinSketch_error_le hh hsq hsum hη hk s).trans hδ
+  simpa only [errorProb_joinSketchRandom, not_le] using
+    (dens_joinSketch_error_le hh hsq hsum hη hk s).trans hδ
 
 /-- **Relative error under a priori bounds** [AlonGibbonsMatiasSzegedy1999, Theorem 4.5]: if the
 join size is known to be at least `B₁ > 0` and the self-join sizes at most `B₂`, then
@@ -383,10 +371,8 @@ private theorem state_mem_joinStates (hsgn : ∀ y, |sgn y| ≤ 1)
     (joinSketch h sgn r k ω).state s ∈ joinStates W m := by
   rw [joinStates, mem_map_equiv, Equiv.symm_symm]
   simp only [JoinState.equivProd, Equiv.coe_fn_mk, mem_product, Fintype.mem_piFinset]
-  refine ⟨?_, fun i l => (mem_Icc_joinSketch_state hsgn ω hs i l).1,
+  exact ⟨by rwa [state_joinSketch], fun i l => (mem_Icc_joinSketch_state hsgn ω hs i l).1,
     fun i l => (mem_Icc_joinSketch_state hsgn ω hs i l).2⟩
-  rw [state_joinSketch]
-  exact hω
 
 /-- **The memory of the randomized join sketch** [AlonGibbonsMatiasSzegedy1999, Section 4.3]:
 every sketch it draws uses at most `b` bits of memory on streams of at most `m` items when
@@ -403,9 +389,8 @@ theorem spaceLE_joinSketchRandom [Fintype ι] [Nonempty ι] (hsgn : ∀ y, |sgn 
   refine Algorithm.spaceLE_of_subset_finset (T := joinStates {ω} m) ?_ ?_
   · rintro _ ⟨s, hs, rfl⟩
     exact state_mem_joinStates hsgn (mem_singleton_self ω) hs
-  · rw [card_joinStates, card_singleton, one_mul, ← pow_mul,
-      show 2 * (2 * r * k) = 4 * r * k by ring]
-    exact hb
+  · have hrk : 2 * (2 * r * k) = 4 * r * k := by ring
+    rwa [card_joinStates, card_singleton, one_mul, ← pow_mul, hrk]
 
 /-- **The memory of the join sketch with its seeds stored** [AlonGibbonsMatiasSzegedy1999,
 Section 4.3]: on streams of at most `m` items, the states reachable from all seeds together have a

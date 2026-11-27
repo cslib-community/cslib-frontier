@@ -53,30 +53,22 @@ theorem toOuterMeasure_piFin_forall :
     rw [Fin.prod_univ_zero, piFin, PMF.toOuterMeasure_pure_apply]
     exact ite_eq_left fun i => i.elim0
   | k + 1, p, E => by
-    have hpre (a : α) : ((piFin fun j => p j.succ).map (Fin.cons a)).toOuterMeasure
-        {v : Fin (k + 1) → α | ∀ i, v i ∈ E i} =
-        (E 0).indicator (fun _ => ∏ i : Fin k, (p i.succ).toOuterMeasure (E i.succ)) a := by
-      rw [PMF.toOuterMeasure_map_apply]
-      by_cases ha : a ∈ E 0
-      · have hset : Fin.cons (n := k) (α := fun _ => α) a ⁻¹' {v | ∀ i, v i ∈ E i} =
-            {v | ∀ i, v i ∈ E i.succ} := by
-          ext v
-          simp only [Set.mem_preimage, Set.mem_ofPred_eq, Fin.forall_fin_succ, Fin.cons_zero,
-            Fin.cons_succ, ha, true_and]
-        rw [Set.indicator_of_mem ha, hset, toOuterMeasure_piFin_forall]
-      · have hset : Fin.cons (n := k) (α := fun _ => α) a ⁻¹' {v | ∀ i, v i ∈ E i} = ∅ := by
-          ext v
-          simp only [Set.mem_preimage, Set.mem_ofPred_eq, Fin.forall_fin_succ, Fin.cons_zero, ha,
-            false_and, Set.mem_empty_iff_false]
-        rw [Set.indicator_of_notMem ha, hset, MeasureTheory.measure_empty]
-    rw [piFin, PMF.toOuterMeasure_bind_apply, Fin.prod_univ_succ]
-    generalize ∏ i : Fin k, (p i.succ).toOuterMeasure (E i.succ) = q at hpre ⊢
-    rw [PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right]
+    rw [piFin, PMF.toOuterMeasure_bind_apply, Fin.prod_univ_succ, PMF.toOuterMeasure_apply,
+      ← ENNReal.tsum_mul_right]
     refine tsum_congr fun a => ?_
-    rw [hpre]
+    rw [PMF.toOuterMeasure_map_apply]
     by_cases ha : a ∈ E 0
-    · rw [Set.indicator_of_mem ha, Set.indicator_of_mem ha]
-    · rw [Set.indicator_of_notMem ha, Set.indicator_of_notMem ha, mul_zero, zero_mul]
+    · have hset : Fin.cons (n := k) (α := fun _ => α) a ⁻¹' {v | ∀ i, v i ∈ E i} =
+          {v | ∀ i, v i ∈ E i.succ} := by
+        ext v
+        simp only [Set.mem_preimage, Set.mem_ofPred_eq, Fin.forall_fin_succ, Fin.cons_zero,
+          Fin.cons_succ, ha, true_and]
+      rw [Set.indicator_of_mem ha, hset, toOuterMeasure_piFin_forall]
+    · have hset : Fin.cons (n := k) (α := fun _ => α) a ⁻¹' {v | ∀ i, v i ∈ E i} = ∅ := by
+        ext v
+        simp only [Set.mem_preimage, Set.mem_ofPred_eq, Fin.forall_fin_succ, Fin.cons_zero, ha,
+          false_and, Set.mem_empty_iff_false]
+      rw [Set.indicator_of_notMem ha, hset, MeasureTheory.measure_empty, mul_zero, zero_mul]
 
 /-- All of `k` independent draws from `μ` land in `E` with probability `μ(E) ^ k`. -/
 theorem toOuterMeasure_iid_forall (μ : PMF α) (E : Set α) (k : ℕ) :
@@ -92,16 +84,13 @@ theorem iid_map_eval (μ : PMF α) {k : ℕ} (j : Fin k) : (iid μ k).map (fun v
 with probability at most the sum of the probabilities. -/
 theorem toOuterMeasure_piFin_exists_le {k : ℕ} (p : Fin k → PMF α) (E : Fin k → Set α) :
     (piFin p).toOuterMeasure {v | ∃ i, v i ∈ E i} ≤ ∑ i, (p i).toOuterMeasure (E i) := by
-  have hset : {v : Fin k → α | ∃ i, v i ∈ E i} = ⋃ i, (fun v : Fin k → α => v i) ⁻¹' E i := by
-    ext
-    simp only [Set.mem_ofPred_eq, Set.mem_iUnion, Set.mem_preimage]
+  have hset : {v : Fin k → α | ∃ i, v i ∈ E i} = ⋃ i, (fun v : Fin k → α => v i) ⁻¹' E i :=
+    Set.ext fun _ => by simp only [Set.mem_ofPred_eq, Set.mem_iUnion, Set.mem_preimage]
   rw [hset]
   calc
     _ ≤ ∑ i, (piFin p).toOuterMeasure ((fun v => v i) ⁻¹' E i) :=
       MeasureTheory.measure_iUnion_fintype_le _ _
-    _ = _ := by
-      congr 1 with i : 1
-      rw [← PMF.toOuterMeasure_map_apply, piFin_map_eval]
+    _ = _ := Finset.sum_congr rfl fun i _ => by rw [← PMF.toOuterMeasure_map_apply, piFin_map_eval]
 
 /-- The union bound `toOuterMeasure_piFin_exists_le` for real-valued probabilities. -/
 theorem toOuterMeasure_toReal_piFin_exists_le {k : ℕ} (p : Fin k → PMF α) (E : Fin k → Set α) :
@@ -120,16 +109,14 @@ theorem toOuterMeasure_iid_eval (μ : PMF α) {k : ℕ} (j : Fin k) (E : Set α)
 `1 - (1 - μ(E)) ^ k`. -/
 theorem toOuterMeasure_iid_exists (μ : PMF α) (E : Set α) (k : ℕ) :
     (iid μ k).toOuterMeasure {v | ∃ i, v i ∈ E} = 1 - (1 - μ.toOuterMeasure E) ^ k := by
-  have hc : {v : Fin k → α | ∃ i, v i ∈ E} = {v | ∀ i, v i ∈ Eᶜ}ᶜ := by
-    ext v
-    simp only [Set.mem_ofPred_eq, Set.mem_compl_iff, not_forall, not_not]
+  have hc : {v : Fin k → α | ∃ i, v i ∈ E} = {v | ∀ i, v i ∈ Eᶜ}ᶜ :=
+    Set.ext fun _ => by simp only [Set.mem_ofPred_eq, Set.mem_compl_iff, not_forall, not_not]
+  rw [hc]
   have hE : μ.toOuterMeasure Eᶜ = 1 - μ.toOuterMeasure E := by
     rw [← toOuterMeasure_add_compl_ennreal μ E,
       ENNReal.add_sub_cancel_left (toOuterMeasure_ne_top μ E)]
   have h := toOuterMeasure_add_compl_ennreal (iid μ k) {v | ∀ i, v i ∈ Eᶜ}
-  rw [toOuterMeasure_iid_forall, hE] at h
-  rw [hc]
-  exact ENNReal.eq_sub_of_add_eq (ENNReal.pow_ne_top (ENNReal.sub_ne_top ENNReal.one_ne_top))
-    (by rw [add_comm]; exact h)
+  rw [toOuterMeasure_iid_forall, hE, add_comm] at h
+  exact ENNReal.eq_sub_of_add_eq (ENNReal.pow_ne_top (ENNReal.sub_ne_top ENNReal.one_ne_top)) h
 
 end Cslib.Probability.PMF

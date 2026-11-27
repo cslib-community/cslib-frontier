@@ -90,11 +90,8 @@ theorem length_freeVarList_le_length_tokens (φ : QBF ℕ) :
 /-- Each free variable takes at least three bits of the encoding. -/
 theorem three_mul_length_distinctFreeVars_le (φ : QBF ℕ) :
     3 * φ.distinctFreeVars.length ≤ (Cslib.Complexity.encQBF φ).length := by
-  have h1 : φ.distinctFreeVars.length ≤ φ.freeVarList.length :=
-    (List.eraseDupsBy_sublist _).length_le
-  have := length_freeVarList_le_length_tokens φ
-  have := Cslib.Complexity.three_mul_length_tokens_le φ
-  omega
+  exact (Nat.mul_le_mul_left 3 ((List.eraseDupsBy_sublist _).length_le.trans
+    (length_freeVarList_le_length_tokens φ))).trans (Cslib.Complexity.three_mul_length_tokens_le φ)
 
 end Cslib.Logic.PL.QBF
 
@@ -143,15 +140,10 @@ theorem acceptCount_verifier {φ : QBF ℕ} (hφ : φ.QuantifierFree) :
   have hSW {T : Finset ℕ} (hT : T ⊆ φ.freeVars) : S (W T) = T := by
     ext v
     rw [hmemS]
-    constructor
-    · rintro ⟨hv, h⟩
-      rw [List.getD_ofFn_of_lt _ (List.idxOf_lt_length_of_mem hv)] at h
-      simpa [W, List.getElem_idxOf] using h
-    · intro hv
-      have hv' : v ∈ vs := QBF.mem_distinctFreeVars.2 (hT hv)
-      refine ⟨hv', ?_⟩
-      rw [List.getD_ofFn_of_lt _ (List.idxOf_lt_length_of_mem hv')]
-      simpa [W, List.getElem_idxOf] using hv
+    by_cases hv : v ∈ vs
+    · rw [List.getD_ofFn_of_lt _ (List.idxOf_lt_length_of_mem hv)]
+      simp [hv, W, List.getElem_idxOf]
+    · exact iff_of_false (fun h => hv h.1) (fun h => hv (QBF.mem_distinctFreeVars.2 (hT h)))
   unfold acceptCount QBF.modelCount
   refine Finset.card_bij' (fun w _ => S w) (fun T _ => W T) (fun w hw => ?_) (fun T hT => ?_)
     (fun w _ => ?_) (fun T hT => hSW (Finset.mem_powerset.1 (Finset.mem_filter.1 hT).1))
@@ -187,10 +179,10 @@ theorem computableInPolyTime_length_distinctFreeVars :
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encQBF encBits) encBool := by
   have hT : ComputableInPolyTime (fun x : QBF ℕ × List Bool =>
-      trueVars x.1.distinctFreeVars x.2) (encPair encQBF encBits) (encList encNat) := by
-    refine ComputableInPolyTime.filterWithInput (by fun_prop) ?_
-    exact ComputableInPolyTime.bitsGetDWithInput (by fun_prop)
-      (ComputableInPolyTime.idxOfWithInput (by fun_prop) (by fun_prop)) false
+      trueVars x.1.distinctFreeVars x.2) (encPair encQBF encBits) (encList encNat) :=
+    ComputableInPolyTime.filterWithInput (by fun_prop)
+      (ComputableInPolyTime.bitsGetDWithInput (by fun_prop)
+        (ComputableInPolyTime.idxOfWithInput (by fun_prop) (by fun_prop)) false)
   unfold verifier
   exact computableInPolyTime_evalTokens.comp ((ComputableInPolyTime.fst _ _).prod hT)
 

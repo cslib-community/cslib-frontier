@@ -112,15 +112,10 @@ theorem RoutingData.length_program_le (data : RoutingData) :
     data.program.length ≤ data.requested.length * data.available.length := by
   unfold RoutingData.program
   rw [List.length_flatMap]
-  have h := List.sum_le_length_nsmul
-    (data.requested.zipIdx.map fun p =>
-      (pull (data.offset + p.2) p.1 (before p.1
-        (remaining data.requested data.available p.2))).length)
-    data.available.length (by
-      intro n hn
-      obtain ⟨p, _hp, rfl⟩ := List.mem_map.mp hn
+  simpa using List.sum_le_length_nsmul (data.requested.zipIdx.map _) data.available.length
+    fun n hn => by
+      obtain ⟨p, _, rfl⟩ := List.mem_map.mp hn
       simp only [pull, List.length_map, List.length_reverse, List.length_zipIdx, before]
-      exact (List.length_take_le' _ _).trans (List.length_filter_le ..))
-  simpa using h
+      exact (List.length_take_le' _ _).trans (List.length_filter_le ..)
 
 end Cslib.Complexity.NCL.Planar.Embedding.PolyTime

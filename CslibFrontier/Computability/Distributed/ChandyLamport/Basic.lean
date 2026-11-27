@@ -121,9 +121,7 @@ theorem mem_outgoingTo_iff {P M : Type*} [DecidableEq P] {sent : List (P × M)} 
 theorem outgoingTo_eq_nil_of_forall_ne {P M : Type*} [DecidableEq P]
     {sent : List (P × M)} {dest : P} (h : ∀ m, (dest, m) ∉ sent) :
     outgoingTo sent dest = [] := by
-  rw [List.eq_nil_iff_forall_not_mem]
-  intro m hm
-  exact h m (mem_outgoingTo_iff.mp hm)
+  exact List.eq_nil_iff_forall_not_mem.mpr fun m hm => h m (mem_outgoingTo_iff.mp hm)
 
 /-- Pop the head message from channel `(src, dest)`, leaving all other channels and all local
 process states unchanged. -/
@@ -205,17 +203,9 @@ theorem GlobalState.applyEvent_chan {P S M : Type*} [DecidableEq P]
     (s.applyEvent e).chan u v =
       (if e.popsFrom u v then (s.chan u v).tail else s.chan u v) ++
         if u = e.actor then outgoingTo e.sent v else [] := by
-  cases e with
-  | internal p st' sent =>
-    simp only [applyEvent, applyLocal, Event.popsFrom, ↓reduceIte, Event.actor, Event.sent]
-    by_cases hu : u = p <;> simp [hu]
-  | recv src dest msg st' sent =>
-    simp only [applyEvent, applyLocal, popChan, Event.popsFrom, Event.actor, Event.sent]
-    by_cases hu : u = dest
-    · subst hu
-      by_cases hp : u = src ∧ v = u <;> simp [hp]
-    · simp only [hu, ↓reduceIte, List.append_nil]
-      congr 1
+  by_cases hu : u = e.actor <;> simp only [hu, ↓reduceIte, List.append_nil] <;> cases e <;>
+    simp only [applyEvent, applyLocal, popChan, Event.popsFrom, Event.actor, Event.sent] at hu ⊢ <;>
+    simp only [hu, ↓reduceIte] <;> congr
 
 /-- Underlying asynchronous message-passing system over a directed communication graph `Digraph P`.
 Both spontaneous steps (`internal`) and message-receive steps (`recv`) may be relational
@@ -278,19 +268,10 @@ trace from `s` and `s' = s.runEvents xl`. -/
 theorem mTr_iff_validTrace [DecidableEq P] {s s' : GlobalState P S M} {xl : List (Event P S M)} :
     sys.lts.MTr s xl s' ↔ sys.validTrace s xl ∧ s' = s.runEvents xl := by
   induction xl generalizing s with
-  | nil =>
-    constructor
-    · rintro ⟨⟩
-      exact ⟨trivial, rfl⟩
-    · rintro ⟨_, rfl⟩
-      exact .refl
+  | nil => exact ⟨fun | .refl => ⟨trivial, rfl⟩, fun ⟨_, h⟩ => h ▸ .refl⟩
   | cons e xl ih =>
-    constructor
-    · rintro (_ | ⟨⟨hen, rfl⟩, hrest⟩)
-      obtain ⟨hv, hr⟩ := ih.mp hrest
-      exact ⟨⟨hen, hv⟩, hr⟩
-    · rintro ⟨⟨hen, hv⟩, rfl⟩
-      exact .stepL ⟨hen, rfl⟩ (ih.mpr ⟨hv, rfl⟩)
+    exact ⟨fun | .stepL ⟨hen, rfl⟩ hrest => And.imp_left (⟨hen, ·⟩) (ih.mp hrest),
+      fun ⟨⟨hen, hv⟩, h⟩ => .stepL ⟨hen, rfl⟩ (ih.mpr ⟨hv, h⟩)⟩
 
 instance instDecidableMTr [Fintype P] [DecidableEq P] [DecidableEq S] [DecidableEq M]
     [DecidableRel sys.graph.Adj]
@@ -324,13 +305,10 @@ instance instDecidableWellFormedChan [Fintype P] [DecidableRel sys.graph.Adj]
 
 private theorem wellFormedChan_tr [DecidableEq P] : sys.lts.TrInv sys.WellFormedChan := by
   rintro s e _ ⟨hen, rfl⟩ hwf u v huv
-  rw [GlobalState.applyEvent_chan, hwf u v huv]
-  by_cases hu : u = e.actor
-  · subst hu
-    have hout : outgoingTo e.sent v = [] :=
-      outgoingTo_eq_nil_of_forall_ne fun m hm => huv (sys.enabled_sent_adj hen (v, m) hm)
-    simp [hout]
-  · simp [hu]
+  simp only [GlobalState.applyEvent_chan, hwf u v huv, List.tail_nil, ite_self, List.nil_append]
+  split_ifs with hu
+  · exact outgoingTo_eq_nil_of_forall_ne fun m hm => huv (hu ▸ sys.enabled_sent_adj hen (v, m) hm)
+  · rfl
 
 /-- Non-edge channels remain empty across any finite execution of `sys.lts`. -/
 theorem wellFormedChan_mTr [DecidableEq P] {s₁ s₂ : GlobalState P S M} {xl : List (Event P S M)}
@@ -354,8 +332,7 @@ theorem tr_comm_of_ne [DecidableEq P] {s s₁ s₂ : GlobalState P S M} {e₁ e�
     cases e₂ with
     | internal q st₂' sent₂ =>
       simp only [Event.actor] at hproc₂
-      simp only [Enabled] at hen₂ ⊢
-      rwa [← hproc₂]
+      simpa only [Enabled, ← hproc₂] using hen₂
     | recv src₂ q msg₂ st₂' sent₂ =>
       simp only [Event.actor] at hproc₂ hne
       simp only [Enabled] at hen₂ ⊢
@@ -375,8 +352,7 @@ theorem tr_comm_of_ne [DecidableEq P] {s s₁ s₂ : GlobalState P S M} {e₁ e�
     cases e₁ with
     | internal p st₁' sent₁ =>
       simp only [Event.actor] at hproc₁
-      simp only [Enabled] at hen₁ ⊢
-      rwa [hproc₁]
+      simpa only [Enabled, hproc₁] using hen₁
     | recv src₁ p msg₁ st₁' sent₁ =>
       simp only [Event.actor] at hproc₁ hne
       simp only [Enabled] at hen₁ ⊢

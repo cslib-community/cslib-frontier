@@ -106,25 +106,17 @@ examples evaluate it with `decide +kernel`. -/
 
 theorem minOpt_eq_none_iff {ι : Type*} [LinearOrder ι] {s : Finset ι} :
     minOpt s = none ↔ s = ∅ := by
-  unfold minOpt
-  split_ifs with h
-  · simp only [false_iff]
-    exact h.ne_empty
-  · simp only [true_iff]
-    exact Finset.not_nonempty_iff_eq_empty.1 h
+  simp [minOpt]
 
 theorem minOpt_eq_some_iff {ι : Type*} [LinearOrder ι] {s : Finset ι} {a : ι} :
     minOpt s = some a ↔ a ∈ s ∧ ∀ b ∈ s, a ≤ b := by
   unfold minOpt
   split_ifs with h
-  · rw [Option.some.injEq]
-    constructor
-    · rintro rfl
-      exact ⟨s.min'_mem h, fun b hb => s.min'_le b hb⟩
-    · rintro ⟨ha, hle⟩
-      exact le_antisymm (s.min'_le a ha) (hle _ (s.min'_mem h))
-  · simp only [false_iff, not_and]
-    exact fun ha => absurd ⟨a, ha⟩ h
+  · refine Option.some_inj.trans ⟨?_, fun ⟨ha, hle⟩ =>
+      le_antisymm (s.min'_le a ha) (hle _ (s.min'_mem h))⟩
+    rintro rfl
+    exact ⟨s.min'_mem h, s.min'_le⟩
+  · exact ⟨nofun, fun ⟨ha, _⟩ => absurd ⟨a, ha⟩ h⟩
 
 /-- The decision of one simplex step: stop at an optimal dictionary, stop because the entering
 variable `s` has no leaving row, or pivot on the leaving `r` and the entering `s`. -/
@@ -181,11 +173,8 @@ theorem exists_pivot_of_runWith_eq_outOfFuel {fuel : ℕ} {D' : Dictionary ι K}
     obtain ⟨E, hE0, hE⟩ := ih h
     refine ⟨fun k => if k = 0 then D else E (k - 1), rfl, fun k hk => ?_⟩
     rcases k with _ | k
-    · simp only [↓reduceIte, Nat.zero_add, one_ne_zero]
-      rw [Nat.sub_self, hE0]
-      exact ⟨r, s, hstep, rfl⟩
-    · simp only [Nat.add_eq_zero_iff, one_ne_zero, and_false, ↓reduceIte, Nat.add_sub_cancel]
-      exact hE k (by omega)
+    · exact ⟨r, s, hstep, hE0⟩
+    · exact hE k (by omega)
 
 omit [IsStrictOrderedRing K] in
 /-- **Soundness of a pivoting rule, optimal case.** If the rule stops only at dictionaries with no
@@ -279,19 +268,12 @@ theorem blandEntering_eq_some_iff {s : ι} : D.blandEntering = some s ↔
 omit [IsStrictOrderedRing K] in
 theorem blandLeaving_eq_none_iff {s : ι} :
     D.blandLeaving s = none ↔ ∀ i ∈ D.basis, 0 ≤ D.coeff i s := by
-  rw [blandLeaving, minOpt_eq_none_iff]
-  constructor
-  · intro h i hi
-    by_contra hneg
-    push Not at hneg
-    have hne : (D.leavingCandidates s).Nonempty := ⟨i, Finset.mem_filter.2 ⟨hi, hneg⟩⟩
-    obtain ⟨k, hk, hmin⟩ := (D.leavingCandidates s).exists_min_image (D.ratio s) hne
-    have : k ∈ D.minRatioCandidates s := Finset.mem_filter.2 ⟨hk, hmin⟩
-    rw [h] at this
-    exact Finset.notMem_empty k this
-  · intro h
-    refine Finset.eq_empty_of_forall_notMem fun i hi => ?_
-    obtain ⟨hi, hneg⟩ := Finset.mem_filter.1 (Finset.mem_filter.1 hi).1
+  rw [blandLeaving, minOpt_eq_none_iff, Finset.eq_empty_iff_forall_notMem]
+  refine ⟨fun h i hi => not_lt.1 fun hneg => ?_, fun h i hi => ?_⟩
+  · obtain ⟨k, hk, hmin⟩ := (D.leavingCandidates s).exists_min_image (D.ratio s)
+      ⟨i, Finset.mem_filter.2 ⟨hi, hneg⟩⟩
+    exact h k (Finset.mem_filter.2 ⟨hk, hmin⟩)
+  · obtain ⟨hi, hneg⟩ := Finset.mem_filter.1 (Finset.mem_filter.1 hi).1
     exact (h i hi).not_gt hneg
 
 omit [IsStrictOrderedRing K] in
@@ -301,34 +283,24 @@ theorem blandLeaving_eq_some_iff {s r : ι} : D.blandLeaving s = some r ↔
       ∀ i ∈ D.basis, D.coeff i s < 0 → D.ratio s i = D.ratio s r → r ≤ i := by
   rw [blandLeaving, minOpt_eq_some_iff]
   simp only [minRatioCandidates, leavingCandidates, Finset.mem_filter, and_imp, and_assoc]
-  constructor
-  · rintro ⟨hr, har, hmin, hle⟩
-    exact ⟨hr, har, hmin, fun i hi hai heq => hle i hi hai fun k hk hak => heq ▸ hmin k hk hak⟩
-  · rintro ⟨hr, har, hmin, hle⟩
-    exact ⟨hr, har, hmin, fun i hi hai himin =>
-      hle i hi hai (le_antisymm (himin r hr har) (hmin i hi hai))⟩
+  refine ⟨fun ⟨hr, har, hmin, hle⟩ => ⟨hr, har, hmin,
+      fun i hi hai heq => hle i hi hai fun k hk hak => heq ▸ hmin k hk hak⟩,
+    fun ⟨hr, har, hmin, hle⟩ => ⟨hr, har, hmin,
+      fun i hi hai himin => hle i hi hai (le_antisymm (himin r hr har) (hmin i hi hai))⟩⟩
 
 omit [IsStrictOrderedRing K] in
 theorem blandStep_eq_optimal_iff : D.blandStep = .optimal ↔ D.blandEntering = none := by
-  rcases h1 : D.blandEntering with _ | s'
-  · simp only [blandStep, h1]
-  · rcases h2 : D.blandLeaving s' with _ | r' <;> simp only [blandStep, h1, h2, reduceCtorEq]
+  grind [blandStep]
 
 omit [IsStrictOrderedRing K] in
 theorem blandStep_eq_unbounded_iff {s : ι} :
     D.blandStep = .unbounded s ↔ D.blandEntering = some s ∧ D.blandLeaving s = none := by
-  unfold blandStep
-  rcases D.blandEntering with _ | s'
-  · simp
-  · rcases h2 : D.blandLeaving s' with _ | r' <;> grind
+  grind [blandStep]
 
 omit [IsStrictOrderedRing K] in
 theorem blandStep_eq_pivot_iff {r s : ι} :
     D.blandStep = .pivot r s ↔ D.blandEntering = some s ∧ D.blandLeaving s = some r := by
-  unfold blandStep
-  rcases D.blandEntering with _ | s'
-  · simp
-  · rcases h2 : D.blandLeaving s' with _ | r' <;> grind
+  grind [blandStep]
 
 /-- `D'` arises from `D` by one pivot of Bland's rule. -/
 def BlandPivot (D D' : Dictionary ι K) : Prop :=
@@ -435,7 +407,7 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
   have hFne : F.Nonempty := by
     obtain ⟨r, s, hEk, ⟨hs, -⟩, -⟩ := (hE i (by omega)).exists_pivot
     exact ⟨s, (hFmem s).2 ⟨i + 1, by omega, by omega, i, le_rfl, hij.le,
-      by rw [hEk, mem_pivot_basis]; exact .inl rfl, hs⟩⟩
+      hEk ▸ (E i).mem_pivot_basis.2 (.inl rfl), hs⟩⟩
   obtain ⟨t, htF, hleT⟩ : ∃ t ∈ F, ∀ v ∈ F, v ≤ t :=
     ⟨F.max' hFne, F.max'_mem hFne, fun v hv => F.le_max' v hv⟩
   -- find a step `p` where `t` leaves and a step `q` where `t` enters
@@ -447,34 +419,28 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
     · obtain ⟨p, hip, hpl, hp, hp'⟩ :=
         exists_flip (P := fun k => t ∈ (E k).basis) hil₀ hti hl₀
       obtain ⟨q, hlq, hqj, hq, hq'⟩ :=
-        exists_flip (P := fun k => t ∉ (E k).basis) hl₀j hl₀
-          (by rw [not_not, ← hB]; exact hti)
+        exists_flip (P := fun k => t ∉ (E k).basis) hl₀j hl₀ (not_not.2 (hB ▸ hti))
       exact ⟨p, q, hip, by omega, by omega, hqj, hp, hp', hq, not_not.1 hq'⟩
     · obtain ⟨q, hiq, hqk, hq, hq'⟩ :=
         exists_flip (P := fun k => t ∉ (E k).basis) hik₀ hti (not_not.2 hk₀)
       obtain ⟨p, hkp, hpj, hp, hp'⟩ :=
-        exists_flip (P := fun k => t ∈ (E k).basis) hk₀j hk₀ (by rw [← hB]; exact hti)
+        exists_flip (P := fun k => t ∈ (E k).basis) hk₀j hk₀ (hB ▸ hti)
       exact ⟨p, q, by omega, hpj, hiq, by omega, hp, hp', hq, not_not.1 hq'⟩
   -- at step `p`, `s` enters and `t` leaves
   obtain ⟨r, s, hEp, ⟨hs, hcs, -⟩, hr, har, hmin, htie⟩ := (hE p (by omega)).exists_pivot
   rw [hEp, mem_pivot_basis] at htp'
   obtain rfl : t = r := of_not_not fun hrt => htp' (.inr ⟨htp, hrt⟩)
-  have hsF : s ∈ F :=
-    (hFmem s).2 ⟨p + 1, by omega, by omega, p, hip, hpj.le,
-      by rw [hEp, mem_pivot_basis]; exact .inl rfl, hs⟩
+  have hsF : s ∈ F := (hFmem s).2 ⟨p + 1, by omega, by omega, p, hip, hpj.le,
+    hEp ▸ (E p).mem_pivot_basis.2 (.inl rfl), hs⟩
   have hsr : s < t := lt_of_le_of_ne (hleT s hsF) fun h => hs (h ▸ hr)
   -- at step `q`, `t` enters
   obtain ⟨r', s', hEq, ⟨-, hcq, hminq⟩, -⟩ := (hE q (by omega)).exists_pivot
   rw [hEq, mem_pivot_basis] at htq'
   obtain rfl : t = s' := htq'.resolve_right fun h => htq h.1
   -- compare the objective rows of `E p` and `E q` along the edge of `s`
-  set x := (E p).basicSolution + (1 : K) • (E p).ray s with hx
-  have hxp : (E p).IsSolution x :=
-    (E p).isSolution_add_smul_ray hs (E p).isSolution_basicSolution 1
-  have hpq : (E p).Equivalent (E q) :=
-    (hequiv p hip (by omega)).symm.trans (hequiv q hiq (by omega))
-  have hvalpq := hpq.value_eq x hxp
-  rw [hx, (E p).value_add_smul_ray hs, (E p).value_basicSolution, one_mul] at hvalpq
+  have hvalpq := ((hequiv p hip (by omega)).symm.trans (hequiv q hiq (by omega))).value_eq _
+    ((E p).isSolution_add_smul_ray hs (E p).isSolution_basicSolution 1)
+  rw [(E p).value_add_smul_ray hs, (E p).value_basicSolution, one_mul] at hvalpq
   have hbs : (E p).basicSolution = (E q).basicSolution := by
     rw [hsol p hip hpj.le, hsol q hiq hqj.le]
   have hvalq : (E q).value ((E p).basicSolution + (1 : K) • (E p).ray s) =
@@ -484,22 +450,17 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
     rw [Finset.sum_eq_zero fun v hv => by
       rw [(E q).basicSolution_of_notMem (Finset.mem_compl.1 hv), mul_zero], zero_add]
   rw [hvalq, hconst p hip hpj.le, hconst q hiq hqj.le] at hvalpq
-  have hsum : ∑ v ∈ (E q).basisᶜ, (0 : K) <
-      ∑ v ∈ (E q).basisᶜ, (E q).objCoeff v * (E p).ray s v := by
-    rw [Finset.sum_const_zero]; linarith
-  obtain ⟨v, hv, hpos⟩ := Finset.exists_lt_of_sum_lt hsum
+  obtain ⟨v, hv, hpos⟩ := Finset.exists_lt_of_sum_lt (s := (E q).basisᶜ) (f := fun _ => (0 : K))
+    (g := fun v => (E q).objCoeff v * (E p).ray s v) (by rw [Finset.sum_const_zero]; linarith)
   have hvq : v ∉ (E q).basis := Finset.mem_compl.1 hv
   by_cases hvs : v = s
   · rw [hvs, (E p).ray_self, mul_one] at hpos
     exact absurd (hminq s (hvs ▸ hvq) hpos) (not_le.2 hsr)
-  by_cases hvp : v ∈ (E p).basis
-  swap
-  · rw [(E p).ray_of_notMem hvp hvs, mul_zero] at hpos
-    exact lt_irrefl _ hpos
+  have hvp : v ∈ (E p).basis := of_not_not fun hvp => by
+    simp [(E p).ray_of_notMem hvp hvs] at hpos
   rw [(E p).ray_of_mem hvp hs] at hpos
   have hvF : v ∈ F := (hFmem v).2 ⟨p, hip, hpj.le, q, hiq, hqj.le, hvp, hvq⟩
-  have hvr : v ≠ t := by
-    rintro rfl; exact hpos.not_ge (mul_nonpos_of_nonneg_of_nonpos hcq.le har.le)
+  have hvr : v ≠ t := fun h => hpos.not_ge (h ▸ mul_nonpos_of_nonneg_of_nonpos hcq.le har.le)
   have hvlt : v < t := lt_of_le_of_ne (hleT v hvF) hvr
   have hcv : (E q).objCoeff v ≤ 0 := not_lt.1 fun h => (hminq v hvq h).not_gt hvlt
   have hav : (E p).coeff v s < 0 :=
@@ -516,22 +477,16 @@ feasible dictionary with `m` basic variables among `N` variables, `n + 1 ≤ N.c
 theorem add_one_le_choose_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ}
     (hE0 : (E 0).Feasible) (hE : ∀ k < n, (E k).BlandPivot (E (k + 1))) :
     n + 1 ≤ (Fintype.card ι).choose #(E 0).basis := by
-  have hcard : ∀ k ≤ n, #(E k).basis = #(E 0).basis := by
-    intro k hk
-    induction k with
-    | zero => rfl
-    | succ k ih => rw [(hE k (by omega)).card_basis, ih (by omega)]
+  have hcard (k : ℕ) (hk : k ≤ n) : #(E k).basis = #(E 0).basis := by
+    induction k with | zero => rfl | succ k ih => rw [(hE k (by omega)).card_basis, ih (by omega)]
   have h := Finset.card_le_card_of_injOn (s := Finset.range (n + 1))
     (t := Finset.powersetCard #(E 0).basis Finset.univ) (fun k => (E k).basis)
     (fun k hk => Finset.mem_powersetCard.2 ⟨Finset.subset_univ _,
       hcard k (Nat.lt_succ_iff.1 (Finset.mem_range.1 hk))⟩)
-    (fun k hk l hl hkl => by
-      have hk := Nat.lt_succ_iff.1 (Finset.mem_range.1 hk)
-      have hl := Nat.lt_succ_iff.1 (Finset.mem_range.1 hl)
-      by_contra hne
-      rcases lt_or_gt_of_ne hne with h | h
-      · exact basis_ne_of_blandPivot hE0 hE h hl hkl
-      · exact basis_ne_of_blandPivot hE0 hE h hk hkl.symm)
+    fun k hk l hl hkl => by_contra fun hne => (lt_or_gt_of_ne hne).elim
+      (fun h => basis_ne_of_blandPivot hE0 hE h (Nat.lt_succ_iff.1 (Finset.mem_range.1 hl)) hkl)
+      (fun h => basis_ne_of_blandPivot hE0 hE h (Nat.lt_succ_iff.1 (Finset.mem_range.1 hk))
+        hkl.symm)
   rwa [Finset.card_range, Finset.card_powersetCard, Finset.card_univ] at h
 
 /-! ### The simplex method with Bland's rule -/
@@ -555,10 +510,8 @@ theorem exists_blandPivot_of_run_eq_outOfFuel {fuel : ℕ} {D' : Dictionary ι K
 suffice. -/
 theorem run_ne_outOfFuel (hD : D.Feasible) {fuel : ℕ}
     (hfuel : (Fintype.card ι).choose #D.basis ≤ fuel + 1) (D' : Dictionary ι K) :
-    run D fuel ≠ .outOfFuel D' := by
-  intro h
-  obtain ⟨E, hE0, hE⟩ := exists_blandPivot_of_run_eq_outOfFuel D h
-  subst hE0
+    run D fuel ≠ .outOfFuel D' := fun h => by
+  obtain ⟨E, rfl, hE⟩ := exists_blandPivot_of_run_eq_outOfFuel D h
   have := add_one_le_choose_of_blandPivot hD hE
   omega
 
@@ -612,13 +565,11 @@ theorem simplex_spec (hD : D.Feasible) :
     ((∃ D' s, D.simplex = .unbounded D' s) ∧ ¬BddAbove (D.value '' D.feasibleSet)) := by
   rcases h : D.simplex with D' | ⟨D', s⟩ | D'
   · obtain ⟨h1, h2, -, h4⟩ := D.run_eq_optimal hD h
-    refine .inl ⟨D', rfl, h1, h2, ?_⟩
-    rw [D.image_value_feasibleSet_eq h1]
-    exact D'.isGreatest_value h2 h4
+    exact .inl ⟨D', rfl, h1, h2,
+      (D.image_value_feasibleSet_eq h1).symm ▸ D'.isGreatest_value h2 h4⟩
   · obtain ⟨h1, h2, h3, h4, h5⟩ := D.run_eq_unbounded hD h
-    refine .inr ⟨⟨D', s, rfl⟩, ?_⟩
-    rw [D.image_value_feasibleSet_eq h1]
-    exact D'.not_bddAbove_value h2 h3 h4 h5
+    exact .inr ⟨⟨D', s, rfl⟩,
+      (D.image_value_feasibleSet_eq h1).symm ▸ D'.not_bddAbove_value h2 h3 h4 h5⟩
   · exact absurd h (D.simplex_ne_outOfFuel hD D')
 
 end Dictionary

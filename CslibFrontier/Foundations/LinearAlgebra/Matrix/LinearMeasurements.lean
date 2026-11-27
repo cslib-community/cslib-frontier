@@ -174,13 +174,9 @@ theorem RowBasisSelection.rank_submatrix_eq {m col K : Type*} [Field K] [Fintype
 theorem RowBasisSelection.mulVec_eq_iff {m col K : Type*} [Field K] [Fintype col]
     {M : Matrix m col K} (B : RowBasisSelection M) (x y : col → K) :
     M *ᵥ x = M *ᵥ y ↔
-      (M.submatrix B.rowIdx id) *ᵥ x = (M.submatrix B.rowIdx id) *ᵥ y := by
-  constructor
-  · intro h
-    funext k
-    exact congrFun h (B.rowIdx k)
-  · intro h
-    rw [← B.reconstruct_submatrix_mulVec x, ← B.reconstruct_submatrix_mulVec y, h]
+      (M.submatrix B.rowIdx id) *ᵥ x = (M.submatrix B.rowIdx id) *ᵥ y :=
+  ⟨fun h => funext fun k => congrFun h (B.rowIdx k),
+    fun h => by rw [← B.reconstruct_submatrix_mulVec x, ← B.reconstruct_submatrix_mulVec y, h]⟩
 
 end RowBasis
 
@@ -194,14 +190,9 @@ section ValueBound
 
 /-- Over `ℤ`, entries lie in `{-1, 0, 1}` if and only if their absolute values are at most `1`. -/
 theorem isUnitTrinary_int_iff {m col : Type*} (A : Matrix m col ℤ) :
-    IsUnitTrinary A ↔ ∀ i j, |A i j| ≤ 1 := by
-  constructor
-  · intro h i j
-    rcases h i j with h1 | h0 | h1' <;> simp [*]
-  · intro h i j
-    have hij := h i j
-    rw [abs_le] at hij
-    omega
+    IsUnitTrinary A ↔ ∀ i j, |A i j| ≤ 1 :=
+  ⟨fun h i j => by rcases h i j with h | h | h <;> simp [h],
+    fun h i j => by have := abs_le.mp (h i j); omega⟩
 
 /-- Selecting rows preserves `IsUnitTrinary`. -/
 theorem IsUnitTrinary.submatrix {m' col' m col R : Type*} [Ring R] {M : Matrix m col R}
@@ -220,23 +211,14 @@ theorem card_image_mulVec_le_two_mul_add_one_pow {α R : Type*} [Ring R] [Decida
   classical
   let A : Matrix (Fin r) (Fin n) ℤ := of fun i j =>
     if M i j = 1 then 1 else if M i j = -1 then -1 else 0
-  have hA_cast : ∀ i j, (A i j : R) = M i j := by
-    intro i j
+  have hA_cast (i : Fin r) (j : Fin n) : (A i j : R) = M i j := by
     dsimp only [A, of_apply]
-    by_cases h1 : M i j = 1
-    · rw [ite_eq_left h1, h1]
-      simp
-    · rw [ite_eq_right h1]
-      by_cases hm1 : M i j = -1
-      · rw [ite_eq_left hm1, hm1]
-        simp
-      · rw [ite_eq_right hm1]
-        rcases hM i j with h | h | h
-        · exact absurd h hm1
-        · simp [h]
-        · exact absurd h h1
-  have hA_abs : ∀ i j, |A i j| ≤ 1 := by
-    intro i j
+    split_ifs with h1 hm1
+    · simp [h1]
+    · simp [hm1]
+    · rcases hM i j with h | h | h
+      exacts [absurd h hm1, by simp [h], absurd h h1]
+  have hA_abs (i : Fin r) (j : Fin n) : |A i j| ≤ 1 := by
     dsimp only [A, of_apply]
     split_ifs <;> simp
   let box : Finset (Fin r → ℤ) := Fintype.piFinset fun _ : Fin r => Icc (-(n : ℤ)) (n : ℤ)
@@ -244,15 +226,11 @@ theorem card_image_mulVec_le_two_mul_add_one_pow {α R : Type*} [Ring R] [Decida
     intro y hy
     rcases mem_image.mp hy with ⟨x, hx, rfl⟩
     obtain ⟨z, hz_cast, hz_abs⟩ := hφ x hx
-    refine mem_image.mpr ⟨A *ᵥ z, ?_, ?_⟩
-    · rw [Fintype.mem_piFinset]
-      intro i
-      rw [mem_Icc, ← abs_le]
-      have hb : |∑ j : Fin n, A i j * z j| ≤ (univ : Finset (Fin n)).card * (1 : ℤ) :=
+    refine mem_image.mpr ⟨A *ᵥ z, Fintype.mem_piFinset.mpr fun i => ?_, funext fun i => ?_⟩
+    · rw [mem_Icc, ← abs_le]
+      simpa [mulVec, dotProduct] using
         Finset.abs_sum_mul_le univ (fun j _ => hA_abs i j) (fun j _ => hz_abs j)
-      simpa [mulVec, dotProduct] using hb
-    · funext i
-      simp only [mulVec, dotProduct, Int.cast_sum, Int.cast_mul, hA_cast, hz_cast]
+    · simp only [mulVec, dotProduct, Int.cast_sum, Int.cast_mul, hA_cast, hz_cast]
   calc #(X.image fun x => M *ᵥ φ x)
       ≤ #(box.image fun w i => (w i : R)) := card_le_card hsub
     _ ≤ #box := card_image_le
@@ -270,12 +248,11 @@ theorem card_image_submatrix_mulVec_bitVal_le {m R : Type*} [CommRing R] [Decida
     {r n : ℕ} (M : Matrix m (Fin n) R) (hM : IsUnitTrinary M)
     (sel : Fin r → m) (X : Finset (Fin n → Bool)) :
     #(X.image fun x => (M.submatrix sel id) *ᵥ fun j => Cslib.BitString.bitVal R (x j)) ≤
-      (2 * n + 1) ^ r := by
-  refine card_image_mulVec_le_two_mul_add_one_pow (M.submatrix sel id) (hM.submatrix sel id) X _ ?_
-  intro x _
-  refine ⟨fun j => Cslib.BitString.bitVal ℤ (x j), fun j => ?_, fun j => ?_⟩
-  · cases h : x j <;> simp [h, Cslib.BitString.bitVal]
-  · cases h : x j <;> simp [h, Cslib.BitString.bitVal]
+      (2 * n + 1) ^ r :=
+  card_image_mulVec_le_two_mul_add_one_pow (M.submatrix sel id) (hM.submatrix sel id) X _
+    fun x _ => ⟨fun j => Cslib.BitString.bitVal ℤ (x j),
+      fun j => by cases h : x j <;> simp [h, Cslib.BitString.bitVal],
+      fun j => by cases h : x j <;> simp [h, Cslib.BitString.bitVal]⟩
 
 /-- **`(2n + 1)^r` value bound for `r` selected `±1`-sign measurements**: for any `M` with entries
 in `{-1, 0, 1}` and `sel : Fin r → m`, the `r` signed measurements on `X ⊆ Fin n → Bool` take at
@@ -284,12 +261,11 @@ theorem card_image_submatrix_mulVec_sign_le {m R : Type*} [CommRing R] [Decidabl
     {r n : ℕ} (M : Matrix m (Fin n) R) (hM : IsUnitTrinary M)
     (sel : Fin r → m) (X : Finset (Fin n → Bool)) :
     #(X.image fun x => (M.submatrix sel id) *ᵥ fun j => (-1 : R) ^ (x j).toNat) ≤
-      (2 * n + 1) ^ r := by
-  refine card_image_mulVec_le_two_mul_add_one_pow (M.submatrix sel id) (hM.submatrix sel id) X _ ?_
-  intro x _
-  refine ⟨fun j => (-1 : ℤ) ^ (x j).toNat, fun j => ?_, fun j => ?_⟩
-  · cases h : x j <;> simp [h]
-  · cases h : x j <;> simp [h]
+      (2 * n + 1) ^ r :=
+  card_image_mulVec_le_two_mul_add_one_pow (M.submatrix sel id) (hM.submatrix sel id) X _
+    fun x _ => ⟨fun j => (-1 : ℤ) ^ (x j).toNat,
+      fun j => by cases h : x j <;> simp [h],
+      fun j => by cases h : x j <;> simp [h]⟩
 
 /-- **General rank-compressed `(2n + 1)^{rank M}` bound** over any field `K` (including `K = ℚ`):
 if `M : Matrix m (Fin n) K` has entries in `{-1, 0, 1}` and `φ x` (`x ∈ X`) lifts to integer
@@ -319,11 +295,11 @@ theorem card_image_mulVec_bitVal_le_pow_rank {m K : Type*} [Field K] [Finite m]
     [DecidableEq (m → K)] {n : ℕ} (M : Matrix m (Fin n) K) (hM : IsUnitTrinary M)
     (X : Finset (Fin n → Bool)) :
     #(X.image fun x => M *ᵥ fun j => Cslib.BitString.bitVal K (x j)) ≤
-      (2 * n + 1) ^ M.rank := by
-  refine card_image_mulVec_le_pow_rank M hM X _ fun x _ =>
-    ⟨fun j => Cslib.BitString.bitVal ℤ (x j), fun j => ?_, fun j => ?_⟩
-  · cases h : x j <;> simp [h, Cslib.BitString.bitVal]
-  · cases h : x j <;> simp [h, Cslib.BitString.bitVal]
+      (2 * n + 1) ^ M.rank :=
+  card_image_mulVec_le_pow_rank M hM X _ fun x _ =>
+    ⟨fun j => Cslib.BitString.bitVal ℤ (x j),
+      fun j => by cases h : x j <;> simp [h, Cslib.BitString.bitVal],
+      fun j => by cases h : x j <;> simp [h, Cslib.BitString.bitVal]⟩
 
 /-- **Rank-compressed `(2n + 1)^{rank M}` bound for `±1`-sign measurements** over any field `K`
 (including `K = ℚ`). -/
@@ -331,11 +307,11 @@ theorem card_image_mulVec_sign_le_pow_rank {m K : Type*} [Field K] [Finite m]
     [DecidableEq (m → K)] {n : ℕ} (M : Matrix m (Fin n) K) (hM : IsUnitTrinary M)
     (X : Finset (Fin n → Bool)) :
     #(X.image fun x => M *ᵥ fun j => (-1 : K) ^ (x j).toNat) ≤
-      (2 * n + 1) ^ M.rank := by
-  refine card_image_mulVec_le_pow_rank M hM X _ fun x _ =>
-    ⟨fun j => (-1 : ℤ) ^ (x j).toNat, fun j => ?_, fun j => ?_⟩
-  · cases h : x j <;> simp [h]
-  · cases h : x j <;> simp [h]
+      (2 * n + 1) ^ M.rank :=
+  card_image_mulVec_le_pow_rank M hM X _ fun x _ =>
+    ⟨fun j => (-1 : ℤ) ^ (x j).toNat,
+      fun j => by cases h : x j <;> simp [h],
+      fun j => by cases h : x j <;> simp [h]⟩
 
 end ValueBound
 
@@ -395,15 +371,13 @@ theorem exists_le_card_measurementFiber_bitVal {m K : Type*} [Field K] [Finite m
         #(measurementFiber M (fun x j => Cslib.BitString.bitVal K (x j)) X y) := by
   let φ := fun (x : Fin n → Bool) (j : Fin n) => Cslib.BitString.bitVal K (x j)
   let V := measurementValues M φ X
-  have hVne : V.Nonempty := hX.image _
-  have hcardV : #V ≤ (2 * n + 1) ^ M.rank := card_image_mulVec_bitVal_le_pow_rank M hM X
-  obtain ⟨y, hyV, hmax⟩ := exists_max_image V (fun y => #(measurementFiber M φ X y)) hVne
+  obtain ⟨y, hyV, hmax⟩ := exists_max_image V (fun y => #(measurementFiber M φ X y)) (hX.image _)
   refine ⟨y, hyV, ?_⟩
   calc #X = ∑ y' ∈ V, #(measurementFiber M φ X y') := (sum_card_measurementFiber M φ X).symm
     _ ≤ #V • #(measurementFiber M φ X y) := sum_le_card_nsmul V _ _ hmax
     _ = #V * #(measurementFiber M φ X y) := smul_eq_mul _ _
     _ ≤ (2 * n + 1) ^ M.rank * #(measurementFiber M φ X y) :=
-        Nat.mul_le_mul_right _ hcardV
+        Nat.mul_le_mul_right _ (card_image_mulVec_bitVal_le_pow_rank M hM X)
 
 /-- **Factored linear-measurement fibre-sum identity**: a function `g (M *ᵥ φ x)` depending only on
 the linear measurements factors outside each `measurementFiber` sum. -/
@@ -415,8 +389,7 @@ theorem sum_mul_comp_mulVec {α m col R S : Type*} [Semiring R] [Fintype col]
   rw [sum_eq_sum_measurementFiber M φ X (fun x => g (M *ᵥ φ x) * w x)]
   refine sum_congr rfl fun y _ => ?_
   rw [mul_sum]
-  refine sum_congr rfl fun x hx => ?_
-  rw [(mem_filter.mp hx).2]
+  exact sum_congr rfl fun x hx => by rw [(mem_filter.mp hx).2]
 
 /-- **Row-basis compressed fibre-sum identity**: using `B : RowBasisSelection M`, any sum of
 `g (M *ᵥ φ x) * w x` over `X` compresses to a sum over the reduced `M.rank`-coordinate measurement
@@ -427,10 +400,7 @@ theorem RowBasisSelection.sum_mul_comp_mulVec {α m col K S : Type*} [Field K] [
     ∑ x ∈ X, g (M *ᵥ φ x) * w x =
       ∑ y ∈ measurementValues (M.submatrix B.rowIdx id) φ X,
         g (B.reconstruct y) * ∑ x ∈ measurementFiber (M.submatrix B.rowIdx id) φ X y, w x := by
-  have hcongr : ∑ x ∈ X, g (M *ᵥ φ x) * w x =
-      ∑ x ∈ X, g (B.reconstruct ((M.submatrix B.rowIdx id) *ᵥ φ x)) * w x :=
-    sum_congr rfl fun x _ => by rw [B.reconstruct_submatrix_mulVec]
-  rw [hcongr]
+  rw [sum_congr rfl fun x _ => by rw [← B.reconstruct_submatrix_mulVec (φ x)]]
   exact Matrix.sum_mul_comp_mulVec (M.submatrix B.rowIdx id) φ X (fun y => g (B.reconstruct y)) w
 
 /-- **Kernel-coset translation for full-space linear measurements**: summing `w` over the fibre
@@ -439,20 +409,16 @@ theorem sum_filter_mulVec_eq_sum_ker {m col R M₀ : Type*} [Ring R] [Fintype co
     [Fintype (col → R)] [DecidableEq (m → R)] [AddCommMonoid M₀]
     (M : Matrix m col R) (x₀ : col → R) (w : (col → R) → M₀) :
     ∑ x ∈ univ.filter (fun x : col → R => M *ᵥ x = M *ᵥ x₀), w x =
-      ∑ z ∈ univ.filter (fun z : col → R => M *ᵥ z = 0), w (z + x₀) := by
-  refine sum_bij' (fun x _ => x - x₀) (fun z _ => z + x₀) ?_ ?_ ?_ ?_ ?_
-  · intro x hx
-    simp only [mem_filter, mem_univ, true_and] at hx ⊢
-    rw [mulVec_sub, hx, sub_self]
-  · intro z hz
-    simp only [mem_filter, mem_univ, true_and] at hz ⊢
-    rw [mulVec_add, hz, zero_add]
-  · intro x _
-    exact sub_add_cancel x x₀
-  · intro z _
-    exact add_sub_cancel_right z x₀
-  · intro x _
-    rw [sub_add_cancel]
+      ∑ z ∈ univ.filter (fun z : col → R => M *ᵥ z = 0), w (z + x₀) :=
+  sum_bij' (fun x _ => x - x₀) (fun z _ => z + x₀)
+    (fun x hx => by
+      simp only [mem_filter, mem_univ, true_and] at hx ⊢
+      rw [mulVec_sub, hx, sub_self])
+    (fun z hz => by
+      simp only [mem_filter, mem_univ, true_and] at hz ⊢
+      rw [mulVec_add, hz, zero_add])
+    (fun x _ => sub_add_cancel x x₀) (fun z _ => add_sub_cancel_right z x₀)
+    (fun x _ => by rw [sub_add_cancel])
 
 /-- Every nonempty full-space fibre `{x : col → R | M *ᵥ x = M *ᵥ x₀}` has the same cardinality as
 the kernel `{z : col → R | M *ᵥ z = 0}`. -/
@@ -481,21 +447,17 @@ theorem two_pow_mul_sum_filter_mulVec_zmodTwo {α β : Type*} [Fintype α] [Fint
     refine sum_congr rfl fun x _ => ?_
     refine sum_congr rfl fun u _ => ?_
     have hdot : (u ⬝ᵥ y) + ((Mᵀ *ᵥ u) ⬝ᵥ x) = u ⬝ᵥ (M *ᵥ x - y) := by
-      have hm : (Mᵀ *ᵥ u) ⬝ᵥ x = u ⬝ᵥ (M *ᵥ x) := by
-        rw [← vecMul_transpose, transpose_transpose, dotProduct_mulVec]
-      rw [hm, dotProduct_sub, sub_eq_add_neg, ZModModule.neg_eq_self, add_comm]
-    have hsign : (-1 : ℝ) ^ (u ⬝ᵥ y).val * (-1 : ℝ) ^ ((Mᵀ *ᵥ u) ⬝ᵥ x).val =
-        (-1 : ℝ) ^ (u ⬝ᵥ (M *ᵥ x - y)).val := by
-      rw [← ZMod.neg_one_pow_val_add, hdot]
+      rw [← vecMul_transpose, transpose_transpose, ← dotProduct_mulVec, dotProduct_sub,
+        sub_eq_add_neg, ZModModule.neg_eq_self, add_comm]
     calc (-1 : ℝ) ^ (u ⬝ᵥ y).val * ((-1 : ℝ) ^ ((Mᵀ *ᵥ u) ⬝ᵥ x).val * w x)
         = ((-1 : ℝ) ^ (u ⬝ᵥ y).val * (-1 : ℝ) ^ ((Mᵀ *ᵥ u) ⬝ᵥ x).val) * w x :=
             (mul_assoc _ _ _).symm
-      _ = w x * (-1 : ℝ) ^ (u ⬝ᵥ (M *ᵥ x - y)).val := by rw [hsign, mul_comm]
+      _ = w x * (-1 : ℝ) ^ (u ⬝ᵥ (M *ᵥ x - y)).val := by
+            rw [← ZMod.neg_one_pow_val_add, hdot, mul_comm]
   rw [hrhs]
   simp_rw [sum_neg_one_pow_val_dotProduct, sub_eq_zero]
   rw [sum_filter, mul_sum]
-  refine sum_congr rfl fun x _ => ?_
-  split_ifs <;> ring
+  exact sum_congr rfl fun x _ => by split_ifs <;> ring
 
 end FibreIdentities
 
@@ -518,14 +480,10 @@ theorem AddChar.card_mul_sum_filter_eq {G H : Type*} [AddCommGroup G] [AddCommGr
     rw [sum_comm]
     refine sum_congr rfl fun x _ => ?_
     refine sum_congr rfl fun ψ _ => ?_
-    have hψ : ψ (-y) * ψ (φ x) = ψ (φ x - y) := by
-      rw [sub_eq_add_neg, ψ.map_add_eq_mul, mul_comm]
-    calc ψ (-y) * (ψ (φ x) * w x) = (ψ (-y) * ψ (φ x)) * w x := (mul_assoc _ _ _).symm
-      _ = w x * ψ (φ x - y) := by rw [hψ, mul_comm]
+    rw [← mul_assoc, ← ψ.map_add_eq_mul, add_comm (-y), ← sub_eq_add_neg, mul_comm]
   rw [hrhs]
   simp_rw [AddChar.sum_apply_eq_ite, sub_eq_zero]
   rw [sum_filter, mul_sum]
-  refine sum_congr rfl fun x _ => ?_
-  split_ifs <;> ring
+  exact sum_congr rfl fun x _ => by split_ifs <;> ring
 
 end AbelianCharacterFibre

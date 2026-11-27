@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.StatisticalDistance
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.BindCompare
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Data.Finset.Max
@@ -153,72 +154,27 @@ theorem map_firstIn_weightedOrderAux (w : Ω → ℝ≥0) :
           rw [inter_erase, erase_eq_of_notMem fun h => haR (mem_inter.mp h).1]
         rw [ite_eq_right haR, show firstIn R ∘ (a :: ·) = firstIn R from
           funext fun l => by simp [firstIn_cons, haR],
-          map_firstIn_weightedOrderAux w m (U.erase a) R (by rw [card_erase_of_mem haU]; omega)
+          map_firstIn_weightedOrderAux w m (U.erase a) R (by rw [card_erase_of_mem haU]; lia)
             (hRU ▸ hR)]
         simp only [hRU]
     rw [Cslib.Probability.PMF.bind_congr_on_support _ _ _ hcont]
-    have hrhs : ∀ c, (PMF.map some (weightedDraw w (R ∩ U) hR)) (some c) =
-        weightedDraw w (R ∩ U) hR c := fun c => by
-      rw [PMF.map_apply, tsum_fintype]
-      simp
-    ext o
-    rcases o with _ | c
-    · rw [PMF.bind_apply, PMF.map_apply]
-      simp only [reduceCtorEq, ite_false, tsum_zero]
-      refine tsum_eq_zero_iff.mpr fun a => ?_
-      split_ifs <;> simp [PMF.map_apply]
-    rw [PMF.bind_apply, tsum_fintype, hrhs]
-    set du := weightedDraw w U hU0
-    set D := weightedDraw w (R ∩ U) hR
-    by_cases hc : c ∈ R ∩ U
-    · set WU := ∑ b ∈ U, (w b : ℝ≥0∞)
-      set WRU := ∑ b ∈ R ∩ U, (w b : ℝ≥0∞)
-      have hterm : ∀ a, du a *
-          (if a ∈ R then PMF.pure (some a) else PMF.map some D) (some c) =
-          (if a = c then (w c : ℝ≥0∞) * WU⁻¹ else 0) +
-            (if a ∈ U.filter (· ∉ R) then (w a : ℝ≥0∞) * WU⁻¹ * ((w c : ℝ≥0∞) * WRU⁻¹)
-              else 0) := by
-        intro a
-        by_cases haR : a ∈ R
-        · rw [ite_eq_left haR, PMF.pure_apply]
-          by_cases hac : a = c
-          · subst hac
-            simp only [weightedDraw_apply, (mem_inter.mp hc).2, ↓reduceIte, mul_one, mem_filter,
-              haR, not_true_eq_false, and_false, add_zero, du]
-            rfl
-          · simp [hac, Ne.symm hac, haR]
-        · rw [ite_eq_right haR, hrhs]
-          have hac : a ≠ c := fun h => haR (h ▸ (mem_inter.mp hc).1)
-          by_cases haU : a ∈ U
-          · simp [du, D, weightedDraw_apply, hac, haR, haU, hc, WU, WRU]
-          · simp [du, weightedDraw_apply, hac, haU]
-      rw [sum_congr rfl fun a _ => hterm a, sum_add_distrib, sum_ite_eq', ite_eq_left (mem_univ _),
-        sum_ite_mem, univ_inter, ← sum_mul, ← sum_mul]
-      have hsplit : WU = WRU + ∑ b ∈ U.filter (· ∉ R), (w b : ℝ≥0∞) := by
-        simp only [WU, WRU]
-        rw [← sum_filter_add_sum_filter_not U (· ∈ R), filter_mem_eq_inter, inter_comm]
-      have hWU : WU ≠ ⊤ := ENNReal.sum_ne_top.mpr fun _ _ => ENNReal.coe_ne_top
-      have hWRU : WRU ≠ ⊤ := ENNReal.sum_ne_top.mpr fun _ _ => ENNReal.coe_ne_top
-      have h1 : WRU * WRU⁻¹ = 1 := ENNReal.mul_inv_cancel hR hWRU
-      have h2 : WU⁻¹ * WU = 1 := ENNReal.inv_mul_cancel hU0 hWU
-      rw [show D c = (w c : ℝ≥0∞) * WRU⁻¹ by simp [D, weightedDraw_apply, hc, WRU]]
-      calc (w c : ℝ≥0∞) * WU⁻¹ + (∑ b ∈ U.filter (· ∉ R), (w b : ℝ≥0∞)) * WU⁻¹ *
-            ((w c : ℝ≥0∞) * WRU⁻¹)
-          = (w c : ℝ≥0∞) * WRU⁻¹ * (WU⁻¹ * (WRU + ∑ b ∈ U.filter (· ∉ R), (w b : ℝ≥0∞))) := by
-            rw [← mul_one ((w c : ℝ≥0∞) * WU⁻¹), ← h1]
-            ring
-        _ = (w c : ℝ≥0∞) * WRU⁻¹ := by rw [← hsplit, h2, mul_one]
-    · have hDc : D c = 0 := by simp [D, weightedDraw_apply, hc]
-      rw [hDc]
-      refine sum_eq_zero fun a _ => ?_
-      by_cases haR : a ∈ R
-      · rw [ite_eq_left haR, PMF.pure_apply]
-        by_cases hac : c = a
-        · subst hac
-          have hcU : c ∉ U := fun hcU => hc (mem_inter.mpr ⟨haR, hcU⟩)
-          simp [du, weightedDraw_apply, hcU]
-        · simp [hac]
-      · rw [ite_eq_right haR, hrhs, hDc, mul_zero]
+    set draw := weightedDraw w U hU0
+    set restricted := weightedDraw w (R ∩ U) hR
+    set weightU := ∑ a ∈ U, (w a : ℝ≥0∞)
+    set weightR := ∑ a ∈ R ∩ U, (w a : ℝ≥0∞)
+    have hweightR : weightR ≠ ⊤ := ENNReal.sum_ne_top.mpr fun _ _ => ENNReal.coe_ne_top
+    have hcancel := ENNReal.inv_mul_cancel hR hweightR
+    -- Inside the region, the original and restricted draws differ by one normalization factor.
+    have hhit (a : Ω) : (R : Set Ω).indicator draw a =
+        (weightR * weightU⁻¹) * restricted a := by
+      by_cases haR : a ∈ R <;> by_cases haU : a ∈ U
+      · simp only [Set.indicator_of_mem (Finset.mem_coe.mpr haR), draw, restricted,
+          weightedDraw_apply, haR, haU, mem_inter, and_self, ↓reduceIte]
+        rw [mul_comm (weightR * weightU⁻¹), mul_assoc, ← mul_assoc weightR⁻¹, hcancel, one_mul]
+      all_goals simp [draw, restricted, weightedDraw_apply, haR, haU]
+    have h := Cslib.Probability.PMF.bind_pure_or_resample_eq (R : Set Ω) hhit
+    simpa only [PMF.map_bind, apply_ite, PMF.pure_map, Finset.mem_coe] using
+      congrArg (PMF.map some) h
 
 /-- In a weighted order of all elements, the first element of `R` is distributed as a single
 weighted draw from `R`. -/

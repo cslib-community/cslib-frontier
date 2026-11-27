@@ -116,7 +116,7 @@ private theorem le_two_mul_sqrt_of_forall_le {x c d : ℝ} (hc : 0 ≤ c) (hd : 
       rw [mul_zero, add_zero, div_div_eq_mul_div] at this
       have : x * (c + 1) ≤ c * x := by
         rwa [le_div_iff₀ (by positivity)] at this
-      nlinarith
+      linarith [show x * (c + 1) = c * x + x by ring]
   · by_contra hx
     push Not at hx
     rw [zero_mul, Real.sqrt_zero, mul_zero] at hx
@@ -124,7 +124,8 @@ private theorem le_two_mul_sqrt_of_forall_le {x c d : ℝ} (hc : 0 ≤ c) (hd : 
     rw [zero_div, zero_add] at this
     have h1 : x / (2 * d + 1) * d < x := by
       rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
-      nlinarith
+      have hpos : 0 < x * (d + 1) := by positivity
+      linarith [show x * (2 * d + 1) - x * d = x * (d + 1) by ring]
     linarith
 
 /-- **Massart's lemma** [Massart2000, Lemma 5.2] [MohriRostamizadehTalwalkar2018, Theorem 3.7]:
@@ -163,7 +164,7 @@ theorem expect_ciSup_sum_mul_signVal_le {ι κ : Type*} [Fintype ι] [Fintype κ
     have hlog := Real.log_le_log (exp_pos _) hexp
     rw [Real.log_exp, Real.log_mul hN.ne' (exp_pos _).ne', Real.log_exp] at hlog
     rw [div_add' _ _ _ ht.ne', le_div_iff₀ ht]
-    nlinarith
+    linear_combination hlog
   have hlogN : 0 ≤ Real.log (Fintype.card ι) :=
     Real.log_nonneg (by exact_mod_cast Fintype.card_pos)
   calc 𝔼 σ : κ → Bool, ⨆ j, ∑ i, a j i * signVal (σ i)

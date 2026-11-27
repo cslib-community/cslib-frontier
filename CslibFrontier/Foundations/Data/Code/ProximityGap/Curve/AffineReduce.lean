@@ -100,13 +100,11 @@ theorem exists_correlatedAgreement_affine_of_curve
         ⟨a, mem_filter.2 ⟨mem_univ a, hphi.symm ▸ hz⟩, hphi⟩
   have hsum_lt : (∑ _a : Fin ℓ → Fˣ, B_curve) <
       ∑ a : Fin ℓ → Fˣ, (Finset.univ.filter fun t : Fˣ => phi a t ∈ T_nz).card := by
-    have hsum : (∑ a : Fin ℓ → Fˣ, (Finset.univ.filter fun t : Fˣ => phi a t ∈ T_nz).card) =
-        Fintype.card Fˣ * T_nz.card := by
-      simp_rw [Finset.card_filter]; rw [Finset.sum_comm]
-      simp_rw [← Finset.card_filter, hfiber, Finset.sum_const, Finset.card_univ, smul_eq_mul]
-    rw [hsum, Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
-      smul_eq_mul, mul_comm]
-    exact hT_nz_units
+    simp_rw [Finset.card_filter]
+    rw [Finset.sum_comm]
+    simpa only [← Finset.card_filter, hfiber, Finset.sum_const, Finset.card_univ,
+      Fintype.card_fun, Fintype.card_fin, smul_eq_mul,
+      mul_comm (Fintype.card Fˣ ^ ℓ) B_curve] using hT_nz_units
   obtain ⟨a, _, ha_gt⟩ := Finset.exists_lt_of_sum_lt hsum_lt
   let S : Finset F := (Finset.univ.filter fun t : Fˣ => phi a t ∈ T_nz).image Units.val
   let u' : Fin (ℓ + 1) → (ι → F) := Fin.cons u₀ fun j => (a j : F) • u j
@@ -122,9 +120,8 @@ theorem exists_correlatedAgreement_affine_of_curve
   refine ⟨D', hQD', v' 0, hv'RS 0, fun j => (a j : F)⁻¹ • v' j.succ,
     fun j => Submodule.smul_mem _ _ (hv'RS j.succ), fun i hi =>
       ⟨by simpa only [u', Fin.cons_zero] using hagree' i hi 0, fun j => ?_⟩⟩
-  have hs : (a j : F) * u j i = v' j.succ i := by
-    simpa only [u', Fin.cons_succ, Pi.smul_apply, smul_eq_mul] using hagree' i hi j.succ
-  simp only [Pi.smul_apply, smul_eq_mul, ← hs, inv_mul_cancel_left₀ (a j).ne_zero]
+  simpa only [u', Fin.cons_succ, Pi.smul_apply, smul_eq_mul,
+    eq_inv_mul_iff_mul_eq₀ (a j).ne_zero] using hagree' i hi j.succ
 
 /-- **Generic 1D-line-to-affine-space proximity-gap dichotomy (dimension-independent)**:
 
@@ -193,11 +190,9 @@ theorem proximityGap_affine_of_line
           obtain ⟨tu, htu, rfl⟩ := mem_image.1 ht
           exact (hline_eval b tu) ▸ (mem_filter.1 (mem_filter.1 htu).2).2) 0
       exact hy (by rwa [zero_smul, add_zero] at h0)
-    have hsum_eq : pairs.card = ∑ b ∈ B_nz,
-        ((Finset.univ : Finset Fˣ).filter fun t : Fˣ => y + (t : F) • b ∈ T).card := by
-      rw [Finset.card_filter, Finset.sum_product]; simp_rw [Finset.card_filter]
-    have hpairs_le := hsum_eq ▸ (Finset.sum_le_sum fun b _ => hfiber_le b).trans_eq (by
+    rw [← hpairs_eq, Finset.card_filter, Finset.sum_product]
+    refine (Finset.sum_le_sum fun b _ => ?_).trans_eq (by
       rw [Finset.sum_const, smul_eq_mul, hB_nz_card, Nat.mul_comm])
-    omega
+    simpa only [Finset.card_filter] using hfiber_le b
 
 end Cslib.Code

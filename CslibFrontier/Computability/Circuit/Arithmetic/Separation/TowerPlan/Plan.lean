@@ -70,6 +70,14 @@ abbrev PlanUnit (U0 U1 : ℕ) : Type := UnitId A U0 (moves R FL Pl).Channel U1
     MoveChannel R ch FL → ℕ :=
   fun ν => o ((moveChannelEquiv R FL Pl).symm ν)
 
+variable {R FL Pl} in
+/-- The outcome of a channel of a move of the plan is the outcome of the channel of the play. -/
+@[simp]
+theorem outcomeOf_moveOrder (o : (moves R FL Pl).Channel → Fin U1)
+    (x : Fin (Fintype.card (Move R ch FL))) (ν : (moveOrder R ch FL x).law.Channel) :
+    outcomeOf R FL Pl o ⟨moveOrder R ch FL x, ν⟩ = o ⟨x, ν⟩ :=
+  congrArg (fun ν => (o ν : ℕ)) ((Equiv.symm_apply_eq _).2 rfl)
+
 /-- The target of a unit. -/
 @[expose] noncomputable def unitTarget : PlanUnit R FL Pl U0 U1 → Target T m A
   | .init a c k => initialTarget R ch a c k

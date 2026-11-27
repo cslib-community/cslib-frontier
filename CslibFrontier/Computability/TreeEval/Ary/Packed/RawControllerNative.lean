@@ -129,13 +129,8 @@ theorem validBank_inSpace :
   have hand := budget_finite (encC := encBool) (fun q : Bool × Bool => q.1 && q.2)
     (budget_prod hpok hshape)
   refine (budget_finite (encC := encBool) (fun q : Bool × Bool => q.1 && q.2)
-    (budget_prod hand hpad)).of_enc_eq ?_
-  intro q
-  by_cases h : q.1.1 < 2
-  · have hnot : ¬2 ≤ q.1.1 := by omega
-    simp [validBank, h, hnot]
-  · have hle : 2 ≤ q.1.1 := by omega
-    simp [validBank, h, hle]
+    (budget_prod hand hpad)).of_enc_eq fun q => ?_
+  by_cases h : q.1.1 < 2 <;> simp [validBank, h, Nat.not_lt.mp, not_le.mpr]
 
 private theorem needCore_inSpace :
     ComputableInSpace (fun q : Params × State => needCore q.1.2.1 q.1.2.2 q.2)
@@ -170,13 +165,7 @@ private theorem needCore_inSpace :
     (budget_prod hundo (budget_natLt (budget_natSucc hchild) hd))
   refine (budget_ite (budget_optionIsSome hmode) hnode
     (budget_ite (budget_isEmpty hstack) hnone (budget_ite hskip hnone hgate))).of_enc_eq ?_
-  rintro ⟨⟨p, d, r⟩, bank, stack, mode⟩
-  cases mode with
-  | some ct => rfl
-  | none =>
-    cases stack with
-    | nil => rfl
-    | cons fr st => rfl
+  rintro ⟨⟨p, d, r⟩, bank, _ | ⟨fr, st⟩, _ | ct⟩ <;> rfl
 
 /-- Requests have a native certificate linear in the actual encoded runtime state. -/
 theorem need_inSpace :
@@ -423,40 +412,23 @@ private theorem checkedStepCore_eq (p d r : ℕ) (reply : Reply) (q : State)
     (hbank : validBank p d r q.1 = true) : checkedStepCore (p, d, r) reply q =
       stepCore p d r reply q := by
   rcases q with ⟨bank, stack, mode⟩
-  cases mode with
-  | some ct =>
-    rcases ct with ⟨c, t⟩
-    simp only [checkedStepCore, Option.elim_some, checkedCall, stepCore]
-    split_ifs
-    · rw [checkedAddBank_eq p d r _ _ _ bank hbank]
+  rcases mode with _ | ⟨c, t⟩
+  · rcases stack with _ | ⟨⟨round, child, undo, c, t⟩, st⟩
     · rfl
-    · rw [checkedBeginRound_eq p d r _ _ _ bank stack hbank]
-    · rfl
-  | none =>
-    cases stack with
-    | nil => rfl
-    | cons fr st =>
-      rcases fr with ⟨round, child, undo, c, t⟩
-      simp only [checkedStepCore, Option.elim_none, List.isEmpty_cons,
+    · simp only [checkedStepCore, Option.elim_none, List.isEmpty_cons,
         Bool.false_eq_true, ↓reduceIte, List.headD_cons, List.tail_cons, checkedReturn, stepCore]
-      cases undo with
-      | true =>
-        simp only [↓reduceIte]
-        rw [checkedScaleBank_eq p d r _ _ bank hbank]
+      cases undo
+      · by_cases hj : child + 1 < d <;>
+          simp [hj, checkedScaleBank_eq p d r _ _ bank hbank,
+            checkedSubBank_eq p d r _ _ _ bank hbank]
+      · rw [checkedScaleBank_eq p d r _ _ bank hbank]
         have hscaled := validBank_scaleBank p d r (reg d t child) (unitInv p round) bank hbank
-        by_cases hj : child + 1 < d
-        · simp only [hj, ↓reduceIte]
-        · by_cases hi : round + 1 < p - 1
-          · simp only [hj, hi, ↓reduceIte]
-            rw [checkedBeginRound_eq p d r _ _ _ _ st hscaled]
-          · simp only [hj, hi, ↓reduceIte]
-      | false =>
-        simp only [Bool.false_eq_true, ↓reduceIte]
-        by_cases hj : child + 1 < d
-        · simp only [hj, ↓reduceIte]
-          rw [checkedScaleBank_eq p d r _ _ bank hbank]
-        · simp only [hj, ↓reduceIte]
-          rw [checkedSubBank_eq p d r _ _ _ bank hbank]
+        by_cases hj : child + 1 < d <;> by_cases hi : round + 1 < p - 1 <;>
+          simp [hj, hi, checkedBeginRound_eq p d r _ _ _ _ st hscaled]
+  · simp only [checkedStepCore, Option.elim_some, checkedCall, stepCore]
+    split_ifs <;>
+      simp [checkedAddBank_eq p d r _ _ _ bank hbank,
+        checkedBeginRound_eq p d r _ _ _ bank stack hbank]
 
 /-- One returned reply advances the actual raw controller in native linear work space. -/
 theorem stepState_inSpace :
@@ -467,11 +439,8 @@ theorem stepState_inSpace :
   have hq := snd' hfull
   have hguard := budget_comp_linear validBank_inSpace hfull
   refine (budget_ite hguard checkedStepCore_inSpace hq).of_enc_eq ?_
-  rintro ⟨⟨⟨p, d, r⟩, bank, stack, mode⟩, reply⟩
-  by_cases h : validBank p d r bank = true
-  · simp only [step, h, ↓reduceIte]
-    exact congrArg encState (checkedStepCore_eq p d r reply (bank, stack, mode) h).symm
-  · simp only [step, h, Bool.false_eq_true, ↓reduceIte]
+  rintro ⟨⟨⟨p, d, r⟩, q⟩, reply⟩
+  by_cases h : validBank p d r q.1 = true <;> simp [step, h, checkedStepCore_eq]
 
 /-- The runtime parameter header is retained beside the updated raw state. -/
 theorem step_inSpace :
@@ -501,23 +470,19 @@ theorem halted_inSpace :
 /-- A valid bank request retains exactly the child registers and omits the target. -/
 theorem length_point {d r : ℕ} (bank : List ℕ) (hlen : bank.length = (d + 1) * r)
     (t : Fin (d + 1)) : (point d r t bank).length = d * r := by
-  have ht : t.val ≤ d := by omega
   simp only [point, Nat.mod_eq_of_lt t.isLt, List.length_append, List.length_drop,
     List.length_take, hlen]
-  rw [Nat.min_eq_left (Nat.mul_le_mul_right r t.isLt.le), ← Nat.sub_mul]
-  have hsub : d + 1 - (t.val + 1) = d - t.val := by omega
-  rw [hsub, ← Nat.add_mul, Nat.sub_add_cancel ht]
+  rw [Nat.min_eq_left (Nat.mul_le_mul_right r t.isLt.le), ← Nat.sub_mul, ← Nat.add_mul]
+  exact congrArg (· * r) (by omega)
 
 /-- Every coordinate of a cyclic bank slice is the existing child's designated register. -/
 theorem point_getD {d r : ℕ} (bank : List ℕ) (hlen : bank.length = (d + 1) * r)
     (t : Fin (d + 1)) (j : Fin d) (i : Fin r) :
     (point d r t bank).getD (index r j i) 0 =
       bank.getD (index r (reg d t j) i) 0 := by
-  have ht : t.val ≤ d := by omega
   have htail : (bank.drop ((t.val + 1) * r)).length = (d - t.val) * r := by
     rw [List.length_drop, hlen, ← Nat.sub_mul]
-    congr 1
-    omega
+    exact congrArg (· * r) (by omega)
   rw [point, Nat.mod_eq_of_lt t.isLt]
   by_cases hj : j.val < d - t.val
   · have hpos : index r j i < (bank.drop ((t.val + 1) * r)).length := by
@@ -525,17 +490,13 @@ theorem point_getD {d r : ℕ} (bank : List ℕ) (hlen : bank.length = (d + 1) *
       calc
         index r j i < (j.val + 1) * r := by unfold index; nlinarith [i.isLt]
         _ ≤ (d - t.val) * r := Nat.mul_le_mul_right r (Nat.succ_le_of_lt hj)
-    have hreg : reg d t j = t.val + (j.val + 1) := by
-      apply Nat.mod_eq_of_lt
-      omega
+    have hreg : reg d t j = t.val + (j.val + 1) := Nat.mod_eq_of_lt (by omega)
     have hindex : (t.val + 1) * r + index r j i = index r (reg d t j) i := by
-      rw [hreg]
       unfold index
-      ring
+      rw [hreg]; ring
     rw [List.getD_append _ _ 0 _ hpos]
     simp only [List.getD_eq_getElem?_getD, List.getElem?_drop, hindex]
-  · have hjge : d - t.val ≤ j.val := by omega
-    have hjsmall : j.val - (d - t.val) < t.val := by omega
+  · have hjsmall : j.val - (d - t.val) < t.val := by omega
     have hpos : index r (j.val - (d - t.val)) i < t.val * r := by
       calc
         index r (j.val - (d - t.val)) i < (j.val - (d - t.val) + 1) * r := by
@@ -545,13 +506,10 @@ theorem point_getD {d r : ℕ} (bank : List ℕ) (hlen : bank.length = (d + 1) *
     have hindex : index r j i = (d - t.val) * r + index r (j.val - (d - t.val)) i := by
       have hsplit : j.val = (d - t.val) + (j.val - (d - t.val)) := by omega
       calc
-        index r j i = i.val + r * ((d - t.val) + (j.val - (d - t.val))) := by
-          rw [← hsplit]
-          rfl
+        index r j i = i.val + r * ((d - t.val) + (j.val - (d - t.val))) := by rw [← hsplit]; rfl
         _ = _ := by unfold index; ring
     have hright : (bank.drop ((t.val + 1) * r)).length ≤ index r j i := by
-      rw [htail, hindex]
-      omega
+      rw [htail, hindex]; omega
     have hreg : reg d t j = j.val - (d - t.val) := by
       have hsum : t.val + (j.val + 1) = (d + 1) + (j.val - (d - t.val)) := by omega
       rw [reg, hsum, Nat.add_mod_left, Nat.mod_eq_of_lt (by omega)]

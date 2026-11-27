@@ -107,33 +107,26 @@ private theorem isBijPebbleBackAndForth_cfiInvariant {d m : ℕ} (hm : 2 * d + 4
   refine ⟨fun {S a b} hI => ?_, fun {S a b} hI j => ?_⟩
   · obtain ⟨u, φ, hsupp, hmap⟩ := hI
     refine partialIsoOn_graph_iff.2 fun i hiS j hjS => ?_
-    have hui : u ∉ (a i).support := hsupp i hiS
-    have huj : u ∉ (a j).support := hsupp j hjS
-    rw [hmap i hiS hui, hmap j hjS huj]
-    refine ⟨?_, ?_⟩
-    · rw [φ.injective.eq_iff, CFIVertex.castAway_inj hui huj]
-    · rw [φ.map_adj_iff, cfiGraph_adj_castAway_iff hui huj]
+    rw [hmap i hiS (hsupp i hiS), hmap j hjS (hsupp j hjS), φ.injective.eq_iff,
+      CFIVertex.castAway_inj, φ.map_adj_iff, cfiGraph_adj_castAway_iff]
+    exact ⟨Iff.rfl, Iff.rfl⟩
   · obtain ⟨u, φ, hsupp, hmap⟩ := hI
     let T : Finset (Fin m) := (Finset.univ.erase j).biUnion fun i => (a i).support
-    have hcard_erase : (Finset.univ.erase j).card = d := by
-      rw [Finset.card_erase_of_mem (Finset.mem_univ j), Finset.card_univ, Fintype.card_fin]
-      omega
     have hcard_T : T.card ≤ 2 * d := by
-      have h2 : ∑ i ∈ Finset.univ.erase j, (a i).support.card ≤ (Finset.univ.erase j).card • 2 :=
-        Finset.sum_le_card_nsmul _ _ 2 fun i _ => (a i).card_support_le_two
-      rw [hcard_erase, smul_eq_mul] at h2
-      exact Finset.card_biUnion_le.trans (by omega)
+      refine Finset.card_biUnion_le.trans ?_
+      refine (Finset.sum_le_card_nsmul _ _ 2 fun i _ => (a i).card_support_le_two).trans ?_
+      simp [Finset.card_erase_of_mem (Finset.mem_univ j), Nat.mul_comm]
     have hgt : 1 < (Finset.univ \ insert u T).card := by
       have := Finset.card_insert_le u T
       rw [Finset.card_sdiff_of_subset (Finset.subset_univ _), Finset.card_univ, Fintype.card_fin]
       omega
     obtain ⟨w, hw_mem, w', hw'_mem, hww'⟩ := Finset.one_lt_card.1 hgt
-    simp only [Finset.mem_sdiff, Finset.mem_univ, true_and, Finset.mem_insert, not_or]
-      at hw_mem hw'_mem
-    obtain ⟨⟨hwu, hwT⟩, ⟨hw'u, hw'T⟩⟩ : (w ≠ u ∧ w ∉ T) ∧ (w' ≠ u ∧ w' ∉ T) := ⟨hw_mem, hw'_mem⟩
+    obtain ⟨⟨hwu, hwT⟩, hw'u, hw'T⟩ : (w ≠ u ∧ w ∉ T) ∧ w' ≠ u ∧ w' ∉ T := by
+      simpa [not_or] using And.intro hw_mem hw'_mem
     have hother {z : Fin m} (hz : z ∉ T) (i : Fin (d + 1)) (hij : i ≠ j) : z ∉ (a i).support :=
       fun hzi => hz (Finset.mem_biUnion.2 ⟨i, Finset.mem_erase.2 ⟨hij, Finset.mem_univ i⟩, hzi⟩)
-    refine ⟨(cfiBaseEquiv u w hwu).trans φ.toEquiv, fun c => ?_⟩
+    let response := (cfiBaseEquiv u w hwu).trans φ.toEquiv
+    refine ⟨response, fun c => ?_⟩
     -- the support condition for the updated position
     have hsupp' {u' : Fin m} (hc : u' ∉ c.support) (ho : ∀ i ∈ S, i ≠ j → u' ∉ (a i).support) :
         ∀ i ∈ insert j S, u' ∉ (Function.update a j c i).support := fun i hiS => by
@@ -141,47 +134,43 @@ private theorem isBijPebbleBackAndForth_cfiInvariant {d m : ℕ} (hm : 2 * d + 4
       · rwa [Function.update_self]
       · rw [Function.update_of_ne hij]
         exact ho i (Set.mem_of_mem_insert_of_ne hiS hij) hij
-    -- the old positions, after flipping the twist from `u` to a fresh `u'`
-    have hflip {u' : Fin m} (hu' : u' ≠ u) (hT : u' ∉ T) {i : Fin (d + 1)} (hiS : i ∈ insert j S)
-        (hij : i ≠ j) (hi : u' ∉ (Function.update a j c i).support) :
-        Function.update b j (((cfiBaseEquiv u w hwu).trans φ.toEquiv) c) i =
-          ((cfiSingleFlipIso hu'.symm).trans φ)
-            ((Function.update a j c i).castAway u' (cfiZeroAway u') hi) := by
-      have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
-      have hui : u ∉ (a i).support := hsupp i hiS'
-      rw [Function.update_of_ne hij, RelIso.trans_apply,
-        castAway_congr (Function.update_of_ne hij c a) hi (hother hT i hij), hmap i hiS' hui]
-      exact congrArg φ (cfiSingleFlipIso_castAway_of_notMem hu'.symm (cfiZeroAway u')
-        (cfiZeroAway u) (a i) hui (hother hT i hij)).symm
+    -- Moving the twist to a fresh vertex needs a check at the new pebble.
+    -- The cast-away flip law handles every other placed pebble.
+    have moveTwist {u' : Fin m} (hu' : u' ≠ u) (hT : u' ∉ T) (hc : u' ∉ c.support)
+        (hnew : cfiSingleFlipIso hu'.symm (c.castAway u' (cfiZeroAway u') hc) =
+          cfiBaseEquiv u w hwu c) :
+        cfiInvariant u₀ (insert j S) (Function.update a j c)
+          (Function.update b j (response c)) := by
+      refine ⟨u', (cfiSingleFlipIso hu'.symm).trans φ, hsupp' hc fun i _ hij => hother hT i hij,
+        fun i hiS hi => ?_⟩
+      rcases eq_or_ne i j with rfl | hij
+      · rw [Function.update_self, RelIso.trans_apply,
+          castAway_congr (Function.update_self i c a) hi hc]
+        exact congrArg φ hnew.symm
+      · have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
+        have hui : u ∉ (a i).support := hsupp i hiS'
+        rw [Function.update_of_ne hij, RelIso.trans_apply,
+          castAway_congr (Function.update_of_ne hij c a) hi (hother hT i hij), hmap i hiS' hui]
+        exact congrArg φ (cfiSingleFlipIso_castAway_of_notMem hu'.symm (cfiZeroAway u')
+          (cfiZeroAway u) (a i) hui (hother hT i hij)).symm
     by_cases huc : u ∈ c.support
     · by_cases hwc : w ∈ c.support
       · have hw'c : w' ∉ c.support :=
           c.notMem_support_of_mem_mem_ne huc hwc hwu.symm hw'u hww'.symm
-        refine ⟨w', (cfiSingleFlipIso hw'u.symm).trans φ,
-          hsupp' hw'c fun i _ hij => hother hw'T i hij, fun i hiS hi => ?_⟩
-        rcases eq_or_ne i j with rfl | hij
-        · rw [Function.update_self, Equiv.trans_apply, RelIso.trans_apply,
-            castAway_congr (Function.update_self i c a) hi hw'c]
-          exact congrArg φ (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv_of_mem hwu.symm hw'u.symm
-            hww' (cfiZeroAway w') c huc hwc hw'c).symm
-        · exact hflip hw'u hw'T hiS hij hi
-      · refine ⟨w, (cfiSingleFlipIso hwu.symm).trans φ,
-          hsupp' hwc fun i _ hij => hother hwT i hij, fun i hiS hi => ?_⟩
-        rcases eq_or_ne i j with rfl | hij
-        · rw [Function.update_self, Equiv.trans_apply, RelIso.trans_apply,
-            castAway_congr (Function.update_self i c a) hi hwc]
-          exact congrArg φ
-            (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv hwu.symm (cfiZeroAway w) c hwc).symm
-        · exact hflip hwu hwT hiS hij hi
+        exact moveTwist hw'u hw'T hw'c
+          (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv_of_mem hwu.symm hw'u.symm
+            hww' (cfiZeroAway w') c huc hwc hw'c)
+      · exact moveTwist hwu hwT hwc
+          (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv hwu.symm (cfiZeroAway w) c hwc)
     · refine ⟨u, φ, hsupp' huc fun i hiS _ => hsupp i hiS, fun i hiS hi => ?_⟩
       rcases eq_or_ne i j with rfl | hij
-      · rw [Function.update_self, Equiv.trans_apply,
+      · rw [Function.update_self,
           castAway_congr (Function.update_self i c a) hi huc]
         exact congrArg φ (cfiBaseEquiv_eq_castAway hwu (cfiZeroAway u) c huc)
       · have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
-        have hui : u ∉ (a i).support := hsupp i hiS'
-        rw [Function.update_of_ne hij, castAway_congr (Function.update_of_ne hij c a) hi hui]
-        exact hmap i hiS' hui
+        rw [Function.update_of_ne hij,
+          castAway_congr (Function.update_of_ne hij c a) hi (hsupp i hiS')]
+        exact hmap i hiS' (hsupp i hiS')
 
 end Invariant
 
@@ -225,10 +214,9 @@ theorem bijPebbleWins_cfiEven_cfiOdd (k n : ℕ)
     (b : Fin (k + 1) → CFIVertex (2 * k + 4) (Pi.single 0 1)) :
     (letI := (cfiEven k).structure; letI := (cfiOdd k).structure
       BijPebbleWins Language.graph n ∅ a b) := by
-  have h := bijPebbleWinsForever_cfiEven_cfiOdd k a b
   let := (cfiEven k).structure
   let := (cfiOdd k).structure
-  exact h.bijPebbleWins n
+  exact (bijPebbleWinsForever_cfiEven_cfiOdd k a b).bijPebbleWins n
 
 /-- Duplicator wins the infinite ordinary `(k + 1)`-pebble game from `∅` between `cfiEven k` and
 `cfiOdd k`. -/
@@ -237,10 +225,9 @@ theorem pebbleWinsForever_cfiEven_cfiOdd (k : ℕ)
     (b : Fin (k + 1) → CFIVertex (2 * k + 4) (Pi.single 0 1)) :
     (letI := (cfiEven k).structure; letI := (cfiOdd k).structure
       PebbleWinsForever Language.graph ∅ a b) := by
-  have h := bijPebbleWinsForever_cfiEven_cfiOdd k a b
   let := (cfiEven k).structure
   let := (cfiOdd k).structure
-  exact h.pebbleWinsForever
+  exact (bijPebbleWinsForever_cfiEven_cfiOdd k a b).pebbleWinsForever
 
 /-- **Cai–Fürer–Immerman `C^{k+1}` lower bound** ([CaiFurerImmerman1992], Section 6): the
 non-isomorphic graphs `cfiEven k` and `cfiOdd k` satisfy the same `(k + 1)`-variable counting
@@ -251,10 +238,9 @@ theorem realize_countingFormula_cfiEven_iff_cfiOdd {k : ℕ}
     (b : Fin (k + 1) → CFIVertex (2 * k + 4) (Pi.single 0 1)) :
     (letI := (cfiEven k).structure; φ.Realize a) ↔
       (letI := (cfiOdd k).structure; φ.Realize b) := by
-  have h := bijPebbleWinsForever_cfiEven_cfiOdd k a b
   let := (cfiEven k).structure
   let := (cfiOdd k).structure
-  exact h.realize_iff (by simp only [hφ, Finset.coe_empty, Set.empty_subset])
+  exact (bijPebbleWinsForever_cfiEven_cfiOdd k a b).realize_iff (by simp [hφ])
 
 /-- The non-isomorphic graphs `cfiEven k` and `cfiOdd k` satisfy the same `(k + 1)`-variable
 first-order sentences (`FO^{k+1}`). -/
@@ -264,10 +250,9 @@ theorem realize_formula_cfiEven_iff_cfiOdd {k : ℕ}
     (b : Fin (k + 1) → CFIVertex (2 * k + 4) (Pi.single 0 1)) :
     (letI := (cfiEven k).structure; φ.Realize a) ↔
       (letI := (cfiOdd k).structure; φ.Realize b) := by
-  have h := pebbleWinsForever_cfiEven_cfiOdd k a b
   let := (cfiEven k).structure
   let := (cfiOdd k).structure
-  exact h.realize_iff (by simp only [hφ, Finset.coe_empty, Set.empty_subset])
+  exact (pebbleWinsForever_cfiEven_cfiOdd k a b).realize_iff (by simp [hφ])
 
 private theorem wlHistogram_cfiGraph_eq_zero {d m : ℕ} (hm : 2 * d + 4 ≤ m)
     (f : Fin m → ZMod 2) (n : ℕ) :
@@ -280,17 +265,11 @@ private theorem wlHistogram_cfiGraph_eq_zero {d m : ℕ} (hm : 2 * d + 4 ≤ m)
       (b := fun _ : Fin (d + 1) => x₁)).1
       (bijPebbleWinsForever_cfiGraph_zero_single hm u₀ _ _) n
   by_cases hsum0 : ∑ v, f v = 0
-  · have hsum : ∑ v, f v = ∑ v, (0 : Fin m → ZMod 2) v := by
-      simp only [hsum0, Pi.zero_apply, Finset.sum_const_zero]
-    obtain ⟨e⟩ := (nonempty_iso_cfiGraph_iff_sum_eq (by omega)).2 hsum
+  · obtain ⟨e⟩ := (nonempty_iso_cfiGraph_iff_sum_eq (by omega)).2
+      (show ∑ v, f v = ∑ v, (0 : Fin m → ZMod 2) v by simp [hsum0])
     exact (e.wlHistogram_eq d n).symm
-  · have hsum1 : ∑ v, f v = 1 := by
-      generalize ∑ v, f v = s at hsum0 ⊢
-      revert s hsum0
-      decide
-    have hsum : ∑ v, f v = ∑ v, (Pi.single u₀ 1 : Fin m → ZMod 2) v := by
-      simp only [hsum1, Fintype.sum_pi_single']
-    obtain ⟨e⟩ := (nonempty_iso_cfiGraph_iff_sum_eq (by omega)).2 hsum
+  · obtain ⟨e⟩ := (nonempty_iso_cfiGraph_iff_sum_eq (by omega)).2
+      ((Fin.eq_one_of_ne_zero _ hsum0).trans (Fintype.sum_pi_single' u₀ (1 : ZMod 2)).symm)
     exact (e.wlHistogram_eq d n).symm.trans h01.symm
 
 /-- Whenever `2 * d + 4 ≤ m`, any two twist functions `f, g : Fin m → ZMod 2` produce CFI graphs
@@ -355,9 +334,9 @@ theorem exists_nonisomorphic_wlHistogram_eq (k : ℕ) :
   let φH : H ≃g cfiOdd k := { toEquiv := e, map_rel_iff' := Iff.rfl }
   have hH_wl : ∀ n, (cfiEven k).wlHistogram k n = H.wlHistogram k n :=
     fun n => (wlHistogram_cfiEven_eq_cfiOdd k n).trans (φH.wlHistogram_eq k n)
-  refine ⟨CFIVertex (2 * k + 4) 0, inferInstance, inferInstance, cfiEven k, H,
-    ⟨fun ψ => (isEmpty_iso_cfiEven_cfiOdd k).false (ψ.trans φH)⟩, hH_wl, ?_⟩
-  exact forall_realize_countingFormula_empty_iff_wlHistogram_eq.2 hH_wl
+  exact ⟨CFIVertex (2 * k + 4) 0, inferInstance, inferInstance, cfiEven k, H,
+    ⟨fun ψ => (isEmpty_iso_cfiEven_cfiOdd k).false (ψ.trans φH)⟩, hH_wl,
+    forall_realize_countingFormula_empty_iff_wlHistogram_eq.2 hH_wl⟩
 
 end MainResults
 

@@ -124,12 +124,6 @@ theorem DecidableInSubexpTime.of_computableInO_interpolationScale {α : Type} {e
 
 /-! ### From dense-variable model counting to `DecidableInSubexpTime (KSAT k)` -/
 
-/-- Testing a binary number for positivity is polynomial-time. -/
-theorem computableInPolyTime_pos_nat :
-    ComputableInPolyTime (fun n : ℕ => decide (0 < n)) encNat encBool :=
-  ComputableInPolyTime.binary_lt.comp
-    ((ComputableInPolyTime.const 0).prod ComputableInPolyTime.id')
-
 /-- **From dense-variable model counting at `interpolationScale` to subexponential `k`-SAT.**
 Suppose `count : CNF ℕ → ℕ` runs in time
 `O(2 ^ (A₀ * interpolationScale ψ.numVars) * (|encCNF ψ| + 1) ^ e)` and computes the
@@ -146,7 +140,7 @@ theorem DecidableInSubexpTime.KSAT_of_dense_modelCount_interpolationScale {k : �
     (ht : ∀ ψ : CNF ℕ, (t ψ : ℝ) ≤
       c * ((2 : ℝ) ^ (A₀ * interpolationScale ψ.numVars) * (((encCNF ψ).length : ℝ) + 1) ^ e) + c) :
     DecidableInSubexpTime (KSAT k) encCNF CNF.numVars := by
-  obtain ⟨dpos, _, hpos⟩ := computableInPolyTime_pos_nat.exists_degree
+  obtain ⟨dpos, _, hpos⟩ := ComputableInPolyTime.binary_pos.exists_degree
   have hposO := hpos.inO
   obtain ⟨l, hl⟩ := hcount.length_le_time
   have hcomp : ComputableInO (fun ψ : CNF ℕ => decide (0 < count ψ)) encCNF encBool _ _ :=

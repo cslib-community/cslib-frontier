@@ -13,6 +13,7 @@ public import Mathlib.Data.Finset.Density
 public import Mathlib.Data.Matrix.Basic
 import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Algebra.Order.Floor.BigOperators
+import Mathlib.Algebra.Order.Floor.Semifield
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -33,9 +34,9 @@ substochastic matrices with entries in `2 ^ (-d) ℕ` (`IsDyadicSubstochastic`).
 The point of the random shift is Lemma A.3 of [ChattopadhyayLiao2020]: two nearby values are
 rounded differently for few shifts. If `|a - b| ≤ ε`, at most a `2 ^ d ε + 2 ^ (-d)` fraction of
 the shifts `y` give `snap d a y ≠ snap d b y` (`dens_snap_ne_le`). For matrices, a union bound
-over the entries gives `|ι| |κ| (2 ^ d ε + 2 ^ (-d))` (`dens_snapMatrix_ne_le`). The proof counts
-exactly: the number of shifts with differing integer parts is `⌊2 ^ (2d) b⌋ - ⌊2 ^ (2d) a⌋` for
-`a ≤ b`, by Hermite's identity `Int.sum_floor_add_div`.
+over the entries gives `|ι| |κ| (2 ^ d ε + 2 ^ (-d))` (`dens_snapMatrix_ne_le`). For `a ≤ b`, each
+disagreement contributes at least one to the sum of integer-part differences over the shifts.
+Hermite's identity `Int.sum_floor_add_div` evaluates that sum as `⌊2 ^ (2d) b⌋ - ⌊2 ^ (2d) a⌋`.
 
 ## Main definitions
 
@@ -83,11 +84,9 @@ theorem snap_nonneg (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) : 0 ≤ snap d x y := 
 
 private theorem floor_div_le (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) :
     (⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ : ℝ) / 2 ^ d ≤ x := by
-  have hq : (0 : ℝ) < 2 ^ d := by positivity
-  rw [div_le_iff₀ hq]
-  refine (Int.floor_le _).trans ?_
-  have : (0 : ℝ) ≤ (y : ℝ) / 2 ^ d := by positivity
-  linarith
+  rw [div_le_iff₀ (by positivity)]
+  linarith [Int.floor_le (x * 2 ^ d - (y : ℝ) / 2 ^ d),
+    div_nonneg (Nat.cast_nonneg (α := ℝ) y.val) (pow_nonneg zero_le_two d)]
 
 /-- Snapping never exceeds the positive part. -/
 theorem snap_le_max (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) : snap d x y ≤ max x 0 := by
@@ -103,11 +102,9 @@ theorem sub_le_snap (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) : x - 2 / 2 ^ d ≤ sn
   rw [snap_def]
   refine le_trans ?_ (le_max_left _ _)
   have hq : (0 : ℝ) < 2 ^ d := by positivity
-  have hy : (y : ℝ) < 2 ^ d := by exact_mod_cast y.isLt
-  have h1 : (y : ℝ) / 2 ^ d < 1 := (div_lt_one hq).2 hy
-  have h2 := Int.lt_floor_add_one (x * 2 ^ d - (y : ℝ) / 2 ^ d)
+  have h1 : (y : ℝ) / 2 ^ d < 1 := (div_lt_one hq).2 (by exact_mod_cast y.isLt)
   rw [le_div_iff₀ hq, sub_mul, div_mul_cancel₀ _ hq.ne']
-  linarith
+  linarith [Int.lt_floor_add_one (x * 2 ^ d - (y : ℝ) / 2 ^ d)]
 
 /-- For `x ≥ 0`, `|snap d x y - x| ≤ 2 ^ (1 - d)`. -/
 theorem abs_snap_sub_le (d : ℕ) {x : ℝ} (hx : 0 ≤ x) (y : Fin (2 ^ d)) :
@@ -115,45 +112,56 @@ theorem abs_snap_sub_le (d : ℕ) {x : ℝ} (hx : 0 ≤ x) (y : Fin (2 ^ d)) :
   rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.2 (snap_le d hx y))]
   linarith [sub_le_snap d x y]
 
+/-- Snapping uses the natural floor, which incorporates the lower cutoff at zero. -/
+theorem snap_eq_natFloor (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) :
+    snap d x y = (⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋₊ : ℝ) / 2 ^ d := by
+  rw [snap_def, ← Int.floor_toNat]
+  generalize ⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ = z
+  rcases le_total 0 z with h | h
+  · rw [max_eq_left (div_nonneg (by exact_mod_cast h) (by positivity))]
+    exact congrArg (· / 2 ^ d) (by exact_mod_cast (Int.toNat_of_nonneg h).symm)
+  · rw [Int.toNat_eq_zero.2 h,
+      max_eq_right (div_nonpos_of_nonpos_of_nonneg (by exact_mod_cast h) (by positivity))]
+    simp
+
 /-- Snapped values are multiples of `2 ^ (-d)`. -/
 theorem exists_snap_eq (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) :
-    ∃ k : ℕ, snap d x y = k / 2 ^ d := by
-  refine ⟨(⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋).toNat, ?_⟩
-  rw [snap_def]
-  rcases le_total 0 ⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ with h | h
-  · have e : ((⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋.toNat : ℕ) : ℝ) =
-        ⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ := by
-      exact_mod_cast Int.toNat_of_nonneg h
-    have h' : (0 : ℝ) ≤ ⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ := by exact_mod_cast h
-    rw [max_eq_left (div_nonneg h' (by positivity)), e]
-  · have h' : (⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ : ℝ) ≤ 0 := by exact_mod_cast h
-    rw [Int.toNat_eq_zero.2 h, max_eq_right (div_nonpos_of_nonpos_of_nonneg h' (by positivity))]
-    simp
+    ∃ k : ℕ, snap d x y = k / 2 ^ d :=
+  ⟨_, snap_eq_natFloor d x y⟩
+
+/-- Numerator after shifted rounding of a frequency `hits / total` to the grid of denominator
+`scale`. Natural subtraction clips negative values before the division. -/
+@[expose] def snapCount (scale hits total shift : ℕ) : ℕ :=
+  (hits * scale * scale - shift * total) / (total * scale)
+
+/-- Exact binary arithmetic for rounding a frequency at precision `d`. -/
+theorem snap_frequency (d hits total : ℕ) (ht : 0 < total) (y : Fin (2 ^ d)) :
+    snap d (hits / total) y = (snapCount (2 ^ d) hits total y : ℝ) / 2 ^ d := by
+  rw [snap_eq_natFloor]
+  congr 2
+  let q : ℕ := 2 ^ d
+  have hq : 0 < q := Nat.two_pow_pos d
+  have heq : (hits : ℝ) / total * 2 ^ d - (y : ℝ) / 2 ^ d =
+      ((hits * q * q : ℕ) - (y.val * total : ℕ) : ℝ) / (total * q : ℕ) := by
+    simp only [q, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
+    field_simp
+  rw [heq, Nat.floor_div_natCast, Nat.floor_sub_natCast, Nat.floor_natCast]
+  rfl
 
 /-- Hermite's identity over a reversed complete residue system:
 `∑_{t < q} ⌊c - t / q⌋ = ⌊q c⌋ - (q - 1)`. -/
 private theorem sum_floor_sub_div (c : ℝ) {q : ℕ} (hq : 0 < q) :
     ∑ t : Fin q, ⌊c - (t : ℝ) / q⌋ = ⌊q * c⌋ - (q - 1 : ℤ) := by
-  have hq' : (0 : ℝ) < q := by exact_mod_cast hq
+  have hq' : (q : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hq.ne'
   rw [Fin.sum_univ_eq_sum_range (fun t => ⌊c - (t : ℝ) / q⌋), ← Finset.sum_range_reflect]
   have key : ∀ t ∈ Finset.range q,
-      ⌊c - ((q - 1 - t : ℕ) : ℝ) / q⌋ = ⌊(c - 1 + 1 / q) + (t : ℝ) / q⌋ := by
+      ⌊c - ((q - 1 - t : ℕ) : ℝ) / q⌋ = ⌊c - ((q - 1 : ℕ) : ℝ) / q + (t : ℝ) / q⌋ := by
     intro t ht
-    have ht' : t + 1 ≤ q := Finset.mem_range.1 ht
     congr 1
-    rw [Nat.cast_sub (by omega), Nat.cast_sub (by omega)]
-    field_simp
-    push_cast
+    rw [Nat.cast_sub (Nat.le_sub_one_of_lt (Finset.mem_range.1 ht)), sub_div]
     ring
-  rw [Finset.sum_congr rfl key, Int.sum_floor_add_div]
-  have : (q : ℝ) * (c - 1 + 1 / q) = q * c - ((q - 1 : ℕ) : ℝ) := by
-    rw [Nat.cast_sub (by omega)]
-    field_simp
-    push_cast
-    ring
-  rw [this, Int.floor_sub_natCast]
-  push_cast [Nat.cast_sub (show 1 ≤ q by omega)]
-  ring
+  rw [Finset.sum_congr rfl key, Int.sum_floor_add_div, mul_sub, mul_div_cancel₀ _ hq',
+    Int.floor_sub_natCast, Nat.cast_sub hq, Nat.cast_one]
 
 /-- **Lemma A.3 of [ChattopadhyayLiao2020], counting form.** If `|a - b| ≤ ε`, at most
 `4 ^ d ε + 1` of the `2 ^ d` shifts round `a` and `b` differently. -/
@@ -164,59 +172,58 @@ theorem card_snap_ne_le (d : ℕ) {a b ε : ℝ} (hab : |a - b| ≤ ε) :
   set f : Fin (2 ^ d) → ℤ := fun t => ⌊a * 2 ^ d - (t : ℝ) / 2 ^ d⌋ with hf
   set g : Fin (2 ^ d) → ℤ := fun t => ⌊b * 2 ^ d - (t : ℝ) / 2 ^ d⌋ with hg
   have hfg : ∀ t, f t ≤ g t := fun t => Int.floor_mono (by gcongr)
-  have hsub : ({y : Fin (2 ^ d) | snap d a y ≠ snap d b y} : Finset _) ⊆
-      ({t | f t < g t} : Finset _) := by
-    intro t
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-    intro hne
-    refine lt_of_le_of_ne (hfg t) fun heq => hne ?_
-    rw [snap_def, snap_def]
-    change max ((f t : ℝ) / 2 ^ d) 0 = max ((g t : ℝ) / 2 ^ d) 0
-    rw [heq]
-  have hcount : ((#{t | f t < g t} : ℕ) : ℤ) ≤ ∑ t, (g t - f t) := by
+  have hcount : ((#{y : Fin (2 ^ d) | snap d a y ≠ snap d b y} : ℕ) : ℤ) ≤
+      ∑ t, (g t - f t) := by
     rw [Finset.card_filter, Nat.cast_sum]
     refine Finset.sum_le_sum fun t _ => ?_
-    have := hfg t
-    split_ifs <;> push_cast <;> omega
+    split_ifs with ht
+    · rw [Nat.cast_one, le_sub_iff_add_le, add_comm]
+      refine Int.add_one_le_of_lt (lt_of_le_of_ne (hfg t) fun heq => ht ?_)
+      simpa only [snap_def] using congrArg (fun z : ℤ => max ((z : ℝ) / 2 ^ d) 0) heq
+    · exact sub_nonneg.mpr (hfg t)
   have hsum : ∑ t, (g t - f t) =
       ⌊(2 ^ d : ℕ) * (b * 2 ^ d)⌋ - ⌊(2 ^ d : ℕ) * (a * 2 ^ d)⌋ := by
-    rw [Finset.sum_sub_distrib]
-    have h1 := sum_floor_sub_div (b * 2 ^ d) (Nat.pos_of_ne_zero (by positivity : 2 ^ d ≠ 0))
-    have h2 := sum_floor_sub_div (a * 2 ^ d) (Nat.pos_of_ne_zero (by positivity : 2 ^ d ≠ 0))
+    have h1 := sum_floor_sub_div (b * 2 ^ d) (Nat.two_pow_pos d)
+    have h2 := sum_floor_sub_div (a * 2 ^ d) (Nat.two_pow_pos d)
     push_cast at h1 h2 ⊢
-    rw [h1, h2]
+    rw [Finset.sum_sub_distrib, h1, h2]
     ring
   have hfin : ((⌊(2 ^ d : ℕ) * (b * 2 ^ d)⌋ - ⌊(2 ^ d : ℕ) * (a * 2 ^ d)⌋ : ℤ) : ℝ) ≤
       4 ^ d * ε + 1 := by
-    have e1 := Int.floor_le ((2 ^ d : ℕ) * (b * 2 ^ d) : ℝ)
-    have e2 := Int.lt_floor_add_one ((2 ^ d : ℕ) * (a * 2 ^ d) : ℝ)
-    have hba : b - a ≤ ε := by rwa [abs_sub_comm, abs_of_nonneg (by linarith)] at hab
-    have h4 : (4 : ℝ) ^ d = 2 ^ d * 2 ^ d := by rw [← mul_pow]; norm_num
-    push_cast at e1 e2 ⊢
-    nlinarith [pow_pos (show (0 : ℝ) < 4 by norm_num) d]
+    have hscale (x : ℝ) : (2 : ℝ) ^ d * (x * 2 ^ d) = 4 ^ d * x := by
+      rw [← mul_assoc, mul_right_comm, ← mul_pow]
+      norm_num
+    have hδ := mul_le_mul_of_nonneg_left (abs_sub_le_iff.mp hab).2
+      (pow_nonneg (by norm_num : (0 : ℝ) ≤ 4) d)
+    rw [mul_sub] at hδ
+    push_cast
+    rw [hscale, hscale]
+    linarith only [Int.floor_le ((4 : ℝ) ^ d * b), Int.lt_floor_add_one ((4 : ℝ) ^ d * a), hδ]
   calc (#{y : Fin (2 ^ d) | snap d a y ≠ snap d b y} : ℝ)
-      ≤ (#{t | f t < g t} : ℝ) := by exact_mod_cast Finset.card_le_card hsub
-    _ ≤ ((⌊(2 ^ d : ℕ) * (b * 2 ^ d)⌋ - ⌊(2 ^ d : ℕ) * (a * 2 ^ d)⌋ : ℤ) : ℝ) := by
+      ≤ ((⌊(2 ^ d : ℕ) * (b * 2 ^ d)⌋ - ⌊(2 ^ d : ℕ) * (a * 2 ^ d)⌋ : ℤ) : ℝ) := by
         rw [← hsum]
         exact_mod_cast hcount
     _ ≤ 4 ^ d * ε + 1 := hfin
 
 private theorem cast_dens_shift (d : ℕ) (s : Finset (Fin (2 ^ d))) :
     (s.dens : ℝ) = #s / 2 ^ d := by
-  rw [Finset.dens, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast, Fintype.card_fin]
-  push_cast
-  rfl
+  simp [Finset.dens]
+
+private theorem dens_shift_le_of_card_le (d : ℕ) {s : Finset (Fin (2 ^ d))} {c ε : ℝ}
+    (h : (#s : ℝ) ≤ c * (4 ^ d * ε + 1)) :
+    (s.dens : ℝ) ≤ c * (2 ^ d * ε + (2 ^ d)⁻¹) := by
+  have htwo : (0 : ℝ) < 2 ^ d := pow_pos zero_lt_two d
+  rw [cast_dens_shift, div_le_iff₀ htwo, mul_assoc, add_mul,
+    inv_mul_cancel₀ htwo.ne', mul_right_comm (2 ^ d), ← mul_pow]
+  simpa only [show (2 : ℝ) * 2 = 4 by norm_num] using h
 
 /-- **Lemma A.3 of [ChattopadhyayLiao2020]** for one entry: if `|a - b| ≤ ε`, a uniform shift
 rounds `a` and `b` differently with probability at most `2 ^ d ε + 2 ^ (-d)`. -/
 theorem dens_snap_ne_le (d : ℕ) {a b ε : ℝ} (hab : |a - b| ≤ ε) :
     (({y : Fin (2 ^ d) | snap d a y ≠ snap d b y} : Finset _).dens : ℝ) ≤
       2 ^ d * ε + (2 ^ d)⁻¹ := by
-  have hq : (0 : ℝ) < 2 ^ d := by positivity
-  rw [cast_dens_shift, div_le_iff₀ hq]
-  refine (card_snap_ne_le d hab).trans_eq ?_
-  rw [show (4 : ℝ) ^ d = 2 ^ d * 2 ^ d by rw [← mul_pow]; norm_num]
-  field_simp
+  simpa only [one_mul] using dens_shift_le_of_card_le d (c := 1)
+    ((card_snap_ne_le d hab).trans_eq (one_mul _).symm)
 
 /-- Entrywise snapping of a matrix. -/
 noncomputable def snapMatrix {ι κ : Type*} (d : ℕ) (A : Matrix ι κ ℝ) (y : Fin (2 ^ d)) :
@@ -238,10 +245,9 @@ theorem card_snapMatrix_ne_le {ι κ : Type*} [Fintype ι] [Fintype κ] (d : ℕ
       (univ : Finset (ι × κ)).biUnion fun p =>
         {y : Fin (2 ^ d) | snap d (A p.1 p.2) y ≠ snap d (B p.1 p.2) y} := by
     intro y hy
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hy
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_biUnion] at hy ⊢
     obtain ⟨i, hi⟩ := Function.ne_iff.mp hy
     obtain ⟨j, hij⟩ := Function.ne_iff.mp hi
-    simp only [Finset.mem_biUnion, Finset.mem_univ, Finset.mem_filter, true_and]
     exact ⟨(i, j), hij⟩
   calc (#{y : Fin (2 ^ d) | snapMatrix d A y ≠ snapMatrix d B y} : ℝ)
       ≤ ∑ p : ι × κ, (#{y : Fin (2 ^ d) | snap d (A p.1 p.2) y ≠ snap d (B p.1 p.2) y} : ℝ) := by
@@ -259,12 +265,8 @@ within `ε`, a uniform shift snaps them differently with probability at most
 theorem dens_snapMatrix_ne_le {ι κ : Type*} [Fintype ι] [Fintype κ] (d : ℕ)
     {A B : Matrix ι κ ℝ} {ε : ℝ} (hAB : ∀ i j, |A i j - B i j| ≤ ε) :
     (({y : Fin (2 ^ d) | snapMatrix d A y ≠ snapMatrix d B y} : Finset _).dens : ℝ) ≤
-      Fintype.card ι * Fintype.card κ * (2 ^ d * ε + (2 ^ d)⁻¹) := by
-  have hq : (0 : ℝ) < 2 ^ d := by positivity
-  rw [cast_dens_shift, div_le_iff₀ hq]
-  refine (card_snapMatrix_ne_le d hAB).trans_eq ?_
-  rw [show (4 : ℝ) ^ d = 2 ^ d * 2 ^ d by rw [← mul_pow]; norm_num]
-  field_simp
+      Fintype.card ι * Fintype.card κ * (2 ^ d * ε + (2 ^ d)⁻¹) :=
+  dens_shift_le_of_card_le d (card_snapMatrix_ne_le d hAB)
 
 /-- A square matrix is dyadic substochastic at precision `d` if its entries are nonnegative
 multiples of `2 ^ (-d)` and its rows sum to at most `1`. These are the matrices that a

@@ -76,11 +76,10 @@ theorem mem_keys {bs : List B} (hbs : ∀ b, b ∈ bs) (j : ℕ) (k : List B) :
   | zero => simp [keys]
   | succ j ih =>
     simp only [keys, List.mem_flatMap, List.mem_map, ih]
-    constructor
-    · rintro ⟨b, -, k, rfl, rfl⟩
+    refine ⟨?_, fun h => ?_⟩
+    · rintro ⟨_, -, _, rfl, rfl⟩
       simp
-    · intro h
-      rcases List.eq_nil_or_concat k with rfl | ⟨k', b, rfl⟩
+    · rcases List.eq_nil_or_concat k with rfl | ⟨k', b, rfl⟩
       · simp at h
       · exact ⟨b, hbs b, k', by simpa using h, by simp⟩
 
@@ -90,17 +89,10 @@ theorem keys_nodup {bs : List B} (hn : bs.Nodup) (j : ℕ) : (keys bs j).Nodup :
   | zero => simp [keys]
   | succ j ih =>
     rw [keys, List.nodup_flatMap]
-    refine ⟨fun b _ => ih.map fun a b' h => by simpa using h, ?_⟩
-    refine List.Pairwise.imp ?_ hn
-    intro b b' hne
-    rw [Function.onFun, List.disjoint_left]
-    intro k hk hk'
-    simp only [List.mem_map] at hk hk'
-    obtain ⟨a, -, rfl⟩ := hk
-    obtain ⟨a', -, h⟩ := hk'
-    have happ := List.append_inj' h rfl
-    simp only [List.cons.injEq, and_true] at happ
-    exact hne happ.2.symm
+    refine ⟨fun b _ => ih.map fun a b' h => by simpa using h, hn.imp fun {b b'} hne => ?_⟩
+    simp only [Function.onFun, List.disjoint_left, List.mem_map]
+    rintro _ ⟨a, -, rfl⟩ ⟨a', -, h⟩
+    exact hne (by simpa using (List.append_inj' h rfl).2.symm)
 
 theorem srt_eq (bs : List B) (l : List (Rc n B)) (j : ℕ) (hj : j ≤ n) :
     srt bs l j = (keys bs j).flatMap fun k =>
@@ -115,17 +107,11 @@ theorem srt_eq (bs : List B) (l : List (Rc n B)) (j : ℕ) (hj : j ≤ n) :
     refine List.flatMap_congr fun k _ => ?_
     rw [List.filter_filter]
     refine List.filter_congr fun r _ => ?_
-    have h1 : (List.ofFn r.2).take (j + 1) =
-        (List.ofFn r.2).take j ++ [r.2 ⟨j, hlt⟩] := by
-      rw [List.take_succ_eq_append_getElem (by simpa using hlt)]
-      simp
-    rw [h1]
+    rw [List.take_succ_eq_append_getElem (by simpa using hlt)]
+    simp only [List.getElem_ofFn]
     by_cases e1 : (List.ofFn r.2).take j = k
     · subst e1; simp
-    · have hne : ¬ ((List.ofFn r.2).take j ++ [r.2 ⟨j, hlt⟩] = k ++ [b]) := by
-        intro h
-        exact e1 (List.append_inj' h rfl).1
-      simp [e1, hne]
+    · simp [e1]
 
 /-- Neighbour check: every lookup (`r.1 = true`) shares the key of its immediate predecessor `p`. -/
 @[expose] def chk : Option (Fin n → B) → List (Rc n B) → Prop
@@ -143,9 +129,8 @@ theorem chk_same (k : Fin n → B) (g l : List (Rc n B)) (hg : ∀ r ∈ g, r.2 
   induction g with
   | nil => rfl
   | cons r g ih =>
-    have hr : r.2 = k := hg r (by simp)
-    rw [List.cons_append, chk, hr]
-    simp [ih fun r' hr' => hg r' (by simp [hr'])]
+    rw [List.cons_append, chk, hg r List.mem_cons_self]
+    simp [ih fun r' hr' => hg r' (List.mem_cons_of_mem r hr')]
 
 omit [DecidableEq B] in
 theorem chk_groups (K : List (Fin n → B)) (hK : K.Nodup) (g : (Fin n → B) → List (Rc n B))
@@ -157,16 +142,11 @@ theorem chk_groups (K : List (Fin n → B)) (hK : K.Nodup) (g : (Fin n → B) �
     rw [List.nodup_cons] at hK
     rw [List.flatMap_cons, List.forall_mem_cons]
     rcases hgk : g k with _ | ⟨r, g'⟩
-    · rw [List.nil_append, ih hK.2 p fun k' hk' => hp k' (by simp [hk'])]
-      simp [headOk]
-    · have hr : r.2 = k := hg k r (by simp [hgk])
-      have hpk := hp k (by simp)
-      rw [List.cons_append, chk, hr,
+    · simp [headOk, ih hK.2 p fun k' hk' => hp k' (List.mem_cons_of_mem k hk')]
+    · rw [List.cons_append, chk, hg k r (by simp [hgk]),
         chk_same k _ _ fun r' hr' => hg k r' (by simp [hgk, hr']),
-        ih hK.2 (some k) fun k' hk' h => hK.1 (by
-          have heq := Option.some_injective _ h
-          rwa [heq])]
-      simp [headOk, hpk]
+        ih hK.2 (some k) fun k' hk' h => hK.1 (Option.some_injective _ h ▸ hk')]
+      simp [headOk, hp k List.mem_cons_self]
 
 omit [DecidableEq B] in
 private theorem flatMap_pmap_eq {α β γ : Type*} {P : α → Prop} (f : ∀ a, P a → β)
@@ -186,39 +166,17 @@ theorem chk_srt {bs : List B} (hbs : ∀ b, b ∈ bs) (hn : bs.Nodup) (l : List 
     rw [srt_eq bs l n le_rfl]
     symm
     refine flatMap_pmap_eq _ _ _ _ _ fun k hk => List.filter_congr fun r _ => ?_
-    have heqv : r.2 = (fun i : Fin n => k.get (i.cast hk.symm)) ↔
-        (List.ofFn r.2).take n = k := by
-      rw [List.take_of_length_le (by simp)]
-      subst hk
-      constructor
-      · intro h
-        rw [h]
-        exact List.ofFn_get k
-      · intro h
-        funext i
-        have h2 : (List.ofFn r.2).get (i.cast (by simp)) = r.2 i := by simp
-        rw [← h2, List.get_of_eq h]
-        rfl
-    simp only [heqv]
+    simp only [List.take_of_length_le (by simp : (List.ofFn r.2).length ≤ n), decide_eq_decide]
+    subst hk
+    exact ⟨fun h => h ▸ List.ofFn_get k,
+      fun h => funext fun i => by simpa using List.get_of_eq h (i.cast (by simp))⟩
   rw [e, chk_groups]
-  · constructor
-    · intro h k
-      refine h k ?_
-      rw [List.mem_pmap]
-      refine ⟨List.ofFn k, (mem_keys hbs _ _).2 (by simp), ?_⟩
-      funext i
-      simp
-    · intro h k _
-      exact h k
-  · refine List.Nodup.pmap ?_ (keys_nodup hn n)
-    intro a ha b hb h
-    refine List.ext_get (by rw [ha, hb]) fun i h1 h2 => ?_
-    have hi := congrFun h ⟨i, ha ▸ h1⟩
-    simpa using hi
-  · intro k r hr
-    simpa using (List.mem_filter.1 hr).2
-  · intro k _
-    simp
+  · exact ⟨fun h k => h k (List.mem_pmap.2 ⟨List.ofFn k, (mem_keys hbs _ _).2 (by simp),
+      funext fun i => by simp⟩), fun h k _ => h k⟩
+  · exact (keys_nodup hn n).pmap fun a ha b hb h =>
+      List.ext_get (ha.trans hb.symm) fun i h1 _ => by simpa using congrFun h ⟨i, ha ▸ h1⟩
+  · exact fun k r hr => by simpa using (List.mem_filter.1 hr).2
+  · simp
 
 /-- Table entries followed by lookups: the sorted neighbour check succeeds iff every lookup is in
 the table. -/
@@ -226,42 +184,27 @@ theorem chk_table {bs : List B} (hbs : ∀ b, b ∈ bs) (hn : bs.Nodup) (T L : L
     chk none (srt bs (T.map (fun x => (false, x)) ++ L.map fun x => (true, x)) n) ↔
       ∀ x ∈ L, x ∈ T := by
   rw [chk_srt hbs hn]
-  have h1 : ∀ k, (T.map (fun x => ((false, x) : Rc n B)) ++
+  have h1 (k : Fin n → B) : (T.map (fun x => ((false, x) : Rc n B)) ++
       L.map fun x => (true, x)).filter (fun r => r.2 = k) =
       (T.filter (· = k)).map (fun x => (false, x)) ++
         (L.filter (· = k)).map fun x => (true, x) := by
-    intro k
     rw [List.filter_append, List.filter_map, List.filter_map]
     rfl
   simp only [h1]
-  constructor
-  · intro h x hx
-    have hkx := h x
-    by_contra hT
-    have he : T.filter (· = x) = [] := by
-      rw [List.filter_eq_nil_iff]
-      intro a ha
-      simp only [decide_eq_true_eq]
-      rintro rfl
-      exact hT ha
-    have hx' : x ∈ L.filter (· = x) := by simp [hx]
+  refine ⟨fun h x hx => by_contra fun hT => ?_, fun h k => ?_⟩
+  · have hkx := h x
+    have he : T.filter (· = x) = [] :=
+      List.filter_eq_nil_iff.2 fun a ha hax => hT (of_decide_eq_true hax ▸ ha)
     rw [he] at hkx
     rcases hL : L.filter (· = x) with _ | ⟨a, l⟩
-    · rw [hL] at hx'; simp at hx'
-    · rw [hL] at hkx
-      simp [headOk] at hkx
-  · intro h k
-    rcases hT : T.filter (· = k) with _ | ⟨a, l⟩
-    · have hnil : L.filter (· = k) = [] := by
-        rw [List.filter_eq_nil_iff]
-        intro a ha
+    · exact List.not_mem_nil (hL ▸ List.mem_filter.2 ⟨hx, by simp⟩)
+    · simp [hL, headOk] at hkx
+  · rcases hT : T.filter (· = k) with _ | ⟨a, l⟩
+    · rw [List.filter_eq_nil_iff.2 fun a ha => by
         simp only [decide_eq_true_eq]
         rintro rfl
-        have haT := h a ha
-        have h2 : a ∈ T.filter (· = a) := by simp [haT]
-        rw [hT] at h2
-        simp at h2
-      simp [hnil, headOk]
+        exact List.not_mem_nil (hT ▸ List.mem_filter.2 ⟨h a ha, by simp⟩)]
+      simp [headOk]
     · simp [headOk]
 
 theorem sum_filter [Fintype B] (j : Fin n) (l : List (Rc n B)) :
@@ -269,13 +212,11 @@ theorem sum_filter [Fintype B] (j : Fin n) (l : List (Rc n B)) :
   induction l with
   | nil => simp
   | cons r l ih =>
-    have hstep : ∀ b, ((r :: l).filter fun r' => r'.2 j = b).length =
+    have hstep (b : B) : ((r :: l).filter fun r' => r'.2 j = b).length =
         (if r.2 j = b then 1 else 0) + (l.filter fun r' => r'.2 j = b).length := by
-      intro b
       rw [List.filter_cons]
       by_cases h : r.2 j = b <;> simp [h, add_comm]
-    simp only [hstep, Finset.sum_add_distrib, ih]
-    simp [add_comm]
+    simp [hstep, Finset.sum_add_distrib, ih, add_comm]
 
 theorem length_pass {bs : List B} (hbs : ∀ b, b ∈ bs) (hn : bs.Nodup) (j : Fin n)
     (l : List (Rc n B)) : (pass bs j l).length = l.length := by
@@ -289,8 +230,6 @@ theorem length_srt {bs : List B} (hbs : ∀ b, b ∈ bs) (hn : bs.Nodup)
   | zero => rfl
   | succ j ih =>
     rw [srt]
-    split_ifs
-    · rw [length_pass hbs hn, ih]
-    · exact ih
+    split_ifs <;> simp [length_pass hbs hn, ih]
 
 end List.RadixSort

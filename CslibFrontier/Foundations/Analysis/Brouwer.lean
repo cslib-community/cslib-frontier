@@ -92,26 +92,19 @@ private theorem sup_succ_eq_zero {S : Finset (Fin n)} (h : S.sup Fin.succ = 0) :
 private theorem mem_of_sup_succ_eq {S : Finset (Fin n)} {k : Fin n}
     (h : S.sup Fin.succ = k.succ) : k ∈ S := by
   rcases S.eq_empty_or_nonempty with rfl | hne
-  · exact absurd h (by rw [Finset.sup_empty, bot_eq_zero]; exact (Fin.succ_ne_zero k).symm)
+  · exact absurd (bot_eq_zero.symm.trans h).symm (Fin.succ_ne_zero k)
   · obtain ⟨j, hj, hjeq⟩ := Finset.exists_mem_eq_sup S hne Fin.succ
-    rw [hjeq] at h
-    exact Fin.succ_injective _ h ▸ hj
-
-private theorem castSucc_lt_sup_succ {S : Finset (Fin n)} {j : Fin n} (hj : j ∈ S) :
-    j.castSucc < S.sup Fin.succ :=
-  Fin.castSucc_lt_succ.trans_le (Finset.le_sup hj)
+    exact Fin.succ_injective _ (hjeq.symm.trans h) ▸ hj
 
 /-- At a point of colour `0`, `f` lowers or fixes every coordinate. -/
 theorem le_of_coloring_eq_zero {f : (Fin n → ℝ) → Fin n → ℝ} {N : ℕ} {p : Fin n → ℕ}
-    (h : coloring f N p = 0) (j : Fin n) : f (gridPoint N p) j ≤ gridPoint N p j := by
-  unfold coloring at h
-  have hS := Finset.filter_eq_empty_iff.mp (sup_succ_eq_zero h) (Finset.mem_univ j)
-  exact le_of_not_gt fun hlt => hS (.inl hlt)
+    (h : coloring f N p = 0) (j : Fin n) : f (gridPoint N p) j ≤ gridPoint N p j :=
+  le_of_not_gt fun hlt =>
+    Finset.filter_eq_empty_iff.mp (sup_succ_eq_zero h) (Finset.mem_univ j) (.inl hlt)
 
 /-- At a point of colour `k + 1`, `f` raises or fixes coordinate `k`. -/
 theorem le_of_coloring_eq_succ {f : (Fin n → ℝ) → Fin n → ℝ} {N : ℕ} {p : Fin n → ℕ} {k : Fin n}
     (h : coloring f N p = k.succ) : gridPoint N p k ≤ f (gridPoint N p) k := by
-  unfold coloring at h
   rcases (Finset.mem_filter.mp (mem_of_sup_succ_eq h)).2 with hlt | ⟨h0, h1⟩
   · exact hlt.le
   · rw [h0, h1]
@@ -126,21 +119,15 @@ theorem isHypergridSperner_coloring {f : (Fin n → ℝ) → Fin n → ℝ}
   have hNr : (0 : ℝ) < N := by exact_mod_cast hN
   refine ⟨fun h0 => ?_, fun hN' heq => ?_⟩
   · unfold coloring
-    apply castSucc_lt_sup_succ
-    refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
+    refine Fin.castSucc_lt_succ.trans_le
+      (Finset.le_sup (Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩))
     have hg : gridPoint N p i = 0 := by simp [gridPoint, h0]
-    rcases (hx.1 i).lt_or_eq with hlt | heq
-    · exact .inl (hg ▸ hlt)
-    · exact .inr ⟨hg, heq.symm⟩
+    exact (hx.1 i).lt_or_eq.imp (hg ▸ ·) fun h => ⟨hg, h.symm⟩
   · unfold coloring at heq
-    have hN'' : p i = N := hN'
-    have hg : gridPoint N p i = 1 := by simp [gridPoint, hN'', hNr.ne']
-    have h1 : f (gridPoint N p) i ≤ 1 := hx.2 i
-    rcases (Finset.mem_filter.mp (mem_of_sup_succ_eq heq)).2 with hlt | ⟨h0, -⟩
-    · rw [hg] at hlt
+    have hg : gridPoint N p i = 1 := by simp [gridPoint, show p i = N from hN', hNr.ne']
+    have hx1 : f (gridPoint N p) i ≤ 1 := hx.2 i
+    rcases (Finset.mem_filter.mp (mem_of_sup_succ_eq heq)).2 with hlt | ⟨h0, -⟩ <;>
       linarith
-    · rw [hg] at h0
-      exact one_ne_zero h0
 
 /-- **Approximate fixed points.** Let `f` map the cube `[0, 1] ^ n` into itself, and suppose that
 any two points of the cube at distance at most `1 / N` have images at distance at most `η`. Then
@@ -194,10 +181,9 @@ theorem exists_dist_le_of_lipschitzOnWith {f : (Fin n → ℝ) → Fin n → ℝ
     {N : ℕ} (hN : 0 < N) :
     ∃ p : Fin n → ℕ, (∀ i, p i ≤ N) ∧
       dist (f fun i => (p i : ℝ) / N) (fun i => (p i : ℝ) / N) ≤ (K + 1) / N := by
-  have h := exists_dist_le_of_forall_dist_le hf hN (η := K / N) fun x hx y hy hxy =>
-    (hK.dist_le_mul x hx y hy).trans (by
-      rw [div_eq_mul_one_div]; exact mul_le_mul_of_nonneg_left hxy K.coe_nonneg)
-  obtain ⟨p, hp, hd⟩ := h
+  obtain ⟨p, hp, hd⟩ := exists_dist_le_of_forall_dist_le hf hN (η := K / N) fun x hx y hy hxy =>
+    (hK.dist_le_mul x hx y hy).trans (div_eq_mul_one_div (K : ℝ) N ▸
+      mul_le_mul_of_nonneg_left hxy K.coe_nonneg)
   exact ⟨p, hp, hd.trans_eq (by ring)⟩
 
 /-- **Brouwer's fixed-point theorem** for the cube `[0, 1] ^ n`: a continuous map of the cube into
@@ -205,27 +191,21 @@ itself has a fixed point. -/
 theorem exists_isFixedPt_cube {f : (Fin n → ℝ) → Fin n → ℝ}
     (hf : MapsTo f (Icc 0 1) (Icc 0 1)) (hc : ContinuousOn f (Icc 0 1)) :
     ∃ x ∈ Icc (0 : Fin n → ℝ) 1, Function.IsFixedPt f x := by
-  have hK : IsCompact (Icc (0 : Fin n → ℝ) 1) := isCompact_Icc
-  have hne : (Icc (0 : Fin n → ℝ) 1).Nonempty := nonempty_Icc.mpr zero_le_one
-  obtain ⟨x₀, hx₀, hmin⟩ :=
-    hK.exists_isMinOn hne (continuous_dist.comp_continuousOn (hc.prodMk continuousOn_id))
-  refine ⟨x₀, hx₀, dist_eq_zero.mp (le_antisymm ?_ dist_nonneg)⟩
-  by_contra hpos
-  set m := dist (f x₀) x₀ with hm
-  have hm0 : 0 < m := lt_of_not_ge hpos
+  obtain ⟨x₀, hx₀, hmin⟩ := isCompact_Icc.exists_isMinOn (nonempty_Icc.mpr zero_le_one)
+    (continuous_dist.comp_continuousOn (hc.prodMk continuousOn_id))
+  refine ⟨x₀, hx₀, dist_eq_zero.mp (le_antisymm (le_of_not_gt fun hm0 => ?_) dist_nonneg)⟩
+  set m := dist (f x₀) x₀
   obtain ⟨δ, hδ, hδf⟩ := Metric.uniformContinuousOn_iff_le.mp
-    (hK.uniformContinuousOn_of_continuous hc) (m / 4) (by positivity)
+    (isCompact_Icc.uniformContinuousOn_of_continuous hc) (m / 4) (by positivity)
   obtain ⟨N, hN⟩ := exists_nat_gt (max (1 / δ) (4 / m))
   have hNpos : (0 : ℝ) < N := (lt_max_of_lt_left (by positivity : (0 : ℝ) < 1 / δ)).trans hN
-  have hN1 : 1 / (N : ℝ) ≤ δ := by
-    rw [one_div_le hNpos hδ]; exact (le_max_left _ _).trans hN.le
+  obtain ⟨p, hp, hd⟩ := exists_dist_le_of_forall_dist_le hf (Nat.cast_pos.mp hNpos)
+    fun x hx y hy hxy => hδf x hx y hy (hxy.trans ((one_div_le hNpos hδ).mpr
+      ((le_max_left _ _).trans hN.le)))
   have hN2 : 1 / (N : ℝ) < m / 4 := by
     rw [one_div_lt hNpos (by positivity), one_div_div]; exact (le_max_right _ _).trans_lt hN
-  obtain ⟨p, hp, hd⟩ := exists_dist_le_of_forall_dist_le hf (Nat.cast_pos.mp hNpos)
-    fun x hx y hy hxy => hδf x hx y hy (hxy.trans hN1)
-  have hmp := isMinOn_iff.mp hmin _ (gridPoint_mem_Icc hp)
-  change m ≤ dist (f (gridPoint N p)) (gridPoint N p) at hmp
-  unfold gridPoint at hmp
+  have hmp : m ≤ dist (f fun i => (p i : ℝ) / N) fun i => (p i : ℝ) / N :=
+    isMinOn_iff.mp hmin _ (gridPoint_mem_Icc hp)
   linarith
 
 end Cslib.Brouwer

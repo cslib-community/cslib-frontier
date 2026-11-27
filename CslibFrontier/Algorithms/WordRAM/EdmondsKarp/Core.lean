@@ -114,19 +114,19 @@ theorem fillRange_realizes :
   realize [fillStep_realizes]
   refine iterationSafe_of_stepInv _ _ w d
     (fun rem (idx : ℕ) _ => idx + rem = d.2 ∧ Fits w (d.1.1 + d.2)) ?_ ⟨Nat.zero_add _, h⟩
-  intro rem idx t ⟨hsum, hfit⟩
+  intro rem idx _ ⟨hsum, hfit⟩
   dsimp only [fillStep]
   simp only [client_simps]
-  exact ⟨⟨by apply hfit.of_le; omega, by apply hfit.of_le; omega⟩, by omega, hfit⟩
+  exact ⟨⟨hfit.of_le (by omega), hfit.of_le (by omega)⟩, by omega, hfit⟩
 
 private theorem preservesAt_fillRange {a base val len : ℕ}
     (hout : a < base ∨ base + len ≤ a) : PreservesAt a (fillRange ((base, val), len)) := fun s => by
   unfold fillRange
   rw [clientState_bind]
   change ((Memory.spec 0).clientState s (iterate fillStep (base, val) len 0)).mem a = s.mem a
-  refine iterate_invariant_of fillStep (base, val)
+  refine (iterate_invariant_of fillStep (base, val)
     (fun rem (idx : ℕ) t => idx + rem = len ∧ t.mem a = s.mem a)
-    (fun rem idx t ⟨hsum, hmem⟩ => ?_) ⟨Nat.zero_add _, rfl⟩ |>.2
+    (fun rem idx t ⟨hsum, hmem⟩ => ?_) ⟨Nat.zero_add _, rfl⟩).2
   unfold fillStep
   simp only [client_simps]
   exact ⟨by omega, (Function.update_of_ne (by omega) _ t.mem).trans hmem⟩
@@ -136,31 +136,28 @@ theorem fillRange_spec (base val len : ℕ) (s : Memory.State) :
     let s' := (Memory.spec 0).clientState s (fillRange ((base, val), len))
     (∀ i < len, s'.mem (base + i) = val) ∧
       (∀ a, (a < base ∨ base + len ≤ a) → s'.mem a = s.mem a) := by
-  intro s'
-  refine ⟨?_, fun a ha => preservesAt_fillRange ha s⟩
-  unfold s' fillRange
+  refine ⟨fun i hi => ?_, fun a ha => preservesAt_fillRange ha s⟩
+  unfold fillRange
   rw [clientState_bind]
-  change ∀ i < len, ((Memory.spec 0).clientState s (iterate fillStep (base, val) len 0)).mem
-    (base + i) = val
+  change ((Memory.spec 0).clientState s (iterate fillStep (base, val) len 0)).mem (base + i) = val
   have hinv := iterate_invariant_of fillStep (base, val)
-    (fun rem (idx : ℕ) t => idx + rem = len ∧ ∀ i < idx, t.mem (base + i) = val)
+    (fun rem (idx : ℕ) t => idx + rem = len ∧ ∀ j < idx, t.mem (base + j) = val)
     (fun rem idx t ⟨hsum, hprev⟩ => by
       unfold fillStep
       simp only [StateTransitionSpec.clientState, StateTransitionSpec.clientResult, client_simps]
-      refine ⟨by omega, fun i hi => ?_⟩
-      by_cases h : i = idx
-      · subst h; simp
-      · rw [Function.update_of_ne (by omega)]; exact hprev i (by omega))
+      refine ⟨by omega, fun j hj => ?_⟩
+      rcases eq_or_ne j idx with rfl | hne
+      · simp
+      · rw [Function.update_of_ne (by omega)]
+        exact hprev j (by omega))
     (n := len) (a := 0) (s := s) ⟨Nat.zero_add _, fun _ h => absurd h (Nat.not_lt_zero _)⟩
-  intro i hi
   exact hinv.2 i (by omega)
 
 theorem memoryCost_fillRange_le (base val len : ℕ) (s : Memory.State) :
     memoryCost (fillRange ((base, val), len)) s ≤ len := by
   unfold fillRange
-  have hit := memoryCost_iterate_le_of fillStep 1 (base, val)
-    (fun idx t => by unfold fillStep; exact le_refl 1) len 0 s
-  exact le_trans (memoryCost_bind_le hit fun _ t => (memoryCost_pure () t).le) (by omega)
+  exact (memoryCost_bind_le (memoryCost_iterate_le_of fillStep 1 (base, val)
+    (fun _ _ => le_rfl) len 0 s) fun _ t => (memoryCost_pure () t).le).trans (by omega)
 
 theorem validHistory_fillRange {w base val len : ℕ} {s : Memory.State}
     (hwf : Memory.WellFormed w s) (hend : base + len ≤ s.frontier) (hval : Fits w val) :

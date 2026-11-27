@@ -90,15 +90,12 @@ private theorem blockCount_update_of_eq_one (b : Bool) {x : BitString (s * w)} {
     blockCount b (update x (finProdFinEquiv (j, i)) (!x (finProdFinEquiv (j, i)))) j = 0 := by
   unfold blockCount at hx ⊢
   obtain ⟨i₀, hi₀⟩ := card_eq_one.1 hx
-  have hii : i = i₀ := mem_singleton.1 (hi₀ ▸ mem_filter.2 ⟨mem_univ i, hi⟩)
   refine card_eq_zero.2 (filter_eq_empty_iff.2 fun i' _ hi' => ?_)
   by_cases h : i' = i
-  · subst h
-    rw [update_self, hi] at hi'
-    cases b <;> simp at hi'
+  · simp only [h, update_self, hi, Bool.not_eq_self] at hi'
   · rw [update_of_ne fun h' => h (congrArg Prod.snd (finProdFinEquiv.injective h'))] at hi'
-    have := mem_singleton.1 (hi₀ ▸ mem_filter.2 ⟨mem_univ i', hi'⟩)
-    exact h (this.trans hii.symm)
+    exact h ((mem_singleton.1 (hi₀ ▸ mem_filter.2 ⟨mem_univ i', hi'⟩)).trans
+      (mem_singleton.1 (hi₀ ▸ mem_filter.2 ⟨mem_univ i, hi⟩)).symm)
 
 /-- **The block relation of [Ambainis2002], Theorem 4**: let a `T`-query algorithm with a unit
 initial state end in states with overlap at most `δ` on every input `x` that has a block without
@@ -126,18 +123,14 @@ private theorem one_sub_mul_sqrt_le_two_mul_of_blockCount (b : Bool)
     let x : BitString (s * w) := fun k =>
       if (finProdFinEquiv.symm k).1 ≠ j₀ ∧ (finProdFinEquiv.symm k).2 = i₀ then b else !b
     have hx (j : Fin s) (i : Fin w) :
-        x (finProdFinEquiv (j, i)) = if j ≠ j₀ ∧ i = i₀ then b else !b := by
+        (x (finProdFinEquiv (j, i)) = b) ↔ j ≠ j₀ ∧ i = i₀ := by
       simp only [x, Equiv.symm_apply_apply]
+      exact ⟨fun h => by_contra fun hp => (Bool.not_eq_self b).1 ((ite_eq_right hp).symm.trans h),
+        fun hp => ite_eq_left hp⟩
     refine ⟨x, mem_filter.2 ⟨mem_univ _, j₀, ?_, fun j hj => ?_⟩⟩
-    · refine card_eq_zero.2 (filter_eq_empty_iff.2 fun i _ => ?_)
-      rw [hx, ite_eq_right fun h => h.1 rfl]
-      cases b <;> decide
-    · refine card_eq_one.2 ⟨i₀, eq_singleton_iff_unique_mem.2 ⟨?_, fun i hi => ?_⟩⟩
-      · exact mem_filter.2 ⟨mem_univ _, by rw [hx, ite_eq_left ⟨hj, rfl⟩]⟩
-      · have hi' := (mem_filter.1 hi).2
-        by_contra hne
-        rw [hx, ite_eq_right fun h => hne h.2] at hi'
-        cases b <;> simp at hi'
+    · simp only [blockCount, hx, ne_eq, not_true_eq_false, false_and, filter_false, card_empty]
+    · simp only [blockCount, hx, ne_eq, hj, not_false_eq_true, true_and, filter_eq', mem_univ,
+        ↓reduceIte, card_singleton]
   have hm : ∀ x ∈ A, w ≤ #{k | update x k (!x k) ∈ B} := by
     intro x hx
     obtain ⟨j₀, h0, h1⟩ := (mem_filter.1 hx).2
@@ -196,12 +189,10 @@ theorem one_sub_mul_sqrt_le_two_mul_of_tribes
     unfold blockCount at this
     rw [card_eq_zero.2 (filter_eq_empty_iff.2 fun i _ => by simp [hj i])] at this
     exact zero_ne_one this
-  have hx' := (abs_le.1 (h x hx)).1
-  have hy' := (abs_le.1 (h y fun j => (hy j).le)).2
-  rw [htx, bitVal_true] at hx'
-  rw [hty, bitVal_false] at hy'
+  have hx' := htx ▸ (abs_le.1 (h x hx)).1
+  have hy' := hty ▸ (abs_le.1 (h y fun j => (hy j).le)).2
   exact norm_inner_le_two_mul_sqrt_of_measureProb (by rw [norm_run, hψ₀]) (by rw [norm_run, hψ₀])
-    (by linarith) (by linarith) hε
+    (by simpa using hx') (by simpa using hy') hε
 
 /-- **The `AND` of `OR`s takes `Ω(√(w s))` queries** [Ambainis2002], Theorem 4: if a `T`-query
 algorithm with a unit initial state accepts, by an outcome in `S`, every input `x` in which every
@@ -225,13 +216,11 @@ theorem one_sub_mul_sqrt_le_two_mul_of_forall_exists
     refine decide_eq_true fun j => ?_
     obtain ⟨i, hi⟩ := card_eq_one.1 (hy j)
     exact ⟨i, (mem_filter.1 (hi ▸ mem_singleton_self i : i ∈ _)).2⟩
-  have hx' := (abs_le.1 (h x hx)).2
-  have hy' := (abs_le.1 (h y fun j => (hy j).le)).1
-  rw [hfx, bitVal_false] at hx'
-  rw [hfy, bitVal_true] at hy'
+  have hx' := hfx ▸ (abs_le.1 (h x hx)).2
+  have hy' := hfy ▸ (abs_le.1 (h y fun j => (hy j).le)).1
   rw [norm_inner_symm]
   exact norm_inner_le_two_mul_sqrt_of_measureProb (by rw [norm_run, hψ₀]) (by rw [norm_run, hψ₀])
-    (by linarith) (by linarith) hε
+    (by simpa using hy') (by simpa using hx') hε
 
 /-- From `(1 - 2√(2/9)) √(w s) ≤ 2T` to `w s ≤ 1296 T²`. -/
 private theorem mul_le_mul_sq_of_one_sub_mul_sqrt_le {T : ℕ}
@@ -239,11 +228,9 @@ private theorem mul_le_mul_sq_of_one_sub_mul_sqrt_le {T : ℕ}
   -- `2√(2/9) ≤ 17/18`, since `8/9 = 288/324 ≤ 289/324`
   have hsqrt : √((1 / 3 : ℝ) * (1 - 1 / 3)) ≤ 17 / 36 :=
     (Real.sqrt_le_left (by norm_num)).2 (by norm_num)
-  have h0 : 0 ≤ √((w : ℝ) * s) := Real.sqrt_nonneg _
-  have h36 : √((w : ℝ) * s) ≤ 36 * T := by nlinarith
+  have h36 : √((w : ℝ) * s) ≤ 36 * T := by nlinarith [Real.sqrt_nonneg (w * s : ℝ)]
   have hsq := Real.sq_sqrt (by positivity : (0 : ℝ) ≤ w * s)
-  have : (w : ℝ) * s ≤ 1296 * T ^ 2 := by nlinarith
-  exact_mod_cast this
+  exact_mod_cast (by nlinarith [Real.sqrt_nonneg (w * s : ℝ)] : (w : ℝ) * s ≤ 1296 * T ^ 2)
 
 /-- **Tribes at error `1/3`**: if a `T`-query algorithm with a unit initial state accepts, by an
 outcome in `S`, every input `x` in which every tribe has at most one false bit with probability

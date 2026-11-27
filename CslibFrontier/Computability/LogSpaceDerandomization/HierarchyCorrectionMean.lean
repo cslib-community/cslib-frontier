@@ -82,11 +82,9 @@ theorem source_expect_split (F : Environment P J → ℝ) (x : V) :
     (𝔼 σ ∈ ({σ | r.source.retains (channels D) σ (ident x)} : Finset _), F σ) =
       𝔼 p ∈ ({rest | splitSource D ident r hr rest x} : Finset _) ×ˢ
         (univ : Finset (FrameChannel P 4 1)), F ((terminalSplit r.terminal.role).symm p) := by
-  apply Finset.expect_equiv (terminalSplit r.terminal.role)
-  · intro σ
-    simp [terminalSplit, splitSource, coordinate, CorrectionRowTask.Channel.retains, channels]
-  · intro σ _
-    rw [Equiv.symm_apply_apply]
+  refine Finset.expect_equiv (terminalSplit r.terminal.role) (fun σ => ?_)
+    fun σ _ => by rw [Equiv.symm_apply_apply]
+  simp [terminalSplit, splitSource, coordinate, CorrectionRowTask.Channel.retains, channels]
 
 omit [Fintype V] in
 /-- Projected-coordinate frame laws for Γ and Ζ at one common grid rate.
@@ -145,9 +143,7 @@ theorem correctionRequest_eq_split (raw : Matrix V V ℝ)
   simp only [correctionRequest, dite_eq_left hr]
   have hprep : (fun p => prep (terminalSplit r.terminal.role
       ((Equiv.piSplitAt r.terminal.role (fun _ : Fin J => FrameChannel P 4 1)).symm (p.2, p.1)))) =
-      prep := by
-    funext p
-    simp [terminalSplit]
+      prep := funext fun p => by simp [terminalSplit]
   rw [hprep]
   rfl
 
@@ -194,15 +190,13 @@ theorem genuine_request_mean (hD : D ≠ 0) (hid : Function.Injective ident)
   have hπ : 0 < (((side P k : ℝ) / P) ^ 4) := by linarith [hh.1.lower]
   rw [source_expect_split D ident r hr]
   simp_rw [genuine_request_eq HP D ident r hr C i, Equiv.apply_symm_apply]
-  have husage : splitUsage D ident r = splitTerminal D ident r := by
-    funext A v
-    simp only [splitUsage, splitTerminal, coordinate, hu, hr.2.2]
+  have husage : splitUsage D ident r = splitTerminal D ident r :=
+    funext₂ fun A v => propext (by simp [splitUsage, splitTerminal, coordinate, hu, hr.2.2])
   simp only [husage]
   have hm := HP.correction_mean (splitSource D ident r hr) (splitTerminal D ident r)
     hh.1 hh.2 hf hπ hC hC1 hi hCf hx y
   dsimp only at hm
-  rw [HP.selected_pi, HP.selected_normalized, HP.selected_preparation] at hm
-  exact hm
+  rwa [HP.selected_pi, HP.selected_normalized, HP.selected_preparation] at hm
 
 omit [Fintype V] in
 /-- Positivity of the frame marginal supplies an inhabited actual source slice. -/

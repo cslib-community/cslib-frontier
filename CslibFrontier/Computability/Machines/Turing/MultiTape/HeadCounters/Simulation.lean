@@ -215,31 +215,21 @@ private lemma moveCounters_zero {m : ℕ} (cs : Fin m → ℕ) : moveCounters cs
 private lemma moveCounters_single_one {m : ℕ} (cs : Fin m → ℕ) (x : Fin m) :
     moveCounters cs (Pi.single x 1) = update cs x (cs x + 1) := by
   funext i
-  by_cases hi : i = x
-  · subst hi
-    simp [moveCounters]
-  · simp [moveCounters, hi]
+  rcases eq_or_ne i x with rfl | hi <;> simp [moveCounters, *]
 
 private lemma moveCounters_single_neg_one {m : ℕ} (cs : Fin m → ℕ) (x : Fin m) :
     moveCounters cs (Pi.single x (-1)) = update cs x (cs x - 1) := by
   funext i
-  by_cases hi : i = x
-  · subst hi
-    simp [moveCounters]
-    omega
+  rcases eq_or_ne i x with rfl | hi
+  · simp [moveCounters]; omega
   · simp [moveCounters, hi]
 
 private lemma moveCounters_transfer {m : ℕ} (cs : Fin m → ℕ) {x y : Fin m} (hxy : x ≠ y) :
     moveCounters cs (transfer x y) = update (update cs x (cs x - 1)) y (cs y + 1) := by
   funext i
-  by_cases hx : i = x
-  · subst hx
-    simp [moveCounters, transfer, hxy]
-    omega
-  · by_cases hy : i = y
-    · subst hy
-      simp [moveCounters, transfer, hx]
-    · simp [moveCounters, transfer, hx, hy]
+  rcases eq_or_ne i x with rfl | hx
+  · simp [moveCounters, transfer, hxy]; omega
+  · rcases eq_or_ne i y with rfl | hy <;> simp [moveCounters, transfer, *]
 
 /-- The first stage of tape `j`, or `finish` after the last tape. -/
 private def phaseAt (k j : ℕ) : Phase k := if h : j < k then .tape ⟨j, h⟩ else .finish
@@ -338,7 +328,7 @@ private lemma runFrom_succ_of_ctl {c c' : Control k State} {cs : Fin (k + k + 1)
     (h : ∀ inp, ctl tm c inp (fun i => decide (cs i = 0)) = ⟨0, mv, none, some c'⟩) (n : ℕ) :
     (simulator tm).runFrom (cfg (some c) pos cs out) (n + 1) =
       (simulator tm).runFrom (cfg (some c') pos (moveCounters cs mv) out) n := by
-  rw [show n + 1 = 1 + n by omega, runFrom_add, runFrom_one, simulator, step_cfg, h]
+  rw [Nat.add_comm n 1, runFrom_add, runFrom_one, simulator, step_cfg, h]
   simp only [moveInputPos_zero, Option.toList_none, List.append_nil]
   rfl
 
@@ -351,15 +341,14 @@ private lemma run_triple (X : ℕ) (cs : Fin (k + k + 1) → ℕ)
   have hne := target_ne_tmp j (dir tm q inp sc j)
   induction X generalizing cs with
   | zero =>
-    have e : update (update cs (target j (dir tm q inp sc j)) 0) tmp (cs tmp + 3 * 0) = cs :=
-      funext_two tmp (target j (dir tm q inp sc j)) (by simp only [update_self]; omega)
-        (by simp only [update_of_ne hne, update_self, hX]) fun i h1 h2 => by
-          simp only [update_of_ne h1, update_of_ne h2]
+    have e : update (update cs (target j (dir tm q inp sc j)) 0) tmp (cs tmp + 3 * 0) = cs := by
+      rw [congrArg (update cs _) hX.symm, update_eq_self, mul_zero, add_zero, update_eq_self]
     rw [e, runFrom_succ_of_ctl tm pos out (c' := ⟨q, inp, sc, cur, .back j⟩) (mv := fun _ => 0)
       (fun _ => by simp [ctl, hX]), moveCounters_zero]
     rfl
   | succ X ih =>
-    rw [show 3 * (X + 1) + 1 = (3 * X + 1) + 1 + 1 + 1 by omega,
+    have hstep : 3 * (X + 1) + 1 = (3 * X + 1) + 1 + 1 + 1 := by omega
+    rw [hstep,
       runFrom_succ_of_ctl tm pos out (c' := ⟨q, inp, sc, cur, .triple j 2⟩)
         (mv := transfer (target j (dir tm q inp sc j)) tmp) (fun _ => by simp [ctl, hX]),
       moveCounters_transfer _ hne,
@@ -386,8 +375,7 @@ private lemma run_drainTmp {p p' : Control k State} (dst : Fin (k + k + 1)) (hne
   induction T generalizing cs with
   | zero =>
     have e : update (update cs tmp 0) dst (cs dst + 0) = cs := by
-      rw [(congrArg (update cs tmp) hT.symm).trans (update_eq_self tmp cs)]
-      simp only [Nat.add_zero, update_eq_self]
+      rw [congrArg (update cs _) hT.symm, update_eq_self, add_zero, update_eq_self]
     rw [e, runFrom_succ_of_ctl tm pos out (hz hT), moveCounters_zero]
     rfl
   | succ T ih =>
@@ -427,10 +415,8 @@ private lemma run_addDigit (δ : ℕ) (hδ : δ < 3) (cs : Fin (k + k + 1) → �
       moveCounters_single_one, ih (by omega)]
     congr 1
     funext i
-    by_cases h2 : i = target j (dir tm q inp sc j)
-    · subst h2
-      simp only [update_self]
-      omega
+    rcases eq_or_ne i (target j (dir tm q inp sc j)) with rfl | h2
+    · simp only [update_self]; omega
     · simp only [update_of_ne h2]
 
 /-- The residue modulo three. -/
@@ -446,10 +432,9 @@ private lemma run_count (Y r : ℕ) (hr : r < 3) (cs : Fin (k + k + 1) → ℕ)
   induction Y generalizing r cs with
   | zero =>
     have e : update (update cs (source j (dir tm q inp sc j)) 0) tmp (cs tmp + (r + 0) / 3) =
-        cs :=
-      funext_two tmp (source j (dir tm q inp sc j)) (by simp only [update_self]; omega)
-        (by simp only [update_of_ne hne, update_self, hY]) fun i h1 h2 => by
-          simp only [update_of_ne h1, update_of_ne h2]
+        cs := by
+      rw [congrArg (update cs _) hY.symm, update_eq_self, add_zero, Nat.div_eq_of_lt hr, add_zero,
+        update_eq_self]
     have hrem : rem3 (r + 0) = ⟨r, hr⟩ := by fin_index [rem3]
     rw [e, hrem, runFrom_succ_of_ctl tm pos out (c' := ⟨q, inp, sc, cur, .restore j ⟨r, hr⟩⟩)
       (mv := fun _ => 0) (fun _ => by simp [ctl, hY]), moveCounters_zero]
@@ -511,18 +496,13 @@ private lemma run_move (hd : dir tm q inp sc j ≠ 0) (cs : Fin (k + k + 1) → 
     ⟨_, run_restore tm pos out q inp sc cur j (cs (source j (dir tm q inp sc j)) / 3) _ _
       (by simp [moveCounters_zero, hx.symm, h0])⟩
   refine ⟨n, hn.trans ?_⟩
-  have hsym : symbol (rem3 (0 + cs (source j (dir tm q inp sc j)))) =
-      symbol (cs (source j (dir tm q inp sc j))) := by
-    simp only [rem3, Nat.zero_add, symbol_mod]
-  rw [hsym]
+  simp only [rem3, Nat.zero_add, symbol_mod]
   congr 1
   refine funext_two tmp (target j (dir tm q inp sc j))
     (by simp [moveCounters_zero, hx.symm, hy.symm, h0])
     (by simp [moveCounters_zero, hx, hxy.symm, h0]) fun i h1 h2 => ?_
-  by_cases h3 : i = source j (dir tm q inp sc j)
-  · subst h3
-    simp [moveCounters_zero, h1, h0]
-  · simp [moveCounters_zero, h1, h2, h3]
+  rcases eq_or_ne i (source j (dir tm q inp sc j)) with rfl | h3 <;>
+    simp [moveCounters_zero, *]
 
 end Stages
 
@@ -536,9 +516,7 @@ variable (tm : MultiTapeTM k Bool State) {input : List Bool}
 private lemma apply_workTapes (a : Action k Bool State) (c : Cfg k Bool State input) (j : Fin k) :
     (a.apply c).workTapes j =
       update (c.workTapes j) (c.workTapePos j) (written a c.workTapeSymbols j) := by
-  rcases h : (a.workTapes j).1 with _ | s
-  · simp [Action.apply, written, Cfg.workTapeSymbols, h]
-  · simp [Action.apply, written, h]
+  rcases h : (a.workTapes j).1 with _ | s <;> simp [Action.apply, written, Cfg.workTapeSymbols, h]
 
 /-- The simulator is at the start of a step of `tm` from `c`: the counters encode the work tapes
 of `c`, and the scratch counter is zero. -/
@@ -579,77 +557,55 @@ private lemma run_tape (pos : Fin (input.length + 2)) (out : List Bool) (q : Sta
       StepInv c (tm.tr q c.inputSymbol c.workTapeSymbols) (j + 1) cur' cs' := by
   obtain ⟨h0, hinv⟩ := h
   obtain ⟨hcur, henc⟩ := (hinv j).2 le_rfl
-  have hw := apply_workTapes (tm.tr q c.inputSymbol c.workTapeSymbols) c j
-  have hdir : dir tm q c.inputSymbol c.workTapeSymbols j =
-      ((tm.tr q c.inputSymbol c.workTapeSymbols).workTapes j).2 := rfl
+  let a := tm.tr q c.inputSymbol c.workTapeSymbols
+  have hw := apply_workTapes a c j
   -- the tapes other than `j` keep their state in the invariant
   have hother (cur' : Fin k → Option Bool) (cs' : Fin (k + k + 1) → ℕ) (h0' : cs' tmp = 0)
       (hcur' : ∀ i, i ≠ j → cur' i = cur i) (hlo : ∀ i, i ≠ j → cs' (lo i) = cs (lo i))
       (hhi : ∀ i, i ≠ j → cs' (hi i) = cs (hi i))
-      (hj : cur' j = (tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapeSymbols j ∧
-        Encodes ((tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapes j)
-          ((tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapePos j)
-          (cs' (lo j)) (cs' (hi j))) :
-      StepInv c (tm.tr q c.inputSymbol c.workTapeSymbols) (j + 1) cur' cs' := by
+      (hj : cur' j = (a.apply c).workTapeSymbols j ∧
+        Encodes ((a.apply c).workTapes j) ((a.apply c).workTapePos j) (cs' (lo j)) (cs' (hi j))) :
+      StepInv c a (j + 1) cur' cs' := by
     refine ⟨h0', fun i => ?_⟩
-    by_cases hij : i = j
-    · subst hij
-      exact ⟨fun _ => hj, fun h => absurd h (by omega)⟩
+    rcases eq_or_ne i j with rfl | hij
+    · exact ⟨fun _ => hj, fun h => absurd h (by omega)⟩
     · rw [hcur' i hij, hlo i hij, hhi i hij]
       exact ⟨fun h => (hinv i).1 (by omega), fun h => (hinv i).2 (by omega)⟩
-  rcases hd : ((tm.tr q c.inputSymbol c.workTapeSymbols).workTapes j).2 with _ | _ | _
+  by_cases hd0 : dir tm q c.inputSymbol c.workTapeSymbols j = 0
   · -- no move: only the scanned symbol changes
-    rw [SignType.zero_eq_zero] at hd
+    have hd0' : (a.workTapes j).2 = 0 := hd0
     refine ⟨0 + 1, _, cs, runFrom_succ_of_ctl tm pos out
-      (c' := ⟨q, c.inputSymbol, c.workTapeSymbols,
-        update cur j (written (tm.tr q c.inputSymbol c.workTapeSymbols) c.workTapeSymbols j),
-        phaseAt k (j + 1)⟩) (mv := fun _ => 0) (fun _ => by simp [ctl, hdir, hd]) 0 |>.trans
-        (by rw [moveCounters_zero]; rfl), ?_⟩
-    refine hother _ _ h0 (fun i hi => update_of_ne hi _ _) (fun _ _ => rfl) (fun _ _ => rfl) ?_
-    simp only [Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd, SignType.coe_zero,
+      (c' := ⟨q, c.inputSymbol, c.workTapeSymbols, update cur j (written a c.workTapeSymbols j),
+        phaseAt k (j + 1)⟩) (mv := fun _ => 0) (fun _ => by simp [ctl, hd0, a]) 0 |>.trans
+        (by rw [moveCounters_zero]; rfl),
+      hother _ _ h0 (fun i hi => update_of_ne hi _ _) (fun _ _ => rfl) (fun _ _ => rfl) ?_⟩
+    simp only [Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd0', SignType.coe_zero,
       add_zero, update_self, true_and]
     exact henc.write _
-  · -- move left
-    rw [SignType.neg_eq_neg_one] at hd
-    have hd' : dir tm q c.inputSymbol c.workTapeSymbols j ≠ 0 := by rw [hdir, hd]; decide
-    obtain ⟨n, hn⟩ := run_move tm pos out q c.inputSymbol c.workTapeSymbols cur j hd' cs h0
-    have ht : target j (dir tm q c.inputSymbol c.workTapeSymbols j) = hi j := by
-      simp [target, hdir, hd]
-    have hs : source j (dir tm q c.inputSymbol c.workTapeSymbols j) = lo j := by
-      simp [source, hdir, hd]
-    rw [ht, hs] at hn
+  · obtain ⟨n, hn⟩ := run_move tm pos out q c.inputSymbol c.workTapeSymbols cur j hd0 cs h0
     refine ⟨n, _, _, hn, hother _ _ ?_ (fun i hi => update_of_ne hi _ _) (fun i hi => ?_)
       (fun i hi => ?_) ?_⟩
-    · simp [(lo_ne_tmp j).symm, (hi_ne_tmp j).symm, h0]
-    · rw [update_of_ne (fun e => hi (lo_inj.mp e)), update_of_ne (lo_ne_hi i j)]
-    · rw [update_of_ne (fun e => lo_ne_hi j i e.symm), update_of_ne (fun e => hi (hi_inj.mp e))]
-    · have hpos : (tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapePos j =
-          c.workTapePos j - 1 := by
-        simp only [Action.apply_workTapePos, hd, SignType.coe_neg_one]
-        omega
-      simp only [Cfg.workTapeSymbols, hw, hpos, update_self, update_of_ne (lo_ne_hi j j).symm,
-        update_of_ne (show c.workTapePos j - 1 ≠ c.workTapePos j by omega)]
-      exact ⟨henc.symbol_left.symm, henc.move_left _⟩
-  · -- move right
-    rw [SignType.pos_eq_one] at hd
-    have hd' : dir tm q c.inputSymbol c.workTapeSymbols j ≠ 0 := by rw [hdir, hd]; decide
-    obtain ⟨n, hn⟩ := run_move tm pos out q c.inputSymbol c.workTapeSymbols cur j hd' cs h0
-    have ht : target j (dir tm q c.inputSymbol c.workTapeSymbols j) = lo j := by
-      simp [target, hdir, hd]
-    have hs : source j (dir tm q c.inputSymbol c.workTapeSymbols j) = hi j := by
-      simp [source, hdir, hd]
-    rw [ht, hs] at hn
-    refine ⟨n, _, _, hn, hother _ _ ?_ (fun i hi => update_of_ne hi _ _) (fun i hi => ?_)
-      (fun i hi => ?_) ?_⟩
-    · simp [(lo_ne_tmp j).symm, (hi_ne_tmp j).symm, h0]
-    · rw [update_of_ne (lo_ne_hi i j), update_of_ne (fun e => hi (lo_inj.mp e))]
-    · rw [update_of_ne (fun e => hi (hi_inj.mp e)), update_of_ne (fun e => lo_ne_hi j i e.symm)]
-    · have hpos : (tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapePos j =
-          c.workTapePos j + 1 := by
-        simp only [Action.apply_workTapePos, hd, SignType.coe_one]
-      simp only [Cfg.workTapeSymbols, hw, hpos, update_self, update_of_ne (lo_ne_hi j j),
-        update_of_ne (show c.workTapePos j + 1 ≠ c.workTapePos j by omega)]
-      exact ⟨henc.symbol_right.symm, henc.move_right _⟩
+    · simp [(target_ne_tmp j _).symm, (source_ne_tmp j _).symm, h0]
+    · unfold target source
+      split_ifs <;> simp [lo_inj, lo_ne_hi, hi]
+    · unfold target source
+      split_ifs <;> simp [hi_inj, (lo_ne_hi _ _).symm, hi]
+    · rcases hd : (a.workTapes j).2 with _ | _ | _
+      · exact absurd (by simp [dir, a, SignType.zero_eq_zero, hd]) hd0
+      · -- move left
+        rw [SignType.neg_eq_neg_one] at hd
+        have hne_pos : c.workTapePos j - 1 ≠ c.workTapePos j := by omega
+        simp only [target, source, dir, a, Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd,
+          reduceCtorEq, ↓reduceIte, SignType.coe_neg_one, ← sub_eq_add_neg, update_self,
+          update_of_ne (lo_ne_hi j j).symm, update_of_ne hne_pos]
+        exact ⟨henc.symbol_left.symm, henc.move_left _⟩
+      · -- move right
+        rw [SignType.pos_eq_one] at hd
+        have hne_pos : c.workTapePos j + 1 ≠ c.workTapePos j := by omega
+        simp only [target, source, dir, a, Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd,
+          ↓reduceIte, SignType.coe_one, update_self, update_of_ne (lo_ne_hi j j),
+          update_of_ne hne_pos]
+        exact ⟨henc.symbol_right.symm, henc.move_right _⟩
 
 /-- Simulate the step on all tapes from tape `j` on. -/
 private lemma run_tapes (pos : Fin (input.length + 2)) (out : List Bool) (q : State)
@@ -663,14 +619,13 @@ private lemma run_tapes (pos : Fin (input.length + 2)) (out : List Bool) (q : St
   | 0, j, cur, cs, hjm, h => by
     obtain rfl : j = k := by omega
     have hp : phaseAt j j = .finish := by simp [phaseAt]
-    exact ⟨0, cur, cs, by rw [hp]; rfl, h⟩
+    exact ⟨0, cur, cs, hp ▸ rfl, h⟩
   | m + 1, j, cur, cs, hjm, h => by
     have hj : j < k := by omega
     obtain ⟨n₁, cur₁, cs₁, h₁, hinv₁⟩ := run_tape tm pos out q c ⟨j, hj⟩ cur cs h
     obtain ⟨n₂, cur₂, cs₂, h₂, hinv₂⟩ := run_tapes pos out q c m (j + 1) cur₁ cs₁ (by omega) hinv₁
-    refine ⟨n₁ + n₂, cur₂, cs₂, ?_, hinv₂⟩
-    rw [show phaseAt k j = .tape ⟨j, hj⟩ by simp [phaseAt, hj], runFrom_add, h₁]
-    exact h₂
+    have hp : phaseAt k j = .tape ⟨j, hj⟩ := dite_eq_left hj
+    exact ⟨n₁ + n₂, cur₂, cs₂, by rw [hp, runFrom_add, h₁, h₂], hinv₂⟩
 
 /-- The simulator carries out each step of `tm`. -/
 private lemma sim_step {c : Cfg k Bool State input}
@@ -696,12 +651,10 @@ private lemma sim_step {c : Cfg k Bool State input}
         (c.output ++ (tm.tr q c.inputSymbol c.workTapeSymbols).output.toList) := by
     rw [runFrom_one, step_simulator]
     simp only [ctl, moveCounters_zero]
-  refine ⟨1 + n + 1, cs', hinv.1, fun i => ?_, ?_⟩
-  · rw [step_of_state hq]
-    exact ((hinv.2 i).1 i.isLt).2
-  · simp only [hq, Option.map_some]
-    rw [runFrom_add, runFrom_add, hstart, htapes, hfinish, step_of_state hq, ← hcur]
-    rfl
+  refine ⟨1 + n + 1, cs', hinv.1, fun i => step_of_state hq ▸ ((hinv.2 i).1 i.isLt).2, ?_⟩
+  simp only [hq, Option.map_some]
+  rw [runFrom_add, runFrom_add, hstart, htapes, hfinish, step_of_state hq, ← hcur]
+  rfl
 
 /-- Started on `input`, the simulator carries out every run of `tm`. -/
 private lemma sim_runFrom (input : List Bool) (t : ℕ) :
@@ -709,16 +662,13 @@ private lemma sim_runFrom (input : List Bool) (t : ℕ) :
       ((simulator tm).runFrom ((simulator tm).initCfg input) n) := by
   induction t with
   | zero =>
-    refine ⟨1, fun _ => 0, rfl, fun _ => encodes_blank, ?_⟩
-    rw [runFrom_one, simulator, step_init]
-    rfl
+    exact ⟨1, fun _ => 0, rfl, fun _ => encodes_blank,
+      by rw [runFrom_one, simulator, step_init]; rfl⟩
   | succ t ih =>
     obtain ⟨n, hn⟩ := ih
     rw [runFrom_succ]
     cases hs : (tm.runFrom (tm.initCfg input) t).state with
-    | none =>
-      rw [step_of_halt hs]
-      exact ⟨n, hn⟩
+    | none => exact ⟨n, (step_of_halt hs).symm ▸ hn⟩
     | some q =>
       obtain ⟨n', hn'⟩ := sim_step tm hn hs
       exact ⟨n + n', by rwa [runFrom_add]⟩
@@ -743,9 +693,6 @@ theorem exists_fixed_support_computes [Finite State] (tm : MultiTapeTM k Bool St
   refine ⟨Option (Control k State), inferInstance, simulator tm, ?_, run_support _ _⟩
   rintro input output ⟨u, hu, hout⟩
   obtain ⟨n, cs, -, -, h⟩ := sim_runFrom tm input u
-  have hs : (tm.runFrom (tm.initCfg input) u).state = none := hu
-  refine ⟨n, ?_, ?_⟩ <;> rw [h]
-  · simp only [Cfg.Halted, cfg, hs, Option.map_none]
-  · exact hout
+  exact ⟨n, by simp only [Cfg.Halted, h, cfg, (hu : _ = none), Option.map_none], h.symm ▸ hout⟩
 
 end Turing.MultiTapeTM.HeadCounter

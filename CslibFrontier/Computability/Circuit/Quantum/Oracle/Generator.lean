@@ -153,11 +153,8 @@ theorem IsPolynomial.add {r s : ℕ → GeneratorResources}
 /-- The scalar sum of a componentwise polynomial schedule is polynomially bounded. -/
 theorem IsPolynomial.total {schedule : ℕ → GeneratorResources}
     (h : IsPolynomial schedule) :
-    PolynomiallyBounded fun n => (schedule n).total := by
-  change PolynomiallyBounded fun n =>
-    (schedule n).codeBits + (schedule n).time + (schedule n).workspace +
-      (schedule n).outputBits
-  exact (((h.1.add h.2.1).add h.2.2.1).add h.2.2.2)
+    PolynomiallyBounded fun n => (schedule n).total :=
+  ((h.1.add h.2.1).add h.2.2.1).add h.2.2.2
 
 end GeneratorResources
 
@@ -177,11 +174,11 @@ variable {F : UniformOracleCircuitFamily} (certificate : F.GeneratorCertificate)
 generator coordinate, without collapsing any coordinate into another. -/
 theorem resources_isPolynomial {input : ℕ → OracleInputSize}
     (hinput : PolynomiallyBounded fun n => (encOracleInputSize (input n)).length) :
-    GeneratorResources.IsPolynomial (fun n => certificate.resources (input n)) := by
-  refine ⟨.const _, certificate.time_polynomiallyBounded.comp hinput,
-    certificate.workspace_polynomiallyBounded.comp hinput, ?_⟩
-  exact (F.computableInPolyTime_description.polyBounded_length.comp
-    (PolyBounded.of_polynomiallyBounded id hinput)).polynomiallyBounded
+    GeneratorResources.IsPolynomial (fun n => certificate.resources (input n)) :=
+  ⟨.const _, certificate.time_polynomiallyBounded.comp hinput,
+    certificate.workspace_polynomiallyBounded.comp hinput,
+    (F.computableInPolyTime_description.polyBounded_length.comp
+      (PolyBounded.of_polynomiallyBounded id hinput)).polynomiallyBounded⟩
 
 end GeneratorCertificate
 
@@ -190,29 +187,27 @@ description, time, workspace and output can be exposed componentwise. This exist
 not make the chosen witness or its finite constants computationally inspectable. -/
 theorem exists_generatorCertificate (F : UniformOracleCircuitFamily) :
     Nonempty F.GeneratorCertificate := by
-    classical
-    obtain ⟨time, workspace, htime, hworkspace, k, State, hfinite, machine, hmachine⟩ :=
-      F.computableInPolyTime_description
-    let _ : Finite State := hfinite
-    have _ := Fintype.ofFinite State
-    let encodeState : State ↪ ℕ :=
-      (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
-    refine ⟨
-      { code := Universal.desc encodeState Universal.eBit machine
-        time := time
-        workspace := workspace
-        time_polynomiallyBounded := htime
-        workspace_polynomiallyBounded := hworkspace
-        computes := ?_
-        workspace_le := ?_ }⟩
-    · intro input
-      have hrun := (hmachine input).runFrom_of_le le_rfl
-      rw [Universal.simulate_desc, hrun.2]
-      have hhalt : (machine.runFrom (machine.initCfg (encOracleInputSize input))
-          (time (encOracleInputSize input).length)).state = none := hrun.1
-      exact Prod.ext rfl (by rw [hhalt]; rfl)
-    · intro input
-      rw [Universal.simSpace_desc]
-      exact space_le_of_runsInSpace (hmachine input).2.2 _
+  classical
+  obtain ⟨time, workspace, htime, hworkspace, k, State, hfinite, machine, hmachine⟩ :=
+    F.computableInPolyTime_description
+  let _ : Finite State := hfinite
+  have _ := Fintype.ofFinite State
+  let encodeState : State ↪ ℕ :=
+    (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
+  refine ⟨
+    { code := Universal.desc encodeState Universal.eBit machine
+      time := time
+      workspace := workspace
+      time_polynomiallyBounded := htime
+      workspace_polynomiallyBounded := hworkspace
+      computes := ?_
+      workspace_le := ?_ }⟩
+  · intro input
+    have hrun := (hmachine input).runFrom_of_le le_rfl
+    rw [Universal.simulate_desc, hrun.2]
+    exact Prod.ext rfl (Option.isNone_iff_eq_none.mpr hrun.1)
+  · intro input
+    rw [Universal.simSpace_desc]
+    exact space_le_of_runsInSpace (hmachine input).2.2 _
 
 end Cslib.Quantum.UniformOracleCircuitFamily

@@ -115,9 +115,8 @@ encoding. -/
   have hsplitCount : ComputableInPolyTime
       (fun a => bits a + count a * bits a) enc encUnary := by fun_prop
   have hrange {n : α → ℕ} (hn : ComputableInPolyTime n enc encUnary) :
-      ComputableInPolyTime (fun a => List.range (n a)) enc (encList encNat) := by
-    simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-      unary_to_binary.map.comp (range.comp hn)
+      ComputableInPolyTime (fun a => List.range (n a)) enc (encList encNat) :=
+    (range.comp hn).reencodeList unary_to_binary
   have hsuffixRange : ComputableInPolyTime
       (fun a => (List.range (count a * bits a)).map (bits a + ·))
       enc (encList encNat) := by
@@ -210,10 +209,7 @@ private theorem length_supportScanFold_le (bits offset count i : ℕ)
       (supportScanFoldStep (bits, offset, count)) ([], []))).length ≤
         supportScanCodeBound bits count := by
   have hi' : i ≤ count := by simpa only [List.length_range] using hi
-  have hstep : supportScanFoldStep (bits, offset, count) = fun suffix index =>
-      let tailCount := min count index
-      supportScanStepCode bits (offset + count - (tailCount + 1)) tailCount suffix := rfl
-  rw [hstep]
+  unfold supportScanFoldStep
   rw [supportScanCode_prefix bits offset count i hi']
   have hchoose : i.choose 2 ≤ count * count := by
     exact (Nat.choose_le_pow i 2).trans (by
@@ -237,24 +233,15 @@ parameters, with every intermediate circuit encoding charged by the loop bound. 
       (fun a => (supportScanCircuit (bits a) (offset a) (count a)).code) enc encCode := by
   let parEnc := encPair encUnary (encPair encUnary encUnary)
   have hpar := hb.prod (ho.prod hc)
-  have hlist : ComputableInPolyTime (fun a => List.range (count a))
-      enc (encList encNat) := by
-    simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-      unary_to_binary.map.comp (range.comp hc)
+  have hlist : ComputableInPolyTime (fun a => List.range (count a)) enc (encList encNat) :=
+    (range.comp hc).reencodeList unary_to_binary
   have h := foldlWith (encIn := enc) (encP := parEnc) (encA := encNat)
     (encB := encCode) (encL := encList encNat) (step := supportScanFoldStep) hpar hlist
     (const (encOut := encCode) (([], []) : Code))
     (by simpa only [parEnc] using computableInPolyTime_supportScanFoldStep)
     (polyBounded_supportScanCodeBound hb hc) fun a i hi =>
       length_supportScanFold_le (bits a) (offset a) (count a) i hi
-  have hcode : ComputableInPolyTime
-      (fun a => supportScanCode (bits a) (offset a) (count a)) enc encCode := by
-    have hstep (a : α) : supportScanFoldStep (bits a, offset a, count a) =
-        fun suffix index =>
-          let tailCount := min (count a) index
-          supportScanStepCode (bits a) (offset a + count a - (tailCount + 1)) tailCount suffix :=
-      rfl
-    simpa only [supportScanCode, hstep] using h
-  simpa only [supportScanCode_eq_code] using hcode
+  unfold supportScanFoldStep at h
+  simpa only [← supportScanCode_eq_code, supportScanCode] using h
 
 end Cslib.Crypto.HQC

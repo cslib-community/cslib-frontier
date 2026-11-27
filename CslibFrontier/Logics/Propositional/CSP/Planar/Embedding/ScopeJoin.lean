@@ -102,13 +102,11 @@ theorem record_scopeJoinSourceEquiv (F H : CSP Rel V) (r : Rel)
   · rw [source_left, record_appendOccurrenceEquiv_inl, record_appendOfFnOccurrenceEquiv_inl]
   · rw [source_left, record_appendOccurrenceEquiv_inl, record_appendOfFnOccurrenceEquiv_inr]
   · rw [source_right, record_appendOccurrenceEquiv_inr]
-    have he := record_appendOfFnOccurrenceEquiv_inl H r y o
-    simp only [CSP.Occurrence.record, Prod.mk.injEq] at he
-    simp only [List.length_append, List.length_singleton, he.1, he.2.1, he.2.2]
+    simpa [CSP.Occurrence.record, Nat.add_assoc] using
+      record_appendOfFnOccurrenceEquiv_inl H r y o
   · rw [source_right, record_appendOccurrenceEquiv_inr]
-    have he := record_appendOfFnOccurrenceEquiv_inr H r y i
-    simp only [CSP.Occurrence.record, Prod.mk.injEq] at he
-    simp only [List.length_append, List.length_singleton, he.1, he.2.1, he.2.2]
+    simpa [CSP.Occurrence.record, Nat.add_assoc] using
+      record_appendOfFnOccurrenceEquiv_inr H r y i
 
 /-- Full target records retain original body order and the specified right-then-left probe. -/
 theorem record_scopeJoinTargetEquiv (F H : CSP Rel V) (r : Rel)
@@ -186,10 +184,8 @@ private theorem argumentSuccessor_target_splice (F H : CSP Rel V) (r : Rel)
           (Sum.inr (Sum.inr (Fin.last n))) a)) := by
   classical
   rcases a with (o | i) | (o | i)
-  · rw [Equiv.swap_apply_of_ne_of_ne (by simp) (by simp),
-      target_body_left, argumentSuccessor_appendOfFnOccurrenceEquiv_inl,
-      argumentSuccessor_appendOccurrenceEquiv]
-    rfl
+  · simp [Equiv.swap_apply_of_ne_of_ne, target_body_left,
+      argumentSuccessor_appendOfFnOccurrenceEquiv_inl, argumentSuccessor_appendOccurrenceEquiv]
   · by_cases hi : i = Fin.last m
     · subst i
       simp only [Equiv.swap_apply_left, Sum.map_inr, finRotate_last,
@@ -199,10 +195,8 @@ private theorem argumentSuccessor_target_splice (F H : CSP Rel V) (r : Rel)
       simp only [Sum.map_inl, Sum.map_inr,
         target_probe_left, argumentSuccessor_appendOfFnOccurrenceEquiv_inr]
       congr 2; fin_index [val_finRotate]
-  · rw [Equiv.swap_apply_of_ne_of_ne (by simp) (by simp),
-      target_body_right, argumentSuccessor_appendOfFnOccurrenceEquiv_inl,
-      argumentSuccessor_appendOccurrenceEquiv]
-    rfl
+  · simp [Equiv.swap_apply_of_ne_of_ne, target_body_right,
+      argumentSuccessor_appendOfFnOccurrenceEquiv_inl, argumentSuccessor_appendOccurrenceEquiv]
   · by_cases hi : i = Fin.last n
     · subst i
       simp only [Equiv.swap_apply_right, Sum.map_inl, Sum.map_inr, finRotate_last,
@@ -306,10 +300,9 @@ theorem respectsArgumentOrder_scopeJoinRotation (F H : CSP Rel V) (r : Rel)
     RespectsArgumentOrder (scopeJoinRotation F H r x y hd rho tau) := by
   intro p
   obtain ⟨o, rfl⟩ := (scopeJoinOccurrenceEquiv F H r x y).surjective p
-  rw [← occurrenceDartEquiv_apply]
-  unfold scopeJoinRotation
-  rw [rotate_constraintJoinRotation, ← (incidenceDart_injective true).map_swap]
-  rw [(respectsArgumentOrder_appendRotation _ _ hd rho tau hr hs) _,
+  rw [← occurrenceDartEquiv_apply, scopeJoinRotation, rotate_constraintJoinRotation,
+    ← (incidenceDart_injective true).map_swap,
+    (respectsArgumentOrder_appendRotation _ _ hd rho tau hr hs) _,
     occurrenceDartEquiv_apply, argumentSuccessor_scopeJoinOccurrenceEquiv]
 
 /-- The full target checker accepts the actual joined-scope table from source ordered

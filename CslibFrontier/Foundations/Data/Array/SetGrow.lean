@@ -46,17 +46,15 @@ theorem getD_setGrow {α : Type*} (a : Array α) (i j : ℕ) (d x : α) :
   simp only [Array.getD_eq_getD_getElem?]
   split
   · rename_i hi
-    by_cases hj : j = i
-    · subst hj
-      simp [hi]
-    · simp [Ne.symm hj, hj]
+    rcases eq_or_ne j i with rfl | hj
+    · simp [hi]
+    · simp [hj, Ne.symm hj]
   split
-  · rename_i hi he
+  · rename_i _ he
     subst he
     rw [Array.getElem?_push]
     by_cases hj : j = a.size <;> simp [hj]
-  · rename_i hi he
-    have hs : a.size + (i - a.size) = i := by omega
+  · have hs : a.size + (i - a.size) = i := by omega
     rw [Array.getElem?_push, Array.size_append, Array.size_replicate, hs]
     by_cases hj : j = i
     · simp [hj]

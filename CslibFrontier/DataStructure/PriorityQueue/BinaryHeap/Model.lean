@@ -83,11 +83,8 @@ theorem stateOfMem_congr {N base : ℕ} {m₁ m₂ : ℕ → ℕ}
     stateOfMem N base m₁ = stateOfMem N base m₂ := by
   funext ⟨v, hv⟩
   simp only [stateOfMem]
-  have hp : base + 2 * N + 1 + v ∈ (Block.mk base (space N)).footprint := by
-    rw [Block.mem_footprint]; wram_omega
-  have hk : base + v ∈ (Block.mk base (space N)).footprint := by
-    rw [Block.mem_footprint]; wram_omega
-  rw [h _ hp, h _ hk]
+  rw [h _ (Block.mem_footprint.2 (by wram_omega))]
+  rw [h _ (Block.mem_footprint.2 (by wram_omega))]
 
 /-- **Structural binary-heap invariant**: positions `1, …, sz` store handles `< N`, and the `pos`
 array at `base + 2 * N + 1` is the partial inverse of `heap` at `base + N`. -/
@@ -146,14 +143,11 @@ theorem HeapInv.congr_mem {m₂ : ℕ → ℕ} (h : HeapInv N base S mem)
       heapEntry N base m₂ i = heapEntry N base mem i := by
     have hv := h.vertex_lt i h1 h2
     simp only [heapEntry, hh i h1 h2, hk _ hv]
-  refine ⟨⟨hSN, fun i h1 h2 => ?_, fun i h1 h2 => ?_, fun v hv => ?_, fun v hv hv0 => ?_⟩,
-    fun i h1 h2 => ?_⟩
-  · rw [hh i h1 h2]; exact h.vertex_lt i h1 h2
-  · rw [hh i h1 h2, hp _ (h.vertex_lt i h1 h2)]; exact h.pos_vertex i h1 h2
-  · rw [hp v hv]; exact h.pos_le v hv
+  refine ⟨⟨hSN, fun i h1 h2 => hh i h1 h2 ▸ h.vertex_lt i h1 h2,
+    fun i h1 h2 => by rw [hh i h1 h2, hp _ (h.vertex_lt i h1 h2), h.pos_vertex i h1 h2],
+    fun v hv => hp v hv ▸ h.pos_le v hv, fun v hv hv0 => ?_⟩, fun i h1 h2 => ?_⟩
   · rw [hp v hv] at hv0 ⊢
-    rw [hh _ (Nat.one_le_iff_ne_zero.2 hv0) (h.pos_le v hv)]
-    exact h.vertex_pos v hv hv0
+    rw [hh _ (Nat.one_le_iff_ne_zero.2 hv0) (h.pos_le v hv), h.vertex_pos v hv hv0]
   · rw [hent (i / 2) (by omega) (by omega), hent i (by omega) h2]
     exact h.ordered i h1 h2
 
@@ -167,18 +161,13 @@ theorem HeapShape.size_lt (h : HeapShape N base S mem) {v : ℕ} (hv : v < N)
       at hcard
     omega
   · rw [Finset.mem_coe, Finset.mem_Icc] at hi
-    rw [Finset.mem_coe, Finset.mem_erase, Finset.mem_range]
-    refine ⟨fun he => ?_, h.vertex_lt i hi.1 hi.2⟩
-    have := h.pos_vertex i hi.1 hi.2
-    simp only at he
-    rw [he, hp] at this
-    omega
+    exact Finset.mem_coe.2 (Finset.mem_erase.2
+      ⟨fun (he : mem (base + N + i) = v) =>
+        by have := he ▸ h.pos_vertex i hi.1 hi.2; omega,
+        Finset.mem_range.2 (h.vertex_lt i hi.1 hi.2)⟩)
   · rw [Finset.mem_coe, Finset.mem_Icc] at hi hj
-    have h1 := h.pos_vertex i hi.1 hi.2
-    have h2 := h.pos_vertex j hj.1 hj.2
-    simp only at he
-    rw [he] at h1
-    omega
+    rw [← h.pos_vertex i hi.1 hi.2, ← h.pos_vertex j hj.1 hj.2]
+    exact congrArg (fun x => mem (base + 2 * N + 1 + x)) he
 
 /-- When `sz = 0`, the represented `IndexedMinPQ.State N` is `empty N`. -/
 theorem HeapShape.stateOfMem_zero (h : HeapShape N base 0 mem) :
@@ -190,29 +179,22 @@ theorem HeapShape.stateOfMem_zero (h : HeapShape N base 0 mem) :
 /-- Size `S = 0` iff the represented `dom` is empty. -/
 theorem HeapShape.size_eq_zero_iff (h : HeapShape N base S mem) :
     S = 0 ↔ IndexedMinPQ.dom (stateOfMem N base mem) = ∅ := by
-  constructor
-  · rintro rfl
-    rw [h.stateOfMem_zero, IndexedMinPQ.dom_empty]
-  · intro hdom
-    by_contra hS
-    have h1 : 1 ≤ S := Nat.one_le_iff_ne_zero.2 hS
-    let u : Fin N := ⟨mem (base + N + 1), h.vertex_lt 1 le_rfl h1⟩
-    have hpu : mem (base + 2 * N + 1 + u.val) = 1 := h.pos_vertex 1 le_rfl h1
-    have hu_mem : u ∈ IndexedMinPQ.dom (stateOfMem N base mem) := by
-      rw [IndexedMinPQ.mem_dom_iff]
-      refine ⟨mem (base + u.val), ?_⟩
-      simp only [stateOfMem, hpu, one_ne_zero, ↓reduceIte]
-    rw [hdom] at hu_mem
-    exact Finset.notMem_empty u hu_mem
+  refine ⟨fun h0 => (congrArg IndexedMinPQ.dom (h0 ▸ h).stateOfMem_zero).trans
+    (IndexedMinPQ.dom_empty N), fun hdom => ?_⟩
+  · by_contra h0
+    have h1 : 1 ≤ S := Nat.pos_of_ne_zero h0
+    have hu_mem : (⟨mem (base + N + 1), h.vertex_lt 1 le_rfl h1⟩ : Fin N) ∈
+        IndexedMinPQ.dom (stateOfMem N base mem) := by
+      simp [IndexedMinPQ.mem_dom_iff, stateOfMem, h.pos_vertex 1 le_rfl h1]
+    exact Finset.notMem_empty _ (hdom ▸ hu_mem)
 
 /-- **Root optimality**: the root at position `1` has lexicographically minimum `(handle, key)`
 among all handles present in the heap, so `IndexedMinPQ.findMin` equals the root entry. -/
 theorem HeapInv.findMin_eq_root (h : HeapInv N base S mem) (hS : 1 ≤ S) :
     IndexedMinPQ.findMin (stateOfMem N base mem) =
       some (⟨mem (base + N + 1), h.vertex_lt 1 le_rfl hS⟩, mem (base + mem (base + N + 1))) := by
-  have key : ∀ i, 1 ≤ i → i ≤ S →
+  have key (i : ℕ) : 1 ≤ i → i ≤ S →
       IndexedMinPQ.RawPrioLE (heapEntry N base mem 1) (heapEntry N base mem i) := by
-    intro i
     induction i using Nat.strong_induction_on with
     | _ i ih =>
       intro h1 h2
@@ -224,15 +206,10 @@ theorem HeapInv.findMin_eq_root (h : HeapInv N base S mem) (hS : 1 ≤ S) :
   refine ⟨?_, fun v k' hsv => ?_⟩
   · simp only [stateOfMem, h.pos_vertex 1 le_rfl hS, one_ne_zero, ↓reduceIte]
   · simp only [stateOfMem] at hsv
-    by_cases hp : mem (base + 2 * N + 1 + v.val) = 0
-    · simp only [hp, ↓reduceIte, reduceCtorEq] at hsv
-    · simp only [hp, ↓reduceIte, Option.some.injEq] at hsv
-      subst hsv
-      have hle := key (mem (base + 2 * N + 1 + v.val)) (Nat.one_le_iff_ne_zero.2 hp)
-        (h.pos_le v.val v.isLt)
-      dsimp only [heapEntry] at hle ⊢
-      rw [h.vertex_pos v.val v.isLt hp] at hle
-      exact hle
+    split_ifs at hsv with hp
+    obtain ⟨rfl⟩ := hsv
+    simpa only [heapEntry, h.vertex_pos v.val v.isLt hp] using
+      key _ (Nat.one_le_iff_ne_zero.2 hp) (h.pos_le v.val v.isLt)
 
 /-- **Insertion**: storing key `c` for an absent handle `v < N` and appending `v` at `S + 1`
 produces `HeapShape` and `UpOrdered` at `S + 1`. -/
@@ -284,41 +261,29 @@ theorem HeapInv.decrease (h : HeapInv N base S mem) {v c : ℕ} (hv : v < N)
       UpOrdered (heapEntry N base m') S (mem (base + 2 * N + 1 + v)) := by
   intro m'
   have hkS := h.pos_le v hv
-  have hval : ∀ j, heapEntry N base m' j =
+  have hm_hi : ∀ a, base + N ≤ a → m' a = mem a :=
+    fun a _ => Function.update_of_ne (by omega) _ _
+  have hval (j : ℕ) : heapEntry N base m' j =
       if mem (base + N + j) = v then (v, c) else heapEntry N base mem j := by
-    intro j
-    have hin : m' (base + N + j) = mem (base + N + j) :=
-      Function.update_of_ne (by omega) _ _
-    by_cases he : mem (base + N + j) = v
-    · simp only [heapEntry, hin, he, ↓reduceIte, m', Function.update_self]
-    · have hne : base + mem (base + N + j) ≠ base + v := by omega
-      simp only [heapEntry, hin, he, ↓reduceIte, m', Function.update_of_ne hne]
-  have hle' : ∀ j, IndexedMinPQ.RawPrioLE (heapEntry N base m' j) (heapEntry N base mem j) := by
-    intro j
+    simp only [heapEntry, hm_hi (base + N + j) (by omega), m', Function.update_apply, add_right_inj]
+    split_ifs with he <;> simp [he]
+  have hle' (j : ℕ) : IndexedMinPQ.RawPrioLE (heapEntry N base m' j) (heapEntry N base mem j) := by
     rw [hval]
     split_ifs with h1
-    · simp only [heapEntry, h1]; exact entryLE_of_key_le hle
+    · simp only [heapEntry, h1]
+      exact entryLE_of_key_le hle
     · exact IndexedMinPQ.RawPrioLE.refl _
-  have heq : ∀ j, 1 ≤ j → j ≤ S → j ≠ mem (base + 2 * N + 1 + v) →
+  have heq (j : ℕ) (h1 : 1 ≤ j) (h2 : j ≤ S) (hj : j ≠ mem (base + 2 * N + 1 + v)) :
       heapEntry N base m' j = heapEntry N base mem j := by
-    intro j h1 h2 hj
-    rw [hval]
-    split_ifs with he
-    · have := h.pos_vertex j h1 h2
-      rw [he] at this; omega
-    · rfl
-  refine ⟨⟨h.size_le, fun i h1 h2 => ?_, fun i h1 h2 => ?_, fun w hw => ?_,
-    fun w hw hw0 => ?_⟩, fun i h1 h2 => ⟨fun hi => ?_, fun hi h2k => ?_⟩⟩
-  · dsimp only [m']; rw [Function.update_of_ne (by omega)]; exact h.vertex_lt i h1 h2
-  · have := h.vertex_lt i h1 h2
-    dsimp only [m']
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    exact h.pos_vertex i h1 h2
-  · dsimp only [m']; rw [Function.update_of_ne (by omega)]; exact h.pos_le w hw
-  · dsimp only [m'] at hw0 ⊢
-    rw [Function.update_of_ne (by omega)] at hw0 ⊢
-    have := h.pos_le w hw
-    rw [Function.update_of_ne (by omega)]; exact h.vertex_pos w hw hw0
+    rw [hval, ite_eq_right fun he => hj (he ▸ h.pos_vertex j h1 h2).symm]
+  refine ⟨⟨h.size_le,
+      fun i h1 h2 => (hm_hi (base + N + i) (by omega)).symm ▸ h.vertex_lt i h1 h2,
+      fun i h1 h2 => by rw [hm_hi _ (by omega), hm_hi _ (by omega), h.pos_vertex i h1 h2],
+      fun w hw => (hm_hi (base + 2 * N + 1 + w) (by omega)).symm ▸ h.pos_le w hw,
+      fun w hw hw0 => by
+        rw [hm_hi _ (by omega)] at hw0 ⊢
+        rw [hm_hi _ (by omega), h.vertex_pos w hw hw0]⟩,
+    fun i h1 h2 => ⟨fun hi => ?_, fun hi h2k => ?_⟩⟩
   · rw [heq i (by omega) h2 hi]
     exact (hle' _).trans (h.ordered i h1 h2)
   · rw [heq i (by omega) h2 (by omega)]
@@ -352,13 +317,12 @@ theorem HeapInv.extract (h : HeapInv N base S mem) (hS : 2 ≤ S) :
   have hother : ∀ w < N, w ≠ mem (base + N + 1) → w ≠ mem (base + N + S) →
       mem (base + 2 * N + 1 + w) ≤ S - 1 ∧ mem (base + 2 * N + 1 + w) ≠ 1 := by
     intro w hw h1 h2
-    have := h.pos_le w hw
     by_cases h0 : mem (base + 2 * N + 1 + w) = 0
     · omega
     have hv := h.vertex_pos w hw h0
-    refine ⟨?_, fun e => h1 (by rw [e] at hv; exact hv.symm)⟩
-    by_contra hc
-    exact h2 (by rw [show mem (base + 2 * N + 1 + w) = S by omega] at hv; exact hv.symm)
+    have hltS : mem (base + 2 * N + 1 + w) < S :=
+      (h.pos_le w hw).lt_of_ne fun hs => h2 (hs ▸ hv).symm
+    exact ⟨by omega, fun e => h1 (e ▸ hv).symm⟩
   have hpos : ∀ w < N, m' (base + 2 * N + 1 + w) = if w = mem (base + N + S) then 1
       else if w = mem (base + N + 1) then 0 else mem (base + 2 * N + 1 + w) := by
     intro w hw
@@ -392,27 +356,22 @@ theorem HeapInv.extract (h : HeapInv N base S mem) (hS : 2 ≤ S) :
   · rw [hpos w hw]
     split_ifs with h1 h2
     · subst h1
-      refine iff_of_false id ?_
-      rintro (h0 | h0)
-      · omega
-      · exact hUL h0.symm
+      exact iff_of_false id fun h0 => h0.elim (by omega) hUL.symm
     all_goals omega
 
 /-- **Singleton root removal**: clearing the root's position on a 1-element heap leaves the empty
 heap invariant. -/
 theorem HeapInv.extract_one (h : HeapInv N base 1 mem) :
     HeapInv N base 0 (Function.update mem (base + 2 * N + 1 + mem (base + N + 1)) 0) := by
-  have hz : ∀ w < N, Function.update mem (base + 2 * N + 1 + mem (base + N + 1)) 0
+  have hz (w : ℕ) (hw : w < N) : Function.update mem (base + 2 * N + 1 + mem (base + N + 1)) 0
       (base + 2 * N + 1 + w) = 0 := by
-    intro w hw
     rw [Function.update_apply]
     split_ifs with he
     · rfl
-    · have := h.pos_le w hw
-      by_contra h0
-      have hv := h.vertex_pos w hw h0
-      rw [show mem (base + 2 * N + 1 + w) = 1 by omega] at hv
-      omega
+    · by_contra h0
+      have hp1 : mem (base + 2 * N + 1 + w) = 1 :=
+        le_antisymm (h.pos_le w hw) (Nat.pos_of_ne_zero h0)
+      exact he (congrArg (base + 2 * N + 1 + ·) (hp1 ▸ h.vertex_pos w hw h0).symm)
   exact ⟨⟨Nat.zero_le _, fun _ h1 h2 => by omega, fun _ h1 h2 => by omega,
     fun w hw => (hz w hw).le, fun w hw hw0 => absurd (hz w hw) hw0⟩, fun _ h1 h2 => by omega⟩
 

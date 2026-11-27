@@ -78,8 +78,7 @@ private theorem aligned_output (I : State Rel) (keys : List ℕ)
 
 private theorem pending_length (keys : List ℕ) (I : State Rel)
     (h : I.ports.length ≤ keys.length) : (pending keys I).length = I.ports.length := by
-  simp only [pending,List.length_drop]
-  omega
+  simp only [pending, List.length_drop]; omega
 
 private theorem run_length_le (keys : List ℕ) : runLength keys ≤ keys.length :=
   (List.takeWhile_sublist _).length_le
@@ -91,28 +90,30 @@ private theorem run_length_pos {keys : List ℕ} (h : keys ≠ []) : 0 < runLeng
 
 private theorem drop_runLength (keys : List ℕ) :
     keys.drop (runLength keys) = keys.dropWhile (fun b => decide (b = keys.headD 0)) := by
-  have he := congrArg (List.drop (runLength keys))
-    (List.takeWhile_append_dropWhile (p := fun b => decide (b = keys.headD 0)) (l := keys))
-  simpa only [runLength, List.drop_left] using he.symm
+  simpa only [runLength, List.drop_left] using (congrArg (List.drop (runLength keys))
+    (List.takeWhile_append_dropWhile (p := fun b => decide (b = keys.headD 0)) (l := keys))).symm
 
 private theorem step_empty (keys : List ℕ) (I : State Rel) (h : I.ports = []) :
-    step keys I = I := by
-  apply closeFirstMetadataRun_eq_self
-  right
-  simp only [pending,h,List.length_nil,Nat.sub_zero,List.drop_length]
+    step keys I = I :=
+  closeFirstMetadataRun_eq_self I _ (.inr (by simp [pending, h]))
 
 private theorem pending_step (keys : List ℕ) (I : State Rel)
     (h : I.ports.length ≤ keys.length) :
     pending keys (step keys I) = (pending keys I).drop (runLength (pending keys I)) := by
   have hl := pending_length keys I h
   have hc := (components_closeFirstMetadataRun I (pending keys I)).2.2.2
-  simp only [hl,↓reduceIte] at hc
+  simp only [hl, ↓reduceIte] at hc
   have hr := (run_length_le (pending keys I)).trans_eq hl
-  change (step keys I).ports.length=I.ports.length-runLength (pending keys I) at hc
-  change keys.drop (keys.length-(step keys I).ports.length) = _
-  rw [show keys.length-(step keys I).ports.length =
-      keys.length-I.ports.length+runLength (pending keys I) by omega]
-  simp only [pending,List.drop_drop]
+  change (step keys I).ports.length = I.ports.length - runLength (pending keys I) at hc
+  have heq : keys.length - (step keys I).ports.length =
+      keys.length - I.ports.length + runLength (pending keys I) := by omega
+  simpa only [pending, List.drop_drop] using congrArg keys.drop heq
+
+private theorem collapse_of_pending_eq {keys : List ℕ} {I : State Rel} {a : ℕ} {ks : List ℕ}
+    (he : pending keys I = a :: ks) :
+    collapse keys I = fun z =>
+      if z ∈ I.ports.take (runLength (a :: ks)) then I.ports.headD 0 else z :=
+  funext fun _ => by simp only [collapse, he]
 
 private theorem stage_fields (keys : List ℕ) (I : State Rel)
     (hl : keys.length = I.ports.length) (s : ℕ) :
@@ -138,9 +139,8 @@ private theorem stage_fields (keys : List ℕ) (I : State Rel)
     | nil =>
       have hz : J.ports=[] := List.length_eq_zero_iff.mp (by simpa only [he,List.length_nil] using
         hk.symm)
-      have hs := step_empty keys J hz
       have hC : collapse keys J=id := by funext z; simp [collapse,he,runLength]
-      rw [hs]
+      rw [step_empty keys J hz]
       refine ⟨by simp only [hz,List.length_nil]; omega,?_,?_,?_⟩
       · simpa only [hC,Function.id_comp] using ih.2.1
       · simpa only [hC,Function.id_comp] using ih.2.2.1
@@ -151,38 +151,29 @@ private theorem stage_fields (keys : List ℕ) (I : State Rel)
         · exact ih.2.2.2 (by omega) hn
     | cons a ks =>
       have ha : (a::ks).length=J.ports.length := by rwa [he] at hk
-      have hf := fields_closeFirstMetadataRun J a ks ha
+      obtain ⟨hf1, hf2, hf3⟩ := fields_closeFirstMetadataRun J a ks ha
       have hr : 0<runLength (a::ks) := run_length_pos (by simp)
       have hb : runLength (a::ks)≤J.ports.length := (run_length_le _).trans_eq ha
       have hm : J.body.occurrences.length=I.body.occurrences.length := by
         rw [ih.2.1,← CSP.vars_length_eq_occurrences,CSP.vars_relabel,List.length_map,
           CSP.vars_length_eq_occurrences]
-      have hstep : step keys J = closeFirstMetadataRun J (a::ks) := by rw [step,he]
-      have hcollapse : collapse keys J = fun z =>
-          if z ∈ J.ports.take (runLength (a::ks)) then J.ports.headD 0 else z := by
-        funext z; unfold collapse; rw [he]
-      have hbody : (step keys J).body=J.body.relabel (collapse keys J) := by
-        rw [hstep,hcollapse]; exact hf.1
-      have hports : (step keys J).ports=(J.ports.drop (runLength (a::ks))).map
-          (collapse keys J) := by
-        rw [hstep,hcollapse]; exact hf.2.1
-      have hlen : (step keys J).ports.length=J.ports.length-runLength (a::ks) := by
-        rw [hports,List.length_map,List.length_drop]
-      have hrl : runLength (a::ks) = (List.takeWhile (fun b => decide (b=a)) (a::ks)).length := rfl
-      refine ⟨by omega,?_,?_,?_⟩
-      · rw [hbody,ih.2.1]
-        simp only [CSP.relabel,Constraint.relabel,List.map_map,Function.comp_def]
+      have hbody : (step keys J).body = J.body.relabel (collapse keys J) := by
+        rwa [step, he, collapse_of_pending_eq he]
+      have hports : (step keys J).ports =
+          (J.ports.drop (runLength (a::ks))).map (collapse keys J) := by
+        rwa [step, he, collapse_of_pending_eq he]
+      have hlen : (step keys J).ports.length = J.ports.length - runLength (a::ks) := by
+        rw [hports, List.length_map, List.length_drop]
+      refine ⟨by omega, ?_, ?_, fun _ _ => ?_⟩
+      · simp only [hbody, ih.2.1, CSP.relabel, Constraint.relabel, List.map_map, Function.comp_def]
         rfl
-      · have heq : I.ports.length-J.ports.length+runLength (a::ks)=
-            I.ports.length-(step keys J).ports.length := by omega
+      · have heq : I.ports.length - J.ports.length + runLength (a::ks) =
+            I.ports.length - (step keys J).ports.length := by omega
         rw [← heq, hports]
-        conv_lhs => rw [ih.2.2.1,← List.map_drop,List.map_map,List.drop_drop]
-      · intro _ _
-        have heq : J.body.occurrences.length+J.ports.length-runLength (a::ks) =
-            I.body.occurrences.length+(step keys J).ports.length := by omega
-        have ht := hf.2.2
-        rw [← hrl, heq] at ht
-        simpa only [step,he] using ht
+        conv_lhs => rw [ih.2.2.1, ← List.map_drop, List.map_map, List.drop_drop]
+      · have heq : J.body.occurrences.length + J.ports.length - runLength (a::ks) =
+            I.body.occurrences.length + (step keys J).ports.length := by omega
+        rwa [← heq, step, he]
 
 private theorem pull_range (keys : List ℕ) (I : State Rel) (s : ℕ) :
     pull keys I s = (List.range s).foldl
@@ -218,20 +209,17 @@ theorem fields_closeMetadataRuns (I : State Rel) (keys : List ℕ)
       (keys ≠ [] → K.rotation.successor.length = 2*I.body.occurrences.length ∧
         ∀ v ∈ K.rotation.successor, v < 2*I.body.occurrences.length) := by
   have hf := stage_fields keys I hl keys.length
-  have hp : (stage keys I keys.length).ports=[] := by
-    apply List.length_eq_zero_iff.mp
-    dsimp only at hf
-    omega
+  have hp : (stage keys I keys.length).ports = [] :=
+    List.length_eq_zero_iff.mp (by have := hf.1; omega)
   rw [aligned_output I keys hl]
   change (stage keys I keys.length).body=I.body.relabel
       ((List.range keys.length).foldl (fun f s => collapse keys ((step keys)^[s] I) ∘ f) id) ∧ _
   simp_rw [← stage_iterate]
   rw [← pull_range]
-  refine ⟨hf.2.1,hp,?_⟩
-  intro hn
-  have hs : 0<keys.length := List.length_pos_iff.mpr hn
-  have hi : I.ports≠[] := by intro h; simp only [h,List.length_nil] at hl; omega
-  simpa only [hp,List.length_nil,Nat.add_zero] using hf.2.2.2 hs hi
+  refine ⟨hf.2.1, hp, fun hn => ?_⟩
+  have hi : I.ports ≠ [] := fun h =>
+    hn (List.length_eq_zero_iff.mp (hl.trans (congrArg List.length h)))
+  simpa only [hp, List.length_nil, Nat.add_zero] using hf.2.2.2 (List.length_pos_iff.mpr hn) hi
 
 private theorem fold_accepted (keys fuel : List ℕ) (I : State Rel) (hI : I.Accepted) :
     (fuel.foldl (fun J _ => step keys J) I).Accepted := by
@@ -285,17 +273,13 @@ theorem components_closeMetadataRuns (I : State Rel) (keys : List ℕ) :
     K.body.length = I.body.length ∧ K.body.occurrences.length = I.body.occurrences.length ∧
       K.body.map (fun c => (c.rel,c.scope.length)) = I.body.map (fun c => (c.rel,c.scope.length)) ∧
       K.ports.length = if keys.length = I.ports.length then 0 else I.ports.length := by
-  by_cases hl : keys.length=I.ports.length
+  by_cases hl : keys.length = I.ports.length
   · have hf := fold_components keys keys I
     have hp := (fields_closeMetadataRuns I keys hl).2.1
-    rw [closeMetadataRuns,ite_eq_right (not_not.mpr hl)]
-    refine ⟨hf.1,hf.2.1,hf.2.2.1,?_⟩
-    have hp' : (keys.foldl (fun J _ => step keys J) I).ports=[] := by
-      simpa only [closeMetadataRuns,ite_eq_right (not_not.mpr hl),step,pending] using hp
-    change (keys.foldl (fun J _ => step keys J) I).ports.length = _
-    rw [hp']; simp [hl]
-  · rw [closeMetadataRuns_eq_self I keys (Or.inl hl)]
-    simp [hl]
+    dsimp only at hf hp ⊢
+    rw [hp, List.length_nil, ite_eq_left hl, closeMetadataRuns, ite_eq_right (not_not.mpr hl)]
+    exact ⟨hf.1, hf.2.1, hf.2.2.1, rfl⟩
+  · simp [closeMetadataRuns_eq_self I keys (Or.inl hl), hl]
 
 /-- Every emitted body/port name is selected from the original body/ports; no group step
 increases the original maximum name width, even when names occur in multiple runs. -/
@@ -312,11 +296,9 @@ theorem body_accepted_closeMetadataRuns (I : State Rel) (keys : List ℕ)
     (hl : keys.length = I.ports.length) (hI : I.Accepted) :
     verifyRotationCertificate (closeMetadataRuns I keys).body
       (closeMetadataRuns I keys).rotation = true := by
-  let K := closeMetadataRuns I keys
-  have ha := accepted_closeMetadataRuns I keys hI
-  have hp : K.ports=[] := (fields_closeMetadataRuns I keys hl).2.1
-  have hb := (verify_eq_true_iff K.body K.ports K.rotation).mp ha.2
-  rw [hp,verifyRotationCertificate_probeBody_nil] at hb
+  have hb := (verify_eq_true_iff _ _ _).mp (accepted_closeMetadataRuns I keys hI).2
+  have hp : (closeMetadataRuns I keys).ports = [] := (fields_closeMetadataRuns I keys hl).2.1
+  rw [hp, verifyRotationCertificate_probeBody_nil] at hb
   exact hb.2
 
 private theorem split_first_run (keys : List ℕ) (hn : keys ≠ []) :
@@ -330,27 +312,19 @@ private theorem split_first_run (keys : List ℕ) (hn : keys ≠ []) :
     cases keys with
     | nil => exact (hn rfl).elim
     | cons a ks => simp [pre,p]
-  have hall : ∀ b∈pre, b=keys.headD 0 := by
-    intro b hb
-    exact of_decide_eq_true (List.mem_takeWhile_imp (p := p) hb)
-  have hc : pre.IsChain (fun a b => decide (a=b)) := by
-    apply List.isChain_iff_getElem.mpr
-    intro i hi
-    have h1 := hall pre[i] (List.getElem_mem _)
-    have h2 := hall pre[i+1] (List.getElem_mem _)
-    simp [h1,h2]
-  have hb : ∀ x∈pre.getLast?, ∀ y∈rest.head?, decide (x=y)=false := by
-    intro x hx y hy
-    have hx' := hall x (List.mem_of_mem_getLast? hx)
-    have hnot := List.head?_dropWhile_not p keys
-    cases hr : rest with
-    | nil => simp [hr] at hy
-    | cons b bs =>
-      have hy' : y=b := by simpa only
-        [hr,List.head?_cons,Option.mem_def,Option.some.injEq,eq_comm] using hy
-      subst y
-      have hbad : p b=false := by simpa only [rest,hr,List.head?_cons] using hnot
-      simpa only [p,hx',eq_comm] using hbad
+  have hall (b) (hb : b ∈ pre) : b = keys.headD 0 :=
+    of_decide_eq_true (List.mem_takeWhile_imp (p := p) hb)
+  have hc : pre.IsChain (fun a b => decide (a = b)) :=
+    List.isChain_iff_getElem.mpr fun i hi =>
+      decide_eq_true ((hall _ (List.getElem_mem _)).trans (hall _ (List.getElem_mem _)).symm)
+  have hb : ∀ x ∈ pre.getLast?, ∀ y ∈ rest.head?, decide (x = y) = false := by
+    rintro x hx y hy
+    rcases hr : rest with _ | ⟨b, bs⟩
+    · simp [hr] at hy
+    · obtain rfl : b = y := by simpa [hr] using hy
+      have hbad : p b = false := by
+        simpa only [rest, hr, List.head?_cons] using List.head?_dropWhile_not p keys
+      simpa only [p, hall x (List.mem_of_mem_getLast? hx), eq_comm] using hbad
   rw [drop_runLength]
   change keys.splitBy (fun a b => decide (a=b))=pre::rest.splitBy (fun a b => decide (a=b))
   calc
@@ -373,11 +347,10 @@ private theorem closedBlocks_step (keys : List ℕ) (I : State Rel) (s : ℕ) :
     List.filter_append,List.filter_cons,List.filter_nil]
   by_cases h : pending keys (stage keys I s)=[]
   · simp [h]
-  · have hp := run_length_pos h
-    have hn : (pending keys (stage keys I s)).takeWhile
-        (fun b => decide (b=(pending keys (stage keys I s)).headD 0))≠[] := by
-      simpa only [← List.length_pos_iff,runLength] using hp
-    simp only [ite_eq_right h,decide_eq_true hn,ite_true]
+  · have hn : (pending keys (stage keys I s)).takeWhile
+        (fun b => decide (b = (pending keys (stage keys I s)).headD 0)) ≠ [] :=
+      List.length_pos_iff.mp (run_length_pos h)
+    simp only [ite_eq_right h, decide_eq_true hn, ite_true]
 
 private theorem partition_prefix (keys : List ℕ) (I : State Rel)
     (hl : keys.length = I.ports.length) (s : ℕ) :
@@ -402,23 +375,18 @@ private theorem split_count (keys : List ℕ) :
       keys.tail).countP (fun p => decide (p.1 ≠ p.2)) := by
   induction keys using List.twoStepInduction with
   | nil => simp
-  | singleton a =>
-    rw [List.splitBy_of_isChain (by simp) (by simp)]
-    simp
+  | singleton a => simp [List.splitBy_of_isChain]
   | cons_cons a b ks _ih ihTail =>
     by_cases hab : a=b
     · subst b
-      have h1 := split_first_run (a::a::ks) (by simp)
-      have h2 := split_first_run (a::ks) (by simp)
-      have he : ((a::a::ks).drop (runLength (a::a::ks)))=
-          ((a::ks).drop (runLength (a::ks))) := by
-        simp [runLength]
-      rw [h1,List.length_cons,he,← List.length_cons,← h2,ihTail]
+      have he : ((a::a::ks).drop (runLength (a::a::ks))) =
+          ((a::ks).drop (runLength (a::ks))) := by simp [runLength]
+      rw [split_first_run (a::a::ks) (List.cons_ne_nil _ _), List.length_cons, he,
+        ← List.length_cons, ← split_first_run (a::ks) (List.cons_ne_nil _ _), ihTail]
       simp
-    · rw [split_first_run (a::b::ks) (by simp)]
-      have hr : runLength (a::b::ks)=1 := by simp [runLength,hab,eq_comm]
-      simp only [hr,List.drop_succ_cons,List.drop_zero,List.length_cons,ihTail]
-      simp [hab,Nat.add_assoc]
+    · have hr : runLength (a :: b :: ks) = 1 := by simp [runLength, hab, eq_comm]
+      rw [split_first_run (a :: b :: ks) (by simp)]
+      simp [hr, ihTail, hab, Nat.add_assoc]
 
 private def fusionCount (keys : List ℕ) (I : State Rel) (s : ℕ) : ℕ :=
   ((List.range s).map (fun i => runLength (pending keys (stage keys I i))-1)).sum
@@ -446,8 +414,7 @@ private theorem fusion_potential (keys : List ℕ) (I : State Rel)
       have hz : (stage keys I s).ports=[] := List.length_eq_zero_iff.mp (by
         simpa only [hn,List.length_nil] using ha.symm)
       rw [step_empty keys _ hz]
-      simp only [hz,List.length_nil] at ih ⊢
-      omega
+      simpa only [hz, List.length_nil, Nat.zero_sub, Nat.add_zero] using ih
     · have hr := run_length_pos hn
       simp only [ite_eq_right hn,List.length_append,List.length_singleton]
       change (step keys (stage keys I s)).ports.length=
@@ -479,21 +446,18 @@ theorem partition_closeMetadataRuns (I : State Rel) (keys : List ℕ)
     simpa only [pending,hp,List.length_nil,Nat.sub_zero,List.drop_length,
       List.splitBy_nil,List.append_nil] using partition_prefix keys I hl keys.length
   have hn := fusion_potential keys I hl keys.length
-  rw [hp,List.length_nil,Nat.add_zero,he,split_count] at hn
-  have result : closedBlocks keys I keys.length=keys.splitBy (fun a b => decide (a=b)) ∧
-      (closedBlocks keys I keys.length).flatten=keys ∧
-      fusionCount keys I keys.length=I.ports.length-(if keys=[] then 0 else
-        1+(keys.zip keys.tail).countP (fun p => decide (p.1≠p.2))) ∧
-      (closedBlocks keys I keys.length).length=(if keys=[] then 0 else
-        1+(keys.zip keys.tail).countP (fun p => decide (p.1≠p.2))) ∧
-      fusionCount keys I keys.length+(closedBlocks keys I keys.length).length=I.ports.length := by
-    refine ⟨he,by rw [he]; exact List.flatten_splitBy _ _,?_,?_,?_⟩
-    · omega
-    · rw [he,split_count]
-    · simpa only [he,split_count] using hn
-  simpa only [closedBlocks,fusionCount,stage_iterate,pending,runLength,
-    show step keys = (fun J : State Rel => closeFirstMetadataRun J
-      (keys.drop (keys.length-J.ports.length))) from rfl] using result
+  rw [hp, List.length_nil, Nat.add_zero] at hn
+  have hlen_eq : (closedBlocks keys I keys.length).length =
+      if keys = [] then 0 else 1 + (keys.zip keys.tail).countP (fun p => decide (p.1 ≠ p.2)) :=
+    he ▸ split_count keys
+  dsimp only
+  have hstep_eq : (fun J : State Rel => closeFirstMetadataRun J
+      (keys.drop (keys.length - J.ports.length))) = step keys := rfl
+  simp_rw [hstep_eq, ← stage_iterate]
+  change closedBlocks keys I keys.length = _ ∧ (closedBlocks keys I keys.length).flatten = keys ∧
+    fusionCount keys I keys.length = _ ∧ (closedBlocks keys I keys.length).length = _ ∧
+    fusionCount keys I keys.length + (closedBlocks keys I keys.length).length = I.ports.length
+  exact ⟨he, he ▸ List.flatten_splitBy _ _, by omega, hlen_eq, hn⟩
 
 private theorem first_run_agreement (keys : List ℕ) (values : List Bool)
     (hl : keys.length = values.length) :
@@ -508,34 +472,26 @@ private theorem first_run_agreement (keys : List ℕ) (values : List Bool)
   have hdrop : keys.drop (runLength keys)=rest := drop_runLength keys
   have hb : pre.length≤values.length := (List.takeWhile_sublist _).length_le.trans_eq hl
   have hp : pre.length=(values.take pre.length).length := by simp [Nat.min_eq_left hb]
-  have hall : ∀ q∈pre.zip (values.take pre.length), q.1=keys.headD 0 := by
-    intro q hq
-    exact of_decide_eq_true (List.mem_takeWhile_imp (p := p) (List.of_mem_zip hq).1)
+  have hall (q) (hq : q ∈ pre.zip (values.take pre.length)) : q.1 = keys.headD 0 :=
+    of_decide_eq_true (List.mem_takeWhile_imp (p := p) (List.of_mem_zip hq).1)
   have hprefix : (pre.zip (values.take pre.length)).IsChain
-      (fun a b => a.1=b.1 → a.2=b.2) ↔ (values.take pre.length).IsChain (· = ·) := by
-    conv_rhs => rw [← List.map_snd_zip hp.ge,List.isChain_map]
-    constructor
-    · intro h
-      exact h.imp_of_mem_imp (fun a b ha hb hab => hab ((hall a ha).trans (hall b hb).symm))
-    · intro h
-      exact h.imp (fun _ _ h _ => h)
-  have hboundary : ∀ a∈(pre.zip (values.take pre.length)).getLast?,
-      ∀ b∈(rest.zip (values.drop pre.length)).head?, a.1=b.1 → a.2=b.2 := by
+      (fun a b => a.1 = b.1 → a.2 = b.2) ↔ (values.take pre.length).IsChain (· = ·) := by
+    conv_rhs => rw [← List.map_snd_zip hp.ge, List.isChain_map]
+    exact ⟨fun h => h.imp_of_mem_imp fun a b ha hb hab =>
+        hab ((hall a ha).trans (hall b hb).symm),
+      fun h => h.imp fun _ _ h _ => h⟩
+  have hboundary : ∀ a ∈ (pre.zip (values.take pre.length)).getLast?,
+      ∀ b ∈ (rest.zip (values.drop pre.length)).head?, a.1 = b.1 → a.2 = b.2 := by
     intro a ha b hbb he
-    have ha' := hall a (List.mem_of_mem_getLast? ha)
-    have hnot := List.head?_dropWhile_not p keys
-    cases hrest : rest with
-    | nil => simp [hrest] at hbb
-    | cons x xs =>
-      cases hv : values.drop pre.length with
-      | nil => simp [hv] at hbb
-      | cons v vs =>
-        have hb' : b=(x,v) := by simpa only [hrest,hv,List.zip_cons_cons,List.head?_cons,
-          Option.mem_def,Option.some.injEq,eq_comm] using hbb
-        subst b
-        have hx : p x=false := by simpa only [rest,hrest,List.head?_cons] using hnot
-        simp only [p,← ha',he,decide_true] at hx
-        contradiction
+    rcases hrest : rest with _ | ⟨x, xs⟩
+    · simp [hrest] at hbb
+    · rcases hv : values.drop pre.length with _ | ⟨v, vs⟩
+      · simp [hv] at hbb
+      · obtain rfl : b = (x, v) := by simpa [hrest, hv, eq_comm] using hbb
+        have hx : p x = false := by
+          simpa only [rest, hrest, List.head?_cons] using List.head?_dropWhile_not p keys
+        exact absurd (he.symm.trans (hall a (List.mem_of_mem_getLast? ha)))
+          (of_decide_eq_false hx)
   have he : keys.zip values=(pre.zip (values.take pre.length))++
       (rest.zip (values.drop pre.length)) := by
     conv_lhs => rw [← hk,← List.take_append_drop pre.length values,List.zip_append hp]
@@ -613,39 +569,21 @@ private theorem recover_fuel (keys : List ℕ) (fuel : ℕ) (I : State Rel)
       have hJ : (step keys I).ports.length=I.ports.length-runLength (pending keys I) := hc
       have hrec := ih (step keys I) (by omega) (by omega) (by rwa [stage_shift] at ht)
       rw [pull_shift]
-      let ν := τ ∘ pull keys (step keys I) fuel
-      have hb := recover_closeFirstMetadataRun sem I a ks ha ν (by
-        have hx : (step keys I).body.eval sem ν=true := hrec.1
-        simpa only [step,he] using hx)
-      have hbody : I.body.eval sem (ν ∘ collapse keys I)=true := by
-        unfold collapse
-        rw [he]
-        exact hb.1
-      refine ⟨by simpa only [ν,Function.comp_assoc] using hbody,?_⟩
+      set ν := τ ∘ pull keys (step keys I) fuel
+      have hb := recover_closeFirstMetadataRun sem I a ks ha ν
+        (by simpa only [step, he] using hrec.1)
+      refine ⟨(collapse_of_pending_eq he).symm ▸ hb.1, ?_⟩
       change ((pending keys I).zip (I.ports.map (ν ∘ collapse keys I))).IsChain _
       apply (first_run_agreement _ _ (by simpa only [List.length_map] using hl)).mpr
       constructor
-      · rw [← List.map_take]
-        have hm : (I.ports.take (runLength (pending keys I))).map (ν ∘ collapse keys I)=
-            (I.ports.take (runLength (pending keys I))).map (fun _ => ν (I.ports.headD 0)) := by
-          apply List.map_congr_left
-          intro z hz'
-          simp only [Function.comp_apply,collapse,ite_eq_left hz']
-        rw [hm]
-        exact List.isChain_map (fun _ => ν (I.ports.headD 0)) |>.mpr
-          (List.isChain_iff_getElem.mpr (fun _ _ => rfl))
-      · have hh := hrec.2
-        rw [pending_step keys I hp] at hh
-        have hw : (step keys I).ports.map ν=
+      · rw [← List.map_take, List.map_congr_left fun z hz' => show (ν ∘ collapse keys I) z =
+            ν (I.ports.headD 0) by simp only [Function.comp_apply, collapse, ite_eq_left hz']]
+        exact (List.isChain_map _).mpr (List.isChain_iff_getElem.mpr fun _ _ => rfl)
+      · have hw : (step keys I).ports.map ν =
             (I.ports.drop (runLength (pending keys I))).map (ν ∘ collapse keys I) := by
-          have hstep : step keys I = closeFirstMetadataRun I (a::ks) := by rw [step,he]
-          have hcollapse : collapse keys I = fun z =>
-              if z ∈ I.ports.take (runLength (a::ks)) then I.ports.headD 0 else z := by
-            funext z; unfold collapse; rw [he]
-          rw [hstep,hcollapse,he]
+          rw [step, collapse_of_pending_eq he, he]
           exact hb.2.2
-        rw [hw] at hh
-        simpa only [← List.map_drop] using hh
+        simpa only [pending_step keys I hp, hw, ← List.map_drop] using hrec.2
 
 private theorem forward_fuel (keys : List ℕ) (fuel : ℕ) (I : State Rel)
     (hp : I.ports.length ≤ keys.length) (hf : I.ports.length ≤ fuel)
@@ -668,25 +606,22 @@ private theorem forward_fuel (keys : List ℕ) (fuel : ℕ) (I : State Rel)
       have hc := selected_values_constant I (pending keys I) σ hl hn he
       obtain ⟨ν,hν,hνeq,hword⟩ := forward_closeFirstMetadataRun sem I a ks ha σ hs
         (by simpa only [hkeys,runLength,List.headD_cons] using hc)
-      have hνfun : ν=σ := funext hνeq
-      subst ν
-      have hbody : (step keys I).body.eval sem σ=true := by simpa only [step,hkeys] using hν
+      obtain rfl : σ = ν := (funext hνeq).symm
       have htail := (first_run_agreement _ _ (by simpa only [List.length_map] using hl)).mp he |>.2
-      have hw : (step keys I).ports.map σ=(I.ports.drop (runLength (pending keys I))).map σ := by
-        simpa only [step,hkeys,runLength,List.headD_cons] using hword
+      have hw : (step keys I).ports.map σ =
+          (I.ports.drop (runLength (pending keys I))).map σ := by
+        simpa only [step, hkeys, runLength, List.headD_cons] using hword
       have he' : ((pending keys (step keys I)).zip ((step keys I).ports.map σ)).IsChain
-          (fun a b => a.1=b.1 → a.2=b.2) := by
-        rw [pending_step keys I hp,hw]
-        simpa only [← List.map_drop] using htail
+          (fun a b => a.1 = b.1 → a.2 = b.2) := by
+        simpa only [pending_step keys I hp, hw, ← List.map_drop] using htail
       have hd := (components_closeFirstMetadataRun I (pending keys I)).2.2.2
       simp only [hl,↓reduceIte] at hd
       change (step keys I).ports.length = I.ports.length-runLength (pending keys I) at hd
       have hr := run_length_pos hn
-      have hh := ih (step keys I) (by omega)
-        (by omega) hbody he'
-      refine ⟨by simpa only [stage_shift] using hh.1,?_⟩
-      intro z
-      rw [pull_shift,Function.comp_apply,hh.2]
+      have hh := ih (step keys I) (by omega) (by omega)
+        (by simpa only [step, hkeys] using hν) he'
+      refine ⟨by simpa only [stage_shift] using hh.1, fun z => ?_⟩
+      rw [pull_shift, Function.comp_apply, hh.2]
       by_cases hm : z∈I.ports.take (runLength (pending keys I))
       · simpa only [collapse,ite_eq_left hm] using (hc z hm).symm
       · simp only [collapse,ite_eq_right hm]

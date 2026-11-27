@@ -101,12 +101,10 @@ parameters are in the support of `setup n`. -/
 theorem mem_support_withKeySetup {setup : ℕ → PMF F.Desc} {keyLen : ℕ → ℕ} {n : ℕ}
     {d : F.Desc} {k : List Bool} (h : (d, k) ∈ (F.withKeySetup setup keyLen n).support) :
     d ∈ (setup n).support ∧ k.length = keyLen n := by
-  rw [withKeySetup, PMF.mem_support_bind_iff] at h
-  obtain ⟨d', hd', hk⟩ := h
-  rw [PMF.mem_support_map_iff, BitString.eval_sampleList] at hk
-  obtain ⟨k', hk', heq⟩ := hk
-  obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
-  exact ⟨hd', BitString.length_of_mem_support_uniformList hk'⟩
+  simp only [withKeySetup, BitString.eval_sampleList, PMF.mem_support_bind_iff,
+    PMF.mem_support_map_iff, Prod.mk.injEq] at h
+  obtain ⟨_, hd, _, hk, rfl, rfl⟩ := h
+  exact ⟨hd, BitString.length_of_mem_support_uniformList hk⟩
 
 /-- **DDH reduction that samples the key**: given a DDH distinguisher for `F.withKey`, draw a
 uniform `keyLen n`-bit key `k` and run it on the group parameters `(d, k)`. -/
@@ -123,13 +121,8 @@ theorem isPPT_ddhSampleKey {keyLen : ℕ → ℕ}
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
     {distinguisher : F.withKey.DDHDistinguisher} (hD : distinguisher.IsPPT) :
     (F.ddhSampleKey keyLen distinguisher).IsPPT := by
-  have hn : ComputableInPolyTime (fun x : F.DDHInput => x.secParam) F.encDDHInput encUnary := by
-    fun_prop
-  have hsecond : IsPPTOn (encPair F.encDDHInput encBits) encBool
-      (fun p : F.DDHInput × List Bool => distinguisher p.1.secParam (p.1.groupParameters, p.2)
-        p.1.leftPublic p.1.rightPublic p.1.candidateShared) := by
-    apply hD.comp (F := F.withKey) <;> fun_prop
-  exact (hkeyLen.comp hn).sampleList.bind_with hsecond
+  refine (hkeyLen.comp (by fun_prop)).sampleList.bind_with ?_
+  apply hD.comp (F := F.withKey) <;> fun_prop
 
 /-- In the real DDH game, `ddhSampleKey` plays the real DDH game of `F.withKey` under
 `withKeySetup`. -/

@@ -56,20 +56,17 @@ theorem computableInPolyTime_nodeConst :
 /-- Construct a copy node, preserving the binary wire index. -/
 @[fun_prop]
 theorem computableInPolyTime_nodeCopy :
-    ComputableInPolyTime Node.copy encNat encNode := by
-  have h : ComputableInPolyTime (fun i : ℕ => ((true, false), i, 0)) encNat
-      (encPair (encPair encBool encBool) (encPair encNat encNat)) := by fun_prop
-  exact h.of_enc_eq fun _ => rfl
+    ComputableInPolyTime Node.copy encNat encNode :=
+  (show ComputableInPolyTime (fun i : ℕ => ((true, false), i, 0)) encNat
+    (encPair (encPair encBool encBool) (encPair encNat encNat)) by fun_prop).of_enc_eq fun _ => rfl
 
 /-- Construct a NAND node, preserving both binary wire indices. -/
 @[fun_prop]
 theorem computableInPolyTime_nodeNand :
     ComputableInPolyTime (fun p : ℕ × ℕ => Node.nand p.1 p.2)
-      (encPair encNat encNat) encNode := by
-  have h : ComputableInPolyTime (fun p : ℕ × ℕ => ((true, true), p))
-      (encPair encNat encNat) (encPair (encPair encBool encBool) (encPair encNat encNat)) := by
-    fun_prop
-  exact h.of_enc_eq fun _ => rfl
+      (encPair encNat encNat) encNode :=
+  (show ComputableInPolyTime (fun p : ℕ × ℕ => ((true, true), p)) (encPair encNat encNat)
+    (encPair (encPair encBool encBool) (encPair encNat encNat)) by fun_prop).of_enc_eq fun _ => rfl
 
 /-- Node evaluation is polynomial in the encoded input, including invalid binary wire indices. -/
 @[fun_prop]
@@ -79,25 +76,20 @@ theorem computableInPolyTime_nodeEval {α : Type} {input : α ↪ List Bool}
     (hinputs : ComputableInPolyTime inputs input encBits) :
     ComputableInPolyTime (fun a => (node a).eval (inputs a)) input encBool := by
   have hcode := computableInPolyTime_nodeCode.comp hnode
-  have hfirst : ComputableInPolyTime
-      (fun a => (inputs a).getD (node a).code.2.1 false) input encBool :=
-    ComputableInPolyTime.listGetD_binary (encA := encBool) false hinputs (by fun_prop)
-  have hsecond : ComputableInPolyTime
-      (fun a => (inputs a).getD (node a).code.2.2 false) input encBool :=
-    ComputableInPolyTime.listGetD_binary (encA := encBool) false hinputs (by fun_prop)
-  have h : ComputableInPolyTime (fun a =>
+  have hfirst := ComputableInPolyTime.listGetD_binary (encA := encBool) false hinputs
+    (i := fun a => (node a).code.2.1) (by fun_prop)
+  have hsecond := ComputableInPolyTime.listGetD_binary (encA := encBool) false hinputs
+    (i := fun a => (node a).code.2.2) (by fun_prop)
+  convert (show ComputableInPolyTime (fun a =>
       if (node a).code.1.1 then
         if (node a).code.1.2 then
           !((inputs a).getD (node a).code.2.1 false &&
             (inputs a).getD (node a).code.2.2 false)
         else (inputs a).getD (node a).code.2.1 false
-      else (node a).code.1.2) input encBool :=
-    hcode.fst'.fst'.ite
-      (hcode.fst'.snd'.ite
-        (ComputableInPolyTime.bool_not.comp
-          (ComputableInPolyTime.bool_and.comp (hfirst.prod hsecond))) hfirst)
-      hcode.fst'.snd'
-  convert h using 1
+      else (node a).code.1.2) input encBool from
+    hcode.fst'.fst'.ite (hcode.fst'.snd'.ite
+      (ComputableInPolyTime.bool_not.comp
+        (ComputableInPolyTime.bool_and.comp (hfirst.prod hsecond))) hfirst) hcode.fst'.snd') using 1
   funext a
   cases node a <;> rfl
 
@@ -119,12 +111,8 @@ theorem computableInPolyTime_outputWidth {α : Type} {input : α ↪ List Bool}
     ComputableInPolyTime (fun a => outputWidth (inputCount a) (layers a)) input encUnary := by
   have heq (n : ℕ) (ls : List (List Node)) :
       outputWidth n ls = ((n :: ls.map List.length).reverse).headD 0 := by
-    induction ls using List.reverseRecOn with
-    | nil => simp
-    | append_singleton ls layer _ => simp [outputWidth_append]
-  have hlengths := (ComputableInPolyTime.length_list encNode).map.comp hlayers
-  have h := (ComputableInPolyTime.headD (encA := encUnary) 0).comp
-    ((hn.cons' hlengths).listReverseWithInput)
-  simpa only [heq, Function.comp_def] using h
+    induction ls using List.reverseRecOn <;> simp [outputWidth_append]
+  simpa only [heq, Function.comp_def] using (ComputableInPolyTime.headD (encA := encUnary) 0).comp
+    ((hn.cons' ((ComputableInPolyTime.length_list encNode).map.comp hlayers)).listReverseWithInput)
 
 end Cslib.Circuits.Boolean.Layered

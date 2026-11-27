@@ -11,7 +11,6 @@ public import CslibFrontier.Algorithms.WordRAM.VariableElimination.Instance
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.ElimLoop
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.FinalProd
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.InitFactors
-import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Foundations.Data.List.FoldMax
 import CslibFrontier.Tactic.Realize
 import Mathlib.Algebra.Order.BigOperators.Group.List
@@ -37,12 +36,6 @@ open Cslib.Algorithms.Lean.CSP
 open Cslib.DataStructure
 open Cslib.WordRAM
 open Cslib.WordRAM.Realization
-
-private theorem holdsIn_stateInit (words : List ℕ) :
-    HoldsIn 1 words (Memory.State.init words) := by
-  refine ⟨by simp [Memory.State.init]; omega, fun i => ?_⟩
-  have h := Data.init_realizes_append (r := 0) [] words [] i
-  simpa [Memory.State.init] using h
 
 private theorem capFactor_le_maxEntry {inst : ElimInstance} {f : FactorTable ℕ ℕ}
     (hf : f ∈ inst.factors) :
@@ -72,7 +65,7 @@ private theorem stateCap_eliminateOrder_le (d : ℕ) :
             stateCap_eliminateOrder_le d xs (elimVar d x es)
         _ ≤ (max 1 d) ^ xs.length * (max 1 d * stateCap es) :=
             Nat.mul_le_mul_left _ (stateCap_elimVar_le d x es)
-        _ = (max 1 d) ^ xs.length * max 1 d * stateCap es := by ring
+        _ = (max 1 d) ^ xs.length * max 1 d * stateCap es := (Nat.mul_assoc ..).symm
 
 /-- Top-level Word-RAM memory program executing bucket elimination on `ElimInstance`. -/
 def runProg (_ : Unit) : Memory.Prog ℕ :=
@@ -97,20 +90,19 @@ private theorem decode_init_layout (inst : ElimInstance) :
         (inst.factors.flatMap encodeFactor) s₀ := by
   dsimp only
   have hall : HoldsIn 1 inst.encode (Memory.State.init inst.encode) :=
-    holdsIn_stateInit inst.encode
+    holdsIn_init inst.encode
   have henc : inst.encode = inst.domain :: inst.declared.length :: inst.order.length ::
       inst.factors.length ::
       (inst.declared ++ (inst.order ++ inst.factors.flatMap encodeFactor)) := by
     simp [ElimInstance.encode, List.append_assoc]
   nth_rw 1 [henc] at hall
-  obtain ⟨_, hm1, hr1⟩ := holdsIn_cons_shift hall
-  obtain ⟨_, hm2, hr2⟩ := holdsIn_cons_shift hr1
-  obtain ⟨_, hm3, hr3⟩ := holdsIn_cons_shift hr2
-  obtain ⟨h4_lt, hm4, hr4⟩ := holdsIn_cons_shift hr3
-  have h5 : 1 + 1 + 1 + 1 + 1 = 5 := rfl
-  rw [h5] at hr4
-  obtain ⟨hdecl, hr5⟩ := holdsIn_append_split hr4
-  obtain ⟨hord, hfac⟩ := holdsIn_append_split hr5
+  obtain ⟨_, hm1, hr1⟩ := hall.cons
+  obtain ⟨_, hm2, hr2⟩ := hr1.cons
+  obtain ⟨_, hm3, hr3⟩ := hr2.cons
+  obtain ⟨h4_lt, hm4, hr4⟩ := hr3.cons
+  change HoldsIn 5 _ _ at hr4
+  obtain ⟨hdecl, hr5⟩ := HoldsIn.append_iff.mp hr4
+  obtain ⟨hord, hfac⟩ := HoldsIn.append_iff.mp hr5
   exact ⟨by omega, hm1, hm2, hm3, hm4, hdecl, hord, hfac⟩
 
 /-- Word-size and capacity bounds on `inst` that feed `elimOrderLoop`'s precondition. -/

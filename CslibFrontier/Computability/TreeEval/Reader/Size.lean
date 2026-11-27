@@ -73,10 +73,7 @@ private theorem length_encList_frames_le {st : List Frame} {P : ℕ}
     (by ring)
 
 private theorem length_encMode_lt (m : Mode) : (encMode m).length < 7 := by
-  have := length_encFinEnum_lt m
-  have hc : Nat.card Mode = 7 := by
-    rw [Nat.card_congr Mode.equiv]; simp
-  rwa [hc] at this
+  simpa [encMode, Fintype.card_congr Mode.equiv] using length_encFinEnum_lt m
 
 private theorem length_encTag_lt (t : Fin 7) : (encFinEnum (Fin 7) t).length < 7 := by
   simpa only [Nat.card_fin] using length_encFinEnum_lt t
@@ -101,9 +98,8 @@ private theorem bounds_regs_wf {ℓ p : ℕ} {R : Regs} (hR : R.WF p ℓ) (hp : 
       (encList encNat (R.get r)).length ≤ ℓ * (2 * ((encNat ℓ).length + 3) + 1) := by
   obtain ⟨hlen, hlt⟩ := hR r
   refine ⟨hlen.le, ?_⟩
-  have := length_encList_le encNat (R.get r) (b := (encNat ℓ).length + 3)
+  simpa only [hlen] using length_encList_le encNat (R.get r)
     fun v hv => length_lt_primeFor ((hlt v hv).le.trans hp)
-  rwa [hlen] at this
 
 theorem bounds_of_inv {ℓ H : ℕ} {s : State} (hs : Inv ℓ H s) : Bounds ℓ H s := by
   obtain ⟨e, h, p, R, st, m, c⟩ := s
@@ -115,22 +111,17 @@ theorem bounds_of_inv {ℓ H : ℕ} {s : State} (hs : Inv ℓ H s) : Bounds ℓ 
     fin_cases r <;> simp [Regs.get]
   cases c with
   | hdrLength n =>
-    obtain ⟨heq, hn⟩ := hs
-    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
+    rcases hs with ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl⟩, hn⟩
     have := length_encNat_mono hn
     exact ⟨Nat.zero_le _, Nat.zero_le _, by simp, hempty, by simp, by simp,
       by simp only [Ctl.toTuple]; omega, by simp [Ctl.toTuple], by simp [Ctl.toTuple]⟩
   | hdrHeight n =>
-    obtain ⟨heq, hn⟩ := hs
-    obtain ⟨he, rfl, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
-    subst e
+    rcases hs with ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl⟩, hn⟩
     have := length_encNat_mono hn
     exact ⟨le_rfl, Nat.zero_le _, by simp, hempty, by simp, by simp,
       by simp only [Ctl.toTuple]; omega, by simp [Ctl.toTuple], by simp [Ctl.toTuple]⟩
   | prime q d =>
-    obtain ⟨heq, hq, hqp, hd, hdq⟩ := hs
-    obtain ⟨he, hh, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
-    subst e h
+    rcases hs with ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl⟩, hq, hqp, hd, hdq⟩
     have h₁ := length_lt_primeFor hqp
     have h₂ := length_lt_primeFor (hdq.trans hqp)
     exact ⟨le_rfl, le_rfl, by simp, hempty, by simp, by simp,

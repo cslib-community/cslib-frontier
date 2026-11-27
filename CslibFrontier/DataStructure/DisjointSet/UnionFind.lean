@@ -112,6 +112,12 @@ theorem find_rank (uf : Batteries.UnionFind) (x : Fin uf.size) (i : ℕ) :
   unfold Batteries.UnionFind.find
   exact Batteries.UnionFind.rankD_findAux
 
+/-- The parent function after `Batteries.UnionFind.find` agrees with `parentD (uf.findAux x).s`. -/
+theorem find_parent_eq_parentD_findAux (uf : Batteries.UnionFind) (x : Fin uf.size) (i : ℕ) :
+    (uf.find x).1.parent i = Batteries.UnionFind.parentD (uf.findAux x).s i := by
+  unfold Batteries.UnionFind.find Batteries.UnionFind.parent
+  rfl
+
 /-- `Batteries.UnionFind.union` preserves universe size. -/
 @[simp]
 theorem union_size (uf : Batteries.UnionFind) (x y : Fin uf.size) :
@@ -144,7 +150,8 @@ theorem checkEquiv_snd_eq_true (uf : Batteries.UnionFind) (x y : Fin uf.size) :
   rw [beq_iff_eq, h1, h2, coe_cast_fin h y, hroot]
   rfl
 
-private theorem rank_link (uf : Batteries.UnionFind) (x y : Fin uf.size)
+/-- Ranks after `Batteries.UnionFind.link` increase by `1` only at equal-rank distinct roots. -/
+theorem rank_link (uf : Batteries.UnionFind) (x y : Fin uf.size)
     (hy : uf.parent y.1 = y.1) (i : ℕ) :
     (uf.link x y hy).rank i =
       if x.1 ≠ y.1 ∧ uf.rank x.1 = uf.rank y.1 ∧ y.1 = i then
@@ -160,6 +167,11 @@ private theorem rank_link (uf : Batteries.UnionFind) (x y : Fin uf.size)
       split <;> simp [*]
     · split <;> simp only [Batteries.UnionFind.rankD_set, *, ne_eq, not_false_eq_true,
         true_and, false_and, ↓reduceIte] <;> split <;> (try split) <;> simp_all
+
+/-- Linking a root with itself leaves the union-find forest unchanged. -/
+theorem link_self (uf : Batteries.UnionFind) {x y : Fin uf.size}
+    (hy : uf.parent y.1 = y.1) (hxy : x.1 = y.1) : uf.link x y hy = uf :=
+  unionFind_ext (by simp [Batteries.UnionFind.arr_link, Batteries.UnionFind.linkAux, hxy])
 
 /-- Initialize a `Batteries.UnionFind` forest of `n` singleton classes `{0}, …, {n - 1}`. -/
 @[expose] def ofSize : ℕ → Batteries.UnionFind
@@ -381,7 +393,8 @@ without `noncomputable`). -/
 @[expose] def rankBound (uf : Batteries.UnionFind) : ℕ :=
   uf.arr.foldr (max ·.rank) 0 + 1
 
-private theorem rankBound_eq_rankMax (uf : Batteries.UnionFind) :
+/-- `rankBound uf` is definitionally equal to `uf.rankMax`. -/
+theorem rankBound_eq_rankMax (uf : Batteries.UnionFind) :
     rankBound uf = uf.rankMax := rfl
 
 /-- Structural-fuel traversal matching `Batteries.UnionFind.findAux` while counting visited nodes
@@ -527,15 +540,17 @@ in `Fin uf.size`, and `findSteps uf x`. Propositionally equal to `Batteries.Unio
         exact Batteries.UnionFind.lt_rankD_findAux hi }
   (uf', res.1.root, res.2)
 
+/-- The resulting forest from `compressWithSteps` agrees with `Batteries.UnionFind.find`. -/
 @[simp]
-private theorem compressWithSteps_fst (uf : Batteries.UnionFind) (x : Fin uf.size) :
+theorem compressWithSteps_fst (uf : Batteries.UnionFind) (x : Fin uf.size) :
     (compressWithSteps uf x).1 = (uf.find x).1 := by
   apply unionFind_ext
   unfold compressWithSteps Batteries.UnionFind.find
   dsimp only
   exact congrArg Batteries.UnionFind.FindAux.s (findGo_rankBound_fst uf x)
 
-private theorem compressWithSteps_size (uf : Batteries.UnionFind) (x : Fin uf.size) :
+/-- `compressWithSteps` preserves the universe size. -/
+theorem compressWithSteps_size (uf : Batteries.UnionFind) (x : Fin uf.size) :
     (compressWithSteps uf x).1.size = uf.size := by
   simp
 
@@ -550,6 +565,15 @@ private theorem compressWithSteps_root (uf : Batteries.UnionFind) (x : Fin uf.si
 @[simp]
 private theorem compressWithSteps_steps (uf : Batteries.UnionFind) (x : Fin uf.size) :
     (compressWithSteps uf x).2.2 = findSteps uf x := rfl
+
+/-- Decomposes `compressWithSteps uf x` into its compressed forest, root `uf.rootD x.1`, and
+traversal step count `findSteps uf x`. -/
+theorem compressWithSteps_eq (uf : Batteries.UnionFind) (x : Fin uf.size) :
+    compressWithSteps uf x =
+      ((uf.find x).1, ⟨uf.rootD x.1, Batteries.UnionFind.rootD_lt.mpr x.2⟩,
+        findSteps uf x) :=
+  Prod.ext (compressWithSteps_fst uf x)
+    (Prod.ext (Fin.ext (compressWithSteps_root uf x)) (compressWithSteps_steps uf x))
 
 private theorem compressWithSteps_eq_find_of_eq {u v : Batteries.UnionFind} (h : u = v)
     {i : ℕ} (hu : i < u.size) (hv : i < v.size) :
@@ -569,13 +593,13 @@ private theorem link_eq_of_eq {u v : Batteries.UnionFind} (h : u = v)
   rfl
 
 /-- A compressing `find` preserves the root rank-size invariant. -/
-private theorem ValidRank.compressWithSteps {uf : Batteries.UnionFind} (h : ValidRank uf)
+theorem ValidRank.compressWithSteps {uf : Batteries.UnionFind} (h : ValidRank uf)
     (x : Fin uf.size) : ValidRank (UnionFind.compressWithSteps uf x).1 := by
   rw [compressWithSteps_fst]
   exact h.find x
 
 /-- A compressing `find` keeps every root of the original forest. -/
-private theorem rootD_compressWithSteps (uf : Batteries.UnionFind) (x : Fin uf.size) (i : ℕ) :
+theorem rootD_compressWithSteps (uf : Batteries.UnionFind) (x : Fin uf.size) (i : ℕ) :
     (compressWithSteps uf x).1.rootD i = uf.rootD i := by
   rw [compressWithSteps_fst, Batteries.UnionFind.find_root_1]
 
@@ -749,6 +773,11 @@ private theorem step_correct {n : ℕ} {p : Partition n} {s : State n} (o : Op n
 and union by rank. -/
 def impl (n : ℕ) : StateTransitionImpl (spec n) (Exec n) :=
   StateTransitionImpl.ofStep (D := spec n) Rep step fun o hr _ => step_correct o hr
+
+/-- The representation invariant of `UnionFind.impl n` is `UnionFind.Rep`. -/
+@[simp] theorem impl_rep (n : ℕ) : (impl n).rep = Rep := by
+  unfold impl
+  rfl
 
 /-- Worst-case per-operation step budget on `Fin n`: at most `Nat.log 2 n + 1` nodes inspected per
 `find`, plus `1` link step in `Op.union` and `1` counter read in `Op.numComponents`. -/

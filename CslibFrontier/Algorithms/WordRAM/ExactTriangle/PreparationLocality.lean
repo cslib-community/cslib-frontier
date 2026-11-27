@@ -92,6 +92,12 @@ theorem Output.transfer {n D g p : ℕ} (values : ℕ → ℤ) {initial y initia
   exact ⟨hn, hD, hp, ho, hc, hh, hr, hcounts, hqueries, hdesc, hblocks,
     by simpa only [hh] using hframe⟩
 
+/-- The record region starts at or before the producer's final heap pointer. -/
+theorem Output.output_le_heap {n D g p : ℕ} {values : ℕ → ℤ} {initial y : Data 64}
+    (h : Output n D g p values initial y) : y.regs output ≤ y.regs heap := by
+  rw [h.2.2.2.1, h.2.2.2.2.2.1]
+  exact Nat.le_add_right _ _
+
 /-- Original headers and signed matrices precede every prepared record and its workspace. -/
 theorem Output.inputEnd_le_heap {n D g p : ℕ} {values : ℕ → ℤ} {initial y : Data 64}
     (h : Output n D g p values initial y) : 5 + 3 * (n * n) ≤ y.regs heap := by

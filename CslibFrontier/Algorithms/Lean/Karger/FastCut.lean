@@ -86,8 +86,7 @@ theorem fastCut_of_lt_seven {k : ℕ} (hk : k < 7) (G : Graph) :
     fastCut k G = (do
       let leaf ← OracleComp.query (G, 2)
       pure (totalDoubledWeight leaf.weight / 2)) := by
-  rw [fastCut]
-  simp only [show ¬7 ≤ k by omega, ↓reduceDIte]
+  rw [fastCut, dite_eq_right_of_eq_false (eq_false hk.not_ge)]
 
 /-- At a recursive node, each branch starts from the original graph independently. -/
 theorem fastCut_of_ge_seven {k : ℕ} (hk : 7 ≤ k) (G : Graph) :
@@ -97,18 +96,15 @@ theorem fastCut_of_ge_seven {k : ℕ} (hk : 7 ≤ k) (G : Graph) :
       let second ← OracleComp.query (G, fastCutThreshold k)
       let b ← fastCut (fastCutThreshold k) second
       pure (min a b)) := by
-  rw [fastCut]
-  simp only [hk, ↓reduceDIte]
+  rw [fastCut, dite_eq_left_of_eq_true (eq_true hk)]
 
 /-- A leaf has exactly the existing single-trial Karger answer law. -/
 theorem fastCutLaw_leaf {k : ℕ} (hk : k < 7) (G : Graph) :
     fastCutLaw k G = answerLaw G := by
   obtain ⟨n, W⟩ := G
-  rw [fastCutLaw, fastCut_of_lt_seven hk]
-  simp only [OracleComp.evalWith_bind, OracleComp.evalWith_query, OracleComp.evalWith_pure]
-  change (contractLaw (⟨n, W⟩, 2)).bind
-    (fun G => PMF.pure (totalDoubledWeight G.weight / 2)) = _
-  exact (PMF.bind_pure_comp _ _).trans (answerLaw_eq W).symm
+  rw [fastCutLaw, fastCut_of_lt_seven hk, answerLaw_eq W]
+  simp only [OracleComp.evalWith_bind, OracleComp.evalWith_query, OracleComp.evalWith_pure,
+    contractLaw, PMF.map, Function.comp_def]
 
 /-- The node law is the minimum of two independent answers from the same branch law. -/
 theorem fastCutLaw_node {k : ℕ} (hk : 7 ≤ k) (G : Graph) :
@@ -118,13 +114,7 @@ theorem fastCutLaw_node {k : ℕ} (hk : 7 ≤ k) (G : Graph) :
       branch.bind fun a => branch.map (min a) := by
   rw [fastCutLaw, fastCut_of_ge_seven hk]
   simp only [OracleComp.evalWith_bind, OracleComp.evalWith_query, OracleComp.evalWith_pure,
-    fastCutLaw]
-  change ((contractLaw (G, fastCutThreshold k)).bind fun child =>
-    (OracleComp.evalWith contractLaw (fastCut (fastCutThreshold k) child)).bind fun a =>
-      (contractLaw (G, fastCutThreshold k)).bind fun child =>
-        (OracleComp.evalWith contractLaw (fastCut (fastCutThreshold k) child)).bind fun b =>
-          PMF.pure (min a b)) = _
-  simp only [← PMF.bind_pure_comp, PMF.bind_bind, Function.comp_def]
+    fastCutLaw, PMF.map, PMF.bind_bind, Function.comp_def]
 
 /-- Contracting from `k` to `target ≥ 2` retains a fixed minimum cut with the existing exact
 survival lower bound. The target remains a variable before the recursive threshold is chosen. -/
@@ -254,10 +244,7 @@ theorem fastCutLaw_hit_prob_ge {n : ℕ} {W₀ : Fin n → Fin n → ℕ}
   induction d with
   | zero =>
     intro k W part hk hd hC B hB hBmin
-    have hk7 : k < 7 := by
-      by_contra h
-      rw [fastCutDepth_of_ge_seven (by omega)] at hd
-      omega
+    have hk7 : k < 7 := not_le.mp fun h => absurd (fastCutDepth_of_ge_seven h ▸ hd) (by simp)
     rw [fastCutLaw_leaf hk7]
     exact (base_survival_ge hk (by omega)).trans (answerLaw_hit_prob_ge hk hmin hC hB hBmin)
   | succ d ih =>
@@ -298,10 +285,8 @@ theorem fastCutLaw_hit_prob_ge {n : ℕ} {W₀ : Fin n → Fin n → ℕ}
           exact MeasureTheory.measure_mono fun b (hb : b = minCut W₀) => by
             change min a b = _; rw [hb, min_eq_right (hge a ha)])
     · rw [fastCutLaw_leaf (by omega)]
-      refine le_trans ?_ ((base_survival_ge hk (by omega)).trans
-        (answerLaw_hit_prob_ge hk hmin hC hB hBmin))
-      apply ENNReal.div_le_div_left
-      exact_mod_cast (show 30 ≤ d + 1 + 30 by omega)
+      exact (ENNReal.div_le_div_left (by exact_mod_cast Nat.le_add_left 30 (d + 1)) _).trans
+        ((base_survival_ge hk (by omega)).trans (answerLaw_hit_prob_ge hk hmin hC hB hBmin))
 
 /-- A single root trial finds the minimum cut with probability at least `1 / (log₂ n + 15)`.
 The connectedness hypothesis is the existing positive-minimum-cut condition. -/

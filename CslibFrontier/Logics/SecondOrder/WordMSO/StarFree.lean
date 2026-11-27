@@ -167,17 +167,9 @@ private theorem realize_inWindow (w : Fin ℓ → α) {m n : ℕ} (lo hi : Optio
     (inWindow lo hi x : Formula α m n).Realize w v V ↔
       lowerCut v lo ≤ v x ∧ (v x : ℕ) < upperCut v hi := by
   simp only [inWindow, Formula.realize_and]
-  apply and_congr
-  · cases lo with
-    | none => simp [afterLo, lowerCut]
-    | some l =>
-      simp only [afterLo, Formula.realize_lt, lowerCut, Fin.lt_def]
-      omega
-  · cases hi with
-    | none => simp [upToHi, upperCut]
-    | some h =>
-      simp only [upToHi, Formula.realize_not, Formula.realize_lt, upperCut, Fin.lt_def]
-      omega
+  refine and_congr ?_ ?_
+  · cases lo <;> simp [afterLo, lowerCut]
+  · cases hi <;> simp [upToHi, upperCut]
 
 /-! ### Factors of a word -/
 
@@ -266,8 +258,7 @@ private theorem realize_window (u : List α) : ∀ (e : StarFreeExpression α) {
     · rw [← StarFreeExpression.matchEpsilon_iff e]
       cases e.matchEpsilon
       · simp
-      · simp only [↓reduceIte, true_and]
-        exact realize_window u f lo hi v V h
+      · simpa only [↓reduceIte, true_and] using realize_window u f lo hi v V h
     · rw [realize_window u e _ _ _ V
         (by simp only [lowerCut_liftBound, upperCut_some_last]; omega),
         lowerCut_liftBound, upperCut_some_last]

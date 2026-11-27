@@ -45,19 +45,12 @@ private theorem value_final_alphabet {α : Type} [Fintype α] (e : Fin 7 ≃ α)
     (τ : Leaf L) :
     value (table (fun t s => c (termAt t) (e s))) L 0 arr (leafIndex τ) 0 =
       encodeWith c τ a := by
-  have h := value_final (fun t s => c (termAt t) (e s)) L
-    (fun u => a (fun i => e (u i))) arr harr (fun i => termDigits.symm (τ i))
-  change value (table (fun t s => c (termAt t) (e s))) L 0 arr
-    (finFunctionFinEquiv fun i => termDigits.symm (τ i)) 0 = _
-  rw [h]
-  unfold encodeWith
-  refine Fintype.sum_equiv (Equiv.piCongrRight fun _ : Fin L => e) _ _ ?_
-  intro u
+  rw [leafIndex, value_final (fun t s => c (termAt t) (e s)) L
+    (fun u => a (fun i => e (u i))) arr harr, encodeWith]
+  refine Fintype.sum_equiv (Equiv.piCongrRight fun _ : Fin L => e) _ _ fun u => ?_
   congr 1
-  apply Finset.prod_congr rfl
-  intro i _
-  change c (termDigits (termDigits.symm (τ i))) (e (u i)) = c (τ i) (e (u i))
-  rw [Equiv.apply_symm_apply]
+  refine Finset.prod_congr rfl fun i _ => ?_
+  exact congrFun (congrArg c (termDigits.apply_symm_apply (τ i))) (e (u i))
 
 /-- The flat shared left transform equals the existing `encodingL` on every leaf. -/
 theorem value_final_left {L : ℕ} (a : LeftStr L → ℤ) (arr : ℕ → ℤ)

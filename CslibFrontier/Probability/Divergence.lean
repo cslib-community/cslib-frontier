@@ -87,18 +87,11 @@ variable [MeasurableSpace α] [MeasurableSingletonClass α]
 when its support is contained in the other's support. -/
 theorem toMeasure_absolutelyContinuous_iff [Countable α] {p q : PMF α} :
     p.toMeasure ≪ q.toMeasure ↔ p.support ⊆ q.support := by
-  constructor
-  · intro h a ha
-    by_contra hq
-    have hq0 : q.toMeasure {a} = 0 := by
-      rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton a)]
-      exact (PMF.apply_eq_zero_iff q a).mpr hq
-    have := h hq0
-    rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton a)] at this
-    exact ha this
-  · intro h s hs
-    have hsm : MeasurableSet s := (Set.to_countable s).measurableSet
-    rw [PMF.toMeasure_apply_eq_zero_iff _ hsm] at hs ⊢
+  refine ⟨fun h a ha => by_contra fun hq => ha ?_, fun h s hs => ?_⟩
+  · simpa [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton a)] using
+      h ((PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton a)).trans
+        ((PMF.apply_eq_zero_iff q a).mpr hq))
+  · rw [PMF.toMeasure_apply_eq_zero_iff _ (Set.to_countable s).measurableSet] at hs ⊢
     exact hs.mono_left h
 
 /-- The finite-sum formula for the Kullback–Leibler divergence of finite distributions, in
@@ -108,35 +101,25 @@ theorem toReal_klDiv_toMeasure [Fintype α] {p q : PMF α} (h : p.support ⊆ q.
       ∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal) := by
   have hac := toMeasure_absolutelyContinuous_iff.mpr h
   rw [toReal_klDiv_of_measure_eq hac (by simp)]
-  have hdensity : p.toMeasure = q.toMeasure.withDensity (fun a => p a / q a) := by
-    apply Measure.ext_of_singleton
-    intro a
-    rw [withDensity_apply _ (measurableSet_singleton a), lintegral_singleton,
-      PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton a),
-      PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton a)]
-    by_cases hq : q a = 0
-    · have hp : p a = 0 := by
-        by_contra hp
-        exact (PMF.mem_support_iff q a).mp (h ((PMF.mem_support_iff p a).mpr hp)) hq
-      simp [hp, hq]
-    · exact (ENNReal.div_mul_cancel hq (PMF.apply_ne_top q a)).symm
-  have hrn : p.toMeasure.rnDeriv q.toMeasure =ᵐ[p.toMeasure] fun a => p a / q a := by
-    have h := Measure.rnDeriv_withDensity q.toMeasure
-      (f := fun a => p a / q a) (measurable_of_countable _)
-    rw [← hdensity] at h
-    exact hac.ae_le h
+  have hdensity : p.toMeasure = q.toMeasure.withDensity (fun a => p a / q a) :=
+    Measure.ext_of_singleton fun a => by
+      rw [withDensity_apply _ (measurableSet_singleton a), lintegral_singleton,
+        PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton a),
+        PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton a)]
+      by_cases hq : q a = 0
+      · simp [by_contra fun hp => h hp hq, hq]
+      · exact (ENNReal.div_mul_cancel hq (PMF.apply_ne_top q a)).symm
+  have hrn : p.toMeasure.rnDeriv q.toMeasure =ᵐ[p.toMeasure] fun a => p a / q a :=
+    hac.ae_le (hdensity ▸ Measure.rnDeriv_withDensity q.toMeasure (measurable_of_countable _))
   rw [integral_congr_ae (hrn.mono fun a ha => by rw [llr, ha]), PMF.integral_eq_sum]
   simp [ENNReal.toReal_div]
 
 /-- The divergence of finite distributions is finite exactly when the support of the first is
 contained in the support of the second. -/
 theorem klDiv_toMeasure_ne_top_iff [Finite α] {p q : PMF α} :
-    klDiv p.toMeasure q.toMeasure ≠ ⊤ ↔ p.support ⊆ q.support := by
-  constructor
-  · intro h
-    exact toMeasure_absolutelyContinuous_iff.mp (klDiv_ne_top_iff.mp h).1
-  · intro h
-    exact klDiv_ne_top (toMeasure_absolutelyContinuous_iff.mpr h) Integrable.of_finite
+    klDiv p.toMeasure q.toMeasure ≠ ⊤ ↔ p.support ⊆ q.support :=
+  ⟨fun h => toMeasure_absolutelyContinuous_iff.mp (klDiv_ne_top_iff.mp h).1,
+    fun h => klDiv_ne_top (toMeasure_absolutelyContinuous_iff.mpr h) Integrable.of_finite⟩
 
 /-- The divergence of finite distributions with nested supports, as an extended real. -/
 theorem klDiv_toMeasure_eq_ofReal [Fintype α] {p q : PMF α} (h : p.support ⊆ q.support) :
@@ -223,17 +206,13 @@ theorem entropy_le_logb_card_of_support_subset [Finite α] (p : PMF α) {s : Fin
   let := Fintype.ofFinite α
   obtain ⟨a, ha⟩ := p.support_nonempty
   have hs : s.Nonempty := ⟨a, h ha⟩
-  have hsupport : p.support ⊆ (uniformOfFinset s hs).support := by
-    intro b hb
-    rw [mem_support_uniformOfFinset_iff]
-    exact h hb
-  refine (entropy_le_sum_mul_surprisal hsupport).trans_eq ?_
+  refine (entropy_le_sum_mul_surprisal (q := uniformOfFinset s hs)
+    fun b hb => (mem_support_uniformOfFinset_iff hs b).mpr (h hb)).trans_eq ?_
   have hterm (b : α) : (p b).toReal * surprisal (uniformOfFinset s hs) b =
       (p b).toReal * Real.logb 2 s.card := by
     by_cases hb : p b = 0
     · simp [hb]
-    have hbs : b ∈ s := h ((PMF.mem_support_iff p b).mpr hb)
-    simp [surprisal, hbs, Real.logb_inv]
+    · simp [surprisal, Finset.mem_coe.mp (h hb), Real.logb_inv]
   simp only [hterm, ← Finset.sum_mul, sum_toReal, one_mul]
 
 /-- Entropy is the logarithm of the alphabet size minus the divergence from the uniform
@@ -242,11 +221,8 @@ theorem entropy_eq_logb_card_sub_klDiv [Nonempty α] [MeasurableSpace α]
     [MeasurableSingletonClass α] (p : PMF α) :
     entropy p = Real.logb 2 (Fintype.card α) -
       (klDiv p.toMeasure (PMF.uniformOfFintype α).toMeasure).toReal / Real.log 2 := by
-  have hsupport : p.support ⊆ (PMF.uniformOfFintype α).support := by
-    intro a _
-    simp [PMF.mem_support_iff]
-  rw [toReal_klDiv_toMeasure hsupport, entropy_eq_sum_surprisal]
-  have hcard : (0 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.card_pos
+  rw [toReal_klDiv_toMeasure fun _ _ => by simp [PMF.mem_support_iff], entropy_eq_sum_surprisal]
+  have hcard : (0 : ℝ) < Fintype.card α := mod_cast Fintype.card_pos
   have hterm (a : α) : (p a).toReal * Real.log ((p a).toReal /
       ((PMF.uniformOfFintype α) a).toReal) / Real.log 2 =
         (p a).toReal * Real.logb 2 (Fintype.card α) - (p a).toReal * surprisal p a := by
@@ -319,17 +295,17 @@ variable [Finite α] [Finite β]
 at most its unconditional entropy. -/
 theorem conditionalEntropy_le_entropy_map_snd (joint : PMF (α × β)) :
     conditionalEntropy joint ≤ entropy (joint.map Prod.snd) := by
-  have h := conditionalEntropy_map_fst_ge joint (fun _ => ())
-  rwa [show joint.map (fun pair => ((), pair.2)) = (joint.map Prod.snd).map ((), ·) by
-    rw [PMF.map_comp]; rfl, conditionalEntropy_map_const] at h
+  have hm : joint.map (fun pair => ((), pair.2)) = (joint.map Prod.snd).map ((), ·) := by
+    rw [PMF.map_comp]; rfl
+  simpa only [hm, conditionalEntropy_map_const] using
+    conditionalEntropy_map_fst_ge joint (fun _ => ())
 
 /-- **Subadditivity of entropy**: the joint entropy is at most the sum of the marginal
 entropies ([CoverThomas2006], Theorem 2.6.6 for two variables). -/
 theorem entropy_le_entropy_map_fst_add_entropy_map_snd (joint : PMF (α × β)) :
     entropy joint ≤ entropy (joint.map Prod.fst) + entropy (joint.map Prod.snd) := by
   have h := conditionalEntropy_le_entropy_map_snd joint
-  rw [conditionalEntropy] at h
-  linarith
+  rw [conditionalEntropy] at h; linarith
 
 /-- Subadditivity of entropy is an equality exactly for independent pairs, whose joint law is
 the product of its marginals. -/
@@ -339,22 +315,12 @@ theorem entropy_eq_entropy_map_fst_add_entropy_map_snd_iff (joint : PMF (α × �
   let : MeasurableSpace α := ⊤
   let : MeasurableSpace β := ⊤
   have h := entropy_map_fst_add_entropy_map_snd_sub_entropy joint
-  have hlog : 0 < Real.log 2 := Real.log_pos (by norm_num)
   rw [← toMeasure_bind_pair] at h
-  have hne := klDiv_toMeasure_ne_top_iff (p := joint)
-    (q := (joint.map Prod.fst).bind fun a => (joint.map Prod.snd).map (a, ·))
-  constructor
-  · intro heq
-    have h0 : (klDiv joint.toMeasure ((joint.map Prod.fst).bind
-        fun a => (joint.map Prod.snd).map (a, ·)).toMeasure).toReal = 0 := by
-      rw [show entropy (joint.map Prod.fst) + entropy (joint.map Prod.snd) - entropy joint = 0
-        by linarith, eq_comm, div_eq_zero_iff] at h
-      exact h.resolve_right hlog.ne'
-    have hfin := hne.mpr (support_subset_bind_map_prodMk joint)
-    exact PMF.toMeasure_injective (klDiv_eq_zero_iff.mp (by ennreal_to_real using h0))
-  · intro heq
-    rw [← heq, klDiv_self, ENNReal.toReal_zero, zero_div] at h
-    linarith
+  rw [eq_comm, ← sub_eq_zero, h, div_eq_zero_iff,
+    or_iff_left (Real.log_pos (by norm_num)).ne', ENNReal.toReal_eq_zero_iff,
+    or_iff_left (klDiv_toMeasure_ne_top_iff.mpr (support_subset_bind_map_prodMk joint)),
+    klDiv_eq_zero_iff]
+  exact PMF.toMeasure_injective.eq_iff
 
 end MutualInformation
 
@@ -368,18 +334,17 @@ variable [Fintype α]
 is at most the Kullback–Leibler divergence, in nats. -/
 theorem ofReal_two_mul_dist_sq_le_klDiv [MeasurableSpace α] [MeasurableSingletonClass α]
     (p q : PMF α) : ENNReal.ofReal (2 * dist p q ^ 2) ≤ klDiv p.toMeasure q.toMeasure := by
-  rw [dist_eq_tvDist_toMeasure_div_two,
-    show 2 * (tvDist p.toMeasure q.toMeasure / 2) ^ 2 =
-      tvDist p.toMeasure q.toMeasure ^ 2 / 2 by ring]
+  have hsq : 2 * (tvDist p.toMeasure q.toMeasure / 2) ^ 2 =
+      tvDist p.toMeasure q.toMeasure ^ 2 / 2 := by ring
+  rw [dist_eq_tvDist_toMeasure_div_two, hsq]
   exact ofReal_tvDist_sq_div_two_le_klDiv p.toMeasure q.toMeasure
 
 /-- **Pinsker's inequality** with a finite-sum divergence. -/
 theorem two_mul_dist_sq_le_sum_mul_log_div {p q : PMF α} (h : p.support ⊆ q.support) :
     2 * dist p q ^ 2 ≤ ∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal) := by
   let : MeasurableSpace α := ⊤
-  have hpinsker := ofReal_two_mul_dist_sq_le_klDiv p q
-  rw [klDiv_toMeasure_eq_ofReal h] at hpinsker
-  exact (ENNReal.ofReal_le_ofReal_iff (sum_mul_log_div_nonneg h)).mp hpinsker
+  exact (ENNReal.ofReal_le_ofReal_iff (sum_mul_log_div_nonneg h)).mp
+    (klDiv_toMeasure_eq_ofReal h ▸ ofReal_two_mul_dist_sq_le_klDiv p q)
 
 /-- **Pinsker's inequality** in its usual form: statistical distance is at most
 `sqrt (D(p ‖ q) / 2)`, the divergence in nats. -/
@@ -387,8 +352,7 @@ theorem dist_le_sqrt_toReal_klDiv_div_two [MeasurableSpace α] [MeasurableSingle
     {p q : PMF α} (h : p.support ⊆ q.support) :
     dist p q ≤ Real.sqrt ((klDiv p.toMeasure q.toMeasure).toReal / 2) := by
   rw [toReal_klDiv_toMeasure h]
-  apply Real.le_sqrt_of_sq_le
-  linarith [two_mul_dist_sq_le_sum_mul_log_div h]
+  exact Real.le_sqrt_of_sq_le (by linarith [two_mul_dist_sq_le_sum_mul_log_div h])
 
 end Pinsker
 

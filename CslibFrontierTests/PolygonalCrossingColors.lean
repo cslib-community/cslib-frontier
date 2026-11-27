@@ -8,7 +8,8 @@ module
 -- upstream: local-only (ordinary-import tests for drawings with crossings)
 
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.IntersectionParity
-import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Converse
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Equality
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Equivalence
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -246,19 +247,7 @@ private def rotation : RotationSystem G where
 
 private theorem realizes (odd : Bool) : (drawing odd).Realizes rotation where
   nonzero d := (simple odd d.1).germ_ne_zero d.2
-  directions_injective a b hv he := by
-    let D := drawing odd
-    apply D.segmentEnd_injective
-    apply rayEndVector_injective_of_open_inter_subsingleton D.segmentStart D.segmentFinish
-      (fun i => (simple odd i.1).segment_ne i.2) (regular odd).open_inter_subsingleton
-    · rw [D.segmentEnd_endpoint, D.segmentEnd_endpoint, hv]
-    · rw [D.segmentEnd_vector, D.segmentEnd_vector]
-      have harg : (D.germ a).arg = (D.germ b).arg := Complex.arg_coe_angle_eq_iff.mp he
-      have hsign : (D.germ a).im < 0 ↔ (D.germ b).im < 0 := by
-        rw [← Complex.arg_neg_iff, ← Complex.arg_neg_iff, harg]
-      by_cases h : (D.germ b).im < 0
-      · simp only [turnArg, h, hsign.mpr h, harg, ↓reduceIte]
-      · simp only [turnArg, h, mt hsign.mp h, harg, ↓reduceIte]
+  directions_injective := (regular odd).directions_injective (simple odd)
   clockwise a b c hab hbc hneab hnebc hneac := by
     have tags : ∀ a b : Fin 2 × Bool,
         Dart.vertex (G := G) a = Dart.vertex (G := G) b → a.2 = b.2 := by decide
@@ -392,16 +381,22 @@ private theorem all_selected_even : G.VertexEven (fun _ => true) := by
 -- The even case has a real crossing on each of the two middle zigzag segments.
 example : (openSegment ℝ left right ∩
     openSegment ℝ ((zig false).point (1 : Fin 4).castSucc)
-      ((zig false).point (1 : Fin 4).succ)).Nonempty ∧ rotation.NumericalGenusZero := by
+      ((zig false).point (1 : Fin 4).succ)).Nonempty ∧
+    ∃ E : PolygonalDrawing G, E.IsEmbedding ∧ E.Realizes rotation := by
   refine ⟨(hit_iff false 1).mpr (Or.inr ⟨rfl, rfl⟩), ?_⟩
-  apply (regular false).numericalGenusZero_of_pairwise_even_crossings
-    (simple false) _ (realizes false) (by decide)
-  intro e f h
-  fin_cases e <;> fin_cases f
-  · exact (h rfl).elim
-  · exact crossing_parity false
-  · exact (Route.intersectionParity_symm _ _).trans (crossing_parity false)
-  · exact (h rfl).elim
+  have heven : ∀ e f, e ≠ f →
+      ((drawing false).route e).intersectionParity ((drawing false).route f) = false := by
+    intro e f h
+    fin_cases e <;> fin_cases f
+    · exact (h rfl).elim
+    · exact crossing_parity false
+    · exact (Route.intersectionParity_symm _ _).trans (crossing_parity false)
+    · exact (h rfl).elim
+  obtain ⟨r, hr, E, hE, hEr⟩ :=
+    (regular false).exists_embedding_of_pairwise_even_crossings (simple false) heven (by decide)
+  have heq : r = rotation :=
+    RotationSystem.ext_rotate (Equiv.ext fun d => hr.rotate_eq (realizes false) d)
+  exact ⟨E, hE, heq ▸ hEr⟩
 
 -- The single crossing in the odd case cancels the selected straight edge's label.
 example :

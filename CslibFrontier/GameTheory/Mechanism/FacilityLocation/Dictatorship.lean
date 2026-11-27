@@ -90,14 +90,11 @@ theorem dictatorship_isGroupStrategyProof [DecidableEq ι] (i₀ : ι) :
   · have hzero : dist (x i₀) (A.piecewise z x i₀) = 0 :=
       le_antisymm (by simpa only [dist_self] using hle i₀ hi) dist_nonneg
     have htri : dist (x j) (x i₀) ≤ dist (x j) (A.piecewise z x i₀) := by
-      calc dist (x j) (x i₀)
-          ≤ dist (x j) (A.piecewise z x i₀) + dist (A.piecewise z x i₀) (x i₀) :=
-            dist_triangle _ _ _
-        _ = dist (x j) (A.piecewise z x i₀) := by
-            rw [dist_comm (A.piecewise z x i₀) (x i₀), hzero, add_zero]
+      simpa only [dist_comm _ (x i₀), hzero, add_zero] using
+        dist_triangle (x j) (A.piecewise z x i₀) (x i₀)
     exact hlt.not_ge htri
   · rw [Finset.piecewise_eq_of_notMem _ _ _ hi] at hlt
-    exact (lt_irrefl _ hlt)
+    exact lt_irrefl _ hlt
 
 theorem dictatorship_isStrategyProof [DecidableEq ι] (i₀ : ι) :
     (dictatorship (G := G) i₀).IsStrategyProof :=
@@ -111,23 +108,17 @@ theorem socialCost_self_le [Fintype ι] (i : ι) (x : ι → G) (y : G) :
     socialCost x (x i) ≤ socialCost x y + ((Fintype.card ι : ℝ) - 2) * dist (x i) y := by
   classical
   have hi : i ∈ (Finset.univ : Finset ι) := Finset.mem_univ i
-  have hsum : socialCost x (x i) = ∑ j ∈ Finset.univ.erase i, dist (x j) (x i) := by
-    rw [socialCost, ← Finset.add_sum_erase _ _ hi, dist_self, zero_add]
-  have htri : ∑ j ∈ Finset.univ.erase i, dist (x j) (x i) ≤
-      ∑ j ∈ Finset.univ.erase i, (dist (x j) y + dist (x i) y) :=
-    Finset.sum_le_sum fun j _ => by
-      rw [dist_comm (x i) y]
-      exact dist_triangle (x j) y (x i)
   have hcard : ((Finset.univ.erase i : Finset ι).card : ℝ) = (Fintype.card ι : ℝ) - 1 := by
-    have hpos : 1 ≤ Fintype.card ι := Fintype.card_pos_iff.2 ⟨i⟩
-    rw [Finset.card_erase_of_mem hi, Finset.card_univ, Nat.cast_sub hpos, Nat.cast_one]
-  have hrest : ∑ j ∈ Finset.univ.erase i, dist (x j) y = socialCost x y - dist (x i) y := by
-    rw [socialCost, Finset.sum_erase_eq_sub hi]
-  rw [hsum]
-  calc ∑ j ∈ Finset.univ.erase i, dist (x j) (x i)
-      ≤ ∑ j ∈ Finset.univ.erase i, (dist (x j) y + dist (x i) y) := htri
+    rw [Finset.card_erase_of_mem hi, Finset.card_univ, Nat.cast_sub (Fintype.card_pos_iff.2 ⟨i⟩),
+      Nat.cast_one]
+  calc socialCost x (x i)
+      = ∑ j ∈ Finset.univ.erase i, dist (x j) (x i) := by
+        rw [socialCost, ← Finset.add_sum_erase _ _ hi, dist_self, zero_add]
+    _ ≤ ∑ j ∈ Finset.univ.erase i, (dist (x j) y + dist (x i) y) :=
+        Finset.sum_le_sum fun j _ => dist_comm (x i) y ▸ dist_triangle (x j) y (x i)
     _ = (socialCost x y - dist (x i) y) + ((Fintype.card ι : ℝ) - 1) * dist (x i) y := by
-        rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, hcard, hrest]
+        rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, hcard, socialCost,
+          Finset.sum_erase_eq_sub hi]
     _ = socialCost x y + ((Fintype.card ι : ℝ) - 2) * dist (x i) y := by ring
 
 omit [MeasurableSpace G] [OpensMeasurableSpace G] in
@@ -140,15 +131,8 @@ theorem socialCost_dictatorship_le [Fintype ι] (i₀ : ι) (x : ι → G) (y : 
     linarith [le_max_left (1 : ℝ) ((Fintype.card ι : ℝ) - 1)]
   have hle : dist (x i₀) y ≤ socialCost x y :=
     Finset.single_le_sum (fun _ _ => dist_nonneg) (Finset.mem_univ i₀)
-  calc socialCost x (x i₀)
-      ≤ socialCost x y + ((Fintype.card ι : ℝ) - 2) * dist (x i₀) y := socialCost_self_le i₀ x y
-    _ ≤ socialCost x y + (α - 1) * dist (x i₀) y := by
-        have : ((Fintype.card ι : ℝ) - 2) * dist (x i₀) y ≤ (α - 1) * dist (x i₀) y := by gcongr
-        linarith
-    _ ≤ socialCost x y + (α - 1) * socialCost x y := by
-        have : (α - 1) * dist (x i₀) y ≤ (α - 1) * socialCost x y := by gcongr
-        linarith
-    _ = α * socialCost x y := by ring
+  have hself := socialCost_self_le i₀ x y
+  nlinarith [dist_nonneg (x := x i₀) (y := y)]
 
 theorem dictatorship_hasApproxRatio [Fintype ι] [Nonempty G] (i₀ : ι) :
     (dictatorship (G := G) i₀).HasApproxRatio (max 1 ((Fintype.card ι : ℝ) - 1)) := by
@@ -161,19 +145,15 @@ theorem dictatorship_hasApproxRatio [Fintype ι] [Nonempty G] (i₀ : ι) :
 theorem dictatorship_hasApproxRatio_one [Fintype ι] [Subsingleton ι] [Nonempty G] (i₀ : ι) :
     (dictatorship (G := G) i₀).HasApproxRatio 1 := by
   have := uniqueOfSubsingleton i₀
-  have hcard : Fintype.card ι = 1 := Fintype.card_unique
-  have hmax : max 1 ((Fintype.card ι : ℝ) - 1) = 1 := by
-    rw [hcard]
-    norm_num
-  exact hmax ▸ dictatorship_hasApproxRatio i₀
+  simpa only [Fintype.card_unique, Nat.cast_one, sub_self, max_eq_left zero_le_one] using
+    dictatorship_hasApproxRatio (G := G) i₀
 
 theorem dictatorship_hasApproxRatio_card_sub_one [Fintype ι] [Nonempty G]
     (hcard : 2 ≤ Fintype.card ι) (i₀ : ι) :
     (dictatorship (G := G) i₀).HasApproxRatio ((Fintype.card ι : ℝ) - 1) := by
   have h2 : (2 : ℝ) ≤ Fintype.card ι := by exact_mod_cast hcard
-  have hmax : max 1 ((Fintype.card ι : ℝ) - 1) = (Fintype.card ι : ℝ) - 1 :=
-    max_eq_right (by linarith)
-  exact hmax ▸ dictatorship_hasApproxRatio i₀
+  simpa only [max_eq_right (by linarith : (1 : ℝ) ≤ Fintype.card ι - 1)] using
+    dictatorship_hasApproxRatio (G := G) i₀
 
 end Dictatorship
 
@@ -240,29 +220,22 @@ theorem randomDictatorship_hasApproxRatio :
     optSocialECost_eq_ofReal_optSocialCost, ← ENNReal.ofReal_mul hratio,
     ENNReal.ofReal_le_ofReal_iff (mul_nonneg hratio (optSocialCost_nonneg x))]
   refine le_mul_optSocialCost hratio fun y => ?_
-  rw [expectedSocialCost_randomDictatorship, div_le_iff₀ hpos]
-  have hsum : ∑ i, ∑ j, dist (x i) (x j) = ∑ j, socialCost x (x j) := Finset.sum_comm
-  have htri : ∑ j, socialCost x (x j) ≤ (2 * (Fintype.card ι : ℝ) - 2) * socialCost x y := by
-    calc ∑ j, socialCost x (x j)
-        ≤ ∑ j, (socialCost x y + ((Fintype.card ι : ℝ) - 2) * dist (x j) y) :=
-          Finset.sum_le_sum fun j _ => socialCost_self_le j x y
-      _ = (Fintype.card ι : ℝ) * socialCost x y +
-            ((Fintype.card ι : ℝ) - 2) * socialCost x y := by
-          rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
-            ← Finset.mul_sum, socialCost]
-      _ = (2 * (Fintype.card ι : ℝ) - 2) * socialCost x y := by ring
-  rw [hsum]
-  refine htri.trans_eq ?_
-  field_simp [hpos.ne']
+  rw [expectedSocialCost_randomDictatorship, div_le_iff₀ hpos, Finset.sum_comm]
+  calc ∑ j, socialCost x (x j)
+      ≤ ∑ j, (socialCost x y + ((Fintype.card ι : ℝ) - 2) * dist (x j) y) :=
+        Finset.sum_le_sum fun j _ => socialCost_self_le j x y
+    _ = (Fintype.card ι : ℝ) * socialCost x y +
+          ((Fintype.card ι : ℝ) - 2) * socialCost x y := by
+        rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
+          ← Finset.mul_sum, socialCost]
+    _ = (2 - 2 / (Fintype.card ι : ℝ)) * socialCost x y * Fintype.card ι := by
+        field_simp [hpos.ne']
+        ring
 
 /-- Random dictatorship is `2`-approximate for social cost on every pseudometric space. -/
 theorem randomDictatorship_hasApproxRatio_two :
-    (randomDictatorship (ι := ι) (G := G)).HasApproxRatio 2 := by
-  have hpos : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.2 Fintype.card_pos
-  have hle : 2 - 2 / (Fintype.card ι : ℝ) ≤ 2 := by
-    have : 0 ≤ 2 / (Fintype.card ι : ℝ) := by positivity
-    linarith
-  exact randomDictatorship_hasApproxRatio.mono hle
+    (randomDictatorship (ι := ι) (G := G)).HasApproxRatio 2 :=
+  randomDictatorship_hasApproxRatio.mono (sub_le_self 2 (by positivity))
 
 end RandomDictatorship
 
