@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
 public import CslibFrontier.Computability.Complexity.FineGrained.Randomized
 import CslibFrontier.Computability.Complexity.FineGrained.Bounds
+import CslibFrontier.Computability.Complexity.FineGrained.Padding
 
 /-!
 # Randomized time bounds with a power in the exponent
@@ -28,6 +29,8 @@ encoded-length factors as the deterministic bound.
   bound for a language agrees with deterministic decidability.
 * `Cslib.Complexity.SolvesWithErrorInPowerExpTime.of_promiseReduction`: transfer the power
   bound through a deterministic promise reduction.
+* `Cslib.Complexity.SolvesWithErrorInPowerExpTime.of_seededVerifier`: allocate a unary seed
+  when the verifier's error guarantees hold at every length above a power-exponential bound.
 -/
 
 public section
@@ -52,6 +55,86 @@ theorem SolvesWithErrorInPowerExpTime.mono_error {Q : PromiseProblem α} {E₁ E
     SolvesWithErrorInPowerExpTime Q enc E₂ μ p := by
   obtain ⟨C, e, h⟩ := h
   exact ⟨C, e, h.mono_error hE⟩
+
+/-- A verifier whose error guarantees hold at every seed length above a power-exponential
+threshold yields a seeded solver. The chosen seed length is computable in unary, and the
+solver accounts for generating it and running on the full framed input at a power below one. -/
+theorem SolvesWithErrorInPowerExpTime.of_seededVerifier {Q : PromiseProblem α} {E : ErrorModel}
+    (hμ : ComputableInPolyTime μ enc encUnary) (hp : p < 1) {V : α × List Bool → Bool}
+    (hV : ComputableInPowerExpTime V (encPair enc encBits) encBool (μ ∘ Prod.fst) p)
+    (A e : ℕ)
+    (hyes : ∀ a ∈ Q.yes, ∀ n : ℕ,
+      (2 : ℝ) ^ (A * (μ a + 1 : ℝ) ^ p) * ((enc a).length + 1) ^ e ≤ n →
+      (acceptCount (fun x => !V x) a n : ℝ) ≤ E.yesErr * (2 : ℝ) ^ n)
+    (hno : ∀ a ∈ Q.no, ∀ n : ℕ,
+      (2 : ℝ) ^ (A * (μ a + 1 : ℝ) ^ p) * ((enc a).length + 1) ^ e ≤ n →
+      (acceptCount V a n : ℝ) ≤ E.noErr * (2 : ℝ) ^ n) :
+    ∃ q : ℝ, p < q ∧ 0 < q ∧ q < 1 ∧ SolvesWithErrorInPowerExpTime Q enc E μ q := by
+  obtain ⟨q, ℓ, hpq, hq₀, hq₁, ⟨C, d, hℓ⟩, hwidth⟩ :=
+    exists_computableInPowerExpTime_unary_majorant hμ hp A e
+  obtain ⟨tℓ, c, hℓ, htℓ⟩ := hℓ.exists_computableInO
+  obtain ⟨l, hlen⟩ := hℓ.length_le_time
+  obtain ⟨D, f, hV⟩ := hV
+  obtain ⟨tV, k, hV, htV⟩ := hV.exists_computableInO
+  let d' := max d 1
+  let P (a : α) : ℝ := 2 ^ (C * (μ a + 1 : ℝ) ^ q) * ((enc a).length + 1) ^ d'
+  let X (a : α) : ℝ := 2 ^ (D * (μ a + 1 : ℝ) ^ p)
+  let K := 2 * c + 1
+  let J := l * K + 3
+  let M := 1 + k * (2 * J + 1) ^ f + k
+  refine ⟨q, hpq, hq₀, hq₁, ⌈(D : ℝ)⌉₊ + C * (f + 1), d' * (f + 1),
+    ℓ, V, tℓ, tℓ, tV, tV, K + M, hℓ, hV, ?_,
+    fun a ha => hyes a ha (ℓ a) (hwidth a), fun a ha => hno a ha (ℓ a) (hwidth a)⟩
+  intro a w hw
+  have hP : ((enc a).length + 1 : ℝ) ≤ P a := by
+    simpa only [pow_one] using pow_le_two_rpow_mul_pow (L := (enc a).length) (d := 1)
+      (x := C * (μ a + 1 : ℝ) ^ q) (by positivity) (le_max_right d 1)
+  have hP₁ : 1 ≤ P a := (le_add_of_nonneg_left (Nat.cast_nonneg _)).trans hP
+  have hX₁ : 1 ≤ X a := Real.one_le_rpow one_le_two (by positivity)
+  have ht : (tℓ a : ℝ) ≤ (2 * c : ℝ) * P a :=
+    le_two_mul_mul_of_le_mul_add (htℓ a)
+      (two_rpow_mul_pow_le_two_rpow_mul_pow le_rfl (le_max_left d 1)) hP₁
+  have hstart : ((enc a).length : ℝ) + tℓ a ≤ K * P a := by
+    rw [show (K : ℝ) = 2 * c + 1 by simp [K]]
+    linarith
+  have hseed : (w.length : ℝ) ≤ l * ((tℓ a : ℝ) + 1) := by
+    rw [hw]
+    have h := hlen a
+    rw [encUnary_apply, List.length_replicate] at h
+    exact_mod_cast h
+  have hframe : ((encPair enc encBits (a, w)).length : ℝ) ≤ J * (P a + 1) := by
+    have hK : (1 : ℝ) ≤ K := by exact_mod_cast (show 1 ≤ K by dsimp only [K]; omega)
+    have hseed' : (w.length : ℝ) ≤ l * (K * (P a + 1)) :=
+      hseed.trans (mul_le_mul_of_nonneg_left
+        (by linarith [show (0 : ℝ) ≤ (enc a).length from Nat.cast_nonneg _]) (Nat.cast_nonneg l))
+    have hprefix : 2 * ((enc a).length : ℝ) + 1 ≤ 3 * (P a + 1) := by linarith
+    simp only [length_encPair, encBits_apply, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat,
+      Nat.cast_one]
+    refine (add_le_add hprefix hseed').trans_eq ?_
+    simp only [J, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat]
+    ring
+  have hverifier := reduction_add_time_le hP₁ hX₁ (C := 1) zero_le_one hframe
+    (show X a ≤ 1 * X a by rw [one_mul]) (htV (a, w))
+  have hstep : (tV (a, w) : ℝ) ≤ M * (X a * P a ^ (f + 1)) := by
+    have hMv : (M : ℝ) = 1 + k * (2 * J + 1 : ℝ) ^ f + k := by
+      simp [M]
+    rw [hMv]
+    rw [mul_one] at hverifier
+    linarith
+  have hlarge : P a ≤ X a * P a ^ (f + 1) :=
+    (le_self_pow₀ hP₁ (Nat.succ_ne_zero f)).trans
+      (le_mul_of_one_le_left (by positivity) hX₁)
+  have hwork : ((enc a).length : ℝ) + tℓ a + tV (a, w) ≤
+      (K + M : ℕ) * (X a * P a ^ (f + 1)) := by
+    rw [Nat.cast_add]
+    linarith [mul_le_mul_of_nonneg_left hlarge (Nat.cast_nonneg K)]
+  have henv := power_reduction_envelope_le (C := C) (d := d') (e := f)
+    (x := (μ a + 1 : ℝ)) (y := ((enc a).length + 1 : ℝ)) (R := (D : ℝ))
+    (q := q) (r := p) (le_add_of_nonneg_left (Nat.cast_nonneg _))
+    (by positivity) (Nat.cast_nonneg D)
+  rw [max_eq_left hpq.le] at henv
+  exact (hwork.trans (mul_le_mul_of_nonneg_left henv (Nat.cast_nonneg (K + M)))).trans
+    (le_add_of_nonneg_right (Nat.cast_nonneg (K + M)))
 
 /-- Zero-error seeded solvers of a language and deterministic deciders have the same power
 bound. The polynomial factor can absorb the cost of reading the encoded input. -/

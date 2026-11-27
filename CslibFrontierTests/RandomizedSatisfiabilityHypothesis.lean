@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Computability.Complexity.FineGrained.RandomizedSatisfiabilityHypothesis
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-! Exercise the randomized SH interface at power `1 / 2` from an ordinary module client. -/
 
@@ -85,3 +86,42 @@ example :
   have h := herr 1 true (ε := 0) le_rfl (by norm_num) (by simp)
   simp only [pow_one, pow_zero, mul_zero, zero_mul] at h
   exact Nat.eq_zero_of_le_zero (by exact_mod_cast h)
+
+-- A verifier deliberately gets both answers wrong on the empty seed and is exact thereafter.
+example : ∃ q : ℝ, 1 / 2 < q ∧ 0 < q ∧ q < 1 ∧
+    SolvesWithErrorInPowerExpTime (ofSet ({true} : Set Bool)) encBool ErrorModel.bounded
+      (fun _ => 0) q := by
+  let V (p : Bool × List Bool) := p.1 ^^ p.2.isEmpty
+  have hV : ComputableInPolyTime V (encPair encBool encBits) encBool :=
+    ComputableInPolyTime.bool_xor.comp ((ComputableInPolyTime.fst _ _).prod
+      (ComputableInPolyTime.bitsIsEmpty.comp (ComputableInPolyTime.snd _ _)))
+  obtain ⟨d, htime⟩ := ComputableInExpTime.of_computableInPolyTime
+    (μ := fun _ => 0) hV
+  have hpower : ComputableInPowerExpTime V (encPair encBool encBits) encBool
+      ((fun _ : Bool => 0) ∘ Prod.fst) (1 / 2) :=
+    ⟨0, d, by simpa only [Nat.cast_zero, zero_mul] using htime⟩
+  have hcount (a : Bool) {n : ℕ} (hn : n ≠ 0) (w : Fin n → Bool) :
+      V (a, List.ofFn w) = a := by
+    cases hs : List.ofFn w with
+    | nil => exact (hn (by simpa only [List.length_nil, List.length_ofFn] using
+        (congrArg List.length hs))).elim
+    | cons => simp [V]
+  refine SolvesWithErrorInPowerExpTime.of_seededVerifier (Q := ofSet ({true} : Set Bool))
+    (E := ErrorModel.bounded) (ComputableInPolyTime.const 0) (by norm_num) hpower 0 0
+    (fun a ha n hn => ?_) (fun a ha n hn => ?_)
+  · have ha' : a = true := Set.mem_singleton_iff.mp ha
+    have hn' : n ≠ 0 := by
+      intro h
+      subst n
+      norm_num at hn
+    rw [acceptCount_eq_zero_iff.mpr fun w => by
+      change (!V (a, List.ofFn w)) = false
+      rw [hcount a hn' w, ha', Bool.not_true]]
+    norm_num [ErrorModel.bounded, ErrorModel.twoSided]
+  · have ha' : a = false := Bool.eq_false_of_not_eq_true (fun h => ha (Set.mem_singleton_iff.mpr h))
+    have hn' : n ≠ 0 := by
+      intro h
+      subst n
+      norm_num at hn
+    rw [acceptCount_eq_zero_iff.mpr fun w => (hcount a hn' w).trans ha']
+    norm_num [ErrorModel.bounded, ErrorModel.twoSided]
