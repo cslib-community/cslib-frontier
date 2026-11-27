@@ -87,6 +87,13 @@ every consistent initial state (`IndexOneDecoupling.exists_isSolutionOn_Ici_iff`
   stable, so is every equilibrium of `S`.
 * `DescriptorSystem.IndexOneDecoupling.A_ofSchur`, `Q₁'_ofSchur`: the state matrix
   `E₁₁⁻¹ (F₁₁ - F₁₂ K)` and the differential coordinates of the Schur-form decoupling.
+* `DescriptorSystem.IndexOneDecoupling.P₁_ofSchur`, `P₂_ofSchur`, `Q₁_ofSchur`, `Q₂_ofSchur`: the
+  blocks `P₁ = E₁₁⁻¹ (T₁ - F₁₂ F₂₂⁻¹ T₂)`, `P₂ = F₂₂⁻¹ T₂`, `Q₁ = U₁ - U₂ K` and `Q₂ = U₂` of the
+  Schur-form decoupling, where `T₁`, `T₂` are the row blocks of `T` and `U₁`, `U₂` the column
+  blocks of `U`.
+* `DescriptorSystem.IndexOneDecoupling.P₂_G_B_ofSchur`: solutions `W`, `B` of
+  `F₂₂ W = T₂ G` and `E₁₁ B = T₁ G - F₁₂ W` are `P₂ G` and the input matrix `P₁ G`, so these
+  can be checked without inverting `E₁₁` or `F₂₂`.
 -/
 
 public section
@@ -645,6 +652,71 @@ theorem Q₁'_ofSchur (e : ι ≃ κ ⊕ ρ) (T : Matrix (κ ⊕ ρ) ι ℝ)
     (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).Q₁' = Uᵢ.toRows₁ := by
   ext i j
   simp [ofSchur, ofPartitioned, Matrix.mul_apply, Fintype.sum_sum_type, Matrix.one_apply]
+
+section Schur
+
+variable (e : ι ≃ κ ⊕ ρ) (T : Matrix (κ ⊕ ρ) ι ℝ) (Tᵢ : Matrix ι (κ ⊕ ρ) ℝ) (U : Matrix ι (κ ⊕ ρ) ℝ)
+  (Uᵢ : Matrix (κ ⊕ ρ) ι ℝ) (E₁₁ F₁₁ : Matrix κ κ ℝ) (F₁₂ : Matrix κ ρ ℝ) (F₂₁ K : Matrix ρ κ ℝ)
+  (F₂₂ : Matrix ρ ρ ℝ) (hT : Tᵢ * T = 1) (hU : U * Uᵢ = 1)
+  (hE : T * S.E * U = fromBlocks E₁₁ 0 0 0) (hF : T * S.F * U = fromBlocks F₁₁ F₁₂ F₂₁ F₂₂)
+  (hE₁₁ : IsUnit E₁₁.det) (hF₂₂ : IsUnit F₂₂.det) (hK : F₂₂ * K = F₂₁)
+
+omit [Fintype m] in
+/-- The differential rows of `P` in the Schur-form decoupling. -/
+theorem P₁_ofSchur :
+    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).P₁ =
+      E₁₁⁻¹ * (T.toRows₁ - F₁₂ * F₂₂⁻¹ * T.toRows₂) := by
+  have h : (fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ * T).toRows₁ =
+      fromCols E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) * fromRows T.toRows₁ T.toRows₂ := by
+    rw [fromRows_toRows]
+    ext i j
+    simp [toRows₁_apply, Matrix.mul_apply, Fintype.sum_sum_type]
+  refine h.trans ?_
+  rw [fromCols_mul_fromRows, Matrix.mul_sub, ← Matrix.mul_assoc, ← Matrix.mul_assoc,
+    Matrix.neg_mul, ← sub_eq_add_neg]
+
+omit [Fintype m] in
+/-- The algebraic rows of `P` in the Schur-form decoupling. -/
+theorem P₂_ofSchur :
+    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).P₂ =
+      F₂₂⁻¹ * T.toRows₂ := by
+  ext i j
+  simp [ofSchur, ofPartitioned, toRows₂_apply, Matrix.mul_apply, Fintype.sum_sum_type]
+
+omit [Fintype m] in
+/-- The differential columns of `Q` in the Schur-form decoupling. -/
+theorem Q₁_ofSchur :
+    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).Q₁ =
+      U.toCols₁ - U.toCols₂ * K := by
+  ext i j
+  simp [ofSchur, ofPartitioned, toCols₁_apply, toCols₂_apply, Matrix.mul_apply,
+    Fintype.sum_sum_type, Matrix.one_apply, sub_eq_add_neg]
+
+omit [Fintype m] in
+/-- The algebraic columns of `Q` in the Schur-form decoupling. -/
+theorem Q₂_ofSchur :
+    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).Q₂ = U.toCols₂ := by
+  ext i j
+  simp [ofSchur, ofPartitioned, toCols₂_apply, Matrix.mul_apply, Fintype.sum_sum_type,
+    Matrix.one_apply]
+
+omit [Fintype m] in
+/-- **Input maps of the Schur-form decoupling from solutions.** If `F₂₂ W = T₂ G` and
+`E₁₁ B = T₁ G - F₁₂ W`, then `P₂ G = W` and the input matrix `P₁ G` of the reduced system is
+`B`. -/
+theorem P₂_G_B_ofSchur {W : Matrix ρ m ℝ} {B : Matrix κ m ℝ}
+    (hW : F₂₂ * W = T.toRows₂ * S.G) (hB : E₁₁ * B = T.toRows₁ * S.G - F₁₂ * W) :
+    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).P₂ * S.G = W ∧
+      (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).B = B := by
+  have hW' : F₂₂⁻¹ * (T.toRows₂ * S.G) = W := by
+    rw [← hW, ← Matrix.mul_assoc, nonsing_inv_mul _ hF₂₂, Matrix.one_mul]
+  refine ⟨by rw [P₂_ofSchur, Matrix.mul_assoc, hW'], ?_⟩
+  rw [IndexOneDecoupling.B, P₁_ofSchur, Matrix.mul_assoc, Matrix.sub_mul,
+    show F₁₂ * F₂₂⁻¹ * T.toRows₂ * S.G = F₁₂ * (F₂₂⁻¹ * (T.toRows₂ * S.G)) by
+      simp only [Matrix.mul_assoc],
+    hW', ← hB, ← Matrix.mul_assoc, nonsing_inv_mul _ hE₁₁, Matrix.one_mul]
+
+end Schur
 
 end IndexOneDecoupling
 
