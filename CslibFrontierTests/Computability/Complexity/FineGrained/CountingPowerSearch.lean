@@ -42,6 +42,51 @@ open Cslib.Complexity Cslib.Complexity.CountingSparsify
 open Cslib.Complexity.SubexponentialSAT (interpolationScale)
 open Turing.MultiTapeTM
 
+/-- The same seeded machine rejects an out-of-range literal and satisfies the shared-seed
+error inequality on a valid empty formula, with one erroneous bit out of two at each leaf. -/
+example :
+    ∃ (verify : DeclaredCNF × List Bool → Bool) (T S : DeclaredCNF × List Bool → ℕ),
+      ComputableInO verify (encPair encDeclaredCNF encBits) encBool T S ∧
+      verify (⟨0, [[(0, true)]]⟩, []) = false ∧
+      (acceptCount (fun p => verify p != decide (0 < p.1.formula.modelCount))
+        ⟨0, []⟩ 2 : ℝ) ≤ 4 := by
+  let allowance (p : DeclaredCNF × List Bool) :=
+    let a := p.1
+    let M := countingThresholdBase 2 (countingPowerBudget 2 a.numVars)
+    100 * (a.numVars + p.2.length + nodeBound 2 (countingDepthCoeff 2 M) a.formula + 1)
+  have hV := (ComputableInO.of_linear
+    (ListEncoding.headD (enc := encBits) (enc₁ := encBool) true)).comp_linear
+      (ComputableInO.snd encDeclaredCNF encBits)
+  obtain ⟨verify, T, S, _, _, hverify, _, hreject, herror⟩ :=
+    exists_computableInO_seededSearch_powerBudget (k := 2) (d := 2)
+      le_rfl (by decide) (R := allowance) (Q := allowance)
+      (ComputableInO.constZero (encIn := encDeclaredCNF) (encMid := encUnary) 1) hV (by
+        intro seed a ψ
+        dsimp only
+        intro _ _ _ _ hlen
+        have hdecl : encDeclaredCNF ⟨a.numVars, ψ⟩ = encPair encUnary encCNF (a.numVars, ψ) := rfl
+        have hseed : (seed.take 1).length ≤ seed.length := List.length_take_le' ..
+        dsimp only [allowance]
+        simp only [hdecl, length_encPair, encBits_apply, encUnary_apply, List.length_replicate]
+        constructor <;> omega)
+  have hleaf (a : DeclaredCNF) :
+      acceptCount (fun p => p.2.headD true != decide (0 < p.1.formula.modelCount)) a 1 = 1 := by
+    have hbit (answer : Bool) :
+        acceptCount (fun p : Unit × List Bool => p.2.headD true != answer) () 1 = 1 := by
+      cases answer <;> decide
+    exact hbit (decide (0 < a.formula.modelCount))
+  have hvalid := herror ⟨0, []⟩ 2 (1 / 2) (by norm_num) (by decide) (by
+    intro ψ
+    dsimp only
+    intro _ _ _ _ _ _
+    refine ⟨by decide, ?_⟩
+    simp only [Function.comp_apply, hleaf]
+    norm_num)
+  refine ⟨verify, T, S, hverify, hreject (⟨0, [[(0, true)]]⟩, []) (by decide), ?_⟩
+  have hvars : CNF.numVars ([] : CNF ℕ) = 0 := by decide
+  simpa only [hvars, Nat.zero_div, Nat.zero_add, pow_one, show (2 : ℝ) * (1 / 2 * 2 ^ 2) = 4 by
+    norm_num] using hvalid
+
 private abbrev Input := Unit × ℕ × CNF ℕ
 private abbrev encInput := encPair encUnit (encPair encUnary encCNF)
 private abbrev encLeaf := encPair (encPair encUnit encUnary) encCNF

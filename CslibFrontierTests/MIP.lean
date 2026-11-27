@@ -7,10 +7,12 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Complexity.Classes.IP.GraphNonIsomorphism
 import CslibFrontier.Computability.Complexity.Classes.IP.Shamir
 import CslibFrontier.Computability.Complexity.Classes.MIP
-import CslibFrontier.Computability.Complexity.Classes.MIP.LineTest
+import CslibFrontier.Languages.Probabilistic.UniformNat
+import CslibFrontier.Computability.Complexity.Classes.MIP.Correction
+import CslibFrontier.Computability.Complexity.Problems.NEXPBoundedAcceptance
 
 /-! Multiprover interactive proofs (`MIP₂` and `MIP`), non-communicating provers, deterministic
-prover optimality, transcript consistency, the upper bound `MIP ⊆ NEXP`,
+prover optimality, transcript consistency, the characterization `MIP₂ = NEXP`,
 and consistency checks
 for proof-oracle verifiers. -/
 
@@ -97,6 +99,15 @@ example : {b : Bool | b = true} ∈ PCPPoly encBool := by
   · intro b hb π
     cases b <;> simp_all [acceptProb, Prover.run_pure, PMF.pure_apply]
 
+-- A verifier accepting with probability three quarters falls below one half in four repetitions.
+example (π : List Bool → Bool) :
+    acceptProb (sequentialRepeat 4 (ProbOracleComp.sample (ProbComp.sampleDyadicCoin 3 3)))
+      (Prover.ofProof (Operation := Unit) π) = 81 / 256 := by
+  rw [acceptProb_sequentialRepeat_ofProof, acceptProb, Prover.run_sample, PMF.map_comp]
+  change ((ProbComp.eval (ProbComp.sampleDyadicCoin 3 3)).map id true) ^ 4 = _
+  rw [PMF.map_id, ProbComp.eval_sampleDyadicCoin_true, show dyadicSize 3 = 4 from by decide]
+  norm_num [ENNReal.div_pow]
+
 -- The unique index selected by zero coin flips never encounters a query.
 example (P : Fin 2 → Prover Unit) :
     acceptProb (Oracularize.roundBits (pure true) 0) (Prover.independent P) = 1 := by
@@ -152,5 +163,31 @@ example :
     tsum_fintype, Fin.sum_univ_succ]
   norm_num [div_eq_mul_inv, two_mul, Fin.sum_univ_succ]
   ring
+
+section
+
+open Cslib.Complexity.MIP
+
+private def correctionProof (q : List Bool) : Bool :=
+  decide (q ∈ [encPair encBits encNat (correctionKey [0] [0], 2),
+    encPair encBits encNat (pointTableKey [0], 1),
+    encPair encBits encNat (pointTableKey [0], 2)])
+
+-- At direction zero both point queries use the same address. Its binary value six
+-- represents one over F₅, so the constant-one polynomial is accepted.
+example : (Prover.ofProof correctionProof).run (correctAt 5 1 [0] [0]) () =
+    PMF.pure (some 1, ()) := by
+  let : Fact (Nat.Prime 5) := ⟨by decide⟩
+  let z : Fin 1 → ZMod 5 := fun _ => 0
+  have h := run_correctAt correctionProof z z
+  have ha : correctionAnswer correctionProof z z = some 1 := by decide
+  simpa only [ha, show (List.ofFn fun j => (z j).val) = [0] by decide] using h
+
+end
+
+-- The native NEXP-complete bounded machine acceptance problem has a two-prover protocol
+-- on its original encoding, including the binary clock.
+example : NEXPBoundedAcceptance ∈ MIP₂ encNEXPBoundedAcceptanceInstance :=
+  NEXP_subset_MIP₂ NEXPBoundedAcceptance.mem_NEXP
 
 end CslibFrontierTests.MIP

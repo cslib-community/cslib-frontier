@@ -42,6 +42,7 @@ import CslibFrontierResults.Registry
 import CslibFrontierResults.Entries.PolynomialHashing
 import CslibFrontierResults.Entries.ODonnellPTFSparsity
 import CslibFrontierResults.Entries.ODonnellPeres
+import CslibFrontierResults.Entries.TwoProverNEXP
 import CslibFrontierResults.Entries.Roberts
 import CslibFrontierResults.Entries.SecurityEconomics
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
@@ -63,6 +64,7 @@ import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.PredictionMarket
 import CslibFrontierResults.Entries.ODonnellDNFWidth
+import CslibFrontierResults.Entries.UniformFanIn
 import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.LoadBalancing
 import CslibFrontierResults.Entries.PlantedClique
@@ -78,6 +80,7 @@ import CslibFrontierResults.Entries.EvolutionaryStability
 import CslibFrontierResults.Entries.ODonnellFriedgutConcentration
 import CslibFrontierResults.Entries.LupanovRectifier
 import CslibFrontierResults.Entries.CBCMAC
+import CslibFrontierResults.Entries.LogspaceUniformNC
 import CslibFrontierResults.Entries.ExternalRegret
 import CslibFrontierResults.Entries.UtilityGame
 import CslibFrontierResults.Entries.PrefixFreePRF

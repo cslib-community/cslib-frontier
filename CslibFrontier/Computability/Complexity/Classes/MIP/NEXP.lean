@@ -72,8 +72,8 @@ $$\mathsf{MIP}_2 \subseteq \mathsf{MIP} \subseteq \mathsf{NEXP}.$$
    `MultiTapePTM.comp` and converting to `MultiTapeNTM` via `MultiTapePTM.toNTM` places the
    unpadded language in `NEXP`.
 
-The converse inclusion `NEXP ⊆ MIP₂` (which requires the Babai–Fortnow–Lund multilinearity test
-and the arithmetization of `NEXP` verification tableaux) is not formalized here and remains open.
+The converse uses the arithmetized verification tableau and the two-prover simulation of its
+proof oracle. The umbrella module `Classes.MIP` combines the directions.
 
 ## Main definitions
 
