@@ -1979,6 +1979,7 @@ public import CslibFrontier.Foundations.Data.Code.OddCircuitAsymptotic
 public import CslibFrontier.Foundations.Geometry.Polygonal.SegmentOrder
 public import CslibFrontier.Computability.Kolmogorov.MultiTape
 public import CslibFrontier.Computability.Streaming.MomentLowerBound
+public import CslibFrontier.Crypto.Primitives.Garbling.OutputSimulatable
 public import CslibFrontier.Crypto.Computational.DiffieHellman.Static
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.DoubleStar
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.QueryLoop
