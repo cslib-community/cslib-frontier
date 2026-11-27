@@ -4194,6 +4194,7 @@ public import CslibFrontier.Foundations.Geometry.Orthogonal.Layout
 public import CslibFrontier.Computability.Circuit.Rational.EncodingBounds
 public import CslibFrontier.Computability.Machines.ReadMachine.VirtualWord
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.Input
+public import CslibFrontier.Computability.Complexity.FineGrained.RandomizedSatisfiabilityHypothesis
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CharacteristicCoefficients
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RegularContacts
 public import CslibFrontier.Foundations.BooleanAnalysis.FriedgutKalaiNaor
@@ -9218,6 +9219,7 @@ public import CslibFrontier.Logics.SecondOrder.WordMSO.Composition
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Construction
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Basic
 public import CslibFrontier.Computability.WordRAM.ListOutput
+public import CslibFrontier.Computability.Complexity.FineGrained.RandomizedPowerTime
 public import CslibFrontier.Algorithms.WordRAM.DFS.Transpose
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.Model
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeRadix
