@@ -48,7 +48,8 @@ first-order interpretations.
 ## Main definitions
 
 * `Cslib.Complexity.VertexCoverInstance`, `Cslib.Complexity.VertexCover`.
-* `Cslib.Complexity.VertexCover.declaredEdges`: the listed edges between declared vertices.
+* `Cslib.Complexity.VertexCover.declaredEdges`, `Cslib.Complexity.VertexCover.properEdges`: the
+  listed edges between declared vertices, and those between two distinct ones.
 * `Cslib.Complexity.VertexCover.isUncoveredEdge`, `Cslib.Complexity.VertexCover.uncoveredEdges`,
   `Cslib.Complexity.VertexCover.isCover`, `Cslib.Complexity.VertexCover.verifier`.
 * `Cslib.Complexity.IndependentSet.toVertexCover`.
@@ -267,8 +268,24 @@ private theorem computableInPolyTime_isDeclaredEdge :
 /-- Listing the edges between declared vertices is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_declaredEdges :
-    ComputableInPolyTime declaredEdges encGraph (encList (encPair encNat encNat)) := by
+    ComputableInPolyTime declaredEdges encGraph encEdgeList := by
   fun_prop [declaredEdges]
+
+/-- The listed edges of `G` between two distinct declared vertices. -/
+def properEdges (G : Graph) : List (ℕ × ℕ) :=
+  (declaredEdges G).filter fun e => decide (e.1 ≠ e.2)
+
+/-- An edge is proper when it is listed and joins two distinct declared vertices. -/
+theorem mem_properEdges {G : Graph} {e : ℕ × ℕ} :
+    e ∈ properEdges G ↔ e ∈ G.edges ∧ e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices ∧ e.1 ≠ e.2 := by
+  simp only [properEdges, List.mem_filter, mem_declaredEdges, decide_eq_true_eq, and_assoc]
+
+/-- Listing the proper edges is polynomial-time. -/
+@[fun_prop]
+theorem computableInPolyTime_properEdges :
+    ComputableInPolyTime properEdges encGraph encEdgeList := by
+  unfold properEdges
+  fun_prop
 
 /-- Whether the edge `e` joins two distinct declared vertices of `G` and neither endpoint is in
 `C`. -/
@@ -325,7 +342,7 @@ private theorem computableInPolyTime_isUncoveredEdge :
 @[fun_prop]
 theorem computableInPolyTime_uncoveredEdges :
     ComputableInPolyTime (fun p : Graph × List ℕ => uncoveredEdges p.1 p.2)
-      (encPair encGraph (encList encNat)) (encList (encPair encNat encNat)) := by
+      (encPair encGraph (encList encNat)) encEdgeList := by
   fun_prop [uncoveredEdges]
 
 /-- Testing whether `C` is a cover of `G` is polynomial-time. -/

@@ -492,9 +492,6 @@ theorem exists_le_crossCount_formulaEdges_iff {φ : CNF ℕ} (hφ : ∀ c ∈ φ
 
 /-! ### Polynomial time -/
 
-/-- Multigraph edge lists, such as `formulaEdges φ`, as framed lists of binary pairs. -/
-abbrev encEdgeList : List (ℕ × ℕ) ↪ List Bool := encList (encPair encNat encNat)
-
 private theorem computableInPolyTime_literalVertex :
     ComputableInPolyTime literalVertex (encPair encNat encBool) encNat := by
   unfold literalVertex

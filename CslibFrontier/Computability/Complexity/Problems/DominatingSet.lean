@@ -69,9 +69,8 @@ between copies.
 * `Cslib.Complexity.DominatingSetInstance`, `Cslib.Complexity.encDominatingSet`.
 * `Cslib.Complexity.DominatingSet`.
 * `Cslib.Complexity.DominatingSet.isDominating`: the executable domination test.
-* `Cslib.Complexity.VertexCover.properEdges`, `Cslib.Complexity.VertexCover.edgeVertex`,
-  `Cslib.Complexity.VertexCover.dominationGraph`, `Cslib.Complexity.VertexCover.toDominatingSet`:
-  the reduction from `VertexCover`.
+* `Cslib.Complexity.VertexCover.edgeVertex`, `Cslib.Complexity.VertexCover.dominationGraph`,
+  `Cslib.Complexity.VertexCover.toDominatingSet`: the reduction from `VertexCover`.
 
 ## Main results
 
@@ -207,16 +206,6 @@ end DominatingSet
 /-! ### Reduction from vertex covers -/
 
 namespace VertexCover
-
-/-- The listed edges of `G` between two distinct declared vertices. -/
-@[expose]
-def properEdges (G : Graph) : List (ℕ × ℕ) :=
-  (declaredEdges G).filter fun e => decide (e.1 ≠ e.2)
-
-/-- An edge is proper when it is listed and joins two distinct declared vertices. -/
-theorem mem_properEdges {G : Graph} {e : ℕ × ℕ} :
-    e ∈ properEdges G ↔ e ∈ G.edges ∧ e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices ∧ e.1 ≠ e.2 := by
-  simp only [properEdges, List.mem_filter, mem_declaredEdges, decide_eq_true_eq, and_assoc]
 
 /-- The vertex of the edge `e` in `dominationGraph`: an odd number at least `5`. -/
 @[expose]
@@ -428,13 +417,6 @@ theorem toDominatingSet_mem_iff (x : VertexCoverInstance) :
     rcases hD 1 (mem_dominationGraph_fst.2 (Or.inl rfl)) with h1 | ⟨s, hs, -⟩
     · exact absurd h1 (Finset.notMem_empty _)
     · exact absurd hs (Finset.notMem_empty _)
-
-/-- Listing the proper edges is polynomial-time. -/
-@[fun_prop]
-theorem computableInPolyTime_properEdges :
-    ComputableInPolyTime properEdges encGraph (encList (encPair encNat encNat)) := by
-  unfold properEdges
-  fun_prop
 
 /-- The vertex of an edge is computable in polynomial time from the binary endpoints. -/
 @[fun_prop]
