@@ -77,7 +77,8 @@ theorem correctionAnswer_extendCorrectionTable {p n : ℕ} [Fact p.Prime]
     {f : (Fin n → ZMod p) → ZMod p} (hf : IsMultilinear f)
     (other : List Bool → ℕ) (π : List Bool → Bool) (hpoint : proofPoint π p = f)
     (hπ : ∀ key : List Bool, key.take 3 = [true, true, true] →
-      ProofWord.value π key (replyLimit p n) = extendCorrectionTable hf other key % 2 ^ replyLimit p n)
+      ProofWord.value π key (replyLimit p n) =
+        extendCorrectionTable hf other key % 2 ^ replyLimit p n)
     (x v : Fin n → ZMod p) : correctionAnswer π x v = some (f x).val := by
   have hlen : (replyWord hf x v).length = replyLimit p n := List.length_ofFn
   have small : ofBits (replyWord hf x v) < 2 ^ replyLimit p n :=
