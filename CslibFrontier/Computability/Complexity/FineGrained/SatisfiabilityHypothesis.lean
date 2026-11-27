@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
+import CslibFrontier.Computability.Complexity.FineGrained.Bounds
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import Mathlib.Tactic.FieldSimp
@@ -27,6 +28,8 @@ For fixed width the literal-occurrence term is absorbed into the clause count.
 
 ## Main results
 
+* `Cslib.Complexity.SAT.exists_linear_size_reduction_toKSAT` and
+  `Cslib.Complexity.KSAT.exists_linear_size_reduction_toSAT`: the two reduction witnesses.
 * `Cslib.Complexity.SH_iff_KSAT`: the fixed-width formulation of the hypothesis.
 * `Cslib.Complexity.SH.not_decidableInPowerExpTime_of_reduction`: exponent transfer under SH.
 * `Cslib.Complexity.SH.not_decidableInPowerExpTime_of_linear_reduction`: transfer for
@@ -57,22 +60,37 @@ private theorem width_toThreeSAT (φ : CNF ℕ) : ∀ c ∈ toThreeSAT φ, c.len
   obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hc
   simpa using CNF.length_le_three_of_mem_to3CNF hd
 
-private theorem toThreeSAT_size_le (φ : CNF ℕ) :
-    (toThreeSAT φ).numVars + (toThreeSAT φ).length ≤
-      4 * (φ.numVars + φ.length + φ.vars.length) := by
-  have hclauses : (toThreeSAT φ).length ≤ φ.length + φ.vars.length := by
-    rw [toThreeSAT, CNF.relabel, List.length_map, CNF.length_to3CNF, CNF.length_vars]
-    induction φ with
-    | nil => simp
-    | cons c φ ih =>
-      simp only [List.map_cons, List.sum_cons, List.length_cons]
-      omega
-  have hn := CNF.numVars_le_mul_length (width_toThreeSAT φ)
-  omega
+/-- The width-three compiler is a polynomial-time reduction to any fixed width at least
+three. Its output variable-plus-clause size is linear in the full CNF size. -/
+theorem SAT.exists_linear_size_reduction_toKSAT {k : ℕ} (hk : 3 ≤ k) :
+    ∃ (f : CNF ℕ → CNF ℕ) (K : ℕ), ComputableInPolyTime f encCNF encCNF ∧
+      (∀ φ, φ ∈ SAT ↔ f φ ∈ KSAT k) ∧
+      (∀ φ, (((f φ).numVars + (f φ).length : ℕ) + 1 : ℝ) ≤
+        (K + 1 : ℝ) * ((φ.numVars + φ.length + φ.vars.length : ℕ) + 1 : ℝ) ^ (1 : ℝ)) := by
+  refine ⟨toThreeSAT, 3, computableInPolyTime_toThreeSAT, fun φ => ?_, fun φ => ?_⟩
+  · exact ⟨fun hφ => ⟨fun c hc => (width_toThreeSAT φ c hc).trans hk,
+      ((mem_ThreeSAT_toThreeSAT_iff φ).mpr hφ).2⟩,
+      fun hφ => (mem_ThreeSAT_toThreeSAT_iff φ).mp ⟨width_toThreeSAT φ, hφ.2⟩⟩
+  · rw [Real.rpow_one]
+    have hclauses : (toThreeSAT φ).length ≤ φ.length + φ.vars.length := by
+      rw [toThreeSAT, CNF.relabel, List.length_map, CNF.length_to3CNF, CNF.length_vars]
+      induction φ with
+      | nil => simp
+      | cons c φ ih =>
+        simp only [List.map_cons, List.sum_cons, List.length_cons]
+        omega
+    have hn := CNF.numVars_le_mul_length (width_toThreeSAT φ)
+    exact_mod_cast (by omega : (toThreeSAT φ).numVars + (toThreeSAT φ).length + 1 ≤
+      (3 + 1) * (φ.numVars + φ.length + φ.vars.length + 1))
 
-private theorem decidable_KSAT_of_SAT {k : ℕ} {p : ℝ} (hp : 0 ≤ p)
-    (h : DecidableInPowerExpTime SAT encCNF (fun φ => φ.numVars + φ.length + φ.vars.length) p) :
-    DecidableInPowerExpTime (KSAT k) encCNF (fun φ => φ.numVars + φ.length) p := by
+/-- A width guard reduces `k`-SAT to SAT in polynomial time. It keeps legal formulas and
+maps wider formulas to a constant unsatisfiable formula, so the full target CNF size is
+linear in the source variable-plus-clause size. -/
+theorem KSAT.exists_linear_size_reduction_toSAT (k : ℕ) :
+    ∃ (f : CNF ℕ → CNF ℕ) (K : ℕ), ComputableInPolyTime f encCNF encCNF ∧
+      (∀ φ, φ ∈ KSAT k ↔ f φ ∈ SAT) ∧
+      (∀ φ, (((f φ).numVars + (f φ).length + (f φ).vars.length : ℕ) + 1 : ℝ) ≤
+        (K + 1 : ℝ) * ((φ.numVars + φ.length : ℕ) + 1 : ℝ) ^ (1 : ℝ)) := by
   let reduce (φ : CNF ℕ) : CNF ℕ :=
     if φ.all (fun c => decide (c.length ≤ k)) then φ else [[]]
   have hcomp : ComputableInPolyTime reduce encCNF encCNF :=
@@ -95,8 +113,7 @@ private theorem decidable_KSAT_of_SAT {k : ℕ} {p : ℝ} (hp : 0 ≤ p)
     · nlinarith [CNF.length_vars_le_mul_length (show ∀ c ∈ φ, c.length ≤ k by simpa using hw)]
     · change 1 + 1 ≤ _
       nlinarith
-  simpa only [one_mul] using h.of_polyTime_reduction hcomp hmem (K := k + 1)
-    hsize zero_le_one hp
+  exact ⟨reduce, k + 1, hcomp, hmem, hsize⟩
 
 /-- The size formulation of SH [MITHardnessGroup2026SH, Lemma 2.1, decision case].
 For any fixed width `k ≥ 3`, SH holds exactly when `k`-SAT admits no fixed power saving in the
@@ -105,24 +122,17 @@ The counting formulation is proved in `SharpSatisfiabilityHypothesis`. -/
 theorem SH_iff_KSAT {k : ℕ} (hk : 3 ≤ k) :
     SH ↔ ∀ p : ℝ, 0 < p → p < 1 →
       ¬DecidableInPowerExpTime (KSAT k) encCNF (fun φ => φ.numVars + φ.length) p := by
+  obtain ⟨f, K, hf, hmem, hsize⟩ := SAT.exists_linear_size_reduction_toKSAT hk
+  obtain ⟨g, L, hg, hmem', hsize'⟩ := KSAT.exists_linear_size_reduction_toSAT k
   constructor
-  · intro h p hp hp1 hsolver
-    apply h p hp hp1
-    have hmem (φ : CNF ℕ) : φ ∈ SAT ↔ toThreeSAT φ ∈ KSAT k :=
-      ⟨fun hφ => ⟨fun c hc => (width_toThreeSAT φ c hc).trans hk,
-        ((mem_ThreeSAT_toThreeSAT_iff φ).mpr hφ).2⟩,
-       fun hφ => (mem_ThreeSAT_toThreeSAT_iff φ).mp ⟨width_toThreeSAT φ, hφ.2⟩⟩
-    have hsize (φ : CNF ℕ) :
-        (((toThreeSAT φ).numVars + (toThreeSAT φ).length : ℕ) + 1 : ℝ) ≤
-          (3 + 1 : ℝ) * ((φ.numVars + φ.length + φ.vars.length : ℕ) + 1 : ℝ) ^ (1 : ℝ) := by
-      rw [Real.rpow_one]
-      have := toThreeSAT_size_le φ
-      exact_mod_cast (by omega : (toThreeSAT φ).numVars + (toThreeSAT φ).length + 1 ≤
-        (3 + 1) * (φ.numVars + φ.length + φ.vars.length + 1))
-    simpa only [one_mul] using hsolver.of_polyTime_reduction computableInPolyTime_toThreeSAT
-      hmem (K := 3) hsize zero_le_one hp.le
-  · intro h p hp hp1 hsolver
-    exact h p hp hp1 (decidable_KSAT_of_SAT hp.le hsolver)
+  · intro h p hp hp₁ hsolver
+    apply h p hp hp₁
+    simpa only [one_mul] using hsolver.of_polyTime_reduction hf hmem (K := K)
+      hsize zero_le_one hp.le
+  · intro h p hp hp₁ hsolver
+    apply h p hp hp₁
+    simpa only [one_mul] using hsolver.of_polyTime_reduction hg hmem' (K := L)
+      hsize' zero_le_one hp.le
 
 /-- Exponent transfer [MITHardnessGroup2026SH, Theorem 3.1]. A many-one reduction from 3SAT
 with running time exponential in the `q`th power of the formula size for `q < 1` and blowup
@@ -140,15 +150,11 @@ theorem SH.not_decidableInPowerExpTime_of_reduction (hSH : SH)
       (μ (f φ) + 1 : ℝ) ≤ (K + 1 : ℝ) * ((φ.numVars + φ.length : ℕ) + 1 : ℝ) ^ (b + η)) :
     ¬DecidableInPowerExpTime B enc μ p := by
   intro h
-  let η := (1 - b * p) / (2 * p)
-  have hη : 0 < η := div_pos (sub_pos.mpr hbp) (by positivity)
+  obtain ⟨η, hη, hηp⟩ := exists_pos_add_mul_lt_one hp hbp
   obtain ⟨K, hK⟩ := hsize η hη
-  refine (SH_iff_KSAT (k := 3) le_rfl).mp hSH (max q ((b + η) * p))
+  exact (SH_iff_KSAT (k := 3) le_rfl).mp hSH (max q ((b + η) * p))
     (lt_max_of_lt_right (mul_pos (add_pos hb hη) hp))
-    (max_lt hq ?_) (h.of_reduction hf hmem hK hp.le)
-  dsimp only [η]
-  rw [add_mul, div_mul_eq_mul_div, mul_div_mul_right _ _ hp.ne']
-  linarith
+    (max_lt hq hηp) (h.of_reduction hf hmem hK hp.le)
 
 /-- Linear-size polynomial-time reductions from width-three satisfiability transfer SH with the
 same power threshold. On formulas of greater width the reduction can use the image of a fixed

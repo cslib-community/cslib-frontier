@@ -137,28 +137,12 @@ theorem ComputableInPowerExpTime.comp {f : α → β} {g : β → γ} {q b p : �
         (mul_le_mul_of_nonneg_left (by linarith) (by positivity))
     have hy : (2 : ℝ) ^ (D * (μB (f a) + 1 : ℝ) ^ p) ≤ 1 * X := by
       rw [one_mul]
-      apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-      have hb := Real.rpow_le_rpow (by positivity : 0 ≤ (μB (f a) + 1 : ℝ)) (hsize a) hp
-      change _ ≤ R * x ^ (b * p)
-      rw [Real.mul_rpow (by positivity) (by positivity), ← Real.rpow_mul (by positivity)] at hb
-      simpa only [R, mul_assoc] using mul_le_mul_of_nonneg_left hb (Nat.cast_nonneg D)
+      exact two_rpow_mul_rpow_le_of_le_mul_rpow (by positivity) (by positivity)
+        (by positivity) (hsize a) hp
     have hsum := reduction_add_time_le hP' hX (C := 1) (by norm_num) hlen hy (hu (f a))
     have hrate : X * P ^ (e + 1) ≤ (2 : ℝ) ^ (S * x ^ max q (b * p)) *
-        y ^ (d * (e + 1)) := by
-      dsimp only [X, P]
-      rw [mul_pow, ← Real.rpow_natCast ((2 : ℝ) ^ (C * x ^ q)), ← Real.rpow_mul (by norm_num),
-        ← mul_assoc, ← Real.rpow_add (by norm_num), ← pow_mul]
-      apply mul_le_mul_of_nonneg_right _ (by positivity)
-      apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-      have h₁ := Real.rpow_le_rpow_of_exponent_le hx (le_max_left q (b * p))
-      have h₂ := Real.rpow_le_rpow_of_exponent_le hx (le_max_right q (b * p))
-      have h₃ := Nat.le_ceil R
-      dsimp only [S]
-      push_cast
-      nlinarith [mul_le_mul_of_nonneg_left h₁
-          (show 0 ≤ (C : ℝ) * (e + 1) by positivity),
-        mul_le_mul_of_nonneg_left h₂ (show 0 ≤ R by positivity),
-        mul_le_mul_of_nonneg_right h₃ (show 0 ≤ x ^ max q (b * p) by positivity)]
+        y ^ (d * (e + 1)) :=
+      power_reduction_envelope_le hx (by positivity) (by positivity)
     have hsum' : (t a : ℝ) + u (f a) ≤ M * (X * P ^ (e + 1)) := by
       refine (add_le_add ht' le_rfl).trans (hsum.trans_eq ?_)
       simp only [P', M, mul_pow]; ring

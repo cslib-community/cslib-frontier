@@ -33,6 +33,8 @@ parallel-edge / self-loop deduplication (`dedupSimpleEdges`) preserving `IsMinSp
 
 * `Cslib.Query.MinimumSpanningForest.DynamicDJPTree.rel_treeEdges_filter_of_border`: dynamic
   Soft-Heap border-edge path property adapting [PettieRamachandran2002], Lemma 2.1.
+* `Cslib.Query.MinimumSpanningForest.edgePartition_rel_of_contracted_bridge`: lifts
+  `edgePartition` relatedness across a contracted edge list along `EndOf`-endpoint bridges.
 * `Cslib.Query.MinimumSpanningForest.weaklySupported_of_dynamicDJPTree`,
   `Cslib.Query.MinimumSpanningForest.isMinSpanningForest_of_dynamicDJPTree`: dynamic Soft-Heap
   contraction lifting adapting [PettieRamachandran2002], Definition 3.1 and Lemma 3.2.
@@ -305,6 +307,49 @@ private theorem filter_contractEdgeList {n n' : ℕ} (c : Fin n → Fin n')
     · simp only [hwt, hp, Bool.false_eq_true, ↓reduceIte]; exact ih
     · simp only [hwt, hp, ↓reduceIte, List.map_cons]; exact congrArg (contractEdge c x :: ·) ih
 
+/-- Lifts `edgePartition` relatedness across a contracted edge list `contractEdgeList c H'` back
+to `edgePartition U` whenever every edge in `H'` belongs to `U` with endpoints satisfying
+`EndOf` and `hbridge` bridges `EndOf` vertices in the same `c`-fiber inside `edgePartition U`. -/
+theorem edgePartition_rel_of_contracted_bridge {n n' : ℕ}
+    (c : Fin n → Fin n') (H' U : List (WeightedEdge n ℕ))
+    (EndOf : Fin n → Prop)
+    (hH' : ∀ h ∈ H', EndOf h.u ∧ EndOf h.v ∧ h ∈ U)
+    (hbridge : ∀ x y : Fin n, c x = c y → EndOf x → EndOf y →
+      (edgePartition U).rel x y = true)
+    {u v : Fin n} (hu : EndOf u) (hv : EndOf v)
+    (hc : (edgePartition (contractEdgeList c H')).rel (c u) (c v) = true) :
+    (edgePartition U).rel u v = true := by
+  rw [rel_edgePartition_iff_eqvGen] at hc
+  have hgen : ∀ x' y' : Fin n',
+      Relation.EqvGen (fun a b => ∃ f ∈ contractEdgeList c H', a = f.u ∧ b = f.v) x' y' →
+      x' = y' ∨ ∃ a b : Fin n, c a = x' ∧ c b = y' ∧
+        EndOf a ∧ EndOf b ∧ (edgePartition U).rel a b = true := by
+    intro x' y' hxy
+    induction hxy with
+    | refl _ => exact .inl rfl
+    | rel _ _ hab =>
+      obtain ⟨_, hf, rfl, rfl⟩ := hab
+      obtain ⟨h, hhH, rfl⟩ := List.mem_map.mp hf
+      obtain ⟨hhu, hhv, hhU⟩ := hH' h hhH
+      exact .inr ⟨h.u, h.v, rfl, rfl, hhu, hhv,
+        rel_edgePartitionFrom_of_mem (Partition.discrete n) hhU⟩
+    | symm _ _ _ ih =>
+      rcases ih with rfl | ⟨a, b, ha, hb, oa, ob, hrel⟩
+      · exact .inl rfl
+      · exact .inr ⟨b, a, hb, ha, ob, oa, (edgePartition U).symm hrel⟩
+    | trans _ _ _ _ _ ih1 ih2 =>
+      rcases ih1 with rfl | ⟨a, y₁, ha, hy₁, oa, oy₁, h1⟩
+      · exact ih2
+      · rcases ih2 with rfl | ⟨y₂, b, hy₂, hb, oy₂, ob, h2⟩
+        · exact .inr ⟨a, y₁, ha, hy₁, oa, oy₁, h1⟩
+        · have hb12 := hbridge y₁ y₂ (hy₁.trans hy₂.symm) oy₁ oy₂
+          exact .inr ⟨a, b, ha, hb, oa, ob,
+            (edgePartition U).trans h1 ((edgePartition U).trans hb12 h2)⟩
+  rcases hgen _ _ hc with heqc | ⟨a, b, ha, hb, oa, ob, hab⟩
+  · exact hbridge u v heqc hu hv
+  · exact (edgePartition U).trans (hbridge u a ha.symm hu oa)
+      ((edgePartition U).trans hab (hbridge b v hb ob hv))
+
 /-- Dynamic Soft-Heap contraction lifting toward Theorem 5.8 of [PettieRamachandran2002] (#8624),
 adapting Definition 3.1 and Lemma 3.2 (§3.1, p. 20; which applies static Lemma 2.1 to a
 raised-weight graph) onto `DynamicDJPTree` and generalizing Lemma 3.2's distinct-weight subset
@@ -381,42 +426,14 @@ theorem weaklySupported_of_dynamicDJPTree {n n' : ℕ}
           ((List.sublist_append_left F_C H_lift).subperm.trans
             (List.sublist_append_left (F_C ++ H_lift) M_C).subperm).filter _
         exact edgePartition_mono_subperm hU_sub hD_rel
-    rw [rel_edgePartition_iff_eqvGen] at hc_H
-    have hgen : ∀ x' y' : Fin n',
-        Relation.EqvGen (fun a b => ∃ f ∈ contractEdgeList c H', a = f.u ∧ b = f.v) x' y' →
-        x' = y' ∨ ∃ a b : Fin n, c a = x' ∧ c b = y' ∧
-          EndOf a ∧ EndOf b ∧ (edgePartition U).rel a b = true := by
-      intro x' y' hxy
-      induction hxy with
-      | refl _ => exact .inl rfl
-      | rel a' b' hab =>
-        obtain ⟨_, hf, rfl, rfl⟩ := hab
-        obtain ⟨h, hhH, rfl⟩ := List.mem_map.mp hf
-        obtain ⟨hh_in, hh_dec⟩ := List.mem_filter.mp hhH
-        have hh_edge : h ∈ H_edges := hHL_sub.subset hh_in
-        have hh_w : h.weight ≤ w := of_decide_eq_true hh_dec
-        have hh_U : h ∈ U :=
-          List.mem_filter.mpr ⟨List.mem_append_left _ (List.mem_append_right _ hh_in), hh_dec⟩
-        exact .inr ⟨h.u, h.v, rfl, rfl, ⟨h, hh_edge, hh_w, .inl rfl⟩,
-          ⟨h, hh_edge, hh_w, .inr rfl⟩, rel_edgePartitionFrom_of_mem (Partition.discrete n) hh_U⟩
-      | symm _ _ _ ih =>
-        rcases ih with rfl | ⟨a, b, ha, hb, oa, ob, hrel⟩
-        · exact .inl rfl
-        · exact .inr ⟨b, a, hb, ha, ob, oa, (edgePartition U).symm hrel⟩
-      | trans _ _ _ _ _ ih1 ih2 =>
-        rcases ih1 with rfl | ⟨a, y₁, ha, hy₁, oa, oy₁, h1⟩
-        · exact ih2
-        · rcases ih2 with rfl | ⟨y₂, b, hy₂, hb, oy₂, ob, h2⟩
-          · exact .inr ⟨a, y₁, ha, hy₁, oa, oy₁, h1⟩
-          · have hb12 := hbridge y₁ y₂ (hy₁.trans hy₂.symm) oy₁ oy₂
-            exact .inr ⟨a, b, ha, hb, oa, ob,
-              (edgePartition U).trans h1 ((edgePartition U).trans hb12 h2)⟩
-    have heuEnd : EndOf e.u := ⟨e, heH, le_rfl, .inl rfl⟩
-    have hevEnd : EndOf e.v := ⟨e, heH, le_rfl, .inr rfl⟩
-    rcases hgen _ _ hc_H with heqc | ⟨a, b, ha, hb, oa, ob, hab⟩
-    · exact hbridge e.u e.v heqc heuEnd hevEnd
-    · exact (edgePartition U).trans (hbridge e.u a ha.symm heuEnd oa)
-        ((edgePartition U).trans hab (hbridge b e.v hb ob hevEnd))
+    refine edgePartition_rel_of_contracted_bridge c H' U EndOf (fun h hhH => ?_) hbridge
+      ⟨e, heH, le_rfl, .inl rfl⟩ ⟨e, heH, le_rfl, .inr rfl⟩ hc_H
+    obtain ⟨hh_in, hh_dec⟩ := List.mem_filter.mp hhH
+    have hh_edge : h ∈ H_edges := hHL_sub.subset hh_in
+    have hh_w : h.weight ≤ w := of_decide_eq_true hh_dec
+    have hh_U : h ∈ U :=
+      List.mem_filter.mpr ⟨List.mem_append_left _ (List.mem_append_right _ hh_in), hh_dec⟩
+    exact ⟨⟨h, hh_edge, hh_w, .inl rfl⟩, ⟨h, hh_edge, hh_w, .inr rfl⟩, hh_U⟩
 
 /-- Step toward Theorem 5.8 of [PettieRamachandran2002] (#8624): any MSF `F` of the dynamic-DJP
 contracted support list `F_C ++ H_lift ++ M_C` is an MSF of `es` (generalizing Lemma 3.2,

@@ -36,7 +36,8 @@ elimination, `evaluateAux`).
 
 * `Cslib.Circuits.Boolean.AffineDisperser4n.chooseStep?`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.applyStep`: choosing and performing a step.
-* `Cslib.Circuits.Boolean.AffineDisperser4n.refuterLoop`,
+* `Cslib.Circuits.Boolean.AffineDisperser4n.refuterRun`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.refuterLoop`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.findCounterexample`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.refute`: the refuter.
 -/
@@ -420,14 +421,19 @@ def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitStri
         if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
     else none
 
-/-- Apply refuter steps until a terminal state is reached or `fuel` runs out. -/
-def refuterLoop {n} (S : State n) (fuel : ℕ) : State n :=
+/-- Apply refuter steps until a terminal state is reached or `fuel` runs out, and add the number of
+steps applied to `steps`. -/
+def refuterRun {n} (S : State n) (fuel steps : ℕ) : State n × ℕ :=
   match fuel with
-  | 0 => S
+  | 0 => (S, steps)
   | fuel' + 1 =>
     match chooseStep? S with
-    | some choice => refuterLoop (applyStep S choice) fuel'
-    | none => S
+    | some choice => refuterRun (applyStep S choice) fuel' (steps + 1)
+    | none => (S, steps)
+
+/-- Apply refuter steps until a terminal state is reached or `fuel` runs out. -/
+def refuterLoop {n} (S : State n) (fuel : ℕ) : State n :=
+  (refuterRun S fuel 0).1
 
 /-- The refuter: run gate elimination from the initial state of `C`, then search the terminal state
 for an input on which `C` and `f` disagree. -/

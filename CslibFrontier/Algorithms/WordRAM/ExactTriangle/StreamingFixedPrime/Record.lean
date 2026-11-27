@@ -123,26 +123,8 @@ theorem exec_record {w m n g p A : ℕ} (values : List ℤ)
   have header (u : ℕ) (hu : u < 5 + 3 * (n * n)) : z.mem u =
       (Data.init (PreparationInput.input n (D m) g p values) : Data 64).mem u :=
     (mem_eq u (lt_of_lt_of_le hu hinputEnd)).trans (hprefix u hu)
-  have original (q : ℕ) (hq : q < 3 * (n * n)) : z.mem (5 + q) = Signed.encode (V q) :=
-    (header (5 + q) (by omega)).trans (PreparationInput.input_word n (D m) g p values q)
-  have hcell {u v : ℕ} (hu : u < n) (hv' : v < n) : u * n + v < n * n := by
-    have hrow := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hu)
-    rw [Nat.succ_mul] at hrow; omega
-  have hmatrix : ∀ u < n, ∀ v < n,
-      z.mem (5 + (u * n + v)) = Signed.encode (AB u v) ∧
-      z.mem (5 + n * n + (u * n + v)) = Signed.encode (BC u v) ∧
-      z.mem (5 + n * n + n * n + (u * n + v)) = Signed.encode (AC u v) := fun u hu v hv' => by
-    have := hcell hu hv'
-    exact ⟨original _ (by omega),
-      by simpa only [Nat.add_assoc] using original (n * n + (u * n + v)) (by omega),
-      by rw [show 5 + n * n + n * n + (u * n + v) = 5 + (2 * (n * n) + (u * n + v)) by omega]
-         exact original _ (by omega)⟩
-  have hmag : ∀ u < n, ∀ v < n,
-      (AB u v).natAbs ≤ A ∧ (BC u v).natAbs ≤ A ∧ (AC u v).natAbs ≤ A := fun u hu v hv' => by
-    have := hcell hu hv'
-    exact ⟨RecordWitness.original_magnitude values hlen hv (by omega),
-      RecordWitness.original_magnitude values hlen hv (by omega),
-      RecordWitness.original_magnitude values hlen hv (by omega)⟩
+  have hmatrix := RecordWitness.original_matrices values header
+  have hmag := RecordWitness.original_magnitudes values hlen hv
   let q := RecordProduct.recordQueries n (D m) p idx
   let Q := RecordProduct.recordQueryCount n (D m) p V idx
   let qs := RecordProduct.decodedQueries hn a.mem q Q

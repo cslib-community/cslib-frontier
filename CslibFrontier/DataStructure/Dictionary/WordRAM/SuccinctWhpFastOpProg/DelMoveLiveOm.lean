@@ -462,11 +462,10 @@ theorem realizes_delMoveLiveOmGen :
     cases henv.2.2.1
     have hth := henv.2.2.2.1
     have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hold : fs.oldEp ≤ 1 := by rcases hce with hc | hc <;> simp [FastState.oldEp, hc]
-    obtain ⟨hst_s, hres_s, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-      (by dsimp [hdrRebStage]; omega) (s := s)
+    obtain ⟨hst_s, hres_s, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
     obtain ⟨hst_o, hres_o, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
       hrep.2.2.2.1 (s := s)
@@ -515,12 +514,11 @@ theorem delMoveLiveOmGenProg_fastStep
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ
       { fs with slices := omPair.1, overmarsInsCount := omPair.2 } s s' := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hval_ld := loc_lt_two_pow_valLaneBits hld
   set cp := mkWhpCoreParams c U V w n_max
-  have hS := CostBoundedStep.of (readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-    (by dsimp [hdrRebStage]; omega) (s := s))
+  have hS := CostBoundedStep.of (readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrRebStage) (s := s) (by decide))
   rw [hrep.2.2.2.2.2.1] at hS
   have hO := CostBoundedStep.of (readOldEpProg_spec (w := w)
     (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce

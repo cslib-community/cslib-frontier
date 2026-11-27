@@ -532,27 +532,23 @@ private theorem hasCircuit_of_le {n N s : ℕ} (hnN : n ≤ N) (hN : HasCircuit 
   refine exists_computesMatMul_of_synthesis (n := n) ?_
   let g : Fin (N * N + N * N) → (Fin (n * n + n * n) → K) → K := fun i x =>
     matrixInputs K (padMatrix N (leftMatrix x)) (padMatrix N (rightMatrix x)) i
+  have pad_mem (f : (Fin (n * n + n * n) → K) → Matrix (Fin n) (Fin n) K)
+      (hf : ∀ i j, (fun x => f x i j) ∈ inputs (n * n + n * n)) (i : Fin (N * N)) :
+      (fun x => entry K (padMatrix N (f x)) i) ∈ inputs (n * n + n * n) ∪ {fun _ => (0 : K)} := by
+    by_cases h : (finProdFinEquiv.symm i).1.val < n ∧ (finProdFinEquiv.symm i).2.val < n
+    · apply Set.mem_union_left
+      simpa only [entry, padMatrix, Matrix.of_apply, dite_eq_left h] using hf ⟨_, h.1⟩ ⟨_, h.2⟩
+    · apply Set.mem_union_right
+      simp only [entry, padMatrix, Matrix.of_apply, dite_eq_right h, Set.mem_singleton_iff]
   have hg : ∀ i, g i ∈ inputs (n * n + n * n) ∪ {fun _ => (0 : K)} := by
     intro i
     refine Fin.addCases (fun i => ?_) (fun i => ?_) i
-    · by_cases h : (finProdFinEquiv.symm i).1.val < n ∧ (finProdFinEquiv.symm i).2.val < n
-      · refine Set.mem_union_left _ ?_
-        convert leftMatrix_mem_inputs (K := K) (n := n) ⟨_, h.1⟩ ⟨_, h.2⟩ using 1
-        funext x
-        simp only [g, matrixInputs, Fin.append_left, entry, padMatrix, Matrix.of_apply,
-          dite_eq_left h]
-      · exact Or.inr (funext fun x => by simp only [g, matrixInputs, Fin.append_left, entry,
-          padMatrix, Matrix.of_apply, dite_eq_right h])
-    · by_cases h : (finProdFinEquiv.symm i).1.val < n ∧ (finProdFinEquiv.symm i).2.val < n
-      · refine Set.mem_union_left _ ?_
-        convert rightMatrix_mem_inputs (K := K) (n := n) ⟨_, h.1⟩ ⟨_, h.2⟩ using 1
-        funext x
-        simp only [g, matrixInputs, Fin.append_right, entry, padMatrix, Matrix.of_apply,
-          dite_eq_left h]
-      · exact Or.inr (funext fun x => by simp only [g, matrixInputs, Fin.append_right, entry,
-          padMatrix, Matrix.of_apply, dite_eq_right h])
+    · simpa only [g, matrixInputs, Fin.append_left] using
+        pad_mem leftMatrix leftMatrix_mem_inputs i
+    · simpa only [g, matrixInputs, Fin.append_right] using
+        pad_mem rightMatrix rightMatrix_mem_inputs i
   have := synthesis_zero.comp (Synthesis.circuit (I := arithInterpretation K) C g hg)
-  refine this.mono Set.Subset.rfl ?_ (by omega)
+  refine this.mono Set.Subset.rfl ?_ (by lia)
   rintro _ ⟨t, rfl⟩
   refine Set.mem_union_right _ ⟨finProdFinEquiv (Fin.castLE hnN (finProdFinEquiv.symm t).1,
     Fin.castLE hnN (finProdFinEquiv.symm t).2), ?_⟩

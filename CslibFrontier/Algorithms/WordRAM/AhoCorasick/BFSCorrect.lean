@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.BFSModel
+-- The inner step uses the private `queue_push_inv` and `delta_row_update` lemmas.
+import all CslibFrontier.Algorithms.WordRAM.AhoCorasick.BFSModel
 
 /-!
 # Correctness of the Pure Breadth-First Aho–Corasick Automaton
@@ -93,13 +95,10 @@ private theorem delta_update_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie} {
     let δ := fun u c => if u = r ∧ c = a then v else B.delta u c
     (∀ u ∈ E, ∀ c < σ, δ u c ∈ D ∧ T.strOf (δ u c) = nextMove P (T.strOf u) c) ∧
       ∀ c < a + 1, δ r c ∈ D ∧ T.strOf (δ r c) = nextMove P (T.strOf r) c := by
-  refine ⟨fun u hu c hc => ?_, fun c hc => ?_⟩
+  refine ⟨fun u hu c hc => ?_, ?_⟩
   · simp only [show ¬(u = r ∧ c = a) from fun h => hr (h.1 ▸ hu), ↓reduceIte]
-    exact ⟨hD (hexp u hu c hc).1, (hexp u hu c hc).2⟩
-  · rcases Nat.lt_succ_iff_lt_or_eq.mp hc with hlt | rfl
-    · simp only [true_and, Nat.ne_of_lt hlt, ↓reduceIte]
-      exact ⟨hD (hrc c hlt).1, (hrc c hlt).2⟩
-    · simpa only [and_self, ↓reduceIte] using ⟨hv, hv_str⟩
+    exact (hexp u hu c hc).imp_left fun hm => hD hm
+  · simpa only [Function.update_apply, true_and] using delta_row_update hD ⟨hv, hv_str⟩ hrc
 
 theorem innerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     (hT : TreeInv σ T)
@@ -137,8 +136,10 @@ theorem innerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
       · exact hr_not_exp ((parent_unique hT hr_lt ha
           (mem_disc_lt hT.one_le hinv.q_bounds (hexp_sub hu_exp)) hc hs_pos htuc.symm).1 ▸ hu_exp)
       · exact hca.ne (parent_unique hT hr_lt ha hr_lt (lt_trans hca ha) hs_pos htrc.symm).2.symm
-    have hq_ne : ∀ i < B.qTail, B.queue i ≠ s := fun i hi h =>
-      hs_not (h ▸ Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_range.2 hi)))
+    obtain ⟨hqueue, hqueue_inj⟩ :=
+      queue_push_inv (p := fun u => 0 < u ∧ u < T.numStates ∧ T.depth u ≤ T.depth r + 1)
+        (fun i hi => ⟨(hinv.q_bounds i hi).1, (hinv.q_bounds i hi).2, hinv.q_depth_ub i hi⟩)
+        ⟨hs_pos, hs_lt, hs_depth.le⟩ hinv.q_inj hs_not
     set oh := B.outHead (B.delta fr a)
     set B' : PBFS :=
       { delta := fun u c => if u = r ∧ c = a then s else B.delta u c
@@ -158,18 +159,8 @@ theorem innerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
       { qHead_eq := hinv.qHead_eq
         qHead_le := Nat.le_succ_of_le hinv.qHead_le
         r_eq := (Function.update_of_ne hqh_lt.ne _ _).trans hinv.r_eq
-        q_bounds := fun i hi => by
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | rfl
-          · simpa only [B', Function.update_of_ne hlt.ne] using hinv.q_bounds i hlt
-          · simpa only [B', Function.update_self] using ⟨hs_pos, hs_lt⟩
-        q_inj := fun i hi j hj hij => by
-          dsimp only [B'] at hi hj hij
-          simp only [Function.update_apply] at hij
-          split_ifs at hij with hi' hj' hj'
-          · omega
-          · exact absurd hij.symm (hq_ne j (by omega))
-          · exact absurd hij (hq_ne i (by omega))
-          · exact hinv.q_inj i (by omega) j (by omega) hij
+        q_bounds := fun i hi => ⟨(hqueue i hi).1, (hqueue i hi).2.1⟩
+        q_inj := hqueue_inj
         disc_iff := fun w hw => by
           rw [hdisc', hexp', Finset.mem_insert, hinv.disc_iff w hw, Nat.exists_lt_succ_right,
             ← hs_def, @eq_comm _ w s]
@@ -183,10 +174,7 @@ theorem innerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
             · rw [Function.update_of_ne (by omega), Function.update_self, hs_depth]
               exact hinv.q_depth_ub i hil
             · exact Nat.le_refl _
-        q_depth_ub := fun j hj => by
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hjl | rfl
-          · simpa only [B', Function.update_of_ne hjl.ne] using hinv.q_depth_ub j hjl
-          · simp only [B', Function.update_self, hs_depth, le_rfl]
+        q_depth_ub := fun j hj => (hqueue j hj).2.2
         lt_depth_mem_exp := hexp' ▸ hinv.lt_depth_mem_exp
         le_depth_mem_disc := fun v hv hdv =>
           hdisc' ▸ Finset.mem_insert_of_mem (hinv.le_depth_mem_disc v hv hdv)

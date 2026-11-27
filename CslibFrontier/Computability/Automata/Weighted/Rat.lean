@@ -223,19 +223,13 @@ theorem idle_ne_zero (P : Series F Ω) (o : List (Option Ω)) (h : Series.idle P
     by_contra fun hn => hk (by rw [ite_eq_right hn, zero_mul])
   have h2 : (o.drop k).all Option.isNone = true :=
     by_contra fun hn => hk (by rw [ite_eq_right hn, mul_zero])
-  have e1 (l : List (Option Ω)) (hl : l.all Option.isSome = true) :
-      l.reduceOption.map some = l := by
-    induction l with
-    | nil => rfl
-    | cons a l ih =>
-      rcases a with _ | a
-      · simp at hl
-      · simpa [List.reduceOption_cons_of_some] using ih (by simpa using hl)
-  have e2 (l : List (Option Ω)) (hl : l.all Option.isNone = true) :
-      List.replicate l.length none = l :=
-    (List.eq_replicate_iff.2 ⟨rfl, fun a ha => by simpa using List.all_eq_true.1 hl a ha⟩).symm
+  have hprefix : (o.take k).reduceOption.map some = o.take k := by
+    rw [List.reduceOption, List.map_filterMap_some_eq_filter_map_isSome, List.map_id]
+    exact List.filter_eq_self.mpr (List.all_eq_true.mp h1)
+  have hsuffix : o.drop k = List.replicate (o.drop k).length none :=
+    List.eq_replicate_iff.mpr ⟨rfl, fun a ha => by simpa using List.all_eq_true.mp h2 a ha⟩
   exact ⟨(o.take k).reduceOption, (o.drop k).length,
-    by rw [e1 _ h1, e2 _ h2, List.take_append_drop]⟩
+    by rw [hprefix, ← hsuffix, List.take_append_drop]⟩
 
 end Idle
 

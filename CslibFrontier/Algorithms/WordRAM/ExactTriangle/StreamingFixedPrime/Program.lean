@@ -75,9 +75,7 @@ theorem program_not_readsWidth : ¬program.ReadsWidth := by
     false_or, or_false]
   have hp := Instances.program_fixed.2
   simp only [Instances.program, Code.ReadsWidth] at hp
-  have hr := RecordBoxProduct.program_fixed.2
-  have hc := RecordWitness.consume_fixed.2
-  lrat_tauto
+  lrat_tauto [RecordBoxProduct.program_fixed.2, RecordWitness.consume_fixed.2]
 
 /-- The one-slot solver fits the retained fixed finite code envelope. -/
 theorem program_fixed : (program.program FixedPrime.Reg.found).length ≤ 133152 ∧

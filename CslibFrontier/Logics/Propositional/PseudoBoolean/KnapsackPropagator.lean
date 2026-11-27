@@ -87,7 +87,7 @@ variables, as in §3.1: a weight of at least `w` and a profit left out of at lea
 condition under which a state is refuted is monotone in both, so the one-sided states suffice,
 and the states are still exact. The proof deletes nothing. The integer-domain constraint with sum
 variables and the exact states of equations (24)–(26) is tracked in #7222 and formalized in
-#8789.
+`CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrick`.
 
 ## Main definitions
 

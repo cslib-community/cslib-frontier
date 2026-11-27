@@ -33,6 +33,7 @@ substitution follow the chain rule (`MvPolynomial.pderiv_aeval`).
   the degree.
 * `MvPolynomial.totalDegree_sumRingEquiv_le`: viewing one variable block as coefficient
   parameters does not raise the degree in the other block.
+* `MvPolynomial.eval₂_sumRingEquiv`: evaluate the two blocks separately or together.
 * `MvPolynomial.natDegree_aeval_le_of_support`: bound the degree by weighted monomial degrees.
 * `MvPolynomial.natDegree_aeval_le_mul`: substituting univariate polynomials of degree at most
   `k`, over an algebra, gives a polynomial of degree at most `k` times the total degree.
@@ -89,6 +90,22 @@ theorem totalDegree_sumRingEquiv_le (P : MvPolynomial (σ ⊕ τ) R) :
   cases i with
   | inl i => exact totalDegree_X_le i
   | inr i => simp [g]
+
+/-- Evaluating a split polynomial evaluates its coefficient variables in the second block
+and its remaining variables in the first block. -/
+theorem eval₂_sumRingEquiv {S : Type*} [CommSemiring S] (φ : R →+* S)
+    (x : σ → S) (z : τ → S) (P : MvPolynomial (σ ⊕ τ) R) :
+    eval₂ (eval₂Hom φ z) x (sumRingEquiv R σ τ P) = eval₂ φ (Sum.elim x z) P := by
+  have h : (eval₂Hom (eval₂Hom φ z) x).comp (sumRingEquiv R σ τ).toRingHom =
+      eval₂Hom φ (Sum.elim x z) := by
+    apply MvPolynomial.ringHom_ext
+    · intro r
+      rw [RingHom.comp_apply, eval₂Hom_C]
+      change eval₂Hom (eval₂Hom φ z) x (sumRingEquiv R σ τ (C r)) = φ r
+      rw [sumRingEquiv_C, eval₂Hom_C, eval₂Hom_C]
+    · intro i
+      cases i <;> simp [sumRingEquiv_X_inl, sumRingEquiv_X_inr]
+  exact DFunLike.congr_fun h P
 
 /-- Taking a coefficient in each retained block recovers the original coefficient. -/
 theorem coeff_coeff_sumRingEquiv (P : MvPolynomial (σ ⊕ τ) R)

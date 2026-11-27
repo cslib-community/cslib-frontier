@@ -24,7 +24,8 @@ critical-value polynomial. This bound supplies the norm hypothesis for choosing 
 parameter that avoids repeated critical values and a prescribed cutoff. For zero-centered
 relative systems, the source norm bounds the lower relations and deformed objective after
 joining the witness and parameter blocks. These estimates give a binary norm bound for
-the coefficients of the relative critical-value polynomial.
+the coefficients of the relative critical-value polynomial. Combining the critical-value and
+parameter variables in one polynomial preserves this norm.
 
 Adapted from `SeparatedPotentialMass`, `ParametricCriticalBounds`, `RelativeCriticalMass`,
 and `RelativeCharacteristicBounds` in lean-canny at
@@ -260,5 +261,15 @@ theorem sum_coeffNorm1_relativeValuePolynomial_le {n ell b : ℕ} {κ : Type*} (
     coeffNorm1_add_le coeffNorm1_mul_le coeffNorm1_neg coeffNorm1_nsmul hell r
     (criticalLower_degree ell hpos a u G hG) hrnorm v
     (totalDegree_deformedPolynomial_le ell a u G (hG.trans (Nat.le_succ _))) hvnorm
+
+/-- The same binary budget bounds the relative critical-value polynomial after putting
+the critical value, the penalty and the retained parameters in one variable index type. -/
+theorem coeffNorm1_flattenedRelativeValuePolynomial_le
+    {n ell b : ℕ} {κ : Type*} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b) :
+    (flattenedRelativeValuePolynomial (by omega : 1 ≤ ell) F hF).coeffNorm1 ≤
+      2 ^ relativeValueCoeffNormExponent n ell b := by
+  rw [flattenedRelativeValuePolynomial, coeffNorm1_optionEquivLeft_symm]
+  exact sum_coeffNorm1_relativeValuePolynomial_le hell F hF hb
 
 end MvPolynomial.CriticalSystem

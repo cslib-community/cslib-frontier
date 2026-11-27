@@ -66,6 +66,8 @@ Together with `Cslib.Complexity.QBFProtocol.isOraclePPTOn_verifier`, `TQBF ∈ I
 
 namespace Cslib.Complexity.QBFProtocol
 
+open Polynomial (evalCoeffListMod natCast_evalCoeffListMod evalCoeffListMod_lt_modulus)
+
 open Cslib.Logic.PL Polynomial Turing.MultiTapeTM Cslib.Probability
 open Cslib.ProbOracleComp (runWith acceptProbWith)
 open Machine
@@ -257,7 +259,8 @@ private theorem opNext_eq (o : ArithQBF.Operator) (v : ℕ) (e : ArithQBF ℕ)
           ((decodeReply I.modulus I.degree w).map Nat.cast)).val⟩ :: St, true⟩ := by
   unfold opNext replyOf
   rw [hmod, hdeg, htop, hhead, hxs, hbelow, hsuf, updatePt_canonPt,
-    ← val_natCast_of_lt I (hornerMod_lt _ _), natCast_hornerMod]
+    ← val_natCast_of_lt I (evalCoeffListMod_lt_modulus _ _), natCast_evalCoeffListMod,
+    Polynomial.eval_ofCoeffList]
   cases o <;> simp only [ArithQBF.tokens, List.cons_append, List.tail_cons]
 
 private theorem runWith_verdict_op (o : ArithQBF.Operator) (v : ℕ) (hv : v ∈ I.xs) (e : ArithQBF ℕ)
@@ -285,11 +288,12 @@ private theorem runWith_verdict_op (o : ArithQBF.Operator) (v : ℕ) (hv : v ∈
   set w := y.1.take (replyLimit I.modulus I.degree)
   set l := decodeReply I.modulus I.degree w with hl
   have hiff : operatorMod I.modulus o (lookupPt a.top.point a.head.2 % I.modulus)
-        (hornerMod I.modulus 0 l) (hornerMod I.modulus 1 l) % I.modulus =
+        (evalCoeffListMod I.modulus 0 l) (evalCoeffListMod I.modulus 1 l) % I.modulus =
           a.top.value % I.modulus ↔
       o.apply (r v) (evalCoeffList 0 (l.map Nat.cast)) (evalCoeffList 1 (l.map Nat.cast)) = c := by
     rw [htop, hhead, lookupPt_canonPt r hv, mod_eq_val_mod_iff, natCast_operatorMod,
-      ZMod.natCast_mod, ZMod.natCast_zmod_val, natCast_hornerMod, natCast_hornerMod,
+      ZMod.natCast_mod, ZMod.natCast_zmod_val, natCast_evalCoeffListMod, natCast_evalCoeffListMod,
+      Polynomial.eval_ofCoeffList, Polynomial.eval_ofCoeffList,
       Nat.cast_zero, Nat.cast_one]
   unfold opCont opCheck replyOf
   rw [hmod, hdeg, ← hl]

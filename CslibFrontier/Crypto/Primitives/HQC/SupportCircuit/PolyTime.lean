@@ -260,9 +260,7 @@ The separate gate bound is `size_candidateCircuit_le`. -/
   have hw' := unary_to_binary.comp hw
   have hwide : ComputableInPolyTime (fun a => width a + bits a) enc encUnary := by fun_prop
   have hid : ComputableInPolyTime (fun a => ([], List.range (width a))) enc encCode := by
-    have h := unary_to_binary.map.comp (range.comp hw)
-    simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-      (const (encOut := encList encGate) []).prod h
+    exact (const (encOut := encList encGate) []).prod ((range.comp hw).reencodeList unary_to_binary)
   have hhigh : ComputableInPolyTime
       (fun a => ([], (List.range (bits a)).map (width a + ·))) enc encCode := by
     have hi : ComputableInPolyTime (fun p : α × ℕ => width p.1 + p.2)

@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BitsGetElem
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
 /-!
 # Reading the input at a stored position
@@ -28,6 +30,16 @@ its value has constant length.
 public section
 
 namespace Turing.MultiTapeTM
+
+/-- `⌊log₂⌋` of the length of a word, within logarithmic space. -/
+theorem ComputableInSpace.log2BitsLength :
+    ComputableInSpace (fun w : List Bool => Nat.log2 w.length) encBits encNat
+      fun w => Nat.log2 (encBits w).length :=
+  (ComputableInLogSpace.unaryToBinary
+      (ComputableInLogSpace.unaryLog2 ComputableInLogSpace.bitsLength)).inSpace_of_length_log
+    ⟨1, fun w => by
+      simpa only [one_mul, encBits_apply] using
+        length_encNat_le_log2 (Nat.log2_le_self w.length)⟩
 
 private theorem length_encOption_bool_le (o : Option Bool) : (encOption encBool o).length ≤ 2 := by
   cases o <;> simp

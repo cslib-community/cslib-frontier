@@ -13,9 +13,8 @@ public import CslibFrontier.Foundations.Geometry.Euclidean.Angle.Unoriented.Basi
 public import CslibFrontier.Foundations.MeasureTheory.Constructions.BorelSpace.Order
 public import Mathlib.Probability.Distributions.Gaussian.Multivariate
 import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
+import CslibFrontier.Foundations.Probability.Gaussian.Polar
 import CslibFrontier.Foundations.Probability.Gaussian.Real
-import Mathlib.Analysis.SpecialFunctions.Gaussian.GaussianIntegral
-import Mathlib.Analysis.SpecialFunctions.PolarCoord
 
 /-!
 # Sheppard's bound and formula for threshold crossings of correlated Gaussians
@@ -79,22 +78,6 @@ namespace ProbabilityTheory
 
 /-! ### The planar angle law -/
 
-/-- The half-line integral `∫_{x > 0} x exp (-b x ^ 2) = 1 / (2b)`. -/
-private theorem integral_Ioi_mul_exp_neg_mul_sq {b : ℝ} (hb : 0 < b) :
-    ∫ x in Ioi (0 : ℝ), x * exp (-b * x ^ 2) = (2 * b)⁻¹ := by
-  exact_mod_cast (show ((∫ x in Ioi (0 : ℝ), x * exp (-b * x ^ 2) : ℝ) : ℂ) = ((2 * b)⁻¹ : ℝ) by
-    rw [← integral_complex_ofReal]
-    simpa using integral_mul_cexp_neg_mul_sq (b := (b : ℂ)) (by simpa using hb))
-
-/-- The standard planar Gaussian density in polar coordinates is `exp (-r ^ 2 / 2) / (2π)`. -/
-private theorem gaussianPDFReal_mul_polar (r θ : ℝ) :
-    gaussianPDFReal 0 1 (r * cos θ) * gaussianPDFReal 0 1 (r * sin θ) =
-      (2 * π)⁻¹ * exp (-2⁻¹ * r ^ 2) := by
-  simp only [gaussianPDFReal_def, sub_zero, NNReal.coe_one, mul_one]
-  rw [mul_mul_mul_comm, ← mul_inv, mul_self_sqrt (by positivity), ← exp_add]
-  congr 2
-  linear_combination (-2⁻¹ * r ^ 2) * sin_sq_add_cos_sq θ
-
 /-- The angles with `|cos θ| ≤ k |sin θ|` are those with `|cos θ| ≤ sin (arctan k)`. -/
 private theorem abs_cos_le_mul_abs_sin_iff {k : ℝ} (hk : 0 ≤ k) (θ : ℝ) :
     |cos θ| ≤ k * |sin θ| ↔ |cos θ| ≤ sin (arctan k) := by
@@ -141,17 +124,6 @@ private theorem volume_angle_set {k : ℝ} (hk : 0 ≤ k) :
     Real.volume_Icc, Real.volume_Icc, ← ENNReal.ofReal_add (by linarith) (by linarith)]
   exact congrArg ENNReal.ofReal (by ring)
 
-/-- The radial factor `r exp (-r ^ 2 / 2) / (2π)` of the planar Gaussian density integrates to
-`1 / (2π)`. -/
-private theorem lintegral_radial :
-    ∫⁻ r in Ioi (0 : ℝ), ENNReal.ofReal ((2 * π)⁻¹ * (r * exp (-2⁻¹ * r ^ 2))) =
-      ENNReal.ofReal (2 * π)⁻¹ := by
-  rw [← ofReal_integral_eq_lintegral_ofReal
-      ((integrable_mul_exp_neg_mul_sq (by norm_num)).const_mul _).integrableOn
-      ((ae_restrict_iff' measurableSet_Ioi).2 (ae_of_all _ fun r (hr : 0 < r) => by positivity)),
-    integral_const_mul, integral_Ioi_mul_exp_neg_mul_sq (by norm_num)]
-  norm_num
-
 /-- **The planar angle law.** For independent standard Gaussians `Z₁` and `Z₂`, the event
 `|Z₁| ≤ k |Z₂|` has probability `(2 / π) arctan k`. -/
 theorem gaussianReal_prod_setOf_abs_le_mul_abs {k : ℝ} (hk : 0 ≤ k) :
@@ -161,32 +133,29 @@ theorem gaussianReal_prod_setOf_abs_le_mul_abs {k : ℝ} (hk : 0 ≤ k) :
   have hAm : MeasurableSet A := measurableSet_le (by fun_prop) (by fun_prop)
   set B : Set ℝ := {θ | |cos θ| ≤ k * |sin θ|} with hB
   have hBm : MeasurableSet B := measurableSet_le (by fun_prop) (by fun_prop)
-  rw [gaussianReal_of_var_ne_zero 0 one_ne_zero,
-    prod_withDensity (measurable_gaussianPDF 0 1) (measurable_gaussianPDF 0 1),
-    withDensity_apply _ hAm, ← Measure.volume_eq_prod, ← lintegral_indicator hAm,
-    ← lintegral_comp_polarCoord_symm]
-  have hint : ∀ p ∈ polarCoord.target,
-      ENNReal.ofReal p.1 • A.indicator
-          (fun z => gaussianPDF 0 1 z.1 * gaussianPDF 0 1 z.2) (polarCoord.symm p) =
-        ENNReal.ofReal ((2 * π)⁻¹ * (p.1 * exp (-2⁻¹ * p.1 ^ 2))) * B.indicator 1 p.2 := by
-    rintro ⟨r, θ⟩ ⟨(hr : 0 < r), -⟩
-    have hiff : (r * cos θ, r * sin θ) ∈ A ↔ θ ∈ B := by
+  rw [← ENNReal.toReal_eq_toReal_iff' (measure_ne_top _ _) ENNReal.ofReal_ne_top,
+    ENNReal.toReal_ofReal (mul_nonneg (by positivity) (arctan_nonneg.2 hk)), ← measureReal_def,
+    measureReal_prod_gaussianReal_polar hAm]
+  have hangular {r : ℝ} (hr : 0 < r) :
+      ∫ φ in Ioo (-π) π, A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ) =
+        4 * arctan k := by
+    have hmem (φ : ℝ) : (r * cos φ, r * sin φ) ∈ A ↔ φ ∈ B := by
       simp only [hA, hB, mem_ofPred_eq, abs_mul, abs_of_pos hr]
       rw [mul_left_comm, mul_le_mul_iff_right₀ hr]
-    simp only [polarCoord_symm_apply, smul_eq_mul]
-    by_cases hθ : θ ∈ B
-    · rw [indicator_of_mem (hiff.2 hθ), indicator_of_mem hθ, Pi.one_apply, mul_one,
-        gaussianPDF, gaussianPDF, ← ENNReal.ofReal_mul (gaussianPDFReal_nonneg _ _ _),
-        gaussianPDFReal_mul_polar, ← ENNReal.ofReal_mul hr.le]
-      exact congrArg ENNReal.ofReal (by ring)
-    · rw [indicator_of_notMem (mt hiff.1 hθ), indicator_of_notMem hθ, mul_zero, mul_zero]
-  rw [setLIntegral_congr_fun polarCoord.open_target.measurableSet hint,
-    polarCoord_target, Measure.volume_eq_prod, ← Measure.prod_restrict,
-    lintegral_prod_mul (f := fun r => ENNReal.ofReal ((2 * π)⁻¹ * (r * exp (-2⁻¹ * r ^ 2))))
-      (g := B.indicator 1) (by fun_prop) ((measurable_one.indicator hBm).aemeasurable),
-    lintegral_radial, lintegral_indicator_one hBm, Measure.restrict_apply hBm,
-    volume_angle_set hk, ← ENNReal.ofReal_mul (by positivity)]
-  exact congrArg ENNReal.ofReal (by field_simp; ring)
+    calc
+      _ = ∫ φ in Ioo (-π) π, B.indicator 1 φ :=
+        setIntegral_congr_fun measurableSet_Ioo fun φ _ => by simp only [indicator_apply, hmem,
+          Pi.one_apply]
+      _ = _ := by
+        rw [integral_indicator_one hBm, Measure.real, Measure.restrict_apply hBm,
+          volume_angle_set hk,
+          ENNReal.toReal_ofReal (mul_nonneg (by norm_num) (arctan_nonneg.2 hk))]
+  rw [setIntegral_congr_fun measurableSet_Ioi
+    (fun r hr => congrArg (planarGaussianRadialWeight r * ·) (hangular hr)),
+    integral_mul_const, integral_Ioi_planarGaussianRadialWeight]
+  simp only [zero_pow two_ne_zero, neg_zero, zero_div, exp_zero, mul_one]
+  field_simp [pi_ne_zero]
+  ring
 
 /-- `gaussianReal 0 s` is the image of the standard Gaussian under `x ↦ √s x`. -/
 private theorem gaussianReal_map_sqrt_mul (s : ℝ≥0) :

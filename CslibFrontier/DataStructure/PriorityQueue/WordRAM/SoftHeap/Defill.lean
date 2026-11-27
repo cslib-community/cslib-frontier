@@ -290,10 +290,6 @@ private theorem defillPickChild_spec {rt w itemBase nodeBase : ℕ} {s : Memory.
       s'.mem (nodeBase + 12 * t.rootId + 6) = c.rootId ∧
       s'.mem (nodeBase + 12 * t.rootId + 7) = sib.elim 0 SHTree.rootId ∧
       (∀ sc, sib = some sc → c.ckey ≤ sc.ckey) := by
-  have hcr_pure : ∀ (x : ℕ) (t' : Memory.State),
-      (Memory.spec 0).clientResult t' (Pure.pure x) = x := fun _ _ => rfl
-  have hcs_pure : ∀ (x : ℕ) (t' : Memory.State),
-      (Memory.spec 0).clientState t' (Pure.pure x) = t' := fun _ _ => rfl
   have hmc_pure : ∀ (x : ℕ) (t' : Memory.State),
       memoryCost (Pure.pure x) t' = 0 := fun _ _ => rfl
   cases t with
@@ -359,93 +355,57 @@ private theorem defillPickChild_spec {rt w itemBase nodeBase : ℕ} {s : Memory.
         dsimp only [defillPickChild]
         simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val,
           Option.elim_some, hcl_ne, hcr_ne, ↓reduceIte]
+        let choose (lc rc : ℕ) : Memory.Prog ℕ :=
+          if rc < lc then do
+            Memory.write (nodeBase + 12 * id + 6) cr.rootId
+            Memory.write (nodeBase + 12 * id + 7) cl.rootId
+            pure cr.rootId
+          else pure cl.rootId
+        set prog := (do
+          let lc ← Memory.read (nodeBase + 12 * cl.rootId)
+          let rc ← Memory.read (nodeBase + 12 * cr.rootId)
+          choose lc rc : Memory.Prog ℕ) with hprog
+        have hst : (Memory.spec 0).clientState s prog =
+            (Memory.spec 0).clientState s (choose cl.ckey cr.ckey) := by
+          rw [hprog, clientState_bind_read, hcl_ck, clientState_bind_read, hcr_ck]
+        have hres : (Memory.spec 0).clientResult s prog =
+            (Memory.spec 0).clientResult s (choose cl.ckey cr.ckey) := by
+          rw [hprog, clientResult_bind_read, hcl_ck, clientResult_bind_read, hcr_ck]
+        have hcost : memoryCost prog s = 1 + (1 + memoryCost (choose cl.ckey cr.ckey) s) := by
+          rw [hprog]
+          repeat rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
+          rw [hcl_ck, hcr_ck]
+        rw [hst, hres, hcost]
+        dsimp only [choose]
         by_cases hcmp : cr.ckey < cl.ckey
-        · have hs_eq : (Memory.spec 0).clientState s
-              (do
-                let lc ← Memory.read (nodeBase + 12 * cl.rootId)
-                let rc ← Memory.read (nodeBase + 12 * cr.rootId)
-                if rc < lc then do
-                  Memory.write (nodeBase + 12 * id + 6) cr.rootId
-                  Memory.write (nodeBase + 12 * id + 7) cl.rootId
-                  pure cr.rootId
-                else pure cl.rootId) =
-              ⟨Function.update (Function.update s.mem (nodeBase + 12 * id + 6) cr.rootId)
-                (nodeBase + 12 * id + 7) cl.rootId, s.frontier⟩ := by
-            repeat rw [clientState_bind_read]
-            rw [hcl_ck, hcr_ck]
-            simp only [hcmp, ↓reduceIte]
-            rfl
-          have hres_eq : (Memory.spec 0).clientResult s
-              (do
-                let lc ← Memory.read (nodeBase + 12 * cl.rootId)
-                let rc ← Memory.read (nodeBase + 12 * cr.rootId)
-                if rc < lc then do
-                  Memory.write (nodeBase + 12 * id + 6) cr.rootId
-                  Memory.write (nodeBase + 12 * id + 7) cl.rootId
-                  pure cr.rootId
-                else pure cl.rootId) = cr.rootId := by
-            repeat rw [clientResult_bind_read]
-            rw [hcl_ck, hcr_ck]
-            simp only [hcmp, ↓reduceIte]
-            rfl
-          refine ⟨validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_),
-            ?_, ?_, ?_, cr, some cl, Or.inr ⟨rfl, rfl⟩, ?_, ?_, ?_,
-            fun sc hsc => by cases hsc; omega⟩
-          · rw [hcl_ck, hcr_ck]; simp only [hcmp, ↓reduceIte]
-            exact validHistory_write_bind (by omega) hcr_fit
-              (validHistory_write_bind (by dsimp only; omega) hcl_fit (validHistory_pure w _ _))
-          · repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
-            rw [hcl_ck, hcr_ck]
-            simp only [hcmp, ↓reduceIte, memoryCost_bind', memoryCost_write, hmc_pure]
+        · rw [ite_eq_left hcmp]
+          refine ⟨validHistory_read_bind (by lia) (validHistory_read_bind (by lia) ?_),
+            ?_, rfl, ?_, cr, some cl, Or.inr ⟨rfl, rfl⟩, rfl, ?_, ?_,
+            fun sc hsc => by cases hsc; exact hcmp.le⟩
+          · rw [hcl_ck, hcr_ck]
+            simp only [choose, hcmp, ↓reduceIte]
+            exact validHistory_write_bind (by lia) hcr_fit
+              (validHistory_write_bind (by dsimp only; lia) hcl_fit (validHistory_pure w _ _))
+          · simp only [memoryCost_bind', memoryCost_write, hmc_pure]
             decide
-          · rw [hs_eq]
           · intro a ha6 ha7
-            rw [hs_eq]; dsimp only
+            change Function.update (Function.update s.mem _ _) _ _ a = s.mem a
             rw [Function.update_of_ne ha7, Function.update_of_ne ha6]
-          · exact hres_eq
-          · rw [hs_eq]; dsimp only
-            rw [Function.update_of_ne (by omega), Function.update_self]; rfl
-          · rw [hs_eq]; dsimp only
-            rw [Function.update_self]; rfl
-        · have hs_eq : (Memory.spec 0).clientState s
-              (do
-                let lc ← Memory.read (nodeBase + 12 * cl.rootId)
-                let rc ← Memory.read (nodeBase + 12 * cr.rootId)
-                if rc < lc then do
-                  Memory.write (nodeBase + 12 * id + 6) cr.rootId
-                  Memory.write (nodeBase + 12 * id + 7) cl.rootId
-                  pure cr.rootId
-                else pure cl.rootId) = s := by
-            repeat rw [clientState_bind_read]
-            rw [hcl_ck, hcr_ck]
-            simp only [hcmp, ↓reduceIte]
+          · change Function.update (Function.update s.mem _ _) _ _ _ = _
+            rw [Function.update_of_ne (by lia), Function.update_self]
             rfl
-          have hres_eq : (Memory.spec 0).clientResult s
-              (do
-                let lc ← Memory.read (nodeBase + 12 * cl.rootId)
-                let rc ← Memory.read (nodeBase + 12 * cr.rootId)
-                if rc < lc then do
-                  Memory.write (nodeBase + 12 * id + 6) cr.rootId
-                  Memory.write (nodeBase + 12 * id + 7) cl.rootId
-                  pure cr.rootId
-                else pure cl.rootId) = cl.rootId := by
-            repeat rw [clientResult_bind_read]
-            rw [hcl_ck, hcr_ck]
-            simp only [hcmp, ↓reduceIte]
+          · change Function.update (Function.update s.mem _ _) _ _ _ = _
+            rw [Function.update_self]
             rfl
-          refine ⟨validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_),
-            ?_, ?_, ?_, cl, some cr, Or.inl ⟨rfl, rfl⟩, ?_, ?_, ?_,
-            fun sc hsc => by cases hsc; omega⟩
-          · rw [hcl_ck, hcr_ck]; simp only [hcmp, ↓reduceIte]; exact validHistory_pure w _ _
-          · repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
-            rw [hcl_ck, hcr_ck]
-            simp only [hcmp, ↓reduceIte, hmc_pure]
+        · rw [ite_eq_right hcmp]
+          refine ⟨validHistory_read_bind (by lia) (validHistory_read_bind (by lia) ?_),
+            ?_, rfl, fun _ _ _ => rfl, cl, some cr, Or.inl ⟨rfl, rfl⟩, rfl, h6, h7,
+            fun sc hsc => by cases hsc; exact Nat.le_of_not_lt hcmp⟩
+          · rw [hcl_ck, hcr_ck]
+            simp only [choose, hcmp, ↓reduceIte]
+            exact validHistory_pure w _ _
+          · rw [hmc_pure]
             decide
-          · rw [hs_eq]
-          · intro _ _ _; rw [hs_eq]
-          · exact hres_eq
-          · rw [hs_eq]; exact h6
-          · rw [hs_eq]; exact h7
 
 private theorem defillSplice_spec {rt w itemBase nodeBase : ℕ} {s : Memory.State}
     {cur c : SHTree}
@@ -742,85 +702,67 @@ private theorem defillFinish_spec {w nodeBase : ℕ} {s : Memory.State}
       nxt = cId ∧
       s'.mem (nodeBase + 12 * cId + 8) = curId ∧
       ∀ a, a ≠ nodeBase + 12 * cId + 8 → s'.mem a = s.mem a := by
-  have h0_fit : Fits w 0 := h16.of_le (by omega)
-  have hnr_fit : Fits w nr := by rw [← hnr]; exact hmem.mem_fits _
-  have hcr_pure : ∀ (x : ℕ) (t : Memory.State),
-      (Memory.spec 0).clientResult t (Pure.pure x) = x := fun _ _ => rfl
-  have hcs_pure : ∀ (x : ℕ) (t : Memory.State),
-      (Memory.spec 0).clientState t (Pure.pure x) = t := fun _ _ => rfl
-  have hmc_pure : ∀ (x : ℕ) (t : Memory.State),
-      memoryCost (Pure.pure x) t = 0 := fun _ _ => rfl
-  have hv : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (defillFinish ![nodeBase, curId, cId])) := by
-    dsimp only [defillFinish]
-    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-    refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
+  have h0_fit : Fits w 0 := h16.of_le (by lia)
+  have hnr_fit : Fits w nr := hnr ▸ hmem.mem_fits _
+  have hpure (x : ℕ) (t : Memory.State) : memoryCost (pure x : Memory.Prog ℕ) t = 0 := rfl
+  dsimp only [defillFinish]
+  simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
+  let finish (cl cr : ℕ) : Memory.Prog ℕ :=
+    if cl = 0 ∧ cr = 0 then do
+      let next ← Memory.read (nodeBase + 12 * curId + 7)
+      Memory.write (nodeBase + 12 * curId + 6) next
+      Memory.write (nodeBase + 12 * curId + 7) 0
+      pure curId
+    else do
+      Memory.write (nodeBase + 12 * cId + 8) curId
+      pure cId
+  set prog := (do
+    let cl ← Memory.read (nodeBase + 12 * cId + 6)
+    let cr ← Memory.read (nodeBase + 12 * cId + 7)
+    finish cl cr : Memory.Prog ℕ) with hprog
+  have hstate : (Memory.spec 0).clientState s prog =
+      (Memory.spec 0).clientState s (finish cLeft cRight) := by
+    rw [hprog, clientState_bind_read, h6, clientState_bind_read, h7]
+  have hresult : (Memory.spec 0).clientResult s prog =
+      (Memory.spec 0).clientResult s (finish cLeft cRight) := by
+    rw [hprog, clientResult_bind_read, h6, clientResult_bind_read, h7]
+  have hcost : memoryCost prog s = 1 + (1 + memoryCost (finish cLeft cRight) s) := by
+    rw [hprog]
+    repeat rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
     rw [h6, h7]
-    by_cases hleaf : cLeft = 0 ∧ cRight = 0
-    · have hlc : (cLeft = 0 ∧ cRight = 0) = True := eq_true hleaf
-      simp only [hlc, ↓reduceIte]
-      refine validHistory_read_bind (by omega) ?_
-      rw [hnr]
-      exact validHistory_write_bind (by omega) hnr_fit
-        (validHistory_write_bind (by dsimp only; omega) h0_fit (validHistory_pure w _ _))
-    · have hlc : (cLeft = 0 ∧ cRight = 0) = False := eq_false hleaf
-      simp only [hlc, ↓reduceIte]
-      exact validHistory_write_bind (by omega) hcur_fit (validHistory_pure w _ _)
-  have hs_eq : (Memory.spec 0).clientState s (defillFinish ![nodeBase, curId, cId]) =
-      if cLeft = 0 ∧ cRight = 0 then
-        let s₁ : Memory.State := ⟨Function.update s.mem (nodeBase + 12 * curId + 6) nr, s.frontier⟩
-        ⟨Function.update s₁.mem (nodeBase + 12 * curId + 7) 0, s₁.frontier⟩
-      else
-        ⟨Function.update s.mem (nodeBase + 12 * cId + 8) curId, s.frontier⟩ := by
-    dsimp only [defillFinish]
-    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-    rw [clientState_bind_read, h6, clientState_bind_read, h7]
-    by_cases hleaf : cLeft = 0 ∧ cRight = 0
-    · have hlc : (cLeft = 0 ∧ cRight = 0) = True := eq_true hleaf
-      simp only [hlc, ↓reduceIte]
-      rw [clientState_bind_read, hnr]
-      rfl
-    · have hlc : (cLeft = 0 ∧ cRight = 0) = False := eq_false hleaf
-      simp only [hlc, ↓reduceIte]
-      rfl
-  have hres_eq : (Memory.spec 0).clientResult s (defillFinish ![nodeBase, curId, cId]) =
-      if cLeft = 0 ∧ cRight = 0 then curId else cId := by
-    dsimp only [defillFinish]
-    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-    rw [clientResult_bind_read, h6, clientResult_bind_read, h7]
-    by_cases hleaf : cLeft = 0 ∧ cRight = 0
-    · have hlc : (cLeft = 0 ∧ cRight = 0) = True := eq_true hleaf
-      simp only [hlc, ↓reduceIte, clientResult_bind_read, hnr, clientResult_bind_write, hcr_pure]
-    · have hlc : (cLeft = 0 ∧ cRight = 0) = False := eq_false hleaf
-      simp only [hlc, ↓reduceIte, clientResult_bind_write, hcr_pure]
-  have hm_eq : memoryCost (defillFinish ![nodeBase, curId, cId]) s =
-      if cLeft = 0 ∧ cRight = 0 then 5 else 3 := by
-    dsimp only [defillFinish]
-    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-    rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, h6,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, h7]
-    by_cases hleaf : cLeft = 0 ∧ cRight = 0
-    · have hlc : (cLeft = 0 ∧ cRight = 0) = True := eq_true hleaf
-      simp only [hlc, ↓reduceIte, memoryCost_bind', memoryCost_read, memoryCost_write, hmc_pure]
-    · have hlc : (cLeft = 0 ∧ cRight = 0) = False := eq_false hleaf
-      simp only [hlc, ↓reduceIte, memoryCost_bind', memoryCost_write, hmc_pure]
-  have hfr_eq : ((Memory.spec 0).clientState s (defillFinish ![nodeBase, curId, cId])).frontier =
-      s.frontier := by
-    rw [hs_eq]
-    split_ifs <;> rfl
-  refine ⟨hv, hfr_eq, ?_⟩
+  rw [hstate, hresult, hcost]
+  dsimp only [finish]
   by_cases hleaf : cLeft = 0 ∧ cRight = 0
-  · have hlc : (cLeft = 0 ∧ cRight = 0) = True := eq_true hleaf
-    simp only [hlc, ↓reduceIte, hm_eq, hres_eq, hs_eq]
-    refine ⟨by omega, trivial, ?_, ?_, fun a ha6 ha7 => ?_⟩
-    · rw [Function.update_of_ne (by omega), Function.update_self]
-    · rw [Function.update_self]
-    · rw [Function.update_of_ne ha7, Function.update_of_ne ha6]
-  · have hlc : (cLeft = 0 ∧ cRight = 0) = False := eq_false hleaf
-    simp only [hlc, ↓reduceIte, hm_eq, hres_eq, hs_eq]
-    refine ⟨by omega, trivial, ?_, fun a ha8 => ?_⟩
-    · rw [Function.update_self]
-    · rw [Function.update_of_ne ha8]
+  · simp only [eq_true hleaf, ↓reduceIte]
+    rw [clientState_bind_read, clientResult_bind_read, hnr]
+    refine ⟨validHistory_read_bind (by lia) (validHistory_read_bind (by lia) ?_),
+      rfl, ?_, rfl, ?_, ?_, fun a ha6 ha7 => ?_⟩
+    · rw [h6, h7]
+      simp only [finish, eq_true hleaf, ↓reduceIte]
+      refine validHistory_read_bind (by lia) ?_
+      rw [hnr]
+      exact validHistory_write_bind (by lia) hnr_fit
+        (validHistory_write_bind (by dsimp only; lia) h0_fit (validHistory_pure w _ _))
+    · simp only [memoryCost_bind', memoryCost_read, memoryCost_write, hpure]
+      decide
+    · change Function.update (Function.update s.mem _ _) _ _ _ = _
+      rw [Function.update_of_ne (by lia), Function.update_self]
+    · change Function.update (Function.update s.mem _ _) _ _ _ = _
+      rw [Function.update_self]
+    · change Function.update (Function.update s.mem _ _) _ _ a = _
+      rw [Function.update_of_ne ha7, Function.update_of_ne ha6]
+  · simp only [eq_false hleaf, ↓reduceIte]
+    refine ⟨validHistory_read_bind (by lia) (validHistory_read_bind (by lia) ?_),
+      rfl, ?_, rfl, ?_, fun a ha8 => ?_⟩
+    · rw [h6, h7]
+      simp only [finish, eq_false hleaf, ↓reduceIte]
+      exact validHistory_write_bind (by lia) hcur_fit (validHistory_pure w _ _)
+    · simp only [memoryCost_bind', memoryCost_write, hpure]
+      decide
+    · change Function.update s.mem _ _ _ = _
+      rw [Function.update_self]
+    · change Function.update s.mem _ _ a = _
+      rw [Function.update_of_ne ha8]
 
 private theorem zipCurValid_items_ne_empty_of_not_cond {rt lb : ℕ} {cur : SHTree}
     (hval : ZipCurValid rt lb cur)

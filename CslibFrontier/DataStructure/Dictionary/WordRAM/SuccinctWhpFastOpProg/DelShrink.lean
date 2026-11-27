@@ -84,15 +84,14 @@ private theorem realizes_delShrinkBackyard :
     obtain ⟨c, U, V, w₀, n_max, fs2, henv, rfl, hrep2, hb, hcf, hll, htop_lt⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have h2tl := (large_index_bounds hth).2.2.1
     have hps_le := (large_index_bounds hth).2.1
     have hk : loc_last - capFrontWhp n_max < capBackWhp n_max := by
       unfold totalLocalCoordsWhp at hll; omega
     obtain ⟨hrb_st, hrb_res, _, _⟩ := readBackPtrGenProg_spec henv hb hk hrep2 (s := s)
-    obtain ⟨hrh_st, hrh_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrPoolFreeTop)
-      (by dsimp [hdrPoolFreeTop]; omega) (s := s)
+    obtain ⟨hrh_st, hrh_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrPoolFreeTop) (s := s) (by decide)
     have hmem_top : s.mem (base + hdrPoolFreeTop) = fs2.poolFreeTop := hrep2.2.2.1
     simp only [wp_large_M hth, wp_large_capFront hth, wp_large_capBack hth,
       wp_large_poolSize hth] at *
@@ -182,7 +181,7 @@ theorem fastDeleteShrinkGenProg_fastStep {c U V w n_max base b loc_last : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (fastDeleteShrink n_max b loc_last fs2) s s' := by
   have hth := henv.2.2.2.1
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have h2tl := (large_index_bounds hth).2.2.1
   have hps_le := (large_index_bounds hth).2.1
   set cp := mkWhpCoreParams c U V w n_max
@@ -202,9 +201,8 @@ theorem fastDeleteShrinkGenProg_fastStep {c U V w n_max base b loc_last : ℕ}
     obtain ⟨hbp_lt, htop_lt⟩ := hcf_fn hcf
     obtain ⟨hrb_st, hrb_res, hrb_mc, hrb_vp⟩ :=
       readBackPtrGenProg_spec henv hb hk hwb_step.2.2.1 (s := s2)
-    obtain ⟨hrh_st, hrh_res, hrh_mc, hrh_vp⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrPoolFreeTop)
-      (by dsimp [hdrPoolFreeTop]; omega) (s := s2)
+    obtain ⟨hrh_st, hrh_res, hrh_mc, hrh_vp⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrPoolFreeTop) (s := s2) (by decide)
     rw [hwb_step.2.2.1.2.2.1] at hrh_res
     obtain ⟨hws_mc, hws_vp, hws_step⟩ := writePoolFreeStackGenProg_fastStep henv htop_lt
       (by omega : fs2.backPtr b (loc_last - capFrontWhp n_max) ≤ n_max)

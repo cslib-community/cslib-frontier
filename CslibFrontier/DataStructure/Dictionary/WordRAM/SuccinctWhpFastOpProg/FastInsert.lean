@@ -63,12 +63,9 @@ private theorem bind_read_post {α : Type} {c U V w n_max base C₀ C B r : ℕ}
       ValidProg w (base + largeSpaceWhp c U V w n_max) s (p >>= k) ∧
       ((Memory.spec 0).clientResult s (p >>= k) = r ∧
         S ((Memory.spec 0).clientState s (p >>= k))) := by
-  refine ⟨?_, validProg_bind hp_vp (hp_st.symm ▸ hp_res.symm ▸ hk.2.1), ?_⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hp_st, hp_res]
-    have := hk.1
-    omega
-  · rw [clientResult_bind, clientState_bind, hp_st, hp_res]
-    exact hk.2.2
+  obtain ⟨hst, hres, hcost, hvp⟩ := bind_of_readOnly hp_st hp_res hp_vp ℕ k
+  rw [hst, hres, hcost, hvp, ← Nat.add_assoc]
+  exact ⟨(Nat.add_le_add_right (Nat.add_le_add_left hp_mc _) _).trans hk.1, hk.2⟩
 
 private theorem pure_zero_opt {c U V w n_max base C₀ B : ℕ}
     {s : Memory.State} (hB : C₀ ≤ B) :

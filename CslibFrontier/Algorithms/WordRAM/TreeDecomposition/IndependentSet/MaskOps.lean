@@ -344,6 +344,17 @@ theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
             Nat.add_le_add hc_step hc_rest
         _ = (rest.length + 1) * (args.bagBLen + 1) := by ring
 
+private theorem maskAccumulatorStep {w len j pow2 acc : ℕ} (hj : j + 1 ≤ len)
+    (hp : pow2 = 2 ^ (len - (j + 1))) (ha : acc < pow2) (hw : Fits w (2 ^ len)) :
+    2 * pow2 = 2 ^ (len - j) ∧ Fits w (2 * pow2) ∧
+      ∀ add ≤ pow2, acc + add < 2 * pow2 ∧ Fits w (acc + add) := by
+  have hnext : 2 * pow2 = 2 ^ (len - j) :=
+    hp ▸ (Nat.pow_succ' ..).symm.trans (congrArg (2 ^ ·) (by lia))
+  have hfit := hw.of_le (hnext ▸ Nat.pow_le_pow_right (by decide) (Nat.sub_le len j))
+  exact ⟨hnext, hfit, fun add hadd =>
+    have hlt : acc + add < 2 * pow2 := by lia
+    ⟨hlt, hfit.of_le hlt.le⟩⟩
+
 /-- Exact-basis Word-RAM realization certificate for `keyMaskProg`. -/
 theorem keyMaskProg_realizes :
     Realizes .exact keyMaskProg WordEncoding.encode WordEncoding.encode
@@ -362,13 +373,10 @@ theorem keyMaskProg_realizes :
         st.pow2 = 2 ^ (d.bagPLen - j) ∧ st.acc < st.pow2)
       (fun j st m ⟨hj_le, hcur, hp2, hacc_lt⟩ => ?_)
       ⟨le_rfl, rfl, by simp only [Nat.sub_self, Nat.pow_zero], Nat.zero_lt_one⟩
-    have hp2_next : 2 * st.pow2 = 2 ^ (d.bagPLen - j) :=
-      hp2 ▸ (Nat.pow_succ' ..).symm.trans (congrArg (2 ^ ·) (by omega))
-    have hp2_fit : Fits w (2 * st.pow2) :=
-      hpow.of_le (hp2_next ▸ Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _))
-    have hcur_fit : Fits w (st.curP + 1) := hfitP.of_le (by omega)
-    have hacc1_fit : Fits w (st.acc + st.pow2) := hp2_fit.of_le (by omega)
-    have hacc0_fit : Fits w (st.acc + 0) := hp2_fit.of_le (by omega)
+    obtain ⟨hp2_next, hp2_fit, hacc_step⟩ := maskAccumulatorStep hj_le hp2 hacc_lt hpow
+    have hcur_fit : Fits w (st.curP + 1) := hfitP.of_le (by lia)
+    have hacc1_fit := (hacc_step st.pow2 le_rfl).2
+    have hacc0_fit := (hacc_step 0 (Nat.zero_le _)).2
     obtain ⟨add, hadd_le, hres⟩ : ∃ add ≤ st.pow2, (Memory.spec 0).clientResult m
         (keyMaskStep (⟨d.bagBPtr, d.bagBLen, d.mask⟩, st)) =
         ⟨st.curP + 1, 2 * st.pow2, st.acc + add⟩ := by
@@ -376,12 +384,11 @@ theorem keyMaskProg_realizes :
       dsimp only
       rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
         selMemBagProg_state]
-      exact ⟨_, by split_ifs <;> omega, rfl⟩
+      exact ⟨_, by split_ifs <;> first | exact le_rfl | exact Nat.zero_le _, rfl⟩
     refine ⟨by repeat (first | split | assumption | refine And.intro ?_ ?_),
       Nat.le_of_succ_le hj_le, ?_⟩
     rw [hres]
-    dsimp only
-    exact ⟨Nat.add_right_comm st.curP 1 j ▸ hcur, hp2_next, by omega⟩
+    exact ⟨Nat.add_right_comm st.curP 1 j ▸ hcur, hp2_next, (hacc_step add hadd_le).1⟩
 
 /-! ### Parent-mask restriction (`restrictMaskProg`) -/
 
@@ -532,13 +539,10 @@ theorem restrictMaskProg_realizes :
         st.pow2 = 2 ^ (d.bagPLen - j) ∧ st.acc < st.pow2)
       (fun j st m ⟨hj_le, hcur, hp2, hacc_lt⟩ => ?_)
       ⟨le_rfl, rfl, by simp only [Nat.sub_self, Nat.pow_zero], Nat.zero_lt_one⟩
-    have hp2_next : 2 * st.pow2 = 2 ^ (d.bagPLen - j) :=
-      hp2 ▸ (Nat.pow_succ' ..).symm.trans (congrArg (2 ^ ·) (by omega))
-    have hp2_fit : Fits w (2 * st.pow2) :=
-      hpow.of_le (hp2_next ▸ Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _))
-    have hcur_fit : Fits w (st.curP + 1) := hfitP.of_le (by omega)
-    have hacc1_fit : Fits w (st.acc + st.pow2) := hp2_fit.of_le (by omega)
-    have hacc0_fit : Fits w (st.acc + 0) := hp2_fit.of_le (by omega)
+    obtain ⟨hp2_next, hp2_fit, hacc_step⟩ := maskAccumulatorStep hj_le hp2 hacc_lt hpow
+    have hcur_fit : Fits w (st.curP + 1) := hfitP.of_le (by lia)
+    have hacc1_fit := (hacc_step st.pow2 le_rfl).2
+    have hacc0_fit := (hacc_step 0 (Nat.zero_le _)).2
     obtain ⟨add, hadd_le, hres⟩ : ∃ add ≤ st.pow2, (Memory.spec 0).clientResult m
         (restrictStep (⟨d.bagBPtr, d.bagBLen⟩, st)) =
         ⟨st.curP + 1, st.curS / 2, 2 * st.pow2, st.acc + add⟩ := by
@@ -546,11 +550,10 @@ theorem restrictMaskProg_realizes :
       dsimp only
       rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
         bagMemProg_state]
-      exact ⟨_, by split_ifs <;> omega, rfl⟩
+      exact ⟨_, by split_ifs <;> first | exact le_rfl | exact Nat.zero_le _, rfl⟩
     refine ⟨by repeat (first | split | assumption | refine And.intro ?_ ?_),
       Nat.le_of_succ_le hj_le, ?_⟩
     rw [hres]
-    dsimp only
-    exact ⟨Nat.add_right_comm st.curP 1 j ▸ hcur, hp2_next, by omega⟩
+    exact ⟨Nat.add_right_comm st.curP 1 j ▸ hcur, hp2_next, (hacc_step add hadd_le).1⟩
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

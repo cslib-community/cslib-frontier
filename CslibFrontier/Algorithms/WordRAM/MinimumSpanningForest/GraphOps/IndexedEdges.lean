@@ -90,6 +90,30 @@ theorem HoldsIndexedEdges.congr {n : ℕ} {base : ℕ} {es : List (IndexedEdge n
   exact ⟨(heq _ (by omega) (by omega)).trans hu, (heq _ (by omega) (by omega)).trans hv,
     (heq _ (by omega) (by omega)).trans hw, (heq _ (by omega) (by omega)).trans hid⟩
 
+/-- Reconstructs a length-`m` list of `IndexedEdge n` values satisfying `HoldsIndexedEdges` from
+pointwise endpoint bounds `< n` in raw memory `mem`. -/
+theorem exists_indexedEdges_of_mem_lt {n base m : ℕ} {mem : ℕ → ℕ}
+    (h : ∀ j < m, mem (base + 4 * j) < n ∧ mem (base + 4 * j + 1) < n) :
+    ∃ es : List (IndexedEdge n), es.length = m ∧ HoldsIndexedEdges base es mem := by
+  refine ⟨List.ofFn fun k : Fin m =>
+    ⟨⟨mem (base + 4 * k.val), (h k.val k.isLt).1⟩,
+     ⟨mem (base + 4 * k.val + 1), (h k.val k.isLt).2⟩,
+     mem (base + 4 * k.val + 2), mem (base + 4 * k.val + 3)⟩, by simp, fun i hi => by
+    simp only [List.getElem_ofFn]; trivial⟩
+
+/-- Preserves `HoldsIndexedEdges base es` across any `Memory.FramedTriple` whose modified set `S`
+is disjoint from `[base, base + 4 * es.length)` below `s.frontier`. -/
+theorem holdsIndexedEdges_frame_mem {α : Type} {w c n base : ℕ} {S : Set ℕ}
+    {s : Memory.State} {p : Memory.Prog α} {es : List (IndexedEdge n)}
+    {Q : α → Memory.State → Prop}
+    (h : Memory.FramedTriple w s p c S Q) (hes : HoldsIndexedEdges base es s.mem)
+    (hdisj : Disjoint S (Set.Ico base (base + 4 * es.length)))
+    (halloc : base + 4 * es.length ≤ s.frontier) :
+    Memory.FramedTriple w s p c S fun a s' => Q a s' ∧ HoldsIndexedEdges base es s'.mem :=
+  h.frame_mem hes (fun _ _ hEq hm => HoldsIndexedEdges.congr (fun a ha1 ha2 =>
+    (hEq a (Set.mem_Ico.mpr ⟨ha1, ha2⟩)).symm) hm)
+    hdisj (fun _ ha => by simp only [Set.mem_Ico] at ha; omega)
+
 /-- Reference to a stride-4 `IndexedEdge` array of `numEdges` edges on `Fin numVertices`
 vertices stored at `edgeBase`. -/
 structure GraphSlice where

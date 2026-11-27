@@ -139,7 +139,7 @@ theorem readBufAllocsProg_spec {c U V w n_max base ep : ℕ}
     (Memory.spec 0).clientResult s prog = ((fs.buf ep).nodeAlloc, (fs.buf ep).itemAlloc) ∧
     memoryCost prog s ≤ 2 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   obtain ⟨_, _, hmNa, hmIa, _⟩ := hrep.buf_rep hep
   unfold readBufAllocsProg
   rcases hep with rfl | rfl <;> simp only [pure_bind, one_ne_zero, ↓reduceIte]
@@ -287,15 +287,14 @@ theorem stageCursorReads_spec {c U V w n_max base : ℕ}
     (hrep : FastMemRep base c U V w n_max fs s.mem) :
     StageCursorReads w (base + largeSpaceWhp c U V w n_max) base fs.oldEp
       (fs.buf fs.oldEp).nodeAlloc (fs.buf fs.oldEp).itemAlloc fs.stageCursor s := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hh := fastMemHdrs hrep
   obtain ⟨hro_st, hro_res, hro_mc, hro_vp⟩ := readOldEpProg_spec (w := w)
     (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
     hh.curEp (s := s)
   obtain ⟨hra_st, hra_res, hra_mc, hra_vp⟩ := readBufAllocsProg_spec henv hold_or hrep (s := s)
-  obtain ⟨hsc_st, hsc_res, hsc_mc, hsc_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrStageCursor)
-    (by dsimp [hdrStageCursor]; omega) (s := s)
+  obtain ⟨hsc_st, hsc_res, hsc_mc, hsc_vp⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrStageCursor) (s := s) (by decide)
   rw [hh.stageCursor] at hsc_res
   exact ⟨hro_st, hro_res, le_of_eq hro_mc, hro_vp, hra_st, hra_res, hra_mc, hra_vp,
     hsc_st, hsc_res, le_of_eq hsc_mc, hsc_vp⟩

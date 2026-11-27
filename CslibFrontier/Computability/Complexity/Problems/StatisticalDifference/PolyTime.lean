@@ -96,6 +96,15 @@ theorem encSDInstance_apply (x : SDInstance) :
 
 namespace SDInstance
 
+/-- Extract both unary arities and both circuit codes of a polynomial-time computed instance. -/
+theorem computableInPolyTime_parts {α : Type} {enc : α ↪ List Bool} {x : α → SDInstance}
+    (hx : ComputableInPolyTime x enc encSDInstance) :
+    ComputableInPolyTime (fun a => (((x a).inputs, (x a).outputs),
+      ((x a).left.code, (x a).right.code))) enc
+        (encPair (encPair encUnary encUnary) (encPair encCode encCode)) :=
+  (ComputableInPolyTime.of_eq (fun a => (encSDInstance_apply a).symm)).comp hx
+
+
 /-- **Polarization is polynomial-time**, for an instance and parameters computed in polynomial time
 from any encoded input, with the parameters in unary. -/
 theorem computableInPolyTime_polarize_comp {α : Type} {enc : α ↪ List Bool} {x : α → SDInstance}
@@ -103,11 +112,7 @@ theorem computableInPolyTime_polarize_comp {α : Type} {enc : α ↪ List Bool} 
     (hlam : ComputableInPolyTime lam enc encUnary) (hell : ComputableInPolyTime ell enc encUnary)
     (hk : ComputableInPolyTime k enc encUnary) :
     ComputableInPolyTime (fun a => (x a).polarize (lam a) (ell a) (k a)) enc encSDInstance := by
-  have hproj : ComputableInPolyTime
-      (fun y : SDInstance => ((y.inputs, y.outputs), (y.left.code, y.right.code)))
-      encSDInstance (encPair (encPair encUnary encUnary) (encPair encCode encCode)) :=
-    .of_eq fun _ => rfl
-  have hraw := hproj.comp' hx
+  have hraw := computableInPolyTime_parts hx
   have hn : ComputableInPolyTime (fun a => (x a).inputs) enc encUnary := hraw.fst'.fst'
   have hm : ComputableInPolyTime (fun a => (x a).outputs) enc encUnary := hraw.fst'.snd'
   have hc₀ := hraw.snd'.fst'

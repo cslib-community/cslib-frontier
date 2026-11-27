@@ -1184,20 +1184,12 @@ theorem realizes_buildUndirCSR :
          | exact iterationSafe_imp hsafe₃ (fun _ => rfl) (fun _ _ hs => hs))
   refine hraw.consequence (fun w g s _ hmem ⟨h16, hin_lt, hfit, hedges⟩ => ?_)
     (fun _ _ => le_rfl)
-  let es : List (IndexedEdge g.numVertices) :=
-    List.ofFn fun k : Fin g.numEdges =>
-      ⟨⟨s.mem (g.edgeBase + 4 * k.val), (hedges k.val k.isLt).1⟩,
-       ⟨s.mem (g.edgeBase + 4 * k.val + 1), (hedges k.val k.isLt).2⟩,
-       s.mem (g.edgeBase + 4 * k.val + 2),
-       s.mem (g.edgeBase + 4 * k.val + 3)⟩
-  have hes_len : es.length = g.numEdges := by simp [es]
-  have hin : HoldsIndexedEdges g.edgeBase es s.mem := fun i hi => by
-    simp only [es, List.getElem_ofFn]
-    trivial
+  obtain ⟨es, hes_len, hin⟩ := exists_indexedEdges_of_mem_lt hedges
   have hspec := buildUndirCSR_word_spec h16 hmem hin (hes_len ▸ hin_lt) (hes_len ▸ hfit)
   rcases hspec with ⟨hsafe₁, hs₁_fr, hs₂_fr, hsum_fit, hsafe₃, _⟩
-  refine ⟨h16, hfit.of_le (by omega), by simpa [es] using hs₁_fr, by simpa [es] using hs₂_fr,
-    by simpa [es] using hsafe₁, by simpa [es] using hsum_fit, by simpa [es] using hsafe₃⟩
+  refine ⟨h16, hfit.of_le (by omega), by simpa [hes_len] using hs₁_fr,
+    by simpa [hes_len] using hs₂_fr, by simpa [hes_len] using hsafe₁,
+    by simpa [hes_len] using hsum_fit, by simpa [hes_len] using hsafe₃⟩
 
 /-- Framed specification for `buildUndirCSR`: allocates and populates an undirected CSR
 representation for `es` starting at `offBase = s.frontier` leaving all cells below `s.frontier`

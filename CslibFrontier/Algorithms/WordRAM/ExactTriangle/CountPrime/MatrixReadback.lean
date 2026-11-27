@@ -59,44 +59,36 @@ theorem exec_matrix_coefficients {w n p k source destination table : ℕ}
   have hsquare : N * N = 4 ^ k := by dsimp only [N]; rw [← mul_pow]; rfl
   let j := a * N + b
   have hj : j < 4 ^ k := by
-    have hm := Nat.mul_le_mul_right N (Nat.succ_le_of_lt ha)
-    rw [Nat.succ_mul, hsquare] at hm; dsimp only [j]; omega
+    simpa only [j, hsquare, Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt ha hb
   have hjDiv : j / N = a := by dsimp only [j]; exact Nat.mul_add_div_of_lt a hb
   have hjMod : j % N = b := by dsimp only [j]; exact Nat.mul_add_mod_of_lt hb
   have hpos : Nat.Morton.index a b = cell := Nat.Morton.index_row_column cell
-  have hidx : cell * p + i % p = i := by
-    simpa only [cell, Nat.mul_comm] using Nat.div_add_mod i p
+  have hidx : cell * p + i % p = i := Nat.div_add_mod' i p
   have hr : i % p < p := Nat.mod_lt i hpositive
   have hv := values j hj (i % p) hr
   rw [hjDiv, hjMod, hpos, Nat.add_assoc, hidx] at hv
-  cases transpose with
-  | false =>
-    change y.mem (destination + i) = encode
-      (Cslib.Algorithms.ExactTriangle.CountPrime.pCoefficients p weights i)
-    unfold Cslib.Algorithms.ExactTriangle.CountPrime.pCoefficients
-    change y.mem (destination + i) = encode (if h : a < n ∧ b < n then
-      if i % p = (weights ⟨a, h.1⟩ ⟨b, h.2⟩ % (p : ℤ)).toNat then 1 else 0 else 0)
-    by_cases h : a < n ∧ b < n
-    · rw [dite_eq_left h]
-      simp only [h, and_self, ite_true, Bool.false_eq_true, ite_false] at hv
-      rw [← Nat.add_assoc, hresidue ⟨a, h.1⟩ ⟨b, h.2⟩] at hv
-      rw [hv]; split_ifs <;> rfl
-    · rw [dite_eq_right h]
-      simp only [h, ite_false, show i % p ≠ p by omega] at hv
-      exact hv
-  | true =>
-    change y.mem (destination + i) = encode
-      (Cslib.Algorithms.ExactTriangle.CountPrime.qCoefficients p weights i)
-    unfold Cslib.Algorithms.ExactTriangle.CountPrime.qCoefficients
-    change y.mem (destination + i) = encode (if h : a < n ∧ b < n then
-      if i % p = (weights ⟨b, h.2⟩ ⟨a, h.1⟩ % (p : ℤ)).toNat then 1 else 0 else 0)
-    by_cases h : a < n ∧ b < n
-    · rw [dite_eq_left h]
-      simp only [h, and_self, ite_true] at hv
-      rw [← Nat.add_assoc, hresidue ⟨b, h.2⟩ ⟨a, h.1⟩] at hv
-      rw [hv]; split_ifs <;> rfl
-    · rw [dite_eq_right h]
-      simp only [h, ite_false, show i % p ≠ p by omega] at hv
-      exact hv
+  let oriented := if transpose then Function.swap weights else weights
+  have hcoeff : (if transpose then
+      Cslib.Algorithms.ExactTriangle.CountPrime.qCoefficients p weights i
+      else Cslib.Algorithms.ExactTriangle.CountPrime.pCoefficients p weights i) =
+      Cslib.Algorithms.ExactTriangle.CountPrime.pCoefficients p oriented i := by
+    cases transpose <;> rfl
+  have hread (row col : Fin n) : x.mem (source +
+      (if transpose then col.val * n + row.val else row.val * n + col.val)) =
+      (oriented row col % (p : ℤ)).toNat := by
+    cases transpose
+    · simpa only [oriented, Bool.false_eq_true, ite_false, Nat.add_assoc] using hresidue row col
+    · simpa only [oriented, ite_true, Function.swap, Nat.add_assoc] using hresidue col row
+  rw [hcoeff, hv]
+  unfold Cslib.Algorithms.ExactTriangle.CountPrime.pCoefficients
+  change (if i % p = (if a < n ∧ b < n then x.mem (source +
+    (if transpose then b * n + a else a * n + b)) else p) then 2 else 0) =
+    encode (if h : a < n ∧ b < n then
+      if i % p = (oriented ⟨a, h.1⟩ ⟨b, h.2⟩ % (p : ℤ)).toNat then 1 else 0 else 0)
+  by_cases h : a < n ∧ b < n
+  · rw [ite_eq_left h, dite_eq_left h, hread ⟨a, h.1⟩ ⟨b, h.2⟩]
+    split <;> rfl
+  · rw [ite_eq_right h, ite_eq_right hr.ne, dite_eq_right h]
+    rfl
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

@@ -8,11 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.PriorityQueue.Spec
+public import CslibFrontier.Foundations.Data.Nat.Fib
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Data.List.Nodup
 public import Mathlib.Data.List.Perm.Basic
-public import Mathlib.Data.Nat.Fib.Basic
-public import Mathlib.Data.Nat.Log
 public import Mathlib.Logic.Relation
 
 /-!
@@ -25,10 +24,9 @@ Word-RAM Fibonacci heap [Fredman and Tarjan][FredmanTarjan1987]
 1. **Circular doubly-linked lists (`ChainLinks`, `IsCircList`):** Pointer-level invariants over
    `Fin n → ℕ` supporting `O(1)` singleton creation, post-head insertion, cyclic rotation, arbitrary
    node removal, and disjoint-support framing without modular index arithmetic.
-2. **Pure-`ℕ` Fibonacci rank and degree bound:** Proves the sum identity
-   `1 + ∑_{i < k} fib ((i - 1) + 2) = fib (k + 2)` and `2 ^ m ≤ fib (2 * m + 2)`, deriving
-   `d ≤ 2 * Nat.log 2 n + 1` from `fib (d + 2) ≤ n` without real numbers or floating-point
-   logarithms.
+2. **Pure-`ℕ` Fibonacci rank sum:** Proves the sum identity
+   `1 + ∑_{i < k} fib ((i - 1) + 2) = fib (k + 2)`. The logarithmic degree bound then follows from
+   the shared `Nat.le_two_mul_log_of_fib_le`.
 
 ## Main definitions
 
@@ -39,9 +37,8 @@ Word-RAM Fibonacci heap [Fredman and Tarjan][FredmanTarjan1987]
 
 * `Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.IsCircList.singleton`,
   `IsCircList.insertAfter`, `IsCircList.rotate_to`, `IsCircList.remove`: circular-list operations.
-* `Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.fib_sum_pred_add_two`,
-  `deg_le_two_mul_log_add_one`: pure-`ℕ` Fibonacci child-rank sum and `2 * Nat.log 2 n + 1` degree
-  bound.
+* `Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.fib_sum_pred_add_two`: pure-`ℕ`
+  Fibonacci child-rank sum.
 
 ## References
 
@@ -276,24 +273,5 @@ theorem fib_sum_pred_add_two (k : ℕ) :
     · decide
     · rw [Finset.sum_range_succ, ← Nat.add_assoc, ih, Nat.add_sub_cancel, Nat.add_comm]
       exact (Nat.fib_add_two (n := m + 2)).symm
-
-/-- Exponential lower bound on even-index Fibonacci numbers without golden-ratio reals:
-`2 ^ m ≤ fib (2 * m + 2)` for all `m : ℕ`. -/
-theorem two_pow_le_fib (m : ℕ) : 2 ^ m ≤ Nat.fib (2 * m + 2) := by
-  induction m with
-  | zero => decide
-  | succ m ih =>
-    rw [Nat.mul_succ, Nat.fib_add_two (n := 2 * m + 2), Nat.pow_succ]
-    have := Nat.fib_mono (Nat.le_add_right (2 * m + 2) 1)
-    omega
-
-/-- Any node degree `d` satisfying `Nat.fib (d + 2) ≤ n` obeys the pure-`ℕ` logarithmic upper bound
-`d ≤ 2 * Nat.log 2 n + 1`. -/
-theorem deg_le_two_mul_log_add_one {d n : ℕ} (hfib : Nat.fib (d + 2) ≤ n) :
-    d ≤ 2 * Nat.log 2 n + 1 := by
-  have hpow : 2 ^ (d / 2) ≤ n :=
-    (two_pow_le_fib (d / 2)).trans ((Nat.fib_mono (by omega)).trans hfib)
-  have := Nat.le_log_of_pow_le (by decide) hpow
-  omega
 
 end Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap
