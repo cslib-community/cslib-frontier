@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.FineGrained.MaxSAT.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolynomialQueries
+public import CslibFrontier.Logics.Propositional.MaxSAT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -31,6 +32,8 @@ Both outputs have native algorithms using
 clauses and `L` is the complete encoded input length. The generic native query and postprocessing
 theorems preserve the threshold counter's exponential factor. A bound in the declared variable
 count requires a density hypothesis; this module does not discard clauses or multiplicities.
+For the general propositional weighted partial MaxSAT definition and its bridge to `optimum`, see
+`Cslib.Logic.PL.MaxSAT` (`toLogicMaxSAT`, `optimum_eq_logic_maxSatisfiedWeight`).
 
 ## Main results
 
@@ -255,5 +258,101 @@ theorem exists_sparse_optimum_algorithm (k c : ℕ) :
       (fun F => ((encSparseInstance k c F).length + 1) ^ d) := by
   obtain ⟨A, d, h⟩ := exists_optimum_algorithm
   exact ⟨A * (8 * ((k + 1) * c) + 14), d, sparse_algorithm k c h⟩
+
+/-! ### Bridge to propositional MaxSAT -/
+
+/-- Propositional weighted partial MaxSAT counterpart of `F : Instance`: variable references at
+or above `F.1` are constrained to `false` by hard unit clauses, matching `assignment F.1 x`, and
+every clause of `F.2` has soft weight `1`. -/
+def toLogicMaxSAT (F : Instance) : Cslib.Logic.PL.MaxSAT ℕ where
+  hard := (F.2.vars.filter fun v => decide (F.1 ≤ v)).map fun v => [(v, false)]
+  soft := F.2.map (·, 1)
+
+theorem toLogicMaxSAT_eq_unweighted (F : Instance) (hF : ∀ v ∈ F.2.vars, v < F.1) :
+    toLogicMaxSAT F = Cslib.Logic.PL.MaxSAT.unweighted F.2 := by
+  have hnil : F.2.vars.filter (fun v => decide (F.1 ≤ v)) = [] := by
+    rw [List.filter_eq_nil_iff]
+    intro v hv
+    simp [Nat.not_le.2 (hF v hv)]
+  simp [toLogicMaxSAT, Cslib.Logic.PL.MaxSAT.unweighted, hnil]
+
+@[simp]
+theorem totalWeight_toLogicMaxSAT (F : Instance) :
+    (toLogicMaxSAT F).totalWeight = F.2.length := by
+  simp [toLogicMaxSAT, Cslib.Logic.PL.MaxSAT.totalWeight, List.map_map, Function.comp_def]
+
+theorem feasible_toLogicMaxSAT_assignment (F : Instance) (x : BitString F.1) :
+    (toLogicMaxSAT F).feasible (assignment F.1 x) := by
+  simp only [Cslib.Logic.PL.MaxSAT.feasible, toLogicMaxSAT, CNF.eval_eq_true_iff, List.mem_map,
+    List.mem_filter, decide_eq_true_eq]
+  rintro c ⟨v, ⟨_, hv⟩, rfl⟩
+  have hfalse : assignment F.1 x v = false := by simp [assignment, Nat.not_lt.2 hv]
+  simp [Clause.eval_cons, Literal.eval_mk, Clause.eval_nil, hfalse]
+
+theorem satisfiedWeight_toLogicMaxSAT_assignment (F : Instance) (x : BitString F.1) :
+    (toLogicMaxSAT F).satisfiedWeight (assignment F.1 x) = score F x := by
+  change (Cslib.Logic.PL.MaxSAT.unweighted F.2).satisfiedWeight (assignment F.1 x) = score F x
+  rw [Cslib.Logic.PL.MaxSAT.satisfiedWeight_unweighted]
+  rfl
+
+private theorem satisfiedWeight_toLogicMaxSAT_eq_score (F : Instance) {σ : ℕ → Bool}
+    (hσ : (toLogicMaxSAT F).feasible σ) :
+    (toLogicMaxSAT F).satisfiedWeight σ = score F (fun i => σ i.1) := by
+  have hagree : ∀ v ∈ F.2.vars, σ v = assignment F.1 (fun i => σ i.1) v := by
+    intro v hv
+    by_cases hlt : v < F.1
+    · simp [assignment, hlt]
+    · have hle : F.1 ≤ v := Nat.le_of_not_lt hlt
+      have hunit : Clause.eval σ [(v, false)] = true := by
+        refine (CNF.eval_eq_true_iff σ (toLogicMaxSAT F).hard).1 hσ [(v, false)] ?_
+        exact List.mem_map.2 ⟨v, List.mem_filter.2 ⟨hv, decide_eq_true hle⟩, rfl⟩
+      have hfalse : σ v = false := by
+        simpa [Clause.eval_cons, Literal.eval_mk, Clause.eval_nil] using hunit
+      simp [assignment, hlt, hfalse]
+  change (Cslib.Logic.PL.MaxSAT.unweighted F.2).satisfiedWeight σ = score F (fun i => σ i.1)
+  rw [Cslib.Logic.PL.MaxSAT.satisfiedWeight_unweighted, CNF.countP_eval_congr hagree]
+  rfl
+
+theorem feasible_toLogicMaxSAT_nonempty (F : Instance) : (toLogicMaxSAT F).hard.Satisfiable :=
+  ⟨assignment F.1 (fun _ => false), feasible_toLogicMaxSAT_assignment F (fun _ => false)⟩
+
+/-- `MaxSAT.optimum F` coincides with the maximum satisfied weight of `toLogicMaxSAT F`. -/
+theorem optimum_eq_toLogicMaxSAT_maxSatisfiedWeight (F : Instance) :
+    (optimum F : WithBot ℕ) = (toLogicMaxSAT F).maxSatisfiedWeight := by
+  symm
+  refine (Cslib.Logic.PL.MaxSAT.maxSatisfiedWeight_eq_coe_iff (t := optimum F)).2 ⟨?_, ?_⟩
+  · obtain ⟨x, hx⟩ := exists_score_eq_optimum F
+    exact ⟨assignment F.1 x, feasible_toLogicMaxSAT_assignment F x,
+      (satisfiedWeight_toLogicMaxSAT_assignment F x).trans hx⟩
+  · intro σ hσ
+    rw [satisfiedWeight_toLogicMaxSAT_eq_score F hσ]
+    exact score_le_optimum F _
+
+/-- The propositional MaxSAT cost optimum of `toLogicMaxSAT F` is `F.2.length - optimum F`. -/
+theorem toLogicMaxSAT_optimum_eq (F : Instance) :
+    (toLogicMaxSAT F).optimum = ((F.2.length - optimum F : ℕ) : WithTop ℕ) := by
+  obtain ⟨opt, maxSat, hopt, hmax, hsum⟩ :=
+    Cslib.Logic.PL.MaxSAT.optimum_add_maxSatisfiedWeight (feasible_toLogicMaxSAT_nonempty F)
+  have hmaxEq : maxSat = optimum F := by
+    apply WithBot.coe_injective
+    exact hmax.symm.trans (optimum_eq_toLogicMaxSAT_maxSatisfiedWeight F).symm
+  rw [totalWeight_toLogicMaxSAT] at hsum
+  rw [hopt]
+  exact congrArg ((↑) : ℕ → WithTop ℕ) (by omega)
+
+/-- For well-formed instances (all variables `< F.1`), `MaxSAT.optimum F` equals the maximum
+satisfied weight of `Cslib.Logic.PL.MaxSAT.unweighted F.2`. -/
+theorem optimum_eq_logic_maxSatisfiedWeight (F : Instance) (hF : ∀ v ∈ F.2.vars, v < F.1) :
+    (optimum F : WithBot ℕ) = (Cslib.Logic.PL.MaxSAT.unweighted F.2).maxSatisfiedWeight := by
+  rw [← toLogicMaxSAT_eq_unweighted F hF]
+  exact optimum_eq_toLogicMaxSAT_maxSatisfiedWeight F
+
+/-- For well-formed instances (all variables `< F.1`), the propositional unweighted MaxSAT cost
+optimum of `F.2` is `F.2.length - optimum F`. -/
+theorem logic_optimum_unweighted_eq (F : Instance) (hF : ∀ v ∈ F.2.vars, v < F.1) :
+    (Cslib.Logic.PL.MaxSAT.unweighted F.2).optimum =
+      ((F.2.length - optimum F : ℕ) : WithTop ℕ) := by
+  rw [← toLogicMaxSAT_eq_unweighted F hF]
+  exact toLogicMaxSAT_optimum_eq F
 
 end Cslib.Complexity.MaxSAT

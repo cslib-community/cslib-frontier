@@ -34,7 +34,9 @@ import CslibFrontier.Probability.PMF.Uniform
 # MAX-SAT / Max-CSP structures, subsampling specializations, and fixed-width SAT solver reductions
 
 This module connects `MaxSAT` (`MaxSAT.thresholdCircuit`, `MaxSAT.optimum`) and general `Max-CSP`
-(`MaxCSPInstance`, `MaxCSPSampling`) to supplied fixed-width `k`-SAT solvers (`3 ≤ k`):
+(`MaxCSPInstance`, `MaxCSPSampling`) to supplied fixed-width `k`-SAT solvers (`3 ≤ k`). See
+`Cslib.Logic.PL.MaxSAT` (`CslibFrontier.Logics.Propositional.MaxSAT`) for the propositional
+weighted partial MaxSAT formulation bridged to `StructInstance.optimum` and `ThresholdLanguage`.
 
 1. **Structured encodings (`StructInstance`, `ThresholdQuery`, `StructSolution`,
    `encMaxCSPInstance`):**
@@ -1579,5 +1581,59 @@ theorem countQueries_optimumMaxCSPByBinarySearchQ_le {Rel : Type}
       Nat.log 2 (maxCSPToStruct w sem F).clauses.length + 1 := by
   simpa only [FreeM.countQueries_eq_cost_one, one_mul] using
     cost_optimumMaxCSPByBinarySearchQ_le oracle (fun _ => 1) w sem F (C := 1) fun _ _ _ => le_rfl
+
+/-! ### Bridge to propositional MaxSAT -/
+
+/-- `StructInstance.optimum` coincides with the maximum satisfied weight of
+`toLogicMaxSAT F.toPair`. -/
+theorem StructInstance.optimum_eq_toLogicMaxSAT_maxSatisfiedWeight (F : StructInstance) :
+    (F.optimum : WithBot ℕ) = (toLogicMaxSAT F.toPair).maxSatisfiedWeight :=
+  MaxSAT.optimum_eq_toLogicMaxSAT_maxSatisfiedWeight F.toPair
+
+/-- For well-formed structured instances (`∀ v ∈ F.clauses.vars, v < F.numVars`),
+`StructInstance.optimum` equals the maximum satisfied weight of
+`Cslib.Logic.PL.MaxSAT.unweighted F.clauses`. -/
+theorem StructInstance.optimum_eq_logic_maxSatisfiedWeight (F : StructInstance)
+    (hF : ∀ v ∈ F.clauses.vars, v < F.numVars) :
+    (F.optimum : WithBot ℕ) = (Cslib.Logic.PL.MaxSAT.unweighted F.clauses).maxSatisfiedWeight :=
+  MaxSAT.optimum_eq_logic_maxSatisfiedWeight F.toPair hF
+
+/-- For well-formed structured instances (`∀ v ∈ F.clauses.vars, v < F.numVars`), the logic cost
+optimum of `Cslib.Logic.PL.MaxSAT.unweighted F.clauses` is `F.clauses.length - F.optimum`. -/
+theorem StructInstance.logic_optimum_unweighted_eq (F : StructInstance)
+    (hF : ∀ v ∈ F.clauses.vars, v < F.numVars) :
+    (Cslib.Logic.PL.MaxSAT.unweighted F.clauses).optimum =
+      ((F.clauses.length - F.optimum : ℕ) : WithTop ℕ) :=
+  MaxSAT.logic_optimum_unweighted_eq F.toPair hF
+
+/-- `ThresholdLanguage` coincides with the satisfied-weight decision problem for
+`toLogicMaxSAT q.inst.toPair`. -/
+theorem mem_thresholdLanguage_iff_toLogicMaxSAT (q : ThresholdQuery) :
+    q ∈ ThresholdLanguage ↔
+      (toLogicMaxSAT q.inst.toPair).HasSatisfiedWeightAtLeast q.cutoff := by
+  rw [← Cslib.Logic.PL.MaxSAT.le_maxSatisfiedWeight_iff,
+    ← StructInstance.optimum_eq_toLogicMaxSAT_maxSatisfiedWeight]
+  exact (WithBot.coe_le_coe (a := q.cutoff) (b := q.inst.optimum)).symm
+
+/-- For well-formed threshold queries, `ThresholdLanguage` coincides with the satisfied-weight
+decision problem for `Cslib.Logic.PL.MaxSAT.unweighted q.inst.clauses`. -/
+theorem mem_thresholdLanguage_iff_logic (q : ThresholdQuery)
+    (hq : ∀ v ∈ q.inst.clauses.vars, v < q.inst.numVars) :
+    q ∈ ThresholdLanguage ↔
+      (Cslib.Logic.PL.MaxSAT.unweighted q.inst.clauses).HasSatisfiedWeightAtLeast q.cutoff := by
+  rw [mem_thresholdLanguage_iff_toLogicMaxSAT,
+    toLogicMaxSAT_eq_unweighted q.inst.toPair hq]
+  rfl
+
+/-- For well-formed threshold queries, `ThresholdLanguage` expressed in cost-threshold form. -/
+theorem mem_thresholdLanguage_iff_hasCostAtMost (q : ThresholdQuery)
+    (hq : ∀ v ∈ q.inst.clauses.vars, v < q.inst.numVars) :
+    q ∈ ThresholdLanguage ↔
+      q.cutoff ≤ q.inst.clauses.length ∧
+        (Cslib.Logic.PL.MaxSAT.unweighted q.inst.clauses).HasCostAtMost
+          (q.inst.clauses.length - q.cutoff) := by
+  rw [mem_thresholdLanguage_iff_logic q hq,
+    Cslib.Logic.PL.MaxSAT.hasSatisfiedWeightAtLeast_iff,
+    Cslib.Logic.PL.MaxSAT.totalWeight_unweighted]
 
 end Cslib.Complexity.MaxSAT

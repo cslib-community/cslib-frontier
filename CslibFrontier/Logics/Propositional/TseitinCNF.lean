@@ -158,7 +158,7 @@ theorem eval_tseitinVar_of_eval_tseitinDefs {σ : Atom ⊕ Proposition Atom → 
 
 /-- Under an assignment satisfying the definitional clauses of `A`, the variables of those
 clauses and the variable of `A` carry the values of the extension of the assignment's atoms. -/
-private theorem eq_tseitinExtend_of_eval_tseitinDefs {σ : Atom ⊕ Proposition Atom → Bool}
+theorem eq_tseitinExtend_of_eval_tseitinDefs {σ : Atom ⊕ Proposition Atom → Bool}
     {A : Proposition Atom} (h : A.tseitinDefs.eval σ = true) {y : Atom ⊕ Proposition Atom}
     (hy : y = A.tseitinVar ∨ y ∈ A.tseitinDefs.vars) :
     σ y = tseitinExtend (σ ∘ Sum.inl) y := by
@@ -227,6 +227,46 @@ theorem satisfiable_tseitinCNF_iff (A : Proposition Atom) :
   ⟨fun ⟨σ, hσ⟩ => ⟨σ ∘ Sum.inl, ((eval_tseitinCNF_eq_true_iff σ A).1 hσ).1⟩,
     fun ⟨v, hv⟩ => ⟨tseitinExtend v, (eval_tseitinCNF_tseitinExtend v A).trans hv⟩⟩
 
+/-- An assignment satisfies the definitional clauses of a list of propositions iff it satisfies
+those of each proposition in the list. -/
+theorem eval_tseitinDefs_flatMap_iff (σ : Atom ⊕ Proposition Atom → Bool)
+    (fs : List (Proposition Atom)) :
+    CNF.eval σ (fs.flatMap Proposition.tseitinDefs) = true ↔
+      ∀ A ∈ fs, A.tseitinDefs.eval σ = true := by
+  simp only [CNF.eval_eq_true_iff, List.mem_flatMap]
+  exact ⟨fun h A hA c hc => h c ⟨A, hA, hc⟩, fun h c ⟨A, hA, hc⟩ => h A hA c hc⟩
+
+/-- The definitional clauses of a list of propositions hold under the Tseitin extension of any
+atom assignment. -/
+theorem eval_tseitinDefs_flatMap_tseitinExtend (v : Atom → Bool) (fs : List (Proposition Atom)) :
+    CNF.eval (tseitinExtend v) (fs.flatMap Proposition.tseitinDefs) = true :=
+  (eval_tseitinDefs_flatMap_iff (tseitinExtend v) fs).2 fun A _ =>
+    eval_tseitinDefs_tseitinExtend v A
+
+/-- Under an assignment satisfying the definitional clauses of `fs`, every variable of those
+clauses carries the value of the extension of the assignment's atoms. -/
+theorem eq_tseitinExtend_of_eval_tseitinDefs_flatMap {σ : Atom ⊕ Proposition Atom → Bool}
+    {fs : List (Proposition Atom)} (hσ : CNF.eval σ (fs.flatMap Proposition.tseitinDefs) = true)
+    {y : Atom ⊕ Proposition Atom} (hy : y ∈ CNF.vars (fs.flatMap Proposition.tseitinDefs)) :
+    σ y = tseitinExtend (σ ∘ Sum.inl) y := by
+  obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hy
+  rw [List.mem_flatMap] at hc
+  obtain ⟨A, hA, hcA⟩ := hc
+  exact eq_tseitinExtend_of_eval_tseitinDefs ((eval_tseitinDefs_flatMap_iff σ fs).1 hσ A hA)
+    (.inr (CNF.mem_vars.2 ⟨c, hcA, b, hb⟩))
+
+/-- Two assignments that satisfy the definitional clauses of `fs` and agree on the atoms agree on
+every variable of those clauses. -/
+theorem eq_of_eval_tseitinDefs_flatMap {σ τ : Atom ⊕ Proposition Atom → Bool}
+    {fs : List (Proposition Atom)}
+    (hσ : CNF.eval σ (fs.flatMap Proposition.tseitinDefs) = true)
+    (hτ : CNF.eval τ (fs.flatMap Proposition.tseitinDefs) = true)
+    (hatoms : σ ∘ Sum.inl = τ ∘ Sum.inl)
+    {y : Atom ⊕ Proposition Atom} (hy : y ∈ CNF.vars (fs.flatMap Proposition.tseitinDefs)) :
+    σ y = τ y := by
+  rw [eq_tseitinExtend_of_eval_tseitinDefs_flatMap hσ hy,
+    eq_tseitinExtend_of_eval_tseitinDefs_flatMap hτ hy, hatoms]
+
 /-! ### Size -/
 
 theorem length_tseitinDefs_le (A : Proposition Atom) : A.tseitinDefs.length ≤ 3 * A.size := by
@@ -236,22 +276,35 @@ theorem length_tseitinDefs_le (A : Proposition Atom) : A.tseitinDefs.length ≤ 
     simp only [tseitinDefs, List.length_append, List.length_cons, List.length_nil, size]
     omega
 
+/-- The definitional clauses of a list of propositions have linearly many clauses in total. -/
+theorem length_tseitinDefs_flatMap_le (fs : List (Proposition Atom)) :
+    (fs.flatMap Proposition.tseitinDefs).length ≤ 3 * (fs.map Proposition.size).sum := by
+  induction fs with
+  | nil => simp
+  | cons A fs ih =>
+    simp only [List.flatMap_cons, List.length_append, List.map_cons, List.sum_cons]
+    have hA := length_tseitinDefs_le A
+    omega
+
 /-- **The Tseitin transformation has linearly many clauses.** -/
 theorem length_tseitinCNF_le (A : Proposition Atom) : A.tseitinCNF.length ≤ 3 * A.size + 1 := by
   simpa [tseitinCNF, Nat.add_comm] using length_tseitinDefs_le A
 
+/-- Every definitional clause of `A` has at most three literals. -/
+theorem length_le_three_of_mem_tseitinDefs {A : Proposition Atom}
+    {c : Clause (Atom ⊕ Proposition Atom)} (hc : c ∈ A.tseitinDefs) : c.length ≤ 3 := by
+  induction A with
+  | atom => simp [tseitinDefs] at hc
+  | falsum => simp [tseitinDefs] at hc; simp [hc]
+  | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
+    simp only [tseitinDefs, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hc
+    rcases hc with ((rfl | rfl | rfl) | hc) | hc
+    exacts [by simp, by simp, by simp, ihA hc, ihB hc]
+
 /-- **Every clause of the Tseitin transformation has at most three literals.** -/
 theorem length_le_three_of_mem_tseitinCNF {A : Proposition Atom}
     {c : Clause (Atom ⊕ Proposition Atom)} (hc : c ∈ A.tseitinCNF) : c.length ≤ 3 := by
-  have defs : ∀ B : Proposition Atom, ∀ c ∈ B.tseitinDefs, c.length ≤ 3 := fun B => by
-    induction B with
-    | atom | falsum => simp [tseitinDefs]
-    | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
-      intro c hc
-      simp only [tseitinDefs, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hc
-      rcases hc with ((rfl | rfl | rfl) | hc) | hc
-      exacts [by simp, by simp, by simp, ihA c hc, ihB c hc]
   rcases List.mem_cons.1 hc with rfl | hc
-  exacts [by simp, defs A c hc]
+  exacts [by simp, length_le_three_of_mem_tseitinDefs hc]
 
 end Cslib.Logic.PL.Proposition
