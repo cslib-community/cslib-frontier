@@ -4380,7 +4380,7 @@ Read on 2026-11-26: §2.4, p. 54, Theorem 2.45 (for every `ρ ∈ [−1, 1]`, `l
 [MajorityStability](../CslibFrontier/Foundations/BooleanAnalysis/MajorityStability.lean) proves the limit in Theorem 5.22 by induction on the level, starting from `W¹[Majₙ] = 1/W_m` for the `m`-th Wallis product `W_m → π/2`, with the lower half of (5.15) from the monotonicity in `n` (Corollary 5.21); it then proves Theorem 2.45 in both forms from Theorem 5.22 and (5.9) by Tannery's theorem, the route of Exercise 5.25 in reverse, without the multidimensional central limit theorem of §5.2, and the lower bound of Theorem 5.18 on the closed interval `[0, 1]`.
 The upper half of (5.15) follows the book's proof with Wallis's inequality `C(2a, a)/4^a ≤ 1/√(πa)` in place of the monotone Stirling ratio, and Exercise 5.24 as the polynomial inequality `n⁴ ≤ (n + 2k)²(n − k)(n − 1)`.
 The upper bound of Theorem 5.18 (Exercise 5.23) is proved with the constant `3`, `Stab_ρ[Majₙ] ≤ (2/π) arcsin ρ + 3/√((1 − ρ²) n)` for `0 ≤ ρ < 1`, by summing (5.15) over the levels below `n/2` against the series of `ρ/√(1 − ρ²)` and bounding the levels above by `ρ^((n+1)/2)`.
-[ArcsinSeries](../CslibFrontier/Foundations/Analysis/SpecialFunctions/ArcsinSeries.lean) proves Exercise 5.18(a) and (b) for `|z| < 1` from the binomial series with exponent `−1/2`; part (c), the endpoints, is not formalized.
+[ArcsinSeries](../CslibFrontier/Foundations/Analysis/SpecialFunctions/ArcsinSeries.lean) proves Exercise 5.18(a) and (b) for `|z| < 1` from the binomial series with exponent `−1/2`, and part (c) by monotone comparison with `arcsin x` for `x < 1`, the terms being nonnegative, without Abel's theorem.
 
 <a id="oliveirapichsanthanam2019"></a>
 ## oliveirapichsanthanam2019

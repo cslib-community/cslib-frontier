@@ -380,7 +380,7 @@ theorem tendsto_noiseStability_signVal_majority {ρ : ℝ} (h₁ : -1 ≤ ρ) (h
     · have hρ : |ρ| < 1 := abs_lt.2 ⟨h₁, h₂⟩
       have hlim : HasSum (fun j : ℕ => ρ ^ (2 * j + 1) *
           (2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1)))) (2 / π * arcsin ρ) := by
-        convert (hasSum_arcsin hρ).mul_left (2 / π) using 1
+        convert (hasSum_arcsin hρ.le).mul_left (2 / π) using 1
         funext j
         ring
       rw [← hlim.tsum_eq]
@@ -467,7 +467,7 @@ theorem noiseStability_signVal_majority_le {ρ : ℝ} (h₀ : 0 ≤ ρ) (h₁ : 
   have hW0 (j : ℕ) : 0 ≤ W j := levelWeight_nonneg _ _
   -- the two series of the limits
   have harc : HasSum (fun j : ℕ => ρ ^ (2 * j + 1) * L j) (2 / π * arcsin ρ) := by
-    convert (hasSum_arcsin hρ).mul_left (2 / π) using 1
+    convert (hasSum_arcsin hρ.le).mul_left (2 / π) using 1
     funext j; rw [hL]; ring
   have hder : HasSum (fun j : ℕ => (2 * j + 1) * (ρ ^ (2 * j + 1) * L j))
       (2 / π * ρ / √t) := by

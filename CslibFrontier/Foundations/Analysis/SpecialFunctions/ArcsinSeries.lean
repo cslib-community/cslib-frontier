@@ -17,6 +17,8 @@ import Mathlib.Analysis.Calculus.MeanValue
 import Mathlib.Analysis.Calculus.SmoothSeries
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.InverseDeriv
 import Mathlib.RingTheory.Polynomial.Pochhammer
+import Mathlib.Topology.Algebra.InfiniteSum.Real
+import Mathlib.Tactic.FunProp
 
 /-!
 # The Maclaurin series of `arcsin`
@@ -26,16 +28,18 @@ For `|z| < 1`, `(1 - z²)^(-1/2) = ∑_n C(2n, n) / 4ⁿ · z^(2n)`
 `Real.hasSum_choose_mul_pow` with exponent `-1/2`, whose coefficients are
 `C(-1/2, n) = (-1)ⁿ C(2n, n) / 4ⁿ`. Integrating termwise,
 `arcsin z = ∑_n C(2n, n) / (4ⁿ (2n + 1)) · z^(2n + 1)` (`Real.hasSum_arcsin`)
-[O'Donnell, equation (5.9) and Exercise 5.18(a), (b)][ODonnell2014]. The series of `arcsin` is
+[O'Donnell, equation (5.9) and Exercise 5.18][ODonnell2014]. The series of `arcsin` is
 differentiated termwise on `(-r, r)` for `|z| < r < 1` and compared with `arcsin`, which has the
 same derivative and value `0` at `0`.
 
-The endpoints `z = ±1` of Exercise 5.18(c) are not covered.
+At `z = ±1` (Exercise 5.18(c)) the terms are nonnegative up to sign: each partial sum at `1` is a
+limit of partial sums at `x < 1`, which are at most `arcsin x`, and the full sum dominates
+`arcsin x` for every `x < 1`, so it is `π/2 = arcsin 1`.
 
 ## Main results
 
 * `Real.hasSum_centralBinom_div_four_pow_mul_pow_two_mul`: the series of `(1 - z²)^(-1/2)`.
-* `Real.hasSum_arcsin`: the Maclaurin series of `arcsin` on `(-1, 1)`.
+* `Real.hasSum_arcsin`: the Maclaurin series of `arcsin` on `[-1, 1]`.
 
 ## References
 
@@ -46,7 +50,7 @@ public section
 
 namespace Real
 
-open Finset
+open Finset Filter Topology
 
 /-- `∏_{i < n} (i + 1/2) / n! = C(2n, n) / 4ⁿ`. -/
 private theorem prod_add_half_div_factorial (n : ℕ) :
@@ -93,9 +97,8 @@ theorem hasSum_centralBinom_div_four_pow_mul_pow_two_mul {z : ℝ} (hz : |z| < 1
   · rw [← sub_eq_add_neg, sqrt_eq_rpow, one_div, ← rpow_neg hpos.le]
     norm_num
 
-/-- **The Maclaurin series of `arcsin`** [O'Donnell, equation (5.9) and Exercise 5.18(b)]
-[ODonnell2014]: for `|x| < 1`, `arcsin x = ∑_n C(2n, n) / (4ⁿ (2n + 1)) · x^(2n + 1)`. -/
-theorem hasSum_arcsin {x : ℝ} (hx : |x| < 1) :
+/-- The Maclaurin series of `arcsin` on the open interval `(-1, 1)`. -/
+private theorem hasSum_arcsin_of_abs_lt {x : ℝ} (hx : |x| < 1) :
     HasSum (fun n => (Nat.centralBinom n : ℝ) / 4 ^ n / (2 * n + 1) * x ^ (2 * n + 1))
       (arcsin x) := by
   set a : ℕ → ℝ := fun n => (Nat.centralBinom n : ℝ) / 4 ^ n with ha
@@ -151,5 +154,47 @@ theorem hasSum_arcsin {x : ℝ} (hx : |x| < 1) :
     have h3 : |x| ^ (2 * n) ≤ r ^ (2 * n) := pow_le_pow_left₀ (abs_nonneg x) hxr.le _
     exact mul_le_mul h1 (h2.trans h3) (by positivity) (ha0 n)
   exact heq hxmem ▸ hsum.hasSum
+
+/-- At `z = 1` the series of `arcsin` sums to `π/2`. Its terms are nonnegative, so each partial sum
+is a limit of partial sums at `x < 1`, which are at most `arcsin x ≤ π/2`, and the sum dominates
+every `arcsin x` with `x < 1`, which tends to `π/2`. -/
+private theorem hasSum_arcsin_one :
+    HasSum (fun n => (Nat.centralBinom n : ℝ) / 4 ^ n / (2 * n + 1)) (π / 2) := by
+  set b : ℕ → ℝ := fun n => (Nat.centralBinom n : ℝ) / 4 ^ n / (2 * n + 1) with hb
+  have hb0 (n : ℕ) : 0 ≤ b n := by positivity
+  have hpos : ∀ᶠ x in 𝓝[<] (1 : ℝ), 0 < x ∧ x < 1 :=
+    Filter.Eventually.and (nhdsWithin_le_nhds (lt_mem_nhds zero_lt_one) :
+      ∀ᶠ x in 𝓝[<] (1 : ℝ), 0 < x) self_mem_nhdsWithin
+  have hint {x : ℝ} (hx : 0 < x ∧ x < 1) : |x| < 1 := by rw [abs_of_pos hx.1]; exact hx.2
+  -- the partial sums are at most `π/2`
+  have hpartial (N : ℕ) : ∑ n ∈ range N, b n ≤ π / 2 := by
+    have hcont : Tendsto (fun x : ℝ => ∑ n ∈ range N, b n * x ^ (2 * n + 1)) (𝓝[<] 1)
+        (𝓝 (∑ n ∈ range N, b n)) := by
+      have hc : Continuous fun x : ℝ => ∑ n ∈ range N, b n * x ^ (2 * n + 1) := by fun_prop
+      simpa using (hc.tendsto 1).mono_left nhdsWithin_le_nhds
+    refine le_of_tendsto hcont (hpos.mono fun x hx => ?_)
+    exact (sum_le_hasSum _ (fun n _ => mul_nonneg (hb0 n) (pow_nonneg hx.1.le _))
+      (hasSum_arcsin_of_abs_lt (hint hx))).trans (arcsin_le_pi_div_two x)
+  have hsum : Summable b := summable_of_sum_range_le hb0 hpartial
+  refine (hsum.hasSum_iff).2 (le_antisymm ?_ ?_)
+  · exact hsum.tsum_le_of_sum_range_le hpartial
+  · -- `arcsin x ≤ ∑ b` for `x < 1`, and `arcsin x → π/2`
+    have harc : Tendsto arcsin (𝓝[<] 1) (𝓝 (π / 2)) := by
+      rw [← arcsin_one]; exact continuous_arcsin.continuousWithinAt.tendsto
+    refine le_of_tendsto harc (hpos.mono fun x hx => ?_)
+    rw [← (hasSum_arcsin_of_abs_lt (hint hx)).tsum_eq]
+    refine (hasSum_arcsin_of_abs_lt (hint hx)).summable.tsum_le_tsum (fun n => ?_) hsum
+    exact mul_le_of_le_one_right (hb0 n) (pow_le_one₀ hx.1.le hx.2.le)
+
+/-- **The Maclaurin series of `arcsin`** [O'Donnell, equation (5.9) and Exercise 5.18(b), (c)]
+[ODonnell2014]: for `|x| ≤ 1`, `arcsin x = ∑_n C(2n, n) / (4ⁿ (2n + 1)) · x^(2n + 1)`. -/
+theorem hasSum_arcsin {x : ℝ} (hx : |x| ≤ 1) :
+    HasSum (fun n => (Nat.centralBinom n : ℝ) / 4 ^ n / (2 * n + 1) * x ^ (2 * n + 1))
+      (arcsin x) := by
+  rcases hx.lt_or_eq with hx | hx
+  · exact hasSum_arcsin_of_abs_lt hx
+  rcases abs_eq (zero_le_one' ℝ) |>.1 hx with rfl | rfl
+  · simpa [arcsin_one] using hasSum_arcsin_one
+  · simpa [arcsin_neg_one, pow_succ, pow_mul, neg_div] using hasSum_arcsin_one.neg
 
 end Real

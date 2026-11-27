@@ -60,10 +60,10 @@ register_result "odonnell-arcsin-series" where
   title := "The Maclaurin series of arcsin"
   topic := "analysis of Boolean functions"
   sources := [
-    { paper := ODonnell2014, theorem := "Equation (5.9) and Exercise 5.18(a)–(b)",
+    { paper := ODonnell2014, theorem := "Equation (5.9) and Exercise 5.18",
       locator := "arXiv:2105.10386v1, §5.3, printed p. 122; §5.6, printed p. 136" }
   ]
   theorems := [Real.hasSum_centralBinom_div_four_pow_mul_pow_two_mul, Real.hasSum_arcsin]
-  scope := "For |z| < 1: 1/√(1 − z²) = Σ C(2n, n)/4^n z^(2n) and \
-    arcsin z = Σ C(2n, n)/(4^n (2n + 1)) z^(2n + 1). The endpoints z = ±1 (Exercise 5.18(c)) are \
-    not covered."
+  scope := "1/√(1 − z²) = Σ C(2n, n)/4^n z^(2n) for |z| < 1 (part (a)), and \
+    arcsin z = Σ C(2n, n)/(4^n (2n + 1)) z^(2n + 1) for |z| ≤ 1, including the endpoints \
+    (parts (b) and (c))."
