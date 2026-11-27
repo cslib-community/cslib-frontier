@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.LineProof
 public import CslibFrontier.Logics.Propositional.Resolution
+import CslibFrontier.Logics.Propositional.CNF.Eval
 
 /-!
 # Resolution proofs
@@ -272,12 +273,9 @@ private theorem IsProof.exists_of_relabel {W : Type*} [DecidableEq W] {f : V →
     obtain ⟨ls', h', rfl⟩ := ih
     obtain ⟨c₁, hc₁, rfl⟩ := List.mem_map.1 h₁
     obtain ⟨c₂, hc₂, rfl⟩ := List.mem_map.1 h₂
-    obtain ⟨⟨u, b⟩, hu₁, hub⟩ := List.mem_map.1 hv₁
-    obtain ⟨⟨u', b'⟩, hu₂, hub'⟩ := List.mem_map.1 hv₂
-    simp only [Prod.map, id, Prod.mk.injEq] at hub hub'
-    obtain ⟨rfl, rfl⟩ := hub
-    obtain ⟨hu', rfl⟩ := hub'
-    obtain rfl : u = u' := (hf hu').symm
+    obtain ⟨u, hu₁, rfl⟩ := Clause.mem_relabel_iff.1 hv₁
+    obtain ⟨u', hu₂, hfu⟩ := Clause.mem_relabel_iff.1 hv₂
+    obtain rfl : u = u' := (hf hfu).symm
     exact ⟨_ :: ls', h'.resolvent u hc₁ hc₂ hu₁ hu₂,
       by rw [List.map_cons, Clause.relabel_resolvent hf]⟩
 

@@ -91,8 +91,11 @@ theorem evalTokenStep_polyTime {γ : Type} {enc : γ ↪ List Bool}
           (fun _ => combineResidues (fun p => p.1 * p.2) (modulus a) (stack a)))))
       enc (encOption (encList encNat)) := by fun_prop
   refine h.of_enc_eq fun a => congrArg (encOption (encList encNat)) ?_
-  rcases token a with z | i | _ | _ <;> rcases stack a with _ | ⟨l, _ | ⟨r, rest⟩⟩ <;>
-    simp [evalTokenStep, combineResidues, List.getD_eq_getElem?_getD]
+  rcases token a with z | i | _ | _
+  · rfl
+  · simp only [Sum.elim_inr, Sum.elim_inl, evalTokenStep, List.getD_eq_getElem?_getD]
+  all_goals
+    rcases stack a with _ | ⟨l, _ | ⟨r, rest⟩⟩ <;> rfl
 
 /-- Starting with an empty stack, evaluate a framed stream of constructor tokens from right
 to left in polynomial time for a positive binary modulus. The output is an optional framed
@@ -120,7 +123,7 @@ theorem evalTokenStack_polyTime {γ : Type} {enc : γ ↪ List Bool}
     (((PolyBounded.const 2).mul hp.polyBounded_length).add (.const 1))).add (.const 1)
   refine (foldlWith (encA := encTermToken) (step := step) id'
     ((listReverse encTermToken).comp ht) (.const (some [])) hstep hsize ?_).of_enc_eq fun a => ?_
-  · intro a i hi
+  · intro a i _
     let suffix := ((tokens a).reverse.take i).reverse
     rw [List.foldl_eq_foldr_reverse]
     change (stackEnc (evalTokenStack (modulus a) (point a) suffix [])).length ≤ _
@@ -129,10 +132,12 @@ theorem evalTokenStack_polyTime {γ : Type} {enc : γ ↪ List Bool}
     | some residues =>
       obtain ⟨hentries, hresidues⟩ := evalTokenStack_bounds (hpos a) (point a) suffix (by simp) h
       have hcount : residues.length ≤ (encList encTermToken (tokens a)).length :=
-        (by simpa using hentries : residues.length ≤ suffix.length).trans <|
-          ((List.length_reverse.trans_le (List.length_take_le _ _)).trans
-            (by simpa [List.length_reverse] using hi)).trans
-            (SizedListEncoding.length_le encTermToken (encL := encList encTermToken) (tokens a))
+        have hsuffix : suffix.length ≤ (tokens a).length := by
+          simpa only [suffix, List.length_reverse] using List.length_take_le' i (tokens a).reverse
+        have hentries' : residues.length ≤ suffix.length := by
+          simpa only [List.length_nil, Nat.zero_add] using hentries
+        hentries'.trans (hsuffix.trans
+          (SizedListEncoding.length_le encTermToken (encL := encList encTermToken) _))
       have hbits := length_encList_le encNat residues (b := (encNat (modulus a)).length) fun r hr =>
         by simpa only [length_encNat_eq_size] using Nat.size_le_size (hresidues r hr).le
       exact Nat.add_le_add_right (hbits.trans (Nat.mul_le_mul_right _ hcount)) 1
@@ -193,9 +198,10 @@ theorem evalTermWord_eq_some_iff {p value : ℕ} {point : List ℕ} {word : List
     (fun _ => termTokenRank_lt_of_decode hdecode) hstack
   obtain ⟨t, rfl, ht⟩ := List.map_eq_singleton_iff.mp hresidues
   simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil] at htokens
-  exact ⟨t, ((termTokensDecoder.decode_eq_some_iff _ _).mp
-    (termTokensDecoder_decode_encTerm t)).symm.trans ((congrArg (encList encTermToken)
-      htokens).trans ((termTokensDecoder.decode_eq_some_iff _ _).mp hdecode)), ht⟩
+  have hcanonical := termTokensDecoder_decode_encTerm t
+  rw [htokens] at hcanonical
+  exact ⟨t, ((termTokensDecoder.decode_eq_some_iff _ _).mp hcanonical).symm.trans
+    ((termTokensDecoder.decode_eq_some_iff _ _).mp hdecode), ht⟩
 
 /-- Uniform polynomial time on raw words, with a positive binary modulus and a framed list
 of binary coordinates. The result uses the standard option encoding of a binary residue. -/

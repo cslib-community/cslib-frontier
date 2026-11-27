@@ -309,7 +309,7 @@ theorem buildOutScope_spec {w : ℕ} {args : BuildOutScopeArgs}
       (bucketOutScope_eq_foldr args.x bucket ▸ hW) (hfit.of_le (by dsimp only at hfl_fr ⊢; omega))
   dsimp only at hss_cost hfl_cost hdd_cost hfl_fr hdd_fr
   refine ⟨⟨sumScopeLen_valid hb hlen, hfl_val, hdd_val⟩, by omega,
-    hfl_pres.trans (hdd_pres.mono_bound hfl_pres.2.1), hfl_pres.2.1.trans hdd_lo, hdd_len,
+    hfl_pres.trans_frontier hdd_pres, hfl_pres.2.1.trans hdd_lo, hdd_len,
     hdd_holds, ?_⟩
   have hK_cost := Nat.mul_le_mul_right (2 + W_out) hK_le
   calc _ ≤ args.bucketLen + ((1 + args.bucketLen * (2 + 2 * maxScope)) +

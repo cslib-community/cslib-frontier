@@ -267,8 +267,7 @@ theorem rankBinQ_upperBound :
 theorem lookupBinQ_upperBound_size :
     UpperBound (fun p : WFInput α β t => lookupBinQ p.val.2 p.val.1) (fun p => p.val.1.size)
       (fun n => (Nat.clog 2 (2 * t) + 1) * (Nat.log t ((n + 1) / 2) + 1)) :=
-  UpperBound.of_pointwise
-    (fun _ _ h => Nat.mul_le_mul_left _ (Nat.succ_le_succ (Nat.log_mono_right (by omega))))
+  UpperBound.of_pointwise (monotone_mul_log_size _ t)
     fun oracle p => countQueries_lookupBinQ_le_log oracle p.property p.val.2
 
 /-- Rank by binary in-node search in a well-formed tree of at most `n` entries makes at most
@@ -276,8 +275,7 @@ theorem lookupBinQ_upperBound_size :
 theorem rankBinQ_upperBound_size :
     UpperBound (fun p : WFInput α β t => rankBinQ p.val.2 p.val.1) (fun p => p.val.1.size)
       (fun n => Nat.clog 2 (2 * t) * (Nat.log t ((n + 1) / 2) + 1)) :=
-  UpperBound.of_pointwise
-    (fun _ _ h => Nat.mul_le_mul_left _ (Nat.succ_le_succ (Nat.log_mono_right (by omega))))
+  UpperBound.of_pointwise (monotone_mul_log_size _ t)
     fun oracle p => countQueries_rankBinQ_le_log oracle p.property p.val.2
 
 end UpperBounds

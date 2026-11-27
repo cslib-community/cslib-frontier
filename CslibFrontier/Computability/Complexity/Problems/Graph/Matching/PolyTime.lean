@@ -100,11 +100,7 @@ theorem computableInPolyTime_matchingPositions :
   unfold matchingPositions encMatchingBuffer
   have hr : ComputableInPolyTime (fun p : Graph × List Bool => List.range p.1.edgeList.length)
       (encPair encGraph (encList encBool)) (encList encUnary) := by fun_prop
-  have hc : ComputableInPolyTime (fun l : List ℕ => l.map fun i => i)
-      (encList encUnary) (encList encNat) := by fun_prop
-  have hb : ComputableInPolyTime (fun p : Graph × List Bool => List.range p.1.edgeList.length)
-      encMatchingBuffer (encList encNat) := by
-    simpa only [Function.comp_def, List.map_id'] using hc.comp hr
+  have hb := hr.reencodeList ComputableInPolyTime.unary_to_binary
   apply ComputableInPolyTime.filterWithInput hb
   have hbody : ComputableInPolyTime
       (fun p : (Graph × List Bool) × ℕ => ((p.1.1.matchingInstance, p.1.2), 2 * p.2))

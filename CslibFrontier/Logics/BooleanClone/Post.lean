@@ -104,8 +104,8 @@ theorem not_mem_of_witnesses
     notOp ∈ C.operations 1 := by
   obtain ⟨n, hn, f, hf, hf0⟩ := hzero
   obtain ⟨m, hm, g, hg, hg1⟩ := hone
-  have hf0' : f (fun _ => false) = true := by cases h0 : f (fun _ => false) <;> simp_all
-  have hg1' : g (fun _ => true) = false := by cases h1 : g (fun _ => true) <;> simp_all
+  have hf0' := Bool.eq_true_of_ne_false hf0
+  have hg1' := Bool.eq_false_of_ne_true hg1
   by_cases hf1 : f (fun _ => true) = false
   · convert C.diagonal hn hf using 1
     funext a
@@ -128,27 +128,19 @@ theorem not_mem_of_witnesses
   have hvals := Bool.lt_iff.mp (lt_of_not_ge hbad)
   have ha : h a = true := hvals.2
   have hb : h b = false := hvals.1
-  let args (i : Fin k) (x : Fin 1 → Bool) : Bool :=
-    if a i then true else if b i then x 0 else false
+  let args (i : Fin k) (x : Fin 1 → Bool) : Bool := if x 0 then b i else a i
   have hargs (i) : args i ∈ C.operations 1 := by
-    cases hai : a i <;> cases hbi : b i
-    · simpa [args, hai, hbi] using hfalse
-    · simpa [args, hai, hbi] using C.projection (0 : Fin 1)
-    · simpa [args, hai] using htrue
-    · simpa [args, hai] using htrue
+    by_cases hi : a i = b i
+    · cases hai : a i
+      · simpa only [args, ← hi, hai, ite_self] using hfalse
+      · simpa only [args, ← hi, hai, ite_self] using htrue
+    · obtain ⟨hai, hbi⟩ := Bool.lt_iff.mp (lt_of_le_of_ne (hab i) hi)
+      convert C.projection (0 : Fin 1) using 1
+      funext x
+      cases hx : x 0 <;> simp only [args, hai, hbi, hx, Bool.false_eq_true, ite_false, ite_true]
   convert C.comp hk (by decide) hh hargs using 1
   funext x
-  cases hx : x 0
-  · have he : (fun i => args i x) = a := by
-      funext i
-      simp only [args, hx]
-      cases a i <;> cases b i <;> rfl
-    simp [notOp, hx, he, ha]
-  · have he : (fun i => args i x) = b := by
-      funext i
-      have hi := hab i
-      cases hai : a i <;> cases hbi : b i <;> simp_all [args, Bool.le_iff_imp]
-    simp [notOp, hx, he, hb]
+  cases hx : x 0 <;> simp [notOp, args, hx, ha, hb]
 
 /-- NOT and failure of self-duality supply both unary constant functions.
 This is Lemma 2 of [PelletierMartin1990], printed p. 467. -/
@@ -160,7 +152,7 @@ theorem constants_mem_of_not_selfDual (hnot : notOp ∈ C.operations 1)
   push Not at hself
   obtain ⟨a, ha⟩ := hself
   have he : f (fun i => !(a i)) = f a := by
-    cases h0 : f a <;> cases h1 : f (fun i => !(a i)) <;> simp_all
+    simpa only [Bool.not_not] using Bool.eq_not_of_ne ha
   let args (i : Fin n) (x : Fin 1 → Bool) : Bool := if a i then x 0 else !(x 0)
   have hargs (i) : args i ∈ C.operations 1 := by
     dsimp only [args]
@@ -268,8 +260,9 @@ theorem and_mem_of_xor_of_not_affine (hnot : notOp ∈ C.operations 1)
     refine ⟨?_, ?_, ?_, ?_⟩ <;> funext i <;> simp only [args, Pi.add_apply] <;>
       cases x i <;> cases y i <;> cases z i <;> decide
   rw [h00, h01, h10, h11]
-  cases hx : f x <;> cases hy : f y <;> cases hz : f z <;>
-    cases hs : f (x + y + z) <;> simp_all [Bool.add_eq_xor]
+  rw [Bool.xor_iff_ne, Bool.xor_assoc (f x) (f z) (f y), Bool.xor_comm (f z) (f y),
+    ← Bool.xor_assoc]
+  exact fun h => hbad h.symm
 
 /-- The shared Schaefer classification supplies AND, using a non-affine witness to handle
 its minority branch. -/

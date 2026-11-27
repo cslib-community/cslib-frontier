@@ -382,20 +382,17 @@ private theorem card_dom_delete_bounds {U : ℕ} (s_abs : Dictionary.State U) (u
     rw [Dynamic.card_dom_delete_eq_of_eq_none hnone]
     exact ⟨Nat.sub_le _ _, le_rfl⟩
 
-private theorem targetCap_of_ne_zero {U n : ℕ} (hn : n ≠ 0) : targetCap U n = min (2 * n) U :=
-  ite_eq_right hn
-
 /-- Epoch validity after an active insert that keeps the epoch capacity. -/
 private theorem epochValid_insert_keep {U N : ℕ} {s_abs : Dictionary.State U} {u : Fin U}
     {v : ℕ} (hev : EpochValid U (Dictionary.dom s_abs).card N)
-    (hn0 : (Dictionary.dom s_abs).card ≠ 0) (hmig : ¬((Dictionary.dom s_abs).card = N ∧ N < U)) :
+    (hmig : ¬((Dictionary.dom s_abs).card = N ∧ N < U)) :
     EpochValid U (Dictionary.dom (Function.update s_abs u (some v))).card N := by
-  obtain ⟨-, hle, h4, hNU⟩ := hev.resolve_left fun h => hn0 h.1
+  obtain ⟨hle, h4, hNU⟩ := epochValid_iff_capacity_bounds.mp hev
   obtain ⟨h₁, h₂⟩ := card_dom_insert_bounds s_abs u v
-  refine Or.inr ⟨by omega, ?_, by omega, hNU⟩
+  refine epochValid_iff_capacity_bounds.mpr ⟨?_, by lia, hNU⟩
   rcases hle.lt_or_eq with hlt | heq
-  · omega
-  · have hNU' : N = U := by omega
+  · lia
+  · have hNU' : N = U := by lia
     rw [card_dom_insert_eq_of_card_eq_U (heq.trans hNU'), hNU']
 
 /-- Epoch validity at the new capacity after a capacity-doubling insert. -/
@@ -405,27 +402,27 @@ private theorem epochValid_insert_mig {U N : ℕ} {s_abs : Dictionary.State U} {
     EpochValid U (Dictionary.dom (Function.update s_abs u (some v))).card
       (targetCap U (Dictionary.dom s_abs).card) := by
   obtain ⟨h₁, h₂⟩ := card_dom_insert_bounds s_abs u v
-  rw [targetCap_of_ne_zero hn0]
-  exact Or.inr ⟨by omega, by omega, by omega, by omega⟩
+  rw [epochValid_iff_capacity_bounds, targetCap_eq_min]
+  exact ⟨by lia, by lia, min_le_right _ _⟩
 
-/-- Epoch validity after a delete from at least two keys that keeps the epoch capacity. -/
+/-- Epoch validity after a delete that keeps the epoch capacity. -/
 private theorem epochValid_delete_keep {U N : ℕ} {s_abs : Dictionary.State U} {u : Fin U}
-    (hev : EpochValid U (Dictionary.dom s_abs).card N) (hn2 : 2 ≤ (Dictionary.dom s_abs).card)
+    (hev : EpochValid U (Dictionary.dom s_abs).card N)
     (hmig : ¬4 * ((Dictionary.dom s_abs).card - 1) < N) :
     EpochValid U (Dictionary.dom (Function.update s_abs u none)).card N := by
-  obtain ⟨-, hle, -, hNU⟩ := hev.resolve_left fun h => by omega
+  obtain ⟨hle, _, hNU⟩ := epochValid_iff_capacity_bounds.mp hev
   obtain ⟨h₁, h₂⟩ := card_dom_delete_bounds s_abs u
-  exact Or.inr ⟨by omega, by omega, by omega, hNU⟩
+  exact epochValid_iff_capacity_bounds.mpr ⟨h₂.trans hle, by lia, hNU⟩
 
 /-- Epoch validity at the new capacity after a delete from at least two keys. -/
 private theorem epochValid_delete_mig {U N : ℕ} {s_abs : Dictionary.State U} {u : Fin U}
     (hev : EpochValid U (Dictionary.dom s_abs).card N) (hn2 : 2 ≤ (Dictionary.dom s_abs).card) :
     EpochValid U (Dictionary.dom (Function.update s_abs u none)).card
       (targetCap U (Dictionary.dom s_abs).card) := by
-  obtain ⟨-, hle, -, hNU⟩ := hev.resolve_left fun h => by omega
+  obtain ⟨hle, _, hNU⟩ := epochValid_iff_capacity_bounds.mp hev
   obtain ⟨h₁, h₂⟩ := card_dom_delete_bounds s_abs u
-  rw [targetCap_of_ne_zero (by omega)]
-  exact Or.inr ⟨by omega, by omega, by omega, by omega⟩
+  rw [epochValid_iff_capacity_bounds, targetCap_eq_min]
+  exact ⟨by lia, by lia, min_le_right _ _⟩
 
 theorem epochAnchorInv_step {U V : ℕ} {st : EpochState U} {o : Dynamic.Op U}
     (hU_pos : 0 < U)
@@ -454,7 +451,7 @@ theorem epochAnchorInv_step {U V : ℕ} {st : EpochState U} {o : Dynamic.Op U}
     · rw [ite_eq_left hmig, ite_eq_left hmig]
       exact ⟨epochValid_insert_mig hn0 hmig, rfl, ⟨by omega, by omega⟩, by omega⟩
     rw [ite_eq_right hmig, ite_eq_right hmig]
-    exact ⟨epochValid_insert_keep hev hn0 hmig, hcap_eq,
+    exact ⟨epochValid_insert_keep hev hmig, hcap_eq,
       ⟨fun h => absurd h (by omega), fun h => absurd (hzero_iff.mpr h) hn0⟩, hinit_le⟩
   | delete u =>
     dsimp only [st', EpochState.step, nextEpochCap, nextEpochInit]
@@ -481,7 +478,7 @@ theorem epochAnchorInv_step {U V : ℕ} {st : EpochState U} {o : Dynamic.Op U}
     · rw [ite_eq_left hmig, ite_eq_left hmig]
       exact ⟨epochValid_delete_mig hev (by omega), rfl, ⟨by omega, by omega⟩, by omega⟩
     rw [ite_eq_right hmig, ite_eq_right hmig]
-    exact ⟨epochValid_delete_keep hev (by omega) hmig, hcap_eq,
+    exact ⟨epochValid_delete_keep hev hmig, hcap_eq,
       ⟨fun h => absurd h (by omega), fun h => absurd (hzero_iff.mpr h) hn0⟩, hinit_le⟩
 
 /-- Exact peak hardware word footprint above `base` during `resizableOpCode` on `o`. -/
@@ -533,7 +530,7 @@ private theorem migratePeakWords_le_succinctWords_succ {U V w N_old n : ℕ}
     migratePeakWords U V w N_old n ≤ Dynamic.succinctWords 2699 888 U V w (n + 1) := by
   subst hn_eq
   set N_new := targetCap U n
-  have hN_eq : N_new = min (2 * n) U := targetCap_of_ne_zero (by omega)
+  have hN_eq : N_new = min (2 * n) U := targetCap_eq_min _ _
   have hN_new_ge : n + 1 ≤ N_new := hN_eq ▸ le_min (by omega) hN_lt
   have hN_new_2n : N_new ≤ 2 * n := hN_eq ▸ min_le_left _ _
   have hN_new_U : N_new ≤ U := hN_eq ▸ min_le_right _ _
@@ -621,7 +618,7 @@ theorem stepExactPeakWords_inEpoch_le_succinctWords {U V w N : ℕ}
     have hnot := hno_mig.1 u v rfl hn0
     rw [ite_eq_right hn0, ite_eq_right hnot]
     exact inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos hev
-      ⟨hval, epochValid_insert_keep hev hn0 hnot⟩
+      ⟨hval, epochValid_insert_keep hev hnot⟩
   | delete u =>
     dsimp only [stepExactPeakWords]
     have hmax : max n n' = n := Nat.max_eq_left (card_dom_delete_bounds s_abs u).2
@@ -635,7 +632,7 @@ theorem stepExactPeakWords_inEpoch_le_succinctWords {U V w N : ℕ}
     have hnot := hno_mig.2 u rfl (by omega)
     rw [ite_eq_right hn1, ite_eq_right hnot]
     exact inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos hev
-      ⟨hval, epochValid_delete_keep hev (by omega) hnot⟩
+      ⟨hval, epochValid_delete_keep hev hnot⟩
 
 /-- **`1 · OPT` Stepwise Peak Word-Space Bound (`stepExactPeakWords_le_succinctWords`):**
 Across **every** admissible operation `o` (in-epoch, `0 → 1`, `1 → 0`, capacity-doubling, and
@@ -810,31 +807,17 @@ private theorem tsum_mul_le_of_le {α : Type*} (μ : PMF α) {f g p : α → ℝ
         rw [tsum_add, tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
     _ ≤ _ := by gcongr
 
-private theorem nat_dist_step_le_add_one {a b c : ℕ} (hab : Nat.dist a b ≤ 1) :
-    Nat.dist b c ≤ Nat.dist a c + 1 := by
-  unfold Nat.dist at *; omega
-
 private theorem insert_mig_dist_eq {U n N n_init : ℕ}
-    (hn : 1 ≤ n) (hanc : EpochAnchorInv U n N n_init) (hn_eq : n = N) (hN_lt : N < U) :
+    (hanc : EpochAnchorInv U n N n_init) (hn_eq : n = N) (hN_lt : N < U) :
     n = 2 * Nat.dist n n_init := by
-  obtain ⟨_, hcap, hzero, _⟩ := hanc
-  have hni_ne : n_init ≠ 0 := fun h => absurd (hzero.mpr h) (by omega)
-  unfold targetCap at hcap
-  rw [ite_eq_right hni_ne] at hcap
-  have h2ni : N = 2 * n_init := by
-    by_cases hle : 2 * n_init ≤ U
-    · rwa [min_eq_left hle] at hcap
-    · rw [min_eq_right (Nat.le_of_not_le hle)] at hcap; omega
-  have hn_2ni : n = 2 * n_init := hn_eq.trans h2ni
-  unfold Nat.dist; omega
+  have hcap := hanc.2.1.trans (targetCap_eq_min U n_init)
+  unfold Nat.dist
+  lia
 
 private theorem delete_mig_le_two_dist {U n N n_init : ℕ}
     (hn2 : 2 ≤ n) (hanc : EpochAnchorInv U n N n_init) (hmig : 4 * (n - 1) < N) :
     n ≤ 2 * Nat.dist n n_init := by
-  obtain ⟨_, hcap, hzero, _⟩ := hanc
-  have hni_ne : n_init ≠ 0 := fun h => absurd (hzero.mpr h) (by omega)
-  unfold targetCap at hcap
-  rw [ite_eq_right hni_ne] at hcap
+  have hcap := hanc.2.1.trans (targetCap_eq_min U n_init)
   have hN_2ni : N ≤ 2 * n_init := hcap.le.trans (min_le_left _ _)
   have hlt : 4 * (n - 1) < 2 * n_init := lt_of_lt_of_le hmig hN_2ni
   unfold Nat.dist; omega
@@ -911,7 +894,7 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
     dsimp only [L_peak]; rw [hpeak_eq]; exact Nat.add_le_add_left (le_max_right _ _) base
   obtain ⟨zMid, T_mig, hex_mig, hmid_all, hcost_mig⟩ :=
     migrateActiveCode_execRCodeDist hx hn hanc.1 hfr (hfit_peak.of_le hle_m) hsplit hbase
-  obtain ⟨-, hn_le, -, hNU⟩ := hanc.1.resolve_left fun h => by omega
+  obtain ⟨hn_le, _, hNU⟩ := epochValid_iff_capacity_bounds.mp hanc.1
   have hev_tc : EpochValid U n N_new := epochValid_targetCap (hn_le.trans hNU)
   have hop_all : ∀ θ_new : QuotHashSeed U N_new,
       ∃ (zFin : RData rResize) (stepsOp : ℕ),
@@ -968,7 +951,7 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
     rw [Cslib.Probability.PMF.tsum_map_mul]
     exact tsum_congr fun θ_new => by dsimp only [extMid]; rw [hext_id θ_new]
   -- Bound expected `stepsOp + inEpochPotential` under `μ_u`
-  obtain ⟨-, hn_N_new, -, hN_new_U⟩ := hev_tc.resolve_left fun h => by omega
+  obtain ⟨hn_N_new, _, hN_new_U⟩ := epochValid_iff_capacity_bounds.mp hev_tc
   have hS_le : ((Dictionary.dom st.dict).erase (opKey o)).card ≤ N_new :=
     (Finset.card_erase_le (s := Dictionary.dom st.dict) (a := opKey o)).trans hn_N_new
   have hpr_le :=
@@ -1086,7 +1069,9 @@ private theorem exec_inEpoch_branch {U V w base overhead : ℕ}
     inEpochOpCode_rename_active_demonicExec o hx hn hev hval hfr hsplit hbase harg
       (hpeak_eq ▸ hfit_peak)
   have hd_step : Nat.dist n' st.initCount ≤ Nat.dist n st.initCount + 1 :=
-    nat_dist_step_le_add_one hdist_post
+    (Nat.dist.triangle_inequality n' n st.initCount).trans (by
+      rw [Nat.dist_comm n' n, Nat.add_comm _ 1]
+      exact Nat.add_le_add_right hdist_post _)
   let q_out : StepROutcome (LatentSeed U) o.Result rResize :=
     ⟨ls, z, ((Dynamic.spec U V U).stepFn st.dict o).2⟩
   have hex_L : RDemonicExec w L_peak (inEpochOpCode.rename epochEmb) x stepsOp (· = q_out.data) :=
@@ -1516,7 +1501,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         obtain ⟨μ_out, T_mig_op, hex_mig_op, hout_all, hmap_u, hcost_mig_op⟩ :=
           exec_migrate_then_inEpoch (overhead := 19) (.insert u v) hx₄b hn_pos hanc
             ⟨hval, epochValid_insert_mig hn0 hmig⟩ hfr hsplit hx₄_base hx₄_arg (fun _ _ => rfl)
-            (insert_mig_dist_eq hn_pos hanc hmig.1 hmig.2).le
+            (insert_mig_dist_eq hanc hmig.1 hmig.2).le
             (by rw [Nat.dist_comm]; exact hdist_ins) hpeak_eq hfit_peak hst'_cap hst'_init
             (by decide)
         have hex_ins : ExecRCodeDist w resizableInsertActiveCode x₂
@@ -1533,7 +1518,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
             ExecRCodeDist.branch_neg hnc_n0 <|
             ExecRCodeDist.branch_neg hnc_t0 <|
             ExecRCodeDist.branch_pos hc_t1 hex_ins).mono (le_of_eq (by push_cast; ring))
-        have hcap_ne : st'.cap ≠ st.cap := by rw [hst'_cap, targetCap_of_ne_zero hn0]; omega
+        have hcap_ne : st'.cap ≠ st.cap := by rw [hst'_cap, targetCap_eq_min]; lia
         exact ⟨μ_out, _, hex_all, hout_all, fun _ => by rw [ite_eq_right hcap_ne]; exact hmap_u,
           hcost_mig_op.trans (add_le_add le_rfl le_self_add)⟩
       · -- No migration: in-place hit at `n = st.cap = U`, or `n < st.cap`
@@ -1546,7 +1531,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
           dsimp only [st', EpochState.step, nextEpochInit]; rw [ite_eq_right hn0, ite_eq_right hmig]
         obtain ⟨q_out, stepsOp, hex_op, hqls, hqrep, hqres, hqdec, hqbel, hqcost⟩ :=
           exec_inEpoch_branch (overhead := 18) (.insert u v) hx₄b hn_pos hanc.1
-            ⟨hval, epochValid_insert_keep hanc.1 hn0 hmig⟩ hfr hsplit hx₄_base hx₄_arg
+            ⟨hval, epochValid_insert_keep hanc.1 hmig⟩ hfr hsplit hx₄_base hx₄_arg
             (fun _ _ => rfl) rfl hdist_ins hpeak_eq hfit_peak hcap_same hinit_same hrep.cap_eq
             (by decide)
         have hex_ins : RDemonicExec w L_peak resizableInsertActiveCode x₂ (8 + stepsOp)
@@ -1740,7 +1725,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
               ExecRCodeDist.branch_neg hnc_t0 <|
               ExecRCodeDist.branch_neg hnc_t1 <|
               ExecRCodeDist.branch_neg hnc_n1 hex_ge2).mono (le_of_eq (by push_cast; ring))
-          have hcap_ne : st'.cap ≠ st.cap := by rw [hst'_cap, targetCap_of_ne_zero hn0]; omega
+          have hcap_ne : st'.cap ≠ st.cap := by rw [hst'_cap, targetCap_eq_min]; lia
           exact ⟨μ_out, _, hex_all, hout_all, fun _ => by rw [ite_eq_right hcap_ne]; exact hmap_u,
             hcost_mig_op.trans (add_le_add le_rfl le_self_add)⟩
         · -- `4 * (n - 1) ≥ st.cap`: active in-epoch delete, no migration
@@ -1759,7 +1744,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
             rw [ite_eq_right hn0, ite_eq_right hn1, ite_eq_right hmig]
           obtain ⟨q_out, stepsOp, hex_op, hqls, hqrep, hqres, hqdec, hqbel, hqcost⟩ :=
             exec_inEpoch_branch (overhead := 21) (.delete u) hx₇b hn_pos hanc.1
-              ⟨hval, epochValid_delete_keep hanc.1 hn2 hmig⟩ hfr hsplit hx₇_base hx₇_arg
+              ⟨hval, epochValid_delete_keep hanc.1 hmig⟩ hfr hsplit hx₇_base hx₇_arg
               (fun _ _ => rfl) rfl hdist_del hpeak_eq hfit_peak hcap_same hinit_same hrep.cap_eq
               (by decide)
           have hex_ge2 : RDemonicExec w L_peak resizableDeleteGeTwoCode x₂ (8 + stepsOp)
@@ -1997,7 +1982,7 @@ theorem resizableOpCode_step_expected_amortized {U V w base k_init : ℕ}
     have hpr_sum :
         ∑' t, ν t * (if 0 < n then prFn (t.latent.seedAt st.cap) else 0) ≤ 5 := by
       by_cases hn_pos : 0 < n
-      · obtain ⟨-, hn_le_cap, -, hcap_U⟩ := hanc.1.resolve_left fun h => by omega
+      · obtain ⟨hn_le_cap, _, hcap_U⟩ := epochValid_iff_capacity_bounds.mp hanc.1
         simp only [hn_pos, ↓reduceIte]
         rw [← Cslib.Probability.PMF.tsum_map_mul ν (fun t => t.latent.seedAt st.cap) prFn,
           hinv.2 hn_pos]

@@ -123,8 +123,7 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
         mkHashParams w (epochQBits U N_old) (epochHashB N_old) (totalMicroBits N_old) 3 i) ∧
       (∀ i : Fin 36, y.regs (mOldCp i) = mkCompParams U V w N_old i) := by
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU_old : N_old ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-  have hn_old : n ≤ N_old := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  obtain ⟨hn_old, _, hNU_old⟩ := epochValid_iff_capacity_bounds.mp hev
   have hnU : n ≤ U := hn_old.trans hNU_old
   have hce_old : compactedEpochWords U V w N_old n =
       offCompItems U w N_old + compactedItemWords U V w N_old n := by
@@ -393,17 +392,15 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
       (∀ i : Fin 36, s₈.regs (mNewCp i) = mkCompParams U V w N_new i) := by
   intro N_new newMeta offNew iwOld iwNew arenaW arenaB peakF
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU_old : N_old ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-  have hn_old : n ≤ N_old := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  obtain ⟨hn_old, _, hNU_old⟩ := epochValid_iff_capacity_bounds.mp hev
   have hnU : n ≤ U := hn_old.trans hNU_old
   obtain ⟨hN_new_pos, hn_new, hN_new_2n, hNU_new⟩ := targetCap_bounds_of_pos hn hnU
   have hce_old : compactedEpochWords U V w N_old n = offCompItems U w N_old + iwOld := by
     unfold compactedEpochWords; rw [ite_eq_right (by omega)]
   have h225_old : 225 ≤ offCompItems U w N_old := le_offCompItems_225 U w N_old
   have h225_new : 225 ≤ offNew := le_offCompItems_225 U w N_new
-  have hpeak_eq : peakF = arenaB + arenaW := by
-    dsimp only [peakF, arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew, migratePeakWords]
-    omega
+  have hpeak_eq : peakF = arenaB + arenaW :=
+    base_add_migratePeakWords base U V w N_old n
   have hfit_ar : Fits w (arenaB + arenaW) := hpeak_eq ▸ hfit_peak
   have haw_def : arenaW = max iwOld iwNew + 6 := rfl
   have hiwn_le_aw : iwNew ≤ arenaW := (le_max_right _ _).trans (Nat.le_add_right _ 6)

@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.SpectralConcentration
 public import CslibFrontier.Foundations.BooleanAnalysis.Degree
 public import CslibFrontier.Foundations.BooleanAnalysis.SignApproximation
 import CslibFrontier.Foundations.BooleanAnalysis.HammingFourier
+import CslibFrontier.Foundations.BooleanAnalysis.SpectralNorm
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -136,9 +137,6 @@ theorem exists_card_le_one_div_sum_fourierCoeff_sq_chi_le (S : Finset (Fin 3)) {
       ∑ T ∈ Fᶜ, fourierCoeff (chi ℝ S) T ^ 2 ≤ ε := by
   obtain ⟨F, hF, hconc⟩ := exists_card_le_sum_fourierCoeff_sq_le (chi ℝ S) hε
   refine ⟨F, ?_, hconc⟩
-  have hnorm : ∑ T, |fourierCoeff (chi ℝ S) T| = 1 := by
-    simp only [fourierCoeff_chi, apply_ite abs, abs_one, abs_zero, sum_ite_eq, mem_univ,
-      ite_true]
-  rwa [hnorm, one_pow] at hF
+  rwa [sum_abs_fourierCoeff_chi, one_pow] at hF
 
 end CslibFrontierTests.BooleanAnalysisSpectralConcentration

@@ -69,16 +69,12 @@ theorem ncard_edgeCut_union_add {S T : Set V} (h : Disjoint S T)
   have hd (v : V) : v ∈ S → v ∉ T := fun hv => disjoint_left.mp h hv
   have h₁ : G.edgeCut (S ∪ T) ∪ (G.edgeCut S ∩ G.edgeCut T) = G.edgeCut S ∪ G.edgeCut T := by
     ext e
-    have := hd (G.src e)
-    have := hd (G.tgt e)
     simp only [mem_union, mem_inter_iff, mem_edgeCut]
-    lrat_tauto
+    lrat_tauto [hd (G.src e), hd (G.tgt e)]
   have h₂ : Disjoint (G.edgeCut (S ∪ T)) (G.edgeCut S ∩ G.edgeCut T) :=
     disjoint_left.mpr fun e he he' => by
-      have := hd (G.src e)
-      have := hd (G.tgt e)
       simp only [mem_union, mem_inter_iff, mem_edgeCut] at he he'
-      lrat_tauto
+      lrat_tauto [hd (G.src e), hd (G.tgt e)]
   have hST : (G.edgeCut (S ∪ T) ∪ (G.edgeCut S ∩ G.edgeCut T)).Finite := h₁.symm ▸ hS.union hT
   have := ncard_union_add_ncard_inter (G.edgeCut S) (G.edgeCut T) hS hT
   rw [← h₁, ncard_union_eq h₂ (hST.subset subset_union_left) (hST.subset subset_union_right)]

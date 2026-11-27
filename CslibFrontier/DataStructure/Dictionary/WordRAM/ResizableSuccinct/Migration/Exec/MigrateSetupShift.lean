@@ -124,23 +124,25 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
       (∀ i : Fin 36, y.regs (mNewCp i) = mkCompParams U V w N_new i) := by
   intro N_new newMeta offNew iwOld iwNew arenaW arenaB peakF
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hs₈b hsplit₈.root_hdr
-  have hNU_old : N_old ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-  have hn_old : n ≤ N_old := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  obtain ⟨hn_old, _, hNU_old⟩ := epochValid_iff_capacity_bounds.mp hev
   have hnU : n ≤ U := hn_old.trans hNU_old
   obtain ⟨hN_new_pos, hn_new, hN_new_2n, hNU_new⟩ := targetCap_bounds_of_pos hn hnU
   have hce_old : compactedEpochWords U V w N_old n = offCompItems U w N_old + iwOld := by
     unfold compactedEpochWords; rw [ite_eq_right (by omega)]
   have h225_old : 225 ≤ offCompItems U w N_old := le_offCompItems_225 U w N_old
   have h225_new : 225 ≤ offNew := le_offCompItems_225 U w N_new
-  have hpeak_eq : peakF = arenaB + arenaW := by
-    dsimp only [peakF, migratePeakWords, arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew]; ring
+  have hpeak_eq : peakF = arenaB + arenaW :=
+    base_add_migratePeakWords base U V w N_old n
   have hfit_ar : Fits w (arenaB + arenaW) := hpeak_eq ▸ hfit_peak
   have hiwo_le_aw : iwOld ≤ arenaW := (le_max_left _ _).trans (Nat.le_add_right _ 6)
   have hfr_le_peak : x.frontier ≤ peakF := by
     rw [hfr, hce_old, hpeak_eq]; dsimp only [arenaB, newMeta]
     linarith only [hiwo_le_aw]
-  have hfit1 : Fits w 1 := hfit_ar.of_le (by dsimp only [arenaB]; linarith only [h225_new])
-  have hfit225 : Fits w 225 := hfit_ar.of_le (by dsimp only [arenaB]; linarith only [h225_new])
+  have hfit_off : Fits w offNew := by
+    rw [← (show s₈.regs mOffNew = offNew from hs₈_off)]
+    exact hs₈b.regs_fits _
+  have hfit225 : Fits w 225 := hfit_off.of_le h225_new
+  have hfit1 : Fits w 1 := hfit225.of_le (by decide)
   have hfit_n : Fits w n := hsplit₈.root_hdr.fits_U.of_le hnU
   -- 7. `growZeroCode` + `mFr := mPeakFront`
   have hsum_grow : s₈.frontier + s₈.regs mK = peakF := by

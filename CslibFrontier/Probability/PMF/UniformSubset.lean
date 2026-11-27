@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Probability.PMF.Uniform
 public import Mathlib.Algebra.Order.BigOperators.Expect
+import CslibFrontier.Probability.PMF.BindCompare
 
 /-!
 # Conditional Uniform Distributions on Finite Subsets and Rejection Resampling
@@ -44,37 +45,15 @@ theorem unifOn_rehash_eq {Θ : Type*} [DecidableEq Θ] {E_prev E_curr : Finset �
     (PMF.uniformOfFinset E_prev hprev).bind
       (fun θ => if θ ∈ E_curr then PMF.pure θ else PMF.uniformOfFinset E_curr hcurr) =
       PMF.uniformOfFinset E_curr hcurr := by
-  ext θ'
-  have hP : (E_prev.card : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr hprev.card_ne_zero
-  have hC : (E_curr.card : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr hcurr.card_ne_zero
-  rw [PMF.bind_apply, tsum_eq_sum (s := E_prev), ← Finset.sum_sdiff hsub]
-  · calc
-      _ = (∑ _x ∈ E_prev \ E_curr,
-            (E_prev.card : ℝ≥0∞)⁻¹ * PMF.uniformOfFinset E_curr hcurr θ') +
-          ∑ x ∈ E_curr, (E_prev.card : ℝ≥0∞)⁻¹ * PMF.pure x θ' := by
-        congr 1 <;> refine Finset.sum_congr rfl fun x hx => ?_
-        · rw [Finset.mem_sdiff] at hx
-          simp only [PMF.uniformOfFinset_apply E_prev hprev, hx.1, hx.2, ↓reduceIte]
-        · simp only [PMF.uniformOfFinset_apply E_prev hprev, hsub hx, hx, ↓reduceIte]
-      _ = _ := by
-        rw [Finset.sum_const, ← Finset.mul_sum, Finset.card_sdiff_of_subset hsub, nsmul_eq_mul,
-          PMF.uniformOfFinset_apply E_curr hcurr]
-        by_cases hθ' : θ' ∈ E_curr
-        · rw [Finset.sum_eq_single_of_mem θ' hθ' fun x _ hx => PMF.pure_apply_of_ne _ _ hx.symm,
-            PMF.pure_apply_self]
-          simp only [hθ', ↓reduceIte, mul_one]
-          calc
-            _ = (((E_prev.card - E_curr.card : ℕ) : ℝ≥0∞) + E_curr.card) *
-                ((E_prev.card : ℝ≥0∞)⁻¹ * (E_curr.card : ℝ≥0∞)⁻¹) := by
-              rw [add_mul, mul_left_comm (E_curr.card : ℝ≥0∞),
-                ENNReal.mul_inv_cancel hC (ENNReal.natCast_ne_top _), mul_one]
-            _ = _ := by
-              rw [← Nat.cast_add, Nat.sub_add_cancel (Finset.card_le_card hsub), ← mul_assoc,
-                ENNReal.mul_inv_cancel hP (ENNReal.natCast_ne_top _), one_mul]
-        · rw [Finset.sum_eq_zero fun x hx => PMF.pure_apply_of_ne x θ' fun h => hθ' (h ▸ hx)]
-          simp [hθ']
-  · intro x hx
-    simp only [PMF.uniformOfFinset_apply, hx, ↓reduceIte, zero_mul]
+  refine bind_pure_or_resample_eq (E_curr : Set Θ)
+    (c := (E_curr.card : ℝ≥0∞) * (E_prev.card : ℝ≥0∞)⁻¹) fun θ => ?_
+  by_cases hθ : θ ∈ E_curr
+  · rw [Set.indicator_of_mem (Finset.mem_coe.mpr hθ),
+      PMF.uniformOfFinset_apply, ite_eq_left (hsub hθ),
+      PMF.uniformOfFinset_apply, ite_eq_left hθ, mul_right_comm,
+      ENNReal.mul_inv_cancel (Nat.cast_ne_zero.mpr hcurr.card_ne_zero)
+        (ENNReal.natCast_ne_top _), one_mul]
+  · simp [PMF.uniformOfFinset_apply, hθ]
 
 /-- Whenever `|Θ| ≤ 2 * |E|`, the conditional uniform distribution `PMF.uniformOfFinset E`
 is pointwise bounded by `2 * PMF.uniformOfFintype Θ`. -/

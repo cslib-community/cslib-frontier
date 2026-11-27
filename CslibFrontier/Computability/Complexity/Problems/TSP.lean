@@ -204,10 +204,9 @@ theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encTSP encBits) encBool := by
   have hV : ComputableInPolyTime (fun x : TSPInstance => List.range x.dist.length) encTSP
       (encList encNat) := by
-    simpa only [List.map_id', Function.comp_def] using mapWithInput (f := fun _ i => i)
-      (range.comp ((length_list (encList encNat)).comp
-        (by fun_prop : ComputableInPolyTime TSPInstance.dist encTSP (encList (encList encNat)))))
-      (unary_to_binary.comp (snd _ _))
+    exact (range.comp ((length_list (encList encNat)).comp
+      (by fun_prop : ComputableInPolyTime TSPInstance.dist encTSP (encList (encList encNat)))))
+      |>.reencodeList unary_to_binary
   have hD : ComputableInPolyTime (fun q : TSPInstance × List ℕ => q.1.dist)
       (encPair encTSP (encList encNat)) (encList (encList encNat)) := by fun_prop
   have hb : ComputableInPolyTime (fun q : TSPInstance × List ℕ => q.1.bound)

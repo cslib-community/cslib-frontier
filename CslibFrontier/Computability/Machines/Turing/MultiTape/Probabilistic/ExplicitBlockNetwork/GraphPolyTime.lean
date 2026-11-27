@@ -149,6 +149,6 @@ theorem computableInPolyTime_explicitPortsNum {q m σ v : α → ℕ}
         (hσ.comp (fst _ _)) (snd _ _)) (hv.comp (fst _ _))
     · exact decide_eq' (computableInPolyTime_explicitTgtNum (hq.comp (fst _ _)) (hm.comp (fst _ _))
         (snd _ _)) (hv.comp (fst _ _))
-  simpa only [Function.comp_def, List.map_id'] using (map unary_to_binary).comp hfilter
+  exact hfilter.reencodeList unary_to_binary
 
 end Turing.MultiTapePTM

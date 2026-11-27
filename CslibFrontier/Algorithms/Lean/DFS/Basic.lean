@@ -181,34 +181,87 @@ private structure Inv (adj : V → List V) (s : State V) : Prop where
     (∃ z, StronglyConnected adj x z ∧ [z, y] <+ s.finished) ∨
       ∃ z ∈ s.visited, z ∉ s.finished ∧ StronglyConnected adj x z
 
-/-- `s'` extends `s`: finishing prepends new vertices that were undiscovered in `s`. -/
+/-- Finishing prepends distinct vertices that were undiscovered in the starting state. -/
 private def Ext (s s' : State V) : Prop :=
-  ∃ new : List V, s'.finished = new ++ s.finished ∧ (∀ x ∈ new, x ∉ s.visited) ∧
-    ∀ x, x ∈ s'.visited ↔ x ∈ s.visited ∨ x ∈ new
+  ∃ new : List V, s'.finished = new ++ s.finished ∧ new.Nodup ∧
+    (∀ x ∈ new, x ∉ s.visited) ∧ ∀ x, x ∈ s'.visited ↔ x ∈ s.visited ∨ x ∈ new
 
 private theorem Ext.refl (s : State V) : Ext s s :=
-  ⟨[], rfl, by simp, by simp⟩
+  ⟨[], rfl, List.nodup_nil, by simp, by simp⟩
 
 private theorem Ext.visited_subset {s s' : State V} (h : Ext s s') : s.visited ⊆ s'.visited := by
-  obtain ⟨_, _, _, hv⟩ := h
-  exact fun x hx => (hv x).2 (.inl hx)
+  obtain ⟨_, _, _, _, hv⟩ := h
+  exact fun x hx => (hv x).mpr (.inl hx)
 
 private theorem Ext.trans {s₁ s₂ s₃ : State V} (h₁ : Ext s₁ s₂) (h₂ : Ext s₂ s₃) : Ext s₁ s₃ := by
-  obtain ⟨n₁, hf₁, hd₁, hv₁⟩ := h₁
-  obtain ⟨n₂, hf₂, hd₂, hv₂⟩ := h₂
-  refine ⟨n₂ ++ n₁, by rw [hf₂, hf₁, List.append_assoc], ?_, ?_⟩
+  obtain ⟨n₁, hf₁, hn₁, hd₁, hv₁⟩ := h₁
+  obtain ⟨n₂, hf₂, hn₂, hd₂, hv₂⟩ := h₂
+  have hnd : (n₂ ++ n₁).Nodup := List.nodup_append.mpr ⟨hn₂, hn₁,
+    fun x hx y hy hxy => hd₂ x hx ((hv₁ x).mpr (.inr (by simpa only [hxy] using hy)))⟩
+  refine ⟨n₂ ++ n₁, by rw [hf₂, hf₁, List.append_assoc], hnd, ?_, ?_⟩
   · intro x hx
-    rcases List.mem_append.1 hx with hx | hx
-    · exact fun h => hd₂ x hx ((hv₁ x).2 (.inl h))
+    rcases List.mem_append.mp hx with hx | hx
+    · exact fun h => hd₂ x hx ((hv₁ x).mpr (.inl h))
     · exact hd₁ x hx
   · intro x
     rw [hv₂, hv₁, List.mem_append]
     tauto
 
+private theorem Ext.finish [DecidableEq V] {s t : State V} {u : V}
+    (hu : u ∉ s.visited) (ht : Ext ⟨insert u s.visited, s.finished⟩ t) :
+    Ext s ⟨t.visited, u :: t.finished⟩ := by
+  obtain ⟨new, hnew, hnd, hdis, hvis⟩ := ht
+  refine ⟨u :: new, congrArg (u :: ·) hnew, List.nodup_cons.mpr
+    ⟨fun hm => hdis u hm (Finset.mem_insert_self _ _), hnd⟩, ?_, ?_⟩
+  · intro x hx
+    rcases List.mem_cons.mp hx with rfl | hx
+    · exact hu
+    · exact fun h => hdis x hx (Finset.mem_insert_of_mem h)
+  · intro x
+    simp only [hvis, Finset.mem_insert, List.mem_cons]
+    tauto
+
+private theorem foldl_ext {f : State V → V → State V} (hf : ∀ s v, Ext s (f s v))
+    (roots : List V) (s : State V) : Ext s (roots.foldl f s) :=
+  roots.foldlRecOn f (Ext.refl s) fun t ht v _ => ht.trans (hf t v)
+
+private theorem visit_ext [DecidableEq V] (adj : V → List V) :
+    ∀ k u s, Ext s (visit adj k u s)
+  | 0, _, s => Ext.refl s
+  | k + 1, u, s => by
+    by_cases hu : u ∈ s.visited
+    · rw [visit_of_mem hu]
+      exact Ext.refl s
+    · rw [visit_of_notMem hu]
+      exact Ext.finish hu (foldl_ext (fun t v => visit_ext adj k v t) (adj u) _)
+
+/-- Starting with an empty finishing list, the visit lists each newly discovered vertex
+exactly once. This holds for every fuel and starting visited set. -/
+theorem visit_nil_struct [DecidableEq V] (adj : V → List V) (k : ℕ) (u : V) (vis : Finset V) :
+    let s := visit adj k u ⟨vis, []⟩
+    s.finished.Nodup ∧ (∀ x ∈ s.finished, x ∉ vis) ∧
+      (∀ x, x ∈ s.visited ↔ x ∈ vis ∨ x ∈ s.finished) := by
+  obtain ⟨new, hnew, hnd, hdis, hvis⟩ := visit_ext adj k u ⟨vis, []⟩
+  simp only [List.append_nil] at hnew
+  exact ⟨hnew ▸ hnd, hnew ▸ hdis, hnew ▸ hvis⟩
+
+/-- A visit increases the visited cardinality by the number of newly finished vertices. -/
+theorem card_visit_nil [DecidableEq V] (adj : V → List V) (k : ℕ) (u : V) (vis : Finset V) :
+    (visit adj k u ⟨vis, []⟩).visited.card =
+      vis.card + (visit adj k u ⟨vis, []⟩).finished.length := by
+  obtain ⟨hnd, hdis, hvis⟩ := visit_nil_struct adj k u vis
+  have hdisj : Disjoint vis (visit adj k u ⟨vis, []⟩).finished.toFinset :=
+    Finset.disjoint_right.mpr fun x hx => hdis x (List.mem_toFinset.mp hx)
+  have hunion : (visit adj k u ⟨vis, []⟩).visited =
+      vis ∪ (visit adj k u ⟨vis, []⟩).finished.toFinset := by
+    ext x
+    simp [hvis x]
+  rw [hunion, Finset.card_union_of_disjoint hdisj, List.toFinset_card_of_nodup hnd]
+
 /-- A gray vertex of `s'` (discovered, unfinished) was already gray in `s`. -/
 private theorem Ext.gray {s s' : State V} (h : Ext s s') {x : V} (hx : x ∈ s'.visited)
     (hxf : x ∉ s'.finished) : x ∈ s.visited ∧ x ∉ s.finished := by
-  obtain ⟨n, hf, _, hv⟩ := h
+  obtain ⟨n, hf, _, _, hv⟩ := h
   rw [hf, List.mem_append, not_or] at hxf
   rcases (hv x).1 hx with h | h
   · exact ⟨h, hxf.2⟩
@@ -218,41 +271,42 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
     ∀ (k : ℕ) (u : V) (s : State V), Inv adj s →
       Fintype.card V - s.visited.card ≤ k →
       (∀ x ∈ s.visited, x ∉ s.finished → Relation.ReflTransGen (Edge adj) x u) →
-      Inv adj (visit adj k u s) ∧ Ext s (visit adj k u s) ∧ u ∈ (visit adj k u s).visited ∧
+      Inv adj (visit adj k u s) ∧ u ∈ (visit adj k u s).visited ∧
         ∀ x ∈ (visit adj k u s).visited, x ∈ s.visited ∨ Relation.ReflTransGen (Edge adj) u x
   | 0, u, s, hI, hk, _ => by
     have huniv : s.visited = Finset.univ :=
       Finset.eq_univ_of_card _ (le_antisymm (Finset.card_le_univ _) (by omega))
-    exact ⟨hI, Ext.refl s, (huniv ▸ Finset.mem_univ u : u ∈ s.visited), fun x hx => .inl hx⟩
+    exact ⟨hI, (huniv ▸ Finset.mem_univ u : u ∈ s.visited), fun x hx => .inl hx⟩
   | k + 1, u, s, hI, hk, hgray => by
     by_cases hu : u ∈ s.visited
     · rw [visit_of_mem hu]
-      exact ⟨hI, Ext.refl s, hu, fun x hx => .inl hx⟩
+      exact ⟨hI, hu, fun x hx => .inl hx⟩
     have hfold : ∀ l : List V, (∀ v ∈ l, v ∈ adj u) → ∀ t : State V, Inv adj t →
         Fintype.card V - t.visited.card ≤ k →
         (∀ x ∈ t.visited, x ∉ t.finished → Relation.ReflTransGen (Edge adj) x u) →
         Inv adj (l.foldl (fun t v => visit adj k v t) t) ∧
-          Ext t (l.foldl (fun t v => visit adj k v t) t) ∧
           (∀ v ∈ l, v ∈ (l.foldl (fun t v => visit adj k v t) t).visited) ∧
           ∀ x ∈ (l.foldl (fun t v => visit adj k v t) t).visited,
             x ∈ t.visited ∨ Relation.ReflTransGen (Edge adj) u x := by
       intro l
       induction l with
-      | nil => intro _ t hI _ _; exact ⟨hI, Ext.refl t, by simp, fun x hx => .inl hx⟩
+      | nil => intro _ t hI _ _; exact ⟨hI, by simp, fun x hx => .inl hx⟩
       | cons v l ih =>
         intro hl t hIt hkt hgt
         have hv : Edge adj u v := hl v List.mem_cons_self
-        obtain ⟨hI₁, hE₁, hv₁, hr₁⟩ := visit_spec k v t hIt hkt fun x hx hxf =>
+        obtain ⟨hI₁, hv₁, hr₁⟩ := visit_spec k v t hIt hkt fun x hx hxf =>
           (hgt x hx hxf).tail hv
+        have hE₁ := visit_ext adj k v t
         have hk₁ : Fintype.card V - (visit adj k v t).visited.card ≤ k := by
           have := Finset.card_le_card hE₁.visited_subset
           omega
-        obtain ⟨hI₂, hE₂, hv₂, hr₂⟩ := ih (fun w hw => hl w (List.mem_cons_of_mem _ hw)) _ hI₁
+        obtain ⟨hI₂, hv₂, hr₂⟩ := ih (fun w hw => hl w (List.mem_cons_of_mem _ hw)) _ hI₁
           hk₁ fun x hx hxf => by
             obtain ⟨hx', hxf'⟩ := hE₁.gray hx hxf
             exact hgt x hx' hxf'
+        have hE₂ := foldl_ext (fun t v => visit_ext adj k v t) l (visit adj k v t)
         rw [List.foldl_cons]
-        exact ⟨hI₂, hE₁.trans hE₂, List.forall_mem_cons.2 ⟨hE₂.visited_subset hv₁, hv₂⟩,
+        exact ⟨hI₂, List.forall_mem_cons.2 ⟨hE₂.visited_subset hv₁, hv₂⟩,
           fun x hx => (hr₂ x hx).elim (fun hx => (hr₁ x hx).imp id (.head hv)) .inr⟩
     rw [visit_of_notMem hu]
     set s₀ : State V := ⟨insert u s.visited, s.finished⟩ with hs₀
@@ -272,9 +326,10 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
       intro x hx hxf
       obtain rfl | hx := Finset.mem_insert.1 hx
       exacts [.refl, hgray x hx hxf]
-    obtain ⟨hIt, hEt, hvt, hrt⟩ := hfold (adj u) (fun v hv => hv) s₀ hI₀ hk₀ hg₀
+    obtain ⟨hIt, hvt, hrt⟩ := hfold (adj u) (fun v hv => hv) s₀ hI₀ hk₀ hg₀
+    have hEt := foldl_ext (fun t v => visit_ext adj k v t) (adj u) s₀
     set t := (adj u).foldl (fun t v => visit adj k v t) s₀ with ht
-    obtain ⟨new, hnew, hdis, hvis⟩ := id hEt
+    obtain ⟨new, hnew, -, hdis, hvis⟩ := id hEt
     have hut : u ∉ t.finished := by
       rw [hnew, List.mem_append, not_or]
       exact ⟨fun h => hdis u h (Finset.mem_insert_self _ _), fun h => hu (hI.finished_subset u h)⟩
@@ -283,7 +338,7 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
       List.forall_mem_cons.2 ⟨hut', hIt.finished_subset⟩
     have hclosed' : ∀ x ∈ u :: t.finished, ∀ y ∈ adj x, y ∈ t.visited :=
       List.forall_mem_cons.2 ⟨hvt, hIt.closed⟩
-    refine ⟨?_, ?_, hut', ?_⟩
+    refine ⟨?_, hut', ?_⟩
     · refine ⟨List.nodup_cons.2 ⟨hut, hIt.nodup⟩, hf_sub', hclosed', ?_, ?_⟩
       · intro x hx y hy
         rcases List.mem_cons.1 hx with rfl | hx
@@ -332,11 +387,6 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
                   simp only [List.mem_cons, hnew, List.mem_append, not_or]
                   exact ⟨hzu, hzn, hzf⟩
                 exact .inr ⟨z, hEt.visited_subset (Finset.mem_insert_of_mem hzv), hzf', hxz⟩
-    · refine ⟨u :: new, by simp [hnew, s₀], ?_, ?_⟩
-      · exact List.forall_mem_cons.2 ⟨hu, fun x hx h => hdis x hx (Finset.mem_insert_of_mem h)⟩
-      · intro x
-        simp only [hvis, s₀, Finset.mem_insert, List.mem_cons]
-        tauto
     · intro x hx
       obtain hx | hx := hrt x hx
       · obtain rfl | hx := Finset.mem_insert.1 hx
@@ -346,24 +396,25 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
 private theorem foldl_visit_spec [DecidableEq V] [Fintype V] {k : ℕ} (hk : Fintype.card V ≤ k) :
     ∀ (roots : List V) (s : State V), Inv adj s → (∀ x ∈ s.visited, x ∈ s.finished) →
       Inv adj (roots.foldl (fun s u => visit adj k u s) s) ∧
-        Ext s (roots.foldl (fun s u => visit adj k u s) s) ∧
         (∀ x ∈ (roots.foldl (fun s u => visit adj k u s) s).visited,
           x ∈ (roots.foldl (fun s u => visit adj k u s) s).finished) ∧
         (∀ u ∈ roots, u ∈ (roots.foldl (fun s u => visit adj k u s) s).visited) ∧
         ∀ x ∈ (roots.foldl (fun s u => visit adj k u s) s).visited,
           x ∈ s.visited ∨ ∃ r ∈ roots, Relation.ReflTransGen (Edge adj) r x
-  | [], s, hI, hb => ⟨hI, Ext.refl s, hb, by simp, fun x hx => .inl hx⟩
+  | [], s, hI, hb => ⟨hI, hb, by simp, fun x hx => .inl hx⟩
   | r :: roots, s, hI, hb => by
-    obtain ⟨hI₁, hE₁, hr₁, hR₁⟩ := visit_spec k r s hI (by omega) fun x hx hxf =>
+    obtain ⟨hI₁, hr₁, hR₁⟩ := visit_spec k r s hI (by omega) fun x hx hxf =>
       absurd (hb x hx) hxf
+    have hE₁ := visit_ext adj k r s
     have hb₁ : ∀ x ∈ (visit adj k r s).visited, x ∈ (visit adj k r s).finished := by
       intro x hx
       by_contra hxf
       obtain ⟨hx', hxf'⟩ := hE₁.gray hx hxf
       exact hxf' (hb x hx')
-    obtain ⟨hI₂, hE₂, hb₂, hr₂, hR₂⟩ := foldl_visit_spec hk roots _ hI₁ hb₁
+    obtain ⟨hI₂, hb₂, hr₂, hR₂⟩ := foldl_visit_spec hk roots _ hI₁ hb₁
+    have hE₂ := foldl_ext (fun t v => visit_ext adj k v t) roots (visit adj k r s)
     rw [List.foldl_cons]
-    refine ⟨hI₂, hE₁.trans hE₂, hb₂, List.forall_mem_cons.2 ⟨hE₂.visited_subset hr₁, hr₂⟩, ?_⟩
+    refine ⟨hI₂, hb₂, List.forall_mem_cons.2 ⟨hE₂.visited_subset hr₁, hr₂⟩, ?_⟩
     intro x hx
     rcases hR₂ x hx with hx | ⟨r', hr', hx⟩
     · exact (hR₁ x hx).imp id fun hx => ⟨r, List.mem_cons_self, hx⟩
@@ -375,7 +426,7 @@ private theorem dfs_spec [DecidableEq V] [Fintype V] {k : ℕ} (hk : Fintype.car
       (∀ x ∈ (dfs adj k roots).visited, x ∈ (dfs adj k roots).finished) ∧
       (∀ u ∈ roots, u ∈ (dfs adj k roots).visited) ∧
       ∀ x ∈ (dfs adj k roots).visited, ∃ r ∈ roots, Relation.ReflTransGen (Edge adj) r x := by
-  obtain ⟨hI, -, hb, hr, hR⟩ := foldl_visit_spec (adj := adj) hk roots ⟨∅, []⟩
+  obtain ⟨hI, hb, hr, hR⟩ := foldl_visit_spec (adj := adj) hk roots ⟨∅, []⟩
     ⟨List.nodup_nil, by simp, by simp, by simp, by simp⟩ (by simp)
   exact ⟨hI, hb, hr, fun x hx => (hR x hx).resolve_left (by simp)⟩
 
