@@ -45,6 +45,7 @@ import CslibFrontierResults.Entries.ODonnellPeres
 import CslibFrontierResults.Entries.TwoProverNEXP
 import CslibFrontierResults.Entries.Roberts
 import CslibFrontierResults.Entries.SecurityEconomics
+import CslibFrontierResults.Entries.HittingSet
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
 import CslibFrontierResults.Entries.ODonnellMonotoneCoefficient
 import CslibFrontierResults.Entries.VeriPBClique

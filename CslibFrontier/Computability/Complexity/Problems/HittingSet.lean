@@ -44,11 +44,12 @@ For `1 ≤ k ≤ |S|` and subsets of the ground list, this is the problem of Gar
 Garey and Johnson credit the transformation from VERTEX COVER to [Karp1972].
 `VertexCover.toHittingSet` keeps the declared vertices as the ground list and `k`, and turns every
 edge between two distinct declared vertices (`VertexCover.properEdges`) into the subset `[u, v]`.
-A set of declared vertices meets every such subset exactly when it is a vertex cover, so every
-subset has at most two elements, the case that Garey and Johnson note remains NP-complete.
-`VertexCover` asks for exactly `k` vertices and rejects every `k` above the number `n` of distinct
-declared vertices (`mem_VertexCover_iff_exists_card_le`), while `HittingSet` asks for at most `k`.
-For `k > n` the reduction therefore adds the empty subset, which no set meets.
+A set of declared vertices meets every such subset exactly when it is a vertex cover. Every subset
+has at most two elements, the case that Garey and Johnson note remains NP-complete. `VertexCover`
+asks for exactly `k` vertices and rejects every `k` above the number `n` of distinct declared
+vertices (`mem_VertexCover_iff_exists_card_le`), while `HittingSet` asks for at most `k`. For
+`k > n` the reduction therefore produces a fixed instance with only the empty subset, which no set
+meets.
 
 ## Main definitions
 
@@ -160,7 +161,7 @@ theorem isHitting_eq_true_iff (sets : List (List ℕ)) (selected : List ℕ) :
 @[fun_prop]
 theorem computableInPolyTime_isHitting :
     ComputableInPolyTime (fun p : List (List ℕ) × List ℕ => isHitting p.1 p.2)
-      (encPair (encList (encList encNat)) (encList encNat)) encBool := by
+      (encPair encNatSetList (encList encNat)) encBool := by
   unfold isHitting
   fun_prop
 
@@ -204,25 +205,25 @@ end HittingSet
 
 namespace VertexCover
 
-/-- The Hitting Set instance of a Vertex Cover instance `(G, k)`: the declared vertices of `G` as
-the ground list, every edge `(u, v)` between two distinct declared vertices as the subset `[u, v]`,
-and the same `k`. When `k` exceeds the number of distinct declared vertices, the empty subset comes
-first, so that no set of vertices is a hitting set. -/
+/-- **Karp's reduction from `VertexCover`**: keep the declared vertices as the ground list and the
+target, and make every edge `(u, v)` between two distinct declared vertices the subset `[u, v]`, or
+produce a fixed instance with only the empty subset, which no set meets, when the target exceeds
+the number of distinct declared vertices. -/
 def toHittingSet : VertexCoverInstance → HittingSetInstance := fun x =>
-  ⟨⟨x.graph.vertices,
-    if x.k ≤ x.graph.vertices.toFinset.card then (properEdges x.graph).map fun e => [e.1, e.2]
-    else [] :: (properEdges x.graph).map fun e => [e.1, e.2]⟩, x.k⟩
+  if x.k ≤ x.graph.vertices.toFinset.card then
+    ⟨⟨x.graph.vertices, (properEdges x.graph).map fun e => [e.1, e.2]⟩, x.k⟩
+  else ⟨⟨[], [[]]⟩, 0⟩
 
 /-- **Vertex covers of `G` are hitting sets of its edges.** -/
 theorem toHittingSet_mem_iff (x : VertexCoverInstance) :
     toHittingSet x ∈ HittingSet ↔ x ∈ VertexCover := by
   obtain ⟨G, k⟩ := x
-  rw [mem_HittingSet_iff, mem_VertexCover_iff_exists_card_le_mk]
+  rw [mem_VertexCover_iff_exists_card_le_mk]
   simp only [toHittingSet]
   split_ifs with hk
   · -- Both sides ask for the same set of at most `k` declared vertices: hitting the subset
     -- `[u, v]` of every proper edge is covering the graph.
-    rw [and_iff_right hk]
+    rw [mem_HittingSet_iff, and_iff_right hk]
     refine exists_congr fun H => and_congr_right fun _ => and_comm.trans (and_congr_left
       fun _ => ⟨fun h u hu v hv huv => ?_, fun h S hS => ?_⟩)
     · have hpair : ∀ a b, (a, b) ∈ properEdges G → a ∈ H ∨ b ∈ H := fun a b hab => by
@@ -239,6 +240,7 @@ theorem toHittingSet_mem_iff (x : VertexCoverInstance) :
       · exact ⟨e.1, h1, List.mem_cons_self⟩
       · exact ⟨e.2, h2, List.mem_cons_of_mem _ List.mem_cons_self⟩
   · refine iff_of_false ?_ fun h => hk h.1
+    rw [mem_HittingSet_iff]
     rintro ⟨H, -, -, hhit⟩
     obtain ⟨u, -, hu⟩ := hhit [] List.mem_cons_self
     exact List.not_mem_nil hu

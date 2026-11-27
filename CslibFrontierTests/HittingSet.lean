@@ -16,7 +16,8 @@ The hitting test and the verifier on the subsets `{1, 2}`, `{2, 3}`, `{3, 4}` of
 hitting sets of at most `2` but not `1` element there; a repeated ground entry, an empty
 collection, an empty subset and a subset outside the ground list; the reduction from
 `VertexCover` on a graph with a repeated vertex, a self-loop and an edge to an undeclared vertex,
-including a target above its number of vertices; and the headline results.
+including a target above its number of vertices, and on a triangle that one vertex cannot cover;
+and the headline results.
 -/
 
 set_option linter.privateModule false
@@ -32,6 +33,9 @@ private def chain : SetSystem := ⟨[1, 2, 3, 4], [[1, 2], [2, 3], [3, 4]]⟩
 vertex `5`. -/
 private def junk : Graph := ⟨[0, 0, 1], [(0, 0), (0, 1), (1, 5)]⟩
 
+/-- The triangle on `0`, `1` and `2`. -/
+private def triangle : Graph := ⟨[0, 1, 2], [(0, 1), (1, 2), (0, 2)]⟩
+
 /-! ### Headline results -/
 
 example : HittingSet ∈ NP encHittingSet ∧ NPHard encHittingSet HittingSet ∧
@@ -39,7 +43,7 @@ example : HittingSet ∈ NP encHittingSet ∧ NPHard encHittingSet HittingSet �
   ⟨HittingSet_npComplete.1, HittingSet_npComplete.2, polyTimeReducible_VertexCover_HittingSet⟩
 
 example : ComputableInPolyTime (fun x : HittingSetInstance => x.system.sets)
-    encHittingSet (encList (encList encNat)) := by fun_prop
+    encHittingSet encNatSetList := by fun_prop
 
 example : ComputableInPolyTime (fun x : SetSystem × ℕ => HittingSetInstance.mk x.1 x.2)
     (encPair encSetSystem encNat) encHittingSet := by fun_prop
@@ -97,8 +101,9 @@ example : (⟨⟨[1, 2], [[1], [5]]⟩, 2⟩ : HittingSetInstance) ∉ HittingSe
 example : (VertexCover.toHittingSet ⟨junk, 1⟩).system.ground = [0, 0, 1] := by decide
 example : (VertexCover.toHittingSet ⟨junk, 1⟩).system.sets = [[0, 1]] := by decide
 
--- `junk` has two distinct vertices, so the target `3` adds the empty subset.
-example : (VertexCover.toHittingSet ⟨junk, 3⟩).system.sets = [[], [0, 1]] := by decide
+-- `junk` has two distinct vertices, so the target `3` gives the fixed instance with only the
+-- empty subset.
+example : (VertexCover.toHittingSet ⟨junk, 3⟩).system.sets = [[]] := by decide
 
 -- `{0}` hits the edge subsets, so it covers `junk`.
 example : (⟨junk, 1⟩ : VertexCoverInstance) ∈ VertexCover :=
@@ -116,5 +121,21 @@ example : (⟨junk, 3⟩ : VertexCoverInstance) ∉ VertexCover := fun h => by
   have := (mem_VertexCover_iff_exists_card_le.1 h).1
   revert this
   decide
+
+-- `k = 1` is at most the `3` vertices of `triangle`, so no empty subset is added.
+example : (VertexCover.toHittingSet ⟨triangle, 1⟩).system.sets = [[0, 1], [1, 2], [0, 2]] := by
+  decide
+
+-- One element cannot meet all three edge subsets, so one vertex cannot cover the triangle.
+example : (⟨triangle, 1⟩ : VertexCoverInstance) ∉ VertexCover := fun h => by
+  rw [← VertexCover.toHittingSet_mem_iff, mem_HittingSet_iff] at h
+  obtain ⟨H, -, hcard, hhit⟩ := h
+  obtain ⟨a, ha, h01⟩ := hhit [0, 1] (by decide)
+  obtain ⟨b, hb, h12⟩ := hhit [1, 2] (by decide)
+  obtain ⟨c, hc, h02⟩ := hhit [0, 2] (by decide)
+  obtain rfl : a = b := Finset.card_le_one.1 hcard a ha b hb
+  obtain rfl : a = c := Finset.card_le_one.1 hcard a ha c hc
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at h01 h12 h02
+  omega
 
 end CslibFrontierTests.HittingSet
