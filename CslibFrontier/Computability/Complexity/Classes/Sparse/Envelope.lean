@@ -51,19 +51,13 @@ theorem SAT_mem_P_of_sparse_diff {β : Type} {encB : β ↪ List Bool} {S G : Se
     have hg : ComputableInPolyTime g encCNF encB := by
       dsimp only [g]
       fun_prop
-    apply Fortune.SAT_mem_P hSparse
-    refine ⟨g, hg, ?_⟩
-    intro φ
+    refine Fortune.SAT_mem_P hSparse ⟨g, hg, fun φ => ?_⟩
     change φ ∉ SAT ↔ g φ ∈ G \ S
     by_cases h : v (f φ) = true
-    · have hGf : f φ ∈ G := (hvG _).mpr h
-      simp only [g, h, ↓reduceIte, Set.mem_sdiff, hGf, true_and, ← hfS]
-    · have hnotG : f φ ∉ G := fun hfG => h ((hvG _).mp hfG)
-      have hnotS : f φ ∉ S := fun hfS => hnotG (hSG hfS)
+    · simp only [g, h, ↓reduceIte, Set.mem_sdiff, (hvG _).mpr h, true_and, ← hfS]
+    · have hnotS : f φ ∉ S := fun hfS => h ((hvG _).mp (hSG hfS))
       simp [g, h, hzG, hzS, (hfS _).not.mpr hnotS]
-  · have heq : S = G := Set.Subset.antisymm hSG fun x hx => by
-      by_contra hnotS
-      exact hnonempty ⟨x, hx, hnotS⟩
-    exact hred.mem_P (heq.symm ▸ hG)
+  · exact hred.mem_P ((Set.Subset.antisymm hSG fun x hx =>
+      of_not_not fun hnotS => hnonempty ⟨x, hx, hnotS⟩).symm ▸ hG)
 
 end Cslib.Complexity

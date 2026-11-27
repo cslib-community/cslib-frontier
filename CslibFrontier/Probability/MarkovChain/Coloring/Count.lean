@@ -82,28 +82,18 @@ theorem mem_firstVertices {n : ℕ} (e : V ≃ Fin n) {k : ℕ} {v : V} :
 
 omit [DecidableEq V] in
 @[simp] theorem firstVertices_zero {n : ℕ} (e : V ≃ Fin n) : firstVertices e 0 = ∅ := by
-  ext v
-  simp [mem_firstVertices]
+  ext v; simp [mem_firstVertices]
 
 omit [DecidableEq V] in
 @[simp] theorem firstVertices_self {n : ℕ} (e : V ≃ Fin n) : firstVertices e n = Finset.univ := by
-  ext v
-  simp [mem_firstVertices]
+  ext v; simp [mem_firstVertices]
 
 /-- Removing the vertex `e.symm k` from the first `k + 1` vertices leaves the first `k`. -/
 theorem firstVertices_succ_erase {n : ℕ} (e : V ≃ Fin n) (k : Fin n) :
     (firstVertices e ((k : ℕ) + 1)).erase (e.symm k) = firstVertices e k := by
   ext v
-  simp only [Finset.mem_erase, mem_firstVertices]
-  constructor
-  · rintro ⟨hv, hk⟩
-    have : e v ≠ k := fun h => hv (by rw [← h, Equiv.symm_apply_apply])
-    have : (e v : ℕ) ≠ k := fun h => this (Fin.ext h)
-    omega
-  · intro hv
-    refine ⟨fun h => ?_, by omega⟩
-    rw [h, Equiv.apply_symm_apply] at hv
-    exact lt_irrefl _ hv
+  simp only [Finset.mem_erase, mem_firstVertices, ne_eq, Equiv.eq_symm_apply, Fin.ext_iff]
+  omega
 
 omit [DecidableEq V] in
 theorem firstVertices_succ_nonempty {n : ℕ} (e : V ≃ Fin n) (k : Fin n) :
@@ -134,13 +124,10 @@ noncomputable def coloringCountEstimator {n : ℕ} (e : V ≃ Fin n) (q t a : �
 /-- A telescoping product of ratios. -/
 private theorem prod_fin_div_succ {n : ℕ} (f : ℕ → ℝ) (hf : ∀ k, f k ≠ 0) :
     ∏ k : Fin n, f k / f (k + 1) = f 0 / f n := by
-  induction n with
-  | zero => simp [div_self (hf 0)]
-  | succ n ih =>
-    rw [Fin.prod_univ_castSucc]
-    simp only [Fin.val_castSucc, Fin.val_last]
-    rw [ih]
-    field_simp [hf n, hf (n + 1)]
+  rw [Fin.prod_univ_eq_prod_range (fun k : ℕ => f k / f (k + 1))]
+  have he := congrArg (Units.coeHom ℝ)
+    (Finset.prod_range_div' (fun k => Units.mk0 (f k) (hf k)) n)
+  simpa only [map_prod, Units.coeHom_apply, Units.val_div_eq_div_val, Units.val_mk0] using he
 
 variable {G}
 
@@ -161,11 +148,9 @@ theorem le_toOuterMeasure_coloringCountEstimator (hq : 2 * G.maxDegree < q) {n :
         W ≤ (1 + ε) / (G.properColorings q).card}).toReal := by
   have hq0 : (0 : ℝ) < q := Nat.cast_pos.2 (by omega)
   have hb : (0 : ℝ) < (Real.exp 1 * q)⁻¹ := inv_pos.2 (mul_pos (Real.exp_pos 1) hq0)
-  obtain ⟨X, hX⟩ : ∃ X : ℕ → ℝ,
-      X = fun k => ((frozenColorings G q (firstVertices e k) x₀).card : ℝ) := ⟨_, rfl⟩
-  have hX0 (k : ℕ) : X k ≠ 0 := by
-    rw [hX]
-    exact Nat.cast_ne_zero.2 (Finset.card_ne_zero.2 ⟨x₀, mem_frozenColorings_self hx₀⟩)
+  set X : ℕ → ℝ := fun k => (frozenColorings G q (firstVertices e k) x₀).card with hX
+  have hX0 (k : ℕ) : X k ≠ 0 :=
+    Nat.cast_ne_zero.2 (Finset.card_ne_zero.2 ⟨x₀, mem_frozenColorings_self hx₀⟩)
   -- `1 / |X| = ∏_{k < n} |X_k| / |X_{k+1}|`.
   have hR : ∏ k : Fin n, X k / X (k + 1) = 1 / (G.properColorings q).card := by
     rw [prod_fin_div_succ X hX0, hX]
@@ -207,8 +192,7 @@ theorem le_toOuterMeasure_coloringCountEstimator (hq : 2 * G.maxDegree < q) {n :
     · have hlog : Real.log (ε / (6 * Real.exp 1 * q * n)) =
           -Real.log (6 * Real.exp 1 * q * n / ε) := by
         rw [← Real.log_inv, inv_div]
-      rw [hlog, sub_neg_eq_add]
-      exact ht
+      rwa [hlog, sub_neg_eq_add]
   -- The sample size: `48 n ≤ 5 η ε² a / (e q)` since `e < 2.72`.
   have hcard : 48 * (Fintype.card (Fin n) : ℝ) ≤ 5 * η * ε ^ 2 * a * (Real.exp 1 * q)⁻¹ := by
     rw [Fintype.card_fin]

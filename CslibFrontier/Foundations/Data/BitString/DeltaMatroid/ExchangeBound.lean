@@ -44,52 +44,33 @@ theorem IsEvenDeltaMatroid.card_disagree_le (hR : IsEvenDeltaMatroid R)
     by_cases hO : ∃ e ∈ O, x e ≠ y e
     · obtain ⟨e, heO, he⟩ := hO
       obtain ⟨j, hje, hj, hy'⟩ := hR.exchange hy hx (Ne.symm he)
-      let y' := flipOn {e, j} y
       have hd := hammingDist_flipOn_pair_add_two hje.symm (Ne.symm he) hj
-      have ht : hammingDist y' x < n := by dsimp only [y']; omega
-      have hb := ih _ ht hy' rfl
-      have heI : e ∉ I := fun heI => Finset.disjoint_left.mp hIO heI heO
-      have hI : (I.filter fun i => x i ≠ y i) ⊆
-          insert j (I.filter fun i => x i ≠ y' i) := by
+      set y' := flipOn {e, j} y
+      have hy'_of_ne {i : ι} (hie : i ≠ e) (hij : i ≠ j) : y' i = y i := by
+        simp [y', flipOn_apply, hie, hij]
+      have hb := ih _ (by omega : hammingDist y' x < n) hy' rfl
+      have hI : (I.filter fun i => x i ≠ y i) ⊆ insert j (I.filter fun i => x i ≠ y' i) := by
         intro i hi
-        obtain ⟨hiI, hi⟩ := mem_filter.mp hi
+        obtain ⟨hiI, hxy⟩ := mem_filter.mp hi
         by_cases hij : i = j
         · exact mem_insert.mpr (Or.inl hij)
-        · have hie : i ≠ e := fun h => heI (h ▸ hiI)
-          exact mem_insert_of_mem (mem_filter.mpr ⟨hiI, by
-            simpa only [y', flipOn_apply, mem_insert, mem_singleton, hie, hij,
-              or_self, ↓reduceIte] using hi⟩)
-      have hO' : insert e (O.filter fun i => x i ≠ y' i) ⊆
-          (O.filter fun i => x i ≠ y i) := by
+        · have hie : i ≠ e := fun h => Finset.disjoint_left.mp hIO (h ▸ hiI) heO
+          exact mem_insert_of_mem (mem_filter.mpr ⟨hiI, by rwa [hy'_of_ne hie hij]⟩)
+      have hO' : (O.filter fun i => x i ≠ y' i) ⊆ (O.filter fun i => x i ≠ y i).erase e := by
         intro i hi
-        rcases mem_insert.mp hi with rfl | hi
-        · exact mem_filter.mpr ⟨heO, he⟩
-        · obtain ⟨hiO, hi⟩ := mem_filter.mp hi
-          refine mem_filter.mpr ⟨hiO, ?_⟩
-          by_cases hie : i = e
-          · exact hie ▸ he
-          by_cases hij : i = j
-          · exact hij ▸ Ne.symm hj
-          · simpa only [y', flipOn_apply, mem_insert, mem_singleton, hie, hij,
-              or_self, ↓reduceIte] using hi
-      have hen : e ∉ O.filter (fun i => x i ≠ y' i) := by
-        simp only [mem_filter, not_and]
-        intro _
-        dsimp only [y']
-        rw [flipOn_apply_of_mem (mem_insert_self e {j})]
-        cases hx : x e <;> cases hy : y e <;> simp_all
+        obtain ⟨hiO, hxy'⟩ := mem_filter.mp hi
+        have hie : i ≠ e := by
+          rintro rfl
+          exact hxy' ((Bool.eq_not_iff.mpr he).trans (by simp [y', flipOn_apply]))
+        exact mem_erase.mpr ⟨hie, mem_filter.mpr ⟨hiO,
+          if hij : i = j then hij ▸ hj.symm else hy'_of_ne hie hij ▸ hxy'⟩⟩
       have h₁ := (card_le_card hI).trans (card_insert_le j _)
-      have h₂ := card_le_card hO'
-      rw [card_insert_of_notMem hen] at h₂
-      dsimp only [y'] at h₁ h₂
+      have h₂ := (card_le_card hO').trans_lt (card_erase_lt_of_mem (mem_filter.mpr ⟨heO, he⟩))
       omega
-    · have hzero : I.filter (fun i => x i ≠ y i) = ∅ := by
-        apply eq_empty_iff_forall_notMem.mpr
-        intro i hi
-        obtain ⟨hiI, hi⟩ := mem_filter.mp hi
-        obtain ⟨j, hji, hj, hf⟩ := hR.exchange hx hy hi
-        exact hmove i hiI j (fun hjO => hO ⟨j, hjO, hj⟩) hji hf
-      rw [hzero, card_empty]
+    · rw [filter_eq_empty_iff.mpr fun i hiI hi => by
+          obtain ⟨j, hji, hj, hf⟩ := hR.exchange hx hy hi
+          exact hmove i hiI j (fun hjO => hO ⟨j, hjO, hj⟩) hji hf,
+        card_empty]
       exact Nat.zero_le _
 
 end Cslib.BitString

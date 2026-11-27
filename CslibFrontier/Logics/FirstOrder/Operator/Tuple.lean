@@ -158,13 +158,9 @@ theorem realize_applyTerms (I : Interpretation shape M) {k : ℕ}
       φ.Realize I ρ (Sum.elim v ((blockEquiv e k).symm
         (fun i => (args i).realize (fun a => e (fun j => v (a, j)))))) := by
   fo_simp [applyTerms, realize_termGraph f e hf]
-  constructor
-  · rintro ⟨xs, hx, hφ⟩
-    have heq := congrArg (blockEquiv e k).symm (funext hx)
-    rw [Equiv.symm_apply_apply] at heq
-    exact heq ▸ hφ
-  · intro hφ
-    exact ⟨_, fun i => congrFun ((blockEquiv e k).apply_symm_apply _) i, hφ⟩
+  exact ⟨fun ⟨xs, hx, hφ⟩ => by
+      simpa only [← funext hx, Equiv.symm_apply_apply] using hφ,
+    fun hφ => ⟨_, fun i => congrFun ((blockEquiv e k).apply_symm_apply _) i, hφ⟩⟩
 
 include hf in
 /-- A pulled-back relation atom holds exactly when the related target valuation contains the
@@ -188,17 +184,12 @@ theorem realize_exBlock {β : Type} (I : Interpretation shape M)
     (hφ : ∀ w : Option β × Fin d → M, φ.Realize I ρ w ↔ P (fun a => e (fun i => w (a, i)))) :
     (exBlock φ).Realize I ρ v ↔ ∃ x, P (Option.elim · x fun a => e (fun i => v (a, i))) := by
   simp only [exBlock, Formula.realize_exs, Formula.realize_relabel, hφ]
-  constructor
-  · rintro ⟨xs, hx⟩
-    refine ⟨e xs, ?_⟩
-    convert hx using 2 with a
+  refine ⟨fun ⟨xs, hx⟩ => ⟨e xs, ?_⟩, fun ⟨x, hx⟩ => ⟨e.symm x, ?_⟩⟩
+  · convert hx using 2 with a
     cases a <;> rfl
-  · rintro ⟨x, hx⟩
-    refine ⟨e.symm x, ?_⟩
-    convert hx using 2 with a
-    cases a with
-    | none => exact e.apply_symm_apply x
-    | some a => rfl
+  · convert hx using 2 with a
+    cases a
+    exacts [e.apply_symm_apply x, rfl]
 
 end Tuple
 

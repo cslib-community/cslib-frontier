@@ -7,7 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Quadrant
 public import CslibFrontier.Computability.WordRAM.Signed.ArrayArithmetic.Exec
 
@@ -43,70 +43,45 @@ theorem exec_accumulate {w q t A B : ℕ} (subtract : Bool) (x : Data 64) (u v :
         y.mem a = x.mem a) ∧
       ∀ i, 32 ≤ i.val → i ≠ Reg.temporary → y.regs i = x.regs i := by
   have hqfit : Fits (w + 2) (x.regs Reg.output + 4 * x.regs Reg.quarter + 4) := by
-    rw [hq]
-    exact hw.of_le (by omega)
-  obtain ⟨s, hs, hsm, hsrc, hsr⟩ := exec_quadrant Reg.output Reg.operandA x (by decide) ht hqfit
-  have hhigh (i : Fin 64) (hi : 32 ≤ i.val) (htemp : i ≠ Reg.temporary) :
-      s.regs i = x.regs i := hsr i (by intro he; subst i; contradiction) htemp
-  have hsq := (hhigh Reg.quarter (by decide) (by decide)).trans hq
-  have hsp := hhigh Reg.product (by decide) (by decide)
-  have hsa : s.regs Reg.operandA = x.regs Reg.output + t * q := by
-    simpa only [hq] using hsrc
-  let z := ((s.set Reg.operandB (x.regs Reg.product)).set Reg.target
-    (x.regs Reg.output + t * q)).set Reg.length q
-  have hargs : ExecWithin (B := .standard) (w + 2)
-      (ram[ Reg.operandB ← Reg.product; Reg.target ← Reg.operandA; Reg.length ← Reg.quarter ])
-      s z 3 := by
-    ram_eval [z, hsp, hsa, hsq, Reg.operandB, Reg.target, Reg.operandA, Reg.length]
+    rw [hq]; fits
+  have hquarter : t * q + q ≤ 4 * q := by
+    simpa only [Nat.succ_mul] using Nat.mul_le_mul_right q (Nat.succ_le_of_lt ht)
+  apply WP.exists_execWithin
+  unfold accumulate
+  wram_call (exec_quadrant Reg.output Reg.operandA x (by decide) ht hqfit) with s ⟨hsm, hsrc, hsr⟩
+  have hsa : s.regs Reg.operandA = x.regs Reg.output + t * q := by simpa only [hq] using hsrc
+  wram_exec *
+  refine WP.name fun z hz => ?_
   let f : Fin 16 → Fin 64 := Fin.castLE (by decide)
   have hza : (z.comap f).regs Signed.ArrayArithmetic.Reg.inputA = x.regs Reg.output + t * q := by
-    simpa +decide [z, f, Data.comap, Reg.operandA, Reg.operandB, Reg.target, Reg.length,
+    simpa +decide [hz, f, Data.comap, Reg.operandA, Reg.operandB, Reg.target, Reg.length,
       Signed.ArrayArithmetic.Reg.inputA] using hsa
   have hzb : (z.comap f).regs Signed.ArrayArithmetic.Reg.inputB = x.regs Reg.product := by
-    simp +decide [z, f, Data.comap, Reg.operandB, Reg.target, Reg.length,
+    simp +decide [hz, f, Data.comap, Reg.operandB, Reg.target, Reg.length,
       Signed.ArrayArithmetic.Reg.inputB]
   have hzo : (z.comap f).regs Signed.ArrayArithmetic.Reg.output = x.regs Reg.output + t * q := by
-    simp +decide [z, f, Data.comap, Reg.operandB, Reg.target, Reg.length,
+    simp +decide [hz, f, Data.comap, Reg.operandB, Reg.target, Reg.length,
       Signed.ArrayArithmetic.Reg.output]
   have hzl : (z.comap f).regs Signed.ArrayArithmetic.Reg.length = q := by
-    simp [z, f, Data.comap, Reg.length, Signed.ArrayArithmetic.Reg.length]
-  have hzm : (z.comap f).mem = x.mem := hsm
-  have hquarter : t * q + q ≤ 4 * q := by
-    have hmul := Nat.mul_le_mul_right q (Nat.succ_le_of_lt ht)
-    simpa only [Nat.succ_mul] using hmul
-  obtain ⟨y, hvector, ⟨values, frame, _⟩, hframe⟩ :=
-    ExecWithin.rename_post (Fin.castLE_injective _)
-      (Signed.ArrayArithmetic.exec subtract (z.comap f) u v
-      hzl hbound hu hv
-      (by intro j hj; rw [hzm, hza]; exact hout j hj)
-      (by intro j hj; rw [hzm, hzb]; exact hprod j hj)
-      (by rw [hza]; exact hw.of_le (by omega))
-      (by rw [hzb]; exact hw.of_le (by omega))
-      (by rw [hzo]; exact hw.of_le (by omega))
-      (Or.inr (Or.inr (hza.trans hzo.symm)))
-      (by
-        rw [hzb, hzo]
-        rcases hsep with h | h
-        · exact Or.inl (by omega)
-        · exact Or.inr (Or.inl (by omega))))
-  have he : ExecWithin (w + 2) (accumulate t subtract) x y (26 * q + 10) := by
-    exact (hs.seq (hargs.seq hvector)).mono (by omega)
-  refine ⟨y, he, ?_, ?_, ?_⟩
-  · intro j hj
-    simpa only [Data.comap_mem, hzo] using values j hj
-  · intro a ha
-    exact (frame a (by simpa only [hzo] using ha)).trans (congrFun hzm a)
-  · intro i hi htemp
-    have hyi : y.regs i = z.regs i := hframe i (by
-      intro j hj
-      have hv := congrArg Fin.val hj
-      change j.val = i.val at hv
-      omega)
-    apply hyi.trans
-    have hib : i ≠ Reg.operandB := by intro h; subst i; contradiction
-    have hit : i ≠ Reg.target := by intro h; subst i; contradiction
-    have hil : i ≠ Reg.length := by intro h; subst i; contradiction
-    simpa only [z, Data.set, Function.update_of_ne hib, Function.update_of_ne hit,
-      Function.update_of_ne hil] using hhigh i hi htemp
+    simp [hz, f, Data.comap, Reg.length, Signed.ArrayArithmetic.Reg.length]
+  have hzm : (z.comap f).mem = x.mem := by simpa only [hz, Data.comap_mem, Data.set_mem] using hsm
+  wram_call (Signed.ArrayArithmetic.exec subtract (z.comap f) u v hzl hbound hu hv
+      (fun j hj => by rw [hzm, hza]; exact hout j hj)
+      (fun j hj => by rw [hzm, hzb]; exact hprod j hj)
+      (by rw [hza]; fits [hquarter]) (by rw [hzb]; fits) (by rw [hzo]; fits [hquarter])
+      (Or.inr (Or.inr (hza.trans hzo.symm))) (by rw [hzb, hzo]; omega))
+    renamed (Fin.castLE_injective _)
+    with y ⟨⟨values, frame, _⟩, hframe⟩
+  refine ⟨by omega, fun j hj => by simpa only [hzo] using values j hj,
+    fun a ha => (frame a (by simpa only [hzo] using ha)).trans (congrFun hzm a), ?_⟩
+  intro i hi htemp
+  have hyi : y.regs i = z.regs i := hframe i (fun j hj => by
+    have hv := congrArg Fin.val hj; change j.val = i.val at hv; omega)
+  have hib : i ≠ Reg.operandB := Fin.ne_of_val_ne (by change i.val ≠ 10; omega)
+  have hit : i ≠ Reg.target := Fin.ne_of_val_ne (by change i.val ≠ 11; omega)
+  have hil : i ≠ Reg.length := Fin.ne_of_val_ne (by change i.val ≠ 12; omega)
+  exact hyi.trans (by
+    wram_simp [hz]
+    exact hsr i (Fin.ne_of_val_ne (by change i.val ≠ 9; omega)) htemp)
 
 end Cslib.Algorithms.WordRAM.Strassen

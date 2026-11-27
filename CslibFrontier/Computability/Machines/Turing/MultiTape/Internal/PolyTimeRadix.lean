@@ -40,13 +40,7 @@ theorem intBin_subNatNat : ComputableInPolyTime (fun p : ℕ × ℕ => Int.subNa
   have hs : decide ((p.1 : ℤ) - p.2 < 0) = decide (p.1 < p.2) := by grind
   rw [hs]
   congr 2
-  rcases le_total p.1 p.2 with hl | hr
-  · have he : (p.1 : ℤ) - p.2 = -((p.2 - p.1 : ℕ) : ℤ) := by omega
-    rw [he]
-    simp [Nat.sub_eq_zero_of_le hl]
-  · have he : (p.1 : ℤ) - p.2 = ((p.1 - p.2 : ℕ) : ℤ) := by omega
-    rw [he]
-    simp [Nat.sub_eq_zero_of_le hr]
+  omega
 
 /-- Read the existing radix digit with binary base/value and a unary runtime position.
 The certificate is total, including bases zero and one. -/

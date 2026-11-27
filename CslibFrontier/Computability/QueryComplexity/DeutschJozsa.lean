@@ -84,36 +84,29 @@ theorem lt_depth_of_eval_ne {β : Type*} {m : ℕ} (hι : Fintype.card ι = 2 * 
     (t : DecisionTree ι β) (ht : ∀ x, IsBalanced x → t.eval x ≠ t.eval fun _ => false) :
     m < t.depth := by
   classical
-  by_contra hle
-  push Not at hle
-  set Q := t.queries fun _ => false
-  have hQ : #Q ≤ m := (t.card_queries_le_depth _).trans hle
-  have hQc : m ≤ #Qᶜ := by grind [card_compl]
+  by_contra! hle
+  have hQc : m ≤ #(t.queries fun _ => false)ᶜ := by
+    have := (t.card_queries_le_depth (fun _ => false)).trans hle
+    grind [card_compl]
   obtain ⟨T, hTQ, hT⟩ := exists_subset_card_eq hQc
-  set y : ι → Bool := fun i => decide (i ∈ T)
-  have hy : IsBalanced y := by
-    rw [isBalanced_iff, hι, weight]
-    simp only [y, decide_eq_true_eq, filter_mem_eq_inter, univ_inter, hT]
-  refine ht y hy (t.eval_eq_of_forall_mem_queries fun i hi => ?_)
-  have : i ∉ T := fun hiT => mem_compl.mp (hTQ hiT) hi
-  simp [y, this]
+  refine ht (fun i => decide (i ∈ T)) ?_ (t.eval_eq_of_forall_mem_queries fun i hi =>
+    by simp [show i ∉ T from fun hiT => mem_compl.mp (hTQ hiT) hi])
+  rw [isBalanced_iff, hι, weight]
+  simp [hT]
 
 /-- **The deterministic lower bound for Deutsch–Jozsa** [de Wolf, §2.4.1][deWolf2019]: over
 `2m` positions, every decision tree that solves the Deutsch–Jozsa problem has depth at least
 `m + 1`. -/
 theorem depth_ge_of_solvesDeutschJozsa {m : ℕ} (hι : Fintype.card ι = 2 * m)
     (t : DecisionTree ι Bool) (ht : SolvesDeutschJozsa t.eval) : m + 1 ≤ t.depth :=
-  lt_depth_of_eval_ne hι t fun x hx => by
-    rw [ht.balanced x hx, ht.const false]
-    exact Bool.false_ne_true
+  lt_depth_of_eval_ne hι t fun x hx => by simp [ht.balanced x hx, ht.const false]
 
 /-- **The deterministic query complexity of every total function solving Deutsch–Jozsa** over
 `2m` positions is at least `m + 1`. -/
 theorem complexity_ge_of_solvesDeutschJozsa {m : ℕ} (hι : Fintype.card ι = 2 * m)
     {F : (ι → Bool) → Bool} (hF : SolvesDeutschJozsa F) : m + 1 ≤ DecisionTree.complexity F := by
   obtain ⟨t, ht, hd⟩ := DecisionTree.exists_computes_depth_eq_complexity F
-  rw [← hd]
-  exact depth_ge_of_solvesDeutschJozsa hι t (DecisionTree.computes_iff.mp ht ▸ hF)
+  exact hd ▸ depth_ge_of_solvesDeutschJozsa hι t (DecisionTree.computes_iff.mp ht ▸ hF)
 
 section Upper
 
@@ -128,9 +121,8 @@ theorem eval_deutschJozsaTree (l : List ι) (x : ι → Bool) :
     (deutschJozsaTree l).eval x = decide (∀ i ∈ l, ∀ j ∈ l, x i = x j) := by
   rw [deutschJozsaTree, DecisionTree.eval_queryAll]
   congr 1
-  refine propext ⟨fun h i hi j hj => ?_, fun h i hi j hj => ?_⟩
-  · simpa [hi, hj] using h i hi j hj
-  · simpa [hi, hj] using h i hi j hj
+  exact propext ⟨fun h i hi j hj => by simpa [hi, hj] using h i hi j hj,
+    fun h i hi j hj => by simpa [hi, hj] using h i hi j hj⟩
 
 theorem depth_deutschJozsaTree_le (l : List ι) : (deutschJozsaTree l).depth ≤ l.length :=
   DecisionTree.depth_queryAll_le _ _ _
@@ -142,15 +134,11 @@ theorem deutschJozsaTree_solves {m : ℕ} (hι : Fintype.card ι = 2 * m) {l : L
   refine ⟨fun b => by simp [eval_deutschJozsaTree], fun x hx => ?_⟩
   rw [eval_deutschJozsaTree, decide_eq_false_iff_not]
   intro h
-  obtain ⟨i₀, hi₀⟩ : ∃ i₀, i₀ ∈ l := List.exists_mem_of_length_pos (by omega)
-  have hsub : l.toFinset ⊆ ({i | x i = x i₀} : Finset ι) := fun i hi =>
-    mem_filter.mpr ⟨mem_univ i, h i (List.mem_toFinset.mp hi) i₀ hi₀⟩
-  have hcard := card_le_card hsub
-  rw [List.toFinset_card_of_nodup hl] at hcard
+  obtain ⟨i₀, hi₀⟩ := List.exists_mem_of_length_pos (l := l) (by omega)
+  have hcard : l.length ≤ #{i | x i = x i₀} := List.toFinset_card_of_nodup hl ▸
+    card_le_card fun i hi => mem_filter.mpr ⟨mem_univ i, h i (List.mem_toFinset.mp hi) i₀ hi₀⟩
   have hbal := isBalanced_iff_card_filter.mp hx
-  have hw : 2 * #{i | x i = true} = 2 * m := by
-    rw [← hι]
-    exact isBalanced_iff.mp hx
+  have hw : 2 * #{i | x i = true} = 2 * m := hι ▸ isBalanced_iff.mp hx
   cases hx₀ : x i₀ <;> rw [hx₀] at hcard <;> omega
 
 end Upper

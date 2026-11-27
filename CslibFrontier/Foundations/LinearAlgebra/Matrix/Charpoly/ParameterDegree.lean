@@ -34,21 +34,20 @@ variable {ι R : Type*} [Fintype ι] [DecidableEq ι] [CommRing R] [IsDomain R] 
 private theorem natDegree_charpolyRev_coeff_le (M : Matrix ι ι (Polynomial R)) (H : ℕ)
     (ht : ∀ j, 1 ≤ j → j ≤ Fintype.card ι → ((M ^ j).trace).natDegree ≤ j * H)
     (k : ℕ) (hk : k ≤ Fintype.card ι) : (M.charpolyRev.coeff k).natDegree ≤ k * H := by
-  induction k using Nat.strong_induction_on with
-  | ind k ih =>
-    cases k with
-    | zero => rw [coeff_zero_eq_eval_zero, eval_charpolyRev, natDegree_one, Nat.zero_mul]
-    | succ k =>
-      have hn : ((k + 1 : ℕ) : R) ≠ 0 := by exact_mod_cast Nat.succ_ne_zero k
-      rw [← natDegree_C_mul (p := M.charpolyRev.coeff (k + 1)) hn,
-        C_eq_natCast, charpolyRev_newton, natDegree_neg]
-      apply natDegree_sum_le_of_forall_le
-      intro j hj
-      have hjk := Finset.mem_range.mp hj
-      exact natDegree_mul_le.trans
-        ((Nat.add_le_add (ih (k - j) (by omega) (by omega))
-          (ht (j + 1) (by omega) (by omega))).trans_eq
-            (by rw [← Nat.add_mul]; congr 1; omega))
+  cases k with
+  | zero => rw [coeff_zero_eq_eval_zero, eval_charpolyRev, natDegree_one, Nat.zero_mul]
+  | succ k =>
+    have hn : ((k + 1 : ℕ) : R) ≠ 0 := by exact_mod_cast Nat.succ_ne_zero k
+    rw [← natDegree_C_mul (p := M.charpolyRev.coeff (k + 1)) hn,
+      C_eq_natCast, charpolyRev_newton, natDegree_neg]
+    apply natDegree_sum_le_of_forall_le
+    intro j hj
+    have hjk := Finset.mem_range.mp hj
+    exact natDegree_mul_le.trans
+      ((Nat.add_le_add (natDegree_charpolyRev_coeff_le M H ht (k - j) (by omega))
+        (ht (j + 1) (by omega) (by omega))).trans_eq
+          (by rw [← Nat.add_mul]; congr 1; omega))
+termination_by k
 
 /-- The degree in the parameter of characteristic coefficient `k` is at most
 `(D - k) * H` if each positive power trace through the dimension `D` has degree at

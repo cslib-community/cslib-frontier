@@ -68,8 +68,7 @@ def powAddCoeff (n r e a : ℕ) (k : ℕ) : ℕ :=
 /-- The root of `X^r - 1` is an `r`-th root of unity. -/
 theorem root_pow_self (n r : ℕ) : AdjoinRoot.root (X ^ r - 1 : (ZMod n)[X]) ^ r = 1 := by
   have h := AdjoinRoot.mk_self (f := (X ^ r - 1 : (ZMod n)[X]))
-  rw [map_sub, map_pow, AdjoinRoot.mk_X, map_one, sub_eq_zero] at h
-  exact h
+  rwa [map_sub, map_pow, AdjoinRoot.mk_X, map_one, sub_eq_zero] at h
 
 /-- Powers of the root depend only on the exponent modulo `r`. -/
 theorem root_pow_mod (n r m : ℕ) :
@@ -139,29 +138,23 @@ with entries below `n` have equal classes exactly when they agree below `r`. -/
 theorem toQuot_eq_toQuot_iff (hn : 0 < n) (hr : 0 < r) {c d : ℕ → ℕ}
     (hc : ∀ i < r, c i < n) (hd : ∀ i < r, d i < n) :
     toQuot n r c = toQuot n r d ↔ ∀ i < r, c i = d i := by
-  constructor
-  · intro h
-    rcases (show n = 1 ∨ 2 ≤ n by omega) with rfl | hn2
-    · intro i hi; have := hc i hi; have := hd i hi; omega
-    have : Nontrivial (ZMod n) := ZMod.nontrivial_iff.mpr (by omega)
-    rw [toQuot, toQuot, AdjoinRoot.mk_eq_mk] at h
-    have hzero : coeffPoly n r c - coeffPoly n r d = 0 := by
-      by_contra h0
-      refine (monic_X_pow_sub_one (R := ZMod n) hr.ne').not_dvd_of_degree_lt h0 ?_ h
-      rw [← C_1, degree_X_pow_sub_C hr]
-      refine (degree_lt_iff_coeff_zero _ _).mpr fun k hk => ?_
-      have hk' : ¬k < r := not_lt.mpr hk
-      rw [coeff_sub, coeff_coeffPoly, coeff_coeffPoly]
-      simp only [hk', ↓reduceIte, sub_zero]
-    intro i hi
-    have hcoeff := congrArg (fun f => f.coeff i) hzero
-    simp only [coeff_sub, coeff_coeffPoly, hi, ↓reduceIte, coeff_zero, sub_eq_zero] at hcoeff
-    rw [ZMod.natCast_eq_natCast_iff', Nat.mod_eq_of_lt (hc i hi), Nat.mod_eq_of_lt (hd i hi)]
-      at hcoeff
-    exact hcoeff
-  · intro h
-    rw [toQuot_eq_sum, toQuot_eq_sum]
-    exact sum_congr rfl fun i hi => by rw [h i (mem_range.mp hi)]
+  refine ⟨fun h => ?_, toQuot_congr⟩
+  rcases le_or_gt n 1 with hn1 | hn2
+  · intro i hi
+    have := hc i hi
+    have := hd i hi
+    omega
+  have : Nontrivial (ZMod n) := ZMod.nontrivial_iff.mpr hn2.ne'
+  rw [toQuot, toQuot, AdjoinRoot.mk_eq_mk] at h
+  have hzero : coeffPoly n r c - coeffPoly n r d = 0 := by
+    by_contra h0
+    refine (monic_X_pow_sub_one (R := ZMod n) hr.ne').not_dvd_of_degree_lt h0 ?_ h
+    rw [← C_1, degree_X_pow_sub_C hr]
+    exact (degree_lt_iff_coeff_zero _ _).mpr fun k hk => by simp [coeff_coeffPoly, not_lt.mpr hk]
+  intro i hi
+  have hcoeff := congrArg (fun f => f.coeff i) hzero
+  simpa [coeff_coeffPoly, hi, sub_eq_zero, ZMod.natCast_eq_natCast_iff',
+    Nat.mod_eq_of_lt (hc i hi), Nat.mod_eq_of_lt (hd i hi)] using hcoeff
 
 /-- **The AKS congruence in coefficients**: `(X + a)^n ≡ X^n + a (mod X^r - 1, n)` exactly when
 the `n`-th power of the class with the coefficients of `X + a` is the class with the coefficients

@@ -111,9 +111,7 @@ theorem entrySize_nonneg (v : Fin 2 → ℝ) : 0 ≤ entrySize v :=
   (abs_nonneg _).trans (le_max_left _ _)
 
 theorem abs_apply_le_entrySize (v : Fin 2 → ℝ) (ν : Fin 2) : |v ν| ≤ entrySize v := by
-  fin_cases ν
-  · exact le_max_left _ _
-  · exact le_max_right _ _
+  fin_cases ν <;> simp [entrySize]
 
 @[simp]
 theorem entrySize_defaultEntry (hz : 0 ≤ z) : entrySize (defaultEntry z) = z := by
@@ -171,30 +169,23 @@ theorem updateEntry_eq_self_of_three_mul_le {u b : ℝ} {v : Fin 2 → ℝ}
   have hr : radius u v = 7 * (entrySize v - 2 * u) := by
     rw [radius, max_eq_left (by linarith)]
   funext ν
-  have hν := abs_apply_le_entrySize v ν
-  have hd : |defaultEntry b ν| ≤ 3 * u := by
-    unfold defaultEntry
-    split_ifs
-    · simpa [abs_of_nonneg hb] using hb'
-    · simpa using mul_nonneg (by norm_num : (0 : ℝ) ≤ 3) hu
+  have hd : |defaultEntry b ν| ≤ 3 * u :=
+    (abs_apply_le_entrySize _ ν).trans ((entrySize_defaultEntry hb).trans_le hb')
   have hdiff : |v ν - defaultEntry b ν| ≤ radius u v := by
     calc |v ν - defaultEntry b ν| ≤ |v ν| + |defaultEntry b ν| := abs_sub _ _
-      _ ≤ radius u v := by rw [hr]; linarith
+      _ ≤ radius u v := by rw [hr]; linarith [abs_apply_le_entrySize v ν]
   rw [updateEntry, min_eq_left (abs_le.mp hdiff).2,
     max_eq_right (abs_le.mp hdiff).1, add_sub_cancel]
 
 private theorem add_clip_mem_Icc (b x r : ℝ) (hr : 0 ≤ r) :
     b + max (-r) (min (x - b) r) ∈ Set.Icc (min x b) (max x b) := by
   rcases le_total x b with h | h
-  · rw [min_eq_left h, max_eq_right h, min_eq_left (by linarith : x - b ≤ r)]
+  · rw [min_eq_left h, max_eq_right h, min_eq_left (a := x - b) (by linarith)]
     exact ⟨by linarith [le_max_right (-r) (x - b)],
-      by have := max_le (by linarith : -r ≤ 0) (sub_nonpos.mpr h); linarith⟩
+      by linarith [max_le (neg_nonpos.mpr hr) (sub_nonpos.mpr h)]⟩
   · rw [min_eq_right h, max_eq_left h]
-    have hlo : 0 ≤ max (-r) (min (x - b) r) :=
-      (le_min (sub_nonneg.mpr h) hr).trans (le_max_right _ _)
-    have hhi : max (-r) (min (x - b) r) ≤ x - b :=
-      max_le (by linarith) (min_le_left _ _)
-    exact ⟨by linarith, by linarith⟩
+    exact ⟨by linarith [(le_min (sub_nonneg.mpr h) hr).trans (le_max_right (-r) _)],
+      by linarith [max_le ((neg_nonpos.mpr hr).trans (sub_nonneg.mpr h)) (min_le_left (x - b) r)]⟩
 
 theorem updateEntry_mem_Icc (u b : ℝ) (v : Fin 2 → ℝ) (ν : Fin 2) :
     updateEntry u b v ν ∈ Set.Icc (min (v ν) (defaultEntry b ν))
@@ -238,25 +229,18 @@ theorem abs_update_sub_le_six_mul (y : ι) (ν : Fin 2) :
   by_cases hy : 3 * threshold s n ρ z w ≤ entrySize (w y)
   · rw [update_eq_self_of_three_mul_le hy, sub_self, abs_zero]
     exact mul_nonneg (by norm_num) threshold_nonneg
-  have hm : entrySize (w y) < 3 * threshold s n ρ z w := lt_of_not_ge hy
-  have hb : |defaultEntry (newDefault s n K ρ z w) ν| ≤ 3 * threshold s n ρ z w := by
-    unfold defaultEntry
-    split_ifs
-    · rw [abs_of_nonneg newDefault_nonneg]
-      exact newDefault_le_three_mul
-    · simpa using mul_nonneg (by norm_num : (0 : ℝ) ≤ 3)
-        (threshold_nonneg (s := s) (n := n) (ρ := ρ) (z := z) (w := w))
+  have hb : |defaultEntry (newDefault s n K ρ z w) ν| ≤ 3 * threshold s n ρ z w :=
+    (abs_apply_le_entrySize _ ν).trans
+      ((entrySize_defaultEntry newDefault_nonneg).trans_le newDefault_le_three_mul)
   calc |update s n K ρ z w y ν - w y ν|
       ≤ |w y ν - defaultEntry (newDefault s n K ρ z w) ν| := abs_updateEntry_sub_le _ _ _ _
     _ ≤ |w y ν| + |defaultEntry (newDefault s n K ρ z w) ν| := abs_sub _ _
-    _ ≤ 6 * threshold s n ρ z w := by linarith [abs_apply_le_entrySize (w y) ν]
+    _ ≤ 6 * threshold s n ρ z w := by linarith [abs_apply_le_entrySize (w y) ν, lt_of_not_ge hy]
 
 /-- The coarse candidate list is strictly smaller than the capacity, hence also at most `n`. -/
-theorem card_candidates_lt (hn : 0 < n) : #(candidates s n ρ z w) < n := by
-  apply Nat.lt_of_not_ge
-  intro h
-  have hlt := (lt_kthLargest_iff hn threshold_nonneg).mpr h
-  exact (not_lt_of_ge ((le_max_right _ _).trans (le_max_right _ _))) hlt
+theorem card_candidates_lt (hn : 0 < n) : #(candidates s n ρ z w) < n :=
+  Nat.lt_of_not_ge fun h => not_lt_of_ge ((le_max_right _ _).trans (le_max_right _ _))
+    ((lt_kthLargest_iff hn threshold_nonneg).mpr h)
 
 /-- Outside the candidate list every real endpoint has the new default value. -/
 theorem update_eq_default_of_not_mem_candidates {y : ι} (hy : y ∈ s)
@@ -271,11 +255,10 @@ open scoped Classical in
 /-- The exact exception set is smaller than `n`, regardless of coincidences with the default. -/
 theorem card_exceptions_lt (hn : 0 < n) :
     #{y ∈ s | update s n K ρ z w y ≠ defaultEntry (newDefault s n K ρ z w)} < n := by
-  refine (card_le_card ?_).trans_lt (card_candidates_lt (s := s) (ρ := ρ) (z := z) (w := w) hn)
-  intro y hy
+  refine (card_le_card fun y hy => ?_).trans_lt
+    (card_candidates_lt (s := s) (ρ := ρ) (z := z) (w := w) hn)
   simp only [mem_filter] at hy
-  by_contra h
-  exact hy.2 (update_eq_default_of_not_mem_candidates hy.1 h)
+  exact by_contra fun h => hy.2 (update_eq_default_of_not_mem_candidates hy.1 h)
 
 /-- Candidates can be selected entirely from any set containing the non-default input IDs.
 Use the union of the previous exception list and the newly touched IDs for that set. -/
@@ -283,9 +266,8 @@ theorem candidates_subset (hz : 0 ≤ z) (t : Finset ι)
     (hw : ∀ y ∈ s, y ∉ t → w y = defaultEntry z) : candidates s n ρ z w ⊆ t := by
   intro y hy
   obtain ⟨hys, hy⟩ := mem_filter.mp hy
-  by_contra hyt
-  rw [hw y hys hyt, entrySize_defaultEntry hz] at hy
-  exact (not_lt_of_ge le_threshold) hy
+  exact by_contra fun hyt => not_lt_of_ge le_threshold
+    (by rwa [hw y hys hyt, entrySize_defaultEntry hz] at hy)
 
 /-! ## Stability independent of the row width -/
 
@@ -341,11 +323,11 @@ theorem abs_radius_sub_radius_le {u u' : ℝ} {v v' : Fin 2 → ℝ} (hδ : 0 �
     calc |(entrySize v - 2 * u) - (entrySize v' - 2 * u')|
         = |(entrySize v - entrySize v') - 2 * (u - u')| := by congr 1; ring
       _ ≤ |entrySize v - entrySize v'| + |2 * (u - u')| := abs_sub _ _
-      _ ≤ 3 * δ := by rw [abs_mul, abs_of_pos (by norm_num : (0 : ℝ) < 2)]; linarith
-  have hmax := abs_max_sub_max_le (b := 0) (d := 0) hsub
-    (by simpa using (show 0 ≤ 3 * δ by positivity))
+      _ ≤ 3 * δ := by rw [abs_mul, abs_of_nonneg (a := (2 : ℝ)) zero_le_two]; linarith
+  have h3δ : 0 ≤ 3 * δ := by positivity
+  have hmax := abs_max_sub_max_le (b := 0) (d := 0) hsub (by simpa using h3δ)
   unfold radius
-  rw [← mul_sub, abs_mul, abs_of_pos (by norm_num : (0 : ℝ) < 7)]
+  rw [← mul_sub, abs_mul, abs_of_nonneg (a := 7) (by norm_num)]
   linarith
 
 /-- The update is 28-Lipschitz in the row and old default, with the floor and capacities fixed.

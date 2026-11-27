@@ -97,25 +97,20 @@ theorem exec_input {w L A B : ℕ} (hw : 0 < w) (a b : Fin (10 ^ L) → ℤ)
   have hheaderQ : x.mem 2 = qs.length := by simp [x, State.init, Data.init, input]
   have hthree (n : ℕ) : 1 + (1 + (1 + n)) = 3 + n := by omega
   have hleft (i : Fin (10 ^ L)) : x.mem (3 + i.val) = encode (a i) := by
-    have h := Data.init_realizes_append (r := registers) [L, qs.length]
-      (List.ofFn (fun j => encode (a j))) (List.ofFn (fun j => encode (b j)) ++ qs.map Fin.val)
-    have hr := h ⟨i.val, by simp⟩
-    simpa [x, State.init, input, Block.read, List.append_assoc] using hr
+    simpa [x, State.init, input, Block.read, List.append_assoc] using
+      Data.init_realizes_append (r := registers) [L, qs.length] (List.ofFn (fun j => encode (a j)))
+        (List.ofFn (fun j => encode (b j)) ++ qs.map Fin.val) ⟨i.val, by simp⟩
   have hright (i : Fin (10 ^ L)) : x.mem (3 + 10 ^ L + i.val) = encode (b i) := by
-    have h := Data.init_realizes_append (r := registers)
-      ([L, qs.length] ++ List.ofFn (fun j => encode (a j)))
-      (List.ofFn (fun j => encode (b j))) (qs.map Fin.val)
-    have hr := h ⟨i.val, by simp⟩
     simpa [x, State.init, input, Block.read, List.append_assoc, Nat.add_comm,
-      Nat.add_left_comm, Nat.add_assoc, hthree] using hr
+      Nat.add_left_comm, Nat.add_assoc, hthree] using Data.init_realizes_append (r := registers)
+        ([L, qs.length] ++ List.ofFn (fun j => encode (a j)))
+        (List.ofFn (fun j => encode (b j))) (qs.map Fin.val) ⟨i.val, by simp⟩
   have hqueries (i : Fin qs.length) :
       x.mem (3 + 2 * 10 ^ L + i.val) = (qs.get i).val := by
-    have h := Data.init_realizes_append (r := registers)
-      ([L, qs.length] ++ List.ofFn (fun j => encode (a j)) ++
-        List.ofFn (fun j => encode (b j))) (qs.map Fin.val) []
-    have hr := h ⟨i.val, by simp⟩
     simpa [x, State.init, input, Block.read, List.append_assoc, two_mul, Nat.add_comm,
-      Nat.add_left_comm, Nat.add_assoc, hthree] using hr
+      Nat.add_left_comm, Nat.add_assoc, hthree] using Data.init_realizes_append (r := registers)
+        ([L, qs.length] ++ List.ofFn (fun j => encode (a j)) ++
+          List.ofFn (fun j => encode (b j))) (qs.map Fin.val) [] ⟨i.val, by simp⟩
   have hzero (c : ℕ) (hc : (input L a b qs).length + 1 ≤ c) : x.mem c = 0 := by
     have hc0 : c ≠ 0 := by omega
     change (if c = 0 then (input L a b qs).length else (input L a b qs).getD (c - 1) 0) = 0
@@ -125,13 +120,8 @@ theorem exec_input {w L A B : ℕ} (hw : 0 < w) (a b : Fin (10 ^ L) → ℤ)
   let queryList := fun i : Fin qs.length => queryAt (qs.get i)
   have hset : Finset.univ.image queryList = requested qs := by
     ext q
-    simp only [Finset.mem_image, Finset.mem_univ, true_and, requested, List.mem_toFinset]
-    constructor
-    · rintro ⟨i, rfl⟩
-      exact ⟨qs.get i, List.get_mem _ i, rfl⟩
-    · rintro ⟨c, hc, rfl⟩
-      obtain ⟨i, rfl⟩ := List.mem_iff_get.mp hc
-      exact ⟨i, rfl⟩
+    simp only [Finset.mem_image, Finset.mem_univ, true_and, requested, List.mem_toFinset,
+      List.mem_iff_get, exists_exists_eq_and, queryList]
   obtain ⟨y, hevaluate, hvalues, hframe, hreturn, _, _, _⟩ := exec_evaluate
     (Q := qs.length) (q0 := 3 + 2 * 10 ^ L) (o0 := outputBase L qs.length)
     (f := scratchBase L qs.length)
@@ -142,27 +132,17 @@ theorem exec_input {w L A B : ℕ} (hw : 0 < w) (a b : Fin (10 ^ L) → ℤ)
     (by intro v; rw [humem]; exact hright _)
     (by unfold scratchBase outputBase; omega) (by unfold scratchBase outputBase; omega)
     (by unfold outputBase; omega) (by unfold scratchBase; omega)
-    (by
-      intro q _
-      rw [humem, hzero _ (by
-        rw [length_input]
-        unfold scratchBase outputBase
-        omega)])
+    (fun q _ => by rw [humem, hzero _ (by rw [length_input]; unfold scratchBase outputBase; omega)])
     (fun v => ha _) (fun v => hb _) hw hmag
     (haddr.of_le (evaluationBudget_input_le L qs.length))
   have he : ExecWithin (w + 2) program x y (timeBound qs) := by
     have h := hinitialize _ y _ hevaluate
     simp only [hset] at h
     exact h.mono (by unfold timeBound; omega)
-  refine ⟨hi, y, he, he.bounded (Data.Bounded.init hi), ?_, ?_, hreturn⟩
-  · intro i
-    simpa only [hset, queryList] using hvalues i
-  · intro c hc
-    rw [hframe c (by
-      unfold memoryEnd stampsBase valuesBase listsBase scratchBase at hc
-      omega) (by
-      simp only [memoryEnd, stampsBase, valuesBase, listsBase, scratchBase,
-        two_mul, Nat.add_mul, Nat.add_assoc] at hc ⊢
-      omega), humem]
+  refine ⟨hi, y, he, he.bounded (Data.Bounded.init hi),
+    fun i => by simpa only [hset, queryList] using hvalues i, fun c hc => ?_, hreturn⟩
+  rw [hframe c (by unfold memoryEnd stampsBase valuesBase listsBase scratchBase at hc; omega)
+    (by simp only [memoryEnd, stampsBase, valuesBase, listsBase, scratchBase, two_mul,
+      Nat.add_mul, Nat.add_assoc] at hc ⊢; omega), humem]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

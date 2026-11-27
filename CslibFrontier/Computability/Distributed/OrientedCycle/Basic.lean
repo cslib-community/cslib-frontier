@@ -300,18 +300,14 @@ theorem state_eq_viewState {n : ℕ} (x : ZMod n → I) (r : ℕ) (v : ZMod n) :
 /-- After `r` rounds, the state only depends on the inputs at offsets `-r, …, r`. -/
 theorem viewState_dependsOn (r : ℕ) : DependsOn (A.viewState r) (Set.Icc (-(r : ℤ)) r) := by
   induction r with
-  | zero =>
-    intro w w' h
-    simp only [viewState]
-    rw [h 0 (by simp)]
+  | zero => exact fun _ _ h => by simp only [viewState, h 0 (by simp)]
   | succ r ih =>
     intro w w' h
-    simp only [viewState]
     have h' : ∀ j ∈ Set.Icc (-(r + 1 : ℕ) : ℤ) (r + 1 : ℕ), w j = w' j := h
-    congr 1
-    · exact ih fun j hj => h' _ (by constructor <;> push_cast <;> linarith [hj.1, hj.2])
-    · exact ih fun j hj => h' _ (by constructor <;> push_cast <;> linarith [hj.1, hj.2])
-    · exact ih fun j hj => h' _ (by constructor <;> push_cast <;> linarith [hj.1, hj.2])
+    simp only [viewState]
+    congr 1 <;> exact ih fun j hj => h' _
+      ⟨by push_cast; linarith [hj.1],
+       by push_cast; linarith [hj.2]⟩
 
 /-- The radius-`r` rule computed by `r` rounds of an algorithm. -/
 @[expose] def toLocalRule (r : ℕ) : LocalRule I O r where
@@ -342,21 +338,17 @@ private theorem toAlgorithm_state_eq (F : LocalRule I O r) {n : ℕ} (x : ZMod n
     F.toAlgorithm.state x s v j = x (v + j) := by
   induction s generalizing v j with
   | zero =>
-    have : j = 0 := by omega
-    subst this
+    obtain rfl : j = 0 := by omega
     simp [toAlgorithm]
   | succ s ih =>
-    have hstep : ∀ r p s q, F.toAlgorithm.step r p s q =
-        fun j => if j < 0 then p (j + 1) else if j = 0 then s 0 else q (j - 1) :=
-      fun _ _ _ _ => rfl
-    simp only [Algorithm.state_succ, hstep]
-    split_ifs with h0 h1
-    · rw [ih _ _ (by omega) (by omega)]
-      congr 1; push_cast; ring
+    change (if j < 0 then F.toAlgorithm.state x s (v - 1) (j + 1)
+      else if j = 0 then F.toAlgorithm.state x s v 0
+      else F.toAlgorithm.state x s (v + 1) (j - 1)) = x (v + j)
+    split_ifs with h0 h1 <;> rw [ih _ _ (by omega) (by omega)]
+    · exact congrArg x (by push_cast; ring)
     · subst h1
-      rw [ih _ _ (by omega) (by omega)]
-    · rw [ih _ _ (by omega) (by omega)]
-      congr 1; push_cast; ring
+      rfl
+    · exact congrArg x (by push_cast; ring)
 
 /-- **Full-information simulation.** Every rule of radius `r` is computed by an `r`-round
 algorithm. -/
@@ -392,11 +384,7 @@ theorem apply_comp {P : Type*} {r' : ℕ} (G : LocalRule O P r') (F : LocalRule 
     (x : ZMod n → I) : (G.comp F).apply x = G.apply (F.apply x) := by
   funext v
   simp only [apply, comp, window]
-  congr 1 with i : 1
-  congr 1 with j : 1
-  congr 1
-  push_cast
-  ring
+  exact G.toFun_congr fun _ _ _ => F.toFun_congr fun _ _ _ => congrArg x (by push_cast; ring)
 
 end LocalRule
 
@@ -415,8 +403,7 @@ theorem IsProperColoring.of_injective {n : ℕ} {C : Type*} {c : ZMod n → C}
     (hc : Function.Injective c) (hn : n ≠ 1) : IsProperColoring c := by
   have : Nontrivial (ZMod n) := ZMod.nontrivial_iff.2 hn
   intro v h
-  have h1 : (1 : ZMod n) = 0 := by linear_combination (hc h).symm
-  exact one_ne_zero h1
+  exact one_ne_zero (by linear_combination (hc h).symm : (1 : ZMod n) = 0)
 
 /-- After `t` rounds, `A` properly colours every oriented `n`-cycle whose nodes carry distinct
 identifiers from `{0, …, n - 1}`, with colours `0, …, c - 1`.
@@ -438,28 +425,24 @@ theorem Algorithm.colorsCycle_comapInput_succ_iff {S : Type*} (A : Algorithm ℕ
         IsProperColoring (A.run x t) ∧ ∀ v, A.run x t v < c := by
   constructor
   · intro hA x hx hxn
-    have hcomp : (· + 1) ∘ (fun v => x v - 1) = x := by
-      funext v
-      have := (hxn v).1
-      simp only [Function.comp_apply]
-      omega
-    have hinj : Function.Injective fun v => x v - 1 := fun u v huv => by
+    have hcomp : (· + 1) ∘ (fun v => x v - 1) = x :=
+      funext fun v => Nat.sub_add_cancel (hxn v).1
+    have hinj : Function.Injective fun v => x v - 1 := fun u v huv => hx (by
       have := (hxn u).1
       have := (hxn v).1
-      exact hx (by simp only at huv; omega)
-    have h := hA (fun v => x v - 1) hinj fun v => by
+      dsimp only at huv
+      omega)
+    have hrun : (A.comapInput (· + 1)).run (fun v => x v - 1) t = A.run x t :=
+      funext fun v => by rw [comapInput_run, hcomp]
+    have hlt (v) : x v - 1 < n := by
       have := hxn v
       omega
-    have hrun : (A.comapInput (· + 1)).run (fun v => x v - 1) t = A.run x t := by
-      funext v
-      rw [comapInput_run, hcomp]
-    rwa [hrun] at h
+    simpa only [hrun] using hA (fun v => x v - 1) hinj hlt
   · intro hA y hy hyn
-    have hrun : (A.comapInput (· + 1)).run y t = A.run ((· + 1) ∘ y) t := by
-      funext v
-      rw [comapInput_run]
-    rw [hrun]
-    exact hA _ (fun u v huv => hy (by simp only [Function.comp_apply] at huv; omega))
-      fun v => ⟨Nat.le_add_left 1 _, hyn v⟩
+    have hrun : (A.comapInput (· + 1)).run y t = A.run ((· + 1) ∘ y) t :=
+      funext (comapInput_run A (· + 1) y t)
+    simpa only [hrun] using
+      hA ((· + 1) ∘ y) (fun u v huv => hy (Nat.succ.inj huv))
+        fun v => ⟨Nat.le_add_left 1 _, hyn v⟩
 
 end Cslib.Distributed.OrientedCycle

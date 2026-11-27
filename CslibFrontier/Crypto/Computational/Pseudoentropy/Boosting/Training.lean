@@ -133,9 +133,7 @@ theorem predictionError_stopped {α : Type*} (source : PMF α) (observe : α →
   change ((source.map (fun x => listStrictMajority (model.1.votes evaluate (observe x)) == truth x))
     false).toReal = _
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-  congr 2
-  ext x
-  simp
+  exact congrArg (fun s => (source.toOuterMeasure s).toReal) (Set.ext fun _ => by simp)
 
 section Correctness
 
@@ -170,16 +168,16 @@ theorem finish_sound (hparams : params.Valid) {state : State}
           params.delta / 2 - 1 / params.predictionInverseTolerance}).toReal ≤
       (dyadicSize params.predictionGridBound + 1) * (1 / 2 : ℝ) ^ params.confidence := by
   cases hstopped : state.stopped
-  · have h := hstate.selectSlope_advantage hparams hbounded hstopped params.confidence
-    have herr (slope : ℕ) := predictionError_active (ProbComp.eval source) observe truth
+  · have herr (slope : ℕ) := predictionError_active (ProbComp.eval source) observe truth
       evaluate params.predictionGridBound (state, slope) hstopped
     simpa only [finish, hstopped, Bool.false_eq_true, ite_false, ProbComp.eval_map,
-      PMF.toOuterMeasure_map_apply, Set.preimage_ofPred_eq, herr] using h
+      PMF.toOuterMeasure_map_apply, Set.preimage_ofPred_eq, herr] using
+      hstate.selectSlope_advantage hparams hbounded hstopped params.confidence
   · have hgood : predictionError (ProbComp.eval source) observe truth evaluate
         params.predictionGridBound (state, 0) ≤
           params.delta / 2 - 1 / params.predictionInverseTolerance := by
       rw [predictionError_stopped _ _ _ _ _ _ hstopped]
-      apply le_trans _ hparams.majority_error_le
+      refine le_trans ?_ hparams.majority_error_le
       simpa only [State.Successful, hstopped, ite_true, State.votes] using hstate
     simp only [finish, hstopped, ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
       Set.mem_ofPred_eq, hgood, not_true_eq_false, ite_false, ENNReal.toReal_zero]
@@ -229,20 +227,17 @@ theorem train_predict_error :
     (ProbComp.eval (predict evaluate params.predictionGridBound model (observe x))).map
       (fun answer => answer == truth x))
   have hdelta := hparams.delta_pos
-  have hthreshold : 0 ≤ params.delta / 2 - 1 / params.predictionInverseTolerance :=
-    (by positivity : 0 ≤ 7 * params.delta / 16).trans hparams.majority_error_le
-  have h := PMF.toOuterMeasure_bind_failure_toReal_le (ProbComp.eval training) test
+  have h := (PMF.toOuterMeasure_bind_failure_toReal_le (ProbComp.eval training) test
     {model | predictionError (ProbComp.eval source) observe truth evaluate
       params.predictionGridBound model ≤ params.delta / 2 - 1 / params.predictionInverseTolerance}
-    {false} hthreshold (fun model _ hgood => by
+    {false} ((by positivity : 0 ≤ 7 * params.delta / 16).trans hparams.majority_error_le)
+    fun model _ hgood => by
       simpa only [PMF.toOuterMeasure_apply_singleton, Set.mem_ofPred_eq, predictionError, test]
-        using hgood)
-  have hbad := train_sound source observe truth evaluate learn params hparams herror hlearn
-  have hbound := h.trans (add_le_add hbad le_rfl)
+        using hgood).trans (add_le_add
+    (train_sound source observe truth evaluate learn params hparams herror hlearn) le_rfl)
+  simp only [PMF.toOuterMeasure_apply_singleton, training, test] at h
   simp only [ProbComp.eval_bind, ProbComp.eval_map]
   rw [PMF.bind_comm (ProbComp.eval source)]
-  have hfinal := by simpa only [PMF.toOuterMeasure_apply_singleton] using hbound
-  dsimp only [training, test] at hfinal
   linarith
 
 end Correctness

@@ -81,10 +81,10 @@ abbrev encTableContraction := encPair encTable (encPair (encList encBool) (encLi
   have hlen : ComputableInPolyTime
       (fun p : Cslib.Logic.PL.CSP.Table × List Bool => p.2.length)
       (encPair encTable (encList encBool)) encUnary := by fun_prop
-  have heq := ComputableInPolyTime.decide_eq'
-    (ComputableInPolyTime.unary_to_binary.comp hlen)
-    (show ComputableInPolyTime (fun p : Cslib.Logic.PL.CSP.Table × List Bool => p.1.arity)
-      (encPair encTable (encList encBool)) encNat by fun_prop)
+  have heq : ComputableInPolyTime
+      (fun p : Cslib.Logic.PL.CSP.Table × List Bool => decide (p.2.length = p.1.arity))
+      (encPair encTable (encList encBool)) encBool :=
+    ComputableInPolyTime.decide_eq' (ComputableInPolyTime.unary_to_binary.comp hlen) (by fun_prop)
   fun_prop
 
 /-- Binary coordinate lookup charges only the binary index, even beyond the row's end. -/
@@ -102,25 +102,9 @@ theorem computableInPolyTime_tableDeviations :
       (encPair (encPair (encList encBool) (encList encBool)) (encList encNat)) encUnary := by
   unfold deviations
   apply ComputableInPolyTime.countPWithInput (by fun_prop)
-  have hleft := ComputableInPolyTime.listGetD_binary (encA := encBool) false
-    (show ComputableInPolyTime
-      (fun p : ((List Bool × List Bool) × List ℕ) × ℕ => p.1.1.2)
-      (encPair (encPair (encPair (encList encBool) (encList encBool)) (encList encNat)) encNat)
-      (encList encBool) by fun_prop)
-    (show ComputableInPolyTime
-      (fun p : ((List Bool × List Bool) × List ℕ) × ℕ => p.2)
-      (encPair (encPair (encPair (encList encBool) (encList encBool)) (encList encNat)) encNat)
-      encNat by fun_prop)
-  have hright := ComputableInPolyTime.listGetD_binary (encA := encBool) false
-    (show ComputableInPolyTime
-      (fun p : ((List Bool × List Bool) × List ℕ) × ℕ => p.1.1.1)
-      (encPair (encPair (encPair (encList encBool) (encList encBool)) (encList encNat)) encNat)
-      (encList encBool) by fun_prop)
-    (show ComputableInPolyTime
-      (fun p : ((List Bool × List Bool) × List ℕ) × ℕ => p.2)
-      (encPair (encPair (encPair (encList encBool) (encList encBool)) (encList encNat)) encNat)
-      encNat by fun_prop)
-  exact ComputableInPolyTime.bne hleft hright
+  refine ComputableInPolyTime.bne (encB := encBool) ?_ ?_
+  · exact ComputableInPolyTime.listGetD_binary (encA := encBool) false (by fun_prop) (by fun_prop)
+  · exact ComputableInPolyTime.listGetD_binary (encA := encBool) false (by fun_prop) (by fun_prop)
 
 /-- Validate positions without expanding their binary values into unary indices. -/
 theorem computableInPolyTime_tableValidPositions :
@@ -150,30 +134,24 @@ theorem computableInPolyTime_tableContract :
   have href : ComputableInPolyTime
       (fun p : Cslib.Logic.PL.CSP.Table × List Bool × List ℕ => p.2.1)
       encTableContraction (encList encBool) := by fun_prop
-  have hwidth := (ComputableInPolyTime.length_list encBool).comp href
-  have hout := computableInPolyTime_tableOutsidePositions.comp
-    (hwidth.prod (show ComputableInPolyTime
+  have hp22 : ComputableInPolyTime
       (fun p : Cslib.Logic.PL.CSP.Table × List Bool × List ℕ => p.2.2)
-      encTableContraction (encList encNat) by fun_prop))
+      encTableContraction (encList encNat) := by fun_prop
+  have hwidth := (ComputableInPolyTime.length_list encBool).comp href
+  have hout := computableInPolyTime_tableOutsidePositions.comp (hwidth.prod hp22)
   have hguard : ComputableInPolyTime
       (fun p : Cslib.Logic.PL.CSP.Table × List Bool × List ℕ =>
         p.1.canContract p.2.1 p.2.2) encTableContraction encBool := by
     unfold canContract
     have hv := computableInPolyTime_tableValidPositions.comp
-      ((ComputableInPolyTime.unary_to_binary.comp hwidth).prod (show ComputableInPolyTime
-          (fun p : Cslib.Logic.PL.CSP.Table × List Bool × List ℕ => p.2.2)
-          encTableContraction (encList encNat) by fun_prop))
+      ((ComputableInPolyTime.unary_to_binary.comp hwidth).prod hp22)
     fun_prop
   have hdev : ComputableInPolyTime
       (fun p : (Cslib.Logic.PL.CSP.Table × List Bool × List ℕ) × List Bool =>
         deviations p.1.2.1 p.2 p.1.2.2)
       (encPair encTableContraction (encList encBool)) encUnary :=
     computableInPolyTime_tableDeviations.comp
-      (show ComputableInPolyTime
-        (fun p : (Cslib.Logic.PL.CSP.Table × List Bool × List ℕ) × List Bool =>
-          ((p.1.2.1, p.2), p.1.2.2))
-        (encPair encTableContraction (encList encBool))
-        (encPair (encPair (encList encBool) (encList encBool)) (encList encNat)) by fun_prop)
+      (((href.comp (.fst _ _)).prod (.snd _ _)).prod (hp22.comp (.fst _ _)))
   have hrows : ComputableInPolyTime
       (fun p : Cslib.Logic.PL.CSP.Table × List Bool × List ℕ =>
         p.1.rows.filter fun row => decide (deviations p.2.1 row p.2.2 ≤ 1))
@@ -187,15 +165,10 @@ theorem computableInPolyTime_tableContract :
     computableInPolyTime_tableProject.comp
       ((ComputableInPolyTime.snd encTableContraction (encList encBool)).prod
         (hout.comp (ComputableInPolyTime.fst encTableContraction (encList encBool))))
-  have hnewrows := ComputableInPolyTime.mapWithInput
+  have hnewrows := ComputableInPolyTime.mapWithInput (encB := encList encBool)
     (f := fun (p : Cslib.Logic.PL.CSP.Table × List Bool × List ℕ) (row : List Bool) =>
       project row (outsidePositions p.2.1.length p.2.2) ++
-        [decide (deviations p.2.1 row p.2.2 = 1)]) hrows
-    (show ComputableInPolyTime
-      (fun p : (Cslib.Logic.PL.CSP.Table × List Bool × List ℕ) × List Bool =>
-        project p.2 (outsidePositions p.1.2.1.length p.1.2.2) ++
-          [decide (deviations p.1.2.1 p.2 p.1.2.2 = 1)])
-      (encPair encTableContraction (encList encBool)) (encList encBool) by fun_prop)
+        [decide (deviations p.2.1 row p.2.2 = 1)]) hrows (by fun_prop)
   have hnewwidth : ComputableInPolyTime
       (fun p : Cslib.Logic.PL.CSP.Table × List Bool × List ℕ =>
         (outsidePositions p.2.1.length p.2.2).length + 1) encTableContraction encNat := by
@@ -223,9 +196,7 @@ theorem computableInPolyTime_tableExactlyOne :
         (List.range scope.length).map (Cslib.BitString.listSingle scope.length))
       (encList encNat) (encList (encList encBool)) := by
     apply ComputableInPolyTime.mapWithInput (by fun_prop)
-    exact computableInPolyTime_tableOneHot.comp
-      (show ComputableInPolyTime (fun p : List ℕ × ℕ => (p.1.length, p.2))
-        (encPair (encList encNat) encUnary) (encPair encUnary encUnary) by fun_prop)
+    exact computableInPolyTime_tableOneHot.comp ((hwidth.comp (.fst _ _)).prod (.snd _ _))
   unfold exactlyOne
   exact (harity.prod hrows).of_enc_eq fun _ => rfl
 

@@ -153,16 +153,10 @@ private theorem isInArborescence_toDigraph {f : {v // v ≠ r} → V} (hf : Acyc
 private theorem exists_toDigraph_eq {T : Digraph V} (hT : T.IsInArborescence r) :
     ∃ f : {v // v ≠ r} → V, Acyclic f ∧ toDigraph f = T := by
   obtain ⟨p, hpr, rfl⟩ := hT.exists_parentDigraph_eq
-  have hwp : withRoot (fun v : {v // v ≠ r} => p v) = p := by
-    funext v
-    by_cases hv : v = r
-    · rw [hv, hpr]
-      simp [withRoot]
-    · exact withRoot_of_ne _ hv
-  refine ⟨fun v => p v, ?_, ?_⟩
-  · rw [Acyclic, hwp]
-    exact isInArborescence_parentDigraph_iff.mp hT
-  · rw [toDigraph_eq_parentDigraph, hwp]
+  have hwp : withRoot (fun v : {v // v ≠ r} => p v) = p :=
+    funext fun v => by by_cases hv : v = r <;> simp [withRoot, hv, hpr]
+  exact ⟨fun v => p v, by rwa [Acyclic, hwp, ← isInArborescence_parentDigraph_iff],
+    by rw [toDigraph_eq_parentDigraph, hwp]⟩
 
 /-- Parent functions that reach `r` are equivalent to in-arborescences rooted at `r`. -/
 private noncomputable def parentEquiv :
@@ -191,79 +185,45 @@ private theorem det_parentMatrix_of_not_acyclic {f : {v // v ≠ r} → V} (hf :
   obtain ⟨v₀, hv₀⟩ : ∃ v₀, ∀ n, (withRoot f)^[n] v₀ ≠ r := by
     by_contra! h
     exact hf h
-  set C : V → Prop := fun v => ∀ n, (withRoot f)^[n] v ≠ r
-  have hCr : ¬ C r := fun h => h 0 rfl
-  have hC : ∀ i : {v // v ≠ r}, C i ↔ C (f i) := by
-    intro i
-    constructor
-    · intro h n
-      have := h (n + 1)
-      rwa [Function.iterate_succ_apply, withRoot_of_ne f i.2] at this
-    · intro h n
-      cases n with
-      | zero => exact i.2
-      | succ n =>
-        rw [Function.iterate_succ_apply, withRoot_of_ne f i.2]
-        exact h n
-  set c : {v // v ≠ r} → R := fun j => if C j then 1 else 0
-  have hv₀r : v₀ ≠ r := fun h => hv₀ 0 h
-  have hker : ∀ i, ∑ j, parentMatrix f i j * c j = 0 := by
-    intro i
-    simp only [parentMatrix, Matrix.of_apply, sub_mul, ite_mul, one_mul, zero_mul,
-      Finset.sum_sub_distrib, Finset.sum_ite_eq, Finset.mem_univ, ite_true]
+  let C (v : V) : Prop := ∀ n, (withRoot f)^[n] v ≠ r
+  have hC (i : {v // v ≠ r}) : C i ↔ C (f i) :=
+    ⟨fun h n => by simpa [Function.iterate_succ_apply, withRoot_of_ne f i.2] using h (n + 1),
+      fun h n => Nat.casesOn n i.2 fun n => by
+        simpa [Function.iterate_succ_apply, withRoot_of_ne f i.2] using h n⟩
+  let c (j : {v // v ≠ r}) : R := if C j then 1 else 0
+  have hker (i : {v // v ≠ r}) : ∑ j, c j • (parentMatrix f : Matrix _ _ R) i j = 0 := by
+    simp only [smul_eq_mul, mul_comm (c _), parentMatrix, Matrix.of_apply, sub_mul, ite_mul,
+      one_mul, zero_mul, Finset.sum_sub_distrib, Finset.sum_ite_eq, Finset.mem_univ, ite_true]
     by_cases hfi : f i = r
-    · have : ∑ j : {v // v ≠ r}, (if f i = (j : V) then c j else 0) = 0 :=
-        Finset.sum_eq_zero fun j _ =>
-          ite_eq_right_iff.mpr fun h => absurd (h.symm.trans hfi) j.2
-      rw [this, sub_zero]
-      have : ¬ C i := fun h => hCr (hfi ▸ (hC i).1 h)
-      simp [c, this]
-    · rw [Finset.sum_eq_single ⟨f i, hfi⟩]
-      · simp [c, hC i]
-      · intro j _ hj
-        exact ite_eq_right_iff.mpr fun h => absurd (Subtype.ext h.symm) hj
-      · simp
-  have := det_updateCol_sum (parentMatrix f : Matrix _ _ R) ⟨v₀, hv₀r⟩ c
-  have hzero : (fun k => ∑ i, c i • (parentMatrix f : Matrix _ _ R) k i) = 0 := by
-    funext k
-    simp only [smul_eq_mul, Pi.zero_apply]
-    rw [← hker k]
-    exact Finset.sum_congr rfl fun j _ => mul_comm _ _
-  rw [hzero] at this
-  have hc : c ⟨v₀, hv₀r⟩ = 1 := by simp [c, C, hv₀]
-  rw [hc, one_smul] at this
-  rw [← this]
-  exact det_eq_zero_of_column_eq_zero ⟨v₀, hv₀r⟩ fun i => by simp
+    · rw [Finset.sum_eq_zero fun j _ =>
+          ite_eq_right_iff.mpr fun h => absurd (h.symm.trans hfi) j.2, sub_zero]
+      exact ite_eq_right fun h => (hC i).1 h 0 hfi
+    · rw [Finset.sum_eq_single ⟨f i, hfi⟩
+        (fun j _ hj => ite_eq_right_iff.mpr fun h => absurd (Subtype.ext h.symm) hj) (by simp)]
+      simp [c, hC i]
+  have hcol := det_updateCol_sum (parentMatrix f : Matrix _ _ R) ⟨v₀, hv₀ 0⟩ c
+  rw [show (fun k => ∑ i, c i • (parentMatrix f : Matrix _ _ R) k i) = 0 from funext hker,
+    show c ⟨v₀, hv₀ 0⟩ = 1 from ite_eq_left hv₀, one_smul] at hcol
+  exact hcol.symm.trans (det_eq_zero_of_column_eq_zero ⟨v₀, hv₀ 0⟩ fun _ => by simp)
 
 private theorem det_parentMatrix_of_acyclic {f : {v // v ≠ r} → V} (hf : Acyclic f) :
     (parentMatrix f : Matrix _ _ R).det = 1 := by
   classical
-  let d : V → ℕ := fun v => Nat.find (hf v)
-  have hd : ∀ i : {v // v ≠ r}, d (f i) < d i := by
-    intro i
+  let d (v : V) : ℕ := Nat.find (hf v)
+  have hd (i : {v // v ≠ r}) : d (f i) < d i := by
     have h1 : (withRoot f)^[d i] i = r := Nat.find_spec (hf i)
-    have hpos : d i ≠ 0 := by
-      intro h0
-      rw [h0, Function.iterate_zero_apply] at h1
-      exact i.2 h1
-    obtain ⟨m, hm⟩ := Nat.exists_eq_succ_of_ne_zero hpos
+    obtain ⟨m, hm⟩ := Nat.exists_eq_succ_of_ne_zero fun h0 : d i = 0 =>
+      i.2 (by rwa [h0, Function.iterate_zero_apply] at h1)
     rw [hm, Function.iterate_succ_apply, withRoot_of_ne f i.2] at h1
-    have : d (f i) ≤ m := Nat.find_min' (hf (f i)) h1
-    omega
-  have hne : ∀ i : {v // v ≠ r}, f i ≠ i := fun i h => by
-    have := hd i
-    rw [h] at this
-    exact lt_irrefl _ this
+    exact hm ▸ Nat.lt_succ_of_le (Nat.find_min' (hf (f i)) h1)
   rw [← det_transpose]
   refine (det_eq_prod_diag_of_weight (parentMatrix f : Matrix _ _ R)ᵀ (fun i => d i)
-    fun i j hij h => ?_).trans ?_
+    fun i j hij h => ?_).trans (Finset.prod_eq_one fun i _ => ?_)
   · simp only [transpose_apply, parentMatrix, Matrix.of_apply, Ne.symm hij, ↓reduceIte,
       zero_sub, ne_eq, neg_eq_zero, ite_eq_right_iff, Classical.not_imp] at h
-    obtain ⟨h, -⟩ := h
-    rw [← h]
-    exact hd j
-  · refine Finset.prod_eq_one fun i _ => ?_
-    simp [parentMatrix, hne i]
+    exact h.1 ▸ hd j
+  · have hne : f i ≠ i := fun h => (hd i).ne (congrArg d h)
+    simp [parentMatrix, hne]
 
 open Classical in
 /-- The determinant of the parent matrix is `1` for an acyclic parent function and `0`
@@ -332,13 +292,9 @@ theorem det_laplacian_submatrix_eq_finsum_reachable (A : Matrix V V R) (r : V) :
   classical
   rw [det_laplacian_submatrix_eq_sum, finsum_eq_sum_of_fintype]
   refine Finset.sum_congr rfl fun f _ => ?_
-  rw [finsum_eq_if]
-  have hiff : (∀ v, Relation.ReflTransGen (toDigraph f).Adj v r) ↔ Acyclic f :=
-    ⟨fun h v => exists_iterate_of_reflTransGen f (h v),
-      fun h v => (isInArborescence_toDigraph h).reachable v⟩
-  change _ = if ∀ v, Relation.ReflTransGen (toDigraph f).Adj v r then _ else _
-  rw [det_parentMatrix, mul_ite, mul_one, mul_zero]
-  exact if_congr hiff.symm rfl rfl
+  rw [finsum_eq_if, det_parentMatrix, mul_ite, mul_one, mul_zero]
+  exact if_congr ⟨fun h v => (isInArborescence_toDigraph h).reachable v,
+    fun h v => exists_iterate_of_reflTransGen f (h v)⟩ rfl rfl
 
 omit [Fintype V] [DecidableEq V] in
 open Classical in
@@ -352,10 +308,9 @@ private theorem finprod_adjMatrix [Finite V] (G T : Digraph V) [DecidableRel G.A
       fun p hp => by simp [hTG hp]
   · obtain ⟨v, w, hT, hG⟩ : ∃ v w, T.Adj v w ∧ ¬ G.Adj v w := by
       by_contra! h
-      exact hTG fun v w => h v w
-    change ∏ᶠ (p : V × V) (_ : p ∈ {p : V × V | T.Adj p.1 p.2}), G.adjMatrix R p.1 p.2 = 0
-    rw [finprod_mem_eq_toFinset_prod]
-    exact Finset.prod_eq_zero (i := (v, w)) (by simpa using hT) (by simp [hG])
+      exact hTG h
+    exact (finprod_mem_eq_toFinset_prod _ {p : V × V | T.Adj p.1 p.2}).trans
+      (Finset.prod_eq_zero (i := (v, w)) (by simpa using hT) (by simp [hG]))
 
 /-- **The directed matrix-tree theorem**, counting form [Tutte1948]. For a finite digraph `G` and
 a vertex `r`, the determinant of the reduced Laplacian of `G`, the out-degree matrix minus the

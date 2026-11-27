@@ -54,10 +54,8 @@ theorem Ready.pending_le {L m t AA BB D V K F : ℕ} {η : OutStr L} {a b : Leaf
     {finished : List (Leaf L)} {tasks : List (List Term)} {x : Data registers}
     (h : Ready η m t AA BB D V K F a b finished tasks x)
     (hη : (innerSetO η).card = m) : tasks.length ≤ (L + 1) * 10 ^ L := by
-  have hc : (possibleLeaves η t []).card ≤ 10 ^ L := by
-    rw [possibleLeaves_root_eq_queryLeaves η hη]
-    exact card_queryLeaves_le_span t η hη
-  exact h.frontier.pending_length_le.trans (Nat.mul_le_mul_left _ hc)
+  exact h.frontier.pending_length_le.trans <| Nat.mul_le_mul_left _
+    (possibleLeaves_root_eq_queryLeaves η hη ▸ card_queryLeaves_le_span t η hη)
 
 /-- The actual signed accumulator needs no supplied intermediate-fit certificate. -/
 theorem Ready.answer_natAbs_le {L m t AA BB D V K F A B : ℕ} {η : OutStr L}
@@ -66,15 +64,13 @@ theorem Ready.answer_natAbs_le {L m t AA BB D V K F A B : ℕ} {η : OutStr L}
     (hη : (innerSetO η).card = m)
     (ha : ∀ τ, (a τ).natAbs ≤ A) (hb : ∀ τ, (b τ).natAbs ≤ B) :
     ((finished.map (leafQueryValue m t η a b)).sum).natAbs ≤ magnitudeBound L A B := by
-  have hc : (possibleLeaves η t []).card ≤ 10 ^ L := by
-    rw [possibleLeaves_root_eq_queryLeaves η hη]
-    exact card_queryLeaves_le_span t η hη
-  have hfinished := h.frontier.finished_length_le.trans hc
-  have hm := natAbs_sum_take_leafQueryValue_le m t η a b ha hb finished hfinished finished.length
-  have hs : ((finished.map (leafQueryValue m t η a b)).sum).natAbs ≤
-      10 ^ (2 * L) * (A * B) := by
-    simpa only [← List.length_map (f := leafQueryValue m t η a b), List.take_length] using hm
-  exact hs.trans (by unfold magnitudeBound; omega)
+  have hc : (possibleLeaves η t []).card ≤ 10 ^ L :=
+    possibleLeaves_root_eq_queryLeaves η hη ▸ card_queryLeaves_le_span t η hη
+  have hs : ((finished.map (leafQueryValue m t η a b)).sum).natAbs ≤ 10 ^ (2 * L) * (A * B) := by
+    simpa only [← List.length_map (f := leafQueryValue m t η a b), List.take_length] using
+      natAbs_sum_take_leafQueryValue_le m t η a b ha hb finished
+        (h.frontier.finished_length_le.trans hc) finished.length
+  exact hs.trans (by simp only [magnitudeBound]; omega)
 
 /-- The proof-only native-memory measure agrees with the invariant's finite frontier work. -/
 theorem Ready.work_eq {L m t AA BB D V K F : ℕ} {η : OutStr L} {a b : Leaf L → ℤ}

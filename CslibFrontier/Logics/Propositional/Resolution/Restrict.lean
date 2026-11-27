@@ -39,33 +39,24 @@ theorem Clause.eval_filter_of_extends (hγ : ∀ v b, ρ v = some b → γ v = b
     (hd : ∀ l ∈ d, ρ l.1 ≠ some l.2) :
     Clause.eval γ (d.filter fun l => decide (ρ l.1 = none)) = d.eval γ := by
   rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
-  constructor
-  · rintro ⟨l, hl, hls⟩
-    exact ⟨l, (List.mem_filter.1 hl).1, hls⟩
-  · rintro ⟨l, hl, hls⟩
-    cases hρ : ρ l.1 with
-    | none => exact ⟨l, List.mem_filter.2 ⟨hl, by simp [hρ]⟩, hls⟩
-    | some b =>
-      rw [← hγ _ _ hρ, hls] at hρ
-      exact absurd hρ (hd l hl)
+  refine ⟨fun ⟨l, hl, hls⟩ => ⟨l, (List.mem_filter.1 hl).1, hls⟩, fun ⟨l, hl, hls⟩ => ?_⟩
+  cases hρ : ρ l.1 with
+  | none => exact ⟨l, List.mem_filter.2 ⟨hl, by simp [hρ]⟩, hls⟩
+  | some b => exact absurd (hls ▸ hγ _ _ hρ ▸ hρ) (hd l hl)
 
 /-- **Restriction preserves the value under extensions**: an assignment that extends `ρ` satisfies
 `φ.restrictBy ρ` exactly when it satisfies `φ`. -/
 theorem CNF.eval_restrictBy (hγ : ∀ v b, ρ v = some b → γ v = b) :
     (φ.restrictBy ρ).eval γ = φ.eval γ := by
   rw [Bool.eq_iff_iff, CNF.eval_eq_true_iff, CNF.eval_eq_true_iff]
-  constructor
-  · intro h d hd
-    by_cases hsat : ∀ l ∈ d, ρ l.1 ≠ some l.2
-    · rw [← Clause.eval_filter_of_extends hγ hsat]
-      exact h _ (CNF.mem_restrictBy.2 ⟨d, hd, hsat, rfl⟩)
+  refine ⟨fun h d hd => ?_, fun h c hc => ?_⟩
+  · by_cases hsat : ∀ l ∈ d, ρ l.1 ≠ some l.2
+    · exact Clause.eval_filter_of_extends hγ hsat ▸ h _ (CNF.mem_restrictBy.2 ⟨d, hd, hsat, rfl⟩)
     · push Not at hsat
       obtain ⟨l, hl, hρ⟩ := hsat
       exact (Clause.eval_eq_true_iff γ d).2 ⟨l, hl, hγ _ _ hρ⟩
-  · intro h c hc
-    obtain ⟨d, hd, hsat, rfl⟩ := CNF.mem_restrictBy.1 hc
-    rw [Clause.eval_filter_of_extends hγ hsat]
-    exact h d hd
+  · obtain ⟨d, hd, hsat, rfl⟩ := CNF.mem_restrictBy.1 hc
+    exact (Clause.eval_filter_of_extends hγ hsat).trans (h d hd)
 
 /-- Restriction does not widen clauses. -/
 theorem CNF.length_le_of_mem_restrictBy {k : ℕ} (hlen : ∀ c ∈ φ, c.length ≤ k) :
@@ -86,10 +77,7 @@ theorem CNF.exists_preimage_restrictBy :
     obtain ⟨d, hd, hsat, rfl⟩ := CNF.mem_restrictBy.1 (hψ c List.mem_cons_self)
     obtain ⟨χ, hχ, hlen, heval⟩ :=
       CNF.exists_preimage_restrictBy fun c hc => hψ c (List.mem_cons_of_mem _ hc)
-    refine ⟨d :: χ, ?_, by rw [List.length_cons, List.length_cons, hlen], fun γ hγ => ?_⟩
-    · rintro e he
-      rcases List.mem_cons.1 he with rfl | he
-      exacts [hd, hχ e he]
-    · rw [CNF.eval_cons, CNF.eval_cons, Clause.eval_filter_of_extends hγ hsat, heval γ hγ]
+    exact ⟨d :: χ, List.forall_mem_cons.2 ⟨hd, hχ⟩, congrArg Nat.succ hlen, fun γ hγ => by
+      rw [CNF.eval_cons, CNF.eval_cons, Clause.eval_filter_of_extends hγ hsat, heval γ hγ]⟩
 
 end Cslib.Logic.PL

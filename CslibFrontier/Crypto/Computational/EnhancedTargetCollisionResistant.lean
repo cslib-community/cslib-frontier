@@ -217,13 +217,9 @@ theorem TargetCollisionFinder.IsPPT.toEnhancedFinder
     {adversary : TargetCollisionFinder} (ha : adversary.IsPPT) :
     adversary.toEnhancedFinder.IsPPT where
   choose := ha.choose
-  find := by
-    have hE : ComputableInPolyTime
-        (fun r : (ℕ × List Bool × List Bool) × List Bool => (r.1.2.2, r.2))
-        (encPair (encPair encUnary (encPair encBits encBits)) encBits)
-        (encPair encBits encBits) := by
-      polytime
-    exact ha.find.bind_with hE.isPPTOn
+  find := ha.find.bind_with (by
+    polytime : ComputableInPolyTime
+      (fun r : (ℕ × List Bool × List Bool) × List Bool => (r.1.2.2, r.2)) _ _).isPPTOn
 
 /-- Running `adversary.toEnhancedFinder` in `enhancedTargetCollisionGame` produces the exact same
 output distribution as running `adversary` in `targetCollisionGame`. -/
@@ -237,14 +233,11 @@ theorem eval_enhancedTargetCollisionGame_toEnhancedFinder
     BitString.eval_sampleList, bind_assoc, pure_bind]
   apply PMF.bind_congr_on_support; intro choice _
   apply PMF.bind_congr_on_support; intro k hk
-  have hkLen : k.length = keyLen n := BitString.length_of_mem_support_uniformList hk
   apply PMF.bind_congr_on_support; intro m₁ _
   congr 1
   rw [Bool.eq_iff_iff, isEnhancedTargetCollision_eq_true_iff, isCollision_eq_true_iff]
-  simp only [hkLen, ne_eq, Prod.mk.injEq, true_and, and_congr_right_iff]
-  intro _ _
-  exact ⟨fun ⟨h1, h2⟩ => ⟨fun heq => h1 heq.symm, h2.symm⟩,
-    fun ⟨h1, h2⟩ => ⟨fun heq => h1 heq.symm, h2.symm⟩⟩
+  simp only [BitString.length_of_mem_support_uniformList hk, ne_eq, Prod.mk.injEq, true_and,
+    eq_comm]
 
 /-- Enhanced target collision resistance implies target collision resistance. [BonehShoup2023],
 Exercise 8.27, p. 354 defines enhanced target collision resistance and states parts (a)–(d)
@@ -283,11 +276,8 @@ theorem computableInPolyTime_appendKeyHash
     {H : ℕ → List Bool → List Bool → List Bool}
     (hH : ComputableInPolyTime (fun ⟨n, k, msg⟩ => H n k msg) (encKeyedInput encBits) encBits) :
     ComputableInPolyTime (fun ⟨n, k, msg⟩ => appendKeyHash H n k msg)
-      (encKeyedInput encBits) encBits := by
-  have hk : ComputableInPolyTime (fun t : ℕ × List Bool × List Bool => t.2.1)
-      (encKeyedInput encBits) encBits := by
-    polytime
-  exact ComputableInPolyTime.bitsAppend hH hk
+      (encKeyedInput encBits) encBits :=
+  ComputableInPolyTime.bitsAppend hH (by polytime)
 
 /-- Lift a `KeyedHashFamily` `H` to `H.appendKeyHash` (`H'(k, m) := H(k, m) ++ k`, encoding
 `(H(k, m), k)` in `T × K`, [BonehShoup2023], Exercise 8.27(d), p. 354), extending `digestLen n`
@@ -321,13 +311,9 @@ theorem EnhancedTargetCollisionFinder.IsPPT.toTargetFinder
     {adversary : EnhancedTargetCollisionFinder} (ha : adversary.IsPPT) :
     adversary.toTargetFinder.IsPPT where
   choose := ha.choose
-  find := by
-    have hE : ComputableInPolyTime
-        (fun r : (ℕ × List Bool × List Bool) × (List Bool × List Bool) => r.2.2)
-        (encPair (encPair encUnary (encPair encBits encBits)) (encPair encBits encBits))
-        encBits := by
-      polytime
-    exact ha.find.bind_with hE.isPPTOn
+  find := ha.find.bind_with (by
+    polytime : ComputableInPolyTime
+      (fun r : (ℕ × List Bool × List Bool) × (List Bool × List Bool) => r.2.2) _ _).isPPTOn
 
 private theorem eval_enhancedTargetCollisionGame_appendKeyHash_le
     (keyLen : ℕ → ℕ) (H : ℕ → List Bool → List Bool → List Bool)
@@ -339,21 +325,13 @@ private theorem eval_enhancedTargetCollisionGame_appendKeyHash_le
     BitString.eval_sampleList, bind_assoc, pure_bind]
   apply PMF.bind_apply_mono_on_support; intro choice _
   apply PMF.bind_apply_mono_on_support; intro k hk
-  have hkLen : k.length = keyLen n := BitString.length_of_mem_support_uniformList hk
   apply PMF.bind_apply_mono_on_support; intro ans _
   cases hcol : isEnhancedTargetCollision keyLen (appendKeyHash H) valid n k choice.1 ans.1 ans.2
-  · simp only [PMF.pure_apply, Bool.true_eq_false, ↓reduceIte, zero_le]
+  · simp
   · obtain ⟨hm₀, hm', hk'len, hne, happ⟩ := isEnhancedTargetCollision_eq_true_iff.mp hcol
-    simp only [appendKeyHash] at happ
-    obtain ⟨hh, hk_eq⟩ := List.append_inj' happ (hk'len.trans hkLen.symm)
-    have hm_ne : choice.1 ≠ ans.2 := by
-      intro heq
-      apply hne
-      exact Prod.ext hk_eq heq.symm
-    rw [hk_eq] at hh
-    have htarget : isCollision (H n) valid n k choice.1 ans.2 = true :=
-      isCollision_eq_true_iff.mpr ⟨hm₀, hm', hm_ne, hh.symm⟩
-    rw [htarget]
+    obtain ⟨hh, rfl⟩ := List.append_inj' happ
+      (hk'len.trans (BitString.length_of_mem_support_uniformList hk).symm)
+    rw [isCollision_eq_true_iff.mpr ⟨hm₀, hm', fun heq => hne (Prod.ext rfl heq.symm), hh.symm⟩]
 
 /-- **Boneh–Shoup Exercise 8.27(d) (concrete bound)**: winning probability in
 `enhancedTargetCollisionGame` against `appendKeyHash H` is at most the winning probability of

@@ -265,9 +265,8 @@ theorem exactWalk_apply_some (R : SelfReducible enc W) {count : α → ℕ}
       have hcard : (Finset.univ.filter fun r : Fin (W y).card =>
           decide ((r : ℕ) < (W (R.child y true)).card) = b).card = (W (R.child y b)).card := by
         have hlt : (Finset.univ.filter fun r : Fin (W y).card =>
-            (r : ℕ) < (W (R.child y true)).card).card = min (W y).card (W (R.child y true)).card :=
-          Fin.card_filter_val_lt
-        rw [Nat.min_eq_right hc1_le] at hlt
+            (r : ℕ) < (W (R.child y true)).card).card = (W (R.child y true)).card :=
+          Fin.card_filter_val_lt.trans (Nat.min_eq_right hc1_le)
         cases b
         · have hadd := Finset.card_filter_add_card_filter_not (s := Finset.univ)
             (p := fun r : Fin (W y).card => (r : ℕ) < (W (R.child y true)).card)
@@ -289,8 +288,7 @@ theorem exactWalk_apply_some (R : SelfReducible enc W) {count : α → ℕ}
           hcard]
         rcases Nat.eq_zero_or_pos (W (R.child y b)).card with hcb | hcb_pos
         · have hnot : b :: u ∉ W y := by
-            rw [R.cons_mem_iff y hy_pos b u, Finset.card_eq_zero.mp hcb]
-            exact Finset.notMem_empty u
+            simp [R.cons_mem_iff y hy_pos b u, Finset.card_eq_zero.mp hcb]
           simp [hcb, hnot]
         · rw [ih (y := R.child y b) (by have := R.len_child y hy_pos b; omega) hcb_pos
             (fun z hz => hcount z (hz.trans (R.length_child_le y hy_pos b))) u]
@@ -561,15 +559,11 @@ noncomputable def boundedConditionalSample (R : SelfReducible enc W) (count : α
   R.finishConditionalWalk <$>
     OracleComp.iterate (R.len x) (R.conditionalWalkStep count fuel) ⟨x, c, [], decide (0 < c)⟩
 
-private theorem conditionalWalkStep_inactive (R : SelfReducible enc W) (count : α → ℕ) (fuel : ℕ)
-    (nd : α) (cv : ℕ) (rb : List Bool) :
-    R.conditionalWalkStep count fuel ⟨nd, cv, rb, false⟩ = pure ⟨nd, cv, rb, false⟩ := rfl
-
 private theorem iterate_conditionalWalkStep_inactive (R : SelfReducible enc W) (count : α → ℕ)
     (fuel n : ℕ) (nd : α) (cv : ℕ) (rb : List Bool) :
     OracleComp.iterate n (R.conditionalWalkStep count fuel) ⟨nd, cv, rb, false⟩ =
       pure ⟨nd, cv, rb, false⟩ :=
-  OracleComp.iterate_eq_pure n _ _ (R.conditionalWalkStep_inactive count fuel nd cv rb)
+  OracleComp.iterate_eq_pure n _ _ rfl
 
 /-- Iterative `conditionalWalkStep` agrees with recursive `boundedConditionalWalk`. -/
 theorem map_finish_iterate_conditionalWalkStep (R : SelfReducible enc W) (count : α → ℕ)
@@ -742,21 +736,17 @@ private theorem computableInPolyTime_advanceConditionalState (R : SelfReducible 
         R.advanceConditionalState x.1.1 x.1.2 x.2)
       (encPair (encPair (encConditionalWalkState enc) encNat) (encOption encNat))
       (encConditionalWalkState enc) := by
-  have hst := (fst (encConditionalWalkState enc) encNat).comp
-    (fst (encPair (encConditionalWalkState enc) encNat) (encOption encNat))
-  have hc1 := (snd (encConditionalWalkState enc) encNat).comp
-    (fst (encPair (encConditionalWalkState enc) encNat) (encOption encNat))
+  let EP := encPair (encConditionalWalkState enc) encNat
+  let E := encPair EP (encOption encNat)
+  have hst := (fst (encConditionalWalkState enc) encNat).comp (fst EP (encOption encNat))
+  have hc1 := (snd (encConditionalWalkState enc) encNat).comp (fst EP (encOption encNat))
   have hnd := encConditionalWalkState_node_polyTime hst
   have hcv := encConditionalWalkState_countVal_polyTime hst
   have hrb := encConditionalWalkState_revBits_polyTime hst
   have hsome_cond : ComputableInPolyTime
-      (fun x : (ConditionalWalkState α × ℕ) × Option ℕ => x.2.isSome)
-      (encPair (encPair (encConditionalWalkState enc) encNat) (encOption encNat)) encBool := by
-    fun_prop
+      (fun x : (ConditionalWalkState α × ℕ) × Option ℕ => x.2.isSome) E encBool := by fun_prop
   have hr_val : ComputableInPolyTime
-      (fun x : (ConditionalWalkState α × ℕ) × Option ℕ => x.2.getD 0)
-      (encPair (encPair (encConditionalWalkState enc) encNat) (encOption encNat)) encNat := by
-    fun_prop
+      (fun x : (ConditionalWalkState α × ℕ) × Option ℕ => x.2.getD 0) E encNat := by fun_prop
   have habort := encConditionalWalkState_mk_polyTime hnd hcv hrb (const false)
   have htrueBr := encConditionalWalkState_mk_polyTime
     (R.child_polytime.comp (hnd.prod (const true))) hc1
@@ -801,9 +791,8 @@ private theorem conditionalWalkInv_of_not_go (R : SelfReducible enc W) {x : α} 
     (hgo : ¬ (st.active && decide (0 < st.countVal)) = true) :
     R.conditionalWalkInv x B (i + 1) st := by
   obtain ⟨hnd_le, hrb_le, hcv_le, hact_inv⟩ := hinv
-  have hnot_act : st.active = false := by
-    cases h : st.active <;> simp_all
-  exact ⟨hnd_le, hrb_le.trans (Nat.le_succ i), hcv_le, fun h => by simp_all⟩
+  exact ⟨hnd_le, hrb_le.trans (Nat.le_succ i), hcv_le,
+    fun h => absurd (by simp [h, (hact_inv h).1]) hgo⟩
 
 private theorem conditionalWalkInv_advance (R : SelfReducible enc W) {x : α} {B i : ℕ}
     {st : ConditionalWalkState α} (hi : i < R.len x)
@@ -878,45 +867,41 @@ theorem isPPTOn_boundedConditionalSample (R : SelfReducible enc W) {count : α �
     (hcount : ComputableInPolyTime count enc encNat) :
     IsPPTOn (encPair enc encUnary) (encOption encBits)
       (Function.uncurry (R.boundedConditionalSample count)) := by
+  let E := encPair enc encUnary
+  let ES := encPair E (encConditionalWalkState enc)
   have hy1 : ComputableInPolyTime
-      (fun pair : (α × ℕ) × ConditionalWalkState α => R.child pair.2.node true)
-      (encPair (encPair enc encUnary) (encConditionalWalkState enc)) enc :=
+      (fun pair : (α × ℕ) × ConditionalWalkState α => R.child pair.2.node true) ES enc :=
     R.child_polytime.comp (by fun_prop : ComputableInPolyTime
-      (fun pair : (α × ℕ) × ConditionalWalkState α => (pair.2.node, true))
-      (encPair (encPair enc encUnary) (encConditionalWalkState enc)) (encPair enc encBool))
-  have hstep : IsPPTOn (encPair (encPair enc encUnary) (encConditionalWalkState enc))
-      (encConditionalWalkState enc)
+      (fun pair : (α × ℕ) × ConditionalWalkState α => (pair.2.node, true)) ES (encPair enc encBool))
+  have hstep : IsPPTOn ES (encConditionalWalkState enc)
       (fun pair => R.conditionalWalkStep count (pair.1.2 + R.len pair.1.1) pair.2) := by
     have hcond : ComputableInPolyTime
         (fun pair : (α × ℕ) × ConditionalWalkState α =>
-          pair.2.active && decide (0 < pair.2.countVal))
-        (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encBool := by fun_prop
-    have hyes : IsPPTOn (encPair (encPair enc encUnary) (encConditionalWalkState enc))
-        (encConditionalWalkState enc)
+          pair.2.active && decide (0 < pair.2.countVal)) ES encBool := by fun_prop
+    have hyes : IsPPTOn ES (encConditionalWalkState enc)
         (fun pair => R.advanceConditionalState pair.2 (count (R.child pair.2.node true)) <$>
           sampleUniformIntervalRetry pair.2.countVal (pair.1.2 + R.len pair.1.1)) :=
       R.isPPTOn_drawAndAdvance.preprocess (id'.prod (hcount.comp hy1))
     exact (IsPPTOn.cond hcond hyes
-      (snd (encPair enc encUnary) (encConditionalWalkState enc)).isPPTOn).congr fun pair => by
+      (snd E (encConditionalWalkState enc)).isPPTOn).congr fun pair => by
       unfold conditionalWalkStep
       cases pair.2.active && decide (0 < pair.2.countVal) <;> rfl
   have hcx := hcount.comp (fst enc encUnary)
   have hinit : ComputableInPolyTime
       (fun p : α × ℕ => ConditionalWalkState.mk p.1 (count p.1) [] (decide (0 < count p.1)))
-      (encPair enc encUnary) (encConditionalWalkState enc) :=
+      E (encConditionalWalkState enc) :=
     encConditionalWalkState_mk_polyTime (fst enc encUnary) hcx (const []) (binary_lt' (const 0) hcx)
   obtain ⟨_, _, htC, _, hmC⟩ := hcount
   obtain ⟨cC, dC, hlenC⟩ := polynomiallyBounded_iff_le.mp htC
   obtain ⟨cL, dL, hlenL⟩ := R.exists_len_poly_bound
-  have hcount_loop : ComputableInPolyTime (fun p : α × ℕ => R.len p.1)
-      (encPair enc encUnary) encUnary := R.len_polytime.comp (fst enc encUnary)
-  have hpx_cert : ComputableInPolyTime (fun p : α × ℕ => p.1) (encPair enc encUnary) enc :=
-    fst enc encUnary
-  have hsize : PolyBounded (fun p : α × ℕ => (encPair enc encUnary p).length)
+  have hcount_loop : ComputableInPolyTime (fun p : α × ℕ => R.len p.1) E encUnary :=
+    R.len_polytime.comp (fst enc encUnary)
+  have hpx_cert : ComputableInPolyTime (fun p : α × ℕ => p.1) E enc := fst enc encUnary
+  have hsize : PolyBounded (fun p : α × ℕ => (E p).length)
       (fun p => 16 * ((enc p.1).length +
         cC * ((enc p.1).length + 1) ^ dC + cL * ((enc p.1).length + 1) ^ dL + 4)) := by
     growth_poly
-  have hit := IsPPTOn.iterateWith_spec (input := encPair enc encUnary)
+  have hit := IsPPTOn.iterateWith_spec (input := E)
     (stateEncoding := encConditionalWalkState enc)
     (count := fun p => R.len p.1)
     (initial := fun p => ConditionalWalkState.mk p.1 (count p.1) [] (decide (0 < count p.1)))
@@ -1043,18 +1028,11 @@ theorem closeTo_boundedConditionalOracleSample (R : SelfReducible enc W) (A : Se
         (R.boundedConditionalOracleSample countProg x q))
       (uniformWitness (W x))
       (ENNReal.ofReal ((1 / 2 : ℝ) ^ q)) := by
-  have heval : OracleComp.interpret
-      (OracleComp.sumHandler ProbComp.unifOracle
-        (fun req => PMF.pure (languageOracle A req)))
-      (R.boundedConditionalOracleSample countProg x q) =
-      ProbComp.eval (R.boundedConditionalSample
-        (fun y => OracleComp.interpret (m := Id) (languageOracle A) (countProg y)) x q) := by
-    have h1 := ProbOracleComp.eval_interpret
-      (fun req => (pure (languageOracle A req) : ProbComp (List Bool)))
-      (R.boundedConditionalOracleSample countProg x q)
-    simp only [ProbComp.eval_pure] at h1
-    rw [← h1, R.interpret_boundedConditionalOracleSample]
-  rw [heval]
+  have h1 := ProbOracleComp.eval_interpret
+    (fun req => (pure (languageOracle A req) : ProbComp (List Bool)))
+    (R.boundedConditionalOracleSample countProg x q)
+  simp only [ProbComp.eval_pure] at h1
+  rw [← h1, R.interpret_boundedConditionalOracleSample]
   exact R.closeTo_boundedConditionalSample hcount q
 
 open ComputableInPolyTime in
@@ -1065,18 +1043,19 @@ private theorem isOraclePPTOn_conditionalWalkOracleStep (R : SelfReducible enc W
     IsOraclePPTOn (encPair (encPair enc encUnary) (encConditionalWalkState enc))
       (encConditionalWalkState enc)
       (fun pair => R.conditionalWalkOracleStep countProg (pair.1.2 + R.len pair.1.1) pair.2) := by
-  have hc1 : IsOraclePPTOn (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encNat
+  let E := encPair enc encUnary
+  let ES := encPair E (encConditionalWalkState enc)
+  have hc1 : IsOraclePPTOn ES encNat
       (fun pair =>
         OracleComp.interpret ProbOracleComp.query (countProg (R.child pair.2.node true))) :=
     hcount.preprocess (R.child_polytime.comp (by fun_prop : ComputableInPolyTime
       (fun pair : (α × ℕ) × ConditionalWalkState α => (pair.2.node, true))
-      (encPair (encPair enc encUnary) (encConditionalWalkState enc)) (encPair enc encBool)))
+      ES (encPair enc encBool)))
   have hcond : ComputableInPolyTime
       (fun pair : (α × ℕ) × ConditionalWalkState α => pair.2.active && decide (0 < pair.2.countVal))
-      (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encBool := by fun_prop
+      ES encBool := by fun_prop
   have hdraw_oracle : IsOraclePPTOn (Operation := Unit)
-      (encPair (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encNat)
-      (encConditionalWalkState enc)
+      (encPair ES encNat) (encConditionalWalkState enc)
       (fun pc : ((α × ℕ) × ConditionalWalkState α) × ℕ => do
         let ro ← ProbOracleComp.sample
           (sampleUniformIntervalRetry pc.1.2.countVal (pc.1.1.2 + R.len pc.1.1.1))
@@ -1090,8 +1069,7 @@ private theorem isOraclePPTOn_conditionalWalkOracleStep (R : SelfReducible enc W
       pure (R.advanceConditionalState pair.2 c₁ ro))
     hdraw_oracle
   exact (IsOraclePPTOn.cond hcond hyes
-    (snd (encPair enc encUnary) (encConditionalWalkState enc)).isOraclePPTOn).congr
-    fun pair _ _ _ => by
+    (snd E (encConditionalWalkState enc)).isOraclePPTOn).congr fun pair _ _ _ => by
       unfold conditionalWalkOracleStep
       cases pair.2.active && decide (0 < pair.2.countVal) <;> rfl
 
@@ -1104,6 +1082,8 @@ theorem isOraclePPTOn_boundedConditionalOracleSample (R : SelfReducible enc W)
       (fun y => OracleComp.interpret ProbOracleComp.query (countProg y))) :
     IsOraclePPTOn (encPair enc encUnary) (encOption encBits)
       (Function.uncurry (R.boundedConditionalOracleSample countProg)) := by
+  let E := encPair enc encUnary
+  let EC := encPair E encNat
   obtain ⟨cC, dC, hlen_run⟩ := hcount.length_le
   have hcount_len : ∀ y, ∀ res ∈ OracleComp.support
       (OracleComp.interpret ProbOracleComp.query (countProg y)),
@@ -1116,36 +1096,33 @@ theorem isOraclePPTOn_boundedConditionalOracleSample (R : SelfReducible enc W)
   obtain ⟨cL, dL, hlenL⟩ := R.exists_len_poly_bound
   have hstep_oracle := R.isOraclePPTOn_conditionalWalkOracleStep hcount
   -- Run the `R.len x`-step loop given `(p, c)` where `c` is the root count
-  have hbody : IsOraclePPTOn (encPair (encPair enc encUnary) encNat) (encOption encBits)
+  have hbody : IsOraclePPTOn EC (encOption encBits)
       (fun pc : (α × ℕ) × ℕ =>
         R.finishConditionalWalk <$>
           OracleComp.iterate (R.len pc.1.1)
             (R.conditionalWalkOracleStep countProg (pc.1.2 + R.len pc.1.1))
             ⟨pc.1.1, pc.2, [], decide (0 < pc.2)⟩) := by
-    have hp_snd := snd (encPair enc encUnary) encNat
-    have hx_cert : ComputableInPolyTime (fun pc : (α × ℕ) × ℕ => pc.1.1)
-        (encPair (encPair enc encUnary) encNat) enc := by fun_prop
-    have hcount_loop : ComputableInPolyTime (fun pc : (α × ℕ) × ℕ => R.len pc.1.1)
-        (encPair (encPair enc encUnary) encNat) encUnary :=
+    have hp_snd := snd E encNat
+    have hx_cert : ComputableInPolyTime (fun pc : (α × ℕ) × ℕ => pc.1.1) EC enc := by fun_prop
+    have hcount_loop : ComputableInPolyTime (fun pc : (α × ℕ) × ℕ => R.len pc.1.1) EC encUnary :=
       R.len_polytime.comp hx_cert
     have hinit : ComputableInPolyTime
-        (fun pc : (α × ℕ) × ℕ =>
-          ConditionalWalkState.mk pc.1.1 pc.2 [] (decide (0 < pc.2)))
-        (encPair (encPair enc encUnary) encNat) (encConditionalWalkState enc) :=
+        (fun pc : (α × ℕ) × ℕ => ConditionalWalkState.mk pc.1.1 pc.2 [] (decide (0 < pc.2)))
+        EC (encConditionalWalkState enc) :=
       encConditionalWalkState_mk_polyTime hx_cert hp_snd (const []) (binary_lt' (const 0) hp_snd)
     have hstep_pc := hstep_oracle.preprocess
       (by fun_prop : ComputableInPolyTime
         (fun pair : ((α × ℕ) × ℕ) × ConditionalWalkState α => (pair.1.1, pair.2))
-        (encPair (encPair (encPair enc encUnary) encNat) (encConditionalWalkState enc))
-        (encPair (encPair enc encUnary) (encConditionalWalkState enc)))
+        (encPair EC (encConditionalWalkState enc))
+        (encPair E (encConditionalWalkState enc)))
     have hsize_pc : PolyBounded
-        (fun pc : (α × ℕ) × ℕ => (encPair (encPair enc encUnary) encNat pc).length)
+        (fun pc : (α × ℕ) × ℕ => (EC pc).length)
         (fun pc => 16 * ((enc pc.1.1).length +
           ((encNat pc.2).length + cC * ((enc pc.1.1).length + 1) ^ dC) +
           cL * ((enc pc.1.1).length + 1) ^ dL + 4)) := by
       growth_poly
     have hit := IsOraclePPTOn.iterateWith_spec
-      (input := encPair (encPair enc encUnary) encNat)
+      (input := EC)
       (stateEncoding := encConditionalWalkState enc)
       (count := fun pc => R.len pc.1.1)
       (initial := fun pc => ConditionalWalkState.mk pc.1.1 pc.2 [] (decide (0 < pc.2)))

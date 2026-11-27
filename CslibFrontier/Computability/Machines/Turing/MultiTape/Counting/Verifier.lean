@@ -89,10 +89,7 @@ theorem exists_guess_machine (enc : α ↪ List Bool) (p : Polynomial ℕ) :
       (source.initialConfig (enc a)).tapes,
       guessMachine.HaltsWithin (p.eval (enc a).length + 1)
         (guessMachine.initialConfig result.output).tapes := by
-    intro result hresult
-    have hr : result = wordsCfg (enc a) none (fun _ => [])
-        (encUnary (p.eval (enc a).length)) := by simpa [hrun] using hresult
-    subst result
+    rw [hrun, List.forall_mem_singleton]
     simpa only [wordsCfg, encUnary_apply, List.length_replicate, initialConfig] using
       GuessMachine.haltsWithin (encUnary (p.eval (enc a).length))
   have hhalt := HaltsWithin.comp source guessMachine (nonblocking_ofDeterministic initializer)
@@ -186,9 +183,7 @@ theorem exists_verifier_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
         (encBool (verifier (a, word))) := by
     have htime : c * ((encPair enc encBits (a, word)).length + 1) ^ d ≤
         verifyClock.eval (enc a).length := by
-      simp only [verifyClock, eval_mul, eval_C, eval_pow, eval_add, eval_X, eval_one,
-        eval_ofNat, length_encPair, encBits_apply, hword]
-      exact le_rfl
+      simp [verifyClock, hword]
     exact ((hv (a, word)).mono htime le_rfl).runFrom_initCfg_eq
   have hsecond : ∀ result ∈ source.runList (sourceClock.eval (enc a).length)
       (source.initialConfig (enc a)).tapes,
@@ -224,10 +219,7 @@ theorem exists_verifier_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
       unfold compiled
       rw [runList_comp source consumer hnon hnonconsumer true (enc a) _ _ (hs a).1 hsecond]
       dsimp only [Config.emptyOracleEquiv]
-      rw [List.map_flatMap, List.flatMap_map]
-      apply List.flatMap_congr
-      intro result _
-      rw [List.map_map]
+      simp only [List.map_flatMap, List.flatMap_map, List.map_map]
       rfl
     rw [hout]
     refine ((hs a).2.flatMap_right finish).trans ?_

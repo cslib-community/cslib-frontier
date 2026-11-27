@@ -79,10 +79,9 @@ lemma preparationError_le (R : RoleProfile J) (D : ZMod P) (st : List (ZMod P)) 
     {e m : ℝ} (hm : 0 ≤ m) (he : |A σ x y - G x y| ≤ e)
     (hrow : ∀ w, retainedMask R.terminal (side P k) D st σ w → |A σ x w - G x w| ≤ m) :
     preparationError R D st k Lh Lρ A G σ x y ≤ (Lh * e + Lρ * m) / rate k := by
-  unfold preparationError
-  apply div_le_div_of_nonneg_right _ (rate_pos k).le
-  exact add_le_add (mul_le_mul_of_nonneg_left he hLh)
-    (mul_le_mul_of_nonneg_left (kthLargest_le hm fun w hw => hrow w (mem_filter.mp hw).2) hLρ)
+  exact div_le_div_of_nonneg_right (add_le_add (mul_le_mul_of_nonneg_left he hLh)
+    (mul_le_mul_of_nonneg_left (kthLargest_le hm fun w hw => hrow w (mem_filter.mp hw).2) hLρ))
+    (rate_pos k).le
 
 /-- Exact zero residual perturbation has zero error, including an empty full-rank slice. -/
 @[simp] lemma preparationError_self (R : RoleProfile J) (D : ZMod P)
@@ -159,7 +158,6 @@ lemma actualClippedMean_second_eq {E : Type*} [Fintype E] [Nonempty E]
     min 1 (|ζ| * |rowSliceMean (retainedMask s Ls D ss) (retainedMask t Lt D st)
       (input (i + 1)) x y - genuineMean HP s t Ls Lt
         (CopyPadding.identifier D ss x) D st k G x y|) := by
-  dsimp only
   unfold actualClippedMean twoMaskMean
   simp only [Fin.isValue, one_ne_zero, ↓reduceIte, actualPrefix_twoSignal_second]
   unfold rowSliceMean
@@ -195,9 +193,8 @@ theorem actualSelectedSecondSignal_mean_bias_le {E : Type*} [Fintype E] [Nonempt
         (preparationError R D st k Lh Lρ (A (i + 1)) G) x y) := by
   dsimp only
   rw [actualClippedMean_second_eq]
-  apply min_le_min_left
-  apply mul_le_mul_of_nonneg_left _ (abs_nonneg ζ)
-  exact preparation_mean_bias_le HP hK R D ss st ks k kt hh hρ _ G x y
+  exact min_le_min_left _ (mul_le_mul_of_nonneg_left
+    (preparation_mean_bias_le HP hK R D ss st ks k kt hh hρ _ G x y) (abs_nonneg ζ))
 
 /-- Actual recursive preparation wiring: cutoff after the full-rank raw H4 child walk,
 then the source × usage preparation walk. Request size q is fixed across precisions.
@@ -231,7 +228,6 @@ theorem actualCompletedSecondSignal_mean_bias_le {q : ℕ} {E : Type*} [Fintype 
       min 1 (|ζ| * rowSliceMean (retainedMask R.source (side P ks) D ss)
         (retainedMask R.terminal (side P kt) D st)
         (preparationError R D st k Lh Lρ (A (i + 1)) G) x y) := by
-  dsimp only
   exact actualSelectedSecondSignal_mean_bias_le HP hK D R ks k kt _husage ss st _
     graphs times _ _hLρ hh hρ ζ G i x y
 

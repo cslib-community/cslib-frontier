@@ -11,11 +11,13 @@ public import CslibFrontier.Computability.WordRAM.ExactLog
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.Tabulation
 public import CslibFrontier.Foundations.FieldTheory.Finite.Trinomial
 public import CslibFrontier.Probability.KWiseIndependent.Trinomial
+import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import CslibFrontier.Foundations.Data.Nat.Power
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Tactic.Fits
+import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -270,7 +272,6 @@ theorem extractSeeds_congr_of_footprint {base U M k : ℕ} {mem mem' : ℕ → �
 `≤ 2`. -/
 @[expose] def trinomialStepRem (B : ℕ) : ℕ :=
   if B ≤ 2 then B else trinomialStepRem ((B + 2) / 3)
-decreasing_by omega
 
 /-- `trinomialStepRem B` is always at most `2`. -/
 theorem trinomialStepRem_le_two (B : ℕ) : trinomialStepRem B ≤ 2 := by
@@ -816,14 +817,16 @@ theorem resampleCode_execRand {w base b U M k : ℕ} {x : Data 18}
     (htab : TableRep base b U M k x.mem) (h0 : x.regs 0 = base)
     (hfit_end : Fits w (base + 8 + k)) (hfit_q : Fits w (2 ^ trinomialDeg U M)) :
     ExecRand w (resampleCode k) x (resampleComp base U M k x) := by
-  have hloop := randFillLoop_execRand (w := w) (bits := trinomialDeg U M) (arrBase := base + 8)
-    k (x := (resampleSetupData base U M k x).comap resampleMap)
+  unfold resampleCode
+  refine WP.Rand.execRand ?_
+  wram_rand_call (resampleSetupCode_exec htab h0 hfit_end)
+  wram_rand_call (randFillLoop_execRand (bits := trinomialDeg U M) (arrBase := base + 8) k
     (by simp +decide [resampleSetupData, resampleMap, Data.comap, regPtr])
     (by simp +decide [resampleSetupData, resampleMap, Data.comap, regEnd])
     (by simp +decide [resampleSetupData, resampleMap, Data.comap, regMask])
-    (by simp +decide [resampleSetupData, resampleMap, Data.comap, regOne]) hfit_end (by fits)
-  simpa only [resampleCode, resampleComp, Functor.map_map] using
-    (resampleSetupCode_exec htab h0 hfit_end).seqRand (hloop.rename injective_resampleMap)
+    (by simp +decide [resampleSetupData, resampleMap, Data.comap, regOne]) hfit_end (by fits))
+    renamed injective_resampleMap
+  simp only [resampleComp, Functor.map_map]
 
 /-- **Uniformity of resampled seeds**: under `(resampleComp base U M k x).eval`, the extracted seed
 tuple `extractSeeds base U M k z.1.mem` is uniformly distributed over
@@ -846,7 +849,7 @@ theorem mem_support_resampleComp {base b U M k : ℕ} {x : Data 18}
       (∀ a, (a < base + 8 ∨ base + 8 + k ≤ a) → z.1.mem a = x.mem a)) ∧
     z.2 ≤ 5 * k + 10 := by
   dsimp only [resampleComp] at hz
-  obtain ⟨z0, hz0, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
+  supp_cases hz with ⟨z0, hz0, rfl⟩
   obtain ⟨hsteps, -, -, -, -, hextra, hlt, hout⟩ := mem_support_randFillComp hz0
   have htab' : TableRep base b U M k z0.1.mem := by
     simpa (disch := omega) only [TableRep, hout, Data.comap_mem, resampleSetupData,
@@ -895,15 +898,13 @@ theorem initCode_execRandWithin {w base n_max U M k : ℕ} {x : Data 18}
         y.regs 0 = base ∧
         (∀ a, (a < base ∨ base + space n_max k ≤ a) → y.mem a = x.mem a))
       (initTableSteps n_max U M + (5 * k + 10)) k := by
-  obtain ⟨dTab, ⟨s1, hs1, he1⟩, htab, hdTab_0, hdTab_out⟩ :=
-    initTableCode_execWithin h0 h1 h2 h3 hfit_space hfit_n hfit_U hfit_q
-  obtain ⟨m2, he2, hqb, hsupp⟩ :=
-    resampleCode_execRandWithin htab hdTab_0 (by wram_omega) hfit_q
-  refine ⟨(fun z : Data 18 × ℕ => (z.1, s1 + z.2)) <$> m2, he1.seqRand he2,
-    (OracleComp.isCostBounded_map_iff _ _ _).mpr hqb, fun z hz => ?_⟩
-  obtain ⟨z0, hz0, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-  obtain ⟨⟨hrep, hz0_0, hz0_out⟩, hz0_steps⟩ := hsupp z0 hz0
-  exact ⟨⟨hrep, hz0_0, fun a ha => (hz0_out a (by wram_omega)).trans (hdTab_out a ha)⟩, by omega⟩
+  unfold initCode
+  refine WP.RandWithin.execRandWithin ?_
+  wram_rand_call (initTableCode_execWithin h0 h1 h2 h3 hfit_space hfit_n hfit_U hfit_q)
+    with dTab ⟨htab, hdTab_0, hdTab_out⟩
+  wram_rand_call (resampleCode_execRandWithin htab hdTab_0 (by wram_omega) hfit_q)
+  rintro y ⟨hrep, hy0, hy_out⟩
+  exact ⟨hrep, hy0, fun a ha => (hy_out a (by wram_omega)).trans (hdTab_out a ha)⟩
 
 /-! ## Section 4: Deterministic Horner evaluation (`evalCode`) and `k`-wise independence -/
 

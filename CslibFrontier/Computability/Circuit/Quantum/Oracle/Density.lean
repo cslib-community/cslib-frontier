@@ -63,7 +63,6 @@ noncomputable def runDensity :
 /-- Mixed execution is conjugation by the matrix of the existing run isometry. -/
 theorem runDensity_apply (ρ) : F.runDensity n x H ρ =
     densityConj (Matrix.toEuclideanLin.symm (F.run n x H).toLinearMap) ρ := by
-  unfold runDensity
   rfl
 
 /-- Mixed execution agrees with the existing pure-state execution. -/
@@ -93,7 +92,6 @@ theorem outputDensity_eq (ρ) (hρ : IsDensityMatrix ρ) :
       (POVM.basis.measureDensity (F.runDensity n x H ρ)
         (F.isDensityMatrix_runDensity n x H hρ)).map
         (fun y => List.ofFn fun i => y (Fin.castLEEmb (F.wellFormed n x.length).output_le i)) := by
-  unfold outputDensity
   rfl
 
 /-- Mixed readout agrees with the existing readout on each normalized pure input. -/
@@ -110,9 +108,7 @@ theorem outputDensity_eq (ρ) (hρ : IsDensityMatrix ρ) :
 theorem length_of_mem_support_outputDensity (ρ) (hρ : IsDensityMatrix ρ)
     {out : List Bool} (h : out ∈ (F.outputDensity n x H ρ hρ).support) :
     out.length = (F.description n x.length).outputWidth := by
-  rw [outputDensity_eq, PMF.mem_support_map_iff] at h
-  obtain ⟨y, _, rfl⟩ := h
-  exact List.length_ofFn
+  exact ((PMF.mem_support_map_iff _ _ _).mp h).elim fun _ ⟨_, heq⟩ => heq ▸ List.length_ofFn
 
 variable (κ : Type*) [Fintype κ] [DecidableEq κ]
 
@@ -129,7 +125,6 @@ noncomputable def runDensityWithReference :
 theorem runDensityWithReference_apply (ρ) : F.runDensityWithReference n x H κ ρ =
     densityConj (Matrix.toEuclideanLin.symm (F.run n x H).toLinearMap ⊗ₖ
       (1 : Matrix κ κ ℂ)) ρ := by
-  unfold runDensityWithReference
   rfl
 
 /-- Local execution preserves density matrices even with an entangled reference. -/

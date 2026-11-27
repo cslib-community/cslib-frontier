@@ -59,8 +59,8 @@ theorem search_inSpace (k c : ℕ) :
       (fun a => (encSearchArgs a).length) := of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)
   have hn := ha.snd'.fst'
   have hinit := budget_prod ha (budget_prod
-    (budget_const (encB := encNat) 0 (.refl _))
-    (budget_const (encB := encOption encNat) none (.refl _)))
+    (budget_const (encB := encNat) 0)
+    (budget_const (encB := encOption encNat) none))
   have hstates (a : SearchArgs) (j : ℕ) (hj : j ≤ a.2.1) :
       (encSearchState ((searchStep k c)^[j] (a, 0, none))).length ≤
         8 * (encSearchArgs a).length + 8 := by

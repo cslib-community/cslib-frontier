@@ -89,11 +89,11 @@ theorem prepare_inSpace (k s : ℕ) : ComputableInSpace (prepare k s) encArgs en
   have hb := (snd encNat (encPair encNat (encPair encNat encNat))).fst'
   have hwidth := budget_comp_linear (Encoding.width_inSpace k s) hb
   have hparams := budget_comp_linear parameters_inSpace
-    (budget_prod (budget_const (encB := encNat) (k * 3 + 1) (.refl _)) hwidth)
+    (budget_prod (budget_const (encB := encNat) (k * 3 + 1)) hwidth)
   exact (budget_prod (budget_prod hid hparams) (budget_prod
-    (budget_const (encB := encNat) 0 (.refl _)) (budget_prod
-      (budget_const (encB := encList encNat) [] (.refl _))
-      (budget_const (encB := encNat) 1 (.refl _))))).of_enc_eq fun _ => rfl
+    (budget_const (encB := encNat) 0) (budget_prod
+      (budget_const (encB := encList encNat) [])
+      (budget_const (encB := encNat) 1)))).of_enc_eq fun _ => rfl
 
 /-- Each streamed update uses space linear in its actual accumulated state. -/
 theorem step_inSpace (k : ℕ) : ComputableInSpace (step k) encState encState
@@ -107,7 +107,9 @@ theorem step_inSpace (k : ℕ) : ComputableInSpace (step k) encState encState
   have hcursor := hrest.fst'
   have hbank := hrest.snd'.fst'
   have hlimit := hrest.snd'.snd'
-  have hd := budget_const (encIn := encState) (encB := encNat) (k * 3 + 1) (.refl _)
+  have hd :=
+    budget_const (Bs := fun a => (encState a).length) (encIn := encState) (encB := encNat)
+      (k * 3 + 1)
   have htotal := budget_natMul (budget_natSucc hd) hr
   have hchildren := budget_natMul hd hr
   have hlimit' := budget_ite (budget_natLt hcursor hchildren)
@@ -143,32 +145,30 @@ theorem result_inSpace (k : ℕ) : ComputableInSpace (result k) encState
   have hcontext := budget_prod hN (budget_prod hb (budget_prod hσ (budget_prod hq
     (budget_prod hm (budget_prod halphabet hlimit)))))
   have hheader := budget_prod hp (budget_prod
-    (budget_const (encB := encNat) (k * 3 + 1) (.refl _)) hr)
-  have hstack := budget_const (encIn := encState) (encB := encList RawController.encFrame)
-    [] (.refl _)
-  have hmode := budget_const (encIn := encState)
-    (encB := encOption (encPair encNat encNat)) (some (1, 0)) (.refl _)
+    (budget_const (encB := encNat) (k * 3 + 1)) hr)
+  have hstack :=
+    budget_const (Bs := fun a => (encState a).length) (encIn := encState)
+      (encB := encList RawController.encFrame)
+    []
+  have hmode := budget_const (Bs := fun a => (encState a).length) (encIn := encState)
+    (encB := encOption (encPair encNat encNat)) (some (1, 0))
   exact (budget_prod hcontext (budget_prod hheader
     (budget_prod hbank (budget_prod hstack hmode)))).of_enc_eq fun _ => rfl
 
 /-- No original input bit is needed during bank construction. -/
 theorem machine_query_inSpace (k : ℕ) : ComputableInSpace (machine k).query encState encNat
-    (fun a => (encState a).length) := budget_const 0 (.refl _)
+    (fun a => (encState a).length) := budget_const 0
 
 /-- Machine transitions use the certified streamed update. -/
 theorem machine_next_inSpace (k : ℕ) : ComputableInSpace (machine k).next
     (encPair encState (encOption encBool)) encState
-    (fun a => (encPair encState (encOption encBool) a).length) := by
-  have h : ComputableInSpace (fun a : State × Option Bool => step k a.1)
-      (encPair encState (encOption encBool)) encState
-      (fun a => (encPair encState (encOption encBool) a).length) :=
-    budget_comp_linear (step_inSpace k) (fst encState (encOption encBool))
-  exact h.of_enc_eq fun _ => rfl
+    (fun a => (encPair encState (encOption encBool) a).length) :=
+  (budget_comp_linear (step_inSpace k) (fst encState (encOption encBool))).of_enc_eq fun _ => rfl
 
 /-- Initialization emits no word. -/
 theorem machine_emit_inSpace (k : ℕ) : ComputableInSpace (machine k).emit
     (encPair encState (encOption encBool)) encBits
-    (fun a => (encPair encState (encOption encBool) a).length) := budget_const [] (.refl _)
+    (fun a => (encPair encState (encOption encBool) a).length) := budget_const []
 
 /-- The final cursor comparison uses only actual binary metadata. -/
 theorem machine_halted_inSpace (k : ℕ) : ComputableInSpace (machine k).halted encState encBool
@@ -177,15 +177,12 @@ theorem machine_halted_inSpace (k : ℕ) : ComputableInSpace (machine k).halted 
   have hrest := snd encMetadata (encPair encNat (encPair (encList encNat) encNat))
   have hr := hmeta.snd'.snd'.fst'
   have htotal := budget_natMul
-    (budget_const (encIn := encState) (encB := encNat) (k * 3 + 1 + 1) (.refl _)) hr
+    (budget_const (encIn := encState) (encB := encNat) (k * 3 + 1 + 1)) hr
   exact (budget_finite (encC := encBool) Bool.not (budget_natLt hrest.fst' htotal)).of_enc_eq
-    fun ⟨⟨args, m, r, alphabet, p⟩, cursor, bank, limit⟩ => by
-      by_cases h : cursor < (k * 3 + 1 + 1) * r
-      · simp [machine, h, Nat.not_le_of_gt h]
-      · simp [machine, h, Nat.le_of_not_gt h]
+    fun ⟨⟨_, _, _, _, _⟩, _, _, _⟩ => by simp [machine]; grind
 
 /-- The completed bank is returned as state rather than an output stream. -/
 theorem machine_finish_inSpace (k : ℕ) : ComputableInSpace (machine k).finish encState encBits
-    (fun a => (encState a).length) := budget_const [] (.refl _)
+    (fun a => (encState a).length) := budget_const []
 
 end Turing.MultiTapePTM.BlockComputation.Initializer

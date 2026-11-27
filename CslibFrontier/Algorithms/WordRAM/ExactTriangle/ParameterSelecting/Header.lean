@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ParameterSelecting.Program
+import CslibFrontier.Computability.WordRAM.Record
 
 /-!
 # Native saving and restoration of original ExactTriangle arguments
@@ -41,23 +42,13 @@ theorem exec_save {W : ℕ} (x : Data 640) (h0 : Fits W 0) :
       y.regs (parameterBank DyadicParameters.Reg.side) = x.regs Reg.side ∧
       y.regs CallableFixedPrime.Reg.prime = 0 ∧
       ∀ j : Fin 640, j.val < 143 → y.regs j = x.regs j := by
-  let y := x.set Reg.savedBound (x.regs Reg.bound) |>.set CallableFixedPrime.Reg.n
-    (x.regs Reg.side) |>.set CallableFixedPrime.Reg.ab (x.regs Reg.ab)
-    |>.set CallableFixedPrime.Reg.bc (x.regs Reg.bc) |>.set CallableFixedPrime.Reg.ac
-    (x.regs Reg.ac) |>.set CallableFixedPrime.Reg.base (x.regs Reg.free)
-    |>.set (parameterBank DyadicParameters.Reg.side) (x.regs Reg.side)
-    |>.set CallableFixedPrime.Reg.prime 0
-  have he : ExecWithin W save x y 8 := by
-    ram_eval [save, y, h0, Reg.savedBound, Reg.bound, Reg.side, Reg.ab, Reg.bc,
-      Reg.ac, Reg.free, CallableFixedPrime.Reg.n, CallableFixedPrime.Reg.ab,
-      CallableFixedPrime.Reg.bc, CallableFixedPrime.Reg.ac, CallableFixedPrime.Reg.base,
-      CallableFixedPrime.Reg.prime, parameterBank, DyadicParameters.Reg.side, Fin.mk.injEq]
-  refine ⟨y, he, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    fun j hj => he.regs_eq (save_preserves_low j hj)⟩
-  all_goals simp +decide [y, Reg.savedBound, Reg.bound, Reg.side, Reg.ab, Reg.bc, Reg.ac,
-    Reg.free, CallableFixedPrime.Reg.n, CallableFixedPrime.Reg.ab,
-    CallableFixedPrime.Reg.bc, CallableFixedPrime.Reg.ac, CallableFixedPrime.Reg.base,
-    CallableFixedPrime.Reg.prime, parameterBank, DyadicParameters.Reg.side]
+  let _ := h0
+  refine WP.exists_execWithin_preserves (fun j hj => save_preserves_low j hj) ?_
+  unfold save
+  wram_exec
+  intro hpres
+  exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+    by wram_simp, by wram_simp, by wram_simp, by wram_simp, hpres⟩
 
 /-- Seven actual copies return the raw verdict and restore the six original host arguments. -/
 theorem exec_restore {W : ℕ} (x : Data 640) :
@@ -70,21 +61,11 @@ theorem exec_restore {W : ℕ} (x : Data 640) :
       y.regs Reg.free = x.regs CallableFixedPrime.Reg.base ∧
       y.regs Reg.result = x.regs CallableFixedPrime.Reg.found ∧
       ∀ j : Fin 640, 7 ≤ j.val → y.regs j = x.regs j := by
-  let y := x.set Reg.side (x.regs CallableFixedPrime.Reg.n) |>.set Reg.bound
-    (x.regs Reg.savedBound) |>.set Reg.ab (x.regs CallableFixedPrime.Reg.ab)
-    |>.set Reg.bc (x.regs CallableFixedPrime.Reg.bc) |>.set Reg.ac
-    (x.regs CallableFixedPrime.Reg.ac) |>.set Reg.free (x.regs CallableFixedPrime.Reg.base)
-    |>.set Reg.result (x.regs CallableFixedPrime.Reg.found)
-  have he : ExecWithin W restore x y 7 := by
-    ram_eval [restore, y, Reg.side, Reg.bound, Reg.savedBound, Reg.ab, Reg.bc,
-      Reg.ac, Reg.free, Reg.result, CallableFixedPrime.Reg.n, CallableFixedPrime.Reg.ab,
-      CallableFixedPrime.Reg.bc, CallableFixedPrime.Reg.ac, CallableFixedPrime.Reg.base,
-      CallableFixedPrime.Reg.found, Fin.mk.injEq]
-  refine ⟨y, he, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    fun j hj => he.regs_eq (restore_preserves_high j hj)⟩
-  all_goals simp +decide [y, Reg.savedBound, Reg.bound, Reg.side, Reg.ab, Reg.bc, Reg.ac,
-    Reg.free, Reg.result, CallableFixedPrime.Reg.n, CallableFixedPrime.Reg.ab,
-    CallableFixedPrime.Reg.bc, CallableFixedPrime.Reg.ac, CallableFixedPrime.Reg.base,
-    CallableFixedPrime.Reg.found]
+  refine WP.exists_execWithin_preserves (fun j hj => restore_preserves_high j hj) ?_
+  unfold restore
+  wram_exec
+  intro hpres
+  exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+    by wram_simp, by wram_simp, by wram_simp, hpres⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting

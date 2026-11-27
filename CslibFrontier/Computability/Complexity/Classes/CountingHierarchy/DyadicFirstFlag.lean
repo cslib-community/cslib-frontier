@@ -55,10 +55,10 @@ The classifier uses natural arithmetic only; no represented integer or CRT data 
 private theorem flag_iff {d B n : ℕ} (hd : 0 < d) :
     CircleFlag (1 / (d : ℚ)) ((n : ℚ) / (2 : ℚ) ^ B) ↔
       2 ^ B ≤ d * n ∧ d * n ≤ (d - 1) * 2 ^ B := by
-  have hdq : (0 : ℚ) < d := by exact_mod_cast hd
+  have hdq : (0 : ℚ) < d := mod_cast hd
   have hp : (0 : ℚ) < 2 ^ B := by positivity
   have hmargin : (1 : ℚ) - 1 / d = ((d - 1 : ℕ) : ℚ) / d := by
-    rw [Nat.cast_sub (by omega : 1 ≤ d), Nat.cast_one]
+    rw [Nat.cast_sub hd, Nat.cast_one]
     field_simp
   rw [CircleFlag, hmargin, div_le_div_iff₀ hdq hp, div_le_div_iff₀ hp hdq]
   simp only [one_mul, mul_comm (n : ℚ) (d : ℚ)]
@@ -83,14 +83,11 @@ private theorem first_test_iff {d B r : ℕ} (hd : 0 < d) (N : ℕ → ℕ) (tes
     ∃ k < r, FirstCircleFlag (1 / (d : ℚ)) (fun j => (N j : ℚ) / (2 : ℚ) ^ B) k ∧
       test k = true := by
   simp only [decide_eq_true_eq, Bool.eq_false_iff]
-  constructor
-  · rintro ⟨k, hk, he, ht, hprev⟩
-    refine ⟨k, hk, ⟨(flag_iff hd).mpr he, ?_⟩, ht⟩
-    intro j hj hf
-    exact hprev j hj (by simpa only [decide_eq_true_eq] using (flag_iff hd).mp hf)
-  · rintro ⟨k, hk, ⟨hf, hprev⟩, ht⟩
-    exact ⟨k, hk, (flag_iff hd).mp hf, ht,
-      fun j hj he => hprev j hj ((flag_iff hd).mpr (of_decide_eq_true he))⟩
+  exact exists_congr fun k => and_congr_right fun _ =>
+    ⟨fun ⟨he, ht, hprev⟩ => ⟨⟨(flag_iff hd).mpr he, fun j hj hf =>
+        hprev j hj (decide_eq_true ((flag_iff hd).mp hf))⟩, ht⟩,
+     fun ⟨⟨hf, hprev⟩, ht⟩ => ⟨(flag_iff hd).mp hf, ht, fun j hj he =>
+        hprev j hj ((flag_iff hd).mpr (of_decide_eq_true he))⟩⟩
 
 /-- Output one means that a first circle flag below the endpoint lies below one half. -/
 theorem dyadicFirstFlagSign_eq_one_iff {d B r : ℕ} (hd : 0 < d) (N : ℕ → ℕ) :
@@ -106,18 +103,15 @@ theorem dyadicFirstFlagSign_eq_neg_one_iff {d B r : ℕ} (hd : 0 < d) (N : ℕ �
     dyadicFirstFlagSign d B r N = -1 ↔
       ∃ k < r, FirstCircleFlag (1 / (d : ℚ)) (fun j => (N j : ℚ) / (2 : ℚ) ^ B) k ∧
         1 / 2 < (N k : ℚ) / (2 : ℚ) ^ B := by
-  rw [dyadicFirstFlagSign, firstEventSign_eq_neg_one_iff]
-  rw [first_test_iff hd N (fun k => decide (2 * N k < 2 ^ B)),
+  rw [dyadicFirstFlagSign, firstEventSign_eq_neg_one_iff,
+    first_test_iff hd N (fun k => decide (2 * N k < 2 ^ B)),
     first_test_iff hd N (fun k => decide (2 ^ B < 2 * N k))]
   simp only [decide_eq_true_eq, ← left_iff, ← right_iff]
-  constructor
-  · exact And.right
-  · intro hright
-    refine ⟨?_, hright⟩
-    rintro ⟨j, _, hj, hleft⟩
-    obtain ⟨k, _, hk, hright⟩ := hright
-    obtain rfl := hj.unique hk
-    linarith
+  refine ⟨And.right, fun hright => ⟨?_, hright⟩⟩
+  rintro ⟨j, _, hj, hleft⟩
+  obtain ⟨k, _, hk, hright⟩ := hright
+  cases hj.unique hk
+  linarith
 
 /-- Output zero means that neither strict side occurs at a first flag.
 In particular, a first value exactly one half gives zero. -/
@@ -127,8 +121,8 @@ theorem dyadicFirstFlagSign_eq_zero_iff {d B r : ℕ} (hd : 0 < d) (N : ℕ → 
         (N k : ℚ) / (2 : ℚ) ^ B < 1 / 2) ∧
       ¬ ∃ k < r, FirstCircleFlag (1 / (d : ℚ)) (fun j => (N j : ℚ) / (2 : ℚ) ^ B) k ∧
         1 / 2 < (N k : ℚ) / (2 : ℚ) ^ B := by
-  rw [dyadicFirstFlagSign, firstEventSign_eq_zero_iff]
-  rw [first_test_iff hd N (fun k => decide (2 * N k < 2 ^ B)),
+  rw [dyadicFirstFlagSign, firstEventSign_eq_zero_iff,
+    first_test_iff hd N (fun k => decide (2 * N k < 2 ^ B)),
     first_test_iff hd N (fun k => decide (2 ^ B < 2 * N k))]
   simp only [decide_eq_true_eq, ← left_iff, ← right_iff]
 

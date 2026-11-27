@@ -24,9 +24,10 @@ tactic `ennreal_to_real` that uses it.
 public meta section
 
 /-- The simp set `ennreal_toReal` pushes `ENNReal.toReal` towards the leaves of an expression:
-through `+`, `*`, `∑`, `∑'`, `^`, `⁻¹`, `/`, truncated `-`, numerals, casts and `ENNReal.ofReal`.
-The lemmas for `+`, `∑`, `∑'`, `-` and `ENNReal.ofReal` have side conditions, so the set is meant
-for `simp (disch := ennreal_to_real_side) only [ennreal_toReal]`, which is what the tactic
+through `+`, `*`, `∑`, `∏`, `∑'`, natural and real `^`, `⁻¹`, `/`, truncated `-`, `if … then …
+else …`, numerals, casts and `ENNReal.ofReal`. The lemmas for `+`, `∑`, `∑'`, `-` and
+`ENNReal.ofReal` have side conditions, so the set is meant for
+`simp (disch := ennreal_to_real_side) only [ennreal_toReal]`, which is what the tactic
 `ennreal_to_real` runs. -/
 register_simp_attr ennreal_toReal
 

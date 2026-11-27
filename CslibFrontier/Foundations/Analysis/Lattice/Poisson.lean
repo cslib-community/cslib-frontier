@@ -94,13 +94,8 @@ private theorem inner_dualIndex (n : ι → ℤ) (x : E) :
 omit [FiniteDimensional ℝ E] [Fintype ι] [DecidableEq ι]
   [DiscreteTopology L] [IsZLattice ℝ L] in
 private theorem quotient_basis_periodic (i : ι) :
-    Function.Periodic (fun t : ℝ ↦ (Submodule.Quotient.mk (t • (b i : E)) : E ⧸ L)) 1 := by
-  intro t
-  dsimp only
-  rw [add_smul, one_smul, Submodule.Quotient.mk_add]
-  have h : (Submodule.Quotient.mk (b i : E) : E ⧸ L) = 0 :=
-    (Submodule.Quotient.mk_eq_zero L).mpr (b i).property
-  rw [h, add_zero]
+    Function.Periodic (fun t : ℝ ↦ (Submodule.Quotient.mk (t • (b i : E)) : E ⧸ L)) 1 := fun t ↦ by
+  simp [add_smul, (Submodule.Quotient.mk_eq_zero L).mpr (b i).property]
 
 private def torusToQuotient (x : UnitAddTorus ι) : E ⧸ L :=
   ∑ i, (quotient_basis_periodic L b i).lift (x i)
@@ -114,15 +109,12 @@ private theorem torusToQuotient_coe (x : ι → ℝ) :
   exact (map_sum L.mkQ _ _).symm
 
 omit [FiniteDimensional ℝ E] [DecidableEq ι] [DiscreteTopology L] [IsZLattice ℝ L] in
-private theorem continuous_torusToQuotient : Continuous (torusToQuotient L b) := by
-  apply continuous_finsetSum
-  intro i _
-  have hc : Continuous (fun t : ℝ ↦ (Submodule.Quotient.mk (t • (b i : E)) : E ⧸ L)) := by
-    exact continuous_quotient_mk'.comp (continuous_id.smul continuous_const)
-  have hl : Continuous (quotient_basis_periodic L b i).lift := by
-    apply isQuotientMap_quotient_mk'.continuous_iff.mpr
-    exact hc
-  exact hl.comp (continuous_apply i)
+private theorem continuous_torusToQuotient : Continuous (torusToQuotient L b) :=
+  continuous_finsetSum _ fun i _ ↦ by
+    have hl : Continuous (quotient_basis_periodic L b i).lift :=
+      isQuotientMap_quotient_mk'.continuous_iff.mpr
+        (continuous_quotient_mk'.comp (continuous_id.smul continuous_const))
+    exact hl.comp (continuous_apply i)
 
 private theorem mFourier_dualIndex (n : ι → ℤ) (x : E) :
     UnitAddTorus.mFourier n (fun i ↦ ((b.ofZLatticeBasis ℝ).equivFun x i : UnitAddCircle)) =
@@ -131,11 +123,7 @@ private theorem mFourier_dualIndex (n : ι → ℤ) (x : E) :
   simp only [UnitAddTorus.mFourier, ContinuousMap.coe_mk, fourier_coe_apply,
     Complex.ofReal_mul, Complex.ofReal_sum, Complex.ofReal_intCast,
     Finset.mul_sum, Finset.sum_mul, Complex.exp_sum]
-  apply Finset.prod_congr rfl
-  intro i _
-  congr 1
-  push_cast
-  ring
+  exact Finset.prod_congr rfl fun _ _ ↦ congrArg Complex.exp (by push_cast; ring)
 
 private def torusPeriodization (f : E → ℂ) (x : UnitAddTorus ι) : ℂ :=
   QuotientAddGroup.automorphize f (torusToQuotient L b x)
@@ -186,7 +174,9 @@ private theorem mFourierCoeff_torusPeriodization (f : E → ℂ) (hf : Integrabl
   have hsets : {u : ι → ℝ | ∀ i, u i ∈ Set.Ioc 0 1} =ᵐ[volume]
       Set.pi Set.univ (fun _ : ι ↦ Set.Ico (0 : ℝ) 1) := by
     have heq : {u : ι → ℝ | ∀ i, u i ∈ Set.Ioc 0 1} =
-        Set.pi Set.univ (fun _ : ι ↦ Set.Ioc (0 : ℝ) 1) := by ext; simp
+        Set.pi Set.univ (fun _ : ι ↦ Set.Ioc (0 : ℝ) 1) := by
+      ext
+      simp
     rw [heq]
     exact
       (Measure.univ_pi_Ioc_ae_eq_Icc (μ := fun _ : ι ↦ (volume : Measure ℝ))
@@ -216,24 +206,17 @@ private theorem poisson_basis [Finite ι] (f : C(E, ℂ)) {r : ℝ}
       (covolume L)⁻¹ • 𝓕 (f : E → ℂ) (dualIndex L b n) :=
     mFourierCoeff_torusPeriodization L b f hi n
   have hsum : Summable (UnitAddTorus.mFourierCoeff P) := by
-    convert ((dualIndex L b).toEquiv.summable_iff.mpr hF).const_smul
-      ((covolume L)⁻¹) using 1
-    funext n
-    exact hcoeff n
-  have hseries := UnitAddTorus.hasSum_mFourier_series_apply_of_summable (f := P) hsum
-    (fun i ↦ ((b.ofZLatticeBasis ℝ).equivFun x i : UnitAddCircle))
-  have hval : P (fun i ↦ ((b.ofZLatticeBasis ℝ).equivFun x i : UnitAddCircle)) =
-      ∑' z : L, f (x + z) := by
+    convert ((dualIndex L b).toEquiv.summable_iff.mpr hF).const_smul ((covolume L)⁻¹) using 1
+    exact funext hcoeff
+  have hval : ∑' z : L, f (x + z) =
+      P (fun i ↦ ((b.ofZLatticeBasis ℝ).equivFun x i : UnitAddCircle)) := by
     simpa only [P, ContinuousMap.coe_mk, LinearEquiv.symm_apply_apply] using
-      torusPeriodization_coe L b f ((b.ofZLatticeBasis ℝ).equivFun x)
-  rw [hval] at hseries
-  rw [← hseries.tsum_eq]
+      (torusPeriodization_coe L b f ((b.ofZLatticeBasis ℝ).equivFun x)).symm
+  rw [hval, ← (UnitAddTorus.hasSum_mFourier_series_apply_of_summable hsum _).tsum_eq]
   simp only [hcoeff, smul_eq_mul, mFourier_dualIndex, Complex.real_smul,
-    Complex.ofReal_inv, mul_assoc]
-  rw [tsum_mul_left]
-  congr 1
-  exact (dualIndex L b).toEquiv.tsum_eq
-    (fun w ↦ 𝓕 (f : E → ℂ) w * (Real.fourierChar ⟪x, (w : E)⟫ : ℂ))
+    Complex.ofReal_inv, mul_assoc, tsum_mul_left]
+  exact congrArg _ ((dualIndex L b).toEquiv.tsum_eq
+    fun w ↦ 𝓕 (f : E → ℂ) w * (Real.fourierChar ⟪x, (w : E)⟫ : ℂ))
 
 omit [Fintype ι] [DecidableEq ι] in
 /-- Poisson summation for a continuous function with sufficient polynomial decay and summable

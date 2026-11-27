@@ -463,19 +463,14 @@ theorem LogSpaceKTruthTableReducible.trans {k₁ k₂ : ℕ}
   let d (p : α × List Bool) : Bool :=
     d₁ (p.1, (List.range (r₁ p.1)).map fun i => innerAns (p, i))
   have hr : ComputableInLogSpace r encA encUnary := by
-    simp only [r]
-    fun_prop
+    logspace [r]
   have hq : ComputableInLogSpace q (encPair encA encUnary) encC := by
-    simp only [q]
-    fun_prop
+    logspace [q]
   have h_innerAns : ComputableInLogSpace innerAns
       (encPair (encPair encA encBits) encUnary) encBool := by
-    simp only [innerAns]
-    fun_prop
+    logspace [innerAns]
   have hd : ComputableInLogSpace d (encPair encA encBits) encBool := by
-    have hbound : ∀ p : α × List Bool, r₁ p.1 ≤ k₁ := fun p => hr₁k p.1
-    simp only [d]
-    logspace
+    logspace [d]
   -- Block `i` of the composite queries lists the inner queries of `q₁ (a, i)`.
   have hQ : ∀ a, ∀ i < r₁ a, ∀ j < r₂ (q₁ (a, i)), q (a, i * k₂ + j) = q₂ (q₁ (a, i), j) := by
     intro a i hi j hj

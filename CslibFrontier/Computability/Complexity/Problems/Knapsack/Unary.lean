@@ -82,28 +82,19 @@ within the capacity reaches the goal. -/
 theorem unaryDecider_eq_true_iff (x : KnapsackInstance) :
     unaryDecider x = true ↔ x ∈ Knapsack := by
   rw [unaryDecider, decide_eq_true_iff, mem_Knapsack_iff_sublist]
-  constructor
-  · intro h
-    exact ⟨_, profitDP_sublist _ _, sum_map_profitDP_le _ _, h⟩
-  · rintro ⟨s, hs, hsw, hsv⟩
-    exact hsv.trans (sum_map_le_profitDP hs hsw)
+  exact ⟨fun h => ⟨_, profitDP_sublist _ _, sum_map_profitDP_le _ _, h⟩,
+    fun ⟨_, hs, hsw, hsv⟩ => hsv.trans (sum_map_le_profitDP hs hsw)⟩
 
 /-- The dynamic program decider is polynomial-time in the instance with the values in unary. -/
 @[fun_prop]
 theorem computableInPolyTime_unaryDecider :
     ComputableInPolyTime unaryDecider encKnapsackUnary encBool := by
-  have hDP : ComputableInPolyTime
-      (fun x : KnapsackInstance => profitDP Item.weight Item.value x.capacity x.items)
-      encKnapsackUnary (encList encItemUnary) :=
-    (computableInPolyTime_profitDP (encItemUnary_weight_polyTime id')
-      (encItemUnary_value_polyTime id') fun a => by
-        enc_len [encItemUnary_apply]).comp ((encKnapsackUnary_capacity_polyTime id').prod
-          (encKnapsackUnary_items_polyTime id'))
-  have hval : ComputableInPolyTime Item.value encItemUnary encNat :=
-    ComputableInPolyTime.unary_to_binary.comp (encItemUnary_value_polyTime id')
+  have hDP := (computableInPolyTime_profitDP (encItemUnary_weight_polyTime id')
+    (encItemUnary_value_polyTime id') fun _ => by enc_len [encItemUnary_apply]).comp
+    ((encKnapsackUnary_capacity_polyTime id').prod (encKnapsackUnary_items_polyTime id'))
   have hsum : ComputableInPolyTime List.sum (encList encNat) encNat := by fun_prop
-  have hv := hsum.comp ((map hval).comp hDP)
-  exact binary_le' (encKnapsackUnary_goal_polyTime id') hv
+  exact binary_le' (by fun_prop)
+    (hsum.comp ((map (unary_to_binary.comp (encItemUnary_value_polyTime id'))).comp hDP))
 
 /-- **Knapsack is pseudo-polynomial**: with the values in unary, `Knapsack` is in `P`, decided by
 the dynamic program by profit [Williamson and Shmoys, Section 3.1][WilliamsonShmoys2011]. -/

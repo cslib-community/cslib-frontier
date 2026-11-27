@@ -158,20 +158,14 @@ theorem integral_trueRisk_sgd_average_le {T : ℕ} (hT : 0 < T) {D : Measure Z}
     have : (t : ℝ) ≤ T := by exact_mod_cast t.2.le
     have := mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right this hc.le) hρ.le
     linarith [hr]
-  have hu' : u ∈ K' := by
-    refine ⟨hu, ?_⟩
+  have hu' : u ∈ K' := ⟨hu, by
     rw [Metric.mem_closedBall, dist_eq_norm, norm_sub_rev]
-    have : 0 ≤ ρ * (T * c) := by positivity
-    linarith [hr]
+    linarith [hr, show 0 ≤ ρ * (T * c) by positivity]⟩
   have hbound : ∀ w ∈ K', ∀ z, |ℓ w z| ≤ |ℓ x₀ z| + ρ * r := fun w hw z => by
-    have hx₀' : x₀ ∈ K := hx₀
     have hl := abs_sub_le_of_forall_add_inner_le (f := fun x => ℓ x z) (g := fun x => g x z)
-      (hsub z) (hgρ z) hw.1 hx₀'
-    have hd : ‖w - x₀‖ ≤ r := by rw [← dist_eq_norm]; exact hw.2
-    have := mul_le_mul_of_nonneg_left hd hρ.le
-    calc |ℓ w z| = |(ℓ w z - ℓ x₀ z) + ℓ x₀ z| := by rw [sub_add_cancel]
-      _ ≤ |ℓ w z - ℓ x₀ z| + |ℓ x₀ z| := abs_add_le _ _
-      _ ≤ |ℓ x₀ z| + ρ * r := by linarith
+      (hsub z) (hgρ z) hw.1 hx₀
+    have := mul_le_mul_of_nonneg_left (by rw [← dist_eq_norm]; exact hw.2 : ‖w - x₀‖ ≤ r) hρ.le
+    linarith [abs_sub_abs_le_abs_sub (ℓ w z) (ℓ x₀ z)]
   have hb : Integrable (fun z => |ℓ x₀ z| + ρ * r) D := hint.abs.add (integrable_const _)
   have hconv : ∀ z, ConvexOn ℝ K' fun w => ℓ w z := fun z =>
     convexOn_of_forall_add_inner_le hK' fun x hx y hy => hsub z x hx.1 y hy.1

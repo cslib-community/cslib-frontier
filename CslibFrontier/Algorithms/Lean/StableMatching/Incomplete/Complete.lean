@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.StableMatching.DeferredAcceptance
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.DeferredAcceptance
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.List.FinRange
 import Mathlib.Data.List.Nodup
@@ -63,13 +64,8 @@ theorem mem_toIncompleteInstance_recvPref (r p : Fin n) :
 /-- In the list of a permutation, an agent's position is its rank. -/
 private theorem idxOf_ofFn_perm (σ : Equiv.Perm (Fin n)) (a : Fin n) :
     (List.ofFn σ).idxOf a = (σ.symm a).val := by
-  have hlen : (σ.symm a).val < (List.ofFn σ).length := by
-    rw [List.length_ofFn]; exact (σ.symm a).isLt
-  have hget : (List.ofFn σ)[(σ.symm a).val] = a := by
-    rw [List.getElem_ofFn]
-    exact σ.apply_symm_apply a
-  conv_lhs => rw [← hget]
-  exact (List.nodup_ofFn.2 σ.injective).idxOf_getElem _ hlen
+  simpa [σ.apply_symm_apply a] using
+    (List.nodup_ofFn.2 σ.injective).idxOf_getElem (σ.symm a).val (by simp)
 
 theorem toIncompleteInstance_propRank_some (p r : Fin n) :
     I.toIncompleteInstance.propRank p (some r) = (I.propRank p r).val :=
@@ -106,13 +102,10 @@ theorem isSome_of_isStable_toIncompleteInstance {ν : PartialMatching n n}
     (hν : I.toIncompleteInstance.IsStable ν) (p : Fin n) : (ν p).isSome := by
   by_contra hp
   rw [Option.not_isSome_iff_eq_none] at hp
-  have hlt : (PartialMatching.matchedReceivers ν).card < (Finset.univ : Finset (Fin n)).card := by
-    rw [PartialMatching.card_matchedReceivers]
-    refine Finset.card_lt_card ⟨Finset.subset_univ _, fun h => ?_⟩
-    have := PartialMatching.mem_matchedProposers.1 (h (Finset.mem_univ p))
-    rw [hp] at this
-    exact absurd this (by simp)
-  obtain ⟨r, -, hr⟩ := Finset.exists_mem_notMem_of_card_lt_card hlt
+  obtain ⟨r, hr⟩ : ∃ r, r ∉ PartialMatching.matchedReceivers ν := by
+    finset_card [PartialMatching.card_matchedReceivers ν,
+      show p ∉ PartialMatching.matchedProposers ν by
+        simp [PartialMatching.mem_matchedProposers, hp]]
   rw [PartialMatching.mem_matchedReceivers, Option.not_isSome_iff_eq_none] at hr
   refine hν.2 p r ⟨?_, ?_⟩
   · rw [hp, toIncompleteInstance_propRank_some, toIncompleteInstance_propRank_none]
@@ -130,12 +123,9 @@ theorem isStable_toIncompleteInstance_iff_exists (ν : PartialMatching n n) :
     let f : Fin n → Fin n := fun p => (ν p).get (hsome p)
     have hf : Function.Injective f := fun p q h =>
       ν.inj (b := f p) (Option.get_mem _) (h ▸ Option.get_mem _)
-    refine ⟨permOfInjective f hf, ?_, ?_⟩
-    · have heq : (permOfInjective f hf).toPEquiv = ν :=
-        PEquiv.ext fun p => (Option.some_get (hsome p))
-      rw [← I.isStable_toIncompleteInstance_iff, heq]
-      exact hν
-    · exact PEquiv.ext fun p => Option.some_get (hsome p)
+    have heq : (permOfInjective f hf).toPEquiv = ν :=
+      PEquiv.ext fun p => Option.some_get (hsome p)
+    exact ⟨permOfInjective f hf, (I.isStable_toIncompleteInstance_iff _).1 (heq.symm ▸ hν), heq⟩
   · rintro ⟨μ, hμ, rfl⟩
     exact (I.isStable_toIncompleteInstance_iff μ).2 hμ
 

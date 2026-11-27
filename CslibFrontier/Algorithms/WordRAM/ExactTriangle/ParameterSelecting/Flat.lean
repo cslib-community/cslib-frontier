@@ -31,16 +31,14 @@ open Cslib.WordRAM Cslib.Matrix Cslib.Algorithms.ExactTriangle
 /-- One fixed initialized standard-native program; header, complete body and halt are included. -/
 theorem entryProgram_fixed : (entryProgram.program Reg.result).length ≤ 434015 ∧
     ¬(entryProgram.program Reg.result).ReadsWidth := by
-  have size : entryProgram.size = entryHeader.size + program.size := by
-    dsimp only [entryProgram, Code.size]
-  refine ⟨?_, Code.not_readsWidth_program ?_ _⟩
-  · have h := program_fixed.1
-    simp only [Code.program, List.length_append, Code.length_assemble,
-      List.length_singleton] at h ⊢
-    rw [size, entryHeader_fixed.1]
-    omega
-  · simpa only [entryProgram, Code.ReadsWidth, not_or] using
-      And.intro entryHeader_fixed.2 program_not_readsWidth
+  refine ⟨?_, Code.not_readsWidth_program (by
+    simpa only [entryProgram, Code.ReadsWidth, not_or] using
+      ⟨entryHeader_fixed.2, program_not_readsWidth⟩) _⟩
+  have h := program_fixed.1
+  simp only [Code.program, List.length_append, Code.length_assemble,
+    List.length_singleton, entryProgram, Code.size] at h ⊢
+  rw [entryHeader_fixed.1]
+  omega
 
 /-- Actual initialized execution at every admitted width, including zero vertices and the
 entire small regime. The returned prime is real selection on the fast branch and zero otherwise. -/
@@ -67,10 +65,9 @@ theorem runs_input {W n F : ℕ} (values : List ℤ) (hlen : values.length = 3 *
         y.regs Reg.bc = 3 + n * n ∧ y.regs Reg.ac = 3 + 2 * (n * n) ∧
         y.regs Reg.free = 3 + 3 * (n * n) := by
   have hi := input_fits values hlen hv hW
-  have hfit : Fits W (3 + 3 * (n * n) + 8) :=
-    (envelope_fits values hW).of_le (by dsimp only [envelope]; omega)
-  obtain ⟨a, ha, am, an, aF, ab, ac, ad, af⟩ := exec_entryHeader
-    (n := n) (F := F) (.init (CountPrime.inputWords n F values)) rfl rfl hfit
+  obtain ⟨a, ha, am, an, aF, ab, ac, ad, af⟩ := exec_entryHeader (n := n) (F := F)
+    (.init (CountPrime.inputWords n F values)) rfl rfl
+    ((envelope_fits values hW).of_le (by dsimp only [envelope]; omega))
   obtain ⟨p, mem, y, hy, yf, yiff, yp, yz, frame, yn, yF, ya, yb, yc, yfree⟩ :=
     exec_at values hlen hv a an aF ab ac ad af (by omega) (by omega) (by omega)
       (fun q _ => (congrFun am _).trans (CountPrime.input_word n F values q))
@@ -79,13 +76,11 @@ theorem runs_input {W n F : ℕ} (values : List ℤ) (hlen : values.length = 3 *
   have he : ExecWithin W entryProgram (.init (CountPrime.inputWords n F values)) y
       (15 + timeBound n p values mem) := ha.seq hy
   obtain ⟨t, ht, hex⟩ := he
-  refine ⟨hi, p, mem, y, t, ?_, ?_, ?_, hex.bounded (.init hi), yf, yiff, yp, yz,
-    ?_, yn, yF, ya, yb, yc, yfree⟩
-  · exact (Nat.add_le_add_right ht 1).trans_eq (by omega)
+  refine ⟨hi, p, mem, y, t, (Nat.add_le_add_right ht 1).trans_eq (by omega), ?_, ?_,
+    hex.bounded (.init hi), yf, yiff, yp, yz,
+    fun q hq => (frame q hq).trans (congrFun am q), yn, yF, ya, yb, yc, yfree⟩
   · simpa only [State.init, Nat.zero_add] using hex.runs (pc := 0)
       (p := entryProgram.program Reg.result) (Program.Contains.self _).append_left
   · simpa only [State.init] using hex.executes Reg.result
-  · intro q hq
-    exact (frame q hq).trans (congrFun am q)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting

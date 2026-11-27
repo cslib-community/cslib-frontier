@@ -51,28 +51,22 @@ theorem parametricValuePolynomial_at_zero_separable {n ell : ℕ} (hell : 1 ≤ 
   let x (b : NormalIndex n ell) (i : Fin n) := a i * z b i
   let v (b : NormalIndex n ell) := eval (x b) (potentialPolynomial ell a)
   have hz (b : NormalIndex n ell) (i : Fin n) : z b i ^ ell = 1 := by
-    dsimp only [z]
-    rw [pow_right_comm, hζ.pow_eq_one, one_pow]
+    rw [show z b i = ζ ^ (b i).val from rfl, pow_right_comm, hζ.pow_eq_one, one_pow]
   have hv : Function.Injective v := by
     intro b c hbc
     have heq := eq_of_eval_potentialPolynomial_eq_of_pow_eq_one hell (hz b) (hz c) hbc
-    funext i
-    exact Fin.ext (hζ.pow_inj (b i).isLt (c i).isLt (congrFun heq i))
+    exact funext fun i => Fin.ext (hζ.pow_inj (b i).isLt (c i).isLt (congrFun heq i))
   have hroot (b : NormalIndex n ell) : q.IsRoot (v b) := by
-    have hx (i : Fin n) : aeval (x b) (r i) = x b i ^ ell := by
-      simp [r, criticalLower, x, mul_pow, hz]
-    have h := isRoot_charpoly_multiplicationMatrix_of_aeval_eq hell r
-      (criticalLower_degree ell hell a 0 G hG) (deformedPolynomial ell a 0 G) (x b) hx
-    simpa [q, valuePolynomial, v, deformedPolynomial, aeval_eq_eval] using h
+    simpa [q, valuePolynomial, v, deformedPolynomial, aeval_eq_eval] using
+      isRoot_charpoly_multiplicationMatrix_of_aeval_eq hell r
+        (criticalLower_degree ell hell a 0 G hG) (deformedPolynomial ell a 0 G) (x b) fun i => by
+          simp [r, criticalLower, x, mul_pow, hz]
   have hq : q ≠ 0 := (valuePolynomial_monic hell a 0 G hG).ne_zero
-  let root (b : NormalIndex n ell) : q.roots.toFinset :=
-    ⟨v b, Multiset.mem_toFinset.mpr ((Polynomial.mem_roots hq).mpr (hroot b))⟩
-  have hinj : Function.Injective root := fun _ _ h => hv (congrArg Subtype.val h)
-  have hcard : Fintype.card (NormalIndex n ell) = q.natDegree := by
-    rw [valuePolynomial_natDegree]
-    simp [NormalIndex]
-  have hle := Fintype.card_le_of_injective root hinj
-  rw [hcard, Fintype.card_coe] at hle
+  have hle : q.natDegree ≤ q.roots.toFinset.card := by
+    simpa [q, valuePolynomial_natDegree, NormalIndex, Finset.card_image_of_injective _ hv] using
+      Finset.card_le_card (s := Finset.univ.image v) fun _ hx => by
+        obtain ⟨b, -, rfl⟩ := Finset.mem_image.mp hx
+        exact Multiset.mem_toFinset.mpr ((Polynomial.mem_roots hq).mpr (hroot b))
   apply (Polynomial.nodup_roots_iff_of_splits hq (IsAlgClosed.splits q)).mp
   exact Multiset.toFinset_card_eq_card_iff_nodup.mp
     (le_antisymm (Multiset.toFinset_card_le q.roots) ((Polynomial.card_roots' q).trans hle))

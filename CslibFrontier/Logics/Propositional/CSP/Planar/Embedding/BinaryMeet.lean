@@ -38,15 +38,11 @@ private theorem meetSecond_kernel (a : ℕ) (u v : Fin 3 ⊕ Fin a) :
       Function.update id (Sum.inl 2) (Sum.inl 1) u =
         Function.update id (Sum.inl 2) (Sum.inl 1) v := by
   rw [Function.update_id_apply_eq_iff]
-  cases u with
-  | inl i =>
-    cases v with
-    | inl j => fin_cases i <;> fin_cases j <;> simp [meetSecond]
-    | inr j => fin_cases i <;> simp [meetSecond]
-  | inr i =>
-    cases v with
-    | inl j => fin_cases j <;> simp [meetSecond]
-    | inr j => simp [meetSecond]
+  rcases u with i | i <;> rcases v with j | j
+  · fin_cases i <;> fin_cases j <;> simp [meetSecond]
+  · fin_cases i <;> simp [meetSecond]
+  · fin_cases j <;> simp [meetSecond]
+  · simp [meetSecond]
 
 private theorem meet_body {R S : Set (Fin 2 → Bool)} (g : PPGadget arity sem R)
     (h : PPGadget arity sem S) :
@@ -55,23 +51,10 @@ private theorem meet_body {R S : Set (Fin 2 → Bool)} (g : PPGadget arity sem R
         (g.conj h).body := by
   simp only [PPGadget.conj, CSP.relabel, Constraint.relabel, List.map_append, List.map_map,
     Function.comp_def]
-  congr 1
-  · apply List.map_congr_left
-    rintro ⟨r, scope⟩ _
-    congr 1
-    apply List.map_congr_left
-    intro z _
-    cases z with
+  congr 1 <;> refine List.map_congr_left fun ⟨r, scope⟩ _ => congrArg _
+    (List.map_congr_left fun z _ => ?_) <;> (cases z with
     | inl i => fin_cases i <;> rfl
-    | inr i => rfl
-  · apply List.map_congr_left
-    rintro ⟨r, scope⟩ _
-    congr 1
-    apply List.map_congr_left
-    intro z _
-    cases z with
-    | inl i => fin_cases i <;> rfl
-    | inr i => rfl
+    | inr i => rfl)
 
 /-- Actual arity-two conjunction has its own checked ordered numerical witness, with exact
 original body rows and disjoint auxiliary blocks. Every join guard is derived internally. -/
