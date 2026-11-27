@@ -23,8 +23,10 @@ Concrete witnesses exercising `Cslib.Crypto.Protocols.UC.Push`:
   environment `testEnv` querying honest party `0`, blocked corrupted party `1`, and `testAdv`,
   verifying `eval_pushRun_ucPushSystem`, `eval_pushExec_ucPushSystem`, and
   `eval_pushExec_ucPushSystem_of_polyBounded` against the explicitly computed asymmetric output
-  distribution (`true` with probability `1/4`, `false` with probability `3/4`) as well as an
-  under-fueled separation at `fuel = 1`.
+  distribution (`true` with probability `1/4`, `false` with probability `3/4`) as well as the
+  zero-fuel separation at `fuel = 0` (which holds for every push system). The positive under-fueled
+  boundary of the bridge (`fuel = 5` halts, `fuel = 4` returns `none` at `bZ = 1`, `tA = 1`) is
+  checked in `CslibFrontierTests/Crypto/UCPushBridgeFuel.lean`.
 -/
 
 set_option linter.privateModule false
