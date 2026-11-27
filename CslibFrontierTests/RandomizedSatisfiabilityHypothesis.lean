@@ -88,7 +88,7 @@ example :
   exact Nat.eq_zero_of_le_zero (by exact_mod_cast h)
 
 -- A verifier deliberately gets both answers wrong on the empty seed and is exact thereafter.
-example : ∃ q : ℝ, 1 / 2 < q ∧ 0 < q ∧ q < 1 ∧
+private theorem seededBoolSolver : ∃ q : ℝ, 1 / 2 < q ∧ 0 < q ∧ q < 1 ∧
     SolvesWithErrorInPowerExpTime (ofSet ({true} : Set Bool)) encBool ErrorModel.bounded
       (fun _ => 0) q := by
   let V (p : Bool × List Bool) := p.1 ^^ p.2.isEmpty
@@ -124,3 +124,22 @@ example : ∃ q : ℝ, 1 / 2 < q ∧ 0 < q ∧ q < 1 ∧
       norm_num at hn
     rw [acceptCount_eq_zero_iff.mpr fun w => (hcount a hn' w).trans ha']
     norm_num [ErrorModel.bounded, ErrorModel.twoSided]
+
+-- The schedule asks for different error bounds on the two Boolean inputs, at the same power.
+example : ∃ (q : ℝ) (width : Bool → ℕ) (verify : Bool × List Bool → Bool),
+    1 / 2 < q ∧ q < 1 ∧
+    ComputableInPowerExpTime width encBool encUnary (fun _ => 0) q ∧
+    ComputableInPowerExpTime verify (encPair encBool encBits) encBool (fun _ => 0) q ∧
+    (acceptCount (fun x => !verify x) true (width true) : ℝ) ≤ (1 / 6 : ℝ) * 2 ^ width true ∧
+    (acceptCount verify false (width false) : ℝ) ≤ (1 / 3 : ℝ) * 2 ^ width false := by
+  obtain ⟨q, hq, _, hq', h⟩ := seededBoolSolver
+  have ht : ComputableInPolyTime Bool.toNat encBool encUnary :=
+    (ComputableInDegree.of_finite Bool.toNat).computableInPolyTime
+  obtain ⟨width, verify, hw, hv, hyes, hno⟩ := h.exists_amplifiedVerifier ht
+  refine ⟨q, width, verify, hq, hq', hw, hv, ?_, ?_⟩
+  · have he := hyes true (by simp)
+    convert he using 1
+    norm_num [Bool.toNat]
+  · have he := hno false (by simp)
+    convert he using 1
+    norm_num [Bool.toNat]
