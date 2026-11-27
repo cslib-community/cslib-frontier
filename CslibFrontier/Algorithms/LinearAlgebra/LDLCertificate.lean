@@ -129,6 +129,9 @@ the dimensions, and the kernel's GMP-accelerated `Nat` operations do the arithme
   symmetric `P`.
 * `Cslib.LinearAlgebra.InstabilityCert.sound_of_check`: an accepted instability certificate
   gives its two conditions over `ℝ`.
+* `Cslib.LinearAlgebra.map_ratCast_sub_smul_one`,
+  `Cslib.LinearAlgebra.dotProduct_mulVec_ratCast_neg`: the shift `M - ε • 1` and a negative
+  quadratic form keep their meaning over `ℝ`.
 -/
 public section
 
@@ -918,6 +921,22 @@ theorem quadForm_eq (n : ℕ) (P : List (List ℚ)) (x : List ℚ) :
   refine Finset.sum_congr rfl fun j _ => ?_
   rw [getD_take_of_lt _ _ j.is_lt, ofLists_apply, ofList_apply, ofList_apply]
 
+/-- The real cast of `M - ε • 1` is `M - ε • 1` over `ℝ`. -/
+theorem map_ratCast_sub_smul_one {ι : Type*} [DecidableEq ι] (M : Matrix ι ι ℚ) (ε : ℚ) :
+    (M - ε • 1).map ((↑) : ℚ → ℝ) = M.map ((↑) : ℚ → ℝ) - (ε : ℝ) • 1 := by
+  ext i j
+  rcases eq_or_ne i j with rfl | hij
+  · simp
+  · simp [one_apply_ne hij]
+
+/-- A rational quadratic form that is negative at `x` stays negative over `ℝ`. -/
+theorem dotProduct_mulVec_ratCast_neg {ι : Type*} [Fintype ι] {M : Matrix ι ι ℚ} {x : ι → ℚ}
+    (h : x ⬝ᵥ M *ᵥ x < 0) :
+    (fun i => (x i : ℝ)) ⬝ᵥ M.map ((↑) : ℚ → ℝ) *ᵥ (fun i => (x i : ℝ)) < 0 := by
+  have hlt : ((x ⬝ᵥ M *ᵥ x : ℚ) : ℝ) < 0 := Rat.cast_lt_zero.2 h
+  convert hlt using 1
+  simp only [dotProduct, mulVec, Rat.cast_sum, Rat.cast_mul, Matrix.map_apply]
+
 /-- An instability (or slow-decay) certificate for `ẋ = A x` with the symmetric matrix `P`, which
 need not be definite: a rational rate `ε` of either sign, an initial vector `x₀` with
 `x₀ᵀ P x₀ < 0`, and an `LDLᵀ` witness for `-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0`. -/
@@ -952,21 +971,9 @@ theorem sound_of_check {c : InstabilityCert} {n : ℕ} {A P : List (List ℚ)}
   simp only [check, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
   obtain ⟨⟨⟨⟨⟨⟨-, -⟩, hPs⟩, -⟩, hq⟩, hQ⟩, hd⟩ := h
   have hPs' : (ofLists n n P)ᵀ = ofLists n n P := by rw [← ofLists_transpose, hPs]
-  have hshift : (ofLists n n (shiftRows n c.rate A)).map ((↑) : ℚ → ℝ) =
-      (ofLists n n A).map ((↑) : ℚ → ℝ) - (c.rate : ℝ) • 1 := by
-    rw [ofLists_shiftRows]
-    ext i j
-    rcases eq_or_ne i j with rfl | hij
-    · simp
-    · simp [one_apply_ne hij]
-  refine ⟨?_, ?_⟩
-  · rw [quadForm_eq] at hq
-    have hlt : ((ofList n c.x₀ ⬝ᵥ ofLists n n P *ᵥ ofList n c.x₀ : ℚ) : ℝ) < 0 :=
-      Rat.cast_lt_zero.2 hq
-    convert hlt using 1
-    simp only [dotProduct, mulVec, Rat.cast_sum, Rat.cast_mul, Matrix.map_apply]
-  · rw [← hshift]
-    exact LDLCert.posSemidef_of_factorsLyapunovResidual hPs' hQ hd
+  refine ⟨dotProduct_mulVec_ratCast_neg (by rwa [quadForm_eq] at hq), ?_⟩
+  rw [← map_ratCast_sub_smul_one, ← ofLists_shiftRows]
+  exact LDLCert.posSemidef_of_factorsLyapunovResidual hPs' hQ hd
 
 end InstabilityCert
 

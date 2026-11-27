@@ -117,6 +117,9 @@ linear time. The kernel evaluates `mkRat` like the division it replaces.
   `L * diagonal d * Lᵀ + R`.
 * `Cslib.LinearAlgebra.EnvLDLCert.posDef_of_checkPosDef`,
   `Cslib.LinearAlgebra.EnvLDLCert.posSemidef_of_checkPosSemidef`: soundness over `ℝ`.
+* `Cslib.LinearAlgebra.EnvLDLCert.posDef_of_factorsSparseResidual`,
+  `Cslib.LinearAlgebra.EnvLDLCert.posSemidef_of_factorsSparseResidual`: residual soundness for a
+  symmetric `P`, shared by both sparse certificates.
 * `Cslib.LinearAlgebra.SparseLyapunovCert.posDef_of_check`: `P ≻ 0` and
   `-(Aᵀ * P + P * A) ≻ 0` over `ℝ`, with the statement of the dense
   `Cslib.LinearAlgebra.LyapunovCert.posDef_of_check`.
@@ -980,11 +983,7 @@ theorem posSemidef_of_factorsWith {rows : List (List (ℕ × ℚ))} (hlen : rows
     (hd : c.diag.all (0 ≤ ·) = true) : ((ofSparse n n rows).map ((↑) : ℚ → ℝ)).PosSemidef := by
   obtain ⟨hl, hdl, hu⟩ := c.shape_of_factorsWith h
   rw [c.eq_add_of_factorsWith hlen hsymm h, Matrix.map_add _ Rat.cast_add]
-  refine PosSemidef.add ?_ (c.posSemidef_rem h)
-  obtain ⟨hmem, L, hL, h1, hM⟩ := c.toLDLCert.map_eq_of_eq hl hdl hu rfl
-  rw [hM, posSemidef_mul_diagonal_mul_conjTranspose_iff hL h1]
-  simp only [List.all_eq_true, decide_eq_true_eq] at hd
-  exact fun i => by exact_mod_cast hd _ (hmem i)
+  exact (c.toLDLCert.posSemidef_of_eq hl hdl hu hd rfl).add (c.posSemidef_rem h)
 
 private theorem symm_of_factors {rows : List (List (ℕ × ℚ))} (h : c.factors n rows = true) :
     rows.length = n ∧ (ofSparse n n rows)ᵀ = ofSparse n n rows ∧ c.factorsWith n rows = true := by
@@ -1086,6 +1085,55 @@ theorem ofSparse_sparseResidual {n : ℕ} {A At P : List (List (ℕ × ℚ))} (h
   simp only [sparseLyapunovScale, Nat.cast_mul]
   ring
 
+namespace EnvLDLCert
+
+variable {c : EnvLDLCert} {n : ℕ} {A At P : List (List (ℕ × ℚ))}
+
+/-- The common step of the sparse residual checks: for a symmetric `P`, the recomputed residual
+has `n` rows, is symmetric, and reads over `ℝ` as `-(Aᵀ * P + P * A)`. -/
+private theorem sparseResidual_spec (hAl : A.length = n) (hAtl : At.length = n)
+    (hPl : P.length = n) (hT : isTransposeOf A At = true)
+    (hPs : (ofSparse n n P)ᵀ = ofSparse n n P) :
+    (sparseResidual A At P).length = n ∧
+      (ofSparse n n (sparseResidual A At P))ᵀ = ofSparse n n (sparseResidual A At P) ∧
+      (ofSparse n n (sparseResidual A At P)).map ((↑) : ℚ → ℝ) =
+        -(((ofSparse n n A).map ((↑) : ℚ → ℝ))ᵀ * (ofSparse n n P).map ((↑) : ℚ → ℝ) +
+          (ofSparse n n P).map ((↑) : ℚ → ℝ) * (ofSparse n n A).map ((↑) : ℚ → ℝ)) := by
+  have hR := ofSparse_sparseResidual hAl hAtl hPl hT
+  refine ⟨by simp [sparseResidual, sparseScaledResidual, length_sparseMul, hAtl, hPl], ?_, ?_⟩
+  · rw [hR, transpose_neg, transpose_add, transpose_mul, transpose_mul, transpose_transpose,
+      hPs, add_comm]
+  · rw [hR, Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
+      Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map]
+
+/-- **Sparse residual soundness for `≻ 0`.** For a symmetric `P` and `At` the transpose of `A`,
+an accepted `factorsWith` on `sparseResidual A At P` with positive pivots proves
+`-(Aᵀ * P + P * A) ≻ 0` over `ℝ`. -/
+theorem posDef_of_factorsSparseResidual (hAl : A.length = n) (hAtl : At.length = n)
+    (hPl : P.length = n) (hT : isTransposeOf A At = true)
+    (hPs : (ofSparse n n P)ᵀ = ofSparse n n P) (h : c.factorsWith n (sparseResidual A At P) = true)
+    (hd : c.diag.all (0 < ·) = true) :
+    (-(((ofSparse n n A).map ((↑) : ℚ → ℝ))ᵀ * (ofSparse n n P).map ((↑) : ℚ → ℝ) +
+      (ofSparse n n P).map ((↑) : ℚ → ℝ) * (ofSparse n n A).map ((↑) : ℚ → ℝ))).PosDef := by
+  obtain ⟨hlen, hsymm, hR⟩ := sparseResidual_spec hAl hAtl hPl hT hPs
+  rw [← hR]
+  exact c.posDef_of_factorsWith hlen hsymm h hd
+
+/-- **Sparse residual soundness for `⪰ 0`.** For a symmetric `P` and `At` the transpose of `A`,
+an accepted `factorsWith` on `sparseResidual A At P` with nonnegative pivots proves
+`-(Aᵀ * P + P * A) ⪰ 0` over `ℝ`. -/
+theorem posSemidef_of_factorsSparseResidual (hAl : A.length = n) (hAtl : At.length = n)
+    (hPl : P.length = n) (hT : isTransposeOf A At = true)
+    (hPs : (ofSparse n n P)ᵀ = ofSparse n n P) (h : c.factorsWith n (sparseResidual A At P) = true)
+    (hd : c.diag.all (0 ≤ ·) = true) :
+    (-(((ofSparse n n A).map ((↑) : ℚ → ℝ))ᵀ * (ofSparse n n P).map ((↑) : ℚ → ℝ) +
+      (ofSparse n n P).map ((↑) : ℚ → ℝ) * (ofSparse n n A).map ((↑) : ℚ → ℝ))).PosSemidef := by
+  obtain ⟨hlen, hsymm, hR⟩ := sparseResidual_spec hAl hAtl hPl hT hPs
+  rw [← hR]
+  exact c.posSemidef_of_factorsWith hlen hsymm h hd
+
+end EnvLDLCert
+
 /-- Witnesses for a sparse quadratic Lyapunov certificate for `ẋ = A x`: the rows of `Aᵀ`, and
 envelope certificates for `P ≻ 0` and `-(Aᵀ * P + P * A) ≻ 0`. -/
 structure SparseLyapunovCert where
@@ -1116,21 +1164,10 @@ theorem posDef_of_check {c : SparseLyapunovCert} {n : ℕ} {A P : List (List (�
   simp only [check, Bool.and_eq_true] at h
   obtain ⟨⟨⟨⟨⟨hA, hAt⟩, hT⟩, hP⟩, hQ⟩, hd⟩ := h
   refine ⟨c.P.posDef_of_checkPosDef hP, ?_⟩
-  have hPc := hP
-  simp only [EnvLDLCert.checkPosDef, EnvLDLCert.factors, Bool.and_eq_true] at hPc
-  have hPs := ofSparse_eq_transpose_of_isTransposeOf (m := n) (n := n) hPc.1.1.2
-  have hR := ofSparse_sparseResidual (length_of_isSparseShape hA) (length_of_isSparseShape hAt)
-    (length_of_isSparseShape hPc.1.1.1) hT
-  have hlen : (sparseResidual A c.At P).length = n := by
-    simp [sparseResidual, sparseScaledResidual, length_sparseMul, length_of_isSparseShape hAt,
-      length_of_isSparseShape hPc.1.1.1]
-  have hsymm : (ofSparse n n (sparseResidual A c.At P))ᵀ =
-      ofSparse n n (sparseResidual A c.At P) := by
-    rw [hR, transpose_neg, transpose_add, transpose_mul, transpose_mul, transpose_transpose,
-      ← hPs, add_comm]
-  have := c.Q.posDef_of_factorsWith hlen hsymm hQ hd
-  rwa [hR, Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
-    Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map] at this
+  simp only [EnvLDLCert.checkPosDef, EnvLDLCert.factors, Bool.and_eq_true] at hP
+  exact c.Q.posDef_of_factorsSparseResidual (length_of_isSparseShape hA)
+    (length_of_isSparseShape hAt) (length_of_isSparseShape hP.1.1.1) hT
+    (ofSparse_eq_transpose_of_isTransposeOf (m := n) (n := n) hP.1.1.2).symm hQ hd
 
 end SparseLyapunovCert
 
@@ -1259,33 +1296,11 @@ theorem sound_of_check {c : SparseInstabilityCert} {n : ℕ} {A P : List (List (
   simp only [check, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨hA, hP⟩, hAt⟩, hPs⟩, hx⟩, hq⟩, hT⟩, hQ⟩, hd⟩ := h
   have hAl := length_of_isSparseShape hA
-  have hPl := length_of_isSparseShape hP
-  have hSl : (sparseShift c.rate A).length = n := (length_sparseShift _ _).trans hAl
-  have hshift : (ofSparse n n (sparseShift c.rate A)).map ((↑) : ℚ → ℝ) =
-      (ofSparse n n A).map ((↑) : ℚ → ℝ) - (c.rate : ℝ) • 1 := by
-    rw [ofSparse_sparseShift _ hAl]
-    ext i j
-    rcases eq_or_ne i j with rfl | hij
-    · simp
-    · simp [one_apply_ne hij]
-  refine ⟨?_, ?_⟩
-  · rw [sparseQuadForm_eq P hx] at hq
-    have hlt : ((ofList n c.x₀ ⬝ᵥ ofSparse n n P *ᵥ ofList n c.x₀ : ℚ) : ℝ) < 0 :=
-      Rat.cast_lt_zero.2 hq
-    convert hlt using 1
-    simp only [dotProduct, mulVec, Rat.cast_sum, Rat.cast_mul, Matrix.map_apply]
-  · have hPs' := ofSparse_eq_transpose_of_isTransposeOf (m := n) (n := n) hPs
-    have hR := ofSparse_sparseResidual hSl (length_of_isSparseShape hAt) hPl hT
-    have hlen : (sparseResidual (sparseShift c.rate A) c.At P).length = n := by
-      simp [sparseResidual, sparseScaledResidual, length_sparseMul, length_of_isSparseShape hAt,
-        hPl]
-    have hsymm : (ofSparse n n (sparseResidual (sparseShift c.rate A) c.At P))ᵀ =
-        ofSparse n n (sparseResidual (sparseShift c.rate A) c.At P) := by
-      rw [hR, transpose_neg, transpose_add, transpose_mul, transpose_mul, transpose_transpose,
-        ← hPs', add_comm]
-    have := c.Q.posSemidef_of_factorsWith hlen hsymm hQ hd
-    rwa [hR, Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
-      Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map, hshift] at this
+  refine ⟨dotProduct_mulVec_ratCast_neg (by rwa [sparseQuadForm_eq P hx] at hq), ?_⟩
+  rw [← map_ratCast_sub_smul_one, ← ofSparse_sparseShift _ hAl]
+  exact c.Q.posSemidef_of_factorsSparseResidual ((length_sparseShift _ _).trans hAl)
+    (length_of_isSparseShape hAt) (length_of_isSparseShape hP) hT
+    (ofSparse_eq_transpose_of_isTransposeOf (m := n) (n := n) hPs).symm hQ hd
 
 end SparseInstabilityCert
 

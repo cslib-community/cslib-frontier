@@ -70,15 +70,15 @@ A stability certificate for the rows `shiftRows n σ A` of `A - σ • 1` gives 
 (`LyapunovCert.re_lt_of_check_shiftRows`), so the two certificates together bracket the spectral
 abscissa, `ε ≤ α(A) < σ`.
 
-**Converse (not formalized here).** For `ε > 0` the certificate exists iff `α(A) > 0`. If `A` has
-an eigenvalue with `re λ > 0`, choose a rational `ε` with `0 < ε < re λ` that is not the real part
-of any eigenvalue. Then `A - ε • 1` has no eigenvalue on the imaginary axis and at least one in the
-right half-plane, and the Lyapunov inertia theorem (Ostrowski–Schneider, Taussky) gives a
-symmetric `P` with `(A - ε • 1)ᵀ P + P (A - ε • 1) ≺ 0` whose number of negative eigenvalues is
-the number of eigenvalues of `A - ε • 1` with positive real part, so some `x₀ᵀ P x₀ < 0`. Both
-conditions are strict, so a rational perturbation of `P` and a rational `x₀` still satisfy them,
-and the rational residual, being positive definite, has exact `LDLᵀ` factors. Only the soundness
-direction is proved here.
+**Converse (not formalized here, tracked in #8940).** For `ε > 0` the certificate exists iff
+`α(A) > 0`. If `A` has an eigenvalue with `re λ > 0`, choose a rational `ε` with `0 < ε < re λ`
+that is not the real part of any eigenvalue. Then `A - ε • 1` has no eigenvalue on the imaginary
+axis and at least one in the right half-plane, and the main inertia theorem of Ostrowski and
+Schneider gives a symmetric `P` with `(A - ε • 1)ᵀ P + P (A - ε • 1) ≺ 0` whose number of negative
+eigenvalues is the number of eigenvalues of `A - ε • 1` with positive real part, so some
+`x₀ᵀ P x₀ < 0`. Both conditions are strict, so a rational perturbation of `P` and a rational `x₀`
+still satisfy them, and the rational residual, being positive definite, has exact `LDLᵀ` factors.
+Only the soundness direction is proved here.
 
 **The boundary `α(A) = 0` is not decided.** The stability certificate needs `α(A) < 0` and the
 instability certificate with `ε > 0` needs `α(A) ≥ ε > 0`, since both rest on open conditions.
@@ -94,24 +94,16 @@ matrix with `P = -1`, but it never proves an unbounded trajectory.
 * `Cslib.LinearAlgebra.InstabilityCert.exists_mem_spectrum_le_re_of_check`: an accepted
   instability certificate gives an eigenvalue `μ` of `A` with `ε ≤ re μ`.
 * `Cslib.LinearAlgebra.InstabilityCert.sqrt_mul_exp_le_norm_of_check`: the explicit growth bound
-  `‖exp (t • A) *ᵥ x₀‖ ≥ C exp (ε t)`, for a rate of any sign.
+  `‖exp (t • A) *ᵥ x₀‖ ≥ C exp (ε t)`, for a rate of any sign, with `C > 0`
+  (`Cslib.LinearAlgebra.InstabilityCert.sqrt_pos_of_check`).
 * `Cslib.LinearAlgebra.InstabilityCert.lt_dotProduct_self_of_check`: a lower bound on settling.
 * `Cslib.LinearAlgebra.LyapunovCert.re_lt_of_check_shiftRows`: a stability certificate for
   `A - σ • 1` puts the spectrum of `A` in `re μ < σ`.
 * `Cslib.LinearAlgebra.InstabilityCert.not_isLyapunovStable_of_check`,
   `Cslib.LinearAlgebra.InstabilityCert.tendsto_norm_of_check`: with `ε > 0`, instability and an
   unbounded trajectory.
-* `Cslib.LinearAlgebra.InstabilityCert.not_isAsymptoticallyStable_of_check`,
-  `Cslib.LinearAlgebra.InstabilityCert.not_isExponentiallyStable_of_check`: with `ε ≥ 0`, no
-  asymptotic stability.
-
-## References
-
-* A. M. Lyapunov, *The general problem of the stability of motion*, 1892, for the instability
-  theorem.
-* A. Ostrowski and H. Schneider, *Some theorems on the inertia of general matrices*, J. Math.
-  Anal. Appl. 4 (1962), and O. Taussky, *A generalization of a theorem of Lyapunov*, J. SIAM 9
-  (1961), for the inertia theorem cited in the converse.
+* `Cslib.LinearAlgebra.InstabilityCert.not_isAsymptoticallyStable_of_check`: with `ε ≥ 0`, no
+  asymptotic (hence no exponential) stability.
 -/
 
 public section
@@ -139,13 +131,8 @@ theorem re_lt_of_check_shiftRows {σ : ℚ} (h : c.check n (shiftRows n σ A) P 
     ∀ μ ∈ spectrum ℂ (((ofLists n n A).map ((↑) : ℚ → ℝ)).map (algebraMap ℝ ℂ)),
       μ.re < σ := by
   have hS := isHurwitz_of_isExponentiallyStable (isExponentiallyStable_of_check h)
-  rw [ofLists_shiftRows] at hS
-  refine IsHurwitz.re_lt_of_sub (σ := σ) ?_
-  convert hS using 1
-  ext i j
-  rcases eq_or_ne i j with rfl | hij
-  · simp
-  · simp [one_apply_ne hij]
+  rw [ofLists_shiftRows, map_ratCast_sub_smul_one] at hS
+  exact IsHurwitz.re_lt_of_sub hS
 
 end Cslib.LinearAlgebra.LyapunovCert
 
@@ -165,7 +152,7 @@ theorem exists_mem_spectrum_le_re_of_check (h : c.check n A P = true) :
 /-- **Exponential growth.** If the kernel accepts `c` for `A` and `P`, then the solution
 `exp (t • A) *ᵥ x₀` of `ẋ = A x` from the certified `x₀` satisfies
 `‖x t‖ ≥ √(-(x₀ᵀ P x₀) / ‖P‖) exp (ε t)` in the Euclidean norm for `t ≥ 0`, with `ε = c.rate`
-and the `ℓ²` operator norm `‖P‖`. The constant is positive. -/
+and the `ℓ²` operator norm `‖P‖`. The constant is positive (`sqrt_pos_of_check`). -/
 theorem sqrt_mul_exp_le_norm_of_check (h : c.check n A P = true) {t : ℝ} (ht : 0 ≤ t) :
     Real.sqrt (-((fun i => ((ofList n c.x₀ i : ℚ) : ℝ)) ⬝ᵥ (ofLists n n P).map ((↑) : ℚ → ℝ) *ᵥ
         (fun i => ((ofList n c.x₀ i : ℚ) : ℝ))) /
@@ -175,6 +162,15 @@ theorem sqrt_mul_exp_le_norm_of_check (h : c.check n A P = true) {t : ℝ} (ht :
         (fun i => ((ofList n c.x₀ i : ℚ) : ℝ)))‖ :=
   have ⟨_, hQ⟩ := sound_of_check h
   sqrt_mul_exp_le_norm_exp_smul_mulVec hQ _ ht
+
+/-- **The growth constant is positive.** If the kernel accepts `c` for `A` and `P`, then the
+constant `√(-(x₀ᵀ P x₀) / ‖P‖)` of `sqrt_mul_exp_le_norm_of_check` is positive, so the growth
+bound is not trivial. -/
+theorem sqrt_pos_of_check (h : c.check n A P = true) :
+    0 < Real.sqrt (-((fun i => ((ofList n c.x₀ i : ℚ) : ℝ)) ⬝ᵥ (ofLists n n P).map ((↑) : ℚ → ℝ) *ᵥ
+        (fun i => ((ofList n c.x₀ i : ℚ) : ℝ))) /
+        ‖toEuclideanCLM (𝕜 := ℝ) ((ofLists n n P).map ((↑) : ℚ → ℝ))‖) :=
+  sqrt_div_norm_pos_of_dotProduct_neg (sound_of_check h).1
 
 /-- **The state has not settled.** If the kernel accepts `c` for `A` and `P`, then the solution
 `x t = exp (t • A) *ᵥ x₀` from the certified `x₀` satisfies `r < x t ⬝ᵥ x t` at every `t ≥ 0`
@@ -199,12 +195,6 @@ theorem not_isAsymptoticallyStable_of_check (h : c.check n A P = true) (hε : 0 
     ¬(toEuclideanCLM (𝕜 := ℝ) ((ofLists n n A).map ((↑) : ℚ → ℝ))).IsAsymptoticallyStable :=
   have ⟨hx, hQ⟩ := sound_of_check h
   not_isAsymptoticallyStable_toEuclideanCLM_of_posSemidef (Rat.cast_nonneg.2 hε) hQ hx
-
-/-- **No exponential stability.** If the kernel accepts `c` for `A` and `P` with a nonnegative
-rate, then `ẋ = A x` is not exponentially stable. -/
-theorem not_isExponentiallyStable_of_check (h : c.check n A P = true) (hε : 0 ≤ c.rate) :
-    ¬(toEuclideanCLM (𝕜 := ℝ) ((ofLists n n A).map ((↑) : ℚ → ℝ))).IsExponentiallyStable :=
-  fun hA => not_isAsymptoticallyStable_of_check h hε hA.isAsymptoticallyStable
 
 /-- **Instability.** If the kernel accepts `c` for `A` and `P` with a positive rate, then
 `ẋ = A x` is not Lyapunov stable. -/

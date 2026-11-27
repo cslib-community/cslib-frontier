@@ -15,11 +15,11 @@ public import CslibFrontier.Foundations.Analysis.ODE.Hurwitz
 
 This module composes the sparse checker `Cslib.LinearAlgebra.SparseLyapunovCert.check` with the
 quadratic Lyapunov criterion `Matrix.isExponentiallyStable_toEuclideanCLM_of_posDef`, as the
-dense client of #8552 does for `Cslib.LinearAlgebra.LyapunovCert`. For rational `n × n`
-matrices `A` and `P` given by sparse rows (`Cslib.LinearAlgebra.ofSparse`), an accepted
-certificate proves that `ẋ = A x`, with `A` read over `ℝ`, is exponentially stable in the
-Euclidean norm. Acceptance is a Boolean computation that the kernel evaluates
-(`decide +kernel`).
+dense client `CslibFrontier.Algorithms.LinearAlgebra.LyapunovCertificate` does for
+`Cslib.LinearAlgebra.LyapunovCert`. For rational `n × n` matrices `A` and `P` given by sparse
+rows (`Cslib.LinearAlgebra.ofSparse`), an accepted certificate proves that `ẋ = A x`, with `A`
+read over `ℝ`, is exponentially stable in the Euclidean norm. Acceptance is a Boolean computation
+that the kernel evaluates (`decide +kernel`).
 
 The checker is sound, not complete: rejection says nothing about `A`. Instability has its own
 certificate, `Cslib.LinearAlgebra.SparseInstabilityCert`, the sparse form of the dense
@@ -32,6 +32,7 @@ certificate, `Cslib.LinearAlgebra.SparseInstabilityCert`, the sparse form of the
   exponential stability of `ẋ = A x` on `EuclideanSpace ℝ (Fin n)`.
 * `Cslib.LinearAlgebra.SparseInstabilityCert.exists_mem_spectrum_le_re_of_check`,
   `Cslib.LinearAlgebra.SparseInstabilityCert.sqrt_mul_exp_le_norm_of_check`,
+  `Cslib.LinearAlgebra.SparseInstabilityCert.sqrt_pos_of_check`,
   `Cslib.LinearAlgebra.SparseInstabilityCert.not_isAsymptoticallyStable_of_check`,
   `Cslib.LinearAlgebra.SparseInstabilityCert.not_isLyapunovStable_of_check`,
   `Cslib.LinearAlgebra.SparseInstabilityCert.tendsto_norm_of_check`: an eigenvalue with
@@ -70,7 +71,8 @@ theorem exists_mem_spectrum_le_re_of_check (h : c.check n A P = true) :
 
 /-- **Exponential growth.** If the kernel accepts `c` for `A` and `P`, then the solution
 `exp (t • A) *ᵥ x₀` from the certified `x₀` satisfies `‖x t‖ ≥ √(-(x₀ᵀ P x₀) / ‖P‖) exp (ε t)`
-in the Euclidean norm for `t ≥ 0`, with `ε = c.rate` of any sign. -/
+in the Euclidean norm for `t ≥ 0`, with `ε = c.rate` of any sign. The constant is positive
+(`sqrt_pos_of_check`). -/
 theorem sqrt_mul_exp_le_norm_of_check (h : c.check n A P = true) {t : ℝ} (ht : 0 ≤ t) :
     Real.sqrt (-((fun i => ((ofList n c.x₀ i : ℚ) : ℝ)) ⬝ᵥ (ofSparse n n P).map ((↑) : ℚ → ℝ) *ᵥ
         (fun i => ((ofList n c.x₀ i : ℚ) : ℝ))) /
@@ -80,6 +82,14 @@ theorem sqrt_mul_exp_le_norm_of_check (h : c.check n A P = true) {t : ℝ} (ht :
         (fun i => ((ofList n c.x₀ i : ℚ) : ℝ)))‖ :=
   have ⟨_, hQ⟩ := sound_of_check h
   sqrt_mul_exp_le_norm_exp_smul_mulVec hQ _ ht
+
+/-- **The growth constant is positive.** If the kernel accepts `c` for `A` and `P`, then the
+constant `√(-(x₀ᵀ P x₀) / ‖P‖)` of `sqrt_mul_exp_le_norm_of_check` is positive. -/
+theorem sqrt_pos_of_check (h : c.check n A P = true) :
+    0 < Real.sqrt (-((fun i => ((ofList n c.x₀ i : ℚ) : ℝ)) ⬝ᵥ (ofSparse n n P).map ((↑) : ℚ → ℝ) *ᵥ
+        (fun i => ((ofList n c.x₀ i : ℚ) : ℝ))) /
+        ‖toEuclideanCLM (𝕜 := ℝ) ((ofSparse n n P).map ((↑) : ℚ → ℝ))‖) :=
+  sqrt_div_norm_pos_of_dotProduct_neg (sound_of_check h).1
 
 /-- **No asymptotic stability.** If the kernel accepts `c` for `A` and `P` with a nonnegative
 rate, then `ẋ = A x` is not asymptotically stable. -/

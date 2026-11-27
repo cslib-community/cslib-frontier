@@ -17,10 +17,11 @@ import Mathlib.FieldTheory.IsAlgClosed.Spectrum
 * A negative-resistance oscillator `A = !![0, 1; -1, 1/2]`, with eigenvalues `1/4 ± i √15/4`. The
   certificate has rate `ε = 1/8`, the negative definite `P = !![-67, 16; 16, -63]` and residual
   `-((A - ε • 1)ᵀ P + P (A - ε • 1)) = (61/4) • 1`. Acceptance (`decide +kernel`) gives
-  instability, an unbounded trajectory, the growth bound and an eigenvalue with `re μ ≥ 1/8`.
+  instability, an unbounded trajectory, the growth bound `‖x t‖ ≥ C exp (t / 8)` with `C > 0`
+  and an eigenvalue with `re μ ≥ 1/8`.
 * A saddle `A = !![0, 1; 1, 0]` (eigenvalues `±1`) with the indefinite `P = !![0, -1; -1, 0]`,
   the sharp rate `ε = 1` and a singular residual witness (`d = (2, 0)`).
-* Corrupted certificates are rejected.
+* Corrupted certificates are rejected, and so is an asymmetric `P`.
 * The oscillator certificate in sparse form (`SparseInstabilityCert`), through the sparse
   residual and envelope checker.
 * Bracketing: the instability certificate at rate `1/8` and a stability certificate for
@@ -72,6 +73,17 @@ example : ∃ μ ∈ spectrum ℂ (((ofLists 2 2 Aosc).map ((↑) : ℚ → ℝ)
     (1/8 : ℝ) ≤ μ.re := by
   simpa [certOsc] using InstabilityCert.exists_mem_spectrum_le_re_of_check certOsc_ok
 
+/-- The growth bound, with a positive constant: the trajectory from `x₀ = (1, 0)` satisfies
+`‖x t‖ ≥ C exp (t / 8)` for some `C > 0` and every `t ≥ 0`. -/
+example : ∃ C > 0, ∀ t : ℝ, 0 ≤ t → C * Real.exp (t / 8) ≤
+    ‖WithLp.toLp 2 (NormedSpace.exp (t • (ofLists 2 2 Aosc).map ((↑) : ℚ → ℝ)) *ᵥ
+      (fun i => ((ofList 2 certOsc.x₀ i : ℚ) : ℝ)))‖ := by
+  refine ⟨_, InstabilityCert.sqrt_pos_of_check certOsc_ok, fun t ht => ?_⟩
+  convert InstabilityCert.sqrt_mul_exp_le_norm_of_check certOsc_ok ht using 3
+  simp only [certOsc]
+  push_cast
+  ring
+
 /-- Rejections: a zero initial state has energy `0`; a wrong residual diagonal; the same
 witness at another rate, whose residual differs. -/
 example : (⟨(1/8 : ℚ), [0, 0], certOsc.Q⟩ : InstabilityCert).check 2 Aosc Posc = false := by
@@ -82,6 +94,9 @@ example : (⟨(1/8 : ℚ), [1, 0], ⟨[[1], [0, 1]], [15, 15]⟩⟩ : Instabilit
 
 example : (⟨(-1/8 : ℚ), [1, 0], certOsc.Q⟩ : InstabilityCert).check 2 Aosc Posc = false := by
   decide +kernel
+
+/-- An asymmetric `P` is rejected, even with the same energy `x₀ᵀ P x₀ = -67`. -/
+example : certOsc.check 2 Aosc [[-67, 17], [16, -63]] = false := by decide +kernel
 
 /-- The stability checker rejects the same matrices, whatever the witnesses. -/
 example : (⟨certOsc.Q, certOsc.Q⟩ : LyapunovCert).check 2 Aosc Posc = false := by decide +kernel
@@ -105,6 +120,20 @@ theorem certOscSp_ok : certOscSp.check 2 AoscSp PoscSp = true := by decide +kern
 
 example : ¬(toEuclideanCLM (𝕜 := ℝ) ((ofSparse 2 2 AoscSp).map ((↑) : ℚ → ℝ))).IsLyapunovStable :=
   SparseInstabilityCert.not_isLyapunovStable_of_check certOscSp_ok (by decide +kernel)
+
+/-- The sparse growth bound, with a positive constant. -/
+example : ∃ C > 0, ∀ t : ℝ, 0 ≤ t → C * Real.exp (t / 8) ≤
+    ‖WithLp.toLp 2 (NormedSpace.exp (t • (ofSparse 2 2 AoscSp).map ((↑) : ℚ → ℝ)) *ᵥ
+      (fun i => ((ofList 2 certOscSp.x₀ i : ℚ) : ℝ)))‖ := by
+  refine ⟨_, SparseInstabilityCert.sqrt_pos_of_check certOscSp_ok, fun t ht => ?_⟩
+  convert SparseInstabilityCert.sqrt_mul_exp_le_norm_of_check certOscSp_ok ht using 3
+  simp only [certOscSp]
+  push_cast
+  ring
+
+/-- An asymmetric sparse `P` is rejected. -/
+example : certOscSp.check 2 AoscSp [[(0, -67), (1, 17)], [(0, 16), (1, -63)]] = false := by
+  decide +kernel
 
 /-- A wrong transpose is rejected. -/
 example : ({ certOscSp with At := [[(0, (-1/8 : ℚ)), (1, 1)], [(0, -1), (1, (3/8 : ℚ))]] } :

@@ -78,14 +78,16 @@ hypothesis is `-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0`. A nonstrict
   `d/dt (xᵀ P x) = xᵀ (Aᵀ P + P A) x` for coordinate trajectories.
 * `Matrix.isExponentiallyStable_toEuclideanCLM_of_posDef`: `P ≻ 0` and `-(Aᵀ P + P A) ≻ 0`
   (`Matrix.PosDef` over `ℝ`) imply exponential stability of `ẋ = A x` in the Euclidean norm.
-* `ContinuousLinearMap.IsTrajectoryOn.sqrt_mul_exp_le_norm`: exponential growth from
-  `A† P + P A ≤ 2 ε P` and negative initial energy.
+* `ContinuousLinearMap.IsTrajectoryOn.sqrt_mul_exp_le_norm`,
+  `ContinuousLinearMap.sqrt_div_norm_pos_of_inner_neg`: the growth bound from
+  `A† P + P A ≤ 2 ε P`, with a positive constant when the initial energy is negative.
 * `ContinuousLinearMap.not_isAsymptoticallyStable_of_inner_neg`,
   `ContinuousLinearMap.not_isLyapunovStable_of_inner_neg`,
   `ContinuousLinearMap.tendsto_norm_exp_smul_apply_atTop`: Lyapunov's instability theorem.
 * `ContinuousLinearMap.isLyapunovStable_of_inner_pos_of_nonpos`: Lyapunov stability from a
   nonstrict Lyapunov inequality.
-* `Matrix.sqrt_mul_exp_le_norm_exp_smul_mulVec`, `Matrix.exp_mul_neg_le_norm_mul_dotProduct_self`,
+* `Matrix.sqrt_mul_exp_le_norm_exp_smul_mulVec`, `Matrix.sqrt_div_norm_pos_of_dotProduct_neg`,
+  `Matrix.exp_mul_neg_le_norm_mul_dotProduct_self`,
   `Matrix.not_isAsymptoticallyStable_toEuclideanCLM_of_posSemidef`,
   `Matrix.not_isLyapunovStable_toEuclideanCLM_of_posSemidef`,
   `Matrix.tendsto_norm_exp_smul_mulVec_atTop`,
@@ -248,6 +250,12 @@ theorem IsTrajectoryOn.norm_sq_le (hx : A.IsTrajectoryOn x (Ici 0)) {m M c : ℝ
         mul_le_mul_of_nonneg_left (hup _) (Real.exp_pos _).le
     _ = M * (Real.exp (-(c / M) * t) * ‖x 0‖ ^ 2) := by ring
 
+omit [CompleteSpace E] in
+private theorem abs_inner_apply_le (y : E) : |⟪y, P y⟫| ≤ ‖P‖ * ‖y‖ ^ 2 :=
+  calc |⟪y, P y⟫| ≤ ‖y‖ * ‖P y‖ := abs_real_inner_le_norm _ _
+    _ ≤ ‖y‖ * (‖P‖ * ‖y‖) := mul_le_mul_of_nonneg_left (P.le_opNorm _) (norm_nonneg _)
+    _ = ‖P‖ * ‖y‖ ^ 2 := by ring
+
 /-- **Quadratic Lyapunov criterion.** On a finite-dimensional real inner product space, if
 `⟪y, P y⟫ > 0` and `⟪y, (A† P + P A) y⟫ < 0` for every `y ≠ 0`, then `ẋ = A x` is exponentially
 stable. The coercivity constants come from `exists_pos_mul_norm_sq_le_inner_apply`, the upper
@@ -261,9 +269,8 @@ theorem isExponentiallyStable_of_inner_pos [FiniteDimensional ℝ E]
   set M := ‖P‖ + 1
   have hM : 0 < M := by positivity
   have hup : ∀ y, ⟪y, P y⟫ ≤ M * ‖y‖ ^ 2 := fun y =>
-    calc ⟪y, P y⟫ ≤ ‖y‖ * ‖P y‖ := real_inner_le_norm _ _
-      _ ≤ ‖y‖ * (‖P‖ * ‖y‖) := mul_le_mul_of_nonneg_left (P.le_opNorm y) (norm_nonneg _)
-      _ ≤ M * ‖y‖ ^ 2 := by nlinarith [norm_nonneg y]
+    (le_abs_self _).trans <| (abs_inner_apply_le y).trans <|
+      mul_le_mul_of_nonneg_right (le_add_of_nonneg_right zero_le_one) (by positivity)
   refine ⟨Real.sqrt (M / m), c / (2 * M), by positivity, fun x hx t ht => ?_⟩
   have h := hx.norm_sq_le hm hc.le hlow hup
     (fun y => by simpa only [neg_apply, inner_neg_right] using hcQ y) ht
@@ -332,11 +339,11 @@ private theorem norm_pos_of_inner_neg {y : E} (hy : ⟪y, P y⟫ < 0) : 0 < ‖P
   norm_pos_iff.2 fun h => by simp [h] at hy
 
 omit [CompleteSpace E] in
-private theorem neg_inner_le_norm_mul_sq (y : E) : -⟪y, P y⟫ ≤ ‖P‖ * ‖y‖ ^ 2 :=
-  calc -⟪y, P y⟫ ≤ |⟪y, P y⟫| := neg_le_abs _
-    _ ≤ ‖y‖ * ‖P y‖ := abs_real_inner_le_norm _ _
-    _ ≤ ‖y‖ * (‖P‖ * ‖y‖) := mul_le_mul_of_nonneg_left (P.le_opNorm _) (norm_nonneg _)
-    _ = ‖P‖ * ‖y‖ ^ 2 := by ring
+/-- **The growth constant is positive.** If `⟪y, P y⟫ < 0`, then `√(-⟪y, P y⟫ / ‖P‖) > 0`: the
+constant of `IsTrajectoryOn.sqrt_mul_exp_le_norm` for a trajectory starting at `y`. -/
+theorem sqrt_div_norm_pos_of_inner_neg {y : E} (hy : ⟪y, P y⟫ < 0) :
+    0 < Real.sqrt (-⟪y, P y⟫ / ‖P‖) :=
+  Real.sqrt_pos.2 (div_pos (neg_pos.2 hy) (norm_pos_of_inner_neg hy))
 
 /-- **Energy growth along trajectories.** If `A† P + P A ≤ 2 ε P` as quadratic forms, then every
 trajectory of `ẋ = A x` on `[0, ∞)` satisfies
@@ -346,11 +353,13 @@ theorem IsTrajectoryOn.exp_mul_neg_inner_le (hx : A.IsTrajectoryOn x (Ici 0)) {�
     (hK : ∀ y, ⟪y, (adjoint A * P + P * A) y⟫ ≤ 2 * ε * ⟪y, P y⟫) {t : ℝ} (ht : 0 ≤ t) :
     Real.exp (2 * ε * t) * -⟪x 0, P (x 0)⟫ ≤ ‖P‖ * ‖x t‖ ^ 2 := by
   have h := hx.inner_apply_le_exp_mul hK ht
-  linarith [neg_inner_le_norm_mul_sq (P := P) (x t)]
+  linarith [neg_le_abs ⟪x t, P (x t)⟫, abs_inner_apply_le (P := P) (x t)]
 
-/-- **Exponential growth of the norm.** If `A† P + P A ≤ 2 ε P` as quadratic forms and the
-trajectory starts with negative energy `⟪x 0, P (x 0)⟫ < 0`, then
-`‖x t‖ ≥ C * exp (ε t)` for `t ≥ 0`, with `C = √(-⟪x 0, P (x 0)⟫ / ‖P‖) > 0`. -/
+/-- **Exponential growth of the norm.** If `A† P + P A ≤ 2 ε P` as quadratic forms, then every
+trajectory of `ẋ = A x` on `[0, ∞)` satisfies `‖x t‖ ≥ C * exp (ε t)` for `t ≥ 0`, with
+`C = √(-⟪x 0, P (x 0)⟫ / ‖P‖)`. There is no sign condition: `C > 0` when the trajectory starts
+with negative energy `⟪x 0, P (x 0)⟫ < 0` (`sqrt_div_norm_pos_of_inner_neg`), and `C = 0`
+otherwise. -/
 theorem IsTrajectoryOn.sqrt_mul_exp_le_norm (hx : A.IsTrajectoryOn x (Ici 0)) {ε : ℝ}
     (hK : ∀ y, ⟪y, (adjoint A * P + P * A) y⟫ ≤ 2 * ε * ⟪y, P y⟫) {t : ℝ} (ht : 0 ≤ t) :
     Real.sqrt (-⟪x 0, P (x 0)⟫ / ‖P‖) * Real.exp (ε * t) ≤ ‖x t‖ := by
@@ -426,8 +435,7 @@ theorem tendsto_norm_exp_smul_apply_atTop {ε : ℝ} (hε : 0 < ε)
     (hy₀ : ⟪y₀, P y₀⟫ < 0) : Tendsto (fun t : ℝ => ‖exp (t • A) y₀‖) atTop atTop := by
   have hx := isTrajectoryOn_exp_smul_apply A y₀ (Ici 0)
   have h0 : (fun t : ℝ => exp (t • A) y₀) 0 = y₀ := by simp
-  have hC : 0 < Real.sqrt (-⟪y₀, P y₀⟫ / ‖P‖) :=
-    Real.sqrt_pos.2 (div_pos (neg_pos.2 hy₀) (norm_pos_of_inner_neg hy₀))
+  have hC := sqrt_div_norm_pos_of_inner_neg hy₀
   refine tendsto_atTop_mono' _ ?_ ((Real.tendsto_exp_atTop.comp
     (tendsto_id.const_mul_atTop hε)).const_mul_atTop hC)
   filter_upwards [eventually_ge_atTop 0] with t ht
@@ -444,9 +452,8 @@ theorem isLyapunovStable_of_inner_pos_of_nonpos [FiniteDimensional ℝ E]
   set M := ‖P‖ + 1
   have hM : 0 < M := by positivity
   have hup : ∀ y, ⟪y, P y⟫ ≤ M * ‖y‖ ^ 2 := fun y =>
-    calc ⟪y, P y⟫ ≤ ‖y‖ * ‖P y‖ := real_inner_le_norm _ _
-      _ ≤ ‖y‖ * (‖P‖ * ‖y‖) := mul_le_mul_of_nonneg_left (P.le_opNorm y) (norm_nonneg _)
-      _ ≤ M * ‖y‖ ^ 2 := by nlinarith [norm_nonneg y]
+    (le_abs_self _).trans <| (abs_inner_apply_le y).trans <|
+      mul_le_mul_of_nonneg_right (le_add_of_nonneg_right zero_le_one) (by positivity)
   refine fun ε hε => ⟨ε * Real.sqrt (m / M), by positivity, fun x hx h0 t ht => ?_⟩
   have hV := hx.inner_apply_le_exp_mul (K := 0) (fun y => by simpa using hQ y) ht
   rw [zero_mul, Real.exp_zero, one_mul] at hV
@@ -489,10 +496,21 @@ private theorem exp_smul_toLp (A : Matrix n n ℝ) (t : ℝ) (x₀ : n → ℝ) 
     exp (t • toEuclideanCLM (𝕜 := ℝ) A) (WithLp.toLp 2 x₀) = WithLp.toLp 2 (exp (t • A) *ᵥ x₀) :=
   WithLp.ofLp_injective 2 (by simp)
 
+/-- **The growth constant is positive.** If `x₀ ⬝ᵥ P *ᵥ x₀ < 0`, then
+`√(-(x₀ ⬝ᵥ P *ᵥ x₀) / ‖P‖) > 0` for the `ℓ²` operator norm of `P`: the constant of
+`sqrt_mul_exp_le_norm_exp_smul_mulVec`. -/
+theorem sqrt_div_norm_pos_of_dotProduct_neg {P : Matrix n n ℝ} {x₀ : n → ℝ}
+    (hx₀ : x₀ ⬝ᵥ P *ᵥ x₀ < 0) :
+    0 < Real.sqrt (-(x₀ ⬝ᵥ P *ᵥ x₀) / ‖toEuclideanCLM (𝕜 := ℝ) P‖) := by
+  have h := ContinuousLinearMap.sqrt_div_norm_pos_of_inner_neg (P := toEuclideanCLM (𝕜 := ℝ) P)
+    (y := WithLp.toLp 2 x₀) (by rwa [inner_toEuclideanCLM])
+  rwa [inner_toEuclideanCLM] at h
+
 /-- **Exponential growth from a shifted Lyapunov inequality.** If
-`-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0` and `x₀ ⬝ᵥ P *ᵥ x₀ < 0`, then the solution
+`-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0`, then for every `x₀` the solution
 `exp (t • A) *ᵥ x₀` of `ẋ = A x` satisfies `‖x t‖ ≥ C exp (ε t)` in the Euclidean norm for
-`t ≥ 0`, with `C = √(-(x₀ ⬝ᵥ P *ᵥ x₀) / ‖P‖) > 0` for the `ℓ²` operator norm of `P`. -/
+`t ≥ 0`, with `C = √(-(x₀ ⬝ᵥ P *ᵥ x₀) / ‖P‖)` for the `ℓ²` operator norm of `P`. The constant is
+positive when `x₀ ⬝ᵥ P *ᵥ x₀ < 0` (`sqrt_div_norm_pos_of_dotProduct_neg`) and zero otherwise. -/
 theorem sqrt_mul_exp_le_norm_exp_smul_mulVec {A P : Matrix n n ℝ} {ε : ℝ}
     (hQ : (-((A - ε • 1)ᵀ * P + P * (A - ε • 1))).PosSemidef) (x₀ : n → ℝ) {t : ℝ}
     (ht : 0 ≤ t) :
