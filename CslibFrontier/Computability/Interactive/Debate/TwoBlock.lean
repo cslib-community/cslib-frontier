@@ -453,9 +453,6 @@ private theorem twoBlockClaim_pair (h : bits.length = 2 * m + 2) :
 
 end Claim
 
-private theorem getD_zero_eq_headD (bits : List Bool) : bits.getD 0 false = bits.headD false := by
-  cases bits <;> rfl
-
 /-- The acceptance bound of the attack from any transcript of the right length. -/
 private theorem twoBlockBound_le_evalWith_runFrom {law : List Bool → PMF Bool} (P : Params)
     [NeZero P.grid] (m : ℕ) (k κ₁ κ₀ : Fin (P.grid + 1)) (v a : ℝ≥0∞)
@@ -560,7 +557,7 @@ private theorem twoBlockBound_le_evalWith_runFrom {law : List Bool → PMF Bool}
         twoBlockBound_block2 (bits := false :: bits) (by rw [List.length_cons]; omega)
           (by rw [List.length_cons]; omega)]
       simp only [List.headD_cons, Bool.false_eq_true, ↓reduceIte, List.length_cons, ← h2,
-        Nat.add_sub_cancel_left, List.getD_cons_succ, getD_zero_eq_headD,
+        Nat.add_sub_cancel_left, List.getD_cons_succ, ← List.headD_eq_getD,
         pow_zero, tsub_self, mul_zero, add_zero]
       exact le_rfl
     rw [twoBlockBound_block2 (by omega) hL]
