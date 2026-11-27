@@ -129,22 +129,7 @@ private theorem evalSub_imp {L' : Language} {M : Type*} [L'.Structure M] {m k : 
 private theorem evalSub_all {L' : Language} {M : Type*} [L'.Structure M] {m k : ℕ}
     (ψ : L'.BoundedFormula (Fin m) (k + 1)) (w : Fin (m + k) → M) :
     evalSub ψ.all w ↔ ∀ y : M, evalSub ψ (Fin.snoc w y) := by
-  rw [evalSub, BoundedFormula.realize_all]
-  refine forall_congr' fun y => ?_
-  have hl : (Fin.snoc w y : Fin (m + k + 1) → M) ∘ Fin.castAdd (k + 1) = w ∘ Fin.castAdd k := by
-    funext i
-    have hi : Fin.castAdd (k + 1) i = Fin.castSucc (Fin.castAdd k i) := Fin.ext rfl
-    rw [Function.comp_apply, hi, Fin.snoc_castSucc, Function.comp_apply]
-  have hr : (Fin.snoc w y : Fin (m + k + 1) → M) ∘ Fin.natAdd m =
-      Fin.snoc (w ∘ Fin.natAdd m) y := by
-    funext j
-    refine Fin.lastCases ?_ (fun j₀ => ?_) j
-    · have hj : Fin.natAdd m (Fin.last k) = Fin.last (m + k) := Fin.ext rfl
-      rw [Function.comp_apply, hj, Fin.snoc_last, Fin.snoc_last]
-    · have hj : Fin.natAdd m (Fin.castSucc j₀) = Fin.castSucc (Fin.natAdd m j₀) := Fin.ext rfl
-      rw [Function.comp_apply, hj, Fin.snoc_castSucc, Fin.snoc_castSucc, Function.comp_apply]
-  change _ ↔ ψ.Realize ((Fin.snoc w y) ∘ Fin.castAdd (k + 1)) ((Fin.snoc w y) ∘ Fin.natAdd m)
-  rw [hl, hr]
+  simp only [evalSub, BoundedFormula.realize_all, Fin.snoc_comp_castAdd, Fin.snoc_comp_natAdd]
 
 /-! ### Auxiliary relation variables and clauses per guard subformula -/
 

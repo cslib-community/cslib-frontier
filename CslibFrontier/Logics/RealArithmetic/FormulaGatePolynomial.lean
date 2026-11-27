@@ -47,6 +47,17 @@ theorem aevalAeval_formulaWordGatePolynomial (word : List Bool) (index : ℕ)
   rw [formulaWordGatePolynomial, MvPolynomial.comp_aeval_apply (φ := Polynomial.aevalAeval x y),
     ← Term.eval_toPolynomial, MvPolynomial.aeval_def, algebraMap_int_eq]
 
+private theorem formulaWordGatePolynomial_innerDegree_le (word : List Bool) (index : ℕ)
+    (coordinates : Fin word.length → Polynomial (Polynomial ℤ)) {inner : ℕ}
+    (hinner : ∀ i, (Polynomial.Bivariate.swap (coordinates i)).natDegree ≤ inner) :
+    (Polynomial.Bivariate.swap (formulaWordGatePolynomial word index coordinates)).natDegree ≤
+      formulaWordGateTermBudget word * inner := by
+  change ((Polynomial.Bivariate.swap (R := ℤ)).toAlgHom
+    (MvPolynomial.aeval coordinates (formulaWordGateTerm word index).toPolynomial)).natDegree ≤ _
+  rw [MvPolynomial.comp_aeval_apply]
+  exact (MvPolynomial.natDegree_aeval_le_mul hinner _).trans
+    (Nat.mul_le_mul_right _ (formulaWordGateTerm_toPolynomial_bounds word index).1)
+
 /-- Substitution bounds the degree in each variable by the corresponding coordinate degree
 times the formula's gate-term budget. Swapping the variables exposes the coefficient variable
 as the outer variable. -/
@@ -57,13 +68,9 @@ theorem formulaWordGatePolynomial_degree_bounds (word : List Bool) (index : ℕ)
     let budget := formulaWordGateTermBudget word
     let p := formulaWordGatePolynomial word index coordinates
     p.natDegree ≤ budget * outer ∧ (Polynomial.Bivariate.swap p).natDegree ≤ budget * inner := by
-  have hterm := (formulaWordGateTerm_toPolynomial_bounds word index).1
-  constructor
-  · exact (MvPolynomial.natDegree_aeval_le_mul houter _).trans (Nat.mul_le_mul_right _ hterm)
-  · change ((Polynomial.Bivariate.swap (R := ℤ)).toAlgHom
-      (MvPolynomial.aeval coordinates (formulaWordGateTerm word index).toPolynomial)).natDegree ≤ _
-    rw [MvPolynomial.comp_aeval_apply]
-    exact (MvPolynomial.natDegree_aeval_le_mul hinner _).trans (Nat.mul_le_mul_right _ hterm)
+  exact ⟨(MvPolynomial.natDegree_aeval_le_mul houter _).trans
+    (Nat.mul_le_mul_right _ (formulaWordGateTerm_toPolynomial_bounds word index).1),
+    formulaWordGatePolynomial_innerDegree_le word index coordinates hinner⟩
 
 /-- The formula's gate-term budget bounds the coefficient norm after substitution, uniformly
 over gate indices. Each coordinate must have bivariate coefficient norm at most `M ≥ 1`. -/
@@ -97,10 +104,7 @@ theorem coeff_aeval_kronecker_formulaWordGateTerm (word : List Bool) (index : �
   rw [← MvPolynomial.comp_aeval_apply (φ := specialize)]
   change ((formulaWordGatePolynomial word index coordinates).eval
     (Polynomial.X ^ radix)).coeff (i + radix * j) = _
-  let outerDegree : Fin word.length → ℕ := fun k => (coordinates k).natDegree
-  have houter (k : Fin word.length) : (coordinates k).natDegree ≤ Finset.univ.sup outerDegree :=
-    Finset.le_sup (f := outerDegree) (Finset.mem_univ k)
-  have hdegree := (formulaWordGatePolynomial_degree_bounds word index coordinates houter hinner).2
+  have hdegree := formulaWordGatePolynomial_innerDegree_le word index coordinates hinner
   exact Polynomial.Bivariate.coeff_eval_X_pow _ (hdegree.trans_lt hradix) i j hi
 
 /-- The encoded gate query computes the canonical residue of bivariate specialization

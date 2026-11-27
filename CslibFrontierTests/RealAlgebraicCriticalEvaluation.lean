@@ -12,12 +12,14 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeCoefficient
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
@@ -228,6 +230,18 @@ example : (criticalObjectiveValue 7 2 3 1 [2, 3] inputValue : ZMod 7) = 3 := by
     Fin.sum_univ_succ]
   decide
 
+example : (zeroObjectiveValue 7 2 3 1 [2, 3] inputValue : ZMod 7) = 4 := by
+  rw [zeroObjectiveValue_cast inputPolynomial 3 1 (by decide) [2, 3] inputValue input_correct]
+  norm_num [deformedPolynomial, potentialPolynomial, inputPolynomial, Fin.sum_univ_succ]
+  decide
+
+example : (fun p : ℕ => zeroObjectiveValue p 2 3 1 [2, 3] (fun _ => 0)) ∈
+    CountingFunction 0 encNat encNat := by
+  have hv : (fun _ : ℕ × List ℕ => 0) ∈ CountingFunction 0 (encInstancePoint encNat) encNat :=
+    CountingFunction.of_polyTime (ComputableInPolyTime.const 0)
+  exact zeroObjectiveValue_mem (ComputableInPolyTime.id') (.const 2) (.const 3) (.const 1)
+    (.const [2, 3]) hv
+
 -- One certificate handles all binary moduli and powers, including total default inputs.
 theorem uniform_jacobian_mem :
     (fun w : ℕ × ℕ => criticalJacobianValue w.1 0 w.2 1 [] (fun _ => 0)) ∈
@@ -256,6 +270,29 @@ example : criticalCoordinateCoefficientValue 11 1 1 1 0 2 (fun z => z[0]?.getD 0
       _ = 1 := by
         rw [Polynomial.coeff_natDegree, (Matrix.charpoly_monic A).leadingCoeff, ZMod.val_one]
   exact hleading _
+
+example : (fun q : ℕ × ℕ => zeroObjectiveCoefficientValue 19 1 1 q.1 q.2 (fun _ => 0)) ∈
+    CountingFunction 9 (encPair encNat encNat) encNat := by
+  exact zeroObjectiveCoefficientValue_mem (a := 0) (Decoder.pair Decoder.nat Decoder.nat)
+    (.const 19) (.const 1) (.const 1) (by fun_prop) (by fun_prop)
+    (CountingFunction.of_polyTime (.const 0))
+
+-- With no variables and zero input, the quotient has rank one and the multiplier is zero.
+example : zeroObjectiveCoefficientValue 11 0 1 0 0 (fun _ => 0) = 0 := by
+  let : Fact (Nat.Prime 11) := ⟨by decide⟩
+  rw [zeroObjectiveCoefficientValue_eq 1 (by decide) 0 0 (0 : MvPolynomial (Fin 0) (ZMod 11))
+    (by simp) (by decide) (by decide) (fun _ => 0) (by simp)]
+  simp [deformedPolynomial, potentialPolynomial, Matrix.charpoly_zero]
+
+-- The retained coordinate of a two-variable source is fixed while the coefficient address varies.
+example :
+    let C : Controlled (fun _ : ℕ => (X 1 : MvPolynomial (Fin (1 + 1)) ℤ)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 1) (.const 1)
+    C.relativeCoefficientValue (n := fun _ => 1) (m := fun _ => 1) (fun _ => 19)
+      (fun _ => 1) (fun _ => 1) id (fun _ => [2]) ∈ CountingFunction 9 encNat encNat := by
+  intro C
+  exact C.relativeCoefficientValue_mem Decoder.nat (.const 1) (.const 19) (.const 1)
+    (.const 1) ComputableInPolyTime.id' (.const [2])
 
 -- At u = 1, the equation for F = X is X² + 1 = 0. The value t = 5 is a root mod 13.
 example : (criticalCoordinatePolynomialValue 13 1 1 1 0 5 (fun z => z[0]?.getD 0) :

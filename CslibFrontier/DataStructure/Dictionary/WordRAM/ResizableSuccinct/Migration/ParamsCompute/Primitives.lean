@@ -52,8 +52,7 @@ theorem fits_three_mul_w_add_five {w : ℕ} (h225 : Fits w 225) : Fits w (3 * w 
 theorem fits_add_of_fits_offCompItems {w U N dstMetaBase k : ℕ}
     (hfit_dst : Fits w (dstMetaBase + offCompItems U w N)) (hk : k ≤ 225) :
     Fits w (dstMetaBase + k) :=
-  hfit_dst.of_le (by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega)
+  hfit_dst.of_le (Nat.add_le_add_left (hk.trans (le_offCompItems_225 U w N)) dstMetaBase)
 
 /-- The end of the hash-table region `(dstMetaBase + epochHdrWords) + epochHashSpace U w N` fits
 in `w` bits when `dstMetaBase + offCompItems U w N` fits. -/
