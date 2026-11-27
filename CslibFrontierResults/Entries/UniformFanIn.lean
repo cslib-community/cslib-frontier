@@ -21,6 +21,6 @@ register_result "logspace-uniform-ac-within-next-nc" where
   theorems := [Cslib.Circuits.Boolean.logspaceUniformAC_subset_NC_succ]
   scope := "Every natural exponent and every total Boolean language. Both generators receive \
     the input length in unary and stream the native gate list in topological order, with binary \
-    wire numbers. The source bases allow repeated input references and nullary gates. Section \
-    6.7.1 gives binary simulation of unbounded gates and defines the uniform variants. The Lean \
-    construction proves the generator's logarithmic workspace for the resulting circuit."
+    wire numbers. Lean's native gate lists allow repeated wire references and nullary AND and OR \
+    gates. Section 6.7.1 gives the binary simulation of unbounded gates and defines the uniform \
+    variants. The Lean construction proves logarithmic workspace for the resulting generator."
