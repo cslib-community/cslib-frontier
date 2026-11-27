@@ -13,18 +13,13 @@ public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.KeyOracle
 /-!
 # B-trees under a key function
 
-Transporting a B-tree along a function on its keys, and the fact that the monadic lookup programs
-commute with it: looking up `g k` in the tree with keys `g x` under a comparison `le` is the same
-program as looking up `k` in the original tree under the comparison `fun a b => le (g a) (g b)`.
-This lets a lookup be evaluated under an oracle that compares keys through a key function.
-
-## Main definitions
-
-* `BTree.mapKeys`, `BTree.mapKeysRest`: apply a function to every key, keeping values and shape.
+The monadic lookup programs commute with mapping keys (`BTree.mapKeys`): looking up `g k` in the
+tree with keys `g x` under a comparison `le` is the same program as looking up `k` in the original
+tree under the comparison `fun a b => le (g a) (g b)`. This lets a lookup be evaluated under an
+oracle that compares keys through a key function.
 
 ## Main results
 
-* `BTree.toList_mapKeys`: mapping keys maps the entries.
 * `BTree.lookupM_mapKeys`, `BTree.lookupBinM_mapKeys`: lookup commutes with `mapKeys`.
 * `BTree.eval_lookupQ_keyOracle`, `BTree.eval_lookupBinQ_keyOracle`: the query programs, evaluated
   at the comparison oracle of a key function, are the pure lookups in the tree with mapped keys.
@@ -32,58 +27,9 @@ This lets a lookup be evaluated under an oracle that compares keys through a key
 
 public section
 
-universe u u' v w
+universe w
 
 namespace Cslib.DataStructure.BTree
-
-section MapKeys
-
-variable {α : Type u} {α' : Type u'} {β : Type v}
-
-mutual
-/-- Map over keys, keeping values and shape. -/
-def mapKeys (g : α → α') : BTree α β → BTree α' β
-  | .leaf => .leaf
-  | .node first rest => .node (first.mapKeys g) (mapKeysRest g rest)
-/-- Map over the keys of a list of triples. -/
-def mapKeysRest (g : α → α') : List (Triple α β) → List (Triple α' β)
-  | [] => []
-  | (k, v, c) :: rest => (g k, v, c.mapKeys g) :: mapKeysRest g rest
-end
-
-/-- Mapping keys over the empty tree gives the empty tree. -/
-@[simp] theorem mapKeys_leaf (g : α → α') : (leaf : BTree α β).mapKeys g = leaf := by
-  rw [mapKeys]
-
-/-- Mapping keys over a node maps its first child and its triples. -/
-@[simp] theorem mapKeys_node (g : α → α') (first : BTree α β) (rest : List (Triple α β)) :
-    (node first rest).mapKeys g = node (first.mapKeys g) (mapKeysRest g rest) := by
-  rw [mapKeys]
-
-/-- `mapKeysRest` is `List.map` over the triples. -/
-@[simp] theorem mapKeysRest_eq_map (g : α → α') (rest : List (Triple α β)) :
-    mapKeysRest g rest = rest.map fun e => (g e.1, e.val, e.child.mapKeys g) := by
-  induction rest with
-  | nil => rfl
-  | cons e rest ih => rcases e with ⟨_, _, _⟩; exact congrArg _ ih
-
-/-- Mapping keys maps the entries, keeping values. -/
-@[simp] theorem toList_mapKeys (g : α → α') (tr : BTree α β) :
-    (tr.mapKeys g).toList = tr.toList.map fun x => (g x.1, x.2) := by
-  induction tr with
-  | leaf => rfl
-  | node _ _ ih₁ ih₂ =>
-    simp only [mapKeys_node, toList_node, toListRest_eq_flatMap, mapKeysRest_eq_map,
-      List.map_append, ih₁, List.flatMap_map, List.map_flatMap, List.map_cons]
-    exact congrArg _ (List.flatMap_congr fun e he => congrArg (_ :: ·) (ih₂ e he))
-
-/-- The children of a tree with mapped keys are the mapped children. -/
-private theorem children_mapKeys (g : α → α') (first : BTree α β) (rest : List (Triple α β)) :
-    ((node first rest).mapKeys g).children = (node first rest).children.map (mapKeys g) := by
-  simp only [mapKeys_node, children_node, mapKeysRest_eq_map, List.map_cons, List.map_map]
-  rfl
-
-end MapKeys
 
 variable {α α' β : Type} {m : Type → Type w} [Monad m]
 
@@ -93,13 +39,14 @@ theorem lookupM_mapKeys (le : α' → α' → m Bool) (visit : m Unit) (g : α �
     (k : α) (tr : BTree α β) :
     lookupM le visit (g k) (tr.mapKeys g) = lookupM (fun a b => le (g a) (g b)) visit k tr := by
   fun_induction lookupM (fun a b => le (g a) (g b)) visit k tr with
-  | case1 => simp only [mapKeys]; simp only [lookupM]
+  | case1 => simp only [mapKeys_leaf]; simp only [lookupM]
   | case2 first ih =>
-    simp only [mapKeys, mapKeysRest]
+    simp only [mapKeys_node, mapKeysRest_eq_map, List.map_nil]
     simp only [lookupM]
     exact bind_congr fun _ => by rw [ih]
   | case3 first k' v c rest ih2 ih1 =>
-    simp only [mapKeys, mapKeysRest] at ih1 ⊢
+    simp only [mapKeys_node, mapKeysRest_eq_map, List.map_cons, Triple.val_mk,
+      Triple.child_mk] at ih1 ⊢
     simp only [lookupM]
     refine bind_congr fun b => ?_
     cases b
@@ -117,10 +64,10 @@ private theorem slotBinM_mapKeysRest (le : α' → α' → m Bool) (g : α → �
   induction h : rest.length using Nat.strong_induction_on generalizing rest with
   | _ n ih =>
     rcases rest with _ | ⟨e, l⟩
-    · simp only [mapKeysRest, slotBinM_nil]
+    · simp only [mapKeysRest_eq_map, List.map_nil, slotBinM_nil]
     · have hm : mapKeysRest g (e :: l) =
           (g e.1, e.val, e.child.mapKeys g) :: mapKeysRest g l := by
-        rcases e with ⟨_, _, _⟩; rw [mapKeysRest]
+        simp only [mapKeysRest_eq_map, List.map_cons]
       have hl : (mapKeysRest g l).length = l.length := by
         rw [mapKeysRest_eq_map, List.length_map]
       rw [hm, slotBinM_cons, slotBinM_cons]
@@ -153,7 +100,7 @@ theorem lookupBinM_mapKeys (le : α' → α' → m Bool) (visit : m Unit) (g : �
     lookupBinM le visit (g k) (tr.mapKeys g) =
       lookupBinM (fun a b => le (g a) (g b)) visit k tr := by
   induction tr using induction_children with
-  | leaf => simp only [mapKeys, lookupBinM_leaf]
+  | leaf => simp only [mapKeys_leaf, lookupBinM_leaf]
   | node first rest ih =>
     rw [mapKeys_node, lookupBinM_node, lookupBinM_node, slotBinM_mapKeysRest]
     refine bind_congr fun _ => bind_congr fun i => ?_
