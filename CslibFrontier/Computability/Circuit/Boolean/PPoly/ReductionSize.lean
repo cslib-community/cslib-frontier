@@ -27,6 +27,9 @@ pays for all possible target slices, the guards and their disjunction.
 * `fixedWidth_size_of_reduction` gives the additive gate bound.
 * `variableWidth_size_of_reduction` accounts for the guarded target circuits explicitly.
 * `size_of_fixedWidth_degrees` and `size_of_reductionDegrees` give polynomial-degree bounds.
+* `readPaddedPrefix_append` identifies the data prefix when flags are appended.
+* `reduction_degree_tradeoff` transfers a fixed-degree source exclusion.
+* `outside_PPoly_of_common_circuitReductionDegrees` transfers a family of source exclusions.
 -/
 
 public section
@@ -58,6 +61,12 @@ theorem fixedWidth_size_of_reduction {A B : Language Bool} (m r s : ℕ → ℕ)
 /-- Read the indicated prefix of a padded word whose trailing outputs are length flags. -/
 @[expose] def readPaddedPrefix {m : ℕ} (i : Fin (m + 1)) (z : Fin (m + (m + 1)) → Bool)
     (j : Fin i.val) : Bool := z (Fin.castAdd (m + 1) ⟨j.val, by omega⟩)
+
+/-- Appending length flags leaves each bit of the selected data prefix unchanged. -/
+@[simp] theorem readPaddedPrefix_append {m : ℕ} (i : Fin (m + 1))
+    (u : Fin m → Bool) (v : Fin (m + 1) → Bool) (j : Fin i.val) :
+    readPaddedPrefix i (Fin.append u v) j = u ⟨j.val, by omega⟩ :=
+  Fin.append_left _ _ _
 
 private noncomputable def selectedTest (B : Language Bool) {m : ℕ} (i : Fin (m + 1))
     (z : Fin (m + (m + 1)) → Bool) : Bool :=
@@ -109,7 +118,8 @@ theorem variableWidth_size_of_reduction {A B : Language Bool} (m r s c : ℕ →
     change List.ofFn (readPaddedPrefix i (F n x)) ∈ B ↔
       decide (∃ k : Fin (m n + 1), k ∈ Finset.univ ∧ selectedTest B k (F n x) = true) = true
     rw [decide_eq_true_eq]
-    simp only [Finset.mem_univ, true_and, selectedTest, Bool.and_eq_true, flags,
+    dsimp only [selectedTest]
+    simp only [Finset.mem_univ, true_and, Bool.and_eq_true, flags,
       Language.slice_eq_true_iff]
     exact ⟨fun h => ⟨i, rfl, h⟩, fun ⟨_, e, h⟩ => e ▸ h⟩
   change complexity interpretation (single (A.slice n)) ≤ _
@@ -120,7 +130,7 @@ theorem variableWidth_size_of_reduction {A B : Language Bool} (m r s c : ℕ →
 /-- Size and output-width degrees for the circuit representation used by
 `variableWidth_size_of_reduction`. The two coefficients may depend on the source language.
 The reduction circuit produces both the padded word and its one-hot length flags. -/
-def CircuitReductionDegrees (A B : Language Bool) (a b : ℕ) : Prop :=
+@[expose] def CircuitReductionDegrees (A B : Language Bool) (a b : ℕ) : Prop :=
   ∃ (R M : ℕ) (width : ℕ → ℕ)
     (F : ∀ n, (Fin n → Bool) → Fin (width n + (width n + 1)) → Bool),
     (∀ n, complexity interpretation (F n) ≤ R * (n + 1) ^ a) ∧
