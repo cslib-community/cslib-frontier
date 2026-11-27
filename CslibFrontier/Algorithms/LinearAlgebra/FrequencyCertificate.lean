@@ -579,15 +579,25 @@ private theorem eval_real (cs : List ℚ) (x : ℝ) :
     ((ofCoeffList cs).map (algebraMap ℚ ℝ)).eval x = aeval x (ofCoeffList cs) :=
   eval_map_algebraMap _ _
 
-/-- The common part of the gain checks: `Q (ω²) > 0`. -/
-private theorem gainDen_pos {B : FreqBand} (hlo : 0 ≤ B.lo)
-    (h : rootFreeOn G.gainDen (B.lo * B.lo) B.sqHi = true) {ω : ℝ} (hω : B.Mem ω) :
-    0 < aeval (ω ^ 2) (ofCoeffList G.gainDen) := by
-  have hne := eval_ne_zero_of_rootFreeOn h (FreqBand.sq_mem_bandSet hlo hω)
+/-- The common part of the gain checks: on the band, `Q (ω²) > 0`,
+`‖H (ω * I) i j‖² = N (ω²) / Q (ω²)`, and the checked polynomial `P` is nonnegative at `ω²`. -/
+private theorem band_facts (hc : G.resolventOk = true) {B : FreqBand} (hlo : 0 ≤ B.lo)
+    (hQ : rootFreeOn G.gainDen (B.lo * B.lo) B.sqHi = true) {P : List ℚ}
+    (hP : nonnegOn P (B.lo * B.lo) B.sqHi = true) (i : Fin p) (j : Fin m) {ω : ℝ}
+    (hω : B.Mem ω) :
+    0 < aeval (ω ^ 2) (ofCoeffList G.gainDen) ∧
+      ‖G.toSystem.transferFunction ((ω : ℂ) * I) i j‖ ^ 2 =
+        aeval (ω ^ 2) (ofCoeffList (G.gainNum i j)) / aeval (ω ^ 2) (ofCoeffList G.gainDen) ∧
+      0 ≤ aeval (ω ^ 2) (ofCoeffList P) := by
+  have hne := eval_ne_zero_of_rootFreeOn hQ (FreqBand.sq_mem_bandSet hlo hω)
   rw [eval_real] at hne
-  refine lt_of_le_of_ne ?_ hne.symm
-  rw [gainDen, ← normSq_aeval]
-  exact normSq_nonneg _
+  have hQpos : 0 < aeval (ω ^ 2) (ofCoeffList G.gainDen) := by
+    refine lt_of_le_of_ne ?_ hne.symm
+    rw [gainDen, ← normSq_aeval]
+    exact normSq_nonneg _
+  refine ⟨hQpos, G.sq_norm_transferFunction hc i j ((G.gainDen_ne_zero_iff hc ω).1 hne), ?_⟩
+  rw [← eval_real]
+  exact eval_nonneg_of_nonnegOn hP (FreqBand.sq_mem_bandSet hlo hω)
 
 /-- **Soundness of the upper gain check**: `‖H (ω * I) i j‖² ≤ γ²` on the band. -/
 theorem sq_norm_le_of_gainLe {i : Fin p} {j : Fin m} {B : FreqBand} {γsq : ℚ}
@@ -595,13 +605,11 @@ theorem sq_norm_le_of_gainLe {i : Fin p} {j : Fin m} {B : FreqBand} {γsq : ℚ}
     ‖G.toSystem.transferFunction ((ω : ℂ) * I) i j‖ ^ 2 ≤ γsq := by
   simp only [gainLe, Bool.and_eq_true, decide_eq_true_eq] at h
   obtain ⟨⟨⟨hc, hlo⟩, hQ⟩, hP⟩ := h
-  have hQpos := G.gainDen_pos hlo hQ hω
-  have hP' := eval_nonneg_of_nonnegOn hP (FreqBand.sq_mem_bandSet hlo hω)
-  rw [eval_real, CoeffList.ofCoeffList_sub, CoeffList.ofCoeffList_smul, map_sub, map_mul,
-    aeval_C, eq_ratCast] at hP'
-  rw [G.sq_norm_transferFunction hc i j ((G.gainDen_ne_zero_iff hc ω).1 hQpos.ne'),
-    div_le_iff₀ hQpos]
-  linarith
+  obtain ⟨hQpos, hH, hP'⟩ := G.band_facts hc hlo hQ hP i j hω
+  simp only [CoeffList.ofCoeffList_sub, CoeffList.ofCoeffList_smul, map_sub, map_mul, aeval_C,
+    eq_ratCast, sub_nonneg] at hP'
+  rw [hH, div_le_iff₀ hQpos]
+  exact hP'
 
 /-- **Soundness of the lower gain check**: `γ² ≤ ‖H (ω * I) i j‖²` on the band. -/
 theorem le_sq_norm_of_gainGe {i : Fin p} {j : Fin m} {B : FreqBand} {γsq : ℚ}
@@ -609,13 +617,11 @@ theorem le_sq_norm_of_gainGe {i : Fin p} {j : Fin m} {B : FreqBand} {γsq : ℚ}
     (γsq : ℝ) ≤ ‖G.toSystem.transferFunction ((ω : ℂ) * I) i j‖ ^ 2 := by
   simp only [gainGe, Bool.and_eq_true, decide_eq_true_eq] at h
   obtain ⟨⟨⟨hc, hlo⟩, hQ⟩, hP⟩ := h
-  have hQpos := G.gainDen_pos hlo hQ hω
-  have hP' := eval_nonneg_of_nonnegOn hP (FreqBand.sq_mem_bandSet hlo hω)
-  rw [eval_real, CoeffList.ofCoeffList_sub, CoeffList.ofCoeffList_smul, map_sub, map_mul,
-    aeval_C, eq_ratCast] at hP'
-  rw [G.sq_norm_transferFunction hc i j ((G.gainDen_ne_zero_iff hc ω).1 hQpos.ne'),
-    le_div_iff₀ hQpos]
-  linarith
+  obtain ⟨hQpos, hH, hP'⟩ := G.band_facts hc hlo hQ hP i j hω
+  simp only [CoeffList.ofCoeffList_sub, CoeffList.ofCoeffList_smul, map_sub, map_mul, aeval_C,
+    eq_ratCast, sub_nonneg] at hP'
+  rw [hH, le_div_iff₀ hQpos]
+  exact hP'
 
 /-- **Upper gain bound** `‖H (ω * I) i j‖ ≤ γ` on the band, from `gainLe` with `γ²`. -/
 theorem norm_le_of_gainLe {i : Fin p} {j : Fin m} {B : FreqBand} {γ : ℚ} (hγ : 0 ≤ γ)
