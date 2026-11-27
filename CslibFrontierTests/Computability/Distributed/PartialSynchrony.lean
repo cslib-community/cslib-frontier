@@ -23,13 +23,13 @@ set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.PartialSynchrony
 
-open Cslib.Distributed.PartialSynchrony
+open Cslib.Distributed Cslib.Distributed.PartialSynchrony
 
 /-! ### `Fin 4, t = 1` multi-view Byzantine trace: equivocation, split lock, post-GST decision -/
 
 /-- Round-robin `byzQuorumProtocol` instance on `Fin 4` against `t = 1` Byzantine fault. -/
 def fin4ByzProto : PartialSyncProtocol (Fin 4) Bool (ByzViewState Bool) (ByzViewMsg Bool) :=
-  byzQuorumProtocol (Fin 4) Bool (List.finRange 4) (rotatingLeader (List.finRange 4) 0) 1
+  byzQuorumProtocol (Fin 4) Bool (List.finRange 4) (rotatingCoordinator (List.finRange 4) 0) 1
 
 /-- Initial inputs on `Fin 4`: `0, 1 ↦ false`, `2, 3 ↦ true`. -/
 def fin4Inputs : Fin 4 → Bool
@@ -115,7 +115,7 @@ example :
 /-- Round-robin `omissionQuorumProtocol` instance on `Fin 3` against `t = 1` omission fault. -/
 def fin3OmissionProto :
     PartialSyncProtocol (Fin 3) Bool (OmissionViewState Bool) (OmissionViewMsg Bool) :=
-  omissionQuorumProtocol (Fin 3) Bool (List.finRange 3) (rotatingLeader (List.finRange 3) 0) 1
+  omissionQuorumProtocol (Fin 3) Bool (List.finRange 3) (rotatingCoordinator (List.finRange 3) 0) 1
 
 /-- Schedule on `Fin 3` where crashed process `0` omits all messages in view `0` (`leader 0 = 0`),
 and `GST = 3` (view `1`, `leader 1 = 1`) delivers among correct `{1, 2}`. -/
@@ -136,11 +136,11 @@ example : fin4ByzProto.SolvesByzantinePartialSync 1 :=
 -- Works over infinite `[DecidableEq V]` value domains such as `ℕ` on `Fin 4` (`t = 1`) and
 -- `Fin 7` (`t = 2`).
 example : (byzQuorumProtocol (Fin 4) ℕ (List.finRange 4)
-    (rotatingLeader (List.finRange 4) 0) 1).SolvesByzantinePartialSync 1 :=
+    (rotatingCoordinator (List.finRange 4) 0) 1).SolvesByzantinePartialSync 1 :=
   solvesByzantinePartialSync_byzQuorumProtocol (List.mem_finRange) 0 (by decide)
 
 example : (byzQuorumProtocol (Fin 7) ℕ (List.finRange 7)
-    (rotatingLeader (List.finRange 7) 0) 2).SolvesByzantinePartialSync 2 :=
+    (rotatingCoordinator (List.finRange 7) 0) 2).SolvesByzantinePartialSync 2 :=
   solvesByzantinePartialSync_byzQuorumProtocol (List.mem_finRange) 0 (by decide)
 
 -- `fin3OmissionProto` solves crash/omission partial-synchrony consensus on `Fin 3` (`t = 1`),

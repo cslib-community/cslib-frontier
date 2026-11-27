@@ -93,8 +93,8 @@ theorem width_le (security : ℕ) : width security ≤ 16 * (security + 1) := by
 /-- The ciphertext dimension has a uniform quadratic majorant. -/
 theorem rows_le (security : ℕ) : rows security ≤ 32 * (security + 1) ^ 2 := by
   calc
-    rows security ≤ (security + 2) * (16 * (security + 1)) := by
-      exact Nat.mul_le_mul_left _ (width_le security)
+    rows security ≤ (security + 2) * (16 * (security + 1)) :=
+      Nat.mul_le_mul_left _ (width_le security)
     _ ≤ 32 * (security + 1) ^ 2 := by nlinarith
 
 /-- The number of public samples has a uniform quadratic majorant. -/
@@ -105,37 +105,37 @@ theorem samples_le (security : ℕ) : samples security ≤ 34 * (security + 1) ^
 
 /-- The modulus dominates the eighth power of the positive parameter. -/
 theorem modulus_ge (security : ℕ) : 65536 * (security + 1) ^ 8 ≤ modulus security := by
-  have h := Nat.pow_le_pow_left (Nat.le_pow_clog Nat.one_lt_two (security + 1)) 8
-  calc
-    _ ≤ 65536 * (2 ^ Nat.clog 2 (security + 1)) ^ 8 := Nat.mul_le_mul_left _ h
+  calc 65536 * (security + 1) ^ 8
+      ≤ 65536 * (2 ^ Nat.clog 2 (security + 1)) ^ 8 :=
+        Nat.mul_le_mul_left _
+          (Nat.pow_le_pow_left (Nat.le_pow_clog Nat.one_lt_two (security + 1)) 8)
     _ = modulus security := by simp [modulus, width, pow_add, pow_mul, Nat.mul_comm]
 
 /-- The modulus also has an explicit polynomial upper bound. -/
 theorem modulus_le (security : ℕ) : modulus security ≤ 16777216 * (security + 1) ^ 8 := by
-  have h := Nat.pow_le_pow_left
-    (Nat.pow_clog_le_mul Nat.one_lt_two (by omega : security + 1 ≠ 0)) 8
-  calc
-    modulus security = 65536 * (2 ^ Nat.clog 2 (security + 1)) ^ 8 := by
-      simp [modulus, width, pow_add, pow_mul, Nat.mul_comm]
-    _ ≤ 65536 * (2 * (security + 1)) ^ 8 := Nat.mul_le_mul_left _ h
+  calc modulus security = 65536 * (2 ^ Nat.clog 2 (security + 1)) ^ 8 := by
+        simp [modulus, width, pow_add, pow_mul, Nat.mul_comm]
+    _ ≤ 65536 * (2 * (security + 1)) ^ 8 := Nat.mul_le_mul_left _
+        (Nat.pow_le_pow_left (Nat.pow_clog_le_mul Nat.one_lt_two (Nat.succ_ne_zero _)) 8)
     _ = _ := by ring
 
 /-- NAND of two fresh ciphertexts lies strictly inside the decoder's noise margin. -/
 theorem nand_margin (security : ℕ) :
     4 * (1 + rows security) * samples security * noise security < modulus security := by
-  have hk : 1 ≤ (security + 1) ^ 2 := by
-    have : 0 < (security + 1) ^ 2 := by positivity
-    omega
   have hrows : 1 + rows security ≤ 33 * (security + 1) ^ 2 := by
+    have : 0 < (security + 1) ^ 2 := by positivity
     have := rows_le security
     omega
   have hbound : 4 * (1 + rows security) * samples security * noise security ≤
-      4488 * (security + 1) ^ 5 := by
-    calc
-      _ ≤ 4 * (33 * (security + 1) ^ 2) * (34 * (security + 1) ^ 2) * (security + 1) :=
-        Nat.mul_le_mul_right _ (Nat.mul_le_mul (Nat.mul_le_mul_left _ hrows) (samples_le security))
-      _ = _ := by ring
-  have hpow : (security + 1) ^ 5 ≤ (security + 1) ^ 8 := Nat.pow_le_pow_right (by omega) (by decide)
+      4488 * (security + 1) ^ 5 :=
+    calc _ ≤ 4 * (33 * (security + 1) ^ 2) * (34 * (security + 1) ^ 2) * noise security :=
+          Nat.mul_le_mul_right _
+            (Nat.mul_le_mul (Nat.mul_le_mul_left _ hrows) (samples_le security))
+      _ = _ := by
+          unfold noise
+          ring
+  have hpow : (security + 1) ^ 5 ≤ (security + 1) ^ 8 :=
+    Nat.pow_le_pow_right (Nat.succ_pos _) (by decide)
   have hpos : 0 < (security + 1) ^ 5 := by positivity
   exact hbound.trans_lt ((by nlinarith : 4488 * (security + 1) ^ 5 <
     65536 * (security + 1) ^ 8).trans_le (modulus_ge security))
@@ -149,15 +149,13 @@ theorem fresh_margin (security : ℕ) : 4 * samples security * noise security < 
 @[fun_prop]
 theorem computableInPolyTime_dimension :
     ComputableInPolyTime dimension encUnary encUnary := by
-  unfold dimension
-  fun_prop
+  fun_prop [dimension]
 
 /-- The positive noise width is uniformly computable on unary parameters. -/
 @[fun_prop]
 theorem computableInPolyTime_noise :
     ComputableInPolyTime noise encUnary encUnary := by
-  unfold noise
-  fun_prop
+  fun_prop [noise]
 
 /-- The logarithmic digit width is uniformly computable on unary parameters. -/
 @[fun_prop]
@@ -169,15 +167,13 @@ theorem computableInPolyTime_width :
 @[fun_prop]
 theorem computableInPolyTime_rows :
     ComputableInPolyTime rows encUnary encUnary := by
-  unfold rows
-  fun_prop
+  fun_prop [rows]
 
 /-- The public sample count is uniformly computable on unary parameters. -/
 @[fun_prop]
 theorem computableInPolyTime_samples :
     ComputableInPolyTime samples encUnary encUnary := by
-  unfold samples
-  fun_prop
+  fun_prop [samples]
 
 /-- Even the modulus itself has a uniform unary native certificate. This uses bounded powers
 of a ceiling logarithm, rather than treating arbitrary unary exponentiation as efficient. -/
@@ -186,10 +182,9 @@ theorem computableInPolyTime_modulus :
     ComputableInPolyTime modulus encUnary encUnary := by
   have := ComputableInPolyTime.unary_pow_clog_const (input := encUnary)
     (size := fun security => security + 1) (by fun_prop) 256 2
-  have hmodulus : modulus = fun security => 65536 * 256 ^ Nat.clog 2 (security + 1) := by
-    funext security
-    norm_num [modulus, width, pow_add, pow_mul]
-  rw [hmodulus]
+  have hmod : modulus = fun security => 65536 * 256 ^ Nat.clog 2 (security + 1) :=
+    funext fun _ => by norm_num [modulus, width, pow_add, pow_mul]
+  rw [hmod]
   fun_prop
 
 /-- Every numerical parameter, including the modulus, is polynomially bounded. -/

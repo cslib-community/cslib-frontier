@@ -83,6 +83,7 @@ scoped macro_rules
   | `(ram_exact_stmt% $d:ident ← *$a:ident) => `(Cslib.WordRAM.Code.op (.load $d $a))
   | `(ram_exact_stmt% *$a:ident ← $s:ident) => `(Cslib.WordRAM.Code.op (.store $a $s))
   | `(ram_exact_stmt% $d:ident ← width%) => `(Cslib.WordRAM.Code.op (.exactWidth $d))
+  | `(ram_exact_stmt% $d:ident ← rand $s:ident) => `(Cslib.WordRAM.Code.rand $d $s)
   | `(ram_exact_stmt% if $i:ident = $j:ident then $p:wramBlock else $n:wramBlock) =>
     `(Cslib.WordRAM.Code.branch (.eq $i $j) (ram_exact_block% $p) (ram_exact_block% $n))
   | `(ram_exact_stmt% if $i:ident < $j:ident then $p:wramBlock else $n:wramBlock) =>

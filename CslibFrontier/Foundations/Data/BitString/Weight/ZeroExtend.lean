@@ -24,20 +24,15 @@ namespace Cslib.BitString
 theorem weight_zeroExtend {n m : ℕ} (h : n ≤ m) (x : BitString n) :
     weight (zeroExtend (d' := m) x) = weight x := by
   rw [weight, weight]
-  have hlt (i : Fin m) (hi : i ∈ Finset.univ.filter (fun j => zeroExtend x j = true)) :
+  have hlt (i : Fin m) (hi : i ∈ Finset.univ.filter fun j => zeroExtend x j = true) :
       i.val < n := by
-    have ht := (Finset.mem_filter.mp hi).2
     by_contra hn
-    simp [zeroExtend, hn] at ht
-  refine Finset.card_bij (fun i hi => (⟨i.val, hlt i hi⟩ : Fin n)) ?_ ?_ ?_
-  · intro i hi
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
-      simpa only [zeroExtend, dite_eq_left (hlt i hi)] using (Finset.mem_filter.mp hi).2⟩
-  · intro i hi j hj hij
-    exact Fin.ext (congrArg (fun a : Fin n => a.val) hij)
-  · intro i hi
-    refine ⟨⟨i.val, i.isLt.trans_le h⟩, ?_, rfl⟩
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
-      simpa [zeroExtend, i.isLt] using (Finset.mem_filter.mp hi).2⟩
+    simpa [zeroExtend, hn] using (Finset.mem_filter.mp hi).2
+  refine Finset.card_bij (fun i hi => (⟨i.val, hlt i hi⟩ : Fin n))
+    (fun i hi => Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
+      simpa only [zeroExtend, dite_eq_left (hlt i hi)] using (Finset.mem_filter.mp hi).2⟩)
+    (fun _ _ _ _ hij => Fin.ext (Fin.mk.inj hij)) fun i hi =>
+    ⟨⟨i.val, i.isLt.trans_le h⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
+      simpa [zeroExtend, i.isLt] using (Finset.mem_filter.mp hi).2⟩, rfl⟩
 
 end Cslib.BitString

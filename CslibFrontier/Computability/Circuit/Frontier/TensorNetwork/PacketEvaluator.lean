@@ -81,9 +81,7 @@ time `exp(O(L log s))` and polynomial space are separate.
 namespace Cslib.Circuits.Frontier
 
 open Finset
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped TensorNetwork
 
 /-- An odd natural number is a unit of a ring in which `2` is nilpotent. -/
 private theorem isUnit_natCast_of_odd {S : Type*} [CommRing S] {n : ℕ} (hn : (2 : S) ^ n = 0)
@@ -120,9 +118,7 @@ noncomputable def scalarHom (p : ℕ) (fl : List ℕ) : ℤ₍₂₎ →+* Ring 
 
 /-- `2 ^ p = 0` in `A_p`. -/
 theorem two_pow_eq_zero : (2 : Ring p fl) ^ p = 0 := by
-  have h := natCast_two_pow (p := p) (fl := fl)
-  push_cast at h
-  exact h
+  exact_mod_cast natCast_two_pow (p := p) (fl := fl)
 
 /-- With no coordinates, `A_p` is the zero ring. -/
 theorem subsingleton_of_length_eq_zero (h : fl.length = 0) : Subsingleton (Ring p fl) := by
@@ -130,9 +126,8 @@ theorem subsingleton_of_length_eq_zero (h : fl.length = 0) : Subsingleton (Ring 
   have hf : f = 1 := by
     simp only [f, List.length_eq_zero_iff.mp h, monicOf, List.length_nil, pow_zero, range_zero,
       sum_empty, add_zero, Polynomial.map_one]
-  have h1 : AdjoinRoot.mk f f = AdjoinRoot.mk f 1 := congrArg _ hf
-  rw [AdjoinRoot.mk_self, map_one] at h1
-  exact subsingleton_of_zero_eq_one h1
+  exact subsingleton_of_zero_eq_one <| by
+    simpa only [AdjoinRoot.mk_self, map_one] using congrArg (AdjoinRoot.mk f) hf
 
 /-- The value of a tabulated list. -/
 theorem val_tabulate (g : ℕ → ℕ) :
@@ -153,13 +148,11 @@ def intConst (p : ℕ) (fl : List ℕ) (n : ℤ) : List ℕ :=
     exact Subsingleton.elim _ _
   rw [intConst, val_tabulate, sum_eq_single 0 (fun j _ hj => by simp [hj])
     (fun h0 => absurd (mem_range.mpr h) h0)]
-  have hnn : 0 ≤ n % 2 ^ p := Int.emod_nonneg _ (pow_ne_zero _ two_ne_zero)
-  have h2 : ((2 ^ p : ℤ) : Ring p fl) = 0 := by
-    rw [Int.cast_pow, Int.cast_ofNat]; exact two_pow_eq_zero
+  have h2 : ((2 ^ p : ℤ) : Ring p fl) = 0 := by exact_mod_cast two_pow_eq_zero (p := p) (fl := fl)
+  have hcast : (((n % 2 ^ p).toNat : ℕ) : Ring p fl) = ((n % 2 ^ p : ℤ) : Ring p fl) := by
+    rw [← Int.cast_natCast, Int.toNat_of_nonneg (Int.emod_nonneg _ (pow_ne_zero _ two_ne_zero))]
   simp only [↓reduceIte, pow_zero, mul_one]
-  rw [show (((n % 2 ^ p).toNat : ℕ) : Ring p fl) = ((n % 2 ^ p : ℤ) : Ring p fl) by
-    rw [← Int.cast_natCast, Int.toNat_of_nonneg hnn]]
-  rw [Int.emod_def, Int.cast_sub, Int.cast_mul, h2, zero_mul, sub_zero]
+  rw [hcast, Int.emod_def, Int.cast_sub, Int.cast_mul, h2, zero_mul, sub_zero]
 
 /-- The product of a list of coefficient lists. -/
 def prodList (p : ℕ) (fl : List ℕ) (cs : List (List ℕ)) : List ℕ :=
@@ -345,12 +338,10 @@ theorem val_kernelUnitList {a L : ℕ} (hL : L = 2 ^ a) :
     change ((kernelUnit a : ℤ₍₂₎) : ℚ) * _ = 1
     rw [coe_kernelUnit]
     simp only [map_intCast]
-    refine inv_mul_cancel₀ (prod_ne_zero_iff.mpr fun q hq => ?_)
-    exact_mod_cast ediv_two_pow_ne_zero (hne q hq)
-  rw [val_kernelUnitDen]
-  have := congrArg (scalarHom p fl) hunit
-  rw [map_mul, map_prod, map_one] at this
-  simpa only [map_intCast] using this
+    exact inv_mul_cancel₀ (prod_ne_zero_iff.mpr fun q hq =>
+      by exact_mod_cast ediv_two_pow_ne_zero (hne q hq))
+  simpa only [val_kernelUnitDen, map_mul, map_prod, map_intCast, map_one] using
+    congrArg (scalarHom p fl) hunit
 
 /-- **Kernel values on coefficient lists** (Lemma D.4's evaluation, p. 60): the kernel unit,
 times `2 ^ (a + 1 - v_d) ζ` when `d ≠ t`, times the linear factors `u_q + 2 ^ (a + 1 - v_q) ζ`

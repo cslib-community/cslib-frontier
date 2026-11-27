@@ -78,8 +78,7 @@ theorem exists_isProjective_sum_norm_map_sub_sq_le {B : Type*} [Ring B] [StarRin
       ∑ a, φ.norm (f (M.effect a - P.effect a)) ^ 2 ≤ 9 * ε := by
   obtain ⟨P, hP, h⟩ :=
     exists_isProjective_sum_norm_sub_sq_le_of_le (φ.comap f (OrderHomClass.mono f)) M hε
-  refine ⟨P, hP, ?_⟩
-  simpa only [AlgState.norm_comap] using h
+  exact ⟨P, hP, by simpa only [AlgState.norm_comap] using h⟩
 
 /-- **Local orthogonalization** in a tensor-product strategy. If, in the joint state `φ` on
 `ℂ^ι ⊗ ℂ^κ`, the first party's measurement `M` has `φ(∑_a M_a² ⊗ 1) ≥ 1 - ε` and the second
@@ -95,13 +94,11 @@ theorem exists_isProjective_local (φ : AlgState (Matrix (ι × κ) (ι × κ) �
       ∑ a, φ.norm ((M.effect a - P.effect a) ⊗ₖ 1) ^ 2 ≤ 9 * ε ∧
       ∑ b, φ.norm (1 ⊗ₖ (N.effect b - R.effect b)) ^ 2 ≤ 9 * ε' ∧
       ∀ a b, Commute (P.effect a ⊗ₖ (1 : Matrix κ κ ℂ)) ((1 : Matrix ι ι ℂ) ⊗ₖ R.effect b) := by
-  obtain ⟨P, hP, hMP⟩ :=
-    exists_isProjective_sum_norm_map_sub_sq_le φ kroneckerOne M hε
-  obtain ⟨R, hR, hNR⟩ :=
-    exists_isProjective_sum_norm_map_sub_sq_le φ oneKronecker N hε'
-  refine ⟨P, R, hP, hR, ?_, ?_, fun a b => commute_kroneckerOne_oneKronecker _ _⟩
-  · simpa only [kroneckerOne_apply] using hMP
-  · simpa only [oneKronecker_apply] using hNR
+  obtain ⟨P, hP, hMP⟩ := exists_isProjective_sum_norm_map_sub_sq_le φ kroneckerOne M hε
+  obtain ⟨R, hR, hNR⟩ := exists_isProjective_sum_norm_map_sub_sq_le φ oneKronecker N hε'
+  exact ⟨P, R, hP, hR, by simpa only [kroneckerOne_apply] using hMP,
+    by simpa only [oneKronecker_apply] using hNR,
+    fun _ _ => commute_kroneckerOne_oneKronecker _ _⟩
 
 open scoped Matrix.Norms.L2Operator in
 /-- **Local unitary, exactly linear observables.** If, in the joint state `φ` on `ℂ^ι ⊗ ℂ^κ`, the
@@ -117,8 +114,7 @@ theorem exists_isProjective_charObs_kroneckerOne {n : Type*} [Fintype n] [Decida
       𝔼 a, φ.norm ((M.charObs a - P.charObs a) ⊗ₖ 1) ^ 2 ≤ 9 * ε := by
   obtain ⟨P, hP, hU, hmul, h⟩ :=
     exists_isProjective_charObs (φ.comap kroneckerOne (OrderHomClass.mono _)) M hε
-  refine ⟨P, hP, hU, hmul, ?_⟩
-  simpa only [AlgState.norm_comap, kroneckerOne_apply] using h
+  exact ⟨P, hP, hU, hmul, by simpa only [AlgState.norm_comap, kroneckerOne_apply] using h⟩
 
 end Measurement
 

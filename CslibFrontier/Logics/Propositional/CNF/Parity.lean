@@ -68,11 +68,7 @@ theorem Clause.mem_exclude {B : Finset ι} {y : ι → Bool} {l : Literal ι} :
     l ∈ Clause.exclude B y ↔ l.1 ∈ B ∧ l.2 = !y l.1 := by
   obtain ⟨i, b⟩ := l
   simp only [Clause.exclude, List.mem_map, mem_toList, Prod.mk.injEq]
-  constructor
-  · rintro ⟨j, hj, rfl, rfl⟩
-    exact ⟨hj, rfl⟩
-  · rintro ⟨hi, rfl⟩
-    exact ⟨i, hi, rfl, rfl⟩
+  grind
 
 variable [DecidableEq ι]
 

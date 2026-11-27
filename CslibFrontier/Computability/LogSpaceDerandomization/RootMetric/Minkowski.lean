@@ -103,19 +103,14 @@ theorem vertexNormPow_sum_le_pow_sum (hp : p ≠ 0) (hNu : 0 ≤ N * u)
     (hf : ∀ i ∈ s, vertexNormPow p N u X (f i) ≤ ε i ^ p) :
     vertexNormPow p N u X (fun σ x => ∑ i ∈ s, w i * f i σ x) ≤
       (∑ i ∈ s, w i * ε i) ^ p := by
-  have hroot := vertexNormPow_sum_rpow_le (X := X) (N := N) (u := u)
-    hp hNu s (fun i σ x => w i * f i σ x)
-  have hterm : ∀ i ∈ s,
-      vertexNormPow p N u X (fun σ x => w i * f i σ x) ^ (p⁻¹ : ℝ) ≤ w i * ε i := by
-    intro i hi
-    rw [vertexNormPow_const_mul, abs_of_nonneg (hw i hi),
-      Real.mul_rpow (pow_nonneg (hw i hi) _) (vertexNormPow_nonneg hNu _),
+  have h := pow_le_pow_left₀ (by positivity)
+    ((vertexNormPow_sum_rpow_le (X := X) (N := N) (u := u) hp hNu s
+      fun i σ x => w i * f i σ x).trans (sum_le_sum (g := fun i => w i * ε i) fun i hi => ?_)) p
+  · rwa [Real.rpow_inv_natCast_pow (by positivity) hp] at h
+  · rw [vertexNormPow_const_mul, abs_of_nonneg (hw i hi),
+      Real.mul_rpow (pow_nonneg (hw i hi) _) (by positivity),
       Real.pow_rpow_inv_natCast (hw i hi) hp]
-    apply mul_le_mul_of_nonneg_left _ (hw i hi)
-    exact (Real.rpow_le_rpow (vertexNormPow_nonneg hNu _) (hf i hi) (by positivity)).trans_eq
-      (Real.pow_rpow_inv_natCast (hε i hi) hp)
-  have h := pow_le_pow_left₀ (Real.rpow_nonneg (vertexNormPow_nonneg hNu _) _)
-    (hroot.trans (sum_le_sum hterm)) p
-  rwa [Real.rpow_inv_natCast_pow (vertexNormPow_nonneg hNu _) hp] at h
+    exact mul_le_mul_of_nonneg_left ((Real.rpow_le_rpow (by positivity) (hf i hi)
+      (by positivity)).trans_eq (Real.pow_rpow_inv_natCast (hε i hi) hp)) (hw i hi)
 
 end Cslib

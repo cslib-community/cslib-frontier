@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Native Strassen clearing and stack returns
@@ -33,25 +34,21 @@ theorem exec_clear {w : ℕ} (x : Data 64) (h0 : x.regs Reg.zero = 0)
     (x.regs Reg.output + x.regs Reg.size)
   have hsetup : ExecWithin w
       (ram[ Reg.address ← Reg.output; Reg.index ← Reg.output + Reg.size ]) x z 2 := by
-    ram_eval [z, hw, Reg.address, Reg.index, Reg.output, Reg.size]
+    wram_exec
   have he := zeroFill_exec (x := z) (w := w)
     (cur := Reg.address) (stop := Reg.index) (zero := Reg.zero) (one := Reg.one)
     (by decide) (by decide) (by decide)
-    (by simpa +decide [z, Reg.address, Reg.index, Reg.zero] using h0)
-    (by simpa +decide [z, Reg.address, Reg.index, Reg.one] using h1)
-    (by simp +decide [z, Reg.address, Reg.index])
-    (by simpa +decide [z, Reg.address, Reg.index] using hw)
+    (by wram_simp [z]; exact h0)
+    (by wram_simp [z]; exact h1)
+    (by wram_simp [z]; omega)
+    (by wram_simp [z]; exact hw)
   have hcount : z.regs Reg.index - z.regs Reg.address = x.regs Reg.size := by
-    simp +decide [z, Reg.index, Reg.address]
+    wram_simp [z]
   let y : Data 64 := ⟨Function.update z.regs Reg.address (z.regs Reg.index),
     WordRAM.clear z.mem (z.regs Reg.address) (z.regs Reg.index - z.regs Reg.address)⟩
-  refine ⟨y, ?_, ?_, ?_⟩
-  · exact (hsetup.seq he.within).mono (by rw [hcount]; omega)
-  · dsimp only [y]
-    rw [hcount]
-    rfl
-  · intro i ha hi
-    simp only [y, z, Data.set, Function.update_of_ne ha, Function.update_of_ne hi]
+  refine ⟨y, (hsetup.seq he.within).mono (by rw [hcount]; omega), ?_, fun i ha hi => ?_⟩
+  · dsimp only [y]; rw [hcount]; rfl
+  · simp only [y, z, Data.set, Function.update_of_ne ha, Function.update_of_ne hi]
 
 /-- Return to the parent or finish the root in three instructions.
 The subtraction is charged, and its fit follows from the actual frame pointer. -/
@@ -64,22 +61,11 @@ theorem exec_pop {w : ℕ} (x : Data 64) (h7 : x.regs Reg.frameWidth = 7)
       y.regs Reg.active =
         (if x.regs Reg.frames < x.regs Reg.frame then x.regs Reg.active else 0) ∧
       ∀ i, i ≠ Reg.frame → i ≠ Reg.active → y.regs i = x.regs i := by
-  by_cases hc : x.regs Reg.frames < x.regs Reg.frame
-  · have hd : Fits w (x.regs Reg.frame - 7) := hw.of_le (by omega)
-    let y := x.set Reg.frame (x.regs Reg.frame - 7)
-    have he : ExecWithin w pop x y 3 := by ram_eval [pop, y, hc, h7, hd]
-    refine ⟨y, he, rfl, ?_, ?_, ?_⟩
-    · simp +decide [y, hc, Reg.frame]
-    · simp +decide [y, hc, Reg.frame, Reg.active]
-    · intro i hf ha
-      simp only [y, Data.set, Function.update_of_ne hf]
-  · let y := x.set Reg.active 0
-    have he : ExecWithin w pop x y 3 :=
-      .branch_neg (by simpa only [Cond.holds_lt] using hc) (.const (fits_zero w))
-    refine ⟨y, he, rfl, ?_, ?_, ?_⟩
-    · simp +decide [y, hc, Reg.frame, Reg.active]
-    · simp +decide [y, hc, Reg.frame, Reg.active]
-    · intro i hf ha
-      simp only [y, Data.set, Function.update_of_ne ha]
+  apply WP.exists_execWithin
+  unfold pop
+  wram_exec [h7]
+  all_goals
+    wram_simp [hc]
+    exact fun i hf ha => by wram_simp
 
 end Cslib.Algorithms.WordRAM.Strassen

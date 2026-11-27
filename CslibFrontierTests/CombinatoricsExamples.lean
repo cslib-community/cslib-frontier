@@ -42,6 +42,20 @@ private theorem isSunflower_star :
   simp only [mem_coe]
   decide
 
+-- A single petal is not a sunflower with an unrelated core, and plucking requires at least two
+-- petals (`p ≥ 2`).
+example :
+    IsSunflower ({{0, 1}} : Finset (Finset ℕ)) {0} ∧
+    ¬ IsSunflower ({{0}} : Finset (Finset ℕ)) {42} ∧
+    ¬ Pluck 1 ({{0}} : Finset (Finset ℕ)) {{42}} ∧
+    ¬ Pluck 0 (∅ : Finset (Finset ℕ)) {{42}} := by
+  refine ⟨⟨by decide, fun _ hs _ ht hne => absurd ((mem_singleton.1 hs).trans
+    (mem_singleton.1 ht).symm) hne⟩, fun h => ?_, fun h => absurd h.1 (by decide),
+    fun h => absurd h.1 (by decide)⟩
+  have := h.subset_of_mem (mem_singleton_self {0})
+  revert this
+  decide
+
 -- The edges of `K₅` contain that sunflower directly and by the sunflower lemma (`10 > 8`), and
 -- plucking with three petals leaves at most eight sets and no such sunflower.
 example :

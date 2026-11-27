@@ -67,7 +67,7 @@ theorem load_inSpace (e : Q ≃ Fin s) :
     (of_inO (ComputableInDegree.optionSome (enc₁ := (encConfig (k := k) (Q := Q)))
       (enc := encOption (encConfig (k := k) (Q := Q)))).inO_one) hload
   refine (budget_ite (budget_optionIsSome hp) hsome
-    (budget_const (encB := encOption (encConfig (k := k) (Q := Q))) none (.refl _))).of_enc_eq ?_
+    (budget_const (encB := encOption (encConfig (k := k) (Q := Q))) none)).of_enc_eq ?_
   intro a
   rcases a with ⟨N, b, origins, word⟩
   cases h : Encoding.NativeChecked.parse (k := k) e (b, word) <;>

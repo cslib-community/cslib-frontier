@@ -52,10 +52,8 @@ theorem closeTo_uniform_sampleExp (n : ℕ) (d : F.Desc) :
       ((ProbComp.eval (F.sampleExp n d)).map (Nat.cast : ℕ → ZMod (F.order d)))
       (1 / 2 ^ n : ℝ≥0) := by
   refine Game.closeTo_of_advantage_decide_le fun E => ?_
-  rw [Game.advantage_comm]
-  have h := F.advantage_bind_sampleExp_le n d fun a => PMF.pure (decide (a ∈ E))
-  rw [PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-  exact h
+  rw [Game.advantage_comm, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
+  exact F.advantage_bind_sampleExp_le n d fun a => PMF.pure (decide (a ∈ E))
 
 open Classical in
 /-- Post-processing the modular cast of `sampleExp n d` by `f` is within `ℝ≥0∞`-distance
@@ -65,11 +63,8 @@ theorem closeTo_map_uniform_sampleExp {α : Type} (n : ℕ) (d : F.Desc)
     CloseTo ((PMF.uniformOfFintype (ZMod (F.order d))).map f)
       (ProbComp.eval (f <$> ((Nat.cast : ℕ → ZMod (F.order d)) <$> F.sampleExp n d)))
       (1 / 2 ^ n : ℝ≥0∞) := by
-  have hδ : (((1 / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ n := by
-    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-      ENNReal.coe_ofNat]
-  rw [ProbComp.eval_map, ProbComp.eval_map, ← hδ]
-  exact (F.closeTo_uniform_sampleExp n d).map f
+  simpa only [ProbComp.eval_map, ENNReal.coe_div (pow_ne_zero n two_ne_zero), ENNReal.coe_one,
+    ENNReal.coe_pow, ENNReal.coe_ofNat] using (F.closeTo_uniform_sampleExp n d).map f
 
 /-- Replacing two independent `sampleExp n d` draws by two independent exact uniform draws on
 `ZMod (F.order d)` changes `Game.advantage` by at most `2 / 2 ^ n`. -/

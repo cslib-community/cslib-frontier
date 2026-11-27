@@ -35,7 +35,8 @@ tree also encodes all pairwise maximum flow values.
 The results are existence statements for natural-number weights. Gusfield's construction of the
 tree with `|V| - 1` maximum flow computations, without the contractions of Gomory and Hu
 ([Gusfield1990]), is in `CslibFrontier.Algorithms.Lean.GomoryHu.Gusfield` (abstract cut oracle) and
-`CslibFrontier.Algorithms.Lean.GomoryHu.Construction` (Edmonds–Karp, with running time).
+`CslibFrontier.Algorithms.Lean.GomoryHu.Construction` (Edmonds–Karp; its Word-RAM running time is
+`CslibFrontier.Algorithms.WordRAM.GomoryHu`).
 
 ## Main results
 

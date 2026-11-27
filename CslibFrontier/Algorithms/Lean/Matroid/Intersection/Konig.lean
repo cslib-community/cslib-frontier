@@ -110,22 +110,14 @@ theorem isMatching_iff_isCommonIndep [Fintype L] [Fintype R] {G : L × R → Boo
     {M : Finset (L × R)} :
     IsMatching G M ↔ M ⊆ bipartiteEdges G ∧
       IsCommonIndep (unitPartitionMatroid Prod.fst) (unitPartitionMatroid Prod.snd) M := by
-  simp only [IsMatching, IsCommonIndep, unitPartitionMatroid_indep_iff]
-  constructor
-  · rintro ⟨hE, hL, hR⟩
-    refine ⟨fun e he => mem_bipartiteEdges.mpr (hE e he), ?_, ?_⟩
-    · rintro ⟨u₁, v₁⟩ h₁ ⟨u₂, v₂⟩ h₂ (hu : u₁ = u₂)
-      subst hu
-      rw [hL u₁ v₁ v₂ h₁ h₂]
-    · rintro ⟨u₁, v₁⟩ h₁ ⟨u₂, v₂⟩ h₂ (hv : v₁ = v₂)
-      subst hv
-      rw [hR u₁ u₂ v₁ h₁ h₂]
-  · rintro ⟨hE, hL, hR⟩
-    refine ⟨fun e he => mem_bipartiteEdges.mp (hE he), ?_, ?_⟩
-    · intro u v₁ v₂ h₁ h₂
-      exact congrArg Prod.snd (hL (Finset.mem_coe.mpr h₁) (Finset.mem_coe.mpr h₂) rfl)
-    · intro u₁ u₂ v h₁ h₂
-      exact congrArg Prod.fst (hR (Finset.mem_coe.mpr h₁) (Finset.mem_coe.mpr h₂) rfl)
+  simp only [IsMatching, IsCommonIndep, unitPartitionMatroid_indep_iff, mem_bipartiteEdges,
+    Finset.subset_iff, Set.InjOn, Finset.mem_coe, Prod.forall]
+  exact ⟨fun ⟨hE, hL, hR⟩ => ⟨hE,
+      fun u₁ v₁ h₁ u₂ v₂ h₂ (hu : u₁ = u₂) => Prod.ext hu (hL u₁ v₁ v₂ h₁ (hu ▸ h₂)),
+      fun u₁ v₁ h₁ u₂ v₂ h₂ (hv : v₁ = v₂) => Prod.ext (hR u₁ u₂ v₁ h₁ (hv ▸ h₂)) hv⟩,
+    fun ⟨hE, hL, hR⟩ => ⟨hE,
+      fun u v₁ v₂ h₁ h₂ => congrArg Prod.snd (hL u v₁ h₁ u v₂ h₂ rfl),
+      fun u₁ u₂ v h₁ h₂ => congrArg Prod.fst (hR u₁ v h₁ u₂ v h₂ rfl)⟩⟩
 
 variable [DecidableEq L] [DecidableEq R]
 
@@ -171,9 +163,7 @@ theorem exists_maxMatching_separatorCover [Fintype L] [Fintype R] (G : L × R �
     (unitPartitionMatroid Prod.fst) (unitPartitionMatroid Prod.snd) (bipartiteEdges G)
   have hM : IsMatching G M := isMatching_iff_isCommonIndep.mpr ⟨hmax.1, hmax.2.1⟩
   have hsize : M.card = (separatorCover (bipartiteEdges G) U).size := by
-    have h := heq
-    rw [← size_separatorCover] at h
-    exact_mod_cast h
+    exact_mod_cast heq.trans (size_separatorCover _ _).symm
   have hC := isVertexCover_separatorCover G U
   refine ⟨M, U, hUE, ⟨hM, fun M' hM' => ?_⟩, ⟨hC, fun C' hC' => ?_⟩, hsize⟩
   · obtain ⟨hM'E, hM'⟩ := isMatching_iff_isCommonIndep.mp hM'

@@ -55,9 +55,8 @@ variable {s : Set (BooleanFunction n)} {f g : BooleanFunction n} {a b : ℕ}
 
 /-- Change the target of a synthesis bound to a function with the same truth values. -/
 theorem congr_iff (h : Synthesis interpretation s {f} a) (hfg : ∀ x, f x = true ↔ g x = true) :
-    Synthesis interpretation s {g} a := by
-  have : f = g := funext fun x => Bool.eq_iff_iff.2 (hfg x)
-  exact this ▸ h
+    Synthesis interpretation s {g} a :=
+  (funext fun x => Bool.eq_iff_iff.2 (hfg x)) ▸ h
 
 /-- A constant function costs one gate. -/
 theorem of_forall_eq_const (b : Bool) (h : ∀ x, f x = b) : Synthesis interpretation s {f} 1 :=
@@ -69,11 +68,10 @@ theorem exists_exists_mem {ι : Type*} (indices : Finset ι) (F : ι → Boolean
     {c m : ℕ} (hcard : indices.card ≤ m) (h : ∀ i ∈ indices, Synthesis interpretation s {F i} c) :
     ∃ g : BooleanFunction n, (∀ x, g x = true ↔ ∃ i ∈ indices, F i x = true) ∧
       Synthesis interpretation s {g} (m * (c + 1) + 1) := by
-  refine ⟨_, fun x => decide_eq_true_iff, ?_⟩
-  refine (Synthesis.exists_mem indices F (fun _ => c) h).mono Set.Subset.rfl Set.Subset.rfl ?_
+  refine ⟨_, fun _ => decide_eq_true_iff,
+    (Synthesis.exists_mem indices F (fun _ => c) h).mono .rfl .rfl ?_⟩
   rw [Finset.sum_const, Nat.nsmul_eq_mul]
-  have := Nat.mul_le_mul_right (c + 1) hcard
-  omega
+  exact Nat.add_le_add_right (Nat.mul_le_mul_right _ hcard) 1
 
 /-- A bounded conjunction, with a uniform bound `c` on the cost of its terms and a bound `m` on
 their number. -/
@@ -81,18 +79,17 @@ theorem exists_forall_mem {ι : Type*} (indices : Finset ι) (F : ι → Boolean
     {c m : ℕ} (hcard : indices.card ≤ m) (h : ∀ i ∈ indices, Synthesis interpretation s {F i} c) :
     ∃ g : BooleanFunction n, (∀ x, g x = true ↔ ∀ i ∈ indices, F i x = true) ∧
       Synthesis interpretation s {g} (m * (c + 1) + 1) := by
-  refine ⟨_, fun x => decide_eq_true_iff, ?_⟩
-  refine (Synthesis.forall_mem indices F (fun _ => c) h).mono Set.Subset.rfl Set.Subset.rfl ?_
+  refine ⟨_, fun _ => decide_eq_true_iff,
+    (Synthesis.forall_mem indices F (fun _ => c) h).mono .rfl .rfl ?_⟩
   rw [Finset.sum_const, Nat.nsmul_eq_mul]
-  have := Nat.mul_le_mul_right (c + 1) hcard
-  omega
+  exact Nat.add_le_add_right (Nat.mul_le_mul_right _ hcard) 1
 
 /-- A literal, an available function `f` asked to take the value `b`, costs at most one gate. -/
 theorem literal (hf : f ∈ s) (b : Bool) :
     Synthesis interpretation s {fun x => decide (f x = b)} 1 := by
   cases b
   · exact congr_iff (Synthesis.of_mem hf).not fun x => by cases f x <;> simp
-  · exact congr_iff ((Synthesis.of_mem hf).mono Set.Subset.rfl Set.Subset.rfl (Nat.zero_le 1))
+  · exact congr_iff ((Synthesis.of_mem hf).mono .rfl .rfl (Nat.zero_le 1))
       fun x => by cases f x <;> simp
 
 /-- A conjunction of literals over available functions costs two gates per literal and a
@@ -101,18 +98,14 @@ theorem all_literal {c : List (BooleanFunction n × Bool)} (hc : ∀ l ∈ c, l.
     Synthesis interpretation s {fun x => c.all fun l => decide (l.1 x = l.2)}
       (2 * c.length + 1) := by
   have hval : (fun x => c.foldr (fun l acc => decide (l.1 x = l.2) && acc) true) =
-      fun x => c.all fun l => decide (l.1 x = l.2) := by
-    funext x
+      fun x => c.all fun l => decide (l.1 x = l.2) := funext fun x => by
     clear hc
-    induction c with
-    | nil => rfl
-    | cons l c ih => simp [ih]
+    induction c with | nil => rfl | cons _ _ ih => simp [ih]
   have h := Synthesis.foldr (I := interpretation) (s := s) (· && ·) 1
-    (fun f g => ((Synthesis.of_mem (by simp)).and (Synthesis.of_mem (by simp))).mono
-      Set.Subset.rfl Set.Subset.rfl le_rfl) c (f := fun l x => decide (l.1 x = l.2))
-    (cost := fun _ => 1) (Synthesis.const true) fun l hl => literal (hc l hl) l.2
-  rw [hval] at h
-  refine h.mono Set.Subset.rfl Set.Subset.rfl (le_of_eq ?_)
+    (fun _ _ => ((of_mem (by simp)).and (of_mem (by simp))).mono .rfl .rfl le_rfl) c
+    (f := fun l x => decide (l.1 x = l.2)) (cost := fun _ => 1) (.const true)
+    fun l hl => literal (hc l hl) l.2
+  refine (hval ▸ h).mono .rfl .rfl ?_
   simp only [List.map_const', List.sum_replicate, smul_eq_mul]
   omega
 
@@ -122,20 +115,14 @@ theorem any_all_literal {D : List (List (BooleanFunction n × Bool))} {w : ℕ}
     Synthesis interpretation s {fun x => D.any fun c => c.all fun l => decide (l.1 x = l.2)}
       (D.length * (2 * w + 2) + 1) := by
   have hval : (fun x => D.foldr (fun c acc => (c.all fun l => decide (l.1 x = l.2)) || acc)
-      false) = fun x => D.any fun c => c.all fun l => decide (l.1 x = l.2) := by
-    funext x
+      false) = fun x => D.any fun c => c.all fun l => decide (l.1 x = l.2) := funext fun x => by
     clear hw hD
-    induction D with
-    | nil => rfl
-    | cons c D ih => simp [ih]
+    induction D with | nil => rfl | cons _ _ ih => simp [ih]
   have h := Synthesis.foldr (I := interpretation) (s := s) (· || ·) 1
-    (fun f g => ((Synthesis.of_mem (by simp)).or (Synthesis.of_mem (by simp))).mono
-      Set.Subset.rfl Set.Subset.rfl le_rfl) D
+    (fun _ _ => ((of_mem (by simp)).or (of_mem (by simp))).mono .rfl .rfl le_rfl) D
     (f := fun c x => c.all fun l => decide (l.1 x = l.2)) (cost := fun _ => 2 * w + 1)
-    (Synthesis.const false) fun c hc => (all_literal (hD c hc)).mono Set.Subset.rfl
-      Set.Subset.rfl (by have := hw c hc; omega)
-  rw [hval] at h
-  refine h.mono Set.Subset.rfl Set.Subset.rfl (le_of_eq ?_)
+    (.const false) fun c hc => (all_literal (hD c hc)).mono .rfl .rfl (by have := hw c hc; omega)
+  refine (hval ▸ h).mono .rfl .rfl (le_of_eq ?_)
   simp only [List.map_const', List.sum_replicate, smul_eq_mul]
 
 /-- The exclusive or `f ⊕ g = (f ∨ g) ∧ ¬(f ∧ g)` costs four gates beyond its arguments. -/
@@ -156,12 +143,9 @@ theorem sum {ι : Type*} (indices : Finset ι) (F : ι → BooleanFunction n) (c
     (h : ∀ i ∈ indices, Synthesis interpretation s {F i} (cost i)) :
     Synthesis interpretation s {fun x => ∑ i ∈ indices, F i x}
       ((∑ i ∈ indices, (cost i + 4)) + 1) := by
-  have hop (f g : BooleanFunction n) :
-      Synthesis interpretation {f, g} {fun x => f x + g x} 4 :=
-    (Synthesis.of_mem (by simp)).xor (Synthesis.of_mem (by simp))
-  have h' := Synthesis.finset_fold (· + ·) 4 hop indices (Synthesis.const false) h
   simp only [Finset.sum_eq_fold]
-  exact h'
+  exact Synthesis.finset_fold (· + ·) 4
+    (fun _ _ => (of_mem (by simp)).xor (of_mem (by simp))) indices (.const false) h
 
 /-- A function of `k` selected inputs costs at most `2 ^ k * (2 * k + 2) + 1` gates: its
 disjunctive normal form tests every accepted assignment of the selected inputs. Selectors may
@@ -170,15 +154,13 @@ theorem selected {k : ℕ} (wires : Fin k → Fin n) (φ : BooleanFunction k) :
     Synthesis interpretation (inputs n) {fun x => φ (x ∘ wires)} (2 ^ k * (2 * k + 2) + 1) := by
   classical
   let accepted := Finset.univ.filter fun q : BitString k => φ q = true
-  have h := Synthesis.exists_mem accepted
+  refine (congr_iff (Synthesis.exists_mem accepted
     (fun q x => decide ((fun i => x (wires i)) = q)) (fun _ => 2 * k + 1)
-    fun q _ => synthesis_minterm wires q
-  refine (congr_iff h fun x => ?_).mono Set.Subset.rfl Set.Subset.rfl ?_
-  · simp [accepted, Function.comp_def]
-  · rw [Finset.sum_const, smul_eq_mul, show 2 * k + 1 + 1 = 2 * k + 2 by omega]
-    have hcard : accepted.card ≤ 2 ^ k := by
-      simpa [BitString, Fintype.card_fun] using Finset.card_le_univ accepted
-    exact Nat.add_le_add_right (Nat.mul_le_mul_right _ hcard) 1
+    fun q _ => synthesis_minterm wires q) fun x => by simp [accepted, Function.comp_def]).mono
+    .rfl .rfl ?_
+  rw [Finset.sum_const, smul_eq_mul, show 2 * k + 1 + 1 = 2 * k + 2 by omega]
+  exact Nat.add_le_add_right (Nat.mul_le_mul_right _
+    (by simpa [BitString, Fintype.card_fun] using Finset.card_le_univ accepted)) 1
 
 end Synthesis
 

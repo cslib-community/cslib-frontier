@@ -48,9 +48,8 @@ open _root_.Turing.MultiTapeTM
 
 /-- Side tags and local indices distinguish all boundary edges. -/
 theorem Slice.localIndex_injective {n m : ℕ} :
-    Function.Injective (Slice.localIndex (n := n) (m := m)) := by
-  intro x y h
-  cases x <;> cases y <;> simp_all [Slice.localIndex, Fin.ext_iff]
+    Function.Injective (Slice.localIndex (n := n) (m := m)) :=
+  fun x y h => by cases x <;> cases y <;> simp_all [Slice.localIndex, Fin.ext_iff]
 
 /-- Side-tagged local vertex data, together with a layer tag, offset and colored boundaries. -/
 structure Slice.Data where
@@ -71,24 +70,14 @@ structure Slice.Data where
   | .swap k => ⟨true, k, [], [], []⟩
 
 private theorem Slice.data_injective : Function.Injective Slice.data := by
-  intro s t h
-  cases s with
-  | gen k a b vs =>
-    cases t with
-    | gen k' a' b' vs' =>
-      change Slice.Data.mk false k a b (vs.map (Vertex.map Slice.localIndex)) =
-        Slice.Data.mk false k' a' b' (vs'.map (Vertex.map Slice.localIndex)) at h
-      simp only [Slice.Data.mk.injEq] at h
-      obtain ⟨_, hk, ha, hb, hv⟩ := h
-      subst k' a' b'
-      congr 1
-      exact List.map_injective_iff.mpr
-        (Vertex.map_injective Slice.localIndex_injective) hv
-    | swap k' => exact Bool.noConfusion (congrArg Slice.Data.isSwap h)
-  | swap k =>
-    cases t with
-    | gen k' a b vs => exact Bool.noConfusion (congrArg Slice.Data.isSwap h)
-    | swap k' => exact congrArg Slice.swap (congrArg Slice.Data.offset h)
+  rintro (⟨k, a, b, vs⟩ | k) (⟨k', a', b', vs'⟩ | k') h
+  · injection h with _ hk ha hb hv
+    subst hk ha hb
+    exact congrArg _
+      (List.map_injective_iff.mpr (Vertex.map_injective Slice.localIndex_injective) hv)
+  · exact Bool.noConfusion (congrArg Slice.Data.isSwap h)
+  · exact Bool.noConfusion (congrArg Slice.Data.isSwap h)
+  · exact congrArg Slice.swap (congrArg Slice.Data.offset h)
 
 /-- Encode a wire color by one Boolean. -/
 @[expose] def encColor : Color ↪ List Bool :=
@@ -117,38 +106,32 @@ theorem Slice.computableInPolyTime_data :
 /-- Emit a fixed layer at a computed unary offset in polynomial time. -/
 @[fun_prop]
 theorem Slice.computableInPolyTime_shift (sl : Slice) :
-    ComputableInPolyTime (fun k => sl.shift k) encUnary encSlice := by
-  have hd : ComputableInPolyTime (fun k => (sl.shift k).data) encUnary Slice.encData := by
-    cases sl <;> unfold Slice.shift Slice.data Slice.encData <;> fun_prop
-  exact hd.of_enc_eq (fun _ => rfl)
+    ComputableInPolyTime (fun k => sl.shift k) encUnary encSlice :=
+  (by cases sl <;> unfold Slice.shift Slice.data Slice.encData <;> fun_prop :
+    ComputableInPolyTime (fun k => (sl.shift k).data) encUnary Slice.encData).of_enc_eq
+    fun _ => rfl
 
 /-- Emit a fixed word at a computed unary offset in polynomial time. -/
 theorem Word.computableInPolyTime_shift (w : Word) :
-    ComputableInPolyTime (fun k => w.map (Slice.shift k)) encUnary encWord := by
-  apply ComputableInPolyTime.mapConst w
-  intro sl _
-  exact sl.computableInPolyTime_shift
+    ComputableInPolyTime (fun k => w.map (Slice.shift k)) encUnary encWord :=
+  ComputableInPolyTime.mapConst w fun sl _ => sl.computableInPolyTime_shift
 
 /-- Emit the word of a fixed diagram at a computed unary offset in polynomial time. -/
 theorem Diagram.computableInPolyTime_toWord {Γ : List Color → List Color → Type}
     (I : Diagram.Interp Γ) {a b : List Color} (D : Diagram Γ a b) :
     ComputableInPolyTime (D.toWord I) encUnary encWord := by
-  have h := Word.computableInPolyTime_shift (D.toWord I 0)
-  have he (k : ℕ) : (D.toWord I 0).map (Slice.shift k) = D.toWord I k := by
-    rw [← Diagram.toWord_shift, Nat.add_zero]
-  simpa only [he] using h
+  simpa only [← Diagram.toWord_shift, Nat.add_zero] using
+    Word.computableInPolyTime_shift (D.toWord I 0)
 
 
 private theorem Slice.cost_le_encoded_length (sl : Slice) : sl.cost ≤ (encSlice sl).length := by
   cases sl with
   | gen k a b vs =>
-    have hb := length_le_length_encList encColor b
-    change b.length ≤ (Slice.encData ⟨false, k, a, b, vs.map (Vertex.map Slice.localIndex)⟩).length
-    simp only [Slice.encData_apply, Slice.encDataFields, length_encPair]
+    have := length_le_length_encList encColor b
+    simp only [encSlice, Function.Embedding.trans_apply, Function.Embedding.coeFn_mk, Slice.data,
+      Slice.cost, Slice.encData_apply, Slice.encDataFields, length_encPair]
     omega
-  | swap k =>
-    change 2 ≤ (Slice.encData ⟨true, k, [], [], []⟩).length
-    simp [Slice.encData_apply, Slice.encDataFields]
+  | swap k => simp [encSlice, Slice.data, Slice.cost, Slice.encData_apply, Slice.encDataFields]
 
 /-- The structural encoding pays for every new wire position created by the word. -/
 theorem Word.cost_le_length_encWord (w : Word) : w.cost ≤ (encWord w).length :=

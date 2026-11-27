@@ -69,28 +69,23 @@ private theorem comp_mem_unaryClosure (u : Bool → Bool) (hg : g ∈ S) :
 private theorem subset_unaryClosure (S : Finset (BooleanFunction n)) : S ⊆ unaryClosure S :=
   fun _ hg => comp_mem_unaryClosure id hg
 
-private theorem unaryClosure_subset (h : S ⊆ unaryClosure T) : unaryClosure S ⊆ unaryClosure T := by
-  intro g hg
-  obtain ⟨u, -, g', hg', rfl⟩ := mem_image₂.1 hg
-  obtain ⟨v, -, g'', hg'', rfl⟩ := mem_image₂.1 (h hg')
-  exact comp_mem_unaryClosure (u ∘ v) hg''
+private theorem unaryClosure_subset (h : S ⊆ unaryClosure T) : unaryClosure S ⊆ unaryClosure T :=
+  fun _ hg => let ⟨u, _, _, hg', h1⟩ := mem_image₂.1 hg
+    let ⟨v, _, _, hg'', h2⟩ := mem_image₂.1 (h hg')
+    h1 ▸ h2 ▸ comp_mem_unaryClosure (u ∘ v) hg''
 
 private theorem card_unaryClosure_le (S : Finset (BooleanFunction n)) :
-    #(unaryClosure S) ≤ 4 * #S := by
-  refine (card_image₂_le _ _ _).trans_eq ?_
-  rw [card_univ]
-  rfl
+    #(unaryClosure S) ≤ 4 * #S :=
+  (card_image₂_le _ _ _).trans_eq (by rw [card_univ]; rfl)
 
 /-- Unary functions of constants are the two constants. -/
-private theorem card_unaryClosure_le_two (h : ∀ g ∈ S, IsConst g) : #(unaryClosure S) ≤ 2 := by
-  have hsub : unaryClosure S ⊆ {fun _ => false, fun _ => true} := by
-    intro g hg
+private theorem card_unaryClosure_le_two (h : ∀ g ∈ S, IsConst g) : #(unaryClosure S) ≤ 2 :=
+  (card_le_card (t := {fun _ => false, fun _ => true}) fun g hg => by
     obtain ⟨u, -, g', hg', rfl⟩ := mem_image₂.1 hg
     obtain ⟨c, hc⟩ := isConst_iff_exists_forall_eq.1 (h g' hg')
-    have h' : u ∘ g' = fun _ => u c := funext fun x => by simp [hc x]
-    rw [h']
-    cases u c <;> simp
-  exact (card_le_card hsub).trans (card_le_two)
+    have heq : u ∘ g' = fun _ => u c := funext fun x => by simp [hc x]
+    rw [heq]
+    cases u c <;> simp).trans card_le_two
 
 /-! ### Nechiporuk's lemma -/
 
@@ -98,9 +93,9 @@ variable {σ : Signature} {I : Interpretation σ Bool}
 
 /-- The subfunctions of a formula with no leaf in `Y` are constant. -/
 theorem isConst_of_mem_subfunctions {F : Formula σ n} {Y : Finset (Fin n)}
-    (hF : F.leafSizeIn Y = 0) (hg : g ∈ subfunctions (F.eval I) Y) : IsConst g := by
-  obtain ⟨z, rfl⟩ := mem_subfunctions.1 hg
-  exact fun x y => Formula.eval_piecewise_eq_of_leafSizeIn_eq_zero hF I x y z
+    (hF : F.leafSizeIn Y = 0) (hg : g ∈ subfunctions (F.eval I) Y) : IsConst g :=
+  let ⟨z, hz⟩ := mem_subfunctions.1 hg
+  hz ▸ fun x y => Formula.eval_piecewise_eq_of_leafSizeIn_eq_zero hF I x y z
 
 /-- A gate computing `φ` with one argument whose subfunctions on `Y` are constant has subfunctions
 that are unary functions of those of its other argument. -/
@@ -108,16 +103,14 @@ private theorem subfunctions_subset_of_isConst (φ : Bool → Bool → Bool)
     {F G H : Formula σ n} {Y : Finset (Fin n)}
     (hF : ∀ x, F.eval I x = φ (G.eval I x) (H.eval I x))
     (hG : G.leafSizeIn Y = 0) :
-    subfunctions (F.eval I) Y ⊆ unaryClosure (subfunctions (H.eval I) Y)
-    := by
-  intro g hg
+    subfunctions (F.eval I) Y ⊆ unaryClosure (subfunctions (H.eval I) Y) := fun g hg => by
   obtain ⟨z, rfl⟩ := mem_subfunctions.1 hg
   obtain ⟨c, hc⟩ := isConst_iff_exists_forall_eq.1
     (isConst_of_mem_subfunctions (I := I) hG (mem_subfunctions.2 ⟨z, rfl⟩))
-  have : (fun x => F.eval I (Y.piecewise x z)) =
-      φ c ∘ fun x => H.eval I (Y.piecewise x z) := funext fun x => by simp [hF, hc x]
-  rw [this]
-  exact comp_mem_unaryClosure _ (mem_subfunctions.2 ⟨z, rfl⟩)
+  have heq : (fun x => F.eval I (Y.piecewise x z)) =
+      φ c ∘ fun x => H.eval I (Y.piecewise x z) :=
+    funext fun x => by simp [hF, hc x]
+  exact heq.symm ▸ comp_mem_unaryClosure _ (mem_subfunctions.2 ⟨z, rfl⟩)
 
 /-- The step of Nechiporuk's lemma at a gate computing a binary operation `φ`. -/
 private theorem four_mul_card_le_of_binary (φ : Bool → Bool → Bool) {F G H : Formula σ n}
@@ -136,7 +129,7 @@ private theorem four_mul_card_le_of_binary (φ : Bool → Bool → Bool) {F G H 
   by_cases hb : H.leafSizeIn Y = 0
   · rw [hl, hb, add_zero]
     exact (Nat.mul_le_mul_left 4 (card_le_card (unaryClosure_subset
-      (subfunctions_subset_of_isConst (Function.swap φ) (fun x => hF x) hb)))).trans ihG
+      (subfunctions_subset_of_isConst (Function.swap φ) hF hb)))).trans ihG
   have hsub : subfunctions (F.eval I) Y ⊆
       image₂ (fun g h x => φ (g x) (h x)) (subfunctions (G.eval I) Y)
         (subfunctions (H.eval I) Y) := fun g hg => by
@@ -156,8 +149,7 @@ private theorem four_mul_card_le_of_binary (φ : Bool → Bool → Bool) {F G H 
   calc 4 * #(unaryClosure (subfunctions (F.eval I) Y))
       ≤ (4 * #(unaryClosure (subfunctions (G.eval I) Y))) *
           (4 * #(unaryClosure (subfunctions (H.eval I) Y))) := by
-        rw [Nat.mul_mul_mul_comm]
-        omega
+        rw [Nat.mul_mul_mul_comm]; omega
     _ ≤ 16 ^ G.leafSizeIn Y * 16 ^ H.leafSizeIn Y := Nat.mul_le_mul ihG ihH
     _ = 16 ^ F.leafSizeIn Y := by rw [hl, pow_add]
 
@@ -172,16 +164,13 @@ private theorem four_mul_card_le_of_gate {k : ℕ} (hk : k ≤ 2) (φ : (Fin k �
   match k, hk, φ, args, hF, hl, ih with
   | 0, _, _, _, _, hl, _ => absurd (by simpa using hl) h0
   | 1, _, φ, args, hF, hl, ih => by
-    have hsub : subfunctions (F.eval I) Y ⊆ unaryClosure (subfunctions ((args 0).eval I) Y) :=
-      fun g hg => by
-        obtain ⟨z, rfl⟩ := mem_subfunctions.1 hg
-        have : (fun x => F.eval I (Y.piecewise x z)) =
-            (fun b => φ fun _ => b) ∘ fun x => (args 0).eval I (Y.piecewise x z) :=
-          funext fun x => (hF _).trans (congrArg φ (funext fun j => by rw [Fin.fin_one_eq_zero j]))
-        rw [this]
-        exact comp_mem_unaryClosure _ (mem_subfunctions.2 ⟨z, rfl⟩)
     rw [hl, Fin.sum_univ_one]
-    exact (Nat.mul_le_mul_left 4 (card_le_card (unaryClosure_subset hsub))).trans (ih 0)
+    refine (Nat.mul_le_mul_left 4 (card_le_card (unaryClosure_subset fun g hg => ?_))).trans (ih 0)
+    obtain ⟨z, rfl⟩ := mem_subfunctions.1 hg
+    have heq : (fun x => F.eval I (Y.piecewise x z)) =
+        (fun b => φ fun _ => b) ∘ fun x => (args 0).eval I (Y.piecewise x z) :=
+      funext fun x => (hF _).trans (congrArg φ (funext fun j => by rw [Fin.fin_one_eq_zero j]))
+    exact heq.symm ▸ comp_mem_unaryClosure _ (mem_subfunctions.2 ⟨z, rfl⟩)
   | 2, _, φ, args, hF, hl, ih =>
     four_mul_card_le_of_binary (fun b c => φ ![b, c])
       (fun x => (hF x).trans (congrArg φ (funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩))))
@@ -193,56 +182,50 @@ of a formula with `l` leaves in `Y` number at most `2` if `l = 0` and `16 ^ l / 
 private theorem four_mul_card_unaryClosure_le (harity : ∀ op, σ.Arity op ≤ 2) (F : Formula σ n)
     (Y : Finset (Fin n)) :
     4 * #(unaryClosure (subfunctions (F.eval I) Y)) ≤ max 8 (16 ^ F.leafSizeIn Y) := by
-  by_cases h0 : F.leafSizeIn Y = 0
-  · have := card_unaryClosure_le_two (S := subfunctions (F.eval I) Y) fun g hg =>
-      isConst_of_mem_subfunctions h0 hg
-    exact (show 4 * _ ≤ 8 by omega).trans (le_max_left _ _)
+  have hzero (G : Formula σ n) (h0 : G.leafSizeIn Y = 0) :
+      4 * #(unaryClosure (subfunctions (G.eval I) Y)) ≤ max 8 (16 ^ G.leafSizeIn Y) :=
+    (Nat.mul_le_mul_left 4 (card_unaryClosure_le_two
+      fun _ hg => isConst_of_mem_subfunctions h0 hg)).trans (le_max_left _ _)
   induction F with
   | input i =>
-    have hi : i ∈ Y := by simpa using h0
-    have : subfunctions ((Formula.input i).eval I) Y = {fun x => x i} := by
-      ext g
-      simp only [mem_subfunctions, Formula.eval_input, mem_singleton]
-      exact ⟨fun ⟨z, hz⟩ => hz ▸ funext fun x => by simp [hi],
-        fun hg => ⟨fun _ => false, hg ▸ funext fun x => by simp [hi]⟩⟩
-    have h := card_unaryClosure_le (subfunctions ((Formula.input i).eval I) Y)
-    rw [this, card_singleton] at h
-    rw [this]
-    refine le_max_of_le_right ?_
-    simp only [Formula.leafSizeIn_input, hi, ↓reduceIte, pow_one]
-    omega
+    by_cases hi : i ∈ Y
+    · have hs : subfunctions ((Formula.input i).eval I) Y = {fun x => x i} := by
+        ext g
+        simp only [mem_subfunctions, Formula.eval_input, mem_singleton]
+        exact ⟨fun ⟨z, hz⟩ => hz ▸ funext fun x => by simp [hi],
+          fun hg => ⟨fun _ => false, hg ▸ funext fun x => by simp [hi]⟩⟩
+      have h := hs ▸ card_unaryClosure_le (subfunctions ((Formula.input i).eval I) Y)
+      rw [card_singleton] at h
+      exact le_max_of_le_right (hs.symm ▸ by
+        simp only [Formula.leafSizeIn_input, hi, ↓reduceIte, pow_one]; omega)
+    · exact hzero _ (by simp [hi])
   | gate op args ih =>
-    refine four_mul_card_le_of_gate (harity op) (I op) (fun x => rfl) rfl h0 fun j => ?_
-    by_cases hj : (args j).leafSizeIn Y = 0
-    · have := card_unaryClosure_le_two (S := subfunctions ((args j).eval I) Y) fun g hg =>
-        isConst_of_mem_subfunctions hj hg
-      exact (show 4 * _ ≤ 8 by omega).trans (le_max_left _ _)
-    · exact ih j hj
+    by_cases h0 : (Formula.gate op args).leafSizeIn Y = 0
+    · exact hzero _ h0
+    · exact four_mul_card_le_of_gate (harity op) (I op) (fun _ => rfl) rfl h0 ih
 
 /-- **Nechiporuk's lemma**, refined constant: a formula over a basis of fan-in at most two with
 `l ≥ 1` leaves labelled by bits of `Y` has at most `16 ^ l / 4` subfunctions on `Y`. -/
 theorem four_mul_card_subfunctions_le (harity : ∀ op, σ.Arity op ≤ 2) (I : Interpretation σ Bool)
     (F : Formula σ n) {Y : Finset (Fin n)} (hl : F.leafSizeIn Y ≠ 0) :
-    4 * #(subfunctions (F.eval I) Y) ≤ 16 ^ F.leafSizeIn Y := by
-  have h := four_mul_card_unaryClosure_le (I := I) harity F Y
-  rw [max_eq_right ((Nat.pow_le_pow_right (by decide) (Nat.one_le_iff_ne_zero.2 hl)).trans'
-    (by decide))] at h
-  exact (Nat.mul_le_mul_left 4 (card_le_card (subset_unaryClosure _))).trans h
+    4 * #(subfunctions (F.eval I) Y) ≤ 16 ^ F.leafSizeIn Y :=
+  (Nat.mul_le_mul_left 4 (card_le_card (subset_unaryClosure _))).trans <|
+    (four_mul_card_unaryClosure_le (I := I) harity F Y).trans_eq <|
+      max_eq_right ((Nat.pow_le_pow_right (by decide) (Nat.one_le_iff_ne_zero.2 hl)).trans'
+        (by decide))
 
 /-- **Nechiporuk's lemma.** A formula over a basis of fan-in at most two with `l` leaves labelled by
 bits of `Y` has at most `2 · 16 ^ l` subfunctions on `Y`. -/
 theorem card_subfunctions_le (harity : ∀ op, σ.Arity op ≤ 2) (I : Interpretation σ Bool)
     (F : Formula σ n) (Y : Finset (Fin n)) :
     #(subfunctions (F.eval I) Y) ≤ 2 * 16 ^ F.leafSizeIn Y := by
-  have h := four_mul_card_unaryClosure_le (I := I) harity F Y
-  have hsub := card_le_card (subset_unaryClosure (subfunctions (F.eval I) Y))
-  have hpow : 1 ≤ 16 ^ F.leafSizeIn Y := Nat.one_le_pow _ _ (by decide)
-  have : max 8 (16 ^ F.leafSizeIn Y) ≤ 8 * 16 ^ F.leafSizeIn Y := max_le (by omega) (by omega)
+  have := four_mul_card_unaryClosure_le (I := I) harity F Y
+  have := card_le_card (subset_unaryClosure (subfunctions (F.eval I) Y))
+  have : 1 ≤ 16 ^ F.leafSizeIn Y := Nat.one_le_pow _ _ (by decide)
   omega
 
 private theorem two_mul_sixteen_pow (l : ℕ) : 2 * 16 ^ l = 2 ^ (4 * l + 1) := by
-  rw [pow_succ, pow_mul, mul_comm]
-  norm_num
+  rw [pow_succ, pow_mul, mul_comm]; norm_num
 
 /-- **Nechiporuk's bound.** If a formula of leaf size `L` over a basis of fan-in at most two
 computes `f`, then for disjoint blocks `Y i` of bits, `i ∈ s`, the numbers of subfunctions of `f`
@@ -258,9 +241,8 @@ theorem prod_card_subfunctions_le (harity : ∀ op, σ.Arity op ≤ 2) {f : Bool
           (card_subfunctions_le harity I F (Y i)).trans_eq (two_mul_sixteen_pow _)
     _ = 2 ^ (4 * ∑ i ∈ s, F.leafSizeIn (Y i) + #s) := by
         rw [prod_pow_eq_pow_sum, sum_add_distrib, ← mul_sum, sum_const, smul_eq_mul, mul_one]
-    _ ≤ 2 ^ (4 * F.leafSize + #s) := Nat.pow_le_pow_right (by decide) (by
-        have := F.sum_leafSizeIn_le_leafSize hY
-        omega)
+    _ ≤ 2 ^ (4 * F.leafSize + #s) := Nat.pow_le_pow_right (by decide)
+        (Nat.add_le_add_right (Nat.mul_le_mul_left 4 (F.sum_leafSizeIn_le_leafSize hY)) _)
 
 /-- **Nechiporuk's bound**, logarithmic form: the binary logarithms, rounded up, of the numbers of
 subfunctions on disjoint blocks add up to at most `4 L + |s|`. -/
@@ -274,8 +256,7 @@ theorem sum_clog_card_subfunctions_le (harity : ∀ op, σ.Arity op ≤ 2) {f : 
         ((card_subfunctions_le harity I F (Y i)).trans_eq (two_mul_sixteen_pow _))
     _ = 4 * ∑ i ∈ s, F.leafSizeIn (Y i) + #s := by
         rw [sum_add_distrib, ← mul_sum, sum_const, smul_eq_mul, mul_one]
-    _ ≤ 4 * F.leafSize + #s := by
-        have := F.sum_leafSizeIn_le_leafSize hY
-        omega
+    _ ≤ 4 * F.leafSize + #s :=
+        Nat.add_le_add_right (Nat.mul_le_mul_left 4 (F.sum_leafSizeIn_le_leafSize hY)) _
 
 end Cslib.Circuits.Boolean

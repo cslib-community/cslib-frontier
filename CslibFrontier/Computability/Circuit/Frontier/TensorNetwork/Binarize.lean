@@ -105,17 +105,16 @@ theorem tensor_binarize_eq_zero_or (v : V) (y : E × Fin m → Bool) :
   classical
   simp only [binarize]
   split_ifs
-  · exact Or.inr ⟨_, rfl⟩
-  · exact Or.inl rfl
+  exacts [Or.inr ⟨_, rfl⟩, Or.inl rfl]
 
 /-- Binarization keeps a network without loops loopless. -/
 theorem loopless_binarize (h : N.Loopless) : (N.binarize code).Loopless :=
   fun p => h p.1
 
 /-- Binarization keeps a network bipartite, with the same sides. -/
-theorem isBipartite_binarize (h : N.IsBipartite) : (N.binarize code).IsBipartite := by
-  obtain ⟨side, hside⟩ := h
-  exact ⟨side, fun p => hside p.1⟩
+theorem isBipartite_binarize (h : N.IsBipartite) : (N.binarize code).IsBipartite :=
+  let ⟨side, hside⟩ := h
+  ⟨side, fun p => hside p.1⟩
 
 /-- The edges at a vertex of the binarization are the copies of its old edges. -/
 theorem incidenceSet_binarize (v : V) :
@@ -125,8 +124,7 @@ theorem incidenceSet_binarize (v : V) :
 
 /-- **Binarization multiplies degrees by the code length.** -/
 theorem maxDegreeLE_binarize [Finite E] {d : ℕ} (hd : N.MaxDegreeLE d) :
-    (N.binarize code).MaxDegreeLE (d * m) := by
-  intro v
+    (N.binarize code).MaxDegreeLE (d * m) := fun v => by
   rw [incidenceSet_binarize, Set.ncard_prod, Set.ncard_univ, Nat.card_eq_fintype_card,
     Fintype.card_fin]
   exact Nat.mul_le_mul_right m (hd v)
@@ -138,27 +136,22 @@ theorem contraction_binarize {R : Type*} [CommSemiring R] [Fintype U] [Fintype V
     [DecidableEq E] (N : TensorNetwork R U V E) {code : U → Fin m → Bool}
     (hcode : Injective code) : (N.binarize code).contraction = N.contraction := by
   classical
-  symm
-  refine Fintype.sum_of_injective (fun x p => code (x p.1) p.2) ?_ _ _ ?_ fun x => ?_
+  refine (Fintype.sum_of_injective (fun x p => code (x p.1) p.2) ?_ _ _ ?_ fun x => ?_).symm
   · -- Distinct assignments of letters differ at some edge, so their codes differ there.
-    intro x x' hxx'
-    funext e
-    exact hcode (funext fun j => congrFun hxx' (e, j))
+    exact fun x x' hxx' => funext fun e => hcode (funext fun j => congrFun hxx' (e, j))
   · -- A word on some edge is not a code word, so the tensor at its source vanishes.
     intro y hy
-    have : ∃ e, bitsOn y e ∉ Set.range code := by
+    obtain ⟨e, he⟩ : ∃ e, bitsOn y e ∉ Set.range code := by
       by_contra! hall
-      exact hy ⟨fun e => invFun code (bitsOn y e), funext fun p =>
-        congrFun (invFun_eq (hall p.1)) p.2⟩
-    obtain ⟨e, he⟩ := this
+      exact hy ⟨fun e => invFun code (bitsOn y e),
+        funext fun p => congrFun (invFun_eq (hall p.1)) p.2⟩
     refine Finset.prod_eq_zero (Finset.mem_univ (N.src e)) ?_
     simp only [binarize]
-    rw [ite_eq_right fun hall => he (hall e (Or.inl rfl))]
+    exact ite_eq_right fun hall => he (hall e (Or.inl rfl))
   · -- On a code word everywhere, every vertex decodes the original assignment.
     refine Finset.prod_congr rfl fun v _ => ?_
     simp only [binarize]
     rw [ite_eq_left fun e _ => ⟨x e, rfl⟩]
-    congr 1 with e : 1
-    exact (leftInverse_invFun hcode (x e)).symm
+    exact congrArg (N.tensor v) (funext fun e => (leftInverse_invFun hcode (x e)).symm)
 
 end Cslib.Circuits.Frontier.TensorNetwork

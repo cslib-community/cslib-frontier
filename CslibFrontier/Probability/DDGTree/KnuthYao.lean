@@ -88,17 +88,15 @@ theorem truncErr_nonneg (hx : 0 ≤ x) (n : ℕ) : 0 ≤ truncErr x n := by
 
 theorem truncErr_lt (n : ℕ) : truncErr x n < 2⁻¹ ^ n := by
   rw [truncErr_eq]
-  have h := Nat.lt_floor_add_one ((2 : ℝ) ^ n * x)
-  have hpos : (0 : ℝ) < 2⁻¹ ^ n := by positivity
-  nlinarith
+  exact mul_lt_of_lt_one_left (by positivity)
+    (by linarith [Nat.lt_floor_add_one ((2 : ℝ) ^ n * x)])
 
 theorem truncErr_le (n : ℕ) : truncErr x n ≤ x := by
   rw [truncErr, sub_le_self_iff]
   positivity
 
 theorem truncErr_eq_self {n : ℕ} (h : (2 : ℝ) ^ n * x < 1) : truncErr x n = x := by
-  rw [truncErr, Nat.floor_eq_zero.mpr h]
-  simp
+  simp [truncErr, Nat.floor_eq_zero.mpr h]
 
 theorem summable_truncErr (hx : 0 ≤ x) : Summable (truncErr x) :=
   Summable.of_nonneg_of_le (truncErr_nonneg hx) (fun n => (truncErr_lt n).le)
@@ -116,16 +114,13 @@ private theorem exists_scale (hx : 0 < x) (hx1 : x ≤ 1) :
   classical
   have hex : ∃ m : ℕ, 1 ≤ (2 : ℝ) ^ m * x := by
     obtain ⟨m, hm⟩ := pow_unbounded_of_one_lt x⁻¹ (by norm_num : (1 : ℝ) < 2)
-    refine ⟨m, ?_⟩
-    rw [inv_lt_iff_one_lt_mul₀ hx] at hm
-    linarith [mul_comm x ((2 : ℝ) ^ m)]
+    exact ⟨m, le_of_lt (by simpa only [mul_comm x] using (inv_lt_iff_one_lt_mul₀ hx).mp hm)⟩
   refine ⟨Nat.find hex, Nat.find_spec hex, ?_⟩
   rcases hm : Nat.find hex with _ | m
-  · simp only [pow_zero, one_mul]; linarith
-  · have hlt := Nat.find_min hex (show m < Nat.find hex by omega)
-    rw [not_le] at hlt
-    rw [pow_succ]
-    nlinarith
+  · simpa only [pow_zero, one_mul] using hx1.trans_lt one_lt_two
+  · have hlt := not_le.mp (Nat.find_min hex (m := m) (by omega))
+    rw [pow_succ', mul_assoc]
+    linarith
 
 private theorem negMulLogb_le (hx : 0 < x) {m : ℕ} (hm : 1 ≤ (2 : ℝ) ^ m * x) :
     x * -Real.logb 2 x ≤ m * x := by
@@ -133,7 +128,8 @@ private theorem negMulLogb_le (hx : 0 < x) {m : ℕ} (hm : 1 ≤ (2 : ℝ) ^ m *
     rw [Real.le_logb_iff_rpow_le (by norm_num) hx, Real.rpow_neg (by norm_num),
       Real.rpow_natCast, inv_le_iff_one_le_mul₀ (by positivity)]
     linarith [mul_comm x ((2 : ℝ) ^ m)]
-  nlinarith
+  rw [mul_comm (m : ℝ)]
+  exact mul_le_mul_of_nonneg_left (by linarith) hx.le
 
 private theorem negMulLogb_gt (hx : 0 < x) {m : ℕ} (hm : (2 : ℝ) ^ m * x < 2) :
     ((m : ℝ) - 1) * x < x * -Real.logb 2 x := by
@@ -141,7 +137,8 @@ private theorem negMulLogb_gt (hx : 0 < x) {m : ℕ} (hm : (2 : ℝ) ^ m * x < 2
     rw [Real.logb_lt_iff_lt_rpow (by norm_num) hx, Real.rpow_sub (by norm_num),
       Real.rpow_one, Real.rpow_natCast, lt_div_iff₀ (by positivity)]
     linarith [mul_comm x ((2 : ℝ) ^ m)]
-  nlinarith
+  rw [mul_comm _ x]
+  exact mul_lt_mul_of_pos_left (by linarith) hx
 
 /-- The first `m` truncations of `x < 2⁻ᵐ⁺¹` are `0`, so they contribute `m x`. -/
 private theorem mul_le_knuthYaoCost (hx : 0 < x) {m : ℕ} (hm : (2 : ℝ) ^ m * x < 2) :
@@ -151,10 +148,10 @@ private theorem mul_le_knuthYaoCost (hx : 0 < x) {m : ℕ} (hm : (2 : ℝ) ^ m *
   refine le_trans (le_of_eq ?_) hsum
   rw [Finset.sum_congr rfl (fun n hn => truncErr_eq_self ?_)]
   · simp
-  · have hn : n + 1 ≤ m := Finset.mem_range.mp hn
-    have h2 : (2 : ℝ) ^ (n + 1) ≤ 2 ^ m := pow_le_pow_right₀ (by norm_num) hn
-    rw [pow_succ] at h2
-    nlinarith
+  · have h2 : (2 : ℝ) ^ (n + 1) ≤ 2 ^ m := pow_le_pow_right₀ (by norm_num) (Finset.mem_range.mp hn)
+    have hmul := mul_le_mul_of_nonneg_right h2 hx.le
+    rw [pow_succ', mul_assoc] at hmul
+    linarith
 
 /-- For `x ≥ 2⁻ᵐ`, the truncation errors are at most `x` for `n < m`, at most `x - 2⁻ᵐ` at
 `n = m`, and below `2⁻ⁿ` afterwards. -/
@@ -170,8 +167,7 @@ private theorem knuthYaoCost_le (hx : 0 < x) {m : ℕ} (hm : 1 ≤ (2 : ℝ) ^ m
     have h1 : (1 : ℝ) ≤ ⌊(2 : ℝ) ^ m * x⌋₊ := by
       exact_mod_cast (Nat.one_le_floor_iff _).mpr hm
     rw [truncErr, inv_pow, div_eq_mul_inv]
-    have hpos : (0 : ℝ) < ((2 : ℝ) ^ m)⁻¹ := by positivity
-    nlinarith
+    linarith [le_mul_of_one_le_left (by positivity : (0 : ℝ) ≤ ((2 : ℝ) ^ m)⁻¹) h1]
   have htail : ∑' k, truncErr x (k + (m + 1)) ≤ 2⁻¹ ^ m := by
     have hgeom : Summable fun k : ℕ => (2⁻¹ : ℝ) ^ (k + (m + 1)) :=
       (summable_nat_add_iff (m + 1)).mpr
@@ -197,9 +193,7 @@ theorem negMulLogb_le_knuthYaoCost (hx0 : 0 ≤ x) (hx1 : x ≤ 1) :
 theorem knuthYaoCost_lt_negMulLogb_add (hx : 0 < x) (hx1 : x ≤ 1) :
     knuthYaoCost x < x * -Real.logb 2 x + 2 * x := by
   obtain ⟨m, hm1, hm2⟩ := exists_scale hx hx1
-  have h1 := knuthYaoCost_le hx hm1
-  have h2 := negMulLogb_gt hx hm2
-  linarith
+  linarith [knuthYaoCost_le hx hm1, negMulLogb_gt hx hm2]
 
 theorem knuthYaoCost_le_negMulLogb_add (hx0 : 0 ≤ x) (hx1 : x ≤ 1) :
     knuthYaoCost x ≤ x * -Real.logb 2 x + 2 * x := by
@@ -212,14 +206,8 @@ theorem knuthYaoCost_inv_two_pow (m : ℕ) : knuthYaoCost (2⁻¹ ^ m) = m * 2�
     intro n hn
     obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le (not_lt.mp (Finset.mem_range.not.mp hn))
     have h : (2 : ℝ) ^ (m + j) * 2⁻¹ ^ m = ((2 ^ j : ℕ) : ℝ) := by
-      push_cast
-      rw [pow_add, inv_pow]
-      field_simp
-    rw [truncErr, h, Nat.floor_natCast]
-    push_cast
-    rw [pow_add, inv_pow]
-    field_simp
-    ring
+      push_cast; rw [pow_add, inv_pow]; field_simp
+    rw [truncErr_eq, h, Nat.floor_natCast, sub_self, zero_mul]
   rw [knuthYaoCost, tsum_eq_sum hzero, Finset.sum_congr rfl fun n hn => truncErr_eq_self ?_]
   · simp
   · rw [inv_pow, mul_inv_lt_iff₀ (by positivity), one_mul]
@@ -228,24 +216,13 @@ theorem knuthYaoCost_inv_two_pow (m : ℕ) : knuthYaoCost (2⁻¹ ^ m) = m * 2�
 /-- The lower bound is tight exactly at `0` and at powers of `1/2`. -/
 theorem knuthYaoCost_eq_negMulLogb_iff (hx0 : 0 ≤ x) (hx1 : x ≤ 1) :
     knuthYaoCost x = x * -Real.logb 2 x ↔ x = 0 ∨ ∃ m : ℕ, x = 2⁻¹ ^ m := by
-  constructor
-  · intro h
-    rcases hx0.eq_or_lt with rfl | hx
-    · exact Or.inl rfl
-    right
-    obtain ⟨m, hm1, hm2⟩ := exists_scale hx hx1
-    have h1 := negMulLogb_le hx hm1
-    have h2 := mul_le_knuthYaoCost hx hm2
-    have hlog : Real.logb 2 x = -m := by
-      have h3 : x * -Real.logb 2 x = x * m := by
-        rw [mul_comm x (m : ℝ)]
-        exact le_antisymm h1 (h ▸ h2)
-      have := mul_left_cancel₀ hx.ne' h3
-      linarith
-    refine ⟨m, ?_⟩
-    have := Real.rpow_logb (by norm_num : (0 : ℝ) < 2) (by norm_num) hx
-    rw [hlog, Real.rpow_neg (by norm_num), Real.rpow_natCast] at this
-    rw [← this, inv_pow]
+  refine ⟨fun h => hx0.eq_or_lt.imp Eq.symm fun hx => ?_, ?_⟩
+  · obtain ⟨m, hm1, hm2⟩ := exists_scale hx hx1
+    have h3 : x * -Real.logb 2 x = x * m :=
+      (le_antisymm (negMulLogb_le hx hm1) (h ▸ mul_le_knuthYaoCost hx hm2)).trans (mul_comm _ x)
+    have hlog : Real.logb 2 x = -m := by linarith [mul_left_cancel₀ hx.ne' h3]
+    exact ⟨m, by rw [← Real.rpow_logb zero_lt_two one_lt_two.ne' hx, hlog,
+      Real.rpow_neg zero_le_two, Real.rpow_natCast, inv_pow]⟩
   · rintro (rfl | ⟨m, rfl⟩)
     · simp
     · rw [knuthYaoCost_inv_two_pow, inv_pow, Real.logb_inv, Real.logb_two_pow]
@@ -270,12 +247,10 @@ noncomputable def knuthYao (p : PMF α) : DDGTree α := ofCounts (knuthYaoCounts
 omit [Fintype α] in
 private theorem knuthYaoCounts_mono (p : PMF α) (k : ℕ) (a : α) :
     2 * knuthYaoCounts p k a ≤ knuthYaoCounts p (k + 1) a := by
-  unfold knuthYaoCounts
-  apply Nat.le_floor
-  push_cast
-  have := Nat.floor_le (by positivity : (0 : ℝ) ≤ 2 ^ k * (p a).toReal)
-  rw [pow_succ]
-  nlinarith
+  refine Nat.le_floor ?_
+  push_cast [knuthYaoCounts]
+  rw [pow_succ', mul_assoc]
+  exact mul_le_mul_of_nonneg_left (Nat.floor_le (by positivity)) zero_le_two
 
 private theorem knuthYaoCounts_kraft (p : PMF α) (k : ℕ) :
     ∑ a, knuthYaoCounts p k a ≤ 2 ^ k := by
@@ -302,10 +277,10 @@ theorem knuthYao_generates (p : PMF α) : (knuthYao p).Generates p := by
   simp only [run_knuthYao_some_eq_ofReal]
   rw [← ENNReal.ofReal_toReal (p.apply_ne_top a)]
   refine ENNReal.tendsto_ofReal ?_
-  have hzero : Tendsto (fun n => truncErr (p a).toReal n) atTop (𝓝 0) :=
-    squeeze_zero (fun n => truncErr_nonneg ENNReal.toReal_nonneg n) (fun n => (truncErr_lt n).le)
-      (tendsto_pow_atTop_nhds_zero_of_lt_one (by norm_num) (by norm_num))
-  simpa using (tendsto_const_nhds (x := (p a).toReal)).sub hzero
+  simpa using (tendsto_const_nhds (x := (p a).toReal)).sub
+    (squeeze_zero (fun n => truncErr_nonneg ENNReal.toReal_nonneg n) (fun n => (truncErr_lt n).le)
+      (tendsto_pow_atTop_nhds_zero_of_lt_one (inv_nonneg.mpr zero_le_two)
+        (inv_lt_one_of_one_lt₀ one_lt_two)))
 
 /-- The Knuth–Yao tree needs more than `n` flips with probability `∑ₐ (p a - ⌊2ⁿ p a⌋ / 2ⁿ)`. -/
 theorem run_knuthYao_none (p : PMF α) (n : ℕ) :
@@ -326,12 +301,9 @@ theorem expectedFlips_knuthYao (p : PMF α) :
     (knuthYao p).expectedFlips = ENNReal.ofReal (∑ a, knuthYaoCost (p a).toReal) := by
   have hs : ∀ a, Summable (truncErr (p a).toReal) := fun a =>
     summable_truncErr ENNReal.toReal_nonneg
-  rw [expectedFlips]
-  simp only [run_knuthYao_none]
-  rw [← ENNReal.ofReal_tsum_of_nonneg
+  simp only [expectedFlips, run_knuthYao_none, ← ENNReal.ofReal_tsum_of_nonneg
     (fun n => Finset.sum_nonneg fun a _ => truncErr_nonneg ENNReal.toReal_nonneg n)
-    (summable_sum fun a _ => hs a), Summable.tsum_finsetSum fun a _ => hs a]
-  rfl
+    (summable_sum fun a _ => hs a), Summable.tsum_finsetSum fun a _ => hs a, knuthYaoCost]
 
 theorem entropy_le_sum_knuthYaoCost (p : PMF α) :
     PMF.entropy p ≤ ∑ a, knuthYaoCost (p a).toReal := by
@@ -348,7 +320,7 @@ theorem sum_knuthYaoCost_lt_entropy_add_two (p : PMF α) :
   refine Finset.sum_lt_sum
     (fun a _ => knuthYaoCost_le_negMulLogb_add ENNReal.toReal_nonneg (PMF.toReal_apply_le_one p a))
     ⟨a₀, Finset.mem_univ _, knuthYaoCost_lt_negMulLogb_add
-      (ENNReal.toReal_pos ((p.mem_support_iff a₀).mp ha₀) (p.apply_ne_top a₀))
+      (by ennreal_to_real using pos_iff_ne_zero.mpr ((p.mem_support_iff a₀).mp ha₀))
       (PMF.toReal_apply_le_one p a₀)⟩
 
 /-- Stochastic dominance: for every tree generating `p` and every `n`, the Knuth–Yao tree is at
@@ -359,21 +331,18 @@ theorem run_knuthYao_none_le {T : DDGTree α} {p : PMF α} (hT : T.Generates p) 
     intro a
     obtain ⟨c, hc⟩ := T.exists_run_eq_div n (some a)
     have hp : T.run n (some a) ≤ p a := hT a ▸ T.run_le_outputProb n a
-    rw [hc] at hp ⊢
-    rw [run_knuthYao_some]
+    rw [hc] at hp
+    rw [hc, run_knuthYao_some]
     gcongr
-    apply Nat.le_floor
+    refine Nat.le_floor ?_
     ennreal_to_real at hp
-    rw [div_le_iff₀ (by positivity)] at hp
-    linarith
-  have hT1 := T.run_none_add_sum n
+    rwa [div_le_iff₀ (by positivity), mul_comm] at hp
   have hK1 := (knuthYao p).run_none_add_sum n
   have hfin : ∑ a, (knuthYao p).run n (some a) ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top (hK1 ▸ le_add_self)
-  have hle := Finset.sum_le_sum fun a (_ : a ∈ Finset.univ) => hsome a
   refine (ENNReal.add_le_add_iff_right hfin).mp ?_
-  rw [hK1, ← hT1]
-  exact add_le_add_right hle _
+  rw [hK1, ← T.run_none_add_sum n]
+  exact add_le_add_right (Finset.sum_le_sum fun a _ => hsome a) _
 
 /-- Knuth–Yao optimality: no tree generating `p` uses fewer expected flips. -/
 theorem expectedFlips_knuthYao_le {T : DDGTree α} {p : PMF α} (hT : T.Generates p) :
@@ -391,9 +360,8 @@ at least `H(p)` fair bits in expectation. -/
 theorem entropy_le_expectedFlips {α : Type*} [Finite α] {T : DDGTree α} {p : PMF α}
     (hT : T.Generates p) : ENNReal.ofReal (PMF.entropy p) ≤ T.expectedFlips := by
   have := Fintype.ofFinite α
-  refine le_trans ?_ (expectedFlips_knuthYao_le hT)
-  rw [expectedFlips_knuthYao]
-  exact ENNReal.ofReal_le_ofReal (entropy_le_sum_knuthYaoCost p)
+  exact ((expectedFlips_knuthYao p).symm ▸
+    ENNReal.ofReal_le_ofReal (entropy_le_sum_knuthYaoCost p)).trans (expectedFlips_knuthYao_le hT)
 
 /-- **Knuth–Yao upper bound** ([CoverThomas2006], Theorem 5.11.3): the Knuth–Yao tree reads fewer
 than `H(p) + 2` fair bits in expectation. -/
@@ -407,11 +375,6 @@ theorem exists_generates_expectedFlips_lt {α : Type*} [Finite α] (p : PMF α) 
     ∃ T : DDGTree α, T.Generates p ∧ T.expectedFlips < ENNReal.ofReal (PMF.entropy p + 2) :=
   have := Fintype.ofFinite α
   ⟨knuthYao p, knuthYao_generates p, expectedFlips_knuthYao_lt p⟩
-
-private theorem toReal_eq_inv_two_pow_iff {x : ℝ≥0∞} (hx : x ≠ ⊤) (m : ℕ) :
-    x.toReal = 2⁻¹ ^ m ↔ x = 2⁻¹ ^ m := by
-  rw [← ENNReal.toReal_eq_toReal_iff' hx (by simp), ENNReal.toReal_pow, ENNReal.toReal_inv,
-    ENNReal.toReal_ofNat]
 
 /-- The Knuth–Yao tree attains the entropy exactly for dyadic distributions. -/
 theorem expectedFlips_knuthYao_eq_entropy_iff (p : PMF α) :
@@ -427,15 +390,10 @@ theorem expectedFlips_knuthYao_eq_entropy_iff (p : PMF α) :
   refine forall_congr' fun a => ?_
   rw [eq_comm, knuthYaoCost_eq_negMulLogb_iff ENNReal.toReal_nonneg (PMF.toReal_apply_le_one p a),
     PMF.mem_support_iff]
-  constructor
-  · rintro (h | ⟨m, hm⟩) hpa
-    · exact absurd ((ENNReal.toReal_eq_zero_iff _).mp h |>.resolve_right (p.apply_ne_top a)) hpa
-    · exact ⟨m, (toReal_eq_inv_two_pow_iff (p.apply_ne_top a) m).mp hm⟩
-  · intro h
-    by_cases hpa : p a = 0
-    · left; simp [hpa]
-    · obtain ⟨m, hm⟩ := h hpa
-      exact Or.inr ⟨m, (toReal_eq_inv_two_pow_iff (p.apply_ne_top a) m).mpr hm⟩
+  refine ⟨fun h hpa => (h.resolve_left fun h0 => hpa (by ennreal_to_real using h0)).imp
+      fun m hm => by ennreal_to_real using hm,
+    fun h => (eq_or_ne (p a) 0).imp (fun h0 => by simp [h0]) fun hpa =>
+      (h hpa).imp fun m hm => by ennreal_to_real using hm⟩
 
 /-- **Dyadic case** ([CoverThomas2006], Theorem 5.11.2 and its converse): some tree generating `p`
 reads exactly `H(p)` fair bits in expectation if and only if every positive probability `p a` is a
@@ -445,11 +403,8 @@ theorem exists_generates_expectedFlips_eq_entropy_iff {α : Type*} [Finite α] (
       ∀ a ∈ p.support, ∃ m : ℕ, p a = 2⁻¹ ^ m := by
   have := Fintype.ofFinite α
   rw [← expectedFlips_knuthYao_eq_entropy_iff]
-  constructor
-  · rintro ⟨T, hT, he⟩
-    exact le_antisymm (he ▸ expectedFlips_knuthYao_le hT) (entropy_le_expectedFlips
-      (knuthYao_generates p))
-  · intro h
-    exact ⟨knuthYao p, knuthYao_generates p, h⟩
+  exact ⟨fun ⟨_, hT, he⟩ => le_antisymm (he ▸ expectedFlips_knuthYao_le hT)
+      (entropy_le_expectedFlips (knuthYao_generates p)),
+    fun h => ⟨knuthYao p, knuthYao_generates p, h⟩⟩
 
 end Cslib.Probability.DDGTree

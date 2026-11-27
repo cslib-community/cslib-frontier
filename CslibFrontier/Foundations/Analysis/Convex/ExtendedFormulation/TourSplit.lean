@@ -482,20 +482,9 @@ private theorem splitEquiv_vOut_add_one {W : Type*} [Fintype W] [DecidableEq W]
     simp only [splitFrom, splitPos, splitMidLen, hτ'0, ↓reduceIte, zero_add, hτ_eq, h1_ne,
       fin_one_val (n := Fintype.card W) (by omega), Equiv.symm_apply_apply]
     split_ifs <;> omega
-  · have hstep_eq : (t + 1 = 0) ↔ t.1 + 1 = Fintype.card W := by
-      refine ⟨fun h => ?_, fun h => fin_add_one_eq_zero (by omega) h⟩
-      have := congrArg Fin.val h
-      rw [fin_val_add_one_eq_ite (by omega), Fin.val_zero] at this
-      by_cases hlast : t.1 + 1 = Fintype.card W
-      · exact hlast
-      · simp [hlast] at this
-    have ht1_val : (t + 1).1 = if t.1 + 1 = Fintype.card W then 0 else t.1 + 1 :=
-      fin_val_add_one_eq_ite (by omega) t
-    simp only [splitFrom, splitPos, splitMidLen, hτ_eq, ht0, hstep_eq, ht1_val, ↓reduceIte,
-      Equiv.symm_apply_apply]
-    by_cases hlast : t.1 + 1 = Fintype.card W
-    · simp [hlast]; omega
-    · simp [hlast, show 3 * t.1 + pad + 1 + 1 + 1 ≠ 3 * Fintype.card W + pad by omega]; omega
+  · simp only [splitFrom, splitPos, splitMidLen, hτ_eq, ht0, Fin.ext_iff, Fin.val_zero,
+      fin_val_add_one_eq_ite (n := Fintype.card W) (by omega), ↓reduceIte, Equiv.symm_apply_apply]
+    split_ifs <;> omega
 
 /-- Every directed Hamiltonian tour of `(W, adjD)` lifts to a subgraph tour of
 `paddedSplitGraph v₀ pad adjD` matching the inter-gadget arcs. -/
@@ -593,10 +582,7 @@ private theorem tourEdgeSet_shift {V : Type*} [Fintype V] [Nonempty V] [Decidabl
 theorem fin_sub_one_ne_add_one {M : ℕ} [NeZero M] (hM : 3 ≤ M) (i : Fin M) :
     i - 1 ≠ i + 1 := by
   intro h
-  have h20 : (1 + 1 : Fin M) = 0 := add_left_cancel (a := i) (by
-    calc i + (1 + 1) = i + 1 + 1 := (add_assoc i 1 1).symm
-      _ = i - 1 + 1 := by rw [← h]
-      _ = i + 0 := by rw [sub_add_cancel, add_zero])
+  have h20 : (1 + 1 : Fin M) = 0 := by rw [← sub_eq_zero.2 h.symm]; abel
   have hv := congrArg Fin.val h20
   rw [Fin.val_add, fin_one_val (by omega), Fin.val_zero, Nat.mod_eq_of_lt (by omega)] at hv
   omega
@@ -620,9 +606,7 @@ private theorem tour_vMid_zero_neighbor_vIn {W : Type*} [Fintype W] [DecidableEq
   have hne : σ (r - 1) ≠ σ (r + 1) := fun h => fin_sub_one_ne_add_one hM3 r (σ.injective h)
   rcases hm_mem with hm | hm
   · exact Or.inl (hm.trans hprev)
-  · rcases hp_mem with hp | hp
-    · exact Or.inr (hp.trans hprev)
-    · exact absurd (hm.trans hp.symm) hne
+  · exact Or.inr ((hp_mem.resolve_right fun hp => hne (hm.trans hp.symm)).trans hprev)
 
 private def splitFin {W : Type*} [Fintype W] [DecidableEq W] (v₀ : W) (pad : ℕ) (n : ℕ) :
     Fin (Fintype.card (SplitV W v₀ pad)) :=
@@ -696,11 +680,9 @@ private theorem splitTour_block_walk {W : Type*} [Fintype W] [DecidableEq W]
       splitStep v₀ pad σ (t + 1 + k + 1) = midNext v₀ pad w ⟨k, hk⟩ := by
     have hnb := splitStep_adj v₀ pad adjD (by omega) σ hadj (t + 1 + k)
     rw [hcur] at hnb
-    rcases (adj_vMid_iff v₀ pad adjD w ⟨k, hk⟩ _).1 hnb with hprev | hnext
-    · exfalso
-      rw [show t + 1 + k + 1 = t + k + 2 by omega] at hprev
-      exact splitStep_ne_add_two v₀ pad hM3 σ (t + k) (hprev.trans hprev_eq.symm)
-    · exact hnext
+    refine ((adj_vMid_iff v₀ pad adjD w ⟨k, hk⟩ _).1 hnb).resolve_left fun hprev => ?_
+    rw [show t + 1 + k + 1 = t + k + 2 by omega] at hprev
+    exact splitStep_ne_add_two v₀ pad hM3 σ (t + k) (hprev.trans hprev_eq.symm)
   have hmid_pair : ∀ k (hk : k < splitMidLen v₀ pad w),
       splitStep v₀ pad σ (t + 1 + k) = .vMid w ⟨k, hk⟩ ∧
       splitStep v₀ pad σ (t + k) = midPrev v₀ pad w ⟨k, hk⟩ := fun k => by
@@ -848,14 +830,9 @@ theorem exists_dirTour_of_paddedSplitTour {W : Type*} [Fintype W] [Nonempty W] [
           change splitStep v₀ pad σ (pos r₁) = splitStep v₀ pad σ (pos k)
           rw [(seq r₁).2.1, (seq k).2.1]
           exact congrArg SplitV.vIn heq
-        refine ⟨fun r₁ hr₁ r₂ hr₂ heq => ?_, fun r hr => ?_⟩
-        · rw [Finset.coe_range, Set.mem_Iio] at hr₁ hr₂
-          rcases Nat.lt_succ_iff_lt_or_eq.1 hr₁ with hr1 | rfl <;>
-            rcases Nat.lt_succ_iff_lt_or_eq.1 hr₂ with hr2 | rfl
-          · exact him_inj (Finset.mem_range.2 hr1) (Finset.mem_range.2 hr2) heq
-          · exact absurd heq (hne_prev r₁ hr1)
-          · exact absurd heq.symm (hne_prev r₂ hr2)
-          · rfl
+        refine ⟨?_, fun r hr => ?_⟩
+        · rw [Finset.range_add_one, Finset.coe_insert, Set.injOn_insert (by simp)]
+          exact ⟨him_inj, fun ⟨r, hr, heq⟩ => hne_prev r (by simpa using hr) heq⟩
         · rcases Nat.lt_succ_iff_lt_or_eq.1 hr with hr' | rfl <;> [exact hlt r hr'; exact hpos_k]
   obtain ⟨hm_inj, hpos_lt⟩ := hwalk_lt (Fintype.card W) le_rfl
   let m := Fintype.card W

@@ -9,16 +9,11 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.QueryDisturbance
+-- Reads private `Address`, `addressLaw`, and unexposed `signingSeedPredictionGame` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+-- Reads private `PrivateKey.encode`, `Xofs.secretPoly`, `tabulate`, and `Xofs.keyGen`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 import CslibFrontier.Probability.PMF.UniformPoint
-import all CslibFrontier.Languages.Probabilistic.Presample
 
 /-!
 # Private signing-seed prediction and the key-generation query
@@ -78,43 +73,34 @@ private theorem uniform_plant (base : Xofs) (s : Level) (seed : FixedBytes 32) {
   have install_eq (U T : Table a b) (out : FixedBytes 128) :
       (streams base U T).withKeySeedExpansion s seed out =
         streams base U (Function.extend e out T) := by
-    apply congrArg (Xofs.mk (install base.h128 U))
-    apply ext_byteAt
-    intro y i
+    refine congrArg (Xofs.mk (install base.h128 U)) (ext_byteAt fun y i => ?_)
     change byteAt ((install base.h256 T).withPrefixes _) y i = _
     rw [byteAt_withPrefixes]
     simp only [byteAt_install]
     by_cases same : y = x
     · subst y
-      simp only [← show x = keySeedInput s seed from rfl, ↓reduceIte, Option.bind_some,
-        FixedBytes.toList, List.getElem?_ofFn]
+      rw [ite_eq_left rfl]
+      simp only [Option.bind_some, FixedBytes.toList, List.getElem?_ofFn]
       by_cases hi : i < 128
       · have small := hi.trans_le hb
         simp only [hi, ↓reduceDIte, Option.getD_some, hx, small, and_self]
         exact (he.extend_apply out T ⟨i, hi⟩).symm
       · simp only [hi, ↓reduceDIte, Option.getD_none]
         split
-        next h =>
-          apply Eq.symm
-          apply Function.extend_apply'
-          rintro ⟨j, eq⟩
-          exact hi ((congrArg (fun p => p.2.val) eq : j.val = i) ▸ j.isLt)
+        next => exact (Function.extend_apply' _ _ _ fun ⟨j, eq⟩ =>
+          hi ((congrArg (fun p => p.2.val) eq : j.val = i) ▸ j.isLt)).symm
         next => rfl
-    · have miss : y ≠ keySeedInput s seed := same
-      simp only [miss, ↓reduceIte, Option.bind_none, Option.getD_none]
+    · rw [ite_eq_right same]
+      simp only [Option.bind_none, Option.getD_none]
       split
-      next h =>
-        apply Eq.symm
-        apply Function.extend_apply'
-        rintro ⟨j, eq⟩
-        exact same (word_inj (hx := hx) (hy := h.1) (congrArg Prod.fst eq)).symm
+      next h => exact (Function.extend_apply' _ _ _ fun ⟨_, eq⟩ =>
+        same (word_inj (hx := hx) (hy := h.1) (congrArg Prod.fst eq)).symm).symm
       next => rfl
   simp only [independent_tables, PMF.bind_bind, PMF.bind_map, Function.comp_def]
   rw [PMF.bind_comm (PMF.uniformOfFintype (Table a b)),
     PMF.bind_comm (PMF.uniformOfFintype (Table a b)) (PMF.uniformOfFintype (Table a b))
       (fun t u => f ⟨install base.h128 u, install base.h256 t⟩)]
-  congr 1
-  funext u
+  refine congrArg (PMF.bind _) (funext fun u => ?_)
   change ((PMF.uniformOfFintype (Table a b)).bind fun t =>
     (PMF.uniformOfFintype (FixedBytes 128)).bind fun out =>
       f ((streams base u t).withKeySeedExpansion s seed out)) = _
@@ -137,8 +123,7 @@ private theorem decode_rekey {s : Level} (sk : PrivateKey s) (rhoLen : sk.rho.le
     (keyLen : sk.key.length = 32) (trLen : sk.tr.length = 64) (K : FixedBytes 32) :
     decodePrivate s ({sk with key := K.toList} : PrivateKey s).encode =
       (decodePrivate s sk.encode).map fun v => { v with key := K.toList } := by
-  unfold decodePrivate
-  dsimp only
+  dsimp only [decodePrivate]
   rw [sk.length_encode rhoLen keyLen trLen,
     PrivateKey.length_encode {sk with key := K.toList} rhoLen (FixedBytes.length_toList K) trLen]
   simp only [guard,
@@ -150,14 +135,12 @@ private theorem decode_rekey {s : Level} (sk : PrivateKey s) (rhoLen : sk.rho.le
 private theorem decoded_tr {s : Level} (sk v : PrivateKey s) (rhoLen : sk.rho.length = 32)
     (keyLen : sk.key.length = 32) (trLen : sk.tr.length = 64)
     (hv : decodePrivate s sk.encode = some v) : v.tr = sk.tr := by
-  unfold decodePrivate at hv
-  dsimp only at hv
+  dsimp only [decodePrivate] at hv
   rw [sk.length_encode rhoLen keyLen trLen] at hv
   simp only [guard, ↓reduceIte,
     Option.pure_def, Option.bind_eq_bind, Option.bind_some, Option.some.injEq] at hv
-  rw [← hv]
-  simp only [PrivateKey.encode, List.drop_left' rhoLen, List.drop_left' keyLen,
-    List.take_left' trLen]
+  simpa only [PrivateKey.encode, List.drop_left' rhoLen, List.drop_left' keyLen,
+    List.take_left' trLen] using congrArg PrivateKey.tr hv.symm
 
 private abbrev signDecoded (H : Xofs) (s : Level) (m : List Bool) (r : Row) (v : PrivateKey s) :=
   H.runSigning s (H.startDecodedSigning s v m fun μ => (r (BitString.ofList 512 μ)).toList)
@@ -168,38 +151,30 @@ private theorem signDecoded_plant (H : Xofs) (s : Level) (seed : FixedBytes 32)
     signDecoded (H.withKeySeedExpansion s seed out) s m r {v with key := K.toList} =
       signDecoded H s m r v := by
   let μ := H.representativeFromTr v.tr m
-  have rep : (H.withKeySeedExpansion s seed out).representativeFromTr v.tr m = μ := by
-    apply congrArg Keccak.bytesToBitsLE
-    apply plant_off
-    simp only [representativeInput, List.length_append, Keccak.length_bytesToBitsLE, ht]
-    lia
+  have rep : (H.withKeySeedExpansion s seed out).representativeFromTr v.tr m = μ :=
+    congrArg Keccak.bytesToBitsLE <| plant_off _ _ _ _
+      (by simp [representativeInput, Keccak.length_bytesToBitsLE, ht]; omega) _
   have hμ : μ.length = 512 := by
     simp [μ, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, H.h256.length_read]
-  unfold signDecoded Xofs.runSigning Xofs.startDecodedSigning
-  dsimp only
+  dsimp only [signDecoded, Xofs.runSigning, Xofs.startDecodedSigning]
   rw [rep, Xofs.expandA_congr (H := H) (K := H.withKeySeedExpansion s seed out) rfl]
   cases H.expandA s v.rho with
   | none => simp only [Option.bind_eq_bind, Option.bind_none]
   | some A =>
     simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def]
-    apply congrArg (fun f => firstAccepted s.params.ℓ f 814 0)
-    funext κ
-    apply attempt_congr_of_read (s := s) (sk := v) (r := r (BitString.ofList 512 μ))
-      (fun _ h => plant_off H s seed out h) (by decide) _ (by cases s <;> decide)
-    intro w
-    simp only [commitmentInput, List.length_append, hμ]
-    lia
+    refine congrArg (fun f => firstAccepted s.params.ℓ f 814 0) (funext fun κ => ?_)
+    exact attempt_congr_of_read (s := s) (sk := v) (r := r (BitString.ofList 512 μ))
+      (fun _ h => plant_off H s seed out h) (by decide)
+      (fun w => by simp only [commitmentInput, List.length_append, hμ]; omega)
+      (by cases s <;> decide)
 
 private theorem row_eq_decoded (H : Xofs) (s : Level) (sk : List Byte) (q : SigningQuery)
     (r : Row) (hc : q.context.length ≤ 255) :
     H.signWithRow s sk q r =
       (decodePrivate s sk).bind (signDecoded H s (formatMessage q.message q.context) r) := by
   simp only [Xofs.signWithRow, hc, guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
-    Option.bind_some]
-  unfold Xofs.startSigningWithSeed signDecoded
-  cases decodePrivate s sk with
-  | none => rfl
-  | some v => rfl
+    Option.bind_some, Xofs.startSigningWithSeed, signDecoded]
+  cases decodePrivate s sk <;> rfl
 
 private theorem bind_rekey {s : Level} (sk : PrivateKey s) (hr : sk.rho.length = 32)
     (hk : sk.key.length = 32) (ht : sk.tr.length = 64) (K : FixedBytes 32)
@@ -238,50 +213,40 @@ private theorem rowSigner_plant (H : Xofs) (s : Level) (p : FixedBytes 96)
       ((FixedBytes.toList (n := 128) (Fin.append p t)).take 32 = rho) ∧
       (((FixedBytes.toList (n := 128) (Fin.append p t)).drop 32).take 64 = rho') ∧
       ((FixedBytes.toList (n := 128) (Fin.append p t)).drop 96 = t.toList) := by
-    rw [show FixedBytes.toList (n := 128) (Fin.append p t) = p.toList ++ t.toList from
-      List.ofFn_fin_append p t]
-    simp only [rho, rho', List.take_append, List.drop_append, FixedBytes.length_toList,
-      List.take_left' rh',
+    have happ : FixedBytes.toList (n := 128) (Fin.append p t) = p.toList ++ t.toList :=
+      List.ofFn_fin_append p t
+    simp [happ, rho, rho', List.take_append, List.drop_append, List.take_left' rh',
       List.drop_left' (FixedBytes.length_toList p)]
-    simp
   let G (seed K : FixedBytes 32) := H.withKeySeedExpansion s seed (Fin.append p K)
-  have short seed K i : (G seed K).secretPoly s rho' i = H.secretPoly s rho' i := by
-    unfold Xofs.secretPoly
-    rw [show (G seed K).h256.readBytes (nonceInput rho' i) 481 =
-          H.h256.readBytes (nonceInput rho' i) 481 from plant_off _ _ _ _ (by
-            simp [Keccak.length_bytesToBitsLE, nonceInput, rh']) _]
-  have pkHash seed K (t : Fin s.params.k → Poly) :
-      (G seed K).h256.readBytes (encodePublic s rho t) 64 =
-        H.h256.readBytes (encodePublic s rho t) 64 := by
-    apply plant_off
-    rw [Keccak.length_bytesToBitsLE, length_encodePublic, rh]
-    cases s <;> decide
+  have short (u v : FixedBytes 32) i :
+      (H.withKeySeedExpansion s u (Fin.append p v)).secretPoly s rho' i = H.secretPoly s rho' i :=
+    congrArg (rejBoundedPoly s)
+      (plant_off _ _ _ _ (by simp [Keccak.length_bytesToBitsLE, nonceInput, rh']) _)
+  have pkHash (seed K : FixedBytes 32) (t : Fin s.params.k → Poly) :
+      (H.withKeySeedExpansion s seed (Fin.append p K)).h256.readBytes (encodePublic s rho t) 64 =
+        H.h256.readBytes (encodePublic s rho t) 64 :=
+    plant_off _ _ _ _ (by
+      rw [Keccak.length_bytesToBitsLE, length_encodePublic, rh]
+      cases s <;> decide) _
   change rowSigner (G seed K) s seed = rowSigner (G z z) s z
-  have expansion (u v : FixedBytes 32) :
-      (G u v).expandKeySeed s u = FixedBytes.toList (n := 128) (Fin.append p v) :=
-    Xofs.expandKeySeed_withKeySeedExpansion H s u _
-  simp only [rowSigner, Xofs.keyGen, Xofs.expandS, expansion, (fields K).1, (fields K).2.1,
-    (fields K).2.2, (fields z).1, (fields z).2.1, (fields z).2.2,
-    Xofs.expandA_congr (H := H) (K := G seed K) rfl,
-    Xofs.expandA_congr (H := H) (K := G z z) rfl, short, pkHash,
-    Option.pure_def, Option.bind_eq_bind]
-  cases eqA : H.expandA s rho
+  simp only [G, rowSigner, Xofs.keyGen, Xofs.expandS, Xofs.expandKeySeed_withKeySeedExpansion,
+    (fields K).1, (fields K).2.1, (fields K).2.2, (fields z).1, (fields z).2.1, (fields z).2.2,
+    Xofs.expandA_congr (H := H) (K := H.withKeySeedExpansion s seed (Fin.append p K)) rfl,
+    Xofs.expandA_congr (H := H) (K := H.withKeySeedExpansion s z (Fin.append p z)) rfl,
+    short, pkHash, Option.pure_def, Option.bind_eq_bind]
+  rcases H.expandA s rho with _ | A
   · rfl
-  rename_i A
-  cases eqU : tabulate _ (fun i : Fin s.params.ℓ => H.secretPoly s rho' i.val)
+  rcases tabulate _ (fun i : Fin s.params.ℓ => H.secretPoly s rho' i.val) with _ | u
   · rfl
-  rename_i u
-  cases eqV : tabulate _ (fun i : Fin s.params.k => H.secretPoly s rho' (s.params.ℓ + i.val))
+  rcases tabulate _ (fun i : Fin s.params.k => H.secretPoly s rho' (s.params.ℓ + i.val)) with _ | v
   · rfl
-  rename_i v
   simp only [Option.bind_some, Option.map_some, pkHash]
   let t := fun i => (Vector.ofFn (fun i => Vector.ofFn ((moduleSISMap A u + v) i))).get i |>.get
   let sk : PrivateKey s := ⟨rho, z.toList, H.h256.readBytes (encodePublic s rho t) 64,
     u, v, fun i j => ((power2Round 8380417 13 (t i j)).2 : ZMod 8380417)⟩
   let view (reply : Row → SigningQuery → Option (List Byte)) : Option RowSigner :=
     some ⟨encodePublic s rho t, H.h256.readBytes (encodePublic s rho t) 64, reply⟩
-  apply congrArg view
-  funext r q
+  refine congrArg view (funext fun r => funext fun q => ?_)
   have run seed' K' := sign_plant H s seed' (Fin.append p K') sk rh
     (FixedBytes.length_toList z) (H.h256.length_read ..) K' q r
   exact (run seed K).trans (run z z).symm
@@ -304,10 +269,8 @@ private theorem fixedPrediction_eq (C : QuantumSigningForger) (s : Level) (base 
       (base.uniformPrefixes a b).bind fun H =>
         (C.observations H s (rowSigner H s seed) rows j).map fun guesses =>
           guesses.contains (Keccak.bytesToBitsLE (signingSeedBytes H s seed)) := by
-  unfold fixedPrediction
-  congr 1
-  funext H
-  unfold observations serviceAddress rowSigner rowAddress addressLaw publicHash
+  refine congrArg (PMF.bind _) (funext fun H => ?_)
+  dsimp only [observations, serviceAddress, rowSigner, rowAddress, addressLaw, publicHash]
   cases H.keyGen s seed with
   | none => simp [withTrialSetup]
   | some k =>
@@ -338,24 +301,16 @@ theorem keySeedDeviceGame_true (C : QuantumSigningForger) (s : Level) (base : Xo
     C.keySeedDeviceGame s base a b n j true = C.signingSeedPredictionGame s base a b n j := by
   simp only [keySeedDeviceGame, signingSeedPredictionGame, PMF.monad_bind_eq_bind,
     PMF.monad_pure_eq_pure, ↓reduceIte, fixedPrediction_eq]
-  congr 1
-  funext seed
-  congr 1
-  funext rows
+  refine congrArg (PMF.bind _) (funext fun seed => congrArg (PMF.bind _) (funext fun rows => ?_))
   let run (H : Xofs) :=
     (C.observations H s (rowSigner H s seed) rows j).map fun guesses =>
       guesses.contains (Keccak.bytesToBitsLE (signingSeedBytes H s seed))
-  change _ = (base.uniformPrefixes a b).bind run
-  apply Eq.trans _ (uniform_plant base s seed ha hb run)
-  apply congrArg (fun f => (base.uniformPrefixes a b).bind f)
-  funext H
-  have split := PMF.uniformOfFintype_bind_bind_equiv (Fin.appendEquiv 96 32 (α := Byte))
-    (fun out => run (H.withKeySeedExpansion s seed out))
-  refine Eq.trans ?_ split
-  apply congrArg (fun f => (PMF.uniformOfFintype (FixedBytes 96)).bind f)
-  funext p
-  apply congrArg (fun f => (PMF.uniformOfFintype (FixedBytes 32)).bind f)
-  funext K
+  refine (congrArg (fun f => (base.uniformPrefixes a b).bind f) <| funext fun H => ?_).trans
+    (uniform_plant base s seed ha hb run)
+  refine (congrArg (PMF.uniformOfFintype (FixedBytes 96)).bind <| funext fun p =>
+    congrArg (PMF.uniformOfFintype (FixedBytes 32)).bind <| funext fun K => ?_).trans
+    (PMF.uniformOfFintype_bind_bind_equiv (Fin.appendEquiv 96 32 (α := Byte))
+      fun out => run (H.withKeySeedExpansion s seed out))
   simp only [Fin.appendEquiv, Equiv.coe_fn_mk, run, rowSigner_plant, signingSeedBytes,
     Xofs.expandKeySeed_withKeySeedExpansion, FixedBytes.toList, List.ofFn_fin_append]
   rfl
@@ -372,10 +327,9 @@ private theorem two_guesses {C : QuantumSigningForger} (hash : Option (List Byte
     decide (candidate = some (bits K))
   have one (candidate) :
       ((PMF.uniformOfFintype (FixedBytes 32)).map (matched candidate)) true ≤
-        (2 ^ 256 : ℝ≥0∞)⁻¹ := by
-    apply FixedBytes.uniform_test_le (n := 32)
-    intro x hx y hy
-    exact inj (Option.some.inj ((of_decide_eq_true hx).symm.trans (of_decide_eq_true hy)))
+        (2 ^ 256 : ℝ≥0∞)⁻¹ :=
+    FixedBytes.uniform_test_le (n := 32) fun _ hx _ hy =>
+      inj (Option.some.inj ((of_decide_eq_true hx).symm.trans (of_decide_eq_true hy)))
   let pub := hash.map fun tr => Keccak.bytesToBitsLE (tr.take 32)
   let qry := queryKeyPrefix (C := C) addr
   refine (PMF.map_true_le_add _ (A := matched pub) (B := matched qry) ?_).trans
@@ -390,22 +344,16 @@ guesses for an independent uniform 32-byte private signing seed. -/
 theorem keySeedDeviceGame_false_le (C : QuantumSigningForger) (s : Level) (base : Xofs)
     (a b n j : ℕ) :
     (Game.succProbability (C.keySeedDeviceGame s base a b n j false) : ℝ) ≤ 2 / 2 ^ 256 := by
-  let B := 2 * (2 ^ 256 : ℝ≥0∞)⁻¹
-  have bound : C.keySeedDeviceGame s base a b n j false true ≤ B := by
+  have bound : C.keySeedDeviceGame s base a b n j false true ≤ 2 * (2 ^ 256 : ℝ≥0∞)⁻¹ := by
     simp only [keySeedDeviceGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
       Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
-    iterate 3
-      apply PMF.bind_apply_le_on_support
-      intro _ _
+    iterate 3 refine PMF.bind_apply_le_on_support _ fun _ _ => ?_
     simp only [observations, PMF.bind_map, Function.comp_def]
     rw [PMF.bind_comm]
-    apply PMF.bind_apply_le_on_support
-    intro addr _
-    exact two_guesses _ addr
-  have r := ENNReal.toReal_mono
-    (ENNReal.mul_ne_top (by simp) (ENNReal.inv_ne_top.mpr (by positivity))) bound
-  simpa only [B, Game.coe_succProbability, ENNReal.toReal_mul, ENNReal.toReal_inv,
-    ENNReal.toReal_pow, ENNReal.toReal_ofNat, div_eq_mul_inv] using r
+    exact PMF.bind_apply_le_on_support _ fun addr _ => two_guesses _ addr
+  simpa only [Game.coe_succProbability, ENNReal.toReal_mul, ENNReal.toReal_inv,
+    ENNReal.toReal_pow, ENNReal.toReal_ofNat, div_eq_mul_inv] using
+    ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) (by simp)) bound
 
 private theorem queriesKeySeed_of_change {C : QuantumSigningForger} (s : Level) (H : Xofs)
     (seed : FixedBytes 32) (out : FixedBytes 128) (addr : Option (Address C))
@@ -415,10 +363,8 @@ private theorem queriesKeySeed_of_change {C : QuantumSigningForger} (s : Level) 
   obtain ⟨x, decoded, ne⟩ :=
     Xofs.shake256QueryInput_of_queryTable_ne (H := H.withKeySeedExpansion s seed out)
       (G := H) rfl hit
-  rw [decoded, Option.some.injEq]
-  by_contra miss
-  exact ne (by simp only [Xofs.withKeySeedExpansion, ExtendableOutput.withPrefixes,
-    ite_eq_right miss])
+  exact decoded.trans (congrArg some (by_contra fun miss => ne (by
+    simp only [Xofs.withKeySeedExpansion, ExtendableOutput.withPrefixes, ite_eq_right miss])))
 
 private theorem changed_keySeed_le (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (out : FixedBytes 128) (addr : Option (Address C)) :
@@ -426,11 +372,9 @@ private theorem changed_keySeed_le (C : QuantumSigningForger) (s : Level) (H : X
       (addr.any fun v => decide ((H.withKeySeedExpansion s seed out).queryTable
         C.addressBits C.responseBytes v ≠ H.queryTable C.addressBits C.responseBytes v))) true ≤
         (2 ^ 256 : ℝ≥0∞)⁻¹ := by
-  apply FixedBytes.uniform_test_le (n := 32)
-  intro x hx y hy
-  have hx := queriesKeySeed_of_change (C := C) s _ x _ addr hx
-  have hy := queriesKeySeed_of_change (C := C) s _ y _ addr hy
-  have eq := Option.some.inj (hx.symm.trans hy)
+  refine FixedBytes.uniform_test_le (n := 32) fun x hx y hy => ?_
+  have eq := Option.some.inj ((queriesKeySeed_of_change (C := C) s _ x _ addr hx).symm.trans
+    (queriesKeySeed_of_change (C := C) s _ y _ addr hy))
   exact List.ofFn_inj.mp (List.append_cancel_right (Keccak.bytesToBitsLE_injective eq))
 
 /-- Measure the selected coherent address of the background device. Test whether the XOR
@@ -453,11 +397,8 @@ theorem keySeedQueryHit_le (C : QuantumSigningForger) (s : Level) (base : Xofs)
     (Game.succProbability (C.keySeedQueryHit s base a b n j) : ℝ) ≤ 1 / 2 ^ 256 := by
   have bound : C.keySeedQueryHit s base a b n j true ≤ (2 ^ 256 : ℝ≥0∞)⁻¹ := by
     simp only [keySeedQueryHit, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-    refine PMF.bind_apply_le_on_support _ fun _ _ => ?_
-    refine PMF.bind_apply_le_on_support _ fun H _ => ?_
-    refine PMF.bind_apply_le_on_support _ fun p _ => ?_
-    refine PMF.bind_apply_le_on_support _ fun addr _ => ?_
-    exact PMF.bind_apply_le_on_support _ fun K _ => changed_keySeed_le C s H (Fin.append p K) addr
+    iterate 4 refine PMF.bind_apply_le_on_support _ fun _ _ => ?_
+    exact PMF.bind_apply_le_on_support _ fun K _ => changed_keySeed_le C s _ (Fin.append _ K) _
   simpa only [Game.coe_succProbability, ENNReal.toReal_inv, ENNReal.toReal_pow,
     ENNReal.toReal_ofNat, one_div] using ENNReal.toReal_mono (by simp) bound
 
@@ -475,11 +416,10 @@ theorem mean_keySeedQueryDisturbance_le (C : QuantumSigningForger) (s : Level) (
         (H.queryTable C.addressBits C.responseBytes) A st.density ≤ 4 / 2 ^ 256 := by
   intro A
   rw [div_eq_mul_inv]
-  apply mean_xorQueryDisturbance_le _ _ _ A st.isDensityMatrix
-  intro x
-  have h := changed_keySeed_le C s H out (some x)
+  refine mean_xorQueryDisturbance_le _ _ _ A st.isDensityMatrix fun x => ?_
   simpa only [Option.any_some, ← PMF.bind_pure_comp, Function.comp_def, ENNReal.toReal_inv,
-    ENNReal.toReal_pow, ENNReal.toReal_ofNat] using ENNReal.toReal_mono (by simp) h
+    ENNReal.toReal_pow, ENNReal.toReal_ofNat] using
+    ENNReal.toReal_mono (by simp) (changed_keySeed_le C s H out (some x))
 
 /-- Apply any binary measurement after the native query, allowing the measurement to depend on
 the hidden seed. For a seed-independent input state, the mean square change in the square root

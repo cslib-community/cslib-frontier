@@ -198,13 +198,13 @@ theorem shiftRight_probeSlot {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)
       if s < i then pairAt st (probeSlot b o (i - 1)) else pairAt st (probeSlot b o i) by
     split_ifs at this ⊢ <;> exact Prod.ext_iff.mp this
   induction k generalizing st with
-  | zero => simp [shiftRight, show ¬s < i by omega]
+  | zero => simp [shiftRight]; omega
   | succ k ih =>
     simp only [shiftRight]
     rcases eq_or_lt_of_le hi with rfl | hlt
-    · rw [pairAt_shiftRight_outside _ o s k _ fun d hd =>
-        probeSlot_ne o hsk (by omega) (by omega)]
-      simp [pairAt, show s + (k + 1) = s + k + 1 by omega, show s < s + k + 1 by omega]
+    · rw [pairAt_shiftRight_outside _ o s k _ fun d _ => probeSlot_ne o hsk (by omega) (by omega),
+        ← Nat.add_assoc, ite_eq_left (by omega)]
+      simp [pairAt]
     · rw [ih _ (by omega) (by omega)]
       split_ifs <;> rw [pairAt_setRunStart_setRem,
         ite_eq_right (probeSlot_ne o (by omega) (by omega) (by omega))]
@@ -259,7 +259,7 @@ theorem shiftLeft_probeSlot {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b))
       if s ≤ i then pairAt st (probeSlot b o (i + 1)) else pairAt st (probeSlot b o i) by
     split_ifs at this ⊢ <;> exact Prod.ext_iff.mp this
   induction k generalizing st s with
-  | zero => simp [shiftLeft, show ¬s ≤ i by omega]
+  | zero => simp [shiftLeft]; omega
   | succ k ih =>
     simp only [shiftLeft]
     rcases eq_or_ne i s with rfl | hne
@@ -267,12 +267,8 @@ theorem shiftLeft_probeSlot {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b))
         probeSlot_ne o (by omega) (by omega) (by omega)]
       simp [pairAt]
     · rw [ih _ (s := s + 1) (by omega) (by omega)]
-      by_cases hlt : i < s
-      · simp only [show ¬s + 1 ≤ i by omega, show ¬s ≤ i by omega, ↓reduceIte]
-        rw [pairAt_setRunStart_setRem, ite_eq_right (probeSlot_ne o (by omega) (by omega) hne)]
-      · simp only [show s + 1 ≤ i by omega, show s ≤ i by omega, ↓reduceIte]
-        rw [pairAt_setRunStart_setRem,
-          ite_eq_right (probeSlot_ne o (by omega) (by omega) (by omega))]
+      split_ifs <;> first | omega | rw [pairAt_setRunStart_setRem,
+        ite_eq_right (probeSlot_ne o (by omega) (by omega) (by omega))]
 
 /-! ## Section 2: Range filter helper -/
 
@@ -351,26 +347,24 @@ theorem IntervalValid.calcTargetSlot_eq {U b f : ℕ} {S : Finset (Fin U)}
     calcTargetSlot st o a ℓ r =
       runOffset S quot rem o a +
         (bucketRun S quot rem (probeSlot b o a)).countP (· < r) := by
-  have hs₁ := runOffset_succ S quot rem o a
-  have hle : runOffset S quot rem o (a + 1) ≤ ℓ :=
-    hinv.runOffset_eq ▸ runOffset_mono S quot rem o ha
-  have hk_le : (bucketRun S quot rem (probeSlot b o a)).countP (· < r) ≤
-      (bucketRun S quot rem (probeSlot b o a)).length := List.countP_le_length
-  refine length_filter_range_eq_of_iff (by omega) _ fun i hi => ?_
-  rw [decide_eq_true_eq, ← hinv.lt_runOffset_iff hocc ha.le hi,
-    ← hinv.lt_runOffset_iff hocc ha hi, hs₁]
   set s₀ := runOffset S quot rem o a
   set xs := bucketRun S quot rem (probeSlot b o a)
+  have hle : s₀ + xs.length ≤ ℓ :=
+    runOffset_succ S quot rem o a ▸ hinv.runOffset_eq ▸ runOffset_mono S quot rem o ha
+  have hk_le : xs.countP (· < r) ≤ xs.length := List.countP_le_length
+  refine length_filter_range_eq_of_iff (by omega) _ fun i hi => ?_
+  rw [decide_eq_true_eq, ← hinv.lt_runOffset_iff hocc ha.le hi,
+    ← hinv.lt_runOffset_iff hocc ha hi, runOffset_succ]
+  change (i < s₀ ∨ i < s₀ + xs.length ∧ st.remAt (probeSlot b o i) < r) ↔ _
   by_cases hi₀ : i < s₀
-  · simp [hi₀, show i < s₀ + xs.countP (· < r) by omega]
+  · exact iff_of_true (Or.inl hi₀) (by omega)
   · by_cases hi₁ : i < s₀ + xs.length
     · have hd : i - s₀ < xs.length := by omega
       have hrem := Nat.add_sub_of_le (not_lt.mp hi₀) ▸ hinv.remAt_probeSlot_eq_getElem ha hd
       simp only [hi₀, hi₁, false_or, true_and, hrem,
         (pairwise_le_bucketRun S quot rem _).getElem_lt_iff_lt_countP hd]
-      change i - s₀ < xs.countP (· < r) ↔ i < s₀ + xs.countP (· < r)
-      omega
-    · simp [hi₀, hi₁, show ¬i < s₀ + xs.countP (· < r) by omega]
+      exact Nat.sub_lt_iff_lt_add' (not_lt.mp hi₀)
+    · exact iff_of_false (by simp [hi₀, hi₁]) (by omega)
 
 theorem IntervalValid.calcDeleteStop_spec {U b f : ℕ} {S : Finset (Fin U)}
     {quot : Fin U → Fin (2 ^ b)} {rem : Fin U → Fin (2 ^ f)}
@@ -382,6 +376,7 @@ theorem IntervalValid.calcDeleteStop_spec {U b f : ℕ} {S : Finset (Fin U)}
     a < e ∧ e ≤ ℓ ∧ runOffset S quot rem o e = e ∧
       ∀ m, a ≤ m → m + 1 < e → m + 2 ≤ runOffset S quot rem o (m + 1) := by
   intro e
+  dsimp only [e, calcDeleteStop, calcDeleteStopPrefix]
   set L := (List.range ℓ).filter fun m =>
     decide (a < m ∧ occBefore st o m < runsBefore st o (m + 1))
   have hstep (m : ℕ) (hm : a ≤ m) (hm1 : m + 1 < ℓ) (hnot : m + 1 ∉ L) :
@@ -389,20 +384,19 @@ theorem IntervalValid.calcDeleteStop_spec {U b f : ℕ} {S : Finset (Fin U)}
     have := hinv.prefix_le_runOffset m (by omega)
     have := mt (hinv.runOffset_eq_self_iff hocc hm1.le).mp (by simp [L] at hnot; omega)
     omega
-  rw [show e = L.head?.getD ℓ from rfl]
   rcases hL : L with _ | ⟨e₀, rest⟩
   · exact ⟨ha, le_rfl, hinv.runOffset_eq, fun m hm hm1 => hstep m hm hm1 (by simp [hL])⟩
   · obtain ⟨he_lt, ha_e, he_c⟩ :
         e₀ < ℓ ∧ a < e₀ ∧ occBefore st o e₀ < runsBefore st o (e₀ + 1) := by
       simpa [L] using List.mem_of_mem_head? (hL ▸ rfl : L.head? = some e₀)
-    have hpw : L.Pairwise (· < ·) := List.pairwise_lt_range.filter _
-    rw [hL] at hpw
-    obtain ⟨hpw₁, _⟩ := List.pairwise_cons.mp hpw
+    obtain ⟨hpw₁, _⟩ := List.pairwise_cons.mp
+      (hL ▸ List.pairwise_lt_range.filter _ : (e₀ :: rest).Pairwise (· < ·))
     refine ⟨ha_e, he_lt.le, (hinv.runOffset_eq_self_iff hocc he_lt.le).mpr (Or.inr he_c),
       fun m hm hm1 => hstep m hm (by simp at hm1; omega) fun hmem => ?_⟩
     rcases List.mem_cons.mp (hL ▸ hmem) with rfl | h
     · simp at hm1
-    · have := hpw₁ _ h; simp at hm1; omega
+    · have := hpw₁ _ h
+      simp at hm1; omega
 
 /-! ## Section 4: Slot-stream list lemmas for `shiftRight` and `shiftLeft` -/
 
@@ -431,8 +425,7 @@ theorem map_slotPair_setRunStart_ge {b f : ℕ} (st : FilterState b f) (o : Fin 
       (List.range n).map (slotPair st o) :=
   List.map_congr_left fun i hi => by
     have hi_lt := List.mem_range.mp hi
-    have hne_p := probeSlot_ne o (i := i) (j := s) (by omega) hs_lt (by omega)
-    simp [slotPair, hne_p]
+    simp [slotPair, probeSlot_ne o (i := i) (j := s) (by omega) hs_lt (by omega)]
 
 theorem map_slotPair_shiftRight {b f : ℕ} (st₁ : FilterState b f) (o : Fin (2 ^ b))
     {s ℓ : ℕ} (hs : s ≤ ℓ) (hℓ : ℓ < 2 ^ b) (v : Bool) (r : Fin (2 ^ f)) :
@@ -449,15 +442,14 @@ theorem map_slotPair_shiftRight {b f : ℕ} (st₁ : FilterState b f) (o : Fin (
   rcases lt_trichotomy i s with hlt | rfl | hgt
   · have hne_p := probeSlot_ne o (i := i) (j := s) (by omega) (by omega) hlt.ne
     rw [List.getElem_append_left (by simp [L₁, hs, hlt])]
-    simp [st₃, st₂, slotPair, hne_p, hsr.1, hsr.2, show ¬s < i by omega, L₁]
+    simp [st₃, st₂, slotPair, hne_p, hsr.1, hsr.2, hlt.not_gt, L₁]
   · rw [List.getElem_append_right (by simp [L₁, hs])]
     simp [st₃, slotPair, L₁, hs]
   · have hne_p := probeSlot_ne o (i := i) (j := s) (by omega) (by omega) hgt.ne'
     rw [List.getElem_append_right (by simp [L₁, hs]; omega)]
     simp only [List.length_take, L₁, List.length_map, List.length_range, min_eq_left hs]
     obtain ⟨d, hd⟩ : ∃ d, i - s = d + 1 := ⟨i - s - 1, by omega⟩
-    simp only [hd, List.getElem_cons_succ]
-    simpa [st₃, st₂, slotPair, hne_p, hsr.1, hsr.2, hgt] using
+    simpa [hd, st₃, st₂, slotPair, hne_p, hsr.1, hsr.2, hgt] using
       congrArg (slotPair st₁ o) (by omega)
 
 theorem map_slotPair_shiftLeft {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b))
@@ -469,13 +461,13 @@ theorem map_slotPair_shiftLeft {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ 
   intro st₁ M
   refine List.ext_getElem (by simp [M, hs.le]; omega) fun i hi₁ hi₂ => ?_
   have hi_lt : i < e - 1 := by simpa using hi₁
-  have hsl := shiftLeft_probeSlot st o (s := s) (k := e - 1 - s) (by omega) (by omega : i < _)
+  have hsl := shiftLeft_probeSlot st o (s := s) (k := e - 1 - s) (by omega) (i := i) (by omega)
   rw [List.getElem_map, List.getElem_range]
   by_cases hlt : i < s
   · rw [List.getElem_append_left (by simp [M, hs.le, hlt])]
-    simp [st₁, slotPair, hsl.1, hsl.2, show ¬s ≤ i by omega, M]
+    simp [st₁, slotPair, hsl.1, hsl.2, hlt.not_ge, M]
   · rw [List.getElem_append_right (by simp [M, hs.le]; omega)]
-    simpa [st₁, slotPair, hsl.1, hsl.2, show s ≤ i by omega, M, hs.le] using
+    simpa [st₁, slotPair, hsl.1, hsl.2, not_lt.mp hlt, M, hs.le] using
       congrArg (slotPair st o) (by omega)
 
 theorem taggedRun_insert_split {f : ℕ} (xs : List (Fin (2 ^ f))) (r : Fin (2 ^ f))
@@ -488,8 +480,7 @@ theorem taggedRun_insert_split {f : ℕ} (xs : List (Fin (2 ^ f))) (r : Fin (2 ^
   | succ k =>
     cases xs with
     | nil => simp at hk
-    | cons x₀ xs' =>
-      simp [taggedRun, ← List.map_take, ← List.map_drop]
+    | cons x₀ xs' => simp [taggedRun, ← List.map_take, ← List.map_drop]
 
 theorem taggedRun_delete_split_succ {f : ℕ} (xs : List (Fin (2 ^ f))) (k : ℕ)
     (hk : k + 1 < xs.length) :
@@ -497,8 +488,7 @@ theorem taggedRun_delete_split_succ {f : ℕ} (xs : List (Fin (2 ^ f))) (k : ℕ
       taggedRun (xs.take (k + 1) ++ xs.drop (k + 2)) := by
   cases xs with
   | nil => simp at hk
-  | cons x₀ xs' =>
-    simp [taggedRun, ← List.map_take, ← List.map_drop]
+  | cons x₀ xs' => simp [taggedRun, ← List.map_take, ← List.map_drop]
 
 /-! ## Section 5: `IntervalValid` combinators -/
 
@@ -526,10 +516,8 @@ theorem IntervalValid.congr {U b f : ℕ} {S S' : Finset (Fin U)}
     rw [runOffset_congr (fun j hj => hbucket j (by omega))]
     exact hinv.prefix_le_runOffset m hm
   slots_eq_flatMap := by
-    rw [List.map_congr_left (f := fun i => (st'.isRunStart (probeSlot b o i),
-        st'.remAt (probeSlot b o i))) (g := fun i => (st.isRunStart (probeSlot b o i),
-        st.remAt (probeSlot b o i))) fun i hi => hpair i (List.mem_range.mp hi),
-      hinv.slots_eq_flatMap]
+    dsimp only [slotPair] at hpair
+    rw [List.map_congr_left fun i hi => hpair i (List.mem_range.mp hi), hinv.slots_eq_flatMap]
     exact List.flatMap_congr fun j hj => by rw [hbucket j (List.mem_range.mp hj)]
 
 theorem runOffset_add {U b f : ℕ} (S : Finset (Fin U))
@@ -540,8 +528,7 @@ theorem runOffset_add {U b f : ℕ} (S : Finset (Fin U))
   dsimp only [runOffset]
   rw [List.range_add, List.flatMap_append, List.length_append, List.flatMap_map]
   congr 2
-  refine List.flatMap_congr fun j _ => ?_
-  rw [probeSlot_add]
+  exact List.flatMap_congr fun j _ => by rw [probeSlot_add]
 
 theorem IntervalValid.append {U b f : ℕ} {S : Finset (Fin U)}
     {quot : Fin U → Fin (2 ^ b)} {rem : Fin U → Fin (2 ^ f)}
@@ -552,14 +539,12 @@ theorem IntervalValid.append {U b f : ℕ} {S : Finset (Fin U)}
   full_of_lt i hi := by
     by_cases hlt : i < ℓ₁
     · exact h₁.full_of_lt i hlt
-    · have hi_eq : i = ℓ₁ + (i - ℓ₁) := by omega
-      rw [hi_eq, ← probeSlot_add]
+    · rw [show i = ℓ₁ + (i - ℓ₁) by omega, ← probeSlot_add]
       exact h₂.full_of_lt (i - ℓ₁) (by omega)
   prefix_le_runOffset m hm := by
     by_cases hlt : m < ℓ₁
     · exact h₁.prefix_le_runOffset m hlt
-    · have hm_eq : m + 1 = ℓ₁ + (m - ℓ₁ + 1) := by omega
-      rw [hm_eq, runOffset_add, h₁.runOffset_eq]
+    · rw [show m + 1 = ℓ₁ + (m - ℓ₁ + 1) by omega, runOffset_add, h₁.runOffset_eq]
       have hge := h₂.prefix_le_runOffset (m - ℓ₁) (by omega)
       omega
   slots_eq_flatMap := by
@@ -582,9 +567,7 @@ private theorem IntervalValid.slots_split {U b f : ℕ} {S : Finset (Fin U)}
           (fun j => taggedRun (bucketRun S quot rem (probeSlot b o j))) := by
   have hslots := hinv.slots_eq_flatMap
   rw [← Nat.add_sub_of_le he, List.range_add, List.map_append, List.flatMap_append] at hslots
-  refine List.append_inj hslots ?_
-  rw [List.length_map, List.length_range]
-  exact hrun_e.symm
+  exact List.append_inj hslots (by rw [List.length_map, List.length_range]; exact hrun_e.symm)
 
 theorem IntervalValid.drop_of_runOffset_eq {U b f : ℕ} {S : Finset (Fin U)}
     {quot : Fin U → Fin (2 ^ b)} {rem : Fin U → Fin (2 ^ f)}
@@ -592,18 +575,14 @@ theorem IntervalValid.drop_of_runOffset_eq {U b f : ℕ} {S : Finset (Fin U)}
     (hinv : IntervalValid S quot rem st o ℓ) (he : e ≤ ℓ)
     (hrun_e : runOffset S quot rem o e = e) :
     IntervalValid S quot rem st (probeSlot b o e) (ℓ - e) where
-  full_of_lt i hi := by
-    rw [probeSlot_add]
-    exact hinv.full_of_lt (e + i) (by omega)
+  full_of_lt i hi := by rw [probeSlot_add]; exact hinv.full_of_lt (e + i) (by omega)
   prefix_le_runOffset m hm := by
     have hge := hinv.prefix_le_runOffset (e + m) (by omega)
-    have hadd : e + m + 1 = e + (m + 1) := by omega
-    rw [hadd, runOffset_add, hrun_e] at hge
+    rw [Nat.add_assoc, runOffset_add, hrun_e] at hge
     omega
   slots_eq_flatMap := by
-    have hright := (hinv.slots_split he hrun_e).2
     simpa only [List.map_map, List.flatMap_map, Function.comp_def, slotPair, probeSlot_add]
-      using hright
+      using (hinv.slots_split he hrun_e).2
 
 /-! ## Section 6: Cluster-level `insertCluster` and `deleteCluster` -/
 
@@ -620,10 +599,9 @@ theorem IntervalValid.calcTargetSlot_eq_of_empty {U b f : ℕ} {S : Finset (Fin 
   rcases lt_or_eq_of_le ha with hlt | rfl
   · exact hinv.calcTargetSlot_eq hocc hlt r
   · rw [ha_eq rfl, List.countP_nil, add_zero, hinv.runOffset_eq]
-    refine length_filter_range_eq_of_iff le_rfl _ fun i hi => ?_
-    rw [decide_eq_true_eq]
-    have hiff := (hinv.lt_runOffset_iff hocc le_rfl hi).mp (by rw [hinv.runOffset_eq]; exact hi)
-    exact ⟨fun _ => hi, fun _ => Or.inl hiff⟩
+    exact length_filter_range_eq_of_iff le_rfl _ fun i hi => decide_eq_true_iff.trans
+      ⟨fun _ => hi, fun _ => Or.inl ((hinv.lt_runOffset_iff hocc le_rfl hi).mp
+        (hi.trans_eq hinv.runOffset_eq.symm))⟩
 
 /-- Pure cluster-level insertion of remainder `r` into bucket `a ≤ ℓ` of cluster `[o .. o + ℓ)`. -/
 @[expose] def insertCluster {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a ℓ : ℕ)
@@ -769,9 +747,8 @@ private theorem flatMap_taggedRun_three_split_of_eq {U b f : ℕ} {S S' : Finset
         taggedSuffix S quot rem o a n := by
   rw [flatMap_taggedRun_three_split S' quot rem o ha]
   congr 1
-  · congr 1
-    exact List.flatMap_congr fun j hj => by
-      have := List.mem_range.mp hj; rw [hoff j (by omega) (by omega)]
+  · exact congrArg (· ++ _) (List.flatMap_congr fun j hj =>
+      congrArg taggedRun (hoff j ((List.mem_range.mp hj).trans ha) (List.mem_range.mp hj).ne))
   · refine List.flatMap_congr fun j hj => ?_
     obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hj
     have := List.mem_range.mp hd
@@ -799,9 +776,7 @@ private theorem map_slotPair_setRunStart_middle {b f : ℕ} {st : FilterState b 
     (h : (List.range n).map (slotPair st o) = pref ++ ((c, x) :: ys) ++ suff) (v : Bool) :
     (List.range n).map (slotPair (st.setRunStart (probeSlot b o pref.length) v) o) =
       pref ++ ((v, x) :: ys) ++ suff := by
-  have h' := h
-  rw [List.append_assoc, List.cons_append] at h'
-  obtain ⟨hlt, hy⟩ := slotPair_of_map_eq_append h'
+  obtain ⟨hlt, hy⟩ := slotPair_of_map_eq_append (by simpa [List.append_assoc] using h)
   have hx : st.remAt (probeSlot b o pref.length) = x := congrArg Prod.snd hy
   rw [map_slotPair_setRunStart_lt st o hn hlt v, h, hx]
   exact set_middle_zero pref (c, x) ys suff (v, x)
@@ -834,11 +809,8 @@ theorem IntervalValid.insertCluster_intervalValid {U b f : ℕ} {S : Finset (Fin
   have hk_le : k ≤ xs.length := List.countP_le_length
   have hs_le_ℓ : s ≤ ℓ := by
     rcases lt_or_eq_of_le ha with hlt | rfl
-    · have : runOffset S quot rem o (a + 1) = s₀ + xs.length :=
-        hs₀_eq ▸ runOffset_succ S quot rem o a
-      have : runOffset S quot rem o (a + 1) ≤ ℓ :=
-        hinv.runOffset_eq ▸ runOffset_mono S quot rem o (Nat.add_one_le_iff.mpr hlt)
-      omega
+    · linarith [hs₀_eq ▸ runOffset_succ S quot rem o a,
+        hinv.runOffset_eq ▸ runOffset_mono S quot rem o hlt]
     · simp [hs_eq, hs₀_eq, hinv.runOffset_eq, k, xs, q, hempty_ℓ]
   have hoff (j : ℕ) (hj : j < ℓ + 1) (hja : j ≠ a) :
       bucketRun (insert u S) quot rem (probeSlot b o j) = bucketRun S quot rem (probeSlot b o j) :=
@@ -846,8 +818,7 @@ theorem IntervalValid.insertCluster_intervalValid {U b f : ℕ} {S : Finset (Fin
   have hins_q : bucketRun (insert u S) quot rem q = xs.orderedInsert (· ≤ ·) r := by
     dsimp only [q, xs, r]; rw [← hq]; exact bucketRun_insert_self quot rem hu
   have hrun_insert := runOffset_eq_add_of_length_succ hoff
-    (show (bucketRun (insert u S) quot rem q).length = xs.length + 1 by
-      rw [hins_q, List.orderedInsert_length])
+    ((congrArg List.length hins_q).trans (List.orderedInsert_length _ xs r))
   refine ⟨fun i hi => ?_, fun m hm => ?_, ?_⟩
   · rw [isFull_insertCluster]
     rcases lt_or_eq_of_le (Nat.le_of_lt_succ hi) with hlt | rfl <;>
@@ -860,36 +831,31 @@ theorem IntervalValid.insertCluster_intervalValid {U b f : ℕ} {S : Finset (Fin
     set suff := taggedSuffix S quot rem o a (ℓ + 1)
     have hpref_len : pref.length = s₀ := hs₀_eq.symm
     have hL₀ : (List.range ℓ).map (slotPair st o) = pref ++ taggedRun xs ++ suff := by
-      change (List.range ℓ).map (fun i =>
-        (st.isRunStart (probeSlot b o i), st.remAt (probeSlot b o i))) = _
+      unfold slotPair
       rw [hinv.slots_eq_flatMap, ← flatMap_taggedRun_succ_of_empty S quot rem o hempty_ℓ]
       exact flatMap_taggedRun_three_split_of_eq (Nat.lt_succ_of_le ha) fun _ _ _ => rfl
     set st₁ := if st.isOcc q && decide (s = s₀) then
       st.setRunStart (probeSlot b o s₀) false else st
     set M₁ : List (Bool × Fin (2 ^ f)) := if k = 0 then xs.map (false, ·) else taggedRun xs
+    have hocc_q : st.isOcc q = !xs.isEmpty := hocc q
     have hL₁ : (List.range ℓ).map (slotPair st₁ o) = pref ++ M₁ ++ suff := by
       cases hxs : xs with
-      | nil =>
-        have hocc_q : st.isOcc q = false := by
-          rw [hocc q]; simp [show bucketRun S quot rem q = [] from hxs]
-        simp [st₁, hocc_q, hL₀, M₁, hxs]
+      | nil => simp [st₁, hocc_q, hL₀, M₁, hxs]
       | cons x₀ xs' =>
-        have hocc_q : st.isOcc q = true := by
-          rw [hocc q]; simp [show bucketRun S quot rem q = x₀ :: xs' from hxs]
         by_cases hk0 : k = 0
         · rw [hxs, taggedRun_cons] at hL₀
           simpa only [st₁, hocc_q, hs_eq, hk0, add_zero, decide_true, Bool.and_self, ↓reduceIte,
-            ← hpref_len, M₁, hxs, List.map_cons] using
+            ← hpref_len, M₁, hxs, List.isEmpty_cons, Bool.not_false, List.map_cons] using
             map_slotPair_setRunStart_middle hℓ.le hL₀ false
-        · simp [st₁, show s ≠ s₀ by omega, hL₀, M₁, hk0]
+        · have hne_s : s ≠ s₀ := by omega
+          simp [st₁, hne_s, hL₀, M₁, hk0]
     have hM₁_len : M₁.length = xs.length := by dsimp only [M₁]; split_ifs <;> simp
     have hshift := map_slotPair_shiftRight st₁ o hs_le_ℓ hℓ (decide (s = s₀)) r
-    change (List.range (ℓ + 1)).map (slotPair _ o) = _
-    dsimp only [insertCluster]
+    have hs_s₀ : decide (s = s₀) = decide (k = 0) := by simp [hs_eq]
     change (List.range (ℓ + 1)).map (slotPair
       (((shiftRight st₁ o s (ℓ - s)).setRunStart (probeSlot b o s) (decide (s = s₀))).setRem
         (probeSlot b o s) r) o) = _
-    rw [hshift, show decide (s = s₀) = decide (k = 0) by simp [hs_eq], hL₁, hs_eq, ← hpref_len,
+    rw [hshift, hs_s₀, hL₁, hs_eq, ← hpref_len,
       take_append_drop_middle pref M₁ suff (decide (k = 0), r) (by omega),
       taggedRun_insert_split xs r hk_le,
       ← (pairwise_le_bucketRun S quot rem q).orderedInsert_eq_take_append_drop r,
@@ -935,8 +901,9 @@ private theorem deleteCluster_hasMore_eq {U b f : ℕ} {S : Finset (Fin U)}
           (false, x₁) :: (xs''.map (false, ·) ++ taggedSuffix S quot rem o a e) := by
       simpa [taggedRun_cons, List.append_assoc] using hsplit
     obtain ⟨hlt, hpair⟩ := slotPair_of_map_eq_append h'
-    simp only [List.length_append, hlen, List.length_singleton] at hlt hpair
-    simp [hlt, show st.isRunStart (probeSlot b o (s₀ + 1)) = false from congrArg Prod.fst hpair]
+    have hfst := congrArg Prod.fst hpair
+    simp only [slotPair, List.length_append, hlen, List.length_singleton] at hlt hfst
+    simp [hlt, hfst]
 
 theorem IntervalValid.deleteCluster_intervalValid {U b f : ℕ} {S : Finset (Fin U)}
     {quot : Fin U → Fin (2 ^ b)} {rem : Fin U → Fin (2 ^ f)}
@@ -970,38 +937,34 @@ theorem IntervalValid.deleteCluster_intervalValid {U b f : ℕ} {S : Finset (Fin
   have hs₀_eq : s₀ = runOffset S quot rem o a := hinv.calcRunStart_eq hocc ha.le
   have hs_eq : s = s₀ + k := hs₀_eq ▸ hinv.calcTargetSlot_eq hocc ha r
   have hs_lt_e : s < e := by
-    have : runOffset S quot rem o (a + 1) = s₀ + xs.length := hs₀_eq ▸ runOffset_succ S quot rem o a
-    have : runOffset S quot rem o (a + 1) ≤ e :=
-      he_run ▸ runOffset_mono S quot rem o (Nat.add_one_le_iff.mpr ha_lt_e)
-    omega
+    linarith [hs₀_eq ▸ runOffset_succ S quot rem o a,
+      he_run ▸ runOffset_mono S quot rem o ha_lt_e]
   have her_q : bucketRun (S.erase u) quot rem q = xs.erase r := by
     dsimp only [q, xs, r]; rw [← hq]; exact bucketRun_erase_self quot rem hu
   have hoff (j : ℕ) (hj : j < ℓ) (hja : j ≠ a) :
       bucketRun S quot rem (probeSlot b o j) = bucketRun (S.erase u) quot rem (probeSlot b o j) :=
     (bucketRun_erase_of_ne S quot rem u
       (hq ▸ probeSlot_ne o (by omega) (by omega) hja.symm)).symm
-  have hrun_erase := runOffset_eq_add_of_length_succ hoff
-    (show xs.length = (bucketRun (S.erase u) quot rem q).length + 1 by
-      rw [her_q, List.length_erase_of_mem hr_mem, hxs]; simp)
+  have hlen_er : xs.length = (bucketRun (S.erase u) quot rem q).length + 1 := by
+    rw [her_q, List.length_erase_of_mem hr_mem, hxs, List.length_cons]; omega
+  have hrun_erase := runOffset_eq_add_of_length_succ hoff hlen_er
   have hrun_ge (m : ℕ) (hm : m ≤ e - 1) : m ≤ runOffset (S.erase u) quot rem o m := by
     have hm_eq := hrun_erase m (by omega)
     split_ifs at hm_eq with hlt
-    · have := he_min (m - 1) (by omega) (by omega)
-      rw [show m - 1 + 1 = m by omega] at this; omega
+    · have hm1 := he_min (m - 1) (by omega) (by omega)
+      rw [Nat.sub_add_cancel (by omega)] at hm1; omega
     · have := hinv.le_runOffset (by omega : m ≤ ℓ); omega
+  have he1 : e - 1 + 1 = e := Nat.sub_add_cancel (by omega)
   have hempty_e1 : bucketRun (S.erase u) quot rem (probeSlot b o (e - 1)) = [] := by
     have h1 := hrun_erase e he_le
-    have h2 := hrun_ge (e - 1) le_rfl
-    have h3 := runOffset_succ (S.erase u) quot rem o (e - 1)
-    rw [show e - 1 + 1 = e by omega] at h3
-    rw [ite_eq_left ha_lt_e, he_run] at h1
+    rw [ite_eq_left ha_lt_e, he_run, ← he1, runOffset_succ] at h1
+    have := hrun_ge (e - 1) le_rfl
     exact List.eq_nil_of_length_eq_zero (by omega)
   set pref := taggedPrefix S quot rem o a
   set suff := taggedSuffix S quot rem o a e
   have hpref_len : pref.length = s₀ := hs₀_eq.symm
   have hM_split : (List.range e).map (slotPair st o) = pref ++ taggedRun xs ++ suff := by
-    change (List.range e).map (fun i =>
-      (st.isRunStart (probeSlot b o i), st.remAt (probeSlot b o i))) = _
+    unfold slotPair
     rw [(hinv.take_of_runOffset_eq he_le he_run).slots_eq_flatMap]
     exact flatMap_taggedRun_three_split_of_eq ha_lt_e fun _ _ _ => rfl
   have hmore_eq : (decide (s₀ + 1 < e) && !st.isRunStart (probeSlot b o (s₀ + 1))) =
@@ -1024,8 +987,8 @@ theorem IntervalValid.deleteCluster_intervalValid {U b f : ℕ} {S : Finset (Fin
       (List.range (e - 1)).map (slotPair st₂ o) :=
     List.map_congr_left fun i hi => by
       have := List.mem_range.mp hi
-      have hne := probeSlot_ne o (i := i) (j := e - 1) (by omega) (by omega) (by omega)
-      simp [st₃, slotPair, p_end, hne]
+      simp [st₃, slotPair, p_end, probeSlot_ne o (i := i) (j := e - 1) (by omega) (by omega)
+        (by omega)]
   have hst₂_ok :
       (List.range (e - 1)).map (slotPair st₂ o) = pref ++ taggedRun (xs.erase r) ++ suff ∧
       st₃.isOcc q = !(xs.erase r).isEmpty := by
@@ -1038,9 +1001,8 @@ theorem IntervalValid.deleteCluster_intervalValid {U b f : ℕ} {S : Finset (Fin
     | cons x₁ xs'' =>
       have hmore : hasMore = true := by simp [hasMore, hmore_eq]
       have hocc_q : st₃.isOcc q = true := by
-        have hq_true : st.isOcc q = true := by
-          rw [hocc q]; simp [show bucketRun S quot rem q = x₀ :: x₁ :: xs'' from hxs]
-        by_cases hs : s = s₀ <;> simp [st₃, st₂, st₁, hmore, hs, hq_true]
+        have hq_true : st.isOcc q = !xs.isEmpty := hocc q
+        by_cases hs : s = s₀ <;> simp [st₃, st₂, st₁, hmore, hs, hq_true, hxs]
       refine ⟨?_, by rw [hocc_q]; cases k <;> simp [hxs]⟩
       rcases hk : k with _ | k'
       · rw [hxs, hk] at hshift
@@ -1048,7 +1010,8 @@ theorem IntervalValid.deleteCluster_intervalValid {U b f : ℕ} {S : Finset (Fin
           List.drop_succ_cons, List.drop_zero] at hshift
         simpa [st₂, hmore, hs_eq, hxs, hk, ← hpref_len, taggedRun_cons, List.append_assoc] using
           map_slotPair_setRunStart_middle (by omega) hshift true
-      · rw [show st₂ = st₁ by simp [st₂, hmore, hs_eq, hk], hshift, hxs, hk,
+      · have hst₂_eq : st₂ = st₁ := by simp [st₂, hmore, hs_eq, hk]
+        rw [hst₂_eq, hshift, hxs, hk,
           taggedRun_delete_split_succ (x₀ :: x₁ :: xs'') k' (by rwa [← hxs, ← hk])]
   have hst₂_full : st₂.isFull = st.isFull := by dsimp only [st₂]; split_ifs <;> simp [st₁]
   refine ⟨⟨fun i hi => ?_, fun m hm => hrun_ge (m + 1) (by omega), ?_⟩,
@@ -1057,8 +1020,7 @@ theorem IntervalValid.deleteCluster_intervalValid {U b f : ℕ} {S : Finset (Fin
     simp [st₃, p_end, hne, hst₂_full, hinv.full_of_lt i (by omega)]
   · change (List.range (e - 1)).map (slotPair st₃ o) = _
     rw [hst₃_map, hst₂_ok.1, ← her_q,
-      ← flatMap_taggedRun_succ_of_empty (S.erase u) quot rem o hempty_e1,
-      show e - 1 + 1 = e by omega,
+      ← flatMap_taggedRun_succ_of_empty (S.erase u) quot rem o hempty_e1, he1,
       flatMap_taggedRun_three_split_of_eq ha_lt_e fun j hj hja => (hoff j (by omega) hja).symm]
 
 /-! ## Section 7: Global `FilterInv` preservation under `insert` and `delete` -/
@@ -1068,11 +1030,10 @@ theorem backSlot_probeSlot_self {b : ℕ} (q : Fin (2 ^ b)) (d : ℕ) :
   apply Fin.ext
   simp only [backSlot, probeSlot, Dictionary.WordRAM.LinearProbing.cyclicSlotMod]
   have hd : d ≤ 2 ^ b * (d + 1) :=
-    (show d ≤ 1 * (d + 1) by omega).trans (Nat.mul_le_mul_right (d + 1) Nat.one_le_two_pow)
-  rw [show ((q.val + d) % 2 ^ b + 2 ^ b * (d + 1) - d) % 2 ^ b =
-      ((q.val + d) % 2 ^ b + (2 ^ b * (d + 1) - d)) % 2 ^ b by congr 1; omega,
-    Nat.mod_add_mod, show q.val + d + (2 ^ b * (d + 1) - d) = q.val + 2 ^ b * (d + 1) by omega,
-    Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt q.isLt]
+    (Nat.le_succ d).trans (Nat.le_mul_of_pos_left _ (Nat.two_pow_pos b))
+  have hadd : q.val + d + (2 ^ b * (d + 1) - d) = q.val + 2 ^ b * (d + 1) := by omega
+  rw [Nat.add_sub_assoc hd, Nat.mod_add_mod, hadd, Nat.add_mul_mod_self_left,
+    Nat.mod_eq_of_lt q.isLt]
 
 theorem probeSlot_left_cancel {b : ℕ} {q₁ q₂ : Fin (2 ^ b)} {d : ℕ}
     (h : probeSlot b q₁ d = probeSlot b q₂ d) : q₁ = q₂ := by
@@ -1109,11 +1070,9 @@ theorem maximal_full_eq_or_disjoint {b : ℕ} (isFull : Fin (2 ^ b) → Bool)
         probeSlot b (probeSlot b p₂ (k₂ - 1 - k₁)) (1 + k₁) := by
       rw [probeSlot_backSlot_add, probeSlot_add, show k₂ - 1 - k₁ + (1 + k₁) = k₂ by omega, heq']
     exact Bool.false_ne_true (hb ▸ probeSlot_left_cancel h1 ▸ hf _ (by omega))
-  obtain rfl : i = j := by
-    rcases lt_trichotomy i j with hlt | rfl | hgt
-    · exact (hstep hback₁ hfull₂ hj_lt hlt heq).elim
-    · rfl
-    · exact (hstep hback₂ hfull₁ hi_lt hgt heq.symm).elim
+  obtain rfl : i = j :=
+    le_antisymm (not_lt.mp (hstep hback₂ hfull₁ hi_lt · heq.symm))
+      (not_lt.mp (hstep hback₁ hfull₂ hj_lt · heq))
   obtain rfl : o₁ = o₂ := probeSlot_left_cancel heq
   rcases lt_trichotomy ℓ₁ ℓ₂ with hlt | rfl | hgt
   · exact Bool.false_ne_true (hend₁ ▸ hfull₂ ℓ₁ hlt)
@@ -1169,12 +1128,10 @@ private theorem FilterInv.cluster_spec {U b f n : ℕ} {S : Finset (Fin U)}
     q = probeSlot b (hinv.clusterStart hS_lt q) (hinv.backLen hS_lt q) ∧
       st.isFull (backSlot b (hinv.clusterStart hS_lt q) 1) = false ∧
       st.isFull (probeSlot b (hinv.clusterStart hS_lt q) (hinv.clusterLen hS_lt q)) = false :=
-  ⟨by dsimp only [clusterStart]; simpa using
-      (probeSlot_backSlot_add q (hinv.backLen hS_lt q) 0).symm,
-    by dsimp only [clusterStart]; rw [backSlot_backSlot]
-       exact hinv.isFull_backSlot_succ_backLen hS_lt q,
-    by dsimp only [clusterStart, clusterLen]; rw [probeSlot_backSlot_add]
-       exact hinv.isFull_probeSlot_fwdLen hS_lt q⟩
+  ⟨by simpa [clusterStart] using (probeSlot_backSlot_add q (hinv.backLen hS_lt q) 0).symm,
+   by simpa [clusterStart, backSlot_backSlot] using hinv.isFull_backSlot_succ_backLen hS_lt q,
+   by simpa [clusterStart, clusterLen, probeSlot_backSlot_add] using
+     hinv.isFull_probeSlot_fwdLen hS_lt q⟩
 
 /-- A valid interval whose slots avoid `[o₀ .. o₀ + ℓ₀]` stays valid after `insertCluster`. -/
 private theorem IntervalValid.insertCluster_of_disjoint {U b f : ℕ} {S : Finset (Fin U)}
@@ -1297,11 +1254,13 @@ theorem FilterInv.insertState_filterInv {U b f n : ℕ} {S : Finset (Fin U)}
     have hout := insertCluster_outside st o₀ a ℓ₀ (rem u) p hp_out
     rw [hst'_def, isOcc_insertCluster, ite_eq_right (hp_out a ha_le), hout.1, hout.2]
     exact hinv.empty_slot p hp_empty
-  · rw [show (Finset.univ.filter fun p : Fin (2 ^ b) => st'.isFull p = true) =
-        insert (probeSlot b o₀ ℓ₀) (Finset.univ.filter fun p => st.isFull p = true) by
-        ext p; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
-          hst'_def, isFull_insertCluster]; by_cases hp : p = probeSlot b o₀ ℓ₀ <;> simp [hp],
-      Finset.card_insert_of_notMem (by simp [hfull_end₀]), hinv.card_full_eq, hcard_ins]
+  · have hfilt : (Finset.univ.filter fun p : Fin (2 ^ b) => st'.isFull p = true) =
+        insert (probeSlot b o₀ ℓ₀) (Finset.univ.filter fun p => st.isFull p = true) := by
+      ext p
+      by_cases hp : p = probeSlot b o₀ ℓ₀ <;> simp [hst'_def, isFull_insertCluster, hp]
+    have hnotMem : probeSlot b o₀ ℓ₀ ∉ Finset.univ.filter fun p => st.isFull p = true := by
+      simp [hfull_end₀]
+    rw [hfilt, Finset.card_insert_of_notMem hnotMem, hinv.card_full_eq, hcard_ins]
   · rcases Nat.eq_zero_or_pos ℓ with rfl | hℓ_pos
     · exact intervalValid_zero (insert u S) quot rem st' o
     · set p₁ := probeSlot b o₀ (ℓ₀ + 1)
@@ -1322,15 +1281,12 @@ theorem FilterInv.insertState_filterInv {U b f n : ℕ} {S : Finset (Fin U)}
         · exact fun i hi j hj => hdisj i hi.le j hj
       have hsum_old := hinv.add_le_card_of_disjoint hℓ₀_lt.le (hℓ₂_le_S.trans hS_lt.le)
         hvalid₀.full_of_lt hfull_p₁ hdisj_clusters
-      have hright : IntervalValid (insert u S) quot rem st' p₁ ℓ₂ := by
-        rw [hst'_def]
-        exact hvalid_p₁.insertCluster_of_disjoint
-          (fun j hj i hi => by
-            dsimp only [p₁]; rw [probeSlot_add]
-            exact probeSlot_ne o₀ (by omega) (by omega) (by omega)) ha_le hq_eq
       have hvalid'_merged : IntervalValid (insert u S) quot rem st' o₀ ((ℓ₀ + 1) + ℓ₂) :=
         (hvalid₀.insertCluster_intervalValid hinv.isOcc_eq hℓ₀_lt hempty_ℓ₀ hu ha_le hq_eq).append
-          hright
+          (hvalid_p₁.insertCluster_of_disjoint (ℓ₀ := ℓ₀)
+            (fun j hj i hi => probeSlot_add o₀ (ℓ₀ + 1) j ▸
+              probeSlot_ne o₀ (i := (ℓ₀ + 1) + j) (j := i) (by omega) (by omega) (by omega))
+            ha_le hq_eq)
       have hback'_o₀ : st'.isFull (backSlot b o₀ 1) = false :=
         (hfull_eq_of_ne _ (backSlot_one_ne_probeSlot o₀ (by omega))).trans hback_o₀
       have hend'_o₀ : st'.isFull (probeSlot b o₀ ((ℓ₀ + 1) + ℓ₂)) = false := by
@@ -1383,38 +1339,38 @@ theorem FilterInv.deleteState_filterInv {U b f n : ℕ} {S : Finset (Fin U)}
     · subst hp_end
       exact ⟨by rw [hocc', hempty_e1]; rfl, deleteCluster_at_end st o₀ a ℓ₀ (rem u)⟩
     · have hp_out (i : ℕ) (hi : i < e) : p ≠ probeSlot b o₀ i := by
-        rintro rfl
-        exact Bool.false_ne_true (hp_empty.symm.trans (hvalid₀.full_of_lt i (by omega)))
+        rintro rfl; exact Bool.false_ne_true (hp_empty.symm.trans (hvalid₀.full_of_lt i (by omega)))
       have hout := deleteCluster_outside st o₀ ha_lt_e (rem u) p hp_out
       rw [hst'_def, isOcc_deleteCluster_of_ne st o₀ a ℓ₀ (rem u) (hp_out a ha_lt_e), hout.1, hout.2]
       exact hinv.empty_slot p hp_empty
-  · rw [show (Finset.univ.filter fun p : Fin (2 ^ b) => st'.isFull p = true) =
-        (Finset.univ.filter fun p => st.isFull p = true).erase p_end by
-        ext p; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase,
-          hst'_def, isFull_deleteCluster]; by_cases hp : p = p_end <;> simp [p_end, e, hp],
-      Finset.card_erase_of_mem (by simp [p_end, hvalid₀.full_of_lt (e - 1) (by omega)]),
-      hinv.card_full_eq, Finset.card_erase_of_mem hu]
+  · have hfilt : (Finset.univ.filter fun p : Fin (2 ^ b) => st'.isFull p = true) =
+        (Finset.univ.filter fun p => st.isFull p = true).erase p_end := by
+      ext p
+      dsimp only [p_end, e]
+      by_cases hp : p = probeSlot b o₀ (calcDeleteStop st o₀ a ℓ₀ - 1) <;>
+        simp [hst'_def, isFull_deleteCluster, hp]
+    have hmem_end : p_end ∈ Finset.univ.filter fun p => st.isFull p = true := by
+      simp [p_end, hvalid₀.full_of_lt (e - 1) (by omega)]
+    rw [hfilt, Finset.card_erase_of_mem hmem_end, hinv.card_full_eq, Finset.card_erase_of_mem hu]
   · rcases Nat.eq_zero_or_pos ℓ with rfl | hℓ_pos
     · exact intervalValid_zero (S.erase u) quot rem st' o
     · set p₂ := probeSlot b o₀ e
       have hvalid'_right : IntervalValid (S.erase u) quot rem st' p₂ (ℓ₀ - e) := by
         rw [hst'_def]
         exact (hvalid₀.drop_of_runOffset_eq he_le he_run).deleteCluster_of_disjoint ha_lt_e
-          (fun j hj i hi => by
-            rw [probeSlot_add]
-            exact probeSlot_ne o₀ (by omega) (by omega) (by omega)) hq_eq
+          (fun j hj i hi => probeSlot_add o₀ e j ▸
+            probeSlot_ne o₀ (by omega) (by omega) (by omega)) hq_eq
       have hback'_o₀ : st'.isFull (backSlot b o₀ 1) = false :=
         (hfull_eq_of_ne _ (backSlot_one_ne_probeSlot o₀ (by omega))).trans hback_o₀
+      have he1 : e - 1 + 1 = e := Nat.sub_add_cancel (by omega)
       have hend'_left : st'.isFull p_end = false := by
         simp [p_end, e, hst'_def, isFull_deleteCluster]
       have hback'_p₂ : st'.isFull (backSlot b p₂ 1) = false := by
-        have hp₂ : p₂ = probeSlot b o₀ ((e - 1) + 1) :=
-          congrArg (probeSlot b o₀) (Nat.sub_add_cancel (by omega : 1 ≤ e)).symm
-        rwa [hp₂, backSlot_probeSlot_succ]
+        dsimp only [p₂]
+        rwa [← he1, backSlot_probeSlot_succ]
       have hend'_p₂ : st'.isFull (probeSlot b p₂ (ℓ₀ - e)) = false := by
-        rw [show probeSlot b p₂ (ℓ₀ - e) = probeSlot b o₀ ℓ₀ by
-            dsimp only [p₂]; rw [probeSlot_add, Nat.add_sub_of_le he_le],
-          hfull_eq_of_ne _ (probeSlot_ne o₀ hℓ₀_lt (by omega) (by omega)), hfull_end₀]
+        simpa only [p₂, probeSlot_add, Nat.add_sub_of_le he_le,
+          hfull_eq_of_ne _ (probeSlot_ne o₀ hℓ₀_lt (by omega) (by omega))] using hfull_end₀
       rcases maximal_full_eq_or_disjoint st'.isFull hback'_o₀ hend'_left hvalid'_left.full_of_lt
         hback hend hfull with ⟨rfl, rfl⟩ | hdisj₁
       · exact hvalid'_left
@@ -1423,8 +1379,8 @@ theorem FilterInv.deleteState_filterInv {U b f n : ℕ} {S : Finset (Fin U)}
         · exact hvalid'_right
         · have hne_back : backSlot b o 1 ≠ p_end := fun h_eq => by
             have h1 := congrArg (fun p => probeSlot b p 1) h_eq
-            rw [probeSlot_backSlot_add o 1 0, show probeSlot b p_end 1 = p₂ by
-              dsimp only [p_end, p₂]; rw [probeSlot_add, Nat.sub_add_cancel (by omega)]] at h1
+            dsimp only [p_end, p₂] at h1
+            rw [probeSlot_backSlot_add o 1 0, probeSlot_add, he1] at h1
             exact hdisj₂ 0 (Nat.zero_le _) 0 hℓ_pos (by simpa using h1.symm)
           have hne_end : probeSlot b o ℓ ≠ p_end := fun h_eq => by
             have h1 : backSlot b p_end 1 = probeSlot b o (ℓ - 1) := by
@@ -1432,9 +1388,9 @@ theorem FilterInv.deleteState_filterInv {U b f n : ℕ} {S : Finset (Fin U)}
             rcases Nat.eq_or_lt_of_le (by omega : 1 ≤ e) with he1 | he_gt
             · have hbp : backSlot b p_end 1 = backSlot b o₀ 1 := by simp [p_end, ← he1]
               exact Bool.false_ne_true (hback'_o₀.symm.trans (hbp ▸ h1 ▸ hfull (ℓ - 1) (by omega)))
-            · have hbp : backSlot b p_end 1 = probeSlot b o₀ (e - 2) := by
-                dsimp only [p_end]
-                rw [show e - 1 = e - 2 + 1 by omega, backSlot_probeSlot_succ]
+            · have he2 : e - 1 = e - 2 + 1 := by omega
+              have hbp : backSlot b p_end 1 = probeSlot b o₀ (e - 2) := by
+                simpa only [p_end, he2] using backSlot_probeSlot_succ o₀ (e - 2)
               exact hdisj₁ (e - 2) (by omega) (ℓ - 1) (by omega) (hbp ▸ h1)
           rw [hst'_def]
           exact (hinv.intervalValid_of_isFull_eq_off hfull_eq_of_ne

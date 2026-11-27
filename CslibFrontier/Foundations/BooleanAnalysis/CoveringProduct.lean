@@ -86,12 +86,11 @@ theorem coveringProduct_eq_sum_of_subset (f g : Finset ι → R) {U S : Finset �
 theorem subsetZeta_coveringProduct (f g : Finset ι → R) (S : Finset ι) :
     subsetZeta (coveringProduct f g) S = subsetZeta f S * subsetZeta g S := by
   rw [subsetZeta, subsetZeta, subsetZeta, sum_mul_sum,
-    sum_congr rfl fun U hU => coveringProduct_eq_sum_of_subset f g (mem_powerset.mp hU)]
-  rw [sum_comm]
+    sum_congr rfl fun U hU => coveringProduct_eq_sum_of_subset f g (mem_powerset.mp hU), sum_comm]
   refine sum_congr rfl fun A hA => ?_
-  rw [sum_comm, sum_congr rfl fun B hB => sum_ite_eq S.powerset (A ∪ B) fun _ => f A * g B]
-  refine sum_congr rfl fun B hB => ite_eq_left ?_
-  exact mem_powerset.mpr (union_subset (mem_powerset.mp hA) (mem_powerset.mp hB))
+  rw [sum_comm]
+  exact sum_congr rfl fun B hB => (sum_ite_eq S.powerset (A ∪ B) fun _ => f A * g B).trans
+    (ite_eq_left (mem_powerset.mpr (union_subset (mem_powerset.mp hA) (mem_powerset.mp hB))))
 
 end Semiring
 
@@ -105,9 +104,7 @@ covering product is the Möbius transform of the pointwise product of the zeta t
 theorem coveringProduct_eq_subsetMobius (f g : Finset ι → R) :
     coveringProduct f g = subsetMobius fun S => subsetZeta f S * subsetZeta g S := by
   rw [← subsetMobius_subsetZeta (coveringProduct f g)]
-  congr 1
-  funext S
-  exact subsetZeta_coveringProduct f g S
+  exact congrArg subsetMobius (funext (subsetZeta_coveringProduct f g))
 
 end Ring
 
@@ -122,21 +119,20 @@ theorem coveringProduct_eq_subsetConvolution {f g : Finset ι → R} {t₁ t₂ 
     (hf : ∀ A, f A ≠ 0 → #A = t₁) (hg : ∀ B, g B ≠ 0 → #B = t₂) {X : Finset ι}
     (hX : #X = t₁ + t₂) : coveringProduct f g X = subsetConvolution f g X := by
   rw [coveringProduct, subsetConvolution]
-  refine sum_congr rfl fun A hA => ?_
-  have hAX : A ⊆ X := mem_powerset.mp hA
-  refine (sum_eq_single (X \ A) (fun B hB hne => ?_) fun h =>
-    absurd (mem_powerset.mpr sdiff_subset) h).trans (ite_eq_left (union_sdiff_of_subset hAX))
+  refine sum_congr rfl fun A hA => (sum_eq_single (X \ A) (fun B _ hne => ?_) fun h =>
+    absurd (mem_powerset.mpr sdiff_subset) h).trans
+      (ite_eq_left (union_sdiff_of_subset (mem_powerset.mp hA)))
   split_ifs with hU
-  · by_cases hfA : f A = 0
-    · rw [hfA, zero_mul]
-    by_cases hgB : g B = 0
-    · rw [hgB, mul_zero]
-    refine absurd ?_ hne
-    have hcard := card_union_add_card_inter A B
-    rw [hU, hX, hf A hfA, hg B hgB] at hcard
-    have hdisj : Disjoint A B := disjoint_iff_inter_eq_empty.mpr (card_eq_zero.mp (by omega))
-    rw [← hU, union_sdiff_cancel_left hdisj]
+  swap
   · rfl
+  rcases eq_or_ne (f A) 0 with hfA | hfA
+  · rw [hfA, zero_mul]
+  rcases eq_or_ne (g B) 0 with hgB | hgB
+  · rw [hgB, mul_zero]
+  have hcard := card_union_add_card_inter A B
+  rw [hU, hX, hf A hfA, hg B hgB] at hcard
+  exact absurd (hU ▸ (union_sdiff_cancel_left
+    (disjoint_iff_inter_eq_empty.mpr (card_eq_zero.mp (by omega)))).symm) hne
 
 end Ranked
 

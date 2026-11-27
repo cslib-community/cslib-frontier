@@ -161,21 +161,19 @@ theorem noNegCycle_of_forall_length_le [Fintype V]
   | _ n ih =>
     by_cases hnd : l.Nodup
     · exact h i l (hn ▸ hnd.length_le_card) hl
-    · obtain ⟨v, l', rfl⟩ : ∃ v l', l = v :: l' := by
-        cases l with
-        | nil => exact absurd List.nodup_nil hnd
-        | cons v l' => exact ⟨v, l', rfl⟩
-      obtain ⟨u, p, c, s, hl', hp, hc, hcu⟩ := exists_split_of_not_nodup v l' hnd
-      have hsplit : v :: l' = (v :: p) ++ c ++ s := by rw [hl']; rfl
+    · rcases l with _ | ⟨v, l'⟩
+      · exact absurd List.nodup_nil hnd
+      obtain ⟨u, p, c, s, rfl, hp, hc, hcu⟩ := exists_split_of_not_nodup v l' hnd
       have hp' : (v :: p).getLastD i = u := by rw [List.getLastD_cons, hp]
-      rw [hsplit] at hl hn ⊢
+      change ((v :: p) ++ c ++ s).getLastD i = i at hl
+      change ((v :: p) ++ c ++ s).length = n at hn
+      change 1 ≤ walkWeight W i ((v :: p) ++ c ++ s)
       have hcpos : 0 < c.length := List.length_pos_iff.2 hc
-      have h1 := ih ((v :: p) ++ s).length (by simp only [List.length_append] at hn ⊢; omega) i _
-        (by rw [← getLastD_split hp' hcu, hl]) rfl
-      have h2 := ih c.length
-        (by simp only [List.length_append, List.length_cons] at hn; omega) u c hcu rfl
       rw [walkWeight_split hp' hcu]
-      exact one_le_mul h1 h2
+      exact one_le_mul
+        (ih ((v :: p) ++ s).length (by simp only [List.length_append] at hn ⊢; omega) i _
+          (by rw [← getLastD_split hp' hcu, hl]) rfl)
+        (ih c.length (by simp only [List.length_append, List.length_cons] at hn; omega) u c hcu rfl)
 
 /-- Relabelling the vertices preserves the absence of negative cycles. -/
 theorem NoNegCycle.submatrix {U : Type*} (hW : NoNegCycle W) (e : U ≃ V) :
@@ -203,18 +201,11 @@ theorem isShortestDistances_of_sound_complete {D : Matrix V V (MinTropical R)}
     (hW : NoNegCycle W)
     (hsound : ∀ i j, D i j = 0 ∨ ∃ l : List V, l.getLastD i = j ∧ walkWeight W i l = D i j)
     (hcomplete : ∀ i l, (i :: l).Nodup → D i (l.getLastD i) ≤ walkWeight W i l) :
-    IsShortestDistances W D := by
-  intro i j
-  constructor
-  · rintro _ ⟨l, rfl, rfl⟩
-    obtain ⟨l', hnd, hlast, hw⟩ := exists_nodup_walk hW i l
-    rw [← hlast]
-    exact (hcomplete i l' hnd).trans hw
-  · intro b hb
-    rcases hsound i j with h | ⟨l, hl, hw⟩
-    · rw [h]
-      exact le_zero b
-    · exact hw ▸ hb ⟨l, hl, rfl⟩
+    IsShortestDistances W D := fun i j =>
+  ⟨by rintro _ ⟨l, rfl, rfl⟩
+      obtain ⟨l', hnd, hlast, hw⟩ := exists_nodup_walk hW i l
+      exact hlast ▸ (hcomplete i l' hnd).trans hw,
+    fun b hb => (hsound i j).elim (fun h => h ▸ le_zero b) fun ⟨l, hl, hw⟩ => hw ▸ hb ⟨l, hl, rfl⟩⟩
 
 /-- Relabelling the vertices preserves shortest distances. -/
 theorem IsShortestDistances.submatrix {U : Type*} {D : Matrix V V (MinTropical R)}

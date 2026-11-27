@@ -42,8 +42,9 @@ strings of `exp (s ∑ i, a i (x i - 1 / 2))` factors over the coordinates, and 
 * `Cslib.BitString.card_filter_expect_add_le_le`: McDiarmid's inequality for functions of random bit
   strings with bounded differences, in counting form.
 * `Cslib.BitString.card_filter_le_sum_mul_sub_half_le`: the weighted one-sided tail bound.
-* `Cslib.BitString.card_filter_le_abs_sum_mul_sub_half_le`: Hoeffding's inequality for weighted
-  bit sums.
+* `Cslib.BitString.card_filter_le_abs_sum_mul_sub_half_le` and
+  `Cslib.BitString.card_filter_le_abs_sum_mul_sub_half_le_of_abs_le`: Hoeffding's inequality for
+  weighted bit sums, using their exact weights or coordinate-wise bounds.
 * `Cslib.BitString.card_filter_le_abs_sum_mul_signVal_le`: Hoeffding's inequality for weighted
   sums of signs.
 * `Cslib.BitString.sum_exp_mul_card_filter_sub_half`: the exponential moment of a bit count.
@@ -132,19 +133,30 @@ theorem card_filter_le_sum_mul_sub_half_le (a : ι → ℝ) {t : ℝ} (ht : 0 �
   simpa only [Fintype.card_bool, Nat.cast_ofNat] using
     Probability.PMF.card_filter_pi_le_of_toOuterMeasure_le _ h
 
+/-- The two-sided Hoeffding bound for a weighted bit sum, with upper bounds `c i` on the
+absolute weights. -/
+theorem card_filter_le_abs_sum_mul_sub_half_le_of_abs_le (a c : ι → ℝ)
+    (hc : ∀ i, |a i| ≤ c i) {t : ℝ} (ht : 0 ≤ t) :
+    (#{x : ι → Bool | t ≤ |∑ i, a i * (((x i).toNat : ℝ) - 1 / 2)|} : ℝ) ≤
+      2 * 2 ^ Fintype.card ι * exp (-(2 * t ^ 2 / ∑ i, c i ^ 2)) := by
+  have hdiff : Probability.HasBoundedDifferences
+      (fun x : ι → Bool => ∑ i, a i * (((x i).toNat : ℝ) - 1 / 2)) c :=
+    fun x i b => (hasBoundedDifferences_sum_mul_sub_half a x i b).trans (hc i)
+  have h := hdiff.pi_abs_sub_mean_ge (fun _ => Probability.PMF.uniformOfFintype Bool) ht
+  rw [sum_pi_uniform_mul_sum_mul_sub_half] at h
+  simp only [sub_zero, neg_mul, neg_div] at h
+  have hcard := Probability.PMF.card_filter_pi_le_of_toOuterMeasure_le _ h
+  simp only [Fintype.card_bool, Nat.cast_ofNat] at hcard
+  linarith
+
 /-- **Hoeffding's inequality for weighted bit sums.** At most a `2 exp (-2 t² / ∑ i, a i ^ 2)`
 fraction of the bit strings `x` have a centred weighted sum `∑ i, a i * (x i - 1 / 2)` of
 absolute value at least `t`. This is `HasBoundedDifferences.pi_abs_sub_mean_ge`. -/
 theorem card_filter_le_abs_sum_mul_sub_half_le (a : ι → ℝ) {t : ℝ} (ht : 0 ≤ t) :
     (#{x : ι → Bool | t ≤ |∑ i, a i * (((x i).toNat : ℝ) - 1 / 2)|} : ℝ) ≤
       2 * 2 ^ Fintype.card ι * exp (-(2 * t ^ 2 / ∑ i, a i ^ 2)) := by
-  have h := (hasBoundedDifferences_sum_mul_sub_half a).pi_abs_sub_mean_ge
-    (fun _ => Probability.PMF.uniformOfFintype Bool) ht
-  rw [sum_pi_uniform_mul_sum_mul_sub_half] at h
-  simp only [sub_zero, sq_abs, neg_mul, neg_div] at h
-  have hcard := Probability.PMF.card_filter_pi_le_of_toOuterMeasure_le _ h
-  simp only [Fintype.card_bool, Nat.cast_ofNat] at hcard
-  linarith
+  simpa only [sq_abs] using
+    card_filter_le_abs_sum_mul_sub_half_le_of_abs_le a (fun i => |a i|) (fun _ => le_rfl) ht
 
 /-- **Hoeffding's inequality for weighted sums of signs.** At most a
 `2 exp (-t² / (2 ∑ i, a i ^ 2))` fraction of the bit strings `x` have a weighted sign sum

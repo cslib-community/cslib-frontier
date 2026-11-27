@@ -10,7 +10,7 @@ module
 import CslibFrontier.Computability.WordRAM.Power.Rename
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.CatalogueLoop
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Index
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Complete shared native box geometry
@@ -51,22 +51,16 @@ theorem exec_constants {w : ℕ} (x : Data registers) (hfit : Fits w 10) :
       y.regs Reg.three = 3 ∧ y.mem = x.mem ∧
       (∀ i, i ≠ Reg.nil → i ≠ Reg.one → i ≠ Reg.ten → i ≠ Reg.nine →
         i ≠ Reg.three → y.regs i = x.regs i) := by
-  have h0 := hfit.of_le (by decide : 0 ≤ 10)
-  have h1 := hfit.of_le (by decide : 1 ≤ 10)
-  have h3 := hfit.of_le (by decide : 3 ≤ 10)
-  have h9 := hfit.of_le (by decide : 9 ≤ 10)
-  let y := ((((x.set Reg.nil 0).set Reg.one 1).set Reg.ten 10).set Reg.nine 9).set Reg.three 3
-  have he : ExecWithin w constants x y 5 := by
-    ram_eval [constants, y, h0, h1, h3, h9, hfit, Reg.nil, Reg.one, Reg.ten,
-      Reg.nine, Reg.three, Fin.mk.injEq]
-  refine ⟨y, he, by simp [y, Reg.nil, Reg.one, Reg.ten, Reg.nine, Reg.three],
-    by simp [y, Reg.nil, Reg.one, Reg.ten, Reg.nine, Reg.three],
-    by simp [y, Reg.nil, Reg.one, Reg.ten, Reg.nine, Reg.three],
-    by simp [y, Reg.nil, Reg.one, Reg.ten, Reg.nine, Reg.three],
-    by simp [y, Reg.nil, Reg.one, Reg.ten, Reg.nine, Reg.three], rfl, ?_⟩
-  intro i hi0 hi1 hi10 hi9 hi3
-  exact he.regs_eq (by simp [constants, Code.Preserves, Op.dest,
-    Ne.symm hi0, Ne.symm hi1, Ne.symm hi10, Ne.symm hi9, Ne.symm hi3])
+  suffices ∃ y, ExecWithin w constants x y 5 ∧ y.regs Reg.nil = 0 ∧
+      y.regs Reg.one = 1 ∧ y.regs Reg.ten = 10 ∧ y.regs Reg.nine = 9 ∧
+      y.regs Reg.three = 3 ∧ y.mem = x.mem by
+    obtain ⟨y, he, h0, h1, h10, h9, h3, hm⟩ := this
+    refine ⟨y, he, h0, h1, h10, h9, h3, hm, fun i hi0 hi1 hi10 hi9 hi3 =>
+      he.regs_eq (by simp [constants, Code.Preserves, Op.dest,
+        Ne.symm hi0, Ne.symm hi1, Ne.symm hi10, Ne.symm hi9, Ne.symm hi3])⟩
+  unfold constants
+  wram_exec
+  wram_simp
 
 /-- Actual extent setup and its complete persistent parameter readback. -/
 theorem exec_geometrySetup {w L m t D : ℕ} (x : Data registers)
@@ -79,23 +73,11 @@ theorem exec_geometrySetup {w L m t D : ℕ} (x : Data registers)
     ∃ y, ExecWithin w geometrySetup x y 6 ∧
       CatalogueParameters L (m - t) D (D + (m - t + 1) * 10 ^ L) y ∧
       y.regs Reg.slot = 0 ∧ y.regs Reg.count = 0 ∧ y.mem = x.mem := by
-  let S := (m - t + 1) * 10 ^ L
-  have hp : 0 < 10 ^ L := by positivity
-  have hh1 : Fits w (m - t + 1) := hfit.of_le (by omega)
-  have hR : Fits w (D + S) := hfit.of_le (by omega)
-  have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
-  let a := ((x.set Reg.height (m - t)).set Reg.slots (m - t + 1)).set Reg.slots S
-  let y := ((a.set Reg.records (D + S)).set Reg.slot 0).set Reg.count 0
-  have he : ExecWithin w geometrySetup x y 6 := by
-    ram_eval [geometrySetup, y, a, S, hm, ht, hD, hT, h1, hh1, hR, hf0,
-      Reg.height, Reg.slots, Reg.records, Reg.slot, Reg.count, Reg.inner, Reg.threshold,
-      Reg.directory, Reg.span, Reg.one, Fin.mk.injEq]
-  refine ⟨y, he, ?_, ?_, ?_, rfl⟩
-  · constructor <;> simp [y, a, S, hL, hD, hT, h1, h10, h9, h3, h0,
-      Reg.height, Reg.slots, Reg.records, Reg.slot, Reg.count, Reg.levels,
-      Reg.directory, Reg.span, Reg.one, Reg.ten, Reg.nine, Reg.three, Reg.nil]
-  · simp [y, a, Reg.count, Reg.slot]
-  · simp [y, a]
+  have h1le : m - t + 1 ≤ (m - t + 1) * 10 ^ L :=
+    Nat.le_mul_of_pos_right _ (Nat.pow_pos (by decide))
+  unfold geometrySetup
+  wram_exec *
+  exact ⟨by constructor <;> wram_simp [*], by wram_simp, by wram_simp, by wram_simp⟩
 
 /-- Actual shared setup, including all digit scans and descriptor writes. -/
 theorem exec_geometry {w L m t D : ℕ} (x : Data registers)
@@ -111,53 +93,25 @@ theorem exec_geometry {w L m t D : ℕ} (x : Data registers)
         3 * (Cslib.Algorithms.MatrixMultiplication.Schonhage.boxes L m t).card ∧
       CataloguePrefix L (m - t) D (D + (m - t + 1) * 10 ^ L)
         ((m - t + 1) * 10 ^ L) x.mem y.mem := by
-  let S := (m - t + 1) * 10 ^ L
-  let R := D + S
-  let B := Nat.count (Eligible L (m - t)) S
-  have hS : Nat.count (Eligible L (m - t)) S ≤ S := Nat.count_le _
-  have h10 : Fits w 10 := hfit.of_le ((by decide : 10 ≤ 12).trans (Nat.le_add_left _ _))
-  obtain ⟨a, ha, a0, a1, a10, a9, a3, am, af⟩ := exec_constants x h10
-  have aL : a.regs Reg.levels = L := by regs_frame
-  obtain ⟨b, hb, bT, b1, bm, bf⟩ := exec_span a aL a10 (hfit.of_le (by omega))
-  have bL : b.regs Reg.levels = L := by regs_frame
-  have bD : b.regs Reg.directory = D := by regs_frame
-  have bm' : b.regs Reg.inner = m := by regs_frame
-  have bt : b.regs Reg.threshold = t := by regs_frame
-  have b0 : b.regs Reg.nil = 0 := by regs_frame
-  have b10 : b.regs Reg.ten = 10 := by regs_frame
-  have b9 : b.regs Reg.nine = 9 := by regs_frame
-  have b3 : b.regs Reg.three = 3 := by regs_frame
-  obtain ⟨c, hc, cp, cs, cc, cm⟩ := exec_geometrySetup b bL bm' bt bD bT b1 b10 b9 b3 b0
-    (hfit.of_le (by omega))
-  obtain ⟨d, hd, dp, ds, dc, dmem⟩ := exec_catalogueLoop c cp cs cc
-    (Nat.le_refl _) (hfit.of_le (by omega))
-  have hf3 : Fits w (B * 3) := hfit.of_le (by dsimp only [B]; omega)
-  have hfV : Fits w (R + B * 3) := hfit.of_le (by dsimp only [B, R]; omega)
-  let y := (d.set Reg.temporary (B * 3)).set Reg.values (R + B * 3)
-  have he : ExecWithin w geometryFinish d y 2 := by
-    ram_eval [geometryFinish, y, dc, dp.three, dp.records, hf3, hfV, B, R, S,
-      Reg.temporary, Reg.values, Reg.count, Reg.three, Reg.records, Fin.mk.injEq]
-  have hy : ExecWithin w geometry x y
-      (4 * L + 20 + (11 * L + 28) * ((m - t + 1) * 10 ^ L)) := by
-    exact (ha.seq (hb.seq (hc.seq (hd.seq he)))).mono (by omega)
-  have hycount : y.regs Reg.count = B := by
-    simpa [y, Reg.temporary, Reg.values, Reg.count, B, S] using dc
-  have hB : B = (Cslib.Algorithms.MatrixMultiplication.Schonhage.boxes L m t).card :=
-    count_eligible_eq_card_boxes L m t
-  refine ⟨y, hy, ?_, hycount.trans hB, ?_, ?_⟩
-  · constructor
-    · simpa [y, Reg.temporary, Reg.values, Reg.levels] using dp.levels
-    · simpa [y, Reg.temporary, Reg.values, Reg.height] using dp.height
-    · simpa [y, Reg.temporary, Reg.values, Reg.span] using dp.span
-    · simpa [y, Reg.temporary, Reg.values, Reg.directory] using dp.directory
-    · simpa [y, Reg.temporary, Reg.values, Reg.records] using dp.records
-    · simpa [y, Reg.temporary, Reg.values, Reg.slots] using dp.slots
-    · simpa [y, Reg.temporary, Reg.values, Reg.one] using dp.one
-    · simpa [y, Reg.temporary, Reg.values, Reg.ten] using dp.ten
-    · simpa [y, Reg.temporary, Reg.values, Reg.nine] using dp.nine
-    · simpa [y, Reg.temporary, Reg.values, Reg.three] using dp.three
-    · simpa [y, Reg.temporary, Reg.values, Reg.nil] using dp.nil
-  · simp [y, R, S, hB, Nat.mul_comm]
-  · simpa only [y, Data.set_mem, cm, bm, am] using dmem
+  have hS : Nat.count (Eligible L (m - t)) ((m - t + 1) * 10 ^ L) ≤ (m - t + 1) * 10 ^ L :=
+    Nat.count_le _
+  have hB := count_eligible_eq_card_boxes L m t
+  refine WP.exists_execWithin ?_
+  unfold geometry geometryFinish
+  wram_call (exec_constants x (hfit.of_le ((by decide : 10 ≤ 12).trans (Nat.le_add_left _ _))))
+    with a ⟨a0, a1, a10, a9, a3, am, af⟩
+  wram_call (exec_span a (by regs_frame) a10 (by fits))
+    with b ⟨bT, b1, bm, bf⟩
+  wram_call (exec_geometrySetup b (by regs_frame) (by regs_frame) (by regs_frame)
+    (by regs_frame) bT b1 (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+    (by fits)) with c ⟨cp, cs, cc, cm⟩
+  wram_call (exec_catalogueLoop c cp cs cc (Nat.le_refl _) (by fits))
+    with d ⟨dp, _, dc, dmem⟩
+  have dr : d.regs Reg.records = D + (m - t + 1) * 10 ^ L := dp.records
+  have d3 : d.regs Reg.three = 3 := dp.three
+  wram_exec [*]
+  refine ⟨by regs_frame, by wram_simp [dc, hB], ?_, ?_⟩
+  · wram_simp [hB]; omega
+  · simpa only [Data.set_mem, cm, bm, am] using dmem
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable

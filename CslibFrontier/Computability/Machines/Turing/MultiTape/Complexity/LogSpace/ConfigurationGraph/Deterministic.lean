@@ -59,11 +59,9 @@ theorem pack_readRegisters_of_lt_vertexBound {B u : ℕ} (hu : u < vertexBound (
   have hpack_f : Cslib.Radix.pack B f = u := by
     unfold Cslib.Radix.pack
     simpa only [f, Equiv.apply_symm_apply] using hval
-  have hread : readRegisters (k := k) B u = f := by
-    funext i
-    rw [← hpack_f]
-    exact Cslib.Radix.component_pack hB hf_lt i
-  rw [hread, hpack_f]
+  have hread : readRegisters (k := k) B u = f :=
+    funext fun i => hpack_f ▸ Cslib.Radix.component_pack hB hf_lt i
+  exact hread ▸ hpack_f
 
 /-- IDs below `vertexBound B` are determined by the registers read from them. -/
 theorem readRegisters_injOn {B u v : ℕ} (hu : u < vertexBound (k := k) B)
@@ -113,15 +111,8 @@ theorem sum_edgeWithSymbol_le_one (tm : MultiTapeTM k Bool State)
     rw [Finset.sum_eq_single v]
     · simp [hv]
     · intro z _ hz
-      have he : edgeWithSymbol tm.toMultiTapeNTM B n u z symbol = false := by
-        apply Bool.eq_false_iff.mpr
-        intro he
-        exact hz (Fin.ext (edgeWithSymbol_target_unique tm he hv))
-      simp [he]
+      simp [Bool.eq_false_iff.mpr fun he => hz (Fin.ext (edgeWithSymbol_target_unique tm he hv))]
     · simp
-  · have he (v : Fin (vertexBound (k := k) B)) :
-        edgeWithSymbol tm.toMultiTapeNTM B n u v symbol = false :=
-      Bool.eq_false_iff.mpr fun hv => h ⟨v, hv⟩
-    simp [he]
+  · simp [Bool.eq_false_iff.mpr fun hv => h ⟨_, hv⟩]
 
 end Turing.MultiTapeNTM.ConfigurationGraph

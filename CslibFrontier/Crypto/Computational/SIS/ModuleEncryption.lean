@@ -189,54 +189,35 @@ theorem decodePolyMsg_encodePolyMsg_add_noise {n q B : ℕ} (hB : 4 * B + 2 < q)
     decodePolyMsg (encodePolyMsg q m + fun i => (err i : ZMod q)) = m := by
   have : NeZero q := ⟨by omega⟩
   funext i
-  have hbi : (err i).natAbs ≤ B := herr i
+  have hbi := herr i
   cases hmi : m i
-  · rw [decodePolyMsg_apply_eq_false_iff]
-    have hval :
-        SIS.liftCentered (encodePolyMsg q m + fun j => (err j : ZMod q)) i = err i := by
-      rw [SIS.liftCentered, ZMod.valMinAbs_spec]
-      refine ⟨?_, by omega, by omega⟩
-      simp only [encodePolyMsg, hmi, Bool.false_eq_true, ↓reduceIte, Pi.add_apply, zero_add]
-    rw [hval]
-    omega
+  · have hlift : SIS.liftCentered (encodePolyMsg q m + fun j => (err j : ZMod q)) i = err i :=
+      (ZMod.valMinAbs_spec _ _).mpr ⟨by simp [encodePolyMsg, hmi], by omega, by omega⟩
+    rw [decodePolyMsg_apply_eq_false_iff, hlift]; omega
   · rw [decodePolyMsg_apply_eq_true_iff]
     by_cases hwrap : (((q / 2 : ℕ) : ℤ) + err i) * 2 ≤ (q : ℤ)
-    · have hval :
-          SIS.liftCentered (encodePolyMsg q m + fun j => (err j : ZMod q)) i =
-            ((q / 2 : ℕ) : ℤ) + err i := by
-        rw [SIS.liftCentered, ZMod.valMinAbs_spec]
-        refine ⟨?_, by omega, hwrap⟩
-        simp only [encodePolyMsg, hmi, ↓reduceIte, Pi.add_apply, Int.cast_add, Int.cast_natCast]
-      rw [hval]
-      omega
-    · have hval :
-          SIS.liftCentered (encodePolyMsg q m + fun j => (err j : ZMod q)) i =
-            ((q / 2 : ℕ) : ℤ) + err i - (q : ℤ) := by
-        rw [SIS.liftCentered, ZMod.valMinAbs_spec]
-        refine ⟨?_, by omega, by omega⟩
-        simp only [encodePolyMsg, hmi, ↓reduceIte, Pi.add_apply, Int.cast_sub, Int.cast_add,
-          Int.cast_natCast, ZMod.natCast_self, sub_zero]
-      rw [hval]
-      omega
+    · have hlift : SIS.liftCentered (encodePolyMsg q m + fun j => (err j : ZMod q)) i =
+          ((q / 2 : ℕ) : ℤ) + err i :=
+        (ZMod.valMinAbs_spec _ _).mpr ⟨by simp [encodePolyMsg, hmi, -Int.natCast_ediv], by omega,
+          hwrap⟩
+      rw [hlift]; omega
+    · have hlift : SIS.liftCentered (encodePolyMsg q m + fun j => (err j : ZMod q)) i =
+          ((q / 2 : ℕ) : ℤ) + err i - (q : ℤ) :=
+        (ZMod.valMinAbs_spec _ _).mpr ⟨by simp [encodePolyMsg, hmi, -Int.natCast_ediv], by omega,
+          by omega⟩
+      rw [hlift]; omega
 
 /-- Bounded-error decoding correctness stated with `|err i| ≤ B`. -/
 theorem decodePolyMsg_encodePolyMsg_add_noise_of_abs_le {n q B : ℕ} (hB : 4 * B + 2 < q)
     (m : Fin n → Bool) {err : Fin n → ℤ} (herr : ∀ i, |err i| ≤ B) :
     decodePolyMsg (encodePolyMsg q m + fun i => (err i : ZMod q)) = m :=
-  decodePolyMsg_encodePolyMsg_add_noise hB m fun i => by
-    have hi := abs_le.mp (herr i)
-    omega
+  decodePolyMsg_encodePolyMsg_add_noise hB m fun i => by have := abs_le.mp (herr i); omega
 
 /-- Noiseless round-trip identity for `encodePolyMsg` and `decodePolyMsg` whenever `2 < q`. -/
 @[simp] theorem decodePolyMsg_encodePolyMsg {n q : ℕ} (hq : 2 < q) (m : Fin n → Bool) :
     decodePolyMsg (encodePolyMsg q m) = m := by
-  have h := decodePolyMsg_encodePolyMsg_add_noise (q := q) (B := 0) (by omega) m
-    (err := 0) (fun _ => le_rfl)
-  have h0 : (fun i : Fin n => ((0 : Fin n → ℤ) i : ZMod q)) = 0 := by
-    funext i
-    simp only [Pi.zero_apply, Int.cast_zero]
-  rw [h0, add_zero] at h
-  exact h
+  simpa [← Pi.zero_def] using decodePolyMsg_encodePolyMsg_add_noise (q := q) (B := 0) (by omega) m
+    (err := fun _ => 0) (fun _ => le_rfl)
 
 /-! ### Part 3: Ring-LWE / Module-LWE Public-Key Encryption and Decryption Correctness -/
 
@@ -345,26 +326,15 @@ theorem intCast_moduleLWEErrorPoly_liftCentered {k n q : ℕ}
         (fun j => SIS.liftCentered (e₁ j))
         (SIS.liftCentered e₂) i : ZMod q)) =
       innerPoly e r - innerPoly e₁ s + e₂ := by
-  have her := map_innerPoly (Int.castRingHom (ZMod q))
-    (fun j => SIS.liftCentered (e j))
-    (fun j => SIS.liftCentered (r j))
-  have hes := map_innerPoly (Int.castRingHom (ZMod q))
-    (fun j => SIS.liftCentered (e₁ j))
-    (fun j => SIS.liftCentered (s j))
-  change (Int.cast : ℤ → ZMod q) ∘ _ =
-    innerPoly (fun j => (Int.cast : ℤ → ZMod q) ∘ SIS.liftCentered (e j))
-      (fun j => (Int.cast : ℤ → ZMod q) ∘ SIS.liftCentered (r j)) at her
-  change (Int.cast : ℤ → ZMod q) ∘ _ =
-    innerPoly (fun j => (Int.cast : ℤ → ZMod q) ∘ SIS.liftCentered (e₁ j))
-      (fun j => (Int.cast : ℤ → ZMod q) ∘ SIS.liftCentered (s j)) at hes
-  simp only [SIS.intCast_comp_liftCentered] at her hes
+  have hmap (a b : Fin k → Fin n → ZMod q) (i : Fin n) :
+      ((innerPoly (fun j => SIS.liftCentered (a j)) (fun j => SIS.liftCentered (b j)) i : ℤ) :
+          ZMod q) = innerPoly a b i := by
+    simpa only [Function.comp_apply, Int.coe_castRingHom, SIS.intCast_comp_liftCentered] using
+      congrFun (map_innerPoly (Int.castRingHom (ZMod q)) (fun j => SIS.liftCentered (a j))
+        (fun j => SIS.liftCentered (b j))) i
   funext i
-  simp only [moduleLWEErrorPoly, Pi.add_apply, Pi.sub_apply, Int.cast_add, Int.cast_sub]
-  have her_i := congrFun her i
-  have hes_i := congrFun hes i
-  simp only [Function.comp_apply] at her_i hes_i
-  rw [her_i, hes_i]
-  simp only [SIS.liftCentered, ZMod.coe_valMinAbs]
+  simp only [moduleLWEErrorPoly, Pi.add_apply, Pi.sub_apply, Int.cast_add, Int.cast_sub,
+    hmap e r i, hmap e₁ s i, SIS.liftCentered, ZMod.coe_valMinAbs]
 
 /-- **Infinity-norm bound on `moduleLWEErrorPoly`**: if `‖s‖_∞ ≤ B_s`, `‖r‖_∞ ≤ B_r`, and
 `‖e‖_∞, ‖e₁‖_∞, ‖e₂‖_∞ ≤ B_e`, then every coefficient of `moduleLWEErrorPoly s r e e₁ e₂` has
@@ -379,13 +349,10 @@ theorem abs_moduleLWEErrorPoly_le {k n B_s B_r B_e : ℕ}
     (i : Fin n) :
     |moduleLWEErrorPoly s r e e₁ e₂ i| ≤
       (k * n * B_e * B_r + k * n * B_e * B_s + B_e : ℕ) := by
-  have her := abs_innerPoly_le he hr i
-  have hes := abs_innerPoly_le he₁ hs i
-  have he₂i := he₂ i
   simp only [moduleLWEErrorPoly, Pi.add_apply, Pi.sub_apply, Nat.cast_add, Nat.cast_mul]
-  have h1 := abs_add_le (innerPoly e r i - innerPoly e₁ s i) (e₂ i)
-  have h2 := abs_sub (innerPoly e r i) (innerPoly e₁ s i)
-  linarith
+  linarith [abs_innerPoly_le he hr i, abs_innerPoly_le he₁ hs i, he₂ i,
+    abs_add_le (innerPoly e r i - innerPoly e₁ s i) (e₂ i),
+    abs_sub (innerPoly e r i) (innerPoly e₁ s i)]
 
 /-- **Bounded-noise decryption correctness (general `B_s, B_r, B_e` bounds)**: when `s, r, e, e₁`
 and `e₂` satisfy the centered `ℓ_∞` bounds `B_s, B_r, B_e` and
@@ -425,12 +392,8 @@ theorem moduleLWEDecrypt_moduleLWEEncrypt_eq {k n q B_s B_r B_e : ℕ}
     (he₂ : SIS.inInfNormBound B_e e₂)
     (m : Fin n → Bool) :
     moduleLWEDecrypt s (moduleLWEEncrypt (moduleLWEKeyGen A s e) r e₁ e₂ m) = m := by
-  have hle : k * n * B_e * B_s ≤ k * n * B_e * B_r := Nat.mul_le_mul_left (k * n * B_e) hBs
-  have hsum : k * n * B_e * B_r + k * n * B_e * B_s ≤ 2 * k * n * B_e * B_r := by
-    calc k * n * B_e * B_r + k * n * B_e * B_s
-        ≤ k * n * B_e * B_r + k * n * B_e * B_r := Nat.add_le_add_left hle _
-      _ = 2 * k * n * B_e * B_r := by ring
-  exact moduleLWEDecrypt_moduleLWEEncrypt_eq_of_bounds (by omega) A hs hr he he₁ he₂ m
+  have := Nat.mul_le_mul_left (k * n * B_e) hBs
+  exact moduleLWEDecrypt_moduleLWEEncrypt_eq_of_bounds (by nlinarith) A hs hr he he₁ he₂ m
 
 /-! ### Part 4: Public-Key Pseudorandomness and Module-LWE Advantage Bounds for Ciphertexts -/
 
@@ -484,18 +447,13 @@ def unextendPublicKeyMatrix {k n q : ℕ}
     (pk : ModuleLWEPublicKey k n q) :
     unextendPublicKeyMatrix (extendPublicKeyMatrix pk) = pk := by
   rcases pk with ⟨A, b⟩
-  ext i j x
-  · rfl
-  · rfl
+  ext i j x <;> rfl
 
 @[simp] theorem extendPublicKeyMatrix_unextendPublicKeyMatrix {k n q : ℕ}
     (M : Matrix (Fin (k + 1)) (Fin k) (Fin n → ZMod q)) :
     extendPublicKeyMatrix (unextendPublicKeyMatrix M) = M := by
   ext i j x
-  refine Fin.cases ?_ ?_ i
-  · rfl
-  · intro _
-    rfl
+  exact Fin.cases rfl (fun _ => rfl) i
 
 /-- Equivalence between `ModuleLWEPublicKey k n q` and `(k + 1) × k` module matrices. -/
 def extendPublicKeyEquiv (k n q : ℕ) :
@@ -519,17 +477,12 @@ def unextendCiphertext {k n q : ℕ} (w : Fin (k + 1) → Fin n → ZMod q) :
 @[simp] theorem unextendCiphertext_extendCiphertext {k n q : ℕ}
     (ct : ModuleLWECiphertext k n q) :
     unextendCiphertext (extendCiphertext ct) = ct := by
-  rcases ct with ⟨u, v⟩
   rfl
 
 @[simp] theorem extendCiphertext_unextendCiphertext {k n q : ℕ}
     (w : Fin (k + 1) → Fin n → ZMod q) :
-    extendCiphertext (unextendCiphertext w) = w := by
-  funext i
-  refine Fin.cases ?_ ?_ i
-  · rfl
-  · intro _
-    rfl
+    extendCiphertext (unextendCiphertext w) = w :=
+  funext fun i => Fin.cases rfl (fun _ => rfl) i
 
 /-- Equivalence between `ModuleLWECiphertext k n q` and `Fin (k + 1) → Fin n → ZMod q`. -/
 def extendCiphertextEquiv (k n q : ℕ) :
@@ -552,12 +505,8 @@ theorem extendCiphertext_moduleLWEEncrypt {k n q : ℕ}
       ModuleLWE.sample (extendPublicKeyMatrix pk) r (Fin.cons e₂ e₁) +
         Fin.cons (encodePolyMsg q m) 0 := by
   funext i
-  refine Fin.cases ?_ ?_ i
-  · rfl
-  · intro i'
-    simp only [extendCiphertext, moduleLWEEncrypt, ModuleLWE.sample, Pi.add_apply,
-      Fin.cons_succ, Pi.zero_apply, add_zero]
-    rfl
+  refine Fin.cases rfl (fun i' => ?_) i
+  exact (add_zero _).symm
 
 /-- Equivalence masking the second component of a `(k + 1) × k` Module-LWE sample by
 `Fin.cons (encodePolyMsg q m) 0`. -/
@@ -676,12 +625,10 @@ theorem hybridEncryptionView_eq_sampleLaw_map (k n q : ℕ) [NeZero q]
       hybridEncryptionView k n q noise m =
         (uniformKeyEncryptionLaw k n q noise m).map
           (fun p => (unextendPublicKeyMatrix p.1, unextendCiphertext p.2)) := by
-    unfold hybridEncryptionView encryptionViewOfKeyLaw uniformKeyEncryptionLaw
-    simp only [pmf_norm, unextendPublicKeyMatrix_extendPublicKeyMatrix,
-      unextendCiphertext_extendCiphertext]
+    simp only [hybridEncryptionView, encryptionViewOfKeyLaw, uniformKeyEncryptionLaw, pmf_norm,
+      unextendPublicKeyMatrix_extendPublicKeyMatrix, unextendCiphertext_extendCiphertext]
     rw [PMF.bind_comm]
-  rw [hcomm, uniformKeyEncryptionLaw_eq_sampleLaw_map, PMF.map_comp]
-  rfl
+  rw [hcomm, uniformKeyEncryptionLaw_eq_sampleLaw_map, PMF.map_comp]; rfl
 
 /-- Pushing forward the uniform `(k + 1) × k` sample distribution under `unextendMaskedSample m`
 yields `uniformEncryptionView k n q` for every message `m`. -/
@@ -727,18 +674,9 @@ theorem advantage_realEncryptionView_uniform_le {k n q : ℕ} [NeZero q]
         (PMF.uniformOfFintype (ModuleLWEPublicKey k n q)).bind fun pk =>
           (encryptionViewOfKeyLaw (PMF.pure pk) noise m).bind D := by
     simp only [pmf_norm, hybridEncryptionView, encryptionViewOfKeyLaw]
-  have hhyb2 :
-      (hybridEncryptionView k n q noise m).bind D =
-        (ModuleLWE.sampleLaw (PMF.uniformOfFintype (Fin k → Fin n → ZMod q))
-            (PMF.pi fun _ : Fin (k + 1) => noise)).bind (D ∘ unextendMaskedSample m) := by
-    rw [hybridEncryptionView_eq_sampleLaw_map, PMF.bind_map]
-  have hunif :
-      (uniformEncryptionView k n q).bind D =
-        (PMF.uniformOfFintype
-          (Matrix (Fin (k + 1)) (Fin k) (Fin n → ZMod q) ×
-            (Fin (k + 1) → Fin n → ZMod q))).bind (D ∘ unextendMaskedSample m) := by
-    rw [← uniformSample_map_unextendMaskedSample k n q m, PMF.bind_map]
-  rw [hreal, hunif, ← hhyb1, ← hhyb2]
+  rw [← hreal, ← hhyb1,
+    ← PMF.bind_map _ (unextendMaskedSample m) D, ← hybridEncryptionView_eq_sampleLaw_map,
+    ← PMF.bind_map _ (unextendMaskedSample m) D, uniformSample_map_unextendMaskedSample]
   exact Game.advantage_triangle _ ((hybridEncryptionView k n q noise m).bind D) _
 
 /-- **Two-message CPA distinguishing bound via `uniformEncryptionView`**: for any two messages
@@ -754,13 +692,8 @@ theorem advantage_realEncryptionView_msg_le {k n q : ℕ} [NeZero q]
         ((uniformEncryptionView k n q).bind D) +
       Game.advantage ((realEncryptionView k n q noise m₁).bind D)
         ((uniformEncryptionView k n q).bind D) := by
-  calc Game.advantage ((realEncryptionView k n q noise m₀).bind D)
-          ((realEncryptionView k n q noise m₁).bind D)
-      ≤ Game.advantage ((realEncryptionView k n q noise m₀).bind D)
-          ((uniformEncryptionView k n q).bind D) +
-        Game.advantage ((uniformEncryptionView k n q).bind D)
-          ((realEncryptionView k n q noise m₁).bind D) :=
-        Game.advantage_triangle _ _ _
-    _ = _ := by rw [Game.advantage_comm ((uniformEncryptionView k n q).bind D)]
+  simpa only [Game.advantage_comm ((uniformEncryptionView k n q).bind D)] using
+    Game.advantage_triangle ((realEncryptionView k n q noise m₀).bind D)
+      ((uniformEncryptionView k n q).bind D) ((realEncryptionView k n q noise m₁).bind D)
 
 end Cslib.Crypto

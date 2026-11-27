@@ -91,23 +91,17 @@ private theorem add4_le {a b e f g h c₁ c₂ d₁ d₂ : β} (h₁ : a ≤ e +
 the optimal cost `c = optCost w` of the interval recurrence satisfies the quadrangle inequality. -/
 theorem quadrangleIneq_optCost {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
     (hmono : MonotoneOnIntervals w) : QuadrangleIneq (optCost w) := by
-  suffices H : ∀ n i i' j j', j' - i = n → i ≤ i' → i' ≤ j → j ≤ j' →
-      optCost w i j + optCost w i' j' ≤ optCost w i j' + optCost w i' j from
-    fun i i' j j' h₁ h₂ h₃ => H _ i i' j j' rfl h₁ h₂ h₃
-  intro n
-  induction n using Nat.strong_induction_on with
+  intro i i' j j' h₁ h₂ h₃
+  generalize hn : j' - i = n
+  induction n using Nat.strong_induction_on generalizing i i' j j' with
   | _ n ih =>
-  intro i i' j j' hn h₁ h₂ h₃
-  have IH : ∀ a a' b b', b' - a < n → a ≤ a' → a' ≤ b → b ≤ b' →
-      optCost w a b + optCost w a' b' ≤ optCost w a b' + optCost w a' b :=
-    fun a a' b b' hlt => ih _ (hn ▸ hlt) a a' b b' rfl
   rcases h₁.eq_or_lt with rfl | hii'
   · exact le_of_eq (add_comm _ _)
   rcases h₃.eq_or_lt with rfl | hjj'
   · exact le_rfl
   rcases h₂.eq_or_lt with rfl | hi'j
   · -- `i' = j`: show `c(i, i') + c(i', j') ≤ c(i, j')`
-    rw [optCost_of_le w (le_refl i'), add_zero]
+    rw [optCost_of_le w le_rfl, add_zero]
     have hz := mem_Ioc.1 (optRoot_mem w (show i < j' by omega))
     rw [optCost_eq_optRoot w (show i < j' by omega), splitCost]
     generalize optRoot w i j' = z at hz ⊢
@@ -115,59 +109,39 @@ theorem quadrangleIneq_optCost {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
     · -- the root lies in `(i, i']`
       have h₁ : optCost w i i' ≤ w i i' + (optCost w i (z - 1) + optCost w z i') :=
         optCost_le w (mem_Ioc.2 ⟨hz.1, hzi'⟩)
-      have h₂ := IH z i' i' j' (by omega) hzi' le_rfl hjj'.le
-      rw [optCost_of_le w (le_refl i'), add_zero] at h₂
+      have h₂ := ih _ (show j' - z < n by omega) hzi' le_rfl hjj'.le rfl
+      rw [optCost_of_le w le_rfl, add_zero] at h₂
       calc optCost w i i' + optCost w i' j'
-          ≤ w i i' + (optCost w i (z - 1) + optCost w z i') + optCost w i' j' :=
-            add_le_add h₁ le_rfl
+          ≤ w i i' + (optCost w i (z - 1) + optCost w z i') + optCost w i' j' := by gcongr
         _ = w i i' + (optCost w i (z - 1) + (optCost w z i' + optCost w i' j')) := by abel
         _ ≤ w i j' + (optCost w i (z - 1) + optCost w z j') :=
             add_le_add (hmono le_rfl hii'.le hjj'.le) (add_le_add le_rfl h₂)
     · -- the root lies in `(i', j']`
       have h₁ : optCost w i' j' ≤ w i' j' + (optCost w i' (z - 1) + optCost w z j') :=
         optCost_le w (mem_Ioc.2 ⟨hzi', hz.2⟩)
-      have h₂ := IH i i' i' (z - 1) (by omega) hii'.le le_rfl (by omega)
-      rw [optCost_of_le w (le_refl i'), add_zero] at h₂
+      have h₂ := ih _ (show z - 1 - i < n by omega) hii'.le le_rfl (by omega) rfl
+      rw [optCost_of_le w le_rfl, add_zero] at h₂
       calc optCost w i i' + optCost w i' j'
-          ≤ optCost w i i' + (w i' j' + (optCost w i' (z - 1) + optCost w z j')) :=
-            add_le_add le_rfl h₁
+          ≤ optCost w i i' + (w i' j' + (optCost w i' (z - 1) + optCost w z j')) := by gcongr
         _ = w i' j' + ((optCost w i i' + optCost w i' (z - 1)) + optCost w z j') := by abel
         _ ≤ w i j' + (optCost w i (z - 1) + optCost w z j') :=
             add_le_add (hmono hii'.le (by omega) le_rfl) (add_le_add h₂ le_rfl)
   · -- `i < i' < j < j'`
-    have hy := mem_Ioc.1 (optRoot_mem w (show i' < j by omega))
+    have hy := mem_Ioc.1 (optRoot_mem w hi'j)
     have hz := mem_Ioc.1 (optRoot_mem w (show i < j' by omega))
-    rw [optCost_eq_optRoot w (show i' < j by omega), optCost_eq_optRoot w (show i < j' by omega),
+    rw [optCost_eq_optRoot w hi'j, optCost_eq_optRoot w (show i < j' by omega),
       splitCost, splitCost]
     generalize optRoot w i' j = y at hy ⊢
     generalize optRoot w i j' = z at hz ⊢
     rcases le_or_gt z y with hzy | hyz
-    · have h₁ : optCost w i j ≤ w i j + (optCost w i (z - 1) + optCost w z j) :=
-        optCost_le w (mem_Ioc.2 ⟨hz.1, by omega⟩)
-      have h₂ : optCost w i' j' ≤ w i' j' + (optCost w i' (y - 1) + optCost w y j') :=
-        optCost_le w (mem_Ioc.2 ⟨hy.1, by omega⟩)
-      have h₃ := IH z y j j' (by omega) hzy hy.2 hjj'.le
-      refine add4_le h₁ h₂ (hqi hii'.le hi'j.le hjj'.le) ?_
-      calc optCost w i (z - 1) + optCost w z j + (optCost w i' (y - 1) + optCost w y j')
-          = optCost w i (z - 1) + optCost w i' (y - 1) + (optCost w z j + optCost w y j') := by
-            abel
-        _ ≤ optCost w i (z - 1) + optCost w i' (y - 1) + (optCost w z j' + optCost w y j) :=
-            add_le_add le_rfl h₃
-        _ = optCost w i (z - 1) + optCost w z j' + (optCost w i' (y - 1) + optCost w y j) := by
-            abel
-    · have h₁ : optCost w i j ≤ w i j + (optCost w i (y - 1) + optCost w y j) :=
-        optCost_le w (mem_Ioc.2 ⟨by omega, hy.2⟩)
-      have h₂ : optCost w i' j' ≤ w i' j' + (optCost w i' (z - 1) + optCost w z j') :=
-        optCost_le w (mem_Ioc.2 ⟨by omega, hz.2⟩)
-      have h₃ := IH i i' (y - 1) (z - 1) (by omega) hii'.le (by omega) (by omega)
-      refine add4_le h₁ h₂ (hqi hii'.le hi'j.le hjj'.le) ?_
-      calc optCost w i (y - 1) + optCost w y j + (optCost w i' (z - 1) + optCost w z j')
-          = optCost w i (y - 1) + optCost w i' (z - 1) + (optCost w y j + optCost w z j') := by
-            abel
-        _ ≤ optCost w i (z - 1) + optCost w i' (y - 1) + (optCost w y j + optCost w z j') :=
-            add_le_add h₃ le_rfl
-        _ = optCost w i (z - 1) + optCost w z j' + (optCost w i' (y - 1) + optCost w y j) := by
-            abel
+    · exact add4_le (optCost_le w (mem_Ioc.2 ⟨hz.1, by omega⟩))
+        (optCost_le w (mem_Ioc.2 ⟨hy.1, by omega⟩)) (hqi hii'.le hi'j.le hjj'.le)
+        (add4_le le_rfl le_rfl le_rfl (ih _ (show j' - z < n by omega) hzy hy.2 hjj'.le rfl))
+    · exact add4_le (optCost_le w (mem_Ioc.2 ⟨by omega, hy.2⟩))
+        (optCost_le w (mem_Ioc.2 ⟨by omega, hz.2⟩)) (hqi hii'.le hi'j.le hjj'.le)
+        (add4_le le_rfl le_rfl
+          (ih _ (show z - 1 - i < n by omega) hii'.le (by omega) (by omega) rfl)
+          (add_comm _ _).le)
 
 end Ordered
 
@@ -263,12 +237,7 @@ theorem knuthWeight_add_knuthWeight (p q : ℕ → β) {i i' j j' : ℕ} (h₁ :
       ← sum_Ico_consecutive q h₁ (by omega : i' ≤ j + 1)]
     abel
   simp only [knuthWeight]
-  calc ∑ k ∈ Ioc i j, p k + ∑ g ∈ Icc i j, q g + (∑ k ∈ Ioc i' j', p k + ∑ g ∈ Icc i' j', q g)
-      = (∑ k ∈ Ioc i j, p k + ∑ k ∈ Ioc i' j', p k) +
-          (∑ g ∈ Icc i j, q g + ∑ g ∈ Icc i' j', q g) := by abel
-    _ = (∑ k ∈ Ioc i j', p k + ∑ k ∈ Ioc i' j, p k) +
-          (∑ g ∈ Icc i j', q g + ∑ g ∈ Icc i' j, q g) := by rw [hp, hq]
-    _ = _ := by abel
+  rw [add_add_add_comm, hp, hq, add_add_add_comm]
 
 variable [PartialOrder β]
 

@@ -153,9 +153,7 @@ private theorem maskPos_val (t q : Fin Δ) :
 private theorem seedPos_val (t q : Fin Δ) (i : Fin k) (r : Fin (seedWidth I lam)) :
     (seedPos I Δ k lam t q i r : ℕ) = slotOffset I Δ k lam t q + seedWidth I lam * i + r := by
   refine (slotPos_val t q (Fin.castSucc (finProdFinEquiv (i, r)))).trans ?_
-  change slotOffset I Δ k lam t q + ((finProdFinEquiv (i, r) : Fin (k * seedWidth I lam)) : ℕ) = _
-  rw [finProdFinEquiv_apply_val]
-  ring
+  simp only [Fin.val_castSucc, finProdFinEquiv_apply_val]; ring
 
 private theorem varLength_le_seedWidth' (v : ℕ) : varLength I lam v ≤ seedWidth I lam := by
   by_cases hv : v < I.weights.length
@@ -173,14 +171,12 @@ private theorem evalVar_seed_eq {f : VarFunctions I lam} {T : List (List Bool)} 
   have hz : evalVar f v z = evalVar f v (BitString.zeroExtend (d' := varLength I lam v) z) := by
     unfold evalVar
     split_ifs with hv
-    · congr 1
-      funext r
-      simp [BitString.zeroExtend, (varLength_le_seedWidth' (lam := lam) v).trans_lt' r.isLt]
+    · exact congrArg (f ⟨v, hv⟩) (funext fun r => by
+        simp [BitString.zeroExtend, r.isLt.trans_le (varLength_le_seedWidth' v)])
     · rfl
   rw [hz, ← hT, BitString.val_equivFin_eq_div_mod_of_testBit fun r => ?_]
-  have hr : (r : ℕ) < seedWidth I lam := r.isLt.trans_le (varLength_le_seedWidth' v)
-  simp only [BitString.zeroExtend, hr, dite_true, z, seed, BitString.equivFin_symm_apply,
-    seedPos_val]
+  simp [BitString.zeroExtend, r.isLt.trans_le (varLength_le_seedWidth' v), z, seed,
+    BitString.equivFin_symm_apply, seedPos_val]
 
 /-! ### Correctness -/
 
@@ -248,12 +244,9 @@ theorem getD_tables (f : VarFunctions I lam) (v : ℕ) : (tables f).getD v [] = 
 
 /-- A list of tables that agrees with `tables f` at `v` has the table of `f v`. -/
 theorem IsVarTable.of_getD_eq {f : VarFunctions I lam} {T : List (List Bool)} {v : ℕ}
-    (h : T.getD v [] = varTable f v) : IsVarTable I lam f T v := by
-  intro y
+    (h : T.getD v [] = varTable f v) : IsVarTable I lam f T v := fun y => by
   rw [h, varTable, evalVar]
-  split_ifs with hv
-  · simp [List.getD_eq_getElem?_getD]
-  · rfl
+  split_ifs <;> simp [List.getD_eq_getElem?_getD]
 
 /-- `tables f` has the table of every variable. -/
 theorem isVarTable_tables (f : VarFunctions I lam) (v : ℕ) : IsVarTable I lam f (tables f) v :=

@@ -83,10 +83,9 @@ theorem controlled_affine_circuit_of_scalar_bound (g : BitString q → BitString
   have hscalar (f : BooleanFunction q) :
       Synthesis interpretation (inputs (q + p)) {fun x => f (u x)} L := by
     obtain ⟨c, hc, hs⟩ := hL f
-    have h := Synthesis.circuit (I := interpretation) (s := inputs (q + p)) c
-      (fun i x => u x i) (fun i => ⟨Fin.castAdd p i, rfl⟩)
-    have he : c.eval interpretation = single f := funext hc
-    simpa [he, wires, single] using h.mono Set.Subset.rfl Set.Subset.rfl hs
+    simpa [funext hc, wires, single] using
+      (Synthesis.circuit (I := interpretation) (s := inputs (q + p)) c (fun i x => u x i)
+        fun i => ⟨Fin.castAdd p i, rfl⟩).mono .rfl .rfl hs
   have hrow (row : Fin p) :
       Synthesis interpretation (inputs (q + p)) {fun x => a (u x) (v x) row}
         ((p + 1) * (L + 5) + 1) := by
@@ -98,32 +97,27 @@ theorem controlled_affine_circuit_of_scalar_bound (g : BitString q → BitString
       induction j using Fin.lastCases with
       | last =>
         simpa only [term, Fin.snoc_last] using
-          (hscalar (fun z => (affineMapSeed (a z)).2 row)).mono
-            Set.Subset.rfl Set.Subset.rfl (Nat.le_succ L)
+          (hscalar fun z => (affineMapSeed (a z)).2 row).mono .rfl .rfl (Nat.le_succ L)
       | cast i =>
-        have hinput : Synthesis interpretation (inputs (q + p)) {fun x => v x i} 0 :=
-          Synthesis.of_mem ⟨Fin.natAdd q i, rfl⟩
         simpa only [term, Fin.snoc_castSucc, Bool.mul_eq_and, Nat.add_zero] using
-          (hscalar (fun z => (affineMapSeed (a z)).1 row i)).and hinput
-    have hsum := Synthesis.sum (s := inputs (q + p))
-      (Finset.univ : Finset (Fin (p + 1))) term (fun _ => L + 1) (fun j _ => hterm j)
+          (hscalar fun z => (affineMapSeed (a z)).1 row i).and
+            (Synthesis.of_mem ⟨Fin.natAdd q i, rfl⟩)
     have he : (fun x : BitString (q + p) => ∑ j : Fin (p + 1), term j x) =
-        fun x => a (u x) (v x) row := by
-      funext x
+        fun x => a (u x) (v x) row := funext fun x => by
       rw [Fin.sum_univ_castSucc]
       simp only [term, Fin.snoc_castSucc, Fin.snoc_last]
-      change affineHash (affineMapSeed (a (u x))) (v x) row = _
       exact congrFun (affineHash_affineMapSeed (a (u x)) (v x)) row
-    rw [he] at hsum
-    simpa only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul,
-      Nat.add_assoc, show 1 + 4 = 5 by rfl] using hsum
-  let cost : Fin (q + p) → ℕ := Fin.append (fun _ => L) (fun _ => (p + 1) * (L + 5) + 1)
+    have hsum := Synthesis.sum (s := inputs (q + p)) Finset.univ term (fun _ => L + 1)
+      fun j _ => hterm j
+    simpa only [he, Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul,
+      Nat.add_assoc, show 1 + 4 = 5 from rfl] using hsum
+  let cost : Fin (q + p) → ℕ := Fin.append (fun _ => L) fun _ => (p + 1) * (L + 5) + 1
   have hout (i : Fin (q + p)) :
       Synthesis interpretation (inputs (q + p))
         {fun x => controlledBits g (fun z => a z) x i} (cost i) := by
     induction i using Fin.addCases with
     | left i =>
-      simpa only [cost, controlledBits, Fin.append_left, u] using hscalar (fun z => g z i)
+      simpa only [cost, controlledBits, Fin.append_left, u] using hscalar fun z => g z i
     | right i =>
       simpa only [cost, controlledBits, Fin.append_right, u, v] using hrow i
   obtain ⟨c, hc, hs⟩ := (Synthesis.family _ cost hout).exists_circuit_outputs
@@ -144,12 +138,10 @@ theorem affine_controller_power_of_scalar_bound (g : BitString q → BitString q
       c.size ≤ affineControllerSynthesisBudget q p L := by
   let family : Set (BitString p → BitString p) :=
     Set.range fun f : BitString p →ᵃ[Bool] BitString p => ⇑f
-  have hclosed (u : BitString q) : controlledPayload g (fun z => a z) T u ∈ family :=
-    controlledPayload_mem g (fun z => a z) family
-      (show id ∈ family from ⟨AffineMap.id Bool (BitString p), rfl⟩)
-      (fun _ ⟨f, hf⟩ _ ⟨h, hh⟩ => ⟨f.comp h, by simp only [← hf, ← hh]; rfl⟩)
-      (fun z => ⟨a z, rfl⟩) T u
-  choose b hb using hclosed
+  choose b hb using fun u => controlledPayload_mem g (fun z => a z) family
+    ⟨AffineMap.id Bool (BitString p), rfl⟩
+    (fun _ ⟨f, hf⟩ _ ⟨h, hh⟩ => ⟨f.comp h, by simp only [← hf, ← hh]; rfl⟩)
+    (fun z => ⟨a z, rfl⟩) T u
   obtain ⟨c, hc, hs⟩ := controlled_affine_circuit_of_scalar_bound (g^[T]) b L hL
   refine ⟨c, fun x => (hc x).trans ?_, hs⟩
   rw [controlledBits_iterate]

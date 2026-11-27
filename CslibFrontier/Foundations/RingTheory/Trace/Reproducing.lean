@@ -45,11 +45,7 @@ theorem trace_eq_of_reproducing (L : A →ₗ[S] S) (s : Finset κ) (c m : κ �
       coe_lmul_eq_mul, LinearMap.mul_apply', mul_assoc] using (h (v * x)).symm
   rw [trace_apply, hdecomp, map_sum]
   simp only [LinearMap.trace_smulRight, LinearMap.comp_apply, coe_lmul_eq_mul,
-    LinearMap.mul_apply']
-  rw [← map_sum, Finset.mul_sum]
-  congr 1
-  apply Finset.sum_congr rfl
-  intro i _
-  ring
+    LinearMap.mul_apply', ← map_sum, Finset.mul_sum]
+  exact congrArg L (Finset.sum_congr rfl fun i _ => by ring)
 
 end Algebra

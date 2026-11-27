@@ -22,10 +22,10 @@ private def input : Data 11 :=
 /-- Clearing ignores the old contents, including nonzero words in the output block. -/
 example : (Code.eval 8 4 Histogram.program (input.write 10 77)).map
     (fun yn => (yn.1.mem 10, yn.1.mem 11, yn.1.mem 12, yn.1.regs Histogram.total, yn.2)) =
-      some (3, 1, 0, 6, 68) := by decide +kernel
+      some (3, 1, 0, 6, 66) := by decide +kernel
 
 /-- Read the same result through the generic charged theorem, checking both frames. -/
-example : ∃ y, ExecWithin 8 Histogram.program input y 68 ∧
+example : ∃ y, ExecWithin 8 Histogram.program input y 66 ∧
     y.mem 10 = 3 ∧ y.mem 11 = 1 ∧ y.regs Histogram.total = 6 ∧
     y.mem 0 = 4 ∧ y.mem 13 = 0 := by
   obtain ⟨y, hy, hm, ht, _⟩ := Histogram.exec (w := 8) input keys
@@ -50,7 +50,7 @@ example : ∃ y, ExecWithin 8 Histogram.program input y 68 ∧
 /-- Empty inputs and empty histograms pay only setup and two failed loop tests. -/
 example : (Code.eval 8 0 Histogram.program
     ((input.set Histogram.len 0).set Histogram.bins 0)).map
-      (fun yn => (yn.1.regs Histogram.total, yn.2)) = some (0, 9) := by decide +kernel
+      (fun yn => (yn.1.regs Histogram.total, yn.2)) = some (0, 10) := by decide +kernel
 
 /-- A singleton has no collision; two equal keys at different positions create two. -/
 example : Histogram.pairs (fun _ => 0) 0 = 0 ∧

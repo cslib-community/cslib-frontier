@@ -236,9 +236,7 @@ def feeder : Junction c → Vertex c
 /-- No junction feeds itself. -/
 theorem feeder_ne_junction : ∀ j : Junction c, feeder j ≠ .junction j
   | ⟨_, ⟨0, _⟩⟩, h => by cases h
-  | ⟨_, ⟨k + 1, _⟩⟩, h => by
-    have := congrArg (fun j : Junction c => (j.2 : ℕ)) (Vertex.junction.inj h)
-    simp at this
+  | ⟨_, ⟨_ + 1, _⟩⟩, h => by simp [feeder] at h
 
 /-- The source of an edge. -/
 def src : Edge c → Vertex c
@@ -421,22 +419,13 @@ variable {I Acc}
 signal. -/
 theorem satisfies_trace {x : Fin n → U} (hx : ∀ o, c.eval I x o ∈ Acc o) :
     (network c I Acc).Satisfies x fun e => c.program.trace I x e.signal.1 := by
-  intro v
-  cases v with
-  | signal w =>
-    obtain ⟨w, hw⟩ := w
-    change c.program.trace I x w = emit I ⟨w, hw⟩ x _
-    cases w with
-    | input i => rfl
-    | gate g =>
-      rw [Program.trace_gate]
-      simp only [emit, argEdge, signal_deliverEdge, consumed]
-  | junction j =>
-    intro e he
-    change c.program.trace I x e.signal.1 = c.program.trace I x j.1.1
-    rw [signal_of_src_eq_junction he]
-  | output o =>
-    change c.program.trace I x (outEdge c o).signal.1 ∈ Acc o
+  rintro (⟨_ | g, hw⟩ | j | o)
+  · rfl
+  · change c.program.trace I x (.gate g) = emit I ⟨.gate g, hw⟩ x _
+    rw [Program.trace_gate]
+    simp only [emit, argEdge, signal_deliverEdge, consumed]
+  · exact fun e he => congrArg (c.program.trace I x ∘ Subtype.val) (signal_of_src_eq_junction he)
+  · change c.program.trace I x (outEdge c o).signal.1 ∈ Acc o
     rw [signal_deliverEdge]
     exact hx o
 
@@ -481,12 +470,12 @@ end Satisfying
 is accepted and the assignment puts on every edge the value of its signal in the circuit. -/
 theorem satisfies_iff {x : Fin n → U} {α : Edge c → U} :
     (network c I Acc).Satisfies x α ↔
-      (∀ o, c.eval I x o ∈ Acc o) ∧ α = fun e => c.program.trace I x e.signal.1 := by
-  refine ⟨fun hα => ⟨fun o => ?_, funext (eq_trace hα)⟩, ?_⟩
-  · have h : α (outEdge c o) ∈ Acc o := hα (.output o)
-    rwa [eq_trace hα, signal_deliverEdge] at h
-  · rintro ⟨hx, rfl⟩
-    exact satisfies_trace hx
+      (∀ o, c.eval I x o ∈ Acc o) ∧ α = fun e => c.program.trace I x e.signal.1 :=
+  ⟨fun hα => ⟨fun o => by
+      have h : α (outEdge c o) ∈ Acc o := hα (.output o)
+      rwa [eq_trace hα, signal_deliverEdge] at h,
+    funext (eq_trace hα)⟩,
+   fun ⟨hx, h⟩ => h ▸ satisfies_trace hx⟩
 
 /-- **Exactness.** The network accepts exactly the inputs on which every output `o` of the
 circuit lies in `Acc o`. -/
@@ -517,23 +506,18 @@ theorem eval_splice {P : Set (Vertex c)} {x y z : Fin n → U}
     (hzy : EqOn z y ((network c I fun _ => univ).readIn P)ᶜ) (o : Fin m) :
     (Vertex.output o ∈ P → c.eval I z o = c.eval I x o) ∧
       (Vertex.output o ∉ P → c.eval I z o = c.eval I y o) := by
-  have hx : (network c I fun _ => univ).Satisfies x fun e => c.program.trace I x e.signal.1 :=
-    satisfies_trace fun _ => mem_univ _
-  have hy : (network c I fun _ => univ).Satisfies y fun e => c.program.trace I y e.signal.1 :=
-    satisfies_trace fun _ => mem_univ _
-  obtain ⟨γ, hγ, hγx, hγy⟩ := hx.splice hy hcut hzx hzy
-  -- Every value at the output `o` is read off the edge delivering it.
-  have hval : ∀ v, c.program.trace I v (outEdge c o).signal.1 = c.eval I v o := fun v => by
-    rw [signal_deliverEdge]
-    rfl
+  obtain ⟨γ, hγ, hγx, hγy⟩ :=
+    (satisfies_trace (I := I) (Acc := fun _ => univ) (x := x) fun _ => mem_univ _).splice
+      (satisfies_trace fun _ => mem_univ _) hcut hzx hzy
   have htgt : (network c I fun _ => univ).tgt (outEdge c o) = .output o := tgt_deliverEdge _
-  rw [← hval z, ← eq_trace hγ, ← hval x, ← hval y]
+  -- Every value at the output `o` is read off the edge delivering it.
+  have hval (v) : c.eval I v o = c.program.trace I v (outEdge c o).signal.1 := by
+    rw [signal_deliverEdge]; rfl
+  simp only [hval, ← eq_trace hγ]
   refine ⟨fun ho => hγx (Or.inr (htgt ▸ ho)), fun ho => ?_⟩
   by_cases ht : outEdge c o ∈ (network c I fun _ => univ).touching P
   · -- The edge reaches into `P` from outside, so it lies on the cut.
-    have hsrc : src (outEdge c o) ∈ P := ht.resolve_right fun h => ho (htgt ▸ h)
-    refine (hγx ht).trans (hcut _ ?_)
-    exact fun h => ho (htgt ▸ h.mp hsrc)
+    exact (hγx ht).trans (hcut _ fun h => ho (htgt ▸ h.mp (ht.resolve_right (mt (htgt ▸ ·) ho))))
   · exact hγy ht
 
 end Cslib.Circuits.Frontier.Compiler

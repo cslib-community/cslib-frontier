@@ -135,9 +135,7 @@ theorem isSome_ofCode_iff {g : σ.Op × List ℕ} :
     (ofCode n k g : Option (Line σ n k)).isSome ↔
       g.2.length = σ.Arity g.1 ∧ ∀ i ∈ g.2, i < n + k := by
   rw [ofCode]
-  split_ifs with h
-  · simpa using h
-  · simpa using h
+  split_ifs with h <;> simpa using h
 
 end Line
 
@@ -342,9 +340,7 @@ theorem isSome_ofCode_iff {code : List (σ.Op × List ℕ) × List ℕ} :
   · have hp : p.1 = code.1.length := by
       rw [← Program.length_code p.2, Program.code_of_ofCode_eq_some h]
     simp only [bind, Option.bind_some, Option.isSome_some, true_and, hp]
-    split_ifs with hc
-    · simpa using hc
-    · simpa using hc
+    split_ifs with hc <;> simpa using hc
 
 /-- Different circuits have different codes. -/
 theorem code_injective : Function.Injective (code : Circuit σ n m → _) := fun c c' h =>
@@ -366,10 +362,7 @@ theorem code_wiring (f : Fin m → Fin n) :
 theorem code_wiring_eq_map {f : Fin m → Fin n} {g : ℕ → ℕ}
     (h : ∀ j : Fin m, (f j).val = g j.val) :
     (wiring σ f).code = ([], (List.range m).map g) := by
-  simp only [code_wiring, Prod.mk.injEq, true_and]
-  exact List.ext_getElem (by simp) fun i hi₁ hi₂ => by
-    simp only [List.getElem_ofFn, List.getElem_map, List.getElem_range]
-    exact h ⟨i, by simpa using hi₁⟩
+  simp [code_wiring, List.ext_getElem_iff, h]
 
 /-- The serialized code of the identity wiring on `n` wires is `([], List.range n)`. -/
 @[simp] theorem code_wiring_id :

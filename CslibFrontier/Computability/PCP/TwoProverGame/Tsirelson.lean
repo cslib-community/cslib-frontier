@@ -114,8 +114,7 @@ theorem correlation_eq (S : QuantumStrategy X Y Bool Bool ι κ) (x : X) (y : Y)
 theorem correlation_toCommuting (S : QuantumStrategy X Y Bool Bool ι κ) (x : X) (y : Y) :
     S.toCommuting.correlation x y = S.correlation x y := by
   rw [CommutingStrategy.correlation_eq, correlation_eq]
-  simp only [prob_toCommuting, prob_eq]
-  ring
+  simp only [prob_toCommuting, prob_eq]; ring
 
 /-- **Tsirelson's inequality** [Cirel'son][Cirelson1980]: the CHSH expression of the correlations
 of any quantum strategy with binary answers is at most `2√2`. It is the inequality for the
@@ -161,20 +160,18 @@ noncomputable def chshBobObservable (y : Bool) : Matrix Bool Bool ℂ :=
 
 theorem isHermitian_chshAliceObservable (x : Bool) : (chshAliceObservable x).IsHermitian := by
   cases x
-  · exact pauliZ_isHermitian
-  · exact pauliX_isHermitian
+  exacts [pauliZ_isHermitian, pauliX_isHermitian]
 
 theorem chshAliceObservable_mul_self (x : Bool) :
     chshAliceObservable x * chshAliceObservable x = 1 := by
   cases x
-  · exact pauliZ_mul_self
-  · exact pauliX_mul_self
+  exacts [pauliZ_mul_self, pauliX_mul_self]
 
 theorem isHermitian_chshBobObservable (y : Bool) : (chshBobObservable y).IsHermitian := by
   have hc : IsSelfAdjoint ((√2 / 2 : ℝ) : ℂ) := Complex.conj_ofReal _
   cases y
-  · exact (pauliZ_isHermitian.add pauliX_isHermitian).smul hc
-  · exact (pauliZ_isHermitian.sub pauliX_isHermitian).smul hc
+  exacts [(pauliZ_isHermitian.add pauliX_isHermitian).smul hc,
+    (pauliZ_isHermitian.sub pauliX_isHermitian).smul hc]
 
 theorem chshBobObservable_mul_self (y : Bool) :
     chshBobObservable y * chshBobObservable y = 1 :=
@@ -196,16 +193,14 @@ noncomputable def chshEPR : QuantumStrategy Bool Bool Bool Bool Bool Bool where
 `-√2/2`. -/
 theorem correlation_chshEPR (x y : Bool) :
     chshEPR.correlation x y = bif x && y then -(√2 / 2) else √2 / 2 := by
-  have hA : (chshEPR.alice x).observable = chshAliceObservable x :=
-    POVM.observable_ofObservable _ (isHermitian_chshAliceObservable x)
-      (chshAliceObservable_mul_self x)
-  have hB : (chshEPR.bob y).observable = chshBobObservable y :=
+  rw [QuantumStrategy.correlation]
+  dsimp only [chshEPR]
+  rw [POVM.observable_ofObservable _ (isHermitian_chshAliceObservable x)
+      (chshAliceObservable_mul_self x),
     POVM.observable_ofObservable _ (isHermitian_chshBobObservable y)
-      (chshBobObservable_mul_self y)
-  have hS : chshEPR.state = maxEntangled Bool := bell_eq_maxEntangled
-  rw [QuantumStrategy.correlation, hA, hB, hS, star_maxEntangled_dotProduct_kronecker_mulVec]
-  cases x <;> cases y <;>
-    simp [chshAliceObservable, chshBobObservable]
+      (chshBobObservable_mul_self y),
+    bell_eq_maxEntangled, star_maxEntangled_dotProduct_kronecker_mulVec]
+  cases x <;> cases y <;> simp [chshAliceObservable, chshBobObservable]
 
 /-- The EPR strategy wins CHSH with probability `cos²(π/8)`. -/
 theorem quantumWinProb_chsh_chshEPR : chsh.quantumWinProb chshEPR = Real.cos (π / 8) ^ 2 := by

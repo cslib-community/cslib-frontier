@@ -85,11 +85,8 @@ theorem Holds.keep {R : RecordSpec α k} {base : ℕ} {items : List α}
   | cons v rest ih =>
     have hlen : (v :: rest).length * k = rest.length * k + k := by
       simp only [List.length_cons, Nat.succ_mul]
-    refine ⟨Block.Realizes.keep h.1 hf fun a ha => hspan ?_, ih h.2 fun a ha => hspan ?_⟩
-    · simp only [Set.mem_Ico] at ha ⊢
-      omega
-    · simp only [Set.mem_Ico] at ha ⊢
-      omega
+    refine ⟨Block.Realizes.keep h.1 hf fun a ha => hspan ?_, ih h.2 fun a ha => hspan ?_⟩ <;>
+      simp only [Set.mem_Ico] at ha ⊢ <;> omega
 
 /-- Agreement on `[base, base + items.length * k)` transports `Holds`. -/
 theorem Holds.frame {R : RecordSpec α k} {base : ℕ} {items : List α} {mem mem' : ℕ → ℕ}
@@ -133,45 +130,11 @@ theorem holds_iff_getElem_reverse (R : RecordSpec α k) (base : ℕ) (items : Li
       ∀ idx : Fin items.length,
         R.HoldsAt (base + idx.val * k) (items.reverse[idx.val]'(by simp)) mem := by
   induction items with
-  | nil =>
-    simp only [holds_nil, List.length_nil, true_iff]
-    exact fun idx => Fin.elim0 idx
+  | nil => simp
   | cons v rest ih =>
-    rw [holds_cons, ih]
-    constructor
-    · rintro ⟨htop, hrest⟩ ⟨i, hi⟩
-      simp only [List.length_cons] at hi
-      by_cases hlt : i < rest.length
-      · have helem : (v :: rest).reverse[i]'(by simp; omega) =
-            rest.reverse[i]'(by simp; omega) := by
-          simp only [List.getElem_reverse, List.length_cons,
-            show rest.length + 1 - 1 - i = (rest.length - 1 - i) + 1 by omega,
-            List.getElem_cons_succ]
-        change R.HoldsAt (base + i * k) ((v :: rest).reverse[i]'(by simp; omega)) mem
-        rw [helem]
-        exact hrest ⟨i, hlt⟩
-      · have heq : i = rest.length := by omega
-        subst heq
-        have helem : (v :: rest).reverse[rest.length]'(by simp) = v := by
-          simp [List.reverse_cons]
-        change R.HoldsAt (base + rest.length * k) ((v :: rest).reverse[rest.length]'(by simp)) mem
-        rw [helem]
-        exact htop
-    · intro hall
-      refine ⟨?_, fun ⟨i, hi⟩ => ?_⟩
-      · have h : R.HoldsAt (base + rest.length * k)
-            ((v :: rest).reverse[rest.length]'(by simp)) mem := hall ⟨rest.length, by simp⟩
-        have helem : (v :: rest).reverse[rest.length]'(by simp) = v := by
-          simp [List.reverse_cons]
-        rwa [helem] at h
-      · have h : R.HoldsAt (base + i * k) ((v :: rest).reverse[i]'(by simp; omega)) mem :=
-          hall ⟨i, by simp; omega⟩
-        have helem : (v :: rest).reverse[i]'(by simp; omega) =
-            rest.reverse[i]'(by simp; omega) := by
-          simp only [List.getElem_reverse, List.length_cons,
-            show rest.length + 1 - 1 - i = (rest.length - 1 - i) + 1 by omega,
-            List.getElem_cons_succ]
-        rwa [helem] at h
+    rw [holds_cons, ih, and_comm]
+    refine Iff.trans ?_ Fin.forall_fin_succ'.symm
+    simp [List.getElem_append_left, List.getElem_append_right]
 
 end Holds
 
@@ -246,27 +209,6 @@ theorem pop_not_readsWidth {k : ℕ} [NeZero k] (base top cursor width one : Fin
   exact ⟨by simp, by simp, by simp,
     loadCursor_not_readsWidth cursor one fields⟩
 
-private theorem slotAddr_exec {w F n k T : ℕ} (base top cursor width : Fin r)
-    (d : Code .standard r) (x y : Data r)
-    (hbase_cur : base ≠ cursor) (hbase : x.regs base = F)
-    (htop : x.regs top = n) (hwidth : x.regs width = k)
-    (hmul_fit : Fits w (n * k)) (haddr_fit : Fits w (F + n * k))
-    (hd : Exec w d ((x.set cursor (n * k)).set cursor (F + n * k)) y T) :
-    Exec w (ram[ cursor ← top * width; cursor ← base + cursor; ⟪d⟫ ]) x y (1 + (1 + T)) := by
-  have h₁ : Exec w (.op (.bin .mul cursor top width)) x (x.set cursor (n * k)) 1 := by
-    simpa only [htop, hwidth, BinOp.eval] using
-      Exec.bin (f := .mul) (d := cursor) (i := top) (j := width) (x := x)
-        (by simpa only [htop, hwidth, BinOp.eval] using hmul_fit)
-  have hb' : (x.set cursor (n * k)).regs base = F := by
-    simp [Data.set_regs, Function.update_of_ne hbase_cur, hbase]
-  have h₂ : Exec w (.op (.bin .add cursor base cursor)) (x.set cursor (n * k))
-      ((x.set cursor (n * k)).set cursor (F + n * k)) 1 := by
-    simpa only [hb', Data.set_regs_self, BinOp.eval] using
-      Exec.bin (f := .add) (d := cursor) (i := base) (j := cursor)
-        (x := x.set cursor (n * k))
-        (by simpa only [hb', Data.set_regs_self, BinOp.eval] using haddr_fit)
-  exact h₁.seq (h₂.seq hd)
-
 /-- Single-slot execution of `WordStack.push` in exact `2 * k + 2` instructions. -/
 theorem pushWords_exec {k w F n : ℕ} [NeZero k] (base top cursor width one : Fin r)
     (fields : Fin k → Fin r) (x : Data r)
@@ -281,36 +223,24 @@ theorem pushWords_exec {k w F n : ℕ} [NeZero k] (base top cursor width one : F
       Modifies (Block.mk (F + n * k) k).footprint x.mem y.mem ∧
       ∀ i, ¬PushLocal top cursor i → y.regs i = x.regs i := by
   have hk : 1 ≤ k := Nat.pos_of_ne_zero (NeZero.ne k)
-  have hnk_le : n * k + k = (n + 1) * k := (Nat.succ_mul n k).symm
-  have hn_le : n ≤ n * k := by simpa using Nat.mul_le_mul_left n hk
-  let x₁ := (x.set cursor (n * k)).set cursor (F + n * k)
-  have hx₁_one : x₁.regs one = 1 := by
-    simp [x₁, Data.set_regs, Function.update_of_ne hone_cur, hone]
-  have hx₁_cur : x₁.regs cursor = F + n * k := by simp [x₁]
-  obtain ⟨z, hz, hzmem, _, hzregs⟩ :=
-    storeCursor_exec cursor one fields x₁ hone_cur hfields_cur hx₁_one
-      (by rw [hx₁_cur]; exact hfit.of_le (by omega))
-  have hz_top : z.regs top = n := by
-    rw [hzregs top htop_cur]
-    simp [x₁, Data.set_regs, Function.update_of_ne htop_cur, htop]
-  have hz_one : z.regs one = 1 := (hzregs one hone_cur).trans hx₁_one
-  let y := z.set top (n + 1)
-  have hinc : Exec w (ram[ top ← top + one ]) z y 1 := by
-    simpa only [y, hz_top, hz_one, BinOp.eval] using
-      Exec.bin (f := .add) (d := top) (i := top) (j := one) (x := z)
-        (by simpa only [hz_top, hz_one, BinOp.eval] using hfit.of_le (by omega))
-  have hfields_x₁ : (fun i : Fin k => x₁.regs (fields i)) = fun i => x.regs (fields i) := by
-    funext i
-    simp [x₁, Data.set_regs, Function.update_of_ne (hfields_cur i)]
-  have hymem : y.mem = writeWords x.mem (F + n * k) (fun i => x.regs (fields i)) := by
-    simpa only [y, x₁, Data.set_mem, hx₁_cur, hfields_x₁] using hzmem
-  have hex : Exec w (push base top cursor width one fields) x y (2 * k + 2) := by
-    simpa only [push, show 1 + (1 + (2 * k - 1 + 1)) = 2 * k + 2 by omega] using
-      slotAddr_exec base top cursor width _ x y hbase_cur hbase htop hwidth
-        (hfit.of_le (by omega)) (hfit.of_le (by omega)) (exec_append hz hinc)
-  exact ⟨y, hex, Data.set_regs_self z top (n + 1), hymem,
-    hymem ▸ modifies_writeWords x.mem (F + n * k) _,
-    fun i hi => hex.regs_eq (push_preserves base top cursor width one fields hi)⟩
+  have hnk : n * k + k = (n + 1) * k := (Nat.succ_mul n k).symm
+  have hn_le : n ≤ n * k := Nat.le_mul_of_pos_right n hk
+  unfold push
+  wram_exec [hbase, htop, hwidth]
+  refine WP.Exact.name fun x₁ hx₁ => ?_
+  obtain ⟨z, hz, hzmem, _, hzregs⟩ := storeCursor_exec (w := w) cursor one fields x₁ hone_cur
+    hfields_cur (by wram_simp [hx₁, hone]) (by wram_simp [hx₁]; fits)
+  have hz_top : z.regs top = n := by rw [hzregs top htop_cur]; wram_simp [hx₁, htop]
+  have hz_one : z.regs one = 1 := by rw [hzregs one hone_cur]; wram_simp [hx₁, hone]
+  have hinc : Exec w (ram[ top ← top + one ]) z (z.set top (n + 1)) 1 := by
+    wram_exec [hz_top, hz_one]
+  have hymem : (z.set top (n + 1)).mem = writeWords x.mem (F + n * k) fun i => x.regs (fields i) :=
+    by wram_simp [hzmem, hx₁]
+  refine WP.Exact.of_exec (exec_append hz hinc) ⟨by omega, by wram_simp, hymem,
+    hymem ▸ modifies_writeWords x.mem (F + n * k) _, fun i hi => ?_⟩
+  simp only [PushLocal, not_or] at hi
+  rw [Data.set_regs_of_ne hi.2, hzregs i hi.1]
+  wram_simp [hx₁]
 
 /-- Push a typed `k`-word record `v` onto a stack of capacity `cap` in exact `2 * k + 2`
 instructions. -/
@@ -337,14 +267,10 @@ theorem push_exec {α : Type*} {k w baseAddr cap : ℕ} [NeZero k] (R : RecordSp
       (hfit.of_le (by omega))
   have hwords : (fun i => x.regs (fields i)) = R.toWords v := funext hfields
   rw [hwords] at hymem
-  refine ⟨y, hy, hytop, hymem ▸ hstack.push_write v, hymem, ?_, hyregs⟩
-  intro a ha
-  apply hmod_slot a
-  intro hmem_slot
-  apply ha
-  rw [Block.mem_footprint] at hmem_slot ⊢
-  simp only [Block.Owns] at hmem_slot ⊢
   have hnk : items.length * k + k = (items.length + 1) * k := (Nat.succ_mul _ _).symm
+  refine ⟨y, hy, hytop, hymem ▸ hstack.push_write v, hymem,
+    fun a ha => hmod_slot a (mt (fun ha => ?_) ha), hyregs⟩
+  simp only [Block.mem_footprint, Block.Owns] at ha ⊢
   omega
 
 /-- Single-slot execution of `WordStack.pop` in exact `2 * k + 2` instructions. -/
@@ -363,42 +289,22 @@ theorem popWords_exec {k w F n : ℕ} [NeZero k] (base top cursor width one : Fi
       (∀ i, y.regs (fields i) = x.mem (F + n * k + i.val)) ∧
       ∀ i, ¬PopLocal top cursor fields i → y.regs i = x.regs i := by
   have hk : 1 ≤ k := Nat.pos_of_ne_zero (NeZero.ne k)
-  have hn_le : n ≤ n * k := by simpa using Nat.mul_le_mul_left n hk
-  let x₁ := x.set top n
-  let x₂ := (x₁.set cursor (n * k)).set cursor (F + n * k)
-  have hdec : Exec w (.op (.bin .sub top top one)) x x₁ 1 := by
-    have hsub : BinOp.sub.eval (n + 1) 1 = n := by simp [BinOp.eval]
-    simpa only [x₁, htop, hone, hsub] using
-      Exec.bin (f := .sub) (d := top) (i := top) (j := one) (x := x)
-        (by simpa only [htop, hone, hsub] using hfit.of_le (by omega))
-  have hx₁_base : x₁.regs base = F := by
-    simp [x₁, Data.set_regs, Function.update_of_ne hbase_top, hbase]
-  have hx₁_width : x₁.regs width = k := by
-    simp [x₁, Data.set_regs, Function.update_of_ne hwidth_top, hwidth]
-  have hx₁_one : x₁.regs one = 1 := by
-    simp [x₁, Data.set_regs, Function.update_of_ne hone_top, hone]
-  have hx₂_one : x₂.regs one = 1 := by
-    simp [x₂, Data.set_regs, Function.update_of_ne hone_cur, hx₁_one]
-  have hx₂_cur : x₂.regs cursor = F + n * k := by simp [x₂]
-  obtain ⟨y, hy, hymem, hyfields, _, hyregs⟩ :=
-    loadCursor_exec cursor one fields x₂ hone_cur hfields_cur hfields_one hinj hx₂_one
-      (by rwa [hx₂_cur])
-  have hslot := slotAddr_exec base top cursor width (loadCursor cursor one fields) x₁ y
-    hbase_cur hx₁_base (Data.set_regs_self x top n) hx₁_width
-    (hfit.of_le (by omega)) (hfit.of_le (by omega)) hy
-  have hex : Exec w (pop base top cursor width one fields) x y (2 * k + 2) := by
-    simpa only [pop, show 1 + (1 + (1 + (2 * k - 1))) = 2 * k + 2 by omega] using
-      hdec.seq hslot
+  have hn_le : n ≤ n * k := Nat.le_mul_of_pos_right n hk
+  unfold pop
+  wram_exec [hbase, htop, hwidth, hone]
+  refine WP.Exact.name fun x₂ hx₂ => ?_
+  obtain ⟨y, hy, hymem, hyfields, _, hyregs⟩ := loadCursor_exec cursor one fields x₂ hone_cur
+    hfields_cur hfields_one hinj (by wram_simp [hx₂, hone]) (by wram_simp [hx₂]; fits)
   have htop_not_load : ¬LoadRecordLocal cursor fields top := by
     rintro (h | ⟨i, h⟩)
     · exact htop_cur h
     · exact hfields_top i h.symm
-  have hy_top : y.regs top = n := by
-    rw [hyregs top htop_not_load]
-    simp [x₂, x₁, Data.set_regs, Function.update_of_ne htop_cur]
-  exact ⟨y, hex, hy_top, hymem,
-    fun i => by simpa only [x₂, x₁, Data.set_mem, hx₂_cur] using hyfields i,
-    fun i hi => hex.regs_eq (pop_preserves base top cursor width one fields hi)⟩
+  refine WP.Exact.of_exec hy ⟨by omega, by rw [hyregs top htop_not_load]; wram_simp [hx₂],
+    by wram_simp [hymem, hx₂], fun i => by rw [hyfields i]; wram_simp [hx₂], fun i hi => ?_⟩
+  have hcur : i ≠ cursor := fun h => hi (Or.inr (Or.inl h))
+  have htop' : i ≠ top := fun h => hi (Or.inl h)
+  rw [hyregs i fun h => hi (Or.inr h)]
+  wram_simp [hx₂]
 
 /-- Pop the top typed `k`-word record `v` from `v :: items` into `fields` in exact `2 * k + 2`
 instructions. -/

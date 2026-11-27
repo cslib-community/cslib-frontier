@@ -140,8 +140,7 @@ theorem computableInO_universal_polynomialBound : ComputableInO universal eIn eO
           ((encNat i.2.2).length + 1) ^ 2) ≤
         100000 * (I + 1) ^ 4 * (i.2.2 + 1) ^ 2 := by
       apply le_trans ?_ ht
-      exact Nat.mul_le_mul (Nat.le_succ _) (Nat.add_le_add_right
-        (Nat.add_le_add hstep hrun) _)
+      gcongr; exact Nat.le_succ _
     have hpad : (I + 1) ^ 2 ≤ (I + 1) ^ 4 * (i.2.2 + 1) ^ 2 := by
       have hp := Nat.pow_le_pow_right (by omega : 1 ≤ I + 1) (by omega : 2 ≤ 4)
       exact hp.trans (Nat.le_mul_of_pos_right _ (by positivity))

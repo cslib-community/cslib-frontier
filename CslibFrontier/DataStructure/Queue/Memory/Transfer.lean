@@ -40,13 +40,14 @@ open Cslib.WordRAM Cslib.WordRAM.Realization Cslib.DataStructure.Memory
 
 /-- Pop one rear element. An empty rear stops the loop; a successful move decreases the
 explicit remaining count. The loop guard excludes a zero count from this body. -/
-def transferBody (d : (Stack.Memory.Layout × Stack.Memory.Layout) × ℕ) : Prog ℕ := do
-  let a ← Stack.Memory.pop d.1.2
-  match a with
-  | none => pure 0
-  | some v => do
-      Stack.Memory.push d.1.1 v
-      pure (d.2 - 1)
+def transferBody : (Stack.Memory.Layout × Stack.Memory.Layout) × ℕ → Prog ℕ
+  | ((front, rear), r) => do
+      let a ← Stack.Memory.pop rear
+      match a with
+      | none => pure 0
+      | some v => do
+          Stack.Memory.push front v
+          pure (r - 1)
 
 /-- Forgetting the loop's remaining count leaves exactly one step of the original transfer. -/
 theorem transferBody_forget (L₁ L₂ : Stack.Memory.Layout) (w C r : ℕ) :
@@ -68,8 +69,7 @@ theorem transfer_eq_boundedWhile (L₁ L₂ : Stack.Memory.Layout) (w C fuel n :
         (fun _ => pure ()) := by
   induction fuel generalizing n with
   | zero =>
-    have : n = 0 := by omega
-    subst n
+    obtain rfl : n = 0 := by omega
     rfl
   | succ fuel ih =>
     cases n with
@@ -83,8 +83,7 @@ theorem transfer_eq_boundedWhile (L₁ L₂ : Stack.Memory.Layout) (w C fuel n :
       | none => simp [boundedWhile_of_not]
       | some v =>
         simp only [PFunctor.FreeM.liftM]
-        exact congrArg (fun p => (Stack.Memory.push L₁ v).bind (fun _ => p))
-          (ih n (by omega))
+        exact congrArg (fun p => (Stack.Memory.push L₁ v).bind fun _ => p) (ih n (by omega))
 
 /-- The current allocator allocates its two stack handles and then links the unchanged queue
 methods through their product. This is equality of programs, before selecting a memory state. -/
@@ -122,31 +121,26 @@ theorem transfer_invariant {L₁ L₂ : Stack.Memory.Layout} {w C n : ℕ}
       ((stackPair ℕ).runClient (Stack.Memory.abs L₁ s, Stack.Memory.abs L₂ s)
         (Queue.transfer (Stack.Memory.abs L₂ s).length)).2.2
     rw [Queue.transfer_run]
-    apply validHistory_transferTrace
-    · simpa only [Stack.Memory.length_abs] using hlen
-    · intro v hv
-      simp only [Stack.Memory.abs, List.mem_reverse, Cslib.WordRAM.Block.entries,
-        List.mem_map] at hv
-      obtain ⟨i, _, rfl⟩ := hv
-      exact hw.mem_fits _
+    refine validHistory_transferTrace (by simpa only [Stack.Memory.length_abs] using hlen)
+      fun v hv => ?_
+    simp only [Stack.Memory.abs, List.mem_reverse, Cslib.WordRAM.Block.entries, List.mem_map] at hv
+    obtain ⟨_, _, rfl⟩ := hv
+    exact hw.mem_fits _
   obtain ⟨hvE, _, habs, hsE⟩ := M.toRefinement.simulates_client (Queue.transfer n) hi hv
   have habs' : M.abs ((spec w).clientState s (link M.methods (Queue.transfer n))) =
       ((Stack.Memory.abs L₂ s).reverse ++ Stack.Memory.abs L₁ s, []) := by
     rw [habs, clientState_boundedStacks, hn']
-    exact congrArg (fun t => t.2.1) (Queue.transfer_run (Stack.Memory.abs L₁ s)
-      (Stack.Memory.abs L₂ s))
-  let s' := (spec w).clientState s (link (Methods.prod (Stack.Memory.methods L₁ w C)
-    (Stack.Memory.methods L₂ w C)) (Queue.transfer n))
-  have hfront : Stack.Memory.abs L₁ s' =
+    exact congrArg (·.2.1) (Queue.transfer_run (Stack.Memory.abs L₁ s) (Stack.Memory.abs L₂ s))
+  have hfront : Stack.Memory.abs L₁ ((spec w).clientState s (link M.methods (Queue.transfer n))) =
       (Stack.Memory.abs L₂ s).reverse ++ Stack.Memory.abs L₁ s := congrArg Prod.fst habs'
-  have hrear : Stack.Memory.abs L₂ s' = [] := congrArg Prod.snd habs'
+  have hrear : Stack.Memory.abs L₂ ((spec w).clientState s (link M.methods (Queue.transfer n))) =
+      [] := congrArg Prod.snd habs'
   have hfrontLength := congrArg List.length hfront
   have hrearLength := congrArg List.length hrear
   simp only [Stack.Memory.length_abs, List.length_append, List.length_reverse,
     List.length_nil, hn] at hfrontLength hrearLength
-  refine ⟨hvE, ?_, hsE.1, hsE.2.1, hrearLength, ?_, hfront⟩
-  · rw [← (spec w).run_runClient]
-    exact hw.run hvE
-  · simpa only [Nat.add_comm] using hfrontLength
+  refine ⟨hvE, ?_, hsE.1, hsE.2.1, hrearLength, Nat.add_comm _ _ ▸ hfrontLength, hfront⟩
+  rw [← (spec w).run_runClient]
+  exact hw.run hvE
 
 end Cslib.DataStructure.Queue.Memory

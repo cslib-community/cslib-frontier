@@ -91,8 +91,7 @@ theorem additiveNoiseJoint_eq_of_mem_nearestMessages (E : M → ι → Bool)
     (hm : m ∈ nearestMessages E y) (hm' : m' ∈ nearestMessages E y) :
     additiveNoiseJoint E (PMF.uniformOfFintype M) ν (y, m) =
       additiveNoiseJoint E (PMF.uniformOfFintype M) ν (y, m') := by
-  rw [additiveNoiseJoint_apply, additiveNoiseJoint_apply,
-    PMF.uniformOfFintype_apply, PMF.uniformOfFintype_apply]
+  simp only [additiveNoiseJoint_apply, PMF.uniformOfFintype_apply]
   congr 1
   apply hν
   simpa only [← weight_eq_hammingNorm, ← hammingDist_eq_weight_add] using
@@ -108,11 +107,8 @@ theorem nearestMessages_event_eq_sum (E : M → ι → Bool) (prior : PMF M)
   classical
   rw [PMF.toOuterMeasure_apply_fintype, Fintype.sum_prod_type]
   simp only [Set.indicator_apply, Set.mem_ofPred_eq, ite_and]
-  rw [Finset.sum_eq_single y]
-  · simp only [ite_true, ← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
-  · intro y' _ hy
-    simp [hy]
-  · simp
+  rw [Finset.sum_eq_single y (fun _ _ hy => by simp [hy]) (by simp)]
+  simp only [ite_true, ← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
 
 /-- **The null-event-safe tie law.** The number of nearest messages times the joint success
 mass is the probability of receiving `y` with the transmitted message among the nearest ones.
@@ -142,8 +138,7 @@ theorem nearestMessages_conditional_success (E : M → ι → Bool) {D : (ι →
       ((nearestMessages E y).card : ℝ≥0∞)⁻¹ := by
   have hcard : ((nearestMessages E y).card : ℝ≥0∞) ≠ 0 := by
     exact_mod_cast Finset.card_ne_zero.mpr ⟨D y, hD.mem_nearestMessages y⟩
-  symm
-  apply (ENNReal.eq_div_iff hpos (PMF.toOuterMeasure_ne_top _ _)).mpr
+  refine ((ENNReal.eq_div_iff hpos (PMF.toOuterMeasure_ne_top _ _)).mpr ?_).symm
   rw [← nearestMessages_card_mul_joint E hD hν y, mul_right_comm,
     ENNReal.mul_inv_cancel hcard (ENNReal.natCast_ne_top _), one_mul]
 
@@ -171,14 +166,13 @@ theorem twoWayTie_failure_eq_half (E : M → ι → Bool) {D : (ι → Bool) →
           hammingNorm (E m + y) = hammingNorm (E (D y) + y) := by
         simpa only [← weight_eq_hammingNorm, ← hammingDist_eq_weight_add] using
           hammingDist_eq_of_mem_nearestMessages hm (hD.mem_nearestMessages y)
-      simp only [hcard, true_and]
       have hpred (m : M) :
           (D y ≠ m ∧ m ∈ nearestMessages E y ∧ hammingNorm (E m + y) = r) ↔
             (m ∈ (nearestMessages E y).erase (D y) ∧ hammingNorm (E m + y) = r) := by
         simp [Finset.mem_erase, ne_comm, and_assoc]
-      simp_rw [hpred, ite_and]
+      simp only [hcard, true_and, hpred, ite_and]
       rw [Finset.sum_ite_mem_eq, Finset.sum_ite_mem_eq]
-      have hsum (s : Finset M) (hs : s ⊆ nearestMessages E y) :
+      have hsum {s : Finset M} (hs : s ⊆ nearestMessages E y) :
           (∑ m ∈ s, if hammingNorm (E m + y) = r then (q (y, m)).toReal else 0) =
             s.card * (if hammingNorm (E (D y) + y) = r then (q (y, D y)).toReal else 0) := by
         calc
@@ -186,14 +180,13 @@ theorem twoWayTie_failure_eq_half (E : M → ι → Bool) {D : (ι → Bool) →
               then (q (y, D y)).toReal else 0 :=
             Finset.sum_congr rfl fun m hm => by rw [hweight m (hs hm), hmass m (hs hm)]
           _ = _ := by simp
-      rw [hsum _ (Finset.erase_subset _ _), hsum _ Finset.Subset.rfl,
+      rw [hsum (Finset.erase_subset _ _), hsum Finset.Subset.rfl,
         Finset.card_erase_of_mem (hD.mem_nearestMessages y), hcard]
-      split_ifs <;> norm_num; ring
+      split_ifs <;> ring
     · simp [hcard]
   rw [PMF.toOuterMeasure_apply_toReal, PMF.toOuterMeasure_apply_toReal,
     Fintype.sum_prod_type, Fintype.sum_prod_type, Finset.mul_sum]
-  apply Finset.sum_congr rfl
-  intro y _
+  refine Finset.sum_congr rfl fun y _ => ?_
   convert hslice y using 1 <;> congr 2 <;> ext m <;>
     split_ifs <;> simp_all only [Set.mem_ofPred_eq, q] <;> tauto
 

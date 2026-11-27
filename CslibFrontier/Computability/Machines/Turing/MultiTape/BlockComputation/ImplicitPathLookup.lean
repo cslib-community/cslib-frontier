@@ -48,13 +48,13 @@ private theorem all_inSpace (k : ℕ) :
       encWalkArgs encBool (fun a => (encWalkArgs a).length) := by
   have hpath := (snd encNat (encPair encNat (encList encNat))).snd'
   have hinit : ComputableInSpace (fun _ : WalkArgs => true) encWalkArgs encBool
-      (fun a => (encWalkArgs a).length) := budget_const true (.refl _)
+      (fun a => (encWalkArgs a).length) := budget_const true
   have hstep : ComputableInSpace (fun p : Bool × ℕ => p.1 && decide (p.2 < k * 3 + 1))
       (encPair encBool encNat) encBool (fun p => (encPair encBool encNat p).length) :=
     budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
       (budget_prod (fst encBool encNat)
         (budget_natLt (snd encBool encNat)
-          (budget_const (encB := encNat) (k * 3 + 1) (.refl _))))
+          (budget_const (encB := encNat) (k * 3 + 1))))
   have hspace (a : WalkArgs) (i : ℕ) (hi : i < a.2.2.length) :
       (encPair encBool encNat
         ((a.2.2.take i).foldl (fun good j => good && decide (j < k * 3 + 1)) true,
@@ -88,11 +88,7 @@ theorem valid_inSpace (k : ℕ) :
   have hdepth := budget_finite (encC := encBool) Bool.not (budget_natLt hq hlength)
   exact (budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (budget_prod hdepth (all_inSpace k))).of_enc_eq fun ⟨σ, q, path⟩ => by
-      by_cases h : path.length ≤ q
-      · have hn : ¬q < path.length := by omega
-        simp [valid, h, hn]
-      · have hn : q < path.length := by omega
-        simp [valid, h, hn]
+      simp [valid, ← decide_not, not_lt]
 
 /-- Native lookup preserves malformed-address rejection, including excess path depth. -/
 theorem lookupIndex_inSpace (k : ℕ) :
@@ -100,7 +96,7 @@ theorem lookupIndex_inSpace (k : ℕ) :
       (fun a => (encWalkArgs a).length) := by
   have hsome := budget_optionSome (walk_inSpace k)
   exact (budget_ite (valid_inSpace k) hsome
-    (budget_const (encB := encOption encNat) none (.refl _))).of_enc_eq fun _ => rfl
+    (budget_const (encB := encOption encNat) none)).of_enc_eq fun _ => rfl
 
 private theorem next_eq_child {k q : ℕ} (σ : ℕ) :
     Descending.next (BlockComputation.child (scheduleOfNat k q σ)) =
@@ -118,10 +114,8 @@ theorem lookupIndex_eq_resolve {k q : ℕ} (σ : ℕ) (path : List (Fin (k * 3 +
         some (Descending.resolve (BlockComputation.child (scheduleOfNat k q σ)) q path)
       else none := by
   have hall : (path.map Fin.val).all (fun j => decide (j < k * 3 + 1)) = true := by
-    apply List.all_eq_true.mpr
-    intro j hj
-    obtain ⟨p, _, rfl⟩ := List.mem_map.mp hj
-    exact decide_eq_true p.isLt
+    simp only [List.all_map, List.all_eq_true, Function.comp_apply, decide_eq_true_eq]
+    exact fun p _ => p.isLt
   simp only [lookupIndex, valid, List.length_map, hall, Bool.and_true, decide_eq_true_eq,
     walk_eq, Descending.resolve, next_eq_child]
 

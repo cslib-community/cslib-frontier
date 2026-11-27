@@ -88,9 +88,7 @@ theorem one_le_two_rpow_mul_pow (hx : 0 ≤ x) : 1 ≤ (2 : ℝ) ^ x * ((L : ℝ
 /-- An exponential-times-polynomial envelope grows with its exponent and its degree. -/
 theorem two_rpow_mul_pow_le_two_rpow_mul_pow (hxy : x ≤ y) (hde : d ≤ e) :
     (2 : ℝ) ^ x * ((L : ℝ) + 1) ^ d ≤ 2 ^ y * ((L : ℝ) + 1) ^ e :=
-  mul_le_mul (Real.rpow_le_rpow_of_exponent_le (by norm_num) hxy)
-    (pow_le_pow_right₀ (le_add_of_nonneg_left (Nat.cast_nonneg L)) hde) (by positivity)
-    (by positivity)
+  by gcongr <;> simp
 
 /-- A polynomial of degree `d ≤ e` is below the envelope `2 ^ x * (L + 1) ^ e`, `x ≥ 0`. -/
 theorem pow_le_two_rpow_mul_pow (hx : 0 ≤ x) (hde : d ≤ e) :
@@ -151,5 +149,33 @@ theorem reduction_add_time_le {P X Y C T : ℝ} {n l k e : ℕ} (hP : 1 ≤ P) (
   have h₃ : (k : ℝ) * 1 ≤ k * (X * P ^ (e + 1)) := mul_le_mul_of_nonneg_left
     (one_le_mul_of_one_le_of_one_le hX (one_le_pow₀ hP)) (Nat.cast_nonneg k)
   linarith
+
+/-- A polynomial parameter blowup in a power-exponential time bound multiplies the power. -/
+theorem two_rpow_mul_rpow_le_of_le_mul_rpow {x y b p : ℝ} {C : ℕ} {K : ℝ}
+    (hx : 0 ≤ x) (hy : 0 ≤ y) (hK : 0 ≤ K) (hsize : y ≤ K * x ^ b) (hp : 0 ≤ p) :
+    (2 : ℝ) ^ (C * y ^ p) ≤ 2 ^ ((C * K ^ p) * x ^ (b * p)) := by
+  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
+  have h := Real.rpow_le_rpow hy hsize hp
+  rw [Real.mul_rpow hK (by positivity), ← Real.rpow_mul hx] at h
+  simpa only [mul_assoc] using mul_le_mul_of_nonneg_left h (Nat.cast_nonneg C)
+
+/-- Composing two power-exponential envelopes raises the reduction envelope to the power
+`e + 1` to pay for the target solver's polynomial factor. The maximum power bounds the
+sum of the resulting exponents. -/
+theorem power_reduction_envelope_le {x y R q r : ℝ} {C d e : ℕ}
+    (hx : 1 ≤ x) (hy : 0 ≤ y) (hR : 0 ≤ R) :
+    (2 : ℝ) ^ (R * x ^ r) * ((2 : ℝ) ^ (C * x ^ q) * y ^ d) ^ (e + 1) ≤
+      2 ^ ((↑(⌈R⌉₊ + C * (e + 1)) : ℝ) * x ^ max q r) * y ^ (d * (e + 1)) := by
+  rw [mul_pow, ← Real.rpow_natCast ((2 : ℝ) ^ (C * x ^ q)), ← Real.rpow_mul (by norm_num),
+    ← mul_assoc, ← Real.rpow_add (by norm_num), ← pow_mul]
+  apply mul_le_mul_of_nonneg_right _ (by positivity)
+  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
+  have hq := Real.rpow_le_rpow_of_exponent_le hx (le_max_left q r)
+  have hr := Real.rpow_le_rpow_of_exponent_le hx (le_max_right q r)
+  have hceil := Nat.le_ceil R
+  push_cast
+  nlinarith [mul_le_mul_of_nonneg_left hq (show 0 ≤ (C : ℝ) * (e + 1) by positivity),
+    mul_le_mul_of_nonneg_left hr hR,
+    mul_le_mul_of_nonneg_right hceil (show 0 ≤ x ^ max q r by positivity)]
 
 end Cslib.Complexity

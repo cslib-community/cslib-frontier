@@ -34,13 +34,13 @@ theorem start_sumState {p r m : ℕ} (e : Q ≃ Fin s) (N b σ i chunk stride : 
     start (k := k) e (QueryGate.sumState
       (QueryGate.gateParams (s := 2 ^ m) (⟨N, b, σ, i, m, chunk, stride⟩ : Context) x) table j) =
       SupplierChunk.prepare e ((m, chunk),
-        (N, b, σ, i, (2 ^ m) ^ ((k * 3 + 1) * r), j, stride)) := by
+        ⟨N, b, σ, i, (2 ^ m) ^ ((k * 3 + 1) * r), j, stride⟩) := by
   change SupplierChunk.prepare e ((m, chunk),
-    (N, b, σ, i, (2 ^ m) ^ ((k * 3 + 1) * r),
+    ⟨N, b, σ, i, (2 ^ m) ^ ((k * 3 + 1) * r),
       (QueryGate.sumState
         (QueryGate.gateParams (s := 2 ^ m)
-            (⟨N, b, σ, i, m, chunk, stride⟩ : Context) x) table j).2.1,
-      stride)) = _
+            (⟨N, b, σ, i, m, chunk, stride⟩ : Context) x) table j).counter,
+      stride⟩) = _
   rw [QueryGate.sumState_counter]
 
 /-- Every actual interpolation assignment is answered by the original-input native supplier.
@@ -87,25 +87,16 @@ theorem exists_runFrom_counterGate {p q r m : ℕ} (M : MultiTapeTM k Bool Q)
       (z : ZMod p) = Packed.counterGateExtension (by positivity : 0 < 2 ^ m)
         (Packed.packBits hb) (Packed.unpackBits hb) f x chunk ∧
       (machine M e).halted ((machine M e).runFrom w (initial params) T) = true := by
-  let f := codeGate (MultiTapePTM.ofDeterministic M) w b (scheduleOfNat k q σ)
-    (Encoding.encode e) (Encoding.decode e) (i.val + 1)
-  let params := QueryGate.gateParams (s := 2 ^ m)
-    (⟨w.length, b, σ, i.val, m, chunk.val, r * m⟩ : Context) x
   obtain ⟨T, z, hrun, hz⟩ := QueryGate.exists_runFrom_counterGateExtension
     (by positivity : 0 < 2 ^ m)
     (⟨w.length, b, σ, i.val, m, chunk.val, r * m⟩ : Context)
-    (Packed.packBits hb) (Packed.unpackBits hb) f x chunk
+    (Packed.packBits hb) (Packed.unpackBits hb) _ x chunk
     (SupplierChunk.machine M e) (start e) (SupplierChunk.answer M e) w
     (table_supplier M e w b σ i x hb hm chunk)
-  have hactual : (machine M e).runFrom w (initial params) T =
-      .inl (params, (2 ^ m) ^ ((k * 3 + 1) * r), z) := by
-    rw [machine_runFrom_eq_params M e params w (initial params) T]
-    exact hrun
+  have hactual := (machine_runFrom_eq_params M e _ w (initial _) T).trans hrun
   refine ⟨T, z, hactual, hz, ?_⟩
   rw [hactual]
-  change decide ((2 ^ m) ^ ((k * 3 + 1) * r) ≤
-    (2 ^ m) ^ ((k * 3 + 1) * r)) = true
-  simp
+  exact decide_eq_true le_rfl
 
 /-- In a selected prime field containing the unsigned chunk alphabet, actual interpolation
 returns the existing packed low-degree gate extension. -/

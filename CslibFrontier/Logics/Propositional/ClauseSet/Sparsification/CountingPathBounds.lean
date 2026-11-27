@@ -70,9 +70,8 @@ theorem card_le_counting_node {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ θ r)
     have hck : c t ≤ k := (mem_flower.mp hD).2.1 ▸ hprev D (flower_subset _ _ _ hD)
     intro C hC
     rw [hstep t (by omega), countingChild_eq_reduce_union] at hC
-    rcases mem_union.mp (reduce_subset _ hC) with hC | hC
-    · exact hprev C hC
-    · exact (card_lt_of_mem_countingIntro (hheavy t (by omega)) hC).le.trans hck
+    exact (mem_union.mp (reduce_subset _ hC)).elim (hprev C) fun hC =>
+      (card_lt_of_mem_countingIntro (hheavy t (by omega)) hC).le.trans hck
 
 /-- Every selected width is at most the root width bound. -/
 theorem counting_selected_width_le {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ θ r)
@@ -95,16 +94,13 @@ theorem intro_subset_counting_new {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ θ r)
       countingIntro (ψ m) (c m) (H m) (b m) \ (ψ m ∪ ψ 0) := by
   have hredm := reduced_counting_node N ψ c H b hstep hred hm.le
   intro C hC
-  have hCI : C ∈ countingIntro (ψ m) (c m) (H m) (b m) := by
-    cases hb : b m with
+  refine mem_sdiff.mpr ⟨?_, fun hCold => (mem_union.mp hCold).elim
+    (notMem_of_mem_intro hθ hredm (hheavy m hm) hC) fun hCold => ?_⟩
+  · cases hb : b m with
     | false => simpa only [hb, intro, countingIntro] using hC
     | true =>
       rw [countingIntro]
       exact mem_union_left _ (by simpa only [hb, intro] using hC)
-  refine mem_sdiff.mpr ⟨hCI, ?_⟩
-  intro hCold
-  rcases mem_union.mp hCold with hCold | hCold
-  · exact notMem_of_mem_intro hθ hredm (hheavy m hm) hC hCold
   · obtain ⟨D, hD, hDC⟩ := exists_mem_counting_node_subset N ψ c H b hstep hm.le hCold
     obtain ⟨E, hE, hCE⟩ := exists_flower_ssuperset hθ (hheavy m hm) hC
     exact hredm E (flower_subset _ _ _ hE) D hD
@@ -127,11 +123,10 @@ theorem card_mem_Ico_of_mem_countingIntro {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤
     (hstep : ∀ i < N, ψ (i + 1) = countingChild (ψ i) (c i) (H i) (b i))
     (hheavy : ∀ i < N, Heavy θ (ψ i) (c i) (H i)) {k : ℕ}
     (hk : ∀ C ∈ ψ 0, C.card ≤ k) {m : ℕ} (hm : m < N) {C : Finset (Literal V)}
-    (hC : C ∈ countingIntro (ψ m) (c m) (H m) (b m)) : C.card ∈ Ico 1 k := by
-  have hpos := card_pos.mpr
-    (countingIntro_nonempty (hheavy m hm).1 (hheavy m hm).2.1 hC)
-  exact mem_Ico.mpr ⟨hpos, (card_lt_of_mem_countingIntro (hheavy m hm) hC).trans_le
-    (counting_selected_width_le hθ N ψ c H b hstep hheavy hk hm)⟩
+    (hC : C ∈ countingIntro (ψ m) (c m) (H m) (b m)) : C.card ∈ Ico 1 k :=
+  mem_Ico.mpr ⟨card_pos.mpr (countingIntro_nonempty (hheavy m hm).1 (hheavy m hm).2.1 hC),
+    (card_lt_of_mem_countingIntro (hheavy m hm) hC).trans_le
+      (counting_selected_width_le hθ N ψ c H b hstep hheavy hk hm)⟩
 
 /-- Charging each step to its nonempty insertion batch bounds path length by the sum of
 width-indexed event counts. No deduplication across steps or terminal-sparsity premise is used. -/
@@ -141,18 +136,14 @@ theorem counting_length_le_sum_insertions {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤
     (hheavy : ∀ i < N, Heavy θ (ψ i) (c i) (H i)) (hred : Reduced (ψ 0)) {k : ℕ}
     (hk : ∀ C ∈ ψ 0, C.card ≤ k) : N ≤ ∑ j ∈ Ico 1 k, countingInsertionCount N ψ c H b j := by
   let I (m : ℕ) := countingIntro (ψ m) (c m) (H m) (b m) \ (ψ m ∪ ψ 0)
-  calc
-    N = ∑ _m ∈ range N, 1 := by simp
-    _ ≤ ∑ m ∈ range N, (I m).card := by
-      refine sum_le_sum fun m hm => ?_
-      exact card_pos.mpr (counting_new_nonempty hθ N ψ c H b hstep hheavy hred (mem_range.mp hm))
-    _ = ∑ m ∈ range N, ∑ j ∈ Ico 1 k, ((I m).filter (·.card = j)).card := by
-      refine sum_congr rfl fun m hm => card_eq_sum_card_fiberwise fun C hC => ?_
-      exact card_mem_Ico_of_mem_countingIntro hθ N ψ c H b hstep hheavy hk
-        (mem_range.mp hm) (mem_sdiff.mp hC).1
-    _ = ∑ j ∈ Ico 1 k, countingInsertionCount N ψ c H b j := by
-      rw [sum_comm]
-      rfl
+  calc N = ∑ _m ∈ range N, 1 := by simp
+    _ ≤ ∑ m ∈ range N, (I m).card := sum_le_sum fun m hm =>
+        card_pos.mpr (counting_new_nonempty hθ N ψ c H b hstep hheavy hred (mem_range.mp hm))
+    _ = ∑ m ∈ range N, ∑ j ∈ Ico 1 k, ((I m).filter (·.card = j)).card :=
+        sum_congr rfl fun m hm => card_eq_sum_card_fiberwise fun C hC =>
+          card_mem_Ico_of_mem_countingIntro hθ N ψ c H b hstep hheavy hk
+            (mem_range.mp hm) (mem_sdiff.mp hC).1
+    _ = ∑ j ∈ Ico 1 k, countingInsertionCount N ψ c H b j := by rw [sum_comm]; rfl
 
 /-- A B-step of petal width `j` inserts at least `θ j` new width-`j` clauses. Summing these
 per-step contributions gives a lower bound on actual cumulative insertion events, including `j=1`.
@@ -164,23 +155,18 @@ theorem mul_card_counting_petalSteps_le {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ �
     θ j * ((range N).filter fun m => b m = true ∧ c m - (H m).card = j).card ≤
       countingInsertionCount N ψ c H b j := by
   let S := (range N).filter fun m => b m = true ∧ c m - (H m).card = j
-  let I (m : ℕ) := (countingIntro (ψ m) (c m) (H m) (b m) \ (ψ m ∪ ψ 0)).filter
-    fun C => C.card = j
-  calc
-    _ = ∑ _m ∈ S, θ j := by rw [sum_const, smul_eq_mul, mul_comm]
-    _ ≤ ∑ m ∈ S, (I m).card := by
-      refine sum_le_sum fun m hm => ?_
-      obtain ⟨hmN, hb, hj⟩ := mem_filter.mp hm
-      have hm' := mem_range.mp hmN
-      have hnew := intro_subset_counting_new hθ N ψ c H b hstep hheavy hred hm'
-      have hsub : petals (ψ m) (c m) (H m) ⊆ I m := by
-        intro C hC
-        refine mem_filter.mpr ⟨hnew ?_, (card_of_mem_petals hC).trans hj⟩
-        simpa only [hb, intro] using hC
-      calc
-        θ j ≤ (flower (ψ m) (c m) (H m)).card := hj ▸ (hheavy m hm').2.2
-        _ = (petals (ψ m) (c m) (H m)).card := (card_petals _ _ _).symm
-        _ ≤ (I m).card := card_le_card hsub
+  let I (m : ℕ) :=
+    (countingIntro (ψ m) (c m) (H m) (b m) \ (ψ m ∪ ψ 0)).filter fun C => C.card = j
+  calc _ = ∑ _m ∈ S, θ j := by rw [sum_const, smul_eq_mul, mul_comm]
+    _ ≤ ∑ m ∈ S, (I m).card := sum_le_sum fun m hm => by
+        obtain ⟨hmN, hb, hj⟩ := mem_filter.mp hm
+        have hm' := mem_range.mp hmN
+        have hnew := intro_subset_counting_new hθ N ψ c H b hstep hheavy hred hm'
+        calc θ j ≤ (flower (ψ m) (c m) (H m)).card := hj ▸ (hheavy m hm').2.2
+          _ = (petals (ψ m) (c m) (H m)).card := (card_petals _ _ _).symm
+          _ ≤ (I m).card := card_le_card fun C hC =>
+              mem_filter.mpr ⟨hnew (by simpa only [hb, intro] using hC),
+                (card_of_mem_petals hC).trans hj⟩
     _ ≤ ∑ m ∈ range N, (I m).card := sum_le_sum_of_subset (filter_subset _ _)
     _ = countingInsertionCount N ψ c H b j := rfl
 
@@ -195,16 +181,14 @@ theorem counting_length_le {M : ℕ} (hM : 2 ≤ M)
     (hsupport : ∀ C ∈ ψ 0, ∀ l ∈ C, l.1 ∈ declared) :
     N ≤ (4 * ∑ r ∈ range (k - 1), (3 * M) ^ r) * declared.card := by
   have hθ : ∀ r, 1 ≤ M ^ r := fun r => Nat.one_le_pow r M (by omega)
-  calc
-    N ≤ ∑ j ∈ Ico 1 k, countingInsertionCount N ψ c H b j :=
-      counting_length_le_sum_insertions hθ N ψ c H b hstep (fun i hi => (hchoice i hi).1) hred hk
-    _ ≤ ∑ j ∈ Ico 1 k, 4 * (3 * M) ^ (j - 1) * declared.card := by
-      refine sum_le_sum fun j hj => ?_
-      exact countingInsertionCount_le_pow hM N ψ c H b hstep hchoice hred hnt declared hsupport
-        (mem_Ico.mp hj).1
+  calc N ≤ ∑ j ∈ Ico 1 k, countingInsertionCount N ψ c H b j :=
+        counting_length_le_sum_insertions hθ N ψ c H b hstep (fun i hi => (hchoice i hi).1) hred hk
+    _ ≤ ∑ j ∈ Ico 1 k, 4 * (3 * M) ^ (j - 1) * declared.card :=
+        sum_le_sum fun j hj => countingInsertionCount_le_pow hM N ψ c H b hstep hchoice hred hnt
+          declared hsupport (mem_Ico.mp hj).1
     _ = _ := by
-      rw [sum_Ico_eq_sum_range]
-      simp only [Nat.add_sub_cancel_left, mul_sum, sum_mul, mul_assoc]
+        rw [sum_Ico_eq_sum_range]
+        simp only [Nat.add_sub_cancel_left, mul_sum, sum_mul, mul_assoc]
 
 /-- At each fixed petal width, the B-step budget keeps one factor of `M` after canceling a
 positive power of `M`. There is no division by the number of declared variables. -/
@@ -218,27 +202,19 @@ theorem mul_card_counting_petalSteps_le_pow {M : ℕ} (hM : 2 ≤ M)
     M * ((range N).filter fun m => b m = true ∧ c m - (H m).card = j).card ≤
       4 * 3 ^ (j - 1) * declared.card := by
   rcases Nat.eq_zero_or_pos j with rfl | hj
-  · have hempty : ((range N).filter fun m => b m = true ∧ c m - (H m).card = 0) = ∅ := by
-      rw [Finset.filter_eq_empty_iff]
-      intro m hm h
-      have := (hchoice m (mem_range.mp hm)).1.2.1
-      omega
+  · have hempty : ((range N).filter fun m => b m = true ∧ c m - (H m).card = 0) = ∅ :=
+      Finset.filter_eq_empty_iff.2 fun m hm h => by
+        have := (hchoice m (mem_range.mp hm)).1.2.1
+        omega
     simp [hempty]
   have hθ : ∀ r, 1 ≤ M ^ r := fun r => Nat.one_le_pow r M (by omega)
-  have hcharge := mul_card_counting_petalSteps_le hθ N ψ c H b hstep
-    (fun i hi => (hchoice i hi).1) hred j
-  have hbound := countingInsertionCount_le_pow hM N ψ c H b hstep hchoice hred hnt
-    declared hsupport hj
-  have hpow : M ^ j = M ^ (j - 1) * M := by
-    rw [← pow_succ]
-    congr 1
-    omega
-  apply Nat.le_of_mul_le_mul_left (c := M ^ (j - 1)) _ (pow_pos (by omega : 0 < M) _)
-  calc
-    _ = M ^ j * ((range N).filter fun m => b m = true ∧ c m - (H m).card = j).card := by
-      rw [hpow, mul_assoc]
-    _ ≤ countingInsertionCount N ψ c H b j := hcharge
-    _ ≤ 4 * (3 * M) ^ (j - 1) * declared.card := hbound
+  refine Nat.le_of_mul_le_mul_left (c := M ^ (j - 1)) ?_ (pow_pos (by omega : 0 < M) _)
+  calc _ = M ^ j * ((range N).filter fun m => b m = true ∧ c m - (H m).card = j).card := by
+        rw [← mul_assoc, ← pow_succ, show j - 1 + 1 = j by omega]
+    _ ≤ countingInsertionCount N ψ c H b j :=
+        mul_card_counting_petalSteps_le hθ N ψ c H b hstep (fun i hi => (hchoice i hi).1) hred j
+    _ ≤ 4 * (3 * M) ^ (j - 1) * declared.card :=
+        countingInsertionCount_le_pow hM N ψ c H b hstep hchoice hred hnt declared hsupport hj
     _ = _ := by rw [mul_pow]; ring
 
 /-- The source's weighted B-choice budget: `M * #B ≤ Γ * declared.card`, where
@@ -257,29 +233,21 @@ theorem mul_card_counting_B_le {M : ℕ} (hM : 2 ≤ M)
     intro m hm
     have hm' := mem_range.mp (mem_filter.mp hm).1
     have hheavy := (hchoice m hm').1
-    have hck := counting_selected_width_le hθ N ψ c H b hstep
-      (fun i hi => (hchoice i hi).1) hk hm'
-    apply mem_Ico.mpr
+    have := counting_selected_width_le hθ N ψ c H b hstep (fun i hi => (hchoice i hi).1) hk hm'
     have := hheavy.1
     have := hheavy.2.1
-    omega
+    exact mem_Ico.mpr (by omega)
   have hfiber : ((range N).filter (fun m => b m = true)).card =
       ∑ j ∈ Ico 1 k, ((range N).filter fun m => b m = true ∧ c m - (H m).card = j).card := by
     rw [card_eq_sum_card_fiberwise hmaps]
-    refine sum_congr rfl fun j hj => ?_
-    congr 1
-    ext m
-    simp only [mem_filter]
-    tauto
+    exact sum_congr rfl fun _ _ => congrArg card (ext fun _ => by simp only [mem_filter]; tauto)
   rw [hfiber, mul_sum]
-  calc
-    _ ≤ ∑ j ∈ Ico 1 k, 4 * 3 ^ (j - 1) * declared.card := by
-      refine sum_le_sum fun j _ => ?_
-      exact mul_card_counting_petalSteps_le_pow hM N ψ c H b hstep hchoice hred hnt
-        declared hsupport
+  calc _ ≤ ∑ j ∈ Ico 1 k, 4 * 3 ^ (j - 1) * declared.card :=
+        sum_le_sum fun _ _ => mul_card_counting_petalSteps_le_pow hM N ψ c H b hstep hchoice
+          hred hnt declared hsupport
     _ = _ := by
-      rw [sum_Ico_eq_sum_range]
-      simp only [Nat.add_sub_cancel_left, mul_sum, sum_mul, mul_assoc]
+        rw [sum_Ico_eq_sum_range]
+        simp only [Nat.add_sub_cancel_left, mul_sum, sum_mul, mul_assoc]
 
 /-- Both actual path budgets hold for any declared-variable budget above the finite support's
 cardinality, including zero. The B-budget retains the source's exact coefficient `Γ`. -/

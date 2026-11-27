@@ -107,12 +107,9 @@ variable {G}
 theorem isStrongEquilibrium_iff {s : ∀ i, S i} :
     G.IsStrongEquilibrium s ↔
       ∀ A : Finset ι, A.Nonempty → ∀ t, ∃ i ∈ A, G.cost i s ≤ G.cost i (A.piecewise t s) := by
-  refine ⟨fun h A hA t => ?_, fun h A t ⟨hA, hlt⟩ => ?_⟩
-  · by_contra hne
-    push Not at hne
-    exact h A t ⟨hA, hne⟩
-  · obtain ⟨i, hi, hle⟩ := h A hA t
-    exact (hle.trans_lt (hlt i hi)).false
+  simp only [IsStrongEquilibrium, IsStrictlyBeneficialDeviation, not_and, not_forall, not_lt,
+    exists_prop]
+  exact ⟨fun h A hA t => h A t hA, fun h A t hA => h A hA t⟩
 
 /-- In a strong equilibrium `s`, whatever joint deviation `t` a nonempty coalition `A` considers,
 some member `i ∈ A` does not gain: `cost i s ≤ cost i (A.piecewise t s)`. -/
@@ -140,8 +137,7 @@ theorem IsStrongEquilibrium.isPureNash {s : ∀ i, S i} (h : G.IsStrongEquilibri
     G.IsPureNash s := by
   intro i a
   obtain ⟨j, hj, hle⟩ := h.exists_cost_le (Finset.singleton_nonempty i) (Function.update s i a)
-  rw [Finset.mem_singleton] at hj
-  subst hj
+  obtain rfl := Finset.mem_singleton.1 hj
   rwa [Finset.piecewise_singleton, Function.update_self] at hle
 
 /-- **A strong Nash equilibrium is a pure Nash equilibrium**: a unilateral deviation is a
@@ -156,10 +152,7 @@ theorem IsStrongNash.not_pareto [Finite ι] {s : ∀ i, S i} (h : G.IsStrongNash
     (t : ∀ i, S i) : ¬ ((∀ i, G.cost i t ≤ G.cost i s) ∧ ∃ i, G.cost i t < G.cost i s) := by
   have := Fintype.ofFinite ι
   rintro ⟨hle, i, hlt⟩
-  refine h Finset.univ t ⟨fun j _ => ?_, i, Finset.mem_univ i, ?_⟩
-  · rw [Finset.piecewise_univ]
-    exact hle j
-  · rw [Finset.piecewise_univ]
-    exact hlt
+  exact h Finset.univ t ⟨fun j _ => (Finset.piecewise_univ t s).symm ▸ hle j,
+    i, Finset.mem_univ i, (Finset.piecewise_univ t s).symm ▸ hlt⟩
 
 end Cslib.GameTheory.CostGame

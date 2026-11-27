@@ -70,11 +70,8 @@ private theorem errorProb_eq [Fintype β] [Finite α] (joint : PMF (β × α)) (
   let := Fintype.ofFinite α
   have hcorrect : ∑ z : β × α, (if g z.1 = z.2 then (joint z).toReal else 0) =
       ∑ y, ((joint.map Prod.fst) y).toReal * (conditionalSnd joint y (g y)).toReal := by
-    rw [Fintype.sum_prod_type]
-    refine Finset.sum_congr rfl fun y _ => ?_
-    dsimp only
-    rw [Finset.sum_ite_eq, ite_eq_left (Finset.mem_univ _), ← ENNReal.toReal_mul,
-      marginal_mul_conditionalSnd]
+    simp_rw [Fintype.sum_prod_type, Finset.sum_ite_eq, Finset.mem_univ, ite_true,
+      ← ENNReal.toReal_mul, marginal_mul_conditionalSnd]
   rw [toOuterMeasure_apply_toReal, ← hcorrect, ← sum_toReal joint, ← Finset.sum_sub_distrib]
   refine Finset.sum_congr rfl fun z _ => ?_
   split_ifs <;> simp_all

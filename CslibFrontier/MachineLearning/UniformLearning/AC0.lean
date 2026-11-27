@@ -91,11 +91,10 @@ theorem lowDegreeLearner_learns_circuitClass {d g s t m : ℕ} {ε δ : ℝ} (h�
     (hm : 4 * #{S : Finset (Fin n) | #S ≤ t} / ε *
       Real.log (2 * #{S : Finset (Fin n) | #S ≤ t} / δ) ≤ m) :
     Learns (lowDegreeLearner (Fin n) t m) (circuitClass n d g) ε δ := by
-  refine lowDegreeLearner_learns hε hδ hm fun f ⟨C, hC, hd, hg⟩ => ?_
-  refine (Unbounded.sum_fourierCoeff_sq_le_of_computes_of_depth_le hC hs hd ht).trans ?_
-  have hgR : (C.size : ℝ) ≤ g := by exact_mod_cast hg
+  refine lowDegreeLearner_learns hε hδ hm fun f ⟨C, hC, hd, hg⟩ =>
+    (Unbounded.sum_fourierCoeff_sq_le_of_computes_of_depth_le hC hs hd ht).trans ?_
   rw [div_le_div_iff₀ (by positivity) (by norm_num)]
-  nlinarith
+  nlinarith [(mod_cast hg : (C.size : ℝ) ≤ g)]
 
 /-- The degree of the low-degree algorithm for circuits of depth `d` with `g` gates and error
 `ε`: `2 max 8 (2 s) (16 s + 1) ^ d - 1` for `s = max 2 ⌈log₂ ⌈4 g / ε⌉⌉`, which is
@@ -116,7 +115,6 @@ theorem lowDegreeLearner_learns_lmnDegree {d g m : ℕ} {ε δ : ℝ} (hε : 0 <
       Real.log (2 * #{S : Finset (Fin n) | #S ≤ lmnDegree d g ε} / δ) ≤ m) :
     Learns (lowDegreeLearner (Fin n) (lmnDegree d g ε) m) (circuitClass n d g) ε δ := by
   set s := max 2 (Nat.clog 2 ⌈4 * g / ε⌉₊)
-  have hs : 2 ≤ s := le_max_left _ _
   have hsg : 4 * (g : ℝ) ≤ ε * 2 ^ s := by
     have h₁ : 4 * (g : ℝ) / ε ≤ 2 ^ s :=
       calc 4 * (g : ℝ) / ε ≤ ⌈4 * g / ε⌉₊ := Nat.le_ceil _
@@ -127,10 +125,8 @@ theorem lowDegreeLearner_learns_lmnDegree {d g m : ℕ} {ε δ : ℝ} (hε : 0 <
             exact pow_le_pow_right₀ (by norm_num) (le_max_right _ _)
     rw [div_le_iff₀ hε] at h₁
     linarith
-  have hpos : 0 < 2 * max 8 (2 * s) * (16 * s + 1) ^ d := by positivity
-  have ht : 2 * max 8 (2 * s) * (16 * s + 1) ^ d ≤ lmnDegree d g ε + 1 := by
-    change _ ≤ 2 * max 8 (2 * s) * (16 * s + 1) ^ d - 1 + 1
-    omega
-  exact lowDegreeLearner_learns_circuitClass hε hδ hs hsg ht hm
+  have ht : 2 * max 8 (2 * s) * (16 * s + 1) ^ d ≤ lmnDegree d g ε + 1 :=
+    (Nat.sub_add_cancel (Nat.succ_le_of_lt (by positivity))).ge
+  exact lowDegreeLearner_learns_circuitClass hε hδ (le_max_left _ _) hsg ht hm
 
 end Cslib.MachineLearning.UniformLearning

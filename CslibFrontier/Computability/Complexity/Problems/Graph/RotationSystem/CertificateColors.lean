@@ -52,21 +52,12 @@ theorem vertexParity_eq_sum_cycleWord {G : Graph} {c : RotationCertificate}
     simp only [word, r, List.map_map, Function.comp_def, cycleWord_eq_map_range hc]
   have hn : word.Nodup := (hw ▸ nodup_cycleWord hc d).of_map
   have hf (e : Dart G) : e ∈ word ↔ e.vertex = d.vertex := by
-    constructor
-    · intro he
-      apply (mem_cycleWord_iff hc d e).mp
-      rw [← hw]
-      exact List.mem_map.mpr ⟨e, he, rfl⟩
-    · intro he
-      have hm := (mem_cycleWord_iff hc d e).mpr he
-      rw [← hw] at hm
-      obtain ⟨f, hf, he⟩ := List.mem_map.mp hm
-      have hfe : f = e := (Dart.indexEquiv G).injective (Fin.ext he)
-      exact hfe ▸ hf
+    conv_rhs => rw [← mem_cycleWord_iff hc d e, ← hw, List.mem_map]
+    exact ⟨fun he => ⟨e, he, rfl⟩,
+      fun ⟨f, hf, h⟩ => (Dart.indexEquiv G).injective (Fin.ext h) ▸ hf⟩
   have hmap : ((cycleWord c d.index).map (Dart.colorAtIndex fun e => x e.1)) =
       word.map (fun e => x e.1) := by
-    rw [← hw]
-    rw [List.map_map]
+    rw [← hw, List.map_map]
     exact List.map_congr_left fun e _ => Dart.colorAtIndex_index (fun e => x e.1) e
   exact (G.vertexParity_eq_sum_word x d.vertex word hn hf).trans
     (congrArg List.sum hmap).symm
