@@ -13,9 +13,9 @@ public import
   CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Interpreter
 public import
   CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Native
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Decode
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Decode
 import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Foundations.Data.BitString.ShortWords
 
@@ -42,10 +42,9 @@ is not installed or executed.
 
 ## Main results
 
-* `Turing.MultiTapePTM.Universal.NativeInterpreter.artifact_computes`: the retained machine has
-  exactly the open semantics of `run r` for every stateful handler.
-* `Turing.MultiTapePTM.Universal.NativeInterpreter.runWith_artifact_machine`: the corresponding
-  stateful-distribution equality for the retained machine's clocked open execution.
+* `Turing.MultiTapePTM.Universal.NativeInterpreter.runWith_artifact_eq_runOracle`: after decoding
+  its output and adapting its word interface, the retained machine has exactly the typed
+  `Desc.runOracle` joint output/final-state law for every fitting stateful handler.
 * `Turing.MultiTapePTM.Universal.NativeInterpreter.generatedStaticBits_le_structuralBound`: the
   exact artifact fits the explicit exhaustive-table structural bound.
 * `Turing.MultiTapePTM.Universal.NativeInterpreter.staticBits_polynomiallyBounded_of_schedules`:
@@ -88,9 +87,9 @@ enc_structure eLoopState : LoopState where
   desc : eDesc, input : (encList encUnary), fuel : encUnary, replyBits : encUnary,
   remaining : encUnary, cfg : eICfg
 
-/-- Constructive proof decoder used only by the typed bounded-iteration theorem. The retained body
-still executes and charges its concrete parsers. -/
-private def loopStateDecoder : Decoder eLoopState :=
+/-- Constructive proof decoder for retained clients that extend the typed loop state. The native
+interpreter itself still executes and charges its concrete parsers. -/
+def loopStateDecoder : Decoder eLoopState :=
   (Decoder.pair descDecoder
     (.pair (.list .unary)
       (.pair .unary (.pair .unary (.pair .unary iCfgDecoder))))).map
@@ -160,14 +159,8 @@ private def eLoopTail2 : LoopTail2 ↪ List Bool :=
 private def eLoopTail3 : LoopTail3 ↪ List Bool := encPair encUnary (encPair encUnary eICfg)
 private def eLoopTail4 : LoopTail4 ↪ List Bool := encPair encUnary eICfg
 
-private abbrev RunTail := ℕ × (List ℕ × ℕ)
-private abbrev eRunTail : RunTail ↪ List Bool := eRunParameters
-
 private def loopFields (state : LoopState) : Desc × LoopTail1 :=
   (state.desc, state.input, state.fuel, state.replyBits, state.remaining, state.cfg)
-
-private def runFields (input : RunInput) : Desc × RunTail :=
-  (input.desc, input.fuel, input.input, input.replyBits)
 
 /-- Retained loop-state description projection. -/
 private noncomputable def descCompiler : NativeCompiler LoopState.desc eLoopState eDesc :=
@@ -182,20 +175,35 @@ private noncomputable def inputCompiler :
       (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 /-- Retained original-fuel projection. -/
-private noncomputable def fuelCompiler : NativeCompiler LoopState.fuel eLoopState encUnary :=
-  (((NativeCompiler.first encUnary eLoopTail3).comp
-    ((NativeCompiler.second (encList encUnary) eLoopTail2).comp
-      (NativeCompiler.second eDesc eLoopTail1))).ofInputEq
-        (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
+noncomputable def fuelCompiler : NativeCompiler LoopState.fuel eLoopState encUnary := by
+  let fields (state : LoopState) :
+      Desc × (List ℕ × (ℕ × (ℕ × (ℕ × ICfg)))) :=
+    (state.desc, state.input, state.fuel, state.replyBits, state.remaining, state.cfg)
+  let tail₁ := encPair (encList encUnary)
+    (encPair encUnary (encPair encUnary (encPair encUnary eICfg)))
+  let tail₂ := encPair encUnary (encPair encUnary (encPair encUnary eICfg))
+  let tail₃ := encPair encUnary (encPair encUnary eICfg)
+  exact (((NativeCompiler.first encUnary tail₃).comp
+    ((NativeCompiler.second (encList encUnary) tail₂).comp
+      (NativeCompiler.second eDesc tail₁))).ofInputEq
+        (encIn := eLoopState) fields fun _ => rfl).ofOutputEq fun _ => rfl
 
 /-- Retained reply-prefix budget projection. -/
-private noncomputable def replyBitsCompiler :
-    NativeCompiler LoopState.replyBits eLoopState encUnary :=
-  (((NativeCompiler.first encUnary eLoopTail4).comp
-    ((NativeCompiler.second encUnary eLoopTail3).comp
-      ((NativeCompiler.second (encList encUnary) eLoopTail2).comp
-        (NativeCompiler.second eDesc eLoopTail1)))).ofInputEq
-          (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
+noncomputable def replyBitsCompiler :
+    NativeCompiler LoopState.replyBits eLoopState encUnary := by
+  let fields (state : LoopState) :
+      Desc × (List ℕ × (ℕ × (ℕ × (ℕ × ICfg)))) :=
+    (state.desc, state.input, state.fuel, state.replyBits, state.remaining, state.cfg)
+  let tail₁ := encPair (encList encUnary)
+    (encPair encUnary (encPair encUnary (encPair encUnary eICfg)))
+  let tail₂ := encPair encUnary (encPair encUnary (encPair encUnary eICfg))
+  let tail₃ := encPair encUnary (encPair encUnary eICfg)
+  let tail₄ := encPair encUnary eICfg
+  exact (((NativeCompiler.first encUnary tail₄).comp
+    ((NativeCompiler.second encUnary tail₃).comp
+      ((NativeCompiler.second (encList encUnary) tail₂).comp
+        (NativeCompiler.second eDesc tail₁)))).ofInputEq
+          (encIn := eLoopState) fields fun _ => rfl).ofOutputEq fun _ => rfl
 
 /-- Retained remaining-round projection. -/
 private noncomputable def remainingCompiler :
@@ -208,66 +216,62 @@ private noncomputable def remainingCompiler :
             (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 /-- Retained first-order configuration projection. -/
-private noncomputable def cfgCompiler : NativeCompiler LoopState.cfg eLoopState eICfg :=
-  (((NativeCompiler.second encUnary eICfg).comp
-    ((NativeCompiler.second encUnary eLoopTail4).comp
-      ((NativeCompiler.second encUnary eLoopTail3).comp
-        ((NativeCompiler.second (encList encUnary) eLoopTail2).comp
-          (NativeCompiler.second eDesc eLoopTail1))))).ofInputEq
-            (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
-
-private noncomputable def runDescCompiler : NativeCompiler RunInput.desc eRunInput eDesc :=
-  ((NativeCompiler.first eDesc eRunTail).ofInputEq
-    (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
-
-private noncomputable def runFuelCompiler : NativeCompiler RunInput.fuel eRunInput encUnary :=
-  (((NativeCompiler.first encUnary (encPair (encList encUnary) encUnary)).comp
-    (NativeCompiler.second eDesc eRunTail)).ofInputEq
-      (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
-
-private noncomputable def runInputCompiler :
-    NativeCompiler RunInput.input eRunInput (encList encUnary) :=
-  (((NativeCompiler.first (encList encUnary) encUnary).comp
-    ((NativeCompiler.second encUnary (encPair (encList encUnary) encUnary)).comp
-      (NativeCompiler.second eDesc eRunTail))).ofInputEq
-        (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
-
-private noncomputable def runReplyBitsCompiler :
-    NativeCompiler RunInput.replyBits eRunInput encUnary :=
-  (((NativeCompiler.second (encList encUnary) encUnary).comp
-    ((NativeCompiler.second encUnary (encPair (encList encUnary) encUnary)).comp
-      (NativeCompiler.second eDesc eRunTail))).ofInputEq
-        (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
-
-private def initializedState (input : RunInput) : LoopState where
-  desc := input.desc
-  input := input.input
-  fuel := input.fuel
-  replyBits := input.replyBits
-  remaining := input.fuel
-  cfg := ICfg.init input.desc
-
-private theorem eLoopState_initializedState (input : RunInput) :
-    eLoopState (initializedState input) =
-      (encPair eDesc eLoopTail1)
-        (input.desc, input.input, input.fuel, input.replyBits, input.fuel,
-          ICfg.init input.desc) := by
-  rw [eLoopState_apply]
-  rfl
+noncomputable def cfgCompiler : NativeCompiler LoopState.cfg eLoopState eICfg := by
+  let fields (state : LoopState) :
+      Desc × (List ℕ × (ℕ × (ℕ × (ℕ × ICfg)))) :=
+    (state.desc, state.input, state.fuel, state.replyBits, state.remaining, state.cfg)
+  let tail₁ := encPair (encList encUnary)
+    (encPair encUnary (encPair encUnary (encPair encUnary eICfg)))
+  let tail₂ := encPair encUnary (encPair encUnary (encPair encUnary eICfg))
+  let tail₃ := encPair encUnary (encPair encUnary eICfg)
+  let tail₄ := encPair encUnary eICfg
+  exact (((NativeCompiler.second encUnary eICfg).comp
+    ((NativeCompiler.second encUnary tail₄).comp
+      ((NativeCompiler.second encUnary tail₃).comp
+        ((NativeCompiler.second (encList encUnary) tail₂).comp
+          (NativeCompiler.second eDesc tail₁))))).ofInputEq
+            (encIn := eLoopState) fields fun _ => rfl).ofOutputEq fun _ => rfl
 
 /-- Actual initializer for the optional typed loop state, including the runtime channel-count
 test and the retained first-order blank-storage constructor. -/
-private noncomputable def initialCompiler (r : ℕ) :
+noncomputable def initialCompiler (r : ℕ) :
     NativeCompiler (initialState r) eRunInput (encOption eLoopState) := by
-  let operations := Desc.operationsCompiler.comp runDescCompiler
+  let runFields (input : RunInput) : Desc × (ℕ × (List ℕ × ℕ)) :=
+    (input.desc, input.fuel, input.input, input.replyBits)
+  let desc : NativeCompiler RunInput.desc eRunInput eDesc :=
+    ((NativeCompiler.first eDesc eRunParameters).ofInputEq
+      (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
+  let fuel : NativeCompiler RunInput.fuel eRunInput encUnary :=
+    (((NativeCompiler.first encUnary (encPair (encList encUnary) encUnary)).comp
+      (NativeCompiler.second eDesc eRunParameters)).ofInputEq
+        (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
+  let sourceInput : NativeCompiler RunInput.input eRunInput (encList encUnary) :=
+    (((NativeCompiler.first (encList encUnary) encUnary).comp
+      ((NativeCompiler.second encUnary (encPair (encList encUnary) encUnary)).comp
+        (NativeCompiler.second eDesc eRunParameters))).ofInputEq
+          (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
+  let replyBits : NativeCompiler RunInput.replyBits eRunInput encUnary :=
+    (((NativeCompiler.second (encList encUnary) encUnary).comp
+      ((NativeCompiler.second encUnary (encPair (encList encUnary) encUnary)).comp
+        (NativeCompiler.second eDesc eRunParameters))).ofInputEq
+          (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
+  let operations := Desc.operationsCompiler.comp desc
   let countMatches := NativeCompiler.wordEqTest encUnary |>.comp
     (operations.pair (NativeCompiler.const eRunInput encUnary r))
-  let cfg := ICfg.initCompiler.comp runDescCompiler
-  let fields := runDescCompiler.pair
-    (runInputCompiler.pair
-      (runFuelCompiler.pair (runReplyBitsCompiler.pair (runFuelCompiler.pair cfg))))
+  let cfg := ICfg.initCompiler.comp desc
+  let fields := desc.pair
+    (sourceInput.pair (fuel.pair (replyBits.pair (fuel.pair cfg))))
+  let initializedState (input : RunInput) : LoopState where
+    desc := input.desc
+    input := input.input
+    fuel := input.fuel
+    replyBits := input.replyBits
+    remaining := input.fuel
+    cfg := ICfg.init input.desc
   let initialized : NativeCompiler initializedState eRunInput eLoopState :=
-    fields.ofOutputEq eLoopState_initializedState
+    fields.ofOutputEq fun input => by
+      rw [eLoopState_apply]
+      rfl
   let present := (NativeCompiler.optionSome eLoopState).comp
     initialized
   let absent := NativeCompiler.const eRunInput (encOption eLoopState) none
@@ -279,7 +283,7 @@ private abbrev AdvanceInput := LoopState × ICfg
 private def eAdvanceInput : AdvanceInput ↪ List Bool := encPair eLoopState eICfg
 
 /-- Retained record update for one consumed source round. -/
-private noncomputable def advanceCompiler : NativeCompiler (fun input : AdvanceInput =>
+noncomputable def advanceCompiler : NativeCompiler (fun input : AdvanceInput =>
     advance input.1 input.2) eAdvanceInput eLoopState := by
   let state := NativeCompiler.first eLoopState eICfg
   let cfg := NativeCompiler.second eLoopState eICfg
@@ -1363,20 +1367,41 @@ noncomputable opaque artifact (r : ℕ) :
     NativeOracleProgram r (run r) eRunInput (encList encUnary) :=
   castProgram (stagedArtifact r) (stagedRun_eq_run r)
 
-/-- Direct clean-phase certificate for the actual retained machine. -/
-theorem artifact_computes (r : ℕ) (input : RunInput) :
-    (artifact r).machine.ComputesTidily (eRunInput input) ((artifact r).time input)
-      ((encList encUnary) <$> run r input) :=
-  (artifact r).computes input
-
-/-- Exact open semantics of the actual retained finite-control machine against every adaptive
-stateful Boolean-word handler. -/
-theorem runWith_artifact_machine (r : ℕ) (input : RunInput) (OracleState : Type)
-    (oracle : Fin r × List Bool → StateT OracleState PMF (List Bool)) (state : OracleState) :
-    ProbOracleComp.runWith oracle
-        ((artifact r).machine.runOracle ((artifact r).time input) (eRunInput input)) state =
-      ProbOracleComp.runWith oracle ((encList encUnary) <$> run r input) state :=
-  (artifact_computes r input).runOracle oracle state
+/-- **Typed semantics of the retained interpreter.** Run the actual finite-control artifact at its
+certified upper-bound clock, adapt its Boolean requests and replies through `wordCodec`, and
+decode its output word. Against every adaptive shared-state handler whose encoded replies fit the
+declared copied prefix, the resulting joint output/final-state law is exactly `Desc.runOracle`.
+No minimality claim is made about the artifact's clock or workspace bounds. -/
+theorem runWith_artifact_eq_runOracle {OracleState : Type} (input : RunInput)
+    (handler : Fin input.desc.operations × List ℕ →
+      StateT OracleState PMF (List ℕ)) (state : OracleState)
+    (hfit : ReplyBoundsFit input handler) :
+    ProbOracleComp.runWith handler
+        ((wordCodec input.desc.operations).adapt
+          (unaryListDecoder.decode <$>
+            (artifact input.desc.operations).machine.runOracle
+              ((artifact input.desc.operations).time input) (eRunInput input))) state =
+      ProbOracleComp.runWith handler
+        (input.desc.runOracle input.fuel input.input) state := by
+  rw [OracleCodec.runWith_adapt, ProbOracleComp.runWith_map]
+  change PMF.map _
+      (ProbOracleComp.runWith _
+        ((artifact input.desc.operations).machine.runOracle
+          ((artifact input.desc.operations).online.totalTime input) (eRunInput input)) state) = _
+  rw [((artifact input.desc.operations).computes input).runOracle
+    ((wordCodec input.desc.operations).wordOracle handler) state]
+  rw [ProbOracleComp.runWith_map, PMF.map_comp]
+  have hdecode :
+      (Prod.map unaryListDecoder.decode (id : OracleState → OracleState) ∘
+        Prod.map (⇑(encList encUnary)) (id : OracleState → OracleState)) =
+          (id : List ℕ × OracleState → List ℕ × OracleState) := by
+    funext outputState
+    rcases outputState with ⟨output, finalState⟩
+    simp only [Function.comp_apply, Prod.map_apply, unaryListDecoder.decode_enc, id_eq]
+  rw [hdecode, PMF.map_id]
+  have hsource := runWith_input_eq_runOracle input handler state hfit
+  rw [OracleCodec.runWith_adapt] at hsource
+  exact hsource
 
 /-! ### Separate concrete resource coordinates -/
 

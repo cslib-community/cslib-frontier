@@ -118,23 +118,22 @@ theorem description_table_length :
 
 /-! ### Retained native interpreter -/
 
-/-- The adaptive fixture is accepted by the actual named finite-control machine. -/
-theorem native_interpreter_computes :
-    (artifact 1).machine.ComputesTidily (eRunInput runInput) ((artifact 1).time runInput)
-      ((encList encUnary) <$> run 1 runInput) :=
-  artifact_computes 1 runInput
-
-/-- The actual machine certificate specializes to the adaptive shared-state fixture, not merely a
-closed output distribution. -/
-theorem native_interpreter_open :
-    ProbOracleComp.runWith
-        ((wordCodec 1).wordOracle CslibFrontierTests.OracleDescription.handler)
-        ((artifact 1).machine.runOracle ((artifact 1).time runInput) (eRunInput runInput)) [] =
-      ProbOracleComp.runWith
-        ((wordCodec 1).wordOracle CslibFrontierTests.OracleDescription.handler)
-        ((encList encUnary) <$> run 1 runInput) [] :=
-  runWith_artifact_machine 1 runInput (List (List ℕ))
-    ((wordCodec 1).wordOracle CslibFrontierTests.OracleDescription.handler) []
+/-- The actual retained finite-control machine, after its word interface and output are decoded,
+has the adaptive fixture's expected result and final shared log. -/
+theorem native_interpreter_typed :
+    ProbOracleComp.runWith CslibFrontierTests.OracleDescription.handler
+        ((wordCodec runInput.desc.operations).adapt
+          (unaryListDecoder.decode <$>
+            (artifact runInput.desc.operations).machine.runOracle
+              ((artifact runInput.desc.operations).time runInput) (eRunInput runInput))) [] =
+      PMF.pure ([9], [[], [7]]) := by
+  calc
+    _ = ProbOracleComp.runWith CslibFrontierTests.OracleDescription.handler
+        (runInput.desc.runOracle runInput.fuel runInput.input) [] :=
+      runWith_artifact_eq_runOracle runInput
+        CslibFrontierTests.OracleDescription.handler [] handler_prefix_fits
+    _ = PMF.pure ([9], [[], [7]]) := by
+      simpa only [runInput] using CslibFrontierTests.OracleDescription.run_description
 
 /-- The actual runtime word charges the supplied description once, including the `encPair`
 framing overhead, and then the clock/input/reply-budget tail. -/
@@ -154,6 +153,6 @@ example : generatedStaticBits 1 ≤ structuralBound 1 ∧
 example :
     (artifact 0).machine.ComputesTidily (eRunInput runInput) ((artifact 0).time runInput)
       ((encList encUnary) <$> run 0 runInput) :=
-  artifact_computes 0 runInput
+  (artifact 0).computes runInput
 
 end CslibFrontierTests.OracleInterpreter
