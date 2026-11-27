@@ -263,7 +263,7 @@ Replies of the subroutine part do not occur where it is used. -/
 
 /-- A program calling the subroutine's routed network port, as a program calling the composed
 network port: the call `q` becomes `.inr (.inr q)`. -/
-private def liftSubNet
+@[expose] def liftSubNet
     (program : ProbOracleComp (netSpec (RoutedNetQ n SubIn NQ) (RoutedNetR SubOut NR)) α) :
     ProbOracleComp (netSpec (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ))
       (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))) α :=
@@ -279,7 +279,7 @@ private def liftSubNet
 
 /-- The composed simulator's machine: queries for `ρ` are forwarded, and queries for the
 subroutine are answered by the subroutine simulator `S`. -/
-def hybridSimMachine
+@[expose] def hybridSimMachine
     (S : Machine (netSpec (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂))
       (netSpec (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁))) :
     Machine (netSpec (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ₂))

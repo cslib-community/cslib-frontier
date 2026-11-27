@@ -131,62 +131,35 @@ theorem paddedDom_eq_disjUnion {d : P.PaddedDict} {sentCount : ℕ}
             fun _ _ h => Subtype.ext (congrArg Fin.val (P.sentinelKey_injective h))⟩) := by
   ext x
   simp only [mem_paddedDom_iff, mem_union, mem_map, mem_attach, true_and,
-    Function.Embedding.coeFn_mk]
+    Function.Embedding.coeFn_mk, Subtype.exists, mem_range, Dictionary.dom, mem_filter,
+    Finset.mem_univ, Fin.ext_iff, embedReal, sentinelKey]
   by_cases hx : x.val < P.univ
-  · let u : Fin P.univ := ⟨x.val, hx⟩
-    have hxu : P.embedReal u = x := Fin.ext rfl
-    constructor
-    · intro hsome
-      left
-      refine ⟨u, ?_, hxu⟩
-      simp only [Dictionary.dom, mem_filter, Finset.mem_univ, true_and, ← hm.real_eq u, hxu,
-        Option.isSome_map]
-      exact hsome
-    · rintro (⟨u', hu', rfl⟩ | ⟨⟨i, hi⟩, hseq⟩)
-      · simp only [Dictionary.dom, mem_filter, Finset.mem_univ, true_and, ← hm.real_eq u',
-          Option.isSome_map] at hu'
-        exact hu'
-      · have hv : P.univ + i = x.val := congrArg Fin.val hseq
-        omega
-  · have hge : P.univ ≤ x.val := not_lt.mp hx
-    rw [hm.sentinel_eq x hge]
-    constructor
-    · intro hsome
-      split_ifs at hsome with hlt
-      · right
-        refine ⟨⟨x.val - P.univ, Finset.mem_range.mpr (by omega)⟩, ?_⟩
-        change P.sentinelKey ⟨x.val - P.univ, _⟩ = x
-        apply Fin.ext
-        dsimp only [sentinelKey]
-        omega
-      · simp at hsome
-    · rintro (⟨u', _, rfl⟩ | ⟨⟨i, hi⟩, hseq⟩)
-      · exact absurd u'.isLt (not_lt.mpr hge)
-      · have hi_lt : i < sentCount := Finset.mem_range.mp hi
-        have hv : P.univ + i = x.val := congrArg Fin.val hseq
-        rw [ite_eq_left (by omega)]
-        rfl
+  · have h : (d x).map Fin.val = dict ⟨x, hx⟩ := hm.real_eq ⟨x, hx⟩
+    refine ⟨fun hs => .inl ⟨⟨x, hx⟩, by rwa [← h, Option.isSome_map], rfl⟩, ?_⟩
+    rintro (⟨a, ha, hax⟩ | ⟨a, -, hax⟩)
+    · rwa [show a = ⟨x, hx⟩ from Fin.ext hax, ← h, Option.isSome_map] at ha
+    · omega
+  · rw [hm.sentinel_eq x (by omega)]
+    split_ifs with hlt
+    · exact iff_of_true rfl (.inr ⟨x - P.univ, by omega, by omega⟩)
+    · refine iff_of_false (by simp) ?_
+      rintro (⟨a, -, hax⟩ | ⟨a, ha, hax⟩) <;> omega
 
 theorem card_paddedDom_eq {d : P.PaddedDict} {sentCount : ℕ}
     {dict : Dictionary.State P.univ} (hm : P.MatchesExternal d sentCount dict) :
     (P.paddedDom d).card = (Dictionary.dom dict).card + sentCount := by
   rw [P.paddedDom_eq_disjUnion hm, card_union_of_disjoint]
   · simp [card_map, card_attach, Finset.card_range]
-  · rw [Finset.disjoint_left]
-    rintro x hx₁ hx₂
-    obtain ⟨u, _, rfl⟩ := mem_map.mp hx₁
-    obtain ⟨⟨i, _⟩, _, hseq⟩ := mem_map.mp hx₂
-    exact P.embedReal_ne_sentinelKey u _ hseq.symm
+  · simp only [Finset.disjoint_left, mem_map, not_exists, not_and]
+    exact fun _ ⟨u, _, hu⟩ i _ hi => P.embedReal_ne_sentinelKey u _ (hu.trans hi.symm)
 
 theorem matchesExternal_valuesBounded {d : P.PaddedDict} {sentCount : ℕ}
     {dict : Dictionary.State P.univ} (hm : P.MatchesExternal d sentCount dict) :
     Dictionary.ValuesBounded P.valBound dict := by
   intro u v hdu
   rw [← hm.real_eq u] at hdu
-  rcases h : d (P.embedReal u) with _ | w
-  · simp [h] at hdu
-  · simp only [h, Option.map_some, Option.some.injEq] at hdu
-    exact hdu ▸ w.isLt
+  obtain ⟨w, -, rfl⟩ := Option.map_eq_some_iff.mp hdu
+  exact w.isLt
 
 theorem matchesExternal_card_dom_le {d : P.PaddedDict} {sentCount : ℕ}
     {dict : Dictionary.State P.univ} (hm : P.MatchesExternal d sentCount dict) :
@@ -200,18 +173,13 @@ theorem paddedDom_initPaddedDict :
       (Finset.univ : Finset (Fin P.cap)).map ⟨P.sentinelKey, P.sentinelKey_injective⟩ := by
   ext x
   simp only [mem_paddedDom_iff, initPaddedDict, mem_map, Finset.mem_univ, true_and,
-    Function.Embedding.coeFn_mk]
-  constructor
-  · intro hs
-    split_ifs at hs with h
-    · refine ⟨⟨x.val - P.univ, by omega⟩, ?_⟩
-      ext; dsimp only [sentinelKey]; omega
+    Function.Embedding.coeFn_mk, Fin.ext_iff, sentinelKey]
+  refine ⟨fun hs => ?_, ?_⟩
+  · split_ifs at hs with h
+    · exact ⟨⟨x.val - P.univ, by omega⟩, by dsimp only; omega⟩
     · simp at hs
-  · rintro ⟨i, rfl⟩
-    have hcond : P.univ ≤ (P.sentinelKey i).val ∧ (P.sentinelKey i).val < P.univ + P.cap := by
-      dsimp only [sentinelKey]; exact ⟨by omega, by omega⟩
-    rw [ite_eq_left hcond]
-    rfl
+  · rintro ⟨i, hi⟩
+    rw [ite_eq_left ⟨by omega, by omega⟩]; rfl
 
 theorem matchesExternal_initPaddedDict :
     P.MatchesExternal P.initPaddedDict P.cap (Dictionary.empty P.univ) where
@@ -272,9 +240,7 @@ def ancestorAt : ∀ {j ℓ : ℕ}, j ≤ ℓ → Fin (P.numNodes ℓ) → Fin (
 @[simp]
 theorem ancestorAt_refl {ℓ : ℕ} (u : Fin (P.numNodes ℓ)) :
     P.ancestorAt (le_rfl : ℓ ≤ ℓ) u = u := by
-  cases ℓ with
-  | zero => rfl
-  | succ _ => simp [ancestorAt]
+  cases ℓ <;> [rfl; simp [ancestorAt]]
 
 theorem ancestorAt_succ {j ℓ : ℕ} (hj : j ≤ ℓ) (u : Fin (P.numNodes (ℓ + 1))) :
     P.ancestorAt (Nat.le_succ_of_le hj) u = P.ancestorAt hj (P.parentNode ℓ u) := by
@@ -282,14 +248,9 @@ theorem ancestorAt_succ {j ℓ : ℕ} (hj : j ≤ ℓ) (u : Fin (P.numNodes (ℓ
 
 theorem ancestorAt_trans {i j ℓ : ℕ} (hij : i ≤ j) (hjℓ : j ≤ ℓ) (u : Fin (P.numNodes ℓ)) :
     P.ancestorAt hij (P.ancestorAt hjℓ u) = P.ancestorAt (hij.trans hjℓ) u := by
-  induction ℓ generalizing j with
-  | zero =>
-    obtain rfl := Nat.eq_zero_of_le_zero hjℓ; obtain rfl := Nat.eq_zero_of_le_zero hij; rfl
-  | succ m ih =>
-    by_cases hjm : j = m + 1
-    · subst hjm; simp
-    · have hj_le : j ≤ m := Nat.le_of_lt_succ (lt_of_le_of_ne hjℓ hjm)
-      rw [P.ancestorAt_succ hj_le, P.ancestorAt_succ (hij.trans hj_le), ih hij hj_le]
+  induction ℓ, hjℓ using Nat.le_induction with
+  | base => simp
+  | succ m hjm ih => rw [P.ancestorAt_succ hjm, P.ancestorAt_succ (hij.trans hjm), ih]
 
 /-- Node `(ℓ, u)` lies in the subtree rooted at `(ℓ₀, u₀)` iff `ℓ₀ ≤ ℓ` and `ancestorAt u = u₀`. -/
 @[expose]

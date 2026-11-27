@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.BTree.Comparisons.BinarySearch
 import Mathlib.Data.Fintype.EquivFin
+import Mathlib.Order.Sum.Order
 import Mathlib.SetTheory.Cardinal.Order
 
 /-!
@@ -29,7 +30,7 @@ search)—satisfy `IsRank` (`rankQ_isRank`, `rankBinQ_isRank`).
 
 Given any tree `tree` of size `n` with duplicate-free keys `xs = tree.toList.map Prod.fst` and a
 fresh key `k ∉ xs` (obtained from `[Infinite α]`), inserting `k` at each of the `n + 1` gap
-positions `0, …, n` of `xs` defines `n + 1` linear orders `PrefixOrder` on `α`. Every one of
+positions `0, …, n` of `xs` defines `n + 1` linear orders on `α`. Every one of
 these `n + 1` linear orders keeps `xs` strictly increasing while giving `k` a distinct rank in
 `{0, …, n}`. Applying `FreeM.exists_countQueries_ge_clog` to the binary-response query type
 `LEQuery α` shows that at least one of those `n + 1` oracles forces `⌈log₂(n + 1)⌉` comparisons
@@ -163,92 +164,19 @@ private theorem listPrefix_injective {L : List α} (h : L.Nodup) :
   (listEmbedding h).injective.extend_of_disjoint Sum.inl_injective Sum.inr_injective
     Set.isCompl_range_inl_range_inr.disjoint
 
-private noncomputable def PrefixOrder {L : List α} (h : L.Nodup) : α → α → Prop :=
+@[instance_reducible]
+private noncomputable def prefixOrder {L : List α} (h : L.Nodup) : LinearOrder α :=
   letI := IsWellOrder.linearOrder (α := α) WellOrderingRel
-  InvImage (Sum.Lex (· ≤ · : Fin L.length → Fin L.length → Prop) (· ≤ ·)) (listPrefix h)
+  LinearOrder.lift' (fun a => toLex (listPrefix h a)) (listPrefix_injective h)
 
-private noncomputable instance {L : List α} (h : L.Nodup) :
-    DecidableRel (PrefixOrder h) := Classical.decRel _
-
-private instance {L : List α} (h : L.Nodup) :
-    IsTrans α (PrefixOrder h) := by
-  unfold PrefixOrder; infer_instance
-
-private instance {L : List α} (h : L.Nodup) :
-    Std.Total (PrefixOrder h) := by
-  unfold PrefixOrder; infer_instance
-
-private instance {L : List α} (h : L.Nodup) :
-    Std.Antisymm (PrefixOrder h) := by
+private theorem pairwise_prefixOrder {L : List α} (h : L.Nodup) :
+    letI := prefixOrder h
+    L.Pairwise (· < ·) := by
   let _ := IsWellOrder.linearOrder (α := α) WellOrderingRel
-  have : Std.Antisymm (Sum.Lex (· ≤ · : Fin L.length → Fin L.length → Prop)
-      (· ≤ · : α → α → Prop)) :=
-    inferInstance
-  exact (listPrefix_injective h).antisymm_onFun _
-
-private instance {L : List α} (h : L.Nodup) :
-    IsLinearOrder α (PrefixOrder h) where
-
-private theorem prefixOrder_get_iff {L : List α} (h : L.Nodup) (a b : Fin L.length) :
-    PrefixOrder h L[a.val] L[b.val] ↔ a ≤ b := by
-  simp only [PrefixOrder, InvImage, listPrefix_embedded, Sum.lex_inl_inl]
-
-private theorem prefixOrder_lt_getElem_iff {L : List α} (h : L.Nodup) (a b : ℕ)
-    (ha : a < L.length) (hb : b < L.length) :
-    (PrefixOrder h L[a] L[b] ∧ ¬ PrefixOrder h L[b] L[a]) ↔ a < b := by
-  rw [prefixOrder_get_iff h ⟨a, ha⟩ ⟨b, hb⟩, prefixOrder_get_iff h ⟨b, hb⟩ ⟨a, ha⟩,
-    Fin.mk_le_mk, Fin.mk_le_mk]
-  omega
-
-private theorem pairwise_prefixOrder_self {L : List α} (h : L.Nodup) :
-    L.Pairwise (fun a b => PrefixOrder h a b ∧ ¬ PrefixOrder h b a) :=
-  List.pairwise_iff_getElem.mpr fun a b ha hb hab =>
-    (prefixOrder_lt_getElem_iff h a b ha hb).mpr hab
-
-private theorem sublist_insertIdx {xs : List α} (k : α) :
-    ∀ {i : ℕ}, i ≤ xs.length → xs.Sublist (xs.insertIdx i k) := by
-  induction xs with
-  | nil => rintro _ hi; simp [Nat.le_zero.mp hi]
-  | cons x xs ih =>
-    intro i hi
-    cases i with
-    | zero => exact List.sublist_cons_self k (x :: xs)
-    | succ i => exact (ih (Nat.le_of_succ_le_succ hi)).cons_cons x
-
-private theorem length_filter_prefixOrder {xs : List α} {k : α} (h_nodup : xs.Nodup) (hk : k ∉ xs)
-    (i : ℕ) (hi : i ≤ xs.length) :
-    let L_i := xs.insertIdx i k
-    have h_nodup_i : L_i.Nodup := (List.perm_insertIdx k xs hi).nodup_iff.mpr
-      (List.nodup_cons.mpr ⟨hk, h_nodup⟩)
-    (xs.filter fun x => PrefixOrder h_nodup_i x k ∧ ¬ PrefixOrder h_nodup_i k x).length = i := by
-  intro L_i h_nodup_i
-  let p : α → Bool := fun x => decide (PrefixOrder h_nodup_i x k ∧ ¬ PrefixOrder h_nodup_i k x)
-  change (xs.filter p).length = i
-  have hL_len : L_i.length = xs.length + 1 := List.length_insertIdx_of_le_length hi k
-  have hi_lt : i < L_i.length := by omega
-  have hLi : L_i[i] = k := List.getElem_insertIdx_self hi_lt
-  have h_take : (xs.take i).filter p = xs.take i := by
-    rw [List.filter_eq_self]
-    intro x hx
-    obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hx
-    rw [List.length_take_of_le hi] at hj
-    have hj_lt_L : j < L_i.length := by omega
-    have hLj : L_i[j] = (xs.take i)[j] := by rw [List.getElem_take, List.getElem_insertIdx_of_lt hj]
-    simp only [p, decide_eq_true_eq, ← hLj, ← hLi]
-    exact (prefixOrder_lt_getElem_iff h_nodup_i j i hj_lt_L hi_lt).mpr hj
-  have h_drop : (xs.drop i).filter p = [] := by
-    rw [List.filter_eq_nil_iff]
-    intro x hx
-    obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hx
-    rw [List.length_drop] at hj
-    have hj_lt_L : i + j + 1 < L_i.length := by omega
-    have hLj : L_i[i + j + 1] = (xs.drop i)[j] := by
-      rw [List.getElem_drop, List.getElem_insertIdx_of_gt (by omega)]; rfl
-    simp only [p, decide_eq_true_eq, ← hLj, ← hLi,
-      prefixOrder_lt_getElem_iff h_nodup_i (i + j + 1) i hj_lt_L hi_lt]
-    omega
-  rw [← List.take_append_drop i xs, List.filter_append, h_take, h_drop, List.append_nil,
-    List.length_take_of_le hi]
+  refine List.pairwise_iff_getElem.mpr fun i j hi hj hij => ?_
+  change toLex (listPrefix h L[i]) < toLex (listPrefix h L[j])
+  simpa only [listPrefix_embedded h ⟨i, hi⟩, listPrefix_embedded h ⟨j, hj⟩,
+    Sum.Lex.inl_lt_inl_iff, Fin.mk_lt_mk] using hij
 
 /-- **Per-tree comparison lower bound for rank.** On any B-tree `tree` with distinct keys over an
 infinite key type `α`, any `IsRank` program makes at least `⌈log₂(tree.size + 1)⌉` comparisons
@@ -263,20 +191,36 @@ theorem rank_lowerBound_infinite [Infinite α]
   obtain ⟨k, hk⟩ : ∃ k : α, k ∉ xs := by
     classical
     simpa using Infinite.exists_notMem_finset xs.toFinset
-  let n := tree.size
-  have hi_le (i : Fin (n + 1)) : (i : ℕ) ≤ xs.length := by omega
-  have h_nodup_i (i : Fin (n + 1)) : (xs.insertIdx (i : ℕ) k).Nodup :=
-    (List.perm_insertIdx k xs (hi_le i)).nodup_iff.mpr (List.nodup_cons.mpr ⟨hk, h_nodup⟩)
-  let progOracles : Fin (n + 1) → ({ι : Type} → LEQuery α ι → ι) := fun i =>
-    LEQuery.oracleOf fun a b => decide (PrefixOrder (h_nodup_i i) a b)
-  have eval_eq (i : Fin (n + 1)) : (rankProg k tree).eval (progOracles i) = i := by
-    have h_sorted_i : xs.Pairwise (fun a b => PrefixOrder (h_nodup_i i) a b ∧
-        ¬ PrefixOrder (h_nodup_i i) b a) :=
-      (pairwise_prefixOrder_self (h_nodup_i i)).sublist (sublist_insertIdx k (hi_le i))
-    rw [h_corr.correct k tree (progOracles i) (PrefixOrder (h_nodup_i i))
-      (fun a b => by simp [progOracles]) h_sorted_i]
-    simpa [xs, List.filter_map, Function.comp_def] using
-      length_filter_prefixOrder h_nodup hk i (hi_le i)
+  let beforeKeys (i : Fin (tree.size + 1)) := xs.take i
+  let afterKeys (i : Fin (tree.size + 1)) := xs.drop i
+  have splitKeys (i : Fin (tree.size + 1)) : beforeKeys i ++ afterKeys i = xs :=
+    List.take_append_drop i xs
+  have hnodup (i : Fin (tree.size + 1)) : (beforeKeys i ++ k :: afterKeys i).Nodup :=
+    List.perm_middle.nodup_iff.mpr (by
+      rw [splitKeys i, List.nodup_cons]
+      exact ⟨hk, h_nodup⟩)
+  let progOracles (i : Fin (tree.size + 1)) := @orderOracle α (prefixOrder (hnodup i))
+  have eval_eq (i : Fin (tree.size + 1)) : (rankProg k tree).eval (progOracles i) = i := by
+    let _ := prefixOrder (hnodup i)
+    have hsorted := pairwise_prefixOrder (hnodup i)
+    have hxsSorted : xs.Pairwise (· < ·) := by
+      rw [← splitKeys i]
+      exact hsorted.sublist ((List.sublist_cons_self k (afterKeys i)).append_left (beforeKeys i))
+    rw [h_corr.correct k tree (progOracles i) (· ≤ ·) (fun _ _ => rfl)
+      (hxsSorted.imp fun h => lt_iff_le_not_ge.mp h)]
+    simp only [← lt_iff_le_not_ge, ← List.countP_eq_length_filter]
+    change tree.toList.countP ((fun x : α => decide (x < k)) ∘ Prod.fst) = (i : ℕ)
+    rw [← List.countP_map, List.countP_eq_length_filter]
+    change (xs.filter (· < k)).length = (i : ℕ)
+    rw [← splitKeys i, List.filter_append]
+    obtain ⟨-, hAfter, hBefore⟩ := List.pairwise_append.mp hsorted
+    have hpre : (beforeKeys i).filter (· < k) = beforeKeys i :=
+      List.filter_eq_self.mpr fun x hx => decide_eq_true (hBefore x hx k (List.mem_cons_self ..))
+    have hsuf : (afterKeys i).filter (· < k) = [] :=
+      List.filter_eq_nil_iff.mpr fun x hx => by
+        simpa only [decide_eq_true_eq] using
+          ((List.pairwise_cons.mp hAfter).1 x hx).not_gt
+    simp [hpre, hsuf, beforeKeys, List.length_take_of_le (show (i : ℕ) ≤ xs.length by omega)]
   obtain ⟨i, hi⟩ := FreeM.exists_countQueries_ge_clog 2 LEQuery.cardResponse_le_two
     (rankProg k tree) progOracles (by omega)
     fun i j h => Fin.ext ((eval_eq i).symm.trans (h.trans (eval_eq j)))
