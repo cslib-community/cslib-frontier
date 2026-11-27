@@ -56,7 +56,9 @@ theorem initFromWordsProg_spec {w : ℕ} {words : List ℕ} {s : Memory.State}
     fun _ ha => ha.1).mono (by omega : words.length + 0 + 1 ≤ words.length + 1)
     fun _ _ h => h
 
-private theorem holdsIndexedEdges_of_holdsList {n : ℕ} (base : ℕ) (es : List (IndexedEdge n))
+/-- Convert `Block.HoldsList base (encodeIndexedEdges es) mem` into
+`HoldsIndexedEdges base es mem`. -/
+theorem holdsIndexedEdges_of_holdsList {n : ℕ} (base : ℕ) (es : List (IndexedEdge n))
     {mem : ℕ → ℕ} (h : Block.HoldsList base (encodeIndexedEdges es) mem) :
     HoldsIndexedEdges base es mem := by
   induction es generalizing base with
