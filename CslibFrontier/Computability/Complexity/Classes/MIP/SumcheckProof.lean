@@ -102,7 +102,7 @@ theorem run_readRow (π : List Bool → Bool) (external challenges : List ℕ) (
   simp [readRow, ProofWord.run_readValues, keys, row, List.map_map, Function.comp_def]
 
 /-- The polynomial over the residue ring obtained from this public history. -/
-noncomputable def rowPolynomial (π : List Bool → Bool) (p : ℕ) (external challenges : List ℕ)
+@[expose] noncomputable def rowPolynomial (π : List Bool → Bool) (p : ℕ) (external challenges : List ℕ)
     (d width : ℕ) : Polynomial (ZMod p) :=
   Polynomial.ofCoeffList ((row π external challenges d width).map Nat.cast)
 
