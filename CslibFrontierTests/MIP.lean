@@ -8,6 +8,7 @@ import CslibFrontier.Computability.Complexity.Classes.IP.GraphNonIsomorphism
 import CslibFrontier.Computability.Complexity.Classes.IP.Shamir
 import CslibFrontier.Computability.Complexity.Classes.MIP
 import CslibFrontier.Languages.Probabilistic.UniformNat
+import CslibFrontier.Computability.Complexity.Classes.MIP.LineTest
 
 /-! Multiprover interactive proofs (`MIP₂` and `MIP`), non-communicating provers, deterministic
 prover optimality, transcript consistency, the upper bound `MIP ⊆ NEXP`,
@@ -17,6 +18,13 @@ for proof-oracle verifiers. -/
 namespace CslibFrontierTests.MIP
 
 open Cslib Cslib.Complexity Cslib.Probability Turing.MultiTapeTM
+
+-- The degree-one reply for t ↦ t is read low coefficient first; the second node detects a lie.
+example : Cslib.Complexity.MIP.checkLineReply 5 1 (QBFProtocol.encodeReply 5 [0, 1]) [1, 2] := by
+  decide
+
+example : Cslib.Complexity.MIP.checkLineReply 5 1 (QBFProtocol.encodeReply 5 [0, 1]) [1, 0] =
+    false := by decide
 
 /-! ### Non-communicating provers and transcript consistency -/
 
