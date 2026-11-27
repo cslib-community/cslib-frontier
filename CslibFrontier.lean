@@ -4757,6 +4757,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTic
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Width
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
+public import CslibFrontier.Computability.PointerMachine.Randomized
 public import CslibFrontier.Computability.Circuit.Arithmetic.Waring.Compilation
 public import CslibFrontier.Foundations.Combinatorics.Subsets.Geometric
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.FourPath

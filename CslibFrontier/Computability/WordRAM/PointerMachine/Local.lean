@@ -7,8 +7,7 @@ Authors: Stefan Langerman
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.PointerMachine.Assemble
-public import CslibFrontier.Computability.Program.Randomized
+public import CslibFrontier.Computability.PointerMachine.Randomized
 
 /-!
 # Local-address RAM simulation
@@ -21,10 +20,15 @@ The pointer representation has one record per cell, with immutable predecessor a
 links. The representation is supplied at entry. Each RAM instruction translates to one
 pointer instruction, and structured executions preserve instruction counts.
 
-Schönhage proved real-time equivalence between storage modification machines and successor RAMs
-[Schonhage1980]. The simulation here goes from a typed local-address RAM on a prepared finite
-interval to the pointer machine and preserves the instruction count. Its randomized version
-assumes shared scalar primitives.
+Schönhage describes the real-time equivalence of storage modification machines and successor
+RAMs [Schonhage1980], abstract. The compiler here goes from the typed local-address RAM to the
+pointer machine.
+
+## Main definitions
+
+* `Data`, `Direction`, `Op`, `Test`, `instructionSet`: the typed local-address RAM.
+* `layout`, `encode`, `compile`: its linked representation and compiler.
+* `evalRand`: the interpretation with randomized scalar operations.
 
 ## Main results
 
@@ -109,6 +113,13 @@ inductive Test (M : Model) (p d : ℕ) where
     | .addrEq a b, x => x.addr a = x.addr b
     | .scalar t a b, x => M.evalTest t (x.scalars a) (x.scalars b) = true
 
+instance (t : Test M p d) (x : Data M n p d) :
+    Decidable ((instructionSet M n p d).Holds t x) := by
+  cases t with
+  | addrEq a b => exact inferInstanceAs (Decidable (x.addr a = x.addr b))
+  | scalar t a b =>
+    exact inferInstanceAs (Decidable (M.evalTest t (x.scalars a) (x.scalars b) = true))
+
 /-- Record fields for the reference, successor and predecessor, and one scalar payload. -/
 @[expose, reducible] def layout (p d : ℕ) : Layout := ⟨p, d, 3, 1⟩
 
@@ -122,6 +133,9 @@ private def cell (x : Data M n p d) (a : Fin n) : Record M (layout p d) :=
 /-- Encode an interval as a doubly linked chain of records in address order. -/
 def encode (x : Data M n p d) : State M (layout p d) :=
   ⟨0, addrCode ∘ x.addr, x.scalars, List.ofFn (cell x)⟩
+
+/-- Encoded states start at label zero. -/
+@[simp] theorem encode_pc (x : Data M n p d) : (encode x).pc = 0 := by simp [encode]
 
 /-- The linked representation uses exactly one record per source cell. -/
 @[simp] theorem encode_heap_length (x : Data M n p d) : (encode x).heap.length = n := by
@@ -185,6 +199,11 @@ def compile : Program.Code (Op M p d) (Test M p d) → Code M (layout p d)
   | .loop t b => .loop (lowerTest t) (compile b)
   | .loopUntil t b => .loopUntil (lowerTest t) (compile b)
 
+/-- Compilation preserves the number of assembled instructions. -/
+@[simp] theorem size_compile (c : Program.Code (Op M p d) (Test M p d)) :
+    (compile c).size = c.size := by
+  induction c <;> simp [compile, Program.Code.size, *]
+
 private theorem test_correct (t : Test M p d) (x : Data M n p d) :
     (lowerTest t).Holds (encode x) ↔ (instructionSet M n p d).Holds t x := by
   cases t with
@@ -199,6 +218,21 @@ private theorem encode_updateAddr (x : Data M n p d) (r : Fin p) (a : Option (Fi
   congr 1
   funext j
   by_cases h : j = r <;> simp [h, Function.comp_apply]
+
+private theorem ofFn_modify_eq {α : Type*} {f f' : Fin n → α}
+    (a : Fin n) (g : α → α) (hit : g (f a) = f' a) (miss : ∀ i ≠ a, f i = f' i) :
+    (List.ofFn f).modify a.val g = List.ofFn f' := by
+  apply List.ext_getElem
+  · simp
+  · intro i hi hj
+    rw [List.getElem_modify, List.getElem_ofFn]
+    split
+    · rename_i he
+      subst i
+      simpa only [List.getElem_ofFn] using hit
+    · rename_i he
+      rw [List.getElem_ofFn]
+      exact miss _ (fun h => he (congrArg Fin.val h).symm)
 
 private theorem op_correct (o : Op M p d) (x : Data M n p d) :
     (lowerOp o).effect (encode x) = encode (o.eval x) := by
@@ -227,20 +261,12 @@ private theorem op_correct (o : Op M p d) (x : Data M n p d) :
       simp only [lowerOp, PointerMachine.Op.effect, PointerMachine.Op.instr, Instr.effect,
         State.modify, encode, addrCode, Function.comp_apply, Op.eval, h, Option.elim, Option.map]
       congr 1
-      apply List.ext_getElem
-      · simp
-      · intro i hi hj
-        rw [List.getElem_modify, List.getElem_ofFn]
-        split
-        · rename_i he
-          subst i
-          simp only [List.getElem_ofFn]
-          congr 1
-          funext f
-          by_cases hf : f = 0 <;> simp [cell, hf, addrCode, Option.map]
-        · rename_i he
-          simp [cell, Function.update_of_ne (show (⟨i, by simpa using hj⟩ : Fin n) ≠ a from
-            fun h => he (congrArg Fin.val h).symm)]
+      apply ofFn_modify_eq a
+      · congr 1
+        funext f
+        by_cases hf : f = 0 <;> simp [cell, hf, addrCode, Option.map]
+      · intro i hi
+        simp [cell, Function.update_of_ne hi]
   | storeData r s =>
     cases h : x.addr r with
     | none => simp [lowerOp, PointerMachine.Op.effect, PointerMachine.Op.instr, Instr.effect,
@@ -249,21 +275,13 @@ private theorem op_correct (o : Op M p d) (x : Data M n p d) :
       simp only [lowerOp, PointerMachine.Op.effect, PointerMachine.Op.instr, Instr.effect,
         State.modify, encode, addrCode, Function.comp_apply, Op.eval, h, Option.elim, Option.map]
       congr 1
-      apply List.ext_getElem
-      · simp
-      · intro i hi hj
-        rw [List.getElem_modify, List.getElem_ofFn]
-        split
-        · rename_i he
-          subst i
-          simp only [List.getElem_ofFn]
-          congr 1
-          funext f
-          have : f = 0 := Subsingleton.elim _ _
-          simp [cell, this]
-        · rename_i he
-          simp [cell, Function.update_of_ne (show (⟨i, by simpa using hj⟩ : Fin n) ≠ a from
-            fun h => he (congrArg Fin.val h).symm)]
+      apply ofFn_modify_eq a
+      · congr 1
+        funext f
+        have : f = 0 := Subsingleton.elim _ _
+        simp [cell, this]
+      · intro i hi
+        simp [cell, Function.update_of_ne hi]
 
 /-- Every source structured run executes on the linked representation at the same cost. -/
 theorem exec_compile {c : Program.Code (Op M p d) (Test M p d)} {x y : Data M n p d}
@@ -331,26 +349,19 @@ access keep their deterministic meanings. Each operation costs one instruction. 
         <$> kernel op (x.scalars a) (x.scalars b)
     | _ => pure (o.eval x))
 
-/-- Interpret the target scalar instructions using the same probabilistic kernels. -/
-def evalPointerRand (kernel : M.Op → M.Value → M.Value → ProbComp M.Value)
-    (o : PointerMachine.Op M (layout p d)) (x : State M (layout p d)) :
-    Option (ProbComp (State M (layout p d))) :=
-  some (match o with
-    | .op op dst a b => x.setData dst <$> kernel op (x.data a) (x.data b)
-    | _ => pure (o.effect x))
-
 private theorem eval_rand_correct (kernel : M.Op → M.Value → M.Value → ProbComp M.Value)
     (o : Op M p d) (x : Data M n p d) :
-    evalPointerRand kernel (lowerOp o) (encode x) = (evalRand kernel o x).map (encode <$> ·) := by
+    PointerMachine.Op.evalRand kernel (lowerOp o) (encode x) =
+      (evalRand kernel o x).map (encode <$> ·) := by
   cases o with
   | scalar =>
-    simp only [evalRand, evalPointerRand, lowerOp, Option.map_some, Functor.map_map]
+    simp only [evalRand, PointerMachine.Op.evalRand, lowerOp, Option.map_some, Functor.map_map]
     rfl
   | move dir =>
     cases dir
-    · simpa [evalRand, evalPointerRand, lowerOp] using op_correct (.move .next _ _) x
-    · simpa [evalRand, evalPointerRand, lowerOp] using op_correct (.move .prev _ _) x
-  | _ => simp [evalRand, evalPointerRand, lowerOp, ← op_correct]
+    · simpa [evalRand, PointerMachine.Op.evalRand, lowerOp] using op_correct (.move .next _ _) x
+    · simpa [evalRand, PointerMachine.Op.evalRand, lowerOp] using op_correct (.move .prev _ _) x
+  | _ => simp [evalRand, PointerMachine.Op.evalRand, lowerOp, ← op_correct]
 
 private def encodeResult (z : Data M n p d × ℕ) : State M (layout p d) × ℕ :=
   (encode z.1, z.2)
@@ -361,8 +372,9 @@ theorem execRand_compile (kernel : M.Op → M.Value → M.Value → ProbComp M.V
     {c : Program.Code (Op M p d) (Test M p d)} {x : Data M n p d}
     {m : ProbComp (Data M n p d × ℕ)}
     (h : Program.ExecRand (I := instructionSet M n p d) (evalRand kernel) c x m) :
-    Program.ExecRand (I := PointerMachine.instructionSet M (layout p d)) (evalPointerRand kernel)
-      (compile c) (encode x) ((fun z => (encode z.1, z.2)) <$> m) := by
+    Program.ExecRand (I := PointerMachine.instructionSet M (layout p d))
+      (PointerMachine.Op.evalRand kernel) (compile c) (encode x)
+      ((fun z => (encode z.1, z.2)) <$> m) := by
   let lift (f : Data M n p d → ProbComp (Data M n p d × ℕ)) :=
     Function.extend encode (fun x => encodeResult <$> f x)
       (fun x => pure (x, 0))
@@ -384,21 +396,21 @@ theorem execRand_compile (kernel : M.Op → M.Value → M.Value → ProbComp M.V
     simp [bind_map_left, map_bind, encodeResult, hlift]
   refine Program.ExecRand.rec
     (motive := fun c x m _ => Program.ExecRand (I := PointerMachine.instructionSet M (layout p d))
-      (evalPointerRand kernel) (compile c) (encode x) (encodeResult <$> m))
+      (PointerMachine.Op.evalRand kernel) (compile c) (encode x) (encodeResult <$> m))
     ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ h
   · intro x
     simpa [compile, encodeResult] using
       (Program.ExecRand.skip (I := PointerMachine.instructionSet M (layout p d))
-        (evalRand := evalPointerRand kernel) (x := encode x))
+        (evalRand := PointerMachine.Op.evalRand kernel) (x := encode x))
   · intro o x m he
-    have he' : evalPointerRand kernel (lowerOp o) (encode x) = some (encode <$> m) := by
+    have he' : PointerMachine.Op.evalRand kernel (lowerOp o) (encode x) = some (encode <$> m) := by
       rw [eval_rand_correct, he, Option.map_some]
     simpa [compile, Functor.map_map, encodeResult] using
       Program.ExecRand.op (I := PointerMachine.instructionSet M (layout p d)) he'
   · intro _ c₂ _ a b _ _ ih₁ ih₂
     have h₂ : ∀ z ∈ (encodeResult <$> a).support,
         Program.ExecRand (I := PointerMachine.instructionSet M (layout p d))
-          (evalPointerRand kernel) (compile c₂) z.1 (lift b z.1) := by
+          (PointerMachine.Op.evalRand kernel) (compile c₂) z.1 (lift b z.1) := by
       intro z hz
       obtain ⟨o, ho, rfl⟩ := hsupport hz
       simpa only [encodeResult, hlift] using ih₂ o ho
@@ -415,12 +427,12 @@ theorem execRand_compile (kernel : M.Op → M.Value → M.Value → ProbComp M.V
   · intro t body x ht
     simpa [compile, encodeResult] using
       (Program.ExecRand.loop_exit (I := PointerMachine.instructionSet M (layout p d))
-        (evalRand := evalPointerRand kernel) (body := compile body)
+        (evalRand := PointerMachine.Op.evalRand kernel) (body := compile body)
         (fun h => ht ((test_correct t x).1 h)))
   · intro t body x a b ht _ _ ih₁ ih₂
     have h₂ : ∀ z ∈ (encodeResult <$> a).support,
         Program.ExecRand (I := PointerMachine.instructionSet M (layout p d))
-          (evalPointerRand kernel) (compile (.loop t body)) z.1 (lift b z.1) := by
+          (PointerMachine.Op.evalRand kernel) (compile (.loop t body)) z.1 (lift b z.1) := by
       intro z hz
       obtain ⟨o, ho, rfl⟩ := hsupport hz
       simpa only [encodeResult, hlift] using ih₂ o ho
@@ -429,96 +441,33 @@ theorem execRand_compile (kernel : M.Op → M.Value → M.Value → ProbComp M.V
   · intro t body x ht
     simpa [compile, encodeResult] using
       (Program.ExecRand.loopUntil_exit (I := PointerMachine.instructionSet M (layout p d))
-        (evalRand := evalPointerRand kernel) (body := compile body)
+        (evalRand := PointerMachine.Op.evalRand kernel) (body := compile body)
         ((test_correct t x).2 ht))
   · intro t body x a b ht _ _ ih₁ ih₂
     have h₂ : ∀ z ∈ (encodeResult <$> a).support,
         Program.ExecRand (I := PointerMachine.instructionSet M (layout p d))
-          (evalPointerRand kernel) (compile (.loopUntil t body)) z.1 (lift b z.1) := by
+          (PointerMachine.Op.evalRand kernel) (compile (.loopUntil t body)) z.1 (lift b z.1) := by
       intro z hz
       obtain ⟨o, ho, rfl⟩ := hsupport hz
       simpa only [encodeResult, hlift] using ih₂ o ho
     simpa only [compile, ← chain a b 2] using
       Program.ExecRand.loopUntil_iter (fun h => ht ((test_correct t x).1 h)) ih₁ h₂
 
-private def pointerRandStep (kernel : M.Op → M.Value → M.Value → ProbComp M.Value)
-    (program : List (Instr M (layout p d))) (cfg : ℕ × State M (layout p d)) :
-    ProbComp (ℕ × State M (layout p d)) :=
-  match program[cfg.1]? with
-  | some (.op op dst a b) =>
-    (fun v => (cfg.1 + 1, cfg.2.setData dst v)) <$> kernel op (cfg.2.data a) (cfg.2.data b)
-  | some .halt | none => pure cfg
-  | some i => pure (i.next { cfg.2 with pc := cfg.1 }, i.effect cfg.2)
-
-/-- The flat pointer machine with probabilistic scalar operations and absorbing halt. -/
-def randomizedFlatMachine (kernel : M.Op → M.Value → M.Value → ProbComp M.Value) :
-    Program.RandomizedFlatMachine (evalPointerRand (p := p) (d := d) kernel)
-      (flatMachine M (layout p d)) where
-  Config := ℕ × State M (layout p d)
-  running := Prod.mk
-  step := pointerRandStep kernel
-  step_op := by
-    intro program pc o x m hp he
-    change program[pc]? = some o.instr at hp
-    cases o <;> simp only [evalPointerRand, Option.some.injEq] at he <;> subst m <;>
-      simp_all [pointerRandStep, PointerMachine.Op.instr, PointerMachine.Op.effect, Instr.next,
-        Functor.map_map]
-  step_goto := by
-    intro program pc label x hp
-    change program[pc]? = some (.goto label) at hp
-    simp [pointerRandStep, hp, Instr.effect, Instr.next]
-  step_jumpIf_pos := by
-    intro program pc label t x hp ht
-    change program[pc]? = some (t.instr label) at hp
-    change t.Holds x at ht
-    cases t <;> simp_all [pointerRandStep, PointerMachine.Test.instr, PointerMachine.Test.Holds,
-      Instr.effect, Instr.next]
-  step_jumpIf_neg := by
-    intro program pc label t x hp ht
-    change program[pc]? = some (t.instr label) at hp
-    change ¬t.Holds x at ht
-    cases t <;> simp_all [pointerRandStep, PointerMachine.Test.instr, PointerMachine.Test.Holds,
-      Instr.effect, Instr.next]
-
-/-- Run the compiled randomized program from the linked input using any instruction budget
-covering the source execution. The configuration stops at the final halt with the encoded
-source output distribution. -/
+/-- A budget covering every structured run reaches the compiled halt with the encoded output
+distribution. -/
 theorem runRand_compile (kernel : M.Op → M.Value → M.Value → ProbComp M.Value)
     {c : Program.Code (Op M p d) (Test M p d)} {x : Data M n p d}
     {m : ProbComp (Data M n p d × ℕ)} {T : ℕ}
     (h : Program.ExecRand (I := instructionSet M n p d) (evalRand kernel) c x m)
     (hT : ∀ z ∈ m.support, z.2 ≤ T) :
-    (randomizedFlatMachine kernel).run (compile c).program T
-        ((randomizedFlatMachine kernel).running 0 (encode x)) =
-      (fun z => (randomizedFlatMachine kernel).running (compile c).size (encode z.1)) <$> m := by
-  let target := randomizedFlatMachine (p := p) (d := d) kernel
-  let code := compile c
-  have hblock : Program.Contains code.program 0 (code.assemble 0) :=
-    ⟨[], [.halt], rfl, rfl⟩
-  have hcost : ∀ z ∈ (encodeResult <$> m).support, z.2 ≤ T := by
+    PointerMachine.runRand kernel (compile c).program T (encode x) =
+      (fun z => { encode z.1 with pc := (compile c).size }) <$> m := by
+  have hcost : ∀ z ∈ ((fun z => (encode z.1, z.2)) <$> m).support, z.2 ≤ T := by
     intro z hz
     obtain ⟨a, ha, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
     exact hT a ha
-  have hr := (execRand_compile kernel h).runRand_assemble target hblock hcost
-  have halt (y : State M (layout p d)) (k : ℕ) :
-      target.run code.program k (target.running code.size y) =
-        pure (target.running code.size y) := by
-    have he : code.program[code.size]? = some .halt := by
-      simp [PointerMachine.Code.program]
-    induction k with
-    | zero => exact target.run_zero _ _
-    | succ k ih =>
-      have hstep : target.step code.program (target.running code.size y) =
-          pure (target.running code.size y) := by
-        change pointerRandStep kernel code.program (code.size, y) = pure (code.size, y)
-        simp [pointerRandStep, he]
-      rw [Program.RandomizedFlatMachine.run_succ, hstep, pure_bind, ih]
-  change target.run code.program T (target.running 0 (encode x)) = _
-  rw [hr, bind_map_left]
-  simp only [Nat.zero_add]
-  change (m >>= fun z => target.run code.program (T - z.2)
-      (target.running code.size (encode z.1))) = _
-  simp only [halt, bind_pure_comp]
-  rfl
+  have hstart : { encode x with pc := 0 } = encode x := by unfold encode; rfl
+  simpa only [Functor.map_map, hstart] using
+    PointerMachine.runRand_program kernel (execRand_compile kernel h) hcost
 
 end Cslib.WordRAM.Local
