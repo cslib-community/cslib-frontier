@@ -25,7 +25,7 @@ one run against every independent family bounds `k` runs by `ε ^ k`
 * `Cslib.Complexity.acceptProb_sequentialRepeat_independent_le`: soundness error `ε ^ k`.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 
