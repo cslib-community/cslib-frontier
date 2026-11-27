@@ -4187,6 +4187,7 @@ public import CslibFrontier.Algorithms.Lean.CDCL.Watch
 public import CslibFrontier.Foundations.Analysis.Lattice.Fourier
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.VisitScheduleCircuits
 public import CslibFrontier.Crypto.Computational.Homomorphic.KeyChain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NestedLoop
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Program
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Parsing
 public import CslibFrontier.Probability.KWiseIndependent.Coupling
