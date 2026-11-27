@@ -149,58 +149,32 @@ theorem IsVertex.det_updateRow_pivot_mul_lt_zero
   intro M
   set i₀ := e.symm ⟨l, hl⟩
   have hdet0 : M.det ≠ 0 := hx.det_submatrix_ne_zero e
-  have hl'_not_x : l' ∉ tightRows A b x := by
-    intro hl'x
-    have hsub : tightRows A b y ⊆ tightRows A b x := by
-      intro k hk
-      by_cases hkl' : k = l'
-      · exact hkl' ▸ hl'x
-      · have hmem : k ∈ (tightRows A b y).erase l' := Finset.mem_erase.2 ⟨hkl', hk⟩
-        rw [← herase] at hmem
-        exact (Finset.mem_erase.1 hmem).2
-    exact hne (hy.eq_of_tightRows_subset hsub)
-  have hl_not_y : l ∉ tightRows A b y := by
-    intro hly
-    have hsub : tightRows A b x ⊆ tightRows A b y := by
-      intro k hk
-      by_cases hkl : k = l
-      · exact hkl ▸ hly
-      · have hmem : k ∈ (tightRows A b x).erase l := Finset.mem_erase.2 ⟨hkl, hk⟩
-        rw [herase] at hmem
-        exact (Finset.mem_erase.1 hmem).2
-    exact hne (hx.eq_of_tightRows_subset hsub).symm
+  have hl'_not_x : l' ∉ tightRows A b x := fun hl'x =>
+    hne <| hy.eq_of_tightRows_subset <| (Finset.insert_erase_subset l' _).trans <| by
+      rw [← herase]; exact Finset.insert_subset hl'x (Finset.erase_subset _ _)
+  have hl_not_y : l ∉ tightRows A b y := fun hly =>
+    hne <| Eq.symm <| hx.eq_of_tightRows_subset <| (Finset.insert_erase_subset l _).trans <| by
+      rw [herase]; exact Finset.insert_subset hly (Finset.erase_subset _ _)
   have hl'_diff : 0 < (A l') ⬝ᵥ (y - x) := by
-    have hxlt : (A *ᵥ x) l' < b l' :=
-      (hx.mulVec_le l').lt_of_ne (fun heq => hl'_not_x (mem_tightRows.2 heq))
-    have hyeq : (A *ᵥ y) l' = b l' := mem_tightRows.1 hl'
+    have := (hx.mulVec_le l').lt_of_ne fun heq => hl'_not_x (mem_tightRows.2 heq)
     rw [dotProduct_sub]
     change 0 < (A *ᵥ y) l' - (A *ᵥ x) l'
-    linarith
+    linarith [mem_tightRows.1 hl']
   have hl_diff : (A l) ⬝ᵥ (y - x) < 0 := by
-    have hylt : (A *ᵥ y) l < b l :=
-      (hy.mulVec_le l).lt_of_ne (fun heq => hl_not_y (mem_tightRows.2 heq))
-    have hxeq : (A *ᵥ x) l = b l := mem_tightRows.1 hl
+    have := (hy.mulVec_le l).lt_of_ne fun heq => hl_not_y (mem_tightRows.2 heq)
     rw [dotProduct_sub]
     change (A *ᵥ y) l - (A *ᵥ x) l < 0
-    linarith
+    linarith [mem_tightRows.1 hl]
   have hother : ∀ i : ι, i ≠ i₀ → (M i) ⬝ᵥ (y - x) = 0 := by
     intro i hi
-    have hne_l : (e i : κ) ≠ l := fun h => by
-      apply hi
-      apply e.injective
-      apply Subtype.ext
-      simpa only [i₀, Equiv.apply_symm_apply] using h
-    have hmem_x : (e i : κ) ∈ tightRows A b x := (e i).2
-    have hmem_y : (e i : κ) ∈ tightRows A b y := by
-      have hm := Finset.mem_erase.2 ⟨hne_l, hmem_x⟩
-      rw [herase] at hm
-      exact (Finset.mem_erase.1 hm).2
-    have hx_eq : (A *ᵥ x) (e i : κ) = b (e i : κ) := mem_tightRows.1 hmem_x
-    have hy_eq : (A *ᵥ y) (e i : κ) = b (e i : κ) := mem_tightRows.1 hmem_y
+    have hne_l : (e i : κ) ≠ l := fun h =>
+      hi (e.injective (Subtype.ext (by simpa only [i₀, Equiv.apply_symm_apply] using h)))
+    have hm := Finset.mem_erase.2 ⟨hne_l, (e i).2⟩
+    rw [herase] at hm
     change (A (e i : κ)) ⬝ᵥ (y - x) = 0
     rw [dotProduct_sub]
     change (A *ᵥ y) (e i : κ) - (A *ᵥ x) (e i : κ) = 0
-    rw [hy_eq, hx_eq, sub_self]
+    rw [mem_tightRows.1 (Finset.mem_erase.1 hm).2, mem_tightRows.1 (e i).2, sub_self]
   let c : ι → K := Mᵀ.cramer (A l')
   have hMc : Mᵀ *ᵥ c = M.det • A l' := by
     simpa only [det_transpose] using Matrix.mulVec_cramer Mᵀ (A l')
@@ -208,28 +182,18 @@ theorem IsVertex.det_updateRow_pivot_mul_lt_zero
   rw [← vecMul_transpose, transpose_transpose, ← dotProduct_mulVec, smul_dotProduct,
     smul_eq_mul] at hdot
   have hsum : c ⬝ᵥ (M *ᵥ (y - x)) = (A l) ⬝ᵥ (y - x) * c i₀ := by
-    rw [dotProduct, Finset.sum_eq_single i₀]
-    · have hi₀ : M i₀ = A l := by
-        ext j
-        simp [M, i₀]
-      rw [mul_comm, ← hi₀]
-      rfl
-    · intro i _ hi
-      change c i * ((M i) ⬝ᵥ (y - x)) = 0
-      rw [hother i hi, mul_zero]
-    · intro hmem
-      exact absurd (Finset.mem_univ i₀) hmem
+    rw [dotProduct, Finset.sum_eq_single_of_mem i₀ (Finset.mem_univ _) fun i _ hi => by
+      change c i * ((M i) ⬝ᵥ (y - x)) = 0; rw [hother i hi, mul_zero]]
+    have hi₀ : M i₀ = A l := by ext j; simp [M, i₀]
+    rw [mul_comm, ← hi₀]
+    rfl
   have hc_i₀ : c i₀ = (M.updateRow i₀ (A l')).det := Matrix.cramer_transpose_apply M (A l') i₀
   have hrel : (A l) ⬝ᵥ (y - x) * (M.updateRow i₀ (A l')).det = M.det * ((A l') ⬝ᵥ (y - x)) := by
     rw [← hc_i₀, ← hsum, hdot]
   have hmul : (M.det * (M.updateRow i₀ (A l')).det) * ((A l) ⬝ᵥ (y - x)) =
       M.det ^ 2 * ((A l') ⬝ᵥ (y - x)) := by
-    calc (M.det * (M.updateRow i₀ (A l')).det) * ((A l) ⬝ᵥ (y - x))
-        = M.det * ((A l) ⬝ᵥ (y - x) * (M.updateRow i₀ (A l')).det) := by ring
-      _ = M.det * (M.det * ((A l') ⬝ᵥ (y - x))) := by rw [hrel]
-      _ = M.det ^ 2 * ((A l') ⬝ᵥ (y - x)) := by ring
-  have hrhs_pos : 0 < M.det ^ 2 * ((A l') ⬝ᵥ (y - x)) :=
-    mul_pos (sq_pos_of_ne_zero hdet0) hl'_diff
+    rw [mul_right_comm, mul_assoc, hrel]; ring
+  have hrhs_pos := mul_pos (sq_pos_of_ne_zero hdet0) hl'_diff
   rw [← hmul] at hrhs_pos
   exact neg_of_mul_pos_left hrhs_pos hl_diff.le
 
@@ -254,13 +218,10 @@ theorem IsVertex.det_submatrix_pivot_mul_lt_zero
     simp only [updateRow_apply, submatrix_apply, id_eq, M₁, M₂, σ, Equiv.trans_apply,
       Equiv.apply_symm_apply, coe_pivotBasisEquiv_apply]
     split_ifs <;> rfl
-  have hdet : (M₁.updateRow (e₁.symm ⟨l, hl⟩) (A l')).det =
-      (Equiv.Perm.sign σ : K) * M₂.det := by
-    rw [hup, Matrix.det_permute σ M₂]
   have hneg := hx.det_updateRow_pivot_mul_lt_zero hy hne hl hl' herase e₁
   dsimp only at hneg
   change M₁.det * (M₁.updateRow (e₁.symm ⟨l, hl⟩) (A l')).det < 0 at hneg
-  rw [hdet] at hneg
+  rw [hup, Matrix.det_permute σ M₂] at hneg
   simpa only [mul_left_comm, mul_assoc] using hneg
 
 end Orientation

@@ -69,23 +69,34 @@ def graph (g : AndOrGraph) : ConstraintGraph (Fin g.vertices.length) (Fin g.edge
       else none
     minInflow := v.minInflow }
 
+/-- A finite port occurs exactly when its natural-numbered port occurs in the input vertex. -/
+theorem mem_graph_ports_iff (g : AndOrGraph) (i : Fin g.vertices.length)
+    (p : WeightedPort (Fin g.edgeCount)) :
+    p ∈ (g.graph i).ports ↔ p.map Fin.val ∈ (g.vertices.get i).ports := by
+  change p ∈ ((g.vertices.get i).ports.filterMap _) ↔ _
+  rw [List.mem_filterMap]
+  refine ⟨fun ⟨q, hq, he⟩ => ?_, fun hp => ⟨p.map Fin.val, hp, by
+    simp [WeightedPort.map, Port.map, p.port.edge.isLt]⟩⟩
+  split at he
+  · cases Option.some.inj he
+    exact hq
+  · cases he
+
 /-- Erasing finite bounds recovers the original port data when all names are bounded. -/
 theorem graph_map_val (g : AndOrGraph) (h : g.Bounded) :
     g.graph.map Fin.val = fun i => g.vertices.get i := by
   funext i
   let v := g.vertices.get i
-  have hv : ∀ p ∈ v.ports, p.port.edge < g.edgeCount := h _ (List.get_mem _ i)
-  unfold ConstraintGraph.map graph
-  simp only [Vertex.map, List.map_filterMap]
   have hp : v.ports.filterMap (fun p =>
       (if h : p.port.edge < g.edgeCount then
         some (⟨⟨⟨p.port.edge, h⟩, p.port.dir⟩, p.weight⟩ : WeightedPort (Fin g.edgeCount))
        else none).map (WeightedPort.map Fin.val)) = v.ports.map id :=
-    List.filterMap_eq_map_iff_forall_eq_some.2 (by
-      intro p hp
-      rw [dite_eq_left (hv p hp)]
-      rfl)
+    List.filterMap_eq_map_iff_forall_eq_some.2 fun p hp => by
+      rw [dite_eq_left (h _ (List.get_mem _ i) p hp)]
+      rfl
   rw [List.map_id] at hp
+  unfold ConstraintGraph.map graph
+  simp only [Vertex.map, List.map_filterMap]
   change { ports := _, minInflow := v.minInflow } = v
   rw [hp]
 
@@ -103,8 +114,7 @@ theorem graph_portMultiset (g : AndOrGraph) (hb : g.Bounded) :
 theorem checkVertices_eq_true_iff (g : AndOrGraph) (hb : g.Bounded) :
     g.checkVertices = true ↔ g.graph.IsAndOr := by
   rw [checkVertices, List.all_eq_true, List.forall_mem_iff_get, ConstraintGraph.IsAndOr]
-  apply forall_congr'
-  intro i
+  refine forall_congr' fun i => ?_
   rw [← congrFun (graph_map_val g hb) i]
   simp only [ConstraintGraph.map, Vertex.checkAndOr_map, Vertex.checkAndOr_eq_true_iff]
 
@@ -118,24 +128,20 @@ def config (g : AndOrGraph) (s : List Bool) : Fin g.edgeCount → Bool := fun i 
 
 /-- A list of the declared width reads by its finite indices. -/
 theorem config_eq_get (g : AndOrGraph) (s : List Bool) (h : s.length = g.edgeCount) :
-    g.config s = fun i => s.get (i.cast h.symm) := by
-  funext i
-  exact List.getD_eq_get s false (i.cast h.symm)
+    g.config s = fun i => s.get (i.cast h.symm) :=
+  funext fun i => List.getD_eq_get s false (i.cast h.symm)
 
 /-- Serializing a finite orientation and reading it back preserves every bit. -/
 theorem config_ofFn (g : AndOrGraph) (s : Fin g.edgeCount → Bool) : g.config (List.ofFn s) = s := by
   rw [config_eq_get g _ List.length_ofFn]
   funext i
-  rw [List.get_ofFn]
-  rfl
+  simp
 
 /-- Reading every coordinate of a correctly sized bit list reconstructs that list. -/
 theorem ofFn_config (g : AndOrGraph) (s : List Bool) (hs : s.length = g.edgeCount) :
     List.ofFn (g.config s) = s := by
-  apply List.ext_getElem (by simp [hs])
-  intro i _ hi
-  simp only [List.getElem_ofFn, config]
-  exact List.getD_eq_getElem s false hi
+  refine List.ext_getElem (by simp [hs]) fun _ _ hi => ?_
+  simp only [List.getElem_ofFn, config, List.getD_eq_getElem s false hi]
 
 /-- Serialize a graph on finite vertex and edge intervals. -/
 @[expose] def ofFinite {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m)) : AndOrGraph :=
@@ -164,13 +170,9 @@ private theorem graph_ofFinite_eq {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin 
 
 /-- Serialization preserves the structural conditions of an AND/OR instance. -/
 theorem ofFinite_valid {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m))
-    (ha : G.IsAndOr) (hw : G.WellFormed) : (ofFinite G).Valid := by
-  refine ⟨ofFinite_bounded G, ?_, ?_⟩
-  · intro i
-    rw [graph_ofFinite]
-    exact ha _
-  · rw [graph_ofFinite_eq]
-    exact hw.reindex (vertexEquiv G)
+    (ha : G.IsAndOr) (hw : G.WellFormed) : (ofFinite G).Valid :=
+  ⟨ofFinite_bounded G, fun i => graph_ofFinite G i ▸ ha _,
+    graph_ofFinite_eq G ▸ hw.reindex (vertexEquiv G)⟩
 
 /-- Serialized finite graph data have exactly the original legality and reachability semantics. -/
 @[expose] def ofFiniteSimulation {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m)) :

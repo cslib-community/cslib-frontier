@@ -42,8 +42,7 @@ namespace Nat.Morton
 theorem spread_eq (i : ℕ) : spread i = i % 2 + 4 * spread (i / 2) := by
   rcases Nat.eq_zero_or_pos i with rfl | hi
   · simp [spread]
-  · unfold spread
-    rw [Nat.digits_eq_cons_digits_div (by norm_num) hi.ne', Nat.ofDigits_cons]
+  · rw [spread, Nat.digits_eq_cons_digits_div (by norm_num) hi.ne', Nat.ofDigits_cons, spread]
 
 /-- No bits are set in the spread of zero. -/
 @[simp] theorem spread_zero : spread 0 = 0 := by simp [spread]
@@ -52,15 +51,15 @@ theorem spread_eq (i : ℕ) : spread i = i % 2 + 4 * spread (i / 2) := by
 theorem row_eq (z : ℕ) : row z = z % 4 / 2 + 2 * row (z / 4) := by
   rcases Nat.eq_zero_or_pos z with rfl | hz
   · simp [row]
-  · unfold row
-    rw [Nat.digits_eq_cons_digits_div (by norm_num) hz.ne', List.map_cons, Nat.ofDigits_cons]
+  · rw [row, Nat.digits_eq_cons_digits_div (by norm_num) hz.ne', List.map_cons, Nat.ofDigits_cons,
+      row]
 
 /-- Extract the last column bit and recurse on the remaining base-four digits. -/
 theorem column_eq (z : ℕ) : column z = z % 4 % 2 + 2 * column (z / 4) := by
   rcases Nat.eq_zero_or_pos z with rfl | hz
   · simp [column]
-  · unfold column
-    rw [Nat.digits_eq_cons_digits_div (by norm_num) hz.ne', List.map_cons, Nat.ofDigits_cons]
+  · rw [column, Nat.digits_eq_cons_digits_div (by norm_num) hz.ne', List.map_cons,
+      Nat.ofDigits_cons, column]
 
 /-- Position zero has row zero. -/
 @[simp] theorem row_zero : row 0 = 0 := by simp [row]
@@ -71,40 +70,31 @@ theorem column_eq (z : ℕ) : column z = z % 4 % 2 + 2 * column (z / 4) := by
 /-- The paired last binary bits form the last base-four digit. -/
 theorem index_eq (a b : ℕ) :
     index a b = (2 * (a % 2) + b % 2) + 4 * index (a / 2) (b / 2) := by
-  unfold index
-  rw [spread_eq a, spread_eq b]
-  ring
+  rw [index, index, spread_eq a, spread_eq b]; ring
 
 /-- A side-`2^k` square occupies exactly the first `4^k` Morton positions. -/
 theorem index_lt {k a b : ℕ} (ha : a < 2 ^ k) (hb : b < 2 ^ k) : index a b < 4 ^ k := by
   induction k generalizing a b with
-  | zero =>
-    obtain rfl : a = 0 := by simpa using ha
-    obtain rfl : b = 0 := by simpa using hb
-    simp [index]
+  | zero => simp_all [index]
   | succ k ih =>
     rw [pow_succ] at ha hb
-    have h := ih (a := a / 2) (b := b / 2) (by omega) (by omega)
-    rw [index_eq, pow_succ]
-    omega
+    have := ih (a := a / 2) (b := b / 2) (by omega) (by omega)
+    rw [index_eq, pow_succ]; omega
 
 /-- Each computed spread-table entry fits in the corresponding base-four square span. -/
 theorem spread_lt {k i : ℕ} (hi : i < 2 ^ k) : spread i < 4 ^ k := by
-  have h := index_lt hi (show 0 < 2 ^ k by positivity)
-  simp only [index, spread_zero, Nat.add_zero] at h
-  omega
+  have h := index_lt hi (pow_pos (by decide) k)
+  simp only [index, spread_zero, Nat.add_zero] at h; omega
 
 private theorem row_column_index (a b : ℕ) : row (index a b) = a ∧ column (index a b) = b := by
-  induction hm : a + b using Nat.strong_induction_on generalizing a b with
-  | _ m ih =>
-    rcases Nat.eq_zero_or_pos (a + b) with h0 | hpos
-    · obtain ⟨rfl, rfl⟩ : a = 0 ∧ b = 0 := by omega
-      simp [index]
-    · obtain ⟨hr, hc⟩ := ih (a / 2 + b / 2) (by omega) (a / 2) (b / 2) rfl
-      rw [row_eq, column_eq, index_eq]
-      generalize index (a / 2) (b / 2) = z at hr hc
-      rw [show (2 * (a % 2) + b % 2 + 4 * z) / 4 = z by omega, hr, hc]
-      omega
+  rcases Nat.eq_zero_or_pos (a + b) with h0 | hpos
+  · obtain ⟨rfl, rfl⟩ : a = 0 ∧ b = 0 := by omega
+    simp [index]
+  · obtain ⟨hr, hc⟩ := row_column_index (a / 2) (b / 2)
+    rw [row_eq, column_eq, index_eq]
+    generalize index (a / 2) (b / 2) = z at hr hc
+    rw [show (2 * (a % 2) + b % 2 + 4 * z) / 4 = z by omega, hr, hc]; omega
+termination_by a + b
 
 /-- Row projection inverts the interleaved position. -/
 @[simp] theorem row_index (a b : ℕ) : row (index a b) = a := (row_column_index a b).1
@@ -114,17 +104,17 @@ private theorem row_column_index (a b : ℕ) : row (index a b) = a ∧ column (i
 
 /-- Re-interleaving the projections recovers every original position. -/
 @[simp] theorem index_row_column (z : ℕ) : index (row z) (column z) = z := by
-  induction z using Nat.strong_induction_on with
-  | _ z ih =>
-    rcases Nat.eq_zero_or_pos z with rfl | hz
-    · simp [index]
-    · have h := ih (z / 4) (by omega)
-      rw [index_eq, row_eq z, column_eq z]
-      generalize row (z / 4) = a at h
-      generalize column (z / 4) = b at h
-      rw [show (z % 4 / 2 + 2 * a) / 2 = a by omega,
-        show (z % 4 % 2 + 2 * b) / 2 = b by omega, h]
-      omega
+  rcases Nat.eq_zero_or_pos z with rfl | hz
+  · simp [index]
+  · have h := index_row_column (z / 4)
+    rw [index_eq, row_eq z, column_eq z]
+    generalize row (z / 4) = a at h
+    generalize column (z / 4) = b at h
+    have ha : (z % 4 / 2 + 2 * a) / 2 = a := by omega
+    have hb : (z % 4 % 2 + 2 * b) / 2 = b := by omega
+    rw [ha, hb, h]
+    omega
+termination_by z
 
 /-- Reading a contiguous quadrant is the same as shifting its row and column by half a side. -/
 theorem row_column_quadrant {k t z : ℕ} (ht : t < 4) (hz : z < 4 ^ k) :
@@ -138,21 +128,20 @@ theorem row_column_quadrant {k t z : ℕ} (ht : t < 4) (hz : z < 4 ^ k) :
     omega
   | succ k ih =>
     obtain ⟨hr, hc⟩ := ih (z := z / 4) (by rw [pow_succ] at hz; omega)
-    have hp : t * 4 ^ (k + 1) = 4 * (t * 4 ^ k) := by rw [pow_succ]; ring
-    rw [row_eq, column_eq, row_eq z, column_eq z, hp,
-      show (4 * (t * 4 ^ k) + z) % 4 = z % 4 by omega,
-      show (4 * (t * 4 ^ k) + z) / 4 = t * 4 ^ k + z / 4 by omega, hr, hc, pow_succ 2]
+    have ht4 : t * 4 ^ (k + 1) = 4 * (t * 4 ^ k) := by
+      rw [pow_succ]
+      ring
+    have hmod : (4 * (t * 4 ^ k) + z) % 4 = z % 4 := by omega
+    have hdiv : (4 * (t * 4 ^ k) + z) / 4 = t * 4 ^ k + z / 4 := by omega
+    rw [row_eq, column_eq, row_eq z, column_eq z, ht4, hmod, hdiv, hr, hc, pow_succ 2]
     constructor <;> ring
 
 /-- Projection of an admitted Morton position remains inside the corresponding square. -/
 theorem row_column_lt {k z : ℕ} (hz : z < 4 ^ k) : row z < 2 ^ k ∧ column z < 2 ^ k := by
   induction k generalizing z with
-  | zero =>
-    obtain rfl : z = 0 := by simpa using hz
-    simp
+  | zero => simp_all
   | succ k ih =>
-    have h := ih (z := z / 4) (by rw [pow_succ] at hz; omega)
-    rw [row_eq, column_eq, pow_succ]
-    omega
+    have := ih (z := z / 4) (by rw [pow_succ] at hz; omega)
+    rw [row_eq, column_eq, pow_succ]; omega
 
 end Nat.Morton

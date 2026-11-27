@@ -99,28 +99,25 @@ theorem closeTo_eufCmaGame_schnorrNativeROMScheme (hm : 2 ^ m ≤ F.order d)
       handler (F.schnorrEncodedROMScheme d m (ProbComp.eval (F.schnorrSigKeyGen n d))
         ((ProbComp.eval (F.sampleExp n d)).map Nat.cast)) sk =
       handler (F.schnorrEncodedROMScheme d m (F.schnorrIdealKeyGen d)
-        ((ProbComp.eval (F.sampleExp n d)).map Nat.cast)) sk := by
-    funext q state
-    cases q <;> rfl
+        ((ProbComp.eval (F.sampleExp n d)).map Nat.cast)) sk :=
+    funext fun q => funext fun _ => by cases q <;> rfl
   have hcontains (log : List (List Bool)) (msg : List Bool) :
-      @List.contains (List Bool) instBEqOfDecidableEq log msg = log.contains msg := by
-    apply Bool.eq_iff_iff.mpr
-    simp
+      @List.contains (List Bool) instBEqOfDecidableEq log msg = log.contains msg :=
+    Bool.eq_iff_iff.mpr (by simp)
   unfold eufCmaGame
   simp only [PMF.monad_bind_eq_bind, hhandler, hcontains]
-  have hkey := (F.closeTo_schnorrSigKeyGen n d).symm
-  have hgame := hkey.bind (δ := Qs * (1 / 2 ^ n : ℝ≥0)) (fun keys _ =>
-    CloseTo.bind_right A.coins (fun coins _ =>
-      (F.closeTo_runWith_schnorrEncodedROMScheme d n m (F.schnorrIdealKeyGen d) keys.2
-        (A.forge keys.1 coins) (hA keys.1 coins).1 ([], [])).bind_left (fun forged => do
-          let verified ← runWith (oracle (BitString m))
-            ((F.schnorrEncodedROMScheme d m (F.schnorrIdealKeyGen d)
-              (PMF.uniformOfFintype (ZMod (F.order d)))).verify
-                keys.1 forged.1.1 forged.1.2) forged.2.1
-          return verified.1 && !(forged.2.2.contains forged.1.1))))
   simpa only [schnorrEncodedROMScheme, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     Nat.cast_add, Nat.cast_one, add_mul, one_mul, add_comm,
-    OracleComp.runWith_eq_run_interpret] using hgame
+    OracleComp.runWith_eq_run_interpret] using
+    (F.closeTo_schnorrSigKeyGen n d).symm.bind (δ := Qs * (1 / 2 ^ n : ℝ≥0)) fun keys _ =>
+      CloseTo.bind_right A.coins fun coins _ =>
+        (F.closeTo_runWith_schnorrEncodedROMScheme d n m (F.schnorrIdealKeyGen d) keys.2
+          (A.forge keys.1 coins) (hA keys.1 coins).1 ([], [])).bind_left fun forged => do
+            let verified ← runWith (oracle (BitString m))
+              ((F.schnorrEncodedROMScheme d m (F.schnorrIdealKeyGen d)
+                (PMF.uniformOfFintype (ZMod (F.order d)))).verify
+                  keys.1 forged.1.1 forged.1.2) forged.2.1
+            return verified.1 && !(forged.2.2.contains forged.1.1)
 
 /-- An actual native forger gets one efficient replay and one parameter-only polynomial query
 budget from actual key-generation support. Descriptions here are a fixed deterministic family whose
@@ -149,26 +146,19 @@ theorem exists_closeTo_wordEufCmaGame_schnorrNativeROMScheme
             (F.schnorrDecodedForger (description n) A))
           ((budget + 1 : ℕ) * (1 / 2 ^ n : ℝ≥0)) := by
   obtain ⟨genC, genD, hgenLength⟩ := F.isPPTOn_schnorrSigKeyGen.length_le
-  have hinput : PolynomiallyBounded fun n =>
-      genC * ((encPair encUnary F.encDesc (n, description n)).length + 1) ^ genD := by
-    simp only [length_encPair, encUnary_apply, List.length_replicate]
-    fun_prop
-  obtain ⟨keyC, keyD, hinputBound⟩ := polynomiallyBounded_iff_le.mp hinput
-  have hgen (n : ℕ) (keys : List Bool × List Bool)
-      (hkeys : keys ∈ (ProbComp.eval (F.schnorrSigKeyGen n (description n))).support) :
-      keys.1.length ≤ keyC * (n + 1) ^ keyD :=
-    (length_le_encPair_left encBits encBits keys).trans
-      ((hgenLength (n, description n) keys hkeys).trans (hinputBound n))
+  obtain ⟨keyC, keyD, hinputBound⟩ := polynomiallyBounded_iff_le.mp
+    (show PolynomiallyBounded fun n =>
+        genC * ((encPair encUnary F.encDesc (n, description n)).length + 1) ^ genD by
+      simp only [length_encPair, encUnary_apply, List.length_replicate]; fun_prop)
   obtain ⟨k, Control, hfinite, machine, c, e, hefficient, hgame⟩ :=
-    exists_eufCmaGame_savedCoinForger
-      (gen := fun n => F.schnorrSigKeyGen n (description n)) (program := program) hgen hprogram
-  refine ⟨k, Control, hfinite, machine, c, e, keyC, keyD, hefficient, ?_⟩
-  intro n
-  dsimp only
+    exists_eufCmaGame_savedCoinForger (gen := fun n => F.schnorrSigKeyGen n (description n))
+      (program := program)
+      (fun n keys hkeys => (length_le_encPair_left encBits encBits keys).trans
+        ((hgenLength (n, description n) keys hkeys).trans (hinputBound n))) hprogram
+  refine ⟨k, Control, hfinite, machine, c, e, keyC, keyD, hefficient, fun n => ?_⟩
   obtain ⟨hbudget, heq⟩ := hgame n (BitString (width n)) (encBitString (width n))
     (F.schnorrNativeROMScheme n (description n) (width n)) rfl
-  refine ⟨hbudget, ?_⟩
-  rw [heq]
-  exact F.closeTo_eufCmaGame_schnorrNativeROMScheme (description n) n (width n) (hwq n) _ hbudget
+  exact ⟨hbudget, heq ▸ F.closeTo_eufCmaGame_schnorrNativeROMScheme (description n) n (width n)
+    (hwq n) _ hbudget⟩
 
 end Cslib.Crypto.PrimeOrderGroupFamily

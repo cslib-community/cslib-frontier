@@ -139,8 +139,7 @@ theorem realize_tupleGadget {G : Type*} {E : G → G → Prop} {B : ℕ} {args :
     obtain ⟨b1, b2, b3, b4, b5⟩ := hb
     refine ⟨fun i => w' (B + i), b1, fun i hi => b2 i (by omega), b3, fun m hm => ?_,
       fun i hi => ?_⟩
-    · have := b4 m hm
-      rwa [show B + args.length - 1 = B + (args.length - 1) by omega] at this
+    · simpa only [show B + args.length - 1 = B + (args.length - 1) by omega] using b4 m hm
     have hx : args[i] < B := hB _ (List.getElem_mem hi)
     have := b5 i hi
     rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some,
@@ -192,13 +191,21 @@ instance instFiniteTupleVertex [Finite M] : Finite (TupleVertex I K) := by
   obtain ⟨rfl, rfl⟩ := he
   rfl
 
+/-- Underlying tuple `q.1.1` of a gadget vertex `q : TupleVertex I K`. -/
+abbrev TupleVertex.elems {I : ℕ → List M → Prop} {K : ℕ} (q : TupleVertex I K) : List M :=
+  q.1.1
+
+/-- Position index `q.1.2` of a gadget vertex `q : TupleVertex I K`. -/
+abbrev TupleVertex.index {I : ℕ → List M → Prop} {K : ℕ} (q : TupleVertex I K) : ℕ :=
+  q.1.2
+
 /-- The tuple graph on `M ⊕ TupleVertex I K`: loops on `M`, chain edges
 `(l, j + 1) → (l, j)`, and coordinate edges `(l, j) → l[j]`. -/
 def tupleGraph : M ⊕ TupleVertex I K → M ⊕ TupleVertex I K → Prop
   | .inl a, .inl b => a = b
   | .inl _, .inr _ => False
-  | .inr q, .inr q' => q.1.1 = q'.1.1 ∧ q.1.2 = q'.1.2 + 1
-  | .inr q, .inl a => q.1.1[q.1.2]? = some a
+  | .inr q, .inr q' => q.elems = q'.elems ∧ q.index = q'.index + 1
+  | .inr q, .inl a => q.elems[q.index]? = some a
 
 /-- **The tuple gadgets of the tuple graph are the tuples of `I 0`**, of length between `1`
 and `K`. -/
@@ -210,15 +217,14 @@ theorem isTupleGadget_tupleGraph_iff {bs : List M} (h0 : 0 < bs.length) (hK : bs
     have hinr : ∀ i < bs.length, ∃ q, u i = .inr q := by
       intro i hi
       rcases h : u i with a | q
-      · exact (g1 i hi (by rw [h]; exact rfl)).elim
-      · exact ⟨q, rfl⟩
+      exacts [(g1 i hi (by rw [h]; exact rfl)).elim, ⟨q, rfl⟩]
     obtain ⟨q0, hq0⟩ := hinr 0 h0
     have hj0 : q0.1.2 = 0 := by
       by_contra hne
       have hv : q0.1.2 - 1 < q0.1.1.length := by have := q0.2.2.1; omega
       refine g3 (.inr ⟨(q0.1.1, q0.1.2 - 1), q0.2.1, hv, q0.2.2.2⟩) (fun h => ?_) ?_
-      · simp only [tupleGraph] at h; omega
-      · rw [hq0]; exact ⟨rfl, by simp only; omega⟩
+      · simp only [tupleGraph, TupleVertex.index] at h; omega
+      · rw [hq0]; exact ⟨rfl, by simp only [TupleVertex.index]; omega⟩
     have hchain : ∀ i < bs.length,
         ∃ q : TupleVertex I K, u i = .inr q ∧ q.1.1 = q0.1.1 ∧ q.1.2 = i := by
       intro i hi
@@ -229,15 +235,16 @@ theorem isTupleGadget_tupleGraph_iff {bs : List M} (h0 : 0 < bs.length) (hK : bs
         obtain ⟨q', hq'⟩ := hinr (i + 1) hi
         have := g2 i hi
         rw [hq, hq'] at this
-        exact ⟨q', hq', this.1.trans hl, by have := this.2; omega⟩
+        exact ⟨q', hq', this.1.trans hl, by
+          have h2 := this.2; dsimp only [TupleVertex.index] at h2; omega⟩
     have hlen : q0.1.1.length = bs.length := by
       obtain ⟨q, hq, hl, hj⟩ := hchain (bs.length - 1) (by omega)
       have h1 : bs.length ≤ q0.1.1.length := by have := q.2.2.1; rw [hl] at this; omega
       by_contra hne
       have hv : bs.length < q0.1.1.length := by omega
       refine g4 (.inr ⟨(q0.1.1, bs.length), q0.2.1, hv, q0.2.2.2⟩) (fun h => ?_) ?_
-      · simp only [tupleGraph] at h; omega
-      · rw [hq]; exact ⟨hl.symm, by simp only; omega⟩
+      · simp only [tupleGraph, TupleVertex.index] at h; omega
+      · rw [hq]; exact ⟨hl.symm, by simp only [TupleVertex.index]; omega⟩
     have hl : q0.1.1 = bs := by
       apply List.ext_getElem hlen
       intro i h1 h2
@@ -254,7 +261,7 @@ theorem isTupleGadget_tupleGraph_iff {bs : List M} (h0 : 0 < bs.length) (hK : bs
     refine ⟨fun i => .inr (vt i), fun i _ h => ?_, fun i hi => ?_, fun m hm h => ?_,
       fun m hm h => ?_, fun i hi => ?_⟩
     · change bs = bs ∧ min i (bs.length - 1) = min i (bs.length - 1) + 1 at h; omega
-    · exact ⟨rfl, by simp only [vt]; omega⟩
+    · exact ⟨rfl, by simp only [vt, TupleVertex.index]; omega⟩
     · rcases m with a | q
       · exact hm rfl
       · change bs = q.1.1 ∧ min 0 (bs.length - 1) = q.1.2 + 1 at h; omega
@@ -276,9 +283,7 @@ def tupleGraphLoopEquiv : M ≃ {g : M ⊕ TupleVertex I K // tupleGraph I K g g
     | ⟨.inr q, h⟩ => absurd h (by simp [tupleGraph])
   left_inv _ := rfl
   right_inv g := by
-    rcases g with ⟨a | q, h⟩
-    · rfl
-    · exact absurd h (by simp [tupleGraph])
+    grind [tupleGraph]
 
 private theorem coe_tupleGraphLoopEquiv_symm (g : {g : M ⊕ TupleVertex I K // tupleGraph I K g g}) :
     (g : M ⊕ TupleVertex I K) = .inl ((tupleGraphLoopEquiv I K).symm g) := by
@@ -307,18 +312,13 @@ theorem atoms_toGraph (B : ℕ) (ψ : RawFormula) : ∀ a ∈ (toGraph B ψ).ato
 
 private theorem listRel_iff {G : Type*} {J : ℕ → List G → Prop} {as : List G} (h : as.length = 2) :
     J 0 as ↔ listRel (fun a b => J 0 [a, b]) as := by
-  rcases as with _ | ⟨a, _ | ⟨b, _ | ⟨c, as⟩⟩⟩
-  · simp at h
-  · simp at h
-  · exact Iff.rfl
-  · simp at h
+  rcases as with _ | ⟨a, _ | ⟨b, _ | ⟨c, as⟩⟩⟩ <;> first | exact Iff.rfl | simp at h
 
 private theorem realize_listRel_of_atoms {G : Type*} {J : ℕ → List G → Prop} {φ : RawFormula}
     (hφ : ∀ a ∈ φ.atoms, a = (0, 2)) (w : ℕ → G) :
     φ.Realize J w ↔ φ.Realize (fun _ => listRel fun a b => J 0 [a, b]) w := by
   refine realize_congr_rel φ w fun r as h => ?_
-  obtain ⟨hr, hl⟩ := Prod.mk.inj (hφ _ h)
-  subst hr
+  obtain ⟨rfl, hl⟩ := Prod.mk.inj (hφ _ h)
   exact listRel_iff hl
 
 /-- The largest arity of an atom of `φ`. -/
@@ -333,8 +333,7 @@ private theorem le_arityBound {φ : RawFormula} {a : ℕ × ℕ} (h : a ∈ φ.a
   | cons b l ih =>
     simp only [List.map_cons, List.foldr_cons]
     rcases List.mem_cons.1 h with rfl | h
-    · exact le_max_left _ _
-    · exact (ih h).trans (le_max_right _ _)
+    exacts [le_max_left _ _, (ih h).trans (le_max_right _ _)]
 
 theorem finSat_toGraph {ψ : RawFormula} (hψ : ∀ a ∈ ψ.atoms, a.1 = 0 ∧ 0 < a.2) :
     FinSat (toGraph ψ.varBound ψ) ↔ FinSat ψ := by
@@ -351,9 +350,7 @@ theorem finSat_toGraph {ψ : RawFormula} (hψ : ∀ a ∈ ψ.atoms, a.1 = 0 ∧ 
       if hy : P (w y) then ⟨w y, hy⟩ else Classical.arbitrary _
     have hwu : ∀ x < ψ.varBound, w x = u x := fun x hx => by
       simp only [u]
-      split
-      · rfl
-      · exact absurd (hP x hx.le) ‹_›
+      grind
     refine ⟨Subtype P, inferInstance, hne,
       fun _ bs => IsTupleGadget (fun a b => J 0 [a, b]) (bs.map Subtype.val), u, ?_⟩
     refine (realize_interpret (Q := fun a => a.1 = 0 ∧ 0 < a.2) (B := ψ.varBound)
@@ -376,8 +373,7 @@ theorem finSat_toGraph {ψ : RawFormula} (hψ : ∀ a ∈ ψ.atoms, a.1 = 0 ∧ 
         (fun a ha => ⟨(hψ a ha).1, (hψ a ha).2, le_arityBound ha⟩) le_rfl
         (Sum.inl ∘ v) (e ∘ v) (fun x _ => rfl)).2 ((realize_equiv e I ψ v).2 h)
       intro r args w' u' hargs hwu' hQ
-      have hr : r = 0 := hQ.1
-      subst hr
+      obtain rfl : r = 0 := hQ.1
       have hmap : args.map w' = (args.map (e.symm ∘ u')).map Sum.inl := by
         rw [List.map_map]
         exact List.map_congr_left fun x hx =>

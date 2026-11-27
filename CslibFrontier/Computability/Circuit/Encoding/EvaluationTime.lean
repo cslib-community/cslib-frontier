@@ -85,16 +85,11 @@ private theorem polyTime_step (I : Interpretation σ U) (d : U) :
       (encPair (encList eU) (Circuit.encGate eOp)) eU :=
     optionElimWithInput (getElem? (snd _ _).snd' (const i)) (const d)
       (listGetD_binary d (fst _ _).fst' (snd _ _))
-  have hgate : ComputableInPolyTime (fun p : List U × (σ.Op × List ℕ) =>
-      I p.2.1 fun a => p.2.2[a.val]?.elim d (p.1.getD · d))
-      (encPair (encList eU) (Circuit.encGate eOp)) eU :=
-    finite_cases (tagEncoding := eOp)
-      (branch := fun op (p : List U × (σ.Op × List ℕ)) =>
-        I op fun a => p.2.2[a.val]?.elim d (p.1.getD · d))
-      (snd _ _).fst' fun op =>
-        (of_finite (encIn := encPi eU) (encOut := eU) (I op)).comp
-          (pi fun a => harg a.val)
-  exact listAppend' (.fst _ _) (cons' hgate (.const []))
+  exact listAppend' (.fst _ _) (cons' (finite_cases (tagEncoding := eOp)
+    (branch := fun op (p : List U × (σ.Op × List ℕ)) =>
+      I op fun a => p.2.2[a.val]?.elim d (p.1.getD · d))
+    (snd _ _).fst' fun op => (of_finite (encIn := encPi eU) (encOut := eU) (I op)).comp
+      (pi fun a => harg a.val)) (.const []))
 
 /-- **Polynomial-time evaluation** of gate lists over a finite operation set and finite carrier,
 charging the framed input list and binary-indexed gate list. -/
@@ -105,16 +100,13 @@ protected theorem computableInPolyTime_evalCode (I : Interpretation σ U) (d : U
     (hgates : ComputableInPolyTime gates encIn (encList (Circuit.encGate eOp))) :
     ComputableInPolyTime (fun a => evalCode I d (x a) (gates a)) encIn (encList eU) := by
   let _ := Fintype.ofFinite U
-  let bound := Finset.univ.sup (fun u : U => (eU u).length)
-  apply ComputableInPolyTime.foldl_of_bounded_growth hgates hx
-    (polyTime_step (eOp := eOp) (eU := eU) I d)
-    (growth := 2 * bound + 1)
-  intro state gate
+  let bound := Finset.univ.sup fun u : U => (eU u).length
+  refine ComputableInPolyTime.foldl_of_bounded_growth hgates hx
+    (polyTime_step (eOp := eOp) (eU := eU) I d) (growth := 2 * bound + 1) fun _ _ => ?_
   simp only [evalCodeStep, encList_append, encList_cons, encList_nil, List.append_nil,
     List.length_append, length_frame]
-  have hbound (u : U) : (eU u).length ≤ bound :=
-    Finset.le_sup (f := fun u : U => (eU u).length) (Finset.mem_univ u)
-  exact Nat.add_le_add_left (Nat.add_le_add_right (Nat.mul_le_mul_left 2 (hbound _)) 1) _
+  exact Nat.add_le_add_left (Nat.add_le_add_right (Nat.mul_le_mul_left 2
+    (Finset.le_sup (f := fun u : U => (eU u).length) (Finset.mem_univ _))) 1) _
 
 /-- Read a binary-indexed output wire from the computed gate trace in polynomial time. -/
 @[fun_prop]
@@ -132,12 +124,10 @@ protected theorem computableInPolyTime_evalOutputs (I : Interpretation σ U) (d 
     {code : α → List (σ.Op × List ℕ) × List ℕ} {x : α → List U}
     (hcode : ComputableInPolyTime code encIn (Circuit.encCode eOp))
     (hx : ComputableInPolyTime x encIn (encList eU)) :
-    ComputableInPolyTime (fun a => evalOutputs I d (code a) (x a)) encIn (encList eU) := by
-  have hvals : ComputableInPolyTime
-      (fun a => evalCode I d (x a) (code a).1) encIn (encList eU) :=
-    Circuits.computableInPolyTime_evalCode I d hx hcode.fst'
-  exact mapWithInput hcode.snd'
-    (listGetD_binary d (hvals.comp (fst encIn encNat)) (snd encIn encNat))
+    ComputableInPolyTime (fun a => evalOutputs I d (code a) (x a)) encIn (encList eU) :=
+  mapWithInput hcode.snd' (listGetD_binary d
+    ((Circuits.computableInPolyTime_evalCode I d hx hcode.fst').comp (fst encIn encNat))
+    (snd encIn encNat))
 
 end FiniteCarrier
 

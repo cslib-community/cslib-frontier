@@ -111,11 +111,11 @@ theorem expected_bounds :
       (expected r s k).lengthSum ≤ Fintype.card α * k := by
   have hc : (round r s k).card ≤ Fintype.card α := Finset.card_le_univ _
   refine ⟨hc, ?_⟩
-  unfold expected
+  dsimp only [expected]
   calc
     ∑ v ∈ round r s k, distance r s v ≤ ∑ _ ∈ round r s k, k :=
       sum_le_sum fun _ hv => (distance_spec (mem_round.mp hv)).2
-    _ = (round r s k).card * k := by simp
+    _ = (round r s k).card * k := by rw [Finset.sum_const, nsmul_eq_mul, Nat.cast_id]
     _ ≤ _ := Nat.mul_le_mul_right k hc
 
 /-- Terminal count and length sum of the chosen walks. -/
@@ -162,72 +162,53 @@ theorem passes_iff {w : Transcript α} :
     have hsteps (v : α) (p : List α) (hp : w v = some p) :
         RelatesInSteps r s v (guessedLength w v) :=
       (hwalk v p hp).1.relatesInSteps (guessedLength_spec hp (hwalk v p hp).1)
-    have hselected : selected w = round r s k := by
-      refine Finset.eq_of_subset_of_card_le ?_ hcount.ge
-      intro v hv
-      obtain ⟨p, hp⟩ := mem_selected.mp hv
-      exact mem_round.mpr ⟨_, (hwalk v p hp).2, hsteps v p hp⟩
+    have hselected : selected w = round r s k :=
+      Finset.eq_of_subset_of_card_le
+        (fun v hv => let ⟨p, hp⟩ := mem_selected.mp hv
+          mem_round.mpr ⟨_, (hwalk v p hp).2, hsteps v p hp⟩) hcount.ge
     have hle (v : α) (hv : v ∈ selected w) : distance r s v ≤ guessedLength w v := by
       obtain ⟨p, hp⟩ := mem_selected.mp hv
       exact distance_le (hsteps v p hp)
     refine ⟨fun v hv => ?_, fun v hv => ?_⟩
     · have hmem : v ∈ selected w := hselected ▸ hv
       obtain ⟨p, hp⟩ := mem_selected.mp hmem
-      have heq : guessedLength w v = distance r s v := by
-        apply (hle v hmem).antisymm'
-        by_contra! hlt
-        have hstrict := Finset.sum_lt_sum hle ⟨v, hmem, hlt⟩
-        rw [← hselected] at hsum
-        exact (not_lt_of_ge hsum.le) hstrict
-      exact ⟨p, hp, (hwalk v p hp).1, heq ▸ guessedLength_spec hp (hwalk v p hp).1⟩
-    · cases hw : w v with
-      | none => rfl
-      | some p => exact (hv (hselected ▸ mem_selected.mpr ⟨p, hw⟩)).elim
+      have heq := (Finset.sum_eq_sum_iff_of_le hle).mp (hselected ▸ hsum.symm) v hmem
+      exact ⟨p, hp, (hwalk v p hp).1, by rw [guessedLength_spec hp (hwalk v p hp).1, heq]⟩
+    · exact Option.eq_none_iff_forall_not_mem.mpr fun p hp =>
+        hv (hselected ▸ mem_selected.mpr ⟨p, hp⟩)
   · rintro ⟨hin, hout⟩
-    have hselected : selected w = round r s k := by
-      ext v
-      rw [mem_selected]
+    have hselected : selected w = round r s k := Finset.ext fun v => by
       by_cases hv : v ∈ round r s k
       · obtain ⟨p, hp, _, _⟩ := hin v hv
         simp [hv, hp]
       · simp [hv, hout v hv]
     have hspec (v : α) (p : List α) (hp : w v = some p) :
         p.IsChainFromTo r s v ∧ guessedLength w v = distance r s v := by
-      have hv : v ∈ round r s k := hselected ▸ mem_selected.mpr ⟨p, hp⟩
-      obtain ⟨q, hq, hchain, hlen⟩ := hin v hv
-      have : p = q := Option.some.inj (hp.symm.trans hq)
-      subst q
+      obtain ⟨q, hq, hchain, hlen⟩ := hin v (hselected ▸ mem_selected.mpr ⟨p, hp⟩)
+      obtain rfl := Option.some.inj (hp.symm.trans hq)
       exact ⟨hchain, Nat.add_right_cancel ((guessedLength_spec hp hchain).symm.trans hlen)⟩
-    refine ⟨fun v p hp => ?_, by rw [hselected], ?_⟩
-    · have hv : v ∈ round r s k := hselected ▸ mem_selected.mpr ⟨p, hp⟩
-      obtain ⟨hchain, hlen⟩ := hspec v p hp
-      exact ⟨hchain, hlen.symm ▸ (distance_spec (mem_round.mp hv)).2⟩
-    · refine Finset.sum_congr hselected fun v hv => ?_
-      obtain ⟨p, hp, _, _⟩ := hin v hv
-      exact (hspec v p hp).2
+    refine ⟨fun v p hp => ⟨(hspec v p hp).1, (hspec v p hp).2.symm ▸
+        (distance_spec (mem_round.mp (hselected ▸ mem_selected.mpr ⟨p, hp⟩))).2⟩,
+      by rw [hselected],
+      Finset.sum_congr hselected fun v hv => (hspec v _ (hin v hv).choose_spec.1).2⟩
 
 /-- A successful scan returns true exactly for vertices in the breadth-first round. -/
 theorem isSome_iff {w : Transcript α} (hw : Passes r s k w) :
     (w v).isSome ↔ v ∈ reachableWithin r s k := by
   obtain ⟨hin, hout⟩ := passes_iff.mp hw
   rw [← mem_round]
-  constructor
-  · intro h
-    by_contra hnot
-    simp [hout v hnot] at h
-  · intro hv
-    obtain ⟨p, hp, _, _⟩ := hin v hv
-    simp [hp]
+  refine ⟨fun h => of_not_not fun hnot => by simp [hout v hnot] at h, fun hv => ?_⟩
+  obtain ⟨p, hp, _, _⟩ := hin v hv
+  simp [hp]
 
 /-- The correct count and sum always admit a successful scan, even when shortest walks tie. -/
 theorem exists_passes : ∃ w, Passes r s k w := by
   classical
-  have hex (v : α) (hv : v ∈ round r s k) :
-      ∃ p : List α, p.IsChainFromTo r s v ∧ p.length = distance r s v + 1 :=
+  have hex (v : α) (hv : v ∈ round r s k) :=
     (distance_spec (mem_round.mp hv)).1.exists_isChainFromTo
-  let w : Transcript α := fun v => if hv : v ∈ round r s k then some (hex v hv).choose else none
-  refine ⟨w, passes_iff.mpr ⟨fun v hv => ?_, fun v hv => dite_eq_right hv⟩⟩
-  exact ⟨(hex v hv).choose, dite_eq_left hv, (hex v hv).choose_spec.1, (hex v hv).choose_spec.2⟩
+  exact ⟨fun v => if hv : v ∈ round r s k then some (hex v hv).choose else none,
+    passes_iff.mpr ⟨fun v hv => ⟨_, dite_eq_left hv, (hex v hv).choose_spec.1,
+      (hex v hv).choose_spec.2⟩, fun v hv => dite_eq_right hv⟩⟩
 
 /-- With exact counts, Figure 1 has exactly one successful transcript if and only if
 each round vertex has exactly one shortest walk from the source. -/
@@ -244,14 +225,12 @@ theorem existsUnique_passes_iff :
     let w' := Function.update w v (some q)
     have hw' : Passes r s k w' := by
       refine passes_iff.mpr ⟨fun u hu => ?_, fun u hu => ?_⟩
-      · by_cases heq : u = v
-        · subst u
-          exact ⟨q, Function.update_self _ _ _, hq.1, hq.2⟩
+      · rcases eq_or_ne u v with rfl | heq
+        · exact ⟨q, Function.update_self _ _ _, hq.1, hq.2⟩
         · simpa only [w', Function.update_of_ne heq] using hin u hu
-      · have hne : u ≠ v := fun heq => hu (heq.symm ▸ hv)
-        simpa only [w', Function.update_of_ne hne] using hout u hu
-    have heq := congrFun (huniq w' hw') v
-    exact Option.some.inj (by simpa [w', hp] using heq)
+      · simpa only [w', Function.update_of_ne (fun heq : u = v => hu (heq.symm ▸ hv))] using
+          hout u hu
+    exact Option.some.inj (by simpa [w', hp] using congrFun (huniq w' hw') v)
   · intro h
     obtain ⟨w, hw⟩ := exists_passes (r := r) (s := s) (k := k)
     obtain ⟨hin, hout⟩ := passes_iff.mp hw
@@ -274,9 +253,8 @@ theorem round_zero {α : Type*} [Fintype α] (r : α → α → Prop) (s : α) :
 /-- The initial tally counts the source, at distance zero. -/
 theorem expected_zero {α : Type*} [Fintype α] (r : α → α → Prop) (s : α) :
     expected r s 0 = ⟨1, 0⟩ := by
-  have hmem : s ∈ round r s 0 := by simp [round_zero]
-  have hd := (distance_spec (mem_round.mp hmem)).2
-  simp [expected, round_zero, Nat.eq_zero_of_le_zero hd]
+  have h0 : s ∈ reachableWithin r s 0 := by simp [reachableWithin_zero]
+  simp [expected, round_zero, Nat.eq_zero_of_le_zero (distance_spec h0).2]
 
 /-- The only successful radius-zero transcript selects the singleton walk at the source. -/
 theorem existsUnique_passes_zero {α : Type*} [Fintype α] (r : α → α → Prop) (s : α) :
@@ -285,8 +263,8 @@ theorem existsUnique_passes_zero {α : Type*} [Fintype α] (r : α → α → Pr
   rw [existsUnique_passes_iff, round_zero]
   intro v hv
   obtain rfl := mem_singleton.mp hv
-  have hmem : v ∈ round r v 0 := by simp [round_zero]
-  have hd := Nat.eq_zero_of_le_zero (distance_spec (mem_round.mp hmem)).2
+  have h0 : v ∈ reachableWithin r v 0 := by simp [reachableWithin_zero]
+  have hd := Nat.eq_zero_of_le_zero (distance_spec h0).2
   refine ⟨[v], ⟨List.isChainFromTo_singleton, by simp [hd]⟩, fun p hp => ?_⟩
   obtain ⟨a, rfl⟩ := List.length_eq_one_iff.mp (by simpa [hd] using hp.2)
   simpa using hp.1.getLast_eq
@@ -306,37 +284,30 @@ theorem existsUnique_passes_reindex {α β : Type*} [Fintype α] [Fintype β] (i
       ∃! t, Passes (fun u v => r (index.symm u) (index.symm v)) (index s) k t := by
   let r' (u v : β) := r (index.symm u) (index.symm v)
   have toIndex (u v : α) (h : r u v) : r' (index u) (index v) := by simpa [r'] using h
-  have fromIndex (u v : β) : r' u v → r (index.symm u) (index.symm v) := id
   have steps (v : α) (d : ℕ) :
-      RelatesInSteps r s v d ↔ RelatesInSteps r' (index s) (index v) d := by
-    refine ⟨RelatesInSteps.map index toIndex, fun h => ?_⟩
-    simpa only [Equiv.symm_apply_apply] using h.map index.symm fromIndex
+      RelatesInSteps r s v d ↔ RelatesInSteps r' (index s) (index v) d :=
+    ⟨RelatesInSteps.map index toIndex, fun h => by
+      simpa only [Equiv.symm_apply_apply] using h.map index.symm fun _ _ => id⟩
   have memRound (v : α) : v ∈ round r s k ↔ index v ∈ round r' (index s) k := by
     simp only [mem_round]
     exact exists_congr fun d => and_congr_right fun _ => steps v d
   have dist (v : α) (hv : v ∈ round r s k) :
-      distance r s v = distance r' (index s) (index v) := by
-    have ha := (distance_spec (mem_round.mp hv)).1
-    have hb := (distance_spec (mem_round.mp ((memRound v).mp hv))).1
-    exact le_antisymm (distance_le ((steps v _).mpr hb)) (distance_le ((steps v _).mp ha))
+      distance r s v = distance r' (index s) (index v) :=
+    le_antisymm
+      (distance_le ((steps v _).mpr (distance_spec (mem_round.mp ((memRound v).mp hv))).1))
+      (distance_le ((steps v _).mp (distance_spec (mem_round.mp hv)).1))
   have shortest (v : α) (hv : v ∈ round r s k) :
       (∃! p : List α, p.IsChainFromTo r s v ∧ p.length = distance r s v + 1) ↔
         ∃! p : List β, p.IsChainFromTo r' (index s) (index v) ∧
-          p.length = distance r' (index s) (index v) + 1 := by
-    apply index.listEquivOfEquiv.existsUnique_congr
-    intro xs
-    change (_ ∧ _) ↔ (xs.map index).IsChainFromTo r' (index s) (index v) ∧
-      (xs.map index).length = distance r' (index s) (index v) + 1
-    rw [List.length_map, ← dist v hv]
-    refine and_congr_left fun _ => ⟨chainMap index toIndex, fun h => ?_⟩
-    simpa [List.map_map, Function.comp_def] using chainMap index.symm fromIndex h
+          p.length = distance r' (index s) (index v) + 1 :=
+    index.listEquivOfEquiv.existsUnique_congr fun xs => by
+      simp only [Equiv.listEquivOfEquiv, Equiv.coe_fn_mk, List.length_map, ← dist v hv,
+        and_congr_left_iff]
+      exact fun _ => ⟨chainMap index toIndex, fun h => by
+        simpa [List.map_map, Function.comp_def] using chainMap index.symm (fun _ _ => id) h⟩
   rw [existsUnique_passes_iff, existsUnique_passes_iff]
-  change (∀ v ∈ round r s k, _) ↔ ∀ v ∈ round r' (index s) k, _
-  constructor
-  · intro h v hv
-    have hm := (memRound (index.symm v)).mpr (by simpa using hv)
-    simpa using (shortest (index.symm v) hm).mp (h _ hm)
-  · intro h v hv
-    exact (shortest v hv).mpr (h _ ((memRound v).mp hv))
+  refine ⟨fun h v hv => ?_, fun h v hv => (shortest v hv).mpr (h _ ((memRound v).mp hv))⟩
+  have hm := (memRound (index.symm v)).mpr (by simpa using hv)
+  simpa using (shortest (index.symm v) hm).mp (h _ hm)
 
 end Cslib.DoubleCounting

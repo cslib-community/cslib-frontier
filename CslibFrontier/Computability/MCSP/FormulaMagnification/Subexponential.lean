@@ -72,12 +72,10 @@ the counting exponent does not require a separate asymptotic estimate. -/
 theorem subexponentiallyBounded_computableFunctionsLogBound {s : ℕ → ℕ}
     (hs : SubexponentiallyBounded s) :
     SubexponentiallyBounded (fun n => computableFunctionsLogBound n (s n)) := by
-  have hbound : SubexponentiallyBounded
-      (fun n => (s n + 1) * (2 * (n + s n + 1) + 3)) :=
-    (hs.add (.const 1)).mul
-      (((SubexponentiallyBounded.const 2).mul
-        ((SubexponentiallyBounded.id.add hs).add (.const 1))).add (.const 3))
-  exact hbound.mono_of_le fun n => computableFunctionsLogBound_le_poly n (s n)
+  exact ((hs.add (.const 1)).mul
+    (((SubexponentiallyBounded.const 2).mul
+      ((SubexponentiallyBounded.id.add hs).add (.const 1))).add (.const 3))).mono_of_le
+    fun n => computableFunctionsLogBound_le_poly n (s n)
 
 /-- The encoded length `SuccinctMCSP.ofFunctionEncLength n (q n) (s n)` of a `SuccinctMCSP`
 query is subexponential when both its number of samples `q` and its circuit-size threshold `s`
@@ -85,11 +83,8 @@ are subexponential. -/
 theorem subexponentiallyBounded_ofFunctionEncLength {q s : ℕ → ℕ}
     (hq : SubexponentiallyBounded q) (hs : SubexponentiallyBounded s) :
     SubexponentiallyBounded (fun n => SuccinctMCSP.ofFunctionEncLength n (q n) (s n)) := by
-  have h8n : SubexponentiallyBounded (fun n => 8 * n + 10) :=
-    ((SubexponentiallyBounded.const 8).mul SubexponentiallyBounded.id).add (.const 10)
-  have h4n : SubexponentiallyBounded (fun n => 4 * n + 3) :=
-    ((SubexponentiallyBounded.const 4).mul SubexponentiallyBounded.id).add (.const 3)
-  exact (h4n.add (hq.mul h8n)).add hs
+  exact ((((SubexponentiallyBounded.const 4).mul .id).add (.const 3)).add
+    (hq.mul (((SubexponentiallyBounded.const 8).mul .id).add (.const 10)))).add hs
 
 /-- The encoded query length in the approximate-MCSP formula reduction is subexponential
 when both the circuit-size threshold and the inverse-error parameter are subexponential. -/

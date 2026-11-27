@@ -296,9 +296,7 @@ theorem aeval_polynomial {R : Type*} [CommSemiring R] [Algebra K R] (F : SPFormu
   let h : Homomorphism (sigmaPiInterpretationWith K (C : K → MvPolynomial (Fin n) K))
       (sigmaPiInterpretationWith K (algebraMap K R)) :=
     ⟨aeval x, fun op args => by cases op <;> simp [sigmaPiInterpretationWith]⟩
-  refine (F.map_eval h X).trans ?_
-  congr 1 with i : 1
-  exact aeval_X x i
+  exact (F.map_eval h X).trans (congrArg _ (funext (aeval_X x)))
 
 /-- Evaluating the polynomial computed by a formula at a point of `K` is evaluating the formula
 under `sigmaPiInterpretation K`. -/
@@ -337,41 +335,26 @@ variable {blk : Fin n → Fin d}
 
 /-- An input is set-multilinear exactly on its own block. -/
 theorem isSetMultilinear_input_iff {i : Fin n} {S : Finset (Fin d)} :
-    IsSetMultilinear blk (.input i : SPFormula K n) S ↔ S = {blk i} := by
-  constructor
-  · rintro ⟨⟩
-    rfl
-  · rintro rfl
-    exact .input i
+    IsSetMultilinear blk (.input i : SPFormula K n) S ↔ S = {blk i} :=
+  ⟨fun (.input _) => rfl, fun h => h ▸ .input i⟩
 
 /-- A constant is set-multilinear exactly on no block. -/
 theorem isSetMultilinear_const_iff {a : K} {S : Finset (Fin d)} :
-    IsSetMultilinear blk (const a : SPFormula K n) S ↔ S = ∅ := by
-  constructor
-  · rintro ⟨⟩
-    rfl
-  · rintro rfl
-    exact .const a
+    IsSetMultilinear blk (const a : SPFormula K n) S ↔ S = ∅ :=
+  ⟨fun (.const _) => rfl, fun h => h ▸ .const a⟩
 
 /-- A sum gate is set-multilinear on `S` exactly when all its arguments are. -/
 theorem isSetMultilinear_add_iff {m : ℕ} {c : Fin m → K} {F : Fin m → SPFormula K n}
     {S : Finset (Fin d)} :
-    IsSetMultilinear blk (add c F) S ↔ ∀ j, IsSetMultilinear blk (F j) S := by
-  constructor
-  · rintro ⟨⟩
-    assumption
-  · exact .add c F S
+    IsSetMultilinear blk (add c F) S ↔ ∀ j, IsSetMultilinear blk (F j) S :=
+  ⟨fun (.add _ _ _ hF) => hF, .add c F S⟩
 
 /-- A product gate is set-multilinear on `S` exactly when its arguments are set-multilinear on
 pairwise disjoint sets of blocks whose union is `S`. -/
 theorem isSetMultilinear_mul_iff {m : ℕ} {F : Fin m → SPFormula K n} {S : Finset (Fin d)} :
     IsSetMultilinear blk (mul F) S ↔ ∃ T : Fin m → Finset (Fin d), Pairwise (Disjoint on T) ∧
-      (∀ j, IsSetMultilinear blk (F j) (T j)) ∧ S = Finset.univ.biUnion T := by
-  constructor
-  · rintro ⟨⟩
-    exact ⟨_, ‹_›, ‹_›, rfl⟩
-  · rintro ⟨T, hT, hF, rfl⟩
-    exact .mul F T hT hF
+      (∀ j, IsSetMultilinear blk (F j) (T j)) ∧ S = Finset.univ.biUnion T :=
+  ⟨fun (.mul _ T hT hF) => ⟨T, hT, hF, rfl⟩, fun ⟨T, hT, hF, hS⟩ => hS ▸ .mul F T hT hF⟩
 
 /-- The formula `0`, a sum gate without arguments, is set-multilinear on every set of blocks. -/
 theorem isSetMultilinear_zero (S : Finset (Fin d)) :

@@ -109,14 +109,14 @@ structure IsPathMetricOn (C : Set S) (N : S → S → Prop) (ρ : S → S → �
 variable {N : S → S → Prop} {ρ : S → S → ℝ}
 
 theorem isPathMetricOn_univ : IsPathMetricOn Set.univ N ρ ↔ IsPathMetric N ρ :=
-  ⟨fun h => ⟨fun x => h.self x trivial, fun x y => h.one_le x trivial y trivial,
-      fun x y hxy => by
-        obtain ⟨z, -, hz⟩ := h.exists_step x trivial y trivial hxy
-        exact ⟨z, hz⟩⟩,
-    fun h => ⟨fun x _ => h.self x, fun x _ y _ => h.one_le x y,
-      fun x _ y _ hxy => by
-        obtain ⟨z, hz⟩ := h.exists_step x y hxy
-        exact ⟨z, trivial, hz⟩⟩⟩
+  ⟨fun ⟨h1, h2, h3⟩ => ⟨fun x => h1 x trivial, fun x y => h2 x trivial y trivial,
+      fun x y hxy =>
+        let ⟨z, _, hz⟩ := h3 x trivial y trivial hxy
+        ⟨z, hz⟩⟩,
+    fun ⟨h1, h2, h3⟩ => ⟨fun x _ => h1 x, fun x _ y _ => h2 x y,
+      fun x _ y _ hxy =>
+        let ⟨z, hz⟩ := h3 x y hxy
+        ⟨z, trivial, hz⟩⟩⟩
 
 namespace IsPathMetricOn
 
@@ -139,12 +139,10 @@ theorem lipschitz (h : IsPathMetricOn C N ρ) {f : S → ℝ} {L : ℝ} (hL : 0 
   | succ n ih =>
     intro x hx hxy
     by_cases hne : x = y
-    · rw [hne, sub_self, abs_zero, h.self y hy, mul_zero]
+    · simp [hne, h.self y hy]
     obtain ⟨z, hzC, hNz, hxz, hle⟩ := h.exists_step x hx y hy hne
-    have h1 := h.one_le x hx z hzC hxz
-    have hzy : ρ z y < n := by push_cast at hxy; linarith
-    calc |f x - f y| = |(f x - f z) + (f z - f y)| := by ring_nf
-      _ ≤ |f x - f z| + |f z - f y| := abs_add_le _ _
+    have hzy : ρ z y < n := by push_cast at hxy; linarith [h.one_le x hx z hzC hxz]
+    calc |f x - f y| ≤ |f x - f z| + |f z - f y| := abs_sub_le (f x) (f z) (f y)
       _ ≤ L * ρ x z + L * ρ z y := add_le_add (hN x hx z hzC hNz) (ih z hzC hzy)
       _ ≤ L * ρ x y := by rw [← mul_add]; exact mul_le_mul_of_nonneg_left hle hL
 
@@ -173,18 +171,17 @@ theorem isPathMetricOn_hammingDist {ι : Type*} [Fintype ι] {β : ι → Type*}
     (hC : ∀ x ∈ C, ∀ y ∈ C, ∀ i, Function.update x i (y i) ∈ C) :
     IsPathMetricOn C (fun x y : ∀ i, β i => hammingDist x y = 1)
       fun x y => (hammingDist x y : ℝ) where
-  self x _ := by rw [hammingDist_self, Nat.cast_zero]
+  self x _ := by simp
   one_le x _ y _ hxy := by exact_mod_cast hammingDist_pos.2 hxy
   exists_step x hx y hy hxy := by
     obtain ⟨i, hi⟩ := Function.ne_iff.1 hxy
-    have h1 : hammingDist x (Function.update x i (y i)) = 1 := hammingDist_update_of_ne hi
-    refine ⟨Function.update x i (y i), hC x hx y hy i, h1, fun h => hi ?_, ?_⟩
-    · have := congrFun h i
-      rwa [Function.update_self] at this
-    · have := hammingDist_update_update x y i (y i) (y i)
-      rw [Function.update_eq_self, ite_eq_left hi, ite_eq_right (not_not.2 rfl)] at this
-      rw [h1]
-      exact_mod_cast (by omega : 1 + hammingDist (Function.update x i (y i)) y ≤ hammingDist x y)
+    have h1 := hammingDist_update_of_ne hi
+    refine ⟨Function.update x i (y i), hC x hx y hy i, h1,
+      fun h => hi (by simpa using congrFun h i), ?_⟩
+    have hu := hammingDist_update_update x y i (y i) (y i)
+    rw [Function.update_eq_self, ite_eq_left hi, ite_eq_right (not_not.2 rfl)] at hu
+    exact_mod_cast (by omega : hammingDist x (Function.update x i (y i)) +
+      hammingDist (Function.update x i (y i)) y ≤ hammingDist x y)
 
 /-- Hamming distance is the path metric of the relation "at Hamming distance one". -/
 theorem isPathMetric_hammingDist {ι : Type*} [Fintype ι] {β : ι → Type*}
@@ -209,17 +206,16 @@ theorem lipschitz_sum_of_coupling_on {C : Set S} {f : S → ℝ} {L κ : ℝ} (h
   rw [← h1, ← h2, sum_map_mul, sum_map_mul, ← Finset.sum_sub_distrib]
   refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
   calc ∑ p, |(ω p).toReal * f p.1 - (ω p).toReal * f p.2|
-      ≤ ∑ p, (ω p).toReal * (L * ρ p.1 p.2) := by
-        refine Finset.sum_le_sum fun p _ => ?_
+      ≤ ∑ p, (ω p).toReal * (L * ρ p.1 p.2) := Finset.sum_le_sum fun p _ => by
         rw [← mul_sub, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
         by_cases hp : p ∈ ω.support
-        · have hp1 : p.1 ∈ C := hxC (h1 ▸ (PMF.mem_support_map_iff _ _ _).2 ⟨p, hp, rfl⟩)
-          have hp2 : p.2 ∈ C := hyC (h2 ▸ (PMF.mem_support_map_iff _ _ _).2 ⟨p, hp, rfl⟩)
-          exact mul_le_mul_of_nonneg_left (hf p.1 hp1 p.2 hp2) ENNReal.toReal_nonneg
-        · rw [PMF.apply_eq_zero_iff _ _ |>.2 hp, ENNReal.toReal_zero, zero_mul, zero_mul]
+        · exact mul_le_mul_of_nonneg_left
+            (hf _ (hxC (h1 ▸ (PMF.mem_support_map_iff _ _ _).2 ⟨p, hp, rfl⟩))
+                _ (hyC (h2 ▸ (PMF.mem_support_map_iff _ _ _).2 ⟨p, hp, rfl⟩))) ENNReal.toReal_nonneg
+        · simp [(PMF.apply_eq_zero_iff _ _).2 hp]
     _ = L * ∑ p, (ω p).toReal * ρ p.1 p.2 := by
         rw [Finset.mul_sum]
-        exact Finset.sum_congr rfl fun p _ => by ring
+        exact Finset.sum_congr rfl fun _ _ => by ring
     _ ≤ L * (κ * ρ x y) := mul_le_mul_of_nonneg_left hω hL
     _ = L * κ * ρ x y := by ring
 
@@ -249,25 +245,19 @@ theorem lipschitz_sum_pow_on {C : Set S} (hρ : IsPathMetricOn C N ρ)
   induction t generalizing x y with
   | zero =>
     have hpure (z : S) : ∑ a, ((P ^ 0) z a).toReal * f a = f z := by
-      rw [Finset.sum_eq_single z]
-      · simp
-      · intro b _ hb
-        simp [PMF.pure_apply_of_ne _ _ hb]
-      · simp
+      rw [Finset.sum_eq_single z (fun b _ hb => by simp [PMF.pure_apply_of_ne _ _ hb]) (by simp)]
+      simp
     rw [hpure, hpure, pow_zero, mul_one]
     exact hf x hx y hy
   | succ t ih =>
-    have hstep : ∀ a ∈ C, ∀ b ∈ C, N a b →
-        |∑ c, ((P ^ (t + 1)) a c).toReal * f c - ∑ c, ((P ^ (t + 1)) b c).toReal * f c| ≤
-          (L * κ ^ (t + 1)) * ρ a b := by
-      intro a ha b hb hab
-      obtain ⟨ω, h1, h2, hω⟩ := hc a ha b hb hab
-      rw [pow_succ_apply', pow_succ_apply', sum_bind_mul, sum_bind_mul]
-      calc _ ≤ L * κ ^ t * κ * ρ a b :=
-            lipschitz_sum_of_coupling_on (P := P) (by positivity)
-              (fun a' ha' b' hb' => ih ha' hb') (hP a ha) (hP b hb) ω h1 h2 hω
-        _ = L * κ ^ (t + 1) * ρ a b := by ring
-    exact hρ.lipschitz (by positivity) hstep hx hy
+    refine hρ.lipschitz (f := fun z => ∑ a, ((P ^ (t + 1)) z a).toReal * f a)
+      (L := L * κ ^ (t + 1)) (by positivity) (fun a ha b hb hab => ?_) hx hy
+    obtain ⟨ω, h1, h2, hω⟩ := hc a ha b hb hab
+    rw [pow_succ_apply', pow_succ_apply', sum_bind_mul, sum_bind_mul]
+    calc _ ≤ L * κ ^ t * κ * ρ a b :=
+          lipschitz_sum_of_coupling_on (P := P) (by positivity)
+            (fun _ ha' _ hb' => ih ha' hb') (hP a ha) (hP b hb) ω h1 h2 hω
+      _ = L * κ ^ (t + 1) * ρ a b := by ring
 
 /-- **Path coupling, Lipschitz form.** If every neighboring pair admits a one-step coupling that
 contracts `ρ` in expectation by `κ`, then `t` steps multiply `ρ`-Lipschitz constants by
@@ -295,23 +285,20 @@ theorem dist_pow_le_of_pathCoupling_on {C : Set S} (hρ : IsPathMetricOn C N ρ)
   set p := (P ^ t) x
   set q := (P ^ t) y
   set f : S → ℝ := fun a => if (q a).toReal < (p a).toReal then 1 else 0
-  have hf : ∀ a ∈ C, ∀ b ∈ C, |f a - f b| ≤ 1 * ρ a b := by
-    intro a ha b hb
+  have hf : ∀ a ∈ C, ∀ b ∈ C, |f a - f b| ≤ 1 * ρ a b := fun a ha b hb => by
     by_cases hab : a = b
-    · rw [hab, sub_self, abs_zero, hρ.self b hb, mul_zero]
-    · rw [one_mul]
-      refine le_trans ?_ (hρ.one_le a ha b hb hab)
-      simp only [f]
+    · simp [hab, hρ.self b hb]
+    · refine le_trans ?_ (by simpa using hρ.one_le a ha b hb hab)
+      dsimp only [f]
       split_ifs <;> norm_num
   have hd : dist p q = ∑ a, (p a).toReal * f a - ∑ a, (q a).toReal * f a := by
     rw [dist_eq_sum_filter_lt, ← Finset.sum_sub_distrib, Finset.sum_filter]
     refine Finset.sum_congr rfl fun a _ => ?_
-    simp only [f]
+    dsimp only [f]
     split_ifs <;> ring
   rw [hd]
-  have := lipschitz_sum_pow_on (P := P) hρ hP hκ hc zero_le_one hf t hx hy
-  rw [one_mul] at this
-  exact (le_abs_self _).trans this
+  exact (le_abs_self _).trans
+    (by simpa using lipschitz_sum_pow_on (P := P) hρ hP hκ hc zero_le_one hf t hx hy)
 
 /-- **Path coupling** ([LevinPeres2017], Theorem 14.6 with (14.7), after Bubley and Dyer): if
 every neighboring pair admits a one-step coupling that contracts `ρ` in expectation by `κ`, then
@@ -329,12 +316,10 @@ theorem distPair_le_of_pathCoupling [Nonempty S] (hρ : IsPathMetric N ρ) {κ :
     (hc : ∀ x y, N x y → ∃ ω : PMF (S × S), ω.map Prod.fst = P x ∧ ω.map Prod.snd = P y ∧
       ∑ p, (ω p).toReal * ρ p.1 p.2 ≤ κ * ρ x y)
     {D : ℝ} (hD : ∀ x y, ρ x y ≤ D) (t : ℕ) : P.distPair t ≤ κ ^ t * D := by
-  have hD0 : 0 ≤ D := by
-    obtain ⟨x⟩ := ‹Nonempty S›
-    simpa [hρ.self] using hD x x
-  refine P.distPair_le (fun x y => (dist_pow_le_of_pathCoupling hρ hκ hc t x y).trans ?_)
-    (by positivity)
-  exact mul_le_mul_of_nonneg_left (hD x y) (pow_nonneg hκ t)
+  have ⟨x₀⟩ := ‹Nonempty S›
+  have hD0 : 0 ≤ D := by simpa [hρ.self] using hD x₀ x₀
+  exact P.distPair_le (fun x y => (dist_pow_le_of_pathCoupling hρ hκ hc t x y).trans
+    (mul_le_mul_of_nonneg_left (hD x y) (pow_nonneg hκ t))) (by positivity)
 
 /-- **Path coupling bound on mixing from a closed set** ([LevinPeres2017], Corollary 14.8, for a
 chain confined to a closed set `C` that contains the support of the stationary `π`): from any
@@ -370,16 +355,14 @@ theorem IsStationary.mixingTime_le_of_pathCoupling {π : PMF S} (hπ : P.IsStati
     {D : ℝ} (hD0 : 0 < D) (hD : ∀ x y, ρ x y ≤ D) {ε : ℝ} (hε : 0 < ε) :
     P.mixingTime π ε ≤ (⌈(Real.log D - Real.log ε) / α⌉₊ : ℕ) := by
   set t := ⌈(Real.log D - Real.log ε) / α⌉₊
-  refine mixingTime_le_of_distToStationary_le ?_
-  refine (hπ.distToStationary_le_of_pathCoupling hρ hκ hc hD t).trans ?_
-  have ht : (Real.log D - Real.log ε) / α ≤ t := Nat.le_ceil _
+  refine mixingTime_le_of_distToStationary_le
+    ((hπ.distToStationary_le_of_pathCoupling hρ hκ hc hD t).trans ?_)
   have ht' : Real.log D - Real.log ε ≤ α * t := by
-    rwa [div_le_iff₀ hα, mul_comm] at ht
+    linarith [(div_le_iff₀ hα).mp (Nat.le_ceil ((Real.log D - Real.log ε) / α))]
   calc κ ^ t * D ≤ Real.exp (-α) ^ t * D :=
         mul_le_mul_of_nonneg_right (pow_le_pow_left₀ hκ hκα t) hD0.le
     _ = Real.exp (-(α * t) + Real.log D) := by
         rw [← Real.exp_nat_mul, Real.exp_add, Real.exp_log hD0]; ring_nf
-    _ ≤ Real.exp (Real.log ε) := Real.exp_le_exp.mpr (by linarith)
-    _ = ε := Real.exp_log hε
+    _ ≤ ε := Real.exp_log hε ▸ Real.exp_le_exp.mpr (by linarith)
 
 end Cslib.Probability.MarkovChain

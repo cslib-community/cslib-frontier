@@ -123,24 +123,21 @@ variable [Fintype α]
 /-- Moving `r` to the front creates exactly `l.idxOf r` inversions. -/
 theorem inversions_moveToFront {l : List α} (hl : IsArrangement l) (r : α) :
     inversions l (moveToFront r l) = l.idxOf r := by
-  refine le_antisymm ?_ ?_
-  · rw [← card_filter_idxOf_lt hl r, ← Finset.card_map (Function.Embedding.sectL α r)]
-    refine Finset.card_le_card fun ⟨x, y⟩ h => ?_
-    rw [mem_inversionSet] at h
-    have hyr : y = r := by
-      by_contra hyr
-      by_cases hxr : x = r
-      · subst hxr
-        rw [idxOf_moveToFront_self] at h
-        omega
-      · have := (idxOf_moveToFront_lt_iff hyr hxr l).1 h.2
-        omega
-    subst hyr
-    refine Finset.mem_map.2 ⟨x, ?_, rfl⟩
-    rw [Finset.mem_filter]
-    exact ⟨Finset.mem_univ _, h.1⟩
-  · have := idxOf_le_inversions_add hl (isArrangement_moveToFront hl r) r
-    rwa [idxOf_moveToFront_self, Nat.add_zero] at this
+  refine le_antisymm ?_
+    (by simpa only [idxOf_moveToFront_self, Nat.add_zero] using
+      idxOf_le_inversions_add hl (isArrangement_moveToFront hl r) r)
+  rw [← card_filter_idxOf_lt hl r, ← Finset.card_map (Function.Embedding.sectL α r)]
+  refine Finset.card_le_card fun ⟨x, y⟩ h => ?_
+  rw [mem_inversionSet] at h
+  obtain rfl : y = r := by
+    by_contra hyr
+    by_cases hxr : x = r
+    · subst hxr
+      rw [idxOf_moveToFront_self] at h
+      omega
+    · have := (idxOf_moveToFront_lt_iff hyr hxr l).1 h.2
+      omega
+  exact Finset.mem_map.2 ⟨x, Finset.mem_filter.2 ⟨Finset.mem_univ _, h.1⟩, rfl⟩
 
 /-- Move-to-front pays exactly the position of the requested item. -/
 theorem stepCost_moveToFront {l : List α} (hl : IsArrangement l) (r : α) :
@@ -160,17 +157,12 @@ theorem inversions_moveToFront_le {m L : List α} (hm : IsArrangement m) (hL : I
     rw [mem_inversionSet] at h
     rw [Finset.mem_union, Finset.mem_filter, mem_inversionSet]
     by_cases hxr : x = r
-    · subst hxr
-      left
-      refine Finset.mem_map.2 ⟨y, ?_, rfl⟩
-      rw [Finset.mem_filter]
-      exact ⟨Finset.mem_univ _, h.2⟩
+    · exact Or.inl (hxr ▸ Finset.mem_map.2 ⟨y, Finset.mem_filter.2 ⟨Finset.mem_univ _, h.2⟩, rfl⟩)
     · by_cases hyr : y = r
       · subst hyr
         rw [idxOf_moveToFront_self] at h
         omega
-      · right
-        exact ⟨⟨(idxOf_moveToFront_lt_iff hxr hyr m).1 h.1, h.2⟩, hxr, hyr⟩
+      · exact Or.inr ⟨⟨(idxOf_moveToFront_lt_iff hxr hyr m).1 h.1, h.2⟩, hxr, hyr⟩
   have h₁ := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
   rw [Finset.card_map, card_filter_idxOf_lt hL r] at h₁
   have h₂ := card_filter_ne_add_card_crossBefore_le m L r
@@ -193,10 +185,8 @@ theorem mtf_costFrom_add_inversions_add_length_le {m₀ s₀ : List α} (hm₀ :
     change 0 + inversions m₀ s₀ + 0 ≤ 2 * 0 + 0 + inversions m₀ s₀
     omega
   | cons s₀ r rs s' ss hvalid _ ih =>
-    have hs' := hvalid.2
-    have hm' := isArrangement_moveToFront hm₀ r
-    have hih := ih hm' hs'
-    have hstep := inversions_moveToFront_le hm₀ hs' r
+    have hih := ih (isArrangement_moveToFront hm₀ r) hvalid.2
+    have hstep := inversions_moveToFront_le hm₀ hvalid.2 r
     have htri := inversions_triangle m₀ hs₀ s'
     have hcost := stepCost_moveToFront hm₀ r
     change stepCost m₀ r (moveToFront r m₀) + (mtf α).costFrom (moveToFront r m₀) rs +
@@ -224,23 +214,21 @@ theorem mtf_cost_add_length_le {m₀ s₀ : List α} (hm₀ : IsArrangement m₀
     (mtf α).cost m₀ reqs + reqs.length ≤
       2 * (problem α).scheduleCost s₀ reqs states + inversions m₀ s₀ := by
   have h := mtf_cost_add_inversions_add_length_le hm₀ hs₀ hv
-  rw [scheduleCost_eq_accessCost_add_exchangeCost]
-  omega
+  rw [scheduleCost_eq_accessCost_add_exchangeCost]; omega
 
 /-- Move-to-front is `(2, 0)`-competitive from a common initial arrangement. -/
 theorem mtf_isCompetitive : (mtf α).IsCompetitive 2 0 := by
   intro s₀ hs₀ reqs states hv
   have h := mtf_cost_add_length_le hs₀ hs₀ hv
-  rw [inversions_self] at h
-  omega
+  rw [inversions_self] at h; omega
 
 /-- Move-to-front is `(2, n (n - 1) / 2)`-competitive across arbitrary initial arrangements, where
 `n = Fintype.card α`. -/
 theorem mtf_isCompetitiveAnyInit :
     (mtf α).IsCompetitiveAnyInit 2 (Fintype.card α * (Fintype.card α - 1) / 2) := by
   intro m₀ s₀ reqs states hm₀ hs₀ hv
-  have h := mtf_cost_add_length_le hm₀ hs₀ hv
-  have hI := two_mul_inversions_le m₀ s₀
+  have := mtf_cost_add_length_le hm₀ hs₀ hv
+  have := two_mul_inversions_le m₀ s₀
   omega
 
 end Cslib.DataStructure.ListUpdate

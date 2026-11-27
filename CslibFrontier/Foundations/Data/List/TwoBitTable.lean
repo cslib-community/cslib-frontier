@@ -49,19 +49,12 @@ theorem twoBitTable_eq_flatMap :
       [decide (0 < count u v), decide (1 < count u v)] := by
   have hval (n : ℕ) : (finRange n).map Fin.val = range n := by
     apply List.ext_getElem <;> simp
-  dsimp only [twoBitTable]
-  conv_rhs => rw [← hval]; simp only [flatMap_map]
-  apply flatMap_congr
-  intro u _
-  apply flatMap_congr
-  intro v _
-  simp [ofFn_succ]
+  simp only [twoBitTable, ← hval, flatMap_map]
+  exact flatMap_congr fun _ _ => flatMap_congr fun _ _ => by simp [ofFn_succ]
 
 /-- Exactly two bits are stored for each ordered pair of indices. -/
 @[simp] theorem length_twoBitTable : (twoBitTable N count).length = 2 * N ^ 2 := by
-  dsimp only [twoBitTable]
-  simp_rw [flatMap_ofFn_prod]
-  simp only [length_ofFn]
+  simp_rw [twoBitTable, flatMap_ofFn_prod, length_ofFn]
   ring
 
 /-- Reading a bit at its row-major address recovers the corresponding threshold. -/

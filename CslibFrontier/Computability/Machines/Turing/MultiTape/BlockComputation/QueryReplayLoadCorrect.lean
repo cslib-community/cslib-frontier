@@ -40,19 +40,12 @@ private theorem symbolCode_cellOfCode (n : ℕ) (hn : n ≤ 2) :
 private theorem windowCells_toView (b : ℕ) [NeZero b] (raw : RawResult k Q)
     (h : Fin k) (hlen : (raw.2.2.2 h).length = 3 * b) :
     windowCells b ((raw.toView b).2 h) = (raw.2.2.2 h).map cellOfCode := by
-  apply List.ext_getElem
-  · simp [windowCells, hlen]
-  · intro i hi hright
-    have hi' : i < 3 * b := by simpa only [windowCells, List.length_map,
-      List.length_range] using hi
-    have hd : i / b < 3 := (Nat.div_lt_iff_lt_mul (Nat.pos_of_neZero b)).mpr hi'
-    simp only [windowCells, List.getElem_map, List.getElem_range, hd, ↓reduceDIte,
-      RawResult.toView, ZMod.val_natCast]
-    have hid : i / b * b + i % b = i := by
-      simpa only [Nat.mul_comm] using Nat.div_add_mod i b
-    rw [hid]
-    have hc : i < (raw.2.2.2 h).length := by simpa only [List.length_map] using hright
-    rw [List.getD_eq_getElem _ _ hc]
+  refine List.ext_getElem (by simp [windowCells, hlen]) fun i hi hright => ?_
+  have hd : i / b < 3 :=
+    (Nat.div_lt_iff_lt_mul (Nat.pos_of_neZero b)).mpr (by simpa [windowCells] using hi)
+  simp [windowCells, hd, RawResult.toView, ZMod.val_natCast, Nat.mul_comm (i / b) b,
+    Nat.div_add_mod,
+    List.getElem?_eq_getElem (show i < (raw.2.2.2 h).length by simpa using hright)]
 
 private theorem inputPos_eq (N b positive negative residue : ℕ) :
     inputPos N b positive negative residue =
@@ -65,13 +58,10 @@ private theorem inputPos_eq (N b positive negative residue : ℕ) :
   rw [hp]
   change (if lo ≤ hi ∧ hi - lo < N + 2 then hi - lo else 0) = _
   by_cases hle : lo ≤ hi
-  · have hcast : ((hi - lo : ℕ) : ℤ) = (hi : ℤ) - lo := Nat.cast_sub hle
-    have hto : ((hi : ℤ) - lo).toNat = hi - lo := by rw [← hcast]; simp
-    by_cases hb : hi - lo < N + 2
-    · have hz : (hi : ℤ) - lo < N + 2 := by omega
-      simp [hle, hb, hz, hto]
-    · have hz : ¬ (hi : ℤ) - lo < N + 2 := by omega
-      simp [hle, hb, hz]
+  · have hto : ((hi : ℤ) - lo).toNat = hi - lo :=
+      (Nat.cast_sub (R := ℤ) hle) ▸ Int.toNat_natCast _
+    have hlt : ((hi : ℤ) - lo < N + 2) ↔ hi - lo < N + 2 := by omega
+    simp [hle, hlt, hto]
   · simp [hle]
 
 /-- Native loading is exactly the semantic view loader. Only the input block origin is stored
@@ -82,45 +72,32 @@ theorem load_eq_loadView (N b positive negative : ℕ) [NeZero b]
     load (N, b, (positive, negative), raw) = loadView N b J (raw.toView b) := by
   rcases raw with ⟨control, residues, track, cells⟩
   rcases hcanonical with ⟨hlen, hcodes⟩
-  apply Config.ext
-  · rfl
-  · rfl
-  · rfl
+  refine Config.ext rfl rfl rfl ?_ rfl ?_ ?_ rfl
   · simp only [load, loadView, RawResult.toView, hinput, ZMod.val_natCast]
     exact inputPos_eq N b positive negative (residues none)
-  · rfl
   · funext h
     simp only [load, loadView, RawResult.toView, ZMod.val_natCast]
   · funext h
     change cells h = List.ofFn (fun r : Fin (3 * b) => symbolCode (windowCell b J
       (RawResult.toView b (control, residues, track, cells)).2 h
         (b * (J (some h) - 1) + (r : ℤ))))
-    apply List.ext_getElem
-    · simp [hlen]
-    · intro i hi hright
-      have hi' : i < 3 * b := by simpa only [List.length_ofFn] using hright
-      have hcell := windowCell_eq b J
-        (RawResult.toView b (control, residues, track, cells)).2 h (i : ℤ)
-      rw [ite_eq_left (Int.natCast_nonneg i), Int.toNat_natCast,
-        windowCells_toView b (control, residues, track, cells) h (hlen h)] at hcell
-      have hc : i < (cells h).length := hi
-      rw [List.getElem_ofFn]
-      rw [hcell]
-      change (cells h)[i] = symbolCode (((cells h).map cellOfCode).getD i none)
-      rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using hc),
-        List.getElem_map]
-      exact (symbolCode_cellOfCode _ (hcodes h _ (List.getElem_mem hc))).symm
-  · rfl
+    refine List.ext_getElem (by simp [hlen]) fun i hi _ => ?_
+    have hcell := windowCell_eq b J
+      (RawResult.toView b (control, residues, track, cells)).2 h (i : ℤ)
+    rw [ite_eq_left (Int.natCast_nonneg i), Int.toNat_natCast,
+      windowCells_toView b (control, residues, track, cells) h (hlen h)] at hcell
+    rw [List.getElem_ofFn, hcell]
+    change (cells h)[i] = symbolCode (((cells h).map cellOfCode).getD i none)
+    rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using hi), List.getElem_map]
+    exact (symbolCode_cellOfCode _ (hcodes h _ (List.getElem_mem hi))).symm
 
 /-- The decoder constructs canonical explicit windows from every successful input label. -/
 theorem canonical_of_parse_some (e : Q ≃ Fin s) (b : ℕ) (word : List Bool)
     (raw : RawResult k Q) (hp : Encoding.NativeDecode.parse e (b, word) = some raw) :
     CanonicalWindows b raw := by
   obtain ⟨_, hlen, _, rfl⟩ := (Encoding.NativeDecode.parse_eq_some_iff e b word raw).mp hp
-  constructor
-  · exact Encoding.NativeDecode.length_payload_cells_of_length e b word hlen
-  · intro h n hn
-    exact Encoding.NativeDecode.mem_cells_le _ n hn
+  exact ⟨Encoding.NativeDecode.length_payload_cells_of_length e b word hlen,
+    fun _ => Encoding.NativeDecode.mem_cells_le _⟩
 
 /-- Canonical-code validation also provides the loader's concrete window invariants. -/
 theorem canonical_of_checked_some (e : Q ≃ Fin s) (b : ℕ) (word : List Bool)
@@ -142,14 +119,10 @@ theorem load_label_ofFn (e : Q ≃ Fin s) (N b positive negative : ℕ) [NeZero 
         (loadView N b J) := by
   have hd := Encoding.NativeChecked.parse_ofFn e b bits
   cases hp : Encoding.NativeChecked.parse (k := k) e (b, List.ofFn bits) with
-  | none =>
-    rw [hp, Option.map_none] at hd
-    rw [← hd]
-    simp only [Label.load, hp, Option.map_none]
+  | none => simp [Label.load, hp, ← hd]
   | some raw =>
-    rw [hp, Option.map_some] at hd
+    simp only [Label.load, hp, Option.map_some] at hd ⊢
     rw [← hd]
-    simp only [Label.load, hp, Option.map_some]
     exact congrArg some (load_eq_loadView N b positive negative raw
       (canonical_of_checked_some e b (List.ofFn bits) raw hp) J hinput)
 

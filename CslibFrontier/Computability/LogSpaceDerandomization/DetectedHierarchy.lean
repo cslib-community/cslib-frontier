@@ -77,23 +77,20 @@ def radixCopyEquiv (n m l : ℕ) :
 theorem radixCopyEquiv_val (n m l : ℕ) (a : Fin (n * (m + 1) ^ (l + 1))) :
     a.val = (ofLex (radixCopyEquiv n m l a)).2.val +
       (m + 1) * (ofLex (radixCopyEquiv n m l a)).1.val := by
-  have h := finProdFinEquiv_apply_val (ofLex (radixCopyEquiv n m l a))
-  simp only [radixCopyEquiv, Equiv.trans_apply, ofLex_toLex, Equiv.apply_symm_apply,
-    finCongr_apply, Fin.val_cast] at h
-  exact h
+  simpa only [radixCopyEquiv, Equiv.trans_apply, ofLex_toLex, Equiv.apply_symm_apply,
+    finCongr_apply, Fin.val_cast] using
+    finProdFinEquiv_apply_val (ofLex (radixCopyEquiv n m l a))
 
 /-- The radix identification reflects the order: copies are ordered by parent, then by symbol. -/
 theorem radixCopyEquiv_lt (n m l : ℕ) {a b : Fin (n * (m + 1) ^ (l + 1))}
     (h : radixCopyEquiv n m l a < radixCopyEquiv n m l b) : a < b := by
   rw [Fin.lt_def, radixCopyEquiv_val n m l a, radixCopyEquiv_val n m l b]
   rcases Prod.Lex.lt_iff.mp h with h1 | ⟨h1, h2⟩
-  · have hx : (ofLex (radixCopyEquiv n m l a)).1.val + 1 ≤
-        (ofLex (radixCopyEquiv n m l b)).1.val := h1
+  · have hx : (ofLex (radixCopyEquiv n m l a)).1.val < (ofLex (radixCopyEquiv n m l b)).1.val := h1
     have hy := (ofLex (radixCopyEquiv n m l a)).2.isLt
     nlinarith
   · rw [h1]
-    have : (ofLex (radixCopyEquiv n m l a)).2.val < (ofLex (radixCopyEquiv n m l b)).2.val := h2
-    omega
+    exact Nat.add_lt_add_right (Fin.lt_def.mp h2) _
 
 variable {q cπ Cπ Cpair Cvar : ℝ} (P : HierarchyParams q cπ Cπ Cpair Cvar) {V : ℕ → Type*}
   [∀ l, Fintype (V l)] [∀ l, LinearOrder (V l)] (e : ∀ l, V (l + 1) ≃ Lex (V l × Fin (P.m + 1)))
@@ -155,27 +152,23 @@ theorem hierarchy_invariant (he : ∀ l a b, e l a < e l b → a < b) {π : ℕ 
   induction l with
   | zero =>
     refine ⟨hS, hS0, hS1, fun x y => ?_⟩
-    have hrow : ∑ z, S x z ≤ 1 := by
-      have := hS1 x
-      simpa only [mulVec, dotProduct, Pi.one_apply, mul_one] using this
-    rw [pow_zero]
-    exact (single_le_sum (fun z _ => hS0 x z) (mem_univ y)).trans hrow
+    simpa only [hierarchy_zero, pow_zero] using
+      (single_le_sum (fun z _ => hS0 x z) (mem_univ y)).trans
+        (by simpa only [mulVec, dotProduct, Pi.one_apply, mul_one] using hS1 x)
   | succ l ih =>
     obtain ⟨hC, hC0, hC1, hCf⟩ := ih fun l' hl' => hch l' (by omega)
     have hf : 0 < q⁻¹ ^ l := by positivity
-    have hnext := P.next_isStrictUpperTriangular (X := X l) (Y := Y l) hf hC
-    have hrow := P.next_mulVec_one_le (X := X l) (Y := Y l) hf hC0 hC1
-    refine ⟨fun a b hab => hnext fun h => hab (he l a b h),
-      fun a b => P.next_nonneg hf hC0 _ _, fun a => ?_, fun a b => ?_⟩
-    · have h1 := hrow (e l a)
+    refine ⟨fun a b hab => P.next_isStrictUpperTriangular hf hC fun h => hab (he l a b h),
+      fun _ _ => P.next_nonneg hf hC0 _ _, fun a => ?_, fun a b => ?_⟩
+    · have h1 := P.next_mulVec_one_le (X := X l) (Y := Y l) hf hC0 hC1 (e l a)
       simp only [mulVec, dotProduct, Pi.one_apply, mul_one] at h1 ⊢
       calc ∑ b, hierarchy P e X Y S (l + 1) a b
           = ∑ c, P.next (X l) (Y l) (q⁻¹ ^ l) (hierarchy P e X Y S l) (e l a) c :=
             Fintype.sum_equiv (e l) _ _ fun _ => rfl
         _ ≤ 1 := h1
-    · have := (P.stage_rates (hch l (by omega)) hCπ hf hC hC0 hCf hC1 (A := univ)
-        (fun _ _ _ => ⟨mem_univ _, mem_univ _⟩)).1 (e l a) (e l b)
-      calc hierarchy P e X Y S (l + 1) a b ≤ q⁻¹ ^ l / q := this
+    · calc hierarchy P e X Y S (l + 1) a b
+          ≤ q⁻¹ ^ l / q := (P.stage_rates (hch l (by omega)) hCπ hf hC hC0 hCf hC1 (A := univ)
+            (fun _ _ _ => ⟨mem_univ _, mem_univ _⟩)).1 (e l a) (e l b)
         _ = q⁻¹ ^ (l + 1) := by rw [pow_succ, div_eq_mul_inv]
 
 /-- The active vertices of a matrix: those with a nonzero entry in their row or column. -/
@@ -205,43 +198,33 @@ theorem sub_hierarchyReward_le (he : ∀ l a b, e l a < e l b → a < b) {π : �
         (primaryCopy P e x l) ≤ Fintype.card (V 0) * ((2 : ℝ) ^ c)⁻¹ ^ l := by
   have hq0 : 0 < q := by rw [hq]; positivity
   have hinv := fun l => hierarchy_invariant he hq0 hCπ hS hS0 hS1 l fun l' _ => hch l'
-  have hf : ∀ l, 0 < q⁻¹ ^ l := fun l => by positivity
-  have hrates := fun l => P.stage_rates (hch l) hCπ (hf l) (hinv l).1 (hinv l).2.1
-    (hinv l).2.2.2 (hinv l).2.2.1 (A := active (hierarchy P e X Y S l))
-    fun _ _ h => mem_active h
+  have hrates := fun l => P.stage_rates (hch l) hCπ (by positivity) (hinv l).1 (hinv l).2.1
+    (hinv l).2.2.2 (hinv l).2.2.1 (A := active (hierarchy P e X Y S l)) fun _ _ => mem_active
   refine sub_rewardTransport_mulVec_le_of_rates (V := V) (C := hierarchy P e X Y S)
     (E := hierarchyCorrection P e X Y S) (P := hierarchyProj P e X Y S)
     (fun l a w => P.proj_nonneg _ _) (fun l a => P.proj_mulVec_one_le (e l a))
     (fun l => (hinv l).2.1) (fun l => ?_) hp hp0 hp1 (z := primaryCopy P e x)
-    (fun l w => ?_) (fun a b => by simpa using (hinv 0).2.2.2 a b) (fun l _ a b => ?_)
+    (fun l w => ?_) (fun a b => by simpa using (hinv 0).2.2.2 a b)
+    (fun l _ a b => hq ▸ (hinv (l + 1)).2.2.2 a b)
     (fun l => active (hierarchy P e X Y S l)) (fun l _ _ h => (mem_active h).2)
     (card_le_univ _) (fun l => ?_) l
   · -- the intertwining, transported by `e l`
-    have hl : hierarchy P e X Y S (l + 1) * hierarchyProj P e X Y S l =
-        (P.next (X l) (Y l) (q⁻¹ ^ l) (hierarchy P e X Y S l) *
-          P.proj (X l) (Y l) (q⁻¹ ^ l) (hierarchy P e X Y S l)).submatrix (e l) id :=
-      (submatrix_mul _ _ _ _ _ (e l).bijective).symm
-    have hr : hierarchyProj P e X Y S l * (hierarchy P e X Y S l -
-        hierarchyCorrection P e X Y S l +
-          hierarchyCorrection P e X Y S l * hierarchy P e X Y S l) =
-        (P.proj (X l) (Y l) (q⁻¹ ^ l) (hierarchy P e X Y S l) *
-          P.residual (X l) (Y l) (q⁻¹ ^ l) (hierarchy P e X Y S l)).submatrix (e l) id := by
-      rw [HierarchyParams.residual_eq]
-      ext a z
-      rfl
-    rw [hl, hr, (hrates l).2.1]
+    calc hierarchy P e X Y S (l + 1) * hierarchyProj P e X Y S l
+        = (P.next (X l) (Y l) (q⁻¹ ^ l) (hierarchy P e X Y S l) *
+            P.proj (X l) (Y l) (q⁻¹ ^ l) (hierarchy P e X Y S l)).submatrix (e l) id :=
+          (submatrix_mul _ _ _ _ _ (e l).bijective).symm
+      _ = _ := by
+        rw [(hrates l).2.1, HierarchyParams.residual_eq]
+        ext a z
+        rfl
   · -- primary copies project to their parents
-    simp only [hierarchyProj, primaryCopy, submatrix_apply, id, Equiv.apply_symm_apply]
-    exact P.proj_primary _ w
-  · calc hierarchy P e X Y S (l + 1) a b ≤ q⁻¹ ^ (l + 1) := (hinv (l + 1)).2.2.2 a b
-      _ = ((2 : ℝ) ^ (c + 1))⁻¹ ^ (l + 1) := by rw [hq]
+    simpa only [hierarchyProj, primaryCopy, submatrix_apply, id, Equiv.apply_symm_apply] using
+      P.proj_primary _ w
   · -- the active vertices of the next stage map injectively into the copy cover
     classical
     refine (card_le_card_of_injOn (fun a => ofLex (e l a)) (fun a ha => mem_coe.mpr ?_)
-      (fun a _ b _ h => (e l).injective (ofLex.injective h))).trans (hrates l).2.2.2
-    rw [mem_coe] at ha
-    simp only [active, mem_filter, mem_univ, true_and] at ha
-    obtain ⟨b, hb | hb⟩ := ha
+      fun _ _ _ _ h => (e l).injective (ofLex.injective h)).trans (hrates l).2.2.2
+    obtain ⟨b, hb | hb⟩ := (mem_filter.mp (mem_coe.mp ha)).2
     · exact ((hrates l).2.2.1 (e l a) (e l b) hb).1
     · exact ((hrates l).2.2.1 (e l b) (e l a) hb).2
 

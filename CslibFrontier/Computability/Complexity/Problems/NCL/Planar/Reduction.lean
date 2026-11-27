@@ -49,8 +49,7 @@ namespace PlanarAndOrNCL
 @[fun_prop]
 theorem computableInPolyTime_reduce :
     ComputableInPolyTime reduce encPrenexCNF encAndOrNCL := by
-  unfold reduce
-  fun_prop
+  fun_prop [reduce]
 
 /-- Every source input emits a valid planar graph without self-loops. -/
 theorem reduce_spec (x : PrenexCNF) :
@@ -61,10 +60,9 @@ theorem reduce_spec (x : PrenexCNF) :
 /-- The explicit planar graph instance accepts exactly the source language. -/
 theorem reduce_mem_iff (x : PrenexCNF) : reduce x ∈ PlanarAndOrNCL ↔ x ∈ TQBFCNF := by
   have h := (PlaneWordAndOrNCL.reduce_spec x).1
-  change (reduce x ∈ AndOrNCL ∧ (reduce x).graph.IsPlanar) ↔ _
-  rw [and_iff_left (reduce_spec x).2.1]
-  simpa only [PlaneWordAndOrNCL, Set.mem_ofPred_eq, h.1, h.2.1, true_and, reduce] using
-    PlaneWordAndOrNCL.reduce_mem_iff x
+  simpa only [PlanarAndOrNCL, PlaneWordAndOrNCL, Set.mem_ofPred_eq,
+    Word.isPlanar_compile h.1 h.2.1 h.2.2.1, and_true, h.1, h.2.1, true_and, reduce] using
+      PlaneWordAndOrNCL.reduce_mem_iff x
 
 end PlanarAndOrNCL
 
@@ -79,8 +77,7 @@ namespace PlanarAndOrNCLEdge
 @[fun_prop]
 theorem computableInPolyTime_reduce :
     ComputableInPolyTime reduce encPrenexCNF encAndOrNCLEdge := by
-  unfold reduce
-  fun_prop
+  fun_prop [reduce]
 
 /-- Every source input emits a valid planar graph without self-loops. -/
 theorem reduce_spec (x : PrenexCNF) :
@@ -91,10 +88,9 @@ theorem reduce_spec (x : PrenexCNF) :
 /-- The explicit planar graph instance accepts exactly the source language. -/
 theorem reduce_mem_iff (x : PrenexCNF) : reduce x ∈ PlanarAndOrNCLEdge ↔ x ∈ TQBFCNF := by
   have h := (PlaneWordAndOrNCLEdge.reduce_spec x).1
-  change (reduce x ∈ AndOrNCLEdge ∧ (reduce x).graph.IsPlanar) ↔ _
-  rw [and_iff_left (reduce_spec x).2.1]
-  simpa only [PlaneWordAndOrNCLEdge, Set.mem_ofPred_eq, h.1, h.2.1, true_and, reduce] using
-    PlaneWordAndOrNCLEdge.reduce_mem_iff x
+  simpa only [PlanarAndOrNCLEdge, PlaneWordAndOrNCLEdge, Set.mem_ofPred_eq,
+    Word.isPlanar_compile h.1 h.2.1 h.2.2.1, and_true, h.1, h.2.1, true_and, reduce] using
+      PlaneWordAndOrNCLEdge.reduce_mem_iff x
 
 end PlanarAndOrNCLEdge
 
@@ -109,8 +105,7 @@ namespace PlanarAndOrNCLEdgeToEdge
 @[fun_prop]
 theorem computableInPolyTime_reduce :
     ComputableInPolyTime reduce encPrenexCNF encAndOrNCLEdgeToEdge := by
-  unfold reduce
-  fun_prop
+  fun_prop [reduce]
 
 /-- Every source input emits a valid planar graph without self-loops. -/
 theorem reduce_spec (x : PrenexCNF) :
@@ -121,10 +116,9 @@ theorem reduce_spec (x : PrenexCNF) :
 /-- The explicit planar graph instance accepts exactly the source language. -/
 theorem reduce_mem_iff (x : PrenexCNF) : reduce x ∈ PlanarAndOrNCLEdgeToEdge ↔ x ∈ TQBFCNF := by
   have h := (PlaneWordAndOrNCLEdgeToEdge.reduce_spec x).1
-  change (reduce x ∈ AndOrNCLEdgeToEdge ∧ (reduce x).graph.IsPlanar) ↔ _
-  rw [and_iff_left (reduce_spec x).2.1]
-  simpa only [PlaneWordAndOrNCLEdgeToEdge, Set.mem_ofPred_eq, h.1, h.2.1, true_and, reduce] using
-    PlaneWordAndOrNCLEdgeToEdge.reduce_mem_iff x
+  simpa only [PlanarAndOrNCLEdgeToEdge, PlaneWordAndOrNCLEdgeToEdge, Set.mem_ofPred_eq,
+    Word.isPlanar_compile h.1 h.2.1 h.2.2.1, and_true, h.1, h.2.1, true_and, reduce] using
+      PlaneWordAndOrNCLEdgeToEdge.reduce_mem_iff x
 
 end PlanarAndOrNCLEdgeToEdge
 

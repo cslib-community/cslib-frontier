@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.CDCL.System
+public import CslibFrontier.Algorithms.WordRAM.ClauseCode
+public import CslibFrontier.Foundations.Data.Array.SetGrow
 
 /-! # Assignments indexed by variable
 
@@ -39,6 +41,7 @@ without repeated variables has an array agreeing with it (`Assign.agrees_ofTrail
 namespace Cslib.Algorithms.Lean.CDCL
 
 open Cslib.Logic.PL
+open Cslib.Algorithms.WordRAM.ClauseCode (litCode litCodeBy litCode_injective)
 
 /-- **An assignment indexed by variable**: the value of each variable, if it has one, stored as a
 small number (`Assign.code`): `0` for none, `1` for `false`, `2` for `true`. Small numbers are
@@ -49,8 +52,11 @@ structure Assign where
 
 namespace Assign
 
+/-- The empty assignment, which the solver's state holds while its assignment is taken out of it. -/
+def empty : Assign := ⟨#[]⟩
+
 /-- The code of a value: `0` for none, `1` for `false`, `2` for `true`. -/
-def code : Option Bool → ℕ
+@[inline] def code : Option Bool → ℕ
   | none => 0
   | some false => 1
   | some true => 2
@@ -72,25 +78,18 @@ still runs it. -/
 def value (A : Assign) (v : ℕ) : Option Bool := decode (A.vals.getD v 0)
 
 /-- **Whether the literal `l` is true**, read on the code of its variable. -/
-def holds (A : Assign) (l : Literal ℕ) : Bool :=
+@[inline] def holds (A : Assign) (l : Literal ℕ) : Bool :=
   match A.vals.getD l.1 0 with
   | 0 => false
   | 1 => !l.2
   | _ => l.2
 
 /-- **Whether the literal `l` is false**: `holds` of its negation, without building the negation. -/
-def isFalse (A : Assign) (l : Literal ℕ) : Bool :=
+@[inline] def isFalse (A : Assign) (l : Literal ℕ) : Bool :=
   match A.vals.getD l.1 0 with
   | 0 => false
   | 1 => l.2
   | _ => !l.2
-
-/-- **Whether two literals are equal**, comparing the variables and the signs directly, without
-the generic calls of the instance on pairs. -/
-def litEq (a b : Literal ℕ) : Bool := a.1 == b.1 && a.2 == b.2
-
-theorem litEq_eq_decide (a b : Literal ℕ) : litEq a b = decide (a = b) := by
-  obtain ⟨_, _⟩ := a; obtain ⟨_, _⟩ := b; simp only [litEq, Prod.mk.injEq, Bool.decide_and]; rfl
 
 private theorem holds_eq_true (A : Assign) (l : Literal ℕ) :
     A.holds l = true ↔ A.value l.1 = some l.2 := by
@@ -108,7 +107,7 @@ private theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) :
   rcases c with _ | _ | c <;> cases x <;> rfl
 
 /-- **Whether the variable `v` is assigned.** -/
-def assigned (A : Assign) (v : ℕ) : Bool := A.vals.getD v 0 != 0
+@[inline] def assigned (A : Assign) (v : ℕ) : Bool := A.vals.getD v 0 != 0
 
 /-- A variable is assigned when it has a value. -/
 theorem assigned_eq_isSome (A : Assign) (v : ℕ) : A.assigned v = (A.value v).isSome := by
@@ -117,16 +116,14 @@ theorem assigned_eq_isSome (A : Assign) (v : ℕ) : A.assigned v = (A.value v).i
   rcases c with _ | _ | c <;> rfl
 
 /-- Setting the value of `v` to `x`, growing the array if needed. -/
-def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign :=
-  if v < A.vals.size then ⟨A.vals.set! v (code x)⟩
-  else ⟨(A.vals ++ Array.replicate (v - A.vals.size) 0).push (code x)⟩
+@[inline] def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign := ⟨A.vals.setGrow v 0 (code x)⟩
 
 /-- Assigning the literal `l`. -/
-def assign (A : Assign) (l : Literal ℕ) : Assign := A.set l.1 (some l.2)
+@[inline] def assign (A : Assign) (l : Literal ℕ) : Assign := A.set l.1 (some l.2)
 
 /-- Unassigning the variable `v`: an update within the array, which is left as it is if `v` is past
 its end, since `v` then has no value. -/
-def clear (A : Assign) (v : ℕ) : Assign := ⟨A.vals.setIfInBounds v 0⟩
+@[inline] def clear (A : Assign) (v : ℕ) : Assign := ⟨A.vals.setIfInBounds v 0⟩
 
 /-- Unassigning the variables `vs`. It never grows the array. -/
 def unassign (A : Assign) (vs : List ℕ) : Assign := vs.foldl (fun A v => A.clear v) A
@@ -147,32 +144,10 @@ theorem ofTrail_nil : ofTrail [] = ⟨#[]⟩ := rfl
 theorem ofTrail_cons (e : Entry) (M : Trail) : ofTrail (e :: M) = (ofTrail M).assign e.lit :=
   assignTrail_cons _ e M
 
-private theorem getD_set (A : Assign) (v w : ℕ) (x : Option Bool) :
-    (A.set v x).vals.getD w 0 = if w = v then code x else A.vals.getD w 0 := by
-  unfold set
-  split
-  · rename_i hv
-    simp only [Array.set!_eq_setIfInBounds, Array.getD_eq_getD_getElem?,
-      Array.getElem?_setIfInBounds]
-    by_cases hw : w = v
-    · subst hw; simp [hv]
-    · simp [hw, Ne.symm hw]
-  · rename_i hv
-    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push, Array.size_append,
-      Array.size_replicate, Array.getElem?_append, Array.getElem?_replicate]
-    by_cases hw : w = v
-    · subst hw; simp only [↓reduceIte]; split <;> first | rfl | omega
-    · have : ¬ w = A.vals.size + (v - A.vals.size) := by omega
-      simp only [hw, this, ↓reduceIte]
-      by_cases hlt : w < A.vals.size
-      · simp [hlt]
-      · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : A.vals.size ≤ w)]
-        split <;> rfl
-
 theorem value_set (A : Assign) (v w : ℕ) (x : Option Bool) :
     (A.set v x).value w = if w = v then x else A.value w := by
-  unfold value
-  rw [getD_set]
+  unfold value set
+  rw [Array.getD_setGrow]
   split <;> simp
 
 theorem assigned_set (A : Assign) (v w : ℕ) (x : Option Bool) :
@@ -183,10 +158,8 @@ theorem assigned_set (A : Assign) (v w : ℕ) (x : Option Bool) :
 theorem value_clear (A : Assign) (v w : ℕ) :
     (A.clear v).value w = if w = v then none else A.value w := by
   unfold clear value
-  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds]
-  by_cases hw : w = v
-  · subst hw; simp only [↓reduceIte]; split <;> simp
-  · simp [hw, Ne.symm hw]
+  rw [Array.getD_setIfInBounds_self]
+  split <;> simp
 
 theorem size_clear (A : Assign) (v : ℕ) : (A.clear v).vals.size = A.vals.size := by
   simp [clear]
@@ -331,6 +304,22 @@ theorem assigned_mark (A : Assign) (vs : List ℕ) (v : ℕ) :
   simp only [assigned_eq_isSome, value_mark]
   split <;> simp_all
 
+/-- **Marking the variables of the literals `C`**: `mark` of their variables (`markLits_eq`),
+without listing them. -/
+def markLits (A : Assign) (C : List (Literal ℕ)) : Assign :=
+  C.foldl (fun A y => A.set y.1 (some true)) A
+
+theorem markLits_eq (A : Assign) (C : List (Literal ℕ)) : A.markLits C = A.mark (C.map Prod.fst) :=
+  by rw [markLits, mark, List.foldl_map]
+
+/-- **Unassigning the variables of the literals `C`**: `unassign` of their variables
+(`unassignLits_eq`), without listing them. -/
+def unassignLits (A : Assign) (C : List (Literal ℕ)) : Assign := C.foldl (fun A y => A.clear y.1) A
+
+theorem unassignLits_eq (A : Assign) (C : List (Literal ℕ)) :
+    A.unassignLits C = A.unassign (C.map Prod.fst) := by
+  rw [unassignLits, unassign, List.foldl_map]
+
 /-- An array in which exactly the variables `vs` are assigned. It is sized once for the greatest
 of them, so that marking never grows it. -/
 def marks (vs : List ℕ) : Assign := (⟨Array.replicate (vs.foldl max 0 + 1) 0⟩ : Assign).mark vs
@@ -348,9 +337,12 @@ end Assign
 
 /-! ### Removing repetitions in linear time -/
 
-/-- The elements of `xs` not yet marked in `m` by their keys, in order, after `acc` reversed. -/
-@[specialize] def dedupKeyGo {α : Type} (key : α → ℕ) : List α → Array Bool → List α → List α
-  | [], _, acc => acc.reverse
+/-- The elements of `xs` not yet marked in `m` by their keys, in order, after `acc` reversed, and
+the marks with those elements marked too. A caller that keeps its marks between lists reads both
+(`dedupWith`); `dedupKey` reads the first. -/
+@[specialize] def dedupKeyGo {α : Type} (key : α → ℕ) :
+    List α → Array Bool → List α → List α × Array Bool
+  | [], m, acc => (acc.reverse, m)
   | x :: xs, m, acc =>
     if m.getD (key x) false then dedupKeyGo key xs m acc
     else dedupKeyGo key xs (m.setIfInBounds (key x) true) (x :: acc)
@@ -362,7 +354,7 @@ dense, as they are for literals once `solveCompact` has renamed the variables to
 not for sparse keys. With an injective key, the elements are those of `xs` (`mem_dedupKey`), each
 once (`nodup_dedupKey`). -/
 @[specialize] def dedupKey {α : Type} (key : α → ℕ) (xs : List α) : List α :=
-  dedupKeyGo key xs (Array.replicate (xs.foldl (fun a x => max a (key x)) 0 + 1) false) []
+  (dedupKeyGo key xs (Array.replicate (xs.foldl (fun a x => max a (key x)) 0 + 1) false) []).1
 
 theorem lt_foldl_max {α : Type} (key : α → ℕ) :
     ∀ (xs : List α) (a : ℕ), (∀ x ∈ xs, key x < xs.foldl (fun a x => max a (key x)) a + 1) ∧
@@ -376,21 +368,32 @@ theorem lt_foldl_max {α : Type} (key : α → ℕ) :
       simp only [List.foldl_cons]; omega
     · exact h₁ y hy
 
-theorem dedupKeyGo_spec {α : Type} {key : α → ℕ} (hkey : Function.Injective key) :
-    ∀ (xs : List α) (m : Array Bool) (acc : List α), (∀ x ∈ xs, key x < m.size) →
-      (∀ y, m.getD (key y) false = true ↔ y ∈ acc) → acc.Nodup →
-      (∀ y, y ∈ dedupKeyGo key xs m acc ↔ y ∈ acc ∨ y ∈ xs) ∧ (dedupKeyGo key xs m acc).Nodup
-  | [], m, acc, _, _, hnd => ⟨fun y => by simp [dedupKeyGo], by simpa [dedupKeyGo] using hnd⟩
-  | x :: xs, m, acc, hsize, hm, hnd => by
+/-- **What removing repetitions keeps**, with a key injective on the elements of `acc` and `xs`:
+the elements of both, each once; the marks hold the keys of the elements kept. -/
+theorem dedupKeyGo_spec {α : Type} {key : α → ℕ} :
+    ∀ (xs : List α) (m : Array Bool) (acc : List α),
+      (∀ x ∈ acc ++ xs, ∀ y ∈ acc ++ xs, key x = key y → x = y) → (∀ x ∈ xs, key x < m.size) →
+      (∀ y, m.getD (key y) false = true ↔ ∃ z ∈ acc, key z = key y) → acc.Nodup →
+      (∀ y, y ∈ (dedupKeyGo key xs m acc).1 ↔ y ∈ acc ∨ y ∈ xs) ∧
+        (dedupKeyGo key xs m acc).1.Nodup ∧
+        ∀ y, (dedupKeyGo key xs m acc).2.getD (key y) false = true ↔
+          ∃ z ∈ (dedupKeyGo key xs m acc).1, key z = key y
+  | [], m, acc, _, _, hm, hnd =>
+    ⟨fun y => by simp [dedupKeyGo], by simpa [dedupKeyGo] using hnd,
+      fun y => by simpa [dedupKeyGo] using hm y⟩
+  | x :: xs, m, acc, hkey, hsize, hm, hnd => by
     have hx : key x < m.size := hsize x List.mem_cons_self
     have hsize' : ∀ y ∈ xs, key y < m.size := fun y hy => hsize y (List.mem_cons_of_mem _ hy)
+    have hkey' : ∀ x' ∈ acc ++ xs, ∀ y ∈ acc ++ xs, key x' = key y → x' = y :=
+      fun a ha b hb => hkey a (by simp at ha ⊢; tauto) b (by simp at hb ⊢; tauto)
     rw [dedupKeyGo]
     by_cases hmark : m.getD (key x) false = true
     · rw [ite_eq_left hmark]
-      obtain ⟨h₁, h₂⟩ := dedupKeyGo_spec hkey xs m acc hsize' hm hnd
-      refine ⟨fun y => ?_, h₂⟩
+      obtain ⟨h₁, h₂, h₃⟩ := dedupKeyGo_spec xs m acc hkey' hsize' hm hnd
+      refine ⟨fun y => ?_, h₂, h₃⟩
       rw [h₁]
-      have hxa : x ∈ acc := (hm x).1 hmark
+      obtain ⟨z, hz, hzx⟩ := (hm x).1 hmark
+      have hxa : x ∈ acc := hkey z (by simp [hz]) x (by simp) hzx ▸ hz
       simp only [List.mem_cons]
       constructor
       · rintro (h | h)
@@ -401,69 +404,139 @@ theorem dedupKeyGo_spec {α : Type} {key : α → ℕ} (hkey : Function.Injectiv
         · exact .inl hxa
         · exact .inr h
     · rw [ite_eq_right hmark]
-      have hm' : ∀ y, (m.setIfInBounds (key x) true).getD (key y) false = true ↔ y ∈ x :: acc :=
-        fun y => by
-          simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds, List.mem_cons]
-          by_cases hyx : key x = key y
-          · have := hkey hyx
-            subst this
-            simp [hx]
-          · rw [ite_eq_right hyx]
-            have := hm y
-            simp only [Array.getD_eq_getD_getElem?] at this
-            rw [this]
-            exact ⟨.inr, fun h => h.resolve_left fun h' => hyx (h' ▸ rfl)⟩
-      have hnd' : (x :: acc).Nodup := List.nodup_cons.2 ⟨fun h => hmark ((hm x).2 h), hnd⟩
-      obtain ⟨h₁, h₂⟩ := dedupKeyGo_spec hkey xs _ (x :: acc)
+      have hm' : ∀ y, (m.setIfInBounds (key x) true).getD (key y) false = true ↔
+          ∃ z ∈ x :: acc, key z = key y := fun y => by
+        by_cases hyx : key x = key y
+        · have : (m.setIfInBounds (key x) true).getD (key y) false = true := by
+            rw [← hyx]; simp [Array.getD_eq_getD_getElem?, hx]
+          exact ⟨fun _ => ⟨x, List.mem_cons_self, hyx⟩, fun _ => this⟩
+        · have he : (m.setIfInBounds (key x) true).getD (key y) false = m.getD (key y) false := by
+            simp [Array.getD_eq_getD_getElem?, hyx]
+          rw [he, hm y]
+          constructor
+          · rintro ⟨z, hz, hzy⟩
+            exact ⟨z, List.mem_cons_of_mem _ hz, hzy⟩
+          · rintro ⟨z, hz, hzy⟩
+            rcases List.mem_cons.1 hz with rfl | hz
+            · exact absurd hzy hyx
+            · exact ⟨z, hz, hzy⟩
+      have hnd' : (x :: acc).Nodup :=
+        List.nodup_cons.2 ⟨fun h => hmark ((hm x).2 ⟨x, h, rfl⟩), hnd⟩
+      have hkey'' : ∀ x' ∈ (x :: acc) ++ xs, ∀ y ∈ (x :: acc) ++ xs, key x' = key y → x' = y :=
+        fun a ha b hb => hkey a (by simp at ha ⊢; tauto) b (by simp at hb ⊢; tauto)
+      obtain ⟨h₁, h₂, h₃⟩ := dedupKeyGo_spec xs _ (x :: acc) hkey''
         (fun y hy => by simpa using hsize' y hy) hm' hnd'
-      refine ⟨fun y => ?_, h₂⟩
+      refine ⟨fun y => ?_, h₂, h₃⟩
       rw [h₁]
       simp only [List.mem_cons]
       tauto
 
-theorem dedupKey_spec {α : Type} {key : α → ℕ} (hkey : Function.Injective key) (xs : List α) :
-    (∀ y, y ∈ dedupKey key xs ↔ y ∈ [] ∨ y ∈ xs) ∧ (dedupKey key xs).Nodup :=
-  dedupKeyGo_spec hkey xs (Array.replicate (xs.foldl (fun a x => max a (key x)) 0 + 1) false) []
-    (fun x hx => by simpa using (lt_foldl_max key xs 0).1 x hx)
+/-- **Removing repetitions** with a key injective on the elements of `xs` keeps the elements of
+`xs`, each once. -/
+theorem dedupKey_spec {α : Type} {key : α → ℕ} (xs : List α)
+    (hkey : ∀ x ∈ xs, ∀ y ∈ xs, key x = key y → x = y) :
+    (∀ y, y ∈ dedupKey key xs ↔ y ∈ xs) ∧ (dedupKey key xs).Nodup :=
+  have h := dedupKeyGo_spec xs (Array.replicate (xs.foldl (fun a x => max a (key x)) 0 + 1) false)
+    [] (by simpa using hkey) (fun x hx => by simpa using (lt_foldl_max key xs 0).1 x hx)
     (fun y => by
       simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate, List.not_mem_nil,
-        iff_false]
+        false_and, exists_false, iff_false]
       split <;> simp)
     List.nodup_nil
+  ⟨fun y => by unfold dedupKey; simpa using h.1 y, h.2.1⟩
 
 /-- With an injective key, removing repetitions keeps the elements. -/
 theorem mem_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective key) {xs : List α}
-    {y : α} : y ∈ dedupKey key xs ↔ y ∈ xs := by
-  simpa using (dedupKey_spec hkey xs).1 y
+    {y : α} : y ∈ dedupKey key xs ↔ y ∈ xs :=
+  (dedupKey_spec xs fun _ _ _ _ h => hkey h).1 y
 
 /-- With an injective key, removing repetitions leaves each element once. -/
 theorem nodup_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective key) (xs : List α) :
     (dedupKey key xs).Nodup :=
-  (dedupKey_spec hkey xs).2
+  (dedupKey_spec xs fun _ _ _ _ h => hkey h).2
 
-/-- **The index of a literal**: `2 * v + 1` for `v` and `2 * v` for `¬v`. It keys the removal of
-repeated literals (`dedupLits`) and indexes the watch lists. -/
-def litKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 1 else 0
+theorem dedupKeyGo_of_nodup {α : Type} {key : α → ℕ} (hkey : Function.Injective key) :
+    ∀ (xs : List α) (m : Array Bool) (acc : List α), xs.Nodup →
+      (∀ x ∈ xs, m.getD (key x) false = false) → (dedupKeyGo key xs m acc).1 = acc.reverse ++ xs
+  | [], _, _, _, _ => by simp [dedupKeyGo]
+  | x :: xs, m, acc, hnd, hm => by
+    rw [dedupKeyGo, ite_eq_right (by simp [hm x List.mem_cons_self])]
+    rw [dedupKeyGo_of_nodup hkey xs _ (x :: acc) (List.nodup_cons.1 hnd).2 fun y hy => ?_]
+    · simp
+    · have hne : key x ≠ key y := fun h => (List.nodup_cons.1 hnd).1 (hkey h ▸ hy)
+      have := hm y (List.mem_cons_of_mem _ hy)
+      simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds] at this ⊢
+      rw [ite_eq_right hne]
+      exact this
+
+/-- **A list without repetitions is its own removal of repetitions**, with an injective key. -/
+theorem dedupKey_of_nodup {α : Type} {key : α → ℕ} (hkey : Function.Injective key) {xs : List α}
+    (h : xs.Nodup) : dedupKey key xs = xs := by
+  unfold dedupKey
+  rw [dedupKeyGo_of_nodup hkey xs _ [] h fun x _ => ?_]
+  · simp
+  · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+    split <;> simp
+
+/-! The *key* of a literal is its word code `Cslib.Algorithms.WordRAM.ClauseCode.litCode`:
+`2 * v + 1` for `v` and `2 * v` for `¬v`. It keys the removal of repeated literals (`dedupLits`),
+indexes the watch lists, and is how the watch store holds literals. -/
 
 /-- The key of the negation of `l`, computed without building the negation. -/
 def negKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 0 else 1
 
-theorem litKey_negate (l : Literal ℕ) : litKey l.negate = negKey l := by
+theorem litCode_negate (l : Literal ℕ) : litCode l.negate = negKey l := by
   obtain ⟨v, b⟩ := l
   cases b <;> rfl
 
-theorem litKey_injective : Function.Injective litKey := by
-  intro ⟨v, x⟩ ⟨w, y⟩ h
-  simp only [litKey] at h
-  cases x <;> cases y <;> simp at h ⊢ <;> omega
+/-- **The literal of a key**: the variable is the key divided by two, and the literal is positive
+when the key is odd. It inverts `litCode` (`litOfKey_litCode`, `litCode_litOfKey`), so every number
+is the key of exactly one literal. -/
+@[inline] def litOfKey (n : ℕ) : Literal ℕ := (n / 2, n % 2 == 1)
+
+@[simp] theorem litOfKey_litCode (l : Literal ℕ) : litOfKey (litCode l) = l := by
+  obtain ⟨v, b⟩ := l
+  cases b
+  · simp only [litOfKey, litCodeBy, id, Bool.toNat_false]
+    ext <;> simp
+  · simp only [litOfKey, litCodeBy, id, Bool.toNat_true]
+    ext <;> simp
+    omega
+
+@[simp] theorem litCode_litOfKey (n : ℕ) : litCode (litOfKey n) = n := by
+  simp only [litOfKey, litCodeBy, id]
+  rcases Nat.mod_two_eq_zero_or_one n with h | h <;> simp [h] <;> omega
+
+/-- The key of the negation of a literal is its key with the low bit flipped. -/
+theorem litOfKey_negKey (l : Literal ℕ) : litOfKey (negKey l) = l.negate := by
+  rw [← litCode_negate, litOfKey_litCode]
+
+/-- **Whether the literal of the key `c` is true**, read on the key, without building the
+literal. -/
+@[inline] def Assign.holdsKey (A : Assign) (c : ℕ) : Bool :=
+  match A.vals.getD (c / 2) 0 with
+  | 0 => false
+  | 1 => !(c % 2 == 1)
+  | _ => c % 2 == 1
+
+/-- **Whether the literal of the key `c` is false**, read on the key. -/
+@[inline] def Assign.isFalseKey (A : Assign) (c : ℕ) : Bool :=
+  match A.vals.getD (c / 2) 0 with
+  | 0 => false
+  | 1 => c % 2 == 1
+  | _ => !(c % 2 == 1)
+
+theorem Assign.holdsKey_eq (A : Assign) (c : ℕ) : A.holdsKey c = A.holds (litOfKey c) := rfl
+
+theorem Assign.isFalseKey_eq (A : Assign) (c : ℕ) : A.isFalseKey c = A.isFalse (litOfKey c) := rfl
 
 /-- Removing repeated literals, in linear time. -/
-abbrev dedupLits (c : Clause ℕ) : Clause ℕ := dedupKey litKey c
+abbrev dedupLits (c : Clause ℕ) : Clause ℕ := dedupKey litCode c
 
 /-- Removing repeated literals keeps as many as `List.dedup`. -/
 theorem length_dedupLits (c : Clause ℕ) : (dedupLits c).length = c.dedup.length :=
-  ((List.perm_ext_iff_of_nodup (nodup_dedupKey litKey_injective c) (List.nodup_dedup c)).2
-    fun _ => by rw [mem_dedupKey litKey_injective, List.mem_dedup]).length_eq
+  ((List.perm_ext_iff_of_nodup (nodup_dedupKey litCode_injective c) (List.nodup_dedup c)).2
+    fun _ => by rw [mem_dedupKey litCode_injective, List.mem_dedup]).length_eq
 
 /-- Removing repeated variables, in linear time. -/
 abbrev dedupVars (vs : List ℕ) : List ℕ := dedupKey id vs

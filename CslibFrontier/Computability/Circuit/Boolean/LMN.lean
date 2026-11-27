@@ -77,13 +77,11 @@ private theorem sum_fourierCoeff_sq_le_ite (f : BooleanFunction n) (J : Finset (
   split_ifs with h
   · -- a decision tree of depth below `s` has no weight on sets of `s` coordinates
     obtain ⟨t, ht, hd⟩ := h.exists_tree
-    refine (sum_eq_zero fun S hS => ?_).le
-    have hfun : (fun x => signVal (f (J.piecewise x z))) = fun x => signVal (t.eval x) := by
-      funext x
-      rw [ht, PartialAssignment.fill_outside]
-    rw [hfun, DecisionTree.fourierCoeff_eq_zero_of_depth_lt signVal t
-      (hd.trans_le (mem_filter.1 hS).2)]
-    simp
+    have hfun : (fun x => signVal (f (J.piecewise x z))) = fun x => signVal (t.eval x) :=
+      funext fun x => by rw [ht, PartialAssignment.fill_outside]
+    exact (sum_eq_zero fun S hS => by
+      simp [hfun, DecisionTree.fourierCoeff_eq_zero_of_depth_lt signVal t
+        (hd.trans_le (mem_filter.1 hS).2)]).le
   · rw [← sum_fourierCoeff_sq_signVal fun x => f (J.piecewise x z)]
     exact sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun _ _ _ => sq_nonneg _
 
@@ -118,12 +116,8 @@ theorem sum_fourierCoeff_sq_le_of_computes {f : BooleanFunction n} {C : Circuit 
     positivity
   set ℓ := n / (16 * s + 1) ^ C.depth
   have hsℓ : s ≤ ℓ := by
-    have h : n * (2 * s) ≤ n * ℓ :=
-      calc n * (2 * s) = 2 * s * n := by ring
-        _ ≤ max 8 (2 * s) * n := Nat.mul_le_mul_right _ (le_max_right _ _)
-        _ ≤ k * ℓ := hk
-        _ ≤ n * ℓ := Nat.mul_le_mul_right _ hkn
-    have := Nat.le_of_mul_le_mul_left h hn0
+    have := Nat.le_of_mul_le_mul_right ((Nat.mul_le_mul_right n (le_max_right 8 (2 * s))).trans
+      (hk.trans ((Nat.mul_le_mul_right ℓ hkn).trans_eq (mul_comm n ℓ)))) hn0
     omega
   have hn : s * (16 * s + 1) ^ C.depth ≤ n :=
     (Nat.le_div_iff_mul_le (Nat.pow_pos (by omega))).1 hsℓ
@@ -133,7 +127,6 @@ theorem sum_fourierCoeff_sq_le_of_computes {f : BooleanFunction n} {C : Circuit 
   set bad := (PartialAssignment.withFree (Fin n) ℓ).filter fun ρ => ¬ Shallow s ρ f
   have ha : ∀ U, 0 ≤ a U := fun U => by simp only [a]; positivity
   have hℓn : ℓ ≤ n := Nat.div_le_self _ _
-  have hN : 0 < N := Nat.choose_pos hℓn
   -- the counted stages: few restrictions leave the output deep
   have hbad : 2 ^ s * bad.card ≤ C.size * (PartialAssignment.withFree (Fin n) ℓ).card := by
     have h := two_pow_mul_card_filter_exists_not_shallow_le (p := C.program) hs hn C.depth le_rfl
@@ -141,11 +134,10 @@ theorem sum_fourierCoeff_sq_le_of_computes {f : BooleanFunction n} {C : Circuit 
       (h.trans (Nat.mul_le_mul_right _ ((card_filter_le _ _).trans (by simp))))
     obtain ⟨hρW, hdeep⟩ := mem_filter.1 hρ
     refine mem_filter.2 ⟨hρW, ?_⟩
-    have hf : f = fun x => C.program.trace interpretation x (C.outputs 0) :=
+    have hf : f = fun x => (C.eval interpretation x) 0 :=
       funext fun x => (congrFun (hC x) 0).symm
     rw [hf] at hdeep
-    by_contra hall
-    push Not at hall
+    by_contra! hall
     exact hdeep (shallow_output hs hall)
   -- the weight on sets meeting a random `J` in at least `s` coordinates
   have hupper : ∑ J ∈ P, ∑ U with s ≤ #(U ∩ J), a U ≤ (2 ^ ℓ * bad.card : ℝ) / 2 ^ n := by
@@ -163,60 +155,43 @@ theorem sum_fourierCoeff_sq_le_of_computes {f : BooleanFunction n} {C : Circuit 
         ∑ U, a U * (P.filter fun J => s ≤ #(U ∩ J)).card := by
       simp only [sum_filter]
       rw [sum_comm]
-      refine sum_congr rfl fun U _ => ?_
-      rw [← sum_filter, sum_const, nsmul_eq_mul, mul_comm]
+      exact sum_congr rfl fun U _ => by rw [← sum_filter, sum_const, nsmul_eq_mul, mul_comm]
     rw [hswap, mul_sum, sum_filter]
     refine sum_le_sum fun U _ => ?_
     split_ifs with hU
-    · have hcount := two_mul_card_filter_card_inter_lt_le (s := univ) (U := U) (ℓ := ℓ)
-        (m := s) (subset_univ U) (by simpa using hn0)
-        (by
-          have : 8 * n ≤ k * ℓ := (Nat.mul_le_mul_right _ (le_max_left _ _)).trans hk
-          simpa using this.trans (Nat.mul_le_mul_right _ hU))
-        (by
-          have : 2 * s * n ≤ k * ℓ := (Nat.mul_le_mul_right _ (le_max_right _ _)).trans hk
-          simpa using this.trans (Nat.mul_le_mul_right _ hU))
-      have hcount' : 2 * (P.filter fun J => #(U ∩ J) < s).card ≤ N := by
-        simpa [P, N] using hcount
+    · have hcount : 2 * (P.filter fun J => #(U ∩ J) < s).card ≤ N := by
+        simpa [P, N] using two_mul_card_filter_card_inter_lt_le (s := univ) (U := U) (ℓ := ℓ)
+          (m := s) (subset_univ U) (by simpa using hn0)
+          (by simpa using ((Nat.mul_le_mul_right n (le_max_left 8 (2 * s))).trans hk).trans
+                (Nat.mul_le_mul_right ℓ hU))
+          (by simpa using ((Nat.mul_le_mul_right n (le_max_right 8 (2 * s))).trans hk).trans
+                (Nat.mul_le_mul_right ℓ hU))
       have hsplit := card_filter_add_card_filter_not (s := P) (fun J => s ≤ #(U ∩ J))
-      have hPN : P.card = N := by simp [P, N]
-      have hneg : (P.filter fun J => ¬ s ≤ #(U ∩ J)) = P.filter fun J => #(U ∩ J) < s := by
-        congr 1
-        ext J
-        simp
-      rw [hneg, hPN] at hsplit
-      have h2 : (N : ℝ) ≤ 2 * (P.filter fun J => s ≤ #(U ∩ J)).card := by
-        have : N ≤ 2 * (P.filter fun J => s ≤ #(U ∩ J)).card := by omega
-        exact_mod_cast this
+      have hPcard : P.card = N := by simp [P, N]
+      rw [filter_congr fun _ _ => not_le, hPcard] at hsplit
+      have h2N : N ≤ 2 * (P.filter fun J => s ≤ #(U ∩ J)).card := by omega
+      have h2 : (N : ℝ) ≤ 2 * (P.filter fun J => s ≤ #(U ∩ J)).card := by exact_mod_cast h2N
       nlinarith [ha U]
     · exact mul_nonneg (ha U) (Nat.cast_nonneg _)
   -- combine: `N / 2 · W ≤ 2 ^ ℓ #bad / 2 ^ n ≤ g N / 2 ^ s`
   have hW := hlower.trans hupper
   have hbadR : (2 ^ s : ℝ) * bad.card ≤ C.size * (N * 2 ^ (n - ℓ)) := by
-    have := hbad
-    rw [PartialAssignment.card_withFree, Fintype.card_fin] at this
-    exact_mod_cast this
+    rw [PartialAssignment.card_withFree, Fintype.card_fin] at hbad
+    exact_mod_cast hbad
   have h2n : (2 : ℝ) ^ ℓ * 2 ^ (n - ℓ) = 2 ^ n := by
     rw [← pow_add, Nat.add_sub_cancel' hℓn]
-  have hNR : (0 : ℝ) < N := by exact_mod_cast hN
-  have hpow : (0 : ℝ) < 2 ^ s := by positivity
-  have hpown : (0 : ℝ) < 2 ^ n := by positivity
-  have hpowℓ : (0 : ℝ) < 2 ^ ℓ := by positivity
-  rw [le_div_iff₀ hpow]
-  have key : (N : ℝ) / 2 * (∑ U with k ≤ #U, a U) * 2 ^ s ≤ C.size * N := by
-    have h1 : (N : ℝ) / 2 * (∑ U with k ≤ #U, a U) * 2 ^ n ≤ 2 ^ ℓ * bad.card := by
-      rwa [le_div_iff₀ hpown] at hW
-    have h3 : (2 : ℝ) ^ ℓ * bad.card * 2 ^ s ≤ 2 ^ ℓ * (C.size * (N * 2 ^ (n - ℓ))) := by
-      nlinarith
-    have h4 : (N : ℝ) / 2 * (∑ U with k ≤ #U, a U) * 2 ^ s * 2 ^ n ≤ C.size * N * 2 ^ n := by
-      calc (N : ℝ) / 2 * (∑ U with k ≤ #U, a U) * 2 ^ s * 2 ^ n
-          = (N / 2 * (∑ U with k ≤ #U, a U) * 2 ^ n) * 2 ^ s := by ring
-        _ ≤ 2 ^ ℓ * bad.card * 2 ^ s := by gcongr
-        _ ≤ 2 ^ ℓ * (C.size * (N * 2 ^ (n - ℓ))) := h3
-        _ = C.size * N * (2 ^ ℓ * 2 ^ (n - ℓ)) := by ring
-        _ = C.size * N * 2 ^ n := by rw [h2n]
-    exact le_of_mul_le_mul_right h4 hpown
-  nlinarith
+  have hNR : (0 : ℝ) < N := by exact_mod_cast Nat.choose_pos hℓn
+  rw [le_div_iff₀ (by positivity)]
+  rw [le_div_iff₀ (by positivity)] at hW
+  have h4 : (N : ℝ) / 2 * (∑ U with k ≤ #U, a U) * 2 ^ s * 2 ^ n ≤ C.size * N * 2 ^ n :=
+    calc (N : ℝ) / 2 * (∑ U with k ≤ #U, a U) * 2 ^ s * 2 ^ n
+        = (N / 2 * (∑ U with k ≤ #U, a U) * 2 ^ n) * 2 ^ s := by ring
+      _ ≤ 2 ^ ℓ * bad.card * 2 ^ s := by gcongr
+      _ ≤ 2 ^ ℓ * (C.size * (N * 2 ^ (n - ℓ))) := by
+        rw [mul_assoc]
+        exact mul_le_mul_of_nonneg_left (by linarith) (pow_nonneg zero_le_two ℓ)
+      _ = C.size * N * 2 ^ n := by rw [← h2n]; ring
+  nlinarith [le_of_mul_le_mul_right h4 (pow_pos two_pos n)]
 
 /-- **The Linial–Mansour–Nisan theorem above an explicit degree.** Let `f` be computed by a
 circuit of negations and unbounded fan-in conjunctions and disjunctions of depth at most `d`, and

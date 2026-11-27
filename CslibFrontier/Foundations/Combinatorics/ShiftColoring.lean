@@ -75,11 +75,8 @@ private theorem tail_snoc {n : ℕ} (a : Fin (n + 1) → ℕ) (y : ℕ) :
 
 private theorem strictMono_snoc {n : ℕ} {a : Fin (n + 1) → ℕ} (ha : StrictMono a) {y : ℕ}
     (hy : a (Fin.last n) < y) : StrictMono (Fin.snoc a y : Fin (n + 2) → ℕ) := by
-  rw [Fin.strictMono_iff_lt_succ]
-  intro i
-  refine Fin.lastCases ?_ (fun j => ?_) i
-  · rw [Fin.succ_last, Fin.snoc_last, Fin.snoc_castSucc]
-    exact hy
+  refine Fin.strictMono_iff_lt_succ.2 (Fin.lastCases ?_ fun _ => ?_)
+  · simpa
   · rw [Fin.succ_castSucc, Fin.snoc_castSucc, Fin.snoc_castSucc]
     exact ha Fin.castSucc_lt_succ
 
@@ -91,47 +88,34 @@ theorem speedup_isShiftColoring {f : (Fin (k + 2) → ℕ) → C} (hf : IsShiftC
   classical
   intro a ha ham heq
   -- the colour of `a` itself lies in the speedup of `init a`, hence in that of `tail a`
-  have hmem : f a ∈ speedup m f (Fin.init a) := by
-    refine Finset.mem_image.2 ⟨a (Fin.last _), ?_, ?_⟩
-    · refine Finset.mem_filter.2 ⟨Finset.mem_range.2 (ham _), ?_⟩
-      simp only [Fin.init]
-      exact ha (Fin.castSucc_lt_last _)
-    · rw [Fin.snoc_init_self]
-  rw [heq] at hmem
+  have hmem : f a ∈ speedup m f (Fin.tail a) := heq ▸ Finset.mem_image.2 ⟨a (Fin.last _),
+    Finset.mem_filter.2 ⟨Finset.mem_range.2 (ham _), ha (Fin.castSucc_lt_last _)⟩,
+    congrArg f (Fin.snoc_init_self a)⟩
   obtain ⟨y, hy, hfy⟩ := Finset.mem_image.1 hmem
   obtain ⟨hym, hlt⟩ := Finset.mem_filter.1 hy
-  have hlt' : a (Fin.last _) < y := by simpa [Fin.tail] using hlt
   -- so some increasing extension `snoc a y` has the colour of `a`
-  refine hf (Fin.snoc a y) (strictMono_snoc ha hlt') (fun i => ?_) ?_
-  · refine Fin.lastCases ?_ (fun j => ?_) i
-    · simpa using Finset.mem_range.1 hym
-    · simpa using ham j
-  · rw [Fin.init_snoc, tail_snoc, hfy]
+  exact hf (Fin.snoc a y) (strictMono_snoc ha (by simpa [Fin.tail] using hlt))
+    (Fin.lastCases (by simpa using Finset.mem_range.1 hym) fun j => by simpa using ham j)
+    (by rw [Fin.init_snoc, tail_snoc, hfy])
 
 /-- A shift colouring of the `1`-tuples from `{0, …, m - 1}` is injective, so it needs at least
 `m` colours. -/
 theorem card_le {f : (Fin 1 → ℕ) → C} [Fintype C] (hf : IsShiftColoring m 0 f) :
     m ≤ Fintype.card C := by
-  have hinj : Function.Injective (fun y : Fin m => f ![(y : ℕ)]) := by
-    suffices h : ∀ y y' : Fin m, (y : ℕ) < y' → f ![(y : ℕ)] ≠ f ![(y' : ℕ)] by
-      intro y y' hyy
-      by_contra hne
-      rcases lt_or_gt_of_ne (Fin.val_injective.ne hne) with hlt | hlt
-      · exact h y y' hlt hyy
-      · exact h y' y hlt hyy.symm
-    intro y y' hlt
-    have hmono : StrictMono (![(y : ℕ), y'] : Fin 2 → ℕ) := by
-      rw [Fin.strictMono_iff_lt_succ]
-      intro i
+  suffices hlt : ∀ y y' : Fin m, (y : ℕ) < y' → f ![(y : ℕ)] ≠ f ![(y' : ℕ)] by
+    refine Fintype.card_fin m ▸ Fintype.card_le_of_injective (fun y : Fin m => f ![(y : ℕ)])
+      fun y y' hyy => by_contra fun hne => ?_
+    exact (lt_or_gt_of_ne (Fin.val_injective.ne hne)).elim
+      (fun h => hlt y y' h hyy) (fun h => hlt y' y h hyy.symm)
+  intro y y' hlt
+  have hmono : StrictMono (![(y : ℕ), y'] : Fin 2 → ℕ) :=
+    Fin.strictMono_iff_lt_succ.2 fun i => by
       fin_cases i
       exact hlt
-    have h := hf ![(y : ℕ), y'] hmono (fun i => by fin_cases i <;> simp)
-    have hinit : Fin.init (![(y : ℕ), y'] : Fin 2 → ℕ) = ![(y : ℕ)] := by
-      funext i; fin_cases i; rfl
-    have htail : Fin.tail (![(y : ℕ), y'] : Fin 2 → ℕ) = ![(y' : ℕ)] := by
-      funext i; fin_cases i; rfl
-    rwa [hinit, htail] at h
-  simpa using Fintype.card_le_of_injective _ hinj
+  have h := hf ![(y : ℕ), y'] hmono fun i => by fin_cases i <;> simp
+  have hinit : Fin.init (![(y : ℕ), y'] : Fin 2 → ℕ) = ![(y : ℕ)] := List.ofFn_inj.mp rfl
+  have htail : Fin.tail (![(y : ℕ), y'] : Fin 2 → ℕ) = ![(y' : ℕ)] := List.ofFn_inj.mp rfl
+  rwa [hinit, htail] at h
 
 /-- A shift colouring of increasing `(k + 1)`-tuples from `{0, …, m - 1}` with colours in `C`
 forces `m ≤ 2 ^ 2 ^ ⋯ ^ |C|` with `k` exponentials. -/

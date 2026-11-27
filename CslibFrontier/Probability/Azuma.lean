@@ -90,23 +90,12 @@ private theorem seqProcess_snoc (step : ∀ t : ℕ, (Fin t → α) → PMF α)
     (n : ℕ) (h₀ : Fin n → α) (a : α) :
     seqProcess step (n + 1) (Fin.snoc (α := fun _ => α) h₀ a) =
       seqProcess step n h₀ * step n h₀ a := by
-  rw [seqProcess, PMF.bind_apply, tsum_eq_single h₀]
-  · rw [PMF.map_apply, tsum_eq_single a]
-    · simp
-    · intro b hb
-      have hne : Fin.snoc (α := fun _ => α) h₀ a ≠ Fin.snoc (α := fun _ => α) h₀ b := fun heq =>
-        hb (Fin.snoc_right_injective (α := fun _ => α) h₀ heq).symm
-      simp [hne]
-  · intro h hh
-    have hmap0 :
-        ((step n h).map fun b => Fin.snoc (α := fun _ => α) h b)
-          (Fin.snoc (α := fun _ => α) h₀ a) = 0 := by
-      rw [PMF.map_apply]
-      refine (tsum_congr fun b => ?_).trans tsum_zero
-      have hne : Fin.snoc (α := fun _ => α) h₀ a ≠ Fin.snoc (α := fun _ => α) h b := fun heq =>
-        hh (Fin.snoc_injective2 (α := fun _ => α) heq).1.symm
-      simp [hne]
-    simp [hmap0]
+  rw [seqProcess, PMF.bind_apply, tsum_eq_single h₀ fun h hh => ?_, PMF.map_apply,
+    tsum_eq_single a fun b hb => ?_]
+  · simp
+  · exact ite_eq_right fun heq => hb (Fin.snoc_right_injective (α := fun _ => α) h₀ heq).symm
+  · rw [PMF.map_apply, tsum_eq_zero_iff.mpr fun b => ite_eq_right fun heq =>
+      hh (Fin.snoc_injective2 (α := fun _ => α) heq).1.symm, mul_zero]
 
 /-- The mass of a trajectory `h : Fin n → α` under `seqProcess step n` is the product of the
 one-step transition probabilities along its prefixes. -/
@@ -148,23 +137,18 @@ theorem tsum_toReal_seqProcess_step (step : ∀ t : ℕ, (Fin t → α) → PMF 
       ((seqProcess step n) p.1).toReal * (((step n p.1) p.2).toReal * g (Fin.snoc p.1 p.2))
     let G : (Fin n → α) × α → ℝ := fun p =>
       ((seqProcess step n) p.1).toReal * ((step n p.1) p.2).toReal * C
-    have hs_G : Summable G := by
-      refine (summable_prod_of_nonneg fun _ =>
-        mul_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg) hC0).mpr ?_
-      have h2 (h₀ : Fin n → α) :
-          HasSum (fun a : α => G (h₀, a)) (((seqProcess step n) h₀).toReal * C) := by
-        simpa only [G, tsum_toReal, mul_assoc, one_mul] using
-          (((summable_toReal (step n h₀)).hasSum.mul_left
-            ((seqProcess step n) h₀).toReal).mul_right C)
-      refine ⟨fun h₀ => (h2 h₀).summable, ?_⟩
-      have heq : (fun h₀ => ∑' a, G (h₀, a)) = fun h₀ => ((seqProcess step n) h₀).toReal * C :=
-        funext fun h₀ => (h2 h₀).tsum_eq
-      rw [heq]
-      exact (summable_toReal (seqProcess step n)).mul_right C
+    have h2 (h₀ : Fin n → α) :
+        HasSum (fun a : α => G (h₀, a)) (((seqProcess step n) h₀).toReal * C) := by
+      simpa only [G, tsum_toReal, mul_assoc, one_mul] using
+        (((summable_toReal (step n h₀)).hasSum.mul_left
+          ((seqProcess step n) h₀).toReal).mul_right C)
+    have hs_G : Summable G := (summable_prod_of_nonneg fun _ =>
+        mul_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg) hC0).mpr
+      ⟨fun h₀ => (h2 h₀).summable,
+        ((summable_toReal (seqProcess step n)).mul_right C).congr fun h₀ => (h2 h₀).tsum_eq.symm⟩
     have hs_prod : Summable F := Summable.of_norm_bounded hs_G fun p => by
       simp only [F, G, Real.norm_eq_abs, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg, mul_assoc]
-      exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (hC _) ENNReal.toReal_nonneg)
-        ENNReal.toReal_nonneg
+      gcongr; exact hC _
     calc ∑' h : Fin (n + 1) → α, ((seqProcess step (n + 1)) h).toReal * g h
         = ∑' p : (Fin n → α) × α, F p := by
           rw [← Equiv.tsum_eq (snocEquiv α n)]
@@ -236,8 +220,7 @@ theorem seqProcess_mul_exp_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
         refine (tsum_mul_exp_sub_mean_le (step n h) (fun x => X (k := n + 1) (Fin.snoc h x)) hg
           s).trans (ENNReal.ofReal_le_ofReal (Real.exp_le_exp.mpr ?_))
         have hsq : (b - a) ^ 2 ≤ c n ^ 2 := pow_le_pow_left₀ hab0 hab_c 2
-        exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hsq (sq_nonneg s))
-          (by norm_num)
+        gcongr
       · rw [((seqProcess step n).apply_eq_zero_iff h).mpr hh, zero_mul, zero_mul]
     calc ∑' h : Fin n → α, seqProcess step n h *
             ∑' h' : Fin (n + 1) → α, ((step n h).map fun x => Fin.snoc h x) h' *
@@ -289,21 +272,15 @@ theorem seqProcess_ge_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
       classical
       by_cases hh : h ∈ E
       · simp only [Set.indicator_of_mem hh, Pi.one_apply, one_mul]
-        have hge : ε ≤ X n h - X 0 Fin.elim0 := le_sub_iff_add_le'.mpr hh
-        exact ENNReal.ofReal_le_ofReal (Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left hge hs))
+        exact ENNReal.ofReal_le_ofReal (Real.exp_le_exp.mpr
+          (mul_le_mul_of_nonneg_left (le_sub_iff_add_le'.mpr hh) hs))
       · simp only [Set.indicator_of_notMem hh, zero_mul, zero_le]
-    have hreal : ((seqProcess step n).toOuterMeasure E).toReal * Real.exp (s * ε) ≤
-        Real.exp (s ^ 2 * V / 8) := by
-      have hne_top : (seqProcess step n).toOuterMeasure E * ENNReal.ofReal (Real.exp (s * ε)) ≠
-          ⊤ := ENNReal.mul_ne_top (toOuterMeasure_ne_top _ _) ENNReal.ofReal_ne_top
-      have hm := ENNReal.toReal_mono ENNReal.ofReal_ne_top hmarkov
-      rwa [ENNReal.toReal_mul, ENNReal.toReal_ofReal (Real.exp_pos _).le,
-        ENNReal.toReal_ofReal (Real.exp_pos _).le] at hm
     have hdiv : ((seqProcess step n).toOuterMeasure E).toReal ≤
         Real.exp (s ^ 2 * V / 8 - s * ε) := by
-      rw [sub_eq_add_neg, Real.exp_add, Real.exp_neg, ← div_eq_mul_inv,
-        le_div_iff₀ (Real.exp_pos _)]
-      exact hreal
+      have hm := ENNReal.toReal_mono ENNReal.ofReal_ne_top hmarkov
+      rw [ENNReal.toReal_mul, ENNReal.toReal_ofReal (Real.exp_pos _).le,
+        ENNReal.toReal_ofReal (Real.exp_pos _).le] at hm
+      rwa [Real.exp_sub, le_div_iff₀ (Real.exp_pos _)]
     refine hdiv.trans_eq (congrArg Real.exp ?_)
     dsimp only [s]
     field_simp [hV_pos.ne']

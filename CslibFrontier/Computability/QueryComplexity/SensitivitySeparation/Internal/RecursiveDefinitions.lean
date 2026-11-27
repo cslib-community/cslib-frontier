@@ -66,13 +66,13 @@ theorem gateIndex_lt_last {h : ℕ} (q : Fin h) : gateIndex q < Fin.last h :=
 
 /-- `gateIndex` is antitone: `q ≤ q'` implies `gateIndex q' ≤ gateIndex q`. -/
 private theorem gateIndex_antitone {h : ℕ} {q q' : Fin h} (hqq : q ≤ q') :
-    gateIndex q' ≤ gateIndex q := by
-  exact Fin.rev_le_rev.mpr hqq
+    gateIndex q' ≤ gateIndex q :=
+  Fin.rev_le_rev.mpr hqq
 
 /-- `gateIndex` is strictly antitone: `q < q'` implies `gateIndex q' < gateIndex q`. -/
 theorem gateIndex_strictAnti {h : ℕ} {q q' : Fin h} (hqq : q < q') :
-    gateIndex q' < gateIndex q := by
-  exact Fin.rev_lt_rev.mpr hqq
+    gateIndex q' < gateIndex q :=
+  Fin.rev_lt_rev.mpr hqq
 
 open scoped Classical in
 /-- A clause uses every target in its own row and one labeled gate per outgoing edge. -/
@@ -142,13 +142,10 @@ theorem recursiveFamily_zero {k r h : ℕ} {I : Type} (T : Tournament k)
     recursiveFamily T label F q (fun _ => false) = false := by
   rw [recursiveFamily_eq_false_iff]
   intro i
-  cases hi : rowClause T label F q (fun _ => false) i
-  · rfl
-  · have ht := ((rowClause_eq_true_iff T label F q (fun _ => false) i).mp hi).1
-      (⟨0, hr⟩ : Fin r)
-    have hz := hzero (Fin.last h)
-    change F (Fin.last h) (fun _ => false) = true at ht
-    simp [hz] at ht
+  by_contra hne
+  have ht := ((rowClause_eq_true_iff T label F q (fun _ => false) i).mp
+    (Bool.eq_true_of_not_eq_false hne)).1 ⟨0, hr⟩
+  exact Bool.false_ne_true ((hzero (Fin.last h)).symm.trans ht)
 
 end Internal
 

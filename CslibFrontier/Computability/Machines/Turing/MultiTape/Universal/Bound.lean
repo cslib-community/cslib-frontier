@@ -327,8 +327,6 @@ public theorem stepTime_iterate_le (x : List ℕ) (j : ℕ) :
     (show cfg.inputPos ≤ (encList encUnary x).length + 1 by omega)
   unfold stepTime stepBound
   dsimp only [Ctx.desc, Ctx.input, Ctx.cfg]
-  exact Nat.add_le_add
-    (Nat.mul_le_mul (Nat.mul_le_mul_right _ (by omega)) (by omega))
-    (Nat.mul_le_mul (by omega) (by gcongr))
+  gcongr; omega
 
 end Turing.MultiTapeTM.Universal

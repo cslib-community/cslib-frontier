@@ -178,10 +178,8 @@ theorem rompelCascadeSteps_pos (G : ShrinkingCollisionGrid) (n : ℕ) :
     1 ≤ rompelCascadeSteps G n := by
   have hk := G.gridCount_pos n
   have hout := G.le_outLen n
-  have hs := G.shrinkLen_pos n
-  have := Nat.mul_pos (by omega : 0 < 2 * G.gridCount n - 1) (by omega : 0 < G.outLen n)
-  unfold rompelCascadeSteps
-  exact Nat.div_pos (by omega) hs
+  have hmul : 0 < (2 * G.gridCount n - 1) * G.outLen n := Nat.mul_pos (by omega) (by omega)
+  exact Nat.div_pos (by omega) (G.shrinkLen_pos n)
 
 private theorem outLen_le_rompelBlockLen (G : ShrinkingCollisionGrid) (n : ℕ) :
     G.outLen n ≤ rompelBlockLen G n :=
@@ -195,15 +193,15 @@ theorem two_mul_rompelBlockLen_le (G : ShrinkingCollisionGrid) (n : ℕ) :
     2 * rompelBlockLen G n ≤ G.outLen n + rompelCascadeSteps G n * G.shrinkLen n := by
   have hk := G.gridCount_pos n
   have hs := G.shrinkLen_pos n
-  have hprod := Nat.mul_pos (by omega : 0 < 2 * G.gridCount n - 1)
-    (by have := G.le_outLen n; omega : 0 < G.outLen n)
+  have hout := G.le_outLen n
+  have hprod : 0 < (2 * G.gridCount n - 1) * G.outLen n := Nat.mul_pos (by omega) (by omega)
   have hdiv := Nat.div_add_mod ((2 * G.gridCount n - 1) * G.outLen n + G.shrinkLen n - 1)
     (G.shrinkLen n)
   have hmod := Nat.mod_lt ((2 * G.gridCount n - 1) * G.outLen n + G.shrinkLen n - 1) hs
   have hceil : (2 * G.gridCount n - 1) * G.outLen n ≤ rompelCascadeSteps G n * G.shrinkLen n := by
     unfold rompelCascadeSteps; rw [mul_comm] at hdiv; omega
-  rw [rompelBlockLen, ← mul_assoc, show 2 * G.gridCount n = 1 + (2 * G.gridCount n - 1) by omega,
-    add_mul, one_mul]
+  have h2 : 2 * G.gridCount n = 1 + (2 * G.gridCount n - 1) := by omega
+  rw [rompelBlockLen, ← mul_assoc, h2, add_mul, one_mul]
   exact Nat.add_le_add_left hceil _
 
 theorem le_rompelBlockLen (G : ShrinkingCollisionGrid) (n : ℕ) :
@@ -307,9 +305,8 @@ def rompelCascadeInput (G : ShrinkingCollisionGrid) (n q i : ℕ) (K x : List Bo
 @[simp]
 theorem length_rompelCascadeInput (G : ShrinkingCollisionGrid) (n q i : ℕ)
     (K x : List Bool) :
-    (rompelCascadeInput G n q i K x).length = G.inLen n := by
-  unfold rompelCascadeInput
-  rw [length_shoupStepInput, G.outLen_add_shrink n]
+    (rompelCascadeInput G n q i K x).length = G.inLen n :=
+  (length_shoupStepInput ..).trans (G.outLen_add_shrink n)
 
 @[fun_prop]
 theorem computableInPolyTime_rompelCascadeInput (G : ShrinkingCollisionGrid)
@@ -456,8 +453,7 @@ strict PPT. -/
 theorem isPPT_rompelCompressionInverter (G : ShrinkingCollisionGrid)
     {adversary : TargetCollisionFinder} (ha : adversary.IsPPT) :
     IsPPT encBits (rompelCompressionInverter G adversary) := by
-  apply IsPPTOn.isPPT
-  refine (isPPTOn_sampleDyadicIndex (by fun_prop)).bind_with ?_
+  refine IsPPTOn.isPPT ((isPPTOn_sampleDyadicIndex (by fun_prop)).bind_with ?_)
   refine ((isPPTOn_shoupComposeChoose G.polyTime_outLen G.polyTime_shrinkLen
     (computableInPolyTime_rompelCascadeSteps G) ha.choose).preprocess (by fun_prop)).bind_with ?_
   let enc2 := encPair (encPair (encPair encUnary encBits) encUnary) (encPair encBits encBits)
@@ -517,11 +513,10 @@ theorem succProbability_targetCollisionGame_rompelCompression_le
             (shoupComposeEval G.inLen G.outLen G.shrinkLen (rompelCascadeSteps G) hShift)
             validLong adversary n)) := by
     refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
+    have hkey : (rompelCompression G).keyLen n =
+        shoupComposeKeyLen G.inLen G.outLen (rompelCascadeSteps G) n := rfl
     dsimp only [targetCollisionGame]
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
-      show (rompelCompression G).keyLen n =
-          shoupComposeKeyLen G.inLen G.outLen (rompelCascadeSteps G) n
-        by simp only [rompelCompression, rompelKeyLen]]
+    simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, hkey]
     refine PMF.bind_apply_mono_on_support _ true fun choice _ =>
       PMF.bind_apply_mono_on_support _ true fun K _ =>
         PMF.bind_apply_mono_on_support _ true fun x₁ _ => ?_
@@ -529,13 +524,14 @@ theorem succProbability_targetCollisionGame_rompelCompression_le
         choice.1 x₁
     · simp only [PMF.pure_apply, reduceCtorEq, ↓reduceIte]; exact zero_le
     · obtain ⟨hx₀, hx₁, hne, hcol⟩ := isCollision_eq_true_iff.mp hW
-      rw [isCollision_eq_true_iff.mpr
-        ⟨by simpa only [KeyedCompressionFamily.validInput, rompelCompression] using hx₀,
-          by simpa only [KeyedCompressionFamily.validInput, rompelCompression] using hx₁, hne, by
-            change rompelCandidateEval G n qStar K choice.1 = rompelCandidateEval G n qStar K x₁
-            rw [← listRow_rompelCompressionEval G n K choice.1 hqStar,
-              ← listRow_rompelCompressionEval G n K x₁ hqStar]
-            exact congrArg _ hcol⟩]
+      simp only [KeyedCompressionFamily.validInput, rompelCompression] at hx₀ hx₁
+      have hcol' :
+          shoupComposeEval G.inLen G.outLen G.shrinkLen (rompelCascadeSteps G) hShift n K
+              choice.1 =
+            shoupComposeEval G.inLen G.outLen G.shrinkLen (rompelCascadeSteps G) hShift n K x₁ :=
+        (listRow_rompelCompressionEval G n K choice.1 hqStar).symm.trans
+          ((congrArg _ hcol).trans (listRow_rompelCompressionEval G n K x₁ hqStar))
+      rw [(isCollision_eq_true_iff (valid := validLong)).mpr ⟨hx₀, hx₁, hne, hcol'⟩]
   -- Step 2: Apply `succProbability_targetCollisionGame_shoupCompose_le` (`dyadicSize t` factor).
   have hshoup :
       Game.succProbability
@@ -606,15 +602,12 @@ theorem succProbability_targetCollisionGame_rompelCompression_le
           BitString.listXor_pair_self_left_of_length choice.1 hz_len]
       have hne_iff : BitString.listXor W [w₁, yStar] ≠ zWord ↔ choice.1 ≠ w₁ := by
         rw [← hx₀, ne_eq, BitString.listXor_pair_left_inj hw₁_len hw₀_len yStar, ne_comm]
-      have hv₀ : validBase n choice.1 = true := by
-        simp [validBase, hw₀_len, W, G.outLen_add_shrink n]
-      have hv₁ : validBase n w₁ = true := by
-        simp [validBase, hw₁_len, W, G.outLen_add_shrink n]
+      have hv {w : List Bool} (hw : w.length = W) : validBase n w = true := by
+        simp [validBase, hw, W, G.outLen_add_shrink n]
       dsimp only [W] at hx₀ hne_iff ⊢
-      congr 1
-      apply Bool.eq_iff_iff.mpr
+      refine congrArg PMF.pure (Bool.eq_iff_iff.mpr ?_)
       rw [decide_eq_true_eq, isCollision_eq_true_iff]
-      simp only [BitString.length_listXor, true_and, hne_iff, hv₀, hv₁, hShift,
+      simp only [BitString.length_listXor, true_and, hne_iff, hv hw₀_len, hv hw₁_len, hShift,
         rompelShiftedStep, hx₀, eq_comm]
     obtain ⟨val, hval⟩ : ∃ val : ℕ → ℝ≥0, ∀ q, Game.succProbability (candTrial q) = val q :=
       ⟨_, fun _ => rfl⟩
@@ -634,8 +627,7 @@ theorem succProbability_targetCollisionGame_rompelCompression_le
 theorem ShrinkingCollisionGrid.targetCollisionResistant_rompelCompression
     (G : ShrinkingCollisionGrid) :
     (rompelCompression G).TargetCollisionResistant := by
-  apply TargetCollisionResistantOn.of_negligible
-  intro adversary hadversary
+  refine TargetCollisionResistantOn.of_negligible fun adversary hadversary => ?_
   obtain ⟨goodIdx, hgood_lt, hneg_rand⟩ := G.exists_good_candidate _
     (isPPT_rompelCompressionInverter G hadversary)
   have hloss_pb :=
@@ -697,9 +689,9 @@ matrices rather than Toeplitz hashing; see `exists_shrinkingCollisionGrid_rompel
 `rompelCompression_keyLen_le` for the Lemma 5.7 `O(|y| log t)` key-length bound. -/
 theorem AdversaryInaccessibleEntropyFamily.exists_targetCollisionResistantCompression
     (F : AdversaryInaccessibleEntropyFamily) :
-    ∃ C : KeyedCompressionFamily, C.TargetCollisionResistant := by
-  obtain ⟨G, _, hTCR, _⟩ := F.exists_shrinkingCollisionGrid_rompelCompression
-  exact ⟨rompelCompression G, hTCR⟩
+    ∃ C : KeyedCompressionFamily, C.TargetCollisionResistant :=
+  let ⟨G, _, hTCR, _⟩ := F.exists_shrinkingCollisionGrid_rompelCompression
+  ⟨rompelCompression G, hTCR⟩
 
 /-- **Qualitative polynomial-time target collision-resistant hashing from Definition 3.9**
 (`[HHRVW2020]`, Section 5.1, Theorem 5.1, p. 26): every `AdversaryInaccessibleEntropyFamily` yields
@@ -708,9 +700,9 @@ an unrestricted target collision-resistant `KeyedHashFamily` on `List Bool` via 
 see `rompelCompression_keyLen_le` for the Lemma 5.7 compression key bound). -/
 theorem AdversaryInaccessibleEntropyFamily.exists_targetCollisionResistantHash
     (F : AdversaryInaccessibleEntropyFamily) :
-    ∃ H : KeyedHashFamily, H.TargetCollisionResistant := by
-  obtain ⟨G⟩ := F.exists_shrinkingCollisionGrid
-  exact ⟨rompelHash G, G.targetCollisionResistant_rompelHash⟩
+    ∃ H : KeyedHashFamily, H.TargetCollisionResistant :=
+  let ⟨G⟩ := F.exists_shrinkingCollisionGrid
+  ⟨rompelHash G, G.targetCollisionResistant_rompelHash⟩
 
 /-- **Qualitative polynomial-time target collision-resistant compression from `OneWay`**
 (`[HHRVW2020]`, Section 5.1, Theorem 5.1, p. 26): every uniform `OneWay` function yields a target
@@ -719,9 +711,9 @@ see `OneWay.exists_shrinkingCollisionGrid_rompelCompression` and `rompelCompress
 the Lemma 5.7 `O(|y| log t)` key-length bound). -/
 theorem OneWay.exists_targetCollisionResistant_keyedCompressionFamily
     {f : List Bool → List Bool} (hf : OneWay f) :
-    ∃ C : KeyedCompressionFamily, C.TargetCollisionResistant := by
-  obtain ⟨G, _, hTCR, _⟩ := hf.exists_shrinkingCollisionGrid_rompelCompression
-  exact ⟨rompelCompression G, hTCR⟩
+    ∃ C : KeyedCompressionFamily, C.TargetCollisionResistant :=
+  let ⟨G, _, hTCR, _⟩ := hf.exists_shrinkingCollisionGrid_rompelCompression
+  ⟨rompelCompression G, hTCR⟩
 
 /-- **Rompel–HHRVW universal one-way hash theorem** (`[Rompel1990]`; `[HHRVW2020]`,
 Section 5.1, Theorem 5.1, p. 26, qualitative polynomial-time scope): every uniform `OneWay`
@@ -731,8 +723,8 @@ function implies the existence of an unrestricted target collision-resistant `Ke
 Lemma 5.7 `O(|y| log t)` compression key bound). -/
 theorem OneWay.exists_targetCollisionResistant_keyedHashFamily
     {f : List Bool → List Bool} (hf : OneWay f) :
-    ∃ H : KeyedHashFamily, H.TargetCollisionResistant := by
-  obtain ⟨F⟩ := hf.exists_inaccessibleEntropyFamily
-  exact F.toAdversaryInaccessibleEntropyFamily.exists_targetCollisionResistantHash
+    ∃ H : KeyedHashFamily, H.TargetCollisionResistant :=
+  hf.exists_inaccessibleEntropyFamily.elim fun F =>
+    F.toAdversaryInaccessibleEntropyFamily.exists_targetCollisionResistantHash
 
 end Cslib.Crypto

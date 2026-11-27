@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandAll
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandTables
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCost
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native shared-band execution
@@ -24,9 +25,6 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ba
 public section
 
 namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation
-
--- Static frame checks reduce the fixed parameter bank and finite native table code.
-set_option maxRecDepth 4096
 
 open Cslib.WordRAM Cslib.WordRAM.Signed
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
@@ -113,27 +111,13 @@ theorem exec {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L) (x : Data 96)
       (∀ b, ¬(inputEnd m N ≤ b ∧ b < memoryEnd L m N) → y.mem b = x.mem b) := by
   obtain ⟨h, heh, hhp, hhmem⟩ := exec_header hm x hL hm' hN hfit
   obtain ⟨s, hes, hsmem, hsr⟩ := exec_saveInput h hhp hfit
-  have hsp : HeaderPost L m N s := headerPost_reframe hhp (by
-    intro i hi
-    have hp : ∀ i ∈ headerRegisters, 7 ≤ i.val := by decide
-    exact hsr i (hp i hi))
+  have hsp : HeaderPost L m N s := by regs_frame
   obtain ⟨c, hec, hcp, hcmem⟩ := exec_countCode s hsp hfit
-  have htableParams : TableParameters L m (inverseBase L m N) (tableBase L m N) c :=
-    ⟨hcp.fixed.levels, hcp.fixed.inner, hcp.masks, hcp.inverse, hcp.table, hcp.square,
-      hcp.fixed.zero, hcp.fixed.one, hcp.fixed.two⟩
   obtain ⟨t, het, _, hlookup, hforward, htframe⟩ := exec_tables L m
-    (inverseBase L m N) (tableBase L m N) c htableParams (Nat.le_refl _)
-      (tables_fit hfit)
-  have htp : BandParameters L m N t := parameters_reframe hcp (by
-    intro i hi
-    apply het.regs_eq
-    have hp : ∀ i ∈ parameterRegisters, tablesCode.Preserves i := by
-      simp +decide only []
-    exact hp i hi)
-  have hinv : inverseBase L m N ≤ catalogueBase L m N := by
-    unfold catalogueBase tableBase
-    have := Nat.zero_le (2 ^ L)
-    omega
+    (inverseBase L m N) (tableBase L m N) c (by regs_frame) (Nat.le_refl _) (tables_fit hfit)
+  have htp : BandParameters L m N t := by regs_frame
+  have h2L := Nat.zero_le (2 ^ L)
+  have hinv : inverseBase L m N ≤ catalogueBase L m N := by unfold catalogueBase tableBase; omega
   have hsnapshot (a : ℕ) (ha : a < inputEnd m N) :
       t.mem (snapshotBase L m N + a) = x.mem a := by
     rw [htframe _ (by unfold inverseBase; omega) (by unfold tableBase inverseBase; omega),
@@ -142,8 +126,7 @@ theorem exec {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L) (x : Data 96)
       t.mem (matrixAddress L m N side r k) = encode (matrix side r k) := by
     have hb := matrixAddress_lt_inverse (L := L) side hr hk
     unfold matrixAddress inverseBase at hb
-    have ho : matrixOffset m N side r k + 4 < inputEnd m N := by omega
-    rw [matrixAddress, hsnapshot _ ho]
+    rw [matrixAddress, hsnapshot _ (by omega)]
     exact hmat side r hr k hk
   obtain ⟨l, hel, hlp, hlvalues, hlframe⟩ := exec_encodeBands hw false t htp
     hlookup (matrix false) (hmatrix false) A hA (ha false) hmag hfit
@@ -151,95 +134,53 @@ theorem exec {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L) (x : Data 96)
   have hinverse (a : ℕ) (ha : a < 2 ^ L) :
       snapshotBase L m N ≤ inverseBase L m N + a ∧
         inverseBase L m N + a < catalogueBase L m N := by
-    have hs : snapshotBase L m N ≤ inverseBase L m N := Nat.le_add_right _ _
-    have ht : inverseBase L m N + a < tableBase L m N := by
-      change inverseBase L m N + a < inverseBase L m N + 2 ^ L
-      omega
-    exact ⟨hs.trans (Nat.le_add_right _ _), ht.trans_le (Nat.le_add_right _ _)⟩
-  have hlookup' (a : ℕ) (ha : a < 2 ^ L) :
-      l.mem (inverseBase L m N + a) = MaskTable.lookup L m a := by
-    rw [hlprotected _ (hinverse a ha)]
-    exact hlookup a ha
-  have hmatrix' (r : ℕ) (hr : r < N) (k : ℕ) (hk : k < D m) :
-      l.mem (matrixAddress L m N true r k) = encode (matrix true r k) := by
-    have hb := matrixAddress_lt_inverse (L := L) true hr hk
-    rw [hlprotected (matrixAddress L m N true r k) ⟨Nat.le_add_right _ _, hb.trans_le hinv⟩]
-    exact hmatrix true r hr k hk
+    unfold catalogueBase tableBase inverseBase; omega
   obtain ⟨r, her, hrp, hrvalues, hrframe⟩ := exec_encodeBands hw true l hlp
-    hlookup' (matrix true) hmatrix' A hA (ha true) hmag hfit
-  have hrprotected := band_frame_protected hrframe
+    (fun a ha => (hlprotected _ (hinverse a ha)).trans (hlookup a ha))
+    (matrix true)
+    (fun r' hr k hk => (hlprotected _ ⟨Nat.le_add_right _ _,
+      (matrixAddress_lt_inverse true hr hk).trans_le hinv⟩).trans (hmatrix true r' hr k hk))
+    A hA (ha true) hmag hfit
   obtain ⟨y, hey, hymem, hyr⟩ := exec_restoreInput r hrp.toHeaderPost hfit
-  have hyp : BandParameters L m N y := parameters_reframe hrp (by
-    intro i hi
-    have hp : ∀ i ∈ parameterRegisters, 7 ≤ i.val := by decide
-    exact hyr i (hp i hi))
+  have hyp : BandParameters L m N y := by regs_frame
   have hrestore (a : ℕ) (ha : inputEnd m N ≤ a) : y.mem a = r.mem a := by
     rw [hymem, ArrayCopy.copyPrefix_outside (by omega)]
   have hprotected (a : ℕ) (ha : snapshotBase L m N ≤ a ∧ a < catalogueBase L m N) :
-      r.mem a = t.mem a := (hrprotected a ha).trans (hlprotected a ha)
-  have hcatlow : Encoding.scratchBase L + 10 ^ L ≤ catalogueBase L m N :=
-    (workspace_le_snapshot L m N).trans (snapshot_le_catalogue L m N)
-  have hinputcat : inputEnd m N ≤ catalogueBase L m N :=
-    (input_le_snapshot L m N).trans (snapshot_le_catalogue L m N)
-  refine ⟨y, ?_, hyp, ?_, ?_, ?_, ?_⟩
-  · apply (heh.seq (hes.seq (hec.seq (het.seq (hel.seq (her.seq hey)))))).mono
-    exact execution_time_le L m N
+      r.mem a = t.mem a := (band_frame_protected hrframe a ha).trans (hlprotected a ha)
+  have hyprotected (a : ℕ) (ha : snapshotBase L m N ≤ a ∧ a < catalogueBase L m N) :
+      y.mem a = t.mem a :=
+    (hrestore a ((input_le_snapshot L m N).trans ha.1)).trans (hprotected a ha)
+  have hcatlow := (workspace_le_snapshot L m N).trans (snapshot_le_catalogue L m N)
+  have hinputcat := (input_le_snapshot L m N).trans (snapshot_le_catalogue L m N)
+  refine ⟨y, (heh.seq (hes.seq (hec.seq (het.seq (hel.seq (her.seq hey)))))).mono
+    (execution_time_le L m N), hyp, ?_,
+    fun a ha => (hyprotected _ (hinverse a ha)).trans (hlookup a ha), ?_, ?_⟩
   · intro side β hβ p hp
-    have hlow : inputEnd m N ≤ catalogueAddress L m N side β p := by
-      have := catalogue_le_address L m N β side
-      unfold catalogueAddress at *
-      omega
-    rw [hrestore _ hlow]
+    have := catalogue_le_address L m N β side
+    rw [hrestore _ (by unfold catalogueAddress at *; omega)]
     cases side
-    · rw [hrframe _ ?_ ?_]
-      · exact hlvalues β hβ p hp
-      · unfold catalogueAddress
-        simp only [Bool.false_eq_true, ↓reduceIte]
-        omega
-      · have hlt : catalogueAddress L m N false β p <
-            catalogueAddress L m N true 0 0 := by
-          unfold catalogueAddress
-          simp only [Bool.false_eq_true, ↓reduceIte, Nat.zero_add, Nat.add_zero]
-          have ht : 0 < 10 ^ L := Nat.pow_pos (by decide)
-          nlinarith only [hβ, hp, ht]
+    · have : β * 10 ^ L + p < numBands L m N * 10 ^ L := by
+        nlinarith only [hβ, hp, Nat.one_le_pow L 10 (by decide)]
+      refine (hrframe _ ?_ ?_).trans (hlvalues β hβ p hp) <;>
+        simp only [catalogueAddress, Bool.false_eq_true, ↓reduceIte, Nat.zero_add, Nat.add_zero] <;>
         omega
     · exact hrvalues β hβ p hp
-  · intro a ha
-    have hb := hinverse a ha
-    rw [hrestore _ ((input_le_snapshot L m N).trans hb.1), hprotected _ hb]
-    exact hlookup a ha
   · intro gh
     have hK : K L m ≤ 2 ^ L := Nat.choose_le_two_pow _ _
-    have hi := (MaskTable.pairRank gh).isLt
-    have hb : snapshotBase L m N ≤ tableBase L m N + (MaskTable.pairRank gh).val ∧
-        tableBase L m N + (MaskTable.pairRank gh).val < catalogueBase L m N := by
-      unfold catalogueBase tableBase inverseBase
-      omega
-    rw [hrestore _ ((input_le_snapshot L m N).trans hb.1), hprotected _ hb]
-    exact hforward gh
+    have := (MaskTable.pairRank gh).isLt
+    exact (hyprotected _ (by unfold catalogueBase tableBase inverseBase; omega)).trans
+      (hforward gh)
   · intro b hb
     by_cases hbin : b < inputEnd m N
-    · have hread : y.mem b = r.mem (snapshotBase L m N + b) := by
-        rw [hymem]
-        simpa only [Nat.zero_add] using (ArrayCopy.copyPrefix_read
-          (mem := r.mem) (src := snapshotBase L m N) (dst := 0) hbin)
-      rw [hread, hprotected _ (by
-        unfold catalogueBase tableBase inverseBase
-        have := Nat.zero_le (2 ^ L)
-        omega)]
-      exact hsnapshot b hbin
+    · rw [← hsnapshot b hbin, ← hprotected (snapshotBase L m N + b)
+        (by unfold catalogueBase tableBase inverseBase; omega), hymem]
+      simpa only [Nat.zero_add] using ArrayCopy.copyPrefix_read (mem := r.mem) (dst := 0) hbin
     · have hbig : memoryEnd L m N ≤ b := by omega
+      have h1 : snapshotBase L m N + inputEnd m N ≤ memoryEnd L m N := inverse_le_memoryEnd L m N
+      have h2 : inverseBase L m N + 2 ^ L ≤ memoryEnd L m N := table_le_memoryEnd L m N
+      have h3 : tableBase L m N + 2 ^ L ≤ memoryEnd L m N := catalogue_le_memoryEnd L m N
       rw [hrestore b (by omega), band_frame_above hrframe b hbig,
-        band_frame_above hlframe b hbig, htframe b ?_ ?_, hcmem, hsmem,
-        ArrayCopy.copyPrefix_outside ?_, hhmem]
-      · have hend := inverse_le_memoryEnd L m N
-        change snapshotBase L m N + inputEnd m N ≤ memoryEnd L m N at hend
-        omega
-      · have hend := table_le_memoryEnd L m N
-        change inverseBase L m N + 2 ^ L ≤ memoryEnd L m N at hend
-        omega
-      · have hend := catalogue_le_memoryEnd L m N
-        change tableBase L m N + 2 ^ L ≤ memoryEnd L m N at hend
-        omega
+        band_frame_above hlframe b hbig, htframe b (by omega) (by omega), hcmem, hsmem,
+        ArrayCopy.copyPrefix_outside (by omega), hhmem]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

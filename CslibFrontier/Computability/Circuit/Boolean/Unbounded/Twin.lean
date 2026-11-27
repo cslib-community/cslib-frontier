@@ -142,28 +142,23 @@ theorem trace_twinProgram (p : Program signature n g) (x : BitString n) (b : Boo
       rw [twinWire_castSucc, twinProgram_gate, Program.trace_gate_castSucc,
         Program.trace_gate_castSucc, Program.trace_gate_castSucc, ih]
     | last =>
-      have hl : ∀ c, (twinLine c l).eval interpretation (AltFormula.literals x)
-          ((twinProgram p).eval interpretation (AltFormula.literals x)) =
-          (l.eval interpretation x (p.eval interpretation x) == c) :=
-        fun c => eval_twinLine c l x _ _ _ fun c w => ih c w
+      have hl (c) := eval_twinLine c l x _ _ _ fun c w => ih c w
       cases b
       · rw [twinWire_false_last, twinProgram_gate]
         simp only [Program.trace, Wire.elim_gate, Program.eval_gate_last]
-        rw [Line.eval_mapWires _ _ _ (AltFormula.literals x) (AltFormula.literals x)
-          ((twinProgram p).eval interpretation (AltFormula.literals x)) _ (fun w => by
-            cases w <;> simp)]
-        exact hl false
+        exact (Line.eval_mapWires _ _ _ (AltFormula.literals x) (AltFormula.literals x)
+          ((twinProgram p).eval interpretation (AltFormula.literals x)) _
+          (fun w => by cases w <;> simp)).trans (hl false)
       · rw [twinWire_true_last, twinProgram_gate]
-        simp only [Program.trace, Wire.elim_gate, Program.eval_gate_castSucc,
-          Program.eval_gate_last]
-        exact hl true
+        simpa only [Program.trace, Wire.elim_gate, Program.eval_gate_castSucc,
+          Program.eval_gate_last] using hl true
 
 /-! ### Depth -/
 
 private theorem eq_of_le_add_one_iff {A B : ℕ} (hA : 0 < A) (hB : 0 < B)
     (h : ∀ e, A ≤ e + 1 ↔ B ≤ e + 1) : A = B := by
-  have h₁ := (h (B - 1)).2 (by omega)
-  have h₂ := (h (A - 1)).1 (by omega)
+  have := (h (B - 1)).2 (by omega)
+  have := (h (A - 1)).1 (by omega)
   omega
 
 /-- A twin has the depth of its gate, when every rail has the depth of its wire. -/
@@ -188,17 +183,15 @@ theorem wireDepths_twinProgram (p : Program signature n g) (b : Bool) (w : Wire 
       rw [twinWire_castSucc, twinProgram_gate, Program.wireDepths_gate_castSucc,
         Program.wireDepths_gate_castSucc, Program.wireDepths_gate_castSucc, ih]
     | last =>
-      have hl : ∀ c, (twinLine c l).depth (twinProgram p).wireDepths = l.depth p.wireDepths :=
-        fun c => depth_twinLine c l _ _ ih
       cases b
       · rw [twinWire_false_last, twinProgram_gate, Program.wireDepths_gateWire,
           Program.depths_gate_last, Program.wireDepths_gateWire, Program.depths_gate_last,
-          ← hl false]
+          ← depth_twinLine false l _ _ ih]
         simp only [Line.depth, Line.mapWires_op, Line.mapWires_wires,
           Program.wireDepths_gate_castSucc]
       · rw [twinWire_true_last, twinProgram_gate, Program.wireDepths_gateWire,
           Program.depths_gate_castSucc, Program.depths_gate_last, Program.wireDepths_gateWire,
-          Program.depths_gate_last, hl true]
+          Program.depths_gate_last, depth_twinLine true l _ _ ih]
 
 /-- No gate of a twin program is a negation. -/
 theorem op_lines_twinProgram_ne_not (p : Program signature n g) (k : Fin (2 * g)) :
@@ -207,12 +200,9 @@ theorem op_lines_twinProgram_ne_not (p : Program signature n g) (k : Fin (2 * g)
   | empty => exact k.elim0
   | gate p l ih =>
     rw [twinProgram_gate] at *
-    induction k using Fin.lastCases with
-    | last => simpa using op_twinLine_ne_not false l
-    | cast k =>
-      induction k using Fin.lastCases with
-      | last => simpa using op_twinLine_ne_not true l
-      | cast k => simpa using ih k
+    refine Fin.lastCases (by simpa using op_twinLine_ne_not false l) (fun k => ?_) k
+    exact Fin.lastCases (by simpa using op_twinLine_ne_not true l)
+      (fun k => by simpa using ih k) k
 
 /-! ### Circuits -/
 

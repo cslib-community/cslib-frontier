@@ -98,21 +98,17 @@ variable {M}
 /-- The local classes grow with their parameters. -/
 theorem LocalClass.mono {q ℓ a S q' ℓ' a' S' : ℕ → ℕ} {Yes No : Language Bool}
     (h : M.LocalClass q ℓ a S Yes No) (hq : q ≤ q') (hℓ : ℓ ≤ ℓ') (ha : a ≤ a') (hS : S ≤ S') :
-    M.LocalClass q' ℓ' a' S' Yes No := by
-  obtain ⟨O, hO⟩ := h
-  refine ⟨O, fun m => ?_⟩
-  obtain ⟨E, hS', hq', hℓ', ha', hyes, hno⟩ := hO m
-  exact ⟨E, hS'.trans (hS m), hq'.trans (hq m), M.queryArityAtMost_mono hℓ' (hℓ m),
-    ha'.trans (ha m), hyes, hno⟩
+    M.LocalClass q' ℓ' a' S' Yes No :=
+  h.imp fun _ hO m => (hO m).imp fun _ ⟨hS', hq', hℓ', ha', hyes, hno⟩ =>
+    ⟨hS'.trans (hS m), hq'.trans (hq m), M.queryArityAtMost_mono hℓ' (hℓ m),
+      ha'.trans (ha m), hyes, hno⟩
 
 /-- Shrinking the yes- and no-instances keeps a promise problem in a local class. -/
 theorem LocalClass.anti {q ℓ a S : ℕ → ℕ} {Yes No Yes' No' : Language Bool}
     (h : M.LocalClass q ℓ a S Yes No) (hY : Yes' ≤ Yes) (hN : No' ≤ No) :
-    M.LocalClass q ℓ a S Yes' No' := by
-  obtain ⟨O, hO⟩ := h
-  refine ⟨O, fun m => ?_⟩
-  obtain ⟨E, hS, hq, hℓ, ha, hyes, hno⟩ := hO m
-  exact ⟨E, hS, hq, hℓ, ha, fun x hx => hyes x (hY hx), fun x hx => hno x (hN hx)⟩
+    M.LocalClass q ℓ a S Yes' No' :=
+  h.imp fun _ hO m => (hO m).imp fun _ ⟨hS, hq, hℓ, ha, hyes, hno⟩ =>
+    ⟨hS, hq, hℓ, ha, fun x hx => hyes x (hY hx), fun x hx => hno x (hN hx)⟩
 
 /-- **Instances of power-of-two length.** If every yes- and no-instance has length a power of two,
 such as the truth tables of a property, a promise problem is in a local class once some oracle
@@ -131,14 +127,11 @@ theorem LocalClass.of_two_pow {q ℓ a S : ℕ → ℕ} {Yes No : Language Bool}
     M.LocalClass q ℓ a S Yes No := by
   refine ⟨O, fun m => ?_⟩
   by_cases hm : ∃ n, m = 2 ^ n
-  · obtain ⟨n, rfl⟩ := hm
+  · rcases hm with ⟨n, rfl⟩
     exact hpow n
-  · obtain ⟨E, hS, hq, hℓ, ha⟩ := hdef m hm
-    refine ⟨E, hS, hq, hℓ, ha, fun x hx => ?_, fun x hx => ?_⟩
-    · obtain ⟨n, hn⟩ := hYes _ hx
-      exact absurd ⟨n, by simpa using hn⟩ hm
-    · obtain ⟨n, hn⟩ := hNo _ hx
-      exact absurd ⟨n, by simpa using hn⟩ hm
+  · exact (hdef m hm).imp fun E ⟨hS, hq, hℓ, ha⟩ => ⟨hS, hq, hℓ, ha,
+      fun x hx => False.elim (hm ((hYes _ hx).imp fun _ hn => by simpa using hn)),
+      fun x hx => False.elim (hm ((hNo _ hx).imp fun _ hn => by simpa using hn))⟩
 
 end OracleModel
 

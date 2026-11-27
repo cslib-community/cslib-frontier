@@ -62,10 +62,7 @@ theorem Xofs.keyGen_withDigestRegister (H : Xofs) (s : Level)
     simp only [nonceInput, List.length_append, List.length_take, List.length_drop,
       Xofs.expandKeySeed, H.h256.length_read, List.length_cons, List.length_nil]
     cases s <;> decide
-  · intro x hx
-    apply off
-    rw [hx]
-    cases s <;> decide
+  · exact fun _ hx => off _ _ (hx ▸ by cases s <;> decide)
 
 /-- Digest bits at a raw commitment-length input, in SHAKE's little-endian order. -/
 def Xofs.readDigestRegister (H : Xofs) (s : Level) (x : BitString s.commitmentInputBits) :
@@ -141,12 +138,11 @@ private theorem overwrite {a b : ℕ} (s : Level) (ha : s.commitmentInputBits �
       exact hx ⟨eq ▸ List.length_ofFn, off ▸ k.isLt⟩
     have off : ((if x.length = s.commitmentInputBits then
         some (((Keccak.fixedBytesEquivBitsLE _).symm (D (BitString.ofList _ x))).toList)
-      else none).bind
-        (fun r => r[j]?)) = none := by
-      by_cases len : x.length = s.commitmentInputBits
+      else none).bind (fun r => r[j]?)) = none := by
+      split_ifs with len
       · have far : ¬ j < digestBytes s := fun small => hx ⟨len, small⟩
-        simp [len, FixedBytes.toList, far]
-      · simp [len]
+        simp [FixedBytes.toList, far]
+      · rfl
     rw [off, Option.getD_none]
     split
     · exact (Function.extend_apply' _ _ _ miss).symm
@@ -167,13 +163,10 @@ theorem Xofs.uniformPrefixes_digestRegister (base : Xofs) (s : Level) {a b : ℕ
       (⟨install base.h128 u, install base.h256 t⟩ : Xofs))
   have read (u t : Table a b) :
       close u t = ((⟨install base.h128 u, install base.h256 t⟩ : Xofs).readDigestRegister s,
-        ⟨install base.h128 u, install base.h256 t⟩) := by
-    refine Prod.ext ?_ rfl
-    funext x
-    apply congrArg (Keccak.fixedBytesEquivBitsLE _)
-    funext i
-    simp only [byteAt_install, List.length_ofFn, ha, i.isLt.trans_le hb, and_self, ↓reduceDIte]
-    rfl
+        ⟨install base.h128 u, install base.h256 t⟩) :=
+    Prod.ext (funext fun x => congrArg (Keccak.fixedBytesEquivBitsLE _) (funext fun i => by
+      simp only [byteAt_install, List.length_ofFn, ha, i.isLt.trans_le hb, and_self, ↓reduceDIte]
+      rfl)) rfl
   have restore (u t : Table a b) (D : BitString s.commitmentInputBits → _) :
       close u (Function.extend e (flatten s D) t) =
         (D, (⟨install base.h128 u, install base.h256 t⟩ : Xofs).withDigestRegister s D) := by

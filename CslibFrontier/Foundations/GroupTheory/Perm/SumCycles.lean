@@ -30,18 +30,12 @@ theorem sameCycle_sumCongr_iff (f : Perm α) (g : Perm β) (x y : α ⊕ β) :
       | Sum.inl a, Sum.inl b => f.SameCycle a b
       | Sum.inr a, Sum.inr b => g.SameCycle a b
       | _, _ => False := by
-  have he : SameCycle (Equiv.sumCongr f g) x y ↔
-      sumOrbitEquiv f g (Quotient.mk _ x) = sumOrbitEquiv f g (Quotient.mk _ y) :=
-    ⟨fun h => congrArg (sumOrbitEquiv f g) (Quotient.sound h),
-      fun h => Quotient.exact ((sumOrbitEquiv f g).injective h)⟩
-  rw [he]
+  refine Iff.trans ⟨fun h => congrArg (sumOrbitEquiv f g) (Quotient.sound h),
+    fun h => Quotient.exact ((sumOrbitEquiv f g).injective h)⟩ ?_
   cases x <;> cases y <;>
     simp only [sumOrbitEquiv, Equiv.coe_fn_mk, Quotient.lift_mk, Sum.map_inl, Sum.map_inr]
-  · simp only [Sum.inl.injEq]
-    exact ⟨fun h => Quotient.exact h, fun h => Quotient.sound h⟩
-  · simp
-  · simp
-  · simp only [Sum.inr.injEq]
-    exact ⟨fun h => Quotient.exact h, fun h => Quotient.sound h⟩
+  exacts [Sum.inl_injective.eq_iff.trans ⟨fun h => Quotient.exact h, fun h => Quotient.sound h⟩,
+    by simp, by simp,
+    Sum.inr_injective.eq_iff.trans ⟨fun h => Quotient.exact h, fun h => Quotient.sound h⟩]
 
 end Equiv.Perm

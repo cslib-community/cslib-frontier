@@ -83,29 +83,17 @@ theorem one_sub_two_mul_exp_le_dist_iid (μ ν : PMF α) (k : ℕ) :
   -- Under `ν`, the count reaches the midpoint only with exponentially small probability.
   set E : Set (Fin k → α) := {x | k * q + k * (d / 2) ≤ ∑ i, score i (x i)} with hE
   have hν : ((iid ν k).toOuterMeasure E).toReal ≤ Real.exp (-(k * d ^ 2) / 2) := by
-    have h := pi_sum_ge_mean_add_card_mul (fun _ : Fin k => ν) score (hscore ν) hd2
-    rw [Fintype.card_fin, hmean, hexp] at h
-    rwa [iid_eq_pi]
+    simpa only [Fintype.card_fin, hmean, hexp, ← iid_eq_pi] using
+      pi_sum_ge_mean_add_card_mul (fun _ : Fin k => ν) score (hscore ν) hd2
   -- Under `μ`, the count stays above the midpoint except with exponentially small probability.
   have hμ : 1 - Real.exp (-(k * d ^ 2) / 2) ≤ ((iid μ k).toOuterMeasure E).toReal := by
     have h := pi_sum_le_mean_sub_card_mul (fun _ : Fin k => μ) score (hscore μ) hd2
     rw [Fintype.card_fin, hmean, hexp, ← hp, ← iid_eq_pi] at h
-    have hsub : Eᶜ ⊆ {x : Fin k → α | ∑ i, score i (x i) ≤ k * p - k * (d / 2)} := by
-      intro x hx
-      simp only [hE, Set.mem_compl_iff, Set.mem_ofPred_eq, not_le] at hx
-      simp only [Set.mem_ofPred_eq]
-      have : k * q + k * (d / 2) = k * p - k * (d / 2) := by
-        rw [← hpq]
-        ring
-      linarith
-    have hmono : ((iid μ k).toOuterMeasure Eᶜ).toReal ≤
-        ((iid μ k).toOuterMeasure
-          {x : Fin k → α | ∑ i, score i (x i) ≤ k * p - k * (d / 2)}).toReal :=
-      toOuterMeasure_toReal_mono (iid μ k) hsub
-    have hc := toOuterMeasure_toReal_add_compl (iid μ k) E
-    linarith
-  have hdist := abs_toOuterMeasure_toReal_sub_le_dist (iid μ k) (iid ν k) E
-  linarith [le_abs_self (((iid μ k).toOuterMeasure E).toReal -
-    ((iid ν k).toOuterMeasure E).toReal)]
+    have hsub : Eᶜ ⊆ {x : Fin k → α | ∑ i, score i (x i) ≤ k * p - k * (d / 2)} := fun x hx => by
+      simp only [hE, Set.mem_compl_iff, Set.mem_ofPred_eq, not_le] at hx ⊢
+      linarith [congrArg ((k : ℝ) * ·) hpq]
+    linarith [toOuterMeasure_toReal_mono (iid μ k) hsub,
+      toOuterMeasure_toReal_add_compl (iid μ k) E]
+  linarith [(le_abs_self _).trans (abs_toOuterMeasure_toReal_sub_le_dist (iid μ k) (iid ν k) E)]
 
 end Cslib.Probability.PMF

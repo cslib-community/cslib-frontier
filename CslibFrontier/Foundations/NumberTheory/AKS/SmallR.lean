@@ -12,9 +12,7 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Data.Nat.Log
 public import Mathlib.Data.ZMod.Basic
 public import Mathlib.Data.Nat.Choose.Central
-import Mathlib.Analysis.SpecialFunctions.Pow.Real
-import Mathlib.Data.Nat.Choose.Factorization
-import Mathlib.Data.Nat.Factorization.Basic
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.FieldTheory.Finite.Basic
 
 /-!
@@ -98,7 +96,7 @@ theorem exists_lt_orderOf {n : ℕ} (hn : 2 ≤ n) :
   set X := n ^ K * N
   have hfac : ∀ i ∈ Icc 1 L, 1 ≤ n ^ i - 1 := by
     intro i hi
-    have : 2 ≤ n ^ i := le_trans hn (Nat.le_self_pow (by simp at hi; omega) n)
+    have : 2 ≤ n ^ i := le_trans hn (Nat.le_self_pow (by simp only [mem_Icc] at hi; omega) n)
     omega
   have hN : N ≠ 0 := prod_ne_zero_iff.mpr fun i hi => by have := hfac i hi; omega
   have hX : X ≠ 0 := mul_ne_zero (pow_ne_zero _ (by omega)) hN
@@ -122,7 +120,7 @@ theorem exists_lt_orderOf {n : ℕ} (hn : 2 ≤ n) :
       calc
         N ≤ ∏ _i ∈ Icc 1 L, n ^ L :=
           prod_le_prod fun i hi => (Nat.sub_le _ _).trans
-            (Nat.pow_le_pow_right (by omega) (by simp at hi; omega))
+            (Nat.pow_le_pow_right (by omega) (by simp only [mem_Icc] at hi; omega))
         _ = n ^ (c ^ 4) := by
           rw [prod_const, Nat.card_Icc, Nat.add_sub_cancel, ← pow_mul]
           congr 1
@@ -155,14 +153,10 @@ theorem exists_lt_orderOf {n : ℕ} (hn : 2 ≤ n) :
   have hsM : s ≤ M := by
     obtain ⟨s₀, hs₀, hs₀M, hs₀X⟩ := hex
     exact (Nat.find_min' hex' ⟨hs₀, hs₀X⟩).trans hs₀M
-  have hmin : ∀ s', 1 ≤ s' → s' < s → s' ∣ X := fun s' hs' hlt => by
-    by_contra h
-    exact Nat.find_min hex' hlt ⟨hs', h⟩
-  have hs2 : 2 ≤ s := by
-    by_contra h
-    have h1 : s = 1 := by omega
-    rw [h1] at hs
-    exact hs.2 (one_dvd X)
+  have hmin : ∀ s', 1 ≤ s' → s' < s → s' ∣ X := fun s' hs' hlt =>
+    of_not_not fun h => Nat.find_min hex' hlt ⟨hs', h⟩
+  have hs2 : 2 ≤ s := Nat.one_lt_iff_ne_zero_and_ne_one.2
+    ⟨by omega, fun h => hs.2 (h ▸ one_dvd X)⟩
   -- `s` is coprime to `n`.
   have hcop : s.Coprime n := by
     by_contra hnc
@@ -175,10 +169,8 @@ theorem exists_lt_orderOf {n : ℕ} (hn : 2 ≤ n) :
     have hsplit : p ^ v * (s / p ^ v) = s := Nat.ordProj_mul_ordCompl_eq_self s p
     have hpv : 2 ≤ p ^ v := le_trans hp.two_le (Nat.le_self_pow (by omega) p)
     have hlt : s / p ^ v < s := Nat.div_lt_self (by omega) (by omega)
-    have hpos : 1 ≤ s / p ^ v := by
-      rcases Nat.eq_zero_or_pos (s / p ^ v) with h | h
-      · rw [h, mul_zero] at hsplit; omega
-      · exact h
+    have hpos : 1 ≤ s / p ^ v := Nat.pos_of_ne_zero fun h => by
+      rw [h, mul_zero] at hsplit; omega
     have hvK : v ≤ K := by
       apply Nat.le_log_of_pow_le one_lt_two
       calc
@@ -194,8 +186,7 @@ theorem exists_lt_orderOf {n : ℕ} (hn : 2 ≤ n) :
   have : NeZero s := ⟨by omega⟩
   have hunit : IsUnit (n : ZMod s) := (ZMod.isUnit_iff_coprime n s).mpr hcop.symm
   have hord : 0 < orderOf (n : ZMod s) := hunit.isOfFinOrder.orderOf_pos
-  by_contra hle
-  replace hle := not_lt.mp hle
+  by_contra! hle
   have hmem : orderOf (n : ZMod s) ∈ Icc 1 L := mem_Icc.mpr ⟨hord, hle⟩
   have hsdvd : s ∣ n ^ orderOf (n : ZMod s) - 1 := by
     rw [← ZMod.natCast_eq_zero_iff, Nat.cast_sub (Nat.one_le_pow _ _ (by omega)), Nat.cast_pow,
@@ -234,7 +225,6 @@ theorem exists_lt_orderOf_logb {n : ℕ} (hn : 2 ≤ n) :
       _ = 128 * Real.logb 2 n ^ 5 := by ring
   · have h1 : Real.logb 2 n ^ 2 ≤ (c : ℝ) ^ 2 := pow_le_pow_left₀ (by linarith) hlogc 2
     have h2 : ((c ^ 2 : ℕ) : ℝ) < (orderOf (n : ZMod r) : ℝ) := by exact_mod_cast hord
-    push_cast at h2
-    linarith
+    cast_linarith
 
 end Cslib.AKS

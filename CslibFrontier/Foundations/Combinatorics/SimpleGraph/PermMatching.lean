@@ -60,43 +60,33 @@ theorem exists_isPerfectMatching_of_perm (σ : Perm V) (hadj : ∀ v, G.Adj v (�
   let k : V → ℤ := fun y => (hrep y).choose
   have hk : ∀ y, (σ ^ k y) (q y).out = y := fun y => (hrep y).choose_spec
   let col : V → ZMod 2 := fun y => (k y : ZMod 2)
-  have hcol : ∀ y, col (σ y) = col y + 1 := by
-    intro y
+  have hcol (y : V) : col (σ y) = col y + 1 := by
     have h1 : (σ ^ k (σ y)) (q y).out = (σ ^ (k y + 1)) (q y).out := by
       rw [← hrepσ, hk, add_comm, _root_.zpow_add, zpow_one, Perm.mul_apply, hrepσ, hk]
     rw [zpow_eq_zpow_on_iff σ (hfix _)] at h1
-    have h2 : (2 : ℤ) ∣ (#(σ.cycleOf (q y).out).support : ℤ) := by
-      exact_mod_cast (even_iff_two_dvd.1 (heven _))
+    have h2 : (2 : ℤ) ∣ (#(σ.cycleOf (q y).out).support : ℤ) :=
+      mod_cast even_iff_two_dvd.1 (heven _)
     have h3 : k (σ y) % 2 = (k y + 1) % 2 := by
       rw [← Int.emod_emod_of_dvd _ h2, h1, Int.emod_emod_of_dvd _ h2]
-    have h4 : ((k (σ y) : ℤ) : ZMod 2) = ((k y + 1 : ℤ) : ZMod 2) :=
+    simpa only [col, Int.cast_add, Int.cast_one] using
       (ZMod.intCast_eq_intCast_iff' _ _ 2).2 h3
-    simp only [col, h4]
-    push_cast
-    rfl
-  have hcolinv : ∀ y, col (σ⁻¹ y) = col y + 1 := by
-    intro y
+  have hcolinv (y : V) : col (σ⁻¹ y) = col y + 1 := by
     have := hcol (σ⁻¹ y)
     rw [hai] at this
     rw [this, add_assoc, show (1 + 1 : ZMod 2) = 0 from rfl, add_zero]
   let τ : V → V := fun y => if col y = 0 then σ y else σ⁻¹ y
   have hz : ∀ c : ZMod 2, c ≠ 0 → c + 1 = 0 := by decide
-  have hτ : Function.Involutive τ := by
-    intro y
+  have hτ : Function.Involutive τ := fun y => by
     by_cases hy : col y = 0
     · have : col (σ y) ≠ 0 := by rw [hcol, hy]; decide
       simp only [τ, ite_eq_left hy, ite_eq_right this, hia]
-    · have : col (σ⁻¹ y) = 0 := by rw [hcolinv]; exact hz _ hy
+    · have : col (σ⁻¹ y) = 0 := (hcolinv y).trans (hz _ hy)
       simp only [τ, ite_eq_right hy, ite_eq_left this, hai]
-  have hτadj : ∀ y, G.Adj y (τ y) := by
-    intro y
-    by_cases hy : col y = 0
-    · simp only [τ, ite_eq_left hy]
-      exact hadj y
-    · simp only [τ, ite_eq_right hy]
-      have := hadj (σ⁻¹ y)
-      rw [hai] at this
-      exact this.symm
+  have hτadj (y : V) : G.Adj y (τ y) := by
+    dsimp only [τ]
+    split_ifs
+    · exact hadj y
+    · exact (hai y ▸ hadj (σ⁻¹ y)).symm
   let M : G.Subgraph :=
     { verts := Set.univ
       Adj := fun v w => τ v = w

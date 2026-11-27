@@ -7,7 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.BinarySearch
+public import CslibFrontier.Algorithms.Lean.Query.BinarySearch
+public import CslibFrontier.Algorithms.Lean.Query.SumQuery
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.BoundedQuery
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.PolyTime
 public import CslibFrontier.Computability.Complexity.FineGrained.MaxSAT.Histogram
@@ -43,15 +44,17 @@ Optimization over a bounded integer objective `[0, bound x]` reduces to logarith
 decision queries followed by witness search at the optimal threshold
 [Papadimitriou, Section 17.1][Papadimitriou94], [Arora and Barak, Section 2.5][AroraBarak09].
 
-1. **Abstract `TimeM` threshold optimization (`MaxThresholdSpec`, `MinThresholdSpec`)**:
-   bisection via `Cslib.Algorithms.Lean.lowerBoundM` finds the exact maximum or minimum feasible
-   objective value (or `none` when no valid witness exists) in at most
-   `Nat.log 2 (bound x + 1) + 1` threshold probes, and composes with a witness-at-threshold
-   finder to return an optimal witness.
+1. **Threshold-probe query optimization (`MaxThresholdSpec`, `MinThresholdSpec`)**:
+   pure bisection via `Cslib.Algorithms.Lean.lowerBound` and query-monad programs (`maxOptQ`,
+   `minOptQ`, `maxOptWitnessQ`, `minOptWitnessQ` over `Cslib.Query.ProbeQuery` and
+   `ThresholdWitnessQuery`) find the exact maximum or minimum feasible objective value (or `none`
+   when no valid witness exists) using at most `Nat.log 2 (bound x + 1) + 1` threshold decision
+   queries (`SumQuery.countInl`) and at most `1` witness query (`SumQuery.countInr`, `0` when
+   infeasible).
 2. **Native oracle binary search (`bisectProgram`,
    `computableInPolyTimeWithOracleQueries_bisect`)**: a fixed-iteration adaptive `WordQueryComp`
    loop over `[lo x, hi x)` runs `(hi x - lo x).size` rounds, agrees identically with
-   `lowerBoundM`, makes at most `(hi x - lo x).size ≤ Nat.log 2 (hi x - lo x) + 1` oracle
+   `lowerBound`, makes at most `(hi x - lo x).size ≤ Nat.log 2 (hi x - lo x) + 1` oracle
    requests (all at midpoints in `[lo x, hi x)`), and is strict oracle PPT (`IsOraclePPTOn`) even
    for exponentially large binary bounds `hi x`. Sequencing with an oracle witness-recovery
    program (`ComputableInPolyTimeWithOracleQueries.bind_with`) recovers both the optimal value
@@ -68,8 +71,7 @@ The Max-SAT client here works in `P^NP`: instances are bare `φ : CNF ℕ`, ever
 `NP` language `MaxSATThreshold` itself. `FineGrained.MaxSAT.Reduction` instead fixes a declared
 variable count (`MaxSAT.StructInstance`, assignments in `BitString n`), takes a unary cutoff
 (`MaxSAT.ThresholdQuery`), and compiles each threshold query through `MaxSAT.thresholdCircuit` to a
-3-CNF for a supplied fixed-width `k`-SAT solver (`optimumByBinarySearchM`,
-`optimizeByBinarySearchM`). The two optima agree on well-formed instances:
+3-CNF for a supplied fixed-width `k`-SAT solver. The two optima agree on well-formed instances:
 `MaxSAT.maxClauseScore_eq_optimum` gives `maxClauseScore φ = MaxSAT.optimum (n, φ)` when every
 variable of `φ` is below `n`.
 
@@ -79,8 +81,12 @@ variable of `φ` is below `n`.
   bisection step.
 * `Cslib.Complexity.OracleThresholdQuery`, `Cslib.Complexity.OptSolution`: typed query and
   value-witness structures with encodings `encOracleThresholdQuery` and `encOptSolution`.
+* `Cslib.Complexity.WitnessQuery`, `Cslib.Complexity.ThresholdWitnessQuery`: witness-at-threshold
+  query signature and combined decision/witness query signature.
 * `Cslib.Complexity.MaxThresholdSpec`, `Cslib.Complexity.MinThresholdSpec`: bounded maximization
-  and minimization threshold specifications with `TimeM` solvers.
+  and minimization threshold specifications with pure and `FreeM` query solvers (`maxOpt`,
+  `minOpt`, `maxOptWitness`, `minOptWitness`, `maxOptQ`, `minOptQ`, `maxOptWitnessQ`,
+  `minOptWitnessQ`).
 * `Cslib.Complexity.bisectProgram`: native adaptive oracle bisection program.
 * `Cslib.Complexity.MaxSATQuery`, `Cslib.Complexity.MaxSATSolution`,
   `Cslib.Complexity.MaxSATThreshold`, `Cslib.Complexity.MaxSAT.solveMaxSAT`: Max-SAT threshold
@@ -88,11 +94,14 @@ variable of `φ` is below `n`.
 
 ## Main results
 
-* `Cslib.Complexity.iterate_bisectStep_eq_lowerBoundM`: `(hi - lo).size` bisection steps equal
-  `lowerBoundM`.
-* `Cslib.Complexity.MaxThresholdSpec.maxOptWitnessM_spec`,
-  `Cslib.Complexity.MinThresholdSpec.minOptWitnessM_spec`: correctness and `O(log M)` probe bounds
-  for `TimeM` maximization and minimization with witness recovery.
+* `Cslib.Complexity.iterate_bisectStep_eq_lowerBound`: `(hi - lo).size` bisection steps equal
+  `lowerBound`.
+* `Cslib.Complexity.MaxThresholdSpec.maxOptWitness_spec`,
+  `Cslib.Complexity.MaxThresholdSpec.maxOptWitnessQ_query_bounds`,
+  `Cslib.Complexity.MinThresholdSpec.minOptWitness_spec`,
+  `Cslib.Complexity.MinThresholdSpec.minOptWitnessQ_query_bounds`: correctness and
+  `⌊log₂ (bound x + 1)⌋ + 1` decision-query plus `1` witness-query bounds for maximization and
+  minimization with witness recovery.
 * `Cslib.Complexity.ComputableInPolyTimeWithOracleQueries.bind_with`: query-bounded sequential
   oracle composition.
 * `Cslib.Complexity.computableInPolyTimeWithOracleQueries_bisect`: polynomial-time oracle
@@ -134,7 +143,7 @@ theorem OracleComp.mem_queriesWith_iterate {ι State : Type} {spec : OracleSpec.
 
 namespace Complexity
 
-open Cslib.Algorithms.Lean Cslib.Logic.PL Probability Turing.MultiTapeTM
+open Cslib.Algorithms.Lean Cslib.Query Cslib.Logic.PL Probability Turing.MultiTapeTM
 
 /-! ### Structures and encodings -/
 
@@ -253,7 +262,7 @@ theorem encOptSolution_mk_polyTime {β γ : Type} {encB : β ↪ List Bool}
     ComputableInPolyTime (fun a => OptSolution.mk (v a) (w a)) encIn (encOptSolution encB) :=
   (hv.prod hw).of_enc_eq fun _ => rfl
 
-/-! ### Pure bisection iteration and `lowerBoundM` bridge -/
+/-! ### Pure bisection iteration and `lowerBound` bridge -/
 
 /-- One pure step of bisection on `[iv.lo, iv.hi)` for a Boolean test `test`. -/
 def bisectStep (test : ℕ → Bool) (iv : BisectInterval) : BisectInterval :=
@@ -315,13 +324,12 @@ theorem iterate_bisectStep_spec {test : ℕ → Bool} {lo hi : ℕ}
     (Nat.div_eq_of_lt (Nat.lt_size_self (hi - lo)))
   exact ⟨h1, h2, h4, fun m hm hmk => h5 m (by omega) hmk⟩
 
-/-- **Fixed-count bisection equals `lowerBoundM`** on every antitone test. -/
-theorem iterate_bisectStep_eq_lowerBoundM (t : ℕ → TimeM ℕ Bool) {lo hi : ℕ}
-    (hmono : ∀ m m', lo ≤ m → m ≤ m' → m' < hi → (t m').ret = true → (t m).ret = true) :
-    ((bisectStep (fun m => (t m).ret))^[(hi - lo).size] ⟨lo, hi⟩).lo =
-      (lowerBoundM t lo hi).ret := by
-  obtain ⟨h1, h2, h3, h4⟩ := iterate_bisectStep_spec (test := fun m => (t m).ret) hmono
-  obtain ⟨g1, g2, g3, g4⟩ := lowerBoundM_spec t hmono
+/-- **Fixed-count bisection equals `lowerBound`** on every antitone test. -/
+theorem iterate_bisectStep_eq_lowerBound (t : ℕ → Bool) {lo hi : ℕ}
+    (hmono : ∀ m m', lo ≤ m → m ≤ m' → m' < hi → t m' = true → t m = true) :
+    ((bisectStep t)^[(hi - lo).size] ⟨lo, hi⟩).lo = lowerBound t lo hi := by
+  obtain ⟨h1, h2, h3, h4⟩ := iterate_bisectStep_spec (test := t) hmono
+  obtain ⟨g1, g2, g3, g4⟩ := lowerBound_spec t hmono
   rcases Nat.lt_or_ge lo hi with hlt | hge
   · by_contra hne
     rcases Nat.lt_or_gt_of_ne hne with hk | hk
@@ -329,7 +337,45 @@ theorem iterate_bisectStep_eq_lowerBoundM (t : ℕ → TimeM ℕ Bool) {lo hi : 
     · exact Bool.noConfusion ((h3 _ g1 hk).symm.trans (g4 _ le_rfl (by omega)))
   · omega
 
-/-! ### Bounded maximization and minimization in `TimeM` -/
+/-! ### Bounded maximization and minimization in the threshold-probe query model -/
+
+/-- Witness-search query signature for threshold optimization: `WitnessQuery.find q` requests a
+witness achieving threshold `q : ℕ`, returning a value in `β`. -/
+inductive WitnessQuery (β : Type) : Type → Type where
+  /-- Request a candidate witness at threshold `q`. -/
+  | find (q : ℕ) : WitnessQuery β β
+
+/-- Lift `WitnessQuery.find q` into `FreeM (WitnessQuery β) β`. -/
+abbrev WitnessQuery.ask {β : Type} (q : ℕ) : FreeM (WitnessQuery β) β :=
+  FreeM.lift (.find q)
+
+/-- Build a `WitnessQuery β` oracle from `ℕ → β`. -/
+@[expose] def WitnessQuery.oracleOf {β : Type} (f : ℕ → β) :
+    {ι : Type} → WitnessQuery β ι → ι
+  | _, .find q => f q
+
+@[simp] theorem WitnessQuery.oracleOf_find {β : Type} (f : ℕ → β) (q : ℕ) :
+    WitnessQuery.oracleOf f (.find q) = f q := rfl
+
+/-- Combined query signature for threshold optimization with witness recovery: `.inl (.probe q)`
+queries threshold feasibility (`Bool`) and `.inr (.find q)` requests a witness (`β`) at threshold
+`q`. -/
+abbrev ThresholdWitnessQuery (β : Type) : Type → Type :=
+  SumQuery ProbeQuery (WitnessQuery β)
+
+/-- Combine a pure threshold predicate `probe : ℕ → Bool` and witness finder `find : ℕ → β` into
+an oracle for `ThresholdWitnessQuery β`. -/
+@[expose] def ThresholdWitnessQuery.oracleOf {β : Type} (probe : ℕ → Bool) (find : ℕ → β) :
+    {ι : Type} → ThresholdWitnessQuery β ι → ι :=
+  SumQuery.combine (ProbeQuery.oracleOf probe) (WitnessQuery.oracleOf find)
+
+@[simp] theorem ThresholdWitnessQuery.oracleOf_probe {β : Type}
+    (probe : ℕ → Bool) (find : ℕ → β) (q : ℕ) :
+    ThresholdWitnessQuery.oracleOf probe find (.inl (.probe q)) = probe q := rfl
+
+@[simp] theorem ThresholdWitnessQuery.oracleOf_find {β : Type}
+    (probe : ℕ → Bool) (find : ℕ → β) (q : ℕ) :
+    ThresholdWitnessQuery.oracleOf probe find (.inr (.find q)) = find q := rfl
 
 /-- Specification of a bounded integer maximization problem on instances `α` and witnesses `β`:
 valid witnesses of `x` have integer score bounded by `bound x`. -/
@@ -362,24 +408,25 @@ theorem not_atLeast_succ_bound (x : α) : ¬ S.atLeast x (S.bound x + 1) := by
   have := S.score_le_bound x w hw
   omega
 
-/-- Find the exact maximum score of `x` (or `none` if `x` has no valid witness) by bisection on
-`[0, S.bound x + 1)` in `TimeM`. -/
-def maxOptM (probe : α → ℕ → TimeM ℕ Bool) (x : α) : TimeM ℕ (Option ℕ) := do
-  let k ← lowerBoundM (probe x) 0 (S.bound x + 1)
-  return if k = 0 then none else some (k - 1)
+/-- Pure bisection for the exact maximum score of `x` (or `none` if `x` has no valid witness) on
+`[0, S.bound x + 1)`. -/
+@[expose] def maxOpt (probe : α → ℕ → Bool) (x : α) : Option ℕ :=
+  let k := lowerBound (probe x) 0 (S.bound x + 1)
+  if k = 0 then none else some (k - 1)
 
-/-- Correctness of `maxOptM`: returns `none` iff no valid witness exists, and `some v` when `v`
-is the exact maximum score over valid witnesses. -/
-theorem maxOptM_spec {probe : α → ℕ → TimeM ℕ Bool} {x : α}
-    (hprobe : ∀ q, q ≤ S.bound x → ((probe x q).ret = true ↔ S.atLeast x q)) :
-    ((S.maxOptM probe x).ret = none ↔ ¬ ∃ w, S.valid x w) ∧
-      ∀ v, (S.maxOptM probe x).ret = some v →
+/-- Correctness of `maxOpt`: returns `none` iff no valid witness exists, and `some v` when `v` is
+the exact maximum score over valid witnesses. -/
+theorem maxOpt_spec {probe : α → ℕ → Bool} {x : α}
+    (hprobe : ∀ q, q ≤ S.bound x → (probe x q = true ↔ S.atLeast x q)) :
+    (S.maxOpt probe x = none ↔ ¬ ∃ w, S.valid x w) ∧
+      ∀ v, S.maxOpt probe x = some v →
         v ≤ S.bound x ∧ S.atLeast x v ∧ ∀ w, S.valid x w → S.score x w ≤ v := by
-  obtain ⟨hlo, hhi, htrue, hfalse⟩ := lowerBoundM_spec (probe x) (lo := 0) (hi := S.bound x + 1)
+  obtain ⟨hlo, hhi, htrue, hfalse⟩ := lowerBound_spec (probe x) (lo := 0) (hi := S.bound x + 1)
     fun m m' _ hmm' hm' ht => (hprobe m (by omega)).mpr
       (S.atLeast_antitone hmm' ((hprobe m' (by omega)).mp ht))
-  simp only [maxOptM, TimeM.ret_bind, TimeM.ret_pure]
-  set k := (lowerBoundM (probe x) 0 (S.bound x + 1)).ret
+  unfold maxOpt
+  dsimp only
+  set k := lowerBound (probe x) 0 (S.bound x + 1)
   refine ⟨?_, fun v hv => ?_⟩
   · split_ifs with hk0
     · exact iff_of_true rfl fun ⟨w, hw⟩ => Bool.noConfusion
@@ -397,66 +444,141 @@ theorem maxOptM_spec {probe : α → ℕ → TimeM ℕ Bool} {x : α}
     exact Bool.noConfusion
       (((hprobe k (by omega)).mpr ⟨w, hw, by omega⟩).symm.trans (hfalse k le_rfl (by omega)))
 
-/-- Time bound for `maxOptM`: at most `c * (⌊log₂ (bound x + 1)⌋ + 1)` ticks when each probe
-costs at most `c`. -/
-theorem maxOptM_time_le (probe : α → ℕ → TimeM ℕ Bool) {x : α} {c : ℕ}
-    (hc : ∀ q, (probe x q).time ≤ c) :
-    (S.maxOptM probe x).time ≤ c * (Nat.log 2 (S.bound x + 1) + 1) := by
-  simpa [maxOptM] using lowerBoundM_time_le (probe x) hc 0 (S.bound x + 1)
+/-- Pure recovery of both the maximum score and an optimal witness by running `maxOpt` and invoking
+`findWitness` once at the optimal threshold. -/
+@[expose] def maxOptWitness (probe : α → ℕ → Bool) (findWitness : α → ℕ → β) (x : α) :
+    Option (OptSolution β) :=
+  match S.maxOpt probe x with
+  | none => none
+  | some v => some ⟨v, findWitness x v⟩
 
-/-- Recover both the maximum score and an optimal witness in `TimeM` by running `maxOptM` and
-invoking `findWitness` once at the optimal threshold. -/
-def maxOptWitnessM (probe : α → ℕ → TimeM ℕ Bool) (findWitness : α → ℕ → TimeM ℕ β) (x : α) :
-    TimeM ℕ (Option (OptSolution β)) := do
-  match ← S.maxOptM probe x with
-  | none => return none
-  | some v =>
-    let w ← findWitness x v
-    return some ⟨v, w⟩
-
-/-- Correctness of `maxOptWitnessM`. -/
-theorem maxOptWitnessM_spec {probe : α → ℕ → TimeM ℕ Bool} {findWitness : α → ℕ → TimeM ℕ β}
-    {x : α} (hprobe : ∀ q, q ≤ S.bound x → ((probe x q).ret = true ↔ S.atLeast x q))
+/-- Correctness of `maxOptWitness`. -/
+theorem maxOptWitness_spec {probe : α → ℕ → Bool} {findWitness : α → ℕ → β}
+    {x : α} (hprobe : ∀ q, q ≤ S.bound x → (probe x q = true ↔ S.atLeast x q))
     (hwit : ∀ q, q ≤ S.bound x → S.atLeast x q →
-      S.valid x (findWitness x q).ret ∧ q ≤ S.score x (findWitness x q).ret) :
-    ((S.maxOptWitnessM probe findWitness x).ret = none ↔ ¬ ∃ w, S.valid x w) ∧
-      ∀ sol, (S.maxOptWitnessM probe findWitness x).ret = some sol →
+      S.valid x (findWitness x q) ∧ q ≤ S.score x (findWitness x q)) :
+    (S.maxOptWitness probe findWitness x = none ↔ ¬ ∃ w, S.valid x w) ∧
+      ∀ sol, S.maxOptWitness probe findWitness x = some sol →
         sol.optValue ≤ S.bound x ∧ S.valid x sol.witness ∧
           S.score x sol.witness = sol.optValue ∧
           ∀ w, S.valid x w → S.score x w ≤ sol.optValue := by
-  obtain ⟨hnone, hsome⟩ := S.maxOptM_spec hprobe
-  unfold maxOptWitnessM
-  rw [TimeM.ret_bind]
-  cases hm : (S.maxOptM probe x).ret with
+  obtain ⟨hnone, hsome⟩ := S.maxOpt_spec hprobe
+  unfold maxOptWitness
+  cases hm : S.maxOpt probe x with
   | none =>
-    simp only [TimeM.ret_pure, true_iff, reduceCtorEq, IsEmpty.forall_iff, implies_true, and_true]
+    simp only [true_iff, reduceCtorEq, IsEmpty.forall_iff, implies_true, and_true]
     exact hnone.mp hm
   | some v =>
     obtain ⟨hv_le, hat, hmax⟩ := hsome v hm
     obtain ⟨hvw, hvsc⟩ := hwit v hv_le hat
-    simp only [TimeM.ret_bind, TimeM.ret_pure, reduceCtorEq, false_iff, Option.some.injEq,
-      forall_eq']
+    simp only [reduceCtorEq, false_iff, Option.some.injEq, forall_eq']
     exact ⟨fun hno => hno ⟨_, hvw⟩, hv_le, hvw, le_antisymm (hmax _ hvw) hvsc, hmax⟩
 
-theorem maxOptWitnessM_time_le (probe : α → ℕ → TimeM ℕ Bool)
-    (findWitness : α → ℕ → TimeM ℕ β) {x : α} {cp cw : ℕ}
-    (hcp : ∀ q, (probe x q).time ≤ cp)
-    (hcw : ∀ q, q ≤ S.bound x → (findWitness x q).time ≤ cw)
-    (hprobe : ∀ q, q ≤ S.bound x → ((probe x q).ret = true ↔ S.atLeast x q)) :
-    (S.maxOptWitnessM probe findWitness x).time ≤
+/-- Query-monad maximization program on `[0, S.bound x + 1)` over `ProbeQuery`. -/
+@[expose] def maxOptQ (x : α) : FreeM ProbeQuery (Option ℕ) :=
+  (fun k => if k = 0 then none else some (k - 1)) <$> lowerBoundQ 0 (S.bound x + 1)
+
+@[simp] theorem eval_maxOptQ (oracle : {ι : Type} → ProbeQuery ι → ι) (x : α) :
+    (S.maxOptQ x).eval oracle = S.maxOpt (fun _ q => oracle (.probe q)) x := by
+  simp only [maxOptQ, maxOpt, FreeM.eval_map, eval_lowerBoundQ]
+
+/-- `maxOptQ x` makes at most `Nat.log 2 (S.bound x + 1) + 1` threshold probes. -/
+theorem countQueries_maxOptQ_le (oracle : {ι : Type} → ProbeQuery ι → ι) (x : α) :
+    (S.maxOptQ x).countQueries oracle ≤ Nat.log 2 (S.bound x + 1) + 1 := by
+  simpa only [maxOptQ, FreeM.countQueries_map, Nat.sub_zero] using
+    countQueries_lowerBoundQ_le oracle 0 (S.bound x + 1)
+
+/-- Query-monad maximization with witness recovery over `ThresholdWitnessQuery β`: makes at most
+`Nat.log 2 (S.bound x + 1) + 1` threshold decision queries (`countInl`) and at most `1` witness
+query (`countInr`, `0` when infeasible). -/
+@[expose] def maxOptWitnessQ (x : α) :
+    FreeM (ThresholdWitnessQuery β) (Option (OptSolution β)) := do
+  let k ← lowerBoundBy (fun q => SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)
+  if k = 0 then
+    pure none
+  else
+    (fun w => some (OptSolution.mk (k - 1) w)) <$> SumQuery.liftInr (.find (k - 1))
+
+@[simp] theorem eval_maxOptWitnessQ (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι) (x : α) :
+    (S.maxOptWitnessQ x).eval oracle =
+      S.maxOptWitness (fun _ q => oracle (.inl (.probe q)))
+        (fun _ q => oracle (.inr (.find q))) x := by
+  simp only [maxOptWitnessQ, maxOptWitness, maxOpt, FreeM.eval_bind, eval_lowerBoundBy,
+    FreeM.eval_lift]
+  split_ifs <;> simp only [FreeM.eval_pure, FreeM.eval_map, FreeM.eval_lift]
+
+/-- Exact witness-query count of `maxOptWitnessQ`: `1` when a valid witness is returned
+(`eval = some _`), and `0` when infeasible (`eval = none`). -/
+@[simp] theorem countInr_maxOptWitnessQ (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (x : α) :
+    SumQuery.countInr oracle (S.maxOptWitnessQ x) =
+      if ((S.maxOptWitnessQ x).eval oracle).isSome then 1 else 0 := by
+  have hinr_bisect : SumQuery.countInr oracle
+      (lowerBoundBy (fun q => SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)) = 0 :=
+    Nat.eq_zero_of_le_zero <| by
+      simpa only [SumQuery.countInr, zero_mul] using
+        cost_lowerBoundBy_le oracle SumQuery.weightInr
+          (fun q => SumQuery.liftInl (.probe q)) (c := 0) (lo := 0) (hi := S.bound x + 1)
+          fun _ _ _ => by simp only [FreeM.cost_lift, SumQuery.weightInr, le_rfl]
+  simp only [maxOptWitnessQ, SumQuery.countInr_bind, FreeM.eval_bind, eval_lowerBoundBy,
+    FreeM.eval_lift, hinr_bisect, zero_add]
+  by_cases hk : lowerBound (fun m => oracle (.inl (.probe m))) 0 (S.bound x + 1) = 0
+  · simp only [hk, ↓reduceIte, SumQuery.countInr_pure, FreeM.eval_pure, Option.isSome_none,
+      Bool.false_eq_true]
+  · simp only [hk, ↓reduceIte, SumQuery.countInr_map, SumQuery.countInr_liftInr, FreeM.eval_map,
+      FreeM.eval_lift, Option.isSome_some]
+
+/-- **Query-complexity bounds for `maxOptWitnessQ`**: at most `Nat.log 2 (S.bound x + 1) + 1`
+threshold decision queries (`countInl`), at most `1` witness query (`countInr`), and at most
+`Nat.log 2 (S.bound x + 1) + 2` total queries. -/
+theorem maxOptWitnessQ_query_bounds (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (x : α) :
+    SumQuery.countInl oracle (S.maxOptWitnessQ x) ≤ Nat.log 2 (S.bound x + 1) + 1 ∧
+      SumQuery.countInr oracle (S.maxOptWitnessQ x) ≤ 1 ∧
+      (S.maxOptWitnessQ x).countQueries oracle ≤ Nat.log 2 (S.bound x + 1) + 2 := by
+  have hinl_bisect : SumQuery.countInl oracle
+      (lowerBoundBy (fun q => SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)) ≤
+      Nat.log 2 (S.bound x + 1) + 1 := by
+    simpa only [SumQuery.countInl, one_mul, Nat.sub_zero] using
+      cost_lowerBoundBy_le oracle SumQuery.weightInl
+        (fun q => SumQuery.liftInl (.probe q)) (c := 1) (lo := 0) (hi := S.bound x + 1)
+        fun _ _ _ => by simp only [FreeM.cost_lift, SumQuery.weightInl, le_rfl]
+  have hinl : SumQuery.countInl oracle (S.maxOptWitnessQ x) ≤ Nat.log 2 (S.bound x + 1) + 1 := by
+    simp only [maxOptWitnessQ, SumQuery.countInl_bind, eval_lowerBoundBy, FreeM.eval_lift]
+    split_ifs <;>
+      simp only [SumQuery.countInl_pure, SumQuery.countInl_map, SumQuery.countInl_liftInr,
+        add_zero, hinl_bisect]
+  have hinr : SumQuery.countInr oracle (S.maxOptWitnessQ x) ≤ 1 := by
+    rw [S.countInr_maxOptWitnessQ oracle x]
+    split_ifs <;> omega
+  have htot := SumQuery.countInl_add_countInr oracle (S.maxOptWitnessQ x)
+  exact ⟨hinl, hinr, by omega⟩
+
+/-- **Weighted query-cost bound for `maxOptWitnessQ`**: if decision probes at `q ≤ S.bound x` have
+weight at most `cp` and witness queries at `q ≤ S.bound x` have weight at most `cw`, then
+`maxOptWitnessQ x` has cost at most `cp * (Nat.log 2 (S.bound x + 1) + 1) + cw`. -/
+theorem cost_maxOptWitnessQ_le (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (weight : {ι : Type} → ThresholdWitnessQuery β ι → ℕ) {x : α} {cp cw : ℕ}
+    (hcp : ∀ q, q ≤ S.bound x → weight (.inl (.probe q)) ≤ cp)
+    (hcw : ∀ q, q ≤ S.bound x → weight (.inr (.find q)) ≤ cw) :
+    (S.maxOptWitnessQ x).cost oracle weight ≤
       cp * (Nat.log 2 (S.bound x + 1) + 1) + cw := by
-  have hbase := S.maxOptM_time_le probe hcp
-  obtain ⟨-, hsome⟩ := S.maxOptM_spec hprobe
-  unfold maxOptWitnessM
-  rw [TimeM.time_bind]
-  cases hm : (S.maxOptM probe x).ret with
-  | none =>
-    simp only [TimeM.time_pure]
+  have hbase : (lowerBoundBy (fun q => SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)).cost
+      oracle weight ≤ cp * (Nat.log 2 (S.bound x + 1) + 1) := by
+    simpa only [Nat.sub_zero] using
+      cost_lowerBoundBy_le oracle weight (fun q => SumQuery.liftInl (.probe q))
+        (c := cp) (lo := 0) (hi := S.bound x + 1) fun m _ hm => by
+        simpa only [FreeM.cost_lift] using hcp m (by omega)
+  simp only [maxOptWitnessQ, FreeM.cost_bind, eval_lowerBoundBy, FreeM.eval_lift]
+  set k := lowerBound (fun m => oracle (.inl (.probe m))) 0 (S.bound x + 1)
+  have hk_hi : k ≤ S.bound x + 1 := by
+    have := (lowerBound_bounds (fun m => oracle (.inl (.probe m))) 0 (S.bound x + 1)).2
     omega
-  | some v =>
-    have hv_le := (hsome v hm).1
-    have hw := hcw v hv_le
-    simp only [TimeM.time_bind, TimeM.time_pure]
+  split_ifs with hk0
+  · simp only [FreeM.cost_pure, add_zero]
+    omega
+  · simp only [FreeM.cost_map, FreeM.cost_lift]
+    have hw := hcw (k - 1) (by omega)
     omega
 
 end MaxThresholdSpec
@@ -487,72 +609,181 @@ theorem atMost_monotone {x : α} {q q' : ℕ} (hle : q ≤ q') (hq : S.atMost x 
   obtain ⟨w, hw, hc⟩ := hq
   exact ⟨w, hw, hc.trans hle⟩
 
-/-- Find the exact minimum cost of `x` (or `none` if `x` has no valid witness) by bisecting the
-negated threshold predicate on `[0, S.bound x + 1)` in `TimeM`. -/
-def minOptM (probe : α → ℕ → TimeM ℕ Bool) (x : α) : TimeM ℕ (Option ℕ) := do
-  let k ← lowerBoundM (fun q => Bool.not <$> probe x q) 0 (S.bound x + 1)
-  return if k ≤ S.bound x then some k else none
+/-- Pure bisection for the exact minimum cost of `x` (or `none` if `x` has no valid witness) by
+bisecting the negated threshold predicate on `[0, S.bound x + 1)`. -/
+@[expose] def minOpt (probe : α → ℕ → Bool) (x : α) : Option ℕ :=
+  let k := lowerBound (fun q => !(probe x q)) 0 (S.bound x + 1)
+  if k ≤ S.bound x then some k else none
 
-/-- Recover both the minimum cost and an optimal witness in `TimeM`. -/
-def minOptWitnessM (probe : α → ℕ → TimeM ℕ Bool) (findWitness : α → ℕ → TimeM ℕ β) (x : α) :
-    TimeM ℕ (Option (OptSolution β)) := do
-  match ← S.minOptM probe x with
-  | none => return none
-  | some v =>
-    let w ← findWitness x v
-    return some ⟨v, w⟩
-
-/-- Correctness of `minOptWitnessM`. -/
-theorem minOptWitnessM_spec {probe : α → ℕ → TimeM ℕ Bool} {findWitness : α → ℕ → TimeM ℕ β}
-    {x : α} (hprobe : ∀ q, q ≤ S.bound x → ((probe x q).ret = true ↔ S.atMost x q))
-    (hwit : ∀ q, q ≤ S.bound x → S.atMost x q →
-      S.valid x (findWitness x q).ret ∧ S.cost x (findWitness x q).ret ≤ q) :
-    ((S.minOptWitnessM probe findWitness x).ret = none ↔ ¬ ∃ w, S.valid x w) ∧
-      ∀ sol, (S.minOptWitnessM probe findWitness x).ret = some sol →
-        sol.optValue ≤ S.bound x ∧ S.valid x sol.witness ∧
-          S.cost x sol.witness = sol.optValue ∧
-          ∀ w, S.valid x w → sol.optValue ≤ S.cost x w := by
-  obtain ⟨-, hhi, htrue, hfalse⟩ := lowerBoundM_spec (fun q => Bool.not <$> probe x q)
+/-- Correctness of `minOpt`: returns `none` iff no valid witness exists, and `some v` when `v` is
+the exact minimum cost over valid witnesses. -/
+theorem minOpt_spec {probe : α → ℕ → Bool} {x : α}
+    (hprobe : ∀ q, q ≤ S.bound x → (probe x q = true ↔ S.atMost x q)) :
+    (S.minOpt probe x = none ↔ ¬ ∃ w, S.valid x w) ∧
+      ∀ v, S.minOpt probe x = some v →
+        v ≤ S.bound x ∧ S.atMost x v ∧ ∀ w, S.valid x w → v ≤ S.cost x w := by
+  obtain ⟨-, hhi, htrue, hfalse⟩ := lowerBound_spec (fun q => !(probe x q))
     (lo := 0) (hi := S.bound x + 1) fun m m' _ hmm' hm' ht => by
-      simp only [TimeM.ret_map, Bool.not_eq_true'] at ht ⊢
+      simp only [Bool.not_eq_true'] at ht ⊢
       exact Bool.eq_false_iff.mpr fun hm => Bool.noConfusion
         (ht.symm.trans ((hprobe m' (by omega)).mpr (S.atMost_monotone hmm'
           ((hprobe m (by omega)).mp hm))))
-  set k := (lowerBoundM (fun q => Bool.not <$> probe x q) 0 (S.bound x + 1)).ret with hk_def
+  set k := lowerBound (fun q => !(probe x q)) 0 (S.bound x + 1) with hk_def
   have hge_k : ∀ w, S.valid x w → k ≤ S.cost x w := fun w hw => Nat.le_of_not_lt fun hlt => by
     have ht := htrue (S.cost x w) (Nat.zero_le _) hlt
-    simp only [TimeM.ret_map, Bool.not_eq_true'] at ht
+    simp only [Bool.not_eq_true'] at ht
     exact Bool.noConfusion
       (ht.symm.trans ((hprobe _ (S.cost_le_bound x w hw)).mpr ⟨w, hw, le_rfl⟩))
-  unfold minOptWitnessM minOptM
-  simp only [TimeM.ret_bind, TimeM.ret_pure, ← hk_def]
+  unfold minOpt
+  dsimp only
+  rw [← hk_def]
   split_ifs with hle
   · have hf := hfalse k le_rfl (by omega)
-    simp only [TimeM.ret_map, Bool.not_eq_false'] at hf
-    obtain ⟨hvw, hvc⟩ := hwit k hle ((hprobe k hle).mp hf)
-    simp only [TimeM.ret_bind, TimeM.ret_pure, reduceCtorEq, false_iff, Option.some.injEq]
-    refine ⟨fun hne => hne ⟨_, hvw⟩, fun sol hsol => hsol ▸ ?_⟩
-    exact ⟨hle, hvw, le_antisymm hvc (hge_k _ hvw), hge_k⟩
-  · simp only [TimeM.ret_pure, true_iff, reduceCtorEq, IsEmpty.forall_iff, implies_true, and_true]
+    simp only [Bool.not_eq_false'] at hf
+    obtain ⟨w₀, hw₀, hcw₀⟩ := (hprobe k hle).mp hf
+    simp only [false_iff, Option.some.injEq, forall_eq']
+    exact ⟨fun hne => hne ⟨w₀, hw₀⟩, hle, ⟨w₀, hw₀, hcw₀⟩, hge_k⟩
+  · simp only [true_iff, IsEmpty.forall_iff, implies_true, and_true]
     exact fun ⟨w, hw⟩ => absurd (le_trans (hge_k w hw) (S.cost_le_bound x w hw)) hle
 
-theorem minOptWitnessM_time_le (probe : α → ℕ → TimeM ℕ Bool)
-    (findWitness : α → ℕ → TimeM ℕ β) {x : α} {cp cw : ℕ}
-    (hcp : ∀ q, (probe x q).time ≤ cp)
-    (hcw : ∀ q, q ≤ S.bound x → (findWitness x q).time ≤ cw) :
-    (S.minOptWitnessM probe findWitness x).time ≤
-      cp * (Nat.log 2 (S.bound x + 1) + 1) + cw := by
-  have hbase : (S.minOptM probe x).time ≤ cp * (Nat.log 2 (S.bound x + 1) + 1) := by
-    simpa [minOptM] using lowerBoundM_time_le (fun q => Bool.not <$> probe x q)
-      (fun q => by simpa using hcp q) 0 (S.bound x + 1)
-  unfold minOptWitnessM; rw [TimeM.time_bind]
-  cases hm : (S.minOptM probe x).ret with
-  | none => simp only [TimeM.time_pure]; omega
+/-- Pure recovery of both the minimum cost and an optimal witness. -/
+@[expose] def minOptWitness (probe : α → ℕ → Bool) (findWitness : α → ℕ → β) (x : α) :
+    Option (OptSolution β) :=
+  match S.minOpt probe x with
+  | none => none
+  | some v => some ⟨v, findWitness x v⟩
+
+/-- Correctness of `minOptWitness`. -/
+theorem minOptWitness_spec {probe : α → ℕ → Bool} {findWitness : α → ℕ → β}
+    {x : α} (hprobe : ∀ q, q ≤ S.bound x → (probe x q = true ↔ S.atMost x q))
+    (hwit : ∀ q, q ≤ S.bound x → S.atMost x q →
+      S.valid x (findWitness x q) ∧ S.cost x (findWitness x q) ≤ q) :
+    (S.minOptWitness probe findWitness x = none ↔ ¬ ∃ w, S.valid x w) ∧
+      ∀ sol, S.minOptWitness probe findWitness x = some sol →
+        sol.optValue ≤ S.bound x ∧ S.valid x sol.witness ∧
+          S.cost x sol.witness = sol.optValue ∧
+          ∀ w, S.valid x w → sol.optValue ≤ S.cost x w := by
+  obtain ⟨hnone, hsome⟩ := S.minOpt_spec hprobe
+  unfold minOptWitness
+  cases hm : S.minOpt probe x with
+  | none =>
+    simp only [true_iff, reduceCtorEq, IsEmpty.forall_iff, implies_true, and_true]
+    exact hnone.mp hm
   | some v =>
-    simp only [minOptM, TimeM.ret_bind, TimeM.ret_pure] at hm
-    split_ifs at hm with hle
-    have := hcw v (by injection hm with h; omega)
-    simp only [TimeM.time_bind, TimeM.time_pure]; omega
+    obtain ⟨hv_le, hat, hmin⟩ := hsome v hm
+    obtain ⟨hvw, hvsc⟩ := hwit v hv_le hat
+    simp only [reduceCtorEq, false_iff, Option.some.injEq, forall_eq']
+    exact ⟨fun hno => hno ⟨_, hvw⟩, hv_le, hvw, le_antisymm hvsc (hmin _ hvw), hmin⟩
+
+/-- Query-monad minimization program on `[0, S.bound x + 1)` over `ProbeQuery`. -/
+@[expose] def minOptQ (x : α) : FreeM ProbeQuery (Option ℕ) :=
+  (fun k => if k ≤ S.bound x then some k else none) <$>
+    lowerBoundBy (fun q => Bool.not <$> ProbeQuery.ask q) 0 (S.bound x + 1)
+
+@[simp] theorem eval_minOptQ (oracle : {ι : Type} → ProbeQuery ι → ι) (x : α) :
+    (S.minOptQ x).eval oracle = S.minOpt (fun _ q => oracle (.probe q)) x := by
+  simp only [minOptQ, minOpt, FreeM.eval_map, eval_lowerBoundBy, ProbeQuery.eval_ask]
+
+/-- `minOptQ x` makes at most `Nat.log 2 (S.bound x + 1) + 1` threshold probes. -/
+theorem countQueries_minOptQ_le (oracle : {ι : Type} → ProbeQuery ι → ι) (x : α) :
+    (S.minOptQ x).countQueries oracle ≤ Nat.log 2 (S.bound x + 1) + 1 := by
+  simpa only [minOptQ, FreeM.countQueries_map, one_mul, Nat.sub_zero] using
+    countQueries_lowerBoundBy_le oracle (fun q => Bool.not <$> ProbeQuery.ask q)
+      (c := 1) (lo := 0) (hi := S.bound x + 1) fun _ _ _ => by
+      simp only [FreeM.countQueries_map, FreeM.countQueries_lift, le_rfl]
+
+/-- Query-monad minimization with witness recovery over `ThresholdWitnessQuery β`: makes at most
+`Nat.log 2 (S.bound x + 1) + 1` threshold decision queries (`countInl`) and at most `1` witness
+query (`countInr`, `0` when infeasible). -/
+@[expose] def minOptWitnessQ (x : α) :
+    FreeM (ThresholdWitnessQuery β) (Option (OptSolution β)) := do
+  let k ← lowerBoundBy (fun q => Bool.not <$> SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)
+  if k ≤ S.bound x then
+    (fun w => some (OptSolution.mk k w)) <$> SumQuery.liftInr (.find k)
+  else
+    pure none
+
+@[simp] theorem eval_minOptWitnessQ (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι) (x : α) :
+    (S.minOptWitnessQ x).eval oracle =
+      S.minOptWitness (fun _ q => oracle (.inl (.probe q)))
+        (fun _ q => oracle (.inr (.find q))) x := by
+  simp only [minOptWitnessQ, minOptWitness, minOpt, FreeM.eval_bind, eval_lowerBoundBy,
+    FreeM.eval_map, FreeM.eval_lift]
+  split_ifs <;> simp only [FreeM.eval_map, FreeM.eval_lift, FreeM.eval_pure]
+
+/-- Exact witness-query count of `minOptWitnessQ`: `1` when a valid witness is returned
+(`eval = some _`), and `0` when infeasible (`eval = none`). -/
+@[simp] theorem countInr_minOptWitnessQ (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (x : α) :
+    SumQuery.countInr oracle (S.minOptWitnessQ x) =
+      if ((S.minOptWitnessQ x).eval oracle).isSome then 1 else 0 := by
+  have hinr_bisect : SumQuery.countInr oracle
+      (lowerBoundBy (fun q => Bool.not <$> SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)) = 0 :=
+    Nat.eq_zero_of_le_zero <| by
+      simpa only [SumQuery.countInr, zero_mul] using
+        cost_lowerBoundBy_le oracle SumQuery.weightInr
+          (fun q => Bool.not <$> SumQuery.liftInl (.probe q))
+          (c := 0) (lo := 0) (hi := S.bound x + 1) fun _ _ _ => by
+          simp only [FreeM.cost_map, FreeM.cost_lift, SumQuery.weightInr, le_rfl]
+  simp only [minOptWitnessQ, SumQuery.countInr_bind, FreeM.eval_bind, eval_lowerBoundBy,
+    FreeM.eval_map, FreeM.eval_lift, hinr_bisect, zero_add]
+  by_cases hk : lowerBound (fun m => !oracle (.inl (.probe m))) 0 (S.bound x + 1) ≤ S.bound x
+  · simp only [hk, ↓reduceIte, SumQuery.countInr_map, SumQuery.countInr_liftInr, FreeM.eval_map,
+      FreeM.eval_lift, Option.isSome_some]
+  · simp only [hk, ↓reduceIte, SumQuery.countInr_pure, FreeM.eval_pure, Option.isSome_none,
+      Bool.false_eq_true]
+
+/-- **Query-complexity bounds for `minOptWitnessQ`**: at most `Nat.log 2 (S.bound x + 1) + 1`
+threshold decision queries (`countInl`), at most `1` witness query (`countInr`), and at most
+`Nat.log 2 (S.bound x + 1) + 2` total queries. -/
+theorem minOptWitnessQ_query_bounds (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (x : α) :
+    SumQuery.countInl oracle (S.minOptWitnessQ x) ≤ Nat.log 2 (S.bound x + 1) + 1 ∧
+      SumQuery.countInr oracle (S.minOptWitnessQ x) ≤ 1 ∧
+      (S.minOptWitnessQ x).countQueries oracle ≤ Nat.log 2 (S.bound x + 1) + 2 := by
+  have hinl_bisect : SumQuery.countInl oracle
+      (lowerBoundBy (fun q => Bool.not <$> SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)) ≤
+      Nat.log 2 (S.bound x + 1) + 1 := by
+    simpa only [SumQuery.countInl, one_mul, Nat.sub_zero] using
+      cost_lowerBoundBy_le oracle SumQuery.weightInl
+        (fun q => Bool.not <$> SumQuery.liftInl (.probe q))
+        (c := 1) (lo := 0) (hi := S.bound x + 1) fun _ _ _ => by
+        simp only [FreeM.cost_map, FreeM.cost_lift, SumQuery.weightInl, le_rfl]
+  have hinl : SumQuery.countInl oracle (S.minOptWitnessQ x) ≤ Nat.log 2 (S.bound x + 1) + 1 := by
+    simp only [minOptWitnessQ, SumQuery.countInl_bind, eval_lowerBoundBy, FreeM.eval_map,
+      FreeM.eval_lift]
+    split_ifs <;>
+      simp only [SumQuery.countInl_pure, SumQuery.countInl_map, SumQuery.countInl_liftInr,
+        add_zero, hinl_bisect]
+  have hinr : SumQuery.countInr oracle (S.minOptWitnessQ x) ≤ 1 := by
+    rw [S.countInr_minOptWitnessQ oracle x]
+    split_ifs <;> omega
+  have htot := SumQuery.countInl_add_countInr oracle (S.minOptWitnessQ x)
+  exact ⟨hinl, hinr, by omega⟩
+
+/-- **Weighted query-cost bound for `minOptWitnessQ`**: if decision probes at `q ≤ S.bound x` have
+weight at most `cp` and witness queries at `q ≤ S.bound x` have weight at most `cw`, then
+`minOptWitnessQ x` has cost at most `cp * (Nat.log 2 (S.bound x + 1) + 1) + cw`. -/
+theorem cost_minOptWitnessQ_le (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (weight : {ι : Type} → ThresholdWitnessQuery β ι → ℕ) {x : α} {cp cw : ℕ}
+    (hcp : ∀ q, q ≤ S.bound x → weight (.inl (.probe q)) ≤ cp)
+    (hcw : ∀ q, q ≤ S.bound x → weight (.inr (.find q)) ≤ cw) :
+    (S.minOptWitnessQ x).cost oracle weight ≤
+      cp * (Nat.log 2 (S.bound x + 1) + 1) + cw := by
+  have hbase : (lowerBoundBy (fun q => Bool.not <$> SumQuery.liftInl (.probe q))
+      0 (S.bound x + 1)).cost oracle weight ≤ cp * (Nat.log 2 (S.bound x + 1) + 1) := by
+    simpa only [Nat.sub_zero] using
+      cost_lowerBoundBy_le oracle weight
+        (fun q => Bool.not <$> SumQuery.liftInl (.probe q))
+        (c := cp) (lo := 0) (hi := S.bound x + 1) fun m _ hm => by
+        simpa only [FreeM.cost_map, FreeM.cost_lift] using hcp m (by omega)
+  simp only [minOptWitnessQ, FreeM.cost_bind, eval_lowerBoundBy, FreeM.eval_map, FreeM.eval_lift]
+  split_ifs with hle
+  · simp only [FreeM.cost_map, FreeM.cost_lift]
+    have hw := hcw _ hle
+    omega
+  · simp only [FreeM.cost_pure, add_zero]
+    omega
 
 end MinThresholdSpec
 
@@ -670,21 +901,18 @@ theorem mem_queriesWith_bisectProgram {α : Type}
     (inv := fun iv : BisectInterval => lo a ≤ iv.lo ∧ (iv.lo < iv.hi → iv.hi ≤ hi a))
     ⟨le_rfl, fun _ => le_rfl⟩
     (fun iv ⟨hlo, hhi⟩ => by
-      unfold bisectStepProgram; split_ifs with hlt
-      · rw [OracleComp.interpret_map]
-        have hhi' := hhi hlt
-        set b : Bool := OracleComp.interpret (m := Id) answer
-          (queryBit (req a ((iv.lo + iv.hi) / 2)))
-        change lo a ≤ (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).lo ∧
-          ((if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).lo <
-           (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).hi →
-           (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).hi ≤ hi a)
-        cases b <;> simp only [↓reduceIte, Bool.false_eq_true] <;>
-          exact ⟨by omega, fun _ => by omega⟩
+      unfold bisectStepProgram
+      split_ifs with hlt
+      · have hhi' := hhi hlt
+        rw [OracleComp.interpret_map]
+        cases (OracleComp.interpret (m := Id) answer
+          (queryBit (req a ((iv.lo + iv.hi) / 2))) : Bool)
+        · refine ⟨hlo, fun _ => ?_⟩
+          dsimp only [Functor.map]
+          simp only [Bool.false_eq_true, ↓reduceIte]; omega
+        · refine ⟨?_, fun _ => hhi'⟩
+          dsimp only [Functor.map]
+          simp only [↓reduceIte]; omega
       · exact ⟨hlo, hhi⟩) hq
   unfold bisectStepProgram at hq_step
   split_ifs at hq_step with hlt
@@ -881,8 +1109,7 @@ def thresholdSpec : MaxThresholdSpec (CNF ℕ) (ℕ → Bool) where
 open Classical in
 /-- The exact maximum number of simultaneously satisfiable clauses of `φ`. -/
 noncomputable def maxClauseScore (φ : CNF ℕ) : ℕ :=
-  (lowerBoundM (fun q => pure (decide (MaxSATQuery.mk φ q ∈ MaxSATThreshold)))
-    1 (φ.length + 1)).ret - 1
+  lowerBound (fun q => decide (MaxSATQuery.mk φ q ∈ MaxSATThreshold)) 1 (φ.length + 1) - 1
 
 private theorem maxSATThreshold_mono (φ : CNF ℕ) {m m' : ℕ} (hmm' : m ≤ m')
     [Decidable (MaxSATQuery.mk φ m' ∈ MaxSATThreshold)]
@@ -898,20 +1125,20 @@ theorem maxClauseScore_spec (φ : CNF ℕ) :
       (∃ σ : ℕ → Bool, φ.countP (Clause.eval σ) = maxClauseScore φ) ∧
       ∀ σ : ℕ → Bool, φ.countP (Clause.eval σ) ≤ maxClauseScore φ := by
   classical
-  set t : ℕ → TimeM ℕ Bool := fun q => pure (decide (MaxSATQuery.mk φ q ∈ MaxSATThreshold))
-  obtain ⟨hlo, hhi, htrue, hfalse⟩ := lowerBoundM_spec t (lo := 1) (hi := φ.length + 1)
+  set t : ℕ → Bool := fun q => decide (MaxSATQuery.mk φ q ∈ MaxSATThreshold)
+  obtain ⟨hlo, hhi, htrue, hfalse⟩ := lowerBound_spec t (lo := 1) (hi := φ.length + 1)
     fun _ _ _ hmm' _ ht => maxSATThreshold_mono φ hmm' ht
-  set k := (lowerBoundM t 1 (φ.length + 1)).ret
+  set k := lowerBound t 1 (φ.length + 1)
   have hupper (σ : ℕ → Bool) : φ.countP (Clause.eval σ) ≤ k - 1 := by
     by_contra! hgt
     have := List.countP_le_length (l := φ) (p := Clause.eval σ)
     have hf := hfalse k le_rfl (by omega)
-    simp only [t, TimeM.ret_pure, decide_eq_false_iff_not, mem_MaxSATThreshold_iff] at hf
+    simp only [t, decide_eq_false_iff_not, mem_MaxSATThreshold_iff] at hf
     exact hf ⟨σ, by omega⟩
   obtain ⟨σ, hσ⟩ : ∃ σ : ℕ → Bool, k - 1 ≤ φ.countP (Clause.eval σ) := by
     rcases Nat.eq_or_lt_of_le hlo with hk1 | hgt1
     · exact ⟨fun _ => false, by omega⟩
-    · simpa only [t, TimeM.ret_pure, decide_eq_true_eq, mem_MaxSATThreshold_iff] using
+    · simpa only [t, decide_eq_true_eq, mem_MaxSATThreshold_iff] using
         htrue (k - 1) (by omega) (by omega)
   exact ⟨by change k - 1 ≤ φ.length; omega, ⟨σ, le_antisymm (hupper σ) hσ⟩, hupper⟩
 
@@ -1003,17 +1230,14 @@ private theorem not_mem_vars_applyPartial {answers : List (Literal ℕ)} {φ : C
   obtain ⟨⟨v', b⟩, hmem, rfl⟩ := List.mem_map.mp hv
   intro hcontra
   obtain ⟨_, hc', b', hb'⟩ := CNF.mem_vars.mp hcontra
-  simp only [applyPartial, List.mem_map, List.mem_filter] at hc'
+  simp only [applyPartial, List.mem_map, List.mem_filter, Bool.not_eq_true',
+    List.any_eq_false] at hc'
   obtain ⟨c, ⟨_, hnot_sat⟩, rfl⟩ := hc'
-  obtain ⟨hlc, hnot_neg⟩ := List.mem_filter.mp hb'
+  simp only [List.mem_filter, Bool.not_eq_true', List.any_eq_false] at hb'
   rcases eq_or_ne b b' with rfl | hne
-  · have hsat : (c.any fun l => answers.any (· == l)) = true :=
-      List.any_eq_true.mpr ⟨(v', b), hlc, List.any_eq_true.mpr ⟨(v', b), hmem, by simp⟩⟩
-    simp [hsat] at hnot_sat
-  · have hb_eq : b = !b' := by cases b <;> cases b' <;> simp_all
-    have hneg : (answers.any (· == (v', !b'))) = true :=
-      List.any_eq_true.mpr ⟨(v', !b'), hb_eq ▸ hmem, by simp⟩
-    simp [hneg] at hnot_neg
+  · exact hnot_sat (v', b) hb'.1 (List.any_eq_true.mpr ⟨(v', b), hmem, beq_iff_eq.mpr rfl⟩)
+  · refine hb'.2 (v', !b') ?_ (beq_iff_eq.mpr rfl)
+    cases b <;> cases b' <;> simp_all
 
 /-- Querying `MaxSATThreshold` on `(applyPartial answers φ, target - satisfiedBy answers φ)`
 characterizes whether `answers` extends to a full assignment satisfying at least `target`
@@ -1352,37 +1576,34 @@ theorem solveMaxSATProgram_query_bounds (answer : Unit × List Bool → List Boo
       φ.length.size + CNF.numVars φ ∧
     ∀ req ∈ OracleComp.queriesWith answer (solveMaxSATProgram φ),
       req.2.length ≤ (encMaxSATQuery ⟨φ, φ.length⟩).length := by
-  unfold solveMaxSATProgram; rw [OracleComp.queriesWith_bind]
+  unfold solveMaxSATProgram
+  rw [OracleComp.queriesWith_bind]
   set k : ℕ := OracleComp.interpret (m := Id) answer
     (bisectProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) (fun _ => 1) (fun ψ => ψ.length + 1) φ)
-  have hiter : ∀ s (iv : BisectInterval), iv.lo ≤ φ.length + 1 → iv.hi ≤ φ.length + 1 →
-      (OracleComp.interpret (m := Id) answer (OracleComp.iterate s
-        (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ) iv)).lo ≤ φ.length + 1 := by
-    intro s; induction s with
+  have hk_bound : k ≤ φ.length + 1 := by
+    suffices ∀ s (iv : BisectInterval), iv.lo ≤ φ.length + 1 → iv.hi ≤ φ.length + 1 →
+        ((fun st => OracleComp.interpret (m := Id) answer
+          (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ st))^[s] iv).lo ≤
+          φ.length + 1 by
+      simp only [k, bisectProgram, OracleComp.interpret_map, OracleComp.interpret_id_iterate]
+      exact this _ _ (Nat.le_add_left 1 φ.length) le_rfl
+    intro s
+    induction s with
     | zero => exact fun _ h1 _ => h1
     | succ s ih =>
       intro iv h1 h2
-      rw [OracleComp.iterate_succ_bind, OracleComp.interpret_bind]
-      have hstep :
-          let iv' : BisectInterval := OracleComp.interpret (m := Id) answer
-            (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ iv)
-          iv'.lo ≤ φ.length + 1 ∧ iv'.hi ≤ φ.length + 1 := by
-        unfold bisectStepProgram; split_ifs with hlt
-        · rw [OracleComp.interpret_map]
-          set b : Bool := OracleComp.interpret (m := Id) answer _
-          change (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-              else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).lo ≤ φ.length + 1 ∧
-            (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-              else ⟨iv.lo, (iv.lo + iv.hi) / 2⟩).hi ≤ φ.length + 1
-          cases b <;> simp only [↓reduceIte, Bool.false_eq_true] <;> exact ⟨by omega, by omega⟩
-        · exact ⟨h1, h2⟩
-      exact ih _ hstep.1 hstep.2
-  have hk_bound : k ≤ φ.length + 1 := by
-    have hk_eq : k = (OracleComp.interpret (m := Id) answer (OracleComp.iterate
-        ((φ.length + 1 - 1).size) (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ)
-        ⟨1, φ.length + 1⟩) : BisectInterval).lo := by
-      simp only [k, bisectProgram, OracleComp.interpret_map]; rfl
-    exact hk_eq ▸ hiter _ ⟨1, φ.length + 1⟩ (Nat.le_add_left 1 φ.length) le_rfl
+      rw [Function.iterate_succ_apply]
+      unfold bisectStepProgram
+      split_ifs with hlt
+      · rw [OracleComp.interpret_map]
+        cases (OracleComp.interpret (m := Id) answer _ : Bool)
+        · refine ih _ h1 ?_
+          dsimp only [Functor.map]
+          simp only [Bool.false_eq_true, ↓reduceIte]; omega
+        · refine ih _ ?_ h2
+          dsimp only [Functor.map]
+          simp only [↓reduceIte]; omega
+      · exact ih iv h1 h2
   refine ⟨?_, fun req hreq => ?_⟩
   · have h1 := length_queriesWith_bisectProgram_le answer
       (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) (fun _ => 1) (fun ψ => ψ.length + 1) φ
@@ -1415,12 +1636,11 @@ theorem solveMaxSAT_spec (φ : CNF ℕ) :
     (bisectProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) (fun _ => 1) (fun ψ => ψ.length + 1) φ)
   have hbisect : k_val - 1 = maxClauseScore φ := by
     have hfn : (fun m => decide (encMaxSATQuery ⟨φ, m⟩ ∈ A)) =
-        fun m => (pure (decide (MaxSATQuery.mk φ m ∈ MaxSATThreshold)) : TimeM ℕ Bool).ret :=
-      funext fun m => Bool.eq_iff_iff.mpr (by
-        simp only [TimeM.ret_pure, decide_eq_true_eq]
-        exact (decide_eq_true_iff.symm.trans (hmem_iff ⟨φ, m⟩)))
+        fun m => decide (MaxSATQuery.mk φ m ∈ MaxSATThreshold) :=
+      funext fun m => Bool.eq_iff_iff.mpr
+        ((hmem_iff ⟨φ, m⟩).trans decide_eq_true_iff.symm)
     rw [show k_val = _ from interpret_bisectProgram A _ _ _ φ, maxClauseScore, hfn,
-      iterate_bisectStep_eq_lowerBoundM _ fun _ _ _ hmm' _ ht => maxSATThreshold_mono φ hmm' ht]
+      iterate_bisectStep_eq_lowerBound _ fun _ _ _ hmm' _ ht => maxSATThreshold_mono φ hmm' ht]
   have hsol : solveMaxSAT A φ =
       ⟨maxClauseScore φ, recoverBits (fun r => decide (encMaxSATQuery r ∈ A))
         ⟨φ, maxClauseScore φ⟩⟩ := by

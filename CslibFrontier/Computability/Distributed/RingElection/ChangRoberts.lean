@@ -200,6 +200,17 @@ private theorem ofNat_val_eq_self {n : ℕ} [NeZero n] (x : Fin n) :
     Fin.ofNat n x.val = x :=
   Fin.ext (Nat.mod_eq_of_lt x.isLt)
 
+private theorem val_add_ofNat_fin {n : ℕ} [NeZero n] (a : Fin n) {k : ℕ} (h : a.val + k < n) :
+    (a + Fin.ofNat n k).val = a.val + k := by
+  change (a.val + k % n) % n = a.val + k
+  rw [Nat.mod_eq_of_lt (show k < n by omega), Nat.mod_eq_of_lt h]
+
+private theorem add_ofNat_fin_inj {n : ℕ} [NeZero n] (a : Fin n) {k₁ k₂ : ℕ} (h₁ : k₁ < n)
+    (h₂ : k₂ < n) (h : a + Fin.ofNat n k₁ = a + Fin.ofNat n k₂) : k₁ = k₂ := by
+  have hv := congrArg Fin.val (add_left_cancel h)
+  change k₁ % n = k₂ % n at hv
+  rwa [Nat.mod_eq_of_lt h₁, Nat.mod_eq_of_lt h₂] at hv
+
 private theorem fin_add_ofNat_eq_self_iff {n : ℕ} [NeZero n] (a : Fin n) {d : ℕ}
     (hd1 : 1 ≤ d) (hdn : d ≤ n) :
     a + Fin.ofNat n d = a ↔ d = n := by
@@ -319,14 +330,8 @@ private theorem sum_length_update {n : ℕ} {α : Type*} (ch : Fin n → List α
     (xs : List α) :
     (∑ j : Fin n, (Function.update ch i xs j).length) + (ch i).length =
       (∑ j : Fin n, (ch j).length) + xs.length := by
-  have hu := sum_update_fin (fun k => (ch k).length) i xs.length
-  have hfun : (fun j => (Function.update ch i xs j).length) =
-      Function.update (fun k => (ch k).length) i xs.length := by
-    funext j
-    by_cases hj : j = i
-    · subst hj; simp only [Function.update_self]
-    · simp only [Function.update_of_ne hj]
-  rwa [hfun]
+  simpa only [Function.apply_update (fun _ => List.length)] using
+    sum_update_fin (fun k => (ch k).length) i xs.length
 
 private theorem sum_length_update_cons {n : ℕ} {α : Type*} (ch : Fin n → List α) (i : Fin n)
     {m : α} {tl : List α} (hq : ch i = m :: tl) :
@@ -377,18 +382,13 @@ private theorem crExecMsgs_eq_length_add_inFlight {n : ℕ} [NeZero n] {U : Type
         rw [List.length_append, List.length_singleton] at hu2
         dsimp only [CRConfig.inFlight] at hlen1 ih ⊢
         linarith
-      · by_cases hdrop : m < uid target
-        · have hstep_eq : crStep uid target s1 = CRConfig.mk s1.isLeader chan₁ := by
-            simp only [crStep, hq, hlt, hdrop, ↓reduceIte, chan₁]
-          simp only [hq, hlt, ↓reduceIte, hstep_eq] at ih ⊢
-          dsimp only [CRConfig.inFlight] at hlen1 ih ⊢
-          linarith
-        · have hstep_eq : crStep uid target s1 =
-              CRConfig.mk (Function.update s1.isLeader target true) chan₁ := by
-            simp only [crStep, hq, hlt, hdrop, ↓reduceIte, chan₁]
-          simp only [hq, hlt, ↓reduceIte, hstep_eq] at ih ⊢
-          dsimp only [CRConfig.inFlight] at hlen1 ih ⊢
-          linarith
+      · have hinf : (crStep uid target s1).inFlight = ∑ j : Fin n, (chan₁ j).length := by
+          simp only [crStep, hq, hlt, ↓reduceIte, chan₁]
+          split_ifs <;> rfl
+        simp only [hq, hlt, ↓reduceIte] at ih ⊢
+        rw [hinf] at ih
+        dsimp only [CRConfig.inFlight] at hlen1 ih ⊢
+        linarith
 
 /-- Global state invariant relating any configuration `cfg` reachable from `crAllInit uid` to a
 per-origin hop progress vector `prog : Fin n → ℕ`. -/
@@ -460,14 +460,10 @@ private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     calc target = (target - 1) + 1 := (sub_add_cancel target 1).symm
       _ = s + Fin.ofNat n (prog s) + Fin.ofNat n 1 := by rw [htarget_pred, ofNat_one_fin]
       _ = s + Fin.ofNat n (prog s + 1) := by rw [add_assoc, ← ofNat_add_fin]
-  have hprog'_le : ∀ x, prog' x ≤ crHops uid x := by
-    intro x
-    by_cases hx : x = s
-    · rcases hx with rfl
-      simp only [prog', Function.update_self]
-      omega
-    · simp only [prog', Function.update_of_ne hx]
-      exact hprog_le x
+  have hprog'_le : ∀ x, prog' x ≤ crHops uid x := fun x => by
+    rcases eq_or_ne x s with rfl | hx
+    · simp only [prog', Function.update_self]; omega
+    · simpa only [prog', Function.update_of_ne hx] using hprog_le x
   have hsum' : len + 1 = ∑ x : Fin n, prog' x := by
     have hu := sum_update_fin prog s (prog s + 1)
     change (∑ j : Fin n, prog' j) + prog s = (∑ j : Fin n, prog j) + (prog s + 1) at hu
@@ -475,11 +471,9 @@ private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
   let chan₁ := Function.update cfg.chan (target - 1) rest
   have hlen1 : (∑ j : Fin n, (chan₁ j).length) + 1 = cfg.inFlight :=
     sum_length_update_cons cfg.chan (target - 1) hq
-  have hchan1_mem : ∀ e x, x ∈ chan₁ e → ∃ s', x = uid s' := by
-    intro e x hx
-    by_cases he : e = target - 1
-    · rcases he with rfl
-      simp only [chan₁, Function.update_self] at hx
+  have hchan1_mem : ∀ e x, x ∈ chan₁ e → ∃ s', x = uid s' := fun e x hx => by
+    rcases eq_or_ne e (target - 1) with rfl | he
+    · simp only [chan₁, Function.update_self] at hx
       exact hmem_uid (target - 1) x (hq ▸ List.mem_cons_of_mem m hx)
     · simp only [chan₁, Function.update_of_ne he] at hx
       exact hmem_uid e x hx
@@ -487,20 +481,17 @@ private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
       if s' = s then 0
       else if prog s' < crHops uid s' ∧ e = s' + Fin.ofNat n (prog s') then 1 else 0 := by
     intro e s'
-    by_cases he : e = target - 1
-    · rcases he with rfl
-      simp only [chan₁, Function.update_self]
-      by_cases hs' : s' = s
-      · rcases hs' with rfl
-        simp only [↓reduceIte, hrest_cnt_s]
+    rcases eq_or_ne e (target - 1) with rfl | he
+    · simp only [chan₁, Function.update_self]
+      rcases eq_or_ne s' s with rfl | hs'
+      · simp only [↓reduceIte, hrest_cnt_s]
       · have hne_uid : uid s ≠ uid s' := fun h => hs' (huid h).symm
         have hc := hcnt (target - 1) s'
         rw [hq, hm_eq, List.count_cons_of_ne hne_uid] at hc
         simp only [hs', ↓reduceIte, hc]
     · simp only [chan₁, Function.update_of_ne he, hcnt e s']
-      by_cases hs' : s' = s
-      · rcases hs' with rfl
-        have hne_e : e ≠ s + Fin.ofNat n (prog s) := fun h => he (h.trans htarget_pred.symm)
+      rcases eq_or_ne s' s with rfl | hs'
+      · have hne_e : e ≠ s + Fin.ofNat n (prog s) := fun h => he (h.trans htarget_pred.symm)
         simp only [↓reduceIte, hne_e, and_false]
       · simp only [hs', ↓reduceIte]
   obtain ⟨_, hcr_le, hcr_stop, hcr_pass⟩ := crHops_spec uid s
@@ -527,24 +518,21 @@ private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
       by_cases he : e = target
       · rw [he]
         simp only [Function.update_self, List.count_append, hchan1_cnt target s']
-        by_cases hs' : s' = s
-        · rw [hs']
-          simp only [↓reduceIte, zero_add, hm_eq, List.count_singleton_self, prog',
+        rcases eq_or_ne s' s with rfl | hs'
+        · simp only [↓reduceIte, zero_add, hm_eq, List.count_singleton_self, prog',
             Function.update_self, hmore, htarget_eq, and_self]
         · have hne_uid : uid s ≠ uid s' := fun h => hs' (huid h).symm
           simp only [hs', ↓reduceIte, hm_eq, List.count_cons_of_ne hne_uid, List.count_nil,
             add_zero, prog', Function.update_of_ne hs']
       · simp only [Function.update_of_ne he, hchan1_cnt e s']
-        by_cases hs' : s' = s
-        · rw [hs']
-          have hne_t : e ≠ s + Fin.ofNat n (prog s + 1) := fun h => he (h.trans htarget_eq.symm)
+        rcases eq_or_ne s' s with rfl | hs'
+        · have hne_t : e ≠ s + Fin.ofNat n (prog s + 1) := fun h => he (h.trans htarget_eq.symm)
           simp only [↓reduceIte, prog', Function.update_self, hne_t, and_false]
         · simp only [hs', ↓reduceIte, prog', Function.update_of_ne hs']
     · intro i
       rw [hlead i]
-      by_cases hi : i = s
-      · rw [hi]
-        have hne1 : prog s ≠ crHops uid s := by omega
+      rcases eq_or_ne i s with rfl | hi
+      · have hne1 : prog s ≠ crHops uid s := by omega
         have hne2 : prog s + 1 ≠ crHops uid s := by omega
         simp only [prog', Function.update_self, hne1, hne2, and_false]
       · simp only [prog', Function.update_of_ne hi]
@@ -552,9 +540,8 @@ private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
           Finset.univ.filter fun x => prog x < crHops uid x := by
         ext x
         simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-        by_cases hx : x = s
-        · rw [hx]
-          simp only [prog', Function.update_self]
+        rcases eq_or_ne x s with rfl | hx
+        · simp only [prog', Function.update_self]
           exact ⟨fun _ => hs_lt, fun _ => hmore⟩
         · simp only [prog', Function.update_of_ne hx]
       have hu2 := sum_length_update chan₁ target (chan₁ target ++ [m])
@@ -571,9 +558,8 @@ private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
         (Finset.univ.filter fun x => prog x < crHops uid x).erase s := by
       ext x
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase, ne_eq]
-      by_cases hx : x = s
-      · rcases hx with rfl
-        simp only [prog', Function.update_self, hdone, lt_self_iff_false, not_true_eq_false,
+      rcases eq_or_ne x s with rfl | hx
+      · simp only [prog', Function.update_self, hdone, lt_self_iff_false, not_true_eq_false,
           false_and]
       · simp only [prog', Function.update_of_ne hx, hx, not_false_eq_true, true_and]
     have hmem_s_filt : s ∈ Finset.univ.filter fun x => prog x < crHops uid x :=
@@ -583,9 +569,8 @@ private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
         if prog' s' < crHops uid s' ∧ e = s' + Fin.ofNat n (prog' s') then 1 else 0 := by
       intro e s'
       rw [hchan1_cnt e s']
-      by_cases hs' : s' = s
-      · rcases hs' with rfl
-        simp only [↓reduceIte, prog', Function.update_self, hdone, lt_self_iff_false, false_and]
+      rcases eq_or_ne s' s with rfl | hs'
+      · simp only [↓reduceIte, prog', Function.update_self, hdone, lt_self_iff_false, false_and]
       · simp only [hs', ↓reduceIte, prog', Function.update_of_ne hs']
     rcases lt_or_eq_of_le hm_le with hm_strict | hm_self
     · -- Subcase B1: `m < uid target` (dropped, non-maximum `s`).
@@ -595,9 +580,8 @@ private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
       refine ⟨hprog'_le, hchan1_mem, hchan1_cnt', ?_, hsum', ?_⟩
       · intro i
         rw [hlead i]
-        by_cases hi : i = s
-        · rw [hi]
-          have hnot_max : ¬ ∀ j, uid j ≤ uid s := fun hall =>
+        rcases eq_or_ne i s with rfl | hi
+        · have hnot_max : ¬ ∀ j, uid j ≤ uid s := fun hall =>
             not_lt_of_ge (hall target) (hm_eq ▸ hm_strict)
           simp only [hnot_max, false_and]
         · simp only [prog', Function.update_of_ne hi]
@@ -618,16 +602,12 @@ private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
       rw [hstep_eq]
       refine ⟨hprog'_le, hchan1_mem, hchan1_cnt', ?_, hsum', ?_⟩
       · intro i
-        by_cases hi : i = s
-        · rw [hi]
-          dsimp only
-          rw [hts, Function.update_self, eq_comm, decide_eq_true_eq]
-          simp only [prog', Function.update_self]
-          exact ⟨hs_max, hdone⟩
-        · dsimp only
-          have hit : i ≠ target := fun h => hi (h.trans hts)
-          rw [Function.update_of_ne hit, hlead i]
-          simp only [prog', Function.update_of_ne hi]
+        dsimp only
+        rcases eq_or_ne i s with rfl | hi
+        · simp only [hts, Function.update_self, prog', hs_max, hdone, implies_true, and_self,
+            decide_true]
+        · have hit : i ≠ target := fun h => hi (h.trans hts)
+          simp only [Function.update_of_ne hit, hlead i, prog', Function.update_of_ne hi]
       · rw [hfilt_erase]
         dsimp only [CRConfig.inFlight] at hflight hlen1 ⊢
         linarith
@@ -751,51 +731,24 @@ theorem crAllInit_terminates {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     ∀ sched cfg, (crLTS uid).MTr (crAllInit uid) sched cfg → (crLTS uid).IsTerminal cfg →
       ∃! iStar : Fin n, cfg.isLeader iStar = true := by
   have huniq_max : ∃! iStar : Fin n, ∀ j : Fin n, uid j ≤ uid iStar := by
-    have hne : (Finset.univ : Finset (Fin n)).Nonempty :=
-      ⟨⟨0, Nat.pos_of_ne_zero (NeZero.ne n)⟩, Finset.mem_univ _⟩
-    have hne_img : (Finset.univ.image uid).Nonempty := hne.image uid
-    let m := (Finset.univ.image uid).max' hne_img
-    rcases Finset.mem_image.mp (Finset.max'_mem (Finset.univ.image uid) hne_img) with
-      ⟨iStar, _, hiStar⟩
-    refine ⟨iStar, fun j => ?_, fun k hk => ?_⟩
-    · rw [hiStar]
-      exact Finset.le_max' _ (uid j) (Finset.mem_image_of_mem uid (Finset.mem_univ j))
-    · apply huid
-      apply le_antisymm ?_ (hk iStar)
-      rw [hiStar]
-      exact Finset.le_max' _ (uid k) (Finset.mem_image_of_mem uid (Finset.mem_univ k))
+    obtain ⟨iStar, -, hmax⟩ := Finset.univ.exists_max_image uid Finset.univ_nonempty
+    exact ⟨iStar, fun j => hmax j (Finset.mem_univ j),
+      fun k hk => huid (le_antisymm (hmax k (Finset.mem_univ k)) (hk iStar))⟩
   refine ⟨?_, huniq_max, ?_⟩
   · intro sched cfg hmtr
-    suffices ∀ rem sched c,
-        crAllInitTotalMsgs uid - sched.length ≤ rem →
-        (crLTS uid).MTr (crAllInit uid) sched c →
-        ∃ tail c', (crLTS uid).MTr c tail c' ∧ (crLTS uid).IsTerminal c' from
-      this (crAllInitTotalMsgs uid - sched.length) sched cfg le_rfl hmtr
-    intro rem
-    induction rem with
-    | zero =>
-      intro sched c hrem hmtr_c
-      by_cases hterm : (crLTS uid).IsTerminal c
-      · exact ⟨[], c, LTS.MTr.refl, hterm⟩
-      · exfalso
-        simp only [LTS.IsTerminal, not_forall, Classical.not_not] at hterm
-        obtain ⟨target, c', htr⟩ := hterm
-        have hmtr' := hmtr_c.stepR (crLTS uid) htr
-        have ⟨hlen', _⟩ := crExecMsgs_le_totalMsgs huid hmtr'
-        rw [List.length_append, List.length_singleton] at hlen'
-        omega
-    | succ r ih =>
-      intro sched c hrem hmtr_c
-      by_cases hterm : (crLTS uid).IsTerminal c
-      · exact ⟨[], c, LTS.MTr.refl, hterm⟩
-      · simp only [LTS.IsTerminal, not_forall, Classical.not_not] at hterm
-        obtain ⟨target, c', htr⟩ := hterm
-        have hmtr' := hmtr_c.stepR (crLTS uid) htr
-        have ⟨hlen', _⟩ := crExecMsgs_le_totalMsgs huid hmtr'
-        rw [List.length_append, List.length_singleton] at hlen'
-        obtain ⟨tail, c_end, htail, hterm_end⟩ :=
-          ih (sched ++ [target]) c' (by rw [List.length_append, List.length_singleton]; omega) hmtr'
-        exact ⟨target :: tail, c_end, LTS.MTr.stepL htr htail, hterm_end⟩
+    obtain ⟨rem, hrem⟩ : ∃ rem, crAllInitTotalMsgs uid - sched.length = rem := ⟨_, rfl⟩
+    induction rem using Nat.strong_induction_on generalizing sched cfg with
+    | _ rem ih =>
+      by_cases hterm : (crLTS uid).IsTerminal cfg
+      · exact ⟨[], cfg, LTS.MTr.refl, hterm⟩
+      simp only [LTS.IsTerminal, not_forall, Classical.not_not] at hterm
+      obtain ⟨target, c', htr⟩ := hterm
+      have hmtr' := hmtr.stepR (crLTS uid) htr
+      have hlen' := (crExecMsgs_le_totalMsgs huid hmtr').1
+      rw [List.length_append, List.length_singleton] at hlen'
+      obtain ⟨tail, c_end, htail, hterm_end⟩ := ih (crAllInitTotalMsgs uid - (sched.length + 1))
+        (by omega) (sched ++ [target]) c' hmtr' (by rw [List.length_append, List.length_singleton])
+      exact ⟨target :: tail, c_end, LTS.MTr.stepL htr htail, hterm_end⟩
   · intro sched cfg hmtr hterm
     obtain ⟨iStar, hiStar, huniq⟩ := huniq_max
     refine ⟨iStar, (crAllInit_isLeader_iff_max huid hmtr hterm iStar).mpr hiStar, fun j hj => ?_⟩
@@ -816,13 +769,10 @@ private theorem crAllInitTotalMsgs_le {n : ℕ} [NeZero n] {U : Type*} [LinearOr
       rcases Finset.mem_image.mp hj with ⟨k, hk, rfl⟩
       rw [Finset.mem_Ico] at hk
       exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hlt k hk.1 hk.2⟩
-    have hinj : Set.InjOn (fun k : ℕ => s + Fin.ofNat n k) (Finset.Ico 1 (crHops uid s)) := by
-      intro k₁ hk₁ k₂ hk₂ heq
-      simp only [Finset.coe_Ico, Set.mem_Ico] at hk₁ hk₂
-      have hv := congrArg Fin.val (add_left_cancel heq)
-      change k₁ % n = k₂ % n at hv
-      rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at hv
-      exact hv
+    have hinj : Set.InjOn (fun k : ℕ => s + Fin.ofNat n k) (Finset.Ico 1 (crHops uid s)) :=
+      fun k₁ hk₁ k₂ hk₂ => by
+        simp only [Finset.coe_Ico, Set.mem_Ico] at hk₁ hk₂
+        exact add_ofNat_fin_inj s (by omega) (by omega)
     have hcard : passed.card = crHops uid s - 1 := by
       rw [Finset.card_image_of_injOn hinj, Nat.card_Ico]
     have hle := Finset.card_le_card hsub
@@ -912,11 +862,7 @@ theorem crAllInit_totalMsgs_rev_eq (n : ℕ) [NeZero n] :
       omega
     · intro k hk1 hk2
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def, Fin.val_rev, not_le]
-      have hval : (s + Fin.ofNat n k).val = s.val + k := by
-        change (s.val + k % n) % n = s.val + k
-        have hmod : k % n = k := Nat.mod_eq_of_lt (by omega)
-        rw [hmod, Nat.mod_eq_of_lt (by omega)]
-      rw [hval]
+      rw [val_add_ofNat_fin s (by omega)]
       omega
   have hsum : crAllInitTotalMsgs (Fin.rev : Fin n → Fin n) = ∑ i ∈ Finset.range n, (n - i) := by
     rw [crAllInitTotalMsgs, ← Fin.sum_univ_eq_sum_range (fun i => n - i) n]
@@ -958,26 +904,17 @@ theorem crAllInit_totalMsgs_id_eq (n : ℕ) [NeZero n] :
         have hs_mem : s ∈ Finset.univ.filter (fun j : Fin n => s ≤ j) :=
           Finset.mem_filter.mpr ⟨Finset.mem_univ s, le_rfl⟩
         refine arcLen_eq_of_isFirst hs_mem le_rfl ?_ fun k hk1 hk2 => by omega
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def, ofNat_one_fin]
-        have hadd : (s + 1).val = s.val + 1 := by
-          change (s.val + 1 % n) % n = s.val + 1
-          have h1mod : 1 % n = 1 := Nat.mod_eq_of_lt hn2
-          rw [h1mod, Nat.mod_eq_of_lt (by omega)]
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def]
+        rw [val_add_ofNat_fin s (by omega)]
         omega
     let sLast : Fin n := ⟨n - 1, by omega⟩
-    have hsum : crAllInitTotalMsgs (id : Fin n → Fin n) =
-        ∑ s : Fin n, Function.update (fun _ : Fin n => 1) sLast n s := by
-      rw [crAllInitTotalMsgs]
-      refine Finset.sum_congr rfl fun s _ => ?_
-      rw [hhop s]
-      by_cases hs : s = sLast
-      · rcases hs with rfl
-        simp only [sLast, Function.update_self, ↓reduceIte]
-      · have hsv : s.val ≠ n - 1 := fun hv => hs (Fin.ext hv)
-        simp only [hsv, ↓reduceIte, Function.update_of_ne hs]
-    have hu := sum_update_fin (fun _ : Fin n => 1) sLast n
-    simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one] at hu
-    rw [hsum]
+    have hhop' : ∀ s : Fin n,
+        crHops (id : Fin n → Fin n) s = 1 + if s = sLast then n - 1 else 0 := fun s => by
+      simp only [hhop s, Fin.ext_iff, sLast]
+      split_ifs <;> omega
+    simp only [crAllInitTotalMsgs, hhop', Finset.sum_add_distrib, Finset.sum_const,
+      Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one, Finset.sum_ite_eq',
+      Finset.mem_univ, ↓reduceIte]
     omega
 
 /-! ### Exact `n H_n` average-case message complexity -/
@@ -1091,12 +1028,9 @@ theorem sum_arcLen_eq {n : ℕ} [NeZero n] {A : Finset (Fin n)} (hA : A.Nonempty
       simp only [prevNode, show prevDist A (a + Fin.ofNat n k) = k from hpk,
         add_sub_cancel_right]
   rw [hfib, Finset.card_image_of_injOn, Finset.card_range]
-  intro k₁ hk₁ k₂ hk₂ heq
+  intro k₁ hk₁ k₂ hk₂
   simp only [Finset.coe_range, Set.mem_Iio] at hk₁ hk₂
-  have hv := congrArg Fin.val (add_left_cancel heq)
-  change k₁ % n = k₂ % n at hv
-  rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at hv
-  exact hv
+  exact add_ofNat_fin_inj a (by omega) (by omega)
 
 /-- For `v ≤ u`, swapping `v` and `u` stabilizes `{w | v ≤ w}`: `v ≤ swap v u w ↔ v ≤ w`. -/
 private theorem le_swap_iff_le {n : ℕ} {v u : Fin n} (hvu : v ≤ u) (w : Fin n) :
@@ -1118,18 +1052,7 @@ private theorem mul_sum_crHops_perm_eq {n : ℕ} [NeZero n] (v : Fin n) :
       n * Nat.factorial n := by
   let S : Finset (Fin n) := Finset.univ.filter fun u : Fin n => v ≤ u
   have hS_card : S.card = n - v.val := by
-    have hbij : S = (Finset.Ico v.val n).attach.map
-        ⟨fun x => ⟨x.1, (Finset.mem_Ico.mp x.2).2⟩, fun a b h => by
-          ext; exact congrArg Fin.val h⟩ := by
-      ext u
-      simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def, Finset.mem_map,
-        Finset.mem_attach, Subtype.exists, Finset.mem_Ico]
-      constructor
-      · intro hle
-        exact ⟨u.val, ⟨hle, u.isLt⟩, Fin.ext rfl⟩
-      · rintro ⟨m, ⟨hle, _⟩, rfl⟩
-        exact hle
-    rw [hbij, Finset.card_map, Finset.card_attach, Nat.card_Ico]
+    simp only [S, Finset.filter_le_eq_Ici, Fin.card_Ici]
   have hswap_sum : ∀ u ∈ S,
       (∑ σ : Equiv.Perm (Fin n), crHops (⇑σ) (σ.symm v)) =
       ∑ σ : Equiv.Perm (Fin n),

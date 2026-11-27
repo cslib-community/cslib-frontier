@@ -57,14 +57,11 @@ theorem chsh_re_inner_le {𝕜 E : Type*} [RCLike 𝕜] [SeminormedAddCommGroup 
   have h₁ : RCLike.re (inner 𝕜 u₁ v₀) - RCLike.re (inner 𝕜 u₁ v₁) ≤ ‖v₀ - v₁‖ := by
     rw [← map_sub, ← inner_sub_right]
     exact (re_inner_le_norm u₁ _).trans (mul_le_of_le_one_left (norm_nonneg _) hu₁)
-  have hpar := parallelogram_law_with_norm 𝕜 v₀ v₁
-  have hv₀' : ‖v₀‖ ^ 2 ≤ 1 := pow_le_one₀ (norm_nonneg _) hv₀
-  have hv₁' : ‖v₁‖ ^ 2 ≤ 1 := pow_le_one₀ (norm_nonneg _) hv₁
-  have hs : (2 * √2) ^ 2 = 8 := by rw [mul_pow, Real.sq_sqrt zero_le_two]; norm_num
   have hab : ‖v₀ + v₁‖ + ‖v₀ - v₁‖ ≤ 2 * √2 := by
     refine (sq_le_sq₀ (by positivity) (by positivity)).mp ?_
-    rw [hs]
-    nlinarith [sq_nonneg (‖v₀ + v₁‖ - ‖v₀ - v₁‖)]
+    rw [mul_pow, Real.sq_sqrt zero_le_two]
+    nlinarith [parallelogram_law_with_norm 𝕜 v₀ v₁, pow_le_one₀ (n := 2) (norm_nonneg _) hv₀,
+      pow_le_one₀ (n := 2) (norm_nonneg _) hv₁, sq_nonneg (‖v₀ + v₁‖ - ‖v₀ - v₁‖)]
   linarith
 
 /-- The **sum-of-squares identity** behind the CHSH inequality: with `c = 1/√2`,
@@ -80,12 +77,12 @@ theorem chsh_sos {𝕜 E : Type*} [RCLike 𝕜] [SeminormedAddCommGroup E] [Inne
   have hs : 2 * (√2)⁻¹ = √2 := by
     field_simp
     rw [Real.sq_sqrt zero_le_two]
-  have hpar := parallelogram_law_with_norm 𝕜 v₀ v₁
   rw [norm_sub_sq (𝕜 := 𝕜), norm_sub_sq (𝕜 := 𝕜), hc, inner_smul_right, inner_smul_right,
     RCLike.re_ofReal_mul, RCLike.re_ofReal_mul, norm_smul, norm_smul, mul_pow, mul_pow,
     RCLike.norm_ofReal, abs_of_pos (by positivity), h2, inner_add_right, inner_sub_right,
     map_add, map_sub]
-  have : ‖v₀ + v₁‖ ^ 2 + ‖v₀ - v₁‖ ^ 2 = 2 * (‖v₀‖ ^ 2 + ‖v₁‖ ^ 2) := by nlinarith
+  have : ‖v₀ + v₁‖ ^ 2 + ‖v₀ - v₁‖ ^ 2 = 2 * (‖v₀‖ ^ 2 + ‖v₁‖ ^ 2) := by
+    nlinarith [parallelogram_law_with_norm 𝕜 v₀ v₁]
   linear_combination (1 / 2 : ℝ) * this - (RCLike.re (inner 𝕜 u₀ v₀) +
     RCLike.re (inner 𝕜 u₀ v₁) + RCLike.re (inner 𝕜 u₁ v₀) - RCLike.re (inner 𝕜 u₁ v₁)) * hs
 

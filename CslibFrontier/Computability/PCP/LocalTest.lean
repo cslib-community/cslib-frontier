@@ -150,11 +150,8 @@ theorem passes_reindexQueries {read : Q' → Q} {use : Q → Q'}
 @[simp]
 theorem passes_padQueries {n m : ℕ} (T : LocalTest P R (Fin (n + 1)) Γ)
     (h : n + 1 ≤ m) (π : P → Γ) (r : R) :
-    (T.padQueries h).Passes π r ↔ T.Passes π r := by
-  apply passes_reindexQueries
-  intro i
-  change (if hi : i.val < n + 1 then (⟨i.val, hi⟩ : Fin (n + 1)) else 0) = i
-  simp only [dite_eq_left i.isLt]
+    (T.padQueries h).Passes π r ↔ T.Passes π r :=
+  passes_reindexQueries (fun i => dite_eq_left i.isLt) π r
 
 @[simp]
 theorem passes_and {T' : LocalTest P R' Q' Γ} {π : P → Γ} {r : R × R'} :
@@ -191,27 +188,24 @@ pass. -/
 theorem one_sub_acceptProb [Nonempty R] (π : P → Γ) :
     1 - T.acceptProb π = (#{r | ¬ T.Passes π r} : ℝ) / Fintype.card R := by
   classical
-  have hR : (0 : ℝ) < Fintype.card R := by exact_mod_cast Fintype.card_pos
+  have hR : (Fintype.card R : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
   have h := card_filter_add_card_filter_not (s := univ) fun r ↦ T.Passes π r
-  rw [card_univ] at h
-  rw [acceptProb_eq_card_div, eq_div_iff hR.ne', sub_mul, div_mul_cancel₀ _ hR.ne', one_mul,
-    sub_eq_iff_eq_add', ← Nat.cast_add, h]
+  rw [acceptProb_eq_card_div, eq_div_iff hR, sub_mul, div_mul_cancel₀ _ hR, one_mul,
+    sub_eq_iff_eq_add', ← Nat.cast_add, h, card_univ]
 
 theorem acceptProb_nonneg (π : P → Γ) : 0 ≤ T.acceptProb π := by
-  rw [acceptProb_eq_card_div]
-  positivity
+  rw [acceptProb_eq_card_div]; positivity
 
-theorem acceptProb_le_one (π : P → Γ) : T.acceptProb π ≤ 1 := by
-  rw [acceptProb_eq_card_div]
-  exact div_le_one_of_le₀ (by exact_mod_cast card_le_univ _) (Nat.cast_nonneg _)
+theorem acceptProb_le_one (π : P → Γ) : T.acceptProb π ≤ 1 :=
+  acceptProb_eq_card_div T π ▸
+    div_le_one_of_le₀ (by exact_mod_cast card_le_univ _) (Nat.cast_nonneg _)
 
 /-- **A test accepts with probability one exactly when it passes on every random string.** -/
 theorem acceptProb_eq_one_iff [Nonempty R] {π : P → Γ} :
     T.acceptProb π = 1 ↔ ∀ r, T.Passes π r := by
   classical
-  have hR : (0 : ℝ) < Fintype.card R := by exact_mod_cast Fintype.card_pos
-  rw [acceptProb_eq_card_div, div_eq_one_iff_eq hR.ne', Nat.cast_inj, ← card_univ,
-    card_filter_eq_iff]
+  rw [acceptProb_eq_card_div, div_eq_one_iff_eq (by exact_mod_cast Fintype.card_ne_zero),
+    Nat.cast_inj, ← card_univ, card_filter_eq_iff]
   simp
 
 variable {T}
@@ -258,25 +252,22 @@ theorem one_sub_acceptProb_le_card_mul_one_sub_acceptProb_mix
     (h : ∀ r, (∀ e, (T e).Passes π r) → S.Passes π r) :
     1 - S.acceptProb π ≤ Fintype.card E * (1 - (mix T).acceptProb π) := by
   classical
-  have hpoint (r : R) :
-      (1 - if S.Passes π r then (1 : ℝ) else 0) ≤
-        ∑ e, (1 - if (T e).Passes π r then (1 : ℝ) else 0) := by
-    by_cases hs : S.Passes π r
-    · simp only [ite_eq_left hs, sub_self]
-      exact sum_nonneg fun e _ ↦ by split_ifs <;> norm_num
-    · obtain ⟨e, he⟩ := not_forall.1 (mt (h r) hs)
-      simpa only [ite_eq_right hs, ite_eq_right he, sub_zero] using
-        (single_le_sum (f := fun e ↦ (1 - if (T e).Passes π r then (1 : ℝ) else 0))
-          (fun e _ ↦ by split_ifs <;> norm_num) (mem_univ e))
-  have hmean := expect_le_expect fun r (_ : r ∈ (univ : Finset R)) ↦ hpoint r
-  simp only [expect_sum_comm, expect_sub_distrib, Fintype.expect_const] at hmean
-  change 1 - S.acceptProb π ≤ ∑ e, (1 - (T e).acceptProb π) at hmean
-  have hE : (Fintype.card E : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
   calc
-    1 - S.acceptProb π ≤ ∑ e, (1 - (T e).acceptProb π) := hmean
+    1 - S.acceptProb π ≤ ∑ e, (1 - (T e).acceptProb π) := by
+      simpa only [acceptProb, expect_sum_comm, expect_sub_distrib, Fintype.expect_const] using
+        expect_le_expect fun r (_ : r ∈ (univ : Finset R)) ↦ show
+            (1 - if S.Passes π r then (1 : ℝ) else 0) ≤
+              ∑ e, (1 - if (T e).Passes π r then (1 : ℝ) else 0) by
+          by_cases hs : S.Passes π r
+          · simpa only [ite_eq_left hs, sub_self] using
+              sum_nonneg fun e _ ↦ show (0 : ℝ) ≤ _ by split_ifs <;> norm_num
+          · obtain ⟨e, he⟩ := not_forall.1 (mt (h r) hs)
+            simpa only [ite_eq_right hs, ite_eq_right he, sub_zero] using
+              single_le_sum (f := fun e ↦ (1 - if (T e).Passes π r then (1 : ℝ) else 0))
+                (fun e _ ↦ by split_ifs <;> norm_num) (mem_univ e)
     _ = Fintype.card E * (1 - (mix T).acceptProb π) := by
       rw [acceptProb_mix, Fintype.expect_eq_sum_div_card, mul_sub,
-        mul_div_cancel₀ _ hE, sum_sub_distrib]
+        mul_div_cancel₀ _ (by exact_mod_cast Fintype.card_ne_zero), sum_sub_distrib]
       simp only [sum_const, card_univ, nsmul_eq_mul, mul_one]
 
 end Prob
@@ -315,10 +306,9 @@ violated edge. -/
 theorem exists_not_satisfies_of_not_passes [Nonempty Q] {A : P ⊕ R → Γ × (Q → Γ)} {r : R}
     (h : ¬ T.Passes (proofOf A) r) : ∃ i, ¬ T.toConstraintGraph.Satisfies A (r, i) := by
   by_contra! hall
-  have hans : (A (.inr r)).2 = fun i ↦ proofOf A (T.query r i) :=
-    funext fun i ↦ (satisfies_toConstraintGraph.1 (hall i)).2
   have hacc := (satisfies_toConstraintGraph.1 (hall (Classical.arbitrary Q))).1
-  rw [hans] at hacc
+  rw [show (A (.inr r)).2 = fun i ↦ proofOf A (T.query r i) from funext fun i ↦ (hall i).2]
+    at hacc
   exact h hacc
 
 section Count
@@ -333,10 +323,9 @@ theorem card_filter_not_passes_le_card_unsatEdges [Nonempty Q] (A : P ⊕ R → 
     #{r | ¬ T.Passes (proofOf A) r} ≤ #(T.toConstraintGraph.unsatEdges A) := by
   classical
   choose! i hi using fun r (h : ¬ T.Passes (proofOf A) r) ↦ exists_not_satisfies_of_not_passes h
-  refine card_le_card_of_injOn (fun r ↦ (r, i r)) (fun r hr ↦ ?_) fun r _ r' _ h ↦
+  refine card_le_card_of_injOn (fun r ↦ (r, i r)) (fun r hr ↦ ?_) fun _ _ _ _ h ↦
     congrArg Prod.fst h
-  simp only [coe_filter, mem_univ, true_and] at hr
-  simpa using hi r hr
+  simpa using hi r (by simpa using hr)
 
 /-- **Soundness of the constraint graph of a test**: a labelling violates a proportion of the edges
 at least the rejection probability of the test on the proof it carries, divided by the number of
@@ -345,13 +334,11 @@ theorem one_sub_acceptProb_le_card_mul_unsatFrac [Nonempty R] [Nonempty Q]
     (A : P ⊕ R → Γ × (Q → Γ)) :
     1 - T.acceptProb (proofOf A) ≤ Fintype.card Q * T.toConstraintGraph.unsatFrac A := by
   classical
-  have hR : (0 : ℝ) < Fintype.card R := by exact_mod_cast Fintype.card_pos
-  have hQ : (0 : ℝ) < Fintype.card Q := by exact_mod_cast Fintype.card_pos
-  have h : (#{r | ¬ T.Passes (proofOf A) r} : ℝ) ≤ #(T.toConstraintGraph.unsatEdges A) := by
-    exact_mod_cast card_filter_not_passes_le_card_unsatEdges A
   rw [one_sub_acceptProb, ConstraintGraph.unsatFrac, Fintype.card_prod, Nat.cast_mul,
-    mul_div_assoc', mul_comm (Fintype.card R : ℝ), mul_div_mul_left _ _ hQ.ne']
+    mul_div_assoc', mul_comm (Fintype.card R : ℝ),
+    mul_div_mul_left _ _ (by exact_mod_cast Fintype.card_ne_zero)]
   gcongr
+  exact_mod_cast card_filter_not_passes_le_card_unsatEdges A
 
 end Count
 
@@ -379,13 +366,14 @@ theorem unsatFrac_labellingOf [Fintype R] [Fintype Q] [Nonempty R] [Nonempty Q]
     (π : P → Γ) (γ : Γ) :
     T.toConstraintGraph.unsatFrac (T.labellingOf π γ) = 1 - T.acceptProb π := by
   classical
-  rw [← ConstraintGraph.expect_mem_unsatEdges, Fintype.expect_prod_type]
+  rw [← ConstraintGraph.expect_mem_unsatEdges, Fintype.expect_prod_type, acceptProb]
   simp only [ConstraintGraph.mem_unsatEdges, ConstraintGraph.Satisfies, toConstraintGraph,
     labellingOf, Sum.elim_inl, Sum.elim_inr, and_true, Fintype.expect_const]
-  rw [acceptProb]
-  conv_rhs => rw [← Fintype.expect_const (ι := R) (1 : ℝ), ← expect_sub_distrib]
+  conv_rhs =>
+    arg 1
+    rw [← Fintype.expect_const (ι := R) (1 : ℝ)]
+  rw [← expect_sub_distrib]
   exact expect_congr rfl fun r _ ↦ by
-    simp only [Fintype.expect_const]
     change (if ¬ T.Passes π r then (1 : ℝ) else 0) = 1 - if T.Passes π r then 1 else 0
     split_ifs <;> norm_num
 
