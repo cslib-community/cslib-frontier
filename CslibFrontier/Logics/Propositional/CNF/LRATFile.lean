@@ -19,7 +19,8 @@ text or binary, with Lean core's parser (`Std.Tactic.BVDecide.LRAT.parseLRATProo
 with the array checker `Cslib.Logic.PL.CNF.checkLRATFast`, RAT steps included
 [Cruz-Filipe et al.][CruzFilipeHeuleHuntKaufmannSchneiderKamp2017]. It returns `.ok ()` when the
 certificate is accepted, and otherwise an error saying which of the three stages failed. The
-executable `lake exe lrat_check FORMULA.cnf PROOF.lrat` (`scripts/LratCheck.lean`) runs it.
+executable `lake exe lrat_check FORMULA.cnf PROOF.lrat`, `LratCheck.lean` in the `scripts`
+directory, runs it.
 
 An accepted certificate shows that the formula read is unsatisfiable
 (`Cslib.Logic.PL.CNF.not_satisfiable_of_checkDIMACSLRAT`). The statement concerns the formula that
