@@ -39,6 +39,7 @@ import CslibFrontierResults.Registry
 import CslibFrontierResults.Entries.PolynomialHashing
 import CslibFrontierResults.Entries.ODonnellPTFSparsity
 import CslibFrontierResults.Entries.ODonnellPeres
+import CslibFrontierResults.Entries.TwoProverNEXP
 import CslibFrontierResults.Entries.Roberts
 import CslibFrontierResults.Entries.SecurityEconomics
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
@@ -87,4 +88,3 @@ import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.ODonnellLevelK
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
 import CslibFrontierResults.Entries.SatisfiabilityHypothesis
-import CslibFrontierResults.Entries.TwoProverNEXP
