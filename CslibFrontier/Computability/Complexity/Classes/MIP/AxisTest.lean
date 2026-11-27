@@ -178,12 +178,12 @@ def checkAxisAt (p i : ℕ) (point : List ℕ) : WordOracleComp Unit Bool := do
   let values ← ProofWord.readValues (axisKeys i point) p.size
   pure (checkValues p (point.getD i 0) values)
 
-/-- The point table induced by a fixed proof at a positive modulus. -/
-@[expose] def proofPoint (π : List Bool → Bool) (p : ℕ) [NeZero p] (x : Fin n → ZMod p) : ZMod p :=
+/-- The point table induced by a fixed proof over the given residue ring. -/
+@[expose] def proofPoint (π : List Bool → Bool) (p : ℕ) (x : Fin n → ZMod p) : ZMod p :=
   ProofWord.value π (pointTableKey (List.ofFn fun k => (x k).val)) p.size
 
 /-- The two coefficients returned by the fixed proof for a canonical axis-parallel line. -/
-@[expose] def proofAxis (π : List Bool → Bool) (p : ℕ) [NeZero p] (i : Fin n) (x : Fin n → ZMod p) :
+@[expose] def proofAxis (π : List Bool → Bool) (p : ℕ) (i : Fin n) (x : Fin n → ZMod p) :
     LineAnswer (ZMod p) :=
   let coords := List.ofFn fun k => (x k).val
   ⟨ProofWord.value π (axisTableKey true i coords) p.size,
@@ -262,7 +262,7 @@ private theorem decodePoint_set {n p : ℕ} [NeZero p] (x : Fin n → ZMod p) (i
 
 /-- Populate the point and axis tables for a given dimension and field. Other tags retain their
 background values, permitting the same proof to store sumcheck and correction data. -/
-noncomputable def extendAxisTable {n p : ℕ} [NeZero p] (f : (Fin n → ZMod p) → ZMod p)
+noncomputable def extendAxisTable {n p : ℕ} (f : (Fin n → ZMod p) → ZMod p)
     (lines : Fin n → (Fin n → ZMod p) → LineAnswer (ZMod p)) (other : List Bool → ℕ) :
     List Bool → ℕ
   | false :: tail => Function.extend (encList encUnary)
@@ -274,7 +274,7 @@ noncomputable def extendAxisTable {n p : ℕ} [NeZero p] (f : (Fin n → ZMod p)
   | key => other key
 
 /-- The `11` tag subspace can carry additional parts of the static proof. -/
-theorem extendAxisTable_reserved {n p : ℕ} [NeZero p] (f : (Fin n → ZMod p) → ZMod p)
+theorem extendAxisTable_reserved {n p : ℕ} (f : (Fin n → ZMod p) → ZMod p)
     (lines : Fin n → (Fin n → ZMod p) → LineAnswer (ZMod p)) (other : List Bool → ℕ)
     (tail : List Bool) : extendAxisTable f lines other (true :: true :: tail) =
       other (true :: true :: tail) := by rfl
