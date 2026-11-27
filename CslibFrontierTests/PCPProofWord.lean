@@ -11,6 +11,9 @@ import CslibFrontier.Computability.Complexity.Classes.MIP.SumcheckVerifier.Table
 
 /-! Static proof words and sumcheck transcripts, including zero-width and prefix-dependent reads. -/
 
+-- This regression module exports no declarations.
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.PCPProofWord
 
 open Cslib.Complexity Turing.MultiTapeTM
