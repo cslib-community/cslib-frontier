@@ -84,6 +84,15 @@ example (φ : CNF ℕ) (hφ : ∀ c ∈ φ, c.length ≤ 1) :
   Sparsify.search_eq_true_iff le_rfl le_rfl le_rfl leafBound_one
     (fun ψ _ => (BruteForce.search_eq_true_iff ψ).trans mem_SAT) hφ
 
+/-- Exact leaf answers yield zero search error on the empty-clause formula. -/
+example :
+    (acceptCount (fun p : CNF ℕ × List Bool =>
+      Sparsify.search 1 1 1 1 BruteForce.search p.1 != BruteForce.search p.1) [[]] 0 : ℝ) ≤ 0 := by
+  have h := Sparsify.acceptCount_search_error_le le_rfl le_rfl le_rfl leafBound_one
+    (φ := [[]]) (by simp) (fun p => BruteForce.search p.1) (fun _ => 0) 0
+    (ε := 0) le_rfl (fun _ _ _ => le_rfl) (by simp)
+  simpa using h
+
 /-- A decider for 3SAT in the number of clauses: exhaustive search, as `n ≤ 3 m`. -/
 example : DecidableInExpTime (KSAT 3) encCNF List.length (3 * 1) :=
   (KSAT_decidableInExpTime_one 3).length_of_numVars zero_le_one
