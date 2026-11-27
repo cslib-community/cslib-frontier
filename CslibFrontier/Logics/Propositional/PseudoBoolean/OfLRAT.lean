@@ -154,6 +154,13 @@ def hintCount : List Step → ℕ
 
 end
 
+private theorem not_slack_lt_of_degree_eq_zero {c : PBConstr} (h : c.degree = 0)
+    {ρ : List (Literal ℕ)} {t : ℕ × Literal ℕ} (ht : t ∈ c.terms) (hf : (!falsified ρ t) = true) :
+    ¬ slack ρ c < t.1 := by
+  have := le_coeffSum_of_mem ((List.mem_filter (p := fun t => !falsified ρ t)).2 ⟨ht, hf⟩)
+  simp only [slack, h, Nat.cast_zero, sub_zero]
+  omega
+
 /-- **A constraint of degree `0` propagates nothing**: it never conflicts, and a term it could
 force has a coefficient within the slack. -/
 theorem propagate_of_degree_eq_zero {c : PBConstr} (h : c.degree = 0) (ρ : List (Literal ℕ)) :
@@ -163,9 +170,7 @@ theorem propagate_of_degree_eq_zero {c : PBConstr} (h : c.degree = 0) (ρ : List
     refine List.filter_eq_nil_iff.2 fun t ht hp => ?_
     have hf : (!falsified ρ t) = true := by revert hp; cases falsified ρ t <;> simp
     have hlt : slack ρ c < t.1 := by revert hp; simp
-    have := le_coeffSum_of_mem ((List.mem_filter (p := fun t => !falsified ρ t)).2 ⟨ht, hf⟩)
-    simp only [slack, h, Nat.cast_zero, sub_zero] at hlt
-    omega
+    exact not_slack_lt_of_degree_eq_zero h ht hf hlt
   have hs : ¬ slack ρ c < 0 := by simp [slack, h]
   unfold propagate
   rw [hnil, ite_eq_right hs]
@@ -408,9 +413,7 @@ theorem asserting_of_degree_eq_zero {c : PBConstr} (h : c.degree = 0) (ρ : List
   refine List.any_eq_false.2 fun t ht hp => ?_
   have hf : (!falsified ρ t) = true := by revert hp; cases falsified ρ t <;> simp
   have hlt : slack ρ c < t.1 := by revert hp; simp
-  have := le_coeffSum_of_mem ((List.mem_filter (p := fun t => !falsified ρ t)).2 ⟨ht, hf⟩)
-  simp only [slack, h, Nat.cast_zero, sub_zero] at hlt
-  omega
+  exact not_slack_lt_of_degree_eq_zero h ht hf hlt
 
 /-- **An asserting constraint of degree `1` leaves exactly one literal not false**: the asserting
 term is not falsified, and with positive coefficients, two terms not falsified give a slack at
@@ -830,6 +833,17 @@ namespace CNF
 
 open VeriPB
 
+private theorem lratEntries_parts (φ : CNF ℕ) (J : List Entry)
+    (hJ : J = φ.lratDB.map fun e => ⟨e.1, e.1, e.2⟩) :
+    lratPart J = φ.lratDB ∧ renPart J = (φ.lratDB.map fun e => (e.1, e.1)) ∧
+      pbPart J = initDb (φ.map Clause.toPB) ∧
+      (φ.map Clause.toPB).length + 1 = φ.length + 1 := by
+  subst hJ
+  refine ⟨?_, ?_, ?_, by simp⟩
+  · simp [lratPart, Function.comp_def]
+  · simp [renPart, Function.comp_def]
+  · simp [pbPart, initDb, lratDB, List.zipIdx_map, Function.comp_def]
+
 /-- **LRAT certificates are VeriPB proofs**: if the LRAT checker accepts a certificate for `φ`,
 the kernel checker accepts its translation for the clauses of `φ` read as pseudo-Boolean
 constraints. The converse fails for runs that skip a hint
@@ -837,12 +851,7 @@ constraints. The converse fails for runs that skip a hint
 theorem check_toVeriPB {φ : CNF ℕ} {cert : Array LRAT.IntAction} (h : φ.checkLRAT cert = true) :
     check (φ.map Clause.toPB) (φ.toVeriPB cert) = true := by
   let J : List Entry := φ.lratDB.map fun e => ⟨e.1, e.1, e.2⟩
-  have hl : lratPart J = φ.lratDB := by simp [J, lratPart, Function.comp_def]
-  have hr : renPart J = φ.lratDB.map fun e => (e.1, e.1) := by
-    simp [J, renPart, Function.comp_def]
-  have hp : pbPart J = initDb (φ.map Clause.toPB) := by
-    simp [J, pbPart, initDb, lratDB, List.zipIdx_map, Function.comp_def]
-  have hn : (φ.map Clause.toPB).length + 1 = φ.length + 1 := by simp
+  obtain ⟨hl, hr, hp, hn⟩ := lratEntries_parts φ J rfl
   obtain ⟨D, m, hrun, hc⟩ := check_aux cert.toList J (φ.length + 1)
     (hp ▸ hn ▸ idOk_initDb _) (hl ▸ h)
   unfold check
@@ -861,12 +870,7 @@ theorem checkLRAT_iff_check_toVeriPB {φ : CNF ℕ} {cert : Array LRAT.IntAction
     φ.checkLRAT cert = true ↔ check (φ.map Clause.toPB) (φ.toVeriPB cert) = true := by
   refine ⟨check_toVeriPB, fun h => ?_⟩
   let J : List Entry := φ.lratDB.map fun e => ⟨e.1, e.1, e.2⟩
-  have hl : lratPart J = φ.lratDB := by simp [J, lratPart, Function.comp_def]
-  have hr : renPart J = φ.lratDB.map fun e => (e.1, e.1) := by
-    simp [J, renPart, Function.comp_def]
-  have hp : pbPart J = initDb (φ.map Clause.toPB) := by
-    simp [J, pbPart, initDb, lratDB, List.zipIdx_map, Function.comp_def]
-  have hn : (φ.map Clause.toPB).length + 1 = φ.length + 1 := by simp
+  obtain ⟨hl, hr, hp, hn⟩ := lratEntries_parts φ J rfl
   have h0 : ∀ e ∈ J, 0 < e.num := by
     intro e he
     obtain ⟨x, hx, rfl⟩ := List.mem_map.1 he

@@ -123,6 +123,10 @@ theorem uniformComputableInTime_csp_treeDecomposition :
   obtain ⟨w, hw_le, hin⟩ := InputFits.exists_width inst.encode inst.wordBound
   exact ⟨w, (fits_self inst.wordBound).mono hw_le, hin⟩
 
+private theorem steps_le_of_stepBound_le {steps C a b : ℕ} (hsteps : steps ≤ C * (a + 1) + 1)
+    (hab : a ≤ b) : steps ≤ C * (b + 1) + 1 :=
+  hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C (Nat.add_le_add_right hab 1)) 1)
+
 open Classical in
 /-- **FPT Word-RAM CSP Decision (Nice Tree Decomposition).** One fixed exact-basis Word-RAM
 program decides `CSP.Satisfiable sem F` (returning `1` if satisfiable, `0` otherwise) on any
@@ -150,8 +154,8 @@ theorem exists_program_cspDecide_nice :
     rw [TreeCSPInstance.result_ofNiceTree_decide]
     exact if_congr (cspDecideNice_eq_true_iff hq sem N) rfl rfl
   rw [hres] at hexec
-  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C
-    (Nat.add_le_add_right (TreeCSPInstance.stepBound_ofNice_le hq false e sem F N hk) 1)) 1)⟩
+  exact ⟨steps, hexec, steps_le_of_stepBound_le hsteps
+    (TreeCSPInstance.stepBound_ofNice_le hq false e sem F N hk)⟩
 
 /-- **FPT Word-RAM CSP Model Counting (Nice Tree Decomposition).** One fixed exact-basis Word-RAM
 program computes `CSP.modelCount sem F` in `≤ C * (cspNiceStepBound ... + 1) + 1` instructions at
@@ -175,8 +179,8 @@ theorem exists_program_cspCount_nice :
   let inst := TreeCSPInstance.ofNice true q hq e sem F N
   obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
   rw [TreeCSPInstance.result_ofNice_count hq e sem F N] at hexec
-  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C
-    (Nat.add_le_add_right (TreeCSPInstance.stepBound_ofNice_le hq true e sem F N hk) 1)) 1)⟩
+  exact ⟨steps, hexec, steps_le_of_stepBound_le hsteps
+    (TreeCSPInstance.stepBound_ofNice_le hq true e sem F N hk)⟩
 
 open Classical in
 /-- **FPT Word-RAM CSP Decision (Rooted Tree Decomposition).** One fixed exact-basis Word-RAM
@@ -203,8 +207,8 @@ theorem exists_program_cspDecide_rooted :
     rw [TreeCSPInstance.result_ofNiceTree_decide]
     exact if_congr (cspDecideNice_eq_true_iff hq sem R.toNiceTreePruned) rfl rfl
   rw [hres] at hexec
-  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C
-    (Nat.add_le_add_right (TreeCSPInstance.stepBound_ofRooted_le hq false e sem F R hk) 1)) 1)⟩
+  exact ⟨steps, hexec, steps_le_of_stepBound_le hsteps
+    (TreeCSPInstance.stepBound_ofRooted_le hq false e sem F R hk)⟩
 
 /-- **FPT Word-RAM CSP Model Counting (Rooted Tree Decomposition).** One fixed exact-basis
 Word-RAM program computes `CSP.modelCount sem F` over any `RootedTreeDecomposition` via
@@ -228,7 +232,7 @@ theorem exists_program_cspCount_rooted :
   let inst := TreeCSPInstance.ofRooted true q hq e sem F R
   obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
   rw [TreeCSPInstance.result_ofRooted_count hq e sem F R] at hexec
-  exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C
-    (Nat.add_le_add_right (TreeCSPInstance.stepBound_ofRooted_le hq true e sem F R hk) 1)) 1)⟩
+  exact ⟨steps, hexec, steps_le_of_stepBound_le hsteps
+    (TreeCSPInstance.stepBound_ofRooted_le hq true e sem F R hk)⟩
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition
