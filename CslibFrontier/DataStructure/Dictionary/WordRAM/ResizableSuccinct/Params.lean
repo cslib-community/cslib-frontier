@@ -369,16 +369,37 @@ structure RootHeaderValid (U V w N n n_init metaBase : ℕ) (mem : ℕ → ℕ) 
 @[expose] def EpochValid (U n N : ℕ) : Prop :=
   (n = 0 ∧ N = 0) ∨ (1 ≤ n ∧ n ≤ N ∧ N ≤ 4 * n ∧ N ≤ U)
 
+/-- A valid epoch bounds its size by its capacity, and its capacity by four times the size
+and by the universe size. These inequalities force zero capacity for an empty epoch. -/
+theorem epochValid_iff_capacity_bounds {U n N : ℕ} :
+    EpochValid U n N ↔ n ≤ N ∧ N ≤ 4 * n ∧ N ≤ U := by
+  constructor
+  · rintro (⟨rfl, rfl⟩ | ⟨_, hnN, hN4, hNU⟩)
+    · exact ⟨le_rfl, Nat.zero_le _, Nat.zero_le _⟩
+    · exact ⟨hnN, hN4, hNU⟩
+  · rintro ⟨hnN, hN4, hNU⟩
+    rcases Nat.eq_zero_or_pos n with rfl | hn
+    · exact Or.inl ⟨rfl, Nat.eq_zero_of_le_zero hN4⟩
+    · exact Or.inr ⟨hn, hnN, hN4, hNU⟩
+
 /-- Target epoch capacity `min (2 * n) U` (`0` when `n = 0`). -/
 @[expose] def targetCap (U n : ℕ) : ℕ :=
   if n = 0 then 0 else min (2 * n) U
 
+/-- The minimum formula for the target epoch capacity also holds at zero. -/
+theorem targetCap_eq_min (U n : ℕ) : targetCap U n = min (2 * n) U := by
+  by_cases hn : n = 0 <;> simp [targetCap, hn]
+
+/-- The target capacity of a nonempty epoch fits the universe and is at most twice its size. -/
+theorem targetCap_bounds_of_pos {U n : ℕ} (hn : 1 ≤ n) (hnU : n ≤ U) :
+    1 ≤ targetCap U n ∧ n ≤ targetCap U n ∧ targetCap U n ≤ 2 * n ∧ targetCap U n ≤ U := by
+  rw [targetCap_eq_min]
+  have hcap : n ≤ min (2 * n) U := le_min (by lia) hnU
+  exact ⟨hn.trans hcap, hcap, min_le_left _ _, min_le_right _ _⟩
+
 theorem epochValid_targetCap {U n : ℕ} (hnU : n ≤ U) : EpochValid U n (targetCap U n) := by
-  unfold EpochValid targetCap
-  rcases Nat.eq_zero_or_pos n with rfl | hn
-  · exact Or.inl ⟨rfl, rfl⟩
-  · rw [ite_eq_right (by omega)]
-    exact Or.inr ⟨hn, le_min (by omega) hnU, (min_le_left _ _).trans (by omega), min_le_right _ _⟩
+  rw [epochValid_iff_capacity_bounds, targetCap_eq_min]
+  exact ⟨le_min (by lia) hnU, (min_le_left _ _).trans (by lia), min_le_right _ _⟩
 
 /-- Effective quotient bit-width `max (quotientBits U N) 1` (`= Succinct.qBits U N`). -/
 abbrev epochQBits (U N : ℕ) : ℕ := max (quotientBits U N) 1

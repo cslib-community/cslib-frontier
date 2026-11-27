@@ -507,13 +507,6 @@ theorem growZeroPost_regs_of_not_mem {s : RData rResize} {reg : Fin rResize}
     Function.update_of_ne hreg.1, Function.update_of_ne hreg.2.2.2.2,
     Function.update_of_ne hreg.2.2.2.1]
 
-theorem targetCap_bounds_of_pos {U n : ℕ} (hn : 1 ≤ n) (hnU : n ≤ U) :
-    1 ≤ targetCap U n ∧ n ≤ targetCap U n ∧ targetCap U n ≤ 2 * n ∧ targetCap U n ≤ U := by
-  unfold targetCap
-  rw [ite_eq_right (by omega)]
-  exact ⟨le_min (by omega) (hn.trans hnU), le_min (by omega) hnU,
-    min_le_left _ _, min_le_right _ _⟩
-
 theorem fixedCoupled_of_shift {metaBase srcItemBase dstItemBase U V w N n : ℕ}
     {s_fix s₀ s₁ : Memory.State} (hw : 0 < w)
     (hcpl : FixedCoupled metaBase srcItemBase U V w N s_fix s₀)
