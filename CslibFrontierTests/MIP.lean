@@ -9,7 +9,9 @@ import CslibFrontier.Computability.Complexity.Classes.IP.Shamir
 import CslibFrontier.Computability.Complexity.Classes.MIP
 
 /-! Multiprover interactive proofs (`MIP₂` and `MIP`), non-communicating provers, deterministic
-prover optimality, transcript consistency, the upper bound `MIP ⊆ NEXP`, and consistency checks for proof-oracle verifiers. -/
+prover optimality, transcript consistency, the upper bound `MIP ⊆ NEXP`,
+and consistency checks
+for proof-oracle verifiers. -/
 
 namespace CslibFrontierTests.MIP
 
@@ -133,7 +135,8 @@ example : acceptProb (Oracularize.round repeatQuery 2) (Prover.independent cheat
     tsum_fintype, Fin.sum_univ_succ]
   norm_num [div_eq_mul_inv, two_mul, Fin.sum_univ_succ]
 
-example : acceptProb (Oracularize.roundBits repeatQuery 2) (Prover.independent cheater) = 3 / 4 := by
+example :
+    acceptProb (Oracularize.roundBits repeatQuery 2) (Prover.independent cheater) = 3 / 4 := by
   rw [Oracularize.acceptProb_roundBits]
   change acceptProb (Oracularize.round repeatQuery 3) _ = _
   rw [Oracularize.round, acceptProb_sample_bind]
