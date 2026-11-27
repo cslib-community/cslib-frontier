@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Complexity.Classes.MIP.SumcheckProof
+import CslibFrontier.Computability.Complexity.Classes.MIP.SumcheckVerifier.Tableau
 
 /-! A single nonzero proof bit tests bit order, address framing, and zero-width access. -/
 
@@ -42,6 +42,19 @@ example :
         (MIP.SumcheckProof.advance 5 [] 0 3 1 ⟨[], 3, true⟩) () =
       PMF.pure (⟨[1], 2, false⟩, ()) := by
   simp only [MIP.SumcheckProof.run_advance]
+  exact ⟨rfl, rfl⟩
+
+-- The first all-zero row accepts. The second row depends on the earlier challenge: after a 1
+-- its constant coefficient is 1, which fails the old claim of zero.
+private def prefixBit (q : List Bool) : Bool :=
+  q == encPair encBits encNat (MIP.SumcheckProof.coefficientKey ⟨[], [1], 0⟩, 0)
+
+example :
+    (Prover.ofProof prefixBit).run (MIP.SumcheckProof.verifyRounds 5 [] 0 1 [0, 1]) () =
+      PMF.pure (⟨[0, 1], 0, true⟩, ()) ∧
+    (Prover.ofProof prefixBit).run (MIP.SumcheckProof.verifyRounds 5 [] 0 1 [1, 0]) () =
+      PMF.pure (⟨[1, 0], 1, false⟩, ()) := by
+  simp only [MIP.SumcheckProof.run_verifyRounds]
   exact ⟨rfl, rfl⟩
 
 end CslibFrontierTests.PCPProofWord
