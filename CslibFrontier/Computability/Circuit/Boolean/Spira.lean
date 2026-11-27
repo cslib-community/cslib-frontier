@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Formula
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Spira's theorem: balancing formulas
@@ -198,7 +199,7 @@ private theorem exists_depthWith_le_two_mul (k : ℕ) (F : Formula signature n)
     obtain ⟨C₀, hC₀, hC₀d⟩ := ih _ (hfill false)
     refine ⟨(G'.and C₁).or (G'.not.and C₀), fun x => ?_, ?_⟩
     · rw [← hC]
-      simp only [eval_or, eval_and, eval_not, hG', hC₁, hC₀, eval_substLast, eval_const]
+      simp only [circuit_simps, hG', hC₁, hC₀, eval_substLast]
       cases G.eval interpretation x <;> simp
     · simp only [depthWith_or, depthWith_and, depthWith_not, binaryCost_and, binaryCost_or,
         binaryCost_not]

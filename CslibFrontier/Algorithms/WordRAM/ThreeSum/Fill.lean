@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Cell
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Memory
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native matrix-building loop for Convolution-3SUM
@@ -97,15 +98,13 @@ theorem exec {w : ℕ} (A : Args) (x : Data 28)
       rw [hm, A.input_filled x.mem _ hbelow (by omega) (by omega) hi]
       exact hmem i hi
     obtain ⟨z, he, hzmem, hzf, hzreg⟩ := Cell.exec_step y rfl
-      ((hr Cell.side (by decide)).trans ht) ((hr Cell.inst (by decide)).trans hs)
-      ((hr Cell.matAB (by decide)).trans hab) ((hr Cell.matBC (by decide)).trans hbc)
-      ((hr Cell.matAC (by decide)).trans hac) ((hr Cell.len (by decide)).trans hlen)
-      ((hr Cell.base (by decide)).trans hbase) ((hr Cell.filler (by decide)).trans hf)
+      (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+      (by regs_frame) (by regs_frame) (by regs_frame)
       hinput hlt hidx hF hnF hμ haddr (habfit.of_le (by omega))
       (hbcfit.of_le (by omega)) (hacfit.of_le (by omega)) hbelow (by omega)
     have hzc : z.regs Cell.cell = y.regs Cell.cell := hzreg Cell.cell (by decide)
-    have hzo : z.regs one = 1 := (hzreg one (by decide)).trans ho
-    have hza : z.regs area = A.t * A.t := (hzreg area (by decide)).trans ha
+    have hzo : z.regs one = 1 := by regs_frame
+    have hza : z.regs area = A.t * A.t := by regs_frame
     have hzr (i : Fin 28) (hi : P i) : z.regs i = x.regs i := by
       by_cases hif : i = Cell.filler
       · subst i
@@ -137,7 +136,6 @@ theorem exec {w : ℕ} (A : Args) (x : Data 28)
       · exact hmemory
     · simp only [Data.set_regs, Function.update_self]
   have h1 : Fits (w + 2) 1 := (show Fits 2 1 from by decide).mono (by omega)
-  have harea : Fits (w + 2) (A.t * A.t) := hacfit.of_le (by omega)
   let x₀ := ((x.set Cell.cell 0).set one 1).set area (A.t * A.t)
   have hx₀ : Inv (x₀.regs Cell.cell) x₀ := by
     refine ⟨?_, ?_, ?_, ?_⟩
@@ -168,13 +166,11 @@ theorem exec {w : ℕ} (A : Args) (x : Data 28)
   obtain ⟨y, he, ⟨hr, _, _, hm⟩, _⟩ := ExecWithin.loop_count Inv
     (fun _ hy => hy.2.2.1) hbody (by simp +decide [x₀, Cell.cell, area, one]) hx₀
   refine ⟨y, ?_, hm,
-    (hr Cell.side (by decide)).trans ht, (hr Cell.inst (by decide)).trans hs,
-    (hr Cell.matAB (by decide)).trans hab, (hr Cell.matBC (by decide)).trans hbc,
-    (hr Cell.matAC (by decide)).trans hac, (hr Cell.len (by decide)).trans hlen,
-    (hr Cell.base (by decide)).trans hbase, (hr Cell.filler (by decide)).trans hf⟩
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame⟩
   have hinit : ExecWithin (w + 2)
       (ram[ Cell.cell ← #0; one ← #1; area ← Cell.side * Cell.side ]) x x₀ 3 := by
-    ram_eval [x₀, ht, h1, harea, Cell.cell, Cell.side, one, area, Fin.mk.injEq]
+    ram_eval [x₀, ht, h1, Cell.cell, Cell.side, one, area, Fin.mk.injEq]
   have hall := hinit.seq he
   convert hall using 1
   · rfl

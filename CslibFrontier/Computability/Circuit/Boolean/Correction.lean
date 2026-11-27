@@ -14,6 +14,7 @@ public import Cslib.Computability.Circuit.RelativeComplexity
 public import Mathlib.Data.Nat.Dist
 import CslibFrontier.Computability.Circuit.Complexity
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Sparse corrections of Boolean circuits
@@ -137,8 +138,8 @@ theorem complexityGiven_le_of_cover (f g : BitString n → BitString m) (s : Fin
   let old : Circuit signature (n + m) m := Circuit.wiring signature (Fin.natAdd n)
   let c := cp.comp (old.append ((cs.comp read).append (cl.comp read)))
   have hc (x : BitString n) : c.eval interpretation (Fin.append x (g x)) = f x := by
-    simp only [c, old, read, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_wiring,
-      Fin.append_comp_castAdd, Fin.append_comp_natAdd, hcp _, hcs x]
+    simp only [circuit_simps, c, old, read, Fin.append_comp_castAdd, Fin.append_comp_natAdd, hcp _,
+      hcs x]
     funext j
     by_cases h : ∃ i, select i = j
     · have hi := h.choose_spec
@@ -155,7 +156,7 @@ theorem complexityGiven_le_of_cover (f g : BitString n → BitString m) (s : Fin
   rw [← natCast_complexityGiven] at hle
   have hsize : c.size ≤ complexity interpretation (single fun x => decide (x ∈ s)) +
       complexityOn interpretation s (fun x i => f x (select i) ^^ g x (select i)) + 5 * k := by
-    simp only [c, old, read, Circuit.size_comp, Circuit.size_append, Circuit.size_wiring]
+    simp only [circuit_simps, c, old, read]
     omega
   exact (by exact_mod_cast hle : complexityGiven interpretation f g ≤ c.size).trans hsize
 

@@ -29,7 +29,9 @@ import CslibFrontier.Tactic.EncLen
 
 Enumerate certificates with a fixed-width binary counter and keep the number accepted in a
 binary accumulator. The exponentially many iterations reuse their workspace: a certificate of
-length `m` needs `m` cells and its acceptance count has at most `m + 1` bits. This is the usual
+length `m` needs `m` counter cells and its acceptance count has at most `m + 1` bits.
+This is additional counting storage; each verifier call also uses its certified workspace.
+This is the usual
 polynomial-space simulation of counting [AroraBarak09]. The interactive-proof simulation counts
 its accepting coins with the same counter (`Cslib.Complexity.Interaction.countAccepts`).
 
@@ -68,7 +70,8 @@ def acceptCountStep (V : α × List Bool → Bool) (s : α × List Bool × ℕ) 
 
 /-- The number of certificates of length `t` that `V` accepts together with `a`, counted by running
 `acceptCountStep` over all `2 ^ t` values of a `t`-bit binary counter. It equals `acceptCount V a t`
-(`streamAcceptCount_eq_acceptCount`) and needs only the counter and the accumulator as workspace. -/
+(`streamAcceptCount_eq_acceptCount`). The counter and accumulator are the additional storage
+used between calls to `V`. -/
 def streamAcceptCount (V : α × List Bool → Bool) (a : α) (t : ℕ) : ℕ :=
   ((acceptCountStep V)^[2 ^ t] (a, List.replicate t false, 0)).2.2
 
@@ -119,10 +122,11 @@ theorem streamAcceptCount_eq_acceptCount (V : α × List Bool → Bool) (a : α)
     rw [this]
     simp
 
-/-- Count the accepted certificates of a polynomial-time unary length in polynomial space.
-The result uses binary natural-number output, including when the certificate length is zero. -/
+/-- Count certificates accepted by a polynomial-space verifier, at a polynomial-time unary length.
+The binary counter reuses the verifier workspace; no polynomial bound on its time is needed.
+The result uses binary output, including when the certificate length is zero. -/
 theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α → ℕ}
-    (hV : Turing.MultiTapeTM.ComputableInPolyTime V (encPair enc encBits) encBool)
+    (hV : Turing.MultiTapeTM.ComputableInPolySpace V (encPair enc encBits) encBool)
     (hr : Turing.MultiTapeTM.ComputableInPolyTime r enc encUnary) :
     Turing.MultiTapeTM.ComputableInPolySpace (fun a => acceptCount V a (r a)) enc encNat := by
   classical
@@ -138,14 +142,21 @@ theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α
     ComputableInPolyTime.id'.prod
       (((ComputableInPolyTime.bitsReplicate false).comp hr).prod
         (ComputableInPolyTime.const 0))
-  have hinc := ComputableInPolyTime.increment
-  have hstep : ComputableInPolyTime (acceptCountStep V)
+  have hfirst : ComputableInPolySpace (fun s : α × List Bool × ℕ => s.1)
+      (encPair enc (encPair encBits encNat)) enc := .of_polyTime (by fun_prop)
+  have hword : ComputableInPolySpace (fun s : α × List Bool × ℕ => s.2.1)
+      (encPair enc (encPair encBits encNat)) encBits := .of_polyTime (by fun_prop)
+  have hacc : ComputableInPolySpace (fun s : α × List Bool × ℕ => s.2.2)
+      (encPair enc (encPair encBits encNat)) encNat := .of_polyTime (by fun_prop)
+  have hinc := ComputableInPolySpace.of_polyTime ComputableInPolyTime.increment
+  have hadd := ComputableInPolySpace.of_polyTime ComputableInPolyTime.binary_add
+  have hstep : ComputableInPolySpace (acceptCountStep V)
       (encPair enc (encPair encBits encNat)) (encPair enc (encPair encBits encNat)) := by
     unfold acceptCountStep
     fun_prop
   have hlen := hr.polyBounded_length
   simp only [encUnary_apply, List.length_replicate] at hlen
-  have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit) (.of_polyTime hstep)
+  have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit) hstep
     (B := fun a => 2 * (enc a).length + 3 * r a + 5)
     ((((PolyBounded.const 2).mul .self).add ((PolyBounded.const 3).mul hlen)).add (.const 5))
     (fun a j hj => ?_)
@@ -166,7 +177,7 @@ theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α
 theorem SharpP.computableInPolySpace {f : α → ℕ} (hf : f ∈ SharpP enc) :
     Turing.MultiTapeTM.ComputableInPolySpace f enc encNat := by
   obtain ⟨p, V, hV, hf⟩ := mem_SharpP.mp hf
-  exact (computableInPolySpace_acceptCount hV (by fun_prop)).congr fun a =>
+  exact (computableInPolySpace_acceptCount (.of_polyTime hV) (by fun_prop)).congr fun a =>
     (hf a).symm
 
 /-- Every GapP function is computable in polynomial space with binary sign-magnitude output. -/

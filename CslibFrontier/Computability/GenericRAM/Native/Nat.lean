@@ -102,12 +102,7 @@ theorem operation_polyTime (op : model.operations.Op) :
 theorem test_polyTime (t : model.tests.Op) :
     ComputableInPolyTime (fun p => model.evalTest p.1 t p.2)
       (encPair encNat (encPi encNat)) (encOption encBool) := by
-  have hx := (pi_apply encNat (0 : Fin 2)).comp (snd encNat (encPi encNat))
-  have hy := (pi_apply encNat (1 : Fin 2)).comp (snd encNat (encPi encNat))
-  have hk := fst encNat (encPi encNat (Index := Fin 2))
-  exact (binary_lt.comp (hx.prod hk)).ite_decide
-    ((binary_lt.comp (hy.prod hk)).ite_decide
-      ((optionSome encBool).comp (binary_lt.comp (hx.prod hy))) (const none)) (const none)
+  fun_prop
 
 /-- Address extraction checks the runtime bound. -/
 theorem address_polyTime :

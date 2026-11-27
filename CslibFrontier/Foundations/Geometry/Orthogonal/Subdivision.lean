@@ -56,9 +56,7 @@ def walk (a d : Point) : ℕ → Route
 
 /-- One more listed point than steps. -/
 @[simp] theorem walk_length (a d : Point) (k : ℕ) : (walk a d k).length = k + 1 := by
-  induction k generalizing a with
-  | zero => rfl
-  | succ k ih => simp [walk, ih]
+  fun_induction walk a d k <;> simp_all
 
 /-- The walk always starts at its prescribed first point. -/
 @[simp] theorem walk_head (a d : Point) (k : ℕ) : (walk a d k).head? = some a := by
@@ -287,77 +285,58 @@ def subdivide : Route → Route
 /-- The exact point count is wire length plus one for a nonempty route. -/
 theorem subdivide_length (r : Route) :
     (subdivide r).length = wireLength r + if r = [] then 0 else 1 := by
-  induction r with
-  | nil => simp [subdivide, wireLength, List.consecutivePairs]
-  | cons a r ih =>
-    cases r with
-    | nil => simp [subdivide, wireLength, List.consecutivePairs]
-    | cons b r =>
-      have hwire : wireLength (a :: b :: r) = length a b + wireLength (b :: r) := rfl
-      simp only [subdivide, List.length_append, List.length_tail, segmentWalk_length,
-        List.cons_ne_nil, ↓reduceIte] at ih ⊢
-      rw [hwire]
-      omega
+  fun_induction subdivide r with
+  | case1 | case2 => rfl
+  | case3 a b r ih =>
+    have hwire : wireLength (a :: b :: r) = length a b + wireLength (b :: r) := rfl
+    simp only [List.length_append, List.length_tail, segmentWalk_length,
+      List.cons_ne_nil, ↓reduceIte] at ih ⊢
+    rw [hwire]
+    omega
 
 /-- Subdivision preserves the final endpoint of an orthogonal route. -/
 theorem subdivide_last {r : Route} (hr : IsOrthogonal r) :
     (subdivide r).getLast? = r.getLast? := by
-  induction r with
-  | nil => rfl
-  | cons a r ih =>
-    cases r with
-    | nil => rfl
-    | cons b r =>
-      have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
-      have htail : IsOrthogonal (b :: r) := hr.of_cons
-      rw [subdivide, last_join (segmentWalk_last hab) (subdivide_head (b :: r)), ih htail,
-        List.getLast?_cons_cons]
+  fun_induction subdivide r with
+  | case1 | case2 => rfl
+  | case3 a b r ih =>
+    have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
+    rw [last_join (segmentWalk_last hab) (subdivide_head (b :: r)), ih hr.of_cons,
+      List.getLast?_cons_cons]
 
 /-- Subdivision preserves the complete real support of every orthogonal route. -/
 theorem support_subdivide {r : Route} (hr : IsOrthogonal r) :
     support (subdivide r) = support r := by
-  induction r with
-  | nil => rfl
-  | cons a r ih =>
-    cases r with
-    | nil => rfl
-    | cons b r =>
-      have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
-      have htail : IsOrthogonal (b :: r) := hr.of_cons
-      rw [subdivide, support_join (segmentWalk_last hab) (subdivide_head (b :: r)),
-        support_segmentWalk hab, ih htail, support_cons_cons]
+  fun_induction subdivide r with
+  | case1 | case2 => rfl
+  | case3 a b r ih =>
+    have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
+    rw [support_join (segmentWalk_last hab) (subdivide_head (b :: r)),
+      support_segmentWalk hab, ih hr.of_cons, support_cons_cons]
 
 /-- Every consecutive pair in the subdivided orthogonal route is a unit grid step. -/
 theorem subdivide_unit {r : Route} (hr : IsOrthogonal r) {e : Point × Point}
     (he : e ∈ (subdivide r).consecutivePairs) : length e.1 e.2 = 1 := by
-  induction r with
-  | nil => simp [subdivide, List.consecutivePairs] at he
-  | cons a r ih =>
-    cases r with
-    | nil => simp [subdivide, List.consecutivePairs] at he
-    | cons b r =>
-      have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
-      have htail : IsOrthogonal (b :: r) := hr.of_cons
-      rw [subdivide, consecutivePairs_join (segmentWalk_last hab) (subdivide_head (b :: r)),
-        List.mem_append] at he
-      rcases he with he | he
-      · exact segmentWalk_unit a b he
-      · exact ih htail he
+  fun_induction subdivide r with
+  | case1 | case2 => simp [List.consecutivePairs] at he
+  | case3 a b r ih =>
+    have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
+    rw [consecutivePairs_join (segmentWalk_last hab) (subdivide_head (b :: r)),
+      List.mem_append] at he
+    rcases he with he | he
+    · exact segmentWalk_unit a b he
+    · exact ih hr.of_cons he
 
 /-- Unit subdivision preserves total Manhattan wire length exactly. -/
 theorem wireLength_subdivide {r : Route} (hr : IsOrthogonal r) :
     wireLength (subdivide r) = wireLength r := by
-  induction r with
-  | nil => rfl
-  | cons a r ih =>
-    cases r with
-    | nil => rfl
-    | cons b r =>
-      have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
-      have htail : IsOrthogonal (b :: r) := hr.of_cons
-      rw [subdivide, wireLength_join (segmentWalk_last hab) (subdivide_head (b :: r)),
-        wireLength_segmentWalk, ih htail]
-      rfl
+  fun_induction subdivide r with
+  | case1 | case2 => rfl
+  | case3 a b r ih =>
+    have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
+    rw [wireLength_join (segmentWalk_last hab) (subdivide_head (b :: r)),
+      wireLength_segmentWalk, ih hr.of_cons]
+    rfl
 
 /-- Unit subdivision is itself a proper orthogonal route. -/
 theorem subdivide_orthogonal {r : Route} (hr : IsOrthogonal r) : IsOrthogonal (subdivide r) :=
@@ -400,18 +379,13 @@ theorem subdivide_eq_flatMap {r : Route} (hr : IsOrthogonal r) :
     subdivide r =
       (r.consecutivePairs.flatMap fun e => (segmentWalk e.1 e.2).dropLast) ++
         r.getLast?.toList := by
-  induction r with
-  | nil => simp [subdivide, List.consecutivePairs]
-  | cons a r ih =>
-    cases r with
-    | nil => simp [subdivide, List.consecutivePairs]
-    | cons b r =>
-      have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
-      have htail : IsOrthogonal (b :: r) := hr.of_cons
-      rw [subdivide, join_eq_dropLast_append (segmentWalk_last hab) (subdivide_head (b :: r)),
-        ih htail]
-      simp only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons, List.flatMap_cons,
-        List.getLast?_cons_cons, List.append_assoc]
+  fun_induction subdivide r with
+  | case1 | case2 => rfl
+  | case3 a b r ih =>
+    have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
+    rw [join_eq_dropLast_append (segmentWalk_last hab) (subdivide_head (b :: r)), ih hr.of_cons]
+    simp only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons, List.flatMap_cons,
+      List.getLast?_cons_cons, List.append_assoc]
 
 /-- Enumerate at most `budget` strict unit-prefix points per listed segment, then the last
 endpoint. The result agrees with `subdivide` on an orthogonal route when every segment fits in
@@ -471,28 +445,6 @@ theorem walk_nodup (a d : Point) (k : ℕ) (hd : UnitVector d) : (walk a d k).No
 theorem segmentWalk_nodup (a b : Point) : (segmentWalk a b).Nodup :=
   walk_nodup _ _ _ (direction_unit _ _)
 
-/-- Every supported point of a route with at least two listed points belongs to one of its
-consecutive segments. In this case separate degenerate pieces for listed points are redundant. -/
-theorem mem_support_segment {r : Route} (hlen : 2 ≤ r.length) {p : ℝ × ℝ}
-    (hp : p ∈ support r) : ∃ e ∈ r.consecutivePairs, p ∈ segment e.1 e.2 := by
-  induction r with
-  | nil => simp at hlen
-  | cons a r ih =>
-    cases r with
-    | nil => simp at hlen
-    | cons b r =>
-      rw [support_cons_cons] at hp
-      rcases hp with hp | hp
-      · exact ⟨(a, b), by simp [List.consecutivePairs], hp⟩
-      · cases r with
-        | nil =>
-          have hp' : p = realPoint b := by simpa [support, List.consecutivePairs] using hp
-          exact ⟨(a, b), by simp [List.consecutivePairs], hp' ▸ right_mem_segment ℝ _ _⟩
-        | cons c r =>
-          obtain ⟨e, he, hp⟩ := ih (by simp) hp
-          exact ⟨e, by simpa only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons,
-            List.mem_cons] using Or.inr he, hp⟩
-
 /-- The first segment of a continuously simple route meets its tail only at their common
 listed endpoint. -/
 theorem first_segment_tail_contact {a b : Point} {r : Route}
@@ -527,32 +479,28 @@ theorem first_segment_tail_contact {a b : Point} {r : Route}
 The proof uses the original segments' endpoint-contact certificates, not support equality alone. -/
 theorem subdivide_nodup {r : Route} (hr : IsOrthogonal r) (hs : IsSimple r) :
     (subdivide r).Nodup := by
-  induction r with
-  | nil => simp [subdivide]
-  | cons a r ih =>
-    cases r with
-    | nil => simp [subdivide]
-    | cons b r =>
-      have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
-      have htail : IsOrthogonal (b :: r) := hr.of_cons
-      have hstail : IsSimple (b :: r) := hs.of_cons
-      have hnd := ih htail hstail
-      obtain ⟨rest, hsub⟩ := List.head?_eq_some_iff.1 (subdivide_head (b :: r))
-      have hrest : (b :: rest).Nodup := by simpa only [hsub] using hnd
-      rw [subdivide, hsub]
-      refine List.nodup_append.2 ⟨segmentWalk_nodup a b, hrest.tail, ?_⟩
-      intro x hx y hy hxy
-      subst y
-      have hxq : realPoint x ∈ support (segmentWalk a b) := Or.inl ⟨x, hx, rfl⟩
-      rw [support_segmentWalk hab] at hxq
-      have hxt : realPoint x ∈ support (subdivide (b :: r)) := by
-        refine Or.inl ⟨x, ?_, rfl⟩
-        rw [hsub]
-        exact List.mem_cons_of_mem _ hy
-      rw [support_subdivide htail] at hxt
-      have hxb := realPoint_injective (first_segment_tail_contact hs hxq hxt)
-      subst x
-      exact (List.nodup_cons.1 hrest).1 hy
+  fun_induction subdivide r with
+  | case1 | case2 => simp
+  | case3 a b r ih =>
+    have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
+    have htail : IsOrthogonal (b :: r) := hr.of_cons
+    have hnd := ih htail hs.of_cons
+    obtain ⟨rest, hsub⟩ := List.head?_eq_some_iff.1 (subdivide_head (b :: r))
+    have hrest : (b :: rest).Nodup := by simpa only [hsub] using hnd
+    rw [hsub]
+    refine List.nodup_append.2 ⟨segmentWalk_nodup a b, hrest.tail, ?_⟩
+    intro x hx y hy hxy
+    subst y
+    have hxq : realPoint x ∈ support (segmentWalk a b) := Or.inl ⟨x, hx, rfl⟩
+    rw [support_segmentWalk hab] at hxq
+    have hxt : realPoint x ∈ support (subdivide (b :: r)) := by
+      refine Or.inl ⟨x, ?_, rfl⟩
+      rw [hsub]
+      exact List.mem_cons_of_mem _ hy
+    rw [support_subdivide htail] at hxt
+    have hxb := realPoint_injective (first_segment_tail_contact hs hxq hxt)
+    subst x
+    exact (List.nodup_cons.1 hrest).1 hy
 
 /-- A sufficient-budget native enumeration also has no repeated points on a simple route. -/
 theorem subdivideWithin_nodup {r : Route} (hr : IsOrthogonal r) (hs : IsSimple r) {budget : ℕ}

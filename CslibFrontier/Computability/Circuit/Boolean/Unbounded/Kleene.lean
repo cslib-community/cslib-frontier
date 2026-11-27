@@ -102,19 +102,6 @@ theorem evalCode_rel {σ : Signature.{v}} {U₁ U₂ : Type u} (R : U₁ → U�
     · exact hd
     · exact forall₂_getD ih hd i
 
-/-- Evaluating a gate list keeps the values of the initial wires. -/
-theorem getD_evalCode_of_lt {σ : Signature.{v}} {U : Type u} (I : Interpretation σ U) (d : U)
-    (x : List U) (gates : List (σ.Op × List ℕ)) {i : ℕ} (hi : i < x.length) :
-    (evalCode I d x gates).getD i d = x.getD i d := by
-  obtain ⟨t, ht⟩ := prefix_evalCode I d x gates
-  rw [← ht, List.getD_append _ _ _ _ hi]
-
-/-- Beyond the initial wires and the gates, evaluation reads the default. -/
-theorem getD_evalCode_of_le {σ : Signature.{v}} {U : Type u} (I : Interpretation σ U) (d : U)
-    (x : List U) (gates : List (σ.Op × List ℕ)) {i : ℕ} (hi : x.length + gates.length ≤ i) :
-    (evalCode I d x gates).getD i d = d :=
-  List.getD_eq_default _ _ (by rw [length_evalCode]; exact hi)
-
 /-- Reading the arguments of a gate by position, as a list, is reading them as a function. -/
 theorem ofFn_elim_eq_map {σ : Signature.{v}} {U : Type u} (d : U) (values : List U)
     (g : σ.Op × List ℕ) (h : g.2.length = σ.Arity g.1) :

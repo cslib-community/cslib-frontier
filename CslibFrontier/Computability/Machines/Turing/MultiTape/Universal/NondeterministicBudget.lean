@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.No
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.SpaceBudget
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 
 /-!
 # The nondeterministic universal machine within a space budget
@@ -53,6 +54,12 @@ a recognizer may run forever.
   and acceptance within a budget is acceptance.
 * `Turing.MultiTapeTM.Universal.budgetedNUniversal_accepts_iff`: the recognizer accepts exactly
   when the description accepts within the budget.
+* `Turing.MultiTapeTM.Universal.accepts_iff_bAccepts_descN`: a machine within `S` cells accepts
+  exactly when its description accepts within any budget at least the size of its configurations.
+* `Turing.MultiTapeTM.Universal.budgetedNUniversal_query_inSpace` and its siblings for `next`,
+  `halted` and `accept`, `Turing.MultiTapeTM.Universal.length_eNU_run_le`: the parts of the
+  recognizer are computable in linear space, and its states are linear in the description and the
+  budget, as the native compiler of query machines requires.
 * `Turing.MultiTapeTM.Universal.exists_recognizesInSpace_bAccepts`: a native recognizer within
   space `O(S)`.
 
@@ -120,7 +127,7 @@ def nuReject : NUState := ⟨[], [], 0, ⟨none, 0, []⟩, []⟩
 
 /-- The symbol under the simulated input head at the position `p`, given the answer `a` to the
 query of the position `p - 1`: blank at position `0`. -/
-def nuSym (p : ℕ) (a : Option Bool) : Option ℕ :=
+@[expose] public def nuSym (p : ℕ) (a : Option Bool) : Option ℕ :=
   if p = 0 then none else a.map eBit
 
 /-- The key of the transition to take in the configuration `c`, reading `a` on the input. -/
@@ -312,7 +319,7 @@ section Certificates
 
 variable {γ : Type} {encIn : γ ↪ List Bool} {Bs : γ → ℕ}
 
-private lemma nuSym_budget {p : γ → ℕ} {a : γ → Option Bool}
+public lemma nuSym_budget {p : γ → ℕ} {a : γ → Option Bool}
     (hp : ComputableInSpace p encIn encNat Bs)
     (ha : ComputableInSpace a encIn (encOption encBool) Bs) :
     ComputableInSpace (fun x => nuSym (p x) (a x)) encIn eSym Bs :=
@@ -393,21 +400,21 @@ private lemma nuNext_budget {p : γ → NUState × Option Bool × Bool}
 private lemma nu_id : ComputableInSpace (fun s : NUState => s) eNU eNU fun s => (eNU s).length :=
   of_inO (ComputableInO.of_eq fun _ => rfl)
 
-private lemma query_inSpace :
+public theorem budgetedNUniversal_query_inSpace :
     ComputableInSpace budgetedNUniversal.query eNU encNat fun s => (eNU s).length :=
   budget_natPred (eCfg_inputPos_budget (eNU_cfg_budget nu_id))
 
-private lemma next_inSpace :
+public theorem budgetedNUniversal_next_inSpace :
     ComputableInSpace budgetedNUniversal.next (encPair eNU (encPair (encOption encBool) encBool))
       eNU fun p => (encPair eNU (encPair (encOption encBool) encBool) p).length :=
   nuNext_budget (of_inO (ComputableInO.of_eq fun _ => rfl)) (.refl _)
 
-private lemma halted_inSpace :
+public theorem budgetedNUniversal_halted_inSpace :
     ComputableInSpace budgetedNUniversal.halted eNU encBool fun s => (eNU s).length :=
   (budget_finite (encC := encBool) Bool.not
     (budget_optionIsSome (eCfg_state_budget (eNU_cfg_budget nu_id)))).of_enc_eq fun _ => rfl
 
-private lemma accept_inSpace :
+public theorem budgetedNUniversal_accept_inSpace :
     ComputableInSpace budgetedNUniversal.accept eNU encBool fun s => (eNU s).length := by
   have heq : ComputableInSpace (fun q : List ℕ × List ℕ => decide (q.1 = q.2))
       (encPair (encList encUnary) (encList encUnary)) encBool
@@ -496,6 +503,40 @@ lemma length_eNU_le {s : NUState} (h : NUInv d x b s) :
 
 end Size
 
+/-- **The states the universal recognizer reaches** from `nuStart d b`, on any input, are encoded
+within linear space in the description and the budget. -/
+public theorem length_eNU_run_le (d : Desc) (b : ℕ) (x choices : List Bool) :
+    (eNU ((budgetedNUniversal.withInit (nuStart d b)).run x choices)).length ≤
+      40 * descLen d + 4 * b + 40 := by
+  rw [NondeterministicQueryMachine.run_withInit]
+  exact length_eNU_le (nuInv_replay nuInv_start choices)
+
+/-- The start of the universal recognizer, for a description and a budget computed within a space
+bound, is computed within that bound. -/
+public theorem nuStart_budget {α : Type} {enc : α ↪ List Bool} {D : α → Desc} {B S : α → ℕ}
+    (hD : ComputableInSpace D enc eDesc S) (hB : ComputableInSpace B enc encUnary S) :
+    ComputableInSpace (fun a => nuStart (D a) (B a)) enc eNU S := by
+  have hT := eDesc_table_budget hD
+  have hI : ComputableInSpace (fun a => init (D a)) enc eCfg S :=
+    budget_comp_lin (of_inO init_inO) linear_succ hD
+  have hO : ComputableInSpace (fun _ : α => ([] : List ℕ)) enc (encList encUnary) S :=
+    (constZero []).mono_le fun _ => Nat.zero_le _
+  exact eNU_mk_budget hT hT hB hI hO
+
+/-! ### Machines within a space bound -/
+
+/-- **A machine within `S` cells accepts exactly when its description accepts within a budget**
+`b` at least the size bound `Turing.MultiTapeTM.Universal.cfgSpaceBound` of its configurations. -/
+public theorem accepts_iff_bAccepts_descN {k : ℕ} {State : Type} [Finite State] (eS : State ↪ ℕ)
+    (ntm : MultiTapeNTM k Bool State) {input : List Bool} {S b : ℕ}
+    (hS : ntm.RunsInSpace input S)
+    (hb : cfgSpaceBound (descLen (descN eS eBit ntm)) input.length k S ≤ b) :
+    ntm.Accepts input ↔ BAccepts (descN eS eBit ntm) (input.map eBit) b := by
+  refine ⟨fun h => BAccepts.mono ((accepts_iff_reflTransGen_nStep_fits eS ntm input hS).mp h) hb,
+    fun h => ?_⟩
+  obtain ⟨s, hs, hr⟩ := h.exists_reflTransGen_nStep
+  exact (accepts_iff_reflTransGen_nStep eS ntm input).mpr ⟨s, hs, hr⟩
+
 /-! ### The compiled recognizer -/
 
 /-- **A native nondeterministic recognizer of acceptance within a budget**, in space `O(S)`: for a
@@ -507,21 +548,14 @@ public theorem exists_recognizesInSpace_bAccepts {α : Type} (enc : α ↪ List 
     ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k Bool State) (c : ℕ),
       ntm.RecognizesInSpace enc {a | BAccepts (D a) ((enc a).map eBit) (B a)}
         (fun a => c * S a) := by
-  have hT := eDesc_table_budget hD
-  have hI : ComputableInSpace (fun a => init (D a)) enc eCfg S :=
-    budget_comp_lin (of_inO init_inO.computableInO) linear_succ hD
-  have hO : ComputableInSpace (fun _ : α => ([] : List ℕ)) enc (encList encUnary) S :=
-    (constZero []).mono_le fun _ => Nat.zero_le _
-  have hstart : ComputableInSpace (fun a => nuStart (D a) (B a)) enc eNU S :=
-    eNU_mk_budget hT hT hB hI hO
   obtain ⟨cD, hcD⟩ := hD.length_le
   obtain ⟨cB, hcB⟩ := hB.length_le
-  refine NondeterministicQueryMachine.exists_recognizesInSpace budgetedNUniversal query_inSpace
-    next_inSpace halted_inSpace accept_inSpace (fun a => nuStart (D a) (B a))
-    (fun a => (budgetedNUniversal_accepts_iff _ _ _).symm) S hlog hstart
-    ⟨40 * 2 * cD + 4 * 2 * cB + 80, fun a choices => ?_⟩
-  rw [NondeterministicQueryMachine.run_withInit]
-  have h := length_eNU_le (nuInv_replay (x := enc a) (nuInv_start (d := D a) (b := B a)) choices)
+  refine NondeterministicQueryMachine.exists_recognizesInSpace budgetedNUniversal
+    budgetedNUniversal_query_inSpace budgetedNUniversal_next_inSpace
+    budgetedNUniversal_halted_inSpace budgetedNUniversal_accept_inSpace
+    (fun a => nuStart (D a) (B a)) (fun a => (budgetedNUniversal_accepts_iff _ _ _).symm) S hlog
+    (nuStart_budget hD hB) ⟨40 * 2 * cD + 4 * 2 * cB + 80, fun a choices => ?_⟩
+  have h := length_eNU_run_le (D a) (B a) (enc a) choices
   have h₁ := hcD a
   have h₂ := hcB a
   have h₃ := hlog a

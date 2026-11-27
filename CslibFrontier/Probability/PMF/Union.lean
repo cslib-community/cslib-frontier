@@ -105,6 +105,19 @@ theorem sum_toReal_indicator_le {M : Type*} [Fintype M] (p : PMF α)
     _ = (Q : ℝ) := by
         rw [tsum_mul_right, tsum_toReal, one_mul]
 
+/-- A sample hits a list of keys with probability at most its length times the largest
+allowed point mass. Repeated keys are allowed. -/
+theorem toOuterMeasure_mem_list_le {κ : Type*} (p : PMF α) (f : α → κ) {δ : ℝ≥0∞}
+    (hpoint : ∀ k, p.toOuterMeasure {a | f a = k} ≤ δ) (keys : List κ) :
+    p.toOuterMeasure {a | f a ∈ keys} ≤ keys.length * δ := by
+  induction keys with
+  | nil => simp
+  | cons k ks ih =>
+    simpa only [List.mem_cons, Set.ofPred_or, List.length_cons, Nat.cast_add_one, add_mul,
+      one_mul, add_comm] using
+      (MeasureTheory.measure_union_le (μ := p.toOuterMeasure) {a | f a = k} {a | f a ∈ ks}).trans
+        (add_le_add (hpoint k) ih)
+
 /-- **Union bound for association-list lookups**: if a key `f a` of an outcome `a ← p` equals
 any fixed key with probability at most `δ`, then it is found in an association list `cache`
 with probability at most `cache.length * δ`. -/
@@ -112,22 +125,10 @@ theorem toOuterMeasure_lookup_isSome_le {κ V : Type*} [BEq κ] [LawfulBEq κ] (
     (f : α → κ) {δ : ℝ≥0∞} (hpoint : ∀ k, p.toOuterMeasure {a | f a = k} ≤ δ)
     (cache : List (κ × V)) :
     p.toOuterMeasure {a | (cache.lookup (f a)).isSome} ≤ cache.length * δ := by
-  induction cache with
-  | nil => simp
-  | cons e rest ih =>
-    calc p.toOuterMeasure {a | ((e :: rest).lookup (f a)).isSome}
-        ≤ p.toOuterMeasure ({a | f a = e.1} ∪ {a | (rest.lookup (f a)).isSome}) := by
-          refine p.toOuterMeasure.mono fun a ha => ?_
-          have ha : ((e :: rest).lookup (f a)).isSome = true := ha
-          rw [List.lookup_cons] at ha
-          by_cases h : f a = e.1
-          · exact Or.inl h
-          · rw [beq_false_of_ne h] at ha
-            exact Or.inr ha
-      _ ≤ δ + rest.length * δ :=
-          (MeasureTheory.measure_union_le _ _).trans (add_le_add (hpoint e.1) ih)
-      _ = (e :: rest).length * δ := by
-          rw [List.length_cons, Nat.cast_add, Nat.cast_one]
-          ring
+  refine (p.toOuterMeasure.mono fun a ha => ?_).trans
+    ((toOuterMeasure_mem_list_le p f hpoint (cache.map Prod.fst)).trans_eq
+      (by rw [List.length_map]))
+  obtain ⟨e, he, hit⟩ := List.lookup_isSome_iff.mp ha
+  exact List.mem_map.mpr ⟨e, he, (eq_of_beq hit).symm⟩
 
 end Cslib.Probability.PMF

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.CountTriple
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.CollisionTest
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native collision queries for Chan–He prime searches
@@ -87,7 +88,7 @@ theorem exec {w M : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ) (hM : 0 
       Finset.card_image_le.trans_eq (Finset.card_range _)
     exact (coll_le_sq _ _).trans (by simpa only [pow_two] using Nat.mul_self_le_mul_self hcard)
   obtain ⟨b, hb, hbg, hbm, hbr⟩ := CollisionTest.exec a h1
-    ((har _ (by decide)).trans hz) hprod
+    (by regs_frame) hprod
   refine ⟨b, (ha.seq hb).mono (by omega), ?_, ?_, ?_⟩
   · simpa only [hav, hac, hat] using hbg
   · intro i hi hs hg

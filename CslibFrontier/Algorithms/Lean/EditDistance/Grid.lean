@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Cslib.Algorithms.Lean.TimeM
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Dynamic programs over pairs of suffixes
@@ -163,54 +164,40 @@ open TimeM
   let r ← D.rowM y x
   return r.headD D.nilNil
 
-@[simp] theorem ret_nilRowM : ∀ y : List α, (D.nilRowM y).ret = D.nilRow y
-  | [] => rfl
-  | b :: y => by
-    simp only [nilRowM, ret_bind, ret_pure, ret_nilRowM y]
-    rfl
+@[simp] theorem ret_nilRowM : ∀ y : List α, (D.nilRowM y).ret = D.nilRow y := by
+  time_spec nilRowM
 
-theorem time_nilRowM : ∀ y : List α, (D.nilRowM y).time = y.length + 1
-  | [] => rfl
-  | b :: y => by
-    simp only [nilRowM, time_bind, time_tick, time_pure, time_nilRowM y, List.length_cons]
-    omega
+@[time_simps]
+theorem time_nilRowM : ∀ y : List α, (D.nilRowM y).time = y.length + 1 := by
+  time_spec nilRowM
 
 @[simp] theorem ret_stepRowM (a : α) :
-    ∀ (y : List α) (r : List β), (D.stepRowM a y r).ret = D.stepRow a y r
-  | [], _ => rfl
-  | b :: y, r => by
-    simp only [stepRowM, ret_bind, ret_pure, ret_stepRowM a y r.tail]
-    rfl
+    ∀ (y : List α) (r : List β), (D.stepRowM a y r).ret = D.stepRow a y r := by
+  time_spec stepRowM
 
+@[time_simps]
 theorem time_stepRowM (a : α) :
-    ∀ (y : List α) (r : List β), (D.stepRowM a y r).time = y.length + 1
-  | [], _ => rfl
-  | b :: y, r => by
-    simp only [stepRowM, time_bind, time_tick, time_pure, time_stepRowM a y r.tail,
-      List.length_cons]
-    omega
+    ∀ (y : List α) (r : List β), (D.stepRowM a y r).time = y.length + 1 := by
+  time_spec stepRowM
 
-@[simp] theorem ret_rowM (y : List α) : ∀ x : List α, (D.rowM y x).ret = D.row y x
+@[simp, time_simps] theorem ret_rowM (y : List α) : ∀ x : List α, (D.rowM y x).ret = D.row y x
   | [] => ret_nilRowM D y
   | a :: x => by
     simp only [rowM, ret_bind, ret_stepRowM, ret_rowM y x]
     rfl
 
+@[time_simps]
 theorem time_rowM (y : List α) :
-    ∀ x : List α, (D.rowM y x).time = (x.length + 1) * (y.length + 1)
-  | [] => by rw [rowM, time_nilRowM, List.length_nil, Nat.zero_add, Nat.one_mul]
-  | a :: x => by
-    rw [rowM, time_bind, time_rowM y x, time_stepRowM, List.length_cons,
-      Nat.succ_mul (x.length + 1)]
+    ∀ x : List α, (D.rowM y x).time = (x.length + 1) * (y.length + 1) := by
+  time_spec rowM [Nat.succ_mul]
 
 /-- `valueM` computes `value`. -/
 @[simp] theorem ret_valueM (x y : List α) : (D.valueM x y).ret = D.value x y := by
-  simp only [valueM, ret_bind, ret_pure, ret_rowM]
-  rfl
+  time_spec valueM
 
 /-- `valueM` charges one unit per table entry: `(|x| + 1) (|y| + 1)` units. -/
 theorem time_valueM (x y : List α) : (D.valueM x y).time = (x.length + 1) * (y.length + 1) := by
-  simp only [valueM, time_bind, time_pure, Nat.add_zero, time_rowM]
+  time_spec valueM
 
 end GridDP
 

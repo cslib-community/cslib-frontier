@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.WordRAM.Randomized.Expected
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
+public import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Randomized Word-RAM geometric loop and subroutine interface tests
@@ -626,5 +627,14 @@ theorem nondetCoinStateTransitionImpl_caller_rand_frame (w base : ℕ) (hw : 1 �
   · intro i _
     have hne : Fin.castSucc i ≠ (5 : Fin 6) := Fin.castSucc_ne_last i
     simp [Data.set, hne]
+
+/-- Support-restricted expectation monotonicity ignores `⊤` values outside `p.support`. -/
+theorem tsum_mul_mono_support_ignores_off_support_top :
+    (∑' n : ℕ, PMF.pure 0 n * (if n = 0 then (3 : ℝ≥0∞) else ⊤)) ≤
+      ∑' n : ℕ, PMF.pure 0 n * 5 :=
+  Cslib.Probability.PMF.tsum_mul_mono_support (PMF.pure 0) fun n hn => by
+    rw [PMF.mem_support_pure_iff] at hn
+    subst hn
+    norm_num
 
 end CslibFrontierTests.WordRAMRandomizedSubroutine

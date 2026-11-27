@@ -122,8 +122,7 @@ embed the blocks of `x`, it is `1` if `f x` and `0` otherwise. -/
 theorem truthTableExtension_block (h : BitString b ↪ F) (f : BooleanFunction (m * b))
     (x : BitString (m * b)) :
     truthTableExtension h f (fun i => h (BitString.block x i)) = if f x then 1 else 0 := by
-  rw [truthTableExtension, lowDegreeExtension_apply_embed]
-  exact congrArg (fun z => if f z then (1 : F) else 0) (BitString.blocksEquiv.symm_apply_apply x)
+  rw [truthTableExtension, lowDegreeExtension_apply_embed, BitString.blocksEquiv_symm_block]
 
 /-- **The worst-case-to-average-case encoding** [SudanTrevisanVadhan2001]. On an input of
 `m * w + w` bits, read the first `m * w` bits as a point `x` of `F ^ m` and the last `w` bits as
@@ -439,13 +438,11 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
       _ ≤ Q / 6 * 1 := by gcongr
       _ = Q / 6 := mul_one _
   -- the interpolation nodes
-  have hnodes : d + 1 ≤ Fintype.card {c : F // c ≠ 0} := by
-    rw [Fintype.card_subtype_compl, Fintype.card_subtype_eq]
-    exact hdq
-  obtain ⟨ν₀⟩ := Function.Embedding.nonempty_of_card_le (α := Fin (d + 1))
-    (β := {c : F // c ≠ 0}) (by simpa using hnodes)
-  let ν : Fin (d + 1) ↪ F := ν₀.trans (Function.Embedding.subtype _)
-  have hν : ∀ i, ν i ≠ 0 := fun i => (ν₀ i).2
+  have hdq' : d + 2 ≤ Fintype.card F := by
+    have := Fintype.one_lt_card (α := F)
+    omega
+  let ν : Fin (d + 1) ↪ F := nonzeroNodes hdq'
+  have hν : ∀ i, ν i ≠ 0 := nonzeroNodes_ne_zero hdq'
   -- the self-correction stage
   let grid : Finset (Fin m → F) :=
     univ.image fun x : BitString (m * b) => fun i => h (BitString.block x i)
@@ -660,7 +657,7 @@ theorem reconstructionCost_le {w b m D K L s q M : ℕ} (hq : q = 2 ^ w) (hw : 1
       _ ≤ 5 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
           have hq9 : q ≤ q ^ 9 := (pow_one q).symm.le.trans (Nat.pow_le_pow_right hq1 (by norm_num))
           gcongr
-          all_goals omega
+          omega
   have hout : 2 ^ w * (2 * w + 2) + 1 ≤ 5 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
     rw [← hq]
     have : q * (2 * w + 2) + 1 ≤ 5 * w ^ 2 * q := by
@@ -674,7 +671,7 @@ theorem reconstructionCost_le {w b m D K L s q M : ℕ} (hq : q = 2 ^ w) (hw : 1
       _ ≤ 5 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
           have hq9 : q ≤ q ^ 9 := (pow_one q).symm.le.trans (Nat.pow_le_pow_right hq1 (by norm_num))
           gcongr
-          all_goals omega
+          omega
   unfold reconstructionCost
   nlinarith only [hcube, hsc, hout]
 

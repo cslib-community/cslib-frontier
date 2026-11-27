@@ -173,7 +173,7 @@ private theorem mixedOp_path (P : Path p.n) (M : Fin p.n × Fin p.n × Fin p.n �
       monomial (M - P.vPart p + P.uPart p)
         ((∏ t with p.isV t, M (P.edge t) : ℕ) : ℝ) := by
   rw [← Finset.prod_filter_mul_prod_filter_not Finset.univ (fun t => (p.isV t : Prop)), mul_comm,
-    map_mul, Module.End.mul_apply,
+    map_mul, mul_apply_eq_comp,
     mixedOp_prod_X_monomial_of_pos p.layerVar (Finset.univ.filter fun t => p.isV t) P.edge
       (fun t ht => (Finset.mem_filter.1 ht).2) P.edge_injective.injOn,
     mixedOp_prod_X_of_neg p.layerVar (Finset.univ.filter fun t => ¬ p.isV t) P.edge

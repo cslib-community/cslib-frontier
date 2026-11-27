@@ -30,9 +30,11 @@ directions from the zero-knowledge roadmap:
      reduction is automatically `AuxHVZK` / `PerfectAuxHVZK` by ignoring `z`
      (`Reduction.HVZK.auxHVZK`, `Reduction.PerfectHVZK.perfectAuxHVZK`), and conversely
      instantiating at any `z₀ : Aux` recovers `HVZK` / `PerfectHVZK`.
-   * `VerifierStrategy`, `runAgainst`, `Reduction.viewOf`, `Reduction.ZK`: malicious-verifier
-     auxiliary-input zero knowledge in the plain model, where a strategy tree of the verifier's
-     role adaptively chooses challenges and outputs an arbitrary view. Embedding the honest
+   * `VerifierStrategy`, `runAgainst`, `Reduction.viewOf`, `Reduction.ZK`: statistical
+     malicious-verifier auxiliary-input zero knowledge in the plain model, with unbounded
+     verifiers and an unbounded simulator, where a strategy tree of the verifier's role adaptively
+     chooses challenges and outputs an arbitrary view. It is not the computational definition of
+     [Goldreich2001], whose verifiers and simulators are efficient. Embedding the honest
      verifier's challenge samplers (`honestVerifierStrategy`) proves that `Reduction.ZK` implies
      `Reduction.AuxHVZK` (`Reduction.ZK.auxHVZK`).
    * `AuxSimulatorRealizedBy`, `Reduction.EfficientAuxHVZK`: uniform strict-PPT realization of an
@@ -282,10 +284,13 @@ noncomputable def Reduction.viewOf
     let (_, _, view) ← runAgainst s p v
     return view
 
-/-- **Malicious-verifier auxiliary-input zero knowledge** ([Goldreich2001], §4.3.3,
-Definition 4.3.10) with statistical error `ε`, in the plain model: for every malicious verifier
-`Vstar`, every valid `(x, w)` in `relIn`, and every auxiliary input `z : Aux`, the simulator
-`Sim Vstar x z` reproduces `Vstar`'s view within statistical distance `ε x z`. -/
+/-- **Statistical malicious-verifier auxiliary-input zero knowledge, with an unbounded simulator
+and verifier**, in the plain model: for every malicious verifier `Vstar`, every valid `(x, w)` in
+`relIn`, and every auxiliary input `z : Aux`, the simulator `Sim Vstar x z` reproduces `Vstar`'s
+view within statistical distance `ε x z`. Neither `Vstar` nor `Sim` is required to be efficient,
+and closeness is statistical, so this is not the computational auxiliary-input definition of
+[Goldreich2001], §4.3.3, Definition 4.3.10, whose verifiers and simulators are efficient. An
+efficient variant is not formalized. -/
 def Reduction.ZK
     (R : Reduction OracleSpec.empty OracleSpec.empty s StmtIn WitIn StmtOut WitOut)
     (relIn : StmtIn → WitIn → Prop)
@@ -390,8 +395,8 @@ theorem Reduction.viewOf_honestVerifierStrategy
   rw [plainLaw_runAgainst_honestVerifierStrategy, PMF.bind_map]
   rfl
 
-/-- **Malicious-verifier auxiliary-input zero knowledge (`Reduction.ZK`) implies honest-verifier
-auxiliary-input zero knowledge (`Reduction.AuxHVZK`).** -/
+/-- **Statistical malicious-verifier auxiliary-input zero knowledge (`Reduction.ZK`) implies
+honest-verifier auxiliary-input zero knowledge (`Reduction.AuxHVZK`).** -/
 theorem Reduction.ZK.auxHVZK
     {R : Reduction OracleSpec.empty OracleSpec.empty s StmtIn WitIn StmtOut WitOut}
     {relIn : StmtIn → WitIn → Prop}
@@ -619,12 +624,9 @@ theorem Reduction.EfficientHVZK.exists_computationalHVZK_zero
     (h : Reduction.EfficientHVZK R rel enc Sim (fun _ => 0) (fun _ => 0)) :
     ∃ program, Reduction.ComputationalHVZK R rel enc program := by
   obtain ⟨program, hppt, hreal⟩ := h.realized
-  refine ⟨program, hppt, fun idx x w _ _ _ _ hrel _ _ => ?_⟩
-  refine negligible_of_le negligible_zero fun n => ?_
-  have hclose : CloseTo (((R (idx n)).honestTranscript (x n) (w n)).map (enc.transcript (idx n)))
-      (ProbComp.eval (program (idx n, enc.statement (idx n) (x n)))) (0 : ℝ≥0) := by
-    simpa using hreal.closeTo_run h.hvzk (hrel n)
-  exact Game.advantage_bind_le_of_closeTo hclose _
+  refine ⟨program, hppt, fun idx x w _ _ _ _ hrel _ _ =>
+    negligible_of_le negligible_zero fun n => Game.advantage_bind_le_of_closeTo ?_ _⟩
+  simpa using hreal.closeTo_run h.hvzk (hrel n)
 
 end Indexed
 
@@ -754,6 +756,17 @@ theorem Verifier.outputOn_seqProd_eq_some_iff (V₁ : Verifier OracleSpec.empty 
     cases h₂ : V₂.outputOn x.2 (Transcript.split s₁ s₂ τ).2 <;>
     simp [Prod.ext_iff]
 
+private theorem Verifier.plainLaw_run_seqProd
+    (V₁ : Verifier OracleSpec.empty s₁ S₁ S₁') (V₂ : Verifier OracleSpec.empty s₂ S₂ S₂')
+    {α : Type}
+    (P : ProbOracleComp OracleSpec.empty
+      (ProverStrategy (ProbOracleComp OracleSpec.empty) (s₁ ++ s₂) α)) :
+    plainLaw (P >>= runStrategy (s₁ ++ s₂) (V₁.seqProd V₂).samplers) =
+      (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ V₁.samplers)).bind
+        fun (τ₁, st) => (plainLaw (runStrategy s₂ V₂.samplers st)).map
+          fun (τ₂, a) => (Transcript.append s₁ s₂ τ₁ τ₂, a) :=
+  (V₁.liftFirst (S₂ := S₂)).plainLaw_run_append (V₂.liftSecond (S₁' := S₁')) P
+
 /-- Plain-model execution law of `R₁.liftFirst`. -/
 theorem Reduction.plainLaw_run_liftFirst
     (R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁')
@@ -795,9 +808,8 @@ theorem Reduction.Complete.liftFirst
   rw [Reduction.plainLaw_run_liftFirst, PMF.toOuterMeasure_map_apply]
   refine le_of_eq_of_le (congrArg _ ?_) hl
   ext r
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, Reduction.liftFirst, Verifier.outputOn_liftFirst,
-    relProd, hx₂, and_true]
-  cases R₁.verifier.outputOn x₁ r.1 <;> simp
+  cases h : R₁.verifier.outputOn x₁ r.1 <;>
+    simp [Reduction.liftFirst, Verifier.outputOn_liftFirst, h, relProd, hx₂]
 
 /-- `R₂.liftSecond` preserves completeness with the same error. -/
 theorem Reduction.Complete.liftSecond
@@ -812,9 +824,8 @@ theorem Reduction.Complete.liftSecond
   rw [Reduction.plainLaw_run_liftSecond, PMF.toOuterMeasure_map_apply]
   refine le_of_eq_of_le (congrArg _ ?_) hl
   ext r
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, Reduction.liftSecond,
-    Verifier.outputOn_liftSecond, relProd, hy₁, true_and]
-  cases R₂.verifier.outputOn x₂ r.1 <;> simp
+  cases h : R₂.verifier.outputOn x₂ r.1 <;>
+    simp [Reduction.liftSecond, Verifier.outputOn_liftSecond, h, relProd, hy₁]
 
 /-- **Completeness of product composition (`Reduction.seqProd`)**: completeness errors add up. -/
 theorem Reduction.Complete.seqProd
@@ -852,43 +863,19 @@ theorem Verifier.Sound.seqProd
       (max ε₁ ε₂) := by
   rintro ⟨x₁, x₂⟩ hx α P
   rw [Set.mem_prod, not_and_or] at hx
-  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
-  have hsplit : plainLaw (P >>= runStrategy (s₁ ++ s₂) (V₁.seqProd V₂).samplers) =
-      (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ V₁.samplers)).bind
-        fun r₁ => (plainLaw (runStrategy s₂ V₂.samplers r₁.2)).map
-          fun r₂ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2) := by
-    simp only [Verifier.seqProd, Verifier.append, Verifier.liftFirst, Verifier.liftSecond,
-      plainLaw_bind, plainLaw_map, PMF.bind_map, PMF.bind_bind]
-    congr 1
-    funext st
-    exact plainLaw_run_split s₁ s₂ V₁.samplers V₂.samplers st
-  rw [hsplit]
+  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, Verifier.plainLaw_run_seqProd]
   rcases hx with hx₁ | hx₂
   · have hl₁ := h₁ x₁ hx₁ _ ((ProverStrategy.split s₁ s₂ ·) <$> P)
     rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₁
-    refine le_trans ?_ (hl₁.trans (le_max_left ε₁ ε₂))
-    rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
-    refine tsum_le_tsum fun r₁ => ?_
-    by_cases hr₁ : ∃ y₁ ∈ L₁', V₁.outputOn x₁ r₁.1 = some y₁
-    · have hmem : r₁ ∈ (fun r : Transcript s₁ × _ => (r.1, V₁.outputOn x₁ r.1, r.2)) ⁻¹'
-          {r | ∃ x' ∈ L₁', r.2.1 = some x'} := hr₁
-      rw [Set.indicator_of_mem hmem]
-      exact (mul_le_mul_of_nonneg_left
-        (Probability.PMF.toOuterMeasure_le_one _ _) zero_le).trans (mul_one _).le
-    · rw [PMF.toOuterMeasure_map_apply]
-      have hempty : (fun r₂ : Transcript s₂ × α => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2)) ⁻¹'
-          ((fun r : Transcript (s₁ ++ s₂) × α =>
-            (r.1, (V₁.seqProd V₂).outputOn (x₁, x₂) r.1, r.2)) ⁻¹'
-              {r | ∃ y ∈ L₁' ×ˢ L₂', r.2.1 = some y}) = ∅ := by
-        ext r₂
-        simp only [Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false,
-          not_exists, not_and]
-        rintro ⟨y₁, y₂⟩ ⟨hy₁, _⟩ hout
-        rw [Verifier.outputOn_seqProd_eq_some_iff] at hout
-        rw [Spec.Transcript.split_append] at hout
-        exact hr₁ ⟨y₁, hy₁, hout.1⟩
-      rw [hempty, MeasureTheory.measure_empty, mul_zero]
-      exact zero_le
+    refine le_trans (Probability.PMF.toOuterMeasure_bind_failure_le _ _
+        ((fun r : Transcript s₁ × _ => (r.1, V₁.outputOn x₁ r.1, r.2)) ⁻¹'
+          {r | ∃ x' ∈ L₁', r.2.1 = some x'})ᶜ _ 0 fun r₁ _ hr₁ => ?_)
+      (by simpa only [compl_compl, add_zero] using hl₁.trans (le_max_left ε₁ ε₂))
+    rw [PMF.toOuterMeasure_map_apply]
+    refine (MeasureTheory.measure_mono_null ?_ MeasureTheory.measure_empty).le
+    rintro r₂ ⟨⟨y₁, y₂⟩, ⟨hy₁, _⟩, hout⟩
+    rw [Verifier.outputOn_seqProd_eq_some_iff, Spec.Transcript.split_append] at hout
+    exact hr₁ ⟨y₁, hy₁, hout.1⟩
   · refine le_trans (Probability.PMF.toOuterMeasure_bind_le _ _ _ fun r₁ => ?_) (le_max_right ε₁ ε₂)
     rw [PMF.toOuterMeasure_map_apply]
     have hl₂ := h₂ x₂ hx₂ α (pure r₁.2)
@@ -921,17 +908,7 @@ theorem Verifier.KnowledgeSound.seqProd
     (V₁.seqProd V₂).KnowledgeSound (relProd relIn₁ relIn₂) (relProd relOut₁ relOut₂)
       (Verifier.extractSeqProd E₁ E₂) (κ₁ + κ₂) := by
   rintro ⟨x₁, x₂⟩ P
-  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
-  have hsplit : plainLaw (P >>= runStrategy (s₁ ++ s₂) (V₁.seqProd V₂).samplers) =
-      (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ V₁.samplers)).bind
-        fun r₁ => (plainLaw (runStrategy s₂ V₂.samplers r₁.2)).map
-          fun r₂ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2) := by
-    simp only [Verifier.seqProd, Verifier.append, Verifier.liftFirst, Verifier.liftSecond,
-      plainLaw_bind, plainLaw_map, PMF.bind_map, PMF.bind_bind]
-    congr 1
-    funext st
-    exact plainLaw_run_split s₁ s₂ V₁.samplers V₂.samplers st
-  rw [hsplit]
+  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, Verifier.plainLaw_run_seqProd]
   let T₁ : Set (Transcript (s₁ ++ s₂) × (W₁' × W₂')) := {r |
     (∃ y₁, V₁.outputOn x₁ (Transcript.split s₁ s₂ r.1).1 = some y₁ ∧ relOut₁ y₁ r.2.1) ∧
       ¬ relIn₁ x₁ (E₁ x₁ (Transcript.split s₁ s₂ r.1).1 r.2.1)}
@@ -940,8 +917,10 @@ theorem Verifier.KnowledgeSound.seqProd
       ¬ relIn₂ x₂ (E₂ x₂ (Transcript.split s₁ s₂ r.1).2 r.2.2)}
   have hsub : (fun r : Transcript (s₁ ++ s₂) × (W₁' × W₂') =>
         (r.1, (V₁.seqProd V₂).outputOn (x₁, x₂) r.1, r.2)) ⁻¹'
-      {r | (∃ y, r.2.1 = some y ∧ relProd relOut₁ relOut₂ y r.2.2) ∧
-        ¬ relProd relIn₁ relIn₂ (x₁, x₂) (Verifier.extractSeqProd E₁ E₂ (x₁, x₂) r.1 r.2.2)} ⊆
+      {r : Execution (s₁ ++ s₂) (S₁' × S₂') (W₁' × W₂') |
+        (∃ y, r.output = some y ∧ relProd relOut₁ relOut₂ y r.result) ∧
+        ¬ relProd relIn₁ relIn₂ (x₁, x₂)
+          (Verifier.extractSeqProd E₁ E₂ (x₁, x₂) r.transcript r.result)} ⊆
       T₁ ∪ T₂ := by
     rintro ⟨τ, w₁', w₂'⟩ ⟨⟨⟨y₁, y₂⟩, hout, hy₁, hy₂⟩, hnot⟩
     rw [Verifier.outputOn_seqProd_eq_some_iff] at hout
@@ -997,27 +976,10 @@ theorem Reduction.honestTranscript_seqProd
         (R₂.honestTranscript x.2 w.2).map fun τ₂ =>
           Transcript.append s₁ s₂ τ₁ τ₂ := by
   rw [Reduction.honestTranscript_eq_plainLaw, Reduction.honestTranscript_eq_plainLaw,
-    Reduction.honestTranscript_eq_plainLaw]
-  simp only [Reduction.seqProd, Reduction.append, Verifier.append, bind_assoc]
-  have hrun : plainLaw ((R₁.liftFirst (S₂ := S₂) (W₂ := W₂)).prover x w >>= fun st =>
-        ProverStrategy.append s₁ s₂ st
-          (fun xw => (R₂.liftSecond (S₁' := S₁') (W₁' := W₁')).prover xw.1 xw.2) >>=
-        runStrategy (s₁ ++ s₂)
-          (PerChallenge.append s₁ s₂ (R₁.liftFirst (S₂ := S₂) (W₂ := W₂)).verifier.samplers
-            (R₂.liftSecond (S₁' := S₁') (W₁' := W₁')).verifier.samplers)) =
-      (plainLaw ((R₁.liftFirst (S₂ := S₂) (W₂ := W₂)).prover x w >>=
-          runStrategy s₁ (R₁.liftFirst (S₂ := S₂) (W₂ := W₂)).verifier.samplers)).bind fun r₁ =>
-        (plainLaw ((R₂.liftSecond (S₁' := S₁') (W₁' := W₁')).prover r₁.2.1 r₁.2.2 >>=
-          runStrategy s₂ (R₂.liftSecond (S₁' := S₁') (W₁' := W₁')).verifier.samplers)).map
-            fun r₂ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2) := by
-    simp only [plainLaw_bind, PMF.bind_bind]
-    congr 1
-    funext st
-    rw [← plainLaw_bind, plainLaw_run_append]
-    simp only [plainLaw_bind]
-  rw [hrun, Reduction.plainLaw_run_liftFirst, PMF.bind_map, PMF.map_bind, PMF.bind_map]
+    Reduction.honestTranscript_eq_plainLaw, Reduction.seqProd, Reduction.plainLaw_run_append,
+    Reduction.plainLaw_run_liftFirst, PMF.bind_map, PMF.map_bind, PMF.bind_map]
   congr 1
-  funext r₁
+  funext ⟨τ, y₁, w₁⟩
   simp only [Function.comp_def, Reduction.plainLaw_run_liftSecond, PMF.map_comp]
 
 /-- Product simulator for `Reduction.seqProd`: run `Sim₁` on `x.1` and `Sim₂` on `x.2`, and
@@ -1038,13 +1000,6 @@ def auxSimSeqProd (Sim₁ : S₁ → Aux → ProbComp (Transcript s₁))
   let τ₂ ← Sim₂ x.2 z
   return Transcript.append s₁ s₂ τ₁ τ₂
 
-@[simp] theorem eval_simSeqProd (Sim₁ : S₁ → ProbComp (Transcript s₁))
-    (Sim₂ : S₂ → ProbComp (Transcript s₂)) (x : S₁ × S₂) :
-    ProbComp.eval (simSeqProd Sim₁ Sim₂ x) =
-      (ProbComp.eval (Sim₁ x.1)).bind fun τ₁ =>
-        (ProbComp.eval (Sim₂ x.2)).map fun τ₂ => Transcript.append s₁ s₂ τ₁ τ₂ := by
-  simp [simSeqProd, ProbComp.eval_bind]
-
 @[simp] theorem eval_auxSimSeqProd (Sim₁ : S₁ → Aux → ProbComp (Transcript s₁))
     (Sim₂ : S₂ → Aux → ProbComp (Transcript s₂)) (x : S₁ × S₂) (z : Aux) :
     ProbComp.eval (auxSimSeqProd Sim₁ Sim₂ x z) =
@@ -1052,32 +1007,12 @@ def auxSimSeqProd (Sim₁ : S₁ → Aux → ProbComp (Transcript s₁))
         (ProbComp.eval (Sim₂ x.2 z)).map fun τ₂ => Transcript.append s₁ s₂ τ₁ τ₂ := by
   simp [auxSimSeqProd, ProbComp.eval_bind]
 
-/-- **HVZK of product composition (`Reduction.seqProd`)**: independent transcript simulation
-preserves `HVZK` with the sum of the statistical errors. -/
-theorem Reduction.HVZK.seqProd
-    {R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁'}
-    {R₂ : Reduction OracleSpec.empty OracleSpec.empty s₂ S₂ W₂ S₂' W₂'}
-    {relIn₁ : S₁ → W₁ → Prop} {relIn₂ : S₂ → W₂ → Prop}
-    {Sim₁ : S₁ → ProbComp (Transcript s₁)} {Sim₂ : S₂ → ProbComp (Transcript s₂)}
-    {ε₁ ε₂ : ℝ≥0∞}
-    (h₁ : R₁.HVZK relIn₁ Sim₁ ε₁) (h₂ : R₂.HVZK relIn₂ Sim₂ ε₂) :
-    (R₁.seqProd R₂).HVZK (relProd relIn₁ relIn₂) (simSeqProd Sim₁ Sim₂) (ε₁ + ε₂) := by
-  rintro ⟨x₁, x₂⟩ ⟨w₁, w₂⟩ ⟨hx₁, hx₂⟩
-  change CloseTo ((R₁.seqProd R₂).honestTranscript (x₁, x₂) (w₁, w₂))
-    (ProbComp.eval (simSeqProd Sim₁ Sim₂ (x₁, x₂))) (ε₁ + ε₂)
-  rw [Reduction.honestTranscript_seqProd, eval_simSeqProd]
-  exact CloseTo.bind (h₁ x₁ w₁ hx₁) fun τ₁ _ => (h₂ x₂ w₂ hx₂).map (Transcript.append s₁ s₂ τ₁)
-
-/-- **Perfect HVZK of product composition (`Reduction.seqProd`)**. -/
-theorem Reduction.PerfectHVZK.seqProd
-    {R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁'}
-    {R₂ : Reduction OracleSpec.empty OracleSpec.empty s₂ S₂ W₂ S₂' W₂'}
-    {relIn₁ : S₁ → W₁ → Prop} {relIn₂ : S₂ → W₂ → Prop}
-    {Sim₁ : S₁ → ProbComp (Transcript s₁)} {Sim₂ : S₂ → ProbComp (Transcript s₂)}
-    (h₁ : R₁.PerfectHVZK relIn₁ Sim₁) (h₂ : R₂.PerfectHVZK relIn₂ Sim₂) :
-    (R₁.seqProd R₂).PerfectHVZK (relProd relIn₁ relIn₂) (simSeqProd Sim₁ Sim₂) := by
-  rintro ⟨x₁, x₂⟩ ⟨w₁, w₂⟩ ⟨hx₁, hx₂⟩
-  rw [Reduction.honestTranscript_seqProd, eval_simSeqProd, h₁ x₁ w₁ hx₁, h₂ x₂ w₂ hx₂]
+@[simp] theorem eval_simSeqProd (Sim₁ : S₁ → ProbComp (Transcript s₁))
+    (Sim₂ : S₂ → ProbComp (Transcript s₂)) (x : S₁ × S₂) :
+    ProbComp.eval (simSeqProd Sim₁ Sim₂ x) =
+      (ProbComp.eval (Sim₁ x.1)).bind fun τ₁ =>
+        (ProbComp.eval (Sim₂ x.2)).map fun τ₂ => Transcript.append s₁ s₂ τ₁ τ₂ :=
+  eval_auxSimSeqProd (fun x₁ (_ : Unit) => Sim₁ x₁) (fun x₂ (_ : Unit) => Sim₂ x₂) x ()
 
 /-- **Auxiliary-input HVZK of product composition (`Reduction.seqProd`)**: independent
 auxiliary-input simulation preserves `AuxHVZK` with error `ε₁ x.1 z + ε₂ x.2 z`. -/
@@ -1105,5 +1040,27 @@ theorem Reduction.PerfectAuxHVZK.seqProd
     (R₁.seqProd R₂).PerfectAuxHVZK (relProd relIn₁ relIn₂) (auxSimSeqProd Sim₁ Sim₂) := by
   rintro ⟨x₁, x₂⟩ ⟨w₁, w₂⟩ z ⟨hx₁, hx₂⟩
   rw [Reduction.honestTranscript_seqProd, eval_auxSimSeqProd, h₁ x₁ w₁ z hx₁, h₂ x₂ w₂ z hx₂]
+
+/-- **HVZK of product composition (`Reduction.seqProd`)**: independent transcript simulation
+preserves `HVZK` with the sum of the statistical errors. -/
+theorem Reduction.HVZK.seqProd
+    {R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁'}
+    {R₂ : Reduction OracleSpec.empty OracleSpec.empty s₂ S₂ W₂ S₂' W₂'}
+    {relIn₁ : S₁ → W₁ → Prop} {relIn₂ : S₂ → W₂ → Prop}
+    {Sim₁ : S₁ → ProbComp (Transcript s₁)} {Sim₂ : S₂ → ProbComp (Transcript s₂)}
+    {ε₁ ε₂ : ℝ≥0∞}
+    (h₁ : R₁.HVZK relIn₁ Sim₁ ε₁) (h₂ : R₂.HVZK relIn₂ Sim₂ ε₂) :
+    (R₁.seqProd R₂).HVZK (relProd relIn₁ relIn₂) (simSeqProd Sim₁ Sim₂) (ε₁ + ε₂) :=
+  ((h₁.auxHVZK (Aux := Unit)).seqProd h₂.auxHVZK).hvzk () fun _ => le_rfl
+
+/-- **Perfect HVZK of product composition (`Reduction.seqProd`)**. -/
+theorem Reduction.PerfectHVZK.seqProd
+    {R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁'}
+    {R₂ : Reduction OracleSpec.empty OracleSpec.empty s₂ S₂ W₂ S₂' W₂'}
+    {relIn₁ : S₁ → W₁ → Prop} {relIn₂ : S₂ → W₂ → Prop}
+    {Sim₁ : S₁ → ProbComp (Transcript s₁)} {Sim₂ : S₂ → ProbComp (Transcript s₂)}
+    (h₁ : R₁.PerfectHVZK relIn₁ Sim₁) (h₂ : R₂.PerfectHVZK relIn₂ Sim₂) :
+    (R₁.seqProd R₂).PerfectHVZK (relProd relIn₁ relIn₂) (simSeqProd Sim₁ Sim₂) :=
+  ((h₁.perfectAuxHVZK (Aux := Unit)).seqProd h₂.perfectAuxHVZK).perfectHVZK ()
 
 end Cslib.Interactive

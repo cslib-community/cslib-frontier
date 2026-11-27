@@ -73,13 +73,9 @@ determinant of the reduced Laplacian; `0` when `G` declares no vertex. -/
 
 /-! ### Correctness -/
 
-/-- Adjacency in `G.induced` is decided by the executable test `Cslib.Complexity.Graph.adjBool`. -/
-instance instDecidableRelInducedAdj (G : Graph) : DecidableRel G.induced.Adj := fun u v =>
-  decidable_of_iff (G.adjBool u v = true) (by rw [adjBool_eq_true_iff, induced_adj])
-
 /-- The degree of a declared vertex in `G.induced` is its number of neighbours among the distinct
 declared vertices. -/
-private theorem degree_induced (G : Graph) (u : {v // v ∈ G.1}) :
+private theorem degree_induced (G : Graph) (u : {v // v ∈ G.vertices}) :
     G.induced.degree u = (G.distinctVertices.filter fun w => G.adjBool u w).length := by
   rw [← SimpleGraph.card_neighborFinset_eq_degree,
     ← List.toFinset_card_of_nodup (G.nodup_distinctVertices.filter _)]
@@ -108,10 +104,10 @@ private theorem rowEntry_reducedLaplacianRows (G : Graph) {i j : ℕ}
 Kirchhoff's matrix-tree theorem. -/
 theorem spanningTreeCount_eq_natCard (G : Graph) :
     G.spanningTreeCount =
-      Nat.card {T : SimpleGraph {v // v ∈ G.1} // T ≤ G.induced ∧ T.IsTree} := by
+      Nat.card {T : SimpleGraph {v // v ∈ G.vertices} // T ≤ G.induced ∧ T.IsTree} := by
   unfold spanningTreeCount
   split_ifs with h
-  · have : IsEmpty {v // v ∈ G.1} := ⟨fun v => by
+  · have : IsEmpty {v // v ∈ G.vertices} := ⟨fun v => by
       have := mem_distinctVertices.2 v.2
       rw [h] at this
       exact List.not_mem_nil this⟩
@@ -123,13 +119,13 @@ theorem spanningTreeCount_eq_natCard (G : Graph) :
     have hnd := G.nodup_distinctVertices
     rw [hvs, List.nodup_cons] at hnd
     have htail : G.distinctVertices.tail = rest := by rw [hvs, List.tail_cons]
-    have haG : a ∈ G.1 := mem_distinctVertices.1 (by rw [hvs]; exact List.mem_cons_self ..)
-    have hmem : ∀ {w}, w ∈ rest → w ∈ G.1 := fun hw =>
+    have haG : a ∈ G.vertices := mem_distinctVertices.1 (by rw [hvs]; exact List.mem_cons_self ..)
+    have hmem : ∀ {w}, w ∈ rest → w ∈ G.vertices := fun hw =>
       mem_distinctVertices.1 (by rw [hvs]; exact List.mem_cons_of_mem _ hw)
-    set r : {v // v ∈ G.1} := ⟨a, haG⟩
+    set r : {v // v ∈ G.vertices} := ⟨a, haG⟩
     have hlen : G.reducedLaplacianRows.length = rest.length := by
       rw [reducedLaplacianRows, List.length_map, htail]
-    let f : Fin G.reducedLaplacianRows.length → {v : {v // v ∈ G.1} // v ≠ r} := fun i =>
+    let f : Fin G.reducedLaplacianRows.length → {v : {v // v ∈ G.vertices} // v ≠ r} := fun i =>
       ⟨⟨rest[i.1]'(hlen ▸ i.2), hmem (List.getElem_mem _)⟩, fun hr => hnd.1 (by
         have h : rest[i.1]'(hlen ▸ i.2) = a := congrArg Subtype.val hr
         rw [← h]
@@ -164,7 +160,7 @@ theorem spanningTreeCount_eq_natCard (G : Graph) :
     · subst hij
       simp [degree_induced]
     · have hne : rest[i.1] ≠ rest[j.1] := fun h => hij (Fin.ext ((hnd.2.getElem_inj_iff).1 h))
-      have hne' : (⟨rest[i.1], hmem (List.getElem_mem _)⟩ : {v // v ∈ G.1}) ≠
+      have hne' : (⟨rest[i.1], hmem (List.getElem_mem _)⟩ : {v // v ∈ G.vertices}) ≠
           ⟨rest[j.1], hmem (List.getElem_mem _)⟩ := fun h => hne (congrArg Subtype.val h)
       by_cases hadj : G.toSimpleGraph.Adj rest[i.1] rest[j.1] <;> simp [hne, hne', hadj]
 
@@ -180,20 +176,7 @@ private theorem computableInPolyTime_tail_distinctVertices :
 private theorem computableInPolyTime_laplacianEntry :
     ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => p.1.1.laplacianEntry p.1.2 p.2)
       (encPair (encPair encGraph encNat) encNat) encIntBin := by
-  have hG : ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => p.1.1)
-      (encPair (encPair encGraph encNat) encNat) encGraph := (fst _ _).fst'
-  have hu : ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => p.1.2)
-      (encPair (encPair encGraph encNat) encNat) encNat := (fst _ _).snd'
-  have hv : ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => p.2)
-      (encPair (encPair encGraph encNat) encNat) encNat := snd _ _
-  have hfilter : ComputableInPolyTime
-      (fun p : (Graph × ℕ) × ℕ => p.1.1.distinctVertices.filter fun w => p.1.1.adjBool p.1.2 w)
-      (encPair (encPair encGraph encNat) encNat) (encList encNat) :=
-    filterWithInput (computableInPolyTime_distinctVertices.comp hG)
-      (computableInPolyTime_adjBool_comp (hG.comp (fst _ _)) (hu.comp (fst _ _)) (snd _ _))
-  unfold laplacianEntry
-  exact ite_decide (decide_eq' hu hv) (intBin_natCast.comp (length_list_binary' hfilter))
-    (ite (computableInPolyTime_adjBool_comp hG hu hv) (const _) (const _))
+  fun_prop [laplacianEntry]
 
 /-- Tabulating the reduced Laplacian rows is polynomial-time. -/
 private theorem computableInPolyTime_reducedLaplacianRows :
@@ -218,9 +201,11 @@ theorem computableInPolyTime_spanningTreeCount :
 binary natural numbers. -/
 theorem computableInPolyTime_natCard_isTree :
     ComputableInPolyTime
-      (fun G : Graph => Nat.card {T : SimpleGraph {v // v ∈ G.1} // T ≤ G.induced ∧ T.IsTree})
+      (fun G : Graph =>
+        Nat.card {T : SimpleGraph {v // v ∈ G.vertices} // T ≤ G.induced ∧ T.IsTree})
       encGraph encNat := by
-  have h : (fun G : Graph => Nat.card {T : SimpleGraph {v // v ∈ G.1} // T ≤ G.induced ∧ T.IsTree})
+  have h : (fun G : Graph =>
+        Nat.card {T : SimpleGraph {v // v ∈ G.vertices} // T ≤ G.induced ∧ T.IsTree})
       = fun G => G.spanningTreeCount.toNat :=
     funext fun G => by rw [spanningTreeCount_eq_natCard, Int.toNat_natCast]
   rw [h]

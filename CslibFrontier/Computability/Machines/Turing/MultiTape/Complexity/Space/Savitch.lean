@@ -118,12 +118,7 @@ theorem savitchDecide_eq_true_iff {c d s : ℕ} {input : List Bool} (hs : ntm.Ru
 /-- The width of the codes is polynomial-time, in unary. -/
 theorem computableInPolyTime_codeWidth {α : Type} {enc : α ↪ List Bool} (c d : ℕ) :
     ComputableInPolyTime (fun a => ntm.codeWidth c d (enc a)) enc encUnary := by
-  have hlength := ComputableInPolyTime.encoding_length enc
-  have hinit := ComputableInPolyTime.finiteCfg_init (k := k)
-    (ComputableInPolyTime.of_eq (encOut := encBits) fun _ => rfl) ntm.q₀
-  have hsize := (ComputableInPolyTime.encoding_length encFiniteCfg).comp hinit
-  simp only [codeWidth, viewLengthBound, initView]
-  fun_prop
+  fun_prop [codeWidth, viewLengthBound, initView]
 
 /-- The bit-length of the codes of the views is polynomial-time, in unary. -/
 @[fun_prop]

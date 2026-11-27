@@ -122,24 +122,51 @@ theorem computableInPolyTime_trueFeatures :
   exact finite_cases (tagEncoding := encOption encBool) hsym fun s =>
     (computableInPolyTime_cell i s).comp hz
 
+-- Separate the tracked-run phase from the traversal so each phase elaborates independently.
+private theorem computableInPolyTime_featuresAt (tm : MultiTapeTM k Bool State) :
+    ComputableInPolyTime
+      (fun p : ((List Bool × List Bool) × ℕ) × ℕ =>
+        trueFeatures p.1.2 (trackedRun tm (p.1.1.1 ++ p.1.1.2, p.2)))
+      (encPair (encPair (encPair encBits encBits) encUnary) encUnary) (encList encFeature) := by
+  have hrun : ComputableInPolyTime
+      (fun p : ((List Bool × List Bool) × ℕ) × ℕ => trackedRun tm (p.1.1.1 ++ p.1.1.2, p.2))
+      (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encTrackedCfg :=
+    (computableInPolyTime_trackedRun tm).comp
+      ((bitsAppend (((fst _ _).fst').fst') (((fst _ _).fst').snd')).prod (snd _ _))
+  exact computableInPolyTime_trueFeatures.comp
+      (((snd (encPair encBits encBits) encUnary).comp (fst _ encUnary)).prod hrun)
+
+-- The certificate-only tail uses the same framed input as the run-feature traversal.
+private theorem computableInPolyTime_certificateVars :
+    ComputableInPolyTime
+      (fun x : (List Bool × List Bool) × ℕ =>
+        (List.range x.1.2.length).flatMap fun j =>
+          if x.1.2.getD j false then [Var.cert (k := k) (State := State) j] else [])
+      (encPair (encPair encBits encBits) encUnary) (encList encVar) := by
+  have hword := (fst (encPair encBits encBits) encUnary).snd'
+  have hp := id' (encIn := encPair (encPair (encPair encBits encBits) encUnary) encUnary)
+  have hbit := (hword.comp hp.fst').bitsGetDWithInput hp.snd' false
+  have hcert := (computableInPolyTime_cert (k := k) (State := State)).comp hp.snd'
+  exact flatMapWithInput (encA := encUnary) (encB := encVar)
+    (range.comp (length_bits.comp hword))
+    (hbit.ite (cons' hcert (const [])) (const []))
+
 /-- **The listed variables are polynomial-time** in the input prefix `u`, the certificate `w`
 and the unary bound `T`, for a fixed machine. -/
 theorem computableInPolyTime_trueVars (tm : MultiTapeTM k Bool State) :
     ComputableInPolyTime (fun x : (List Bool × List Bool) × ℕ => trueVars tm x.1.1 x.1.2 x.2)
       (encPair (encPair encBits encBits) encUnary) (encList encVar) := by
   unfold trueVars
-  have hrun : ComputableInPolyTime
-      (fun p : ((List Bool × List Bool) × ℕ) × ℕ => trackedRun tm (p.1.1.1 ++ p.1.1.2, p.2))
-      (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encTrackedCfg :=
-    (computableInPolyTime_trackedRun tm).comp (by fun_prop)
-  have hfeatures := computableInPolyTime_trueFeatures.comp
-    (((snd (encPair encBits encBits) encUnary).comp (fst _ encUnary)).prod hrun)
+  have hfeatures := computableInPolyTime_featuresAt tm
   have hholds : ComputableInPolyTime
       (fun p : (((List Bool × List Bool) × ℕ) × ℕ) × Feature k State => Var.holds p.1.2 p.2)
       (encPair (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encFeature)
       encVar :=
     computableInPolyTime_holds.comp (((snd _ _).comp (fst _ _)).prod (snd _ _))
-  refine listAppend' (flatMapWithInput (by fun_prop) (mapWithInput hfeatures hholds)) ?_
-  fun_prop
+  have htimes := range.comp
+    (unary_add' (snd (encPair encBits encBits) encUnary) (const 1))
+  refine listAppend' (flatMapWithInput (encA := encUnary) (encB := encVar) htimes
+    (mapWithInput (encA := encFeature) (encB := encVar) hfeatures hholds)) ?_
+  exact computableInPolyTime_certificateVars
 
 end Cslib.Complexity.CookLevin

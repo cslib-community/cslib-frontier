@@ -35,6 +35,8 @@ its operations through such splitting lemmas is the method of [Nipkow2016], used
 
 * `List.IsSortedAssoc`: the keys of an association list are strictly increasing.
 * `Cslib.SortedAssoc.insert`, `Cslib.SortedAssoc.erase`: insert-or-replace and erasure.
+* `Cslib.SortedAssoc.leI`: the decidable comparator of a linear order in the identity monad,
+  shared by the comparator-polymorphic operations of the maps specified by this model.
 * `Cslib.SortedAssoc.pred?`, `Cslib.SortedAssoc.succ?`: strict predecessor and successor.
 * `Cslib.SortedAssoc.range`, `Cslib.SortedAssoc.rank`: closed-interval restriction and the
   number of keys strictly below a key.
@@ -319,6 +321,10 @@ theorem length_erase_of_nodup_keys (h : (l.map Prod.fst).Nodup) :
 end Erase
 
 variable [LinearOrder α]
+
+/-- The decidable comparator of a linear order, in the identity monad: the comparator at which a
+comparator-polymorphic operation on an ordered map is its pure form. -/
+abbrev leI (a b : α) : Id Bool := pure (decide (a ≤ b))
 
 /-- Insert `(k, v)` before the first entry whose key is at least `k`, replacing that entry if
 its key is `k`. On a sorted list this is insert-or-replace at the sorted position. -/

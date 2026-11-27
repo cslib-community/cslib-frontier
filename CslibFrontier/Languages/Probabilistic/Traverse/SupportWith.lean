@@ -19,7 +19,8 @@ the entries one after the other. When each call `q` may be answered by any eleme
 `possible q`, the possible results of the traversal are exactly the lists whose entries are
 possible results of the corresponding programs (`OracleComp.mem_supportWith_mapM_iff`), and the
 traversal of `k` entries each costing at most `n` costs at most `k * n`
-(`OracleComp.IsCostBounded.mapM`).
+(`OracleComp.IsCostBounded.mapM`). Folding a list `xs` with `List.foldlM` whose step costs at most
+`k` costs at most `xs.length * k` (`OracleComp.IsCostBounded.foldlM`).
 This is the oracle analogue of `Cslib.ProbComp.mem_support_mapM_iff`.
 
 ## Main results
@@ -29,6 +30,8 @@ This is the oracle analogue of `Cslib.ProbComp.mem_support_mapM_iff`.
 * `Cslib.OracleComp.IsCostBounded.mapM`: a traversal of a list of length `k` whose entries each
   cost at most `n` costs at most `k * n`.
 * `Cslib.OracleComp.QueriesSatisfy.mapM`: a traversal makes only the calls its entries make.
+* `Cslib.OracleComp.IsCostBounded.foldlM`: a fold of a list `xs` whose step costs at most `k`
+  costs at most `xs.length * k`.
 -/
 
 public section
@@ -75,5 +78,16 @@ theorem QueriesSatisfy.mapM {p : ι → Prop} {program : α → OracleComp spec 
   have h' := IsCostBounded.mapM h
   rw [Nat.mul_zero] at h'
   exact h'
+
+/-- Folding `xs` by steps that each cost at most `k` costs at most `xs.length * k`. -/
+theorem IsCostBounded.foldlM.{u, v, w} {ι : Type u} {spec : OracleSpec.{u, v} ι}
+    {α : Type v} {β : Type w} {cost : ι → ℕ} {f : α → β → OracleComp spec α} {k : ℕ}
+    (hf : ∀ a b, IsCostBounded cost (f a b) k) (init : α) (xs : List β) :
+    IsCostBounded cost (xs.foldlM f init) (xs.length * k) := by
+  induction xs generalizing init with
+  | nil => simp [IsCostBounded.pure]
+  | cons x xs ih =>
+    rw [List.foldlM_cons, List.length_cons, Nat.add_mul, one_mul, Nat.add_comm]
+    exact (hf init x).bind fun a => ih a
 
 end Cslib.OracleComp

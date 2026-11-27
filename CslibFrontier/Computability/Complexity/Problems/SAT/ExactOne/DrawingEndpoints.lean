@@ -32,6 +32,8 @@ public section
 
 namespace Cslib.Complexity.SAT.ExactOne
 
+open Graph.OrthogonalDrawing
+
 open Cslib.Logic.PL Orthogonal
 
 /-- A valid local variable index resolves to its moved source port or its affine core point. -/

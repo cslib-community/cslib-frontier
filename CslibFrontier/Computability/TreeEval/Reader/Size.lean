@@ -80,7 +80,7 @@ private theorem length_encMode_lt (m : Mode) : (encMode m).length < 7 := by
   exact this
 
 private theorem length_encTag_lt (t : Fin 7) : (encFinEnum (Fin 7) t).length < 7 := by
-  simpa using length_encFinEnum_lt t
+  simpa only [Nat.card_fin] using length_encFinEnum_lt t
 
 /-- The bounds on the components of a state that satisfies the invariant. -/
 structure Bounds (ℓ H : ℕ) (s : State) : Prop where

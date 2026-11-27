@@ -9,6 +9,7 @@ import CslibFrontier.Probability.BitString.LinearHash
 import CslibFrontier.Probability.BitString.SubsetSum
 import CslibFrontier.Probability.HashFamily.MultiplyShift
 import CslibFrontier.Probability.HashFamily.Polynomial
+import CslibFrontier.Probability.HashFamily.Transport
 import CslibFrontier.Probability.PairwiseIndependentHash.Affine
 import CslibFrontier.Probability.PairwiseIndependentHash.Universal
 import Mathlib.Algebra.Field.ZMod
@@ -100,6 +101,26 @@ example :
       (fun k (m : {m : List (ZMod 5) // m.length ≤ 2}) => xpolyHash k m) (3 / 5) := by
   refine ⟨by simpa using isUniversalHash_polyHash (F := ZMod 5) 2, ?_⟩
   have h := isDeltaUniversalHash_xpolyHash (F := ZMod 5) 2
+  norm_num at h
+  exact h
+
+/-- The polynomial difference bound is preserved when residues modulo 5 are read modulo 9. -/
+example :
+    IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 5))
+      (fun k (m : {m : List (ZMod 5) // m.length ≤ 2}) => (ZMod.cast (xpolyHash k m.val) : ZMod 9))
+      (3 / 5) := by
+  have h := (isDeltaUniversalHash_xpolyHash (F := ZMod 5) 2).zmod_cast (N := 9) (by decide)
+  norm_num at h
+  exact h
+
+local instance : Fact (Nat.Prime 11) := ⟨by decide⟩
+
+/-- Reducing `Hxpoly` digests modulo 11 to residues modulo 9 gives a bound below one. -/
+example :
+    IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 11))
+      (fun k (m : {m : List (ZMod 11) // m.length ≤ 1}) => (ZMod.cast (xpolyHash k m.val) : ZMod 9))
+      (8 / 9) := by
+  have h := (isDeltaUniversalHash_xpolyHash (F := ZMod 11) 1).zmod_cast_div (N := 9) (by decide)
   norm_num at h
   exact h
 

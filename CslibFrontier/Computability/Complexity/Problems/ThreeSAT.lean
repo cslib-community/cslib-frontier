@@ -116,13 +116,18 @@ theorem computableInPolyTime_splitVarToNat :
       (encPair encUnary encUnary) encUnary := by
     unfold Nat.pair
     fun_prop
+  have hbits : ComputableInPolyTime (fun n : ℕ => encNat n) encNat encBits :=
+    .of_eq fun _ => rfl
+  have hempty := ComputableInPolyTime.bitsIsEmpty.comp hbits
+  have hcons := ComputableInPolyTime.bitsCons (.const false) hbits
   have hdouble : ComputableInPolyTime (2 * ·) encNat encNat :=
     (show ComputableInPolyTime
         (fun n : ℕ => if (encNat n).isEmpty then ([] : List Bool) else false :: encNat n)
-        encNat encBits by fun_prop).of_enc_eq encNat_two_mul
+        encNat encBits from hempty.ite (.const []) hcons).of_enc_eq encNat_two_mul
   have hodd : ComputableInPolyTime (fun n : ℕ => 2 * n + 1) encNat encNat :=
     (show ComputableInPolyTime (fun n : ℕ => true :: encNat n)
-        encNat encBits by fun_prop).of_enc_eq encNat_two_mul_add_one
+        encNat encBits from ComputableInPolyTime.bitsCons (.const true) hbits).of_enc_eq
+          encNat_two_mul_add_one
   have hl : ComputableInPolyTime (fun x => 2 * D₁.decode (encS x).tail) encS encNat :=
     hdouble.comp (D₁.computableInPolyTime.comp (ComputableInPolyTime.bitsTail.comp hraw))
   have hr : ComputableInPolyTime

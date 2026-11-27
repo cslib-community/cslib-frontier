@@ -56,6 +56,7 @@ approaching `(1 - 2 R) H⁻¹(1 / 2) ≈ 0.11 * (1 - 2 R)` at rate `R < 1 / 2`
 ## Main definitions
 
 * `Cslib.Code.wozencraft`: the Wozencraft inner encoding with a given multiplier.
+* `Cslib.Code.wozencraftBitWith`: bit selection from its two coefficient words.
 * `Cslib.Code.justesen`: the Justesen encoding of an outer word.
 * `Cslib.Code.justesenCode`: the Justesen code.
 
@@ -126,6 +127,13 @@ variable {F : Type*} [Field F] {b : ℕ}
 read through the additive bijection `φ : F ≃+ BitString b`. -/
 def wozencraft (φ : F ≃+ BitString b) (u a : F) : Fin 2 × Fin b → Bool :=
   fun j => φ (if j.1 = 0 then a else u * a) j.2
+
+/-- Read bit `bit` of the evaluation word at half zero, or of the point times the evaluation
+at any positive half index, using the supplied field multiplication on words.
+A bit beyond the selected word is read as `false`. -/
+def wozencraftBitWith (mul : List Bool → List Bool → List Bool)
+    (point evaluation : List Bool) (half bit : ℕ) : Bool :=
+  (if half = 0 then evaluation else mul point evaluation).getD bit false
 
 /-- The Wozencraft encoding with a fixed multiplier is additive. -/
 theorem wozencraft_sub (φ : F ≃+ BitString b) (u a a' : F) :

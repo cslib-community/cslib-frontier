@@ -34,6 +34,8 @@ These continuous route-composition proofs are original.
 
 namespace Cslib.Complexity.SAT.ExactOne
 
+open Graph.OrthogonalDrawing
+
 open Cslib.Logic.PL Orthogonal
 
 /-- Local prefixes belonging to different original clauses have disjoint full supports. -/
@@ -195,7 +197,7 @@ theorem positiveExterior_contacts {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
   have hne' : sourceEdgeIndex φ i k ≠ sourceEdgeIndex φ j l := by
     intro he
     have ho := (List.idxOf_inj (sourceOccurrence_mem φ hi hk)).mp he
-    exact hne (congrArg (fun o : Occurrence ℕ => (o.1, o.2.1)) ho)
+    exact hne (congrArg (fun o : Occurrence ℕ => (o.clause, o.pos)) ho)
   rw [positiveExterior, support_translate] at hz hw
   obtain ⟨x, hx, rfl⟩ := hz
   obtain ⟨y, hy, hyx⟩ := hw

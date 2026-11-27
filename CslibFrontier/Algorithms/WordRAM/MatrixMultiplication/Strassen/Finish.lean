@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Receive
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Control
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native final Strassen child return
@@ -72,14 +73,14 @@ theorem exec_stage_finish {w p k A B a b out scratch frames frame : ℕ}
     apply memory d
     have hn : ¬(out ≤ d ∧ d < out + 4 ^ (k + 1) * p) := fun h => hd (Or.inl h)
     omega
-  · exact (hr Reg.output (by decide) (by decide)).trans sh.output_eq
-  · exact (hr Reg.modulus (by decide) (by decide)).trans sh.modulus_eq
-  · exact (hr Reg.frames (by decide) (by decide)).trans sh.frames_eq
+  · regs_frame
+  · regs_frame
+  · regs_frame
   · simpa only [sh.frames_eq, sh.frame_eq] using hframe
   · simpa only [sh.frames_eq, sh.frame_eq, sh.active_eq] using hactive
-  · exact (hr Reg.zero (by decide) (by decide)).trans sh.zero_eq
-  · exact (hr Reg.one (by decide) (by decide)).trans sh.one_eq
-  · exact (hr Reg.four (by decide) (by decide)).trans sh.four_eq
-  · exact (hr Reg.frameWidth (by decide) (by decide)).trans sh.frameWidth_eq
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
 
 end Cslib.Algorithms.WordRAM.Strassen

@@ -111,7 +111,7 @@ theorem eval_excludeClause_eq_true_iff (τ : ℕ → Bool) (u v : ℕ) (p : α �
     exacts [⟨_, Or.inl ⟨i, rfl⟩, hi⟩, ⟨_, Or.inr ⟨i, rfl⟩, hi⟩]
 
 /-- Every clause of `toCNF` has width `2 k`. -/
-private theorem length_of_mem_toCNF {g : Graph (α → α → Bool)} {c : Clause ℕ}
+theorem length_of_mem_toCNF {g : Graph (α → α → Bool)} {c : Clause ℕ}
     (hc : c ∈ toCNF e pairs g) :
     c.length = 2 * k := by
   obtain ⟨d, -, hc⟩ := List.mem_flatMap.1 hc
@@ -162,6 +162,16 @@ private theorem card_unsatEdges_le_countUnsat (hpairs : ∀ p, p ∈ pairs) (g :
       List.mem_map.2 ⟨_, List.mem_filter.2 ⟨hpairs _, hd⟩, rfl⟩, ?_⟩
   rw [Bool.not_eq_true', Bool.eq_false_iff, ne_eq, eval_excludeClause_eq_true_iff]
   simp
+
+/-- When `pairs` lists every pair of labels, the formula of a constraint graph is satisfiable
+exactly when the graph is. An assignment satisfying the formula writes a labelling that violates
+no edge. -/
+theorem satisfiable_toCNF_iff (hpairs : ∀ p, p ∈ pairs) {g : Graph (α → α → Bool)} :
+    (toCNF e pairs g).Satisfiable ↔ (g.toGraph id).Satisfiable := by
+  refine ⟨fun ⟨τ, hτ⟩ => ⟨readLabel e τ, ?_⟩, satisfiable_toCNF e pairs⟩
+  have h := card_unsatEdges_le_countUnsat e pairs hpairs g τ
+  rwa [CNF.countUnsat_eq_zero_iff.2 hτ, Nat.le_zero, Finset.card_eq_zero,
+    ConstraintGraph.unsatEdges_eq_empty_iff] at h
 
 /-- Splitting the clauses of `toCNF`, all of width `2 k`, gives `2 k - 2` clauses for each, and at
 least one. -/

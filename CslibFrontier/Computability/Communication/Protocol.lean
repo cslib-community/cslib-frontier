@@ -28,11 +28,12 @@ on `A × B` is the least depth of a protocol solving it, or `⊤` if there is no
 (`Protocol.ecomplexity`) [Kushilevitz and Nisan, Chapter 5][KushilevitzNisan1997]. The
 communication complexity of computing a function `f` is that of the relation `f x y = z` on all
 inputs (`Protocol.ecomplexityFun`), and a protocol solves that relation exactly when it computes
-`f` (`Protocol.solves_univ_iff`). A protocol can be run on transformed inputs (`Protocol.comap`).
+`f` (`Protocol.solves_univ_iff`). A protocol can be run on transformed inputs (`Protocol.comap`),
+or with the players exchanged (`Protocol.swap`).
 
-Alice can send a bit string in as many bits (`Protocol.aliceSend`), so every Boolean function of
-Alice's `n` bits and Bob's input has a protocol with `n + 1` bits: Alice sends her input and Bob
-announces the value (`Protocol.ecomplexityFun_le_succ`).
+Either player can send a bit string in as many bits (`Protocol.aliceSend`, `Protocol.bobSend`),
+so every Boolean function of Alice's `n` bits and Bob's input has a protocol with `n + 1` bits:
+Alice sends her input and Bob announces the value (`Protocol.ecomplexityFun_le_succ`).
 
 ## Main definitions
 
@@ -43,7 +44,9 @@ announces the value (`Protocol.ecomplexityFun_le_succ`).
 * `Cslib.Communication.Protocol.ecomplexity`: the communication complexity of a relation.
 * `Cslib.Communication.Protocol.ecomplexityFun`: the communication complexity of a function.
 * `Cslib.Communication.Protocol.comap`: running a protocol on transformed inputs.
-* `Cslib.Communication.Protocol.aliceSend`: Alice sends a bit string.
+* `Cslib.Communication.Protocol.swap`: the protocol with the players exchanged.
+* `Cslib.Communication.Protocol.aliceSend`, `Cslib.Communication.Protocol.bobSend`: Alice or Bob
+  sends a bit string.
 
 ## Main results
 
@@ -279,6 +282,23 @@ def comap (f : X' → X) (g : Y' → Y) : Protocol X Y Z → Protocol X' Y' Z
   | output z => rfl
   | alice send p₀ p₁ ih₀ ih₁ | bob send p₀ p₁ ih₀ ih₁ => simp [comap, ih₀, ih₁]
 
+/-- The protocol with the players exchanged: Alice's messages become Bob's and Bob's become
+Alice's, so that the protocol runs with the inputs in the other order. -/
+def swap : Protocol X Y Z → Protocol Y X Z
+  | output z => output z
+  | alice send p₀ p₁ => bob send p₀.swap p₁.swap
+  | bob send p₀ p₁ => alice send p₀.swap p₁.swap
+
+@[simp] theorem run_swap (p : Protocol X Y Z) (x : X) (y : Y) : p.swap.run y x = p.run x y := by
+  induction p with
+  | output z => rfl
+  | alice send p₀ p₁ ih₀ ih₁ | bob send p₀ p₁ ih₀ ih₁ => simp [swap, ih₀, ih₁]
+
+@[simp] theorem depth_swap (p : Protocol X Y Z) : p.swap.depth = p.depth := by
+  induction p with
+  | output z => rfl
+  | alice send p₀ p₁ ih₀ ih₁ | bob send p₀ p₁ ih₀ ih₁ => simp [swap, ih₀, ih₁]
+
 /-! ### Sending a bit string -/
 
 /-- Alice sends the `n` bits of `msg x`, first bit first, after which the protocol continues with
@@ -310,6 +330,22 @@ theorem depth_aliceSend_le {n d : ℕ} {msg : X → BitString n} {cont : BitStri
     have h₁ := ih (cont := fun m => cont (Fin.cons true m)) (msg := fun x => Fin.tail (msg x))
       fun m => h _
     omega
+
+/-- Bob sends the `n` bits of `msg y`, first bit first, after which the protocol continues with
+`cont` of the bits sent: `aliceSend` with the players exchanged. -/
+def bobSend (n : ℕ) (msg : Y → BitString n) (cont : BitString n → Protocol X Y Z) :
+    Protocol X Y Z :=
+  (aliceSend n msg fun m => (cont m).swap).swap
+
+@[simp] theorem run_bobSend (n : ℕ) (msg : Y → BitString n) (cont : BitString n → Protocol X Y Z)
+    (x : X) (y : Y) : (bobSend n msg cont).run x y = (cont (msg y)).run x y := by
+  simp [bobSend]
+
+/-- Sending `n` bits adds at most `n` to the depth. -/
+theorem depth_bobSend_le {n d : ℕ} {msg : Y → BitString n} {cont : BitString n → Protocol X Y Z}
+    (h : ∀ m, (cont m).depth ≤ d) : (bobSend n msg cont).depth ≤ n + d := by
+  simpa [bobSend] using
+    depth_aliceSend_le (msg := msg) fun m => (depth_swap (cont m)).trans_le (h m)
 
 /-- **The trivial protocol.** Every Boolean function of Alice's `n` bits and Bob's input has a
 protocol with `n + 1` bits: Alice sends her input and Bob announces the value. -/

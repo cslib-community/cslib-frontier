@@ -19,6 +19,8 @@ public import Mathlib.Analysis.SpecialFunctions.Sqrt
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
+import Mathlib.Analysis.Convex.Jensen
+import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 
 /-!
 # Chi-square divergence for discrete distributions
@@ -53,6 +55,8 @@ Note that the reference/denominator distribution `q` is the **second** argument,
   data processing under Markov kernels and deterministic maps.
 * `Cslib.Probability.PMF.one_add_chiSquare_bind_eq`, `one_add_chiSquare_bind_iid_eq`:
   the mixture second-moment identity (`Ingster` / `Le Cam`).
+* `Cslib.Probability.PMF.exp_neg_half_sum_mul_log_div_le_bhattacharyya`:
+  the classical overlap bounds the exponential of minus half the divergence.
 * `Cslib.Probability.PMF.two_mul_hellingerSq_le_toReal_klDiv`,
   `toReal_klDiv_le_log_one_add_chiSquare`, `toReal_klDiv_le_chiSquare`,
   `two_mul_hellingerSq_le_chiSquare`: comparison hierarchy `2 h² ≤ KL ≤ log(1 + χ²) ≤ χ²`.
@@ -568,46 +572,45 @@ private lemma support_toReal_pos {p q : PMF α} (h : p.support ⊆ q.support) {a
       (fun ha => (PMF.apply_eq_zero_iff q a).mp ha (h ((PMF.mem_support_iff p a).mpr hpa)))
       (q.apply_ne_top a)⟩
 
+/-- The Bhattacharyya coefficient bounds the exponential of minus half the KL divergence. -/
+theorem exp_neg_half_sum_mul_log_div_le_bhattacharyya [Fintype α] {p q : PMF α}
+    (h : p.support ⊆ q.support) :
+    Real.exp (-(∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal)) / 2) ≤
+      bhattacharyya p q := by
+  have hj := convexOn_exp.map_sum_le
+    (t := (Finset.univ : Finset α)) (w := fun a => (p a).toReal)
+    (p := fun a => -Real.log ((p a).toReal / (q a).toReal) / 2)
+    (fun _ _ => ENNReal.toReal_nonneg) (sum_toReal p) (fun _ _ => Set.mem_univ _)
+  simp only [smul_eq_mul] at hj
+  have hexp : (∑ a, (p a).toReal * (-Real.log ((p a).toReal / (q a).toReal) / 2)) =
+      -(∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal)) / 2 := by
+    rw [← Finset.sum_neg_distrib, Finset.sum_div]
+    exact Finset.sum_congr rfl fun a _ => by ring
+  rw [hexp] at hj
+  rw [bhattacharyya_eq_sum]
+  refine hj.trans_eq (Finset.sum_congr rfl fun a _ => ?_)
+  by_cases hpa : p a = 0
+  · simp [hpa]
+  · obtain ⟨hp, hq⟩ := support_toReal_pos h hpa
+    rw [Real.exp_half, Real.exp_neg, Real.exp_log (div_pos hp hq), inv_div]
+    calc
+      (p a).toReal * Real.sqrt ((q a).toReal / (p a).toReal) =
+          Real.sqrt ((p a).toReal ^ 2) * Real.sqrt ((q a).toReal / (p a).toReal) := by
+        rw [Real.sqrt_sq hp.le]
+      _ = Real.sqrt ((p a).toReal * (q a).toReal) := by
+        rw [← Real.sqrt_mul (sq_nonneg _)]
+        congr 1
+        field_simp
+
 /-- Comparison between squared Hellinger distance and KL divergence (natural log):
 `2 * hellingerSq p q ≤ (klDiv p.toMeasure q.toMeasure).toReal` when `p.support ⊆ q.support`. -/
 theorem two_mul_hellingerSq_le_toReal_klDiv [Finite α] [MeasurableSpace α]
     [MeasurableSingletonClass α] {p q : PMF α} (h : p.support ⊆ q.support) :
     2 * hellingerSq p q ≤ (klDiv p.toMeasure q.toMeasure).toReal := by
   let := Fintype.ofFinite α
-  rw [toReal_klDiv_toMeasure h, hellingerSq_eq_one_sub_bhattacharyya, bhattacharyya_eq_sum]
-  have hsum : 2 * (1 - ∑ a, Real.sqrt ((p a).toReal * (q a).toReal)) =
-      ∑ a, 2 * ((p a).toReal - Real.sqrt ((p a).toReal * (q a).toReal)) := by
-    rw [← Finset.mul_sum, Finset.sum_sub_distrib, sum_toReal]
-  rw [hsum]
-  refine Finset.sum_le_sum fun a _ => ?_
-  by_cases hpa : p a = 0
-  · simp [hpa]
-  · obtain ⟨hppos, hqpos⟩ := support_toReal_pos h hpa
-    have hrpos : 0 < Real.sqrt ((q a).toReal / (p a).toReal) :=
-      Real.sqrt_pos.mpr (div_pos hqpos hppos)
-    have hlog := Real.log_le_sub_one_of_pos hrpos
-    rw [Real.sqrt_eq_rpow, Real.log_rpow (div_pos hqpos hppos),
-      Real.log_div hqpos.ne' hppos.ne'] at hlog
-    rw [← Real.sqrt_eq_rpow] at hlog
-    have hmul : 2 * ((p a).toReal * (1 - Real.sqrt ((q a).toReal / (p a).toReal))) =
-        2 * ((p a).toReal - Real.sqrt ((p a).toReal * (q a).toReal)) := by
-      have hsq : (p a).toReal * Real.sqrt ((q a).toReal / (p a).toReal) =
-          Real.sqrt ((p a).toReal * (q a).toReal) := by
-        rw [Real.sqrt_div ENNReal.toReal_nonneg, Real.sqrt_mul ENNReal.toReal_nonneg]
-        have hs : Real.sqrt (p a).toReal ≠ 0 := (Real.sqrt_pos.mpr hppos).ne'
-        calc (p a).toReal * (Real.sqrt (q a).toReal / Real.sqrt (p a).toReal)
-          _ = (Real.sqrt (p a).toReal * Real.sqrt (p a).toReal) *
-                (Real.sqrt (q a).toReal / Real.sqrt (p a).toReal) := by
-              rw [Real.mul_self_sqrt ENNReal.toReal_nonneg]
-          _ = Real.sqrt (p a).toReal * Real.sqrt (q a).toReal := by
-              field_simp [hs]
-      linarith
-    have hmul2 :
-        2 * ((p a).toReal * ((1 / 2 : ℝ) * (Real.log (q a).toReal - Real.log (p a).toReal))) =
-          -((p a).toReal * Real.log ((p a).toReal / (q a).toReal)) := by
-      rw [Real.log_div hppos.ne' hqpos.ne']
-      ring
-    nlinarith [hppos]
+  rw [toReal_klDiv_toMeasure h, hellingerSq_eq_one_sub_bhattacharyya]
+  linarith [exp_neg_half_sum_mul_log_div_le_bhattacharyya h,
+    Real.add_one_le_exp (-(∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal)) / 2)]
 
 /-- KL divergence is bounded by `log (1 + χ²)`:
 `(klDiv p.toMeasure q.toMeasure).toReal ≤ Real.log (1 + chiSquare p q)`. -/

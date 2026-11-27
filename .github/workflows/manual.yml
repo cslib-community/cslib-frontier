@@ -122,6 +122,4 @@ jobs:
             echo "[Download both manual PDFs and their source manifests]($ARTIFACT_URL)"
             echo
             echo "Built from: \`$SOURCE_SHA\`"
-            echo
-            echo "Inspect the affected rendered pages and source links before integration."
           } >> "$GITHUB_STEP_SUMMARY"

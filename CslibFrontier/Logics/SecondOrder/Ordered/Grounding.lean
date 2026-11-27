@@ -121,12 +121,8 @@ private def groundCoordEquiv : (t : Φ.GroundTag) → t.Coord ≃ Fin (Φ.ground
 noncomputable def groundPayloadDim : ℕ :=
   ((allGroundTags Φ).map Φ.groundCoordArity).foldr max 0
 
-private theorem le_foldr_max_of_mem : ∀ {l : List ℕ} {a : ℕ}, a ∈ l → a ≤ l.foldr max 0
-  | _, _, .head _ => Nat.le_max_left _ _
-  | _ :: _, _, .tail _ h => Nat.le_trans (le_foldr_max_of_mem h) (Nat.le_max_right _ _)
-
 theorem groundCoordArity_le (t : Φ.GroundTag) : Φ.groundCoordArity t ≤ Φ.groundPayloadDim :=
-  le_foldr_max_of_mem (List.mem_map_of_mem (mem_allGroundTags Φ t))
+  List.le_max_of_le' 0 (List.mem_map_of_mem (mem_allGroundTags Φ t)) le_rfl
 
 /-- Full-tuple dimension `groundTagCard Φ + groundPayloadDim Φ` of `Φ.groundQFInterpretation`. -/
 noncomputable abbrev groundDim : ℕ :=

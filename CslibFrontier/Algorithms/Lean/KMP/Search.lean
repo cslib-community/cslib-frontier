@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.KMP.Basic
 public import Cslib.Algorithms.Lean.TimeM
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Knuth–Morris–Pratt Failure Table Construction and Exact String Matching
@@ -210,27 +211,7 @@ comparisons plus new state never exceed `k + 2`. -/
 theorem advanceM_time_add_ret_le {α : Type*} [DecidableEq α]
     (p : Array α) (pi : Array ℕ) (k : ℕ) (c : α) :
     (advanceM p pi k c).time + (advanceM p pi k c).ret ≤ k + 2 := by
-  induction k using Nat.strongRecOn with
-  | ind k ih =>
-    rw [advanceM]
-    split_ifs with hk hmatch hk0 hpi hlt
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure]
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure]
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.ret_bind]
-      have hsub := ih (pi[k - 1]'hpi) hlt
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure]
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure]
-      omega
-    · simp only [TimeM.time_pure, TimeM.ret_pure]
-      omega
+  time_spec advanceM
 
 /-- Under a valid partial prefix table `IsPrefixTableFor p pi` covering `k ≤ pi.size` with
 `k < p.size`, `advanceM` computes `nextLen p.toList k c`. -/
@@ -245,8 +226,8 @@ theorem ret_advanceM_eq_nextLen {α : Type*} [DecidableEq α]
     rw [advanceM, nextLen]
     simp only [hkp, hklist, ↓reduceDIte, hget]
     split_ifs with hmatch hk0 hpi hlt
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
+    · simp only [time_simps]
+    · simp only [time_simps]
     · have hsub1 : k - 1 + 1 = k := by omega
       have hval : pi[k - 1]'hpi = borderLen p.toList k := by
         simpa only [hsub1] using htab.2 (k - 1) hpi
@@ -463,7 +444,7 @@ private theorem kmpSearchLoopM_time_le {α : Type*} [DecidableEq α]
     have hadv := advanceM_time_add_ret_le p pi k (t[i]'hi)
     set k' := (advanceM p pi k (t[i]'hi)).ret
     split_ifs with hfull
-    · simp only [TimeM.time_bind, TimeM.time_pure]
+    · simp only [time_simps]
       have hkNext_le : resetFullMatch p.size pi ≤ k' := hfull ▸ resetFullMatch_le hdec
       have hsub := ih (i + 1) (resetFullMatch p.size pi) (by omega)
       omega

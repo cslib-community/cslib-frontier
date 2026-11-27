@@ -15,7 +15,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Advice
 import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Padding
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat

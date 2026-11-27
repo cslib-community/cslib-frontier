@@ -500,7 +500,8 @@ theorem two_pow_mul_expect_liveEdges_run_le (k : ℕ) :
       tsum_eq_single init (fun t ht => by rw [PMF.pure_apply, ite_eq_right ht, zero_mul]),
       PMF.pure_apply, ite_eq_left rfl, one_mul, liveEdges_init]
   | succ k ih =>
-    rw [run_succ, ProbComp.eval_bind, Probability.PMF.tsum_bind_mul]
+    rw [run_succ, ProbComp.eval_bind,
+      Probability.PMF.tsum_bind_mul]
     calc 2 ^ (k + 1) * ∑' a, ProbComp.eval (run G k) a *
           ∑' t, ProbComp.eval (phase G a) t * (liveEdges G t : ℝ≥0∞)
         = 2 ^ k * ∑' a, ProbComp.eval (run G k) a *
@@ -532,7 +533,8 @@ theorem two_pow_mul_toOuterMeasure_live_nonempty_le (k : ℕ) :
     2 ^ k * (ProbComp.eval (run G (k + 1))).toOuterMeasure {s | s.live.Nonempty} ≤
       G.edgeFinset.card := by
   refine le_trans ?_ (two_pow_mul_expect_liveEdges_run_le G k)
-  rw [run_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply]
+  rw [run_succ, ProbComp.eval_bind,
+    PMF.toOuterMeasure_bind_apply]
   gcongr with a
   rcases Nat.eq_zero_or_pos (liveEdges G a) with h0 | hpos
   · rw [h0, Nat.cast_zero, eval_phase, PMF.toOuterMeasure_map_apply]
@@ -547,7 +549,8 @@ set fails to be a maximal independent set with probability at most `2 ^ (-t)`. -
 theorem toOuterMeasure_not_maximal_lubyMIS_le {m : ℕ} (hm : G.edgeFinset.card ≤ 2 ^ m) (t : ℕ) :
     (ProbComp.eval (lubyMIS G (m + t + 1))).toOuterMeasure
         {S | ¬ Maximal G.IsIndepSet (S : Set V)} ≤ (2 ^ t)⁻¹ := by
-  rw [lubyMIS, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
+  rw [lubyMIS, ProbComp.eval_map,
+    PMF.toOuterMeasure_map_apply]
   have hsub : (State.chosen ⁻¹' {S : Finset V | ¬ Maximal G.IsIndepSet (S : Set V)}) ∩
       (ProbComp.eval (run G (m + t + 1))).support ⊆ {s | s.live.Nonempty} := by
     rintro s ⟨hs, hsupp⟩

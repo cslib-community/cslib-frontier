@@ -316,7 +316,8 @@ namespace RunsBetweenWhileCond
 
 variable {c : Option Symbol → (Fin k → Option Symbol) → Bool} {tm : MultiTapeTM k Symbol State}
 
-private lemma step_check (d : Cfg k Symbol Unit input) :
+/-- At a check boundary, read the test and start the body or halt with unchanged tapes. -/
+theorem step_check (d : Cfg k Symbol Unit input) :
     (whileCond c tm).step (d.withState (some (.inr ()))) =
       d.withState (if c d.inputSymbol d.workTapeSymbols then some (.inl tm.q₀) else none) := by
   rw [step_of_state rfl]
@@ -369,6 +370,33 @@ private lemma exists_round {d d' : Cfg k Symbol Unit input} {t s : ℕ}
     (Nat.add_le_add (space_one_check d) h2)
   omega
 
+/-- After a prefix of successful tests, the next check boundary is reached. Each test
+takes a step, and the supplied round clocks and space bounds give upper bounds. -/
+theorem reaches_checkpoint (cfg : ℕ → Cfg k Symbol Unit input) (n : ℕ) (t s : ℕ → ℕ)
+    (hround : ∀ i < n, c (cfg i).inputSymbol (cfg i).workTapeSymbols = true ∧
+      RunsBetween tm (cfg i) (cfg (i + 1)) (t i) (s i)) :
+    ∃ τ, n ≤ τ ∧ τ ≤ ∑ i ∈ Finset.range n, (t i + 1) ∧
+      (whileCond c tm).runFrom ((cfg 0).withState (some (.inr ()))) τ =
+        (cfg n).withState (some (.inr ())) ∧
+      (MultiTapeNTM.RunPath.ofDeterministic (whileCond c tm)
+        ((cfg 0).withState (some (.inr ()))) τ).space ≤
+        ∑ i ∈ Finset.range n, (s i + k) + k := by
+  induction n with
+  | zero =>
+    refine ⟨0, le_rfl, by simp, rfl, ?_⟩
+    simpa using space_le_of_workTapePos_const (tm := whileCond c tm)
+      ((cfg 0).withState (some (.inr ()))) 0 fun m hm => by rw [Nat.le_zero.mp hm]; rfl
+  | succ n ih =>
+    obtain ⟨τ, hlow, hτ, hrun, hsp⟩ := ih fun i hi => hround i (Nat.lt_succ_of_lt hi)
+    obtain ⟨hc, hr⟩ := hround n (Nat.lt_succ_self n)
+    obtain ⟨u, hu, hrun', hsp'⟩ := exists_round hc hr
+    refine ⟨τ + (1 + u), by omega, by rw [Finset.sum_range_succ]; omega, ?_, ?_⟩
+    · rw [runFrom_add, hrun, Nat.add_comm 1 u, hrun']
+    · refine (space_add_le _ τ (1 + u)).trans ?_
+      rw [hrun, Finset.sum_range_succ]
+      have := Nat.add_le_add hsp hsp'
+      omega
+
 end RunsBetweenWhileCond
 
 open RunsBetweenWhileCond in
@@ -382,29 +410,13 @@ theorem runsBetween_whileCond {c : Option Symbol → (Fin k → Option Symbol) �
     (hstop : c (cfg n).inputSymbol (cfg n).workTapeSymbols = false) :
     RunsBetween (whileCond c tm) (cfg 0) (cfg n) (∑ i ∈ Finset.range n, (t i + 1) + 1)
       (∑ i ∈ Finset.range n, (s i + k) + 2 * k) := by
-  set start := (cfg 0).withState (some (whileCond c tm).q₀) with hstart
-  have hrec : ∀ m ≤ n, ∃ τ ≤ ∑ i ∈ Finset.range m, (t i + 1),
-      (whileCond c tm).runFrom start τ = (cfg m).withState (some (.inr ())) ∧
-      (MultiTapeNTM.RunPath.ofDeterministic (whileCond c tm) start τ).space ≤
-        ∑ i ∈ Finset.range m, (s i + k) + k := by
-    intro m hm
-    induction m with
-    | zero => exact ⟨0, le_rfl, rfl, by
-        simpa using space_le_of_workTapePos_const (tm := whileCond c tm) start 0
-          fun m hm => by rw [Nat.le_zero.mp hm]; rfl⟩
-    | succ m ih =>
-      obtain ⟨τ, hτ, hrun, hsp⟩ := ih (by lia)
-      obtain ⟨hc, hr⟩ := hround m (by lia)
-      obtain ⟨u, hu, hrun', hsp'⟩ := exists_round hc hr
-      refine ⟨τ + (1 + u), by rw [Finset.sum_range_succ]; lia, ?_, ?_⟩
-      · rw [runFrom_add, hrun, Nat.add_comm 1 u, hrun']
-      · refine (space_add_le _ τ (1 + u)).trans ?_
-        rw [hrun, Finset.sum_range_succ]
-        have := Nat.add_le_add hsp hsp'
-        omega
-  obtain ⟨τ, hτ, hrun, hsp⟩ := hrec n le_rfl
+  let start := (cfg 0).withState (some (whileCond c tm).q₀)
+  obtain ⟨τ, _, hτ, hrun, hsp⟩ := reaches_checkpoint (c := c) (tm := tm) cfg n t s hround
+  change (whileCond c tm).runFrom start τ = _ at hrun
+  change (MultiTapeNTM.RunPath.ofDeterministic (whileCond c tm) start τ).space ≤ _ at hsp
   have hfinal : (whileCond c tm).runFrom start (τ + 1) = (cfg n).withState none := by
-    grind [runFrom_succ, step_check]
+    rw [runFrom_succ, hrun, step_check, hstop]
+    rfl
   have hhalt : ((whileCond c tm).runFrom start (τ + 1)).state = none := by rw [hfinal]; rfl
   refine ⟨by rw [runFrom_eq_of_halt _ _ (by lia) hhalt, hfinal], ?_⟩
   rw [space_eq_of_halt _ (by lia) hhalt]

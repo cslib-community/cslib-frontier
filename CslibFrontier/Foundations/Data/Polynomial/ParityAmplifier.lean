@@ -808,7 +808,7 @@ theorem two_pow_dvd_coeff_prod_parityFactor {ι : Type*} (I : Finset ι) (ℓ : 
   | empty =>
     rw [prod_empty]
     rcases s with _ | s
-    · simp only [pow_zero, coeff_one_zero, dvd_refl]
+    · simp only [pow_zero, AddMonoidAlgebra.coeff_one_zero, dvd_refl]
     · rw [coeff_one, ite_eq_right (Nat.succ_ne_zero s)]
       exact dvd_zero _
   | insert a I ha ih =>
@@ -917,7 +917,7 @@ theorem totalDegree_coeff_prod_parityFactor_le {ι σ R : Type*} [CommRing R] (I
   | empty =>
     rw [prod_empty, card_empty, zero_add]
     rcases s with _ | s
-    · simp only [coeff_one_zero, MvPolynomial.totalDegree_one, zero_le]
+    · simp only [AddMonoidAlgebra.coeff_one_zero, MvPolynomial.totalDegree_one, zero_le]
     · rw [coeff_one, ite_eq_right (Nat.succ_ne_zero s), MvPolynomial.totalDegree_zero]
       exact Nat.zero_le _
   | insert a I ha ih =>

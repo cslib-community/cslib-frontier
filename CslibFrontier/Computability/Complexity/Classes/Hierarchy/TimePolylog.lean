@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Time
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.BitLength
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LogClock
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedComplexity
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import CslibFrontier.Tactic.EncLen

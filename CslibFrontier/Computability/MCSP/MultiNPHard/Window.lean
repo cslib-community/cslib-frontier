@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Computability.Circuit.StraightLine
 import CslibFrontier.Foundations.Data.BitString.Binary
 import Cslib.Computability.Circuit.Synthesis
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Window templates
@@ -234,10 +235,7 @@ theorem value_window_last (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) 
     value A T (.window i (lastIdx p)) x =
       decide (BitString.equivFin p x ∈ A i ∧ T (BitString.equivFin p x) = true) := by
   have hle : BitString.equivFin p x ≤ lastIdx p := by
-    rw [Fin.le_iff_val_le_val]
-    simp only [lastIdx]
-    have := (BitString.equivFin p x).isLt
-    omega
+    fin_index [lastIdx]
   rw [value_window]
   exact decide_eq_decide.mpr (and_iff_right hle)
 
@@ -330,9 +328,7 @@ private theorem value_grid_last (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2
     funext b
     rw [BitString.equivFin_symm_apply]
     refine h b ?_
-    rw [Fin.le_iff_val_le_val]
-    simp only [lastBit]
-    omega
+    fin_index [lastBit]
   · subst h
     have hb := BitString.equivFin_symm_apply (BitString.equivFin p x) b
     rw [Equiv.symm_apply_apply] at hb
@@ -351,16 +347,14 @@ private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^
     by_cases hk : (k : ℕ) = 0
     · rw [dite_eq_left hk, elim_litWire, Bool.and_self, value_grid]
       refine decide_eq_decide.mpr ⟨fun h => h k le_rfl, fun h b hb => ?_⟩
-      obtain rfl : b = k := Fin.ext (by rw [Fin.le_iff_val_le_val] at hb; omega)
+      obtain rfl : b = k := by omega
       exact h
     · rw [dite_eq_right hk, elim_gateWire, value_grid, value_grid, ← Bool.decide_and]
       refine decide_eq_decide.mpr
         ⟨fun h => ⟨fun b hb => h b ?_, h k le_rfl⟩, fun ⟨h, hk'⟩ b hb => ?_⟩
-      · rw [Fin.le_iff_val_le_val] at hb ⊢
-        simp only at hb
-        omega
+      · fin_index
       · rcases (Fin.le_iff_val_le_val.mp hb).lt_or_eq with hlt | heq
-        · exact h b (by rw [Fin.le_iff_val_le_val]; simp only; omega)
+        · exact h b (by fin_index)
         · obtain rfl : b = k := Fin.ext heq
           exact hk'
   | window i y =>
@@ -377,18 +371,17 @@ private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^
     split <;> rename_i hy0
     · rw [elim_gateWire, value_zero, Bool.false_or]
       refine decide_eq_decide.mpr ⟨fun ⟨hle, hm, hT⟩ => ?_, fun ⟨he, hm, hT⟩ => ?_⟩
-      · have he : BitString.equivFin p x = y :=
-          Fin.ext (by rw [Fin.le_iff_val_le_val] at hle; omega)
+      · have he : BitString.equivFin p x = y := by omega
         exact ⟨he, he ▸ hm, he ▸ hT⟩
       · exact ⟨he.le, he ▸ hm, he ▸ hT⟩
     · rw [elim_gateWire, value_window, ← Bool.decide_or]
       refine decide_eq_decide.mpr ⟨fun ⟨hle, hm, hT⟩ => ?_, ?_⟩
       · rcases (Fin.le_iff_val_le_val.mp hle).lt_or_eq with hlt | heq
-        · exact .inl ⟨by rw [Fin.le_iff_val_le_val]; simp only; omega, hm, hT⟩
+        · exact .inl ⟨by fin_index, hm, hT⟩
         · have he : BitString.equivFin p x = y := Fin.ext heq
           exact .inr ⟨he, he ▸ hm, he ▸ hT⟩
       · rintro (⟨hle, hm, hT⟩ | ⟨he, hm, hT⟩)
-        · exact ⟨by rw [Fin.le_iff_val_le_val] at hle ⊢; simp only at hle; omega, hm, hT⟩
+        · exact ⟨by fin_index, hm, hT⟩
         · exact ⟨he.le, he ▸ hm, he ▸ hT⟩
 
 /-- A wire is *early* for gate `κ` when it is an input or a gate numbered before `κ`. -/

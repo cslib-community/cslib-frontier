@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.StatisticalDistance.Polarization
 public import CslibFrontier.Probability.StatisticalDistance.XORSampling
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.StatisticalDistance.Event
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Polarization of circuit samplers
@@ -156,8 +157,7 @@ theorem eval_xorMixBlock {n m : ℕ} (C₀ C₁ : Circuit signature n m) (b : Bo
       fun _ => b := by
     funext t
     simp
-  simp only [xorMixBlock, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_wiring, h₁, h₂,
-    eval_muxCircuit]
+  simp only [circuit_simps, xorMixBlock, h₁, h₂, eval_muxCircuit]
   cases b <;> rfl
 
 /-- **The XOR construction on circuits** [SahaiVadhan2003, Lemma 3.5], on `j + 1` coordinates: the

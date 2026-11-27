@@ -16,6 +16,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIt
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Uniform resources for counting sparsification
@@ -487,8 +489,7 @@ private theorem declared_resources_input {C : Type} {encC : C ↪ List Bool}
   obtain ⟨da, ha⟩ := polyTime_inO hp
   have hlen (x : C × ℕ × CNF ℕ) : L' x + 1 ≤ 2 * (L x + 1) := by
     dsimp only [L, L', rearrange]
-    simp only [length_encPair]
-    omega
+    enc_len
   have hpoly (x : C × ℕ × CNF ℕ) :
       (L x + 1) ^ da + c * (L' x + 1) ^ e ≤
         (1 + c * 2 ^ e) * (L x + 1) ^ (da + e) := by

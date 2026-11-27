@@ -23,9 +23,11 @@ derives the symbols read and the situation of the step, and from the terms of th
 of gates. Running for `T` steps takes `O(T · (n + T))` gates
 [Sipser, Theorem 9.30][Sipser2013].
 
-The language of the inputs on which the machine has written `[true]` after `T n` steps is
-therefore in `P/poly` whenever `T` is polynomially bounded (`acceptedWithin_mem_PPoly`); this is
-the core of `P ⊆ P/poly` [Arora and Barak, Theorem 6.6][AroraBarak09].
+The slice at length `n` of the language of the inputs on which the machine has written `[true]`
+after `T n` steps therefore has `O((n + T n) ^ 2)` gates
+(`complexity_slice_acceptedWithin_le`), and the language is in `P/poly` whenever `T` is
+polynomially bounded (`acceptedWithin_mem_PPoly`); this is the core of `P ⊆ P/poly`
+[Arora and Barak, Theorem 6.6][AroraBarak09].
 
 ## Main definitions
 
@@ -52,6 +54,8 @@ the core of `P ⊆ P/poly` [Arora and Barak, Theorem 6.6][AroraBarak09].
   time `t` to those at time `t + 1`.
 * `Cslib.Circuits.Boolean.MachineSimulation.synthesis_basic`: the basic features at every time
   `t ≤ T`, from the inputs.
+* `Cslib.Circuits.Boolean.MachineSimulation.complexity_slice_acceptedWithin_le`: running `T` steps
+  takes `O((n + T) ^ 2)` gates.
 * `Cslib.Circuits.Boolean.MachineSimulation.acceptedWithin_mem_PPoly`.
 
 ## References
@@ -395,16 +399,35 @@ theorem synthesis_basic : ∀ t ≤ T,
     have := (synthesis_basic t (by omega)).trans (synthesis_step tm (by omega))
     rwa [Nat.add_mul, one_mul, ← Nat.add_assoc]
 
-/-- The total cost of simulating `T` steps on inputs of length `n`. -/
-private def simulationCost (n T k : ℕ) (State : Type) [Fintype State] : ℕ :=
-  featureCount n T k State + T * stepCost n T k State
-
 omit [DecidableEq State] in
-/-- The simulation cost is polynomially bounded when the number of steps is. -/
-private theorem polynomiallyBounded_simulationCost {T : ℕ → ℕ} (hT : PolynomiallyBounded T) :
-    PolynomiallyBounded fun n => simulationCost n (T n) k State := by
-  simp only [simulationCost, featureCount, stepCost, readsCost, featureCost]
-  fun_prop
+/-- **The simulation has `O((n + T) ^ 2)` gates**: the basic features and one step each cost
+`O(n + T)` gates. -/
+private theorem featureCount_add_mul_stepCost_le (n T : ℕ) :
+    featureCount n T k State + T * stepCost n T k State ≤
+      ((Fintype.card State + 8 + 12 * k) * (featureCost k State + 1) + 21 * k + 30 +
+        Fintype.card (Situation k State) * (k + 3)) * (n + T + 1) ^ 2 := by
+  set u := n + T + 1 with hu_def
+  set A := Fintype.card State + 8 + 12 * k
+  have hu : 1 ≤ u := by omega
+  have hkT : k * T ≤ k * u := Nat.mul_le_mul_left k (by omega)
+  have hku : k ≤ k * u := Nat.le_mul_of_pos_right k hu
+  have hF : featureCount n T k State ≤ A * u := by
+    simp only [featureCount, A]
+    nlinarith [Nat.le_mul_of_pos_right (Fintype.card State) hu]
+  have hR : readsCost n k T ≤ (21 * k + 30) * u := by
+    simp only [readsCost]
+    nlinarith
+  have hS : stepCost n T k State ≤ (A * featureCost k State + 21 * k + 30 +
+      Fintype.card (Situation k State) * (k + 3)) * u := by
+    simp only [stepCost]
+    have := Nat.mul_le_mul_right (featureCost k State) hF
+    linarith [Nat.le_mul_of_pos_right (Fintype.card (Situation k State) * (k + 3)) hu]
+  have hT : T ≤ u := by omega
+  calc featureCount n T k State + T * stepCost n T k State
+      ≤ A * u + u * ((A * featureCost k State + 21 * k + 30 +
+          Fintype.card (Situation k State) * (k + 3)) * u) :=
+        Nat.add_le_add hF (Nat.mul_le_mul hT hS)
+    _ ≤ _ := by nlinarith
 
 end Run
 
@@ -421,16 +444,29 @@ theorem mem_acceptedWithin_iff (T : ℕ → ℕ) (w : List Bool) :
     congrArg (fun u => OutView.ofList (tm.runFrom (tm.initCfg u) (T w.length)).output)
       (List.ext_getElem (by simp) fun i _ _ => by simp : List.ofFn (w[·]) = w)]
 
+/-- **Running `T` steps takes `O((n + T) ^ 2)` gates.** For a machine with finitely many states,
+there is a constant `C` such that, for every step count `T n`, the slice at length `n` of the
+inputs on which the output after `T n` steps is `[true]` has circuit complexity at most
+`C (n + T n + 1) ^ 2` [Sipser, Theorem 9.30][Sipser2013]. -/
+theorem complexity_slice_acceptedWithin_le [Finite State] :
+    ∃ C : ℕ, ∀ (T : ℕ → ℕ) (n : ℕ),
+      complexity interpretation (single ((acceptedWithin tm T).slice n)) ≤
+        C * (n + T n + 1) ^ 2 := by
+  have := Fintype.ofFinite State
+  refine ⟨(Fintype.card State + 8 + 12 * k) * (featureCost k State + 1) + 21 * k + 30 +
+    Fintype.card (Situation k State) * (k + 3), fun T n => ?_⟩
+  rw [acceptedWithin, Language.slice_ofSlices]
+  exact ((synthesis_basic tm (T n) le_rfl).mono Set.Subset.rfl
+    (Set.singleton_subset_iff.2 (featureFn_mem_basicAt tm (out_mem_basicFeatures _)))
+    le_rfl).complexity_le.trans (featureCount_add_mul_stepCost_le n (T n))
+
 /-- **Machines with polynomial running time have polynomial circuits.** For a machine with finitely
 many states and a polynomially bounded `T`, the inputs on which the output after exactly `T n`
 steps is `[true]`, where `n` is the length of the input, form a language in `P/poly`. -/
 theorem acceptedWithin_mem_PPoly [Finite State] {T : ℕ → ℕ} (hT : PolynomiallyBounded T) :
     acceptedWithin tm T ∈ PPoly := by
-  have := Fintype.ofFinite State
-  refine PPoly.of_synthesis (polynomiallyBounded_simulationCost (k := k) (State := State) hT)
-    fun n => ?_
-  rw [acceptedWithin, Language.slice_ofSlices]
-  exact (synthesis_basic tm (T n) le_rfl).mono Set.Subset.rfl
-    (Set.singleton_subset_iff.2 (featureFn_mem_basicAt tm (out_mem_basicFeatures _))) le_rfl
+  obtain ⟨C, hC⟩ := complexity_slice_acceptedWithin_le tm (State := State)
+  exact mem_PPoly.2 ((show PolynomiallyBounded fun n => C * (n + T n + 1) ^ 2 by fun_prop)
+    |>.mono_of_le (hC T))
 
 end Cslib.Circuits.Boolean.MachineSimulation

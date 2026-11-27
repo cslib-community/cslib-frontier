@@ -450,7 +450,7 @@ theorem siftDown_triple (hn : Fits w n) {S : ℕ} {s : Memory.State} {k : ℕ}
     exact Triple.pure ⟨⟨hshape, hord.ordered fun i hi hiS hia => absurd hiS (by omega)⟩,
       Rearranges.refl s⟩
 termination_by S + 1 - k
-decreasing_by all_goals omega
+decreasing_by omega
 
 /-! ## The abstraction -/
 

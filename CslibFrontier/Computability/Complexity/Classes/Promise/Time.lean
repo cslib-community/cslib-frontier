@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.PP.Time
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Basic
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Bounded-error promise computation at a prescribed time
@@ -153,9 +154,7 @@ theorem PromiseBPTIME_subset_promiseClass_PPTIME :
   let L : Set α := {a | 1 / 2 <
     ProbComp.eval (machine.runClosed (c₁ * T (enc a).length + c₂) (enc a)) [true]}
   have hhalf : (1 / 2 : ℝ≥0∞) < 2 / 3 := by
-    refine (ENNReal.toReal_lt_toReal (ENNReal.div_ne_top (by norm_num) (by norm_num))
-      (ENNReal.div_ne_top (by norm_num) (by norm_num))).mp ?_
-    simp only [ENNReal.toReal_div, ENNReal.toReal_one, ENNReal.toReal_ofNat]
+    ennreal_to_real
     norm_num
   refine ⟨L, ⟨c₁, c₂, k, State, hfinite, machine,
     fun a => ⟨(hQ a).1, Iff.rfl⟩⟩, ?_, ?_⟩

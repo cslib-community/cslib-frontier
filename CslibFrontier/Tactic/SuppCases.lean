@@ -26,8 +26,10 @@ The simp set `supp_norm` does the rewriting, and `supp_cases h` does it and dest
 result. The set covers `PMF` and the possible results `OracleComp.supportWith` of oracle
 programs, including `OracleComp.support` and `ProbComp`. Membership in the support of
 
-* `p >>= f`, `PMF.bind p f`: `∃ a, a ∈ p.support ∧ x ∈ (f a).support`;
-* `f <$> p`, `PMF.map f p`: `∃ a, a ∈ p.support ∧ f a = x`;
+* `p >>= f`, `PFunctor.FreeM.bind p f`, `PMF.bind p f`:
+  `∃ a, a ∈ p.support ∧ x ∈ (f a).support`;
+* `f <$> p`, `PFunctor.FreeM.map f p`, `PMF.map f p`:
+  `∃ a, a ∈ p.support ∧ f a = x`;
 * `pure a`, `PMF.pure a`: `x = a`;
 * `if c then p else q`: `c ∧ x ∈ p.support ∨ ¬c ∧ x ∈ q.support`;
 * a uniform draw (`ProbComp.unifFin`, `ProbComp.uniform`, `PMF.uniformOfFintype`) or a query
@@ -74,13 +76,14 @@ theorem OracleComp.mem_supportWith_ite_iff {ι : Type*} {spec : OracleSpec ι} {
 attribute [supp_norm]
   -- monad notation on `PMF`, and the law of a closed program
   Probability.PMF.monad_bind_eq_bind Probability.PMF.monad_pure_eq_pure PMF.monad_map_eq_map
-  ProbComp.eval_bind ProbComp.eval_pure ProbComp.eval_map ProbComp.eval_unifFin
-  ProbComp.eval_uniform
+  ProbComp.eval_bind ProbComp.eval_freeMBind ProbComp.eval_pure
+  ProbComp.eval_map ProbComp.eval_freeMMap ProbComp.eval_unifFin ProbComp.eval_uniform
   -- supports of `PMF`
   PMF.mem_support_bind_iff PMF.mem_support_map_iff PMF.mem_support_pure_iff
   Probability.PMF.mem_support_ite_iff Probability.PMF.mem_support_uniformOfFintype
   -- possible results of oracle programs
-  OracleComp.mem_supportWith_bind_iff OracleComp.mem_supportWith_map_iff
+  OracleComp.mem_supportWith_bind_iff OracleComp.mem_supportWith_freeMBind_iff
+  OracleComp.mem_supportWith_map_iff OracleComp.mem_supportWith_freeMMap_iff
   OracleComp.supportWith_pure OracleComp.supportWith_query OracleComp.mem_supportWith_ite_iff
   ProbComp.mem_support_unifFin
   -- the shape of the result

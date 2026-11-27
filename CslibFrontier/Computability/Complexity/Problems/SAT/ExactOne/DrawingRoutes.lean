@@ -40,6 +40,8 @@ These finite drawing-composition and continuous-support proofs are original.
 
 namespace Cslib.Complexity.SAT.ExactOne
 
+open Graph.OrthogonalDrawing
+
 open Cslib.Logic.PL Orthogonal
 
 private theorem collarPrefixRoute_points_bounds {s : PortAssignment} (hs : s.Distinct)

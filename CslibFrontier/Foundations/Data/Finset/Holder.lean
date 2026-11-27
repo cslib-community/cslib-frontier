@@ -35,6 +35,7 @@ uniform-average forms are their instances at `s = univ`.
 * `Finset.expect_rpow_le_rpow_mul_rpow`: log-convexity of moments over a finset.
 * `Fintype.expect_mul_le_rpow_mul_rpow`: Hölder's inequality for uniform averages.
 * `Fintype.expect_rpow_le_rpow_mul_rpow`: log-convexity of moments.
+* `Fintype.expect_rpow_le_rpow_expect`: Jensen's inequality for sublinear powers.
 
 ## References
 
@@ -118,5 +119,37 @@ theorem expect_rpow_le_rpow_mul_rpow {f : α → ℝ} (hf : ∀ x, 0 ≤ f x) {�
     (hθ₀ : 0 < θ) (hθ₁ : θ < 1) (hp : 0 ≤ p) (hq : 0 ≤ q) :
     𝔼 x, f x ^ (θ * p + (1 - θ) * q) ≤ (𝔼 x, f x ^ p) ^ θ * (𝔼 x, f x ^ q) ^ (1 - θ) :=
   Finset.expect_rpow_le_rpow_mul_rpow univ (fun x _ => hf x) hθ₀ hθ₁ hp hq
+
+/-- A sublinear power of a nonnegative function has average at most the
+same power of its average. -/
+theorem expect_rpow_le_rpow_expect [Nonempty α] {f : α → ℝ} (hf : ∀ x, 0 ≤ f x) {p : ℝ}
+    (hp₀ : 0 < p) (hp₁ : p < 1) :
+    (𝔼 x, f x ^ p) ≤ (𝔼 x, f x) ^ p := by
+  have h := expect_rpow_le_rpow_mul_rpow hf (p := 1) (q := 0) hp₀ hp₁ zero_le_one le_rfl
+  simpa only [mul_one, mul_zero, add_zero, Real.rpow_one, Real.rpow_zero,
+    Fintype.expect_const, Real.one_rpow] using h
+
+/-- A bound on a scaled mean is preserved under a sublinear power when the scale
+on the right is at least the scale on the left. -/
+theorem mul_expect_rpow_le_of_mul_expect_le [Nonempty α] {f : α → ℝ}
+    (hf : ∀ x, 0 ≤ f x) {m M e p : ℝ} (hm : 0 < m) (hmM : m ≤ M) (he : 0 ≤ e)
+    (hp₀ : 0 < p) (hp₁ : p < 1) (h : m * (𝔼 x, f x) ≤ M * e) :
+    m * (𝔼 x, f x ^ p) ≤ M * e ^ p := by
+  let c := M / m
+  have hc : 1 ≤ c := (le_div_iff₀ hm).2 (by simpa only [one_mul] using hmM)
+  have hmc : m * c = M := by dsimp only [c]; field_simp
+  have hav : (𝔼 x, f x) ≤ c * e := by
+    apply le_of_mul_le_mul_left _ hm
+    rw [← mul_assoc, hmc]
+    exact h
+  have hpow := (expect_rpow_le_rpow_expect hf hp₀ hp₁).trans
+    (Real.rpow_le_rpow (expect_nonneg fun x _ => hf x) hav hp₀.le)
+  calc
+    _ ≤ m * (c * e) ^ p := mul_le_mul_of_nonneg_left hpow hm.le
+    _ = (m * c ^ p) * e ^ p := by rw [Real.mul_rpow (zero_le_one.trans hc) he, mul_assoc]
+    _ ≤ (m * c) * e ^ p := by
+      gcongr
+      exact Real.rpow_le_self_of_one_le hc hp₁.le
+    _ = _ := by rw [hmc]
 
 end Fintype

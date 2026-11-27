@@ -20,9 +20,11 @@ import Mathlib.Data.List.OfFn
   the output wires.
 * `Cslib.Circuits.Circuit.mapOp_injective`: an injective map of operations induces an injective
   map of circuits.
+* `Cslib.Circuits.Program.isCodeFrom_map_iff`: mapping the operations of a gate list keeps it a
+  program code.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits
 
@@ -60,5 +62,16 @@ theorem Circuit.mapOp_injective (hφ : Function.Injective φ) :
   refine List.map_injective_iff.2 (fun g g' hg => ?_) h₁
   obtain ⟨hg₁, hg₂⟩ := Prod.ext_iff.1 hg
   exact Prod.ext (hφ hg₁) hg₂
+
+/-- **Mapping the operations of a gate list keeps it a program code.** A list of gates is the code
+of a program over `τ` after mapping its operations along `φ` exactly when it is one over `σ`. -/
+theorem Program.isCodeFrom_map_iff {k : ℕ} {gates : List (σ.Op × List ℕ)} :
+    Program.IsCodeFrom τ n k (gates.map fun g => (φ g.1, g.2)) ↔
+      Program.IsCodeFrom σ n k gates := by
+  induction gates generalizing k with
+  | nil => simp
+  | cons g gates ih =>
+    rw [List.map_cons, Program.isCodeFrom_cons, Program.isCodeFrom_cons, ih,
+      show τ.Arity (φ g.1) = σ.Arity g.1 from φ.arity_eq g.1]
 
 end Cslib.Circuits

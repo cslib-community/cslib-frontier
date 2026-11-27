@@ -108,9 +108,7 @@ theorem computableInPolyTime_evalLayer {α : Type} {input : α ↪ List Bool}
     (hlayer : ComputableInPolyTime layer input (encList encNode))
     (hinputs : ComputableInPolyTime inputs input encBits) :
     ComputableInPolyTime (fun a => evalLayer (inputs a) (layer a)) input encBits := by
-  apply ComputableInPolyTime.listToBits.comp
-  apply ComputableInPolyTime.mapWithInput hlayer
-  apply computableInPolyTime_nodeEval <;> fun_prop
+  fun_prop [evalLayer]
 
 /-- Read the last layer's length, or retain the computed input width for an empty schedule. -/
 @[fun_prop]

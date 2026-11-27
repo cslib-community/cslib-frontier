@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Frontend.Select
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.MemoryView
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Compact native frontend scans
@@ -84,15 +85,10 @@ theorem step {w : ℕ} (x : Data 48)
     (by simpa +decide [a] using h4) (by simpa +decide [a] using h5)
     hkey (by simpa +decide [a, p] using habs) (by simpa +decide [a] using hfit)
     hdouble hsmall
-  have hui : u.regs idx = x.regs idx := by
-    simpa +decide [a] using hu.regs_eq (i := idx) (by decide)
-  have huo : u.regs out = x.regs out := by
-    simpa +decide [a] using hu.regs_eq (i := out) (by decide)
-  have hud : u.regs dst = x.regs dst := by
-    simpa +decide [a] using hu.regs_eq (i := dst) (by decide)
-  have hu1 : u.regs one = 1 := by
-    simpa +decide [a] using (hu.regs_eq (i := one) (by decide)).trans
-      (show a.regs one = 1 by simpa +decide [a] using h1)
+  have hui : u.regs idx = x.regs idx := by regs_frame
+  have huo : u.regs out = x.regs out := by regs_frame
+  have hud : u.regs dst = x.regs dst := by regs_frame
+  have hu1 : u.regs one = 1 := by regs_frame
   simp +decide only [a, Data.set_regs, Function.update_apply, ↓reduceIte] at hut huk hum
   let k := Math.keep (x.regs magnitude) (x.regs beta) (x.regs beta')
     (x.regs digit) (x.regs mode) p
@@ -184,9 +180,8 @@ theorem exec {w : ℕ} (rs : List (ℕ × ℕ)) (x : Data 48)
     have hu : y.regs out ≤ y.regs idx := by
       rw [hout]; exact (hselected _).trans (min_le_left _ _)
     obtain ⟨z, he, hzi, hzo, hzm⟩ := step y
-      ((hr zero (by decide)).trans hz) ((hr one (by decide)).trans h1)
-      ((hr two (by decide)).trans h2) ((hr three (by decide)).trans h3)
-      ((hr four (by decide)).trans h4) ((hr five (by decide)).trans h5) hsmall
+      (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+      (by regs_frame) (by regs_frame) hsmall
       (hka.of_le (by rw [hys]; omega)) (hca.of_le (by rw [hyc]; omega))
       (hda.of_le (by rw [hyd]; omega)) (hka.of_le (by omega)) (hda.of_le (by omega))
       (by rw [hgetk]; exact hkey _ (List.getElem_mem hi))
@@ -212,8 +207,7 @@ theorem exec {w : ℕ} (rs : List (ℕ × ℕ)) (x : Data 48)
       split_ifs <;> simp only [Function.update_of_ne hne]
     refine ⟨z, he, ?_, hzi⟩
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro j hj
-      exact (he.regs_eq hj).trans (hr j hj)
+    · regs_frame
     · rw [hsuc, List.length_append, hzo, hout]
       cases k <;> simp
     · ram_keep hkeys using hf

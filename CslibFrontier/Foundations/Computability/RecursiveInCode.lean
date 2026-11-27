@@ -1,13 +1,14 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
 -- upstream: candidate (Mathlib, `Mathlib/Computability/RecursiveIn.lean`)
 
 public import CslibFrontier.Init
+public import Mathlib.Computability.PartrecCode
 public import Mathlib.Computability.TuringDegree
 public import Mathlib.Data.Set.Countable
 
@@ -180,6 +181,30 @@ which returns `g`, this is Mathlib's `Nat.Partrec.Code.eval`. -/
   | rfind' cf =>
     Nat.unpaired fun a m =>
       (Nat.rfind fun n => (fun m => m = 0) <$> eval g cf (Nat.pair a (n + m))).map (· + m)
+
+/-- Embed a code for an ordinary partial recursive function into the oracle code language. -/
+def ofPartrec : Nat.Partrec.Code → Code
+  | .zero => .zero
+  | .succ => .succ
+  | .left => .left
+  | .right => .right
+  | .pair f g => .pair (ofPartrec f) (ofPartrec g)
+  | .comp f g => .comp (ofPartrec f) (ofPartrec g)
+  | .prec f g => .prec (ofPartrec f) (ofPartrec g)
+  | .rfind' f => .rfind' (ofPartrec f)
+
+/-- The embedded code computes the original function relative to any oracle. -/
+@[simp] theorem eval_ofPartrec (g : ℕ →. ℕ) (c : Nat.Partrec.Code) :
+    eval g (ofPartrec c) = c.eval := by
+  induction c <;> simp [ofPartrec, eval, Nat.Partrec.Code.eval, *] <;> rfl
+
+/-- Unbounded search with initial offset zero, taking the search parameter as its input. -/
+def rfind (c : Code) : Code := comp (rfind' c) (pair (pair left right) zero)
+
+/-- Ordinary unbounded search finds the least trial for which the trial code outputs zero. -/
+theorem eval_rfind (g : ℕ →. ℕ) (c : Code) (a : ℕ) :
+    eval g (rfind c) a = Nat.rfind (fun n => (fun m => m = 0) <$> eval g c (Nat.pair a n)) := by
+  simp [rfind, eval, Seq.seq, pure, PFun.pure, Part.map_id']
 
 /-- Stage-bounded evaluation of an oracle code against the finite oracle prefix `σ`.
 `evaln σ k c n` is defined only for inputs `n < k`, it runs with recursion depth bounded by `k`,
@@ -555,9 +580,7 @@ theorem exists_code {g f : ℕ →. ℕ} : Nat.RecursiveIn {g} f ↔ ∃ c : Cod
       exact ⟨prec cf cg, rfl⟩
     | rfind pf hf =>
       rcases hf with ⟨cf, rfl⟩
-      refine ⟨comp (rfind' cf) (pair (pair left right) zero), ?_⟩
-      funext n
-      simp [eval, Seq.seq, pure, PFun.pure, Part.map_id']
+      exact ⟨Code.rfind cf, funext (eval_rfind g cf)⟩
   · rintro ⟨c, rfl⟩
     induction c with
     | zero => exact .zero
@@ -597,3 +620,20 @@ theorem TuringDegree.countable_Iic (d : TuringDegree) : (Set.Iic d).Countable :=
   intro d hd
   induction d using Antisymmetrization.ind with
   | _ f => exact ⟨f, hd, rfl⟩
+
+
+namespace Nat.RecursiveIn.Code
+open Encodable Denumerable _root_.Primrec
+
+instance : Primcodable Code where
+  toEncodable := inferInstance
+  prim := by
+    have : (fun n => Encodable.encode (Encodable.decode (α := Code) n)) = Nat.succ := by
+      ext n
+      simp only [decode_eq_ofNat, encode_some, encode_ofNat]
+    rw [this]
+    exact Primrec.succ
+
+end Code
+end RecursiveIn
+end Nat

@@ -513,7 +513,7 @@ private noncomputable def rawWalk (P : HierarchyParams 2 1 1 1 0) :
 open Cslib in
 private lemma rawWalk_eq (P : HierarchyParams 2 1 1 1 0) (b : Bool) (x y : V P 0) :
     rawWalk P b x y = C P x y / 2 := by
-  norm_num [rawWalk, conditionalWalk, full, pow_succ, Module.End.mul_apply,
+  norm_num [rawWalk, conditionalWalk, full, pow_succ, mul_apply_eq_comp,
     RotationMap.walk_apply, RotationMap.neighbor, rawGraph,
     Fintype.expect_eq_sum_div_card, Fintype.sum_bool, smul_eq_mul, div_eq_mul_inv, mul_comm]
   change (1 / 2 : ℚ) • (C P x y) = (1 / 2 : ℝ) * C P x y

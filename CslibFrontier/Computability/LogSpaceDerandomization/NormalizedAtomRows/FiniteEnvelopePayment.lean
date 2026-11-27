@@ -97,15 +97,10 @@ theorem actualEstimatedResidual_common_envelope_payment
       (P * (|ζ| * (Lh + Lρ) / rate kt) ^ 4 * (8 * (rawBudget + childBudget))) := by
   extract_lets cutoff bounded source mid terminal estimated canonical channelsV input G F cost
   intro hc hz ν
-  have hHPK : 0 < HP.K := by
-    have hg := HP.gate
-    have hn : 0 ≤ 32 * (HP.k : ℝ) / HP.η := div_nonneg (mul_nonneg (by norm_num)
-      (Nat.cast_nonneg _)) HP.η_pos.le
-    have hk : (0 : ℝ) < HP.K := by linarith
-    exact_mod_cast hk
+  have hHPK : 0 < HP.K := FourthRootHierarchyParams.NormalizedRow.rank_pos HP
   apply commonMeanEnvelope_moment_le_cost R D ss st ks kt ku m husage hLh hLρ ζ input F G
     (HP.toHierarchyParams.residual_nonneg (rate_pos km) hC) cost ?_
-    (mul_nonneg (Nat.cast_nonneg P) (rate_pos ks).le) hc ?_ ν
+    (by positivity) hc ?_ ν
   · intro j _ x y
     have he := estimated_residual_bins_mean_error HP D id hD Function.injective_id
       H R l ks km kt n ksH hms ss sm st kb hbH C hC hC1 hCf χ hχ h ρ K hkh

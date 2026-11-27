@@ -213,7 +213,7 @@ theorem coeff_smul (i : ℕ) (a : R) (x : Truncated R r) :
     coeff i (a • x) = a * coeff i x := by
   induction x using induction_on with
   | hp p =>
-    rw [← map_smul, coeff_mk, coeff_mk, Polynomial.coeff_smul, smul_eq_mul]
+    rw [← map_smul, coeff_mk, coeff_mk, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul]
     split_ifs <;> simp
 
 theorem coeff_smul_algebra {S : Type*} [CommRing S] [Algebra R S] (i : ℕ) (a : R)

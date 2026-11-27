@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
+import CslibFrontier.Foundations.Data.Fin.Embedding
 
 /-!
 # Games of polynomially many moves are in `AP`
@@ -51,7 +52,7 @@ that every problem with a polynomial-time game verifier is in `AP`
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeATM
 
@@ -172,14 +173,6 @@ namespace Cslib.Complexity
 
 open _root_.Turing _root_.Turing.MultiTapeTM
 
-/-- The embedding of `Fin m` into `Fin K` that places `j` at `B`. -/
-private def placeAt {m K : ℕ} (h : m ≤ K) (j : Fin m) (B : Fin K) : Fin m ↪ Fin K :=
-  (Fin.castLEEmb h).trans (Equiv.swap (Fin.castLE h j) B).toEmbedding
-
-private theorem placeAt_self {m K : ℕ} (h : m ≤ K) (j : Fin m) (B : Fin K) :
-    placeAt h j B j = B := by
-  simp [placeAt]
-
 variable {α : Type} {enc : α ↪ List Bool} {p : Polynomial ℕ} {V : α × List Bool → Bool}
   {A : Set α}
 
@@ -210,8 +203,9 @@ theorem IsGameVerifier.mem_AP
   have hk₁ : k₁ + 1 ≤ k₁ + 1 + (k₂ + 2) := by omega
   have hk₂ : k₂ + 2 ≤ k₁ + 1 + (k₂ + 2) := by omega
   let B : Fin (k₁ + 1 + (k₂ + 2)) := ⟨0, by omega⟩
-  let prep := Tg.outputToWord.extendTapes (placeAt hk₁ (Fin.last k₁) B)
-  let verify := (Tv.inputFromWord true).extendTapes (placeAt hk₂ (Fin.natAdd k₂ 0) B)
+  let prep := Tg.outputToWord.extendTapes (Fin.embeddingAt hk₁ (Fin.last k₁) B)
+  let verify := (Tv.inputFromWord true).extendTapes
+    (Fin.embeddingAt hk₂ (Fin.natAdd k₂ 0) B)
   -- the time bound
   let t₂ : α → ℕ := fun a => cv * ((g a).length + 1) ^ dv + 4
   let t : α → ℕ := fun a => tg a + (g a).length + 2 + (4 * L a + 3 + t₂ a)
@@ -219,7 +213,8 @@ theorem IsGameVerifier.mem_AP
       wordsCfg (enc a) none (Function.update (fun _ => []) B
         (frame (List.replicate (L a) true) ++ enc a)) [] := by
     obtain ⟨ws, em, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
-      ((hTg a).outputToWord_onTape (placeAt_self hk₁ (Fin.last k₁) B)) (enc a) (fun _ => [])
+      ((hTg a).outputToWord_onTape (Fin.embeddingAt_source hk₁ (Fin.last k₁) B))
+        (enc a) (fun _ => [])
       [] ⟨rfl, rfl⟩
     rw [Cfg.init_eq_wordsCfg]
     exact hrun
@@ -232,7 +227,7 @@ theorem IsGameVerifier.mem_AP
       simp [hg_def, hz]
     obtain ⟨ws, em, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
       (((hTv (z, a)).inputFromWord_extendTapes true
-        (placeAt_self hk₂ (Fin.natAdd k₂ 0) B)).mono
+        (Fin.embeddingAt_source hk₂ (Fin.natAdd k₂ 0) B)).mono
         (by rw [hlen]) le_rfl)
       (enc a) _ [] rfl
     have hrun' : verify.runFrom (wordsCfg (enc a) (some verify.q₀)

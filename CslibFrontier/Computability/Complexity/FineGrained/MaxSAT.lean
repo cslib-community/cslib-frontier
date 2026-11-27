@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Circuit.SatCount
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 import CslibFrontier.Foundations.Data.BitString.Weight
 import Mathlib.Algebra.BigOperators.Fin
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Exact MAX-SAT threshold counts
@@ -117,8 +118,7 @@ def clauseCircuit (n : ℕ) (c : Clause ℕ) : Circuit signature n 1 :=
     (op' := (· || ·)) (op := fun C D => clauseJoin.comp (C.append D))
     (e := Circuit.oneGate (.const false) Fin.elim0) (f := id)
     (fun C D => by
-      simp only [clauseJoin, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_oneGate,
-        interpretation]
+      simp only [circuit_simps, clauseJoin]
       rfl)
     (c.map (literalCircuit n))
   change (clauseCircuit n c).eval interpretation x 0 = _ at h
@@ -166,6 +166,7 @@ theorem weight_eval_scoreCircuit (F : Instance) (x : BitString F.1) :
   simp [score, List.countP_map, Function.comp_def]
 
 /-- All clause values together have linear gate count. -/
+@[circuit_bound]
 theorem size_scoreCircuit_le (F : Instance) :
     (scoreCircuit F).size ≤ 2 * F.2.vars.length + F.2.length := by
   rw [scoreCircuit, Circuit.size_pi]
@@ -200,11 +201,7 @@ theorem satCount_thresholdCircuit (F : Instance) (q : ℕ) :
 /-- All gates, including shared constants and empty-clause defaults, satisfy a linear bound. -/
 theorem size_thresholdCircuit_le (F : Instance) (q : ℕ) :
     (thresholdCircuit F q).size ≤ 478 * (workSize F + 1) := by
-  rw [thresholdCircuit, Circuit.size_comp]
-  have hc := size_scoreCircuit_le F
-  have ht := size_linearThresholdCircuit_le F.2.length q
-  dsimp only [workSize]
-  omega
+  circuit_bound [thresholdCircuit, workSize]
 
 /-- On width-`k` formulas, the structural size is at most `(k+1)` times the clause count. -/
 theorem workSize_le_of_width (k : ℕ) (F : Instance)

@@ -99,7 +99,7 @@ theorem finrank_map_mixedOp_mul_le {P : MvPolynomial σ K} {i j : ℕ}
   have h : (weightedHomogeneousSubmodule K (bidegWeight s) (a + i, b)).map (mixedOp s (Q * P)) ≤
       (weightedHomogeneousSubmodule K (bidegWeight s) (a, b + j)).map (mixedOp s Q) := by
     rintro _ ⟨p, hp, rfl⟩
-    rw [map_mul, Module.End.mul_apply]
+    rw [map_mul, mul_apply_eq_comp]
     exact Submodule.mem_map_of_mem (mixedOp_mem_bihomogeneous hP hp)
   exact (Submodule.finrank_mono h).trans (Submodule.finrank_map_le _ _)
 

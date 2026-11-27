@@ -11,6 +11,7 @@ public import CslibFrontier.Privacy.DifferentialPrivacy.Basic
 public import Mathlib.Analysis.SpecialFunctions.Pow.NNReal
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Series
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Hyperbolic
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 
 /-!
@@ -207,14 +208,8 @@ theorem lossMoment_le_of_le_mul {p q : α → ℝ≥0∞} {ε t : ℝ} (hε : 0 
       exact absurd this hq0
     have hP : 0 < (p a).toReal := ENNReal.toReal_pos hp0 (hp a)
     have hQ : 0 < (q a).toReal := ENNReal.toReal_pos hq0 (hq a)
-    have hPQ : (p a).toReal ≤ E * (q a).toReal := by
-      have := (ENNReal.toReal_le_toReal (hp a) (ENNReal.mul_ne_top ENNReal.ofReal_ne_top
-        (hq a))).mpr (hpq a)
-      rwa [ENNReal.toReal_mul, ENNReal.toReal_ofReal hE0.le] at this
-    have hQP : (q a).toReal ≤ E * (p a).toReal := by
-      have := (ENNReal.toReal_le_toReal (hq a) (ENNReal.mul_ne_top ENNReal.ofReal_ne_top
-        (hp a))).mpr (hqp a)
-      rwa [ENNReal.toReal_mul, ENNReal.toReal_ofReal hE0.le] at this
+    have hPQ : (p a).toReal ≤ E * (q a).toReal := by ennreal_to_real using hpq a
+    have hQP : (q a).toReal ≤ E * (p a).toReal := by ennreal_to_real using hqp a
     have hreal := mul_div_rpow_add_le hE ht hP hQ hPQ hQP
     rw [← ENNReal.ofReal_toReal (hp a), ← ENNReal.ofReal_toReal (hq a),
       ← ENNReal.ofReal_div_of_pos hQ, ENNReal.ofReal_rpow_of_nonneg (div_pos hP hQ).le ht,

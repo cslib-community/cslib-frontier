@@ -258,12 +258,10 @@ theorem normalized_raw_normalizer_root_stability
         (by norm_num)⟩
       ⟨Real.rpow_nonneg hg _, Real.rpow_le_one hg (HP.γ_le_one _) (by norm_num)⟩).trans
     exact add_le_add hd' (mul_le_mul_of_nonneg_left
-      (hi V Kc hKc f hf A B S T y Ec Er hEc hEr hc hr)
-      (Real.rpow_nonneg (mul_nonneg (by norm_num) (HP.Q_nonneg _)) _))
+      (hi V Kc hKc f hf A B S T y Ec Er hEc hEr hc hr) (by positivity))
   · simp only [CorrectionRowRecipe.normalized, hy, ↓reduceIte, sub_self, abs_zero]
     have hq : 0 ≤ kthLargest 1 {w | Z σ.2 w} (fun w => |A x w - B x w|) :=
       kthLargest_nonneg
-    have hB := HP.Q_nonneg HP.toHierarchyParams.atomCap
     positivity
 
 /-- Optional coarse corollary charging mean pointwise preparation differences.
@@ -499,7 +497,7 @@ theorem correctionRequest_children_root_envelope
   obtain ⟨C, LI, Lτ, Lγ, hC, hLI, hLτ, hLγ, hd⟩ :=
     correctionRequest_children_root_stability_of_bounds HP
   let B := (2 * HP.Q HP.toHierarchyParams.atomCap) ^ (4⁻¹ : ℝ)
-  have hB : 0 ≤ B := Real.rpow_nonneg (mul_nonneg (by norm_num) (HP.Q_nonneg _)) _
+  have hB : 0 ≤ B := by positivity
   let Cr := 2 * (C + B * Lτ * LI)
   let Cm := B * Lγ
   have hCr : 0 ≤ Cr := by dsimp [Cr]; positivity

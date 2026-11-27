@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Program
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Occurrence programs with word oracles
@@ -129,9 +130,7 @@ theorem interpret_runOccurrenceProgram_succ
           (OracleComp.interpret (occurrenceTraceHandler oracle)
             (machine.runOccurrenceProgram fuel (cfg.receive op next answer))).run
               (trace ++ [index.val], nextState) := by
-  simp only [runOccurrenceProgram, runConfigFrom, h, MultiTapeCTM.chooseOccurrence,
-    OracleComp.interpret_map, OracleComp.interpret_query, OracleComp.interpret_bind,
-    StateT.run_bind, StateT.run_map]
+  simp only [runOccurrenceProgram, runConfigFrom, h, MultiTapeCTM.chooseOccurrence, interp_norm]
   dsimp only [occurrenceTraceHandler, StateT.run]
   simp only [List.map_eq_map, List.ofFn_eq_map, List.map_map,
     List.bind_eq_flatMap, List.flatMap_map]
@@ -142,7 +141,7 @@ theorem interpret_runOccurrenceProgram_succ
     cfg.answerSymbols)[index.val] with
   | step => rfl
   | query op next =>
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query]
+    simp only [interp_norm]
     change _ ++ [] = _
     exact List.append_nil _
 
@@ -168,7 +167,7 @@ theorem interpret_occurrenceTraceHandler_erase {S α : Type}
     change ((OracleComp.interpret (occurrenceTraceHandler oracle)
       (OracleComp.query q >>= next)).run _).map _ =
       (OracleComp.interpret (occurrenceHandler oracle) (OracleComp.query q >>= next)).run _
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
+    simp only [interp_norm]
     cases q with
     | inl n =>
       dsimp only [occurrenceTraceHandler, occurrenceHandler, StateT.run]

@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pr
 public import CslibFrontier.Computability.WordRAM.Heap
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native accumulation over a distinct parent list
@@ -126,8 +127,7 @@ theorem exec_accumulateLoop {w N capacity : ℕ} (x : Data registers) (input : �
         rcases hsepChild with h | h <;> omega
     obtain ⟨z, hz, hi, hm, hregs⟩ := exec_accumulateStep (hV _ hk) (hB _ hk) y
       (input (y.regs index)) (by rw [hb]; exact hread (y.regs index) y hk.le ⟨hmem, hf⟩ _ hk)
-      ((hf one (by decide)).trans h1) ((hf nine (by decide)).trans h9)
-      ((hf ten (by decide)).trans h10) (fun _ => hleft) hright
+      (by regs_frame) (by regs_frame) (by regs_frame) (fun _ => hleft) hright
       (hw.of_le (by omega)) (hw.of_le (by rw [hb]; omega))
       (hw.of_le (by rw [hv]; omega)) (hw.of_le (by rw [hcptr]; omega)) (hw.of_le (by omega))
     refine ⟨z, hz, ⟨?_, fun i hi => (hregs i hi).trans (hf i hi)⟩, hi⟩

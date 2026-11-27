@@ -327,11 +327,9 @@ theorem scanCandidates_eq_of_forall_le (f : Finset α → β) (S : Finset α)
 theorem submodularGreedyLoop_succ_right (f : Finset α → β) (u : List α) (m : ℕ) (S : Finset α) :
     submodularGreedyLoop f u (m + 1) S =
       submodularGreedyStep f u (submodularGreedyLoop f u m S) := by
-  induction m generalizing S with
-  | zero => rfl
-  | succ m ih =>
-    simp only [submodularGreedyLoop]
-    exact ih (submodularGreedyStep f u S)
+  fun_induction submodularGreedyLoop f u m S with
+  | case1 => rfl
+  | case2 => assumption
 
 @[simp] theorem submodularGreedy_zero (f : Finset α → β) (xs : List α) :
     submodularGreedy f xs 0 = ∅ := rfl

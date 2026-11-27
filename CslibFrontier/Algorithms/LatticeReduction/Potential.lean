@@ -162,13 +162,15 @@ theorem potential_le {b : Fin n → E} {B : ℝ} (hB : ∀ i, ‖b i‖ ^ 2 ≤ 
           fun k hk => gramPrefixDet_le hB (le_of_lt (Finset.mem_range.1 hk))
     _ = B ^ (n * (n - 1) / 2) := by rw [Finset.prod_pow_eq_pow_sum, Finset.sum_range_id]
 
-/-- Integral inner products pass to families inside the integer span. -/
-theorem HasIntegralGram.of_span_le {b c : Fin n → E} (hb : HasIntegralGram b)
-    (hc : ∀ i, c i ∈ Submodule.span ℤ (Set.range b)) : HasIntegralGram c := by
+/-- Integral inner products pass from a generating family `b` to any pair of vectors in its
+integer span `Submodule.span ℤ (Set.range b)`. -/
+theorem exists_int_inner_of_mem_span {b : Fin n → E} (hb : HasIntegralGram b)
+    {x y : E} (hx : x ∈ Submodule.span ℤ (Set.range b))
+    (hy : y ∈ Submodule.span ℤ (Set.range b)) :
+    ∃ z : ℤ, inner ℝ x y = z := by
   choose Z hZ using hb
-  intro i j
-  obtain ⟨u, hu⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 (hc i)
-  obtain ⟨w, hw⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 (hc j)
+  obtain ⟨u, hu⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hx
+  obtain ⟨w, hw⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hy
   refine ⟨∑ k, ∑ l, u k * w l * Z k l, ?_⟩
   rw [← hu, ← hw, sum_inner]
   push_cast
@@ -179,6 +181,12 @@ theorem HasIntegralGram.of_span_le {b c : Fin n → E} (hb : HasIntegralGram b)
     hZ]
   simp only [conj_trivial]
   ring
+
+/-- Integral inner products pass to families inside the integer span. -/
+theorem HasIntegralGram.of_span_le {m : ℕ} {b : Fin n → E} {c : Fin m → E}
+    (hb : HasIntegralGram b) (hc : ∀ i, c i ∈ Submodule.span ℤ (Set.range b)) :
+    HasIntegralGram c :=
+  fun i j => exists_int_inner_of_mem_span hb (hc i) (hc j)
 
 /-- A size-reduction step `bᵢ ← bᵢ - r bⱼ` with `j < i` and `r ∈ ℤ`. -/
 @[expose] def IsSizeStep (b c : Fin n → E) : Prop :=

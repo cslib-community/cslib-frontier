@@ -12,6 +12,7 @@ public import Mathlib.Algebra.Order.BigOperators.Expect
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Data.Fintype.Pi
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogSum
+import CslibFrontier.Foundations.Data.BitString.Flip
 import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Tactic.FieldSimp
@@ -579,12 +580,8 @@ theorem le_expect_uniformDeficit_coordinateFiber_le {ι : Type*} [Fintype ι] [D
 theorem expect_ite_eq_one_half_of_update_not {ι : Type*} [Fintype ι] [DecidableEq ι]
     (f : (ι → Bool) → Bool) (i : ι) (hf : ∀ x, f (Function.update x i (!x i)) = !f x) (b : Bool) :
     (𝔼 x, if f x = b then (1 : ℝ) else 0) = 1 / 2 := by
-  let flip (x : ι → Bool) := Function.update x i (!x i)
-  have hinv : Function.Involutive flip := fun x => by simp [flip]
-  have he := Fintype.expect_equiv (hinv.toPerm flip)
-    (fun x => if f (flip x) = b then (1 : ℝ) else 0)
-    (fun x => if f x = b then (1 : ℝ) else 0) (fun _ => rfl)
-  have hpoint (x : ι → Bool) : (if f (flip x) = b then (1 : ℝ) else 0) =
+  have he := expect_update_not i fun x => if f x = b then (1 : ℝ) else 0
+  have hpoint (x : ι → Bool) : (if f (Function.update x i (!x i)) = b then (1 : ℝ) else 0) =
       1 - (if f x = b then 1 else 0) := by
     rw [hf]
     cases h : f x <;> cases b <;> norm_num

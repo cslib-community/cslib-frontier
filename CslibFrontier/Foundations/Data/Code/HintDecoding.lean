@@ -173,7 +173,7 @@ private theorem coeff_derivative_eval_mul_X_pow_mul (Q : F[X][Y]) {P A R : F[X]}
     rw [derivative_map, show (Q.derivative.map φ).eval A = shiftEval Q.derivative τ A from rfl,
       eval_shiftEval, zero_add, ← coeff_zero_eq_eval_zero, hAP0, taylor_coeff_zero]
   have h2 : R.coeff 0 = (taylor τ P).coeff (k + 1) := by
-    have := congrArg (coeff · (k + 1)) hPA
+    have := congrArg (·.coeff (k + 1)) hPA
     simp only [coeff_add, coeff_X_pow_mul', ite_eq_left le_rfl, Nat.sub_self] at this
     rw [this, coeff_eq_zero_of_natDegree_lt (p := A) (by omega), zero_add]
   rw [h1, h2]
@@ -201,7 +201,7 @@ theorem henselCoeff_eq {d D : ℕ} {Q : F[X][Y]}
     rw [eval_map, eval₂_hom, hQP, map_zero]
   obtain ⟨c, hc⟩ := exists_mul_sq_add_linear_part_eq_eval_add G A (X ^ (k + 1) * R)
   rw [← hPA, hG] at hc
-  have hcoeff := congrArg (coeff · (k + 1)) hc
+  have hcoeff := congrArg (·.coeff (k + 1)) hc
   simp only [coeff_add, coeff_zero] at hcoeff
   -- the quadratic term vanishes at degree `k + 1`
   have hsq : (c * (X ^ (k + 1) * R) ^ 2).coeff (k + 1) = 0 := by

@@ -13,6 +13,7 @@ public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Finset.Sort
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Subsets of a bag as bit masks
@@ -297,23 +298,23 @@ section RetLoops
 
 variable {V : Type*} [DecidableEq V]
 
+@[time_simps]
 theorem ret_zerosM (c : ℕ) : (zerosM c).ret = Array.replicate c 0 := rfl
 
+@[time_simps]
 theorem ret_memM (x : V) (L : List V) : (memM x L).ret = decide (x ∈ L) := by
-  induction L with
-  | nil => simp [memM]
-  | cons u L ih => simp [memM, ih]
+  time_spec memM [List.mem_cons]
 
+@[time_simps]
 theorem ret_selMemM (x : V) (L : List V) (m : ℕ) :
     (selMemM x L m).ret = decide (x ∈ ofMask L m) := by
   induction L generalizing m with
   | nil => simp [selMemM, ofMask]
   | cons u L ih => simp [selMemM, ih, mem_ofMask_cons]
 
+@[time_simps]
 theorem ret_keyM (LB LP : List V) (t : ℕ) : (keyM LB LP t).ret = toMask LP (ofMask LB t) := by
-  induction LP with
-  | nil => rfl
-  | cons u LP ih => simp [keyM, toMask, ih, ret_selMemM]
+  time_spec keyM [toMask]
 
 theorem ret_restrictM (LB : List V) {LP : List V} (hLP : LP.Nodup) (s : ℕ) :
     (restrictM LB LP s).ret = toMask LP (ofMask LP s ∩ LB.toFinset) := by
@@ -321,8 +322,7 @@ theorem ret_restrictM (LB : List V) {LP : List V} (hLP : LP.Nodup) (s : ℕ) :
   | nil => rfl
   | cons u LP ih =>
     obtain ⟨hu, hLP⟩ := List.nodup_cons.1 hLP
-    simp only [restrictM, TimeM.ret_bind, TimeM.ret_pure, ih hLP, ret_memM,
-      decide_eq_true_eq, toMask]
+    simp only [restrictM, time_simps, ih hLP, decide_eq_true_eq, toMask]
     have hmem : u ∈ ofMask (u :: LP) s ∩ LB.toFinset ↔ s % 2 = 1 ∧ u ∈ LB := by
       rw [Finset.mem_inter, mem_ofMask_cons, List.mem_toFinset]
       constructor
@@ -343,7 +343,7 @@ theorem ret_forgetWeightM (w : V → ℕ) (LP : List V) {LB : List V} (hLB : LB.
   | nil => simp [forgetWeightM, ofMask]
   | cons u LB ih =>
     obtain ⟨hu, hLB⟩ := List.nodup_cons.1 hLB
-    simp only [forgetWeightM, TimeM.ret_bind, TimeM.ret_pure, ih hLB, ret_memM]
+    simp only [forgetWeightM, time_simps, ih hLB]
     have huA : u ∉ ofMask LB (t / 2) \ LP.toFinset := fun h =>
       hu (List.mem_toFinset.1 (ofMask_subset LB _ (Finset.mem_sdiff.1 h).1))
     rw [ofMask_cons]
@@ -379,8 +379,8 @@ theorem ret_indepM (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : �
   induction L generalizing m with
   | nil => simp [indepM, ofMask]
   | cons u L ih =>
-    simp only [indepM, TimeM.ret_bind, TimeM.ret_pure, Bool.and_eq_true, ih,
-      Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, ret_noAdjM]
+    simp only [indepM, time_simps, Bool.and_eq_true, ih, Bool.or_eq_true, Bool.not_eq_true',
+      decide_eq_false_iff_not, ret_noAdjM]
     rw [ofMask_cons]
     by_cases hm : m % 2 = 1
     · rw [ite_eq_left hm, Finset.coe_insert]
@@ -406,58 +406,36 @@ variable {V : Type*} [DecidableEq V]
 /-- The ticks of the independence test on a bag with `b` entries: one per pair `i ≤ j`. -/
 @[expose] def indepCost (b : ℕ) : ℕ := b * (b + 1) / 2
 
+@[time_simps]
 theorem time_zerosM (c : ℕ) : (zerosM c).time = c := by
   simp [zerosM]
 
+@[time_simps]
 theorem time_memM (x : V) (L : List V) : (memM x L).time = L.length := by
-  induction L with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [memM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec memM
 
+@[time_simps]
 theorem time_selMemM (x : V) (L : List V) (m : ℕ) : (selMemM x L m).time = L.length := by
-  induction L generalizing m with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [selMemM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec selMemM
 
 theorem time_keyM (LB LP : List V) (t : ℕ) :
     (keyM LB LP t).time = LP.length * (LB.length + 1) := by
-  induction LP with
-  | nil => simp [keyM]
-  | cons u LP ih =>
-    simp only [keyM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_selMemM,
-      List.length_cons]
-    ring
+  time_spec keyM [Nat.succ_mul]
 
+@[time_simps]
 theorem time_restrictM (LB LP : List V) (s : ℕ) :
     (restrictM LB LP s).time = LP.length * (LB.length + 1) := by
-  induction LP generalizing s with
-  | nil => simp [restrictM]
-  | cons u LP ih =>
-    simp only [restrictM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_memM,
-      List.length_cons]
-    ring
+  time_spec restrictM [Nat.succ_mul]
 
 theorem time_forgetWeightM (w : V → ℕ) (LP LB : List V) (t : ℕ) :
     (forgetWeightM w LP LB t).time = LB.length * (LP.length + 1) := by
-  induction LB generalizing t with
-  | nil => simp [forgetWeightM]
-  | cons u LB ih =>
-    simp only [forgetWeightM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_memM,
-      List.length_cons]
-    ring
+  time_spec forgetWeightM [Nat.succ_mul]
 
 omit [DecidableEq V] in
+@[time_simps]
 theorem time_noAdjM (G : SimpleGraph V) [DecidableRel G.Adj] (x : V) (L : List V) (m : ℕ) :
     (noAdjM G x L m).time = L.length := by
-  induction L generalizing m with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [noAdjM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec noAdjM
 
 theorem indepCost_succ (b : ℕ) : indepCost (b + 1) = indepCost b + (b + 1) := by
   unfold indepCost
@@ -473,12 +451,7 @@ theorem indepCost_le (b : ℕ) : indepCost b ≤ b * b :=
 omit [DecidableEq V] in
 theorem time_indepM (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : ℕ) :
     (indepM G L m).time = indepCost L.length := by
-  induction L generalizing m with
-  | nil => simp [indepM, indepCost]
-  | cons u L ih =>
-    simp only [indepM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_noAdjM,
-      List.length_cons, indepCost_succ]
-    omega
+  time_spec indepM [indepCost_succ]
 
 end TimeLoops
 

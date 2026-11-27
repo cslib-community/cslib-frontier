@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Combinatorics.WeightedCut.MAOrdering
 public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Algebra.GroupWithZero.Nat
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # The Stoer–Wagner minimum cut algorithm
@@ -297,13 +298,8 @@ def maSearchM (W : V → V → ℕ) : ℕ → (V → ℕ) → List V → TimeM �
 
 /-- `maSearchM` computes `maSearch`. -/
 theorem ret_maSearchM (W : V → V → ℕ) :
-    ∀ fuel key R, (maSearchM W fuel key R).ret = maSearch W fuel key R
-  | 0, _, _ => rfl
-  | fuel + 1, key, R => by
-    rw [maSearchM, maSearch]
-    rcases R.argmax key with _ | v
-    · rfl
-    · simp only [TimeM.ret_bind, TimeM.ret_pure, ret_maSearchM W fuel]
+    ∀ fuel key R, (maSearchM W fuel key R).ret = maSearch W fuel key R := by
+  time_spec maSearchM [maSearch]
 
 /-- Maximum adjacency search over `r` candidates costs at most `r ^ 2`. -/
 theorem time_maSearchM_le (W : V → V → ℕ) :
@@ -321,7 +317,7 @@ theorem time_maSearchM_le (W : V → V → ℕ) :
         omega⟩
       have hstep : 2 * (m + 1) - 1 = 2 * m + 1 := by omega
       rw [hm, Nat.add_sub_cancel] at ih
-      simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, hm, hstep]
+      simp only [time_simps, hm, hstep]
       nlinarith
 
 /-- `maOrder` in `TimeM`: initializing the `k` keys, then the search. -/
@@ -338,7 +334,7 @@ theorem ret_maOrderM {k : ℕ} (W : Fin k → Fin k → ℕ) : (maOrderM W).ret 
 theorem time_maOrderM_le {k : ℕ} (W : Fin k → Fin k → ℕ) : (maOrderM W).time ≤ k ^ 2 + k := by
   have := time_maSearchM_le W k (fun _ => 0) (List.finRange k)
   rw [List.length_finRange] at this
-  simp only [maOrderM, TimeM.time_bind, TimeM.time_tick]
+  simp only [maOrderM, time_simps]
   omega
 
 /-- `run` in `TimeM`, with the charges of the cost model. -/
@@ -370,7 +366,7 @@ theorem ret_runM {n : ℕ} :
     dsimp only
     split
     · rfl
-    · simp only [TimeM.ret_bind, TimeM.ret_pure, ret_runM k]
+    · simp only [time_simps, ret_runM k]
 
 /-- The phases on `k + 2` supervertices of a contraction of a graph on `n` vertices cost at most
 `(k + 2) ^ 3 + 2 (k + 2) ^ 2 + 2 n (k + 2)`. -/
@@ -378,17 +374,17 @@ theorem time_runM_le {n : ℕ} : ∀ (k : ℕ) (W : Fin (k + 2) → Fin (k + 2) 
     (part : Fin n → Fin (k + 2)),
     (runM k W part).time ≤ (k + 2) ^ 3 + 2 * (k + 2) ^ 2 + 2 * n * (k + 2)
   | 0, W, part => by
-    simp only [runM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+    simp only [runM, time_simps]
     nlinarith
   | k + 1, W, part => by
     have hs := time_maOrderM_le W
-    simp only [runM, TimeM.time_bind, TimeM.time_tick]
+    simp only [runM, time_simps]
     split_ifs with hst
     · simp only [TimeM.time_pure]
       nlinarith
     · have ih := time_runM_le k (contractMatrix W (lastTwo 0 (maOrderM W).ret).1
         (lastTwo 0 (maOrderM W).ret).2) (contractPart part _ _ hst)
-      simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+      simp only [time_simps]
       nlinarith
 
 /-- `stoerWagner` in `TimeM`, with the charges of the cost model. -/

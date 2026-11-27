@@ -7,12 +7,15 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 public import Mathlib.Logic.Equiv.Nat
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearCodecPrimitives
+
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Primitives
 
 /-!
 # Polynomial-time operations on signed unary integers

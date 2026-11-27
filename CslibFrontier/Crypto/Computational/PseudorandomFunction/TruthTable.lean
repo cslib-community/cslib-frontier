@@ -76,7 +76,7 @@ the enumeration `Cslib.BitString.enumList` (`Cslib.BitString.enumList_eq_ofFn`).
 
 namespace Cslib.Crypto.KabanetsCai
 
-open Probability Turing.MultiTapeTM ComputableTidilyInPolyTime Circuits Circuits.Boolean
+open Probability Turing.MultiTapeTM ComputableInPolyTime Circuits Circuits.Boolean
 
 /-! ### Asking an oracle for a truth table -/
 
@@ -99,12 +99,12 @@ and reads one reply bit. -/
 @[fun_prop]
 theorem isOraclePPTOn_queryTable : IsOraclePPTOn (encList encBits) encBits queryTable := by
   unfold queryTable
-  refine IsOraclePPTOn.map' (IsOraclePPTOn.iterate_of_bounded_growth'
+  refine IsOraclePPTOn.map (IsOraclePPTOn.iterate_of_bounded_growth
     (stateEncoding := encPair (encList encBits) encBits) (by fun_prop) (by fun_prop) ?_
     (growth := 0) ?_) (by fun_prop)
   · unfold queryTableStep
-    refine IsOraclePPTOn.cond' (by fun_prop) ComputableInPolyTime.id'.isOraclePPTOn ?_
-    exact IsOraclePPTOn.map_with' (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop))
+    refine IsOraclePPTOn.cond (by fun_prop) ComputableInPolyTime.id'.isOraclePPTOn ?_
+    exact IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
       (by fun_prop)
   · intro state next hnext
     obtain ⟨words, acc⟩ := state
@@ -176,9 +176,8 @@ theorem exists_complexity_restriction_le {family : List Bool → List Bool → L
     ∃ c : ℕ, ∀ (key : List Bool) (m : ℕ), m ≤ key.length →
       complexity interpretation (single (restriction (family key) key.length m)) ≤
         c * (3 * key.length + 2) ^ c + 2 := by
-  have hfamily := hfamily.tidy
   obtain ⟨L, hL, hg⟩ := PPoly.exists_of_polyTime
-    (.of_tidy ((ComputableTidilyInPolyTime.headD (encA := encBool) false).comp hfamily))
+    (((ComputableInPolyTime.headD (encA := encBool) false).comp hfamily))
   obtain ⟨c, hc⟩ := mem_PPoly_iff_exists_mem_SIZE.1 hL
   refine ⟨c, fun key m hm => ?_⟩
   set t : List (Fin m ⊕ Bool) :=

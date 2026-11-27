@@ -10,12 +10,16 @@ module
 public import CslibFrontier.Crypto.Computational.Encryption.PublicKeyReplacement
 public import CslibFrontier.Crypto.Computational.LWE.DualRegev
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import Cslib.Probability.StatisticalDistance
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
 import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.PPT
@@ -38,19 +42,27 @@ twice the `DecisionLWE` distinguishing advantage (`DualRegev.advantage_game_le`,
 ## Main definitions
 
 * `DualRegev.serializePublicKey`, `DualRegev.decodePublicKey`: row-major public-key bit codecs.
+* `DualRegev.serializeSecret`, `DualRegev.decodeSecret`: binary secret-key bit codecs.
 * `DualRegev.serializeCiphertext`, `DualRegev.decodeCiphertext`: fixed-width ciphertext codecs.
-* `DualRegev.keyGenSerialized`, `DualRegev.encryptSerialized`: strict-PPT bit-word algorithms.
+* `DualRegev.SerializedKeyInputs`, `DualRegev.encSerializedKeyInputs`,
+  `DualRegev.SerializedEncCoins`, `DualRegev.encSerializedEncCoins`: serialized key-input and
+  encryption-coin structures with `enc_structure` encodings.
+* `DualRegev.keyGenSerialized`, `DualRegev.encryptSerialized`, `DualRegev.decryptResidue`,
+  `DualRegev.decryptSerialized`: strict-PPT / polynomial-time bit-word algorithms.
 * `DualRegev.lweDistinguisher`: uniform hidden-bit `DecisionLWE` reduction with `m + 1` samples.
 * `DualRegev.hidingError`: leftover-hash term `sqrt(2 ^ (w * n) / 2 ^ m)`.
 
 ## Main results
 
-* `DualRegev.decodePublicKey_serializePublicKey`, `DualRegev.decodeCiphertext_serializeCiphertext`:
-  exact roundtrips for all dimensions and widths.
-* `DualRegev.eval_keyGenSerialized_fst`, `DualRegev.eval_encryptSerialized`,
-  `DualRegev.eval_encryptSerialized_serializePublicKey`: exact distributional bridges.
+* `DualRegev.decodePublicKey_serializePublicKey`, `DualRegev.decodeSecret_serializeSecret`,
+  `DualRegev.decodeCiphertext_serializeCiphertext`: exact roundtrips for all dimensions and widths.
+* `DualRegev.eval_keyGenSerialized`, `DualRegev.eval_keyGenSerialized_fst`,
+  `DualRegev.eval_encryptSerialized`, `DualRegev.eval_encryptSerialized_serializePublicKey`,
+  `DualRegev.decryptSerialized_eq`, `DualRegev.keyGenSerialized_encryptSerialized_correct`:
+  exact distributional and decryption bridges and zero-error decryption correctness.
 * `DualRegev.isPPTOn_keyGenSerialized`, `DualRegev.isPPTOn_encryptSerialized`,
-  `DualRegev.isPPT_lweDistinguisher`: uniform strict PPT certificates.
+  `DualRegev.computableInPolyTime_decryptSerialized`, `DualRegev.isPPT_lweDistinguisher`:
+  uniform strict PPT / polynomial-time certificates.
 * `DualRegev.advantage_game_le`, `DualRegev.indCPA_of_decisionLWE`: concrete bound and IND-CPA
   security under `DecisionLWE` with `m + 1` samples and entropy margin `w * n + 2 * k ≤ m`.
 
@@ -117,32 +129,64 @@ def decodeCiphertext (m w : ℕ) (word : List Bool) : Ciphertext m w :=
   dsimp only [serializeCiphertext]
   rw [Cslib.Matrix.length_toBinary, Nat.one_mul]
 
+/-- Canonical binary secret words list the `m` Boolean secret coordinates in order (`0` as `false`,
+nonzero as `true`). -/
+def serializeSecret {m : ℕ} (e : Fin m → ℤ) : List Bool :=
+  List.ofFn fun i => decide (e i ≠ 0)
+
+/-- Total binary secret decoder reading the first `m` bits of `word` as `{0, 1}` integer entries
+and padding absent bits with zero. -/
+def decodeSecret (m : ℕ) (word : List Bool) : Fin m → ℤ :=
+  fun i => (word.getD i.val false).toNat
+
+/-- Canonical binary secret words roundtrip through `decodeSecret`. -/
+@[simp] theorem decodeSecret_serializeSecret {m : ℕ} (bits : Fin m → Bool) :
+    decodeSecret m (serializeSecret fun i => ((bits i).toNat : ℤ)) =
+      fun i => ((bits i).toNat : ℤ) := by
+  funext i
+  cases h : bits i <;> simp [decodeSecret, serializeSecret, h]
+
+/-- A serialized binary secret has exact bit length `m`. -/
+@[simp] theorem length_serializeSecret {m : ℕ} (e : Fin m → ℤ) :
+    (serializeSecret e).length = m :=
+  List.length_ofFn
+
 /-! ### Serialized key generation -/
 
-/-- Random inputs for serialized dual-Regev key generation: `m` rows of `n` residues and `m` secret
-bits. -/
-abbrev SerializedKeyInputs := List (List ℕ) × List Bool
+/-- Random inputs for serialized dual-Regev key generation: `m` rows of `n` residues and `m`
+secret bits. -/
+@[ext]
+structure SerializedKeyInputs where
+  /-- List of public-matrix rows (`m` rows of `n` residue representatives). -/
+  publicPart : List (List ℕ)
+  /-- List of binary secret bits. -/
+  bits : List Bool
+  deriving DecidableEq, Repr
 
 /-- Framing encoding for serialized key-generation inputs. -/
-abbrev encSerializedKeyInputs : SerializedKeyInputs ↪ List Bool :=
-  encPair (encList (encList encNat)) encBits
+enc_structure encSerializedKeyInputs : SerializedKeyInputs where
+  publicPart : (encList (encList encNat)), bits : encBits
+
+attribute [fun_prop] encSerializedKeyInputs_publicPart_polyTime
+  encSerializedKeyInputs_bits_polyTime encSerializedKeyInputs_mk_polyTime
 
 /-- Independently sample the `m × n` matrix entries and `m` binary secret bits. -/
 noncomputable def sampleKeyInputsSerialized (n m w : ℕ) : ProbComp SerializedKeyInputs := do
   let publicPart ← OracleComp.replicate m (OracleComp.replicate n (sampleBinaryNat w))
   let bits ← OracleComp.replicate m (ProbComp.uniform Bool)
-  return (publicPart, bits)
+  return { publicPart, bits }
 
 /-- Coordinate `j` of the syndrome `eᵀ A` modulo `2 ^ w`. -/
 def syndromeEntry (m w : ℕ) (inputs : SerializedKeyInputs) (j : ℕ) : ℕ :=
   ((List.range m).map fun i =>
-    if inputs.2.getD i false then (inputs.1.getD i []).getD j 0 else 0).sum % 2 ^ w
+    if inputs.bits.getD i false then (inputs.publicPart.getD i []).getD j 0 else 0).sum % 2 ^ w
 
 /-- Construct the canonical public-key word `[u; A]` from serialized key inputs. -/
 def publicKeySerialized (n m w : ℕ) (inputs : SerializedKeyInputs) : List Bool :=
   (List.range n).flatMap (fun j => lowBits w (syndromeEntry m w inputs j)) ++
     (List.range m).flatMap fun i =>
-      (List.range n).flatMap fun j => lowBits w ((inputs.1.getD i []).getD j 0 % 2 ^ w)
+      (List.range n).flatMap fun j =>
+        lowBits w ((inputs.publicPart.getD i []).getD j 0 % 2 ^ w)
 
 /-- Normalize the binary secret list to length `m`. -/
 def secretSerialized (m : ℕ) (bits : List Bool) : List Bool :=
@@ -151,12 +195,12 @@ def secretSerialized (m : ℕ) (bits : List Bool) : List Bool :=
 /-- Executable serialized dual-Regev key generation. -/
 noncomputable def keyGenSerialized (n m w : ℕ) : ProbComp (List Bool × List Bool) := do
   let inputs ← sampleKeyInputsSerialized n m w
-  return (publicKeySerialized n m w inputs, secretSerialized m inputs.2)
+  return (publicKeySerialized n m w inputs, secretSerialized m inputs.bits)
 
 private def decodeKeyInputs (n m w : ℕ) (inputs : SerializedKeyInputs) :
     _root_.Matrix (Fin m) (Fin n) (ZMod (2 ^ w)) × (Fin m → Bool) :=
-  (fun i j => ((inputs.1.getD i.val []).getD j.val 0 : ZMod (2 ^ w)),
-    fun i => inputs.2.getD i.val false)
+  (fun i j => ((inputs.publicPart.getD i.val []).getD j.val 0 : ZMod (2 ^ w)),
+    fun i => inputs.bits.getD i.val false)
 
 private theorem syndromeEntry_eq {n m w : ℕ} (inputs : SerializedKeyInputs) (j : Fin n) :
     syndromeEntry m w inputs j.val =
@@ -168,7 +212,7 @@ private theorem syndromeEntry_eq {n m w : ℕ} (inputs : SerializedKeyInputs) (j
   simp only [Nat.cast_sum, _root_.Matrix.vecMul, dotProduct, castVector]
   apply Finset.sum_congr rfl
   intro i _
-  cases inputs.2.getD i.val false <;> simp
+  cases inputs.bits.getD i.val false <;> simp
 
 private theorem publicKeySerialized_eq (n m w : ℕ) (inputs : SerializedKeyInputs) :
     publicKeySerialized n m w inputs = serializePublicKey
@@ -183,64 +227,87 @@ private theorem publicKeySerialized_eq (n m w : ℕ) (inputs : SerializedKeyInpu
   · simp only [List.flatMap_def, List.map_range_eq_ofFn, lowBits_eq_ofFn, decodeKeyInputs,
       ZMod.val_natCast]
 
-/-- The public-key marginal of serialized key generation matches typed `DualRegev.keyGen`. -/
-theorem eval_keyGenSerialized_fst (n m w : ℕ) :
-    (ProbComp.eval (keyGenSerialized n m w)).map Prod.fst =
-      (ProbComp.eval (keyGen n m w)).map (fun keys => serializePublicKey keys.1) := by
-  have hrow := ProbComp.eval_replicateFin_map (LWE.eval_sampleBinaryNat_eq_map_val w) n
-  have hmat := ProbComp.eval_replicateFin_map hrow m
+/-- The joint public/secret law of serialized key generation matches typed `DualRegev.keyGen`. -/
+theorem eval_keyGenSerialized (n m w : ℕ) :
+    ProbComp.eval (keyGenSerialized n m w) =
+      (ProbComp.eval (keyGen n m w)).map
+        (fun keys => (serializePublicKey keys.1, serializeSecret keys.2)) := by
   have hbits := ProbComp.eval_replicateFin_map
     (PMF.map_id (ProbComp.eval (ProbComp.uniform Bool))).symm m
-  change _ = (ProbComp.eval (LWE.sampleMatrix m n w)).map _ at hmat
-  rw [LWE.eval_sampleMatrix] at hmat
-  have hlhs : (ProbComp.eval (keyGenSerialized n m w)).map Prod.fst =
+  have hlhs : ProbComp.eval (keyGenSerialized n m w) =
       (PMF.uniformOfFintype (_root_.Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))).bind fun A =>
         (PMF.uniformOfFintype (Fin m → Bool)).bind fun bits =>
-          PMF.pure (serializePublicKey (publicKeyOf A fun i => (bits i).toNat)) := by
+          PMF.pure (serializePublicKey (publicKeyOf A fun i => (bits i).toNat),
+            serializeSecret fun i => (bits i).toNat) := by
     unfold keyGenSerialized sampleKeyInputsSerialized
-    simp only [pmf_norm, hmat, hbits, ProbComp.eval_replicateFin, ProbComp.eval_uniform,
-      PMF.pi_uniformOfFintype, _root_.Matrix, publicKeySerialized_eq]
+    simp only [pmf_norm, ProbComp.eval_replicate_replicate_sampleBinaryNat, hbits,
+      ProbComp.eval_replicateFin, ProbComp.eval_uniform, PMF.pi_uniformOfFintype, _root_.Matrix,
+      publicKeySerialized_eq]
     congr 1 with A : 1
     congr 1 with bits : 1
-    refine congrArg PMF.pure (congrArg serializePublicKey ?_)
-    congr 1
-    · ext i j
-      simp [decodeKeyInputs]
-    · funext i
-      simp [decodeKeyInputs]
-  have hrhs : (ProbComp.eval (keyGen n m w)).map (fun keys => serializePublicKey keys.1) =
+    refine congrArg PMF.pure (Prod.ext (congrArg serializePublicKey ?_) ?_)
+    · congr 1
+      · ext i j
+        simp [decodeKeyInputs]
+      · funext i
+        simp [decodeKeyInputs]
+    · simp only [secretSerialized, serializeSecret, List.map_range_eq_ofFn, List.getD_ofFn]
+      congr 1 with i : 1
+      change bits i = decide (((bits i).toNat : ℤ) ≠ 0)
+      cases bits i <;> rfl
+  have hrhs : (ProbComp.eval (keyGen n m w)).map
+        (fun keys => (serializePublicKey keys.1, serializeSecret keys.2)) =
       (PMF.uniformOfFintype (_root_.Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))).bind fun A =>
         (PMF.uniformOfFintype (Fin m → Bool)).bind fun bits =>
-          PMF.pure (serializePublicKey (publicKeyOf A fun i => (bits i).toNat)) := by
+          PMF.pure (serializePublicKey (publicKeyOf A fun i => (bits i).toNat),
+            serializeSecret fun i => (bits i).toNat) := by
     unfold keyGen
     simp only [pmf_norm, LWE.eval_sampleMatrix, ProbComp.eval_replicateFin, ProbComp.eval_uniform,
       PMF.pi_uniformOfFintype]
   exact hlhs.trans hrhs.symm
 
+/-- The public-key marginal of serialized key generation matches typed `DualRegev.keyGen`. -/
+theorem eval_keyGenSerialized_fst (n m w : ℕ) :
+    (ProbComp.eval (keyGenSerialized n m w)).map Prod.fst =
+      (ProbComp.eval (keyGen n m w)).map (fun keys => serializePublicKey keys.1) := by
+  rw [eval_keyGenSerialized, PMF.map_comp]
+  rfl
+
 /-! ### Serialized encryption -/
 
-/-- Coins `(s, x, x₀)` for serialized dual-Regev encryption. -/
-abbrev SerializedEncCoins := List ℕ × (List ℤ × ℤ)
+/-- Coins `(secret, error, scalarError)` for serialized dual-Regev encryption. -/
+@[ext]
+structure SerializedEncCoins where
+  /-- List of binary secret vector representatives `s`. -/
+  secret : List ℕ
+  /-- List of signed integer vector errors `x`. -/
+  error : List ℤ
+  /-- Signed integer scalar error `x₀`. -/
+  scalarError : ℤ
+  deriving DecidableEq, Repr
 
 /-- Framing encoding for serialized encryption coins. -/
-abbrev encSerializedEncCoins : SerializedEncCoins ↪ List Bool :=
-  encPair (encList encNat) (encPair (encList encIntBin) encIntBin)
+enc_structure encSerializedEncCoins : SerializedEncCoins where
+  secret : (encList encNat), error : (encList encIntBin), scalarError : encIntBin
+
+attribute [fun_prop] encSerializedEncCoins_secret_polyTime
+  encSerializedEncCoins_error_polyTime encSerializedEncCoins_scalarError_polyTime
+  encSerializedEncCoins_mk_polyTime
 
 /-- Independently sample the uniform secret `s`, error vector `x`, and scalar error `x₀`. -/
 noncomputable def sampleEncCoinsSerialized (n m w η : ℕ) : ProbComp SerializedEncCoins := do
-  let s ← OracleComp.replicate n (sampleBinaryNat w)
-  let x ← OracleComp.replicate m (sampleCenteredBinomial η)
-  let x₀ ← sampleCenteredBinomial η
-  return (s, (x, x₀))
+  let secret ← OracleComp.replicate n (sampleBinaryNat w)
+  let error ← OracleComp.replicate m (sampleCenteredBinomial η)
+  let scalarError ← sampleCenteredBinomial η
+  return { secret, error, scalarError }
 
 /-- Coordinate `idx` (`0` for `c₀`, `i + 1` for `b i`) of the ciphertext modulo `2 ^ w`. -/
 def encryptEntry (n w : ℕ) (publicWord : List Bool) (message : Bool)
     (coins : SerializedEncCoins) (idx : ℕ) : ℕ :=
-  let (s, x, x₀) := coins
   (((((List.range n).map fun j =>
-      Cslib.Matrix.binaryEntry n w publicWord idx j * s.getD j 0).sum : ℕ) +
-    if idx = 0 then x₀ + ((message.toNat : ℤ) * 2 ^ (w - 1)) else x.getD (idx - 1) 0 : ℤ) %
-    (2 ^ w : ℤ)).toNat
+      Cslib.Matrix.binaryEntry n w publicWord idx j * coins.secret.getD j 0).sum : ℕ) +
+    if idx = 0 then coins.scalarError + ((message.toNat : ℤ) * 2 ^ (w - 1))
+    else coins.error.getD (idx - 1) 0 : ℤ) % (2 ^ w : ℤ)).toNat
 
 /-- Compute all ciphertext bits from an arbitrary public word, message, and coins. -/
 def encryptWithCoinsSerialized (n m w : ℕ) (publicWord : List Bool) (message : Bool)
@@ -255,7 +322,8 @@ noncomputable def encryptSerialized (n m w η : ℕ) (publicWord : List Bool) (m
 
 private def decodeEncCoins (n m w : ℕ) (coins : SerializedEncCoins) :
     (Fin n → ZMod (2 ^ w)) × (Fin m → ℤ) × ℤ :=
-  (fun j => (coins.1.getD j.val 0 : ZMod (2 ^ w)), fun i => coins.2.1.getD i.val 0, coins.2.2)
+  (fun j => (coins.secret.getD j.val 0 : ZMod (2 ^ w)),
+    fun i => coins.error.getD i.val 0, coins.scalarError)
 
 private theorem encryptEntry_eq (n m w : ℕ) (publicWord : List Bool) (message : Bool)
     (coins : SerializedEncCoins) (idx : Fin (m + 1)) :
@@ -308,13 +376,11 @@ theorem eval_encryptSerialized (n m w η : ℕ) (publicWord : List Bool) (messag
     ProbComp.eval (encryptSerialized n m w η publicWord message) =
       (ProbComp.eval (encrypt η (decodePublicKey n m w publicWord) message)).map
         serializeCiphertext := by
-  have hs := ProbComp.eval_replicateFin_map (LWE.eval_sampleBinaryNat_eq_map_val w) n
   have hx := ProbComp.eval_replicateFin_map
     (PMF.map_id (ProbComp.eval (sampleCenteredBinomial η))).symm m
-  change _ = (ProbComp.eval (LWE.sampleVector n w)).map _ at hs
-  rw [LWE.eval_sampleVector] at hs
-  simp only [pmf_norm, encryptSerialized, sampleEncCoinsSerialized, hs, hx, encrypt,
-    LWE.eval_sampleVector, Function.comp_def, encryptWithCoinsSerialized_eq]
+  simp only [pmf_norm, encryptSerialized, sampleEncCoinsSerialized,
+    ProbComp.eval_replicate_sampleBinaryNat, hx, encrypt, LWE.eval_sampleVector,
+    Function.comp_def, encryptWithCoinsSerialized_eq]
   congr 1 with s : 1
   congr 1 with x : 1
   congr 1 with x₀ : 1
@@ -327,6 +393,94 @@ theorem eval_encryptSerialized_serializePublicKey {n m w η : ℕ} (pk : PublicK
     ProbComp.eval (encryptSerialized n m w η (serializePublicKey pk) message) =
       (ProbComp.eval (encrypt η pk message)).map serializeCiphertext := by
   rw [eval_encryptSerialized, decodePublicKey_serializePublicKey]
+
+/-! ### Serialized decryption and correctness -/
+
+/-- Compute the canonical residue of `c₀ - ⟨e, b⟩` modulo `2 ^ w` from a binary secret word and
+ciphertext word using signed binary subtraction. -/
+def decryptResidue (m w : ℕ) (secretWord ciphertextWord : List Bool) : ℕ :=
+  (((Cslib.Matrix.binaryEntry (m + 1) w ciphertextWord 0 0 : ℤ) -
+    (((List.range m).map fun i =>
+      if secretWord.getD i false then
+        Cslib.Matrix.binaryEntry (m + 1) w ciphertextWord 0 (i + 1)
+      else 0).sum : ℕ)) % (2 ^ w : ℤ)).toNat
+
+/-- At width zero, the dual-Regev decryption residue is zero. -/
+@[simp] theorem decryptResidue_zero (m : ℕ) (secretWord ciphertextWord : List Bool) :
+    decryptResidue m 0 secretWord ciphertextWord = 0 := by
+  simp [decryptResidue]
+
+/-- Decrypt a serialized dual-Regev ciphertext word under a binary secret word by rounding
+`decryptResidue` via `LWE.decodeResidue`. -/
+def decryptSerialized (m w : ℕ) (secretWord ciphertextWord : List Bool) : Bool :=
+  LWE.decodeResidue w (decryptResidue m w secretWord ciphertextWord)
+
+/-- Signed word arithmetic computes the canonical residue of `c₀ - ⟨e, b⟩` on the decoded binary
+secret and ciphertext. -/
+theorem decryptResidue_eq (m w : ℕ) (secretWord ciphertextWord : List Bool) :
+    decryptResidue m w secretWord ciphertextWord =
+      ((decodeCiphertext m w ciphertextWord).2 -
+        castVector w (decodeSecret m secretWord) ⬝ᵥ
+          (decodeCiphertext m w ciphertextWord).1).val := by
+  let value : ℤ := (Cslib.Matrix.binaryEntry (m + 1) w ciphertextWord 0 0 : ℤ) -
+    ((∑ i : Fin m,
+      if secretWord.getD i.val false then
+        Cslib.Matrix.binaryEntry (m + 1) w ciphertextWord 0 (i.val + 1)
+      else 0 : ℕ) : ℤ)
+  have hcast : (value : ZMod (2 ^ w)) =
+      (decodeCiphertext m w ciphertextWord).2 -
+        castVector w (decodeSecret m secretWord) ⬝ᵥ
+          (decodeCiphertext m w ciphertextWord).1 := by
+    simp only [value, Int.cast_sub, Int.cast_sum, Int.cast_natCast, Nat.cast_sum, decodeCiphertext,
+      decodeSecret, castVector, dotProduct, Cslib.Matrix.ofBinary_apply, Fin.val_zero,
+      Fin.val_succ]
+    congr 1
+    apply Finset.sum_congr rfl
+    intro i _
+    cases secretWord.getD i.val false <;> simp
+  unfold decryptResidue
+  rw [List.map_range_eq_ofFn, List.sum_ofFn]
+  change (value % (2 ^ w : ℤ)).toNat = _
+  rw [← hcast]
+  have hv := congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) value)
+  simpa only [Int.toNat_natCast, Nat.cast_pow, Nat.cast_ofNat] using hv.symm
+
+/-- Serialized dual-Regev decryption agrees with typed `DualRegev.decrypt` on the decoded binary
+secret and ciphertext for all dimensions and widths. -/
+theorem decryptSerialized_eq (m w : ℕ) (secretWord ciphertextWord : List Bool) :
+    decryptSerialized m w secretWord ciphertextWord =
+      decrypt (decodeSecret m secretWord) (decodeCiphertext m w ciphertextWord) := by
+  simp only [decryptSerialized, decrypt, LWE.decode, decryptResidue_eq]
+
+/-- Canonical binary secret and ciphertext words decrypt identically to their typed counterparts. -/
+@[simp] theorem decryptSerialized_serialize {m w : ℕ} (bits : Fin m → Bool)
+    (ciphertext : Ciphertext m w) :
+    decryptSerialized m w (serializeSecret fun i => ((bits i).toNat : ℤ))
+      (serializeCiphertext ciphertext) =
+      decrypt (fun i => ((bits i).toNat : ℤ)) ciphertext := by
+  rw [decryptSerialized_eq, decodeSecret_serializeSecret, decodeCiphertext_serializeCiphertext]
+
+/-- Every key pair generated by `DualRegev.keyGenSerialized` and every supported ciphertext of
+`DualRegev.encryptSerialized` decrypt with zero error when `4 * (m * η + η) < 2 ^ w`. -/
+theorem keyGenSerialized_encryptSerialized_correct {n m w η : ℕ} (hw : 0 < w)
+    (hmargin : 4 * (m * η + η) < 2 ^ w) {keys : List Bool × List Bool}
+    (hkeys : keys ∈ (ProbComp.eval (keyGenSerialized n m w)).support) (μ : Bool)
+    {ciphertext : List Bool}
+    (hc : ciphertext ∈ (ProbComp.eval (encryptSerialized n m w η keys.1 μ)).support) :
+    decryptSerialized m w keys.2 ciphertext = μ := by
+  rw [eval_keyGenSerialized, PMF.mem_support_map_iff] at hkeys
+  obtain ⟨typedKeys, htypedKeys, rfl⟩ := hkeys
+  rw [eval_encryptSerialized_serializePublicKey, PMF.mem_support_map_iff] at hc
+  obtain ⟨typedCiphertext, htypedCiphertext, rfl⟩ := hc
+  have hbits : ∃ bits : Fin m → Bool, typedKeys.2 = fun i => ((bits i).toNat : ℤ) := by
+    rcases typedKeys with ⟨pk, e⟩
+    simp only [keyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+      PMF.mem_support_pure_iff, Prod.mk.injEq] at htypedKeys
+    obtain ⟨_, -, bits, -, _, rfl⟩ := htypedKeys
+    exact ⟨bits, rfl⟩
+  obtain ⟨bits, hbits⟩ := hbits
+  rw [hbits, decryptSerialized_serialize, ← hbits]
+  exact keyGen_encrypt_correct hw hmargin htypedKeys μ htypedCiphertext
 
 /-! ### Uniform polynomial-time certificates for honest algorithms -/
 
@@ -347,7 +501,7 @@ theorem isPPTOn_sampleKeyInputsSerialized
   have hrow := hw.sampleBinaryNat.replicate hn
   have hmat := hrow.replicate hm
   have hbits := (isPPTOn_uniform_bool input).replicate_bool hm
-  unfold sampleKeyInputsSerialized encSerializedKeyInputs
+  unfold sampleKeyInputsSerialized
   ppt
 
 /-- Compute one coordinate of the binary syndrome `eᵀ A` modulo `2 ^ w` in polynomial time. -/
@@ -358,24 +512,20 @@ theorem computableInPolyTime_syndromeEntry {inputs : α → SerializedKeyInputs}
     (hinputs : ComputableInPolyTime inputs input encSerializedKeyInputs)
     (hj : ComputableInPolyTime j input encUnary) :
     ComputableInPolyTime (fun a => syndromeEntry (m a) (w a) (inputs a) (j a)) input encNat := by
-  unfold syndromeEntry
-  have hterm : ComputableInPolyTime
-      (fun p : α × ℕ =>
-        if (inputs p.1).2.getD p.2 false then ((inputs p.1).1.getD p.2 []).getD (j p.1) 0 else 0)
-      (encPair input encUnary) encNat := by
-    have hbit := (bitsGetD false).comp ((hinputs.snd'.comp (fst input encUnary)).prod
-      (snd input encUnary))
-    apply hbit.ite'
-    · have hrow := (listGetD (encA := encList encNat) []).comp
-        ((hinputs.fst'.comp (fst input encUnary)).prod (snd input encUnary))
-      exact (listGetD (encA := encNat) 0).comp
-        (hrow.prod (hj.comp (fst input encUnary)))
-    · exact const 0
-  have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
-    (mapWithInput (f := fun a i =>
-      if (inputs a).2.getD i false then ((inputs a).1.getD i []).getD (j a) 0 else 0)
-      (range.comp hm) hterm)
-  exact binary_mod.comp (hsum.prod (binary_pow' (const 2) hw))
+  have hp := ComputableInPolyTime.id' (encIn := encPair input encUnary)
+  have hbits := encSerializedKeyInputs_bits_polyTime hinputs
+  have hmatrix := encSerializedKeyInputs_publicPart_polyTime hinputs
+  have hrow := ComputableInPolyTime.listGetDWithInput (hmatrix.comp hp.fst') hp.snd' []
+  have hentry := ComputableInPolyTime.listGetDWithInput hrow (hj.comp hp.fst') 0
+  have hbit := (hbits.comp hp.fst').bitsGetDWithInput hp.snd' false
+  have hvalues := ComputableInPolyTime.mapWithInput
+    (f := fun a i => if (inputs a).bits.getD i false then
+      ((inputs a).publicPart.getD i []).getD (j a) 0 else 0)
+    (ComputableInPolyTime.range.comp hm)
+    (hbit.ite hentry (ComputableInPolyTime.const 0))
+  simpa only [syndromeEntry, Function.comp_def] using
+    ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_sum.comp hvalues)
+      (ComputableInPolyTime.binary_two_pow.comp hw)
 
 /-- Construct the serialized dual-Regev public-key word `[u; A]` in polynomial time. -/
 @[fun_prop]
@@ -396,7 +546,8 @@ theorem computableInPolyTime_publicKeySerialized {inputs : α → SerializedKeyI
     apply flatMapToBitsWithInput (range.comp (hn.comp (fst input encUnary)))
     apply bitsLow (hw.comp ((fst input encUnary).comp (fst (encPair input encUnary) encUnary)))
     have hrow := (listGetD (encA := encList encNat) []).comp
-      ((hinputs.fst'.comp (fst input encUnary)).prod (snd input encUnary))
+      (((encSerializedKeyInputs_publicPart_polyTime hinputs).comp
+        (fst input encUnary)).prod (snd input encUnary))
     have hentry := (listGetD (encA := encNat) 0).comp
       ((hrow.comp (fst (encPair input encUnary) encUnary)).prod
         (snd (encPair input encUnary) encUnary))
@@ -408,9 +559,7 @@ theorem computableInPolyTime_secretSerialized {bits : α → List Bool}
     (hm : ComputableInPolyTime m input encUnary)
     (hbits : ComputableInPolyTime bits input encBits) :
     ComputableInPolyTime (fun a => secretSerialized (m a) (bits a)) input encBits := by
-  unfold secretSerialized
-  exact mapToBitsWithInput (enc := encUnary) (range.comp hm)
-    ((bitsGetD false).comp ((hbits.comp (fst input encUnary)).prod (snd input encUnary)))
+  fun_prop [secretSerialized]
 
 /-- Serialized dual-Regev key generation is uniform strict PPT. -/
 @[fun_prop]
@@ -436,7 +585,7 @@ theorem isPPTOn_sampleEncCoinsSerialized
   have hs := hw.sampleBinaryNat.replicate hn
   have hx := (isPPTOn_sampleCenteredBinomial.preprocess hη).replicate hm
   have hx₀ := isPPTOn_sampleCenteredBinomial.preprocess hη
-  unfold sampleEncCoinsSerialized encSerializedEncCoins
+  unfold sampleEncCoinsSerialized
   ppt
 
 /-- Compute one coordinate of the serialized dual-Regev ciphertext in polynomial time. -/
@@ -456,16 +605,17 @@ theorem computableInPolyTime_encryptEntry
   have hterm : ComputableInPolyTime
       (fun p : α × ℕ =>
         Cslib.Matrix.binaryEntry (n p.1) (w p.1) (publicWord p.1) (idx p.1) p.2 *
-          (coins p.1).1.getD p.2 0) (encPair input encUnary) encNat := by
+          (coins p.1).secret.getD p.2 0) (encPair input encUnary) encNat := by
     apply binary_mul'
     · exact matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop)
         (by fun_prop) (by fun_prop)
     · exact (listGetD (encA := encNat) 0).comp
-        ((hcoins.fst'.comp (fst input encUnary)).prod (snd input encUnary))
+        (((encSerializedEncCoins_secret_polyTime hcoins).comp
+          (fst input encUnary)).prod (snd input encUnary))
   have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
     (mapWithInput
       (f := fun a j => Cslib.Matrix.binaryEntry (n a) (w a) (publicWord a) (idx a) j *
-        (coins a).1.getD j 0)
+        (coins a).secret.getD j 0)
       (range.comp hn) hterm)
   have hboolUnary : ComputableInPolyTime Bool.toNat encBool encUnary := of_finite Bool.toNat
   have hpad : ComputableInPolyTime
@@ -475,16 +625,18 @@ theorem computableInPolyTime_encryptEntry
         ((intBin_natCast.comp (unary_to_binary.comp (hboolUnary.comp hmessage))).prod
           (intBin_natCast.comp (binary_pow' (const 2) (by fun_prop))))
   have hzero : ComputableInPolyTime
-      (fun a => (coins a).2.2 + ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input encIntBin :=
+      (fun a => (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input
+        encIntBin :=
     (show ComputableInPolyTime (fun p : ℤ × ℤ => p.1 + p.2)
       (encPair encIntBin encIntBin) encIntBin by fun_prop).comp
-        (hcoins.snd'.snd'.prod hpad)
+        ((encSerializedEncCoins_scalarError_polyTime hcoins).prod hpad)
   have htail : ComputableInPolyTime
-      (fun a => (coins a).2.1.getD (idx a - 1) 0) input encIntBin :=
-    (listGetD (encA := encIntBin) 0).comp (hcoins.snd'.fst'.prod (by fun_prop))
+      (fun a => (coins a).error.getD (idx a - 1) 0) input encIntBin :=
+    (listGetD (encA := encIntBin) 0).comp
+      ((encSerializedEncCoins_error_polyTime hcoins).prod (by fun_prop))
   have herr : ComputableInPolyTime
-      (fun a => if idx a = 0 then (coins a).2.2 + ((message a).toNat : ℤ) * 2 ^ (w a - 1)
-        else (coins a).2.1.getD (idx a - 1) 0) input encIntBin := by
+      (fun a => if idx a = 0 then (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)
+        else (coins a).error.getD (idx a - 1) 0) input encIntBin := by
     simpa only [Function.comp_apply, beq_iff_eq] using (beq hidx (const 0)).ite' hzero htail
   have hadd := (show ComputableInPolyTime (fun p : ℤ × ℤ => p.1 + p.2)
     (encPair encIntBin encIntBin) encIntBin by fun_prop).comp
@@ -526,6 +678,34 @@ theorem isPPTOn_encryptSerialized
   unfold encryptSerialized
   ppt
 
+/-- Compute the dual-Regev decryption residue `c₀ - ⟨e, b⟩` modulo `2 ^ w` in polynomial time. -/
+@[fun_prop]
+theorem computableInPolyTime_decryptResidue
+    {secretWord ciphertextWord : α → List Bool}
+    (hm : ComputableInPolyTime m input encUnary)
+    (hw : ComputableInPolyTime w input encUnary)
+    (hsecretWord : ComputableInPolyTime secretWord input encBits)
+    (hciphertextWord : ComputableInPolyTime ciphertextWord input encBits) :
+    ComputableInPolyTime
+      (fun a => decryptResidue (m a) (w a) (secretWord a) (ciphertextWord a))
+      input encNat := by
+  fun_prop [decryptResidue]
+
+/-- Serialized dual-Regev decryption is computable in polynomial time on arbitrary secret and
+ciphertext words. -/
+@[fun_prop]
+theorem computableInPolyTime_decryptSerialized
+    {secretWord ciphertextWord : α → List Bool}
+    (hm : ComputableInPolyTime m input encUnary)
+    (hw : ComputableInPolyTime w input encUnary)
+    (hsecretWord : ComputableInPolyTime secretWord input encBits)
+    (hciphertextWord : ComputableInPolyTime ciphertextWord input encBits) :
+    ComputableInPolyTime
+      (fun a => decryptSerialized (m a) (w a) (secretWord a) (ciphertextWord a))
+      input encBool := by
+  unfold decryptSerialized
+  fun_prop
+
 end PolyTime
 
 /-! ### Reduction from `(m + 1)`-sample Decision LWE -/
@@ -545,22 +725,6 @@ def lweExtractChallenge (m n w : ℕ) (lweWord : List Bool) (message : Bool) : L
     (List.range m).flatMap fun i =>
       lowBits w (Cslib.Matrix.binaryEntry (n + 1) w lweWord (i + 1) 0)
 
-private theorem lowBits_mod_two_pow (w x : ℕ) :
-    lowBits w (x % 2 ^ w) = lowBits w x := by
-  simp only [lowBits]
-  refine List.map_congr_left fun k hk => ?_
-  simp [Nat.testBit_mod_two_pow, List.mem_range.mp hk]
-
-private theorem lowBits_zmod (w x : ℕ) :
-    lowBits w x = lowBits w (x : ZMod (2 ^ w)).val := by
-  rw [ZMod.val_natCast, lowBits_mod_two_pow]
-
-private theorem binaryEntry_zmod {m n w : ℕ}
-    (M : _root_.Matrix (Fin m) (Fin n) (ZMod (2 ^ w))) (i : Fin m) (j : Fin n) :
-    (Cslib.Matrix.binaryEntry n w (Cslib.Matrix.toBinary M) i.val j.val : ZMod (2 ^ w)) =
-      M i j := by
-  rw [← Cslib.Matrix.ofBinary_apply m n w, Cslib.Matrix.ofBinary_toBinary]
-
 private theorem lweExtractPublicKey_toBinary {n m w : ℕ}
     (M : _root_.Matrix (Fin (m + 1)) (Fin (n + 1)) (ZMod (2 ^ w))) :
     lweExtractPublicKey n m w (Cslib.Matrix.toBinary M) =
@@ -574,7 +738,8 @@ private theorem lweExtractPublicKey_toBinary {n m w : ℕ}
   congr 1
   apply congrArg List.ofFn
   funext j
-  rw [lowBits_zmod, ← Fin.val_succ j, binaryEntry_zmod M i j.succ, lowBits_eq_ofFn]
+  rw [← lowBits_val_natCast, ← Fin.val_succ j, Cslib.Matrix.binaryEntry_toBinary M i j.succ,
+    lowBits_eq_ofFn]
   refine Fin.cases rfl (fun _ => rfl) i
 
 private theorem lweExtractChallenge_toBinary {n m w : ℕ}
@@ -587,17 +752,17 @@ private theorem lweExtractChallenge_toBinary {n m w : ℕ}
     List.append_nil, List.flatMap_def, List.map_range_eq_ofFn, _root_.Matrix.of_apply,
     Fin.cons_zero, Fin.cons_succ]
   congr 1
-  · have h0 := binaryEntry_zmod M 0 0
+  · have h0 := Cslib.Matrix.binaryEntry_toBinary M 0 0
     simp only [Fin.val_zero] at h0
-    rw [lowBits_mod_two_pow, lowBits_zmod, Nat.cast_add, Nat.cast_mul, Nat.cast_pow,
+    rw [lowBits_mod_two_pow, ← lowBits_val_natCast, Nat.cast_add, Nat.cast_mul, Nat.cast_pow,
       Nat.cast_ofNat, h0, lowBits_eq_ofFn]
     cases message <;> simp [LWE.encodeBit]
   · congr 1
     apply congrArg List.ofFn
     funext i
-    have hi := binaryEntry_zmod M i.succ 0
+    have hi := Cslib.Matrix.binaryEntry_toBinary M i.succ 0
     simp only [Fin.val_zero] at hi
-    rw [lowBits_zmod, ← Fin.val_succ i, hi, lowBits_eq_ofFn]
+    rw [← lowBits_val_natCast, ← Fin.val_succ i, hi, lowBits_eq_ofFn]
 
 /-- Uniform hidden-bit reduction turning an `(m + 1)`-sample `DecisionLWE` challenge matrix word
 into a dual-Regev IND-CPA challenge. -/
@@ -774,8 +939,9 @@ private theorem distinguishingGame_realEnsemble (n m w η : ℕ → ℕ)
           (uniformPublicKeyWord (n security) (m security) (w security))
           (fun k => encryptSerialized (n k) (m k) (w k) (η k))
           adversary bit security).map fun guess => guess ^^ bit) := by
-  simp only [distinguishingGame, lweDistinguisher, LWE.realEnsemble, LWE.publicMatrixLaw,
-    LWE.publicMatrix, Encryption.publicKeyGame, uniformPublicKeyWord, pmf_norm,
+  simp only [distinguishingGame_eq_bind, lweDistinguisher, LWE.realEnsemble, LWE.publicMatrixLaw,
+    LWE.publicMatrix, Encryption.publicKeyGame, Encryption.publicKeyGameOn, ↓reduceIte,
+    uniformPublicKeyWord, pmf_norm,
     lweExtractPublicKey_toBinary, lweExtractChallenge_toBinary,
     eval_encryptSerialized_serializePublicKey, encrypt, ProbComp.eval_bind, ProbComp.eval_pure,
     LWE.eval_sampleVector, ProbComp.eval_uniform]
@@ -794,8 +960,8 @@ private theorem distinguishingGame_uniformEnsemble (n m w : ℕ → ℕ)
       ((PMF.uniformOfFintype Bool).bind fun bit =>
         (idealCipherGame (n security) (m security) (w security) adversary security).map
           fun guess => guess ^^ bit) := by
-  simp only [distinguishingGame, lweDistinguisher, LWE.uniformEnsemble, idealCipherGame, pmf_norm,
-    lweExtractPublicKey_toBinary, lweExtractChallenge_toBinary, ProbComp.eval_uniform]
+  simp only [distinguishingGame_eq_bind, lweDistinguisher, LWE.uniformEnsemble, idealCipherGame,
+    pmf_norm, lweExtractPublicKey_toBinary, lweExtractChallenge_toBinary, ProbComp.eval_uniform]
   have hsplit := congrArg
     (fun law : PMF (PublicKey (n security) (m security) (w security) ×
         Ciphertext (m security) (w security)) =>
@@ -895,7 +1061,7 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
           ((ProbComp.eval (keyGen (n security) (m security) (w security))).map Prod.fst).bind
             fun pk => ProbComp.eval
               (Encryption.keyDistinguisher enc adversary security (serializePublicKey pk)) := by
-        simp only [distinguishingGame, realPK, pmf_norm]
+        simp only [distinguishingGame_eq_bind, realPK, pmf_norm]
       have hRHS : distinguishingGame unifPK
           (Encryption.keyDistinguisher enc adversary security) =
           (do
@@ -905,7 +1071,7 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
             return (A, u)).bind fun pk => ProbComp.eval
               (Encryption.keyDistinguisher enc adversary security (serializePublicKey pk)) := by
         unfold unifPK uniformPublicKeyWord
-        simp only [distinguishingGame]
+        simp only [distinguishingGame_eq_bind]
         rw [← PMF.uniformOfFintype_prod]
         simp only [pmf_norm]
       rw [hLHS, hRHS]
@@ -960,7 +1126,7 @@ theorem indCPA_of_decisionLWE {n m w η : ℕ → ℕ}
     Encryption.INDCPA (fun k => keyGenSerialized (n k) (m k) (w k))
       (fun k => encryptSerialized (n k) (m k) (w k) (η k)) := by
   intro adversary hadversary
-  have hsource := hLWE (lweDistinguisher n m w adversary)
+  have hsource := hLWE.encoded (lweDistinguisher n m w adversary)
     (isPPT_lweDistinguisher hn hm hw hadversary)
   have herror := negligible_mul_sqrt_pow_two_div_pow_two
     (count := fun _ => 1) (outputBits := fun k => w k * n k) (by fun_prop) hmargin

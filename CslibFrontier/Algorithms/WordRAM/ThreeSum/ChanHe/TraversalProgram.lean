@@ -229,6 +229,6 @@ theorem oneRoot_not_readsWidth : ¬oneRoot.ReadsWidth := by decide
 theorem oneRoot_size : oneRoot.size ≤ 65536 := by decide
 
 /-- Registers 109–127 are retained for the outer frontend-forest controller. -/
-theorem oneRoot_preserves : ∀ i : Fin 128, 109 ≤ i.val → oneRoot.Preserves i := by decide
+theorem oneRoot_preserves : ∀ i : Fin 128, 109 ≤ i.val → oneRoot.Preserves i := by decide +kernel
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

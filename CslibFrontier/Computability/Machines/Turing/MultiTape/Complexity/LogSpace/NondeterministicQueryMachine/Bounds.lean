@@ -19,6 +19,8 @@ move no heads. Repeating the routines does not multiply the window by the number
 
 ## Main results
 
+* `Turing.NondeterministicQueryMachine.Native.head_drop_check`: the suffix after a check
+  starts at the deterministic continuation boundary.
 * `Turing.NondeterministicQueryMachine.Native.choose_inWindow`: every prefix from a pass boundary
   stays in the common routine window, assuming a preserved invariant on tape words.
 -/
@@ -39,6 +41,20 @@ theorem step_check_words {input : List Bool} (choice : Bool)
       wordsCfg input (some (if ws C = [] then .finish F.q₀ else .choose)) ws out := by
   rw [step_check I P F C choice _ rfl]
   cases hc : ws C <;> simp [Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, Cfg.withState, hc]
+
+/-- The suffix immediately after a check takes its deterministic continuation route.
+The checked word selects the finalizer or choice boundary without changing tapes or output. -/
+theorem head_drop_check {input : List Bool} (p : (machine I P F C).RunPath input)
+    (i : Fin p.length) {ws : Fin k → List Bool} {out : List Bool}
+    (hcheck : p i.castSucc = wordsCfg input (some .check) ws out) :
+    (p.drop i.succ).head =
+      wordsCfg input (some (if ws C = [] then .finish F.q₀ else .choose)) ws out := by
+  have hstep := p.step i
+  change (machine I P F C).Step (p i.castSucc) (p i.succ) at hstep
+  rw [hcheck] at hstep
+  obtain ⟨coin, hcoin⟩ := (step_iff I P F C).mp hstep
+  rw [step_check_words I P F C coin] at hcoin
+  simpa only [RelSeries.head_drop] using hcoin.symm
 
 /-- A path stays in a window when its configurations before `cut` and its suffix from `cut` do. -/
 private theorem inWindow_of_drop {k' : ℕ} {S : Type} {ntm : MultiTapeNTM k' Bool S}
@@ -110,7 +126,7 @@ theorem choose_inWindow {input : List Bool} (Inv : (Fin k → List Bool) → Pro
       intro p hlen ws out hInv hhead
       by_cases hzero : p.length = 0
       · rintro _ ⟨j, rfl⟩ i
-        have hj : j = 0 := by apply Fin.ext; have := j.isLt; omega
+        have hj : j = 0 := by omega
         subst hj
         change p.head.workTapePos i ∈ _
         simp [hhead, mem_window]
@@ -154,25 +170,52 @@ theorem choose_inWindow {input : List Bool} (Inv : (Fin k → List Bool) → Pro
           (by simp only [p₁, RelSeries.drop_length]; omega) (Nat.lt_succ_self _)
         change p ⟨q.length + 1, by omega⟩ = q.last.mapState (passState b) at heq
         simpa [hlast', hqlast, passState] using heq
-      have hnext := p.step ⟨q.length + 1, hcheck⟩
-      change (machine I P F C).Step (p ⟨q.length + 1, by omega⟩)
-        (p ⟨q.length + 2, by omega⟩) at hnext
-      rw [hcfg] at hnext
-      obtain ⟨coin, hcoin⟩ := (step_iff I P F C).mp hnext
-      rw [step_check_words I P F C coin] at hcoin
+      have hnext := head_drop_check I P F C p ⟨q.length + 1, hcheck⟩ hcfg
       let cut : Fin (p.length + 1) := ⟨q.length + 2, by omega⟩
       have htail : MultiTapeNTM.RunPath.InWindow (p.drop cut) s := by
         by_cases hblank : ws' C = []
         · obtain ⟨tF, htF⟩ := hF ws' hInv'
           apply finish_inWindow I P F C htF
-          simpa [cut, hblank] using hcoin.symm
+          simpa [cut, hblank] using hnext
         · apply ih (p.drop cut).length
             (by simp only [RelSeries.drop_length, cut, hlen]; omega) (p.drop cut) rfl
             ws' (out ++ e) hInv'
-          simpa [cut, hblank] using hcoin.symm
+          simpa [cut, hblank] using hnext
       exact inWindow_of_drop p cut
         (fun j hj i => hbefore j j.isLt (by dsimp [cut] at hj; omega) i) htail
   exact aux p.length p rfl ws out hInv hhead
+
+/-- The initial continuation check either enters the finalizer or the choice loop without
+moving any tape head, so it preserves their common workspace window. -/
+private theorem check_inWindow {input : List Bool} (Inv : (Fin k → List Bool) → Prop) {s : ℕ}
+    (hP : ∀ b ws, Inv ws → ∃ t, MultiTapeTM.TransformsTapes (P b)
+      (fun inp w => inp = input ∧ w = ws) (fun _ _ w' _ => Inv w') t s)
+    (hF : ∀ ws, Inv ws → ∃ t, MultiTapeTM.TransformsTapes F
+      (fun inp w => inp = input ∧ w = ws) (fun _ _ _ _ => True) t s)
+    (p : (machine I P F C).RunPath input) {ws : Fin k → List Bool} {out : List Bool}
+    (hInv : Inv ws) (hhead : p.head = wordsCfg input (some .check) ws out) : p.InWindow s := by
+  by_cases hzero : p.length = 0
+  · rintro _ ⟨j, rfl⟩ i
+    have : j = 0 := by omega
+    subst j
+    change p.head.workTapePos i ∈ _
+    simp [hhead, mem_window]
+  have hroute := head_drop_check I P F C p ⟨0, by omega⟩ hhead
+  have htail : MultiTapeNTM.RunPath.InWindow (p.drop ⟨1, by omega⟩) s := by
+    by_cases hblank : ws C = []
+    · obtain ⟨tF, htF⟩ := hF ws hInv
+      exact finish_inWindow I P F C htF _ (by simpa [hblank] using hroute)
+    · exact choose_inWindow I P F C Inv hP hF _ hInv (by simpa [hblank] using hroute)
+  apply inWindow_of_drop p ⟨1, by omega⟩ _ htail
+  intro j hj i
+  have : j = 0 := by
+    apply Fin.ext
+    change j.val < 1 at hj
+    simp only [Fin.val_zero]
+    omega
+  subst j
+  change p.head.workTapePos i ∈ _
+  simp [hhead, mem_window]
 
 /-- **The complete native loop uses one common window on every computation prefix.** Tidy
 initialization establishes the word invariant, the selected passes preserve it, and finalization
@@ -204,12 +247,12 @@ theorem runsInSpace_of_transforms {input : List Bool}
   have hpwin : MultiTapeNTM.RunPath.InWindow p.toRunPath s := by
     by_cases hq : q.length < p.length + 1
     · let cut : Fin (p.length + 1) := ⟨q.length, hq⟩
-      have hcfg : p.toRunPath cut = wordsCfg input (some .choose) ws e := by
+      have hcfg : p.toRunPath cut = wordsCfg input (some .check) ws e := by
         have h := follows_init I P F C p.toRunPath q hmap q.length hq (Nat.lt_succ_self _)
         change p.toRunPath cut = q.last.mapState initState at h
         simpa [hlast', hqlast, initState] using h
       exact inWindow_of_drop p.toRunPath cut (fun j hj => hpre j hj.le)
-        (choose_inWindow I P F C Inv hP hF (p.toRunPath.drop cut) hInv (by simpa using hcfg))
+        (check_inWindow I P F C Inv hP hF (p.toRunPath.drop cut) hInv (by simpa using hcfg))
     · rintro _ ⟨j, rfl⟩
       exact hpre j (by omega)
   exact MultiTapeNTM.RunPath.InWindow.space_le hpwin

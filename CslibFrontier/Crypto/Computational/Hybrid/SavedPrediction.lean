@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Computational.Prediction
 import CslibFrontier.Computability.Probabilistic.CoinTape
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Saving the randomness of a coordinate predictor
@@ -100,9 +101,8 @@ def decode (code : List Bool) : Description where
 @[simp] theorem length_encoding (desc : Description) :
     (encoding desc).length =
       2 * (desc.front.length + desc.back.length) + desc.coins.length + 8 := by
-  simp only [encoding, Function.Embedding.coeFn_mk, length_encPair, encBool_apply,
-    List.length_singleton, encBits, Function.Embedding.refl_apply]
-  lia
+  enc_len [encoding, Function.Embedding.coeFn_mk, List.length_singleton, encBits,
+    Function.Embedding.refl_apply]
 
 /-- Insert a labeled example directly into the saved encoded input. -/
 def input (desc : Description) (observation : List Bool) : List Bool :=
@@ -112,9 +112,7 @@ def input (desc : Description) (observation : List Bool) : List Bool :=
 @[simp] theorem length_input (desc : Description) (observation : List Bool) :
     (desc.input observation).length =
       desc.front.length + desc.back.length + 4 * observation.length + 5 := by
-  simp only [input, List.length_append, length_encPair, encBool_apply, List.length_singleton,
-    encBits, Function.Embedding.refl_apply]
-  lia
+  enc_len [input, List.length_singleton, encBits, Function.Embedding.refl_apply]
 
 end Description
 
@@ -152,8 +150,22 @@ theorem isPPTOn_save {Param : Type} {input : Param ↪ List Bool}
     (hwidth : ComputableInPolyTime width input encUnary)
     (htrial : ComputableInPolyTime trial input encBool) :
     IsPPTOn input encBits (fun a => save c d (width a) (trial a) (front a) (back a)) := by
-  simp only [save, coinBudget, Description.encoding, Function.Embedding.coeFn_mk]
-  ppt
+  have hbudget : ComputableInPolyTime
+      (fun a => coinBudget c d (width a) (front a) (back a)) input encUnary := by
+    unfold coinBudget
+    fun_prop
+  have hresult : ComputableInPolyTime
+      (fun p : Param × List Bool =>
+        Description.encoding ⟨true, trial p.1, front p.1, back p.1, p.2⟩)
+      (encPair input encBits) encBits := by
+    have ht := htrial.comp (ComputableInPolyTime.fst input encBits)
+    have hf := hfront.comp (ComputableInPolyTime.fst input encBits)
+    have hb := hback.comp (ComputableInPolyTime.fst input encBits)
+    unfold Description.encoding
+    exact ((ComputableInPolyTime.const (encOut := encBool) true).prod
+      (ht.prod (hf.prod (hb.prod (ComputableInPolyTime.snd input encBits))))).encoding_comp
+  simpa only [save, bind_pure_comp] using
+    (ComputableInPolyTime.sampleList hbudget).map_with hresult
 
 attribute [program_certificate] isPPTOn_save
 
@@ -297,9 +309,7 @@ private theorem length_labeledList_le (encoding : α ↪ List Bool) {values : Li
     values (b := 2 * width + 2) (by
       intro value hmem
       have := hwidth value hmem
-      simp only [length_encPair, encBool_apply,
-        List.length_singleton]
-      lia)
+      enc_len [List.length_singleton])
   convert h using 1
   congr 1
   lia
@@ -372,9 +382,8 @@ theorem exists_evaluator {Param : Type} {input : Param ↪ List Bool} {output : 
           sample output (input a) replacement original count c d width) =
           ProbComp.eval (bitPredictor (fun trial =>
             sequenceTest replacement original count (test a) (observation, trial))) := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime]
   obtain ⟨c, d, raw, hefficient, hrealize⟩ := htest.exists_padded_bool_coin_evaluator
-  refine ⟨c, d, evaluate raw, (isPolyTime_evaluate hefficient).tidy, ?_⟩
+  refine ⟨c, d, evaluate raw, (isPolyTime_evaluate hefficient), ?_⟩
   intro a replacement original count width observation hwidth
   apply eval_sample output (input a) replacement original count c d width (test a) raw
     (fun values budget hbudget => hrealize (a, values) budget hbudget) observation hwidth
@@ -393,22 +402,16 @@ theorem isPPTOn_splice {Param : Type} {input : Param ↪ List Bool} {output : α
     IsPPTOn input encBits (fun a =>
       splice output (base a) (replacement a) (original a) (before a) (after a) c d (width a)
         (trial a)) := by
-  have hbase := hbase.tidy
-  have hbefore := hbefore.tidy
-  have hafter := hafter.tidy
-  have hwidth := hwidth.tidy
-  have htrial := htrial.tidy
   unfold splice
-  apply (hreplacement.replicate (.of_tidy hbefore)).bind_with
+  apply (hreplacement.replicate (hbefore)).bind_with
   apply ((horiginal.preprocess
     (ComputableInPolyTime.fst input (encList (encPair output encBool)))).replicate
-      (.of_tidy (hafter.comp (ComputableTidilyInPolyTime.fst input
+      ((hafter.comp (ComputableInPolyTime.fst input
         (encList (encPair output encBool)))))).bind_with
-  apply isPPTOn_save c d <;> exact .of_tidy (by fun_prop)
+  apply isPPTOn_save c d <;> exact (by fun_prop)
 
 attribute [program_certificate] isPPTOn_splice
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 /-- The random-coordinate description sampler is a uniform strict PPT program. -/
 theorem isPPTOn_sample {Param : Type} {input : Param ↪ List Bool} {output : α ↪ List Bool}
     {base : Param → List Bool} {replacement original : Param → ProbComp (α × Bool)}
@@ -420,9 +423,6 @@ theorem isPPTOn_sample {Param : Type} {input : Param ↪ List Bool} {output : α
     (hwidth : ComputableInPolyTime width input encUnary) :
     IsPPTOn input encBits (fun a =>
       sample output (base a) (replacement a) (original a) (count a) c d (width a)) := by
-  have hbase := hbase.tidy
-  have hcount := hcount.tidy
-  have hwidth := hwidth.tidy
   unfold sample Description.encoding
   ppt
 

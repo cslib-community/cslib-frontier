@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct.Exec
-public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Readback
+public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Producer
 
 /-!
 # Box products from genuine native producer outputs
@@ -40,30 +40,7 @@ theorem exec_of_output {W m n g p : ℕ} (values : ℕ → ℤ)
     (hi : x.regs Reg.ordinal = recordOrdinal n (D m) g p values idx)
     (hfit : Fits W (2 * x.regs 42 +
       4 * CallableProduct.windowSize n (recordQueryCount n (D m) p values idx) + 1024)) :
-    let hn : 0 < n := lt_of_lt_of_le (by omega : 0 < D m)
-      ((Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN)
-    let qs := decodedQueries hn x.mem (recordQueries n (D m) p idx)
-      (recordQueryCount n (D m) p values idx)
-    ∃ y, ExecWithin W program x y (timeBound (m := m) qs) ∧
-      y.regs Reg.result = x.regs 42 + QueriedProduct.outputBase (21 * m) m n qs.length ∧
-      (∀ j : Fin qs.length,
-        y.mem (x.regs 42 + (QueriedProduct.outputBase (21 * m) m n qs.length + j.val)) =
-          Signed.encode ((leftMatrix m n g p values idx * rightMatrix m n g p values idx)
-            (qs.get j).1 (qs.get j).2)) ∧
-      (∀ a, a < x.regs 42 ∨ x.regs 42 + CallableProduct.windowSize n qs.length ≤ a →
-        y.mem a = x.mem a) ∧
-      (∀ j : Fin 320, j.val < 65 → y.regs j = x.regs j) ∧
-      qs.length * 2 ^ m ≤ n ^ 2 := by
-  obtain ⟨hDmem, hnmem, hrec, hdr, hs, ht, hq, hl, hr, hqs, hQ⟩ :=
-    producer_readback values initial x h hD hg hp hN hheaderD hheaderN idx hidx
-  obtain ⟨y, hy, yr, yv, yf, yg⟩ := exec (b := x.regs 42)
-    (i := recordOrdinal n (D m) g p values idx) (out := x.regs 39)
-    (rho := idx.1.val) (piece := idx.2.2)
-    (leftMatrix m n g p values idx) (rightMatrix m n g p values idx) _ x
-    hDmem hnmem hi rfl rfl hrec hdr hs ht hq hl hr hqs
-    (matrices_zero_one m n g p values idx).1
-    (matrices_zero_one m n g p values idx).2 hN
-    (by simpa only [decodedQueries_length] using hfit)
-  exact ⟨y, hy, yr, yv, yf, yg, hQ⟩
+    backend.OutputPost (W := W) (g := g) hD hN values x idx :=
+  backend.exec_of_output values initial x h hD hg hp hN hheaderD hheaderN idx hidx hi hfit
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct

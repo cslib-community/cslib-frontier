@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.Computability.WordRAM.RegisterCopy
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.DataStructure.Memory.Frame
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Bounded memory-client loops
@@ -35,12 +36,14 @@ uses one fixed body emitter and static registers for the mutable state and count
 * `bodyBank_layout`, `bodySlot_injective`, `stateSlot_ne_bodySlot`,
   `regs_comp_append_eq_appendWords`, `loopEmit_not_readsWidth`: the body bank's register premises,
   the state words read back as appended words, and width-freedom of the loop.
+* `iterationWork_zero`: evaluate local work when the body has no local-work charge.
 * `Realizes.Witness.loopEmit_spec`: the loop emitter with additive per-iteration overhead.
 * `Realizes.Witness.iterateRuntime`, `Realizes.iterateRuntime`: one uniform body witness or
   certificate realizes a runtime-bounded loop.
 
 The iteration grading and realization are original infrastructure over the existing free monad
 and structured Word-RAM code. No additional program syntax or memory model is introduced.
+Fixed-environment transport laws are provided by the `LoopCongr` module.
 -/
 
 @[expose] public section
@@ -66,6 +69,13 @@ def iterationWork (body : δ × σ → Memory.Prog σ) (work : (δ × σ) → Me
       work (d, a) s + iterationWork body work d n
         ((Memory.spec 0).clientResult s (body (d, a)))
         ((Memory.spec 0).clientState s (body (d, a))) + 1
+
+/-- With no body-local work, the local grade is exactly one control unit per iteration. -/
+@[simp] theorem iterationWork_zero (body : δ × σ → Memory.Prog σ) (d : δ) (n : ℕ) (a : σ)
+    (s : Memory.State) : iterationWork body (fun _ _ => 0) d n a s = n := by
+  induction n generalizing a s with
+  | zero => rfl
+  | succ n ih => simp only [iterationWork, ih, Nat.zero_add]
 
 /-- Every executed body must satisfy its explicit domain at the reached state. -/
 def iterationSafe (body : δ × σ → Memory.Prog σ)
@@ -208,13 +218,13 @@ theorem loopEmit_not_readsWidth {n : ℕ} (emit : ∀ {r : ℕ}, Fin r → (Fin 
     copyBank_not_readsWidth] using hnw
 
 /-- The loop's body bank does not repeat a register. -/
-theorem bodySlot_injective {n : ℕ} : Function.Injective (bodySlot (l := l) (n := n)) :=
-  fun i j h => Fin.ext (by have := congrArg Fin.val h; dsimp only [bodySlot] at this; omega)
+theorem bodySlot_injective {n : ℕ} : Function.Injective (bodySlot (l := l) (n := n)) := by
+  fin_index [bodySlot]
 
 /-- The loop's state words lie outside its body bank. -/
 theorem stateSlot_ne_bodySlot {n : ℕ} (i : Fin l) (j : Fin (l + n + 1)) :
-    stateSlot (n := n) i ≠ bodySlot j :=
-  Fin.ne_of_val_ne (by simp only [stateSlot, bodySlot]; omega)
+    stateSlot (n := n) i ≠ bodySlot j := by
+  fin_index [stateSlot, bodySlot]
 
 /-- Entering the native loop of `loopEmit`: copy the state words into the bank, install the
 counter and clear the zero register. Memory, the frontier and every register outside the scratch
@@ -241,7 +251,7 @@ theorem loopEmit_entry (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
   let ctr := tmp (counterSlot l n)
   let zero := tmp (zeroSlot l n)
   let env : Fin k → Fin r := fun i => src ⟨i.val, by omega⟩
-  have hct : ctr ≠ zero := hi.ne (Fin.ne_of_val_ne (by simp [counterSlot, zeroSlot]))
+  have hct : ctr ≠ zero := hi.ne (by fin_index [counterSlot, zeroSlot])
   have henv (i : Fin k) : x.regs (env i) = input d i := by
     have hh : x.regs (src (Fin.castAdd 1 (Fin.castAdd l i))) = input d i := by
       simpa [appendWords, Fin.appendEquiv] using congrFun hin (Fin.castAdd 1 (Fin.castAdd l i))
@@ -310,14 +320,14 @@ theorem loopBody_tail {n : ℕ} (frontier : Fin r) (tmp : Fin (l + (l + n + 3) +
   let ctr := tmp (counterSlot l n)
   let zero := tmp (zeroSlot l n)
   let one := tmp (oneSlot l n)
-  have hco : ctr ≠ one := hi.ne (Fin.ne_of_val_ne (by simp [counterSlot, oneSlot]))
-  have hzc : zero ≠ ctr := hi.ne (Fin.ne_of_val_ne (by simp [counterSlot, zeroSlot]))
-  have hzo : zero ≠ one := hi.ne (Fin.ne_of_val_ne (by simp [zeroSlot, oneSlot]))
+  have hco : ctr ≠ one := hi.ne (by fin_index [counterSlot, oneSlot])
+  have hzc : zero ≠ ctr := hi.ne (by fin_index [counterSlot, zeroSlot])
+  have hzo : zero ≠ one := hi.ne (by fin_index [zeroSlot, oneSlot])
   have hregbt (a : Fin (l + (l + n + 3) + 1)) (ha : a.val < l + 3) :
       ∀ j, tmp (bodySlot j) ≠ tmp a :=
-    fun j => hi.ne (Fin.ne_of_val_ne (by simp only [bodySlot]; omega))
+    fun j => hi.ne (by fin_index [bodySlot])
   have hregst (a : Fin (l + (l + n + 3) + 1)) (ha : l ≤ a.val) : ∀ i, st i ≠ tmp a :=
-    fun i => hi.ne (Fin.ne_of_val_ne (by simp only [stateSlot]; omega))
+    fun i => hi.ne (by fin_index [stateSlot])
   obtain ⟨v, hv, hvm, hvs, hvf⟩ := copyBank_exec
     (fun i : Fin l => tmp (bodySlot (Fin.castAdd (n + 1) i))) st zero
     (fun i j h => Fin.ext (congrArg Fin.val (hi h) :))
@@ -538,19 +548,16 @@ theorem iterateRuntime (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
     Fin.ext (congrArg (fun j : Fin (l + (l + n + 3) + 1) => j.val) (hi hij))
   have hbt : Function.Injective bt := by
     intro i j hij
-    apply Fin.ext
-    have hh := congrArg Fin.val (hi hij)
-    dsimp only [bodySlot] at hh
-    omega
+    have := hi hij
+    fin_index [bodySlot]
   have hbdis : ∀ i j, bs i ≠ bt j := by
     intro i j
     refine Fin.addCases (fun i => ?_) (fun i => ?_) i
     · simpa only [bs, Fin.append_left] using hd (⟨i.val, by omega⟩ : Fin (k + l + 1)) (bodySlot j)
     · simp only [bs, Fin.append_right]
       intro hij
-      have hh := congrArg Fin.val (hi hij)
-      dsimp only [stateSlot, bodySlot] at hh
-      omega
+      have := hi hij
+      fin_index [stateSlot, bodySlot]
   have hbf : ∀ j, bt j ≠ frontier := fun j => hf _
   have hbs : ∀ i, bs i ≠ frontier := by
     intro i
@@ -560,27 +567,21 @@ theorem iterateRuntime (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
   obtain ⟨hnw, hrun⟩ := he frontier bs bt hbt hbdis hbf hbs
   have houtdis : ∀ i j : Fin l, bt (Fin.castAdd (n + 1) i) ≠ st j := by
     intro i j hij
-    have hh := congrArg Fin.val (hi hij)
-    dsimp only [bodySlot, stateSlot] at hh
-    omega
-  have hct : ctr ≠ zero := fun hij => by
-    have := congrArg Fin.val (hi hij); simp [counterSlot, zeroSlot] at this
-  have hco : ctr ≠ one := fun hij => by
-    have := congrArg Fin.val (hi hij); simp [counterSlot, oneSlot] at this
-  have hzo : zero ≠ one := fun hij => by
-    have := congrArg Fin.val (hi hij); simp [zeroSlot, oneSlot] at this
+    have := hi hij
+    fin_index [bodySlot, stateSlot]
+  have hct : ctr ≠ zero := hi.ne (by fin_index [counterSlot, zeroSlot])
+  have hco : ctr ≠ one := hi.ne (by fin_index [counterSlot, oneSlot])
+  have hzo : zero ≠ one := hi.ne (by fin_index [zeroSlot, oneSlot])
   have hregbt (a : Fin (l + (l + n + 3) + 1)) (ha : a.val < l + 3) :
       ∀ j, bt j ≠ tmp a := by
     intro j hij
-    have hh := congrArg Fin.val (hi hij)
-    dsimp only [bodySlot] at hh
-    omega
+    have := hi hij
+    fin_index [bodySlot]
   have hregst (a : Fin (l + (l + n + 3) + 1)) (ha : l ≤ a.val) :
       ∀ i, st i ≠ tmp a := by
     intro i hij
-    have hh := congrArg Fin.val (hi hij)
-    dsimp only [stateSlot] at hh
-    omega
+    have := hi hij
+    fin_index [stateSlot]
   refine ⟨by simpa [loopEmit, loopBody, Code.ReadsWidth, Op.ReadsWidth, Op.exactBin,
     copyBank_not_readsWidth] using hnw, ?_⟩
   rintro w ⟨⟨d₀, a₀⟩, fuel⟩ x hx hin hsafe hv

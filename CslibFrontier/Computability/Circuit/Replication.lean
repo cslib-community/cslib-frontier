@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Circuit.Parallel
 public import CslibFrontier.Foundations.Data.BitString.Block
 import CslibFrontier.Computability.Circuit.Simulation
 public import Mathlib.Logic.Equiv.Fin.Basic
+import CslibFrontier.Computability.Circuit.Simps
 
 /-!
 # Independent copies of a circuit
@@ -100,7 +101,7 @@ theorem eval_parallelFamily_apply {k : ℕ} (cs : Fin k → Circuit σ n m) (I :
   induction k with
   | zero => exact j.elim0
   | succ k ih =>
-    simp only [parallelFamily, eval_comp, eval_wiring, eval_parallel, Function.comp_apply]
+    simp only [circuit_simps, parallelFamily, eval_parallel]
     by_cases hj : j.val < k
     · let j' : Fin k := ⟨j.val, hj⟩
       rw [show Fin.cast (Nat.succ_mul k m) (finProdFinEquiv (j, i)) =
@@ -128,8 +129,8 @@ theorem cost_program_parallelFamily {k : ℕ} (cs : Fin k → Circuit σ n m) (c
   | zero => simp only [parallelFamily, cost_program_wiring, Finset.univ_eq_empty,
       Finset.sum_empty]
   | succ k ih =>
-    simp only [parallelFamily, cost_program_comp, cost_program_parallel, cost_program_wiring,
-      Nat.zero_add, Nat.add_zero, ih, Fin.sum_univ_castSucc]
+    simp only [circuit_simps, parallelFamily, cost_program_parallel, Nat.zero_add, Nat.add_zero, ih,
+      Fin.sum_univ_castSucc]
 
 /-- Running a family on disjoint blocks adds gate counts exactly. -/
 @[simp] theorem size_parallelFamily {k : ℕ} (cs : Fin k → Circuit σ n m) :
@@ -162,8 +163,8 @@ theorem cost_program_replicate (c : Circuit σ n m) (k : ℕ) (cost : σ.Op → 
   induction k with
   | zero => simp only [replicate, parallelFamily, cost_program_wiring, Nat.zero_mul]
   | succ k ih =>
-    simp only [replicate, parallelFamily, cost_program_comp, cost_program_parallel,
-      cost_program_wiring, Nat.zero_add, Nat.add_zero] at ih ⊢
+    simp only [circuit_simps, replicate, parallelFamily, cost_program_parallel, Nat.zero_add,
+      Nat.add_zero] at ih ⊢
     rw [ih, Nat.succ_mul]
 
 /-- Replication multiplies the gate count exactly. -/
@@ -179,14 +180,13 @@ def replicateScalar (c : Circuit σ n 1) (k : ℕ) : Circuit σ (k * n) k :=
 @[simp] theorem eval_replicateScalar (c : Circuit σ n 1) (k : ℕ) (I : Interpretation σ U)
     (x : Fin (k * n) → U) :
     (c.replicateScalar k).eval I x = directProduct (fun y => c.eval I y 0) k x := by
-  simp only [replicateScalar, eval_pi, eval_comp, eval_wiring]
+  simp only [circuit_simps, replicateScalar]
   rfl
 
 /-- Scalar replication also preserves the exact weighted cost. -/
 theorem cost_program_replicateScalar (c : Circuit σ n 1) (k : ℕ) (cost : σ.Op → ℕ) :
     (c.replicateScalar k).program.cost cost = k * c.program.cost cost := by
-  simp only [replicateScalar, cost_program_pi, cost_program_comp, cost_program_wiring,
-    Nat.zero_add, Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+  simp only [circuit_simps, replicateScalar, Nat.zero_add]
 
 /-- Scalar replication multiplies the gate count by `k`. -/
 @[simp] theorem size_replicateScalar (c : Circuit σ n 1) (k : ℕ) :
@@ -214,8 +214,7 @@ theorem cost_program_takeDirectProductPrefix {small large : ℕ}
     (c : Circuit σ (large * n) large) (hsmall : 0 < small) (hle : small ≤ large)
     (cost : σ.Op → ℕ) :
     (c.takeDirectProductPrefix small hsmall hle).program.cost cost = c.program.cost cost := by
-  simp only [takeDirectProductPrefix, cost_program_comp, cost_program_wiring,
-    Nat.zero_add, Nat.add_zero]
+  simp only [circuit_simps, takeDirectProductPrefix, Nat.zero_add, Nat.add_zero]
 
 /-- Retaining an initial batch preserves direct-product semantics. -/
 theorem Computes.takeDirectProductPrefix {small large : ℕ} {c : Circuit σ (large * n) large}
@@ -223,7 +222,7 @@ theorem Computes.takeDirectProductPrefix {small large : ℕ} {c : Circuit σ (la
     (hc : c.Computes I (directProduct f large)) (hsmall : 0 < small) (hle : small ≤ large) :
     (c.takeDirectProductPrefix small hsmall hle).Computes I (directProduct f small) := by
   intro x
-  simp only [Circuit.takeDirectProductPrefix, eval_comp, eval_wiring]
+  simp only [circuit_simps, Circuit.takeDirectProductPrefix]
   rw [hc]
   funext j
   apply congrArg f

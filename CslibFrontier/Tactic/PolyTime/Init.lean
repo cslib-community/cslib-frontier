@@ -85,13 +85,11 @@ def efficiencyKey (statement : Expr) : MetaM (Name × Name × Bool) := do
   let some predicate := statement.getAppFn.constName?
     | throwError "expected an efficiency statement"
   unless predicate == `Turing.MultiTapeTM.ComputableInPolyTime ||
-      predicate == `Turing.MultiTapeTM.ComputableTidilyInPolyTime ||
       predicate == `Turing.MultiTapeTM.ComputableInLogSpace ||
       predicate == `Cslib.Probability.IsPPTOn || predicate == `Cslib.Probability.IsPPT do
     throwError "unsupported efficiency predicate `{predicate}` for `program_certificate`; \
       expected TM polynomial time or logarithmic space, or PPT"
-  let argument := if predicate == `Turing.MultiTapeTM.ComputableTidilyInPolyTime ||
-      predicate == `Turing.MultiTapeTM.ComputableInLogSpace ||
+  let argument := if predicate == `Turing.MultiTapeTM.ComputableInLogSpace ||
       predicate == `Turing.MultiTapeTM.ComputableInPolyTime then
     statement.getAppArgs[2]! else statement.getAppArgs.back!
   let program ← Core.betaReduce (← etaExpand argument)
@@ -145,7 +143,7 @@ private def hasGlobalFunProp (decl : Name) : CoreM Bool := do
     (← hasGlobalEntry transitionTheoremsExt (·.thmName) decl)
 
 /-- `@[program_certificate]` registers an efficiency certificate for `polytime`, `logspace`
-and `ppt`. Its conclusion must be a `ComputableInPolyTime`, `ComputableTidilyInPolyTime`,
+and `ppt`. Its conclusion must be a `ComputableInPolyTime`,
 `ComputableInLogSpace`, `IsPPTOn` or `IsPPT` statement. The indexed argument must apply
 a constant, possibly under an output encoding. Other predicates are rejected rather than indexed
 by an unrelated final argument. Word-RAM efficiency statements are `fun_prop` predicates; tag
@@ -170,8 +168,7 @@ initialize registerBuiltinAttribute {
       let key ← forallTelescope (← getConstInfo certificate).type fun _ conclusion =>
         efficiencyKey conclusion
       return (certificate, key)
-    if key.1 == `Turing.MultiTapeTM.ComputableTidilyInPolyTime ||
-        key.1 == `Turing.MultiTapeTM.ComputableInPolyTime ||
+    if key.1 == `Turing.MultiTapeTM.ComputableInPolyTime ||
         key.1 == `Turing.MultiTapeTM.ComputableInLogSpace ||
         key.1 == `Cslib.Probability.IsPPTOn then
       unless ← hasGlobalFunProp certificate do

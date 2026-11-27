@@ -15,7 +15,6 @@ public import CslibFrontier.Computability.LogSpaceDerandomization.DetectedHierar
 public import CslibFrontier.Foundations.Probability.ProductDensity
 public import CslibFrontier.Computability.LogSpaceDerandomization.PairwiseIndependentHash.AtomChannels
 public import Mathlib.Algebra.Order.Floor.Div
-import Mathlib.Tactic
 
 /-!
 # Full rank environments for finite hierarchy prefixes
@@ -243,6 +242,7 @@ theorem grid_retains (D : ZMod P) (role : Fin J) (k : ℕ)
     semanticSide_grid, retains]
 
 /-- Every finite grid rate is positive. -/
+@[positivity_lemma]
 theorem rate_pos (k : ℕ) : 0 < rate k := by unfold rate; positivity
 
 /-- Increasing the exponent narrows the grid rate. -/
@@ -320,7 +320,6 @@ theorem mixed_pair_density (role : Fin J) (H : Horizon P) {k : ℕ}
   have hh := side_div_pow_four_le H hk
   apply hp.trans
   rw [div_le_iff₀ hq0]
-  have hr := rate_pos k
   have hπ : 0 ≤ ((Lt: ℝ) / P) ^ 4 := by positivity
   nlinarith [mul_le_mul_of_nonneg_right hh hπ,
     mul_le_mul_of_nonneg_left hq (show 0 ≤ 32 * rate k * ((Lt: ℝ) / P) ^ 4 by positivity)]

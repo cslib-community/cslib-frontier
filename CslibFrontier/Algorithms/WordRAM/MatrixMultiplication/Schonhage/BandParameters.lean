@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ba
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCount
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandRoot
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.BandBounds
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete computed scalar parameters for native bands
@@ -36,23 +37,7 @@ def headerRegisters : Finset (Fin 96) :=
 /-- The concrete layout survives any native execution that preserves its scalar registers. -/
 theorem headerPost_reframe {L m N : ℕ} {x y : Data 96} (hx : HeaderPost L m N x)
     (h : ∀ i ∈ headerRegisters, y.regs i = x.regs i) : HeaderPost L m N y := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact ⟨(h _ (by decide)).trans hx.fixed.levels, (h _ (by decide)).trans hx.fixed.inner,
-      (h _ (by decide)).trans hx.fixed.rows, (h _ (by decide)).trans hx.fixed.zero,
-      (h _ (by decide)).trans hx.fixed.one, (h _ (by decide)).trans hx.fixed.two,
-      (h _ (by decide)).trans hx.fixed.three, (h _ (by decide)).trans hx.fixed.four,
-      (h _ (by decide)).trans hx.fixed.seven, (h _ (by decide)).trans hx.fixed.ten⟩
-  all_goals first
-    | exact (h _ (by decide)).trans hx.columns
-    | exact (h _ (by decide)).trans hx.outerSize
-    | exact (h _ (by decide)).trans hx.masks
-    | exact (h _ (by decide)).trans hx.cells
-    | exact (h _ (by decide)).trans hx.leaves
-    | exact (h _ (by decide)).trans hx.prefixSize
-    | exact (h _ (by decide)).trans hx.snapshot
-    | exact (h _ (by decide)).trans hx.inverse
-    | exact (h _ (by decide)).trans hx.table
-    | exact (h _ (by decide)).trans hx.catalogue
+  regs_frame
 
 /-- Persistent concrete layout and the additional scalar results actually computed by
 the mask-count/root/band-count code. No fit or execution bound is bundled here. -/
@@ -70,9 +55,7 @@ def parameterRegisters : Finset (Fin 96) := headerRegisters ∪ {root, square, b
 /-- Preserve the computed parameters by preserving their actual registers. -/
 theorem parameters_reframe {L m N : ℕ} {x y : Data 96} (hx : BandParameters L m N x)
     (h : ∀ i ∈ parameterRegisters, y.regs i = x.regs i) : BandParameters L m N y := by
-  refine ⟨headerPost_reframe hx.toHeaderPost (fun i hi => h i (Finset.mem_union_left _ hi)),
-    (h _ (by decide)).trans hx.root, (h _ (by decide)).trans hx.square,
-    (h _ (by decide)).trans hx.bands⟩
+  regs_frame
 
 /-- A convenient local numerical bound, derived from the original global word budget. -/
 theorem local_fits {w L m N : ℕ} (hfit : Fits w (wordBudget L m N)) :

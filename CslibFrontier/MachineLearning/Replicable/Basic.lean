@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Replicable sample algorithms with a shared seed
@@ -193,11 +194,22 @@ theorem disagreeProb_deterministic_eq_tsum_seed (seed : PMF Ω) (f : (Fin m → 
         (((Probability.PMF.iid D m).bind fun S₁ =>
           (Probability.PMF.iid D m).map fun S₂ => (f S₁ r, f S₂ r)).toOuterMeasure
           {p : α × α | p.1 ≠ p.2}).toReal := by
-  rw [disagreeProb_deterministic, PMF.toOuterMeasure_bind_apply,
-    ENNReal.tsum_toReal_eq (fun r => ENNReal.mul_ne_top (seed.apply_ne_top r)
-      (Probability.PMF.toOuterMeasure_ne_top _ _))]
-  refine tsum_congr fun r => ?_
-  rw [ENNReal.toReal_mul]
+  rw [disagreeProb_deterministic, PMF.toOuterMeasure_bind_apply]
+  ennreal_to_real
+
+/-- Paired output distribution of a deterministic-given-seed algorithm, drawing the two
+independent samples first, then the shared seed. -/
+theorem pairedOutput_deterministic_eq_samples (seed : PMF Ω) (f : (Fin m → X) → Ω → α)
+    (D : PMF X) :
+    (deterministic seed f).pairedOutput D =
+      (Probability.PMF.iid D m).bind fun S₁ =>
+        (Probability.PMF.iid D m).bind fun S₂ =>
+          seed.map fun r => (f S₁ r, f S₂ r) := by
+  rw [pairedOutput_deterministic, PMF.bind_comm]
+  refine PMF.bind_congr_on_support _ _ _ fun S₁ _ => ?_
+  simp only [PMF.map]
+  exact PMF.bind_comm seed (Probability.PMF.iid D m)
+    (fun r S₂ => PMF.pure (f S₁ r, f S₂ r))
 
 /-- Disagreement probability of a deterministic-given-seed algorithm expressed by drawing the two
 independent samples first, then the shared seed. -/
@@ -207,26 +219,11 @@ theorem disagreeProb_deterministic_eq_tsum_samples (seed : PMF Ω) (f : (Fin m �
       ∑' S₁ : Fin m → X, (Probability.PMF.iid D m S₁).toReal *
         ∑' S₂ : Fin m → X, (Probability.PMF.iid D m S₂).toReal *
           (seed.toOuterMeasure {r | f S₁ r ≠ f S₂ r}).toReal := by
-  have hcomm :
-      (deterministic seed f).pairedOutput D =
-        (Probability.PMF.iid D m).bind fun S₁ =>
-          (Probability.PMF.iid D m).bind fun S₂ =>
-            seed.map fun r => (f S₁ r, f S₂ r) := by
-    rw [pairedOutput_deterministic, PMF.bind_comm]
-    refine PMF.bind_congr_on_support _ _ _ fun S₁ _ => ?_
-    simp only [PMF.map]
-    exact PMF.bind_comm seed (Probability.PMF.iid D m)
-      (fun r S₂ => PMF.pure (f S₁ r, f S₂ r))
-  rw [disagreeProb, hcomm, PMF.toOuterMeasure_bind_apply,
-    ENNReal.tsum_toReal_eq (fun S₁ => ENNReal.mul_ne_top ((Probability.PMF.iid D m).apply_ne_top S₁)
-      (Probability.PMF.toOuterMeasure_ne_top _ _))]
-  refine tsum_congr fun S₁ => ?_
-  rw [ENNReal.toReal_mul, PMF.toOuterMeasure_bind_apply,
-    ENNReal.tsum_toReal_eq (fun S₂ => ENNReal.mul_ne_top ((Probability.PMF.iid D m).apply_ne_top S₂)
-      (Probability.PMF.toOuterMeasure_ne_top _ _))]
-  congr 1
-  refine tsum_congr fun S₂ => ?_
-  rw [ENNReal.toReal_mul, PMF.toOuterMeasure_map_apply]
+  rw [disagreeProb, pairedOutput_deterministic_eq_samples, PMF.toOuterMeasure_bind_apply]
+  ennreal_to_real
+  simp only [PMF.toOuterMeasure_bind_apply]
+  ennreal_to_real
+  simp only [PMF.toOuterMeasure_map_apply]
   rfl
 
 /-- Deterministic post-processing of an algorithm's output. -/

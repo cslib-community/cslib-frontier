@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.GSW.DecryptionCircu
 public import CslibFrontier.Crypto.Computational.Homomorphic.GSW.DepthParameters
 public import CslibFrontier.Crypto.Computational.Homomorphic.Circuit
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.Compile
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Concrete depth fit for GSW decryption
@@ -72,14 +73,7 @@ theorem depth_augment_le (n w : ℕ) :
     (augmentNand (circuit n w)).depth ≤
       30 + 18 * Nat.clog 2 (w + 1) + 12 * Nat.clog 2 n := by
   have hn : nandCircuit.depth ≤ 2 := by decide
-  have hp : ((circuit n w).parallel (circuit n w)).depth ≤ (circuit n w).depth := by
-    unfold Circuit.parallel
-    apply (Circuit.depth_append_le _ _).trans
-    apply max_le <;> exact (Circuit.depth_comp_le _ _).trans (by simp)
-  have hc := Circuit.depth_comp_le nandCircuit ((circuit n w).parallel (circuit n w))
-  have hd := depth_circuit_le n w
-  change (augmentNand (circuit n w)).depth ≤ _ at hc
-  omega
+  circuit_bound [augmentNand, Circuit.parallel]
 
 /-- Two microlevels per De Morgan level, including the actual NAND augmentation, fit the budget. -/
 theorem layers_augment_le_depthBudget (security : ℕ) :

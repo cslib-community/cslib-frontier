@@ -127,27 +127,27 @@ def phaseAdversary : WordCCA2Adversary where
 
 theorem phaseAdversary_ppt : phaseAdversary.IsPPT := by
   constructor
-  · have hq := IsOraclePPTOn.query_take' ()
+  · have hq := IsOraclePPTOn.query_take ()
       (ComputableInPolyTime.const (encPair encBits encBits ([], []))
         (encIn := encPair encUnary encBits))
       (ComputableInPolyTime.const 1)
     have hout : ComputableInPolyTime (fun reply : List Bool => (([], []), reply)) encBits
         (encPair (encPair encBits encBits) encBits) := by fun_prop
-    simpa only [phaseAdversary, bind_pure_comp] using (hq.map' hout).isOraclePPT
+    simpa only [phaseAdversary, bind_pure_comp] using (hq.map hout).isOraclePPT
   · let I := encPair encUnary (encPair encBits encBits)
-    have hfirst := IsOraclePPTOn.query_take' ()
+    have hfirst := IsOraclePPTOn.query_take ()
       (by fun_prop : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.2.2) I encBits)
       (ComputableInPolyTime.const 1)
     have hrequest : ComputableInPolyTime
         (fun p : (ℕ × List Bool × List Bool) × List Bool =>
           encPair encBits encBits ([true], dropFrame p.1.2.2)) (encPair I encBits) encBits := by
       polytime
-    have hsecond := IsOraclePPTOn.query_take' () hrequest (ComputableInPolyTime.const 1)
+    have hsecond := IsOraclePPTOn.query_take () hrequest (ComputableInPolyTime.const 1)
     have hout : ComputableInPolyTime
         (fun p : ((ℕ × List Bool × List Bool) × List Bool) × List Bool =>
           p.1.1.2.1 == [true] && p.1.2 == [] && p.2 == [true])
         (encPair (encPair I encBits) encBits) encBool := by polytime
-    simpa only [phaseAdversary, bind_pure_comp] using hfirst.bind_with (hsecond.map_with' hout)
+    simpa only [phaseAdversary, bind_pure_comp] using hfirst.bind_with (hsecond.map_with hout)
 
 example : IsOraclePPT encBool (hybridToOneTimeCCAAdversary echoCipher fixedKeyGen fixedEncaps
     identityDecaps id (fun _ ct => ct.length + 1) phaseAdversary) :=

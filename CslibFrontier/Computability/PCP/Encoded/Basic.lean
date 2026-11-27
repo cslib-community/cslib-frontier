@@ -27,6 +27,7 @@ isolated, and `toFiniteGraph` recovers the corresponding finite constraint graph
 ## Main definitions
 
 * `Cslib.PCP.Encoded.Edge`, `Cslib.PCP.Encoded.Graph`: executable edge records and edge lists.
+* `Cslib.PCP.Encoded.encEvalInput`: the encoded input of a constraint evaluator.
 * `Cslib.PCP.Encoded.Graph.toGraph`, `Cslib.PCP.Encoded.Graph.toFiniteGraph`: interpretations.
 * `Cslib.PCP.Encoded.Graph.isWellFormed`: an executable endpoint-bounds check.
 * `Cslib.PCP.Encoded.Graph.checkEdge`: check a constraint against a list of vertex labels.
@@ -112,6 +113,14 @@ theorem isPolyTime_mk {Input : Type} {input : Input ↪ List Bool} {enc : C ↪ 
   (hsrc.prod (hdst.prod hconstraint)).of_enc_eq fun _ => rfl
 
 end Edge
+
+/-- The encoded input of a constraint evaluator `eval : C → α → α → Bool`, on the triple
+`(c, a, b)` of a constraint descriptor and the labels of the two ends of an edge. It is
+`encPair enc (encPair alphabet alphabet)`: the framed descriptor `frame (enc c)`, then the
+framed first label `frame (alphabet a)`, then the unframed second label `alphabet b`. -/
+abbrev encEvalInput {C α : Type} (enc : C ↪ List Bool) (alphabet : α ↪ List Bool) :
+    C × α × α ↪ List Bool :=
+  encPair enc (encPair alphabet alphabet)
 
 /-- A finite graph represented by its vertex count and ordered list of edges.
 The ordering distinguishes parallel edges. -/
@@ -210,18 +219,12 @@ theorem isPolyTime_checkEdge {alphabet : α ↪ List Bool}
     {eval : C → α → α → Bool} (fallback : C) (label : α)
     (hgraph : ComputableInPolyTime graph input (encoding enc))
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool)
+      (encEvalInput enc alphabet) encBool)
     (hlabels : ComputableInPolyTime labels input (encList alphabet))
     (hindex : ComputableInPolyTime index input encUnary) :
     ComputableInPolyTime
       (fun x => checkEdge eval fallback label (graph x) (labels x) (index x)) input encBool := by
-  have hedge := isPolyTime_edgeAt hgraph hindex fallback
-  have hsrc := Edge.isPolyTime_src hedge
-  have hdst := Edge.isPolyTime_dst hedge
-  have hconstraint := Edge.isPolyTime_constraint hedge
-  exact heval.comp (hconstraint.prod
-    (((ComputableInPolyTime.listGetD (encA := alphabet) label).comp (hlabels.prod hsrc)).prod
-      ((ComputableInPolyTime.listGetD (encA := alphabet) label).comp (hlabels.prod hdst))))
+  fun_prop [checkEdge]
 
 /-- Interpret the explicit edge list on natural-number vertices. Unlisted vertices are isolated. -/
 def toGraph (g : Graph C) (eval : C → α → α → Bool) :

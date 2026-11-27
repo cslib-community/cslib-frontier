@@ -38,7 +38,8 @@ row extraction is ordinary dropping, padding and taking, including on short or e
 * `Cslib.BitString.listRow_replaceRow`: reading rows after replacing one row.
 * `Cslib.BitString.listRows_eq_ofFn`, `Cslib.BitString.listRows_ofFn`: agreement with the finite
   block representation.
-* `Cslib.BitString.listRows_succ_append`: the rows of a word whose first row is given.
+* `Cslib.BitString.listRows_succ_append`, `Cslib.BitString.listRows_flatten`: the rows of a word
+  whose first row is given, and of a concatenation of words of the row width.
 
 Packing fixed-width rows is list concatenation by `Cslib.BitString.ofFn_blocksEquiv_symm`, in
 `CslibFrontier.Foundations.Data.BitString.Block`.
@@ -188,6 +189,13 @@ theorem listRow_flatten {width : ℕ} {words : List (List Bool)}
   simpa [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi] using
     listRow_flatMap_append id words hwords [] i hi
 
+/-- Row `i` of the flattened list of `count` words of width `width` is word `i`. -/
+theorem listRow_flatten_ofFn {count width : ℕ} (rows : Fin count → List Bool)
+    (hrows : ∀ i, (rows i).length = width) (i : Fin count) :
+    listRow width i (List.ofFn rows).flatten = rows i := by
+  rw [listRow_flatten (by simpa [List.mem_ofFn] using fun _ => hrows _) (by simp)]
+  simp [List.getD_eq_getElem?_getD]
+
 /-- List slicing agrees with the finite block representation, even on short input lists. -/
 theorem listRow_eq_ofFn {count : ℕ} (width : ℕ) (row : Fin count) (word : List Bool) :
     listRow width row.val word = List.ofFn (block (ofList (count * width) word) row) := by
@@ -237,6 +245,17 @@ theorem listRows_succ_append (count width : ℕ) {u : List Bool} (hu : u.length 
   · refine List.map_congr_left fun row _ => ?_
     simp only [Function.comp_apply, listRow, Nat.succ_mul, ← List.drop_drop, Nat.add_comm _ width]
     rw [← hu, List.drop_left]
+
+/-- The rows of a concatenation of words of one width are those words. -/
+theorem listRows_flatten {width : ℕ} (words : List (List Bool))
+    (hwords : ∀ w ∈ words, w.length = width) :
+    listRows words.length width words.flatten = words := by
+  induction words with
+  | nil => simp [listRows]
+  | cons word rest ih =>
+    rw [List.length_cons, List.flatten_cons,
+      listRows_succ_append _ _ (hwords word List.mem_cons_self),
+      ih fun w hw => hwords w (List.mem_cons_of_mem _ hw)]
 
 /-- Replace row `j` of a `count × width` bit string `word` with `x`. -/
 def replaceRow (width count j : ℕ) (x word : List Bool) : List Bool :=

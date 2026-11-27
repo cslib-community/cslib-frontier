@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Child
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Form
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Real Strassen operand production and child entry
@@ -104,17 +105,17 @@ theorem exec_prepare {w p k A B a b out scratch frames frame a₁ a₂ b₁ b₂
     inputB_eq := hyb.trans hrc.formB_eq
     output_eq := hyo.trans hrc.product_eq
     scratch_eq := hys.trans hrc.scratch_eq
-    modulus_eq := (hyregs Reg.modulus (by decide)).trans hrh.modulus_eq
+    modulus_eq := by regs_frame
     depth_eq := hyd.trans hrc.depth_eq
     size_eq := hysz.trans hrc.quarter_eq
-    frames_eq := (hyregs Reg.frames (by decide)).trans hrh.frames_eq
+    frames_eq := by regs_frame
     frame_eq := hyframe'
     phase_eq := hyp
-    active_eq := (hyregs Reg.active (by decide)).trans hrh.active_eq
-    zero_eq := (hyregs Reg.zero (by decide)).trans hrh.zero_eq
-    one_eq := (hyregs Reg.one (by decide)).trans hrh.one_eq
-    four_eq := (hyregs Reg.four (by decide)).trans hrh.four_eq
-    frameWidth_eq := (hyregs Reg.frameWidth (by decide)).trans hrh.frameWidth_eq
+    active_eq := by regs_frame
+    zero_eq := by regs_frame
+    one_eq := by regs_frame
+    four_eq := by regs_frame
+    frameWidth_eq := by regs_frame
     frame_words := by simpa only [hyframe'] using hywords }
   refine ⟨y, he, hready, ?_, ?_, ?_, ?_⟩
   · intro j hj

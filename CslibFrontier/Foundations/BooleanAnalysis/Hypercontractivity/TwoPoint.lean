@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.BooleanAnalysis.Noise
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.LpNorm
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.OneAddRpow
 import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Analysis.Calculus.Deriv.MeanValue
 import Mathlib.Analysis.Calculus.Deriv.Pow
@@ -35,6 +36,7 @@ the left side by it, and two monotonicity arguments for derivatives show
 ## Main results
 
 * `Cslib.BitString.sq_add_sq_mul_sq_rpow_le`: the two-point inequality.
+* `Cslib.BitString.noiseOp_unit`: the noise operator on a single bit.
 * `Cslib.BitString.lpNorm_two_noiseOp_le_of_unit`: `(p, 2)`-hypercontractivity of a single bit.
 
 ## References
@@ -65,18 +67,6 @@ private theorem two_le_one_add_rpow_add_one_sub_rpow {p t : ℝ} (hp : p ≤ 2) 
   have hb := Real.rpow_nonneg hv.le (p - 2)
   nlinarith [sq_nonneg ((1 + t) ^ (p - 2) - (1 - t) ^ (p - 2))]
 
-private theorem hasDerivAt_one_add_rpow (p : ℝ) {t : ℝ} (ht : -1 < t) :
-    HasDerivAt (fun t : ℝ => (1 + t) ^ p) (p * (1 + t) ^ (p - 1)) t := by
-  simpa using ((hasDerivAt_id t).const_add 1).rpow_const (p := p) (Or.inl (by
-    simp only [id_eq]
-    linarith))
-
-private theorem hasDerivAt_one_sub_rpow (p : ℝ) {t : ℝ} (ht : t < 1) :
-    HasDerivAt (fun t : ℝ => (1 - t) ^ p) (-(p * (1 - t) ^ (p - 1))) t := by
-  simpa using ((hasDerivAt_id t).const_sub 1).rpow_const (p := p) (Or.inl (by
-    simp only [id_eq]
-    linarith))
-
 /-- For `1 ≤ p ≤ 2`, `(1 + t) ^ (p - 1) - (1 - t) ^ (p - 1) - 2 (p - 1) t` is monotone on
 `[0, 1]`. -/
 private theorem monotoneOn_one_add_rpow_sub_one_sub_rpow_sub {p : ℝ} (hp : 1 ≤ p) (hp' : p ≤ 2) :
@@ -90,8 +80,8 @@ private theorem monotoneOn_one_add_rpow_sub_one_sub_rpow_sub {p : ℝ} (hp : 1 �
         (continuous_const.sub continuous_id))).sub
       (continuous_const.mul continuous_id)).continuousOn) (fun t ht => ?_) fun t ht => ?_
   · rw [interior_Icc] at ht
-    have h := ((hasDerivAt_one_add_rpow (p - 1) (by linarith [ht.1] : -1 < t)).sub
-      (hasDerivAt_one_sub_rpow (p - 1) ht.2)).sub ((hasDerivAt_id t).const_mul (2 * (p - 1)))
+    have h := ((Real.hasDerivAt_one_add_rpow (p - 1) (by linarith [ht.1] : -1 < t)).sub
+      (Real.hasDerivAt_one_sub_rpow (p - 1) ht.2)).sub ((hasDerivAt_id t).const_mul (2 * (p - 1)))
     convert h.hasDerivWithinAt using 1
     · rfl
     · rw [show p - 1 - 1 = p - 2 by ring]
@@ -118,8 +108,8 @@ private theorem two_add_mul_sq_le_one_add_rpow_add_one_sub_rpow {p t : ℝ} (hp 
           (continuous_const.sub continuous_id))).sub
         (continuous_const.mul (continuous_pow 2))).continuousOn) (fun t ht => ?_) fun t ht => ?_
     · rw [interior_Icc] at ht
-      have h := ((hasDerivAt_one_add_rpow p (by linarith [ht.1] : -1 < t)).add
-        (hasDerivAt_one_sub_rpow p ht.2)).sub ((hasDerivAt_pow 2 t).const_mul (p * (p - 1)))
+      have h := ((Real.hasDerivAt_one_add_rpow p (by linarith [ht.1] : -1 < t)).add
+        (Real.hasDerivAt_one_sub_rpow p ht.2)).sub ((hasDerivAt_pow 2 t).const_mul (p * (p - 1)))
       convert h.hasDerivWithinAt using 1
       rw [show (2 : ℕ) - 1 = 1 from rfl, pow_one, Nat.cast_ofNat]
       ring
@@ -164,23 +154,6 @@ private theorem sq_add_sq_mul_sq_rpow_le_of_le {p ρ A B : ℝ} (hp : 1 ≤ p) (
             Real.mul_rpow hA0.le (by linarith), Real.mul_rpow hA0.le (by linarith)]
           ring
 
-/-- The absolute values of `a + b` and `a - b` are `|a| + |b|` and `|a| - |b|`, in some order,
-when `|b| ≤ |a|`. -/
-private theorem abs_add_rpow_add_abs_sub_rpow {a b : ℝ} (h : |b| ≤ |a|) (p : ℝ) :
-    |a + b| ^ p + |a - b| ^ p = (|a| + |b|) ^ p + (|a| - |b|) ^ p := by
-  rcases le_total 0 a with ha | ha <;> rcases le_total 0 b with hb | hb
-  · rw [abs_of_nonneg ha, abs_of_nonneg hb] at h ⊢
-    rw [abs_of_nonneg (by linarith), abs_of_nonneg (by linarith)]
-  · rw [abs_of_nonneg ha, abs_of_nonpos hb] at h ⊢
-    rw [abs_of_nonneg (by linarith), abs_of_nonneg (by linarith), add_comm]
-    ring_nf
-  · rw [abs_of_nonpos ha, abs_of_nonneg hb] at h ⊢
-    rw [abs_of_nonpos (by linarith), abs_of_nonpos (by linarith), add_comm]
-    ring_nf
-  · rw [abs_of_nonpos ha, abs_of_nonpos hb] at h ⊢
-    rw [abs_of_nonpos (by linarith), abs_of_nonpos (by linarith)]
-    ring_nf
-
 /-- **The two-point inequality**: for `1 ≤ p ≤ 2` and `ρ ^ 2 ≤ p - 1`,
 `(a ^ 2 + ρ ^ 2 b ^ 2) ^ (p / 2) ≤ (|a + b| ^ p + |a - b| ^ p) / 2`. For a uniformly random bit
 `x = ±1` it says `‖a + ρ b x‖_2 ^ p ≤ ‖a + b x‖_p ^ p`, so `x` is
@@ -188,9 +161,9 @@ private theorem abs_add_rpow_add_abs_sub_rpow {a b : ℝ} (h : |b| ≤ |a|) (p :
 theorem sq_add_sq_mul_sq_rpow_le {p ρ a b : ℝ} (hp : 1 ≤ p) (hp' : p ≤ 2) (hρ : ρ ^ 2 ≤ p - 1) :
     (a ^ 2 + ρ ^ 2 * b ^ 2) ^ (p / 2) ≤ (|a + b| ^ p + |a - b| ^ p) / 2 := by
   rcases le_total |b| |a| with h | h
-  · rw [abs_add_rpow_add_abs_sub_rpow h, ← sq_abs a, ← sq_abs b]
+  · rw [Real.abs_add_rpow_add_abs_sub_rpow h, ← sq_abs a, ← sq_abs b]
     exact sq_add_sq_mul_sq_rpow_le_of_le hp hp' hρ (abs_nonneg b) h
-  · rw [← abs_neg (a - b), neg_sub, add_comm a b, abs_add_rpow_add_abs_sub_rpow h]
+  · rw [← abs_neg (a - b), neg_sub, add_comm a b, Real.abs_add_rpow_add_abs_sub_rpow h]
     calc (a ^ 2 + ρ ^ 2 * b ^ 2) ^ (p / 2)
         ≤ (|b| ^ 2 + ρ ^ 2 * |a| ^ 2) ^ (p / 2) := by
           refine Real.rpow_le_rpow (by positivity) ?_ (by positivity)
@@ -204,7 +177,7 @@ theorem sq_add_sq_mul_sq_rpow_le {p ρ a b : ℝ} (hp : 1 ≤ p) (hp' : p ≤ 2)
 
 /-- The noise operator on a single bit keeps it with probability `(1 + ρ) / 2` and flips it with
 probability `(1 - ρ) / 2`. -/
-private theorem noiseOp_unit (ρ : ℝ) (g : (Unit → Bool) → ℝ) (b : Bool) :
+theorem noiseOp_unit (ρ : ℝ) (g : (Unit → Bool) → ℝ) (b : Bool) :
     noiseOp ρ g (fun _ => b) =
       (1 + ρ) / 2 * g (fun _ => b) + (1 - ρ) / 2 * g (fun _ => !b) := by
   have h : (fun P : Unit → Bool => g ((fun _ => b) + P)) =

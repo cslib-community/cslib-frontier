@@ -37,9 +37,10 @@ with `f` (`Cslib.WordRAM.ExecRandLaw.program`).
 
 * `Cslib.WordRAM.ExecRandLaw.of_execWithin`, `Cslib.WordRAM.ExecRandLaw.rand`: deterministic code
   and a single `rand` instruction.
-* `Cslib.WordRAM.ExecRandLaw.seq_det`, `Cslib.WordRAM.ExecRandLaw.seq_det_right`,
-  `Cslib.WordRAM.ExecRandLaw.rand_seq`: deterministic prefixes and suffixes, and a draw followed
-  by deterministic code.
+* `Cslib.WordRAM.ExecRandLaw.seq_det`, `Cslib.WordRAM.ExecRandLaw.foldr_seq_det`,
+  `Cslib.WordRAM.ExecRandLaw.seq_det_right`, `Cslib.WordRAM.ExecRandLaw.rand_seq`: deterministic
+  prefixes (single or a right-associated chain) and suffixes, and a draw followed by
+  deterministic code.
 * `Cslib.WordRAM.ExecRandLaw.seq`, `Cslib.WordRAM.ExecRandLaw.branch_pos`,
   `Cslib.WordRAM.ExecRandLaw.branch_neg`, `Cslib.WordRAM.ExecRandLaw.loop_exit`,
   `Cslib.WordRAM.ExecRandLaw.loop_iter`: composition rules.
@@ -189,6 +190,19 @@ theorem seq_det {y : Data r} (h₁ : ExecWithin w c₁ x y T₁) (h₂ : ExecRan
   have h := seq (g := fun _ => ()) (ν := PMF.pure ()) (κ := fun _ => μ) (R₁ := 0) (P := (· = y))
     (of_execWithin h₁ rfl) (fun y' hy' => hy' ▸ h₂)
   simpa only [PMF.pure_bind, Nat.zero_add] using h
+
+/-- `seq_det` through a right-associated chain: if the deterministic code
+`cs.foldr Code.seq last` leads to `y`, attaching `c` after `last` keeps the law of `c` from `y`. -/
+theorem foldr_seq_det {y : Data r} (cs : List (Code B r)) {last : Code B r}
+    (h₁ : ExecWithin w (cs.foldr Code.seq last) x y T₁) (h₂ : ExecRandLaw w c y Q T₂ R f μ) :
+    ExecRandLaw w (cs.foldr Code.seq (.seq last c)) x Q (T₁ + T₂) R f μ := by
+  induction cs generalizing x T₁ with
+  | nil => exact seq_det h₁ h₂
+  | cons hd tl ih =>
+    obtain ⟨_, hn, he⟩ := h₁
+    cases he with
+    | seq ha hb =>
+      exact (seq_det ha.within (ih hb.within)).mono (fun _ h => h) (by omega) le_rfl
 
 /-- A deterministic suffix that keeps the observation does not change the law. -/
 theorem seq_det_right (h₁ : ExecRandLaw w c₁ x P T₁ R f μ)

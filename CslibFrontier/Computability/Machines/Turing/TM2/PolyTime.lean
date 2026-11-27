@@ -11,6 +11,8 @@ public import CslibFrontier.Computability.Machines.Turing.TM2.Simulation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+
 /-!
 # From Mathlib TM2 computations to CSLib polynomial time
 

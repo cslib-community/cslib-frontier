@@ -122,7 +122,7 @@ theorem incomingMomentBudget_le_payment {q : ℕ}
     (retainedMask R.terminal (side P k) D st)
     (fun σ x y => cA * child neg σ x y)
     (B := cA * (2 * HP.Q HP.toHierarchyParams.atomCap))
-    (mul_nonneg ha0 (mul_nonneg (by norm_num) (HP.Q_nonneg _)))
+    (by positivity)
     (fun σ x y => by
       rw [abs_of_nonneg (mul_nonneg ha0 (ha σ x y).1)]
       exact mul_le_mul_of_nonneg_left (ha σ x y).2 ha0)

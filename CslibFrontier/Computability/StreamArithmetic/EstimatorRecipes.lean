@@ -76,12 +76,6 @@ universe u u' v
 
 section FixedRecipeCombinators
 
-/-- Equality of the four resource-bound coefficients of two `UniformStreamRecipe`s. -/
-@[expose] def sameCoeffs {Op₁ : Type u} {Op₂ : Type u'} {Struct : Type v}
-    (R₁ : UniformStreamRecipe Op₁ Struct) (R₂ : UniformStreamRecipe Op₂ Struct) : Prop :=
-  R₁.coeffA = R₂.coeffA ∧ R₁.coeffB = R₂.coeffB ∧
-    R₁.coeffC = R₂.coeffC ∧ R₁.intrinsicCoeff = R₂.intrinsicCoeff
-
 /-- Quadruple of allowance and intrinsic-storage coefficients of a certified stream recipe. -/
 private structure RecipeCoeffs where
   coeffA : ℕ
@@ -97,20 +91,6 @@ private def UniformStreamRecipe.coeffs {Op : Type u} {Struct : Type v}
   coeffB := R.coeffB
   coeffC := R.coeffC
   intrinsicCoeff := R.intrinsicCoeff
-
-private theorem UniformStreamRecipe.coeffs_eq_of_sameCoeffs {Op₁ : Type u} {Op₂ : Type u'}
-    {Struct : Type v} {R₁ : UniformStreamRecipe Op₁ Struct}
-    {R₂ : UniformStreamRecipe Op₂ Struct} (h : sameCoeffs R₁ R₂) :
-    R₁.coeffs = R₂.coeffs := by
-  obtain ⟨ha, hb, hc, hi⟩ := h
-  unfold UniformStreamRecipe.coeffs
-  rw [ha, hb, hc, hi]
-
-private theorem sameCoeffs_of_coeffs_eq {Op₁ : Type u} {Op₂ : Type u'} {Struct : Type v}
-    {R₁ : UniformStreamRecipe Op₁ Struct} {R₂ : UniformStreamRecipe Op₂ Struct}
-    (h : R₁.coeffs = R₂.coeffs) : sameCoeffs R₁ R₂ :=
-  ⟨congrArg RecipeCoeffs.coeffA h, congrArg RecipeCoeffs.coeffB h,
-    congrArg RecipeCoeffs.coeffC h, congrArg RecipeCoeffs.intrinsicCoeff h⟩
 
 /-- Certified stream recipe pinned to slack `d`, environment validity predicate `V`, and semantic
 function `valFn` in its type. Keeping combinator bodies non-`@[expose]` while exposing
@@ -156,49 +136,6 @@ structure FixedRecipe {Op : Type u} {Struct : Type v}
   intrinsic_bound t env sEnv := by
     have h := F.inner.intrinsic_bound t env sEnv
     rwa [F.slack_eq] at h
-
-/-- Equality of the four resource coefficients of two `FixedRecipe`s. -/
-private def FixedRecipe.sameCoeffs {Op₁ : Type u} {Op₂ : Type u'} {Struct : Type v}
-    {d₁ d₂ : ℕ} {hd₁ : 1 ≤ d₁} {hd₂ : 1 ≤ d₂}
-    {V₁ : (Op₁ → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {V₂ : (Op₂ → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {f₁ : (Op₁ → ℝ) → (Struct → Bool) → ℝ}
-    {f₂ : (Op₂ → ℝ) → (Struct → Bool) → ℝ}
-    (F₁ : FixedRecipe d₁ hd₁ V₁ f₁) (F₂ : FixedRecipe d₂ hd₂ V₂ f₂) : Prop :=
-  Cslib.StreamArithmetic.sameCoeffs F₁.toRecipe F₂.toRecipe
-
-/-- Project the four resource coefficients of a `FixedRecipe`. -/
-private def FixedRecipe.coeffs {Op : Type u} {Struct : Type v}
-    {d : ℕ} {hd : 1 ≤ d} {V : (Op → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {f : (Op → ℝ) → (Struct → Bool) → ℝ}
-    (F : FixedRecipe d hd V f) : RecipeCoeffs :=
-  F.inner.coeffs
-
-private theorem FixedRecipe.coeffs_toRecipe {Op : Type u} {Struct : Type v}
-    {d : ℕ} {hd : 1 ≤ d} {V : (Op → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {f : (Op → ℝ) → (Struct → Bool) → ℝ}
-    (F : FixedRecipe d hd V f) : F.toRecipe.coeffs = F.inner.coeffs :=
-  rfl
-
-private theorem FixedRecipe.coeffs_eq_of_sameCoeffs {Op₁ : Type u} {Op₂ : Type u'} {Struct : Type v}
-    {d₁ d₂ : ℕ} {hd₁ : 1 ≤ d₁} {hd₂ : 1 ≤ d₂}
-    {V₁ : (Op₁ → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {V₂ : (Op₂ → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {f₁ : (Op₁ → ℝ) → (Struct → Bool) → ℝ}
-    {f₂ : (Op₂ → ℝ) → (Struct → Bool) → ℝ}
-    {F₁ : FixedRecipe d₁ hd₁ V₁ f₁} {F₂ : FixedRecipe d₂ hd₂ V₂ f₂}
-    (h : F₁.sameCoeffs F₂) : F₁.coeffs = F₂.coeffs :=
-  UniformStreamRecipe.coeffs_eq_of_sameCoeffs h
-
-private theorem FixedRecipe.sameCoeffs_of_coeffs_eq {Op₁ : Type u} {Op₂ : Type u'} {Struct : Type v}
-    {d₁ d₂ : ℕ} {hd₁ : 1 ≤ d₁} {hd₂ : 1 ≤ d₂}
-    {V₁ : (Op₁ → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {V₂ : (Op₂ → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {f₁ : (Op₁ → ℝ) → (Struct → Bool) → ℝ}
-    {f₂ : (Op₂ → ℝ) → (Struct → Bool) → ℝ}
-    {F₁ : FixedRecipe d₁ hd₁ V₁ f₁} {F₂ : FixedRecipe d₂ hd₂ V₂ f₂}
-    (h : F₁.coeffs = F₂.coeffs) : F₁.sameCoeffs F₂ :=
-  Cslib.StreamArithmetic.sameCoeffs_of_coeffs_eq h
 
 /-- Wrap any `UniformStreamRecipe` as a `FixedRecipe`. -/
 noncomputable def FixedRecipe.ofRecipe {Op : Type u} {Struct : Type v}
@@ -487,30 +424,25 @@ private theorem FixedRecipe.coeffs_shiftClip {Op : Type u} {Struct : Type v}
     (F.shiftClip v κ hv).inner.coeffs = (shiftClipPrimCoeffs κ).comp F.inner.coeffs :=
   Eq.symm rfl
 
-private theorem UniformStreamRecipe.coeffs_recip64 {Op : Type u} {Struct : Type v}
-    (R : UniformStreamRecipe Op Struct) :
-    R.recip64.coeffs = recip64PrimCoeffs.comp R.coeffs :=
+private theorem FixedRecipe.coeffs_recip64 {Op : Type u} {Struct : Type v}
+    {d : ℕ} {hd : 1 ≤ d} {V : (Op → ℕ → ℤ) → (Struct → Bool) → Prop}
+    {f : (Op → ℝ) → (Struct → Bool) → ℝ}
+    (F : FixedRecipe d hd V f)
+    (hMem : ∀ {env sEnv}, V env sEnv →
+      f (fun op => streamVal (env op)) sEnv ∈ Set.Icc (1 / 4 : ℝ) 1) :
+    (F.recip64 hMem).inner.coeffs = recip64PrimCoeffs.comp F.inner.coeffs :=
   Eq.symm rfl
 
-private theorem FixedRecipe.sameCoeffs_toRecipe {Op₁ : Type u} {Op₂ : Type u'} {Struct : Type v}
-    {d₁ d₂ : ℕ} {hd₁ : 1 ≤ d₁} {hd₂ : 1 ≤ d₂}
-    {V₁ : (Op₁ → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {V₂ : (Op₂ → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {f₁ : (Op₁ → ℝ) → (Struct → Bool) → ℝ}
-    {f₂ : (Op₂ → ℝ) → (Struct → Bool) → ℝ}
-    {F₁ : FixedRecipe d₁ hd₁ V₁ f₁} {F₂ : FixedRecipe d₂ hd₂ V₂ f₂}
-    (h : F₁.sameCoeffs F₂) :
-    Cslib.StreamArithmetic.sameCoeffs F₁.toRecipe F₂.toRecipe :=
-  h
+private theorem shiftClipVal_eq_of_mul_eq {v : ℤ} {x y : ℝ}
+    (hmul : (2 : ℝ) ^ v * x = y) (hlo : -1 ≤ y) (hhi : y ≤ 1) :
+    shiftClipVal v x = y := by
+  unfold shiftClipVal
+  rw [hmul, min_eq_right hhi, max_eq_right hlo]
 
 private theorem shiftClipVal_sub_of_mem_unit {a b : ℝ}
     (ha0 : 0 ≤ a) (ha1 : a ≤ 1) (hb0 : 0 ≤ b) (hb1 : b ≤ 1) :
-    shiftClipVal 1 ((a + -b) / 2) = a - b := by
-  unfold shiftClipVal
-  have hmul : (2 : ℝ) ^ (1 : ℤ) * ((a + -b) / 2) = a - b := by
-    norm_num
-    ring
-  rw [hmul, min_eq_right (by linarith), max_eq_right (by linarith)]
+    shiftClipVal 1 ((a + -b) / 2) = a - b :=
+  shiftClipVal_eq_of_mul_eq (by norm_num; ring) (by linarith) (by linarith)
 
 end FixedRecipeCombinators
 
@@ -608,20 +540,6 @@ private theorem coeffs_polynomialTransition4Fixed {Op : Type u} {Struct : Type v
     FixedRecipe.coeffs_pairAvg, FixedRecipe.coeffs_max, FixedRecipe.coeffs_min,
     FixedRecipe.coeffs_neg, FixedRecipe.coeffs_const]
 
-private theorem sameCoeffs_polynomialTransition4Fixed {Op₁ : Type u} {Op₂ : Type u'}
-    {Struct : Type v} {d₁ d₂ : ℕ} {hd₁ : 1 ≤ d₁} {hd₂ : 1 ≤ d₂}
-    {V₁ : (Op₁ → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {V₂ : (Op₂ → ℕ → ℤ) → (Struct → Bool) → Prop}
-    {f₁ : (Op₁ → ℝ) → (Struct → Bool) → ℝ}
-    {f₂ : (Op₂ → ℝ) → (Struct → Bool) → ℝ}
-    {F₁ : FixedRecipe d₁ hd₁ V₁ f₁} {F₂ : FixedRecipe d₂ hd₂ V₂ f₂}
-    (h : F₁.sameCoeffs F₂) :
-    (polynomialTransition4Fixed F₁).sameCoeffs (polynomialTransition4Fixed F₂) := by
-  apply FixedRecipe.sameCoeffs_of_coeffs_eq
-  dsimp only [FixedRecipe.coeffs]
-  rw [coeffs_polynomialTransition4Fixed, coeffs_polynomialTransition4Fixed]
-  exact congrArg poly4Coeffs (FixedRecipe.coeffs_eq_of_sameCoeffs h)
-
 /-- Certified `UniformStreamRecipe` computing `Cslib.polynomialTransition4 (R.targetVal val sEnv)`
 via normalized `[-1, 1]` stream additions, multiplications, and `shiftClip`. -/
 @[expose] noncomputable def polynomialTransition4Recipe {Op : Type u} {Struct : Type v}
@@ -684,18 +602,6 @@ private theorem coeffs_dyadicSwitchNormFixed {Op : Type u} {Struct : Type v}
     FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_pairAvg, FixedRecipe.coeffs_max,
     FixedRecipe.coeffs_const]
 
-private theorem sameCoeffs_dyadicSwitchNormFixed {Op : Type u} {Struct : Type v}
-    {m₁ m₂ κ : ℕ} {W₁ W₂ : UniformStreamRecipe Op Struct}
-    {hm₁ : m₁ ≤ κ * W₁.slack} {hm₂ : m₂ ≤ κ * W₂.slack}
-    {r₁ r₂ : ℕ} {hr₁ : r₁ ≤ m₁} {hr₂ : r₂ ≤ m₂}
-    (hW : sameCoeffs W₁ W₂) :
-    (dyadicSwitchNormFixed m₁ κ W₁ hm₁ r₁ hr₁).sameCoeffs
-      (dyadicSwitchNormFixed m₂ κ W₂ hm₂ r₂ hr₂) := by
-  apply FixedRecipe.sameCoeffs_of_coeffs_eq
-  dsimp only [FixedRecipe.coeffs]
-  rw [coeffs_dyadicSwitchNormFixed, coeffs_dyadicSwitchNormFixed,
-    UniformStreamRecipe.coeffs_eq_of_sameCoeffs hW]
-
 /-- Certified `UniformStreamRecipe` computing
 `dyadicSwitch r (2 ^ (m + 1) * max 0 (W.targetVal val sEnv))` from a normalized stream recipe `W`
 when `r ≤ m ≤ κ * W.slack`. -/
@@ -743,57 +649,32 @@ noncomputable def dyadicWeightNormFixed {Op : Type u} {Struct : Type v}
       have hsw0 : ∀ k, 0 ≤ dyadicSwitch k w := fun _ => Cslib.polynomialTransition4_nonneg _
       have hsw1 : ∀ k, dyadicSwitch k w ≤ 1 := fun _ => Cslib.polynomialTransition4_le_one _
       dsimp only [dyadicWeight]
-      by_cases hm0 : m = 0
-      · simp only [hm0, ↓reduceDIte, ↓reduceIte]
-        by_cases hr0 : r = 0 <;> simp [hr0]
-      · simp only [hm0, ↓reduceDIte, ↓reduceIte]
-        by_cases hr0 : r = 0
-        · simp only [hr0, ↓reduceDIte, ↓reduceIte]
-          push_cast
-          exact shiftClipVal_sub_of_mem_unit zero_le_one le_rfl (hsw0 0) (hsw1 0)
-        · simp only [hr0, ↓reduceDIte, ↓reduceIte]
-          by_cases hrm : r < m
-          · simp only [hrm, ↓reduceDIte, ↓reduceIte]
-            exact shiftClipVal_sub_of_mem_unit (hsw0 _) (hsw1 _) (hsw0 _) (hsw1 _)
-          · simp only [hrm, ↓reduceDIte, ↓reduceIte]
-            by_cases hreq : r = m <;> simp [hreq])
+      split_ifs
+      all_goals push_cast; first
+        | rfl
+        | exact shiftClipVal_sub_of_mem_unit zero_le_one le_rfl (hsw0 0) (hsw1 0)
+        | exact shiftClipVal_sub_of_mem_unit (hsw0 _) (hsw1 _) (hsw0 _) (hsw1 _))
 
 private theorem coeffs_dyadicWeightNormFixed_cases {Op : Type u} {Struct : Type v}
     (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack) (r : ℕ) :
-    (dyadicWeightNormFixed m κ W hm r).coeffs = RecipeCoeffs.const 0 ∨
-      (dyadicWeightNormFixed m κ W hm r).coeffs = dyadicSwitchCoeffs κ W.coeffs ∨
-      (dyadicWeightNormFixed m κ W hm r).coeffs = oneSubSwitchCoeffs κ W.coeffs ∨
-      (dyadicWeightNormFixed m κ W hm r).coeffs = diffSwitchCoeffs κ W.coeffs := by
+    (dyadicWeightNormFixed m κ W hm r).inner.coeffs = RecipeCoeffs.const 0 ∨
+      (dyadicWeightNormFixed m κ W hm r).inner.coeffs = dyadicSwitchCoeffs κ W.coeffs ∨
+      (dyadicWeightNormFixed m κ W hm r).inner.coeffs = oneSubSwitchCoeffs κ W.coeffs ∨
+      (dyadicWeightNormFixed m κ W hm r).inner.coeffs = diffSwitchCoeffs κ W.coeffs := by
   unfold dyadicWeightNormFixed
-  dsimp only [FixedRecipe.coeffs, FixedRecipe.congrVal]
-  by_cases hm0 : m = 0
-  · simp only [FixedRecipe.dite, FixedRecipe.congrVal, hm0, ↓reduceDIte]
-    by_cases hr0 : r = 0 <;>
-      · simp only [hr0, ↓reduceDIte]
-        left
-        exact FixedRecipe.coeffs_const ..
-  · simp only [FixedRecipe.dite, FixedRecipe.congrVal, hm0, ↓reduceDIte]
-    by_cases hr0 : r = 0
-    · simp only [hr0, ↓reduceDIte]
-      right; right; left
-      unfold oneSubSwitchCoeffs
-      simp only [FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_pairAvg,
-        FixedRecipe.coeffs_neg, FixedRecipe.coeffs_const, coeffs_dyadicSwitchNormFixed]
-    · simp only [hr0, ↓reduceDIte]
-      by_cases hrm : r < m
-      · simp only [hrm, ↓reduceDIte]
-        right; right; right
-        unfold diffSwitchCoeffs
-        simp only [FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_pairAvg,
-          FixedRecipe.coeffs_neg, coeffs_dyadicSwitchNormFixed]
-      · simp only [hrm, ↓reduceDIte]
-        by_cases hreq : r = m
-        · simp only [hreq, ↓reduceDIte]
-          right; left
-          exact coeffs_dyadicSwitchNormFixed ..
-        · simp only [hreq, ↓reduceDIte]
-          left
-          exact FixedRecipe.coeffs_const ..
+  dsimp only [FixedRecipe.congrVal]
+  simp only [FixedRecipe.coeffs_dite]
+  split_ifs <;> try exact Or.inl rfl
+  · right; right; left
+    unfold oneSubSwitchCoeffs
+    simp only [FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_pairAvg,
+      FixedRecipe.coeffs_neg, FixedRecipe.coeffs_const, coeffs_dyadicSwitchNormFixed]
+  · right; right; right
+    unfold diffSwitchCoeffs
+    simp only [FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_pairAvg,
+      FixedRecipe.coeffs_neg, coeffs_dyadicSwitchNormFixed]
+  · right; left
+    exact coeffs_dyadicSwitchNormFixed ..
 
 /-- Certified `UniformStreamRecipe` computing
 `dyadicWeight m r (2 ^ (m + 1) * max 0 (W.targetVal val sEnv))` for any scale index `r : ℕ` when
@@ -817,29 +698,23 @@ private theorem shiftClipVal_inv64_scaled (r : ℕ) {c : ℝ}
       (1 / 2) * ((1 / (2 : ℝ) ^ (r + 1)) * (1 / c)) := by
   have hr_ge1 : (1 : ℝ) ≤ (2 : ℝ) ^ r := one_le_pow₀ (by norm_num)
   have h4rc : 1 ≤ 4 * (2 : ℝ) ^ r * c := by nlinarith [hc.1]
-  have hval_eq : (2 : ℝ) ^ (4 - (r : ℤ)) * (1 / (64 * c)) = 1 / (4 * (2 : ℝ) ^ r * c) := by
-    rw [sub_eq_add_neg, zpow_add₀ (by norm_num), zpow_neg, zpow_natCast]
+  have h0 : 0 ≤ (1 / 2 : ℝ) * ((1 / (2 : ℝ) ^ (r + 1)) * (1 / c)) := by
+    have : 0 < c := by linarith [hc.1]
+    positivity
+  refine shiftClipVal_eq_of_mul_eq ?_ (by linarith) ?_
+  · rw [zpow_sub₀ (by norm_num), zpow_natCast, pow_succ]
     norm_num
     field_simp
     ring
-  have hrhs_eq : 1 / (4 * (2 : ℝ) ^ r * c) =
-      (1 / 2) * ((1 / (2 : ℝ) ^ (r + 1)) * (1 / c)) := by
-    have hp : (2 : ℝ) ^ (r + 1) = 2 * (2 : ℝ) ^ r := by ring
-    rw [hp]
-    field_simp
-    ring
-  unfold shiftClipVal
-  have hle1 : 1 / (4 * (2 : ℝ) ^ r * c) ≤ 1 := (div_le_one (by positivity)).mpr h4rc
-  have hge_neg1 : -1 ≤ 1 / (4 * (2 : ℝ) ^ r * c) := by
-    have h0 : 0 ≤ 1 / (4 * (2 : ℝ) ^ r * c) := by positivity
-    linarith
-  rw [hval_eq, min_eq_right hle1, max_eq_right hge_neg1, hrhs_eq]
+  · have hp : (2 : ℝ) ^ (r + 1) = 2 * (2 : ℝ) ^ r := by ring
+    rw [hp, show (1 / 2 : ℝ) * ((1 / (2 * (2 : ℝ) ^ r)) * (1 / c)) = 1 / (4 * (2 : ℝ) ^ r * c) by
+      field_simp; ring]
+    exact (div_le_one (by positivity)).mpr h4rc
 
 /-- `FixedRecipe` computing the `r`-th clamped dyadic reciprocal term `(1 / 2) * (1 / 2 ^ (r + 1)) /
 max (1 / 4) (min 1 (w / 2 ^ (r + 1)))` for `w = 2 ^ (m + 1) * max 0 (W.targetVal val sEnv)`. -/
 noncomputable def invScaledNormFixed {Op : Type u} {Struct : Type v}
-    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack)
-    (r : ℕ) (hr : r ≤ m) :
+    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack) (r : ℕ) :
     FixedRecipe W.slack W.slack_pos W.ValidEnv
       (fun val sEnv =>
         let w := (2 : ℝ) ^ (m + 1) * Max.max 0 (W.targetVal val sEnv)
@@ -865,9 +740,7 @@ noncomputable def invScaledNormFixed {Op : Type u} {Struct : Type v}
         (mul_div_cancel_left₀ (Max.max 0 x) (by positivity)).symm
       have hscale : (2 : ℝ) ^ ((m : ℤ) - (r : ℤ)) * (w / (2 : ℝ) ^ (m + 1)) =
           w / (2 : ℝ) ^ (r + 1) := by
-        have hm1 : (m + 1 : ℕ) = (m - r) + (r + 1) := by omega
-        have hsub : ((m : ℤ) - (r : ℤ)) = ((m - r : ℕ) : ℤ) := by omega
-        rw [hsub, zpow_natCast, hm1, pow_add]
+        rw [zpow_sub₀ (by norm_num), zpow_natCast, zpow_natCast, pow_succ, pow_succ]
         field_simp
       rw [hw_div]
       unfold shiftClipVal
@@ -902,33 +775,21 @@ private noncomputable def invScaledCoeffs (κ : ℕ) (w : RecipeCoeffs) : Recipe
   (shiftClipPrimCoeffs 4).comp (recip64PrimCoeffs.comp clamped)
 
 private theorem coeffs_invScaledNormFixed {Op : Type u} {Struct : Type v}
-    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack)
-    (r : ℕ) (hr : r ≤ m) :
-    (invScaledNormFixed m κ W hm r hr).inner.coeffs = invScaledCoeffs κ W.coeffs := by
+    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack) (r : ℕ) :
+    (invScaledNormFixed m κ W hm r).inner.coeffs = invScaledCoeffs κ W.coeffs := by
   unfold invScaledNormFixed invScaledCoeffs
-  simp only [FixedRecipe.congrVal, FixedRecipe.ofRecipe, FixedRecipe.recip64,
-    FixedRecipe.coeffs_toRecipe, UniformStreamRecipe.coeffs_recip64,
-    FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_max, FixedRecipe.coeffs_min,
-    FixedRecipe.coeffs_const]
-
-private theorem sameCoeffs_invScaledNormFixed {Op : Type u} {Struct : Type v}
-    {m₁ m₂ κ : ℕ} {W₁ W₂ : UniformStreamRecipe Op Struct}
-    {hm₁ : m₁ ≤ κ * W₁.slack} {hm₂ : m₂ ≤ κ * W₂.slack}
-    {r₁ r₂ : ℕ} {hr₁ : r₁ ≤ m₁} {hr₂ : r₂ ≤ m₂}
-    (hW : sameCoeffs W₁ W₂) :
-    (invScaledNormFixed m₁ κ W₁ hm₁ r₁ hr₁).sameCoeffs
-      (invScaledNormFixed m₂ κ W₂ hm₂ r₂ hr₂) := by
-  apply FixedRecipe.sameCoeffs_of_coeffs_eq
-  dsimp only [FixedRecipe.coeffs]
-  rw [coeffs_invScaledNormFixed, coeffs_invScaledNormFixed,
-    UniformStreamRecipe.coeffs_eq_of_sameCoeffs hW]
+  dsimp only [FixedRecipe.congrVal]
+  rw [FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_recip64]
+  · simp only [FixedRecipe.ofRecipe, FixedRecipe.coeffs_shiftClip,
+      FixedRecipe.coeffs_max, FixedRecipe.coeffs_min, FixedRecipe.coeffs_const]
+  · exact fun _ => quarter_clamped_mem_Icc _
 
 /-- Leaf reciprocal factor `(1 / 2) * (1 / 2 ^ (r + 1)) * (1 / max (1 / 4) (min 1 (w / 2 ^ (r+1))))`
-for scale `r ≤ m` in the smooth dyadic reciprocal decomposition. -/
+for scale `r` in the smooth dyadic reciprocal decomposition. -/
 @[expose] noncomputable def invScaledNormRecipe {Op : Type u} {Struct : Type v}
-    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack)
-    (r : ℕ) (hr : r ≤ m) : UniformStreamRecipe Op Struct :=
-  (invScaledNormFixed m κ W hm r hr).toRecipe
+    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack) (r : ℕ) :
+    UniformStreamRecipe Op Struct :=
+  (invScaledNormFixed m κ W hm r).toRecipe
 
 private theorem mul_coeffs_le_of_bounds {Op : Type u} {Struct : Type v}
     {d : ℕ} {hd : 1 ≤ d} {V : (Op → ℕ → ℤ) → (Struct → Bool) → Prop}
@@ -937,7 +798,7 @@ private theorem mul_coeffs_le_of_bounds {Op : Type u} {Struct : Type v}
     {wA wB wC wI : ℕ}
     (hwA : A.toRecipe.coeffA ≤ wA) (hwB : A.toRecipe.coeffB ≤ wB)
     (hwC : A.toRecipe.coeffC ≤ wC) (hwI : A.toRecipe.intrinsicCoeff ≤ wI)
-    (hBT : B.sameCoeffs T) :
+    (hBT : B.inner.coeffs = T.inner.coeffs) :
     let mulP := mulPrim (Struct := Struct) d hd
     let tR := T.toRecipe
     let leafB := max mulP.coeffB (max (max wB tR.coeffB) (max wI tR.intrinsicCoeff))
@@ -948,40 +809,38 @@ private theorem mul_coeffs_le_of_bounds {Op : Type u} {Struct : Type v}
       (A.mul B).toRecipe.coeffC ≤ mulP.coeffC + max wC tR.coeffC ∧
       (A.mul B).toRecipe.intrinsicCoeff ≤
         max 8 (max mulP.intrinsicCoeff (max (leafA1 + 4 + max wI tR.intrinsicCoeff) leafB)) := by
-  obtain ⟨hBa, hBb, hBc, hBi⟩ := FixedRecipe.sameCoeffs_toRecipe hBT
+  have hBa : B.inner.coeffA = T.inner.coeffA := congrArg RecipeCoeffs.coeffA hBT
+  have hBb : B.inner.coeffB = T.inner.coeffB := congrArg RecipeCoeffs.coeffB hBT
+  have hBc : B.inner.coeffC = T.inner.coeffC := congrArg RecipeCoeffs.coeffC hBT
+  have hBi : B.inner.intrinsicCoeff = T.inner.intrinsicCoeff :=
+    congrArg RecipeCoeffs.intrinsicCoeff hBT
   intro mulP tR leafB leafA1 leafA2
   dsimp only [FixedRecipe.mul, FixedRecipe.toRecipe, UniformStreamRecipe.mul, composeBinPrim,
-    UniformStreamRecipe.congrTarget, UniformStreamRecipe.weakenValid, UniformStreamRecipe.comp]
-  dsimp only [FixedRecipe.toRecipe] at hwA hwB hwC hwI hBa hBb hBc hBi
-  dsimp only [tR, FixedRecipe.toRecipe] at leafB leafA1 leafA2 ⊢
+    UniformStreamRecipe.congrTarget, UniformStreamRecipe.weakenValid, UniformStreamRecipe.comp,
+    tR, leafB, leafA1, leafA2] at hwA hwB hwC hwI ⊢
   rw [hBa, hBb, hBc, hBi]
-  have hB_le : max mulP.coeffB
-      (max (max A.inner.coeffB T.inner.coeffB)
-        (max A.inner.intrinsicCoeff T.inner.intrinsicCoeff)) ≤
-      leafB :=
-    max_le_max le_rfl (max_le_max (max_le_max hwB le_rfl) (max_le_max hwI le_rfl))
-  have hA1_le := Nat.add_le_add_left
-    (Nat.mul_le_mul_right mulP.coeffC (Nat.sub_le_sub_right hB_le mulP.coeffB)) mulP.coeffA
-  have hA2_le := Nat.add_le_add (max_le_max hwA (le_refl T.inner.coeffA))
-    (Nat.mul_le_mul hB_le (max_le_max hwC (le_refl T.inner.coeffC)))
-  have hMid := Nat.add_le_add (Nat.add_le_add_right hA1_le 4)
-    (max_le_max hwI (le_refl T.inner.intrinsicCoeff))
-  exact ⟨Nat.add_le_add_right (Nat.add_le_add hA1_le hA2_le) 4,
-    hB_le,
-    Nat.add_le_add_left (max_le_max hwC (le_refl T.inner.coeffC)) mulP.coeffC,
-    (max_le_max le_rfl (max_le_max hMid hB_le)).trans (le_max_right 8 _)⟩
+  refine ⟨?_, ?_, ?_, (le_max_right 8 _).trans' ?_⟩
+  · gcongr
+  · gcongr
+  · gcongr
+  · gcongr
 
 private theorem coeffs_le_of_eq {Op : Type u} {Struct : Type v}
     {d : ℕ} {hd : 1 ≤ d} {V : (Op → ℕ → ℤ) → (Struct → Bool) → Prop}
     {f : (Op → ℝ) → (Struct → Bool) → ℝ}
     {F : FixedRecipe d hd V f} {c : RecipeCoeffs} {mA mB mC mI : ℕ}
-    (hEq : F.coeffs = c)
+    (hEq : F.inner.coeffs = c)
     (hA : c.coeffA ≤ mA) (hB : c.coeffB ≤ mB)
     (hC : c.coeffC ≤ mC) (hI : c.intrinsicCoeff ≤ mI) :
     F.toRecipe.coeffA ≤ mA ∧ F.toRecipe.coeffB ≤ mB ∧
       F.toRecipe.coeffC ≤ mC ∧ F.toRecipe.intrinsicCoeff ≤ mI := by
   subst hEq
   exact ⟨hA, hB, hC, hI⟩
+
+private theorem max_zero_two_pow_mul_le (m : ℕ) {q : ℝ} (hq : q ≤ 1) :
+    Max.max (0 : ℝ) ((2 : ℝ) ^ m * q) ≤ (2 : ℝ) ^ m :=
+  max_le (by positivity)
+    ((mul_le_mul_of_nonneg_left hq (by positivity)).trans (mul_one _).le)
 
 private theorem sum_fin_two_pow_prefix {m : ℕ} (f : ℕ → ℝ) :
     (∑ i : Fin (2 ^ (m + 1)), if i.val ≤ m then f i.val else 0) =
@@ -1007,17 +866,17 @@ noncomputable def invOneAddScaledFixed {Op : Type u} {Struct : Type v}
     (fun val sEnv => Max.max 0 (R.targetVal val sEnv))
     (fun _ => by push_cast; rfl)
   have h2pow_abs : |(1 / (2 : ℚ) ^ m : ℚ)| ≤ 1 := by
-    have hge1 : (1 : ℚ) ≤ (2 : ℚ) ^ m := one_le_pow₀ (by norm_num)
-    have hnonneg : (0 : ℚ) ≤ 1 / (2 : ℚ) ^ m := by positivity
-    rw [abs_of_nonneg hnonneg]
-    exact (div_le_one (by positivity)).mpr hge1
+    rw [abs_of_nonneg (by positivity)]
+    exact (div_le_one (by positivity)).mpr (one_le_pow₀ (by norm_num))
   let twoPowInvF := FixedRecipe.const d hd V (1 / (2 : ℚ) ^ m) h2pow_abs κ
   let wNormF := twoPowInvF.pairAvg posQ
   let wNormR := wNormF.toRecipe
+  -- Restate `hm` against `wNormR.slack` so later rewrites avoid unfolding `wNormR`.
+  have hmW : m ≤ κ * wNormR.slack := hm
   let swC := dyadicSwitchCoeffs κ wNormR.coeffs
   let oneSubC := oneSubSwitchCoeffs κ wNormR.coeffs
   let diffSwC := diffSwitchCoeffs κ wNormR.coeffs
-  let invTpl := invScaledNormFixed 0 κ wNormR (Nat.zero_le _) 0 le_rfl
+  let invTpl := invScaledNormFixed 0 κ wNormR (Nat.zero_le _) 0
   let invTplR := invTpl.toRecipe
   let wgtMaxA := max swC.coeffA (max oneSubC.coeffA diffSwC.coeffA)
   let wgtMaxB := max swC.coeffB (max oneSubC.coeffB diffSwC.coeffB)
@@ -1035,29 +894,19 @@ noncomputable def invOneAddScaledFixed {Op : Type u} {Struct : Type v}
   let cInt := max 8 (max mulPrimR.intrinsicCoeff
     (max (leafA1 + 4 + max wgtMaxInt invTplR.intrinsicCoeff) leafB))
   have hWgtBounds : ∀ r,
-      (dyadicWeightNormFixed m κ wNormR hm r).toRecipe.coeffA ≤ wgtMaxA ∧
-        (dyadicWeightNormFixed m κ wNormR hm r).toRecipe.coeffB ≤ wgtMaxB ∧
-        (dyadicWeightNormFixed m κ wNormR hm r).toRecipe.coeffC ≤ wgtMaxC ∧
-        (dyadicWeightNormFixed m κ wNormR hm r).toRecipe.intrinsicCoeff ≤ wgtMaxInt := by
+      (dyadicWeightNormFixed m κ wNormR hmW r).toRecipe.coeffA ≤ wgtMaxA ∧
+        (dyadicWeightNormFixed m κ wNormR hmW r).toRecipe.coeffB ≤ wgtMaxB ∧
+        (dyadicWeightNormFixed m κ wNormR hmW r).toRecipe.coeffC ≤ wgtMaxC ∧
+        (dyadicWeightNormFixed m κ wNormR hmW r).toRecipe.intrinsicCoeff ≤ wgtMaxInt := by
     intro r
-    rcases coeffs_dyadicWeightNormFixed_cases m κ wNormR hm r with h | h | h | h
-    · exact coeffs_le_of_eq h (Nat.zero_le _) (Nat.zero_le _) (Nat.zero_le _) (le_max_left 8 _)
-    · exact coeffs_le_of_eq h (le_max_left _ _) (le_max_left _ _) (le_max_left _ _)
-        ((le_max_left _ _).trans (le_max_right 8 _))
-    · exact coeffs_le_of_eq h
-        ((le_max_left _ _).trans (le_max_right _ _))
-        ((le_max_left _ _).trans (le_max_right _ _))
-        ((le_max_left _ _).trans (le_max_right _ _))
-        (((le_max_left _ _).trans (le_max_right _ _)).trans (le_max_right 8 _))
-    · exact coeffs_le_of_eq h
-        ((le_max_right _ _).trans (le_max_right _ _))
-        ((le_max_right _ _).trans (le_max_right _ _))
-        ((le_max_right _ _).trans (le_max_right _ _))
-        (((le_max_right _ _).trans (le_max_right _ _)).trans (le_max_right 8 _))
+    rcases coeffs_dyadicWeightNormFixed_cases m κ wNormR hmW r with h | h | h | h <;>
+      · refine coeffs_le_of_eq h ?_ ?_ ?_ ?_ <;>
+          simp only [RecipeCoeffs.const, wgtMaxA, wgtMaxB, wgtMaxC, wgtMaxInt,
+            swC, oneSubC, diffSwC] <;> omega
   let children : Fin (2 ^ (m + 1)) → UniformStreamRecipe Op Struct := fun i =>
     if hi : i.val ≤ m then
-      ((dyadicWeightNormFixed m κ wNormR hm i.val).mul
-        (invScaledNormFixed m κ wNormR hm i.val hi)).toRecipe
+      ((dyadicWeightNormFixed m κ wNormR hmW i.val).mul
+        (invScaledNormFixed m κ wNormR hmW i.val)).toRecipe
     else
       (FixedRecipe.const d hd V 0 (by norm_num)).toRecipe
   have hChildBounds : ∀ i : Fin (2 ^ (m + 1)),
@@ -1068,7 +917,7 @@ noncomputable def invOneAddScaledFixed {Op : Type u} {Struct : Type v}
     split_ifs with hi
     · obtain ⟨hwA, hwB, hwC, hwI⟩ := hWgtBounds i.val
       exact mul_coeffs_le_of_bounds (T := invTpl) hwA hwB hwC hwI
-        (sameCoeffs_invScaledNormFixed ⟨rfl, rfl, rfl, rfl⟩)
+        (by rw [coeffs_invScaledNormFixed, coeffs_invScaledNormFixed])
     · exact ⟨Nat.zero_le _, Nat.zero_le _, Nat.zero_le _, le_max_left 8 _⟩
   have hTree : m + 1 ≤ (κ + 1) * d := by
     rw [Nat.add_mul, Nat.one_mul]
@@ -1101,11 +950,7 @@ noncomputable def invOneAddScaledFixed {Op : Type u} {Struct : Type v}
         dsimp only [w]
         linarith [le_max_left (0 : ℝ) ((2 : ℝ) ^ m * q)]
       have hw_hi : w ≤ (2 : ℝ) ^ (m + 1) := by
-        have hmax_le1 : Max.max (0 : ℝ) q ≤ 1 := max_le zero_le_one hq_hi
-        have hu_le : Max.max (0 : ℝ) ((2 : ℝ) ^ m * q) ≤ (2 : ℝ) ^ m := by
-          rw [hmax_mul]
-          exact (mul_le_mul_of_nonneg_left hmax_le1 (by positivity)).trans
-            (by ring_nf; exact le_rfl)
+        have hu_le := max_zero_two_pow_mul_le m hq_hi
         have h1_le : (1 : ℝ) ≤ (2 : ℝ) ^ m := one_le_pow₀ (by norm_num)
         have hp : (2 : ℝ) ^ (m + 1) = (2 : ℝ) ^ m + (2 : ℝ) ^ m := by ring
         dsimp only [w]
@@ -1154,16 +999,12 @@ noncomputable def invOneAddScaledFixed {Op : Type u} {Struct : Type v}
         rw [hp]
         field_simp
       rw [havg_val]
-      unfold shiftClipVal
-      have hscale : (2 : ℝ) ^ ((m : ℤ) + 2) * ((1 / (2 : ℝ) ^ (m + 2)) * (1 / w)) = 1 / w := by
-        have hz : ((m : ℤ) + 2) = ((m + 2 : ℕ) : ℤ) := by omega
+      refine shiftClipVal_eq_of_mul_eq ?_ ?_ ((div_le_one (by linarith)).mpr hw_lo)
+      · have hz : ((m : ℤ) + 2) = ((m + 2 : ℕ) : ℤ) := by omega
         rw [hz, zpow_natCast]
         field_simp
-      have hw_inv_le1 : 1 / w ≤ 1 := (div_le_one (by linarith)).mpr hw_lo
-      have hw_inv_ge : -1 ≤ 1 / w := by
-        have h0 : 0 ≤ 1 / w := by positivity
-        linarith
-      rw [hscale, min_eq_right hw_inv_le1, max_eq_right hw_inv_ge])
+      · have h0 : 0 ≤ 1 / w := by positivity
+        linarith)
 
 /-- Certified `UniformStreamRecipe` computing `1 / (1 + max 0 (2 ^ m * R.targetVal val sEnv))`
 for `m ≤ κ * R.slack` via an `(m + 1)`-level balanced binary-tree average over dyadic partition-of-
@@ -1219,21 +1060,15 @@ noncomputable def rationalRamp4NormFixed {Op : Type u} {Struct : Type v}
       set P := -3 + 6 * s - 4 * s ^ 2 + s ^ 3
       have hP_lo : -3 ≤ P := by dsimp only [P]; nlinarith [sq_nonneg (s - 2)]
       have hP_hi : P ≤ 0 := by dsimp only [P]; nlinarith [sq_nonneg (s - 3 / 2)]
-      unfold shiftClipVal
-      have hmul : (2 : ℝ) ^ (3 - (m : ℤ)) * (P / 32) = P / (4 * (2 : ℝ) ^ m) := by
-        rw [sub_eq_add_neg, zpow_add₀ (by norm_num), zpow_neg, zpow_natCast]
+      have h2m_ge1 : (1 : ℝ) ≤ (2 : ℝ) ^ m := one_le_pow₀ (by norm_num)
+      refine shiftClipVal_eq_of_mul_eq ?_ ?_
+        ((div_nonpos_of_nonpos_of_nonneg hP_hi (by positivity)).trans zero_le_one)
+      · rw [zpow_sub₀ (by norm_num), zpow_natCast]
         norm_num
         field_simp
         ring
-      have h2m_ge1 : (1 : ℝ) ≤ (2 : ℝ) ^ m := one_le_pow₀ (by norm_num)
-      have hle1 : P / (4 * (2 : ℝ) ^ m) ≤ 1 := by
-        have hnonpos : P / (4 * (2 : ℝ) ^ m) ≤ 0 :=
-          div_nonpos_of_nonpos_of_nonneg hP_hi (by positivity)
-        linarith
-      have hge_neg1 : -1 ≤ P / (4 * (2 : ℝ) ^ m) := by
-        rw [le_div_iff₀ (by positivity)]
-        linarith
-      rw [hmul, min_eq_right hle1, max_eq_right hge_neg1])
+      · rw [le_div_iff₀ (by positivity)]
+        linarith)
   let avgRamp := (c1_4.mul posQ).pairAvg pScaled
   let raw := avgRamp.shiftClip 3 3 (by exact_mod_cast Nat.le_mul_of_pos_right 3 hd)
   raw.congrVal
@@ -1260,25 +1095,12 @@ noncomputable def rationalRamp4NormFixed {Op : Type u} {Struct : Type v}
         ring
       change shiftClipVal 3 ((((1 / 4 : ℚ) : ℝ) * Max.max 0 q + P / (4 * (2 : ℝ) ^ m)) / 2) = _
       rw [havg_eq]
-      unfold shiftClipVal
-      have hmul8 : (2 : ℝ) ^ (3 : ℤ) *
-          ((Cslib.rationalRamp4Unit ((2 : ℝ) ^ m * q) / (2 : ℝ) ^ m) / 8) =
-          Cslib.rationalRamp4Unit ((2 : ℝ) ^ m * q) / (2 : ℝ) ^ m := by
-        norm_num
-        ring
       have hramp_lo : 0 ≤ Cslib.rationalRamp4Unit ((2 : ℝ) ^ m * q) / (2 : ℝ) ^ m :=
         div_nonneg (Cslib.rationalRamp4Unit_nonneg _) (by positivity)
-      have hramp_hi : Cslib.rationalRamp4Unit ((2 : ℝ) ^ m * q) / (2 : ℝ) ^ m ≤ 1 := by
-        refine (div_le_one (by positivity)).mpr ?_
-        have hle_u : Cslib.rationalRamp4Unit ((2 : ℝ) ^ m * q) ≤ u :=
-          Cslib.rationalRamp4Unit_le _
-        have hmax_le1 : Max.max (0 : ℝ) q ≤ 1 := max_le zero_le_one hq_hi
-        have hu_le : u ≤ (2 : ℝ) ^ m := by
-          rw [hmax_mul]
-          exact (mul_le_mul_of_nonneg_left hmax_le1 (by positivity)).trans
-            (by ring_nf; exact le_rfl)
-        exact hle_u.trans hu_le
-      rw [hmul8, min_eq_right hramp_hi, max_eq_right (by linarith)])
+      have hramp_hi : Cslib.rationalRamp4Unit ((2 : ℝ) ^ m * q) / (2 : ℝ) ^ m ≤ 1 :=
+        (div_le_one (by positivity)).mpr
+          ((Cslib.rationalRamp4Unit_le _).trans (max_zero_two_pow_mul_le m hq_hi))
+      exact shiftClipVal_eq_of_mul_eq (by norm_num; ring) (by linarith) hramp_hi)
 
 /-- Certified `UniformStreamRecipe` computing the normalized rational correction ramp
 `Cslib.rationalRamp4Unit (2 ^ m * R.targetVal val sEnv) / 2 ^ m` whenever `m ≤ κ * R.slack`. -/
@@ -1332,6 +1154,52 @@ private theorem newDefault_mem_unit {ι : Type u} {s : Finset ι} {n K : ℕ} {�
   refine max_le hu ((min_le_left _ _).trans (max_le (abs_le.mp hz).2 ?_))
   exact kthLargest_le zero_le_one fun x hx => (abs_le.mp (hw x hx 0)).2
 
+/-- Compose `zeroPaddedRankListRecipe` over `items`, padding off-list elements with `0` and
+lifting child validity and coefficient bounds from a uniform template `tpl`. -/
+private noncomputable def FixedRecipe.zeroPaddedRankList {ι : Type u} [DecidableEq ι]
+    {Op : Type u'} {Struct : Type v}
+    {d : ℕ} {hd : 1 ≤ d} {V : (Op → ℕ → ℤ) → (Struct → Bool) → Prop}
+    (k : ℕ) (items : List ι) (hNodup : items.Nodup)
+    (κ : ℕ) (hLen : items.length ≤ 2 ^ (κ * d))
+    (tpl : UniformStreamRecipe Op Struct)
+    (target : ι → (Op → ℝ) → (Struct → Bool) → ℝ)
+    (itemR : (x : ι) → x ∈ items → FixedRecipe d hd V (target x))
+    (hCoeffs : ∀ x (hx : x ∈ items), (itemR x hx).inner.coeffs = tpl.coeffs) :
+    FixedRecipe d hd V
+      (fun val sEnv => kthLargest k items.toFinset (fun x => target x val sEnv)) :=
+  let child : ι → UniformStreamRecipe Op Struct := fun x =>
+    if hx : x ∈ items then (itemR x hx).toRecipe
+    else (FixedRecipe.const (Struct := Struct) d hd V 0 (by norm_num)).toRecipe
+  have hLe {bound : ℕ} (f : UniformStreamRecipe Op Struct → ℕ) (g : RecipeCoeffs → ℕ)
+      (hf : ∀ R : UniformStreamRecipe Op Struct, f R = g R.coeffs)
+      (hT : g tpl.coeffs ≤ bound)
+      (h0 : f (FixedRecipe.const (Struct := Struct) d hd V 0 (by norm_num)).toRecipe ≤ bound) :
+      ∀ x, f (child x) ≤ bound := fun x => by
+    dsimp only [child]
+    split_ifs with hx
+    · rw [hf]
+      exact (congrArg g (hCoeffs x hx)).trans_le hT
+    · exact h0
+  let rankRaw := (zeroPaddedRankListRecipe (Struct := Struct) d hd k items hNodup κ hLen).comp
+    child tpl.coeffA tpl.coeffB tpl.coeffC (Max.max 8 tpl.intrinsicCoeff)
+    (fun x => by dsimp only [child]; split_ifs <;> rfl)
+    (hLe (·.coeffA) RecipeCoeffs.coeffA (fun _ => rfl) le_rfl (Nat.zero_le _))
+    (hLe (·.coeffB) RecipeCoeffs.coeffB (fun _ => rfl) le_rfl (Nat.zero_le _))
+    (hLe (·.coeffC) RecipeCoeffs.coeffC (fun _ => rfl) le_rfl (Nat.zero_le _))
+    (hLe (·.intrinsicCoeff) RecipeCoeffs.intrinsicCoeff (fun _ => rfl)
+      (le_max_right 8 _) (le_max_left 8 _))
+  ((FixedRecipe.ofRecipe rankRaw).weaken (V₂ := V) (fun {env sEnv} hV => by
+    have hCh : ∀ x, (child x).ValidEnv env sEnv := fun x => by
+      dsimp only [child]
+      split_ifs <;> exact hV
+    exact ⟨hCh, fun x _ => (child x).emits_norm (hCh x)⟩)).congrVal
+    (fun val sEnv => kthLargest k items.toFinset (fun x => target x val sEnv))
+    (fun _ =>
+      kthLargest_congr fun x hx => by
+        have hmem : x ∈ items := List.mem_toFinset.mp hx
+        simp only [child, hmem, ↓reduceDIte]
+        rfl)
+
 /-- `FixedRecipe` computing the row-compression threshold `Cslib.RowCompression.threshold` via
 `zeroPaddedRankListRecipe` [OpenAI2026LogSpace, Section 8.2, Lemmas 10.6--10.7]. -/
 noncomputable def rowCompressionThresholdFixed {ι : Type u} [DecidableEq ι]
@@ -1347,49 +1215,16 @@ noncomputable def rowCompressionThresholdFixed {ι : Type u} [DecidableEq ι]
   let sizeTpl :=
     ((FixedRecipe.var (Struct := Struct) d hd V .floor (fun h => h.floor_norm)).abs).max
       ((FixedRecipe.var (Struct := Struct) d hd V .floor (fun h => h.floor_norm)).abs)
-  let sizeTplR := sizeTpl.toRecipe
-  let sizeChild : ι → UniformStreamRecipe (RowStreamIdx ι) Struct := fun x =>
-    if hx : x ∈ items then
-      (((FixedRecipe.var (Struct := Struct) d hd V (.entry x 0)
-            (fun h => h.entry_norm x hx 0)).abs).max
+  let rankSizeF := FixedRecipe.zeroPaddedRankList n items hNodup κ hLen sizeTpl.toRecipe
+    (fun x val _ => Max.max |val (.entry x 0)| |val (.entry x 1)|)
+    (fun x hx =>
+      ((FixedRecipe.var (Struct := Struct) d hd V (.entry x 0)
+          (fun h => h.entry_norm x hx 0)).abs).max
         ((FixedRecipe.var (Struct := Struct) d hd V (.entry x 1)
-            (fun h => h.entry_norm x hx 1)).abs)).toRecipe
-    else
-      (FixedRecipe.const (Struct := Struct) d hd V 0 (by norm_num)).toRecipe
-  have hSizeCoeffs : ∀ x, (hx : x ∈ items) →
-      sameCoeffs (sizeChild x) sizeTplR := by
-    intro x hx
-    simp only [sizeChild, hx, ↓reduceDIte]
-    apply sameCoeffs_of_coeffs_eq
-    simp only [sizeTplR, sizeTpl, FixedRecipe.coeffs_toRecipe, FixedRecipe.coeffs_max,
-      FixedRecipe.coeffs_abs, FixedRecipe.coeffs_var]
-  let rankSizeRaw := (zeroPaddedRankListRecipe (Struct := Struct) d hd n items hNodup κ hLen).comp
-    sizeChild sizeTplR.coeffA sizeTplR.coeffB sizeTplR.coeffC (max 8 sizeTplR.intrinsicCoeff)
-    (fun x => by dsimp only [sizeChild]; split_ifs <;> rfl)
-    (fun x => by
-      by_cases hx : x ∈ items
-      · obtain ⟨ha, _, _, _⟩ := hSizeCoeffs x hx; rw [ha]
-      · simp only [sizeChild, hx, ↓reduceDIte]; exact Nat.zero_le _)
-    (fun x => by
-      by_cases hx : x ∈ items
-      · obtain ⟨_, hb, _, _⟩ := hSizeCoeffs x hx; rw [hb]
-      · simp only [sizeChild, hx, ↓reduceDIte]; exact Nat.zero_le _)
-    (fun x => by
-      by_cases hx : x ∈ items
-      · obtain ⟨_, _, hc, _⟩ := hSizeCoeffs x hx; rw [hc]
-      · simp only [sizeChild, hx, ↓reduceDIte]; exact Nat.zero_le _)
-    (fun x => by
-      by_cases hx : x ∈ items
-      · obtain ⟨_, _, _, hi⟩ := hSizeCoeffs x hx; rw [hi]; exact le_max_right 8 _
-      · simp only [sizeChild, hx, ↓reduceDIte]; exact le_max_left 8 _)
-  let rankSizeF := (FixedRecipe.ofRecipe rankSizeRaw).weaken (V₂ := V) (fun {env sEnv} hV => by
-    have hCh : ∀ x, (sizeChild x).ValidEnv env sEnv := by
-      intro x
-      dsimp only [sizeChild]
-      split_ifs <;> exact hV
-    refine ⟨hCh, fun x _ => ⟨(sizeChild x).emits_signed (hCh x), ?_⟩⟩
-    rw [(sizeChild x).emits_exact (hCh x)]
-    exact (sizeChild x).abs_targetVal_le_one (hCh x))
+          (fun h => h.entry_norm x hx 1)).abs))
+    (fun _ _ => by
+      change _ = sizeTpl.inner.coeffs
+      simp only [sizeTpl, FixedRecipe.coeffs_max, FixedRecipe.coeffs_abs, FixedRecipe.coeffs_var])
   let floorF := FixedRecipe.var (Struct := Struct) d hd V .floor (fun h => h.floor_norm)
   let oldDefF := FixedRecipe.var (Struct := Struct) d hd V .oldDefault (fun h => h.oldDefault_norm)
   let raw := oldDefF.max (floorF.max rankSizeF)
@@ -1397,13 +1232,7 @@ noncomputable def rowCompressionThresholdFixed {ι : Type u} [DecidableEq ι]
     (fun val _ =>
       Cslib.RowCompression.threshold items.toFinset n
         (val .floor) (val .oldDefault) (fun x μ => val (.entry x μ)))
-    (fun _ => by
-      unfold Cslib.RowCompression.threshold
-      congr 2
-      exact kthLargest_congr fun x hx => by
-        have hmem : x ∈ items := List.mem_toFinset.mp hx
-        simp only [sizeChild, hmem, ↓reduceDIte]
-        rfl)
+    (fun _ => rfl)
 
 /-- Certified primitive recipe over `RowStreamIdx ι` computing
 `Cslib.RowCompression.threshold items.toFinset n` for any duplicate-free support list `items` of
@@ -1427,53 +1256,12 @@ noncomputable def rowCompressionNewDefaultFixed {ι : Type u} [DecidableEq ι]
   let V : (RowStreamIdx ι → ℕ → ℤ) → (Struct → Bool) → Prop :=
     fun env _ => RowSupportValidEnv items env
   let uF := rowCompressionThresholdFixed (Struct := Struct) d hd items hNodup κ hLen n
-  let firstChild : ι → UniformStreamRecipe (RowStreamIdx ι) Struct := fun x =>
-    if hx : x ∈ items then
-      (FixedRecipe.var (Struct := Struct) d hd V (.entry x 0)
-        (fun h => h.entry_norm x hx 0)).toRecipe
-    else
-      (FixedRecipe.const (Struct := Struct) d hd V 0 (by norm_num)).toRecipe
-  let rankFirstRaw := (zeroPaddedRankListRecipe (Struct := Struct) d hd K items hNodup κ hLen).comp
-    firstChild 4 0 0 8
-    (fun x => by dsimp only [firstChild]; split_ifs <;> rfl)
-    (fun x => by
-      dsimp only [firstChild]
-      split_ifs <;>
-        · dsimp only [FixedRecipe.toRecipe, FixedRecipe.var, FixedRecipe.const, varRecipe,
-            ratRecipe]
-          omega)
-    (fun x => by
-      dsimp only [firstChild]
-      split_ifs <;>
-        · dsimp only [FixedRecipe.toRecipe, FixedRecipe.var, FixedRecipe.const, varRecipe,
-            ratRecipe]
-          omega)
-    (fun x => by
-      dsimp only [firstChild]
-      split_ifs <;>
-        · dsimp only [FixedRecipe.toRecipe, FixedRecipe.var, FixedRecipe.const, varRecipe,
-            ratRecipe]
-          omega)
-    (fun x => by
-      dsimp only [firstChild]
-      split_ifs <;>
-        · dsimp only [FixedRecipe.toRecipe, FixedRecipe.var, FixedRecipe.const, varRecipe,
-            ratRecipe]
-          omega)
-  let rankFirstF := ((FixedRecipe.ofRecipe rankFirstRaw).weaken (V₂ := V) (fun {env sEnv} hV => by
-      have hCh : ∀ x, (firstChild x).ValidEnv env sEnv := by
-        intro x
-        dsimp only [firstChild]
-        split_ifs <;> exact hV
-      refine ⟨hCh, fun x _ => ⟨(firstChild x).emits_signed (hCh x), ?_⟩⟩
-      rw [(firstChild x).emits_exact (hCh x)]
-      exact (firstChild x).abs_targetVal_le_one (hCh x))).congrVal
-    (fun val _ => kthLargest K items.toFinset (fun x => val (.entry x 0)))
-    (fun _ =>
-      kthLargest_congr fun x hx => by
-        have hmem : x ∈ items := List.mem_toFinset.mp hx
-        simp only [firstChild, hmem, ↓reduceDIte]
-        rfl)
+  let rankFirstF := FixedRecipe.zeroPaddedRankList K items hNodup κ hLen
+    (FixedRecipe.var (Struct := Struct) d hd V .floor (fun h => h.floor_norm)).toRecipe
+    (fun x val _ => val (.entry x 0))
+    (fun x hx => FixedRecipe.var (Struct := Struct) d hd V (.entry x 0)
+      (fun h => h.entry_norm x hx 0))
+    (fun _ _ => rfl)
   let oldDefF := FixedRecipe.var (Struct := Struct) d hd V .oldDefault (fun h => h.oldDefault_norm)
   let c1_4 := FixedRecipe.const (Struct := Struct) d hd V (1 / 4) (by norm_num)
   let c3_4 := FixedRecipe.const (Struct := Struct) d hd V (3 / 4) (by norm_num)
@@ -1511,13 +1299,7 @@ noncomputable def rowCompressionNewDefaultFixed {ι : Type u} [DecidableEq ι]
       have hz_mem := newDefault_mem_unit (s := items.toFinset) (n := n) (K := K)
         hV.floor_norm.2 hV.oldDefault_norm.2
         (fun x hx μ => (hV.entry_norm x (List.mem_toFinset.mp hx) μ).2)
-      unfold shiftClipVal
-      have hmul4 : (2 : ℝ) ^ (2 : ℤ) *
-          ((1 / 4 : ℝ) * Cslib.RowCompression.newDefault items.toFinset n K ρ z w) =
-          Cslib.RowCompression.newDefault items.toFinset n K ρ z w := by
-        norm_num
-        ring
-      rw [hmul4, min_eq_right hz_mem.2, max_eq_right (by linarith [hz_mem.1])])
+      exact shiftClipVal_eq_of_mul_eq (by norm_num; ring) (by linarith [hz_mem.1]) hz_mem.2)
 
 /-- Certified primitive recipe over `RowStreamIdx ι` computing
 `Cslib.RowCompression.newDefault items.toFinset n K` [OpenAI2026LogSpace, (8.5)]. -/
@@ -1553,7 +1335,6 @@ noncomputable def rowCompressionUpdateFixed {ι : Type u} [DecidableEq ι]
   let c1_2 := FixedRecipe.const (Struct := Struct) d hd V (1 / 2) (by norm_num)
   let c7_8 := FixedRecipe.const (Struct := Struct) d hd V (7 / 8) (by norm_num)
   let c1_16 := FixedRecipe.const (Struct := Struct) d hd V (1 / 16) (by norm_num)
-  let c1_32 := FixedRecipe.const (Struct := Struct) d hd V (1 / 32) (by norm_num)
   let excess4 := ((c1_2.mul entrySizeY).pairAvg uF.neg).max c0
   let rad32 := (c7_8.mul excess4).congrVal
     (fun val _ =>
@@ -1573,34 +1354,22 @@ noncomputable def rowCompressionUpdateFixed {ι : Type u} [DecidableEq ι]
         rw [mul_max_of_nonneg _ 0 hpos4, mul_zero]
       rw [hinner, hmax]
       ring)
-  let def16 := (FixedRecipe.dite (ν = 0)
-      (fun _ => c1_16.mul newDefF)
-      (fun _ => c0)).congrVal
-    (fun val _ =>
-      let z' := Cslib.RowCompression.newDefault items.toFinset n K
-        (val .floor) (val .oldDefault) (fun x μ => val (.entry x μ))
-      Cslib.RowCompression.defaultEntry z' ν / 16)
-    (fun _ => by
-      unfold Cslib.RowCompression.defaultEntry
-      by_cases hν : ν = 0
-      · simp only [hν, ↓reduceDIte, ↓reduceIte]
-        push_cast
-        ring
-      · simp [hν])
-  let def32 := (FixedRecipe.dite (ν = 0)
-      (fun _ => c1_32.mul newDefF)
-      (fun _ => c0)).congrVal
-    (fun val _ =>
-      let z' := Cslib.RowCompression.newDefault items.toFinset n K
-        (val .floor) (val .oldDefault) (fun x μ => val (.entry x μ))
-      Cslib.RowCompression.defaultEntry z' ν / 32)
-    (fun _ => by
-      unfold Cslib.RowCompression.defaultEntry
-      by_cases hν : ν = 0
-      · simp only [hν, ↓reduceDIte, ↓reduceIte]
-        push_cast
-        ring
-      · simp [hν])
+  let defScaled (q : ℚ) (hq : |q| ≤ 1) :=
+    (FixedRecipe.dite (ν = 0)
+        (fun _ => (FixedRecipe.const (Struct := Struct) d hd V q hq).mul newDefF)
+        (fun _ => c0)).congrVal
+      (fun val _ =>
+        let z' := Cslib.RowCompression.newDefault items.toFinset n K
+          (val .floor) (val .oldDefault) (fun x μ => val (.entry x μ))
+        Cslib.RowCompression.defaultEntry z' ν * (q : ℝ))
+      (fun _ => by
+        unfold Cslib.RowCompression.defaultEntry
+        by_cases hν : ν = 0
+        · simp only [hν, ↓reduceDIte, ↓reduceIte]
+          ring
+        · simp [hν])
+  let def16 := defScaled (1 / 16) (by norm_num)
+  let def32 := defScaled (1 / 32) (by norm_num)
   let diff32 := ((c1_16.mul wyNu).pairAvg def16.neg).congrVal
     (fun val _ =>
       let z' := Cslib.RowCompression.newDefault items.toFinset n K
@@ -1621,7 +1390,7 @@ noncomputable def rowCompressionUpdateFixed {ι : Type u} [DecidableEq ι]
       change (Max.max (-(Cslib.RowCompression.radius u (w y) / 32))
           (Min.min ((w y ν - Cslib.RowCompression.defaultEntry z' ν) / 32)
             (Cslib.RowCompression.radius u (w y) / 32)) +
-        Cslib.RowCompression.defaultEntry z' ν / 32) / 2 = _
+        Cslib.RowCompression.defaultEntry z' ν * ((1 / 32 : ℚ) : ℝ)) / 2 = _
       unfold Cslib.RowCompression.update Cslib.RowCompression.updateEntry
       have hpos32 : (0 : ℝ) ≤ 1 / 32 := by norm_num
       have h1 : -(Cslib.RowCompression.radius u (w y) / 32) =
@@ -1631,6 +1400,7 @@ noncomputable def rowCompressionUpdateFixed {ι : Type u} [DecidableEq ι]
       have h3 : Cslib.RowCompression.radius u (w y) / 32 =
           (1 / 32) * Cslib.RowCompression.radius u (w y) := by ring
       rw [h1, h2, h3, ← mul_min_of_nonneg _ _ hpos32, ← mul_max_of_nonneg _ _ hpos32]
+      push_cast
       ring)
   let raw := upd64.shiftClip 6 6 (by exact_mod_cast Nat.le_mul_of_pos_right 6 hd)
   raw.congrVal
@@ -1642,12 +1412,6 @@ noncomputable def rowCompressionUpdateFixed {ι : Type u} [DecidableEq ι]
       set z := streamVal (env .oldDefault)
       set w : ι → Fin 2 → ℝ := fun x μ => streamVal (env (.entry x μ))
       set z' := Cslib.RowCompression.newDefault items.toFinset n K ρ z w
-      unfold shiftClipVal
-      have hmul64 : (2 : ℝ) ^ (6 : ℤ) *
-          (Cslib.RowCompression.update items.toFinset n K ρ z w y ν / 64) =
-          Cslib.RowCompression.update items.toFinset n K ρ z w y ν := by
-        norm_num
-        ring
       have hz'_mem := newDefault_mem_unit (s := items.toFinset) (n := n) (K := K)
         hV.floor_norm.2 hV.oldDefault_norm.2
         (fun x hx μ => (hV.entry_norm x (List.mem_toFinset.mp hx) μ).2)
@@ -1659,11 +1423,9 @@ noncomputable def rowCompressionUpdateFixed {ι : Type u} [DecidableEq ι]
       have hwy_mem := abs_le.mp (hV.target_norm ν).2
       have hupd_mem := Cslib.RowCompression.update_mem_Icc
         (s := items.toFinset) (n := n) (K := K) (ρ := ρ) (z := z) (w := w) y ν
-      have hupd_lo : -1 ≤ Cslib.RowCompression.update items.toFinset n K ρ z w y ν :=
-        (le_min hwy_mem.1 hdef_mem.1).trans hupd_mem.1
-      have hupd_hi : Cslib.RowCompression.update items.toFinset n K ρ z w y ν ≤ 1 :=
-        hupd_mem.2.trans (max_le hwy_mem.2 hdef_mem.2)
-      rw [hmul64, min_eq_right hupd_hi, max_eq_right hupd_lo])
+      exact shiftClipVal_eq_of_mul_eq (by norm_num; ring)
+        ((le_min hwy_mem.1 hdef_mem.1).trans hupd_mem.1)
+        (hupd_mem.2.trans (max_le hwy_mem.2 hdef_mem.2)))
 
 /-- Certified primitive recipe over `RowStreamIdx ι` computing coordinate `(y, ν)` of the
 compressed row `Cslib.RowCompression.update items.toFinset n K` [OpenAI2026LogSpace, (8.6)]. -/
@@ -1727,10 +1489,7 @@ old default, and active support entries. -/
     (fun {env sEnv} ⟨hFl, hDf, hEn⟩ => by
       have hCh : ∀ idx, (child idx).ValidEnv env sEnv :=
         hchild (·.ValidEnv env sEnv) hFl hDf hEn trivial
-      have hNorm : ∀ idx, IsNormSignedStream (fun u => ((child idx).digitProg u).eval env sEnv) :=
-        fun idx => ⟨(child idx).emits_signed (hCh idx), by
-          rw [(child idx).emits_exact (hCh idx)]
-          exact (child idx).abs_targetVal_le_one (hCh idx)⟩
+      have hNorm := fun idx => (child idx).emits_norm (hCh idx)
       exact ⟨hCh, ⟨hNorm .floor, hNorm .oldDefault, fun x _ μ => hNorm (.entry x μ)⟩⟩)).congrTarget
     (fun val sEnv =>
       Cslib.RowCompression.newDefault items.toFinset n K
@@ -1798,10 +1557,7 @@ default, and row entries. -/
       have hCh : ∀ idx, (child idx).ValidEnv env sEnv :=
         hchild (·.ValidEnv env sEnv) hFl hDf
           (fun x hx μ => hx.elim (fun h => h ▸ hY μ) (fun hmem => hEn x hmem μ)) trivial
-      have hNorm : ∀ idx, IsNormSignedStream (fun u => ((child idx).digitProg u).eval env sEnv) :=
-        fun idx => ⟨(child idx).emits_signed (hCh idx), by
-          rw [(child idx).emits_exact (hCh idx)]
-          exact (child idx).abs_targetVal_le_one (hCh idx)⟩
+      have hNorm := fun idx => (child idx).emits_norm (hCh idx)
       exact ⟨hCh, ⟨⟨hNorm .floor, hNorm .oldDefault, fun x _ μ => hNorm (.entry x μ)⟩,
         fun μ => hNorm (.entry y μ)⟩⟩)).congrTarget
     (fun val sEnv =>
@@ -1811,28 +1567,17 @@ default, and row entries. -/
     (fun {env sEnv} _ => by
       have hw_on : ∀ x ∈ items.toFinset, ∀ μ,
           (child (.entry x μ)).targetVal (fun op => streamVal (env op)) sEnv =
-            (entryR x μ).targetVal (fun op => streamVal (env op)) sEnv := by
-        intro x hx μ
-        have hcond : x = y ∨ x ∈ items := Or.inr (List.mem_toFinset.mp hx)
-        dsimp only [child]
-        simp only [hcond, ↓reduceIte]
-      have hwy : ∀ μ,
-          (child (.entry y μ)).targetVal (fun op => streamVal (env op)) sEnv =
-            (entryR y μ).targetVal (fun op => streamVal (env op)) sEnv := by
-        intro μ
-        dsimp only [child]
-        simp only [true_or, ↓reduceIte]
+            (entryR x μ).targetVal (fun op => streamVal (env op)) sEnv :=
+        fun x hx μ => by simp only [child, List.mem_toFinset.mp hx, or_true, ↓reduceIte]
       change Cslib.RowCompression.update items.toFinset n K _ _
           (fun x μ => (child (.entry x μ)).targetVal (fun op => streamVal (env op)) sEnv) y ν = _
       unfold Cslib.RowCompression.update
       dsimp only [child]
       rw [Cslib.RowCompression.threshold_congr_on hw_on,
-        Cslib.RowCompression.newDefault_congr_on hw_on]
-      have hfun : (fun μ => (child (.entry y μ)).targetVal (fun op => streamVal (env op)) sEnv) =
-          fun μ => (entryR y μ).targetVal (fun op => streamVal (env op)) sEnv := by
-        ext μ
-        exact hwy μ
-      rw [hfun])
+        Cslib.RowCompression.newDefault_congr_on hw_on,
+        show (fun μ => (child (.entry y μ)).targetVal (fun op => streamVal (env op)) sEnv) =
+            fun μ => (entryR y μ).targetVal (fun op => streamVal (env op)) sEnv from
+          funext fun μ => by simp only [child, true_or, ↓reduceIte]])
 
 end RowCompressionRecipes
 

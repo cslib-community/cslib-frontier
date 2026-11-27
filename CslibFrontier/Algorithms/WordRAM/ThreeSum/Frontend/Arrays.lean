@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Frontend.Program
 import CslibFrontier.Computability.WordRAM.MemoryView
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native frontend array and descriptor execution
@@ -311,14 +312,12 @@ theorem body_exec {w U Λ j : ℕ} (x : Data 48) (rs : List (ℕ × ℕ))
       (ht : i ≠ triple) (hs : i ≠ slot) (hd : i ≠ dst) : u.regs i = x.regs i := by
     simpa only [a, Data.set_regs, Function.update_of_ne ht, Function.update_of_ne hs,
       Function.update_of_ne hd] using hu.regs_eq hp
-  have huc : u.regs current = j := (hreg current (by decide) (by decide) (by decide)
-    (by decide)).trans hj
+  have huc : u.regs current = j := by regs_frame
   have huh : u.regs heap = x.regs heap := hreg heap (by decide) (by decide) (by decide) (by decide)
   have hucap := hreg capacity (by decide) (by decide) (by decide) (by decide)
   have hudesc := hreg descriptors (by decide) (by decide) (by decide) (by decide)
-  have hu1 : u.regs one = 1 := (hreg one (by decide) (by decide) (by decide) (by decide)).trans h1
-  have hud : u.regs dst = x.regs heap := by
-    simpa +decide [a] using hu.regs_eq (i := dst) (by decide)
+  have hu1 : u.regs one = 1 := by regs_frame
+  have hud : u.regs dst = x.regs heap := by regs_frame
   have hum : Block.HoldsList (x.regs heap) (Math.array U Λ rs j) u.mem := by
     simpa +decide [a] using hmem
   obtain ⟨y, hy, hyc, hyh, hym⟩ := write_exec u hu1

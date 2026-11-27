@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Protocols.MAC.CarterWegman
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.PolyTime
@@ -18,6 +20,9 @@ linear hashing over `BitString 2`, instantiates `OneTimeForger`, `CounterForger`
 the one-time, multi-query counter, nonce-based, randomized, and computational (`NonceMACScheme` and
 `MACScheme`) security bounds of `CslibFrontier.Crypto.Protocols.MAC.CarterWegman`.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.CarterWegman
 
@@ -123,12 +128,12 @@ example (family : List Bool → List Bool → List Bool) :
       (OneTimeForger.ofProbComp sampleBitStringQuery sampleBitStringForge) true).toReal ≤
       (((Fintype.card (BitString 2) : ℝ≥0∞))⁻¹).toReal +
         (Game.advantage
-          (ProbComp.eval (prfRealGame family
+          (ProbComp.eval (prfRealGame id family
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
                 (BitString.ofList 2 (List.ofFn r))) 2))
-          (ProbComp.eval (prfIdealGame
+          (ProbComp.eval (prfIdealGame id id
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
@@ -143,12 +148,12 @@ example (family : List Bool → List Bool → List Bool) :
       (OneTimeForger.ofProbComp sampleBitStringQuery sampleBitStringForge) true).toReal ≤
       (((Fintype.card (BitString 2) : ℝ≥0∞))⁻¹).toReal +
         (Game.advantage
-          (ProbComp.eval (prfRealGame family
+          (ProbComp.eval (prfRealGame id family
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
                 (BitString.ofList 2 (List.ofFn r))) 2))
-          (ProbComp.eval (prfIdealGame
+          (ProbComp.eval (prfIdealGame id id
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
@@ -171,7 +176,7 @@ theorem prfPadDist_insecureZeroFamily (n : ℕ) :
 -- succeeds with probability `1` in `prfRealGame` against `insecureZeroFamily`.
 example :
     ProbComp.eval
-      (prfRealGame insecureZeroFamily
+      (prfRealGame id insecureZeroFamily
         (prfPadDistinguisher fun k (r : BitString k) =>
           pure (decide (r = BitString.ofList k (List.replicate k false)))) 2)
       true = 1 := by
@@ -201,52 +206,6 @@ example :
           (fun _ => pure [])
           (fun _ _ t => pure ([true], t)))) :=
   isOraclePPT_prfPadDistinguisher_wordProbPadTest (by ppt) (by polytime) (by ppt) (by ppt)
-
-/-- Two-slot `n`-bit nonce schedule: slot `0` has leading bit `false` and slot `1` has leading bit
-`true`, padded with `n - 1` `false` bits. For every `n ≥ 1`, both nonces have length `n` and are
-distinct on `{0, 1}`. -/
-def twoSlotNonce (n i : ℕ) : List Bool :=
-  decide (i = 1) :: List.replicate (n - 1) false
-
-/-- Trivial counter forger that makes `0 ≤ 2` signing queries and outputs `(0, (0, 0))`. -/
-noncomputable def zeroQueryCounterForger (n : ℕ) :
-    CounterForger (BitString n) (BitString n) where
-  Coins := Unit
-  coins := PMF.pure ()
-  forge _ := pure (0, (0, 0))
-
--- Concrete `IsOraclePPT` admissibility check for `prfMultiPadDistinguisher` with `twoSlotNonce`.
-example :
-    IsOraclePPT Turing.MultiTapeTM.encBool
-      (prfMultiPadDistinguisher (fun _ => 2) twoSlotNonce (fun _ _ => pure false)) :=
-  isOraclePPT_prfMultiPadDistinguisher (by polytime) (by unfold twoSlotNonce; polytime) (by ppt)
-
--- End-to-end check of `PseudorandomFunction.negligible_prfCounterGame` with `twoSlotNonce`,
--- exercising `hforger`, `hnonce_len`, `hnonce_inj`, `htest_eval`, `hQ`, `hnonce`, and `htest_ppt`.
-example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family)
-    {ε : ℕ → NNReal}
-    (hh : ∀ n, IsDeltaUniversalHash
-      (PMF.uniformOfFintype (Fin n → BitString n)) (BitString.LinearHash.hash (n := n) (m := n))
-      (ε n))
-    (hε : Negligible ε) :
-    Negligible (fun n =>
-      Game.succProbability
-        (prfCounterGame (PMF.uniformOfFintype (Fin n → BitString n)) family n (twoSlotNonce n)
-          BitString.LinearHash.hash (zeroQueryCounterForger n))) := by
-  refine hprf.negligible_prfCounterGame hh hε (Q := fun _ => 2) (nonce := twoSlotNonce)
-    zeroQueryCounterForger
-    (Filter.Eventually.of_forall fun _ _ => .pure _ _)
-    ?_ ?_ (fun _ _ => pure false) ?_
-    (by polytime) (by unfold twoSlotNonce; polytime) (by ppt)
-  · filter_upwards [Filter.eventually_ge_atTop 1] with n hn i _
-    simp [twoSlotNonce]
-    omega
-  · filter_upwards [Filter.eventually_ge_atTop 1] with n _ i hi j hj heq
-    have hhead : decide (i = 1) = decide (j = 1) := List.cons.inj heq |>.1
-    by_cases hi1 : i = 1 <;> by_cases hj1 : j = 1 <;> simp_all
-    omega
-  · intro n padSeq
-    simp [counterPadSeqDistinguisher, zeroQueryCounterForger, checkCounterSlot]
 
 -- Concrete `checkNonceSUF` and `checkRandomNonceSUF` checks over `ZMod 7`:
 -- issued nonce `0` with `m₀ = [2, 4]`, `t₀ = 5`, pad function `fun x => if x = 0 then 4 else 1`.
@@ -323,96 +282,6 @@ example :
         (2 + 1) / Fintype.card (ZMod 7) :=
   randomNonceStrongGame_xpolyHash_le 2 isQueryBounded_sampleRandomNonceForger
 
-/-- Smoke-test nonce-based forger over `BitString n` that queries `(0, 0)` twice at the same
-nonce `0` (so `Nodup` fails and `checkNonceSUF = false`, giving a trivial distinguisher
-`nonceFnDistinguisher = fun _ => PMF.pure false`). -/
-noncomputable def repeatedNonceForger (n : ℕ) :
-    NonceForger (BitString n) (BitString n) (BitString n) where
-  Coins := Unit
-  coins := PMF.pure ()
-  forge _ := do
-    let _ ← OracleComp.query (0, 0)
-    let t ← OracleComp.query (0, 0)
-    return ((0, 0), t)
-
-@[simp]
-theorem nonceFnDistinguisher_repeatedNonceForger {K : Type} (seed : PMF K) (n : ℕ)
-    (hash : K → BitString n → BitString n) :
-    nonceFnDistinguisher seed hash (repeatedNonceForger n) = fun _ => PMF.pure false := by
-  funext padFn
-  simp only [nonceFnDistinguisher, repeatedNonceForger, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.pure_bind,
-    OracleComp.run_interpret_bind, OracleComp.run_interpret_query, OracleComp.run_interpret_pure]
-  simp [nonceFnHandler, checkNonceSUF]
-
--- Smoke test of `PseudorandomFunction.negligible_prfNonceStrongGame`: instantiates the asymptotic
--- wrapper theorem on the trivial always-losing forger `repeatedNonceForger` matched against a
--- constant-`false` `prfPadDistinguisher`.
-example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family)
-    {ε : ℕ → NNReal}
-    (hh : ∀ n, IsDeltaUniversalHash
-      (PMF.uniformOfFintype (Fin n → BitString n)) (BitString.LinearHash.hash (n := n) (m := n))
-      (ε n))
-    (hε : Negligible ε) :
-    Negligible (fun n =>
-      Game.succProbability
-        (prfNonceStrongGame (PMF.uniformOfFintype (Fin n → BitString n)) family n
-          BitString.LinearHash.hash (repeatedNonceForger n))) := by
-  refine hprf.negligible_prfNonceStrongGame hh hε repeatedNonceForger
-    (prfPadDistinguisher (fun _ _ => pure false)) (isOraclePPT_prfPadDistinguisher (by ppt))
-    (Filter.Eventually.of_forall fun n => ?_)
-    (Filter.Eventually.of_forall fun n => ?_)
-  · rw [eval_prfRealGame_prfPadDistinguisher]
-    simp
-  · rw [eval_prfIdealGame_prfPadDistinguisher]
-    simp
-
-/-- Smoke-test single-query randomized forger over `BitString n` that queries `0`, receives
-`(x, t)`, and echoes the issued pair `((0, x), t)` (so `!tr.contains out = false` and
-`checkRandomNonceSUF = false`, giving a trivial distinguisher
-`randomNonceFnDistinguisher = fun _ => PMF.pure false`). -/
-noncomputable def echoRandomNonceForger (n : ℕ) :
-    RandomNonceForger (BitString n) (BitString n) (BitString n) where
-  Coins := Unit
-  coins := PMF.pure ()
-  forge _ := do
-    let p ← OracleComp.query 0
-    return ((0, p.1), p.2)
-
-@[simp]
-theorem randomNonceFnDistinguisher_echoRandomNonceForger {K : Type} (seed : PMF K) (n : ℕ)
-    (hash : K → BitString n → BitString n) :
-    randomNonceFnDistinguisher seed hash (echoRandomNonceForger n) = fun _ => PMF.pure false := by
-  funext padFn
-  simp only [randomNonceFnDistinguisher, echoRandomNonceForger, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.pure_bind,
-    OracleComp.run_interpret_bind, OracleComp.run_interpret_query, OracleComp.run_interpret_pure]
-  simp [randomNonceFnHandler, checkRandomNonceSUF, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-
--- Smoke test of `PseudorandomFunction.negligible_prfRandomNonceStrongGame`: instantiates the
--- asymptotic wrapper theorem on the trivial always-losing forger `echoRandomNonceForger` matched
--- against a constant-`false` `prfPadDistinguisher`.
-example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family)
-    {ε : ℕ → NNReal}
-    (hh : ∀ n, IsDeltaUniversalHash
-      (PMF.uniformOfFintype (Fin n → BitString n)) (BitString.LinearHash.hash (n := n) (m := n))
-      (ε n))
-    (hε : Negligible ε) :
-    Negligible (fun n =>
-      Game.succProbability
-        (prfRandomNonceStrongGame (PMF.uniformOfFintype (Fin n → BitString n)) family n
-          BitString.LinearHash.hash (echoRandomNonceForger n))) := by
-  refine hprf.negligible_prfRandomNonceStrongGame hh hε (Q := fun _ => 1)
-    (PolynomiallyBounded.const 1) echoRandomNonceForger
-    (Filter.Eventually.of_forall fun _ _ => .liftBind _ _ 0 fun _ => .pure _ 0)
-    (prfPadDistinguisher (fun _ _ => pure false)) (isOraclePPT_prfPadDistinguisher (by ppt))
-    (Filter.Eventually.of_forall fun n => ?_)
-    (Filter.Eventually.of_forall fun n => ?_)
-  · rw [eval_prfRealGame_prfPadDistinguisher]
-    simp
-  · rw [eval_prfIdealGame_prfPadDistinguisher]
-    simp
-
 /-! ### Computational `NonceMACScheme` and `MACScheme` Carter–Wegman tests -/
 
 /-- Identity schedule `id : ℕ → ℕ` is computable in plain polynomial time in unary. -/
@@ -442,15 +311,15 @@ theorem isOraclePPT_twoQueryNonceMACForger :
         List.take p.1 <$>
           ProbOracleComp.query
             ((), encPair encBits encBits (List.replicate p.1 false, List.replicate p.1 false))) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
   have hq1 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
       (fun q : (ℕ × List Bool) × List Bool =>
         List.take q.1.1 <$>
           ProbOracleComp.query
             ((), encPair encBits encBits
               (List.replicate q.1.1 true, true :: List.replicate (q.1.1 - 1) false))) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
-  have hstep1 := hq1.map_with'
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
+  have hstep1 := hq1.map_with
     (output := encPair (encPair encBits encBits) encBits)
     (f := fun (q : (ℕ × List Bool) × List Bool) t₁ =>
       ((List.replicate q.1.1 false, true :: List.replicate (q.1.1 - 1) false),
@@ -490,15 +359,70 @@ example {family : List Bool → List Bool → List Bool}
       ((2 : ℝ) ^ n)⁻¹ + ((2 : ℝ) ^ n)⁻¹ +
         (Game.advantage
           (ProbComp.eval
-            (prfRealGame family
+            (prfRealGame id family
               (prfNonceToPrfDistinguisher id (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryNonceMACForger) n))
           (ProbComp.eval
-            (prfIdealGame
+            (prfIdealGame id id
               (prfNonceToPrfDistinguisher id (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryNonceMACForger) n)) : ℝ) :=
   sufCmaGame_linearHashNonceMAC_toReal_le
     computableInPolyTime_id hfamily n twoQueryNonceMACForger
+
+-- Counter-stateful use: the nonce of counter `j` is the `n`-bit little-endian binary
+-- representation of `j`, so counter `0` is the fixed nonce `0ⁿ` of `prfOneTimeGame`.
+example : BitString.lowBits 3 0 = List.replicate 3 false ∧
+    BitString.lowBits 3 6 = [false, true, true] := by decide
+
+-- The counter signing oracle unfolds in a client: once `2 ^ L` tags are issued, every request
+-- receives the empty word and leaves the state unchanged.
+example (M : NonceMACScheme) (n : ℕ) (sk : List Bool) (request : Unit × List Bool)
+    (issued : List ((List Bool × List Bool) × List Bool)) :
+    M.counterSigningOracle n sk request (2 ^ M.nonceLen n, issued) =
+      pure ([], 2 ^ M.nonceLen n, issued) := by
+  simp [NonceMACScheme.counterSigningOracle]
+
+-- A request of the wrong length is refused without using a counter value: the reply is the empty
+-- word and the state, counter included, is unchanged.
+example (M : NonceMACScheme) (n j : ℕ) (sk msg : List Bool) (hmsg : msg.length ≠ M.msgLen n)
+    (issued : List ((List Bool × List Bool) × List Bool)) :
+    M.counterSigningOracle n sk ((), msg) (j, issued) = pure ([], j, issued) := by
+  simp [NonceMACScheme.counterSigningOracle, hmsg]
+
+-- The counter game unfolds in a client: a forger that outputs a message of the wrong length
+-- without querying never wins.
+example (M : NonceMACScheme) (n : ℕ) (msg nonce tag : List Bool) (hmsg : msg.length ≠ M.msgLen n) :
+    ProbComp.eval (M.counterSufCmaGame (fun _ _ => pure ((msg, nonce), tag)) n) =
+      PMF.pure false := by
+  have hbeq : (msg.length == M.msgLen n) = false := beq_false_of_ne hmsg
+  simp only [NonceMACScheme.counterSufCmaGame, OracleComp.interpret_pure, StateT.run_pure,
+    bind_pure_comp, map_pure, hbeq, Bool.false_and, ProbComp.eval_map]
+  exact PMF.map_const _ _
+
+-- `CounterSUFCMA` unfolds in a client to indistinguishability from the always-losing game.
+example (M : NonceMACScheme) (h : M.CounterSUFCMA) :
+    Game.Indistinguishable (fun adversary n => ProbComp.eval (M.counterSufCmaGame adversary n))
+      (fun _ _ => PMF.pure false) (IsOraclePPT encNonceTaggedMessage) :=
+  h
+
+-- The counter-to-nonce reduction is oracle-PPT on a concrete forger, for any polynomial-time
+-- truncation bound.
+example {family : List Bool → List Bool → List Bool}
+    (hfamily : ComputableInPolyTime (fun p : List Bool × List Bool => family p.1 p.2)
+      (encPair encBits encBits) encBits) :
+    IsOraclePPT encNonceTaggedMessage
+      ((linearHashNonceMAC id family computableInPolyTime_id hfamily).counterForger
+        (fun n ℓ => n + ℓ) twoQueryNonceMACForger) :=
+  NonceMACScheme.isOraclePPT_counterForger (by polytime) isOraclePPT_twoQueryNonceMACForger
+
+-- End-to-end: under a PRF, the two-query forger has negligible success against the
+-- counter-stateful linear-hash Carter–Wegman MAC.
+example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family) :
+    Negligible (fun n => Game.succProbability (ProbComp.eval
+      ((linearHashNonceMAC id family computableInPolyTime_id hprf.polyTime).counterSufCmaGame
+        twoQueryNonceMACForger n))) :=
+  (hprf.counterSufCma_linearHashNonceMAC computableInPolyTime_id).negligible _
+    isOraclePPT_twoQueryNonceMACForger
 
 /-- Two-query adaptive `Forger` for randomized Carter–Wegman (`MACScheme`): queries `0^n`
 (receiving encoded `(nonce₀, tag₀)` of length at most `2 * n + 2`), queries `1^n` (receiving
@@ -518,13 +442,13 @@ theorem isOraclePPT_twoQueryRandomMACForger :
       (fun p : ℕ × List Bool =>
         List.take (2 * p.1 + 2) <$>
           ProbOracleComp.query ((), List.replicate p.1 false)) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
   have hq1 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
       (fun q : (ℕ × List Bool) × List Bool =>
         List.take (2 * q.1.1 + 2) <$>
           ProbOracleComp.query ((), List.replicate q.1.1 true)) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
-  have hstep1 := hq1.map_with'
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
+  have hstep1 := hq1.map_with
     (output := encPair encBits encBits)
     (f := fun (q : (ℕ × List Bool) × List Bool) raw₁ =>
       (List.replicate q.1.1 false, raw₁))
@@ -578,12 +502,12 @@ example {family : List Bool → List Bool → List Bool}
       (2 : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) + ((2 : ℝ) ^ n)⁻¹ + ((2 : ℝ) ^ n)⁻¹ +
         (Game.advantage
           (ProbComp.eval
-            (prfRealGame family
+            (prfRealGame id family
               (prfRandomNonceToPrfDistinguisher id
                 (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryRandomMACForger) n))
           (ProbComp.eval
-            (prfIdealGame
+            (prfIdealGame id id
               (prfRandomNonceToPrfDistinguisher id
                 (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryRandomMACForger) n)) : ℝ) :=

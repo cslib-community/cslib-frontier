@@ -101,6 +101,7 @@ theorem expectedCost_bind (program : OracleComp spec α) (next : α → OracleCo
       tsum_eq_single a fun b hb => by rw [PMF.pure_apply_of_ne _ _ hb, zero_mul],
       PMF.pure_apply_self, one_mul]
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     rw [bind_assoc, expectedCost_query_bind, expectedCost_query_bind, evalWith_bind,
       evalWith_query, add_assoc]
     congr 1
@@ -136,6 +137,7 @@ theorem expectedCost_eq_zero_of_isCostBounded {cost' : ι → ℕ} {program : Or
   induction program using OracleComp.induction with
   | pure a => rfl
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp hb
     rw [expectedCost_query_bind, hcost q (by omega)]
     simp [ih _ ((hcont _).mono (by omega))]
@@ -160,6 +162,7 @@ theorem expectedCost_add (cost cost' : ι → ℝ≥0∞) (program : OracleComp 
   induction program using OracleComp.induction with
   | pure a => simp
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     simp only [expectedCost_query_bind, ih, mul_add, tsum_add, Pi.add_apply]
     ring
 
@@ -178,6 +181,7 @@ theorem expectedCost_mono {cost cost' : ι → ℝ≥0∞} (hcost : cost ≤ cos
   induction program using OracleComp.induction with
   | pure a => simp
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     simp only [expectedCost_query_bind]
     gcongr with a
     · exact hcost q
@@ -197,6 +201,7 @@ theorem expectedCost_interpret {κ : Type u} {target : OracleSpec.{u, v} κ}
   induction program using OracleComp.induction with
   | pure a => rfl
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     rw [interpret_bind, interpret_query, expectedCost_bind, expectedCost_query_bind]
     simp only [ih]
 

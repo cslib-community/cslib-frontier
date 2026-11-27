@@ -99,74 +99,18 @@ private theorem finiteAppend {α : Type} {enc : α ↪ List Bool} {S : α → �
     intro a
     simp only [List.ofFn_succ, List.flatten_cons]
 
-private abbrev WordState := (ℕ × ℕ) × ℕ × List Bool
-private abbrev encWordState : WordState ↪ List Bool :=
-  encPair (encPair encNat encNat) (encPair encNat (encList encBool))
-
-private def wordStep (q : WordState) : WordState :=
-  (q.1, q.2.1 + 1, q.2.2 ++ [q.1.2.testBit q.2.1])
-
-private theorem iterate_wordStep (b n j : ℕ) (out : List Bool) (t : ℕ) :
-    wordStep^[t] ((b, n), j, out) =
-      ((b, n), j + t, out ++ (List.range t).map (fun i => n.testBit (j + i))) := by
-  induction t with
-  | zero => simp
-  | succ t ih =>
-    rw [Function.iterate_succ_apply', ih]
-    simp only [wordStep, List.range_succ, List.map_append, List.map_singleton, List.append_assoc]
-    congr 2
-
-private theorem wordStep_inSpace :
-    ComputableInSpace wordStep encWordState encWordState
-      (fun q => (encWordState q).length) := by
-  have hp := fst (encPair encNat encNat) (encPair encNat (encList encBool))
-  have hrest := snd (encPair encNat encNat) (encPair encNat (encList encBool))
-  have hj := fst' hrest
-  have hout := snd' hrest
-  have hbit := budget_comp_lin natTestBit (linear_mul 32) (budget_prod (snd' hp) hj)
-  exact (budget_prod hp (budget_prod (budget_natSucc hj) (budget_snoc hout hbit))).of_enc_eq
-    fun _ => rfl
-
 /-- Binary width metadata pays the fixed-width head word, including at tape count zero. -/
 theorem word_inSpace : ComputableInSpace (fun q : ℕ × ℕ => word q.1 q.2)
     (encPair encNat encNat) (encList encBool)
     (fun q => (encPair encNat encNat q).length) := by
-  have hb := fst encNat encNat
-  have hn := budget_comp_linear natSize hb
-  have hid : ComputableInSpace (fun q : ℕ × ℕ => q) (encPair encNat encNat)
-      (encPair encNat encNat) (fun q => (encPair encNat encNat q).length) :=
-    of_inO ComputableInDegree.id'.inO_one
-  have hinit := budget_prod hid (budget_prod (budget_const (encB := encNat) 0 (.refl _))
-    (budget_const (encB := encList encBool) [] (.refl _)))
-  have hstate (q : ℕ × ℕ) (i : ℕ) (hi : i ≤ q.1.size) :
-      (encWordState (wordStep^[i] (q, 0, []))).length ≤
-        16 * ((encPair encNat encNat q).length + 1) := by
-    rcases q with ⟨b, n⟩
-    rw [iterate_wordStep]
-    have hc := length_encNat_le_self i
-    change i ≤ b.size at hi
-    rw [← length_encNat_eq_size b] at hi
-    have hout : (encList encBool ((List.range i).map (fun j => n.testBit j))).length = 3 * i := by
-      simp [length_encList, List.map_map, Function.comp_def, encBool_apply, Nat.mul_comm]
-    simp only [encWordState, length_encPair, Nat.zero_add, List.nil_append]
-    rw [hout]
+  have h := budget_prod (budget_comp_linear natSize (fst encNat encNat)) (snd encNat encNat)
+  have hwidth (q : ℕ × ℕ) : q.1.size ≤ (encPair encNat encNat q).length := by
+    rw [← length_encNat_eq_size, length_encPair]
     omega
-  have h := ComputableInSpace.iterate hn hinit wordStep_inSpace
-    (Q := fun q => 16 * ((encPair encNat encNat q).length + 1))
-    (B := fun q => 16 * ((encPair encNat encNat q).length + 1)) hstate hstate
-  refine (snd' (snd' h)).weaken ?_ |>.of_enc_eq ?_
-  · refine .of_le_linear 128 128 fun q => ?_
-    have hc := length_encNat_le_self q.1.size
-    have hbsize := length_encNat_eq_size q.1
-    rw [← hbsize] at hc ⊢
-    enc_len
-  · intro q
-    rw [iterate_wordStep]
-    apply congrArg (encList encBool)
-    simp only [word, Nat.zero_add, List.nil_append]
-    apply List.ext_getElem (by simp)
-    intro i hi hi'
-    simp
+  refine (budget_comp ComputableInSpace.lowBits_inSpace h
+    ((BigOLe.of_le hwidth).add h.length_le)).of_enc_eq fun q => ?_
+  rw [Cslib.BitString.lowBits_eq_ofFn]
+  rfl
 
 private theorem cellWord_inSpace : ComputableInSpace cellWord encNat (encList encBool)
     (fun n => (encNat n).length) := by

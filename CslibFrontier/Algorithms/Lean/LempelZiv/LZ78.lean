@@ -87,13 +87,7 @@ of `x` is in `dict`. -/
 
 private theorem splitPhraseAux_append (dict : List (List α)) (acc x : List α) :
     (splitPhraseAux dict acc x).1 ++ (splitPhraseAux dict acc x).2 = acc ++ x := by
-  induction x generalizing acc with
-  | nil => simp [splitPhraseAux]
-  | cons a x ih =>
-    simp only [splitPhraseAux]
-    split_ifs
-    · rw [ih]; simp
-    · simp
+  fun_induction splitPhraseAux dict acc x <;> simp_all
 
 /-- The phrase and the remaining input concatenate to the input. -/
 theorem splitPhrase_append (dict : List (List α)) (x : List α) :
@@ -102,13 +96,10 @@ theorem splitPhrase_append (dict : List (List α)) (x : List α) :
 
 private theorem prefix_splitPhraseAux (dict : List (List α)) (acc x : List α) :
     acc <+: (splitPhraseAux dict acc x).1 := by
-  induction x generalizing acc with
-  | nil => simp [splitPhraseAux]
-  | cons a x ih =>
-    simp only [splitPhraseAux]
-    split_ifs
-    · exact (List.prefix_append acc [a]).trans (ih _)
-    · exact List.prefix_append acc [a]
+  fun_induction splitPhraseAux dict acc x with
+  | case1 => exact List.prefix_rfl
+  | case2 acc a x _ ih => exact (List.prefix_append acc [a]).trans ih
+  | case3 acc a x => exact List.prefix_append acc [a]
 
 /-- On nonempty input, the phrase consumes at least one symbol. -/
 theorem length_splitPhrase_snd_lt (dict : List (List α)) (a : α) (x : List α) :
@@ -125,13 +116,7 @@ theorem length_splitPhrase_snd_lt (dict : List (List α)) (a : α) (x : List α)
 
 private theorem splitPhraseAux_notMem (dict : List (List α)) (acc x : List α)
     (h : (splitPhraseAux dict acc x).2 ≠ []) : (splitPhraseAux dict acc x).1 ∉ dict := by
-  induction x generalizing acc with
-  | nil => simp [splitPhraseAux] at h
-  | cons a x ih =>
-    simp only [splitPhraseAux] at h ⊢
-    split_ifs at h ⊢ with ha
-    · exact ih _ h
-    · exact ha
+  fun_induction splitPhraseAux dict acc x <;> simp_all
 
 /-- If input remains after the phrase, the phrase is new. -/
 theorem splitPhrase_notMem (dict : List (List α)) (x : List α)
@@ -142,19 +127,18 @@ private theorem splitPhraseAux_prefix (dict : List (List α)) (acc x : List α)
     (hacc : ∀ q, q <+: acc → q ≠ [] → q ∈ dict) :
     ∀ q, q <+: (splitPhraseAux dict acc x).1 → q ≠ [] →
       q ≠ (splitPhraseAux dict acc x).1 → q ∈ dict := by
-  induction x generalizing acc with
-  | nil => intro q hq hne _; exact hacc q (by simpa [splitPhraseAux] using hq) hne
-  | cons a x ih =>
-    simp only [splitPhraseAux]
-    split_ifs with ha
-    · refine ih _ fun q hq hne => ?_
-      rcases List.prefix_concat_iff.1 hq with rfl | hq
-      · exact ha
-      · exact hacc q hq hne
-    · intro q hq hne hne'
-      rcases List.prefix_concat_iff.1 hq with h | hq
-      · exact absurd h hne'
-      · exact hacc q hq hne
+  fun_induction splitPhraseAux dict acc x with
+  | case1 => intro q hq hne _; exact hacc q hq hne
+  | case2 acc a x ha ih =>
+    refine ih fun q hq hne => ?_
+    rcases List.prefix_concat_iff.1 hq with rfl | hq
+    · exact ha
+    · exact hacc q hq hne
+  | case3 acc a x =>
+    intro q hq hne hne'
+    rcases List.prefix_concat_iff.1 hq with h | hq
+    · exact absurd h hne'
+    · exact hacc q hq hne
 
 /-- Every nonempty proper prefix of the phrase is in the dictionary, so the phrase is the
 shortest prefix of the input that is not. -/
@@ -180,14 +164,13 @@ earlier one). -/
 
 private theorem flatten_parseAux (fuel : ℕ) (dict : List (List α)) (x : List α)
     (hx : x.length ≤ fuel) : (parseAux fuel dict x).flatten = x := by
-  induction fuel generalizing dict x with
-  | zero => simp_all [parseAux]
-  | succ fuel ih =>
-    rcases x with _ | ⟨a, x⟩
-    · simp [parseAux]
-    · have hlt := length_splitPhrase_snd_lt dict a x
-      simp only [parseAux, List.flatten_cons]
-      rw [ih _ _ (by simp only [List.length_cons] at hx hlt ⊢; omega), splitPhrase_append]
+  fun_induction parseAux fuel dict x with
+  | case1 => simp_all
+  | case2 => rfl
+  | case3 fuel dict a x ih =>
+    have hlt := length_splitPhrase_snd_lt dict a x
+    rw [List.flatten_cons, ih (by simp only [List.length_cons] at hx hlt ⊢; omega),
+      splitPhrase_append]
 
 /-- The LZ78 phrases concatenate to the input. -/
 @[simp] theorem flatten_parse (x : List α) : (parse x).flatten = x :=
@@ -195,21 +178,18 @@ private theorem flatten_parseAux (fuel : ℕ) (dict : List (List α)) (x : List 
 
 private theorem ne_nil_of_mem_parseAux (fuel : ℕ) (dict : List (List α)) (x : List α) :
     ∀ w ∈ parseAux fuel dict x, w ≠ [] := by
-  induction fuel generalizing dict x with
-  | zero => simp [parseAux]
-  | succ fuel ih =>
-    rcases x with _ | ⟨a, x⟩
-    · simp [parseAux]
-    · intro w hw
-      simp only [parseAux, List.mem_cons] at hw
-      rcases hw with rfl | hw
-      · intro h
-        have h1 := splitPhrase_append dict (a :: x)
-        have h2 := length_splitPhrase_snd_lt dict a x
-        rw [h, List.nil_append] at h1
-        rw [h1] at h2
-        exact lt_irrefl _ h2
-      · exact ih _ _ w hw
+  fun_induction parseAux fuel dict x with
+  | case1 | case2 => simp
+  | case3 fuel dict a x ih =>
+    intro w hw
+    rcases List.mem_cons.1 hw with rfl | hw
+    · intro h
+      have h1 := splitPhrase_append dict (a :: x)
+      have h2 := length_splitPhrase_snd_lt dict a x
+      rw [h, List.nil_append] at h1
+      rw [h1] at h2
+      exact lt_irrefl _ h2
+    · exact ih w hw
 
 /-- Every LZ78 phrase is nonempty. -/
 theorem ne_nil_of_mem_parse {x : List α} : ∀ w ∈ parse x, w ≠ [] :=
@@ -238,17 +218,15 @@ private theorem prefix_mem_parseAux (fuel : ℕ) (dict : List (List α)) (x : Li
     (hi : i < (parseAux fuel dict x).length) (q : List α)
     (hq : q <+: (parseAux fuel dict x)[i]) (hne : q ≠ [])
     (hne' : q ≠ (parseAux fuel dict x)[i]) : q ∈ dict ++ (parseAux fuel dict x).take i := by
-  induction fuel generalizing dict x i with
-  | zero => simp [parseAux] at hi
-  | succ fuel ih =>
-    rcases x with _ | ⟨a, x⟩
-    · simp [parseAux] at hi
-    · rcases i with _ | i
-      · simp only [parseAux, List.getElem_cons_zero] at hq hne' ⊢
-        exact List.mem_append_left _ (splitPhrase_prefix dict _ q hq hne hne')
-      · simp only [parseAux, List.getElem_cons_succ, List.take_succ_cons] at hq hne' hi ⊢
-        have := ih _ _ i (by simpa using hi) hq hne'
-        simpa [List.append_assoc] using this
+  fun_induction parseAux fuel dict x generalizing i with
+  | case1 | case2 => simp at hi
+  | case3 fuel dict a x ih =>
+    rcases i with _ | i
+    · simp only [List.getElem_cons_zero] at hq hne' ⊢
+      exact List.mem_append_left _ (splitPhrase_prefix dict _ q hq hne hne')
+    · simp only [List.getElem_cons_succ, List.take_succ_cons] at hq hne' hi ⊢
+      have := ih i (by simpa using hi) hq hne'
+      simpa [List.append_assoc] using this
 
 /-- **Prefix closure.** Every nonempty proper prefix of an LZ78 phrase is an earlier phrase. -/
 theorem prefix_mem_take_parse (x : List α) (i : ℕ) (hi : i < (parse x).length) (q : List α)
@@ -260,19 +238,17 @@ theorem prefix_mem_take_parse (x : List α) (i : ℕ) (hi : i < (parse x).length
 private theorem notMem_parseAux (fuel : ℕ) (dict : List (List α)) (x : List α) (i : ℕ)
     (hi : i + 1 < (parseAux fuel dict x).length) :
     (parseAux fuel dict x)[i] ∉ dict ++ (parseAux fuel dict x).take i := by
-  induction fuel generalizing dict x i with
-  | zero => simp [parseAux] at hi
-  | succ fuel ih =>
-    rcases x with _ | ⟨a, x⟩
-    · simp [parseAux] at hi
-    · rcases i with _ | i
-      · simp only [parseAux, List.getElem_cons_zero, List.take_zero, List.append_nil]
-        refine splitPhrase_notMem dict _ fun h0 => ?_
-        simp only [parseAux, List.length_cons, h0, parseAux_eq_nil_of_nil, List.length_nil] at hi
-        omega
-      · simp only [parseAux, List.getElem_cons_succ, List.take_succ_cons] at hi ⊢
-        have := ih _ _ i (by simpa using hi)
-        simpa [List.append_assoc] using this
+  fun_induction parseAux fuel dict x generalizing i with
+  | case1 | case2 => simp [parseAux] at hi
+  | case3 fuel dict a x ih =>
+    rcases i with _ | i
+    · simp only [parseAux, List.getElem_cons_zero, List.take_zero, List.append_nil]
+      refine splitPhrase_notMem dict _ fun h0 => ?_
+      simp only [parseAux, List.length_cons, h0, parseAux_eq_nil_of_nil, List.length_nil] at hi
+      omega
+    · simp only [parseAux, List.getElem_cons_succ, List.take_succ_cons] at hi ⊢
+      have := ih i (by simpa using hi)
+      simpa [List.append_assoc] using this
 
 /-- **Novelty.** Every LZ78 phrase except the last is different from all earlier phrases. -/
 theorem getElem_parse_notMem_take (x : List α) (i : ℕ) (hi : i + 1 < (parse x).length) :
@@ -282,27 +258,24 @@ theorem getElem_parse_notMem_take (x : List α) (i : ℕ) (hi : i + 1 < (parse x
 
 private theorem nodup_parseAux (fuel : ℕ) (dict : List (List α)) (x : List α)
     (hd : dict.Nodup) : (dict ++ (parseAux fuel dict x).dropLast).Nodup := by
-  induction fuel generalizing dict x with
-  | zero => simpa [parseAux] using hd
-  | succ fuel ih =>
-    rcases x with _ | ⟨a, x⟩
-    · simpa [parseAux] using hd
-    · simp only [parseAux]
-      set p := (splitPhrase dict (a :: x)).1
-      set r := (splitPhrase dict (a :: x)).2
-      rcases hr : parseAux fuel (dict ++ [p]) r with _ | ⟨w, R⟩
-      · simpa using hd
-      · rw [List.dropLast_cons_of_ne_nil (List.cons_ne_nil _ _)]
-        have hpr : r ≠ [] := by grind [parseAux_eq_nil_of_nil]
-        have hp : p ∉ dict := splitPhrase_notMem dict _ hpr
-        have hd' : (dict ++ [p]).Nodup := List.nodup_append.2 ⟨hd, List.nodup_singleton _,
-          fun b hb c hc => by
-            rintro rfl
-            rw [List.mem_singleton] at hc
-            exact hp (hc ▸ hb)⟩
-        have := ih (dict ++ [p]) r hd'
-        rw [hr] at this
-        simpa using this
+  fun_induction parseAux fuel dict x with
+  | case1 | case2 => simpa using hd
+  | case3 fuel dict a x ih =>
+    set p := (splitPhrase dict (a :: x)).1
+    set r := (splitPhrase dict (a :: x)).2
+    rcases hr : parseAux fuel (dict ++ [p]) r with _ | ⟨w, R⟩
+    · simpa using hd
+    · rw [List.dropLast_cons_of_ne_nil (List.cons_ne_nil _ _)]
+      have hpr : r ≠ [] := by grind [parseAux_eq_nil_of_nil]
+      have hp : p ∉ dict := splitPhrase_notMem dict _ hpr
+      have hd' : (dict ++ [p]).Nodup := List.nodup_append.2 ⟨hd, List.nodup_singleton _,
+        fun b hb c hc => by
+          rintro rfl
+          rw [List.mem_singleton] at hc
+          exact hp (hc ▸ hb)⟩
+      have := ih hd'
+      rw [hr] at this
+      simpa using this
 
 /-- The LZ78 phrases before the last are pairwise distinct. -/
 theorem nodup_dropLast_parse (x : List α) : (parse x).dropLast.Nodup := by
@@ -344,26 +317,24 @@ omit [DecidableEq α] in
 
 private theorem isTreeStructured_parseAux (fuel : ℕ) (dict : List (List α)) (x : List α) :
     IsTreeStructured dict (parseAux fuel dict x) := by
-  induction fuel generalizing dict x with
-  | zero => simp [parseAux]
-  | succ fuel ih =>
-    rcases x with _ | ⟨a, x⟩
-    · simp [parseAux]
-    · simp only [parseAux, isTreeStructured_cons]
-      refine ⟨?_, ih _ _⟩
-      set p := (splitPhrase dict (a :: x)).1 with hp
-      have hne : p ≠ [] := ne_nil_of_mem_parseAux (fuel + 1) dict (a :: x) p
-        (by simp [parseAux, hp])
-      refine ⟨p.dropLast, ?_, p.getLast hne, (List.dropLast_concat_getLast hne).symm⟩
-      by_cases h : p.dropLast = []
-      · rw [h]; exact List.mem_cons_self
-      · refine List.mem_cons_of_mem _ (splitPhrase_prefix dict (a :: x) _
-          (List.dropLast_prefix p) h ?_)
-        intro heq
-        have h1 : p.dropLast.length = p.length := congrArg List.length heq
-        have h2 : 0 < p.length := List.length_pos_iff.2 hne
-        rw [List.length_dropLast] at h1
-        omega
+  fun_induction parseAux fuel dict x with
+  | case1 | case2 => simp
+  | case3 fuel dict a x ih =>
+    rw [isTreeStructured_cons]
+    refine ⟨?_, ih⟩
+    set p := (splitPhrase dict (a :: x)).1 with hp
+    have hne : p ≠ [] := ne_nil_of_mem_parseAux (fuel + 1) dict (a :: x) p
+      (by simp [parseAux, hp])
+    refine ⟨p.dropLast, ?_, p.getLast hne, (List.dropLast_concat_getLast hne).symm⟩
+    by_cases h : p.dropLast = []
+    · rw [h]; exact List.mem_cons_self
+    · refine List.mem_cons_of_mem _ (splitPhrase_prefix dict (a :: x) _
+        (List.dropLast_prefix p) h ?_)
+      intro heq
+      have h1 : p.dropLast.length = p.length := congrArg List.length heq
+      have h2 : 0 < p.length := List.length_pos_iff.2 hne
+      rw [List.length_dropLast] at h1
+      omega
 
 /-- The LZ78 parse is tree structured. -/
 theorem isTreeStructured_parse (x : List α) : IsTreeStructured [] (parse x) :=
@@ -404,8 +375,7 @@ theorem decodePairs_encodePhrases (dict ws : List (List α)) (ht : IsTreeStructu
     obtain ⟨⟨q, hq, a, rfl⟩, ht⟩ := (isTreeStructured_cons _ _ _).1 ht
     simp only [encodePhrases, List.getLast?_concat, List.dropLast_concat, decodePairs]
     have hidx : ([] :: dict).getD (([] :: dict).idxOf q) [] = q := by
-      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (List.idxOf_lt_length_of_mem hq),
-        Option.getD_some, List.getElem_idxOf]
+      rw [List.getD_eq_getElem?_getD, List.getElem?_idxOf hq, Option.getD_some]
     rw [hidx, ih _ ht]
 
 /-- **The LZ78 code is lossless.** -/

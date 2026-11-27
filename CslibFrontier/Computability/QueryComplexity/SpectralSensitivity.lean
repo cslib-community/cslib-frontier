@@ -94,8 +94,8 @@ theorem sum_sum_sensitiveCoords_update {M : Type*} [AddCommMonoid M] (f : Boolea
   simp only [sensitiveCoords, sum_filter]
   rw [sum_comm, sum_comm (f := fun x i => if IsSensitiveCoord f x i then g i x else 0)]
   refine sum_congr rfl fun i _ => ?_
-  refine Fintype.sum_equiv (flipOn_involutive ({i} : Finset (Fin n))).toPerm _ _ fun x => ?_
-  simp only [Involutive.coe_toPerm, flipOn_singleton, isSensitiveCoord_update_not_iff]
+  rw [← sum_update_not i fun x => if IsSensitiveCoord f x i then g i x else 0]
+  simp only [isSensitiveCoord_update_not_iff]
 
 /-- The **sensitivity graph** `G_f` of `f` [AaronsonBenDavidKothariRaoTal2021]: the subgraph of
 the cube joining `x` and `x ⊕ eᵢ` when `i` is sensitive for `f` at `x`, that is, when

@@ -134,7 +134,7 @@ private theorem trace_pderivRestrict [Module.Finite F V] (i : Fin n) :
     | zero => intro u; rfl
     | succ k ih =>
       intro u
-      rw [pow_succ, Module.End.mul_apply, ih, Function.iterate_succ_apply]
+      rw [pow_succ, mul_apply_eq_comp, ih, Function.iterate_succ_apply]
       rfl
   rw [hiter, Submodule.coe_zero]
   exact MvPolynomial.iterate_pderiv_eq_zero i (Nat.lt_succ_self _)
@@ -179,7 +179,7 @@ theorem exists_wronskian_eq_C [Module.Finite F V] {r : ℕ} (g : Module.Basis (F
         ∑ k, (algebraMap F (MvPolynomial (Fin n) F[X]) (T k j)) • M m k := by
       have hiter : ∀ (m : ℕ) (x : MvPolynomial (Fin n) F[X]),
           ((logDeriv F n : MvPolynomial (Fin n) F[X] →ₗ[F] MvPolynomial (Fin n) F[X]) ^ m) x =
-            (logDeriv F n)^[m] x := fun m x => Module.End.pow_apply _ m x
+            (logDeriv F n)^[m] x := fun m x => pow_apply_eq_iterate _ m x
       change MvPolynomial.pderiv i ((logDeriv F n)^[m] (G j)) = _
       rw [hcomm, hbasis, ← hiter, map_sum]
       refine sum_congr rfl fun k _ => ?_

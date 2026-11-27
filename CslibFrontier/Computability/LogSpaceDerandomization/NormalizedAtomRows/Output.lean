@@ -103,8 +103,7 @@ private lemma denominatorRoot_dist (v w : ℝ) :
 
 /-- The actual scalar normalized output is nonnegative on arbitrary real signals. -/
 lemma output_nonneg (ζ d v r : ℝ) : 0 ≤ output HP ζ d v r :=
-  div_nonneg (mul_nonneg (HP.toHierarchyParams.atomCutoff_nonneg _) (HP.ρ_nonneg _))
-    (by linarith [clip_bounds (v / ζ)])
+  div_nonneg (by positivity) (by linarith [clip_bounds (v / ζ)])
 
 /-- Scalar range is uniform in both signals and the raw padded rank. -/
 lemma output_le (ζ d v r : ℝ) :
@@ -148,7 +147,7 @@ private lemma output_root (scale x v q : ℝ) :
     output HP scale x v q ^ (4⁻¹ : ℝ) =
       HP.toHierarchyParams.atomCutoff x ^ (4⁻¹ : ℝ) * HP.ρ q ^ (4⁻¹ : ℝ) *
         denominatorRoot (v/scale) := by
-  rw [output, Real.div_rpow (mul_nonneg (HP.toHierarchyParams.atomCutoff_nonneg _) (HP.ρ_nonneg _))
+  rw [output, Real.div_rpow (by positivity)
     (by linarith [clip_bounds (v/scale)] : 0 ≤ clip (v/scale)),
     Real.mul_rpow (HP.toHierarchyParams.atomCutoff_nonneg _) (HP.ρ_nonneg _)]
   rw [denominatorRoot, Real.rpow_neg (by linarith [clip_bounds (v/scale)] : 0 ≤ clip (v/scale))]
@@ -219,7 +218,7 @@ lemma root_dist {scale : ℝ} (hs : 0 < scale) :
 /-- The actual hierarchy rank is positive. -/
 lemma rank_pos : 0 < HP.K := by
   have hg := HP.gate
-  have hh : 0 ≤ 32 * (HP.k : ℝ) / HP.η := div_nonneg (by positivity) HP.η_pos.le
+  have hh : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
   have h : (0 : ℝ) < HP.K := by linarith
   exact_mod_cast h
 
@@ -240,7 +239,7 @@ lemma root_range (scale x v q : ℝ) :
   · calc
       _ ≤ HP.Q HP.toHierarchyParams.atomCap ^ (4⁻¹ : ℝ) * 1 * 2 :=
         mul_le_mul (mul_le_mul ha' hb' hb (Real.rpow_nonneg (HP.Q_nonneg _) _))
-          hc.2 (by linarith) (mul_nonneg (Real.rpow_nonneg (HP.Q_nonneg _) _) zero_le_one)
+          hc.2 (by linarith) (by positivity)
       _ = _ := by ring
 
 /-- The actual entry threshold is separated from the closed rank gate. -/
@@ -254,7 +253,7 @@ lemma threshold_margin : 3*HP.η₂ < HP.θ := by
 /-- The actual hierarchy rank exceeds the singleton domain. -/
 lemma rank_gt_one : 1 < HP.K := by
   have hg := HP.gate
-  have hh : 0 ≤ 32 * (HP.k : ℝ) / HP.η := div_nonneg (by positivity) HP.η_pos.le
+  have hh : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
   have h : (1 : ℝ) < HP.K := by linarith
   exact_mod_cast h
 

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Recursive
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Root
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Report
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native root evaluation and ordered reporting
@@ -87,21 +88,7 @@ theorem exec_evaluate {w L f a0 b0 q0 o0 Q E A B : ℕ}
         rw [hq0, hregs.lists_eq, hregs.stamps_eq, hE, hregs.frames_eq]
         unfold evaluationBudget nodeBudget
         nlinarith only [hpow, hL]))
-  have huregs : KernelRegs L f a0 b0 u := by
-    constructor
-    · exact (hroot.regs_eq (by decide : rootList.Preserves inputDepth)).trans hregs.depth_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves span)).trans hregs.span_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves arrayA)).trans hregs.left_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves arrayB)).trans hregs.right_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves frames)).trans hregs.frames_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves lists)).trans hregs.lists_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves values)).trans hregs.values_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves stamps)).trans hregs.stamps_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves nil)).trans hregs.nil_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves one)).trans hregs.one_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves ten)).trans hregs.ten_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves nine)).trans hregs.nine_eq
-    · exact (hroot.regs_eq (by decide : rootList.Preserves frameWidth)).trans hregs.frameWidth_eq
+  have huregs : KernelRegs L f a0 b0 u := by regs_frame
   have hu : NodeReady L f a0 b0 L 0 0 (E + 1) S u := by
     refine ⟨huregs, by omega, by simp, hul, hum, hua, ?_, ?_, ?_⟩
     · simpa only [hE] using hue
@@ -137,15 +124,9 @@ theorem exec_evaluate {w L f a0 b0 q0 o0 Q E A B : ℕ}
   have hexit : ExecWithin (w + 2) controller v v 2 := ExecWithin.loop_exit
     (by simp only [Cond.holds_lt, hv.regs.nil_eq, hv.active_eq]; decide)
   have hloop := hcontroller v 2 hexit
-  have hqv : v.regs queries = q0 :=
-    (hloop.regs_eq (by decide : controller.Preserves queries)).trans
-      ((hroot.regs_eq (by decide : rootList.Preserves queries)).trans hq0)
-  have hov : v.regs output = o0 :=
-    (hloop.regs_eq (by decide : controller.Preserves output)).trans
-      ((hroot.regs_eq (by decide : rootList.Preserves output)).trans ho0)
-  have hQv : v.regs queryCount = Q :=
-    (hloop.regs_eq (by decide : controller.Preserves queryCount)).trans
-      ((hroot.regs_eq (by decide : rootList.Preserves queryCount)).trans hQ)
+  have hqv : v.regs queries = q0 := by regs_frame
+  have hov : v.regs output = o0 := by regs_frame
+  have hQv : v.regs queryCount = Q := by regs_frame
   have hquery (i : ℕ) (hi : i < Q) : v.mem (v.regs queries + i) = codes i := by
     rw [hqv, hv.frame _ (notMem_nodeWrites_before (by omega)),
       hrootBefore _ (by omega)]
@@ -159,7 +140,7 @@ theorem exec_evaluate {w L f a0 b0 q0 o0 Q E A B : ℕ}
       nlinarith only [hpow, hL]))
   have he : ExecWithin (w + 2) (ram[ ⟪rootList⟫; ⟪controller⟫; ⟪report⟫ ]) x y
       (29 * Q + traceWeight S + 24) := (hroot.seq (hloop.seq hreport)).mono (by omega)
-  refine ⟨y, he, ?_, ?_, (hreport.regs_eq (by decide : report.Preserves output)).trans hov,
+  refine ⟨y, he, ?_, ?_, by regs_frame,
     ?_, ?_, ?_⟩
   · intro i
     have hr := hvalues i.val i.isLt

@@ -331,12 +331,6 @@ theorem isNbhdIso_of_iso (e : G ≃g H) {k r : ℕ} {a : Fin k → V} {b : Fin k
     match l, R with
     | 2, .adj => exact e.map_adj_iff
 
-/-- The fold of `G ⊕g G` onto `G`. -/
-private def foldHom : G ⊕g G →g G where
-  toFun := Sum.elim id id
-  map_rel' {x y} h := by
-    cases x <;> cases y <;> simp_all
-
 /-- **Far-apart pairs in one copy look like pairs across two copies**: in `G ⊕g G`, if `u` and
 `v` are at distance more than `2r + 1` in `G`, then the radius-`r` neighborhoods of
 `(inl u, inl v)` and `(inl u, inr v)` are isomorphic. -/
@@ -348,8 +342,8 @@ theorem nbhdIso_sum {r : ℕ} {u v : V} (huv : ((2 * r + 1 : ℕ) : ℕ∞) < G.
     (c := Sum.inl v) (c' := Sum.inr v) (IsNbhdIso.refl r _)
     (isNbhdIso_of_iso (SimpleGraph.Iso.sumComm (G := G) (H := G)) (fun _ => rfl))
     (fun _ => by
-      rw [gaifmanGraph_structure]
-      exact huv.trans_le (foldHom.edist_le (.inl u) (.inl v)))
+      rw [gaifmanGraph_structure, SimpleGraph.edist_sum_inl]
+      exact huv)
     (fun _ => by
       rw [gaifmanGraph_structure, SimpleGraph.edist_eq_top_of_not_reachable
         (SimpleGraph.not_reachable_sum_inl_inr u v)]

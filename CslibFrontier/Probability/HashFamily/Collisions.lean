@@ -54,10 +54,14 @@ Expectations are `∑' i, seed i * f i` in `ℝ≥0∞` over an arbitrary seed l
 * `Cslib.Probability.sum_card_filter_sq`: squared bucket sizes count collisions.
 * `Cslib.Probability.IsUniversalHash.tsum_orderedCollisionCount_le`: expected collisions.
 * `Cslib.Probability.IsUniversalHash.tsum_sum_card_filter_sq_le`: expected squared bucket sizes.
+* `Cslib.Probability.IsUniversalHash.toOuterMeasure_not_injOn_le`: union bound over pairs on
+  non-injectivity.
 * `Cslib.Probability.IsTwoUniversal.toOuterMeasure_not_injOn_le`: injectivity into `n²` cells.
 * `Cslib.Probability.IsTwoUniversal.tsum_sum_card_filter_sq_le`,
   `Cslib.Probability.IsTwoUniversal.toOuterMeasure_four_mul_lt_sum_card_filter_sq_le`: linear
   total squared bucket size into `n` cells.
+* `Cslib.Probability.IsTwoUniversal.sum_ite_toReal_le_card_div_of_imp`: an event forcing a
+  collision of a fixed key with another key of `S` has probability at most `|S| / |Y|`.
 
 ## References
 
@@ -191,6 +195,30 @@ theorem IsUniversalHash.tsum_sum_card_filter_sq_le [Fintype Y] {seed : PMF ι} {
   exact add_le_add le_rfl (hh.tsum_orderedCollisionCount_le S)
 
 omit [DecidableEq Y] in
+/-- **Union bound over pairs**: an `ε`-universal family is injective on `S` except with
+probability at most `C(|S|, 2) · ε`. -/
+theorem IsUniversalHash.toOuterMeasure_not_injOn_le {seed : PMF ι} {hash : ι → X → Y}
+    {ε : ℝ≥0∞} (hh : IsUniversalHash seed hash ε) (S : Finset X) :
+    seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S} ≤ (S.card.choose 2 : ℕ) * ε := by
+  classical
+  have hsub : {i | ¬ Set.InjOn (hash i) S} ⊆
+      {i | (2 : ℝ≥0∞) ≤ (orderedCollisionCount (hash i) S : ℝ≥0∞)} := fun i hi => by
+    have := two_le_orderedCollisionCount hi
+    exact_mod_cast this
+  have h2 : 2 * seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S} ≤
+      ((S.card * (S.card - 1) : ℕ) : ℝ≥0∞) * ε :=
+    calc 2 * seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S}
+        ≤ 2 * seed.toOuterMeasure
+            {i | (2 : ℝ≥0∞) ≤ (orderedCollisionCount (hash i) S : ℝ≥0∞)} := by gcongr
+      _ ≤ ∑' i, seed i * (orderedCollisionCount (hash i) S : ℝ≥0∞) :=
+          PMF.mul_toOuterMeasure_le_tsum seed _ 2
+      _ ≤ _ := hh.tsum_orderedCollisionCount_le S
+  have hch : S.card * (S.card - 1) = 2 * S.card.choose 2 := by
+    rw [Nat.choose_two_right, Nat.mul_div_cancel' (Nat.even_mul_pred_self _).two_dvd]
+  rw [hch, Nat.cast_mul, Nat.cast_ofNat, mul_assoc] at h2
+  exact (ENNReal.mul_le_mul_iff_right two_ne_zero ENNReal.ofNat_ne_top).mp h2
+
+omit [DecidableEq Y] in
 /-- **Perfect hashing into `n²` cells** ([CLRS2009], Section 11.5): a universal family into at
 least `n²` values is injective on a fixed set of `n` keys except with probability at most `1 / 2`.
 CLRS states the strict bound `< 1 / 2` for exactly `n²` values; the non-strict form is what the
@@ -198,23 +226,14 @@ secondary level of the construction uses. -/
 theorem IsTwoUniversal.toOuterMeasure_not_injOn_le [Fintype Y] {seed : PMF ι} {hash : ι → X → Y}
     (hh : IsTwoUniversal seed hash) (S : Finset X) (hS : S.card ^ 2 ≤ Fintype.card Y) :
     seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S} ≤ 2⁻¹ := by
-  classical
-  have hsub : {i | ¬ Set.InjOn (hash i) S} ⊆
-      {i | (2 : ℝ≥0∞) ≤ (orderedCollisionCount (hash i) S : ℝ≥0∞)} := fun i hi => by
-    have := two_le_orderedCollisionCount hi
-    exact_mod_cast this
-  have hle : ((S.card * (S.card - 1) : ℕ) : ℝ≥0∞) * (Fintype.card Y : ℝ≥0∞)⁻¹ ≤ 1 := by
-    rw [← div_eq_mul_inv]
-    refine ENNReal.div_le_of_le_mul ?_
-    rw [one_mul]
-    exact_mod_cast (Nat.mul_le_mul_left _ (Nat.sub_le _ _)).trans (sq S.card ▸ hS)
-  rw [ENNReal.le_inv_iff_mul_le, mul_comm]
-  calc 2 * seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S}
-      ≤ 2 * seed.toOuterMeasure {i | (2 : ℝ≥0∞) ≤ (orderedCollisionCount (hash i) S : ℝ≥0∞)} := by
-        gcongr
-    _ ≤ ∑' i, seed i * (orderedCollisionCount (hash i) S : ℝ≥0∞) :=
-        PMF.mul_toOuterMeasure_le_tsum seed _ 2
-    _ ≤ 1 := (hh.tsum_orderedCollisionCount_le S).trans hle
+  refine (IsUniversalHash.toOuterMeasure_not_injOn_le hh S).trans ?_
+  rw [ENNReal.le_inv_iff_mul_le, mul_right_comm, ← div_eq_mul_inv]
+  refine ENNReal.div_le_of_le_mul ?_
+  rw [one_mul]
+  have h2 : S.card.choose 2 * 2 ≤ Fintype.card Y := by
+    rw [Nat.choose_two_right, Nat.div_mul_cancel (Nat.even_mul_pred_self _).two_dvd]
+    exact (Nat.mul_le_mul_left _ (Nat.sub_le _ _)).trans (sq S.card ▸ hS)
+  exact_mod_cast h2
 
 /-- **Linear total secondary space** ([CLRS2009], Section 11.5): with a universal family into at
 least `n` values, the expected sum of squared bucket sizes is at most `2n - 1`. -/
@@ -265,5 +284,26 @@ theorem IsTwoUniversal.toOuterMeasure_four_mul_lt_sum_card_filter_sq_le [Fintype
     _ ≤ 2 * (2 * S.card - 1 : ℕ) := by gcongr
     _ ≤ ((4 * S.card + 1 : ℕ) : ℝ≥0∞) := by
         exact_mod_cast (show 2 * (2 * S.card - 1) ≤ 4 * S.card + 1 by omega)
+
+omit [DecidableEq Y] in
+open Classical in
+/-- If an event on hash seeds forces a collision of `x` with another key of `S`, a universal family
+into `Y` bounds its probability by `|S| / |Y|`. -/
+theorem IsTwoUniversal.sum_ite_toReal_le_card_div_of_imp [Fintype ι] [Fintype Y] {seed : PMF ι}
+    {hash : ι → X → Y} (hh : IsTwoUniversal seed hash) (S : Finset X) (x : X) {P : ι → Prop}
+    {_ : DecidablePred P} (hP : ∀ i, P i → ∃ y ∈ S, y ≠ x ∧ hash i y = hash i x) :
+    (∑ i, if P i then (seed i).toReal else 0) ≤ (#S : ℝ) / Fintype.card Y := by
+  calc (∑ i, if P i then (seed i).toReal else 0)
+      ≤ ∑ i, if ∃ y ∈ S, y ≠ x ∧ hash i y = hash i x then (seed i).toReal else 0 :=
+        sum_le_sum fun i _ => by
+          split_ifs with h₁ h₂
+          · exact le_rfl
+          · exact absurd (hP i h₁) h₂
+          · exact ENNReal.toReal_nonneg
+          · exact le_rfl
+    _ ≤ (#(S.erase x) : ℝ) / Fintype.card Y := hh.collision_with_set_le S x
+    _ ≤ (#S : ℝ) / Fintype.card Y := by
+      gcongr
+      exact erase_subset _ _
 
 end Cslib.Probability

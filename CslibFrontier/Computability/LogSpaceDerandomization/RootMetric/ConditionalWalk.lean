@@ -140,9 +140,8 @@ theorem rowNormPow_conditionalWalk_le [Fintype D] [Nonempty D] {N u lam : ℝ}
   apply rowNormPow_le_of_conditional_expect_le hNu
   intro x y
   refine (expect_conditionalWalk_sub_mean_pow_four_le X Y G (fun _ _ => t) F x y).trans ?_
-  apply mul_le_mul_of_nonneg_right _ (expect_nonneg fun _ _ => pow_nonneg (abs_nonneg _) _)
-  exact mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (G x y).spectralExpansion_nonneg
-    (hgap x y) _) (by norm_num)
+  gcongr
+  exact hgap x y
 
 private theorem expect_sub_expect_pow_four_le_raw {A : Type*} [Fintype A] (f : A → ℝ) :
     (𝔼 σ, |f σ - 𝔼 τ, f τ| ^ 4) ≤ 16 * 𝔼 σ, |f σ| ^ 4 := by

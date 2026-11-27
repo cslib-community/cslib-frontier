@@ -9,9 +9,10 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable.Defs
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Basic
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.TotalComputability
 
 /-!
 # Computable functions and decidable sets
@@ -24,14 +25,12 @@ bounds are arbitrary, so this is computability by a total machine
 it is decidable within some bounds in the sense of `Turing.MultiTapeTM.DecidableInTimeAndSpace`,
 that is, when its Boolean indicator is computable.
 
-Computable functions compose (`Turing.MultiTapeTM.IsComputable.comp`): both machines are first put
-into the tidy normal form
-(`Turing.MultiTapeTM.ComputableInTimeAndSpace.exists_computableTidilyInTimeAndSpace`), whose
-machines compose. Functions computable within bounds in the senses of
-`Turing.MultiTapeTM.ComputableInTimeAndSpace`, `Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace`,
-`Turing.MultiTapeTM.ComputableTidilyInDegree` and
-`Turing.MultiTapeTM.ComputableTidilyInPolyTime` are computable (their `.isComputable` lemmas), and
-decidable sets are closed under complement, intersection and union.
+Computable functions compose (`Turing.MultiTapeTM.IsComputable.comp`). The realizing machines
+are normalized internally before composition; callers supply plain certificates and need no
+normal-form contract. Plain polynomial-time and degree certificates imply computability through
+`Turing.MultiTapeTM.ComputableInPolyTime.isComputable` and
+`Turing.MultiTapeTM.ComputableInDegree.isComputable`. Decidable sets are closed under complement,
+intersection and union.
 
 These are the decidable sets of [Sipser, Definition 3.6][Sipser2013], for the library's native
 multi-tape machines. Mathlib's `ComputablePred` is the analogous notion for its partial recursive
@@ -73,55 +72,42 @@ variable {α β γ : Type*} {encIn : α ↪ List Bool} {encMid : β ↪ List Boo
 
 /-! ### Computable functions -/
 
-/-- Functions tidily computable within bounds are computable. -/
-theorem ComputableTidilyInTimeAndSpace.isComputable {f : α → β} {t s : α → ℕ}
-    (h : ComputableTidilyInTimeAndSpace f encIn encMid t s) : IsComputable f encIn encMid :=
-  h.computableInTimeAndSpace.isComputable
+/-- Functions computable in polynomial time are computable (`IsComputable`). -/
+theorem ComputableInPolyTime.isComputable {α β : Type*} {f : α → β}
+    {encIn : α ↪ List Bool} {encMid : β ↪ List Bool}
+    (h : ComputableInPolyTime f encIn encMid) : IsComputable f encIn encMid :=
+  let ⟨_, _, _, h⟩ := h
+  h.2.isComputable
 
-/-- Functions tidily computable within bounds of given degrees are computable. -/
-theorem ComputableTidilyInDegree.isComputable {f : α → β} {d e : ℕ}
-    (h : ComputableTidilyInDegree f encIn encMid d e) : IsComputable f encIn encMid :=
-  let ⟨⟨_, _, _, _, h⟩, _⟩ := h
-  h.isComputable
-
-/-- Functions tidily computable in polynomial time are computable. -/
-theorem ComputableTidilyInPolyTime.isComputable {f : α → β}
-    (h : ComputableTidilyInPolyTime f encIn encMid) : IsComputable f encIn encMid :=
-  let ⟨_, _, _, _, h⟩ := h
-  h.isComputable
-
-/-- A computable function is tidily computable within some bounds. -/
-theorem IsComputable.exists_computableTidilyInTimeAndSpace {f : α → β}
-    (h : IsComputable f encIn encMid) :
-    ∃ t s : α → ℕ, ComputableTidilyInTimeAndSpace f encIn encMid t s :=
-  let ⟨_, _, h⟩ := h
-  let ⟨_, h⟩ := h.exists_computableTidilyInTimeAndSpace
-  ⟨_, _, h⟩
+/-- A plain degree certificate implies computability, forgetting all numerical bounds. -/
+theorem ComputableInDegree.isComputable {f : α → β} {d e : ℕ}
+    (h : ComputableInDegree f encIn encMid d e) : IsComputable f encIn encMid :=
+  h.computableInPolyTime.isComputable
 
 /-- **Computable functions compose.** -/
 theorem IsComputable.comp {f : β → γ} {g : α → β} (hf : IsComputable f encMid encOut)
-    (hg : IsComputable g encIn encMid) : IsComputable (f ∘ g) encIn encOut :=
-  let ⟨_, _, hf⟩ := hf.exists_computableTidilyInTimeAndSpace
-  let ⟨_, _, hg⟩ := hg.exists_computableTidilyInTimeAndSpace
-  let ⟨_, h⟩ := hf.computableInTimeAndSpace_comp hg
-  h.isComputable
+    (hg : IsComputable g encIn encMid) : IsComputable (f ∘ g) encIn encOut := by
+  obtain ⟨_, _, _, _, _, tm₁, h₁⟩ := Internal.TotalComputability.normalizedMachine hg
+  obtain ⟨_, _, _, _, _, tm₂, h₂⟩ := Internal.TotalComputability.normalizedMachine hf
+  exact ⟨_, _, _, _, inferInstance, tm₂.comp tm₁ true,
+    fun a => ((h₁ a).comp (h₂ (g a)) true).computesInTimeAndSpace⟩
 
 /-- The identity is computable. -/
 theorem isComputable_id (enc : α ↪ List Bool) : IsComputable id enc enc :=
-  (ComputableTidilyInDegree.of_eq fun _ => rfl).isComputable
+  (ComputableInPolyTime.of_eq fun _ => rfl).isComputable
 
 /-- Functions on finite types are computable. -/
 theorem IsComputable.of_finite [Finite α] (f : α → β) : IsComputable f encIn encMid :=
-  (ComputableTidilyInDegree.of_finite f).isComputable
+  (ComputableInPolyTime.of_finite f).isComputable
 
 /-- Pairs of computable functions are computable. -/
 theorem IsComputable.prod {α β₁ β₂ : Type u} {encIn : α ↪ List Bool} {enc₁ : β₁ ↪ List Bool}
     {enc₂ : β₂ ↪ List Bool} {enc : β₁ × β₂ ↪ List Bool} [PairEncoding enc₁ enc₂ enc]
     {f : α → β₁} {g : α → β₂} (hf : IsComputable f encIn enc₁) (hg : IsComputable g encIn enc₂) :
     IsComputable (fun a => (f a, g a)) encIn enc :=
-  let ⟨_, _, hf⟩ := hf.exists_computableTidilyInTimeAndSpace
-  let ⟨_, _, hg⟩ := hg.exists_computableTidilyInTimeAndSpace
-  let ⟨_, h⟩ := PairEncoding.pair_mono hf.computableInTimeAndSpace hg.computableInTimeAndSpace
+  let ⟨_, _, hf⟩ := hf
+  let ⟨_, _, hg⟩ := hg
+  let ⟨_, h⟩ := PairEncoding.pair_mono hf hg
   h.isComputable
 
 /-- Conditional selection between computable Boolean functions is computable. The carrier lives in

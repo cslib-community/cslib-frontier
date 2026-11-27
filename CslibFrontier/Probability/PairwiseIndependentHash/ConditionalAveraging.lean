@@ -162,8 +162,7 @@ theorem expect_walk_pow_sliceGraph_sub_expect_sq_le [NeZero L] (hL : L ≤ P) {D
       lam ^ (2 * t) * 𝔼 A, (f A - 𝔼 B, f B) ^ 2 := by
   refine ((sliceGraph L hL y G).expect_walk_pow_sub_expect_sq_le t f).trans ?_
   rw [spectralExpansion_sliceGraph]
-  exact mul_le_mul_of_nonneg_right (pow_le_pow_left₀ G.spectralExpansion_nonneg hG _)
-    (expect_nonneg fun _ _ ↦ sq_nonneg _)
+  gcongr
 
 /-! ### Validated variants -/
 

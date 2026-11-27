@@ -11,10 +11,10 @@ public import CslibFrontier.Init
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Data.Set.Card
 public import Mathlib.Data.Set.Finite.List
+public import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 import Mathlib.Algebra.Ring.GeomSum
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.List.OfFn
-import Mathlib.Data.Vector.Basic
 
 /-!
 # Counting binary words
@@ -30,7 +30,6 @@ leaves some word of length `n` unused.
 
 ## Main results
 
-* `Cslib.BitString.encard_setOf_length_eq`: there are `2 ^ n` words of length `n`.
 * `Cslib.BitString.encard_setOf_length_lt_add_one`: there are `2 ^ n - 1` words of length below
   `n`.
 * `Cslib.BitString.exists_length_eq_notMem`: fewer than `2 ^ n` words leave a word of length `n`
@@ -45,12 +44,6 @@ leaves some word of length `n` unused.
 namespace Cslib.BitString
 
 open Finset
-
-/-- There are `2 ^ n` binary strings of length `n`. -/
-theorem encard_setOf_length_eq (n : ℕ) : {p : List Bool | p.length = n}.encard = 2 ^ n := by
-  change ENat.card (List.Vector Bool n) = _
-  rw [ENat.card_eq_coe_fintype_card, card_vector]
-  simp
 
 /-- There are `2 ^ n - 1` binary strings of length below `n`. -/
 theorem encard_setOf_length_lt_add_one (n : ℕ) :
@@ -72,14 +65,11 @@ theorem encard_setOf_length_lt_add_one (n : ℕ) :
 theorem exists_length_eq_notMem (Q : List (List Bool)) (n : ℕ) (hQ : Q.length < 2 ^ n) :
     ∃ w : List Bool, w.length = n ∧ w ∉ Q := by
   classical
-  have hcard : Q.toFinset.card <
-      ((Finset.univ : Finset (Fin n → Bool)).image List.ofFn).card := by
-    rw [Finset.card_image_of_injective _ List.ofFn_injective, Finset.card_univ,
-      Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
+  have hcard : Q.toFinset.card < (wordsOfLength n).card := by
+    rw [card_wordsOfLength]
     exact (List.toFinset_card_le Q).trans_lt hQ
   obtain ⟨w, hw, hwQ⟩ := Finset.exists_mem_notMem_of_card_lt_card hcard
-  obtain ⟨f, -, rfl⟩ := Finset.mem_image.mp hw
-  exact ⟨List.ofFn f, List.length_ofFn, fun h => hwQ (List.mem_toFinset.mpr h)⟩
+  exact ⟨w, mem_wordsOfLength.mp hw, fun h => hwQ (List.mem_toFinset.mpr h)⟩
 
 /-- The binary words of length at most `L`. -/
 noncomputable def shortWords (L : ℕ) : Finset (List Bool) :=

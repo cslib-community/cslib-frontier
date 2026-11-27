@@ -14,7 +14,7 @@ import CslibFrontier.Computability.Complexity.Classes.Inclusions
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
@@ -104,19 +104,21 @@ def encodeWord (L : ℕ) (w : List Bool) : List Bool :=
   List.replicate (L - w.length) false ++ true :: w
 
 /-- Decoding inverts coding. -/
-private theorem decodeWord_encodeWord (L : ℕ) (w : List Bool) : decodeWord
+theorem decodeWord_encodeWord (L : ℕ) (w : List Bool) : decodeWord
     (encodeWord L w) = w := by
   rw [decodeWord, encodeWord, List.idxOf_true_replicate_false_append, List.drop_append]
   simp
 
-private theorem length_encodeWord {L : ℕ} {w : List Bool} (hw : w.length ≤ L) :
+/-- The code of a word of length at most `L` has length `L + 1`. -/
+theorem length_encodeWord {L : ℕ} {w : List Bool} (hw : w.length ≤ L) :
     (encodeWord L w).length = L + 1 := by
   enc_len [encodeWord]
 
 private theorem true_mem_encodeWord (L : ℕ) (w : List Bool) : true ∈ encodeWord L w := by
   simp [encodeWord]
 
-private theorem length_decodeWord_le {L : ℕ} {u : List Bool} (hu : u.length = L + 1) :
+/-- Any word decoded from a code of length `L + 1` has length at most `L`. -/
+theorem length_decodeWord_le {L : ℕ} {u : List Bool} (hu : u.length = L + 1) :
     (decodeWord u).length ≤ L := by
   simp only [decodeWord, List.length_drop]
   lia
@@ -267,13 +269,9 @@ section PolyTime
 open _root_.Turing _root_.Turing.MultiTapeTM ComputableInPolyTime
 
 /-- Decoding a word is polynomial-time. -/
-private theorem computableInPolyTime_decodeWord :
+theorem computableInPolyTime_decodeWord :
     ComputableInPolyTime decodeWord encBits encBits := by
-  have hidx : ComputableInPolyTime (fun u : List Bool => u.idxOf true + 1) encBits
-      encUnary := by
-    have h := (idxOf encBool).comp (bitsToList.prod (const (encOut := encBool) true))
-    exact unary_succ.comp h
-  exact bitsDropWithInput id' hidx
+  fun_prop [decodeWord]
 
 /-- Decoding a history is polynomial-time. -/
 private theorem computableInPolyTime_decodeHistory :
@@ -382,19 +380,7 @@ open _root_.Turing _root_.Turing.MultiTapeTM ComputableInPolyTime
 
 variable {γ : Type} {input : γ ↪ List Bool}
 
-@[local fun_prop] private theorem max_pt {left right : γ → ℕ}
-    (hl : ComputableInPolyTime left input encNat)
-    (hr : ComputableInPolyTime right input encNat) :
-    ComputableInPolyTime (fun x => max (left x) (right x)) input encNat := by
-  simp only [max_def]
-  exact ite_decide (binary_le' hl hr) hr hl
-
-@[local fun_prop] private theorem min_pt {left right : γ → ℕ}
-    (hl : ComputableInPolyTime left input encNat)
-    (hr : ComputableInPolyTime right input encNat) :
-    ComputableInPolyTime (fun x => min (left x) (right x)) input encNat := by
-  simp only [min_def]
-  exact ite_decide (binary_le' hl hr) hl hr
+attribute [local fun_prop] binary_max' binary_min'
 
 @[local fun_prop] private theorem firstCode_pt {count : γ → ℕ}
     (h : ComputableInPolyTime count input encUnary) :
@@ -426,10 +412,8 @@ private theorem computableInPolyTime_returnStep :
     ComputableInPolyTime (fun s : EvalState α =>
       (s.1, returnStep (fuel s.1) (2 ^ fuel s.1) s.2.1 (s.2.2.getD 0)))
       (encEvalState enc) (encEvalState enc) := by
-  have hfuel' : ComputableInPolyTime (fun s : EvalState α => fuel s.1) (encEvalState enc)
-      encUnary := hfuel.comp (fst _ _)
-  unfold returnStep
-  fun_prop
+  have hinc := ComputableInPolyTime.increment
+  fun_prop [returnStep]
 
 /-- Pushing a frame is polynomial-time. -/
 private theorem computableInPolyTime_pushStep :
@@ -475,12 +459,6 @@ private theorem computableInPolySpace_evalStep [Finite Control] :
   rw [evalStep_eq]
 
 omit hfuel in
-/-- A number at most `2 ^ L` has a binary encoding of length at most `L + 1`. -/
-private theorem length_encNat_le {m L : ℕ} (h : m ≤ 2 ^ L) : (encNat m).length ≤ L + 1 := by
-  rw [encNat_apply, Nat.size_eq_bits_len]
-  exact Nat.size_le.mpr (h.trans_lt (Nat.pow_lt_pow_right (by norm_num) (by lia)))
-
-omit hfuel in
 /-- **The states of the evaluation are of polynomial size.** -/
 theorem length_encEvalState_iterate_le (a : α) (j : ℕ) :
     (encEvalState enc ((evalStep enc M fuel)^[j] (a, [], none))).length ≤
@@ -496,15 +474,15 @@ theorem length_encEvalState_iterate_le (a : α) (j : ℕ) :
   have hframe : ∀ f ∈ st.1, (encFrame f).length ≤ 7 * fuel a + 10 := by
     intro f hf
     obtain ⟨hu, hw, hs, ha⟩ := hgood.frames f hf
-    have hs' := length_encNat_le hs
-    have ha' := length_encNat_le ha
+    have hs' := length_encNat_le_of_le_two_pow hs
+    have ha' := length_encNat_le_of_le_two_pow ha
     enc_len [encFrame, hu, hw] at hs' ha' ⊢
   have hlist := length_encList_le encFrame st.1 hframe
   have hdepth := Nat.mul_le_mul_right (2 * (7 * fuel a + 10) + 1) hgood.length
   have hret : (encOption encNat st.2).length ≤ fuel a + 2 := by
     rcases hst : st.2 with _ | v
     · simp
-    · have := length_encNat_le (hgood.value v hst)
+    · have := length_encNat_le_of_le_two_pow (hgood.value v hst)
       enc_len
   simp only [encEvalState, length_encPair]
   nlinarith
@@ -563,7 +541,8 @@ theorem mem_iff_two_pow_lt_value {V : α → WordOracleComp Unit Bool} {A : Set 
   have hbounded := isBounded_coinFamily M t (enc a)
   have hacc (P : Prover Unit) : acceptProb (V a) P =
       (2 ^ t : ENNReal)⁻¹ * ∑ r, acceptFrom P P.init (some (coinFamily M t (enc a) r)) :=
-    acceptProb_eq_sum M (hV a) P
+    acceptProb_eq_sum M (by
+      simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV a) P
   have hpos : 2 ^ t ≠ 0 := by positivity
   have hcast : ((2 ^ t : ℕ) : ENNReal) = 2 ^ t := by push_cast; rfl
   have hupper (P : Prover Unit) : acceptProb (V a) P ≤ (W : ENNReal) / (2 ^ t : ℕ) := by
@@ -618,7 +597,7 @@ theorem IP_subset_PSPACE (enc : α ↪ List Bool) : IP enc ⊆ PSPACE enc := by
     exact (ComputableInPolySpace.of_polyTime hpost).comp
       ((ComputableInPolySpace.of_polyTime hcap).prod
         (computableInPolySpace_evaluate M hfuel))
-  refine mem_PSPACE_of_computableInPolySpace hdec fun a => ?_
+  refine ⟨_, hdec, fun a => ?_⟩
   rw [mem_iff_two_pow_lt_value (fun a S oracle s => hreal a S oracle s) hA a, evaluate_eq,
     decide_eq_true_iff]
 

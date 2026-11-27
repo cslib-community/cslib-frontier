@@ -11,6 +11,7 @@ import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ChunkCatalogue
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.Parameters
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ResidueClasses
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Computing an ExactTriangle instance catalogue
@@ -188,12 +189,10 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
   have ha3 : a.mem 3 = n := (haframe 3 (Or.inl (by omega))).trans hnHeader
   have ha4 : a.mem 4 = p := (haframe 4 (Or.inl (by omega))).trans hpHeader
   have h1 : Fits (w + 2) 1 := hbudget.of_le (by omega)
-  have h2 : Fits (w + 2) (1 + 1) := hbudget.of_le (by omega)
-  have h3 : Fits (w + 2) (1 + 1 + 1) := hbudget.of_le (by omega)
   have h4 : Fits (w + 2) 4 := hbudget.of_le (by omega)
   let b := a.set 31 1 |>.set 0 1 |>.set 7 D |>.set 0 2 |>.set 8 g |>.set 0 3 |>.set 6 n
   have hb : ExecWithin (w + 2) deliverParameters a b 7 := by
-    ram_eval [deliverParameters, b, ha1, ha2, ha3, h1, h2, h3, Fin.mk.injEq]
+    ram_eval [deliverParameters, b, ha1, ha2, ha3, h1, Fin.mk.injEq]
   have hb6 : (b.comap bank).regs Parameters.size = n := by
     simp +decide [b, bank, Parameters.size]
   have hb7 : (b.comap bank).regs Parameters.dimension = D := by
@@ -279,8 +278,6 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
   rw [hd18] at hyheap
   rw [hd17, hd19, hd18, hd15, hd16] at hycells
   rw [hd18] at hyframe
-  have hymeta' (i : Fin 32) (hi : 14 ≤ i.val) (hi' : i.val < 20) :
-      y.regs i = d.regs i := hymeta i hi hi'
   have hlen : y.regs pieceLength = pieceSize D g := by
     rw [hy.regs_eq (chunks_preserves pieceLength (by decide))]
     simp +decide [d, pieceLength, pieces]
@@ -289,12 +286,8 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
     simp +decide [d, pieces]
   have hyold (a' : ℕ) (ha' : a' < out) : y.mem a' = a.mem a' :=
     (hyframe a' (by omega)).trans (congrFun hdmem a')
-  refine ⟨y, ?_, (hymeta' _ (by decide) (by decide)).trans hd16,
-    (hymeta' _ (by decide) (by decide)).trans hd17,
-    (hymeta' _ (by decide) (by decide)).trans hd14,
-    (hymeta' _ (by decide) (by decide)).trans hd15,
-    (hymeta' _ (by decide) (by decide)).trans hd18,
-    (hymeta' _ (by decide) (by decide)).trans hd19,
+  refine ⟨y, ?_, by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     hlen, hpieces, hycount, hyheap, ?_, ?_, ?_, hycells, ?_⟩
   · convert ha.seq (hb.seq (hc.seq (hd.seq hy))) using 1
     · rfl

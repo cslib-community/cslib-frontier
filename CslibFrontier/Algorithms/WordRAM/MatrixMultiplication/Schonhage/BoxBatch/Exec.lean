@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxBatch.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Correctness and charged execution of a native sparse-query batch
@@ -109,32 +110,19 @@ theorem exec_queryProgram {w L m t AA BB D V K A B Q O : ℕ}
     let u := x.set BoxQuery.Reg.query (PrunedQuery.queryIndex η).val
     have hu : ExecWithin (w + 2) loadQuery x u 1 := by
       ram_eval [loadQuery, u, hnext, hload]
-    have ux : Arguments L t AA BB D V K u := by
-      rcases hx with ⟨hL, ht, hT, hA, hB, hD, hV, hC⟩
-      exact ⟨(hu.regs_eq (by decide)).trans hL, (hu.regs_eq (by decide)).trans ht,
-        (hu.regs_eq (by decide)).trans hT, (hu.regs_eq (by decide)).trans hA,
-        (hu.regs_eq (by decide)).trans hB, (hu.regs_eq (by decide)).trans hD,
-        (hu.regs_eq (by decide)).trans hV, (hu.regs_eq (by decide)).trans hC⟩
+    have ux : Arguments L t AA BB D V K u := by regs_frame
     obtain ⟨v, hv, vp, _, va, vr, vf⟩ := BoxQuery.exec_queryProgram u η
       (hη η (by simp)) a b ha hb ux.levels ux.threshold ux.span
       (by simp [u]) ux.arrayA ux.arrayB ux.directory ux.values ux.count hK hAA hBB hDir
       hread (hfit.of_le (by unfold addressBound; omega)) hmag
     have vn : v.regs Reg.next = Q :=
-      (hv.regs_eq query_preserves.1).trans ((hu.regs_eq (by decide)).trans hnext)
+      (hv.regs_eq query_preserves.1).trans (by regs_frame)
     have vo : v.regs Reg.output = O :=
-      (hv.regs_eq query_preserves.2.2).trans ((hu.regs_eq (by decide)).trans hout)
+      (hv.regs_eq query_preserves.2.2).trans (by regs_frame)
     have vs : v.regs Reg.stop = Q + (η :: qs).length :=
-      (hv.regs_eq query_preserves.2.1).trans ((hu.regs_eq (by decide)).trans hstop)
+      (hv.regs_eq query_preserves.2.1).trans (by regs_frame)
     obtain ⟨z, hz, zn, zo, zm⟩ := exec_finish v vn vo va vp.one hfQ hfO
-    have zx : Arguments L t AA BB D V K z := by
-      exact ⟨(hz.regs_eq (by decide)).trans vp.levels,
-        (hz.regs_eq (by decide)).trans vp.threshold,
-        (hz.regs_eq (by decide)).trans vp.span,
-        (hz.regs_eq (by decide)).trans vp.arrayA,
-        (hz.regs_eq (by decide)).trans vp.arrayB,
-        (hz.regs_eq (by decide)).trans vp.directory,
-        (hz.regs_eq (by decide)).trans vp.values,
-        (hz.regs_eq (by decide)).trans vp.count⟩
+    have zx : Arguments L t AA BB D V K z := by regs_frame
     have zs : z.regs Reg.stop = (Q + 1) + qs.length := by
       rw [hz.regs_eq (by decide), vs]
       simp only [List.length_cons]

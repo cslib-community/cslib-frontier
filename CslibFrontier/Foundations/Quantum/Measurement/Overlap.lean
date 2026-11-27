@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Measurement
+import Mathlib.Algebra.Ring.Identities
 import Mathlib.Analysis.Real.Sqrt
 
 /-!
@@ -81,17 +82,21 @@ theorem norm_inner_sq_add_sq_measureProb_sub_le_one {ι : Type*} [Fintype ι]
   have ha' : a' ^ 2 = 1 - p := Real.sq_sqrt hp1'
   have hb : b ^ 2 = q := Real.sq_sqrt hq0
   have hb' : b' ^ 2 = 1 - q := Real.sq_sqrt hq1'
+  have hn : a ^ 2 + a' ^ 2 = 1 := by rw [ha, ha']; ring
+  have hm : b ^ 2 + b' ^ 2 = 1 := by rw [hb, hb']; ring
   have hsum : (a * b + a' * b') ^ 2 + (a * b' - a' * b) ^ 2 = 1 := by
-    nlinarith
-  have hcross : (a * b' + a' * b) ^ 2 ≤ 1 := by
-    nlinarith [sq_nonneg (a * b - a' * b')]
-  have hdiff : p - q = (a * b' - a' * b) * (a * b' + a' * b) := by
-    nlinarith
+    rw [add_comm, ← sq_add_sq_mul_sq_add_sq, hn, add_comm (b' ^ 2), hm, one_mul]
+  have hcross : (a * b' + a' * b) ^ 2 ≤ 1 := calc
+    _ ≤ (a * b - a' * b') ^ 2 + _ := le_add_of_nonneg_left (sq_nonneg _)
+    _ = 1 := by rw [← sq_add_sq_mul_sq_add_sq, hn, hm, one_mul]
+  have hdiff : p - q = (a * b' - a' * b) * (a * b' + a' * b) := calc
+    _ = p * (1 - q) - (1 - p) * q := by ring
+    _ = _ := by rw [← hb', ← ha', ← ha, ← hb]; ring
   have h₁ : ‖inner ℂ ψ φ‖ ^ 2 ≤ (a * b + a' * b') ^ 2 := by gcongr
   have h₂ : (p - q) ^ 2 ≤ (a * b' - a' * b) ^ 2 := by
     rw [hdiff, mul_pow]
-    nlinarith [sq_nonneg (a * b' - a' * b)]
-  linarith
+    exact mul_le_of_le_one_right (sq_nonneg _) hcross
+  exact (add_le_add h₁ h₂).trans_eq hsum
 
 /-- **Nearby states give nearby measurement probabilities**: for unit states `ψ` and `φ` and a set
 `S` of outcomes, `|P_ψ(S) - P_φ(S)| ≤ ‖ψ - φ‖`. By the overlap bound,

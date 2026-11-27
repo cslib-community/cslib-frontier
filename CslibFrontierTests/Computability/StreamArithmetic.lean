@@ -316,7 +316,7 @@ example :
         {3} := by
       intro i hi
       have hgt : (1 / 2 : ℝ) < (quadRat i : ℝ) := (mem_filter.mp hi).2
-      fin_cases i <;> dsimp only at hgt ⊢ <;> simp only [quadRat] at hgt <;> try norm_num at hgt
+      fin_cases i <;> dsimp only at hgt ⊢ <;> simp only [quadRat] at hgt <;> norm_num at hgt
       simp
     have hle1 := (card_le_card hsub).trans_eq (card_singleton (3 : Fin 4))
     omega

@@ -304,8 +304,6 @@ private theorem spectralExpansion_zigzag_le_of_expect_mul_le {c : ℝ} (hc : 0 �
 theorem spectralExpansion_zigzag_le :
     (G.zigzag H).spectralExpansion ≤
       G.spectralExpansion + H.spectralExpansion + H.spectralExpansion ^ 2 := by
-  have hμ := G.spectralExpansion_nonneg
-  have hν := H.spectralExpansion_nonneg
   exact G.spectralExpansion_zigzag_le_of_expect_mul_le H (by positivity) fun h _ hf ↦
     G.expect_mul_walk_zigzag_le H h hf
 

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExplicitBlockNetwork.Graph
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount
+import CslibFrontier.Foundations.Data.Fin.Prod
 
 /-!
 # The tables of an explicit block-counting network, on numbers
@@ -60,16 +61,6 @@ variable {k q s : ℕ} {State : Type}
 
 /-! ### Products of numberings -/
 
-private theorem val_finProdFinEquiv_div {m n : ℕ} (x : Fin m × Fin n) :
-    (finProdFinEquiv x : ℕ) / n = x.1 := by
-  have := x.2.isLt
-  rw [finProdFinEquiv_apply_val, Nat.add_mul_div_left _ _ (by omega), Nat.div_eq_of_lt x.2.isLt,
-    zero_add]
-
-private theorem val_finProdFinEquiv_mod {m n : ℕ} (x : Fin m × Fin n) :
-    (finProdFinEquiv x : ℕ) % n = x.2 := by
-  rw [finProdFinEquiv_apply_val, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt x.2.isLt]
-
 /-- Digit `r < b` in base `3` of a number is that of its remainder modulo `3 ^ b`. -/
 private theorem mod_pow_div_pow_mod (x : ℕ) {r b : ℕ} (hr : r < b) :
     x % 3 ^ b / 3 ^ r % 3 = x / 3 ^ r % 3 := by
@@ -114,10 +105,10 @@ theorem decodeControlData_controlEquiv [NeZero b] (c : BlockControl k State b) :
         OutputTrack.equivFin tr)) : ℕ) := rfl
   have hdiv : (x : ℕ) / (b ^ (k + 1) * 3) =
       ((Equiv.optionCongr e).trans (finSuccEquiv s).symm) st := by
-    rw [hx, val_finProdFinEquiv_div]
+    rw [hx, finProdFinEquiv_val_div]
   have hmod : (x : ℕ) % (b ^ (k + 1) * 3) = (finProdFinEquiv (finFunctionFinEquiv fun c =>
       zmodEquiv b (off (finSuccEquiv k c)), OutputTrack.equivFin tr) : ℕ) := by
-    rw [hx, val_finProdFinEquiv_mod]
+    rw [hx, finProdFinEquiv_val_mod]
   have hst : stateOfFin e ⟨min s ((x : ℕ) / (b ^ (k + 1) * 3)) % (s + 1),
       Nat.mod_lt _ (by omega)⟩ = st := by
     have hlt := (((Equiv.optionCongr e).trans (finSuccEquiv s).symm) st).isLt
@@ -133,13 +124,13 @@ theorem decodeControlData_controlEquiv [NeZero b] (c : BlockControl k State b) :
         OutputTrack.equivFin tr := by
       ext
       simp only
-      rw [hmod, val_finProdFinEquiv_mod]
+      rw [hmod, finProdFinEquiv_val_mod]
     rw [hfin, Equiv.symm_apply_apply]
   have hoff : ∀ head,
       (x : ℕ) % (b ^ (k + 1) * 3) / 3 / b ^ ((finSuccEquiv k).symm head : ℕ) % b =
         (off head).val := by
     intro head
-    rw [hmod, val_finProdFinEquiv_div, ← finFunctionFinEquiv_symm_apply_val,
+    rw [hmod, finProdFinEquiv_val_div, ← finFunctionFinEquiv_symm_apply_val,
       Equiv.symm_apply_apply, val_zmodEquiv, Equiv.apply_symm_apply]
   simp only [decodeControlData, controlData, hst, htr, hoff]
 

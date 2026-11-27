@@ -160,7 +160,7 @@ theorem delivery_heavy_card (x : Data 128) (values : Fin 3 → ℕ → ℤ) (bef
 
 /-- All non-output controller parameters and the entire stack workspace survive delivery. -/
 theorem deliver_preserves : ∀ i : Fin 128, i ≠ heap → i ≠ outputCount → i ≠ temporary →
-    (i.val < 88 ∨ 96 ≤ i.val) → deliver.Preserves i := by decide
+    (i.val < 88 ∨ 96 ≤ i.val) → deliver.Preserves i := by decide +kernel
 
 /-- The explicit delivered state retains every non-output controller and stack register. -/
 theorem deliveryState_preserves (x : Data 128) (i : Fin 128)

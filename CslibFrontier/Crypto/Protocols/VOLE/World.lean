@@ -94,7 +94,8 @@ theorem voleWorld_cached_run {α : Type} (c : VOLECorrelation F n)
       program ()).map (fun (a, _) => (a, some c)) =
         ProbOracleComp.runWith (voleWorld F n).impl program (some c) at h
     rw [ProbOracleComp.runWith_lift] at h
-    simp only [PMF.map_comp, Function.comp_def, OracleComp.evalWith, oracle] at h
+    rw [OracleComp.evalWith_eq_interpret] at h
+    simp only [PMF.map_comp, Function.comp_def, oracle] at h
     exact h.symm
   · rcases q with ⟨⟨⟩⟩ | ⟨⟨⟩⟩ <;>
       simp only [pmf_norm, oracle, OracleComp.sumHandler, StateT.lift, voleWorld_cached_sender,
@@ -129,7 +130,7 @@ theorem voleWorld_eval {α : Type}
     simp only [PMF.map_comp, Function.comp_def]
     change PMF.map id _ = _
     rw [PMF.map_id]
-    rfl
+    exact OracleComp.evalWith_eq_interpret _ _
   · rcases q with q | q <;> cases q <;> cases state <;>
       simp [voleWorld, relate, oracle, replies, OracleComp.sumHandler, PMF.map]
 

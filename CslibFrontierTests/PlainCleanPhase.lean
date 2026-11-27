@@ -4,16 +4,22 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Probabilistic.Oracle.Iteration
+module
+-- upstream: candidate
+
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-! Clean oracle phases built from plain deterministic certificates. Upstream's copy machine,
 which does not clear its tapes, certifies a clean phase through the tidy normal form; plain
 postprocessing, branching conditions and loop counters need no tidy deterministic certificate. -/
 
+public section
+
 namespace CslibFrontierTests.PlainCleanPhase
 
 open Cslib Cslib.Probability Turing Turing.MultiTapeTM
+open Turing.MultiTapePTM.Internal.Oracle
 
 /-- The plain copy certificate of upstream's untidy copy machine is a clean phase. -/
 example : IsTidyOraclePPTOn (Operation := Unit) encBits encBits (fun w : List Bool => pure w) :=

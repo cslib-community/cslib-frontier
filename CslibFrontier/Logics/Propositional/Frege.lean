@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import Cslib.Logics.Propositional.Defs
+public import CslibFrontier.Logics.Propositional.Semantics
 public import Mathlib.Data.List.Basic
 import Mathlib.Tactic.Linarith
 
@@ -28,11 +29,11 @@ schemes form a classical axiomatization of `→`, `⊥`, `∧` and `∨`) but no
 their
 first, and the size of a proof is its number of lines.
 
-Formulas are cslib's propositions `Cslib.Logic.PL.Proposition` over the atoms `WithBot V`, with
-cslib's `⊥` (the atom `⊥`) read as falsity and cslib's `Proposition.neg φ = φ → ⊥` as negation.
-cslib's propositions are a syntax for proof systems and carry no Boolean semantics, so this file
-adds one (`Cslib.Logic.PL.Frege.Formula.eval`). No other formula type of the library fits: the CNF
-and QBF types have no implication, and circuit formulas are indexed by a fixed number of inputs.
+Formulas are cslib's propositions `Cslib.Logic.PL.Proposition` over the atoms `V`, with cslib's
+`⊥` (the constructor `Proposition.falsum`) as falsity and cslib's `Proposition.neg φ = φ → ⊥` as
+negation. Their Boolean semantics is `Cslib.Logic.PL.Proposition.eval` at `Bool`. No other
+formula type of the library fits: the CNF and QBF types have no implication, and circuit formulas
+are indexed by a fixed number of inputs.
 
 The file proves soundness (`Cslib.Logic.PL.Frege.IsProof.eval`) and the tools used to build proofs
 with explicit line counts:
@@ -47,7 +48,7 @@ with explicit line counts:
 
 ## Main definitions
 
-* `Cslib.Logic.PL.Frege.Formula`, `Cslib.Logic.PL.Frege.Formula.eval`.
+* `Cslib.Logic.PL.Frege.Formula`.
 * `Cslib.Logic.PL.Frege.IsAxiom`, `Cslib.Logic.PL.Frege.IsProof`: the Frege system.
 * `Cslib.Logic.PL.Frege.DerivableInSize`: derivability in a bounded number of lines.
 
@@ -68,32 +69,17 @@ namespace Cslib.Logic.PL.Frege
 
 variable {V : Type*}
 
-/-- Formulas: cslib's propositions over the atoms `WithBot V`, where the atom `⊥` is falsity. -/
-abbrev Formula (V : Type*) := Proposition (WithBot V)
+/-- Formulas: cslib's propositions over the atoms `V`, with `⊥` (`Proposition.falsum`) as
+falsity. -/
+abbrev Formula (V : Type*) := Proposition V
 
 namespace Formula
 
 /-- A variable. -/
-abbrev var (v : V) : Formula V := Proposition.atom (v : WithBot V)
+abbrev var (v : V) : Formula V := Proposition.atom v
 
 /-- Implication. -/
 abbrev imp (φ ψ : Formula V) : Formula V := Proposition.imp φ ψ
-
-/-- Boolean value of a formula under an assignment; the atom `⊥` is false. -/
-@[expose] def eval (σ : V → Bool) : Formula V → Bool
-  | .atom a => a.recBotCoe false σ
-  | .and φ ψ => eval σ φ && eval σ ψ
-  | .or φ ψ => eval σ φ || eval σ ψ
-  | .imp φ ψ => !eval σ φ || eval σ ψ
-
-@[simp] theorem eval_bot (σ : V → Bool) : eval σ (⊥ : Formula V) = false := rfl
-@[simp] theorem eval_var (σ : V → Bool) (v : V) : eval σ (var v) = σ v := rfl
-@[simp] theorem eval_imp (σ : V → Bool) (φ ψ : Formula V) :
-    eval σ (imp φ ψ) = (!eval σ φ || eval σ ψ) := rfl
-@[simp] theorem eval_and (σ : V → Bool) (φ ψ : Formula V) :
-    eval σ (.and φ ψ) = (eval σ φ && eval σ ψ) := rfl
-@[simp] theorem eval_or (σ : V → Bool) (φ ψ : Formula V) :
-    eval σ (.or φ ψ) = (eval σ φ || eval σ ψ) := rfl
 
 /-- `a₁ → (a₂ → ⋯ → (aₖ → φ))`. -/
 @[expose] def imps (Δ : List (Formula V)) (φ : Formula V) : Formula V := Δ.foldr imp φ
@@ -140,7 +126,8 @@ inductive IsProof (Γ : List (Formula V)) : List (Formula V) → Prop
 
 /-- Every axiom instance is true under every assignment. -/
 theorem IsAxiom.eval {φ : Formula V} (h : IsAxiom φ) (σ : V → Bool) : φ.eval σ = true := by
-  cases h <;> simp only [eval_imp, eval_and, eval_or, eval_bot] <;>
+  cases h <;> simp only [Proposition.eval_imp_bool, Proposition.eval_and_bool,
+    Proposition.eval_or_bool, Proposition.eval_bot_bool] <;>
     grind
 
 /-- **Soundness**: under an assignment satisfying every hypothesis, every line is true. -/
@@ -154,7 +141,7 @@ theorem IsProof.eval {Γ L : List (Formula V)} (h : IsProof Γ L) {σ : V → Bo
     refine List.forall_mem_cons.2 ⟨?_, ih⟩
     have e₁ := ih _ h₁
     have e₂ := ih _ h₂
-    simp only [eval_imp, e₁, Bool.not_true, Bool.false_or] at e₂
+    simp only [Proposition.eval_imp_bool, e₁, Bool.not_true, Bool.false_or] at e₂
     exact e₂
 
 /-- `L'` extends the proof `L` by at most `n` lines. -/

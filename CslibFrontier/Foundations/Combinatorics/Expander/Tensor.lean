@@ -174,7 +174,6 @@ theorem spectralExpansion_tensor_le :
   have hG := le_max_left G.spectralExpansion H.spectralExpansion
   have hH := le_max_right G.spectralExpansion H.spectralExpansion
   have hG0 := G.spectralExpansion_nonneg
-  have hH0 := H.spectralExpansion_nonneg
   refine spectralExpansion_le (hG0.trans hG) fun f hf ↦ ?_
   rcases isEmpty_or_nonempty D' with hD' | hD'
   · have : (G.tensor H).walk f = 0 := funext fun p ↦ by simp [walk_tensor_apply]

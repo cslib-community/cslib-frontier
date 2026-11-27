@@ -57,9 +57,7 @@ def unrankCombination : ℕ → ℕ → ℕ → List Bool
     else true :: unrankCombination m (k - 1) (r - m.choose k)
 
 @[simp] theorem length_unrankCombination (m k r : ℕ) : (unrankCombination m k r).length = m := by
-  induction m generalizing k r with
-  | zero => rfl
-  | succ m ih => simp only [unrankCombination]; split_ifs <;> simp [ih]
+  fun_induction unrankCombination m k r <;> simp_all
 
 /-- A rank below `C(m, k)` unranks to an indicator of weight `k`. -/
 theorem count_true_unrankCombination {m k r : ℕ} (hr : r < m.choose k) :

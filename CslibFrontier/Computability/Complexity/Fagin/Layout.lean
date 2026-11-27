@@ -7,8 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Fagin.Power
+public import CslibFrontier.Logics.FirstOrder.Basic
 public import CslibFrontier.Logics.FirstOrder.Encoding.Layout
+public import CslibFrontier.Logics.FirstOrder.Encoding.Power
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 import CslibFrontier.Tactic.FirstOrder.Simp
 
@@ -154,8 +155,8 @@ theorem nextBase_and_getElem?_frame_of_realize_frameChunkSentence
       simp only [Matrix.cons_val_zero] at hmap0 hsj
       have hy0 : (y 0 : ℕ) = base + 2 * m := (ih (by omega) j₀ (y 0) rfl).1 hmap0
       have hy2 : (y 2 : ℕ) = base + 2 * (m + 1) := by omega
-      rw [show y 3 = j from Fin.ext (by omega)] at hmap1
-      refine ⟨fun hjp => ?_, fun hp => by rwa [show p = y 2 from Fin.ext (by omega)]⟩
+      rw [show y 3 = j by omega] at hmap1
+      refine ⟨fun hjp => ?_, fun hp => by rwa [show p = y 2 by omega]⟩
       have heq : p = y 2 := hfunc ![j, p, y 2] ⟨hjp, hmap1⟩
       rw [heq, hy2]
   let jM : Fin B := ⟨w.length, hMB⟩
@@ -203,7 +204,7 @@ theorem realize_frameChunkSentence_of_canonical
   fo_simp [frameChunkSentence, realize_isZero hlt, realize_succ hlt,
     realize_isFirstOut hlt hMB hdom]
   refine ⟨⟨⟨fun v ⟨h1, h2⟩ => ?_, fun v hv0 => ?_⟩, fun v hv => ?_⟩, fun v hv => ?_⟩
-  · rw [hmap] at h1 h2; exact Fin.ext (by omega)
+  · rw [hmap] at h1 h2; omega
   · rw [hmap, hbase, hv0]; omega
   · have hj : (v 0 : ℕ) < w.length := (hdom (v 0)).1 hv
     let p0 : Fin B := ⟨base + 2 * (v 0 : ℕ), by omega⟩
@@ -235,57 +236,11 @@ end FinOrder
 
 end FO
 
-/-! ### Prefix decomposition of `encStructure a` -/
+/-! ### Prefixes of `encStructure a` inside the encoding -/
 
 namespace Vocabulary
 
 variable {L : Language.{u, v}} (v : Vocabulary L)
-
-/-- The prefix of `encStructure a` consisting of `frame (encUnary a.1)` followed by the framed
-truth tables of the first `m` relation symbols of `v`. -/
-def encStructurePrefix (a : EncodedStructure) (m : ℕ) : List Bool :=
-  frame (encUnary a.1) ++
-    (((List.ofFn fun i : Fin v.count => v.table a (v.symbol i)).take m).flatMap frame)
-
-@[simp]
-theorem encStructurePrefix_zero (a : EncodedStructure) :
-    v.encStructurePrefix a 0 = frame (encUnary a.1) := by
-  simp [encStructurePrefix]
-
-theorem encStructurePrefix_succ (a : EncodedStructure) (i : Fin v.count) :
-    v.encStructurePrefix a (i.1 + 1) =
-      v.encStructurePrefix a i.1 ++ frame (v.table a (v.symbol i)) := by
-  simp only [encStructurePrefix]
-  have htake :
-      (List.ofFn fun j : Fin v.count => v.table a (v.symbol j)).take (i.1 + 1) =
-        (List.ofFn fun j : Fin v.count => v.table a (v.symbol j)).take i.1 ++
-          [v.table a (v.symbol i)] := by
-    rw [List.take_add_one, List.getElem?_eq_getElem (by simp [i.2]), List.getElem_ofFn]
-    simp
-  rw [htake, List.flatMap_append, List.flatMap_singleton, List.append_assoc]
-
-theorem encStructurePrefix_count {a : EncodedStructure} (ha : v.WellFormed a) :
-    v.encStructurePrefix a v.count = encStructure a := by
-  simp only [encStructurePrefix, encStructure, encPair_apply, encList]
-  congr 1
-  have htables : (List.ofFn fun i : Fin v.count => v.table a (v.symbol i)) = a.2 := by
-    refine List.ext_getElem (by simp [ha.1]) fun i hi hi' => ?_
-    simp only [List.getElem_ofFn, table, index, Equiv.symm_apply_apply]
-    exact List.getD_eq_getElem a.2 [] hi'
-  rw [List.take_of_length_le (by simp), htables]
-  rfl
-
-/-- The prefix through the first `m` tables ends where the table at position `m` starts
-(`Cslib.Logic.tableStart`). -/
-theorem length_encStructurePrefix {a : EncodedStructure} {m : ℕ} (hm : m ≤ a.2.length)
-    (hmc : m ≤ v.count) : (v.encStructurePrefix a m).length = tableStart a m := by
-  have htake : (List.ofFn fun i : Fin v.count => v.table a (v.symbol i)).take m = a.2.take m := by
-    refine List.ext_getElem (by simp only [List.length_take, List.length_ofFn]; omega)
-      fun i hi hi' => ?_
-    simp only [List.getElem_take, List.getElem_ofFn, table, index, Equiv.symm_apply_apply]
-    exact List.getD_eq_getElem a.2 [] (by simp only [List.length_take] at hi'; omega)
-  rw [encStructurePrefix, htake, List.length_append, length_frame, length_flatMap_frame,
-    tableStart, encUnary_apply, List.length_replicate]
 
 private theorem length_encStructurePrefix_le (a : EncodedStructure) {m : ℕ} (hm : m ≤ v.count) :
     (v.encStructurePrefix a m).length ≤ (v.encStructurePrefix a v.count).length := by
@@ -513,7 +468,7 @@ private theorem realize_layoutInRaw_iff (a : EncodedStructure) {B : ℕ}
   refine ⟨fun ⟨y, hy, hjy⟩ => ?_, fun hj => ⟨![⟨(encStructure a).length, hrawB⟩],
     (hbase_last _).2 rfl, by simpa [Fin.lt_def] using hj⟩⟩
   have hy' := (hbase_last (y 0)).1 hy
-  rw [Fin.lt_def] at hjy; omega
+  omega
 
 private theorem realize_layoutMatrix_sound {a : EncodedStructure} (ha : v.WellFormed a) {B : ℕ}
     (hB : (frame (encStructure a)).length < B)

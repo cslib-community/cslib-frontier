@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.RecordData
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Logical instance cursor independent of physical storage
@@ -53,16 +54,12 @@ theorem Cursor.transfer {n D g p : ℕ} {values : ℕ → ℤ} {x y : Data 64}
   have same (j : Fin 64)
       (hj : 32 ≤ j.val ∧ j.val < 50 ∧ j ≠ Instances.heap ∧ j ≠ Instances.produced) :
       y.regs j = x.regs j := hr j hj.1 hj.2.1 hj.2.2.2 hj.2.2.1
-  exact ⟨(same _ (by decide)).trans h.size, (same _ (by decide)).trans h.dimension,
-    (same _ (by decide)).trans h.modulus, (same _ (by decide)).trans h.pieceLength,
-    (same _ (by decide)).trans h.pieces, (same _ (by decide)).trans h.chunks,
-    (same _ (by decide)).trans h.descriptors,
+  exact ⟨by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     by rw [same Instances.output (by decide), same Instances.chunks (by decide)]; exact h.output,
     by rw [same Instances.total (by decide), same Instances.chunks (by decide),
       same Instances.pieces (by decide)]; exact h.total,
-    (same _ (by decide)).trans h.stride, (same _ (by decide)).trans h.one,
-    (same _ (by decide)).trans h.three, (same _ (by decide)).trans h.srcLeft,
-    (same _ (by decide)).trans h.srcRight⟩
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame⟩
 
 /-- The existing charged writer advances logical identity and allocation without changing
 any stable cursor metadata. It need not preserve earlier physical records. -/

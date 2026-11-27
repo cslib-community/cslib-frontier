@@ -33,11 +33,12 @@ of `x ++ r` of the same size up to two gates.
 * `Cslib.Circuits.Boolean.frameWiring`, `Cslib.Circuits.Boolean.framedSlice`: the input-and-constant
   substitution building `frame x ++ r` from `x ++ r`, and the slice of a language pulled back along
   that framing.
-* `Cslib.Circuits.Boolean.encodes`, `Cslib.Circuits.Boolean.encodesMember`: the words of length `n`
-  in the image of an encoding `enc`, and the indicator of encoded members of a set `A`.
 
 ## Main results
 
+* `Cslib.Circuits.Boolean.exists_complexity_slice_le_of_computableInTime`: the instances on which
+  a Boolean function computable within time `t n` is true are the preimage of a language whose
+  slices have `O((n + t n) ^ 2)` gates.
 * `Cslib.Circuits.Boolean.PPoly.exists_of_polyTime`: the instances on which a Boolean function
   computable in polynomial time is true are the preimage of a language in `P/poly`.
 * `Cslib.Circuits.Boolean.P_subset_PPolyOn`: `P ⊆ P/poly`, for problems with any encoding of their
@@ -57,22 +58,35 @@ of `x ++ r` of the same size up to two gates.
 
 namespace Cslib.Circuits.Boolean
 
-open Turing Turing.MultiTapeTM MachineSimulation
+open Language Turing Turing.MultiTapeTM MachineSimulation
+
+/-- **Time `t` gives circuits with `O((n + t n) ^ 2)` gates.** The instances on which a Boolean
+function computable within time `t n` is true, on instances whose encoding has length `n`, are the
+preimage under the encoding of a language whose slice at length `n` has circuit complexity at
+most `C (n + t n + 1) ^ 2`, for a constant `C`
+(`Cslib.Circuits.Boolean.MachineSimulation.complexity_slice_acceptedWithin_le`). -/
+theorem exists_complexity_slice_le_of_computableInTime {α : Type*} {enc : α ↪ List Bool}
+    {f : α → Bool} {t s : ℕ → ℕ} (hf : ComputableInTimeAndSpaceOfLength f enc encBool t s) :
+    ∃ (L : Language Bool) (C : ℕ), (∀ a, f a = true ↔ enc a ∈ L) ∧
+      ∀ n, complexity interpretation (single (L.slice n)) ≤ C * (n + t n + 1) ^ 2 := by
+  obtain ⟨k, State, hfin, tm, htm⟩ := hf
+  have := Fintype.ofFinite State
+  classical
+  obtain ⟨C, hC⟩ := complexity_slice_acceptedWithin_le tm
+  refine ⟨acceptedWithin tm t, C, fun a => ?_, hC t⟩
+  obtain ⟨-, hout⟩ := (htm a).runFrom_of_le le_rfl
+  rw [mem_acceptedWithin_iff, hout, encBool_apply]
+  simp [OutView.ofList]
 
 /-- The instances on which a Boolean function computable in polynomial time is true are the
 preimage, under the encoding, of a language in `P/poly`. -/
 theorem PPoly.exists_of_polyTime {α : Type*} {enc : α ↪ List Bool} {f : α → Bool}
     (hf : ComputableInPolyTime f enc encBool) :
     ∃ L ∈ PPoly, ∀ a, f a = true ↔ enc a ∈ L := by
-  obtain ⟨t, s, ht, -, k, State, hfin, tm, htm⟩ := hf
-  obtain ⟨c, d, ht⟩ := polynomiallyBounded_iff_le.mp ht
-  have := Fintype.ofFinite State
-  classical
-  refine ⟨acceptedWithin tm fun n => c * (n + 1) ^ d, acceptedWithin_mem_PPoly tm (by fun_prop),
-    fun a => ?_⟩
-  obtain ⟨-, hout⟩ := (htm a).runFrom_of_le (ht (enc a).length)
-  rw [mem_acceptedWithin_iff, hout, encBool_apply]
-  simp [OutView.ofList]
+  obtain ⟨t, s, ht, -, htm⟩ := hf
+  obtain ⟨L, C, hL, hC⟩ := exists_complexity_slice_le_of_computableInTime htm
+  exact ⟨L, mem_PPoly.2 ((show PolynomiallyBounded fun n => C * (n + t n + 1) ^ 2 by fun_prop)
+    |>.mono_of_le hC), hL⟩
 
 /-- **P ⊆ P/poly.** A problem in `P`, with any encoding `enc` of its instances, is the preimage
 under `enc` of a language in `P/poly`. -/
@@ -137,28 +151,6 @@ section Encoded
 
 variable {α : Type} {enc : α ↪ List Bool} {p : Polynomial ℕ} {V : α × List Bool → Bool}
   {L : Language Bool}
-
-/-- The words of length `n` that encode an instance. -/
-def encodes (enc : α ↪ List Bool) (n : ℕ) : Set (Fin n → Bool) := {x | ∃ a, enc a = List.ofFn x}
-
-open scoped Classical in
-/-- Whether the word `x` encodes a member of `A`. -/
-noncomputable def encodesMember (enc : α ↪ List Bool) (A : Set α) (n : ℕ) : BooleanFunction n :=
-  fun x => decide (∃ a ∈ A, enc a = List.ofFn x)
-
-/-- On a word `x` encoding `a`, `encodesMember enc A n x` is `true` iff `a ∈ A`. -/
-theorem encodesMember_eq_true_iff {A : Set α} {n : ℕ} {x : Fin n → Bool} {a : α}
-    (ha : enc a = List.ofFn x) : encodesMember enc A n x = true ↔ a ∈ A := by
-  rw [encodesMember, @decide_eq_true_iff _ (Classical.propDecidable _)]
-  exact ⟨fun ⟨b, hb, hba⟩ => enc.injective (hba.trans ha.symm) ▸ hb, fun h => ⟨a, h, ha⟩⟩
-
-/-- A language agreeing with `encodesMember enc A` on encoded words contains exactly the encodings
-of the members of `A`. -/
-theorem mem_iff_of_slice_eq_encodesMember {A : Set α}
-    (h : ∀ n, ∀ x ∈ encodes enc n, L.slice n x = encodesMember enc A n x) (a : α) :
-    a ∈ A ↔ enc a ∈ L := by
-  have hx : List.ofFn (fun i : Fin (enc a).length => (enc a)[i]) = enc a := List.ofFn_getElem
-  rw [← encodesMember_eq_true_iff hx.symm, ← h _ _ ⟨a, hx.symm⟩, Language.slice_eq_true_iff, hx]
 
 /-- The verifier on an encoded instance, as the framed slice of the language deciding it. -/
 theorem verifier_eq_true_iff (hVL : ∀ y, V y = true ↔ encPair enc encBits y ∈ L) {n : ℕ}

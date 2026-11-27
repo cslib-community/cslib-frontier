@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Matrix
 public import Mathlib.Combinatorics.SimpleGraph.Connectivity.Connected
 
 /-!
@@ -84,12 +85,11 @@ variable (I : USTCONInstance)
 theorem n_pos : 0 < I.n :=
   Fin.pos I.s
 
-/-- The simple graph of an instance: `a` and `b` are adjacent when the entry of the row `a` and the
-column `b` of the adjacency matrix is set. -/
-def graph : SimpleGraph (Fin I.n) where
-  Adj a b := I.adj a b = true
-  symm.symm a b h := (I.symm b a).trans h
-  loopless.irrefl a h := by simp [I.loopless] at h
+/-- Forget the terminals, retaining the same matrix and vertex numbering. -/
+def toUGraphInstance : UGraphInstance := ⟨I.n, I.adj, I.symm, I.loopless⟩
+
+/-- The simple graph of the underlying terminal-free matrix. -/
+def graph : SimpleGraph (Fin I.n) := I.toUGraphInstance.graph
 
 /-- Adjacency in the graph of an instance is decidable. -/
 instance : DecidableRel I.graph.Adj :=
@@ -192,7 +192,9 @@ theorem edgeTwo_mem_USTCON : edgeTwo ∈ USTCON :=
 theorem emptyTwo_notMem_USTCON : emptyTwo ∉ USTCON := by
   rintro ⟨p⟩
   cases p with
-  | cons hadj _ => exact absurd hadj (by simp [emptyTwo, graph])
+  | cons hadj _ =>
+    have h := (graph_adj emptyTwo).1 hadj
+    contradiction
 
 /-- `USTCONInstance.ofBool b` belongs to `USTCON` if and only if `b = true`. -/
 @[simp]

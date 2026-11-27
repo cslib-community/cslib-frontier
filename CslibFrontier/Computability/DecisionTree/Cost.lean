@@ -111,6 +111,18 @@ theorem cost_le_depth (t : DecisionTree ι β) (x : ι → Bool) : t.cost x ≤ 
   simpa only [cost, weightedDepth_const, Nat.mul_one] using
     t.weightedCost_le_weightedDepth (fun _ => 1) x
 
+/-- The distinct variables queried on an input are at most the queries executed on it. -/
+theorem card_queries_le_cost [DecidableEq ι] (t : DecisionTree ι β) (x : ι → Bool) :
+    (t.queries x).card ≤ t.cost x := by
+  induction t with
+  | leaf => simp
+  | node i t₀ t₁ ih₀ ih₁ =>
+    simp only [queries_node, cost_node]
+    refine (Finset.card_insert_le _ _).trans ?_
+    cases x i
+    · exact Nat.add_le_add_right ih₀ 1
+    · exact Nat.add_le_add_right ih₁ 1
+
 /-- Relabelling queries pulls their costs back along the relabelling function. -/
 @[simp] theorem weightedDepth_mapQueries (f : ι → κ) (t : DecisionTree ι β) (w : κ → ℕ) :
     (t.mapQueries f).weightedDepth w = t.weightedDepth (w ∘ f) := by

@@ -84,11 +84,14 @@ orthogonal drawing of its incidence graph. -/
   formula : CNF ℕ
   /-- The supplied integer orthogonal incidence drawing. -/
   drawing : Graph.OrthogonalDrawing
-  deriving DecidableEq, Repr
+  deriving DecidableEq, Repr, Inhabited
 
 /-- Binary encoding of a CNF formula and its supplied orthogonal incidence drawing. -/
 enc_structure encDrawnPlanarThreeSATThree : DrawnPlanarThreeSATThreeInstance where
   formula : encCNF, drawing : Graph.encOrthogonalDrawing
+
+attribute [fun_prop] encDrawnPlanarThreeSATThree_formula_polyTime
+  encDrawnPlanarThreeSATThree_drawing_polyTime encDrawnPlanarThreeSATThree_mk_polyTime
 
 /-- Satisfiable width-three, occurrence-three formulas whose actual incidence graph admits an
 integer orthogonal drawing with continuous endpoint-only contacts. -/
@@ -121,13 +124,7 @@ private theorem rejection_drawing : Graph.IsPlanarOrthogonalDrawing
 @[fun_prop]
 theorem computableInPolyTime_toDrawnPlanarThreeSATThree :
     ComputableInPolyTime toDrawnPlanarThreeSATThree encCNF encDrawnPlanarThreeSATThree := by
-  have hdraw : ComputableInPolyTime
-      (fun φ => (SAT.ParsimoniousPlanar.positions φ, SAT.ParsimoniousPlanar.routes φ))
-      encCNF Graph.encOrthogonalDrawing := by
-    unfold Graph.encOrthogonalDrawing
-    fun_prop
-  unfold toDrawnPlanarThreeSATThree
-  fun_prop
+  fun_prop [toDrawnPlanarThreeSATThree]
 
 /-- Dropping the computed drawing gives a native polynomial-time formula compiler. -/
 @[fun_prop]

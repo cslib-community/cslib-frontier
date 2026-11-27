@@ -48,10 +48,11 @@ The original saved state and the `false` ciphertext tag are passed to the guessi
     (evaluateGuess : (ℕ × List Bool × List Bool) → List Bool → Bool)
     (bit : Bool) (chooseCoins encCoins : ℕ)
     (input : ℕ × List (List Bool) × List (List (List Bool))) (tape : List Bool) : Bool :=
-  let choice := evaluateChoose (input.1, encPublicKey input.2) (tape.take chooseCoins)
+  let artifact := input.2
+  let choice := evaluateChoose (input.1, encPublicKey artifact) (tape.take chooseCoins)
   let remaining := tape.drop chooseCoins
-  let ciphertext := evaluateEncrypt
-    (input.1, input.2.1.getD 0 [], if bit then choice.1.2 else choice.1.1)
+  let ciphertext := evaluateEncrypt (input.1, artifact.1.getD 0 [],
+    if bit then Encryption.ChoiceOut.msg₁ choice else Encryption.ChoiceOut.msg₀ choice)
     (remaining.take encCoins)
   evaluateGuess (input.1, choice.2, false :: ciphertext) (remaining.drop encCoins)
 
@@ -71,7 +72,8 @@ theorem eval_publicKeyGame_eq_map_coins (E : Scheme) (adversary : Encryption.Adv
         (evaluateEncrypt (n, artifact.1.getD 0 [], message)))
     (hguess : ∀ choice ∈ (ProbComp.eval (adversary.choose n (encPublicKey artifact))).support,
       ∀ ciphertext ∈ (ProbComp.eval (E.encrypt n (artifact.1.getD 0 [])
-        (if bit then choice.1.2 else choice.1.1))).support,
+        (if bit then Encryption.ChoiceOut.msg₁ choice
+          else Encryption.ChoiceOut.msg₀ choice))).support,
       ProbComp.eval (adversary.guess n choice.2 (false :: ciphertext)) =
         (BitString.uniformList guessCoins).map
           (evaluateGuess (n, choice.2, false :: ciphertext))) :
@@ -82,7 +84,8 @@ theorem eval_publicKeyGame_eq_map_coins (E : Scheme) (adversary : Encryption.Adv
   simp only [publicKeyGame, ProbComp.eval_bind]
   trans (ProbComp.eval (adversary.choose n (encPublicKey artifact))).bind (fun choice =>
     (ProbComp.eval (E.encrypt n (artifact.1.getD 0 [])
-      (if bit then choice.1.2 else choice.1.1))).bind (fun ciphertext =>
+      (if bit then Encryption.ChoiceOut.msg₁ choice
+        else Encryption.ChoiceOut.msg₀ choice))).bind (fun ciphertext =>
       (BitString.uniformList guessCoins).map
         (evaluateGuess (n, choice.2, false :: ciphertext))))
   · apply PMF.bind_congr_on_support
@@ -130,31 +133,7 @@ parameter, tape, and unary component budgets. -/
     (htape : ComputableInPolyTime tape input encBits) :
     ComputableInPolyTime (fun a => publicKeyGameCoins evaluateChoose evaluateEncrypt evaluateGuess
       bit (chooseCoins a) (encCoins a) (n a, artifact a) (tape a)) input encBool := by
-  have hpublic := hartifact.encoding_comp
-  have hchoice := hchoose.comp (show ComputableInPolyTime
-    (fun a => ((n a, encPublicKey (artifact a)), (tape a).take (chooseCoins a))) input
-      (encPair (encPair encUnary encBits) encBits) by fun_prop)
-  have hfirst := (ComputableInPolyTime.listGetD (encA := encBits) []).comp
-    (hartifact.fst'.prod (ComputableInPolyTime.const 0))
-  have hcipher := hencrypt.comp (show ComputableInPolyTime (fun a =>
-    ((n a, (artifact a).1.getD 0 [], if bit then
-      (evaluateChoose (n a, encPublicKey (artifact a)) ((tape a).take (chooseCoins a))).1.2
-      else (evaluateChoose (n a, encPublicKey (artifact a))
-        ((tape a).take (chooseCoins a))).1.1),
-      ((tape a).drop (chooseCoins a)).take (encCoins a))) input
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) by
-    cases bit <;> fun_prop)
-  unfold publicKeyGameCoins
-  exact hguess.comp (show ComputableInPolyTime (fun a =>
-    ((n a, (evaluateChoose (n a, encPublicKey (artifact a))
-      ((tape a).take (chooseCoins a))).2,
-      false :: evaluateEncrypt (n a, (artifact a).1.getD 0 [], if bit then
-        (evaluateChoose (n a, encPublicKey (artifact a)) ((tape a).take (chooseCoins a))).1.2
-        else (evaluateChoose (n a, encPublicKey (artifact a))
-          ((tape a).take (chooseCoins a))).1.1)
-        (((tape a).drop (chooseCoins a)).take (encCoins a))),
-      ((tape a).drop (chooseCoins a)).drop (encCoins a))) input
-      (encPair (encPair encUnary (encPair encBits encBits)) encBits) by fun_prop)
+  fun_prop [publicKeyGameCoins]
 
 end Cslib.Crypto.Homomorphic.Leveled
 
@@ -272,9 +251,6 @@ and tape; no validity restriction is needed for this total computational certifi
       (fun p seed => Leveled.publicKeyGameCoins evaluateChoose evaluateEncrypt evaluateGuess
         bit (chooseCoins p.1) (encCoins p.1) p seed) (n a) (encCoins (n a)) (capacity (n a))
         (state a) (challenge a) (tape a)) input encBool := by
-  apply computableInPolyTime_guessLinkCoins hencrypt
-  · apply Leveled.computableInPolyTime_publicKeyGameCoins hchoose hencrypt hguess bit
-    all_goals fun_prop
-  all_goals fun_prop
+  fun_prop
 
 end Cslib.Crypto.Homomorphic.Scheme

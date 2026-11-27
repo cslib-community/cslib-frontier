@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Foundations.Data.List.Counting
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Nat.Size
 
@@ -103,8 +104,7 @@ variable {p : ℕ}
 
 theorem natCast_subMod [NeZero p] (a b : ℕ) : ((subMod p a b : ℕ) : ZMod p) = a - b := by
   unfold subMod
-  rw [ZMod.natCast_mod, Nat.cast_add, Nat.cast_sub (Nat.mod_lt _ (NeZero.pos p)).le,
-    ZMod.natCast_mod, ZMod.natCast_self, ZMod.natCast_mod]
+  rw [ZMod.natCast_mod, Nat.cast_add, ZMod.natCast_sub_mod_eq_neg, ZMod.natCast_mod]
   ring
 
 theorem natCast_connectiveMod [NeZero p] (o : ArithQBF.Connective) (a b : ℕ) :
@@ -236,6 +236,14 @@ theorem lt_of_mem_decodeReply [NeZero p] {D : ℕ} {word : List Bool} {a : ℕ}
     (ha : a ∈ decodeReply p D word) : a < p := by
   obtain ⟨row, -, rfl⟩ := List.mem_map.1 ha
   exact Nat.mod_lt _ (NeZero.pos p)
+
+/-- Every entry of a decoded reply, with default `0`, is a residue below `p`. -/
+theorem getD_decodeReply_lt [NeZero p] (D : ℕ) (word : List Bool) (i : ℕ) :
+    (decodeReply p D word).getD i 0 < p := by
+  rw [List.getD_eq_getElem?_getD]
+  rcases hget : (decodeReply p D word)[i]? with _ | a
+  · exact NeZero.pos p
+  · exact lt_of_mem_decodeReply (List.mem_of_getElem? hget)
 
 private theorem lt_two_pow_width {a : ℕ} (hp : a < p) : a < 2 ^ width p :=
   hp.trans (Nat.lt_pow_succ_log_self (by norm_num) p)

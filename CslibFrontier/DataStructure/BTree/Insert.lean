@@ -67,6 +67,8 @@ universe w
 
 namespace Cslib.DataStructure.BTree
 
+open Cslib.SortedAssoc (leI)
+
 /-- The result of inserting into a subtree: a tree of the same height, or an overflow split
 into two trees of the same height around a median entry. -/
 inductive InsertResult (α : Type) (β : Type) : Type where

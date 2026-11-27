@@ -110,9 +110,9 @@ attribute [local irreducible] ComputableInPolyTime
 
 /-! ### The `2`-adic valuation by halving -/
 
-/-- The valuation by halving is `padicValNat 2` whenever the fuel exceeds the valuation. -/
-theorem twoValAux_eq_of_lt : ∀ (k m : ℕ), (m = 0 ∨ padicValNat 2 m < k) →
-    twoValAux k m = padicValNat 2 m
+/-- The valuation by halving is `multiplicity 2` whenever the fuel exceeds the valuation. -/
+theorem twoValAux_eq_of_lt : ∀ (k m : ℕ), (m = 0 ∨ multiplicity 2 m < k) →
+    twoValAux k m = multiplicity 2 m
   | 0, m, h => by
     rcases h with rfl | h
     · rw [twoValAux]; simp
@@ -122,16 +122,18 @@ theorem twoValAux_eq_of_lt : ∀ (k m : ℕ), (m = 0 ∨ padicValNat 2 m < k) �
     split_ifs with hm
     · obtain ⟨hm0, hm2⟩ := hm
       have hm' : m = 2 * (m / 2) := by omega
-      have hv : padicValNat 2 m = padicValNat 2 (m / 2) + 1 := by
-        conv_lhs => rw [hm', padicValNat.mul two_ne_zero (by omega), padicValNat_self, add_comm]
+      have hv : multiplicity 2 m = multiplicity 2 (m / 2) + 1 := by
+        conv_lhs => rw [hm', Nat.multiplicity_mul two_ne_zero (by omega),
+          Nat.Prime.multiplicity_self, add_comm]
       rw [hv, twoValAux_eq_of_lt k (m / 2) (by omega)]
     · by_cases hm0 : m = 0
       · rw [hm0]; simp
-      · exact (padicValNat.eq_zero_of_not_dvd fun h2 => hm ⟨hm0, by omega⟩).symm
+      · exact (multiplicity_eq_zero_of_not_dvd fun h2 => hm ⟨hm0, by omega⟩).symm
 
 /-- The valuation of a nonzero natural is below its bit length. -/
-theorem padicValNat_two_lt_size {m : ℕ} (hm : m ≠ 0) : padicValNat 2 m < m.size := by
-  have h1 : 2 ^ padicValNat 2 m ≤ m := Nat.le_of_dvd (Nat.pos_of_ne_zero hm) pow_padicValNat_dvd
+theorem multiplicity_two_lt_size {m : ℕ} (hm : m ≠ 0) : multiplicity 2 m < m.size := by
+  have h1 : 2 ^ multiplicity 2 m ≤ m :=
+    Nat.le_of_dvd (Nat.pos_of_ne_zero hm) (pow_multiplicity_dvd _ _)
   have h2 := Nat.lt_size_self m
   exact (Nat.pow_lt_pow_iff_right (by norm_num)).mp (h1.trans_lt h2)
 
@@ -141,7 +143,7 @@ theorem twoVal_eq_twoValAux_size (n : ℤ) : twoVal n = twoValAux n.natAbs.size 
   · rfl
   · by_cases h : n.natAbs = 0
     · exact .inl h
-    · exact .inr (padicValNat_two_lt_size h)
+    · exact .inr (multiplicity_two_lt_size h)
 
 /-- One step of the valuation by halving, on the value, the count and whether it has stopped. -/
 def twoValStep (s : ℕ × ℕ × Bool) : ℕ × ℕ × Bool :=
@@ -248,7 +250,7 @@ theorem ediv_two_pow_twoVal (n : ℤ) :
     n / 2 ^ twoVal n = if n < 0 then -((n.natAbs / 2 ^ twoVal n : ℕ) : ℤ)
       else ((n.natAbs / 2 ^ twoVal n : ℕ) : ℤ) := by
   have hdvd : 2 ^ twoVal n ∣ n.natAbs := by
-    rw [twoVal_eq]; exact pow_padicValNat_dvd
+    rw [twoVal_eq]; exact pow_multiplicity_dvd _ _
   have hdvd' : (2 : ℤ) ^ twoVal n ∣ (n.natAbs : ℤ) := by exact_mod_cast hdvd
   generalize twoVal n = v at *
   split_ifs with h

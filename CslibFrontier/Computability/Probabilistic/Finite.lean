@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Foundations.Data.List.Fold
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import Mathlib.Data.Fintype.Basic
 
 /-!
@@ -26,7 +27,8 @@ return values of unbounded encoded length, which its certificate charges.
 ## References
 
 Adapts Computability/Probabilistic/Finite.lean on the cslib `crypto` branch at
-`5ff69ca93402e7c947208dc56396d6d86203ccd8`, using the existing tidy calculus and closed PPT rules.
+`5ff69ca93402e7c947208dc56396d6d86203ccd8`, using plain deterministic callbacks and closed PPT
+rules.
 -/
 
 public section
@@ -43,13 +45,12 @@ theorem IsPPTOn.finite_cases
     (htag : ComputableInPolyTime tag input tagEncoding)
     (hbranch : ∀ choice, IsPPTOn input output (branch choice)) :
     IsPPTOn input output (fun a => branch (tag a) a) := by
-  have htag := htag.tidy
   classical
   let _ := Fintype.ofFinite Tag
   cases isEmpty_or_nonempty Tag with
   | inl hempty =>
     let : IsEmpty α := ⟨fun a => isEmptyElim (tag a)⟩
-    apply (ComputableTidilyInPolyTime.of_finite (encA := input) (encB := output)
+    apply (ComputableInPolyTime.of_finite (encIn := input) (encOut := output)
       (fun a : α => isEmptyElim a)).isPPTOn.congr
     intro a
     exact isEmptyElim a

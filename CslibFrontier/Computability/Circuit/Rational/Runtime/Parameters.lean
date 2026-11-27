@@ -192,10 +192,7 @@ theorem computableInPolyTime_generatorParameters :
       (encPair encUnary encUnary)
       (encPair encUnary (encPair encUnary (encPair encUnary (encPair encUnary
         (encPair encUnary encUnary))))) := by
-  have hn := ComputableInPolyTime.fst encUnary encUnary
-  have hs := ComputableInPolyTime.snd encUnary encUnary
-  unfold generatorParameters
-  fun_prop
+  fun_prop [generatorParameters]
 
 /-- The common dimension of the hitting list, in unary, from `n` and `s` in unary. -/
 theorem computableInPolyTime_hittingList_dimension :

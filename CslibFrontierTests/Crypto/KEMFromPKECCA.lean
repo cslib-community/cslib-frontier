@@ -68,8 +68,8 @@ theorem tagDistinguisher_ppt : IsOraclePPT encBool tagDistinguisher := by
       (fun p : ℕ × List Bool => List.take ((unframe (dropFrame p.2)).length + 1) <$>
         ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
           ((), true :: (dropFrame (dropFrame p.2)).tail)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
-  exact (hquery.map_with' (f := fun p reply => reply == true :: unframe (dropFrame p.2))
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
+  exact (hquery.map_with (f := fun p reply => reply == true :: unframe (dropFrame p.2))
     (by fun_prop)).isOraclePPT
 
 /-- The second query is chosen only after observing rejection of the first, challenge query. -/
@@ -84,10 +84,10 @@ theorem adaptiveTagDistinguisher_ppt : IsOraclePPT encBool adaptiveTagDistinguis
       (fun p : ℕ × List Bool => List.take 1 <$>
         ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
           ((), dropFrame (dropFrame p.2))) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
   apply IsOraclePPTOn.isOraclePPT
-  exact hfirst.bind_with (IsOraclePPTOn.cond' (by fun_prop)
-    (tagDistinguisher_ppt.on.preprocess' (ComputableInPolyTime.fst _ _))
+  exact hfirst.bind_with (IsOraclePPTOn.cond (by fun_prop)
+    (tagDistinguisher_ppt.on.preprocess (ComputableInPolyTime.fst _ _))
     (ComputableInPolyTime.const false).isPPTOn.isOraclePPTOn)
 
 private theorem eval_adaptiveContinuation (n : ℕ) (sk pk k ct : List Bool) :

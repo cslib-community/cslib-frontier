@@ -35,13 +35,13 @@ example (j : ℕ) :
       ((1 : EuclideanSpace ℂ (Fin 2) →ₗ[ℂ] EuclideanSpace ℂ (Fin 2)) ^ j)) := by
   have hx : ‖EuclideanSpace.single (0 : Fin 2) (1 : ℂ)‖ = 1 := by simp
   refine isPositive_one.pow_le_re_trace_pow hx zero_le_one ?_ j
-  rw [Module.End.one_apply, inner_self_eq_norm_sq, hx, one_pow]
+  rw [one_apply_eq_self, inner_self_eq_norm_sq, hx, one_pow]
 
 example (j : ℕ) :
     RCLike.re (trace ℂ (EuclideanSpace ℂ (Fin 2))
       ((1 : EuclideanSpace ℂ (Fin 2) →ₗ[ℂ] EuclideanSpace ℂ (Fin 2)) ^ j)) ≤ 2 * 1 ^ j := by
   have h := isPositive_one.re_trace_pow_le (𝕜 := ℂ) (E := EuclideanSpace ℂ (Fin 2)) (s := 1)
-    (fun x hx => by rw [Module.End.one_apply, inner_self_eq_norm_sq, hx, one_pow]) j
+    (fun x hx => by rw [one_apply_eq_self, inner_self_eq_norm_sq, hx, one_pow]) j
   refine h.trans_eq ?_
   simp
 

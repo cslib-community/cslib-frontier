@@ -73,7 +73,7 @@ private theorem card_outcome_fiber {β : Type} [Fintype β] (V : β → Bool) {T
   simp_rw [hrow]
   rw [Finset.prod_ite]
   have hc : (List.ofFn w).countP id = #{i | w i = true} := by
-    simp only [List.countP_ofFn, card_filter, id_eq]
+    simp only [List.countP_ofFn, id_eq]
   simp only [Finset.prod_const, hc]
   have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin T)))
     (fun i => w i = true)
@@ -171,7 +171,7 @@ theorem majorityPolynomial_bounds {g : ℤ} {m e : ℕ}
         6 * e < (List.ofFn fun i => V (x i)).countP id} := by
       apply card_equiv BitString.blocksEquiv
       intro x
-      simp only [mem_filter, mem_univ, true_and, List.countP_ofFn, card_filter,
+      simp only [mem_filter, mem_univ, true_and, List.countP_ofFn,
         id_eq, BitString.blocksEquiv_apply]
     rw [heq, card_majority_eq]
     have ht : (#{x | V x = true} : ℤ) + #{x | V x = false} = (2 : ℤ) ^ m := by

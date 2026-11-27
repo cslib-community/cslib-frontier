@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Pending
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Next
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Finish
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Real parent resumption after a native Strassen child
@@ -50,8 +51,6 @@ theorem exec_step_resume_next {w p k A B a b out scratch frames frame : ℕ}
   let current : Fin 7 := ⟨phase.val, by omega⟩
   let next : Fin 7 := ⟨phase.val + 1, by omega⟩
   let selected : Fin 8 := ⟨phase.val + 1, by omega⟩
-  have ha := hl.left_before
-  have hb := hl.right_before
   have ho := hl.output_before
   have hs := hl.scratch_before
   have hf := hl.frames_before
@@ -72,8 +71,7 @@ theorem exec_step_resume_next {w p k A B a b out scratch frames frame : ℕ}
     exec_stage_next phase z u v zh zc hl hu hv
       (by simpa only [zm] using originalA) (by simpa only [zm] using originalB)
       (by simpa only [zm] using partialWords) (by simpa only [zm] using productWords) hmag haddr
-  have rphase : r.regs Reg.phase = selected.val :=
-    (rr Reg.phase (by decide)).trans sphase
+  have rphase : r.regs Reg.phase = selected.val := by regs_frame
   have dispatched := exec_dispatch selected r y rh.zero_eq rphase
     (haddr.of_le (by unfold addressBound; omega)) stageRun
   have depthTest : ¬(Cond.eq Reg.depth Reg.zero).Holds s := by
@@ -87,15 +85,11 @@ theorem exec_step_resume_next {w p k A B a b out scratch frames frame : ℕ}
     (load.seq (ExecWithin.branch_neg depthTest (locate.seq dispatched))).mono (by
       dsimp only [current] at *
       omega)
-  refine ⟨y, he, ⟨ready, leftValues, rightValues, ?_, ?_, outputs, ?_⟩, ?_⟩
-  · intro j hj
-    rw [memory _ ?_ (Or.inl (by omega)) (Or.inl (by omega)), zm]
-    · exact originalA j hj
-    · rcases hl.left_disjoint with h | h <;> omega
-  · intro j hj
-    rw [memory _ ?_ (Or.inl (by omega)) (Or.inl (by omega)), zm]
-    · exact originalB j hj
-    · rcases hl.right_disjoint with h | h <;> omega
+  obtain ⟨hleft', hright'⟩ := hl.inputs_of_stage memory
+  refine ⟨y, he, ⟨ready, leftValues, rightValues,
+    fun j hj => (hleft' j hj).trans ((congrFun zm _).trans (originalA j hj)),
+    fun j hj => (hright' j hj).trans ((congrFun zm _).trans (originalB j hj)),
+    outputs, ?_⟩, ?_⟩
   · intro j
     by_cases heq : j.val = 6
     · have hj : j = 6 := Fin.ext heq
@@ -139,7 +133,7 @@ theorem exec_step_resume_finish {w p k A B a b out scratch frames frame : ℕ}
       intro he; subst i; contradiction))
   obtain ⟨y, stageRun, result⟩ := exec_stage_finish z u v zh zc hl hu hv
     (by simpa [zm] using partialWords) (by simpa only [zm] using productWords) hmag haddr
-  have rphase : r.regs Reg.phase = 7 := (rr Reg.phase (by decide)).trans sphase
+  have rphase : r.regs Reg.phase = 7 := by regs_frame
   have dispatched := exec_dispatch 7 r y rh.zero_eq rphase
     (haddr.of_le (by unfold addressBound; omega)) stageRun
   have depthTest : ¬(Cond.eq Reg.depth Reg.zero).Holds s := by

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.CountCall
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native tests of the three Chan–He collision inequalities
@@ -129,7 +130,7 @@ theorem exec {w : ℕ} (x : Data 64) (h1 : Fits w 1) (hz : x.regs zero = 0)
     have hcut : y.regs (threshold j) = x.regs (threshold j) :=
       hr _ (by fin_cases j <;> decide) (by fin_cases j <;> decide)
     obtain ⟨z, he, hf, hzm, hzr⟩ := exec_compare j y
-      ((hr _ (by decide) (by decide)).trans hz)
+      (by regs_frame)
       (by simpa only [hvalue, hcard] using hfit j)
     exact ⟨z, he, ⟨hzm.trans hm, fun i hs hg => (hzr i hs hg).trans (hr i hs hg)⟩,
       by simpa only [hvalue, hcard, hcut] using hf⟩

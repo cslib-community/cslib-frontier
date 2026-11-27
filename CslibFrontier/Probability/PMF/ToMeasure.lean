@@ -41,7 +41,7 @@ theorem toMeasure_eq_sum {α : Type*} [MeasurableSpace α] (p : PMF α) :
   refine Measure.ext fun s hs => ?_
   rw [p.toMeasure_apply hs, Measure.sum_apply _ hs]
   refine tsum_congr fun y => ?_
-  rw [Measure.coe_smul, Pi.smul_apply, smul_eq_mul, Measure.dirac_apply' _ hs, Set.indicator_apply]
+  rw [FunLike.coe_smul, Pi.smul_apply, smul_eq_mul, Measure.dirac_apply' _ hs, Set.indicator_apply]
   split_ifs with hy
   · simp [hy]
   · simp [hy]

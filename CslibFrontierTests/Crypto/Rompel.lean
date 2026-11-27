@@ -8,6 +8,7 @@ import CslibFrontier.Crypto.Computational.Rompel
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Tactic.PPT
+import CslibFrontierTests.Crypto.KeyedHashFixture
 
 /-!
 # Tests for Rompel target collision-resistant hashing and digital signatures
@@ -110,11 +111,17 @@ def zeroFlipFinder (G : ShrinkingCollisionGrid) : TargetCollisionFinder where
 
 theorem isPPT_zeroFlipFinder (G : ShrinkingCollisionGrid) : (zeroFlipFinder G).IsPPT where
   choose := by
-    dsimp only [zeroFlipFinder]
-    ppt
+    have hlen := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2)
+      (computableInPolyTime_rompelBlockLen G)
+    exact (((ComputableInPolyTime.bitsReplicate false).comp hlen).prod
+      (ComputableInPolyTime.const [])).isPPTOn
   find := by
-    dsimp only [zeroFlipFinder]
-    ppt
+    have hp := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
+    have hlen := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2)
+      ((computableInPolyTime_rompelBlockLen G).comp hp)
+    exact (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.const [true])
+      ((ComputableInPolyTime.bitsReplicate false).comp
+        (hlen.unary_sub' (ComputableInPolyTime.const 1)))).isPPTOn
 
 example (G : ShrinkingCollisionGrid) :
     IsPPT encBits (rompelCompressionInverter G (zeroFlipFinder G)) :=
@@ -137,6 +144,11 @@ example (G : ShrinkingCollisionGrid) (n : ℕ) :
 example (G : ShrinkingCollisionGrid) :
     (rompelCompression G).TargetCollisionResistant ∧ (rompelHash G).TargetCollisionResistant :=
   ⟨G.targetCollisionResistant_rompelCompression, G.targetCollisionResistant_rompelHash⟩
+
+example (F : AdversaryInaccessibleEntropyFamily) :
+    (∃ C : KeyedCompressionFamily, C.TargetCollisionResistant) ∧
+      ∃ H : KeyedHashFamily, H.TargetCollisionResistant :=
+  ⟨F.exists_targetCollisionResistantCompression, F.exists_targetCollisionResistantHash⟩
 
 example {f : List Bool → List Bool} (hf : OneWay f) :
     (∃ C : KeyedCompressionFamily, C.TargetCollisionResistant) ∧
@@ -189,8 +201,8 @@ noncomputable def leakNonNScheme (S : SignatureScheme) : WordSignatureScheme whe
       have hqKeys := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
       have hfst := (hqN.prod hqKeys.fst').trans henc
       exact (hfst.prod hqKeys.snd').of_enc_eq fun _ => rfl
-    exact S.keyGen_ppt.map_with
-      (f := fun n keys => (encPair encUnary encBits (n, keys.1), keys.2)) hpost
+    exact S.keyGen_ppt.map_with (f := fun n (keys : List Bool × List Bool) =>
+      (encPair encUnary encBits (n, keys.1), keys.2)) hpost
   sign_ppt := S.sign_ppt
   verify_polyTime := by
     let VIn := List Bool × List Bool × List Bool
@@ -252,7 +264,6 @@ theorem succProbability_leakNonNScheme_longMsgForger (S : SignatureScheme) (n : 
         ProbComp.eval ((leakNonNScheme S).toSignatureScheme.eufCmaGame longMsgForger n) =
           PMF.pure false := by
       simp only [SignatureScheme.eufCmaGame, WordSignatureScheme.toSignatureScheme_keyGen,
-        WordSignatureScheme.toSignatureScheme_signingOracle,
         WordSignatureScheme.toSignatureScheme_verify, leakNonNScheme, longMsgForger,
         OracleComp.interpret_pure, StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_map,
         ProbComp.eval_pure, PMF.pure_bind, hbeq, Bool.false_and, PMF.bind_const]
@@ -282,13 +293,12 @@ theorem eufCMA_toSignatureScheme_leakNonNScheme {S : SignatureScheme} (hS : S.EU
         (fun p : ℕ × List Bool => (p.1, encPair encUnary encBits (p.1, p.2)))
         (encPair encUnary encBits) (encPair encUnary encBits) :=
       (ComputableInPolyTime.fst _ _).prod henc
-    exact hadversary.on.preprocess' hprep
+    exact hadversary.on.preprocess hprep
   have heq : ∀ n,
       ProbComp.eval ((leakNonNScheme S).toSignatureScheme.eufCmaGame adversary n) =
         ProbComp.eval (S.eufCmaGame wrapped n) := by
     intro n
     simp only [SignatureScheme.eufCmaGame, WordSignatureScheme.toSignatureScheme_keyGen,
-      WordSignatureScheme.toSignatureScheme_signingOracle,
       WordSignatureScheme.toSignatureScheme_verify, leakNonNScheme, wrapped, ProbComp.eval_bind,
       ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map, Function.comp_def]
     congr 1 with keys : 1
@@ -306,19 +316,6 @@ theorem exists_toSignatureScheme_eufCMA_and_not_wordEUFCMA {f : List Bool → Li
   exact ⟨leakNonNScheme S, eufCMA_toSignatureScheme_leakNonNScheme hS, not_eufCMA_leakNonNScheme S⟩
 
 /-! ### 6. Concrete `TCRSignature.wordScheme` and adaptive multi-query `replayCfg` checks -/
-
-/-- Constant `KeyedHashFamily` with `keyLen n = n` and `digestLen n = n + 1` for concrete checks. -/
-def testHash : KeyedHashFamily where
-  keyLen n := n
-  digestLen n := n + 1
-  eval n _ _ := List.replicate (n + 1) false
-  keyLen_polyTime := .id'
-  digestLen_polyTime := ComputableInPolyTime.id'.unary_add' (.const 1)
-  le_digestLen _ := Nat.le_succ _
-  polyTime :=
-    (((ComputableInPolyTime.fst encUnary (encPair encBits encBits)).unary_add' (.const 1)).trans
-      (ComputableInPolyTime.bitsReplicate false)).of_enc_eq fun _ => rfl
-  length_eq _ _ _ _ := List.length_replicate
 
 /-- Toy deterministic `SignatureScheme` checking `pk.length == msg.length` and
 `sig.length == msg.length`. -/
@@ -346,23 +343,27 @@ noncomputable def testFixedSig : SignatureScheme where
     simp [hmsg]
 
 def sampleWordPk : List Bool :=
-  encPair encUnary encBits (2, List.replicate (TCRSignature.otsParam testHash 2) false)
+  encPair encUnary encBits
+    (2, List.replicate (TCRSignature.otsParam zeroKeyedHashFamily 2) false)
 
 def sampleWordSig : List Bool :=
-  let m := TCRSignature.otsMsg testHash 2 [true, false] [false, false, false]
+  let m := TCRSignature.otsMsg zeroKeyedHashFamily 2 [true, false] [false, false, false]
   encPair encBits encBits ([true, false], m)
 
 -- `TCRSignature.wordScheme` verifies 0-bit, 1-bit, and 5-bit messages at `n = 2`, and rejects
 -- malformed hash-key lengths:
 example :
-    (TCRSignature.wordScheme testFixedSig testHash).verify sampleWordPk [] sampleWordSig = true ∧
-    (TCRSignature.wordScheme testFixedSig testHash).verify sampleWordPk [true] sampleWordSig =
-      true ∧
-    (TCRSignature.wordScheme testFixedSig testHash).verify sampleWordPk
+    (TCRSignature.wordScheme testFixedSig zeroKeyedHashFamily).verify
+      sampleWordPk [] sampleWordSig = true ∧
+    (TCRSignature.wordScheme testFixedSig zeroKeyedHashFamily).verify
+      sampleWordPk [true] sampleWordSig = true ∧
+    (TCRSignature.wordScheme testFixedSig zeroKeyedHashFamily).verify sampleWordPk
       [true, false, true, true, false] sampleWordSig = true ∧
-    (TCRSignature.wordScheme testFixedSig testHash).verify sampleWordPk [true]
+    (TCRSignature.wordScheme testFixedSig zeroKeyedHashFamily).verify sampleWordPk [true]
       (encPair encBits encBits
-        ([true], TCRSignature.otsMsg testHash 2 [true, false] [false, false, false])) = false := by
+        ([true],
+          TCRSignature.otsMsg zeroKeyedHashFamily 2 [true, false] [false, false, false])) =
+      false := by
   decide +kernel
 
 /-- Control states for a concrete 2-query adaptive `MultiTapePTM` whose second query copies the
@@ -397,17 +398,41 @@ def adaptiveTwoQueryMachine : MultiTapePTM 0 Bool AdaptiveQueryState Unit where
 --    `queryOf` extracts `some [true]`.
 example :
     TCRSignature.queryOf adaptiveTwoQueryMachine
-      (TCRSignature.replayCfg adaptiveTwoQueryMachine 10 [] [(false, [], [])]) false =
+      (TCRSignature.replayCfg adaptiveTwoQueryMachine 10 [] [⟨false, [], []⟩]) false =
         some [true] ∧
     TCRSignature.queryOf adaptiveTwoQueryMachine
       (TCRSignature.replayCfg adaptiveTwoQueryMachine 10 []
-        [(false, [], []), (false, [], []), (false, [], [])]) false =
+        [⟨false, [], []⟩, ⟨false, [], []⟩, ⟨false, [], []⟩]) false =
         some [false] ∧
     TCRSignature.queryOf adaptiveTwoQueryMachine
       (TCRSignature.replayCfg adaptiveTwoQueryMachine 10 []
-        [(false, [], []), (false, [true], []), (false, [], [])]) false =
+        [⟨false, [], []⟩, ⟨false, [true], []⟩, ⟨false, [], []⟩]) false =
         some [true] := by
   decide +kernel
+
+example (s₁ s₂ : TCRSignature.TraceStep)
+    (h1 : s₁.coin = s₂.coin) (h2 : s₁.hashKey = s₂.hashKey) (h3 : s₁.ots = s₂.ots) :
+    s₁ = s₂ := by
+  ext1 <;> assumption
+
+example :
+    ComputableInPolyTime
+      (fun s : TCRSignature.TraceStep =>
+        (⟨s.coin, s.ots, s.hashKey⟩ : TCRSignature.TraceStep))
+      TCRSignature.encTraceStep TCRSignature.encTraceStep := by
+  fun_prop
+
+example (a b : TCRSignature.TcrSavedState)
+    (h1 : a.active = b.active) (h2 : a.keys = b.keys) (h3 : a.coinAtSlot = b.coinAtSlot)
+    (h4 : a.remSteps = b.remSteps) (h5 : a.preTrace = b.preTrace) : a = b := by
+  ext1 <;> assumption
+
+example :
+    ComputableInPolyTime
+      (fun a : TCRSignature.TcrSavedState =>
+        (⟨!a.active, a.keys, a.coinAtSlot, a.remSteps, a.preTrace⟩ : TCRSignature.TcrSavedState))
+      TCRSignature.encTcrSavedState TCRSignature.encTcrSavedState := by
+  fun_prop
 
 /-! ### 7. Unrestricted-message (`WordSignatureScheme`) Rompel and Naor–Yung endpoints -/
 

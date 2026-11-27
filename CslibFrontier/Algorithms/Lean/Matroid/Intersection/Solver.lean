@@ -358,19 +358,16 @@ private theorem maxCommonIndepLoop_spec (h₁ : ∀ S, indep₁ S = true ↔ M�
           M₁.eRk ((maxCommonIndepLoop indep₁ indep₂ V fuel I).2 : Set α) +
             M₂.eRk ((V.toFinset \ (maxCommonIndepLoop indep₁ indep₂ V fuel I).2 : Finset α) :
               Set α) := by
-  intro fuel
-  induction fuel with
-  | zero => intro I _ _ h; omega
-  | succ fuel ih =>
-    intro I hIV hI hfuel
-    rcases hs : exchSearch V (exchTables indep₁ indep₂ V I) with p | R
-    · obtain ⟨hI'V, hI', hcard⟩ := augment_of_exchSearch_eq_inl h₁ h₂ hIV hs
-      have hle := Finset.card_le_card hI'V
-      simp only [maxCommonIndepLoop, hs]
-      exact ih _ hI'V hI' (by omega)
-    · have heq := card_eq_of_exchSearch_eq_inr h₁ h₂ hIV hI hs
-      simp only [maxCommonIndepLoop, hs]
-      exact ⟨isMaxCommonIndep_of_card_eq_eRk_add_eRk hIV hI heq, Finset.sdiff_subset, heq⟩
+  intro fuel I hIV hI hfuel
+  fun_induction maxCommonIndepLoop indep₁ indep₂ V fuel I with
+  | case1 => omega
+  | case2 fuel I p hs ih =>
+    obtain ⟨hI'V, hI', hcard⟩ := augment_of_exchSearch_eq_inl h₁ h₂ hIV hs
+    have hle := Finset.card_le_card hI'V
+    exact ih hI'V hI' (by omega)
+  | case3 fuel I R hs =>
+    have heq := card_eq_of_exchSearch_eq_inr h₁ h₂ hIV hI hs
+    exact ⟨isMaxCommonIndep_of_card_eq_eRk_add_eRk hIV hI heq, Finset.sdiff_subset, heq⟩
 
 /-- **Correctness of matroid intersection** ([Schrijver2017], Theorem 10.8; [Edmonds1970]): if
 `indep₁` and `indep₂` decide independence in `M₁` and `M₂`, then `maxCommonIndep indep₁ indep₂ es`

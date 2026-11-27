@@ -432,8 +432,6 @@ private theorem holds_auxClauses_auxTarget :
           have hψ : evalSub ψ u := hb _ (List.mem_singleton.mpr rfl)
           rw [Formula.realize_equal, Term.realize_var, Fin.ext_iff, realize_zero_val] at hg
           have hzeq : z = u (Fin.last (m + k)) := by
-            apply Fin.ext
-            rw [Fin.le_def, hg] at hz
             omega
           change evalSub ψ (Fin.snoc (u ∘ Fin.castSucc) z)
           rw [hzeq, show Fin.snoc (u ∘ Fin.castSucc) (u (Fin.last (m + k))) = u from
@@ -477,8 +475,6 @@ private theorem holds_auxClauses_auxTarget :
             rw [evalSub_all]
             intro z
             refine hacc z ?_
-            rw [Fin.le_def, hg]
-            have hz := z.isLt
             omega
 
 private theorem qfAuxClauses_complete {k : ℕ}

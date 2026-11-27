@@ -112,8 +112,7 @@ theorem ret_stepM [LE M] [DecidableRel (α := M) (· ≤ ·)] (s : S) (r : R) :
 @[simp]
 theorem ret_runM [LE M] [DecidableRel (α := M) (· ≤ ·)] (rounds : List R) (s : S) :
     (C.runM rounds s).ret = greedy C.branch C.estimate rounds s := by
-  rw [runM, TimeM.ret_foldlM]
-  rfl
+  time_spec runM
 
 theorem time_stepM [LE M] [DecidableRel (α := M) (· ≤ ·)] (s : S) (r : R) :
     (C.stepM s r).time =
@@ -174,7 +173,7 @@ theorem runM_spec (Inv : List R → S → Prop) (branchBound estBound : R → �
     · have hret : (C.runM (r :: rs) s).ret = (C.runM rs (C.stepM s r).ret).ret := rfl
       rw [hret]
       exact hest_end.trans hstep_le
-    · simp only [runM, List.foldlM_cons, TimeM.time_bind, List.map_cons, List.sum_cons]
+    · simp only [runM, List.foldlM_cons, time_simps]
         at htime_end ⊢
       omega
 
@@ -305,8 +304,7 @@ private theorem scanCandidatesM_spec (fixedNext : Finset ι) (x : ∀ i, α i) (
       · exact hforall_cs b hb'
     · have ha_time := htime a
       dsimp only [next, val] at htime_cs
-      simp only [scanCandidatesM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        TimeM.ret_pure, List.length_cons, Nat.succ_mul]
+      simp only [scanCandidatesM, time_simps, Nat.succ_mul]
       omega
 
 private theorem runFromM_spec [Fintype ι] [∀ i, Fintype (α i)]

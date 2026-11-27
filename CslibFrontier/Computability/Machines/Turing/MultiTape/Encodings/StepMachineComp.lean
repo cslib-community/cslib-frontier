@@ -243,8 +243,8 @@ lemma moveOn_inO : ComputableInO (fun q : ℕ × ℕ × SignType => moveOn q.1 q
   refine .mono (by fun_prop) 16 (fun q => ?_) fun q => ?_
   all_goals
     have h₃ := Countdown.length_encNat_pred_le q.2.1
-    have h₄ := ComputableTidilyInO.length_encNat_add_le q.1 1
-    have h₅ := ComputableTidilyInO.length_encNat_add_le q.2.1 1
+    have h₄ := length_encNat_add_le q.1 1
+    have h₅ := length_encNat_add_le q.2.1 1
     simp only [length_encPair] at *
     split_ifs <;> nlinarith
 
@@ -256,7 +256,7 @@ lemma length_encCountdown_foldl (w : List Bool) (c : Countdown) :
     Countdown.len_foldl]
   have := (show (encNat (c.k - w.length)).length ≤ (encNat c.k).length from by
     simpa [Nat.size_eq_bits_len] using Nat.size_le_size (Nat.sub_le c.k w.length))
-  have := ComputableTidilyInO.length_encNat_add_le c.len w.length
+  have := length_encNat_add_le c.len w.length
   omega
 
 /-- **Counting down a word**, in cubic time and linear space. -/

@@ -36,12 +36,18 @@ public section
 namespace Cslib.Complexity.Graph
 
 /-- A listed edge occurrence together with a choice of endpoint. -/
-abbrev Dart (G : Graph) := Fin G.2.length × Bool
+abbrev Dart (G : Graph) := Fin G.edges.length × Bool
 
 namespace Dart
 
 /-- The endpoint of an indexed edge end; `false` selects the first endpoint. -/
 @[expose] def vertex {G : Graph} (d : Dart G) : ℕ := G.edgeEndpoint d.1 d.2
+
+/-- The stored endpoints of a listed edge occurrence are its two indexed dart vertices.
+This retains occurrence and end tags, including loops and parallel edge records. -/
+theorem edge_eq_vertices {G : Graph} (e : Fin G.edges.length) :
+    G.edges[e] = (Dart.vertex (G := G) (e, false), Dart.vertex (G := G) (e, true)) := by
+  simp [Dart.vertex, Graph.edgeEndpoint]
 
 /-- Reverse an edge while retaining its edge-list occurrence. -/
 @[expose] def reverse {G : Graph} (d : Dart G) : Dart G := (d.1, !d.2)
@@ -65,7 +71,7 @@ theorem reverse_ne {G : Graph} (d : Dart G) : d.reverse ≠ d := by
   right_inv := reverse_reverse
 
 /-- There are two darts per listed edge, counting loops and parallel occurrences. -/
-theorem card (G : Graph) : Fintype.card (Dart G) = 2 * G.2.length := by
+theorem card (G : Graph) : Fintype.card (Dart G) = 2 * G.edges.length := by
   simp [Dart, Nat.mul_comm]
 
 end Dart

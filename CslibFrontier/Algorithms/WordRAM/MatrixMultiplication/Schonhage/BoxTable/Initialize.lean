@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.InputLayout
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native box-table input adaptation
@@ -50,23 +51,16 @@ theorem exec_loadInput {w L m t : ℕ} (x : Data registers)
     (hfit.of_le (by omega))
   obtain ⟨b, hb, _, _, b10, _, _, hbμ, bf⟩ := exec_constants a
     (hfit.of_le ((by decide : 10 ≤ 12).trans (Nat.le_add_left _ _)))
-  have bL : b.regs Reg.levels = L :=
-    (bf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans aL
+  have bL : b.regs Reg.levels = L := by regs_frame
   obtain ⟨c, hc, cT, _, hcμ, cf⟩ := exec_span b bL b10 (hfit.of_le (by omega))
-  have cL : c.regs Reg.levels = L := (cf _ (by decide) (by decide) (by decide)).trans bL
-  have cm : c.regs Reg.inner = m :=
-    (cf _ (by decide) (by decide) (by decide)).trans
-      ((bf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans am)
-  have ct : c.regs Reg.threshold = t :=
-    (cf _ (by decide) (by decide) (by decide)).trans
-      ((bf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans ath)
-  have hf4 : Fits w 4 := hfit.of_le (by omega)
-  have hfB : Fits w (4 + 10 ^ L) := hfit.of_le (by omega)
+  have cL : c.regs Reg.levels = L := by regs_frame
+  have cm : c.regs Reg.inner = m := by regs_frame
+  have ct : c.regs Reg.threshold = t := by regs_frame
   have hfD : Fits w (4 + 10 ^ L + 10 ^ L) := hfit.of_le (by omega)
   let y := ((c.set Reg.arrayA 4).set Reg.arrayB (4 + 10 ^ L)).set
     Reg.directory (4 + 10 ^ L + 10 ^ L)
   have hd : ExecWithin w inputPointers c y 3 := by
-    ram_eval [inputPointers, y, cT, hf4, hfB, hfD, Reg.arrayA, Reg.arrayB,
+    ram_eval [inputPointers, y, cT, hfD, Reg.arrayA, Reg.arrayB,
       Reg.directory, Reg.span, Fin.mk.injEq]
   refine ⟨y, (ha.seq (hb.seq (hc.seq hd))).mono (by omega), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simpa [y, Reg.levels, Reg.arrayA, Reg.arrayB, Reg.directory] using cL

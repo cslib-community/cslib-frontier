@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Realization.Program
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Initialized flat programs with a fixed register layout
@@ -59,29 +60,11 @@ private theorem standardPlacement (k l n : ℕ) :
     (∀ j, standardScratch (k := k) (l := l) (n := n) j ≠ standardFrontier) ∧
     (∀ i, standardInput (k := k) (l := l) (n := n) i ≠ standardFrontier) := by
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · intro i j h
-    apply Fin.ext
-    have := congrArg Fin.val h
-    simpa only [standardInput, Fin.val_natAdd, Fin.val_castAdd,
-      Nat.add_left_cancel_iff] using this
-  · intro i j h
-    apply Fin.ext
-    have := congrArg Fin.val h
-    simp only [standardScratch, Fin.val_natAdd] at this
-    omega
-  · intro i j h
-    have := congrArg Fin.val h
-    simp only [standardInput, standardScratch, Fin.val_natAdd, Fin.val_castAdd] at this
-    have := i.isLt
-    omega
-  · intro i h
-    have := congrArg Fin.val h
-    simp only [standardScratch, standardFrontier, Fin.val_natAdd] at this
-    omega
-  · intro i h
-    have := congrArg Fin.val h
-    simp only [standardInput, standardFrontier, Fin.val_natAdd, Fin.val_castAdd] at this
-    omega
+  · fin_index [standardInput]
+  · fin_index [standardScratch]
+  · fin_index [standardInput, standardScratch]
+  · fin_index [standardScratch, standardFrontier]
+  · fin_index [standardInput, standardFrontier]
 
 namespace Realizes
 

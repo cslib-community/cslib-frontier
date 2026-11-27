@@ -5,6 +5,8 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.QueryComplexity.Quantum.Search
+import CslibFrontier.Computability.QueryComplexity.Quantum.ValueQueryUpdate
+import Mathlib.Algebra.Ring.BooleanRing
 
 /-! The quantum query model: the oracle and a satisfiable instance of the search hypothesis. -/
 
@@ -41,5 +43,42 @@ example (ψ : State 3 Unit) :
 example (ψ : State 3 Unit) :
     (phaseOracle (marked 1) ψ).ofLp (1, (false, ())) = ψ.ofLp (1, (false, ())) := by
   simp
+
+-- A single coherent XOR query records the old table entry. Reading it against an
+-- independently refreshed bit succeeds with probability 1/2, and with the old bit surely.
+private noncomputable def readBit (bit : Bool) : ValueState Unit Bool Unit :=
+  runValue addStep (fun _ => LinearIsometry.id) (ket ((), false, ())) (fun _ => bit) 1
+
+private theorem storedBit (old current : Bool) :
+    measureProb (readBit old) {((), current, ())} = if old = current then 1 else 0 := by
+  cases old <;> cases current <;>
+    simp [readBit, runValue, measureProb, valueOracle_apply, addStep_apply, Bool.zero_eq_false]
+
+open scoped BigOperators in
+example (old : Bool) :
+    (𝔼 fresh : Bool, measureProb (readBit old) {((), fresh, ())}) = (1 / 2 : ℝ) ∧
+      measureProb (readBit old) {((), old, ())} = 1 := by
+  cases old <;> norm_num [Fintype.expect_eq_sum_div_card, storedBit, Fintype.sum_bool]
+
+-- The retained response now chooses the address to refresh. A false response selects the
+-- previously queried address, while a true response selects the untouched second address.
+private noncomputable def readFirst (old : Bool) : ValueState Bool Bool Unit :=
+  runValue addStep (fun _ => LinearIsometry.id) (ket (false, false, ())) (fun _ => old) 1
+
+private theorem branchScore (old msg current : Bool) :
+    measureProb (projOutcomes (fun x => x.2.1 = msg) (readFirst old)) {(false, current, ())} =
+      if old = msg ∧ old = current then 1 else 0 := by
+  cases old <;> cases msg <;> cases current <;>
+    simp [readFirst, runValue, measureProb, valueOracle_apply, addStep_apply, Bool.zero_eq_false]
+
+open scoped BigOperators in
+example (old : Bool) :
+    (𝔼 fresh : Bool, ∑ msg : Bool,
+      measureProb (projOutcomes (fun x => x.2.1 = msg) (readFirst old))
+        {(false, Function.update (fun _ => old) msg fresh false, ())}) =
+      if old then 1 else (1 / 2 : ℝ) := by
+  rw [Fintype.expect_eq_sum_div_card]
+  simp only [Fintype.sum_bool, branchScore]
+  cases old <;> norm_num [Function.update]
 
 end CslibFrontierTests.QuantumSearch

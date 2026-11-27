@@ -55,7 +55,7 @@ theorem realizes_reserve : Realizes .exact (fun n : ℕ => Memory.allocDirty (sp
       (WordEncoding.encode (α := ℕ)) (WordEncoding.encode (α := ℕ))
       (fun w n s => Fits w (s.frontier + space n)) (fun _ _ => 0) := by
     realize
-    all_goals exact h.of_le (by unfold space; omega)
+    exact h.of_le (by unfold space; omega)
   exact h.congr (fun n => by rw [space_add])
 
 /-- One selected reservation emitter returns the old frontier, preserves every cell and moves

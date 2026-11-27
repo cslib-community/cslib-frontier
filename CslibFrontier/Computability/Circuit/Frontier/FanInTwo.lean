@@ -35,6 +35,9 @@ on `U`, has more than
   (`Cslib.Circuits.Frontier.eventually_114_div_25_sub_mul_lt_innerSize`);
 * `(4 - ε) n` inner gates (`Cslib.Circuits.Frontier.eventually_four_sub_mul_lt_innerSize`).
 
+The Gaussian layout bound and the `(L - ε) n` and `(114/25 - ε) n` lower bounds derived from it
+are original to this library.
+
 Gates of arity zero, the constants, are not counted. The hypotheses are those of
 `Cslib.Circuits.Frontier.eventually_two_sub_mul_lt_innerSize`: the bounds apply to every family
 of dense rectangle-free sets, and to a particular family once it is shown to be one.
@@ -69,7 +72,7 @@ variable {U : Type u} [Finite U] [Nontrivial U] {S : ∀ n, Set (Fin n → U)} {
 sets over a finite alphabet `U` with at least two symbols, with `log K_n = o(n)` and
 `n log |U| - log |S_n| = o(n)`. Then for every `ε > 0` and all large `n`, every circuit of fan-in
 at most two deciding `S_n`, over any basis and interpretation on `U`, has more than `(L - ε) n`
-inner gates, where `L = 1 + π / (3 arccos ((1 + 2√2)/4)) ≈ 4.5625`. -/
+inner gates, where `L = 1 + π / (3 arccos ((1 + 2√2)/4)) ≈ 4.5625`. Original to this library. -/
 theorem eventually_gaussian_sub_mul_lt_innerSize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)

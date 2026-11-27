@@ -133,7 +133,7 @@ theorem isOddCycleTransversal_iff_forall_odd_walk :
       (Walk.length_map _ _).symm.trans (congrArg Walk.length (Walk.map_induce p hp))
     exact iff_not_self ((c.odd_length_iff_not_congr (p.induce Sᶜ hp)).mp (hlen ▸ hodd)).symm
   · intro h
-    rw [IsOddCycleTransversal, IsBipartite, two_colorable_iff_forall_loop_even]
+    rw [IsOddCycleTransversal, isBipartite_iff_forall_walk_even_length]
     intro u p
     by_contra hp
     rw [Nat.not_even_iff_odd] at hp

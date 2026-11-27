@@ -145,4 +145,34 @@ theorem expect_sq_sub_expect_le_sum_expect_sq_sub_update {n : ℕ} {Y : Type u} 
           𝔼 p, (f p - 𝔼 b, f (p.1, update p.2 0 b)) ^ 2 := add_le_add hIH hhead
       _ = _ := by rw [add_comm]; simp only [htail]
 
+private theorem expect_expect_sq_sub_eq {R : Type*} [Fintype R] [Nonempty R] (f : R → ℝ) :
+    (𝔼 x, 𝔼 y, (f x - f y) ^ 2) = 2 * (𝔼 x, (f x - 𝔼 y, f y) ^ 2) := by
+  have h (y : R) : (𝔼 x, (f x - f y) ^ 2) =
+      (𝔼 x, (f x - 𝔼 z, f z) ^ 2) + (f y - 𝔼 z, f z) ^ 2 := by
+    rw [expect_sub_sq_eq f]
+    ring
+  rw [expect_comm]
+  simp only [h, expect_add_distrib, Fintype.expect_const]
+  ring
+
+/-- The mean square distance between independent uniform tuples is bounded by the sum of
+the mean square distances for resampling one coordinate at a time. -/
+theorem expect_expect_sq_sub_le_sum_expect_expect_sq_sub_update {n : ℕ}
+    (f : (Fin n → A) → ℝ) :
+    (𝔼 u, 𝔼 v, (f u - f v) ^ 2) ≤ ∑ i, 𝔼 u, 𝔼 a, (f u - f (update u i a)) ^ 2 := by
+  have h := expect_sq_sub_expect_le_sum_expect_sq_sub_update
+    (Y := ULift.{u} Unit) (fun p => f p.2)
+  simp only [expect_prod_type, expect_unique] at h
+  have hlocal (i : Fin n) :
+      (𝔼 u, 𝔼 a, (f u - f (update u i a)) ^ 2) =
+        2 * (𝔼 u, (f u - 𝔼 a, f (update u i a)) ^ 2) := by
+    rw [mul_expect]
+    rw [← expect_expect_update _ i, ← expect_expect_update
+      (fun u => 2 * (f u - 𝔼 a, f (update u i a)) ^ 2) i]
+    refine expect_congr rfl fun u _ => ?_
+    simpa only [update_idem, ← mul_expect] using expect_expect_sq_sub_eq (fun a => f (update u i a))
+  rw [expect_expect_sq_sub_eq]
+  simp only [hlocal, ← mul_sum]
+  exact mul_le_mul_of_nonneg_left h (by norm_num)
+
 end Fintype

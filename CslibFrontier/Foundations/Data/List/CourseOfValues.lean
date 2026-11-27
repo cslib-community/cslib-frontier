@@ -60,9 +60,7 @@ theorem courseOfValues_succ (step : List α → α) (n : ℕ) :
 /-- Course-of-values recursion as `n`-fold iteration of appending the next step value. -/
 theorem courseOfValues_eq_iterate (step : List α → α) (n : ℕ) :
     courseOfValues step n = (fun T => T ++ [step T])^[n] [] := by
-  induction n with
-  | zero => rfl
-  | succ n ih => rw [courseOfValues, Function.iterate_succ_apply', ih]
+  fun_induction courseOfValues step n <;> simp_all [Function.iterate_succ_apply']
 
 /-- **The table entries match `List.courseOfValuesVal` over `0, …, n - 1`.** -/
 theorem courseOfValues_eq (step : List α → α) (n : ℕ) :

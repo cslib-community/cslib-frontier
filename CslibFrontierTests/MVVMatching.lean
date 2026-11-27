@@ -12,8 +12,8 @@ import CslibFrontier.Algorithms.Matching.MVV
 /-! The Mulmuley–Vazirani–Vazirani core on the complete bipartite graph on two vertices, checked as
 a `module` client through the public characterization lemmas: an isolating weight recovers the
 matching from the determinant and the adjugate, the procedure `mvvOutput` outputs exactly that
-matching, equal weights make the determinant vanish, and the success probability bound at
-`N = 2 |E|` applies with `exact`. -/
+matching and its decision is executable, equal weights make the determinant vanish, and the
+success probability bound at `N = 2 |E|` applies with `exact`. -/
 
 set_option linter.privateModule false
 
@@ -63,6 +63,18 @@ example : (2 : ℤ) ^ (2 + 1) ∣
 /-- The procedure outputs exactly the pairs of the identity matching. -/
 example (i j : Fin 2) : mvvOutput complete w i j ↔ i = j :=
   mvvOutput_iff_apply_eq isUniqueMinMatching_one i j
+
+/-- The decision of `mvvOutput` is executable: this definition compiles only if the `Decidable`
+instance is computable. -/
+def outputs (i j : Fin 2) : Bool := decide (mvvOutput complete w i j)
+
+/-- The decision of `MVVSucceeds` is executable as well. -/
+def succeeds : Bool := decide (MVVSucceeds complete w)
+
+/-- The executable decisions agree with the isolated matching. -/
+example : outputs 0 0 = true ∧ outputs 0 1 = false ∧ succeeds = true := by
+  simp [outputs, succeeds, mvvOutput_iff_apply_eq isUniqueMinMatching_one,
+    mvvSucceeds_of_isUniqueMinMatching isUniqueMinMatching_one]
 
 /-- With equal weights the two perfect matchings tie and the determinant vanishes, so no
 minimum-weight perfect matching is unique. -/

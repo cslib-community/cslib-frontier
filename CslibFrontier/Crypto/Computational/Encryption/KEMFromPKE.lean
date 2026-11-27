@@ -17,8 +17,13 @@ import CslibFrontier.Probability.PMF.Bind
 # Key encapsulation from public-key encryption
 
 `encryptKeyEncaps keyLen encrypt` samples a uniform `keyLen n`-bit key and encrypts it using
-`encrypt`. This is [BonehShoup2023], Exercise 11.9(e), p. 461, with the source key space represented
-by fixed-length bit words. A `WordINDCPA` scheme gives `KEMINDCPA` with exact reduction loss one.
+`encrypt`. This is the construction of [BonehShoup2023], Exercise 11.9(e), p. 461, with the source
+key space represented by fixed-length bit words. A `WordINDCPA` scheme gives `KEMINDCPA` with
+exact reduction loss one: a step toward Exercise 11.9(e), not the cited result, because
+`WordINDCPA` admits every equal-length pair of bit strings as a challenge, where the exercise's
+`E_a` is defined over `(K, C_a)` and so encrypts only KEM keys (#5293). The conclusion
+`KEMINDCPA` also gives the distinguisher `pk`, which the printed KEM game does not; a stronger
+conclusion implies the printed one.
 The reduction samples two keys of the same length and retains one alongside the public key;
 therefore it respects the existing equal-length challenge rule, including at key length zero.
 
@@ -40,8 +45,9 @@ of the honest key generator.
 * `Cslib.Crypto.Encryption.decrypt_encryptKeyEncaps`: correctness using the original decryptor.
 * `Cslib.Crypto.Encryption.isPPTOn_kemToPKEChoose`: native shared sampler certificate.
 * `Cslib.Crypto.Encryption.isPPT_kemToPKEAdversary`: native reduction certificate.
-* `Cslib.Crypto.Encryption.advantage_encryptKeyEncaps_eq`: exact advantage preservation.
-* `Cslib.Crypto.Encryption.WordINDCPA.kemINDCPA_encryptKeyEncaps`: secure PKE gives a secure KEM.
+* `Cslib.Crypto.Encryption.advantage_encryptKeyEncaps_eq`: exact advantage preservation (a step).
+* `Cslib.Crypto.Encryption.WordINDCPA.kemINDCPA_encryptKeyEncaps`: secure PKE gives a secure KEM
+  (a step toward Exercise 11.9(e); its premise covers every message length, #5293).
 
 ## References
 
@@ -199,8 +205,13 @@ theorem eval_gameOn_kemToPKEAdversary_true (keyLen : ℕ → ℕ)
   congr 1 with k : 1
   rw [PMF.bind_comm]
 
-/-- **Exact loss-one reduction** for the encrypted-key KEM of [BonehShoup2023], Exercise 11.9(e).
-The two games use the same `keyLen n` key space and the same security parameter `n`. -/
+/-- Exact loss-one reduction for the encrypted-key KEM: a step toward [BonehShoup2023],
+Exercise 11.9(e), not the cited result, which is the asymptotic statement whose premise is
+discussed at `WordINDCPA.kemINDCPA_encryptKeyEncaps` (#5293).
+
+The reduction challenges only with `keyLen n`-bit keys, so the right-hand side stays in the
+exercise's message space `K`; the message-space gap lies in that theorem's premise, not here. The
+two games use the same `keyLen n` key space and the same security parameter `n`. -/
 theorem advantage_encryptKeyEncaps_eq (keyLen : ℕ → ℕ)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool))
@@ -213,8 +224,16 @@ theorem advantage_encryptKeyEncaps_eq (keyLen : ℕ → ℕ)
       (kemToPKEAdversary keyLen distinguisher)) n := by
   rw [advantage, eval_gameOn_kemToPKEAdversary_false, eval_gameOn_kemToPKEAdversary_true]
 
-/-- **Semantically secure word encryption gives a secure KEM** ([BonehShoup2023],
-Exercise 11.9(e)). The native reduction only samples keys and runs the supplied distinguisher. -/
+/-- Semantically secure word encryption gives a secure encrypted-key KEM: a step toward
+[BonehShoup2023], Exercise 11.9(e), not the cited result, because the premise `WordINDCPA` admits
+every pair of equal-length bit strings as a challenge, where the exercise's `E_a` is defined over
+`(K, C_a)` and encrypts only KEM keys (#5293).
+
+A scheme that is semantically secure on `K` but leaks on messages of another length meets the
+exercise's premise and not this one. The conclusion `KEMINDCPA` gives the distinguisher `pk`,
+which the printed KEM game (printed p. 460) does not; a stronger conclusion implies the printed
+one, so this is harmless. The native reduction only samples keys and runs the supplied
+distinguisher. -/
 theorem WordINDCPA.kemINDCPA_encryptKeyEncaps {keyLen : ℕ → ℕ}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool)}

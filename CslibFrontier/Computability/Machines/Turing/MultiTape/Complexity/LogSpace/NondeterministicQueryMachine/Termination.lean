@@ -102,14 +102,9 @@ theorem choose_haltsFrom {input : List Bool} (Inv : (Fin k → List Bool) → Pr
           have heq := follows_pass I P F C b p q hmap q.length (by omega) (Nat.lt_succ_self _)
           change p ⟨q.length, by omega⟩ = q.last.mapState (passState b) at heq
           simpa [hlast', hqlast, passState] using heq
-        have hstep := p.step ⟨q.length, hq⟩
-        change (machine I P F C).Step (p ⟨q.length, by omega⟩)
-          (p ⟨q.length + 1, by omega⟩) at hstep
-        rw [hcfg] at hstep
-        obtain ⟨coin, hcoin⟩ := (step_iff I P F C).mp hstep
-        rw [step_check_words I P F C coin] at hcoin
+        have hnext := head_drop_check I P F C p ⟨q.length, hq⟩ hcfg
         have htail := hNext (p.drop ⟨q.length + 1, by omega⟩)
-          (by simpa using hcoin.symm) (by simp only [RelSeries.drop_length]; omega)
+          (by simpa using hnext) (by simp only [RelSeries.drop_length]; omega)
         simpa using htail
       choose time htime using branches
       refine ⟨1 + max (time false) (time true), ?_⟩
@@ -126,6 +121,30 @@ theorem choose_haltsFrom {input : List Bool} (Inv : (Fin k → List Bool) → Pr
       simpa using ht
   exact aux (rank ws) ws rfl hInv out
 
+/-- Initialization uses one deterministic check before the finalizer or ranked pass loop.
+The bound adds exactly one routing step to the selected continuation's bound. -/
+private theorem check_haltsFrom {input : List Bool} (Inv : (Fin k → List Bool) → Prop)
+    (rank : (Fin k → List Bool) → ℕ)
+    (hP : ∀ b ws, Inv ws → ∃ t s, MultiTapeTM.TransformsTapes (P b)
+      (fun inp w => inp = input ∧ w = ws)
+      (fun _ _ w' _ => Inv w' ∧ (w' C ≠ [] → rank w' < rank ws)) t s)
+    (hF : ∀ ws, Inv ws → ∃ t s, MultiTapeTM.TransformsTapes F
+      (fun inp w => inp = input ∧ w = ws) (fun _ _ _ _ => True) t s)
+    {ws : Fin k → List Bool} (hInv : Inv ws) (out : List Bool) :
+    ∃ t, HaltsFrom I P F C (wordsCfg input (some .check) ws out) (1 + t) := by
+  obtain ⟨t, ht⟩ : ∃ t, HaltsFrom I P F C
+      (wordsCfg input (some (if ws C = [] then .finish F.q₀ else .choose)) ws out) t := by
+    by_cases hblank : ws C = []
+    · obtain ⟨tF, sF, htF⟩ := hF ws hInv
+      exact ⟨tF, by simpa [hblank] using finish_haltsFrom I P F C out htF⟩
+    · simpa [hblank] using choose_haltsFrom I P F C Inv rank hP hF hInv out
+  refine ⟨t, ?_⟩
+  intro p hhead hp
+  have hroute := head_drop_check I P F C p ⟨0, by omega⟩ hhead
+  have htail := ht (p.drop ⟨1, by omega⟩) (by simpa using hroute)
+    (by simp only [RelSeries.drop_length]; omega)
+  simpa using htail
+
 /-- A tidy initializer followed by the ranked native loop has a per-input all-branches clock. -/
 theorem exists_runsInTime_of_transforms {input : List Bool}
     (Inv : (Fin k → List Bool) → Prop) (rank : (Fin k → List Bool) → ℕ) {tI sI : ℕ}
@@ -139,20 +158,20 @@ theorem exists_runsInTime_of_transforms {input : List Bool}
     ∃ t, (machine I P F C).RunsInTime input t := by
   obtain ⟨ws, e, hInv, q₀, hqhead, hqlast, _, _⟩ := hI input (fun _ => []) [] ⟨rfl, rfl⟩
   obtain ⟨q, hhead', hlast', _, _⟩ := q₀.exists_running (by rw [hqlast]; rfl)
-  obtain ⟨t, ht⟩ := choose_haltsFrom I P F C Inv rank hP hF hInv e
-  refine ⟨q.length + t, ?_⟩
+  obtain ⟨t, ht⟩ := check_haltsFrom I P F C Inv rank hP hF hInv e
+  refine ⟨q.length + (1 + t), ?_⟩
   intro p hp
   have hmap : p.head = q.head.mapState initState := by
     rw [p.head_eq, hhead', hqhead, mapState_wordsCfg]
     change Cfg.init (.init I.q₀ : State SI SP SF) input = _
     simp [initState, wordsCfg]
-  have hq : q.length < p.length + 1 := by change q.length + t ≤ p.length at hp; omega
-  have hcfg : p.toRunPath ⟨q.length, hq⟩ = wordsCfg input (some .choose) ws e := by
+  have hq : q.length < p.length + 1 := by change q.length + (1 + t) ≤ p.length at hp; omega
+  have hcfg : p.toRunPath ⟨q.length, hq⟩ = wordsCfg input (some .check) ws e := by
     have h := follows_init I P F C p.toRunPath q hmap q.length hq (Nat.lt_succ_self _)
     change p.toRunPath ⟨q.length, hq⟩ = q.last.mapState initState at h
     simpa [hlast', hqlast, initState] using h
   have h := ht (p.toRunPath.drop ⟨q.length, hq⟩) (by simpa using hcfg)
-    (by change t ≤ p.length - q.length; change q.length + t ≤ p.length at hp; omega)
+    (by change 1 + t ≤ p.length - q.length; change q.length + (1 + t) ≤ p.length at hp; omega)
   simpa using h
 
 end Turing.NondeterministicQueryMachine.Native

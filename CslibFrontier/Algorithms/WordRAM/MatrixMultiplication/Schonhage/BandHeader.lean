@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.WordRAM.Power.Rename
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandProgram
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual header loads, native powers and concrete band addresses
@@ -72,11 +73,8 @@ private def basicRegisters : Finset (Fin 96) :=
 private theorem BasicParameters.of_frame {L m N : ℕ} {x y : Data 96}
     (hx : BasicParameters L m N x) (hone : y.regs BandPreparation.one = 1)
     (h : ∀ i ∈ basicRegisters, y.regs i = x.regs i) : BasicParameters L m N y :=
-  ⟨(h _ (by decide)).trans hx.levels, (h _ (by decide)).trans hx.inner,
-    (h _ (by decide)).trans hx.rows, (h _ (by decide)).trans hx.zero, hone,
-    (h _ (by decide)).trans hx.two, (h _ (by decide)).trans hx.three,
-    (h _ (by decide)).trans hx.four, (h _ (by decide)).trans hx.seven,
-    (h _ (by decide)).trans hx.ten⟩
+  ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, hone,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame⟩
 
 private theorem BasicParameters.after_power {L m N : ℕ} {v : Fin 96} {x y : Data 96}
     (hx : BasicParameters L m N x) (hv : v ∉ basicRegisters)
@@ -138,16 +136,10 @@ theorem exec_headerPowers {w L m N : ℕ} (hm : m ≤ L) (x : Data 96)
   · apply (h1.seq (hsub.seq (h3.seq (h4.seq (h5.seq h6))))).mono
     omega
   · have hD2 : x2.regs columns = 4 ^ m := by simpa [x2, temporary, columns] using hD
-    exact (hf6 columns (by decide) (by decide) (by decide)).trans
-      ((hf5 columns (by decide) (by decide) (by decide)).trans
-        ((hf4 columns (by decide) (by decide) (by decide)).trans
-          ((hf3 columns (by decide) (by decide) (by decide)).trans hD2)))
-  · exact (hf6 outerSize (by decide) (by decide) (by decide)).trans
-      ((hf5 outerSize (by decide) (by decide) (by decide)).trans
-        ((hf4 outerSize (by decide) (by decide) (by decide)).trans hN0))
-  · exact (hf6 masks (by decide) (by decide) (by decide)).trans
-      ((hf5 masks (by decide) (by decide) (by decide)).trans hS2)
-  · exact (hf6 cells (by decide) (by decide) (by decide)).trans hS7
+    regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
   · exact hm6.trans (hm5.trans (hm4.trans (hm3.trans hm1)))
 
 /-- Concrete computed powers and addresses after native header initialization. -/
@@ -208,11 +200,8 @@ theorem exec_header {w L m N : ℕ} (hm : m ≤ L) (x : Data 96)
   let I := S + B
   let T := I + 2 ^ L
   let C := T + 2 ^ L
-  have hnd : Fits w (N * D m) := hlocal.of_le (by omega)
   have hnd2 : Fits w (N * D m * 2) := hlocal.of_le (by omega)
   have hB : Fits w B := hlocal.of_le (by dsimp [B]; omega)
-  have ht2 : Fits w (10 ^ L * 2) := hlocal.of_le (by omega)
-  have hts : Fits w (10 ^ L * 2 + 7 ^ L) := hlocal.of_le (by omega)
   have hts2 : Fits w (10 ^ L * 2 + 7 ^ L + 2) := hlocal.of_le (by omega)
   have hS : Fits w S := hlocal.of_le (by dsimp [S, B]; omega)
   have hI : Fits w I := hlocal.of_le (by dsimp [I, S, B]; omega)
@@ -223,7 +212,7 @@ theorem exec_header {w L m N : ℕ} (hm : m ≤ L) (x : Data 96)
     snapshot (10 ^ L * 2 + 7 ^ L + 2)).set snapshot S).set inverse I).set table T).set catalogue C)
   have hy : ExecWithin w headerLayout z y 10 := by
     ram_eval [headerLayout, y, B, S, I, T, C, hbasic.rows, hbasic.two, hbasic.four,
-      hS2, hS7, hS10, hD, hnd, hnd2, hB, ht2, hts, hts2, hS, hI, hT, hC,
+      hS2, hS7, hS10, hD, hnd2, hB, hts2, hS, hI, hT, hC,
       prefixSize, snapshot, inverse, table, catalogue, rows, columns, leaves, cells,
       masks, two, four, Fin.mk.injEq, Function.update_idem]
   have hfixed : BasicParameters L m N y := hbasic.of_frame (by

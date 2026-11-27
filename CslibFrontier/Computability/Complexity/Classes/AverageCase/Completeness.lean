@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Foundations.Data.Nat.Doubling
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Probability.PMF.Finiteness
 
@@ -118,8 +119,7 @@ include hcdf hden
 theorem length_code_le (x : List Bool) : (code num den x).length ≤ 3 * x.length + 2 := by
   have h1 := Compression.length_compress_le hcdf hden x
   have h2 := Nat.size_le_self x.length
-  simp only [code, List.length_append, length_frame, length_lenWord]
-  omega
+  enc_len [code, length_lenWord]
 
 /-- The header of a reduced instance has length at most `2|c| + 9|x| + 8`. -/
 theorem length_header_code_le (c x : List Bool) :
@@ -165,9 +165,7 @@ theorem two_pow_length_header_code_mul_le (c x : List Bool) :
   have hlen : (header c (code num den x)).length =
       (2 * c.length + 1 + (2 * (code num den x).length.size + 1) + 2 * x.length.size + 1) +
         (Compression.compress num den x).length := by
-    rw [length_header]
-    simp only [code, List.length_append, length_frame, length_lenWord]
-    omega
+    enc_len [length_header, code, length_lenWord]
   rw [hlen, pow_add, mul_assoc]
   calc (2 : ℝ≥0∞) ^ (2 * c.length + 1 + (2 * (code num den x).length.size + 1) +
         2 * x.length.size + 1) * (2 ^ (Compression.compress num den x).length * D.dist x.length x)
@@ -266,8 +264,7 @@ theorem distHard_problem : DistHard DistNP problem := by
       have hlen : (encPair encBits encBits (code num den x, frame x ++ w)).length ≤
           8 * x.length + 6 + q.eval x.length := by
         have := length_code_le hcdf hden0 x
-        simp only [encPair_apply, encBits_apply, List.length_append, length_frame]
-        omega
+        enc_len
       have hTb : T (encPair encBits encBits (code num den x, frame x ++ w)).length ≤
           R.eval x.length := by
         rw [hR]
@@ -280,9 +277,7 @@ theorem distHard_problem : DistHard DistNP problem := by
       have hwR : 2 * x.length + 1 + q.eval x.length ≤ R.eval x.length := by
         rw [hR]
         exact Nat.le_add_left _ _
-      refine ⟨frame x ++ w, ?_, ?_⟩
-      · simp only [List.length_append, length_frame]
-        omega
+      refine ⟨frame x ++ w, by enc_len, ?_⟩
       · rw [hc, show frame (code num den x) ++ (frame x ++ w) =
             encPair encBits encBits (code num den x, frame x ++ w) by
           rw [encPair_apply]; rfl]

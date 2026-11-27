@@ -71,7 +71,7 @@ lemma step_check (p : Fin (input.length + 2)) (ws : Fin k → List Symbol) (out 
   rw [step_of_state rfl, inputSymbol_eq_inputSymbolAt, hsym]
   rcases hc : condAt c input p ws <;> simp only [condAt] at hc <;>
     refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;>
-    (try simp [whileCond, combine, adaptedTr, condTest, Action.apply, moveInputPos_zero, hc]) <;>
+    (simp [whileCond, combine, adaptedTr, condTest, Action.apply, moveInputPos_zero, hc]) <;>
     rfl
 
 /-- One round: from the test with the condition holding, the loop runs `tm` once and is back at

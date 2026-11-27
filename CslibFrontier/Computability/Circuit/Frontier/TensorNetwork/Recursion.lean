@@ -145,7 +145,7 @@ theorem two_pow_eq_zero_twoPowIdeal (B : Type*) [CommRing B] (n : ℕ) :
 
 /-- The ideal `(2 ^ p_t)` of the node `t` of a call with `M` edges, packets of `2 ^ a` slots,
 multiplicity step `h` and input precision `p`. -/
-abbrev nodeIdeal (B : Type*) [CommRing B] (M a h p : ℕ) (t : ℤ) : Ideal B :=
+noncomputable abbrev nodeIdeal (B : Type*) [CommRing B] (M a h p : ℕ) (t : ℤ) : Ideal B :=
   twoPowIdeal B (nodePrecision p h a M (padicValInt 2 t))
 
 namespace TensorNetwork

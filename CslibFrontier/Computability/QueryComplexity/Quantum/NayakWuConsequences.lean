@@ -267,29 +267,17 @@ theorem one_sub_mul_add_le_of_approxCount_aux {n : ℕ} {W : Type*} [Fintype W]
   have hd_pos : 0 < d := Nat.ceil_pos.mpr (by linarith)
   have hd_ge : 2 * Δ ≤ d := Nat.le_ceil (2 * Δ)
   rcases hstep with hup | hdn
-  · have hbound := approxCount_disjoint_step U hψ₀ T out ht hup (by omega : t ≠ t + d)
-      (by
-        have : |(t : ℝ) - (t + d : ℕ)| = d := by
-          push_cast
-          rw [abs_of_nonpos (by linarith)]
-          ring
-        linarith) h hε
-    have habs : |(t : ℝ) - (t + d : ℕ)| = d := by
+  · have habs : |(t : ℝ) - (t + d : ℕ)| = d := by
       push_cast
       rw [abs_of_nonpos (by linarith)]
       ring
-    simpa [habs] using hbound
-  · have hbound := approxCount_disjoint_step U hψ₀ T out ht (by omega : t - d ≤ n)
-      (by omega : t ≠ t - d)
-      (by
-        have hsub : ((t - d : ℕ) : ℝ) = t - d := Nat.cast_sub hdn
-        rw [abs_of_nonneg (by rw [hsub]; linarith [show (0 : ℝ) ≤ d from Nat.cast_nonneg d])]
-        rw [hsub]; linarith) h hε
-    have hsub : ((t - d : ℕ) : ℝ) = t - d := Nat.cast_sub hdn
-    have habs : |(t : ℝ) - ((t - d : ℕ) : ℝ)| = d := by
-      rw [hsub, abs_of_nonneg (by linarith [show (0 : ℝ) ≤ d from Nat.cast_nonneg d])]
+    simpa [habs] using approxCount_disjoint_step U hψ₀ T out ht hup (by omega : t ≠ t + d)
+      (by linarith) h hε
+  · have habs : |(t : ℝ) - ((t - d : ℕ) : ℝ)| = d := by
+      rw [Nat.cast_sub hdn, abs_of_nonneg (by linarith [Nat.cast_nonneg (α := ℝ) d])]
       ring
-    simpa [habs] using hbound
+    simpa [habs] using approxCount_disjoint_step U hψ₀ T out ht (by omega : t - d ≤ n)
+      (by omega : t ≠ t - d) (by linarith) h hε
 
 /-- **Exact-precision counting (`0 < Δ ≤ 1 / 2`)** ([NayakWu1999], Theorem 1.11): for `1 ≤ n`
 and `0 < Δ ≤ 1 / 2`, approximating the Hamming weight within `< Δ` requires
@@ -449,6 +437,74 @@ private theorem measureProb_sim_sep {ι V W α : Type*} [Fintype ι] [Fintype V]
     refine (measureProb_le_of_sep step U hψ₀ T out P (hgood _ fun i => ?_)).2 (h2 b hb)
     by_cases hbi : b (e i) <;> simp [embedSeq, hbi]
 
+private theorem le_of_card_embedSeq_lt {ι α : Type*} [Fintype ι] [LinearOrder α]
+    {n : ℕ} (e : ι ≃ Fin n) {a₀ a₁ : α} (ha : a₀ < a₁) (b : BitString n) {y : α}
+    (hlt : (#{i : ι | embedSeq e a₀ a₁ b i < y} : ℝ) < (n : ℝ) - weight b) :
+    y ≤ a₀ := by
+  by_contra hnot
+  have hcard : ((n - weight b : ℕ) : ℝ) ≤ #{i : ι | embedSeq e a₀ a₁ b i < y} := by
+    exact_mod_cast card_filter_embedSeq_lt e ha b y (lt_of_not_ge hnot)
+  rw [Nat.cast_sub (weight_le_length b)] at hcard
+  linarith
+
+private theorem lt_of_card_lt_embedSeq {ι α : Type*} [Fintype ι] [LinearOrder α]
+    {n : ℕ} (e : ι ≃ Fin n) {a₀ a₁ : α} (ha : a₀ < a₁) (b : BitString n) {y : α}
+    (hlt : (#{i : ι | y < embedSeq e a₀ a₁ b i} : ℝ) < weight b) :
+    a₀ < y := by
+  by_contra hnot
+  have hcard : (weight b : ℝ) ≤ #{i : ι | y < embedSeq e a₀ a₁ b i} := by
+    exact_mod_cast card_filter_embedSeq_gt e ha b y (le_of_not_gt hnot)
+  linarith
+
+private theorem index_to_value_bound_of_twoValues {ι V W α : Type*}
+    [Fintype ι] [Fintype V] [Fintype W] [LinearOrder α] [Nonempty ι]
+    (step : α → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V))
+    (v₀ : V) (read : V → α) (a₀ a₁ : α)
+    (hread₀ : (open Classical in
+      measureProb (step a₀ (ket v₀)) (univ.filter fun v => read v = a₀)) = 1)
+    (hread₁ : (open Classical in
+      measureProb (step a₁ (ket v₀)) (univ.filter fun v => read v = a₁)) = 1)
+    (U : ℕ → ValueState ι V W →ₗᵢ[ℂ] ValueState ι V W) {ψ₀ : ValueState ι V W} (hψ₀ : ‖ψ₀‖ = 1)
+    (T : ℕ) (idx : ι × V × W → ι) (P : (ι → α) → α → Prop) {ε L C : ℝ}
+    (hgood : ∀ X : ι → α, (∀ i, X i = a₀ ∨ X i = a₁) → 1 - ε ≤ (open Classical in
+      measureProb (runValue step U ψ₀ X T) (univ.filter fun p => P X (X (idx p)))))
+    (htwo : ∀ (U' : ℕ → ValueState ι V (Bool × V × W × ι) →ₗᵢ[ℂ] ValueState ι V (Bool × V × W × ι))
+      {ψ₀' : ValueState ι V (Bool × V × W × ι)}, ‖ψ₀'‖ = 1 →
+      ∀ out' : ι × V × Bool × V × W × ι → α,
+        (∀ X : ι → α, (∀ i, X i = a₀ ∨ X i = a₁) → 1 - ε ≤ (open Classical in
+          measureProb (runValue step U' ψ₀' X (T + 1))
+            (univ.filter fun q => P X (out' q)))) →
+        L ≤ C * ((T + 1 : ℕ) : ℝ)) :
+    L ≤ C * ((T : ℝ) + 1) := by
+  classical
+  obtain ⟨U', ψ₀', out', hnorm, hsim⟩ := exists_sim_index_to_value step v₀ read U ψ₀ T idx
+  have hres := htwo U' (hnorm.trans hψ₀) out' fun X hX => by
+    rw [hsim X (fun i => by rcases hX i with hi | hi <;> simpa [hi] using ‹_›) (P X)]
+    exact hgood X hX
+  simpa only [Nat.cast_add, Nat.cast_one] using hres
+
+private theorem perm_index_to_value_bound_of_twoValues {ι V W α : Type*}
+    [Fintype ι] [Fintype V] [Fintype W] [Nonempty ι]
+    (π : α → Equiv.Perm V) (v₀ : V) (a₀ a₁ : α) (hne : π a₀ v₀ ≠ π a₁ v₀)
+    (U : ℕ → ValueState ι V W →ₗᵢ[ℂ] ValueState ι V W) {ψ₀ : ValueState ι V W} (hψ₀ : ‖ψ₀‖ = 1)
+    (T : ℕ) (idx : ι × V × W → ι) (P : (ι → α) → α → Prop) {ε L C : ℝ}
+    (hgood : ∀ X : ι → α, (∀ i, X i = a₀ ∨ X i = a₁) → 1 - ε ≤ (open Classical in
+      measureProb (runValue (permStep π) U ψ₀ X T) (univ.filter fun p => P X (X (idx p)))))
+    (htwo : ∀ (U' : ℕ → ValueState ι V (Bool × V × W × ι) →ₗᵢ[ℂ] ValueState ι V (Bool × V × W × ι))
+      {ψ₀' : ValueState ι V (Bool × V × W × ι)}, ‖ψ₀'‖ = 1 →
+      ∀ out' : ι × V × Bool × V × W × ι → α,
+        (∀ X : ι → α, (∀ i, X i = a₀ ∨ X i = a₁) → 1 - ε ≤ (open Classical in
+          measureProb (runValue (permStep π) U' ψ₀' X (T + 1))
+            (univ.filter fun q => P X (out' q)))) →
+        L ≤ C * ((T + 1 : ℕ) : ℝ)) :
+    L ≤ C * ((T : ℝ) + 1) := by
+  classical
+  obtain ⟨U', ψ₀', out', hnorm, hsim⟩ := exists_sim_index_to_value_perm π v₀ a₀ a₁ hne U ψ₀ T idx
+  have hres := htwo U' (hnorm.trans hψ₀) out' fun X hX => by
+    rw [hsim X hX (P X)]
+    exact hgood X hX
+  simpa only [Nat.cast_add, Nat.cast_one] using hres
+
 end TwoValueSimBridge
 
 /-! ### Theorem 1.5: Δ-approximate `k`-th smallest element -/
@@ -461,19 +517,12 @@ private theorem kthSmallest_le_of_weight_le {ι α : Type*} [Fintype ι] [Linear
     (hw : weight b = 0 ∨ (weight b : ℝ) + Δ ≤ n - k)
     {y : α} (hy : IsApproxKthSmallestRelaxed (embedSeq e a₀ a₁ b) k Δ y) :
     y ≤ a₀ := by
-  by_contra hnot
-  have hgt : a₀ < y := lt_of_not_ge hnot
-  have hcard := card_filter_embedSeq_lt e ha b y hgt
+  refine le_of_card_embedSeq_lt e ha b ?_
   rcases hw with hw0 | hwle
-  · have : n ≤ #{i : ι | embedSeq e a₀ a₁ b i < y} := by omega
-    have h1 := hy.1
-    omega
-  · have hwN : weight b ≤ n := weight_le_length b
-    have hsub : ((n - weight b : ℕ) : ℝ) = n - weight b := Nat.cast_sub hwN
-    have hleR : (n : ℝ) - weight b ≤ #{i : ι | embedSeq e a₀ a₁ b i < y} := by
-      rw [← hsub]
-      exact_mod_cast hcard
-    linarith [hy.2.2.1]
+  · have h1 : (#{i : ι | embedSeq e a₀ a₁ b i < y} : ℝ) < n := by
+      exact_mod_cast hn ▸ hy.1
+    simp [hw0, h1]
+  · linarith [hy.2.2.1]
 
 private theorem kthSmallest_gt_of_weight_ge {ι α : Type*} [Fintype ι] [LinearOrder α]
     {n : ℕ} (e : ι ≃ Fin n) (hn : Fintype.card ι = n) {a₀ a₁ : α} (ha : a₀ < a₁)
@@ -481,15 +530,12 @@ private theorem kthSmallest_gt_of_weight_ge {ι α : Type*} [Fintype ι] [Linear
     (hw : weight b = n ∨ (n : ℝ) - k + Δ ≤ weight b)
     {y : α} (hy : IsApproxKthSmallestRelaxed (embedSeq e a₀ a₁ b) k Δ y) :
     a₀ < y := by
-  by_contra hnot
-  have hle : y ≤ a₀ := le_of_not_gt hnot
-  have hcard := card_filter_embedSeq_gt e ha b y hle
+  refine lt_of_card_lt_embedSeq e ha b ?_
   rcases hw with hwn | hwge
-  · have : n ≤ #{i : ι | y < embedSeq e a₀ a₁ b i} := by omega
-    have h2 := hy.2.1
-    omega
-  · have hleR : (weight b : ℝ) ≤ #{i : ι | y < embedSeq e a₀ a₁ b i} := by exact_mod_cast hcard
-    have h2 := hy.2.2.2
+  · have h2 : (#{i : ι | y < embedSeq e a₀ a₁ b i} : ℝ) < n := by
+      exact_mod_cast hn ▸ hy.2.1
+    simpa [hwn] using h2
+  · have h2 := hy.2.2.2
     rw [hn] at h2
     linarith
 
@@ -512,11 +558,9 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
     (1 - 2 * √(ε * (1 - ε))) * (√(n / Δ) + √((k : ℝ) * (n - k)) / Δ) ≤ 16 * T_bool := by
   set c₁ := n - k
   have hc₁ : c₁ ≤ n := Nat.sub_le n k
+  have hcsub : (c₁ : ℝ) = n - k := Nat.cast_sub hkn
   have hΔ_pos : 0 < Δ := by linarith
-  have hc₁_mul : ((c₁ : ℝ) * (n - c₁)) = (k : ℝ) * (n - k) := by
-    have hsub : (c₁ : ℝ) = n - k := Nat.cast_sub hkn
-    rw [hsub]
-    ring
+  have hc₁_mul : ((c₁ : ℝ) * (n - c₁)) = (k : ℝ) * (n - k) := by rw [hcsub]; ring
   have hpair : ∀ (t₁ t₂ : ℕ), t₁ ≠ t₂ → t₁ ≤ n → t₂ ≤ n → min t₁ t₂ ≤ c₁ → c₁ ≤ max t₁ t₂ →
       (t₁ = 0 ∨ (t₁ : ℝ) + Δ ≤ n - k) → (t₂ = n ∨ (n : ℝ) - k + Δ ≤ t₂) →
       |(t₁ : ℝ) - t₂| ≤ 4 * Δ →
@@ -556,12 +600,9 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
     · refine hpair (c₁ - d₁) (c₁ + d₁) (by omega) (by omega) (by omega)
         (by rw [min_eq_left (by omega)]; omega) (by rw [max_eq_right (by omega)]; omega)
         (Or.inr ?_) (Or.inr ?_) ?_
-      · have hsub : ((c₁ - d₁ : ℕ) : ℝ) = c₁ - d₁ := Nat.cast_sub hlo
-        have hcsub : (c₁ : ℝ) = n - k := Nat.cast_sub hkn
-        rw [hsub, hcsub]
+      · rw [Nat.cast_sub hlo, hcsub]
         linarith
-      · have hcsub : (c₁ : ℝ) = n - k := Nat.cast_sub hkn
-        push_cast
+      · push_cast
         rw [hcsub]
         linarith
       · push_cast
@@ -575,27 +616,19 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
       refine hpair 0 d₂ (by omega) (Nat.zero_le n) hd₂_le_n
         (by rw [min_eq_left (Nat.zero_le d₂)]; exact Nat.zero_le c₁)
         (by rw [max_eq_right (Nat.zero_le d₂)]; exact hc₁_le_d₂)
-        (Or.inl rfl) (Or.inr ?_) ?_
-      · have hcsub : (c₁ : ℝ) = n - k := Nat.cast_sub hkn
-        linarith
-      · push_cast
-        rw [zero_sub, abs_neg, abs_of_nonneg (Nat.cast_nonneg d₂)]
-        exact hd₂_le_4
-  · have hkd₁ : k < d₁ := by
-      dsimp only [c₁] at hhi
-      omega
+        (Or.inl rfl) (Or.inr (by linarith)) ?_
+      push_cast
+      rw [zero_sub, abs_neg, abs_of_nonneg (Nat.cast_nonneg d₂)]
+      exact hd₂_le_4
+  · have hkd₁ : k < d₁ := by dsimp only [c₁] at hhi; omega
     have hk_lt_R : (k : ℝ) < Δ := Nat.lt_ceil.mp hkd₁
-    have hk_le_d₂ : k ≤ d₂ := by
-      have : (k : ℝ) ≤ d₂ := by linarith
-      exact_mod_cast this
+    have hk_le_d₂ : k ≤ d₂ := by exact_mod_cast (by linarith : (k : ℝ) ≤ d₂)
     refine hpair (n - d₂) n (by omega) (Nat.sub_le n d₂) le_rfl
       (by rw [min_eq_left (Nat.sub_le n d₂)]; omega)
       (by rw [max_eq_right (Nat.sub_le n d₂)]; exact hc₁)
-      (Or.inr ?_) (Or.inl rfl) ?_
-    · rw [Nat.cast_sub hd₂_le_n]
-      linarith
-    · rw [Nat.cast_sub hd₂_le_n, abs_of_nonpos (by linarith)]
-      linarith
+      (Or.inr (by rw [Nat.cast_sub hd₂_le_n]; linarith)) (Or.inl rfl) ?_
+    rw [Nat.cast_sub hd₂_le_n, abs_of_nonpos (by linarith)]
+    linarith
 
 /-- **Theorem 1.5 (arbitrary unitary oracle, two-valued domain)** ([NayakWu1999]): any `T`-query
 value-query algorithm outputting an element satisfying `IsApproxKthSmallestRelaxed` on all
@@ -748,20 +781,12 @@ theorem one_sub_mul_kthSmallest_index_le {ι V W α : Type*}
     (1 - 2 * √(ε * (1 - ε))) *
         (√((Fintype.card ι : ℝ) / Δ) + √((k : ℝ) * (Fintype.card ι - k)) / Δ) ≤
       32 * ((T : ℝ) + 1) := by
-  classical
   have : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
-  obtain ⟨U', ψ₀', out', hnorm, hsim⟩ := exists_sim_index_to_value step v₀ read U ψ₀ T idx
-  have hgood' : ∀ X : ι → α, (∀ i, X i = a₀ ∨ X i = a₁) → 1 - ε ≤ (open Classical in
-      measureProb (runValue step U' ψ₀' X (T + 1))
-        (univ.filter fun q => IsApproxKthSmallestRelaxed X k Δ (out' q))) := by
-    intro X hX
-    rw [hsim X (fun i => by rcases hX i with hi | hi <;> simpa [hi] using ‹_›)
-      (IsApproxKthSmallestRelaxed X k Δ)]
-    exact hgood X hX
-  have hres := one_sub_mul_kthSmallest_twoValues_le step U' (hnorm.trans hψ₀) (T + 1) out' a₀ a₁
-    ha hk1 hkn hΔ_lo hΔ_hi hgood' hε
-  push_cast at hres
-  exact hres
+  exact index_to_value_bound_of_twoValues step v₀ read a₀ a₁ hread₀ hread₁ U hψ₀ T idx
+    (fun X y => IsApproxKthSmallestRelaxed X k Δ y) hgood
+    fun U' _ hnorm' out' hgood' =>
+      one_sub_mul_kthSmallest_twoValues_le step U' hnorm' (T + 1) out' a₀ a₁ ha hk1 hkn
+        hΔ_lo hΔ_hi hgood' hε
 
 /-- Bounded-error (`ε = 1 / 3`) form of Theorem 1.5 for index-returning algorithms:
 `√(|ι| / Δ) + √(k (|ι| - k)) / Δ ≤ 576 (T + 1)`. -/
@@ -801,19 +826,12 @@ theorem one_sub_mul_kthSmallest_perm_index_le {ι V W α : Type*}
     (1 - 2 * √(ε * (1 - ε))) *
         (√((Fintype.card ι : ℝ) / Δ) + √((k : ℝ) * (Fintype.card ι - k)) / Δ) ≤
       32 * ((T : ℝ) + 1) := by
-  classical
   have : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
-  obtain ⟨U', ψ₀', out', hnorm, hsim⟩ := exists_sim_index_to_value_perm π v₀ a₀ a₁ hne U ψ₀ T idx
-  have hgood' : ∀ X : ι → α, (∀ i, X i = a₀ ∨ X i = a₁) → 1 - ε ≤ (open Classical in
-      measureProb (runValue (permStep π) U' ψ₀' X (T + 1))
-        (univ.filter fun q => IsApproxKthSmallestRelaxed X k Δ (out' q))) := by
-    intro X hX
-    rw [hsim X hX (IsApproxKthSmallestRelaxed X k Δ)]
-    exact hgood X hX
-  have hres := one_sub_mul_kthSmallest_twoValues_le (permStep π) U' (hnorm.trans hψ₀) (T + 1) out'
-    a₀ a₁ ha hk1 hkn hΔ_lo hΔ_hi hgood' hε
-  push_cast at hres
-  exact hres
+  exact perm_index_to_value_bound_of_twoValues π v₀ a₀ a₁ hne U hψ₀ T idx
+    (fun X y => IsApproxKthSmallestRelaxed X k Δ y) hgood
+    fun U' _ hnorm' out' hgood' =>
+      one_sub_mul_kthSmallest_twoValues_le (permStep π) U' hnorm' (T + 1) out' a₀ a₁ ha hk1 hkn
+        hΔ_lo hΔ_hi hgood' hε
 
 end KthSmallest
 
@@ -856,28 +874,12 @@ private theorem one_sub_mul_median_le_of_sim {ι V W α : Type*}
   have ht₁_lt_t₂ : t₁ < t₂ := by
     have : (t₁ : ℝ) < t₂ := by nlinarith
     exact_mod_cast this
-  have hsep := measureProb_sim_sep e step U hψ₀ T out (fun X y => IsApproxMedian X δ y)
-    Vsim φ₀ T_bool hsim hgood
-    (fun b hb y hm => by
-      by_contra hnot
-      have hlt : a₀ < y := lt_of_not_ge hnot
-      have hcard := card_filter_embedSeq_lt e ha b y hlt
-      rw [hb] at hcard
-      have hcardR : (n : ℝ) - t₁ ≤ #{i : ι | embedSeq e a₀ a₁ b i < y} := by
-        rw [← Nat.cast_sub ht₁_le_n]
-        exact_mod_cast hcard
-      have hm1 := hm.1
-      rw [hn] at hm1
-      linarith)
-    (fun b hb y hm => by
-      by_contra hnot
-      have hle : y ≤ a₀ := le_of_not_gt hnot
-      have hcard := card_filter_embedSeq_gt e ha b y hle
-      rw [hb] at hcard
-      have hcardR : (t₂ : ℝ) ≤ #{i : ι | y < embedSeq e a₀ a₁ b i} := by exact_mod_cast hcard
-      have hm2 := hm.2
-      rw [hn] at hm2
-      linarith)
+  have hsep := measureProb_sim_sep (t₁ := t₁) (t₂ := t₂) e step U hψ₀ T out
+    (fun X y => IsApproxMedian X δ y) Vsim φ₀ T_bool hsim hgood
+    (fun b hb _ hm => le_of_card_embedSeq_lt e ha b
+      (by have h := hm.1; rw [hn] at h; rw [hb]; nlinarith))
+    (fun b hb _ hm => lt_of_card_lt_embedSeq e ha b
+      (by have h := hm.2; rw [hn] at h; rw [hb]; nlinarith))
   have hcard := one_sub_mul_card_le_four_mul_mul_abs_sub_of_weight Vsim hφ₀ T_bool
     ((univ.filter fun p => out p ≤ a₀).map (embedOutcome e)) ht₁_lt_t₂.ne
     (by rw [min_eq_left ht₁_lt_t₂.le]; exact h2t₁)
@@ -1054,20 +1056,11 @@ theorem one_sub_mul_median_index_le {ι V W α : Type*}
         (univ.filter fun p => IsApproxMedian X δ (X (idx p)))))
     (hε : 2 * ε ≤ 1) :
     (1 - 2 * √(ε * (1 - ε))) * min (1 / δ) (Fintype.card ι) ≤ 24 * ((T : ℝ) + 1) := by
-  classical
   have : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
-  obtain ⟨U', ψ₀', out', hnorm, hsim⟩ := exists_sim_index_to_value step v₀ read U ψ₀ T idx
-  have hgood' : ∀ X : ι → α, (∀ i, X i = a₀ ∨ X i = a₁) → 1 - ε ≤ (open Classical in
-      measureProb (runValue step U' ψ₀' X (T + 1))
-        (univ.filter fun q => IsApproxMedian X δ (out' q))) := by
-    intro X hX
-    rw [hsim X (fun i => by rcases hX i with hi | hi <;> simpa [hi] using ‹_›)
-      (IsApproxMedian X δ)]
-    exact hgood X hX
-  have hres := one_sub_mul_median_twoValues_le step U' (hnorm.trans hψ₀) (T + 1) out' a₀ a₁ ha
-    hn1 hδ₀ hδ₁ hgood' hε
-  push_cast at hres
-  exact hres
+  exact index_to_value_bound_of_twoValues step v₀ read a₀ a₁ hread₀ hread₁ U hψ₀ T idx
+    (fun X y => IsApproxMedian X δ y) hgood
+    fun U' _ hnorm' out' hgood' =>
+      one_sub_mul_median_twoValues_le step U' hnorm' (T + 1) out' a₀ a₁ ha hn1 hδ₀ hδ₁ hgood' hε
 
 /-- Bounded-error (`ε = 1 / 3`) form of Corollary 1.6 for index-returning algorithms:
 `min (1 / δ) |ι| ≤ 432 (T + 1)`. -/
@@ -1103,19 +1096,12 @@ theorem one_sub_mul_median_perm_index_le {ι V W α : Type*}
         (univ.filter fun p => IsApproxMedian X δ (X (idx p)))))
     (hε : 2 * ε ≤ 1) :
     (1 - 2 * √(ε * (1 - ε))) * min (1 / δ) (Fintype.card ι) ≤ 24 * ((T : ℝ) + 1) := by
-  classical
   have : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
-  obtain ⟨U', ψ₀', out', hnorm, hsim⟩ := exists_sim_index_to_value_perm π v₀ a₀ a₁ hne U ψ₀ T idx
-  have hgood' : ∀ X : ι → α, (∀ i, X i = a₀ ∨ X i = a₁) → 1 - ε ≤ (open Classical in
-      measureProb (runValue (permStep π) U' ψ₀' X (T + 1))
-        (univ.filter fun q => IsApproxMedian X δ (out' q))) := by
-    intro X hX
-    rw [hsim X hX (IsApproxMedian X δ)]
-    exact hgood X hX
-  have hres := one_sub_mul_median_twoValues_le (permStep π) U' (hnorm.trans hψ₀) (T + 1) out' a₀ a₁
-    ha hn1 hδ₀ hδ₁ hgood' hε
-  push_cast at hres
-  exact hres
+  exact perm_index_to_value_bound_of_twoValues π v₀ a₀ a₁ hne U hψ₀ T idx
+    (fun X y => IsApproxMedian X δ y) hgood
+    fun U' _ hnorm' out' hgood' =>
+      one_sub_mul_median_twoValues_le (permStep π) U' hnorm' (T + 1) out' a₀ a₁ ha hn1 hδ₀ hδ₁
+        hgood' hε
 
 end Median
 

@@ -39,4 +39,12 @@ theorem budget_id {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
     (h : (fun a => (enc a).length) ≼ S) : ComputableInSpace (fun a => a) enc enc S :=
   (of_inO (ComputableInO.of_eq fun _ => rfl)).weaken h
 
+/-- The minimum of two binary naturals, within the budget. -/
+@[fun_prop]
+theorem budget_natMin {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {a b : α → ℕ}
+    (ha : ComputableInSpace a enc encNat S) (hb : ComputableInSpace b enc encNat S) :
+    ComputableInSpace (fun x => min (a x) (b x)) enc encNat S :=
+  (budget_ite (budget_natLt ha hb) ha hb).of_enc_eq fun x => by
+    simp only [min_def_lt, decide_eq_true_eq]
+
 end Turing.MultiTapeTM.ComputableInSpace

@@ -112,7 +112,7 @@ namespace Cslib.Complexity
 
 open _root_.Turing (MultiTapePTM)
 open _root_.Turing.MultiTapeTM
-  (ComputableInPolyTime ComputableTidilyInPolyTime encBits encBits_apply encBool encBool_apply
+  (ComputableInPolyTime encBits encBits_apply encBool encBool_apply
     encFiniteConfig encIntBin encList encPair encUnary length_encPair)
 open _root_.Turing.MultiTapeMachine (FiniteConfig)
 open _root_.Turing.MultiTapePTM (replyStep)

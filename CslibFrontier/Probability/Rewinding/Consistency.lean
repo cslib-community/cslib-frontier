@@ -12,6 +12,7 @@ import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Rewinding against a committed table
@@ -204,8 +205,7 @@ theorem le_add_mul_sqrt_disagreement {ε : ℝ}
     calc p s ≤ (μ.toOuterMeasure
           {r | acc s r = true ∧ ∀ j b, opens s r j b = true → b = π j}).toReal +
           ∑ j ∈ Finset.range M, (a j (!π j)).toReal := by
-          rw [← ENNReal.toReal_sum fun j _ => hfin _]
-          exact ENNReal.toReal_le_add hsplit (hfin _) (ENNReal.sum_ne_top.mpr fun j _ => hfin _)
+          ennreal_to_real using hsplit
       _ ≤ ε + ∑ _j ∈ Finset.range M, √(d s) :=
           add_le_add (hcons s hs π) (Finset.sum_le_sum hmin)
       _ = ε + M * √(d s) := by simp

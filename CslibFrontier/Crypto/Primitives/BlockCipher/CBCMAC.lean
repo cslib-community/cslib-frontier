@@ -19,13 +19,17 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 /-!
-# CBC-MAC Finite Security Bounds and Forgery Separations
+# CBC-MAC Finite Uniform-Random-Function Bounds and Forgery Separations
 
 Formalizes the Cipher Block Chaining Message Authentication Code (CBC-MAC) over `BitString n`, its
-prefix-free smoothness and information-theoretic adaptive decision-tree PRF bound
-([KatzLindell2020], Section 4.4, Construction 4.9, Theorem 4.12, and Claim 4.13), and explicit
-forgery counterexamples for each of the six relaxations in [KatzLindell2020], Exercises
-4.13–4.16.
+prefix-free smoothness, the information-theoretic uniform-random-function step
+`abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le` (#6046) toward prefix-free CBC-MAC PRF
+security ([BonehShoup2023], Section 6.4.1, Theorem 6.3, pp. 226–229; [KatzLindell2020], Section
+4.4.2, pp. 123–127) bounding `cbcMacFinite g` for a uniform random function
+`g : BitString n → BitString n` rather than a keyed computational PRF, and explicit forgery
+counterexamples for six relaxations of basic CBC-MAC ([KatzLindell2020], Section 4.4, pp. 120–127,
+and Chapter 4 Exercises, p. 140ff.; interior [KatzLindell2020] numbering from the existing module
+notes, see `manual/sources.md`).
 
 ## Main definitions
 
@@ -33,11 +37,12 @@ forgery counterexamples for each of the six relaxations in [KatzLindell2020], Ex
   bounded nonempty block-vector domain.
 * `CBCPrefixFree`, `CBCSmooth`: prefix-free query-list predicate and `(q, ℓ, δ)`-smoothness for
   random-function CBC-MAC.
-* `CBCOracleSpec`, `cbcQueryRun`, `CBCAdmissible`, `cbcRealSuccess`, `cbcIdealSuccess`: adaptive
-  oracle distinguishers as `OracleComp (CBCOracleSpec n ℓ) Bool` programs, their query-logging run
-  through `OracleComp.interpret`, the execution-based prefix-free query budget, and real/ideal
-  acceptance probabilities for the information-theoretic step of Theorem 4.12.
-* `CBCTagForgery`, `cbcForgeryValid`, `cbcTwoToFourAttack`, `cbcToThreeAttack`, `cbcAllTagsTwo`,
+* `CBCOracleSpec`, `cbcQueryRun`, `CBCAdmissible`, `cbcUniformFunctionSuccess`, `cbcIdealSuccess`:
+  adaptive oracle distinguishers as `OracleComp (CBCOracleSpec n ℓ) Bool` programs, their
+  query-logging run through `OracleComp.interpret`, the execution-based prefix-free query budget,
+  and uniform-block-function vs. ideal-MAC acceptance probabilities for the information-theoretic
+  step (#6046).
+* `ForgeryTrace`, `ForgeryTrace.Valid`, `cbcTwoToFourAttack`, `cbcToThreeAttack`, `cbcAllTagsTwo`,
   `cbcLeakedTagsAttack`, `cbcRandomIVMac`, `cbcRandomIVAttack`, `lengthAppendedCBC`,
   `cbcLengthSuffixAttack`, `zeroPadCBC`, `zeroPadAttack`: explicit CBC-MAC forgery constructions
   for Exercises 4.13–4.16 (the all-ones block is `(1 : BitString n)`, zero padding is
@@ -49,8 +54,12 @@ forgery counterexamples for each of the six relaxations in [KatzLindell2020], Ex
   and equivalence between the final block of `cbcEncryptBlocks` and `cbcMacBlocks`.
 * `cbcSmooth_iff`, `cbcSmooth_of_prefixFree`: counting characterization and `(q, ℓ, q^2 * ℓ^2 /
   2^n)`-smoothness of prefix-free CBC-MAC ([KatzLindell2020], Claim 4.13).
-* `abs_cbcRealSuccess_sub_cbcIdealSuccess_le`: adaptive oracle-program PRF bound
-  `|cbcRealSuccess - cbcIdealSuccess| ≤ q^2 * ℓ^2 / 2^n` ([KatzLindell2020], Theorem 4.12).
+* `abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le`: information-theoretic
+  uniform-random-function step
+  `|cbcUniformFunctionSuccess - cbcIdealSuccess| ≤ q^2 * ℓ^2 / 2^n` (#6046) toward prefix-free
+  CBC-MAC PRF security ([BonehShoup2023], Section 6.4.1, Theorem 6.3, pp. 226–229;
+  [KatzLindell2020], Section 4.4.2), bounding `cbcMacFinite g` for a uniform random function
+  `g : BitString n → BitString n` rather than a keyed computational PRF.
 * `cbcTwoToFourAttack_valid`, `cbcToThreeAttack_valid`, `cbcLeakedTagsAttack_valid`,
   `cbcRandomIVAttack_valid`, `cbcLengthSuffixAttack_valid_any_encoding`,
   `cbcLengthSuffixAttack_valid`, `rightpad_false_true_collide`, `zeroPadAttack_valid`:
@@ -59,8 +68,11 @@ forgery counterexamples for each of the six relaxations in [KatzLindell2020], Ex
 
 ## References
 
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
+  Version 0.6][BonehShoup2023], Section 6.4.1, Theorem 6.3, pp. 226–229.
 * [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*, 3rd ed.][KatzLindell2020],
-  Section 4.4 (pp. 121–127) and Exercises 4.13–4.16 (p. 142).
+  Section 4.4 (pp. 120–127) and Chapter 4 Exercises (p. 140ff.; interior theorem/exercise numbers
+  not re-audited against the Chapter 4 body, see `manual/sources.md`).
 -/
 @[expose] public section
 namespace Cslib.Crypto
@@ -526,7 +538,7 @@ theorem cbcSmooth_of_prefixFree (n q ℓ : ℕ) :
       ((1 - (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n) * N) / ((2 : ℝ) ^ n) ^ q by ring,
     div_le_iff₀ hY]
   nlinarith
-/-! ### Section 3: Adaptive Oracle-Program PRF Bound ([KatzLindell2020], Theorem 4.12) -/
+/-! ### Section 3: Uniform-Random-Function Step Toward [KatzLindell2020], Theorem 4.12 (#6046) -/
 /-- The oracle interface of CBC-MAC distinguishers: a query is a bounded nonempty block input
   `CBCInput n ℓ`, answered by an `n`-bit tag. -/
 abbrev CBCOracleSpec (n ℓ : ℕ) : OracleSpec (CBCInput n ℓ) := fun _ => BitString n
@@ -562,10 +574,11 @@ theorem cbcQueryRun_fst {ℓ : ℕ} {α : Type} (oracle : CBCInput n ℓ → Bit
 def CBCAdmissible {ℓ : ℕ} (q : ℕ) (tree : OracleComp (CBCOracleSpec n ℓ) Bool) : Prop :=
   ∀ oracle, CBCPrefixFree (cbcQueryRun oracle tree).2 ∧
     (cbcQueryRun oracle tree).2.length ≤ q
-/-- Real-world acceptance probability of a distribution `D` over adaptive oracle programs when
-  interacting with `cbcMacFinite g` for a uniform random function `g : BitString n → BitString
-  n`. -/
-noncomputable def cbcRealSuccess (n ℓ : ℕ) (D : PMF (OracleComp (CBCOracleSpec n ℓ) Bool)) : ℝ :=
+/-- Acceptance probability of a distribution `D` over adaptive oracle programs when interacting with
+  `cbcMacFinite g` over a uniform random block function `g : BitString n → BitString n` (not a
+  keyed computational PRF; #6046). -/
+noncomputable def cbcUniformFunctionSuccess (n ℓ : ℕ)
+    (D : PMF (OracleComp (CBCOracleSpec n ℓ) Bool)) : ℝ :=
   ((do
     let g ← PMF.uniformOfFintype (BitString n → BitString n)
     let tree ← D
@@ -827,26 +840,22 @@ private theorem uniformOfFintype_bind_comm {ℓ : ℕ} {G : Type} [Fintype G] [N
     (D : PMF (OracleComp (CBCOracleSpec n ℓ) Bool))
     (h : G → OracleComp (CBCOracleSpec n ℓ) Bool → Bool) : (do
       let g ← PMF.uniformOfFintype G let T ← D return h g T) =
-      D.bind (fun T => (PMF.uniformOfFintype G).map (fun g => h g T)) := by
-  calc _
-      = (PMF.uniformOfFintype G).bind
-          (fun g => D.bind (fun T => PMF.pure (h g T))) := rfl
-    _ = D.bind (fun T =>
-          (PMF.uniformOfFintype G).bind fun g => PMF.pure (h g T)) :=
-        PMF.bind_comm _ _ _
-    _ = _ := rfl
-/-- **Prefix-Free CBC-MAC Adaptive PRF Security Bound ([KatzLindell2020], Section 4.4, Theorem
-  4.12, p. 124)**: for every block width `n`, query budget `q`, maximum block length `ℓ`, and
-  distribution `D` over `q`-admissible adaptive oracle programs, the distinguishing advantage
-  between `cbcMacFinite g` (for uniform `g : BitString n → BitString n`) and a uniform random
+      D.bind (fun T => (PMF.uniformOfFintype G).map (fun g => h g T)) :=
+  PMF.bind_comm _ D fun g T => PMF.pure (h g T)
+/-- Information-theoretic uniform-random-function step (#6046) toward prefix-free CBC-MAC PRF
+  security ([BonehShoup2023], Section 6.4.1, Theorem 6.3, pp. 226–229; [KatzLindell2020], Section
+  4.4.2, pp. 123–127), bounding `cbcMacFinite g` for a uniform random function
+  `g : BitString n → BitString n` rather than a keyed computational PRF: for every block width `n`,
+  query budget `q`, maximum block length `ℓ`, and distribution `D` over `q`-admissible adaptive
+  oracle programs, the distinguishing advantage between `cbcMacFinite g` and a uniform random
   function `f : CBCInput n ℓ → BitString n` is at most `q^2 * ℓ^2 / 2^n`. -/
-theorem abs_cbcRealSuccess_sub_cbcIdealSuccess_le (n q ℓ : ℕ)
+theorem abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le (n q ℓ : ℕ)
     (D : PMF (OracleComp (CBCOracleSpec n ℓ) Bool))
     (hD : ∀ tree, D tree ≠ 0 → CBCAdmissible q tree) :
-    |cbcRealSuccess n ℓ D - cbcIdealSuccess n ℓ D| ≤
+    |cbcUniformFunctionSuccess n ℓ D - cbcIdealSuccess n ℓ D| ≤
       (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n := by
   have hδ : (0 : ℝ) ≤ (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n := by positivity
-  unfold cbcRealSuccess cbcIdealSuccess
+  unfold cbcUniformFunctionSuccess cbcIdealSuccess
   rw [uniformOfFintype_bind_comm D (fun g T => (cbcQueryRun (cbcMacFinite g) T).1),
     uniformOfFintype_bind_comm D
       (fun (f : CBCInput n ℓ → BitString n) T => (cbcQueryRun f T).1),
@@ -858,40 +867,50 @@ theorem abs_cbcRealSuccess_sub_cbcIdealSuccess_le (n q ℓ : ℕ)
     Finset.nnratCast_dens, Finset.nnratCast_dens]
   exact cbcDecisionTree_gap q T (hD T hT)
 /-! ### Section 4: Explicit CBC-MAC Forgery Attacks ([KatzLindell2020], Exercises 4.13–4.16) -/
-/-- A CBC-MAC forgery trace `(queriedMessages, forgedMessage, forgedTag)`. -/
-abbrev CBCTagForgery (n : ℕ) := List (List (BitString n)) × List (BitString n) × BitString n
-/-- A forgery trace `(qs, m*, t*)` is valid against `cbcMacBlocks g 0` if `m* ∉ qs` and
-  `cbcMacBlocks g 0 m* = t*`. -/
-def cbcForgeryValid (g : BitString n → BitString n) (trace : CBCTagForgery n) : Prop :=
-  trace.2.1 ∉ trace.1 ∧ cbcMacBlocks g 0 trace.2.1 = trace.2.2
+/-- The trace of a deterministic MAC forgery attack: the messages it queried, and the message and
+  tag it outputs. -/
+structure ForgeryTrace (Message Tag : Type*) where
+  /-- The messages submitted to the tagging oracle. -/
+  queries : List Message
+  /-- The forged message. -/
+  message : Message
+  /-- The tag claimed for `message`. -/
+  tag : Tag
+/-- A forgery trace is valid against the tagging function `mac` if its message was never queried
+  and `mac` gives it the claimed tag. -/
+def ForgeryTrace.Valid {Message Tag : Type*} (trace : ForgeryTrace Message Tag)
+    (mac : Message → Tag) : Prop :=
+  trace.message ∉ trace.queries ∧ mac trace.message = trace.tag
 /-- **Two-block-to-four-block length-extension attack ([KatzLindell2020], Exercise 4.13(a),
   p. 142)**: queries `[0, 0]` to obtain tag `t = g(g(0))`, then forges `[0, 0, t, 0]` with the same
   tag `t`. -/
-def cbcTwoToFourAttack (oracle : List (BitString n) → BitString n) : CBCTagForgery n :=
+def cbcTwoToFourAttack (oracle : List (BitString n) → BitString n) :
+    ForgeryTrace (List (BitString n)) (BitString n) :=
   let t := oracle [0, 0]
-  ([[0, 0]], [0, 0, t, 0], t)
+  ⟨[[0, 0]], [0, 0, t, 0], t⟩
 /-- `cbcTwoToFourAttack` succeeds with probability `1` against every round function `g` using a
   single 2-block query and forging a fresh 4-block message ([KatzLindell2020], Exercise 4.13(a),
   p. 142). -/
 theorem cbcTwoToFourAttack_valid (g : BitString n → BitString n) :
     let trace := cbcTwoToFourAttack (cbcMacBlocks g 0)
-    trace.1.length = 1 ∧ (∀ q ∈ trace.1, q.length = 2) ∧
-      trace.2.1.length = 4 ∧ cbcForgeryValid g trace := by
-  simp [cbcTwoToFourAttack, cbcForgeryValid, cbcMacBlocks]
+    trace.queries.length = 1 ∧ (∀ q ∈ trace.queries, q.length = 2) ∧
+      trace.message.length = 4 ∧ trace.Valid (cbcMacBlocks g 0) := by
+  simp [cbcTwoToFourAttack, ForgeryTrace.Valid, cbcMacBlocks]
 /-- **One-and-two-block-to-three-block splicing attack ([KatzLindell2020], Exercise 4.13(b),
   p. 142)**: queries `[0]` (getting `t = g(0)`) and `[0, 0]` (getting `u = g(g(0))`), then forges
   `[0, t, 0]` with tag `u`. -/
-def cbcToThreeAttack (oracle : List (BitString n) → BitString n) : CBCTagForgery n :=
+def cbcToThreeAttack (oracle : List (BitString n) → BitString n) :
+    ForgeryTrace (List (BitString n)) (BitString n) :=
   let t := oracle [0]
   let u := oracle [0, 0]
-  ([[0], [0, 0]], [0, t, 0], u)
+  ⟨[[0], [0, 0]], [0, t, 0], u⟩
 /-- `cbcToThreeAttack` succeeds with probability `1` against every round function `g` using two
   queries (`[0]` and `[0, 0]`) and forging the fresh 3-block message `[0, g(0), 0]`
   ([KatzLindell2020], Exercise 4.13(b), p. 142). -/
 theorem cbcToThreeAttack_valid (g : BitString n → BitString n) :
     let trace := cbcToThreeAttack (cbcMacBlocks g 0)
-    trace.1.length = 2 ∧ trace.2.1.length = 3 ∧ cbcForgeryValid g trace := by
-  simp [cbcToThreeAttack, cbcForgeryValid, cbcMacBlocks]
+    trace.queries.length = 2 ∧ trace.message.length = 3 ∧ trace.Valid (cbcMacBlocks g 0) := by
+  simp [cbcToThreeAttack, ForgeryTrace.Valid, cbcMacBlocks]
 /-- Insecure two-block CBC-MAC variant that outputs both intermediate chaining values `(g(m₁),
   g(g(m₁) + m₂))` ([KatzLindell2020], Exercise 4.14(a), p. 142). -/
 def cbcAllTagsTwo (g : BitString n → BitString n) (msg : BitString n × BitString n) :
@@ -901,11 +920,11 @@ def cbcAllTagsTwo (g : BitString n → BitString n) (msg : BitString n × BitStr
   queries `(0, 0)`, `(1^n, 0)`, and `(1^n, 1^n)`, and uses the leaked first-block tags to forge a
   fresh 2-block message. -/
 def cbcLeakedTagsAttack (oracle : (BitString n × BitString n) → BitString n × BitString n) :
-    List (BitString n × BitString n) × (BitString n × BitString n) × (BitString n × BitString n) :=
+    ForgeryTrace (BitString n × BitString n) (BitString n × BitString n) :=
   let z : BitString n := 0; let o : BitString n := 1
   let a := oracle (z, z); let b := oracle (o, z); let c := oracle (o, o)
   let forge := if a.1 = b.1 then ((z, o), c) else ((z, a.1 + b.1), b)
-  ([(z, z), (o, z), (o, o)], forge.1, forge.2)
+  ⟨[(z, z), (o, z), (o, o)], forge.1, forge.2⟩
 private theorem zero_ne_one_of_pos (hn : 0 < n) : (0 : BitString n) ≠ 1 := by
   intro h; exact Bool.false_ne_true (congrFun h ⟨0, hn⟩)
 /-- `cbcLeakedTagsAttack` makes `3` queries and outputs a fresh 2-block message with a valid
@@ -913,8 +932,8 @@ private theorem zero_ne_one_of_pos (hn : 0 < n) : (0 : BitString n) ≠ 1 := by
   p. 142). -/
 theorem cbcLeakedTagsAttack_valid (hn : 0 < n) (g : BitString n → BitString n) :
     let trace := cbcLeakedTagsAttack (cbcAllTagsTwo g)
-    trace.1.length = 3 ∧ trace.2.1 ∉ trace.1 ∧
-      (cbcAllTagsTwo g trace.2.1).2 = trace.2.2.2 := by
+    trace.queries.length = 3 ∧ trace.message ∉ trace.queries ∧
+      (cbcAllTagsTwo g trace.message).2 = trace.tag.2 := by
   have hzo : (0 : BitString n) ≠ 1 := zero_ne_one_of_pos hn
   by_cases h : g 0 = g ((1 : BitString n))
   · simp [cbcLeakedTagsAttack, cbcAllTagsTwo, h, hzo, Ne.symm hzo]
@@ -935,9 +954,9 @@ def cbcRandomIVAttack (tag : BitString n × BitString n) :
   (`cbcRandomIVMac`) validates for every `iv` and `g` whenever `0 < n` ([KatzLindell2020],
   Exercise 4.14(b), p. 142). -/
 theorem cbcRandomIVAttack_valid (hn : 0 < n) (g : BitString n → BitString n) (iv : BitString n) :
-    let forged := cbcRandomIVAttack (cbcRandomIVMac g iv [0])
-    forged.1 ≠ 0 ∧ cbcRandomIVMac g forged.2.1 [forged.1] = forged.2 :=
-  ⟨(zero_ne_one_of_pos hn).symm, by simp [cbcRandomIVAttack, cbcRandomIVMac]⟩
+    let (message, iv', tag) := cbcRandomIVAttack (cbcRandomIVMac g iv [0])
+    message ≠ 0 ∧ cbcRandomIVMac g iv' [message] = (iv', tag) :=
+  ⟨(zero_ne_one_of_pos hn).symm, by simp [cbcRandomIVMac]⟩
 /-- Insecure CBC-MAC variant that appends `encodeLength (msg.length * n)` at the end of `msg`
   ([KatzLindell2020], Exercise 4.15, p. 142). -/
 def lengthAppendedCBC (g : BitString n → BitString n)
@@ -947,17 +966,16 @@ def lengthAppendedCBC (g : BitString n → BitString n)
   `[0]`, `[1^n]`, and `[0] ++ encodeLength n ++ [t]`, and forges
   `[1^n] ++ encodeLength n ++ [u]`. -/
 def cbcLengthSuffixAttack (encodeLength : ℕ → List (BitString n))
-    (oracle : List (BitString n) → BitString n) : CBCTagForgery n :=
+    (oracle : List (BitString n) → BitString n) : ForgeryTrace (List (BitString n)) (BitString n) :=
   let z : BitString n := 0; let o : BitString n := 1
   let t := oracle [z]; let u := oracle [o]; let query := [z] ++ encodeLength n ++ [t]
-  ([[z], [o], query], [o] ++ encodeLength n ++ [u], oracle query)
+  ⟨[[z], [o], query], [o] ++ encodeLength n ++ [u], oracle query⟩
 /-- `cbcLengthSuffixAttack` succeeds with `3` queries against `lengthAppendedCBC` for every
   `encodeLength` and `g` whenever `0 < n` ([KatzLindell2020], Exercise 4.15, p. 142). -/
 theorem cbcLengthSuffixAttack_valid_any_encoding (hn : 0 < n)
     (encodeLength : ℕ → List (BitString n)) (g : BitString n → BitString n) :
     let trace := cbcLengthSuffixAttack encodeLength (lengthAppendedCBC g encodeLength)
-    trace.1.length = 3 ∧ trace.2.1 ∉ trace.1 ∧
-      lengthAppendedCBC g encodeLength trace.2.1 = trace.2.2 := by
+    trace.queries.length = 3 ∧ trace.Valid (lengthAppendedCBC g encodeLength) := by
   have hzo : (0 : BitString n) ≠ 1 := zero_ne_one_of_pos hn
   refine ⟨rfl, ?_, by simp [cbcLengthSuffixAttack, lengthAppendedCBC]⟩
   simp only [cbcLengthSuffixAttack, List.mem_cons, List.not_mem_nil, or_false]
@@ -972,9 +990,8 @@ theorem cbcLengthSuffixAttack_valid (hn : 4 ≤ n) (encodeBlock : ℕ → BitStr
     (g : BitString n → BitString n) :
     let encodeLength : ℕ → List (BitString n) := fun len => [encodeBlock len]
     let trace := cbcLengthSuffixAttack encodeLength (lengthAppendedCBC g encodeLength)
-    trace.1.length = 3 ∧ (∀ q ∈ trace.1, q.length * n < 2 ^ n) ∧
-      trace.2.1.length * n < 2 ^ n ∧ trace.2.1 ∉ trace.1 ∧
-      lengthAppendedCBC g encodeLength trace.2.1 = trace.2.2 := by
+    trace.queries.length = 3 ∧ (∀ q ∈ trace.queries, q.length * n < 2 ^ n) ∧
+      trace.message.length * n < 2 ^ n ∧ trace.Valid (lengthAppendedCBC g encodeLength) := by
   have hpow : ∀ m : ℕ, 4 ≤ m → 3 * m < 2 ^ m := by
     intro m hm; induction m, hm using Nat.le_induction with
     | base => decide
@@ -982,7 +999,7 @@ theorem cbcLengthSuffixAttack_valid (hn : 4 ≤ n) (encodeBlock : ℕ → BitStr
   have hp := hpow n hn; have hp1 : n < 2 ^ n := by omega
   have hvalid := cbcLengthSuffixAttack_valid_any_encoding (by omega)
     (fun len => [encodeBlock len]) g
-  refine ⟨hvalid.1, ?_, by simp [cbcLengthSuffixAttack, hp], hvalid.2.1, hvalid.2.2⟩
+  refine ⟨hvalid.1, ?_, by simp [cbcLengthSuffixAttack, hp], hvalid.2⟩
   intro q hq; simp only [cbcLengthSuffixAttack, List.mem_cons, List.not_mem_nil, or_false] at hq
   rcases hq with rfl | rfl | rfl <;> simp [hp1, hp]
 /-- Insecure zero-padded CBC-MAC for messages of length at most `ℓ * 2^n` bits: right-pad with
@@ -993,8 +1010,8 @@ def zeroPadCBC (g : BitString n → BitString n) (ℓ : ℕ) (m : List Bool) : B
   cbcMacBlocks g 0 (BitString.padBlocks n (ℓ * 2 ^ n) (List.rightpad (ℓ * 2 ^ n) false m))
 /-- **Zero-padded CBC-MAC forgery attack ([KatzLindell2020], Exercise 4.16, p. 142)**: queries
   `[true]` and outputs the distinct message `[true, false]` with the same tag. -/
-def zeroPadAttack (oracle : List Bool → BitString n) :
-    List (List Bool) × List Bool × BitString n := ([[true]], [true, false], oracle [true])
+def zeroPadAttack (oracle : List Bool → BitString n) : ForgeryTrace (List Bool) (BitString n) :=
+  ⟨[[true]], [true, false], oracle [true]⟩
 /-- For any `L ≥ 2`, right-padding `[true]` and `[true, false]` with `false` to length `L`
   produces the same bit string. -/
 theorem rightpad_false_true_collide (L : ℕ) (hL : 2 ≤ L) :
@@ -1005,9 +1022,8 @@ theorem rightpad_false_true_collide (L : ℕ) (hL : 2 ≤ L) :
   `g` ([KatzLindell2020], Exercise 4.16, p. 142). -/
 theorem zeroPadAttack_valid {ℓ : ℕ} (hn : 0 < n) (hℓ : 0 < ℓ) (g : BitString n → BitString n) :
     let trace := zeroPadAttack (zeroPadCBC g ℓ)
-    trace.1.length = 1 ∧ (∀ q ∈ trace.1, q.length ≤ ℓ * 2 ^ n) ∧
-      trace.2.1.length ≤ ℓ * 2 ^ n ∧ trace.2.1 ∉ trace.1 ∧
-      zeroPadCBC g ℓ trace.2.1 = trace.2.2 := by
+    trace.queries.length = 1 ∧ (∀ q ∈ trace.queries, q.length ≤ ℓ * 2 ^ n) ∧
+      trace.message.length ≤ ℓ * 2 ^ n ∧ trace.Valid (zeroPadCBC g ℓ) := by
   have hpow : 2 ≤ 2 ^ n := by
     calc 2 = 2 ^ 1 := by norm_num
       _ ≤ 2 ^ n := Nat.pow_le_pow_right (by norm_num) hn

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Core
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native callable box-product execution
@@ -82,16 +83,15 @@ theorem exec {W b m t N : ℕ}
   have hIfit : Fits W (b + (QueriedProduct.inputEnd m N qs.length + 1) +
       windowSize N qs.length + 2) := hfit.of_le (by omega)
   obtain ⟨s, hs, sm, sr⟩ := exec_restoreInput c cb cI cM hM hIfit
-  have sb : s.regs Reg.base = b := (sr _ (by decide)).trans cb
-  have sM : s.regs Reg.modulus = windowSize N qs.length := (sr _ (by decide)).trans cM
-  have sQ : s.regs Reg.queryCount = qs.length := (sr _ (by decide)).trans cQ
-  have sO : s.regs Reg.output = QueriedProduct.outputBase (21 * m) m N qs.length :=
-    (sr _ (by decide)).trans cO
+  have sb : s.regs Reg.base = b := by regs_frame
+  have sM : s.regs Reg.modulus = windowSize N qs.length := by regs_frame
+  have sQ : s.regs Reg.queryCount = qs.length := by regs_frame
+  have sO : s.regs Reg.output = QueriedProduct.outputBase (21 * m) m N qs.length := by regs_frame
   have hOfit : Fits W (b + QueriedProduct.outputBase (21 * m) m N qs.length + qs.length +
       windowSize N qs.length + 2) := hfit.of_le (by omega)
   obtain ⟨y, hy, ym, yr, yf⟩ := exec_returnOutput s sb sO sQ sM hM hOfit
   refine ⟨y, (hc.seq (hs.seq hy)).mono (by unfold timeBound; omega), yr,
-    (yf _ (by decide)).trans sb, (yf _ (by decide)).trans sM, ?_, ?_, ?_⟩
+    by regs_frame, by regs_frame, ?_, ?_, ?_⟩
   · intro i
     rw [ym]
     rw [show b + (QueriedProduct.outputBase (21 * m) m N qs.length + i.val) =

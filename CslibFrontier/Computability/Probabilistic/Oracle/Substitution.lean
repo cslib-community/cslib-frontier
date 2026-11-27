@@ -11,7 +11,9 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Realization.OpenOracleSimulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Simulation
+import CslibFrontier.Languages.Probabilistic.Sum.Lift
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
@@ -36,9 +38,7 @@ case of a sampled closed handler without external channels.
 ## Main results
 
 * `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open`: open substitution with
-  captured caller data, a local state invariant and an efficiently computed resource allowance.
-* `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open'`: the same with plain
-  `ComputableInPolyTime` side conditions.
+  plain captured-input preparation, a local state invariant and a plain computed resource allowance.
 * `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded`: the same with
   an allowance that is only polynomially bounded, not computed.
 * `Cslib.Probability.IsOraclePPTOn.interpret_preprocess_open'`: stateless substitution with
@@ -111,15 +111,15 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded
   obtain ⟨hfiniteOp, k, Control, hfinite, machine, c, d, hrealize⟩ := hprogram
   let _ := hfiniteOp
   let _ := hfinite
-  have hword : ComputableTidilyInPolyTime (fun a => source (prepare a)) input encBits :=
-    hprepare.tidy.of_enc_eq (fun _ => rfl)
-  have hcount : ComputableTidilyInPolyTime
+  have hword : ComputableInPolyTime (fun a => source (prepare a)) input encBits :=
+    hprepare.of_enc_eq (fun _ => rfl)
+  have hcount : ComputableInPolyTime
       (fun a => c * ((source (prepare a)).length + 1) ^ d) input encUnary := by
-    have hclock : ComputableTidilyInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary := by
+    have hclock : ComputableInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary := by
       fun_prop
-    exact hclock.comp (ComputableTidilyInPolyTime.length_bits.comp hword)
+    exact hclock.comp (ComputableInPolyTime.length_bits.comp hword)
   have hrun := OpenOracleSimulation.isOraclePPTOn_run machine
-    hword.computableInPolyTime hcount.computableInPolyTime hhandler hinitial
+    hword hcount hhandler hinitial
     invariant hinit hallowance (fun a request state hstate result hresult => by
       obtain ⟨hstate', hreply, hgrowth⟩ := hpreserve a request state hstate result hresult
       exact ⟨hstate', hreply.trans (hbound' a request.2),
@@ -155,40 +155,6 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open
       WordOracleComp External (List Bool × State)}
     {prepare : Caller → α} {initial : Caller → State} {resources : Caller → List Bool → ℕ}
     (hprogram : IsOraclePPTOn source output program)
-    (hprepare : ComputableTidilyInPolyTime prepare input source)
-    (hhandler : IsOraclePPTOn (encHandlerCall input operationEncoding stateEncoding)
-      (encPair encBits stateEncoding)
-      (fun ⟨caller, request, state⟩ => handler caller request state))
-    (hinitial : ComputableTidilyInPolyTime initial input stateEncoding)
-    (invariant : Caller → State → Prop) (hinit : ∀ a, invariant a (initial a))
-    (hresources : ComputableTidilyInPolyTime (fun pair => resources pair.1 pair.2)
-      (encPair input encBits) encUnary)
-    (hpreserve : ∀ a request state, invariant a state →
-      ∀ result ∈ OracleComp.support (handler a request state),
-        invariant a result.2 ∧ result.1.length ≤ resources a request.2 ∧
-        (stateEncoding result.2).length ≤ (stateEncoding state).length + resources a request.2) :
-    IsOraclePPTOn input (encPair output stateEncoding) (fun a =>
-      (OracleComp.interpret
-        (OracleComp.sumHandler
-          (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n))) (handler a))
-          (program (prepare a))).run (initial a)) :=
-  hprogram.run_interpret_preprocess_open_of_polyBounded hprepare.computableInPolyTime hhandler
-    hinitial.computableInPolyTime invariant hinit
-    (by simpa only [encUnary_apply, List.length_replicate] using hresources.polyBounded_length)
-    hpreserve
-
-/-- `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open` with plain polynomial-time
-preparation, initial state and resource allowance. -/
-theorem IsOraclePPTOn.run_interpret_preprocess_open'
-    {Operation External α β Caller State : Type} [DecidableEq Operation]
-    [DecidableEq External]
-    {source : α ↪ List Bool} {input : Caller ↪ List Bool} {output : β ↪ List Bool}
-    {operationEncoding : Operation ↪ List Bool} {stateEncoding : State ↪ List Bool}
-    {program : α → WordOracleComp Operation β}
-    {handler : Caller → Operation × List Bool → State →
-      WordOracleComp External (List Bool × State)}
-    {prepare : Caller → α} {initial : Caller → State} {resources : Caller → List Bool → ℕ}
-    (hprogram : IsOraclePPTOn source output program)
     (hprepare : ComputableInPolyTime prepare input source)
     (hhandler : IsOraclePPTOn (encHandlerCall input operationEncoding stateEncoding)
       (encPair encBits stateEncoding)
@@ -206,7 +172,8 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open'
         (OracleComp.sumHandler
           (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n))) (handler a))
           (program (prepare a))).run (initial a)) :=
-  hprogram.run_interpret_preprocess_open_of_polyBounded hprepare hhandler hinitial invariant hinit
+  hprogram.run_interpret_preprocess_open_of_polyBounded hprepare hhandler
+    hinitial invariant hinit
     (by simpa only [encUnary_apply, List.length_replicate] using hresources.polyBounded_length)
     hpreserve
 
@@ -236,29 +203,21 @@ theorem IsOraclePPTOn.interpret_preprocess_open'
   have hlift : IsOraclePPTOn EIn (encPair encBits (encFinEnum Unit))
       (fun p : Caller × ((Operation × List Bool) × Unit) =>
         (fun reply => (reply, p.2.2)) <$> handler p.1 p.2.1) :=
-    (hhandler.preprocess' (input := EIn)
+    (hhandler.preprocess (input := EIn)
       (prepare := fun p : Caller × ((Operation × List Bool) × Unit) => (p.1, p.2.1))
-      (by dsimp only [EIn]; fun_prop)).map_with'
+      (by dsimp only [EIn]; fun_prop)).map_with
         (f := fun p reply => (reply, p.2.2)) (by dsimp only [EIn]; fun_prop)
-  have hrun := hprogram.run_interpret_preprocess_open'
+  have hrun := hprogram.run_interpret_preprocess_open
     (handler := fun a request (state : Unit) => (fun reply => (reply, state)) <$> handler a request)
     hprepare hlift
     (ComputableInPolyTime.const ()) (fun _ _ => True) (fun _ => trivial) hresources
     (fun a request state _ result hresult => by
       obtain ⟨reply, hreply, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
       exact ⟨trivial, hbound a request reply hreply, Nat.le_add_right _ _⟩)
-  have h := hrun.map' (ComputableInPolyTime.fst output (encFinEnum Unit))
+  have h := hrun.map (ComputableInPolyTime.fst output (encFinEnum Unit))
   convert h using 1
   funext a
-  have hliftEq : OracleComp.sumHandler
-      (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-      (fun request state => (fun reply => (reply, state)) <$> handler a request) =
-      (fun q => StateT.lift (σ := Unit)
-        (OracleComp.sumHandler (fun n => ProbOracleComp.sample (ProbComp.unifFin n))
-          (handler a) q)) := by
-    funext q state
-    cases q <;> simp [OracleComp.sumHandler, StateT.lift, bind_pure_comp]
-  rw [hliftEq, OracleComp.run_interpret_lift]
+  rw [OracleComp.run_interpret_sumHandler_readOnly]
   simp
 
 /-- Replacing every request by a polynomial-time computed word and reading at most one reply
@@ -270,47 +229,21 @@ theorem IsOraclePPTOn.interpret_bitQueries
     {request : List Bool → List Bool}
     (hprogram : IsOraclePPTOn input output
       (fun a => OracleComp.interpret ProbOracleComp.query (program a)))
-    (hrequest : ComputableTidilyInPolyTime request encBits encBits) :
+    (hrequest : ComputableInPolyTime request encBits encBits) :
     IsOraclePPTOn input output (fun a => OracleComp.interpret ProbOracleComp.query
       (OracleComp.interpret (fun q : Unit × List Bool =>
         List.take 1 <$> OracleComp.query ((), request q.2)) (program a))) := by
-  have hhandler : IsOraclePPTOn
-      (encPair input (encPair (encPair (encFinEnum Unit) encBits) (encFinEnum Unit)))
-      (encPair encBits (encFinEnum Unit))
-      (fun pair : α × (Unit × List Bool) × Unit =>
-        (fun r => (r, ())) <$> (List.take 1 <$> ProbOracleComp.query
-          (spec := fun _ : Unit × List Bool => List Bool) ((), request pair.2.1.2))) :=
-    (IsOraclePPTOn.query_take' () (request := fun pair : α × (Unit × List Bool) × Unit =>
-      request pair.2.1.2) (limit := fun _ => 1)
-      ((ComputableInPolyTime.of_tidy hrequest).comp' (by fun_prop)) (by fun_prop)).map'
-      (by fun_prop)
-  have hsub := hprogram.run_interpret_preprocess_open (State := Unit)
-    (handler := fun _ q _ => (fun r => (r, ())) <$> (List.take 1 <$> ProbOracleComp.query
-      (spec := fun _ : Unit × List Bool => List Bool) ((), request q.2)))
-    (prepare := id) (initial := fun _ => ()) (resources := fun _ _ => 1)
-    ComputableTidilyInPolyTime.id' hhandler (ComputableTidilyInPolyTime.const ())
-    (fun _ _ => True) (fun _ => trivial) (ComputableTidilyInPolyTime.const 1)
-    (fun a query state _ result hresult => by
-      obtain ⟨r, hr, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
-      obtain ⟨r', -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hr
-      exact ⟨trivial, List.length_take_le _ _, Nat.le_add_right _ _⟩)
-  refine (hsub.map' (ComputableInPolyTime.fst output (encFinEnum Unit))).congr
-    fun a State oracle s => ?_
-  congr 2
-  rw [OracleComp.interpret_interpret, OracleComp.interpret_interpret]
-  have hH : (fun q : Unit × List Bool => OracleComp.interpret (OracleComp.sumHandler
-      (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-      (fun (q : Unit × List Bool) (_ : Unit) => (fun r => (r, ())) <$> (List.take 1 <$>
-        ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
-          ((), request q.2)))) (ProbOracleComp.query q)) =
-      fun q : Unit × List Bool => StateT.lift (List.take 1 <$>
-        ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
-          ((), request q.2)) := by
-    funext q
-    rw [ProbOracleComp.interpret_query]
-    funext u
-    simp [StateT.lift]
-  rw [hH, OracleComp.run_interpret_lift, Functor.map_map]
-  simp only [OracleComp.interpret_map, OracleComp.interpret_query, id_map', id]
+  have h := hprogram.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
+    (handler := fun _ q => List.take 1 <$> ProbOracleComp.query
+      (spec := fun _ : Unit × List Bool => List Bool) ((), request q.2))
+    (prepare := id) (resources := fun _ _ => 1) ComputableInPolyTime.id'
+    (IsOraclePPTOn.query_take () (hrequest.comp' (by fun_prop))
+      (by fun_prop))
+    (ComputableInPolyTime.const 1) fun _ _ _ hreply => by
+      obtain ⟨r, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
+      exact List.length_take_le _ _
+  convert h using 2 with a
+  simp only [id, OracleComp.interpret_interpret, OracleComp.interpret_map,
+    OracleComp.interpret_query, ProbOracleComp.interpret_query]
 
 end Cslib.Probability

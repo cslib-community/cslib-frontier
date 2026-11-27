@@ -7,9 +7,8 @@ Authors: Renfei Zhou
 module
 -- upstream: candidate
 
-public import CslibFrontier.DataStructure.Dictionary.CuckooHashing
 public import CslibFrontier.DataStructure.Dictionary.Spec
-public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.HashFamily
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Analysis
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 public import CslibFrontier.Computability.WordRAM.Randomized.UniformLoopExit
 
@@ -71,7 +70,7 @@ expected-amortized sequence theorem `cuckoo_seq_expected_amortized`.
    - Whenever `U ≤ max n_max 4 ^ c_exp`, `isCuckooHashFamily_tableBits` discharges
      `IsCuckooHashFamily c_exp U n_max (tableBits n_max) (maxEvictions n_max) 3 4` unconditionally
      for every `n_max : ℕ` via
-     `Cslib.DataStructure.Dictionary.CuckooHashing.isCuckooHashPair_provableFamily`
+     `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.isCuckooHashPair_provableFamily`
      [PaghRodler2004, Thorup2013], yielding assumption-free `O_{c_exp}(1)` worst-case `query` cost
      `queryChargeBound c_exp` and `O_{c_exp}(1)` expected-amortized `insert` cost
      `insertChargeBound c_exp` (`expectedOpCharge c_exp`) independent of `n_max` and `U`.
@@ -124,6 +123,7 @@ public section
 
 namespace Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing
 
+open Cslib.DataStructure.Dictionary.CuckooHashing
 open Cslib.WordRAM
 open Cslib.WordRAM.Randomized
 open Cslib.Probability
@@ -164,7 +164,7 @@ def valsBase (base c_exp n_max : ℕ) : ℕ :=
 def space (c_exp n_max : ℕ) : ℕ :=
   20 + hashPairSpace c_exp n_max + 2 * tableSize n_max + 2 * n_max
 
-theorem valsBase_add_eq (base c_exp n_max : ℕ) :
+private theorem valsBase_add_eq (base c_exp n_max : ℕ) :
     valsBase base c_exp n_max + n_max = base + space c_exp n_max := by
   dsimp only [valsBase, keysBase, t2Base, t1Base, hashBase, space]
   omega
@@ -223,7 +223,7 @@ def TableSlotsRep {U M : ℕ} (t1Addr t2Addr : ℕ) (tbl : PureTable U (2 ^ M))
   (∀ b : Fin (2 ^ M), mem (t1Addr + b.val) = encodeSlot (tbl.t1 b)) ∧
   (∀ b : Fin (2 ^ M), mem (t2Addr + b.val) = encodeSlot (tbl.t2 b))
 
-theorem TableSlotsRep.congr {U M t1Addr t2Addr : ℕ} {tbl : PureTable U (2 ^ M)}
+private theorem TableSlotsRep.congr {U M t1Addr t2Addr : ℕ} {tbl : PureTable U (2 ^ M)}
     {mem mem' : ℕ → ℕ} (h : TableSlotsRep t1Addr t2Addr tbl mem)
     (h1 : ∀ b < 2 ^ M, mem' (t1Addr + b) = mem (t1Addr + b))
     (h2 : ∀ b < 2 ^ M, mem' (t2Addr + b) = mem (t2Addr + b)) :
@@ -244,7 +244,7 @@ def HeaderConstsRep (base c_exp n_max U : ℕ) (mem : ℕ → ℕ) : Prop :=
   mem (base + 9) = keysBase base c_exp n_max ∧
   mem (base + 10) = valsBase base c_exp n_max
 
-theorem HeaderConstsRep.congr {base c_exp n_max U : ℕ} {mem mem' : ℕ → ℕ}
+private theorem HeaderConstsRep.congr {base c_exp n_max U : ℕ} {mem mem' : ℕ → ℕ}
     (h : HeaderConstsRep base c_exp n_max U mem)
     (heq : ∀ k ≤ 10, k ≠ 5 → mem' (base + k) = mem (base + k)) :
     HeaderConstsRep base c_exp n_max U mem' := by
@@ -276,7 +276,8 @@ def KeysValsRep (base c_exp n_max U V : ℕ) (ks : List (Fin U)) (s : Dictionary
     s (ks[idx]) = some (mem (valsBase base c_exp n_max + idx))) ∧
   Dictionary.ValuesBounded V s
 
-theorem KeysValsRep.congr {base c_exp n_max U V : ℕ} {ks : List (Fin U)} {s : Dictionary.State U}
+private theorem KeysValsRep.congr {base c_exp n_max U V : ℕ} {ks : List (Fin U)}
+    {s : Dictionary.State U}
     {mem mem' : ℕ → ℕ} (h : KeysValsRep base c_exp n_max U V ks s mem)
     (h5 : mem' (base + 5) = mem (base + 5))
     (hk : ∀ idx < ks.length,
@@ -289,7 +290,7 @@ theorem KeysValsRep.congr {base c_exp n_max U V : ℕ} {ks : List (Fin U)} {s : 
   obtain ⟨hki, hvi⟩ := hkv idx hidx
   exact ⟨(hk idx hidx).trans hki, by rw [hv idx hidx]; exact hvi⟩
 
-theorem KeysValsRep.card_dom_eq {base c_exp n_max U V : ℕ} {ks : List (Fin U)}
+private theorem KeysValsRep.card_dom_eq {base c_exp n_max U V : ℕ} {ks : List (Fin U)}
     {s : Dictionary.State U} {mem : ℕ → ℕ} (h : KeysValsRep base c_exp n_max U V ks s mem) :
     (Dictionary.dom s).card = ks.length := by
   rcases h with ⟨hnodup, -, -, hdom, -, -⟩
@@ -306,7 +307,7 @@ theorem KeysValsRep.toFinset_eq_dom {base c_exp n_max U V : ℕ} {ks : List (Fin
   rw [List.mem_toFinset]
   exact h.2.2.2.1 u
 
-theorem KeysValsRep.unique {base c_exp n_max U V : ℕ} {ks₁ ks₂ : List (Fin U)}
+private theorem KeysValsRep.unique {base c_exp n_max U V : ℕ} {ks₁ ks₂ : List (Fin U)}
     {s₁ s₂ : Dictionary.State U} {mem : ℕ → ℕ}
     (h₁ : KeysValsRep base c_exp n_max U V ks₁ s₁ mem)
     (h₂ : KeysValsRep base c_exp n_max U V ks₂ s₂ mem) :
@@ -357,7 +358,7 @@ theorem RepWithKeys.toRep {w base c_exp n_max U V : ℕ} {ks : List (Fin U)}
     Rep w base c_exp n_max U V s x :=
   ⟨ks, hrep⟩
 
-theorem RepWithKeys.extractSeed_mem_survivingSeeds {w base c_exp n_max U V : ℕ}
+private theorem RepWithKeys.extractSeed_mem_survivingSeeds {w base c_exp n_max U V : ℕ}
     {ks : List (Fin U)} {s : Dictionary.State U} {x : Data 19}
     (hrep : RepWithKeys w base c_exp n_max U V ks s x) :
     extractSeed (hashBase base) c_exp n_max U (tableBits n_max) x.mem ∈
@@ -380,7 +381,7 @@ theorem Rep.unique {w base c_exp n_max U V : ℕ}
   obtain ⟨ks₂, -, -, -, -, hkv₂, -, -, -⟩ := h₂
   exact hkv₁.unique hkv₂
 
-theorem extractSeed_congr_of_block_footprint {base c_exp n_max U : ℕ} {mem mem' : ℕ → ℕ}
+private theorem extractSeed_congr_of_block_footprint {base c_exp n_max U : ℕ} {mem mem' : ℕ → ℕ}
     (hmem : ∀ a ∈ (Block.mk base (space c_exp n_max)).footprint, mem' a = mem a) :
     extractSeed (hashBase base) c_exp n_max U (tableBits n_max) mem' =
       extractSeed (hashBase base) c_exp n_max U (tableBits n_max) mem :=
@@ -463,7 +464,7 @@ private theorem set_regs_of_lt {r : ℕ} (x : Data r) (d : Fin r) (v : ℕ) (i :
     (hi : i.val < d.val) : (x.set d v).regs i = x.regs i :=
   Function.update_of_ne (fun h => by subst h; omega) _ _
 
-theorem computeScaleCode_execWithin {w c_exp n_max : ℕ} {x : Data 19}
+private theorem computeScaleCode_execWithin {w c_exp n_max : ℕ} {x : Data 19}
     (hfit_sp : Fits w (space c_exp n_max))
     (hfit_ev : Fits w (maxEvictions n_max)) :
     ∃ y : Data 19,
@@ -530,7 +531,7 @@ def allocSpan (c_exp n_max : ℕ) : Code .exact 19 :=
 def spanSteps : ℕ :=
   computeScaleSteps + 2
 
-theorem allocSpan_execWithin {w base c_exp n_max U : ℕ} {x : Data 19}
+private theorem allocSpan_execWithin {w base c_exp n_max U : ℕ} {x : Data 19}
     (hfr : x.regs 1 = base) (h3 : x.regs 3 = n_max) (h4 : x.regs 4 = U)
     (hfit_end : Fits w (base + space c_exp n_max))
     (hfit_ev : Fits w (maxEvictions n_max)) :
@@ -601,7 +602,7 @@ def writeHeaderAndAdvanceCode : Code .exact 19 :=
   (.seq (.op (.copy 2 4))
         (.op (.copy 3 8)))))))))))))))))))))))))))))))))))
 
-theorem writeHeaderAndAdvanceCode_exec {w base c_exp n_max U : ℕ} {x : Data 19}
+private theorem writeHeaderAndAdvanceCode_exec {w base c_exp n_max U : ℕ} {x : Data 19}
     (h0 : x.regs 0 = base) (h1 : x.regs 1 = base + space c_exp n_max)
     (h3 : x.regs 3 = n_max) (h4 : x.regs 4 = U)
     (h6 : x.regs 6 = 1) (h8 : x.regs 8 = tableBits n_max)
@@ -818,8 +819,7 @@ theorem writeHeaderAndAdvanceCode_exec {w base c_exp n_max U : ℕ} {x : Data 19
     repeat' rw [Function.update_of_ne (by omega)]
 
 /-- Post-state of `restoreAfterHashInitCode`. -/
-@[expose]
-def restoreAfterHashInitData (base c_exp n_max : ℕ) (d : Data 19) : Data 19 :=
+private def restoreAfterHashInitData (base c_exp n_max : ℕ) (d : Data 19) : Data 19 :=
   ((((d.set 15 20).set 0 base).set 15 19).set 1 (base + 19)).set 1 (base + space c_exp n_max)
 
 /-- Suffix of `initSetup`: restores `reg 0 = base` and reloads `reg 1 = base + space c_exp n_max`
@@ -832,7 +832,7 @@ def restoreAfterHashInitCode : Code .exact 19 :=
   (.seq (.op (.exactBin .add 1 0 15))
         (.op (.load 1 1)))))
 
-theorem restoreAfterHashInitCode_exec {w base c_exp n_max : ℕ} {d : Data 19}
+private theorem restoreAfterHashInitCode_exec {w base c_exp n_max : ℕ} {d : Data 19}
     (h0 : d.regs 0 = hashBase base)
     (hm19 : d.mem (base + 19) = base + space c_exp n_max)
     (hfit_end : Fits w (base + space c_exp n_max)) :
@@ -859,16 +859,16 @@ theorem restoreAfterHashInitCode_exec {w base c_exp n_max : ℕ} {d : Data 19}
   exact er1.seq (er2.seq (er3.seq (er4.seq er5)))
 
 @[simp]
-theorem restoreAfterHashInitData_mem (base c_exp n_max : ℕ) (d : Data 19) :
+private theorem restoreAfterHashInitData_mem (base c_exp n_max : ℕ) (d : Data 19) :
     (restoreAfterHashInitData base c_exp n_max d).mem = d.mem := rfl
 
 @[simp]
-theorem restoreAfterHashInitData_regs_zero (base c_exp n_max : ℕ) (d : Data 19) :
+private theorem restoreAfterHashInitData_regs_zero (base c_exp n_max : ℕ) (d : Data 19) :
     (restoreAfterHashInitData base c_exp n_max d).regs 0 = base := by
   simp +decide [restoreAfterHashInitData]
 
 @[simp]
-theorem restoreAfterHashInitData_regs_one (base c_exp n_max : ℕ) (d : Data 19) :
+private theorem restoreAfterHashInitData_regs_one (base c_exp n_max : ℕ) (d : Data 19) :
     (restoreAfterHashInitData base c_exp n_max d).regs 1 = base + space c_exp n_max := by
   simp +decide [restoreAfterHashInitData]
 
@@ -895,7 +895,7 @@ def setupSteps (c_exp n_max U : ℕ) : ℕ :=
     resampleHashPairSteps c_exp n_max + 5
 
 /-- Distributional execution specification for `resampleHashPairCode`. -/
-theorem resampleHashPairCode_execCodeDist {w hashBase c_exp n_max U M : ℕ} {x : Data 19}
+private theorem resampleHashPairCode_execCodeDist {w hashBase c_exp n_max U M : ℕ} {x : Data 19}
     (htab : HashPairTableRep hashBase c_exp n_max U M x.mem)
     (h0 : x.regs 0 = hashBase)
     (hfit_end : Fits w (hashBase + hashPairSpace c_exp n_max))
@@ -927,7 +927,7 @@ theorem resampleHashPairCode_execCodeDist {w hashBase c_exp n_max U M : ℕ} {x 
     obtain ⟨-, hz_0, hz_hash, hz_frame⟩ := mem_support_resampleHashPairComp htab h0 hz
     exact ⟨hz_0, hz_hash, hz_frame⟩
 
-theorem initSetup_spec {w base c_exp n_max U V : ℕ} {x₁ : Data 19}
+private theorem initSetup_spec {w base c_exp n_max U V : ℕ} {x₁ : Data 19}
     (hx₁ : x₁.Bounded w)
     (hb : x₁.regs 0 = base)
     (hfr : x₁.regs 1 = base + space c_exp n_max)
@@ -1117,7 +1117,7 @@ def unshiftFromHashBaseCode : Code .exact 19 :=
   .seq (.op (.const 15 20))
        (.op (.exactBin .sub 0 0 15))
 
-theorem shiftToHashBaseCode_exec {w base : ℕ} {x : Data 19}
+private theorem shiftToHashBaseCode_exec {w base : ℕ} {x : Data 19}
     (h0 : x.regs 0 = base)
     (hfit_20 : Fits w 20)
     (hfit_hb : Fits w (hashBase base)) :
@@ -1129,7 +1129,7 @@ theorem shiftToHashBaseCode_exec {w base : ℕ} {x : Data 19}
     ExactLog.exec_exactBin (by simp +decide [s1, h0, hashBase]) hfit_hb
   exact e1.seq e2
 
-theorem unshiftFromHashBaseCode_exec {w base : ℕ} {x : Data 19}
+private theorem unshiftFromHashBaseCode_exec {w base : ℕ} {x : Data 19}
     (h0 : x.regs 0 = hashBase base)
     (hfit_20 : Fits w 20)
     (hfit_base : Fits w base) :
@@ -1174,7 +1174,7 @@ def evalHashAtBaseSteps (c_exp n_max U : ℕ) : ℕ :=
 def resampleAtBaseSteps (c_exp n_max : ℕ) : ℕ :=
   resampleHashPairSteps c_exp n_max + 4
 
-theorem evalHash1AtBaseCode_execWithin {w base c_exp n_max U : ℕ}
+private theorem evalHash1AtBaseCode_execWithin {w base c_exp n_max U : ℕ}
     {θ : Seed c_exp n_max U (tableBits n_max)} {u : Fin U} {x : Data 19}
     (hrep : HashPairRep (hashBase base) c_exp n_max U (tableBits n_max) θ x.mem)
     (h0 : x.regs 0 = base)
@@ -1210,7 +1210,7 @@ theorem evalHash1AtBaseCode_execWithin {w base c_exp n_max U : ℕ}
        rw [hs2_frame]; rfl,
     fun a _ => congrFun hs2_frame a⟩
 
-theorem evalHash2AtBaseCode_execWithin {w base c_exp n_max U : ℕ}
+private theorem evalHash2AtBaseCode_execWithin {w base c_exp n_max U : ℕ}
     {θ : Seed c_exp n_max U (tableBits n_max)} {u : Fin U} {x : Data 19}
     (hrep : HashPairRep (hashBase base) c_exp n_max U (tableBits n_max) θ x.mem)
     (h0 : x.regs 0 = base)
@@ -1247,7 +1247,7 @@ theorem evalHash2AtBaseCode_execWithin {w base c_exp n_max U : ℕ}
     fun a _ => congrFun hs2_frame a⟩
 
 /-- Distributional execution specification for `resampleAtBaseCode`. -/
-theorem resampleAtBaseCode_execCodeDist {w base c_exp n_max U : ℕ} {x : Data 19}
+private theorem resampleAtBaseCode_execCodeDist {w base c_exp n_max U : ℕ} {x : Data 19}
     (htab : HashPairTableRep (hashBase base) c_exp n_max U (tableBits n_max) x.mem)
     (h0 : x.regs 0 = base)
     (hfit_end : Fits w (base + space c_exp n_max))
@@ -1317,7 +1317,7 @@ def loadHeaderCode (dst : Fin 19) (off : ℕ) : Code .exact 19 :=
   (.seq (.op (.exactBin .add dst 0 15))
         (.op (.load dst dst)))
 
-theorem loadHeaderCode_exec {w base off : ℕ} (dst : Fin 19) {x : Data 19}
+private theorem loadHeaderCode_exec {w base off : ℕ} (dst : Fin 19) {x : Data 19}
     (h0 : x.regs 0 = base)
     (hne0 : dst ≠ 0) (hne15 : dst ≠ 15)
     (hfit_off : Fits w off)
@@ -1347,7 +1347,7 @@ def storeHeaderCode (off : ℕ) (src : Fin 19) : Code .exact 19 :=
   (.seq (.op (.exactBin .add 16 0 15))
         (.op (.store 16 src)))
 
-theorem storeHeaderCode_exec {w base off : ℕ} (src : Fin 19) {x : Data 19}
+private theorem storeHeaderCode_exec {w base off : ℕ} (src : Fin 19) {x : Data 19}
     (h0 : x.regs 0 = base)
     (hne15 : src ≠ 15) (hne16 : src ≠ 16)
     (hfit_off : Fits w off)
@@ -1372,7 +1372,7 @@ def storeHeaderConstCode (off val : ℕ) : Code .exact 19 :=
   .seq (.op (.const 18 val))
        (storeHeaderCode off 18)
 
-theorem storeHeaderConstCode_exec {w base off val : ℕ} {x : Data 19}
+private theorem storeHeaderConstCode_exec {w base off val : ℕ} {x : Data 19}
     (h0 : x.regs 0 = base)
     (hfit_val : Fits w val)
     (hfit_off : Fits w off)
@@ -1422,7 +1422,7 @@ def probeTableSlotCode (hashCode : Code .exact 19) (tablePtrOff : ℕ) : Code .e
 def probeTableSlotSteps (c_exp n_max U : ℕ) : ℕ :=
   evalHashAtBaseSteps c_exp n_max U + 31
 
-theorem probeCheckOccupiedCode_execWithin {w base c_exp n_max U : ℕ}
+private theorem probeCheckOccupiedCode_execWithin {w base c_exp n_max U : ℕ}
     {ks : List (Fin U)} {e : SlotEntry U} {u : Fin U} {x : Data 19}
     (h0 : x.regs 0 = base)
     (h17 : x.regs 17 = e.idx + 1)
@@ -1517,7 +1517,7 @@ theorem probeCheckOccupiedCode_execWithin {w base c_exp n_max U : ℕ}
     · intro a _ _
       rfl
 
-theorem probeTableSlotCode_execWithin {w base c_exp n_max U tablePtrOff tableBase : ℕ}
+private theorem probeTableSlotCode_execWithin {w base c_exp n_max U tablePtrOff tableBase : ℕ}
     {hashCode : Code .exact 19}
     {θ : Seed c_exp n_max U (tableBits n_max)} {h : Fin U → Fin (2 ^ tableBits n_max)}
     {slotFn : Fin (2 ^ tableBits n_max) → Option (SlotEntry U)}
@@ -1656,11 +1656,10 @@ theorem probeTableSlotCode_execWithin {w base c_exp n_max U tablePtrOff tableBas
       exact (hs7_frame a ha13 ha14).trans (hs2_frame a ha)
 
 /-- Every entry in `tbl` comes from `ks` at its recorded index `e.idx`. -/
-@[expose]
-def TableIdxValid {U m : ℕ} (ks : List (Fin U)) (tbl : PureTable U m) : Prop :=
+private def TableIdxValid {U m : ℕ} (ks : List (Fin U)) (tbl : PureTable U m) : Prop :=
   ∀ e : SlotEntry U, EntryIn tbl e → e.idx < ks.length ∧ ks[e.idx]? = some e.key
 
-theorem pureReplay_tableIdxValid {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ}
+private theorem pureReplay_tableIdxValid {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ}
     {ks : List (Fin U)} {tbl : PureTable U m} (hnodup : ks.Nodup)
     (hrep : pureReplay h₁ h₂ maxLoop ks = some tbl) :
     TableIdxValid ks tbl := by
@@ -1687,7 +1686,7 @@ def probeKeyCode (c_exp n_max : ℕ) : Code .exact 19 :=
 def probeKeySteps (c_exp n_max U : ℕ) : ℕ :=
   2 * probeTableSlotSteps c_exp n_max U + 12
 
-theorem probeKeyCode_execWithin {w base c_exp n_max U : ℕ}
+private theorem probeKeyCode_execWithin {w base c_exp n_max U : ℕ}
     {θ : Seed c_exp n_max U (tableBits n_max)} {ks : List (Fin U)}
     {tbl : PureTable U (2 ^ tableBits n_max)} {u : Fin U} {x : Data 19}
     (hhdr : HeaderConstsRep base c_exp n_max U x.mem)
@@ -2113,7 +2112,7 @@ theorem queryCode_execWithin {w base c_exp n_max U V : ℕ}
 
 /-! ### Section 4: Bounded cuckoo eviction loop (`putTableSlotCode`, `evictLoopCode`) -/
 
-theorem TableIdxValid.putT1 {U m : ℕ} {h₁ : Fin U → Fin m} {ks : List (Fin U)}
+private theorem TableIdxValid.putT1 {U m : ℕ} {h₁ : Fin U → Fin m} {ks : List (Fin U)}
     {tbl : PureTable U m} {e : SlotEntry U}
     (htiv : TableIdxValid ks tbl) (he : e.idx < ks.length ∧ ks[e.idx]? = some e.key) :
     TableIdxValid ks (putT1 h₁ tbl e).1 := by
@@ -2129,7 +2128,7 @@ theorem TableIdxValid.putT1 {U m : ℕ} {h₁ : Fin U → Fin m} {ks : List (Fin
       exact htiv d (Or.inl ⟨b, hb⟩)
   · exact htiv d (Or.inr ⟨b, hb⟩)
 
-theorem TableIdxValid.putT2 {U m : ℕ} {h₂ : Fin U → Fin m} {ks : List (Fin U)}
+private theorem TableIdxValid.putT2 {U m : ℕ} {h₂ : Fin U → Fin m} {ks : List (Fin U)}
     {tbl : PureTable U m} {e : SlotEntry U}
     (htiv : TableIdxValid ks tbl) (he : e.idx < ks.length ∧ ks[e.idx]? = some e.key) :
     TableIdxValid ks (putT2 h₂ tbl e).1 := by
@@ -2160,7 +2159,7 @@ def putDisplacedBranchCode : Code .exact 19 :=
   (.seq (storeHeaderCode 11 17)
         (storeHeaderConstCode 16 1)))))))
 
-theorem putDisplacedBranchCode_exec {w base c_exp n_max U : ℕ}
+private theorem putDisplacedBranchCode_exec {w base c_exp n_max U : ℕ}
     {ks : List (Fin U)} {e_old : SlotEntry U} {x : Data 19}
     (h0 : x.regs 0 = base)
     (h17 : x.regs 17 = e_old.idx + 1)
@@ -2275,7 +2274,7 @@ def putTableSlotCode (hashCode : Code .exact 19) (tablePtrOff : ℕ) : Code .exa
 def putTableSlotSteps (c_exp n_max U : ℕ) : ℕ :=
   evalHashAtBaseSteps c_exp n_max U + 35
 
-theorem putSlotSwapCode_execWithin {w base c_exp n_max U tablePtrOff tableBase : ℕ}
+private theorem putSlotSwapCode_execWithin {w base c_exp n_max U tablePtrOff tableBase : ℕ}
     {hashCode : Code .exact 19} {θ : Seed c_exp n_max U (tableBits n_max)}
     {h : Fin U → Fin (2 ^ tableBits n_max)}
     {slotFn : Fin (2 ^ tableBits n_max) → Option (SlotEntry U)}
@@ -2393,7 +2392,7 @@ theorem putSlotSwapCode_execWithin {w base c_exp n_max U tablePtrOff tableBase :
   · intro a ha hne
     exact (hs9_frame a hne).trans (hs2_frame a ha)
 
-theorem putTableSlotCode_execWithin {w base c_exp n_max U tablePtrOff tableBase : ℕ}
+private theorem putTableSlotCode_execWithin {w base c_exp n_max U tablePtrOff tableBase : ℕ}
     {hashCode : Code .exact 19} {θ : Seed c_exp n_max U (tableBits n_max)}
     {h : Fin U → Fin (2 ^ tableBits n_max)}
     {slotFn : Fin (2 ^ tableBits n_max) → Option (SlotEntry U)}
@@ -2530,7 +2529,7 @@ def decHeader15Code : Code .exact 19 :=
   (.seq (.op (.exactBin .sub 17 17 15))
         (storeHeaderCode 15 17)))
 
-theorem decHeader15Code_exec {w base fuel : ℕ} {x : Data 19}
+private theorem decHeader15Code_exec {w base fuel : ℕ} {x : Data 19}
     (h0 : x.regs 0 = base)
     (hm15 : x.mem (base + 15) = fuel + 1)
     (hfit_15 : Fits w 15)
@@ -2581,7 +2580,7 @@ def evictRoundBodyCode (c_exp n_max : ℕ) : Code .exact 19 :=
 def evictRoundSteps (c_exp n_max U : ℕ) : ℕ :=
   2 * putTableSlotSteps c_exp n_max U + 15
 
-theorem evictRoundBodyCode_execWithin {w base c_exp n_max U fuel : ℕ}
+private theorem evictRoundBodyCode_execWithin {w base c_exp n_max U fuel : ℕ}
     {θ : Seed c_exp n_max U (tableBits n_max)} {ks : List (Fin U)}
     {tbl : PureTable U (2 ^ tableBits n_max)} {e : SlotEntry U} {x : Data 19}
     (hhdr : HeaderConstsRep base c_exp n_max U x.mem)
@@ -2835,7 +2834,7 @@ def syncEvictCondCode : Code .exact 19 :=
   (.seq (.op (.exactBin .mul 17 16 17))
         (.op (.const 18 0))))
 
-theorem syncEvictCondCode_exec {w base c_exp n_max act fuel : ℕ} {x : Data 19}
+private theorem syncEvictCondCode_exec {w base c_exp n_max act fuel : ℕ} {x : Data 19}
     (h0 : x.regs 0 = base)
     (hm15 : x.mem (base + 15) = fuel)
     (hm16 : x.mem (base + 16) = act)
@@ -2893,7 +2892,7 @@ branch overhead). -/
 def evictIterSteps (c_exp n_max U : ℕ) : ℕ :=
   evictRoundSteps c_exp n_max U + 10
 
-theorem evictLoopInner_execWithin {w base c_exp n_max U : ℕ}
+private theorem evictLoopInner_execWithin {w base c_exp n_max U : ℕ}
     {θ : Seed c_exp n_max U (tableBits n_max)} {ks : List (Fin U)}
     (hlen_le : ks.length ≤ n_max)
     (hw : 2 * Probability.trinomialDeg U (tableBits n_max) ≤ w)
@@ -3018,7 +3017,7 @@ theorem evictLoopInner_execWithin {w base c_exp n_max U : ℕ}
             (hy_frame a ha ha11 ha12 ha15 ha16 hnot_tbl).trans
               (by rw [hs2_mem]; exact hs1_frame a ha ha11 ha12 ha15 ha16 hnot_tbl)⟩
 
-theorem evictLoopCode_execWithin {w base c_exp n_max U fuel : ℕ}
+private theorem evictLoopCode_execWithin {w base c_exp n_max U fuel : ℕ}
     {θ : Seed c_exp n_max U (tableBits n_max)} {ks : List (Fin U)}
     {tbl : PureTable U (2 ^ tableBits n_max)} {e : SlotEntry U} {x : Data 19}
     (hhdr : HeaderConstsRep base c_exp n_max U x.mem)
@@ -3090,7 +3089,7 @@ def zeroRangeLoop : Code .exact 19 :=
     (.seq (.op (.store 16 18))
           (.op (.exactBin .add 16 16 15)))
 
-theorem zeroRangeLoop_exec {w : ℕ} :
+private theorem zeroRangeLoop_exec {w : ℕ} :
     ∀ (rem ptr : ℕ) {x : Data 19}
       (_h16 : x.regs 16 = ptr)
       (_h17 : x.regs 17 = ptr + rem)
@@ -3159,7 +3158,7 @@ def clearTablesCode : Code .exact 19 :=
 def clearTablesSteps (n_max : ℕ) : ℕ :=
   8 * tableSize n_max + 10
 
-theorem clearTablesCode_exec {w base c_exp n_max U : ℕ} {x : Data 19}
+private theorem clearTablesCode_exec {w base c_exp n_max U : ℕ} {x : Data 19}
     (hhdr : HeaderConstsRep base c_exp n_max U x.mem)
     (h0 : x.regs 0 = base)
     (hfit_end : Fits w (base + space c_exp n_max)) :
@@ -3226,8 +3225,7 @@ theorem clearTablesCode_exec {w base c_exp n_max U : ℕ} {x : Data 19}
       (by dsimp only [keysBase, t2Base, tableSize]; omega)
 
 /-- Index-based replay of `rem` remaining keys of `ks` starting at index `i` from `tbl`. -/
-@[expose]
-def pureReplayFrom {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ) (ks : List (Fin U)) :
+private def pureReplayFrom {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ) (ks : List (Fin U)) :
     ℕ → ℕ → PureTable U m → Option (PureTable U m)
   | 0, _, tbl => some tbl
   | rem + 1, i, tbl =>
@@ -3237,7 +3235,7 @@ def pureReplayFrom {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ) (ks
       | none => none
     else some tbl
 
-theorem pureReplayFrom_eq_foldlM {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ)
+private theorem pureReplayFrom_eq_foldlM {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ)
     (ks : List (Fin U)) :
     ∀ (sfx pfx : List (Fin U)) (tbl : PureTable U m),
       ks = pfx ++ sfx →
@@ -3262,7 +3260,7 @@ theorem pureReplayFrom_eq_foldlM {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxL
       rw [← hlen']
       exact pureReplayFrom_eq_foldlM h₁ h₂ maxLoop ks sfx (pfx ++ [u]) tbl' hks'
 
-theorem pureReplayFrom_eq_pureReplay {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ)
+private theorem pureReplayFrom_eq_pureReplay {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ)
     (ks : List (Fin U)) :
     pureReplayFrom h₁ h₂ maxLoop ks ks.length 0 (PureTable.empty U m) =
       pureReplay h₁ h₂ maxLoop ks :=
@@ -3282,7 +3280,7 @@ def syncReplayCondCode : Code .exact 19 :=
     (.seq (.op (.const 15 0)) (.op (.const 15 0)))
     (.op (.copy 16 17))))))
 
-theorem syncReplayCondCode_exec {w base c_exp n_max idx allocCount act : ℕ} {x : Data 19}
+private theorem syncReplayCondCode_exec {w base c_exp n_max idx allocCount act : ℕ} {x : Data 19}
     (h0 : x.regs 0 = base)
     (hm5 : x.mem (base + 5) = allocCount)
     (hm16 : x.mem (base + 16) = act)
@@ -3359,7 +3357,7 @@ def replayIterSetupCode : Code .exact 19 :=
   (.seq (storeHeaderCode 15 18)
         (storeHeaderConstCode 16 1)))))))))))
 
-theorem replayIterSetupCode_exec {w base c_exp n_max U idx : ℕ}
+private theorem replayIterSetupCode_exec {w base c_exp n_max U idx : ℕ}
     {ks : List (Fin U)} {x : Data 19}
     (hhdr : HeaderConstsRep base c_exp n_max U x.mem)
     (h0 : x.regs 0 = base)
@@ -3511,7 +3509,7 @@ def replayLoopCode (c_exp n_max : ℕ) : Code .exact 19 :=
 def replayLoopSteps (c_exp n_max U : ℕ) : ℕ :=
   n_max * replayIterSteps c_exp n_max U + 23
 
-theorem replayLoopInner_execWithin {w base c_exp n_max U : ℕ}
+private theorem replayLoopInner_execWithin {w base c_exp n_max U : ℕ}
     {θ : Seed c_exp n_max U (tableBits n_max)} {ks : List (Fin U)}
     (hlen_le : ks.length ≤ n_max)
     (hfit_ev : Fits w (maxEvictions n_max))
@@ -3695,7 +3693,7 @@ theorem replayLoopInner_execWithin {w base c_exp n_max U : ℕ}
           (hy_frame a ha ha11 ha12 ha15 ha16 ha17 hnot_tbl).trans
             (by rw [hs3_mem]; exact hs2_frame_x a ha ha11 ha12 ha15 ha16 ha17 hnot_tbl)⟩
 
-theorem replayLoopCode_execWithin {w base c_exp n_max U : ℕ}
+private theorem replayLoopCode_execWithin {w base c_exp n_max U : ℕ}
     {θ : Seed c_exp n_max U (tableBits n_max)} {ks : List (Fin U)} {x : Data 19}
     (hhdr : HeaderConstsRep base c_exp n_max U x.mem)
     (hrep_hash : HashPairRep (hashBase base) c_exp n_max U (tableBits n_max) θ x.mem)
@@ -3818,7 +3816,7 @@ def syncRehashCondCode : Code .exact 19 :=
   .seq (loadHeaderCode 17 16)
         (.op (.const 18 0))
 
-theorem syncRehashCondCode_exec {w base c_exp n_max act : ℕ} {x : Data 19}
+private theorem syncRehashCondCode_exec {w base c_exp n_max act : ℕ} {x : Data 19}
     (h0 : x.regs 0 = base)
     (hm16 : x.mem (base + 16) = act)
     (hfit_end : Fits w (base + space c_exp n_max)) :
@@ -3881,7 +3879,7 @@ def RehashLoopPost (w base c_exp n_max U V : ℕ) (ks : List (Fin U)) (s : Dicti
       (maxEvictions n_max) ks = some tbl ∧
     TableSlotsRep (t1Base base c_exp n_max) (t2Base base c_exp n_max) tbl z.mem
 
-theorem rehashDetTail_execWithin {w base c_exp n_max U V : ℕ}
+private theorem rehashDetTail_execWithin {w base c_exp n_max U V : ℕ}
     {ks : List (Fin U)} {s : Dictionary.State U} {x₀ z1 : Data 19}
     (hinv : RehashLoopInv w base c_exp n_max U V ks s x₀ z1)
     (hhash : HashPairRep (hashBase base) c_exp n_max U (tableBits n_max)
@@ -4016,7 +4014,7 @@ theorem half_le_toOuterMeasure_of_compl_le_half {α : Type*} (p : PMF α) (S : S
 /-- Under the `≤ 1 / 2` rehash failure probability bound `hreh`, every duplicate-free key list `ks`
 of length at most `n_max` has a nonempty set of surviving seeds of cardinality at least half the
 seed space. -/
-theorem survivingSeeds_card_and_nonempty {c_exp n_max U : ℕ}
+private theorem survivingSeeds_card_and_nonempty {c_exp n_max U : ℕ}
     (hreh : ∀ (S : Finset (Fin U)), S.card ≤ n_max →
       (seedLaw c_exp n_max U (tableBits n_max)).toOuterMeasure
         {θ : Seed c_exp n_max U (tableBits n_max) |
@@ -4041,7 +4039,7 @@ theorem survivingSeeds_card_and_nonempty {c_exp n_max U : ℕ}
       (fun u hu => List.mem_toFinset.mpr hu) hgood)
   exact card_le_two_mul_card_of_uniformOfFintype_compl_le_half hprob
 
-theorem rehashAttemptCode_execCodeDist {w base c_exp n_max U V : ℕ}
+private theorem rehashAttemptCode_execCodeDist {w base c_exp n_max U V : ℕ}
     {ks : List (Fin U)} {s : Dictionary.State U} {x₀ z : Data 19}
     (hreh : ∀ (S : Finset (Fin U)), S.card ≤ n_max →
       (seedLaw c_exp n_max U (tableBits n_max)).toOuterMeasure
@@ -4320,7 +4318,7 @@ private theorem valuesBounded_update {U V : ℕ} {s : Dictionary.State U}
   · rw [Function.update_of_ne hxu] at hxw
     exact hvb x w hxw
 
-theorem KeysValsRep.insert_of_mem {base c_exp n_max U V : ℕ} {ks : List (Fin U)}
+private theorem KeysValsRep.insert_of_mem {base c_exp n_max U V : ℕ} {ks : List (Fin U)}
     {s : Dictionary.State U} {u : Fin U} {v idx : ℕ} {mem mem' : ℕ → ℕ}
     (hkv : KeysValsRep base c_exp n_max U V ks s mem)
     (hv : v < V)
@@ -4352,7 +4350,7 @@ theorem KeysValsRep.insert_of_mem {base c_exp n_max U V : ℕ} {ks : List (Fin U
       rw [Function.update_of_ne hne_key, hv_other j hj hj_eq]
       exact (hkv_idx j hj).2
 
-theorem KeysValsRep.insert_of_notMem {base c_exp n_max U V : ℕ} {ks : List (Fin U)}
+private theorem KeysValsRep.insert_of_notMem {base c_exp n_max U V : ℕ} {ks : List (Fin U)}
     {s : Dictionary.State U} {u : Fin U} {v : ℕ} {mem mem' : ℕ → ℕ}
     (hkv : KeysValsRep base c_exp n_max U V ks s mem)
     (hv : v < V)
@@ -4401,7 +4399,7 @@ def insertOverwriteBranchCode : Code .exact 19 :=
   (.seq (.op (.store 16 18))
         (.op (.const 2 0))))))
 
-theorem insertOverwriteBranchCode_exec {w base c_exp n_max idx v : ℕ} {x : Data 19}
+private theorem insertOverwriteBranchCode_exec {w base c_exp n_max idx v : ℕ} {x : Data 19}
     (h0 : x.regs 0 = base)
     (hm10 : x.mem (base + 10) = valsBase base c_exp n_max)
     (hm14 : x.mem (base + 14) = idx)
@@ -4472,7 +4470,7 @@ def insertNewKeySetupCode : Code .exact 19 :=
   (.seq (storeHeaderCode 15 18)
         (storeHeaderConstCode 16 1)))))))))))))))
 
-theorem insertNewKeySetupCode_exec {w base c_exp n_max U idx u_val v : ℕ} {x : Data 19}
+private theorem insertNewKeySetupCode_exec {w base c_exp n_max U idx u_val v : ℕ} {x : Data 19}
     (hhdr : HeaderConstsRep base c_exp n_max U x.mem)
     (h0 : x.regs 0 = base)
     (hm5 : x.mem (base + 5) = idx)
@@ -4689,8 +4687,7 @@ def insertWorstSteps (c_exp n_max U : ℕ) : ℕ :=
 
 /-- State-and-seed-dependent step bound for `insertCode` on insertion-order key list `ks`,
 seed `θ`, dictionary state `s`, and key `u`. -/
-@[expose]
-noncomputable def insertSeedSteps (c_exp n_max U : ℕ) (ks : List (Fin U))
+private noncomputable def insertSeedSteps (c_exp n_max U : ℕ) (ks : List (Fin U))
     (θ : Seed c_exp n_max U (tableBits n_max)) (s : Dictionary.State U) (u : Fin U) : ℝ≥0∞ := by
   classical
   exact
@@ -4704,7 +4701,7 @@ noncomputable def insertSeedSteps (c_exp n_max U : ℕ) (ks : List (Fin U))
     else
       (insertWorstSteps c_exp n_max U : ℝ≥0∞)
 
-theorem insertSeedSteps_le_insertWorstSteps (c_exp n_max U : ℕ) (ks : List (Fin U))
+private theorem insertSeedSteps_le_insertWorstSteps (c_exp n_max U : ℕ) (ks : List (Fin U))
     (θ : Seed c_exp n_max U (tableBits n_max)) (s : Dictionary.State U) (u : Fin U) :
     insertSeedSteps c_exp n_max U ks θ s u ≤ (insertWorstSteps c_exp n_max U : ℝ≥0∞) := by
   classical
@@ -4726,12 +4723,11 @@ theorem insertSeedSteps_le_insertWorstSteps (c_exp n_max U : ℕ) (ks : List (Fi
   · exact le_rfl
 
 /-- Insertion-order key list after executing dictionary operation `o` from key list `ks`. -/
-@[expose]
-def stepKeys {U : ℕ} (ks : List (Fin U)) : Dictionary.Op U → List (Fin U)
+private def stepKeys {U : ℕ} (ks : List (Fin U)) : Dictionary.Op U → List (Fin U)
   | .query _ => ks
   | .insert u _ => if u ∈ ks then ks else ks ++ [u]
 
-theorem survivingSeeds_stepKeys_subset {U : ℕ} (c_exp n_max : ℕ) (ks : List (Fin U))
+private theorem survivingSeeds_stepKeys_subset {U : ℕ} (c_exp n_max : ℕ) (ks : List (Fin U))
     (o : Dictionary.Op U) :
     survivingSeeds (Θ := Seed c_exp n_max U (tableBits n_max))
         evalHash1 evalHash2 (maxEvictions n_max) (stepKeys ks o) ⊆
@@ -4745,7 +4741,7 @@ theorem survivingSeeds_stepKeys_subset {U : ℕ} (c_exp n_max : ℕ) (ks : List 
     · exact Finset.Subset.refl _
     · exact survivingSeeds_append_subset _ _ _ _ _
 
-theorem rehashLoopCode_set2_execCodeDist {w base c_exp n_max U V : ℕ}
+private theorem rehashLoopCode_set2_execCodeDist {w base c_exp n_max U V : ℕ}
     {ks : List (Fin U)} {s : Dictionary.State U} {x₀ x : Data 19}
     (hreh : ∀ (S : Finset (Fin U)), S.card ≤ n_max →
       (seedLaw c_exp n_max U (tableBits n_max)).toOuterMeasure
@@ -4795,7 +4791,7 @@ theorem rehashLoopCode_set2_execCodeDist {w base c_exp n_max U V : ℕ}
     hz_hdr, hz_tab, hz_kv, hz_mod⟩, hz_hash, tbl, hrep, hslots⟩
 
 open Classical in
-theorem insertNewKeyBranchCode_execCodeDist {w base c_exp n_max U V v : ℕ}
+private theorem insertNewKeyBranchCode_execCodeDist {w base c_exp n_max U V v : ℕ}
     {ks : List (Fin U)}
     {tbl : PureTable U (2 ^ tableBits n_max)} {s : Dictionary.State U}
     {u : Fin U} {x₀ x : Data 19}
@@ -5049,7 +5045,7 @@ theorem insertNewKeyBranchCode_execCodeDist {w base c_exp n_max U V v : ℕ}
         hout_supp y hy
       exact ⟨hy_2, ⟨hy_bdd, hy_0, hy_hdr, hy_hash, hy_kv, tbl', hy_rep, hy_slots⟩, hy_mod⟩
 
-theorem insertCode_execCodeDist {w base c_exp n_max U V v : ℕ}
+private theorem insertCode_execCodeDist {w base c_exp n_max U V v : ℕ}
     {ks : List (Fin U)} {s : Dictionary.State U}
     {u : Fin U} {x : Data 19}
     (hreh : ∀ (S : Finset (Fin U)), S.card ≤ n_max →
@@ -5409,13 +5405,12 @@ def stepWorstCharge (c_exp n_max U : ℕ) (_s : Dictionary.State U) : Dictionary
   | .insert _ _ => insertWorstSteps c_exp n_max U + 3
 
 /-- Seed-and-state-dependent step bound for `opCode`. -/
-@[expose]
-noncomputable def opSeedSteps (c_exp n_max U : ℕ) (ks : List (Fin U))
+private noncomputable def opSeedSteps (c_exp n_max U : ℕ) (ks : List (Fin U))
     (θ : Seed c_exp n_max U (tableBits n_max)) (s : Dictionary.State U) : Dictionary.Op U → ℝ≥0∞
   | .query _ => (querySteps c_exp n_max U + 2 : ℕ)
   | .insert u _ => insertSeedSteps c_exp n_max U ks θ s u + 3
 
-theorem opSeedSteps_le_stepWorstCharge (c_exp n_max U : ℕ) (ks : List (Fin U))
+private theorem opSeedSteps_le_stepWorstCharge (c_exp n_max U : ℕ) (ks : List (Fin U))
     (θ : Seed c_exp n_max U (tableBits n_max)) (s : Dictionary.State U) (o : Dictionary.Op U) :
     opSeedSteps c_exp n_max U ks θ s o ≤ (stepWorstCharge c_exp n_max U s o : ℝ≥0∞) := by
   cases o with
@@ -5426,7 +5421,7 @@ theorem opSeedSteps_le_stepWorstCharge (c_exp n_max U : ℕ) (ks : List (Fin U))
     exact add_le_add (insertSeedSteps_le_insertWorstSteps c_exp n_max U ks θ s u) le_rfl
 
 open Classical in
-theorem opCode_execCodeDist {w base c_exp n_max U V : ℕ}
+private theorem opCode_execCodeDist {w base c_exp n_max U V : ℕ}
     {ks : List (Fin U)} {s : Dictionary.State U}
     (o : Dictionary.Op U) {x : Data 19}
     (hreh : ∀ (S : Finset (Fin U)), S.card ≤ n_max →
@@ -5513,7 +5508,7 @@ theorem opCode_execCodeDist {w base c_exp n_max U V : ℕ}
       obtain ⟨_, hy_rep, hy_mod⟩ := hins_supp y hy
       exact ⟨rfl, hy_rep, hy_mod⟩
 
-theorem tsum_seedLaw_insertSeedSteps_le {c_exp n_max U V C_walk C_reh v : ℕ}
+private theorem tsum_seedLaw_insertSeedSteps_le {c_exp n_max U V C_walk C_reh v : ℕ}
     {ks : List (Fin U)} {s : Dictionary.State U} {u : Fin U}
     (hfam : IsCuckooHashFamily c_exp U n_max (tableBits n_max) (maxEvictions n_max) C_walk C_reh)
     (hnodup : ks.Nodup)
@@ -5852,7 +5847,7 @@ satisfies `IsCuckooHashFamily c_exp U n_max (tableBits n_max) (maxEvictions n_ma
 theorem isCuckooHashFamily_tableBits {c_exp U n_max : ℕ}
     (hU : U ≤ max n_max 4 ^ c_exp) :
     IsCuckooHashFamily c_exp U n_max (tableBits n_max) (maxEvictions n_max) 3 4 :=
-  Cslib.DataStructure.Dictionary.CuckooHashing.isCuckooHashPair_provableFamily
+  Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.isCuckooHashPair_provableFamily
     hU (thirtyTwo_mul_max_le_tableSize n_max)
 
 /-- `O(c_exp⁴) = O_{c_exp}(1)` worst-case step bound for `queryCode c_exp n_max`, independent of
@@ -5923,7 +5918,7 @@ theorem querySteps_le {c_exp n_max U : ℕ}
   dsimp only [querySteps, queryStepsBound, probeKeySteps, probeTableSlotSteps, evalHashAtBaseSteps]
   omega
 
-theorem evictIterSteps_le {c_exp n_max U : ℕ}
+private theorem evictIterSteps_le {c_exp n_max U : ℕ}
     (hU : U ≤ max n_max 4 ^ c_exp) :
     evictIterSteps c_exp n_max U ≤ evictIterBound c_exp := by
   have hev := evalHashSteps_tableBits_le hU
@@ -5992,7 +5987,7 @@ private theorem resampleAtBaseSteps_le_mul (c_exp n_max : ℕ) :
       _ = (80 * S + 63) * D := by ring
       _ ≤ resampleAtBaseFactor c_exp * D := Nat.mul_le_mul_right D hfac
 
-theorem rehashAmortizedSteps_le {c_exp n_max U : ℕ}
+private theorem rehashAmortizedSteps_le {c_exp n_max U : ℕ}
     (hU : U ≤ max n_max 4 ^ c_exp) :
     rehashAmortizedSteps c_exp n_max U ≤ rehashAmortizedBound c_exp := by
   obtain ⟨h1_D, hn_D, hev_D⟩ := le_rehashScale n_max
@@ -6170,16 +6165,16 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
       exact uniformOfFinset_le_two_mul_uniformOfFintype hE hcard θ
     have hprep_ok : ∀ p ∈ ν.support,
         p.1 = extractSeed (hashBase base) c_exp n_max U (tableBits n_max)
-          (C.toDynamicProgram.prepare o p.2).mem ∧
-        RepWithKeys w base c_exp n_max U V ks s (C.toDynamicProgram.prepare o p.2) ∧
-        argMatch o (C.toDynamicProgram.prepare o p.2).regs := by
+          (C.prepare o p.2).mem ∧
+        RepWithKeys w base c_exp n_max U V ks s (C.prepare o p.2) ∧
+        argMatch o (C.prepare o p.2).regs := by
       intro p hp
       obtain ⟨hp1, hrep_p⟩ := hsupp p hp
       refine ⟨hp1, ?_, C.prepare_argMatch o p.2⟩
       exact RepWithKeys.supported
-        (C.toDynamicProgram.prepare_regs_of_not_input (i := 0) rfl o p.2)
+        (C.prepare_regs_of_not_input (i := 0) rfl o p.2)
         (fun _ _ => rfl)
-        (C.toDynamicProgram.prepare_bounded hrep_p.1 (C.arguments_fit o hvo))
+        (C.prepare_bounded hrep_p.1 (C.arguments_fit o hvo))
         hrep_p
     have hE' :
         (survivingSeeds (Θ := Seed c_exp n_max U (tableBits n_max)) evalHash1 evalHash2
@@ -6190,12 +6185,12 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
           hfit_ev hw hfit_end hfit_V hfit_q
       exact hE'_p₀
     let μ_raw : Seed c_exp n_max U (tableBits n_max) × Data 19 → PMF (Data 19) := fun p =>
-      if hp : RepWithKeys w base c_exp n_max U V ks s (C.toDynamicProgram.prepare o p.2) ∧
-          argMatch o (C.toDynamicProgram.prepare o p.2).regs then
+      if hp : RepWithKeys w base c_exp n_max U V ks s (C.prepare o p.2) ∧
+          argMatch o (C.prepare o p.2).regs then
         Classical.choose
           (opCode_execCodeDist o hfam.rehash_prob_le_half hp.1 hvo hp.2
             hfit_ev hw hfit_end hfit_V hfit_q)
-      else PMF.pure (C.toDynamicProgram.prepare o p.2)
+      else PMF.pure (C.prepare o p.2)
     let μ_step : Seed c_exp n_max U (tableBits n_max) × Data 19 →
         PMF (Seed c_exp n_max U (tableBits n_max) × Data 19) :=
       fun p => (μ_raw p).map fun y =>
@@ -6203,7 +6198,7 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
     let T_step : Seed c_exp n_max U (tableBits n_max) × Data 19 → ℝ≥0∞ :=
       fun p => opSeedSteps c_exp n_max U ks p.1 s o
     have hstep_spec : ∀ p ∈ ν.support,
-        ExecCodeDist w (cuckooCode c_exp n_max).code (C.toDynamicProgram.prepare o p.2)
+        ExecCodeDist w (cuckooCode c_exp n_max).code (C.prepare o p.2)
           ((μ_step p).map Prod.snd) (T_step p) ∧
         (μ_step p).map Prod.fst =
           (if p.1 ∈ survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) (stepKeys ks o) then
@@ -6219,8 +6214,8 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
           Modifies (Block.mk base C.space).footprint p.2.mem q.2.mem := by
       intro p hp_mem
       obtain ⟨hp1, hrep_prep, harg_prep⟩ := hprep_ok p hp_mem
-      have hp : RepWithKeys w base c_exp n_max U V ks s (C.toDynamicProgram.prepare o p.2) ∧
-          argMatch o (C.toDynamicProgram.prepare o p.2).regs := ⟨hrep_prep, harg_prep⟩
+      have hp : RepWithKeys w base c_exp n_max U V ks s (C.prepare o p.2) ∧
+          argMatch o (C.prepare o p.2).regs := ⟨hrep_prep, harg_prep⟩
       have hspec := Classical.choose_spec
         (opCode_execCodeDist o hfam.rehash_prob_le_half hp.1 hvo hp.2
           hfit_ev hw hfit_end hfit_V hfit_q)

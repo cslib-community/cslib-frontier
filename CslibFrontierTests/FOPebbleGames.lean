@@ -48,7 +48,7 @@ instance (m : ℕ) : Language.order.OrderedStructure (Fin m) := ⟨fun _ => Iff.
 
 /-- `xᵢ < xⱼ`, as `¬ xⱼ ≤ xᵢ`. -/
 def lt (i j : Fin 2) : FiniteVariable.Formula Language.order 2 :=
-  (FiniteVariable.Formula.rel leSymb ![j, i]).not
+  (.rel leSymb ![j, i] : FiniteVariable.Formula Language.order 2).not
 
 /-- At least `m` elements lie strictly below `xᵢ`: there is `xⱼ < xᵢ` below which lie at least
 `m - 1` elements, where `j` is the other variable. The variable `i` is quantified again inside. -/
@@ -66,11 +66,12 @@ private theorem add_one_ne_self (i : Fin 2) : i + 1 ≠ i := by
 
 theorem realize_chain {n : ℕ} : ∀ (m : ℕ) (i : Fin 2) (a : Fin 2 → Fin n),
     (chain m i).Realize a ↔ m ≤ (a i).val
-  | 0, i, a => by simp only [chain, FiniteVariable.Formula.realize_top, Nat.zero_le]
+  | 0, i, a => by simp only [chain, FiniteVariable.GenFormula.realize_top, Nat.zero_le]
   | m + 1, i, a => by
-    simp only [chain, lt, FiniteVariable.Formula.realize_ex, FiniteVariable.Formula.realize_inf,
-      FiniteVariable.Formula.realize_not, FiniteVariable.Formula.realize_rel, realize_chain m,
-      comp_vec_two, relMap_leSymb, Matrix.cons_val_zero, Matrix.cons_val_one, Function.update_self,
+    simp only [chain, lt, FiniteVariable.GenFormula.realize_ex,
+      FiniteVariable.GenFormula.realize_inf, FiniteVariable.GenFormula.realize_not,
+      FiniteVariable.GenFormula.realize_rel, realize_chain m, comp_vec_two, relMap_leSymb,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Function.update_self,
       Function.update_of_ne (add_one_ne_self i).symm, not_le, Fin.lt_def]
     constructor
     · rintro ⟨c, hc, hm⟩
@@ -79,19 +80,19 @@ theorem realize_chain {n : ℕ} : ∀ (m : ℕ) (i : Fin 2) (a : Fin 2 → Fin n
       exact ⟨⟨m, by omega⟩, by simp only; omega, le_rfl⟩
 
 theorem realize_atLeast {n m : ℕ} (a : Fin 2 → Fin n) : (atLeast m).Realize a ↔ m < n := by
-  simp only [atLeast, FiniteVariable.Formula.realize_ex, realize_chain, Function.update_self]
+  simp only [atLeast, FiniteVariable.GenFormula.realize_ex, realize_chain, Function.update_self]
   exact ⟨fun ⟨c, hc⟩ => by omega, fun h => ⟨⟨m, h⟩, le_rfl⟩⟩
 
 theorem quantifierRank_chain : ∀ (m : ℕ) (i : Fin 2), (chain m i).quantifierRank = m
-  | 0, _ => by simp only [chain, FiniteVariable.Formula.quantifierRank_top]
+  | 0, _ => by simp only [chain, FiniteVariable.GenFormula.quantifierRank_top]
   | m + 1, i => by
-    simp only [chain, lt, FiniteVariable.Formula.quantifierRank_ex,
-      FiniteVariable.Formula.quantifierRank_inf, FiniteVariable.Formula.quantifierRank_not,
-      FiniteVariable.Formula.quantifierRank_rel, quantifierRank_chain m, Nat.zero_max]
+    simp only [chain, lt, FiniteVariable.GenFormula.quantifierRank_ex,
+      FiniteVariable.GenFormula.quantifierRank_inf, FiniteVariable.GenFormula.quantifierRank_not,
+      FiniteVariable.GenFormula.quantifierRank_rel, quantifierRank_chain m, Nat.zero_max]
 
 /-- `atLeast m` has quantifier rank `m + 1` although it uses only two variables. -/
 theorem quantifierRank_atLeast (m : ℕ) : (atLeast m).quantifierRank = m + 1 := by
-  rw [atLeast, FiniteVariable.Formula.quantifierRank_ex, quantifierRank_chain]
+  rw [atLeast, FiniteVariable.GenFormula.quantifierRank_ex, quantifierRank_chain]
 
 private theorem freeVars_lt_subset (i : Fin 2) :
     ((Finset.univ.image ![i, i + 1]) ∪ {i + 1}).erase (i + 1) ⊆ {i} := by
@@ -99,16 +100,17 @@ private theorem freeVars_lt_subset (i : Fin 2) :
   decide
 
 theorem freeVars_chain_subset : ∀ (m : ℕ) (i : Fin 2), (chain m i).freeVars ⊆ {i}
-  | 0, _ => by simp only [chain, FiniteVariable.Formula.freeVars_top, Finset.empty_subset]
+  | 0, _ => by simp only [chain, FiniteVariable.GenFormula.freeVars_top, Finset.empty_subset]
   | m + 1, i => by
-    simp only [chain, lt, FiniteVariable.Formula.freeVars_ex, FiniteVariable.Formula.freeVars_inf,
-      FiniteVariable.Formula.freeVars_not, FiniteVariable.Formula.freeVars_rel]
+    simp only [chain, lt, FiniteVariable.GenFormula.freeVars_ex,
+      FiniteVariable.GenFormula.freeVars_inf, FiniteVariable.GenFormula.freeVars_not,
+      FiniteVariable.GenFormula.freeVars_rel]
     exact (Finset.erase_subset_erase _ (Finset.union_subset_union (subset_refl _)
       (freeVars_chain_subset m (i + 1)))).trans (freeVars_lt_subset i)
 
 /-- `atLeast m` is a sentence. -/
 theorem freeVars_atLeast (m : ℕ) : (atLeast m).freeVars = ∅ := by
-  rw [atLeast, FiniteVariable.Formula.freeVars_ex, Finset.erase_eq_empty_iff]
+  rw [atLeast, FiniteVariable.GenFormula.freeVars_ex, Finset.erase_eq_empty_iff]
   exact Finset.subset_singleton_iff.1 (freeVars_chain_subset m 0)
 
 /-- Spoiler wins the `(m + 1)`-round `2`-pebble game on `Fin (m + 1)` and `Fin m`, from any
@@ -269,20 +271,20 @@ def triangle : FiniteVariable.Formula Language.graph 3 :=
   .ex 0 (.ex 1 (.ex 2 (.rel adj ![0, 1] ⊓ .rel adj ![1, 2] ⊓ .rel adj ![0, 2])))
 
 theorem quantifierRank_triangle : triangle.quantifierRank = 3 := by
-  simp only [triangle, FiniteVariable.Formula.quantifierRank_ex,
-    FiniteVariable.Formula.quantifierRank_inf, FiniteVariable.Formula.quantifierRank_rel,
+  simp only [triangle, FiniteVariable.GenFormula.quantifierRank_ex,
+    FiniteVariable.GenFormula.quantifierRank_inf, FiniteVariable.GenFormula.quantifierRank_rel,
     max_self]
 
 theorem freeVars_triangle : triangle.freeVars = ∅ := by
-  simp only [triangle, FiniteVariable.Formula.freeVars_ex, FiniteVariable.Formula.freeVars_inf,
-    FiniteVariable.Formula.freeVars_rel]
+  simp only [triangle, FiniteVariable.GenFormula.freeVars_ex,
+    FiniteVariable.GenFormula.freeVars_inf, FiniteVariable.GenFormula.freeVars_rel]
   decide
 
 theorem realize_triangle_iff (a : Fin 3 → V) :
     triangle.Realize a ↔ ∃ x y z : V,
       RelMap adj ![x, y] ∧ RelMap adj ![y, z] ∧ RelMap adj ![x, z] := by
-  simp only [triangle, FiniteVariable.Formula.realize_ex, FiniteVariable.Formula.realize_inf,
-    FiniteVariable.Formula.realize_rel, comp_vec_two, Function.update_self,
+  simp only [triangle, FiniteVariable.GenFormula.realize_ex, FiniteVariable.GenFormula.realize_inf,
+    FiniteVariable.GenFormula.realize_rel, comp_vec_two, Function.update_self,
     Function.update_of_ne (show (0 : Fin 3) ≠ 2 by decide),
     Function.update_of_ne (show (0 : Fin 3) ≠ 1 by decide),
     Function.update_of_ne (show (1 : Fin 3) ≠ 2 by decide), and_assoc]

@@ -100,9 +100,9 @@ def clause (c : Clause ℕ) : CNF ℕ :=
 @[fun_prop]
 theorem computableInPolyTime_clause :
     ComputableInPolyTime clause (encList (encPair encNat encBool)) encCNF := by
-  have h0 := (computableInPolyTime_literalAt 0).tidy
-  have h1 := (computableInPolyTime_literalAt 1).tidy
-  have h2 := (computableInPolyTime_literalAt 2).tidy
+  have h0 := (computableInPolyTime_literalAt 0)
+  have h1 := (computableInPolyTime_literalAt 1)
+  have h2 := (computableInPolyTime_literalAt 2)
   unfold clause Clause.oneThreeEncoding encCNF
   fun_prop
 

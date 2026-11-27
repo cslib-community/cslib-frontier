@@ -169,7 +169,6 @@ theorem spectralExpansion_balancedReplacement_pow_three_le :
     (G.balancedReplacement H).spectralExpansion ^ 3 ≤
       7 / 8 + (G.zigzag H).spectralExpansion / 8 := by
   rw [← spectralExpansion_pow _ three_ne_zero]
-  have hZ := (G.zigzag H).spectralExpansion_nonneg
   refine spectralExpansion_le (by positivity) fun f hf ↦ ?_
   rcases isEmpty_or_nonempty E with hE | hE
   · have : (G.balancedReplacement H).walk = 0 :=

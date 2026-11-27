@@ -10,11 +10,14 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Algebra.Polynomial.BigOperators
 public import Mathlib.Algebra.Polynomial.CoeffList
+public import Mathlib.Algebra.Polynomial.Derivative
+public import Mathlib.Algebra.Polynomial.Reverse
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import CslibFrontier.Foundations.Data.List.OfFn
 import CslibFrontier.Foundations.Data.Polynomial.CoeffSumBounds
 import Mathlib.Algebra.Order.Ring.Abs
 import Mathlib.Data.List.GetD
+import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -46,11 +49,16 @@ integer-cast inequalities used in Lemma 4.6, Lemma 5.1, and Appendix B of `[Open
 * `Polynomial.natCast_coeffNorm1`: integer cast identity
   `(p.coeffNorm1 : ℤ) = ∑ i ∈ p.support, |p.coeff i|`.
 * `Polynomial.coeffNorm1_ofCoeffList`: `coeffNorm1 (ofCoeffList l) = (l.map Int.natAbs).sum`.
+* `Polynomial.coeffNorm1_derivative_le`, `Polynomial.coeffNorm1_iterate_derivative_le_two_pow`:
+  norm bounds for derivatives, including one dyadic bound for every order.
 
 ## References
 
 * [OpenAI, *The Exponential Time Hypothesis is False*][OpenAI2026ETH]
   (Lemma 4.6, Appendix B.1, and Appendix B.2)
+
+The derivative bounds are adapted from `DerivativeProductBounds` and `DerivativeTestBounds`
+in lean-canny at commit `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 -/
 
 @[expose] public noncomputable section
@@ -73,6 +81,16 @@ theorem coeffNorm1_eq_sum_of_support_subset {p : ℤ[X]} {S : Finset ℕ} (hS : 
     coeffNorm1 p = ∑ i ∈ S, (p.coeff i).natAbs :=
   sum_eq_of_subset _ (fun _ => Int.natAbs_zero) hS
 
+/-- Reversing the coefficients preserves the coefficient norm. -/
+theorem coeffNorm1_reverse (p : ℤ[X]) : p.reverse.coeffNorm1 = p.coeffNorm1 := by
+  rw [coeffNorm1, reverse, reflect_support, sum_image (revAt _).injective.injOn]
+  simp only [coeff_reflect, revAt_invol, coeffNorm1]
+
+/-- Multiplication by a natural scalar scales the coefficient norm exactly. -/
+theorem coeffNorm1_nsmul (k : ℕ) (p : ℤ[X]) : coeffNorm1 (k • p) = k * coeffNorm1 p := by
+  rw [coeffNorm1_eq_sum_of_support_subset (support_smul k p), coeffNorm1, Finset.mul_sum]
+  simp only [nsmul_eq_mul, ← C_eq_natCast, coeff_C_mul, Int.natAbs_mul, Int.natAbs_natCast]
+
 /-- Every individual coefficient of `p` has absolute value at most `coeffNorm1 p`. -/
 theorem natAbs_coeff_le_coeffNorm1 (p : ℤ[X]) (k : ℕ) :
     (p.coeff k).natAbs ≤ coeffNorm1 p := by
@@ -93,6 +111,47 @@ theorem sum_natAbs_coeff_le_coeffNorm1 (p : ℤ[X]) (s : Finset ℕ) :
     · simp only [hp0, Int.natAbs_zero]
   rw [hsub, coeffNorm1]
   exact sum_le_sum_of_subset inter_subset_right
+
+/-- Differentiation increases the coefficient norm by at most a factor of the degree. -/
+theorem coeffNorm1_derivative_le (p : ℤ[X]) :
+    p.derivative.coeffNorm1 ≤ p.natDegree * p.coeffNorm1 := by
+  let shift : ℕ ↪ ℕ := ⟨Nat.succ, Nat.succ_injective⟩
+  calc
+    p.derivative.coeffNorm1 ≤ ∑ i ∈ p.derivative.support,
+        (p.coeff (i + 1)).natAbs * p.natDegree := by
+      refine sum_le_sum fun i hi => ?_
+      simp only [coeff_derivative, Int.natAbs_mul, ← Nat.cast_succ, Int.natAbs_natCast]
+      exact Nat.mul_le_mul_left _ (le_natDegree_of_mem_supp _ (of_mem_support_derivative hi))
+    _ = (∑ i ∈ p.derivative.support.map shift, (p.coeff i).natAbs) * p.natDegree := by
+      rw [sum_mul, sum_map]
+      rfl
+    _ ≤ p.natDegree * p.coeffNorm1 := by
+      rw [mul_comm p.natDegree]
+      exact Nat.mul_le_mul_right _ (sum_natAbs_coeff_le_coeffNorm1 p _)
+
+/-- A common base-two coefficient norm exponent for all derivatives of a polynomial
+with degree at most `D` and coefficient norm at most `2 ^ b`. -/
+def iterateDerivativeNormExponent (D b : ℕ) : ℕ := b + D.size * D
+
+/-- The same dyadic norm bound holds at every derivative order, including order zero
+and orders above the degree. -/
+theorem coeffNorm1_iterate_derivative_le_two_pow (p : ℤ[X]) {D b : ℕ}
+    (hD : p.natDegree ≤ D) (hb : p.coeffNorm1 ≤ 2 ^ b) (k : ℕ) :
+    (derivative^[k] p).coeffNorm1 ≤ 2 ^ iterateDerivativeNormExponent D b := by
+  have hiter (j : ℕ) : (derivative^[j] p).coeffNorm1 ≤ D ^ j * p.coeffNorm1 := by
+    induction j with
+    | zero => simp
+    | succ j ih =>
+      rw [Function.iterate_succ_apply', pow_succ']
+      have hdeg := (natDegree_iterate_derivative p j).trans ((Nat.sub_le _ _).trans hD)
+      exact (coeffNorm1_derivative_le _).trans
+        ((Nat.mul_le_mul hdeg ih).trans_eq (Nat.mul_assoc _ _ _).symm)
+  by_cases hk : k ≤ D
+  · refine (hiter k).trans ((Nat.mul_le_mul (Nat.pow_le_pow_left D.lt_size_self.le k) hb).trans ?_)
+    rw [← pow_mul, ← pow_add, iterateDerivativeNormExponent, add_comm b]
+    exact Nat.pow_le_pow_right (by decide) (Nat.add_le_add_right (Nat.mul_le_mul_left _ hk) _)
+  · rw [iterate_derivative_eq_zero (hD.trans_lt (Nat.lt_of_not_ge hk)), coeffNorm1_zero]
+    exact Nat.zero_le _
 
 /-- The `ℓ₁` norm of a constant polynomial `C a` is `a.natAbs`. -/
 theorem coeffNorm1_C (a : ℤ) : coeffNorm1 (C a) = a.natAbs := by
@@ -201,6 +260,26 @@ theorem coeffNorm1_pow_le (p : ℤ[X]) (k : ℕ) :
 theorem coeffNorm1_prod_le {ι : Type*} (s : Finset ι) (f : ι → ℤ[X]) :
     coeffNorm1 (∏ a ∈ s, f a) ≤ ∏ a ∈ s, coeffNorm1 (f a) :=
   le_prod_of_submultiplicative coeffNorm1 coeffNorm1_one.le coeffNorm1_mul_le s f
+
+/-- Composition grows the coefficient norm by at most the inner norm to the
+outer degree, with the inner norm rounded up to one to include zero. -/
+theorem coeffNorm1_comp_le (p q : ℤ[X]) :
+    (p.comp q).coeffNorm1 ≤ p.coeffNorm1 * (max 1 q.coeffNorm1) ^ p.natDegree := by
+  rw [comp_eq_sum_left, Polynomial.sum]
+  refine (coeffNorm1_sum_le _ _).trans ?_
+  calc
+    _ ≤ ∑ i ∈ p.support, (p.coeff i).natAbs * (max 1 q.coeffNorm1) ^ p.natDegree := by
+      refine sum_le_sum fun i hi => (coeffNorm1_C_mul_le _ _).trans (Nat.mul_le_mul_left _ ?_)
+      exact (coeffNorm1_pow_le q i).trans
+        ((Nat.pow_le_pow_left (le_max_right 1 q.coeffNorm1) i).trans
+          (Nat.pow_le_pow_right (le_max_left 1 q.coeffNorm1) (le_natDegree_of_mem_supp i hi)))
+    _ = _ := by simp only [coeffNorm1, sum_mul]
+
+/-- Evaluation at a nonzero integer is bounded by the coefficient norm times the
+absolute value of the integer raised to the degree. -/
+theorem natAbs_eval_le_coeffNorm1 (p : ℤ[X]) (a : ℤ) (ha : 1 ≤ a.natAbs) :
+    (p.eval a).natAbs ≤ p.coeffNorm1 * a.natAbs ^ p.natDegree := by
+  simpa only [comp_C, coeffNorm1_C, max_eq_right ha] using coeffNorm1_comp_le p (C a)
 
 /-- Casting `coeffNorm1 p` to `ℤ` gives the sum of integer absolute values `|p.coeff i|`. -/
 theorem natCast_coeffNorm1 (p : ℤ[X]) :

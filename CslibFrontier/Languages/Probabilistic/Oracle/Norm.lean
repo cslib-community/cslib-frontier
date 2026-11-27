@@ -21,7 +21,7 @@ to `PMF.bind`, `PMF.pure`, and `PMF.map` in one pass, while stopping cleanly at
 
 * folding spelled-out runs into `ProbOracleComp.runWith` or `OracleComp.evalWith`:
   `ProbOracleComp.eval_interpret_eq_evalWith`, `ProbOracleComp.eval_run_interpret_eq_runWith`,
-  `ProbOracleComp.run_interpret_eq_runWith`;
+  `ProbOracleComp.runWith_eq_run_interpret`;
 * composing handlers inside `ProbOracleComp.runWith` or `OracleComp.evalWith`:
   `ProbOracleComp.evalWith_run_interpret`, `ProbOracleComp.runWith_interpret_sumHandler_eta`,
   `ProbOracleComp.runWith_run_interpret`;
@@ -60,7 +60,7 @@ rules.
   sum-handler run into `OracleComp.evalWith`.
 * `Cslib.ProbOracleComp.evalWith_run_interpret`: folds a stateful reduction run inside a stateless
   `OracleComp.evalWith` into `ProbOracleComp.runWith`.
-* `Cslib.ProbOracleComp.run_interpret_eq_runWith`: folds the spelled-out `ProbComp.unifOracle` sum
+* `Cslib.ProbOracleComp.runWith_eq_run_interpret`: folds the spelled-out `ProbComp.unifOracle` sum
   handler run into `ProbOracleComp.runWith`.
 * `Cslib.ProbOracleComp.runWith_interpret_sumHandler_eta`: eta-expanded form of
   `ProbOracleComp.runWith_interpret_sumHandler` so `runWith_norm` also steps concrete handler bodies
@@ -85,7 +85,8 @@ theorem ProbOracleComp.eval_interpret_eq_evalWith {Query α : Type} {spec : Quer
       OracleComp.evalWith
         (OracleComp.sumHandler ProbComp.unifOracle (fun q => ProbComp.eval (oracle q)))
         program :=
-  ProbOracleComp.eval_interpret oracle program
+  (ProbOracleComp.eval_interpret oracle program).trans
+    (OracleComp.evalWith_eq_interpret _ _).symm
 
 /-- Evaluating a stateful `ProbOracleComp` handler run under a stateless `PMF` external oracle is
 `ProbOracleComp.runWith` against the evaluated handler. -/
@@ -116,17 +117,6 @@ theorem ProbOracleComp.evalWith_run_interpret {Query Query' State α : Type}
     simp only [OracleComp.interpret_bind, StateT.run_bind, OracleComp.evalWith_bind,
       ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.interpret_query,
       ih]
-
-/-- Running a `ProbOracleComp` against the lifted uniform sampler and a stateful `PMF` oracle is
-`ProbOracleComp.runWith`. -/
-theorem ProbOracleComp.run_interpret_eq_runWith {Query : Type} {spec : Query → Type}
-    {State α : Type} (oracle : (q : Query) → StateT State PMF (spec q))
-    (program : ProbOracleComp spec α) (s : State) :
-    (OracleComp.interpret
-      (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
-      program).run s =
-      ProbOracleComp.runWith oracle program s :=
-  rfl
 
 /-- Eta-expanded form of `ProbOracleComp.runWith_interpret_sumHandler` supplying the state argument
 to the inner `ProbOracleComp.runWith`, so `runWith_norm` normalizes concrete handler programs even
@@ -198,9 +188,10 @@ attribute [runWith_norm 1200]
   Cslib.ProbOracleComp.eval_interpret_eq_evalWith
   Cslib.ProbOracleComp.evalWith_run_interpret
   Cslib.ProbOracleComp.eval_run_interpret_eq_runWith
-  Cslib.ProbOracleComp.run_interpret_eq_runWith
   Cslib.ProbOracleComp.runWith_interpret_sumHandler_eta
   Cslib.ProbOracleComp.runWith_run_interpret
+
+attribute [runWith_norm ← 1200] Cslib.ProbOracleComp.runWith_eq_run_interpret
 
 attribute [runWith_norm 1100]
   Cslib.ProbOracleComp.runWith_lift

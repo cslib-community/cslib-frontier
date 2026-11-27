@@ -71,7 +71,8 @@ private theorem plain_eval {α : Type}
     · rfl
     · exact e.elim
     · exact e.elim
-  unfold World.eval ProbOracleComp.runWith OracleComp.runWith
+  unfold World.eval
+  rw [ProbOracleComp.runWith_eq_run_interpret]
   erw [hh, h]
   exact (PMF.map_comp _ _ _).trans (PMF.map_id _)
 
@@ -103,7 +104,8 @@ private theorem runLaw_liftProver {α : Type} (p : ProbOracleComp OracleSpec.emp
 /-- Embedded sampling has the law of the sampled program. -/
 @[simp] theorem plainLaw_sample {α : Type} (p : ProbComp α) :
     plainLaw (ProbOracleComp.sample (spec := OracleSpec.empty) p) = ProbComp.eval p :=
-  ProbOracleComp.interpret_sample _ _ _
+  (ProbOracleComp.interpret_sample _ _ _).trans
+    (OracleComp.evalWith_eq_interpret _ _).symm
 
 private theorem runLaw_pure {α : Type} (a : α) :
     runLaw (pure a : ProbOracleComp (OracleSpec.empty ⊕ₒ OracleSpec.empty) α) = PMF.pure a := rfl

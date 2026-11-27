@@ -289,7 +289,7 @@ theorem lintegral_le_of_antitone [IsFiniteMeasure μ] [IsFiniteMeasure ν]
 private theorem lintegral_ofReal_ne_top {α : Type*} [MeasurableSpace α] {μ : Measure α}
     {f : α → ℝ} (hf : Integrable f μ) :
     ∫⁻ x, ENNReal.ofReal (f x) ∂μ ≠ ⊤ :=
-  ((lintegral_ofReal_le_lintegral_enorm f).trans_lt hf.2).ne
+  ((lintegral_ofReal_le_lintegral_eNorm f).trans_lt hf.2).ne
 
 /-- First-order stochastic domination on probability measures implies `∫ x, f x ∂ν ≤ ∫ x, f x ∂μ`
 for every integrable measurable monotone function `f : α → ℝ`. -/

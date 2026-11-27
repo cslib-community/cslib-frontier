@@ -24,6 +24,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Rat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.PolyTime.Int.ExactDiv
 import CslibFrontier.Computability.PolyTime.Int.Table
 import Mathlib.Data.List.GetD
@@ -341,7 +342,7 @@ private theorem rowDenomProd_poly {α : Type} {encIn : α ↪ List Bool} {r : α
     ComputableInPolyTime (fun a => rowDenomProd (r a)) encIn encNat := by
   have hbase : ComputableInPolyTime rowDenomProd (encList encRat) encNat := by
     unfold rowDenomProd
-    refine .of_tidy (ComputableTidilyInPolyTime.foldlWith_spec
+    refine (ComputableInPolyTime.foldlWith_spec
       (encP := encBool) (encA := encRat) (encB := encNat)
       (par := fun _ => false) (list := fun row => row) (init := fun _ => 1)
       (step := fun _ acc q => acc * q.den)
@@ -352,11 +353,7 @@ private theorem rowDenomProd_poly {α : Type} {encIn : α ↪ List Bool} {r : α
       (size := fun row => (encList encRat row).length + 1)
       (PolyBounded.self.add (.const 1))
       (fun row consumed state hpre hinv => ?_)).1
-    · have hden := (rat_den : ComputableInPolyTime Rat.den encRat encNat).tidy
-      exact ComputableTidilyInPolyTime.binary_mul.comp
-        (((ComputableTidilyInPolyTime.snd _ _).comp
-          (ComputableTidilyInPolyTime.fst _ _)).prod
-          (hden.comp (ComputableTidilyInPolyTime.snd _ _)))
+    · exact binary_mul' ((snd _ _).comp (fst _ _)) (rat_den.comp (snd _ _))
     · have hval : value.den ≤ 2 ^ (encRat value).length :=
         (den_lt_two_pow_length_encRat value).le
       have hlen : (encList encRat (consumed ++ [value])).length =
@@ -386,10 +383,8 @@ private theorem clearRow_poly {α : Type} {encIn : α ↪ List Bool} {r : α →
     unfold clearRow
     have hdiv : ComputableInPolyTime (fun p : List ℚ × ℚ => rowDenomProd p.1 / p.2.den)
         (encPair (encList encRat) encRat) encNat :=
-      .of_tidy (ComputableTidilyInPolyTime.binary_div'
-        ((rowDenomProd_poly (fst (encList encRat) encRat)).tidy)
-        ((rat_den : ComputableInPolyTime Rat.den encRat encNat).tidy.comp
-          (ComputableTidilyInPolyTime.snd _ _)))
+      binary_div' (rowDenomProd_poly (fst (encList encRat) encRat))
+        (rat_den.comp (snd _ _))
     have hcast : ComputableInPolyTime Int.ofNat encNat encIntBin := intBin_natCast
     have hmul : ComputableInPolyTime
         (fun p : List ℚ × ℚ => p.2.num * Int.ofNat (rowDenomProd p.1 / p.2.den))
@@ -424,7 +419,7 @@ private theorem findPivotRow_base :
           decide (Cslib.rowEntry p.1.1.table.rows p.2 p.1.2 ≠ 0))
       (encPair (encPair BareissState.enc encUnary) encUnary) encBool := by
     fun_prop
-  exact .of_tidy (ComputableTidilyInPolyTime.findWithInput hr.tidy ht.tidy)
+  exact findWithInput hr ht
 
 private theorem findPivotRow_poly {α : Type} {encIn : α ↪ List Bool}
     {st : α → BareissState} {c : α → ℕ}
@@ -484,37 +479,18 @@ private theorem bareissElimCols_poly_of_bound {γ : Type} {encIn : γ ↪ List B
   unfold bareissElimCols bareissInit
   have hpoly_bound : PolyBounded (fun x => (encIn x).length)
       (fun x => bareissStateSizeBound (toTable x).numRows (toTable x).numCols (B x).size) := by
-    unfold bareissStateSizeBound
-    have hsS : PolyBounded (fun x => (encIn x).length)
-        (fun x => ((toTable x).numRows + 1) *
-          ((toTable x).numRows + 1 + ((B x).size + 1)) + 2) :=
-      ((hrows.add (.const 1)).mul ((hrows.add (.const 1)).add (hsizeB.add (.const 1)))).add
-        (.const 2)
-    have hinner := (PolyBounded.const 2).mul (hsS.add (.const 1))
-    have hrow := ((PolyBounded.const 2).mul (hcols.mul (hinner.add (.const 1)))).add (.const 1)
-    have htable := (PolyBounded.const 2).mul
-      ((((((PolyBounded.const 2).mul hrows).add (.const 1))).add
-        ((((((PolyBounded.const 2).mul hcols).add (.const 1))).add (hrows.mul hrow)))))
-    have hpivDet := ((PolyBounded.const 2).mul (hsS.add (.const 1))).add (.const 1)
-    have hpivRows :=
-      ((PolyBounded.const 2).mul
-        (hrows.mul (((PolyBounded.const 2).mul hrows).add (.const 1)))).add (.const 1)
-    have hpivCols := hrows.mul (((PolyBounded.const 2).mul hcols).add (.const 1))
-    exact (htable.add (.const 1)).add (hpivDet.add (hpivRows.add hpivCols))
-  refine .of_tidy (ComputableTidilyInPolyTime.foldlWith_spec
+    unfold bareissStateSizeBound; growth_poly
+  refine (ComputableInPolyTime.foldlWith_spec
     (encP := encBool) (encA := encUnary) (encB := BareissState.enc)
     (par := fun _ => false) (list := fun x => List.range (colLimit x))
     (init := fun x => ⟨toTable x, 1, [], []⟩)
     (step := fun _ st c => bareissStep st c)
-    (.const false) (unary_range' hcolLimit).tidy
-    (by
-      have h0 : ComputableInPolyTime (fun x => (⟨toTable x, 1, [], []⟩ : BareissState))
-          encIn BareissState.enc := by fun_prop
-      exact h0.tidy)
+    (.const false) (unary_range' hcolLimit)
+    (by fun_prop)
     (bareissStep_poly
       ((ComputableInPolyTime.snd encBool BareissState.enc).comp
         (ComputableInPolyTime.fst (encPair encBool BareissState.enc) encUnary))
-      (ComputableInPolyTime.snd (encPair encBool BareissState.enc) encUnary)).tidy
+      (ComputableInPolyTime.snd (encPair encBool BareissState.enc) encUnary))
     (fun x consumed st =>
       ∃ k ≤ colLimit x, consumed = List.range k ∧ BareissInv (toTable x) k st)
     (fun x => ⟨0, Nat.zero_le _, rfl, bareissInv_init (hwf x)⟩)
@@ -564,16 +540,14 @@ private theorem bareissElim_clearDenoms_poly {α : Type} {encIn : α ↪ List Bo
       PolyBounded.self.mono fun M => (ratTable_encoding_bounds M).2.1
     have hsizeB : PolyBounded (fun M => (RatTable.enc M).length)
         (fun M => (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size) := by
-      have hle : ∀ M : RatTable, (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size ≤
-          ((RatTable.enc M).length + 1) * (RatTable.enc M).length + 1 := by
-        intro M
-        have hsize : (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size ≤
-            (M.numCols + 1) * (RatTable.enc M).length + 1 :=
-          Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
-        have hmc := (ratTable_encoding_bounds M).2.1
-        exact hsize.trans
-          (Nat.add_le_add_right (Nat.mul_le_mul_right _ (Nat.add_le_add_right hmc 1)) 1)
-      exact (((PolyBounded.self.add (.const 1)).mul .self).add (.const 1)).mono hle
+      refine (by growth_poly : PolyBounded _
+          fun M => ((RatTable.enc M).length + 1) * (RatTable.enc M).length + 1).mono fun M => ?_
+      have hsize : (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size ≤
+          (M.numCols + 1) * (RatTable.enc M).length + 1 :=
+        Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
+      exact hsize.trans
+        (Nat.add_le_add_right
+          (Nat.mul_le_mul_right _ (Nat.add_le_add_right (ratTable_encoding_bounds M).2.1 1)) 1)
     exact bareissElimCols_poly_of_bound (by fun_prop) (by fun_prop) clearDenoms_wellFormed
       (fun _ => le_refl _) hrows hcols hsizeB
       fun M i j => clearDenoms_abs_le M (ratTable_encoding_bounds M).2.2 i j
@@ -611,22 +585,20 @@ private theorem bareissElimCols_aug_poly :
     PolyBounded.self.mono fun sys => (linearSystemInput_encoding_bounds sys).1
   have hcols : PolyBounded (fun sys => (LinearSystemInput.enc sys).length)
       (fun sys => (toT sys).numCols) :=
-    (PolyBounded.self.add (.const 1)).mono fun sys => by
-      change sys.matrix.numCols + 1 ≤ (LinearSystemInput.enc sys).length + 1
-      exact Nat.add_le_add_right (linearSystemInput_encoding_bounds sys).2.1 1
+    (by growth_poly : PolyBounded _ fun sys => (LinearSystemInput.enc sys).length + 1).mono
+      fun sys => Nat.add_le_add_right (linearSystemInput_encoding_bounds sys).2.1 1
   have hsizeB : PolyBounded (fun sys => (LinearSystemInput.enc sys).length)
       (fun sys => (Bfn sys).size) := by
-    have hle : ∀ sys : LinearSystemInput, (Bfn sys).size ≤
-        ((LinearSystemInput.enc sys).length + 2) * (LinearSystemInput.enc sys).length + 1 := by
-      intro sys
-      dsimp only [Bfn]
-      have hsize : (2 ^ ((sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length)).size ≤
-          (sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length + 1 :=
-        Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
-      have hmc := (linearSystemInput_encoding_bounds sys).2.1
-      exact hsize.trans
-        (Nat.add_le_add_right (Nat.mul_le_mul_right _ (Nat.add_le_add_right hmc 2)) 1)
-    exact (((PolyBounded.self.add (.const 2)).mul .self).add (.const 1)).mono hle
+    refine (by growth_poly : PolyBounded _ fun sys =>
+        ((LinearSystemInput.enc sys).length + 2) * (LinearSystemInput.enc sys).length + 1).mono
+      fun sys => ?_
+    dsimp only [Bfn]
+    have hsize : (2 ^ ((sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length)).size ≤
+        (sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length + 1 :=
+      Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
+    have hmc := (linearSystemInput_encoding_bounds sys).2.1
+    exact hsize.trans
+      (Nat.add_le_add_right (Nat.mul_le_mul_right _ (Nat.add_le_add_right hmc 2)) 1)
   refine bareissElimCols_poly_of_bound (by fun_prop) (by fun_prop)
     (fun sys => clearDenoms_wellFormed _)
     (fun sys => by simp only [clearDenoms, augmentRatTable]; omega)
@@ -812,7 +784,7 @@ theorem ratSolve_computableInPolyTime :
   have hno : ComputableInPolyTime
       (fun sys => LinearSolveResult.mk none (stOf sys).pivotRows (stOf sys).pivotCols)
       LinearSystemInput.enc LinearSolveResult.enc := by fun_prop
-  exact .of_tidy (ComputableTidilyInPolyTime.cond hcons.tidy hyes.tidy hno.tidy)
+  exact hcons.ite hyes hno
 
 end PolyTimeImpl
 

@@ -24,6 +24,10 @@ tests.
   by `K * (X ^ 4 * Y ^ 2)`.
 * `Cslib.Complexity.LazyDiagonal.cheap_aux`: bounds the verifier branch-test overhead by a
   multiple of `(N + 1) ^ 2 * Y ^ 2`.
+* `Cslib.Complexity.LazyDiagonal.acceptance_input_bound`: control the simulation input
+  factor from a linear description bound and certificate length.
+* `Cslib.Complexity.LazyDiagonal.verifier_branch_bound`: combine branch-sensitive costs
+  with the independently established certificate, test, simulation and search estimates.
 -/
 
 public section
@@ -102,5 +106,37 @@ theorem cheap_aux (G : ℕ) {N n Z Y : ℕ} (hn : n ≤ N) (hY : 1 ≤ Y) (hZ : 
       (le_of_eq (by ring))
   exact ⟨hN2.trans (Nat.le_mul_of_pos_right _ hY2),
     (Nat.pow_le_pow_left (by omega) 2).trans hsq, hsq⟩
+
+
+/-- A linear description bound and a certificate covering the input control the common
+fourth-power input factor in the acceptance simulation. -/
+theorem acceptance_input_bound {description n certificate C : ℕ}
+    (hd : description ≤ C * n) (hn : n + 2 ≤ certificate) :
+    description + (n + 1) + certificate + 1 ≤ (C + 3) * certificate := by
+  have h := Nat.mul_le_mul_left C (by omega : n ≤ certificate)
+  have e : (C + 3) * certificate = C * certificate + 3 * certificate := by ring
+  omega
+
+/-- Bound the complete lazy-verifier branch tree after charging certificate construction.
+Simulation is charged only for a short description, and search only when the first horizon
+comparison fails. The last comparison changes the branch but needs no further estimate. -/
+theorem verifier_branch_bound {n t c a b M A₁ A₂ A₃ B : ℕ}
+    {short : Bool} {q r : Prop} [Decidable q] [Decidable r]
+    (hn : n + 1 ≤ M) (ht : t ≤ A₃ * M) (hc : c ≤ A₁ * M)
+    (ha : short = true → a ≤ A₂ * M) (hb : ¬q → b ≤ n + 1 + B) :
+    n + t + (c + if short then
+      (c + if q then c + a else (c + if r then c + b else c)) else c) ≤
+      (2 + A₃ + 4 * A₁ + A₂ + B) * M + (2 + A₃ + 4 * A₁ + A₂ + B) := by
+  have e : (2 + A₃ + 4 * A₁ + A₂ + B) * M =
+      2 * M + A₃ * M + 4 * (A₁ * M) + A₂ * M + B * M := by ring
+  have hB : B ≤ B * M := Nat.le_mul_of_pos_right _ (by omega)
+  generalize 2 + A₃ + 4 * A₁ + A₂ + B = C at *
+  split_ifs with h₀ h₁ h₂
+  · have := ha h₀
+    omega
+  · have := hb h₁
+    omega
+  · omega
+  · omega
 
 end Cslib.Complexity.LazyDiagonal

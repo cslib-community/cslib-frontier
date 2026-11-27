@@ -68,7 +68,7 @@ The formal statement differs from the source in these modelling choices:
 - **Finite precision.** The source takes the longest common prefix of the binary expansions of two cdf values. `compress` instead takes the common prefix of `⌊a 2^n⌋` and `⌈b 2^n⌉ - 1`, where `a` and `b` are the cdf values below and at `x`. `Nat.lt_commonPrefix_mid_le` shows that the resulting dyadic point lies in `(a, b]`, which gives injectivity.
 - **Domination at every word.** The reduction meets the strengthened condition of `DistReduction` because it is injective.
 
-**Not yet proved:** the Impagliazzo–Levin extension to `SampNP`. It is tracked on the [roadmap](../../ROADMAP.md#average-case-complexity).
+**Not yet proved:** the Impagliazzo–Levin extension to `SampNP`. It is tracked on the [roadmap](../../roadmap/complexity.md#average-case-complexity).
 
 ## Worst-case consequences: `DistNP ⊆ HeurP` implies `E = NE`
 
@@ -84,6 +84,8 @@ Ben-David, Chor, Goldreich and Luby proved that `DistNP ⊆ AvgP` implies `NE = 
 | `DistNP ⊆ HeurP` implies `NE ⊆ E`, `E = NE` and `EXP = NEXP`; `DistNP ⊆ AvgP` implies `E = NE`; `E ≠ NE` implies `¬ DistNP ⊆ HeurP` | `NE_subset_E_of_DistNP_subset_HeurP`, `E_eq_NE_of_DistNP_subset_HeurP`, `EXP_eq_NEXP_of_DistNP_subset_HeurP`, `E_eq_NE_of_DistNP_subset_AvgP`, `not_DistNP_subset_HeurP_of_E_ne_NE` |
 
 The padded ensemble is the collapse of the uniform ensemble (`HeaderParser.ensemble`) at the prefix code of framed words. Let `N = 2|u| + 1 + m` be the length of a padded word with `2^{|u|} ≤ m`. Its probability is at least `1/(2N²)`, so the scheme run with parameter `2N²` cannot err on it. The padding side is in [Padding](../../CslibFrontier/Computability/Complexity/Classes/Padding.lean). Book's translation lemma uses the `P` decider of a padded problem only on padded instances. So `NTIME_subset_iUnion_DTIME_of_agree_padded` assumes only agreement on `frame u ++ 1^{t |u|}`. `ExpPaddedNPEasy` is that hypothesis for exponential padding, and `NE_subset_E_of_expPaddedNPEasy` and `NEXP_subset_EXP_of_expPaddedNPEasy` derive the collapses from it. The `NP ⊆ P` theorems (`NE_subset_E_of_NP_subset_P` and others) are now corollaries of these, with unchanged statements.
+
+Easy tally `NP` gives the same hypothesis. [Padding/Tally](../../CslibFrontier/Computability/Complexity/Classes/Padding/Tally.lean) proves `expPaddedNPEasy_of_tally`: if every tally problem in `NP` is in `P` (`∀ L ∈ TALLY, L ∈ NP encBits → L ∈ P encBits`), then `ExpPaddedNPEasy`. A padded word `frame u ++ 1^m` with `2^{|u|} ≤ m` is coded by the unary number `Nat.pair (tallyCode u) m`. Here `tallyCode u` is the number whose little-endian digits are `u ++ [true]`, so it is below `2^{|u|+1} ≤ 2m`. The tally problem `tallyOf B` holds the words `1^N` with `tallyDecode N ∈ B`; it is in `NP` for `B ∈ NP` (`tallyOf_mem_NP`). The map `tallyEncode` caps the code at `2|w|`, so it is polynomial on every word `w`, and it is exact on padded words. Consequences are `EXP_eq_NEXP_of_tally` (Arora–Barak 2007 Exercise 2.23) and `E_eq_NE_of_tally`, for every encoding. The converse direction of Hartmanis–Immerman–Sewelson is not formalized. [Checked clients](../../CslibFrontierTests/TallyPadding.lean) compose the decoder and encoder on a padded word.
 
 ## Bridge to mild hardness
 

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.CarryLookahead
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Balanced sums of carry-save pairs
@@ -48,7 +49,7 @@ variable {n w : ℕ}
 @[simp] theorem eval_pairWithZero (C : Circuit signature n w) (x : BitString n) :
     (pairWithZero C).eval interpretation x =
       Fin.append (C.eval interpretation x) (fun _ => false) := by
-  simp only [pairWithZero, Circuit.eval_append, Circuit.eval_comp, Circuit.eval_wiring]
+  simp only [circuit_simps, pairWithZero]
   rfl
 
 /-- The carry-save value `pairVal` of `pairWithZero C` equals the unsigned value of `C`. -/
@@ -65,8 +66,7 @@ theorem pairVal_eval_pairWithZero (C : Circuit signature n w) (x : BitString n) 
 /-- The depth of `pairWithZero C` is at most `max C.depth 1`. -/
 theorem depth_pairWithZero_le (C : Circuit signature n w) :
     (pairWithZero C).depth ≤ max C.depth 1 := by
-  refine (Circuit.depth_append_le _ _).trans (max_le_max le_rfl ?_)
-  exact (Circuit.depth_comp_le _ _).trans (by simp)
+  circuit_bound [pairWithZero]
 
 /-- Finish a balanced carry-save sum as one unsigned modular word. -/
 @[expose] def sumPairs (n w : ℕ) (cs : List (Circuit signature n (w + w))) :
@@ -91,18 +91,13 @@ theorem val_eval_sumPairs (cs : List (Circuit signature n (w + w))) (x : BitStri
 theorem size_sumPairs_le (cs : List (Circuit signature n (w + w))) :
     (sumPairs n w cs).size ≤
       21 * (w + 1) ^ 2 + 1 + (cs.map Circuit.size).sum + cs.length * (40 * w) := by
-  have h₁ := size_carryLookaheadAdd_le w
-  have h₂ := size_reducePairs_le cs
-  simp only [sumPairs, Circuit.size_comp]
-  omega
+  circuit_bound [sumPairs]
 
 /-- Logarithmic finishing in addition to the balanced pair-reduction depth. -/
 theorem depth_sumPairs_le (cs : List (Circuit signature n (w + w))) {D : ℕ}
     (hD : ∀ C ∈ cs, C.depth ≤ D) :
     (sumPairs n w cs).depth ≤
       8 + 2 * Nat.clog 2 (w + 1) + max D 1 + 12 * Nat.clog 2 cs.length := by
-  have h₁ := depth_carryLookaheadAdd_le w
-  have h₂ := depth_reducePairs_le cs hD
-  exact (Circuit.depth_comp_le _ _).trans (by omega)
+  circuit_bound [sumPairs]
 
 end Cslib.Circuits.Boolean

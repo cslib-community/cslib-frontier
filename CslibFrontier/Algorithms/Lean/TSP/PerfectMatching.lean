@@ -224,24 +224,21 @@ private theorem exists_perm_cons_cons {δ : α → α → ℕ} (hsymm : ∀ x y,
 theorem sum_minPerfectMatching_le {δ : α → α → ℕ} (hsymm : ∀ x y, δ x y = δ y x) {k : ℕ}
     {O : List α} (hk : O.length ≤ 2 * k) {M : List (α × α)} (hM : (endpoints M).Perm O) :
     ((minPerfectMatching δ k O).map fun e => δ e.1 e.2).sum ≤ (M.map fun e => δ e.1 e.2).sum := by
-  induction k generalizing O M with
-  | zero => simp [minPerfectMatching]
-  | succ k ih =>
-    cases O with
-    | nil => simp [minPerfectMatching]
-    | cons a L =>
-      obtain ⟨b, N, hperm, hw⟩ :=
-        exists_perm_cons_cons hsymm (hM.symm.subset List.mem_cons_self)
-      have hbN : (b :: endpoints N).Perm L := (hperm.symm.trans hM).cons_inv
-      have hb : b ∈ L := hbN.subset List.mem_cons_self
-      have hN : (endpoints N).Perm (L.erase b) :=
-        (hbN.trans (List.perm_cons_erase hb)).cons_inv
-      have hlen : (L.erase b).length + 1 = L.length := List.length_erase_add_one hb
-      have hih := ih (O := L.erase b) (by simp only [List.length_cons] at hk; omega) hN
-      have hle := List.getD_argmin_le (f := fun M => (M.map fun e => δ e.1 e.2).sum)
-        (List.mem_map_of_mem (f := fun b => (a, b) :: minPerfectMatching δ k (L.erase b)) hb) []
-      refine hle.trans ?_
-      simp only [List.map_cons, List.sum_cons]
-      omega
+  fun_induction minPerfectMatching δ k O generalizing M with
+  | case1 | case2 => simp
+  | case3 k a L ih =>
+    obtain ⟨b, N, hperm, hw⟩ :=
+      exists_perm_cons_cons hsymm (hM.symm.subset List.mem_cons_self)
+    have hbN : (b :: endpoints N).Perm L := (hperm.symm.trans hM).cons_inv
+    have hb : b ∈ L := hbN.subset List.mem_cons_self
+    have hN : (endpoints N).Perm (L.erase b) :=
+      (hbN.trans (List.perm_cons_erase hb)).cons_inv
+    have hlen : (L.erase b).length + 1 = L.length := List.length_erase_add_one hb
+    have hih := ih b (by simp only [List.length_cons] at hk; omega) hN
+    have hle := List.getD_argmin_le (f := fun M => (M.map fun e => δ e.1 e.2).sum)
+      (List.mem_map_of_mem (f := fun b => (a, b) :: minPerfectMatching δ k (L.erase b)) hb) []
+    refine hle.trans ?_
+    simp only [List.map_cons, List.sum_cons]
+    omega
 
 end Cslib.Algorithms.Lean.TSP

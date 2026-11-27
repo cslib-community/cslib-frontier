@@ -97,7 +97,7 @@ private theorem core_monotoneOn :
 
 private theorem core_lipschitzOnWith :
     LipschitzOnWith 1 (fun t : ℝ => t ^ 4 / (1 + t) ^ 3) (Set.Ici 0) := by
-  refine (convex_Ici 0).lipschitzOnWith_of_nnnorm_hasDerivWithin_le
+  refine (convex_Ici 0).lipschitzOnWith_of_nnNorm_hasDerivWithin_le
     (fun t ht => (core_hasDerivAt ht).hasDerivWithinAt) ?_
   intro t ht
   change |t ^ 3 * (t + 4) / (1 + t) ^ 4| ≤ (1 : ℝ)
@@ -175,7 +175,7 @@ private theorem root_deriv_le_one {t : ℝ} (ht : 0 ≤ t) :
 
 private theorem root_lipschitzOnWith :
     LipschitzOnWith 1 (fun t : ℝ => t * (1 + t) ^ (-(3 / 4 : ℝ))) (Set.Ici 0) := by
-  refine (convex_Ici 0).lipschitzOnWith_of_nnnorm_hasDerivWithin_le
+  refine (convex_Ici 0).lipschitzOnWith_of_nnNorm_hasDerivWithin_le
     (fun t ht => (root_hasDerivAt ht).hasDerivWithinAt) ?_
   intro t ht
   change |(1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t / 4)| ≤ (1 : ℝ)
@@ -227,7 +227,7 @@ theorem lipschitzWith_rationalRamp4 (ha : 0 < a) (θ : ℝ) :
   change LipschitzWith 1 (fun t : ℝ => a * rationalRamp4Unit ((t - θ) / a))
   have h := (lipschitzWith_smul a).comp (lipschitzWith_rationalRamp4Unit.comp
     ((lipschitzWith_smul a⁻¹).comp (isometry_add_right (-θ)).lipschitzWith))
-  simpa only [mul_one, one_mul, ← nnnorm_mul, mul_inv_cancel₀ ha.ne', nnnorm_one,
+  simpa only [mul_one, one_mul, ← nnNorm_mul, mul_inv_cancel₀ ha.ne', nnNorm_one,
     Function.comp_def, smul_eq_mul, sub_eq_add_neg, div_eq_mul_inv, mul_comm]
     using h
 

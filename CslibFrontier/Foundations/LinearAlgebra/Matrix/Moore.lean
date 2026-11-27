@@ -10,8 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.FieldTheory.Finite.LinearizedPolynomial
 public import CslibFrontier.Foundations.LinearAlgebra.CubeSum
-public import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
-public import Mathlib.LinearAlgebra.Matrix.Permanent
+public import CslibFrontier.Foundations.Data.Matrix.Permanent.Determinant
 import Mathlib.Algebra.CharP.Lemmas
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Algebra.Ring.GeomSum
@@ -38,7 +37,6 @@ with coefficient the permanent of `(a (τ l - m) ^ 2 ^ m)_{l, m}`
 
 ## Main results
 
-* `Matrix.det_eq_permanent_of_charTwo`: determinant and permanent agree in characteristic two.
 * `Cslib.sum_cube_pow_eq_det_mooreMatrix`: the Moore determinant as a finite difference.
 * `Cslib.permanent_mooreMatrix_linearizedEval`: the monomial expansion of the Moore permanent of a
   composition with a linearized function.
@@ -65,15 +63,6 @@ def mooreMatrix {k : ℕ} (u : Fin k → F) : Matrix (Fin k) (Fin k) F :=
 theorem mooreMatrix_apply {k : ℕ} (u : Fin k → F) (l m : Fin k) :
     mooreMatrix u l m = u l ^ 2 ^ (m : ℕ) :=
   rfl
-
-/-- In characteristic two the determinant of a matrix is its permanent. -/
-theorem _root_.Matrix.det_eq_permanent_of_charTwo {R ι : Type*} [CommRing R] [CharP R 2]
-    [Fintype ι] [DecidableEq ι] (M : Matrix ι ι R) : M.det = M.permanent := by
-  rw [Matrix.det_apply, Matrix.permanent]
-  refine Finset.sum_congr rfl fun σ _ => ?_
-  rcases Int.units_eq_one_or (Equiv.Perm.sign σ) with h | h
-  · rw [h, one_smul]
-  · rw [h, Units.neg_smul, one_smul, CharTwo.neg_eq]
 
 /-- `x ^ (2 ^ k - 1)` is the product of the `k` additive powers `x ^ 2 ^ m`, `m < k`. -/
 theorem pow_two_pow_sub_one_eq_prod {R : Type*} [CommMonoid R] (x : R) (k : ℕ) :

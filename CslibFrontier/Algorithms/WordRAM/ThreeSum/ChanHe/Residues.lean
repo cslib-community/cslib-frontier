@@ -9,9 +9,11 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Signed.Arithmetic
 public import CslibFrontier.Computability.WordRAM.Copy
+import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Native Euclidean residue arrays
@@ -115,86 +117,44 @@ theorem exec {w M : ℕ} (x : Data 16) (values : ℕ → ℤ) (hM : 0 < M)
         x.regs src + y.regs idx < x.regs dst + y.regs idx) from by omega, ↓reduceIte]
       exact hinput _ hlt
     have ha : Fits (w + 2) (y.regs src + y.regs idx) := hs.of_le (by rw [hsrc]; omega)
-    let p := ((y.set addr (y.regs src + y.regs idx)).set left
-      (encode (values (y.regs idx)))).set right (encode (M : ℤ))
-    have hp : ExecWithin (w + 2)
-        (ram[ addr ← src + idx; left ← *addr; right ← modulus ]) y p 3 := by
-      ram_eval [p, ha, hread, hmod', hmodreg, addr, src, idx, left, right, modulus, Fin.mk.injEq]
-    obtain ⟨z, hz, hzval, hzmem, hzreg⟩ := Signed.exec_modulo (hfit _ hlt) hmod p
-      (by simp +decide [p, left, right]) (by simp [p])
-    have hzr (i : Fin 16) (hi : 9 ≤ i.val) : z.regs i = p.regs i := hzreg i (Or.inr hi)
-    have hzi : z.regs idx = y.regs idx := by
-      simpa +decide [p, idx, addr, left, right] using hzr idx (by decide)
-    have hzo : z.regs one = 1 := by
-      simpa +decide [p, one, addr, left, right] using (hzr one (by decide)).trans
-        (show p.regs one = 1 by simpa +decide [p, one, addr, left, right] using ho)
-    have hzd : z.regs dst = x.regs dst := by
-      simpa +decide [p, dst, addr, left, right] using (hzr dst (by decide)).trans
-        (show p.regs dst = x.regs dst by simpa +decide [p, dst, addr, left, right] using hdst)
     have hnonneg := Int.emod_nonneg (values (y.regs idx)) (show (M : ℤ) ≠ 0 by omega)
-    have hdecode : z.regs result / 2 = (values (y.regs idx) % (M : ℤ)).toNat := by
-      rw [hzval, GenericRAM.Signed.Arithmetic.eval, encode_div_two]
-      omega
-    have hb : Fits (w + 2) (z.regs dst + z.regs idx) := hd.of_le (by rw [hzd, hzi]; omega)
-    have hn : Fits (w + 2) (z.regs idx + 1) := hs.of_le (by rw [hzi]; omega)
-    have htwo : Fits (w + 2) 2 := (show Fits 2 2 from by decide).mono (by omega)
-    have hrem : Fits (w + 2) (z.regs result / 2) := by
-      rw [hdecode]
+    have hrem : Fits (w + 2) (values (y.regs idx) % (M : ℤ)).toNat := by
       have hlt' := Int.emod_lt_of_pos (values (y.regs idx)) (show (0 : ℤ) < M by omega)
       exact ((encode_fits hmod).mono (by omega)).of_le (by
         simp only [encode, Int.natAbs_natCast, show ¬(M : ℤ) < 0 from by omega, ↓reduceIte]
         omega)
-    refine ⟨?q, ?run, ?inv, ?decrease⟩
-    case run =>
-      have htail : ExecWithin (w + 2)
-          (ram[ two ← #2; result ← result / two; addr ← dst + idx;
-            *addr ← result; idx ← idx + one ]) z ?q 5 := by
-        ram_eval [htwo, hrem, hb, hn, hzo, two, result, addr, dst, idx, one, Fin.mk.injEq]
-      exact (hp.seq (hz.seq htail))
-    case inv =>
-      refine ⟨?_, ?_, ?_⟩
-      · intro i hi
-        have hip : p.regs i = y.regs i := by
-          have hia : i ≠ addr := by intro h; subst i; norm_num [addr] at hi
-          have hil : i ≠ left := by intro h; subst i; norm_num [left] at hi
-          have hir : i ≠ right := by intro h; subst i; norm_num [right] at hi
-          simp only [p, Data.set_regs, Function.update_of_ne hia, Function.update_of_ne hil,
-            Function.update_of_ne hir]
-        have hia : i ≠ addr := by intro h; subst i; norm_num [addr] at hi
-        have hii : i ≠ idx := by intro h; subst i; norm_num [idx] at hi
-        have hit : i ≠ two := by intro h; subst i; norm_num [two] at hi
-        have hir : i ≠ result := by intro h; subst i; norm_num [result] at hi
-        simpa only [Data.set_regs, Data.write_regs, Function.update_of_ne hia,
-          Function.update_of_ne hii, Function.update_of_ne hit, Function.update_of_ne hir]
-          using (hzr i hi.1).trans (hip.trans (hr i hi))
-      · simpa +decide [Function.update_apply] using hzo
-      · simp only [Data.set_mem, Data.write_mem]
-        rw [hdecode, hzmem]
-        change Function.update y.mem (z.regs dst + z.regs idx)
-          (values (y.regs idx) % (M : ℤ)).toNat = _
-        rw [hm, hzd, hzi, ← memory_succ]
-    case decrease =>
-      change z.regs idx + 1 = y.regs idx + 1
-      rw [hzi]
-  let x₀ := (x.set idx 0).set one 1
-  have hx₀ : P (x₀.regs idx) x₀ := by
-    refine ⟨?_, ?_, ?_⟩
-    · intro i hi
-      have hio : i ≠ one := by intro h; subst i; norm_num [one] at hi
-      have hii : i ≠ idx := by intro h; subst i; norm_num [idx] at hi
-      simp only [x₀, Data.set_regs, Function.update_of_ne hio, Function.update_of_ne hii]
-    · simp [x₀]
-    · simp +decide [x₀, idx, one]
-  obtain ⟨y, he, ⟨hr, _, hm⟩, _⟩ := ExecWithin.loop_count P
-    (fun _ hy => hy.1 len (by decide)) hbody (by simp +decide [x₀, idx, one]) hx₀
-  refine ⟨y, ?_, hm, hr⟩
+    have htwo : Fits (w + 2) 2 := (show Fits 2 2 from by decide).mono (by omega)
+    refine WP.exists_execWithin ?_
+    unfold body
+    wram_exec [ha, hread, hmod', hmodreg]
+    wram_call (Signed.exec_modulo (hfit _ hlt) hmod _ (by wram_simp) (by wram_simp))
+      with z ⟨hzval, hzmem, hzreg⟩
+    have hdecode : z.regs result / 2 = (values (y.regs idx) % (M : ℤ)).toNat := by
+      rw [hzval, GenericRAM.Signed.Arithmetic.eval, encode_div_two]
+      omega
+    have hzi : z.regs idx = y.regs idx := by
+      rw [hzreg idx (Or.inr (by decide))]; wram_simp
+    have hzo : z.regs one = 1 := by
+      rw [hzreg one (Or.inr (by decide))]; wram_simp [ho]
+    have hzd : z.regs dst = x.regs dst := by
+      rw [hzreg dst (Or.inr (by decide))]; wram_simp [hdst]
+    have hb : Fits (w + 2) (x.regs dst + y.regs idx) := hd.of_le (by omega)
+    have hn : Fits (w + 2) (y.regs idx + 1) := hs.of_le (by omega)
+    wram_exec [htwo, hrem, hb, hn, hzo, hdecode, hzd, hzi]
+    refine ⟨⟨fun i hi => ?_, by wram_simp [hzo], ?_⟩, by wram_simp [hzi]⟩
+    · have hri := hr i hi
+      fin_cases i <;> norm_num at hi <;>
+        (wram_simp; rw [hzreg _ (Or.inr (by decide))]; wram_simp [hri])
+    · wram_simp [hzmem]
+      rw [hm, ← memory_succ]
   have h1 : Fits (w + 2) 1 := (show Fits 2 1 from by decide).mono (by omega)
-  have hinit : ExecWithin (B := .standard) (w + 2) (ram[ idx ← #0; one ← #1 ]) x x₀ 2 := by
-    ram_eval [x₀, h1]
-  convert hinit.seq he using 1
-  · rfl
-  · simp +decide only [x₀, Data.set_regs, Function.update_apply, idx, one, ↓reduceIte,
-      Nat.sub_zero]
-    omega
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec [h1]
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1 len (by decide)) hbody
+    (by wram_simp; omega) ⟨fun i hi => by fin_cases i <;> norm_num at hi <;> wram_simp,
+      by wram_simp, by wram_simp [memory_zero]⟩)
+    with y ⟨⟨hr, _, hm⟩, _⟩
+  exact ⟨by wram_simp; omega, hm, hr⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Residues

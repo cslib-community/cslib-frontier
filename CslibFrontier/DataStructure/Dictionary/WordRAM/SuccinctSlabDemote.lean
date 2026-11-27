@@ -59,6 +59,7 @@ open Finset
 
 /-- Parameter-free single step `k < slabSize n_max` of slab demotion for
 `x = ((dp, (base, b)), k)`. -/
+@[expose]
 def demoteStepGenProg (x : (DictParams × (ℕ × ℕ)) × ℕ) : Memory.Prog ℕ := do
   let dp := x.1.1
   let base := x.1.2.1
@@ -90,39 +91,22 @@ For `u = (slabSize n_max - 1) - k`, `p_del = gm (gmSlabTopIdx b)`, and `p_last =
 2. Appends a new tail item `t_new = gm 1` to bucket `b` (`g_tail = (n_max - 1) - t_new`).
 3. Writes `(q_last, v_last)` to `g_del` first, and `(q_del, v_del)` to `g_tail` second,
    then returns `k + 1`. -/
-def demoteStepProg (U V w n_max h_space : ℕ) (x : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let base := x.1.1
-  let b := x.1.2
-  let k := x.2
-  let u := (slabSize n_max - 1) - k
-  let p_del ← readGMProg U V w n_max h_space (base, 4 + 3 * b + 2)
-  let n_slabs ← readGMProg U V w n_max h_space (base, 0)
-  let p_last := n_slabs - 1
-  let g_del := p_del * slabSize n_max + u
-  let g_last := p_last * slabSize n_max + u
-  let q_del ← readQuotProg U w n_max h_space (base, g_del)
-  let v_del ← readValProg U V w n_max h_space (base, g_del)
-  let q_last ← readQuotProg U w n_max h_space (base, g_last)
-  let v_last ← readValProg U V w n_max h_space (base, g_last)
-  let t_new ← appendTailItemProg U V w n_max h_space (base, b)
-  let g_tail := (n_max - 1) - t_new
-  writeQuotProg U w n_max h_space ((base, g_del), q_last)
-  writeValProg U V w n_max h_space ((base, g_del), v_last)
-  writeQuotProg U w n_max h_space ((base, g_tail), q_del)
-  let _ ← writeValProg U V w n_max h_space ((base, g_tail), v_del)
-  pure (k + 1)
+@[expose]
+def demoteStepProg (U V w n_max h_space : ℕ) (x : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ :=
+  demoteStepGenProg ((mkDictParams U V w n_max h_space, x.1), x.2)
 
 @[simp] theorem demoteStepGenProg_mk (U V w n_max h_space : ℕ) (d1 : ℕ × ℕ) (d2 : ℕ) :
     demoteStepGenProg ((mkDictParams U V w n_max h_space, d1), d2) =
       demoteStepProg U V w n_max h_space (d1, d2) := by
-  simp only [demoteStepGenProg, demoteStepProg, p_slabSizeSubOne_mk, p_slabSize_mk,
-    p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk,
-    writeQuotGenProg_mk, writeValGenProg_mk, appendTailItemGenProg_mk]
+  rfl
 
 @[simp]
 theorem memoryCost_demoteStepProg (U V w n_max h_space : ℕ) (x : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (demoteStepProg U V w n_max h_space x) s = 48 := by
-  simp [demoteStepProg, -bind_pure_comp, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+  simp [demoteStepProg, -bind_pure_comp, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
+    demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk, p_nMaxSubOne_mk, readGMGenProg_mk,
+    readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk,
+    appendTailItemGenProg_mk]
 
 theorem one_le_memoryCost_demoteStepGenProg (x : (DictParams × (ℕ × ℕ)) × ℕ) (s : Memory.State) :
     1 ≤ memoryCost (demoteStepGenProg x) s := by
@@ -255,8 +239,9 @@ theorem demoteStepProg_effect {U V w n_max h_space base b k : ℕ}
       hw hg_tail_lt hv_del_lt s₄
   have hres_eq : (Memory.spec 0).clientResult s
       (demoteStepProg U V w n_max h_space ((base, b), k)) = k + 1 := by
-    unfold demoteStepProg
-    dsimp only
+    simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
+      p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
+      writeValGenProg_mk, appendTailItemGenProg_mk]
     rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
       clientResult_readGMProg s (by exact htop_idx_lt),
       StateTransitionSpec.clientResult_bind, clientState_readGMProg,
@@ -274,8 +259,9 @@ theorem demoteStepProg_effect {U V w n_max h_space base b k : ℕ}
   have hst : s' = s₅ := by
     change (Memory.spec 0).clientState s
       (demoteStepProg U V w n_max h_space ((base, b), k)) = s₅
-    unfold demoteStepProg
-    dsimp only
+    simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
+      p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
+      writeValGenProg_mk, appendTailItemGenProg_mk]
     rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
       clientResult_readGMProg s (by exact htop_idx_lt),
       StateTransitionSpec.clientState_bind, clientState_readGMProg,
@@ -402,53 +388,28 @@ theorem realizes_demoteStepGen :
       (WordEncoding.encode (α := (DictParams × (ℕ × ℕ)) × ℕ)) (WordEncoding.encode (α := ℕ))
       DemoteStepGenPre
       (fun _ _ => 0) := by
-  have hrg := realizes_readGMGen
-  have hrq := realizes_readQuotGen
-  have hwq := realizes_writeQuotGen
-  have hrv := realizes_readValGen
-  have hwv := realizes_writeValGen
-  have happ := realizes_appendTailItemGen
-  refine Realizes.congr (p := fun d : (DictParams × (ℕ × ℕ)) × ℕ => do
-      let u ← pure (dpSlabSizeSubOne d.1.1 - d.2)
-      let top_idx ← pure (4 + 3 * d.1.2.2 + 2)
-      let p_del ← readGMGenProg (d.1.1, (d.1.2.1, top_idx))
-      let i0 ← pure 0
-      let n_slabs ← readGMGenProg (d.1.1, (d.1.2.1, i0))
-      let p_last ← pure (n_slabs - 1)
-      let g_del ← pure (p_del * dpSlabSize d.1.1 + u)
-      let g_last ← pure (p_last * dpSlabSize d.1.1 + u)
-      let q_del ← readQuotGenProg (d.1.1, (d.1.2.1, g_del))
-      let v_del ← readValGenProg (d.1.1, (d.1.2.1, g_del))
-      let q_last ← readQuotGenProg (d.1.1, (d.1.2.1, g_last))
-      let v_last ← readValGenProg (d.1.1, (d.1.2.1, g_last))
-      let t_new ← appendTailItemGenProg (d.1.1, d.1.2)
-      let g_tail ← pure (dpNMaxSubOne d.1.1 - t_new)
-      writeQuotGenProg (d.1.1, ((d.1.2.1, g_del), q_last))
-      writeValGenProg (d.1.1, ((d.1.2.1, g_del), v_last))
-      writeQuotGenProg (d.1.1, ((d.1.2.1, g_tail), q_del))
-      let _ ← writeValGenProg (d.1.1, ((d.1.2.1, g_tail), v_del))
-      pure (d.2 + 1)) ?_
-    (fun d => by simp only [demoteStepGenProg, pure_bind])
   realize
+    [realizes_readGMGen, realizes_readQuotGen, realizes_writeQuotGen, realizes_readValGen,
+      realizes_writeValGen, realizes_appendTailItemGen]
   all_goals (
     rcases d with ⟨⟨dp, d1⟩, d2⟩
     let d := (d1, d2)
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
     simpDictParamsWith [demoteStepGenPre_mk, appendTailItemGenPre_mk, appendTailItemGenProg_mk]
   )
-  · exact (demoteStep_bounds hw h.2).1
   · exact fits_of_le_globalMetaLen h.1 h.2.2 hw hnU hU
       (le_of_lt (demoteStep_bounds hw h.2).2.1)
   · exact fits_const_of_dictEnv h.1 (by omega)
   · exact h.1
   · exact (demoteStep_bounds hw h.2).2.1
   · exact (demoteStep_bounds hw h.2).2.2.1
-  · exact (demoteStep_bounds hw h.2).2.2.2.1
+  · exact (demoteStep_bounds hw h.2).1
   · exact fits_of_le_max_n_one h.1 hw hnU hU
       (le_trans (le_of_lt (demoteStep_bounds hw h.2).2.2.2.2.1) (le_max_left n_max 1))
+  · exact (demoteStep_bounds hw h.2).2.2.2.2.1
+  · exact (demoteStep_bounds hw h.2).2.2.2.1
   · exact fits_of_le_max_n_one h.1 hw hnU hU
       (le_trans (le_of_lt (demoteStep_bounds hw h.2).2.2.2.2.2.1) (le_max_left n_max 1))
-  · exact (demoteStep_bounds hw h.2).2.2.2.2.1
   · exact (demoteStep_bounds hw h.2).2.2.2.2.2.1
   · exact ⟨h.1, (demoteStep_bounds hw h.2).2.2.2.2.2.2.1⟩
   · exact (demoteStep_bounds hw h.2).2.2.2.2.2.2.2.1
@@ -743,14 +704,8 @@ def demoteLoopProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ
 @[simp] theorem iterate_demoteStepGenProg_mk (U V w n_max h_space : ℕ)
     (d : ℕ × ℕ) (m k : ℕ) :
     iterate demoteStepGenProg (mkDictParams U V w n_max h_space, d) m k =
-      iterate (demoteStepProg U V w n_max h_space) d m k := by
-  induction m generalizing k with
-  | zero => rfl
-  | succ m ih =>
-    unfold iterate
-    rw [demoteStepGenProg_mk]
-    congr 1 with s' : 1
-    exact ih s'
+      iterate (demoteStepProg U V w n_max h_space) d m k :=
+  iterate_congr (fun a => demoteStepGenProg_mk U V w n_max h_space d a) m k
 
 @[simp] theorem demoteLoopGenProg_mk (U V w n_max h_space : ℕ)
     (d1 : ℕ × ℕ) (d2 d3 : ℕ) :
@@ -764,13 +719,9 @@ def demoteLoopProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ
         (mkDictParams U V w₀ n_max h_space, d) m k s ↔
       iterationSafe (demoteStepProg U V w₀ n_max h_space)
         (fun w x s => DemoteStepPre U V w₀ n_max h_space w x.1.1 x.1.2 x.2 s)
-        w d m k s := by
-  induction m generalizing k s with
-  | zero => exact Iff.rfl
-  | succ m ih =>
-    unfold iterationSafe
-    rw [demoteStepGenPre_mk, demoteStepGenProg_mk]
-    exact and_congr_right fun _ => ih _ _
+        w d m k s :=
+  iterationSafe_congr (fun a => demoteStepGenProg_mk U V w₀ n_max h_space d a)
+    (fun a t => demoteStepGenPre_mk U V w₀ n_max h_space w d a t) m k s
 
 theorem iterate_demoteStepProg_spec {U V w₀ n_max h_space base b w : ℕ} {s₀ : Memory.State}
     (hw : 0 < w₀) (hb_pos : 0 < bucketBits n_max)
@@ -826,6 +777,7 @@ theorem realizes_demoteLoopGen :
 
 /-- Parameter-free `Memory.Prog` operation demoting the top full slab of bucket `b = d.2.2` at
 `base = d.2.1` into `K = slabSize n_max` tail items. -/
+@[expose]
 def demoteSlabGenProg (d : DictParams × (ℕ × ℕ)) : Memory.Prog Unit := do
   let _ ← demoteLoopGenProg ((d, 0), dpSlabSize d.1)
   gmPopSlabGenProg d
@@ -833,15 +785,14 @@ def demoteSlabGenProg (d : DictParams × (ℕ × ℕ)) : Memory.Prog Unit := do
 /-- `Memory.Prog` operation demoting the top full slab of bucket `b = d.2` at `base = d.1`
 (`gm (gmRIdx b) = 0`, `1 ≤ gm (gmQIdx b)`) into `K = slabSize n_max` tail items via
 `demoteLoopProg` followed by `gmPopSlabProg`. -/
-def demoteSlabProg (U V w n_max h_space : ℕ) (d : ℕ × ℕ) : Memory.Prog Unit := do
-  let _ ← demoteLoopProg U V w n_max h_space ((d, 0), slabSize n_max)
-  gmPopSlabProg U V w n_max h_space d
+@[expose]
+def demoteSlabProg (U V w n_max h_space : ℕ) (d : ℕ × ℕ) : Memory.Prog Unit :=
+  demoteSlabGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp] theorem demoteSlabGenProg_mk (U V w n_max h_space : ℕ) (d : ℕ × ℕ) :
     demoteSlabGenProg (mkDictParams U V w n_max h_space, d) =
       demoteSlabProg U V w n_max h_space d := by
-  simp only [demoteSlabGenProg, demoteSlabProg, p_slabSize_mk,
-    demoteLoopGenProg_mk, gmPopSlabGenProg_mk]
+  rfl
 
 /-- Pure entry invariant for `demoteSlabProg`. -/
 @[expose]
@@ -1059,7 +1010,8 @@ theorem demoteSlabProg_effect {U V w n_max h_space base b : ℕ}
   have hst : s' =
       (Memory.spec 0).clientState s₁ (gmPopSlabProg U V w n_max h_space (base, b)) := by
     change (Memory.spec 0).clientState s (demoteSlabProg U V w n_max h_space (base, b)) = _
-    unfold demoteSlabProg
+    simp only [demoteSlabProg, demoteSlabGenProg, p_slabSize_mk, demoteLoopGenProg_mk,
+      gmPopSlabGenProg_mk]
     rw [StateTransitionSpec.clientState_bind]
   let gm₁ := gmAt base U V w n_max h_space s₁.mem
   have hgm'_eq : gm' = gmPopSlab n_max gm₁ b := by
@@ -1124,7 +1076,9 @@ theorem demoteSlabProg_effect {U V w n_max h_space base b : ℕ}
   · rw [hst, hq_pop, hv_pop, hgm'_eq]
     rw [hgm'_eq] at hj
     exact ⟨hq_slot b' hb' j hj, hv_slot b' hb' j hj⟩
-  · unfold demoteSlabProg
+  · simp only [demoteSlabProg, demoteSlabGenProg, p_slabSize_mk,
+      demoteLoopGenProg_mk, gmPopSlabGenProg_mk]
+    unfold demoteLoopProg
     rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     change memoryCost
         (iterate (demoteStepProg U V w n_max h_space) (base, b) (slabSize n_max) 0) s +

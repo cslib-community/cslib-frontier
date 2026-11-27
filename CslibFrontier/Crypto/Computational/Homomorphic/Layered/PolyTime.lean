@@ -200,7 +200,7 @@ theorem isPPTOn_evaluateLayers
     (count := fun a => (layers a).length)
     (initial := fun a => (0, inputs a))
     (step := fun a => evaluateLayerStep D (n a) (publicKeys a) (encryptedKeys a) (layers a))
-    (by polytime) (by polytime) hstep hgrowth_poly
+    hcount hinit hstep hgrowth_poly
     (fun a state next hnext => ?_)
   · exact hloop.map (ComputableInPolyTime.snd encUnary (encList encBits))
   rw [evaluateLayerStep, ProbComp.eval_map, PMF.mem_support_map_iff] at hnext

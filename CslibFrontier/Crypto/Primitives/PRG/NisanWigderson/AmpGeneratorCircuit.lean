@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.MCSP.Basic
 public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson
 public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.MXCircuit
 import CslibFrontier.Computability.Circuit.CompositionDepth
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # The functions of the CIKK generator in AC⁰[2]
@@ -103,8 +104,8 @@ variable (φ : extSignature.Hom σ)
     (z : Fin ((k * n + k) * 2 ^ binaryFieldDegree (k * n + k)) → Bool) :
     (glAmpGeneratorCircuit φ C k ℓ z).size = k * C.size + k + 3 + (k * n + k) *
       (2 * binaryFieldDegree (k * n + k) + 2 ^ binaryFieldDegree (k * n + k) + 1) := by
-  simp only [glAmpGeneratorCircuit, Circuit.size_comp, Circuit.size_append, Circuit.size_wiring,
-    Circuit.size_mapOp, size_glAmpCircuit, size_mxCircuit, size_constsCircuit]
+  simp only [circuit_simps, glAmpGeneratorCircuit, size_glAmpCircuit, size_mxCircuit,
+    size_constsCircuit]
   omega
 
 /-- `glAmpGeneratorCircuit φ C k ℓ z` has at most `k |C| + 6 n'² + 3` gates, where `n' = k n + k`,
@@ -124,15 +125,7 @@ four for the selection and two for the amplification. -/
 theorem depth_glAmpGeneratorCircuit_le (C : Circuit σ n 1) (k ℓ : ℕ)
     (z : Fin ((k * n + k) * 2 ^ binaryFieldDegree (k * n + k)) → Bool) :
     (glAmpGeneratorCircuit φ C k ℓ z).depth ≤ C.depth + 7 := by
-  have hin : ((Circuit.wiring σ id).append (constsCircuit (n := ℓ) (φ.comp toExt) z)).depth ≤ 1 :=
-    (Circuit.depth_append_le _ _).trans (max_le (by simp) (depth_constsCircuit_le z))
-  have hmx := Circuit.depth_comp_le ((mxCircuit (k * n + k) ℓ).mapOp φ)
-    ((Circuit.wiring σ id).append (constsCircuit (n := ℓ) (φ.comp toExt) z))
-  rw [Circuit.depth_mapOp] at hmx
-  have := depth_mxCircuit_le (k * n + k) ℓ
-  have := depth_glAmpCircuit_le φ C k
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  omega
+  circuit_bound [glAmpGeneratorCircuit]
 
 variable [φ.Preserves (extInterpretation (modGate 2)) I]
 
@@ -147,9 +140,9 @@ theorem eval_glAmpGeneratorCircuit (C : Circuit σ n 1) (k ℓ : ℕ)
         (BitString.equivFin ℓ i) := by
   have : (φ.comp toExt).Preserves interpretation I :=
     Signature.Hom.Preserves.comp inferInstance (preserves_toExt (modGate 2))
-  rw [glAmpGeneratorCircuit, Circuit.eval_comp, eval_glAmpCircuit, Circuit.eval_comp,
-    Circuit.eval_mapOp (I := extInterpretation (modGate 2)), Circuit.eval_append,
-    Circuit.eval_wiring, eval_constsCircuit, Function.comp_id, eval_mxCircuit, generator_apply]
+  simp only [circuit_simps, glAmpGeneratorCircuit, eval_glAmpCircuit,
+    Circuit.eval_mapOp (I := extInterpretation (modGate 2)), eval_constsCircuit, Function.comp_id,
+    eval_mxCircuit, generator_apply]
 
 /-- **`g_z` has small circuits relative to `f`** [CarmosinoImpagliazzoKabanetsKolokolova2016,
 proof of Thm 3.2, p. 10:11]: if `C` computes `f`, then `glAmpGeneratorCircuit φ C k ℓ z` computes

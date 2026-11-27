@@ -1,5 +1,7 @@
 # Circuits, logic, and information-access models
 
+> **Frozen in November 2026.** This chapter is not kept current. The Lean source, its docstrings and the API documentation are authoritative.
+
 cslib-frontier uses several kinds of computational model for different purposes. A circuit gives a finite composition of semantic operations; a decision tree or communication protocol charges access to information; a logical formula defines a query on a finite structure; a proof object measures a derivation; a learner or tester measures examples or oracle queries. These models often share functions and theorems, but their resource units are not interchangeable. This section surveys their definitions and the principal bridges at source snapshot `13e6a31951bf1c89a1a6258c44f9444aecbbefd8`. [cslib-frontier][complexitylib]
 
 The curated [Model map](../model-map.md) contains **92 entries**, separating changes in semantics or resource accounting while grouping internal proof records under the model they support. The original survey checked 189 principal declaration anchors in 125 distinct cited files. These dated counts describe the editorial selection; they are neither a declaration census of the whole library nor an assertion that there are exactly 92 mathematically distinct models.
@@ -13,6 +15,7 @@ The curated [Model map](../model-map.md) contains **92 entries**, separating cha
 | [Networks and finite dynamics](networks-and-iteration.md) | How do graph separators, tensor contractions, nondeterministic paths and function iteration connect? |
 | [Query and communication complexity](query-and-communication.md) | Which information-access costs are charged, including LOCAL rounds and Byzantine agreement, and what lower-bound and simulation theorems use them? |
 | [Finite-model logic](finite-model-logic.md) | How do formulas, interpretations, encodings and native complexity classes meet? |
+| [SQL query semantics](sql-semantics.md) | What do SQL values, `NULL`, three-valued predicates, operators, expressions and bag-semantics queries mean, when is an expression or a query safe, when are two queries equivalent, which rewrite laws hold, how does the certified simplifier apply them, and how many rows does an equijoin return? |
 | [Propositional proof systems](proof-systems.md) | Which proof objects and measures support resolution lower bounds, interpolation, algebraic proof systems, cutting planes and Frege proofs? |
 | [Learning and property testing](learning-and-testing.md) | Are the proved bounds on samples, queries, or machine time? |
 | [Metacomplexity and lower-bound methods](metacomplexity-and-methods.md) | What are the MCSP and time-bounded Kolmogorov problems, which magnification, one-way-function and NP-hardness consequences are proved and under which hypotheses, and how are general lower-bound arguments packaged? |

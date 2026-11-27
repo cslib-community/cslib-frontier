@@ -7,21 +7,16 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.IndexedSignature
 public import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Sampling
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
 
 /-!
 # Doubling the capacity of an indexed signature scheme
@@ -46,6 +41,10 @@ probability `1 / 2`, losing at most a factor of `2` (`succProbability_indexedEuf
 In particular, doubling upgrades any capacity-`1` indexed signature scheme to the `2 ≤ capacity n`
 hypothesis of `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`.
 
+Both results are steps toward construction `(14.4)` (printed p. 597) and Exercise 13.2 (printed
+p. 575), not those results: the source takes any number `q` of keys, with loss `q`, and only
+`q = 2` is formalized here (#5293).
+
 ## Main definitions
 
 * `Cslib.Crypto.IndexedSignatureScheme.doubleKeyDecoder`: pair decoder for bundled public and secret
@@ -62,11 +61,12 @@ hypothesis of `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`.
 ## Main results
 
 * `Cslib.Crypto.IndexedSignatureScheme.succProbability_indexedEufCmaGame_double_le`: forging
-  probability against `S.double hcap` is at most `2` times that of `doubleForger` against `S`.
+  probability against `S.double hcap` is at most `2` times that of `doubleForger` against `S`
+  (a step).
 * `Cslib.Crypto.IndexedSignatureScheme.isOraclePPT_doubleForger`: `doubleForger` is uniformly strict
   oracle PPT.
 * `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.double`: `IndexedEUFCMA` is preserved by
-  `S.double hcap`.
+  `S.double hcap` (a step).
 
 ## References
 
@@ -132,15 +132,15 @@ def double (S : IndexedSignatureScheme) (hcap : ∀ n, 1 ≤ S.capacity n) :
   capacity_polyTime := ComputableInPolyTime.const 2
   keyGen_ppt := by
     let EKg := encPair (encPair encUnary (encPair encBits encBits)) (encPair encBits encBits)
-    have hp := ComputableTidilyInPolyTime.id' (encIn := EKg)
-    have hret := (hp.fst'.snd'.fst'.prod hp.snd'.fst').encoded.prod
-      (hp.fst'.snd'.snd'.prod hp.snd'.snd').encoded
+    have hp := ComputableInPolyTime.id' (encIn := EKg)
+    have hret := (hp.fst'.snd'.fst'.prod hp.snd'.fst').encoding_comp.prod
+      (hp.fst'.snd'.snd'.prod hp.snd'.snd').encoding_comp
     exact S.keyGen_ppt.bind_with
       ((S.keyGen_ppt.preprocess (ComputableInPolyTime.fst _ _)).bind_with hret.isPPTOn)
   sign_ppt := by
     let ESign := encPair encBits (encPair encUnary encBits)
-    have hp := ComputableTidilyInPolyTime.id' (encIn := ESign)
-    have hdec := doubleKeyDecoder.computableInPolyTime.tidy.comp hp.fst'
+    have hp := ComputableInPolyTime.id' (encIn := ESign)
+    have hdec := doubleKeyDecoder.computableInPolyTime.comp hp.fst'
     have hu := hp.snd'.fst'
     have hmsg := hp.snd'.snd'
     have heq : (fun p : List Bool × ℕ × List Bool => S.doubleSign p.1 p.2.1 p.2.2) =
@@ -150,24 +150,23 @@ def double (S : IndexedSignatureScheme) (hcap : ∀ n, 1 ≤ S.capacity n) :
           else pure [] := by
       funext p; simp only [doubleSign, beq_iff_eq]
     rw [heq]
-    have h0msg := (ComputableTidilyInPolyTime.const (encMid := encUnary) 0).prod hmsg
-    exact IsPPTOn.ite (ComputableTidilyInPolyTime.unary_beq hu (.const 0))
-      (S.sign_ppt.preprocess (.of_tidy (hdec.fst'.prod h0msg)))
-      (IsPPTOn.ite (ComputableTidilyInPolyTime.unary_beq hu (.const 1))
-        (S.sign_ppt.preprocess (.of_tidy (hdec.snd'.prod h0msg)))
+    have h0msg := (ComputableInPolyTime.const (encOut := encUnary) 0).prod hmsg
+    exact IsPPTOn.cond (ComputableInPolyTime.unary_beq' hu (.const 0))
+      (S.sign_ppt.preprocess (hdec.fst'.prod h0msg))
+      (IsPPTOn.cond (ComputableInPolyTime.unary_beq' hu (.const 1))
+        (S.sign_ppt.preprocess (hdec.snd'.prod h0msg))
         (ComputableInPolyTime.const []).isPPTOn)
   verify_polyTime := by
     let EVer := encPair encBits (encPair encUnary (encPair encBits encBits))
-    have hp := ComputableTidilyInPolyTime.id' (encIn := EVer)
-    have hdec := doubleKeyDecoder.computableInPolyTime.tidy.comp hp.fst'
+    have hp := ComputableInPolyTime.id' (encIn := EVer)
+    have hdec := doubleKeyDecoder.computableInPolyTime.comp hp.fst'
     have hu := hp.snd'.fst'
     have hms := hp.snd'.snd'
-    have hv := S.verify_polyTime.tidy
-    have h0 := (ComputableTidilyInPolyTime.unary_beq hu (.const 0)).bool_and'
-      (hv.comp (hdec.fst'.prod ((ComputableTidilyInPolyTime.const 0).prod hms)))
-    have h1 := (ComputableTidilyInPolyTime.unary_beq hu (.const 1)).bool_and'
-      (hv.comp (hdec.snd'.prod ((ComputableTidilyInPolyTime.const 0).prod hms)))
-    exact .of_tidy (ComputableTidilyInPolyTime.bool_or.comp (h0.prod h1))
+    have h0 := (ComputableInPolyTime.unary_beq' hu (.const 0)).bool_and'
+      (S.verify_polyTime.comp (hdec.fst'.prod ((ComputableInPolyTime.const 0).prod hms)))
+    have h1 := (ComputableInPolyTime.unary_beq' hu (.const 1)).bool_and'
+      (S.verify_polyTime.comp (hdec.snd'.prod ((ComputableInPolyTime.const 0).prod hms)))
+    exact ComputableInPolyTime.bool_or.comp (h0.prod h1)
   verify_sign := by
     intro n keys hkeys u hu msg sig hsig
     simp only [doubleKeyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
@@ -407,18 +406,23 @@ private theorem map_run_doubleJointOracle {S : IndexedSignatureScheme}
     simp only [indexedSigningOracle, capacity_double, hfresh, ↓reduceIte, pmf_norm]
 
 private theorem eval_indexedEufCmaGame_doubleForgerAt (S : IndexedSignatureScheme)
-    (bound : ℕ → ℕ → ℕ) (adversary : IndexedForger) (b : Bool) (n : ℕ) :
+    (bound : ℕ → ℕ → ℕ) (adversary : IndexedForger) (b : Bool) {n : ℕ}
+    (hcap : 1 ≤ S.capacity n) :
     ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n) =
       (ProbComp.eval (S.keyGen n)).bind fun challenge =>
         (ProbComp.eval (S.keyGen n)).bind fun other =>
           (ProbOracleComp.runWith (doubleJointOracle S b challenge.2 other.2 bound n)
               (adversary n (doublePlantPk b challenge.1 other.1)) ([], [])).map fun r =>
               !r.2.2.contains (0, r.1.2.1) && S.verify challenge.1 0 r.1.2.1 r.1.2.2 := by
-  simp only [indexedEufCmaGame, doubleForgerAt, runWith_norm, pmf_norm]
+  simp only [indexedEufCmaGame, doubleForgerAt, runWith_norm, pmf_norm,
+    show 0 < S.capacity n from hcap, decide_true, Bool.true_and]
   rfl
 
-/-- **Plug-and-pray bound for `S.double hcap`** ([BonehShoup2023], Section 14.6.1, Exercise 13.2):
-for every indexed forger `adversary` and every security parameter `n`, when `bound n L` covers the
+/-- Plug-and-pray bound with loss `2` for `S.double hcap`: a step toward the `q`-key bound behind
+[BonehShoup2023], construction `(14.4)` and Exercise 13.2, not the cited result, which takes any
+number `q` of keys with loss `q`, where this fixes `q = 2` (#5293).
+
+For every indexed forger `adversary` and every security parameter `n`, when `bound n L` covers the
 length of every supported `S`-signature at index `0` on an `L`-bit message, the forging probability
 against `S.double hcap` is at most `2` times the forging probability of `S.doubleForger` against
 `S`. -/
@@ -474,7 +478,7 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
       ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
         (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent false k₀ k₁) true ≤
       (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary false) n)) true := by
-    rw [eval_indexedEufCmaGame_doubleForgerAt]
+    rw [eval_indexedEufCmaGame_doubleForgerAt _ _ _ _ (hcap n)]
     apply PMF.bind_apply_mono_on_support; intro k₀ hk₀
     apply PMF.bind_apply_mono_on_support; intro k₁ _
     obtain ⟨heq, hinv⟩ := map_run_doubleJointOracle hcap false (otherSk := k₁.2) (hbound k₀ hk₀)
@@ -488,7 +492,7 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
       ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
         (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent true k₀ k₁) true ≤
       (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary true) n)) true := by
-    rw [eval_indexedEufCmaGame_doubleForgerAt]
+    rw [eval_indexedEufCmaGame_doubleForgerAt _ _ _ _ (hcap n)]
     conv_rhs => rw [PMF.bind_comm]
     apply PMF.bind_apply_mono_on_support; intro k₀ _
     apply PMF.bind_apply_mono_on_support; intro k₁ hk₁
@@ -513,14 +517,20 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     rw [← mul_add]
     refine mul_le_mul_right ?_ _
     dsimp only [slotEvent]
-    rw [show (fun x : (ℕ × List Bool × List Bool) × List (ℕ × List Bool) =>
-        PMF.pure (!x.2.contains (x.1.1, x.1.2.1) &&
+    -- `doubleVerify` already rejects every index `u ≥ 2`, so the capacity guard is redundant.
+    erw [show (fun x : (ℕ × List Bool × List Bool) × List (ℕ × List Bool) =>
+        PMF.pure (decide (x.1.1 < 2) && !x.2.contains (x.1.1, x.1.2.1) &&
           S.doubleVerify (encPair encBits encBits (k₀.1, k₁.1)) x.1.1 x.1.2.1 x.1.2.2)) =
       fun x => PMF.pure (!x.2.contains (x.1.1, x.1.2.1) &&
         ((x.1.1 == 0 && S.verify k₀.1 0 x.1.2.1 x.1.2.2) ||
           (x.1.1 == 1 && S.verify k₁.1 0 x.1.2.1 x.1.2.2))) by
       funext x
-      simp only [doubleVerify, doubleKeyDecoder.decode_enc]]
+      simp only [doubleVerify, doubleKeyDecoder.decode_enc]
+      by_cases hu : x.1.1 < 2
+      · simp only [hu, decide_true, Bool.true_and]
+      · have h0 : (x.1.1 == 0) = false := beq_false_of_ne (by omega)
+        have h1 : (x.1.1 == 1) = false := beq_false_of_ne (by omega)
+        simp only [hu, decide_false, Bool.false_and, h0, h1, Bool.or_self, Bool.and_false]]
     rw [← PMF.bind_pure_comp, ← PMF.bind_pure_comp, PMF.bind_apply, PMF.bind_apply, PMF.bind_apply,
       ← tsum_add]
     refine tsum_le_tsum fun out => ?_
@@ -570,12 +580,12 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
       (encPair encBits (encList (encPair encUnary encBits)))
       (fun pair : DoubleHandlerIn =>
         S.doubleHandler pair.1.1.2 pair.1.2.2 bound pair.1.1.1 pair.2.1 pair.2.2) := by
-  have hp := ComputableTidilyInPolyTime.id' (encIn := encDoubleHandlerIn)
+  have hp := ComputableInPolyTime.id' (encIn := encDoubleHandlerIn)
   have hn := hp.fst'.fst'.fst'
   have hbFlag := hp.fst'.fst'.snd'
   have hotherSk := hp.fst'.snd'.snd'
   have hsigned := hp.snd'.snd'
-  have hr := requestDecoder.computableInPolyTime.tidy.comp hp.snd'.fst'.snd'
+  have hr := requestDecoder.computableInPolyTime.comp hp.snd'.fst'.snd'
   have hr1 := hr.fst'
   have hr2 := hr.snd'
   have hfreshDec : ComputableInPolyTime
@@ -583,12 +593,12 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
         decide ((requestDecoder.decode pair.2.1.2).1 < 2 ∧
           (requestDecoder.decode pair.2.1.2).1 ∉ pair.2.2.map Prod.fst))
       encDoubleHandlerIn encBool := by
-    have hused := ComputableTidilyInPolyTime.anyWithInput
+    have hused := ComputableInPolyTime.anyWithInput
       (test := fun (pair : DoubleHandlerIn) (e : ℕ × List Bool) =>
         (requestDecoder.decode pair.2.1.2).1 == e.1) hsigned
-      (ComputableTidilyInPolyTime.unary_beq
-        (hr1.comp (ComputableTidilyInPolyTime.fst encDoubleHandlerIn (encPair encUnary encBits)))
-        (ComputableTidilyInPolyTime.snd encDoubleHandlerIn (encPair encUnary encBits)).fst')
+      (ComputableInPolyTime.unary_beq'
+        (hr1.comp (ComputableInPolyTime.fst encDoubleHandlerIn (encPair encUnary encBits)))
+        (ComputableInPolyTime.snd encDoubleHandlerIn (encPair encUnary encBits)).fst')
     have hlt2 := hr1.unary_lt' (.const 2)
     have heq : (fun pair : DoubleHandlerIn =>
         decide ((requestDecoder.decode pair.2.1.2).1 < 2 ∧
@@ -602,32 +612,32 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
       exact ⟨fun ⟨h1, h2⟩ => ⟨h1, fun e he h => h2 e he h.symm⟩,
         fun ⟨h1, h2⟩ => ⟨h1, fun e he h => h2 e he h.symm⟩⟩
     rw [heq]
-    exact .of_tidy (hlt2.bool_and' (ComputableTidilyInPolyTime.bool_not.comp hused))
+    exact hlt2.bool_and' (ComputableInPolyTime.bool_not.comp hused)
   have hslotDec : ComputableInPolyTime
       (fun pair : DoubleHandlerIn =>
         decide ((requestDecoder.decode pair.2.1.2).1 = pair.1.1.2.toNat))
       encDoubleHandlerIn encBool := by
-    have htarget : ComputableTidilyInPolyTime (fun pair : DoubleHandlerIn => pair.1.1.2.toNat)
+    have htarget : ComputableInPolyTime (fun pair : DoubleHandlerIn => pair.1.1.2.toNat)
         encDoubleHandlerIn encUnary := by
       have heq : (fun pair : DoubleHandlerIn => pair.1.1.2.toNat) =
           fun pair => if pair.1.1.2 then 1 else 0 := by
         funext pair; cases pair.1.1.2 <;> rfl
       rw [heq]
-      exact ComputableTidilyInPolyTime.ite' hbFlag (.const 1) (.const 0)
+      exact ComputableInPolyTime.ite' hbFlag (.const 1) (.const 0)
     have heq : (fun pair : DoubleHandlerIn =>
         decide ((requestDecoder.decode pair.2.1.2).1 = pair.1.1.2.toNat)) =
       fun pair => (requestDecoder.decode pair.2.1.2).1 == pair.1.1.2.toNat := by
       funext pair; rw [Bool.eq_iff_iff]; simp only [decide_eq_true_eq, beq_iff_eq]
     rw [heq]
-    exact .of_tidy (ComputableTidilyInPolyTime.unary_beq hr1 htarget)
-  have hb := hboundPoly.tidy.comp (hn.prod (ComputableTidilyInPolyTime.length_bits.comp hr2))
-  have hq := ComputableTidilyInPolyTime.id' (encIn := encPair encDoubleHandlerIn encBits)
+    exact ComputableInPolyTime.unary_beq' hr1 htarget
+  have hb := hboundPoly.comp (hn.prod (ComputableInPolyTime.length_bits.comp hr2))
+  have hq := ComputableInPolyTime.id' (encIn := encPair encDoubleHandlerIn encBits)
   have hconsLog : ComputableInPolyTime
       (fun p : DoubleHandlerIn × List Bool =>
         (p.2, requestDecoder.decode p.1.2.1.2 :: p.1.2.2))
       (encPair encDoubleHandlerIn encBits)
       (encPair encBits (encList (encPair encUnary encBits))) :=
-    .of_tidy (hq.snd'.prod ((hr.comp hq.fst').cons' (hsigned.comp hq.fst')))
+    hq.snd'.prod ((hr.comp hq.fst').cons' (hsigned.comp hq.fst'))
   change IsOraclePPTOn encDoubleHandlerIn (encPair encBits (encList (encPair encUnary encBits)))
     (fun pair =>
       if (requestDecoder.decode pair.2.1.2).1 < 2 ∧
@@ -641,12 +651,12 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
           (fun sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) <$>
             ProbOracleComp.sample (S.sign pair.1.2.2 0 (requestDecoder.decode pair.2.1.2).2)
       else pure ([], pair.2.2))
-  refine IsOraclePPTOn.ite' hfreshDec (IsOraclePPTOn.ite' hslotDec ?_ ?_)
-    (((ComputableInPolyTime.const []).prod (.of_tidy hsigned)).isOraclePPTOn)
-  · have hqword := ((ComputableTidilyInPolyTime.const (encMid := encUnary) 0).prod hr2).encoded
-    exact (IsOraclePPTOn.query_take' () (.of_tidy hqword) (.of_tidy hb)).map_with' hconsLog
+  refine IsOraclePPTOn.ite hfreshDec (IsOraclePPTOn.ite hslotDec ?_ ?_)
+    (((ComputableInPolyTime.const []).prod hsigned).isOraclePPTOn)
+  · have hqword := ((ComputableInPolyTime.const (encOut := encUnary) 0).prod hr2).encoding_comp
+    exact (IsOraclePPTOn.query_take () hqword hb).map_with hconsLog
   · have hsignLocal := (S.sign_ppt.preprocess
-      (.of_tidy (hotherSk.prod ((ComputableTidilyInPolyTime.const 0).prod hr2)))).map_with
+      (hotherSk.prod ((ComputableInPolyTime.const 0).prod hr2))).map_with
       (f := fun pair sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) hconsLog
     simpa only [ProbOracleComp.sample_map, Function.comp_apply] using
       hsignLocal.isOraclePPTOn (Operation := Unit)
@@ -661,38 +671,23 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
     IsOraclePPT (encPair encUnary (encPair encBits encBits))
       (S.doubleForger bound adversary) := by
   obtain ⟨cs, ds, hlens⟩ := S.sign_ppt.length_le
-  have hdec := requestDecoder.computableInPolyTime.tidy
+  have hdec := requestDecoder.computableInPolyTime
   let resources (caller : DoubleCaller) (w : List Bool) : ℕ :=
     bound caller.1.1 (requestDecoder.decode w).2.length +
       cs * (2 * caller.2.2.length + w.length + 4) ^ ds + 2 * w.length + 12
   have hresources : ComputableInPolyTime
       (fun pair : DoubleCaller × List Bool => resources pair.1 pair.2)
       (encPair encDoubleCaller encBits) encUnary := by
-    have hp := ComputableTidilyInPolyTime.id' (encIn := encPair encDoubleCaller encBits)
-    have hn := hp.fst'.fst'.fst'
-    have hotherSk := hp.fst'.snd'.snd'
-    have hw := hp.snd'
-    have hr2Len := ComputableTidilyInPolyTime.length_bits.comp (hdec.comp hw).snd'
-    have hb := hboundPoly.tidy.comp (hn.prod hr2Len)
-    have hskLen := ComputableTidilyInPolyTime.length_bits.comp hotherSk
-    have hwLen := ComputableTidilyInPolyTime.length_bits.comp hw
-    have h2sk := ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const 2).prod hskLen)
-    have hbase := ComputableTidilyInPolyTime.unary_add.comp
-      ((ComputableTidilyInPolyTime.unary_add.comp (h2sk.prod hwLen)).prod (.const 4))
-    have hpow := ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const cs).prod
-        ((ComputableTidilyInPolyTime.unary_pow ds).comp hbase))
-    have h2w := ComputableTidilyInPolyTime.unary_add.comp
-      ((ComputableTidilyInPolyTime.unary_mul.comp
-        ((ComputableTidilyInPolyTime.const 2).prod hwLen)).prod (.const 12))
-    exact .of_tidy (ComputableTidilyInPolyTime.unary_add.comp
-      ((ComputableTidilyInPolyTime.unary_add.comp (hb.prod hpow)).prod h2w))
+    have hp := ComputableInPolyTime.id' (encIn := encPair encDoubleCaller encBits)
+    have hr2Len := ComputableInPolyTime.length_bits.comp (hdec.comp hp.snd').snd'
+    have hb := hboundPoly.comp (hp.fst'.fst'.fst'.prod hr2Len)
+    dsimp only [resources]
+    fun_prop
   have hprepare : ComputableInPolyTime
       (fun caller : DoubleCaller => (caller.1.1, caller.2.1))
       encDoubleCaller (encPair encUnary encBits) := by
-    have hp := ComputableTidilyInPolyTime.id' (encIn := encDoubleCaller)
-    exact .of_tidy (hp.fst'.fst'.prod hp.snd'.fst')
+    have hp := ComputableInPolyTime.id' (encIn := encDoubleCaller)
+    exact hp.fst'.fst'.prod hp.snd'.fst'
   have hrun : IsOraclePPTOn encDoubleCaller
       (encPair (encPair encUnary (encPair encBits encBits))
         (encList (encPair encUnary encBits)))
@@ -702,7 +697,7 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
             (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
             (S.doubleHandler caller.1.2 caller.2.2 bound caller.1.1))
           (adversary caller.1.1 caller.2.1)).run []) := by
-    refine hadversary.run_interpret_preprocess_open'
+    refine hadversary.run_interpret_preprocess_open
       (prepare := fun caller : DoubleCaller => (caller.1.1, caller.2.1))
       (initial := fun _ => ([] : List (ℕ × List Bool)))
       (resources := resources)
@@ -766,11 +761,12 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
       (encPair encUnary (encPair encBits encBits))
       (fun p : (ℕ × List Bool) × Bool => S.doubleForgerAt bound adversary p.2 p.1.1 p.1.2) := by
     let encP := encPair (encPair (encPair encUnary encBits) encBool) (encPair encBits encBits)
-    have hp := ComputableTidilyInPolyTime.id' (encIn := encP)
+    have hp := ComputableInPolyTime.id' (encIn := encP)
     have hb := hp.fst'.snd'
     have hvk := hp.fst'.fst'.snd'
     have hopk := hp.snd'.fst'
-    have hplant := hb.ite' (hopk.prod hvk).encoded (hvk.prod hopk).encoded
+    have hplant := hb.ite' (ComputableInPolyTime.encoding_comp (hopk.prod hvk))
+      (ComputableInPolyTime.encoding_comp (hvk.prod hopk))
     have hotherClosed : IsPPTOn (encPair (encPair encUnary encBits) encBool)
         encDoubleCaller
         (fun p : (ℕ × List Bool) × Bool =>
@@ -778,7 +774,7 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
             S.keyGen p.1.1) :=
       (S.keyGen_ppt.preprocess
         (ComputableInPolyTime.fst (encPair encUnary encBits) encBool).fst').map_with
-        (.of_tidy ((hp.fst'.fst'.fst'.prod hb).prod (hplant.prod hp.snd'.snd')))
+        (((hp.fst'.fst'.fst'.prod hb).prod (hplant.prod hp.snd'.snd')))
     have hother : IsOraclePPTOn (Operation := Unit) (encPair (encPair encUnary encBits) encBool)
         encDoubleCaller
         (fun p : (ℕ × List Bool) × Bool =>
@@ -792,45 +788,25 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
 
 /-! ### Security preservation -/
 
-/-- **Doubling preserves `IndexedEUFCMA`** ([BonehShoup2023], Section 14.6.1, construction `(14.4)`
-at `q = 2`): if `S` is indexed EUF-CMA secure with `∀ n, 1 ≤ S.capacity n`, then `S.double hcap`
-is indexed EUF-CMA secure of capacity `2`. -/
+/-- If `S` is indexed EUF-CMA secure with `∀ n, 1 ≤ S.capacity n`, then so is the capacity-`2`
+scheme `S.double hcap`: a step toward [BonehShoup2023], construction `(14.4)`, not the cited
+result, since it fixes `q = 2` where the source takes any `q` (#5293).
+
+The source gives construction `(14.4)` from a one-time signature (Section 14.6.1, printed p. 597)
+and proves it secure by the plug-and-pray argument of Exercise 13.2 (printed p. 575). Here the base
+scheme is any indexed scheme of capacity at least `1`, used at index `0`. -/
 theorem IndexedEUFCMA.double {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA)
     (hcap : ∀ n, 1 ≤ S.capacity n) :
     (S.double hcap).IndexedEUFCMA := by
-  obtain ⟨ck, dk, hlenk⟩ := S.keyGen_ppt.length_le
-  obtain ⟨cs, ds, hlens⟩ := S.sign_ppt.length_le
-  obtain ⟨bound, hboundPoly, hbound⟩ : ∃ bound : ℕ → ℕ → ℕ,
-      ComputableInPolyTime (fun p : ℕ × ℕ => bound p.1 p.2) (encPair encUnary encUnary) encUnary ∧
-      ∀ n, ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ msg,
-        ∀ σ ∈ (ProbComp.eval (S.sign keys.2 0 msg)).support, σ.length ≤ bound n msg.length := by
-    have hp := ComputableTidilyInPolyTime.id' (encIn := encPair encUnary encUnary)
-    have hn1 := ComputableTidilyInPolyTime.unary_add.comp (hp.fst'.prod (.const 1))
-    have hck := ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const ck).prod
-        ((ComputableTidilyInPolyTime.unary_pow dk).comp hn1))
-    have h2ck := ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const 2).prod hck)
-    have hbase := ComputableTidilyInPolyTime.unary_add.comp
-      ((ComputableTidilyInPolyTime.unary_add.comp (h2ck.prod hp.snd')).prod (.const 3))
-    refine ⟨fun n L => cs * (2 * (ck * (n + 1) ^ dk) + L + 3) ^ ds,
-      .of_tidy (ComputableTidilyInPolyTime.unary_mul.comp
-        ((ComputableTidilyInPolyTime.const cs).prod
-          ((ComputableTidilyInPolyTime.unary_pow ds).comp hbase))),
-      fun n keys hkeys msg σ hσ => ?_⟩
-    have hkeyLen := hlenk n keys hkeys
-    simp only [encUnary_apply, List.length_replicate, length_encPair, encBits_apply] at hkeyLen
-    have hσLen := hlens (keys.2, 0, msg) σ hσ
-    simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate] at hσLen
-    refine hσLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left ?_ ds))
-    omega
+  obtain ⟨bound, hboundPoly, hbound⟩ := S.exists_sign_length_bound
   apply IndexedEUFCMA.of_negligible
   intro adversary hadversary
   have hneg := hS.negligible (S.doubleForger bound adversary)
     (isOraclePPT_doubleForger S hboundPoly hadversary)
   refine negligible_of_le (hneg.const_mul 2) fun n => ?_
   simpa only [Pi.mul_apply] using
-    succProbability_indexedEufCmaGame_double_le hcap (hbound n) adversary
+    succProbability_indexedEufCmaGame_double_le hcap
+      (fun keys hkeys => hbound n keys hkeys 0 (hcap n)) adversary
 
 end IndexedSignatureScheme
 

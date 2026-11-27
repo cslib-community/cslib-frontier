@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.PreprocessingProgram
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Executing the native ternary reservation
@@ -55,23 +56,15 @@ theorem reserve_exec {w F : ℕ} (x : Data 128)
     have hsub : Fits w (y.regs remaining - 1) := hfit.of_le (by
       have hp : F + 1 < 3 ^ (F + 1) := Nat.lt_pow_self (by decide)
       omega)
-    let z := (y.set power (y.regs power * y.regs scalar)).set remaining
-      (y.regs remaining - 1)
-    have he : Exec w powerBody y z 2 := by
-      ram_eval [powerBody, z, hone, hmul, hsub, power, remaining, scalar, one]
-    refine ⟨z, he.within, ?_, ?_⟩
-    · refine ⟨?_, ?_, ?_, ?_, ?_, hmem⟩
-      · change y.regs remaining - 1 ≤ F + 1
-        omega
-      · change y.regs power * y.regs scalar = 3 ^ (F + 1 - (y.regs remaining - 1))
-        rw [hpow, hscalar, ← pow_succ]
-        congr 1
-        omega
-      · simpa +decide [z, Data.set, zero, power, remaining] using hzero
-      · simpa +decide [z, Data.set, one, power, remaining] using hone
-      · simpa +decide [z, Data.set, scalar, power, remaining] using hscalar
-    · change y.regs remaining - 1 < y.regs remaining
-      omega
+    refine WP.exists_execWithin ?_
+    unfold powerBody
+    wram_exec [hone, hmul, hsub]
+    refine ⟨⟨by wram_simp; omega, ?_, by wram_simp [hzero], by wram_simp [hone],
+      by wram_simp [hscalar], by wram_simp [hmem]⟩, by wram_simp; omega⟩
+    wram_simp
+    rw [hpow, hscalar, ← pow_succ]
+    congr 1
+    omega
   have hx : I x := by
     refine ⟨by omega, ?_, hz, ho, hs, rfl⟩
     rw [hp, hr, Nat.sub_self, pow_zero]

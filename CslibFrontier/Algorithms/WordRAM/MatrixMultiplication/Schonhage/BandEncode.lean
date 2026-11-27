@@ -10,6 +10,7 @@ module
 import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPrepare
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCollect
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual native encoder calls on the prepared bands
@@ -112,7 +113,7 @@ theorem exec_band {w L m N : ℕ} (hw : 0 < w) (side : Bool) (β : ℕ) (x : Dat
     apply her
     have hp : ∀ i ∈ parameterRegisters, 32 ≤ i.val := by decide
     exact hp i hi)
-  have heb : e.regs band = β := (her band (by decide)).trans hpb
+  have heb : e.regs band = β := by regs_frame
   obtain ⟨y, hec, hmem, hyp, hyb⟩ := exec_collectBand side β e hep' hβ heb hfit
   refine ⟨y, ?_, hyp, hyb, ?_, ?_⟩
   · simpa only [bandTime, Nat.add_assoc] using hep.seq (hee.seq hec)

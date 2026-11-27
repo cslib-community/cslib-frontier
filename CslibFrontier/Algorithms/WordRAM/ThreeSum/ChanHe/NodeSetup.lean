@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.NodeProgram
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Charged runtime layout and tag setup for one Chan–He node
@@ -118,27 +119,20 @@ theorem exec_layout {w : ℕ} (x : Data 64) (hfit : Fits w (layout x).budget) :
       x.regs (length 2)) :=
     f _ (by dsimp only [L, layout, Layout.endpoint, Layout.hist, Layout.scratch,
       Layout.packed, Layout.total]; omega)
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  rotate_left
-  · ram_eval [layoutCode, f1, f3, f4, fp₀, fp₁, fp₂, fp, fn, fk, fh₀, fh₁, fh]
-  · intro i hi
-    fin_cases i <;> norm_num at hi <;> rfl
-  · rfl
-  · simp +decide only [Data.set_regs, Function.update_apply, packed, scratch, histogram,
-      one, four, temporary, ↓reduceIte]
+  refine WP.exists_execWithin ?_
+  unfold layoutCode
+  wram_exec [f1, f3, f4, fp₀, fp₁, fp₂, fp, fn, fk, fh₀, fh₁, fh]
+  refine ⟨fun i hi => by fin_cases i <;> norm_num at hi <;> wram_simp,
+    by wram_simp, ?_, ?_, ?_, by wram_simp, by wram_simp, by wram_simp⟩
+  · wram_simp
     dsimp only [layout, Layout.packed, Layout.total]
     omega
-  · simp +decide only [Data.set_regs, Function.update_apply, packed, scratch, histogram,
-      one, four, temporary, ↓reduceIte]
+  · wram_simp
     dsimp only [layout, Layout.scratch, Layout.packed, Layout.total]
     omega
-  · simp +decide only [Data.set_regs, Function.update_apply, packed, scratch, histogram,
-      one, four, temporary, ↓reduceIte]
+  · wram_simp
     dsimp only [layout, Layout.hist, Layout.scratch, Layout.packed, Layout.total]
     omega
-  · rfl
-  · rfl
-  · rfl
 
 /-- Compute encoded tags and signed padding through native arithmetic in sixteen instructions.
 The single envelope supplies every intermediate fit, including the third-column subtraction. -/
@@ -168,30 +162,16 @@ theorem exec_constants {w : ℕ} (L : Layout) (x : Data 64)
   have fp₃₀ : Fits w (4 * (3 * (L.U + L.U + 1 + (L.U + L.U + 1)) + 2)) := f _ (by omega)
   have fp₃ : Fits w (4 * (3 * (L.U + L.U + 1 + (L.U + L.U + 1)) + 2) -
       (L.U + L.U + 1 + (L.U + L.U + 1))) := f _ (by omega)
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  rotate_left
-  · ram_eval [constantsCode, hU, hN, hp, h1, h4, h3, f₂, f₃, f₁₀,
-      fw₀, fw₁, fw, fg₀, fg, fp₀, fp₁, fp₂₀, fp₂, fp₃₀, fp₃]
-  · intro i hi
-    fin_cases i <;> norm_num at hi <;> rfl
-  · rfl
-  · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · exact hk
-    · exact hh
-    · exact hp
-    · simp +decide [gap, padding, temporary, pdst, plen, pad0, pad1, pad2, pad3,
-        paddingRegisters, Padding.dst, Padding.len, Padding.pad0, Padding.pad1,
-        Padding.pad2, Padding.pad3, Layout.gap]
-      omega
-    · simp +decide [gap, padding, temporary, pdst, plen, pad0, pad1, pad2, pad3,
-        paddingRegisters, Padding.dst, Padding.len, Padding.pad0, Padding.pad1,
-        Padding.pad2, Padding.pad3]
-      omega
-    · exact h1
-    · exact h4
-  · simp +decide [PaddingReady, gap, padding, temporary, pdst, plen, pad0, pad1, pad2, pad3,
-      paddingRegisters, Padding.dst, Padding.len, Padding.pad0, Padding.pad1,
-      Padding.pad2, Padding.pad3]
-    omega
+  refine WP.exists_execWithin ?_
+  unfold constantsCode
+  wram_exec [hU, hN, hp, h1, h4, h3, f₂, f₃, f₁₀,
+    fw₀, fw₁, fw, fg₀, fg, fp₀, fp₁, fp₂₀, fp₂, fp₃₀, fp₃]
+  refine ⟨fun i hi => by fin_cases i <;> norm_num at hi <;> wram_simp,
+    by wram_simp,
+    ⟨by wram_simp [hk], by wram_simp [hh], by wram_simp [hp],
+      by wram_simp [Layout.gap]; omega, by wram_simp; omega,
+      by wram_simp [h1], by wram_simp [h4]⟩,
+    ⟨by wram_simp, by wram_simp, by wram_simp; omega, by wram_simp; omega,
+      by wram_simp; omega, by wram_simp; omega⟩⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.NodePacking

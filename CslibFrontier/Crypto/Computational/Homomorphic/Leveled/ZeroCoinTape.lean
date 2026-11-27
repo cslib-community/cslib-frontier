@@ -233,30 +233,6 @@ It retains the original head-default behavior on an empty generated key list. -/
     ComputableInPolyTime (fun a => zeroLinkChooseCoins evaluateKey evaluateEncrypt evaluateChoose
       (n a) (depth a) (capacity a) (keyCoins a) (encCoins a) (challengePk a) (tape a))
       input (encPair (encPair encBool encBool) encBits) := by
-  let rest := fun a => (BitString.listRows (depth a) (keyCoins a)
-    ((tape a).take (depth a * keyCoins a))).map (evaluateKey (n a))
-  have hrest : ComputableInPolyTime rest input (encList (encPair encBits encBits)) :=
-    ComputableInPolyTime.mapWithInput (f := fun a row => evaluateKey (n a) row)
-      (by fun_prop) (hkey.comp ((hn.comp (ComputableInPolyTime.fst _ _)).prod
-        (ComputableInPolyTime.snd _ _)))
-  have hhead := (ComputableInPolyTime.headD (encA := encPair encBits encBits) ([], [])).comp hrest
-  have hlinks : ComputableInPolyTime (fun a => Scheme.encryptKeyLinksCoins evaluateEncrypt
-      (n a) (encCoins a) (capacity a) true
-      ((challengePk a, ((rest a).headD ([], [])).2) :: rest a)
-      (((tape a).drop (depth a * keyCoins a)).take (depth a * capacity a * encCoins a)))
-      input (encList (encList encBits)) := by
-    apply Scheme.computableInPolyTime_encryptKeyLinksCoins hencrypt <;> fun_prop
-  have hpublic : ComputableInPolyTime (fun a =>
-      (challengePk a :: (rest a).map Prod.fst, Scheme.encryptKeyLinksCoins evaluateEncrypt
-        (n a) (encCoins a) (capacity a) true
-        ((challengePk a, ((rest a).headD ([], [])).2) :: rest a)
-        (((tape a).drop (depth a * keyCoins a)).take (depth a * capacity a * encCoins a))))
-      input encPublicKey := by
-    unfold encPublicKey
-    fun_prop
-  exact hchoose.comp ((hn.prod hpublic.encoding_comp).prod
-    (show ComputableInPolyTime (fun a =>
-      ((tape a).drop (depth a * keyCoins a)).drop (depth a * capacity a * encCoins a))
-      input encBits by fun_prop))
+  fun_prop [zeroLinkChooseCoins]
 
 end Cslib.Crypto.Homomorphic.Leveled

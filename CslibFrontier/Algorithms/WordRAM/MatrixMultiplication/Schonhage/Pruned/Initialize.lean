@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Powers
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Ready
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native headers, powers and evaluator pointers
@@ -67,12 +68,10 @@ theorem exec_initialize {w L Q : ℕ} (x : Data registers) (hL : x.mem 1 = L)
   have hparameters : ExecWithin w parameters p u 6 := by
     ram_eval [parameters, u, hspan, hpQ, h3, hB, hqueries, hout, hs, arrayA, arrayB, queries,
       output, scratch, epoch, span, queryCount, Fin.mk.injEq]
-  have unchanged (i : Fin registers) (hi : parameters.Preserves i) : u.regs i = p.regs i :=
-    hparameters.regs_eq hi
-  have huL : u.regs inputDepth = L := (unchanged _ (by decide)).trans hpL
-  have huspan : u.regs span = 10 ^ L := (unchanged _ (by decide)).trans hspan
-  have hu1 : u.regs one = 1 := (unchanged _ (by decide)).trans hone
-  have hu4 : u.regs frameWidth = 4 := (unchanged _ (by decide)).trans hfour
+  have huL : u.regs inputDepth = L := by regs_frame
+  have huspan : u.regs span = 10 ^ L := by regs_frame
+  have hu1 : u.regs one = 1 := by regs_frame
+  have hu4 : u.regs frameWidth = 4 := by regs_frame
   have hus : u.regs scratch = scratchBase L Q := by
     simp +decide [u, scratch, epoch, scratchBase, outputBase, two_mul, Nat.add_assoc]
   obtain ⟨y, hlocate, hymem, hyf, hyl, hyv, hys, _⟩ := exec_locate u hu1 hu4
@@ -81,13 +80,10 @@ theorem exec_initialize {w L Q : ℕ} (x : Data registers) (hL : x.mem 1 = L)
       unfold scratchBase outputBase addressBound
       have hm : L ≤ L * 10 ^ L := Nat.le_mul_of_pos_right _ (by positivity)
       nlinarith only [hp, hm]))
-  have hyconstant (i : Fin registers) (hi : locate.Preserves i)
-      (hi' : parameters.Preserves i) : y.regs i = p.regs i :=
-    (hlocate.regs_eq hi).trans (unchanged i hi')
   have hregs : KernelRegs L (scratchBase L Q) 3 (3 + 10 ^ L) y := by
     constructor
-    · exact (hyconstant _ (by decide) (by decide)).trans hpL
-    · exact (hyconstant _ (by decide) (by decide)).trans hspan
+    · regs_frame
+    · regs_frame
     · exact (hlocate.regs_eq (by decide : locate.Preserves arrayA)).trans (by
         simp +decide [u, arrayA, arrayB, queries, output, scratch, epoch])
     · exact (hlocate.regs_eq (by decide : locate.Preserves arrayB)).trans (by
@@ -96,14 +92,14 @@ theorem exec_initialize {w L Q : ℕ} (x : Data registers) (hL : x.mem 1 = L)
     · simpa only [hus, huL] using hyl
     · simpa only [hus, huL, huspan] using hyv
     · simpa only [hus, huL, huspan] using hys
-    · exact (hyconstant _ (by decide) (by decide)).trans hnil
-    · exact (hyconstant _ (by decide) (by decide)).trans hone
-    · exact (hyconstant _ (by decide) (by decide)).trans hten
-    · exact (hyconstant _ (by decide) (by decide)).trans hnine
-    · exact (hyconstant _ (by decide) (by decide)).trans hfour
+    · regs_frame
+    · regs_frame
+    · regs_frame
+    · regs_frame
+    · regs_frame
   refine ⟨y, ?_, hregs, ?_, ?_, ?_, ?_, ?_⟩
   · exact hymem.trans (show u.mem = p.mem from rfl) |>.trans hpmem
-  · exact (hyconstant _ (by decide) (by decide)).trans hpQ
+  · regs_frame
   · exact (hlocate.regs_eq (by decide : locate.Preserves queries)).trans (by
       simp +decide [u, queries, output, scratch, epoch, two_mul, Nat.add_assoc])
   · exact (hlocate.regs_eq (by decide : locate.Preserves output)).trans (by

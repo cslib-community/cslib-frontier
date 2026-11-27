@@ -327,40 +327,12 @@ is needed: the bijection of each round carries the witnesses of a counting quant
 those in `N`. -/
 theorem BijPebbleWins.realize_iff {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
     (h : BijPebbleWins L n S a b) {φ : FiniteVariable.CountingFormula L k}
-    (hr : φ.quantifierRank ≤ n) (hS : ↑φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b := by
-  induction φ generalizing n S a b with
-  | falsum => simp only [FiniteVariable.CountingFormula.realize_falsum]
-  | equal i j =>
-    simp only [FiniteVariable.CountingFormula.freeVars_equal, Finset.coe_insert,
-      Finset.coe_singleton, Set.insert_subset_iff, Set.singleton_subset_iff] at hS
-    simp only [FiniteVariable.CountingFormula.realize_equal]
-    exact h.partialIsoOn.eq_iff i hS.1 j hS.2
-  | rel R f =>
-    simp only [FiniteVariable.CountingFormula.realize_rel]
-    exact h.partialIsoOn.relMap_iff R f fun t => hS (by simp)
-  | imp φ ψ ihφ ihψ =>
-    simp only [FiniteVariable.CountingFormula.quantifierRank_imp, max_le_iff] at hr
-    simp only [FiniteVariable.CountingFormula.freeVars_imp, Finset.coe_union,
-      Set.union_subset_iff] at hS
-    simp only [FiniteVariable.CountingFormula.realize_imp]
-    exact imp_congr (ihφ h hr.1 hS.1) (ihψ h hr.2 hS.2)
-  | atLeast m i φ ih =>
-    simp only [FiniteVariable.CountingFormula.quantifierRank_atLeast] at hr
-    obtain ⟨n, rfl⟩ : ∃ n', n = n' + 1 := ⟨n - 1, by omega⟩
-    rw [FiniteVariable.CountingFormula.freeVars_atLeast, Finset.coe_erase, Set.sdiff_subset_iff,
-      ← Set.insert_eq] at hS
-    obtain ⟨f, hf⟩ := h.move i
-    have himage : f '' {c | φ.Realize (Function.update a i c)} =
-        {d | φ.Realize (Function.update b i d)} := by
-      ext d
-      constructor
-      · rintro ⟨c, hc, rfl⟩
-        exact (ih (hf c) (by omega) hS).1 hc
-      · intro hd
-        refine ⟨f.symm d, (ih (hf (f.symm d)) (by omega) hS).2 ?_, f.apply_symm_apply d⟩
-        rwa [f.apply_symm_apply]
-    rw [FiniteVariable.CountingFormula.realize_atLeast,
-      FiniteVariable.CountingFormula.realize_atLeast, ← himage, f.injective.encard_image]
+    (hr : φ.quantifierRank ≤ n) (hS : ↑φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b :=
+  FiniteVariable.GenFormula.realize_iff_of_step (BijPebbleWins L) BijPebbleWins.partialIsoOn
+    (fun q i _ _ hstep ih =>
+      let ⟨f, hf⟩ := hstep.move i
+      FiniteVariable.CountingQuant.eval_iff_of_equiv q f fun c => ih (hf c))
+    h hr hS
 
 /-- **Infinite bijective pebble games, easy direction.** If Duplicator wins the infinite bijective
 `k`-pebble game from `(S, a, b)`, then `a` and `b` satisfy the same `k`-variable counting formulas

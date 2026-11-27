@@ -11,6 +11,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomOracle
 public import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Union
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -103,22 +104,8 @@ theorem toOuterMeasure_exists_mem_fst_eq_le {α Query Value : Type*}
     rw [show {a : α | f a = q} = f ⁻¹' {q} from rfl, ← PMF.toOuterMeasure_map_apply,
       PMF.toOuterMeasure_apply_singleton]
     exact hμ q
-  induction cache with
-  | nil => simp
-  | cons e rest ih =>
-    calc μ.toOuterMeasure {a | ∃ e' ∈ e :: rest, e'.1 = f a}
-        ≤ μ.toOuterMeasure ({a | f a = e.1} ∪ {a | ∃ e' ∈ rest, e'.1 = f a}) := by
-          refine μ.toOuterMeasure.mono fun a ha => ?_
-          obtain ⟨e', he', heq⟩ := ha
-          rcases List.mem_cons.mp he' with rfl | hmem
-          · exact Or.inl heq.symm
-          · exact Or.inr ⟨e', hmem, heq⟩
-      _ ≤ μ.toOuterMeasure {a | f a = e.1} + μ.toOuterMeasure {a | ∃ e' ∈ rest, e'.1 = f a} :=
-          MeasureTheory.measure_union_le _ _
-      _ ≤ δ + rest.length * δ := add_le_add (hpoint e.1) ih
-      _ = (e :: rest).length * δ := by
-          rw [List.length_cons, Nat.cast_add, Nat.cast_one, add_comm (rest.length : ℝ≥0∞),
-            add_mul, one_mul]
+  simpa only [Set.ofPred_mem_eq, List.mem_map, List.length_map] using
+    (PMF.toOuterMeasure_mem_list_le μ f hpoint (cache.map Prod.fst))
 
 private theorem toOuterMeasure_lookup_isSome_le_aux {α Query Value : Type*}
     [BEq Query] [LawfulBEq Query] {μ : PMF α} {f : α → Query} {δ : ℝ≥0∞}
@@ -553,7 +540,8 @@ theorem toOuterMeasure_bad_flaggedLazyProgramHandler_choose_two_le
   OracleComp.toOuterMeasure_bad_choose_two_cost_le
     (Sum.elim (fun _ => 1) (fun _ => 0)) (Sum.elim (fun _ => 0) (fun _ => 1))
     (fun st : (List (Query × Digest) × Log) × Bool => st.1.1.length) δ
-    (step_bad_flaggedLazyProgramHandler_le dist active inactive samplePre point finish hminEnt)
+    (fun q st hst => (step_bad_flaggedLazyProgramHandler_le dist active inactive samplePre point
+      finish hminEnt q st hst).trans (by gcongr; exact Nat.le_add_right _ _))
     (fun q st _ x hx _ => by
       have hlen := length_cache_flaggedLazyProgramHandler_le dist active inactive samplePre point
         finish q st x hx
@@ -754,7 +742,8 @@ theorem closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two
   exact ProbOracleComp.toOuterMeasure_bad_choose_two_cost_le
     (Sum.elim (fun _ => 1) (fun _ => 0)) (Sum.elim (fun _ => 0) (fun _ => 1))
     (fun st : (List (Query × Digest) × Log) × Bool => st.1.1.length) δ
-    (step_bad_flaggedLazyProgramHandler_le dist active inactive samplePre point finish hminEnt)
+    (fun q st hst => (step_bad_flaggedLazyProgramHandler_le dist active inactive samplePre point
+      finish hminEnt q st hst).trans (by gcongr; exact Nat.le_add_right _ _))
     (fun q st _ x hx _ => by
       have hlen := length_cache_flaggedLazyProgramHandler_le dist active inactive samplePre point
         finish q st x hx

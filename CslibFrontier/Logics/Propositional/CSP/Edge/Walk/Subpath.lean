@@ -89,6 +89,20 @@ theorem finish_take_succ (w : Walk F) {k : ℕ} (hk : k < w.steps.length) :
   rw [List.take_succ_eq_append_getElem hk, finishFrom_append]
   rfl
 
+/-- The prefix through a step selected by `getElem?` ends at that step's output variable. -/
+theorem finish_take_succ_of_getElem? {w : Walk F} {k : ℕ}
+    {s : Occurrence F × Occurrence F} (hs : w.steps[k]? = some s) :
+    (w.take (k + 1)).finish = s.2.var := by
+  obtain ⟨hk, rfl⟩ := List.getElem?_eq_some_iff.mp hs
+  exact finish_take_succ w hk
+
+/-- Dropping up to a step selected by `getElem?` begins with that step. -/
+theorem steps_drop_of_getElem? {w : Walk F} {k : ℕ}
+    {s : Occurrence F × Occurrence F} (hs : w.steps[k]? = some s) :
+    (w.drop k).steps = s :: (w.drop (k + 1)).steps := by
+  obtain ⟨hk, rfl⟩ := List.getElem?_eq_some_iff.mp hs
+  exact List.drop_eq_getElem_cons hk
+
 /-- Extending a trail prefix by its next actual step performs exactly the corresponding
 two-port move, with cancellation handled by `DAG.pairFlip`. -/
 theorem IsWalk.flip_take_succ {w : Walk F} (hw : w.IsWalk)
@@ -195,6 +209,14 @@ theorem DirectedPath.drop {T : DAG F} {w : Walk F} {time : Occurrence F → ℕ}
   copies_injective s hm t hn :=
     hp.copies_injective s (List.mem_of_mem_drop hm) t (List.mem_of_mem_drop hn)
 
+/-- Dropping a prefix shrinks the set of copied constraints of a directed path. -/
+theorem DirectedPath.drop_copies_subset [DecidableEq V] {T : DAG F} {w : Walk F}
+    {time : Occurrence F → ℕ} (hp : DirectedPath T w time) (hs : T.Supported) (k : ℕ) :
+    (pathDAG (w.drop k) time).copies ⊆ (pathDAG w time).copies := by
+  intro c hc
+  obtain ⟨s, hsm, he⟩ := (hp.drop hs k).mem_copies.mp hc
+  exact hp.mem_copies.mpr ⟨s, List.mem_of_mem_drop hsm, he⟩
+
 /-- Copied-node disjointness of paths in an f-DAG implies disjointness of their actual
 incidence lists, by the original-incidence uniqueness condition. -/
 theorem DirectedPath.disjoint_edges [DecidableEq V] {sem : Rel → List Bool → Bool}
@@ -276,10 +298,7 @@ theorem DirectedPath.valid_take_meeting [DecidableEq V] {sem : Rel → List Bool
     rw [he]
     exact hw.valid_take h hM n
   · let k := z.steps.length - (n - (w.steps.length + 1))
-    have hsub : (pathDAG (z.drop k) timeZ).copies ⊆ (pathDAG z timeZ).copies := by
-      intro c hc
-      obtain ⟨s, hs, he⟩ := (hz.drop h.supported k).mem_copies.mp hc
-      exact hz.mem_copies.mpr ⟨s, List.mem_of_mem_drop hs, he⟩
+    have hsub := hz.drop_copies_subset h.supported k
     have hv := hw.valid_flip_meeting (hz.drop h.supported k) h hM ha hb hai hcopy hne
       (hd.mono_right hsub) hwfresh (fun hc => hzfresh (hsub hc))
     rw [meeting_flip_eq] at hv

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.MaxFlow.Dilworth
 public import CslibFrontier.Algorithms.Lean.MaxFlow.HopcroftKarp
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Minimum chain cover by Hopcroft–Karp
@@ -176,6 +177,7 @@ private theorem chainLabelsM_ret (e : Fin n ≃ α) (M : Finset (Fin n × Fin n)
     · rw [List.filter_cons_of_neg (by simpa using hp)]
       simp only [chainLabelsM, hp, ite_false, TimeM.ret_bind, TimeM.ret_pure, ih]
 
+@[time_simps]
 private theorem chainLabelsM_time (M : Finset (Fin n × Fin n)) (ps : List (Fin n × Fin n))
     (labels : Vector (Fin n) n) :
     (chainLabelsM M ps labels).time = ps.length + n * (ps.filter (· ∈ M)).length := by
@@ -215,7 +217,7 @@ private theorem ret_minChainCoverM [LT α] [DecidableLT α] (e : Fin n ≃ α) :
           (List.finRange n ×ˢ List.finRange n) (Vector.ofFn id)).ret,
         (hopcroftKarpDenseM (enumLtGraph e)).ret.cover.uncovered,
         (hopcroftKarpDenseM (enumLtGraph e)).ret.matching⟩ := by
-  simp only [minChainCoverM, TimeM.ret_bind, TimeM.ret_pure, foldlTickM_ret, foldl_uncoveredStep]
+  time_spec minChainCoverM [foldl_uncoveredStep]
 
 variable [PartialOrder α] [DecidableLT α]
 
@@ -334,8 +336,8 @@ theorem minChainCoverM_time_le [LT α] [DecidableLT α] (e : Fin n ≃ α) :
   have hM := (hopcroftKarpDenseM_correct (enumLtGraph e)).1.1.card_le_card_left
   rw [Fintype.card_fin] at hM
   rw [min_self, show 7 * n + 3 * n = 10 * n by omega] at hhk
-  simp only [minChainCoverM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, foldlTickM_time,
-    chainLabelsM_time, length_filter_pairs, List.length_product, List.length_finRange]
+  simp only [minChainCoverM, time_simps, length_filter_pairs, List.length_product,
+    List.length_finRange]
   have := Nat.mul_le_mul_left n hM
   omega
 

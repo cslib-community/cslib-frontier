@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Greedy parity search with an encoded context
@@ -156,20 +157,7 @@ private def extract (r : ℕ × C × SelectBestAcc) : List Bool :=
 
 private theorem extract_polyTime :
     ComputableInPolyTime (extract (C := C)) (encPair encNat (encAcc encC)) encBits := by
-  unfold extract encAcc encSelectBestAcc
-  let eBest := encPair encBits encNat
-  let encRest := encPair (encList encBits) (encOption eBest)
-  let encS := encPair (encPair encUnary encUnary) encRest
-  have hacc := (ComputableInPolyTime.snd encC encS).comp
-    (ComputableInPolyTime.snd encNat (encPair encC encS))
-  have hm := (ComputableInPolyTime.fst encUnary encUnary).comp
-    ((ComputableInPolyTime.fst (encPair encUnary encUnary) encRest).comp hacc)
-  have hopt := (ComputableInPolyTime.snd (encList encBits) (encOption eBest)).comp
-    ((ComputableInPolyTime.snd (encPair encUnary encUnary) encRest).comp hacc)
-  exact ComputableInPolyTime.optionElimWithInput hopt
-    ((ComputableInPolyTime.bitsReplicate false).comp hm)
-    ((ComputableInPolyTime.fst encBits encNat).comp
-      (ComputableInPolyTime.snd (encPair encNat (encPair encC encS)) eBest))
+  fun_prop [extract]
 
 private theorem selectCertificate_eq (count : C × List (List Bool) → ℕ)
     (a : C × ℕ × ℕ × List (List Bool)) :
@@ -686,11 +674,8 @@ theorem computableInO_selectBestTestRow {countSys : List (List Bool) → ℕ}
     fun ⟨_, m, P, rows⟩ j hj => by
       have := hR (m, P, rows) j hj
       dsimp only [unitCounter, NativeCertificate.comp_time, NativeCertificate.linear_time]
-      simp only [encContextRows, encInput, encSelectBestIn, length_encPair, encUnit_apply,
-        List.length_nil, encList_append, List.length_append, encList_cons, encList_nil,
-        List.append_nil, length_frame, encBits_apply, length_materializeTestRow,
-        encUnary_apply, List.length_replicate]
-      omega
+      enc_len [encContextRows, encInput, encSelectBestIn, encUnit_apply, encList_append,
+        List.append_nil, length_materializeTestRow]
   refine ⟨fun L => poly (L + 1) + 3 * L + 1, by fun_prop, ?_⟩
   refine (h.comp' (unitInput encSelectBestIn)).mono_le (fun ⟨m, P, rows⟩ => ?_)
     fun ⟨m, P, rows⟩ => ?_
@@ -735,15 +720,11 @@ theorem computableInO_greedyParityRows {countSys : List (List Bool) → ℕ}
       eta_reduce
       set L := (encGreedyInput encUnit ((), n, m, P, rows)).length
       have hL : n ≤ L ∧ m ≤ L ∧ (encList encBits rows).length ≤ L := by
-        simp only [L, encGreedyInput, encGreedyIn, encSelectBestIn, length_encPair,
-          encUnary_apply, List.length_replicate]
-        omega
+        enc_len [L, encGreedyInput, encGreedyIn, encSelectBestIn]
       have hg : i * (2 * m + 1) ≤ 3 * L * (2 * L + 1) := Nat.mul_le_mul (by omega) (by omega)
       have hx : 3 * L * (2 * L + 1) = 6 * L * L + 3 * L := by ring
-      simp only [encContextRows, length_encPair, encUnit_apply, List.length_nil, encList_append,
-        List.length_append, encList_cons, encList_nil, List.append_nil, length_frame,
-        encBits_apply, length_materializeTestRow, length_encList_greedyParityRowsAt]
-      omega
+      enc_len [encContextRows, encUnit_apply, encList_append, List.append_nil,
+        length_materializeTestRow, length_encList_greedyParityRowsAt]
   refine ⟨fun N => poly (N + 1) + E (N + 1) + 2 * N, by fun_prop, ?_⟩
   refine (h.comp' (unitInput encGreedyIn)).mono_le (fun ⟨n, m, P, rows⟩ => ?_)
     fun ⟨n, m, P, rows⟩ => ?_

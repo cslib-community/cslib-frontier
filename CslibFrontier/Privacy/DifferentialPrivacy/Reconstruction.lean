@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Privacy.DifferentialPrivacy.Hamming
 import CslibFrontier.Foundations.Data.BitString.Flip
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Reconstruction attacks
@@ -302,13 +303,8 @@ theorem mul_card_sub_mul_le_real (h : DifferentiallyPrivate HammingAdjacent G ε
   set t := ⌊r⌋₊
   have hG := h.mul_card_sub_mul_le (t := t) (q := ENNReal.ofReal q) fun d =>
     (hq d).trans ((G d).toOuterMeasure.mono fun c hc => Nat.le_floor hc)
-  have hfin : ENNReal.ofReal (Real.exp ε) + δ ≠ ⊤ := ENNReal.add_ne_top.mpr ⟨by simp, hδ⟩
-  have hreal := ENNReal.toReal_mono (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) hfin) hG
-  rw [ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_add (by simp)
-    ENNReal.ofReal_ne_top, ENNReal.toReal_add (by simp) hδ, ENNReal.toReal_ofReal hq0,
-    ENNReal.toReal_ofReal (Real.exp_pos ε).le, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
-    ENNReal.toReal_one] at hreal
-  refine le_trans ?_ hreal
+  ennreal_to_real at hG
+  refine le_trans ?_ hG
   have hsub : (Fintype.card ι : ℝ) - r ≤ ((Fintype.card ι - t : ℕ) : ℝ) := by
     have ht : (t : ℝ) ≤ r := Nat.floor_le hr
     rcases le_total t (Fintype.card ι) with htn | htn

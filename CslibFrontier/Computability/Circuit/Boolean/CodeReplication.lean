@@ -163,30 +163,6 @@ theorem computableInPolyTime_replicateCode {α : Type} {enc : α ↪ List Bool}
     (hn : ComputableInPolyTime n enc encNat) (hk : ComputableInPolyTime k enc encUnary)
     (hcode : ComputableInPolyTime code enc encCode) :
     ComputableInPolyTime (fun a => replicateCode (n a) (k a) (code a)) enc encCode := by
-  have hlen : ComputableInPolyTime (fun a => (code a).1.length) enc encNat :=
-    (length_list_binary encGate).comp hcode.fst'
-  have hkb : ComputableInPolyTime k enc encNat := unary_to_binary.comp hk
-  have hwire : ComputableInPolyTime
-      (fun p : (α × ℕ) × ℕ => replicateWire (n p.1.1) (code p.1.1).1.length (k p.1.1) p.1.2 p.2)
-      (encPair (encPair enc encUnary) encNat) encNat :=
-    computableInPolyTime_replicateWire (hn.comp ((fst _ _).comp (fst _ _)))
-      (hlen.comp ((fst _ _).comp (fst _ _))) (hkb.comp ((fst _ _).comp (fst _ _)))
-      (unary_to_binary.comp ((snd _ _).comp (fst _ _))) (snd _ _)
-  have hgate : ComputableInPolyTime
-      (fun p : (α × ℕ) × (Op × List ℕ) =>
-        (p.2.1, p.2.2.map (replicateWire (n p.1.1) (code p.1.1).1.length (k p.1.1) p.1.2)))
-      (encPair (encPair enc encUnary) encGate) encGate :=
-    ((snd _ encGate).fst').prod
-      (mapWithInput (snd _ encGate).snd' (hwire.comp ((fst _ _).fst'.prod (snd _ _))))
-  have hgates : ComputableInPolyTime
-      (fun p : α × ℕ => (code p.1).1.map fun g =>
-        (g.1, g.2.map (replicateWire (n p.1) (code p.1).1.length (k p.1) p.2)))
-      (encPair enc encUnary) (encList encGate) :=
-    mapWithInput (hcode.fst'.comp (fst _ _)) hgate
-  have houts : ComputableInPolyTime
-      (fun p : α × ℕ => (code p.1).2.map (replicateWire (n p.1) (code p.1).1.length (k p.1) p.2))
-      (encPair enc encUnary) (encList encNat) :=
-    mapWithInput (hcode.snd'.comp (fst _ _)) hwire
-  exact (flatMapWithInput (range.comp hk) hgates).prod (flatMapWithInput (range.comp hk) houts)
+  fun_prop [replicateCode]
 
 end Cslib.Circuits.Boolean

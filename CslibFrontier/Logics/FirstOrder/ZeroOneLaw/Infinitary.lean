@@ -124,8 +124,8 @@ theorem realizeInfinitary_not {M : Type*} [L.Structure M] [Nonempty M] {k : ℕ}
     RealizeInfinitary (M := M) φ.not ↔ ¬RealizeInfinitary (M := M) φ := by
   let a : Fin k → M := fun _ => Classical.arbitrary M
   have hnot : φ.not.freeVars = ∅ := by
-    simp only [FiniteVariable.InfinitaryFormula.freeVars_not, hφ]
-  rw [realizeInfinitary_iff_realize hnot a, FiniteVariable.InfinitaryFormula.realize_not,
+    simp only [FiniteVariable.InfinitaryGenFormula.freeVars_not, hφ]
+  rw [realizeInfinitary_iff_realize hnot a, FiniteVariable.InfinitaryGenFormula.realize_not,
     realizeInfinitary_iff_realize hφ a]
 
 theorem infinitaryProb_not {α : Type*} [Nonempty α] (μ : PMF (L.Structure α)) {k : ℕ}
@@ -188,7 +188,7 @@ theorem tendsto_infinitaryProb_zero_of_finset (μ : ∀ n, PMF (L.Structure (Fin
     (hM₀ : ¬RealizeInfinitary (M := M₀) φ) :
     Tendsto (fun n => infinitaryProb (μ n) φ) atTop (nhds 0) := by
   have hnot_fv : φ.not.freeVars = ∅ := by
-    simp only [FiniteVariable.InfinitaryFormula.freeVars_not, hφ]
+    simp only [FiniteVariable.InfinitaryGenFormula.freeVars_not, hφ]
   have hnot_M₀ : RealizeInfinitary (M := M₀) φ.not := (realizeInfinitary_not hφ).2 hM₀
   have h1 := tendsto_infinitaryProb_one_of_finset μ T₀ hT₀ hbf hnot_fv hnot_M₀
   have hsub := h1.const_sub 1
@@ -434,7 +434,7 @@ theorem tendsto_binomialRandom_real_infinitary_zero_of_not_radoGraph {p : I} (hp
     (hrado : ¬SatisfiesInfinitary SimpleGraph.radoGraph φ) :
     Tendsto (fun n => G(Fin n, p).real {G | SatisfiesInfinitary G φ}) atTop (nhds 0) := by
   have hnot_fv : φ.not.freeVars = ∅ := by
-    simp only [FiniteVariable.InfinitaryFormula.freeVars_not, hφ]
+    simp only [FiniteVariable.InfinitaryGenFormula.freeVars_not, hφ]
   have hnot_rado : SatisfiesInfinitary SimpleGraph.radoGraph φ.not :=
     (satisfiesInfinitary_not SimpleGraph.radoGraph hφ).2 hrado
   have h1 := tendsto_binomialRandom_real_infinitary_one_of_radoGraph hp0 hp1 hnot_fv hnot_rado
@@ -610,7 +610,7 @@ private theorem forth_partialIsoOn_of_hasExtension_lt {M N : Type*} [L.Structure
   · push Not at hmem
     obtain ⟨m, hm, x, y, pos, hx, hpos⟩ := exists_distinct_pebble_enum h i
     let p : NewAtom L m → Bool := fun atom =>
-      decide (RelMap atom.1.1.2 ((Fin.cons c y : Fin (m + 1) → M) ∘ atom.1.2))
+      decide (RelMap atom.symbol.2 ((Fin.cons c y : Fin (m + 1) → M) ∘ atom.args))
     obtain ⟨d, hd_ne, hd_rel⟩ := hN m hm p x hx
     have hd_fresh : ∀ j ∈ S, j ≠ i → d ≠ b j :=
       fun j hj hne hdb => hd_ne (pos j hj hne) (hdb.trans (hpos j hj hne).1.symm)

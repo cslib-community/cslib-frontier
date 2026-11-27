@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.VOLE.Circuit
 public import CslibFrontier.Crypto.Protocols.VOLE.BatchMulCheck
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Tactic.PMFSwap
@@ -82,17 +83,9 @@ theorem circuitCheck_eval_execute (C : Circuit (arithSignature F) (p + k) m)
     PMF.bind_bind, PMF.pure_bind]
   congr 1 with u : 1
   congr 1 with v : 1
-  simp only [Verifier.execute, OracleComp.interpret_bind, interpret_liftProver,
-    circuitCheck_output, OracleComp.interpret_pure]
-  simp only [runStrategy, circuitCheck, circuitCheckSpec, SigmaProtocol.sigmaSpec,
-    OracleComp.interpret_bind, OracleComp.interpret_pure,
-    ProbOracleComp.interpret_sample,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind,
-    VOLECorrelation.senderView, voleSample]
-  have huniform : OracleComp.interpret ProbComp.unifOracle
-      (ProbComp.uniform (CircuitMulGate C → F)) =
-      PMF.uniformOfFintype (CircuitMulGate C → F) := ProbComp.eval_uniform _
-  simp only [huniform, ProbOracleComp.interpret_query, OracleComp.sumHandler, PMF.pure_bind]
+  simp only [Verifier.execute, interp_norm, interpret_liftProver, circuitCheck_output]
+  simp only [runStrategy, circuitCheck, circuitCheckSpec, threeMoveSpec, interp_norm, pmf_norm,
+    ProbComp.eval_uniform, VOLECorrelation.senderView, voleSample]
   pmf_swap
 
 

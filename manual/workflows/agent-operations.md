@@ -17,7 +17,7 @@ distinguish agents. Resolve an unclear contract with the task owner before exten
 
 A task brief might request a named problem's membership in `NP` under a specified encoding, with a verifier and certificate-length bound. Say whether a reduction or completeness theorem is also required. That keeps a membership proof from silently becoming a report that completeness is done.
 
-Choose parallel tasks with separate mutable files and build outputs. Prioritize fixes and landing existing work when review or integration is the bottleneck. Before taking over work, inspect its issue, PR and activity and contact its owner or coordinator. Silence alone does not release ownership. Follow the [role and ownership rules](../../AGENTS.md#agent-roles-and-task-ownership).
+Choose parallel tasks with separate mutable files and build outputs. Prioritize fixes and landing existing work when review or integration is the bottleneck. Before taking over work, inspect its issue, PR and activity and notify its owner in the task record. A claim with no open PR and no activity is released 24 hours after that notice; a PR awaiting review is never released by silence. Follow the [role and ownership rules](../../AGENTS.md#agent-roles-and-task-ownership).
 
 ## Isolate work and build outputs
 
@@ -31,7 +31,7 @@ The helper creates the worktree under `.worktrees/` and prepares caches. It reso
 
 Package sources may be hard-linked by default, while mutable build outputs are copied independently. Do not edit shared package sources. Use `--copy-cslib` or `--copy-packages` when dependencies must change. `--source-only` avoids initial `.lake` seeding when existing pins or artifacts are unsuitable. The [cache/isolation guide](../../scripts/cache/README.md#automatic-restoration) explains these modes.
 
-Coordinate a thread budget on shared machines. `LEAN_NUM_THREADS=2 scripts/check.sh` is an example setting, not a hard process or memory limit. On a busy host, the kernel's file-handle table can be exhausted first, so also bound the number of concurrent Lean builds; see [Diagnose "Too many open files in system"](troubleshooting.md#diagnose-too-many-open-files-in-system). Stop only tasks you started, by recorded PID or task ID. Preserve completed artifacts when rescheduling. Ordinary worktrees share a Git object database; history-repair experiments require an independent repository.
+Coordinate a thread budget on shared machines. `LEAN_NUM_THREADS=2 scripts/check.sh` is an example setting, not a hard process or memory limit: during the cache-restore audit, `scripts/check.sh` launches up to 8 concurrent `lean` processes unless capped by `LEAN_NUM_THREADS` or `CSLIB_FRONTIER_CACHE_AUDIT_JOBS`. On a busy host, the kernel's file-handle table can be exhausted first, so also bound the number of concurrent Lean builds; see [Diagnose "Too many open files in system"](troubleshooting.md#diagnose-too-many-open-files-in-system). Stop only tasks you started, by recorded PID or task ID. Preserve completed artifacts when rescheduling. Ordinary worktrees share a Git object database; history-repair experiments require an independent repository.
 
 Worktrees also share one stash stack, `refs/stash`, so `git stash pop` in your worktree can apply and drop an entry that another session pushed from its own. Do not push, pop, apply or drop stash entries in a shared checkout or its worktrees. To set work aside, stage it with `git add -A`, then either commit it on your own branch (`git reset --soft HEAD~` undoes the commit later) or save `git diff --cached --binary` to a file under your scratch directory, check that the file is non-empty, and clear the work with `git reset --hard`; `git apply --index` restores it. If a pop completed and applied another session's entry, its last line names the dropped commit. Put the entry back with `git stash store -m "$(git log -1 --format=%s <commit>)" <commit>`, restore the files it changed in your worktree, and tell the entry's owner. A pop that stops on a conflict keeps the entry on the stack; restore your files and leave the entry alone.
 
@@ -45,11 +45,63 @@ The [semantic-withdrawal cases](../history/case-studies.md) explain why hypothes
 
 ## Queue approved work and keep its approval
 
-A reviewer with write access who approves a PR queues the approved head in the same step, with `python3 scripts/queue_pr.py <PR> <approved head>`. The script refuses any other head, a draft, a stacked PR still based on another branch, a conflict and failed checks. The reviewer does not queue when human review has been requested in the PR or its issue, or when the approval names a hold; [Approve and queue](../../AGENTS.md#approve-and-queue) gives the rule.
+A reviewer with write access who approves a PR queues the approved head in the same step. Use
+`scripts/queue_pr.py` from a trusted checkout of current `main`, or an isolated copy obtained from
+a pinned revision of current `main`. Keep the approved PR head; do not refresh its branch to get the
+tool or execute the PR branch's copy. From any working directory, substitute the trusted script's
+path and the target PR/head below; pass the repository explicitly when working from private scratch:
 
-Merge `main` into an approved PR only when it conflicts, needs a change on `main` to pass CI, or a lower stacked PR has landed; the merge queue already tests each PR on top of the current `main`. GitHub declines any push to the branch of a PR still in the merge queue, even when its entry is unmergeable, so whoever restacks a queued PR first removes it with **Remove from queue** on the PR page or the `dequeuePullRequest` command in [Restacks](../../AGENTS.md#restacks). Dequeueing merges nothing; a non-author queues the new head again under the rules below. After such a restack, `python3 scripts/check_restack.py <approved head> <new head>`, run from a checkout of current `origin/main` after `git fetch origin`, replays the approved change onto the new head's `main` and compares the result with the new head. For a PR approved while stacked on another branch, add `--approved-base <lower head at approval>`, even when the approved head had also merged a newer `main` than that head: the script then replays from the merge of the two, so `main`'s changes are not counted as the PR's own. When the replay and the new head match and CI passes, the approval carries over: post the result line, and the non-author who queues the new head reruns the command it names. Otherwise review the paths and diffs it prints. When the only conflicts are in the `mk_all` aggregates or `references.bib`, `python3 scripts/restack_mechanical.py <PR> --approved-head <approved head>` checks that the head is the approved change, merges with the drivers, writes the aggregates as `lake exe mk_all` would and runs this check, without running the PR's code, then prints the check's result line and the `queue_pr.py` command for after CI. It refuses any other conflict, pushes only with `--push` (and only if the check passes and the branch has not moved), and never queues or comments. See [Restacks](../../AGENTS.md#restacks).
+```bash
+python3 /path/to/trusted-main/scripts/queue_pr.py <PR> <approved-head> \
+  --repo cslib-community/cslib-frontier
+```
+
+The script refuses any other head, a draft, a stacked PR still based on another branch, a conflict and failed checks. It reads every page of check results for that commit before choosing the latest attempt from the required GitHub App; a later page cannot hide a failed or running rerun behind an older success. The reviewer does not queue when human review has been requested in the PR or its issue, or when the approval names a hold. Do not start `--wait` while completing CI will produce unread notices or manual pages; [Approve and queue](../../AGENTS.md#approve-and-queue) gives the rule. Updating `main` does not upgrade an already-running copy; its owner stops an old waiter before replacing it after holds clear.
+
+When another PR is already queued, a reviewer can check the proposed order before enqueueing:
+
+```bash
+python3 scripts/queue_status.py prefix <PR> <approved-head>
+```
+
+This replays the current queue ahead of that head as successive squash merges. It reports the
+conflicting files and the first prefix where each overlaps. GitHub can reorder the queue after
+the snapshot. The check fetches missing Git objects, leaves branches and the queue untouched,
+and exits 0 for a clean textual merge, 1 for a conflict and 2 for an incomplete check.
+
+For a dependency upgrade, a tender holding several approved heads can start one watcher at the
+first new-pin `main` commit. Supply the individual PR numbers and the SHAs their reviews cover:
+
+```bash
+python3 scripts/queue_status.py cache-ready <landed-main-sha> <PR>@<approved-head> \
+  <PR>@<approved-head> --wait 300
+```
+
+The watcher probes the configured Lake origins for the landed revision's published mapping.
+If main CI coalesced that push, it also checks the five latest successful main pushes. A later
+revision qualifies when its first-parent history includes the pin bump and its toolchain,
+manifest and Lake configuration match. The watcher waits up to a minute between rounds. Set
+`COMPLEXITYLIB_CACHE_URL` to watch a specific origin. It reports each held head, including
+moved and closed PRs. A non-author rechecks discussion and remaining holds before using
+`queue_pr.py`. Omit `--wait` for one probe. Exit 0 means the mapping was readable and the held
+heads were reported, 1 means it was unavailable and 2 means the check could not complete.
+
+Merge `main` into an approved PR only when it conflicts, needs a change on `main` to pass CI, or a lower stacked PR has landed; the merge queue already tests each PR on top of the current `main`. GitHub declines any push to the branch of a PR still in the merge queue, even when its entry is unmergeable, so whoever restacks a queued PR first removes it with **Remove from queue** on the PR page or the `dequeuePullRequest` command in [Restacks](../../AGENTS.md#restacks). Dequeueing merges nothing; a non-author queues the new head again under the rules below. After such a restack, `python3 scripts/check_restack.py <approved head> <new head>`, run from a checkout of current `origin/main` after `git fetch origin`, replays the approved change onto the new head's `main` and compares the result with the new head. For a PR approved while stacked on another branch, add `--approved-base <lower head at approval>`, even when the approved head had also merged a newer `main` than that head: the script then replays from the merge of the two, so `main`'s changes are not counted as the PR's own. When the replay and the new head match and CI passes, the approval carries over: post the result line, and the non-author who queues the new head reruns the command it names. Otherwise review the paths and diffs it prints. When the only conflicts are in the `mk_all` aggregates or `references.bib`, `python3 scripts/restack_mechanical.py <PR> --approved-head <approved head>` checks that the head is the approved change, merges with the drivers, writes the aggregates as `lake exe mk_all` would and runs this check, without running the PR's code, then prints the final check result and the `queue_pr.py` command for after CI. Report the unprefixed final result line. Output marked `approval pre-check` only verifies the existing head. It refuses any other conflict, pushes only with `--push` (and only if the check passes and the branch has not moved), and never queues or comments. See [Restacks](../../AGENTS.md#restacks).
 
 ## Record evidence at the level of the claim
+
+During ordinary edits, use MCP diagnostics or targeted
+`scripts/build.sh <modules and representative clients> --wfail --iofail`. Use
+`scripts/check.sh --quick --no-full-fallback` at local validation checkpoints. Status 3 means
+the change needs focused checks plus hosted full validation; do not automatically retry with a
+local full check. On a checkout where importing the entire library is expensive,
+`scripts/check.sh --focused` defers the unchanged global smoke and axiom tests if no library
+or test client imports them. It reports each omitted target and also returns 3 for unsupported
+changes. Run full `scripts/check.sh` only when explicitly requested or hosted coverage
+is unavailable, and do not duplicate successful CI covering the final revision. The local
+[restored-source audit](troubleshooting.md#diagnose-warnings-that-only-ci-reports) recovers
+warning/info logs and streams its count, worker mode, current source and elapsed time. It can repeat
+elaboration on unchanged restored sources, so it belongs to validation rather than every edit.
 
 | Outcome | Evidence to retain |
 |---|---|

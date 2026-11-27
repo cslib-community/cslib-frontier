@@ -8,6 +8,7 @@ module
 -- upstream: candidate (Mathlib, beside `Mathlib/LinearAlgebra/Matrix/Farkas.lean`)
 
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Farkas
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegativeForm
 public import Mathlib.Data.Nat.Factorial.Basic
 import Mathlib.Algebra.Order.Group.MinMax
 import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
@@ -299,56 +300,24 @@ theorem exists_int_mulVec_le {A : Matrix m n ℤ} {b : m → ℤ} {B : ℕ}
         (Fintype.card m * (B + 1) ^ 2 + 1) ^ (2 * Fintype.card n + Fintype.card m) : ℕ) := by
   classical
   set AK : Matrix m n K := A.map (Int.cast : ℤ → K) with hAK
-  let A' : Matrix m (n ⊕ n ⊕ m) ℤ := of fun i =>
-    Sum.elim (fun j => A i j) (Sum.elim (fun j => -A i j) fun i' => if i = i' then 1 else 0)
-  have hA' : ∀ i j, |A' i j| ≤ (B + 1 : ℕ) := by
-    intro i j
-    rcases j with j | j | i'
-    · simp only [A', of_apply, Sum.elim_inl]
-      exact (hA i j).trans (by push_cast; linarith)
-    · simp only [A', of_apply, Sum.elim_inl, Sum.elim_inr, abs_neg]
-      exact (hA i j).trans (by push_cast; linarith)
-    · simp only [A', of_apply, Sum.elim_inr]
-      split_ifs
-      · simp
-      · rw [abs_zero]
-        positivity
+  let A' := nonnegForm A
+  have hA' := abs_nonnegForm_le hA
   have hb' : ∀ i, |b i| ≤ (B + 1 : ℕ) := fun i => (hb i).trans (by simp)
-  let z : n ⊕ n ⊕ m → K :=
-    Sum.elim (fun j => max (x j) 0) (Sum.elim (fun j => max (-x j) 0)
-      fun i => (b i : K) - (AK *ᵥ x) i)
-  have hz : 0 ≤ z := by
-    intro j
-    rcases j with j | j | i
-    · exact le_max_right _ _
-    · exact le_max_right _ _
-    · exact sub_nonneg.2 (hAx i)
-  have hAz : A'.map (Int.cast : ℤ → K) *ᵥ z = fun i => (b i : K) := by
-    funext i
-    simp only [mulVec, dotProduct, Fintype.sum_sum_type, map_apply, A', of_apply, Sum.elim_inl,
-      Sum.elim_inr, z]
-    have hx : ∀ j, max (x j) 0 - max (-x j) 0 = x j := fun j =>
-      max_zero_sub_max_neg_zero_eq_self (x j)
-    simp only [Int.cast_neg, neg_mul, Finset.sum_neg_distrib, Int.cast_ite, Int.cast_one,
-      Int.cast_zero, ite_mul, one_mul, zero_mul, Finset.sum_ite_eq, Finset.mem_univ, ite_true]
-    have : ∑ j, (A i j : K) * max (x j) 0 + -∑ j, (A i j : K) * max (-x j) 0 =
-        ∑ j, AK i j * x j := by
-      rw [← sub_eq_add_neg, ← Finset.sum_sub_distrib]
-      simp only [← mul_sub, hx, AK, map_apply]
-    linarith
-  obtain ⟨d, p', hd, hp', hAp', hdN, hpN⟩ := exists_int_nonneg_mulVec_eq hA' hb' hz hAz
+  obtain ⟨z, hz, hAz⟩ := nonnegForm_solution hAx
+  have hAz' : A'.map (Int.cast : ℤ → K) *ᵥ z = fun i => (b i : K) := by
+    rw [show A'.map (Int.cast : ℤ → K) = nonnegForm AK from
+      nonnegForm_map A (Int.castRingHom K)]
+    exact hAz
+  obtain ⟨d, p', hd, hp', hAp', hdN, hpN⟩ := exists_int_nonneg_mulVec_eq hA' hb' hz hAz'
   have hcard : Fintype.card (n ⊕ n ⊕ m) = 2 * Fintype.card n + Fintype.card m := by
     simp only [Fintype.card_sum]
     ring
   rw [hcard] at hdN hpN
   refine ⟨d, fun j => p' (Sum.inl j) - p' (Sum.inr (Sum.inl j)), hd, fun i => ?_, hdN, fun j => ?_⟩
-  · have h := congrFun hAp' i
-    simp only [mulVec, dotProduct, Fintype.sum_sum_type, A', of_apply, Sum.elim_inl,
-      Sum.elim_inr, Pi.smul_apply, smul_eq_mul, neg_mul, Finset.sum_neg_distrib, ite_mul, one_mul,
-      zero_mul, Finset.sum_ite_eq, Finset.mem_univ, ite_true] at h
-    simp only [mulVec, dotProduct, Pi.smul_apply, smul_eq_mul, mul_sub, Finset.sum_sub_distrib]
-    have := hp' (Sum.inr (Sum.inr i))
-    simp only [Pi.zero_apply] at this
+  · rw [nonnegForm_mulVec] at hAp'
+    have h := congrFun hAp' i
+    have hslack := hp' (Sum.inr (Sum.inr i))
+    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] at h hslack ⊢
     linarith
   · have h1 := hp' (Sum.inl j)
     have h2 := hp' (Sum.inr (Sum.inl j))

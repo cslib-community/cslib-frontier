@@ -35,7 +35,7 @@ an `NP` oracle.
 The oracle program (`Cslib.Complexity.SAT.searchProgram`) is a bounded adaptive loop, one step per
 literal occurrence. Each step asks one request (`Cslib.Complexity.SAT.searchStepProgram`), and its
 state is the list of literals fixed so far, as in `Cslib.Complexity.SAT.selfReduce`; the loop is
-certified by `Cslib.Probability.IsOraclePPTOn.iterateWith_spec'`, with every reachable state
+certified by `Cslib.Probability.IsOraclePPTOn.iterateWith_spec`, with every reachable state
 bounded through `Cslib.Complexity.SAT.length_encList_le_of_mem_vars`.
 
 ## Main definitions
@@ -191,13 +191,13 @@ private theorem isOraclePPTOn_searchStepProgram {prog : List Bool → WordQueryC
     ComputableInPolyTime.listAppend' (ComputableInPolyTime.fst _ _).snd'
       (ComputableInPolyTime.cons' ((hnext.comp (ComputableInPolyTime.fst _ _)).prod
         (ComputableInPolyTime.snd _ _)) (ComputableInPolyTime.const []))
-  have hyes := (hprog.preprocess' hrequest).map_with'
+  have hyes := (hprog.preprocess hrequest).map_with
     (f := fun pair b => pair.2 ++ [(pair.1.vars.getD pair.2.length 0, b)]) hpost
   have hno : IsOraclePPTOn (Operation := Unit)
       (encPair encCNF (encList (encPair encNat encBool))) (encList (encPair encNat encBool))
       (fun pair : CNF ℕ × List (Literal ℕ) => pure pair.2) :=
     (ComputableInPolyTime.snd _ _).isOraclePPTOn
-  refine (IsOraclePPTOn.ite' (condition := fun pair : CNF ℕ × List (Literal ℕ) =>
+  refine (IsOraclePPTOn.ite (condition := fun pair : CNF ℕ × List (Literal ℕ) =>
     pair.2.length < pair.1.vars.length) hcond hyes hno).congr fun pair State oracle s => ?_
   unfold searchStepProgram
   split_ifs <;> simp only [OracleComp.interpret_map, OracleComp.interpret_pure]
@@ -213,7 +213,7 @@ theorem computableInPolyTimeWithOracle_selfReduce (A : Set (List Bool)) :
     (ComputableInPolyTime.length_list _).comp computableInPolyTime_vars
   have hsize : PolyBounded (fun φ => (encCNF φ).length)
       (fun φ => (encUnary φ.vars.length).length * (4 * (encCNF φ).length + 5)) := by growth_poly
-  have hit := IsOraclePPTOn.iterateWith_spec' (input := encCNF)
+  have hit := IsOraclePPTOn.iterateWith_spec (input := encCNF)
     (stateEncoding := encList (encPair encNat encBool))
     (count := fun φ => φ.vars.length) (initial := fun _ => [])
     (step := fun φ answers => OracleComp.interpret ProbOracleComp.query

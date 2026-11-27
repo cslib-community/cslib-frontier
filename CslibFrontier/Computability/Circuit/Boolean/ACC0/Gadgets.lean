@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.ModGates
 public import CslibFrontier.Foundations.Data.BitString.Parity.DotProduct
 import Mathlib.Data.Finset.Sort
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Small AC⁰[2] circuits
@@ -95,6 +96,7 @@ gates compute. -/
   simp [andCircuit]
 
 /-- `andCircuit i j` has depth at most one. -/
+@[circuit_bound]
 theorem depth_andCircuit_le (i j : Fin n) : (andCircuit i j).depth ≤ 1 :=
   (depth_binCircuit_le _ _ _ _).trans (by simp)
 
@@ -116,8 +118,7 @@ variable {φ}
 @[simp] theorem eval_constsCircuit {I : Interpretation σ Bool} [φ.Preserves interpretation I]
     {m : ℕ} (z : BitString m) (x : BitString n) : (constsCircuit φ z).eval I x = z := by
   funext i
-  rw [constsCircuit, Circuit.eval_comp, Circuit.eval_wiring, Function.comp_apply,
-    Circuit.eval_append]
+  simp only [circuit_simps, constsCircuit]
   cases z i
   · exact (Fin.append_right _ _ (0 : Fin 1)).trans (eval_constCircuit _ _ _)
   · exact (Fin.append_left _ _ (0 : Fin 1)).trans (eval_constCircuit _ _ _)
@@ -128,12 +129,10 @@ variable {φ}
   simp [constsCircuit]
 
 /-- `constsCircuit φ z` has depth at most one. -/
+@[circuit_bound]
 theorem depth_constsCircuit_le {m : ℕ} (z : BitString m) :
     (constsCircuit (n := n) φ z).depth ≤ 1 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_wiring, zero_add]
-  exact (Circuit.depth_append_le _ _).trans
-    (max_le (depth_constCircuit_le _) (depth_constCircuit_le _))
+  circuit_bound [constsCircuit]
 
 end Consts
 
@@ -156,9 +155,8 @@ def innerProductCircuit (k : ℕ) : Circuit extSignature (k + k) 1 :=
   simp [innerProductCircuit]
 
 /-- `innerProductCircuit k` has depth at most two. -/
+@[circuit_bound]
 theorem depth_innerProductCircuit_le (k : ℕ) : (innerProductCircuit k).depth ≤ 2 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [depth_parityOnCircuit]
-  exact Nat.add_le_add_left (Circuit.depth_pi_le _ fun i => depth_andCircuit_le _ _) 1
+  circuit_bound [innerProductCircuit, depth_parityOnCircuit]
 
 end Cslib.Circuits.Boolean.Unbounded

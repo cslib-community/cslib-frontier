@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.MaxFlow.AugmentingPath
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -114,21 +115,15 @@ open scoped TimeM
     ✓
     foldlTickM step xs (step b x)
 
-@[simp]
+@[simp, time_simps]
 theorem foldlTickM_ret {α β : Type*} (step : β → α → β) (xs : List α) (b : β) :
     (foldlTickM step xs b).ret = xs.foldl step b := by
-  induction xs generalizing b with
-  | nil => rfl
-  | cons x xs ih => simp [foldlTickM, ih]
+  time_spec foldlTickM
 
-@[simp]
+@[simp, time_simps]
 theorem foldlTickM_time {α β : Type*} (step : β → α → β) (xs : List α) (b : β) :
     (foldlTickM step xs b).time = xs.length := by
-  induction xs generalizing b with
-  | nil => rfl
-  | cons x xs ih =>
-    simp only [foldlTickM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    omega
+  time_spec foldlTickM
 
 variable {m r : ℕ}
 
@@ -421,10 +416,11 @@ private theorem matchedLeft_foldl (mate : Vector (Option (Fin m)) r) (l : List (
 
 theorem hkMatchedLeftM_ret (mate : Vector (Option (Fin m)) r) (u : Fin m) :
     vget (hkMatchedLeftM mate).ret u = true ↔ u ∈ matchedLeft (mateMatching mate) := by
-  simp only [hkMatchedLeftM, TimeM.ret_bind, foldlTickM_ret, replicateM_ret]
+  simp only [hkMatchedLeftM, time_simps]
   rw [matchedLeft_foldl]
   simp
 
+@[time_simps]
 theorem hkMatchedLeftM_time (mate : Vector (Option (Fin m)) r) :
     (hkMatchedLeftM mate).time = m + r := by
   simp [hkMatchedLeftM, replicateM_time]
@@ -661,23 +657,17 @@ section BfsSpec
 
 variable {G : Fin m × Fin r → Bool} {adj : Fin m → List (Fin r)} {mate : Vector (Option (Fin m)) r}
 
+@[time_simps]
 theorem hkBfsLayerM_ret (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
     (mate : Vector (Option (Fin m)) r) (j : ℕ) (us : List (Fin m)) (s : HKBfsState m) :
     (hkBfsLayerM G adj mate j us s).ret =
       us.foldl (fun s u => (adj u).foldl (hkBfsStep G mate j u) s) s := by
-  induction us generalizing s with
-  | nil => rfl
-  | cons u us ih => simp [hkBfsLayerM, ih]
+  time_spec hkBfsLayerM
 
 theorem hkBfsLayerM_time (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
     (mate : Vector (Option (Fin m)) r) (j : ℕ) (us : List (Fin m)) (s : HKBfsState m) :
     (hkBfsLayerM G adj mate j us s).time = (us.map fun u => (adj u).length + 1).sum := by
-  induction us generalizing s with
-  | nil => rfl
-  | cons u us ih =>
-    simp only [hkBfsLayerM, TimeM.time_bind, TimeM.time_tick, foldlTickM_time, ih,
-      List.map_cons, List.sum_cons]
-    omega
+  time_spec hkBfsLayerM
 
 private theorem layerFold_inv {j : ℕ} (us : List (Fin m))
     (hus : ∀ u ∈ us, u ∈ altLeft G (mateMatching mate) j) {s : HKBfsState m}
@@ -831,7 +821,7 @@ private theorem hkBfsLoopM_spec (hadj : BipAdjValid G adj) (fuel : ℕ) {j : ℕ
 
 theorem hkBfsM_spec (hadj : BipAdjValid G adj) :
     HKBfsSpec G (mateMatching mate) (hkBfsM G adj mate).ret := by
-  simp only [hkBfsM, TimeM.ret_bind, foldlTickM_ret, replicateM_ret]
+  simp only [hkBfsM, time_simps]
   set ml := (hkMatchedLeftM mate).ret
   set p := (List.finRange m).foldl (hkBfsInitStep ml) (Vector.replicate m none, [])
   obtain ⟨h1, h2⟩ := bfsInit_foldl ml (List.finRange m) (Vector.replicate m none, [])
@@ -920,7 +910,7 @@ private theorem hkBfsLoopM_time_le (fuel j : ℕ) (dist : Vector (Option ℕ) m)
     have hpot := layerFold_potential (G := G) (mate := mate) (adj := adj) j frontier
       ⟨dist, [], false⟩
     simp only [List.map_nil, List.sum_nil, Nat.add_zero] at hpot
-    simp only [hkBfsLoopM, TimeM.time_bind, TimeM.time_tick, hlayer, hkBfsLayerM_ret]
+    simp only [hkBfsLoopM, time_simps, hlayer]
     set s := frontier.foldl (fun s u => (adj u).foldl (hkBfsStep G mate j u) s)
       (⟨dist, [], false⟩ : HKBfsState m)
     split_ifs
@@ -938,8 +928,7 @@ private theorem sum_hkBfsCost (adj : Fin m → List (Fin r)) :
 theorem hkBfsM_time_le (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
     (mate : Vector (Option (Fin m)) r) :
     (hkBfsM G adj mate).time ≤ 6 * m + r + 1 + 2 * bipAdjSteps adj := by
-  simp only [hkBfsM, TimeM.time_bind, hkMatchedLeftM_time, replicateM_time, foldlTickM_time,
-    List.length_finRange, foldlTickM_ret, replicateM_ret]
+  simp only [hkBfsM, time_simps, List.length_finRange]
   have hinit := bfsInit_potential (hkMatchedLeftM mate).ret (hkBfsCost adj) (List.finRange m)
     (Vector.replicate m none, [])
   set p := (List.finRange m).foldl (hkBfsInitStep (hkMatchedLeftM mate).ret)
@@ -1536,8 +1525,7 @@ private theorem hkDfsRootsM_time_le (k : ℕ) (us : List (Fin m)) :
   | nil => intro vis acc; simp [hkDfsRootsM]
   | cons u us ih =>
     intro vis acc
-    simp only [hkDfsRootsM, TimeM.time_bind, TimeM.time_tick, List.length_cons, List.map_cons,
-      List.sum_cons]
+    simp only [hkDfsRootsM, time_simps]
     split_ifs
     · simp only [TimeM.time_bind]
       have h1 := hkDfsM_time_le (G := G) (adj := adj) (mate := mate) (dist := dist) k 0 u vis acc
@@ -1589,15 +1577,14 @@ theorem hkPhaseM_spec (hadj : BipAdjValid G adj) (hM : IsMatching G (mateMatchin
       mateMatching (hkPhaseM G adj mate dist k).ret = augment (mateMatching mate) N := by
   obtain ⟨hfam, hmax⟩ := hkDfsRootsM_maximal (dist := dist) hadj hM hex
   refine ⟨_, hmax, ?_⟩
-  simp only [hkPhaseM, TimeM.ret_bind, replicateM_ret, hkApplyEdgesM, foldlTickM_ret]
+  simp only [hkPhaseM, time_simps, hkApplyEdgesM]
   exact mateMatching_applyEdges mate _ (hfam.nodup_right hM) hmax.compat
 
 theorem hkPhaseM_time_le (hadj : BipAdjValid G adj) (hM : IsMatching G (mateMatching mate))
     (hex : ∀ u i, i ≤ k → (vget dist u = some i ↔ IsLayer G (mateMatching mate) u i)) :
     (hkPhaseM G adj mate dist k).time ≤ 2 * r + m + 2 * bipAdjSteps adj := by
   obtain ⟨hfam, -⟩ := hkDfsRootsM_maximal (dist := dist) hadj hM hex
-  simp only [hkPhaseM, TimeM.time_bind, replicateM_time, replicateM_ret, hkApplyEdgesM,
-    foldlTickM_time]
+  simp only [hkPhaseM, time_simps, hkApplyEdgesM]
   have h1 := hkDfsRootsM_time_le (G := G) (adj := adj) (mate := mate) (dist := dist) k
     (List.finRange m) (Vector.replicate r false) []
   have h2 := vecPotential_replicate_le (G := G) (adj := adj) (mate := mate) hM
@@ -1642,11 +1629,11 @@ private theorem hkLoopM_spec (hadj : BipAdjValid G adj) {C : ℕ}
     intro n mate hM hfuel
     have hb := hkBfsM_spec (G := G) (adj := adj) (mate := mate) hadj
     have hbt := hkBfsM_time_le G adj mate
-    simp only [hkLoopM, TimeM.ret_bind, TimeM.time_bind]
+    simp only [hkLoopM, time_simps]
     set b := (hkBfsM G adj mate).ret with hbdef
     by_cases hf : b.found = true
     · rw [ite_eq_left hf]
-      simp only [TimeM.ret_bind, TimeM.time_bind]
+      simp only [time_simps]
       have hex := hb.exact
       obtain ⟨N, hN, hmate'⟩ := hkPhaseM_spec (dist := b.dist) hadj hM hex
       have hpt := hkPhaseM_time_le (dist := b.dist) (k := b.k) hadj hM hex
@@ -1676,7 +1663,7 @@ private theorem hkLoopM_spec (hadj : BipAdjValid G adj) {C : ℕ}
         omega
     · have hf' : b.found = false := by simpa using hf
       rw [ite_eq_right hf]
-      simp only [TimeM.ret_pure, TimeM.time_pure]
+      simp only [time_simps]
       obtain ⟨hstable, hsub, hdist⟩ := hb.found_false hf'
       refine ⟨⟨hM, le_rfl, Nat.sub_self n ▸ .done, b.k, hstable, hsub, hdist⟩, ?_⟩
       simp only [Nat.sub_self, Nat.zero_add, Nat.one_mul]
@@ -1758,7 +1745,7 @@ theorem hopcroftKarpM_correct (hadj : BipAdjValid G adj) :
       (hopcroftKarpM G adj).ret.matching.card = (hopcroftKarpM G adj).ret.cover.size ∧
       (hopcroftKarpM G adj).ret.phases ≤ 2 * Nat.sqrt (hopcroftKarpM G adj).ret.matching.card := by
   obtain ⟨hpost, -⟩ := hkLoop_start (G := G) hadj
-  simp only [hopcroftKarpM, TimeM.ret_bind, replicateM_ret, foldlTickM_ret, TimeM.ret_pure]
+  simp only [hopcroftKarpM, time_simps]
   set st := (hkLoopM G adj (m + 1) 0 (Vector.replicate r none)).ret
   obtain ⟨k, hstable, hsub, hdist⟩ := hpost.closed
   have hM := hpost.isMatching
@@ -1809,8 +1796,7 @@ theorem hopcroftKarpM_time_le (hadj : BipAdjValid G adj) :
     simp [hopcroftKarpM, replicateM_ret]
   rw [hphase] at hph
   generalize (hopcroftKarpM G adj).ret.matching.card = ν at hph ⊢
-  simp only [hopcroftKarpM, TimeM.time_bind, replicateM_time, replicateM_ret, foldlTickM_time,
-    List.length_finRange, TimeM.time_pure]
+  simp only [hopcroftKarpM, time_simps, List.length_finRange]
   have := Nat.mul_le_mul_right (7 * m + 3 * r + 1 + 4 * bipAdjSteps adj)
     (show (hkLoopM G adj (m + 1) 0 (Vector.replicate r none)).ret.phases - 0 + 1 ≤
       2 * Nat.sqrt ν + 1 by omega)
@@ -1870,14 +1856,14 @@ variable {n : ℕ} {G : Fin n × Fin n → Bool} {adj : Fin n → List (Fin n)}
 theorem decidePerfectMatchingHKM_eq_true_iff (hadj : BipAdjValid G adj) :
     (decidePerfectMatchingHKM G adj).ret = true ↔
       Cslib.Circuits.BipartiteMatching.HasPerfectMatching G := by
-  simp only [decidePerfectMatchingHKM, TimeM.ret_bind, TimeM.ret_pure, decide_eq_true_iff]
+  simp only [decidePerfectMatchingHKM, time_simps, decide_eq_true_iff]
   rw [card_hopcroftKarpM_matching hadj, ← decidePerfectMatchingM_eq_true_iff]
   simp [decidePerfectMatchingM]
 
 theorem decidePerfectMatchingHKM_time_le (hadj : BipAdjValid G adj) :
     (decidePerfectMatchingHKM G adj).time ≤
       (2 * Nat.sqrt n + 1) * (10 * n + 1 + 4 * bipAdjSteps adj) + 4 * n + 1 := by
-  simp only [decidePerfectMatchingHKM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+  simp only [decidePerfectMatchingHKM, time_simps]
   have h := hopcroftKarpM_time_le_sqrt_min hadj
   rw [Nat.min_self] at h
   have : 7 * n + 3 * n + 1 + 4 * bipAdjSteps adj = 10 * n + 1 + 4 * bipAdjSteps adj := by omega

@@ -400,7 +400,7 @@ private theorem count_incidenceLabelsList_eq_occupancy {r : ℕ} (hr : 1 ≤ r) 
       occupancy (incidenceLabel (scopeVarOf (listScopeFamily n_free scopes))
         (scopeFactorOf (listScopeFamily n_free scopes)) (varAssignOfList hr n_free Q schedVar)
         (factorAssignOfList hr n_free Q scopes schedScope)) u := by
-  rw [incidenceLabelsList_eq_ofFn hr, List.count_eq_countP, List.countP_ofFn]
+  rw [incidenceLabelsList_eq_ofFn hr, List.count_eq_countP, List.countP_ofFn, Finset.card_filter]
   unfold occupancy; rw [Fintype.card_subtype, Finset.card_filter,
     ← Equiv.sum_comp (scopeIncidenceEquivFin n_free scopes).symm]
   refine Finset.sum_congr rfl fun i _ => ?_

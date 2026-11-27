@@ -34,7 +34,7 @@ current distribution (`bestResponse`). After `T ≥ 4 ln n / ε ^ 2` rounds, wit
   to `v`.
 
 This is an algorithmic minimax theorem. The last inequality shows `min_p max_j ≤ max_q min_i + ε`
-for every `ε > 0` without Sion's theorem, and it gives an explicit approximate form of
+for every `ε > 0` without the exact minimax theorem, and it gives an explicit approximate form of
 `Convexity.StdSimplex.exists_forall_sum_le_of_forall_exists_sum_le`
 (`sum_averageProb_mul_le_add_of_forall_exists_sum_le`). The value `v` is that of the exact minimax
 theorem (`Cslib.Probability.IsMinimaxValue`, `Cslib.Probability.exists_isMinimaxValue`).

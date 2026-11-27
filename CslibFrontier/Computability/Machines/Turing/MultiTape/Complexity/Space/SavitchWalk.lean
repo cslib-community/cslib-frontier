@@ -193,7 +193,7 @@ private theorem twoPow_inSpace :
 /-- **The binary counter**, in linear space. -/
 private theorem increment_inSpace :
     ComputableInSpace BitString.increment encBits encBits fun m => (encBits m).length :=
-  of_inO ComputableTidilyInDegree.increment.inO_one.computableInO
+  of_inO ComputableInDegree.increment.inO_one
 
 /-- The identity, in linear space. -/
 private theorem id_inSpace {α : Type} {enc : α ↪ List Bool} :

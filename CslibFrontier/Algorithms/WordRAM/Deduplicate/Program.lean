@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Count
 import CslibFrontier.Computability.WordRAM.MemoryView
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native adjacent deduplication and multiplicity arrays
@@ -139,32 +140,13 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
       hstop (by simpa only [y₀, Data.set_mem] using hrun)
       (by simpa only [y₀, Data.set_mem] using hnext) (hfit.of_le (by omega))
     have huc' : u.regs count = c := by simpa using huc
-    have hur (j : Fin 16) (hj : Count.code.Preserves j) : u.regs j = y₀.regs j := hu.regs_eq hj
-    have hun : u.regs len = n := by
-      simpa +decide [y₀]
-        using (hur len (by decide)).trans
-          (by simpa +decide [y₀] using hyn)
-    have hus : u.regs src = s := by
-      simpa +decide [y₀]
-        using (hur src (by decide)).trans
-          (by simpa +decide [y₀] using hys)
-    have huk : u.regs keys = base := by
-      simpa +decide [y₀]
-        using (hur keys (by decide)).trans
-          (by simpa +decide [y₀] using hyk)
-    have hucb : u.regs counts = base + n := by
-      simpa +decide [y₀]
-        using (hur counts (by decide)).trans
-          (by simpa +decide [y₀] using hyc)
-    have huo : u.regs one = 1 := by
-      simpa +decide [y₀]
-        using (hur one (by decide)).trans
-          (by simpa +decide [y₀] using hyo)
-    have huout : u.regs out = rs.length := by
-      simpa +decide [y₀]
-        using (hur out (by decide)).trans
-          (by simpa +decide [y₀] using hyout)
-    have hukey : u.regs key = xs[y.regs idx] := by simpa +decide [y₀] using hur key (by decide)
+    have hun : u.regs len = n := by regs_frame
+    have hus : u.regs src = s := by regs_frame
+    have huk : u.regs keys = base := by regs_frame
+    have hucb : u.regs counts = base + n := by regs_frame
+    have huo : u.regs one = 1 := by regs_frame
+    have huout : u.regs out = rs.length := by regs_frame
+    have hukey : u.regs key = xs[y.regs idx] := by regs_frame
     have hrl : rs.length ≤ y.regs idx := by
       have hh := length_le_expand hrs.positive
       rw [hrs.reconstruct, List.length_take_of_le hiy] at hh
@@ -176,7 +158,7 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
     have hzmem : z.mem = Function.update
         (Function.update y.mem (base + rs.length) xs[y.regs idx]) (base + n + rs.length) c := by
       simpa only [huk, hucb, huout, hukey, huc', hum, y₀, Data.set_mem] using hzm
-    have hzi : z.regs idx = y.regs idx + c := (hz.regs_eq (by decide)).trans hui
+    have hzi : z.regs idx = y.regs idx + c := by regs_frame
     have hzf : Modifies (Block.mk base (2 * n)).footprint y.mem z.mem := by
       intro a hnot
       have ha : ¬(base ≤ a ∧ a < base + 2 * n) := by
@@ -220,9 +202,8 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
     refine ⟨z, 8 * c + 19, ?_, ?_, ?_⟩
     · have hall := hinit.seq (hu.seq hz)
       exact hall.mono (by omega)
-    · refine ⟨(hz.regs_eq (by decide)).trans hun, (hz.regs_eq (by decide)).trans hus,
-        (hz.regs_eq (by decide)).trans huk, (hz.regs_eq (by decide)).trans hucb,
-        (hz.regs_eq (by decide)).trans huo, by omega, ?_, ?_,
+    · refine ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+        by regs_frame, by omega, ?_, ?_,
         rs ++ [(xs[y.regs idx], c)], by simpa only [hzi] using hrs', ?_, hkeyrep, hcountrep, ?_⟩
       · ram_keep hym using hzf
       · intro a ha

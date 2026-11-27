@@ -246,7 +246,6 @@ theorem dens_filter_forall_walkAt_mem_le [Nonempty D] {B : ℕ → Finset V} {μ
   have hμ : 0 ≤ μ := (by positivity : (0 : ℝ) ≤ dens (B 0)).trans (hB 0)
   have hc : 0 ≤ c := by
     have := G.spectralExpansion_le_one
-    have := G.spectralExpansion_nonneg
     positivity
   set h : ℕ → V → ℝ := fun i v => if v ∈ B i then 1 else 0
   have hprob : (dens {p : V × (Fin t → D) | ∀ i ≤ t, G.walkAt p i ∈ B i} : ℝ) =

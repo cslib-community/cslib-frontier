@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ClauseNetworkPolyTime
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.FastLeaves
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.ContractionCall
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Logics.Propositional.CNF.ModelCount.Declared

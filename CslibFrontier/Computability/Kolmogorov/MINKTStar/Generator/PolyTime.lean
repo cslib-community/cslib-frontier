@@ -101,13 +101,7 @@ theorem GenWitness.computableInPolyTime_sizeBound (Δ : ℕ) {I : α → CMMSAIn
     (hI : ComputableInPolyTime I input CMMSAInstance.encoding)
     (hlam : ComputableInPolyTime lam input encUnary) :
     ComputableInPolyTime (fun a => GenWitness.sizeBound Δ (I a) (lam a)) input encUnary := by
-  unfold GenWitness.sizeBound
-  exact ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_add'
-    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const _)
-      ((ComputableInPolyTime.encoding_length _).comp hI)) (ComputableInPolyTime.const 3))
-    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.unary_add'
-      (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 4)
-        (CMMSAInstance.isPolyTime_threshold hI)) (ComputableInPolyTime.const 2)) hlam)
+  fun_prop [GenWitness.sizeBound]
 
 /-- **The `MINKT*` instance of the CMMSA table** for the functions `f`: the partial truth table of
 the CMMSA construction, in the order of `BitString.equivFin`, with step budget `t` and size

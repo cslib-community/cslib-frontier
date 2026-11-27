@@ -198,7 +198,7 @@ theorem trailerWire_inSpace (suffix : List Bool) {w : α → ℕ}
     (hw : ComputableInSpace w encIn encNat Bs) :
     ComputableInSpace (fun x => [true, false] ++
       doubled (Turing.MultiTapeTM.frame (encNat (w x))) ++ suffix) encIn encBits Bs := by
-  have hmid := budget_comp_linear doubled_inSpace
+  have hmid := budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
     (budget_comp_linear (ComputableInSpace.frame encNat) hw)
   have h₁ := (budget_const (encB := encBits) [true, false] hin).append hmid
     (g := fun x => [true, false] ++ doubled (Turing.MultiTapeTM.frame (encNat (w x))))
@@ -210,9 +210,10 @@ theorem trailerWire_inSpace (suffix : List Bool) {w : α → ℕ}
 private theorem gateChunk_inSpace {n i : α → ℕ} (hn : ComputableInSpace n encIn encNat Bs)
     (hi : ComputableInSpace i encIn encNat Bs) :
     ComputableInSpace (fun x => gateChunk tm C d (n x) (i x)) encIn encBits Bs :=
-  (budget_comp_linear doubled_inSpace (budget_comp_linear doubled_inSpace
-    (budget_comp_linear (ComputableInSpace.frame encGate)
-      (gateCode_inSpace tm hn (timeBound_inSpace C d hin hn) hin hi)))).of_enc_eq fun _ => rfl
+  (budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
+    (budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
+      (budget_comp_linear (ComputableInSpace.frame encGate)
+        (gateCode_inSpace tm hn (timeBound_inSpace C d hin hn) hin hi)))).of_enc_eq fun _ => rfl
 
 omit [DecidableEq State] in
 private theorem trailer_inSpace {n : α → ℕ} (hn : ComputableInSpace n encIn encNat Bs) :
@@ -344,14 +345,8 @@ theorem logSpaceComplete : LogSpaceComplete @P encCircuitValue CircuitValue :=
 /-- **The circuit value problem is in `L` exactly when `P = L`**, for every encoding of instances
 [Arora and Barak, Section 6.7][AroraBarak09]. -/
 theorem mem_L_iff_forall_P_eq_L :
-    CircuitValue ∈ L encCircuitValue ↔ ∀ {α : Type} (enc : α ↪ List Bool), P enc = L enc := by
-  constructor
-  · intro h α enc
-    ext A
-    exact ⟨fun hA => (logSpaceReducible_of_mem_P hA).mem_L h, fun hA => L_subset_P hA⟩
-  · intro h
-    rw [← h]
-    exact mem_P
+    CircuitValue ∈ L encCircuitValue ↔ ∀ {α : Type} (enc : α ↪ List Bool), P enc = L enc :=
+  logSpaceComplete.mem_L_iff fun _ => L_subset_P
 
 end CircuitValue
 

@@ -102,6 +102,14 @@ theorem prod_filter_mem_eq_prod_filter_notMem {M : Type*} [CommMonoid M] [Fintyp
 
 end Finset
 
+/-- The uniform average of square roots is bounded by the square root of the average. -/
+theorem Fintype.expect_sqrt_le_sqrt_expect {ι : Type*} [Fintype ι]
+    (f : ι → ℝ) (hf : ∀ i, 0 ≤ f i) : (𝔼 i, √(f i)) ≤ √(𝔼 i, f i) := by
+  apply Real.le_sqrt_of_sq_le
+  simpa only [Real.sq_sqrt (hf _)] using Finset.sq_expect_le_expect_sq Finset.univ
+    (fun i => √(f i))
+
+
 namespace Real
 
 open Finset
@@ -111,6 +119,19 @@ theorem expect_mul_le_sqrt_mul_sqrt {ι : Type*} (s : Finset ι) (f g : ι → �
     𝔼 i ∈ s, f i * g i ≤ √(𝔼 i ∈ s, f i ^ 2) * √(𝔼 i ∈ s, g i ^ 2) := by
   rw [← Real.sqrt_mul (expect_nonneg fun i _ ↦ sq_nonneg (f i))]
   exact Real.le_sqrt_of_sq_le (expect_mul_sq_le_sq_mul_sq _ _ _)
+
+/-- An average is at most the square root of any bound on the average of the squares. -/
+theorem expect_le_sqrt_of_expect_sq_le {ι : Type*} (s : Finset ι) {f : ι → ℝ} {η : ℝ}
+    (h : 𝔼 i ∈ s, f i ^ 2 ≤ η) : 𝔼 i ∈ s, f i ≤ √η :=
+  Real.le_sqrt_of_sq_le ((sq_expect_le_expect_sq s f).trans h)
+
+/-- A double average is at most the square root of any bound on the double average of the
+squares. -/
+theorem expect_expect_le_sqrt_of_expect_expect_sq_le {ι κ : Type*} (s : Finset ι) (t : Finset κ)
+    {f : ι → κ → ℝ} {η : ℝ} (h : 𝔼 i ∈ s, 𝔼 j ∈ t, f i j ^ 2 ≤ η) :
+    𝔼 i ∈ s, 𝔼 j ∈ t, f i j ≤ √η :=
+  expect_le_sqrt_of_expect_sq_le s
+    ((expect_le_expect fun i _ => sq_expect_le_expect_sq t (f i)).trans h)
 
 end Real
 
@@ -161,6 +182,14 @@ theorem expect_expect_update [DecidableEq ι] [Nonempty α] (F : (ι → α) →
         (Fintype.expect_prod_type (fun p : (ι → α) × α ↦ F (e p).1)).symm
     _ = 𝔼 p : (ι → α) × α, F p.1 := Fintype.expect_equiv e _ _ fun _ ↦ rfl
     _ = 𝔼 s, F s := Fintype.expect_comp_fst F
+
+/-- Two distinct coordinates of a uniform function are independent uniform samples. -/
+theorem expect_apply_pair [DecidableEq ι] [Nonempty α] (F : α → α → M) {i j : ι}
+    (hij : i ≠ j) : (𝔼 x : ι → α, F (x i) (x j)) = 𝔼 a : α, 𝔼 b : α, F a b := by
+  rw [← expect_expect_update (fun x : ι → α => F (x i) (x j)) j]
+  simp only [Function.update_of_ne hij, Function.update_self]
+  rw [← expect_expect_update (fun x : ι → α => 𝔼 b : α, F (x i) b) i]
+  simp only [Function.update_self, expect_const]
 
 /-- Renaming the coordinates preserves uniform averages over function types. -/
 theorem expect_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq ι] [DecidableEq κ]
@@ -344,6 +373,21 @@ theorem expect_add_sq_le {X Y : ι → 𝕜} {a b α β A : 𝕜} (ha : 0 ≤ a)
 end LinearOrderedField
 
 end Fintype
+
+/-- Averaging over a tuple is equivalent to averaging over its initial tuple and last entry. -/
+theorem Fintype.expect_fin_snoc {α M : Type*} [Fintype α] [AddCommMonoid M] [Module ℚ≥0 M]
+    {n : ℕ} (f : (Fin (n + 1) → α) → M) :
+    (𝔼 u : Fin n → α, 𝔼 t : α, f (Fin.snoc u t)) = 𝔼 v, f v := by
+  rw [Finset.expect_comm Finset.univ Finset.univ,
+    ← Fintype.expect_prod_type (fun p : α × (Fin n → α) => f (Fin.snoc p.2 p.1))]
+  exact Fintype.expect_equiv (Fin.snocEquiv (fun _ : Fin (n + 1) => α)) _ _ fun _ => rfl
+
+/-- Split a uniform tuple into its last coordinate followed by its initial tuple. -/
+theorem Fintype.expect_eq_expect_snoc {α M : Type*} [Fintype α] [AddCommMonoid M]
+    [Module ℚ≥0 M] {n : ℕ} (f : (Fin (n + 1) → α) → M) :
+    (𝔼 v, f v) = 𝔼 x : α, 𝔼 u : Fin n → α, f (Fin.snoc u x) := by
+  rw [Finset.expect_comm Finset.univ Finset.univ]
+  exact (Fintype.expect_fin_snoc f).symm
 
 namespace Fin
 

@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.ListSlice
 import Mathlib.Data.List.Induction
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Native decoding of runtime-width Boolean block labels
@@ -414,9 +415,7 @@ theorem toView_payload (e : Q ≃ Fin s) (b : ℕ) [NeZero b]
     intro i
     simp only [fstBits_apply, Fin.tail]
     apply congrArg bits
-    apply Fin.ext
-    simp only [Fin.val_succ, Fin.val_castAdd]
-    omega
+    fin_index
   have hheads (head : Option (Fin k)) :
       readNat (List.ofFn bits)
         (1 + (s + 1).size + ((finSuccEquiv k).symm head).val * b.size) b.size =

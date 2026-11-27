@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptotics
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -177,21 +178,19 @@ def rightHalf (n : ℕ) (b : Fin (n / 2)) : Fin n :=
   ⟨n / 2 + b, by omega⟩
 
 /-- The embedding `leftHalf n` of the first `⌊n/2⌋` coordinates into `Fin n` is injective. -/
-theorem leftHalf_injective (n : ℕ) : Function.Injective (leftHalf n) :=
-  fun a b h => Fin.ext (by simpa [leftHalf] using congrArg Fin.val h)
+theorem leftHalf_injective (n : ℕ) : Function.Injective (leftHalf n) := by
+  fin_index [leftHalf]
 
 /-- The embedding `rightHalf n` of the second `⌊n/2⌋` coordinates into `Fin n` is injective. -/
-theorem rightHalf_injective (n : ℕ) : Function.Injective (rightHalf n) :=
-  fun a b h => Fin.ext (by simpa [rightHalf] using congrArg Fin.val h)
+theorem rightHalf_injective (n : ℕ) : Function.Injective (rightHalf n) := by
+  fin_index [rightHalf]
 
 /-- The two halves are disjoint. -/
 private theorem disjoint_range_leftHalf_rightHalf (n : ℕ) :
     Disjoint (range (leftHalf n)) (range (rightHalf n)) := by
   rw [Set.disjoint_left]
   rintro _ ⟨a, rfl⟩ ⟨b, hb⟩
-  have := congrArg Fin.val hb
-  simp only [leftHalf, rightHalf] at this
-  omega
+  fin_index [leftHalf, rightHalf]
 
 /-- A fixed submatrix-robust `k × k` matrix over `𝔽₂` with deficiency `2 ⌊√k⌋ + 1`, chosen once
 and for all by `Classical.choose` from `Matrix.exists_submatrixRobust`. -/

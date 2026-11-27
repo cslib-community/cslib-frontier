@@ -141,10 +141,10 @@ theorem _root_.Cslib.Probability.IsOraclePPTOn.sequentialRepeat_count
   simp only [sequentialRepeat_eq_iterate]
   have hstep : IsOraclePPTOn (encPair input encBool) encBool
       (fun pair : α × Bool => if pair.2 then round pair.1 else pure false) :=
-    IsOraclePPTOn.cond' (ComputableInPolyTime.snd input encBool)
-      (h.preprocess' (ComputableInPolyTime.fst input encBool))
+    IsOraclePPTOn.cond (ComputableInPolyTime.snd input encBool)
+      (h.preprocess (ComputableInPolyTime.fst input encBool))
       (ComputableInPolyTime.const false).isOraclePPTOn
-  exact (IsOraclePPTOn.iterateWith_spec' (stateEncoding := encBool)
+  exact (IsOraclePPTOn.iterateWith_spec (stateEncoding := encBool)
     (step := fun a ok => if ok then round a else pure false)
     hk (ComputableInPolyTime.const true) hstep
     (fun _ _ _ => True) (fun _ => trivial) (fun _ _ _ _ _ _ _ => trivial)

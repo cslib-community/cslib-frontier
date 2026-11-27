@@ -65,6 +65,10 @@ quantifier duality (`Cslib.Complexity.compl_mem_PiP_of_mem_SigmaP`) then give
   soundness of shifted majority votes.
 * `Cslib.Complexity.SipserLautemann.verifier_polyTime`: the matrix verifier is computable in
   polynomial time.
+* `Cslib.Complexity.SipserLautemann.alternation_verifier_of_accepts`,
+  `Cslib.Complexity.SipserLautemann.not_alternation_verifier_of_rejects`: quantified-word
+  acceptance and rejection from a two-thirds trial bound at a single input, without a global
+  bounded-error assumption.
 * `Cslib.Complexity.SipserLautemann.isAlternatingVerifier_verifier`: the matrix verifier is a valid
   `Σ₂` alternating verifier for any `BPP` problem.
 * `Cslib.Complexity.BPP_subset_SigmaP_two`: `BPP enc ⊆ SigmaP 2 enc`.
@@ -426,6 +430,40 @@ theorem verifier_append_iff {enc : α ↪ List Bool} {p : Polynomial ℕ}
   · rintro ⟨i, hacc⟩
     exact ⟨i.1, i.2, (shiftAccepts_append_iff hu i).2 hacc⟩
 
+/-- On an input where at least two thirds of the trial seeds accept, the Sipser–Lautemann
+quantified-word verifier accepts. This only assumes the probability bound at this input;
+other inputs need not have a bounded-error gap. -/
+theorem alternation_verifier_of_accepts {enc : α ↪ List Bool} {p : Polynomial ℕ}
+    {V : α × List Bool → Bool} {a : α}
+    (ha : 2 * 2 ^ p.eval (enc a).length ≤
+      3 * #{s : BitString (p.eval (enc a).length) | V (a, List.ofFn s) = true}) :
+    Alternation true ([witnessPoly p, seedPoly p].map fun q => q.eval (enc a).length)
+      (fun w => verifier enc p V (a, w) = true) := by
+  obtain ⟨tests, hcover⟩ := exists_shifts_majorityAccepts ha
+  simp only [List.map_cons, List.map_nil, eval_witnessPoly, eval_seedPoly,
+    alternation_true_cons, alternation_false_cons, alternation_nil, List.append_nil]
+  refine ⟨shiftsToList tests, length_shiftsToList tests, fun r _ => ?_⟩
+  rw [verifier_append_iff (length_shiftsToList tests), listToShifts_shiftsToList]
+  exact hcover (listToSeed _ r)
+
+/-- On an input where at least two thirds of the trial seeds reject, the Sipser–Lautemann
+quantified-word verifier rejects. This only assumes the probability bound at this input;
+other inputs need not have a bounded-error gap. -/
+theorem not_alternation_verifier_of_rejects {enc : α ↪ List Bool} {p : Polynomial ℕ}
+    {V : α × List Bool → Bool} {a : α}
+    (ha : 2 * 2 ^ p.eval (enc a).length ≤
+      3 * #{s : BitString (p.eval (enc a).length) | V (a, List.ofFn s) = false}) :
+    ¬ Alternation true ([witnessPoly p, seedPoly p].map fun q => q.eval (enc a).length)
+      (fun w => verifier enc p V (a, w) = true) := by
+  simp only [List.map_cons, List.map_nil, eval_witnessPoly, eval_seedPoly,
+    alternation_true_cons, alternation_false_cons, alternation_nil, List.append_nil]
+  rintro ⟨u, hu, hforall⟩
+  obtain ⟨ω, hω⟩ := exists_seed_not_majorityAccepts ha (listToShifts _ u)
+  have hacc := hforall (seedToList ω) (length_seedToList ω)
+  rw [verifier_append_iff hu, listToSeed_seedToList] at hacc
+  obtain ⟨i, hi⟩ := hacc
+  exact hω i hi
+
 /-- If `V` decides `A` with bounded error using seed polynomial `p`, then `verifier enc p V` is a
 valid `Σ₂` alternating verifier for `A` with quantifier block lengths
 `[witnessPoly p, seedPoly p]`. -/
@@ -433,22 +471,11 @@ theorem isAlternatingVerifier_verifier {enc : α ↪ List Bool} {p : Polynomial 
     {V : α × List Bool → Bool} {A : Set α} (hA : DecidesWithBoundedError enc p V A) :
     IsAlternatingVerifier enc true [witnessPoly p, seedPoly p] (verifier enc p V) A := by
   intro a
-  set m := p.eval (enc a).length
-  simp only [List.map_cons, List.map_nil, eval_witnessPoly, eval_seedPoly,
-    alternation_true_cons, alternation_false_cons, alternation_nil, List.append_nil]
   constructor
-  · intro ha
-    obtain ⟨tests, hcover⟩ := exists_shifts_majorityAccepts ((hA a).1 ha)
-    refine ⟨shiftsToList tests, length_shiftsToList tests, fun r _ => ?_⟩
-    rw [verifier_append_iff (length_shiftsToList tests), listToShifts_shiftsToList]
-    exact hcover (listToSeed m r)
-  · rintro ⟨u, hu, hforall⟩
+  · exact fun ha => alternation_verifier_of_accepts ((hA a).1 ha)
+  · intro hacc
     by_contra hna
-    obtain ⟨ω, hω⟩ := exists_seed_not_majorityAccepts ((hA a).2 hna) (listToShifts m u)
-    have hacc := hforall (seedToList ω) (length_seedToList ω)
-    rw [verifier_append_iff hu, listToSeed_seedToList] at hacc
-    obtain ⟨i, hi⟩ := hacc
-    exact hω i hi
+    exact not_alternation_verifier_of_rejects ((hA a).2 hna) hacc
 
 end SipserLautemann
 
@@ -468,8 +495,8 @@ theorem BPP_subset_SigmaP_two : BPP enc ⊆ SigmaP 2 enc := by
 
 /-- **The Sipser–Gács–Lautemann theorem (`Π₂` form)**: every problem in `BPP` lies in `Π₂`,
 obtained from `BPP_subset_SigmaP_two` by complement closure of `BPP` and quantifier duality. -/
-theorem BPP_subset_PiP_two : BPP enc ⊆ PiP 2 enc := fun A hA => by
-  simpa using compl_mem_PiP_of_mem_SigmaP (BPP_subset_SigmaP_two (compl_mem_BPP hA))
+theorem BPP_subset_PiP_two : BPP enc ⊆ PiP 2 enc := fun _ hA =>
+  compl_mem_SigmaP_iff.mp (BPP_subset_SigmaP_two (compl_mem_BPP hA))
 
 /-- **The Sipser–Gács–Lautemann theorem**: `BPP ⊆ Σ₂ ∩ Π₂` [Sipser][Sipser1983],
 [Lautemann][Lautemann1983], [Arora and Barak, Theorem 7.15][AroraBarak09]. -/

@@ -117,7 +117,7 @@ theorem relative_bound {scale : ℝ} (hs : 0 < scale)
         C * prefixErrorBudget ε m := by
   let T := HP.toHierarchyParams.atomCap
   let R := 2 * HP.Q T ^ (4⁻¹ : ℝ)
-  have hR : 0 ≤ R := mul_nonneg (by norm_num) (Real.rpow_nonneg (HP.Q_nonneg _) _)
+  have hR : 0 ≤ R := by positivity
   have hsat (d d' v r : ℝ) (hd : T ≤ d) (hd' : T ≤ d') :
       output HP ζ d v r = output HP ζ d' v r := by
     rw [output_upperCapped HP ζ d, output_upperCapped HP ζ d']

@@ -115,7 +115,7 @@ public theorem exec_tileArguments {w L m N Q t a b : ℕ} (x : Data 160)
   have yp : Parameters L m N Q y := hp.of_frame (by
     intro i hi
     apply he.regs_eq
-    have h : ∀ i ∈ parameterRegisters, tileArguments.Preserves i := by decide
+    have h : ∀ i ∈ parameterRegisters, tileArguments.Preserves i := by decide +kernel
     exact h i hi)
   refine ⟨y, he, yp, rfl, ?_⟩
   simp +decide [y, Data.comap_regs, hx, B, H, C, bank,

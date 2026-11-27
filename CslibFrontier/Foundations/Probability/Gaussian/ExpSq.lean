@@ -49,7 +49,7 @@ theorem integrable_exp_mul_sq_gaussianReal {v : ℝ≥0} {c : ℝ} (hc : c * v <
     Integrable (fun z => exp (c * z ^ 2)) (gaussianReal 0 v) := by
   rcases eq_or_ne v 0 with rfl | hv
   · rw [gaussianReal_zero_var]
-    exact integrable_dirac enorm_lt_top
+    exact integrable_dirac eNorm_lt_top
   have hv' : (0 : ℝ) < v := lt_of_le_of_ne v.2 (NNReal.coe_ne_zero.2 hv).symm
   have hpos : 0 < 1 / (2 * v) - c := by
     rw [sub_pos, lt_div_iff₀ (by positivity)]

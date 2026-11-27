@@ -443,7 +443,6 @@ private theorem ite_expect_walkDart_mem_unsatEdges_mul_le (σ : V → α) (i j :
         R.toConstraintGraph.unsatFrac σ *
           (if j < i then R.graph.spectralExpansion ^ (i - (j + 1) : ℕ) else 0) := by
   have hε : 0 ≤ R.toConstraintGraph.unsatFrac σ := R.toConstraintGraph.unsatFrac_nonneg σ
-  have hlam₀ : 0 ≤ R.graph.spectralExpansion := R.graph.spectralExpansion_nonneg
   have hg (a b : Fin T) :
       0 ≤ if a < b then R.graph.spectralExpansion ^ (b - (a + 1) : ℕ) else 0 := by positivity
   rcases lt_trichotomy i j with hij | rfl | hij

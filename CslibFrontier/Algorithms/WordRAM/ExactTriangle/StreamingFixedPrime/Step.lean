@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime.Readback
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime.Admission
 import CslibFrontier.Computability.WordRAM.RegisterFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # One-slot record construction, call, heap reset and return
@@ -170,8 +171,7 @@ theorem exec_step {w m n g p A i : ℕ} (values : List ℤ)
       zo zh slot_le (by
         simpa only [Block.Realizes, Block.read, hout', Data.comap_mem, zm, V]
           using And.intro cd (And.intro cL cR))
-  have rc (j : Fin 416) (hj : 400 ≤ j.val) : r.regs j = x.regs j :=
-    (ctrl j hj).trans (zcontrol j hj)
+  have rc (j : Fin 416) (hj : 400 ≤ j.val) : r.regs j = x.regs j := by regs_frame
   let t := r.set (producerBank Instances.heap) (r.regs (producerBank Instances.output))
   have ht : ExecWithin (w + 2) reset r t 1 := exec_reset r
   have tcontrol (j : Fin 416) (hj : 400 ≤ j.val) : t.regs j = x.regs j := by
@@ -197,8 +197,8 @@ theorem exec_step {w m n g p A i : ℕ} (values : List ℤ)
   have fits := FixedPrime.return_fits hW
     (FixedPrime.produced_le V hout hD hDn hg) hiM hscans hcoarse
   obtain ⟨y, hy, ym, yi, yl, ys, yf, ypres⟩ := FixedPrime.exec_receive t
-    ((tcontrol _ (by decide)).trans hi) ((tcontrol _ (by decide)).trans hl)
-    (tcontrol _ (by decide)) tscans tflag ((tcontrol _ (by decide)).trans h1) fits.1 fits.2
+    (by regs_frame) (by regs_frame)
+    (tcontrol _ (by decide)) tscans tflag (by regs_frame) fits.1 fits.2
   have yflag : y.regs FixedPrime.Reg.found = r.regs (recordBank RecordWitness.Reg.found) := yf
   have ylow (j : Fin 400) : y.regs (recordBank j) = t.regs (recordBank j) :=
     ypres _ (Or.inl (by change j.val < 400; exact j.isLt))
@@ -232,7 +232,7 @@ theorem exec_step {w m n g p A i : ℕ} (values : List ℤ)
     omega
   · rw [yflag]
     exact yl
-  · exact (ypres _ (Or.inr rfl)).trans ((tcontrol _ (by decide)).trans h1)
+  · exact (ypres _ (Or.inr rfl)).trans (by regs_frame)
   · simpa only [yflag] using rf
   · simpa only [yflag] using hS
   · simpa only [yflag, FixedPrime.recordHit, weightSum] using hit

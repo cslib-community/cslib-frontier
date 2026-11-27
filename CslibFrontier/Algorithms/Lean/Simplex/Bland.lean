@@ -174,17 +174,14 @@ theorem exists_pivot_of_runWith_eq_outOfFuel {fuel : ℕ} {D' : Dictionary ι K}
     (h : D.runWith step fuel = .outOfFuel D') :
     ∃ E : ℕ → Dictionary ι K, E 0 = D ∧
       ∀ k < fuel + 1, ∃ r s, step (E k) = .pivot r s ∧ E (k + 1) = (E k).pivot r s := by
-  induction fuel generalizing D with
-  | zero =>
-    rcases hstep : step D with _ | s | ⟨r, s⟩ <;>
-      simp only [runWith, hstep, reduceCtorEq] at h
+  fun_induction D.runWith step fuel with
+  | case1 | case2 | case4 | case5 => cases h
+  | case3 D r s hstep =>
     exact ⟨fun k => if k = 0 then D else D.pivot r s, rfl, fun k hk => by
       obtain rfl : k = 0 := by omega
       exact ⟨r, s, hstep, rfl⟩⟩
-  | succ fuel ih =>
-    rcases hstep : step D with _ | s | ⟨r, s⟩ <;>
-      simp only [runWith, hstep, reduceCtorEq] at h
-    obtain ⟨E, hE0, hE⟩ := ih _ h
+  | case6 D fuel r s hstep ih =>
+    obtain ⟨E, hE0, hE⟩ := ih h
     refine ⟨fun k => if k = 0 then D else E (k - 1), rfl, fun k hk => ?_⟩
     rcases k with _ | k
     · simp only [↓reduceIte, Nat.zero_add, one_ne_zero]
@@ -206,20 +203,15 @@ theorem runWith_eq_optimal
     {fuel : ℕ} {D' : Dictionary ι K} (hD : D.Feasible) (h : D.runWith step fuel = .optimal D') :
     D.Equivalent D' ∧ D'.Feasible ∧ D.objConst ≤ D'.objConst ∧
       ∀ j ∉ D'.basis, D'.objCoeff j ≤ 0 := by
-  induction fuel generalizing D with
-  | zero =>
-    rcases hstep : step D with _ | s | ⟨r, s⟩ <;>
-      simp only [runWith, hstep, reduceCtorEq, Outcome.optimal.injEq] at h
-    rw [← h]
-    exact ⟨.refl _, hD, le_rfl, hopt D hstep⟩
-  | succ fuel ih =>
-    rcases hstep : step D with _ | s | ⟨r, s⟩ <;>
-      simp only [runWith, hstep, reduceCtorEq, Outcome.optimal.injEq] at h
-    · rw [← h]
-      exact ⟨.refl _, hD, le_rfl, hopt D hstep⟩
-    · obtain ⟨he, hf, ho⟩ := hpivot D hD hstep
-      obtain ⟨h1, h2, h3, h4⟩ := ih _ hf h
-      exact ⟨he.trans h1, h2, ho.trans h3, h4⟩
+  fun_induction D.runWith step fuel with
+  | case1 D hstep | case4 D fuel hstep =>
+    cases h
+    exact ⟨.refl _, hD, le_rfl, hopt _ hstep⟩
+  | case2 | case3 | case5 => cases h
+  | case6 D fuel r s hstep ih =>
+    obtain ⟨he, hf, ho⟩ := hpivot D hD hstep
+    obtain ⟨h1, h2, h3, h4⟩ := ih hf h
+    exact ⟨he.trans h1, h2, ho.trans h3, h4⟩
 
 omit [IsStrictOrderedRing K] in
 /-- **Soundness of a pivoting rule, unbounded case.** If the rule reports an unbounded entering
@@ -236,20 +228,15 @@ theorem runWith_eq_unbounded
     (h : D.runWith step fuel = .unbounded D' s) :
     D.Equivalent D' ∧ D'.Feasible ∧ s ∉ D'.basis ∧ 0 < D'.objCoeff s ∧
       ∀ i ∈ D'.basis, 0 ≤ D'.coeff i s := by
-  induction fuel generalizing D with
-  | zero =>
-    rcases hstep : step D with _ | s' | ⟨r, s'⟩ <;>
-      simp only [runWith, hstep, reduceCtorEq, Outcome.unbounded.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    exact ⟨.refl _, hD, hunb D hstep⟩
-  | succ fuel ih =>
-    rcases hstep : step D with _ | s' | ⟨r, s'⟩ <;>
-      simp only [runWith, hstep, reduceCtorEq, Outcome.unbounded.injEq] at h
-    · obtain ⟨rfl, rfl⟩ := h
-      exact ⟨.refl _, hD, hunb D hstep⟩
-    · obtain ⟨he, hf⟩ := hpivot D hD hstep
-      obtain ⟨h1, h2⟩ := ih _ hf h
-      exact ⟨he.trans h1, h2⟩
+  fun_induction D.runWith step fuel with
+  | case1 | case3 | case4 => cases h
+  | case2 D s' hstep | case5 D fuel s' hstep =>
+    cases h
+    exact ⟨.refl _, hD, hunb _ hstep⟩
+  | case6 D fuel r s' hstep ih =>
+    obtain ⟨he, hf⟩ := hpivot D hD hstep
+    obtain ⟨h1, h2⟩ := ih hf h
+    exact ⟨he.trans h1, h2⟩
 
 /-! ### Bland's rule -/
 

@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Combinatorics.BinomialTail
 public import Mathlib.Data.Nat.Log
 public import Mathlib.Order.Interval.Finset.Nat
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.Sqrt
 import CslibFrontier.Foundations.Data.Nat.Asymptotics
 import CslibFrontier.Foundations.Data.Nat.LogTwoRpow
 import Mathlib.Algebra.Order.Floor.Ring
@@ -215,19 +216,7 @@ theorem numNodes_eq_floor (n : ℕ) :
 /-- `rowBound β n` agrees with `(β + 3) * ⌈√λ⌉₊` for every `β` and `n`. -/
 theorem rowBound_eq_mul_ceil (β n : ℕ) :
     rowBound β n = (β + 3) * ⌈Real.sqrt (Nat.clog 2 n)⌉₊ := by
-  unfold rowBound; congr 1
-  set m := Nat.clog 2 n
-  rcases Nat.eq_zero_or_pos m with hm | hm
-  · simp only [hm, ↓reduceIte, Nat.cast_zero, Real.sqrt_zero, Nat.ceil_zero]
-  simp only [hm.ne', ↓reduceIte]
-  symm
-  rw [Nat.ceil_eq_iff (Nat.succ_ne_zero _), Nat.succ_sub_one,
-    Real.lt_sqrt (Nat.cast_nonneg _), Real.sqrt_le_iff]
-  have hlt : m - 1 < ((m - 1).sqrt + 1) ^ 2 := by
-    have h := Nat.lt_succ_sqrt (m - 1)
-    rwa [← sq] at h
-  exact ⟨by exact_mod_cast (Nat.sqrt_le' (m - 1)).trans_lt (Nat.sub_lt hm one_pos),
-    ⟨by positivity, by exact_mod_cast (by omega : m ≤ ((m - 1).sqrt + 1) ^ 2)⟩⟩
+  rw [rowBound, Real.natCeil_sqrt_eq]
 
 /-- Once `1 ≤ λ`, the interval length is at most `2 (β + 3) √λ`: `⌈√λ⌉₊ ≤ √λ + 1 ≤ 2 √λ`. -/
 private theorem rowBound_le_two_mul_sqrt {β n : ℕ} (hlam : 1 ≤ Nat.clog 2 n) :

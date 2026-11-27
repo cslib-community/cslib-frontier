@@ -12,6 +12,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.MultiPass
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
+import CslibFrontier.Foundations.Data.Fin.Embedding
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -52,12 +54,9 @@ and then applies `passEnd`. -/
 /-- The flag after a pass: `[true]` if another pass follows, blank otherwise. -/
 @[expose] public def flagWord (b : Bool) : List Bool := if b then [true] else []
 
-open ComputableTidilyInLinearTimeAndSpace in
-lemma linear_flagWord : ComputableTidilyInLinearTimeAndSpace flagWord encBool encBits := by
-  convert (of_eq (f := id) (encIn := encBool) (encMid := encBool) fun _ => rfl).ite
-    ((const [true]).restrict _) ((const []).restrict _) using 1
-  funext c
-  cases c <;> rfl
+/-- The continuation flag has a direct linear certificate and constant output length. -/
+public theorem linear_flagWord : ComputableInDegree flagWord encBool encBits 1 0 :=
+  ComputableInDegree.of_finite flagWord
 
 /-- **Multi-pass folds are tidily computable.** The input `x` is encoded by concatenating the
 non-empty tokens `tok a` of the elements `elems x`, from each of which the finite-state reader `r`
@@ -128,11 +127,12 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
       (fun x => c * (sI x + sF (passState (init x) next passEnd (elems x) (passes x + 1)) +
         sMax x + lMax x + 1)) := by
   -- the parts, on framed states
-  obtain ⟨cfr, hfr⟩ := ComputableTidilyInLinearTimeAndSpace.of_frame (f := id) (encIn := encS)
-    (encOut := encFramed encS) fun _ => rfl
-  obtain ⟨cuf, huf⟩ := ComputableTidilyInLinearTimeAndSpace.of_unframe (f := id)
-    (encIn := encFramed encS) (encOut := encS) fun s => by simp
-  obtain ⟨cfl, hfl⟩ := linear_flagWord
+  obtain ⟨cfr, hfr⟩ := Internal.NormalForm.linear <|
+    ComputableInDegree.of_frame (f := id) (encIn := encS)
+    (encMid := encFramed encS) fun _ => rfl
+  obtain ⟨cuf, huf⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_unframe (f := id)
+    (encIn := encFramed encS) (encMid := encS) fun s => by simp
+  obtain ⟨cfl, hfl⟩ := Internal.NormalForm.linear linear_flagWord
   -- vendored: crei's `comp` is `comp_linear` here, as cslib #1111 restates `comp`
   obtain ⟨cI, hI'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hinit
   obtain ⟨cN, hN'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hnext
@@ -160,18 +160,20 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
   have hVF : V ≠ F := by simp [V, F, Fin.ext_iff]
   have hNF : N ≠ F := by simp [N, F, Fin.ext_iff]
   have hVC : V ≠ C := by simp [V, C, Fin.ext_iff]
-  obtain ⟨eI, heI⟩ := exists_embedding_eq (K := M + 4) (by omega) (Fin.last kI) V
-  obtain ⟨eE, heE⟩ := exists_embedding_eq (K := M + 4) (by omega) (Fin.natAdd kE (0 : Fin 2)) V
-  obtain ⟨eN, heN, heN'⟩ := exists_embedding_eq₂ (K := M + 4) (by omega)
+  obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := M + 4) (by omega) (Fin.last kI) V
+  obtain ⟨eE, heE⟩ := Fin.exists_embedding_eq (K := M + 4) (by omega)
+    (Fin.natAdd kE (0 : Fin 2)) V
+  obtain ⟨eN, heN, heN'⟩ := Fin.exists_embedding_eq₂ (K := M + 4) (by omega)
     (i := Fin.natAdd (kN + 1) (0 : Fin 2)) (o := (Fin.last kN).castAdd 2)
     (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eF, heF⟩ := exists_embedding_eq (K := M + 4) (by omega) (Fin.natAdd kF (0 : Fin 2)) V
-  obtain ⟨ePE, hePE⟩ := exists_embedding_eq (K := M + 4) (by omega)
+  obtain ⟨eF, heF⟩ := Fin.exists_embedding_eq (K := M + 4) (by omega)
+    (Fin.natAdd kF (0 : Fin 2)) V
+  obtain ⟨ePE, hePE⟩ := Fin.exists_embedding_eq (K := M + 4) (by omega)
     (Fin.natAdd kPE (0 : Fin 2)) V
-  obtain ⟨ePN, hePN, hePN'⟩ := exists_embedding_eq₂ (K := M + 4) (by omega)
+  obtain ⟨ePN, hePN, hePN'⟩ := Fin.exists_embedding_eq₂ (K := M + 4) (by omega)
     (i := Fin.natAdd (kPN + 1) (0 : Fin 2)) (o := (Fin.last kPN).castAdd 2)
     (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eC, heC, heC'⟩ := exists_embedding_eq₂ (K := M + 4) (by omega)
+  obtain ⟨eC, heC, heC'⟩ := Fin.exists_embedding_eq₂ (K := M + 4) (by omega)
     (i := Fin.natAdd (kC + 1) (0 : Fin 2)) (o := (Fin.last kC).castAdd 2)
     (by simp [Fin.ext_iff]) hVC
   -- the machines on the common tapes

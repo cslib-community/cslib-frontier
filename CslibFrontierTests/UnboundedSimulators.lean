@@ -51,11 +51,17 @@ noncomputable def closeProgram {α : Type} (p : ProbOracleComp OracleSpec.empty 
 
 theorem eval_closeProgram {α : Type} (p : ProbOracleComp OracleSpec.empty α) :
     ProbComp.eval (closeProgram p) = plainLaw p := by
-  rw [ProbComp.eval, closeProgram, OracleComp.interpret_interpret, plainLaw]
-  congr 1 with q : 1
-  rcases q with n | e
-  · exact ProbComp.eval_unifFin n
-  · exact e.elim
+  calc
+    _ = OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle
+          (fun e : Empty => ProbComp.eval e.elim)) p :=
+      ProbOracleComp.eval_interpret (fun e : Empty => e.elim) p
+    _ = _ := by
+      rw [plainLaw]
+      congr 1 with q : 1
+      rcases q with n | e
+      · rfl
+      · exact e.elim
 
 variable {s : Spec} {StmtIn WitIn StmtOut WitOut : Type}
 

@@ -289,9 +289,9 @@ theorem measureReal_stdGaussian_mem_uIoc_le_arctan {u v : E} (huv : ‖u‖ = �
     simpa only [mem_preimage, hS, mem_ofPred_eq, inner_add_left, inner_sub_left] using
       abs_add_sub_two_mul_le_of_mem_uIoc hx
   have hpair : Measurable fun x : E => (⟪u + v, x⟫, ⟪v - u, x⟫) := by fun_prop
-  have hs0 : ‖u + v‖₊ ^ 2 ≠ 0 := pow_ne_zero 2 (nnnorm_ne_zero_iff.2 hne)
+  have hs0 : ‖u + v‖₊ ^ 2 ≠ 0 := pow_ne_zero 2 (nnNorm_ne_zero_iff.2 hne)
   have hsqrt : ∀ w : E, √((‖w‖₊ ^ 2 : ℝ≥0) : ℝ) = ‖w‖ := fun w => by
-    rw [NNReal.coe_pow, coe_nnnorm, sqrt_sq (norm_nonneg w)]
+    rw [NNReal.coe_pow, coe_nnNorm, sqrt_sq (norm_nonneg w)]
   calc (stdGaussian E).real {x | t ∈ Ι ⟪u, x⟫ ⟪v, x⟫}
       ≤ (stdGaussian E).real ((fun x => (⟪u + v, x⟫, ⟪v - u, x⟫)) ⁻¹' S) := measureReal_mono hsub
     _ = ((gaussianReal 0 (‖u + v‖₊ ^ 2)).prod (gaussianReal 0 (‖v - u‖₊ ^ 2))).real S := by

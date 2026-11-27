@@ -55,14 +55,23 @@ example : echoPrfMAC.verify [true, false] [false, true] [true, true] = false := 
 example : echoPrfMAC.verify [true, false] [false] [false] = false := by
   rfl
 
--- A wrong-length query to `echoPrfMAC.oneTimeSigningOracle` returns `[]` and consumes the single
--- query slot.
-example : echoPrfMAC.oneTimeSigningOracle [true, false] ((), [true]) [] =
-    pure ([], [[true]]) := by
+-- A wrong-length query to `echoPrfMAC.oneTimeSigningOracle 2` returns `[]` and leaves the log
+-- empty, so the single answer is still available to a 2-bit query.
+example : echoPrfMAC.oneTimeSigningOracle 2 [true, false] ((), [true]) [] = pure ([], []) := by
   rfl
 
-example : echoPrfMAC.oneTimeSigningOracle [true, false] ((), [false, true]) [[true]] =
-    pure ([], [[true]]) := by
+example : echoPrfMAC.oneTimeSigningOracle 2 [true, false] ((), [false, true]) [] =
+    pure ([false, true], [[false, true]]) := by
+  rfl
+
+-- After one answered query, every further query is refused.
+example : echoPrfMAC.oneTimeSigningOracle 2 [true, false] ((), [false, true]) [[true, true]] =
+    pure ([], [[true, true]]) := by
+  rfl
+
+-- The full tagging oracle refuses a wrong-length query without recording it.
+example : echoPrfMAC.signingOracle 2 [true, false] ((), [true]) [[true, true]] =
+    pure ([], [[true, true]]) := by
   rfl
 
 -- Even an always-accepting verifier cannot bypass the game's n-bit message check.
@@ -141,9 +150,9 @@ theorem isOraclePPT_sameMessageNewTagForger :
   have hq : IsOraclePPTOn (encPair encUnary encBits) encBits
       (fun p : ℕ × List Bool =>
         List.take 1 <$> ProbOracleComp.query ((), List.replicate p.1 false)) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
   unfold sameMessageNewTagForger
-  exact (hq.map_with' (by polytime)).isOraclePPT
+  exact (hq.map_with (by polytime)).isOraclePPT
 
 /-- In the fresh-message `eufCmaGame`, `sameMessageNewTagForger` always loses (`PMF.pure false`)
 because its forgery message `0^n` was previously queried to the signing oracle. -/
@@ -154,11 +163,12 @@ theorem eval_eufCmaGame_randomizedTagMACScheme_sameMessageNewTagForger (n : ℕ)
     Functor.map_map, OracleComp.interpret_map, StateT.run_map, ProbOracleComp.interpret_query,
     ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_bind, PMF.bind_map,
     Function.comp_def]
-  dsimp only [StateT.run, MACScheme.signingOracle]
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+  dsimp only [StateT.run, MACScheme.signingOracle, SignatureScheme.signingOracleOn]
+  simp only [List.length_replicate, beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind,
+    ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
   have hcongr : PMF.bind (ProbComp.eval (BitString.sampleList 1))
       (fun tag : List Bool =>
-        PMF.pure (((List.replicate n false).length == n) &&
+        PMF.pure (true &&
           !([List.replicate n false].contains (List.replicate n false)) &&
           ([!(tag.take 1).headD false].length == 1))) =
       PMF.bind (ProbComp.eval (BitString.sampleList 1)) (fun _ => PMF.pure false) := by
@@ -176,11 +186,12 @@ theorem eval_sufCmaGame_randomizedTagMACScheme_sameMessageNewTagForger (n : ℕ)
     Functor.map_map, OracleComp.interpret_map, StateT.run_map, ProbOracleComp.interpret_query,
     ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_bind, PMF.bind_map,
     Function.comp_def]
-  dsimp only [StateT.run, MACScheme.signingPairOracle]
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+  dsimp only [StateT.run, MACScheme.signingPairOracle, MACScheme.signingPairOracleOn]
+  simp only [List.length_replicate, beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind,
+    ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
   have hcongr : PMF.bind (ProbComp.eval (BitString.sampleList 1))
       (fun tag : List Bool =>
-        PMF.pure (((List.replicate n false).length == n) &&
+        PMF.pure (true &&
           !([(List.replicate n false, tag)].contains
             (List.replicate n false, [!(tag.take 1).headD false])) &&
           ([!(tag.take 1).headD false].length == 1))) =
@@ -210,54 +221,40 @@ theorem not_oneTimeSUFCMA_trivialMACScheme :
     ¬ trivialMACScheme.OneTimeSUFCMA :=
   fun h => not_oneTimeEUFCMA_trivialMACScheme h.oneTimeEUFCMA
 
-/-- The one-time oracle answers the first query of `sameMessageNewTagForger`, so in the strong
-one-time game the forger always wins: its pair `(0^n, [!b])` is valid and differs from the recorded
-pair `(0^n, [b])`. -/
+/-- The one-time oracle answers the first query of `sameMessageNewTagForger`, so its one-time
+forgery experiment coincides definitionally with the full-query experiment and the forger always
+wins `sufOneTimeGame`. -/
 theorem eval_sufOneTimeGame_randomizedTagMACScheme_sameMessageNewTagForger (n : ℕ) :
     ProbComp.eval (randomizedTagMACScheme.sufOneTimeGame sameMessageNewTagForger n) =
       PMF.pure true := by
-  simp only [MACScheme.sufOneTimeGame, randomizedTagMACScheme, sameMessageNewTagForger,
-    Functor.map_map, OracleComp.interpret_map, StateT.run_map, ProbOracleComp.interpret_query,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_bind, PMF.bind_map,
-    Function.comp_def]
-  dsimp only [StateT.run, MACScheme.oneTimeSigningPairOracle]
-  simp only [List.isEmpty_nil, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.pure_bind]
-  have hcongr : PMF.bind (ProbComp.eval (BitString.sampleList 1))
-      (fun tag : List Bool =>
-        PMF.pure (((List.replicate n false).length == n) &&
-          !([(List.replicate n false, tag)].contains
-            (List.replicate n false, [!(tag.take 1).headD false])) &&
-          ([!(tag.take 1).headD false].length == 1))) =
-      PMF.bind (ProbComp.eval (BitString.sampleList 1)) (fun _ => PMF.pure true) := by
-    refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
-    rw [BitString.eval_sampleList] at htag
-    have hlen : tag.length = 1 := BitString.length_of_mem_support_uniformList htag
-    obtain ⟨b, rfl⟩ := List.length_eq_one_iff.mp hlen
-    cases b <;> simp
-  rw [hcongr, PMF.bind_const]
+  rw [MACScheme.sufOneTimeGame_eq_forgeExperiment,
+    show randomizedTagMACScheme.toForgeExperiment
+        ((Signer.ofSign randomizedTagMACScheme.sign).restrict
+          (·.length == randomizedTagMACScheme.msgLen n)).oneTime freshPair
+        sameMessageNewTagForger n =
+      randomizedTagMACScheme.toForgeExperiment
+        ((Signer.ofSign randomizedTagMACScheme.sign).restrict
+          (·.length == randomizedTagMACScheme.msgLen n)) freshPair sameMessageNewTagForger n
+      from rfl,
+    ← MACScheme.sufCmaGame_eq_forgeExperiment,
+    eval_sufCmaGame_randomizedTagMACScheme_sameMessageNewTagForger]
 
-/-- In the fresh-message one-time game the same forger always loses, because it forges on the
-message it queried. -/
+/-- In the fresh-message one-time game the same single-query forger always loses, by the same
+definitional agreement of its one-time and full-query forgery experiments. -/
 theorem eval_eufOneTimeGame_randomizedTagMACScheme_sameMessageNewTagForger (n : ℕ) :
     ProbComp.eval (randomizedTagMACScheme.eufOneTimeGame sameMessageNewTagForger n) =
       PMF.pure false := by
-  simp only [MACScheme.eufOneTimeGame, randomizedTagMACScheme, sameMessageNewTagForger,
-    Functor.map_map, OracleComp.interpret_map, StateT.run_map, ProbOracleComp.interpret_query,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_bind, PMF.bind_map,
-    Function.comp_def]
-  dsimp only [StateT.run, MACScheme.oneTimeSigningOracle]
-  simp only [List.isEmpty_nil, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.pure_bind]
-  have hcongr : PMF.bind (ProbComp.eval (BitString.sampleList 1))
-      (fun tag : List Bool =>
-        PMF.pure (((List.replicate n false).length == n) &&
-          !([List.replicate n false].contains (List.replicate n false)) &&
-          ([!(tag.take 1).headD false].length == 1))) =
-      PMF.bind (ProbComp.eval (BitString.sampleList 1)) (fun _ => PMF.pure false) := by
-    refine PMF.bind_congr_on_support _ _ _ fun tag _ => ?_
-    simp
-  rw [hcongr, PMF.bind_const]
+  rw [MACScheme.eufOneTimeGame_eq_forgeExperiment,
+    show randomizedTagMACScheme.toForgeExperiment
+        ((Signer.ofSign randomizedTagMACScheme.sign).restrict
+          (·.length == randomizedTagMACScheme.msgLen n)).oneTime freshMessage
+        sameMessageNewTagForger n =
+      randomizedTagMACScheme.toForgeExperiment
+        ((Signer.ofSign randomizedTagMACScheme.sign).restrict
+          (·.length == randomizedTagMACScheme.msgLen n)) freshMessage sameMessageNewTagForger n
+      from rfl,
+    ← MACScheme.eufCmaGame_eq_forgeExperiment,
+    eval_eufCmaGame_randomizedTagMACScheme_sameMessageNewTagForger]
 
 /-- **The randomized-tag scheme is not strongly one-time unforgeable**: one signing query and a
 flipped tag bit forge with probability `1`. -/

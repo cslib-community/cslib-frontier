@@ -7,6 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
+
 public import CslibFrontier.Algorithms.Lean.Knapsack.FPTAS
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
@@ -143,6 +145,7 @@ theorem computableInPolyTime_profitDP (hw : ComputableInPolyTime w encI encNat)
       (fun q : (ℕ × List ι) × Option (List ι) => selectStep w p q.1.1 q.1.2 q.2)
       (encPair (encPair encNat (encList encI)) (encOption (encList encI))) (encList encI) := by
     unfold selectStep
+    refine optionElimWithInput (snd _ _) ((fst _ _).snd') ?_
     fun_prop
   have h := foldlWith (encA := encOption (encList encI))
     (encL := encList (encOption (encList encI)))
@@ -169,26 +172,33 @@ theorem computableInPolyTime_profitDP_unary :
 
 section FPTAS
 
+/-- The item list is the concatenation of its framed item codes. Each item code is its framed
+binary weight followed by its binary value. -/
+abbrev encItems : List (ℕ × ℕ) ↪ List Bool := encList (encPair encNat encNat)
+
+/-- The framed item-list encoding followed by the binary capacity. -/
+abbrev encInstance : (List (ℕ × ℕ) × ℕ) ↪ List Bool := encPair encItems encNat
+
 private theorem computableInPolyTime_maxValue :
-    ComputableInPolyTime maxValue (encList (encPair encNat encNat)) encNat := by
-  have hm := (fst (encPair (encList (encPair encNat encNat)) encNat) (encPair encNat encNat)).snd'
-  have ha := (snd (encPair (encList (encPair encNat encNat)) encNat) (encPair encNat encNat)).snd'
+    ComputableInPolyTime maxValue encItems encNat := by
+  have hm := (fst encInstance (encPair encNat encNat)).snd'
+  have ha := (snd encInstance (encPair encNat encNat)).snd'
   have hle := binary_le' hm ha
   have hstep : ComputableInPolyTime
       (fun q : (List (ℕ × ℕ) × ℕ) × (ℕ × ℕ) => max q.1.2 q.2.2)
-      (encPair (encPair (encList (encPair encNat encNat)) encNat) (encPair encNat encNat))
+      (encPair encInstance (encPair encNat encNat))
       encNat := by
     have h := ite hle ha hm
     simp only [decide_eq_true_eq] at h
     simpa only [max_def] using h
   have h := foldlWithInput_of_bounded_growth (encA := encPair encNat encNat)
-    (encB := encNat) (encL := encList (encPair encNat encNat))
+    (encB := encNat) (encL := encItems)
     (list := id) (init := fun _ => 0) (step := fun _ m a => max m a.2) (const _)
     ⟨id', hstep, inferInstance, inferInstance⟩
-    (growth := fun l => (encList (encPair encNat encNat) l).length)
+    (growth := fun l => (encItems l).length)
     ⟨.self, fun l m a ha => by
       have h1 := SizedListEncoding.length_elem_le (encA := encPair encNat encNat)
-        (encL := encList (encPair encNat encNat)) l a ha
+        (encL := encItems) l a ha
       rw [length_encPair] at h1
       rcases le_total m a.2 with h | h
       · rw [max_eq_right h]; omega
@@ -199,29 +209,29 @@ private theorem computableInPolyTime_maxValue :
 unary. -/
 theorem computableInPolyTime_fptas :
     ComputableInPolyTime (fun x : ℕ × (List (ℕ × ℕ) × ℕ) => fptas x.1 x.2)
-      (encPair encUnary (encPair (encList (encPair encNat encNat)) encNat))
-      (encList (encPair encNat encNat)) := by
+      (encPair encUnary encInstance)
+      encItems := by
   have hF : ComputableInPolyTime (fun x : ℕ × (List (ℕ × ℕ) × ℕ) => fits x.2.2 x.2.1)
-      (encPair encUnary (encPair (encList (encPair encNat encNat)) encNat))
-      (encList (encPair encNat encNat)) := by
+      (encPair encUnary encInstance)
+      encItems := by
     unfold fits
     fun_prop
   have hN : ComputableInPolyTime
       (fun x : ℕ × (List (ℕ × ℕ) × ℕ) => (fits x.2.2 x.2.1).length * x.1)
-      (encPair encUnary (encPair (encList (encPair encNat encNat)) encNat)) encUnary :=
+      (encPair encUnary encInstance) encUnary :=
     unary_mul' ((length_list (encPair encNat encNat)).comp hF) (fst _ _)
   have hP := computableInPolyTime_maxValue.comp hF
   have hR : ComputableInPolyTime (fun x : ℕ × (List (ℕ × ℕ) × ℕ) =>
       roundValues ((fits x.2.2 x.2.1).length * x.1) (maxValue (fits x.2.2 x.2.1))
         (fits x.2.2 x.2.1))
-      (encPair encUnary (encPair (encList (encPair encNat encNat)) encNat))
+      (encPair encUnary encInstance)
       (encList (encPair (encPair encNat encNat) encUnary)) := by
-    have hNq := hN.comp (fst (encPair encUnary (encPair (encList (encPair encNat encNat)) encNat))
+    have hNq := hN.comp (fst (encPair encUnary encInstance)
       (encPair encNat encNat))
     have hNb := ComputableInPolyTime.unary_to_binary.comp hNq
-    have hPq := hP.comp (fst (encPair encUnary (encPair (encList (encPair encNat encNat)) encNat))
+    have hPq := hP.comp (fst (encPair encUnary encInstance)
       (encPair encNat encNat))
-    have hv := (snd (encPair encUnary (encPair (encList (encPair encNat encNat)) encNat))
+    have hv := (snd (encPair encUnary encInstance)
       (encPair encNat encNat)).snd'
     have hmul := binary_mul' hv hNb
     have hdiv := ComputableInPolyTime.binary_div.comp (hmul.prod hPq)
@@ -231,7 +241,7 @@ theorem computableInPolyTime_fptas :
     (w := fun a : (ℕ × ℕ) × ℕ => a.1.1) (p := Prod.snd) (fst _ _).fst' (snd _ _)
     (fun a => by simp only [length_encPair, encUnary_apply, List.length_replicate]; omega)
   have hS := hDP.comp
-    ((snd encUnary (encPair (encList (encPair encNat encNat)) encNat)).snd'.prod hR)
+    ((snd encUnary encInstance).snd'.prod hR)
   exact mapWithInput hS (snd _ _).fst'
 
 end FPTAS

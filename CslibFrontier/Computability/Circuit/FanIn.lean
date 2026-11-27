@@ -287,7 +287,7 @@ supporting inputs. -/
 theorem Circuit.card_inputSupport_le_depth (c : Circuit σ n m) {r : ℕ} (hc : c.FanInAtMost r) :
     c.inputSupport.card ≤ m * max 1 r ^ c.depth := by
   simpa [Circuit.inputSupport] using Finset.card_biUnion_le_card_mul (Finset.univ : Finset (Fin m))
-    c.outputSupport (max 1 r ^ c.depth) fun o _ =>
+    (fun o => c.program.wireSupport (c.outputs o)) (max 1 r ^ c.depth) fun o _ =>
       (c.program.card_wireSupport_le_pow hc (c.outputs o)).trans
         (Nat.pow_le_pow_right (Nat.lt_of_lt_of_le Nat.one_pos (le_max_left 1 r))
           (c.outputDepths_le_depth o))

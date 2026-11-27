@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
 
@@ -189,13 +191,29 @@ example (step : List Bool → WordOracleComp Unit (List Bool))
     fail_if_success (clear hgrowth2; ppt)
     ppt
 
-/-- A raw-only Boolean guard with no plain `ComputableInPolyTime` certificate. -/
+/-- A raw-only Boolean guard with no registered plain `ComputableInPolyTime` certificate. -/
 @[irreducible] private def rawOnlyGuard (word : List Bool) : Bool := word.isEmpty
 
-@[fun_prop] private theorem rawOnlyGuard_tidy :
-    ComputableTidilyInPolyTime rawOnlyGuard encBits encBool := by
+private theorem rawOnlyGuard_plain : ComputableInPolyTime rawOnlyGuard encBits encBool := by
   unfold rawOnlyGuard
   fun_prop
+
+private noncomputable def rawFactor : ℕ :=
+  Classical.choose (Internal.NormalForm.polyTime rawOnlyGuard_plain)
+
+private noncomputable def rawDegree : ℕ :=
+  Classical.choose (Classical.choose_spec (Internal.NormalForm.polyTime rawOnlyGuard_plain))
+
+private noncomputable def rawBudget (n : ℕ) : ℕ := rawFactor * (n + 1) ^ rawDegree
+
+-- Register only the machine property for this boundary regression.
+attribute [local fun_prop] ComputableTidilyInTimeAndSpace
+
+@[fun_prop] private theorem rawOnlyGuard_tidy :
+    ComputableTidilyInTimeAndSpace rawOnlyGuard encBits encBool
+    (fun a => rawBudget (encBits a).length) (fun a => rawBudget (encBits a).length) := by
+  exact Classical.choose_spec (Classical.choose_spec
+    (Internal.NormalForm.polyTime rawOnlyGuard_plain))
 
 -- Uncharged raw `ProbOracleComp.query` calls without `List.take` (directly or under a post-map)
 -- and raw-only conditional guards are rejected by `ppt`.

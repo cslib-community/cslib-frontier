@@ -5,6 +5,8 @@ Authors: Anthropic, PBC, Erik Demaine
 -/
 
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Flat
+-- Compiled `Code.eval` runs below use the fast interpreter.
+import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 -- Full-program regressions intentionally evaluate the native interpreter at elaboration time.
 set_option linter.hashCommand false

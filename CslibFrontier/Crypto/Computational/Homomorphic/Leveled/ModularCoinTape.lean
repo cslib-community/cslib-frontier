@@ -293,7 +293,7 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
     dsimp only [Function.comp_def]
     rw [BitString.uniformList_bind_split (coins n) (2 * coins n + zeroCoins)
       (fun first rest => PMF.pure (afterHop first rest))]
-    simp only [pmf_norm, modLeveledAdversary, hpos, and_self, ↓reduceIte, Scheme.sampleModIndex,
+    simp only [pmf_norm, modLeveledAdversary, hpos, and_self, ↓reduceIte, ProbComp.sampleModIndex,
       ProbComp.sampleModNat, ProbComp.sampleBinaryNat, BitString.eval_sampleList]
     congr 1 with first : 1
     by_cases hfirst : index 3 first = 0
@@ -385,22 +385,33 @@ unary caps. The zero-link callback supplies its own already-certified actual rep
   have hzeroFallback := hzero.comp ((hn.prod hpk).prod
     (htape.bitsDropWithInput (show ComputableInPolyTime (fun a => 3 * indexCoins a)
       input encUnary by fun_prop)))
+  have hchoice := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encBool encBool) encBits)
+  have htag (first second : Bool) : ComputableInPolyTime (tagLeveledChoice first second)
+      (encPair (encPair encBool encBool) encBits)
+      (encPair (encPair encBool encBool) encBits) :=
+    hchoice.fst'.prod (ComputableInPolyTime.bitsCons (.const first)
+      (ComputableInPolyTime.bitsCons (.const second) hchoice.snd'))
+  have hswap : ComputableInPolyTime swapLeveledChoice
+      (encPair (encPair encBool encBool) encBits)
+      (encPair (encPair encBool encBool) encBits) :=
+    (hchoice.fst'.snd'.prod hchoice.fst'.fst').prod hchoice.snd'
   unfold modLeveledChooseCoins
   apply ComputableInPolyTime.ite_decide
   · fun_prop
   · apply ComputableInPolyTime.ite_decide
     · fun_prop
-    · dsimp only [tagLeveledChoice]; fun_prop
+    · exact (htag false false).comp hlink
     · apply ComputableInPolyTime.ite_decide
       · fun_prop
-      · dsimp only [tagLeveledChoice, swapLeveledChoice]; fun_prop
+      · exact (htag false true).comp (hswap.comp hlink)
       · apply ComputableInPolyTime.ite_decide
         · fun_prop
         · apply ComputableInPolyTime.ite_decide
           · fun_prop
-          · dsimp only [tagLeveledChoice]; fun_prop
+          · exact (htag true false).comp hzeroActive
           · exact .const _
         · exact .const _
-  · dsimp only [tagLeveledChoice]; fun_prop
+  · exact (htag true false).comp hzeroFallback
 
 end Cslib.Crypto.Homomorphic.Leveled

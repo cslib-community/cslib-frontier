@@ -108,37 +108,23 @@ theorem longestNodeSuffix_cons_of_not_isNode {P : List (List α)} {b : α} {w : 
 
 theorem longestNodeSuffix_suffix (P : List (List α)) (w : List α) :
     longestNodeSuffix P w <:+ w := by
-  induction w with
-  | nil => exact List.suffix_rfl
-  | cons b w ih =>
-    rw [longestNodeSuffix]
-    split_ifs
-    · exact List.suffix_rfl
-    · exact ih.trans (List.suffix_cons b w)
+  fun_induction longestNodeSuffix P w with
+  | case1 | case2 => exact List.suffix_rfl
+  | case3 b w _ ih => exact ih.trans (List.suffix_cons b w)
 
 theorem isNode_longestNodeSuffix (P : List (List α)) (w : List α) :
     IsNode P (longestNodeSuffix P w) := by
-  induction w with
-  | nil => exact isNode_nil P
-  | cons b w ih =>
-    rw [longestNodeSuffix]
-    split_ifs with h
-    · exact h
-    · exact ih
+  fun_induction longestNodeSuffix P w <;> simp_all
 
 theorem length_le_longestNodeSuffix {P : List (List α)} {v w : List α} (hv : IsNode P v)
     (hvw : v <:+ w) : v.length ≤ (longestNodeSuffix P w).length := by
-  induction w with
-  | nil =>
-    rw [List.suffix_nil.mp hvw]
-    exact Nat.zero_le _
-  | cons b w ih =>
-    rw [longestNodeSuffix]
-    split_ifs with h
-    · exact hvw.length_le
-    · rcases List.suffix_cons_iff.mp hvw with rfl | hvw'
-      · exact absurd hv h
-      · exact ih hvw'
+  fun_induction longestNodeSuffix P w with
+  | case1 => simp_all
+  | case2 => exact hvw.length_le
+  | case3 b w h ih =>
+    rcases List.suffix_cons_iff.mp hvw with rfl | hvw'
+    · exact absurd hv h
+    · exact ih hvw'
 
 theorem eq_longestNodeSuffix {P : List (List α)} {v w : List α} (hvw : v <:+ w)
     (hv : IsNode P v) (hmax : ∀ x, x <:+ w → IsNode P x → x.length ≤ v.length) :
@@ -257,19 +243,16 @@ theorem nextMove_of_not_isNode {P : List (List α)} {u : List α} {a : α}
 
 theorem nextMove_eq_longestNodeSuffix (P : List (List α)) (u : List α) (a : α) :
     nextMove P u a = longestNodeSuffix P (u ++ [a]) := by
-  induction h : u.length using Nat.strongRecOn generalizing u with
-  | ind n ih =>
-    rw [nextMove]
-    split_ifs with hnode hu
-    · exact (longestNodeSuffix_of_isNode hnode).symm
-    · subst hu
-      rw [List.nil_append] at hnode ⊢
-      rw [longestNodeSuffix_cons_of_not_isNode hnode]
-      rfl
-    · obtain ⟨b, u', rfl⟩ := List.exists_cons_of_ne_nil hu
-      rw [ih _ (h ▸ length_failure_lt P hu) _ rfl, failure_cons,
-        longestNodeSuffix_append_singleton, List.cons_append,
-        longestNodeSuffix_cons_of_not_isNode (by rwa [← List.cons_append])]
+  fun_induction nextMove P u a with
+  | case1 u hnode => exact (longestNodeSuffix_of_isNode hnode).symm
+  | case2 hnode =>
+    rw [List.nil_append] at hnode ⊢
+    rw [longestNodeSuffix_cons_of_not_isNode hnode]
+    rfl
+  | case3 u hnode hu ih =>
+    obtain ⟨b, u', rfl⟩ := List.exists_cons_of_ne_nil hu
+    rw [ih, failure_cons, longestNodeSuffix_append_singleton, List.cons_append,
+      longestNodeSuffix_cons_of_not_isNode (by rwa [← List.cons_append])]
 
 /-- `[AhoCorasick1975]`, Lemma 3 (one cycle): the longest node suffix of `w ++ [a]` is reached from
 the longest node suffix of `w` by one operating cycle. -/
@@ -348,13 +331,9 @@ theorem nodup_output (P : List (List α)) (w : List α) : (output P w).Nodup :=
 suffix. -/
 theorem output_longestNodeSuffix (P : List (List α)) (w : List α) :
     output P (longestNodeSuffix P w) = output P w := by
-  induction w with
-  | nil => rw [longestNodeSuffix]
-  | cons b w ih =>
-    by_cases h : IsNode P (b :: w)
-    · rw [longestNodeSuffix_of_isNode h]
-    · rw [longestNodeSuffix_cons_of_not_isNode h, ih, output]
-      simp only [mt isNode_of_mem h, ↓reduceIte]
+  fun_induction longestNodeSuffix P w with
+  | case1 | case2 => rfl
+  | case3 b w h ih => simp [ih, output, mt isNode_of_mem h]
 
 /-- `[AhoCorasick1975]`, Lemma 2 and the last statement of Algorithm 3: the output of a nonempty
 state `u` is `u` itself (when `u` is a keyword) followed by the output of its failure state. -/

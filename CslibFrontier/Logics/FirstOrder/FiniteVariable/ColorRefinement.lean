@@ -52,7 +52,7 @@ stabilization on the disjoint union (`SimpleGraph.forall_colorHistogram_eq_iff` 
 reduces to round `|V| + |W|` (`forall_realize_countingFormula_empty_iff_card_add_card`,
 `forall_realize_countingFormula_singleton_iff_card_add_card`).
 
-Because `CountingFormula.Realize` takes a total assignment `Fin 2 → V`, sentence statements
+Because `GenFormula.Realize` takes a total assignment `Fin 2 → V`, sentence statements
 quantifying over assignments are vacuous when `V` or `W` is empty; the graph-level sentence
 equivalences therefore assume `[Nonempty V] [Nonempty W]`. All results assume only `[Fintype]` and
 `[LocallyFinite]`, with no decidable-adjacency requirement, so they apply directly to disjoint
@@ -617,7 +617,7 @@ theorem realize_countingFormula_iff_of_colorHistogram_eq {n : ℕ}
 /-- **Immerman–Lander theorem, bounded-rank sentence form** ([ImmermanLander1990];
 [CaiFurerImmerman1992], Section 5, Theorem 5.2). Two nonempty finite simple graphs satisfy the same
 `C²` sentences of quantifier rank at most `n + 1` if and only if their round-`n` color histograms
-agree. Nonemptiness is needed because `CountingFormula.Realize` takes a total assignment
+agree. Nonemptiness is needed because `GenFormula.Realize` takes a total assignment
 `Fin 2 → V`, making universal quantification over assignments vacuous when `V` or `W` is empty. -/
 theorem forall_realize_countingFormula_empty_le_iff [Nonempty V] [Nonempty W] {n : ℕ} :
     (∀ φ : FiniteVariable.CountingFormula Language.graph 2,

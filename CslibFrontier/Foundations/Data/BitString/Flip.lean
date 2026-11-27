@@ -8,6 +8,7 @@ module
 -- upstream: candidate (addition to `Cslib/Foundations/Data/BitString.lean`)
 
 public import Cslib.Foundations.Data.BitString
+public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Data.Finset.Piecewise
 public import Mathlib.Data.Fintype.Pi
 
@@ -50,6 +51,8 @@ each isolated true input, and parity has only isolated inputs.
   flips is constant.
 * `Cslib.BitString.update_not_injective`: flipping distinct coordinates gives distinct
   neighbors.
+* `Cslib.BitString.sum_update_not`, `Cslib.BitString.expect_update_not`: flipping one coordinate
+  permutes the cube, so it preserves sums and averages over the cube.
 
 ## References
 
@@ -229,5 +232,25 @@ theorem update_not_injective (x : ι → Bool) :
   have := congrFun h i
   simp only [Function.update_self, Function.update_of_ne hij] at this
   cases x i <;> simp at this
+
+section Cube
+
+open scoped BigOperators
+
+variable [Fintype ι]
+
+/-- Flipping coordinate `i` permutes the cube, so it preserves sums over the cube. -/
+theorem sum_update_not {M : Type*} [AddCommMonoid M] (i : ι) (F : (ι → Bool) → M) :
+    ∑ x, F (Function.update x i (!x i)) = ∑ x, F x :=
+  Fintype.sum_equiv (flipOn_involutive {i}).toPerm _ _ fun x => by
+    rw [Function.Involutive.coe_toPerm, flipOn_singleton]
+
+/-- Flipping coordinate `i` permutes the cube, so it preserves averages over the cube. -/
+theorem expect_update_not {M : Type*} [AddCommMonoid M] [Module ℚ≥0 M] (i : ι)
+    (F : (ι → Bool) → M) : 𝔼 x, F (Function.update x i (!x i)) = 𝔼 x, F x :=
+  Fintype.expect_equiv (flipOn_involutive {i}).toPerm _ _ fun x => by
+    rw [Function.Involutive.coe_toPerm, flipOn_singleton]
+
+end Cube
 
 end Cslib.BitString

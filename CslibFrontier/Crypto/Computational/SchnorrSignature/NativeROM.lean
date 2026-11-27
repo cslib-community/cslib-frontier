@@ -103,9 +103,9 @@ theorem isOraclePPTOn_schnorrROMSign :
   have hmsg : ComputableInPolyTime
       (fun p : (ℕ × F.Desc × ℕ × List Bool × List Bool) × ℕ => p.1.2.2.2.2) EM encBits := by
     fun_prop
-  have hquery := IsOraclePPTOn.query_take' () (hmsg.prod ht).encoding_comp hm
+  have hquery := IsOraclePPTOn.query_take () (hmsg.prod ht).encoding_comp hm
   simp only [bind_pure_comp]
-  apply hquery.map_with'
+  apply hquery.map_with
   have hfst := ComputableInPolyTime.fst EM encBits
   have hc := ComputableInPolyTime.snd EM encBits
   have hz := F.computableInPolyTime_schnorrRespondBits.comp
@@ -133,10 +133,10 @@ theorem isOraclePPTOn_schnorrROMVerify :
       (fun p : F.Desc × ℕ × List Bool × List Bool × List Bool => p.2.2.2.2) E encBits := by
     fun_prop
   have htz := (Decoder.bits.pair Decoder.bits).computableInPolyTime.comp hsig
-  have hquery := IsOraclePPTOn.query_take' () (hmsg.prod htz.fst').encoding_comp hm
+  have hquery := IsOraclePPTOn.query_take () (hmsg.prod htz.fst').encoding_comp hm
   unfold schnorrROMVerify
   simp only [bind_pure_comp]
-  apply hquery.map_with'
+  apply hquery.map_with
   have hfst := ComputableInPolyTime.fst E encBits
   have hc := ComputableInPolyTime.snd E encBits
   exact F.computableInPolyTime_schnorrSigVerifyBits.comp

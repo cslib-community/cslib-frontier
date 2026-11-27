@@ -9,10 +9,12 @@ module
 
 public import CslibFrontier.Foundations.Control.Monad.Memoize
 public import CslibFrontier.Computability.Probabilistic.PPT
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
+import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
@@ -52,12 +54,6 @@ namespace Cslib.Probability
 
 open Turing.MultiTapeTM
 
-private theorem lookup_eq_map_find {K V : Type} [BEq K] (key : K) (cache : List (K × V)) :
-    cache.lookup key = (cache.find? (fun entry => key == entry.1)).map Prod.snd := by
-  simp only [List.lookup_eq_findSome?, List.find?_eq_findSome?_guard, List.map_findSome?]
-  congr 1 with entry : 1
-  cases h : key == entry.1 <;> simp [Option.guard, h]
-
 /-- Encoding of a memoization cache, an association list of key/value entries: the framed list
 (`encList`) of entries, each the key (`keyEncoding`, framed) followed by its value
 (`valueEncoding`). `IsOraclePPTOn.memoize` spells out the same encoding because its module does
@@ -81,18 +77,30 @@ theorem IsPPTOn.memoize {α Key Value : Type} [BEq Key] [LawfulBEq Key] {input :
       (fun a => memoize (compute a) (query a) (cache a)) := by
   let found (a : α) := (cache a).find? (fun entry => query a == entry.1)
   have hfound : ComputableInPolyTime found input
-      (encOption (encPair keyEncoding valueEncoding)) := by fun_prop
+      (encOption (encPair keyEncoding valueEncoding)) := by
+    exact ComputableInPolyTime.findWithInput hcache
+      (ComputableInPolyTime.beq
+        (hquery.comp (ComputableInPolyTime.fst _ _))
+        ((ComputableInPolyTime.fst keyEncoding valueEncoding).comp
+          (ComputableInPolyTime.snd _ _)))
   let finish (a : α) (value : Value) :=
     if (found a).isSome then ((found a).getD (query a, value) |>.2, cache a)
     else (value, (query a, value) :: cache a)
   have hpost : ComputableInPolyTime (fun p : α × Value => finish p.1 p.2)
       (encPair input valueEncoding)
       (encPair valueEncoding (encMemoCache keyEncoding valueEncoding)) := by
-    unfold finish
-    fun_prop
+    have hinput := ComputableInPolyTime.fst input valueEncoding
+    have hvalue := ComputableInPolyTime.snd input valueEncoding
+    have hkey := hquery.comp hinput
+    have hentries := hcache.comp hinput
+    have hlookup := hfound.comp hinput
+    have hdefault := hkey.prod hvalue
+    have hreply := (ComputableInPolyTime.optionGetDWithInput hlookup hdefault).snd'
+    exact ComputableInPolyTime.ite' (ComputableInPolyTime.optionIsSome hlookup)
+      (hreply.prod hentries) (hvalue.prod (ComputableInPolyTime.cons' hdefault hentries))
   refine (hcompute.map_with (f := finish) hpost).congr ?_
   intro a
-  rw [Cslib.memoize, lookup_eq_map_find]
+  rw [Cslib.memoize, List.lookup_eq_map_find?]
   cases h : (cache a).find? (fun entry => query a == entry.1) <;>
     simp [finish, found, h, ProbComp.eval_map, PMF.map, Function.comp_def]
 
@@ -163,7 +171,8 @@ theorem memoize_cache_size_le {α Key Value : Type} [BEq Key]
     enc_len
   have hlength := (length_encList_le _ _ hentry).trans
     (Nat.mul_le_mul_right (2 * (2 * maxKey + maxValue + 1) + 1) hcount)
-  convert hlength using 1
-  ring
+  have hframing : 2 * (2 * maxKey + maxValue + 1) + 1 =
+      4 * maxKey + 2 * maxValue + 3 := by ring
+  simpa only [encMemoCache, hframing] using hlength
 
 end Cslib.Probability

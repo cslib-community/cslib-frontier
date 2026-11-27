@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.Parameters
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 public import CslibFrontier.Probability.BitString.List
+public import CslibFrontier.Foundations.Data.BitString.List.Dot
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
@@ -18,7 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 # Polynomial-time word algorithms for Goldreich–Levin decoding
 
 The decoder is ordinary functional code: maps, filtering, folds and first-match search.
-Its deterministic certificates use the shared tidy TM calculus. A fixed precision degree keeps
+Its deterministic certificates compose the shared plain TM rules. A fixed precision degree keeps
 both the number of guesses and their complete encoded size polynomially bounded. Exact
 representation laws preserve candidate order, duplicates, the fallback and every mask tape.
 
@@ -116,7 +117,6 @@ theorem enumList_size_polynomial (degree : ℕ) :
   have := maskCount_polynomial degree
   fun_prop
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 /-- Enumerating at a fixed precision degree includes the cost of computing the mask count. -/
 @[fun_prop]
 theorem polyTime_enumList_maskCount {α : Type} {input : α ↪ List Bool} {parameter : α → ℕ}
@@ -124,11 +124,9 @@ theorem polyTime_enumList_maskCount {α : Type} {input : α ↪ List Bool} {para
     ComputableInPolyTime
       (fun a => enumList (maskCount (parameter a) (precision degree (parameter a))))
       input (encList encBits) := by
-  have hparameter := hparameter.tidy
-  refine .of_tidy ?_
-  have h : ComputableTidilyInPolyTime (fun n => enumList (maskCount n (precision degree n)))
+  have h : ComputableInPolyTime (fun n : ℕ => enumList (maskCount n (precision degree n)))
       encUnary (encList encBits) := by
-    refine ComputableTidilyInPolyTime.bitsEnumList (by fun_prop)
+    refine ComputableInPolyTime.bitsEnumList (by fun_prop)
       (enumList_size_polynomial degree) ?_
     intro n
     simp only [encUnary_apply, List.length_replicate,
@@ -140,7 +138,7 @@ def wordCandidate (predictor : List Bool → Bool) (dimension : ℕ) (rows selec
     (guess : List Bool) : List Bool :=
   (listSingles dimension).map (fun coordinate => listStrictMajority (selectors.map (fun selector =>
     predictor (coordinate.zipWith Bool.xor (listXorSelected dimension selector rows)) ^^
-      (guess.zipWith Bool.and selector).foldl Bool.xor false)))
+      listDot guess selector)))
 
 /-- Nested maps compose with any predictor certified jointly in its input and query. -/
 @[fun_prop]
@@ -155,13 +153,7 @@ theorem polyTime_wordCandidate {α : Type} {input : α ↪ List Bool}
     (hguess : ComputableInPolyTime guess input encBits) :
     ComputableInPolyTime (fun a => wordCandidate (predictor a) (dimension a)
       (rows a) (selectors a) (guess a)) input encBits := by
-  have hpredictor := hpredictor.tidy
-  have hdimension := hdimension.tidy
-  have hrows := hrows.tidy
-  have hselectors := hselectors.tidy
-  have hguess := hguess.tidy
-  refine .of_tidy ?_
-  unfold wordCandidate
+  unfold wordCandidate listDot
   fun_prop
 
 /-- The word program computes exactly the finite decoder's candidate for the same guess. -/
@@ -175,7 +167,7 @@ theorem wordCandidate_eq_ofFn {n k : ℕ} (predictor : List Bool → Bool)
   rw [listStrictMajority_nonzeroSelectors]
   unfold candidate
   congr 1 with subset : 1
-  simp only [listXorSelected_eq_ofFn_sum_subset, ← ofFn_add, ← dotProduct_eq_foldl, vote,
+  simp only [listXorSelected_eq_ofFn_sum_subset, ← ofFn_add, listDot_ofFn, vote,
     Bool.one_eq_true]
   congr 1
   have h (j : Fin k) : guess j * decide (j ∈ subset) = if j ∈ subset then guess j else 0 := by
@@ -187,7 +179,6 @@ def wordCandidates (predictor : List Bool → Bool) (dimension : ℕ)
     (rows guesses : List (List Bool)) : List (List Bool) :=
   guesses.map (wordCandidate predictor dimension rows (guesses.filter (fun word => word.any id)))
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 /-- The guess-list certificate accounts for the number and size of candidate words. -/
 @[fun_prop]
 theorem polyTime_wordCandidates {α : Type} {input : α ↪ List Bool}
@@ -199,15 +190,9 @@ theorem polyTime_wordCandidates {α : Type} {input : α ↪ List Bool}
     (hguesses : ComputableInPolyTime guesses input (encList encBits)) :
     ComputableInPolyTime (fun a => wordCandidates (predictor a) (dimension a)
       (rows a) (guesses a)) input (encList encBits) := by
-  have hpredictor := hpredictor.tidy
-  have hdimension := hdimension.tidy
-  have hrows := hrows.tidy
-  have hguesses := hguesses.tidy
-  refine .of_tidy ?_
   unfold wordCandidates
-  apply ComputableTidilyInPolyTime.mapWithInput hguesses
-  apply ComputableInPolyTime.tidy
-  apply polyTime_wordCandidate <;> exact .of_tidy (by fun_prop)
+  apply ComputableInPolyTime.mapWithInput hguesses
+  apply polyTime_wordCandidate <;> fun_prop
 
 /-- Candidate generation preserves the finite decoder's order and duplicates. -/
 theorem wordCandidates_eq_map {n k : ℕ} (predictor : List Bool → Bool)

@@ -14,6 +14,7 @@ import Mathlib.Tactic.NormNum
 
 import CslibFrontier.Computability.GenericRAM.Signed.Fits
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native least-prime collision searches
@@ -241,20 +242,20 @@ private theorem exec_driver {w T : ℕ} (x : Data 64) (A : ℕ → Prop) [Decida
           simp only [u, Data.set_regs, Function.update_of_ne hia, Function.update_of_ne hib]
         have hus : Stable x u := stable_set_high
           (stable_set_high hstable addr (by decide) _) bit (by decide) _
-        have huo : u.regs one = 1 := (hu one (by decide)).trans ho
-        have huz : u.regs zero = 0 := (hu zero (by decide)).trans hz
-        have hut : u.regs two = 2 := (hu two (by decide)).trans ht
+        have huo : u.regs one = 1 := by regs_frame
+        have huz : u.regs zero = 0 := by regs_frame
+        have hut : u.regs two = 2 := by regs_frame
         have hui : u.regs cursor = y.regs cursor := hu cursor (by decide)
-        have husp : u.regs stop = m + 1 := (hu stop (by decide)).trans hstop
-        have huf : u.regs found = 0 := (hu found (by decide)).trans hf
-        have hua : u.regs answer = 1 := (hu answer (by decide)).trans ha
+        have husp : u.regs stop = m + 1 := by regs_frame
+        have huf : u.regs found = 0 := by regs_frame
+        have hua : u.regs answer = 1 := by regs_frame
         by_cases hp : (y.regs cursor).Prime
         · have hbit : (Cond.eq bit one).Holds u := by
             simp only [Cond.holds_eq, huo]
             simp +decide [u, bit, addr, hp]
           obtain ⟨v, hv, hvs, hvg, hvr⟩ := hquery u hus (by rw [hui]; change _ ≤ m; omega)
             huo huz hut (by simpa only [hui] using hp)
-          have hvo : v.regs one = 1 := (hvr one (by decide)).trans huo
+          have hvo : v.regs one = 1 := by regs_frame
           obtain ⟨z, hpick, hzm, hza, hzf, hzr⟩ := exec_pick v (A (y.regs cursor)) hvo
             (by simpa only [hui] using hvg)
           have hzctrl (i : Fin 64) (hC : Control i) (hia : i ≠ answer) (hif : i ≠ found) :
@@ -263,16 +264,16 @@ private theorem exec_driver {w T : ℕ} (x : Data 64) (A : ℕ → Prop) [Decida
           have hzs : Stable x z := ⟨fun i hF =>
             (hzr i (fixed_ne_high hF (by decide)) (fixed_ne_high hF (by decide))).trans
               (hvs.1 i hF), fun a ha => by rw [hzm]; exact hvs.2 a ha⟩
-          have hvi : v.regs cursor = y.regs cursor := (hvr cursor (by decide)).trans hui
-          have hvf : v.regs found = 0 := (hvr found (by decide)).trans huf
-          have hva : v.regs answer = 1 := (hvr answer (by decide)).trans hua
+          have hvi : v.regs cursor = y.regs cursor := by regs_frame
+          have hvf : v.regs found = 0 := by regs_frame
+          have hva : v.regs answer = 1 := by regs_frame
           refine ⟨z, ?_, hzs, ?_, ?_, ?_, ?_, hzctrl cursor (by decide) (by decide) (by decide), ?_⟩
           · exact (ExecWithin.branch_pos hfound
               (hload.seq (ExecWithin.branch_pos hbit (hv.seq hpick)))).mono (by omega)
-          · exact (hzctrl stop (by decide) (by decide) (by decide)).trans hstop
-          · exact (hzctrl one (by decide) (by decide) (by decide)).trans ho
-          · exact (hzctrl zero (by decide) (by decide) (by decide)).trans hz
-          · exact (hzctrl two (by decide) (by decide) (by decide)).trans ht
+          · regs_frame
+          · regs_frame
+          · regs_frame
+          · regs_frame
           · by_cases hA : A (y.regs cursor)
             · have hanswer : z.regs answer = y.regs cursor := by
                 simpa only [hA, ↓reduceIte, hvi] using hza
@@ -329,12 +330,10 @@ private theorem exec_driver {w T : ℕ} (x : Data 64) (A : ℕ → Prop) [Decida
   have hinit : ExecWithin w (ram[
       one ← #1; zero ← #0; two ← #2; cursor ← #0; stop ← limit + one;
       answer ← one; found ← zero]) x x₀ 7 := by
-    have h1 : Fits w 1 := hfit.of_le (by omega)
-    have h2 : Fits w 2 := hfit.of_le (by omega)
     have h0 : Fits w 0 := hfit.of_le (by omega)
     have hm : Fits w (m + 1) := hfit.of_le (by change m + 1 ≤ m + 3; omega)
     ram_eval [x₀, m, one, zero, two, cursor, stop, limit, answer, found,
-      h1, h2, h0, hm, Fin.mk.injEq]
+      h0, hm, Fin.mk.injEq]
   have hi : P (x₀.regs cursor) x₀ := by
     refine ⟨?_, ?_, ?_, ?_, ?_, Or.inl ⟨?_, ?_, ?_⟩⟩
     · exact stable_set_high (stable_set_high (stable_set_high (stable_set_high
@@ -451,7 +450,7 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
       (by simpa only [hscratch, hlen] using hk)
       (by rw [hhist]; exact hd.of_le (Nat.add_le_add_left hMle _))
       (by simpa only [hlen] using ht) (by simpa only [hlen, hcard] using hproduct)
-      ((huc zero (by decide)).trans hz)
+      (by regs_frame)
       (by simpa only [hsrc, hlen, hscratch] using hsk)
       (by simpa only [hscratch, hlen, hhist] using hkd) huinput
       (by simpa only [hlen] using hinj)

@@ -26,7 +26,7 @@ namespace CslibFrontierTests.MixedOperator
 abbrev s : Fin 2 → Prop := (· = 0)
 
 example : mixedOp s (X 0 * X 1) (X 0 ^ 2 : MvPolynomial (Fin 2) ℚ) = 2 * (X 0 * X 1) := by
-  rw [map_mul, Module.End.mul_apply, mixedOp_X_of_pos (by decide), mixedOp_X_of_neg (by decide)]
+  rw [map_mul, mul_apply_eq_comp, mixedOp_X_of_pos (by decide), mixedOp_X_of_neg (by decide)]
   simp
   ring
 
@@ -35,6 +35,6 @@ example (c : ℚ) (p : MvPolynomial (Fin 2) ℚ) : mixedOp s (C c) p = c • p :
 /-- The operator of a product is the composition of the operators of its factors. -/
 theorem mixedOp_mul_apply (P Q p : MvPolynomial (Fin 2) ℚ) :
     mixedOp s (P * Q) p = mixedOp s P (mixedOp s Q p) := by
-  rw [map_mul, Module.End.mul_apply]
+  rw [map_mul, mul_apply_eq_comp]
 
 end CslibFrontierTests.MixedOperator

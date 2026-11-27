@@ -20,7 +20,7 @@ Checks enforced by default (see AGENTS.md):
    Citation-shaped labels followed by a bare prose word remain citation prose.
    Nested block-container definitions and indented (4-space) code blocks are not scanned;
    `scripts/check_docs.py` in `docs.yml` remains the full HTML backstop.
-5. (Default selection only.) `references.bib` keys are unique and its entries are sorted by key,
+5. (Default selection or `--check-metadata`.) `references.bib` keys are unique and its entries are sorted by key,
    both compared case-insensitively as BibTeX does, so that PRs adding entries rarely conflict.
 6. Every citation key in a docstring is a `references.bib` key. A citation is a bracketed segment
    (`[Key]`, `[Key, Theorem 2]`, `[Key; Other]`, or the reference in `[text][Key]`) that has the
@@ -37,8 +37,9 @@ Checks enforced by default (see AGENTS.md):
    Inline and multiline settings and decimal/hexadecimal numerals are checked. With the default
    selection, an entry whose file no longer needs it (no budget above the default, or a cap above the largest
    budget) is reported as stale, so the allowlist only shrinks as budgets are reduced (#1528).
-8. (Default selection only.) `ROADMAP.md` lists directions by scope only (CONTRIBUTING.md,
-   Documentation): it has no link reference definitions (`[label]: https://…`), since every PR
+8. (Default selection or `--check-metadata`.) `ROADMAP.md` and the per-area files under `roadmap/` list
+   directions by scope only (CONTRIBUTING.md, Documentation): they have no link reference
+   definitions (`[label]: https://…`), since every PR
    appending one to a shared tail block conflicted with the others in the merge queue, so every
    link, including each `[#N]`, is written inline. Each top-level entry has no nested bullets
    and at most `ROADMAP_ENTRY_MAX` characters of Markdown (a link counts as its text), which
@@ -622,6 +623,11 @@ def roadmap_definitions(text: str) -> list[tuple[int, str]]:
     return found
 
 
+def roadmap_files(root: Path = ROOT) -> list[Path]:
+    """`ROADMAP.md`, the index, and the per-area files under `roadmap/`."""
+    return [root / "ROADMAP.md", *sorted((root / "roadmap").glob("*.md"))]
+
+
 def check_roadmap(text: str, rel: str = "ROADMAP.md") -> list[str]:
     """Inline links only, and short top-level entries without nested bullets."""
     errors: list[str] = []
@@ -704,10 +710,14 @@ def main() -> int:
         default=None,
         help="Optional maximum line count per Lean file",
     )
+    parser.add_argument("--check-metadata", action="store_true",
+                        help="check bibliography and roadmaps, plus any explicitly selected sources")
     args = parser.parse_args()
 
     if args.paths:
         targets = [pathlib.Path(p).resolve() for p in args.paths]
+    elif args.check_metadata:
+        targets = []
     else:
         targets = [ROOT / "CslibFrontier", ROOT / "CslibFrontierTests"]
 
@@ -720,11 +730,14 @@ def main() -> int:
         max_lines=args.max_lines,
         bib_keys=bibliography_keys(bibliography),
         heartbeat_caps=heartbeat_caps,
-    )
-    if not args.paths:
-        errors += check_bibliography(bibliography)
+    ) if targets else []
+    if not args.paths and not args.check_metadata:
         errors += check_heartbeat_allowlist_stale(heartbeat_caps)
-        errors += check_roadmap((ROOT / "ROADMAP.md").read_text(encoding="utf-8"))
+    if not args.paths or args.check_metadata:
+        errors += check_bibliography(bibliography)
+        for roadmap in roadmap_files():
+            errors += check_roadmap(roadmap.read_text(encoding="utf-8"),
+                                    roadmap.relative_to(ROOT).as_posix())
     if errors:
         for err in errors:
             print(f"ERROR: {err}", file=sys.stderr)

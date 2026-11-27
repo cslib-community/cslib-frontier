@@ -11,6 +11,7 @@ import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Prepare
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # The native Convolution-3SUM instance loop
@@ -126,18 +127,7 @@ private theorem parameters_of_regs {N U src workspace : ℕ} {x y : Data 64}
     (hx : ParametersAt N U src workspace x)
     (h : ∀ i : Fin 64, 34 ≤ i.val → i ≠ inst → i ≠ found → y.regs i = x.regs i) :
     ParametersAt N U src workspace y := by
-  exact ⟨(h len (by decide) (by decide) (by decide)).trans hx.len,
-    (h upper (by decide) (by decide) (by decide)).trans hx.upper,
-    (h base (by decide) (by decide) (by decide)).trans hx.base,
-    (h matAB (by decide) (by decide) (by decide)).trans hx.ab,
-    (h matBC (by decide) (by decide) (by decide)).trans hx.bc,
-    (h matAC (by decide) (by decide) (by decide)).trans hx.ac,
-    (h free (by decide) (by decide) (by decide)).trans hx.free,
-    (h side (by decide) (by decide) (by decide)).trans hx.side,
-    (h stop (by decide) (by decide) (by decide)).trans hx.stop,
-    (h filler (by decide) (by decide) (by decide)).trans hx.filler,
-    (h encodedFiller (by decide) (by decide) (by decide)).trans hx.encodedFiller,
-    (h one (by decide) (by decide) (by decide)).trans hx.one⟩
+  regs_frame
 
 /-- All eight argument copies and the complete matrix builder are charged. Memory before
 the matrix blocks is preserved; the result contains the three actual serialized matrices. -/
@@ -205,7 +195,7 @@ theorem exec_fill_at {w N U src workspace s : ℕ} (μ : ℕ → ℤ) (x : Data 
   have hyr (i : Fin 64) (hi : 34 ≤ i.val) : y.regs i = x.regs i := by
     exact (hy.regs_eq (Code.preserves_rename_of_offset (offset := 0) Fill.program fillRegisters
       (fun j => (Nat.zero_add j.val).symm) i (Or.inr (by omega)))).trans (hbregs i hi)
-  refine ⟨y, ?_, parameters_of_regs hp (fun i hi _ _ => hyr i hi), (hyr inst (by decide)).trans hs,
+  refine ⟨y, ?_, parameters_of_regs hp (fun i hi _ _ => hyr i hi), by regs_frame,
     hyr found (by decide), hm, ?_⟩
   · convert hb.seq hy using 1 <;> first | rfl | omega
   · intro a ha

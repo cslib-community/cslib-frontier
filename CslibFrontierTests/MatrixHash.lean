@@ -4,9 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Probability.HashFamily.Matrix
+import CslibFrontier.Probability.HashFamily.MatrixKernel
 import CslibFrontier.Probability.UniversalHash
 import Mathlib.Algebra.Field.ZMod
+import Mathlib.Tactic.NormNum.Prime
 
 /-!
 # Finite-field matrix hashing clients
@@ -19,7 +20,7 @@ also feeds the existing leftover-hash theorem without a new family or entropy de
 namespace CslibFrontierTests.MatrixHash
 
 open Cslib.Probability Cslib.Probability.PMF
-open scoped Matrix ENNReal Cslib.Probability.PMF
+open scoped BigOperators Matrix ENNReal Cslib.Probability.PMF
 
 instance : Fact (Nat.Prime 17) := ⟨by decide⟩
 
@@ -66,5 +67,12 @@ example :
       (mass := (17 : ℝ)⁻¹ ^ 3) (by intro x; norm_num [PMF.uniformOfFintype_apply])
   norm_num at h ⊢
   exact h
+
+-- Sixteen nonzero scalars have singleton kernels. The zero scalar kills all seventeen inputs.
+example :
+    (𝔼 A : Matrix (Fin 1) (Fin 1) (ZMod 17), (Nat.card (LinearMap.ker A.mulVecLin) : ℝ)) =
+      33 / 17 := by
+  rw [expect_card_ker_mulVecLin]
+  norm_num [Fintype.card_fun]
 
 end CslibFrontierTests.MatrixHash

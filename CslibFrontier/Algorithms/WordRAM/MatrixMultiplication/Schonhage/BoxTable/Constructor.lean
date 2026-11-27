@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Tile
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Bounds
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Caller-safe shared geometry and compact value construction
@@ -64,10 +65,8 @@ theorem exec_constructor {w L m t D AA BB A B : ℕ} (x : Data registers)
   have hTS : 10 ^ L ≤ S := Nat.le_mul_of_pos_left _ (by omega)
   obtain ⟨v, hv, vp, vK, vV, vcat⟩ := exec_geometry x hL hm ht hD
     (haddr.of_le (by dsimp only [S] at hTS; omega))
-  have vA : v.regs Reg.arrayA = AA :=
-    (hv.regs_eq (by decide : geometry.Preserves Reg.arrayA)).trans hAA
-  have vB : v.regs Reg.arrayB = BB :=
-    (hv.regs_eq (by decide : geometry.Preserves Reg.arrayB)).trans hBB
+  have vA : v.regs Reg.arrayA = AA := by regs_frame
+  have vB : v.regs Reg.arrayB = BB := by regs_frame
   have vV' : v.regs Reg.values = V := vV
   have vleft (c : Fin (10 ^ L)) : v.mem (AA + c.val) = Signed.encode (a (leafAt c)) := by
     rw [vcat.frame _ (by have := c.isLt; omega) (by have := c.isLt; omega)]
@@ -83,19 +82,17 @@ theorem exec_constructor {w L m t D AA BB A B : ℕ} (x : Data registers)
       (geometryTime L m t + 328 * K + 8) := by
     exact (hv.seq hy).mono (by dsimp only [geometryTime]; rw [← hK]; omega)
   refine ⟨y, he, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, yvalues, ?_⟩
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.levels)).trans vp.levels
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.inner)).trans
-      ((hv.regs_eq (by decide : geometry.Preserves Reg.inner)).trans hm)
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.threshold)).trans
-      ((hv.regs_eq (by decide : geometry.Preserves Reg.threshold)).trans ht)
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.height)).trans vp.height
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.span)).trans vp.span
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.directory)).trans vp.directory
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.records)).trans vp.records
-  · exact (yregs _ (by decide)).trans vV'
-  · exact (yregs _ (by decide)).trans vK
-  · exact (yregs _ (by decide)).trans vA
-  · exact (yregs _ (by decide)).trans vB
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
   · intro s hs
     rw [yframe _ (by dsimp only [V, S]; omega)]
     exact vcat.directory s hs

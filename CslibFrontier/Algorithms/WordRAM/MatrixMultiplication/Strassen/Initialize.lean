@@ -10,6 +10,7 @@ module
 import CslibFrontier.Computability.WordRAM.Power.Rename
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Frame
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual initialized Strassen root and power call
@@ -67,12 +68,8 @@ theorem exec_setup {w : ℕ} (x : Data 64)
     have hj' := congrArg Fin.val hj
     change j.val = i.val at hj'
     omega
-  have hsmod : s.regs Reg.modulus = x.regs Reg.modulus := by
-    simpa +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent, Reg.modulus] using hhigh Reg.modulus (by decide)
-  have hsscratch : s.regs Reg.scratch = x.regs Reg.scratch := by
-    simpa +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent, Reg.scratch] using hhigh Reg.scratch (by decide)
+  have hsmod : s.regs Reg.modulus = x.regs Reg.modulus := by regs_frame
+  have hsscratch : s.regs Reg.scratch = x.regs Reg.scratch := by regs_frame
   have hsmem : s.mem = x.mem := htm
   have hsize : Fits w (4 ^ x.regs Reg.depth * x.regs Reg.modulus) := by
     rw [Nat.mul_comm]
@@ -105,7 +102,7 @@ theorem exec_setup {w : ℕ} (x : Data 64)
     exact hw.of_le (by omega))
   have he : ExecWithin w setup x y (4 * x.regs Reg.depth + 30) :=
     (hr.seq (hpower.seq (hu.seq hy))).mono (by omega)
-  have hyframe : y.regs Reg.frame = root := (regs Reg.frame (by decide)).trans huframe
+  have hyframe : y.regs Reg.frame = root := by regs_frame
   have hyframes : y.regs Reg.frames = root := by
     rw [regs Reg.frames (by decide)]
     simp +decide [u, Reg.frames, Reg.frame, Reg.phase, Reg.active]
@@ -131,7 +128,7 @@ theorem exec_setup {w : ℕ} (x : Data 64)
       hhigh Reg.zero (by decide)]
     simp +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
       Reg.powerBase, Reg.powerExponent]
-  · exact (regs Reg.one (by decide)).trans hu1
+  · regs_frame
   · rw [regs Reg.four (by decide),
       hur Reg.four (by decide) (by decide) (by decide) (by decide) (by decide),
       hhigh Reg.four (by decide)]

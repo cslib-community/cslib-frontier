@@ -18,6 +18,7 @@ public import Mathlib.Order.Bounds.Defs
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Data.List.Permutation
 import Mathlib.Data.Nat.Choose.Sum
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # The Bellman–Held–Karp algorithm for the traveling salesman problem
@@ -107,13 +108,9 @@ variable [LinearOrder W]
   | acc, [] => pure acc
   | acc, i :: l => do ✓ minFoldM g (min acc (g i)) l
 
-@[simp] theorem time_minFoldM (g : α → W) (acc : W) (l : List α) :
+@[simp, time_simps] theorem time_minFoldM (g : α → W) (acc : W) (l : List α) :
     (minFoldM g acc l).time = l.length := by
-  induction l generalizing acc with
-  | nil => rfl
-  | cons i l ih =>
-    simp only [minFoldM, time_bind, time_tick, ih, List.length_cons]
-    omega
+  time_spec minFoldM
 
 theorem ret_minFoldM_le_acc (g : α → W) (acc : W) (l : List α) :
     (minFoldM g acc l).ret ≤ acc := by
@@ -439,14 +436,10 @@ namespace HeldKarp
 
 variable {n : ℕ} [Add W] [LinearOrder W]
 
-@[simp] theorem time_entryM (d : Fin (n + 1) → Fin (n + 1) → W) (T : Table n W)
+@[simp, time_simps] theorem time_entryM (d : Fin (n + 1) → Fin (n + 1) → W) (T : Table n W)
     (S : Finset (Fin n)) (t : Fin (n + 1)) (l : List (Fin n)) :
     (entryM d T S t l).time = l.length := by
-  cases l with
-  | nil => rfl
-  | cons i l =>
-    simp only [entryM, time_bind, time_tick, time_minFoldM, List.length_cons]
-    omega
+  time_spec entryM
 
 omit [Add W] [LinearOrder W] in
 theorem length_targets (S : Finset (Fin n)) : (targets S).length = 1 + (n - S.card) := by
@@ -463,22 +456,15 @@ theorem length_targets (S : Finset (Fin n)) : (targets S).length = 1 + (n - S.ca
   simp only [targets, List.length_cons, List.length_map, hc]
   omega
 
-@[simp] theorem time_fillM (d : Fin (n + 1) → Fin (n + 1) → W) (S : Finset (Fin n))
+@[simp, time_simps] theorem time_fillM (d : Fin (n + 1) → Fin (n + 1) → W) (S : Finset (Fin n))
     (l : List (Fin n)) (T : Table n W) (ts : List (Fin (n + 1))) :
     (fillM d S l T ts).time = ts.length * l.length := by
-  induction ts generalizing T with
-  | nil => simp [fillM]
-  | cons t ts ih =>
-    simp only [fillM, time_bind, time_entryM, ih, List.length_cons]
-    ring
+  time_spec fillM [Nat.succ_mul]
 
 theorem time_layerM (d : Fin (n + 1) → Fin (n + 1) → W) (T : Table n W)
     (ls : List (List (Fin n))) :
     (layerM d T ls).time = (ls.map fun l => (1 + (n - l.toFinset.card)) * l.length).sum := by
-  induction ls generalizing T with
-  | nil => rfl
-  | cons l ls ih =>
-    simp only [layerM, time_bind, time_fillM, length_targets, ih, List.map_cons, List.sum_cons]
+  time_spec layerM [length_targets]
 
 /-- The layers `1, …, k` take at most `n²` ticks for each set of at most `k` cities. -/
 theorem time_tableM_le (d : Fin (n + 1) → Fin (n + 1) → W) (k : ℕ) :

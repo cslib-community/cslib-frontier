@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Me
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Copy
 import Mathlib.Tactic.Ring
 import CslibFrontier.Foundations.Data.Nat.Div
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Alternating buffers for the shared native encoder
@@ -220,14 +221,7 @@ theorem progress_step {w L j : ℕ} (hw : 0 < w) (hj : j < L) (side : Bool)
   refine ⟨y, he.mono (by omega), ?_⟩
   have hr (a : Fin 32) (ha : 9 ≤ a.val) (hl : ¬StageLocal a) : y.regs a = x.regs a := hreg a ha hl
   refine ⟨?_, hstage, ?_, ?_, hsrc, hdst, ?_, ?_⟩
-  · rcases hx.fixed with ⟨hd, hc, ho, hs, h1, h7, h10⟩
-    exact ⟨(hr depth (by decide) (by decide)).trans hd,
-      (hr capacity (by decide) (by decide)).trans hc,
-      (hr output (by decide) (by decide)).trans ho,
-      (hr scratch (by decide) (by decide)).trans hs,
-      (hr one (by decide) (by decide)).trans h1,
-      (hr seven (by decide) (by decide)).trans h7,
-      (hr ten (by decide) (by decide)).trans h10⟩
+  · regs_frame
   · simpa only [P, pow_succ'] using hp
   · exact hstr
   · intro p hpp r hrr

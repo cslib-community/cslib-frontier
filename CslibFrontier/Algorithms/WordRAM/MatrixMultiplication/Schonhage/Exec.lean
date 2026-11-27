@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Co
 import Mathlib.Tactic.Ring
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete charged execution of the shared encoder
@@ -126,7 +127,7 @@ theorem exec {w L : ℕ} (hw : 0 < w) (side : Bool) (arr : ℕ → ℤ) (x : Dat
     · exact hp.frame a haout
     · unfold scratchBase at haout
       omega
-  · exact (hyr output (by decide) (by decide) (by decide) (by decide)).trans hout
-  · exact (hyr capacity (by decide) (by decide) (by decide) (by decide)).trans hcap
+  · regs_frame
+  · regs_frame
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding

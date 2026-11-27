@@ -88,6 +88,7 @@ def nameWithoutAsking (_ : Unit) : OracleComp (fun _ : Unit => Bool) (Option ℕ
 fork never succeeds. -/
 example : (Forking.fork (PMF.pure ()) (OracleComp.forkingAlgorithm false 1
     nameWithoutAsking)).map Option.isSome true = 0 := by
-  simp [Forking.fork, OracleComp.forkingAlgorithm, OracleComp.validIndex, nameWithoutAsking]
+  simp [Forking.fork, Forking.onTapes,
+    OracleComp.forkingAlgorithm, OracleComp.validIndex, nameWithoutAsking]
 
 end CslibFrontierTests.Crypto.Forking

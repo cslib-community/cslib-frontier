@@ -25,7 +25,7 @@ import CslibFrontier.Tactic.PolyTime.Init
 `Cslib.OracleComp.retry good program fuel` runs `program` at most `fuel` times and returns the first
 result satisfying `good`. It is strict probabilistic polynomial time when `program` is, `good` is
 decided in polynomial time and `fuel` is computed in unary: the loop is a bounded iteration whose
-state is the optional result found so far (`Cslib.Probability.IsPPTOn.iterateWith_spec'`), and
+state is the optional result found so far (`Cslib.Probability.IsPPTOn.iterateWith_spec`), and
 every reachable state is `none` or a possible result of one run.
 
 ## Main definitions
@@ -109,8 +109,8 @@ theorem IsPPTOn.retry {program : α → ProbComp β} {good : β → Bool} {fuel 
     (hprogram.preprocess (ComputableInPolyTime.fst input (encOption output))).map hkeep
   have hstep : IsPPTOn (encPair input (encOption output)) (encOption output)
       (fun pair : α × Option β => OracleComp.retryStep good (program pair.1) pair.2) :=
-    IsPPTOn.cond' hcond hyes hno
-  have hloop := IsPPTOn.iterateWith_spec' (input := input) (stateEncoding := encOption output)
+    IsPPTOn.cond hcond hyes hno
+  have hloop := IsPPTOn.iterateWith_spec (input := input) (stateEncoding := encOption output)
     (step := fun a => OracleComp.retryStep good (program a)) hfuel hinitial hstep
     (fun a _ o => ∀ b, o = some b → b ∈ (ProbComp.eval (program a)).support)
     (fun a b hb => nomatch hb)

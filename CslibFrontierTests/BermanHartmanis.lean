@@ -27,11 +27,11 @@ namespace CslibFrontierTests.BermanHartmanis
 
 theorem computableInPolyTime_cons_true :
     ComputableInPolyTime (fun w : List Bool => true :: w) encBits encBits :=
-  (ComputableTidilyInPolyTime.bitsCons (ComputableTidilyInPolyTime.const true)
-    ComputableTidilyInPolyTime.id').computableInPolyTime
+  (ComputableInPolyTime.bitsCons (ComputableInPolyTime.const true)
+    ComputableInPolyTime.id')
 
 theorem computableInPolyTime_tail : ComputableInPolyTime List.tail encBits encBits :=
-  ComputableTidilyInPolyTime.bitsTail.computableInPolyTime
+  ComputableInPolyTime.bitsTail
 
 /-- Words of even length. -/
 def EvenWords : Set (List Bool) := {w | Even w.length}

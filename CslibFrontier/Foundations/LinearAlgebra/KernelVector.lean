@@ -50,6 +50,9 @@ elimination organized for straight-line evaluation, as needed to count its gates
 
 ## Main results
 
+* `Cslib.LinearAlgebra.mulVec_kernelBasis`: every member of `kernelBasis A` lies in the kernel.
+* `Cslib.LinearAlgebra.exists_eq_sum_kernelBasis`: every kernel vector is a linear combination of
+  `kernelBasis A`.
 * `Cslib.LinearAlgebra.mulVec_kernelVec`: the output lies in the kernel.
 * `Cslib.LinearAlgebra.kernelVec_ne_zero`: the output is nonzero when the kernel is nontrivial.
 
@@ -274,6 +277,18 @@ private theorem spansKernel_kernelBasis (A : Matrix (Fin r) (Fin n) F) :
   rw [hset] at h
   exact h
 
+/-- Every member of `kernelBasis A` lies in the kernel of `A`. -/
+theorem mulVec_kernelBasis (A : Matrix (Fin r) (Fin n) F) (i : Fin n) :
+    A *ᵥ kernelBasis A i = 0 :=
+  funext fun k => (spansKernel_kernelBasis A).dotProduct_eq_zero (A k) ⟨k, rfl⟩ i
+
+/-- Every vector in the kernel of `A` is a combination of the members of `kernelBasis A`. -/
+theorem exists_eq_sum_kernelBasis (A : Matrix (Fin r) (Fin n) F) {v : Fin n → F}
+    (hv : A *ᵥ v = 0) : ∃ c : Fin n → F, v = ∑ i, c i • kernelBasis A i :=
+  (spansKernel_kernelBasis A).exists_eq_sum v (by
+    rintro a ⟨k, rfl⟩
+    exact congrFun hv k)
+
 /-- **The kernel vector lies in the kernel.** -/
 theorem mulVec_kernelVec (A : Matrix (Fin r) (Fin n) F) : A *ᵥ kernelVec A = 0 := by
   funext k
@@ -284,9 +299,7 @@ theorem mulVec_kernelVec (A : Matrix (Fin r) (Fin n) F) : A *ᵥ kernelVec A = 0
 theorem kernelVec_ne_zero (A : Matrix (Fin r) (Fin n) F) (h : ∃ v ≠ 0, A *ᵥ v = 0) :
     kernelVec A ≠ 0 := by
   obtain ⟨v, hv, hAv⟩ := h
-  obtain ⟨c, rfl⟩ := (spansKernel_kernelBasis A).exists_eq_sum v (by
-    rintro a ⟨k, rfl⟩
-    exact congrFun hAv k)
+  obtain ⟨c, rfl⟩ := exists_eq_sum_kernelBasis A hAv
   rcases sum_firstFlags_smul_eq (fun i => if kernelBasis A i = 0 then (0 : F) else 1)
       (kernelBasis A) with ⟨hb, -⟩ | ⟨j, hj, -, hsum⟩
   · refine absurd ?_ hv

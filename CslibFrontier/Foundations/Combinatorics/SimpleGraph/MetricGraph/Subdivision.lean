@@ -89,22 +89,21 @@ theorem subAdj_witness_eq {d₁ d₂ : W.graph.Dart} {s₁ t₁ s₂ t₂ : unit
     d₁ = d₂ ∧ s₁ = s₂ ∧ t₁ = t₂ := by
   have ht10 : 0 < (t₁ : ℝ) := lt_of_le_of_lt s₁.2.1 hs₁
   have hs11 : (s₁ : ℝ) < 1 := lt_of_lt_of_le hs₁ t₁.2.2
+  have interior_edge : ∀ {r₁ r₂ : unitInterval}, 0 < (r₁ : ℝ) → (r₁ : ℝ) < 1 →
+      edgePoint d₁ r₁ = (edgePoint d₂ r₂ : MetricGraph W) → d₁.edge = d₂.edge := by
+    intro r₁ r₂ hr0 hr1 heq
+    rcases edgePoint_eq_edgePoint_iff.mp heq with
+      ⟨h1, _⟩ | ⟨h2, _⟩ | ⟨_, _, _, _, ⟨heq', _⟩ | ⟨hsym, _⟩⟩
+    · exact absurd (congrArg Subtype.val h1) hr0.ne'
+    · exact absurd (congrArg Subtype.val h2) hr1.ne
+    · rw [heq']
+    · exact hsym ▸ d₂.edge_symm
   have he : d₁.edge = d₂.edge := by
     by_cases ht1 : (t₁ : ℝ) < 1
-    · rcases edgePoint_eq_edgePoint_iff.mp heq₂ with
-        ⟨h1, _⟩ | ⟨h2, _⟩ | ⟨_, _, _, _, ⟨heq, _⟩ | ⟨hsym, _⟩⟩
-      · exact absurd (congrArg Subtype.val h1) ht10.ne'
-      · exact absurd (congrArg Subtype.val h2) ht1.ne
-      · rw [heq]
-      · exact hsym ▸ d₂.edge_symm
+    · exact interior_edge ht10 ht1 heq₂
     · have ht1eq : t₁ = 1 := Subtype.ext (le_antisymm t₁.2.2 (not_lt.mp ht1))
       by_cases hs10 : 0 < (s₁ : ℝ)
-      · rcases edgePoint_eq_edgePoint_iff.mp heq₁ with
-          ⟨h1, _⟩ | ⟨h2, _⟩ | ⟨_, _, _, _, ⟨heq, _⟩ | ⟨hsym, _⟩⟩
-        · exact absurd (congrArg Subtype.val h1) hs10.ne'
-        · exact absurd (congrArg Subtype.val h2) hs11.ne
-        · rw [heq]
-        · exact hsym ▸ d₂.edge_symm
+      · exact interior_edge hs10 hs11 heq₁
       · have hs1eq : s₁ = 0 := Subtype.ext (le_antisymm (not_lt.mp hs10) s₁.2.1)
         subst hs1eq ht1eq
         have hfst : (vertex d₁.fst : MetricGraph W) = edgePoint d₂ s₂ := by
@@ -488,45 +487,32 @@ theorem vertexDist_subdivide [Finite V] {B : Finset (MetricGraph W)}
         linarith [hVdist u₁ u₂]
       refine le_min (le_min ?_ ?_) (le_min ?_ ?_) <;> linarith [step d₁.fst d₂.fst,
         step d₁.fst d₂.snd, step d₁.snd d₂.fst, step d₁.snd d₂.snd]
+    have hEdgeVertex : ∀ (d₁ : W.graph.Dart) (t₁ : unitInterval) (hx : edgePoint d₁ t₁ ∈ B)
+        (v : V) (hy : vertex v ∈ B),
+        vertexDist (subdivide W B hV).graph (subdivide W B hV).weight
+          ⟨edgePoint d₁ t₁, hx⟩ ⟨vertex v, hy⟩ ≤ dist (edgePoint d₁ t₁) (vertex v) := by
+      intro d₁ t₁ hx v hy
+      rw [dist_edgePoint_vertex]
+      obtain ⟨h10, h11⟩ := hDartToEnd d₁ t₁ hx
+      have ht1 := vertexDist_triangle (subdivide W B hV).weight_nonneg
+        ((subdivide W B hV).connected ⟨edgePoint d₁ t₁, hx⟩ ⟨vertex d₁.fst, hV d₁.fst⟩)
+        ((subdivide W B hV).connected ⟨vertex d₁.fst, hV d₁.fst⟩ ⟨vertex v, hy⟩)
+      have ht2 := vertexDist_triangle (subdivide W B hV).weight_nonneg
+        ((subdivide W B hV).connected ⟨edgePoint d₁ t₁, hx⟩ ⟨vertex d₁.snd, hV d₁.snd⟩)
+        ((subdivide W B hV).connected ⟨vertex d₁.snd, hV d₁.snd⟩ ⟨vertex v, hy⟩)
+      refine le_min ?_ ?_ <;> linarith [hVdist d₁.fst v, hVdist d₁.snd v]
     rcases x with ⟨px, hx⟩; rcases y with ⟨py, hy⟩
     induction px using ind_simple with
     | vertex u =>
       induction py using ind_simple with
       | vertex v => simpa only [dist_vertex] using hVdist u v
       | edgePoint d₂ t₂ =>
-        rw [dist_vertex_edgePoint]
-        obtain ⟨h20, h21⟩ := hDartToEnd d₂ t₂ hy
-        have ht1 := vertexDist_triangle (subdivide W B hV).weight_nonneg
-          ((subdivide W B hV).connected ⟨vertex u, hx⟩ ⟨vertex d₂.fst, hV d₂.fst⟩)
-          ((subdivide W B hV).connected ⟨vertex d₂.fst, hV d₂.fst⟩ ⟨edgePoint d₂ t₂, hy⟩)
-        have ht2 := vertexDist_triangle (subdivide W B hV).weight_nonneg
-          ((subdivide W B hV).connected ⟨vertex u, hx⟩ ⟨vertex d₂.snd, hV d₂.snd⟩)
-          ((subdivide W B hV).connected ⟨vertex d₂.snd, hV d₂.snd⟩ ⟨edgePoint d₂ t₂, hy⟩)
-        have hc1 :
-            vertexDist (subdivide W B hV).graph (subdivide W B hV).weight
-              ⟨vertex d₂.fst, hV d₂.fst⟩ ⟨edgePoint d₂ t₂, hy⟩ =
-            vertexDist (subdivide W B hV).graph (subdivide W B hV).weight
-              ⟨edgePoint d₂ t₂, hy⟩ ⟨vertex d₂.fst, hV d₂.fst⟩ := by rw [vertexDist_comm]
-        have hc2 :
-            vertexDist (subdivide W B hV).graph (subdivide W B hV).weight
-              ⟨vertex d₂.snd, hV d₂.snd⟩ ⟨edgePoint d₂ t₂, hy⟩ =
-            vertexDist (subdivide W B hV).graph (subdivide W B hV).weight
-              ⟨edgePoint d₂ t₂, hy⟩ ⟨vertex d₂.snd, hV d₂.snd⟩ := by rw [vertexDist_comm]
-        rw [hc1] at ht1
-        rw [hc2] at ht2
-        refine le_min ?_ ?_ <;> linarith [hVdist u d₂.fst, hVdist u d₂.snd]
+        dsimp only
+        rw [vertexDist_comm, dist_comm]
+        exact hEdgeVertex d₂ t₂ hy u hx
     | edgePoint d₁ t₁ =>
       induction py using ind_simple with
-      | vertex v =>
-        rw [dist_edgePoint_vertex]
-        obtain ⟨h10, h11⟩ := hDartToEnd d₁ t₁ hx
-        have ht1 := vertexDist_triangle (subdivide W B hV).weight_nonneg
-          ((subdivide W B hV).connected ⟨edgePoint d₁ t₁, hx⟩ ⟨vertex d₁.fst, hV d₁.fst⟩)
-          ((subdivide W B hV).connected ⟨vertex d₁.fst, hV d₁.fst⟩ ⟨vertex v, hy⟩)
-        have ht2 := vertexDist_triangle (subdivide W B hV).weight_nonneg
-          ((subdivide W B hV).connected ⟨edgePoint d₁ t₁, hx⟩ ⟨vertex d₁.snd, hV d₁.snd⟩)
-          ((subdivide W B hV).connected ⟨vertex d₁.snd, hV d₁.snd⟩ ⟨vertex v, hy⟩)
-        refine le_min ?_ ?_ <;> linarith [hVdist d₁.fst v, hVdist d₁.snd v]
+      | vertex v => exact hEdgeVertex d₁ t₁ hx v hy
       | edgePoint d₂ t₂ =>
         by_cases he : d₁.edge = d₂.edge
         · rcases (dart_edge_eq_iff d₁ d₂).mp he with rfl | hsym
@@ -577,6 +563,13 @@ private theorem interpUnit_symm (s t r : unitInterval) (hst : (s : ℝ) ≤ t)
 private theorem interpUnit_mem_Icc (s t r : unitInterval) (hst : (s : ℝ) ≤ t) :
     (s : ℝ) ≤ interpUnit s t r hst ∧ (interpUnit s t r hst : ℝ) ≤ t := by
   constructor <;> dsimp only [interpUnit] <;> nlinarith [r.2.1, r.2.2, hst]
+
+private theorem abs_interpUnit_sub (s t r₁ r₂ : unitInterval) (hst : (s : ℝ) ≤ t) :
+    |(interpUnit s t r₁ hst : ℝ) - interpUnit s t r₂ hst| = |(r₁ : ℝ) - r₂| * (t - s) := by
+  dsimp only [interpUnit]
+  have hsub : ((1 - (r₁ : ℝ)) * s + r₁ * t) - ((1 - (r₂ : ℝ)) * s + r₂ * t) =
+      ((r₁ : ℝ) - r₂) * (t - s) := by ring
+  rw [hsub, abs_mul, abs_of_nonneg (sub_nonneg.mpr hst)]
 
 private noncomputable def subDartOrigin {B : Finset (MetricGraph W)}
     {hV : ∀ v, vertex v ∈ B} (d' : (subdivide W B hV).graph.Dart) : W.graph.Dart :=
@@ -649,18 +642,9 @@ private theorem subdivideToMetric_dist_le [Finite V] {B : Finset (MetricGraph W)
     dist (subdivideToMetric hV p) (subdivideToMetric hV q) ≤ dist p q := by
   refine dist_map_le_of_edgePoint_dist_le (subdivideToMetric hV) (fun d' r₁ r₂ => ?_) p q
   simp only [subdivideToMetric, lift_edgePoint]
-  rw [subDart_weight d']
   refine (dist_edgePoint_self_le _ _ _).trans_eq ?_
-  have heq : |(interpUnit (subDartStart d') (subDartEnd d') r₁ (subDartStart_lt_end d').le : ℝ) -
-      (interpUnit (subDartStart d') (subDartEnd d') r₂ (subDartStart_lt_end d').le : ℝ)| =
-      |(r₁ : ℝ) - r₂| * ((subDartEnd d' : ℝ) - subDartStart d') := by
-    change |((1 - (r₁ : ℝ)) * subDartStart d' + r₁ * subDartEnd d') -
-        ((1 - (r₂ : ℝ)) * subDartStart d' + r₂ * subDartEnd d')| = _
-    have hsub : ((1 - (r₁ : ℝ)) * subDartStart d' + r₁ * subDartEnd d') -
-        ((1 - (r₂ : ℝ)) * subDartStart d' + r₂ * subDartEnd d') =
-        ((r₁ : ℝ) - r₂) * ((subDartEnd d' : ℝ) - subDartStart d') := by ring
-    rw [hsub, abs_mul, abs_of_nonneg (sub_nonneg.mpr (subDartStart_lt_end d').le)]
-  rw [heq]; ring
+  rw [subDart_weight d', abs_interpUnit_sub]
+  ring
 
 private theorem subInterval_outside_of_mem {B : Finset (MetricGraph W)}
     {hV : ∀ v : V, vertex v ∈ B} (d' : (subdivide W B hV).graph.Dart)
@@ -952,64 +936,31 @@ private theorem dist_le_subdivideToMetric [Finite V] {B : Finset (MetricGraph W)
       simp only [subdivideToMetric, lift_vertex]
       exact hFromVertex d₁' r₁ y
     | edgePoint d₂' r₂ =>
-      simp only [subdivideToMetric, lift_edgePoint]
+      have hSameOrigin : ∀ (d₂'' : (subdivide W B hV).graph.Dart) (r₂' : unitInterval),
+          subDartOrigin d₁' = subDartOrigin d₂'' →
+          dist (edgePoint d₁' r₁ : MetricGraph (subdivide W B hV)) (edgePoint d₂'' r₂') ≤
+            dist (subdivideToMetric hV (edgePoint d₁' r₁))
+              (subdivideToMetric hV (edgePoint d₂'' r₂')) := by
+        intro d₂'' r₂' hO
+        simp only [subdivideToMetric, lift_edgePoint]
+        rw [← hO, dist_edgePoint_edgePoint_same (W := W)]
+        refine le_min ?_ (by simpa only [← hO] using hViaEdge d₁' d₂'' r₁ r₂')
+        by_cases hde : d₁'.edge = d₂''.edge
+        · rcases (dart_edge_eq_iff d₁' d₂'').mp hde with rfl | hsym
+          · refine (dist_edgePoint_self_le d₁' r₁ r₂').trans_eq ?_
+            rw [subDart_weight d₁', abs_interpUnit_sub]
+            ring
+          · have h := congrArg subDartOrigin hsym
+            rw [hO, (subDart_symm d₂'').1] at h
+            exact absurd h.symm (subDartOrigin d₂'').symm_ne
+        · exact subEdge_dist_edge_le_of_sameOrigin hde hO r₁ r₂'
       by_cases he : (subDartOrigin d₁').edge = (subDartOrigin d₂').edge
       · rcases (dart_edge_eq_iff (subDartOrigin d₁') (subDartOrigin d₂')).mp he with hO | hO
-        · rw [← hO, dist_edgePoint_edgePoint_same (W := W)]
-          refine le_min ?_ (by simpa only [← hO] using hViaEdge d₁' d₂' r₁ r₂)
-          by_cases hde : d₁'.edge = d₂'.edge
-          · rcases (dart_edge_eq_iff d₁' d₂').mp hde with rfl | hsym
-            · refine (dist_edgePoint_self_le d₁' r₁ r₂).trans_eq ?_
-              rw [subDart_weight d₁']
-              dsimp only [interpUnit]
-              have halg : ((1 - (r₁ : ℝ)) * subDartStart d₁' + r₁ * subDartEnd d₁') -
-                  ((1 - (r₂ : ℝ)) * subDartStart d₁' + r₂ * subDartEnd d₁') =
-                  ((r₁ : ℝ) - r₂) * ((subDartEnd d₁' : ℝ) - subDartStart d₁') := by ring
-              rw [halg, abs_mul, abs_of_nonneg (sub_nonneg.mpr (subDartStart_lt_end d₁').le)]
-              ring
-            · have h := congrArg subDartOrigin hsym
-              rw [hO, (subDart_symm d₂').1] at h
-              exact absurd h.symm (subDartOrigin d₂').symm_ne
-          · exact subEdge_dist_edge_le_of_sameOrigin hde hO r₁ r₂
-        · have hds2 := subDart_symm d₂'
-          have hO2' : subDartOrigin d₂'.symm = subDartOrigin d₁' := by
-            rw [hds2.1, ← hO]
-          have he2 : (edgePoint (subDartOrigin d₂') (interpUnit (subDartStart d₂')
-              (subDartEnd d₂') r₂ (subDartStart_lt_end d₂').le) : MetricGraph W) =
-              edgePoint (subDartOrigin d₁') (interpUnit (subDartStart d₂'.symm)
-                (subDartEnd d₂'.symm) (unitInterval.symm r₂)
-                (subDartStart_lt_end d₂'.symm).le) := by
-            have hst2 := (subDartStart_lt_end d₂').le
-            have hst2' := (subDartStart_lt_end d₂'.symm).le
-            have hin : interpUnit (subDartStart d₂'.symm) (subDartEnd d₂'.symm)
-                (unitInterval.symm r₂) hst2' =
-                unitInterval.symm (interpUnit (subDartStart d₂') (subDartEnd d₂') r₂ hst2) := by
-              simpa only [hds2.2.1, hds2.2.2] using
-                (interpUnit_symm (subDartStart d₂') (subDartEnd d₂') r₂ hst2
-                  (by simp only [← hds2.2.1, ← hds2.2.2]; exact hst2'))
-            rw [← hO2', hds2.1, hin, edgePoint_symm]
-          rw [he2, ← edgePoint_symm d₂' r₂, dist_edgePoint_edgePoint_same (W := W)]
-          refine le_min ?_
-            (by simpa only [hO2'] using hViaEdge d₁' d₂'.symm r₁ (unitInterval.symm r₂))
-          by_cases hde : d₁'.edge = d₂'.symm.edge
-          · rcases (dart_edge_eq_iff d₁' d₂'.symm).mp hde with rfl | hsym
-            · refine (dist_edgePoint_self_le d₂'.symm r₁ (unitInterval.symm r₂)).trans_eq ?_
-              rw [subDart_weight d₂'.symm]
-              dsimp only [interpUnit]
-              have halg : ((1 - (r₁ : ℝ)) * subDartStart d₂'.symm + r₁ * subDartEnd d₂'.symm) -
-                  ((1 - (unitInterval.symm r₂ : ℝ)) * subDartStart d₂'.symm +
-                    unitInterval.symm r₂ * subDartEnd d₂'.symm) =
-                  ((r₁ : ℝ) - unitInterval.symm r₂) *
-                    ((subDartEnd d₂'.symm : ℝ) - subDartStart d₂'.symm) := by ring
-              rw [halg, abs_mul, abs_of_nonneg (sub_nonneg.mpr (subDartStart_lt_end d₂'.symm).le)]
-              ring
-            · have hcontr : (subDartOrigin d₂').symm = subDartOrigin d₂' := by
-                have h := congrArg subDartOrigin hsym
-                rw [hO, (subDart_symm d₂'.symm).1, hds2.1, Dart.symm_symm] at h
-                exact h
-              exact absurd hcontr (subDartOrigin d₂').symm_ne
-          · exact subEdge_dist_edge_le_of_sameOrigin hde hO2'.symm r₁ (unitInterval.symm r₂)
-      · rw [dist_edgePoint_edgePoint_of_edge_ne he]
+        · exact hSameOrigin d₂' r₂ hO
+        · rw [← edgePoint_symm d₂' r₂]
+          exact hSameOrigin d₂'.symm (unitInterval.symm r₂) (hO.trans (subDart_symm d₂').1.symm)
+      · simp only [subdivideToMetric, lift_edgePoint]
+        rw [dist_edgePoint_edgePoint_of_edge_ne he]
         exact hViaEdge d₁' d₂' r₁ r₂
 
 /-- The isometric equivalence `MetricGraph (subdivide W B hV) ≃ᵢ MetricGraph W`. -/
@@ -1506,23 +1457,14 @@ theorem dist_subdivide_edgePoint_affine [Finite V] {p : MetricGraph W}
   have hsub := dartBreakpoints_subset_pointBreakpoints W p d |>.trans hBp
   obtain ⟨α, β, haff⟩ := dist_point_edgePoint_piecewise_affine W p d hst
     (fun q hq r hsr hrt => fun hreq => hno r hsr hrt (hreq ▸ hsub hq))
-  let u : unitInterval := ⟨(1 - (τ : ℝ)) * s + τ * t,
-    add_nonneg (mul_nonneg (unitInterval.one_sub_nonneg τ) s.2.1) (mul_nonneg τ.2.1 t.2.1),
-    by nlinarith [τ.2.1, τ.2.2, s.2.2, t.2.2]⟩
-  have hu_mem : (s : ℝ) ≤ u ∧ (u : ℝ) ≤ t := by
-    constructor <;> dsimp only [u] <;> nlinarith [τ.2.1, τ.2.2, hst]
+  let u := interpUnit s t τ hst.le
+  obtain ⟨hu1, hu2⟩ := interpUnit_mem_Icc s t τ hst.le
   have h1 := haff s le_rfl hst.le
   have h2 := haff t hst.le le_rfl
-  have h3 := haff u hu_mem.1 hu_mem.2
-  rw [heq, subdivideEquiv_vertex, subdivideEquiv_vertex, ← hs, ← ht]
-  have h1s : dist p (edgePoint d s) = α + β * s := h1
-  have h2t : dist p (edgePoint d t) = α + β * t := h2
-  have h3u : dist p (edgePoint d ⟨(1 - (τ : ℝ)) * s + τ * t,
-      add_nonneg (mul_nonneg (unitInterval.one_sub_nonneg τ) s.2.1) (mul_nonneg τ.2.1 t.2.1),
-      by nlinarith [τ.2.1, τ.2.2, s.2.2, t.2.2]⟩) =
-      α + β * u := h3
-  rw [h1s, h2t, h3u]
-  dsimp only [u]
+  have h3 : dist p (edgePoint d u) = α + β * u := haff u hu1 hu2
+  change subdivideEquiv hV (edgePoint d' τ) = edgePoint d u at heq
+  rw [heq, subdivideEquiv_vertex, subdivideEquiv_vertex, ← hs, ← ht, h1, h2, h3]
+  dsimp only [u, interpUnit]
   ring
 
 theorem dist_subdivide_edgePoint_affine' [Finite V] {B : Finset (MetricGraph W)}

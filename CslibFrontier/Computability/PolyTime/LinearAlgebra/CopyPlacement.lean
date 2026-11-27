@@ -1113,7 +1113,7 @@ theorem ofCoeffList_pullbackReplacementRow_ofFn_eq_varReplacementRowScaledInt
       (Nat.sub_lt hR Nat.one_pos))
   have hq := congrArg (fun p : Polynomial ℚ => p.coeff N)
     (Cslib.LinearAlgebra.map_varReplacementRowScaledInt Q r A₀ R place varOf e v)
-  simp only [Polynomial.coeff_map, eq_intCast, Polynomial.coeff_smul, smul_eq_mul] at hq
+  simp only [Polynomial.coeff_map, eq_intCast, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul] at hq
   rw [Polynomial.coeff_eq_zero_of_natDegree_lt
     ((Cslib.LinearAlgebra.natDegree_varReplacementRow_le Q r A₀ R place varOf e v).trans_lt hN),
     mul_zero] at hq

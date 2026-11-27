@@ -135,7 +135,6 @@ noncomputable def test (generator : List Bool → List Bool) (seedBits count : �
     (adversary : List Bool → ProbComp Bool) (challenge : List Bool) : ProbComp Bool :=
   reduction generator (fun _ => count) (fun _ => adversary) seedBits challenge
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 /-- Captured parameters, generator code, and the adversary compose through the public tactics. -/
 @[program_certificate]
 theorem isPPT_test {α : Type} {input : α ↪ List Bool}
@@ -185,7 +184,7 @@ theorem isPPT_test {α : Type} {input : α ↪ List Bool}
   have hcond := ComputableInPolyTime.unary_lt' hi (hcount.comp ha)
   have hfalse : IsPPTOn pairEncoding encBool (fun _ => pure false) :=
     (ComputableInPolyTime.const false).isPPTOn
-  have hbranch := IsPPTOn.ite hcond.tidy hyes hfalse
+  have hbranch := IsPPTOn.ite hcond hyes hfalse
   have hindex := isPPTOn_sampleBoundedIndex hcount
   simpa only [test, reduction, hop, pairEncoding, fullEncoding, Function.comp_def] using
     hindex.bind_with hbranch
@@ -279,7 +278,7 @@ theorem advantage_eq (generator : List Bool → List Bool) (count : ℕ → ℕ)
     (2 ^ (Nat.log 2 (count n) + 1))
     (Nat.le_of_lt (Nat.lt_pow_succ_log_self Nat.one_lt_two (count n)))
   rw [← hreal, ← hideal, hybrid_zero, hybrid_last] at havg
-  simpa only [eval_prgRealGame, eval_prgIdealGame, distinguishingGame,
+  simpa only [eval_prgRealGame, eval_prgIdealGame, distinguishingGame_eq_bind,
     PMF.monad_bind_eq_bind] using havg
 
 /-- The same exact loss applies with the seed length independent of the security parameter.
@@ -299,8 +298,8 @@ theorem test_advantage_eq (generator : List Bool → List Bool) (seedBits count 
   have h := advantage_eq generator (fun _ => count) (fun _ => adversary) seedBits
   simp only [eval_prgRealGame, eval_prgIdealGame] at h
   rw [← hybrid_zero generator (fun _ => count) seedBits] at h
-  simpa only [hybrid, Nat.add_zero, Nat.sub_zero, generatorEnsemble,
-    distinguishingGame, PMF.monad_bind_eq_bind, test] using h
+  simpa only [hybrid, Nat.add_zero, Nat.sub_zero, generatorEnsemble, distinguishingGame_eq_bind,
+    PMF.monad_bind_eq_bind, test] using h
 
 /-- Padding the sampled hop loses at most twice the number of expansions. -/
 theorem advantage_le (generator : List Bool → List Bool) (count : ℕ → ℕ)
@@ -324,7 +323,6 @@ theorem advantage_le (generator : List Bool → List Bool) (count : ℕ → ℕ)
 theorem loss_polynomial {count : ℕ → ℕ}
     (hcount : ComputableInPolyTime count encUnary encUnary) :
     PolynomiallyBounded (fun n => 2 ^ (Nat.log 2 (count n) + 1)) := by
-  have hcount := hcount.tidy
   exact dyadicSize_polynomiallyBounded.comp hcount.polynomiallyBounded
 
 /-- Polynomially many expansions preserve the secure choice in a uniformly efficient family.
@@ -391,13 +389,13 @@ theorem indistinguishableWithAdvice {generator : List Bool → List Bool} {count
     (seedBits := fun n => n) (choose := advice) hgen
     (ComputableInPolyTime.of_eq fun _ => rfl) hcount
     (fun adversary hadversary => by
-      simpa only [distinguishingGame, generatorEnsemble, PMF.monad_bind_eq_bind] using
+      simpa only [distinguishingGame_eq_bind, generatorEnsemble, PMF.monad_bind_eq_bind] using
         hsecure _ hadversary)
     (fun n context word => test ((n, context), word)) htest
   refine h.congr' (Filter.Eventually.of_forall fun n => ?_)
   beta_reduce
   rw [← hybrid_zero generator count n]
-  simp only [hybrid, distinguishingGame, PMF.monad_bind_eq_bind, Nat.add_zero, Nat.sub_zero]
+  simp only [hybrid, distinguishingGame_eq_bind, PMF.monad_bind_eq_bind, Nat.add_zero, Nat.sub_zero]
 
 /-- Polynomially many seed expansions preserve computational indistinguishability. -/
 theorem indistinguishable {generator : List Bool → List Bool} {count : ℕ → ℕ}
@@ -416,10 +414,9 @@ theorem pseudorandomGenerator {generator : List Bool → List Bool} {count : ℕ
     (hcount : ComputableInPolyTime count encUnary encUnary)
     (hpositive : ∀ n, 0 < count n) :
     PseudorandomGenerator (stretch generator count) (fun n => n + count n) := by
-  have hcount := hcount.tidy
   refine PseudorandomGenerator.of_indistinguishable
-    (polyTime_stretch hgenerator.polyTime (.of_tidy hcount)) ?_ ?_
-    (indistinguishable hgenerator (.of_tidy hcount))
+    (polyTime_stretch hgenerator.polyTime (hcount)) ?_ ?_
+    (indistinguishable hgenerator (hcount))
   · intro seed
     exact length_iterate hgenerator.length_eq _ _ _
   · intro n
@@ -450,9 +447,8 @@ theorem PseudorandomGenerator.amplify {generator : List Bool → List Bool}
     (target : ℕ → ℕ) (htarget : ComputableInPolyTime target encUnary encUnary)
     (hstretch : ∀ n, n < target n) :
     PseudorandomGenerator (PRGStretch.stretch generator (fun n => target n - n)) target := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at htarget
-  have hcount : ComputableTidilyInPolyTime (fun n => target n - n) encUnary encUnary := by polytime
-  have h := PRGStretch.pseudorandomGenerator hgenerator (.of_tidy hcount) (fun n => by
+  have hcount : ComputableInPolyTime (fun n => target n - n) encUnary encUnary := by polytime
+  have h := PRGStretch.pseudorandomGenerator hgenerator (hcount) (fun n => by
     have := hstretch n
     lia)
   convert h using 1
@@ -467,9 +463,8 @@ theorem PseudorandomGenerator.truncate {generator : List Bool → List Bool} {le
     (htarget : ComputableInPolyTime target encUnary encUnary)
     (hle : ∀ n, target n ≤ length n) (hstretch : ∀ n, n < target n) :
     PseudorandomGenerator (fun seed => (generator seed).take (target seed.length)) target := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at htarget
-  have hpoly := hgenerator.polyTime.tidy
-  refine PseudorandomGenerator.of_indistinguishable (.of_tidy (by polytime)) ?_ hstretch ?_
+  have hpoly := hgenerator.polyTime
+  refine PseudorandomGenerator.of_indistinguishable ((by polytime)) ?_ hstretch ?_
   · intro seed
     simp only [List.length_take, hgenerator.length_eq, Nat.min_eq_left (hle _)]
   · have h := hgenerator.indistinguishable.map

@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.WordRAM.ListArray
 import CslibFrontier.Computability.WordRAM.MemoryView
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native stable digit-selection scan
@@ -158,12 +159,12 @@ theorem exec {w s d b t : ℕ} (xs acc : List ℕ) (x : Data 16)
       ∃ z, ExecWithin w body y z 9 ∧ P (y.regs idx + 1) z ∧
         z.regs idx = y.regs idx + 1 := by
     obtain ⟨hr, hu, hm, ha, hf⟩ := hy
-    have hys : y.regs src = s := (hr src (by decide)).trans hs
-    have hyd : y.regs dst = d := (hr dst (by decide)).trans hd
-    have hyb : y.regs bit = b := (hr bit (by decide)).trans hb
-    have hyt : y.regs tag = t := (hr tag (by decide)).trans ht
-    have hyo : y.regs one = 1 := (hr one (by decide)).trans ho
-    have hy2 : y.regs two = 2 := (hr two (by decide)).trans h2
+    have hys : y.regs src = s := by regs_frame
+    have hyd : y.regs dst = d := by regs_frame
+    have hyb : y.regs bit = b := by regs_frame
+    have hyt : y.regs tag = t := by regs_frame
+    have hyo : y.regs one = 1 := by regs_frame
+    have hy2 : y.regs two = 2 := by regs_frame
     have hread : y.mem (y.regs src + y.regs idx) = xs[y.regs idx] := by
       rw [hys]; exact hm.get _ hi
     have hv : Fits w (y.mem (y.regs src + y.regs idx)) := by

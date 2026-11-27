@@ -11,6 +11,8 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ParameterSelecting.
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ParameterSelecting.Delivery
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ParameterSelecting.Selection
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.Exec
+import CslibFrontier.Foundations.Data.List.GetD
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual selected-prime complete fast execution
@@ -37,10 +39,8 @@ private theorem window_le {n d g p q T : ℕ} (h : p ≤ q) :
 
 private theorem original_bound {n F : ℕ} (values : List ℤ)
     (hlen : values.length = 3 * (n * n)) (hv : ∀ z ∈ values, z.natAbs ≤ F)
-    (q : ℕ) (hq : q < 3 * (n * n)) : (values.getD q 0).natAbs ≤ F := by
-  have hq' : q < values.length := by omega
-  rw [List.getD_eq_getElem _ _ hq']
-  exact hv _ (List.getElem_mem hq')
+    (q : ℕ) (hq : q < 3 * (n * n)) : (values.getD q 0).natAbs ≤ F :=
+  hv (values.getD q 0) (List.getD_mem 0 (by omega))
 
 /-- Concrete selection followed by the complete concrete solver, with both verdict directions.
 Parameter postconditions here are established by the real preceding parameter execution; none
@@ -126,18 +126,16 @@ theorem exec_fast {w W n F b : ℕ} (values : List ℤ)
       (hdj : j ≠ CallableFixedPrime.Reg.dimension) (hgj : j ≠ CallableFixedPrime.Reg.groups)
       (hpj : j ≠ CallableFixedPrime.Reg.prime) : q.regs j = x.regs j := by
     exact (Function.update_of_ne hpj _ _).trans ((rr j hj).trans (sr j hj hdj hgj))
-  have qn : q.regs CallableFixedPrime.Reg.n = n :=
-    (qkeep _ (by decide) (by decide) (by decide) (by decide)).trans xn
+  have qn : q.regs CallableFixedPrime.Reg.n = n := by regs_frame
   have qd : q.regs CallableFixedPrime.Reg.dimension = D (ParameterChoice.level n) :=
     (Function.update_of_ne (by decide : CallableFixedPrime.Reg.dimension ≠
       CallableFixedPrime.Reg.prime) p r.regs).trans
-      ((rr _ (by decide)).trans (sd.trans xd))
+      (by regs_frame)
   have qg : q.regs CallableFixedPrime.Reg.groups = ParameterChoice.groups n :=
     (Function.update_of_ne (by decide : CallableFixedPrime.Reg.groups ≠
       CallableFixedPrime.Reg.prime) p r.regs).trans
-      ((rr _ (by decide)).trans (sg.trans xg))
-  have qb : q.regs CallableFixedPrime.Reg.base = b :=
-    (qkeep _ (by decide) (by decide) (by decide) (by decide)).trans xb
+      (by regs_frame)
+  have qb : q.regs CallableFixedPrime.Reg.base = b := by regs_frame
   have qa : q.regs CallableFixedPrime.Reg.ab = x.regs CallableFixedPrime.Reg.ab :=
     qkeep _ (by decide) (by decide) (by decide) (by decide)
   have qB : q.regs CallableFixedPrime.Reg.bc = x.regs CallableFixedPrime.Reg.bc :=

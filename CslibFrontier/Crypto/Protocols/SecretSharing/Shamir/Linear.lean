@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Probability.Uniform
 public import Cslib.Crypto.Protocols.SecretSharing.Shamir
+import CslibFrontier.Foundations.Data.Polynomial.LagrangeEval
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Algebra.Polynomial.Degree.Lemmas
 
@@ -165,6 +166,28 @@ theorem reconstruct_eq_sum_lagrangeWeightAtZero {ι : Type*} [Fintype ι] (x σ 
   classical
   simp [reconstruct, _root_.Lagrange.interpolate_apply, lagrangeWeightAtZero,
     _root_.Polynomial.constantCoeff_apply]
+
+/-- The Lagrange interpolation weight at `0` for `x : ι → F` is nonzero whenever `x` is injective
+and takes nonzero values (specialization of `Lagrange.eval_basis_ne_zero` at `0`). -/
+theorem lagrangeWeightAtZero_ne_zero {ι : Type*} [Fintype ι] {x : ι → F}
+    (hinj : Function.Injective x) (hnz : ∀ i, x i ≠ 0) (i : ι) :
+    lagrangeWeightAtZero x i ≠ 0 := by
+  classical
+  rw [lagrangeWeightAtZero, _root_.Polynomial.constantCoeff_apply,
+    _root_.Polynomial.coeff_zero_eq_eval_zero]
+  exact _root_.Lagrange.eval_basis_ne_zero hinj.injOn (Finset.mem_univ i)
+    fun j _ _ => (hnz j).symm
+
+/-- Reconstructing a single-coordinate vector `Pi.single i c` evaluates to `c` times the Lagrange
+weight at `0`. -/
+theorem reconstruct_single {ι : Type*} [Fintype ι] [DecidableEq ι] (x : ι → F) (i : ι) (c : F) :
+    reconstruct x (Pi.single i c) = c * lagrangeWeightAtZero x i := by
+  rw [reconstruct_eq_sum_lagrangeWeightAtZero, Finset.sum_eq_single i]
+  · simp
+  · intro j _ hji
+    simp [hji]
+  · intro hi
+    exact (hi (Finset.mem_univ i)).elim
 
 /-- Reconstructing the zero share vector returns `0`. -/
 @[simp] theorem reconstruct_zero {ι : Type*} [Fintype ι] (x : ι → F) :

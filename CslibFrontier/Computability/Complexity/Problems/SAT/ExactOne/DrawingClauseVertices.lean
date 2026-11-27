@@ -34,6 +34,8 @@ public section
 
 namespace Cslib.Complexity.SAT.ExactOne
 
+open Graph.OrthogonalDrawing
+
 open Cslib.Logic.PL Orthogonal
 
 /-- The selected clause-position list has the exact actual profile clause length. -/

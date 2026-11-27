@@ -13,6 +13,7 @@ public import CslibFrontier.Probability.BitString.AffineHash.ThreeWise
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Probability.HashFamily.Collisions
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Map
@@ -335,27 +336,6 @@ Lemma 5.4, pp. 27–28). -/
   inDigest := zeroPadPrefix n₁ j (Cslib.BitString.LinearHash.hash w.inRows w.base)
 
 open Classical in
-/-- If an event on hash seeds forces a collision of `x` with another candidate, a two-universal
-family bounds its probability by `|candidates| / |Output|`. -/
-private theorem sum_ite_toReal_le_card_div_of_imp {Seed X Y : Type} [Fintype Seed] [Fintype Y]
-    {seed : PMF Seed} {hash : Seed → X → Y} (hhash : IsTwoUniversal seed hash)
-    (cand : Finset X) (x : X) {P : Seed → Prop} {_ : DecidablePred P}
-    (hP : ∀ s, P s → ∃ y ∈ cand, y ≠ x ∧ hash s y = hash s x) :
-    (∑ s, if P s then (seed s).toReal else 0) ≤ (#cand : ℝ) / Fintype.card Y := by
-  calc (∑ s, if P s then (seed s).toReal else 0)
-      ≤ ∑ s, if ∃ y ∈ cand, y ≠ x ∧ hash s y = hash s x then (seed s).toReal else 0 :=
-        sum_le_sum fun s _ => by
-          split_ifs with h₁ h₂
-          · exact le_rfl
-          · exact absurd (hP s h₁) h₂
-          · exact ENNReal.toReal_nonneg
-          · exact le_rfl
-    _ ≤ ((cand.erase x).card : ℝ) / Fintype.card Y := hhash.collision_with_set_le cand x
-    _ ≤ (#cand : ℝ) / Fintype.card Y := by
-      gcongr
-      exact erase_subset _ _
-
-open Classical in
 /-- **`[HHRVW2020]`, Section 5.1.2, Lemma 5.4(ii) (p. 28)**: by two-universality of matrix prefixes
 (`LinearHash.isTwoUniversal_prefix`), the probability over `inRows` that some distinct
 $z' \in L$ collides with $z$ under `inputHashFin f₁ j` is at most $|L| / 2^{\min(j, n_1)}$. -/
@@ -369,8 +349,8 @@ theorem inputHashFin_accessible_collision_le {n₁ m₁ : ℕ} (f₁ : BitString
   have hcard : (Fintype.card (BitString (min j n₁)) : ℝ) = (2 : ℝ) ^ (min j n₁) := by
     simp [BitString]
   rw [← hcard]
-  exact sum_ite_toReal_le_card_div_of_imp
-    (Cslib.BitString.LinearHash.isTwoUniversal_prefix (n := n₁) (Nat.min_le_right j n₁)) L z
+  exact (Cslib.BitString.LinearHash.isTwoUniversal_prefix (n := n₁)
+    (Nat.min_le_right j n₁)).sum_ite_toReal_le_card_div_of_imp L z
     fun rows h => by
       obtain ⟨z', hz', hne, heq⟩ := h
       have hdig := congrArg InputHashedOutput.inDigest heq
@@ -544,7 +524,7 @@ theorem shrunkHashFin_false_positive_le {n₁ m₁ : ℕ} (f₁ : BitString n₁
   have hcard : (Fintype.card (BitString (outHashLen n₁)) : ℝ) = (2 : ℝ) ^ (outHashLen n₁) := by
     simp [BitString]
   rw [← hcard]
-  exact sum_ite_toReal_le_card_div_of_imp htwo cand (inputHashFin f₁ j w) fun outRows h => by
+  exact htwo.sum_ite_toReal_le_card_div_of_imp cand (inputHashFin f₁ j w) fun outRows h => by
     obtain ⟨w', hne, heq⟩ := h
     have hdig := congrArg ShrunkHashOutput.outDigest heq
     dsimp only [shrunkHashFin] at hdig
@@ -602,8 +582,21 @@ theorem computableInPolyTime_inputHashEvalWord {α : Type} {encode : α ↪ List
     ComputableInPolyTime
       (fun a => inputHashEvalWord (n₁ a) (m₁ a) (evalWord₁ (n a)) (j a) (u a))
       encode encBits := by
-  simp only [inputHashEvalWord]
-  fun_prop
+  have hz := ComputableInPolyTime.bitsRowWithInput hn₁ (.const 0)
+    (ComputableInPolyTime.bitsTakeWithInput hu hn₁)
+  have hsize := ComputableInPolyTime.unary_mul' hn₁ hn₁
+  have hseed := ComputableInPolyTime.bitsRowWithInput hsize (.const 0)
+    (ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hu hn₁) hsize)
+  have hbase := ComputableInPolyTime.bitsRowWithInput hm₁ (.const 0)
+    (heval₁.comp (hn.prod hz))
+  have hdigest := computableInPolyTime_wordHash hn₁ hseed hz
+  have hr := ComputableInPolyTime.unary_sub' hn₁
+    (ComputableInPolyTime.unary_sub' hn₁ hj)
+  exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hbase hseed)
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsTakeWithInput hdigest hr)
+      ((ComputableInPolyTime.bitsReplicate false).comp
+        (ComputableInPolyTime.unary_sub' hn₁ hr)))
 
 /-- Plain polynomial-time certificate for `shrunkHashEvalWord`. -/
 @[fun_prop]
@@ -709,9 +702,18 @@ theorem isPPT_shrunkHashEscapeInverter {n₁ m₁ : ℕ → ℕ}
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList
     (by unfold outHashLen inputHashOutLen inputHashInLen; fun_prop)).bind_with ?_
-  exact (hA.preprocess (ComputableInPolyTime.tidy (by fun_prop))
-    (ComputableInPolyTime.tidy (by fun_prop))).bind_with
-    (ComputableInPolyTime.isPPTOn (by fun_prop))
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair (encPair encUnary encBits) encBits) encBits)
+  have hparameter := hp.fst'.fst'.fst'
+  have hwidth := hn₁.comp hparameter
+  have hword := ComputableInPolyTime.bitsRowWithInput hwidth (.const 0) hp.fst'.fst'.snd'
+  have hprepare := ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend hword hp.fst'.snd') hp.snd'
+  have hresult := ComputableInPolyTime.bitsTakeWithInput
+    (ComputableInPolyTime.snd _ encBits)
+    (hwidth.comp (ComputableInPolyTime.fst _ encBits))
+  simpa only [bind_pure_comp, Function.comp_def] using
+    (hA.preprocess hparameter hprepare).map_with hresult
 
 private def shrunkTupleEquiv (n₁ m₁ : ℕ) :
     (BitString n₁ × (Fin n₁ → BitString n₁) ×

@@ -210,35 +210,7 @@ private theorem polytime_powerPreprocessEdge (eval : C → α → α → Bool) (
       (encPair (encoding enc) (encPair (encPair encUnary encBool)
         (encPair (encPi (encFinite (PreprocessLabel D))) (encPi (encFinEnum (Fin q))))))
       (Edge.encoding encConstraintTable) := by
-  have hr : ComputableInPolyTime
-      (fun p : Graph C × ((ℕ × Bool) × PreprocessLabel D) =>
-        p.1.preprocessRotation fallback rotate p.2)
-      (encPair (encoding enc) (encPair (encPair encUnary encBool)
-        (encFinite (PreprocessLabel D))))
-      (encPair (encPair encUnary encBool) (encFinite (PreprocessLabel D))) :=
-    isPolyTime_preprocessRotation (.fst _ _) (.snd _ _) hrotate fallback
-  have he : ComputableInPolyTime
-      (fun p : Graph C × (((ℕ × Bool) × PreprocessLabel D) × (α × α)) =>
-        p.1.preprocessRelation eval fallback p.2.1 p.2.2.1 p.2.2.2)
-      (encPair (encoding enc) (encPair
-        (encPair (encPair encUnary encBool) (encFinite (PreprocessLabel D)))
-        (encPair alphabet alphabet))) encBool :=
-    isPolyTime_preprocessRelation (.fst _ _) ((ComputableInPolyTime.snd _ _).fst') heval
-      ((ComputableInPolyTime.snd _ _).snd'.fst')
-      ((ComputableInPolyTime.snd _ _).snd'.snd') fallback
-  have hwalk := ComputableInPolyTime.rotationMap_killedPowRotWithInput hr T q (encFinEnum (Fin q))
-  have hrel := RegularConstraintGraph.isPolyTime_powerRelationWithInput
-    hr he T q (encFinEnum (Fin q))
-  unfold powerPreprocessEdge
-  refine Edge.isPolyTime_mk ?_ ?_ ?_
-  · fun_prop
-  · exact isPolyTime_halfEdgeNumber.comp hwalk.fst'
-  · apply pi
-    intro a
-    apply pi
-    intro b
-    simpa only [RegularConstraintGraph.powerInputEncoding, Function.comp_def] using
-      hrel.comp ((fst _ _).prod ((snd _ _).prod (const (a, b))))
+  fun_prop [powerPreprocessEdge]
 
 /-- Construct the entire output truth tables, charging every rotation, constraint lookup,
 opinion table, copied graph, edge record and list delimiter. All finite parameters are fixed. -/

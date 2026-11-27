@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.WordRAM.Copy
 public import CslibFrontier.Computability.WordRAM.Dynamic
 public import CslibFrontier.DataStructure.StateTransition.Amortized
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Doubling arrays on the word RAM
@@ -195,10 +196,9 @@ theorem grow_exec {w : ℕ} (x : Data 12) (h1 : Fits w 1)
     wram_simp [ha]
   obtain ⟨z, hz, hzm⟩ := copy_exec a h1 (by rw [has, hal]; fits) (by rw [had, hal]; fits)
     (by rw [has, hal, had]; exact hp)
-  have hzd : z.regs dest = x.regs frontier := (hz.regs_eq (by decide)).trans had
-  have hzc : z.regs count = 2 * x.regs cap := (hz.regs_eq (by decide)).trans hac
-  have hzf : z.regs frontier = x.regs frontier + 2 * x.regs cap :=
-    (hz.regs_eq (by decide)).trans haf
+  have hzd : z.regs dest = x.regs frontier := by regs_frame
+  have hzc : z.regs count = 2 * x.regs cap := by regs_frame
+  have hzf : z.regs frontier = x.regs frontier + 2 * x.regs cap := by regs_frame
   wram_exec
   refine WP.of_execWithin hz ?_
   wram_exec [hzd, hzc]
@@ -346,9 +346,17 @@ def implementation (w : ℕ) : DynamicProgram (spec w) 12 where
       match o with | .append _ => 0 | .get _ => 1
     else
       match o with | .append v => v | .get idx => idx
-  decode o regs := match o with
-    | .append _ => some ()
-    | .get _ => some (regs temp)
+  resultBank _ := temp
+  resultType o := match o with
+    | .append _ => .unit
+    | .get _ => .nat
+  resultType_eq o := by cases o <;> rfl
+
+@[simp] theorem decode_append (w v : ℕ) (regs : Fin 12 → ℕ) :
+    (implementation w).decode (.append v) regs = some () := rfl
+
+@[simp] theorem decode_get (w i : ℕ) (regs : Fin 12 → ℕ) :
+    (implementation w).decode (.get i) regs = some (regs temp) := rfl
 
 /-- Bounded-word doubling-array representation for `DynamicCertificate`. -/
 structure BoundedRep (w : ℕ) (vs : List ℕ) (x : Data 12) : Prop where
@@ -441,7 +449,7 @@ theorem dispatch_exec {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x : Data 12}
       simp +decide [implementation, DynamicProgram.prepare]
     wram_exec [hdest]
     refine WP.Exact.of_exec he fun hb => ⟨?_, ⟨hb, hy_rep⟩, fun a _ => congrFun hy_mem a, ?_⟩
-    · simp [implementation, htemp, harg, spec]
+    · simp [htemp, harg, spec]
     · simp only [charge]
       omega
 

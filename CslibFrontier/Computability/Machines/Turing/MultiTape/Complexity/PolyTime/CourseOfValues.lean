@@ -46,8 +46,8 @@ open Cslib
 
 private theorem bitsSnoc :
     ComputableInPolyTime (fun p : List Bool × Bool => p.1 ++ [p.2])
-      (encPair encBits encBool) encBits := by
-  fun_prop
+      (encPair encBits encBool) encBits :=
+  bitsAppend (fst encBits encBool) (bitsCons (snd encBits encBool) (const []))
 
 /-- **Course-of-values certificate for any list encoding supporting single-element append.**
 A captured parameter `par`, unary stage count `count`, and polynomial bound on the encoded

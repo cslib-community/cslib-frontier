@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Frame
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native Strassen child layout and explicit frame push
@@ -118,8 +119,7 @@ theorem exec_push {w : ℕ} (phase : Fin 8) (x : Data 64)
       Reg.inputA, Reg.inputB, Reg.output, Reg.scratch, Reg.depth, Reg.size, Reg.one] using h1)
     (by simpa only [hsframe, Nat.add_assoc] using hw)
   have he : ExecWithin w (push phase.val) x y 26 := hpre.seq hy
-  have hyframe : y.regs Reg.frame = x.regs Reg.frame + 7 :=
-    (regs Reg.frame (by decide)).trans hsframe
+  have hyframe : y.regs Reg.frame = x.regs Reg.frame + 7 := by regs_frame
   have hfields (j : Fin 7) : y.regs (field j) = s.regs (field j) := by
     apply regs
     fin_cases j <;> decide

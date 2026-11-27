@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffNorm1
+public import Mathlib.Algebra.Polynomial.Bivariate
+import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Data.Polynomial.CoeffSumBounds
 import Mathlib.Data.Finset.Sum
 
@@ -75,6 +77,18 @@ theorem coeffNorm1_coeff_le_bivariateCoeffNorm1 (P : Polynomial (Polynomial ℤ)
   · rw [notMem_support_iff.mp hs, coeffNorm1_zero]
     exact Nat.zero_le _
 
+/-- Each coefficient in the other variable also has norm bounded by the total bivariate norm. -/
+theorem coeffNorm1_coeff_swap_le (P : Polynomial (Polynomial ℤ)) (i : ℕ) :
+    ((Bivariate.swap P).coeff i).coeffNorm1 ≤ P.bivariateCoeffNorm1 := by
+  have hs : ((Bivariate.swap P).coeff i).support ⊆ P.support := by
+    intro j hj
+    rw [mem_support_iff, Bivariate.coeff_coeff_swap] at hj
+    exact mem_support_iff.mpr (fun h => hj (by rw [h, coeff_zero]))
+  rw [coeffNorm1_eq_sum_of_support_subset hs, bivariateCoeffNorm1]
+  refine sum_le_sum fun j _ => ?_
+  rw [Bivariate.coeff_coeff_swap]
+  exact natAbs_coeff_le_coeffNorm1 (P.coeff j) i
+
 /-- If `P.support ⊆ S`, then `P.bivariateCoeffNorm1 = ∑ s ∈ S, (P.coeff s).coeffNorm1`. -/
 theorem bivariateCoeffNorm1_eq_sum_of_support_subset {P : Polynomial (Polynomial ℤ)}
     {S : Finset ℕ} (hS : P.support ⊆ S) :
@@ -129,5 +143,36 @@ theorem bivariateCoeffNorm1_prod_le {κ : Type*} (I : Finset κ)
     (∏ i ∈ I, F i).bivariateCoeffNorm1 ≤ ∏ i ∈ I, (F i).bivariateCoeffNorm1 :=
   le_prod_of_submultiplicative bivariateCoeffNorm1 bivariateCoeffNorm1_one.le
     bivariateCoeffNorm1_mul_le I F
+
+/-- Specializing the outer variable at an integer increases the coefficient norm by at most
+the absolute value of the integer raised to the outer degree. -/
+theorem coeffNorm1_eval_C_le (P : Polynomial (Polynomial ℤ)) (a : ℤ) (ha : 1 ≤ a.natAbs) :
+    (P.eval (C a)).coeffNorm1 ≤ P.bivariateCoeffNorm1 * a.natAbs ^ P.natDegree := by
+  rw [eval_eq_sum, Polynomial.sum]
+  refine (coeffNorm1_sum_le _ _).trans ?_
+  calc
+    _ ≤ ∑ i ∈ P.support, (P.coeff i).coeffNorm1 * a.natAbs ^ P.natDegree := by
+      apply sum_le_sum
+      intro i hi
+      rw [← map_pow, mul_comm (P.coeff i)]
+      calc
+        _ ≤ (a ^ i).natAbs * (P.coeff i).coeffNorm1 := coeffNorm1_C_mul_le _ _
+        _ ≤ _ := by
+          rw [Int.natAbs_pow, mul_comm (a.natAbs ^ i)]
+          exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right ha (le_natDegree_of_mem_supp i hi))
+    _ = _ := by rw [← sum_mul, bivariateCoeffNorm1]
+
+/-- Specializing the coefficient variable increases the norm by at most the absolute
+value of the specialization raised to a uniform bound on its degree in the coefficients. -/
+theorem coeffNorm1_map_evalRingHom_le (P : Polynomial (Polynomial ℤ)) (a : ℤ)
+    (ha : 1 ≤ a.natAbs) {D : ℕ} (hD : ∀ i, (P.coeff i).natDegree ≤ D) :
+    (P.map (evalRingHom a)).coeffNorm1 ≤ P.bivariateCoeffNorm1 * a.natAbs ^ D := by
+  rw [coeffNorm1_eq_sum_of_support_subset (support_map_subset _ _)]
+  simp only [coeff_map, coe_evalRingHom]
+  calc
+    _ ≤ ∑ i ∈ P.support, (P.coeff i).coeffNorm1 * a.natAbs ^ D := by
+      refine sum_le_sum fun i _ => (natAbs_eval_le_coeffNorm1 _ a ha).trans ?_
+      exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right ha (hD i))
+    _ = _ := by rw [← sum_mul, bivariateCoeffNorm1]
 
 end Polynomial

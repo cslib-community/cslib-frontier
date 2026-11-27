@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Loop
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.CounterCall
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Bounds
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Concrete native minimum-count prime selection
@@ -93,11 +94,9 @@ theorem exec {w W n D scratch a b c A : ℕ} (x : Data 160) (u v z : ℕ → ℤ
         (CountPrime.addressBudget n (q.regs Reg.cursor) k scratch a b c) :=
       hw.of_le (CountPrime.addressBudget_monotone_modulus n k scratch a b c hpc)
     obtain ⟨r, he, hr, frame⟩ := exec_count q u v z hp0
-      ((hstatic Reg.side (by decide)).trans hn) rfl
-      ((hstatic Reg.inputAB (by decide)).trans hAB)
-      ((hstatic Reg.inputBC (by decide)).trans hBC)
-      ((hstatic Reg.inputAC (by decide)).trans hAC)
-      ((hstatic Reg.scratch (by decide)).trans hs) ha hb hc hu hv hz qU qV qZ hmagp hwp
+      (by regs_frame) rfl
+      (by regs_frame) (by regs_frame) (by regs_frame)
+      (by regs_frame) ha hb hc hu hv hz qU qV qZ hmagp hwp
     have hM : CountPrime.memoryEnd n (q.regs Reg.cursor) k scratch ≤
         CountPrime.memoryEnd n cap k scratch :=
       CountPrime.memoryEnd_monotone_modulus n k scratch hpc

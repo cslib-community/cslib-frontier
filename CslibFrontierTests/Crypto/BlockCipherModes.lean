@@ -143,8 +143,12 @@ example :
     ((PMF.uniformOfFintype (BitString 4)).bind fun iv =>
       (uniformBlocks (n := 4) [0, sampleMask4].length).map (iv, ·)).toOuterMeasure
       {p : BitString 4 × List (BitString 4) | ¬goodChain [0] p.1 [0, sampleMask4] p.2} ≤
-    6 * ((2 : ℝ≥0∞) ^ 4)⁻¹ := by
+    3 * ((2 : ℝ≥0∞) ^ 4)⁻¹ := by
   simpa using toOuterMeasure_badChain_le [0, sampleMask4] [0]
+/-- The `bs.length.choose 2` term of `toOuterMeasure_badChain_le` is needed: against an empty table
+a two-block chain can collide with itself, so no bound that vanishes at `ks = []` holds. -/
+example (iv b₀ b₁ u : BitString 4) : ¬goodChain [] iv [b₀, b₁] [iv + b₀ + b₁, u] := by
+  simp [goodChain]
 example :
     Game.advantage
       (streamIVReuseRealGame (PMF.uniformOfFintype (BitString 4)) 0 sampleMask4)

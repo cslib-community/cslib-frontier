@@ -43,10 +43,7 @@ variable {α : Type} {enc : α ↪ List Bool}
 private theorem poly_targets {gs : α → List GateCode}
     (hgs : ComputableInPolyTime gs enc (encList encGateCode)) :
     ComputableInPolyTime (fun a => GateCode.targets (gs a)) enc (encList encUnary) := by
-  unfold GateCode.targets GateCode.target
-  apply eraseDupsByWithInput
-  · fun_prop
-  · fun_prop
+  fun_prop [GateCode.targets, GateCode.target]
 
 private theorem poly_restorePositions {S : α → List ℕ} {X bits : α → List Bool}
     (hS : ComputableInPolyTime S enc (encList encUnary))

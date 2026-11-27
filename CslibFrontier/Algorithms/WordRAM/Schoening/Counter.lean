@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Scan
 import CslibFrontier.Foundations.Data.Nat.Div
@@ -340,21 +341,13 @@ def mulAdd : Code .standard 24 := ram[ idx ← zero; ⟪mulAddLoop⟫; ⟪carryL
 private theorem holdsList_update {B : ℕ} {pre ds : List ℕ} {d v : ℕ} {mem : ℕ → ℕ}
     (h : HoldsList B (pre ++ d :: ds) mem) :
     HoldsList B (pre ++ v :: ds) (Function.update mem (B + pre.length) v) := by
-  intro i
-  change Function.update mem (B + pre.length) v (B + i.val) = (pre ++ v :: ds)[i.val]
-  have hi := i.isLt
-  simp only [List.length_append, List.length_cons] at hi
-  rcases lt_trichotomy i.val pre.length with hlt | heq | hgt
-  · rw [Function.update_of_ne (by omega), List.getElem_append_left hlt]
-    have := h.get i.val (by simp; omega)
-    rwa [List.getElem_append_left hlt] at this
-  · simp [heq]
-  · rw [Function.update_of_ne (by omega), List.getElem_append_right (by omega)]
-    have := h.get i.val (by simp; omega)
-    rw [List.getElem_append_right (by omega)] at this
-    rw [this]
-    obtain ⟨j, hj⟩ : ∃ j, i.val - pre.length = j + 1 := ⟨i.val - pre.length - 1, by omega⟩
-    simp [hj]
+  obtain ⟨hpre, hd_ds⟩ := holdsList_append_iff.mp h
+  obtain ⟨_, hds⟩ := (holdsList_append_iff (xs := [d]) (ys := ds)).mp hd_ds
+  simp only [List.length_singleton] at hds
+  simpa only [List.append_assoc, List.singleton_append] using holdsList_append_iff.mpr
+    ⟨hpre.append_one v, by
+      rw [List.length_append, List.length_singleton, ← Nat.add_assoc]
+      exact hds.frame fun a ha _ => Function.update_of_ne (by omega) _ _⟩
 
 section Specs
 
@@ -385,40 +378,30 @@ theorem mulAddLoop_spec {a Bd : ℕ} (haB : a ≤ Bd) (hf : Fits w (2 * Bd)) :
     obtain ⟨B, hB⟩ : ∃ B, x.regs bBase = B := ⟨_, rfl⟩
     rw [hB] at hh hfit ⊢
     have hmem : x.mem (B + pre.length) = d := by simpa using hh.get pre.length (by simp)
-    obtain ⟨v, hv⟩ : ∃ v, d * a + cy = v := ⟨_, rfl⟩
-    have hf1 : Fits w (B + pre.length) := hfit.of_le (by omega)
-    have hf2 : Fits w (d * a) := hf.of_le (by omega)
-    have hf3 : Fits w v := hf.of_le (by omega)
-    have hf4 : Fits w (v >>> 1) := hf3.of_le (by rw [Nat.shiftRight_eq_div_pow]; omega)
-    have hf5 : Fits w (v &&& 1) := hf3.of_le (by rw [Nat.and_one_is_mod]; omega)
-    have hf6 : Fits w (pre.length + 1) := hfit.of_le (by omega)
-    let y₁ : Data 24 := ((((((((x.set addr (B + pre.length)).set val d).set val (d * a)).set val
-      v).set carry (v >>> 1)).set val (v &&& 1)).write (B + pre.length) (v &&& 1)).set idx
-      (pre.length + 1))
-    have hbody : ExecWithin w mulAddBody x y₁ 8 := by
-      ram_eval [mulAddBody, y₁, hB, hv, hone, ha, hc, hi, hmem, hf1, hf2, hf3, hf4, hf5, hf6]
-    have hy₁m : y₁.mem = Function.update x.mem (B + pre.length) (v % 2) := by
-      simp [y₁, Nat.and_one_is_mod]
-    have hyB : y₁.regs bBase = B := by simp +decide [y₁, hB]
-    obtain ⟨y, hy, hyh, hyc, hyl, hyb, hyo, hya, hym⟩ := mulAddLoop_spec haB hf ds
-      (pre ++ [v % 2]) y₁ (v / 2) (by simp +decide [y₁, hone]) (by simp +decide [y₁, ha])
-      (by simp +decide [y₁]) (by simp +decide [y₁, hl]; omega)
-      (by simp +decide [y₁, Nat.shiftRight_eq_div_pow]) (by omega)
-      (by
-        have := holdsList_update (v := v % 2) hh
-        rw [← hy₁m, ← hyB] at this
-        simpa using this)
+    set v := d * a + cy with hv
+    have : Fits w (d * a) := hf.of_le (by omega)
+    have hfv : Fits w v := hf.of_le (by omega)
+    have : Fits w (v / 2) := hfv.of_le (by omega)
+    have : Fits w (v % 2) := hfv.of_le (by omega)
+    have : Fits w (pre.length + 1) := hfit.of_le (by omega)
+    refine WP.exists_execWithin (WP.loop_iter hc' ?_)
+    unfold mulAddBody
+    wram_exec [hB, hi, hmem, ha, hc, hone, ← hv, Nat.shiftRight_eq_div_pow, Nat.pow_one,
+      Nat.and_one_is_mod]
+    wram_call (mulAddLoop_spec haB hf ds (pre ++ [v % 2]) _ (v / 2)
+      (by wram_simp [hone]) (by wram_simp [ha])
+      (by wram_simp [List.length_append, List.length_singleton])
+      (by wram_simp [hl, List.length_append, List.length_singleton]; omega)
+      (by wram_simp) (by omega)
+      (by wram_simp [hB]; simpa using holdsList_update (v := v % 2) hh)
       (fun d' hd' => hds d' (by simp [hd']))
-      (by rw [hyB]; exact hfit.of_le (by simp; omega))
-    refine ⟨y, (ExecWithin.loop_iter hc' hbody hy).mono (by simp only [List.length_cons]; omega),
-      ?_, ?_, ?_, ?_, hyo, hya, ?_⟩
-    · rw [hyB] at hyh
-      simpa [mulAddPass, hv] using hyh
-    · simpa [mulAddPass, hv] using hyc
-    · rw [hyl]; simp +decide [y₁, hl]
-    · rw [hyb, hyB]
-    · intro b hb
-      rw [hym b (by rw [hyB]; exact hb), hy₁m, Function.update_of_ne (by omega)]
+      (by wram_simp [hB]; exact hfit.of_le (by simp; omega)))
+      with y ⟨hyh, hyc, hyl, hyb, hyo, hya, hym⟩
+    wram_simp [hB] at hyh hyb hym
+    wram_simp at hyl
+    refine ⟨by simp only [List.length_cons]; omega, by simpa [mulAddPass, hv] using hyh,
+      by simpa [mulAddPass, hv] using hyc, hyl, hyb, hyo, hya, fun b hb => ?_⟩
+    rw [hym b hb]; wram_simp
 
 /-- **Appending the carry.** -/
 theorem carryLoop_spec : ∀ (cy : ℕ) (ds : List ℕ) (x : Data 24),
@@ -444,31 +427,23 @@ theorem carryLoop_spec : ∀ (cy : ℕ) (ds : List ℕ) (x : Data 24),
       have hc' : (Cond.lt zero carry).Holds x := by simp [Cond.holds_lt, hz, hc, hpos]
       obtain ⟨B, hB⟩ : ∃ B, x.regs bBase = B := ⟨_, rfl⟩
       rw [hB] at hh hfit ⊢
-      have hf1 : Fits w (B + ds.length) := hfit.of_le (by omega)
-      have hf2 : Fits w (cy &&& 1) := hfc.of_le (by rw [Nat.and_one_is_mod]; omega)
-      have hf3 : Fits w (cy >>> 1) := hfc.of_le (by rw [Nat.shiftRight_eq_div_pow]; omega)
-      have hf4 : Fits w (ds.length + 1) := hfit.of_le (by omega)
-      let y₁ : Data 24 := ((((x.set addr (B + ds.length)).set val (cy &&& 1)).write
-        (B + ds.length) (cy &&& 1)).set carry (cy >>> 1)).set bLen (ds.length + 1)
-      have hbody : ExecWithin w carryBody x y₁ 5 := by
-        ram_eval [carryBody, y₁, hB, hone, hc, hl, hf1, hf2, hf3, hf4]
-      have hy₁m : y₁.mem = Function.update x.mem (B + ds.length) (cy % 2) := by
-        simp [y₁, Nat.and_one_is_mod]
-      have hyB : y₁.regs bBase = B := by simp +decide [y₁, hB]
-      obtain ⟨y, hy, hyh, hyl, hyb, hym⟩ := ih (cy / 2) (by omega) (ds ++ [cy % 2]) y₁
-        (by simp +decide [y₁, hz]) (by simp +decide [y₁, hone])
-        (by simp +decide [y₁, Nat.shiftRight_eq_div_pow]) (by simp +decide [y₁])
-        (by
-          have := hh.append_one (cy % 2)
-          rw [← hy₁m, ← hyB] at this
-          exact this)
-        (hfc.of_le (by omega)) (by rw [hyB]; exact hfit.of_le (by simp; omega))
-      refine ⟨y, (ExecWithin.loop_iter hc' hbody hy).mono (by omega), ?_, ?_, ?_, ?_⟩
-      · rw [hyB] at hyh; simpa using hyh
-      · rw [hyl]; simp; omega
-      · rw [hyb, hyB]
-      · intro b hb
-        rw [hym b (by rw [hyB]; exact hb), hy₁m, Function.update_of_ne (by omega)]
+      have : Fits w (cy % 2) := hfc.of_le (by omega)
+      have : Fits w (cy / 2) := hfc.of_le (by omega)
+      have : Fits w (ds.length + 1) := hfit.of_le (by omega)
+      refine WP.exists_execWithin (WP.loop_iter hc' ?_)
+      unfold carryBody
+      wram_exec [hB, hl, hc, hone, Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, Nat.pow_one]
+      wram_call (ih (cy / 2) (by omega) (ds ++ [cy % 2]) _
+        (by wram_simp [hz]) (by wram_simp [hone]) (by wram_simp)
+        (by wram_simp [List.length_append, List.length_singleton])
+        (by wram_simp [hB]; exact hh.append_one (cy % 2))
+        (hfc.of_le (by omega)) (by wram_simp [hB]; exact hfit.of_le (by simp; omega)))
+        with y ⟨hyh, hyl, hyb, hym⟩
+      wram_simp [hB] at hyh hyb hym
+      have hyl' : y.regs bLen = ds.length + ((Nat.digits 2 (cy / 2)).length + 1) := by
+        simp only [List.length_append, List.length_singleton] at hyl; omega
+      refine ⟨by omega, by simpa using hyh, hyl', hyb, fun b hb => ?_⟩
+      rw [hym b hb]; wram_simp
 
 /-- **Multiply-add.** On a counter with binary digits `ds`, with `mulr = a`, `carry = cy` and both
 at most `Bd`, the routine leaves the digits `mulAddDigits a cy ds` of `v a + cy`. -/
@@ -484,25 +459,28 @@ theorem mulAdd_spec {a cy Bd : ℕ} {ds : List ℕ} {x : Data 24} (hz : x.regs z
   have hlen : (mulAddDigits a cy ds).length =
       ds.length + (Nat.digits 2 (mulAddPass a cy ds).2).length := by
     simp [mulAddDigits]
-  let x₁ := x.set idx 0
-  have h₁ : ExecWithin w (ram[ idx ← zero ] : Code .standard 24) x x₁ 1 := by ram_eval [x₁, hz]
-  obtain ⟨y₂, hy₂, hh₂, hc₂, hl₂, hb₂, ho₂, -, hm₂⟩ := mulAddLoop_spec haB hf ds [] x₁ cy
-    (by simp +decide [x₁, hone]) (by simp +decide [x₁, ha]) (by simp +decide [x₁])
-    (by simp +decide [x₁, hl]) (by simp +decide [x₁, hc]) hcB (by simpa +decide [x₁] using hh) hds
-    (hfit.of_le (by simp +decide [x₁]; have := length_le_length_mulAddDigits a cy ds; omega))
   have hcarry := mulAddPass_carry_le hds haB hcB (cy := cy)
-  obtain ⟨y₃, hy₃, hh₃, hl₃, hb₃, hm₃⟩ := carryLoop_spec (mulAddPass a cy ds).2
-    (mulAddPass a cy ds).1 y₂ (by rw [hy₂.regs_eq (i := zero) (by decide)]; simp +decide [x₁, hz])
-    ho₂ hc₂
-    (by rw [hl₂]; simp +decide [x₁, hl]) (by rw [hb₂]; simpa using hh₂) (hf.of_le (by omega))
-    (by rw [hb₂]; exact hfit.of_le (by simp +decide [x₁]; omega))
-  have hbx : x₁.regs bBase = x.regs bBase := by simp +decide [x₁]
-  refine ⟨y₃, (h₁.seq (hy₂.seq hy₃)).mono (by omega), ?_, ?_, ?_⟩
-  · rw [hb₂, hbx] at hh₃; exact hh₃
-  · rw [hl₃, hlen]; simp
-  · intro b hb
-    rw [hm₃ b (by rw [hb₂, hbx]; exact hb), hm₂ b (by rw [hbx]; exact hb)]
-    rfl
+  refine WP.exists_execWithin ?_
+  unfold mulAdd
+  wram_exec [hz]
+  refine WP.name fun x₁ hx₁ => ?_
+  obtain ⟨y₂, hy₂, hh₂, hc₂, hl₂, hb₂, ho₂, -, hm₂⟩ := mulAddLoop_spec haB hf ds [] x₁ cy
+    (by subst hx₁; wram_simp [hone]) (by subst hx₁; wram_simp [ha])
+    (by subst hx₁; wram_simp; rfl) (by subst hx₁; wram_simp [hl, List.length_nil])
+    (by subst hx₁; wram_simp [hc]) hcB (by subst hx₁; wram_simp; exact hh) hds
+    (hfit.of_le (by subst hx₁; wram_simp [List.length_nil]; omega))
+  have hz₂ : y₂.regs zero = 0 :=
+    (hy₂.regs_eq (by decide)).trans (by subst hx₁; wram_simp [hz])
+  subst hx₁
+  wram_simp at hh₂ hb₂ hm₂
+  wram_simp [hl] at hl₂
+  refine WP.of_execWithin hy₂ ?_
+  wram_call (carryLoop_spec (mulAddPass a cy ds).2 (mulAddPass a cy ds).1 y₂ hz₂ ho₂ hc₂
+    (by simp [hl₂]) (by rw [hb₂]; simpa using hh₂) (hf.of_le (by omega))
+    (by rw [hb₂]; exact hfit.of_le (by simp; omega)))
+    with y₃ ⟨hh₃, hl₃, _, hm₃⟩
+  rw [hb₂] at hh₃ hm₃
+  exact ⟨by omega, hh₃, by rw [hl₃, hlen]; simp, fun b hb => (hm₃ b hb).trans (hm₂ b hb)⟩
 
 /-! ### Division -/
 
@@ -544,38 +522,28 @@ theorem divLoop_spec {d : ℕ} (hd : 0 < d) (hfd : Fits w (2 * d)) :
     obtain ⟨B, hB⟩ : ∃ B, x.regs bBase = B := ⟨_, rfl⟩
     rw [hB] at hh hfit ⊢
     have hmem : x.mem (B + pre.length) = b := by simpa using hh.get pre.length (by simp)
-    obtain ⟨t, ht⟩ : ∃ t, r + r + b = t := ⟨_, rfl⟩
-    have hf1 : Fits w pre.length := hfit.of_le (by omega)
-    have hf2 : Fits w (B + pre.length) := hfit.of_le (by omega)
-    have hf3 : Fits w (r + r) := hfd.of_le (by omega)
-    have hf4 : Fits w t := hfd.of_le (by omega)
-    have hf5 : Fits w (t / d) := hf4.of_le (Nat.div_le_self _ _)
-    have hf6 : Fits w (t % d) := hf4.of_le (Nat.mod_le _ _)
-    let y₁ : Data 24 := (((((((x.set idx pre.length).set addr (B + pre.length)).set val b).set tmp
-      (r + r)).set tmp t).set val (t / d)).set rmd (t % d)).write (B + pre.length) (t / d)
-    have hbody : ExecWithin w divBody x y₁ 8 := by
-      ram_eval [divBody, y₁, hB, ht, hone, hdv, hi, hr, hmem, Nat.add_sub_cancel, hf1, hf2, hf3,
-        hf4, hf5, hf6]
-    have hy₁m : y₁.mem = Function.update x.mem (B + pre.length) (t / d) := by simp [y₁]
-    have hyB : y₁.regs bBase = B := by simp +decide [y₁, hB]
-    obtain ⟨y, hy, hyh, hyr, hyb, hym⟩ := ih (t / d :: qs) y₁ (t % d) (by simp +decide [y₁, hz])
-      (by simp +decide [y₁, hone]) (by simp +decide [y₁, hdv]) (by simp +decide [y₁])
-      (by simp +decide [y₁]) (Nat.mod_lt _ hd)
-      (by
-        have := holdsList_update (v := t / d) hh
-        rw [← hy₁m, ← hyB] at this
-        exact this)
-      (fun b' hb' => hb b' (by simp [hb'])) (by rw [hyB]; omega)
+    set t := r + r + b with ht
+    have : Fits w pre.length := hfit.of_le (by omega)
+    have : Fits w (B + pre.length) := hfit.of_le (by omega)
+    have : Fits w (r + r) := hfd.of_le (by omega)
+    have hft : Fits w t := hfd.of_le (by omega)
+    have : Fits w (t / d) := hft.of_le (Nat.div_le_self _ _)
+    have : Fits w (t % d) := hft.of_le (Nat.mod_le _ _)
+    refine WP.exists_execWithin (WP.loop_iter hc ?_)
+    unfold divBody
+    wram_exec [hi, hone, hB, hmem, hr, hdv, ← ht, Nat.add_sub_cancel]
+    wram_call (ih (t / d :: qs) _ (t % d) (by wram_simp [hz]) (by wram_simp [hone])
+      (by wram_simp [hdv]) (by wram_simp) (by wram_simp) (Nat.mod_lt _ hd)
+      (by wram_simp [hB]; exact holdsList_update (v := t / d) hh)
+      (fun b' hb' => hb b' (by simp [hb'])) (by wram_simp [hB]; exact hfit.of_le (by omega)))
+      with y ⟨hyh, hyr, hyb, hym⟩
+    wram_simp [hB] at hyh hyb hym
     have ht' : t = 2 * r + b := by omega
-    refine ⟨y, (ExecWithin.loop_iter hc hbody hy).mono
-      (by simp only [List.length_append, List.length_singleton]; omega), ?_, ?_, ?_, ?_⟩
-    · rw [hyB] at hyh
-      rw [divDigits_append_singleton, List.append_assoc, List.singleton_append, ← ht']
+    refine ⟨by simp only [List.length_append, List.length_singleton]; omega, ?_,
+      by rw [hyr, divDigits_append_singleton, ← ht'], hyb, fun a ha => ?_⟩
+    · rw [divDigits_append_singleton, List.append_assoc, List.singleton_append, ← ht']
       exact hyh
-    · rw [hyr, divDigits_append_singleton, ← ht']
-    · rw [hyb, hyB]
-    · intro a ha
-      rw [hym a (by rw [hyB]; exact ha), hy₁m, Function.update_of_ne (by omega)]
+    · rw [hym a ha]; wram_simp
 
 /-- **Division.** On a counter with binary digits `ds` and `dvs = d > 0`, the routine leaves the
 digits `(divDigits d 0 ds).1` of `⌊v / d⌋`, with the same length. -/
@@ -586,21 +554,15 @@ theorem divFloor_spec {d : ℕ} {ds : List ℕ} {x : Data 24} (hd : 0 < d) (hfd 
     ∃ y, ExecWithin w divFloor x y (10 * ds.length + 4) ∧
       HoldsList (x.regs bBase) (divDigits d 0 ds).1 y.mem ∧
       ∀ b, b < x.regs bBase → y.mem b = x.mem b := by
-  let x₀ := x.set idx ds.length
-  let x₁ := x₀.set rmd 0
-  have h₀ : ExecWithin w (ram[ idx ← bLen ] : Code .standard 24) x x₀ 1 := by ram_eval [x₀, hl]
-  have h₁ : ExecWithin w (ram[ rmd ← zero ] : Code .standard 24) x₀ x₁ 1 := by
-    ram_eval [x₀, x₁, hz]
-  obtain ⟨y, hy, hyh, -, hyb, hym⟩ := divLoop_spec hd hfd ds [] x₁ 0 (by simp +decide [x₁, x₀, hz])
-    (by simp +decide [x₁, x₀, hone]) (by simp +decide [x₁, x₀, hdv]) (by simp +decide [x₁, x₀])
-    (by simp +decide [x₁, x₀]) hd
-    (by simpa +decide [x₁, x₀] using hh) hds (by simpa +decide [x₁, x₀] using hfit)
-  have hbx : x₁.regs bBase = x.regs bBase := by simp +decide [x₁, x₀]
-  refine ⟨y, (h₀.seq (h₁.seq hy)).mono (by omega), ?_, ?_⟩
-  · rw [hbx] at hyh; simpa using hyh
-  · intro b hb
-    rw [hym b (by rw [hbx]; exact hb)]
-    rfl
+  refine WP.exists_execWithin ?_
+  unfold divFloor
+  wram_exec [hl, hz]
+  wram_call (divLoop_spec hd hfd ds [] _ 0 (by wram_simp [hz]) (by wram_simp [hone])
+    (by wram_simp [hdv]) (by wram_simp) (by wram_simp) hd (by wram_simp; simpa using hh) hds
+    (by wram_simp; exact hfit))
+    with y ⟨hyh, -, _, hym⟩
+  wram_simp at hyh hym
+  exact ⟨by omega, by simpa using hyh, hym⟩
 
 /-! ### Decrement -/
 
@@ -638,47 +600,30 @@ theorem decLoop_spec : ∀ (ds pre : List ℕ) (x : Data 24),
     obtain ⟨B, hB⟩ : ∃ B, x.regs bBase = B := ⟨_, rfl⟩
     rw [hB] at hh hfit ⊢
     have hmem : x.mem (B + pre.length) = d := by simpa using hh.get pre.length (by simp)
-    have hf1 : Fits w (B + pre.length) := hfit.of_le (by omega)
+    refine WP.exists_execWithin (WP.loop_iter hc ?_)
+    unfold decBody
     by_cases h0 : d = 0
     · subst h0
-      have hf2 : Fits w (pre.length + 1) := hfit.of_le (by omega)
-      let y₁ : Data 24 := (((x.set addr (B + pre.length)).set val 0).write (B + pre.length)
-        1).set idx (pre.length + 1)
-      have hbody : ExecWithin w decBody x y₁ 5 := by
-        ram_eval [decBody, y₁, hB, hz, hone, hi, hmem, hf1, hf2]
-      have hy₁m : y₁.mem = Function.update x.mem (B + pre.length) 1 := by simp [y₁]
-      have hyB : y₁.regs bBase = B := by simp +decide [y₁, hB]
-      obtain ⟨y, hy, hyh, hyf, hyb, hym⟩ := decLoop_spec ds (pre ++ [1]) y₁
-        (by simp +decide [y₁, hz]) (by simp +decide [y₁, hone]) (by simp +decide [y₁])
-        (by simp +decide [y₁, hl]; omega) (by simp +decide [y₁, hfd])
-        (by
-          have := holdsList_update (v := 1) hh
-          rw [← hy₁m, ← hyB] at this
-          simpa using this)
-        (by rw [hyB]; exact hfit.of_le (by simp; omega))
-      refine ⟨y, (ExecWithin.loop_iter hc hbody hy).mono (by simp [decSteps]; omega), ?_, ?_, ?_,
-        ?_⟩
-      · rw [hyB] at hyh; simpa [decDigits] using hyh
-      · rw [hyf]; simp
-      · rw [hyb, hyB]
-      · intro b hb
-        rw [hym b (by rw [hyB]; exact hb), hy₁m, Function.update_of_ne (by omega)]
-    · have hf2 : Fits w (pre.length + (ds.length + 1)) := hfit.of_le (by omega)
-      have hf3 : Fits w 1 := hfit.of_le (by omega)
-      let y₁ : Data 24 := ((((x.set addr (B + pre.length)).set val d).write (B + pre.length)
-        0).set found 1).set idx (pre.length + (ds.length + 1))
-      have hbody : ExecWithin w decBody x y₁ 7 := by
-        ram_eval [decBody, y₁, hB, hz, hone, hi, hl, hmem, h0, hf1, hf2, hf3]
-      have hy₁m : y₁.mem = Function.update x.mem (B + pre.length) 0 := by simp [y₁]
-      have hcy : ¬(Cond.lt idx bLen).Holds y₁ := by simp +decide [Cond.holds_lt, y₁, hl]
-      refine ⟨y₁, (ExecWithin.loop_iter hc hbody (ExecWithin.loop_exit hcy)).mono
-        (by simp [decSteps, h0]), ?_, ?_, by simp +decide [y₁, hB], ?_⟩
-      · have := holdsList_update (v := 0) hh
-        rw [← hy₁m] at this
-        simpa [decDigits, h0] using this
-      · simp +decide [y₁, h0]
-      · intro b hb
-        rw [hy₁m, Function.update_of_ne (by omega)]
+      have : Fits w (pre.length + 1) := hfit.of_le (by omega)
+      wram_exec [hB, hi, hmem, hz, hone]
+      wram_call (decLoop_spec ds (pre ++ [1]) _ (by wram_simp [hz]) (by wram_simp [hone])
+        (by wram_simp [List.length_append, List.length_singleton])
+        (by wram_simp [hl, List.length_append, List.length_singleton]; omega)
+        (by wram_simp [hfd])
+        (by wram_simp [hB]; simpa using holdsList_update (v := 1) hh)
+        (by wram_simp [hB]; exact hfit.of_le (by simp; omega)))
+        with y ⟨hyh, hyf, hyb, hym⟩
+      wram_simp [hB] at hyh hyb hym
+      refine ⟨by simp [decSteps]; omega, by simpa [decDigits] using hyh, by simp [hyf], hyb,
+        fun b hb => ?_⟩
+      rw [hym b hb]; wram_simp
+    · have : Fits w (pre.length + (ds.length + 1)) := hfit.of_le (by omega)
+      have : Fits w 1 := hfit.of_le (by omega)
+      wram_exec [hB, hi, hmem, hz, hone, hl]
+      refine WP.of_execWithin (ExecWithin.loop_exit (by wram_simp [Cond.holds_lt, hl]))
+        ⟨by simp [decSteps, h0], ?_, by wram_simp; simp [h0], by wram_simp [hB],
+          fun b hb => by wram_simp⟩
+      simpa [decDigits, h0] using holdsList_update (v := 0) hh
 
 /-- **Decrement.** On a counter with digits `ds`, the routine leaves the digits `decDigits ds`
 within `9 · decSteps ds + 4` instructions and sets `found` to whether some digit was nonzero. -/
@@ -689,21 +634,15 @@ theorem decCounter_spec {ds : List ℕ} {x : Data 24} (hz : x.regs zero = 0)
       HoldsList (x.regs bBase) (decDigits ds) y.mem ∧
       y.regs found = (if ∀ d ∈ ds, d = 0 then 0 else 1) ∧
       ∀ b, b < x.regs bBase → y.mem b = x.mem b := by
-  let x₀ := x.set idx 0
-  let x₁ := x₀.set found 0
-  have h₀ : ExecWithin w (ram[ idx ← zero ] : Code .standard 24) x x₀ 1 := by ram_eval [x₀, hz]
-  have h₁ : ExecWithin w (ram[ found ← zero ] : Code .standard 24) x₀ x₁ 1 := by
-    ram_eval [x₀, x₁, hz]
-  obtain ⟨y, hy, hyh, hyf, hyb, hym⟩ := decLoop_spec ds [] x₁ (by simp +decide [x₁, x₀, hz])
-    (by simp +decide [x₁, x₀, hone]) (by simp +decide [x₁, x₀]) (by simp +decide [x₁, x₀, hl])
-    (by simp +decide [x₁, x₀])
-    (by simpa +decide [x₁, x₀] using hh) (by simpa +decide [x₁, x₀] using hfit)
-  have hbx : x₁.regs bBase = x.regs bBase := by simp +decide [x₁, x₀]
-  refine ⟨y, (h₀.seq (h₁.seq hy)).mono (by omega), ?_, hyf, ?_⟩
-  · rw [hbx] at hyh; simpa using hyh
-  · intro b hb
-    rw [hym b (by rw [hbx]; exact hb)]
-    rfl
+  refine WP.exists_execWithin ?_
+  unfold decCounter
+  wram_exec [hz]
+  wram_call (decLoop_spec ds [] _ (by wram_simp [hz]) (by wram_simp [hone]) (by wram_simp; rfl)
+    (by wram_simp [hl, List.length_nil]) (by wram_simp) (by wram_simp; exact hh)
+    (by wram_simp [List.length_nil]; exact hfit))
+    with y ⟨hyh, hyf, _, hym⟩
+  wram_simp at hyh hym
+  exact ⟨by omega, hyh, hyf, hym⟩
 
 end Specs
 

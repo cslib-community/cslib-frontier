@@ -325,9 +325,26 @@ theorem verifier_polyTime : ComputableInPolyTime verifier (encPair encBits encBi
   have hs : ComputableInPolyTime steps encBits encUnary := by
     unfold steps
     polytime
-  have hu := computableInPolyTime_universalTMRunFor
+  have hy := ComputableInPolyTime.fst encBits encBits
+  have hw := ComputableInPolyTime.snd encBits encBits
+  have hsteps := hs.comp hy
+  have hcert := ComputableInPolyTime.unframe.comp hw
+  have hprogram := ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.frame.comp (ComputableInPolyTime.unframe.comp hy))
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.frame.comp (hi.comp hy)) hcert)
+  have hrun := computableInPolyTime_universalTMRunFor.comp (hprogram.prod hsteps)
+  have hheader : ComputableInPolyTime
+      (fun yw : List Bool × List Bool =>
+        parseHeader yw.1 ++ List.replicate (steps yw.1) true)
+      (encPair encBits encBits) encBits := by
+    exact ComputableInPolyTime.bitsAppend (hp.comp hy)
+      ((ComputableInPolyTime.bitsReplicate true).comp hsteps)
   unfold verifier
-  polytime
+  exact ComputableInPolyTime.bool_and'
+    (ComputableInPolyTime.bool_and' (ComputableInPolyTime.decide_eq' hy hheader)
+      (ComputableInPolyTime.unary_le.comp
+        ((ComputableInPolyTime.length_bits.comp hcert).prod hsteps)))
+    (ComputableInPolyTime.decide_eq' hrun (ComputableInPolyTime.const (some [true])))
 
 /-- The clock of an instance. -/
 theorem steps_encode (c z : List Bool) (t : ℕ) : steps (encode c z t) = t := by

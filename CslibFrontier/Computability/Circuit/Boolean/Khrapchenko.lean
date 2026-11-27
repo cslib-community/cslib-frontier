@@ -350,7 +350,8 @@ theorem two_mul_log_le_depth_of_computes_parity {F : Formula signature n}
     calc 2 ^ (2 * Nat.log 2 n) = (2 ^ Nat.log 2 n) ^ 2 := by rw [mul_comm, pow_mul]
       _ ≤ n ^ 2 := Nat.pow_le_pow_left (Nat.pow_log_le_self 2 hn.ne') 2
       _ ≤ F.leafSize := sq_le_leafSize_of_computes_parity hF
-      _ ≤ 2 ^ F.depth := F.leafSize_le_pow_depth Boolean.arity_le_two
+      _ ≤ 2 ^ F.depth :=
+          Formula.leafSize_le_pow_depth (Formula.fanInAtMost_of_arity_le Boolean.arity_le_two F)
   exact (Nat.pow_le_pow_iff_right Nat.one_lt_two).1 hpow
 
 /-! ### Formulas for parity -/

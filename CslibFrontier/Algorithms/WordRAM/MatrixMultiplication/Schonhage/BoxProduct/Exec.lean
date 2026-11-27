@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Bo
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Geometry
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Tiles
 import CslibFrontier.Computability.WordRAM.Sequence
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native routed products using one shared box geometry
@@ -100,13 +101,13 @@ theorem exec_fromSnapshot {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : 
     exact gs j hj
   obtain ⟨o, ho, op, oa, oframe⟩ := QueriedProduct.exec_reconstruct X Y qs old v vp vg
     (fun i => (rv i).2) va (old_fits hfit)
-  have ot : o.regs BoxProduct.Reg.threshold = t := (ho.regs_eq (by decide)).trans vb.threshold
+  have ot : o.regs BoxProduct.Reg.threshold = t := by regs_frame
   have os (j : ℕ) (hj : j < QueriedProduct.inputEnd m N qs.length) :
       o.mem (QueriedProduct.snapshotBase L m N qs.length + j) = original j := by
     rw [oframe _ (Or.inl (by omega))]
     exact vs j hj
   obtain ⟨y, hy, yp, ym⟩ := exec_restoreInput o op ot hfit
-  refine ⟨y, ?_, yp, (hy.regs_eq (by decide)).trans ot, ?_, ?_, ?_, ?_⟩
+  refine ⟨y, ?_, yp, by regs_frame, ?_, ?_, ?_, ?_⟩
   · exact (hr.seq (hg.seq (hv.seq (ho.seq hy)))).mono (by unfold snapshotTimeBound; omega)
   · intro i
     rw [ym, Function.update_of_ne (by omega), ArrayCopy.copyPrefix_outside (by omega)]

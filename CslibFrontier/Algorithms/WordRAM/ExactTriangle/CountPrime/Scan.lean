@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.ScanCell
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native selected-coefficient scan
@@ -59,14 +60,13 @@ theorem exec_count {w n p k : ℕ} (x : Data 128) (keys values : ℕ → ℕ)
     have hlt : y.regs Reg.index < n * n := by
       simpa only [Cond.holds_lt, keep Reg.cells (by decide), hc] using hcond
     obtain ⟨z, he, zm, zi, zr, keepz⟩ := exec_countStep y
-      ((keep _ (by decide)).trans hn) ((keep _ (by decide)).trans hp) rfl hlt hpadding
+      (by regs_frame) (by regs_frame) rfl hlt hpadding
       (by rw [memory, keep Reg.residueAB (by decide)]; exact hresidues _ hlt)
       (hkeys _ hlt)
       (by rw [memory, keep Reg.matrixR (by decide)]; exact hproduct _ hlt)
       (hbound _ hlt) result
       (scan_sum_le values (fun i hi => hbound i (hi.trans hlt)))
-      ((keep _ (by decide)).trans h0) ((keep _ (by decide)).trans h1)
-      ((keep _ (by decide)).trans h2)
+      (by regs_frame) (by regs_frame) (by regs_frame)
       (by rw [memory, keep Reg.spread (by decide)]; exact htable)
       (by simpa only [keep Reg.spread (by decide), keep Reg.residueAB (by decide),
         keep Reg.matrixR (by decide)] using hw)

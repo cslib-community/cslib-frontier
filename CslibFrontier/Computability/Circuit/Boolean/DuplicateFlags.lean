@@ -14,6 +14,7 @@ import CslibFrontier.Foundations.Data.Fin.Order
 import CslibFrontier.Foundations.Data.List.OfFn
 import Mathlib.Tactic.Tauto
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Duplicate flags with shared comparisons and saved swaps
@@ -76,8 +77,7 @@ theorem eval_adjacentDuplicateCircuit_iff {input count k : ℕ}
   rw [show (∃ j, j ≠ i ∧ x ∘ key j = x ∘ key i) ↔
     ∃ j, j ≠ i ∧ toLex (x ∘ key j) = toLex (x ∘ key i) by simp only [toLex_inj],
     Fin.exists_ne_apply_eq_iff_adjacent _ ordered]
-  simp only [toLex_inj, adjacentDuplicateCircuit, Circuit.eval_comp, Circuit.eval_pi,
-    Formula.eval_toCircuit, Formula.eval_or, Formula.eval_input, Bool.or_eq_true]
+  simp only [circuit_simps, toLex_inj, adjacentDuplicateCircuit, Bool.or_eq_true]
   by_cases h : i.val + 1 < count
   · simp only [h, ↓reduceDIte, eval_adjacentEqualityCircuit_iff,
       Nat.zero_lt_succ, Nat.add_sub_cancel, exists_true_left]
@@ -151,10 +151,8 @@ private theorem eval_duplicateFlagsCircuit {r k : ℕ} (key : Fin k → Fin r) (
           finProdFinEquiv (row, key bit)).eval interpretation (flatten sorted) j) i 0 := by
   dsimp only
   unfold duplicateFlagsCircuit
-  rw [Circuit.eval_comp, duplicateFlagsCircuit.eval_outputs,
-    Circuit.eval_comp, Circuit.eval_comp, eval_bitonicSortTraceCircuit,
-    eval_parallel_pack, eval_bitonicUnsortCircuit, Circuit.eval_comp,
-    duplicateFlagsCircuit.eval_rows]
+  simp only [circuit_simps, duplicateFlagsCircuit.eval_outputs, eval_bitonicSortTraceCircuit,
+    eval_parallel_pack, eval_bitonicUnsortCircuit, duplicateFlagsCircuit.eval_rows]
 
 /-- A flag is true exactly when another original record has the same selected key. -/
 theorem eval_duplicateFlagsCircuit_iff {r k : ℕ} (key : Fin k → Fin r) (d : ℕ)
@@ -172,13 +170,13 @@ theorem eval_duplicateFlagsCircuit_iff {r k : ℕ} (key : Fin k → Fin r) (d : 
     intro j
     change (adjacentDuplicateCircuit _).eval interpretation (flatten sorted) j = true ↔ _
     rw [eval_adjacentDuplicateCircuit_iff]
-    · simp only [flatten, Function.comp_def, Equiv.symm_apply_apply]
+    · simp only [BitString.blocksEquiv_symm_apply, Function.comp_def, Equiv.symm_apply_apply]
       rw [duplicate_iff_not_unique]
       exact not_congr (List.Perm.existsUnique_ofFn_iff (BitonicSort.sort_perm order d true rows)
         (fun row => row ∘ key = sorted j ∘ key))
     · intro a b hab
-      simpa only [flatten, order, sorted, Function.comp_def, Equiv.symm_apply_apply,
-        le_iff_lt_or_eq] using
+      simpa only [BitString.blocksEquiv_symm_apply, order, sorted, Function.comp_def,
+        Equiv.symm_apply_apply, le_iff_lt_or_eq] using
         BitonicSort.monotone_sort order d rows hab
   rw [eval_duplicateFlagsCircuit, duplicate_iff_not_unique]
   exact BitonicSort.unrouteSort_rel_sort order d true rows answers R hr i
@@ -192,9 +190,8 @@ theorem cost_program_duplicateFlagsCircuit {r k : ℕ} (key : Fin k → Fin r) (
         finProdFinEquiv (row, key bit)).program.cost cost +
       BitonicSort.arity d * cost .or +
       BitonicSort.sortTraceSize d * (2 * (2 * cost .and + cost .or)) := by
-  simp only [duplicateFlagsCircuit, Circuit.cost_program_comp, Circuit.cost_program_parallel,
-    Circuit.id, duplicateFlagsCircuit.outputs, duplicateFlagsCircuit.rows,
-    Circuit.cost_program_wiring, Nat.zero_add, Nat.add_zero,
+  simp only [circuit_simps, duplicateFlagsCircuit, Circuit.cost_program_parallel,
+    duplicateFlagsCircuit.outputs, duplicateFlagsCircuit.rows, Nat.zero_add, Nat.add_zero,
     cost_program_adjacentDuplicateCircuit, cost_program_bitonicUnsortCircuit, Nat.mul_one,
     Nat.add_assoc]
 

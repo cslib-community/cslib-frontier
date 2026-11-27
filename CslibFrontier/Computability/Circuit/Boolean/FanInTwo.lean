@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Circuit.SimulationDepth
 import Mathlib.Algebra.BigOperators.Fin
 import CslibFrontier.Computability.Circuit.Program
 import CslibFrontier.Computability.Circuit.Simulation
+import CslibFrontier.Computability.Circuit.Unfolding
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 
 /-!
@@ -26,8 +27,10 @@ gives a De Morgan circuit for the same function. A gate may read one wire many t
 fan-in is not bounded by the size of the circuit; but a conjunction or a disjunction keeps its
 value when it reads each of its wires once, so every circuit with `n` inputs and `s` gates has an
 equivalent circuit of the same size and no larger depth whose gates have fan-in at most `n + s`
-(`Unbounded.dedup`). Replacing its gates gives a De Morgan circuit with at most `s (n + s)` gates
-and depth at most `max 1 ⌈log₂ (n + s)⌉ · d` (`Unbounded.exists_deMorgan_simulation`).
+(`Unbounded.dedup`). Unfolding it gives a formula of the same depth with at most
+`(10 (n + s)) ^ d` nodes (`Unbounded.exists_formula_size_add_leafSize_le`). Replacing the gates of
+`dedup C` by balanced trees gives a De Morgan circuit with at most `s (n + s)` gates and depth
+at most `max 1 ⌈log₂ (n + s)⌉ · d` (`Unbounded.exists_deMorgan_simulation`).
 
 For circuits of polynomial size `log (n + s)` is `O(log n)`, so polynomial-size circuits of depth
 `O((log n) ^ i)` and unbounded fan-in become polynomial-size circuits of fan-in two and depth
@@ -47,6 +50,9 @@ For circuits of polynomial size `log (n + s)` is `O(log n)`, so polynomial-size 
 * `Cslib.Circuits.Boolean.Unbounded.eval_dedup`, `Cslib.Circuits.Boolean.Unbounded.depth_dedup_le`,
   `Cslib.Circuits.Boolean.Unbounded.fanInAtMost_dedup`: reading every wire once keeps the function
   and the size, makes no gate deeper, and bounds the fan-in by the number of inputs and gates.
+* `Cslib.Circuits.Boolean.Unbounded.exists_formula_size_add_leafSize_le`: a circuit with `S` nodes
+  and depth `d` unfolds into a formula of depth `d` with at most `(10 S) ^ d` nodes
+  [Arora and Barak, Exercise 13.2].
 * `Cslib.Circuits.Boolean.Unbounded.exists_deMorgan_simulation`: a circuit of unbounded fan-in
   with `n` inputs, `s` gates and depth `d` has an equivalent De Morgan circuit with at most
   `s (n + s)` gates and depth at most `max 1 ⌈log₂ (n + s)⌉ · d`.
@@ -167,6 +173,40 @@ theorem arity_lines_dedup_le (C : Circuit signature n m) (k : Fin C.size) :
 gates of `C`. -/
 theorem fanInAtMost_dedup (C : Circuit signature n m) : (dedup C).FanInAtMost (n + C.size) :=
   Program.fanInAtMost_iff.2 (arity_lines_dedup_le C)
+
+/-- **Circuits to formulas in AC⁰** [Arora and Barak, Exercise 13.2][AroraBarak09]. An output of
+a circuit of unbounded fan-in with `n` inputs, `s` gates and depth `d` is computed by a formula
+over the same basis, a circuit in which every gate has fan-out one, of depth at most `d` and with
+at most `(10 S) ^ d` nodes, operations and input leaves together, where `S = n + s` is the number
+of nodes of the circuit, the size in the draft's Definition 6.1.
+
+The formula unfolds `dedup C`, whose gates have fan-in at most `S`. -/
+theorem exists_formula_size_add_leafSize_le (C : Circuit signature n m) (j : Fin m) :
+    ∃ F : Formula signature n, (∀ x, F.eval interpretation x = C.eval interpretation x j) ∧
+      F.depth ≤ C.depth ∧ F.size + F.leafSize ≤ (10 * (n + C.size)) ^ C.depth := by
+  set S := n + C.size
+  set F := (dedup C).toFormula j
+  have hS : 1 ≤ S := by
+    cases C.outputs j with
+    | input i => have := i.pos; omega
+    | gate k => have := k.pos; omega
+  have hD : F.depth ≤ C.depth := ((dedup C).depth_toFormula_le j).trans (depth_dedup_le C)
+  refine ⟨F, fun x => by rw [Circuit.eval_toFormula, eval_dedup], hD, ?_⟩
+  set r := max 2 S
+  have hF : F.FanInAtMost r :=
+    (dedup C).fanInAtMost_toFormula j
+      (Program.fanInAtMost_iff.2 fun k => (arity_lines_dedup_le C k).trans (le_max_right _ _))
+  have hsize := Formula.size_lt_pow_depth hF (le_max_left _ _)
+  have hleaf := Formula.leafSize_le_pow_depth hF
+  have h10 : 1 ≤ 10 * S := by omega
+  rcases Nat.eq_zero_or_pos F.depth with h0 | hpos
+  · rw [h0, pow_zero] at hsize hleaf
+    exact (by omega : F.size + F.leafSize ≤ 1).trans (Nat.one_le_pow _ _ h10)
+  calc F.size + F.leafSize ≤ 2 * r ^ F.depth := by omega
+    _ ≤ 2 ^ F.depth * r ^ F.depth := Nat.mul_le_mul_right _ (Nat.le_self_pow hpos.ne' 2)
+    _ = (2 * r) ^ F.depth := (Nat.mul_pow _ _ _).symm
+    _ ≤ (10 * S) ^ F.depth := Nat.pow_le_pow_left (by omega) _
+    _ ≤ (10 * S) ^ C.depth := Nat.pow_le_pow_right h10 hD
 
 /-! ### Balanced trees for the gates -/
 

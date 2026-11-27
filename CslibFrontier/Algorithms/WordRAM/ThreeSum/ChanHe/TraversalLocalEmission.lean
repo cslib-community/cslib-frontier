@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalEmissionFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual Chan–He emissions for an in-place consumer
@@ -57,7 +58,7 @@ theorem emit_local_entry {w n : ℕ} (x : Data 128) (e : Entry) (hl : e.Loaded x
       (by simpa only [hl.2.1, hl.2.2] using hs.input)
       (by intro j; simpa only [hl.2.2] using e.read_injOn j (hv.1 j))
   have hbp (i : Fin 128) (hi : 64 ≤ i.val) (hne : i ≠ selected) :
-      b.regs i = x.regs i := (hb i hi).trans (hu i hi hne)
+      b.regs i = x.regs i := by regs_frame
   have hL : NodePacking.layout ((nodeState b).comap kernel) = recordLayout x M := by
     rw [nodeState_layout, hb selected (by decide), hus]
     exact recordLayout_congr x b M hbp
@@ -69,7 +70,7 @@ theorem emit_local_entry {w n : ℕ} (x : Data 128) (e : Entry) (hl : e.Loaded x
       4 * b.regs groups + b.regs selected := by
     rw [← hL, nodeState_layout, recordLayout_endpoint]
   rw [hEndEq] at hEnd
-  have hd := deliverLocal_exec b ((hbp _ (by decide) (by decide)).trans hone) hEnd
+  have hd := deliverLocal_exec b (by regs_frame) hEnd
   refine ⟨localDeliveryState b, (he.seq hd.within).mono ?_, ?_⟩
   · have ht := visit_cost_le x n (x.regs limit) (x.regs groups) M
       (by intro j; rw [hl.2.2]; exact hv.length_le j) le_rfl le_rfl hMle

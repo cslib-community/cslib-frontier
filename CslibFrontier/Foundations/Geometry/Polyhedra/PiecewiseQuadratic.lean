@@ -102,7 +102,7 @@ theorem IsQuadraticOn.neg {f : E → ℝ} {S : Set E} (hf : IsQuadraticOn f S) :
     IsQuadraticOn (fun x => -f x) S := by
   rcases hf with ⟨n, a, b, hf'⟩
   refine ⟨n, fun i => -(a i), b, fun x hx => ?_⟩
-  simp only [hf' hx, AffineMap.coe_neg, Pi.neg_apply, neg_mul, Finset.sum_neg_distrib]
+  simp only [hf' hx, FunLike.coe_neg, Pi.neg_apply, neg_mul, Finset.sum_neg_distrib]
 
 theorem IsQuadraticOn.sub {f g : E → ℝ} {S : Set E}
     (hf : IsQuadraticOn f S) (hg : IsQuadraticOn g S) :
@@ -113,7 +113,7 @@ theorem IsQuadraticOn.smul (c : ℝ) {f : E → ℝ} {S : Set E} (hf : IsQuadrat
     IsQuadraticOn (fun x => c * f x) S := by
   rcases hf with ⟨n, a, b, hf'⟩
   refine ⟨n, fun i => c • a i, b, fun x hx => ?_⟩
-  simp only [hf' hx, AffineMap.coe_smul, Pi.smul_apply, smul_eq_mul, mul_assoc, Finset.mul_sum]
+  simp only [hf' hx, FunLike.coe_smul, Pi.smul_apply, smul_eq_mul, mul_assoc, Finset.mul_sum]
 
 theorem IsQuadraticOn.sum {ι : Type*} (s : Finset ι) {f : ι → E → ℝ} {S : Set E}
     (hf : ∀ i ∈ s, IsQuadraticOn (f i) S) :
@@ -184,7 +184,7 @@ private lemma isQuadraticOn_of_quadraticMap [FiniteDimensional ℝ E]
   have hx : x = ∑ i, b.repr x i • b i := (b.sum_repr x).symm
   conv_lhs => rw [hx]
   simp only [map_sum, map_smul, LinearMap.sum_apply, LinearMap.smul_apply, smul_eq_mul,
-    AffineMap.coe_smul, LinearMap.coe_toAffineMap, Module.Basis.coord_apply,
+    FunLike.coe_smul, LinearMap.coe_toAffineMap, Module.Basis.coord_apply,
     Pi.smul_apply, Finset.mul_sum]
   refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => ?_
   ring
@@ -222,7 +222,7 @@ theorem isQuadraticOn_iff_quadraticMap_add_affineMap [FiniteDimensional ℝ E]
     refine ⟨B.toQuadraticMap, L, fun x hx => ?_⟩
     rw [hf hx]
     simp only [LinearMap.BilinMap.toQuadraticMap_apply, LinearMap.coe_mk, AddHom.coe_mk,
-      AffineMap.coe_add, Pi.add_apply, LinearMap.coe_toAffineMap, LinearMap.sum_apply,
+      FunLike.coe_add, Pi.add_apply, LinearMap.coe_toAffineMap, LinearMap.sum_apply,
       LinearMap.add_apply, LinearMap.smul_apply, smul_eq_mul, AffineMap.const_apply, B, L, Llin]
     rw [← add_assoc, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
     refine Finset.sum_congr rfl fun i _ => ?_
@@ -326,7 +326,7 @@ theorem isQuadraticOn_iff_mvPolynomial_basis {ι : Type*} [Finite ι]
             MvPolynomial.C (p.coeff (Finsupp.single i 1)) * MvPolynomial.X i := by
           rw [MvPolynomial.X, MvPolynomial.C_mul_monomial, mul_one]
         rw [hmon, map_mul, MvPolynomial.eval_C, MvPolynomial.eval_X]
-        simp only [AffineMap.coe_smul, Pi.smul_apply, LinearMap.coe_toAffineMap,
+        simp only [FunLike.coe_smul, Pi.smul_apply, LinearMap.coe_toAffineMap,
           Module.Basis.coord_apply, smul_eq_mul, Module.Basis.equivFun_apply]
       · refine (IsQuadraticOn.mul_of_isAffineOn
           (IsAffineOn.affineMap
@@ -340,7 +340,7 @@ theorem isQuadraticOn_iff_mvPolynomial_basis {ι : Type*} [Finite ι]
           rw [MvPolynomial.X, MvPolynomial.X, MvPolynomial.C_mul_monomial, mul_one,
             MvPolynomial.monomial_mul_monomial, mul_one]
         rw [hmon, map_mul, map_mul, MvPolynomial.eval_C, MvPolynomial.eval_X, MvPolynomial.eval_X]
-        simp only [AffineMap.coe_smul, Pi.smul_apply, LinearMap.coe_toAffineMap,
+        simp only [FunLike.coe_smul, Pi.smul_apply, LinearMap.coe_toAffineMap,
           Module.Basis.coord_apply, smul_eq_mul, Module.Basis.equivFun_apply]
     · intro x hx
       rw [hpf hx]

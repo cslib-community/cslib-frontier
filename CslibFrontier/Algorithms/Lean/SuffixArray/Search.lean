@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.Lean.BinarySearch
 public import CslibFrontier.Algorithms.Lean.SuffixArray.Basic
 public import Cslib.Algorithms.Lean.TimeM
 import CslibFrontier.Foundations.Data.List.Lex
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Pattern search in a suffix array
@@ -97,17 +98,7 @@ def cmpSuffixM (w : Array α) : List α → ℕ → TimeM ℕ Ordering
 /-- `cmpSuffixM w p i` makes at most `|p|` character comparisons. -/
 theorem cmpSuffixM_time_le (w : Array α) (p : List α) (i : ℕ) :
     (cmpSuffixM w p i).time ≤ p.length := by
-  induction p generalizing i with
-  | nil => simp only [cmpSuffixM, TimeM.time_pure, List.length_nil, le_refl]
-  | cons a p ih =>
-    rw [cmpSuffixM]
-    split_ifs with hi
-    · simp only [TimeM.time_bind, TimeM.time_tick, List.length_cons]
-      split
-      · simp only [TimeM.time_pure]; omega
-      · simp only [TimeM.time_pure]; omega
-      · have := ih (i + 1); omega
-    · simp only [TimeM.time_pure, Nat.zero_le]
+  time_spec cmpSuffixM
 
 /-- `cmpSuffixM w p i` compares `p` with the window `(w.drop i).take |p|` of the same length as
 `p` (shorter if the suffix is shorter). -/
@@ -117,8 +108,7 @@ theorem ret_cmpSuffixM (w : Array α) (p : List α) (i : ℕ) :
       else if p = (w.toList.drop i).take p.length then .eq else .gt := by
   induction p generalizing i with
   | nil =>
-    simp only [cmpSuffixM, TimeM.ret_pure, List.length_nil, List.take_zero, lt_self_iff_false,
-      ↓reduceIte]
+    simp only [cmpSuffixM, time_simps, List.take_zero, lt_self_iff_false, ↓reduceIte]
   | cons a p ih =>
     rw [cmpSuffixM]
     by_cases hi : i < w.size
@@ -229,25 +219,25 @@ character comparisons. -/
 theorem searchM_time_le (w : Array α) (sa : Array ℕ) (p : List α) :
     (searchM w sa p).time ≤ 2 * (p.length * (Nat.log 2 sa.size + 1)) := by
   have h1 := lowerBoundM_time_le (probeBelowM w sa p) (c := p.length) (fun r => by
-    simp only [probeBelowM, TimeM.time_bind, TimeM.time_pure, Nat.add_zero]
+    simp only [probeBelowM, time_simps]
     exact cmpSuffixM_time_le w p _) 0 sa.size
   have h2 := lowerBoundM_time_le (probeAtMostM w sa p) (c := p.length) (fun r => by
-    simp only [probeAtMostM, TimeM.time_bind, TimeM.time_pure, Nat.add_zero]
+    simp only [probeAtMostM, time_simps]
     exact cmpSuffixM_time_le w p _) 0 sa.size
-  simp only [searchM, TimeM.time_bind, TimeM.time_pure, Nat.add_zero, Nat.sub_zero] at h1 h2 ⊢
+  simp only [searchM, time_simps, Nat.sub_zero] at h1 h2 ⊢
   omega
 
 /-- Specification of the probe used to find the lower end of the rank interval. -/
 theorem ret_probeBelowM (w : Array α) (sa : Array ℕ) (p : List α) {r : ℕ} (hr : r < sa.size) :
     (probeBelowM w sa p r).ret = true ↔ (w.toList.drop sa[r]).take p.length < p := by
-  simp only [probeBelowM, TimeM.ret_bind, TimeM.ret_pure, decide_eq_true_eq]
+  simp only [probeBelowM, time_simps, decide_eq_true_eq]
   rw [getElem!_pos sa r hr]
   exact ret_cmpSuffixM_eq_gt_iff w p _
 
 /-- Specification of the probe used to find the upper end of the rank interval. -/
 theorem ret_probeAtMostM (w : Array α) (sa : Array ℕ) (p : List α) {r : ℕ} (hr : r < sa.size) :
     (probeAtMostM w sa p r).ret = true ↔ (w.toList.drop sa[r]).take p.length ≤ p := by
-  simp only [probeAtMostM, TimeM.ret_bind, TimeM.ret_pure, decide_eq_true_eq]
+  simp only [probeAtMostM, time_simps, decide_eq_true_eq]
   rw [getElem!_pos sa r hr]
   exact ret_cmpSuffixM_ne_lt_iff w p _
 
@@ -269,7 +259,7 @@ theorem searchM_spec {w : Array α} {sa : Array ℕ} (hsa : IsSuffixArray w.toLi
     (searchM w sa p).ret.1 ≤ (searchM w sa p).ret.2 ∧ (searchM w sa p).ret.2 ≤ sa.size ∧
       ∀ (r : ℕ) (hr : r < sa.size),
         p <+: w.toList.drop sa[r] ↔ (searchM w sa p).ret.1 ≤ r ∧ r < (searchM w sa p).ret.2 := by
-  simp only [searchM, TimeM.ret_bind, TimeM.ret_pure]
+  simp only [searchM, time_simps]
   obtain ⟨-, hlo2, hlo3, hlo4⟩ := lowerBoundM_spec (probeBelowM w sa p) (lo := 0) (hi := sa.size)
     (fun m m' _ hmm' hm' h => by
       rw [ret_probeBelowM w sa p (by omega)] at h ⊢

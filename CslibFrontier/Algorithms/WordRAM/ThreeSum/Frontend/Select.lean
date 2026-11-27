@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Frontend.Model
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native selection of canonical signed keys
@@ -236,9 +237,7 @@ theorem exec {w : ℕ} (x : Data 48)
   have hr (j : Fin 48) (hj : j.val ≤ 12) : u.regs j = x.regs j :=
     hu.regs_eq (labels_preserves j hj)
   obtain ⟨y, hy, hyt, hyk, hym⟩ := choose_exec u
-    ((hr zero (by decide)).trans hz) ((hr one (by decide)).trans h1)
-    ((hr two (by decide)).trans h2) ((hr three (by decide)).trans h3)
-    ((hr four (by decide)).trans h4) ((hr five (by decide)).trans h5)
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
     (by simpa only [hr key (by decide)] using hus)
     (by simpa only [hr key (by decide)] using hdouble) hsmall
   refine ⟨y, hu.seq hy, ?_, ?_, hym.trans hum⟩

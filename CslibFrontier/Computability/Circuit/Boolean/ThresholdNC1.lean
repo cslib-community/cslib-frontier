@@ -11,9 +11,11 @@ public import CslibFrontier.Computability.Circuit.Boolean.CarrySave
 public import CslibFrontier.Computability.Circuit.Boolean.Comparison
 public import CslibFrontier.Computability.Circuit.Boolean.FanInTwo
 public import CslibFrontier.Computability.Circuit.Boolean.Threshold
+public import CslibFrontier.Computability.Circuit.Boolean.WordConstant
 import CslibFrontier.Computability.Circuit.CompositionDepth
 import CslibFrontier.Computability.Circuit.Simulation
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Threshold and majority circuits in `NC¹`
@@ -36,8 +38,6 @@ in De Morgan depth `O(d log F)` and size `O(s F log F)`
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.wordConstCircuit`: a constant `w`-bit word circuit of size `2` and depth
-  at most `1`.
 * `Cslib.Circuits.Boolean.thresholdDeMorganCircuit`: a De Morgan circuit of size `O(k log k)` and
   depth `O(log k)` computing `threshold k j`.
 * `Cslib.Circuits.Boolean.majorityDeMorganCircuit`: a De Morgan circuit of size `O(k log k)` and
@@ -73,36 +73,6 @@ in De Morgan depth `O(d log F)` and size `O(s F log F)`
 namespace Cslib.Circuits.Boolean
 
 variable {n m w : ℕ}
-
-/-! ### Constant word circuit -/
-
-/-- Constant `w`-bit word circuit on `n` inputs: computes `false` and `true` once and wires each
-output bit `i` to the corresponding constant gate. -/
-def wordConstCircuit (n : ℕ) (y : BitString w) : Circuit signature n w :=
-  (Circuit.wiring signature fun i : Fin w =>
-      if y i then Fin.natAdd 1 (0 : Fin 1) else Fin.castAdd 1 (0 : Fin 1)).comp
-    ((Circuit.oneGate (Op.const false) Fin.elim0).append
-      (Circuit.oneGate (Op.const true) Fin.elim0))
-
-/-- `wordConstCircuit n y` evaluates to the constant bit string `y` on every input. -/
-@[simp] theorem eval_wordConstCircuit (y : BitString w) (x : BitString n) :
-    (wordConstCircuit n y).eval interpretation x = y := by
-  funext i
-  rw [wordConstCircuit, Circuit.eval_comp, Circuit.eval_wiring, Circuit.eval_append,
-    Function.comp_apply]
-  cases y i <;> rfl
-
-/-- `wordConstCircuit n y` uses `2` gates (one `false` and one `true` constant gate). -/
-@[simp] theorem size_wordConstCircuit (n : ℕ) (y : BitString w) :
-    (wordConstCircuit n y).size = 2 :=
-  rfl
-
-/-- `wordConstCircuit n y` has depth at most `1`. -/
-theorem depth_wordConstCircuit_le (n : ℕ) (y : BitString w) :
-    (wordConstCircuit n y).depth ≤ 1 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_wiring, zero_add]
-  exact (Circuit.depth_append_le _ _).trans (by simp)
 
 /-! ### Threshold and majority circuits in `NC¹` -/
 
@@ -154,19 +124,7 @@ theorem size_thresholdDeMorganCircuit_le (k j : ℕ) :
 /-- `thresholdDeMorganCircuit k j` has depth at most `2 + 23 ⌈log₂ (k + 1)⌉`. -/
 theorem depth_thresholdDeMorganCircuit_le (k j : ℕ) :
     (thresholdDeMorganCircuit k j).depth ≤ 2 + 23 * Nat.clog 2 (k + 1) := by
-  dsimp [thresholdDeMorganCircuit]
-  split_ifs with h
-  · refine (Circuit.depth_comp_le _ _).trans ?_
-    have hle := depth_leCircuit_le (Nat.clog 2 (k + 1))
-    have happ := (Circuit.depth_append_le
-        (wordConstCircuit k ((BitString.equivFin (Nat.clog 2 (k + 1))).symm
-          ⟨j, (Nat.lt_succ_of_le h).trans_le (Nat.le_pow_clog one_lt_two (k + 1))⟩))
-        (weightCircuit k)).trans
-      (max_le ((depth_wordConstCircuit_le _ _).trans (Nat.le_add_right 1 _))
-        (depth_weightCircuit_le k))
-    omega
-  · rw [Circuit.depth_oneGate]
-    omega
+  circuit_bound [thresholdDeMorganCircuit]
 
 /-- **Logarithmic-depth majority circuit**: computes `majority k` over the De Morgan basis of
 fan-in two in size `O(k log k)` and depth `O(log k)`. -/

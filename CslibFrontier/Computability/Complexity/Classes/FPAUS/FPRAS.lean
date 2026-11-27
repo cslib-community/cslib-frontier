@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Counting
 public import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Computability.Probabilistic.Adaptive
@@ -22,21 +23,24 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
-# Almost uniform samplers give FPRAS for self-reducible families
+# Almost uniform samplers give FPRAS for one-bit self-reducible families
 
 The sampling-to-counting estimator of `Cslib.Complexity.SelfReducible.estimate` is a strict
-probabilistic polynomial-time program whenever the sampler is, so for a self-reducible witness
-family a fully polynomial almost uniform sampler yields a fully polynomial randomized
+probabilistic polynomial-time program whenever the sampler is, so for a one-bit self-reducible
+witness family a fully polynomial almost uniform sampler yields a fully polynomial randomized
 approximation scheme for the number of witnesses
 [Jerrum, Valiant and Vazirani][JerrumValiantVazirani1986],
 [Sinclair, Lecture 4, Section 4.2.1][Sinclair2025].
+
+Each reduction step fixes one witness bit. Jerrum, Valiant and Vazirani allow a block of bits
+at each step in their general self-reduction.
 
 The estimator runs `len x` levels. Each level calls the sampler `2 N` times on the current
 instance, which is no longer than `x`, with accuracy `M` in unary, where `M` and `N` are
 polynomial in `len x`, `p` and `t`. Its state is the current instance with a numerator and
 denominator in binary, each at most `N ^ i` after `i` levels, so every reachable state has
 encoded length polynomial in that of `(x, p, t)`
-(`Cslib.Probability.IsPPTOn.iterateWith_spec'`).
+(`Cslib.Probability.IsPPTOn.iterateWith_spec`).
 
 ## Main results
 
@@ -181,7 +185,7 @@ theorem isPPTOn_estimate
   have hsize : PolyBounded (fun a => (encInput enc a).length)
       (fun a => 3 * (encInput enc a).length + 4 * (encNat (N a ^ R.len a.1)).length + 2) := by
     growth_poly
-  have hloop := IsPPTOn.iterateWith_spec' (input := encInput enc) (stateEncoding := encState enc)
+  have hloop := IsPPTOn.iterateWith_spec (input := encInput enc) (stateEncoding := encState enc)
     (step := fun a => R.step S (R.len a.1) a.2.1 a.2.2) hcount hinitial (R.isPPTOn_step hS)
     (fun a i s => R.len s.1 + i = R.len a.1 ∧ (enc s.1).length ≤ (enc a.1).length ∧
       s.2.1 ≤ N a ^ i ∧ s.2.2 ≤ N a ^ i)
@@ -222,18 +226,20 @@ theorem isPPTOn_estimate
     fun_prop
   exact hloop.1.map hpost
 
-/-- **An almost uniform sampler gives an approximate counter**: for a self-reducible witness
-family, a fully polynomial almost uniform sampler `S` yields a fully polynomial randomized
-approximation scheme `R.estimate S` for the number of witnesses. -/
+/-- **An almost uniform sampler gives an approximate counter**: for a one-bit self-reducible
+witness family, a fully polynomial almost uniform sampler `S` yields a fully polynomial randomized
+approximation scheme for the number of witnesses. The estimator uses bounded retries to handle
+explicit generator failures as in [JerrumValiantVazirani1986, Theorem 6.4]. -/
 theorem isFPRAS_of_isFPAUS (hS : IsFPAUS enc W S) :
-    IsFPRAS enc (fun x => (W x).card) (R.estimate S) :=
-  ⟨R.isPPTOn_estimate hS.1, fun x _ t hp => R.approxWithin_estimate hS.2 x hp t⟩
+    IsFPRAS enc (fun x => (W x).card) (R.estimate (retrySampler S)) :=
+  ⟨R.isPPTOn_estimate hS.isPPTOn_retrySampler,
+    fun x _ t hp => R.approxWithin_estimate hS.closeTo_retrySampler x hp t⟩
 
 include R in
-/-- **The class form**: a self-reducible witness family with a fully polynomial almost uniform
-sampler has a fully polynomial randomized approximation scheme for its witness counts. -/
+/-- **The class form**: a one-bit self-reducible witness family with a fully polynomial almost
+uniform sampler has a fully polynomial randomized approximation scheme for its witness counts. -/
 theorem mem_FPRAS_of_mem_FPAUS (hW : W ∈ FPAUS enc) : (fun x => (W x).card) ∈ FPRAS enc :=
   let ⟨S, hS⟩ := hW
-  ⟨R.estimate S, R.isFPRAS_of_isFPAUS hS⟩
+  ⟨R.estimate (retrySampler S), R.isFPRAS_of_isFPAUS hS⟩
 
 end Cslib.Complexity.SelfReducible

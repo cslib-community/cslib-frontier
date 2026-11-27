@@ -174,7 +174,6 @@ theorem abs_card_interedges_sub_le (S T : Finset V) :
   rw [pow_one, mul_one, expect_boole_mem_mul_walk, Fintype.expect_boole_mem,
     Fintype.expect_boole_mem, Fintype.expect_boole_mem_sq, Fintype.expect_boole_mem_sq,
     nnratCast_dens, nnratCast_dens] at h
-  have := G.spectralExpansion_nonneg
   refine abs_le_of_sq_le_sq ?_ (by positivity)
   rw [div_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), card_compl_eq, card_compl_eq]
   generalize (#(G.interedges S T) : ℝ) = e at h ⊢
@@ -196,7 +195,6 @@ theorem abs_card_interedges_sub_le_mul_sqrt (S T : Finset V) :
     |(#(G.interedges S T) : ℝ) - Fintype.card D * #S * #T / Fintype.card V| ≤
       G.spectralExpansion * Fintype.card D * √((#S : ℝ) * #T) := by
   refine (G.abs_card_interedges_sub_le S T).trans ?_
-  have := G.spectralExpansion_nonneg
   rcases (Fintype.card V).eq_zero_or_pos with hV | hV
   · rw [hV, Nat.cast_zero, div_zero]
     positivity

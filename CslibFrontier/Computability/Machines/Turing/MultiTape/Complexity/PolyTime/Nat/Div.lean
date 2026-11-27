@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
@@ -21,9 +22,9 @@ including divisor zero. The fixed-divisor interface follows by composition.
 
 ## Main results
 
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.unary_divMod`: compute quotient and remainder.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.unary_div`, `.unary_mod`: project either result.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.unary_div_const`: division by a fixed natural.
+* `Turing.MultiTapeTM.ComputableInPolyTime.unary_divMod`: compute quotient and remainder.
+* `Turing.MultiTapeTM.ComputableInPolyTime.unary_div`, `.unary_mod`: project either result.
+* `Turing.MultiTapeTM.ComputableInPolyTime.unary_div_const`: division by a fixed natural.
 * `Turing.MultiTapeTM.ComputableInPolyTime.unary_div'`, `.unary_mod'`: composition rules for
   `fun_prop` on plain certificates.
 
@@ -34,15 +35,15 @@ The machine realization uses the invariant-based loop calculus in `PolyTime.Iter
 
 public section
 
-namespace Turing.MultiTapeTM.ComputableTidilyInPolyTime
+namespace Turing.MultiTapeTM.ComputableInPolyTime
 
 /-- Compute both quotient and remainder with a runtime unary divisor. Division by zero returns
 `(0, dividend)`, matching Lean's conventions. All intermediate counters have linear size. -/
-theorem unary_divMod : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => (p.1 / p.2, p.1 % p.2))
+theorem unary_divMod : ComputableInPolyTime (fun p : ℕ × ℕ => (p.1 / p.2, p.1 % p.2))
     (encPair encUnary encUnary) (encPair encUnary encUnary) := by
   let step (divisor : ℕ) (state : ℕ × ℕ) :=
     if state.2 + 1 == divisor then (state.1 + 1, 0) else (state.1, state.2 + 1)
-  have hstep : ComputableTidilyInPolyTime (fun p : ℕ × (ℕ × ℕ) => step p.1 p.2)
+  have hstep : ComputableInPolyTime (fun p : ℕ × (ℕ × ℕ) => step p.1 p.2)
       (encPair encUnary (encPair encUnary encUnary)) (encPair encUnary encUnary) := by
     unfold step
     fun_prop
@@ -77,35 +78,23 @@ theorem unary_divMod : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => (p.1 / 
 
 /-- Division of two unary counters. -/
 @[fun_prop]
-theorem unary_div : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 / p.2)
+theorem unary_div : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 / p.2)
     (encPair encUnary encUnary) encUnary := unary_divMod.fst'
 
 /-- Remainder of two unary counters. -/
 @[fun_prop]
-theorem unary_mod : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 % p.2)
+theorem unary_mod : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 % p.2)
     (encPair encUnary encUnary) encUnary := unary_divMod.snd'
 
 /-- Division by a fixed natural is a special case of runtime unary division. -/
 @[fun_prop]
 theorem unary_div_const (divisor : ℕ) :
-    ComputableTidilyInPolyTime (fun n : ℕ => n / divisor) encUnary encUnary :=
+    ComputableInPolyTime (fun n : ℕ => n / divisor) encUnary encUnary :=
   unary_div.comp (id'.prod (const divisor))
 
-end Turing.MultiTapeTM.ComputableTidilyInPolyTime
+end Turing.MultiTapeTM.ComputableInPolyTime
 
 namespace Turing.MultiTapeTM.ComputableInPolyTime
-
-/-- Division of two unary counters, including divisor zero. -/
-@[fun_prop]
-theorem unary_div : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 / p.2)
-    (encPair encUnary encUnary) encUnary :=
-  .of_tidy ComputableTidilyInPolyTime.unary_div
-
-/-- Remainder of two unary counters, including divisor zero. -/
-@[fun_prop]
-theorem unary_mod : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 % p.2)
-    (encPair encUnary encUnary) encUnary :=
-  .of_tidy ComputableTidilyInPolyTime.unary_mod
 
 /-- Divide two computed unary naturals with the same full input context. -/
 @[fun_prop]
@@ -122,17 +111,5 @@ theorem unary_mod' {α : Type} {input : α ↪ List Bool} {left right : α → �
     (hright : ComputableInPolyTime right input encUnary) :
     ComputableInPolyTime (fun a => left a % right a) input encUnary :=
   unary_mod.comp (hleft.prod hright)
-
-/-- Compute both quotient and remainder with a runtime unary divisor. Division by zero returns
-`(0, dividend)`, matching Lean's conventions. All intermediate counters have linear size. -/
-theorem unary_divMod : ComputableInPolyTime (fun p : ℕ × ℕ => (p.1 / p.2, p.1 % p.2))
-    (encPair encUnary encUnary) (encPair encUnary encUnary) :=
-  .of_tidy (ComputableTidilyInPolyTime.unary_divMod)
-
-/-- Division by a fixed natural is a special case of runtime unary division. -/
-@[fun_prop]
-theorem unary_div_const (divisor : ℕ) :
-    ComputableInPolyTime (fun n : ℕ => n / divisor) encUnary encUnary :=
-  .of_tidy (ComputableTidilyInPolyTime.unary_div_const (divisor := divisor))
 
 end Turing.MultiTapeTM.ComputableInPolyTime

@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.Membership
 import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.PolyTime
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+
 /-!
 # `TQBF` is `PSPACE`-complete
 
@@ -71,14 +73,14 @@ theorem TQBF_pspaceHard : PSPACEHard encQBF TQBF := by
   intro α enc A hA
   obtain ⟨k, State, hfinite, ntm, s, hs, hA⟩ := PSPACE_subset_NPSPACE hA
   obtain ⟨c, d, hcd⟩ := hs.exists_le
-  obtain ⟨tV, sV, htV, -, kV, StateV, hfiniteV, tmV, htmV⟩ :=
-    (TQBF.computableInPolyTime_edgeTest (enc := enc) (ntm := ntm) (c := c) (d := d)).tidy
-  obtain ⟨cV, dV, htV⟩ := htV.exists_le
+  obtain ⟨cV, dV, kV, StateV, hfiniteV, tmV, htmV⟩ :=
+    Turing.MultiTapeTM.Internal.NormalForm.polyTime
+      (TQBF.computableInPolyTime_edgeTest (enc := enc) (ntm := ntm) (c := c) (d := d))
   have := Fintype.ofFinite StateV
   classical
   refine ⟨TQBF.reduce enc ntm c d tmV cV dV,
     (TQBF.computableInPolyTime_reduce tmV cV dV), fun a => ?_⟩
-  rw [TQBF.reduce_mem_TQBF_iff (htmV.mono htV fun _ => le_rfl) (hA.recognizesInSpace a).1
+  rw [TQBF.reduce_mem_TQBF_iff htmV (hA.recognizesInSpace a).1
     (hcd a)]
   exact (hA.recognizesInSpace a).2
 

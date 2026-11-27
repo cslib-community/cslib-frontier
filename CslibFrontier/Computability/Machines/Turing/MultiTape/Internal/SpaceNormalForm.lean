@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-!

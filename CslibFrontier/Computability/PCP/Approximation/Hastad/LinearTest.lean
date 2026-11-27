@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.BooleanAnalysis.Convolution
 public import CslibFrontier.Foundations.BooleanAnalysis.LongCode
 public import CslibFrontier.Foundations.BooleanAnalysis.Noise
+public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Algebra.Order.Chebyshev
 
@@ -37,12 +38,20 @@ The Long Code, folding and the mod-2 projection `Cslib.BitString.projectSet` liv
 * `Cslib.PCP.Hastad.sum_spectralWeight_le_one`: Parseval bound showing that `spectralWeight k B` is
   a sub-probability distribution on `γ`.
 * `Cslib.PCP.Hastad.linearCorr_sq_le`: single-edge Cauchy–Schwarz + Parseval soundness bound.
+* `Cslib.PCP.Hastad.linearCorr_id_eq_sum`: the noisy linearity test on one table
+  [Arora and Barak, Lemma 19.12][AroraBarak07].
+* `Cslib.PCP.Hastad.two_mul_sub_le_sum_lowDegree_cube_mul`,
+  `Cslib.PCP.Hastad.two_mul_sub_le_sum_lowDegree_abs_cube`: the low-degree cubic Fourier sums of
+  a table the test accepts with probability `1/2 + δ` are at least `2 δ - ε`, the corrected
+  form of [Arora and Barak, Corollary 19.13 and Exercise 19.2][AroraBarak07].
 
 ## References
 
 * [J. Håstad, *Some optimal inapproximability results*][Hastad2001]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, Chapter 22][AroraBarak09]
 * [R. O'Donnell, *Analysis of Boolean Functions*, Chapter 7][ODonnell2014]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, web draft 2007-01-08,
+  Lemma 19.12, Corollary 19.13 (pp. 392–393 / PDF 408–409) and Exercise 19.2][AroraBarak07]
 -/
 
 @[expose] public section
@@ -354,5 +363,106 @@ theorem linearCorr_sq_le (π : β → γ) {δ : ℝ} (hδ0 : 0 ≤ δ) (hδ1 : �
     sum_lowDegree_fourierCoeff_sq_le π k B A]
 
 end Soundness
+
+/-! ### The linearity test and its low-degree cubic weight -/
+
+section LowDegree
+
+variable [Fintype β] [DecidableEq β]
+
+/-- **The noisy linearity test** [Arora and Barak, Lemma 19.12][AroraBarak07]: testing one table
+`A` against itself along the identity, the correlation is the noise-weighted cubic Fourier sum
+`∑ T, (1 - 2 δ) ^ #T * F̂(T) ^ 3`. -/
+theorem linearCorr_id_eq_sum (δ : ℝ) (A : (β → Bool) → Bool) :
+    linearCorr id δ A A =
+      ∑ T : Finset β, (1 - 2 * δ) ^ #T * fourierCoeff (fun g => signVal (A g)) T ^ 3 := by
+  rw [linearCorr_eq_sum]
+  refine sum_congr rfl fun T _ => ?_
+  rw [projectSet_id]
+  ring
+
+/-- **Corollary 19.13 of Arora and Barak, corrected: the noise-weighted low-degree cubic sum.**
+If the noisy linearity test with noise rate `ρ ∈ (0, 1/2]` accepts `A` with probability at least
+`1/2 + δ`, then for `ε > 0` and every degree cutoff `k ≥ ln (1/ε) / (2 ρ)`,
+`∑_{#T ≤ k} F̂(T) ^ 3 (1 - 2 ρ) ^ #T ≥ 2 δ - ε`.
+
+This is not the printed corollary, which claims the bound for the unweighted sum
+`∑_{#T ≤ k} F̂(T) ^ 3`. That statement is false: for the table on three bits that is `-1`
+exactly at `000` and `111`, at `ρ = ε = 1/4`, the test accepts with probability `1/2 + 1/64`,
+but the unweighted sum is `1/8 - 3/8 = -1/4 < 1/32 - 1/4` for every `k ≥ 2`. The
+coefficients of degree above `k` contribute at most `(1 - 2 ρ) ^ k ≤ ε` in absolute value, by
+Parseval's identity and `|F̂(T)| ≤ 1`. -/
+theorem two_mul_sub_le_sum_lowDegree_cube_mul {ρ ε δ : ℝ} (hρ0 : 0 < ρ) (hρ1 : ρ ≤ 1 / 2)
+    (hε : 0 < ε) {k : ℕ} (hk : Real.log (1 / ε) / (2 * ρ) ≤ k) (A : (β → Bool) → Bool)
+    (hA : 1 / 2 + δ ≤ linearProb id ρ A A) :
+    2 * δ - ε ≤ ∑ T ∈ univ.filter (fun T : Finset β => #T ≤ k),
+      fourierCoeff (fun g => signVal (A g)) T ^ 3 * (1 - 2 * ρ) ^ #T := by
+  set F := fourierCoeff (fun g => signVal (A g))
+  set w := 1 - 2 * ρ with hw
+  have hw0 : 0 ≤ w := by linarith
+  have hw1 : w ≤ 1 := by linarith
+  -- The tail weight: `w ^ k ≤ ε`.
+  have hwk : w ^ k ≤ ε := by
+    have hexp : w ≤ Real.exp (-(2 * ρ)) := by
+      have := Real.add_one_le_exp (-(2 * ρ))
+      linarith
+    have hlog : Real.log (1 / ε) ≤ 2 * ρ * k := (div_le_iff₀' (by positivity)).1 hk
+    rw [one_div, Real.log_inv] at hlog
+    calc w ^ k ≤ Real.exp (-(2 * ρ)) ^ k := pow_le_pow_left₀ hw0 hexp k
+      _ = Real.exp (-(2 * ρ * k)) := by rw [← Real.exp_nat_mul]; ring_nf
+      _ ≤ Real.exp (Real.log ε) := Real.exp_le_exp.2 (by linarith)
+      _ = ε := Real.exp_log hε
+  -- Each high-degree term is at most `F̂(T) ^ 2 * w ^ k`.
+  have hterm (T : Finset β) (hT : ¬ #T ≤ k) : F T ^ 3 * w ^ #T ≤ F T ^ 2 * w ^ k := by
+    have hF := abs_fourierCoeff_signVal_le_one (fun g => A g) T
+    have hpow : w ^ #T ≤ w ^ k := pow_le_pow_of_le_one hw0 hw1 (by omega)
+    have h3 : F T ^ 3 ≤ F T ^ 2 := by
+      have : F T ^ 3 = F T ^ 2 * F T := by ring
+      rw [this]
+      nlinarith [abs_le.1 hF, sq_nonneg (F T)]
+    calc F T ^ 3 * w ^ #T ≤ |F T ^ 3| * w ^ #T :=
+          mul_le_mul_of_nonneg_right (le_abs_self _) (pow_nonneg hw0 _)
+      _ ≤ F T ^ 2 * w ^ k := by
+        rw [abs_pow]
+        have : |F T| ^ 3 ≤ F T ^ 2 := by
+          rw [← sq_abs (F T), show |F T| ^ 3 = |F T| ^ 2 * |F T| by ring]
+          exact mul_le_of_le_one_right (sq_nonneg _) hF
+        exact mul_le_mul this hpow (pow_nonneg hw0 _) (sq_nonneg _)
+  have hhigh : ∑ T ∈ univ.filter (fun T : Finset β => ¬ #T ≤ k), F T ^ 3 * w ^ #T ≤ ε := by
+    calc ∑ T ∈ univ.filter (fun T : Finset β => ¬ #T ≤ k), F T ^ 3 * w ^ #T
+        ≤ ∑ T ∈ univ.filter (fun T : Finset β => ¬ #T ≤ k), F T ^ 2 * w ^ k :=
+          sum_le_sum fun T hT => hterm T (mem_filter.1 hT).2
+      _ ≤ ∑ T : Finset β, F T ^ 2 * w ^ k :=
+          sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun _ _ _ =>
+            mul_nonneg (sq_nonneg _) (pow_nonneg hw0 _)
+      _ = w ^ k := by rw [← sum_mul, sum_fourierCoeff_sq_signVal, one_mul]
+      _ ≤ ε := hwk
+  have htotal : 2 * δ ≤ ∑ T : Finset β, F T ^ 3 * w ^ #T := by
+    rw [linearProb_eq_add_linearCorr, linearCorr_id_eq_sum] at hA
+    have : ∑ T : Finset β, F T ^ 3 * w ^ #T = ∑ T : Finset β, w ^ #T * F T ^ 3 :=
+      sum_congr rfl fun _ _ => mul_comm _ _
+    linarith
+  rw [← sum_filter_add_sum_filter_not univ (fun T : Finset β => #T ≤ k)] at htotal
+  linarith
+
+/-- **Corollary 19.13 of Arora and Barak, corrected: the low-degree absolute cubic sum.** Under the
+hypotheses of `two_mul_sub_le_sum_lowDegree_cube_mul`, `∑_{#T ≤ k} |F̂(T)| ^ 3 ≥ 2 δ - ε`. This is
+not the printed corollary, which has the signed sum `∑_{#T ≤ k} F̂(T) ^ 3`. -/
+theorem two_mul_sub_le_sum_lowDegree_abs_cube {ρ ε δ : ℝ} (hρ0 : 0 < ρ) (hρ1 : ρ ≤ 1 / 2)
+    (hε : 0 < ε) {k : ℕ} (hk : Real.log (1 / ε) / (2 * ρ) ≤ k) (A : (β → Bool) → Bool)
+    (hA : 1 / 2 + δ ≤ linearProb id ρ A A) :
+    2 * δ - ε ≤ ∑ T ∈ univ.filter (fun T : Finset β => #T ≤ k),
+      |fourierCoeff (fun g => signVal (A g)) T| ^ 3 := by
+  refine (two_mul_sub_le_sum_lowDegree_cube_mul hρ0 hρ1 hε hk A hA).trans
+    (sum_le_sum fun T _ => ?_)
+  have hw0 : 0 ≤ 1 - 2 * ρ := by linarith
+  calc fourierCoeff (fun g => signVal (A g)) T ^ 3 * (1 - 2 * ρ) ^ #T
+      ≤ |fourierCoeff (fun g => signVal (A g)) T ^ 3 * (1 - 2 * ρ) ^ #T| := le_abs_self _
+    _ = |fourierCoeff (fun g => signVal (A g)) T| ^ 3 * (1 - 2 * ρ) ^ #T := by
+        rw [abs_mul, abs_pow, abs_of_nonneg (pow_nonneg hw0 _)]
+    _ ≤ |fourierCoeff (fun g => signVal (A g)) T| ^ 3 :=
+        mul_le_of_le_one_right (by positivity) (pow_le_one₀ hw0 (by linarith))
+
+end LowDegree
 
 end Cslib.PCP.Hastad

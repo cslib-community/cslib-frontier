@@ -16,6 +16,7 @@ import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Image
 import Mathlib.Data.Fintype.BigOperators
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Maximum Bipartite Matching and König's Theorem via Network Flows
@@ -804,15 +805,12 @@ private theorem mem_extractMatchingRowM_ret {m r : ℕ} {G : Fin m × Fin r → 
         · exact absurd hp hpos
         · exact .inr ⟨rfl, hvs, hp⟩
 
+@[time_simps]
 private theorem extractMatchingRowM_time {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) (u : Fin m) (vs : List (Fin r))
     (acc : Finset (Fin m × Fin r)) :
     (extractMatchingRowM f u vs acc).time = vs.length := by
-  induction vs generalizing acc with
-  | nil => rfl
-  | cons _ vs' ih =>
-    simp only [extractMatchingRowM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    omega
+  time_spec extractMatchingRowM
 
 /-- Scan left vertices `us` and all right vertices `Fin r` to extract `flowToMatching f`. -/
 @[expose] def extractMatchingLoopM {m r : ℕ} {G : Fin m × Fin r → Bool}
@@ -847,27 +845,21 @@ private theorem mem_extractMatchingLoopM_ret {m r : ℕ} {G : Fin m × Fin r →
 private theorem extractMatchingLoopM_time {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) (us : List (Fin m)) (acc : Finset (Fin m × Fin r)) :
     (extractMatchingLoopM f us acc).time = us.length * (r + 1) := by
-  induction us generalizing acc with
-  | nil => simp [extractMatchingLoopM]
-  | cons u us' ih =>
-    simp only [extractMatchingLoopM, TimeM.time_bind, TimeM.time_tick, extractMatchingRowM_time,
-      List.length_finRange, ih, List.length_cons]
-    rw [Nat.add_one_mul]
-    omega
+  time_spec extractMatchingLoopM [List.length_finRange, Nat.succ_mul]
 
 /-- Extract `flowToMatching f` in `m * (r + 1)` charged `TimeM` ticks. -/
 @[expose] def extractMatchingM {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) : TimeM ℕ (Finset (Fin m × Fin r)) :=
   extractMatchingLoopM f (List.finRange m) ∅
 
-@[simp]
+@[simp, time_simps]
 theorem extractMatchingM_ret {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) :
     (extractMatchingM f).ret = flowToMatching f := by
   ext e
   simp [extractMatchingM, mem_extractMatchingLoopM_ret, List.mem_finRange, flowToMatching]
 
-@[simp]
+@[simp, time_simps]
 theorem extractMatchingM_time {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) :
     (extractMatchingM f).time = m * (r + 1) := by
@@ -910,14 +902,7 @@ private theorem hasUncoveredRightM_ret {m r : ℕ} (G : Fin m × Fin r → Bool)
 private theorem hasUncoveredRightM_time_le {m r : ℕ} (G : Fin m × Fin r → Bool)
     (cut : Finset (Fin (2 + (m + r)))) (u : Fin m) (vs : List (Fin r)) :
     (hasUncoveredRightM G cut u vs).time ≤ vs.length := by
-  induction vs with
-  | nil => simp [hasUncoveredRightM]
-  | cons _ vs' ih =>
-    simp only [hasUncoveredRightM, TimeM.time_bind, TimeM.time_tick, List.length_cons]
-    split_ifs
-    · simp only [TimeM.time_pure]
-      omega
-    · omega
+  time_spec hasUncoveredRightM
 
 /-- Scan left vertices `us` to build `(cutToVertexCover G S).left` in `TimeM ℕ`. -/
 @[expose] def extractCoverLeftLoopM {m r : ℕ} (G : Fin m × Fin r → Bool)
@@ -960,7 +945,7 @@ private theorem extractCoverLeftLoopM_time_le {m r : ℕ} (G : Fin m × Fin r �
   induction us generalizing acc with
   | nil => simp [extractCoverLeftLoopM]
   | cons u us' ih =>
-    simp only [extractCoverLeftLoopM, TimeM.time_bind, TimeM.time_tick, List.length_cons]
+    simp only [extractCoverLeftLoopM, time_simps]
     rw [Nat.add_one_mul]
     split_ifs
     · have hrec := ih (insert u acc)
@@ -980,12 +965,12 @@ private theorem extractCoverLeftLoopM_time_le {m r : ℕ} (G : Fin m × Fin r �
   let right ← extractFinsetM fun v : Fin r => decide (bipartiteFinEquiv m r (.right v) ∈ cut)
   pure ⟨left, right⟩
 
-@[simp]
+@[simp, time_simps]
 theorem extractCoverM_ret {m r : ℕ} (G : Fin m × Fin r → Bool)
     (cut : Finset (Fin (2 + (m + r)))) :
     (extractCoverM G cut).ret =
       cutToVertexCover G (Network.cutOfReindex (bipartiteFinEquiv m r) cut) := by
-  simp only [extractCoverM, TimeM.ret_bind, extractFinsetM_ret, TimeM.ret_pure]
+  simp only [extractCoverM, time_simps]
   unfold cutToVertexCover
   congr 1
   · ext u
@@ -996,7 +981,7 @@ theorem extractCoverM_ret {m r : ℕ} (G : Fin m × Fin r → Bool)
 theorem extractCoverM_time_le {m r : ℕ} (G : Fin m × Fin r → Bool)
     (cut : Finset (Fin (2 + (m + r)))) :
     (extractCoverM G cut).time ≤ m * (r + 1) + r := by
-  simp only [extractCoverM, TimeM.time_bind, extractFinsetM_time, TimeM.time_pure, Nat.add_zero]
+  simp only [extractCoverM, time_simps]
   have hL := extractCoverLeftLoopM_time_le G cut (List.finRange m) ∅
   simp only [List.length_finRange] at hL
   omega
@@ -1035,8 +1020,7 @@ theorem bipartiteMatchingM_correct {m r : ℕ} (G : Fin m × Fin r → Bool) :
     edmondsKarpDenseM_correct hst
   let f := out.flow.ofReindex (bipartiteFinEquiv m r)
   let S := Network.cutOfReindex (bipartiteFinEquiv m r) out.cut
-  simp only [bipartiteMatchingM, TimeM.ret_bind, extractMatchingM_ret, extractCoverM_ret,
-    TimeM.ret_pure]
+  simp only [bipartiteMatchingM, time_simps]
   change IsMaxMatching G (flowToMatching f) ∧
     IsMinVertexCover G (cutToVertexCover G S) ∧
     (flowToMatching f).card = (cutToVertexCover G S).size
@@ -1069,8 +1053,7 @@ theorem bipartiteMatchingM_time_le {m r : ℕ} (G : Fin m × Fin r → Bool) :
     let N_v := 2 + (m + r)
     (bipartiteMatchingM G).time ≤ (N_v * N_v * (N_v / 2) + 4) * (N_v * N_v + 5 * N_v) := by
   intro N_v
-  simp only [bipartiteMatchingM, TimeM.time_bind, extractMatchingM_time, TimeM.time_pure,
-    Nat.add_zero]
+  simp only [bipartiteMatchingM, time_simps]
   have hek : (edmondsKarpDenseM (bipartiteFinNetwork G)).time ≤
       (N_v * N_v * (N_v / 2) + 2) * (N_v * N_v + 5 * N_v) :=
     edmondsKarpDenseM_time_le (bipartiteFinNetwork G)
@@ -1098,7 +1081,7 @@ theorem bipartiteMatchingM_time_le {m r : ℕ} (G : Fin m × Fin r → Bool) :
 theorem decidePerfectMatchingM_eq_true_iff {n : ℕ} (G : Fin n × Fin n → Bool) :
     (decidePerfectMatchingM G).ret = true ↔
       Cslib.Circuits.BipartiteMatching.HasPerfectMatching G := by
-  simp only [decidePerfectMatchingM, TimeM.ret_bind, TimeM.ret_pure, decide_eq_true_iff]
+  simp only [decidePerfectMatchingM, time_simps, decide_eq_true_iff]
   rw [hasPerfectMatching_iff_exists_matching_card, Fintype.card_fin]
   obtain ⟨hM_max, _, _⟩ := bipartiteMatchingM_correct G
   constructor
@@ -1120,8 +1103,7 @@ theorem decidePerfectMatchingM_time_le {n : ℕ} (G : Fin n × Fin n → Bool) :
     (decidePerfectMatchingM G).time ≤
       (N_v * N_v * (N_v / 2) + 4) * (N_v * N_v + 5 * N_v) + 1 := by
   dsimp only
-  simp only [decidePerfectMatchingM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-    Nat.add_zero]
+  simp only [decidePerfectMatchingM, time_simps]
   have h := bipartiteMatchingM_time_le G
   dsimp only at h
   omega

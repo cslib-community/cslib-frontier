@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
 # Translation of deterministic time collapses
@@ -107,8 +108,8 @@ private theorem run_unpadT (y : List Bool) : unpadT.run false y = unpad y := by
 
 private theorem computableInO_unpad :
     ComputableInO unpad encBits encBits (fun y => y.length) fun y => y.length := by
-  refine .of_tidy (ComputableTidilyInO.of_bounds
-    (unpadT.computableTidilyInTimeAndSpace fun y => (run_unpadT y).symm) 12
+  refine (ComputableInO.of_bounds
+    (unpadT.computableInTimeAndSpace fun y => (run_unpadT y).symm) 12
     (fun y => ?_) (fun _ => Nat.zero_le _) fun y => ?_)
   · simp only [encBits_apply]
     omega
@@ -152,7 +153,7 @@ theorem DTIME_comp_subset_of_subset {f₁ f₂ : ℕ → ℕ} (hf₁ : Monotone 
     {y | (if guard y then indicator A (unpad y) else false) = true}
   have hle : ComputableInPolyTime (fun p : ℕ × ℕ => decide (G p.1 ≤ p.2))
       (encPair encNat encNat) encBool :=
-    (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.binary_le).comp
+    (ComputableInPolyTime.binary_le).comp
       ((hG.comp (.fst encNat encNat)).prod (.snd encNat encNat))
   have hguard : ComputableInO guard encBits encBool (fun y => y.length) fun y => y.length := by
     have hlens := (ComputableInO.lengthNat.comp computableInO_unpad).prod ComputableInO.lengthNat

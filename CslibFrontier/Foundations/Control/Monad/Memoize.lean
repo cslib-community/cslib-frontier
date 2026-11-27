@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Cslib.Foundations.Control.Monad.IsMonadHom
 public import Mathlib.Control.Basic
 public import Mathlib.Logic.Embedding.Basic
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
 # Memoizing effectful calls
@@ -77,20 +78,6 @@ theorem memoize_repeat [LawfulMonad m] [LawfulBEq Key]
       pure ((value, value), cache')) := by
   cases h : cache.lookup key <;> simp [memoize, h]
 
-private theorem lookup_map {Key' Value' : Type u} [BEq Key'] [LawfulBEq Key] [LawfulBEq Key']
-    (keyMap : Key ↪ Key') (valueMap : Value → Value') (key : Key) (cache : List (Key × Value)) :
-    (cache.map (fun entry => (keyMap entry.1, valueMap entry.2))).lookup (keyMap key) =
-      (cache.lookup key).map valueMap := by
-  induction cache with
-  | nil => rfl
-  | cons entry cache ih =>
-    rcases entry with ⟨other, value⟩
-    by_cases h : key = other
-    · subst other
-      simp
-    · have hmap := keyMap.injective.ne h
-      simp [List.lookup_cons, beq_eq_false_iff_ne.mpr h, beq_eq_false_iff_ne.mpr hmap, ih]
-
 /-- Injectively re-encode cache keys and map stored values. If the samplers commute with the
 value map, memoization preserves the complete result and re-encoded cache, including duplicates. -/
 theorem memoize_map [LawfulMonad m] [LawfulBEq Key]
@@ -105,7 +92,7 @@ theorem memoize_map [LawfulMonad m] [LawfulBEq Key]
       memoize compute' (keyMap key)
         (cache.map (fun entry => (keyMap entry.1, valueMap entry.2))) := by
   cases h : cache.lookup key <;>
-    simp [memoize, lookup_map, h, hcompute]
+    simp [memoize, List.lookup_map_of_injective keyMap.injective, h, hcompute]
 
 /-- Interpreting the effects commutes with memoization, including its final list cache. -/
 theorem IsMonadHom.map_memoize {n : Type u → Type*} [Monad n]

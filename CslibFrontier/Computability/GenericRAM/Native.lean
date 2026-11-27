@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.GenericRAM.Native.Certificate
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
 public import CslibFrontier.Computability.GenericRAM.Defs
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi

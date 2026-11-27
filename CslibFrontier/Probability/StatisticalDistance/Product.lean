@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Probability.StatisticalDistance
+public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 public import CslibFrontier.Probability.Product
 public import CslibFrontier.Probability.IID
 
@@ -27,6 +28,8 @@ replaces approximately sampled values by exactly sampled ones.
 * `Cslib.Probability.PMF.dist_bind_pair_pi_le_sum`: retain the shared public sample in that bound.
 * `Cslib.Probability.PMF.dist_iid_le`: `k` independent draws are at distance at most `k` times the
   distance of one draw.
+* `Cslib.Probability.CloseTo.piFin`: `CloseTo` of `PMF.piFin` over `Fin k` adds to `k * δ` on
+  arbitrary (possibly infinite) types.
 
 ## References
 
@@ -114,3 +117,24 @@ theorem dist_iid_le {β : Type*} [Fintype β] (μ ν : PMF β) (k : ℕ) :
   simp
 
 end Cslib.Probability.PMF
+
+namespace Cslib.Probability
+
+open scoped ENNReal
+
+/-- Statistical closeness of `PMF.piFin`: if each coordinate `p j` is `δ`-close to `q j`, then
+`PMF.piFin p` is `(k * δ)`-close to `PMF.piFin q`, without finiteness assumptions on `α`. -/
+theorem CloseTo.piFin {α : Type} :
+    ∀ {k : ℕ} {p q : Fin k → PMF α} {δ : ℝ≥0∞},
+      (∀ j, CloseTo (p j) (q j) δ) → CloseTo (PMF.piFin p) (PMF.piFin q) (k * δ)
+  | 0, _, _, _, _ => by
+    simp only [PMF.piFin, Nat.cast_zero, zero_mul]
+    exact CloseTo.refl _
+  | _ + 1, p, q, _, h => by
+    rw [PMF.piFin, PMF.piFin]
+    have hstep := (h 0).bind fun a _ =>
+      (CloseTo.piFin (fun j => h j.succ)).map (Fin.cons (α := fun _ => α) a)
+    refine hstep.mono ?_
+    rw [Nat.cast_succ, add_mul, one_mul, add_comm]
+
+end Cslib.Probability

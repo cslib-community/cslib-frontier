@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.TM2.ConfigBound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 
 /-!
 # Mathlib stack-machine computations within polynomial space

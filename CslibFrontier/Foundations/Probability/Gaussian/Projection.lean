@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Probability.Gaussian.Convolution
+public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Foundations.Probability.Gaussian.Standard
 public import CslibFrontier.Foundations.MeasureTheory.Measure.TotalVariation.Map
 public import Mathlib.MeasureTheory.Group.AddCircle
@@ -24,15 +25,19 @@ public import Mathlib.MeasureTheory.Group.AddCircle
   corresponding bound for pushforwards to `UnitAddCircle` under the dual-mass premise.
 * `ZLattice.tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_gap`: the corresponding
   bound for actual pushforwards to `UnitAddCircle` under the gap criterion.
+* `ZLattice.tvDist_conv_map_inner_discreteGaussian_le_of_smoothingParameter_le` and
+  `ZLattice.tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_smoothingParameter_le`:
+  smoothing-parameter conversions of the two dual-mass bounds via `smoothingParameter_le_iff`.
 
 ## References
 
 [Regev2009], Corollary 3.10, printed page 23 of the May 2, 2009 author version. Statistical
 distance uses the full-L1 convention of printed page 13. The coset input is sampled by the
-actual discrete Gaussian at center `-u`, followed by translation by `u`. The smoothing
-hypothesis is expressed as the actual nonzero dual Gaussian mass, with a quantitative
-sufficient gap criterion. No minimum smoothing parameter, efficient sampler, finite-precision
-implementation or quantum reduction is claimed.
+actual discrete Gaussian at center `-u`, followed by translation by `u`. The core theorems
+express the smoothing hypothesis as the actual nonzero dual Gaussian mass, with a quantitative
+sufficient gap criterion and conversions from `ZLattice.smoothingParameter`
+([MicciancioRegev2007], Definition 3.1, p. 10 of the December 27, 2005 author's copy). No
+efficient sampler, finite-precision implementation or quantum reduction is claimed.
 -/
 
 public section
@@ -167,5 +172,47 @@ theorem tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_gap
         (fun x : ℝ ↦ (x : UnitAddCircle))) ≤ 4 * ε :=
   (tvDist_map_le _ _ (by fun_prop)).trans
     (tvDist_conv_map_inner_discreteGaussian_le_of_gap L r α hr hα u z a ha hgap ε hε hεhalf hnum)
+
+/-- Smoothing-parameter conversion of
+`tvDist_conv_map_inner_discreteGaussian_le_of_dual_mass_le`: scalar inner-product projection of a
+coset discrete Gaussian plus scalar Gaussian noise is within full-`L¹` distance `4ε` of the
+predicted centered Gaussian whenever `η_ε(L) ≤ 1 / √(1 / r² + (‖z‖ / α)²)`
+([Regev2009], Corollary 3.10, p. 23). -/
+theorem tvDist_conv_map_inner_discreteGaussian_le_of_smoothingParameter_le
+    (r α : ℝ) (hr : 0 < r) (hα : 0 < α) (u z : E)
+    (ε : ℝ) (hε : 0 < ε) (hεhalf : ε < 1 / 2)
+    (hη : smoothingParameter L ε ≤ 1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2)) :
+    tvDist
+      (Measure.conv
+        (((discreteGaussian L r hr (-u)).toMeasure.map (fun v : L ↦ (v : E) + u)).map
+          (fun x ↦ ⟪z, x⟫))
+        (gaussianReal 0 ((α ^ 2 / (2 * Real.pi)).toNNReal)))
+      (gaussianReal 0 ((((r * ‖z‖) ^ 2 + α ^ 2) / (2 * Real.pi)).toNNReal)) ≤
+      4 * ε := by
+  have hh : 0 < 1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2) := by positivity
+  refine tvDist_conv_map_inner_discreteGaussian_le_of_dual_mass_le L r α hr hα u z
+    ε hε.le hεhalf ?_
+  simpa only [one_div_one_div] using (smoothingParameter_le_iff L hh hε).mp hη
+
+/-- Smoothing-parameter conversion of
+`tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_dual_mass_le`: mod-one (`UnitAddCircle`)
+pushforward of the scalar projection experiment under the smoothing-parameter hypothesis
+([Regev2009], Corollary 3.10, p. 23). -/
+theorem tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_smoothingParameter_le
+    (r α : ℝ) (hr : 0 < r) (hα : 0 < α) (u z : E)
+    (ε : ℝ) (hε : 0 < ε) (hεhalf : ε < 1 / 2)
+    (hη : smoothingParameter L ε ≤ 1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2)) :
+    tvDist
+      ((Measure.conv
+        (((discreteGaussian L r hr (-u)).toMeasure.map (fun v : L ↦ (v : E) + u)).map
+          (fun x ↦ ⟪z, x⟫))
+        (gaussianReal 0 ((α ^ 2 / (2 * Real.pi)).toNNReal))).map
+          (fun x : ℝ ↦ (x : UnitAddCircle)))
+      ((gaussianReal 0 ((((r * ‖z‖) ^ 2 + α ^ 2) / (2 * Real.pi)).toNNReal)).map
+        (fun x : ℝ ↦ (x : UnitAddCircle))) ≤ 4 * ε := by
+  have hh : 0 < 1 / Real.sqrt (1 / r ^ 2 + (‖z‖ / α) ^ 2) := by positivity
+  refine tvDist_map_mod_one_conv_map_inner_discreteGaussian_le_of_dual_mass_le L r α hr hα u z
+    ε hε.le hεhalf ?_
+  simpa only [one_div_one_div] using (smoothingParameter_le_iff L hh hε).mp hη
 
 end ZLattice

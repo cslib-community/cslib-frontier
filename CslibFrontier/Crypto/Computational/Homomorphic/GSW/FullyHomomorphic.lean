@@ -80,10 +80,7 @@ open scoped NNReal
 @[fun_prop]
 theorem computableInPolyTime_secretWidth :
     ComputableInPolyTime secretWidth encUnary encUnary := by
-  have hd := Parameters.computableInPolyTime_dimension
-  have hw := computableInPolyTime_width
-  unfold secretWidth
-  fun_prop
+  fun_prop [secretWidth]
 
 /-- For any polynomial-time unary budget family, the unified base reduction `leveledAdversary`
 for the leveled GSW scheme is native strict PPT. -/

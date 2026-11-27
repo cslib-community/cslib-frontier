@@ -214,7 +214,7 @@ theorem natDegree_coeff_prod_parityFactorCleared_le [CommRing R] (I : Finset κ)
   | empty =>
     intro s
     rcases s with _ | s
-    · simp only [prod_empty, Polynomial.coeff_one_zero, Polynomial.natDegree_one, zero_le]
+    · simp only [prod_empty, AddMonoidAlgebra.coeff_one_zero, Polynomial.natDegree_one, zero_le]
     · simp only [prod_empty, Polynomial.coeff_one, Nat.succ_ne_zero, ↓reduceIte,
         Polynomial.natDegree_zero, zero_le]
   | insert a I ha ih =>

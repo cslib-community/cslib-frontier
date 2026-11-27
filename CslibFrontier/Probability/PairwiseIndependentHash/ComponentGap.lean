@@ -285,9 +285,7 @@ theorem expect_walk_pow_componentMove_sub_expect_sq_le (hH : 3 ≤ H) (hL : ∀ 
   set G := (ofPerms (componentMove H M P L)).lazy.reindex (componentEquiv M hL y).symm
   refine (G.expect_walk_pow_sub_expect_sq_le t f).trans ?_
   rw [spectralExpansion_reindex]
-  exact mul_le_mul_of_nonneg_right
-    (pow_le_pow_left₀ (spectralExpansion_nonneg _)
-      (spectralExpansion_lazy_ofPerms_componentMove_le hH) _)
-    (expect_nonneg fun _ _ ↦ sq_nonneg _)
+  gcongr
+  exact spectralExpansion_lazy_ofPerms_componentMove_le hH
 
 end Cslib.Probability

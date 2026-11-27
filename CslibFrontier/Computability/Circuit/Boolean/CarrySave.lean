@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Foundations.Data.BitString.Weight
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Carry-save addition trees and logarithmic-depth bit counting
@@ -184,16 +185,9 @@ def csaSumFormula (w : ℕ) (i : Fin w) : Formula signature (w + (w + w)) :=
   simp [csaSumFormula, Formula.size_xor]
 
 /-- `csaSumFormula w i` has depth at most `6`. -/
+@[circuit_bound]
 theorem depth_csaSumFormula_le (i : Fin w) : (csaSumFormula w i).depth ≤ 6 := by
-  have h1 := Formula.depth_xor_le
-    (Formula.input (σ := signature) (Fin.castAdd (w + w) i))
-    (Formula.input (σ := signature) (Fin.natAdd w (Fin.castAdd w i)))
-  have h2 := Formula.depth_xor_le
-    (Formula.xor (.input (Fin.castAdd (w + w) i)) (.input (Fin.natAdd w (Fin.castAdd w i))))
-    (Formula.input (σ := signature) (Fin.natAdd w (Fin.natAdd w i)))
-  simp only [Formula.depth_input] at h1 h2
-  rw [csaSumFormula]
-  omega
+  circuit_bound [csaSumFormula]
 
 /-- Formula for `maj3` on three input coordinates. -/
 def maj3Formula (a b c : Fin n) : Formula signature n :=
@@ -210,6 +204,7 @@ def maj3Formula (a b c : Fin n) : Formula signature n :=
   rfl
 
 /-- `maj3Formula a b c` has depth at most `3`. -/
+@[circuit_bound]
 theorem depth_maj3Formula_le (a b c : Fin n) : (maj3Formula a b c).depth ≤ 3 := by
   simp [maj3Formula]
 
@@ -234,11 +229,9 @@ theorem size_csaCarryFormula_le (i : Fin w) : (csaCarryFormula w i).size ≤ 5 :
   split_ifs <;> simp
 
 /-- `csaCarryFormula w i` has depth at most `3`. -/
+@[circuit_bound]
 theorem depth_csaCarryFormula_le (i : Fin w) : (csaCarryFormula w i).depth ≤ 3 := by
-  simp only [csaCarryFormula]
-  split_ifs
-  · exact depth_maj3Formula_le _ _ _
-  · simp
+  circuit_bound [csaCarryFormula]
 
 /-- **3-to-2 carry-save adder**: reduces three `w`-bit words to two `w`-bit words `(sum, carry)`
 with the same sum modulo `2 ^ w`, using at most `20 w` gates and depth at most `6`. -/
@@ -261,6 +254,7 @@ theorem pairVal_eval_csa3to2_mod (u : BitString (w + (w + w))) :
   rw [eval_csa3to2, pairVal_append, val_csaSum_add_val_csaCarry_mod, pairVal, add_assoc]
 
 /-- `csa3to2 w` has size at most `20 * w`. -/
+@[circuit_bound]
 theorem size_csa3to2_le (w : ℕ) : (csa3to2 w).size ≤ 20 * w := by
   rw [csa3to2, Circuit.size_append, Circuit.size_pi, Circuit.size_pi]
   have h1 : ∑ i : Fin w, (csaSumFormula w i).toCircuit.size = 15 * w := by
@@ -274,11 +268,9 @@ theorem size_csa3to2_le (w : ℕ) : (csa3to2 w).size ≤ 20 * w := by
   omega
 
 /-- `csa3to2 w` has depth at most `6`. -/
-theorem depth_csa3to2_le (w : ℕ) : (csa3to2 w).depth ≤ 6 :=
-  (Circuit.depth_append_le _ _).trans <| max_le
-    (Circuit.depth_pi_le _ fun i => (Formula.depth_toCircuit_le _).trans (depth_csaSumFormula_le i))
-    ((Circuit.depth_pi_le _ fun i =>
-      (Formula.depth_toCircuit_le _).trans (depth_csaCarryFormula_le i)).trans (by omega))
+@[circuit_bound]
+theorem depth_csa3to2_le (w : ℕ) : (csa3to2 w).depth ≤ 6 := by
+  circuit_bound [csa3to2]
 
 /-- Wiring selecting the first three `w`-bit words of two carry-save pairs. -/
 def csa4to2FirstIn (w : ℕ) : Fin (w + (w + w)) → Fin ((w + w) + (w + w)) :=
@@ -317,21 +309,12 @@ theorem pairVal_eval_csa4to2_mod (p₁ p₂ : BitString (w + w)) :
 
 /-- `csa4to2 w` has size at most `40 * w`. -/
 theorem size_csa4to2_le (w : ℕ) : (csa4to2 w).size ≤ 40 * w := by
-  rw [csa4to2, Circuit.size_comp, Circuit.size_append, Circuit.size_comp, Circuit.size_wiring,
-    Circuit.size_wiring, zero_add, zero_add]
-  have := size_csa3to2_le w
-  omega
+  circuit_bound [csa4to2]
 
 /-- `csa4to2 w` has depth at most `12`. -/
+@[circuit_bound]
 theorem depth_csa4to2_le (w : ℕ) : (csa4to2 w).depth ≤ 12 := by
-  rw [csa4to2]
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  have h := depth_csa3to2_le w
-  have h' : ((Circuit.wiring signature (Fin.natAdd (w + w) ∘ Fin.natAdd w)).append
-      ((csa3to2 w).comp (Circuit.wiring signature (csa4to2FirstIn w)))).depth ≤ 6 :=
-    (Circuit.depth_append_le _ _).trans (max_le (by simp)
-      ((Circuit.depth_comp_le _ _).trans (by simpa using h)))
-  omega
+  circuit_bound [csa4to2]
 
 /-! ### Carry-clearing iteration -/
 
@@ -378,22 +361,12 @@ theorem pairVal_eval_finishStep_mod (p : BitString (w + w)) :
 
 /-- `finishStep w` has size at most `20 * w + 1`. -/
 theorem size_finishStep_le (w : ℕ) : (finishStep w).size ≤ 20 * w + 1 := by
-  simp only [finishStep, Circuit.size_comp, Circuit.size_append, Circuit.size_wiring,
-    Circuit.size_oneGate]
-  have := size_csa3to2_le w
-  omega
+  circuit_bound [finishStep]
 
 /-- `finishStep w` has depth at most `7`. -/
+@[circuit_bound]
 theorem depth_finishStep_le (w : ℕ) : (finishStep w).depth ≤ 7 := by
-  rw [finishStep]
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  have h := depth_csa3to2_le w
-  have h' : ((Circuit.wiring signature (finishStepIn w)).comp
-      ((Circuit.id signature (w + w)).append
-        (Circuit.oneGate (Op.const false) Fin.elim0))).depth ≤ 1 :=
-    (Circuit.depth_comp_le _ _).trans (by
-      simpa using (Circuit.depth_append_le _ _).trans (by simp))
-  omega
+  circuit_bound [finishStep]
 
 /-- `t` steps of carry-clearing on a `(w + w)`-bit carry-save pair. -/
 def finishCircuit (w : ℕ) : ℕ → Circuit signature (w + w) (w + w)
@@ -429,6 +402,7 @@ theorem val_fstBits_eval_finishCircuit_mod (p : BitString (w + w)) :
   rwa [hsnd, val_equivFin_false, add_zero] at h
 
 /-- `finishCircuit w t` has size at most `t * (20 * w + 1)`. -/
+@[circuit_bound]
 theorem size_finishCircuit_le (w t : ℕ) : (finishCircuit w t).size ≤ t * (20 * w + 1) := by
   induction t with
   | zero => simp [finishCircuit]
@@ -440,11 +414,7 @@ theorem size_finishCircuit_le (w t : ℕ) : (finishCircuit w t).size ≤ t * (20
 theorem depth_finishCircuit_le (w t : ℕ) : (finishCircuit w t).depth ≤ 7 * t := by
   induction t with
   | zero => simp [finishCircuit]
-  | succ t ih =>
-    rw [finishCircuit]
-    refine (Circuit.depth_comp_le _ _).trans ?_
-    have := depth_finishStep_le w
-    omega
+  | succ t ih => circuit_bound [finishCircuit]
 
 /-! ### Balanced carry-save tree for Hamming weight -/
 
@@ -498,9 +468,8 @@ theorem pairVal_eval_bitPairCircuit_mod (j : Fin k) (x : BitString k) :
   rfl
 
 /-- `bitPairCircuit k w j` has depth at most `1`. -/
-theorem depth_bitPairCircuit_le (j : Fin k) : (bitPairCircuit k w j).depth ≤ 1 :=
-  (Circuit.depth_comp_le _ _).trans (by
-    simpa using (Circuit.depth_append_le _ _).trans (by simp))
+theorem depth_bitPairCircuit_le (j : Fin k) : (bitPairCircuit k w j).depth ≤ 1 := by
+  circuit_bound [bitPairCircuit]
 
 /-- Reduce carry-save pairs along the existing half-split tree; the empty sum is zero. -/
 def reducePairs (n w : ℕ) (cs : List (Circuit signature n (w + w))) :
@@ -526,6 +495,7 @@ theorem pairVal_eval_reducePairs_mod (cs : List (Circuit signature n (w + w)))
         List.map_append, List.sum_append]) cs
 
 /-- Charge the fallback only for the empty sum and every reduction gate for nonempty sums. -/
+@[circuit_bound]
 theorem size_reducePairs_le (cs : List (Circuit signature n (w + w))) :
     (reducePairs n w cs).size ≤ 1 + (cs.map Circuit.size).sum + cs.length * (40 * w) := by
   by_cases h : cs = []
@@ -536,6 +506,7 @@ theorem size_reducePairs_le (cs : List (Circuit signature n (w + w))) :
     omega
 
 /-- The pair tree adds twelve levels per half-split round to the deepest supplied circuit. -/
+@[circuit_bound]
 theorem depth_reducePairs_le (cs : List (Circuit signature n (w + w))) {D : ℕ}
     (hD : ∀ C ∈ cs, C.depth ≤ D) :
     (reducePairs n w cs).depth ≤ max D 1 + 12 * Nat.clog 2 cs.length := by
@@ -559,6 +530,7 @@ theorem pairVal_eval_weightPairCircuit_mod (x : BitString k) :
     ← Finset.sum_nat_mod, BitString.weight_eq_sum_toNat]
 
 /-- `weightPairCircuit k w` has size at most `max 1 k + k * (40 * w)`. -/
+@[circuit_bound]
 theorem size_weightPairCircuit_le (k w : ℕ) :
     (weightPairCircuit k w).size ≤ max 1 k + k * (40 * w) := by
   rcases k.eq_zero_or_pos with rfl | hk
@@ -607,10 +579,10 @@ theorem size_weightCircuit_le (k : ℕ) :
     (weightCircuit k).size ≤
       max 1 k + k * (40 * Nat.clog 2 (k + 1)) +
         Nat.clog 2 (k + 1) * (20 * Nat.clog 2 (k + 1) + 1) := by
-  simp only [weightCircuit, Circuit.size_comp, Circuit.size_wiring, add_zero]
-  exact Nat.add_le_add (size_weightPairCircuit_le k _) (size_finishCircuit_le _ _)
+  circuit_bound [weightCircuit]
 
 /-- `weightCircuit k` has depth `O(log k)`. -/
+@[circuit_bound]
 theorem depth_weightCircuit_le (k : ℕ) :
     (weightCircuit k).depth ≤ 1 + 19 * Nat.clog 2 (k + 1) := by
   dsimp [weightCircuit]

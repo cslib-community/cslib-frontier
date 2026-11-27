@@ -12,10 +12,12 @@ public import Cslib.Probability.StatisticalDistance
 public import CslibFrontier.Probability.IID
 public import CslibFrontier.Probability.Product
 public import CslibFrontier.Probability.StatisticalDistance
+public import CslibFrontier.Probability.StatisticalDistance.TotalVariation
 public import Mathlib.Analysis.SpecialFunctions.Sqrt
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
+public import Mathlib.Analysis.InnerProductSpace.PiL2
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 
 /-!
@@ -524,6 +526,38 @@ theorem sum_mul_bhattacharyya_le_bhattacharyya_bind [Finite α] [Finite β]
     (Real.sqrt_mul
       (Finset.sum_nonneg fun _ _ => mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg) _).symm
   simpa only [← bind_apply_toReal] using hcs
+
+/-- Square roots of outcome weights, with each coordinate weighted by the square root of
+its sampling probability. -/
+noncomputable def weightedSqrt {α : Type*} (p : PMF α) (f : α → ℝ) :
+    EuclideanSpace ℝ α := WithLp.toLp 2 fun i => √((p i).toReal) * √(f i)
+
+/-- The squared norm of the weighted square roots is the mean of the outcome weights. -/
+theorem norm_weightedSqrt_sq {α : Type*} [Fintype α] (p : PMF α) (f : α → ℝ)
+    (hf : ∀ i, 0 ≤ f i) : ‖weightedSqrt p f‖ ^ 2 = ∑ i, (p i).toReal * f i := by
+  rw [EuclideanSpace.real_norm_sq_eq]
+  exact Finset.sum_congr rfl fun i _ => by
+    simp [weightedSqrt, mul_pow, Real.sq_sqrt ENNReal.toReal_nonneg, Real.sq_sqrt (hf _)]
+
+/-- The squared distance between the weighted vectors is the mean squared change in roots. -/
+theorem norm_sub_weightedSqrt_sq {α : Type*} [Fintype α] (p : PMF α) (a b : α → ℝ) :
+    ‖weightedSqrt p a - weightedSqrt p b‖ ^ 2 =
+      ∑ i, (p i).toReal * (√(a i) - √(b i)) ^ 2 := by
+  rw [EuclideanSpace.real_norm_sq_eq]
+  apply Finset.sum_congr rfl
+  intro i _
+  change (√((p i).toReal) * √(a i) - √((p i).toReal) * √(b i)) ^ 2 = _
+  rw [← mul_sub, mul_pow, Real.sq_sqrt ENNReal.toReal_nonneg]
+
+/-- Mixing nonnegative weights contracts the squared difference of their square roots.
+This is the single-outcome form of joint convexity used when only acceptance is scored. -/
+theorem sq_sqrt_mean_sub_le {α : Type*} [Fintype α] (p : PMF α) (a b : α → ℝ)
+    (ha : ∀ i, 0 ≤ a i) (hb : ∀ i, 0 ≤ b i) :
+    (√(∑ i, (p i).toReal * a i) - √(∑ i, (p i).toReal * b i)) ^ 2 ≤
+      ∑ i, (p i).toReal * (√(a i) - √(b i)) ^ 2 := by
+  rw [← norm_weightedSqrt_sq p a ha, ← norm_weightedSqrt_sq p b hb, Real.sqrt_sq (norm_nonneg _),
+    Real.sqrt_sq (norm_nonneg _), ← norm_sub_weightedSqrt_sq, ← sq_abs]
+  exact pow_le_pow_left₀ (abs_nonneg _) (abs_norm_sub_norm_le ..) 2
 
 /-- Joint convexity of squared Hellinger distance under mixing with weights `μ`. -/
 theorem hellingerSq_bind_le_sum [Finite α] [Finite β] (μ : PMF α) (p q : α → PMF β) :

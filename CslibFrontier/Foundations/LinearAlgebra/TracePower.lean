@@ -93,7 +93,7 @@ theorem pow_apply_eigenvectorBasis (hT : T.IsSymmetric) (j : ℕ) (i : Fin N) :
   induction j with
   | zero => simp
   | succ j ih =>
-    rw [pow_succ', Module.End.mul_apply, ih, map_smul, hT.apply_eigenvectorBasis, smul_smul,
+    rw [pow_succ', mul_apply_eq_comp, ih, map_smul, hT.apply_eigenvectorBasis, smul_smul,
       ← pow_succ]
 
 /-- **The trace of a power of a symmetric operator is the sum of the powers of its

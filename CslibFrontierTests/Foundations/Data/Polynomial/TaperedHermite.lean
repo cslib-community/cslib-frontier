@@ -40,7 +40,7 @@ For the node `t = 1`,
 `v₂ (E_1(0)) = -6`, which the closed form gives as `2 ^ 1 * 1 * (1 - 2) + 2 ^ 0 * 2 * (0 - 2)`. -/
 
 private theorem padicValInt_two_neg_four : padicValInt 2 (-4) = 2 := by
-  rw [padicValInt, Int.natAbs_neg, show Int.natAbs 4 = 2 ^ 2 from rfl, padicValNat.prime_pow]
+  rw [padicValInt, Int.natAbs_neg, show Int.natAbs 4 = 2 ^ 2 from rfl, Nat.multiplicity_prime_pow]
 
 private theorem padicValInt_two_two : padicValInt 2 2 = 1 :=
   padicValInt.self (by norm_num)
@@ -66,7 +66,7 @@ example : (hermiteBasis ((Ico (-(2 : ℤ) ^ 2) (2 ^ 2)).erase 0) (fun q : ℤ =>
 example : padicValRat 2 (27 / 64) = -6 := by
   rw [padicValRat.div (by norm_num) (by norm_num), show (27 : ℚ) = ((27 : ℕ) : ℚ) by norm_num,
     show (64 : ℚ) = ((2 ^ 6 : ℕ) : ℚ) by norm_num, padicValRat.of_nat, padicValRat.of_nat,
-    padicValNat.eq_zero_of_not_dvd (by decide), padicValNat.prime_pow]
+    multiplicity_eq_zero_of_not_dvd (by decide), Nat.multiplicity_prime_pow]
   norm_num
 
 /-- The closed form of (D.10) gives the same valuation. -/

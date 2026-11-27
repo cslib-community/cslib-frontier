@@ -15,14 +15,16 @@ public import CslibFrontier.Foundations.Order.BooleanSubalgebra
 import CslibFrontier.Computability.Complexity.Classes.PP.Characterization
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Products
 import CslibFrontier.Computability.Complexity.Classes.SharpP.PolyTime
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
 import CslibFrontier.Foundations.Data.List.Lookup
 import Cslib.Foundations.Data.Polynomial.Monotone
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Algebra.Ring.Parity
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Closure of PP under polynomial-time truth-table reductions
@@ -93,18 +95,6 @@ ratio of at least `2 ^ (2 * K)`. -/
 private def newmanAmp (M K : ℕ) (z : ℤ) : ℤ :=
   newmanPoly M z ^ (2 * K)
 
-private theorem exists_two_pow_interval {M : ℕ} {z : ℤ} (hz₁ : 1 ≤ z) (hz₂ : z ≤ (2 : ℤ) ^ M) :
-    ∃ k ∈ range (M + 1), (2 : ℤ) ^ k ≤ z ∧ z ≤ 2 * (2 : ℤ) ^ k := by
-  induction M with
-  | zero =>
-    exact ⟨0, mem_range.mpr (by omega), by simpa using hz₁, by simpa using hz₂.trans (by omega)⟩
-  | succ M ih =>
-    by_cases hle : z ≤ (2 : ℤ) ^ M
-    · obtain ⟨k, hk, hk₁, hk₂⟩ := ih hle
-      exact ⟨k, mem_range.mpr (Nat.lt_succ_of_lt (mem_range.mp hk)), hk₁, hk₂⟩
-    · refine ⟨M, mem_range.mpr (by omega), by omega, ?_⟩
-      simpa [pow_succ'] using hz₂
-
 /-- Newman's polynomial is at least `1` at every positive integer. -/
 private theorem one_le_newmanPoly {M : ℕ} {z : ℤ} (hz : 1 ≤ z) : 1 ≤ newmanPoly M z :=
   one_le_prod₀ fun j _ => by
@@ -115,20 +105,10 @@ private theorem one_le_newmanPoly {M : ℕ} {z : ℤ} (hz : 1 ≤ z) : 1 ≤ new
 `newmanPoly M z`. -/
 theorem two_mul_abs_newmanPoly_neg_le {M : ℕ} {z : ℤ} (hz₁ : 1 ≤ z) (hz₂ : z ≤ (2 : ℤ) ^ M) :
     2 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
-  obtain ⟨k, hk, hk₁, hk₂⟩ := exists_two_pow_interval hz₁ hz₂
-  unfold newmanPoly
-  rw [← mul_prod_erase (range (M + 1)) (fun j => (2 : ℤ) ^ j + -z) hk,
-    ← mul_prod_erase (range (M + 1)) (fun j => (2 : ℤ) ^ j + z) hk,
-    abs_mul, ← mul_assoc]
-  have hhead : 2 * |(2 : ℤ) ^ k + -z| ≤ (2 : ℤ) ^ k + z := by
-    rcases abs_cases ((2 : ℤ) ^ k + -z) with ⟨h, _⟩ | ⟨h, _⟩ <;> omega
-  have htail : |∏ x ∈ (range (M + 1)).erase k, ((2 : ℤ) ^ x + -z)| ≤
-      ∏ x ∈ (range (M + 1)).erase k, ((2 : ℤ) ^ x + z) := by
-    rw [abs_prod]
-    refine prod_le_prod₀ (fun j _ => abs_nonneg _) fun j _ => ?_
-    have : (0 : ℤ) ≤ (2 : ℤ) ^ j := by positivity
-    rcases abs_cases ((2 : ℤ) ^ j + -z) with ⟨h, _⟩ | ⟨h, _⟩ <;> omega
-  exact mul_le_mul hhead htail (abs_nonneg _) (by omega)
+  have h : 3 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
+    simpa only [newmanPoly, sub_eq_add_neg] using
+      Polynomial.three_mul_abs_prod_two_pow_sub_le hz₁ hz₂
+  exact (mul_le_mul_of_nonneg_right (by decide : (2 : ℤ) ≤ 3) (abs_nonneg _)).trans h
 
 /-- The amplified weight is nonnegative, being an even power. -/
 private theorem newmanAmp_nonneg (M K : ℕ) (z : ℤ) : 0 ≤ newmanAmp M K z :=
@@ -320,8 +300,7 @@ theorem truthTable_mem_PP (hA : A ∈ PP (encPair enc encUnary))
     · have : ¬ 0 < g₀ (a, i) := fun h => hi ((hAg₀ (a, i)).mpr h)
       dsimp [g]; omega
     · refine (hp (a, i)).trans (pow_le_pow_right₀ (by omega) (Polynomial.eval_mono _ ?_))
-      simp only [length_encPair, encUnary_apply, List.length_replicate]
-      omega
+      enc_len
   unfold ppTruthTableGap
   rw [← add_sum_erase univ _ (mem_univ v), hv_ofFn]
   have hrest_lower : -(∑ w ∈ univ.erase v, ppWordWeight M r g a w) ≤
@@ -345,7 +324,7 @@ theorem truthTable_mem_PP (hA : A ∈ PP (encPair enc encUnary))
 theorem PolyTimeTruthTableReducible.mem_PP {β : Type} {encB : β ↪ List Bool}
     {L : Set α} {B : Set β} (h : PolyTimeTruthTableReducible enc encB L B)
     (hB : B ∈ PP encB) : L ∈ PP enc := by
-  obtain ⟨r, q, d, hr, hq, hd, hL⟩ := h
+  obtain ⟨r, q, d, ⟨hr, hq, hd⟩, hL⟩ := h
   have hqB : q ⁻¹' B ∈ PP (encPair enc encUnary) :=
     PolyTimeReducible.mem_PP ⟨q, hq, fun _ => Iff.rfl⟩ hB
   convert truthTable_mem_PP hqB hr hd using 1
@@ -358,11 +337,7 @@ theorem PolyTimeTruthTableReducible.mem_PP {β : Type} {encB : β ↪ List Bool}
 theorem forall_lt_mem_PP (hA : A ∈ PP (encPair enc encUnary))
     (hr : ComputableInPolyTime r enc encUnary) :
     {a | ∀ i < r a, (a, i) ∈ A} ∈ PP enc := by
-  have hd : ComputableInPolyTime (fun x : α × List Bool => x.2.all id)
-      (encPair enc encBits) encBool :=
-    ComputableInPolyTime.allWithEncoding (encP := encBool) (encA := encBool) (encL := encBits)
-      (test := fun p : Bool × Bool => p.2) (by fun_prop) (.const false) (.snd enc encBits)
-  convert truthTable_mem_PP hA hr hd using 1
+  convert truthTable_mem_PP (d := fun x => x.2.all id) hA hr (by fun_prop) using 1
   ext a
   simp [truthTableAnswers, List.all_eq_true, Fin.forall_iff]
 
@@ -370,11 +345,7 @@ theorem forall_lt_mem_PP (hA : A ∈ PP (encPair enc encUnary))
 theorem exists_lt_mem_PP (hA : A ∈ PP (encPair enc encUnary))
     (hr : ComputableInPolyTime r enc encUnary) :
     {a | ∃ i < r a, (a, i) ∈ A} ∈ PP enc := by
-  have hd : ComputableInPolyTime (fun x : α × List Bool => x.2.any id)
-      (encPair enc encBits) encBool :=
-    ComputableInPolyTime.anyWithEncoding (encP := encBool) (encA := encBool) (encL := encBits)
-      (test := fun p : Bool × Bool => p.2) (by fun_prop) (.const false) (.snd enc encBits)
-  convert truthTable_mem_PP hA hr hd using 1
+  convert truthTable_mem_PP (d := fun x => x.2.any id) hA hr (by fun_prop) using 1
   ext a
   simp [truthTableAnswers, List.any_eq_true, Fin.exists_iff]
 

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Formula
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Equality of selected Boolean inputs
@@ -56,8 +57,7 @@ def equalBits {n : ℕ} : {k : ℕ} → (Fin k → Fin n) → (Fin k → Fin n) 
   induction k with
   | zero => simp [equalBits, Subsingleton.elim (x ∘ left) (x ∘ right)]
   | succ k ih =>
-    simp only [equalBits, Formula.eval_and, Formula.eval_or, Formula.eval_not, Formula.eval_input,
-      Bool.and_eq_true, ih]
+    simp only [circuit_simps, equalBits, Bool.and_eq_true, ih]
     have head : (x (left 0) && x (right 0) || !x (left 0) && !x (right 0)) = true ↔
         x (left 0) = x (right 0) := by
       cases x (left 0) <;> cases x (right 0) <;> simp

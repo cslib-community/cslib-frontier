@@ -5,6 +5,8 @@ Authors: Erik Demaine
 -/
 
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product
+-- Compiled `Code.eval` runs below use the fast interpreter.
+import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 -- Actual native interpreter regressions supplement the general execution proofs.
 set_option linter.hashCommand false

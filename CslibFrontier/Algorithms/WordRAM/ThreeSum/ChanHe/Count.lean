@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Residues
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native Chan–He collision counting
@@ -133,8 +134,7 @@ theorem exec {w M : ℕ} (x : Data 28) (values : ℕ → ℤ) (hM : 0 < M)
     (Residues.exec (x.comap residuesRegisters) values hM hmod hmodreg hfit hs hk hsk hinput)
   have hys : y.regs scratch = x.regs scratch := har Residues.dst (by decide)
   have hyl : y.regs len = x.regs len := har Residues.len (by decide)
-  have hym : y.regs modulus = encode (M : ℤ) :=
-    (har Residues.modulus (by decide)).trans hmodreg
+  have hym : y.regs modulus = encode (M : ℤ) := by regs_frame
   have hyd : y.regs dst = x.regs dst := hframe dst (by
     intro i he
     have := congrArg Fin.val he

@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.TreeSignature.Security
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 
@@ -50,9 +51,11 @@ noncomputable def echo : IndexedSignatureScheme where
   capacity_polyTime := ComputableInPolyTime.const 2
   keyGen_ppt := (ComputableInPolyTime.const ([], [])).isPPTOn
   sign_ppt := by
-    apply ComputableInPolyTime.isPPTOn
-    polytime
-  verify_polyTime := by polytime
+    exact (ComputableInPolyTime.snd encBits (encPair encUnary encBits)).encoding_comp.isPPTOn
+  verify_polyTime := by
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encBits encIndexedSignedMessage)
+    exact hp.snd'.snd'.snd'.beq (hp.snd'.fst'.prod hp.snd'.snd'.fst').encoding_comp
   verify_sign _ _ _ _ _ _ sig hsig := by
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hsig
     simp [hsig]
@@ -205,9 +208,7 @@ example :
   have hzero : (ProbComp.eval (lazyTreeGame echo (fun _ => 1) threeQueryForger 2)) true = 0 := by
     rw [PMF.apply_eq_zero_iff]
     intro htrue
-    simp only [lazyTreeGame, echo, threeQueryForger, OracleComp.interpret_bind,
-      OracleComp.interpret_pure, ProbOracleComp.interpret_query, StateT.run_bind,
-      StateT.run_pure] at htrue
+    simp only [lazyTreeGame, echo, threeQueryForger, interp_norm] at htrue
     simp only [StateT.run, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at htrue
     obtain ⟨⟨r₁, s₁⟩, hs₁, ⟨r₂, s₂⟩, hs₂, ⟨r₃, s₃⟩, hs₃, hwin⟩ := htrue
@@ -253,8 +254,15 @@ def zeroQueryEchoForger : Forger := fun n _ =>
 theorem isOraclePPT_zeroQueryEchoForger :
     IsOraclePPT (encPair encBits encBits) zeroQueryEchoForger := by
   refine IsOraclePPTOn.isOraclePPT ?_
-  unfold zeroQueryEchoForger encodeSignature
-  exact ComputableInPolyTime.isOraclePPTOn (by polytime)
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have hmsg := (ComputableInPolyTime.bitsReplicate false).comp hn
+  have hlast := ((ComputableInPolyTime.const (encOut := encUnary) 0).prod hmsg).encoding_comp
+  have hcerts := ComputableInPolyTime.const
+    (encIn := encPair encUnary encBits) (encOut := encList (encPair encBits encBits))
+    ([] : List (List Bool × List Bool))
+  have hsig := ((ComputableInPolyTime.const (encOut := encBits) [false]).prod
+    (hcerts.prod hlast)).encoding_comp
+  exact (hmsg.prod hsig).isOraclePPTOn
 
 -- Nonvacuity of `indexedForger` via `succProbability_lazyTreeGame_le`: `zeroQueryEchoForger` wins
 -- `lazyTreeGame` with probability `1` (`Q = 0`, `slotBound = 0`, `dyadicSize 0 = 2`), so
@@ -268,9 +276,8 @@ example (n : ℕ) :
       (ProbComp.eval (lazyTreeGame echo (fun _ => 1) zeroQueryEchoForger n)) = 1 := by
     have heval : ProbComp.eval (lazyTreeGame echo (fun _ => 1) zeroQueryEchoForger n) =
         PMF.pure true := by
-      simp only [lazyTreeGame, echo, zeroQueryEchoForger, OracleComp.interpret_pure,
-        StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind,
-        verify, encodeSignature, keyDecoder.decode_enc, signatureDecoder.decode_enc]
+      simp only [lazyTreeGame, echo, zeroQueryEchoForger, interp_norm, pmf_norm, verify,
+        encodeSignature, keyDecoder.decode_enc, signatureDecoder.decode_enc]
       simp
     simp [Game.succProbability, heval]
   have hsigCap : ∀ keys ∈ (ProbComp.eval (echo.keyGen n)).support, ∀ u ≤ 1, ∀ msg,

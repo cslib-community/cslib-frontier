@@ -8,6 +8,7 @@ module
 -- upstream: candidate (addition to `Cslib/Probability/PMF.lean`)
 
 public import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Two-stage experiments
@@ -79,57 +80,36 @@ theorem le_bind_apply_on_support (μ : PMF α) {f : α → PMF β} {b : β} {c :
     (h : ∀ a ∈ μ.support, c ≤ f a b) : c ≤ μ.bind f b := by
   rw [PMF.bind_apply]
   calc c = ∑' a, μ a * c := by rw [ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
-    _ ≤ ∑' a, μ a * f a b := tsum_le_tsum fun a => by
-        by_cases ha : a ∈ μ.support
-        · exact mul_le_mul_right (h a ha) _
-        · simp [(PMF.apply_eq_zero_iff μ a).2 ha]
+    _ ≤ ∑' a, μ a * f a b := tsum_mul_mono_support μ h
 
 /-- An upper bound on an outcome's probability for every possible first-stage result bounds its
 probability in the whole experiment. -/
 theorem bind_apply_le_on_support (μ : PMF α) {f : α → PMF β} {b : β} {c : ℝ≥0∞}
     (h : ∀ a ∈ μ.support, f a b ≤ c) : μ.bind f b ≤ c := by
   rw [PMF.bind_apply]
-  calc ∑' a, μ a * f a b
-    _ ≤ ∑' a, μ a * c := tsum_le_tsum fun a => by
-        by_cases ha : a ∈ μ.support
-        · exact mul_le_mul_right (h a ha) _
-        · simp [(PMF.apply_eq_zero_iff μ a).2 ha]
-    _ = c := by rw [ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
+  exact tsum_mul_le_of_support μ h
 
 /-- Increasing an outcome's probability on every possible first-stage result increases its
 probability in the whole experiment. The sample spaces may be infinite. -/
 theorem bind_apply_mono_on_support (μ : PMF α) {f g : α → PMF β} (b : β)
     (h : ∀ a ∈ μ.support, f a b ≤ g a b) : μ.bind f b ≤ μ.bind g b := by
   simp only [PMF.bind_apply]
-  apply tsum_le_tsum
-  intro a
-  by_cases ha : a ∈ μ.support
-  · exact mul_le_mul_right (h a ha) _
-  · simp [(μ.apply_eq_zero_iff a).mpr ha]
+  exact tsum_mul_mono_support μ h
 
 /-- Pointwise additive bounds on the possible first-stage results bound the whole experiment. -/
 theorem bind_apply_le_add_on_support (μ : PMF α) {f g₁ g₂ : α → PMF β} (b : β)
     (h : ∀ a ∈ μ.support, f a b ≤ g₁ a b + g₂ a b) :
     μ.bind f b ≤ μ.bind g₁ b + μ.bind g₂ b := by
   simp only [PMF.bind_apply]
-  rw [← tsum_add]
-  refine tsum_le_tsum fun a => ?_
-  by_cases ha : a ∈ μ.support
-  · rw [← mul_add]
-    exact mul_le_mul_right (h a ha) _
-  · simp [(PMF.apply_eq_zero_iff μ a).2 ha]
+  exact (tsum_mul_mono_support μ h).trans_eq (by simp only [mul_add, tsum_add])
 
 /-- If every possible first-stage result gives the outcome `b` at most `c` more probability under
 `f` than under `g`, so does the whole experiment. -/
 theorem bind_apply_le_add_const_on_support (μ : PMF α) {f g : α → PMF β} (b : β) {c : ℝ≥0∞}
     (h : ∀ a ∈ μ.support, f a b ≤ g a b + c) : μ.bind f b ≤ μ.bind g b + c := by
   simp only [PMF.bind_apply]
-  calc ∑' a, μ a * f a b ≤ ∑' a, μ a * (g a b + c) := tsum_le_tsum fun a => by
-        by_cases ha : a ∈ μ.support
-        · exact mul_le_mul_right (h a ha) _
-        · simp [(PMF.apply_eq_zero_iff μ a).2 ha]
-    _ = ∑' a, μ a * g a b + c := by
-        simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
+  exact (tsum_mul_mono_support μ h).trans_eq (by
+    simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, μ.tsum_coe, one_mul])
 
 /-- Some possible outcome of the first stage of a two-stage experiment does at least as well as
 the experiment. -/

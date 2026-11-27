@@ -4,7 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Crypto.Computational.SIS.Module
+import CslibFrontier.Crypto.Computational.LWE.Module
+import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SIS.Ell2
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
@@ -13,13 +15,14 @@ import CslibFrontier.Tactic.PPT
 # Tests for General-Modulus SIS, Negacyclic Rings, Module-SIS and Module-LWE
 
 Concrete evaluations and nonvacuity checks for:
-1. General-modulus `GeneralSIS.isSISChallenge`, `GeneralSIS.decodeVec`, and Ajtai collision
-   extraction `GeneralSIS.extractSISVector` over composite (`ZMod 6`) and prime (`ZMod 7`)
-   moduli, plus nonvacuity of `GeneralSIS.Hard`.
+1. `SIS.IsResidueSolution` over a composite modulus (`ZMod 6`), Ajtai collisions and their
+   short differences, collisions of Ajtai's hash family on words, the side conditions of its
+   collision-resistance theorem for a polynomial family, nonvacuity of `SIS` and `SISEll2`, and a
+   zero-row family on which the family's collision resistance fails.
 2. Negacyclic convolution `negacyclicMul` and `rotMatrix` in `R[X] / (X^n + 1)`.
 3. `ModuleSIS.IsSolution`, `expandModuleMatrix`, `flattenPolyVec`,
    `ModuleSIS.isSolution_expandModuleMatrix_iff`, `ModuleLWE.flattenPolyVec_sample`, and
-   nonvacuity of `ModuleSIS.Hard`.
+   nonvacuity of `ModuleSIS`, `RingSIS` and `DecisionModuleLWE`.
 -/
 
 namespace CslibFrontierTests.Crypto.ModuleSIS
@@ -27,63 +30,118 @@ namespace CslibFrontierTests.Crypto.ModuleSIS
 open Cslib Cslib.Crypto Cslib.Probability Turing.MultiTapeTM
 open scoped NNReal ENNReal _root_.Matrix
 
-/-! ### 1. General-modulus SIS and Ajtai collision extraction -/
+/-! ### 1. SIS and Ajtai collisions -/
 
 /-- Over composite modulus `q = 6`, `(1, 2, -1)` is a short solution for `[1, 2, 5]` with
-`β = 2`, and its residue image satisfies `GeneralSIS.isSISChallenge`. -/
-example : GeneralSIS.isSISChallenge !![(1 : ZMod 6), 2, 5] 2 ![1, 2, -1] := by decide
+`β = 2`, and its residue image satisfies `SIS.IsResidueSolution`. -/
+example : SIS.IsResidueSolution !![(1 : ZMod 6), 2, 5] 2 ![1, 2, -1] := by decide
 
 example : SIS.IsSolution !![(1 : ZMod 6), 2, 5] 2
-    (GeneralSIS.liftCentered (![1, 2, -1] : Fin 3 → ZMod 6)) :=
-  (GeneralSIS.isSISChallenge_iff_isSolution !![(1 : ZMod 6), 2, 5] 2 ![1, 2, -1]).mp (by decide)
-
-/-- Framed signed-integer vector encoding and total decoding round-trip on negative, zero and
-positive coordinates, while missing coordinates default to `0`. -/
-example : GeneralSIS.decodeVec 3 (GeneralSIS.encodeVec ![1, -2, 0]) = ![1, -2, 0] :=
-  GeneralSIS.decodeVec_encodeVec ![1, -2, 0]
-
-example : GeneralSIS.decodeVec 2 [] = 0 := GeneralSIS.decodeVec_nil 2
+    (SIS.liftCentered (![1, 2, -1] : Fin 3 → ZMod 6)) :=
+  (SIS.isResidueSolution_iff_isSolution !![(1 : ZMod 6), 2, 5] 2 ![1, 2, -1]).mp (by decide)
 
 /-- Over `ZMod 6`, the binary vectors `x = (1, 1, 0)` and `y = (0, 0, 1)` in `[0, 1]³` collide
-under `ajtaiHashEval !![2, 4, 0]`, and `extractSISVector x y = (1, 1, -1)` is a short integer
-solution with bound `1`. -/
+under `ajtaiHash !![2, 4, 0]`, and `x - y = (1, 1, -1)` is a short integer solution with
+bound `1`. -/
 abbrev ajtaiMat : Matrix (Fin 1) (Fin 3) (ZMod 6) := !![2, 4, 0]
 
-example : GeneralSIS.isAjtaiCollision ajtaiMat 1 ![1, 1, 0] ![0, 0, 1] := by decide
+example : IsAjtaiCollision ajtaiMat 1 ![1, 1, 0] ![0, 0, 1] := by decide
 
-example : GeneralSIS.extractSISVector (![1, 1, 0] : Fin 3 → ℤ) ![0, 0, 1] = ![1, 1, -1] := by
+example : SIS.IsSolution ajtaiMat 1 (![1, 1, 0] - ![0, 0, 1]) :=
+  IsAjtaiCollision.isSolution_sub (A := ajtaiMat) (β := 1) (by decide)
+
+/-- A family with the dimensions and modulus of `ajtaiMat` at every security parameter. -/
+def ajtaiToySIS : SISParams where
+  n _ := 1
+  m _ := 3
+  q _ := 6
+  β _ := 1
+  hq _ := inferInstance
+
+/-- Under the key `⟨0, ajtaiMat⟩`, the words `110` and `001` collide in Ajtai's hash family on
+words; their 0/1 vectors are the collision above. -/
+example : isCollisionFor (ajtaiWordHash ajtaiToySIS)
+    (fun _ d s => s.length == ajtaiToySIS.m d.secParam) 0 ⟨0, ajtaiMat⟩
+    [true, true, false] [false, false, true] = true := by
   decide
 
-example : SIS.IsSolution ajtaiMat 1 (GeneralSIS.extractSISVector ![1, 1, 0] ![0, 0, 1]) :=
-  GeneralSIS.isSolution_of_isAjtaiCollision (A := ajtaiMat) (β := 1) (by decide)
+/-- The word `1100` has the same hash as `001` but lies outside the message space `{0,1}^3`, so
+the pair is not a collision. -/
+example : isCollisionFor (ajtaiWordHash ajtaiToySIS)
+    (fun _ d s => s.length == ajtaiToySIS.m d.secParam) 0 ⟨0, ajtaiMat⟩
+    [true, true, false, false] [false, false, true] = false := by
+  decide
 
-/-- Degenerate `GeneralSISParams` with `0` rows, `1` column, modulus `3` and bound `1`. -/
-def zeroRowGeneralSIS : GeneralSISParams where
+/-- A family with polynomial dimensions `n = κ + 1` and `m = (κ + 1)(κ + 3)`, modulus
+`q = (κ + 2)²` and bound `1`. -/
+def ajtaiPolySIS : SISParams where
+  n κ := κ + 1
+  m κ := (κ + 1) * (κ + 3)
+  q κ := (κ + 2) ^ 2
+  β _ := 1
+  hq _ := ⟨by positivity⟩
+
+/-- The side conditions of `SIS.collisionResistantForOn_ajtaiWordHash` hold for `ajtaiPolySIS`,
+so `SIS ajtaiPolySIS` gives collision resistance of Ajtai's hash family on words. -/
+example (hSIS : SIS ajtaiPolySIS) :
+    CollisionResistantForOn ajtaiPolySIS.encInput (ajtaiSetup ajtaiPolySIS)
+      (ajtaiWordHash ajtaiPolySIS) (fun _ d s => s.length == ajtaiPolySIS.m d.secParam) :=
+  hSIS.collisionResistantForOn_ajtaiWordHash
+    (show ComputableInPolyTime (fun κ => (κ + 1) * (κ + 3)) encUnary encUnary by fun_prop)
+    fun _ => le_rfl
+
+/-- Degenerate `SISParams` with `0` rows, `1` column, modulus `3` and bound `1`. -/
+def zeroRowSIS : SISParams where
   n _ := 0
   m _ := 1
   q _ := 3
   β _ := 1
   hq _ := inferInstance
 
-/-- With zero rows, outputting the encoded unit vector `![1]` always wins `GeneralSIS.sisGame`,
-so `GeneralSIS.Hard` is not vacuous. -/
-theorem not_hard_zeroRowGeneralSIS : ¬GeneralSIS.Hard zeroRowGeneralSIS := fun h => by
-  let word := GeneralSIS.encodeVec (![1] : Fin 1 → ℤ)
-  have hwin (security : ℕ) :
-      GeneralSIS.sisGame zeroRowGeneralSIS (fun _ _ => pure word) security = PMF.pure true := by
-    have hsol (A : Matrix (Fin 0) (Fin 1) (ZMod 3)) :
-        SIS.IsSolution A 1 (GeneralSIS.decodeVec 1 word) := by
-      rw [GeneralSIS.decodeVec_encodeVec]
-      refine ⟨by decide, by decide, ?_⟩
-      funext i
-      exact i.elim0
-    unfold GeneralSIS.sisGame zeroRowGeneralSIS
+/-- The SIS solver that always answers the all-ones vector. -/
+def onesSolver : zeroRowSIS.Solver := fun _ _ => pure 1
+
+/-- With zero rows, `onesSolver` wins `sisExperiment` with probability `1`, and it is a constant
+PPT machine, so `SIS` is not vacuous. -/
+theorem not_sis_zeroRowSIS : ¬SIS zeroRowSIS := fun h => by
+  have hwin (κ : ℕ) : sisAdvantage (zeroRowSIS.q κ) (zeroRowSIS.β κ) (onesSolver κ) = 1 := by
+    have hsol (A : Matrix (Fin 0) (Fin 1) (ZMod 3)) : SIS.IsSolution A 1 1 :=
+      ⟨by decide, by decide, funext fun i => i.elim0⟩
+    unfold sisAdvantage sisExperiment onesSolver zeroRowSIS
     dsimp only
-    simp only [ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind,
-      hsol, decide_true, PMF.bind_const]
-  refine not_negligible_const one_ne_zero ?_
-  simpa only [hwin, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one] using
-    h (fun _ _ => pure word) (ComputableInPolyTime.const word).isPPTOn
+    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, hsol, decide_true,
+      PMF.bind_const, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
+  refine not_negligible_const one_ne_zero ((h onesSolver ?_).congr hwin)
+  exact (ComputableInPolyTime.const (SIS.encodeVec (1 : Fin 1 → ℤ))).isPPTOn.congr fun _ => rfl
+
+/-- At `m = 1`, `SISEll2.toSIS` reduces `SISEll2 zeroRowSIS` directly to `SIS zeroRowSIS`, so
+`SISEll2` is not vacuous. -/
+theorem not_sisEll2_zeroRowSIS : ¬SISEll2 zeroRowSIS := fun h =>
+  not_sis_zeroRowSIS <| h.toSIS (β₁ := zeroRowSIS.β) fun _ => by simp [zeroRowSIS]
+
+/-- The collision finder that always answers the words `0` and `1`. -/
+def zeroRowFinder : CollisionFinderFor zeroRowSIS.Input := fun _ _ => pure ([false], [true])
+
+/-- With zero rows, `zeroRowFinder` always finds a collision of Ajtai's hash family on words, so
+the conclusion of `SIS.collisionResistantForOn_ajtaiWordHash` can fail. -/
+theorem not_collisionResistantForOn_ajtaiWordHash_zeroRow :
+    ¬CollisionResistantForOn zeroRowSIS.encInput (ajtaiSetup zeroRowSIS)
+      (ajtaiWordHash zeroRowSIS) (fun _ d s => s.length == zeroRowSIS.m d.secParam) := by
+  refine not_collisionResistantForOn_of_le_succProbability one_ne_zero zeroRowFinder
+    (ComputableInPolyTime.const ([false], [true])).isPPTOn fun κ => le_of_eq ?_
+  have hcol (A : Matrix (Fin (zeroRowSIS.n κ)) (Fin (zeroRowSIS.m κ)) (ZMod (zeroRowSIS.q κ))) :
+      isCollisionFor (ajtaiWordHash zeroRowSIS)
+        (fun _ d s => s.length == zeroRowSIS.m d.secParam) κ ⟨κ, A⟩ [false] [true] = true :=
+    isCollisionFor_eq_true_iff.mpr ⟨rfl, rfl, by decide, funext fun i => i.elim0⟩
+  simp only [Game.succProbability, collisionGameFor, Game.withSetup, collisionExperiment,
+    ajtaiSetup, zeroRowFinder, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_map,
+    PMF.pure_bind, Function.comp_def, hcol, PMF.bind_const, PMF.pure_apply, ↓reduceIte,
+    ENNReal.toNNReal_one]
+
+/-- The headline therefore also refutes `SIS zeroRowSIS`, independently of `not_sis_zeroRowSIS`. -/
+example : ¬SIS zeroRowSIS := fun hSIS =>
+  not_collisionResistantForOn_ajtaiWordHash_zeroRow
+    (hSIS.collisionResistantForOn_ajtaiWordHash (ComputableInPolyTime.const 1) fun _ => le_rfl)
 
 /-! ### 2. Negacyclic polynomial arithmetic in `R[X] / (X^n + 1)` -/
 
@@ -130,32 +188,66 @@ def zeroRankModuleSIS : ModuleSISParams where
   β _ := 1
   hq _ := inferInstance
 
-/-- With rank `d = 0`, a constant PPT adversary outputting the encoded unit polynomial vector
-wins `ModuleSIS.moduleSISGame` with probability `1`, so `ModuleSIS.Hard` is not vacuous. -/
-theorem not_hard_zeroRankModuleSIS : ¬ModuleSIS.Hard zeroRankModuleSIS := fun h => by
-  let z0 : Fin 1 → Fin 1 → ℤ := fun _ _ => 1
-  let word := ModuleSIS.encodeVec z0
-  have hwin (security : ℕ) :
-      ModuleSIS.moduleSISGame zeroRankModuleSIS (fun _ _ => pure word) security =
-        PMF.pure true := by
-    have hsol (A : Matrix (Fin 0) (Fin 1) (Fin 1 → ZMod 5)) :
-        ModuleSIS.IsSolution A 1 (ModuleSIS.decodeVec 1 1 word) := by
-      rw [ModuleSIS.decodeVec_encodeVec]
-      refine ⟨by decide, by decide, ?_⟩
-      funext i
-      exact i.elim0
-    unfold ModuleSIS.moduleSISGame zeroRankModuleSIS
+/-- The Module-SIS solver that always answers the all-ones polynomial vector. -/
+def onesModuleSolver : zeroRankModuleSIS.Solver := fun _ _ => pure 1
+
+/-- With rank `d = 0`, `onesModuleSolver` wins `moduleSISExperiment` with probability `1`, and it
+is a constant PPT machine, so `ModuleSIS` is not vacuous. -/
+theorem not_moduleSIS_zeroRankModuleSIS : ¬ModuleSIS zeroRankModuleSIS := fun h => by
+  have hwin (κ : ℕ) :
+      moduleSISAdvantage (zeroRankModuleSIS.q κ) (zeroRankModuleSIS.β κ) (onesModuleSolver κ) =
+        1 := by
+    have hsol (A : Matrix (Fin 0) (Fin 1) (Fin 1 → ZMod 5)) : ModuleSIS.IsSolution A 1 1 :=
+      ⟨by decide, by decide, funext fun i => i.elim0⟩
+    unfold moduleSISAdvantage moduleSISExperiment onesModuleSolver zeroRankModuleSIS
     dsimp only
-    simp only [ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind,
-      hsol, decide_true, PMF.bind_const]
-  refine not_negligible_const one_ne_zero ?_
-  simpa only [hwin, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one] using
-    h (fun _ _ => pure word) (ComputableInPolyTime.const word).isPPTOn
+    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, hsol, decide_true,
+      PMF.bind_const, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
+  refine not_negligible_const one_ne_zero ((h onesModuleSolver ?_).congr hwin)
+  exact (ComputableInPolyTime.const
+    (ModuleSIS.encodeVec (1 : Fin 1 → Fin 1 → ℤ))).isPPTOn.congr fun _ => rfl
+
+/-- Degenerate `RingSISParams` with `n = 1`, `k = 1`, modulus `q = 2` and bound `β = 2`, so the
+bound reaches the modulus. -/
+def boundAtModulusRingSIS : RingSISParams where
+  n _ := 1
+  k _ := 1
+  q _ := 2
+  β _ := 2
+  hq _ := inferInstance
+
+/-- When `β ≥ q`, the constant polynomial vector `q` is short, nonzero and reduces to `0` mod `q`,
+so it solves every instance. The Ring-SIS solver that always answers `2` therefore wins
+`moduleSISExperiment` with probability `1`. It is a constant PPT machine, so `RingSIS` is not
+vacuous. -/
+theorem not_ringSIS_boundAtModulus : ¬RingSIS boundAtModulusRingSIS := fun h => by
+  let S : boundAtModulusRingSIS.toModuleSISParams.Solver := fun _ _ => pure 2
+  have hwin (κ : ℕ) :
+      moduleSISAdvantage (boundAtModulusRingSIS.q κ) (boundAtModulusRingSIS.β κ) (S κ) = 1 := by
+    have hsol (A : Matrix (Fin 1) (Fin 1) (Fin 1 → ZMod 2)) : ModuleSIS.IsSolution A 2 2 := by
+      refine ⟨by decide, by decide, ?_⟩
+      rw [show (fun j s => ((2 : Fin 1 → Fin 1 → ℤ) j s : ZMod 2)) = 0 by decide]
+      exact moduleSISMap_zero A
+    change Game.succProbability (ProbComp.eval (do
+      let A ← ProbComp.uniform (Matrix (Fin 1) (Fin 1) (Fin 1 → ZMod 2))
+      let z ← pure (2 : Fin 1 → Fin 1 → ℤ)
+      return decide (ModuleSIS.IsSolution A 2 z))) = 1
+    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, hsol, decide_true,
+      PMF.bind_const, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
+  refine not_negligible_const one_ne_zero ((h S ?_).congr hwin)
+  exact (ComputableInPolyTime.const
+    (ModuleSIS.encodeVec (2 : Fin 1 → Fin 1 → ℤ))).isPPTOn.congr fun _ => rfl
 
 /-- Zero polynomial noise for `n = 1`, `q = 2`. -/
 noncomputable def moduleZeroNoise :
     (security : ℕ) → PMF (Fin ((fun _ : ℕ => 1) security) → ZMod ((fun _ : ℕ => 2) security)) :=
   fun _ => PMF.pure 0
+
+/-- The encoded real Module-LWE samples of `DecisionModuleLWE` with `m = 1, d = 0, n = 1, q = 2`
+and zero noise: a uniform secret and the zero error vector. -/
+noncomputable abbrev moduleZeroNoiseReal : ℕ → PMF (List Bool) :=
+  ModuleLWE.realEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2)
+    (fun _ => PMF.uniformOfFintype _) fun security => PMF.pi fun _ => moduleZeroNoise security
 
 /-- Test whether the fourth bit of the encoded Module-LWE sample is `false`. -/
 def fourthBitFalse : Distinguisher :=
@@ -168,8 +260,7 @@ theorem fourthBitFalse_ppt : IsPPT encBool fourthBitFalse := by
 /-- With `d = 0` and zero noise, every real Module-LWE sample encodes `(0, 0)` as
 `[true, false, false, false]`. -/
 theorem eq_of_mem_support_moduleLWEReal {security : ℕ} {word : List Bool}
-    (h : word ∈ (ModuleLWE.realEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2)
-      moduleZeroNoise security).support) :
+    (h : word ∈ (moduleZeroNoiseReal security).support) :
     word = [true, false, false, false] := by
   obtain ⟨pair, hpair, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp h
   simp only [ModuleLWE.sampleLaw, moduleZeroNoise, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
@@ -189,14 +280,10 @@ theorem eq_of_mem_support_moduleLWEReal {security : ℕ} {word : List Bool}
 /-- The real `DecisionModuleLWE` experiment with `d = 0` and zero noise accepts with probability
 `1`. -/
 theorem distinguishingGame_moduleLWEReal (security : ℕ) :
-    distinguishingGame
-      (ModuleLWE.realEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2)
-        moduleZeroNoise security)
-      (fourthBitFalse security) = PMF.pure true := by
-  unfold distinguishingGame
-  rw [PMF.monad_bind_eq_bind]
-  trans (ModuleLWE.realEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2)
-    moduleZeroNoise security).bind fun _ => PMF.pure true
+    distinguishingGame (moduleZeroNoiseReal security) (fourthBitFalse security) =
+      PMF.pure true := by
+  rw [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind]
+  trans (moduleZeroNoiseReal security).bind fun _ => PMF.pure true
   · refine PMF.bind_congr_on_support _ _ _ fun word hword => ?_
     rw [eq_of_mem_support_moduleLWEReal hword]
     simp [fourthBitFalse]
@@ -208,7 +295,7 @@ theorem distinguishingGame_moduleLWEUniform_apply (security : ℕ) :
     distinguishingGame
       (ModuleLWE.uniformEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2) security)
       (fourthBitFalse security) true = 2⁻¹ := by
-  simp only [distinguishingGame, ModuleLWE.uniformEnsemble, fourthBitFalse,
+  simp only [distinguishingGame_eq_bind, ModuleLWE.uniformEnsemble, fourthBitFalse,
     PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def, ProbComp.eval_pure, PMF.bind_apply,
     tsum_fintype, PMF.uniformOfFintype_apply, PMF.pure_apply]
   rw [← Finset.mul_sum]
@@ -231,12 +318,9 @@ distinguishes the real and uniform ensembles with constant advantage `1 / 2`. -/
 theorem not_decisionModuleLWE_zeroNoise :
     ¬DecisionModuleLWE (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2) moduleZeroNoise := by
   intro h
-  have hneg := h fourthBitFalse fourthBitFalse_ppt
+  have hneg := h.encoded fourthBitFalse fourthBitFalse_ppt
   have hadv (security : ℕ) : Game.advantage
-      (distinguishingGame
-        (ModuleLWE.realEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2)
-          moduleZeroNoise security)
-        (fourthBitFalse security))
+      (distinguishingGame (moduleZeroNoiseReal security) (fourthBitFalse security))
       (distinguishingGame
         (ModuleLWE.uniformEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2) security)
         (fourthBitFalse security)) = 2⁻¹ := by

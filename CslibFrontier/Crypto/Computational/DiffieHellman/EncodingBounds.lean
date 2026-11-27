@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.DiscreteLog
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Polynomial Bit-Length Bounds for Encoded Group Elements
@@ -38,9 +39,9 @@ variable (F : PrimeOrderGroupFamily)
 theorem exists_length_encode_le :
     ∃ c k : ℕ, ∀ d : F.Desc, ∀ x : F.Carrier d,
       (F.encode d x).length ≤ c * ((F.encDesc d).length + 1) ^ k := by
-  obtain ⟨co, ko, hord⟩ := F.computableInPolyTime_order.tidy.polyBounded_length.exists_le
-  obtain ⟨cg, kg, hgen⟩ := F.computableInPolyTime_generator.tidy.polyBounded_length.exists_le
-  obtain ⟨cs, ks, hsmul⟩ := F.computableInPolyTime_smul.tidy.polyBounded_length.exists_le
+  obtain ⟨co, ko, hord⟩ := F.computableInPolyTime_order.polyBounded_length.exists_le
+  obtain ⟨cg, kg, hgen⟩ := F.computableInPolyTime_generator.polyBounded_length.exists_le
+  obtain ⟨cs, ks, hsmul⟩ := F.computableInPolyTime_smul.polyBounded_length.exists_le
   have hpoly : PolynomiallyBounded
       (fun L => cs * (2 * L + 4 * (co * (L + 1) ^ ko) + 4 * (cg * (L + 1) ^ kg) + 7) ^ ks) := by
     fun_prop
@@ -61,8 +62,7 @@ theorem exists_length_encode_le :
         (d, α.val, F.encode d (F.generator d))).length + 1 ≤
       2 * (F.encDesc d).length + 4 * (co * ((F.encDesc d).length + 1) ^ ko) +
         4 * (cg * ((F.encDesc d).length + 1) ^ kg) + 7 := by
-    simp only [length_encPair, encBits_apply]
-    lia
+    enc_len
   calc (F.smul (d, α.val, F.encode d (F.generator d))).length
       ≤ cs * ((encPair F.encDesc (encPair encNat encBits)
           (d, α.val, F.encode d (F.generator d))).length + 1) ^ ks := h1

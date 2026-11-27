@@ -101,13 +101,7 @@ variable {enc : α ↪ List Bool}
 theorem computableInPolyTime_repeatMajority {V : α × List Bool → Bool}
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) (r p : Polynomial ℕ) :
     ComputableInPolyTime (repeatMajority enc r p V) (encPair enc encBits) encBool := by
-  have hV' := hV
-  have hvotes : ComputableInPolyTime
-      (fun x => repeatVotes (2 * r.eval (enc x.1).length) (p.eval (enc x.1).length) V x)
-      (encPair enc encBits) encBits :=
-    (computableInPolyTime_repeatVotes hV (by fun_prop) (by fun_prop))
-  unfold repeatMajority
-  fun_prop
+  fun_prop [repeatMajority]
 
 /-- On a random string of `2 r(n)` rows of `p(n)` bits, the majority vote compares the number of
 accepting rows with `r(n)`. -/
@@ -115,7 +109,7 @@ theorem repeatMajority_ofFn {r p : Polynomial ℕ} {V : α × List Bool → Bool
     (x : BitString (2 * r.eval (enc a).length * p.eval (enc a).length)) :
     repeatMajority enc r p V (a, List.ofFn x) = decide (r.eval (enc a).length <
       (univ.filter fun i => V (a, List.ofFn (BitString.block x i)) = true).card) := by
-  rw [repeatMajority, repeatVotes_ofFn, List.countP_ofFn, card_filter]
+  rw [repeatMajority, repeatVotes_ofFn, List.countP_ofFn]
   rfl
 
 /-- The disjunction of `q(n)` runs of `V`, where `n` is the length of the encoded instance: the
@@ -133,13 +127,7 @@ variable {enc : α ↪ List Bool}
 theorem computableInPolyTime_repeatAny {V : α × List Bool → Bool}
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) (q p : Polynomial ℕ) :
     ComputableInPolyTime (repeatAny enc q p V) (encPair enc encBits) encBool := by
-  have hV' := hV
-  have hvotes : ComputableInPolyTime
-      (fun x => repeatVotes (q.eval (enc x.1).length) (p.eval (enc x.1).length) V x)
-      (encPair enc encBits) encBits :=
-    (computableInPolyTime_repeatVotes hV (by fun_prop) (by fun_prop))
-  unfold repeatAny
-  fun_prop
+  fun_prop [repeatAny]
 
 /-- On a random string of `q(n)` rows of `p(n)` bits, the repetition accepts when some row is
 accepted. -/

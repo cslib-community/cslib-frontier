@@ -14,24 +14,23 @@ public import CslibFrontier.Computability.WordRAM.Realization.Primitive
 public import CslibFrontier.Computability.WordRAM.Realization.Reindex
 public import CslibFrontier.Computability.WordRAM.Realization.While
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArrayProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlotInv
-import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Computability.WordRAM.Width
 import CslibFrontier.Tactic.Realize
 
 /-!
-# `Memory.Prog` Bit-Packed Array Primitives and Slot Resolution via `realize`
+# `Memory.Prog` Dictionary Array Accessors and Slot Resolution via `realize`
 
-This module wraps the overflow-free bit-packed array operations (`readPacked`, `writePacked`) and
-the four dictionary arrays (`Quotients`, `Values`, `LocalMeta`, `GlobalMeta`) as `Memory.Prog`
-operations with uniform `Realizes .exact` certificates, and realizes `readBucketCountProg` and
-`resolveIndexedSlotProg` via the `realize` tactic.
+This module builds on the shared `Memory.Prog` bit-packed array primitives (`readPackedProg`,
+`writePackedProg`, `realizes_readPackedGen`, `realizes_writePackedGen` in
+`CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArrayProg`) to wrap the four dictionary
+arrays (`Quotients`, `Values`, `LocalMeta`, `GlobalMeta`) as `Memory.Prog` operations with uniform
+`Realizes .exact` certificates, and realizes `readBucketCountProg` and `resolveIndexedSlotProg` via
+the `realize` tactic.
 
 ## Main definitions
 
-* `Cslib.DataStructure.Dictionary.WordRAM.Succinct.readPackedProg`,
-  `Cslib.DataStructure.Dictionary.WordRAM.Succinct.writePackedProg`: `Memory.Prog` wrappers for
-  bit-packed array reads and writes.
 * `Cslib.DataStructure.Dictionary.WordRAM.Succinct.DictParams`,
   `Cslib.DataStructure.Dictionary.WordRAM.Succinct.mkDictParams`: 36-word runtime register block
   holding precomputed layout parameters for parameter-free `Realizes` certificates.
@@ -54,9 +53,6 @@ operations with uniform `Realizes .exact` certificates, and realizes `readBucket
 
 ## Main results
 
-* `Cslib.DataStructure.Dictionary.WordRAM.Succinct.realizes_readPackedGen`,
-  `Cslib.DataStructure.Dictionary.WordRAM.Succinct.realizes_writePackedGen`: uniform `Realizes`
-  certificates for bit-packed reads and writes.
 * `Cslib.DataStructure.Dictionary.WordRAM.Succinct.realizes_readBucketCountGen`,
   `Cslib.DataStructure.Dictionary.WordRAM.Succinct.realizes_resolveIndexedSlotGen`: uniform
   `Realizes` certificates for `readBucketCountGenProg` and `resolveIndexedSlotGenProg`.
@@ -65,6 +61,11 @@ operations with uniform `Realizes .exact` certificates, and realizes `readBucket
   `Cslib.DataStructure.Dictionary.WordRAM.Succinct.writeLMProg_effect`,
   `Cslib.DataStructure.Dictionary.WordRAM.Succinct.writeGMProg_effect`: pure logical array update
   lemmas for the four packed dictionary arrays.
+* `Cslib.DataStructure.Dictionary.WordRAM.Succinct.GmFrame`,
+  `Cslib.DataStructure.Dictionary.WordRAM.Succinct.gmFrame_writeGMProg`,
+  `Cslib.DataStructure.Dictionary.WordRAM.Succinct.gmAt_writeGMProg`: the frame of a run that
+  writes only `GlobalMeta` (chained with `GmFrame.trans`, turned into the six-part `_effect` form
+  by `GmFrame.effect`) and the frame and `gmAt` update of one `writeGMProg`.
 * `Cslib.DataStructure.Dictionary.WordRAM.Succinct.memoryCost_bind_of_clientState_eq`: memory
   charges of `p >>= k` after a state-preserving prefix `p`, in `do`-block form.
 -/
@@ -92,263 +93,7 @@ theorem memoryCost_bind_of_clientState_eq {α β : Type} {p : Memory.Prog α} {s
   rw [hp] at h
   exact h
 
-/-! ## Section 1: `readPackedProg` and `writePackedProg` in `Memory.Prog` -/
-
-/-- `Memory.Prog` operation reading the `k`-bit entry at index `idx` from a bit-packed array at
-`base + offset` on a `w`-bit machine. -/
-@[expose] def readPackedProg (base offset k w idx : ℕ) : Memory.Prog ℕ := do
-  let wOff := wordOffset k w idx
-  let bOff := bitOffset k w idx
-  let k₀ := lowWidth k w idx
-  let k₁ := highWidth k w idx
-  let word₀ ← Memory.read (base + offset + wOff)
-  let word₁ ← Memory.read (base + offset + wOff + 1)
-  let low := (word₀ >>> bOff) &&& (2 ^ k₀ - 1)
-  let high := (word₁ >>> 0) &&& (2 ^ k₁ - 1)
-  pure (low ^^^ (high <<< k₀))
-
-/-- `Memory.Prog` operation writing `val` (`< 2 ^ k`) into the `k`-bit entry at index `idx` of a
-bit-packed array at `base + offset` on a `w`-bit machine. -/
-@[expose] def writePackedProg (base offset k w idx val : ℕ) : Memory.Prog Unit := do
-  let wOff := wordOffset k w idx
-  let bOff := bitOffset k w idx
-  let k₀ := lowWidth k w idx
-  let k₁ := highWidth k w idx
-  let word₀ ← Memory.read (base + offset + wOff)
-  let old₀ := (word₀ >>> bOff) &&& (2 ^ k₀ - 1)
-  let val₀ := val &&& (2 ^ k₀ - 1)
-  Memory.write (base + offset + wOff) (word₀ ^^^ ((old₀ ^^^ val₀) <<< bOff))
-  let word₁ ← Memory.read (base + offset + wOff + 1)
-  let old₁ := (word₁ >>> 0) &&& (2 ^ k₁ - 1)
-  let val₁ := (val >>> k₀) &&& (2 ^ k₁ - 1)
-  Memory.write (base + offset + wOff + 1) (word₁ ^^^ ((old₁ ^^^ val₁) <<< 0))
-
-@[simp]
-theorem clientResult_readPackedProg (base offset k w idx : ℕ) (s : Memory.State) :
-    (Memory.spec 0).clientResult s (readPackedProg base offset k w idx) =
-      readPacked (base + offset) k w s.mem idx :=
-  rfl
-
-theorem clientState_readPackedProg (base offset k w idx : ℕ) (s : Memory.State) :
-    (Memory.spec 0).clientState s (readPackedProg base offset k w idx) = s :=
-  rfl
-
-@[simp]
-theorem memoryCost_readPackedProg (base offset k w idx : ℕ) (s : Memory.State) :
-    memoryCost (readPackedProg base offset k w idx) s = 2 :=
-  rfl
-
-@[simp]
-theorem clientResult_writePackedProg (base offset k w idx val : ℕ) (s : Memory.State) :
-    (Memory.spec 0).clientResult s (writePackedProg base offset k w idx val) = () :=
-  rfl
-
-theorem clientState_writePackedProg (base offset k w idx val : ℕ) (s : Memory.State) :
-    (Memory.spec 0).clientState s (writePackedProg base offset k w idx val) =
-      { mem := writePacked (base + offset) k w s.mem idx val, frontier := s.frontier } :=
-  rfl
-
-@[simp]
-theorem memoryCost_writePackedProg (base offset k w idx val : ℕ) (s : Memory.State) :
-    memoryCost (writePackedProg base offset k w idx val) s = 4 :=
-  rfl
-
-theorem validHistory_readPackedProg {w base offset N k idx : ℕ} {s : Memory.State}
-    (hw : 0 < w) (hidx : idx < N)
-    (ha : base + offset + packedWords N k w ≤ s.frontier) :
-    (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (readPackedProg base offset k w idx)) := by
-  have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx
-  change base + offset + wordOffset k w idx < s.frontier ∧
-    base + offset + wordOffset k w idx + 1 < s.frontier ∧ True
-  exact ⟨by omega, by omega, trivial⟩
-
-theorem validHistory_writePackedProg {w base offset N k idx val : ℕ} {s : Memory.State}
-    (hw : 0 < w) (hkw : k ≤ w) (hidx : idx < N)
-    (hwf : Memory.WellFormed w s)
-    (ha : base + offset + packedWords N k w ≤ s.frontier) :
-    (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (writePackedProg base offset k w idx val)) := by
-  have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx
-  set wOff := wordOffset k w idx
-  set bOff := bitOffset k w idx
-  set k₀ := lowWidth k w idx
-  set k₁ := highWidth k w idx
-  set old₀ := (s.mem (base + offset + wOff) >>> bOff) &&& (2 ^ k₀ - 1)
-  set val₀ := val &&& (2 ^ k₀ - 1)
-  have hδ0_lt : old₀ ^^^ val₀ < 2 ^ k₀ := by
-    refine Nat.xor_lt_two_pow ?_ ?_ <;>
-    · dsimp only [old₀, val₀]
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (by positivity)
-  have hsh0_lt : (old₀ ^^^ val₀) <<< bOff < 2 ^ w := by
-    refine shiftLeft_lt_two_pow_of_lt hδ0_lt ?_
-    have := bitOffset_add_lowWidth_le (k := k) (idx := idx) hw
-    omega
-  have hw0 : Fits w (s.mem (base + offset + wOff) ^^^ ((old₀ ^^^ val₀) <<< bOff)) :=
-    Nat.xor_lt_two_pow (hwf.2 _) hsh0_lt
-  let mem₁ := Function.update s.mem (base + offset + wOff)
-    (s.mem (base + offset + wOff) ^^^ ((old₀ ^^^ val₀) <<< bOff))
-  have hm1 : Fits w (mem₁ (base + offset + wOff + 1)) := by
-    dsimp only [mem₁]
-    rw [Function.update_of_ne (by omega)]
-    exact hwf.2 _
-  set old₁ := (mem₁ (base + offset + wOff + 1) >>> 0) &&& (2 ^ k₁ - 1)
-  set val₁ := (val >>> k₀) &&& (2 ^ k₁ - 1)
-  have hk1_le_w : k₁ ≤ w := by
-    have := lowWidth_add_highWidth k w idx
-    omega
-  have hδ1_lt : old₁ ^^^ val₁ < 2 ^ k₁ := by
-    refine Nat.xor_lt_two_pow ?_ ?_ <;>
-    · dsimp only [old₁, val₁]
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (by positivity)
-  have hsh1_lt : (old₁ ^^^ val₁) <<< 0 < 2 ^ w :=
-    hδ1_lt.trans_le (Nat.pow_le_pow_right (by decide) hk1_le_w)
-  have hw1 : Fits w (mem₁ (base + offset + wOff + 1) ^^^ ((old₁ ^^^ val₁) <<< 0)) :=
-    Nat.xor_lt_two_pow hm1 hsh1_lt
-  change base + offset + wOff < s.frontier ∧
-    ((base + offset + wOff < s.frontier ∧
-      Fits w (s.mem (base + offset + wOff) ^^^ ((old₀ ^^^ val₀) <<< bOff))) ∧
-    base + offset + wOff + 1 < s.frontier ∧
-    (base + offset + wOff + 1 < s.frontier ∧
-      Fits w (mem₁ (base + offset + wOff + 1) ^^^ ((old₁ ^^^ val₁) <<< 0))) ∧ True)
-  exact ⟨by omega, ⟨by omega, hw0⟩, by omega, ⟨by omega, hw1⟩, trivial⟩
-
-private theorem readPackedCode_not_readsWidth :
-    ¬readPackedCode.ReadsWidth := by
-  simp [readPackedCode, addrSetupCode, offsetSetupCode, maskSetupCode, readPackedFinishCode,
-    Code.ReadsWidth, Op.ReadsWidth, Op.exactBin]
-
-private theorem writePackedCode_not_readsWidth :
-    ¬writePackedCode.ReadsWidth := by
-  simp [writePackedCode, addrSetupCode, offsetSetupCode, maskSetupCode, writePackedFinishCode,
-    Code.ReadsWidth, Op.ReadsWidth, Op.exactBin]
-
-/-- Parameter-free `Memory.Prog` wrapper for `readPackedProg` taking
-`d = (((base, offset), (k, w)), idx)`. -/
-@[expose] def readPackedGenProg (d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) : Memory.Prog ℕ :=
-  readPackedProg d.1.1.1 d.1.1.2 d.1.2.1 d.1.2.2 d.2
-
-/-- Parameter-free `Memory.Prog` wrapper for `writePackedProg` taking
-`d = ((((base, offset), (k, w)), idx), val)`. -/
-@[expose] def writePackedGenProg (d : (((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) : Memory.Prog Unit :=
-  writePackedProg d.1.1.1.1 d.1.1.1.2 d.1.1.2.1 d.1.1.2.2 d.1.2 d.2
-
-/-- Uniform parameter-free `Realizes .exact` certificate for `readPackedGenProg`. -/
-theorem realizes_readPackedGen :
-    Realizes .exact readPackedGenProg
-      (WordEncoding.encode (α := ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ)) (WordEncoding.encode (α := ℕ))
-      (fun w d _ => ∃ N, w = d.1.2.2 ∧ 0 < w ∧ d.1.2.1 ≤ w ∧ d.2 < N ∧
-        Fits w (d.1.1.1 + d.1.1.2 + packedWords N d.1.2.1 w))
-      (fun _ _ => 0) := by
-  let perm : Fin 10 ≃ Fin 10 := Equiv.swap 0 2
-  refine ⟨8, 38, fun _ src tmp =>
-    .seq (.op (.exactBin .add (tmp 2) (src 0) (src 1)))
-      (.seq (.op (.copy (tmp 1) (src 4)))
-        (.seq (.op (.copy (tmp 8) (src 3)))
-          (.seq (.op (.copy (tmp 9) (src 2)))
-            (readPackedCode.rename (tmp ∘ perm))))), ?_⟩
-  intro r frontier src tmp hi hd hf hs
-  have hperm_inj : Function.Injective (tmp ∘ perm) := hi.comp perm.injective
-  refine ⟨?_, ?_⟩
-  · simp [Code.ReadsWidth, Op.ReadsWidth, Op.exactBin, Code.readsWidth_rename,
-      readPackedCode_not_readsWidth]
-  · intro w d x hx hin ⟨N, heq, hw, hkw, hidx, hfit⟩ _
-    have hsrc0 : x.regs (src 0) = d.1.1.1 := congrFun hin 0
-    have hsrc1 : x.regs (src 1) = d.1.1.2 := congrFun hin 1
-    have hsrc2 : x.regs (src 2) = d.1.2.1 := congrFun hin 2
-    have hsrc3 : x.regs (src 3) = d.1.2.2 := congrFun hin 3
-    have hsrc4 : x.regs (src 4) = d.2 := congrFun hin 4
-    refine WP.exists_execWithin ?_
-    wram_exec [hsrc0, hsrc1]
-    · refine WP.name fun x₄ hx₄ => ?_
-      have hx₄b : x₄.Bounded w := by rw [hx₄]; wram_bounded; exact hfit.of_le (by omega)
-      have hreg (a : Fin 10) (b : Fin 10) (h : perm a = b) :
-          (x₄.comap (tmp ∘ perm)).regs a = x₄.regs (tmp b) := by rw [← h]; rfl
-      obtain ⟨y_core, hex_core, hymem, _, _, hy2⟩ := readPackedCode_execWithin hw hkw hidx
-        (hx₄b.comap (tmp ∘ perm)) (by rw [hreg 0 2 (by decide), hx₄]; wram_simp)
-        (by rw [hreg 1 1 (by decide), hx₄]; wram_simp [hsrc4])
-        (by rw [hreg 8 8 (by decide), hx₄]; wram_simp [hsrc3, heq])
-        (by rw [hreg 9 9 (by decide), hx₄]; wram_simp [hsrc2]) hfit
-      refine WP.of_execWithin (hex_core.rename hperm_inj) ⟨?_, ?_, ?_, ?_⟩
-      · change 34 + 1 + 1 + 1 + 1 ≤ 38 * (2 + 0 + 1); omega
-      · apply Memory.State.ext
-        · change y_core.mem = x.mem
-          rw [hymem, hx₄]
-          rfl
-        · change Function.extend (tmp ∘ perm) y_core.regs x₄.regs frontier = x.regs frontier
-          rw [Function.extend_apply' (f := tmp ∘ perm) _ _ _ fun ⟨j, hj⟩ => hf (perm j) hj, hx₄]
-          wram_simp
-      · intro i
-        have hi0 : i = 0 := Fin.eq_zero i
-        subst hi0
-        rw [clientResult_width]
-        change (y_core.extend (tmp ∘ perm) x₄).regs (tmp 0) =
-          readPacked (d.1.1.1 + d.1.1.2) d.1.2.1 d.1.2.2 x.mem d.2
-        have hp2 : tmp 0 = (tmp ∘ perm) 2 := by congr 1
-        rw [hp2]
-        change ((y_core.extend (tmp ∘ perm) x₄).comap (tmp ∘ perm)).regs 2 = _
-        rw [Data.comap_extend hperm_inj, hy2, ← heq, hx₄]
-        rfl
-      · intro i _ htmp
-        change Function.extend (tmp ∘ perm) y_core.regs x₄.regs i = x.regs i
-        rw [Function.extend_apply' (f := tmp ∘ perm) _ _ _ fun ⟨j, hj⟩ => htmp (perm j) hj, hx₄]
-        wram_simp
-
-/-- Uniform parameter-free `Realizes .exact` certificate for `writePackedGenProg`. -/
-theorem realizes_writePackedGen :
-    Realizes .exact writePackedGenProg
-      (WordEncoding.encode (α := (((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
-      (fun w d _ => ∃ N, w = d.1.1.2.2 ∧ 0 < w ∧ d.1.1.2.1 ≤ w ∧ d.1.2 < N ∧
-        Fits w (d.1.1.1.1 + d.1.1.1.2 + packedWords N d.1.1.2.1 w))
-      (fun _ _ => 0) := by
-  refine ⟨9, 50, fun _ src tmp =>
-    .seq (.op (.exactBin .add (tmp 0) (src 0) (src 1)))
-      (.seq (.op (.copy (tmp 1) (src 4)))
-        (.seq (.op (.copy (tmp 2) (src 5)))
-          (.seq (.op (.copy (tmp 8) (src 3)))
-            (.seq (.op (.copy (tmp 9) (src 2)))
-              (writePackedCode.rename tmp))))), ?_⟩
-  intro r frontier src tmp hi hd hf hs
-  refine ⟨?_, ?_⟩
-  · simp [Code.ReadsWidth, Op.ReadsWidth, Op.exactBin, Code.readsWidth_rename,
-      writePackedCode_not_readsWidth]
-  · intro w d x hx hin ⟨N, heq, hw, hkw, hidx, hfit⟩ _
-    have hsrc0 : x.regs (src 0) = d.1.1.1.1 := congrFun hin 0
-    have hsrc1 : x.regs (src 1) = d.1.1.1.2 := congrFun hin 1
-    have hsrc2 : x.regs (src 2) = d.1.1.2.1 := congrFun hin 2
-    have hsrc3 : x.regs (src 3) = d.1.1.2.2 := congrFun hin 3
-    have hsrc4 : x.regs (src 4) = d.1.2 := congrFun hin 4
-    have hsrc5 : x.regs (src 5) = d.2 := congrFun hin 5
-    refine WP.exists_execWithin ?_
-    wram_exec [hsrc0, hsrc1]
-    · refine WP.name fun x₅ hx₅ => ?_
-      have hx₅b : x₅.Bounded w := by rw [hx₅]; wram_bounded; exact hfit.of_le (by omega)
-      obtain ⟨y_core, hex_core, hymem, _, _, _⟩ := writePackedCode_execWithin (val := d.2) hw hkw
-        hidx (hx₅b.comap tmp) (by rw [Data.comap_regs, hx₅]; wram_simp)
-        (by rw [Data.comap_regs, hx₅]; wram_simp [hsrc4])
-        (by rw [Data.comap_regs, hx₅]; wram_simp [hsrc5])
-        (by rw [Data.comap_regs, hx₅]; wram_simp [hsrc3, heq])
-        (by rw [Data.comap_regs, hx₅]; wram_simp [hsrc2]) hfit
-      refine WP.of_execWithin (hex_core.rename hi) ⟨?_, ?_, ?_, ?_⟩
-      · change 45 + 1 + 1 + 1 + 1 + 1 ≤ 50 * (4 + 0 + 1); omega
-      · apply Memory.State.ext
-        · change y_core.mem =
-            writePacked (d.1.1.1.1 + d.1.1.1.2) d.1.1.2.1 d.1.1.2.2 x.mem d.1.2 d.2
-          rw [hymem, ← heq, hx₅]
-          rfl
-        · change Function.extend tmp y_core.regs x₅.regs frontier = x.regs frontier
-          rw [Function.extend_apply' (f := tmp) _ _ _ fun ⟨j, hj⟩ => hf j hj, hx₅]
-          wram_simp
-      · intro i
-        exact Fin.elim0 i
-      · intro i _ htmp
-        change Function.extend tmp y_core.regs x₅.regs i = x.regs i
-        rw [Function.extend_apply' (f := tmp) _ _ _ fun ⟨j, hj⟩ => htmp j hj, hx₅]
-        wram_simp
-
-/-! ## Section 2: Dictionary array `Memory.Prog` primitives (`Quot`, `Val`, `LM`, `GM`) -/
+/-! ## Section 1: Dictionary array `Memory.Prog` primitives (`Quot`, `Val`, `LM`, `GM`) -/
 
 /-- Runtime register block of 36 precomputed dictionary layout parameters. -/
 @[expose] def DictParams : Type := Fin 36 → ℕ
@@ -712,29 +457,34 @@ scoped macro "simpDictParamsWith" "[" extra:Lean.Parser.Tactic.simpLemma,* "]" :
       readLMGenProg_mk, writeLMGenProg_mk, readGMGenProg_mk, writeGMGenProg_mk,
       readBucketCountGenProg_mk, resolveIndexedSlotGenProg_mk] at *)
 
-set_option hygiene false in
-/-- Helper tactic for parameter-free `Realizes` proofs over `DictParams × D`:
-runs `realize` and unpacks `d = (dp, d)` and `DictEnvGen` (`h.1`) in every resulting goal. -/
-scoped macro "realizeDict" : tactic =>
-  `(tactic| (
-    realize
-    all_goals (
-      rcases d with ⟨dp, d⟩
-      obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
-      simpDictParamsWith [p_w_mk]
-    )))
+/-- Helper tactic for parameter-free `Realizes` proofs over `DictParams × D` with extra
+simplification lemmas for sub-programs and preconditions. Optional `using [certificates]`
+forwards method certificates to `realize`. -/
+scoped syntax "realizeDictWith" "[" Lean.Parser.Tactic.simpLemma,* "]"
+    (" using " "[" term,* "]")? : tactic
 
 set_option hygiene false in
-/-- Helper tactic for parameter-free `Realizes` proofs over `DictParams × D` with extra
-simplification lemmas for sub-programs and preconditions. -/
-scoped macro "realizeDictWith" "[" extra:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
-  `(tactic| (
-    realize
-    all_goals (
-      rcases d with ⟨dp, d⟩
-      obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
-      simpDictParamsWith [$extra,*]
-    )))
+macro_rules
+  | `(tactic| realizeDictWith [$extra,*] $[using [$certificates,*]]?) => do
+    let certificates := certificates.map (·.getElems) |>.getD #[]
+    `(tactic| (
+      realize [$certificates,*]
+      all_goals (
+        rcases d with ⟨dp, d⟩
+        obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
+        simpDictParamsWith [$extra,*]
+      )))
+
+/-- Helper tactic for parameter-free `Realizes` proofs over `DictParams × D`:
+runs `realize` and unpacks `d = (dp, d)` and `DictEnvGen` (`h.1`) in every resulting goal.
+Optional `using [certificates]` supplies local method certificates. -/
+scoped syntax "realizeDict" (" using " "[" term,* "]")? : tactic
+
+set_option hygiene false in
+macro_rules
+  | `(tactic| realizeDict $[using [$certificates,*]]?) => do
+    let certificates := certificates.map (·.getElems) |>.getD #[]
+    `(tactic| realizeDictWith [p_w_mk] using [$certificates,*])
 
 theorem realizes_readQuotGen :
     Realizes .exact readQuotGenProg
@@ -875,6 +625,22 @@ theorem fits_of_le_max_n_one {U V w₀ n_max h_space w base x : ℕ}
   rcases h.env with ⟨rfl, _⟩
   exact (max_n_one_lt_two_pow_w hw hnU hU).of_le hx
 
+set_option hygiene false in
+/-- Closes a routine side goal left by `realizeDict`/`realizeDictWith` over `GlobalMeta`: the entry
+envelope or an index bound from the context (possibly under the branch condition), or a `Fits`
+goal for a small constant, a `GlobalMeta` index or a value at most `n_max`. It uses the names
+`hw`, `hnU` and `hU` that `realizeDict` binds, and matches hypotheses only up to reducible
+unfolding, so that it never evaluates the programs inside `clientResult`. -/
+scoped macro "dictSide" : tactic =>
+  `(tactic| first
+    | with_reducible assumption
+    | with_reducible exact fits_of_le_globalMetaLen ‹_› ‹_› hw hnU hU (Nat.le_of_lt ‹_›)
+    | with_reducible exact fits_of_le_max_n_one ‹_› hw hnU hU (le_trans ‹_› (Nat.le_max_left _ 1))
+    | exact fits_const_of_dictEnv ‹_› (by omega)
+    | (apply_assumption -symm -exfalso (transparency := .reducible) <;> with_reducible assumption)
+    | (refine fits_of_le_globalMetaLen ‹_› ‹_› hw hnU hU (Nat.le_of_lt ?_)
+       apply_assumption -symm -exfalso (transparency := .reducible) <;> with_reducible assumption))
+
 theorem slabSize_le_max_n_one (n_max : ℕ) : slabSize n_max ≤ max n_max 1 := by
   rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
   · simp [slabSize, slabBits, hb0]
@@ -957,41 +723,20 @@ theorem realizes_readBucketCountGen :
           (gmAt d.2.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem) ∧
         d.2.2 < numBuckets (dpNMax d.1))
       (fun _ _ => 0) := by
-  have hrg := realizes_readGMGen
-  refine Realizes.congr (p := fun d : DictParams × (ℕ × ℕ) =>
-      if dpBucketBits d.1 = 0 then do
-        let i0 ← pure 0
-        readGMGenProg (d.1, (d.2.1, i0))
-      else do
-        let q_idx ← pure (4 + 3 * d.2.2)
-        let q_b ← readGMGenProg (d.1, (d.2.1, q_idx))
-        let r_idx ← pure (q_idx + 1)
-        let r_b ← readGMGenProg (d.1, (d.2.1, r_idx))
-        pure (q_b * dpSlabSize d.1 + r_b)) ?_
-    (fun d => by simp [readBucketCountGenProg, ← PFunctor.FreeM.bind_eq_bind])
-  realizeDict
-  · exact h.1
+  realizeDict using [realizes_readGMGen]
+  all_goals
+    obtain ⟨hdict, hinv, hb⟩ := h
+    try
+      have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
+      have hq : 4 + 3 * d.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
+      have hr : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
+  all_goals try dictSide
   · unfold globalMetaLen; omega
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU (le_of_lt (gmQIdx_lt hb_pos h.2.2))
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact h.1
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    exact gmQIdx_lt hb_pos h.2.2
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU (le_of_lt (gmRIdx_lt hb_pos h.2.2))
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    exact gmRIdx_lt hb_pos h.2.2
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    have hb0 : bucketBits n_max ≠ 0 := hc
-    have hq_lt : 4 + 3 * d.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.2
-    have hr_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos h.2.2
-    rw [clientState_readGMProg, clientResult_readGMProg _ hq_lt,
-      clientResult_readGMProg _ hr_lt]
-    have hbc := bCount_le_n_max h.2.1 d.2
+  · rw [clientState_readGMProg, clientResult_readGMProg _ hq, clientResult_readGMProg _ hr]
+    have hbc := bCount_le_n_max hinv d.2
     unfold bCount at hbc
-    simp only [hb0, ↓reduceIte, h.2.2, gmQIdx, gmRIdx] at hbc
-    exact fits_of_le_max_n_one h.1 hw hnU hU (by omega)
+    simp only [hc, ↓reduceIte, hb, gmQIdx, gmRIdx] at hbc
+    exact fits_of_le_max_n_one hdict hw hnU hU (by omega)
 
 theorem clientState_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
     (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
@@ -1166,60 +911,25 @@ theorem realizes_resolveIndexedSlotGen :
           d.2.1.2 ∧
         d.2.2 < effBucketCap (dpNMax d.1))
       (fun _ _ => 0) := by
-  have hrg := realizes_readGMGen
-  refine Realizes.congr (p := fun d : DictParams × ((ℕ × ℕ) × ℕ) =>
-      if dpBucketBits d.1 = 0 then
-        pure d.2.2
-      else do
-        let q_idx ← pure (4 + 3 * d.2.1.2)
-        let q_b ← readGMGenProg (d.1, (d.2.1.1, q_idx))
-        let qK ← pure (q_b * dpSlabSize d.1)
-        if d.2.2 < qK then do
-          let dir_idx ←
-            pure (dpGmSlabDirBase d.1 + d.2.1.2 * dpDirSlabs d.1 + d.2.2 / dpSlabSize d.1)
-          let p ← readGMGenProg (d.1, (d.2.1.1, dir_idx))
-          pure (p * dpSlabSize d.1 + (dpSlabSizeSubOne d.1 - d.2.2 % dpSlabSize d.1))
-        else do
-          let ptr_idx ←
-            pure (dpGmTailPtrBase d.1 + (d.2.1.2 * dpTailCap d.1 + (d.2.2 - qK)))
-          let t ← readGMGenProg (d.1, (d.2.1.1, ptr_idx))
-          pure (dpNMaxSubOne d.1 - t)) ?_
-    (fun d => by simp [resolveIndexedSlotGenProg, ← PFunctor.FreeM.bind_eq_bind])
-  realizeDict
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
-    exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU (le_of_lt (gmQIdx_lt hb_pos h.2.2.1))
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact h.1
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
-    exact gmQIdx_lt hb_pos h.2.2.1
-  · have hb0 : ¬bucketBits n_max = 0 := ‹¬bucketBits n_max = 0›
-    have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
-    have hq_lt : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.2.1
-    rw [clientResult_readGMProg _ hq_lt]
-    have hbc := bCount_le_n_max h.2.1 d.1.2
+  realizeDict using [realizes_readGMGen]
+  all_goals
+    obtain ⟨hdict, hinv, hb, hj_bc, hj_cap⟩ := h
+    have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
+    have hq : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
+    have hdir := resolveIndexedSlot_dir_lt hb_pos hb hj_cap
+    try with_reducible have htail := resolveIndexedSlot_tailIdx_lt hb_pos d s hinv hb hj_bc hc
+  all_goals try dictSide
+  · rw [clientResult_readGMProg _ hq]
+    have hbc := bCount_le_n_max hinv d.1.2
     unfold bCount at hbc
-    simp only [hb0, ↓reduceIte, h.2.2.1, gmQIdx] at hbc
-    exact fits_of_le_max_n_one h.1 hw hnU hU (by omega)
+    simp only [‹¬bucketBits n_max = 0›, ↓reduceIte, hb, gmQIdx] at hbc
+    exact fits_of_le_max_n_one hdict hw hnU hU (by omega)
   · exact Nat.ne_of_gt (slabSize_pos n_max)
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
-    exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU
-      (le_of_lt (resolveIndexedSlot_dir_lt hb_pos h.2.2.1 h.2.2.2.2))
-  · exact h.1
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
-    exact resolveIndexedSlot_dir_lt hb_pos h.2.2.1 h.2.2.2.2
   · have : d.2 % slabSize n_max < slabSize n_max := Nat.mod_lt d.2 (slabSize_pos n_max)
     omega
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
-    exact resolveIndexedSlot_slab_fit hw hnU hU hb_pos d s h.1 h.2.1 h.2.2.1 h.2.2.2.2 hc
+  · exact resolveIndexedSlot_slab_fit hw hnU hU hb_pos d s hdict hinv hb hj_cap hc
   · omega
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
-    exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU
-      (le_of_lt (resolveIndexedSlot_tailIdx_lt hb_pos d s h.2.1 h.2.2.1 h.2.2.2.1 hc))
-  · exact h.1
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
-    exact resolveIndexedSlot_tailIdx_lt hb_pos d s h.2.1 h.2.2.1 h.2.2.2.1 hc
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
-    exact resolveIndexedSlot_tail_le hb_pos d s h.2.1 h.2.2.1 h.2.2.2.1 hc
+  · exact resolveIndexedSlot_tail_le hb_pos d s hinv hb hj_bc hc
 
 /-! ## Section 4: Pure state effects and costs of `read*Prog` and `write*Prog` -/
 
@@ -1304,13 +1014,9 @@ theorem writeQuotProg_effect {U V w n_max h_space base idx val : ℕ}
     rw [hmem]
     exact writePacked_outside hw s.mem hidx_lt _ (by dsimp only [offVal] at ha; omega)
   refine ⟨rfl, hout_mem, ?_, ?_, ?_, ?_⟩
-  · funext j; unfold quotAt
-    by_cases hj : j = idx
-    · subst hj; rw [Function.update_self]; simp only [hidx_lt, ↓reduceIte, hmem]
-      exact readPacked_writePacked_self _ _ _ _ _ hval_lt
-    · rw [Function.update_of_ne hj]; split_ifs with hj_lt
-      · rw [hmem]; exact readPacked_writePacked_of_ne hw s.mem hj _
-      · rfl
+  · unfold quotAt
+    rw [hmem]
+    exact readPacked_writePacked_bounded hw hidx_lt hval_lt s.mem
   · funext j; unfold valAt; split_ifs with hj_lt
     · exact readPacked_congr hw (fun a ⟨ha1, _⟩ => hout_mem a (by omega)) hj_lt
     · rfl
@@ -1349,13 +1055,9 @@ theorem writeValProg_effect {U V w n_max h_space base idx val : ℕ}
     · exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
         hout_mem a (by dsimp only [offVal, offQuot] at ha2 ⊢; omega)) hj_lt
     · rfl
-  · funext j; unfold valAt
-    by_cases hj : j = idx
-    · subst hj; rw [Function.update_self]; simp only [hidx_lt, ↓reduceIte, hmem]
-      exact readPacked_writePacked_self _ _ _ _ _ hval_lt
-    · rw [Function.update_of_ne hj]; split_ifs with hj_lt
-      · rw [hmem]; exact readPacked_writePacked_of_ne hw s.mem hj _
-      · rfl
+  · unfold valAt
+    rw [hmem]
+    exact readPacked_writePacked_bounded hw hidx_lt hval_lt s.mem
   · funext ⟨c, j⟩; unfold lmAt; split_ifs with hp
     · exact readPacked_congr hw (fun a ⟨ha1, _⟩ =>
         hout_mem a (by dsimp only [offLMSub] at ha1; omega)) hp.2
@@ -1434,6 +1136,93 @@ theorem writeLMProg_effect {U V w n_max h_space c base idx val : ℕ}
     · exact readPacked_congr hw (fun a ⟨ha1, _⟩ => hout_mem a (by omega)) hj_lt
     · rfl
 
+/-! ## Section 5: `GlobalMeta`-only frames -/
+
+/-- Frame of a run that writes only the `GlobalMeta` region of the dictionary at `base`: the
+frontier and all memory outside `[base + offGM U V w n_max h_space, base + totalSpace U V w n_max
+h_space)` are unchanged. `GmFrame.trans` chains the frames of consecutive writes, and
+`GmFrame.effect` turns a frame and the resulting `gmAt` into the six-part form of the
+`GlobalMeta` operations' `_effect` theorems. -/
+structure GmFrame (U V w n_max h_space base : ℕ) (s s' : Memory.State) : Prop where
+  /-- The frontier is unchanged. -/
+  frontier : s'.frontier = s.frontier
+  /-- Memory outside the `GlobalMeta` region is unchanged. -/
+  outside : ∀ a, ¬(base + offGM U V w n_max h_space ≤ a ∧
+    a < base + totalSpace U V w n_max h_space) → s'.mem a = s.mem a
+
+namespace GmFrame
+
+variable {U V w n_max h_space base : ℕ} {s s₁ s₂ : Memory.State}
+
+theorem refl (s : Memory.State) : GmFrame U V w n_max h_space base s s :=
+  ⟨rfl, fun _ _ => rfl⟩
+
+theorem trans (h₁ : GmFrame U V w n_max h_space base s s₁)
+    (h₂ : GmFrame U V w n_max h_space base s₁ s₂) : GmFrame U V w n_max h_space base s s₂ :=
+  ⟨h₂.frontier.trans h₁.frontier, fun a ha => (h₂.outside a ha).trans (h₁.outside a ha)⟩
+
+theorem quotAt_eq (hw : 0 < w) (h : GmFrame U V w n_max h_space base s s₁) :
+    quotAt base U w n_max h_space s₁.mem = quotAt base U w n_max h_space s.mem := by
+  funext j; unfold quotAt; split_ifs with hj_lt
+  · exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
+      h.outside a (by dsimp only [offGM, offLM, offVal, offQuot] at ha2 ⊢; omega)) hj_lt
+  · rfl
+
+theorem valAt_eq (hw : 0 < w) (h : GmFrame U V w n_max h_space base s s₁) :
+    valAt base U V w n_max h_space s₁.mem = valAt base U V w n_max h_space s.mem := by
+  funext j; unfold valAt; split_ifs with hj_lt
+  · exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
+      h.outside a (by dsimp only [offGM, offLM, offVal] at ha2 ⊢; omega)) hj_lt
+  · rfl
+
+theorem lmAt_eq (hw : 0 < w) (h : GmFrame U V w n_max h_space base s s₁) :
+    lmAt base U V w n_max h_space s₁.mem = lmAt base U V w n_max h_space s.mem := by
+  funext ⟨c, j⟩; unfold lmAt; split_ifs with hp
+  · rcases hp with ⟨hc, hj_lt⟩
+    have hsub : (c + 1) * lmSubWords n_max w ≤ 9 * lmSubWords n_max w :=
+      Nat.mul_le_mul_right _ hc
+    rw [Nat.add_one_mul] at hsub
+    exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
+      h.outside a (by
+        unfold lmSubWords at hsub
+        dsimp only [offGM, offLMSub, offLM, lmSubWords] at ha2 ⊢
+        omega)) hj_lt
+  · rfl
+
+/-- The six-part effect of a `GlobalMeta`-only run with resulting `GlobalMeta` contents `g`. -/
+theorem effect (hw : 0 < w) (h : GmFrame U V w n_max h_space base s s₁) {g : ℕ → ℕ}
+    (hg : gmAt base U V w n_max h_space s₁.mem = g) :
+    s₁.frontier = s.frontier ∧
+    (∀ a, ¬(base + offGM U V w n_max h_space ≤ a ∧
+        a < base + totalSpace U V w n_max h_space) → s₁.mem a = s.mem a) ∧
+    quotAt base U w n_max h_space s₁.mem = quotAt base U w n_max h_space s.mem ∧
+    valAt base U V w n_max h_space s₁.mem = valAt base U V w n_max h_space s.mem ∧
+    lmAt base U V w n_max h_space s₁.mem = lmAt base U V w n_max h_space s.mem ∧
+    gmAt base U V w n_max h_space s₁.mem = g :=
+  ⟨h.frontier, h.outside, h.quotAt_eq hw, h.valAt_eq hw, h.lmAt_eq hw, hg⟩
+
+end GmFrame
+
+theorem gmFrame_writeGMProg {U V w n_max h_space base idx val : ℕ}
+    (hw : 0 < w) (hidx : idx < globalMetaLen n_max) (s : Memory.State) :
+    GmFrame U V w n_max h_space base s
+      ((Memory.spec 0).clientState s (writeGMProg U V w n_max h_space ((base, idx), val))) :=
+  ⟨rfl, fun a ha => show writePacked (base + offGM U V w n_max h_space) _ w s.mem idx val a = _ from
+    writePacked_outside hw s.mem hidx _ (by dsimp only [totalSpace] at ha; omega)⟩
+
+theorem gmAt_writeGMProg {U V w n_max h_space base idx val : ℕ}
+    (hw : 0 < w) (hidx : idx < globalMetaLen n_max) (hval : val < 2 ^ globalPtrBits n_max)
+    (s : Memory.State) :
+    gmAt base U V w n_max h_space
+        ((Memory.spec 0).clientState s (writeGMProg U V w n_max h_space ((base, idx), val))).mem =
+      Function.update (gmAt base U V w n_max h_space s.mem) idx val := by
+  have hmem : ((Memory.spec 0).clientState s
+      (writeGMProg U V w n_max h_space ((base, idx), val))).mem =
+      writePacked (base + offGM U V w n_max h_space) (globalPtrBits n_max) w s.mem idx val := rfl
+  unfold gmAt
+  rw [hmem]
+  exact readPacked_writePacked_bounded hw hidx hval s.mem
+
 /-- Pure state effect of `writeGMProg`. -/
 theorem writeGMProg_effect {U V w n_max h_space base idx val : ℕ}
     (hw : 0 < w) (hidx_lt : idx < globalMetaLen n_max)
@@ -1448,41 +1237,7 @@ theorem writeGMProg_effect {U V w n_max h_space base idx val : ℕ}
     valAt base U V w n_max h_space s'.mem = valAt base U V w n_max h_space s.mem ∧
     lmAt base U V w n_max h_space s'.mem = lmAt base U V w n_max h_space s.mem ∧
     gmAt base U V w n_max h_space s'.mem =
-      Function.update (gmAt base U V w n_max h_space s.mem) idx val := by
-  intro s'
-  have hmem : s'.mem = writePacked (base + offGM U V w n_max h_space)
-      (globalPtrBits n_max) w s.mem idx val := rfl
-  have hout_mem : ∀ a, ¬(base + offGM U V w n_max h_space ≤ a ∧
-      a < base + totalSpace U V w n_max h_space) → s'.mem a = s.mem a := by
-    intro a ha
-    rw [hmem]
-    exact writePacked_outside hw s.mem hidx_lt _ (by dsimp only [totalSpace] at ha; omega)
-  refine ⟨rfl, hout_mem, ?_, ?_, ?_, ?_⟩
-  · funext j; unfold quotAt; split_ifs with hj_lt
-    · exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
-        hout_mem a (by dsimp only [offGM, offLM, offVal, offQuot] at ha2 ⊢; omega)) hj_lt
-    · rfl
-  · funext j; unfold valAt; split_ifs with hj_lt
-    · exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
-        hout_mem a (by dsimp only [offGM, offLM, offVal] at ha2 ⊢; omega)) hj_lt
-    · rfl
-  · funext ⟨c, j⟩; unfold lmAt; split_ifs with hp
-    · rcases hp with ⟨hc, hj_lt⟩
-      have hsub : (c + 1) * lmSubWords n_max w ≤ 9 * lmSubWords n_max w :=
-        Nat.mul_le_mul_right _ hc
-      rw [Nat.add_one_mul] at hsub
-      exact readPacked_congr hw (fun a ⟨_, ha2⟩ =>
-        hout_mem a (by
-          unfold lmSubWords at hsub
-          dsimp only [offGM, offLMSub, offLM, lmSubWords] at ha2 ⊢
-          omega)) hj_lt
-    · rfl
-  · funext j; unfold gmAt
-    by_cases hj : j = idx
-    · subst hj; rw [Function.update_self]; simp only [hidx_lt, ↓reduceIte, hmem]
-      exact readPacked_writePacked_self _ _ _ _ _ hval_lt
-    · rw [Function.update_of_ne hj]; split_ifs with hj_lt
-      · rw [hmem]; exact readPacked_writePacked_of_ne hw s.mem hj _
-      · rfl
+      Function.update (gmAt base U V w n_max h_space s.mem) idx val :=
+  (gmFrame_writeGMProg hw hidx_lt s).effect hw (gmAt_writeGMProg hw hidx_lt hval_lt s)
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

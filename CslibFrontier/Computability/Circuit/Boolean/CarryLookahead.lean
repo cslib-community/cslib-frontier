@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.CarrySave
 public import CslibFrontier.Computability.Circuit.Boolean.Word
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Carry lookahead by parallel prefix doubling
@@ -148,22 +149,12 @@ def step (k distance : ℕ) : Circuit signature (k + k) (k + k) :=
 
 /-- One round of parallel carry composition on `k` cells uses `3 * k` gates. -/
 @[simp] theorem size_step (k distance : ℕ) : (step k distance).size = 3 * k := by
-  simp only [step, generateFormula, Fin.natAdd_eq_addNat, propagateFormula, Circuit.size_append,
-    Circuit.size_pi, Formula.size_toCircuit, Formula.size_or, Formula.size_input, Formula.size_and,
-    add_zero, zero_add, Nat.reduceAdd, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
-    smul_eq_mul, mul_one]
+  simp only [circuit_simps, step, generateFormula, propagateFormula]
   omega
 
 /-- One round of parallel carry composition has depth at most `2`. -/
-theorem depth_step_le (k distance : ℕ) : (step k distance).depth ≤ 2 := by
-  apply (Circuit.depth_append_le _ _).trans
-  apply max_le
-  · apply Circuit.depth_pi_le
-    intro i
-    exact (Formula.depth_toCircuit_le _).trans (by simp [generateFormula])
-  · apply Circuit.depth_pi_le
-    intro i
-    exact (Formula.depth_toCircuit_le _).trans (by simp [propagateFormula])
+@[circuit_bound] theorem depth_step_le (k distance : ℕ) : (step k distance).depth ≤ 2 := by
+  circuit_bound [step, generateFormula, propagateFormula]
 
 private theorem readRow_step (row : BitString (k + k)) (i distance : ℕ) :
     readRow ((step k distance).eval interpretation row) i =
@@ -192,12 +183,10 @@ def scan (k : ℕ) : ℕ → Circuit signature (k + k) (k + k)
   | succ t ih => simp only [scan, Circuit.size_comp, size_step, ih, Nat.mul_succ]
 
 /-- `t` rounds of the prefix-doubling network have depth at most `2 * t`. -/
-theorem depth_scan_le (k t : ℕ) : (scan k t).depth ≤ 2 * t := by
+@[circuit_bound] theorem depth_scan_le (k t : ℕ) : (scan k t).depth ≤ 2 * t := by
   induction t with
   | zero => simp [scan]
-  | succ t ih =>
-    exact (Circuit.depth_comp_le _ _).trans
-      ((Nat.add_le_add (depth_step_le _ _) ih).trans (by omega))
+  | succ t ih => circuit_bound [scan]
 
 /-- After `t` rounds every cell summarizes the next `2^t` original cells, with identity padding. -/
 theorem readRow_scan (row : BitString (k + k)) (t i : ℕ) :
@@ -254,11 +243,8 @@ def initial (w : ℕ) : Circuit signature (w + w + 1) ((w + 1) + (w + 1)) :=
   simp [initial, two_mul]
 
 /-- The initial carry-summary stage has depth at most `1`. -/
-theorem depth_initial_le (w : ℕ) : (initial w).depth ≤ 1 := by
-  apply (Circuit.depth_append_le _ _).trans
-  apply max_le <;> apply Circuit.depth_pi_le <;> intro i
-  · unfold initialGenerate; split <;> simp
-  · unfold initialPropagate; split <;> simp
+@[circuit_bound] theorem depth_initial_le (w : ℕ) : (initial w).depth ≤ 1 := by
+  circuit_bound [initial, initialGenerate, initialPropagate]
 
 /-- The carry network; `w - i` is the generate-wire index of the carry into bit `i`. -/
 def carries (w : ℕ) : Circuit signature (w + w + 1) ((w + 1) + (w + 1)) :=
@@ -286,20 +272,8 @@ def finish (w : ℕ) :
   simp [finish, Nat.mul_comm]
 
 /-- The output stage converting carry summaries to sum bits has depth at most `6`. -/
-theorem depth_finish_le (w : ℕ) : (finish w).depth ≤ 6 := by
-  apply (Circuit.depth_append_le _ _).trans
-  apply max_le
-  · apply Circuit.depth_pi_le
-    intro i
-    apply (Formula.depth_toCircuit_le _).trans
-    apply (Formula.depth_xor_le _ _).trans
-    have h := Formula.depth_xor_le
-      (Formula.input (σ := signature)
-        (Fin.castAdd ((w + 1) + (w + 1)) (leftInput w i)))
-      (Formula.input (Fin.castAdd ((w + 1) + (w + 1)) (rightInput w i)))
-    simp only [Formula.depth_input] at h ⊢
-    omega
-  · simp
+@[circuit_bound] theorem depth_finish_le (w : ℕ) : (finish w).depth ≤ 6 := by
+  circuit_bound [finish, sumFormula]
 
 /-- The arithmetic carry into bit `i`, used only as the specification. -/
 def inputCarry {w : ℕ} (u : BitString (w + w + 1)) (i : ℕ) : Bool :=
@@ -374,18 +348,10 @@ theorem size_carryLookahead (w : ℕ) :
   simp [carryLookahead, CarryLookahead.carries, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
 
 /-- Every gate has fan-in at most two, and the adder has logarithmic depth. -/
+@[circuit_bound]
 theorem depth_carryLookahead_le (w : ℕ) :
     (carryLookahead w).depth ≤ 7 + 2 * Nat.clog 2 (w + 1) := by
-  apply (Circuit.depth_comp_le _ _).trans
-  have h₁ := Circuit.depth_append_le (Circuit.wiring signature id) (CarryLookahead.carries w)
-  have h₂ := Circuit.depth_comp_le
-    (CarryLookahead.scan (w + 1) (Nat.clog 2 (w + 1))) (CarryLookahead.initial w)
-  have h₃ := CarryLookahead.depth_scan_le (w + 1) (Nat.clog 2 (w + 1))
-  have h₄ := CarryLookahead.depth_initial_le w
-  have h₅ := CarryLookahead.depth_finish_le w
-  simp only [Circuit.depth_wiring, zero_max] at h₁
-  change (CarryLookahead.carries w).depth ≤ _ at h₂
-  omega
+  circuit_bound [carryLookahead, CarryLookahead.carries]
 
 /-- An explicit absolute-constant logarithmic depth bound, including width zero. -/
 theorem depth_carryLookahead_le_log (w : ℕ) :
@@ -406,10 +372,8 @@ theorem eval_carryLookahead_sum {w : ℕ} (u : BitString (w + w + 1)) (i : Fin w
     (carryLookahead w).eval interpretation u i.castSucc =
       (word (u ∘ CarryLookahead.leftInput w) + word (u ∘ CarryLookahead.rightInput w) +
         BitVec.setWidth w (BitVec.ofBool (u (Fin.last (w + w))))).getLsbD i.val := by
-  simp only [carryLookahead, Circuit.eval_comp, CarryLookahead.finish, Circuit.eval_append,
-    show i.castSucc = Fin.castAdd 1 i from rfl, Fin.append_left, Circuit.eval_pi,
-    Formula.eval_toCircuit, CarryLookahead.sumFormula, Formula.eval_xor, Formula.eval_input,
-    Circuit.eval_wiring, Function.comp_apply, Fin.append_right]
+  simp only [circuit_simps, carryLookahead, CarryLookahead.finish,
+    show i.castSucc = Fin.castAdd 1 i from rfl, CarryLookahead.sumFormula]
   rw [CarryLookahead.eval_carries u ⟨i.val, by omega⟩]
   rw [BitVec.getLsbD_add_add_bool i.isLt,
     getLsbD_word (u ∘ CarryLookahead.leftInput w) i,
@@ -420,8 +384,7 @@ theorem eval_carryLookahead_sum {w : ℕ} (u : BitString (w + w + 1)) (i : Fin w
 theorem eval_carryLookahead_carry {w : ℕ} (u : BitString (w + w + 1)) :
     (carryLookahead w).eval interpretation u (Fin.last w) = CarryLookahead.inputCarry u w := by
   change (carryLookahead w).eval interpretation u (Fin.natAdd w 0) = _
-  simp only [carryLookahead, Circuit.eval_comp, CarryLookahead.finish, Circuit.eval_append,
-    Fin.append_right, Circuit.eval_wiring, Function.comp_apply]
+  simp only [circuit_simps, carryLookahead, CarryLookahead.finish]
   simpa using CarryLookahead.eval_carries u (Fin.last w)
 
 /-- Exact unsigned addition, including the output carry. -/
@@ -477,7 +440,7 @@ theorem val_eval_carryLookaheadAdd {w : ℕ} (a b : BitString w) :
   have he : (carryLookaheadAdd w).eval interpretation (Fin.append a b) =
       Fin.init ((carryLookahead w).eval interpretation
         (Fin.append (Fin.append a b) (fun _ => false))) := by
-    simp only [carryLookaheadAdd, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_wiring]
+    simp only [circuit_simps, carryLookaheadAdd]
     rfl
   rw [he]
   exact (Nat.mod_eq_of_lt (BitString.equivFin w _).isLt).symm.trans hm
@@ -488,17 +451,10 @@ theorem val_eval_carryLookaheadAdd {w : ℕ} (a b : BitString w) :
   simp [carryLookaheadAdd, Nat.add_comm]
 
 /-- Modular addition of width-`w` words has depth at most `8 + 2 * Nat.clog 2 (w + 1)`. -/
+@[circuit_bound]
 theorem depth_carryLookaheadAdd_le (w : ℕ) :
     (carryLookaheadAdd w).depth ≤ 8 + 2 * Nat.clog 2 (w + 1) := by
-  have h₁ := Circuit.depth_comp_le (carryLookahead w)
-    ((Circuit.wiring signature id).append (Circuit.oneGate (.const false) Fin.elim0))
-  have h₂ := Circuit.depth_append_le (Circuit.wiring signature id)
-    (Circuit.oneGate (σ := signature) (n := w + w) (.const false) Fin.elim0)
-  have h₃ := depth_carryLookahead_le w
-  apply (Circuit.depth_comp_le _ _).trans
-  simp only [Circuit.depth_wiring, zero_add]
-  simp only [Circuit.depth_wiring, Circuit.depth_oneGate, zero_max] at h₂
-  omega
+  circuit_bound [carryLookaheadAdd]
 
 /-- An explicit absolute-constant depth bound for modular addition. -/
 theorem depth_carryLookaheadAdd_le_log (w : ℕ) :
@@ -507,6 +463,7 @@ theorem depth_carryLookaheadAdd_le_log (w : ℕ) :
   omega
 
 /-- Polynomial size after fixing the incoming carry and selecting the modular result. -/
+@[circuit_bound]
 theorem size_carryLookaheadAdd_le (w : ℕ) :
     (carryLookaheadAdd w).size ≤ 21 * (w + 1) ^ 2 := by
   rw [size_carryLookaheadAdd]
@@ -526,13 +483,10 @@ def carryLookaheadFinish (w : ℕ) : Circuit signature (w + w) (w + w) :=
   simp [carryLookaheadFinish]
 
 /-- The carry-save finisher has logarithmic depth in the word width. -/
+@[circuit_bound]
 theorem depth_carryLookaheadFinish_le (w : ℕ) :
     (carryLookaheadFinish w).depth ≤ 8 + 2 * Nat.clog 2 (w + 1) := by
-  apply (Circuit.depth_append_le _ _).trans
-  apply max_le (depth_carryLookaheadAdd_le w)
-  apply (Circuit.depth_comp_le _ _).trans
-  simp only [Circuit.depth_wiring, Circuit.depth_oneGate]
-  omega
+  circuit_bound [carryLookaheadFinish]
 
 /-- A polynomial gate bound for the drop-in carry-save finisher. -/
 theorem size_carryLookaheadFinish_le (w : ℕ) :
@@ -549,7 +503,7 @@ theorem pairVal_eval_carryLookaheadFinish_mod {w : ℕ} (p : BitString (w + w)) 
     BitString.append_fstBits_sndBits p
   have h := val_eval_carryLookaheadAdd (BitString.fstBits p) (BitString.sndBits p)
   rw [hp] at h
-  simp only [carryLookaheadFinish, Circuit.eval_append, Circuit.eval_comp, Circuit.eval_wiring]
+  simp only [circuit_simps, carryLookaheadFinish]
   change pairVal (Fin.append ((carryLookaheadAdd w).eval interpretation p) (fun _ => false)) %
     2 ^ w = _
   rw [pairVal_append, BitString.val_equivFin_false, Nat.add_zero, h, Nat.mod_mod]
@@ -558,8 +512,7 @@ theorem pairVal_eval_carryLookaheadFinish_mod {w : ℕ} (p : BitString (w + w)) 
 /-- Every bit of the second output word is false after the logarithmic-depth finisher. -/
 theorem sndBits_eval_carryLookaheadFinish {w : ℕ} (p : BitString (w + w)) :
     BitString.sndBits ((carryLookaheadFinish w).eval interpretation p) = fun _ => false := by
-  simp only [carryLookaheadFinish, Circuit.eval_append, Circuit.eval_comp, Circuit.eval_wiring,
-    BitString.sndBits_append]
+  simp only [circuit_simps, carryLookaheadFinish, BitString.sndBits_append]
   rfl
 
 /-- A 4-to-2 carry-save reduction followed by the new finisher computes the same modular sum.
@@ -575,9 +528,6 @@ theorem pairVal_eval_carryLookaheadFinish_csa4to2_mod {w : ℕ}
 theorem depth_carryLookaheadFinish_comp_csa4to2_le (w : ℕ) :
     ((carryLookaheadFinish w).comp (csa4to2 w)).depth ≤
       20 + 2 * Nat.clog 2 (w + 1) := by
-  have := Circuit.depth_comp_le (carryLookaheadFinish w) (csa4to2 w)
-  have := depth_carryLookaheadFinish_le w
-  have := depth_csa4to2_le w
-  omega
+  circuit_bound
 
 end Cslib.Circuits.Boolean

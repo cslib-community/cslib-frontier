@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Cslib.Computability.Circuit.Simulation
 import CslibFrontier.Computability.Circuit.Simulation
+import CslibFrontier.Computability.Circuit.Simps
 
 /-!
 # Parallel circuits on disjoint inputs
@@ -43,16 +44,16 @@ concatenating their outputs. -/
     (I : Interpretation σ U) (x : Fin (n + p) → U) :
     (c.parallel d).eval I x =
       Fin.append (c.eval I (x ∘ Fin.castAdd p)) (d.eval I (x ∘ Fin.natAdd n)) := by
-  simp only [parallel, eval_append, eval_comp, eval_wiring]
+  simp only [circuit_simps, parallel]
 
 /-- Disjoint-input composition adds arbitrary weighted gate cost. -/
 theorem cost_program_parallel (c : Circuit σ n m) (d : Circuit σ p q) (cost : σ.Op → ℕ) :
     (c.parallel d).program.cost cost = c.program.cost cost + d.program.cost cost := by
-  simp only [parallel, cost_program_append, cost_program_comp, cost_program_wiring, Nat.zero_add]
+  simp only [circuit_simps, parallel, Nat.zero_add]
 
 /-- The size of `c.parallel d` is the sum of the sizes of `c` and `d`. -/
 @[simp] theorem size_parallel (c : Circuit σ n m) (d : Circuit σ p q) :
     (c.parallel d).size = c.size + d.size := by
-  simp only [parallel, size_append, size_comp, size_wiring, Nat.zero_add]
+  simp only [circuit_simps, parallel, Nat.zero_add]
 
 end Cslib.Circuits.Circuit

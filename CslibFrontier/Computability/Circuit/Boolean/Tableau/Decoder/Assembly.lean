@@ -12,6 +12,7 @@ import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Foundations.Data.Nat.Div
 import CslibFrontier.Foundations.Data.Nat.Doubling
 import Mathlib.Data.Nat.Size
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # The decoder circuit of the succinct tableau
@@ -139,14 +140,7 @@ theorem code_decoder {x : List Bool} {n T : ℕ}
 
 theorem size_outputCircuit_le (s cb tb : ℕ) (x : List Bool) (n T : ℕ) :
     (outputCircuit s cb tb x n T).size ≤ 3 * (2 + (s + cb + tb) + 1) * 63 := by
-  simp only [outputCircuit, Circuit.size_pi, Formula.size_toCircuit]
-  calc ∑ o : Fin (3 * (2 + (s + cb + tb) + 1)), (outTemplate.rename _).size
-      ≤ ∑ _o : Fin (3 * (2 + (s + cb + tb) + 1)), 63 := Finset.sum_le_sum fun o _ => by
-        have := Formula.size_bind_le (c := 0) (s := fun j => Formula.input
-          (⟨wireNat s cb tb x n T o j, wireNat_lt o.isLt j.isLt⟩ :
-            Fin (aWidth s cb tb x n T + 3 * (13 + s)))) (fun _ => le_rfl) outTemplate
-        simpa [Formula.rename, size_outTemplate] using this
-    _ = 3 * (2 + (s + cb + tb) + 1) * 63 := by simp
+  circuit_bound [outputCircuit, Formula.rename, size_outTemplate]
 
 /-- **The decoder has `O(colBits T + timeBits T + x.length)` gates**, with a constant depending
 only on the machine. -/
@@ -157,9 +151,7 @@ theorem size_decoder_le {x : List Bool} {n T : ℕ}
   have hX := Nat.two_pow_size_le x.length
   have hpow : 2 ^ (Nat.size x.length + 1) = 2 * 2 ^ Nat.size x.length := Nat.pow_succ'
   have hout := size_outputCircuit_le (slotBits k State) (colBits T) (timeBits T) x n T
-  rw [decoder, Circuit.size_comp, Circuit.size_comp, middleCircuit, Circuit.size_append,
-    Circuit.size_comp, Circuit.size_wiring, Circuit.size_wiring, size_fieldCircuit,
-    length_fieldGates]
+  simp only [circuit_simps, decoder, middleCircuit, size_fieldCircuit, length_fieldGates]
   clear hm
   generalize (tableCircuit tm).size = S at *
   generalize (outputCircuit (slotBits k State) (colBits T) (timeBits T) x n T).size = O at *

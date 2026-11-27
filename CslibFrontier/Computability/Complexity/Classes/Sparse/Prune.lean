@@ -428,11 +428,7 @@ theorem computableInPolyTime_queriesAt {Q : γ → α → List κ} {N : γ → L
     (hN : ComputableInPolyTime N encIn (encList encA)) :
     ComputableInPolyTime (fun p : γ × ℕ => queriesAt (Q p.1) (N p.1) p.2)
       (encPair encIn encUnary) (encList encK) := by
-  have hQ' : ComputableInPolyTime (fun p : (γ × ℕ) × α => Q p.1.1 p.2)
-      (encPair (encPair encIn encUnary) encA) (encList encK) :=
-    hQ.comp (((fst encIn encUnary).comp (fst _ encA)).prod (snd _ encA))
-  unfold queriesAt
-  fun_prop
+  fun_prop [queriesAt]
 
 /-- `SEARCH-RIGHT` from a computed position is polynomial-time. -/
 theorem computableInPolyTime_searchRightFrom {Q : γ → α → List κ} {s : γ → ℕ} {N : γ → List α}

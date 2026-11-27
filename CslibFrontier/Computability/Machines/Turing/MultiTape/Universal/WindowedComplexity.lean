@@ -64,7 +64,7 @@ simulation, not the buffered tapes of Hennie and Stearns.
 
 namespace Turing.MultiTapeTM.Universal.Windowed
 
-open ComputableTidilyInO
+open ComputableInO
 
 /-! ### The divide-and-conquer form of the windowed simulation -/
 
@@ -85,15 +85,15 @@ def simDC : DivConq Prob Sol Saved where
 
 section Parts
 
-lemma prob_d : ComputableTidilyInO (fun a : Prob => a.1) eProb eDesc (fun a => (eProb a).length)
+lemma prob_d : ComputableInO (fun a : Prob => a.1) eProb eDesc (fun a => (eProb a).length)
     (fun a => (eProb a).length) :=
   fst _ _
 
-lemma prob_n : ComputableTidilyInO (fun a : Prob => a.2.1) eProb encUnary
+lemma prob_n : ComputableInO (fun a : Prob => a.2.1) eProb encUnary
     (fun a => (eProb a).length) (fun a => (eProb a).length) :=
   (snd eDesc (encPair encUnary eWin)).fst'
 
-lemma prob_w : ComputableTidilyInO (fun a : Prob => a.2.2) eProb eWin
+lemma prob_w : ComputableInO (fun a : Prob => a.2.2) eProb eWin
     (fun a => (eProb a).length) (fun a => (eProb a).length) :=
   (snd eDesc (encPair encUnary eWin)).snd'
 
@@ -103,18 +103,18 @@ lemma length_eProb (a : Prob) : (eProb a).length =
   simp only [length_encPair, encUnary_apply, List.length_replicate]
 
 /-- The test for base problems, in linear time. -/
-lemma isBase_inO : ComputableTidilyInO simDC.isBase eProb encBool (fun a => (eProb a).length)
+lemma isBase_inO : ComputableInO simDC.isBase eProb encBool (fun a => (eProb a).length)
     (fun a => (eProb a).length) :=
-  (((ComputableTidilyInDegree.unary_isZero.comp ComputableTidilyInDegree.unary_pred).mono
+  (((ComputableInDegree.unary_isZero.comp ComputableInDegree.unary_pred).mono
     (d' := 1) (e' := 1)).inO_one.comp_linear prob_n).of_enc_eq fun a =>
     congrArg encBool (decide_eq_decide.mpr (by dsimp only; omega))
 
 /-- `Option.toList` on symbols, in linear time. -/
-lemma toList_inO : ComputableTidilyInO Option.toList eSym (encList encUnary)
+lemma toList_inO : ComputableInO Option.toList eSym (encList encUnary)
     (fun o => (eSym o).length) (fun o => (eSym o).length) :=
-  ((((ComputableTidilyInDegree.isSome encUnary).inO_one).ite
-    ((ComputableTidilyInDegree.snoc encUnary).inO_one.comp_linear
-      ((const []).prod (ComputableTidilyInDegree.getD (enc₁ := encUnary) 0).inO_one))
+  ((((ComputableInDegree.isSome encUnary).inO_one).ite
+    ((ComputableInDegree.snoc encUnary).inO_one.comp_linear
+      ((const []).prod (ComputableInDegree.getD (enc₁ := encUnary) 0).inO_one))
     (const [])).mono 4 (fun o => by dsimp only [eSym]; split_ifs <;> omega)
       (fun o => by dsimp only [eSym]; split_ifs <;> omega)).of_enc_eq
     fun o => by cases o <;> rfl
@@ -126,11 +126,11 @@ lemma length_dw_le (a : Prob) : (encPair eDesc eWin (a.1, a.2.2)).length ≤ (eP
 def Tb (a : Prob) : ℕ := ((eProb a).length + 1) ^ 3
 
 /-- Base problems: no step, or one windowed step. -/
-lemma base_inO : ComputableTidilyInO simDC.base eProb eSol Tb Tb := by
-  have hstep := wstep_inO.tidy.comp (prob_d.prod prob_w)
+lemma base_inO : ComputableInO simDC.base eProb eSol Tb Tb := by
+  have hstep := wstep_inO.comp (prob_d.prod prob_w)
   have hlive := hstep.fst'.prod (toList_inO.comp_linear hstep.snd')
   have hidle := prob_w.prod (const (encMid := encList encUnary) [])
-  refine ((((ComputableTidilyInDegree.unary_isZero.inO_one.comp_linear prob_n).ite hidle
+  refine ((((ComputableInDegree.unary_isZero.inO_one.comp_linear prob_n).ite hidle
     hlive).mono 8 (fun a => ?_) (fun a => ?_)).of_enc_eq fun a => ?_)
   all_goals
     have h₁ := length_dw_le a
@@ -147,9 +147,9 @@ lemma base_inO : ComputableTidilyInO simDC.base eProb eSol Tb Tb := by
 def Tl (a : Prob) : ℕ := (a.2.2.2.length + 1) * ((eProb a).length + 1)
 
 /-- The first subproblem: the first half of the steps on the cut windows. -/
-lemma left_inO : ComputableTidilyInO simDC.left eProb eProb Tl Tl := by
-  have hfh := firstHalf_inO.tidy.comp_linear prob_n
-  have hex := extract_inO.tidy.comp (hfh.prod prob_w)
+lemma left_inO : ComputableInO simDC.left eProb eProb Tl Tl := by
+  have hfh := firstHalf_inO.comp_linear prob_n
+  have hex := extract_inO.comp (hfh.prod prob_w)
   refine ((prob_d.prod (hfh.prod hex)).mono 8 (fun a => ?_) (fun a => ?_)).of_enc_eq
     fun a => rfl
   all_goals
@@ -173,16 +173,16 @@ def Tm (p : Prob × Sol) : ℕ :=
 /-- The second subproblem and the saved data: the windows after the first half are pasted
 back and cut again for the second half. -/
 lemma mid_inO :
-    ComputableTidilyInO simDC.mid (encPair eProb eSol) (encPair eProb eSaved) Tm Tm := by
+    ComputableInO simDC.mid (encPair eProb eSol) (encPair eProb eSaved) Tm Tm := by
   have hd := prob_d.comp_linear (fst eProb eSol)
   have hn := prob_n.comp_linear (fst eProb eSol)
   have hw := prob_w.comp_linear (fst eProb eSol)
   have hw1 := (fst eWin (encList encUnary)).comp_linear (snd eProb eSol)
   have ho1 := (snd eWin (encList encUnary)).comp_linear (snd eProb eSol)
-  have hfh := firstHalf_inO.tidy.comp_linear hn
-  have hres := restore_inO.tidy.comp (hfh.prod (hw.prod hw1))
-  have hh := half_inO.tidy.comp_linear hn
-  have hex := extract_inO.tidy.comp (hh.prod hres)
+  have hfh := firstHalf_inO.comp_linear hn
+  have hres := restore_inO.comp (hfh.prod (hw.prod hw1))
+  have hh := half_inO.comp_linear hn
+  have hex := extract_inO.comp (hh.prod hres)
   refine (((hd.prod (hh.prod hex)).prod (hh.prod (hres.prod ho1))).mono 16 (fun p => ?_)
     (fun p => ?_)).of_enc_eq fun p => rfl
   all_goals
@@ -214,13 +214,13 @@ def Tj (q : Saved × Sol) : ℕ := (q.1.2.1.2.length + 1) * ((encPair eSaved eSo
 
 /-- The combination: the windows after the second half are pasted back and the emitted symbols
 concatenated. -/
-lemma join_inO : ComputableTidilyInO simDC.join (encPair eSaved eSol) eSol Tj Tj := by
+lemma join_inO : ComputableInO simDC.join (encPair eSaved eSol) eSol Tj Tj := by
   have hr := (fst encUnary (encPair eWin (encList encUnary))).comp_linear (fst eSaved eSol)
   have hs := (snd encUnary (encPair eWin (encList encUnary))).comp_linear (fst eSaved eSol)
   have hw2 := (fst eWin (encList encUnary)).comp_linear (snd eSaved eSol)
   have ho2 := (snd eWin (encList encUnary)).comp_linear (snd eSaved eSol)
-  have hres := restore_inO.tidy.comp (hr.prod (hs.fst'.prod hw2))
-  have happ := (ComputableTidilyInDegree.listAppend encUnary).inO_one.comp_linear
+  have hres := restore_inO.comp (hr.prod (hs.fst'.prod hw2))
+  have happ := (ComputableInDegree.listAppend encUnary).inO_one.comp_linear
     (hs.snd'.prod ho2)
   refine ((hres.prod happ).mono 8 (fun q => ?_) (fun q => ?_)).of_enc_eq fun q => rfl
   all_goals
@@ -460,15 +460,15 @@ end Turing.MultiTapeTM.Universal.Windowed
 
 namespace Turing.MultiTapeTM.Universal
 
-open Windowed ComputableTidilyInO
+open Windowed ComputableInO
 
 /-- The output of the universal function from the result of the windowed simulation. -/
-lemma post_inO : ComputableTidilyInO (fun s : Sol => (s.2, s.1.1.isNone)) eSol eOut
+lemma post_inO : ComputableInO (fun s : Sol => (s.2, s.1.1.isNone)) eSol eOut
     (fun s => (eSol s).length) (fun s => (eSol s).length) := by
   have hst := (fst eSym (encList eTape)).comp_linear (fst eWin (encList encUnary))
-  have hnone := (ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encBool)
+  have hnone := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
     (fun b : Bool => !b)).inO_one.comp_linear
-      ((ComputableTidilyInDegree.isSome encUnary).inO_one.comp_linear hst)
+      ((ComputableInDegree.isSome encUnary).inO_one.comp_linear hst)
   exact (((snd eWin (encList encUnary)).prod hnone).mono 2 (fun s => by dsimp only [eSol]; omega)
     (fun s => by dsimp only [eSol]; omega)).of_enc_eq fun ⟨⟨st, ts⟩, o⟩ => by cases st <;> rfl
 
@@ -477,11 +477,6 @@ lemma length_encNat_le_log (t : ℕ) : (encNat t).length ≤ Nat.log 2 (t + 1) +
     (show 2 ^ (encNat t).length ≤ (t + 1) * 2 by
       have := two_pow_length_encNat_le t; omega)
   rwa [Nat.log_mul_base (by norm_num) (by omega)] at h
-
-lemma two_pow_log_le (t : ℕ) : 2 ^ Nat.log 2 t ≤ t + 1 := by
-  rcases Nat.eq_zero_or_pos t with rfl | ht
-  · simp
-  · exact (Nat.pow_log_le_self 2 (by omega)).trans (by omega)
 
 /-- **The universal function in time `O(t log t)`.** For a description `d` of encoded length `D`,
 an input `x` with largest symbol `M` and `t` steps given in binary, the universal function is
@@ -503,12 +498,12 @@ public theorem computableInO_universal_nlogn :
       (Nat.lt_pow_succ_log_self (by norm_num) _).le
       (((winv_initWin i.1 i.2.1).extract i.2.2).mono le_rfl (min_le_right _ _))
   choose C hC using hev
-  have hdc := ComputableInO.divConq simDC initProb_inO isBase_inO.computableInO
-    base_inO.computableInO left_inO.computableInO mid_inO.computableInO join_inO.computableInO
+  have hdc := ComputableInO.divConq simDC initProb_inO isBase_inO
+    base_inO left_inO mid_inO join_inO
     (cb := baseCost) (cn := nodeCost) (fun _ _ => le_rfl) (fun _ _ _ _ => le_rfl)
     (fun i => (hC i).1)
-  refine (((post_inO.comp_linear hdc.tidy).of_enc_eq (g := universal) fun ⟨d, x, t⟩ => by
-    rw [universal_eq_sim]; rfl).computableInO.mono 6000000000 (fun i => ?_) (fun i => ?_))
+  refine (((post_inO.comp_linear hdc).of_enc_eq (g := universal) fun ⟨d, x, t⟩ => by
+    rw [universal_eq_sim]; rfl).mono 6000000000 (fun i => ?_) (fun i => ?_))
   all_goals
     obtain ⟨d, x, t⟩ := i
     have hY : descLen d + 1 ≤ descLen d + listMax id x + 2 := by omega
@@ -527,7 +522,7 @@ public theorem computableInO_universal_nlogn :
       calc 2 ^ (Nat.log 2 t + 1 + 1) * (Nat.log 2 t + 1 + 1)
           ≤ (4 * (t + 1)) * (2 * (Nat.log 2 (t + 1) + 1)) := by
             refine Nat.mul_le_mul ?_ (by omega)
-            have := two_pow_log_le t
+            have := Nat.pow_log_le_add_one 2 t
             rw [pow_succ, pow_succ]; omega
         _ = _ := by ring
     have hC2 : costA (descLen d) (descLen d + listMax id x + 1) ≤

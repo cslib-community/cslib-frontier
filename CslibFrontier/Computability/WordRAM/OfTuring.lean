@@ -16,6 +16,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Na
 public import CslibFrontier.Foundations.Data.BitString.Counter
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Tactic.FinIndex
 /-!
 # Word RAMs simulate multi-tape Turing machines
 
@@ -450,10 +451,6 @@ structure Sim (e : Q ≃ Fin m) {inp : List Bool} (x : Data (regs k))
 
 /-! ## Correctness of the pieces -/
 
-/-- Discharge a disequality of registers. -/
-local macro "reg_ne" : tactic => `(tactic| (simp only [ne_eq, Fin.ext_iff] at *; omega))
-
-
 section Pieces
 
 variable {n w : ℕ} {e : Q ≃ Fin m}
@@ -461,24 +458,24 @@ variable {n w : ℕ} {e : Q ≃ Fin m}
 private theorem Consts.of_eq {x y : Data (regs k)} (h : Consts n m x)
     (hy : ∀ d : Fin (regs k), d.val < 12 → d ≠ rState → d ≠ rHead → d ≠ rTmp → d ≠ rCur →
       d ≠ rVal → d ≠ rPow → y.regs d = x.regs d) : Consts n m y where
-  zero := (hy rZero (by simp) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne)
-    (by reg_ne)).trans h.zero
-  one := (hy rOne (by simp) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne)
-    (by reg_ne)).trans h.one
-  fin := (hy rEnd (by simp) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne)
-    (by reg_ne)).trans h.fin
-  states := (hy rStates (by simp) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne)
-    (by reg_ne)).trans h.states
-  stride := (hy rStride (by simp) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne)
-    (by reg_ne)).trans h.stride
-  lim := (hy rLim (by simp) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne)
-    (by reg_ne)).trans h.lim
+  zero := (hy rZero (by simp) (by fin_index) (by fin_index) (by fin_index) (by fin_index)
+    (by fin_index) (by fin_index)).trans h.zero
+  one := (hy rOne (by simp) (by fin_index) (by fin_index) (by fin_index) (by fin_index)
+    (by fin_index) (by fin_index)).trans h.one
+  fin := (hy rEnd (by simp) (by fin_index) (by fin_index) (by fin_index) (by fin_index)
+    (by fin_index) (by fin_index)).trans h.fin
+  states := (hy rStates (by simp) (by fin_index) (by fin_index) (by fin_index) (by fin_index)
+    (by fin_index) (by fin_index)).trans h.states
+  stride := (hy rStride (by simp) (by fin_index) (by fin_index) (by fin_index) (by fin_index)
+    (by fin_index) (by fin_index)).trans h.stride
+  lim := (hy rLim (by simp) (by fin_index) (by fin_index) (by fin_index) (by fin_index)
+    (by fin_index) (by fin_index)).trans h.lim
 
 private theorem TapesRel.set {x : Data (regs k)} {T : Fin k → ℤ → Option Bool} {P : Fin k → ℤ}
     (h : TapesRel n x T P) {d : Fin (regs k)} (hd : d.val < 12) (v : ℕ) :
     TapesRel n (x.set d v) T P where
-  sgn i := by rw [Data.set_regs, Function.update_of_ne (by reg_ne)]; exact h.sgn i
-  adr i := by rw [Data.set_regs, Function.update_of_ne (by reg_ne)]; exact h.adr i
+  sgn i := by rw [Data.set_regs, Function.update_of_ne (by fin_index)]; exact h.sgn i
+  adr i := by rw [Data.set_regs, Function.update_of_ne (by fin_index)]; exact h.adr i
   tape := h.tape
 
 /-- Setting a scratch register preserves the invariant. -/
@@ -568,11 +565,11 @@ private theorem TapesRel.update {x y : Data (regs k)} {T : Fin k → ℤ → Opt
   sgn j := by
     by_cases hj : j = i
     · subst hj; simpa using hs
-    · rw [Function.update_of_ne hj, hy _ (by reg_ne) (by reg_ne)]; exact h.sgn j
+    · rw [Function.update_of_ne hj, hy _ (by fin_index) (by fin_index)]; exact h.sgn j
   adr j := by
     by_cases hj : j = i
     · subst hj; simpa using ha
-    · rw [Function.update_of_ne hj, hy _ (by reg_ne) (by reg_ne)]; exact h.adr j
+    · rw [Function.update_of_ne hj, hy _ (by fin_index) (by fin_index)]; exact h.adr j
   tape := hm ▸ h.tape
 
 /-- Moving the head of tape `i`. -/
@@ -659,7 +656,8 @@ private theorem tapesCode_spec (act : Action k Bool Q) :
     obtain ⟨hiL, hL⟩ := List.nodup_cons.1 hL
     obtain ⟨y₁, h₁, hT₁, hr₁, hm₁⟩ :=
       tapeCode_spec hT hc i (act.workTapes i) (hfit i List.mem_cons_self) h2
-    have hc₁ : Consts n m y₁ := hc.of_eq fun d hd _ _ ht _ _ _ => hr₁ d (by reg_ne) (by reg_ne) ht
+    have hc₁ : Consts n m y₁ :=
+      hc.of_eq fun d hd _ _ ht _ _ _ => hr₁ d (by fin_index) (by fin_index) ht
     obtain ⟨y, h₂, hT₂, hr₂, hm₂⟩ := tapesCode_spec act L hL hT₁ hc₁ h2 (fun j hj => by
       have hji : j ≠ i := fun h => hiL (h ▸ hj)
       simpa [Function.update_of_ne hji] using hfit j (List.mem_cons_of_mem i hj))
@@ -681,7 +679,7 @@ private theorem tapesCode_spec (act : Action k Bool Q) :
       · simp [hji]
     refine ⟨y, (h₁.seq h₂).mono (by simp only [List.length_cons]; omega), ?_, ?_, ?_⟩
     · rw [← eT, ← eP]; exact hT₂
-    · intro d hd ht; rw [hr₂ d hd ht, hr₁ d (by reg_ne) (by reg_ne) ht]
+    · intro d hd ht; rw [hr₂ d hd ht, hr₁ d (by fin_index) (by fin_index) ht]
     · intro b hb; rw [hm₂ b hb, hm₁ b hb]
 
 private theorem TapesRel.of_eq {x y : Data (regs k)} {T : Fin k → ℤ → Option Bool} {P : Fin k → ℤ}
@@ -776,11 +774,11 @@ private theorem actionCode_spec (act : Action k Bool Q) {inp : List Bool} {c : C
   simp only [List.mem_finRange, ite_true] at hT₁
   have hc₁ : Consts inp.length m y₁ := hx.consts.of_eq fun d hd _ _ ht _ _ _ => hr₁ d hd ht
   obtain ⟨y₂, h₂, hh₂, hr₂, hm₂⟩ := headCode_spec (w := w) hc₁ (p := c.inputPos)
-    (by rw [hr₁ _ (by simp) (by reg_ne)]; exact hx.head) act.inputTape (by unfold Fits; omega)
+    (by rw [hr₁ _ (by simp) (by fin_index)]; exact hx.head) act.inputTape (by unfold Fits; omega)
   have hc₂ : Consts inp.length m y₂ := hc₁.of_eq fun d _ _ hh _ _ _ _ => hr₂ d hh
   obtain ⟨y₃, h₃, hv₃, hp₃, hr₃, hm₃⟩ := outCode_spec (x := y₂) (l := c.output)
-    (by rw [hr₂ _ (by reg_ne), hr₁ _ (by simp) (by reg_ne)]; exact hx.val)
-    (by rw [hr₂ _ (by reg_ne), hr₁ _ (by simp) (by reg_ne)]; exact hx.pow) act.output hout
+    (by rw [hr₂ _ (by fin_index), hr₁ _ (by simp) (by fin_index)]; exact hx.val)
+    (by rw [hr₂ _ (by fin_index), hr₁ _ (by simp) (by fin_index)]; exact hx.pow) act.output hout
   have hc₃ : Consts inp.length m y₃ := hc₂.of_eq fun d _ _ _ _ _ hv hp => hr₃ d hv hp
   have hst : Fits w (stateCode e act.state) := by
     have := stateCode_le e act.state; unfold Fits; omega
@@ -789,14 +787,14 @@ private theorem actionCode_spec (act : Action k Bool Q) {inp : List Bool} {c : C
       (by simp only [List.length_finRange]; omega),
     { consts := hc₃.of_eq fun d _ hs _ _ _ _ _ => by wram_simp
       state := by wram_simp; rfl
-      head := by wram_simp; rw [hr₃ _ (by reg_ne) (by reg_ne)]; exact hh₂
+      head := by wram_simp; rw [hr₃ _ (by fin_index) (by fin_index)]; exact hh₂
       val := by wram_simp; exact hv₃
       pow := by wram_simp; exact hp₃
       tapes := ?_
       input := fun j hj => ?_ }⟩
   · rw [apply_workTapes_eq]
-    exact (((hT₁.of_eq (fun d hd => hr₂ d (by reg_ne)) hm₂).of_eq
-      (fun d hd => hr₃ d (by reg_ne) (by reg_ne)) hm₃).set (by simp) _)
+    exact (((hT₁.of_eq (fun d hd => hr₂ d (by fin_index)) hm₂).of_eq
+      (fun d hd => hr₃ d (by fin_index) (by fin_index)) hm₃).set (by simp) _)
   · simp only [Data.set_mem]
     rw [hm₃, hm₂, hm₁ _ (by omega)]
     exact hx.input j hj
@@ -919,7 +917,7 @@ theorem stepCode_spec (δ : Q → Option Bool → (Fin k → Option Bool) → Ac
       (fun x₂ hx₂ => actionCode_spec _ hx₂ hfit hbound hout) k le_rfl _
       (fun i hi => absurd i.isLt (by omega)) x₁ hx₁).imp fun y hy => ⟨hy.1.mono (by omega), hy.2⟩)
     hx'
-  refine ⟨y, (dispatch_spec (reg := rState) (by reg_ne) (T := 13 * k + 14) (N := m) hv hlt ?_
+  refine ⟨y, (dispatch_spec (reg := rState) (by fin_index) (T := 13 * k + 14) (N := m) hv hlt ?_
     ?_).mono ?_, hS⟩
   · have : m < 2 ^ w := by omega
     omega
@@ -974,19 +972,19 @@ theorem setupCode_spec (q₀ : Q) (inp : List Bool) (hbound : inp.length + 2 * k
   have hy : ∀ d : Fin (regs k), (∀ i, d ≠ rAdr i) → d ≠ rTmp → y.regs d = x₉.regs d := hr
   exact
     { consts :=
-        { zero := by rw [hy _ (fun _ => by reg_ne) (by reg_ne), hx₉]; wram_simp [hr₀]
-          one := by rw [hy _ (fun _ => by reg_ne) (by reg_ne), hx₉]; wram_simp
-          fin := by rw [hy _ (fun _ => by reg_ne) (by reg_ne)]; exact h₉
-          states := by rw [hy _ (fun _ => by reg_ne) (by reg_ne), hx₉]; wram_simp
-          stride := by rw [hy _ (fun _ => by reg_ne) (by reg_ne), hx₉]; wram_simp
-          lim := by rw [hy _ (fun _ => by reg_ne) (by reg_ne), hx₉]; wram_simp; rfl }
-      state := by rw [hy _ (fun _ => by reg_ne) (by reg_ne), hx₉]; wram_simp; rfl
-      head := by rw [hy _ (fun _ => by reg_ne) (by reg_ne), hx₉]; wram_simp; simp [Cfg.init]
-      val := by rw [hy _ (fun _ => by reg_ne) (by reg_ne), hx₉]; wram_simp [hr₀]; rfl
-      pow := by rw [hy _ (fun _ => by reg_ne) (by reg_ne), hx₉]; wram_simp; rfl
+        { zero := by rw [hy _ (by fin_index) (by fin_index), hx₉]; wram_simp [hr₀]
+          one := by rw [hy _ (by fin_index) (by fin_index), hx₉]; wram_simp
+          fin := by rw [hy _ (by fin_index) (by fin_index)]; exact h₉
+          states := by rw [hy _ (by fin_index) (by fin_index), hx₉]; wram_simp
+          stride := by rw [hy _ (by fin_index) (by fin_index), hx₉]; wram_simp
+          lim := by rw [hy _ (by fin_index) (by fin_index), hx₉]; wram_simp; rfl }
+      state := by rw [hy _ (by fin_index) (by fin_index), hx₉]; wram_simp; rfl
+      head := by rw [hy _ (by fin_index) (by fin_index), hx₉]; wram_simp; simp [Cfg.init]
+      val := by rw [hy _ (by fin_index) (by fin_index), hx₉]; wram_simp [hr₀]; rfl
+      pow := by rw [hy _ (by fin_index) (by fin_index), hx₉]; wram_simp; rfl
       tapes :=
         { sgn := fun i => by
-            rw [hy _ (fun _ => by reg_ne) (by reg_ne), hx₉]; wram_simp [hr₀]; simp [sgnOf]
+            rw [hy _ (by fin_index) (by fin_index), hx₉]; wram_simp [hr₀]; simp [sgnOf]
           adr := fun i => by
             rw [ha i]; simp [tapeAddr, magOf, sgnOf, n]
           tape := fun i z => by

@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Complexity.Classes.Inclusions
 import CslibFrontier.Computability.Complexity.Classes.Ladner
 import CslibFrontier.Computability.Complexity.Classes.ZPP
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 
 /-! The parametric time classes and their polynomial unions, exponential time, `ZPP`, and the
 inclusions between the standard classes, with concrete members witnessing that the classes are
@@ -75,7 +75,7 @@ example :
 zero-error condition is satisfiable. -/
 theorem univ_mem_ZPP : (Set.univ : Set (List Bool)) ∈ ZPP encBits :=
   ⟨0, fun _ => some true, .const _, fun a => ⟨fun _ _ hb => by simp_all, by
-    simp only [Option.isSome_some, Finset.filter_true, Polynomial.eval_zero, pow_zero]
+    simp only [Option.isSome_some, Polynomial.eval_zero, pow_zero]
     refine le_trans (by norm_num) (Nat.mul_le_mul_left 2 (Finset.card_pos.mpr ?_))
     exact Finset.univ_nonempty⟩⟩
 

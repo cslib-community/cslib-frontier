@@ -103,14 +103,13 @@ private theorem realizes_cascadeBody_history : Realizes .exact cascadeBody
     | exact h.1.1.of_le (by have := h.1.2.1; omega)
     | exact h.1.2.2 (by assumption) (by assumption)
     | omega
-  all_goals
-    have hv := h.2
-    clear hRet hNext h
-    simp_all only [StateTransitionSpec.clientHistory, StateTransitionSpec.runClient_lift_bind',
-      StateTransitionSpec.validHistory_cons, StateTransitionSpec.validHistory_nil,
-      StateTransitionSpec.runClient_pure', StateTransitionSpec.stepFn,
-      Memory.read, Memory.write, Memory.step_read, Memory.step_write, Memory.valid,
-      ite_true, ite_false]
+  have hv := h.2
+  clear hRet hNext h
+  simp_all only [StateTransitionSpec.clientHistory, StateTransitionSpec.runClient_lift_bind',
+    StateTransitionSpec.validHistory_cons, StateTransitionSpec.validHistory_nil,
+    StateTransitionSpec.runClient_pure', StateTransitionSpec.stepFn,
+    Memory.read, Memory.write, Memory.step_read, Memory.step_write, Memory.valid,
+    ite_true, ite_false]
 
 /-- The same original cascading-cut source step, without an added source-history hypothesis.
 Its intrinsic admissibility premise supplies fitting values for the mark/count writes. -/
@@ -228,7 +227,7 @@ theorem realizes_cascade : Realizes .exact
     ext d
     rw [link_cascade_eq_boundedWhile]
   realize
-  all_goals try first
+  all_goals first
     | exact h.1.of_le (by omega)
     | exact fun _ => h.2.2
 

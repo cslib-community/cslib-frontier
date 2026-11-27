@@ -26,11 +26,14 @@ what it read (`Turing.MultiTapeTM.TransformsTapesAt`), is thus run until the inp
 * `Turing.MultiTapeTM.inputSymbolAt`: the symbol at a position of the input.
 * `Turing.MultiTapeTM.WhileInput.inputTest`: the test of the input head.
 * `Turing.MultiTapeTM.whileInput`: the loop, `tm` combined with the test.
+* `Turing.MultiTapeMachine.whileInput`: the corresponding choice-free explicit transition table.
 
 ## Main results
 
 * `Turing.MultiTapeTM.transformsTapesAt_whileInput`: a loop invariant preserved by every round
   gives a specification of `whileInput tm`, with the times of the rounds adding up.
+* `Turing.MultiTapeMachine.toTM_whileInput`: forgetting the explicit table recovers the legacy
+  loop.
 -/
 
 namespace Turing.MultiTapeTM
@@ -88,7 +91,7 @@ lemma step_check (p : Fin (input.length + 2)) (ws : Fin k → List Symbol) (out 
       wordsCfgAt input p ((inputSymbolAt input p).map fun _ => .inl tm.q₀) ws out := by
   rw [step_of_state rfl, inputSymbol_eq_inputSymbolAt]
   refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;>
-    (try simp [whileInput, combine, adaptedTr, inputTest, Action.apply, moveInputPos_zero]) <;>
+    (simp [whileInput, combine, adaptedTr, inputTest, Action.apply, moveInputPos_zero]) <;>
     rfl
 
 /-- One round: from the test with the input head on a symbol, the loop runs `tm` once and is back
@@ -190,3 +193,36 @@ public theorem transformsTapesAt_whileInput {tm : MultiTapeTM k Symbol State}
       simp
 
 end Turing.MultiTapeTM
+
+namespace Turing.MultiTapeMachine
+
+variable {k : ℕ} {Symbol State : Type}
+
+/-- Repeat an explicit table while the physical input head reads a symbol. -/
+public def whileInput (machine : MultiTapeMachine k Symbol State Empty Id) :
+    MultiTapeMachine k Symbol (State ⊕ Unit) Empty Id :=
+  ofTr (.inr ()) fun state input work =>
+    match state with
+    | .inl state =>
+      let action := Action.emptyOracleEquiv (machine.tr state input work Empty.elim)
+      { action with state := MultiTapeTM.handOver () action.state }
+    | .inr () =>
+      ⟨0, fun _ => (none, 0), none, input.map fun _ => .inl machine.initial⟩
+
+/-- Forgetting the explicit input loop gives the established deterministic loop. -/
+public theorem toTM_whileInput (machine : MultiTapeMachine k Symbol State Empty Id) :
+    machine.whileInput.toTM = MultiTapeTM.whileInput machine.toTM := by
+  rw [whileInput, toTM_ofTr]
+  simp only [MultiTapeTM.whileInput, MultiTapeTM.combine]
+  congr 1 with state input work : 3
+  cases state with
+  | inl state =>
+      simp only [Sum.elim_inl, MultiTapeTM.adaptedTr, MultiTapeNTM.Adapter.mapState,
+        id_eq, MultiTapeTM.tr_ofTr, toTM]
+  | inr state =>
+      obtain rfl := Subsingleton.elim state ()
+      cases input <;>
+        simp [MultiTapeTM.adaptedTr, MultiTapeNTM.Adapter.mapState,
+          MultiTapeTM.WhileInput.inputTest, MultiTapeTM.tr_ofTr, toTM]
+
+end Turing.MultiTapeMachine

@@ -73,6 +73,8 @@ universe w
 
 namespace Cslib.DataStructure.BTree
 
+open Cslib.SortedAssoc (leI)
+
 section Structure
 
 variable {α β : Type}

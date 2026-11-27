@@ -12,7 +12,6 @@ public import CslibFrontier.Computability.PCP.Approximation.LabelCover.Repetitio
 public import CslibFrontier.Computability.PCP.Encoded.Deloop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Pair
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
 

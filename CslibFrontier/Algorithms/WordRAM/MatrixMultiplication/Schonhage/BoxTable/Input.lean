@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Initialize
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Tile
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Bounds
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete initialized native box-table constructor
@@ -62,10 +63,8 @@ theorem exec_input {w L m t A B : ℕ} (a b : Fin (10 ^ L) → ℤ)
   obtain ⟨v, hv, vp, vK, vV, vcat⟩ := exec_geometry
     (L := L) (m := m) (t := t) (D := directoryBase L) u uL um ut uD
     (haddr.of_le (by unfold addressBound directoryBase; dsimp only [S] at hKS hT; omega))
-  have vA : v.regs Reg.arrayA = 4 :=
-    (hv.regs_eq (by decide : geometry.Preserves Reg.arrayA)).trans uA
-  have vB : v.regs Reg.arrayB = 4 + 10 ^ L :=
-    (hv.regs_eq (by decide : geometry.Preserves Reg.arrayB)).trans uB
+  have vA : v.regs Reg.arrayA = 4 := by regs_frame
+  have vB : v.regs Reg.arrayB = 4 + 10 ^ L := by regs_frame
   have vV' : v.regs Reg.values = valueBase L m t := vV
   have vleft (i : Fin (10 ^ L)) : v.mem (4 + i.val) = Signed.encode (a i) := by
     rw [vcat.frame _ (by have := i.isLt; omega) (by
@@ -93,12 +92,12 @@ theorem exec_input {w L m t A B : ℕ} (a b : Fin (10 ^ L) → ℤ)
     omega
   refine ⟨hi, y, he, he.bounded (Data.Bounded.init hi), ?_, ?_, ?_, ?_,
     ?_, ?_, ?_, yvalues, ?_⟩
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.levels)).trans vp.levels
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.height)).trans vp.height
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.span)).trans vp.span
-  · exact (hy.regs_eq (by decide : tile.Preserves Reg.directory)).trans vp.directory
-  · exact (yregs _ (by decide)).trans vV'
-  · exact (yregs _ (by decide)).trans vK
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
+  · regs_frame
   · intro s hs
     rw [yframe _ (by unfold valueBase recordBase; omega)]
     exact vcat.directory s hs

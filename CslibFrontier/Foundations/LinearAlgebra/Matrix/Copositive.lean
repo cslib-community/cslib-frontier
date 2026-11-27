@@ -8,6 +8,7 @@ module
 -- upstream: candidate (Mathlib, `Mathlib/LinearAlgebra/Matrix/Copositive.lean`)
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.Rat.ClearDenom
 public import Mathlib.Algebra.Order.Archimedean.Real.Basic
 public import Mathlib.Data.Matrix.Basic
 public import Mathlib.Data.Nat.Factorial.Basic
@@ -55,7 +56,7 @@ are original to this library.
 - `Matrix.exists_nonneg_dotProduct_lt_zero_iff_stdSimplex`: non-copositivity is witnessed on
   `Convexity.StdSimplex`.
 - `Matrix.dotProduct_scale_of_eq`, `Matrix.intCast_dotProduct_mulVec_nat`,
-  `Matrix.rat_clearDenom_entry`: quadratic form scaling and rational denominator clearing.
+  `Rat.clearDenom_entry`: quadratic form scaling and rational denominator clearing.
 - `Matrix.exists_nat_dotProduct_lt_zero_of_isSymm`: a non-copositive symmetric integer matrix has
   a bounded nonnegative integer certificate `p` with `p ⬝ᵥ M *ᵥ p < 0`.
 - `Matrix.isCopositive_int_real_iff_nat`: copositivity over `ℝ` and `ℕ` coincide for symmetric
@@ -173,20 +174,6 @@ theorem intCast_dotProduct_mulVec_nat {V K : Type*} [Fintype V] [Ring K]
     (((fun i => (p i : ℤ)) ⬝ᵥ (M *ᵥ fun i => (p i : ℤ)) : ℤ) : K) =
       (fun i => (p i : K)) ⬝ᵥ (M.map (Int.cast : ℤ → K) *ᵥ fun i => (p i : K)) := by
   simp only [dotProduct, mulVec, map_apply, Int.cast_sum, Int.cast_mul, Int.cast_natCast]
-
-/-- Clearing a single rational denominator by multiplying with a multiple `d` of `q.den`. -/
-theorem rat_clearDenom_entry {q : ℚ} {d : ℕ} (hdvd : q.den ∣ d) :
-    (d : ℚ) * q = ((q.num * ((d / q.den : ℕ) : ℤ) : ℤ) : ℚ) := by
-  have hden_ne : (q.den : ℚ) ≠ 0 := Nat.cast_ne_zero.2 q.pos.ne'
-  have hden_mul : ((d / q.den : ℕ) : ℚ) * (q.den : ℚ) = (d : ℚ) := by
-    exact_mod_cast Nat.div_mul_cancel hdvd
-  calc
-    (d : ℚ) * q = ((d / q.den : ℕ) : ℚ) * (q.den : ℚ) * q := by rw [hden_mul]
-    _ = ((d / q.den : ℕ) : ℚ) * ((q.den : ℚ) * (q.num / (q.den : ℚ))) := by
-          rw [Rat.num_div_den]; ring
-    _ = ((d / q.den : ℕ) : ℚ) * (q.num : ℚ) := by rw [mul_div_cancel₀ _ hden_ne]
-    _ = ((q.num * ((d / q.den : ℕ) : ℤ) : ℤ) : ℚ) := by
-          simp only [Int.cast_mul, Int.cast_natCast]; ring
 
 private theorem kkt_stationarity_on_simplex {n : ℕ} {M : Matrix (Fin n) (Fin n) ℝ}
     (hSymm : M.IsSymm) {x : Fin n → ℝ} (hx0 : ∀ i, 0 ≤ x i) (hx1 : ∑ i, x i = 1)
@@ -488,7 +475,7 @@ private theorem exists_rat_clearDenom {V : Type*} [Finite V] (M : Matrix V V ℚ
   have hMZ : ∀ i j, (d : ℚ) * M i j = (M_Z i j : ℚ) := fun i j => by
     have hdvd : (M i j).den ∣ d :=
       Finset.dvd_prod_of_mem (fun p : V × V => (M p.1 p.2).den) (Finset.mem_univ (i, j))
-    simpa only [M_Z, of_apply] using rat_clearDenom_entry hdvd
+    simpa only [M_Z, of_apply] using Rat.clearDenom_entry hdvd
   let B : ℕ := Finset.univ.sup fun p : V × V => (M_Z p.1 p.2).natAbs
   have hB : ∀ i j, |M_Z i j| ≤ (B : ℤ) := fun i j => by
     rw [← Int.natCast_natAbs (M_Z i j)]

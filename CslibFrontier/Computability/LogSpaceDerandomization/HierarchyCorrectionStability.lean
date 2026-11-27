@@ -84,7 +84,7 @@ private lemma unitMultiplier_range {k : ℕ}
       HP.toHierarchyParams.atomCutoff_le HP.ρ_nonneg HP.ρ_le_one
       HP.incomingCutoff_nonneg HP.incomingCutoff_le_one
       (fun _ => by norm_num) (fun _ => le_rfl) _ _ _ _ _ _
-  · exact ⟨le_rfl, mul_nonneg (by norm_num) (HP.Q_nonneg _)⟩
+  · exact ⟨le_rfl, by positivity⟩
 
 /-- Uniform fourth-root sensitivity to the completed pilot maximum. Only that child
 changes; this is not a raw/preparation stability theorem or a recursive accuracy claim. -/
@@ -120,7 +120,7 @@ theorem correctionRequest_maximum_root_stability
   have hdist := hγ.dist_le_mul (maximum σ y) (maximum' σ y)
   simp only [Real.dist_eq] at hdist
   exact (mul_le_mul hroot hdist (abs_nonneg _)
-    (Real.rpow_nonneg (mul_nonneg (by norm_num) (HP.Q_nonneg _)) _)).trans_eq (by ring)
+    (by positivity)).trans_eq (by ring)
 
 set_option backward.isDefEq.respectTransparency false in
 /-- Integrated actual-request root error from the pilot-maximum error on the same pairs.

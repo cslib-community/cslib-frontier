@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Exact physical normalization after a pointer-gather product
@@ -63,8 +64,7 @@ theorem exec_finish {W b I Q O M : ℕ} (x : Data 163)
   obtain ⟨s, hs, sm, sf⟩ := exec_restoreInput (n := I + 1) z zb (by simp [z]) zm hM
     (hfit.of_le (by omega))
   obtain ⟨y, hy, ym, yr, _⟩ := exec_returnOutput s
-    ((sf _ (by decide)).trans zb) ((sf _ (by decide)).trans zo)
-    ((sf _ (by decide)).trans zq) ((sf _ (by decide)).trans zm) hM
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) hM
     (hfit.of_le (by omega))
   refine ⟨y, (hz.seq (hs.seq hy)).mono (by omega), yr, ?_, ?_, ?_⟩
   · intro a ha

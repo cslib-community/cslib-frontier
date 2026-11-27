@@ -95,10 +95,10 @@ example :
 /-! ### The certificates, for a family of depths -/
 
 /-- The equality of words, as an edge test with a trivial parameter, in the calculus. -/
-private theorem exists_inO_eq : ∃ T S, ComputableTidilyInO
+private theorem exists_inO_eq : ∃ T S, ComputableInO
     (fun q : Unit × List Bool × List Bool => decide (q.2.1 = q.2.2))
     (encPair encUnit (encPair encBits encBits)) encBool T S :=
-  ⟨_, _, ComputableInO.eqWords.tidy.comp (ComputableTidilyInO.snd encUnit _)⟩
+  ⟨_, _, ComputableInO.eqWords.comp (ComputableInO.snd encUnit _)⟩
 
 -- Savitch's algorithm at depth `n`, with the width, the endpoints and the edge test fixed.
 example : ∃ T S, ComputableInO
@@ -106,11 +106,11 @@ example : ∃ T S, ComputableInO
   obtain ⟨Te, Se, hedge⟩ := exists_inO_eq
   have hin : ComputableInO (fun n : ℕ => ((), 1, n, [false], [true])) encUnary
       (encArgs encUnit) _ _ :=
-    ((ComputableTidilyInO.const ()).prod ((ComputableTidilyInO.const 1).prod
-      ((ComputableTidilyInO.of_linear (.of_eq fun _ => rfl)).prod
-        ((ComputableTidilyInO.const [false]).prod
-          (ComputableTidilyInO.const [true]))))).computableInO
-  exact ⟨_, _, computableInO_savitch (edge := fun _ u v => decide (u = v)) hedge.computableInO
+    ((ComputableInO.const ()).prod ((ComputableInO.const 1).prod
+      ((ComputableInO.of_linear (.of_eq fun _ => rfl)).prod
+        ((ComputableInO.const [false]).prod
+          (ComputableInO.const [true])))))
+  exact ⟨_, _, computableInO_savitch (edge := fun _ u v => decide (u = v)) hedge
     hin (fun _ => rfl) fun _ => rfl⟩
 
 -- The same family, in polynomial space.
@@ -121,8 +121,8 @@ example : ∃ t s, PolyBounded (fun n : ℕ => (encUnary n).length) s ∧
   have hedge : ComputableInPolyTime
       (fun q : Unit × List Bool × List Bool => decide (q.2.1 = q.2.2))
       (encPair encUnit (encPair encBits encBits)) encBool :=
-    (ComputableTidilyInDegree.eqWords.comp
-      (ComputableTidilyInDegree.snd encUnit _)).computableTidilyInPolyTime.computableInPolyTime
+    (ComputableInDegree.eqWords.comp
+      (ComputableInDegree.snd encUnit _)).computableInPolyTime
   have hin : ComputableInPolyTime (fun n : ℕ => ((), 1, n, [false], [true])) encUnary
       (encArgs encUnit) := by
     fun_prop

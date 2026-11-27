@@ -61,8 +61,6 @@ theorem syntaxCheck_iff (φ : CNF ℕ) :
 @[fun_prop]
 theorem computableInPolyTime_syntaxCheck :
     ComputableInPolyTime syntaxCheck encCNF encBool := by
-  unfold syntaxCheck encCNF
-  simp only [List.count_eq_countP]
-  fun_prop
+  fun_prop [syntaxCheck]
 
 end Cslib.Complexity.ThreeSATThree

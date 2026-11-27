@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
+import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Computability.Probabilistic.Retry
 import CslibFrontier.Probability.BitString.List
@@ -11,6 +14,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import Mathlib.Logic.Relation
 
 /-! Adaptive closed programs, invariant-based resource proofs and independent saved blocks. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.AdaptivePPT
 
@@ -72,6 +77,10 @@ example : IsPPTOn encUnary encBits (fun n => OracleComp.iterate (n * n) grow [])
   have hgrowth := grow_length
   ppt
 
+-- The plain rule accepts an existing polynomial-time count without a tidy conversion.
+example : IsPPTOn encUnary encBits (fun n => OracleComp.iterate (n * n) grow []) :=
+  IsPPTOn.iterate_of_bounded_growth (by fun_prop) (.const []) grow_ppt grow_length
+
 -- A polynomial iteration count alone cannot certify an exponentially growing output.
 example : True := by
   fail_if_success
@@ -118,7 +127,7 @@ example (neighbor : List Bool → Bool → List Bool)
     let bit ← ProbComp.uniform Bool
     return neighbor state bit
   have hstep : IsPPTOn encBits encBits step := by dsimp only [step]; ppt
-  exact IsPPTOn.iterate_spec (by fun_prop) (by fun_prop : ComputableTidilyInPolyTime id encBits _)
+  exact IsPPTOn.iterate_spec (by fun_prop) (by fun_prop : ComputableInPolyTime id encBits _)
     hstep
     (fun start _ state => state.length ≤ start.length ∧
       Relation.ReflTransGen (fun a b => ∃ bit, neighbor a bit = b) start state)

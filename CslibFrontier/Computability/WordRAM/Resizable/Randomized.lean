@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.WordRAM.Resizable.LoopDist
 import CslibFrontier.Foundations.Analysis.ENNRealTsum
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Compositional distributional execution (`ExecRCodeDist`) on the Resizable Word RAM
@@ -177,14 +178,8 @@ theorem seq_const {μ₂ : RData r → PMF (RData r)} {T₂ : RData r → ℝ≥
     (h₁ : ExecRCodeDist w c₁ x μ₁ T₁ L_peak)
     (h₂ : ∀ y ∈ μ₁.support, ExecRCodeDist w c₂ y (μ₂ y) (T₂ y) L_peak)
     (hB₂ : ∀ y ∈ μ₁.support, T₂ y ≤ B₂) :
-    ExecRCodeDist w (.seq c₁ c₂) x (μ₁.bind μ₂) (T₁ + B₂) L_peak := by
-  refine (h₁.seq h₂).mono (add_le_add le_rfl ?_)
-  calc
-    (∑' y, μ₁ y * T₂ y) ≤ ∑' y, μ₁ y * B₂ := tsum_le_tsum fun y => by
-      by_cases hy : y ∈ μ₁.support
-      · exact mul_le_mul_right (hB₂ y hy) _
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr hy, zero_mul, zero_mul]
-    _ = B₂ := by rw [ENNReal.tsum_mul_right, μ₁.tsum_coe, one_mul]
+    ExecRCodeDist w (.seq c₁ c₂) x (μ₁.bind μ₂) (T₁ + B₂) L_peak :=
+  (h₁.seq h₂).mono (add_le_add le_rfl (Cslib.Probability.PMF.tsum_mul_le_of_support μ₁ hB₂))
 
 theorem seq_pure (h₁ : ExecRCodeDist w c₁ x (PMF.pure y) T₁ L_peak)
     (h₂ : ExecRCodeDist w c₂ y μ T₂ L_peak) :
@@ -288,28 +283,23 @@ theorem RDemonicExec.le_haltedReach_assemble {w L_peak n pc v : ℕ} {c : RCode 
         mul_le_mul_right (iInf₂_le _ (hp_y k.val (Nat.lt_succ_iff.mp k.isLt))) _
     exact hsum.trans (haltedReach_le_of_rand (v := v) (d := d) hp.head hfit)
   | @seq c₁ c₂ x _ _ Q P _ _ ih₁ ih₂ =>
-    have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
-      simpa [RCode.length_assemble] using hp.append_right
+    have hc₂ := hp.seq_right
     refine LE.le.trans (le_iInf₂ fun y₁ hy₁ => ?_) (ih₁ hp.append_left)
     refine LE.le.trans (le_of_eq ?_) (ih₂ y₁ hy₁ hc₂)
     simp only [RCode.size, Nat.add_assoc]
   | @branch_pos c pos neg x _ P hc _ ih =>
-    have hbr : p[pc]? = some (.branch c (pc + neg.size + 2)) := by
-      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-    have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
-    rw [RCode.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
+    have hbr := hp.branch_head
+    have hc' := hp.branch_pos
     refine LE.le.trans (le_of_eq ?_) ((ih hc').trans
       (haltedReach_le_of_const (v := v) (d := d)
         fun _ => stepRandResizable_branch_pos (s := ⟨pc, x⟩) hbr hc))
     simp only [RCode.size, show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2)
       by omega]
   | @branch_neg c pos neg x _ P hc _ ih =>
-    have hbr : p[pc]? = some (.branch c (pc + neg.size + 2)) := by
-      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-    have hj : p[pc + 1 + neg.size]? = some (.jump (pc + neg.size + pos.size + 2)) := by
-      simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head
+    have hbr := hp.branch_head
+    have hj := hp.branch_jump
     refine LE.le.trans (le_iInf₂ fun y hy => LE.le.trans (iInf₂_le y hy) ?_)
-      ((ih hp.cons_tail.append_left).trans
+      ((ih hp.branch_neg).trans
         (haltedReach_le_of_const (v := v) (d := d)
           fun _ => stepRandResizable_branch_neg (s := ⟨pc, x⟩) hbr hc))
     simpa [RCode.size, show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2)
@@ -317,7 +307,7 @@ theorem RDemonicExec.le_haltedReach_assemble {w L_peak n pc v : ℕ} {c : RCode 
       haltedReach_le_of_const (v := v) (d := d) (s := ⟨pc + 1 + neg.size, y⟩)
         fun _ => stepRandResizable_jump (s := ⟨pc + 1 + neg.size, y⟩) hj
   | @loop_exit c body x P _ hc hp_y =>
-    have hj : p[pc + 1]? = some (.jump (pc + body.size + 3)) := hp.cons_tail.head
+    have hj := hp.loop_exit
     refine LE.le.trans ?_
       ((haltedReach_le_of_const (v := v) (d := d)
           fun _ => stepRandResizable_jump (s := ⟨pc + 1, x⟩) hj).trans
@@ -326,10 +316,8 @@ theorem RDemonicExec.le_haltedReach_assemble {w L_peak n pc v : ℕ} {c : RCode 
     refine LE.le.trans (iInf₂_le x hp_y) (le_of_eq ?_)
     simp [RCode.size, show pc + body.size + 3 = pc + (body.size + 3) by omega]
   | @loop_iter c body x _ _ Q P hc _ _ ihb ihl =>
-    have hbody_c : p.Contains (pc + 2) (body.assemble (pc + 2)) := by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-    have hj_back : p[pc + 2 + body.size]? = some (.jump pc) := by
-      simpa using hp.cons_tail.cons_tail.append_right.head
+    have hbody_c := hp.loop_body
+    have hj_back := hp.loop_back
     refine LE.le.trans (le_iInf₂ fun y hy => (ihl y hy hp).trans ?_)
       ((ihb hbody_c).trans (haltedReach_le_of_const (v := v) (d := d)
         fun _ => stepRandResizable_branch_pos (s := ⟨pc, x⟩) hp.head hc))
@@ -373,8 +361,7 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
   | mono _ hT ih => exact (ih hp N).trans (add_le_add hT le_rfl)
   | mono_peak _ _ ih => exact ih hp N
   | @seq _ c₁ c₂ x μ₁ μ₂ T₁ T₂ _ _ ih₁ ih₂ =>
-    have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
-      simpa [RCode.length_assemble] using hp.append_right
+    have hc₂ := hp.seq_right
     refine (ih₁ hp.append_left N).trans ?_
     have hstep : (∑' y, μ₁ y * supExpectedStepsWithin w p N (.running ⟨pc + c₁.size, y⟩)) ≤
         (∑' y, μ₁ y * T₂ y) + ∑' z, (μ₁.bind μ₂) z *
@@ -382,11 +369,8 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
       calc
         (∑' y, μ₁ y * supExpectedStepsWithin w p N (.running ⟨pc + c₁.size, y⟩))
           ≤ ∑' y, μ₁ y * (T₂ y + ∑' z, (μ₂ y) z *
-              supExpectedStepsWithin w p N (.running ⟨pc + c₁.size + c₂.size, z⟩)) := by
-            refine tsum_le_tsum fun y => ?_
-            by_cases hy : y ∈ μ₁.support
-            · exact mul_le_mul_right (ih₂ y hy hc₂ N) _
-            · rw [(PMF.apply_eq_zero_iff _ _).mpr hy, zero_mul, zero_mul]
+              supExpectedStepsWithin w p N (.running ⟨pc + c₁.size + c₂.size, z⟩)) :=
+            Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y hy => ih₂ y hy hc₂ N
         _ = (∑' y, μ₁ y * T₂ y) + ∑' y, μ₁ y * ∑' z, (μ₂ y) z *
               supExpectedStepsWithin w p N (.running ⟨pc + c₁.size + c₂.size, z⟩) := by
             simp_rw [mul_add, tsum_add]
@@ -397,10 +381,8 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
             exact (Cslib.Probability.PMF.tsum_bind_mul μ₁ μ₂ _).symm
     exact (add_le_add le_rfl hstep).trans_eq (add_assoc _ _ _).symm
   | @branch_pos _ cond pos neg x μ T hc _ ih =>
-    have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
-      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-    have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
-    rw [RCode.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
+    have hbr := hp.branch_head
+    have hc' := hp.branch_pos
     refine (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_branch_pos (s := ⟨pc, x⟩) hbr hc).trans ?_
     refine (add_le_add le_rfl (ih hc' N)).trans (le_of_eq ?_)
@@ -408,13 +390,11 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
       show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) by omega]
     ac_rfl
   | @branch_neg _ cond pos neg x μ T hc _ ih =>
-    have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
-      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-    have hj : p[pc + 1 + neg.size]? = some (.jump (pc + neg.size + pos.size + 2)) := by
-      simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head
+    have hbr := hp.branch_head
+    have hj := hp.branch_jump
     refine (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_branch_neg (s := ⟨pc, x⟩) hbr hc).trans ?_
-    refine (add_le_add le_rfl (ih hp.cons_tail.append_left N)).trans ?_
+    refine (add_le_add le_rfl (ih hp.branch_neg N)).trans ?_
     have hjump : (∑' y, μ y * supExpectedStepsWithin w p N (.running ⟨pc + 1 + neg.size, y⟩)) ≤
         1 + ∑' y, μ y *
           supExpectedStepsWithin w p N (.running ⟨pc + (neg.size + pos.size + 2), y⟩) := by
@@ -439,10 +419,8 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
           simp only [RCode.size]
           rw [show (2 : ℝ≥0∞) = 1 + 1 from one_add_one_eq_two.symm]; ac_rfl
   | @loop_iter _ cond body x μ₁ μ₂ T₁ T₂ hc _ _ ihb ihr =>
-    have hbody_c : p.Contains (pc + 2) (body.assemble (pc + 2)) := by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-    have hj_back : p[pc + 2 + body.size]? = some (.jump pc) := by
-      simpa using hp.cons_tail.cons_tail.append_right.head
+    have hbody_c := hp.loop_body
+    have hj_back := hp.loop_back
     refine (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_branch_pos (s := ⟨pc, x⟩) hp.head hc).trans ?_
     refine (add_le_add le_rfl (ihb hbody_c N)).trans ?_
@@ -452,14 +430,11 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
       calc
         (∑' y, μ₁ y * supExpectedStepsWithin w p N (.running ⟨pc + 2 + body.size, y⟩))
           ≤ ∑' y, μ₁ y * (1 + (T₂ y + ∑' z, (μ₂ y) z *
-              supExpectedStepsWithin w p N (.running ⟨pc + (RCode.loop cond body).size, z⟩))) := by
-            refine tsum_le_tsum fun y => ?_
-            by_cases hy : y ∈ μ₁.support
-            · refine mul_le_mul_right ?_ _
-              exact (supExpectedStepsWithin_le_of_const fun _ =>
+              supExpectedStepsWithin w p N (.running ⟨pc + (RCode.loop cond body).size, z⟩))) :=
+            Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y hy =>
+              (supExpectedStepsWithin_le_of_const fun _ =>
                 stepRandResizable_jump (s := ⟨pc + 2 + body.size, y⟩) hj_back).trans
                 (add_le_add le_rfl (ihr y hy hp N))
-            · rw [(PMF.apply_eq_zero_iff _ _).mpr hy, zero_mul, zero_mul]
         _ = 1 + ((∑' y, μ₁ y * T₂ y) + ∑' z, (μ₁.bind μ₂) z *
               supExpectedStepsWithin w p N (.running ⟨pc + (RCode.loop cond body).size, z⟩)) := by
             simp_rw [mul_add, tsum_add, mul_one, μ₁.tsum_coe]
@@ -475,11 +450,9 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
           rw [show (2 : ℝ≥0∞) = 1 + 1 from one_add_one_eq_two.symm]; ac_rfl
   | @loop_geometric _ cond body I Q μ_body T_body B_body p_exit x
       hp_pos hp_top _ hB hinv hp_exit _ hx_inv ih_body =>
-    have hj_exit : p[pc + 1]? = some (.jump (pc + body.size + 3)) := hp.cons_tail.head
-    have hbody_c : p.Contains (pc + 2) (body.assemble (pc + 2)) := by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-    have hj_back : p[pc + 2 + body.size]? = some (.jump pc) := by
-      simpa using hp.cons_tail.cons_tail.append_right.head
+    have hj_exit := hp.loop_exit
+    have hbody_c := hp.loop_body
+    have hj_back := hp.loop_back
     set K_cont : RData r → ℝ≥0∞ := fun y =>
       supExpectedStepsWithin w p N (.running ⟨pc + (RCode.loop cond body).size, y⟩)
     set M := (B_body + 2) / p_exit
@@ -527,12 +500,9 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
             calc
               (∑' u, μ_body z u * supExpectedStepsWithin w p n (.running ⟨pc, u⟩))
                 ≤ ∑' u, μ_body z u * ((if cond.Holds u.toData then M else 0) + 2 +
-                    ∑' y, loopExitRPMF cond μ_body u y * K_cont y) := by
-                  refine tsum_le_tsum fun u => ?_
-                  by_cases hu : u ∈ (μ_body z).support
-                  · exact mul_le_mul_right
-                      (ihn (Nat.le_of_succ_le hn) u (hinv z hIz hcz u hu)) _
-                  · rw [(PMF.apply_eq_zero_iff _ _).mpr hu, zero_mul, zero_mul]
+                    ∑' y, loopExitRPMF cond μ_body u y * K_cont y) :=
+                  Cslib.Probability.PMF.tsum_mul_mono_support (μ_body z) fun u hu =>
+                    ihn (Nat.le_of_succ_le hn) u (hinv z hIz hcz u hu)
               _ = (∑' u, μ_body z u * (if cond.Holds u.toData then M else 0)) + 2 +
                     ∑' y, loopExitRPMF cond μ_body z y * K_cont y := by
                   simp_rw [mul_add, tsum_add, ENNReal.tsum_mul_right, (μ_body z).tsum_coe,
@@ -605,38 +575,31 @@ theorem demonicSafeWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {L_boun
   | mono _ _ ih => exact ih hL_bound hp hcont
   | mono_peak hL _ ih => exact ih (hL.trans hL_bound) hp hcont
   | @seq _ c₁ c₂ x μ₁ μ₂ _ _ _ _ ih₁ ih₂ =>
-    have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
-      simpa [RCode.length_assemble] using hp.append_right
+    have hc₂ := hp.seq_right
     refine ih₁ hL_bound hp.append_left fun y₁ hy₁ => ih₂ y₁ hy₁ hL_bound hc₂ fun y₂ hy₂ => ?_
     have hmem : y₂ ∈ (μ₁.bind μ₂).support := (PMF.mem_support_bind_iff _ _ _).mpr ⟨y₁, hy₁, hy₂⟩
     simpa [RCode.size, Nat.add_assoc] using hcont y₂ hmem
   | @branch_pos _ cond pos neg x μ _ hc hpos ih =>
-    have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
-      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-    have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
-    rw [RCode.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
+    have hbr := hp.branch_head
+    have hc' := hp.branch_pos
     refine demonicSafeWithin_of_pure (hpos.frontier_le.trans hL_bound)
       (fun _ => stepRandResizable_branch_pos (s := ⟨pc, x⟩) hbr hc)
       fun _ k hk => ih hL_bound hc' fun y hy => ?_
     simpa [RCode.size, show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) by omega]
       using (hcont y hy).anti (by omega)
   | @branch_neg _ cond pos neg x μ _ hc hneg ih =>
-    have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
-      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-    have hj : p[pc + 1 + neg.size]? = some (.jump (pc + neg.size + pos.size + 2)) := by
-      simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head
+    have hbr := hp.branch_head
+    have hj := hp.branch_jump
     refine demonicSafeWithin_of_pure (hneg.frontier_le.trans hL_bound)
       (fun _ => stepRandResizable_branch_neg (s := ⟨pc, x⟩) hbr hc)
-      fun _ k hk => ih hL_bound hp.cons_tail.append_left fun y hy => ?_
+      fun _ k hk => ih hL_bound hp.branch_neg fun y hy => ?_
     refine demonicSafeWithin_of_pure (hcont y hy).frontier_le
       (fun _ => stepRandResizable_jump (s := ⟨pc + 1 + neg.size, y⟩) hj) fun _ k' hk' => ?_
     simpa [RCode.size, show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
       using (hcont y hy).anti (by omega)
   | @loop_iter _ cond body x μ₁ μ₂ _ _ hc hbody hrest ihb ihr =>
-    have hbody_c : p.Contains (pc + 2) (body.assemble (pc + 2)) := by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-    have hj_back : p[pc + 2 + body.size]? = some (.jump pc) := by
-      simpa using hp.cons_tail.cons_tail.append_right.head
+    have hbody_c := hp.loop_body
+    have hj_back := hp.loop_back
     refine demonicSafeWithin_of_pure (hbody.frontier_le.trans hL_bound)
       (fun _ => stepRandResizable_branch_pos (s := ⟨pc, x⟩) hp.head hc)
       fun _ k hk => ihb hL_bound hbody_c fun y hy => ?_
@@ -646,11 +609,9 @@ theorem demonicSafeWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {L_boun
         (hcont z ((PMF.mem_support_bind_iff _ _ _).mpr ⟨y, hy, hz⟩)).anti (by omega)
   | @loop_geometric _ cond body I Q μ_body _ _ p_exit x
       hp_pos hp_top hbody _ hinv hp_exit hfr hx_inv ih_body =>
-    have hj_exit : p[pc + 1]? = some (.jump (pc + body.size + 3)) := hp.cons_tail.head
-    have hbody_c : p.Contains (pc + 2) (body.assemble (pc + 2)) := by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-    have hj_back : p[pc + 2 + body.size]? = some (.jump pc) := by
-      simpa using hp.cons_tail.cons_tail.append_right.head
+    have hj_exit := hp.loop_exit
+    have hbody_c := hp.loop_body
+    have hj_back := hp.loop_back
     have hfr_inv : ∀ u : RData r, RLoopStateInv cond I Q u → u.frontier ≤ L_bound := by
       rintro u (⟨hcu, hIu⟩ | ⟨hcu, hQu⟩)
       · exact (hbody u hIu hcu).frontier_le.trans hL_bound
@@ -705,22 +666,17 @@ theorem le_haltedReach_assemble (h : ExecRCodeDist w c x μ T L_peak) {p : RProg
       (fun k => x.set dst k.val) (haltedReach w p v d (pc + 1))
   | mono _ _ ih | mono_peak _ _ ih => exact ih hp
   | @seq _ c₁ c₂ x μ₁ μ₂ _ _ _ _ ih₁ ih₂ =>
-    have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
-      simpa [RCode.length_assemble] using hp.append_right
+    have hc₂ := hp.seq_right
     have hbind : (∑' y, (μ₁.bind μ₂) y * haltedReach w p v d (pc + (c₁.seq c₂).size) y) =
         ∑' y₁, μ₁ y₁ * ∑' y, (μ₂ y₁) y * haltedReach w p v d (pc + c₁.size + c₂.size) y := by
       simp only [RCode.size, Nat.add_assoc]
       exact Cslib.Probability.PMF.tsum_bind_mul μ₁ μ₂ _
     rw [hbind]
-    refine LE.le.trans (tsum_le_tsum fun y₁ => ?_) (ih₁ hp.append_left)
-    by_cases hy₁ : y₁ ∈ μ₁.support
-    · exact mul_le_mul_right (ih₂ y₁ hy₁ hc₂) _
-    · rw [(PMF.apply_eq_zero_iff _ _).mpr hy₁, zero_mul, zero_mul]
+    exact (Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y₁ hy₁ => ih₂ y₁ hy₁ hc₂).trans
+      (ih₁ hp.append_left)
   | @branch_pos _ cond pos neg x μ _ hc _ ih =>
-    have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
-      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-    have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
-    rw [RCode.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
+    have hbr := hp.branch_head
+    have hc' := hp.branch_pos
     refine LE.le.trans (le_of_eq ?_) ((ih hc').trans
       (haltedReach_le_of_const (v := v) (d := d)
         fun _ => stepRandResizable_branch_pos (s := ⟨pc, x⟩) hbr hc))
@@ -728,10 +684,8 @@ theorem le_haltedReach_assemble (h : ExecRCodeDist w c x μ T L_peak) {p : RProg
       simp [RCode.size, show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2)
         by omega]
   | @branch_neg _ cond pos neg x μ _ hc _ ih =>
-    have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
-      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-    have hj : p[pc + 1 + neg.size]? = some (.jump (pc + neg.size + pos.size + 2)) := by
-      simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head
+    have hbr := hp.branch_head
+    have hj := hp.branch_jump
     have hstep_sum :
         (∑' y, μ y * haltedReach w p v d (pc + (RCode.branch cond pos neg).size) y) ≤
           ∑' y, μ y * haltedReach w p v d (pc + 1 + neg.size) y := by
@@ -739,30 +693,24 @@ theorem le_haltedReach_assemble (h : ExecRCodeDist w c x μ T L_peak) {p : RProg
       simpa [RCode.size, show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2)
         by omega] using haltedReach_le_of_const (v := v) (d := d) fun _ =>
           stepRandResizable_jump (s := ⟨pc + 1 + neg.size, y⟩) hj
-    exact hstep_sum.trans ((ih hp.cons_tail.append_left).trans
+    exact hstep_sum.trans ((ih hp.branch_neg).trans
       (haltedReach_le_of_const (v := v) (d := d)
         fun _ => stepRandResizable_branch_neg (s := ⟨pc, x⟩) hbr hc))
   | @loop_iter _ cond body x μ₁ μ₂ _ _ hc _ _ ihb ihr =>
-    have hbody_c : p.Contains (pc + 2) (body.assemble (pc + 2)) := by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-    have hj_back : p[pc + 2 + body.size]? = some (.jump pc) := by
-      simpa using hp.cons_tail.cons_tail.append_right.head
+    have hbody_c := hp.loop_body
+    have hj_back := hp.loop_back
     rw [Cslib.Probability.PMF.tsum_bind_mul μ₁ μ₂ _]
-    refine LE.le.trans (tsum_le_tsum fun y₁ => ?_)
+    exact (Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y₁ hy₁ =>
+      (ihr y₁ hy₁ hp).trans
+        (haltedReach_le_of_const (v := v) (d := d)
+          fun _ => stepRandResizable_jump (s := ⟨pc + 2 + body.size, y₁⟩) hj_back)).trans
       ((ihb hbody_c).trans (haltedReach_le_of_const (v := v) (d := d)
         fun _ => stepRandResizable_branch_pos (s := ⟨pc, x⟩) hp.head hc))
-    by_cases hy₁ : y₁ ∈ μ₁.support
-    · exact mul_le_mul_right ((ihr y₁ hy₁ hp).trans
-        (haltedReach_le_of_const (v := v) (d := d)
-          fun _ => stepRandResizable_jump (s := ⟨pc + 2 + body.size, y₁⟩) hj_back)) _
-    · rw [(PMF.apply_eq_zero_iff _ _).mpr hy₁, zero_mul, zero_mul]
   | @loop_geometric _ cond body I Q μ_body _ _ p_exit x
       hp_pos hp_top _ _ hinv hp_exit _ hx_inv ih_body =>
-    have hj_exit : p[pc + 1]? = some (.jump (pc + body.size + 3)) := hp.cons_tail.head
-    have hbody_c : p.Contains (pc + 2) (body.assemble (pc + 2)) := by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-    have hj_back : p[pc + 2 + body.size]? = some (.jump pc) := by
-      simpa using hp.cons_tail.cons_tail.append_right.head
+    have hj_exit := hp.loop_exit
+    have hbody_c := hp.loop_body
+    have hj_back := hp.loop_back
     set H_loop : RData r → ℝ≥0∞ := haltedReach w p v d pc
     set H_exit : RData r → ℝ≥0∞ := haltedReach w p v d (pc + (RCode.loop cond body).size)
     have hexit_le : ∀ z : RData r, ¬cond.Holds z.toData → H_exit z ≤ H_loop z := fun z hcz => by
@@ -792,10 +740,8 @@ theorem le_haltedReach_assemble (h : ExecRCodeDist w c x μ T L_peak) {p : RProg
         rcases hz_inv with ⟨hcz, hIz⟩ | ⟨hcz, _⟩
         · rw [loopIterRPMF_succ, loopStepRPMF_of_holds hcz,
             Cslib.Probability.PMF.tsum_bind_mul (μ_body z) (loopIterRPMF cond μ_body K) H_loop]
-          refine LE.le.trans (tsum_le_tsum fun u => ?_) (hstep_le z hIz hcz)
-          by_cases hu : u ∈ (μ_body z).support
-          · exact mul_le_mul_right (ihK u (hinv z hIz hcz u hu)) _
-          · rw [(PMF.apply_eq_zero_iff _ _).mpr hu, zero_mul, zero_mul]
+          exact (Cslib.Probability.PMF.tsum_mul_mono_support (μ_body z) fun u hu =>
+            ihK u (hinv z hIz hcz u hu)).trans (hstep_le z hIz hcz)
         · rw [loopIterRPMF_of_not_holds hcz,
             tsum_eq_single z (fun y hy => by simp [PMF.pure_apply, hy])]
           simp

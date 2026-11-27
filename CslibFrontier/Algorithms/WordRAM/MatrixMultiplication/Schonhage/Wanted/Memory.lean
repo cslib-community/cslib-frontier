@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.Route
 public import CslibFrontier.Algorithms.Sorting.Counting
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Concrete memory layout of native wanted-query grouping
@@ -98,26 +99,13 @@ def parameterRegisters : Finset (Fin 96) :=
 /-- Persistent scalar contracts survive preservation of their concrete registers. -/
 theorem Parameters.reframe {L m N Q : ℕ} {x y : Data 96} (hx : Parameters L m N Q x)
     (h : ∀ i ∈ parameterRegisters, y.regs i = x.regs i) : Parameters L m N Q y := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact ⟨(h _ (by decide)).trans hx.tables.levels,
-      (h _ (by decide)).trans hx.tables.inner, (h _ (by decide)).trans hx.tables.masks,
-      (h _ (by decide)).trans hx.tables.inverse, (h _ (by decide)).trans hx.tables.table,
-      (h _ (by decide)).trans hx.tables.square, (h _ (by decide)).trans hx.tables.zero,
-      (h _ (by decide)).trans hx.tables.one, (h _ (by decide)).trans hx.tables.two⟩
-  · exact ⟨(h _ (by decide)).trans hx.route.levels,
-      (h _ (by decide)).trans hx.route.outerSize, (h _ (by decide)).trans hx.route.root,
-      (h _ (by decide)).trans hx.route.bandWidth, (h _ (by decide)).trans hx.route.bands,
-      (h _ (by decide)).trans hx.route.table⟩
-  all_goals first
-    | exact (h _ (by decide)).trans hx.queries
-    | exact (h _ (by decide)).trans hx.queryCount
-    | exact (h _ (by decide)).trans hx.counts
-    | exact (h _ (by decide)).trans hx.offsets
-    | exact (h _ (by decide)).trans hx.cursors
-    | exact (h _ (by decide)).trans hx.codes
-    | exact (h _ (by decide)).trans hx.originals
-    | exact (h _ (by decide)).trans hx.tileCount
-    | exact (h _ (by decide)).trans hx.inputEnd
-    | exact (h _ (by decide)).trans hx.memoryEnd
+  regs_frame
+
+/-- Persistent scalar contracts survive any bounded execution that syntactically preserves
+`parameterRegisters`. -/
+theorem Parameters.of_exec {w T L m N Q : ℕ} {c : Code .standard 96} {x y : Data 96}
+    (hx : Parameters L m N Q x) (he : ExecWithin w c x y T)
+    (hc : ∀ i ∈ parameterRegisters, c.Preserves i) : Parameters L m N Q y :=
+  hx.reframe fun i hi => he.regs_eq (hc i hi)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

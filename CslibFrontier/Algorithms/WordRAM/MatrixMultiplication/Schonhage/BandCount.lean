@@ -37,10 +37,9 @@ theorem exec_countMasks {w : ℕ} (L m : ℕ) (x : Data 96)
       y.regs count = K L m ∧ y.regs mask = 2 ^ L ∧ y.mem = x.mem ∧
       (∀ i, i ≠ mask → i ≠ count → i ≠ residue → i ≠ population → i ≠ counter →
         i ≠ digit → y.regs i = x.regs i) := by
-  have h0 : Fits w 0 := hfit.of_le (by omega)
   let start := (x.set mask 0).set count 0
   have hs : ExecWithin (B := .standard) w (ram[ mask ← #0; count ← #0 ]) x start 2 := by
-    ram_eval [start, h0, mask, count, Fin.mk.injEq]
+    ram_eval [start, mask, count, Fin.mk.injEq]
   let P (j : ℕ) (y : Data 96) : Prop :=
     y.mem = x.mem ∧ y.regs levels = L ∧ y.regs inner = m ∧ y.regs masks = 2 ^ L ∧
       y.regs one = 1 ∧ y.regs two = 2 ∧
@@ -54,20 +53,16 @@ theorem exec_countMasks {w : ℕ} (L m : ℕ) (x : Data 96)
     obtain ⟨hmem, hL, hm, hM, h1, h2, hcount⟩ := hy
     obtain ⟨u, hu, hpop, humem, huf⟩ := exec_population L (y.regs mask) y hL rfl h1 h2
       (hfit.of_le (by omega))
-    have hul : u.regs levels = L :=
-      (huf levels (by decide) (by decide) (by decide) (by decide)).trans hL
-    have hui : u.regs inner = m :=
-      (huf inner (by decide) (by decide) (by decide) (by decide)).trans hm
-    have huM : u.regs masks = 2 ^ L :=
-      (huf masks (by decide) (by decide) (by decide) (by decide)).trans hM
-    have hu1 : u.regs one = 1 :=
-      (huf one (by decide) (by decide) (by decide) (by decide)).trans h1
-    have hu2 : u.regs two = 2 :=
-      (huf two (by decide) (by decide) (by decide) (by decide)).trans h2
-    have hut : u.regs mask = y.regs mask :=
-      huf mask (by decide) (by decide) (by decide) (by decide)
-    have huc : u.regs count = prefixCount L m (y.regs mask) :=
-      (huf count (by decide) (by decide) (by decide) (by decide)).trans hcount
+    have hureg (r : Fin 96) (h1 : r ≠ residue := by decide) (h2 : r ≠ population := by decide)
+        (h3 : r ≠ counter := by decide) (h4 : r ≠ digit := by decide) : u.regs r = y.regs r :=
+      huf r h1 h2 h3 h4
+    have hul : u.regs levels = L := (hureg levels).trans hL
+    have hui : u.regs inner = m := (hureg inner).trans hm
+    have huM : u.regs masks = 2 ^ L := (hureg masks).trans hM
+    have hu1 : u.regs one = 1 := (hureg one).trans h1
+    have hu2 : u.regs two = 2 := (hureg two).trans h2
+    have hut : u.regs mask = y.regs mask := hureg mask
+    have huc : u.regs count = prefixCount L m (y.regs mask) := (hureg count).trans hcount
     have hfnext : Fits w (y.regs mask + 1) := hfit.of_le (by omega)
     have hfc : Fits w (prefixCount L m (y.regs mask) + 1) :=
       hfit.of_le (by have := prefixCount_le L m (y.regs mask); omega)

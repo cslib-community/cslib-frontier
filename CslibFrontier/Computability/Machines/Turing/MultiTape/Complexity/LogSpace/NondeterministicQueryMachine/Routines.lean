@@ -7,16 +7,24 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNormalForm
+import CslibFrontier.Foundations.Data.Fin.Embedding
 import Mathlib.Data.List.GetD
+
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyZeroSpace
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
 
 /-!
 # Framed native routines for nondeterministic query machines
 
-The abstract state is framed on a work tape. The initializer writes the start state of the input,
-which may depend on the input. Each deterministic pass reads the input in place, performs one
-selected transition, and writes the continuation flag. Only the finalizer emits.
+The abstract state is framed on a work tape. Initialization writes the input-dependent start
+and runs the same continuation evaluator used after each pass. The initial transformation time
+is the sum of these two phases; dispatch adds one deterministic check. An initially halted state
+therefore takes no binary choice. Each deterministic pass reads the input in place, performs one
+selected transition, and writes the continuation flag. Only the finalizer emits. State framing
+and the existing common space coefficient are unchanged.
 
 ## Main definitions
 
@@ -35,12 +43,8 @@ namespace Turing.NondeterministicQueryMachine
 
 open MultiTapeTM QueryMachine.Simulation
 
-open ComputableTidilyInLinearTimeAndSpace in
-private theorem linearFlag : ComputableTidilyInLinearTimeAndSpace flagWord encBool encBits := by
-  convert (of_eq (f := id) (encIn := encBool) (encMid := encBool) fun _ => rfl).ite
-    ((const [true]).restrict _) ((const []).restrict _) using 1
-  funext c
-  cases c <;> rfl
+/-- Encode the framed optional read bit followed by the unframed binary selector. -/
+abbrev encReadChoice := encPair (encOption encBool) encBool
 
 private theorem le_of_add_le8 {a₁ a₂ a₃ a₄ a₅ a₆ a₇ : ℕ} {m : ℕ}
     (h : a₁ + a₂ + a₃ + a₄ + a₅ + a₆ + a₇ ≤ m) :
@@ -82,7 +86,8 @@ structure Routines {α σ : Type} (M : NondeterministicQueryMachine σ) (start :
   finiteI : Finite SI
   finiteP : ∀ b, Finite (SP b)
   finiteF : Finite SF
-  /-- The initialization machine. -/
+  /-- The initialization machine writes the encoded start and reuses the continuation evaluator
+  to set its halt flag before dispatch. -/
   I : MultiTapeTM k Bool SI
   /-- The pass machine selected by one nondeterministic bit. -/
   P : (b : Bool) → MultiTapeTM k Bool (SP b)
@@ -98,7 +103,7 @@ structure Routines {α σ : Type} (M : NondeterministicQueryMachine σ) (start :
   c : ℕ
   initial_spec : ∀ a, ∃ t, TransformsTapes I
     (fun inp ws => inp = enc a ∧ ws = fun _ => [])
-    (fun _ _ ws' e => ws' = boundary (start a) false ∧ e = []) t (c * S a)
+    (fun _ _ ws' e => ws' = boundary (start a) (!M.halted (start a)) ∧ e = []) t (c * S a)
   pass_spec : ∀ a s, (M.withInit (start a)).Reachable (enc a) s → ∀ choice flag, ∃ t,
     TransformsTapes (P choice)
     (fun inp ws => inp = enc a ∧ ws = boundary s flag)
@@ -115,8 +120,8 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
     (M : NondeterministicQueryMachine σ)
     (hquery : ComputableInSpace M.query encS encNat fun s => (encS s).length)
     (hnext : ComputableInSpace M.next
-      (encPair encS (encPair (encOption encBool) encBool)) encS
-      fun p => (encPair encS (encPair (encOption encBool) encBool) p).length)
+      (encPair encS encReadChoice) encS
+      fun p => (encPair encS encReadChoice p).length)
     (hhalted : ComputableInSpace M.halted encS encBool fun s => (encS s).length)
     (haccept : ComputableInSpace M.accept encS encBool fun s => (encS s).length)
     (start : α → σ) (S : α → ℕ) (hlog : ∀ a, Nat.log2 (enc a).length + 1 ≤ S a)
@@ -145,16 +150,16 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   choose TPN cPN hPN hlenPN using hpns
   obtain ⟨TC, cC, hC, -⟩ := Internal.NormalForm.space (passCont_inSpace hhalted false)
   obtain ⟨TF, cF, hF, -⟩ := Internal.NormalForm.space (passFinish_inSpace haccept false)
-  obtain ⟨cfr, hfr⟩ := ComputableTidilyInLinearTimeAndSpace.of_frame (f := id)
-    (encIn := encPass encS) (encOut := encFramed (encPass encS)) fun _ => rfl
-  obtain ⟨cuf, huf⟩ := ComputableTidilyInLinearTimeAndSpace.of_unframe (f := id)
-    (encIn := encFramed (encPass encS)) (encOut := encPass encS) fun s => by simp
-  obtain ⟨cfl, hfl⟩ := linearFlag
+  obtain ⟨cfr, hfr⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_frame (f := id)
+    (encIn := encPass encS) (encMid := encFramed (encPass encS)) fun _ => rfl
+  obtain ⟨cuf, huf⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_unframe (f := id)
+    (encIn := encFramed (encPass encS)) (encMid := encPass encS) fun s => by simp
+  obtain ⟨cfl, hfl⟩ := Internal.NormalForm.linear linear_flagWord
   obtain ⟨cI', hI'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hI
   obtain ⟨cN', hN'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hN
   obtain ⟨cF', hF'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hF huf
   obtain ⟨cPE', hPE'⟩ := ComputableTidilyInTimeAndSpace.comp_linear
-    hPE.computableTidilyInTimeAndSpace huf
+    (ComputableInTimeAndSpace.computableTidilyInTimeAndSpace hPE) huf
   have hpn₁ (b : Bool) := ComputableTidilyInTimeAndSpace.comp_linear (hPN b) huf
   choose cPN₁ hPN₁ using hpn₁
   have hpn' (b : Bool) := ComputableTidilyInTimeAndSpace.comp_linear hfr (hPN₁ b)
@@ -162,7 +167,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   obtain ⟨cC₁, hC₁⟩ := ComputableTidilyInTimeAndSpace.comp_linear hC huf
   obtain ⟨cC', hC'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfl hC₁
   obtain ⟨kI, SI, _, tmI, htmI⟩ := hI'
-  obtain ⟨kE, SE, _, tmE, htmE⟩ := hE.computableTidilyInTimeAndSpace
+  obtain ⟨kE, SE, _, tmE, htmE⟩ := (ComputableInTimeAndSpace.computableTidilyInTimeAndSpace hE)
   obtain ⟨kN, SN, _, tmN, htmN⟩ := hN'
   obtain ⟨kF, SF, _, tmF, htmF⟩ := hF'
   obtain ⟨kPE, SPE, _, tmPE, htmPE⟩ := hPE'
@@ -178,23 +183,23 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   have hVW : V ≠ W := by simp [V, W, Fin.ext_iff]
   have hNW : N ≠ W := by simp [N, W, Fin.ext_iff]
   have hVC : V ≠ C := by simp [V, C, Fin.ext_iff]
-  obtain ⟨eI, heI⟩ := exists_embedding_eq (K := m + 4) (by omega) (Fin.last kI) V
-  obtain ⟨eE, heE⟩ := exists_embedding_eq (K := m + 4) (by omega)
+  obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega) (Fin.last kI) V
+  obtain ⟨eE, heE⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega)
     (Fin.natAdd kE (0 : Fin 2)) V
-  obtain ⟨eN, heN, heN'⟩ := exists_embedding_eq₂ (K := m + 4) (by omega)
+  obtain ⟨eN, heN, heN'⟩ := Fin.exists_embedding_eq₂ (K := m + 4) (by omega)
     (i := Fin.natAdd (kN + 1) (0 : Fin 2)) (o := (Fin.last kN).castAdd 2)
     (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eF, heF⟩ := exists_embedding_eq (K := m + 4) (by omega)
+  obtain ⟨eF, heF⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega)
     (Fin.natAdd kF (0 : Fin 2)) V
-  obtain ⟨ePE, hePE⟩ := exists_embedding_eq (K := m + 4) (by omega)
+  obtain ⟨ePE, hePE⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega)
     (Fin.natAdd kPE (0 : Fin 2)) V
   have hepn (b : Bool) : ∃ e : Fin (kPN b + 1 + 2) ↪ Fin (m + 4),
       e (Fin.natAdd (kPN b + 1) (0 : Fin 2)) = V ∧
       e ((Fin.last (kPN b)).castAdd 2) = N := by
-    apply exists_embedding_eq₂ (by cases b <;> omega)
+    apply Fin.exists_embedding_eq₂ (by cases b <;> omega)
       (by simp [Fin.ext_iff]) hVN
   choose ePN hePN hePN' using hepn
-  obtain ⟨eC, heC, heC'⟩ := exists_embedding_eq₂ (K := m + 4) (by omega)
+  obtain ⟨eC, heC, heC'⟩ := Fin.exists_embedding_eq₂ (K := m + 4) (by omega)
     (i := Fin.natAdd (kC + 1) (0 : Fin 2)) (o := (Fin.last kC).castAdd 2)
     (by simp [Fin.ext_iff]) hVC
   have hk (b : Bool) :=
@@ -265,7 +270,8 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
             finiteP := fun b => by
               set_option synthInstance.maxSize 1024 in infer_instance
             finiteF := inferInstance
-            I := tmI.outputToWord.extendTapes eI
+            I := (tmI.outputToWord.extendTapes eI).seq
+              ((tmC.onWords true).extendTapes eC)
             P := fun b => passTM
               (⟨(), fun _ bit => (none, some bit)⟩ : InputReader Bool Unit)
               ((tmE.inputFromWord true).extendTapes eE) ((tmN.onWords true).extendTapes eN)
@@ -292,14 +298,22 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
     have hlen := hscan a (start a) ((M.withInit (start a)).reachable_init _) false 0
       (Nat.zero_le _)
     simp only [streamState_zero] at hlen
-    refine ⟨_, (hI₀ a).imp (fun _ _ h => h)
-      (fun _ _ _ _ _ ⟨hw, he⟩ => ⟨by simpa [B, flagWord, passTapes_nil hVC] using hw, he⟩)
-      le_rfl (le_trans ?_ (hG a (k := 10) (by omega)))⟩
+    have hcont := (hC₀ ((start a, 0, none) : PassState σ)).imp
+      (Q' := fun _ _ ws' e => ws' = B (start a) (!M.halted (start a)) ∧ e = [])
+      (fun _ _ h => h)
+      (fun _ _ _ _ hw ⟨hw', he⟩ => ⟨by rw [hw', hw]; rfl, he⟩) le_rfl le_rfl
+    refine ⟨_, ((hI₀ a).seq_eq hcont).imp (fun _ _ h => h)
+      (fun _ _ _ _ _ h => by simpa [B, passTapes] using h)
+      le_rfl (le_trans ?_ (hG a (k := 50) (by omega)))⟩
     have := hU_bounds hlen false
+    have := hU_bounds (hL1 a) false
+    have : (encBits (flagWord (passCont (M.withChoice false)
+        ((start a, 0, none) : PassState σ)))).length ≤ 1 := hflag _
     have := hsmall a
     have := hk false
     have := hcIU a
-    simp only [Function.comp_apply, id_eq, encFramed_apply, length_frame]
+    simp only [Function.comp_apply, id_eq, encFramed_apply, length_frame,
+      encBool_apply, List.length_singleton]
     omega
   · intro a s hs b flag
     let q (j : ℕ) := streamState ((s, 0, none) : PassState σ)

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Node.Initial
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Node.Correction
 import Batteries.Data.Nat.Bitwise.Lemmas
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Constant-time full-key fusion-node queries
@@ -129,8 +130,7 @@ private theorem exec_correction {w n q a : ℕ} {keys : Fin n → ℕ} (p : Node
   have hdw : d < w := (highestDiff_spec (hk j) hq hj).1
   obtain ⟨v, hev, hfv, hl, hh, hb⟩ := exec_boundaries u hq hdw hru.query_eq hpos
   have hrv := hru.frame hfv
-  have hvzero : v.regs zero = 0 :=
-    (hfv.2 zero (by decide)).trans ((hup zero (by decide) (by decide)).trans hz)
+  have hvzero : v.regs zero = 0 := by regs_frame
   obtain ⟨hlfit, hhfit⟩ := boundary_fits hq hdw
   by_cases hbit : q.testBit d = false
   · have htest : (Cond.eq (boundaryBank 9) zero).Holds v := by

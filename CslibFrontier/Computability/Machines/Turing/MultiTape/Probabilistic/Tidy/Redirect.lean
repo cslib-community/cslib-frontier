@@ -268,13 +268,6 @@ noncomputable def inputFromWord (machine : MultiTapePTM k Bool State Operation) 
   (ofDeterministic (markFlag k (some mark))).seq
     (machine.inputFromTape.seq (ofDeterministic (markFlag k none)))
 
-/-- Updating the flag tape of an appended family of tapes only changes the flag entry. -/
-private theorem update_append_flag {α : Type*} (ws₀ : Fin k → α) (a b c : α) :
-    Function.update (Fin.append ws₀ ![a, b]) (Fin.natAdd k 1) c = Fin.append ws₀ ![a, c] := by
-  rw [← Fin.append_update_right]
-  congr 1
-  simp [funext_iff]
-
 /-- Setting or erasing the flag on `Fin.natAdd k 1` in `2` deterministic steps. -/
 private theorem runFrom_markFlag (write : Option Bool)
     (WS : Fin k → ℤ → Option Bool) (vip flag : ℤ → Option Bool) (out : List Bool)
@@ -290,7 +283,8 @@ private theorem runFrom_markFlag (write : Option Bool)
   change (markFlag k write).runFrom cfg 2 = _
   rw [markFlag, runFrom_tapeEmb, hone, runFrom_markWork, embed_tapeEmb]
   refine Cfg.ext rfl rfl ?_ ?_ rfl
-  · simpa [cfg] using update_append_flag WS vip flag (Function.update flag (-1) write)
+  · simpa [cfg] using
+      MultiTapeTM.update_append_flag WS vip flag (Function.update flag (-1) write)
   · funext l
     simp [cfg, Function.update_apply]
 

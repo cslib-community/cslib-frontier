@@ -5,8 +5,8 @@ what to ask for, and how to judge the handoff. The substantial [Operator's Manua
 explains how to work in the codebase: its tactics, models, proof patterns, examples and procedures.
 Both humans and agents use that reference. You do not need an agent to follow it.
 
-The current [project instructions](../AGENTS.md) and [contribution policy](../CONTRIBUTING.md)
-govern the work. This manual explains how to use that process; it does not grant an agent
+The current [project instructions](../AGENTS.md), the policy files under `policy/` that they
+summarize, and the [contribution policy](../CONTRIBUTING.md) govern the work. This manual explains how to use that process; it does not grant an agent
 permission to merge, publish, or change another contributor's work.
 
 ## Choose the right assignment
@@ -39,9 +39,9 @@ A bounded implementation request can be as simple as:
 
 > Act as a worker on issue `<number>`. Read the current project instructions and inspect existing
 > work first. Implement `<concrete result>` with a representative checked client. Preserve the
-> intended model and hypotheses; report a narrower milestone as such. Update the affected
-> Operator's Manual sections and assess the Agent Operator's Manual. Validate the change and
-> prepare it for independent review.
+> intended model and hypotheses; report a narrower milestone as such. Update any procedure
+> page or registry the change affects. Validate the change and prepare it for independent
+> review.
 
 For an investigation, ask for a decision you can use:
 
@@ -49,8 +49,8 @@ For an investigation, ask for a decision you can use:
 > complete existing client, identify the main difficulty, and propose a bounded next step. State
 > which conclusions come from source inspection and which were checked by running Lean.
 
-For orientation, it is useful to ask an agent to summarize `AGENTS.md` for its assigned role and
-point to the relevant manual sections. Require source locations for substantive claims. The
+For orientation, it is useful to ask an agent to summarize `AGENTS.md` and the `policy/` file for
+its task, for its assigned role, and point to the relevant manual sections. Require source locations for substantive claims. The
 manuals provide a shared reference when a summary omits something or two agents disagree.
 
 ## Read a progress report
@@ -77,36 +77,112 @@ failure. The [codebase troubleshooting chapter](workflows/troubleshooting.md) ex
 Assign review to an agent that did not design or implement the change. For example:
 
 > Independently review PR `<number>` at its current revision. Read the actual definitions and
-> statements. Check the mathematical claim, API and representative client, including the model,
-> encodings, hypotheses and resource bounds. Read new and changed proofs against the rest of
+> statements. Start with each headline: quote it and compare its name, docstring, title and any
+> inventory entry with what the statement proves. For a cited result, classify every hypothesis as
+> a source-named assumption, the admitted class, a generic component the source takes as given, or
+> something else (such as a proof step or a property of an object the proof builds); for original
+> mathematics or internal infrastructure, an absent source is not a defect—check instead that it
+> is non-vacuous, genuinely reusable, accurately named for its actual hypotheses and scope, and
+> does not imply a cited endpoint was proved. Any vacuous hypothesis, or any hypothesis in the
+> last class, undisclosed deviation or stand-in presented as the cited endpoint or advertised
+> headline, blocks approval; do not offer "document it as a milestone" instead. A useful,
+> non-vacuous step honestly named (`…_of_reduction_le`, `…_of_realization`) and documented as a
+> helper—leaving the published theorem open and out of its name, title and inventory entry—is
+> permitted, and any stand-in superseded by a faithful theorem must be removed or demoted. Check
+> the mathematical claim, API and representative client, including the model, encodings,
+> hypotheses and resource bounds. Say what in the change should not exist: for each new public
+> declaration, whether it has a caller and is more than a restatement of its neighbour. For each
+> new definition or transcribed algorithm, name its first non-trivial property and say whether
+> the change proves it.
+> Check public API usability in a representative `module` client with ordinary imports of the API.
+> Read new and changed proofs against the rest of
 > their files, and report any substantial argument the change repeats that another proof or an
-> existing lemma already makes. Review the impact on both manuals and any affected
+> existing lemma already makes. Follow a representative caller: check whether named accessors,
+> matcher/range facts and generated certificates remove representation work, and compare any
+> sibling implementation or conversion bridge. Assess whether the proof strategy, invariant and
+> helper statements fit that use. Check any changed procedure page or registry and any affected
 > results-inventory entry. Report concrete findings and a verdict, stating what you checked and
-> what remains uncertain.
+> what remains uncertain. If queueing is authorized, first verify that named review holds are
+> cleared and required CI material is reviewed. Use the helper from trusted current `main` for the approved
+> PR head; do not start `--wait` while completing CI will produce material still needing review.
+
+Ask the reviewer to consider whether a different statement, API, invariant or proof strategy
+would make the result clearer to state, prove and use, while preserving its mathematical strength.
+Require inspection of the duplication notices and the declarations or proof blocks they identify;
+an advisory check's successful exit does not establish that its candidates were reviewed. Concrete
+cleanup affecting the contribution belongs in its original PR, under the
+[quality and deferral rules](../AGENTS.md#improving-library-ergonomics).
 
 Lean validation establishes the checked statements under their definitions and dependencies.
 Review must also judge whether those statements express the intended mathematics and whether
 someone can use the interface. Ask for a satisfying instance or meaningful edge case when a
 contract may be vacuous. A diff shows a new copy of an argument but not the proof it repeats,
-so ask for that comparison explicitly. An approval must cover the final revision; substantive
+so ask for that comparison explicitly. For an API cleanup, ask which actual caller became simpler
+and why; the [caller review procedure](../AGENTS.md#check-the-api-through-its-callers) gives concrete
+checks. An approval must cover the final revision; substantive
 fixes require review of the affected reasoning. Unchanged evidence can be reused after checking
 its identity.
+
+A faithful statement matters more than a milestone. Agent reviews have approved theorems that
+assumed something about their own reduction because the PR disclosed it
+([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293); in `Cslib.Crypto`,
+the advisory report of `scripts/check_security_premises.py` points a reviewer at common elaborated
+premise shapes under [security theorems](../AGENTS.md#security-theorems), fails nothing and clears
+nothing, and review owns semantic fidelity). Ask
+also which assumption a cited result rests on: the
+[assumptions inventory](programs-crypto-and-probability/assumptions.md) records whether each one
+is the source's or novel to this library, and a novel one may not stand in for the source's
+([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). When a
+report says a result landed "with limitations", ask whether the theorem is named and documented as
+a step ([faithful headlines](../AGENTS.md#faithful-headlines)) and whether the cited result is
+still open. Before a published theorem enters the [results inventory](../results/README.md), a
+reviewer from outside the authoring fleet, human or agent, checks its statement against the source
+and records the check; you can require a human check for your own fleet's entries by saying so on
+the entry's PR ([policy/review.md](../policy/review.md#review-cycle)). Judge a report by cited results: a theorem that presents one is registered
+there after that check or is worded as a step
+([the cited result is the unit of quality](../policy/statements.md#the-cited-result-is-the-unit-of-quality)),
+and a change in the number of baseline entries of the premise and reduction-witness scans is not
+progress.
 
 ## Direct a coordinator
 
 Make the scope and authority clear. A coordinator request can say:
 
 > Coordinate `<issues or PRs>`. Inspect current ownership and existing reviews before assigning
-> work. Prioritize reviewing and landing ready changes over starting more tasks. Check both
-> manuals as part of every review, including any justified no-impact assessment. Arrange
+> work. Prioritize reviewing and landing ready changes over starting more tasks. Arrange
 > non-author review for your own changes. Report what landed, remaining objectives and blockers.
 
-Reviewers with write access queue the exact heads they approve, so an approved PR does not wait for
-a coordinator ([Approve and queue](../AGENTS.md#approve-and-queue)). To keep a PR for your own
-review, say so in the PR or its linked issue: agents then approve it without queueing, and you or
-someone you name queues it. Agents without write access can prepare and review work but cannot
-queue it. Coordinators queue approved heads still waiting and monitor the merge queue through
-landing. [Coordinator duties](../AGENTS.md#coordinators) define the details.
+If you run several coordinators, name one existing coordinator the tender: it reviews, fixes and
+queues work in flight and starts no long program of its own. Its priorities, and the ceiling on
+each fleet's unfinished pull requests, are in
+[Backpressure and tending](../policy/workflow.md#backpressure-and-tending).
+
+Reviewers with write access queue the exact heads they approve using the
+[helper from trusted current main](workflows/agent-operations.md#queue-approved-work-and-keep-its-approval),
+so an approved PR does not wait for a coordinator ([Approve and queue](../AGENTS.md#approve-and-queue)).
+To keep a PR for your own review, say so in the PR or its linked issue: agents then approve it
+without queueing, and you or someone you name queues it. Agents without write access can prepare
+and review work but cannot queue it. Coordinators queue approved heads still waiting and monitor
+the merge queue through
+landing. [Coordinator duties](../AGENTS.md#coordinators) define the details. Every merge to `main`
+goes through the merge queue; an agent merges directly only when you explicitly ask for that on
+the PR concerned.
+
+An approval with review still pending is conditional. Ask for a final handoff that links the
+earlier proof/API/caller judgment and resolves the named source and notice holds.
+The queue helper's `--wait` option queues automatically when CI passes; do not start it while
+newly produced reports still need inspection. A green check alone does not release
+those holds. Updating `main` does not upgrade an already-running copy; have its owner stop an
+old waiter before replacing it after hold clearance. This needs a coverage decision, not another
+full review of unchanged code.
+
+If discussion changes after a helper starts waiting, its final reread stops that enqueue.
+Have the reviewer inspect the new or edited discussion and any holds before rerunning for the
+still-approved head; no extra approval count is required. The guard covers the PR body,
+comments, submitted reviews and inline threads, including edits and resolution changes. It does
+not inspect linked issues or prevent a change racing with the enqueue mutation. Existing queue
+entries are left in place, so coordinators still need to track review holds through landing.
+
 When the queue ejects a PR whose only conflict is in `references.bib`, the coordinator or author
 can run `python3 scripts/resolve_bib_conflict.py origin/<branch>` after `git fetch origin` to
 write the merge with `main` instead of sending the PR back. It refuses any other conflict and
@@ -122,16 +198,31 @@ When several coordinators share one host, give them a single limit on concurrent
 not only a thread count. Their builds can exhaust the kernel's file handles before its
 processors, and then everyone's builds fail
 ([diagnosis](workflows/troubleshooting.md#diagnose-too-many-open-files-in-system)).
+On Linux hosts and containers, local whole-library gates (`lake test`, `lake lint`,
+`lake exe checkInitImports`, and full `scripts/check.sh`) also need `vm.max_map_count` well above
+the stock `65530` kernel default (`262144` or higher; `python3 scripts/check_vm_map_count.py`
+checks this before full runs) so single-process whole-library imports do not fail with misleading
+`.olean` file-read errors
+([diagnosis](workflows/troubleshooting.md#diagnose-failed-to-read-file-on-whole-library-imports)).
+Have them run `scripts/check.sh --quick --no-full-fallback` during development: a change quick
+mode cannot plan is reported instead of starting a full local check that holds a build slot for
+hours, and CI on the pull request supplies the full run.
 Agents on one host also share Lake's artifact cache, which restores a module that another
-checkout built without its warnings. `scripts/check.sh` re-elaborates the changed files among
-such modules, but not their unchanged clients. When a local check and CI disagree about a
-warning, trust CI
+checkout built without its warnings. Full `scripts/check.sh` re-elaborates those built root-package
+sources; quick mode checks affected sources, including unchanged clients, built import aggregates
+and executable helpers.
+Bare Lake commands still lack this audit. When a local check and CI disagree about a warning,
+trust CI
 ([diagnosis](workflows/troubleshooting.md#diagnose-warnings-that-only-ci-reports)).
 
-The manuals are part of this workflow. Changes to library usage belong in the Operator's Manual;
-changes to roles, delegation, review or human direction may affect this Agent Operator's Manual.
-Coordinators check both against the final change. A reasoned finding of no impact is valid;
-an unchecked box or a passing build is not a usability review.
+For hosted cache optimizations, measure the merge queue and following `main` run together.
+Include Actions cache and handoff transfer costs, and distinguish a successful handoff from a
+fallback build; a faster publication stage alone does not establish a faster complete cycle
+([profiling](workflows/troubleshooting.md#profile-slow-cache-publication)).
+
+A change to roles, delegation, review or human direction updates this manual, and a change to a
+codebase procedure updates the Operator's Manual page that describes it. The Operator's Manual's
+reference chapters are frozen: agents do not update or review them.
 
 ## Correct course and hand work over
 
@@ -140,16 +231,22 @@ example cannot be followed, or the task expanded beyond the agreed scope. Ask it
 the useful work, state the remaining objective and return to a concrete next step. When two
 agents overlap, have the coordinator resolve ownership before either overwrites the other's work.
 
+Ask for a PR description that explains the setting, central idea and result to someone who has
+not followed the task. Use the [writing guidance](../AGENTS.md#writing-in-issues-and-prs)
+to judge whether the explanation gives you enough context to understand the change.
+
 For a handoff, request the issue and PR, branch and revision, actual validation, review state,
 remaining work and the next action. Put that record in the issue/PR or commit, according to the
 [durable-record rules](../AGENTS.md#durable-records). A new agent should inspect those records
-and the current source before resuming. Silence alone does not release another agent's task.
+and the current source before resuming. A claim with no open PR and no activity is released 24 hours after a notice to its owner; a PR
+awaiting review is never released by silence
+([ownership rules](../AGENTS.md#workers)). Tell an agent if you want a stricter rule for its work.
 
 To stop, specify which task or session should stop and ask for a preserved checkpoint and
 handoff. Agents should stop only processes they own. An ended session cannot promise unattended
 progress. You can resume from the recorded state with a new assignment.
 
-Both manuals are maintained with the library under
+The procedure pages of both manuals are maintained under
 [Maintaining the manuals](../CONTRIBUTING.md#maintaining-the-manuals). If an instruction here
 cannot be followed, treat that as a documentation defect for the responsible worker and
 coordinator to fix and review.

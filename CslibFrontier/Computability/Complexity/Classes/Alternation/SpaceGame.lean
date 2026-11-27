@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePr
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 import Mathlib.Data.Set.Finite.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
+import CslibFrontier.Foundations.Data.Fin.Embedding
 
 /-!
 # Word games in `APSPACE`, and `APSPACE = EXP`
@@ -107,8 +108,9 @@ theorem mem_APSPACE_of_wins_polySpace {π : Type} {encPos : π ↪ List Bool} {A
   have hNO : N ≠ O := by simp [N, O]
   have hNM : N ≠ M := by simp [N, M]
   have hOM : O ≠ M := by simp [O, M]
-  obtain ⟨eI, heI⟩ := exists_embedding_eq (show kI + 1 ≤ K by omega) (Fin.last kI) N
-  obtain ⟨eU, heUi, heUo⟩ := exists_embedding_eq₂ (show kU + 1 + 2 ≤ K by omega)
+  obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (show kI + 1 ≤ K by omega) (Fin.last kI) N
+  obtain ⟨eU, heUi, heUo⟩ := Fin.exists_embedding_eq₂
+    (show kU + 1 + 2 ≤ K by omega)
     (i := Fin.natAdd (kU + 1) 0) (o := (Fin.last kU).castAdd 2) (by simp [Fin.ext_iff]) hNO
   -- the machines
   let Pm := TI.outputToWord.extendTapes eI

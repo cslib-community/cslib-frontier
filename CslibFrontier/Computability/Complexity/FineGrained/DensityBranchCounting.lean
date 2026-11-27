@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingScale
 public import CslibFrontier.Computability.Complexity.Problems.SAT
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount
 import CslibFrontier.Computability.Complexity.FineGrained.ContractionCounting
 import CslibFrontier.Computability.Complexity.FineGrained.CountingNativeModelCount

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.PH
 public import CslibFrontier.Computability.Complexity.Classes.ParityP
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Isolation
+import CslibFrontier.Computability.Complexity.Classes.SharpP.Combinators
 import CslibFrontier.Foundations.Data.BitString.WordCount
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -75,7 +76,7 @@ pair of instance and random string.
 
 namespace Cslib.Complexity
 
-open Finset Turing.MultiTapeTM
+open Finset Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 
 namespace Toda
 
@@ -146,8 +147,18 @@ private theorem computableInPolyTime_notVerifier (ℓ ρ : Polynomial ℕ)
     {W : α × List Bool → Bool}
     (hW : ComputableInPolyTime W (encPair enc encBits) encBool) :
     ComputableInPolyTime (notVerifier enc ℓ ρ W) (encPair enc encBits) encBool := by
+  have ha := fst enc encBits
+  have hw := snd enc encBits
+  have hlen := (encoding_length enc).comp ha
+  have hn := unary_add.comp
+    (((unary_eval ℓ).comp hlen).prod ((unary_eval ρ).comp hlen))
+  have hpref := bitsTake.comp (hw.prod hn)
+  have htail := bitsDropWithInput hw hn
   unfold notVerifier succVerifier
-  fun_prop
+  apply computableInPolyTime_succTest (hw := htail)
+  exact hW.comp
+    ((ha.comp (fst _ _)).prod
+      (bitsAppend (hpref.comp (fst _ _)) (snd _ _)))
 
 /-- **Negation** adds one witness, with the same error. -/
 theorem IsRandomParityRep.not {ℓ e ρ ζ : Polynomial ℕ} {W : α × List Bool → Bool}
@@ -219,8 +230,11 @@ theorem computableInPolyTime_trialVerifier {W : α × List Bool → Bool}
     (hblock : ComputableInPolyTime block input encBits) :
     ComputableInPolyTime (fun x => trialVerifier W (a x) (u x) (r x) (M x) (level x)
       (seed x) (block x)) input encBool  := by
-  unfold trialVerifier
-  fun_prop
+  have htake := bitsTake.comp (hblock.prod hM)
+  have hdrop := bitsDropWithInput hblock hM
+  have htest := computableInPolyTime_hashesToZero hlevel hseed htake
+  exact bool_and' htest
+    (hW.comp (ha.prod (bitsAppend (bitsAppend (bitsAppend hu htake) hr) hdrop)))
 
 @[fun_prop]
 theorem computableInPolyTime_trialsVerifier {W : α × List Bool → Bool}
@@ -409,28 +423,6 @@ theorem exists_isRandomParityRep_alternation {V : α × List Bool → Bool}
         fun a u _ => ?_⟩
       simp only [List.map_cons, alternation_true_cons, List.append_assoc]
 
-/-- Padding the witnesses of length `Z` to length `N ≥ Z` with `false`s keeps their number. -/
-private theorem acceptCount_padWitness (W : α × List Bool → Bool) (a : α) (r : List Bool) {Z N : ℕ}
-    (hZN : Z ≤ N) :
-    acceptCount (fun x : (α × List Bool) × List Bool =>
-        W (x.1.1, x.1.2 ++ x.2.take Z) && !(x.2.drop Z).any fun b => b) (a, r) N =
-      acceptCount (fun x => W (x.1, r ++ x.2)) a Z := by
-  classical
-  obtain ⟨D, rfl⟩ := Nat.exists_eq_add_of_le hZN
-  rw [acceptCount_add]
-  simp only [acceptCount, Finset.card_filter]
-  refine Finset.sum_congr rfl fun u _ => ?_
-  have hlen : (List.ofFn u).length = Z := List.length_ofFn
-  simp only [List.take_left' hlen, List.drop_left' hlen, Bool.and_eq_true]
-  split
-  · rename_i hW
-    have := BitString.card_filter_not_any D
-    simp only [Finset.card_filter] at this
-    simp only [hW, true_and]
-    exact this
-  · rename_i hW
-    simp [hW]
-
 end Toda
 
 /-! ### The polynomial hierarchy -/
@@ -449,14 +441,15 @@ theorem PH_subset_BPOp_ParityP : PH enc ⊆ BPOp enc (ParityP (encPair enc encBi
     {x | Odd (acceptCount (fun y => W (y.1, x.2 ++ y.2)) x.1 (ζ.eval (enc x.1).length))} with hL'
   refine ⟨ρ, L', ?_, fun a => ?_⟩
   · -- the inner problem is in `⊕P`, after padding the witnesses
-    refine mem_ParityP.2 ⟨ζ, fun x => W (x.1.1, x.1.2 ++ x.2.take (ζ.eval (enc x.1.1).length)) &&
-      !(x.2.drop (ζ.eval (enc x.1.1).length)).any fun b => b, by fun_prop, fun x => ?_⟩
-    obtain ⟨a, r⟩ := x
-    rw [acceptCount_congr (W := fun x : (α × List Bool) × List Bool =>
-        W (x.1.1, x.1.2 ++ x.2.take (ζ.eval (enc a).length)) &&
-          !(x.2.drop (ζ.eval (enc a).length)).any fun b => b) (fun w => rfl),
-      acceptCount_padWitness W a r (Polynomial.eval_mono _ (length_le_encPair_left _ _ (a, r)))]
-    rfl
+    refine mem_ParityP.2 ⟨ζ, padVerifier (fun x => ζ.eval (enc x.1).length)
+      (fun x => W (x.1.1, x.1.2 ++ x.2)), ?_, fun x => ?_⟩
+    · apply computableInPolyTime_padVerifier
+      · exact (unary_eval ζ).comp ((encoding_length enc).comp (fst enc encBits))
+      · exact hW.comp
+          (((fst _ _).fst').prod (bitsAppend ((fst _ _).snd') (snd _ _)))
+    · rw [acceptCount_padVerifier_of_le _ _ (a := x)
+        (Polynomial.eval_mono _ (length_le_encPair_left _ _ x))]
+      rfl
   · -- error `1 / 4` is bounded error
     have ha := h a [] (by simp)
     simp only [Polynomial.eval_ofNat, List.nil_append] at ha

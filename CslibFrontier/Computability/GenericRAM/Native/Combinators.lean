@@ -40,6 +40,8 @@ combinators preserve `NativeCertificate.IsPolynomial`.
 
 ## Main results
 
+* `NativeCertificate.polyBounded_optionElim`: `PolyBounded` transfer across retained-input
+  `Option.elim` from an encoded-option length bound.
 * `NativeCertificate.linear_isPolynomial`..`NativeCertificate.iterate_isPolynomial`: polynomiality
   preservation across all certificate combinators.
 
@@ -354,6 +356,30 @@ def iterate {n : α → ℕ} {init : α → β} {step : β → β}
 theorem polyBounded_pow_of_polyBounded {size u : α → ℕ} (hu : PolyBounded size u) (c d : ℕ) :
     PolyBounded size (fun a => c * (u a + 1) ^ d) := by growth_poly
 
+/-- Eliminating an option whose encoded length is polynomially bounded preserves polynomial bounds
+across the `none` branch and the input-retaining `some` branch. -/
+theorem polyBounded_optionElim {value : α → Option β} {u : α → ℕ} {v : α × β → ℕ}
+    (hval : PolyBounded (fun a => (ei a).length) (fun a => (encOption eb (value a)).length))
+    (hu : PolyBounded (fun a => (ei a).length) u)
+    (hv : PolyBounded (fun p => (encPair ei eb p).length) v) :
+    PolyBounded (fun a => (ei a).length)
+      (fun a => (value a).elim (u a) (fun b => v (a, b))) := by
+  obtain ⟨c, d, hcd⟩ := hv.exists_le
+  have hbody : PolyBounded (fun a => (ei a).length)
+      (fun a => c * (2 * (ei a).length + (encOption eb (value a)).length + 1) ^ d) := by
+    growth_poly
+  refine (hu.add hbody).mono fun a => ?_
+  cases value a with
+  | none => exact Nat.le_add_right _ _
+  | some b =>
+    have hb := hcd (a, b)
+    have hpair : (encPair ei eb (a, b)).length =
+        2 * (ei a).length + (encOption eb (Option.some b)).length := by
+      simp only [length_encPair, encOption_some, List.length_cons]; omega
+    rw [hpair] at hb
+    simp only [Option.elim_some]
+    omega
+
 theorem linear_isPolynomial {f : α → β}
     (h : ComputableInO f ei eb (fun a => (ei a).length) (fun a => (ei a).length)) :
     (linear h).IsPolynomial :=
@@ -411,10 +437,8 @@ theorem branch_isPolynomial {condition : α → Bool} {f g : α → β}
     (test : NativeCertificate condition ei encBool)
     (yes : NativeCertificate f ei eb) (no : NativeCertificate g ei eb)
     (ht : test.IsPolynomial) (hy : yes.IsPolynomial) (hn : no.IsPolynomial) :
-    (branch test yes no).IsPolynomial := by
-  refine ⟨(ht.1.add (hy.1.add hn.1)).mono fun a => ?_,
-    (ht.2.add (hy.2.add hn.2)).mono fun a => ?_⟩ <;>
-    (simp only [branch_time, branch_space]; split <;> omega)
+    (branch test yes no).IsPolynomial :=
+  ⟨by dsimp only [branch]; growth_poly, by dsimp only [branch]; growth_poly⟩
 
 theorem option_isPolynomial {value : α → Option β} {fallback : α → γ} {body : α × β → γ}
     (c : NativeCertificate value ei (encOption eb))
@@ -422,37 +446,23 @@ theorem option_isPolynomial {value : α → Option β} {fallback : α → γ} {b
     (yes : NativeCertificate body (encPair ei eb) eo)
     (hc : c.IsPolynomial) (hno : no.IsPolynomial) (hyes : yes.IsPolynomial) :
     (option c no yes).IsPolynomial := by
-  obtain ⟨ct, dt, hyt⟩ := hyes.1.exists_le
-  obtain ⟨cs, ds, hys⟩ := hyes.2.exists_le
-  have hlen : PolyBounded (fun a => (ei a).length)
-      (fun a => 2 * (ei a).length + (encOption eb (value a)).length) := by growth_poly
-  have hbodyT : PolyBounded (fun a => (ei a).length)
-      (fun a => ct * (2 * (ei a).length + (encOption eb (value a)).length + 1) ^ dt) :=
-    polyBounded_pow_of_polyBounded hlen ct dt
-  have hbodyS : PolyBounded (fun a => (ei a).length)
-      (fun a => cs * (2 * (ei a).length + (encOption eb (value a)).length + 1) ^ ds) :=
-    polyBounded_pow_of_polyBounded hlen cs ds
-  have hpair (a : α) (b : β) : (encPair ei eb (a, b)).length =
-      2 * (ei a).length + (encOption eb (Option.some b)).length := by
-    simp; omega
-  refine ⟨((((PolyBounded.const 2).mul hc.1).add .self).add (hno.1.add hbodyT)).mono fun a => ?_,
-    ((((PolyBounded.const 2).mul hc.2).add .self).add (hno.2.add hbodyS)).mono fun a => ?_⟩
-  · simp only [option_time]
-    cases hv : value a with
-    | none => simp
-    | some b =>
-      have hb := hyt (a, b)
-      rw [hpair] at hb
-      simp only [Option.elim_some]
-      omega
-  · simp only [option_space]
-    cases hv : value a with
-    | none => simp
-    | some b =>
-      have hb := hys (a, b)
-      rw [hpair] at hb
-      simp only [Option.elim_some]
-      omega
+  have hlen := (c.polyTime hc).polyBounded_length
+  exact ⟨by dsimp only [option]; growth_poly [polyBounded_optionElim hlen hno.1 hyes.1],
+    by dsimp only [option]; growth_poly [polyBounded_optionElim hlen hno.2 hyes.2]⟩
+
+private theorem polyBounded_listMax_iterate {n : α → ℕ} {init : α → β} {step : β → β}
+    {cost : β → ℕ} {B : α → ℕ}
+    (hcost : PolyBounded (fun b => (eb b).length) cost)
+    (hB : PolyBounded (fun a => (ei a).length) B)
+    (hstate : ∀ a, ∀ j ≤ n a, (eb (step^[j] (init a))).length ≤ B a) :
+    PolyBounded (fun a => (ei a).length)
+      (fun a => listMax (fun j => cost (step^[j] (init a))) (List.range (n a + 1))) := by
+  obtain ⟨c, d, hc⟩ := hcost.exists_le
+  refine (by growth_poly : PolyBounded _ fun a => c * (B a + 1) ^ d).mono fun a =>
+    listMax_le fun j hj =>
+      (hc _).trans (Nat.mul_le_mul_left c
+        (Nat.pow_le_pow_left
+          (Nat.add_le_add_right (hstate a j (by have := List.mem_range.mp hj; omega)) 1) d))
 
 /-- Clocked iteration preserves polynomiality when the step count and reachable state lengths are
 polynomially bounded in the encoded input length. -/
@@ -465,42 +475,16 @@ theorem iterate_isPolynomial {n : α → ℕ} {init : α → β} {step : β → 
     {B : α → ℕ} (hB : PolyBounded (fun a => (ei a).length) B)
     (hstate : ∀ a, ∀ j ≤ n a, (eb (step^[j] (init a))).length ≤ B a) :
     (iterate cn cinit cstep).IsPolynomial := by
-  obtain ⟨ct, dt, hst⟩ := hcstep.1.exists_le
-  obtain ⟨cs, ds, hss⟩ := hcstep.2.exists_le
-  have hlenN : PolyBounded (fun a => (ei a).length) (fun a => (encNat (n a)).length) :=
-    (cn.polyTime hcn).polyBounded_length
-  have hlenN2 : PolyBounded (fun a => (ei a).length)
-      (fun a => 1 * ((encNat (n a)).length + 1) ^ 2) :=
-    polyBounded_pow_of_polyBounded hlenN 1 2
-  have hRT : PolyBounded (fun a => (ei a).length) (fun a => ct * (B a + 1) ^ dt) :=
-    polyBounded_pow_of_polyBounded hB ct dt
-  have hRS : PolyBounded (fun a => (ei a).length) (fun a => cs * (B a + 1) ^ ds) :=
-    polyBounded_pow_of_polyBounded hB cs ds
-  have hmaxB : ∀ a, maxStateLength eb step (n a) (init a) ≤ B a :=
-    fun a => maxStateLength_le eb step (n a) (init a) (hstate a)
-  have hmaxT : ∀ a, maxRoundTime cstep (n a) (init a) ≤ ct * (B a + 1) ^ dt :=
-    fun a => maxRoundTime_le cstep (n a) (init a) fun j hj =>
-      (hst _).trans (Nat.mul_le_mul_left ct
-        (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate a j hj) 1) dt))
-  have hmaxS : ∀ a, maxRoundSpace cstep (n a) (init a) ≤ cs * (B a + 1) ^ ds :=
-    fun a => maxRoundSpace_le cstep (n a) (init a) fun j hj =>
-      (hss _).trans (Nat.mul_le_mul_left cs
-        (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate a j hj) 1) ds))
-  refine ⟨((hcn.1.add hcinit.1).add
-      ((hn.add (.const 1)).mul ((hRT.add hB).add hlenN2))).mono fun a => ?_,
-    ((((hcn.2.add hcinit.2).add hRS).add hB).add hlenN).mono fun a => ?_⟩
-  · simp only [iterate_time, one_mul]
-    have h1 := hmaxT a
-    have h2 := hmaxB a
-    have h3 : maxRoundTime cstep (n a) (init a) + maxStateLength eb step (n a) (init a) +
-        ((encNat (n a)).length + 1) ^ 2 ≤
-        ct * (B a + 1) ^ dt + B a + ((encNat (n a)).length + 1) ^ 2 := by omega
-    have h4 := Nat.mul_le_mul_left (n a + 1) h3
-    omega
-  · simp only [iterate_space]
-    have h1 := hmaxS a
-    have h2 := hmaxB a
-    omega
+  have hmaxB : PolyBounded (fun a => (ei a).length)
+      (fun a => maxStateLength eb step (n a) (init a)) :=
+    polyBounded_listMax_iterate .self hB hstate
+  have hmaxT : PolyBounded (fun a => (ei a).length)
+      (fun a => maxRoundTime cstep (n a) (init a)) :=
+    polyBounded_listMax_iterate hcstep.1 hB hstate
+  have hmaxS : PolyBounded (fun a => (ei a).length)
+      (fun a => maxRoundSpace cstep (n a) (init a)) :=
+    polyBounded_listMax_iterate hcstep.2 hB hstate
+  exact ⟨by dsimp only [iterate]; growth_poly, by dsimp only [iterate]; growth_poly⟩
 
 end
 

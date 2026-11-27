@@ -8,14 +8,16 @@ import CslibFrontier.Computability.Complexity.Classes.P
 import CslibFrontier.Computability.Complexity.Reduction
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 import Cslib.Computability.Machines.Turing.MultiTape.Combinators.Id
 
-/-! Tidy polynomial time, `P` and `NP` against upstream plain machines, in both directions: upstream
+/-! Plain polynomial time, `P` and `NP` against upstream plain machines, in both directions:
+upstream
 machines with no tidiness or space guarantees give library certificates, and library certificates,
 including the verifier for SAT, give upstream machines within polynomial time and space. The plain
 predicate `Turing.MultiTapeTM.ComputableInPolyTime` is proved by `fun_prop` and `polytime` from
-plain hypotheses and tidy certificates, with the limits of `fun_prop` tested below. -/
+plain hypotheses, with the limits of `fun_prop` tested below. -/
 
 namespace CslibFrontierTests.PolyTimePlain
 
@@ -40,11 +42,11 @@ private def firstBit : Set (List Bool) := {w | w.headD false = true}
 private theorem firstBit_mem_P : firstBit ∈ P encBits :=
   ⟨fun w => w.headD false, by polytime, fun _ => Iff.rfl⟩
 
-/-- Upstream's copy and almost-constant machines certify library `ComputableTidilyInPolyTime` and
+/-- Upstream's copy and almost-constant machines certify library `ComputableInPolyTime` and
 `P` membership; conversely, library `P`, `polytime`, and `NP` (`SAT`) certificates yield upstream
 machines within polynomial time and space, and time bounds space linearly. -/
 example :
-    ComputableTidilyInPolyTime (id : List Bool → List Bool) encBits encBits ∧
+    ComputableInPolyTime (id : List Bool → List Bool) encBits encBits ∧
     single ∈ P encBits ∧
     (∃ t s : ℕ → ℕ, PolynomiallyBounded t ∧ PolynomiallyBounded s ∧
       DecidableInTimeAndSpace firstBit encBits (fun w => t w.length) (fun w => s w.length)) ∧
@@ -58,16 +60,27 @@ example :
           IsVerifier encCNF p V SAT) ∧
     (∃ c, ComputableInTimeAndSpace (id : List Bool → List Bool) encBits encBits
       (fun w => w.length + 1) (fun w => c * (w.length + 1) + c)) := by
-  refine ⟨ComputableInTimeAndSpace.computableTidilyInPolyTime (t := fun n => n + 1) (by fun_prop)
+  refine ⟨ComputableInTimeAndSpace.computableInPolyTime (t := fun n => n + 1) (by fun_prop)
       computableInTimeAndSpace_id,
     ?_,
     mem_P_iff_exists_decidableInTimeAndSpace.mp firstBit_mem_P,
-    ComputableTidilyInPolyTime.exists_computableInTimeAndSpaceOfLength (by polytime),
+    (by polytime : ComputableInPolyTime
+      (fun word : List Bool => word.foldl (fun reversed bit => bit :: reversed) [])
+      encBits encBits),
     mem_NP_iff_exists_computableInTimeAndSpaceOfLength.mp SAT.mem_NP,
     computableInTimeAndSpace_id.exists_space_linear⟩
   obtain ⟨c, h⟩ := exists_decidableInTimeAndSpace_single
   exact mem_P_of_decidableInTimeAndSpace (t := fun _ => c) (s := fun w => 2 ^ w.length)
     (by fun_prop) (h.mono (fun _ => le_rfl) (fun _ => Nat.zero_le _))
+
+-- Forget an actual machine's restoration guarantee; only its time clock must be polynomial.
+-- The workspace clock remains independent and need not be polynomial.
+example {α β : Type} {input : α ↪ List Bool} {output : β ↪ List Bool}
+    {f : α → β} {time : ℕ → ℕ} {space : α → ℕ}
+    (htime : PolynomiallyBounded time)
+    (h : ComputableTidilyInTimeAndSpace f input output
+      (fun a => time (input a).length) space) : ComputableInPolyTime f input output :=
+  h.computableInTimeAndSpace.computableInPolyTime htime
 
 /-! ### Plain polynomial time -/
 
@@ -80,32 +93,25 @@ projections, list lengths, negations, and `PolyTimeReducible` / `P` membership. 
 example {β γ : Type} {encB : β ↪ List Bool} {encC : γ ↪ List Bool}
     {f g : α → Bool} (hf : ComputableInPolyTime f enc encBool)
     (hg : ComputableInPolyTime g enc encBool)
-    {gtidy : α → ℕ} (hgtidy : ComputableTidilyInPolyTime gtidy enc encNat)
+    {count : α → ℕ} (hcount : ComputableInPolyTime count enc encNat)
     {fp : α → β × γ} (hfp : ComputableInPolyTime fp enc (encPair encB encC))
-    {fpt : α → β × γ} (hfpt : ComputableTidilyInPolyTime fpt enc (encPair encB encC))
     {fl : α → List ℕ} (hfl : ComputableInPolyTime fl enc (encList encNat))
-    {flt : α → List ℕ} (hflt : ComputableTidilyInPolyTime flt enc (encList encNat))
     {fnb : α → ℕ × Bool} (hfnb : ComputableInPolyTime fnb enc (encPair encNat encBool))
-    {fnbt : α → ℕ × Bool} (hfnbt : ComputableTidilyInPolyTime fnbt enc (encPair encNat encBool))
     {list : α → List Bool} (hlist : ComputableInPolyTime list enc encBits)
     {A : Set α} {B : Set β} {Bbool : Set Bool} (hBbool : Bbool ∈ P encBool) :
     ComputableInPolyTime (fun n : ℕ => List.replicate n true) encUnary encBits ∧
     ComputableInPolyTime (fun w : List Bool => w.headD false) encBits encBool ∧
-    ComputableTidilyInPolyTime (fun a => !f a) enc encBool ∧
+    ComputableInPolyTime (fun a => !f a) enc encBool ∧
     ComputableInPolyTime (id : List Bool → List Bool) encBits encBits ∧
     (∃ t s : ℕ → ℕ, PolynomiallyBounded t ∧ PolynomiallyBounded s ∧
       ComputableInTimeAndSpaceOfLength (fun w : List Bool => w.headD false) encBits encBool t s) ∧
     ComputableInPolyTime (fun a => if f a then !g a else g a) enc encBool ∧
-    ComputableInPolyTime (fun a => ((gtidy a + 1, f a).2 && f a, gtidy a)) enc
+    ComputableInPolyTime (fun a => ((count a + 1, f a).2 && f a, count a)) enc
       (encPair encBool encNat) ∧
     (ComputableInPolyTime (fun a => (fp a).1) enc encB ∧
       ComputableInPolyTime (fun a => (fp a).2) enc encC) ∧
     ComputableInPolyTime (fun a => (fl a).length) enc encUnary ∧
     ComputableInPolyTime (fun a => !(fnb a).2) enc encBool ∧
-    (ComputableInPolyTime (fun a => (fpt a).1) enc encB ∧
-      ComputableInPolyTime (fun a => (fpt a).2) enc encC) ∧
-    ComputableInPolyTime (fun a => (flt a).length) enc encUnary ∧
-    ComputableInPolyTime (fun a => !(fnbt a).2) enc encBool ∧
     ComputableInPolyTime (fun n : ℕ => n + 1) encUnary encNat ∧
     ComputableInPolyTime (fun a => (list a).foldl (fun reversed bit => bit :: reversed) [])
       enc encBits ∧
@@ -120,18 +126,18 @@ example {β γ : Type} {encB : β ↪ List Bool} {encC : γ ↪ List Bool}
       (by fun_prop) (computableInTimeAndSpace_id.mono (fun _ => le_rfl) (fun _ => Nat.zero_le _)),
     (by polytime : ComputableInPolyTime (fun w : List Bool => w.headD false) encBits encBool),
     by fun_prop, by fun_prop, ⟨by fun_prop, by fun_prop⟩, by fun_prop, by fun_prop,
-    ⟨by fun_prop, by fun_prop⟩, by fun_prop, by fun_prop, by fun_prop, by polytime,
+    by fun_prop, by polytime,
     mem_P.mpr ⟨fun w => w.headD false, by polytime, fun _ => Iff.rfl⟩,
     Iff.rfl, PolyTimeReducible.mem_P ⟨f, by fun_prop, fun _ => Iff.rfl⟩ hBbool,
     ⟨id, .id', fun _ => Iff.rfl⟩⟩
-  · rw [computableInPolyTime_iff_computableTidilyInPolyTime]; polytime
-  · rw [← computableInPolyTime_iff_computableTidilyInPolyTime]; fun_prop
+  · polytime
+  · fun_prop
 
 /-- The ordinary plain scan rule certifies the complete captured callback. Both the list and
-callback certificate remain necessary, including when they are supplied as known raw facts. -/
+callback certificate remain necessary. -/
 example {list : α → List Bool} {test : α → Bool → Bool}
-    (hlist : ComputableTidilyInPolyTime list enc encBits)
-    (htest : ComputableTidilyInPolyTime (fun p : α × Bool => test p.1 p.2) (encPair enc encBool)
+    (hlist : ComputableInPolyTime list enc encBits)
+    (htest : ComputableInPolyTime (fun p : α × Bool => test p.1 p.2) (encPair enc encBool)
       encBool)
     {f : α → Bool} (hf : ComputableInPolyTime f enc encBool) :
     ComputableInPolyTime (fun a => (list a).any (test a)) enc encBool ∧

@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomPermutation
 
 /-! Direct clients of the shared reverse switching, cache-support inequalities, and bidirectional
@@ -162,8 +163,7 @@ example (π : Equiv.Perm (Fin 4)) :
         some (π 0 + 2) := by simp
   constructor
   · simp [adaptiveBidirProg, StateT.run_bind, Probability.PMF.monad_bind_eq_bind, PMF.pure_map]
-  · simp only [bidirDedup, adaptiveBidirProg, OracleComp.interpret_bind, OracleComp.interpret_query,
-      OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure]
+  · simp only [bidirDedup, adaptiveBidirProg, interp_norm]
     change (((OracleComp.interpret (countingPMF π) (bidirDedupStep (.forward 0) [])).run 0).bind
       fun p₁ =>
         ((OracleComp.interpret (countingPMF π) (bidirDedupStep (.forward 0) p₁.1.2)).run
@@ -176,22 +176,15 @@ example (π : Equiv.Perm (Fin 4)) :
                 (bidirDedupStep (.forward p₄.1.1) p₄.1.2)).run p₄.2).bind fun p₅ =>
                 PMF.pure (((p₁.1.1, p₂.1.1, p₃.1.1, p₄.1.1, p₅.1.1), p₅.1.2), p₅.2)) = _
     rw [bidirDedupStep_forward_of_none (by rfl)]
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-      StateT.run_bind, StateT.run_pure, run_countingPMF, evalPerm_forward,
-      Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+    simp only [interp_norm, pmf_norm, run_countingPMF, evalPerm_forward]
     rw [bidirDedupStep_forward_of_some hhit_fwd]
-    simp only [OracleComp.interpret_pure, StateT.run_pure,
-      Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+    simp only [interp_norm, pmf_norm]
     rw [bidirDedupStep_inverse_of_some hhit_inv]
-    simp only [OracleComp.interpret_pure, StateT.run_pure,
-      Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+    simp only [interp_norm, pmf_norm]
     rw [bidirDedupStep_inverse_of_none hinv]
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-      StateT.run_bind, StateT.run_pure, run_countingPMF, evalPerm_inverse,
-      Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+    simp only [interp_norm, pmf_norm, run_countingPMF, evalPerm_inverse]
     rw [bidirDedupStep_forward_of_some hhit_fwd2]
-    simp only [OracleComp.interpret_pure, StateT.run_pure,
-      Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+    simp only [interp_norm, pmf_norm]
 
 /-- Exact output-distribution equality for `adaptiveBidirProg` under `evalPerm π` and under a
 uniformly random permutation on `Fin 4`, plus the `forgetfulAnswer` correspondence. -/

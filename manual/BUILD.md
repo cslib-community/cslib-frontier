@@ -34,6 +34,21 @@ the document and line. Resolve the competing content, remove the conflict marker
 the checks before building either PDF. Deliberately quoted conflict examples must be in a
 code fence; ordinary heading underlines and blockquotes remain valid Markdown.
 
+It also reports a list item directly after a paragraph line. Pandoc reads that item as more of
+the paragraph, so the PDF prints the list as running text although GitHub shows a list. Add a
+blank line before the list, or rewrap a prose line that merely starts with `-`, `+`, `*` or a
+number and a period. Items of an open list, nested ones included, need no blank line. Lists
+inside block quotes are not checked.
+
+It also reports a locator inside the label of a link into `sources.md`, such as
+`[Boneh and Shoup, Section 5.6][bs23]`. The PDF prints such a link as a citation number and drops
+its label, so the locator is lost. Write the locator after the link:
+`[Boneh and Shoup][bs23], Section 5.6`. Section, chapter, page, statement, figure, table and
+equation numbers count, spelled out or abbreviated (`Sec. 5`, `Thm. 4`) and in either case, and so
+does any bare dotted number (`CLRS 15.5`). A version written `TLS 1.3` therefore counts too: write
+it `v1.3` or put it after the link. A year, or a title word after a keyword (`Algorithm Design`),
+does not. Labels that wrap onto the next line are checked as one label.
+
 To produce the books, also install Pandoc, XeLaTeX and `pdfinfo` (Poppler).
 The main book's model diagrams require
 Graphviz (`dot`); the short agent manual does not invoke it. The TeX installation needs
@@ -100,8 +115,10 @@ remain internal anchors, and source Markdown keeps its checkout-relative links. 
 rejects links to uncommitted or locally modified repository targets: commit those targets first
 so the linked content matches the source being reviewed. Uncommitted book prose can still be
 rendered when its external source targets are committed. A successful builder exits
-zero; the full build also prints the PDF metadata. Inspect the output for missing glyphs,
-unresolved references, clipped lines and unreadable tables before distributing it.
+zero; the full build also prints the PDF metadata. The full build fails when XeTeX reports a
+character that the text or code font lacks; map that character to a math-mode command in `MATH`
+in [data/build_latex.py](data/build_latex.py). Inspect the output for unresolved references,
+clipped lines and unreadable tables before distributing it.
 
 Edit the Markdown and regenerate for maintained changes. Do not commit generated TeX, PDF,
 logs, research exports or auxiliary files. The source files and converters are sufficient to reproduce the book.
@@ -110,9 +127,8 @@ it links to the separate short manual without duplicating that manual’s conten
 link-only navigation paragraphs. The original academic paper plan remains in
 [history/paper-plan.md](history/paper-plan.md) as historical editorial context.
 
-Coordinator review must cover the impact on both manuals before integration. When either
-manual changes, check its rendered pages and retain its matching manifest when distributing
-the artifact. A shared converter change requires checking both editions. See
+When distributing a PDF, retain its matching manifest. A converter or layout change requires
+checking the rendered pages of both editions. See
 [the maintenance procedure](MAINTAINING.md) and the
 [contribution policy](../CONTRIBUTING.md#maintaining-the-manuals).
 
@@ -195,10 +211,17 @@ scripts/guide.sh
 python3 -m http.server --bind 127.0.0.1 --directory guide/.lake/build/site/html-multi
 ```
 
-The first build compiles Verso and links the guide's generator, which takes a few minutes. The
+The first build compiles Verso, which takes a few minutes. The helper checks the chapters,
+then uses `lake lean` to interpret the generator with its project options and up-to-date imports.
+This avoids compiling the imported library to native code just to render HTML; errors in Lean examples
+and chapter warnings still fail the build. For an explicitly native executable,
+`lake -d guide exe guide --output guide/.lake/build/site` remains available. The
 **API documentation** workflow publishes the guide from `main` at
 [/guide/](https://www.cslib.io/cslib-frontier/guide/). The **Guide** workflow builds pull
 requests that change the guide and uploads the pages as a `guide` artifact.
+
+Hosted jobs may reuse the [Guide dependency cache](../scripts/cache/README.md#guide-dependency-cache).
+It contains only dependency builds; the Guide's normal example and rendering checks still run.
 
 ## Regenerating research outputs
 
@@ -206,7 +229,7 @@ The historical study reports a fixed observation at `13e6a319`, dated November 2
 Its scripts are optional tools for inspecting the evidence; running them is not a prerequisite
 for reading or building either manual. Outputs default to the ignored `manual/_generated/`
 directory. Keep generated JSON, API responses, dependency copies and plots out of commits.
-The maintained chapters and [model map](model-map.md) hold the semantic account; the scripts
+The frozen reference chapters and [model map](model-map.md) hold the semantic account; the scripts
 do not reconstruct the retired detailed model ledgers or repeat their mathematical review.
 
 With Git history through the fixed revision available locally, run from the repository root:

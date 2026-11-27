@@ -245,9 +245,7 @@ theorem computableInPolyTime_cramerRows {A B : α → List (List ℤ)} {colA col
     ComputableInPolyTime
       (fun x => cramerRows (A x) (B x) (colA x) (colB x))
       encIn encIntTable := by
-  have hlen : ComputableInPolyTime (fun x => (A x).length) encIn encUnary :=
-    (length_list _).comp hA
-  exact computableInPolyTime_tabulateTable hlen hlen (by fun_prop)
+  fun_prop [cramerRows]
 
 /-- Encoding one normalized rational entry via Cramer's rule and `detRows` is polynomial-time. -/
 @[fun_prop]

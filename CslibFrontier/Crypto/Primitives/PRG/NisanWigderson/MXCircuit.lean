@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Gadgets
 public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.BitPolynomial
 import CslibFrontier.Computability.Circuit.CompositionDepth
 import CslibFrontier.Computability.Circuit.Pi
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Reading the bit-indexed polynomial design in AC⁰[2]
@@ -100,8 +101,7 @@ variable {S}
 private theorem eval_parityLiterals_castAdd (x : BitString ℓ) (k : Fin m) :
     (parityLiterals S).eval (extInterpretation (modGate 2)) x (Fin.castAdd m k) =
       parityOn (S k) x := by
-  rw [parityLiterals, Circuit.eval_comp, Circuit.eval_append, Fin.append_left,
-    Circuit.eval_wiring, Function.comp_apply, id, Circuit.eval_pi]
+  simp only [circuit_simps, parityLiterals]
   exact eval_parityOnCircuit _ _ _
 
 private theorem eval_parityLiterals_natAdd (x : BitString ℓ) (k : Fin m) :
@@ -128,15 +128,9 @@ private theorem eval_parityLiterals (x : BitString ℓ) (b : Bool) (k : Fin m) :
 private theorem size_parityLiterals : (parityLiterals S).size = m + m := by
   simp [parityLiterals]
 
+@[circuit_bound]
 private theorem depth_parityLiterals_le : (parityLiterals S).depth ≤ 2 := by
-  have h1 : ((Circuit.wiring extSignature id).append
-      (Circuit.pi fun k : Fin m =>
-        Circuit.oneGate (σ := extSignature) (.ac .not) fun _ => k)).depth ≤ 1 :=
-    (Circuit.depth_append_le _ _).trans
-      (max_le (by simp) (Circuit.depth_pi_le _ fun k => (Circuit.depth_oneGate _ _).le))
-  have h2 : (Circuit.pi fun k => parityOnCircuit (S k)).depth ≤ 1 :=
-    Circuit.depth_pi_le _ fun k => (depth_parityOnCircuit _).le
-  exact (Circuit.depth_comp_le _ _).trans (by omega)
+  circuit_bound [parityLiterals, depth_parityOnCircuit]
 
 end Literals
 
@@ -184,10 +178,7 @@ theorem size_memCircuit (j : Fin n) (v : Fin (2 ^ binaryFieldDegree n)) :
 /-- `memCircuit n ℓ j v` has depth at most `3`. -/
 theorem depth_memCircuit_le (j : Fin n) (v : Fin (2 ^ binaryFieldDegree n)) :
     (memCircuit n ℓ j v).depth ≤ 3 := by
-  have := depth_parityLiterals_le (S := expSet n ℓ j)
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_oneGate]
-  omega
+  circuit_bound [memCircuit]
 
 /-! ### The selection -/
 
@@ -241,8 +232,7 @@ private theorem eval_mxInput_mxLiteral (i : BitString ℓ)
     (c : Fin (binaryFieldDegree n)) :
     (mxInput n ℓ).eval (extInterpretation (modGate 2)) (Fin.append i z) (mxLiteral n b j c) =
       decide (parityOn (expSet n ℓ j c) i = b) := by
-  rw [mxInput, mxLiteral, Circuit.eval_append, Fin.append_left, Circuit.eval_comp,
-    Circuit.eval_wiring]
+  simp only [circuit_simps, mxInput, mxLiteral]
   have : Fin.append i z ∘ Fin.castAdd (n * 2 ^ binaryFieldDegree n) = i :=
     funext fun t => Fin.append_left _ _ t
   rw [this, eval_parityLiterals, Equiv.symm_apply_apply]
@@ -293,18 +283,9 @@ theorem size_mxCircuit_le (n ℓ : ℕ) : (mxCircuit n ℓ).size ≤ 5 * n ^ 2 :
 
 /-- **`mxCircuit n ℓ` has depth at most `4`**: parities, negations, conjunctions and
 disjunctions. -/
+@[circuit_bound]
 theorem depth_mxCircuit_le (n ℓ : ℕ) : (mxCircuit n ℓ).depth ≤ 4 := by
-  have hrows : (mxRows n).depth ≤ 1 :=
-    Circuit.depth_pi_le _ fun _ => (Circuit.depth_oneGate _ _).le
-  have hcells : (mxCells n).depth ≤ 1 :=
-    Circuit.depth_pi_le _ fun _ => (Circuit.depth_oneGate _ _).le
-  have hinput : (mxInput n ℓ).depth ≤ 2 := by
-    refine (Circuit.depth_append_le _ _).trans (max_le ?_ (by simp))
-    refine (Circuit.depth_comp_le _ _).trans ?_
-    rw [Circuit.depth_wiring, add_zero]
-    exact depth_parityLiterals_le
-  have := Circuit.depth_comp_le (mxCells n) (mxInput n ℓ)
-  exact (Circuit.depth_comp_le _ _).trans (by omega)
+  circuit_bound [mxCircuit, mxRows, mxCells, mxInput]
 
 end Selection
 

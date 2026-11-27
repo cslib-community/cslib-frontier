@@ -50,12 +50,16 @@ def treeStepCode (p w : ℕ) (c : List (Op × List ℕ) × List ℕ) :
 
 private theorem treeStepCode_eq (h : ℕ) :
     treeStepCode (2 ^ h) (h + 1) (tree h).code = (tree (h + 1)).code := by
-  have hl : (Circuit.wiring signature (leftWire h)).code = ([], List.range (2 ^ h)) := by
-    simpa using Circuit.code_wiring_eq_map (σ := signature) (f := leftWire h)
+  let fL : Fin (2 ^ h) → Fin (2 ^ (h + 1)) := fun i =>
+    (Fin.castAdd (2 ^ h) i).cast (by rw [pow_succ, Nat.mul_two])
+  let fR : Fin (2 ^ h) → Fin (2 ^ (h + 1)) := fun i =>
+    (Fin.natAdd (2 ^ h) i).cast (by rw [pow_succ, Nat.mul_two])
+  have hl : (Circuit.wiring signature fL).code = ([], List.range (2 ^ h)) := by
+    simpa using Circuit.code_wiring_eq_map (σ := signature) (f := fL)
       (g := id) (fun _ => rfl)
-  have hr : (Circuit.wiring signature (rightWire h)).code =
+  have hr : (Circuit.wiring signature fR).code =
       ([], (List.range (2 ^ h)).map (fun i => 2 ^ h + i)) :=
-    Circuit.code_wiring_eq_map (σ := signature) (f := rightWire h)
+    Circuit.code_wiring_eq_map (σ := signature) (f := fR)
       (g := fun i => 2 ^ h + i) (fun _ => rfl)
   rw [tree, ← compCode_code, ← appendCode_code, ← appendCode_code,
     ← compCode_code, ← compCode_code, hl, hr]

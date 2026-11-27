@@ -155,10 +155,9 @@ theorem cost_bsRounds {T : Type} [AddMonoid T] (oracle : {ι : Type} → Q ι �
       Matrix I I (MinTropical (WithTop ℤ)) → FreeM Q (I → I → Bool)}
     {A B : Matrix I I (MinTropical (WithTop ℤ))} {τ : T}
     (happnt : ∀ C, (apnt A B C).cost oracle weight = τ) :
-    ∀ (r : ℕ) (s : I → I → ℤ × ℤ), (bsRounds apnt A B r s).cost oracle weight = r • τ
-  | 0, s => by simp [bsRounds]
-  | r + 1, s => by
-    rw [bsRounds, FreeM.cost_bind, _root_.succ_nsmul', happnt, cost_bsRounds oracle weight happnt r]
+    ∀ (r : ℕ) (s : I → I → ℤ × ℤ), (bsRounds apnt A B r s).cost oracle weight = r • τ := by
+  intro r s
+  fun_induction bsRounds apnt A B r s <;> simp_all [_root_.succ_nsmul']
 
 end NegTri
 

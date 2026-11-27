@@ -24,9 +24,8 @@ multilinear representation. Its *total degree* `BitString.totalDegree f` is the 
 that agrees with `f` on the cube.
 
 Over a field `F` in which `2` is invertible, the characters `chi F S` and the monomials of at most
-`D` coordinates span the same functions (`BitString.chi_mem_lowDegree`,
-`BitString.lowDegree_le_signSpan`). Over `ℝ`, low degree is therefore the vanishing of the Fourier
-coefficients on sets of more than `D` coordinates
+`D` coordinates span the same functions (`BitString.lowDegree_eq_signSpan`). Over `ℝ`, low degree
+is therefore the vanishing of the Fourier coefficients on sets of more than `D` coordinates
 (`BitString.mem_lowDegree_iff_fourierCoeff_eq_zero`), and the total degree is the largest size of a
 set with a nonzero Fourier coefficient (`BitString.totalDegree_le_iff_fourierCoeff_eq_zero`,
 `BitString.exists_card_eq_totalDegree_fourierCoeff_ne_zero`) [NisanSzegedy1994], [ODonnell2014].
@@ -38,9 +37,9 @@ set with a nonzero Fourier coefficient (`BitString.totalDegree_le_iff_fourierCoe
 
 ## Main results
 
-* `Cslib.BitString.chi_mem_lowDegree`, `Cslib.BitString.lowDegree_le_signSpan`: characters of at
-  most `H` coordinates and monomials of at most `H` coordinates span the same space when `2` is
-  invertible.
+* `Cslib.BitString.chi_mem_lowDegree`, `Cslib.BitString.lowDegree_le_signSpan`,
+  `Cslib.BitString.lowDegree_eq_signSpan`: characters of at most `H` coordinates and monomials of
+  at most `H` coordinates span the same space when `2` is invertible.
 * `Cslib.BitString.totalDegree_le_iff_mem_lowDegree`: over finitely many coordinates, the total
   degree is the least `D` with `f ∈ lowDegree R ι D`.
 * `Cslib.BitString.mem_lowDegree_iff_fourierCoeff_eq_zero`: over `ℝ`, low degree is the vanishing
@@ -117,6 +116,15 @@ theorem lowDegree_le_signSpan [Invertible (2 : F)] (H : ℕ) :
   rw [lowDegree, Submodule.span_le]
   rintro _ ⟨S, hS, rfl⟩
   exact signSpan_mono hS (monomial_mem_signSpan S)
+
+/-- **Degree in the `±1` basis.** When `2` is invertible in `F`, the functions of degree at most
+`H` are exactly the linear combinations of the characters `chi F S = ∏ i ∈ S, (-1) ^ xᵢ` with
+`#S ≤ H`. -/
+theorem lowDegree_eq_signSpan [Invertible (2 : F)] (H : ℕ) :
+    lowDegree F ι H = signSpan F ι H :=
+  le_antisymm (lowDegree_le_signSpan H) <| Submodule.span_le.2 <| by
+    rintro _ ⟨S, hS, rfl⟩
+    exact lowDegree_mono hS (chi_mem_lowDegree S)
 
 end SignSpan
 

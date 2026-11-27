@@ -69,7 +69,8 @@ noncomputable def tidyComp (tm₂ : MultiTapePTM k₂ Bool State₂ Operation)
   ((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.extendTapes
       Fin.castSuccEmb).seq
     (((tm₂.extendTapes (Fin.castLEEmb (le_max_right k₁ k₂))).inputFromWord mark).seq
-      (ofDeterministic ((clearWork Bool).extendTapes (tapeEmb (Fin.natAdd (max k₁ k₂) 0)))))
+      (ofDeterministic ((MultiTapeTM.clearWork Bool).extendTapes
+        (tapeEmb (Fin.natAdd (max k₁ k₂) 0)))))
 
 /-- If `tm₁` computes `prog₁` tidily on `x` in `t₁` steps with outputs of length at most `l`, and
 `tm₂` computes `prog₂ w` tidily on every supported output `w` of `prog₁` in `t₂` steps, then
@@ -125,7 +126,7 @@ theorem ComputesTidily.comp_of_le {tm₁ : MultiTapePTM k₁ Bool State₁ Opera
       (s s' : OracleState),
       (w, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support →
       (((tm₂.extendTapes (Fin.castLEEmb (le_max_right k₁ k₂))).inputFromWord mark).seq
-        (ofDeterministic ((clearWork Bool).extendTapes (tapeEmb A)))).RunsWords
+        (ofDeterministic ((MultiTapeTM.clearWork Bool).extendTapes (tapeEmb A)))).RunsWords
         x (Function.update (fun _ => []) A w) ([] ++ []) ((t₂ + 4) + 3 * (l + 1))
         (prog₂ w) (fun _ _ => []) id := by
     intro w OracleState oracle s s' hw
@@ -144,7 +145,7 @@ theorem ComputesTidily.comp_of_le {tm₁ : MultiTapePTM k₁ Bool State₁ Opera
         (s₀ s₁ : OracleState'),
         (y, s₁) ∈ (ProbOracleComp.runWith oracle' (prog₂ w) s₀).support →
         (ofDeterministic (Oracle := Operation)
-          ((clearWork Bool).extendTapes (tapeEmb A))).RunsWords
+          ((MultiTapeTM.clearWork Bool).extendTapes (tapeEmb A))).RunsWords
           x (Function.update (fun _ => []) A w) ([] ++ id y) (3 * (l + 1)) (pure ())
           (fun _ _ => []) (fun _ => []) := by
       intro y _ _ _ _ _
@@ -319,7 +320,7 @@ noncomputable def itePTM (tmc : MultiTapePTM k₀ Bool State₀ Operation)
           (le_max_right k₀ _)))).extendTapes Fin.castSuccEmb)
         ((tm₂.extendTapes (Fin.castLEEmb ((le_max_right k₁ k₂).trans
           (le_max_right k₀ _)))).extendTapes Fin.castSuccEmb)).seq
-      (ofDeterministic ((clearWork Bool).extendTapes (tapeEmb (Fin.last _)))))
+      (ofDeterministic ((MultiTapeTM.clearWork Bool).extendTapes (tapeEmb (Fin.last _)))))
 
 /-- A tidy probabilistic machine padded to `K` work tapes and placed below a last work tape that
 holds `w` throughout. -/
@@ -376,7 +377,7 @@ theorem ComputesTidily.ite {tmc : MultiTapePTM k₀ Bool State₀ Operation}
   rw [computesTidily_iff_nil_output]
   set K := max k₀ (max k₁ k₂)
   let clearLast : MultiTapePTM (K + 1) Bool (Unit ⊕ RewindWorkState) Operation :=
-    ofDeterministic ((clearWork Bool).extendTapes (tapeEmb (Fin.last K)))
+    ofDeterministic ((MultiTapeTM.clearWork Bool).extendTapes (tapeEmb (Fin.last K)))
   have hl : ∀ (OracleState : Type)
       (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
       (s : OracleState) (w' : List Bool) (s' : OracleState),

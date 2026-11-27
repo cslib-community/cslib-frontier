@@ -66,7 +66,7 @@ example :
       atTop (nhds 0) := by
   have hfv : (connectedInfinitary : InfinitaryFormula.{0, 0, 0} Language.graph 3).not.freeVars =
       ∅ := by
-    simp only [InfinitaryFormula.freeVars_not, freeVars_connectedInfinitary]
+    simp only [InfinitaryGenFormula.freeVars_not, freeVars_connectedInfinitary]
   rw [tendsto_binomialRandom_real_infinitary_zero_iff_radoGraph third_pos third_lt_one hfv,
     satisfiesInfinitary_not radoGraph freeVars_connectedInfinitary, not_not,
     satisfiesInfinitary_iff_realize radoGraph freeVars_connectedInfinitary (fun _ => 0)]
@@ -146,14 +146,16 @@ example :
 /-- Closed `L^2_{∞ω}` sentence asserting two distinct non-adjacent vertices: `∃ x₀ ∃ x₁ (x₀ ≠ x₁ ∧
 ¬Adj x₀ x₁)`. -/
 def existsNonAdj : InfinitaryFormula.{0, 0, 0} Language.graph 2 :=
-  .ex 0 (.ex 1 ((InfinitaryFormula.equal 0 1).not ⊓ (InfinitaryFormula.rel adj ![0, 1]).not))
+  .ex 0 (.ex 1
+    ((.equal 0 1 : InfinitaryFormula.{0, 0, 0} Language.graph 2).not ⊓
+      (.rel adj ![0, 1] : InfinitaryFormula.{0, 0, 0} Language.graph 2).not))
 
 theorem freeVars_existsNonAdj : existsNonAdj.freeVars = ∅ := by
   rw [Set.eq_empty_iff_forall_notMem]
   intro i hi
-  simp only [existsNonAdj, InfinitaryFormula.freeVars_ex, InfinitaryFormula.freeVars_min,
-    InfinitaryFormula.freeVars_not, InfinitaryFormula.freeVars_equal,
-    InfinitaryFormula.freeVars_rel, Set.mem_sdiff, Set.mem_singleton_iff] at hi
+  simp only [existsNonAdj, InfinitaryGenFormula.freeVars_ex, InfinitaryGenFormula.freeVars_min,
+    InfinitaryGenFormula.freeVars_not, InfinitaryGenFormula.freeVars_equal,
+    InfinitaryGenFormula.freeVars_rel, Set.mem_sdiff, Set.mem_singleton_iff] at hi
   fin_cases i <;> simp at hi
 
 /-- At `p = 1`, `G(Fin n, 1)` is the complete graph `⊤`, so `existsNonAdj` has probability `0` for
@@ -165,9 +167,9 @@ example :
   have hrado : SatisfiesInfinitary radoGraph existsNonAdj := by
     rw [satisfiesInfinitary_iff_realize radoGraph freeVars_existsNonAdj (fun _ => 0)]
     let _ := radoGraph.structure
-    simp only [existsNonAdj, InfinitaryFormula.realize_ex, InfinitaryFormula.realize_min,
-      InfinitaryFormula.realize_not, InfinitaryFormula.realize_equal,
-      InfinitaryFormula.realize_rel]
+    simp only [existsNonAdj, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min,
+      InfinitaryGenFormula.realize_not, InfinitaryGenFormula.realize_equal,
+      InfinitaryGenFormula.realize_rel]
     refine ⟨0, 2, ?_, ?_⟩
     · simp only [Function.update_self, Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)]
       decide
@@ -182,9 +184,9 @@ example :
     rw [Set.mem_ofPred_eq, satisfiesInfinitary_iff_realize _ freeVars_existsNonAdj
         (fun _ => ⟨0, hn⟩)]
     let _ := (⊤ : SimpleGraph (Fin n)).structure
-    simp only [existsNonAdj, InfinitaryFormula.realize_ex, InfinitaryFormula.realize_min,
-      InfinitaryFormula.realize_not, InfinitaryFormula.realize_equal,
-      InfinitaryFormula.realize_rel]
+    simp only [existsNonAdj, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min,
+      InfinitaryGenFormula.realize_not, InfinitaryGenFormula.realize_equal,
+      InfinitaryGenFormula.realize_rel]
     rintro ⟨u, v, huv, hnotadj⟩
     simp only [Function.update_self, Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)] at huv
     exact hnotadj ((SimpleGraph.top_adj u v).2 huv)
@@ -282,7 +284,7 @@ theorem infinitaryProb_flagInfinitary (n : ℕ) :
     funext S
     let _ := S
     rw [propext (realizeInfinitary_iff_realize (Set.eq_empty_of_isEmpty _) Fin.elim0)]
-    simp only [flagInfinitary, InfinitaryFormula.realize_rel]
+    simp only [flagInfinitary, InfinitaryGenFormula.realize_rel]
     have hcomp : (Fin.elim0 : Fin 0 → Fin n) ∘ Fin.elim0 = Fin.elim0 :=
       funext fun i => Fin.elim0 i
     rw [hcomp]

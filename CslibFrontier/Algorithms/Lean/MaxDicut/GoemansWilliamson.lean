@@ -549,7 +549,7 @@ theorem two_mul_dicutValue_eq_cutValue_of_isBalancedDigraph {ends : ι → V × 
         w e * (if S (ends e).1 then (1 : ℝ) else 0) -
           w e * (if S (ends e).2 then (1 : ℝ) else 0) := by
     intro e
-    cases S (ends e).1 <;> cases S (ends e).2 <;> simp; all_goals ring
+    cases S (ends e).1 <;> cases S (ends e).2 <;> simp; ring
   have hsum : 2 * dicutValue ends w S - cutValue ends w S =
       (∑ e, w e * (if S (ends e).1 then (1 : ℝ) else 0)) -
         ∑ e, w e * (if S (ends e).2 then (1 : ℝ) else 0) := by

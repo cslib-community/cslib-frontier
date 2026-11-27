@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.WordRAM.Resizable.Clocked
 import CslibFrontier.Foundations.Analysis.ENNRealTsum
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Geometric `while`-loop exit distributions on the Resizable Word RAM
@@ -200,11 +201,10 @@ private theorem loopActiveRSteps_le {cond : Cond r} {I Q : RData r → Prop}
         rw [← Summable.tsum_finsetSum (fun _ _ => CompleteLattice.summable)]
         simp only [loopActiveRSteps, Finset.mul_sum]
       rw [hrec]
-      refine (add_le_add le_rfl (tsum_le_tsum fun z => ?_)).trans
+      exact (add_le_add le_rfl
+        (Cslib.Probability.PMF.tsum_mul_mono_support (μ_body x) fun z hz =>
+          ih (hinv x hIx hcx z hz))).trans
         (pmf_rdata_step_drift_bound (μ_body x) cond hp_pos hp_top (hp_exit x hIx hcx))
-      by_cases hz : z ∈ (μ_body x).support
-      · exact mul_le_mul_right (ih (hinv x hIx hcx z hz)) _
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr hz, zero_mul, zero_mul]
     · simp only [hcx, ↓reduceIte, nonpos_iff_eq_zero, loopActiveRSteps]
       refine Finset.sum_eq_zero fun K _ => ?_
       rw [loopIterRPMF_of_not_holds hcx, PMF.toOuterMeasure_pure_apply]
@@ -330,12 +330,10 @@ theorem loopExitRPMF_of_holds {cond : Cond r} {I Q : RData r → Prop}
       (loopIterRPMF cond μ_body K z) y)
     (fun z _ _ hK =>
       mul_le_mul_right (loopIterRPMF_indicator_mono cond μ_body z y hK) (μ_body x z))]
-  refine tsum_congr fun z => ?_
-  by_cases hz : z ∈ (μ_body x).support
-  · rw [← ENNReal.mul_iSup,
-      loopExitRPMF_apply_of_hasSum
-        (hasSum_loopExitRDensity hp_pos hp_top hinv hp_exit (hinv x hIx hcx z hz))]
-  · rw [(PMF.apply_eq_zero_iff _ _).mpr hz, zero_mul]; simp
+  simp_rw [← ENNReal.mul_iSup]
+  exact Cslib.Probability.PMF.tsum_mul_congr_support (μ_body x) fun z hz =>
+    (loopExitRPMF_apply_of_hasSum
+      (hasSum_loopExitRDensity hp_pos hp_top hinv hp_exit (hinv x hIx hcx z hz)) y).symm
 
 theorem mem_support_loopExitRPMF {cond : Cond r} {I Q : RData r → Prop}
     {μ_body : RData r → PMF (RData r)} {p_exit : ℝ≥0∞}

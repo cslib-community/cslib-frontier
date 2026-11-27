@@ -155,17 +155,11 @@ theorem reflTransGen_edge_transposeAdj_iff {vs : List V} (hvs : ∀ v, v ∈ vs)
 
 theorem ret_transposeAdjM (adj : V → List V) (vs : List V) :
     (transposeAdjM adj vs).ret = transposeAdj adj vs := by
-  simp only [transposeAdjM, transposeAdj, TimeM.ret_foldlM, TimeM.ret_bind, TimeM.ret_pure]
+  time_spec transposeAdjM
 
 theorem time_transposeAdjM (adj : V → List V) (vs : List V) :
     (transposeAdjM adj vs).time = vs.length + outDegreeSum adj vs := by
-  rw [transposeAdjM, TimeM.time_foldlM_eq_sum _ (fun u => 1 + (adj u).length)]
-  · rw [List.sum_map_add]
-    simp [outDegreeSum]
-  · intro rev u
-    simp only [TimeM.time_bind, TimeM.time_tick]
-    rw [TimeM.time_foldlM_of_time_eq _ _ _ (c := 1) (fun _ _ => rfl)]
-    omega
+  time_spec transposeAdjM [List.sum_map_add, outDegreeSum, Nat.mul_one]
 
 omit [DecidableEq V] in
 /-- Consing onto one adjacency-list entry increases the total adjacency-list length by `1`. -/
@@ -526,6 +520,7 @@ theorem isSCCCondensation_sccs {vs : List V} (hvs : ∀ v, v ∈ vs) :
       obtain ⟨r, hr⟩ := hscc c hc
       exact ⟨c, hc, hu, (hr v).2 (((hr u).1 hu).trans huv)⟩
 
+@[time_simps]
 theorem ret_sccsM (adj : V → List V) (vs : List V) :
     (sccsM adj vs).ret = sccs adj vs := by
   simp only [sccsM, sccs, TimeM.ret_bind, ret_topologicalSortM, ret_transposeAdjM,
@@ -669,6 +664,7 @@ private theorem indexComponentsAuxM_spec :
       true_and]
     omega
 
+@[time_simps]
 theorem ret_indexComponentsM (comps : List (List V)) :
     (indexComponentsM comps).ret = indexComponents comps :=
   (indexComponentsAuxM_spec 0 comps (fun _ => 0)).1

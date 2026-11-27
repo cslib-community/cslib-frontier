@@ -160,7 +160,7 @@ theorem not_X_pow_dvd_aeval_logSeries (hindep : AlgebraicIndependent F[X] (logSe
   have hlin (m : Fin r) : (logDelta F n)^[m] (Ψ f) =
       ∑ j, algebraMap F F⟦X⟧ (u j) • (logDelta F n).wronskianMatrix h m j := by
     have hpow : ∀ x : F⟦X⟧, ((logDelta F n : F⟦X⟧ →ₗ[F] F⟦X⟧) ^ (m : ℕ)) x =
-        (logDelta F n)^[m] x := fun x => Module.End.pow_apply _ _ x
+        (logDelta F n)^[m] x := fun x => pow_apply_eq_iterate _ _ x
     rw [← hpow, hfu, map_sum]
     refine sum_congr rfl fun j _ => ?_
     rw [map_smul, hpow, smul_eq_mul, ← Algebra.smul_def]

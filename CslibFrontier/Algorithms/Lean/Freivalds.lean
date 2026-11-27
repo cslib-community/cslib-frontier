@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Probability.Freivalds
 public import Cslib.Algorithms.Lean.TimeM
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Freivalds' Matrix-Product Verification
@@ -97,21 +98,13 @@ def dotProductM : (k : ℕ) → (Fin k → R) → (Fin k → R) → TimeM ℕ R
     TimeM.tick 2
     pure (u 0 * v 0 + rest)
 
-@[simp] theorem ret_dotProductM (k : ℕ) (u v : Fin k → R) :
+@[simp, time_simps] theorem ret_dotProductM (k : ℕ) (u v : Fin k → R) :
     (dotProductM k u v).ret = u ⬝ᵥ v := by
-  induction k with
-  | zero => simp [dotProductM, dotProduct]
-  | succ k ih =>
-    simp only [dotProductM, TimeM.ret_bind, TimeM.ret_pure, ih, dotProduct, Fin.sum_univ_succ]
-    rfl
+  time_spec dotProductM [dotProduct, Fin.sum_univ_succ]
 
-@[simp] theorem time_dotProductM (k : ℕ) (u v : Fin k → R) :
+@[simp, time_simps] theorem time_dotProductM (k : ℕ) (u v : Fin k → R) :
     (dotProductM k u v).time = 2 * k := by
-  induction k with
-  | zero => rfl
-  | succ k ih =>
-    simp only [dotProductM, TimeM.time_bind, TimeM.time_pure, TimeM.time_tick, ih]
-    ring
+  time_spec dotProductM
 
 /-- Matrix-vector multiplication, one dot product per row. -/
 def mulVecM {k : ℕ} : (l : ℕ) → Matrix (Fin l) (Fin k) R → (Fin k → R) → TimeM ℕ (Fin l → R)
@@ -121,12 +114,13 @@ def mulVecM {k : ℕ} : (l : ℕ) → Matrix (Fin l) (Fin k) R → (Fin k → R)
     let rest ← mulVecM l (M.submatrix Fin.succ id) v
     pure (Fin.cons first rest)
 
-@[simp] theorem ret_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin k → R) :
+@[simp, time_simps]
+theorem ret_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin k → R) :
     (mulVecM l M v).ret = M *ᵥ v := by
   induction l with
   | zero => funext i; exact i.elim0
   | succ l ih =>
-    simp only [mulVecM, TimeM.ret_bind, TimeM.ret_pure, ih, ret_dotProductM]
+    simp only [mulVecM, time_simps, ih]
     funext i
     refine Fin.cases ?_ (fun i => ?_) i
     · rfl
@@ -134,11 +128,7 @@ def mulVecM {k : ℕ} : (l : ℕ) → Matrix (Fin l) (Fin k) R → (Fin k → R)
 
 @[simp] theorem time_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin k → R) :
     (mulVecM l M v).time = 2 * k * l := by
-  induction l with
-  | zero => rfl
-  | succ l ih =>
-    simp only [mulVecM, TimeM.time_bind, TimeM.time_pure, ih, time_dotProductM]
-    ring
+  time_spec mulVecM [Nat.mul_succ]
 
 section Check
 
@@ -154,22 +144,19 @@ def vecEqM : (l : ℕ) → (Fin l → R) → (Fin l → R) → TimeM ℕ Bool
     pure (decide (u 0 = v 0) && rest)
 
 omit [Ring R] in
-@[simp] theorem ret_vecEqM (l : ℕ) (u v : Fin l → R) :
+@[simp, time_simps] theorem ret_vecEqM (l : ℕ) (u v : Fin l → R) :
     (vecEqM l u v).ret = decide (u = v) := by
   induction l with
   | zero => simp [vecEqM, Subsingleton.elim u v]
   | succ l ih =>
-    simp only [vecEqM, TimeM.ret_bind, TimeM.ret_pure, ih, ← Bool.decide_and]
+    simp only [vecEqM, time_simps, ih, ← Bool.decide_and]
     congr 1
     exact propext ⟨fun ⟨h0, ht⟩ => funext fun i => Fin.cases h0 (fun i => congrFun ht i) i,
       fun h => ⟨congrFun h 0, by rw [h]⟩⟩
 
 omit [Ring R] in
 @[simp] theorem time_vecEqM (l : ℕ) (u v : Fin l → R) : (vecEqM l u v).time = l := by
-  induction l with
-  | zero => rfl
-  | succ l ih =>
-    simp only [vecEqM, TimeM.time_bind, TimeM.time_pure, TimeM.time_tick, ih, add_zero]
+  time_spec vecEqM
 
 variable {l m n : ℕ}
 
@@ -182,10 +169,10 @@ def checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
   let w ← mulVecM l C x
   vecEqM l z w
 
-@[simp] theorem ret_checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
+@[simp, time_simps] theorem ret_checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (x : Fin n → R) :
     (checkM A B C x).ret = decide ((A * B) *ᵥ x = C *ᵥ x) := by
-  simp only [checkM, TimeM.ret_bind, ret_mulVecM, ret_vecEqM, Matrix.mulVec_mulVec]
+  time_spec checkM [Matrix.mulVec_mulVec]
 
 /-- One check costs `2 * (m * n + l * m + l * n) + l`, independently of the vector. -/
 @[simp] theorem time_checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
@@ -207,12 +194,7 @@ def checkAllM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
 @[simp] theorem ret_checkAllM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (k : ℕ) (xs : Fin k → Fin n → R) :
     (checkAllM A B C k xs).ret = decide (∀ t, (A * B) *ᵥ xs t = C *ᵥ xs t) := by
-  induction k with
-  | zero => simp [checkAllM]
-  | succ k ih =>
-    simp only [checkAllM, TimeM.ret_bind, TimeM.ret_pure, ret_checkM, ih, ← Bool.decide_and,
-      Fin.forall_fin_succ]
-    rfl
+  time_spec checkAllM [Fin.forall_fin_succ]
 
 /-- `k` checks cost `k * (2 * (m * n + l * m + l * n) + l)`. -/
 @[simp] theorem time_checkAllM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
@@ -247,7 +229,8 @@ theorem eval_verify (e : S → R) (k : ℕ) (A : Matrix (Fin l) (Fin m) R)
     (B : Matrix (Fin m) (Fin n) R) (C : Matrix (Fin l) (Fin n) R) :
     ProbComp.eval (verify e k A B C) = (PMF.uniformOfFintype (Fin k → Fin n → S)).map
       fun xs => decide (∀ t, (A * B) *ᵥ (e ∘ xs t) = C *ᵥ (e ∘ xs t)) := by
-  simp only [verify, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure, ret_checkAllM]
+  rw [verify, ProbComp.eval_bind, ProbComp.eval_uniform]
+  simp only [ProbComp.eval_pure, ret_checkAllM]
   rfl
 
 /-- Perfect completeness: a correct product is always accepted. -/

@@ -87,6 +87,7 @@ private theorem two_mul_abs_sum_mul_decodeLaw_le_aux (Y : M → P → Γ) (φ : 
     rw [← sum_mul, hφ, zero_mul, abs_zero, mul_zero]
   | query_bind q' cont ih =>
     intro n hn hqn
+    rw [PFunctor.FreeM.bind_eq_bind]
     obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp hqn
     set S : P → ℝ := fun j => ∑ σ, |∑ m, if Y m j = σ then φ m else 0|
     cases q' with

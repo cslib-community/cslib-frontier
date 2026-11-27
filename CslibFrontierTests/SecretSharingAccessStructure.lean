@@ -10,6 +10,7 @@ import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Designs
 import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Privacy
 import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Shamir
 import CslibFrontier.Probability.PMF.Coin
+import CslibFrontier.Probability.Uniform.Translate
 import Mathlib.Algebra.Field.ZMod
 
 /-!
@@ -261,12 +262,13 @@ theorem paddedSourceFalse_mem : paddedSourceFalse ∈ shamirPaddedSources params
   have hfst : paddedSourceFalse.map Prod.fst = uniformOfFintype (Randomness params3) := by
     simp only [paddedSourceFalse, PMF.map_comp]
     exact PMF.map_id _
-  change paddedSourceFalse.map Prod.fst ∈ shamirSources params3
+  change paddedSourceFalse.map Prod.fst ∈ SourceClass.translationInvariant (Randomness params3)
   rw [hfst]
-  exact uniformOfFintype_mem_shamirSources params3
+  exact SourceClass.uniformOfFintype_mem_translationInvariant (Randomness params3)
 
 theorem paddedSourceBiased_mem : paddedSourceBiased ∈ shamirPaddedSources params3 Bool :=
-  bind_mem_shamirPaddedSources (uniformOfFintype_mem_shamirSources params3) _
+  bind_mem_shamirPaddedSources
+    (SourceClass.uniformOfFintype_mem_translationInvariant (Randomness params3)) _
 
 example :
     uniformOfFintype (Randomness params3) ∈
@@ -329,7 +331,7 @@ example :
     shamir4ToTwoTwo.viewDist (uniformOfFintype (Randomness params4)) {0} 1 =
       shamir4ToTwoTwo.viewDist (uniformOfFintype (Randomness params4)) {0} 4 :=
   shamir4ToTwoTwo.viewDist_eq_of_not_authorized
-    (uniformOfFintype_mem_shamirSources params4) (by
+    (SourceClass.uniformOfFintype_mem_translationInvariant _) (by
       simp only [shamir4ToTwoTwo, shamirToTwoTwo_access, AccessStructure.threshold_authorized_iff]
       decide) 1 4
 
@@ -337,7 +339,7 @@ example :
     mutualInfo (jointSecretView (uniformOfFintype (Randomness params4))
       shamir4ToTwoTwo.share {0} priorZMod5) = 0 :=
   shamir4ToTwoTwo.mutualInfo_view_eq_zero
-    (uniformOfFintype_mem_shamirSources params4) (by
+    (SourceClass.uniformOfFintype_mem_translationInvariant _) (by
       simp only [shamir4ToTwoTwo, shamirToTwoTwo_access, AccessStructure.threshold_authorized_iff]
       decide) priorZMod5
 
@@ -459,8 +461,7 @@ noncomputable def taggedPadScheme :
             have hi : i.1 = 1 := Finset.mem_singleton.mp i.2
             simp [hi, taggedPadShare]
           rw [hcomp, ← PMF.map_comp]
-          have heq : Equiv.subLeft m = (fun k => m - k) := rfl
-          rw [← heq, uniformOfFintype_map_equiv (Equiv.subLeft m)]
+          rw [uniformOfFintype_map_sub_left m]
         simp_rw [Function.comp_def] at hinner ⊢
         have hbind :
             (q.bind fun b => (uniformOfFintype (ZMod 3)).map

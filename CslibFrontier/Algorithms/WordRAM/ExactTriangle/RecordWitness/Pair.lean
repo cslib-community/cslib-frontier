@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Kernel
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # One actual product-selected original-weight verification
@@ -59,9 +60,9 @@ theorem exec_scanPair {w U n first length out queries count i scans a b : ℕ}
       hmag hU (hfit.of_le (by omega))
   obtain ⟨y, hy, yFixed, ym, yf, ya, yb, yc, ys, yi, -⟩ :=
     exec_receiveWitness s sFixed rfl sa sb rfl
-  have sIndex : s.regs Reg.index = i := (frame _ (by decide)).trans di
-  have sScans : s.regs Reg.scans = scans + 1 := (frame _ (by decide)).trans ds
-  have sFound : s.regs Reg.found = 0 := (frame _ (by decide)).trans (df.trans hf)
+  have sIndex : s.regs Reg.index = i := by regs_frame
+  have sScans : s.regs Reg.scans = scans + 1 := by regs_frame
+  have sFound : s.regs Reg.found = 0 := by regs_frame
   have hexe : ExecWithin (w + 2) scanPair x y (42 * length + 28) :=
     (hd.seq (he.seq hy)).mono (by omega)
   have yflag : y.regs Reg.found = s.regs (scanBank WitnessScan.Reg.found) := by

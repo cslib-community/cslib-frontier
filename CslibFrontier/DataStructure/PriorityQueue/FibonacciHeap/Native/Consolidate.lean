@@ -77,7 +77,7 @@ private theorem realizes_finishBody : Realizes .exact finishBody (.refl _)
     ext d
     simp only [finishBody, ← nine]
   realize
-  all_goals try simp only [nine] at *
+  all_goals simp only [nine] at *
   all_goals first
     | exact h.1.of_le (by omega)
     | exact h.2.1
@@ -192,9 +192,9 @@ private theorem realizes_forestBody : Realizes .exact forestBody (.refl _)
     (fun w d s => finishSafe w ![d.1.1, d.1.2, d.2] s) (fun _ _ => 0) at hFinish
   unfold forestBody
   realize
-  all_goals try simp only [forestSafe] at h
+  all_goals simp only [forestSafe] at h
   all_goals try simp only [hc, Nat.zero_sub] at h
-  all_goals try first
+  all_goals first
     | exact h.1
     | exact h.2.1
     | exact h.2.2.1

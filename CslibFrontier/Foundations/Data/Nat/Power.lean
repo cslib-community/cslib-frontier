@@ -29,6 +29,7 @@ Elementary inequalities on powers and products of natural numbers: powers of pol
   `0 < Y → L ≤ p * Y ^ q → (L + 1) ^ k ≤ (p + 1) ^ k * Y ^ (q * k)`.
 * `Nat.le_two_pow_mul`: `1 ≤ k → c ≤ 2 ^ (c * k)`.
 * `Nat.mul_add_one_pow_le`: `(R + 1) * d ≤ M → R * (M + 1) ^ d ≤ (R + 1) * M ^ d`.
+* `Nat.add_two_le_two_pow`: `2 ≤ t → t + 2 ≤ 2 ^ t`.
 * `Nat.two_mul_lt_two_pow`: `3 ≤ w → 2 * w < 2 ^ w`.
 * `Nat.sq_le_two_pow`: `4 ≤ s → s ^ 2 ≤ 2 ^ s`.
 * `Nat.pow_le_two_pow`: `1 ≤ D → 4 * D ^ 2 ≤ b → b ^ D ≤ 2 ^ b`.
@@ -119,6 +120,12 @@ theorem mul_add_one_pow_le {R M d : ℕ} (h : (R + 1) * d ≤ M) :
         rw [show d + r - d = r by omega]
         nlinarith
     _ = (R + 1) * M ^ d * (M - d) := by ring
+
+/-- For `t ≥ 2`, `t + 2 ≤ 2 ^ t`. -/
+theorem add_two_le_two_pow {t : ℕ} (ht : 2 ≤ t) : t + 2 ≤ 2 ^ t := by
+  induction t, ht using Nat.le_induction with
+  | base => decide
+  | succ n _ ih => rw [pow_succ]; omega
 
 /-- For `w ≥ 3`, `2 * w < 2 ^ w`. -/
 theorem two_mul_lt_two_pow {w : ℕ} (hw : 3 ≤ w) : 2 * w < 2 ^ w := by

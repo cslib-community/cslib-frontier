@@ -53,8 +53,11 @@ verification checks the leaf length and the certificate count explicitly. The co
 signature depend on the node and the index only, not on what is signed.
 
 The coin function is a parameter with a polynomial-time certificate. This module provides the
-scheme, its completeness and its efficiency; its security ([BonehShoup2023], Theorem 14.6)
-instantiates the coins with a pseudorandom function and is a separate development.
+scheme, its completeness and its efficiency. Its security is [BonehShoup2023], Theorem 14.6,
+p. 600, in the binary case `q = 2`.
+`CslibFrontier.Crypto.Computational.TreeSignature.Security` instantiates the coins with a
+pseudorandom function and proves steps toward that theorem, under a PRF premise stronger than the
+source's; the theorem itself is open (#5293).
 
 ## Main definitions
 
@@ -479,7 +482,7 @@ theorem isPPTOn_sign :
       (fun p => sign S T coins depth p.1 p.2) := by
   have hk := (ComputableInPolyTime.fst encBits encBits).trans keyDecoder.computableInPolyTime
   have hp1 := ComputableInPolyTime.fst (encPair encBits encBits) encBits
-  exact IsPPTOn.ite'
+  exact IsPPTOn.ite
     ((ComputableInPolyTime.snd encBits encBits).length_bits_comp.unary_eq' hk.fst')
     (IsPPTOn.bind_with (left := encBits)
       (ComputableInPolyTime.sampleList (hk.fst'.trans hdepth))

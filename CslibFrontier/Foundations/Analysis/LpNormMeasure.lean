@@ -48,7 +48,7 @@ theorem lpNorm_eq_measureTheory_lpNorm_uniformOn {p : ℝ} (hp : 0 < p) (f : α 
   have hf : MeasureTheory.AEStronglyMeasurable f (ProbabilityTheory.uniformOn Set.univ) :=
     MeasureTheory.AEStronglyMeasurable.of_discrete
   rw [MeasureTheory.lpNorm,
-    MeasureTheory.eLpNorm_eq_lintegral_rpow_enorm_toReal hp0 ENNReal.ofReal_ne_top hf,
+    MeasureTheory.eLpNorm_eq_lintegral_rpow_eNorm_toReal hp0 ENNReal.ofReal_ne_top hf,
     ENNReal.toReal_ofReal hp.le, one_div, ← ENNReal.toReal_rpow, MeasureTheory.lintegral_fintype,
     lpNorm]
   congr 1
@@ -59,8 +59,8 @@ theorem lpNorm_eq_measureTheory_lpNorm_uniformOn {p : ℝ} (hp : 0 < p) (f : α 
     rw [ProbabilityTheory.uniformOn_univ, MeasureTheory.Measure.count_singleton, one_div]
   simp_rw [hsing]
   rw [ENNReal.toReal_sum fun x _ =>
-    ENNReal.mul_ne_top (ENNReal.rpow_ne_top_of_nonneg hp.le enorm_ne_top) hcard]
-  simp only [ENNReal.toReal_mul, ← ENNReal.toReal_rpow, toReal_enorm, Real.norm_eq_abs,
+    ENNReal.mul_ne_top (ENNReal.rpow_ne_top_of_nonneg hp.le eNorm_ne_top) hcard]
+  simp only [ENNReal.toReal_mul, ← ENNReal.toReal_rpow, toReal_eNorm, Real.norm_eq_abs,
     ENNReal.toReal_inv, ENNReal.toReal_natCast, Fintype.expect_eq_sum_div_card, div_eq_mul_inv,
     Finset.sum_mul]
 

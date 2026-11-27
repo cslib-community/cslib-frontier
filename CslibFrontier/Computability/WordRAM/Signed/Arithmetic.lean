@@ -486,11 +486,10 @@ theorem exec_divide {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w a)
         hnz, hna, hnb, hrem, hdiv, hmod, hinc, h1]
   have hqmag : q.regs result = divMagnitude a.natAbs b.natAbs sa := by
     dsimp only [q, divPreData, divMagnitude, sa]
-    split_ifs
-    all_goals
-      simp only [Data.set_regs, Function.update_apply, result, magA, signA, Fin.mk.injEq,
-        Nat.reduceEqDiff, ↓reduceIte]
-      try omega
+    split_ifs <;> first
+      | omega
+      | simp only [Data.set_regs, Function.update_apply, result, magA, signA, Fin.mk.injEq,
+          Nat.reduceEqDiff, ↓reduceIte, add_zero]
   have hqsign : q.regs signA = divSign b.natAbs sa sb := by
     dsimp only [q, divPreData, divSign]
     split_ifs <;> simp [result, signA]

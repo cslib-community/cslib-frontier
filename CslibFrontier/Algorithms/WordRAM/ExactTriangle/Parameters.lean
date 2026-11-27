@@ -84,7 +84,7 @@ def program : Code .standard 15 :=
 theorem program_fixed : program.size ≤ 64 ∧ ¬program.ReadsWidth := by decide
 
 private theorem squareRoot_preserves : ∀ i : Fin 15,
-    6 ≤ i.val → squareRoot.Preserves i := by decide
+    6 ≤ i.val → squareRoot.Preserves i := by decide +kernel
 
 /-- Compute the finite splitting parameters from actual runtime dimensions. The two explicit
 ceiling-addition fits cover their temporary sums, and the fourth-power bound covers the square
@@ -113,11 +113,10 @@ theorem exec {w : ℕ} (x : Data 15)
   change Fits w (4 * ((n * n) * (n * n)) + 4) at hN
   change Fits w (S + g) at hB
   change Fits w (n + B) at hH
-  have h1 : Fits w 1 := hD.of_le (by omega)
   let a := x.set one 1 |>.set arg D
   have hstart : ExecWithin (B := .standard) w (ram[ one ← #1; arg ← dimension ]) x a 2 := by
     have hfit : Fits w D := hD.of_le (by dsimp [D]; omega)
-    ram_eval [a, D, h1, hfit, one, arg, dimension, Fin.mk.injEq]
+    ram_eval [a, D, hfit, one, arg, dimension, Fin.mk.injEq]
   have haD : a.regs arg = D := by simp [a]
   obtain ⟨b, hb, hbroot, -, hbm, -⟩ := NatSqrt.exec_rename sqrtReg sqrtReg_injective a
     (by change Fits w (4 * a.regs arg + 4); rw [haD]; exact hD)

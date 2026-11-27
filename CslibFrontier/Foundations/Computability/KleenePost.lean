@@ -27,7 +27,8 @@ and its soundness and completeness (the use principle) carry the conclusion to t
 This proves the incomparability statement of Kleene–Post. The construction is noncomputable here:
 it decides by classical choice whether some extension forces convergence. The bound
 `A, B ≤ᵀ ∅′` from the source, which holds because this question is `Σ₁` and hence decided by
-`∅′`, is not formalized in this file.
+`∅′`, is proved in `CslibFrontier.Foundations.Computability.KleenePostJump`
+(`kleene_post_below_jump`).
 
 ## Main results
 
@@ -54,62 +55,111 @@ namespace KleenePost
 open Code
 
 /-- A finite binary string, read as a finite oracle prefix with values in `{0, 1}`. -/
-private def bits (σ : List Bool) : List ℕ := σ.map Bool.toNat
+@[expose]
+def bits (σ : List Bool) : List ℕ := σ.map Bool.toNat
 
 /-- Some extension of the finite string `τ` makes the code `c` converge on `x` at some stage.
 The witness packs the extension, the stage and the output. -/
-private def Halts (c : Code) (τ : List Bool) (x : ℕ) : Prop :=
-  ∃ p : List Bool × ℕ × ℕ, τ <+: p.1 ∧ p.2.2 ∈ evaln (bits p.1) p.2.1 c x
+@[expose]
+def Halts (c : Code) (τ : List Bool) (x : ℕ) : Prop :=
+  ∃ p : List Bool × ℕ × ℕ,
+    let r := p.2
+    τ <+: p.1 ∧ r.2 ∈ evaln (bits p.1) r.1 c x
+
+/-- Predicate stating that `e` decodes to a halting witness `(σ, k, y)` for `c` on `x` extending
+`τ`. -/
+@[expose]
+def haltsPred (c : Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Prop :=
+  ∃ p : List Bool × ℕ × ℕ,
+    let r := p.2
+    Encodable.decode e = some p ∧ τ <+: p.1 ∧ r.2 ∈ evaln (bits p.1) r.1 c x
+
+instance (c : Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Decidable (haltsPred c τ x e) :=
+  match h : Encodable.decode (α := List Bool × ℕ × ℕ) e with
+  | none => isFalse fun ⟨_, hp, _⟩ => by simp [h] at hp
+  | some p =>
+    decidable_of_iff (τ <+: p.1 ∧ p.2.2 ∈ evaln (bits p.1) p.2.1 c x)
+      ⟨fun hp => ⟨p, h, hp⟩, fun ⟨_, hp', hp⟩ => Option.some.inj (h.symm.trans hp') ▸ hp⟩
+
+lemma Halts_iff_exists_haltsPred (c : Code) (τ : List Bool) (x : ℕ) :
+    Halts c τ x ↔ ∃ e, haltsPred c τ x e := by
+  unfold Halts haltsPred
+  constructor
+  · rintro ⟨p, hp⟩
+    exact ⟨Encodable.encode p, ⟨p, Encodable.encodek _, hp⟩⟩
+  · rintro ⟨e, p, _, hp⟩
+    exact ⟨p, hp⟩
 
 open Classical in
 /-- One finite-extension step against the code `c`: extend `σ` by one bit at position
 `σ.length`, and extend `τ` to force convergence of `c` at that position when possible. -/
-private noncomputable def step (c : Code) (σ τ : List Bool) : List Bool × List Bool :=
+@[expose]
+noncomputable def step (c : Code) (σ τ : List Bool) : List Bool × List Bool :=
   if h : Halts c τ σ.length then
-    (σ ++ [decide ((Classical.choose h).2.2 = 0)], (Classical.choose h).1)
+    let e := Nat.find (p := haltsPred c τ σ.length) ((Halts_iff_exists_haltsPred c τ σ.length).mp h)
+    match Encodable.decode (α := List Bool × ℕ × ℕ) e with
+    | some p =>
+      let r := p.2
+      (σ ++ [decide (r.2 = 0)], p.1)
+    | none => (σ ++ [false], τ)
   else
     (σ ++ [false], τ)
 
-private theorem step_fst (c : Code) (σ τ : List Bool) : ∃ b, (step c σ τ).1 = σ ++ [b] := by
-  unfold step
+theorem step_fst (c : Code) (σ τ : List Bool) : ∃ b, (step c σ τ).1 = σ ++ [b] := by
+  unfold step; dsimp only
   split_ifs with h
-  · exact ⟨_, rfl⟩
+  · generalize he : Nat.find (p := haltsPred c τ σ.length) _ = e
+    match Encodable.decode e with
+    | some p => exact ⟨_, rfl⟩
+    | none => exact ⟨_, rfl⟩
   · exact ⟨_, rfl⟩
 
-private theorem step_snd (c : Code) (σ τ : List Bool) : τ <+: (step c σ τ).2 := by
+open Classical in
+private theorem exists_step_of_halts {c : Code} {σ τ : List Bool} (h : Halts c τ σ.length) :
+    ∃ p : List Bool × ℕ × ℕ,
+      step c σ τ = (σ ++ [decide (p.2.2 = 0)], p.1) ∧
+        τ <+: p.1 ∧ p.2.2 ∈ evaln (bits p.1) p.2.1 c σ.length := by
+  obtain ⟨p, hp, hτ, heval⟩ :=
+    Nat.find_spec (p := haltsPred c τ σ.length) ((Halts_iff_exists_haltsPred c τ σ.length).mp h)
+  refine ⟨p, ?_, hτ, heval⟩
   unfold step
-  split_ifs with h
-  · exact (Classical.choose_spec h).1
-  · exact List.prefix_refl τ
+  simp [h, hp]
+
+theorem step_snd (c : Code) (σ τ : List Bool) : τ <+: (step c σ τ).2 := by
+  by_cases h : Halts c τ σ.length
+  · obtain ⟨p, hstep, hτ, -⟩ := exists_step_of_halts h
+    rw [hstep]
+    exact hτ
+  · unfold step
+    simp [h]
 
 /-- The finite string `σ` is an initial segment of the `Bool` sequence `a`. -/
-private def Agrees (σ : List Bool) (a : ℕ → Bool) : Prop := ∀ i (h : i < σ.length), σ[i] = a i
+def Agrees (σ : List Bool) (a : ℕ → Bool) : Prop := ∀ i (h : i < σ.length), σ[i] = a i
 
 /-- The diagonalization step: if `a` extends the first output of `step c σ τ` and `b` extends the
 second, then `c` relative to `b` does not compute `a`. -/
-private theorem step_spec {c : Code} {σ τ : List Bool} {a b : ℕ → Bool}
+theorem step_spec {c : Code} {σ τ : List Bool} {a b : ℕ → Bool}
     (hσ : Agrees (step c σ τ).1 a) (hτ : Agrees (step c σ τ).2 b) :
     eval (fun n => (b n).toNat : ℕ → ℕ) c ≠ (fun n => (a n).toNat : ℕ → ℕ) := by
   intro heq
   have hx : (a σ.length).toNat ∈ eval (fun n => (b n).toNat : ℕ → ℕ) c σ.length := by
     rw [heq, PFun.coe_val]; exact Part.mem_some _
   by_cases h : Halts c τ σ.length
-  · simp only [step, h, ↓reduceDIte] at hσ hτ
-    have hspec := Classical.choose_spec h
-    generalize Classical.choose h = p at hspec hσ hτ
+  · obtain ⟨p, hstep, -, heval⟩ := exists_step_of_halts h
+    rw [hstep] at hσ hτ
     have hv : p.2.2 ∈ eval (fun n => (b n).toNat : ℕ → ℕ) c σ.length := by
-      refine evaln_sound (fun i hi => ?_) hspec.2
+      refine evaln_sound (fun i hi => ?_) heval
       have hi' : i < p.1.length := by simpa [bits] using hi
       simp only [bits, List.getElem_map, hτ i hi', PFun.coe_val]
       exact Part.mem_some _
     have hax : a σ.length = decide (p.2.2 = 0) := by
-      have := hσ σ.length (by simp)
-      simp only [List.getElem_concat_length] at this
-      exact this.symm
-    have := Part.mem_unique hv hx
-    rw [hax] at this
-    by_cases h0 : p.2.2 = 0 <;> simp [h0] at this
-  · simp only [step, h, ↓reduceDIte] at hσ hτ
+      simpa using (hσ σ.length (by simp)).symm
+    have hv' : p.2.2 = (a σ.length).toNat := Part.mem_unique hv hx
+    cases ha : a σ.length <;> simp only [ha, Bool.toNat_true, Bool.toNat_false] at hv' <;>
+      simp [ha, hv'] at hax
+  · have h_step : step c σ τ = (σ ++ [false], τ) := by
+      unfold step; dsimp only; simp [h]
+    rw [h_step] at hσ hτ
     obtain ⟨N, k, hk⟩ := evaln_complete.1 hx
     apply h
     let M := max N τ.length
@@ -124,70 +174,70 @@ private theorem step_spec {c : Code} {σ τ : List Bool} {a b : ℕ → Bool}
 
 /-- The finite-extension construction. Stage `2e + 1` extends the first string against code `e`,
 and stage `2e + 2` extends the second string against code `e`. -/
-private noncomputable def stage : ℕ → List Bool × List Bool
+@[expose]
+noncomputable def stage : ℕ → List Bool × List Bool
   | 0 => ([], [])
   | s + 1 =>
     if s % 2 = 0 then step (ofNat Code (s / 2)) (stage s).1 (stage s).2
     else (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).swap
 
-private theorem stage_succ_prefix (s : ℕ) :
+theorem stage_succ_prefix (s : ℕ) :
     (stage s).1 <+: (stage (s + 1)).1 ∧ (stage s).2 <+: (stage (s + 1)).2 := by
   simp only [stage]
   split_ifs with h
   · obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
     exact ⟨hb ▸ List.prefix_append _ _, step_snd _ _ _⟩
   · obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
-    exact ⟨step_snd _ _ _, by simp only [Prod.snd_swap, hb]; exact List.prefix_append _ _⟩
+    exact ⟨step_snd _ _ _, by rw [Prod.snd_swap, hb]; exact List.prefix_append _ _⟩
 
-private theorem stage_prefix {s t : ℕ} (h : s ≤ t) :
+theorem stage_prefix {s t : ℕ} (h : s ≤ t) :
     (stage s).1 <+: (stage t).1 ∧ (stage s).2 <+: (stage t).2 := by
   induction h with
   | refl => exact ⟨List.prefix_refl _, List.prefix_refl _⟩
   | step _ ih =>
     exact ⟨ih.1.trans (stage_succ_prefix _).1, ih.2.trans (stage_succ_prefix _).2⟩
 
-private theorem length_stage (s : ℕ) :
+theorem length_stage (s : ℕ) :
     (s + 1) / 2 ≤ (stage s).1.length ∧ s / 2 ≤ (stage s).2.length := by
-  induction s with
-  | zero => simp
-  | succ s ih =>
-    simp only [stage]
-    split_ifs with h
-    · obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
-      have := (step_snd (ofNat Code (s / 2)) (stage s).1 (stage s).2).length_le
-      rw [hb, List.length_append]
-      simp only [List.length_singleton]
-      omega
-    · obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
-      have := (step_snd (ofNat Code (s / 2)) (stage s).2 (stage s).1).length_le
-      simp only [Prod.fst_swap, Prod.snd_swap, hb, List.length_append, List.length_singleton]
-      omega
+  fun_induction stage s with
+  | case1 => simp
+  | case2 s h ih =>
+    obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
+    have := (step_snd (ofNat Code (s / 2)) (stage s).1 (stage s).2).length_le
+    rw [hb, List.length_append, List.length_singleton]
+    omega
+  | case3 s h ih =>
+    obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
+    have := (step_snd (ofNat Code (s / 2)) (stage s).2 (stage s).1).length_le
+    rw [Prod.fst_swap, Prod.snd_swap, hb, List.length_append, List.length_singleton]
+    omega
 
 /-- The first limit sequence: its value at `n` is fixed by stage `2 * n + 2`. -/
-private noncomputable def limA (n : ℕ) : Bool := (stage (2 * n + 2)).1.getD n false
+@[expose]
+noncomputable def limA (n : ℕ) : Bool := (stage (2 * n + 2)).1.getD n false
 
 /-- The second limit sequence: its value at `n` is fixed by stage `2 * n + 2`. -/
-private noncomputable def limB (n : ℕ) : Bool := (stage (2 * n + 2)).2.getD n false
+@[expose]
+noncomputable def limB (n : ℕ) : Bool := (stage (2 * n + 2)).2.getD n false
 
-private theorem agrees_limA (s : ℕ) : Agrees (stage s).1 limA := by
-  intro i hi
-  have hi' : i < (stage (2 * i + 2)).1.length := by
-    have := (length_stage (2 * i + 2)).1; omega
-  have h₁ := (stage_prefix (le_max_left s (2 * i + 2))).1
-  have h₂ := (stage_prefix (le_max_right s (2 * i + 2))).1
-  rw [limA, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi', Option.getD_some,
-    h₁.getElem hi, h₂.getElem hi']
+private theorem agrees_of_prefix {f : ℕ → List Bool}
+    (hpref : ∀ {s t}, s ≤ t → f s <+: f t) (hlen : ∀ i, i < (f (2 * i + 2)).length) (s : ℕ) :
+    Agrees (f s) (fun n => (f (2 * n + 2)).getD n false) := fun i hi => by
+  dsimp only
+  have hi' := hlen i
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi', Option.getD_some,
+    (hpref (le_max_left s (2 * i + 2))).getElem hi,
+    (hpref (le_max_right s (2 * i + 2))).getElem hi']
 
-private theorem agrees_limB (s : ℕ) : Agrees (stage s).2 limB := by
-  intro i hi
-  have hi' : i < (stage (2 * i + 2)).2.length := by
-    have := (length_stage (2 * i + 2)).2; omega
-  have h₁ := (stage_prefix (le_max_left s (2 * i + 2))).2
-  have h₂ := (stage_prefix (le_max_right s (2 * i + 2))).2
-  rw [limB, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi', Option.getD_some,
-    h₁.getElem hi, h₂.getElem hi']
+theorem agrees_limA (s : ℕ) : Agrees (stage s).1 limA :=
+  agrees_of_prefix (fun h => (stage_prefix h).1)
+    (fun i => by have := (length_stage (2 * i + 2)).1; omega) s
 
-private theorem not_limA_le_limB :
+theorem agrees_limB (s : ℕ) : Agrees (stage s).2 limB :=
+  agrees_of_prefix (fun h => (stage_prefix h).2)
+    (fun i => by have := (length_stage (2 * i + 2)).2; omega) s
+
+theorem not_limA_le_limB :
     ¬(fun n => (limA n).toNat : ℕ → ℕ) ≤ᵀ (fun n => (limB n).toNat : ℕ → ℕ) := by
   intro h
   obtain ⟨c, hc⟩ := turingReducible_iff_exists_code.1 h
@@ -199,7 +249,7 @@ private theorem not_limA_le_limB :
   · rw [← hs]; exact agrees_limA _
   · rw [← hs]; exact agrees_limB _
 
-private theorem not_limB_le_limA :
+theorem not_limB_le_limA :
     ¬(fun n => (limB n).toNat : ℕ → ℕ) ≤ᵀ (fun n => (limA n).toNat : ℕ → ℕ) := by
   intro h
   obtain ⟨c, hc⟩ := turingReducible_iff_exists_code.1 h
@@ -215,7 +265,7 @@ private theorem not_limB_le_limA :
   · have := agrees_limA (2 * encode c + 2)
     rwa [hs, Prod.fst_swap] at this
 
-private theorem indicator_eq (a : ℕ → Bool) :
+theorem indicator_eq (a : ℕ → Bool) :
     ({n | a n = true} : Set ℕ).indicator 1 = fun n => (a n).toNat := by
   funext n
   cases h : a n <;> simp [Set.indicator, h]

@@ -45,8 +45,8 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
 computable in polynomial time under `encRat` and `encRatData`. -/
 theorem rat_pair :
     ComputableInPolyTime (fun q : ℚ => (q.num, q.den)) encRat encRatData :=
-  (ComputableTidilyInPolyTime.of_eq (f := fun q : ℚ => (q.num, q.den))
-    (encIn := encRat) (encMid := encRatData) fun _ => rfl).computableInPolyTime
+  (ComputableInPolyTime.of_eq (f := fun q : ℚ => (q.num, q.den))
+    (encIn := encRat) (encOut := encRatData) fun _ => rfl)
 
 /-- Extracting the binary numerator `q.num` from `encRat q` is computable in polynomial time. -/
 @[fun_prop]

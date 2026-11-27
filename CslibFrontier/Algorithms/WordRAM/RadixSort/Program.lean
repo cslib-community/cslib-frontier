@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.RadixSort.Scan
 public import CslibFrontier.Computability.WordRAM.Compile
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Fixed-code native unsigned radix sorter
@@ -94,10 +95,10 @@ private theorem pass_exec {w b s d : ℕ} (xs : List ℕ) (x : Data 16)
     (by simpa +decide [y₀] using hyout) hysrc
     (by simpa only [y₀, Data.set_mem, List.nil_append] using hym) hwords
     (by rw [← partition, length_partition]) hdisj hsfit hdfit
-  have hzs : z.regs src = s := (hz.regs_eq (by decide)).trans hs₀
-  have hzd : z.regs dst = d := (hz.regs_eq (by decide)).trans hd₀
-  have hzb : z.regs bit = b := (hz.regs_eq (by decide)).trans hb₀
-  have hzo : z.regs one = 1 := (hz.regs_eq (by decide)).trans ho₀
+  have hzs : z.regs src = s := by regs_frame
+  have hzd : z.regs dst = d := by regs_frame
+  have hzb : z.regs bit = b := by regs_frame
+  have hzo : z.regs one = 1 := by regs_frame
   refine ⟨?u, ?run, ?_, ?_, ?_, ?_, ?_⟩
   case run =>
     have ha : ExecWithin w advance z ?u 4 := by
@@ -153,8 +154,7 @@ theorem exec {w base keyBits : ℕ} (xs : List ℕ) (x : Data 16)
       (by simpa only [hl] using hdis) (by simpa only [hl] using hsf)
       (by simpa only [hl] using hdf) (hbits.of_le (by omega)) (h2.of_le (by omega))
     refine ⟨z, by simpa only [hl] using he, ?_, hzb⟩
-    refine ⟨(he.regs_eq (by decide)).trans hyn, (he.regs_eq (by decide)).trans hyB,
-      (he.regs_eq (by decide)).trans hyo, (he.regs_eq (by decide)).trans hy2,
+    refine ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame,
       ?_, ?_, ?_⟩
     · rw [hzs, hzd]
       rcases hyp with ⟨ha, hb⟩ | ⟨ha, hb⟩

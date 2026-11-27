@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.FiniteLinearOrd
 public import CslibFrontier.Logics.FirstOrder.Interpretation
 public import Mathlib.Combinatorics.SimpleGraph.Maps
 public import Mathlib.ModelTheory.Graph
+import CslibFrontier.Tactic.FinIndex
 import CslibFrontier.Tactic.FirstOrder.Simp
 import Mathlib.Data.Finset.Sort
 import Mathlib.Tactic.FinCases
@@ -174,12 +175,8 @@ theorem realize_isTopFormula_fin (v : α → Fin m) (x : α) :
   constructor
   · intro h
     have := h ⟨m - 1, by omega⟩
-    rw [Fin.le_def] at this
-    simp only at this
-    omega
-  · intro h t
-    rw [Fin.le_def]
-    omega
+    fin_index
+  · omega
 
 /-- `isBotFormula` on `Fin m`, in terms of values. -/
 theorem realize_isBotFormula_fin (v : α → Fin m) (x : α) :
@@ -189,12 +186,8 @@ theorem realize_isBotFormula_fin (v : α → Fin m) (x : α) :
   constructor
   · intro h
     have := h ⟨0, by omega⟩
-    rw [Fin.le_def] at this
-    simp only at this
-    omega
-  · intro h t
-    rw [Fin.le_def]
-    omega
+    fin_index
+  · omega
 
 /-- `twoAboveFormula` on `Fin m`, in terms of values. -/
 theorem realize_twoAboveFormula_fin (v : α → Fin m) (x y : α) :

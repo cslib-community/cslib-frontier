@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.IterateWhile
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 
@@ -103,7 +104,7 @@ theorem iterateWhileSome {f : Option β → Option β} {Sf : Option β → ℕ}
     ComputableInSpace (fun x => f^[r x] (start x)) encIn (encOption encB)
       fun x => Si x + Q x + B x := by
   classical
-  obtain ⟨T, c, ⟨k, St, hSt, tm, htm⟩, -⟩ := hf.tidy
+  obtain ⟨T, c, ⟨k, St, hSt, tm, htm⟩, -⟩ := Internal.NormalForm.space hf
   let P : Option β → Prop := fun o => ∃ m, f^[m] o = none
   have hP {o : Option β} (h : P o) : P (f o) := by
     obtain ⟨m, hm⟩ := h

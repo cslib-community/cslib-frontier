@@ -11,6 +11,7 @@ import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.Chunks
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native enumeration of all query chunks
@@ -351,8 +352,7 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
       refine ⟨hi, ?_, ?_, ?_, ?_, ?_⟩ <;> intro h <;> subst i <;>
         simp only [cursor, written, heap, addr, temp] at hi' <;> omega
     refine ⟨z, he.mono (by omega), ⟨hpr,
-      (hpres one (by decide)).trans hyo, (hpres three (by decide)).trans hyt,
-      (hpres stride (by decide)).trans hys, by omega, ?_, ?_, ?_, ?_⟩, by omega⟩
+      by regs_frame, by regs_frame, by regs_frame, by omega, ?_, ?_, ?_, ?_⟩, by omega⟩
     · rw [hzw, hyw, hzi, hnext]
     · rw [hzh, hyh, hzi, hnext]
       omega

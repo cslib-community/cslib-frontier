@@ -267,7 +267,7 @@ theorem lyubashevsky_specialSoundness :
       have h := abs_lyubashevskyChallenge_le c j
       unfold lyubashevskyChallenge at h h' ⊢
       split_ifs <;> simp
-  · rw [Matrix.fromCols_mulVec]
+  · rw [InKernelLattice, Matrix.fromCols_mulVec]
     simp only [lyubashevskyExtract, Option.getD_some]
     change y.1 *ᵥ (Int.cast ∘ (z - z')) + y.2 *ᵥ
       (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c)) = 0

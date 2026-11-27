@@ -21,6 +21,12 @@ decapsulation queries. The existing `cca2Phase2Oracle` rejects the exact challen
 worlds and encodes every other `Option` reply, distinguishing rejection from an empty key.
 There is no prechallenge decapsulation phase or additional challenge encapsulation.
 
+These games strengthen the exercise's KEM game (printed p. 513) in two distinct ways. Its
+challenger sends only `(k_b, c_kem)`, while here the distinguisher also receives `pk` (#5293). It
+restricts decapsulation queries to the KEM ciphertext space `C_kem`, while here every word other
+than the challenge is decapsulated (#5686). KEM security in these games is therefore a stronger
+premise than the exercise's.
+
 Security is expressed with the existing `Game.Indistinguishable` and `IsOraclePPT` predicates;
 these experiments introduce no new adversary or security structure. They specialize to the
 existing CPA games for adversaries that only sample closed programs.
@@ -49,8 +55,10 @@ namespace Cslib.Crypto.Encryption
 open Probability Turing.MultiTapeTM
 
 /-- Interpret a KEM distinguisher using the existing challenge-rejecting decryption oracle.
-Only the encoded public key, shown key and challenge ciphertext are passed to the adversary;
-`sk` remains internal to the challenger. -/
+The adversary receives the encoded public key, shown key and challenge ciphertext; `sk` remains
+internal to the challenger. Exercise 12.5's KEM challenger sends only the key and the
+encapsulation (#5293), and the oracle decapsulates every word other than the challenge, where the
+exercise's queries lie in `C_kem` (#5686). -/
 def kemCCAContinuation (decaps : ℕ → List Bool → List Bool → Option (List Bool))
     (distinguisher : OracleDistinguisher) (n : ℕ) (sk pk k ct : List Bool) : ProbComp Bool := do
   let result ← (OracleComp.interpret

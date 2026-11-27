@@ -19,8 +19,8 @@ node's keys in order, stop at the query, or descend into the child before the fi
 Each operation is defined once, over an arbitrary monad `m`, taking a comparator
 `le : α → α → m Bool` and a node-visit action `visit : m Unit`, with no order instance in scope,
 so that every comparison goes through `le`. The pure operations are the `Id` instantiations with
-the decidable comparator `leI` of a linear order and `visit := pure ()`, in the pattern of
-CSLib's `List.mergeSortM` and `List.idRun_mergeSortM`. Costs are not stated here.
+the decidable comparator `Cslib.SortedAssoc.leI` of a linear order and `visit := pure ()`, in
+the pattern of CSLib's `List.mergeSortM` and `List.idRun_mergeSortM`. Costs are not stated here.
 
 `lookupM` recurses on `.node c rest`, which is not a structural subterm, so it is defined by
 well-founded recursion on `sizeOf`; `decide` and `rfl` cannot evaluate `lookup`, and concrete
@@ -58,6 +58,8 @@ universe w
 namespace Cslib.DataStructure
 
 namespace BTree
+
+open Cslib.SortedAssoc (leI)
 
 section Polymorphic
 
@@ -131,9 +133,6 @@ end Transfer
 section Pure
 
 variable {α β : Type} [LinearOrder α] {t : ℕ} {tr : BTree α β}
-
-/-- The decidable comparator of a linear order, in the identity monad. -/
-abbrev leI (a b : α) : Id Bool := pure (decide (a ≤ b))
 
 /-- Pure within-node search: the `Id` instantiation of `slotM`. -/
 @[expose] def slot (k : α) (rest : List (Triple α β)) : ℕ := Id.run (slotM leI k rest)

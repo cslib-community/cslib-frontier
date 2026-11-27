@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.SuffixArray.Basic
 public import Cslib.Algorithms.Lean.TimeM
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Kasai et al.'s linear-time LCP array construction
@@ -186,47 +187,14 @@ def kasai (w : List α) (sa : List ℕ) : List ℕ :=
 /-- `extendM` makes one comparison per matched character plus at most one mismatch. -/
 theorem extendM_time_add_le (w : Array α) (j i h : ℕ) :
     (extendM w j i h).time + h ≤ (extendM w j i h).ret + 1 := by
-  generalize hk : w.size - (i + h) = k
-  induction k generalizing h with
-  | zero =>
-    rw [extendM]
-    simp only [show ¬(j + h < w.size ∧ i + h < w.size) by omega, ↓reduceDIte, TimeM.time_pure,
-      TimeM.ret_pure]
-    omega
-  | succ k ih =>
-    rw [extendM]
-    split_ifs with hlt heq
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.ret_bind]
-      have := ih (h + 1) (by omega)
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure]
-      omega
-    · simp only [TimeM.time_pure, TimeM.ret_pure]
-      omega
+  time_spec extendM
 
 /-- An extension that reaches the end of the suffix at `i` makes no mismatch comparison:
 one comparison per matched character. -/
 theorem extendM_time_add_le_of_size_le (w : Array α) (j i h : ℕ)
     (hend : w.size ≤ i + (extendM w j i h).ret) :
     (extendM w j i h).time + h ≤ (extendM w j i h).ret := by
-  generalize hk : w.size - (i + h) = k
-  induction k generalizing h with
-  | zero =>
-    rw [extendM] at hend ⊢
-    simp only [show ¬(j + h < w.size ∧ i + h < w.size) by omega, ↓reduceDIte, TimeM.time_pure,
-      TimeM.ret_pure] at hend ⊢
-    omega
-  | succ k ih =>
-    rw [extendM] at hend ⊢
-    split_ifs at hend ⊢ with hlt heq
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.ret_bind] at hend ⊢
-      have := ih (h + 1) hend (by omega)
-      omega
-    · simp only [TimeM.ret_bind, TimeM.ret_pure] at hend
-      omega
-    · simp only [TimeM.time_pure, TimeM.ret_pure]
-      omega
+  time_spec extendM
 
 /-- Extending the common prefix of the suffixes at `j` and `i` from `h` yields
 `h + List.lcpLen (w.drop (j + h)) (w.drop (i + h))`. -/
@@ -250,7 +218,7 @@ theorem ret_extendM (w : Array α) (j i h : ℕ) :
         Array.getElem_toList, Array.getElem_toList, heq, List.lcpLen_cons_cons_self,
         show j + (h + 1) = j + h + 1 by omega, show i + (h + 1) = i + h + 1 by omega]
       omega
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
+    · simp only [time_simps]
       rw [List.drop_eq_getElem_cons (i := j + h) (l := w.toList) (by simpa using hlt.1),
         List.drop_eq_getElem_cons (i := i + h) (l := w.toList) (by simpa using hlt.2),
         Array.getElem_toList, Array.getElem_toList, List.lcpLen_cons_cons]

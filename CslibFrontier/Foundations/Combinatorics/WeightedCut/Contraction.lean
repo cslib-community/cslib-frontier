@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.WeightedCut
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Contracting two supervertices
@@ -27,7 +28,7 @@ cut of `Fin (m + 1)` that does not separate `u` and `v` becomes the cut `contrac
 Contraction preserves `Cslib.WeightedCut.IsContractionOf` (`isContractionOf_contract`), so pulled
 back cuts keep their weight, and a cut that does not separate `u` and `v` keeps its weight
 (`cutWeight_contractCut`). The randomized algorithms of Karger and Karger–Stein
-(`CslibFrontier.Algorithms.WordRAM.Karger.Graph`) and the deterministic Stoer–Wagner algorithm
+(`CslibFrontier.Algorithms.Karger.Graph`) and the deterministic Stoer–Wagner algorithm
 (`CslibFrontier.Algorithms.Lean.StoerWagner.Basic`) are built on this API.
 
 ## Main definitions
@@ -170,16 +171,7 @@ theorem embedCompact_ne {m : ℕ} (v : Fin (m + 1)) (i : Fin m) :
 
 theorem embedCompact_injective {m : ℕ} (v : Fin (m + 1)) :
     Function.Injective (embedCompact v) := by
-  intro i j hij
-  unfold embedCompact at hij
-  by_cases hi : i.val = v.val <;> by_cases hj : j.val = v.val
-  · exact Fin.ext (hi.trans hj.symm)
-  · simp only [hi, hj, ↓reduceIte, Fin.ext_iff, Fin.val_last, Fin.val_castSucc] at hij
-    omega
-  · simp only [hi, hj, ↓reduceIte, Fin.ext_iff, Fin.val_last, Fin.val_castSucc] at hij
-    omega
-  · simp only [hi, hj, ↓reduceIte, Fin.castSucc_inj] at hij
-    exact hij
+  fin_index [embedCompact]
 
 /-- Inverse of `embedCompact v` on `{a : Fin (m + 1) // a ≠ v}`. -/
 def compactIdx {m : ℕ} (v : Fin (m + 1)) (a : Fin (m + 1)) (ha : a ≠ v) : Fin m :=
