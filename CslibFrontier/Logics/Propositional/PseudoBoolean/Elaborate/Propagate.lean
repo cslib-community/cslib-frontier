@@ -21,8 +21,12 @@ VeriPB [Bogaerts, Gocht, McCreesh and Nordström][BogaertsGochtMcCreeshNordstrom
 hinted `rup C : hints;` of the kernel format (§5.2.1 of the VeriPB/CakePB documentation,
 22 June 2026 edition).
 
-The engine is untrusted: it has no correctness theorem, and the hints it returns are checked by
-the kernel checker (`Cslib.Logic.PL.VeriPB.rup`). It is written for compiled execution: its state
+The hints it returns are checked by the kernel checker (`Cslib.Logic.PL.VeriPB.rup`). That a
+conflict it reports is one is proved in
+`CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.PropagateSound`
+(`Cslib.Logic.PL.VeriPB.Elab.Engine.Built.rupHints_sound`): the negation and the constraints of the
+engine then reach a conflict by the kernel's propagation, along some list of hints. Its
+completeness is not proved. It is written for compiled execution: its state
 is one value, private to this module, updated in place by pure functions while it is uniquely
 referenced. The engine's interface is `Cslib.Logic.PL.VeriPB.Elab.Engine.new` and the
 operations `add`, `kill`, `rupHints` and `extend`, pure functions too. Its loops are total: those

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Propagate
+import CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Syntax
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 
@@ -19,11 +20,12 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 (`Cslib.Logic.PL.VeriPB.Elab.AStep`), and produces a kernel proof
 (`Cslib.Logic.PL.VeriPB.RedProof`) for the checker `Cslib.Logic.PL.VeriPB.checkRed`, as the
 elaborator of the VeriPB tool does (`veripb --elaborate`, version 3.0.2, crate `veripb-rules`,
-module `elaboration`). It is untrusted: it has no correctness theorem, its output being checked by
-the kernel checker. It keeps its own database, with the number each constraint has in the
-augmented proof and the number it gets in the kernel proof, which differ once a rule elaborates
-into several kernel steps; references are translated through it. Section numbers below are those
-of the VeriPB/CakePB documentation, 22 June 2026 edition.
+module `elaboration`). It is untrusted: its output is checked by the kernel checker, and of its
+parts only the propagation engine is proved sound so far
+(`Cslib.Logic.PL.VeriPB.Elab.Engine.Built.rupHints_sound`). It keeps its own database, with the
+number each constraint has in the augmented proof and the number it gets in the kernel proof,
+which differ once a rule elaborates into several kernel steps; references are translated through
+it. Section numbers below are those of the VeriPB/CakePB documentation, 22 June 2026 edition.
 
 **Elaboration of the augmented rules.**
 * `pol` (§5.2.1). The kernel operations are kept. `k -` lowers the degree by adding `k x` and
@@ -69,7 +71,10 @@ change of the preserved set gets a subproof, possibly empty, as CakePB's parser 
 the core set is compared with a formula (an output section) or receives every constraint
 (`strengthening_to_core on`, `load_order`). Constraints are computed in canonical form in linear
 time (by private functions, `fadd`, …), with the results of the kernel's rules up to the
-order of terms.
+order of terms. On the parser's constraints, whose coefficients are positive and on distinct
+variables, `Cslib.Logic.PL.VeriPB.Elab.normalizeParsed` and
+`Cslib.Logic.PL.VeriPB.Elab.negateParsed` are the kernel's normalization and negation
+(`Cslib.Logic.PL.VeriPB.Elab.normalizeParsed_eq`, `Cslib.Logic.PL.VeriPB.Elab.negateParsed_eq`).
 
 **Totality.** Every function of the elaborator, its parser and its propagation engine is total,
 by structural or well-founded recursion. The loops over the proof text and over the trail of the
@@ -473,13 +478,26 @@ private def canon (c : PBConstr) : PBConstr := ofKey (keyOf c)
 
 /-- `Cslib.Logic.PL.PBConstr.normalize` of a constraint of the parser (`Parse.constr`), in linear
 time: its terms have positive coefficients on distinct variables, and then the normal form is the
-terms reversed, with the same degree. -/
-private def normalizeParsed (c : PBConstr) : PBConstr := ⟨c.terms.reverse, c.degree⟩
+terms reversed, with the same degree (`Cslib.Logic.PL.VeriPB.Elab.normalizeParsed_eq`). -/
+def normalizeParsed (c : PBConstr) : PBConstr := ⟨c.terms.reverse, c.degree⟩
 
 /-- `Cslib.Logic.PL.PBConstr.negate` of a constraint of the parser, in linear time
-(`Cslib.Logic.PL.VeriPB.Elab.normalizeParsed`). -/
-private def negateParsed (c : PBConstr) : PBConstr :=
+(`Cslib.Logic.PL.VeriPB.Elab.negateParsed_eq`). -/
+def negateParsed (c : PBConstr) : PBConstr :=
   ⟨c.terms.reverse.map fun t => (t.1, Std.Sat.Literal.negate t.2), coeffSum c.terms + 1 - c.degree⟩
+
+/-- On a constraint with positive coefficients on distinct variables, as the parser produces,
+`Cslib.Logic.PL.VeriPB.Elab.normalizeParsed` is the kernel's normalization. -/
+theorem normalizeParsed_eq {c : PBConstr} (hd : (c.terms.map termVar).Nodup)
+    (hpos : ∀ t ∈ c.terms, 0 < t.1) : normalizeParsed c = c.normalize :=
+  (normalize_eq_reverse hd hpos).symm
+
+/-- On a constraint with positive coefficients on distinct variables, as the parser produces,
+`Cslib.Logic.PL.VeriPB.Elab.negateParsed` is the kernel's negation. -/
+theorem negateParsed_eq {c : PBConstr} (hd : (c.terms.map termVar).Nodup)
+    (hpos : ∀ t ∈ c.terms, 0 < t.1) : negateParsed c = c.negate := by
+  rw [negate, normalize_eq_reverse hd hpos, negateParsed]
+  simp [coeffSum, List.map_reverse, List.sum_reverse]
 
 /-- The literal axiom `ℓ ≥ 0` (`Cslib.Logic.PL.PBConstr.litAxiom`), in canonical form. -/
 private def litKey (l : Literal ℕ) : Key := (#[⟨l.1, l.2, 1⟩], 0)

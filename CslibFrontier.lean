@@ -2031,6 +2031,7 @@ public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.FreshSpoke
 public import CslibFrontier.Probability.StatisticalDistance.Polarization
 public import CslibFrontier.DataStructure.Queue.Memory
 public import CslibFrontier.DataStructure.AVLTree.PointerMachine.Structured.Rotation
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.PropagateSound
 public import CslibFrontier.Computability.Complexity.Classes.Counting.Space
 public import CslibFrontier.Crypto.Primitives.HQC.SeedExpansion
 public import CslibFrontier.Foundations.Combinatorics.Expander.BipartiteRotation

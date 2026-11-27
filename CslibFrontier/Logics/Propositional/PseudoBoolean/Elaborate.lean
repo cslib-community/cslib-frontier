@@ -30,7 +30,9 @@ other conclusions follow from the kernel checker's theorems
 (`Cslib.Logic.PL.VeriPB.exists_satisfies_of_checkRed`,
 `Cslib.Logic.PL.VeriPB.le_eval_of_checkRed`, `Cslib.Logic.PL.VeriPB.exists_eval_le_of_checkRed`,
 …). The trusted parts are the instance parser and the kernel checker, as for
-`Cslib.Logic.PL.VeriPB.Text.checkOPB`.
+`Cslib.Logic.PL.VeriPB.Text.checkOPB`. Of the elaborator, only the propagation engine has a
+theorem so far: a conflict it reports for a hintless `rup` is a refutation by the kernel's
+reverse unit propagation (`Cslib.Logic.PL.VeriPB.Elab.Engine.Built.rupHints_sound`).
 
 **Completeness** is not proved: the elaborator may fail on a valid proof (its limitations are
 listed in `Cslib.Logic.PL.VeriPB.Elab`), and then the checker rejects. For the clausal and `pol`
