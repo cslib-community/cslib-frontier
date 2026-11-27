@@ -58,7 +58,8 @@ structure SweepState where
 @[expose] def sweepStart (n source : ℕ) : SweepState := ⟨0, 0, n + 1, source, 0, 0, 0⟩
 
 /-- Begin the scan of one generated letter at column marker `n + 1` and end it at marker `n`.
-The time marker `len` finalizes a starting seed. Marker iterations ignore the supplied entry. -/@[expose] def sweepUpdate (n len scale src dst : ℕ) (label : ℕ → ℕ → ℕ) (s : SweepState)
+The time marker `len` finalizes a starting seed. Marker iterations ignore the supplied entry. -/
+@[expose] def sweepUpdate (n len scale src dst : ℕ) (label : ℕ → ℕ → ℕ) (s : SweepState)
     (answer : ℕ) : SweepState :=
   if s.t = len then
     ⟨s.x + 1, 0, n + 1, src, 0, 0, s.hits + if s.current = dst then 1 else 0⟩
