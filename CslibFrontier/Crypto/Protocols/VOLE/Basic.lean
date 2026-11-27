@@ -193,16 +193,13 @@ theorem valid_of_mem_support_voleIdealDist [Fintype R] [Nonempty R]
 
 /-- A correlation belongs to the support of `voleIdealDist R n` if and only if it is `Valid`. -/
 theorem mem_support_voleIdealDist_iff [Fintype R] [Nonempty R] (c : VOLECorrelation R n) :
-    c ∈ (voleIdealDist R n).support ↔ c.Valid := by
-  constructor
-  · exact valid_of_mem_support_voleIdealDist
-  · intro hc
+    c ∈ (voleIdealDist R n).support ↔ c.Valid :=
+  ⟨valid_of_mem_support_voleIdealDist, fun hc => by
     simp only [voleIdealDist, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff]
-    refine ⟨c.u, PMF.mem_support_uniformOfFintype _, c.v, PMF.mem_support_uniformOfFintype _,
-      c.delta, PMF.mem_support_uniformOfFintype _, ?_⟩
-    exact (VOLECorrelation.ext (x := voleSample c.u c.v c.delta) (y := c) rfl rfl rfl
-      (funext fun i => (hc i).symm)).symm
+    exact ⟨c.u, PMF.mem_support_uniformOfFintype _, c.v, PMF.mem_support_uniformOfFintype _,
+      c.delta, PMF.mem_support_uniformOfFintype _,
+      VOLECorrelation.ext rfl rfl rfl (funext hc)⟩⟩
 
 /-- Under `voleIdealDist R n`, the receiver's global key `delta` is uniformly distributed in `R`. -/
 theorem voleIdealDist_map_delta [Fintype R] [Nonempty R] (n : ℕ) :
@@ -241,22 +238,19 @@ def addConst (a : Fin n → R) (c : VOLECorrelation R n) : VOLECorrelation R n w
 
 /-- Componentwise addition preserves `Valid` when both correlations share the same `delta`. -/
 theorem Valid.add {c₁ c₂ : VOLECorrelation R n} (h₁ : c₁.Valid) (h₂ : c₂.Valid)
-    (hdelta : c₁.delta = c₂.delta) : (c₁.add c₂).Valid := by
-  intro i
+    (hdelta : c₁.delta = c₂.delta) : (c₁.add c₂).Valid := fun i => by
   simp only [VOLECorrelation.add, Pi.add_apply, h₁ i, h₂ i, ← hdelta]
   ring
 
 /-- Public scalar multiplication preserves `Valid`. -/
 theorem Valid.smul {c : VOLECorrelation R n} (hc : c.Valid) (a : R) :
-    (c.smul a).Valid := by
-  intro i
+    (c.smul a).Valid := fun i => by
   simp only [VOLECorrelation.smul, Pi.smul_apply, smul_eq_mul, hc i]
   ring
 
 /-- Public constant addition preserves `Valid`. -/
 theorem Valid.addConst {c : VOLECorrelation R n} (hc : c.Valid) (a : Fin n → R) :
-    (c.addConst a).Valid := by
-  intro i
+    (c.addConst a).Valid := fun i => by
   simp only [VOLECorrelation.addConst, Pi.add_apply, hc i]
   ring
 
@@ -364,12 +358,8 @@ theorem voleOpen_unique_delta_of_ne {w' x v x' v' : Fin n → F} {delta : F} {i 
     (htrue : w' i = x i * delta + v i) (hforge : w' i = x' i * delta + v' i)
     (hne : x' i ≠ x i) :
     delta = (v' i - v i) / (x i - x' i) := by
-  have hsub : (x i - x' i) * delta = v' i - v i := by
-    calc (x i - x' i) * delta = (x i * delta + v i) - (x' i * delta + v' i) + (v' i - v i) := by
-          ring
-      _ = v' i - v i := by rw [← htrue, ← hforge, sub_self, zero_add]
-  have hne' : x i - x' i ≠ 0 := sub_ne_zero.mpr hne.symm
-  rw [← hsub, mul_div_cancel_left₀ _ hne']
+  have hsub : (x i - x' i) * delta = v' i - v i := by linear_combination hforge - htrue
+  rw [← hsub, mul_div_cancel_left₀ _ (sub_ne_zero.mpr hne.symm)]
 
 /-- If both `(x, v)` and `(x', v')` pass `voleVerifyOpening w' delta`, then either `x' = x`
 (and `v' = v`) or there is a coordinate `i` where `x' i ≠ x i` and
@@ -378,16 +368,10 @@ theorem voleOpen_forger_eq_or_unique_delta
     {w' x v x' v' : Fin n → F} {delta : F}
     (htrue : voleVerifyOpening w' delta x v) (hforge : voleVerifyOpening w' delta x' v') :
     (x' = x ∧ v' = v) ∨ ∃ i, x' i ≠ x i ∧ delta = (v' i - v i) / (x i - x' i) := by
-  by_cases hx : x' = x
-  · left
-    refine ⟨hx, funext fun i => ?_⟩
-    have h1 := htrue i
-    have h2 := hforge i
-    rw [hx] at h2
-    exact add_left_cancel (h2.symm.trans h1)
-  · right
-    obtain ⟨i, hi⟩ := Function.ne_iff.mp hx
-    exact ⟨i, hi, voleOpen_unique_delta_of_ne (htrue i) (hforge i) hi⟩
+  rcases eq_or_ne x' x with rfl | hx
+  · exact .inl ⟨rfl, funext fun i => add_left_cancel ((hforge i).symm.trans (htrue i))⟩
+  · obtain ⟨i, hi⟩ := Function.ne_iff.mp hx
+    exact .inr ⟨i, hi, voleOpen_unique_delta_of_ne (htrue i) (hforge i) hi⟩
 
 /-- For any forged value `x' ≠ x` over a finite field `F`, at most one global key `delta : F`
 satisfies the IT-MAC verification equation `∀ i, x i * delta + v i = x' i * delta + v' i`. -/
@@ -395,12 +379,11 @@ theorem card_filter_voleVerifyOpening_le_one [Fintype F] [DecidableEq F]
     {x v x' v' : Fin n → F} (hne : x' ≠ x) :
     (Finset.univ.filter fun delta : F =>
       ∀ i, x i * delta + v i = x' i * delta + v' i).card ≤ 1 := by
+  obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
   refine Finset.card_le_one.mpr fun d₁ hd₁ d₂ hd₂ => ?_
   simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hd₁ hd₂
-  obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
-  have eq₁ := voleOpen_unique_delta_of_ne (w' := fun j => x j * d₁ + v j) rfl (hd₁ i) hi
-  have eq₂ := voleOpen_unique_delta_of_ne (w' := fun j => x j * d₂ + v j) rfl (hd₂ i) hi
-  exact eq₁.trans eq₂.symm
+  exact (voleOpen_unique_delta_of_ne (w' := fun j => x j * d₁ + v j) rfl (hd₁ i) hi).trans
+    (voleOpen_unique_delta_of_ne (w' := fun j => x j * d₂ + v j) rfl (hd₂ i) hi).symm
 
 /-- **IT-MAC soundness bound**: for any forged witness `x' ≠ x` and tag vector `v'`, the probability
 over a uniform global key `delta ← PMF.uniformOfFintype F` that `(x', v')` passes verification is at
@@ -464,15 +447,9 @@ theorem voleMulCheck_iff_of_ne_zero {F : Type u} [Field F]
     w_x * w_y - w_z * delta =
       voleMulCrossTerm x v_x y v_y v_z * delta + voleMulConstTerm v_x v_y ↔ x * y = z := by
   rw [voleMulCheck_sub_eq hwx hwy hwz]
-  constructor
-  · intro h
-    have hzero : (x * y - z) * delta ^ 2 = 0 := by
-      linear_combination h
-    rcases mul_eq_zero.mp hzero with hsub | hpow
-    · exact sub_eq_zero.mp hsub
-    · exact False.elim (pow_ne_zero 2 hdelta hpow)
-  · intro hxyz
-    rw [sub_eq_zero.mpr hxyz, zero_mul, zero_add]
+  refine ⟨fun h => ?_, fun h => by rw [sub_eq_zero.mpr h, zero_mul, zero_add]⟩
+  have hzero : (x * y - z) * delta ^ 2 = 0 := by linear_combination h
+  exact sub_eq_zero.mp ((mul_eq_zero.mp hzero).resolve_right (pow_ne_zero 2 hdelta))
 
 end MulCheck
 

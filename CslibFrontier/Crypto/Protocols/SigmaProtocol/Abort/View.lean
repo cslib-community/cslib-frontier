@@ -40,9 +40,8 @@ theorem transcript_eq_of_acceptedTranscript_eq {X Y T C Z : Type u}
     (hcommit : (P.commit x y).map Prod.fst = (P.commit x' y).map Prod.fst)
     (haccept : P.acceptedTranscript x y c = P.acceptedTranscript x' y c) :
     P.transcript x y c = P.transcript x' y c := by
-  apply PMF.ext_prod_option
-  · simpa only [transcript, PMF.map_comp, Function.comp_def] using hcommit
-  · exact haccept
+  exact PMF.ext_prod_option
+    (by simpa only [transcript, PMF.map_comp, Function.comp_def] using hcommit) haccept
 
 /-- Equal full fixed-challenge laws remain equal under a common public randomized challenge
 and state kernel. The kernel sees the commitment but not the witness or private prover state. -/
@@ -59,16 +58,13 @@ theorem bind_respond_challenge_eq_of_transcript_eq {X Y T C Z : Type u} {R : Typ
         (ts.1, cr.1, P.respond x y ts.2 cr.1, cr.2)) (w, c, z, r) =
         kernel w (c, r) * P.transcript x y c (w, z) := by
     rw [PMF.bind_apply, transcript, PMF.map_apply, ← ENNReal.tsum_mul_left]
-    apply tsum_congr
-    intro ts
+    refine tsum_congr fun ts => ?_
     rw [PMF.map_apply, tsum_eq_single (c, r)]
     · by_cases hw : w = ts.1 <;> by_cases hz : z = P.respond x y ts.2 c <;>
         simp [Prod.mk.injEq, hw, hz, mul_comm]
     · rintro ⟨c', r'⟩ hne
-      have hn : (w, c, z, r) ≠ (ts.1, c', P.respond x y ts.2 c', r') := by
-        intro heq
-        exact hne (congrArg (fun view : T × C × Z × R => (view.2.1, view.2.2.2)) heq).symm
-      simp [hn]
+      exact ite_eq_right fun heq =>
+        hne (congrArg (fun view : T × C × Z × R => (view.2.1, view.2.2.2)) heq).symm
   ext ⟨w, c, z, r⟩
   rw [hmass, hmass, h]
 

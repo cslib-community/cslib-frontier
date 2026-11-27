@@ -42,35 +42,14 @@ theorem computableInPolyTime_restrictPrefix {α : Type} {input : α ↪ List Boo
     (hn : ComputableInPolyTime count input encUnary) :
     ComputableInPolyTime (fun a => restrictPrefix (count a) (table a))
       input encRotationCertificate := by
-  have hs := RotationCertificate.computableInPolyTime_successor.comp hc
-  have hsteps := (ComputableInPolyTime.length_list encNat).comp hs
-  have hbound := ComputableInPolyTime.unary_to_binary.comp hn
-  have hout : ComputableInPolyTime (fun a => (List.range (count a)).map fun i =>
-      (((List.range (table a).successor.length).map fun k =>
-        RotationCertificate.walk (table a).successor (k + 1) i).find?
-          (fun j => decide (j < count a))).getD 0) input (encList encNat) := by
-    apply ComputableInPolyTime.mapWithInput (encA := encUnary)
-      (ComputableInPolyTime.range.comp hn)
-    have hp := ComputableInPolyTime.fst input encUnary
-    have hi := ComputableInPolyTime.unary_to_binary.comp
-      (ComputableInPolyTime.snd input encUnary)
-    have hwalks : ComputableInPolyTime (fun p : α × ℕ =>
-        (List.range (table p.1).successor.length).map fun k =>
-          RotationCertificate.walk (table p.1).successor (k + 1) p.2)
-        (encPair input encUnary) (encList encNat) := by
-      apply ComputableInPolyTime.mapWithInput (encA := encUnary)
-        (ComputableInPolyTime.range.comp (hsteps.comp hp))
-      have hq := ComputableInPolyTime.fst (encPair input encUnary) encUnary
-      have hk := ComputableInPolyTime.snd (encPair input encUnary) encUnary
-      exact RotationCertificate.computableInPolyTime_walk.comp
-        ((((hs.comp hp).comp hq).prod (ComputableInPolyTime.unary_succ.comp hk)).prod
-          (hi.comp hq))
-    have hfind := ComputableInPolyTime.findWithInput
-      (test := fun (p : α × ℕ) j => decide (j < count p.1)) hwalks
-      (ComputableInPolyTime.binary_lt'
-        (ComputableInPolyTime.snd (encPair input encUnary) encNat)
-        ((hbound.comp hp).comp (ComputableInPolyTime.fst (encPair input encUnary) encNat)))
-    exact ComputableInPolyTime.optionGetDWithInput hfind (ComputableInPolyTime.const 0)
-  exact encRotationCertificate_mk_deg.computableInPolyTime.comp hout
+  have hbound : ComputableInPolyTime count input encNat :=
+    ComputableInPolyTime.unary_to_binary.comp hn
+  apply encRotationCertificate_mk_polyTime
+  apply ComputableInPolyTime.mapWithInput (encA := encUnary) (by fun_prop)
+  apply ComputableInPolyTime.optionGetDWithInput _ (ComputableInPolyTime.const 0)
+  apply ComputableInPolyTime.findWithInput
+  · apply ComputableInPolyTime.mapWithInput (encA := encUnary) (by fun_prop)
+    fun_prop
+  · fun_prop
 
 end Cslib.Complexity.CSP.OrderedBoundary

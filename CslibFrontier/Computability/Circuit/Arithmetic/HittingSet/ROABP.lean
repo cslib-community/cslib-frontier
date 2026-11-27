@@ -121,16 +121,14 @@ degree at most `δ` and only variables of the program. -/
 private theorem support_roabpProd_subset {M : Fin n → Matrix (Fin w) (Fin w) F[X]}
     (hM : ∀ i s t, (M i s t).natDegree ≤ δ) {l : List (Fin n)} (hl : l.Nodup) (s t : Fin w) :
     (roabpProd M l s t).support ⊆ monomialsLE l δ := fun m hm => by
-  have hm0 : ∀ i ∉ l, m i = 0 := fun i hi => by
+  have hm0 (i) (hi : i ∉ l) : m i = 0 := by
     by_contra hne
     exact mem_support_iff.1 hm (coeff_roabpProd_eq_zero M l hi hne s t)
   refine mem_monomialsLE.2 ⟨fun i => ?_, hm0⟩
-  by_contra hlt
-  rw [not_le] at hlt
+  by_contra! hlt
   have hil : i ∈ l := by
     by_contra hil
-    rw [hm0 i hil] at hlt
-    exact absurd hlt (Nat.not_lt_zero _)
+    exact absurd (hm0 i hil ▸ hlt) (Nat.not_lt_zero _)
   refine mem_support_iff.1 hm ?_
   rw [coeff_roabpProd M hl m hm0, List.prod_eq_zero (List.mem_map.2 ⟨i, hil, ?_⟩)]
   · rfl
@@ -138,11 +136,10 @@ private theorem support_roabpProd_subset {M : Fin n → Matrix (Fin w) (Fin w) F
     exact Polynomial.coeff_eq_zero_of_natDegree_lt ((hM i s' t').trans_lt hlt)
 
 private theorem totalDegree_le_of_support_subset_monomialsLE {f : MvPolynomial (Fin n) F}
-    {l : List (Fin n)} (hf : f.support ⊆ monomialsLE l δ) : f.totalDegree ≤ n * δ := by
-  refine Finset.sup_le fun m hm => ?_
-  have h := weight_le_of_mem_monomialsLE (c := fun _ => 1) (N := 1) (fun _ => le_rfl) (hf hm)
-  rw [Finsupp.weight_apply] at h
-  simpa using h
+    {l : List (Fin n)} (hf : f.support ⊆ monomialsLE l δ) : f.totalDegree ≤ n * δ :=
+  Finset.sup_le fun _ hm => by
+    simpa [Finsupp.weight_apply] using
+      weight_le_of_mem_monomialsLE (c := fun _ => 1) (N := 1) (fun _ => le_rfl) (hf hm)
 
 /-- **Quasipolynomial hitting sets for ROABPs in an unknown order**
 ([AgrawalGurjarKorwarSaxena2015], Theorem 1, for univariate layers, in characteristic zero).
@@ -153,40 +150,33 @@ theorem isHittingSet_roabpHittingSet [CharZero F] :
     IsHittingSet (roabpHittingSet F n w δ) {f | IsROABP w δ f} := by
   classical
   rintro f ⟨l, M, s, t, hl, hM, rfl⟩ hf0
-  set p := roabpPrime n w δ with hp
+  set p := roabpPrime n w δ
   have : Fact p.Prime := ⟨roabpPrime_prime n w δ⟩
   have hpp : 0 < p := (roabpPrime_prime n w δ).pos
-  set B := n * δ * p + 1 with hB
+  set B := n * δ * p + 1
   obtain ⟨a, hlen, hap, S, hiso⟩ := exists_isolating_weight (F := F) (p := p) (δ := δ)
     ((Nat.le_add_right _ δ).trans_lt (lt_roabpPrime n w δ))
     ((Nat.le_add_left δ _).trans_lt (lt_roabpPrime n w δ)) M hl
-  set c := levelWeight (n := n) p B a with hc
+  set c := levelWeight (n := n) p B a
   have hsupp := support_roabpProd_subset (F := F) hM hl s t
   have hne : aeval (fun i => (Polynomial.X : F[X]) ^ c i) (roabpProd M l s t) ≠ 0 :=
     aeval_X_pow_ne_zero_of_isolates hiso (Matrix.entryLinearMap F F s t) hsupp
       (fun m hm => coeff_roabpProd M hl m (mem_monomialsLE.1 hm).2 s t) hf0
-  set N := n * δ * (B + p) ^ Nat.clog 2 n with hN
-  have hcle : ∀ i, c i ≤ (B + p) ^ Nat.clog 2 n := fun i =>
-    (levelWeight_le hpp (Nat.succ_pos _) a i).trans
-      (Nat.pow_le_pow_right (Nat.succ_le_of_lt (Nat.add_pos_right _ hpp)) hlen)
   have hdeg : (aeval (fun i => (Polynomial.X : F[X]) ^ c i) (roabpProd M l s t)).natDegree <
-      N + 1 := by
-    refine Nat.lt_succ_of_le ((natDegree_aeval_le_mul (k := (B + p) ^ Nat.clog 2 n)
-      (fun i => ?_) _).trans (Nat.mul_le_mul_right _
-        (totalDegree_le_of_support_subset_monomialsLE hsupp)))
-    rw [Polynomial.natDegree_X_pow]
-    exact hcle i
+      n * δ * (B + p) ^ Nat.clog 2 n + 1 :=
+    Nat.lt_succ_of_le ((natDegree_aeval_le_mul (k := (B + p) ^ Nat.clog 2 n) (fun i => by
+      rw [Polynomial.natDegree_X_pow]
+      exact (levelWeight_le hpp (Nat.succ_pos _) a i).trans
+        (Nat.pow_le_pow_right (Nat.succ_le_of_lt (Nat.add_pos_right _ hpp)) hlen)) _).trans
+      (Nat.mul_le_mul_right _ (totalDegree_le_of_support_subset_monomialsLE hsupp)))
   by_contra hall
   refine hne (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' _
-    ((range (N + 1)).image fun k : ℕ => (k : F)) ?_ ?_)
-  · intro x hx
-    obtain ⟨k, hk, rfl⟩ := mem_image.1 hx
-    rw [eval_polynomial_aeval]
-    by_contra hne'
-    refine hall ⟨fun i => (k : F) ^ c i, mem_image.2 ⟨(a, k), mem_product.2
-      ⟨mem_levelLists hlen hap, hk⟩, rfl⟩, ?_⟩
-    simpa using hne'
-  · rwa [card_image_of_injective _ Nat.cast_injective, card_range]
+    ((range (n * δ * (B + p) ^ Nat.clog 2 n + 1)).image fun k : ℕ => (k : F)) (fun x hx => ?_)
+    (by rwa [card_image_of_injective _ Nat.cast_injective, card_range]))
+  obtain ⟨k, hk, rfl⟩ := mem_image.1 hx
+  rw [eval_polynomial_aeval]
+  exact not_ne_iff.1 fun hne' => hall ⟨fun i => (k : F) ^ c i,
+    mem_image.2 ⟨(a, k), mem_product.2 ⟨mem_levelLists hlen hap, hk⟩, rfl⟩, by simpa using hne'⟩
 
 variable (F n w δ) in
 /-- The hitting set has at most `(⌈lg n⌉ + 1) p ^ ⌈lg n⌉ (n δ (B + p) ^ ⌈lg n⌉ + 1)` points,

@@ -19,7 +19,7 @@ Gusfield's construction (`gusfieldWithWeights`) takes any oracle returning a min
 and its value. This module packages the construction for an arbitrary correct oracle as an
 `Output` (parent array and edge weights) and instantiates it with the generic push–relabel
 algorithm and with Dinitz's algorithm on dense networks, complementing the Edmonds–Karp instance
-`gomoryHuM` of `Construction.lean`.
+`gomoryHu` of `Construction.lean`.
 
 ## Main definitions
 
@@ -40,8 +40,8 @@ algorithm and with Dinitz's algorithm on dense networks, complementing the Edmon
   `Cslib.Algorithms.Lean.GomoryHu.isGomoryHuTree_dinitzGomoryHu` and
   `Cslib.Algorithms.Lean.GomoryHu.vget_dinitzGomoryHu_weight`: the two instances.
 
-No running time is charged here; `gomoryHuM_time_le_of_forall` covers the charged Edmonds–Karp
-version.
+No running time is stated here; `CslibFrontier.Algorithms.WordRAM.GomoryHu` gives a Word-RAM
+running time for the Edmonds–Karp version.
 
 ## References
 

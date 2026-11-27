@@ -118,16 +118,8 @@ private theorem mem_variants {s t : WangTile} :
     s ∈ variants t ↔ ∃ x y, decorate x y (payload x y t) = s := by
   constructor
   · simp only [variants, List.mem_cons, List.not_mem_nil, or_false]
-    rintro (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl)
-    all_goals first | exact ⟨.negative, .negative, rfl⟩
-                    | exact ⟨.negative, .origin, rfl⟩
-                    | exact ⟨.negative, .positive, rfl⟩
-                    | exact ⟨.origin, .negative, rfl⟩
-                    | exact ⟨.origin, .origin, rfl⟩
-                    | exact ⟨.origin, .positive, rfl⟩
-                    | exact ⟨.positive, .negative, rfl⟩
-                    | exact ⟨.positive, .origin, rfl⟩
-                    | exact ⟨.positive, .positive, rfl⟩
+    rintro (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) <;>
+      exact ⟨_, _, rfl⟩
   · rintro ⟨x, y, rfl⟩
     cases x <;> cases y <;> simp [variants, payload]
 
@@ -142,15 +134,8 @@ private theorem primrec_payload (x y : Axis) : Primrec (payload x y) := by
     primrec_mk (.const 0) (.const 0) primrec_left primrec_left
   have hv : Primrec verticalWire :=
     primrec_mk primrec_bottom primrec_bottom (.const 0) (.const 0)
-  cases x with
-  | negative =>
-      cases y with
-      | negative => exact .const _
-      | origin | positive => exact hw
-  | origin | positive =>
-      cases y with
-      | negative => exact hv
-      | origin | positive => exact Primrec.id
+  cases x <;> cases y
+  exacts [.const _, hw, hw, hv, .id, .id, hv, .id, .id]
 
 private theorem primrec_variants : Primrec variants := by
   have h (x y : Axis) : Primrec fun t => decorate x y (payload x y t) :=
@@ -251,35 +236,28 @@ theorem seededSquare_of_pointedExtension {I : SeededInstance} {n : ℕ} :
   let d (i j : Fin (n + 1)) : Pointed.Decoded I (q.tile i j) :=
     Classical.choice (Pointed.decoded_of_mem (q.mem i j))
   have corner := Pointed.decorate_inj.mp ((d 0 0).tile_eq.trans q.corner)
-  have hx (i j : Fin (n + 1)) : (d i j).horizontal ≠ .negative := by
-    apply Pointed.axisGrid_nonnegative (fun i j => (d i j).horizontal) corner.1
-    · intro k
-      exact ((d k.castSucc 0).horizontal_match (d k.succ 0)
-        (q.horizontal k.castSucc 0 k.succ.isLt)).1
-    · intro i k
-      exact ((d i k.castSucc).vertical_match (d i k.succ)
-        (q.vertical i k.castSucc k.succ.isLt)).2.1
-  have hy (i j : Fin (n + 1)) : (d i j).vertical ≠ .negative := by
-    apply Pointed.axisGrid_nonnegative (fun j i => (d i j).vertical) corner.2.1
-    · intro k
-      exact ((d 0 k.castSucc).vertical_match (d 0 k.succ)
-        (q.vertical 0 k.castSucc k.succ.isLt)).1
-    · intro j k
-      exact ((d k.castSucc j).horizontal_match (d k.succ j)
-        (q.horizontal k.castSucc j k.succ.isLt)).2.1
-  refine ⟨{
+  have hx (i j : Fin (n + 1)) : (d i j).horizontal ≠ .negative :=
+    Pointed.axisGrid_nonnegative (fun i j => (d i j).horizontal) corner.1
+      (fun k => ((d k.castSucc 0).horizontal_match (d k.succ 0)
+        (q.horizontal k.castSucc 0 k.succ.isLt)).1)
+      (fun i k => ((d i k.castSucc).vertical_match (d i k.succ)
+        (q.vertical i k.castSucc k.succ.isLt)).2.1) i j
+  have hy (i j : Fin (n + 1)) : (d i j).vertical ≠ .negative :=
+    Pointed.axisGrid_nonnegative (fun j i => (d i j).vertical) corner.2.1
+      (fun k => ((d 0 k.castSucc).vertical_match (d 0 k.succ)
+        (q.vertical 0 k.castSucc k.succ.isLt)).1)
+      (fun j k => ((d k.castSucc j).horizontal_match (d k.succ j)
+        (q.horizontal k.castSucc j k.succ.isLt)).2.1) j i
+  exact ⟨{
     tile := fun i j => (d i j).payload
-    mem := ?_
-    horizontal := ?_
-    vertical := ?_
+    mem := fun i j => by
+      rw [Pointed.Decoded.payload, Pointed.payload_of_nonnegative (hx i j) (hy i j)]
+      exact (d i j).source_mem
+    horizontal := fun i j hi =>
+      ((d i j).horizontal_match (d ⟨i.val + 1, hi⟩ j) (q.horizontal i j hi)).2.2
+    vertical := fun i j hj =>
+      ((d i j).vertical_match (d i ⟨j.val + 1, hj⟩) (q.vertical i j hj)).2.2
     corner := corner.2.2 }⟩
-  · intro i j
-    rw [Pointed.Decoded.payload, Pointed.payload_of_nonnegative (hx i j) (hy i j)]
-    exact (d i j).source_mem
-  · intro i j hi
-    exact ((d i j).horizontal_match (d ⟨i.val + 1, hi⟩ j) (q.horizontal i j hi)).2.2
-  · intro i j hj
-    exact ((d i j).vertical_match (d i ⟨j.val + 1, hj⟩) (q.vertical i j hj)).2.2
 
 namespace Pointed
 
@@ -309,8 +287,8 @@ private theorem planePayload_eq (f : ℕ → ℕ → WangTile) (x y : ℤ) :
   rw [payload_class]
   by_cases hx : 0 ≤ x <;> by_cases hy : 0 ≤ y
   · simp [planePayload, westPayload, hx, hy]
-  · simp [planePayload, westPayload, hx, hy, Int.toNat_eq_zero.mpr (by omega : y ≤ 0)]
-  · simp [planePayload, westPayload, hx, hy, Int.toNat_eq_zero.mpr (by omega : x ≤ 0)]
+  · simp [planePayload, westPayload, hx, hy, Int.toNat_of_nonpos (le_of_not_ge hy)]
+  · simp [planePayload, westPayload, hx, hy, Int.toNat_of_nonpos (le_of_not_ge hx)]
   · simp [planePayload, westPayload, hx, hy, horizontalWire, verticalWire]
 
 private theorem westPayload_horizontal (f : ℕ → ℕ → WangTile)
@@ -318,7 +296,7 @@ private theorem westPayload_horizontal (f : ℕ → ℕ → WangTile)
     (westPayload f row x).right = (westPayload f row (x + 1)).left := by
   by_cases hx : 0 ≤ x
   · have hx' : 0 ≤ x + 1 := by omega
-    simpa [westPayload, hx, hx', Int.toNat_add hx (by decide : (0 : ℤ) ≤ 1)] using h x.toNat row
+    simpa [westPayload, hx, hx', Int.toNat_add hx zero_le_one] using h x.toNat row
   · by_cases hx' : 0 ≤ x + 1
     · have hb : x + 1 = 0 := by omega
       simp [westPayload, hx, hb, horizontalWire]
@@ -337,8 +315,8 @@ private theorem planePayload_vertical (f : ℕ → ℕ → WangTile)
   by_cases hy : 0 ≤ y
   · have hy' : 0 ≤ y + 1 := by omega
     by_cases hx : 0 ≤ x
-    · simpa [planePayload, westPayload, hx, hy, hy',
-        Int.toNat_add hy (by decide : (0 : ℤ) ≤ 1)] using h x.toNat y.toNat
+    · simpa [planePayload, westPayload, hx, hy, hy', Int.toNat_add hy zero_le_one] using
+        h x.toNat y.toNat
     · simp [planePayload, westPayload, hx, hy, hy', horizontalWire]
   · by_cases hy' : 0 ≤ y + 1
     · have hb : y + 1 = 0 := by omega
@@ -353,10 +331,7 @@ theorem tilesAtOrigin_pointedExtension_iff (I : SeededInstance) :
     TilesAtOrigin (pointedExtension I) ↔ TilesQuadrant I := by
   constructor
   · rintro ⟨f, hseed, hf⟩
-    apply (tilesQuadrant_iff_seededSquares I).mpr
-    intro n
-    apply seededSquare_of_pointedExtension
-    exact ⟨{
+    refine (tilesQuadrant_iff_seededSquares I).mpr fun n => seededSquare_of_pointedExtension ⟨{
       tile := fun i j => f i.val j.val
       mem := fun i j => (hf i.val j.val).1
       horizontal := fun i j hi => by simpa using (hf i.val j.val).2.1
@@ -369,10 +344,9 @@ theorem tilesAtOrigin_pointedExtension_iff (I : SeededInstance) :
       exact congrArg (Pointed.decorate .origin .origin) hseed
     · intro x y
       refine ⟨?_, ?_, ?_⟩
-      · apply List.mem_flatMap.mpr
-        refine ⟨f x.toNat y.toNat, (hf _ _).1, Pointed.mem_variants.mpr ?_⟩
-        exact ⟨Pointed.classOfInt x, Pointed.classOfInt y,
-          congrArg (Pointed.decorate _ _) (Pointed.planePayload_eq f x y).symm⟩
+      · exact List.mem_flatMap.mpr ⟨f x.toNat y.toNat, (hf _ _).1,
+          Pointed.mem_variants.mpr ⟨_, _,
+            congrArg (Pointed.decorate _ _) (Pointed.planePayload_eq f x y).symm⟩⟩
       · exact Pointed.decorate_horizontal.mpr
           ⟨Pointed.classOfInt_step x, rfl,
             Pointed.planePayload_horizontal f (fun x y => (hf x y).2.1) x y⟩

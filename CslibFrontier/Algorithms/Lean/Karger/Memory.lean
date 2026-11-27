@@ -99,7 +99,6 @@ theorem wp_methods {s : Memory.State} (hs : Inv L w s) (o : Op) (hv : spec.valid
       (fun a s' t => spec.stepFn (abs L s) o = (abs L s', a) ∧ Inv L w s' ∧
         t ≤ opCharge (abs L s) o ∧ s'.frontier = s.frontier ∧
         ∀ b ∉ L.footprint, s'.mem b = s.mem b) s := by
-  have hlim := hs.allocated
   cases o with
   | size =>
     exact (wp_lift _ _ _).mpr
@@ -111,11 +110,11 @@ theorem wp_methods {s : Memory.State} (hs : Inv L w s) (o : Op) (hv : spec.valid
     rw [hs.total_eq]
   | pairAt r =>
     refine wp_mono ?_ (wp_pairAt hs hv)
-    rintro a s' t ⟨rfl, rfl, ht⟩
+    rintro _ _ _ ⟨rfl, rfl, ht⟩
     exact ⟨rfl, hs, ht, rfl, fun _ _ => rfl⟩
   | contract u v =>
     refine wp_mono ?_ (wp_contract hs hv)
-    rintro a s' t ⟨hf, hfr, habs, hs', ht⟩
+    rintro _ _ _ ⟨hf, hfr, habs, hs', ht⟩
     exact ⟨by rw [habs]; rfl, hs', ht, hf, hfr⟩
 
 variable (L w)
@@ -197,10 +196,9 @@ theorem two_div_le_toOuterMeasure_kargerProg {e : Memory.State} (he : Inv L w e)
     (2 : ENNReal) / ((n * (n - 1) : ℕ) : ENNReal) ≤
       ((Memory.spec w).toRandomized.withCoins.run (kargerProg L w) e).toOuterMeasure
         {x | x.1 = minCut W₀} := by
-  have h := two_div_le_toOuterMeasure_karger hn hW₀ hmin
-  rw [← habs, ← map_run_kargerProg he (habs ▸ demonicValid_karger hn hW₀),
-    PMF.toOuterMeasure_map_apply] at h
-  exact h
+  simpa only [← habs, ← map_run_kargerProg he (habs ▸ demonicValid_karger hn hW₀),
+    PMF.toOuterMeasure_map_apply, Set.preimage_ofPred_eq] using
+    two_div_le_toOuterMeasure_karger hn hW₀ hmin
 
 /-- **One-sided error over memory.** Every answer of Karger's algorithm over memory, from a
 memory state holding a multigraph on `n ≥ 2` vertices, is at least the minimum cut weight. -/
@@ -209,10 +207,9 @@ theorem minCut_le_of_mem_support_kargerProg {e : Memory.State} (he : Inv L w e) 
     {x : ℕ × Memory.State}
     (hx : x ∈ ((Memory.spec w).toRandomized.withCoins.run (kargerProg L w) e).support) :
     minCut W₀ ≤ x.1 := by
-  have hmem : (x.1, abs L x.2) ∈ (spec.toRandomized.withCoins.run karger ⟨n, W₀⟩).support := by
-    rw [← habs, ← map_run_kargerProg he (habs ▸ demonicValid_karger hn hW₀)]
-    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨x, hx, rfl⟩
-  exact minCut_le_of_mem_support_karger hn hW₀ hmem
+  refine minCut_le_of_mem_support_karger hn hW₀ (x := (x.1, abs L x.2)) ?_
+  rw [← habs, ← map_run_kargerProg he (habs ▸ demonicValid_karger hn hW₀)]
+  exact (PMF.mem_support_map_iff _ _ _).mpr ⟨x, hx, rfl⟩
 
 /-! ## Cost -/
 
@@ -266,14 +263,12 @@ theorem expectedCost_kargerProg_le {e : Memory.State} (he : Inv L w e) {n : ℕ}
     (Memory.spec w).toRandomized.withCoins.expectedCost
         ((Memory.spec w).toRandomized.coinCharge (fun _ => 1) charge) (kargerProg L w) e ≤
       ((n - 2) * (1 + 4 * (7 * L.capacity + 7)) + 2 * (7 * L.capacity + 7) : ℕ) := by
-  have hv : spec.toRandomized.withCoins.toSpec.DemonicValid (abs L e) karger :=
-    habs ▸ demonicValid_karger hn hW₀
-  have h := ((amortized_capacity L w).toRandomized.withCoins (coin := fun _ => 1)).client karger
-    he hv
+  have h := ((amortized_capacity L w).toRandomized.withCoins (coin := fun _ => 1)).client karger he
+    (habs ▸ demonicValid_karger hn hW₀ :
+      spec.toRandomized.withCoins.toSpec.DemonicValid (abs L e) karger)
   simp only [Nat.cast_zero, mul_zero, tsum_zero, add_zero] at h
-  change _ ≤ spec.toRandomized.withCoins.expectedCost _ karger (abs L e) at h
-  rw [habs] at h
-  exact h.trans (expectedCost_karger_le W₀ _)
+  exact h.trans ((congrArg (spec.toRandomized.withCoins.expectedCost _ karger) habs).trans_le
+    (expectedCost_karger_le W₀ _))
 
 /-- **Expected coins of Karger's algorithm over memory.** It draws at most `n - 2` coins in
 expectation. -/
@@ -284,14 +279,12 @@ theorem expectedCoins_kargerProg_le {e : Memory.State} (he : Inv L w e) {n : ℕ
       (n - 2 : ℕ) := by
   have A : (refinement L w).Amortized (fun _ _ => 0) (fun _ _ => 0) fun _ => 0 :=
     ⟨fun _ _ _ _ => by simp [StateTransitionSpec.totalCostTranscript_const]⟩
-  have hv : spec.toRandomized.withCoins.toSpec.DemonicValid (abs L e) karger :=
-    habs ▸ demonicValid_karger hn hW₀
-  have h := (A.toRandomized.withCoins (coin := fun _ => 1)).client karger he hv
+  have h := (A.toRandomized.withCoins (coin := fun _ => 1)).client karger he
+    (habs ▸ demonicValid_karger hn hW₀ :
+      spec.toRandomized.withCoins.toSpec.DemonicValid (abs L e) karger)
   simp only [Nat.cast_zero, mul_zero, tsum_zero, add_zero] at h
-  change _ ≤ spec.toRandomized.withCoins.expectedCost _ karger (abs L e) at h
-  rw [habs] at h
-  refine (h.trans (expectedCost_karger_le W₀ 0)).trans_eq ?_
-  simp
+  exact (h.trans ((congrArg (spec.toRandomized.withCoins.expectedCost _ karger) habs).trans_le
+    (expectedCost_karger_le W₀ 0))).trans_eq (by simp)
 
 /-- **The exported cost.** With the layout sized to the input, the expected memory cost of
 Karger's algorithm over memory on `n` vertices is at most `F n` for some `F` that is `O(n²)`. -/

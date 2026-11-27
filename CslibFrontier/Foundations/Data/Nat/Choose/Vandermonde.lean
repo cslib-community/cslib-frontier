@@ -44,8 +44,7 @@ theorem choose_le_choose_add_add (n k j : ℕ) : n.choose k ≤ (n + j).choose (
   | zero => rfl
   | succ j ih =>
     refine ih.trans ?_
-    rw [← Nat.add_assoc, ← Nat.add_assoc, Nat.choose_succ_succ]
-    omega
+    rw [← Nat.add_assoc, ← Nat.add_assoc, Nat.choose_succ_succ]; omega
 
 /-- **Fewer selected elements**: `C(N, D) ≤ C(N + K, K)` for `D ≤ K`. -/
 theorem choose_le_add_choose_of_le {N D K : ℕ} (hD : D ≤ K) : N.choose D ≤ (N + K).choose K := by
@@ -67,17 +66,15 @@ theorem prod_choose_le_choose_sum {ι : Type*} (s : Finset ι) (N D : ι → ℕ
           Nat.mul_le_mul_left _ ih
       _ ≤ (N a + ∑ x ∈ s, N x).choose (D a + ∑ x ∈ s, D x) := by
           rw [Nat.add_choose_eq]
-          have hm : (D a, ∑ x ∈ s, D x) ∈ antidiagonal (D a + ∑ x ∈ s, D x) :=
-            Finset.mem_antidiagonal.mpr rfl
           exact Finset.single_le_sum
             (f := fun ij : ℕ × ℕ => (N a).choose ij.1 * (∑ x ∈ s, N x).choose ij.2)
-            (fun _ _ => Nat.zero_le _) hm
+            (a := (D a, ∑ x ∈ s, D x))
+            (fun _ _ => Nat.zero_le _) (Finset.mem_antidiagonal.mpr rfl)
 
 /-- **Stars and bars, quantitatively**: if `N + K ≤ R K`, then `C(N + K, K) ≤ (3 R) ^ K`. -/
 theorem add_choose_le_three_mul_pow {N K R : ℕ} (hR : N + K ≤ R * K) :
     (N + K).choose K ≤ (3 * R) ^ K := by
-  have hf := K.factorial_pos
-  refine Nat.le_of_mul_le_mul_left ?_ hf
+  refine Nat.le_of_mul_le_mul_left ?_ K.factorial_pos
   calc K.factorial * (N + K).choose K = (N + K).descFactorial K :=
         (Nat.descFactorial_eq_factorial_mul_choose _ _).symm
     _ ≤ (N + K) ^ K := Nat.descFactorial_le_pow _ _
@@ -85,8 +82,6 @@ theorem add_choose_le_three_mul_pow {N K R : ℕ} (hR : N + K ≤ R * K) :
     _ = R ^ K * K ^ K := Nat.mul_pow _ _ _
     _ ≤ R ^ K * (3 ^ K * K.factorial) :=
         Nat.mul_le_mul_left _ (pow_self_le_three_pow_mul_factorial K)
-    _ = K.factorial * (3 * R) ^ K := by
-        rw [Nat.mul_pow]
-        ring
+    _ = K.factorial * (3 * R) ^ K := by rw [Nat.mul_pow]; ring
 
 end Nat

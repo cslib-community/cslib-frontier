@@ -191,13 +191,12 @@ theorem ComputableInPolyTimeWithOracle.of_mem_PWithOracle {O₁ O₂ : Set (List
     (hf : ComputableInPolyTimeWithOracle O₁ f encA encBool) :
     ComputableInPolyTimeWithOracle O₂ f encA encBool := by
   obtain ⟨g, ⟨prog, hprog, hg⟩, hgO₁⟩ := hO₁
-  have hg' : g = fun w => decide (w ∈ O₁) := funext fun w =>
+  obtain rfl : g = fun w => decide (w ∈ O₁) := funext fun w =>
     Bool.eq_iff_iff.mpr ⟨fun h => decide_eq_true ((hgO₁ w).mpr h),
       fun h => (hgO₁ w).mp (of_decide_eq_true h)⟩
-  subst hg'
   obtain ⟨k, m, machine, c, d, hrun⟩ := exists_clocked_bool_run hf
-  have h := computableInPolyTimeWithOracle_run (encA := encA) ⟨prog, hprog, hg⟩ machine c d
-  exact (funext hrun) ▸ h
+  exact funext hrun ▸
+    computableInPolyTimeWithOracle_run (encA := encA) ⟨prog, hprog, hg⟩ machine c d
 
 open Classical in
 /-- A polynomial-time Boolean oracle computation extends to all raw inputs by running its

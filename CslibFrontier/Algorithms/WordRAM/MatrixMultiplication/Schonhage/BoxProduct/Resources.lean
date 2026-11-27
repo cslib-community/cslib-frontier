@@ -52,46 +52,31 @@ theorem timeBound_le {L m N : ℕ} (hm : m ≤ L) (t : ℕ) (qs : List (Fin N ×
   let G := (L + 1) ^ 2
   have hG : 1 ≤ G := by dsimp only [G]; nlinarith only [Nat.zero_le L]
   have hLG : L + 1 ≤ G := by dsimp only [G]; nlinarith only [Nat.zero_le L]
-  have hS : 1 ≤ S := by
-    apply Nat.succ_le_of_lt
-    dsimp only [S, workShape]
-    positivity
+  have hS : 0 < S := by dsimp only [S, workShape]; positivity
   have hF : 1 + N * D m + qs.length + 2 ^ L + (numBands L m N + 1) * 10 ^ L +
       numBands L m N ^ 2 ≤ S := by
-    have hmul : numBands L m N ^ 2 ≤
-        numBands L m N ^ 2 * ((boxes L m t).card + 1) := by
-      simpa only [Nat.mul_one] using Nat.mul_le_mul_left (numBands L m N ^ 2)
-        (show 1 ≤ (boxes L m t).card + 1 by omega)
-    exact (Nat.add_le_add_left hmul _).trans (Nat.le_add_right _ _)
-  have hT : 10 ^ L ≤ S := by
-    have hmul : 10 ^ L ≤ (numBands L m N + 1) * 10 ^ L :=
-      Nat.le_mul_of_pos_left _ (by omega)
-    exact hmul.trans ((Nat.le_add_left _ _).trans
-      ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _)))
-  have hB : numBands L m N ^ 2 * ((boxes L m t).card + 1) ≤ S :=
-    (Nat.le_add_left _ _).trans (Nat.le_add_right _ _)
+    have := Nat.le_mul_of_pos_right (numBands L m N ^ 2) (by omega : 0 < (boxes L m t).card + 1)
+    dsimp only [S, workShape]
+    omega
   have hQ : qs.length ≤ S :=
-    (Nat.le_add_left _ _).trans ((Nat.le_add_right _ _).trans
-      ((Nat.le_add_right _ _).trans ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _))))
+    le_add_right (le_add_right (le_add_right (le_add_right (Nat.le_add_left _ _))))
   have hA : qs.length * (∑ d ∈ Finset.range (t + 1), alpha m d) ≤ S :=
     Nat.le_add_left _ _
   have hf := (frontTime_le L m N qs.length).trans
     (Nat.mul_le_mul (Nat.mul_le_mul_left _ hLG) hF)
-  have hg := (BoxTable.geometryTime_le L m t hm).trans
-    (Nat.mul_le_mul_left (64 * G) hT)
+  have hg := (BoxTable.geometryTime_le L m t hm).trans (Nat.mul_le_mul_left (64 * G)
+    (show 10 ^ L ≤ S from
+      le_add_right (le_add_right (le_add_left (Nat.le_mul_of_pos_left _ (by omega))))))
   have ht : numBands L m N ^ 2 * (328 * (boxes L m t).card + 65) ≤ 328 * G * S := by
     calc _ ≤ 328 * (numBands L m N ^ 2 * ((boxes L m t).card + 1)) := by
               nlinarith only [Nat.zero_le (numBands L m N ^ 2)]
-         _ ≤ 328 * S := Nat.mul_le_mul_left _ hB
+         _ ≤ 328 * S := Nat.mul_le_mul_left _ ((Nat.le_add_left _ _).trans (Nat.le_add_right _ _))
          _ ≤ 328 * G * S := by nlinarith only [Nat.mul_le_mul_right (328 * S) hG]
   have hqa : qs.length * (batchUnit L m t + 7) ≤ 299 * G * S := by
-    have hA' := Nat.mul_le_mul (Nat.mul_le_mul_left 258 hLG) hA
-    have hQ' := Nat.mul_le_mul_left 41 hQ
-    have hQS := Nat.mul_le_mul_right (41 * S) hG
     unfold batchUnit
-    nlinarith only [hA', hQ', hQS]
-  have hunit : 1 ≤ G * S := by
-    simpa only [Nat.one_mul] using Nat.mul_le_mul hG hS
+    nlinarith only [Nat.mul_le_mul (Nat.mul_le_mul_left 258 hLG) hA,
+      Nat.mul_le_mul_left 41 hQ, Nat.mul_le_mul_right (41 * S) hG]
+  have hunit : 1 ≤ G * S := Nat.mul_pos hG hS
   unfold timeBound
   rw [sum_tileCharge hm t qs]
   change _ ≤ 32768 * G * S
@@ -113,8 +98,8 @@ theorem thin_timeBound (k N : ℕ) (qs : List (Fin N × Fin N))
       80 * ((9 * k + 1 : ℕ) : ℝ) * (9 / 20 : ℝ) ^ k * (N : ℝ) ^ 2 := by
     simpa only [workShape, Nat.cast_add, Nat.cast_one] using
       BoxTradeoff.nativeShape_ninth_blocks k N qs.length hN hQ
-  have h := hc.trans (mul_le_mul_of_nonneg_left hs (by positivity))
-  convert h using 1; ring
+  convert hc.trans (mul_le_mul_of_nonneg_left hs (by positivity)) using 1
+  ring
 
 /-- The same actual native ledger has finite thin-dimension exponent `8/125 = 0.064`,
 with polynomial depth factors explicit. This is not an end-to-end 3SUM time bound. -/

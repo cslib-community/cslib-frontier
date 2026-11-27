@@ -46,18 +46,14 @@ theorem replacementCycles_word_fiber
     ∃ label : ℕ, ∀ index, index ∈ word ↔
       index < (replaceGadgets B (fun r => (gadgets r).template) F).vars.length ∧
         (replaceGadgets B (fun r => (gadgets r).template) F).vars.getD index 0 = label := by
-  rw [mem_replacementCycles_iff] at hw
-  rcases hw with hw | hw
-  · obtain ⟨v, hv, rfl⟩ := hw
-    exact ⟨2 * v, mem_variableBlock_iff_targetName gadgets witnesses B F hF c hc v
+  rcases (mem_replacementCycles_iff ..).mp hw with ⟨v, hv, rfl⟩ | ⟨i, _, hb, rfl⟩
+  · exact ⟨2 * v, mem_variableBlock_iff_targetName gadgets witnesses B F hF c hc v
       (CSP.mem_distinctVars.mp hv)⟩
-  · obtain ⟨i, block, hb, rfl⟩ := hw
-    obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hb
-    let a : Fin (gadgets F[i.val].rel).numAux := ⟨j, by
-      simpa only [length_auxiliaryBoundaryBlocks] using hj⟩
+  · obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hb
     refine ⟨2 * (B * i.val + j) + 1, fun index => ?_⟩
-    have h := mem_shifted_auxiliaryBlock_iff_targetName gadgets witnesses B hB F i.isLt a index
-    simpa only [a, List.getD_eq_getElem _ _ hj] using h
+    simpa only [List.getD_eq_getElem _ _ hj] using
+      mem_shifted_auxiliaryBlock_iff_targetName gadgets witnesses B hB F i.isLt
+        ⟨j, by simpa only [length_auxiliaryBoundaryBlocks] using hj⟩ index
 
 /-- The actual product permutation of the emitted words has exactly the original target
 variable fibers. This is derived from real checked gadget witnesses, not assumed by a caller. -/
@@ -72,16 +68,14 @@ theorem sameCycle_replacementCycles_iff
       (fun r => freeBoundaryBlocks (gadgets r) (witnesses r))
       (fun r => auxiliaryBoundaryBlocks (gadgets r) (witnesses r)) F c)).SameCycle
       (incidenceEdgeIndex o) (incidenceEdgeIndex p) ↔ o.var = p.var := by
-  have hn := nodup_flatten_replacementCycles gadgets witnesses F hF c hc
-  have ho := (mem_flatten_replacementCycles_iff gadgets witnesses B F hF c hc
-    (incidenceEdgeIndex o)).mpr (incidenceEdgeIndex_lt_vars o)
-  obtain ⟨word, hw, how⟩ := List.mem_flatten.mp ho
+  obtain ⟨word, hw, how⟩ := List.mem_flatten.mp <|
+    (mem_flatten_replacementCycles_iff gadgets witnesses B F hF c hc _).mpr
+      (incidenceEdgeIndex_lt_vars o)
   obtain ⟨label, hfiber⟩ := replacementCycles_word_fiber gadgets witnesses B hB F hF c hc word hw
-  rw [List.sameCycle_cyclePermutation_iff_of_mem _ hn word hw _ _ how,
-    hfiber (incidenceEdgeIndex p)]
-  have hlabel : o.var = label :=
-    (getD_vars_incidenceEdgeIndex o 0).symm.trans ((hfiber _).mp how).2
-  rw [getD_vars_incidenceEdgeIndex, ← hlabel]
+  rw [List.sameCycle_cyclePermutation_iff_of_mem _
+    (nodup_flatten_replacementCycles gadgets witnesses F hF c hc) word hw _ _ how,
+    hfiber (incidenceEdgeIndex p), getD_vars_incidenceEdgeIndex,
+    ← (getD_vars_incidenceEdgeIndex o 0).symm.trans ((hfiber _).mp how).2]
   exact ⟨fun h => h.2.symm, fun h => ⟨incidenceEdgeIndex_lt_vars p, h.symm⟩⟩
 
 /-- The exact computed variable words, together with the original target argument order,

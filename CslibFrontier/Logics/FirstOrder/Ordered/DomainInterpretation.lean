@@ -139,7 +139,7 @@ theorem lexRank_unrank_lt_lexRank_unrank_iff {i j : Fin (I.card M)} :
     lexRank (I.unrank M i) < lexRank (I.unrank M j) ↔ i < j := by
   change lexEquiv (I.unrank M i) < lexEquiv (I.unrank M j) ↔ i < j
   rw [lexEquiv_unrank, lexEquiv_unrank]
-  exact ((I.domainRanks M).orderEmbOfFin (rfl : (I.domainRanks M).card = I.card M)).lt_iff_lt
+  exact OrderEmbedding.lt_iff_lt _
 
 /-- `i ↦ lexRank (I.unrank M i)` is strictly monotone. -/
 theorem strictMono_lexRank_unrank : StrictMono fun i => lexRank (I.unrank M i) :=
@@ -157,13 +157,11 @@ theorem unrank_injective : Function.Injective (I.unrank M) :=
 /-- Every domain tuple has a rank. -/
 theorem exists_unrank_eq {x : Fin k → Fin M.size} (hx : I.domain.Realize x) :
     ∃ i, I.unrank M i = x := by
-  have hr : lexEquiv x ∈ I.domainRanks M :=
-    mem_domainRanks.mpr (by rwa [Equiv.symm_apply_apply])
-  have hr' : lexEquiv x ∈ Set.range
+  have hr : lexEquiv x ∈ Set.range
       ((I.domainRanks M).orderEmbOfFin (rfl : (I.domainRanks M).card = I.card M)) := by
     rw [Finset.range_orderEmbOfFin]
-    exact hr
-  obtain ⟨i, hi⟩ := hr'
+    exact mem_domainRanks.mpr (by rwa [Equiv.symm_apply_apply])
+  obtain ⟨i, hi⟩ := hr
   exact ⟨i, lexEquiv.injective ((lexEquiv_unrank i).trans hi)⟩
 
 variable (I M) in
@@ -190,20 +188,15 @@ theorem card_filter_lt_unrank
   classical
   have h : (Finset.univ.filter fun y : Fin k → Fin M.size =>
       I.domain.Realize y ∧ lexRank y < lexRank (I.unrank M i)) =
-      (Finset.univ.filter fun j => j < i).image (I.unrank M) := by
+      (Finset.Iio i).image (I.unrank M) := by
     ext y
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_image]
-    constructor
-    · rintro ⟨hy, hlt⟩
-      obtain ⟨j, rfl⟩ := exists_unrank_eq hy
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_image, Finset.mem_Iio]
+    refine ⟨fun ⟨hy, hlt⟩ => ?_, ?_⟩
+    · obtain ⟨j, rfl⟩ := exists_unrank_eq hy
       exact ⟨j, lexRank_unrank_lt_lexRank_unrank_iff.mp hlt, rfl⟩
     · rintro ⟨j, hj, rfl⟩
       exact ⟨realize_domain_unrank j, lexRank_unrank_lt_lexRank_unrank_iff.mpr hj⟩
-  rw [h, Finset.card_image_of_injective _ unrank_injective]
-  have hi : (Finset.univ.filter fun j => j < i) = Finset.Iio i := by
-    ext j
-    simp
-  rw [hi, Fin.card_Iio]
+  rw [h, Finset.card_image_of_injective _ unrank_injective, Fin.card_Iio]
 
 /-- The rank of a domain tuple, as a count of the domain tuples before it. -/
 theorem val_rank [DecidablePred fun x : Fin k → Fin M.size => I.domain.Realize x]
@@ -237,7 +230,6 @@ theorem unrank_eq_of_strictMono {m : ℕ} (g : Fin m → Fin k → Fin M.size)
       Fintype.card_fin]
   refine ⟨hcard, fun i => ?_⟩
   have hu := Finset.orderEmbOfFin_unique (s := I.domainRanks M) (rfl : _ = I.card M)
-    (f := fun i => lexEquiv (g (Fin.cast hcard i)))
     (fun i => by rw [hs]; exact Finset.mem_image_of_mem _ (Finset.mem_univ _))
     (hf.comp (Fin.cast_strictMono hcard))
   exact lexEquiv.injective ((lexEquiv_unrank i).trans (congrFun hu i).symm)

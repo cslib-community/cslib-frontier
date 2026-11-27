@@ -209,12 +209,12 @@ private theorem stepS_inSpace {L V P : α × List Bool → Bool} {SL SV SP : α 
   have hc := budget_finite (encC := encBool)
     (fun p : Bool × Bool × Bool => (p.1 == false) && (p.2.1 != p.2.2))
     (budget_prod hhead (budget_prod hget hPx))
-  have hpush := budget_prod (budget_cons (budget_const true hl) (budget_tail hw))
-    (budget_const (encB := encOption encBool) none hl)
+  have hpush := budget_prod (budget_cons (budget_const true) (budget_tail hw))
+    (budget_const (encB := encOption encBool) none)
   have hpop := budget_prod (budget_tail hw) ho
   have hret := budget_prod hw (budget_optionSome hVx)
-  have hdown := budget_prod (budget_cons (budget_const false hl) hw)
-    (budget_const (encB := encOption encBool) none hl)
+  have hdown := budget_prod (budget_cons (budget_const false) hw)
+    (budget_const (encB := encOption encBool) none)
   have hinner := budget_ite hsome (budget_ite hempty (budget_prod hw ho)
     (budget_ite hc hpush hpop)) (budget_ite hLx hret hdown)
   exact budget_prod hx hinner
@@ -244,7 +244,7 @@ theorem bitGame_value {L V P : α × List Bool → Bool} {SL SV SP : α × List 
   have hinit : ComputableInSpace (fun x : α => (x, ([] : List Bool), (none : Option Bool)))
       encIn encS fun x => (encIn x).length := by
     have hl : (fun x => (encIn x).length) ≼ fun x => (encIn x).length := .refl _
-    exact budget_prod (budget_id hl) (budget_prod (budget_const [] hl) (budget_const none hl))
+    exact budget_prod (budget_id hl) (budget_prod (budget_const []) (budget_const none))
   have hN (x : α) := BitGame.iterate_step_eq (L := fun u => L (x, u))
     (V := fun u => V (x, u)) (P := fun u => P (x, u)) (fun v hv => hleaf x v hv)
     (le_refl (2 ^ (m x + 2)))

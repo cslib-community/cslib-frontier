@@ -150,10 +150,9 @@ private theorem mem_programBinaryGates_bounds {g : ℕ} {p : Program (fullSignat
   | empty => simp [programBinaryGates] at hJ
   | @gate g p line ih =>
     dsimp only [programBinaryGates] at hJ
-    split_ifs at hJ with hc
+    split_ifs at hJ
     · rcases Finset.mem_insert.1 hJ with rfl | hJ
-      · omega
-      · have := ih hJ; omega
+      exacts [by omega, by have := ih hJ; omega]
     · have := ih hJ; omega
 
 private theorem card_programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g) :
@@ -173,11 +172,9 @@ private theorem card_programBinaryGates {g : ℕ} (p : Program (fullSignature 2 
 private theorem subset_programBinaryGates_gate {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) :
     programBinaryGates p ⊆ programBinaryGates (p.gate line) := by
-  intro J hJ
   dsimp only [programBinaryGates]
   split_ifs
-  · exact Finset.mem_insert_of_mem hJ
-  · exact hJ
+  exacts [Finset.subset_insert _ _, subset_rfl]
 
 private theorem reads_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) :
     ∀ (w : Wire n g) {t : ℕ}, (programWireLit p w).Reads t →
@@ -189,31 +186,26 @@ private theorem reads_programWireLit {g : ℕ} (p : Program (fullSignature 2 Boo
       subst ht; exact ⟨Or.inl i.isLt, by omega⟩
     · exact k.elim0
   | @gate g p line ih =>
+    have lift {t : ℕ} : (t < n ∨ t ∈ programBinaryGates p) ∧ t < n + g →
+        (t < n ∨ t ∈ programBinaryGates (p.gate line)) ∧ t < n + (g + 1) :=
+      fun ⟨hb, _⟩ => ⟨hb.imp_right (subset_programBinaryGates_gate p line ·), by omega⟩
     rintro (i | k) t ht
-    · simp only [programWireLit, Wire.elim_input, Lit.Reads, Lit.node, Arg.node.injEq] at ht
-      subst ht; exact ⟨Or.inl i.isLt, by omega⟩
+    · exact lift (ih (.input i) ht)
     · revert ht
       refine Fin.lastCases ?_ (fun j => ?_) k
       · rw [programWireLit_gate_last]
         intro ht'
-        have hsub : ∀ x ∈ programBinaryGates p, x ∈ programBinaryGates (p.gate line) :=
-          fun x hx => subset_programBinaryGates_gate p line hx
         obtain ⟨op | c, w⟩ := line
         · dsimp only [lineBinaryLit] at ht'
           split_ifs at ht' with h1 h2
-          · obtain ⟨hb, hlt⟩ := ih _ (reads_of_unaryLit_reads ht')
-            exact ⟨hb.imp_right (hsub t), by omega⟩
-          · obtain ⟨hb, hlt⟩ := ih _ (reads_of_unaryLit_reads ht')
-            exact ⟨hb.imp_right (hsub t), by omega⟩
-          · simp only [Lit.Reads, Lit.node, Arg.node.injEq] at ht'
-            subst ht'
-            have hc : binaryB2Cost (.fn op) = 1 := by simp [binaryB2Cost, h1, h2]
-            exact ⟨Or.inr (by simp [programBinaryGates, hc]), by omega⟩
+          iterate 2 exact lift (ih _ (reads_of_unaryLit_reads ht'))
+          simp only [Lit.Reads, Lit.node, Arg.node.injEq] at ht'
+          subst ht'
+          have hc : binaryB2Cost (.fn op) = 1 := by simp [binaryB2Cost, h1, h2]
+          exact ⟨Or.inr (by simp [programBinaryGates, hc]), by omega⟩
         · simp [lineBinaryLit, Lit.Reads, Lit.const] at ht'
       · rw [programWireLit_gate_castSucc]
-        intro ht'
-        obtain ⟨hb, hlt⟩ := ih (.gate j) ht'
-        exact ⟨hb.imp_right (fun hx => subset_programBinaryGates_gate p line hx), by omega⟩
+        exact fun ht' => lift (ih (.gate j) ht')
 
 private theorem reads_programBinaryGate {g : ℕ} (p : Program (fullSignature 2 Bool) n g) :
     ∀ {J : ℕ}, J ∈ programBinaryGates p → ∀ {t : ℕ}, (programBinaryGate p J).Reads t →
@@ -222,26 +214,19 @@ private theorem reads_programBinaryGate {g : ℕ} (p : Program (fullSignature 2 
   | empty => simp [programBinaryGates]
   | @gate g p line ih =>
     intro J hJ t ht
-    have hsub : ∀ x ∈ programBinaryGates p, x ∈ programBinaryGates (p.gate line) :=
-      fun x hx => subset_programBinaryGates_gate p line hx
-    by_cases hJg : J = n + g
-    · subst hJg
-      simp only [programBinaryGate, ↓reduceIte] at ht
+    rcases eq_or_ne J (n + g) with rfl | hJg
+    · simp only [programBinaryGate, ↓reduceIte] at ht
       obtain ⟨op | c, w⟩ := line
-      · rcases ht with ht | ht
-        · obtain ⟨hb, hlt⟩ := reads_programWireLit p (w ⟨0, by simp [fullSignature]⟩) ht
-          exact ⟨hb.imp_right (hsub t), hlt⟩
-        · obtain ⟨hb, hlt⟩ := reads_programWireLit p (w ⟨1, by simp [fullSignature]⟩) ht
-          exact ⟨hb.imp_right (hsub t), hlt⟩
+      · rcases ht with ht | ht <;>
+          exact (reads_programWireLit p _ ht).imp_left
+            (Or.imp_right (subset_programBinaryGates_gate p _ ·))
       · rcases ht with ht | ht <;> cases ht
     · simp only [programBinaryGate, hJg, ↓reduceIte] at ht
       have hJp : J ∈ programBinaryGates p := by
         dsimp only [programBinaryGates] at hJ
-        split_ifs at hJ with hc
-        · exact (Finset.mem_insert.1 hJ).resolve_left hJg
-        · exact hJ
-      obtain ⟨hb, hlt⟩ := ih hJp ht
-      exact ⟨hb.imp_right (hsub t), hlt⟩
+        split_ifs at hJ
+        exacts [(Finset.mem_insert.1 hJ).resolve_left hJg, hJ]
+      exact (ih hJp ht).imp_left (Or.imp_right (subset_programBinaryGates_gate p line ·))
 
 private theorem fn_indep_snd {op : (Fin 2 → Bool) → Bool}
     (h0 : op ![false, false] = op ![false, true]) (h1 : op ![true, false] = op ![true, true])
@@ -258,20 +243,14 @@ private theorem eval_lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit)
     (hg : binaryB2Cost line.op = 1 → val (n + g) = (lineBinaryGate wLit line).eval val) :
     (lineBinaryLit wLit line).eval val =
       fullInterpretation line.op fun a => (wLit (line.wires a)).eval val := by
-  revert hg
-  obtain ⟨op | c, w⟩ := line
-  · intro hg
-    have hv_eq : (fullInterpretation (k := 2) (.fn op) fun a => (wLit (w a)).eval val) =
+  rcases line with ⟨op | c, w⟩
+  · have hv_eq : (fullInterpretation (k := 2) (.fn op) fun a => (wLit (w a)).eval val) =
         op ![(wLit (w ⟨0, by simp [fullSignature]⟩)).eval val,
           (wLit (w ⟨1, by simp [fullSignature]⟩)).eval val] := by
       change op _ = _
       congr 1 with a : 1
-      obtain ⟨_ | _ | m, hm⟩ := a
-      · rfl
-      · rfl
-      · simp [fullSignature] at hm
-    change (lineBinaryLit wLit ⟨.fn op, w⟩).eval val =
-      fullInterpretation (k := 2) (.fn op) fun a => (wLit (w a)).eval val
+      obtain ⟨_ | _ | m, hm⟩ := a <;> first | rfl | simp [fullSignature] at hm
+    dsimp only at hg ⊢
     rw [hv_eq]
     dsimp only [lineBinaryLit]
     set ℓ₀ := wLit (w ⟨0, by simp [fullSignature]⟩)
@@ -281,14 +260,10 @@ private theorem eval_lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit)
       exact (fn_indep_snd h1.1 h1.2 (ℓ₀.eval val) (ℓ₁.eval val)).symm
     · rw [← eval_unaryLit]
       exact (fn_indep_fst h2.1 h2.2 (ℓ₀.eval val) (ℓ₁.eval val)).symm
-    · have hc : binaryB2Cost (.fn op) = 1 := by
-        dsimp only [binaryB2Cost]
-        rw [ite_eq_right (not_or.2 ⟨h1, h2⟩)]
-      have hgv := hg hc
-      dsimp only [lineBinaryGate, Gate.eval] at hgv
-      rw [Lit.eval_node, Bool.xor_false, hgv]
+    · have hc : binaryB2Cost (.fn op) = 1 := by simp [binaryB2Cost, h1, h2]
+      rw [Lit.eval_node, Bool.xor_false, hg hc]
       rfl
-  · intro _; exact Lit.eval_const c val
+  · exact Lit.eval_const c val
 
 private theorem eval_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     {val : ℕ → Bool}
@@ -301,11 +276,10 @@ private theorem eval_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool
     · simp [programWireLit]
     · exact k.elim0
   | @gate g p line ih =>
-    have hval_p : ∀ J ∈ programBinaryGates p, val J = (programBinaryGate p J).eval val := by
-      intro J hJ
-      have hne : J ≠ n + g := by have := mem_programBinaryGates_bounds hJ; omega
-      have hJ' := hval J (subset_programBinaryGates_gate p line hJ)
-      simpa [programBinaryGate, hne] using hJ'
+    have hval_p : ∀ J ∈ programBinaryGates p, val J = (programBinaryGate p J).eval val :=
+      fun J hJ => by
+        have hne : J ≠ n + g := by have := mem_programBinaryGates_bounds hJ; omega
+        simpa [programBinaryGate, hne] using hval J (subset_programBinaryGates_gate p line hJ)
     rintro (i | k)
     · simp [programWireLit]
     · refine Fin.lastCases ?_ (fun j => ?_) k
@@ -313,9 +287,8 @@ private theorem eval_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool
         · congr 1 with a : 1
           exact ih hval_p (line.wires a)
         · intro hc
-          have hmem : n + g ∈ programBinaryGates (p.gate line) := by
-            simp [programBinaryGates, hc]
-          simpa [programBinaryGate] using hval (n + g) hmem
+          simpa [programBinaryGate] using
+            hval (n + g) (by simp [programBinaryGates, hc])
       · rw [programWireLit_gate_castSucc,
           show (Wire.gate j.castSucc : Wire n (g + 1)) = (Wire.gate j).castSucc from rfl,
           Program.trace_gate_castSucc]
@@ -354,24 +327,18 @@ def ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) : SemiCircuit where
 theorem wellFormed_ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) :
     (ofCircuitBinary C).WellFormed where
   disjoint_params_aux := Finset.disjoint_empty_right _
-  disjoint_params_gates := by
-    rw [Finset.disjoint_left]
-    intro i hi hg
-    have := mem_programBinaryGates_bounds hg
-    have := Finset.mem_range.1 hi
-    omega
+  disjoint_params_gates := Finset.disjoint_left.2 fun i hi hg => by
+    have := mem_programBinaryGates_bounds hg; have := Finset.mem_range.1 hi; omega
   disjoint_aux_gates := Finset.disjoint_empty_left _
   reads_lt J hJ i _ hr := (reads_programBinaryGate C.program hJ hr).2
   reads_live J hJ i hr := by
-    rcases (reads_programBinaryGate C.program hJ hr).1 with hi | hi
-    · simp [live, ofCircuitBinary, hi]
-    · simp [live, ofCircuitBinary, hi]
+    rcases (reads_programBinaryGate C.program hJ hr).1 with hi | hi <;>
+      simp [live, ofCircuitBinary, hi]
   terms_subset e he := by simp [ofCircuitBinary] at he
   card_terms_le e he := by simp [ofCircuitBinary] at he
   out_live i hi := by
-    rcases (reads_programWireLit C.program (C.outputs 0) hi).1 with hi' | hi'
-    · simp [live, ofCircuitBinary, hi']
-    · simp [live, ofCircuitBinary, hi']
+    rcases (reads_programWireLit C.program (C.outputs 0) hi).1 with hi' | hi' <;>
+      simp [live, ofCircuitBinary, hi']
   solvable u := ⟨u, fun _ _ => rfl, fun e he => by simp [ofCircuitBinary] at he⟩
   unique _ _ _ _ _ v hv := by simp [ofCircuitBinary] at hv
 

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Representation
+import CslibFrontier.DataStructure.SearchTree.PointerMachine.Child
 
 /-!
 # Ancestors of a linked subtree
@@ -39,30 +40,32 @@ inductive Frame (M : Model) (extra : ℕ) where
   | .left label r :: cs, t => plug cs (.node label t r)
   | .right l label :: cs, t => plug cs (.node label l t)
 
-/-- A plugged tree consists of the focus addresses and the addresses in its context. -/
-theorem addresses_plug (cs : List (Frame M extra)) (t : BinaryTree (Label M extra)) :
-    addresses (plug cs t) = addresses t ∪ addresses (plug cs .nil) := by
-  induction cs generalizing t with
-  | nil => simp [plug, addresses, BinaryTree.map, SearchTree.elements]
-  | cons frame cs ih =>
-    cases frame with
-    | left label sibling =>
-      change addresses (plug cs (.node label t sibling)) =
-        addresses t ∪ addresses (plug cs (.node label .nil sibling))
-      rw [ih (.node label t sibling), ih (.node label .nil sibling)]
-      simp [addresses, BinaryTree.map, SearchTree.elements, Finset.insert_union,
-        Finset.union_insert, Finset.union_assoc]
-    | right sibling label =>
-      change addresses (plug cs (.node label sibling t)) =
-        addresses t ∪ addresses (plug cs (.node label sibling .nil))
-      rw [ih (.node label sibling t), ih (.node label sibling .nil)]
-      simp [addresses, BinaryTree.map, SearchTree.elements, Finset.insert_union,
-        Finset.union_insert, Finset.union_assoc, Finset.union_left_comm]
-
 /-- The immediate parent's address, or null at the overall root. -/
 @[expose] def contextParent : List (Frame M extra) → Pointer
   | [] => none
   | .left label _ :: _ | .right _ label :: _ => some label.address
+
+private theorem frame_nodeAt (f : Frame M extra) :
+    ∃ (right : Bool) (label : Label M extra) (sibling : BinaryTree (Label M extra)),
+      (∀ cs t, plug (f :: cs) t = plug cs (nodeAt right label t sibling)) ∧
+      ∀ cs : List (Frame M extra), contextParent (f :: cs) = some label.address := by
+  cases f with
+  | left label sibling => exact ⟨false, label, sibling, fun _ _ => rfl, fun _ => rfl⟩
+  | right sibling label => exact ⟨true, label, sibling, fun _ _ => rfl, fun _ => rfl⟩
+
+@[simp] private theorem addresses_nil :
+    addresses (.nil : BinaryTree (Label M extra)) = ∅ := rfl
+
+/-- A plugged tree consists of the focus addresses and the addresses in its context. -/
+theorem addresses_plug (cs : List (Frame M extra)) (t : BinaryTree (Label M extra)) :
+    addresses (plug cs t) = addresses t ∪ addresses (plug cs .nil) := by
+  induction cs generalizing t with
+  | nil => simp [plug]
+  | cons frame cs ih =>
+    obtain ⟨right, label, sibling, hplug, -⟩ := frame_nodeAt frame
+    rw [hplug cs t, hplug cs .nil,
+      ih (nodeAt right label t sibling), ih (nodeAt right label .nil sibling)]
+    simp [nodeAt_addresses, Finset.insert_union, Finset.union_insert, Finset.union_assoc]
 
 /-- Heap representation of the ancestors and siblings around a supplied focus link.
 The list and labels are proof data; no unbounded register or stack is added to the machine. -/
@@ -95,30 +98,17 @@ theorem addressesDistinct_plug_iff (cs : List (Frame M extra))
     AddressesDistinct (plug cs t) ↔ AddressesDistinct t ∧
       AddressesDistinct (plug cs .nil) ∧ Disjoint (addresses t) (addresses (plug cs .nil)) := by
   induction cs generalizing t with
-  | nil => simp [plug, addresses, BinaryTree.map, SearchTree.elements]
+  | nil => simp [plug]
   | cons f cs ih =>
-    cases f with
-    | left label sibling =>
-      simp only [plug]
-      simp only [ih (.node label t sibling), ih (.node label .nil sibling)]
-      rw [addresses_plug cs (.node label .nil sibling)]
-      simp only [AddressesDistinct.node_iff, AddressesDistinct.nil, addresses, BinaryTree.map,
-        SearchTree.elements, Finset.empty_union, Finset.notMem_empty, not_false_eq_true,
-        Finset.disjoint_empty_left, Finset.disjoint_insert_left, Finset.disjoint_union_left,
-        Finset.disjoint_union_right, Finset.disjoint_insert_right, true_and, and_true]
-      tauto
-    | right sibling label =>
-      simp only [plug]
-      simp only [ih (.node label sibling t), ih (.node label sibling .nil)]
-      rw [addresses_plug cs (.node label sibling .nil)]
-      have swap : Disjoint (addresses sibling) (addresses t) ↔
-          Disjoint (addresses t) (addresses sibling) := disjoint_comm
-      simp only [addresses] at swap
-      simp only [AddressesDistinct.node_iff, AddressesDistinct.nil, addresses, BinaryTree.map,
-        SearchTree.elements, Finset.union_empty, Finset.notMem_empty, not_false_eq_true,
-        Finset.disjoint_empty_right, Finset.disjoint_insert_left, Finset.disjoint_union_left,
-        Finset.disjoint_union_right, Finset.disjoint_insert_right, true_and, and_true]
-      tauto
+    obtain ⟨right, label, sibling, hplug, -⟩ := frame_nodeAt f
+    rw [hplug cs t, hplug cs .nil,
+      ih (nodeAt right label t sibling), ih (nodeAt right label .nil sibling),
+      addresses_plug cs (nodeAt right label .nil sibling)]
+    simp only [nodeAt_distinct_iff, nodeAt_addresses, AddressesDistinct.nil, addresses_nil,
+      Finset.empty_union, Finset.notMem_empty, not_false_eq_true, Finset.disjoint_empty_left,
+      Finset.disjoint_insert_left, Finset.disjoint_union_left, Finset.disjoint_union_right,
+      Finset.disjoint_insert_right, true_and, and_true]
+    tauto
 
 /-- A focused subtree inherits distinct addresses from its complete tree. -/
 theorem AddressesDistinct.focus {cs : List (Frame M extra)}
@@ -145,9 +135,8 @@ theorem root_plug_congr (cs : List (Frame M extra))
 
 /-- The focused addresses are among the complete tree's addresses. -/
 theorem addresses_subset_plug (cs : List (Frame M extra))
-    (t : BinaryTree (Label M extra)) : addresses t ⊆ addresses (plug cs t) := by
-  rw [addresses_plug]
-  exact Finset.subset_union_left
+    (t : BinaryTree (Label M extra)) : addresses t ⊆ addresses (plug cs t) :=
+  addresses_plug cs t ▸ Finset.subset_union_left
 
 /-- A focus's height plus its ancestor count is bounded by the complete tree's height. -/
 theorem height_add_context_length_le (cs : List (Frame M extra))
@@ -155,15 +144,11 @@ theorem height_add_context_length_le (cs : List (Frame M extra))
   induction cs generalizing t with
   | nil => simp [plug]
   | cons frame cs ih =>
-    cases frame with
-    | left label sibling =>
-      have h := ih (.node label t sibling)
-      simp only [plug, List.length_cons, BinaryTree.height] at *
-      omega
-    | right sibling label =>
-      have h := ih (.node label sibling t)
-      simp only [plug, List.length_cons, BinaryTree.height] at *
-      omega
+    obtain ⟨right, label, sibling, hplug, -⟩ := frame_nodeAt frame
+    have := ih (nodeAt right label t sibling)
+    cases right <;>
+      (simp only [hplug, nodeAt, Bool.false_eq_true, ↓reduceIte, List.length_cons,
+        BinaryTree.height] at *; omega)
 
 /-- A local replacement with the same root reconstructs the whole tree when the heap
 outside the original focus is unchanged. Separation is derived from the original tree. -/
@@ -176,41 +161,14 @@ theorem Represents.plug_of_frame {h k : List (Record M (layout extra regs))}
   induction cs generalizing before after with
   | nil => exact newRep
   | cons f cs ih =>
-    cases f with
-    | left label sibling =>
-      have sub := ((represents_plug_iff h cs (.node label before sibling)).mp rep).1
-      obtain ⟨_, _, no, _, dis⟩ := (AddressesDistinct.node_iff ..).mp
-        (AddressesDistinct.focus (cs := cs) distinct)
-      have siblingRep : Represents k (some label.address) sibling := by
-        apply sub.2.2.congr
-        intro p a ha
-        exact frame a.address (fun mem => Finset.disjoint_left.mp dis mem
-          ((mem_addresses_iff ..).mpr ⟨p, a, ha, rfl⟩))
-      apply ih rep distinct (after := .node label after sibling)
-      · exact ⟨by simpa only [sameRoot] using (frame _ no).trans sub.1,
-          newRep, siblingRep⟩
-      · rfl
-      · intro a ha
-        apply frame
-        intro mem
-        exact ha (Finset.mem_insert_of_mem (Finset.mem_union_left _ mem))
-    | right sibling label =>
-      have sub := ((represents_plug_iff h cs (.node label sibling before)).mp rep).1
-      obtain ⟨_, _, _, no, dis⟩ := (AddressesDistinct.node_iff ..).mp
-        (AddressesDistinct.focus (cs := cs) distinct)
-      have siblingRep : Represents k (some label.address) sibling := by
-        apply sub.2.1.congr
-        intro p a ha
-        exact frame a.address (fun mem => Finset.disjoint_left.mp dis
-          ((mem_addresses_iff ..).mpr ⟨p, a, ha, rfl⟩) mem)
-      apply ih rep distinct (after := .node label sibling after)
-      · exact ⟨by simpa only [sameRoot] using (frame _ no).trans sub.1,
-          siblingRep, newRep⟩
-      · rfl
-      · intro a ha
-        apply frame
-        intro mem
-        exact ha (Finset.mem_insert_of_mem (Finset.mem_union_right _ mem))
+    obtain ⟨right, label, sibling, hplug, hpar⟩ := frame_nodeAt f
+    rw [hpar] at newRep
+    rw [hplug] at rep distinct ⊢
+    obtain ⟨_, _, no, _, dis⟩ := (nodeAt_distinct_iff ..).mp distinct.focus
+    exact ih rep distinct ((((represents_plug_iff ..).mp rep).1).nodeAt_congr_child right
+      newRep sameRoot frame no dis) (by simp) fun a ha => frame a fun mem =>
+        ha (nodeAt_addresses right label before sibling ▸
+          Finset.mem_insert_of_mem (Finset.mem_union_left _ mem))
 
 /-- Following a represented nonempty focus's parent takes one load and halt. The heap,
 scalars and every other pointer register survive; at the root the resulting cursor is null. -/
@@ -220,12 +178,9 @@ theorem ascend_correct (s : State M (layout extra regs)) (cs : List (Frame M ext
     (cursor : s.ptr 0 = some label.address) (pc : s.pc = 0) :
     ∃ t, Executes [.loadPtr 0 2 0, .halt] s t 2 ∧
       t.heap = s.heap ∧ t.data = s.data ∧ t.ptr 0 = contextParent cs ∧
-      (∀ i, i ≠ 0 → t.ptr i = s.ptr i) := by
-  let t := { s.setPtr 0 (contextParent cs) with pc := 1 }
-  refine ⟨t, ⟨1, .single ?_, rfl, rfl⟩, rfl, rfl, ?_, ?_⟩
-  · simp [step, pc, Instr.effect, Instr.next, State.deref, cursor, rep.1, record, t]
-  · simp [t, State.setPtr]
-  · intro i hi
-    simp [t, State.setPtr, hi]
+      (∀ i, i ≠ 0 → t.ptr i = s.ptr i) :=
+  ⟨{ s.setPtr 0 (contextParent cs) with pc := 1 }, ⟨1, .single (by
+      simp [step, pc, Instr.effect, Instr.next, State.deref, cursor, rep.1, record]), rfl, rfl⟩,
+    rfl, rfl, by simp [State.setPtr], fun i hi => by simp [State.setPtr, hi]⟩
 
 end Cslib.DataStructure.SearchTree.PointerMachine

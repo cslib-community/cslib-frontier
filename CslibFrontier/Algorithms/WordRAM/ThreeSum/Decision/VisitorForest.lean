@@ -70,13 +70,9 @@ theorem execute_next_root {r κ n w U : ℕ} {a : Arena} {l : Frontend.Layout}
     simpa only [Cond.holds_lt, h.current, h.roots] using hc
   have hceil := h.root_budget hc
   have hheap : x.regs (preprocessingRegisters r heap) ≤ a.ceiling := by
-    have := h.heapBudget
-    omega
+    have := h.heapBudget; omega
   have hstack : a.stack ≤ x.regs (preprocessingRegisters r heap) := by
-    have ht := ha.2.1
-    have hg := ha.2.2.1
-    have := h.floor
-    omega
+    have := ha.2.1; have := ha.2.2.1; have := h.floor; omega
   have haddr : l.descriptors + 6 * s.index + 5 ≤ a.ceiling := by
     have hd := l.descriptor_before (ChanHe.Preprocessing.entry_slot hi (2 : Fin 3)) l.arrays
     change l.descriptors + 2 * (3 * s.index + 2) + 2 ≤ l.endpoint at hd
@@ -99,48 +95,31 @@ theorem execute_next_root {r κ n w U : ℕ} {a : Arena} {l : Frontend.Layout}
       controls := h.controls.of_regs_71_96 fun i hi hi' => hpr i (Or.inr hi) (by
         simp only [ne_eq, Fin.ext_iff, ChanHe.Preprocessing.address]; omega)
       loaded := hloaded
-      stored := ?_
-      valid := ?_
-      bitmap := ?_
-      around := ?_
-      ends := ?_
+      stored := by rw [hmem]; exact ChanHe.Preprocessing.entry_stored hkeys h.frontend hi
+      valid := by
+        dsimp only [b, rootArena]; rw [hn, hU]
+        exact ChanHe.Preprocessing.entry_valid l U a.fuel s.index hkeys hnd hcard hvalues
+      bitmap := by simpa only [b, rootArena, Arena.Bitmap, Data.comap_mem, hmem] using h.bitmap
+      around := fun j => Or.inl
+        ((ChanHe.Preprocessing.entry_ends l U a.fuel rs hcard hi j).trans hfront)
+      ends := fun j => pheap ▸
+        (ChanHe.Preprocessing.entry_ends l U a.fuel rs hcard hi j).trans (hfront.trans hstack)
       fuel := rfl
-      floor := ?_
-      heapBudget := ?_
-      packedLength := ?_
+      floor := by simpa only [b, rootArena, pheap] using h.floor
+      heapBudget := by dsimp only [b, rootArena, e, ChanHe.Preprocessing.entry]; rw [pheap]
+      packedLength := (hpr _ (by decide) (by decide)).trans h.packedLength
       envelopeValue := (pm _).trans h.envelopeValue
       unit := (pm _).trans h.unit
       boolean := (pm _).symm ▸ h.boolean
-      verdict := ?_
-      protectedMemory := ?_ }
-    · rw [show p.mem = x.mem from hmem]
-      exact ChanHe.Preprocessing.entry_stored hkeys h.frontend hi
-    · dsimp only [b, rootArena]
-      rw [hn, hU]
-      exact ChanHe.Preprocessing.entry_valid l U a.fuel s.index hkeys hnd hcard hvalues
-    · simpa only [b, rootArena, Arena.Bitmap, Data.comap_mem, hmem] using h.bitmap
-    · intro j
-      apply Or.inl
-      exact (ChanHe.Preprocessing.entry_ends l U a.fuel rs hcard hi j).trans hfront
-    · intro j
-      rw [pheap]
-      exact (ChanHe.Preprocessing.entry_ends l U a.fuel rs hcard hi j).trans (hfront.trans hstack)
-    · simpa only [b, rootArena, pheap] using h.floor
-    · dsimp only [b, rootArena, e, ChanHe.Preprocessing.entry]
-      rw [pheap]
-    · exact (hpr _ (by decide) (by decide)).trans h.packedLength
-    · rw [pm]
-      exact h.verdict
-    · simpa only [b, rootArena, Data.comap_mem, hmem] using h.protectedMemory
+      verdict := by rw [pm]; exact h.verdict
+      protectedMemory := by
+        simpa only [b, rootArena, Data.comap_mem, hmem] using h.protectedMemory }
   obtain ⟨y, he, hfinal, hprefix, hregs⟩ := root_exec (a := b) c e s.nodes p hw ha
     (rootArena_resources hceil hresources) (rootArena_ready hready hceil) hinput
-  refine ⟨y, (hp.within.seq he).mono ?_, hfinal, ?_, ?_⟩
-  · dsimp only [rootTime, b, rootArena, e, ChanHe.Preprocessing.entry]
-    omega
-  · intro q hq
-    exact (hprefix q hq).trans (congrFun hmem q)
-  · intro i hi hj
-    exact (hregs i hi).trans (hpr i (Or.inr (by omega)) hj)
+  refine ⟨y, (hp.within.seq he).mono ?_, hfinal, fun q hq => (hprefix q hq).trans (congrFun hmem q),
+    fun i hi hj => (hregs i hi).trans (hpr i (Or.inr (by omega)) hj)⟩
+  dsimp only [rootTime, b, rootArena, e, ChanHe.Preprocessing.entry]
+  omega
 
 /-- A real descriptor load, complete root visit and index increment preserve every later root's
 allocation allowance. The remaining exact node count pays only actual solver calls. -/
@@ -184,18 +163,18 @@ theorem forest_body_exec {r κ n w U : ℕ} {a : Arena} {l : Frontend.Layout}
     (hregs _ (by decide) (by decide)).trans h.increment
   have hfit : Fits (w + 2) (s.index + 1) :=
     (h.bounded.1 (preprocessingRegisters r ChanHe.Preprocessing.roots)).of_le (by
-      rw [h.roots]
-      omega)
+      rw [h.roots]; omega)
   let current := preprocessingRegisters r ChanHe.Preprocessing.current
   let one := preprocessingRegisters r ChanHe.Preprocessing.one
   let z := y.set current (s.index + 1)
   have hz : Exec (B := .standard) (w + 2) (.op (.bin .add current current one)) y z 1 := by
-    ram_eval [z, yi, yo, hfit, current, one]
+    simpa only [BinOp.eval, current, one, yi, yo, z] using
+      Exec.bin (w := w + 2) (f := .add) (d := current) (i := current) (j := one) (x := y)
+        (by simpa only [BinOp.eval, current, one, yi, yo] using hfit)
   have zreg (i : Fin 128) (hi : i ≠ ChanHe.Preprocessing.current) :
       z.regs (preprocessingRegisters r i) = y.regs (preprocessingRegisters r i) := by
-    have hne : preprocessingRegisters r i ≠ current :=
-      fun he => hi ((preprocessing_injective r) he)
-    simp only [z, Data.set_regs, Function.update_of_ne hne]
+    simp only [z, Data.set_regs, Function.update_of_ne (a' := current)
+      fun he => hi ((preprocessing_injective r) he)]
   have zouter (i : Fin 128) (hi : 109 ≤ i.val) (hc : i ≠ ChanHe.Preprocessing.current)
       (ha : i ≠ ChanHe.Preprocessing.address) :
       z.regs (preprocessingRegisters r i) = x.regs (preprocessingRegisters r i) :=
@@ -226,34 +205,27 @@ theorem forest_body_exec {r κ n w U : ℕ} {a : Arena} {l : Frontend.Layout}
       increment := (zouter _ (by decide) (by decide) (by decide)).trans h.increment
       index_le := by dsimp only [s']; omega
       bitmap := hy.bitmap
-      floor := ?_
-      heapBudget := ?_
+      floor := by simpa only [rootArena, zreg heap (by decide)] using hy.floor
+      heapBudget := by
+        have hh : y.regs (preprocessingRegisters r heap) ≤
+            x.regs (preprocessingRegisters r heap) +
+              Math.work a.fuel * allocationSize a.n a.m a.N := by
+          simpa only [rootArena, Cursor.work, List.map_nil, Math.potential, List.sum_nil,
+            Nat.zero_mul, Nat.add_zero] using hy.heapBudget
+        change z.regs (preprocessingRegisters r heap) + (l.count - (s.index + 1)) * _ ≤ _
+        rw [zreg _ (by decide)]; omega
       packedLength := (zreg _ (by decide)).trans hy.packedLength
       envelopeValue := (zm _).trans hy.envelopeValue
       unit := (zm _).trans hy.unit
       boolean := (zm _).symm ▸ hy.boolean
-      verdict := ?_
-      exactOutput := ?_
+      verdict := by rw [zm]; exact hy.verdict
+      exactOutput := by
+        change (s.nodes ++ e.task.output (Nat.primesLE a.m) a.Λ) ++ _ = _
+        rw [List.append_assoc, ← s.remaining_step s'.nodes hi hf]; exact h.exactOutput
       protectedMemory := hy.protectedMemory }
-    · simpa only [rootArena, zreg heap (by decide)] using hy.floor
-    · have hh : y.regs (preprocessingRegisters r heap) ≤
-          x.regs (preprocessingRegisters r heap) +
-            Math.work a.fuel * allocationSize a.n a.m a.N := by
-        simpa only [rootArena, Cursor.work, List.map_nil, Math.potential, List.sum_nil,
-          Nat.zero_mul, Nat.add_zero] using hy.heapBudget
-      change z.regs (preprocessingRegisters r heap) + (l.count - (s.index + 1)) * _ ≤ _
-      rw [zreg _ (by decide)]
-      omega
-    · rw [zm]
-      exact hy.verdict
-    · change (s.nodes ++ e.task.output (Nat.primesLE a.m) a.Λ) ++ _ = _
-      rw [List.append_assoc, ← s.remaining_step s'.nodes hi hf]
-      exact h.exactOutput
   · have hpay := s.credit_step (U := U) (rs := rs) s'.nodes T hi hf
     change s.credit a l U rs T = _ at hpay
-    rw [hpay]
-    dsimp only [e, T, s']
-    omega
+    rw [hpay]; dsimp only [e, T, s']; omega
 
 /-- Execute the entire actual descriptor loop with exact mathematical output and Boolean fold.
 The final loop test and every native descriptor increment are included in the charge. -/
@@ -285,10 +257,8 @@ theorem forest_exec {r κ n w U : ℕ} {a : Arena} {l : Frontend.Layout}
     (fun s => s.credit a l U rs T)
     (fun s x hi hc => forest_body_exec c hw ha hresources hready hi hc
       hn hU hf hfront hkeys hnd hcard hvalues) h
-  have hend : s'.index = l.count := by
-    have hge : l.count ≤ s'.index := by
-      simpa only [Cond.holds_lt, hy.current, hy.roots, not_lt] using hc
-    exact hy.index_le.antisymm hge
+  have hend : s'.index = l.count := hy.index_le.antisymm (by
+    simpa only [Cond.holds_lt, hy.current, hy.roots, not_lt] using hc)
   refine ⟨s', y, he, hy, hend, ?_⟩
   have hlen : (ChanHe.Preprocessing.entries l U rs).length = l.count := by
     simp only [ChanHe.Preprocessing.entries, List.length_map, List.length_range]

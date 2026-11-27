@@ -64,16 +64,10 @@ theorem entries_restrictPrefix_lt (darts : ℕ) (c : Graph.RotationCertificate) 
     ∀ v ∈ (restrictPrefix darts c).successor, v < darts := by
   intro v hv
   obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hv
-  have hi' := List.mem_range.mp hi
-  generalize hfind : (((List.range c.successor.length).map fun k =>
-    Graph.RotationCertificate.walk c.successor (k + 1) i).find?
-      (fun j => decide (j < darts))) = found
-  cases found with
-  | none => simpa using (show 0 < darts from by omega)
-  | some j =>
-    change j < darts
-    have hj := List.find?_some hfind
-    simpa only [decide_eq_true_eq] using hj
+  cases hfind : ((List.range c.successor.length).map fun k =>
+      Graph.RotationCertificate.walk c.successor (k + 1) i).find? (fun j => decide (j < darts)) with
+  | none => exact Nat.zero_lt_of_lt (List.mem_range.mp hi)
+  | some j => simpa only [Option.getD_some, decide_eq_true_eq] using List.find?_some hfind
 
 /-- The canonical body restriction retains exactly its original number of indexed darts. -/
 theorem length_restrictPrefix (darts : ℕ) (c : Graph.RotationCertificate) :

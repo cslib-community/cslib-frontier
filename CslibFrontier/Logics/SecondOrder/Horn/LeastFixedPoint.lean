@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Logics.SecondOrder.Horn
 public import CslibFrontier.Logics.FirstOrder.Operator.LeastFixedPoint.Definability
 public import CslibFrontier.Logics.FirstOrder.Operator.Definability.Finite
-public import CslibFrontier.Logics.FirstOrder.Operator.Quantifiers
+import CslibFrontier.Tactic.FOOperator
 import Mathlib.Data.Fintype.Order
 
 /-!
@@ -80,15 +80,14 @@ private theorem tagTuple_injective {e : Φ.Var → Fin t} (he : Function.Injecti
     (hc : c₀ ≠ c₁) (ha : ∀ i, Φ.arity i ≤ a) {i i' : Φ.Var} {x : Fin (Φ.arity i) → M}
     {x' : Fin (Φ.arity i') → M} (h : tagTuple (a := a) e c₀ c₁ i x = tagTuple e c₀ c₁ i' x') :
     (⟨i, x⟩ : Σ i, Fin (Φ.arity i) → M) = ⟨i', x'⟩ := by
-  have hi : i = i' := by
+  obtain rfl : i = i' := by
     by_contra hne
     have htag := congrFun h (Fin.castAdd a (e i))
     simp only [tagTuple, Fin.append_left, ↓reduceIte, he.ne hne] at htag
     exact hc htag.symm
-  subst hi
   refine Sigma.ext rfl (heq_of_eq (funext fun p => ?_))
-  have hp := congrFun h (Fin.natAdd t ⟨p.val, lt_of_lt_of_le p.isLt (ha i)⟩)
-  simpa only [tagTuple, Fin.append_right, Fin.val_mk, p.isLt, ↓reduceDIte, Fin.eta] using hp
+  simpa only [tagTuple, Fin.append_right, Fin.val_mk, p.isLt, ↓reduceDIte, Fin.eta] using
+    congrFun h (Fin.natAdd t ⟨p.val, p.isLt.trans_le (ha i)⟩)
 
 /-- Tagged tuples of a family of relations. -/
 private def tagSet (e : Φ.Var → Fin t) (c₀ c₁ : M) (R : ∀ i, Set (Fin (Φ.arity i) → M)) :
@@ -141,9 +140,8 @@ private theorem lfp_tagStep [L.Structure M] {e : Φ.Var → Fin t} (he : Functio
     {c₀ c₁ : M} (hc : c₀ ≠ c₁) (ha : ∀ i, Φ.arity i ≤ a) :
     (tagStep (a := a) e c₀ c₁).lfp = tagSet e c₀ c₁ (Φ.leastModel M) := by
   have hid : ((Φ.consequence M).comp (untagHom e c₀ c₁)).comp (tagHom (a := a) e c₀ c₁) =
-      Φ.consequence M := by
-    refine OrderHom.ext _ _ (funext fun R => ?_)
-    exact congrArg (Φ.consequence M) (untagSet_tagSet he hc ha R)
+      Φ.consequence M :=
+    OrderHom.ext _ _ (funext fun R => congrArg (Φ.consequence M) (untagSet_tagSet he hc ha R))
   rw [leastModel, ← hid]
   exact ((tagHom e c₀ c₁).map_lfp_comp _).symm
 
@@ -154,8 +152,8 @@ private theorem mem_tagStep_iff [L.Structure M] (e : Φ.Var → Fin t) (c₀ c�
     y ∈ tagStep e c₀ c₁ S ↔ ∃ C ∈ Φ.clauses, ∃ h, C.head = some h ∧ ∃ w : Fin C.width → M,
       C.guard.Realize w ∧ (∀ b ∈ C.body, tagTuple e c₀ c₁ b.rel (w ∘ b.args) ∈ S) ∧
         tagTuple e c₀ c₁ h.rel (w ∘ h.args) = y := by
-  constructor
-  · rintro ⟨i, x, ⟨C, hC, h, hh, w, hg, hb, he⟩, rfl⟩
+  refine ⟨?_, ?_⟩
+  · rintro ⟨_, _, ⟨C, hC, h, hh, w, hg, hb, he⟩, rfl⟩
     cases he
     exact ⟨C, hC, h, hh, w, hg, hb, rfl⟩
   · rintro ⟨C, hC, h, hh, w, hg, hb, rfl⟩
@@ -171,35 +169,7 @@ open Operator
 
 variable {ι : Type t'} {M : ι → Type w} [∀ m, L.Structure (M m)]
   {O : Type*} {shape : O → Shape} {policy : Policy shape} {I : ∀ m, Interpretation shape (M m)}
-  {Γ : List ℕ} {ρ : ∀ m, RelEnv Γ (M m)} {mark : Marking Γ} {sign : Bool} {α : Type w'}
-
-private theorem definable_exs {n : ℕ} {P : ∀ m, (α → M m) → (Fin n → M m) → Prop}
-    (hP : Operator.Definable (L := L) policy M I ρ
-      (fun m v => P m (v ∘ Sum.inl) (v ∘ Sum.inr))) :
-    Operator.Definable (L := L) policy M I ρ (fun m v => ∃ xs, P m v xs) := by
-  obtain ⟨φ, hφ, hP⟩ := hP
-  refine ⟨φ.exs n, by rw [Formula.wellFormed_exs]; exact hφ, fun m v => ?_⟩
-  rw [Formula.realize_exs]
-  exact exists_congr fun xs => hP m (Sum.elim v xs)
-
-private theorem polarityDefinable_exs {n : ℕ}
-    {P : ∀ m, (α → M m) → (Fin n → M m) → Prop}
-    (hP : Operator.PolarityDefinable (L := L) policy mark sign M I ρ
-      (fun m v => P m (v ∘ Sum.inl) (v ∘ Sum.inr))) :
-    Operator.PolarityDefinable (L := L) policy mark sign M I ρ (fun m v => ∃ xs, P m v xs) := by
-  obtain ⟨φ, hφ, hp, hP⟩ := hP
-  refine ⟨φ.exs n, by rw [Formula.wellFormed_exs]; exact hφ,
-    by rw [Formula.checkPolarity_exs]; exact hp, fun m v => ?_⟩
-  rw [Formula.realize_exs]
-  exact exists_congr fun xs => hP m (Sum.elim v xs)
-
-private theorem definable_forall_mem {β : Type*} (l : List β) {P : β → ∀ m, (α → M m) → Prop}
-    (hP : ∀ b ∈ l, Operator.Definable (L := L) policy M I ρ (P b)) :
-    Operator.Definable (L := L) policy M I ρ (fun m v => ∀ b ∈ l, P b m v) := by
-  induction l with
-  | nil => exact Operator.Definable.truth.congr fun _ _ => by simp
-  | cons b l ih =>
-    exact ((hP b (by simp)).conj (ih fun c hc => hP c (by simp [hc]))).congr fun _ _ => by simp
+  {Γ : List ℕ} {ρ : ∀ m, RelEnv Γ (M m)} {α : Type w'}
 
 private theorem realize_relabel_empty {β : Type*} {N : Type*} [L.Structure N]
     (c : L.Term Empty) (v : β → N) :
@@ -221,13 +191,11 @@ private theorem realize_tagTerms {β : Type*} {N : Type*} [L.Structure N] (e : �
     (fun p => (tagTerms (a := a) e c₀ c₁ i args p).realize v) =
       tagTuple e (c₀.realize Empty.elim) (c₁.realize Empty.elim) i (v ∘ args) := by
   funext p
-  refine Fin.addCases (fun j => ?_) (fun j => ?_) p
-  · simp only [tagTerms, tagTuple, Fin.append_left]
-    split_ifs <;> exact realize_relabel_empty _ v
-  · simp only [tagTerms, tagTuple, Fin.append_right]
-    split_ifs
-    · rfl
-    · exact realize_relabel_empty _ v
+  refine Fin.addCases (fun _ => ?_) (fun _ => ?_) p <;>
+    simp only [tagTerms, tagTuple, Fin.append_left, Fin.append_right]
+  · split_ifs <;> exact realize_relabel_empty _ v
+  · split_ifs
+    exacts [rfl, realize_relabel_empty _ v]
 
 /-- The packed operator has a positive defining formula. It is a finite disjunction over the
 definite clauses; each disjunct existentially quantifies the clause variables, keeps the guard
@@ -239,30 +207,14 @@ private theorem tagStep_polarityDefinable (e : Φ.Var → Fin t) (c₀ c₁ : L.
       (fun j => RelEnv.cons j.2 (ρ j.1))
       (fun j (v : α ⊕ Fin (t + a) → M j.1) => v ∘ Sum.inr ∈
         tagStep e (c₀.realize Empty.elim) (c₁.realize Empty.elim) j.2) := by
-  refine (Operator.PolarityDefinable.exists_mem Φ.clauses
-    (P := fun C (j : (m : ι) × Set (Fin (t + a) → M m)) (v : α ⊕ Fin (t + a) → M j.1) =>
-      ∃ h, C.head = some h ∧ ∃ w : Fin C.width → M j.1, C.guard.Realize w ∧
-        (∀ b ∈ C.body, tagTuple e (c₀.realize Empty.elim) (c₁.realize Empty.elim) b.rel
-          (w ∘ b.args) ∈ j.2) ∧
-        tagTuple e (c₀.realize Empty.elim) (c₁.realize Empty.elim) h.rel (w ∘ h.args) =
-          v ∘ Sum.inr) fun C _ => ?_).congr fun j v => (mem_tagStep_iff _ _ _ _ _).symm
+  simp only [mem_tagStep_iff]
+  apply Operator.PolarityDefinable.exists_mem
+  intro C _
   cases hC : C.head with
   | none => exact Operator.PolarityDefinable.falsity.congr fun _ _ => by simp
   | some h =>
-    refine Operator.PolarityDefinable.congr
-      (P := fun (j : (m : ι) × Set (Fin (t + a) → M m)) (v : α ⊕ Fin (t + a) → M j.1) =>
-      ∃ w : Fin C.width → M j.1,
-      C.guard.Realize w ∧ (∀ b ∈ C.body, tagTuple e (c₀.realize Empty.elim)
-        (c₁.realize Empty.elim) b.rel (w ∘ b.args) ∈ j.2) ∧
-        tagTuple e (c₀.realize Empty.elim) (c₁.realize Empty.elim) h.rel (w ∘ h.args) =
-          v ∘ Sum.inr) ?_ fun _ _ => by simp
-    refine polarityDefinable_exs
-      (P := fun (j : (m : ι) × Set (Fin (t + a) → M m)) (v : α ⊕ Fin (t + a) → M j.1)
-        (w : Fin C.width → M j.1) => C.guard.Realize w ∧
-      (∀ b ∈ C.body, tagTuple e (c₀.realize Empty.elim) (c₁.realize Empty.elim) b.rel
-        (w ∘ b.args) ∈ j.2) ∧
-      tagTuple e (c₀.realize Empty.elim) (c₁.realize Empty.elim) h.rel (w ∘ h.args) =
-        v ∘ Sum.inr) ?_
+    simp only [Option.some.injEq, exists_eq_left']
+    apply Operator.PolarityDefinable.exs
     refine ((Operator.PolarityDefinable.ofFO (C.guard.relabel Sum.inr)).conj
       ((Operator.PolarityDefinable.forall_mem C.body fun b _ =>
         Operator.PolarityDefinable.rel (Γ := (t + a) :: Γ) .here
@@ -270,11 +222,11 @@ private theorem tagStep_polarityDefinable (e : Φ.Var → Fin t) (c₀ c₁ : L.
       (Operator.PolarityDefinable.iAll fun p => Operator.PolarityDefinable.equal
         (tagTerms e c₀ c₁ h.rel (Sum.inr ∘ h.args) p)
         (.var (Sum.inl (Sum.inr p)))))).congr fun j v => ?_
-    refine and_congr Formula.realize_relabel (and_congr (forall₂_congr fun b _ => ?_) ?_)
-    · exact Iff.of_eq (congrArg (· ∈ j.2) (realize_tagTerms e c₀ c₁ b.rel _ v))
-    · have hr := realize_tagTerms (a := a) e c₀ c₁ h.rel (Sum.inr ∘ h.args) v
-      refine ⟨fun hp => funext fun p => (congrFun hr p).symm.trans (hp p),
-        fun hp p => (congrFun hr p).trans (congrFun hp p)⟩
+    refine and_congr Formula.realize_relabel (and_congr
+      (forall₂_congr fun b _ =>
+        Iff.of_eq (congrArg (· ∈ j.2) (realize_tagTerms e c₀ c₁ b.rel _ v)))
+      (funext_iff.symm.trans (Iff.of_eq (congrArg (· = (v ∘ Sum.inl) ∘ Sum.inr)
+        (realize_tagTerms (a := a) e c₀ c₁ h.rel (Sum.inr ∘ h.args) v)))))
 
 end Definability
 
@@ -297,29 +249,29 @@ theorem exists_lfp_realize_iff (Φ : Sentence L) (c₀ c₁ : L.Term Empty)
   have key : Operator.Definable (L := L) LFP.policy M (fun _ => LFP.interpretation)
       (fun _ => Operator.RelEnv.empty)
       (fun m (_ : Empty → M m) => Φ.Consistent (Φ.leastModel (M m))) := by
-    refine (definable_forall_mem Φ.clauses (P := fun C m _ => C.head = none →
-      C.Holds (Φ.leastModel (M m))) fun C _ => ?_).congr fun _ _ => Iff.rfl
+    apply Operator.Definable.forall_mem
+    intro C _
     cases hC : C.head with
     | some h => exact Operator.Definable.truth.congr fun _ _ => by simp
     | none =>
-      have hlfp (b : Atom Φ.arity (Fin C.width)) := LFP.definable_lfp (M := M)
+      have hlfp (b : Atom Φ.arity (Fin C.width)) := (LFP.definable_lfp (M := M)
         (ρ := fun _ => Operator.RelEnv.empty) (α := Empty ⊕ Fin C.width)
         (fun m _ => tagStep (a := a) e (c₀.realize (M := M m) Empty.elim)
           (c₁.realize Empty.elim))
         (tagTerms e c₀ c₁ b.rel (Sum.inr ∘ b.args))
         (tagStep_polarityDefinable (M := M) (policy := LFP.policy)
           (I := fun _ => LFP.interpretation) (ρ := fun _ => Operator.RelEnv.empty)
-          (α := Empty ⊕ Fin C.width) e c₀ c₁ LFP.headMark)
-      refine ((definable_exs (n := C.width) (P := fun m _ w => C.guard.Realize w ∧
-        ∀ b ∈ C.body, w ∘ b.args ∈ Φ.leastModel (M m) b.rel)
-        (((Operator.Definable.ofFO (C.guard.relabel Sum.inr)).conj
-          (definable_forall_mem C.body fun b _ => hlfp b)).congr fun m v => ?_)).neg).congr
-        fun m v => ?_
-      · refine and_congr Formula.realize_relabel (forall₂_congr fun b _ => ?_)
-        rw [realize_tagTerms e c₀ c₁ b.rel _ v, lfp_tagStep e.injective (hc m) ha]
-        exact mem_tagSet_iff e.injective (hc m) ha
-      · simp only [Clause.Holds, Atom.Holds, hC, Option.elim_none, not_exists, not_and,
-          true_implies, imp_false]
+          (α := Empty ⊕ Fin C.width) e c₀ c₁ LFP.headMark)).congr fun m v =>
+          show _ ↔ (v ∘ Sum.inr) ∘ b.args ∈ Φ.leastModel (M m) b.rel from by
+            rw [realize_tagTerms e c₀ c₁ b.rel _ v, lfp_tagStep e.injective (hc m) ha]
+            exact mem_tagSet_iff e.injective (hc m) ha
+      have hguard := (Operator.Definable.ofFO (policy := LFP.policy) (M := M)
+        (I := fun _ => LFP.interpretation) (ρ := fun _ => Operator.RelEnv.empty)
+        (α := Empty ⊕ Fin C.width) (C.guard.relabel Sum.inr)).congr
+        fun _ _ => Formula.realize_relabel
+      simp only [Clause.Holds, Atom.Holds, hC, Option.elim_none, imp_false,
+        ← not_and, ← not_exists]
+      fo_definable
   obtain ⟨φ, hφ, hreal⟩ := key
   exact ⟨⟨φ, hφ⟩, fun m => (hreal m Empty.elim).trans (realize_iff_leastModel Φ).symm⟩
 

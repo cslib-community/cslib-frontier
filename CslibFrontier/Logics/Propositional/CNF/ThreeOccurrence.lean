@@ -203,22 +203,18 @@ theorem count_vars_toThreeOccurrence [DecidableEq V] (φ : CNF V) (x : V × ℕ 
     φ.toThreeOccurrence.vars.count x = 3 * φ.occurrenceClauses.vars.count x := by
   have hf (v : V) : (φ.occurrenceCopies v).count x =
       if v = x.1 then φ.occurrenceClauses.vars.count x else 0 := by
-    by_cases h : v = x.1
-    · subst v
-      simp [occurrenceCopies]
-    · rw [ite_eq_right h]
-      apply List.count_eq_zero.2
-      simp only [occurrenceCopies, List.mem_filter, beq_iff_eq]
-      intro hx
-      exact h hx.2.symm
+    split_ifs with h
+    · subst v; simp [occurrenceCopies]
+    · refine List.count_eq_zero.2 fun hx => h ?_
+      simp only [occurrenceCopies, List.mem_filter, beq_iff_eq] at hx
+      exact hx.2.symm
   have hs : (φ.distinctVars.map (fun v => (φ.occurrenceCopies v).count x)).sum =
       φ.occurrenceClauses.vars.count x := by
     simp_rw [hf]
     by_cases hx : x ∈ φ.occurrenceClauses.vars
     · rw [List.sum_map_eq_nsmul_single x.1 _ (fun _ h _ => by simp [h])]
       have hm : x.1 ∈ φ.vars := by
-        rw [← map_fst_vars_occurrenceClauses]
-        exact List.mem_map.2 ⟨x, hx, rfl⟩
+        rw [← map_fst_vars_occurrenceClauses]; exact List.mem_map.2 ⟨x, hx, rfl⟩
       simp [nodup_distinctVars, mem_distinctVars, hm]
     · simp [List.count_eq_zero.2 hx]
   have hflat (l : List V) :
@@ -301,8 +297,7 @@ theorem modelCount_toThreeOccurrence [DecidableEq V] (φ : CNF V) :
     simp only [← List.count_pos_iff, count_vars_toThreeOccurrence]
     omega
   have hfst {x : V × ℕ × ℕ} (hx : x ∈ φ.occurrenceClauses.vars) : x.1 ∈ φ.vars := by
-    rw [← map_fst_vars_occurrenceClauses]
-    exact List.mem_map.2 ⟨x, hx, rfl⟩
+    rw [← map_fst_vars_occurrenceClauses]; exact List.mem_map.2 ⟨x, hx, rfl⟩
   have hex (v : φ.vars.toFinset) : ∃ x ∈ φ.occurrenceClauses.vars, x.1 = v := by
     apply List.mem_map.1
     simpa only [map_fst_vars_occurrenceClauses] using List.mem_toFinset.1 v.2
@@ -312,26 +307,23 @@ theorem modelCount_toThreeOccurrence [DecidableEq V] (φ : CNF V) :
   let f (τ : V × ℕ × ℕ → Bool) (v : φ.vars.toFinset) : Bool := τ (copy v)
   refine modelCount_eq_card_filter f (fun τ => φ.eval (φ.extendAssignment τ) = true)
     (fun σ τ hσ hτ => ?_) fun τ => ?_
-  · constructor
-    · intro he x hx
-      have hx := (hmem x).1 hx
-      let v : φ.vars.toFinset := ⟨x.1, List.mem_toFinset.2 (hfst hx)⟩
-      calc σ x = σ (copy v) := copies_agree hσ hx (hcopy v).1 (hcopy v).2.symm
-        _ = τ (copy v) := congrFun he v
-        _ = τ x := copies_agree hτ (hcopy v).1 hx (hcopy v).2
-    · intro he
-      exact funext fun v => he (copy v) ((hmem _).2 (hcopy v).1)
+  · refine ⟨fun he x hx => ?_, fun he => funext fun v => he (copy v) ((hmem _).2 (hcopy v).1)⟩
+    have hx := (hmem x).1 hx
+    let v : φ.vars.toFinset := ⟨x.1, List.mem_toFinset.2 (hfst hx)⟩
+    calc σ x = σ (copy v) := copies_agree hσ hx (hcopy v).1 (hcopy v).2.symm
+      _ = τ (copy v) := congrFun he v
+      _ = τ x := copies_agree hτ (hcopy v).1 hx (hcopy v).2
   · constructor
     · intro hτ
-      refine ⟨φ.extendAssignment τ ∘ Prod.fst, ?_, funext fun v => ?_⟩
-      · exact (eval_toThreeOccurrence_iff φ _).2 ⟨φ.extendAssignment τ, hτ, fun _ _ => rfl⟩
-      · change φ.extendAssignment τ (copy v).1 = τ v
-        rw [(hcopy v).2, extendAssignment_of_mem _ (List.mem_toFinset.1 v.2)]
+      refine ⟨φ.extendAssignment τ ∘ Prod.fst,
+        (eval_toThreeOccurrence_iff φ _).2 ⟨φ.extendAssignment τ, hτ, fun _ _ => rfl⟩,
+        funext fun v => ?_⟩
+      change φ.extendAssignment τ (copy v).1 = τ v
+      rw [(hcopy v).2, extendAssignment_of_mem _ (List.mem_toFinset.1 v.2)]
     · rintro ⟨σ, hσ, rfl⟩
       rw [← eval_occurrenceClauses]
       have he : ∀ x ∈ φ.occurrenceClauses.vars,
-          (φ.extendAssignment (f σ) ∘ Prod.fst) x = σ x := by
-        intro x hx
+          (φ.extendAssignment (f σ) ∘ Prod.fst) x = σ x := fun x hx => by
         change φ.extendAssignment (f σ) x.1 = σ x
         rw [extendAssignment_of_mem _ (hfst hx)]
         exact copies_agree hσ (hcopy _).1 hx (hcopy _).2

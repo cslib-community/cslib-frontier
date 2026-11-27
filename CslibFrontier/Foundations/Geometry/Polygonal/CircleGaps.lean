@@ -30,11 +30,9 @@ theorem sbtw_angle_cut_iff_lt {cut a b : ℝ}
     sbtw (cut : Real.Angle) (a : Real.Angle) (b : Real.Angle) ↔ a < b := by
   refine ⟨fun h => ?_, fun hab => sbtw_angle_of_lt_of_span_lt ha.1 hab (by linarith [hb.2])⟩
   by_contra hn
-  rcases lt_or_eq_of_le (le_of_not_gt hn) with hba | hba
-  · have hrev := sbtw_angle_of_lt_of_span_lt hb.1 hba (by linarith [ha.2])
-    exact h.not_sbtw hrev.cyclic_left
-  · rw [hba] at h
-    exact sbtw_irrefl_right h
+  rcases lt_or_eq_of_le (le_of_not_gt hn) with hba | rfl
+  · exact h.not_sbtw (sbtw_angle_of_lt_of_span_lt hb.1 hba (by linarith [ha.2])).cyclic_left
+  · exact sbtw_irrefl_right h
 
 /-- Two finite linearly ordered blocks in one open turn admit an intervening cut,
 even when either block is empty. The original cut is retained. -/
@@ -49,29 +47,25 @@ theorem exists_gap_between_finite_blocks (A B : Finset ℂ) (θ : ℂ → ℝ) (
   let U := insert (cut + 2 * Real.pi) (B.image θ)
   have hL : L.Nonempty := ⟨cut, Finset.mem_insert_self _ _⟩
   have hU : U.Nonempty := ⟨cut + 2 * Real.pi, Finset.mem_insert_self _ _⟩
-  have hlt : L.sup' hL id < U.inf' hU id := by
-    apply (Finset.sup'_lt_iff hL).mpr
-    intro a ha
-    apply (Finset.lt_inf'_iff hU).mpr
-    intro b hb
-    rcases Finset.mem_insert.mp ha with rfl | ha <;>
-      rcases Finset.mem_insert.mp hb with rfl | hb
-    · exact lt_add_of_pos_right _ Real.two_pi_pos
-    · obtain ⟨y, hy, rfl⟩ := Finset.mem_image.mp hb
-      exact (hB y hy).1
-    · obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp ha
-      exact (hA x hx).2
-    · obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp ha
-      obtain ⟨y, hy, rfl⟩ := Finset.mem_image.mp hb
-      exact hAB x hx y hy
+  have hlt : L.sup' hL id < U.inf' hU id :=
+    (Finset.sup'_lt_iff hL).mpr fun a ha => (Finset.lt_inf'_iff hU).mpr fun b hb => by
+      rcases Finset.mem_insert.mp ha with rfl | ha <;>
+        rcases Finset.mem_insert.mp hb with rfl | hb
+      · exact lt_add_of_pos_right _ Real.two_pi_pos
+      · obtain ⟨y, hy, rfl⟩ := Finset.mem_image.mp hb
+        exact (hB y hy).1
+      · obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp ha
+        exact (hA x hx).2
+      · obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp ha
+        obtain ⟨y, hy, rfl⟩ := Finset.mem_image.mp hb
+        exact hAB x hx y hy
   obtain ⟨gap, hlo, hhi⟩ := exists_between hlt
   refine ⟨gap, ⟨?_, ?_⟩, ?_, ?_⟩
-  · exact (Finset.le_sup' id (Finset.mem_insert_self cut (A.image θ))).trans_lt hlo
-  · exact hhi.trans_le (Finset.inf'_le id
-      (Finset.mem_insert_self (cut + 2 * Real.pi) (B.image θ)))
+  · exact (Finset.le_sup' id (Finset.mem_insert_self _ _)).trans_lt hlo
+  · exact hhi.trans_le (Finset.inf'_le id (Finset.mem_insert_self _ _))
   · intro x hx
-    exact (Finset.le_sup' id (Finset.mem_insert_of_mem (Finset.mem_image.mpr
-      ⟨x, hx, rfl⟩))).trans_lt hlo
+    exact (Finset.le_sup' id (Finset.mem_insert_of_mem
+      (Finset.mem_image.mpr ⟨x, hx, rfl⟩))).trans_lt hlo
   · intro y hy
     exact hhi.trans_le (Finset.inf'_le id (Finset.mem_insert_of_mem
       (Finset.mem_image.mpr ⟨y, hy, rfl⟩)))
@@ -125,10 +119,8 @@ theorem exists_circle_gaps_of_finite_blocks {z : ℂ} {ρ : ℝ} (hρ : 0 < ρ)
   · intro heq
     have hang := congrArg (fun x : ℂ => ((x - z).arg : Real.Angle)) heq
     rw [arg_circlePoint_sub z hρ, arg_circlePoint_sub z hρ] at hang
-    have hreal : cut = gap := (AddCircle.coe_eq_coe_iff_of_mem_Ico
-      (p := 2 * Real.pi) ⟨le_rfl, by linarith [Real.pi_pos]⟩
-      ⟨hgap.1.le, hgap.2⟩).mp hang
-    exact hgap.1.ne hreal
+    exact hgap.1.ne ((AddCircle.coe_eq_coe_iff_of_mem_Ico (p := 2 * Real.pi)
+      ⟨le_rfl, by linarith [Real.pi_pos]⟩ ⟨hgap.1.le, hgap.2⟩).mp hang)
   · intro x hx
     rw [arg_circlePoint_sub z hρ, arg_circlePoint_sub z hρ, (hA x hx).2.2]
     exact sbtw_angle_of_lt_of_span_lt (hA x hx).2.1.1 (hAgap x hx) (by linarith [hgap.2])

@@ -120,60 +120,32 @@ theorem countQueries_slotBinM_le (k : α) (rest : List (Triple α β)) :
     rcases rest with _ | ⟨e, l⟩
     · simp
     · simp only [List.length_cons] at hn
-      have h₁ := ih _ (by simp only [List.length_take, List.length_cons]; omega)
-        ((e :: l).take ((l.length + 1) / 2)) rfl
-      have h₂ := ih _ (by simp only [List.length_drop, List.length_cons]; omega)
-        ((e :: l).drop ((l.length + 1) / 2 + 1)) rfl
-      simp only [slotBinM_cons, bind_pure_comp, FreeM.countQueries_bind, FreeM.countQueries_lift,
-        ↓FreeM.countQueries_ite, FreeM.eval_lift, FreeM.countQueries_map]
-      have ht := Nat.clog_two_lt_clog_two_of_le_half (m := n + 1)
-        (k := ((e :: l).take ((l.length + 1) / 2)).length + 1) (by omega)
-        (by simp only [List.length_take, List.length_cons]; omega)
-      have hd := Nat.clog_two_lt_clog_two_of_le_half (m := n + 1)
-        (k := ((e :: l).drop ((l.length + 1) / 2 + 1)).length + 1) (by omega)
-        (by simp only [List.length_drop, List.length_cons]; omega)
-      split <;> omega
+      have hsub : ∀ l' : List (Triple α β), l'.length ≤ (l.length + 1) / 2 →
+          (slotBinM LEQuery.ask k l').countQueries oracle + 1 ≤ Nat.clog 2 (n + 1) :=
+        fun l' hl' => (Nat.add_le_add_right (ih _ (by omega) l' rfl) 1).trans
+          (Nat.clog_two_lt_clog_two_of_le_half (by omega) (by omega))
+      have ht := hsub ((e :: l).take ((l.length + 1) / 2)) (by simp)
+      have hd := hsub (l.drop ((l.length + 1) / 2)) (by simp; omega)
+      rw [slotBinM_cons]
+      by_cases h : oracle (.le k ((e :: l)[(l.length + 1) / 2]'(by simp; omega)).1) = true <;>
+        simp [h] <;> omega
 
-/-- The within-node binary search of a node with at most `2 * t - 1` keys makes at most
-`⌈log₂ (2 * t)⌉` comparisons. -/
-private theorem countQueries_slotBinM_le_of_length_le (ht : 0 < t) (k : α)
-    {rest : List (Triple α β)} (hl : rest.length ≤ 2 * t - 1) :
-    (slotBinM LEQuery.ask k rest).countQueries oracle ≤ Nat.clog 2 (2 * t) :=
-  (countQueries_slotBinM_le oracle k rest).trans (Nat.clog_mono_right 2 (by omega))
-
-/-- Lookup by binary in-node search at a node makes one comparison beyond the within-node search
-and what it makes in the child it descends into. -/
-private theorem countQueries_lookupBinQ_node_le (ht : 0 < t) (k : α) (first : BTree α β)
-    {rest : List (Triple α β)} (hl : rest.length ≤ 2 * t - 1) {B : ℕ}
-    (hB : ∀ c ∈ (node first rest).children, (lookupBinQ k c).countQueries oracle ≤ B) :
-    (lookupBinQ k (node first rest)).countQueries oracle ≤ Nat.clog 2 (2 * t) + 1 + B := by
-  have hs := countQueries_slotBinM_le_of_length_le oracle ht k hl
-  simp only [lookupBinQ] at hB ⊢
-  rw [lookupBinM_node]
-  simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, zero_add]
-  generalize (slotBinM LEQuery.ask k rest).eval oracle = i
-  rcases hc : (node first rest).children[i]? with _ | c
-  · rcases hi : rest[i]? with _ | e <;> simp <;> grind
-  · have := hB c (List.mem_of_getElem? hc)
-    rcases hi : rest[i]? with _ | e <;> simp <;> grind
-
-/-- Rank by binary in-node search at a node makes no comparison beyond the within-node search
-and what it makes in the child it descends into. -/
-private theorem countQueries_rankBinQ_node_le (ht : 0 < t) (k : α) (first : BTree α β)
-    {rest : List (Triple α β)} (hl : rest.length ≤ 2 * t - 1) {B : ℕ}
-    (hB : ∀ c ∈ (node first rest).children, (rankBinQ k c).countQueries oracle ≤ B) :
-    (rankBinQ k (node first rest)).countQueries oracle ≤ Nat.clog 2 (2 * t) + B := by
-  have hs := countQueries_slotBinM_le_of_length_le oracle ht k hl
-  simp only [rankBinQ] at hB ⊢
-  rw [rankBinM_node]
-  simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, zero_add]
-  generalize (slotBinM LEQuery.ask k rest).eval oracle = i
-  rcases hc : (node first rest).children[i]? with _ | c
-  · simp
-    omega
-  · have := hB c (List.mem_of_getElem? hc)
-    simp
-    omega
+private theorem countQueries_bin_le_of_occupied {γ : Type} {d : ℕ}
+    {q : BTree α β → FreeM (LEQuery α) γ} (ht : 0 < t) (k : α)
+    (hleaf : (q .leaf).countQueries oracle = 0)
+    (hstep : ∀ first (rest : List (Triple α β)) B,
+      (∀ (i : ℕ), ∀ c ∈ (node first rest).children[i]?, (q c).countQueries oracle ≤ B) →
+      (q (node first rest)).countQueries oracle ≤
+        (slotBinM LEQuery.ask k rest).countQueries oracle + d + B)
+    (hk : tr.rootKeys ≤ 2 * t - 1) (hc : ∀ c ∈ tr.children, Occupied t c) :
+    (q tr).countQueries oracle ≤ (Nat.clog 2 (2 * t) + d) * tr.height :=
+  le_mul_height_of_node_le (c := Nat.clog 2 (2 * t) + d) hleaf
+    (fun first rest B hl hB => by
+      have hs := (countQueries_slotBinM_le oracle k rest).trans
+        (Nat.clog_mono_right 2 (m := 2 * t) (by omega))
+      have hstep' := hstep first rest B fun _ c hci => hB c (List.mem_of_getElem? hci)
+      omega)
+    hk hc
 
 /-- Lookup by binary in-node search makes at most `⌈log₂ (2 * t)⌉ + 1` comparisons per level,
 under every oracle, in a tree whose root holds at most `2 * t - 1` keys and whose children are
@@ -181,8 +153,21 @@ occupied. The keys need not be sorted. -/
 theorem countQueries_lookupBinQ_le_of_occupied (ht : 0 < t) (hk : tr.rootKeys ≤ 2 * t - 1)
     (hc : ∀ c ∈ tr.children, Occupied t c) (k : α) :
     (lookupBinQ k tr).countQueries oracle ≤ (Nat.clog 2 (2 * t) + 1) * tr.height :=
-  le_mul_height_of_node_le (by simp [lookupBinQ, lookupBinM_leaf])
-    (fun first _ _ hl hB => countQueries_lookupBinQ_node_le oracle ht k first hl hB) hk hc
+  countQueries_bin_le_of_occupied (d := 1) oracle ht k (by simp [lookupBinQ, lookupBinM_leaf])
+    (fun first rest B hB => by
+      simp only [lookupBinQ] at hB
+      simp only [lookupBinQ, lookupBinM_node, FreeM.countQueries_bind, FreeM.countQueries_pure,
+        zero_add]
+      generalize (slotBinM LEQuery.ask k rest).eval oracle = i
+      rcases hc' : (node first rest).children[i]? with _ | c
+      · rcases rest[i]? with _ | e
+        · simp; omega
+        · by_cases hk : oracle (.le e.1 k) = true <;> simp [hk]
+      · have := hB i c hc'
+        rcases rest[i]? with _ | e
+        · simp; omega
+        · by_cases hk : oracle (.le e.1 k) = true <;> simp [hk]; omega)
+    hk hc
 
 /-- Rank by binary in-node search makes at most `⌈log₂ (2 * t)⌉` comparisons per level, under
 every oracle, in a tree whose root holds at most `2 * t - 1` keys and whose children are
@@ -190,8 +175,16 @@ occupied. The keys need not be sorted. -/
 theorem countQueries_rankBinQ_le_of_occupied (ht : 0 < t) (hk : tr.rootKeys ≤ 2 * t - 1)
     (hc : ∀ c ∈ tr.children, Occupied t c) (k : α) :
     (rankBinQ k tr).countQueries oracle ≤ Nat.clog 2 (2 * t) * tr.height :=
-  le_mul_height_of_node_le (by simp [rankBinQ, rankBinM_leaf])
-    (fun first _ _ hl hB => countQueries_rankBinQ_node_le oracle ht k first hl hB) hk hc
+  countQueries_bin_le_of_occupied (d := 0) oracle ht k (by simp [rankBinQ, rankBinM_leaf])
+    (fun first rest B hB => by
+      simp only [rankBinQ] at hB
+      simp only [rankBinQ, rankBinM_node, FreeM.countQueries_bind, FreeM.countQueries_pure,
+        zero_add]
+      rcases hc' : (node first rest).children[(slotBinM LEQuery.ask k rest).eval oracle]? with
+        _ | c
+      · simp
+      · have := hB _ c hc'; simp; omega)
+    hk hc
 
 /-- Lookup by binary in-node search in the tree bulk-loaded from a list of `n` entries makes at
 most `(⌈log₂ (2 * t)⌉ + 1) * (log_t ((n + 1) / 2) + 1)` comparisons, under every oracle. The

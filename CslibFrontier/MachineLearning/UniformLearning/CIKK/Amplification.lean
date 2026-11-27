@@ -186,9 +186,8 @@ private theorem dens_filter_dpDecode_uniformError_le {s m : ℕ} [NeZero k]
       (Fin k → BitString n) × (Fin m → Trial (BitString n) k)) := by
     exact_mod_cast Fintype.card_pos_iff.2 ⟨τ₀.2⟩
   have hG' : δ * (Fintype.card (BitString n) : ℝ) ^ k ≤ #(agreeing C' f) := by
-    have hag : agreeing C' f = ({y | ∀ j, C' y j = f (y j)} : Finset (Fin k → BitString n)) := by
-      ext y
-      simp
+    have hag : agreeing C' f = ({y | ∀ j, C' y j = f (y j)} : Finset (Fin k → BitString n)) :=
+      Finset.ext fun _ => by simp
     rw [hag, BitString.card, Nat.cast_pow, Nat.cast_ofNat, ← pow_mul, mul_comm n k]
     exact hG
   have hhead := card_filter_seed_dpDecode_err_le_ge C' f false hε hδ hε1 hδ1 hG' hsk hs hm
@@ -203,9 +202,7 @@ private theorem dens_filter_dpDecode_uniformError_le {s m : ℕ} [NeZero k]
       simp only [mem_filter, mem_univ, true_and, mem_product, and_true] at hτ ⊢
       exact ⟨hP, (uniformError_le_iff _ _ _).1 hτ⟩
     · rintro ⟨⟨P, hP⟩, b₀, v⟩ _ ⟨⟨P', hP'⟩, b₀', v'⟩ _ h
-      simp only [Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl, rfl⟩ := h
-      rfl
+      simpa [Subtype.ext_iff] using h
     · rintro ⟨P, b₀, v⟩ hτ
       simp only [mem_filter, mem_univ, mem_product, and_true] at hτ
       exact ⟨(⟨P, hτ.1⟩, b₀, v), by simpa using (uniformError_le_iff _ _ _).2 hτ.2, rfl⟩
@@ -232,10 +229,7 @@ theorem learns_ampLearner {s : ℕ} [NeZero k] [Fact (s ≤ k)] {A : QueryLearne
     (ampLearner A s m K).Learns (ampSeed μ k s m K) C ε (1 - p * ((γ / 2 ^ (K + 3)) ^ 2 / 8)) := by
   have := nonempty_ampSeed n k s m K
   -- `0 < K`, since `K = 0` makes the size condition force `k = 0`
-  have hK : 0 < K := by
-    refine Nat.pos_of_ne_zero fun hK => NeZero.ne k ?_
-    subst hK
-    simpa using hsize
+  have hK : 0 < K := Nat.pos_of_ne_zero fun hK => NeZero.ne k (by simpa [hK] using hsize)
   have hδ₀ : 0 < γ / 2 ^ (K + 3) := by positivity
   refine QueryLearner.learns_reduce (fun f _ y => eval_glAmpQuery f y) hA hp (by positivity)
     fun f _ h hh => ?_
@@ -245,11 +239,9 @@ theorem learns_ampLearner {s : ℕ} [NeZero k] [Fact (s ≤ k)] {A : QueryLearne
     (div_le_self hγ.le (one_le_pow₀ (by norm_num))).trans (by linarith)
   -- `h` agrees with `glAmp f k` on a `1/2 + γ` fraction of the inputs
   have hagree : (1 / 2 + γ) * 2 ^ (k * n + k) ≤ (#{y | h y = glAmp f k y} : ℝ) := by
-    rw [uniformError_eq_one_sub_dens, nnratCast_dens] at hh'
-    have hc : (Fintype.card (Fin (k * n + k) → Bool) : ℝ) = 2 ^ (k * n + k) := by simp
-    rw [hc] at hh'
-    have h3 : 1 / 2 + γ ≤ (#{y | h y = glAmp f k y} : ℝ) / 2 ^ (k * n + k) := by linarith
-    rwa [le_div_iff₀ (by positivity)] at h3
+    simp only [uniformError_eq_one_sub_dens, nnratCast_dens, Fintype.card_fun, Fintype.card_fin,
+      Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat] at hh'
+    exact (le_div_iff₀ (by positivity)).mp (by linarith)
   -- Goldreich–Levin decoding (Claim 4.4), then direct-product decoding for each good pair
   have hgl := dens_filter_glAmpCandidate_agree f h hγ hagree hK hsize
   have hprod := Cslib.Probability.mul_le_dens_filter_prod

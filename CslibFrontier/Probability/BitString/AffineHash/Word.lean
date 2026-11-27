@@ -79,8 +79,7 @@ def unpackAffineSeed (k n : ℕ) (seed : List Bool) :
 
 @[simp] theorem length_packAffineSeed {k n : ℕ} (s : (Fin k → BitString n) × BitString k) :
     (packAffineSeed s).length = k * n + k := by
-  unfold packAffineSeed
-  simp
+  simp [packAffineSeed]
 
 @[simp] theorem unpackAffineSeed_packAffineSeed {k n : ℕ}
     (s : (Fin k → BitString n) × BitString k) :
@@ -94,29 +93,24 @@ def unpackAffineSeed (k n : ℕ) (seed : List Bool) :
 theorem packAffineSeed_unpackAffineSeed {k n : ℕ} {seed : List Bool}
     (hseed : seed.length = k * n + k) :
     packAffineSeed (unpackAffineSeed k n seed) = seed := by
-  have htake : (seed.take (k * n)).length = k * n := by simp [hseed]
-  have hdrop : (seed.drop (k * n)).length = k := by simp [hseed]
-  unfold packAffineSeed unpackAffineSeed
-  dsimp only
-  rw [blocksEquiv_symm_block, ofFn_ofList htake, ofFn_ofList hdrop, List.take_append_drop]
+  simp only [packAffineSeed, unpackAffineSeed, blocksEquiv_symm_block,
+    ofFn_ofList (by simp [hseed] : (seed.take (k * n)).length = k * n),
+    ofFn_ofList (by simp [hseed] : (seed.drop (k * n)).length = k), List.take_append_drop]
 
 /-- Packing an affine seed `(A, b)` concatenates the `k` row words of `A` followed by `b`. -/
 theorem packAffineSeed_eq_flatten_append {k n : ℕ} (s : (Fin k → BitString n) × BitString k) :
     packAffineSeed s = (List.ofFn fun i => List.ofFn (s.1 i)).flatten ++ List.ofFn s.2 := by
-  unfold packAffineSeed
-  rw [ofFn_blocksEquiv_symm]
+  rw [packAffineSeed, ofFn_blocksEquiv_symm]
 
 /-- Row `i` of `unpackAffineSeed k n seed` is row `i` of width `n` of the matrix prefix. -/
 theorem ofFn_unpackAffineSeed_fst {k n : ℕ} (seed : List Bool) (i : Fin k) :
     List.ofFn ((unpackAffineSeed k n seed).1 i) = listRow n i.val (seed.take (k * n)) := by
-  unfold unpackAffineSeed
   exact (listRow_eq_ofFn n i (seed.take (k * n))).symm
 
 /-- The offset of `unpackAffineSeed k n seed` is the `k`-bit prefix after the `k * n` matrix
 bits. -/
 theorem ofFn_unpackAffineSeed_snd {k n : ℕ} (seed : List Bool) :
     List.ofFn (unpackAffineSeed k n seed).2 = listRow k 0 (seed.drop (k * n)) := by
-  unfold unpackAffineSeed
   exact (listRow_zero k (seed.drop (k * n))).symm
 
 /-- The seed of an affine hash to `k` bits of `n`-bit strings, read from `k * n + k` bits: the `k`

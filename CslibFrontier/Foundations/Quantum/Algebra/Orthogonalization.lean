@@ -57,10 +57,7 @@ private theorem nonneg_mul_sub_mul_self {c x : A} (hc : 0 ≤ c) (hx0 : 0 ≤ x)
 /-- `n ≤ x + y + z` with `0 ≤ n` gives `n² ≤ 3 (x² + y² + z²)`. -/
 private theorem sq_le_three_mul_of_le_add {n x y z : ℝ} (hn : 0 ≤ n) (h : n ≤ x + y + z) :
     n ^ 2 ≤ 3 * (x ^ 2 + y ^ 2 + z ^ 2) := by
-  have h₂ := pow_le_pow_left₀ hn h 2
-  have h₃ : (x + y + z) ^ 2 ≤ 3 * (x ^ 2 + y ^ 2 + z ^ 2) := by
-    nlinarith [sq_nonneg (x - y), sq_nonneg (x - z), sq_nonneg (y - z)]
-  exact h₂.trans h₃
+  nlinarith [pow_le_pow_left₀ hn h 2, sq_nonneg (x - y), sq_nonneg (x - z), sq_nonneg (y - z)]
 
 variable [StarModule ℂ A] [SelfAdjointDecompose A]
 
@@ -84,10 +81,8 @@ theorem sum_norm_sub_sq_le_of_dilation (φ : AlgState A) (M P : Measurement α A
   have hq : ∀ a, star (q a) = q a := fun a => (hqs a).star_eq
   have hhs : star h = h := h0.isSelfAdjoint.star_eq
   have h1q : ∀ a, 0 ≤ 1 - q a := fun a => by
-    have : 1 - q a = star (1 - q a) * (1 - q a) := by
-      rw [star_sub, star_one, hq, sub_mul, one_mul, mul_sub, mul_one, hqq, sub_self, sub_zero]
-    rw [this]
-    exact star_mul_self_nonneg _
+    simpa only [star_sub, star_one, hq, sub_mul, one_mul, mul_sub, mul_one, hqq, sub_self,
+      sub_zero] using star_mul_self_nonneg (1 - q a)
   have hsum1 : ∑ a, M.effect a = 1 := M.sum_effect
   have hsumP : ∑ a, P.effect a = 1 := P.sum_effect
   have hφ1 : (φ 1).re = 1 := by rw [φ.map_one, Complex.one_re]
@@ -161,9 +156,8 @@ theorem sum_norm_sub_sq_le_of_dilation (φ : AlgState A) (M P : Measurement α A
       have hfin : q a * M.effect a - q a * (M.effect a * M.effect a) ≤
           M.effect a - M.effect a * M.effect a := by
         rw [← sub_nonneg]
-        have hc : Commute (1 - q a) (M.effect a) := (Commute.one_left _).sub_left (hqc a)
-        have := nonneg_mul_sub_mul_self (h1q a) (M.nonneg a) (M.effect_le_one a) hc
-        convert this using 1
+        convert nonneg_mul_sub_mul_self (h1q a) (M.nonneg a) (M.effect_le_one a)
+          ((Commute.one_left _).sub_left (hqc a)) using 1
         noncomm_ring
       rw [hlhs]
       exact (hconj.trans_eq (by rw [hrhs, hqa])).trans hfin

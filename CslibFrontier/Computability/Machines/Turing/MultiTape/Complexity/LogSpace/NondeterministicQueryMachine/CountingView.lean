@@ -64,28 +64,21 @@ theorem countingMachine_nonblocking : (countingMachine I P F C).Nonblocking := b
 
 /-- Forgetting the occurrence labels recovers the native compiler's reachability relation. -/
 theorem toNTM_countingMachine : (countingMachine I P F C).toNTM = machine I P F C := by
-  have h (q : State SI SP SF) (input : Option Bool) (work : Fin k → Option Bool)
-      (act : Turing.Action k Bool (State SI SP SF)) :
-      (countingMachine I P F C).toNTM.Tr q input work act ↔
-        (machine I P F C).Tr q input work act := by
-    rw [machine, MultiTapePTM.tr_toNTM_iff]
-    simp only [MultiTapeCTM.toNTM, countingMachine, List.mem_map,
-      Equiv.apply_symm_apply, Equiv.symm_apply_eq]
-    cases q <;> simp [choiceBits, tr_withCoin, instruction]
-  change MultiTapeNTM.mk _ _ = MultiTapeNTM.mk _ _
-  congr 1
-  funext q input work act
-  exact propext (h q input work act)
+  suffices (countingMachine I P F C).toNTM.Tr = (machine I P F C).Tr from
+    congrArg (MultiTapeNTM.mk _) this
+  ext q input work act
+  rw [machine, MultiTapePTM.tr_toNTM_iff]
+  simp only [MultiTapeCTM.toNTM, countingMachine, List.mem_map,
+    Equiv.apply_symm_apply, Equiv.symm_apply_eq]
+  cases q <;> simp [choiceBits, tr_withCoin, instruction]
 
 /-- A bound on the native computation paths is also a clock for the counting presentation. -/
 theorem countingMachine_haltsWithin {input : List Bool} {fuel : ℕ}
     (h : (machine I P F C).RunsInTime input fuel) :
     (countingMachine I P F C).HaltsWithin fuel
-      (Cfg.init (.init I.q₀) input) := by
-  apply MultiTapeCTM.haltsWithin_of_paths (countingMachine_nonblocking I P F C)
-  rw [toNTM_countingMachine]
-  intro p hp hlen
-  exact h ⟨p, hp⟩ hlen
+      (Cfg.init (.init I.q₀) input) :=
+  MultiTapeCTM.haltsWithin_of_paths (countingMachine_nonblocking I P F C)
+    ((toNTM_countingMachine I P F C).symm ▸ fun p hp hlen => h ⟨p, hp⟩ hlen)
 
 private def atChoice {input : List Bool} (cfg : Cfg k Bool (State SI SP SF) input) : Bool :=
   match cfg.state with
@@ -127,11 +120,8 @@ theorem map_snd_replayChoices {input : List Bool} (cfg : Cfg k Bool (State SI SP
     cases h : (countingMachine I P F C).step? cfg i with
     | none => rfl
     | some next =>
-      simp only [Option.bind]
-      rw [← ih next]
-      cases hnext : replayChoices I P F C next rest with
-      | none => rfl
-      | some pair => cases pair; rfl
+      simp only [Option.bind, ← ih next]
+      rcases replayChoices I P F C next rest with _ | ⟨_, _⟩ <;> rfl
 
 /-- Concatenating occurrence traces concatenates their genuine choice sequences. -/
 theorem replayChoices_append {input : List Bool} (cfg : Cfg k Bool (State SI SP SF) input)
@@ -148,13 +138,10 @@ theorem replayChoices_append {input : List Bool} (cfg : Cfg k Bool (State SI SP 
     cases (countingMachine I P F C).step? cfg i with
     | none => rfl
     | some next =>
-      simp only [Option.bind]
-      rw [ih next]
-      cases replayChoices I P F C next first with
-      | none => rfl
-      | some result =>
-        obtain ⟨firstBits, middle⟩ := result
-        simp only [Option.bind, Option.map_some, Option.map_map]
+      simp only [Option.bind, ih next]
+      rcases replayChoices I P F C next first with _ | ⟨firstBits, middle⟩
+      · rfl
+      · simp only [Option.map_some, Option.map_map]
         cases atChoice cfg <;> rfl
 
 /-- Crossing a choice boundary adds precisely the bit that selects the next pass. -/
@@ -178,19 +165,14 @@ theorem replayChoices_choose_ne_nil {input : List Bool}
     (hhalt : final.Halted) : bits ≠ [] := by
   cases indices with
   | nil =>
-    have hf := congrArg (fun x => x.map (fun p => p.2.state)) hr
-    simp only [replayChoices_nil, Option.map_some] at hf
-    rw [hcfg, hhalt] at hf
-    cases hf
+    obtain ⟨-, rfl⟩ := Prod.mk.inj (Option.some.inj ((replayChoices_nil I P F C cfg).symm.trans hr))
+    cases hcfg.symm.trans hhalt
   | cons j indices =>
     rw [replayChoices] at hr
-    obtain ⟨next, _, hrest⟩ := Option.bind_eq_some_iff.mp hr
-    obtain ⟨⟨trace, last⟩, _, heq⟩ := Option.map_eq_some_iff.mp hrest
-    have he := congrArg Prod.fst heq
-    simp only [atChoice, hcfg, ↓reduceIte] at he
-    intro hnil
-    rw [hnil] at he
-    cases he
+    obtain ⟨_, _, hrest⟩ := Option.bind_eq_some_iff.mp hr
+    obtain ⟨⟨_, _⟩, _, heq⟩ := Option.map_eq_some_iff.mp hrest
+    rintro rfl
+    simp only [atChoice, hcfg, ↓reduceIte, Prod.mk.injEq, reduceCtorEq, false_and] at heq
 
 /-- A live native step outside a choice boundary has one occurrence and records no bit. -/
 theorem replayChoices_step_zero {input : List Bool}
@@ -204,8 +186,7 @@ theorem replayChoices_step_zero {input : List Bool}
     | some q => cases q <;> simp_all [atChoice]
   rw [← toNTM_countingMachine] at hstep
   obtain ⟨j, hj⟩ := ((countingMachine I P F C).step_toNTM_iff hlive).mp hstep
-  have hj' := step_index_lt I P F C hj
-  obtain rfl : j = 0 := by simpa [hat, Nat.lt_one_iff] using hj'
+  obtain rfl : j = 0 := by simpa [hat, Nat.lt_one_iff] using step_index_lt I P F C hj
   rw [replayChoices, hj]
   simp [hat, Option.bind]
 
@@ -217,22 +198,16 @@ theorem replayChoices_replicate_zero {input : List Bool}
   induction p using RelSeries.inductionOn' with
   | singleton cfg => rfl
   | snoc p next hs ih =>
-    have hbefore : ∀ i : Fin p.length, (p i.castSucc).state ≠ some .choose := by
-      intro i
-      have hi := h ⟨i.val, by simp⟩
-      change (p.snoc next hs i.castSucc.castSucc).state ≠ some .choose at hi
-      exact (RelSeries.snoc_castSucc p next hs i.castSucc) ▸ hi
-    have hlast : p.last.state ≠ some .choose := by
-      have hi := h ⟨p.length, by simp⟩
-      change (p.snoc next hs (Fin.last p.length).castSucc).state ≠ some .choose at hi
-      change (p (Fin.last p.length)).state ≠ some .choose
-      exact (RelSeries.snoc_castSucc p next hs (Fin.last p.length)) ▸ hi
-    rw [RelSeries.snoc_length, List.replicate_succ', RelSeries.head_snoc,
-      replayChoices_append, ih hbefore]
+    have hlast : (p (Fin.last p.length)).state ≠ some .choose :=
+      (RelSeries.snoc_castSucc p next hs (Fin.last p.length)) ▸
+        (h ⟨p.length, by simp⟩ : (p.snoc next hs (Fin.last p.length).castSucc).state ≠ some .choose)
+    rw [RelSeries.snoc_length, List.replicate_succ', RelSeries.head_snoc, replayChoices_append,
+      ih fun i => (RelSeries.snoc_castSucc p next hs i.castSucc) ▸
+        (h ⟨i.val, by simp⟩ : (p.snoc next hs i.castSucc.castSucc).state ≠ some .choose)]
     simpa only [Option.bind, List.nil_append, RelSeries.last_snoc, replayChoices_nil,
       Option.map_some] using
       congrArg (Option.map (fun p => (([] : List Bool) ++ p.1, p.2)))
-        (replayChoices_step_zero I P F C hlast hs.1 hs.2 [])
+        (replayChoices_step_zero I P F C (cfg := p.last) hlast hs.1 hs.2 [])
 
 
 /-- Among successful replays from the same configuration, a shorter replay whose
@@ -250,30 +225,19 @@ theorem prefix_occurrences_of_replayChoices {input : List Bool}
     cases indices₂ with
     | nil => simp at hlen
     | cons j tail =>
-      simp only [replayChoices, Option.bind_eq_some_iff, Option.map_eq_some_iff] at h₁ h₂
-      obtain ⟨x, hx, ⟨bs, f₁⟩, hxs, hbits₁⟩ := h₁
-      obtain ⟨y, hy, ⟨cs, f₂⟩, hys, hbits₂⟩ := h₂
-      have hb₁ := congrArg Prod.fst hbits₁
-      have hb₂ := congrArg Prod.fst hbits₂
-      dsimp only at hb₁ hb₂
-      rw [← hb₁, ← hb₂] at hprefix
+      simp only [replayChoices, Option.bind_eq_some_iff, Option.map_eq_some_iff,
+        Prod.mk.injEq] at h₁ h₂
+      obtain ⟨x, hx, ⟨bs, _⟩, hxs, rfl, rfl⟩ := h₁
+      obtain ⟨y, hy, ⟨cs, _⟩, hys, rfl, rfl⟩ := h₂
       have hi := step_index_lt I P F C hx
       have hj := step_index_lt I P F C hy
-      have hsame : i = j ∧ bs <+: cs := by
+      obtain ⟨rfl, htail⟩ : i = j ∧ bs <+: cs := by
         cases hc : atChoice cfg
         · simp only [hc, Bool.false_eq_true, ↓reduceIte] at hi hj hprefix
           exact ⟨by omega, hprefix⟩
-        · simp only [hc, ↓reduceIte, List.cons_prefix_cons] at hi hj hprefix
-          refine ⟨?_, hprefix.2⟩
-          by_contra hne
-          have hcases : (i = 0 ∧ j = 1) ∨ (i = 1 ∧ j = 0) := by omega
-          rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp at hprefix
-      obtain ⟨rfl, htail⟩ := hsame
+        · simp only [hc, ↓reduceIte, List.cons_prefix_cons, beq_eq_beq] at hi hj hprefix
+          exact ⟨by omega, hprefix.2⟩
       obtain rfl : x = y := Option.some.inj (hx.symm.trans hy)
-      have hf₁ : f₁ = final₁ := congrArg Prod.snd hbits₁
-      have hf₂ : f₂ = final₂ := congrArg Prod.snd hbits₂
-      rw [hf₁] at hxs
-      rw [hf₂] at hys
       obtain ⟨suffix, hs⟩ := ih hxs hys (by simpa using hlen) htail
       exact ⟨suffix, congrArg (i :: ·) hs⟩
 
@@ -290,12 +254,9 @@ theorem exists_suffix_of_replayChoices {input : List Bool}
   obtain ⟨rest, rfl⟩ := prefix_occurrences_of_replayChoices I P F C hfirst hfull hlen
     (List.prefix_append _ _)
   rw [replayChoices_append, hfirst] at hfull
-  change (replayChoices I P F C middle rest).map (fun p => (firstBits ++ p.1, p.2)) =
-    some (firstBits ++ lastBits, final) at hfull
   obtain ⟨⟨bits, cfg'⟩, hrest, heq⟩ := Option.map_eq_some_iff.mp hfull
-  have hbits : firstBits ++ bits = firstBits ++ lastBits := congrArg Prod.fst heq
-  have hcfg : cfg' = final := congrArg Prod.snd heq
-  exact ⟨rest, rfl, by simpa [List.append_cancel_left hbits, hcfg] using hrest⟩
+  obtain ⟨hbits, rfl⟩ := Prod.mk.inj heq
+  exact ⟨rest, rfl, List.append_cancel_left hbits ▸ hrest⟩
 
 /-- Two first-halting occurrence traces with the same genuine choice bits coincide. -/
 theorem eq_occurrences_of_replayChoices {input : List Bool}
@@ -313,16 +274,12 @@ theorem eq_occurrences_of_replayChoices {input : List Bool}
     · exact (claim h₂ h₁ hh₂ hl).symm
   intro a b x y ha hb hx hab
   obtain ⟨suffix, rfl⟩ := prefix_occurrences_of_replayChoices I P F C ha hb hab (List.prefix_refl _)
-  have hra := congrArg (Option.map Prod.snd) ha
-  have hrb := congrArg (Option.map Prod.snd) hb
-  rw [map_snd_replayChoices] at hra hrb
-  change _ = some x at hra
+  have hra : (countingMachine I P F C).runBranch cfg a = some x := by
+    simpa only [map_snd_replayChoices, Option.map_some] using congrArg (Option.map Prod.snd) ha
+  have hrb : (countingMachine I P F C).runBranch cfg (a ++ suffix) = some y := by
+    simpa only [map_snd_replayChoices, Option.map_some] using congrArg (Option.map Prod.snd) hb
   rw [MultiTapeCTM.runBranch_append, hra] at hrb
-  cases suffix with
-  | nil => simp
-  | cons j suffix =>
-    change (countingMachine I P F C).runBranch x (j :: suffix) = some y at hrb
-    simp [MultiTapeCTM.runBranch_of_halted _ hx] at hrb
+  cases suffix <;> simp_all [Option.bind, MultiTapeCTM.runBranch_of_halted _ hx]
 
 /-- If a verdict determines the genuine choice sequence on every terminal replay, it has
 at most one counted branch. -/
@@ -341,9 +298,7 @@ theorem branchCount_le_one_of_choiceTrace {input : List Bool}
     obtain ⟨_, final, hr, hh⟩ := ((countingMachine I P F C).mem_branches_iff _ _ _).mp hmem
     rw [← map_snd_replayChoices] at hr
     obtain ⟨⟨trace, last⟩, ht, rfl⟩ := Option.map_eq_some_iff.mp hr
-    have hv' : verdict last.output := by
-      simpa [← map_snd_replayChoices, ht] using hv
-    obtain rfl := hbits _ _ _ ht hh hv'
+    obtain rfl := hbits _ _ _ ht hh (by simpa [← map_snd_replayChoices, ht] using hv)
     exact ⟨last, ht, hh⟩
   intro first second hfirst hsecond
   obtain ⟨_, hf, hhf⟩ := htrace hfirst

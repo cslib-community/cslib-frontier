@@ -89,20 +89,15 @@ theorem encryptedWires_evaluateCircuit (hE : E.Correct)
     induction count with
     | zero => simp [Scheme.ValidLinks]
     | succ count ih =>
-      simp only [Scheme.ValidLinks, List.replicate_succ, List.tail_cons,
-        List.zip_cons_cons] at ih ⊢
-      exact .cons hlink ih
+      simpa only [Scheme.ValidLinks, List.replicate_succ, List.tail_cons,
+        List.zip_cons_cons] using .cons hlink ih
   simp only [evaluateCircuit, depthCode_code] at houtputs
-  have h := Scheme.encryptedWires_evaluateCircuit D hE hwidth hD n
-    (List.replicate (2 * c.depth + 1) keys) (List.replicate (2 * c.depth) encryptedKey) c
-    (by simp) (by
-      intro key hkey
-      obtain rfl := List.eq_of_mem_replicate hkey
-      exact hkeys) (hlinks _) x inputs
-    (by simpa only [List.getD_replicate keys (Nat.zero_lt_succ _)] using hinputs)
-    outputs (by
-      simpa only [List.replicate_succ, List.tail_cons, List.map_replicate] using houtputs)
-  simpa only [List.getD_replicate keys (Nat.lt_succ_self _)] using h
+  simpa only [List.getD_replicate keys (Nat.lt_succ_self _)] using
+    Scheme.encryptedWires_evaluateCircuit D hE hwidth hD n
+      (List.replicate (2 * c.depth + 1) keys) (List.replicate (2 * c.depth) encryptedKey) c
+      (by simp) (fun _ hkey => List.eq_of_mem_replicate hkey ▸ hkeys) (hlinks _) x inputs
+      (by simpa only [List.getD_replicate keys (Nat.zero_lt_succ _)] using hinputs) outputs
+      (by simpa only [List.replicate_succ, List.tail_cons, List.map_replicate] using houtputs)
 
 /-- Fresh fixed-key encryptions retain the exact base width and decrypt under the base secret. -/
 theorem encrypt_spec (hE : E.Correct) (hwidth : E.FixedWidth secretWidth ciphertextWidth)
@@ -145,21 +140,19 @@ theorem evaluate_spec (hE : E.Correct) (hwidth : E.FixedWidth secretWidth cipher
         c.2.eval interpretation (BitString.ofList c.1 bits) 0 := by
   obtain ⟨base, encryptedKey, hbase, hlink, rfl⟩ := (mem_support_keyGen_iff E n keys).1 hkeys
   have hsk := hwidth.secret_length n base hbase
-  have hin := (encryptedWires_iff D n base.2 hsk bits inputs).1 hinputs
   change ciphertext ∈ (ProbComp.eval (evaluate D n (encPublicKey _) c inputs)).support at hc
   rw [evaluate, ProbComp.eval_map, PMF.mem_support_map_iff] at hc
   obtain ⟨row, hrow, rfl⟩ := hc
   simp only [publicKeyDecoder_decode_enc] at hrow
-  have h := encryptedWires_evaluateCircuit D hE hwidth hD n base hbase encryptedKey hlink c.2
+  have hout := (encryptedWires_evaluateCircuit D hE hwidth hD n base hbase encryptedKey hlink c.2
     (BitString.ofList c.1 bits) inputs
-    (by simpa only [BitString.ofFn_ofList hbits] using hin) row hrow
-  have hout := h.getD (i := 0) (by simp)
+    (by simpa only [BitString.ofFn_ofList hbits] using
+      (encryptedWires_iff D n base.2 hsk bits inputs).1 hinputs) row hrow).getD (i := 0) (by simp)
   have hlength : (row.headD []).length = ciphertextWidth n := by
     simpa only [List.headD_eq_getD] using hout.1
   refine ⟨hlength, ?_⟩
   change decrypt D n base.2 (row.headD []) = _
-  rw [decrypt_eq D n base.2 (row.headD []) hsk hlength]
-  rw [List.headD_eq_getD]
+  rw [decrypt_eq D n base.2 (row.headD []) hsk hlength, List.headD_eq_getD]
   simpa using hout.2
 
 /-- Outputs of pointwise fixed-key evaluations again satisfy the wire invariant under the same

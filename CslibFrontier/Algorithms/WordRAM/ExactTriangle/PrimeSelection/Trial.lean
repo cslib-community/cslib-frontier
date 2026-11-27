@@ -38,19 +38,13 @@ theorem exec_trial {w : ℕ} (x : Data 160) (hp : 2 ≤ x.regs Reg.cursor)
   let p := x.set Reg.trialArg (x.regs Reg.cursor)
   unfold trial
   wram_exec
-  wram_call (PrimeTrial.exec (p.comap trialRegisters)
-      (by change 2 ≤ x.regs Reg.cursor; exact hp)
-      (by change Fits w (x.regs Reg.cursor + 2); exact hfit)) renamed trial_injective with
+  wram_call (PrimeTrial.exec (p.comap trialRegisters) hp hfit) renamed trial_injective with
     y ⟨⟨hflag, _, hmem⟩, hframe⟩
   refine ⟨?_, hflag, hmem, ?_⟩
   · change 7 * (x.regs Reg.cursor - 2) + 6 + 1 ≤ 7 * x.regs Reg.cursor + 7
     omega
   · intro i hi
-    have hne : i ≠ Reg.trialArg := by
-      intro h
-      subst i
-      change 6 ≤ 0 at hi
-      omega
+    have hne : i ≠ Reg.trialArg := fun h => absurd (h ▸ hi) (by decide)
     refine (hframe i ?_).trans (Function.update_of_ne hne _ _)
     intro j hj
     have hv := congrArg Fin.val hj

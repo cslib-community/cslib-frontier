@@ -47,15 +47,11 @@ public theorem EncodedBands.reframe {L m N : ℕ} {hm : m ≤ L}
     {X : Matrix (Fin N) (Fin (D m)) ℤ} {Y : Matrix (Fin (D m)) (Fin N) ℤ}
     {μ ν : ℕ → ℕ} (h : EncodedBands hm X Y μ)
     (hf : ∀ a < BandPreparation.memoryEnd L m N, ν a = μ a) : EncodedBands hm X Y ν := by
-  have hread (side : Bool) (β : ℕ) (hβ : β < numBands L m N) (τ : Leaf L) :
-      ν (BandPreparation.catalogueAddress L m N side β (Encoding.leafIndex τ).val) =
-        μ (BandPreparation.catalogueAddress L m N side β (Encoding.leafIndex τ).val) := by
-    have hb := BandPreparation.catalogue_block_le side hβ
-    have ht := (Encoding.leafIndex τ).isLt
-    apply hf
-    unfold BandPreparation.catalogueAddress at hb ⊢
-    omega
-  exact ⟨fun β hβ τ => (hread false β hβ τ).trans (h.left β hβ τ),
-    fun β hβ τ => (hread true β hβ τ).trans (h.right β hβ τ)⟩
+  have hread (side : Bool) {β : ℕ} (hβ : β < numBands L m N) (τ : Leaf L) :=
+    hf (BandPreparation.catalogueAddress L m N side β (Encoding.leafIndex τ).val) <| by
+      have hb := BandPreparation.catalogue_block_le side hβ
+      dsimp only [BandPreparation.catalogueAddress] at hb ⊢; omega
+  exact ⟨fun β hβ τ => (hread false hβ τ).trans (h.left β hβ τ),
+    fun β hβ τ => (hread true hβ τ).trans (h.right β hβ τ)⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

@@ -47,15 +47,10 @@ theorem npHard_of_not_hasSchaeferPolymorphism_of_not_hasComplement {Rel : Type}
     (hn : ¬HasPolymorphism arity sem (fun a : Fin 1 → Bool => !(a 0))) :
     NPHard (encRotationInstance encRel) (RotationCSPSAT arity sem) := by
   classical
-  have hex : ∃ g : PPGadget arity sem (booleanRelation OneHot3.arity OneHot3.sem ()),
-      Nonempty (GadgetWitness g) := by
-    rw [OneHot3.booleanRelation_eq]
-    exact NonSelfDual.exists_orderedOneHotGadget h hn
-  obtain ⟨g, ⟨w⟩⟩ := hex
-  let gadgets : ∀ r : Unit,
-      PPGadget arity sem (booleanRelation OneHot3.arity OneHot3.sem r) := fun _ => g
-  let witnesses : ∀ r, GadgetWitness (gadgets r) := fun _ => w
+  obtain ⟨g, ⟨w⟩⟩ : ∃ g : PPGadget arity sem (booleanRelation OneHot3.arity OneHot3.sem ()),
+      Nonempty (GadgetWitness g) :=
+    OneHot3.booleanRelation_eq.symm ▸ NonSelfDual.exists_orderedOneHotGadget h hn
   exact OneHot3.npHard.trans
-    (polyTimeReducible_rotationCSPSAT_of_gadgets encUnit encRel gadgets witnesses)
+    (polyTimeReducible_rotationCSPSAT_of_gadgets encUnit encRel (fun _ => g) (fun _ => w))
 
 end Cslib.Complexity.RotationCSPSAT

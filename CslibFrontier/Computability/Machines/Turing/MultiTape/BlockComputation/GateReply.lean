@@ -95,13 +95,13 @@ theorem prepare_inSpace : ComputableInSpace (prepare k) encArgs GateVector.encPa
   have hm := budget_comp_linear (of_inO Interpolation.encContext_chunkWidth_inO) hc
   have hstride := budget_comp_linear (of_inO Interpolation.encContext_stride_inO) hc
   have hindex := budget_natSub (budget_comp_linear (ImplicitPath.walk_inSpace k) ha)
-    (budget_const (encB := encNat) 1 (.refl _))
+    (budget_const (encB := encNat) 1)
   have hnorm := budget_comp_linear NormalizePoint.normalize_inSpace
     (budget_prod hparameters.fst' hpoint)
   exact (budget_prod
     (budget_prod
       (budget_prod hN (budget_prod hb (budget_prod ha.fst' (budget_prod hindex
-        (budget_prod hm (budget_prod (budget_const (encB := encNat) 0 (.refl _)) hstride))))))
+        (budget_prod hm (budget_prod (budget_const (encB := encNat) 0) hstride))))))
       (budget_prod hparameters (budget_prod hnorm hlimit))) hv.snd').of_enc_eq
         fun _ => rfl
 
@@ -121,14 +121,16 @@ theorem initial_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
   have hinr := of_inO (ComputableInO.inr RawController.encReply
     (GateVector.encState (k := k) (Q := Q)))
   have hsource' := budget_comp_linear hinl
-    (budget_prod (budget_const (encB := encNat) 0 (.refl _)) hsource)
+    (budget_prod (budget_const (encB := encNat) 0) hsource)
   have hactive := budget_comp_linear hinr
     (budget_comp_linear (GateVector.initial_inSpace (k := k) (Q := Q)) (prepare_inSpace (k := k)))
   have hgate := budget_natEq (budget_comp_linear (ImplicitNode.classify_inSpace k) ha)
-    (budget_const (encB := encNat) 2 (.refl _))
+    (budget_const (encB := encNat) 2)
   have hzero := budget_natIsZero (budget_comp_linear (ImplicitPath.walk_inSpace k) ha)
-  have hempty := budget_const (encIn := encArgs) (encB := encState (k := k) (Q := Q))
-    (.inl (0, [])) (.refl _)
+  have hempty :=
+    budget_const (Bs := fun a => (encArgs a).length) (encIn := encArgs)
+      (encB := encState (k := k) (Q := Q))
+    (.inl (0, []))
   refine (budget_ite hgate (budget_ite hzero hsource' hactive) hempty).of_enc_eq ?_
   rintro ⟨address, params, count⟩
   by_cases hg : ImplicitNode.classify k address = 2 <;>
@@ -143,16 +145,18 @@ theorem answer_inSpace : ComputableInSpace (answer (k := k) (Q := Q)) encState
     of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)
   have hvalues := (snd GateVector.encParams (encPair encNat (encList encNat))).snd'
   have hcaller := budget_prod
-    (budget_const (encIn := GateVector.encCaller) (encB := encNat) 0 (.refl _)) hvalues
+    (budget_const (encIn := GateVector.encCaller) (encB := encNat) 0) hvalues
   have hsuspended := budget_const
     (encIn := encPair GateVector.encCaller (Interpolation.encState (k := k) (Q := Q)))
-    (encB := RawController.encReply) (0, []) (.refl _)
+    (Bs := fun a => (encPair GateVector.encCaller
+      (Interpolation.encState (k := k) (Q := Q)) a).length)
+    (encB := RawController.encReply) (0, [])
   exact sumElim hid (sumElim hcaller hsuspended)
 
 /-- Queries preserve the vector machine's original-input interface. -/
 theorem machine_query_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).query encState encNat (fun a => (encState a).length) :=
-  sumElim (budget_const (encIn := RawController.encReply) (encB := encNat) 0 (.refl _))
+  sumElim (budget_const (encIn := RawController.encReply) (encB := encNat) 0)
     (GateVector.machine_query_inSpace M e)
 
 /-- One native transition preserves the immediate or active branch. -/
@@ -172,17 +176,17 @@ theorem machine_next_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
 theorem machine_emit_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).emit (encPair encState (encOption encBool)) encBits
       (fun a => (encPair encState (encOption encBool) a).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 /-- Immediate replies halt; active vectors use their existing halt predicate. -/
 theorem machine_halted_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).halted encState encBool (fun a => (encState a).length) :=
-  sumElim (budget_const (encIn := RawController.encReply) (encB := encBool) true (.refl _))
+  sumElim (budget_const (encIn := RawController.encReply) (encB := encBool) true)
     (GateVector.machine_halted_inSpace M e)
 
 /-- The reply remains in the state rather than an output stream. -/
 theorem machine_finish_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).finish encState encBits (fun a => (encState a).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay.GateReply

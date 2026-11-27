@@ -38,7 +38,8 @@ private theorem need_call {p d r : ℕ} [Fact p.Prime]
       some (0, (Iter.path stack).map Fin.val, [], 0) := by
   have hv := RawController.validBank_ofRegs (Fact.out : p.Prime).two_le S
   simp only [RawController.need, RawController.ofCfg, hv, ↓reduceIte,
-    RawController.needCore, RawController.ofMode, RawController.path_ofFrame]
+    RawController.needCore, RawController.State.stack, RawController.ofMode,
+    RawController.path_ofFrame]
 
 private theorem need_ret {p d r : ℕ} [Fact p.Prime]
     (S : Cslib.TreeEval.Ary.State (ZMod p) d r) (fr : Iter.Frame (ZMod p) d)
@@ -49,7 +50,8 @@ private theorem need_ret {p d r : ℕ} [Fact p.Prime]
         RawController.point d r fr.target.val (RawController.ofRegs S), 0) := by
   have hv := RawController.validBank_ofRegs (Fact.out : p.Prime).two_le S
   simp only [RawController.need, RawController.ofCfg, hv, ↓reduceIte,
-    RawController.needCore, RawController.ofMode, List.map_cons, RawController.ofFrame,
+    RawController.needCore, RawController.State.bank, RawController.Frame.undo,
+    RawController.Frame.target, RawController.ofMode, List.map_cons, RawController.ofFrame,
     hu, hc, decide_false, Bool.false_or, Bool.false_eq_true, RawController.path_ofFrame]
 
 /-- One uniform allowance covers both immediate node replies and routed gate computations. -/
@@ -90,17 +92,10 @@ theorem exists_first_reply_correct {k q s p r m : ℕ} {Q : Type} [Finite Q] [Fa
   | call c target =>
     rw [need_call] at hneed
     cases hneed
-    refine ⟨0, ?_, ?_, ?_, ?_⟩
-    · intro t ht
-      omega
-    · rfl
-    · change RawController.ReplyCorrect _ _ _ ⟨S, stack, .call c target⟩
-        (NodeReply.reply M e ((σ, q, (Iter.path stack).map Fin.val), (limit, m, r)))
-      exact NodeReply.reply_correct_call M e w b σ limit hcapacity hb _
+    refine ⟨0, fun t ht => by omega, rfl, ?_, fun t ht => ?_⟩
+    · exact NodeReply.reply_correct_call M e w b σ limit hcapacity hb _
         ⟨S, stack, .call c target⟩ c target rfl
-    · intro t ht
-      have htzero : t = 0 := by omega
-      subst t
+    · obtain rfl : t = 0 := by omega
       have hbound := node_reply_encoding_le M e limit b σ q
         ((Iter.path stack).map Fin.val) hcapacity hb hsp
       change (RawController.encReply (NodeReply.reply M e
@@ -146,18 +141,7 @@ theorem exists_first_reply_correct {k q s p r m : ℕ} {Q : Type} [Finite Q] [Fa
             (Cslib.BitString.blocksEquiv.symm
               (fun j => S (Cslib.TreeEval.Ary.reg fr.target j)))
             (Fact.out : p.Prime).pos
-          change (GateReply.encState ((GateReply.machine M e).runFrom w
-            (GateReply.initial M e ((σ, q, (Iter.path stack).map Fin.val),
-              ((⟨w.length, b, 0, 0, m, 0, r * m⟩, (p, 2 ^ m, (k * 3 + 1) * r),
-                List.ofFn (fun a => p + (Cslib.BitString.blocksEquiv.symm
-                  (fun j => S (Cslib.TreeEval.Ary.reg fr.target j)) a).val), limit), r))) t)).length
-              ≤ _
-          apply hlocal.trans
-          change GateReply.allowance k s Q
-            (gateArgs (ctx, (p, k * 3 + 1, r), (1, (Iter.path stack).map Fin.val,
-              List.ofFn (fun a => p + (Cslib.BitString.blocksEquiv.symm
-                (fun j => S (Cslib.TreeEval.Ary.reg fr.target j)) a).val), 0))) ≤ _
-          exact huniform.trans (by dsimp only [replySpace, limit]; omega)
+          exact hlocal.trans (huniform.trans (by dsimp only [replySpace, limit]; omega))
       · have hv := RawController.validBank_ofRegs (Fact.out : p.Prime).two_le S
         simp_all [RawController.need, RawController.ofCfg, RawController.ofMode,
           RawController.needCore, RawController.ofFrame]

@@ -147,10 +147,7 @@ theorem stateFrom_shift_eq {n : ℕ} [NeZero n] (s₀ : Fin n → S) (k : Fin n)
     P.stateFrom s₀ r (i + k) = P.stateFrom (fun j => s₀ (j + k)) r i := by
   induction r generalizing i with
   | zero => rfl
-  | succ r ih =>
-    have hpred : i + k - 1 = i - 1 + k := add_sub_right_comm i k 1
-    have hsucc : i + k + 1 = i + 1 + k := add_right_comm i k 1
-    rw [stateFrom_succ, stateFrom_succ, hpred, hsucc, ih, ih, ih]
+  | succ r ih => rw [stateFrom_succ, stateFrom_succ, add_sub_right_comm, add_right_comm, ih, ih, ih]
 
 /-- From a uniform initial state on `Fin n`, shifting any node index by `+ k` mod `n` leaves its
 state unchanged after every synchronous round `r`. -/
@@ -159,16 +156,14 @@ theorem state_shift_eq (n : ℕ) [NeZero n] (r : ℕ) (i k : Fin n) :
   P.stateFrom_shift_eq (fun _ => P.init) k r i
 
 private theorem run_eq (n : ℕ) [NeZero n] (r : ℕ) (i j : Fin n) :
-    P.run n r i = P.run n r j := by
-  have h := P.state_shift_eq n r j (i - j)
-  rwa [add_sub_cancel] at h
+    P.run n r i = P.run n r j :=
+  add_sub_cancel j i ▸ P.state_shift_eq n r j (i - j)
 
 private theorem isLeader_run_forall_of_exists (n : ℕ) [NeZero n] (r : ℕ)
     (hex : ∃ i : Fin n, P.isLeader (P.run n r i) = true) :
-    ∀ i : Fin n, P.isLeader (P.run n r i) = true := by
-  obtain ⟨i₀, hi₀⟩ := hex
-  intro i
-  rwa [P.run_eq n r i i₀]
+    ∀ i : Fin n, P.isLeader (P.run n r i) = true :=
+  let ⟨i₀, hi₀⟩ := hex
+  fun i => P.run_eq n r i i₀ ▸ hi₀
 
 /-- The set of nodes declaring `isLeader = true` after `r` rounds on `Fin n`. -/
 @[expose] def leaders (n : ℕ) [NeZero n] (r : ℕ) : Finset (Fin n) :=
@@ -183,33 +178,18 @@ private theorem isLeader_run_forall_of_exists (n : ℕ) [NeZero n] (r : ℕ)
 theorem electsUniqueLeader_iff_existsUnique (n : ℕ) [NeZero n] (r : ℕ) :
     P.ElectsUniqueLeader n r ↔ ∃! i : Fin n, P.isLeader (P.run n r i) = true := by
   rw [ElectsUniqueLeader, Finset.card_eq_one]
-  constructor
-  · rintro ⟨a, ha⟩
-    refine ⟨a, ?_, fun b hb => ?_⟩
-    · have hmem : a ∈ P.leaders n r := ha ▸ Finset.mem_singleton_self a
-      exact (Finset.mem_filter.mp hmem).2
-    · have hmem : b ∈ P.leaders n r := Finset.mem_filter.mpr ⟨Finset.mem_univ b, hb⟩
-      exact Finset.mem_singleton.mp (ha ▸ hmem)
-  · rintro ⟨a, ha, huniq⟩
-    refine ⟨a, Finset.ext fun b => ?_⟩
-    simp only [leaders, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-    exact ⟨fun hb => huniq b hb, fun hb => hb ▸ ha⟩
+  simp only [Finset.eq_singleton_iff_unique_mem, leaders, Finset.mem_filter, Finset.mem_univ,
+    true_and, ExistsUnique]
 
 /-- After any round `r`, the number of leaders in an anonymous `n`-ring is either `0` or `n`. -/
 theorem leaders_card_eq_zero_or_self (n : ℕ) [NeZero n] (r : ℕ) :
     (P.leaders n r).card = 0 ∨ (P.leaders n r).card = n := by
   by_cases hex : ∃ i : Fin n, P.isLeader (P.run n r i) = true
-  · right
-    have hall := P.isLeader_run_forall_of_exists n r hex
-    have huniv : P.leaders n r = Finset.univ := by
-      ext i
-      simp only [leaders, Finset.mem_filter, Finset.mem_univ, true_and]
-      exact iff_of_true (hall i) trivial
-    rw [huniv, Finset.card_univ, Fintype.card_fin]
-  · left
-    rw [Finset.card_eq_zero, Finset.eq_empty_iff_forall_notMem]
-    intro i hi
-    exact hex ⟨i, (Finset.mem_filter.mp hi).2⟩
+  · refine Or.inr (Eq.trans (congrArg Finset.card (Finset.eq_univ_iff_forall.mpr fun i => ?_))
+      (Fintype.card_fin n))
+    exact Finset.mem_filter.mpr ⟨Finset.mem_univ i, P.isLeader_run_forall_of_exists n r hex i⟩
+  · exact Or.inl (Finset.card_eq_zero.mpr (Finset.eq_empty_iff_forall_notMem.mpr fun i hi =>
+      hex ⟨i, (Finset.mem_filter.mp hi).2⟩))
 
 /-- A synchronous-round symmetry step on anonymous oriented rings `Fin n` (a step towards
 [Angluin][Angluin1980b], not the general processor-network covering endpoint): for `2 ≤ n`, no
@@ -373,6 +353,13 @@ private theorem exec_cons {n : ℕ} [NeZero n] (cfg : AnonAsyncConfig n S M) (e 
     (es : List (AnonEvent n)) :
     P.exec cfg (e :: es) = P.exec (P.step e cfg) es := rfl
 
+private theorem exec_map_eq_self {n : ℕ} [NeZero n] {α : Type*} {f : α → AnonEvent n}
+    {c : AnonAsyncConfig n S M} (h : ∀ a, P.step (f a) c = c) (xs : List α) :
+    P.exec c (xs.map f) = c := by
+  induction xs with
+  | nil => rfl
+  | cons a as ih => rwa [List.map_cons, exec_cons, h]
+
 /-- Labelled transition system of enabled single-message FIFO deliveries on `Fin n`. -/
 @[expose] def lts (n : ℕ) [NeZero n] : LTS (AnonAsyncConfig n S M) (AnonEvent n) where
   Tr cfg e cfg' := cfg.Enabled e ∧ cfg' = P.step e cfg
@@ -384,11 +371,7 @@ private theorem exec_cons {n : ℕ} [NeZero n] (cfg : AnonAsyncConfig n S M) (e 
 private theorem update_shift {n : ℕ} {α : Type*} (f : Fin n → α) (a k : Fin n) (v : α)
     (i : Fin n) :
     Function.update (fun j => f (j + k)) a v i = Function.update f (a + k) v (i + k) := by
-  by_cases h : i = a
-  · subst h
-    simp only [Function.update_self]
-  · have hk : i + k ≠ a + k := fun heq => h (add_right_cancel heq)
-    simp only [Function.update_of_ne h, Function.update_of_ne hk]
+  simp only [Function.update_apply, add_right_cancel_iff]
 
 private theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
     (cfg : AnonAsyncConfig n S M) :
@@ -401,34 +384,28 @@ private theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
     cases hq : cfg.chanSucc (t + k - 1) with
     | nil => rfl
     | cons m rest =>
-      refine AnonAsyncConfig.ext (funext fun i => ?_) (funext fun i => ?_) (funext fun i => ?_)
-      · exact update_shift cfg.node t k _ i
-      · dsimp only [AnonAsyncConfig.shift]
-        have h1 : (Function.update (fun j => cfg.chanSucc (j + k)) (t - 1) rest) =
-            fun j => Function.update cfg.chanSucc (t + k - 1) rest (j + k) := by
-          funext j
-          rw [← hpred]
-          exact update_shift cfg.chanSucc (t - 1) k rest j
-        rw [h1]
-        exact update_shift (Function.update cfg.chanSucc (t + k - 1) rest) t k _ i
-      · exact update_shift cfg.chanPred t k _ i
+      refine AnonAsyncConfig.ext (funext (update_shift cfg.node t k _)) (funext fun i => ?_)
+        (funext (update_shift cfg.chanPred t k _))
+      dsimp only [AnonAsyncConfig.shift]
+      have h1 : Function.update (fun j => cfg.chanSucc (j + k)) (t - 1) rest =
+          fun j => Function.update cfg.chanSucc (t + k - 1) rest (j + k) :=
+        funext fun j => hpred ▸ update_shift cfg.chanSucc (t - 1) k rest j
+      rw [h1]
+      exact update_shift (Function.update cfg.chanSucc (t + k - 1) rest) t k _ i
   · simp only [step, AnonEvent.shift, AnonAsyncConfig.shift]
     have hsucc : t + 1 + k = t + k + 1 := (add_right_comm t k 1).symm
     rw [hsucc]
     cases hq : cfg.chanPred (t + k + 1) with
     | nil => rfl
     | cons m rest =>
-      refine AnonAsyncConfig.ext (funext fun i => ?_) (funext fun i => ?_) (funext fun i => ?_)
-      · exact update_shift cfg.node t k _ i
-      · exact update_shift cfg.chanSucc t k _ i
-      · dsimp only [AnonAsyncConfig.shift]
-        have h1 : (Function.update (fun j => cfg.chanPred (j + k)) (t + 1) rest) =
-            fun j => Function.update cfg.chanPred (t + k + 1) rest (j + k) := by
-          funext j
-          rw [← hsucc]
-          exact update_shift cfg.chanPred (t + 1) k rest j
-        rw [h1]
-        exact update_shift (Function.update cfg.chanPred (t + k + 1) rest) t k _ i
+      refine AnonAsyncConfig.ext (funext (update_shift cfg.node t k _))
+        (funext (update_shift cfg.chanSucc t k _)) (funext fun i => ?_)
+      dsimp only [AnonAsyncConfig.shift]
+      have h1 : Function.update (fun j => cfg.chanPred (j + k)) (t + 1) rest =
+          fun j => Function.update cfg.chanPred (t + k + 1) rest (j + k) :=
+        funext fun j => hsucc ▸ update_shift cfg.chanPred (t + 1) k rest j
+      rw [h1]
+      exact update_shift (Function.update cfg.chanPred (t + k + 1) rest) t k _ i
 
 /-- Shifting node indices by `+ k` commutes with any finite asynchronous FIFO schedule on
 `Fin n`. -/
@@ -443,21 +420,9 @@ theorem exec_shift_eq {n : ℕ} [NeZero n] (cfg : AnonAsyncConfig n S M) (k : Fi
 
 private theorem fin_sub_one_val {n : ℕ} [NeZero n] (i : Fin n) :
     (i - 1).val = if i.val = 0 then n - 1 else i.val - 1 := by
-  have hn : 0 < n := Nat.pos_of_ne_zero (NeZero.ne n)
-  rcases eq_or_ne n 1 with rfl | hn1
-  · have hi : i.val < 1 := i.isLt
-    have hsub : (i - 1).val < 1 := (i - 1).isLt
-    split_ifs <;> omega
-  · have h1 : (1 : Fin n).val = 1 := by
-      rw [Fin.val_one']
-      exact Nat.mod_eq_of_lt (by omega)
-    rw [Fin.sub_def, h1]
-    change (n - 1 + i.val) % n = if i.val = 0 then n - 1 else i.val - 1
-    split_ifs with hi
-    · rw [hi, Nat.add_zero]
-      exact Nat.mod_eq_of_lt (by omega)
-    · have hq : n - 1 + i.val = n + (i.val - 1) := by omega
-      rw [hq, Nat.add_mod_left, Nat.mod_eq_of_lt (by omega)]
+  rcases n with _ | n
+  · exact (NeZero.ne 0 rfl).elim
+  · simpa only [Fin.ext_iff, Fin.val_zero, Nat.add_sub_cancel] using Fin.coe_sub_one i
 
 /-- Partial state invariant after firing clockwise deliveries `0, 1, …, k - 1` on `Fin n` (`n ≥ 2`)
 starting from a uniform configuration with clockwise queue `m :: ms`. -/
@@ -472,38 +437,37 @@ private def ClockWaveInv {n : ℕ} (s s' : S) (m : M) (ms newSucc cp newPred : L
     else m :: ms)
 
 private theorem clockWaveInv_at {n : ℕ} [NeZero n] {s s' : S} {m : M}
-    {ms newSucc cp newPred : List M} {k : ℕ} (hk : 1 ≤ k) (hkn : k < n)
+    {ms newSucc cp newPred : List M} {k : ℕ} (hk : 1 ≤ k)
     (c : AnonAsyncConfig n S M) (tk : Fin n) (htk_val : tk.val = k)
     (hInv : ClockWaveInv s s' m ms newSucc cp newPred k c) :
     (tk - 1).val = k - 1 ∧
       c.chanSucc (tk - 1) = m :: (ms ++ newSucc) ∧
       c.node tk = s ∧
       c.chanPred tk = cp ∧
-      tk ≠ tk - 1 ∧
       c.Enabled ⟨.clockwise, tk⟩ := by
   obtain ⟨hInode, hIpred, hIsucc⟩ := hInv
   have htk_pred_val : (tk - 1).val = k - 1 := by
     rw [fin_sub_one_val, htk_val]
     split_ifs <;> omega
   have hc_pred : c.chanSucc (tk - 1) = m :: (ms ++ newSucc) := by
-    have h := hIsucc (tk - 1)
-    rw [htk_pred_val] at h
-    split_ifs at h <;> first | exact h | omega
-  have hc_node : c.node tk = s := by
-    have h := hInode tk
-    rw [htk_val] at h
-    split_ifs at h <;> first | exact h | omega
-  have hc_pred_tk : c.chanPred tk = cp := by
-    have h := hIpred tk
-    rw [htk_val] at h
-    split_ifs at h <;> first | exact h | omega
-  have htk_ne_pred : tk ≠ tk - 1 := fun h => by
-    have hv := congrArg Fin.val h
-    rw [htk_val, htk_pred_val] at hv
-    omega
-  have hen : c.Enabled ⟨.clockwise, tk⟩ := by
-    simp only [AnonAsyncConfig.Enabled, hc_pred, ne_eq, reduceCtorEq, not_false_iff]
-  exact ⟨htk_pred_val, hc_pred, hc_node, hc_pred_tk, htk_ne_pred, hen⟩
+    simpa [htk_pred_val] using hIsucc (tk - 1)
+  refine ⟨htk_pred_val, hc_pred, by simpa [htk_val] using hInode tk,
+    by simpa [htk_val] using hIpred tk, ?_⟩
+  simp only [AnonAsyncConfig.Enabled, hc_pred, ne_eq, reduceCtorEq, not_false_iff]
+
+private theorem step_clockwise_of_cons {n : ℕ} [NeZero n] {c : AnonAsyncConfig n S M}
+    {t : Fin n} {m : M} {rest : List M} (hq : c.chanSucc (t - 1) = m :: rest) :
+    let out := P.recvFromPred (c.node t) m
+    (∀ i, (P.step ⟨.clockwise, t⟩ c).node i = if i = t then out.nextState else c.node i) ∧
+    (∀ i, (P.step ⟨.clockwise, t⟩ c).chanPred i =
+      if i = t then c.chanPred t ++ out.toPred else c.chanPred i) ∧
+    (∀ i, (P.step ⟨.clockwise, t⟩ c).chanSucc i =
+      (if i = t - 1 then rest else c.chanSucc i) ++ (if i = t then out.toSucc else [])) := by
+  refine ⟨fun i => by simp only [step, hq, Function.update_apply],
+    fun i => by simp only [step, hq, Function.update_apply], fun i => ?_⟩
+  rcases eq_or_ne i t with rfl | hit
+  · simp only [step, hq, Function.update_apply, ↓reduceIte]
+  · simp only [step, hq, Function.update_apply, hit, ↓reduceIte, List.append_nil]
 
 private theorem mtr_clockwiseWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncConfig n S M}
     {s : S} {m : M} {ms cp : List M} (huni : cfg.IsUniform s (m :: ms) cp) :
@@ -521,83 +485,45 @@ private theorem mtr_clockwiseWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncC
     have h0sub : (0 : Fin 1) - 1 = 0 := Subsingleton.elim _ _
     have hen : cfg.Enabled ⟨.clockwise, 0⟩ := by
       simp only [AnonAsyncConfig.Enabled, h0sub, hsucc 0, ne_eq, reduceCtorEq, not_false_iff]
-    have htr : (P.lts 1).Tr cfg ⟨.clockwise, 0⟩ (P.step ⟨.clockwise, 0⟩ cfg) := ⟨hen, rfl⟩
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · simp only [clockwiseWave, hfin1, List.map, exec, List.foldl]
-      exact LTS.MTr.single (P.lts 1) htr
-    · intro i
-      have hi : i = 0 := Subsingleton.elim _ _
-      subst hi
-      simp only [clockwiseWave, hfin1, List.map, exec, List.foldl, step, h0sub, hsucc 0, hnode 0,
-        Function.update_self]
-    · intro i
-      have hi : i = 0 := Subsingleton.elim _ _
-      subst hi
-      simp only [clockwiseWave, hfin1, List.map, exec, List.foldl, step, h0sub, hsucc 0, hnode 0,
-        Function.update_self]
-    · intro i
-      have hi : i = 0 := Subsingleton.elim _ _
-      subst hi
-      simp only [clockwiseWave, hfin1, List.map, exec, List.foldl, step, h0sub, hsucc 0, hnode 0,
-        hpred 0, Function.update_self]
+    obtain ⟨hsn, hsp, hss⟩ := P.step_clockwise_of_cons (t := 0) (h0sub ▸ hsucc 0)
+    simp only [clockwiseWave, hfin1, List.map, exec, List.foldl, AnonAsyncConfig.IsUniform]
+    refine ⟨LTS.MTr.single (P.lts 1) ⟨hen, rfl⟩, fun i => ?_, fun i => ?_, fun i => ?_⟩
+    · rw [hsn i, ite_eq_left (Subsingleton.elim i 0), hnode 0]
+    · rw [hss i, ite_eq_left (Subsingleton.elim i _), ite_eq_left (Subsingleton.elim i 0), hnode 0]
+    · rw [hsp i, ite_eq_left (Subsingleton.elim i 0), hnode 0, hpred 0]
   · have hn_ge2 : 2 ≤ n := hn2
     let pref (k : ℕ) : List (AnonEvent n) :=
       ((List.finRange n).take k).map (AnonEvent.mk .clockwise)
+    have hpref_step (j : ℕ) (hj : j < n) :
+        pref (j + 1) = pref j ++ [⟨.clockwise, ⟨j, hj⟩⟩] ∧
+          P.exec cfg (pref (j + 1)) = P.step ⟨.clockwise, ⟨j, hj⟩⟩ (P.exec cfg (pref j)) := by
+      have htake : (List.finRange n).take (j + 1) = (List.finRange n).take j ++ [⟨j, hj⟩] := by
+        rw [List.take_add_one]
+        simp only [List.length_finRange, hj, List.getElem?_eq_getElem, List.getElem_finRange,
+          Option.toList_some, Fin.cast_mk]
+      have hp : pref (j + 1) = pref j ++ [⟨.clockwise, ⟨j, hj⟩⟩] := by
+        simp only [pref, htake, List.map_append, List.map]
+      exact ⟨hp, by simp only [hp, exec, List.foldl_append, List.foldl]⟩
     have hbase : (P.lts n).MTr cfg (pref 1) (P.exec cfg (pref 1)) ∧
         ClockWaveInv s out.nextState m ms out.toSucc cp out.toPred 1
           (P.exec cfg (pref 1)) := by
-      let z : Fin n := ⟨0, hn_pos⟩
-      have hz0 : z.val = 0 := rfl
-      have htake1 : (List.finRange n).take 1 = [z] := by
-        rw [show (1 : ℕ) = 0 + 1 from rfl, List.take_add_one]
-        simp only [List.take_zero, List.nil_append, List.length_finRange, hn_pos,
-          List.getElem?_eq_getElem, List.getElem_finRange, Option.toList_some, Fin.cast_mk, z]
-      have hz_pred_val : (z - 1).val = n - 1 := by
-        rw [fin_sub_one_val, hz0]
-        rfl
-      have hz_ne_pred : z ≠ z - 1 := fun h => by
-        have hv := congrArg Fin.val h
-        rw [hz0, hz_pred_val] at hv
-        omega
-      have hen : cfg.Enabled ⟨.clockwise, z⟩ := by
-        simp only [AnonAsyncConfig.Enabled, hsucc (z - 1), ne_eq, reduceCtorEq, not_false_iff]
-      refine ⟨?_, ?_⟩
-      · simp only [pref, htake1, List.map, exec, List.foldl]
-        exact LTS.MTr.single (P.lts n) ⟨hen, rfl⟩
-      · dsimp only [ClockWaveInv]
-        refine ⟨fun i => ?_, fun i => ?_, fun i => ?_⟩
-        · simp only [pref, htake1, List.map, exec, List.foldl, step, hsucc (z - 1), hnode z, out]
-          by_cases hi : i = z
-          · subst hi
-            simp only [Function.update_self, hz0, Nat.lt_one_iff, ↓reduceIte]
-          · simp only [Function.update_of_ne hi, hnode i]
-            split_ifs with hlt
-            · exfalso
-              exact hi (Fin.ext (by omega))
-            · rfl
-        · simp only [pref, htake1, List.map, exec, List.foldl, step, hsucc (z - 1), hnode z, out]
-          by_cases hi : i = z
-          · subst hi
-            simp only [Function.update_self, hpred z, hz0, Nat.lt_one_iff, ↓reduceIte]
-          · simp only [Function.update_of_ne hi, hpred i]
-            split_ifs with hlt
-            · exfalso
-              exact hi (Fin.ext (by omega))
-            · rfl
-        · simp only [pref, htake1, List.map, exec, List.foldl, step, hsucc (z - 1), hnode z, out]
-          by_cases hi0 : i = z
-          · subst hi0
-            simp only [Function.update_self, Function.update_of_ne hz_ne_pred, hsucc z,
-              List.cons_append]
-            split_ifs <;> first | rfl | omega
-          · have hi0_val : i.val ≠ 0 := fun hv => hi0 (Fin.ext hv)
-            by_cases hip : i = z - 1
-            · subst hip
-              simp only [Function.update_of_ne (Ne.symm hz_ne_pred), Function.update_self]
-              split_ifs <;> first | rfl | omega
-            · have hip_val : i.val ≠ n - 1 := fun hv => hip (Fin.ext (hv.trans hz_pred_val.symm))
-              simp only [Function.update_of_ne hi0, Function.update_of_ne hip, hsucc i]
-              split_ifs <;> first | rfl | omega
+      obtain ⟨hp1, hex1⟩ := hpref_step 0 hn_pos
+      have hz_pred_val : ((⟨0, hn_pos⟩ : Fin n) - 1).val = n - 1 := by rw [fin_sub_one_val]; rfl
+      have hen : cfg.Enabled ⟨.clockwise, ⟨0, hn_pos⟩⟩ := by
+        simp only [AnonAsyncConfig.Enabled, hsucc _, ne_eq, reduceCtorEq, not_false_iff]
+      obtain ⟨hsn, hsp, hss⟩ := P.step_clockwise_of_cons (t := ⟨0, hn_pos⟩) (hsucc _)
+      rw [hex1, hp1]
+      dsimp only [pref, List.take_zero, List.map, List.nil_append, exec, List.foldl, ClockWaveInv]
+      refine ⟨LTS.MTr.single (P.lts n) ⟨hen, rfl⟩, fun i => ?_, fun i => ?_, fun i => ?_⟩
+      · rw [hsn i, hnode _, hnode i]
+        simp only [Fin.ext_iff]
+        split_ifs <;> first | rfl | omega
+      · rw [hsp i, hnode _, hpred _, hpred i]
+        simp only [Fin.ext_iff]
+        split_ifs <;> first | rfl | omega
+      · rw [hss i, hnode _, hsucc i]
+        simp only [Fin.ext_iff, hz_pred_val]
+        split_ifs <;> first | rfl | omega | exact List.append_nil _
     have hstep_inv : ∀ k (hk : 1 ≤ k) (hkn : k < n - 1),
         (P.lts n).MTr cfg (pref k) (P.exec cfg (pref k)) ∧
           ClockWaveInv s out.nextState m ms out.toSucc cp out.toPred k
@@ -606,65 +532,25 @@ private theorem mtr_clockwiseWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncC
           ClockWaveInv s out.nextState m ms out.toSucc cp out.toPred (k + 1)
             (P.exec cfg (pref (k + 1))) := by
       intro k hk hkn ⟨hmtr, hInv⟩
-      let c := P.exec cfg (pref k)
-      change ClockWaveInv s out.nextState m ms out.toSucc cp out.toPred k c at hInv
       have hkn' : k < n := by omega
-      let tk : Fin n := ⟨k, hkn'⟩
-      have htk_val : tk.val = k := rfl
-      obtain ⟨htk_pred_val, hc_pred, hc_node, hc_tk_pred, htk_ne_pred, hen⟩ :=
-        clockWaveInv_at hk hkn' c tk htk_val hInv
+      obtain ⟨htk_pred_val, hc_pred, hc_node, hc_tk_pred, hen⟩ :=
+        clockWaveInv_at hk (P.exec cfg (pref k)) ⟨k, hkn'⟩ rfl hInv
       obtain ⟨hInode, hIpred, hIsucc⟩ := hInv
-      have hc_tk_succ : c.chanSucc tk = m :: ms := by
-        have h := hIsucc tk
-        rw [htk_val] at h
-        split_ifs at h <;> first | exact h | omega
-      have htake_succ : (List.finRange n).take (k + 1) = (List.finRange n).take k ++ [tk] := by
-        rw [List.take_add_one]
-        simp only [List.length_finRange, hkn', List.getElem?_eq_getElem,
-          List.getElem_finRange, Option.toList_some, Fin.cast_mk, tk]
-      have hpref_succ : pref (k + 1) = pref k ++ [⟨.clockwise, tk⟩] := by
-        simp only [pref, htake_succ, List.map_append, List.map]
-      have hexec_succ : P.exec cfg (pref (k + 1)) = P.step ⟨.clockwise, tk⟩ c := by
-        simp only [hpref_succ, exec, List.foldl_append, List.foldl, c]
-      refine ⟨?_, ?_⟩
+      obtain ⟨hpref_succ, hexec_succ⟩ := hpref_step k hkn'
+      obtain ⟨hsn, hsp, hss⟩ := P.step_clockwise_of_cons hc_pred
+      dsimp only [ClockWaveInv]
+      refine ⟨?_, fun i => ?_, fun i => ?_, fun i => ?_⟩
       · rw [hexec_succ, hpref_succ]
         exact hmtr.stepR (P.lts n) ⟨hen, rfl⟩
-      · dsimp only [ClockWaveInv]
-        refine ⟨fun i => ?_, fun i => ?_, fun i => ?_⟩
-        · rw [hexec_succ]
-          simp only [step, hc_pred, hc_node, out]
-          by_cases hi : i = tk
-          · subst hi
-            simp only [Function.update_self]
-            split_ifs <;> first | rfl | omega
-          · have hik : i.val ≠ k := fun hv => hi (Fin.ext hv)
-            simp only [Function.update_of_ne hi, hInode i]
-            split_ifs <;> first | rfl | omega
-        · rw [hexec_succ]
-          simp only [step, hc_pred, hc_node, out]
-          by_cases hi : i = tk
-          · subst hi
-            simp only [Function.update_self, hc_tk_pred]
-            split_ifs <;> first | rfl | omega
-          · have hik : i.val ≠ k := fun hv => hi (Fin.ext hv)
-            simp only [Function.update_of_ne hi, hIpred i]
-            split_ifs <;> first | rfl | omega
-        · rw [hexec_succ]
-          simp only [step, hc_pred, hc_node, out]
-          by_cases hi_tk : i = tk
-          · subst hi_tk
-            simp only [Function.update_self, Function.update_of_ne htk_ne_pred, hc_tk_succ,
-              List.cons_append]
-            split_ifs <;> first | rfl | omega
-          · have hik : i.val ≠ k := fun hv => hi_tk (Fin.ext hv)
-            by_cases hi_pred : i = tk - 1
-            · subst hi_pred
-              simp only [Function.update_of_ne (Ne.symm htk_ne_pred), Function.update_self]
-              split_ifs <;> first | rfl | omega
-            · have hik1 : i.val ≠ k - 1 := fun hv =>
-                hi_pred (Fin.ext (hv.trans htk_pred_val.symm))
-              simp only [Function.update_of_ne hi_tk, Function.update_of_ne hi_pred, hIsucc i]
-              split_ifs <;> first | rfl | omega
+      · rw [hexec_succ, hsn i, hc_node, hInode i]
+        simp only [Fin.ext_iff]
+        split_ifs <;> first | rfl | omega
+      · rw [hexec_succ, hsp i, hc_node, hc_tk_pred, hIpred i]
+        simp only [Fin.ext_iff]
+        split_ifs <;> first | rfl | omega
+      · rw [hexec_succ, hss i, hc_node, hIsucc i]
+        simp only [Fin.ext_iff, htk_pred_val]
+        split_ifs <;> first | rfl | omega | exact List.append_nil _
     have hpenult : ∀ d : ℕ, (hd : d ≤ n - 2) →
         (P.lts n).MTr cfg (pref (1 + d)) (P.exec cfg (pref (1 + d))) ∧
           ClockWaveInv s out.nextState m ms out.toSucc cp out.toPred (1 + d)
@@ -676,64 +562,29 @@ private theorem mtr_clockwiseWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncC
     have h1n : 1 + (n - 2) = n - 1 := by omega
     obtain ⟨hmtr_last, hInv_last⟩ := hpenult (n - 2) le_rfl
     rw [h1n] at hmtr_last hInv_last
-    let c := P.exec cfg (pref (n - 1))
-    change ClockWaveInv s out.nextState m ms out.toSucc cp out.toPred (n - 1) c at hInv_last
     have hlast_lt : n - 1 < n := by omega
-    let tlast : Fin n := ⟨n - 1, hlast_lt⟩
-    have htlast_val : tlast.val = n - 1 := rfl
-    obtain ⟨htlast_pred_val, hc_pred, hc_node, hc_tlast_pred, htlast_ne_pred, hen⟩ :=
-      clockWaveInv_at (by omega) hlast_lt c tlast htlast_val hInv_last
+    obtain ⟨htlast_pred_val, hc_pred, hc_node, hc_tlast_pred, hen⟩ :=
+      clockWaveInv_at (k := n - 1) (by omega) (P.exec cfg (pref (n - 1))) ⟨n - 1, hlast_lt⟩ rfl
+        hInv_last
     obtain ⟨hInode, hIpred, hIsucc⟩ := hInv_last
-    have hc_tlast_succ : c.chanSucc tlast = ms := by
-      have h := hIsucc tlast
-      rw [htlast_val] at h
-      split_ifs at h <;> first | exact h | omega
-    have hwave_split : clockwiseWave n = pref (n - 1) ++ [⟨.clockwise, tlast⟩] := by
-      have hfin_eq : List.finRange n = (List.finRange n).take (n - 1) ++ [tlast] := by
-        have h1 : (List.finRange n).take ((n - 1) + 1) = List.finRange n :=
-          List.take_of_length_le (by simp only [List.length_finRange]; omega)
-        conv_lhs => rw [← h1, List.take_add_one]
-        simp only [List.length_finRange, hlast_lt, List.getElem?_eq_getElem,
-          List.getElem_finRange, Option.toList_some, Fin.cast_mk, tlast]
-      conv_lhs => rw [clockwiseWave, hfin_eq]
-      simp only [pref, List.map_append, List.map]
-    have hexec_last : P.exec cfg (clockwiseWave n) = P.step ⟨.clockwise, tlast⟩ c := by
-      simp only [hwave_split, exec, List.foldl_append, List.foldl, c]
-    refine ⟨?_, ?_, ?_, ?_⟩
+    have hwave_eq : clockwiseWave n = pref ((n - 1) + 1) := congrArg (List.map _)
+      (List.take_of_length_le (by simp only [List.length_finRange]; omega)).symm
+    obtain ⟨hwave_split, hexec_last⟩ := hpref_step (n - 1) hlast_lt
+    rw [← hwave_eq] at hwave_split hexec_last
+    obtain ⟨hsn, hsp, hss⟩ := P.step_clockwise_of_cons hc_pred
+    dsimp only [AnonAsyncConfig.IsUniform]
+    refine ⟨?_, fun i => ?_, fun i => ?_, fun i => ?_⟩
     · rw [hexec_last, hwave_split]
       exact hmtr_last.stepR (P.lts n) ⟨hen, rfl⟩
-    · intro i
-      rw [hexec_last]
-      simp only [step, hc_pred, hc_node, out]
-      by_cases hi : i = tlast
-      · subst hi
-        exact Function.update_self _ _ _
-      · have hne : i.val ≠ n - 1 := fun hv => hi (Fin.ext hv)
-        simp only [Function.update_of_ne hi, hInode i]
-        split_ifs <;> first | rfl | omega
-    · intro i
-      rw [hexec_last]
-      simp only [step, hc_pred, hc_node, out]
-      by_cases hi_last : i = tlast
-      · subst hi_last
-        simp only [Function.update_self, Function.update_of_ne htlast_ne_pred, hc_tlast_succ]
-      · by_cases hi_pred : i = tlast - 1
-        · subst hi_pred
-          simp only [Function.update_of_ne (Ne.symm htlast_ne_pred), Function.update_self]
-        · have h1 : i.val ≠ n - 1 := fun hv => hi_last (Fin.ext hv)
-          have h2 : i.val ≠ n - 2 := fun hv =>
-            hi_pred (Fin.ext (hv.trans htlast_pred_val.symm))
-          simp only [Function.update_of_ne hi_last, Function.update_of_ne hi_pred, hIsucc i]
-          split_ifs <;> first | rfl | omega
-    · intro i
-      rw [hexec_last]
-      simp only [step, hc_pred, hc_node, out]
-      by_cases hi : i = tlast
-      · subst hi
-        simp only [Function.update_self, hc_tlast_pred]
-      · have hne : i.val ≠ n - 1 := fun hv => hi (Fin.ext hv)
-        simp only [Function.update_of_ne hi, hIpred i]
-        split_ifs <;> first | rfl | omega
+    · rw [hexec_last, hsn i, hc_node, hInode i]
+      simp only [Fin.ext_iff]
+      split_ifs <;> first | rfl | omega
+    · rw [hexec_last, hss i, hc_node, hIsucc i]
+      simp only [Fin.ext_iff, htlast_pred_val]
+      split_ifs <;> first | rfl | omega | exact List.append_nil _
+    · rw [hexec_last, hsp i, hc_node, hc_tlast_pred, hIpred i]
+      simp only [Fin.ext_iff]
+      split_ifs <;> first | rfl | omega
 
 /-- Dual protocol flipping `clockwise` and `counter`, used to transfer `mtr_clockwiseWave_uniform`
 to `counterWave` by ring reversal `i ↦ -i` without duplicating the wave proof. -/
@@ -756,61 +607,38 @@ private def reflectConfig {n : ℕ} (cfg : AnonAsyncConfig n S M) :
   chanPred i := cfg.chanSucc (-i)
 
 private theorem reflectConfig_involutive {n : ℕ} (cfg : AnonAsyncConfig n S M) :
-    reflectConfig (reflectConfig cfg) = cfg :=
-  AnonAsyncConfig.ext (funext fun i => by simp only [reflectConfig, neg_neg])
-    (funext fun i => by simp only [reflectConfig, neg_neg])
-    (funext fun i => by simp only [reflectConfig, neg_neg])
+    reflectConfig (reflectConfig cfg) = cfg := by
+  simp only [reflectConfig, neg_neg]
 
 private theorem update_neg {n : ℕ} {α : Type*} (f : Fin n → α) (a : Fin n) (v : α)
     (i : Fin n) :
     Function.update (fun j => f (-j)) a v (-i) = Function.update f (-a) v i := by
-  by_cases h : i = -a
-  · subst h
-    simp only [neg_neg, Function.update_self]
-  · have h' : -i ≠ a := fun heq => h (by rw [← heq, neg_neg])
-    simp only [Function.update_of_ne h', Function.update_of_ne h, neg_neg]
+  simp only [Function.update_apply, neg_eq_iff_eq_neg, neg_neg]
 
 private theorem step_counter_eq_dual {n : ℕ} [NeZero n] (t : Fin n)
     (cfg : AnonAsyncConfig n S M) :
     P.step ⟨.counter, t⟩ cfg =
       reflectConfig (P.dual.step ⟨.clockwise, -t⟩ (reflectConfig cfg)) := by
-  have hsub : -t - 1 = -(t + 1) := by
-    rw [sub_eq_add_neg, neg_add]
+  have hsub : -t - 1 = -(t + 1) := (sub_eq_add_neg (-t) 1).trans (neg_add t 1).symm
   simp only [step, dual, reflectConfig, hsub, neg_neg]
   cases hq : cfg.chanPred (t + 1) with
-  | nil =>
-    exact AnonAsyncConfig.ext (funext fun i => by simp only [neg_neg])
-      (funext fun i => by simp only [neg_neg])
-      (funext fun i => by simp only [neg_neg])
+  | nil => exact (reflectConfig_involutive cfg).symm
   | cons m rest =>
-    refine AnonAsyncConfig.ext (funext fun i => ?_) (funext fun i => ?_)
-      (funext fun i => ?_)
-    · have h := (update_neg cfg.node (-t) (P.recvFromSucc (cfg.node t) m).nextState i).symm
-      rwa [neg_neg] at h
-    · have h :=
-        (update_neg cfg.chanSucc (-t) (cfg.chanSucc t ++ (P.recvFromSucc (cfg.node t) m).toSucc)
-          i).symm
-      rwa [neg_neg] at h
-    · dsimp only [reflectConfig]
-      have h1 : Function.update (fun j => cfg.chanPred (-j)) (-(t + 1)) rest =
-          fun j => Function.update cfg.chanPred (t + 1) rest (-j) := by
-        funext j
-        have := update_neg cfg.chanPred (-(t + 1)) rest (-j)
-        simpa only [neg_neg] using this
+    dsimp only [reflectConfig]
+    refine AnonAsyncConfig.ext (funext fun i => ?_) (funext fun i => ?_) (funext fun i => ?_)
+    · simpa only [neg_neg] using (update_neg cfg.node (-t) _ i).symm
+    · simpa only [neg_neg] using (update_neg cfg.chanSucc (-t) _ i).symm
+    · have h1 : Function.update (fun j => cfg.chanPred (-j)) (-(t + 1)) rest =
+          fun j => Function.update cfg.chanPred (t + 1) rest (-j) :=
+        funext fun j => by simpa only [neg_neg] using update_neg cfg.chanPred (-(t + 1)) rest (-j)
       rw [h1]
-      dsimp only
-      rw [neg_neg]
-      have h :=
-        (update_neg (Function.update cfg.chanPred (t + 1) rest) (-t)
-          (Function.update cfg.chanPred (t + 1) rest t ++ (P.recvFromSucc (cfg.node t) m).toPred)
-          i).symm
-      rwa [neg_neg] at h
+      simpa only [neg_neg] using
+        (update_neg (Function.update cfg.chanPred (t + 1) rest) (-t) _ i).symm
 
 private theorem enabled_counter_iff_dual {n : ℕ} [NeZero n] (t : Fin n)
     (cfg : AnonAsyncConfig n S M) :
     cfg.Enabled ⟨.counter, t⟩ ↔ (reflectConfig cfg).Enabled ⟨.clockwise, -t⟩ := by
-  have hsub : -t - 1 = -(t + 1) := by
-    rw [sub_eq_add_neg, neg_add]
+  have hsub : -t - 1 = -(t + 1) := (sub_eq_add_neg (-t) 1).trans (neg_add t 1).symm
   simp only [AnonAsyncConfig.Enabled, reflectConfig, hsub, neg_neg]
 
 private theorem mtr_reflect_counter {n : ℕ} [NeZero n] {xs : List (Fin n)}
@@ -818,9 +646,7 @@ private theorem mtr_reflect_counter {n : ℕ} [NeZero n] {xs : List (Fin n)}
     (hmtr : (P.dual.lts n).MTr c₁ (xs.map (AnonEvent.mk .clockwise)) c₂) :
     (P.lts n).MTr (reflectConfig c₁) (xs.map fun i => ⟨.counter, -i⟩) (reflectConfig c₂) := by
   induction xs generalizing c₁ with
-  | nil =>
-    cases hmtr
-    exact LTS.MTr.refl
+  | nil => exact match hmtr with | .refl => .refl
   | cons i is ih =>
     simp only [List.map_cons] at hmtr ⊢
     rcases LTS.MTr.cons_iff.mp hmtr with ⟨cmid, ⟨hen, rfl⟩, hrest⟩
@@ -836,17 +662,12 @@ private theorem exec_counterWave_eq_dual {n : ℕ} [NeZero n] (cfg : AnonAsyncCo
       P.exec c (xs.map fun i => ⟨.counter, -i⟩) =
         reflectConfig (P.dual.exec (reflectConfig c) (xs.map (AnonEvent.mk .clockwise))) from
     this (List.finRange n) cfg
-  intro xs
-  induction xs with
-  | nil =>
-    intro c
-    exact (reflectConfig_involutive c).symm
+  intro xs c
+  induction xs generalizing c with
+  | nil => exact (reflectConfig_involutive c).symm
   | cons i is ih =>
-    intro c
-    simp only [List.map_cons, exec_cons]
-    have hstep := P.step_counter_eq_dual (-i) c
-    rw [neg_neg] at hstep
-    rw [hstep, ih, reflectConfig_involutive]
+    rw [List.map_cons, List.map_cons, exec_cons, exec_cons, P.step_counter_eq_dual (-i) c,
+      neg_neg, ih, reflectConfig_involutive]
 
 private theorem mtr_counterWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncConfig n S M}
     {s : S} {m : M} {cs mp : List M} (huni : cfg.IsUniform s cs (m :: mp)) :
@@ -882,19 +703,7 @@ theorem mtr_rotWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncConfig n S M}
     cases cs with
     | nil =>
       refine ⟨fun h => absurd rfl h, s, [], cp, ?_⟩
-      have hnoop : ∀ (xs : List (Fin n)) (c : AnonAsyncConfig n S M),
-          c.IsUniform s [] cp → P.exec c (xs.map (AnonEvent.mk .clockwise)) = c := by
-        intro xs
-        induction xs with
-        | nil => intros; rfl
-        | cons i is ih =>
-          intro c hc
-          have hstep : P.step ⟨.clockwise, i⟩ c = c := by
-            simp only [step, hc.2.1 (i - 1)]
-          simp only [List.map_cons, exec_cons, hstep]
-          exact ih c hc
-      rw [clockwiseWave, hnoop (List.finRange n) cfg huni]
-      exact huni
+      rwa [clockwiseWave, P.exec_map_eq_self fun i => by simp only [step, huni.2.1 (i - 1)]]
     | cons m ms =>
       obtain ⟨hmtr, huni'⟩ := P.mtr_clockwiseWave_uniform huni
       exact ⟨fun _ => hmtr, _, _, _, huni'⟩
@@ -902,19 +711,7 @@ theorem mtr_rotWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncConfig n S M}
     cases cp with
     | nil =>
       refine ⟨fun h => absurd rfl h, s, cs, [], ?_⟩
-      have hnoop : ∀ (xs : List (Fin n)) (c : AnonAsyncConfig n S M),
-          c.IsUniform s cs [] → P.exec c (xs.map fun i => ⟨.counter, -i⟩) = c := by
-        intro xs
-        induction xs with
-        | nil => intros; rfl
-        | cons i is ih =>
-          intro c hc
-          have hstep : P.step ⟨.counter, -i⟩ c = c := by
-            simp only [step, hc.2.2 (-i + 1)]
-          simp only [List.map_cons, exec_cons, hstep]
-          exact ih c hc
-      rw [counterWave, hnoop (List.finRange n) cfg huni]
-      exact huni
+      rwa [counterWave, P.exec_map_eq_self fun i => by simp only [step, huni.2.2 (-i + 1)]]
     | cons m mp =>
       obtain ⟨hmtr, huni'⟩ := P.mtr_counterWave_uniform huni
       exact ⟨fun _ => hmtr, _, _, _, huni'⟩
@@ -941,56 +738,34 @@ theorem exists_rotWave_trace_leaders_card_ne_one {n : ℕ} [NeZero n] (hn : 2 �
     | succ w ih =>
       obtain ⟨sched, cfg, s, cs, cp, hmtr, huni, hlen_or_empty⟩ := ih
       rcases hlen_or_empty with hlen | ⟨hcs, hcp⟩
-      · cases hcs_eq : cs with
+      · cases cs with
         | cons m ms =>
-          have huni' : cfg.IsUniform s (m :: ms) cp := hcs_eq ▸ huni
-          obtain ⟨hw_mtr, hw_uni⟩ := P.mtr_clockwiseWave_uniform huni'
+          obtain ⟨hw_mtr, hw_uni⟩ := P.mtr_clockwiseWave_uniform huni
           refine ⟨sched ++ clockwiseWave n, P.exec cfg (clockwiseWave n), _, _, _,
             hmtr.comp (P.lts n) hw_mtr, hw_uni, Or.inl ?_⟩
-          have hcw_len : (clockwiseWave n).length = n := by
-            simp only [clockwiseWave, List.length_map, List.length_finRange]
-          rw [List.length_append, hcw_len, Nat.succ_mul]
+          simp only [clockwiseWave, List.length_append, List.length_map, List.length_finRange,
+            Nat.succ_mul]
           omega
         | nil =>
-          cases hcp_eq : cp with
+          cases cp with
           | cons m mp =>
-            have huni' : cfg.IsUniform s cs (m :: mp) := hcp_eq ▸ huni
-            obtain ⟨hw_mtr, hw_uni⟩ := P.mtr_counterWave_uniform huni'
+            obtain ⟨hw_mtr, hw_uni⟩ := P.mtr_counterWave_uniform huni
             refine ⟨sched ++ counterWave n, P.exec cfg (counterWave n), _, _, _,
               hmtr.comp (P.lts n) hw_mtr, hw_uni, Or.inl ?_⟩
-            have hccw_len : (counterWave n).length = n := by
-              simp only [counterWave, List.length_map, List.length_finRange]
-            rw [List.length_append, hccw_len, Nat.succ_mul]
+            simp only [counterWave, List.length_append, List.length_map, List.length_finRange,
+              Nat.succ_mul]
             omega
           | nil =>
-            subst hcs_eq hcp_eq
             exact ⟨sched, cfg, s, [], [], hmtr, huni, Or.inr ⟨rfl, rfl⟩⟩
       · exact ⟨sched, cfg, s, cs, cp, hmtr, huni, Or.inr ⟨hcs, hcp⟩⟩
   obtain ⟨sched, cfg, s, cs, cp, hmtr, huni, hdone⟩ := hbuild W
   refine ⟨sched, cfg, hmtr, ?_, ?_⟩
-  · rcases hdone with hlen | ⟨hcs, hcp⟩
-    · exact Or.inl hlen
-    · right
-      rintro ⟨dir, t⟩ cfg' ⟨hen, _⟩
-      cases dir with
-      | clockwise =>
-        exact hen ((huni.2.1 (t - 1)).trans hcs)
-      | counter =>
-        exact hen ((huni.2.2 (t + 1)).trans hcp)
-  · by_cases hs : P.isLeader s = true
-    · have huniv : P.configLeaders cfg = Finset.univ := by
-        ext i
-        simp only [configLeaders, Finset.mem_filter, Finset.mem_univ, true_and, huni.1 i]
-        exact iff_of_true hs trivial
-      rw [huniv, Finset.card_univ, Fintype.card_fin]
-      omega
-    · have hemp : P.configLeaders cfg = ∅ := by
-        ext i
-        simp only [configLeaders, Finset.mem_filter, Finset.mem_univ, true_and, huni.1 i,
-          Finset.notMem_empty, iff_false]
-        exact hs
-      rw [hemp, Finset.card_empty]
-      omega
+  · exact hdone.imp_right fun ⟨hcs, hcp⟩ ⟨dir, t⟩ _ ⟨hen, _⟩ => by
+      cases dir
+      · exact hen ((huni.2.1 (t - 1)).trans hcs)
+      · exact hen ((huni.2.2 (t + 1)).trans hcp)
+  · by_cases hs : P.isLeader s = true <;> simp [configLeaders, huni.1, hs]
+    omega
 
 end AnonAsyncProtocol
 

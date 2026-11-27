@@ -229,11 +229,7 @@ private theorem relativeEntropyReal_sum_smul_le {κ : Type*} [Fintype κ]
   rw [spectralIntegrand_eq_resolvent hA hB hs, htrace]
   simp only [f, spectralIntegrand_eq_resolvent (hρ _) (hσ _) hs, ← mul_div_assoc]
   simp only [div_eq_mul_inv, ← sum_mul, mul_sub, sum_sub_distrib]
-  have hlin : ((1 - s) * ∑ k, w k * (ρ k).trace.re) =
-      ∑ k, w k * ((1 - s) * (ρ k).trace.re) := by
-    rw [mul_sum]
-    exact sum_congr rfl fun _ _ => mul_left_comm _ _ _
-  rw [hlin]
+  simp_rw [mul_sum, mul_left_comm (1 - s)]
   exact mul_le_mul_of_nonneg_right
     (sub_le_sub_right (relativeEntropyResolvent_sum_smul_le
       (div_pos hs.1 (sub_pos.mpr hs.2)) w hw ρ σ hρ hσ) _) (inv_nonneg.mpr (sq_nonneg _))
@@ -255,9 +251,7 @@ theorem relativeEntropy_sum_smul_le {κ : Type*} [Fintype κ]
     have hσ' (k : κ) : (σ' k).PosSemidef := by
       by_cases hk : w k = 0 <;> simp [σ', hk, hσ k, PosSemidef.zero]
     have hs' (k : κ) : SupportLE (ρ' k) (σ' k) := by
-      by_cases hk : w k = 0
-      · simpa only [ρ', σ', hk, ite_eq_left] using (SupportLE.refl (0 : Matrix ι ι ℂ))
-      · simpa [ρ', σ', hk] using hs k hk
+      by_cases hk : w k = 0 <;> simp [ρ', σ', hk, SupportLE.refl, hs]
     have heρ : (∑ k, w k • ρ' k) = ∑ k, w k • ρ k :=
       sum_congr rfl fun k _ => by by_cases hk : w k = 0 <;> simp [ρ', hk]
     have heσ : (∑ k, w k • σ' k) = ∑ k, w k • σ k :=
@@ -275,11 +269,8 @@ theorem relativeEntropy_sum_smul_le {κ : Type*} [Fintype κ]
     exact relativeEntropyReal_sum_smul_le w hw ρ' σ' hρ' hσ' hs'
   · push Not at hs
     obtain ⟨k, hk, hsupp⟩ := hs
-    have htop : (∑ i, (w i : WithTop ℝ) * relativeEntropy (ρ i) (σ i)) = ⊤ := by
-      refine WithTop.sum_eq_top.mpr ⟨k, mem_univ _, ?_⟩
-      rw [relativeEntropy_of_not_supportLE hsupp, WithTop.mul_top]
-      exact_mod_cast hk
-    rw [htop]
-    exact le_top
+    refine le_top.trans_eq (WithTop.sum_eq_top.mpr ⟨k, mem_univ _, ?_⟩).symm
+    rw [relativeEntropy_of_not_supportLE hsupp, WithTop.mul_top]
+    exact_mod_cast hk
 
 end Cslib.Quantum

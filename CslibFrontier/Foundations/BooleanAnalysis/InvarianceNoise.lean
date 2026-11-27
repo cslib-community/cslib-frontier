@@ -112,34 +112,30 @@ theorem abs_expect_comp_sub_integral_comp_multilinearEval_le_add_sqrt
   have htail : ∑ S, (fourierCoeff f S - fourierCoeff g S) ^ 2 =
       ∑ S with k < #S, fourierCoeff f S ^ 2 := by
     rw [hg, sum_filter]
-    refine sum_congr rfl fun S _ => ?_
-    by_cases hS : #S ≤ k <;> simp [G, hS, not_lt.2, lt_of_not_ge]
+    exact sum_congr rfl fun S _ => by
+      by_cases hS : #S ≤ k <;> simp [G, hS, not_lt.2, lt_of_not_ge]
   have hlow : |𝔼 x, ψ (g x) - ∫ y, ψ (multilinearEval (fourierCoeff g) y) ∂Measure.pi μ| ≤
       9 * K * 2 ^ k * ε ^ (1 / 4 : ℝ) := by
     refine abs_expect_comp_sub_integral_comp_multilinearEval_le_of_lipschitzWith μ hμ
-      (totalDegree_le_iff_fourierCoeff_eq_zero.2 fun S hS => ?_) ?_ hε0 (fun t => ?_) hψ
-    · simp [hg, G, not_le.2 hS]
-    · refine le_trans ?_ hvar
-      rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq, expect_sub_expect_sq_eq_sum_fourierCoeff_sq,
-        hg]
-      refine sum_le_sum fun S _ => ?_
-      by_cases hS : #S ≤ k <;> simp [G, hS, sq_nonneg]
+      (totalDegree_le_iff_fourierCoeff_eq_zero.2 fun S hS => by simp [hg, G, not_le.2 hS]) ?_
+      hε0 (fun t => ?_) hψ
+    · rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq] at hvar ⊢
+      rw [hg]
+      exact (sum_le_sum fun S _ => by by_cases hS : #S ≤ k <;> simp [G, hS, sq_nonneg]).trans hvar
     · rw [influence_eq_sum_fourierCoeff_sq, hg]
-      refine le_trans (le_of_eq ?_) (hε t)
+      refine (le_of_eq ?_).trans (hε t)
       rw [← filter_filter, sum_filter (fun S : Finset ι => #S ≤ k)]
-      refine sum_congr rfl fun S _ => ?_
-      by_cases hS : #S ≤ k <;> simp [G, hS]
+      exact sum_congr rfl fun S _ => by by_cases hS : #S ≤ k <;> simp [G, hS]
   have h1 := abs_expect_comp_sub_le_sqrt hψ f g
   have h2 := abs_integral_comp_multilinearEval_sub_le_sqrt μ hμ hψ (fourierCoeff f)
     (fourierCoeff g)
   rw [htail] at h1 h2
-  have h3 := abs_sub_le (𝔼 x, ψ (f x)) (𝔼 x, ψ (g x))
-    (∫ y, ψ (multilinearEval (fourierCoeff f) y) ∂Measure.pi μ)
   have h4 := abs_sub_le (𝔼 x, ψ (g x))
     (∫ y, ψ (multilinearEval (fourierCoeff g) y) ∂Measure.pi μ)
     (∫ y, ψ (multilinearEval (fourierCoeff f) y) ∂Measure.pi μ)
   rw [abs_sub_comm (∫ y, ψ (multilinearEval (fourierCoeff g) y) ∂_)] at h4
-  linarith
+  linarith [abs_sub_le (𝔼 x, ψ (f x)) (𝔼 x, ψ (g x))
+    (∫ y, ψ (multilinearEval (fourierCoeff f) y) ∂Measure.pi μ)]
 
 /-! ### Corollary 11.69, second statement -/
 
@@ -159,29 +155,28 @@ theorem abs_expect_comp_noiseOp_sub_integral_comp_multilinearEval_le_add_pow
       9 * K * 2 ^ k * ε ^ (1 / 4 : ℝ) + 2 * K * (1 - δ) ^ k := by
   have hρ0 : 0 ≤ 1 - δ := by linarith
   have hρ1 : 1 - δ ≤ 1 := by linarith
-  have hvar' : ∑ S with S ≠ ∅, fourierCoeff h S ^ 2 ≤ 1 := by
-    rwa [← expect_sub_expect_sq_eq_sum_fourierCoeff_sq]
-  refine (abs_expect_comp_sub_integral_comp_multilinearEval_le_add_sqrt μ hμ k ?_ hε0
+  refine (abs_expect_comp_sub_integral_comp_multilinearEval_le_add_sqrt μ hμ k
+    ((expect_sub_expect_sq_noiseOp_le (abs_le.2 ⟨by linarith, hρ1⟩) h).trans hvar) hε0
     (fun t => ?_) hψ).trans ?_
-  · exact (expect_sub_expect_sq_noiseOp_le (abs_le.2 ⟨by linarith, hρ1⟩) h).trans hvar
   · refine le_trans ?_ ((influence_noiseOp_le_stableInfluence hρ0 hρ1 t h).trans (hε t))
     rw [influence_eq_sum_fourierCoeff_sq, ← filter_filter]
     exact sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun _ _ _ => sq_nonneg _
   · gcongr
     refine Real.sqrt_le_iff.2 ⟨by positivity, ?_⟩
+    rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq] at hvar
     calc ∑ S with k < #S, fourierCoeff (noiseOp (1 - δ) h) S ^ 2
         ≤ ∑ S with S ≠ ∅, ((1 - δ) ^ k) ^ 2 * fourierCoeff h S ^ 2 := by
-          refine sum_le_sum_of_subset_of_nonneg (fun S hS => ?_) (fun _ _ _ => by positivity)
-            |>.trans' (sum_le_sum fun S hS => ?_)
+          refine (sum_le_sum fun S hS => ?_).trans
+            (sum_le_sum_of_subset_of_nonneg (fun S hS => ?_) fun _ _ _ => by positivity)
+          · rw [fourierCoeff_noiseOp, mul_pow, ← pow_mul, ← pow_mul]
+            refine mul_le_mul_of_nonneg_right (pow_le_pow_of_le_one hρ0 hρ1 ?_) (sq_nonneg _)
+            simp only [mem_filter, mem_univ, true_and] at hS
+            omega
           · simp only [mem_filter, mem_univ, true_and] at hS ⊢
             rintro rfl
             simp at hS
-          · simp only [mem_filter, mem_univ, true_and] at hS
-            rw [fourierCoeff_noiseOp, mul_pow, ← pow_mul, ← pow_mul]
-            exact mul_le_mul_of_nonneg_right (pow_le_pow_of_le_one hρ0 hρ1 (by omega))
-              (sq_nonneg _)
       _ = ((1 - δ) ^ k) ^ 2 * ∑ S with S ≠ ∅, fourierCoeff h S ^ 2 := (mul_sum _ _ _).symm
-      _ ≤ ((1 - δ) ^ k) ^ 2 := mul_le_of_le_one_right (by positivity) hvar'
+      _ ≤ ((1 - δ) ^ k) ^ 2 := mul_le_of_le_one_right (by positivity) hvar
 
 /-- The arithmetic of [O'Donnell, Corollary 11.69][ODonnell2014]: for `0 < ε ≤ 1`,
 `0 ≤ δ ≤ 1/20` and `k = ⌊ln(1/ε) / 3⌋`, both `2ᵏ ε^(1/4) ≤ ε^(δ/3)` and
@@ -191,22 +186,18 @@ private theorem pow_mul_rpow_le_and_pow_le {ε δ : ℝ} (hε₀ : 0 < ε) (hε�
     (2 : ℝ) ^ ⌊-log ε / 3⌋₊ * ε ^ (1 / 4 : ℝ) ≤ ε ^ (δ / 3) ∧
       (1 - δ) ^ ⌊-log ε / 3⌋₊ ≤ 3 * ε ^ (δ / 3) := by
   set L := -log ε / 3
-  have hlog : log ε ≤ 0 := log_nonpos hε₀.le hε₁
-  have hL : 0 ≤ L := by simp only [L]; linarith
+  have hL : 0 ≤ L := by simp only [L]; linarith [log_nonpos hε₀.le hε₁]
   set k := ⌊L⌋₊
   have hkL : (k : ℝ) ≤ L := Nat.floor_le hL
   have hLk : L < k + 1 := Nat.lt_floor_add_one L
   rw [rpow_def_of_pos hε₀, rpow_def_of_pos hε₀]
   constructor
-  · have h2 : (2 : ℝ) ^ k = exp (k * log 2) := by
-      rw [← rpow_natCast, rpow_def_of_pos two_pos, mul_comm]
-    rw [h2, ← exp_add]
+  · rw [← rpow_natCast, rpow_def_of_pos two_pos, mul_comm, ← exp_add]
     refine exp_le_exp.2 ?_
-    have hl2 : log 2 < 0.6931471808 := log_two_lt_d9
-    have hl2' : 0 < log 2 := log_pos one_lt_two
-    have : (k : ℝ) * log 2 ≤ L * log 2 := mul_le_mul_of_nonneg_right hkL hl2'.le
+    have : (k : ℝ) * log 2 ≤ L * log 2 :=
+      mul_le_mul_of_nonneg_right hkL (log_pos one_lt_two).le
     simp only [L] at this
-    nlinarith
+    nlinarith [log_two_lt_d9, log_pos one_lt_two, log_nonpos hε₀.le hε₁]
   · calc (1 - δ) ^ k ≤ exp (-δ) ^ k := by
           gcongr
           · linarith
@@ -214,9 +205,7 @@ private theorem pow_mul_rpow_le_and_pow_le {ε δ : ℝ} (hε₀ : 0 < ε) (hε�
       _ = exp (-δ * k) := by rw [← exp_nat_mul]; ring_nf
       _ ≤ exp δ * exp (log ε * (δ / 3)) := by
           rw [← exp_add]
-          refine exp_le_exp.2 ?_
-          simp only [L] at hLk
-          nlinarith
+          exact exp_le_exp.2 (by simp only [L] at hLk; nlinarith)
       _ ≤ 3 * exp (log ε * (δ / 3)) := by
           gcongr
           calc exp δ ≤ exp 1 := exp_le_exp.2 (by linarith)
@@ -249,9 +238,6 @@ theorem abs_expect_comp_noiseOp_sub_integral_comp_multilinearEval_le_of_lipschit
     rw [mul_zero] at ht
     exact ge_of_tendsto' ht fun k => by simpa [zero_rpow] using hb k
   obtain ⟨h1, h2⟩ := pow_mul_rpow_le_and_pow_le hε0 hε1 hδ0 hδ
-  refine (hb ⌊-log ε / 3⌋₊).trans ?_
-  have h1' := mul_le_mul_of_nonneg_left h1 (by positivity : (0 : ℝ) ≤ 9 * K)
-  have h2' := mul_le_mul_of_nonneg_left h2 (by positivity : (0 : ℝ) ≤ 2 * K)
-  linarith
+  exact (hb ⌊-log ε / 3⌋₊).trans (by nlinarith)
 
 end Cslib.BitString

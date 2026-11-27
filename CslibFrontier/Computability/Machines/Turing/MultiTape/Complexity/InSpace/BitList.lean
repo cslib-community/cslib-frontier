@@ -50,7 +50,7 @@ theorem listToBits : ComputableInSpace (fun l : List Bool => l) (encList encBool
     have h := hstate l i hi.le
     simp only [length_encPair, encBool_apply, List.length_singleton]
     omega
-  have h := foldl hid (budget_const [] (.refl _)) hs hspace hstate
+  have h := foldl hid (budget_const (Bs := fun l => (encList encBool l).length) []) hs hspace hstate
   refine h.weaken (.of_le_linear 16 16 fun _ => by omega) |>.of_enc_eq ?_
   intro l
   rw [hfold, List.nil_append]

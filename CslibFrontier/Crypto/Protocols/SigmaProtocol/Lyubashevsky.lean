@@ -191,10 +191,9 @@ private theorem map_optionMap_apply_none {α δ : Type} (p : PMF (Option α)) (f
     p.map (Option.map f) none = p none := by
   rw [PMF.map_apply, tsum_eq_single none]
   · simp
-  · intro o ho
-    cases o with
-    | none => exact absurd rfl ho
-    | some a => simp
+  · rintro (_ | a) ho
+    · exact absurd rfl ho
+    · simp
 
 /-- **Completeness up to aborts.** Every answer of the honest prover is accepted, for any
 witness with `A S = T`, however large its entries. -/
@@ -202,14 +201,10 @@ theorem lyubashevsky_nonAbortComplete :
     (lyubashevsky n m k q γ β).NonAbortComplete fun S y => y.1 * S.map Int.cast = y.2 := by
   intro S y hSy c t z htz
   rw [lyubashevsky_acceptedTranscript] at htz
-  obtain ⟨oz, hoz, hsome⟩ := (PMF.mem_support_map_iff _ _ _).mp htz
-  cases oz with
-  | none => cases hsome
-  | some z' =>
-    simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hsome
-    obtain ⟨rfl, rfl⟩ := hsome
-    rw [lyubashevsky_accepts_some_iff]
-    refine ⟨mem_intBox_of_some_mem_support_boxReject hoz, ?_⟩
+  rcases (PMF.mem_support_map_iff _ _ _).mp htz with ⟨_ | z', hoz, hsome⟩
+  · cases hsome
+  · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hsome)
+    refine lyubashevsky_accepts_some_iff.mpr ⟨mem_intBox_of_some_mem_support_boxReject hoz, ?_⟩
     rw [intCast_comp_sub, intCast_comp_mulVec, Matrix.mulVec_sub, Matrix.mulVec_mulVec, hSy,
       sub_add_cancel]
 
@@ -242,37 +237,30 @@ theorem lyubashevsky_specialSoundness :
     (lyubashevsky n m k q γ β).SpecialSoundness
       (fun u y => SIS.IsSolution (Matrix.fromCols y.1 y.2) (max (2 * (γ - β)) 1) u)
       (lyubashevskyExtract n m k q) := by
-  intro y w c oz c' oz' hc hz hz'
-  cases oz with
-  | none => exact absurd hz lyubashevsky_not_accepts_none
-  | some z =>
-  cases oz' with
-  | none => exact absurd hz' lyubashevsky_not_accepts_none
-  | some z' =>
-  rw [lyubashevsky_accepts_some_iff] at hz hz'
-  refine ⟨fun h => hc (funext fun j => ?_), ?_, ?_⟩
-  · have hj := congr_fun h (Sum.inr j)
-    simp only [lyubashevskyExtract, Sum.elim_inr, Pi.sub_apply, Pi.zero_apply, sub_eq_zero,
-      lyubashevskyChallenge] at hj
-    cases hcj : c j <;> cases hcj' : c' j <;> simp_all
-  · rintro (i | j)
-    · have hzi := mem_intBox.mp hz.1 i
-      have hzi' := mem_intBox.mp hz'.1 i
-      simp only [lyubashevskyExtract, Option.getD_some, Sum.elim_inl, Pi.sub_apply]
-      calc |z i - z' i| ≤ |z i| + |z' i| := abs_sub _ _
-        _ ≤ ((γ - β : ℕ) : ℤ) + ((γ - β : ℕ) : ℤ) := add_le_add hzi hzi'
-        _ ≤ ((max (2 * (γ - β)) 1 : ℕ) : ℤ) := by push_cast; omega
-    · simp only [lyubashevskyExtract, Sum.elim_inr, Pi.sub_apply]
-      have h' := abs_lyubashevskyChallenge_le c' j
-      have h := abs_lyubashevskyChallenge_le c j
-      unfold lyubashevskyChallenge at h h' ⊢
-      split_ifs <;> simp
-  · rw [InKernelLattice, Matrix.fromCols_mulVec]
-    simp only [lyubashevskyExtract, Option.getD_some]
-    change y.1 *ᵥ (Int.cast ∘ (z - z')) + y.2 *ᵥ
-      (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c)) = 0
-    rw [intCast_comp_sub, intCast_comp_sub, Matrix.mulVec_sub, Matrix.mulVec_sub, hz.2, hz'.2]
-    abel
+  rintro y w c (_ | z) c' (_ | z') hc hz hz'
+  · exact absurd hz lyubashevsky_not_accepts_none
+  · exact absurd hz lyubashevsky_not_accepts_none
+  · exact absurd hz' lyubashevsky_not_accepts_none
+  · rw [lyubashevsky_accepts_some_iff] at hz hz'
+    refine ⟨fun h => hc (funext fun j => ?_), ?_, ?_⟩
+    · have hj := congr_fun h (Sum.inr j)
+      simp only [lyubashevskyExtract, Sum.elim_inr, Pi.sub_apply, Pi.zero_apply, sub_eq_zero,
+        lyubashevskyChallenge] at hj
+      cases hcj : c j <;> cases hcj' : c' j <;> simp_all
+    · rintro (i | j)
+      · simp only [lyubashevskyExtract, Option.getD_some, Sum.elim_inl, Pi.sub_apply]
+        calc |z i - z' i| ≤ |z i| + |z' i| := abs_sub _ _
+          _ ≤ ((γ - β : ℕ) : ℤ) + ((γ - β : ℕ) : ℤ) :=
+              add_le_add (mem_intBox.mp hz.1 i) (mem_intBox.mp hz'.1 i)
+          _ ≤ ((max (2 * (γ - β)) 1 : ℕ) : ℤ) := by push_cast; omega
+      · simp only [lyubashevskyExtract, Sum.elim_inr, Pi.sub_apply, lyubashevskyChallenge]
+        split_ifs <;> simp
+    · rw [InKernelLattice, Matrix.fromCols_mulVec]
+      simp only [lyubashevskyExtract, Option.getD_some]
+      change y.1 *ᵥ (Int.cast ∘ (z - z')) +
+        y.2 *ᵥ (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c)) = 0
+      rw [intCast_comp_sub, intCast_comp_sub, Matrix.mulVec_sub, Matrix.mulVec_sub, hz.2, hz'.2]
+      abel
 
 /-- **Zero knowledge up to aborts.** If `k η ≤ β ≤ γ`, then for every witness in
 `lyubashevskyRelation η` and every challenge, `lyubashevskySimulate` has exactly the law of the
@@ -281,24 +269,18 @@ theorem lyubashevsky_nonAbortSpecialHVZK {η : ℕ} (hβ : β ≤ γ) (hη : k *
     (lyubashevsky n m k q γ β).NonAbortSpecialHVZK (lyubashevskyRelation η)
       (lyubashevskySimulate n m k q γ β) where
   accepts y c t z h := by
-    obtain ⟨oz, hoz, hsome⟩ := (PMF.mem_support_map_iff _ _ _).mp h
-    cases oz with
-    | none => cases hsome
-    | some z' =>
-      simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hsome
-      obtain ⟨rfl, rfl⟩ := hsome
-      rw [lyubashevsky_accepts_some_iff]
-      exact ⟨mem_intBox_of_some_mem_support_boxReject hoz, (sub_add_cancel _ _).symm⟩
+    rcases (PMF.mem_support_map_iff _ _ _).mp h with ⟨_ | z', hoz, hsome⟩
+    · cases hsome
+    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hsome)
+      exact lyubashevsky_accepts_some_iff.mpr
+        ⟨mem_intBox_of_some_mem_support_boxReject hoz, (sub_add_cancel _ _).symm⟩
   acceptedTranscript_eq S y hSy c := by
     rw [lyubashevsky_acceptedTranscript, lyubashevskySimulate,
       boxReject_eq (v' := 0) hβ
-        (intBox_mono hη (mulVec_lyubashevskyChallenge_mem_intBox hSy.2 c))
-        (zero_mem_intBox β)]
-    congr 1 with oz : 1
-    cases oz with
-    | none => rfl
-    | some z =>
-      simp only [Option.map_some, intCast_comp_sub, intCast_comp_mulVec, Matrix.mulVec_sub,
+        (intBox_mono hη (mulVec_lyubashevskyChallenge_mem_intBox hSy.2 c)) (zero_mem_intBox β)]
+    congr 1 with (_ | z) : 1
+    · rfl
+    · simp only [Option.map_some, intCast_comp_sub, intCast_comp_mulVec, Matrix.mulVec_sub,
         Matrix.mulVec_mulVec, hSy.1]
 
 end SigmaProtocol

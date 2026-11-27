@@ -10,15 +10,12 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Relation
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSAT
 public import CslibFrontier.Computability.Complexity.Reduction.Levin
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListLookup
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeOptionPrimitives
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Logics.Propositional.CNF.ThreeCNF.PolyTime
 
@@ -49,7 +46,8 @@ polynomial-time:
 * `Cslib.Complexity.ThreeSAT.language_npRelation`: the language of the relation is `ThreeSAT`.
 * `Cslib.Complexity.isWitness_toThreeSATWitness`, `Cslib.Complexity.isWitness_ofThreeSATWitness`:
   the witness maps send witnesses to witnesses.
-* `Cslib.Complexity.computableInPolyTime_toThreeSATWitness`,
+* `Cslib.Complexity.computableInPolyTime_to3CNFAssignment`,
+  `Cslib.Complexity.computableInPolyTime_toThreeSATWitness`,
   `Cslib.Complexity.computableInPolyTime_ofThreeSATWitness`: they are polynomial-time.
 
 ## References
@@ -126,50 +124,33 @@ theorem isWitness_ofThreeSATWitness {φ : CNF ℕ} {w : List Bool}
 /-- The extended assignment, written by case analysis on the two kinds of variables. -/
 private theorem to3CNFAssignment_eq_elim (φ : CNF ℕ) (σ : ℕ → Bool) (s : ℕ ⊕ (ℕ × ℕ)) :
     φ.to3CNFAssignment σ s =
-      s.getLeft?.elim (s.getRight?.elim false fun q =>
-        Clause.eval σ ((φ.getD q.1 []).drop (q.2 + 2))) σ := by
+      s.elim σ fun q => Clause.eval σ ((φ.getD q.1 []).drop (q.2 + 2)) := by
   rcases s with _ | ⟨_, _⟩ <;> rfl
 
 /-- Evaluating the extended assignment of the certificate assignment is polynomial-time, with
 auxiliary variables numbered in unary. -/
-private theorem computableInPolyTime_to3CNFAssignment :
+theorem computableInPolyTime_to3CNFAssignment :
     ComputableInPolyTime
       (fun p : (CNF ℕ × List Bool) × (ℕ ⊕ (ℕ × ℕ)) =>
-        p.1.1.to3CNFAssignment (SAT.assignment p.1.1 p.1.2) p.2)
+        let (state, v) := p
+        let (φ, w) := state
+        φ.to3CNFAssignment (SAT.assignment φ w) v)
       (encPair (encPair encCNF encBits) (encSum encNat (encPair encUnary encUnary))) encBool := by
   simp only [to3CNFAssignment_eq_elim]
-  have hleft := (ComputableInO.getLeft?_deg encNat (encPair encUnary encUnary)).computableInPolyTime
-  have hright :=
-    (ComputableInO.getRight?_deg encNat (encPair encUnary encUnary)).computableInPolyTime
-  refine ComputableInPolyTime.optionElimWithInput (hleft.comp (.snd _ _))
-    (ComputableInPolyTime.optionElimWithInput (hright.comp (.snd _ _)) (.const false) ?_) ?_
-  · have hclause : ComputableInPolyTime
-        (fun p : ((CNF ℕ × List Bool) × (ℕ ⊕ (ℕ × ℕ))) × (ℕ × ℕ) =>
-          (p.1.1.1.getD p.2.1 []).drop (p.2.2 + 2))
-        (encPair (encPair (encPair encCNF encBits) (encSum encNat (encPair encUnary encUnary)))
-          (encPair encUnary encUnary)) (encList (encPair encNat encBool)) := by
-      have hφ : ComputableInPolyTime
-          (fun p : ((CNF ℕ × List Bool) × (ℕ ⊕ (ℕ × ℕ))) × (ℕ × ℕ) => p.1.1.1)
-          (encPair (encPair (encPair encCNF encBits)
-            (encSum encNat (encPair encUnary encUnary))) (encPair encUnary encUnary))
-          (encList (encList (encPair encNat encBool))) :=
-        (ComputableInPolyTime.fst encCNF encBits).comp
-          ((ComputableInPolyTime.fst _ _).comp (.fst _ _))
-      have hi : ComputableInPolyTime
-          (fun p : ((CNF ℕ × List Bool) × (ℕ ⊕ (ℕ × ℕ))) × (ℕ × ℕ) => p.2.1)
-          (encPair (encPair (encPair encCNF encBits)
-            (encSum encNat (encPair encUnary encUnary))) (encPair encUnary encUnary))
-          encUnary := by fun_prop
-      have hk : ComputableInPolyTime
-          (fun p : ((CNF ℕ × List Bool) × (ℕ ⊕ (ℕ × ℕ))) × (ℕ × ℕ) => p.2.2 + 2)
-          (encPair (encPair (encPair encCNF encBits)
-            (encSum encNat (encPair encUnary encUnary))) (encPair encUnary encUnary))
-          encUnary := by fun_prop
-      exact (ComputableInPolyTime.dropUnary (encA := encPair encNat encBool)).comp
-        ((ComputableInPolyTime.listGetDWithInput hφ hi []).prod hk)
-    exact SAT.computableInPolyTime_clause.comp
-      (((ComputableInPolyTime.fst _ _).comp (.fst _ _)).prod hclause)
-  · fun_prop [SAT.assignment]
+  refine ComputableInPolyTime.sumElimWithInput (.snd _ _) (by fun_prop [SAT.assignment]) ?_
+  have hclause : ComputableInPolyTime
+      (fun p : ((CNF ℕ × List Bool) × (ℕ ⊕ (ℕ × ℕ))) × (ℕ × ℕ) =>
+        (p.1.1.1.getD p.2.1 []).drop (p.2.2 + 2))
+      (encPair (encPair (encPair encCNF encBits) (encSum encNat (encPair encUnary encUnary)))
+        (encPair encUnary encUnary)) (encList (encPair encNat encBool)) :=
+    (ComputableInPolyTime.dropUnary (encA := encPair encNat encBool)).comp
+      ((ComputableInPolyTime.listGetDWithInput
+        ((ComputableInPolyTime.fst encCNF encBits).comp
+          ((ComputableInPolyTime.fst _ _).comp (.fst _ _)))
+        (ComputableInPolyTime.snd _ _).fst' []).prod
+        (f := _) (g := fun p => p.2.2 + 2) (by fun_prop))
+  exact SAT.computableInPolyTime_clause.comp
+    (ComputableInPolyTime.prod (f := fun p => p.1.1) (by fun_prop) hclause)
 
 /-- The forward witness map is polynomial-time. -/
 @[fun_prop]

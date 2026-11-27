@@ -94,16 +94,9 @@ theorem length_parallelGenerator {generator : List Bool → List Bool} {length :
     (hlen : ∀ {seed : List Bool}, (generator seed).length = length seed.length)
     (count width : ℕ) (seed : List Bool) :
     (parallelGenerator generator count width seed).length = count * length width := by
-  unfold parallelGenerator
-  rw [List.length_flatten, List.map_map, Function.comp_def]
-  have hmap : List.map (fun x => (generator x).length) (BitString.listRows count width seed) =
-      List.replicate count (length width) := by
-    apply List.ext_getElem (by simp)
-    intro i hi _
-    have hi' : i < count := by simpa using hi
-    simp only [List.getElem_map, List.getElem_replicate, BitString.listRows,
-      List.getElem_range, BitString.length_listRow, hlen]
-  rw [hmap, List.sum_replicate, smul_eq_mul]
+  simp only [parallelGenerator, List.length_flatten, BitString.listRows, List.map_map,
+    Function.comp_def, hlen, BitString.length_listRow, List.map_const', List.length_range,
+    List.sum_replicate, smul_eq_mul]
 
 private theorem eval_replicate_sampleList_bind_flatten (f : List Bool → List Bool)
     (count width : ℕ) :
@@ -111,12 +104,9 @@ private theorem eval_replicate_sampleList_bind_flatten (f : List Bool → List B
         let outs ← OracleComp.replicate count (BitString.sampleList width >>= fun s => pure (f s))
         pure outs.flatten) =
       (BitString.uniformList (count * width)).map (parallelGenerator f count width) := by
-  have hlaw :
-      ProbComp.eval (BitString.sampleList width >>= fun s => pure (f s)) =
-        (BitString.uniformList width).map f := by
-    simp only [ProbComp.eval_bind, BitString.eval_sampleList, ProbComp.eval_pure]
-    rw [show (fun s => PMF.pure (f s)) = PMF.pure ∘ f from rfl, PMF.bind_pure_comp]
-  rw [ProbComp.eval_bind, ProbComp.eval_replicate_of_uniformList count width _ f hlaw]
+  rw [ProbComp.eval_bind, ProbComp.eval_replicate_of_uniformList count width _ f (by
+    simp only [ProbComp.eval_bind, BitString.eval_sampleList, ProbComp.eval_pure,
+      show (fun s => PMF.pure (f s)) = PMF.pure ∘ f from rfl, PMF.bind_pure_comp])]
   simp only [ProbComp.eval_pure,
     show (fun a : List (List Bool) => PMF.pure a.flatten) = PMF.pure ∘ List.flatten from rfl,
     PMF.bind_pure_comp, PMF.map_comp]
@@ -127,17 +117,15 @@ private theorem eval_replicate_sampleList_uniform_flatten (count width : ℕ) :
         let outs ← OracleComp.replicate count (BitString.sampleList width)
         pure outs.flatten) =
       BitString.uniformList (count * width) := by
-  have hlaw :
-      ProbComp.eval (BitString.sampleList width) = (BitString.uniformList width).map id := by
-    rw [BitString.eval_sampleList, PMF.map_id]
-  rw [ProbComp.eval_bind, ProbComp.eval_replicate_of_uniformList count width _ id hlaw]
+  rw [ProbComp.eval_bind, ProbComp.eval_replicate_of_uniformList count width _ id
+    (by rw [BitString.eval_sampleList, PMF.map_id])]
   simp only [ProbComp.eval_pure,
     show (fun a : List (List Bool) => PMF.pure a.flatten) = PMF.pure ∘ List.flatten from rfl,
     PMF.bind_pure_comp, PMF.map_comp]
   conv_rhs => rw [← PMF.map_id (BitString.uniformList (count * width))]
-  refine PMF.map_congr_on_support _ _ _ fun w hw => ?_
-  simpa only [Function.comp_def, List.map_id, id_eq] using
-    BitString.flatten_listRows_of_length (BitString.length_of_mem_support_uniformList hw)
+  exact PMF.map_congr_on_support _ _ _ fun w hw => by
+    simpa only [Function.comp_def, List.map_id, id_eq] using
+      BitString.flatten_listRows_of_length (BitString.length_of_mem_support_uniformList hw)
 
 /-- **Boneh–Shoup Theorem 3.2 (uniform strict-PPT word layer, pp. 54–59):** if `generator` is a
 `PseudorandomGenerator` with output length `length` and `count` is a unary polynomial-time copy
@@ -153,51 +141,33 @@ theorem computationallyIndistinguishable_parallelGenerator
       (fun n => (BitString.uniformList (count n * n)).map
         (parallelGenerator generator (count n) n))
       (fun n => BitString.uniformList (count n * length n)) := by
-  let orig : ℕ → ProbComp (List Bool) :=
-    fun n => BitString.sampleList n >>= fun s => pure (generator s)
-  let repl : ℕ → ProbComp (List Bool) := fun n => BitString.sampleList (length n)
-  let process : ℕ → List (List Bool) → ProbComp (List Bool) := fun _ xs => pure xs.flatten
+  let orig (n : ℕ) : ProbComp (List Bool) :=
+    BitString.sampleList n >>= fun s => pure (generator s)
+  let repl (n : ℕ) : ProbComp (List Bool) := BitString.sampleList (length n)
   have horig : IsPPTOn encUnary encBits orig := by
     dsimp only [orig]
-    have hs : IsPPTOn encUnary encBits (fun n => BitString.sampleList n) :=
+    have _ : IsPPTOn encUnary encBits BitString.sampleList :=
       Cslib.Probability.isPPTOn_sampleList
-    have hp := hG.polyTime
+    have _ := hG.polyTime
     ppt
   have hrepl : IsPPTOn encUnary encBits repl := by
     dsimp only [repl]
-    have hlen := hG.polyTime_length
+    have _ := hG.polyTime_length
     ppt
   have hprocess : IsPPTOn (encPair encUnary (encList encBits)) encBits
-      (fun p => process p.1 p.2) := by
-    dsimp only [process]
-    have hflat : ComputableInPolyTime (fun p : ℕ × List (List Bool) => p.2.flatten)
-        (encPair encUnary (encList encBits)) encBits :=
-      ComputableInPolyTime.bitsFlatten (.snd encUnary (encList encBits))
-    exact hflat.isPPTOn
+      (fun p => pure p.2.flatten) :=
+    (ComputableInPolyTime.bitsFlatten (.snd encUnary (encList encBits))).isPPTOn
   have hind : ComputationallyIndistinguishable
       (fun n => ProbComp.eval (orig n)) (fun n => ProbComp.eval (repl n)) := by
-    have hind0 := hG.indistinguishable
-    unfold generatorEnsemble at hind0
-    have hfun :
-        (fun n => ProbComp.eval (orig n)) = fun n => (BitString.uniformList n).map generator := by
-      funext n
-      simp only [orig, ProbComp.eval_bind, BitString.eval_sampleList, ProbComp.eval_pure]
-      rw [show (fun s => PMF.pure (generator s)) = PMF.pure ∘ generator from rfl,
+    convert hG.indistinguishable using 2 with n
+    · simp only [orig, generatorEnsemble, ProbComp.eval_bind, BitString.eval_sampleList,
+        ProbComp.eval_pure, show (fun s => PMF.pure (generator s)) = PMF.pure ∘ generator from rfl,
         PMF.bind_pure_comp]
-    have hfun2 : (fun n => ProbComp.eval (repl n)) = fun n => BitString.uniformList (length n) := by
-      funext n
-      simp [repl, BitString.eval_sampleList]
-    simpa only [hfun, hfun2] using hind0
-  have hrep := ComputationallyIndistinguishable.replicate_bind horig hrepl hind hcount hprocess
-  have hL : (fun n => ProbComp.eval (OracleComp.replicate (count n) (orig n) >>= process n)) =
-      fun n => (BitString.uniformList (count n * n)).map
-        (parallelGenerator generator (count n) n) := by
-    funext n
-    exact eval_replicate_sampleList_bind_flatten generator (count n) n
-  have hR : (fun n => ProbComp.eval (OracleComp.replicate (count n) (repl n) >>= process n)) =
-      fun n => BitString.uniformList (count n * length n) := by
-    funext n
-    exact eval_replicate_sampleList_uniform_flatten (count n) (length n)
-  simpa only [hL, hR] using hrep
+    · simp [repl, BitString.eval_sampleList]
+  have hrep := ComputationallyIndistinguishable.replicate_bind
+    (process := fun _ xs => pure xs.flatten) horig hrepl hind hcount hprocess
+  dsimp only [orig, repl] at hrep
+  simpa only [eval_replicate_sampleList_bind_flatten,
+    eval_replicate_sampleList_uniform_flatten] using hrep
 
 end Cslib.Crypto

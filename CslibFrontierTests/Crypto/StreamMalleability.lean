@@ -118,7 +118,8 @@ theorem eval_ccaOneTimeGame_prfCipher_zero (bit : Bool) :
     ProbComp.eval ((prfCipher xorFamily xorFamily_polyTime xorFamily_length).ccaOneTimeGame
       prfCipherCCAAdversary bit 0) = PMF.pure false := by
   simp only [SymmetricCipher.ccaOneTimeGame, prfCipherCCAAdversary,
-    SymmetricCipher.oneTimeCCAOracle, unframe_encPair_encBits, dropFrame_encPair_encBits,
+    SymmetricCipher.maulCCAAdversary, SymmetricCipher.oneTimeCCAOracle, unframe_encPair_encBits,
+    dropFrame_encPair_encBits,
     List.replicate_zero, ite_self, List.isEmpty_nil, List.length_nil, beq_self_eq_true,
     Bool.and_self, Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun k hk =>
