@@ -51,7 +51,8 @@ since `C(m, j) ≤ C(2 m, 2 j)`, and up to size `m` the coefficients decrease in
 `BitString.abs_fourierCoeff_signVal_majority_le_singleton`,
 `BitString.abs_fourierCoeff_signVal_majority_le_of_card_le`)
 [O'Donnell, Exercise 5.21][ODonnell2014]. The exercise's asymptotic
-`C(2 m, m) / 4 ^ m ∼ √(2 / (n π))` is not formalized. The coefficients on sets `S`, `T` with
+`C(2 m, m) / 4 ^ m ∼ √(2 / (n π))` is, squared, the degree-one case `W^1[Maj_n] → 2 / π` of
+`BitString.tendsto_levelWeight_signVal_majority`. The coefficients on sets `S`, `T` with
 `|S| + |T| = n + 1` agree up to the sign `(-1) ^ ((n - 1) / 2)`, so `(n - k + 1) W^{n-k+1} = k W^k`
 (`BitString.fourierCoeff_signVal_majority_of_card_add_card`,
 `BitString.card_mul_levelWeight_signVal_majority`)
@@ -61,8 +62,9 @@ decreases as `n` grows (`BitString.levelWeight_signVal_majority_succ_lt`)
 `Stab_ρ[Maj_n] = ∑_k ρ ^ k W^k` strictly decreases from `n` to `n + 2` for `0 < ρ < 1`
 (`BitString.noiseStability_signVal_majority_succ_lt`): the weight lost on the levels up to `n`
 moves to the new top level `n + 2`, where `ρ ^ k` is smaller
-[O'Donnell, Theorem 5.18][ODonnell2014]. The asymptotic bounds of Theorem 5.18 are not
-formalized.
+[O'Donnell, Theorem 5.18][ODonnell2014]. The limits of the level weights and of the noise
+stability (Theorems 5.22 and 2.45) and the lower bound of Theorem 5.18 are in
+`CslibFrontier.Foundations.BooleanAnalysis.MajorityStability`.
 
 ## Usage
 
@@ -412,9 +414,9 @@ theorem levelWeight_signVal_majority_succ_lt (m j : ℕ) (hj : j ≤ m) :
 /-- **The noise stability of majority decreases in `n`** [O'Donnell, Theorem 5.18][ODonnell2014]:
 for `0 < ρ < 1`, `Stab_ρ[Maj_n]` is strictly smaller on `n + 2 = 2 m + 3` bits than on
 `n = 2 m + 1` bits. At the endpoints the two agree: both are `0` at `ρ = 0` (majority is
-unbiased) and `1` at `ρ = 1`. The bounds of Theorem 5.18 by `(2 / π) arcsin ρ` are not
-formalized. The levels up to `n` lose weight, which the new top level `n + 2` gains, and
-`ρ ^ k ≥ ρ ^ n > ρ ^ (n + 2)` there. -/
+unbiased) and `1` at `ρ = 1`. The lower bound of Theorem 5.18 by `(2 / π) arcsin ρ` is
+`BitString.le_noiseStability_signVal_majority`. The levels up to `n` lose weight, which the new
+top level `n + 2` gains, and `ρ ^ k ≥ ρ ^ n > ρ ^ (n + 2)` there. -/
 theorem noiseStability_signVal_majority_succ_lt (m : ℕ) {ρ : ℝ} (h0 : 0 < ρ) (h1 : ρ < 1) :
     noiseStability ρ (fun x => signVal (majority (2 * (m + 1) + 1) x)) <
       noiseStability ρ (fun x => signVal (majority (2 * m + 1) x)) := by

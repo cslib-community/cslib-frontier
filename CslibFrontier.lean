@@ -5296,6 +5296,7 @@ public import CslibFrontier.Computability.BranchingProgram.ReadOnce
 public import CslibFrontier.Crypto.Computational.Encryption.OFBMode
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Native.Consolidate
 public import CslibFrontier.Algorithms.Lean.Yates
+public import CslibFrontier.Foundations.Analysis.SpecialFunctions.ArcsinSeries
 public import CslibFrontier.Computability.Complexity.Problems.NCL.HWord.RewriteReduction
 public import CslibFrontier.Foundations.Combinatorics.Expander.AffinePlane
 public import CslibFrontier.GameTheory.Strategic.Nash
@@ -6632,6 +6633,7 @@ public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Execution
 public import CslibFrontier.Computability.BranchingProgram.ReadOnceParity
 public import CslibFrontier.Crypto.Computational.Homomorphic.FixedKey.Security
 public import CslibFrontier.Foundations.Data.Code.Interleaved
+public import CslibFrontier.Foundations.BooleanAnalysis.MajorityStability
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.NodeFrame
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Hadamard
 public import CslibFrontier.GameTheory.Cooperative.MulticastCostSharing
