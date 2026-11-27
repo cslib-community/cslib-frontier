@@ -425,23 +425,9 @@ private theorem valid_of_mem_axisChallenge {n p precision : ℕ} [NeZero n] [NeZ
   obtain ⟨inds, hinds, hx⟩ := hc
   rw [ProbComp.eval_map, PMF.mem_support_map_iff] at hx
   obtain ⟨xs, hxs, rfl⟩ := hx
-  obtain ⟨hlen, hib⟩ := (ProbComp.mem_support_replicate_iff _ _ _).mp hinds
-  obtain ⟨hxn, hxb⟩ := (ProbComp.mem_support_replicate_iff _ _ _).mp hxs
-  have bound {q w v : ℕ} [NeZero q]
-      (h : v ∈ (ProbComp.eval (ProbComp.sampleModIndex w q)).support) :
-      v < q := by
-    rw [ProbComp.sampleModIndex_eq_sampleModNat _ (NeZero.pos q)] at h
-    exact ProbComp.lt_of_mem_support_sampleModNat (NeZero.pos q) h
-  cases inds with
-  | nil => simp at hlen
-  | cons i is =>
-    refine ⟨⟨i, bound (hib i List.mem_cons_self)⟩, fun j => (xs.getD j.val 0 : ℕ), ?_⟩
-    congr 1
-    apply List.ext_getElem
-    · simp [hxn]
-    · intro j hx hj
-      simp only [List.getElem_ofFn, List.getD_eq_getElem _ _ hx,
-        ZMod.val_natCast_of_lt (bound (hxb _ (List.getElem_mem hx)))]
+  obtain ⟨v, rfl⟩ := ProbComp.exists_vector_of_mem_support_replicate_sampleModIndex hinds
+  obtain ⟨x, rfl⟩ := ProbComp.exists_vector_of_mem_support_replicate_sampleModIndex hxs
+  exact ⟨⟨(v 0).val, ZMod.val_lt _⟩, x, by simp [List.ofFn_succ]⟩
 
 /-- The verifier accepts with certainty whenever the represented point and line tables
 agree on every axis and point, independently of the precision used for sampling. -/
