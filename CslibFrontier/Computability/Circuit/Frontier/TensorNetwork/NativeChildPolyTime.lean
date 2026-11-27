@@ -358,9 +358,7 @@ private theorem packetVertices_polyTime {P : δ → ℕ} {cedges : δ → List (
         (ComputableInPolyTime.unary_to_binary.comp hy))))
   have hpqb : ComputableInPolyTime (fun p : δ × ℕ =>
       childPorts (cedges p.1) ((groups p.1).count (g p.1) + p.2)) e₁ (encList encNat) :=
-    (ComputableInPolyTime.mapWithInput (f := fun _ j => j) hpq
-      (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _))).of_enc_eq
-      fun p => by rw [List.map_id']
+    hpq.reencodeList .unary_to_binary
   -- The tags of the ports.
   have hR : ComputableInPolyTime (fun x => (portEdges (groups x) (g x) (ends x) Prod.fst).length)
       encIn encUnary :=
