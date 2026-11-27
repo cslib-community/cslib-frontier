@@ -99,7 +99,8 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
 unary. The modulus bounds the conversion of the binary result back to unary. -/
 @[fun_prop] theorem evalCoeffListMod_unary {α : Type} {enc : α ↪ List Bool} {p z : α → ℕ}
     {l : α → List ℕ} (hp : ComputableInPolyTime p enc encUnary)
-    (hz : ComputableInPolyTime z enc encUnary) (hl : ComputableInPolyTime l enc (encList encUnary)) :
+    (hz : ComputableInPolyTime z enc encUnary)
+    (hl : ComputableInPolyTime l enc (encList encUnary)) :
     ComputableInPolyTime (fun x => Polynomial.evalCoeffListMod (p x) (z x) (l x)) enc encUnary := by
   have hcoeff : ComputableInPolyTime l enc (encList encNat) := by
     simpa using (map unary_to_binary).comp hl

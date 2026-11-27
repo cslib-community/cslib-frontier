@@ -50,7 +50,8 @@ noncomputable def sampleTableauChallenges (R p precision : ℕ) : ProbComp (List
 are polynomial-time unary parameters. Both output vectors contain framed unary residues. -/
 theorem isPPTOn_sampleTableauChallenges {α : Type} {enc : α ↪ List Bool}
     {R p precision : α → ℕ} (hR : ComputableInPolyTime R enc encUnary)
-    (hp : ComputableInPolyTime p enc encUnary) (hprec : ComputableInPolyTime precision enc encUnary) :
+    (hp : ComputableInPolyTime p enc encUnary)
+    (hprec : ComputableInPolyTime precision enc encUnary) :
     IsPPTOn enc (encPair (encList encUnary) (encList encUnary))
       (fun a => sampleTableauChallenges (R a) (p a) (precision a)) := by
   have hsize {f : α → ℕ} (h : ComputableInPolyTime f enc encUnary) :
@@ -68,7 +69,8 @@ theorem isPPTOn_sampleTableauChallenges {α : Type} {enc : α ↪ List Bool}
 /-- Every supported pair is the list of canonical representatives of two `R`-dimensional
 residue vectors, including the unique pair of empty lists at dimension zero. -/
 theorem exists_vectors_of_mem_support_sampleTableauChallenges {R p precision : ℕ} [NeZero p]
-    {c : List ℕ × List ℕ} (hc : c ∈ (ProbComp.eval (sampleTableauChallenges R p precision)).support) :
+    {c : List ℕ × List ℕ}
+    (hc : c ∈ (ProbComp.eval (sampleTableauChallenges R p precision)).support) :
     ∃ r z : Fin R → ZMod p, c =
       (List.ofFn fun j => (r j).val, List.ofFn fun j => (z j).val) := by
   simp only [sampleTableauChallenges, ProbComp.eval_bind, ProbComp.eval_map,
