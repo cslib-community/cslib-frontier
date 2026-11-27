@@ -282,15 +282,6 @@ private structure Sim (A : AState) (s : State) : Prop where
   tcb : s.tcb = false
   order : s.order = none
 
-private theorem runTop_append (F : List PBConstr) (obj : Option Objective) (s : State)
-    (ts us : List TopStep) :
-    runTop F obj s (ts ++ us) = (runTop F obj s ts).bind fun s' => runTop F obj s' us := by
-  induction ts generalizing s with
-  | nil => simp [runTop_nil]
-  | cons t ts ih =>
-    simp only [List.cons_append, runTop_cons]
-    cases stepTop F obj s t <;> simp [ih]
-
 private theorem all_lookup_isSome {db : List (ℕ × PBConstr)} {ids : List ℕ}
     (h : ∀ i ∈ ids, (lookup db i).isSome) : ids.all (fun i => (lookup db i).isSome) = true :=
   List.all_eq_true.2 h

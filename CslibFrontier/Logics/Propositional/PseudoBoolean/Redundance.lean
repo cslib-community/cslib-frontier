@@ -1971,6 +1971,18 @@ theorem runTop_cons (F : List PBConstr) (obj : Option Objective) (s : State) (t 
   simp only [runTop]
   cases stepTop F obj s t <;> rfl
 
+/-- Running a concatenation of steps runs the first part, then the second from its result. -/
+theorem runTop_append (F : List PBConstr) (obj : Option Objective) (s : State)
+    (ts ts' : List TopStep) :
+    runTop F obj s (ts ++ ts') = (runTop F obj s ts).bind fun s' => runTop F obj s' ts' := by
+  induction ts generalizing s with
+  | nil => simp [runTop_nil]
+  | cons t ts ih =>
+    rw [List.cons_append, runTop_cons, runTop_cons]
+    rcases stepTop F obj s t with _ | s₁
+    · rfl
+    · exact ih s₁
+
 /-- An implicational step that deletes nothing changes only the database and the next number. -/
 theorem stepTop_step_of_ne_del (F : List PBConstr) (obj : Option Objective) (s : State)
     {st : Step} (h : ∀ ids, st ≠ .del ids) :
