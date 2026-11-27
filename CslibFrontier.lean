@@ -8629,6 +8629,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cutting.
 public import CslibFrontier.Foundations.LinearAlgebra.VariableCopyPlacement
 public import CslibFrontier.Logics.Propositional.CNF.ExactThree
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.GridDrawing.UnitRoute
+public import CslibFrontier.Algorithms.LinearAlgebra.SparseDescriptorRealization
 public import CslibFrontier.Computability.PostCorrespondence.Undecidable
 public import CslibFrontier.Logics.FirstOrder.Ordered.Multiplication
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi

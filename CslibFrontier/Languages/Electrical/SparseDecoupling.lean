@@ -7,7 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.LinearAlgebra.SparseDescriptorCertificate
+public import CslibFrontier.Algorithms.LinearAlgebra.SparseDescriptorRealization
 public import CslibFrontier.Languages.Electrical.LinearCircuit
 import Mathlib.Data.List.GetD
 
@@ -21,10 +21,27 @@ accepted structured certificate (`Cslib.LinearAlgebra.SparseDecouplingCert`), wh
 sparse and much faster than that of a dense `Cslib.LinearAlgebra.DecouplingCert` on circuits of
 more than a few nodes.
 
+With the input data of a `Cslib.LinearAlgebra.SparseRealizationCert` and the sparse
+equilibrium check `Cslib.LinearAlgebra.isEquilibriumSparse`, nothing dense is checked: the
+checked proper realization `ẋ = A x + B u`, `y - y₀ = C x + D u` for selected probes and the
+input ports (`Cslib.Electrical.Netlist.sparseRealization`) is the same statement as the dense
+`Cslib.Electrical.Netlist.isTrajectoryOn_iff_realization`, and its response kernel gives the
+zero-state response of the circuit (`IsTrajectoryOn.probe_sub_eq_integral_sparse`).
+
+## Main definitions
+
+* `Cslib.Electrical.Netlist.eSparse`, `fSparse`, `gSparse`, `probeSparse`: sparse rows of the
+  modified nodal equations and of the probes.
+* `Cslib.Electrical.Netlist.sparseRealization`: the checked realization.
+
 ## Main results
 
 * `Cslib.Electrical.Netlist.isExponentiallyStable_of_decoupling`
-* `Cslib.Electrical.Netlist.isExponentiallyStable_of_sparseCheck`
+* `Cslib.Electrical.Netlist.isExponentiallyStable_of_sparseCheck`,
+  `Cslib.Electrical.Netlist.isExponentiallyStable_of_sparseChecks`
+* `Cslib.Electrical.Netlist.isTrajectoryOn_iff_sparseRealization`,
+  `Cslib.Electrical.Netlist.IsTrajectoryOn.probe_sub_eq_sparse`,
+  `Cslib.Electrical.Netlist.IsTrajectoryOn.probe_sub_eq_integral_sparse`
 -/
 
 public section
@@ -217,6 +234,149 @@ theorem isExponentiallyStable_of_sparseCheck {d : SparseDecouplingCert} {z₀ : 
     (isEquilibrium_of_isEquilibriumRows hz)
     (SparseDecouplingCert.A_toDecoupling mna_E_eq mna_F_eq hd ▸ hA)
   rwa [SparseDecouplingCert.Q₁'_toDecoupling] at this
+
+/-- **Certified exponential stability of a circuit, fully sparse.** The conclusions of
+`isExponentiallyStable_of_sparseCheck`, with the equilibrium checked against the sparse rows
+of `F` (`isEquilibriumSparse`) instead of the dense rows. -/
+theorem isExponentiallyStable_of_sparseChecks {d : SparseDecouplingCert} {z₀ : List ℚ}
+    (hc : c.check = true) (hd : d.check c.size c.eSparse c.fSparse = true)
+    (hz : isEquilibriumSparse c.size c.fSparse c.bList z₀ = true)
+    (hA : (toEuclideanCLM (𝕜 := ℝ) (realOfRows d.k d.k d.A)).IsExponentiallyStable) :
+    c.IsTrajectoryOn 0 (fun _ j => realOfList c.size z₀ (Fin.castAdd _ j))
+        (fun _ b => realOfList c.size z₀ (Fin.natAdd _ b)) (Ici 0) ∧
+      (∀ x₀ : Fin d.k → ℝ, ∃ φ i, c.IsTrajectoryOn 0 φ i (Ici 0) ∧
+        realOfSparse d.k c.size d.Uᵢ *ᵥ Fin.append (φ 0) (i 0) = x₀) ∧
+      ∃ M α : ℝ, 0 < α ∧ ∀ φ i, c.IsTrajectoryOn 0 φ i (Ici 0) → ∀ t ≥ 0,
+        ‖WithLp.toLp 2 (Fin.append (φ t) (i t) - realOfList c.size z₀)‖ ≤
+          M * Real.exp (-(α * t)) *
+            ‖WithLp.toLp 2 (Fin.append (φ 0) (i 0) - realOfList c.size z₀)‖ := by
+  have := isExponentiallyStable_of_decoupling hc
+    (SparseDecouplingCert.toDecoupling mna_E_eq mna_F_eq hd)
+    (isEquilibrium_of_isEquilibriumSparse mna_F_eq rfl hz)
+    (SparseDecouplingCert.A_toDecoupling mna_E_eq mna_F_eq hd ▸ hA)
+  rwa [SparseDecouplingCert.Q₁'_toDecoupling] at this
+
+/-! ### Checked realizations through structured decouplings -/
+
+variable (c) in
+/-- The sparse rows of the input matrix `G`. -/
+@[expose] def gSparse : List (List (ℕ × ℚ)) := sparseOfRows c.gRows
+
+variable (c) in
+/-- The sparse rows of the output map of a list of probes. -/
+@[expose] def probeSparse (probes : List Probe) : List (List (ℕ × ℚ)) :=
+  sparseOfRows (c.probeRows probes)
+
+/-- The input matrix of the modified nodal equations from its sparse rows. -/
+theorem mna_G_eq : c.mna.G = realOfSparse c.size c.inputs c.gSparse :=
+  (realOfSparse_sparseOfRows _ _ _).symm
+
+variable (c) in
+/-- The checked realization of a circuit through a structured decoupling `d` with input data
+`e`, for the probes `probes` and the input ports of the circuit:
+`ẋ = A x + B u`, `y = C x + D u` with `A = d.A`, `B = e.B`, `C = H Q₁` and `D = -H Q₂ P₂ G`
+computed from sparse rows (`SparseRealizationCert.outputRows`, `feedthroughRows`). -/
+@[expose] noncomputable def sparseRealization (d : SparseDecouplingCert)
+    (e : SparseRealizationCert) (probes : List Probe) :
+    LTISystem (Fin d.k) (Fin c.inputs) (Fin probes.length) where
+  A := realOfRows d.k d.k d.A
+  B := realOfSparse d.k c.inputs e.B
+  C := realOfSparse probes.length d.k (SparseRealizationCert.outputRows d (c.probeSparse probes))
+  D := realOfSparse probes.length c.inputs (e.feedthroughRows d (c.probeSparse probes))
+
+/-- **Checked proper realization, structured certificate.** Let the netlist be well formed, `d`
+an accepted structured decoupling, `e` accepted input data for it and `z₀` a checked
+equilibrium. On a time set with unique derivatives and for every input signal `u`, `(φ, i)` is
+a circuit trajectory exactly when
+
+1. `z = (φ, i)` is reconstructed from the state `x = Uᵢ₁ (z - z₀)` (the first `d.k` rows of
+   `d.Uᵢ`) and the input: `z = z₀ + Q₁ x - (Q₂ P₂ G) u`, with the sparse rows
+   `d.stateRows` of `Q₁` and `e.inputRows d` of `Q₂ P₂ G`, and
+2. `x` solves `ẋ = A x + B u` of `c.sparseRealization d e probes`.
+
+The probed outputs then satisfy `y - y₀ = C x + D u` (`IsTrajectoryOn.probe_sub_eq_sparse`). -/
+theorem isTrajectoryOn_iff_sparseRealization {d : SparseDecouplingCert}
+    {e : SparseRealizationCert} {z₀ : List ℚ} (hc : c.check = true)
+    (hd : d.check c.size c.eSparse c.fSparse = true)
+    (he : e.check d c.size c.eSparse c.fSparse c.gSparse = true)
+    (hz : isEquilibriumSparse c.size c.fSparse c.bList z₀ = true) (probes : List Probe)
+    {s : Set ℝ} (hs : UniqueDiffOn ℝ s) {u : ℝ → Fin c.inputs → ℝ} {φ : ℝ → Fin c.nodes → ℝ}
+    {i : ℝ → Fin c.branches.length → ℝ} :
+    c.IsTrajectoryOn u φ i s ↔
+      (∀ t ∈ s, Fin.append (φ t) (i t) = realOfList c.size z₀ +
+          realOfSparse c.size d.k d.stateRows *ᵥ (realOfSparse d.k c.size d.Uᵢ *ᵥ
+            (Fin.append (φ t) (i t) - realOfList c.size z₀)) -
+          realOfSparse c.size c.inputs (e.inputRows d) *ᵥ u t) ∧
+      (c.sparseRealization d e probes).IsSolutionOn u
+        (fun t => realOfSparse d.k c.size d.Uᵢ *ᵥ
+          (Fin.append (φ t) (i t) - realOfList c.size z₀)) s := by
+  set D := SparseDecouplingCert.toDecoupling mna_E_eq mna_F_eq hd
+  have hQ₂ := (SparseRealizationCert.Q₂_P₂_G_toDecoupling mna_E_eq mna_F_eq mna_G_eq hd he).1
+  rw [isTrajectoryOn_iff hc hs, (D.isSolutionOn_iff_realization
+    (realOfSparse probes.length c.size (c.probeSparse probes))
+    (isEquilibrium_of_isEquilibriumSparse mna_F_eq rfl hz) hs),
+    SparseRealizationCert.realization_toDecoupling mna_E_eq mna_F_eq mna_G_eq hd he,
+    SparseDecouplingCert.Q₁'_toDecoupling, SparseDecouplingCert.Q₁_toDecoupling, ← hQ₂]
+  simp only [mulVec_mulVec, Matrix.mul_assoc]
+  rfl
+
+/-- **Output equation, structured certificate.** Along a circuit trajectory, the probed outputs
+differ from their values at the operating point by `C x + D u`, where `x = Uᵢ₁ (z - z₀)` is the
+state of `c.sparseRealization d e probes`. -/
+theorem IsTrajectoryOn.probe_sub_eq_sparse {d : SparseDecouplingCert}
+    {e : SparseRealizationCert} {z₀ : List ℚ} (hc : c.check = true)
+    (hd : d.check c.size c.eSparse c.fSparse = true)
+    (he : e.check d c.size c.eSparse c.fSparse c.gSparse = true)
+    (hz : isEquilibriumSparse c.size c.fSparse c.bList z₀ = true) (probes : List Probe)
+    {s : Set ℝ} (hs : UniqueDiffOn ℝ s) {u : ℝ → Fin c.inputs → ℝ} {φ : ℝ → Fin c.nodes → ℝ}
+    {i : ℝ → Fin c.branches.length → ℝ} (h : c.IsTrajectoryOn u φ i s) {t : ℝ} (ht : t ∈ s) :
+    (fun o => (probes.get o).eval (φ t) (i t)) -
+        (fun o => (probes.get o).eval (fun j => realOfList c.size z₀ (Fin.castAdd _ j))
+          (fun b => realOfList c.size z₀ (Fin.natAdd _ b))) =
+      (c.sparseRealization d e probes).C *ᵥ
+          (realOfSparse d.k c.size d.Uᵢ *ᵥ (Fin.append (φ t) (i t) - realOfList c.size z₀)) +
+        (c.sparseRealization d e probes).D *ᵥ u t := by
+  set D := SparseDecouplingCert.toDecoupling mna_E_eq mna_F_eq hd
+  have hQ₂ := (SparseRealizationCert.Q₂_P₂_G_toDecoupling mna_E_eq mna_F_eq mna_G_eq hd he).1
+  have hrec := ((isTrajectoryOn_iff_sparseRealization hc hd he hz probes hs).1 h).1 t ht
+  rw [← SparseDecouplingCert.Q₁_toDecoupling mna_E_eq mna_F_eq hd,
+    ← SparseDecouplingCert.Q₁'_toDecoupling mna_E_eq mna_F_eq hd, ← hQ₂, ← mulVec_mulVec,
+    ← mulVec_mulVec] at hrec
+  have := D.output_eq (realOfSparse probes.length c.size (c.probeSparse probes)) hrec
+  rw [SparseRealizationCert.realization_toDecoupling mna_E_eq mna_F_eq mna_G_eq hd he,
+    SparseDecouplingCert.Q₁'_toDecoupling] at this
+  have hH : realOfSparse probes.length c.size (c.probeSparse probes) =
+      realOfRows probes.length c.size (c.probeRows probes) := realOfSparse_sparseOfRows _ _ _
+  rw [hH] at this
+  rw [← probeRows_mulVec, ← probeRows_mulVec, Fin.append_castAdd_natAdd]
+  exact this
+
+/-- **Zero-state response of a circuit, structured certificate.** For an input `u` continuous on
+`[0, ∞)` and a circuit trajectory on `[0, ∞)` that starts at the operating point state
+(`x 0 = Uᵢ₁ (z 0 - z₀) = 0`), the probed outputs are, for `t ≥ 0`,
+
+  `y t - y₀ = D u t + ∫ s in 0..t, h (t - s) u s`,
+
+with the response kernel `h t = C exp (t A) B` (`LTISystem.responseKernel`) and the direct
+feedthrough `D` of `c.sparseRealization d e probes`. -/
+theorem IsTrajectoryOn.probe_sub_eq_integral_sparse {d : SparseDecouplingCert}
+    {e : SparseRealizationCert} {z₀ : List ℚ} (hc : c.check = true)
+    (hd : d.check c.size c.eSparse c.fSparse = true)
+    (he : e.check d c.size c.eSparse c.fSparse c.gSparse = true)
+    (hz : isEquilibriumSparse c.size c.fSparse c.bList z₀ = true) (probes : List Probe)
+    {u : ℝ → Fin c.inputs → ℝ} (hu : ContinuousOn u (Ici 0)) {φ : ℝ → Fin c.nodes → ℝ}
+    {i : ℝ → Fin c.branches.length → ℝ} (h : c.IsTrajectoryOn u φ i (Ici 0))
+    (h₀ : realOfSparse d.k c.size d.Uᵢ *ᵥ (Fin.append (φ 0) (i 0) - realOfList c.size z₀) = 0)
+    {t : ℝ} (ht : 0 ≤ t) :
+    (fun o => (probes.get o).eval (φ t) (i t)) -
+        (fun o => (probes.get o).eval (fun j => realOfList c.size z₀ (Fin.castAdd _ j))
+          (fun b => realOfList c.size z₀ (Fin.natAdd _ b))) =
+      (c.sparseRealization d e probes).D *ᵥ u t +
+        ∫ s in 0..t, (c.sparseRealization d e probes).responseKernel (t - s) *ᵥ u s := by
+  have hx := ((isTrajectoryOn_iff_sparseRealization hc hd he hz probes
+    (uniqueDiffOn_Ici 0)).1 h).2
+  rw [h.probe_sub_eq_sparse hc hd he hz probes (uniqueDiffOn_Ici 0) ht,
+    hx.output_eq_Ici hu ht, h₀, mulVec_zero, mulVec_zero, zero_add]
 
 end Netlist
 
