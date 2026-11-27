@@ -12,7 +12,6 @@ public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Crypto.Protocols.MPC.SPDZ
 public import CslibFrontier.Languages.Probabilistic.Notation
 public import Mathlib.Data.ZMod.Basic
-import CslibFrontier.Probability.LinearCombination
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
@@ -69,10 +68,11 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
   input owner `Q_j` and parties `P₁, P₂` become `P₀`'s secret and the corrupt share holder here.
   The `q > 2` hypothesis (needed for `2 ≠ 0`) and the `ProbComp` real/ideal distinguishing and
   bit-guessing games are original framing.
-* The source's repair, "Processing inputs: a second idea" (printed pp. 1035–1036), authenticates
-  each input by `E = A * x` but checks it inside the circuit through validity codes `D` and `F`
-  built from shared triples. That in-circuit check, and a PPT-adversary treatment of the attack,
-  are not formalized here; they remain open under #5829.
+* The source's repair, "Processing inputs: a second idea" (printed pp. 1035–1036, with its
+  analysis continuing to p. 1037), authenticates each input by `E = A * x` but checks it inside
+  the circuit through validity codes `D` and `F` built from shared triples. That in-circuit check,
+  and a PPT-adversary treatment of the attack, are not formalized here; they remain open under
+  #5829.
 * Section 3's single-share relation `α * δ_x = δ_t` is the authentication-code check
   `K^{(i)} δ = δ^{(i)}` of [BonehShoup2023], Section 23.2.4.1, equation (23.2) (printed p. 1012),
   phrased on the SPDZ representation of [DamgardPastroSmartZakarias2012]. The batched scalar-MAC
@@ -100,11 +100,10 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
   `Cslib.Crypto.Protocols.MPC.InputConsistency.naiveBitCheckRealGuessGame`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.naiveBitCheckIdealGuessGame`: `ProbComp` real and
   ideal experiments and distinguishing games for the `δ = 1` attack.
-* `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.tamperParty`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.mkAuthShare2`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.macSingleCheckGame`: corrupt-party tampering of a
-  SPDZ authenticated share, two-party authenticated sharings with `δ = 0`, and the single-input
-  tampering check game.
+* `Cslib.Crypto.Protocols.MPC.InputConsistency.mkAuthShare2`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.macSingleCheckGame`: two-party authenticated
+  sharings with `δ = 0` and the single-input tampering check game (tampering is
+  `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.tamperParty`).
 * `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2.IsValidFor`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2.tamper1`,
@@ -128,10 +127,10 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_naiveBitCheckIdealGuessGame`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.advantage_naiveBitCheckGuessGame`: exact
   distinguishing advantages (`1` vs `0`) and bit-recovery probabilities (`1` vs `1 / 2`).
-* `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.valid_tamperParty_iff`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleCheckGame_honest`,
+* `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleCheckGame_honest`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleCheckGame_eq`: single-share
-  MAC check equivalence `α * δ_x = δ_t`, completeness, and exact `1 / q` soundness.
+  completeness and exact `1 / q` soundness (through
+  `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.valid_tamperParty_iff`).
 * `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2.tamper1_isValidFor_iff`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecLinearCombCheckGame_honest`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecLinearCombCheckGame_eq`,
@@ -143,7 +142,7 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Version 0.6,
-  Section 23.2.4.1 (equation (23.2), p. 1012) and Section 23.4.1 (pp. 1035–1036).
+  Section 23.2.4.1 (equation (23.2), p. 1012) and Section 23.4.1 (pp. 1035–1037).
 * [I. Damgård, V. Pastro, N. P. Smart, S. Zakarias, *Multiparty Computation from Somewhat
   Homomorphic Encryption*][DamgardPastroSmartZakarias2012].
 * [I. Damgård, M. Keller, E. Larraia, V. Pastro, P. Scholl, N. P. Smart, *Practical Covertly
@@ -442,45 +441,6 @@ theorem advantage_naiveBitCheckGuessGame {q : ℕ} [Fact (Nat.Prime q)] (hq : 2 
   norm_num
 
 /-! ### 3. Random-MAC input-authentication repair on `SPDZ.AuthShare` -/
-
-end Cslib.Crypto.Protocols.MPC.InputConsistency
-
-namespace Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare
-
-/-- Corrupt party `i` submits tampered shares: it adds `δ_x` to its value share `a_i` and `δ_t` to
-its MAC share `γ_i`, leaving the public modifier `δ` and every other party's shares unchanged. -/
-@[expose] def tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
-    AuthShare p n where
-  delta := s.delta
-  valShares := s.valShares + Pi.single i δ_x
-  macShares := s.macShares + Pi.single i δ_t
-
-@[simp] theorem secret_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
-    (s.tamperParty i δ_x δ_t).secret = s.secret + δ_x := by
-  simp [tamperParty, secret, Finset.sum_add_distrib]
-
-@[simp] theorem macSum_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
-    (s.tamperParty i δ_x δ_t).macSum = s.macSum + δ_t := by
-  simp [tamperParty, macSum, Finset.sum_add_distrib]
-
-@[simp] theorem delta_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
-    (s.tamperParty i δ_x δ_t).delta = s.delta :=
-  rfl
-
-/-- **Single-share MAC check characterization:** when `s` is valid under `α`, party `i`'s tampered
-submission `(a_i + δ_x, γ_i + δ_t)` is valid under `α` if and only if `α * δ_x = δ_t`. -/
-theorem valid_tamperParty_iff {p n : ℕ} {alpha : ZMod p} {s : AuthShare p n} (hs : s.Valid alpha)
-    (i : Fin n) (δ_x δ_t : ZMod p) :
-    (s.tamperParty i δ_x δ_t).Valid alpha ↔ alpha * δ_x = δ_t := by
-  rw [Valid, macSum_tamperParty, secret_tamperParty, delta_tamperParty, hs]
-  exact ⟨fun h => by linear_combination -h, fun h => by linear_combination -h⟩
-
-end Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare
-
-namespace Cslib.Crypto.Protocols.MPC.InputConsistency
-
-open Cslib.Probability Cslib.ProbComp Cslib.Crypto
-open scoped ENNReal NNReal
 
 /-- The two-party SPDZ authenticated sharing of `x` under MAC key `alpha` with public modifier
 `δ = 0`, determined by party `0`'s value share `x₀` and MAC share `t₀`: party `0` holds

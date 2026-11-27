@@ -23,7 +23,7 @@ Non-vacuous concrete evaluations and theorem instantiations exercising
    - Demonstrates why `q > 2` is necessary for the `δ = 1` shift attack: in `ZMod 2`, `2 = 0`, so
      `f(0 + 1) = 0` and `f(1 + 1) = 0`, leaving the shifted output invariant on `{0, 1}`.
 3. **Random-MAC and random-linear-combination input-authentication repair (`q = 5` and `q = 7`):**
-   - Non-vacuous two-party `SPDZ.AuthShare (ZMod 5) 2` witness built by `mkAuthShare2`,
+   - Non-vacuous two-party `SPDZ.AuthShare 5 2` witness built by `mkAuthShare2`,
      verifying honest check acceptance, detection of an unauthenticated shift `(δ_x = 1, δ_t = 2)`
      by `SPDZ.AuthShare.tamperParty`, and exact `1 / q` forgery probability (`Pr = 1 / 5` for
      `q = 5`, `Pr = 1 / 7` for `q = 7`).

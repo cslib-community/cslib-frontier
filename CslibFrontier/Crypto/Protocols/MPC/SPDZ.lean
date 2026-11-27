@@ -115,6 +115,8 @@ $2 / p$ bound to an arbitrary finite field and removing the `AddCommMonoid` requ
   `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.addConst`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.mulOnline`: homomorphic linear operations and online
   Beaver multiplication on authenticated shares.
+* `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.tamperParty`: a corrupt party's additive tampering
+  of its value and MAC shares.
 * `Cslib.Crypto.Protocols.MPC.SPDZ.OpenedValue`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.PartyCheckInput`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.PartyCheckInput.AuthenticFor`,
@@ -142,6 +144,8 @@ $2 / p$ bound to an arbitrary finite field and removing the `AddCommMonoid` requ
   `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.valShares_mulOnline_eq_beaverMulShare`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.secret_mulOnline_eq_mul`: MAC-invariant preservation,
   value-share agreement with `Beaver.beaverMulShare`, and online product correctness.
+* `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.valid_tamperParty_iff`: a valid share stays valid
+  after party `i` adds `(δ_x, δ_t)` to its shares iff `α * δ_x = δ_t`.
 * `Cslib.Crypto.Protocols.MPC.SPDZ.sum_checkResidual_eq_zero`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.eval_snd_macCheckProtocol_eq_pure_true`: honest completeness of
   batch `MACCheck`.
@@ -352,6 +356,34 @@ theorem Valid.mulOnline {p n : ℕ} [NeZero n] {alpha : ZMod p}
     (ha : sa.Valid alpha) (hb : sb.Valid alpha) (hc : sc.Valid alpha) :
     (mulOnline sa sb sc d e).Valid alpha :=
   Valid.addConst (d * e) (((Valid.smul e ha).add (Valid.smul d hb)).add hc)
+
+/-- Corrupt party `i` submits tampered shares: it adds `δ_x` to its value share `a_i` and `δ_t` to
+its MAC share `γ_i`, leaving the public modifier `δ` and every other party's shares unchanged. -/
+@[expose] def tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    AuthShare p n where
+  delta := s.delta
+  valShares := s.valShares + Pi.single i δ_x
+  macShares := s.macShares + Pi.single i δ_t
+
+@[simp] theorem secret_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).secret = s.secret + δ_x := by
+  simp [tamperParty, secret, Finset.sum_add_distrib]
+
+@[simp] theorem macSum_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).macSum = s.macSum + δ_t := by
+  simp [tamperParty, macSum, Finset.sum_add_distrib]
+
+@[simp] theorem delta_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).delta = s.delta :=
+  rfl
+
+/-- **Single-share MAC check characterization:** when `s` is valid under `α`, party `i`'s tampered
+submission `(a_i + δ_x, γ_i + δ_t)` is valid under `α` if and only if `α * δ_x = δ_t`. -/
+theorem valid_tamperParty_iff {p n : ℕ} {alpha : ZMod p} {s : AuthShare p n} (hs : s.Valid alpha)
+    (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).Valid alpha ↔ alpha * δ_x = δ_t := by
+  rw [Valid, macSum_tamperParty, secret_tamperParty, delta_tamperParty, hs]
+  exact ⟨fun h => by linear_combination -h, fun h => by linear_combination -h⟩
 
 /-- Each party `i`'s value share in `mulOnline` agrees with `Beaver.beaverMulShare` applied to
 the party's value-share triple `⟨sa.valShares i, sb.valShares i, sc.valShares i⟩`. -/
