@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
 public import CslibFrontier.Computability.Complexity.FineGrained.Randomized
 import CslibFrontier.Computability.Complexity.FineGrained.Bounds
 import CslibFrontier.Computability.Complexity.FineGrained.Padding
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
 
 /-!
 # Randomized time bounds with a power in the exponent
@@ -31,6 +32,8 @@ encoded-length factors as the deterministic bound.
   bound through a deterministic promise reduction.
 * `Cslib.Complexity.SolvesWithErrorInPowerExpTime.of_seededVerifier`: allocate a unary seed
   when the verifier's error guarantees hold at every length above a power-exponential bound.
+* `Cslib.Complexity.SolvesWithErrorInPowerExpTime.exists_amplifiedVerifier`: amplify with an
+  input-dependent unary error schedule, preserving the power in the time bound.
 -/
 
 public section
@@ -135,6 +138,159 @@ theorem SolvesWithErrorInPowerExpTime.of_seededVerifier {Q : PromiseProblem α} 
   rw [max_eq_left hpq.le] at henv
   exact (hwork.trans (mul_le_mul_of_nonneg_left henv (Nat.cast_nonneg (K + M)))).trans
     (le_add_of_nonneg_right (Nat.cast_nonneg (K + M)))
+
+/-- A polynomial-time unary schedule `target` can lower bounded two-sided error to
+`(1 / 3) / 2 ^ target a` by strict majority. Both the amplified unary seed length and the
+verifier retain the solver's power in the exponent. The verifier's bound charges the length
+of the whole framed seed input and applies even to seeds of a different length. -/
+theorem SolvesWithErrorInPowerExpTime.exists_amplifiedVerifier {Q : PromiseProblem α}
+    {target : α → ℕ} (htarget : ComputableInPolyTime target enc encUnary)
+    (h : SolvesWithErrorInPowerExpTime Q enc ErrorModel.bounded μ p) :
+    ∃ (width : α → ℕ) (verify : α × List Bool → Bool),
+      ComputableInPowerExpTime width enc encUnary μ p ∧
+      ComputableInPowerExpTime verify (encPair enc encBits) encBool (μ ∘ Prod.fst) p ∧
+      (∀ a ∈ Q.yes, (acceptCount (fun x => !verify x) a (width a) : ℝ) ≤
+        ((1 / 3 : ℝ) / 2 ^ target a) * 2 ^ width a) ∧
+      (∀ a ∈ Q.no, (acceptCount verify a (width a) : ℝ) ≤
+        ((1 / 3 : ℝ) / 2 ^ target a) * 2 ^ width a) := by
+  obtain ⟨C, e, ℓ, V, Tℓ, Sℓ, Tv, Sv, c, hℓ, hV, htime, hyes, hno⟩ := h
+  let rounds (a : α) := 10 * (target a + 1)
+  have hrounds : ComputableInPolyTime rounds enc encUnary :=
+    ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 10)
+      (ComputableInPolyTime.unary_add' htarget (ComputableInPolyTime.const 1))
+  obtain ⟨Tr, Sr, hTr, _, hr⟩ := hrounds.exists_computableInO
+  obtain ⟨cr, hlenR⟩ := hr.length_le_time
+  obtain ⟨cℓ, hlenℓ⟩ := hℓ.length_le_time
+  let X (a : α) : ℝ := 2 ^ (C * (μ a + 1 : ℝ) ^ p)
+  let P (a : α) : ℝ := X a * ((enc a).length + 1) ^ e
+  let R (a : α) : ℕ := ⌈c * P a + c⌉₊
+  have hTℓ (a : α) : (Tℓ a : ℝ) ≤ c * P a + c := by
+    have ht := htime a (List.replicate (ℓ a) false) (List.length_replicate ..)
+    push_cast at ht
+    linarith [Nat.cast_nonneg (α := ℝ) (enc a).length,
+      Nat.cast_nonneg (α := ℝ) (Tv (a, List.replicate (ℓ a) false))]
+  have hR (a : α) (w : List Bool) (hw : w.length = ℓ a) : Tv (a, w) ≤ R a := by
+    have ht := htime a w hw
+    push_cast at ht
+    have ht' : (Tv (a, w) : ℝ) ≤ c * P a + c := by
+      linarith [Nat.cast_nonneg (α := ℝ) (enc a).length, Nat.cast_nonneg (α := ℝ) (Tℓ a)]
+    exact Nat.cast_le.mp (ht'.trans (Nat.le_ceil _))
+  obtain ⟨d, f, g, _, _, hwidth, hverify, herror⟩ :=
+    computableInO_amplifySeededMajority hℓ hr hV hR
+  obtain ⟨K, b, hTr'⟩ := hTr.exists_le
+  let E := max (max e b) 1
+  let size (a : α) (l : ℕ) := ⌈X a * (l + 1 : ℝ) ^ E⌉₊
+  have hbounds {β : Type} (a : β → α) (l : β → ℕ) (hl : ∀ x, (enc (a x)).length ≤ l x) :
+      let size' (x : β) := size (a x) (l x)
+      PolyBounded size' l ∧ PolyBounded size' (Tr ∘ a) ∧ PolyBounded size' (rounds ∘ a) ∧
+        PolyBounded size' (Tℓ ∘ a) ∧ PolyBounded size' (ℓ ∘ a) ∧
+        PolyBounded size' (R ∘ a) := by
+    intro size'
+    have hX (x : β) : 1 ≤ X (a x) := Real.one_le_rpow one_le_two (by positivity)
+    have hL (x : β) : 1 ≤ (l x + 1 : ℝ) := le_add_of_nonneg_left (Nat.cast_nonneg _)
+    have hfull (x : β) : X (a x) * (l x + 1 : ℝ) ^ E ≤ size' x := Nat.le_ceil _
+    have hl' (x : β) : l x ≤ size' x := by
+      have h := (pow_le_pow_right₀ (hL x) (le_max_right (max e b) 1)).trans
+        ((le_mul_of_one_le_left (by positivity) (hX x)).trans (hfull x))
+      rw [pow_one] at h
+      exact Nat.cast_le.mp ((le_add_of_nonneg_right zero_le_one).trans h)
+    have hbound (m : ℕ) (hm : m ≤ E) (x : β) :
+        (((enc (a x)).length : ℝ) + 1) ^ m ≤ (l x + 1 : ℝ) ^ E :=
+      (pow_le_pow_left₀ (by positivity)
+        (add_le_add_left (Nat.cast_le.mpr (hl x)) 1) _).trans (pow_le_pow_right₀ (hL x) hm)
+    have hP (x : β) : P (a x) ≤ size' x :=
+      (mul_le_mul_of_nonneg_left (hbound e ((le_max_left e b).trans (le_max_left _ _)) x)
+        (zero_le_one.trans (hX x))).trans (hfull x)
+    have hTr'' (x : β) : Tr (a x) ≤ K * size' x := by
+      have h := (hbound b ((le_max_right e b).trans (le_max_left _ _)) x).trans
+        ((le_mul_of_one_le_left (by positivity) (hX x)).trans (hfull x))
+      have hb' : ((enc (a x)).length + 1) ^ b ≤ size' x := by exact_mod_cast h
+      exact (hTr' (a x)).trans (Nat.mul_le_mul_left K hb')
+    have hcost (x : β) : c * P (a x) + c ≤ (c * size' x + c : ℕ) := by
+      push_cast
+      exact add_le_add_left (mul_le_mul_of_nonneg_left (hP x) (Nat.cast_nonneg c)) _
+    have hTℓ' (x : β) : Tℓ (a x) ≤ c * size' x + c :=
+      Nat.cast_le.mp ((hTℓ (a x)).trans (hcost x))
+    have hR' (x : β) : R (a x) ≤ c * size' x + c :=
+      Nat.ceil_le.mpr (hcost x)
+    have hTr₀ : PolyBounded size' (Tr ∘ a) := ((PolyBounded.const K).mul .self).mono hTr''
+    have hTℓ₀ : PolyBounded size' (Tℓ ∘ a) :=
+      (((PolyBounded.const c).mul .self).add (.const c)).mono hTℓ'
+    refine ⟨PolyBounded.self.mono hl', hTr₀, ?_, hTℓ₀, ?_,
+      (((PolyBounded.const c).mul .self).add (.const c)).mono hR'⟩
+    · refine ((PolyBounded.const cr).mul (hTr₀.add (.const 1))).mono fun x => ?_
+      simpa only [encUnary_apply, List.length_replicate, Function.comp_apply] using hlenR (a x)
+    · refine ((PolyBounded.const cℓ).mul (hTℓ₀.add (.const 1))).mono fun x => ?_
+      simpa only [encUnary_apply, List.length_replicate, Function.comp_apply] using hlenℓ (a x)
+  have hof {β γ : Type} {enc' : β ↪ List Bool} {out : γ ↪ List Bool} {F : β → γ}
+      {t s : β → ℕ} (a : β → α) (hF : ComputableInO F enc' out t s)
+      (ht : PolyBounded (fun x => size (a x) (enc' x).length) t) :
+      ComputableInPowerExpTime F enc' out (μ ∘ a) p := by
+    obtain ⟨M, j, hM⟩ := ht.exists_le
+    refine ⟨C * j, E * j,
+      (ComputableInTimeO.of_computableInO hF (T := fun x =>
+        ((M * 3 ^ j : ℕ) : ℝ) *
+          ((2 : ℝ) ^ (((C * j : ℕ) : ℝ) * (μ (a x) + 1 : ℝ) ^ p) *
+            ((enc' x).length + 1 : ℝ) ^ (E * j))) ?_).mono
+        (M * 3 ^ j) (fun _ => le_add_of_nonneg_right (Nat.cast_nonneg _)) (fun _ => by positivity)⟩
+    intro x
+    let L : ℝ := (enc' x).length + 1
+    let Y := X (a x) * L ^ E
+    have hY : 1 ≤ Y :=
+      one_le_mul_of_one_le_of_one_le (Real.one_le_rpow one_le_two (by positivity))
+        (one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _)))
+    have hcap : (size (a x) (enc' x).length : ℝ) + 1 ≤ 3 * Y := by
+      have h := (Nat.ceil_lt_add_one (show 0 ≤ Y from zero_le_one.trans hY)).le
+      change (⌈Y⌉₊ : ℝ) + 1 ≤ 3 * Y
+      linarith
+    have hclock : (t x : ℝ) ≤ M * ((size (a x) (enc' x).length : ℝ) + 1) ^ j := by
+      exact_mod_cast hM x
+    refine hclock.trans ((mul_le_mul_of_nonneg_left
+      (pow_le_pow_left₀ (by positivity) hcap j) (Nat.cast_nonneg M)).trans_eq ?_)
+    change (M : ℝ) * (3 * (X (a x) * L ^ E)) ^ j =
+      ((M * 3 ^ j : ℕ) : ℝ) *
+        (2 ^ (((C * j : ℕ) : ℝ) * (μ (a x) + 1 : ℝ) ^ p) * L ^ (E * j))
+    rw [mul_pow, mul_pow, ← pow_mul]
+    have hXj : X (a x) ^ j = (2 : ℝ) ^ (((C * j : ℕ) : ℝ) * (μ (a x) + 1 : ℝ) ^ p) := by
+      dsimp only [X]
+      rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num), Nat.cast_mul]
+      congr 1
+      ring
+    rw [hXj]
+    push_cast
+    ring
+  have hw := hof id hwidth (by
+    obtain ⟨hL, hR, hround, hT, hℓ', _⟩ := hbounds id (fun a => (enc a).length) (fun _ => le_rfl)
+    have hsetup := (((PolyBounded.const 4).mul hround).add hℓ').add (.const 2)
+    exact ((hL.add ((PolyBounded.const 2).mul hR)).add hT).add (hsetup.pow d))
+  have hv := hof Prod.fst hverify (by
+    obtain ⟨hL, hTr', hround, hT, _, hR'⟩ := hbounds Prod.fst
+      (fun x => (encPair enc encBits x).length) (length_le_encPair_left enc encBits)
+    have hn := ((PolyBounded.const 2).mul hround).add (.const 1)
+    have hsetup := ((((PolyBounded.const 4).mul hL).add
+      ((PolyBounded.const 2).mul hTr')).add hT).add (.const 1)
+    exact (hn.mul ((hsetup.pow f).add hR')).add (hn.pow g))
+  have hrates (a : α) : (4 * (1 / 3 : ℝ) * (1 - 1 / 3)) ^ rounds a ≤
+      (1 / 3 : ℝ) / 2 ^ target a := by
+    rw [show (4 * (1 / 3 : ℝ) * (1 - 1 / 3)) = 8 / 9 by norm_num]
+    dsimp only [rounds]
+    rw [pow_mul]
+    calc
+      _ ≤ (1 / 3 : ℝ) ^ (target a + 1) := pow_le_pow_left₀ (by positivity) (by norm_num) _
+      _ ≤ (1 / 3 : ℝ) * (1 / 2) ^ target a := by
+        rw [pow_succ']
+        exact mul_le_mul_of_nonneg_left
+          (pow_le_pow_left₀ (by positivity) (by norm_num) _) (by positivity)
+      _ = _ := by simp only [div_eq_mul_inv, one_mul, inv_pow]
+  have herrEq (a : α) (truth : Bool) (he :
+      (acceptCount (fun p => V p != truth) a (ℓ a) : ℝ) ≤ (1 / 3 : ℝ) * 2 ^ ℓ a) :=
+    (herror a truth (by norm_num) (by norm_num) he).trans
+      (mul_le_mul_of_nonneg_right (hrates a) (by positivity))
+  refine ⟨_, _, hw, hv, fun a ha => ?_, fun a ha => ?_⟩
+  · simpa only [Bool.bne_true] using herrEq a true
+      (by simpa only [Bool.bne_true, ErrorModel.bounded, ErrorModel.twoSided] using hyes a ha)
+  · simpa only [Bool.bne_false] using herrEq a false
+      (by simpa only [Bool.bne_false, ErrorModel.bounded, ErrorModel.twoSided] using hno a ha)
 
 /-- Zero-error seeded solvers of a language and deterministic deciders have the same power
 bound. The polynomial factor can absorb the cost of reading the encoded input. -/
