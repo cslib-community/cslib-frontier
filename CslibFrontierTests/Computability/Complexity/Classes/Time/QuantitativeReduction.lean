@@ -8,10 +8,11 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Computability.Complexity.Classes.Time.QuantitativeReduction
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
 
 set_option linter.privateModule false
 
-open Cslib.Complexity
+open Cslib.Complexity Turing.MultiTapeTM
 
 example {d : ℕ} (hd : 1 ≤ d) :
     ∃ C : ℕ, ∀ n : ℕ, (n + 1) + (n + 1) ^ d ≤ C * (n + 1) ^ d + C :=
@@ -31,6 +32,15 @@ example {d : ℕ} (hd : 1 ≤ d) :
   have hB : (B + 1) ^ 2 + 1 ≤ B * (B + 1) := (bound B).2
   nlinarith
 
-example : 3 + (2 * (4 + 1) ^ 2 + 7) + 4 * 4 + 9 ≤
-    (1 + 2 * 2 ^ 2 + 4 * 2) * (3 + 1) ^ 2 + (1 + 7 + 9) :=
-  materializedClock (d := 2) (by decide) (by decide) (by decide)
+-- The encoded copy has a native machine certificate and linear output growth.
+private theorem copyDegrees (L : Set (List Bool)) :
+    TimedReductionDegrees encBits encBits L L 1 1 := by
+  refine timedReductionDegrees_of_polylog (p := 0) (q := 0) (A := 1) (D := 1)
+    (by norm_num) (by norm_num) (fun _ => Iff.rfl)
+    (ComputableInO.id' (encMid := encBits)) ?_
+  intro input
+  simp [Real.rpow_one]
+
+example (L : Set (List Bool)) (hard : L ∉ DTIME encBits (realPowerClock 2)) :
+    L ∉ DTIME encBits (realPowerClock 1) :=
+  transfer_time_exclusion (by norm_num) (by norm_num) (by norm_num) (copyDegrees L) hard

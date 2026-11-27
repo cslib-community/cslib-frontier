@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Time
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
 import Mathlib.Analysis.SpecialFunctions.Pow.Asymptotics
 
 /-!
@@ -20,8 +19,10 @@ output length. A reduction of degrees `a` and `b` transfers a source time exclus
 are absorbed by the strict inequalities. The proofs use the existing native multitape model.
 
 For a fixed positive integer degree, linear output length is equivalent to charging the target
-clock at the same degree, provided construction fits that clock. Tidy composition adds `4m + 9`
-transitions for an intermediate word of length `m`.
+clock at the same degree, provided construction fits that clock. The existing machine-layer
+`Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.comp` accounts for the exact intermediate-copy
+cost of `4m + 9` transitions for `m` emitted bits. The class-level transfer uses the plain
+`Turing.MultiTapeTM.ComputableInO.comp` interface via `preimage_mem_DTIME`.
 
 ## Main definitions
 
@@ -32,7 +33,7 @@ transitions for an intermediate word of length `m`.
 
 * `timedReductionDegrees_of_polylog` and `transfer_time_exclusion` give the strict transfer.
 * `clockBudget_iff` characterizes same-degree clock budgets.
-* `computableInTimeAndSpace_comp_of_clockPreserving` includes the native copy cost.
+* `target_not_mem_DTIME_of_clockPreserving` transfers the same native time exclusion.
 
 ## References
 
@@ -219,7 +220,7 @@ theorem outside_P_of_common_reduction_degrees {B : Set β} {a b : ℝ}
 
 /-- A positive-degree target clock forces linear output growth, even if the
 reduction itself is free. The bound is for the length plus one. -/
-theorem clockBudget_length {d C n m t : Nat} (hd : 1 ≤ d)
+private theorem clockBudget_length {d C n m t : Nat} (hd : 1 ≤ d)
     (h : t + (m + 1) ^ d ≤ C * (n + 1) ^ d + C) :
     m + 1 ≤ 2 * C * (n + 1) := by
   have hn : 1 ≤ (n + 1) ^ d := Nat.one_le_pow _ _ (Nat.succ_pos _)
@@ -255,25 +256,6 @@ theorem clockBudget_iff {α : Type} (n m t : α → Nat) {d : Nat} (hd : 1 ≤ d
       _ ≤ A * (n x + 1) ^ d + A + B ^ d * (n x + 1) ^ d := Nat.add_le_add ht hp
       _ ≤ _ := by rw [Nat.add_mul]; omega
 
-/-- Explicit composition accounting for a target clock with arbitrary affine
-constants and the tidy intermediate-copy overhead for native tidy composition. -/
-theorem materializedClock {d n m t A B c e : Nat} (hd : 1 ≤ d)
-    (ht : t ≤ A * (n + 1) ^ d + A) (hm : m + 1 ≤ B * (n + 1)) :
-    t + (c * (m + 1) ^ d + e) + 4 * m + 9 ≤
-      (A + c * B ^ d + 4 * B) * (n + 1) ^ d + (A + e + 9) := by
-  have hlen : n + 1 ≤ (n + 1) ^ d := by
-    simpa using Nat.pow_le_pow_right (Nat.succ_pos n) hd
-  have hp := Nat.pow_le_pow_left hm d
-  rw [mul_pow] at hp
-  have hclock := Nat.mul_le_mul_left c hp
-  rw [← Nat.mul_assoc] at hclock
-  have hcopy : 4 * m ≤ (4 * B) * (n + 1) ^ d := by
-    rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left
-    exact (Nat.le_succ _).trans (hm.trans (Nat.mul_le_mul_left _ hlen))
-  rw [Nat.add_mul, Nat.add_mul]
-  omega
-
 /-- A same-degree construction clock and linear encoded output growth preserve a positive
 integer time exclusion under a native deterministic reduction. -/
 theorem target_not_mem_DTIME_of_clockPreserving {d A D : ℕ} (hd : 1 ≤ d)
@@ -292,24 +274,5 @@ theorem target_not_mem_DTIME_of_clockPreserving {d A D : ℕ} (hd : 1 ≤ d)
   apply lower
   rw [← eq]
   exact preimage_mem_DTIME (C := C) upper machine budget
-
-/-- The explicit materialization bound for native tidy witnesses. The space expression comes
-from the same composition theorem as the `4m + 9` copy transitions. -/
-theorem computableInTimeAndSpace_comp_of_clockPreserving {d A D c e : ℕ} (hd : 1 ≤ d)
-    {γ : Type} {encOut : γ ↪ List Bool} {f : α → β} {g : β → γ}
-    {T S : α → ℕ} {U R : β → ℕ}
-    (hf : ComputableTidilyInTimeAndSpace f encA encB T S)
-    (hg : ComputableTidilyInTimeAndSpace g encB encOut U R)
-    (hfTime : ∀ x, T x ≤ A * ((encA x).length + 1) ^ d + A)
-    (hfLength : ∀ x, (encB (f x)).length + 1 ≤ D * ((encA x).length + 1))
-    (hgTime : ∀ y, U y ≤ c * ((encB y).length + 1) ^ d + e) :
-    ∃ C, ComputableInTimeAndSpace (g ∘ f) encA encOut
-      (fun x => (A + c * D ^ d + 4 * D) * ((encA x).length + 1) ^ d + (A + e + 9))
-      (fun x => S x + R (f x) + 5 * (encB (f x)).length + C) := by
-  obtain ⟨C, comp⟩ := hg.comp hf
-  refine ⟨C, comp.computableInTimeAndSpace.mono ?_ (fun _ => le_rfl)⟩
-  intro x
-  exact (Nat.add_le_add_right (Nat.add_le_add_right (Nat.add_le_add_left (hgTime _) _) _) _).trans
-    (materializedClock hd (hfTime x) (hfLength x))
 
 end Cslib.Complexity
