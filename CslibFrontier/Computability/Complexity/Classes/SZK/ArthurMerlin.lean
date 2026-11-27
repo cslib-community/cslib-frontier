@@ -31,7 +31,19 @@ for every language reducing to Statistical Difference.
 The source proves interactive statistical zero knowledge. Here the class on the left uses
 the reduction-to-Statistical-Difference characterization of `SZK` in
 `CslibFrontier.Computability.Complexity.Classes.SZK`. The interactive characterization
-and the complementary protocol are tracked in [#3205](https://github.com/cslib-community/cslib-frontier/issues/3205).
+and the complementary protocol are tracked in
+[#3205](https://github.com/cslib-community/cslib-frontier/issues/3205).
+
+## Main results
+
+* `Cslib.Complexity.SZK_subset_AM` places every language reducing to Statistical Difference in AM.
+
+## References
+
+* [A. Sahai and S. Vadhan, *A complete problem for statistical zero knowledge*,
+  §3.3][SahaiVadhan2003]
+* [S. Goldwasser and M. Sipser, *Private coins versus public coins in interactive proof
+  systems*][GoldwasserSipser1986]
 -/
 
 namespace Cslib.Complexity
