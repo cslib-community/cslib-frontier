@@ -7017,6 +7017,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.InnerProductPTF
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.LastArgument
 public import CslibFrontier.Computability.Complexity.FineGrained.BruteForce
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+public import CslibFrontier.Computability.Complexity.Classes.MIP.PCP
 public import CslibFrontier.Computability.Distributed.Paxos.Liveness.AsyncQuorumProtocol
 public import CslibFrontier.Foundations.Combinatorics.Sunflower.Closure
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Potential
