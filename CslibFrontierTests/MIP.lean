@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Complexity.Classes.IP.GraphNonIsomorphism
 import CslibFrontier.Computability.Complexity.Classes.IP.Shamir
 import CslibFrontier.Computability.Complexity.Classes.MIP
+import CslibFrontier.Languages.Probabilistic.UniformNat
 
 /-! Multiprover interactive proofs (`MIP₂` and `MIP`), non-communicating provers, deterministic
 prover optimality, transcript consistency, the upper bound `MIP ⊆ NEXP`,
@@ -88,6 +89,15 @@ example : {b : Bool | b = true} ∈ PCPPoly encBool := by
     exact ⟨fun _ => false, by simp [acceptProb, Prover.run_pure, PMF.pure_apply]⟩
   · intro b hb π
     cases b <;> simp_all [acceptProb, Prover.run_pure, PMF.pure_apply]
+
+-- A verifier accepting with probability three quarters falls below one half in four repetitions.
+example (π : List Bool → Bool) :
+    acceptProb (sequentialRepeat 4 (ProbOracleComp.sample (ProbComp.sampleDyadicCoin 3 3)))
+      (Prover.ofProof (Operation := Unit) π) = 81 / 256 := by
+  rw [acceptProb_sequentialRepeat_ofProof, acceptProb, Prover.run_sample, PMF.map_comp]
+  change ((ProbComp.eval (ProbComp.sampleDyadicCoin 3 3)).map id true) ^ 4 = _
+  rw [PMF.map_id, ProbComp.eval_sampleDyadicCoin_true, show dyadicSize 3 = 4 from by decide]
+  norm_num [ENNReal.div_pow]
 
 -- The unique index selected by zero coin flips never encounters a query.
 example (P : Fin 2 → Prover Unit) :
