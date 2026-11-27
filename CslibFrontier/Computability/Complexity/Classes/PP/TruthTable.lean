@@ -38,7 +38,7 @@ Given an indexed language `A ∈ PP (encPair enc encUnary)`, a polynomial-time u
 and a polynomial-time Boolean combiner `d`, let `g₀ ∈ GapP (encPair enc encUnary)` witness `A` via
 `0 < g₀ x ↔ x ∈ A`, and set `g x = 2 * g₀ x - 1`. Then `g x` is never zero, has the sign of
 membership in `A`, and satisfies `|g (a, i)| ≤ 2 ^ M a` for all `i < r a` for a polynomial-time
-unary bound `M a`. Evaluating Newman's polynomial [Newman][Newman1964]
+unary bound `M a`. Evaluating the dyadic variant of Newman's geometric-root product
 $$\operatorname{newmanPoly}(M, z) = \prod_{j=0}^{M} (2^j + z)$$
 and raising to the even exponent `2 * (r a + 1)` yields nonnegative `GapP` weights
 `A⁺ (a, i)` and `A⁻ (a, i)` such that at each query `i < r a`, the weight matching the true
@@ -78,7 +78,7 @@ open Turing.MultiTapeTM Finset
 
 variable {α : Type} {enc : α ↪ List Bool}
 
-/-! ### Newman's polynomial and amplified weights -/
+/-! ### Dyadic sign products and amplified weights -/
 
 /-- Even-power amplification of `newmanPoly`, ensuring nonnegativity and a multiplicative dominance
 ratio of at least `2 ^ (2 * K)`. -/

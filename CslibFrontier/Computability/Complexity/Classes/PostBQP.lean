@@ -29,7 +29,7 @@ probabilities in the conditional decision have the same dyadic denominator. Twic
 of the joint event minus that of the postselection event is a GapP function, positive on exactly
 the yes-instances.
 
-The reverse inclusion uses two GapP weights obtained from Newman's polynomial. On a uniformly
+The reverse inclusion uses two GapP weights obtained from a dyadic sign product. On a uniformly
 chosen tag bit the circuit accepts with probability proportional to the square of the corresponding
 weight. The weight on the correct tag is at least twice the magnitude of the other. Squaring
 gives the required conditional decision bounds and proves Theorem 4 for the native gate set.
