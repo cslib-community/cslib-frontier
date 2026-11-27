@@ -85,7 +85,7 @@ private theorem realizes_delMoveRebCollision :
     obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hrIdx, hcs_lt⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hsmax_n := (large_bounds_lt_n_max hth).2.2.2.2.1
     obtain ⟨_, _, hrs_step⟩ := resetBTreeSliceGenProg_fastStep henv hrIdx hseed hrep
     obtain ⟨hst_c, hres_c, _, _⟩ := readHdrProg_spec (w := w)
@@ -121,15 +121,14 @@ private theorem delMoveRebCollisionProg_fastStep {c U V w n_max base rIdx : ℕ}
         rebScanCursor := 0
         rebInsCount := 0 } s s' := by
   have hth := henv.2.2.2.1
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hsmax_n := (large_bounds_lt_n_max hth).2.2.2.2.1
   obtain ⟨hrs_mc, hrs_vp, hrs_step⟩ :=
     resetBTreeSliceGenProg_fastStep henv hrIdx hseed hrep
   set s1 := (Memory.spec 0).clientState s
     (resetBTreeSliceGenProg ((mkWhpCoreParams c U V w n_max, base), rIdx))
-  obtain ⟨hst_c, hres_c, hmc_c, hvp_c⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebCandSalt)
-    (by dsimp [hdrRebCandSalt]; omega) (s := s1)
+  obtain ⟨hst_c, hres_c, hmc_c, hvp_c⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrRebCandSalt) (s := s1) (by decide)
   rw [hrs_step.2.2.1.2.2.2.2.2.2.2.2.2.1] at hres_c
   obtain ⟨hw1_mc, hw1_vp, hw1_step⟩ := writeHdrProg_fastStep (hdrOff := hdrRebCandSalt) henv
     (by decide) (henv.fits_of_le_n_max (by omega))
@@ -189,7 +188,7 @@ private theorem realizes_delMoveRebInsertInc :
       hld, hfp, hins_lt, hv_r⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have h8L12 : 8 * (slabScale n_max) ^ 12 ≤ n_max :=
       (Nat.mul_le_mul_right _ (by have := (large_bounds_lt_n_max hth).1; omega)).trans
         (numBucketsWhp_mul_scale_pow12_le hth)
@@ -199,9 +198,8 @@ private theorem realizes_delMoveRebInsertInc :
     set s_bi := (Memory.spec 0).clientState s
       (btreeInsertGenProg
         ((((mkWhpCoreParams c U V w n_max, base), rIdx), fp_cand_last), loc_del))
-    obtain ⟨hst_i, hres_i, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebInsCount)
-      (by dsimp [hdrRebInsCount]; omega) (s := s_bi)
+    obtain ⟨hst_i, hres_i, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebInsCount) (s := s_bi) (by decide)
     have hfit_i : Fits w
         ((Memory.spec 0).clientResult s_bi (readHdrProg (base, hdrRebInsCount)) + 1) := by
       simp only [hres_i, hbi_step.2.2.1.2.2.2.2.2.2.2.2.2.2.2.1]
@@ -238,7 +236,7 @@ private theorem delMoveRebInsertIncProg_fastStep {c U V w n_max base rIdx loc_de
             (fs.slices rIdx) fp_cand_last loc_del)
         rebInsCount := fs.rebInsCount + 1 } s s' := by
   have hth := henv.2.2.2.1
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have h8L12 : 8 * (slabScale n_max) ^ 12 ≤ n_max :=
     (Nat.mul_le_mul_right _ (by have := (large_bounds_lt_n_max hth).1; omega)).trans
       (numBucketsWhp_mul_scale_pow12_le hth)
@@ -312,11 +310,10 @@ private theorem realizes_delMoveRebActive :
       hld, hfp, hcs_lt, hins_lt, hv_r⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hval_ld := loc_lt_two_pow_valLaneBits hld
-    obtain ⟨hst_rc, hres_rc, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebScanCursor)
-      (by dsimp [hdrRebScanCursor]; omega) (s := s)
+    obtain ⟨hst_rc, hres_rc, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebScanCursor) (s := s) (by decide)
     obtain ⟨hrs_st, hrs_res, _, _⟩ := readRebSliceIdxGenProg_spec henv hb hrep (s := s)
     obtain ⟨hbl_st, _, _, _⟩ := btreeLookupGenProg_spec henv hrIdx hins_lt.le
       (hrep.slice_rep hrIdx) hv_r hfp (s := s)
@@ -378,7 +375,7 @@ theorem realizes_delMoveRebGen :
       hld, hfp, hreb_fn⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     obtain ⟨hst_o, hres_o, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
       hrep.2.2.2.1 (s := s)
@@ -445,7 +442,7 @@ theorem delMoveRebGenProg_fastStep
         rebScanCursor := rebScanCursor'
         rebInsCount := rebInsCount' } s s' := by
   have hth := henv.2.2.2.1
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hval_ld := loc_lt_two_pow_valLaneBits hld
   obtain ⟨hst_o, hres_o, hmc_o, hvp_o⟩ := readOldEpProg_spec (w := w)
     (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
@@ -460,9 +457,8 @@ theorem delMoveRebGenProg_fastStep
   by_cases hcond : (rebActiveB && decide (st_last = 1 ∨ st_last = 2 + fs.oldEp)) = true
   · rw [ite_eq_left hcond, ite_eq_left (hcond_iff.mpr hcond)]
     obtain ⟨hcs_lt, hins_lt, rm, hv_r⟩ := hreb_fn ((Bool.and_eq_true _ _).mp hcond).1
-    obtain ⟨hst_rc, hres_rc, hmc_rc, hvp_rc⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebScanCursor)
-      (by dsimp [hdrRebScanCursor]; omega) (s := s)
+    obtain ⟨hst_rc, hres_rc, hmc_rc, hvp_rc⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebScanCursor) (s := s) (by decide)
     rw [hrep.2.2.2.2.2.2.2.2.2.2.1] at hres_rc
     obtain ⟨hrs_st, hrs_res, hrs_mc, hrs_vp⟩ := readRebSliceIdxGenProg_spec henv hb hrep (s := s)
     have hR := bind_of_readOnly hst_rc hres_rc hvp_rc

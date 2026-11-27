@@ -150,15 +150,15 @@ theorem readHdrProg_spec {w F base hdrOff : ℕ} {s : Memory.State}
   exact ⟨rfl, rfl, rfl, validProg_read ha⟩
 
 /-- Specialization of `readHdrProg_spec` to the `largeSpaceWhp` frontier for any `hdrOff < 32`. -/
-private theorem readHdrProg_large_spec {c U V w n_max base hdrOff : ℕ} {s : Memory.State}
+theorem readHdrProg_large_spec (c U V w n_max : ℕ) {base hdrOff : ℕ} {s : Memory.State}
     (hoff : hdrOff < 32) :
     let prog := readHdrProg (base, hdrOff)
     (Memory.spec 0).clientState s prog = s ∧
     (Memory.spec 0).clientResult s prog = s.mem (base + hdrOff) ∧
     memoryCost prog s = 1 ∧
-    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-  exact readHdrProg_spec (by omega)
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog :=
+  readHdrProg_spec (Nat.add_lt_add_left
+    (hoff.trans_le (headerWords_le_largeSpaceWhp c U V w n_max)) base)
 
 /-- Write header word `mem[base + hdrOff] := val` (`hdrOff < 32`). -/
 @[irreducible] def writeHdrProg : (ℕ × ℕ) × ℕ → Memory.Prog Unit
@@ -208,7 +208,7 @@ theorem writeHdrProg_fastStep {c U V w n_max base hdrOff val : ℕ} {θ : SeedWh
     FastStateStep base c U V w n_max θ (updateFastHdr fs hdrOff val) s s' := by
   have hw := henv.2.1
   have hch := largeOffsetChain c U V w n_max
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   unfold writeHdrProg
   simp only [pure_bind]
   set m' := Function.update s.mem (base + hdrOff) val
@@ -575,8 +575,8 @@ theorem realizes_pushDirtyBucketGen :
     have hth := henv.2.2.2.1
     have h6q := (large_index_bounds hth).2.2.2.2.2
     have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
-    obtain ⟨hrh_st, hrh_res, _, _⟩ := readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-      (n_max := n_max) (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)
+    obtain ⟨hrh_st, hrh_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)
     simp only [hrh_st, hrh_res] at *
     simp only [wp_large_qEpoch hth, wp_large_offTrieItems0 hth, wp_large_globalPtrBits hth,
       wp_large_w hth] at hdc_lt ⊢
@@ -612,11 +612,11 @@ theorem pushDirtyBucketGenProg_fastStep {c U V w n_max base b : ℕ}
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   have hb_g : b < 2 ^ globalPtrBits n_max :=
     lt_two_pow_globalPtrBits_of_le_n_max (hb.le.trans henv.numBuckets_le_n_max)
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   obtain ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
     hqv0, hloc0, hbmeta0, hbptr0, hpool0, _, _, _, hdirty0⟩ := id hrep
-  have hR := ReadSpec.of (readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-    (n_max := n_max) (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)) hm6
+  have hR := ReadSpec.of (readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)) hm6
   set idxW := 3 * qEpochWhp n_max + fs.dirtyCount
   have hidxW : idxW < 6 * qEpochWhp n_max + 6 := by omega
   set m1 := writePacked (base + offTrieItems0 c U V w n_max) (globalPtrBits n_max) w s.mem idxW b
@@ -776,10 +776,10 @@ theorem realizes_readRebActiveBGen :
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hdc_le⟩ := h
     obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
-    have hcs (off) (hoff : off < 32) (s') := (readHdrProg_large_spec (c := c) (U := U) (V := V)
-      (w := w) (n_max := n_max) (base := base) (s := s') hoff).1
-    have hcr (off) (hoff : off < 32) (s') := (readHdrProg_large_spec (c := c) (U := U) (V := V)
-      (w := w) (n_max := n_max) (base := base) (s := s') hoff).2.1
+    have hcs (off) (hoff : off < 32) (s') := (readHdrProg_large_spec c U V w n_max
+      (base := base) (s := s') hoff).1
+    have hcr (off) (hoff : off < 32) (s') := (readHdrProg_large_spec c U V w n_max
+      (base := base) (s := s') hoff).2.1
     simp only [hcs hdrRebStage (by decide), hcr hdrRebStage (by decide),
       hcs hdrDirtyCount (by decide), hcr hdrDirtyCount (by decide),
       hcs hdrDirtyIdx (by decide), hcr hdrDirtyIdx (by decide), wp_large_qEpoch hth] at *
@@ -806,7 +806,7 @@ theorem readRebActiveBGenProg_spec {c U V w n_max base b : ℕ} {fs : FastState}
   have hth := henv.2.2.2.1
   obtain ⟨_, _, _, _, _, hm4, _, hm6, hm7, hm8, _, _, hm11, _⟩ := id hrep
   have hR {off v : ℕ} (hoff : off < 32) (hv : s.mem (base + off) = v) :=
-    ReadSpec.of (readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max)
+    ReadSpec.of (readHdrProg_large_spec c U V w n_max
       (base := base) (s := s) hoff) hv
   dsimp only
   unfold readRebActiveBGenProg
