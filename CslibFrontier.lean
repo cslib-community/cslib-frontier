@@ -2335,7 +2335,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Rice
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Groups
 public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.MinIsolation
 public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.OptimalMSF.PartitionEval
-public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.TradingCertificates
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.GadgetCyclic
 public import CslibFrontier.Computability.DecisionTree.InnerProduct
 public import CslibFrontier.Computability.PCP.SelectedComposition
@@ -4763,6 +4762,7 @@ public import CslibFrontier.Computability.Automata.Weighted.Hat
 public import CslibFrontier.Foundations.Combinatorics.FewBadRounds
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.RebScan
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Width
+public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.LowerBound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
 public import CslibFrontier.Computability.PointerMachine.Randomized
