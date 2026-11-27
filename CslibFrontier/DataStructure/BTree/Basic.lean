@@ -45,8 +45,9 @@ that well-formedness of concrete trees is checked by `decide`. The operations an
 
 ## Main results
 
-* `BTree.induction`, `BTree.induction_isSortedAssoc`: induction over the nested type and over
-  trees with sorted entries split at a node's first separator.
+* `BTree.induction`, `BTree.induction_children`, `BTree.induction_isSortedAssoc`: induction
+  over the nested type, with one hypothesis for all children of a node, and over trees with
+  sorted entries split at a node's first separator.
 * `BTree.toList_map`, `BTree.isWF_map`: mapping values maps the entries and keeps
   well-formedness.
 * `BTree.IsWF.of_mem_children`: every subtree of a well-formed tree is well-formed.
@@ -378,6 +379,16 @@ decreasing_by
   · exact sizeOf_lt_of_mem_children (List.mem_cons_of_mem _ (List.mem_map_of_mem ‹e ∈ rest›))
 
 attribute [induction_eliminator] induction
+
+/-- Induction on B-trees with one hypothesis for all children of a node. -/
+theorem induction_children {motive : BTree α β → Prop} (leaf : motive .leaf)
+    (node : ∀ (first : BTree α β) (rest : List (Triple α β)),
+      (∀ c ∈ (node first rest).children, motive c) → motive (.node first rest)) :
+    ∀ tr, motive tr
+  | .leaf => leaf
+  | .node first rest => node first rest fun c _ => induction_children leaf node c
+termination_by tr => sizeOf tr
+decreasing_by exact sizeOf_lt_of_mem_children ‹_›
 
 /-! ### Basic API -/
 
