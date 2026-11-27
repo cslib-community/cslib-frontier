@@ -7896,6 +7896,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Ker
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.BoxTradeoffExponent
 public import CslibFrontier.Foundations.BooleanAnalysis.FiberWeight
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Window
+public import CslibFrontier.Computability.Complexity.Classes.MIP.Correction
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Determinant
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseOperator
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhp
