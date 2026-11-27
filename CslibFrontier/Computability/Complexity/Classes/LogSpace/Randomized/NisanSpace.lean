@@ -84,16 +84,6 @@ theorem countP_range_bitGeneratorNat_accepts {k : ℕ} {State : Type}
 
 /-! ### The parameters in `O(log² m)` space -/
 
-/-- `⌊log₂⌋` of the length of a word, within logarithmic space. -/
-private theorem log2_length_inSpace :
-    ComputableInSpace (fun w : List Bool => Nat.log2 w.length) encBits encNat
-      fun w => Nat.log2 (encBits w).length :=
-  (ComputableInLogSpace.unaryToBinary
-      (ComputableInLogSpace.unaryLog2 ComputableInLogSpace.bitsLength)).inSpace_of_length_log
-    ⟨1, fun w => by
-      simpa only [one_mul, encBits_apply] using
-        length_encNat_le_log2 (Nat.log2_le_self w.length)⟩
-
 /-- The budget `(log₂ m + 1)²` on words of length `m`. -/
 private abbrev logSqBudget (w : List Bool) : ℕ := (Nat.log2 w.length + 1) ^ 2
 
@@ -102,7 +92,7 @@ private theorem log2_le_logSqBudget (w : List Bool) : Nat.log2 w.length ≤ logS
 
 private theorem log2_budget :
     ComputableInSpace (fun w : List Bool => Nat.log2 w.length) encBits encNat logSqBudget :=
-  log2_length_inSpace.mono_le fun w => by
+  ComputableInSpace.log2BitsLength.mono_le fun w => by
     rw [encBits_apply]
     exact log2_le_logSqBudget w
 
@@ -143,13 +133,10 @@ private theorem coinCount_budget (d : ℕ) :
     ComputableInSpace (fun w => 2 ^ nisanHashSeeds d w * nisanBlockLen d w) encBits encNat
       logSqBudget :=
   ComputableInSpace.budget_natMul
-    (ComputableInSpace.budget_natPow_variable (ComputableInSpace.budget_const 2)
-      (hashSeeds_budget d) (.of_le_linear (6 * d + 6) 8 fun w => by
-        have h2 : (encNat 2).length = 2 := rfl
-        have hlen := length_encNat_le_log2 (le_refl (nisanHashSeeds d w))
-        have hlog := Nat.log2_le_self (nisanHashSeeds d w)
+    (ComputableInSpace.budget_twoPow (hashSeeds_budget d)
+      (.of_le_linear (2 * d + 1) (2 * d + 1) fun w => by
         have hsq := Nat.le_self_pow two_ne_zero (Nat.log2 w.length + 1)
-        simp only [logSqBudget, h2] at hsq ⊢
+        simp only [logSqBudget, nisanHashSeeds]
         nlinarith))
     (blockLen_budget d)
 
@@ -158,15 +145,9 @@ private theorem two_pow_seedLen_budget {α : Type} {enc : α ↪ List Bool} (d :
     (hs : ∀ a, nisanSeedLen d (enc a) ≤ 39 * (2 * d + 1) ^ 2 * (Nat.log2 (enc a).length + 1) ^ 2) :
     ComputableInSpace (fun a => 2 ^ nisanSeedLen d (enc a)) enc encNat
       fun a => logSqBudget (enc a) :=
-  ComputableInSpace.budget_natPow_variable (ComputableInSpace.budget_const 2)
+  ComputableInSpace.budget_twoPow
     ((seedLen_budget d).of_encIn_eq enc fun a => (encBits_apply (enc a)).symm)
-    (.of_le_linear (4 * 39 * (2 * d + 1) ^ 2) 4 fun a => by
-      have h2 : (encNat 2).length = 2 := rfl
-      have hlen := length_encNat_le_log2 (le_refl (nisanSeedLen d (enc a)))
-      have hlog := Nat.log2_le_self (nisanSeedLen d (enc a))
-      have hsa := hs a
-      simp only [logSqBudget, h2] at hsa ⊢
-      nlinarith)
+    (.of_le_linear (39 * (2 * d + 1) ^ 2) 0 fun a => by simpa using hs a)
 
 /-- A budget for a packed seed `z` and an input `a` of length `m` that covers the logarithm of
 the length of the encoded pair: the seed twice and `(log₂ m + 1)²`. -/

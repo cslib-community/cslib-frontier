@@ -15,6 +15,7 @@ import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellBribery
 import CslibFrontierResults.Entries.NetworkFormation
+import CslibFrontierResults.Entries.SaksZhouLogSpace
 import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.SponsoredSearch
 import CslibFrontierResults.Entries.AdWords
