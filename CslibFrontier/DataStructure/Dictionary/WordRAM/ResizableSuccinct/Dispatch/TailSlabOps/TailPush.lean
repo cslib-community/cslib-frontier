@@ -268,6 +268,12 @@ private theorem compPushBackTailWrite_effect {metaBase itemBase U V w N m_cap b 
   have hgm4_1 : compGmAt metaBase U w N s₄.mem 1 = n_win + 1 := by rw [hgm4, hpres_gm.2.1]
   have htot4 : epochTotalSlots N (compGmAt metaBase U w N s₄.mem) = b_win + n_win + 1 := by
     unfold epochTotalSlots; rw [ite_eq_right hb0, hgm4_0, hgm4_1]; dsimp only [b_win]; omega
+  have hne_g : ∀ idx < b_win + n_win,
+      physByBase N b_win (compDTAt metaBase U w N s.mem) idx ≠ N - 1 - n_win := by
+    intro idx hlt0
+    have hrng := (physByBase_range_and_inj hb_pos (by omega : b_win + n_win ≤ N)
+      (by omega : n_win ≤ maxTailItems N) hwin0).1 idx hlt0
+    rcases hrng with ⟨hlt_b, hp_eq⟩ | ⟨_, hlo, _⟩ <;> omega
   refine ⟨hgm4.trans ((congrArg (fun g => gmAppendTail N g b) hcpl.gm_eq).trans hgm_fix.symm),
     hlm4.trans (hcpl.lm_eq.trans hl_fix.symm),
     by simp only [hb0, ↓reduceIte, hgm4_0, hgm4_1, htd4', hdt4']; exact hwspec.1,
@@ -285,13 +291,9 @@ private theorem compPushBackTailWrite_effect {metaBase itemBase U V w N m_cap b 
     · subst idx
       rw [compQuotAt_writeCompQuot_self s₂.mem hd_new_lt1 hq_lt, hp_grow.1, Function.update_self]
     · have hlt0 : idx < b_win + n_win := by dsimp only [d_new] at heq; omega
-      have hne_g : physByBase N b_win (compDTAt metaBase U w N s.mem) idx ≠ N - 1 - n_win := by
-        have hrng := (physByBase_range_and_inj hb_pos (by omega : b_win + n_win ≤ N)
-          (by omega : n_win ≤ maxTailItems N) hwin0).1 idx hlt0
-        rcases hrng with ⟨hlt_b, hp_eq⟩ | ⟨_, hlo, _⟩ <;> omega
       rw [compQuotAt_writeCompQuot_of_ne henv.pos_w s₂.mem heq,
         compQuotAt_of_lt s₂.mem hidx hlt0, congrFun hfr_app.quot_eq idx,
-        congrFun hq_w1 idx, hp_grow.2 idx hlt0, Function.update_of_ne hne_g]
+        congrFun hq_w1 idx, hp_grow.2 idx hlt0, Function.update_of_ne (hne_g idx hlt0)]
       have hq0 := hcpl.quot_eq idx (by unfold epochTotalSlots; rw [ite_eq_right hb0]; exact hlt0)
       unfold epochTotalSlots at hq0; rw [ite_eq_right hb0] at hq0
       exact hq0
@@ -306,14 +308,10 @@ private theorem compPushBackTailWrite_effect {metaBase itemBase U V w N m_cap b 
     · subst idx
       rw [compValAt_writeCompVal_self _ hd_new_lt1 hv_lt, hp_grow.1, Function.update_self]
     · have hlt0 : idx < b_win + n_win := by dsimp only [d_new] at heq; omega
-      have hne_g : physByBase N b_win (compDTAt metaBase U w N s.mem) idx ≠ N - 1 - n_win := by
-        have hrng := (physByBase_range_and_inj hb_pos (by omega : b_win + n_win ≤ N)
-          (by omega : n_win ≤ maxTailItems N) hwin0).1 idx hlt0
-        rcases hrng with ⟨hlt_b, hp_eq⟩ | ⟨_, hlo, _⟩ <;> omega
       rw [compValAt_writeCompVal_of_ne henv.pos_w _ heq,
         compValAt_writeCompQuot henv.pos_w s₂.mem,
         compValAt_of_lt s₂.mem hidx hlt0, congrFun hfr_app.val_eq idx,
-        congrFun hv_w1 idx, hp_grow.2 idx hlt0, Function.update_of_ne hne_g]
+        congrFun hv_w1 idx, hp_grow.2 idx hlt0, Function.update_of_ne (hne_g idx hlt0)]
       have hv0 := hcpl.val_eq idx (by unfold epochTotalSlots; rw [ite_eq_right hb0]; exact hlt0)
       unfold epochTotalSlots at hv0; rw [ite_eq_right hb0] at hv0
       exact hv0
