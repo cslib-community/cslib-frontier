@@ -1092,6 +1092,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
 public import CslibFrontier.Computability.Streaming.Communication
 public import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Guess
+public import CslibFrontier.Computability.Complexity.Classes.PCP.Oracle
 public import CslibFrontier.Computability.Circuit.Arithmetic.Encoding
 public import CslibFrontier.Foundations.Computability.RecursiveInClockedJoin
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.ImmRank
@@ -7173,6 +7174,7 @@ public import CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtrac
 public import CslibFrontier.Logics.FirstOrder.Atom
 public import CslibFrontier.Foundations.Quantum.DensityMatrix
 public import CslibFrontier.Computability.PCP.Power
+public import CslibFrontier.Computability.Complexity.Classes.MIP.Oracularization
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Gadgets.Standard
 public import CslibFrontier.Foundations.Combinatorics.LineCode.HighRate.Systematic
 public import CslibFrontier.Computability.Probabilistic.PPT.Composition
@@ -10802,6 +10804,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 public import CslibFrontier.Crypto.Protocols.FRI.Soundness.SmoothBCS
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.Formula
 public import CslibFrontier.Algorithms.WordRAM.Arborescence.Internal.CoreSpec
+public import CslibFrontier.Computability.Complexity.Classes.MIP.Repetition
 public import CslibFrontier.Foundations.Data.BitString.Sign
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.SpecializeInterpreter
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Equivalent
