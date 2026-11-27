@@ -47,13 +47,10 @@ theorem arccos_eq_two_mul_arctan {x : ℝ} (hx : -1 < x) :
       mul_zero]
   set y := √(1 - x) / √(1 + x) with hy
   have hy0 : 0 ≤ y := by positivity
-  have hy2 : y ^ 2 = (1 - x) / (1 + x) := by
-    rw [hy, div_pow, sq_sqrt (by linarith), sq_sqrt (by linarith)]
   have hcos : cos (2 * arctan y) = x := by
     have : 0 < 1 + x := by linarith
-    rw [cos_two_mul, cos_sq_arctan, hy2]
-    field_simp
-    ring
+    rw [cos_two_mul, cos_sq_arctan, hy, div_pow, sq_sqrt (by linarith), sq_sqrt (by linarith)]
+    field_simp; ring
   rw [← hcos, arccos_cos (by positivity [arctan_nonneg.2 hy0])
     (by linarith [arctan_lt_pi_div_two y])]
 
@@ -84,8 +81,6 @@ theorem sum_arccos_le_card_mul_arccos {ι : Type*} (s : Finset ι) {x : ι → �
     (w := fun _ => (s.card : ℝ)⁻¹) (p := x) (fun _ _ => by positivity)
     (by rw [Finset.sum_const, nsmul_eq_mul, mul_inv_cancel₀ hn.ne']) hx
   simp only [smul_eq_mul, ← Finset.mul_sum] at h
-  have hmono : arccos ((s.card : ℝ)⁻¹ * ∑ i ∈ s, x i) ≤ arccos x₀ :=
-    arccos_le_arccos ((le_inv_mul_iff₀ hn).2 hsum)
-  exact (inv_mul_le_iff₀ hn).1 (h.trans hmono)
+  exact (inv_mul_le_iff₀ hn).1 (h.trans (arccos_le_arccos ((le_inv_mul_iff₀ hn).2 hsum)))
 
 end Real

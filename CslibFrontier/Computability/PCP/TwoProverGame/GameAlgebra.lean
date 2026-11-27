@@ -94,8 +94,6 @@ instance : StarModule ℂ G.GameAlgebra where
 
 @[simp] theorem star_effect (x : X) (a : A) :
     star (effect G x a) = effect G x a := by
-  unfold effect
-  rw [star_quotient]
   exact congrArg (quotient G) (FreeSelfAdjoint.star_of (x, a))
 
 @[simp] theorem effect_mul_self (x : X) (a : A) :
@@ -150,23 +148,18 @@ def lift (P : X → A → B) (hs : ∀ x a, IsSelfAdjoint (P x a))
     (hp : ∀ x a, P x a * P x a = P x a) (hn : ∀ x, ∑ a, P x a = 1)
     (hr : ∀ x y a b, ¬ G.accepts x y a b → P x a * P y b = 0) (x : X) (a : A) :
     lift G P hs hp hn hr (effect G x a) = P x a := by
-  let f : Raw →⋆ₐ[ℂ] B :=
-    FreeSelfAdjoint.lift (fun p : X × A => P p.1 p.2) (fun p => hs p.1 p.2)
-  change (RingQuot.liftAlgHom ℂ ⟨f.toAlgHom, _⟩)
+  change (RingQuot.liftAlgHom ℂ ⟨(FreeSelfAdjoint.lift _ _).toAlgHom, _⟩)
     (RingQuot.mkAlgHom ℂ (GameAlgebraRel G) (FreeSelfAdjoint.of (x, a))) = P x a
-  rw [RingQuot.liftAlgHom_mkAlgHom_apply, StarAlgHom.coe_toAlgHom]
-  exact FreeSelfAdjoint.lift_of _ _ (x, a)
+  simp only [RingQuot.liftAlgHom_mkAlgHom_apply, StarAlgHom.coe_toAlgHom, FreeSelfAdjoint.lift_of]
 
 omit [StarModule ℂ B] in
 /-- Representations agreeing on the projection generators agree everywhere. -/
 @[ext] theorem hom_ext {f g : G.GameAlgebra →⋆ₐ[ℂ] B}
     (h : ∀ x a, f (effect G x a) = g (effect G x a)) : f = g := by
   let q : Raw →⋆ₐ[ℂ] G.GameAlgebra :=
-    { __ := quotient G
-      map_star' := fun a => (star_quotient G a).symm }
+    { __ := quotient G, map_star' := fun a => (star_quotient G a).symm }
   have he : f.comp q = g.comp q := FreeSelfAdjoint.hom_ext fun (x, a) => h x a
-  apply DFunLike.ext
-  intro z
+  refine DFunLike.ext _ _ fun z => ?_
   obtain ⟨v, rfl⟩ := RingQuot.mkAlgHom_surjective ℂ (GameAlgebraRel G) z
   exact DFunLike.congr_fun he v
 

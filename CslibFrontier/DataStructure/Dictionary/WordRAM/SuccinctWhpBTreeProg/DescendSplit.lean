@@ -87,8 +87,7 @@ private theorem realizes_splitFullChildBody :
     obtain ⟨c, U, V, w₀, n_max, henv, rfl, hsIdx, halloc1, hcur, hchild, hc0, hr_le,
       hkw_cnt, hvw_cnt⟩ := h
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
+    obtain rfl := henv.2.2.1
     have ht8 := eight_le_tMinWhp hth
     have hns_lt_n := (large_bounds_lt_n_max hth).2.1
     obtain ⟨_, _, _, hns_lt_v⟩ := (btree_slice_param_bounds hth).1
@@ -199,11 +198,9 @@ private theorem realizes_descendSplitStepGen :
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, q⟩, ⟨alloc, cur⟩⟩
     dsimp only [DescendSplitStepGenPre] at h
     obtain ⟨c, U, V, w₀, n_max, sl, isRoot, lo, hi, mapFn, T,
-      henv, rfl, hsIdx, hrep, halloc_eq, halloc1, hrt, hnf, hqlo, hqhi, hhi, hv⟩ := h
+      henv, rfl, hsIdx, hrep, rfl, halloc1, hrt, hnf, hqlo, hqhi, hhi, hv⟩ := h
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
-    subst halloc_eq
+    obtain rfl := henv.2.2.1
     have ht8 := eight_le_tMinWhp hth
     have hns_lt_n := (large_bounds_lt_n_max hth).2.1
     obtain ⟨ht3, _, hkey_lt, hns_lt_v⟩ := (btree_slice_param_bounds hth).1
@@ -215,8 +212,7 @@ private theorem realizes_descendSplitStepGen :
     have hkw_lt : 2 * tMinWhp n_max * keyLaneBitsWhp n_max < w := henv.keysWordBits_lt_w
     have hvw_lt : 2 * tMinWhp n_max * valLaneBitsWhp n_max < w := henv.valsWordBits_lt_w
     have hcnt_div : (sl.nodes cur).metaWord / 2 = metaCount (sl.nodes cur).metaWord := rfl
-    simp only [hcs_n] at *
-    simp only [hres_n] at *
+    simp only [hcs_n, hres_n] at *
     try simp only [wp_large_M hth] at *
     try simp only [wp_large_nSlice hth] at *
     try simp only [wp_large_tMin hth] at *
@@ -235,26 +231,22 @@ private theorem realizes_descendSplitStepGen :
     · simp only [wp_large_wKey hth, wp_large_powFp hth]; exact hlanes
   · exact (Nat.le_mul_of_pos_left _ (by omega)).trans_lt hvw_lt
   · rw [hcnt_div]
-    have hlanes' : ∀ j < metaCount (sl.nodes cur).metaWord,
-        laneGet (fpBitsWhp n_max + 2) (sl.nodes cur).keysWord j < 2 ^ fpBitsWhp n_max := hlanes
     have hr_le : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max)
         (metaCount (sl.nodes cur).metaWord) q (sl.nodes cur).keysWord ≤
         metaCount (sl.nodes cur).metaWord := by
-      rw [swarRank_eq_count_lt (by omega) hkey_lt (hqhi.trans_lt hhi) hkw_cnt hlanes']
+      rw [swarRank_eq_count_lt (by omega) hkey_lt (hqhi.trans_lt hhi) hkw_cnt hlanes]
       exact (card_filter_le _ _).trans_eq (card_range _)
     exact ((Nat.mul_le_mul_right _ (hr_le.trans (by omega))).trans_lt hvw_lt).trans
       Nat.lt_two_pow_self
   all_goals
     cases T with
     | leaf idx c0 =>
-      dsimp only [BTreeTree.rootIdx] at hrt
-      subst idx
+      rcases hrt.symm with rfl
       have hm1 : (sl.nodes cur).metaWord % 2 = 1 := by
-        rw [hv.2.1]; simp [mkNodeMeta, Nat.add_mul_mod_self_left]
+        simp [hv.2.1, mkNodeMeta, Nat.add_mul_mod_self_left]
       simp_all
     | branch idx c0 childTrees =>
-      dsimp only [BTreeTree.rootIdx] at hrt
-      subst idx
+      rcases hrt.symm with rfl
       obtain ⟨hr_le, _, _, _⟩ := branch_child_routing (by omega) hkey_lt hv hhi hqlo hqhi
       obtain ⟨_, hmeta, _, _, _, hvw_cnt, _, _, _, _, _, _, hcs_sub⟩ := hv
       have hc0_eq : metaCount (sl.nodes cur).metaWord = c0 := by rw [hmeta, metaCount_mkNodeMeta]
@@ -269,11 +261,7 @@ private theorem realizes_descendSplitStepGen :
         readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hchild_lt hrep (s := s)
       dsimp only at hndc_st hndc_res
       rw [hc0_eq] at hnf hkw_cnt
-      simp only [hcnt_div] at *
-      simp only [hc0_eq] at *
-      simp only [hval_r] at *
-      simp only [hndc_st] at *
-      simp only [hndc_res] at *
+      simp only [hcnt_div, hc0_eq, hval_r, hndc_st, hndc_res] at *
       try dsimp only [SplitFullChildPre]
       have h2t_lt : 2 * tMinWhp n_max < w :=
         (Nat.le_mul_of_pos_right _ (by unfold keyLaneBitsWhp; positivity)).trans_lt hkw_lt
@@ -307,6 +295,35 @@ theorem realizes_descendSplitLoopGen :
     (WordEncoding.encode (α := ((WhpCoreParams × ℕ) × ℕ) × ℕ))
     (WordEncoding.encode (α := ℕ × ℕ))
     realizes_descendSplitStepGen memoryCost_descendSplitStepGenProg_pos
+
+/-- One unrolled iteration of `descendSplitLoopGenProg`: a safe step with known final state and
+result, cost at most `52` and valid history reduces the loop's facts to the remaining loop's. -/
+private theorem descendSplitLoop_succ {w F f : ℕ} {d0 : ((WhpCoreParams × ℕ) × ℕ) × ℕ}
+    {a r : ℕ × ℕ} {s s₁ : Memory.State}
+    (hpre : DescendSplitStepGenPre w (d0, a) s)
+    (hstep : (Memory.spec 0).clientState s (descendSplitStepGenProg (d0, a)) = s₁ ∧
+      (Memory.spec 0).clientResult s (descendSplitStepGenProg (d0, a)) = r ∧
+      memoryCost (descendSplitStepGenProg (d0, a)) s ≤ 52 ∧
+      ValidProg w F s (descendSplitStepGenProg (d0, a))) :
+    (Memory.spec 0).clientState s (descendSplitLoopGenProg ((d0, a), f + 1)) =
+      (Memory.spec 0).clientState s₁ (descendSplitLoopGenProg ((d0, r), f)) ∧
+    (Memory.spec 0).clientResult s (descendSplitLoopGenProg ((d0, a), f + 1)) =
+      (Memory.spec 0).clientResult s₁ (descendSplitLoopGenProg ((d0, r), f)) ∧
+    (memoryCost (descendSplitLoopGenProg ((d0, r), f)) s₁ ≤ 52 * f →
+      memoryCost (descendSplitLoopGenProg ((d0, a), f + 1)) s ≤ 52 * (f + 1)) ∧
+    (ValidProg w F s₁ (descendSplitLoopGenProg ((d0, r), f)) →
+      ValidProg w F s (descendSplitLoopGenProg ((d0, a), f + 1))) ∧
+    (iterationSafe descendSplitStepGenProg DescendSplitStepGenPre w d0 f r s₁ →
+      iterationSafe descendSplitStepGenProg DescendSplitStepGenPre w d0 (f + 1) a s) := by
+  obtain ⟨hst, hres, hmc, hvp⟩ := hstep
+  have hit : descendSplitLoopGenProg ((d0, a), f + 1) =
+      descendSplitStepGenProg (d0, a) >>= fun r => descendSplitLoopGenProg ((d0, r), f) := rfl
+  rw [hit]
+  refine ⟨by rw [clientState_bind, hst, hres], by rw [clientResult_bind, hst, hres], fun h => ?_,
+    fun h => validProg_bind hvp (by rw [hst, hres]; exact h),
+    fun h => ⟨hpre, by rw [hst, hres]; exact h⟩⟩
+  rw [memoryCost_bind', hst, hres]
+  omega
 
 theorem descendSplitLoopGenProg_spec {isRoot : Bool}
     {c U V w n_max base sIdx q cur fuel lo hi : ℕ}
@@ -377,63 +394,44 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
     dsimp only at hcs_n hres_n hmc_n hvp_n
     cases T with
     | leaf idx c0 =>
-      dsimp only [BTreeTree.rootIdx] at hrt
-      subst idx
+      rcases hrt.symm with rfl
       have hmeta : (sl.nodes cur).metaWord = mkNodeMeta true c0 := hv.2.1
       have hmod1 : (sl.nodes cur).metaWord % 2 = 1 := by
-        rw [hmeta]; simp [mkNodeMeta, Nat.add_mul_mod_self_left]
-      have hstep_st : (Memory.spec 0).clientState s
-          (descendSplitStepGenProg (d0, (sl.alloc, cur))) = s := by
+        simp [hmeta, mkNodeMeta, Nat.add_mul_mod_self_left]
+      have hstep : (Memory.spec 0).clientState s
+            (descendSplitStepGenProg (d0, (sl.alloc, cur))) = s ∧
+          (Memory.spec 0).clientResult s
+            (descendSplitStepGenProg (d0, (sl.alloc, cur))) = (sl.alloc, cur) ∧
+          memoryCost (descendSplitStepGenProg (d0, (sl.alloc, cur))) s ≤ 52 ∧
+          ValidProg w (base + largeSpaceWhp c U V w n_max) s
+            (descendSplitStepGenProg (d0, (sl.alloc, cur))) := by
         unfold descendSplitStepGenProg
         simp only [pure_bind]
-        rw [clientState_bind, hcs_n, hres_n]
-        simp only [hmod1, ↓reduceIte]; rfl
-      have hstep_res : (Memory.spec 0).clientResult s
-          (descendSplitStepGenProg (d0, (sl.alloc, cur))) = (sl.alloc, cur) := by
-        unfold descendSplitStepGenProg
-        simp only [pure_bind]
-        rw [clientResult_bind, hcs_n, hres_n]
-        simp only [hmod1, ↓reduceIte, StateTransitionSpec.clientResult_pure]
-      have hstep_mc : memoryCost (descendSplitStepGenProg (d0, (sl.alloc, cur))) s = 6 := by
-        unfold descendSplitStepGenProg
-        simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
-        rw [memoryCost_bind, hcs_n, hmc_n, hres_n]
-        simp only [hmod1, ↓reduceIte, memoryCost_pure]
-      have hstep_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-          (descendSplitStepGenProg (d0, (sl.alloc, cur))) := by
-        unfold descendSplitStepGenProg
-        simp only [pure_bind]
-        refine validProg_bind hvp_n ?_
-        rw [hcs_n, hres_n]; simp only [hmod1, ↓reduceIte]; exact validProg_pure _
+        refine ⟨?_, ?_, ?_, validProg_bind hvp_n ?_⟩
+        · rw [clientState_bind, hcs_n, hres_n, ite_eq_left hmod1]; rfl
+        · rw [clientResult_bind, hcs_n, hres_n, ite_eq_left hmod1]; rfl
+        · rw [memoryCost_bind', hcs_n, hmc_n, hres_n, ite_eq_left hmod1, memoryCost_pure]; omega
+        · rw [hcs_n, hres_n, ite_eq_left hmod1]
+          exact validProg_pure _
       have hdesc_eq : descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
           (f + 1) sl cur q =
           descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
             f sl cur q := by
-        simp only [descendSplitToLeaf, hmeta, metaIsLeaf_mkNodeMeta, ↓reduceIte]
-        cases f with
-        | zero => rfl
-        | succ f' => simp [descendSplitToLeaf, hmeta]
+        cases f <;> simp [descendSplitToLeaf, hmeta]
+      obtain ⟨hS, hR, hM, hV, hI⟩ := descendSplitLoop_succ (f := f) hsafe1 hstep
       obtain ⟨ih_fr, ih_res, ih_mc, ih_vp, ih_safe, ih_rep, ih_lf, ih_oth, ih_bm, ih_out⟩ :=
         ih (cur := cur) (T := .leaf cur c0) hrep (by omega) rfl hnf (by simp [BTreeTree.height])
           hqlo hqhi hhi hv (s := s)
-      dsimp only [descendSplitLoopGenProg, iterate] at ih_fr ih_res ih_mc ih_vp ih_rep ⊢
-      rw [clientState_bind, hstep_st, hstep_res, hdesc_eq]
-      refine ⟨ih_fr, ?_, ?_, ?_, ⟨hsafe1, ?_⟩, ih_rep, ih_lf, ih_oth, ih_bm, ih_out⟩
-      · rw [clientResult_bind, hstep_st, hstep_res]; exact ih_res
-      · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_st, hstep_res, hstep_mc]
-        have := ih_mc; omega
-      · refine validProg_bind hstep_vp ?_
-        rw [hstep_st, hstep_res]; exact ih_vp
-      · rw [hstep_st, hstep_res]; exact ih_safe
+      dsimp only
+      rw [hS, hR, hdesc_eq]
+      exact ⟨ih_fr, ih_res, hM ih_mc, hV ih_vp, hI ih_safe, ih_rep, ih_lf, ih_oth, ih_bm, ih_out⟩
     | branch idx c0 cs =>
-      dsimp only [BTreeTree.rootIdx] at hrt
-      subst idx
+      rcases hrt.symm with rfl
       obtain ⟨hr_le, hclo_q, hq_chi, _⟩ := branch_child_routing (by omega) hkey_lt hv hhi hqlo hqhi
       obtain ⟨_, hmeta, _, _, hkw_cur, hvw_cur, _, hhi_last, hmono, hnot_cur, _, _, hcs_sub⟩ := hv
       have hc0_lt : c0 < 2 * tMinWhp n_max - 1 := by rwa [hmeta, metaCount_mkNodeMeta] at hnf
-      have hmod0 : (sl.nodes cur).metaWord % 2 ≠ 1 := by rw [hmeta]; simp [mkNodeMeta]
-      have hcnt_div : (sl.nodes cur).metaWord / 2 = c0 := by
-        rw [hmeta]; exact metaCount_mkNodeMeta false c0
+      have hmod0 : (sl.nodes cur).metaWord % 2 ≠ 1 := by simp [hmeta, mkNodeMeta]
+      have hcnt_div : (sl.nodes cur).metaWord / 2 = c0 := hmeta ▸ metaCount_mkNodeMeta false c0
       set r := swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q (sl.nodes cur).keysWord
       let r_fin : Fin (c0 + 1) := ⟨r, Nat.lt_succ_of_le hr_le⟩
       set childIdx := (cs r_fin).rootIdx
@@ -443,12 +441,11 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
         unfold childHi
         split_ifs with hrc
         · rcases eq_or_lt_of_le (by omega : r ≤ c0 - 1) with heq | hlt
-          · rw [heq]; exact hhi_last.le
+          · exact heq ▸ hhi_last.le
           · exact (hmono r (c0 - 1) hlt (by omega)).le.trans hhi_last.le
         · exact le_rfl
       have hchild_ht : (cs r_fin).height ≤ f := by
-        have hsup : (cs r_fin).height ≤ univ.sup fun i => (cs i).height :=
-          Finset.le_sup (f := fun i => (cs i).height) (mem_univ r_fin)
+        have := Finset.le_sup (f := fun i => (cs i).height) (mem_univ r_fin)
         simp only [BTreeTree.height] at hht_le; omega
       obtain ⟨hchild_lt, hcnt_c_le, _, _, hk_c, hv_c, _⟩ :=
         validSubtree_root_bounds hth (hchi_le.trans_lt hhi) (hcs_sub r_fin).2
@@ -458,6 +455,8 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
       dsimp only at hndc_st hndc_res hndc_mc hndc_vp
       have hcntc_div : (sl.nodes childIdx).metaWord / 2 =
           metaCount (sl.nodes childIdx).metaWord := rfl
+      have hr_eq_sw : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
+          (sl.nodes cur).keysWord = r := rfl
       by_cases hfull_c : metaCount (sl.nodes childIdx).metaWord = 2 * tMinWhp n_max - 1
       · -- Subcase B1: Child `childIdx` is full (`splitFullNode` + 3 node writes + alloc)
         set spPure := splitFullNode (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
@@ -470,15 +469,13 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
         have hmP : parentNd'.metaWord < 2 ^ nodeMetaBitsWhp n_max := by
           dsimp only [parentNd', mkNodeMeta]; simp only [Bool.false_eq_true, ↓reduceIte]; omega
         have hkP : parentNd'.keysWord < 2 ^ keysWordBitsWhp n_max := by
-          dsimp only [parentNd']
-          unfold keysWordBitsWhp keyLaneBitsWhp
+          dsimp only [parentNd', keysWordBitsWhp, keyLaneBitsWhp]
           exact (wordInsertAt_lt hr_le hsep_lt hkw_cur).trans_le
             (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
         have hvP : parentNd'.valsWord < 2 ^ valsWordBitsWhp n_max := by
-          dsimp only [parentNd']
+          dsimp only [parentNd', valsWordBitsWhp]
           have hr_v : sl.alloc < 2 ^ valLaneBitsWhp n_max :=
             (by omega : sl.alloc < nSliceWhp n_max).trans hns_lt
-          unfold valsWordBitsWhp
           exact (wordInsertAt_lt (Nat.succ_le_succ hr_le) hr_v hvw_cur).trans_le
             (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
         obtain ⟨hfr4, hmc4, hvp4, hrep4, hoth4, hbm4, hout4⟩ :=
@@ -505,132 +502,99 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
         have hsp_res := clientResult_splitFullNodeGenProg (U := U) (V := V) (w := w)
           hth (sl.nodes childIdx) s
         dsimp only at hsp_res
-        have hr_eq_sw : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
-            (sl.nodes cur).keysWord = r := rfl
         have hmP_eq : parentNd'.metaWord = 2 * (c0 + 1) := by
           simp [parentNd', mkNodeMeta]
-        have hstep_st : (Memory.spec 0).clientState s
-            (descendSplitStepGenProg (d0, (sl.alloc, cur))) = s4 := by
+        have hstep : (Memory.spec 0).clientState s
+              (descendSplitStepGenProg (d0, (sl.alloc, cur))) = s4 ∧
+            (Memory.spec 0).clientResult s
+              (descendSplitStepGenProg (d0, (sl.alloc, cur))) = (sl.alloc + 1, nextCur) ∧
+            memoryCost (descendSplitStepGenProg (d0, (sl.alloc, cur))) s ≤ 52 ∧
+            ValidProg w (base + largeSpaceWhp c U V w n_max) s
+              (descendSplitStepGenProg (d0, (sl.alloc, cur))) := by
           unfold descendSplitStepGenProg splitFullChildOpProg splitFullChildBody
             splitNodeOpProg wordInsertOpProg
           simp only [d0, pure_bind, wp_large_wVal hth, wp_large_wKey hth, wp_large_tMin hth]
-          rw [clientState_bind, hcs_n, hres_n]
-          simp only [hmod0, ↓reduceIte, hcnt_div]
-          rw [clientState_bind, clientState_swarRankGenProg,
-            clientResult_swarRankGenProg hth,
-            clientState_bind, clientState_laneGetGenProg,
-            clientResult_laneGetGenProg]
-          rw [hr_eq_sw, hval_r]
-          rw [clientState_bind, hndc_st, hndc_res]
-          dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]
-          rw [clientState_bind, clientState_splitFullNodeGenProg, hsp_res]
-          dsimp only
-          rw [clientState_bind, clientState_wordInsertAtGenProg,
-            clientResult_wordInsertAtGenProg,
-            clientState_bind, clientState_wordInsertAtGenProg,
-            clientResult_wordInsertAtGenProg]
-          rw [clientState_bind_pure_ite, writeSplitFourOpProg_eq, ← hmP_eq]
-          dsimp only [s4, w4prog, parentNd', keyLaneBitsWhp, spPure, childIdx]
-        have hstep_res : (Memory.spec 0).clientResult s
-            (descendSplitStepGenProg (d0, (sl.alloc, cur))) = (sl.alloc + 1, nextCur) := by
-          unfold descendSplitStepGenProg splitFullChildOpProg splitFullChildBody
-            splitNodeOpProg wordInsertOpProg
-          simp only [d0, pure_bind, wp_large_wVal hth, wp_large_wKey hth, wp_large_tMin hth]
-          rw [clientResult_bind, hcs_n, hres_n]
-          simp only [hmod0, ↓reduceIte, hcnt_div]
-          rw [clientResult_bind, clientState_swarRankGenProg,
-            clientResult_swarRankGenProg hth,
-            clientResult_bind, clientState_laneGetGenProg,
-            clientResult_laneGetGenProg]
-          rw [hr_eq_sw, hval_r]
-          rw [clientResult_bind, hndc_st, hndc_res]
-          dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]
-          rw [clientResult_bind, clientState_splitFullNodeGenProg, hsp_res]
-          dsimp only
-          rw [clientResult_bind, clientState_wordInsertAtGenProg,
-            clientResult_wordInsertAtGenProg,
-            clientResult_bind, clientState_wordInsertAtGenProg,
-            clientResult_wordInsertAtGenProg]
-          rw [clientResult_bind_pure_ite]
-          dsimp only [nextCur]
-          split_ifs <;> rfl
-        have hstep_mc : memoryCost (descendSplitStepGenProg (d0, (sl.alloc, cur))) s ≤ 52 := by
-          unfold descendSplitStepGenProg splitFullChildOpProg splitFullChildBody
-            splitNodeOpProg wordInsertOpProg
-          simp only [d0, pure_bind, wp_large_wVal hth, wp_large_wKey hth, wp_large_tMin hth]
-          rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_n, hmc_n, hres_n]
-          simp only [hmod0, ↓reduceIte, hcnt_div]
-          rw [← PFunctor.FreeM.bind_eq_bind]
-          rw [memoryCost_bind, clientState_swarRankGenProg, memoryCost_swarRankGenProg,
-            clientResult_swarRankGenProg hth]
-          rw [← PFunctor.FreeM.bind_eq_bind]
-          rw [memoryCost_bind, clientState_laneGetGenProg, memoryCost_laneGetGenProg,
-            clientResult_laneGetGenProg]
-          rw [hr_eq_sw, hval_r]
-          rw [← PFunctor.FreeM.bind_eq_bind]
-          rw [memoryCost_bind, hndc_st, hndc_mc, hndc_res]
-          dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]
-          rw [memoryCost_bind, clientState_splitFullNodeGenProg, memoryCost_splitFullNodeGenProg,
-            hsp_res]
-          dsimp only
-          rw [memoryCost_bind, clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg,
-            clientResult_wordInsertAtGenProg]
-          rw [memoryCost_bind, clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg,
-            clientResult_wordInsertAtGenProg]
-          rw [memoryCost_bind]
-          have hite_mc : ∀ s_end, memoryCost
-              (if spPure.sep < q then pure (sl.alloc + 1, sl.alloc)
-               else pure (sl.alloc + 1, (cs r_fin).rootIdx)) s_end = 0 := by
-            intro _; split_ifs <;> rfl
-          rw [hite_mc, Nat.add_zero, writeSplitFourOpProg_eq, ← hmP_eq]
-          dsimp only [w4prog, parentNd', keyLaneBitsWhp, childIdx] at hmc4 ⊢
-          rw [hmc4]
-        have hstep_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-            (descendSplitStepGenProg (d0, (sl.alloc, cur))) := by
-          unfold descendSplitStepGenProg splitFullChildOpProg splitFullChildBody
-            splitNodeOpProg wordInsertOpProg
-          simp only [d0, pure_bind, wp_large_wVal hth, wp_large_wKey hth, wp_large_tMin hth]
-          refine validProg_bind hvp_n ?_
-          rw [hcs_n, hres_n]; simp only [hmod0, ↓reduceIte, hcnt_div]
-          refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
-          rw [clientState_swarRankGenProg, clientResult_swarRankGenProg hth]
-          refine validProg_bind (validWhpProg_laneGetGenProg _) ?_
-          rw [clientState_laneGetGenProg, clientResult_laneGetGenProg]
-          rw [hr_eq_sw, hval_r]
-          refine validProg_bind hndc_vp ?_
-          rw [hndc_st, hndc_res]; dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]
-          refine validProg_bind (validWhpProg_splitFullNodeGenProg _) ?_
-          rw [clientState_splitFullNodeGenProg, hsp_res]; dsimp only
-          refine validProg_bind (validWhpProg_wordInsertAtGenProg _) ?_
-          rw [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]
-          refine validProg_bind (validWhpProg_wordInsertAtGenProg _) ?_
-          rw [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]
-          rw [writeSplitFourOpProg_eq, ← hmP_eq]
-          refine validProg_bind hvp4 ?_
-          split_ifs <;> exact validProg_pure _
+          refine ⟨?_, ?_, ?_, validProg_bind hvp_n ?_⟩
+          · rw [clientState_bind, hcs_n, hres_n]; simp only [hmod0, ↓reduceIte, hcnt_div]
+            rw [clientState_bind, clientState_swarRankGenProg, clientResult_swarRankGenProg hth,
+              clientState_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg, hr_eq_sw,
+              hval_r, clientState_bind, hndc_st, hndc_res]
+            dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]
+            rw [clientState_bind, clientState_splitFullNodeGenProg, hsp_res]
+            dsimp only
+            rw [clientState_bind, clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg,
+              clientState_bind, clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg,
+              clientState_bind_pure_ite, writeSplitFourOpProg_eq, ← hmP_eq]
+            dsimp only [s4, w4prog, parentNd', keyLaneBitsWhp, spPure, childIdx]
+          · rw [clientResult_bind, hcs_n, hres_n]; simp only [hmod0, ↓reduceIte, hcnt_div]
+            rw [clientResult_bind, clientState_swarRankGenProg, clientResult_swarRankGenProg hth,
+              clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg, hr_eq_sw,
+              hval_r, clientResult_bind, hndc_st, hndc_res]
+            dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]
+            rw [clientResult_bind, clientState_splitFullNodeGenProg, hsp_res]
+            dsimp only
+            rw [clientResult_bind, clientState_wordInsertAtGenProg,
+              clientResult_wordInsertAtGenProg, clientResult_bind, clientState_wordInsertAtGenProg,
+              clientResult_wordInsertAtGenProg, clientResult_bind_pure_ite]
+            dsimp only [nextCur]
+            split_ifs <;> rfl
+          · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_n, hmc_n, hres_n]
+            simp only [hmod0, ↓reduceIte, hcnt_div]
+            rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, clientState_swarRankGenProg,
+              memoryCost_swarRankGenProg, clientResult_swarRankGenProg hth,
+              ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, clientState_laneGetGenProg,
+              memoryCost_laneGetGenProg, clientResult_laneGetGenProg, hr_eq_sw, hval_r,
+              ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hndc_st, hndc_mc, hndc_res]
+            dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]
+            rw [memoryCost_bind, clientState_splitFullNodeGenProg,
+              memoryCost_splitFullNodeGenProg, hsp_res]
+            dsimp only
+            rw [memoryCost_bind, clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg,
+              clientResult_wordInsertAtGenProg, memoryCost_bind, clientState_wordInsertAtGenProg,
+              memoryCost_wordInsertAtGenProg, clientResult_wordInsertAtGenProg, memoryCost_bind]
+            have hite_mc (s_end) : memoryCost
+                (if spPure.sep < q then pure (sl.alloc + 1, sl.alloc)
+                 else pure (sl.alloc + 1, (cs r_fin).rootIdx)) s_end = 0 := by
+              split_ifs <;> rfl
+            rw [hite_mc, Nat.add_zero, writeSplitFourOpProg_eq, ← hmP_eq]
+            dsimp only [w4prog, parentNd', keyLaneBitsWhp, childIdx] at hmc4 ⊢
+            rw [hmc4]
+          · rw [hcs_n, hres_n]; simp only [hmod0, ↓reduceIte, hcnt_div]
+            refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
+            rw [clientState_swarRankGenProg, clientResult_swarRankGenProg hth]
+            refine validProg_bind (validWhpProg_laneGetGenProg _) ?_
+            rw [clientState_laneGetGenProg, clientResult_laneGetGenProg, hr_eq_sw, hval_r]
+            refine validProg_bind hndc_vp ?_
+            rw [hndc_st, hndc_res]; dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]
+            refine validProg_bind (validWhpProg_splitFullNodeGenProg _) ?_
+            rw [clientState_splitFullNodeGenProg, hsp_res]; dsimp only
+            refine validProg_bind (validWhpProg_wordInsertAtGenProg _) ?_
+            rw [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]
+            refine validProg_bind (validWhpProg_wordInsertAtGenProg _) ?_
+            rw [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg,
+              writeSplitFourOpProg_eq, ← hmP_eq]
+            refine validProg_bind hvp4 ?_
+            split_ifs <;> exact validProg_pure _
         -- Downward subtree split witness via `splitFullNode_spec`
         have hchild_ne_cur : childIdx ≠ cur := fun heq =>
           hnot_cur r_fin (heq ▸ (cs r_fin).rootIdx_mem_nodeSet)
         have hlr_ne : childIdx ≠ sl.alloc := by omega
         have hcur_ne_r : cur ≠ sl.alloc := by omega
         have hl_nd : nodes3 childIdx = spPure.left := by
-          dsimp only [nodes3]
-          rw [Function.update_of_ne hchild_ne_cur, Function.update_of_ne hlr_ne,
+          simp only [nodes3, Function.update_of_ne hchild_ne_cur, Function.update_of_ne hlr_ne,
             Function.update_self]
         have hr_nd : nodes3 sl.alloc = spPure.right := by
-          dsimp only [nodes3]
-          rw [Function.update_of_ne hcur_ne_r.symm, Function.update_self]
+          simp only [nodes3, Function.update_of_ne hcur_ne_r.symm, Function.update_self]
         have herase : ∀ v ∈ (cs r_fin).nodeSet.erase childIdx,
             nodes3 v = sl.nodes v ∧ v ≠ childIdx ∧ v ≠ sl.alloc := by
           intro v hv_er
           obtain ⟨hv_ne_c, hv_mem⟩ := mem_erase.mp hv_er
           have hv_lt : v < sl.alloc := (((hcs_sub r_fin).2).leafCount_le_card_nodeSet).1 v hv_mem
           have hv_ne_r : v ≠ sl.alloc := by omega
-          have hv_ne_cur : v ≠ cur := fun heq => hnot_cur r_fin (heq ▸ hv_mem)
           refine ⟨?_, hv_ne_c, hv_ne_r⟩
-          dsimp only [nodes3]
-          rw [Function.update_of_ne hv_ne_cur, Function.update_of_ne hv_ne_r,
-            Function.update_of_ne hv_ne_c]
+          simp only [nodes3,
+            Function.update_of_ne (fun heq : v = cur => hnot_cur r_fin (heq ▸ hv_mem)),
+            Function.update_of_ne hv_ne_r, Function.update_of_ne hv_ne_c]
         obtain ⟨leftT, rightT, hrtL, hrtR, hcntL_le, hcntR_eq, hhtL, hhtR, _, _,
           _, hclo_sep, hsep_chi, _, hvL, hvR⟩ :=
           splitFullNode_spec (alloc' := sl.alloc + 1) (nodes' := nodes3)
@@ -640,178 +604,83 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
             (tMinWhp n_max) (f + 1) sl cur q =
             descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max)
               (tMinWhp n_max) f sl_mid nextCur q := by
-          dsimp only [descendSplitToLeaf]
-          have hc : (metaCount (sl.nodes childIdx).metaWord == 2 * tMinWhp n_max - 1) = true := by
-            simp [hfull_c]
-          rw [hmeta, metaIsLeaf_mkNodeMeta, metaCount_mkNodeMeta]
-          simp only [Bool.false_eq_true, ↓reduceIte]
-          change (
-            let r0 := swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
-              (sl.nodes cur).keysWord
-            let childIdx0 := laneGet (valLaneBitsWhp n_max) (sl.nodes cur).valsWord r0
-            if (metaCount (sl.nodes childIdx0).metaWord == 2 * tMinWhp n_max - 1) = true
-            then _ else _) = _
-          have hr_eq : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
-              (sl.nodes cur).keysWord = r := rfl
-          dsimp only
-          rw [hr_eq, hval_r, hc]
-          simp only [↓reduceIte]
-          rfl
-        have hih_branch :
-            let p := descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-              f sl_mid nextCur q
-            let s' := (Memory.spec 0).clientState s4
-              (descendSplitLoopGenProg ((d0, (sl_mid.alloc, nextCur)), f))
-            s'.frontier = s4.frontier ∧
-            (Memory.spec 0).clientResult s4
-              (descendSplitLoopGenProg ((d0, (sl_mid.alloc, nextCur)), f)) = (p.1.alloc, p.2) ∧
-            memoryCost (descendSplitLoopGenProg ((d0, (sl_mid.alloc, nextCur)), f)) s4 ≤ 52 * f ∧
-            ValidProg w (base + largeSpaceWhp c U V w n_max) s4
-              (descendSplitLoopGenProg ((d0, (sl_mid.alloc, nextCur)), f)) ∧
-            iterationSafe descendSplitStepGenProg DescendSplitStepGenPre w d0 f
-              (sl_mid.alloc, nextCur) s4 ∧
-            BTreeSliceMemRep base c U V w n_max sIdx p.1 s'.mem ∧
-            (∃ isR cntL loL hiL,
-              cntL < 2 * tMinWhp n_max - 1 ∧
-              loL ≤ q ∧ q ≤ hiL ∧ hiL < 2 ^ fpBitsWhp n_max ∧
+          simp only [descendSplitToLeaf, hmeta, metaIsLeaf_mkNodeMeta, metaCount_mkNodeMeta,
+            Bool.false_eq_true, ↓reduceIte, hr_eq_sw, hval_r, beq_iff_eq]
+          rw [ite_eq_left hfull_c]
+        obtain ⟨isR, Tn, lon, hin, hrtn, hnfn, hhtn, hlon, hhin, hhin_lt, hvn⟩ :
+            ∃ isR Tn lon hin, Tn.rootIdx = nextCur ∧
+              metaCount (sl_mid.nodes nextCur).metaWord < 2 * tMinWhp n_max - 1 ∧ Tn.height ≤ f ∧
+              lon ≤ q ∧ q ≤ hin ∧ hin < 2 ^ fpBitsWhp n_max ∧
               ValidSubtree isR (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-                p.1.alloc p.1.nodes loL hiL mapFn (.leaf p.2 cntL)) ∧
-            (∀ sIdx' < 3 * numBucketsWhp n_max, sIdx' ≠ sIdx → ∀ sl₂,
-              BTreeSliceMemRep base c U V w n_max sIdx' sl₂ s4.mem →
-              BTreeSliceMemRep base c U V w n_max sIdx' sl₂ s'.mem) ∧
-            (∀ idx < 16 * numBucketsWhp n_max,
-              idx ≠ 16 * (sIdx / 3) + 10 + 2 * (sIdx % 3) →
-              readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s'.mem idx =
-                readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s4.mem idx) ∧
-            (∀ a, (a < base + offBktMeta c U V w n_max ∨
-                (base + offFbStart c U V w n_max ≤ a ∧ a < base + offBtMeta c U V w n_max) ∨
-                base + offTrieChild0 c U V w n_max ≤ a) →
-              s'.mem a = s4.mem a) := by
-          by_cases hsq : spPure.sep < q
-          · have hnc : nextCur = sl.alloc := by simp [nextCur, hsq]
-            dsimp only [spPure, childIdx] at hsq
-            rw [hnc]
-            exact ih hrep4 (by dsimp [sl_mid]; omega) hrtR
-              (by dsimp [sl_mid]; omega) (by rw [hhtR]; exact hchild_ht)
-              (by omega) hq_chi (hchi_le.trans_lt hhi) hvR (s := s4)
-          · have hnc : nextCur = childIdx := by simp [nextCur, hsq]
-            dsimp only [spPure, childIdx] at hsq
-            rw [hnc]
-            exact ih hrep4 (by dsimp [sl_mid]; omega) hrtL
-              (by dsimp [sl_mid]; omega) (by rw [hhtL]; exact hchild_ht)
-              hclo_q (by omega) (hsep_chi.trans_le (hchi_le.trans hhi.le)) hvL (s := s4)
+                sl_mid.alloc sl_mid.nodes lon hin mapFn Tn := by
+          dsimp only [nextCur]
+          split_ifs with hsq
+          · dsimp only [spPure, childIdx] at hsq
+            exact ⟨_, rightT, _, _, hrtR, hcntR_eq.trans_lt (by omega), hhtR.trans_le hchild_ht,
+              by omega, hq_chi, hchi_le.trans_lt hhi, hvR⟩
+          · dsimp only [spPure, childIdx] at hsq
+            exact ⟨_, leftT, _, _, hrtL, hcntL_le.trans_lt (by omega), hhtL.trans_le hchild_ht,
+              hclo_q, by omega, hsep_chi.trans_le (hchi_le.trans hhi.le), hvL⟩
+        obtain ⟨hS, hR, hM, hV, hI⟩ :=
+          descendSplitLoop_succ (f := f) hsafe1 hstep
         obtain ⟨ih_fr, ih_res, ih_mc, ih_vp, ih_safe, ih_rep, ih_lf, ih_oth, ih_bm, ih_out⟩ :=
-          hih_branch
-        dsimp only [sl_mid] at ih_fr ih_res ih_mc ih_vp ih_safe ih_rep ih_oth ih_bm ih_out
-        dsimp only [descendSplitLoopGenProg, iterate] at ih_fr ih_res ih_mc ih_vp ih_rep ⊢
-        dsimp only [descendSplitLoopGenProg, iterate] at ih_oth ih_bm ih_out
-        rw [clientState_bind, hstep_st, hstep_res, hdesc_eq]
-        refine ⟨ih_fr.trans hfr4, ?_, ?_, ?_, ⟨hsafe1, ?_⟩, ih_rep, ih_lf, ?_, ?_, ?_⟩
-        · rw [clientResult_bind, hstep_st, hstep_res]; exact ih_res
-        · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_st, hstep_res]
-          omega
-        · refine validProg_bind hstep_vp ?_
-          rw [hstep_st, hstep_res]; exact ih_vp
-        · rw [hstep_st, hstep_res]; exact ih_safe
-        · intro sIdx' hsIdx' hne sl₂ hr₂
-          exact ih_oth sIdx' hsIdx' hne sl₂ (hoth4 sIdx' hsIdx' hne sl₂ hr₂)
-        · intro idx hidx hneA
-          exact (ih_bm idx hidx hneA).trans (hbm4 idx hidx hneA)
-        · intro a ha
-          exact (ih_out a ha).trans (hout4 a ha)
+          ih hrep4 (by dsimp [sl_mid]; omega) hrtn hnfn hhtn hlon hhin hhin_lt hvn (s := s4)
+        rw [hS, hR, hdesc_eq]
+        exact ⟨ih_fr.trans hfr4, ih_res, hM ih_mc, hV ih_vp, hI ih_safe, ih_rep, ih_lf,
+          fun sIdx' hsIdx' hne sl₂ hr₂ => ih_oth sIdx' hsIdx' hne sl₂ (hoth4 _ hsIdx' hne _ hr₂),
+          fun idx hidx hneA => (ih_bm idx hidx hneA).trans (hbm4 idx hidx hneA),
+          fun a ha => (ih_out a ha).trans (hout4 a ha)⟩
       · -- Subcase B2: Child `childIdx` is already non-full (`< 2 * tMin - 1`)
-        have hcnt_c_le' : metaCount (sl.nodes childIdx).metaWord ≤ 2 * tMinWhp n_max - 1 :=
-          hcnt_c_le
-        have hnf_c : metaCount (sl.nodes childIdx).metaWord < 2 * tMinWhp n_max - 1 := by omega
-        set p0 := (mkWhpCoreParams c U V w n_max, base)
-        have hr_eq_sw : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
-            (sl.nodes cur).keysWord = r := rfl
-        have hstep_st : (Memory.spec 0).clientState s
-            (descendSplitStepGenProg (d0, (sl.alloc, cur))) = s := by
+        have hnf_c : metaCount (sl.nodes childIdx).metaWord < 2 * tMinWhp n_max - 1 :=
+          lt_of_le_of_ne hcnt_c_le hfull_c
+        have hstep : (Memory.spec 0).clientState s
+              (descendSplitStepGenProg (d0, (sl.alloc, cur))) = s ∧
+            (Memory.spec 0).clientResult s
+              (descendSplitStepGenProg (d0, (sl.alloc, cur))) = (sl.alloc, childIdx) ∧
+            memoryCost (descendSplitStepGenProg (d0, (sl.alloc, cur))) s ≤ 52 ∧
+            ValidProg w (base + largeSpaceWhp c U V w n_max) s
+              (descendSplitStepGenProg (d0, (sl.alloc, cur))) := by
           unfold descendSplitStepGenProg
           simp only [d0, pure_bind, wp_large_wVal hth, wp_large_tMin hth]
-          rw [clientState_bind, hcs_n, hres_n]
-          simp only [hmod0, ↓reduceIte, hcnt_div]
-          rw [clientState_bind, clientState_swarRankGenProg,
-            clientResult_swarRankGenProg hth,
-            clientState_bind, clientState_laneGetGenProg,
-            clientResult_laneGetGenProg]
-          rw [hr_eq_sw, hval_r]
-          rw [clientState_bind, hndc_st, hndc_res]
-          dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]; rfl
-        have hstep_res : (Memory.spec 0).clientResult s
-            (descendSplitStepGenProg (d0, (sl.alloc, cur))) = (sl.alloc, childIdx) := by
-          unfold descendSplitStepGenProg
-          simp only [d0, pure_bind, wp_large_wVal hth, wp_large_tMin hth]
-          rw [clientResult_bind, hcs_n, hres_n]
-          simp only [hmod0, ↓reduceIte, hcnt_div]
-          rw [clientResult_bind, clientState_swarRankGenProg,
-            clientResult_swarRankGenProg hth,
-            clientResult_bind, clientState_laneGetGenProg,
-            clientResult_laneGetGenProg]
-          rw [hr_eq_sw, hval_r]
-          rw [clientResult_bind, hndc_st, hndc_res]
-          dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte,
-            StateTransitionSpec.clientResult_pure]
-          rfl
-        have hstep_mc : memoryCost (descendSplitStepGenProg (d0, (sl.alloc, cur))) s ≤ 52 := by
-          unfold descendSplitStepGenProg
-          simp only [d0, pure_bind, wp_large_wVal hth, wp_large_tMin hth]
-          rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_n, hmc_n, hres_n]
-          simp only [hmod0, ↓reduceIte, hcnt_div]
-          rw [← PFunctor.FreeM.bind_eq_bind]
-          rw [memoryCost_bind, clientState_swarRankGenProg, memoryCost_swarRankGenProg,
-            clientResult_swarRankGenProg hth]
-          rw [memoryCost_bind, clientState_laneGetGenProg, memoryCost_laneGetGenProg,
-            clientResult_laneGetGenProg]
-          rw [hr_eq_sw, hval_r]
-          rw [memoryCost_bind, hndc_st, hndc_mc, hndc_res]
-          dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte, memoryCost_pure]; omega
-        have hstep_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-            (descendSplitStepGenProg (d0, (sl.alloc, cur))) := by
-          unfold descendSplitStepGenProg
-          simp only [d0, pure_bind, wp_large_wVal hth, wp_large_tMin hth]
-          refine validProg_bind hvp_n ?_
-          rw [hcs_n, hres_n]; simp only [hmod0, ↓reduceIte, hcnt_div]
-          refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
-          rw [clientState_swarRankGenProg, clientResult_swarRankGenProg hth]
-          refine validProg_bind (validWhpProg_laneGetGenProg _) ?_
-          rw [clientState_laneGetGenProg, clientResult_laneGetGenProg]
-          rw [hr_eq_sw, hval_r]
-          refine validProg_bind hndc_vp ?_
-          rw [hndc_st, hndc_res]; dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]
-          exact validProg_pure _
+          refine ⟨?_, ?_, ?_, validProg_bind hvp_n ?_⟩
+          · rw [clientState_bind, hcs_n, hres_n]; simp only [hmod0, ↓reduceIte, hcnt_div]
+            rw [clientState_bind, clientState_swarRankGenProg, clientResult_swarRankGenProg hth,
+              clientState_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg, hr_eq_sw,
+              hval_r, clientState_bind, hndc_st, hndc_res]
+            dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]; rfl
+          · rw [clientResult_bind, hcs_n, hres_n]; simp only [hmod0, ↓reduceIte, hcnt_div]
+            rw [clientResult_bind, clientState_swarRankGenProg, clientResult_swarRankGenProg hth,
+              clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg, hr_eq_sw,
+              hval_r, clientResult_bind, hndc_st, hndc_res]
+            dsimp only; rw [hcntc_div]
+            simp only [hfull_c, ↓reduceIte, StateTransitionSpec.clientResult_pure]; rfl
+          · rw [memoryCost_bind', hcs_n, hmc_n, hres_n]; simp only [hmod0, ↓reduceIte, hcnt_div]
+            rw [memoryCost_bind', clientState_swarRankGenProg, memoryCost_swarRankGenProg,
+              clientResult_swarRankGenProg hth, memoryCost_bind', clientState_laneGetGenProg,
+              memoryCost_laneGetGenProg, clientResult_laneGetGenProg, hr_eq_sw, hval_r,
+              memoryCost_bind', hndc_st, hndc_mc, hndc_res]
+            dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte, memoryCost_pure]; omega
+          · rw [hcs_n, hres_n]; simp only [hmod0, ↓reduceIte, hcnt_div]
+            refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
+            rw [clientState_swarRankGenProg, clientResult_swarRankGenProg hth]
+            refine validProg_bind (validWhpProg_laneGetGenProg _) ?_
+            rw [clientState_laneGetGenProg, clientResult_laneGetGenProg, hr_eq_sw, hval_r]
+            refine validProg_bind hndc_vp ?_
+            rw [hndc_st, hndc_res]; dsimp only; rw [hcntc_div]; simp only [hfull_c, ↓reduceIte]
+            exact validProg_pure _
         have hdesc_eq : descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max)
             (tMinWhp n_max) (f + 1) sl cur q =
             descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max)
               (tMinWhp n_max) f sl childIdx q := by
-          dsimp only [descendSplitToLeaf]
-          have hc : (metaCount (sl.nodes childIdx).metaWord == 2 * tMinWhp n_max - 1) = false := by
-            simp [hfull_c]
-          rw [hmeta, metaIsLeaf_mkNodeMeta, metaCount_mkNodeMeta]
-          simp only [Bool.false_eq_true, ↓reduceIte]
-          change (
-            let r0 := swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
-              (sl.nodes cur).keysWord
-            let childIdx0 := laneGet (valLaneBitsWhp n_max) (sl.nodes cur).valsWord r0
-            if (metaCount (sl.nodes childIdx0).metaWord == 2 * tMinWhp n_max - 1) = true
-            then _ else _) = _
-          have hr_eq : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
-              (sl.nodes cur).keysWord = r := rfl
-          dsimp only; rw [hr_eq, hval_r, hc]; simp only [Bool.false_eq_true, ↓reduceIte]; rfl
+          simp only [descendSplitToLeaf, hmeta, metaIsLeaf_mkNodeMeta, metaCount_mkNodeMeta,
+            Bool.false_eq_true, ↓reduceIte, hr_eq_sw, hval_r, beq_iff_eq]
+          rw [ite_eq_right hfull_c]
+        obtain ⟨hS, hR, hM, hV, hI⟩ := descendSplitLoop_succ (f := f) hsafe1 hstep
         obtain ⟨ih_fr, ih_res, ih_mc, ih_vp, ih_safe, ih_rep, ih_lf, ih_oth, ih_bm, ih_out⟩ :=
           ih (cur := childIdx) hrep (by omega) rfl hnf_c hchild_ht hclo_q hq_chi
             (hchi_le.trans_lt hhi) (hcs_sub r_fin).2 (s := s)
-        dsimp only [descendSplitLoopGenProg, iterate] at ih_fr ih_res ih_mc ih_vp ih_rep ⊢
-        dsimp only [descendSplitLoopGenProg, iterate] at ih_oth ih_bm ih_out
-        rw [clientState_bind, hstep_st, hstep_res, hdesc_eq]
-        refine ⟨ih_fr, ?_, ?_, ?_, ⟨hsafe1, ?_⟩, ih_rep, ih_lf, ih_oth, ih_bm, ih_out⟩
-        · rw [clientResult_bind, hstep_st, hstep_res]; exact ih_res
-        · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_st, hstep_res]
-          have := hstep_mc; have := ih_mc; omega
-        · refine validProg_bind hstep_vp ?_
-          rw [hstep_st, hstep_res]; exact ih_vp
-        · rw [hstep_st, hstep_res]; exact ih_safe
+        rw [hS, hR, hdesc_eq]
+        exact ⟨ih_fr, ih_res, hM ih_mc, hV ih_vp, hI ih_safe, ih_rep, ih_lf, ih_oth, ih_bm, ih_out⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

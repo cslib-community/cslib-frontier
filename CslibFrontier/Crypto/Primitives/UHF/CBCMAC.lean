@@ -112,14 +112,12 @@ theorem succProbability_multiQueryGame_cbcMac_le
       (Q n : ℝ≥0) ^ 2 * (ℓ n + 1 : ℝ≥0) ^ 2 / (2 * 2 ^ n) + (Q n).choose 2 / (2 : ℝ≥0) ^ n := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · have hEmpty {word : List Bool} (hw : lpBlockValid ℓ 0 word = true) : word = [] := by
-      apply List.length_eq_zero_iff.mp
-      exact Nat.eq_zero_of_le_zero (by simpa only [Nat.mul_zero] using (lpBlockValid_spec hw).2)
+      simpa using (lpBlockValid_spec hw).2
     have hNoCollision (guesses : List (List Bool)) (key : BitString 0) :
         ¬ ∃ u ∈ guesses, ∃ v ∈ guesses, u ≠ v ∧ lpBlockValid ℓ 0 u = true ∧
           lpBlockValid ℓ 0 v = true ∧
-          cbcMacFamily family (List.ofFn key) u = cbcMacFamily family (List.ofFn key) v := by
-      rintro ⟨u, _, v, _, hne, hu, hv, _⟩
-      exact hne ((hEmpty hu).trans (hEmpty hv).symm)
+          cbcMacFamily family (List.ofFn key) u = cbcMacFamily family (List.ofFn key) v :=
+      fun ⟨_, _, _, _, hne, hu, hv, _⟩ => hne ((hEmpty hu).trans (hEmpty hv).symm)
     simp only [multiQueryGame, Game.withSetup_pure, ProbComp.eval_pure, ProbComp.eval_bind,
       hNoCollision, decide_false, PMF.bind_const]
     simp [Game.succProbability]
@@ -127,9 +125,7 @@ theorem succProbability_multiQueryGame_cbcMac_le
   · have hNat : 2 ^ n ≤ Q n * (ℓ n + 1) := hSmallAlphabet.trans
       (by simpa only [Nat.mul_comm] using Nat.mul_le_mul_left (Q n) (Nat.le_succ (ℓ n)))
     have hSize : (2 : ℝ≥0) ^ n ≤ (Q n : ℝ≥0) * (ℓ n + 1 : ℝ≥0) := by exact_mod_cast hNat
-    have hTwo : (2 : ℝ≥0) ≤ 2 ^ n := by
-      simpa only [pow_one] using
-        (pow_le_pow_right₀ (show (1 : ℝ≥0) ≤ 2 from one_le_two) hn)
+    have hTwo : (2 : ℝ≥0) ≤ 2 ^ n := le_self_pow₀ one_le_two hn.ne'
     have hCBC : (1 : ℝ≥0) ≤ (Q n : ℝ≥0) ^ 2 * (ℓ n + 1 : ℝ≥0) ^ 2 / (2 * 2 ^ n) := by
       rw [le_div_iff₀ (by positivity), one_mul, ← mul_pow, pow_two]
       exact mul_le_mul (hTwo.trans hSize) hSize (by positivity) (by positivity)

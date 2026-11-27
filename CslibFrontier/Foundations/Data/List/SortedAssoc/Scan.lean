@@ -197,12 +197,7 @@ theorem idRun_takeUpToM (hi : α) (l : List (α × β)) :
     Id.run (takeUpToM leI hi l) = l.takeWhile fun p => decide (p.1 ≤ hi) := by
   induction l with
   | nil => rfl
-  | cons p l ih =>
-    by_cases h : p.1 ≤ hi
-    · simp only [takeUpToM, leI, Id.run_bind, Id.run_pure, h, ↓reduceIte,
-        List.takeWhile_cons, decide_true, ih]
-    · simp only [takeUpToM, leI, Id.run_bind, Id.run_pure, h, ↓reduceIte,
-        Bool.false_eq_true, List.takeWhile_cons, decide_false]
+  | cons p l ih => by_cases h : p.1 ≤ hi <;> simp [takeUpToM, leI, h, ih]
 
 /-- The pure range scan at an entry: at a key not below `lo`, take the keys up to `hi`; otherwise
 move on. -/
@@ -223,16 +218,14 @@ theorem idRun_lookupM (h : l.IsSortedAssoc) (k : α) :
     rw [idRun_lookupM_cons]
     by_cases h₁ : k ≤ k'
     · by_cases h₂ : k' ≤ k
-      · obtain rfl := le_antisymm h₁ h₂
-        simp only [le_refl, ↓reduceIte, List.lookup_cons_self]
+      · simp [le_antisymm h₁ h₂]
       · have hk : k < k' := lt_of_le_of_ne h₁ fun e => h₂ (e ▸ le_rfl)
         simp only [h₁, h₂, ↓reduceIte]
         refine (List.lookup_eq_none_of_forall_ne fun q hq => ?_).symm
         rcases List.mem_cons.1 hq with rfl | hq
         · exact hk.ne'
         · exact (hk.trans (h.1 q hq)).ne'
-    · simp only [h₁, ↓reduceIte]
-      rw [List.lookup_cons_of_ne (lt_of_not_ge h₁).ne', ih h.2]
+    · simp [h₁, List.lookup_cons_of_ne (lt_of_not_ge h₁).ne', ih h.2]
 
 /-- On a sorted list the pure rank scan is `rank`. -/
 theorem idRun_rankM (h : l.IsSortedAssoc) (k : α) : Id.run (rankM leI k l) = rank k l := by
@@ -267,10 +260,7 @@ theorem idRun_succM (k : α) (l : List (α × β)) : Id.run (succM leI k l) = su
   | nil => rfl
   | cons p l ih =>
     obtain ⟨k', v⟩ := p
-    rw [idRun_succM_cons, succ?_cons, ih]
-    by_cases h₁ : k' ≤ k
-    · simp only [h₁, ↓reduceIte, not_lt.2 h₁]
-    · simp only [h₁, ↓reduceIte, lt_of_not_ge h₁]
+    by_cases h₁ : k' ≤ k <;> simp [idRun_succM_cons, succ?_cons, ih, h₁, lt_of_not_ge]
 
 /-- On a sorted list whose keys are all at least `lo`, restriction to `[lo, hi]` is the prefix of
 keys up to `hi`. -/
@@ -280,12 +270,11 @@ theorem range_eq_takeWhile (h : l.IsSortedAssoc) (hlo : ∀ p ∈ l, lo ≤ p.1)
   | nil => rfl
   | cons p l ih =>
     rw [List.isSortedAssoc_cons_iff] at h
-    have hp := hlo p List.mem_cons_self
-    rw [range_cons, List.takeWhile_cons]
     by_cases h₁ : p.1 ≤ hi
-    · simp only [hp, h₁, and_self, ↓reduceIte, decide_true]
-      rw [ih h.2 fun q hq => hlo q (List.mem_cons_of_mem _ hq)]
-    · simp only [h₁, and_false, ↓reduceIte, decide_false, Bool.false_eq_true]
+    · simp [range_cons, hlo p List.mem_cons_self, h₁,
+        ih h.2 fun q hq => hlo q (List.mem_cons_of_mem _ hq)]
+    · simp only [range_cons, List.takeWhile_cons, h₁, and_false, ↓reduceIte, decide_false,
+        Bool.false_eq_true]
       exact range_eq_nil_iff.2 fun q hq => Or.inr ((lt_of_not_ge h₁).trans (h.1 q hq))
 
 /-- On a sorted list the pure range scan is `range`. -/
@@ -294,16 +283,12 @@ theorem idRun_rangeM (h : l.IsSortedAssoc) (lo hi : α) :
   induction l with
   | nil => rfl
   | cons p l ih =>
-    have hs := h
-    rw [List.isSortedAssoc_cons_iff] at hs
+    have hs := List.isSortedAssoc_cons_iff.1 h
     rw [idRun_rangeM_cons]
     by_cases h₁ : lo ≤ p.1
-    · simp only [h₁, ↓reduceIte]
-      rw [idRun_takeUpToM]
-      refine (range_eq_takeWhile h fun q hq => ?_).symm
-      rcases List.mem_cons.1 hq with rfl | hq
-      · exact h₁
-      · exact h₁.trans (hs.1 q hq).le
+    · simp only [h₁, ↓reduceIte, idRun_takeUpToM]
+      exact (range_eq_takeWhile h fun q hq =>
+        (List.mem_cons.1 hq).elim (· ▸ h₁) fun hq => h₁.trans (hs.1 q hq).le).symm
     · simp only [h₁, ↓reduceIte, range_cons, false_and, ih hs.2]
 
 end Pure

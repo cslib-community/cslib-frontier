@@ -128,9 +128,8 @@ theorem duplicatorWins_succ {n k : ℕ} {a : Fin k → M} {b : Fin k → N} :
 
 theorem DuplicatorWins.partialIso {n k : ℕ} {a : Fin k → M} {b : Fin k → N}
     (h : DuplicatorWins L n a b) : PartialIso L a b := by
-  cases n with
-  | zero => exact duplicatorWins_zero.1 h
-  | succ n => exact (duplicatorWins_succ.1 h).1
+  cases n
+  exacts [duplicatorWins_zero.1 h, (duplicatorWins_succ.1 h).1]
 
 theorem DuplicatorWins.forth {n k : ℕ} {a : Fin k → M} {b : Fin k → N}
     (h : DuplicatorWins L (n + 1) a b) (c : M) :
@@ -178,19 +177,15 @@ theorem Strategy.isWinning_succ {n k : ℕ} {a : Fin k → M} {b : Fin k → N}
 theorem duplicatorWins_iff_exists_strategy :
     ∀ {n k : ℕ} {a : Fin k → M} {b : Fin k → N},
       DuplicatorWins L n a b ↔ ∃ σ : Strategy n a b, σ.IsWinning L
-  | 0, _, _, _ => by
-    rw [duplicatorWins_zero]
-    exact ⟨fun h => ⟨PUnit.unit, h⟩, fun ⟨_, h⟩ => h⟩
+  | 0, _, _, _ => duplicatorWins_zero.trans ⟨fun h => ⟨PUnit.unit, h⟩, fun ⟨_, h⟩ => h⟩
   | n + 1, k, a, b => by
     rw [duplicatorWins_succ]
-    constructor
-    · rintro ⟨hp, hf, hb⟩
-      choose d hd using fun c => duplicatorWins_iff_exists_strategy.1 (hf c).choose_spec
-      choose c hc using fun d => duplicatorWins_iff_exists_strategy.1 (hb d).choose_spec
-      exact ⟨(fun c' => ⟨_, d c'⟩, fun d' => ⟨_, c d'⟩), hp, hd, hc⟩
-    · rintro ⟨σ, hp, hf, hb⟩
-      exact ⟨hp, fun c => ⟨_, duplicatorWins_iff_exists_strategy.2 ⟨_, hf c⟩⟩,
-        fun d => ⟨_, duplicatorWins_iff_exists_strategy.2 ⟨_, hb d⟩⟩⟩
+    refine ⟨fun ⟨hp, hf, hb⟩ => ?_, fun ⟨σ, hp, hf, hb⟩ =>
+      ⟨hp, fun c => ⟨_, duplicatorWins_iff_exists_strategy.2 ⟨_, hf c⟩⟩,
+        fun d => ⟨_, duplicatorWins_iff_exists_strategy.2 ⟨_, hb d⟩⟩⟩⟩
+    choose d hd using fun c => duplicatorWins_iff_exists_strategy.1 (hf c).choose_spec
+    choose c hc using fun d => duplicatorWins_iff_exists_strategy.1 (hb d).choose_spec
+    exact ⟨(fun c' => ⟨_, d c'⟩, fun d' => ⟨_, c d'⟩), hp, hd, hc⟩
 
 /-! ### Back-and-forth systems -/
 

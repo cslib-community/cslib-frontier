@@ -176,17 +176,13 @@ private theorem createLeaf_correct [LinearOrder M.Value] (zero maxSucc : M.Op)
   have vacancy : match q.ptr 2 with
       | none => q.ptr 1 = none
       | some a => ∃ par, q.heap[a]? = some par ∧ par.ptr side.castSucc = none := by
-    change match s.ptr 2 with
-      | none => s.ptr 1 = none
-      | some a => ∃ par, s.heap[a]? = some par ∧ par.ptr side.castSucc = none
+    dsimp only [q, State.setData]
     cases hp : s.ptr 2 with
     | none => simpa [hp] using vacant
     | some a =>
-      rw [hp] at vacant
-      obtain ⟨par, get, slot⟩ := vacant
-      refine ⟨par, get, ?_⟩
-      cases h : M.evalTest lt (s.data 0) (par.data 0) <;>
-        simpa [side, parentKey, State.deref, hp, get, h] using slot
+      obtain ⟨par, get, slot⟩ := hp ▸ vacant
+      exact ⟨par, get, by cases h : M.evalTest lt (s.data 0) (par.data 0) <;>
+        simpa [side, parentKey, State.deref, hp, get, h] using slot⟩
   obtain ⟨t, run, heap, rep, size, cursor, rootReg, data, _, ptr, _⟩ :=
     SearchTree.PointerMachine.Structured.insertLeaf_correct (leafRegisters field source) side q
       vacancy
@@ -364,22 +360,17 @@ private theorem rebalance_correct [LinearOrder M.Value]
         refine WP.op ⟨by omega, cs.length, by simp, cs, nodeAt d label before sib, tree, _, rfl,
           om, pm, pv, ?_, pathTail, rt, dt, ?_, by simpa [pm_simps] using ct,
           by simpa [pm_simps] using rootT, by simp [pm_simps]⟩
-        · rw [insert_nodeSide d _ h C S query pathHere]
-          exact mt
-        · rw [addresses_plug, at', ← addresses_plug]
-          exact fp
+        · rwa [insert_nodeSide d _ h C S query pathHere]
+        · rwa [addresses_plug, at', ← addresses_plug]
     · -- The loop ends at the root: no ancestor is left, and the focus is the whole tree.
       obtain ⟨cs', before', after', focused', -, om, fm, fv, cm, -, rep', dist', fp, cur, top,
         nil⟩ := hy
-      obtain rfl : cs' = [] := by
-        cases cs' with
-        | nil => rfl
-        | cons f _ =>
-          obtain ⟨d, label, sib, -, hpar, -⟩ := frame_view f
-          simp [pm_simps, cur, nil, hpar] at holds
-      obtain rfl : focused' = original := fv.heightConsistent.eq_of_toBinaryTree_eq
-        valid.heightConsistent (fm.keys.symm.trans om.keys)
-      exact ⟨by omega, after', rep', cm, dist', fp, cur, top⟩
+      rcases cs' with _ | ⟨f, _⟩
+      · obtain rfl : focused' = original := fv.heightConsistent.eq_of_toBinaryTree_eq
+          valid.heightConsistent (fm.keys.symm.trans om.keys)
+        exact ⟨by omega, after', rep', cm, dist', fp, cur, top⟩
+      · obtain ⟨_, _, _, -, hpar, -⟩ := frame_view f
+        simp [pm_simps, cur, nil, hpar] at holds
   obtain ⟨t, run, tree, rt, mt, dt, at', ct, rootT⟩ := main
   exact ⟨t, tree, run, rt, mt, dt, at', ct, rootT,
     run.length_eq (rebalance_keepsSize zero maxSucc heavy le field),
@@ -422,23 +413,18 @@ private theorem missing_correct [LinearOrder M.Value]
   obtain ⟨a, ea, heapA, leafA, matchA, sizeA, cursorA, rootA, dataA, _⟩ :=
     createLeaf_correct zero maxSucc lt encode zero_spec max_spec
       field notKey source safe s vacant
-  have graft := graftLeaf s.heap cs label side rep distinct rfl (by
-    cases cs with
-    | nil => trivial
-    | cons frame cs => cases frame <;> exact chosen)
-  have repA : Represents a.heap none (plug cs (.node label .nil .nil)) := heapA ▸ parent ▸ graft.1
-  have rootA' : a.ptr 1 = root (plug cs (.node label .nil .nil)) := by
-    rw [rootA, parent, rootReg, graft.2.2.2]
+  have graft := graftLeaf s.heap cs label side rep distinct rfl
+    (by rcases cs with _ | ⟨_ | _, _⟩ <;> trivial)
   obtain ⟨b, eb, heapB, dataB, cursorB, ptrB⟩ :=
     SearchTree.PointerMachine.Structured.ascend_correct a cs label .nil .nil
       (by simpa only [parent] using leafA) cursorA
-  have repB : Represents b.heap none (plug cs (.node label .nil .nil)) := heapB ▸ repA
   obtain ⟨c, tree, ec, repC, matchC, distinctC, addressesC, cursorC,
       rootC, sizeC, dataC, payloadC⟩ :=
     rebalance_correct zero maxSucc heavy le encode zero_spec max_spec heavy_spec le_spec
       field notKey cs .nil (.node label .nil .nil) original .nil (s.data 0)
-      matched valid trivial valid_nil matchA path b repB graft.2.1 cursorB
-      ((ptrB 1 (by simp [layout])).trans rootA')
+      matched valid trivial valid_nil matchA path b
+      (heapB ▸ heapA ▸ parent ▸ graft.1) graft.2.1 cursorB
+      (by rw [ptrB 1 (by simp [layout]), rootA, parent, rootReg, graft.2.2.2])
   have size : c.heap.length = s.heap.length + 1 :=
     sizeC.trans ((congrArg List.length heapB).trans sizeA)
   have exec : ExecWithin (missing zero maxSucc lt heavy le field source) s c
@@ -446,7 +432,8 @@ private theorem missing_correct [LinearOrder M.Value]
     (ExecWithin.seq ea (ExecWithin.seq eb ec)).mono (by omega)
   refine ⟨c, tree, exec, ⟨repC, matchC, distinctC, rootC, ⟨by omega, by omega⟩, ?_,
     fun i h1 h2 => exec.data_keep [1, 2]
-      (missing_dataDests zero maxSucc lt heavy le field source) (by simp [h1, h2]), ?_, ?_⟩⟩
+      (missing_dataDests zero maxSucc lt heavy le field source) (by simp [h1, h2]), ?_,
+    fun _ f hf => by simp [payloadC _ f hf, heapB, leafA.1, record, hf]⟩⟩
   · rw [addressesC, graft.2.2.1]
     exact ⟨Finset.subset_insert _ _, Finset.Subset.refl _⟩
   · intro z f hz hf
@@ -459,9 +446,6 @@ private theorem missing_correct [LinearOrder M.Value]
         simp [List.getElem?_modify_eq, Option.map_map, Function.comp_def,
           List.getElem?_append_left hz]
       · rw [List.getElem?_modify_ne _ _ eq, List.getElem?_append_left hz]
-  · intro _ f hf
-    rw [payloadC _ f hf, heapB, leafA.1]
-    simp [record, hf]
 
 private theorem afterSeek_found (zero maxSucc : M.Op) (lt heavy le : M.Test)
     (field : Fin (extra + 1)) (source : Fin (extra + 1) → Fin (regs + 3))
@@ -514,59 +498,41 @@ theorem insert_correct [LinearOrder M.Value]
   have rootA : a.ptr 1 = root tree :=
     (ra.ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])).trans rootReg
   have visits : SearchTree.searchVisits (s.data 0) (keys tree) ≤ original.cachedHeight := by
-    rw [matched.keys]
-    exact searchVisits_le_cachedHeight valid.heightConsistent _
-  have endpoint : ∃ t result,
+    rw [matched.keys]; exact searchVisits_le_cachedHeight valid.heightConsistent _
+  obtain ⟨t, result, exec, outcome⟩ : ∃ t result,
       ExecWithin (insert zero maxSucc lt heavy le field source) s t
         (105 * original.cachedHeight + extra + 20) ∧
       InsertResult encode field source s t tree result original := by
     cases focus with
     | nil =>
       let cleared := a.setPtr 5 none
-      have complete : Represents cleared.heap none (plug cs .nil) := by
-        rw [show cleared.heap = s.heap from ra.heap, ← ra.reconstruction]
-        exact rep
-      have separated : AddressesDistinct (plug cs .nil) := ra.reconstruction ▸ distinct
-      have m : Matches encode field (plug cs .nil) original := ra.reconstruction ▸ matched
-      have path : SearchPath (cleared.data 0) cs := by
-        simpa only [cleared, State.setPtr, query] using ra.path
-      have parent : cleared.ptr 2 = contextParent cs := by
-        simpa [cleared, State.setPtr] using ra.parent
-      have rootCleared : cleared.ptr 1 = root (plug cs .nil) := by
-        simpa [cleared, State.setPtr, ra.reconstruction] using rootA
       obtain ⟨b, result, eb, rb⟩ := missing_correct zero maxSucc lt heavy le encode
         zero_spec max_spec compare heavy_spec le_spec field notKey source safe
-        cleared cs original m valid path complete separated parent rootCleared
+        cleared cs original (ra.reconstruction ▸ matched) valid (query.symm ▸ ra.path)
+        (ra.heap.symm ▸ ra.reconstruction ▸ rep) (ra.reconstruction ▸ distinct)
+        (by simpa [cleared, State.setPtr] using ra.parent)
+        (by simpa [cleared, State.setPtr, ra.reconstruction] using rootA)
       have run := ExecWithin.seq ea
         (afterSeek_missing zero maxSucc lt heavy le field source a ra.cursor b _ eb)
-      have before : InsertResult encode field source s b tree result original := by
-        rw [ra.reconstruction]
-        exact InsertResult.before rb ra.heap (fun i h1 _ => ra.data i h1) safe
       have depth := height_add_context_length_le cs (.nil : BinaryTree (Label M extra))
       rw [← ra.reconstruction, matched.shape_height,
         ← cachedHeight_eq_height valid.heightConsistent] at depth
-      exact ⟨b, result, run.mono (by omega), before⟩
+      exact ⟨b, result, run.mono (by omega),
+        ra.reconstruction ▸ rb.before ra.heap (fun i h1 _ => ra.data i h1) safe⟩
     | node label left right =>
-      have nonempty : a.ptr 0 ≠ none := by simp [ra.cursor, root]
       have present : AVLTree.contains (s.data 0) original = true := by
-        rw [contains_eq_searchTree, ← matched.keys, ← ra.found]
-        simp [ra.cursor, root]
-      have unchanged := insert_eq_self valid ((contains_eq_true valid.ordered _).mp present)
+        simp [contains_eq_searchTree, ← matched.keys, ← ra.found, ra.cursor, root]
       have run := ExecWithin.seq ea
-        (afterSeek_found zero maxSucc lt heavy le field source a nonempty)
+        (afterSeek_found zero maxSucc lt heavy le field source a (by simp [ra.cursor, root]))
       let t := a.setPtr 5 none
-      refine ⟨t, tree, run.mono (by omega), ?_⟩
-      refine ⟨?_, ?_, distinct, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa only [t, State.setPtr, ra.heap] using rep
-      · simpa only [unchanged] using matched
-      · simpa [t, State.setPtr] using rootA
-      · simp [t, State.setPtr, ra.heap]
-      · exact ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩
-      · intro i h1 _; exact ra.data i h1
-      · intro z f _ _; simp only [t, State.setPtr, ra.heap]
-      · intro grows; simp [t, State.setPtr, ra.heap] at grows
-  obtain ⟨t, result, exec, outcome⟩ := endpoint
-  have logarithmic := valid.cachedHeight_le_two_mul_log
-  exact ⟨t, result, exec, exec.mono (by omega), outcome⟩
+      have ht_heap : t.heap = s.heap := ra.heap
+      refine ⟨t, tree, run.mono (by omega), ht_heap ▸ rep,
+        (insert_eq_self valid ((contains_eq_true valid.ordered _).mp present)).symm ▸ matched,
+        distinct, ?_, by simp [ht_heap],
+        ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩, fun i h1 _ => ra.data i h1,
+        fun _ _ _ _ => by simp only [ht_heap],
+        fun grows => absurd grows (by simp [ht_heap])⟩
+      simpa [t, State.setPtr] using rootA
+  exact ⟨t, result, exec, exec.mono (by have := valid.cachedHeight_le_two_mul_log; omega), outcome⟩
 
 end Cslib.DataStructure.AVLTree.PointerMachine.Structured

@@ -84,14 +84,12 @@ theorem toOuterMeasure_mul_le_bhattacharyya_div_sqrt (p q : PMF α) {c : ℝ} (h
     · rw [Set.indicator_of_mem ha]
       have hcu : c * (p a).toReal ≤ (q a).toReal := ha
       have hp0 : 0 ≤ (p a).toReal := ENNReal.toReal_nonneg
-      have hsq : Real.sqrt c * (p a).toReal ≤ Real.sqrt ((p a).toReal * (q a).toReal) := by
-        refine Real.le_sqrt_of_sq_le ?_
-        calc (Real.sqrt c * (p a).toReal) ^ 2
-            = (Real.sqrt c ^ 2) * (p a).toReal * (p a).toReal := by ring
-          _ = (c * (p a).toReal) * (p a).toReal := by rw [Real.sq_sqrt hc.le]
-          _ ≤ (q a).toReal * (p a).toReal := mul_le_mul_of_nonneg_right hcu hp0
-          _ = (p a).toReal * (q a).toReal := mul_comm _ _
-      exact (le_div_iff₀ (Real.sqrt_pos.mpr hc)).mpr (by linarith)
+      have hmul : c * ((p a).toReal * (p a).toReal) ≤ (p a).toReal * (q a).toReal := by
+        rw [mul_left_comm]
+        exact mul_le_mul_of_nonneg_left hcu hp0
+      have hsqrt := Real.sqrt_le_sqrt hmul
+      rw [Real.sqrt_mul hc.le, Real.sqrt_mul_self hp0, mul_comm] at hsqrt
+      exact (le_div_iff₀ (Real.sqrt_pos.mpr hc)).mpr hsqrt
     · rw [Set.indicator_of_notMem ha, ENNReal.toReal_zero]
       exact div_nonneg (Real.sqrt_nonneg _) (Real.sqrt_nonneg _)
   have hsum_ind : Summable (fun a => (s.indicator p a).toReal) :=
@@ -108,12 +106,8 @@ theorem toOuterMeasure_mul_le_bhattacharyya_div_sqrt (p q : PMF α) {c : ℝ} (h
 bhattacharyya p q`. -/
 theorem toOuterMeasure_le_bhattacharyya (p q : PMF α) :
     (p.toOuterMeasure {a | p a ≤ q a}).toReal ≤ bhattacharyya p q := by
-  have heq : {a : α | p a ≤ q a} = {a : α | 1 * (p a).toReal ≤ (q a).toReal} := by
-    ext a
-    simp only [Set.mem_ofPred_eq, one_mul,
-      ENNReal.toReal_le_toReal (p.apply_ne_top a) (q.apply_ne_top a)]
-  rw [heq]
-  simpa using toOuterMeasure_mul_le_bhattacharyya_div_sqrt p q zero_lt_one
+  simpa [ENNReal.toReal_le_toReal (p.apply_ne_top _) (q.apply_ne_top _)] using
+    toOuterMeasure_mul_le_bhattacharyya_div_sqrt p q zero_lt_one
 
 /-- Real-valued form of the single-sample likelihood-ratio Chernoff bound. -/
 theorem toOuterMeasure_toReal_le_bhattacharyya (p q : PMF α) :
@@ -147,24 +141,17 @@ theorem toOuterMeasure_iid_prod_toReal_le_bhattacharyya_pow [Finite α]
     (p q : PMF α) (n : ℕ) :
     ((iid p n).toOuterMeasure {x | ∏ i, (p (x i)).toReal ≤ ∏ i, (q (x i)).toReal}).toReal ≤
       bhattacharyya p q ^ n := by
-  have heq :
-      {x : Fin n → α | ∏ i, (p (x i)).toReal ≤ ∏ i, (q (x i)).toReal} =
-        {x : Fin n → α | iid p n x ≤ iid q n x} := by
-    ext x
-    simp only [Set.mem_ofPred_eq, ← ENNReal.toReal_prod, ← iid_apply,
-      ENNReal.toReal_le_toReal ((iid p n).apply_ne_top x) ((iid q n).apply_ne_top x)]
-  rw [heq]
-  exact toOuterMeasure_iid_le_bhattacharyya_pow p q n
+  simpa only [← ENNReal.toReal_prod, ← iid_apply,
+    ENNReal.toReal_le_toReal ((iid p n).apply_ne_top _) ((iid q n).apply_ne_top _)] using
+    toOuterMeasure_iid_le_bhattacharyya_pow p q n
 
 /-- Exponential upper bound on the `n`-th power of the Bhattacharyya coefficient:
 `bhattacharyya p q ^ n ≤ Real.exp (-n * hellingerSq p q)`. -/
 theorem bhattacharyya_pow_le_exp_hellingerSq (p q : PMF α) (n : ℕ) :
     bhattacharyya p q ^ n ≤ Real.exp (-(n : ℝ) * hellingerSq p q) := by
   rw [hellingerSq_eq_one_sub_bhattacharyya]
-  have hpow := Real.one_sub_pow_le_exp (p := 1 - bhattacharyya p q)
-    (c := (n : ℝ) * (1 - bhattacharyya p q)) (R := n) (by linarith [bhattacharyya_nonneg p q])
-    le_rfl
-  simpa only [sub_sub_cancel, neg_mul] using hpow
+  simpa only [sub_sub_cancel, neg_mul] using Real.one_sub_pow_le_exp
+    (c := (n : ℝ) * (1 - bhattacharyya p q)) (by linarith [bhattacharyya_nonneg p q]) le_rfl
 
 /-- Exponential Hellinger form of the `n`-fold i.i.d. likelihood-ratio Chernoff bound in terms of
 `hellingerSq`. -/
@@ -266,20 +253,12 @@ private theorem mle_hellingerDist_pred_le [Finite α]
       rw [← hellingerDist_sq]
       exact sq_le_sq' (by linarith) hrle
     refine (bhattacharyya_pow_le_exp_hellingerSq _ _ n).trans (Real.exp_le_exp.mpr ?_)
-    nlinarith [show (0 : ℝ) ≤ n from Nat.cast_nonneg n]
+    linarith [mul_le_mul_of_nonneg_left hsq (Nat.cast_nonneg n)]
   have hcard_bad : bad.card ≤ s.card - 1 :=
     (Finset.card_filter_le _ _).trans (Finset.card_erase_of_mem hi₀).le
-  have hcard_sub : ((s.card - 1 : ℕ) : ℝ) = (s.card : ℝ) - 1 := by
-    simpa using Nat.cast_sub hs.card_pos
-  calc ((iid (models i₀) n).toOuterMeasure {x | P (mle s hs models x)}).toReal
-      ≤ ∑ j ∈ bad, bhattacharyya (models i₀) (models j) ^ n := hsum
-    _ ≤ ∑ _j ∈ bad, Real.exp (-(n : ℝ) * r ^ 2) := Finset.sum_le_sum hterm
-    _ = (bad.card : ℝ) * Real.exp (-(n : ℝ) * r ^ 2) := by
-        rw [Finset.sum_const, nsmul_eq_mul]
-    _ ≤ (s.card - 1 : ℝ) * Real.exp (-(n : ℝ) * r ^ 2) := by
-        refine mul_le_mul_of_nonneg_right ?_ (Real.exp_pos _).le
-        rw [← hcard_sub]
-        exact Nat.cast_le.mpr hcard_bad
+  refine hsum.trans ((Finset.sum_le_card_nsmul _ _ _ hterm).trans ?_)
+  rw [nsmul_eq_mul, ← Nat.cast_one, ← Nat.cast_sub hs.card_pos]
+  exact mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hcard_bad) (Real.exp_pos _).le
 
 /-- Maximum likelihood estimation over `s` (`|s| = M`) returns a model within Hellinger radius
 `r ≥ 0` (strict failure `r < h`) except with probability at most `(M - 1) * exp (-n * r ^ 2)`. -/

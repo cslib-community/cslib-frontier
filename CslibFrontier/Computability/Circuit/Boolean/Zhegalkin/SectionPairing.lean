@@ -154,149 +154,69 @@ theorem sum_filter_hasCol_eq {G : Type*} [AddCommMonoid G]
   classical
   let peerSet (r' : Fin m) : Finset Col :=
     pairedCols hasCol p (r.1 / p) (min r r') (max r r')
+  -- `r` is the smaller or the larger row of every pair it belongs to.
+  have hr (r' : Fin m) : min r r' = r ∨ max r r' = r :=
+    (le_total r r').imp min_eq_left max_eq_left
+  -- Rows of the sorted active rows of a column determine their positions.
+  have hpos {c : Col} {i j : ℕ} {hi : i < #(activeRows hasCol p (r.1 / p) c)}
+      {hj : j < #(activeRows hasCol p (r.1 / p) c)}
+      (h : (activeRows hasCol p (r.1 / p) c).orderEmbOfFin rfl ⟨i, hi⟩ =
+        (activeRows hasCol p (r.1 / p) c).orderEmbOfFin rfl ⟨j, hj⟩) : i = j :=
+    congrArg Fin.val (((activeRows hasCol p (r.1 / p) c).orderEmbOfFin rfl).injective h)
   have hdisj_peers : (sectionPeers p r : Set (Fin m)).PairwiseDisjoint peerSet := by
-    intro r₁ hr₁ r₂ hr₂ hne
-    change Disjoint (peerSet r₁) (peerSet r₂)
-    rw [Finset.disjoint_left]
-    intro c hc₁ hc₂
-    dsimp only [peerSet, pairedCols] at hc₁ hc₂
-    rw [mem_filter] at hc₁ hc₂
-    obtain ⟨_, t₁, ha₁, hb₁⟩ := hc₁
-    obtain ⟨_, t₂, ha₂, hb₂⟩ := hc₂
-    let S := activeRows hasCol p (r.1 / p) c
-    let emb := S.orderEmbOfFin rfl
-    have ht₁_lt : t₁.1 < #S / 2 := t₁.isLt
-    have ht₂_lt : t₂.1 < #S / 2 := t₂.isLt
-    have ha₁' : emb ⟨2 * t₁.1, by omega⟩ = min r r₁ := ha₁
-    have hb₁' : emb ⟨2 * t₁.1 + 1, by omega⟩ = max r r₁ := hb₁
-    have ha₂' : emb ⟨2 * t₂.1, by omega⟩ = min r r₂ := ha₂
-    have hb₂' : emb ⟨2 * t₂.1 + 1, by omega⟩ = max r r₂ := hb₂
-    have h₁ : r = emb ⟨2 * t₁.1, by omega⟩ ∨ r = emb ⟨2 * t₁.1 + 1, by omega⟩ := by
-      rcases min_cases r r₁ with ⟨hm, _⟩ | ⟨hm, _⟩
-      · exact Or.inl (ha₁'.trans hm).symm
-      · have hM : max r r₁ = r := max_eq_left (min_eq_right_iff.mp hm)
-        exact Or.inr (hb₁'.trans hM).symm
-    have h₂ : r = emb ⟨2 * t₂.1, by omega⟩ ∨ r = emb ⟨2 * t₂.1 + 1, by omega⟩ := by
-      rcases min_cases r r₂ with ⟨hm, _⟩ | ⟨hm, _⟩
-      · exact Or.inl (ha₂'.trans hm).symm
-      · have hM : max r r₂ = r := max_eq_left (min_eq_right_iff.mp hm)
-        exact Or.inr (hb₂'.trans hM).symm
-    have ht : t₁ = t₂ := by
-      rcases h₁ with hr_e₁ | hr_o₁ <;> rcases h₂ with hr_e₂ | hr_o₂
-      · have hv := congrArg Fin.val (emb.injective (hr_e₁.symm.trans hr_e₂))
-        dsimp only at hv
-        exact Fin.ext (by omega)
-      · have hv := congrArg Fin.val (emb.injective (hr_e₁.symm.trans hr_o₂))
-        dsimp only at hv
-        omega
-      · have hv := congrArg Fin.val (emb.injective (hr_o₁.symm.trans hr_e₂))
-        dsimp only at hv
-        omega
-      · have hv := congrArg Fin.val (emb.injective (hr_o₁.symm.trans hr_o₂))
-        dsimp only at hv
-        exact Fin.ext (by omega)
-    subst ht
-    have hmin_eq : min r r₁ = min r r₂ := ha₁.symm.trans ha₂
-    have hmax_eq : max r r₁ = max r r₂ := hb₁.symm.trans hb₂
-    have hne₁ : r₁ ≠ r := (mem_filter.mp hr₁).2.2
-    have hne₂ : r₂ ≠ r := (mem_filter.mp hr₂).2.2
-    apply hne
-    rcases lt_trichotomy r r₁ with hlt₁ | rfl | hgt₁
-    · rw [min_eq_left hlt₁.le] at hmin_eq
-      rw [max_eq_right hlt₁.le] at hmax_eq
-      rcases lt_trichotomy r r₂ with hlt₂ | rfl | hgt₂
-      · rw [max_eq_right hlt₂.le] at hmax_eq
-        exact hmax_eq
-      · exact (hne₂ rfl).elim
-      · rw [min_eq_right hgt₂.le] at hmin_eq
-        exact (hne₂ hmin_eq.symm).elim
-    · exact (hne₁ rfl).elim
-    · rw [min_eq_right hgt₁.le] at hmin_eq
-      rcases lt_trichotomy r r₂ with hlt₂ | rfl | hgt₂
-      · rw [min_eq_left hlt₂.le] at hmin_eq
-        exact (hne₁ hmin_eq).elim
-      · exact (hne₂ rfl).elim
-      · rw [min_eq_right hgt₂.le] at hmin_eq
-        exact hmin_eq
-  rw [← sum_biUnion hdisj_peers]
+    intro r₁ _ r₂ _ hne
+    refine Finset.disjoint_left.mpr fun c hc₁ hc₂ => hne ?_
+    obtain ⟨_, t₁, ha₁, hb₁⟩ := mem_filter.mp hc₁
+    obtain ⟨_, t₂, ha₂, hb₂⟩ := mem_filter.mp hc₂
+    obtain rfl : t₁ = t₂ := by
+      rcases (hr r₁).imp ha₁.trans hb₁.trans with e₁ | e₁ <;>
+        rcases (hr r₂).imp ha₂.trans hb₂.trans with e₂ | e₂ <;>
+        exact Fin.ext (by have := hpos (e₁.trans e₂.symm); omega)
+    have h₁ := congrArg Fin.val (ha₁.symm.trans ha₂)
+    have h₂ := congrArg Fin.val (hb₁.symm.trans hb₂)
+    simp only [Fin.val_min, Fin.val_max] at h₁ h₂
+    exact Fin.ext (by omega)
   have hdisj_odd : Disjoint ((sectionPeers p r).biUnion peerSet) (oddCols hasCol p r) := by
-    rw [Finset.disjoint_left]
-    intro c hc_pair hc_odd
-    rw [mem_biUnion] at hc_pair
-    obtain ⟨r', _, hc_p⟩ := hc_pair
-    dsimp only [peerSet, pairedCols, oddCols] at hc_p hc_odd
-    rw [mem_filter] at hc_p hc_odd
-    obtain ⟨_, t, ha, hb⟩ := hc_p
-    obtain ⟨_, hodd_lt, hodd_eq⟩ := hc_odd
-    let S := activeRows hasCol p (r.1 / p) c
-    let emb := S.orderEmbOfFin rfl
-    have ht_lt : t.1 < #S / 2 := t.isLt
-    rcases min_cases r r' with ⟨hm, _⟩ | ⟨hm, _⟩
-    · have heq : emb ⟨2 * t.1, by omega⟩ = emb ⟨2 * (#S / 2), hodd_lt⟩ :=
-        (ha.trans hm).trans hodd_eq.symm
-      have hv := congrArg Fin.val (emb.injective heq)
-      dsimp only at hv
-      omega
-    · have hM : max r r' = r := max_eq_left (min_eq_right_iff.mp hm)
-      have heq : emb ⟨2 * t.1 + 1, by omega⟩ = emb ⟨2 * (#S / 2), hodd_lt⟩ :=
-        (hb.trans hM).trans hodd_eq.symm
-      have hv := congrArg Fin.val (emb.injective heq)
-      dsimp only at hv
-      omega
-  rw [← sum_union hdisj_odd]
-  congr 1
-  ext c
+    refine Finset.disjoint_left.mpr fun c hc hodd => ?_
+    obtain ⟨r', _, hc⟩ := mem_biUnion.mp hc
+    obtain ⟨_, t, ha, hb⟩ := mem_filter.mp hc
+    obtain ⟨_, _, he⟩ := mem_filter.mp hodd
+    have := t.isLt
+    rcases (hr r').imp ha.trans hb.trans with e | e <;> have := hpos (e.trans he.symm) <;> omega
+  rw [← sum_biUnion hdisj_peers, ← sum_union hdisj_odd]
+  refine sum_congr (ext fun c => ?_) fun _ _ => rfl
   simp only [mem_filter, mem_univ, true_and, mem_union, mem_biUnion]
-  constructor
-  · intro hc
-    set S := activeRows hasCol p (r.1 / p) c with hS_def
+  refine ⟨fun hc => ?_, ?_⟩
+  · set S := activeRows hasCol p (r.1 / p) c
     let emb := S.orderEmbOfFin rfl
-    have hrS : r ∈ S := mem_filter.mpr ⟨mem_univ r, rfl, hc⟩
-    have hrRange : r ∈ Set.range emb := by rwa [range_orderEmbOfFin]
-    obtain ⟨idx, hidx⟩ := hrRange
+    obtain ⟨idx, hidx⟩ : r ∈ Set.range emb := by
+      rw [range_orderEmbOfFin]
+      exact mem_filter.mpr ⟨mem_univ r, rfl, hc⟩
+    have := idx.isLt
     by_cases hlt : idx.1 < 2 * (#S / 2)
-    · refine Or.inl ?_
-      let t : Fin (#S / 2) := ⟨idx.1 / 2, by omega⟩
-      by_cases heven : idx.1 % 2 = 0
-      · let r' := emb ⟨2 * t.1 + 1, by have := t.isLt; omega⟩
-        have hr_eq : emb ⟨2 * t.1, by have := t.isLt; omega⟩ = r := by
-          refine (congrArg emb ?_).trans hidx
-          exact Fin.ext (by dsimp [t]; omega)
-        have hlt_rr' : r < r' := by
-          rw [← hr_eq]
-          exact emb.strictMono (by simp : (⟨2 * t.1, _⟩ : Fin #S) < ⟨2 * t.1 + 1, _⟩)
-        have hr'S : r' ∈ S := S.orderEmbOfFin_mem rfl _
-        refine ⟨r', mem_filter.mpr ⟨mem_univ r', (mem_filter.mp hr'S).2.1, hlt_rr'.ne'⟩, ?_⟩
-        dsimp only [peerSet]
-        rw [min_eq_left hlt_rr'.le, max_eq_right hlt_rr'.le]
-        exact mem_filter.mpr ⟨mem_univ c, t, hr_eq, rfl⟩
-      · let r' := emb ⟨2 * t.1, by have := t.isLt; omega⟩
-        have hr_eq : emb ⟨2 * t.1 + 1, by have := t.isLt; omega⟩ = r := by
-          refine (congrArg emb ?_).trans hidx
-          exact Fin.ext (by dsimp [t]; omega)
-        have hlt_r'r : r' < r := by
-          rw [← hr_eq]
-          exact emb.strictMono (by simp : (⟨2 * t.1, _⟩ : Fin #S) < ⟨2 * t.1 + 1, _⟩)
-        have hr'S : r' ∈ S := S.orderEmbOfFin_mem rfl _
-        refine ⟨r', mem_filter.mpr ⟨mem_univ r', (mem_filter.mp hr'S).2.1, hlt_r'r.ne⟩, ?_⟩
-        dsimp only [peerSet]
-        rw [min_eq_right hlt_r'r.le, max_eq_left hlt_r'r.le]
-        exact mem_filter.mpr ⟨mem_univ c, t, rfl, hr_eq⟩
-    · refine Or.inr ?_
-      have hidx_eq : idx.1 = 2 * (#S / 2) := by
-        have := idx.isLt
-        omega
-      have hodd_lt : 2 * (#S / 2) < #S := hidx_eq ▸ idx.isLt
-      refine mem_filter.mpr ⟨mem_univ c, hodd_lt, ?_⟩
-      refine (congrArg emb ?_).trans hidx
-      exact Fin.ext hidx_eq.symm
-  · rintro (⟨r', _, hc_p⟩ | hc_odd)
-    · obtain ⟨_, _, _, hc₁, hc₂⟩ := mem_pairedCols_imp hc_p
-      rcases min_cases r r' with ⟨hm, _⟩ | ⟨hm, _⟩
-      · exact hm ▸ hc₁
-      · have hM : max r r' = r := max_eq_left (min_eq_right_iff.mp hm)
-        exact hM ▸ hc₂
-    · exact mem_oddCols_imp hc_odd
+    · -- `r` is paired with the other row `emb j` of its consecutive pair of active rows.
+      let j : Fin #S := ⟨4 * (idx.1 / 2) + 1 - idx.1, by omega⟩
+      have hj : idx.1 ≠ j.1 := by dsimp only [j]; omega
+      have h₀ : 2 * (idx.1 / 2) < #S := by omega
+      have h₁ : 2 * (idx.1 / 2) + 1 < #S := by omega
+      have hmin : emb ⟨_, h₀⟩ = min r (emb j) := by
+        rw [← hidx, ← emb.monotone.map_min]
+        exact congrArg emb (Fin.ext (by simp only [j, Fin.val_min]; omega))
+      have hmax : emb ⟨_, h₁⟩ = max r (emb j) := by
+        rw [← hidx, ← emb.monotone.map_max]
+        exact congrArg emb (Fin.ext (by simp only [j, Fin.val_max]; omega))
+      exact Or.inl ⟨emb j, mem_filter.mpr ⟨mem_univ _,
+        (mem_filter.mp (S.orderEmbOfFin_mem rfl j)).2.1,
+        fun h => hj (congrArg Fin.val (emb.injective (hidx.trans h.symm)))⟩,
+        mem_filter.mpr ⟨mem_univ c, (⟨idx.1 / 2, by omega⟩ : Fin (#S / 2)), hmin, hmax⟩⟩
+    · have hodd : 2 * (#S / 2) < #S := by omega
+      exact Or.inr (mem_filter.mpr ⟨mem_univ c, hodd,
+        (congrArg emb (Fin.ext (by omega : 2 * (#S / 2) = idx.1) :
+          (⟨_, hodd⟩ : Fin #S) = idx)).trans hidx⟩)
+  · rintro (⟨r', -, hc⟩ | hc)
+    · obtain ⟨-, -, -, hc₁, hc₂⟩ := mem_pairedCols_imp hc
+      exact (hr r').elim (· ▸ hc₁) (· ▸ hc₂)
+    · exact mem_oddCols_imp hc
 
 /-- Twice the total number of paired columns across all sections is at most the weight of
 `hasCol`. -/

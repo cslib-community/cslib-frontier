@@ -64,15 +64,10 @@ theorem exists_subquadratic_runs (κ : ℕ) :
           (∀ i, s.data.regs i < (input.length + 2) ^ (2 * widthCoefficient κ 123357)) ∧
           (∀ a, s.data.mem a < (input.length + 2) ^ (2 * widthCoefficient κ 123357)) ∧
           (∀ a, (input.length + 2) ^ (2 * widthCoefficient κ 123357) ≤ a → s.data.mem a = 0) := by
-  have hcallee : ∀ ν : ℕ, 1 ≤ ν → ∃ C : ℝ, 0 < C ∧ ∃ N : ℕ,
-      ∀ n ≥ N, ∀ F ≤ (n + 2) ^ ν,
-        (ParameterSelecting.callee.time n F : ℝ) ≤
-          C * (n : ℝ) ^ (3 - 33 / 20000 : ℝ) := by
-    intro ν hν
-    obtain ⟨C, hC, N, -, htime⟩ := ParameterSelecting.exists_time_subcubic_bound hν
-    exact ⟨C, hC, N, htime⟩
   simpa only [ParameterSelecting.callee_code, ParameterSelecting.callee_widthCoefficient] using
     exists_runs_of_callee_time ParameterSelecting.callee (δ := 33 / 20000)
-      (a := 2 - 1 / 5184) (by norm_num) (by norm_num) (by norm_num) hcallee κ
+      (a := 2 - 1 / 5184) (by norm_num) (by norm_num) (by norm_num)
+      (fun _ hν => let ⟨C, hC, N, _, htime⟩ := ParameterSelecting.exists_time_subcubic_bound hν
+        ⟨C, hC, N, htime⟩) κ
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision

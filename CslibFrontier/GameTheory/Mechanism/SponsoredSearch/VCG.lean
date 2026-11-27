@@ -63,13 +63,11 @@ private theorem sum_erase_linearProfile [Fintype ι] [DecidableEq ι] (μ : Fin 
     (x : ι) (ω : Fin k ↪ ι) :
     ∑ j ∈ Finset.univ.erase x, linearProfile (slotAlloc μ) v j ω =
       welfare μ (Function.update v x 0) ω := by
-  have heq : ∑ j : ι, slotAlloc μ ω j * Function.update v x 0 j =
-      ∑ j ∈ Finset.univ.erase x, linearProfile (slotAlloc μ) v j ω := by
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ x), Function.update_self, mul_zero, zero_add]
-    refine Finset.sum_congr rfl fun j hj => ?_
-    have hne : j ≠ x := Finset.ne_of_mem_erase hj
-    simp only [Function.update_of_ne hne, linearProfile_apply, linearValuation_apply, mul_comm]
-  rw [← heq, sum_slotAlloc_mul]
+  rw [← sum_slotAlloc_mul, ← Finset.add_sum_erase _ _ (Finset.mem_univ x),
+    Function.update_self, mul_zero, zero_add]
+  refine Finset.sum_congr rfl fun j hj => ?_
+  simp only [Function.update_of_ne (Finset.ne_of_mem_erase hj), linearProfile_apply,
+    linearValuation_apply, mul_comm]
 
 /-- The assignment obtained from `σ` by dropping slot `t`, shifting slots `t + 1, …, k - 1` up by
 one position, and placing `tail` into the last slot `k - 1`. -/
@@ -115,28 +113,19 @@ private def shiftUp (σ : Fin k ↪ ι) (t : Fin k) (tail : ι)
 
 private theorem shiftUp_lt (σ : Fin k ↪ ι) (t : Fin k) (tail : ι)
     (htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r) {r : Fin k} (hr : r.val < t.val) :
-    shiftUp σ t tail htail r = σ r := by
-  change (if h : r.val < t.val then σ r
-    else if h2 : r.val + 1 < k then σ ⟨r.val + 1, h2⟩ else tail) = σ r
-  simp only [hr, ↓reduceDIte]
+    shiftUp σ t tail htail r = σ r :=
+  dite_eq_left hr
 
 private theorem shiftUp_mid (σ : Fin k ↪ ι) (t : Fin k) (tail : ι)
     (htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r) {r : Fin k} (hge : t.val ≤ r.val)
     (h2 : r.val + 1 < k) :
-    shiftUp σ t tail htail r = σ ⟨r.val + 1, h2⟩ := by
-  change (if h : r.val < t.val then σ r
-    else if h2 : r.val + 1 < k then σ ⟨r.val + 1, h2⟩ else tail) = σ ⟨r.val + 1, h2⟩
-  have hnot : ¬(r.val < t.val) := by omega
-  simp only [hnot, h2, ↓reduceDIte]
+    shiftUp σ t tail htail r = σ ⟨r.val + 1, h2⟩ :=
+  (dite_eq_right (Nat.not_lt.mpr hge)).trans (dite_eq_left h2)
 
 private theorem shiftUp_last (σ : Fin k ↪ ι) (t : Fin k) (tail : ι)
     (htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r) {r : Fin k} (hlast : r.val + 1 = k) :
-    shiftUp σ t tail htail r = tail := by
-  change (if h : r.val < t.val then σ r
-    else if h2 : r.val + 1 < k then σ ⟨r.val + 1, h2⟩ else tail) = tail
-  have h1 : ¬(r.val < t.val) := by omega
-  have h2 : ¬(r.val + 1 < k) := by omega
-  simp only [h1, h2, ↓reduceDIte]
+    shiftUp σ t tail htail r = tail :=
+  (dite_eq_right (by omega)).trans (dite_eq_right (by omega))
 
 private theorem shiftUp_value [DecidableEq ι] (v : ι → ℝ) (σ : Fin k ↪ ι) (t : Fin k) (tail : ι)
     (htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r) (r : Fin k) :
@@ -145,15 +134,12 @@ private theorem shiftUp_value [DecidableEq ι] (v : ι → ℝ) (σ : Fin k ↪ 
       else if h : r.val + 1 < k then v (σ ⟨r.val + 1, h⟩)
       else Function.update v (σ t) 0 tail := by
   by_cases h1 : r.val < t.val
-  · rw [shiftUp_lt σ t tail htail h1]
-    simp only [h1, ↓reduceIte]
+  · simp only [shiftUp_lt σ t tail htail h1, h1, ↓reduceIte]
     exact Function.update_of_ne (σ.injective.ne (Fin.ne_of_val_ne (by omega))) 0 v
   · by_cases h2 : r.val + 1 < k
-    · rw [shiftUp_mid σ t tail htail (by omega) h2]
-      simp only [h1, h2, ↓reduceIte, ↓reduceDIte]
+    · simp only [shiftUp_mid σ t tail htail (by omega) h2, h1, h2, ↓reduceIte, ↓reduceDIte]
       exact Function.update_of_ne (σ.injective.ne (Fin.ne_of_val_ne (by dsimp; omega))) 0 v
-    · rw [shiftUp_last σ t tail htail (by omega)]
-      simp only [h1, h2, ↓reduceIte, ↓reduceDIte]
+    · simp only [shiftUp_last σ t tail htail (r := r) (by omega), h1, h2, ↓reduceIte, ↓reduceDIte]
 
 private theorem clarkePivot_unassigned [Fintype ι] [DecidableEq ι]
     [Fintype (Fin k ↪ ι)] [Nonempty (Fin k ↪ ι)]
@@ -162,24 +148,19 @@ private theorem clarkePivot_unassigned [Fintype ι] [DecidableEq ι]
     (hv : ∀ j, 0 ≤ v j) {x : ι} (hx : x ∉ Set.range σ) :
     clarkePivot x (linearProfile (slotAlloc μ) v) =
       ∑ j ∈ Finset.univ.erase x, linearProfile (slotAlloc μ) v j σ := by
-  let v' := Function.update v x 0
-  have hσ' : IsAssortative v' σ := by
-    refine ⟨fun a b hab => ?_, fun i j hj => ?_⟩
-    · have ha : σ a ≠ x := fun h => hx ⟨a, h⟩
-      have hb : σ b ≠ x := fun h => hx ⟨b, h⟩
-      simp only [Function.comp_apply, v', Function.update_of_ne ha, Function.update_of_ne hb]
-      exact hσ.antitone hab
-    · have hi : σ i ≠ x := fun h => hx ⟨i, h⟩
-      rw [show v' (σ i) = v (σ i) from Function.update_of_ne hi 0 v]
-      by_cases hjx : j = x
-      · subst hjx; rw [show v' j = 0 from Function.update_self j 0 v]; exact hv _
-      · rw [show v' j = v j from Function.update_of_ne hjx 0 v]; exact hσ.unassigned_le i j hj
-  have hopt : IsOptimal μ v' σ := hσ'.isOptimal hμ hμ_nonneg
+  have hσ' : IsAssortative (Function.update v x 0) σ :=
+    ⟨fun a b hab => by
+      simpa only [Function.comp_apply, Function.update_of_ne (fun h => hx ⟨a, h⟩),
+        Function.update_of_ne (fun h => hx ⟨b, h⟩)] using hσ.antitone hab,
+     fun i j hj => by
+      rw [Function.update_of_ne (fun h => hx ⟨i, h⟩)]
+      rcases eq_or_ne j x with rfl | hjx
+      · simpa only [Function.update_self] using hv _
+      · simpa only [Function.update_of_ne hjx] using hσ.unassigned_le i j hj⟩
   refine le_antisymm (Finset.sup'_le _ _ fun ω _ => ?_)
     (Finset.le_sup' (fun ω => ∑ j ∈ Finset.univ.erase x, linearProfile (slotAlloc μ) v j ω)
       (Finset.mem_univ σ))
-  rw [sum_erase_linearProfile, sum_erase_linearProfile]
-  exact hopt ω
+  simpa only [sum_erase_linearProfile] using (hσ'.isOptimal hμ hμ_nonneg) ω
 
 private theorem welfare_shiftUp_sub [Fintype ι] [DecidableEq ι]
     (μ : Fin k → ℝ) (v : ι → ℝ) (σ : Fin k ↪ ι) (t : Fin k)
@@ -190,93 +171,54 @@ private theorem welfare_shiftUp_sub [Fintype ι] [DecidableEq ι]
       minEnvyFreePrice μ v σ t := by
   let v' := Function.update v (σ t) 0
   rw [sum_erase_linearProfile μ v (σ t) σ]
-  have hold_eq : welfare μ v' σ = ∑ r : Fin k, if r = t then 0 else μ r * v (σ r) := by
-    refine Finset.sum_congr rfl fun r _ => ?_
-    by_cases hr : r = t
-    · subst hr; simp only [v', Function.update_self, mul_zero, ↓reduceIte]
-    · simp only [hr, ↓reduceIte, v', Function.update_of_ne (σ.injective.ne hr)]
-  have hsplit : (Finset.univ : Finset (Fin k)) = Finset.Iio t ∪ Finset.Ici t := by
-    ext r; simp only [Finset.mem_univ, Finset.mem_union, Finset.mem_Iio, Finset.mem_Ici, true_iff]
-    exact lt_or_ge r t
-  have hdisj : Disjoint (Finset.Iio t) (Finset.Ici t) :=
-    Finset.disjoint_left.mpr fun r hr1 hr2 =>
-      not_le_of_gt (Finset.mem_Iio.mp hr1) (Finset.mem_Ici.mp hr2)
+  have hold_eq : welfare μ v' σ = ∑ r : Fin k, if r = t then 0 else μ r * v (σ r) :=
+    Finset.sum_congr rfl fun r _ => by split_ifs with hr <;> simp [v', hr, σ.injective.eq_iff]
+  have hk : 0 < k := Fin.pos t
+  let last : Fin k := ⟨k - 1, by omega⟩
   have hbelow_eq : ∑ r : Fin k, (if r = t then (0 : ℝ) else μ r * v (σ r)) =
       ∑ r : Fin k,
         (if r.val < t.val then μ r * v (σ r)
          else if h : r.val + 1 < k then μ ⟨r.val + 1, h⟩ * v (σ ⟨r.val + 1, h⟩) else 0) := by
-    rw [hsplit, Finset.sum_union hdisj, Finset.sum_union hdisj]
-    congr 1
-    · refine Finset.sum_congr rfl fun r hr => ?_
-      have hlt : r < t := Finset.mem_Iio.mp hr
-      have hne : r ≠ t := ne_of_lt hlt
-      have hltv : r.val < t.val := hlt
-      simp only [hne, hltv, ↓reduceIte]
-    · have hIci_split : Finset.Ici t = insert t (Finset.Ioi t) := by
-        ext r; simp only [Finset.mem_Ici, Finset.mem_insert, Finset.mem_Ioi, Fin.le_def,
-          Fin.lt_def, Fin.ext_iff]; omega
-      have hnot_mem : t ∉ Finset.Ioi t := by
-        simp only [Finset.mem_Ioi, lt_self_iff_false, not_false_eq_true]
-      rw [hIci_split, Finset.sum_insert hnot_mem]
-      simp only [↓reduceIte, zero_add]
-      have hL : ∑ r ∈ Finset.Ioi t, (if r = t then (0 : ℝ) else μ r * v (σ r)) =
-          ∑ r ∈ Finset.Ioi t, μ r * v (σ r) :=
-        Finset.sum_congr rfl fun r hr => by
-          have hne : r ≠ t := ne_of_gt (Finset.mem_Ioi.mp hr)
-          simp only [hne, ↓reduceIte]
-      rw [hL, ← hIci_split]
-      have hk : 0 < k := Fin.pos t
-      have hlast_mem : (⟨k - 1, by omega⟩ : Fin k) ∈ Finset.Ici t := by
-        simp only [Finset.mem_Ici, Fin.le_def]; omega
-      rw [← Finset.add_sum_erase _ _ hlast_mem]
-      have hnot_lt_last : ¬(k - 1 < t.val) := by omega
-      have hnot_succ_last : ¬(k - 1 + 1 < k) := by omega
-      simp only [hnot_lt_last, hnot_succ_last, ↓reduceDIte, ↓reduceIte, zero_add]
-      refine (Finset.sum_bij (fun r (hr : r ∈ (Finset.Ici t).erase ⟨k - 1, by omega⟩) =>
-        (⟨r.val + 1, by
-          have hne := Finset.ne_of_mem_erase hr
-          have hvalne : r.val ≠ k - 1 := fun h => hne (by apply Fin.ext; dsimp; exact h)
-          omega⟩ : Fin k)) ?_ ?_ ?_ ?_).symm
-      · intro r hr
-        have hmem : t ≤ r := Finset.mem_Ici.mp (Finset.mem_of_mem_erase hr)
-        simp only [Finset.mem_Ioi, Fin.lt_def]
-        exact Nat.lt_succ_of_le hmem
-      · intro a _ b _ hab
-        have h := congrArg Fin.val hab
-        apply Fin.ext; dsimp at h; omega
-      · intro b hb
-        have hbt : t < b := Finset.mem_Ioi.mp hb
-        refine ⟨⟨b.val - 1, by omega⟩, Finset.mem_erase.mpr ⟨Fin.ne_of_val_ne (by dsimp; omega),
-          Finset.mem_Ici.mpr (by change t.val ≤ b.val - 1; exact Nat.le_sub_one_of_lt hbt)⟩,
-          by apply Fin.ext; dsimp; omega⟩
-      · intro r hr
-        have hmem : t ≤ r := Finset.mem_Ici.mp (Finset.mem_of_mem_erase hr)
-        have hne : r.val ≠ k - 1 :=
-          fun h => Finset.ne_of_mem_erase hr (by apply Fin.ext; dsimp; exact h)
-        have hnotlt : ¬(r.val < t.val) := Nat.not_lt.mpr hmem
-        have hsucc : r.val + 1 < k := by omega
-        simp only [hnotlt, hsucc, ↓reduceIte, ↓reduceDIte]
-  rw [welfare, hold_eq, hbelow_eq, ← Finset.sum_sub_distrib, hsplit, Finset.sum_union hdisj]
-  have hlt_zero : ∑ r ∈ Finset.Iio t,
-      (μ r * v' (shiftUp σ t tail htail r) -
-        (if r.val < t.val then μ r * v (σ r)
-         else if h : r.val + 1 < k then μ ⟨r.val + 1, h⟩ * v (σ ⟨r.val + 1, h⟩) else 0)) = 0 := by
-    refine Finset.sum_eq_zero fun r hr => ?_
-    have hlt : r < t := Finset.mem_Iio.mp hr
-    have hltv : r.val < t.val := hlt
-    dsimp only [v']
-    rw [shiftUp_value v σ t tail htail r]
-    simp only [hltv, ↓reduceIte, sub_self]
-  rw [hlt_zero, zero_add, minEnvyFreePrice_eq_sum]
+    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ t),
+      ← Finset.add_sum_erase (a := last) _ _ (Finset.mem_univ last)]
+    have ⟨hlast_t, hlast_k⟩ : ¬last.val < t.val ∧ ¬last.val + 1 < k := by dsimp [last]; omega
+    simp only [↓reduceIte, hlast_t, hlast_k, ↓reduceDIte, zero_add]
+    refine (Finset.sum_bij (fun r (hr : r ∈ Finset.univ.erase last) =>
+      if r.val < t.val then r else ⟨r.val + 1, by
+        have := Fin.ext_iff.not.mp (Finset.ne_of_mem_erase hr)
+        dsimp [last] at this; omega⟩)
+      ?_ ?_ ?_ ?_).symm
+    · intro r _
+      split_ifs <;>
+        simp only [Finset.mem_erase, Finset.mem_univ, and_true, ne_eq, Fin.ext_iff] <;> omega
+    · intro a _ b _ hab
+      split_ifs at hab <;> simp only [Fin.ext_iff] at hab ⊢ <;> omega
+    · intro b hb
+      have hbt : b.val ≠ t.val := Fin.ext_iff.not.mp (Finset.ne_of_mem_erase hb)
+      by_cases hlt : b.val < t.val
+      · exact ⟨b, Finset.mem_erase.mpr ⟨Fin.ne_of_val_ne (by dsimp [last]; omega),
+          Finset.mem_univ b⟩, by simp [hlt]⟩
+      · refine ⟨⟨b.val - 1, by omega⟩, Finset.mem_erase.mpr
+          ⟨Fin.ne_of_val_ne (by dsimp [last]; omega), Finset.mem_univ _⟩, ?_⟩
+        dsimp only
+        split_ifs <;> simp only [Fin.ext_iff] <;> omega
+    · intro r hr
+      have hrne : r.val ≠ k - 1 := Fin.ext_iff.not.mp (Finset.ne_of_mem_erase hr)
+      by_cases hlt : r.val < t.val
+      · simp [hlt, Fin.ne_of_val_ne hlt.ne]
+      · have ⟨hsucc, hne⟩ : r.val + 1 < k ∧ r.val + 1 ≠ t.val := by omega
+        simp [hlt, hsucc, Fin.ext_iff, hne]
+  rw [welfare, hold_eq, hbelow_eq, ← Finset.sum_sub_distrib,
+    ← Finset.sum_subset (Finset.subset_univ (Finset.Ici t)) fun r _ hr => by
+      have hlt : r.val < t.val := Nat.lt_of_not_le (Finset.mem_Ici.not.mp hr : ¬t ≤ r)
+      rw [shiftUp_value v σ t tail htail r]
+      simp only [hlt, ↓reduceIte, sub_self],
+    minEnvyFreePrice_eq_sum]
   refine Finset.sum_congr rfl fun r hr => ?_
-  have hge : t ≤ r := Finset.mem_Ici.mp hr
-  have hnotlt : ¬(r.val < t.val) := Nat.not_lt.mpr hge
+  have hnotlt : ¬(r.val < t.val) := Nat.not_lt.mpr (Finset.mem_Ici.mp hr : t ≤ r)
   rw [shiftUp_value v σ t tail htail r]
-  by_cases hsucc : r.val + 1 < k
-  · simp only [nextSlotValue, hnotlt, hsucc, ↓reduceIte, ↓reduceDIte]
-    ring
-  · simp only [nextSlotValue, hnotlt, hsucc, ↓reduceIte, ↓reduceDIte, hval]
-    ring
+  by_cases hsucc : r.val + 1 < k <;>
+    simp only [nextSlotValue, hnotlt, hsucc, ↓reduceIte, ↓reduceDIte, hval] <;> ring
 
 private theorem shiftUp_isAssortative [DecidableEq ι] {v : ι → ℝ} {σ : Fin k ↪ ι}
     (hσ : IsAssortative v σ) (t : Fin k) (tail : ι)
@@ -289,43 +231,24 @@ private theorem shiftUp_isAssortative [DecidableEq ι] {v : ι → ℝ} {σ : Fi
   · change Function.update v (σ t) 0 (shiftUp σ t tail htail b) ≤
       Function.update v (σ t) 0 (shiftUp σ t tail htail a)
     rw [shiftUp_value v σ t tail htail a, shiftUp_value v σ t tail htail b]
-    by_cases ha1 : a.val < t.val
-    · simp only [ha1, ↓reduceIte]
-      by_cases hb1 : b.val < t.val
-      · simp only [hb1, ↓reduceIte]; exact hσ.antitone hab
-      · by_cases hb2 : b.val + 1 < k
-        · simp only [hb1, hb2, ↓reduceIte, ↓reduceDIte]
-          exact hσ.antitone (show a ≤ ⟨b.val + 1, hb2⟩ by change a.val ≤ b.val + 1; omega)
-        · simp only [hb1, hb2, ↓reduceIte, ↓reduceDIte]; exact htail_le a
-    · by_cases ha2 : a.val + 1 < k
-      · have hb1 : ¬(b.val < t.val) := by have : a.val ≤ b.val := hab; omega
-        simp only [ha1, ha2, hb1, ↓reduceIte, ↓reduceDIte]
-        by_cases hb2 : b.val + 1 < k
-        · simp only [hb2, ↓reduceDIte]
-          exact hσ.antitone (show (⟨a.val + 1, ha2⟩ : Fin k) ≤ ⟨b.val + 1, hb2⟩ by
-            change a.val + 1 ≤ b.val + 1; exact Nat.succ_le_succ hab)
-        · simp only [hb2, ↓reduceDIte]; exact htail_le ⟨a.val + 1, ha2⟩
-      · have hb1 : ¬(b.val < t.val) := by have : a.val ≤ b.val := hab; omega
-        have hb2 : ¬(b.val + 1 < k) := by have : a.val ≤ b.val := hab; omega
-        simp only [ha1, ha2, hb1, hb2, ↓reduceIte, ↓reduceDIte, le_rfl]
+    have hab' : a.val ≤ b.val := hab
+    split_ifs <;> try omega
+    exacts [hσ.antitone hab, hσ.antitone (Nat.le_succ_of_le hab'),
+      hσ.antitone (Nat.succ_le_succ hab'), htail_le a, htail_le ⟨a.val + 1, ‹_›⟩, le_rfl]
   · have hle := hunassigned j hj
     rw [shiftUp_value v σ t tail htail i]
-    by_cases hi1 : i.val < t.val
-    · simp only [hi1, ↓reduceIte]; exact hle.trans (htail_le i)
-    · by_cases hi2 : i.val + 1 < k
-      · simp only [hi1, hi2, ↓reduceIte, ↓reduceDIte]; exact hle.trans (htail_le ⟨i.val + 1, hi2⟩)
-      · simp only [hi1, hi2, ↓reduceIte, ↓reduceDIte]; exact hle
+    split_ifs with hi1 hi2
+    exacts [hle.trans (htail_le i), hle.trans (htail_le ⟨i.val + 1, hi2⟩), hle]
 
 private theorem mem_range_shiftUp_of_ne {σ : Fin k ↪ ι} {t : Fin k} {tail : ι}
     {htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r} {r : Fin k} (hrt : r ≠ t) :
     σ r ∈ Set.range (shiftUp σ t tail htail) := by
   rcases lt_or_gt_of_ne hrt with hlt | hgt
   · exact ⟨r, shiftUp_lt σ t tail htail hlt⟩
-  · have h1 : t.val ≤ r.val - 1 := by have : t.val < r.val := hgt; omega
-    have h2 : r.val - 1 + 1 < k := by omega
-    refine ⟨⟨r.val - 1, by omega⟩, ?_⟩
-    rw [shiftUp_mid σ t tail htail h1 h2]
-    congr 1; apply Fin.ext; dsimp; omega
+  · have ht_lt : t.val < r.val := hgt
+    have hj : t.val ≤ r.val - 1 ∧ r.val - 1 + 1 = r.val := by omega
+    exact ⟨_, (shiftUp_mid σ t tail htail (r := ⟨r.val - 1, by omega⟩) hj.1
+      (hj.2.trans_lt r.isLt)).trans (congrArg σ (Fin.ext hj.2))⟩
 
 /-- **VCG payment equals `minEnvyFreePrice`** ([LahaiePennockSaberiVohra2007], §28.3.1–28.3.2,
 pp. 703–706): on the outcome space `Ω = Fin k ↪ ι` with linear valuations
@@ -339,62 +262,48 @@ theorem vcg_payment_slot_eq_minEnvyFreePrice [Fintype ι] [DecidableEq ι]
     (hμ : Antitone μ) (hμ_nonneg : ∀ i, 0 ≤ μ i) (hv : ∀ j, 0 ≤ v j) (t : Fin k) :
     (vcg f).payment (linearProfile (slotAlloc μ) v) (σ t) = minEnvyFreePrice μ v σ t := by
   simp only [vcg, groves, hfσ]
-  have hsolve : ∀ (tail : ι) (htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r),
-      Function.update v (σ t) 0 tail = maxUnassignedValue v σ →
-      IsAssortative (Function.update v (σ t) 0) (shiftUp σ t tail htail) →
+  have hsolve (tail : ι) (htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r)
+      (hval : Function.update v (σ t) 0 tail = maxUnassignedValue v σ)
+      (hassort : IsAssortative (Function.update v (σ t) 0) (shiftUp σ t tail htail)) :
       clarkePivot (σ t) (linearProfile (slotAlloc μ) v) -
         ∑ j ∈ Finset.univ.erase (σ t), linearProfile (slotAlloc μ) v j σ =
         minEnvyFreePrice μ v σ t := by
-    intro tail htail hval hassort
     have hpivot : clarkePivot (σ t) (linearProfile (slotAlloc μ) v) =
-        welfare μ (Function.update v (σ t) 0) (shiftUp σ t tail htail) := by
-      refine le_antisymm (Finset.sup'_le _ _ fun ω _ => ?_) ?_
-      · rw [sum_erase_linearProfile]; exact hassort.isOptimal hμ hμ_nonneg ω
-      · rw [← sum_erase_linearProfile μ v (σ t) (shiftUp σ t tail htail)]
-        exact Finset.le_sup' (fun ω => ∑ j ∈ Finset.univ.erase (σ t),
-          linearProfile (slotAlloc μ) v j ω) (Finset.mem_univ _)
-    rw [hpivot]
-    exact welfare_shiftUp_sub μ v σ t tail htail hval
+        welfare μ (Function.update v (σ t) 0) (shiftUp σ t tail htail) :=
+      le_antisymm (Finset.sup'_le _ _ fun ω _ => by
+          simpa only [sum_erase_linearProfile] using hassort.isOptimal hμ hμ_nonneg ω)
+        (sum_erase_linearProfile μ v (σ t) (shiftUp σ t tail htail) ▸
+          Finset.le_sup' (fun ω => ∑ j ∈ Finset.univ.erase (σ t),
+            linearProfile (slotAlloc μ) v j ω) (Finset.mem_univ _))
+    exact hpivot.symm ▸ welfare_shiftUp_sub μ v σ t tail htail hval
   by_cases hne : (Finset.univ \ Finset.univ.map σ).Nonempty
   · obtain ⟨jstar, hjmem, hjval⟩ := Finset.exists_mem_eq_sup' hne v
     have hjrange : jstar ∉ Set.range σ := by
-      simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and, not_exists] at hjmem
-      rintro ⟨r, rfl⟩; exact hjmem r rfl
+      simpa [Set.mem_range] using (Finset.mem_sdiff.mp hjmem).2
     have htail : ∀ r : Fin k, r ≠ t → jstar ≠ σ r := fun r _ h => hjrange ⟨r, h.symm⟩
     have hjt : jstar ≠ σ t := fun h => hjrange ⟨t, h.symm⟩
     have hval : Function.update v (σ t) 0 jstar = maxUnassignedValue v σ := by
-      rw [Function.update_of_ne hjt]
-      simp only [maxUnassignedValue, hne, ↓reduceDIte, hjval]
+      simp [Function.update_of_ne hjt, maxUnassignedValue, hne, hjval]
     refine hsolve jstar htail hval (shiftUp_isAssortative hσ t jstar htail ?_ ?_)
     · intro r; rw [Function.update_of_ne hjt]; exact hσ.unassigned_le r jstar hjrange
     · intro j hj
       rw [hval]
-      by_cases hje : j = σ t
-      · subst hje; rw [Function.update_self]; exact maxUnassignedValue_nonneg hv σ
-      · rw [Function.update_of_ne hje]
-        refine le_maxUnassignedValue v σ ?_
-        rintro ⟨r, rfl⟩
-        exact hj (mem_range_shiftUp_of_ne (fun h => hje (by rw [h])))
+      rcases eq_or_ne j (σ t) with rfl | hje
+      · simpa only [Function.update_self] using maxUnassignedValue_nonneg hv σ
+      · simpa only [Function.update_of_ne hje] using le_maxUnassignedValue v σ fun ⟨r, hr⟩ =>
+          hj (hr ▸ mem_range_shiftUp_of_ne fun h => hje (hr.symm.trans (congrArg σ h)))
   · have htail : ∀ r : Fin k, r ≠ t → σ t ≠ σ r := fun r hr h => hr (σ.injective h).symm
     have hval : Function.update v (σ t) 0 (σ t) = maxUnassignedValue v σ := by
-      rw [Function.update_self]
-      simp only [maxUnassignedValue, hne, ↓reduceDIte]
-    refine hsolve (σ t) htail hval (shiftUp_isAssortative hσ t (σ t) htail ?_ ?_)
-    · intro r; rw [Function.update_self]; exact hv (σ r)
-    · intro j hj
-      exfalso
-      have hsurj : j ∈ Set.range σ := by
-        by_contra hnot
-        apply hne
-        refine ⟨j, Finset.mem_sdiff.mpr ⟨Finset.mem_univ j, ?_⟩⟩
-        simp only [Finset.mem_map, Finset.mem_univ, true_and, not_exists]
-        exact fun r hr => hnot ⟨r, hr⟩
-      obtain ⟨r, rfl⟩ := hsurj
-      by_cases hrt : r = t
-      · subst hrt
-        have hk : 0 < k := Fin.pos r
-        exact hj ⟨⟨k - 1, by omega⟩, shiftUp_last σ r (σ r) htail (by dsimp; omega)⟩
-      · exact hj (mem_range_shiftUp_of_ne hrt)
+      simp [maxUnassignedValue, hne]
+    refine hsolve (σ t) htail hval (shiftUp_isAssortative hσ t (σ t) htail
+      (fun r => by simpa only [Function.update_self] using hv (σ r)) fun j hj => ?_)
+    obtain ⟨r, _, rfl⟩ := Finset.mem_map.mp
+      (Finset.sdiff_eq_empty_iff_subset.mp (Finset.not_nonempty_iff_eq_empty.mp hne)
+        (Finset.mem_univ j))
+    rcases eq_or_ne r t with rfl | hrt
+    · exact (hj ⟨⟨k - 1, Nat.sub_lt (Fin.pos r) Nat.one_pos⟩,
+        shiftUp_last σ r (σ r) htail (Nat.sub_add_cancel (Fin.pos r))⟩).elim
+    · exact (hj (mem_range_shiftUp_of_ne hrt)).elim
 
 /-- Every unassigned bidder pays `0` under the VCG mechanism on `Fin k ↪ ι`. -/
 theorem vcg_payment_unassigned_eq_zero [Fintype ι] [DecidableEq ι]
@@ -404,7 +313,6 @@ theorem vcg_payment_unassigned_eq_zero [Fintype ι] [DecidableEq ι]
     (hμ : Antitone μ) (hμ_nonneg : ∀ i, 0 ≤ μ i) (hv : ∀ j, 0 ≤ v j)
     {x : ι} (hx : x ∉ Set.range σ) :
     (vcg f).payment (linearProfile (slotAlloc μ) v) x = 0 := by
-  simp only [vcg, groves, hfσ]
-  rw [clarkePivot_unassigned hσ hμ hμ_nonneg hv hx, sub_self]
+  simp only [vcg, groves, hfσ, clarkePivot_unassigned hσ hμ hμ_nonneg hv hx, sub_self]
 
 end Cslib.GameTheory.SponsoredSearch

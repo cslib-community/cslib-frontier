@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Circuit.Simulation
 import Mathlib.Algebra.Order.Floor.Div
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Internal stage-step synthesis for `{⊕, ∧, 1}` circuits
@@ -88,6 +89,13 @@ private def intraSet (d : PaddedDecomp f M k) (s q₀ b : ℕ) : Set (BooleanFun
 private def stageGates (M s q₀ b : ℕ) : Finset (Fin M) :=
   univ.filter fun i : Fin M => i.1 / s = q₀ ∧ i.1 % s < b
 
+private theorem intraSet_eq_image (d : PaddedDecomp f M k) (s q₀ b : ℕ) :
+    intraSet (n := n) d s q₀ b = d.gFn '' ↑(stageGates M s q₀ b) := by
+  ext g
+  simp only [intraSet, stageGates, Set.mem_image, coe_filter, mem_univ, true_and, Set.mem_ofPred]
+  exact exists_congr fun i =>
+    ⟨fun ⟨hd, hm, h⟩ => ⟨⟨hd, hm⟩, h.symm⟩, fun ⟨⟨hd, hm⟩, h⟩ => ⟨hd, hm, h.symm⟩⟩
+
 private theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp : 0 < p)
     (q₀ b : ℕ) (r : Fin (2 * M)) (hr_stage : (r.1 / 2) / s = q₀) (hr_mod : (r.1 / 2) % s = b) :
     CostSynthesis interpretation andCost (midSet d s p q₀ ∪ intraSet d s q₀ b)
@@ -99,59 +107,51 @@ private theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 
   have hmem : ∀ idx ∈ zhegRowParts d s p r,
       zhegPartVal d s p r idx ∈ midSet d s p q₀ ∪ intraSet d s q₀ b := by
     intro idx hidx
-    unfold zhegRowParts at hidx
-    rcases mem_union.mp hidx with h1234 | h5
-    · rcases mem_union.mp h1234 with h123 | h4
-      · rcases mem_union.mp h123 with h12 | h3
-        · rcases mem_union.mp h12 with h1 | h2
-          · split_ifs at h1 with hcH
-            · rw [mem_singleton.mp h1]
-              have h1' : zhegPartVal d s p r .constOne ∈
-                  ({constZero n, constOne n} : Set (BooleanFunction n)) := Or.inr rfl
-              simp only [midSet, stageSet, Set.mem_union]
-              tauto
-            · exact (notMem_empty _ h1).elim
-          · obtain ⟨r', hr', rfl⟩ := mem_map.mp h2
-            have hne := (mem_filter.mp hr').2
-            let up : ℕ × (Fin (2 * M) × Fin (2 * M)) := (r.1 / p, (min r r', max r r'))
-            have hup_mem : up ∈ zhegPairIdx d s p :=
-              mem_filter.mpr ⟨mem_product.mpr ⟨mem_range.mpr (div_lt_ceilDiv r.isLt hp),
-                mem_univ _⟩, hne⟩
-            have hmin_le : ((min r r').1 / 2) / s ≤ q₀ := by
-              rw [← hr_stage]
-              exact Nat.div_le_div_right (Nat.div_le_div_right (min_le_left r r'))
-            rcases lt_or_eq_of_le hmin_le with hlt_q | heq_q
-            · have hp_mem : zhegPartVal d s p r (peerEmb M r') ∈
-                  {g | ∃ up ∈ zhegPairIdx d s p,
-                    (up.2.1.1 / 2) / s < q₀ ∧ g = zhegPairVal d s p up} :=
-                ⟨up, hup_mem, hlt_q, rfl⟩
-              simp only [midSet, stageSet, Set.mem_union]
-              tauto
-            · have hp_mem : zhegPartVal d s p r (peerEmb M r') ∈
-                  ⋃ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.1 / 2) / s = q₀),
-                    {zhegPairVal d s p up} := by
-                rw [Set.mem_iUnion₂]
-                exact ⟨up, mem_filter.mpr ⟨hup_mem, heq_q⟩, rfl⟩
-              simp only [midSet, Set.mem_union]
-              tauto
-        · split_ifs at h3 with hne
-          · rw [mem_singleton.mp h3]
-            have ho_mem : zhegPartVal d s p r .odd ∈
-                ⋃ r ∈ (zhegOddIdx d s p).filter (fun r => (r.1 / 2) / s = q₀),
-                  {zhegOddVal d s p r} := by
-              rw [Set.mem_iUnion₂]
-              exact ⟨r, mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ r, hne⟩, hr_stage⟩, rfl⟩
-            simp only [midSet, Set.mem_union]
-            tauto
-          · exact (notMem_empty _ h3).elim
-      · split_ifs at h4 with hne
-        · rw [mem_singleton.mp h4]
-          have htail_mem : zhegPartVal d s p r .xTail ∈ xGroupSet n s :=
-            ⟨n / s, Additive.matrixTailSet d.aX s r, hne,
-              fun _ hj => Additive.div_eq_of_mem_matrixTailSet hj, rfl⟩
-          simp only [midSet, stageSet, Set.mem_union]
-          tauto
-        · exact (notMem_empty _ h4).elim
+    have hite {P : Prop} [Decidable P] {z : ZhegPartIdx M}
+        (h : idx ∈ if P then ({z} : Finset _) else ∅) : P ∧ idx = z := by
+      split_ifs at h <;> simp_all
+    simp only [zhegRowParts, mem_union] at hidx
+    rcases hidx with (((h1 | h2) | h3) | h4) | h5
+    · obtain ⟨-, rfl⟩ := hite h1
+      have h1' : zhegPartVal d s p r .constOne ∈
+          ({constZero n, constOne n} : Set (BooleanFunction n)) := Or.inr rfl
+      simp only [midSet, stageSet, Set.mem_union]
+      tauto
+    · obtain ⟨r', hr', rfl⟩ := mem_map.mp h2
+      have hne := (mem_filter.mp hr').2
+      let up : ℕ × (Fin (2 * M) × Fin (2 * M)) := (r.1 / p, (min r r', max r r'))
+      have hup_mem : up ∈ zhegPairIdx d s p :=
+        mem_filter.mpr ⟨mem_product.mpr ⟨mem_range.mpr (div_lt_ceilDiv r.isLt hp),
+          mem_univ _⟩, hne⟩
+      have hmin_le : ((min r r').1 / 2) / s ≤ q₀ := by
+        rw [← hr_stage]
+        exact Nat.div_le_div_right (Nat.div_le_div_right (min_le_left r r'))
+      rcases lt_or_eq_of_le hmin_le with hlt_q | heq_q
+      · have hp_mem : zhegPartVal d s p r (peerEmb M r') ∈
+            {g | ∃ up ∈ zhegPairIdx d s p,
+              (up.2.1.1 / 2) / s < q₀ ∧ g = zhegPairVal d s p up} :=
+          ⟨up, hup_mem, hlt_q, rfl⟩
+        simp only [midSet, stageSet, Set.mem_union]
+        tauto
+      · have hp_mem : zhegPartVal d s p r (peerEmb M r') ∈
+            ⋃ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.1 / 2) / s = q₀),
+              {zhegPairVal d s p up} :=
+          Set.mem_biUnion (mem_filter.mpr ⟨hup_mem, heq_q⟩) rfl
+        simp only [midSet, Set.mem_union]
+        tauto
+    · obtain ⟨hne, rfl⟩ := hite h3
+      have ho_mem : zhegPartVal d s p r .odd ∈
+          ⋃ r ∈ (zhegOddIdx d s p).filter (fun r => (r.1 / 2) / s = q₀),
+            {zhegOddVal d s p r} :=
+        Set.mem_biUnion (mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ r, hne⟩, hr_stage⟩) rfl
+      simp only [midSet, Set.mem_union]
+      tauto
+    · obtain ⟨hne, rfl⟩ := hite h4
+      have htail_mem : zhegPartVal d s p r .xTail ∈ xGroupSet n s :=
+        ⟨n / s, Additive.matrixTailSet d.aX s r, hne,
+          fun _ hj => Additive.div_eq_of_mem_matrixTailSet hj, rfl⟩
+      simp only [midSet, stageSet, Set.mem_union]
+      tauto
     · obtain ⟨ℓ, hℓ, rfl⟩ := mem_map.mp h5
       obtain ⟨_, hdiv, hlt, _⟩ := mem_filter.mp hℓ
       have hmod_lt : ℓ.1 % s < b := by
@@ -223,27 +223,12 @@ private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
         · have hge : k ≤ i₀.1 := Nat.le_of_not_lt hik
           have h0_mem : d.gFn i₀ ∈ midSet d s p q₀ ∪ intraSet d s q₀ b := by
             rw [d.gFn_ge i₀ hge]
-            have h0 : constZero n ∈ ({constZero n, constOne n} : Set (BooleanFunction n)) :=
-              Or.inl rfl
             simp only [midSet, stageSet, Set.mem_union]
-            tauto
+            lrat_tauto
+              [(Or.inl rfl : constZero n ∈ ({constZero n, constOne n} : Set (BooleanFunction n)))]
           exact (CostSynthesis.of_mem h0_mem).mono Set.Subset.rfl Set.Subset.rfl
             (by omega) (by simp [hik])
       have htot := ih.comp hg_step
-      have hset_eq : intraSet d s q₀ b ∪ {d.gFn i₀} = intraSet d s q₀ (b + 1) := by
-        ext g
-        simp only [intraSet, Set.mem_union, Set.mem_ofPred, Set.mem_singleton_iff]
-        constructor
-        · rintro (⟨i, hd, hm, rfl⟩ | rfl)
-          · exact ⟨i, hd, Nat.lt_succ_of_lt hm, rfl⟩
-          · exact ⟨i₀, hi₀_div, by omega, rfl⟩
-        · rintro ⟨i, hd, hm, rfl⟩
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hm with hlt | heq
-          · exact Or.inl ⟨i, hd, hlt, rfl⟩
-          · refine Or.inr (congrArg d.gFn (Fin.ext ?_))
-            rw [← Nat.div_add_mod i.1 s, hd, heq]
-            dsimp only [i₀]
-            ring
       have hgates_eq : stageGates M s q₀ (b + 1) = insert i₀ (stageGates M s q₀ b) := by
         ext i
         simp only [stageGates, mem_filter, mem_univ, true_and, mem_insert]
@@ -260,6 +245,9 @@ private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
           · exact ⟨hd, Nat.lt_succ_of_lt hlt⟩
       have hi₀_notMem : i₀ ∉ stageGates M s q₀ b := by
         simp [stageGates, hi₀_mod]
+      have hset_eq : intraSet d s q₀ b ∪ {d.gFn i₀} = intraSet d s q₀ (b + 1) := by
+        rw [intraSet_eq_image, intraSet_eq_image, hgates_eq, coe_insert, Set.image_insert_eq,
+          Set.union_comm, Set.insert_eq]
       rw [hset_eq] at htot
       rw [hgates_eq, sum_insert hi₀_notMem, sum_insert hi₀_notMem]
       exact htot.mono Set.Subset.rfl Set.Subset.rfl (by omega) (by omega)
@@ -279,17 +267,7 @@ private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
             exact hi_eq ▸ i.isLt
         · rintro ⟨hd, hlt⟩
           exact ⟨hd, Nat.lt_succ_of_lt hlt⟩
-      have hsame_set : intraSet d s q₀ (b + 1) = intraSet d s q₀ b := by
-        ext g
-        simp only [intraSet, Set.mem_ofPred]
-        constructor
-        · rintro ⟨i, hd, hm, rfl⟩
-          have hmem : i ∈ stageGates M s q₀ (b + 1) := mem_filter.mpr ⟨mem_univ i, hd, hm⟩
-          rw [hsame_gates] at hmem
-          exact ⟨i, (mem_filter.mp hmem).2.1, (mem_filter.mp hmem).2.2, rfl⟩
-        · rintro ⟨i, hd, hlt, rfl⟩
-          exact ⟨i, hd, Nat.lt_succ_of_lt hlt, rfl⟩
-      rw [hsame_gates, hsame_set]
+      rw [intraSet_eq_image, hsame_gates, ← intraSet_eq_image]
       exact ih
 
 theorem synth_stage_step (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp : 0 < p)
@@ -424,9 +402,8 @@ theorem synth_stage_step (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp :
       simp only [midSet, stageSet, Set.mem_union]; tauto
     · have h_new : zhegPairVal d s p up ∈
           ⋃ up' ∈ (zhegPairIdx d s p).filter (fun up' => (up'.2.1.1 / 2) / s = q₀),
-            {zhegPairVal d s p up'} := by
-        rw [Set.mem_iUnion₂]
-        exact ⟨up, mem_filter.mpr ⟨hup, heq⟩, rfl⟩
+            {zhegPairVal d s p up'} :=
+        Set.mem_biUnion (mem_filter.mpr ⟨hup, heq⟩) rfl
       simp only [midSet, Set.mem_union]; tauto
 
 end StageStep

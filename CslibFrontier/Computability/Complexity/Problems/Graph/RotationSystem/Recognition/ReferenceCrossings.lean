@@ -61,47 +61,37 @@ private theorem referenceDrawing_pair_properties {I : FixedRotationInput} (hI : 
   let r := fun v => ((referenceOrder I).idxOf v : ℝ)
   have he' := subdivision_endpoint_spec hI e
   have hf' := subdivision_endpoint_spec hI f
-  have hab : r a ≠ r b :=
-    Nat.cast_injective.ne ((List.idxOf_inj (he'.1 false)).not.mpr he'.2)
-  have hcd : r c ≠ r d :=
-    Nat.cast_injective.ne ((List.idxOf_inj (hf'.1 false)).not.mpr hf'.2)
-  have hpair : (s(a, b) : Sym2 ℕ) ≠ s(c, d) := by
-    intro h
-    apply hef
-    apply subdivisionGraph_edge_injective hI
-    exact (Dart.sym2_vertex_reverse (G := subdivisionGraph I) (e, false)).symm.trans
-      (h.trans (Dart.sym2_vertex_reverse (G := subdivisionGraph I) (f, false)))
-  have hout : ¬(c ∈ (s(a, b) : Sym2 ℕ) ∧ d ∈ (s(a, b) : Sym2 ℕ)) := by
-    intro h
-    exact hpair ((Sym2.mem_and_mem_iff hf'.2).mp h)
+  have hr_ne {u v : ℕ} (hu : u ∈ referenceOrder I) (huv : u ≠ v) : r u ≠ r v :=
+    Nat.cast_injective.ne ((List.idxOf_inj hu).not.mpr huv)
+  have hab : r a ≠ r b := hr_ne (he'.1 false) he'.2
+  have hcd : r c ≠ r d := hr_ne (hf'.1 false) hf'.2
+  have hpair : (s(a, b) : Sym2 ℕ) ≠ s(c, d) := fun h =>
+    hef (subdivisionGraph_edge_injective hI
+      ((Dart.sym2_vertex_reverse (G := subdivisionGraph I) (e, false)).symm.trans
+        (h.trans (Dart.sym2_vertex_reverse (G := subdivisionGraph I) (f, false)))))
+  have hout : ¬(c ∈ (s(a, b) : Sym2 ℕ) ∧ d ∈ (s(a, b) : Sym2 ℕ)) := fun h =>
+    hpair ((Sym2.mem_and_mem_iff hf'.2).mp h)
   change
     (openSegment ℝ (parabolaPoint (r a)) (parabolaPoint (r b)) ∩
       openSegment ℝ (parabolaPoint (r c)) (parabolaPoint (r d))).Subsingleton ∧
     (∀ z : ℂ, z ∈ openSegment ℝ (parabolaPoint (r a)) (parabolaPoint (r b)) →
       z ∈ openSegment ℝ (parabolaPoint (r c)) (parabolaPoint (r d)) → r a + r b ≠ r c + r d)
   by_cases hc : c ∈ (s(a, b) : Sym2 ℕ)
-  · have hd : d ≠ a ∧ d ≠ b := by
-      have hn : d ∉ (s(a, b) : Sym2 ℕ) := fun h => hout ⟨hc, h⟩
-      simpa only [Sym2.mem_iff, not_or] using hn
-    have had : r a ≠ r d :=
-      Nat.cast_injective.ne ((List.idxOf_inj (he'.1 false)).not.mpr hd.1.symm)
-    have hbd : r b ≠ r d :=
-      Nat.cast_injective.ne ((List.idxOf_inj (he'.1 true)).not.mpr hd.2.symm)
+  · have hd : d ≠ a ∧ d ≠ b := not_or.mp (mt Sym2.mem_iff.mpr fun h => hout ⟨hc, h⟩)
+    have had := hr_ne (he'.1 false) hd.1.symm
+    have hbd := hr_ne (he'.1 true) hd.2.symm
     constructor
     · rw [openSegment_symm ℝ (parabolaPoint (r c)) (parabolaPoint (r d))]
       exact parabolaChord_inter_subsingleton hab hcd.symm had hbd
     · intro z he hf
-      have hswap : z ∈ openSegment ℝ (parabolaPoint (r d)) (parabolaPoint (r c)) := by
-        simpa only [openSegment_symm] using hf
+      rw [openSegment_symm] at hf
       simpa only [add_comm (r d) (r c)] using
-        parabolaChord_slope_ne_of_mem_inter hab hcd.symm had hbd he hswap
-  · have hc' : c ≠ a ∧ c ≠ b := by simpa only [Sym2.mem_iff, not_or] using hc
-    have hac : r a ≠ r c :=
-      Nat.cast_injective.ne ((List.idxOf_inj (he'.1 false)).not.mpr hc'.1.symm)
-    have hbc : r b ≠ r c :=
-      Nat.cast_injective.ne ((List.idxOf_inj (he'.1 true)).not.mpr hc'.2.symm)
-    exact ⟨parabolaChord_inter_subsingleton hab hcd hac hbc,
-      fun z he hf => parabolaChord_slope_ne_of_mem_inter hab hcd hac hbc he hf⟩
+        parabolaChord_slope_ne_of_mem_inter hab hcd.symm had hbd he hf
+  · have hc' : c ≠ a ∧ c ≠ b := not_or.mp (mt Sym2.mem_iff.mpr hc)
+    exact ⟨parabolaChord_inter_subsingleton hab hcd (hr_ne (he'.1 false) hc'.1.symm)
+        (hr_ne (he'.1 true) hc'.2.symm),
+      fun z he hf => parabolaChord_slope_ne_of_mem_inter hab hcd (hr_ne (he'.1 false) hc'.1.symm)
+        (hr_ne (he'.1 true) hc'.2.symm) he hf⟩
 
 /-- Two distinct actual reference edges have at most one common strict-interior point.
 No independence or supplied endpoint/rank inequalities are assumed. -/

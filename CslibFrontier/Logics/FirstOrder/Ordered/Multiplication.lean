@@ -114,10 +114,9 @@ private theorem realize_parameters (h e s m k : (language L).Term α) (v : α �
     have hspos : 0 < (s.realize v).val := hs ▸ Nat.two_pow_pos _
     have hs1 : (s.realize v).val + 1 < n := by nlinarith
     have hcapn : ((s.realize v).val + 1) * (s.realize v).val < n := by lia
-    refine ⟨![⟨_, hspace⟩, ⟨_, hw⟩, ⟨_, hw2⟩, ⟨_, ho8⟩,
-      ⟨_, hsize⟩, ⟨_, hs1⟩, ⟨_, hcapn⟩], rfl, rfl, rfl, hkw, rfl, rfl, hks, rfl, ?_, hcap⟩
-    dsimp
-    rw [hs]
+    exact ⟨![⟨_, hspace⟩, ⟨_, hw⟩, ⟨_, hw2⟩, ⟨_, ho8⟩,
+      ⟨_, hsize⟩, ⟨_, hs1⟩, ⟨_, hcapn⟩], rfl, rfl, rfl, hkw, rfl, rfl, hks, rfl,
+      congrArg (_ * ·) hs.symm, hcap⟩
 
 private theorem block_end_le {q s k : ℕ} (_hs : 0 < s) (hks : s ∣ k) (hq : q * s < k) :
     q * s + s ≤ k := by
@@ -131,9 +130,7 @@ private theorem packedFormula_sound (v : Fin 3 → Fin n)
   obtain ⟨u, hlo, hhi, hs, hk, he, hsh, hspace, hkw, hks, hcap, hzero, hend, hblocks⟩ := hf
   have hp : 2 ^ (u (.inl 0)).val < n := by lia
   have hspos : 0 < (u (.inl 2)).val := hs ▸ Nat.two_pow_pos _
-  have hdiv : (u (.inl 2)).val ∣ (u (.inl 4)).val := by
-    rw [hs, hk]
-    exact Nat.pow_dvd_pow 2 he
+  have hdiv : (u (.inl 2)).val ∣ (u (.inl 4)).val := hs ▸ hk ▸ Nat.pow_dvd_pow 2 he
   have hwidth : 2 ^ (u (.inl 2)).val < n :=
     lt_of_le_of_lt (Nat.pow_le_pow_right (by decide) hsh) hp
   have hcapn : ((u (.inl 2)).val + 1) * (u (.inl 2)).val < n := by lia
@@ -141,9 +138,7 @@ private theorem packedFormula_sound (v : Fin 3 → Fin n)
     at hzero hend
   fo_simp at hzero hend
   fo_simp [allBlocks, not_le] at hblocks
-  have hinput (i : Fin 3) : (v i).val < 2 ^ ((u (.inl 0)).val + 1) := by
-    have := (v i).isLt
-    lia
+  have hinput (i : Fin 3) : (v i).val < 2 ^ ((u (.inl 0)).val + 1) := by have := (v i).isLt; omega
   apply BitString.mul_eq_of_blocks (hinput 0) (hinput 1)
     (lt_of_lt_of_le (hinput 2) (Nat.pow_le_pow_right (by decide) (by lia))) hkw hspos hdiv
     (fun a => BitString.readPackedField (u (.inl 0)).val (fun r => (u (.inr r)).val)
@@ -160,12 +155,9 @@ private theorem packedFormula_sound (v : Fin 3 → Fin n)
     (by simpa using hwidth) (by simpa using hspace)] at hb
   fo_simp at hb
   obtain ⟨w, h0, hs', ht⟩ := hb
-  refine ⟨fun t => BitString.readPackedField (u (.inl 0)).val (fun r => (w r).val)
-    (t * (u (.inl 2)).val) (u (.inl 2)).val, ?_, ?_, ?_⟩
-  · simpa [a] using h0
-  · simpa [a] using hs'
-  · intro t hts
-    simpa [a] using (ht t hts).1
+  exact ⟨fun t => BitString.readPackedField (u (.inl 0)).val (fun r => (w r).val)
+    (t * (u (.inl 2)).val) (u (.inl 2)).val, by simpa [a] using h0, by simpa [a] using hs',
+    fun t hts => by simpa [a] using (ht t hts).1⟩
 
 omit [Fact (2 ≤ n)] in
 private theorem exists_local_carries (v : Fin 3 → Fin n) {h s j : ℕ} {g : Fin 8 → Fin n}
@@ -193,40 +185,22 @@ private theorem exists_local_carries (v : Fin 3 → Fin n) {h s j : ℕ} {g : Fi
       BitString.readPackedField h (fun r => (w r).val) (t * s) s = c (j + t) :=
     BitString.readPackedField_fields (fun t => c (j + t)) hspos
       (by nlinarith) (lt_of_le_of_lt (hc _) hcwidth)
-  refine ⟨w, ?_, ?_, ?_⟩
-  · change BitString.readPackedField h (fun r => (w r).val) (0 * s) s =
-      BitString.readPackedField h (fun r => (g r).val) j s
-    rw [hw 0 (by lia), hgj, Nat.add_zero]
-  · change BitString.readPackedField h (fun r => (w r).val) (s * s) s =
-      BitString.readPackedField h (fun r => (g r).val) (j + s) s
-    rw [hw s (le_refl _), hgj']
-  · intro t ht
-    change BitString.readPackedField h (fun r => (w r).val) (t * s) s +
-        BitString.mulColumn (v 0).val (v 1).val (j + t) =
-          ((v 2).val.testBit (j + t)).toNat +
-            2 * BitString.readPackedField h (fun r => (w r).val) ((t + 1) * s) s ∧
-      BitString.readPackedField h (fun r => (w r).val) (t * s) s +
-        BitString.mulColumn (v 0).val (v 1).val (j + t) < n
-    rw [hw t (by lia), hw (t + 1) (by lia)]
-    constructor
-    · have heq := BitString.mulCarry_add_column (v 0).val (v 1).val (j + t)
-      rw [hprod] at heq
-      simpa only [c, Nat.add_assoc] using heq
-    · have := hc (j + t)
-      have := BitString.mulColumn_le hx (v 1).val (j + t)
-      lia
+  refine ⟨w, ?_, ?_, fun t ht => ?_⟩ <;> dsimp only
+  · rw [hw 0 (by lia), hgj, Nat.add_zero]
+  · rw [hw s (le_refl _), hgj']
+  rw [hw t (by lia), hw (t + 1) (by lia)]
+  have heq := BitString.mulCarry_add_column (v 0).val (v 1).val (j + t)
+  rw [hprod] at heq
+  have := hc (j + t)
+  have := BitString.mulColumn_le hx (v 1).val (j + t)
+  exact ⟨by simpa only [c, Nat.add_assoc] using heq, by lia⟩
 
 private theorem packedFormula_complete (v : Fin 3 → Fin n) (hn : 257 ≤ n)
     (hprod : (v 0).val * (v 1).val = (v 2).val) : (packedFormula L).Realize v := by
   obtain ⟨h, e, m, hlo, hhi, hh, hspace, hem, hsh, hcwidth, hkw, hks, hcap⟩ :=
     exists_parameters hn
-  let s := 2 ^ e
-  let k := 2 ^ m
-  change s ≤ h at hsh
-  change h + 1 < 2 ^ s at hcwidth
-  change 2 * (h + 1) ≤ k at hkw
-  change k + s ≤ 8 * h at hks
-  change (s + 1) * s ≤ 16 * h at hcap
+  set s := 2 ^ e
+  set k := 2 ^ m
   have hp : 2 ^ h < n := by lia
   have hhn : h < n := by lia
   have hsn : s < n := by lia
@@ -235,7 +209,6 @@ private theorem packedFormula_complete (v : Fin 3 → Fin n) (hn : 257 ≤ n)
   have hen : e < n := lt_of_le_of_lt hem hmn
   have hspos : 0 < s := Nat.two_pow_pos e
   have hdiv : s ∣ k := Nat.pow_dvd_pow 2 hem
-  have hdivmul : k / s * s = k := Nat.div_mul_cancel hdiv
   have hwidth : 2 ^ s < n := lt_of_le_of_lt (Nat.pow_le_pow_right (by decide) hsh) hp
   have hcapn : (s + 1) * s < n := by lia
   have hinput (i : Fin 3) : (v i).val < 2 ^ (h + 1) := by have := (v i).isLt; lia
@@ -250,37 +223,31 @@ private theorem packedFormula_complete (v : Fin 3 → Fin n) (hn : 257 ≤ n)
       (lt_of_le_of_lt (hc _) hcwidth)
   have hg0 := hg 0 (by lia)
   simp only [Nat.zero_mul, c, BitString.mulCarry_zero] at hg0
-  have hgk := hg (k / s) (by rw [hdivmul]; exact hks)
-  rw [hdivmul] at hgk
+  have hgk := hg (k / s) ((Nat.div_mul_cancel hdiv).symm ▸ hks)
   have hck : c k = 0 := BitString.mulCarry_eq_zero (hinput 0) (hinput 1) hkw
-  rw [hck] at hgk
+  rw [Nat.div_mul_cancel hdiv, hck] at hgk
   let u : (Fin 5 ⊕ Fin 8) → Fin n :=
     Sum.elim ![⟨h, hhn⟩, ⟨e, hen⟩, ⟨s, hsn⟩, ⟨m, hmn⟩, ⟨k, hkn⟩] g
+  have h8 : 8 * (u (.inl 0)).val < n := by simpa [u] using (show 8 * h < n by lia)
   fo_simp [packedFormula]
   refine ⟨u, ?_⟩
   fo_simp [and_assoc]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [realize_parameters]
-    exact ⟨hlo, hhi, rfl, rfl, hem, hsh, hspace, hkw, hks, hcap⟩
-  · rw [realize_packedField _ _ _ _ _ _ (by simpa [u] using (show 8 * h < n by lia))]
+  refine ⟨(realize_parameters ..).2 ⟨hlo, hhi, rfl, rfl, hem, hsh, hspace, hkw, hks, hcap⟩,
+    ?_, ?_, ?_⟩
+  · rw [realize_packedField _ _ _ _ _ _ h8]
     simpa [u] using hg0.symm
-  · rw [realize_packedField _ _ _ _ _ _ (by simpa [u] using (show 8 * h < n by lia))]
+  · rw [realize_packedField _ _ _ _ _ _ h8]
     simpa [u] using hgk.symm
   · fo_simp [allBlocks, not_le]
-    intro a ⟨haj, hak⟩
-    change (a 0).val * s = (a 1).val at haj
-    change (a 1).val < k at hak
-    have hjend : (a 1).val + s ≤ k := by
-      rw [← haj]
-      exact block_end_le hspos hdiv (by rwa [haj])
+    rintro a ⟨(haj : (a 0).val * s = (a 1).val), (hak : (a 1).val < k)⟩
+    have hjend : (a 1).val + s ≤ k := haj ▸ block_end_le hspos hdiv (haj.symm ▸ hak)
     rw [realize_blockChecks _ _ _ _ _ _ _ _ _ (by rfl)
       (by simpa [u] using hcapn) (by simpa [u] using (show (a 1).val + s < n by lia))
       (by simpa [u] using hwidth) (by simpa [u] using hspace)]
     fo_simp
     refine exists_local_carries v (h := h) (s := s) (j := (a 1).val) (g := g)
       hp hspace hcap hspos hcwidth (hinput 0) hprod ?_ ?_
-    · rw [← haj]
-      exact hg (a 0).val (by rw [haj]; lia)
+    · exact haj ▸ hg (a 0).val (by rw [haj]; omega)
     · have ht := hg ((a 0).val + 1) (by rw [Nat.add_mul, Nat.one_mul, haj]; lia)
       simpa only [Nat.add_mul, Nat.one_mul, haj] using ht
 
@@ -322,10 +289,7 @@ public theorem not_realize_multiplication_of_le (v : Fin 3 → Fin n)
 /-- Every representable ordinary product has exactly one output. -/
 public theorem existsUnique_multiplication (x y : Fin n) (hxy : x.val * y.val < n) :
     ∃! z : Fin n, (multiplication L).Realize ![x, y, z] := by
-  refine ⟨⟨x.val * y.val, hxy⟩, ?_, ?_⟩
-  · exact (realize_multiplication _).mpr rfl
-  · intro z hz
-    rw [realize_multiplication] at hz
-    exact Fin.ext hz.symm
+  exact ⟨⟨x.val * y.val, hxy⟩, (realize_multiplication _).mpr rfl,
+    fun _ hz => Fin.ext ((realize_multiplication _).mp hz).symm⟩
 
 end Cslib.Logic.FO.Ordered

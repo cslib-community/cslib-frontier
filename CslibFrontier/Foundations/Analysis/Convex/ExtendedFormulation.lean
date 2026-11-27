@@ -228,16 +228,11 @@ theorem IsExtendedFormulation.exists_nonneg_dotProduct_eq
   have := Fintype.ofFinite τ
   set A' : Matrix (σ ⊕ (τ ⊕ τ)) (ι ⊕ κ) K := fromBlocks E F (fromRows E' (-E')) (fromRows F' (-F'))
   set b' : σ ⊕ (τ ⊕ τ) → K := Sum.elim g (Sum.elim g' (-g'))
-  have hA' : ∀ x y, A' *ᵥ Sum.elim x y =
+  have hA' (x : ι → K) (y : κ → K) : A' *ᵥ Sum.elim x y =
       Sum.elim (E *ᵥ x + F *ᵥ y) (Sum.elim (E' *ᵥ x + F' *ᵥ y) (-(E' *ᵥ x + F' *ᵥ y))) := by
-    intro x y
-    ext (i | i | i)
-    · simp [A', fromBlocks_mulVec]
-    · simp [A', fromBlocks_mulVec, fromRows_mulVec]
-    · simp [A', fromBlocks_mulVec, fromRows_mulVec, neg_mulVec]; ring
-  have hfeas : ∀ x y, A' *ᵥ Sum.elim x y ≤ b' ↔
+    ext (i | i | i) <;> simp [A', fromBlocks_mulVec, fromRows_mulVec, neg_mulVec, add_comm]
+  have hfeas (x : ι → K) (y : κ → K) : A' *ᵥ Sum.elim x y ≤ b' ↔
       E *ᵥ x + F *ᵥ y ≤ g ∧ E' *ᵥ x + F' *ᵥ y = g' := by
-    intro x y
     rw [hA', Sum.elim_le_elim_iff, Sum.elim_le_elim_iff, neg_le_neg_iff, ← le_antisymm_iff]
   obtain ⟨x₀, hx₀⟩ := hne
   obtain ⟨y₀, hy₀⟩ := (hEF x₀).1 hx₀
@@ -247,15 +242,15 @@ theorem IsExtendedFormulation.exists_nonneg_dotProduct_eq
       rw [← Sum.elim_comp_inl_inr z, sumElim_dotProduct_sumElim, zero_dotProduct, add_zero]
       exact hc _ ((hEF _).2 ⟨_, hz⟩)
   refine ⟨Y ∘ Sum.inl, fun i => hY _, Y ⬝ᵥ b', hYb, fun x y hxy => ?_⟩
-  have key : Y ⬝ᵥ (b' - A' *ᵥ Sum.elim x y) = Y ⬝ᵥ b' - c ⬝ᵥ x := by
-    rw [dotProduct_sub, dotProduct_mulVec, hYA, sumElim_dotProduct_sumElim, zero_dotProduct,
-      add_zero]
-  rw [← key, hA', hxy]
   have hsplit : b' - Sum.elim (E *ᵥ x + F *ᵥ y) (Sum.elim g' (-g')) =
-      Sum.elim (g - (E *ᵥ x + F *ᵥ y)) 0 := by
-    ext (i | i | i) <;> simp [b']
-  rw [hsplit, ← Sum.elim_comp_inl_inr Y, sumElim_dotProduct_sumElim, dotProduct_zero, add_zero,
-    Sum.elim_comp_inl]
+      Sum.elim (g - (E *ᵥ x + F *ᵥ y)) 0 := by ext (i | i | i) <;> simp [b']
+  calc (Y ∘ Sum.inl) ⬝ᵥ (g - (E *ᵥ x + F *ᵥ y))
+    _ = Y ⬝ᵥ (b' - A' *ᵥ Sum.elim x y) := by
+        rw [hA', hxy, hsplit, ← Sum.elim_comp_inl_inr Y, sumElim_dotProduct_sumElim,
+          dotProduct_zero, add_zero, Sum.elim_comp_inl]
+    _ = Y ⬝ᵥ b' - c ⬝ᵥ x := by
+        rw [dotProduct_sub, dotProduct_mulVec, hYA, sumElim_dotProduct_sumElim, zero_dotProduct,
+          add_zero]
 
 /-- **The constant `1` is derived from an extended formulation** of a set on which some linear
 functional `u` is bounded above and below but not constant: some nonnegative combination of the
@@ -267,22 +262,19 @@ theorem IsExtendedFormulation.exists_nonneg_dotProduct_eq_one
     ∃ w : σ → K, 0 ≤ w ∧ ∀ x y, E' *ᵥ x + F' *ᵥ y = g' →
       w ⬝ᵥ (g - (E *ᵥ x + F *ᵥ y)) = 1 := by
   obtain ⟨wp, hwp, δp, -, hp⟩ := hEF.exists_nonneg_dotProduct_eq ⟨_, hx₁⟩ u β hu
-  obtain ⟨wm, hwm, δm, -, hm⟩ := hEF.exists_nonneg_dotProduct_eq ⟨_, hx₁⟩ (-u) (-β') fun x hx =>
-    by rw [neg_dotProduct, neg_le_neg_iff]; exact hu' x hx
+  obtain ⟨wm, hwm, δm, -, hm⟩ := hEF.exists_nonneg_dotProduct_eq ⟨_, hx₁⟩ (-u) (-β') fun x hx => by
+    simpa only [neg_dotProduct, neg_le_neg_iff] using hu' x hx
   obtain ⟨y₁, hy₁, hy₁'⟩ := (hEF x₁).1 hx₁
   obtain ⟨y₂, hy₂, hy₂'⟩ := (hEF x₂).1 hx₂
+  have h₂ := hm _ _ hy₁'
+  rw [neg_dotProduct] at h₂
   have hD : 0 < δp + δm := by
-    have h₁ := hp _ _ hy₂'
-    have h₂ := hm _ _ hy₁'
-    have h₁' := dotProduct_nonneg_of_nonneg hwp (sub_nonneg.2 hy₂)
-    have h₂' := dotProduct_nonneg_of_nonneg hwm (sub_nonneg.2 hy₁)
-    rw [neg_dotProduct] at h₂
-    linarith
+    linarith [hp _ _ hy₂', dotProduct_nonneg_of_nonneg hwp (sub_nonneg.2 hy₂),
+      dotProduct_nonneg_of_nonneg hwm (sub_nonneg.2 hy₁)]
   refine ⟨(δp + δm)⁻¹ • (wp + wm), smul_nonneg (inv_nonneg.2 hD.le) (add_nonneg hwp hwm),
     fun x y hxy => ?_⟩
   rw [smul_dotProduct, add_dotProduct, hp x y hxy, hm x y hxy, neg_dotProduct, smul_eq_mul]
-  field_simp
-  ring
+  field_simp; ring
 
 /-- **Valid inequalities are derived exactly from an extended formulation** of a set on which some
 linear functional `u` is bounded above and below but not constant: if `c ⬝ᵥ x ≤ δ` on `P`, some
@@ -321,17 +313,14 @@ private theorem exists_dotProduct_lt_of_nontrivial {V : ν → ι → K}
     (hP : (convexHull K (Set.range V)).Nontrivial) :
     ∃ (c : ι → K) (j₁ j₂ : ν), c ⬝ᵥ V j₁ < c ⬝ᵥ V j₂ := by
   classical
-  have hne : ∃ j₁ j₂, V j₁ ≠ V j₂ := by
+  have ⟨j₁, j₂, hj⟩ : ∃ j₁ j₂, V j₁ ≠ V j₂ := by
     by_contra! h
     refine hP.not_subsingleton ?_
     rcases isEmpty_or_nonempty ν with hν | hν
-    · rw [Set.range_eq_empty, convexHull_empty]
-      exact Set.subsingleton_empty
-    · have j := Classical.choice hν
-      have : Set.range V = {V j} := Set.range_eq_singleton_iff.2 fun j' => h j' j
-      rw [this, convexHull_singleton]
+    · simp [Set.range_eq_empty, Set.subsingleton_empty]
+    · have ⟨j⟩ := hν
+      rw [Set.range_eq_singleton_iff.2 fun j' => h j' j, convexHull_singleton]
       exact Set.subsingleton_singleton
-  obtain ⟨j₁, j₂, hj⟩ := hne
   obtain ⟨k, hk⟩ := Function.ne_iff.1 hj
   rcases lt_or_gt_of_ne hk with h | h
   · exact ⟨Pi.single k 1, j₁, j₂, by simpa [single_dotProduct] using h⟩
@@ -350,23 +339,17 @@ theorem isExtendedFormulation_of_mul_eq_slackMatrix [Fintype ρ] [DecidableEq ρ
     IsExtendedFormulation P (0 : Matrix ρ ι K) (-1 : Matrix ρ ρ K) 0 A T b := by
   intro x
   simp only [zero_mulVec, zero_add, neg_mulVec, one_mulVec, Left.neg_nonpos_iff]
-  constructor
-  · intro hx
-    rw [hV] at hx
-    change x ∈ {x | ∃ y, 0 ≤ y ∧ A *ᵥ x + T *ᵥ y = b}
-    refine convexHull_min ?_ ?_ hx
-    · rintro _ ⟨j, rfl⟩
-      refine ⟨fun k => U k j, fun k => hU k j, funext fun i => ?_⟩
-      have := congrFun (congrFun hTU i) j
-      rw [Matrix.mul_apply] at this
-      simp only [slackMatrix, of_apply] at this
-      simp only [Pi.add_apply, mulVec, dotProduct] at this ⊢
-      rw [this]
-      ring
-    · rintro x₁ ⟨y₁, hy₁, hxy₁⟩ x₂ ⟨y₂, hy₂, hxy₂⟩ a c ha hc hac
-      refine ⟨a • y₁ + c • y₂, add_nonneg (smul_nonneg ha hy₁) (smul_nonneg hc hy₂), ?_⟩
-      rw [mulVec_add, mulVec_add, mulVec_smul, mulVec_smul, mulVec_smul, mulVec_smul,
-        add_add_add_comm, ← smul_add, ← smul_add, hxy₁, hxy₂, ← add_smul, hac, one_smul]
+  refine ⟨fun hx => convexHull_min (s := Set.range V)
+      (t := {x | ∃ y, 0 ≤ y ∧ A *ᵥ x + T *ᵥ y = b}) ?_ ?_ (hV ▸ hx), ?_⟩
+  · rintro _ ⟨j, rfl⟩
+    refine ⟨fun k => U k j, fun k => hU k j, funext fun i => ?_⟩
+    have := congrFun (congrFun hTU i) j
+    simp only [Matrix.mul_apply, slackMatrix, of_apply, Pi.add_apply, mulVec, dotProduct] at this ⊢
+    rw [this]; ring
+  · rintro x₁ ⟨y₁, hy₁, hxy₁⟩ x₂ ⟨y₂, hy₂, hxy₂⟩ a c ha hc hac
+    refine ⟨a • y₁ + c • y₂, add_nonneg (smul_nonneg ha hy₁) (smul_nonneg hc hy₂), ?_⟩
+    rw [mulVec_add, mulVec_add, mulVec_smul, mulVec_smul, mulVec_smul, mulVec_smul,
+      add_add_add_comm, ← smul_add, ← smul_add, hxy₁, hxy₂, ← add_smul, hac, one_smul]
   · rintro ⟨y, hy, hxy⟩
     rw [hA, Set.mem_ofPred_eq, ← hxy]
     exact le_add_of_nonneg_right fun i => dotProduct_nonneg_of_nonneg (fun k => hT i k) hy

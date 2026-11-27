@@ -44,13 +44,8 @@ theorem expect_pi_eval_filter {R A : Type*} [Fintype R] [DecidableEq R]
       𝔼 a ∈ ({a | p a} : Finset A), F a := by
   classical
   calc
-    _ = 𝔼 z ∈ ({a | p a} : Finset A) ×ˢ
-        (univ : Finset ({r : R // r ≠ j} → A)), F z.1 := by
-      apply expect_equiv (Equiv.piSplitAt j (fun _ : R => A))
-      · intro σ
-        simp
-      · intro σ _
-        rfl
+    _ = 𝔼 z ∈ ({a | p a} : Finset A) ×ˢ (univ : Finset ({r : R // r ≠ j} → A)), F z.1 :=
+      expect_equiv (Equiv.piSplitAt j (fun _ : R => A)) (fun _ => by simp) fun _ _ => rfl
     _ = _ := by rw [expect_product]; simp
 
 end Finset

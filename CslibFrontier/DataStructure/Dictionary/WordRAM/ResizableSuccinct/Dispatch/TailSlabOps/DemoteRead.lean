@@ -180,13 +180,10 @@ private theorem compDemoteStep_read_spec {metaBase itemBase U V w N m_cap b k : 
   have htop_eq : 4 + (b + b + b) + 2 = gmSlabTopIdx b := by unfold gmSlabTopIdx; omega
   have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
   have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
-  have hst : (Memory.spec 0).clientState s
-      (compDemoteReadGMProg (((mkCompParams U V w N, metaBase), b), k)) = s := by
-    unfold StateTransitionSpec.clientState; simp [compDemoteReadGMProg]
-  have hres : (Memory.spec 0).clientResult s
-      (compDemoteReadGMProg (((mkCompParams U V w N, metaBase), b), k)) =
-      ((g_del, g_last), gm 1) := by
-    dsimp only [compDemoteReadGMProg]
+  refine ⟨?_, ?_, ?_⟩
+  · unfold StateTransitionSpec.clientState
+    simp [compDemoteReadGMProg]
+  · dsimp only [compDemoteReadGMProg]
     simp only [cpSlabSizeSubOne_mk, cpSlabSize_mk, htop_eq]
     rw [StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg htop_lt,
       clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
@@ -194,15 +191,12 @@ private theorem compDemoteStep_read_spec {metaBase itemBase U V w N m_cap b k : 
       StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg h1_lt,
       clientState_readCompGMGenProg]
     rfl
-  have hv : ValidProg w 0 s
-      (compDemoteReadGMProg (((mkCompParams U V w N, metaBase), b), k)) := by
-    dsimp only [compDemoteReadGMProg]
+  · dsimp only [compDemoteReadGMProg]
     simp only [cpSlabSizeSubOne_mk, cpSlabSize_mk, htop_eq]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, htop_lt⟩) ?_
     rw [clientState_readCompGMGenProg]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, h0_lt⟩) ?_
     rw [clientState_readCompGMGenProg]
     exact validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, h1_lt⟩) (validProg_pure _)
-  exact ⟨hst, hres, hv⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

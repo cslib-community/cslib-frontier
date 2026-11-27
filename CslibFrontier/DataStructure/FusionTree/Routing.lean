@@ -33,36 +33,24 @@ private theorem selectChild_eq_cut (q : ℕ) (cs : List Tree) (t : ℕ) (ht : t 
     (hcut : ∀ i (hi : i < cs.length), cs[i].minimum ≤ q ↔ i < t) :
     selectChild q cs = if t = 0 then none else cs[t - 1]? := by
   induction cs generalizing t with
-  | nil =>
-    have he : t = 0 := by simpa using ht
-    simp [selectChild, he]
+  | nil => simp [selectChild, Nat.eq_zero_of_le_zero ht]
   | cons c cs ih =>
     cases t with
     | zero =>
-      have hc : ¬c.minimum ≤ q := by
-        have hh := hcut 0 (by simp)
-        change c.minimum ≤ q ↔ 0 < 0 at hh
-        exact fun hc => Nat.not_lt_zero 0 (hh.mp hc)
-      have htail : ∀ i (hi : i < cs.length), cs[i].minimum ≤ q ↔ i < 0 := by
-        intro i hi
-        have hh := hcut (i + 1) (by simp; omega)
-        change cs[i].minimum ≤ q ↔ i + 1 < 0 at hh
-        simpa only [Nat.not_lt_zero] using hh
-      rw [selectChild, ih 0 (by omega) htail]
-      simp [hc]
+      have hc : ¬c.minimum ≤ q := mt (hcut 0 (Nat.zero_lt_succ _)).mp (Nat.not_lt_zero 0)
+      have htail (i : ℕ) (hi : i < cs.length) : cs[i].minimum ≤ q ↔ i < 0 :=
+        (hcut (i + 1) (Nat.succ_lt_succ hi)).trans
+          (iff_of_false (Nat.not_lt_zero _) (Nat.not_lt_zero _))
+      simp [selectChild, ih 0 (Nat.zero_le _) htail, hc]
     | succ t =>
-      have hc : c.minimum ≤ q := (hcut 0 (by simp)).mpr (by omega)
-      have htail : ∀ i (hi : i < cs.length), cs[i].minimum ≤ q ↔ i < t := by
-        intro i hi
-        have hh := hcut (i + 1) (by simp; omega)
-        change cs[i].minimum ≤ q ↔ i + 1 < t + 1 at hh
-        simpa only [Nat.add_lt_add_iff_right] using hh
-      rw [selectChild, ih t (by simp only [List.length_cons] at ht; omega) htail]
+      have hc : c.minimum ≤ q := (hcut 0 (Nat.zero_lt_succ _)).mpr (Nat.zero_lt_succ t)
+      have htail (i : ℕ) (hi : i < cs.length) : cs[i].minimum ≤ q ↔ i < t :=
+        (hcut (i + 1) (Nat.succ_lt_succ hi)).trans Nat.succ_lt_succ_iff
+      rw [selectChild, ih t (Nat.le_of_succ_le_succ ht) htail]
       cases t with
       | zero => simp [hc]
       | succ t =>
-        have hi : t < cs.length := by simp only [List.length_cons] at ht; omega
-        simp [List.getElem?_eq_getElem hi, hc]
+        simp [List.getElem?_eq_getElem (Nat.lt_of_succ_le (Nat.le_of_succ_le_succ ht)), hc]
 
 /-- For strictly increasing child minima, the inclusive full-key rank routes to exactly the
 same child as the semantic linear scan. A positive cut uses child index `rank-1`. -/

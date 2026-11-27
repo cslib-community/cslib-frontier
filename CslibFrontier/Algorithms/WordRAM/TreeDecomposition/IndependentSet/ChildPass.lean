@@ -72,9 +72,7 @@ theorem length_childPassList (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ)
   | zero => rfl
   | succ c ih =>
     dsimp only [childPassList]
-    split_ifs
-    · rw [List.length_set, ih]
-    · exact ih
+    split_ifs <;> simp [ih]
 
 /-- `childPassList` agrees entrywise with `childPassInst` on `0 .. 2 ^ |LP| - 1`. -/
 theorem getD_childPassList_eq (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ)
@@ -85,32 +83,24 @@ theorem getD_childPassList_eq (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ)
         (childPassInst adj wt LB LP f (Array.replicate (2 ^ LP.length) 0) c).getD k 0 := by
   induction c with
   | zero =>
-    intro k hk
-    simp only [childPassList, childPassInst, List.getD_eq_getElem?_getD,
-      List.getElem?_replicate, Array.getD_eq_getD_getElem?, Array.getElem?_replicate,
-      hk, ↓reduceIte, Option.getD_some]
+    exact fun k hk => by
+      simp [childPassList, childPassInst, List.getD_eq_getElem?_getD,
+        Array.getD_eq_getD_getElem?, hk]
   | succ c ih =>
     intro k hk
-    have hih := ih (fun t ht => htbl t (Nat.lt_succ_of_lt ht))
+    have hih := ih fun t ht => htbl t (Nat.lt_succ_of_lt ht)
     dsimp only [childPassList, childPassInst]
-    by_cases hind : indepInst adj LB c = true
-    · simp only [hind, ↓reduceIte]
-      have hkey_lt : keyMask LB LP c < 2 ^ LP.length := keyMask_lt_two_pow LB LP c
-      have hlenL : (childPassList adj wt LB LP tblB (List.replicate (2 ^ LP.length) 0) c).length =
-          2 ^ LP.length := by
-        rw [length_childPassList, List.length_replicate]
-      have hszA : (childPassInst adj wt LB LP f (Array.replicate (2 ^ LP.length) 0) c).size =
-          2 ^ LP.length := by
-        rw [size_childPassInst, Array.size_replicate]
+    split_ifs with hind
+    · have hkey_lt : keyMask LB LP c < 2 ^ LP.length := keyMask_lt_two_pow LB LP c
       rw [List.getD_eq_getElem?_getD, List.getElem?_set, Array.getD_eq_getD_getElem?,
         Array.getElem?_setIfInBounds]
-      by_cases heq : keyMask LB LP c = k
-      · subst heq
-        simp only [↓reduceIte, hkey_lt.trans_eq hlenL.symm, hkey_lt.trans_eq hszA.symm,
-          Option.getD_some, hih _ hkey_lt, htbl c (Nat.lt_succ_self c)]
-      · simp only [heq, ↓reduceIte, ← List.getD_eq_getElem?_getD,
+      rcases eq_or_ne (keyMask LB LP c) k with rfl | hne
+      · simp only [↓reduceIte, length_childPassList, List.length_replicate,
+          size_childPassInst, Array.size_replicate, hkey_lt, Option.getD_some,
+          hih _ hkey_lt, htbl c (Nat.lt_succ_self c)]
+      · simp only [hne, ↓reduceIte, ← List.getD_eq_getElem?_getD,
           ← Array.getD_eq_getD_getElem?, hih k hk]
-    · simp only [hind, Bool.false_eq_true, ↓reduceIte, hih k hk]
+    · exact hih k hk
 
 /-- Every entry of `childPassList` is bounded by `cap` when `init` and all candidate sums are. -/
 theorem mem_childPassList_le {adj : ℕ → ℕ → Bool} {wt : ℕ → ℕ}
@@ -129,10 +119,8 @@ theorem mem_childPassList_le {adj : ℕ → ℕ → Bool} {wt : ℕ → ℕ}
       · exact hih x hmem
       · refine max_le ?_ (hstep c (Nat.lt_succ_self c))
         rw [List.getD_eq_getElem?_getD]
-        cases hget :
-            (childPassList adj wt LB LP tblB init c)[keyMask LB LP c]? with
-        | none => exact Nat.zero_le _
-        | some v => exact hih v (List.mem_of_getElem? hget)
+        rcases hget : (childPassList adj wt LB LP tblB init c)[keyMask LB LP c]? with _ | v
+        exacts [Nat.zero_le _, hih v (List.mem_of_getElem? hget)]
     · exact hih
 
 /-! ### Word-RAM child pass (`childPassProg`) -/
@@ -207,20 +195,16 @@ private theorem childPassStep_eval (a : ChildPassArgs) (curC : ℕ) (t : Memory.
     (Memory.spec 0).clientState t (childPassStep (a, curC)) =
       ⟨Function.update t.mem (a.bestPtr + key) nextVal, t.frontier⟩ ∧
     (Memory.spec 0).clientResult t (childPassStep (a, curC)) = curC + 1 := by
-  have hr_st (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
-  have hr_res (x : ℕ) : (Memory.spec 0).clientResult t (Memory.read x) = t.mem x := rfl
   unfold childPassStep
   dsimp only
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    hr_st, hr_res,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     indepBagProg_state,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     keyMaskProg_state,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     forgetWeightProg_state,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    hr_st, hr_res]
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
   exact ⟨rfl, rfl⟩
 
 /-- Functional correctness, framing below `bestPtr`, and memory-cost bound for `childPassProg`. -/
@@ -271,32 +255,26 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
         ((Memory.spec 0).clientState st (iterate childPassStep args rem curC)) ∧
       memoryCost (iterate childPassStep args rem curC) st ≤ rem * stepCost by
     have hbest_le : args.bestPtr ≤ s.frontier := by have := hinit.1; omega
-    have hrun := this args.tblBLen 0 s (Nat.zero_add _) rfl (PreservesBelow.refl hbest_le) hinit
-    rw [Nat.zero_add] at hrun
-    obtain ⟨hv_run, hfr_run, hpres_run, hbest_run, hc_run⟩ := hrun
+    obtain ⟨hv_run, hfr_run, hpres_run, hbest_run, hc_run⟩ :=
+      this args.tblBLen 0 s (Nat.zero_add _) rfl (PreservesBelow.refl hbest_le) hinit
+    rw [Nat.zero_add] at hbest_run
     unfold childPassProg
-    refine ⟨validHistory_bind_step hv_run (validHistory_pure w _ ()), ?_, ?_, ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind]; exact hfr_run
-    · rw [StateTransitionSpec.clientState_bind]; exact hpres_run
-    · rw [StateTransitionSpec.clientState_bind]; exact hbest_run
-    · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]; exact hc_run
-  intro rem
-  induction rem with
+    refine ⟨validHistory_bind_step hv_run (validHistory_pure w _ ()), ?_⟩
+    rw [StateTransitionSpec.clientState_bind, memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    exact ⟨hfr_run, hpres_run, hbest_run, hc_run⟩
+  intro rem curC st hsum hfr hpres hbest_st
+  induction rem generalizing curC st with
   | zero =>
-    intro curC st _ hfr hpres hbest_st
-    have h0 : iterate childPassStep args 0 curC = pure curC := rfl
-    rw [h0, Nat.add_zero]
+    rw [iterate, Nat.add_zero]
     exact ⟨validHistory_pure w st curC, hfr, hpres, hbest_st, by simp [memoryCost_pure]⟩
   | succ rem ih =>
-    intro curC st hsum hfr hpres hbest_st
     have hcur_lt : curC < args.tblBLen := by omega
     have hadj_st : HoldsIn args.adjPtr inst.adjMatrix st := hadj.mono hadj_end hpres
     have hwt_st : HoldsIn args.wtPtr inst.weights st := hwt.mono hwt_end hpres
     have hLB_st : HoldsIn args.bagBPtr LB st := hLB.mono (by omega) hpres
     have htblB_st : HoldsIn args.tblBPtr tblB st := htblB.mono (by omega) hpres
     have hLP_st : HoldsIn args.bagPPtr LP st := hLP.mono (by omega) hpres
-    have hLB_lt_wt : ∀ u ∈ LB, u < inst.weights.length := by
-      rw [inst.weights_len]; exact hLB_lt
+    have hLB_lt_wt : ∀ u ∈ LB, u < inst.weights.length := inst.weights_len ▸ hLB_lt
     obtain ⟨hv_ind, hst_ind, hr_ind, hc_ind⟩ :=
       indepBagProg_spec (w := w) ⟨args.numVerts, args.adjPtr, args.bagBPtr, args.bagBLen, curC⟩
         hadj_st inst.adjMatrix_len hnv hLB_st hlenB hLB_lt
@@ -309,23 +287,17 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
         hwt_st hLP_st hlenP hLB_st hlenB hLB_lt_wt
     dsimp only at hr_ind hc_ind hr_key hc_key hr_fw hc_fw
     let bestCur := childPassList inst.adj inst.wt LB LP tblB initL curC
-    have hbest_len : bestCur.length = 2 ^ LP.length := by
-      rw [length_childPassList, hinit_len]
     let key := keyMask LB LP curC
-    have hkey_lt : key < bestCur.length := by
-      rw [hbest_len]; exact keyMask_lt_two_pow LB LP curC
+    have hkey_lt : key < bestCur.length :=
+      (length_childPassList ..).trans hinit_len ▸ keyMask_lt_two_pow LB LP curC
     have hcur_tbl_lt : curC < tblB.length := by omega
     have hfc_addr_lt : args.tblBPtr + curC < st.frontier := by have := htblB_st.1; omega
-    have hbest_addr_lt : args.bestPtr + key < st.frontier := by
-      have h1 := hbest_st.1
-      change args.bestPtr + bestCur.length ≤ st.frontier at h1
-      omega
+    have hbest_addr_lt : args.bestPtr + key < st.frontier :=
+      (Nat.add_lt_add_left hkey_lt _).trans_le hbest_st.1
     have hfc_eq : st.mem (args.tblBPtr + curC) = tblB.getD curC 0 := by
-      rw [htblB_st.get curC hcur_tbl_lt, List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem hcur_tbl_lt, Option.getD_some]
+      simpa [hcur_tbl_lt] using htblB_st.get curC hcur_tbl_lt
     have holdBest_eq : st.mem (args.bestPtr + key) = bestCur.getD key 0 := by
-      rw [hbest_st.get key hkey_lt, List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem hkey_lt, Option.getD_some]
+      simpa [hkey_lt] using hbest_st.get key hkey_lt
     let fw := forgetWeight inst.wt LP LB curC
     let fc := st.mem (args.tblBPtr + curC)
     let oldBest := st.mem (args.bestPtr + key)
@@ -334,20 +306,14 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
       if (if indepInst inst.adj LB curC then 1 else 0) = 1 then
         if oldBest < cand then cand else oldBest
       else oldBest
-    have holdBest_le : oldBest ≤ cap := by
-      have hmem := mem_childPassList_le (adj := inst.adj) hinit_le
-        (fun t ht => hcand_le t (lt_trans ht hcur_lt))
-      dsimp only [oldBest]
-      rw [hbest_st.get key hkey_lt]
-      exact hmem _ (List.getElem_mem hkey_lt)
+    have holdBest_le : oldBest ≤ cap :=
+      (hbest_st.get key hkey_lt).le.trans <| mem_childPassList_le (adj := inst.adj) hinit_le
+        (fun t ht => hcand_le t (lt_trans ht hcur_lt)) _ (List.getElem_mem hkey_lt)
     have hcand_val_le : cand ≤ cap := by
-      dsimp only [cand, fw, fc]
-      rw [hfc_eq]
-      exact hcand_le curC hcur_lt
-    have hnext_le : nextVal ≤ cap := by
+      simpa only [cand, fc, hfc_eq] using hcand_le curC hcur_lt
+    have hnext_fit : Fits w nextVal := hfit_cap.of_le <| by
       dsimp only [nextVal]
       split_ifs <;> omega
-    have hnext_fit : Fits w nextVal := hfit_cap.of_le hnext_le
     let st₁ : Memory.State := ⟨Function.update st.mem (args.bestPtr + key) nextVal, st.frontier⟩
     obtain ⟨hst_step, hres_step⟩ := childPassStep_eval args curC st
     rw [hr_ind, hr_key, hr_fw] at hst_step
@@ -355,75 +321,46 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
         ((Memory.spec w).clientHistory st (childPassStep (args, curC))) := by
       unfold childPassStep
       dsimp only
-      refine validHistory_read_bind hfc_addr_lt ?_
-      refine validHistory_bind_step hv_ind ?_
+      refine validHistory_read_bind hfc_addr_lt (validHistory_bind_step hv_ind ?_)
       rw [hst_ind, hr_ind]
       refine validHistory_bind_step hv_key ?_
       rw [hst_key, hr_key]
       refine validHistory_bind_step hv_fw ?_
       rw [hst_fw, hr_fw]
-      refine validHistory_read_bind hbest_addr_lt ?_
-      exact validHistory_write_bind hbest_addr_lt hnext_fit (validHistory_pure w st₁ _)
-    have hp₁ : PreservesBelow args.bestPtr st st₁ :=
-      preservesBelow_write (Nat.le_add_right _ _) hbest_addr_lt
+      exact validHistory_read_bind hbest_addr_lt
+        (validHistory_write_bind hbest_addr_lt hnext_fit (validHistory_pure w st₁ _))
     have hbest_next : HoldsIn args.bestPtr
         (childPassList inst.adj inst.wt LB LP tblB initL (curC + 1)) st₁ := by
-      have hset : HoldsIn args.bestPtr (bestCur.set key nextVal) st₁ :=
-        holdsIn_set hbest_st
       have hlist_eq : bestCur.set key nextVal =
           childPassList inst.adj inst.wt LB LP tblB initL (curC + 1) := by
-        have hval : nextVal =
-            if (if indepInst inst.adj LB curC then 1 else 0) = 1 then
-              if bestCur.getD key 0 < forgetWeight inst.wt LP LB curC + tblB.getD curC 0 then
-                forgetWeight inst.wt LP LB curC + tblB.getD curC 0
-              else bestCur.getD key 0
-            else bestCur.getD key 0 := by
-          dsimp only [nextVal, cand, fw, fc, oldBest]
-          simp only [hfc_eq, holdBest_eq]
-        rw [hval]
-        dsimp only [bestCur, key, childPassList]
+        simp only [nextVal, cand, fw, fc, oldBest, hfc_eq, holdBest_eq]
+        dsimp only [childPassList]
         by_cases hind : indepInst inst.adj LB curC = true
-        · simp only [hind, ↓reduceIte]
+        · simp only [hind, ↓reduceIte, bestCur, key]
           congr 1
           split_ifs <;> omega
-        · simp only [Bool.eq_false_iff.2 hind, Bool.false_eq_true, ↓reduceIte]
-          have hget_eq :
-              (childPassList inst.adj inst.wt LB LP tblB initL curC).getD
-                (keyMask LB LP curC) 0 =
-              (childPassList inst.adj inst.wt LB LP tblB initL curC)[keyMask LB LP curC] := by
-            rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hkey_lt, Option.getD_some]
-          rw [hget_eq]
+        · simp only [Bool.eq_false_iff.2 hind, Bool.false_eq_true, ↓reduceIte,
+            List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hkey_lt, Option.getD_some]
           exact List.set_getElem_self hkey_lt
-      rwa [hlist_eq] at hset
+      exact hlist_eq ▸ holdsIn_set hbest_st
     have hc_step : memoryCost (childPassStep (args, curC)) st ≤ stepCost := by
       have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
       have hr_r (x : ℕ) : (Memory.spec 0).clientResult st (Memory.read x) = st.mem x := rfl
-      unfold childPassStep
-      dsimp only
-      rw [memoryCost_bind', memoryCost_read, hr_s, hr_r,
-        memoryCost_bind', hst_ind, hr_ind,
-        memoryCost_bind', hst_key, hr_key,
-        memoryCost_bind', hst_fw, hr_fw,
-        memoryCost_bind', memoryCost_read, hr_s, hr_r,
-        memoryCost_bind', memoryCost_write, memoryCost_pure]
-      dsimp only [stepCost]
+      simp only [childPassStep, memoryCost_bind', memoryCost_read, hr_s, hr_r, hst_ind, hr_ind,
+        hst_key, hr_key, hst_fw, hr_fw, memoryCost_write, memoryCost_pure, stepCost]
       omega
     obtain ⟨hv_rem, hfr_rem, hp_rem, hbest_rem, hc_rem⟩ :=
-      ih (curC + 1) st₁ (by omega) hfr (hpres.trans hp₁) hbest_next
-    have hiter_eq : iterate childPassStep args (rem + 1) curC =
-        (childPassStep (args, curC) >>= iterate childPassStep args rem) := rfl
-    rw [hiter_eq]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_, ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind, hst_step, hres_step]; exact hfr_rem
-    · rw [StateTransitionSpec.clientState_bind, hst_step, hres_step]; exact hp_rem
-    · rw [StateTransitionSpec.clientState_bind, hst_step, hres_step]
-      have hadd : curC + (rem + 1) = curC + 1 + rem := by omega
-      rwa [hadd]
-    · rw [memoryCost_bind', hst_step, hres_step]
-      calc memoryCost (childPassStep (args, curC)) st +
-            memoryCost (iterate childPassStep args rem (curC + 1)) st₁
-          ≤ stepCost + rem * stepCost := Nat.add_le_add hc_step hc_rem
-        _ = (rem + 1) * stepCost := by rw [Nat.succ_mul, Nat.add_comm]
+      ih (curC + 1) st₁ (by omega) hfr
+        (hpres.trans (preservesBelow_write (Nat.le_add_right _ _) hbest_addr_lt)) hbest_next
+    rw [iterate]
+    refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_⟩
+    rw [StateTransitionSpec.clientState_bind, memoryCost_bind', hst_step, hres_step,
+      ← Nat.add_assoc, Nat.add_right_comm curC rem 1]
+    refine ⟨hfr_rem, hp_rem, hbest_rem, ?_⟩
+    calc memoryCost (childPassStep (args, curC)) st +
+          memoryCost (iterate childPassStep args rem (curC + 1)) st₁
+        ≤ stepCost + rem * stepCost := Nat.add_le_add hc_step hc_rem
+      _ = (rem + 1) * stepCost := by rw [Nat.succ_mul, Nat.add_comm]
 
 /-- Exact-basis Word-RAM realization certificate for `childPassProg`. -/
 theorem childPassProg_realizes :
@@ -469,68 +406,44 @@ theorem childPassProg_realizes :
   have hLB_t : HoldsIn d.bagBPtr LB t := hLB_h.mono (by omega) hpres
   have htblB_t : HoldsIn d.tblBPtr tblB t := htblB_h.mono (by omega) hpres
   have hLP_t : HoldsIn d.bagPPtr LP t := hLP_h.mono (by omega) hpres
-  have hLB_lt_wt : ∀ u ∈ LB, u < wtL.length := by rw [hwtL_len]; exact hLB_lt
-  have hfit_wtL : Fits w (d.wtPtr + wtL.length) := by rwa [hwtL_len]
-  have hfit_sumW : Fits w (d.bagBLen * wtL.foldl max 0) := hfit_cap.of_le (by omega)
-  have hind_safe : Fits w 2 ∧ ∃ m' adjL' xs',
-      adjL'.length = m' * m' ∧ d.numVerts = m' ∧
-      HoldsIn d.adjPtr adjL' t ∧ HoldsIn d.bagBPtr xs' t ∧ xs'.length = d.bagBLen ∧
-      (∀ u ∈ xs', u < m') ∧ Fits w (d.adjPtr + m' * m') ∧ Fits w (d.bagBPtr + d.bagBLen) :=
-    ⟨h2, m, adjL, LB, hadjL_len, hnv, hadj_t, hLB_t, hLB_len, hLB_lt, hfit_adj, hfit_bagB⟩
-  have hkey_safe : Fits w 2 ∧ Fits w (d.bagBPtr + d.bagBLen) ∧
-      Fits w (d.bagPPtr + d.bagPLen) ∧ Fits w (2 ^ d.bagPLen) :=
-    ⟨h2, hfit_bagB, hfit_bagP, hfit_powP⟩
-  have hfw_safe : Fits w 2 ∧ ∃ wtL' LB',
-      HoldsIn d.wtPtr wtL' t ∧ HoldsIn d.bagBPtr LB' t ∧ LB'.length = d.bagBLen ∧
-      (∀ u ∈ LB', u < wtL'.length) ∧ Fits w (d.wtPtr + wtL'.length) ∧
-      Fits w (d.bagPPtr + d.bagPLen) ∧ Fits w (d.bagBPtr + d.bagBLen) ∧
-      Fits w (d.bagBLen * wtL'.foldl max 0) :=
-    ⟨h2, wtL, LB, hwt_t, hLB_t, hLB_len, hLB_lt_wt, hfit_wtL, hfit_bagP, hfit_bagB, hfit_sumW⟩
-  obtain ⟨_, _, hr_key, _⟩ :=
+  have hLB_lt_wt : ∀ u ∈ LB, u < wtL.length := hwtL_len ▸ hLB_lt
+  obtain ⟨-, -, hr_key, -⟩ :=
     keyMaskProg_spec (w := w) ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curC⟩
       hLB_t hLB_len hLP_t hLP_len
   dsimp only at hr_key
-  have hkey_lt_pow : (Memory.spec 0).clientResult t
-      (keyMaskProg ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curC⟩) < 2 ^ d.bagPLen := by
-    rw [hr_key, ← hLP_len]
-    exact keyMask_lt_two_pow LB LP curC
-  have hfw_le : (Memory.spec 0).clientResult t
-      (forgetWeightProg ⟨d.wtPtr, d.bagPPtr, d.bagPLen, d.bagBPtr, d.bagBLen, curC⟩) ≤
-      d.bagBLen * wtL.foldl max 0 :=
-    forgetWeightProg_result_le _ hwt_t hLP_t hLP_len hLB_t hLB_len hLB_lt_wt
+  have hkey_lt_pow : keyMask LB LP curC < 2 ^ d.bagPLen :=
+    hLP_len ▸ keyMask_lt_two_pow LB LP curC
+  have hfw_le := forgetWeightProg_result_le
+    ⟨d.wtPtr, d.bagPPtr, d.bagPLen, d.bagBPtr, d.bagBLen, curC⟩
+    hwt_t hLP_t hLP_len hLB_t hLB_len hLB_lt_wt
+  dsimp only at hfw_le
   have hcur_tbl : curC < tblB.length := by omega
-  have hfc_le : t.mem (d.tblBPtr + curC) ≤ tblB.foldl max 0 := by
-    rw [htblB_t.get curC hcur_tbl]
-    exact List.mem_le_foldl_max (List.getElem_mem hcur_tbl)
+  have hfc_le : t.mem (d.tblBPtr + curC) ≤ tblB.foldl max 0 :=
+    htblB_t.get curC hcur_tbl ▸ List.mem_le_foldl_max (List.getElem_mem hcur_tbl)
   have hfit_tbl_addr : Fits w (d.tblBPtr + curC) := hfit_tblB.of_le (by omega)
-  have hfit_best_addr : Fits w (d.bestPtr +
-      (Memory.spec 0).clientResult t
-        (keyMaskProg ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curC⟩)) :=
-    hfit_best.of_le (by omega)
+  have hfit_best_addr : Fits w (d.bestPtr + keyMask LB LP curC) := hfit_best.of_le (by omega)
   have hfit_cand : Fits w ((Memory.spec 0).clientResult t
       (forgetWeightProg ⟨d.wtPtr, d.bagPPtr, d.bagPLen, d.bagBPtr, d.bagBLen, curC⟩) +
       t.mem (d.tblBPtr + curC)) :=
     hfit_cap.of_le (by omega)
   have hfit_cur1 : Fits w (curC + 1) := hfit_tblB.of_le (by omega)
   obtain ⟨hst_ev, hres_ev⟩ := childPassStep_eval d curC t
-  refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, Nat.le_of_succ_le hj_le, by rw [hres_ev]; omega, ?_⟩
   · dsimp only [childPassStep]
-    rw [indepBagProg_state, keyMaskProg_state, forgetWeightProg_state]
+    rw [indepBagProg_state, keyMaskProg_state, forgetWeightProg_state, hr_key]
     repeat (
       first
       | split
-      | exact hind_safe
-      | exact hkey_safe
-      | exact hfw_safe
+      | exact ⟨h2, m, adjL, LB, hadjL_len, hnv, hadj_t, hLB_t, hLB_len, hLB_lt, hfit_adj, hfit_bagB⟩
+      | exact ⟨h2, hfit_bagB, hfit_bagP, hfit_powP⟩
+      | exact ⟨h2, wtL, LB, hwt_t, hLB_t, hLB_len, hLB_lt_wt, hwtL_len ▸ hfit_wt, hfit_bagP,
+          hfit_bagB, hfit_cap.of_le (by omega)⟩
       | exact trivial
       | assumption
       | refine And.intro ?_ ?_)
-  · rw [hres_ev]; omega
-  · rw [hst_ev]; exact hfr
   · rw [hst_ev]
-    refine hpres.trans (preservesBelow_write (Nat.le_add_right _ _) ?_)
-    have := hbest_t.1; omega
-  · rw [hst_ev]
-    exact ⟨bestL.set _ _, by rw [List.length_set, hbest_len], holdsIn_set hbest_t⟩
+    exact ⟨hfr, hpres.trans (preservesBelow_write (Nat.le_add_right _ _)
+        (by have := hbest_t.1; omega)),
+      bestL.set _ _, by rw [List.length_set, hbest_len], holdsIn_set hbest_t⟩
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

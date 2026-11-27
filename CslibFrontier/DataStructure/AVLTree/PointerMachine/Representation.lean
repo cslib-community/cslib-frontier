@@ -53,11 +53,7 @@ theorem Matches.keys {encode : ℕ → M.Value} {field : Fin (extra + 1)}
   | node label l r il ir =>
     cases t with
     | nil => cases h
-    | node key height left right =>
-      rcases h with ⟨hk, _, hl, hr⟩
-      change BinaryTree.node (label.data 0) (SearchTree.PointerMachine.keys l)
-        (SearchTree.PointerMachine.keys r) = .node key left.toBinaryTree right.toBinaryTree
-      rw [hk, il hl, ir hr]
+    | node _ _ _ _ => exact h.1 ▸ congrArg₂ (BinaryTree.node _) (il h.2.2.1) (ir h.2.2.2)
 
 /-- A full AVL match preserves the structural height of the underlying binary tree. -/
 theorem Matches.shape_height {encode : ℕ → M.Value} {field : Fin (extra + 1)}
@@ -68,9 +64,7 @@ theorem Matches.shape_height {encode : ℕ → M.Value} {field : Fin (extra + 1)
   | node label l r il ir =>
     cases t with
     | nil => cases h
-    | node key height left right =>
-      rcases h with ⟨_, _, hl, hr⟩
-      simp [BinaryTree.height, toBinaryTree, il hl, ir hr]
+    | node _ _ _ _ => simp [BinaryTree.height, toBinaryTree, il h.2.2.1, ir h.2.2.2]
 
 /-- A matched root cache is exactly the encoded AVL cached height, with zero for an empty tree. -/
 theorem Matches.heightValue {encode : ℕ → M.Value} {field : Fin (extra + 1)}
@@ -102,38 +96,26 @@ theorem recomputeHeight_mkNode (zero maxSucc : M.Op) (encode : ℕ → M.Value)
       Matches encode field tree (mkNode (label.data 0) left right) ∧ AddressesDistinct tree ∧
       (∀ i, i ≠ 1 → i ≠ 2 → y.data i = x.data i) ∧
       (∀ i, i ≠ 2 → y.ptr i = x.ptr i) := by
-  have lh : l.height = left.cachedHeight :=
-    (ml.shape_height).trans (cachedHeight_eq_height hl).symm
-  have rh : r.height = right.cachedHeight :=
-    (mr.shape_height).trans (cachedHeight_eq_height hr).symm
+  have lh : l.height = left.cachedHeight := ml.shape_height.trans (cachedHeight_eq_height hl).symm
+  have rh : r.height = right.cachedHeight := mr.shape_height.trans (cachedHeight_eq_height hr).symm
   obtain ⟨y, exec, heap, rep', data, ptr⟩ := recomputeHeight_correct zero maxSucc encode
     zero_spec max_spec field x label l r parent rep
-    (by rw [lh]; exact ml.heightValue) (by rw [rh]; exact mr.heightValue) cursor pc
+    (lh ▸ ml.heightValue) (rh ▸ mr.heightValue) cursor pc
   let value := encode (mkNode (label.data 0) left right).cachedHeight
-  have height : encode (BinaryTree.node label l r).height = value := by
-    simp [value, BinaryTree.height, lh, rh, Nat.add_comm]
-  have keepL : updateData l label.address field value = l := by
-    apply updateData_eq_self
-    intro p u hp eq
-    have bad := distinct (.bit0 p) .one u label hp rfl eq
-    cases bad
-  have keepR : updateData r label.address field value = r := by
-    apply updateData_eq_self
-    intro p u hp eq
-    have bad := distinct (.bit1 p) .one u label hp rfl eq
-    cases bad
+  have keepL : updateData l label.address field value = l :=
+    updateData_eq_self _ _ _ _ fun p u hp eq => nomatch distinct (.bit0 p) .one u label hp rfl eq
+  have keepR : updateData r label.address field value = r :=
+    updateData_eq_self _ _ _ _ fun p u hp eq => nomatch distinct (.bit1 p) .one u label hp rfl eq
   have shape : updateData (.node label l r) label.address field value =
       .node { label with data := Function.update label.data field value } l r := by
     simp only [updateData, BinaryTree.map, ↓reduceIte]
-    change BinaryTree.node _ (updateData l label.address field value)
-      (updateData r label.address field value) = _
-    rw [keepL, keepR]
-  refine ⟨y, exec, ?_, ?_, ?_, ?_, data, ptr⟩
+    exact congrArg₂ (BinaryTree.node _) keepL keepR
+  have hval : encode (BinaryTree.node label l r).height = value := by
+    simp [value, BinaryTree.height, lh, rh, Nat.add_comm]
+  refine ⟨y, exec, ?_, ?_, ⟨?_, by simp, ml, mr⟩, shape ▸ distinct.updateData _ _ _, data, ptr⟩
   · simpa only [cachedHeight_mkNode, lh, rh, Nat.add_comm] using heap
-  · simpa only [height, shape] using rep'
-  · exact ⟨by simp [Ne.symm notKey], by simp, ml, mr⟩
-  · rw [← shape]
-    exact distinct.updateData _ _ _
+  · simpa only [hval, shape] using rep'
+  · simp [Ne.symm notKey]
 
 /-- The subtree `old` under the cursor of `s` has been rebuilt in place as `tree`, which matches
 `target`: it is represented under the same parent, occupies the same addresses, the cursor is at

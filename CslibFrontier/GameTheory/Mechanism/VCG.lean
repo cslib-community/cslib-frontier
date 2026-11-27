@@ -258,11 +258,12 @@ omit [Fintype Ω] [Nonempty Ω] in
 Clarke pivot. -/
 theorem clarkePivot_comp_equiv {Ω₁ Ω₂ : Type*} [Fintype Ω₁] [Nonempty Ω₁]
     [Fintype Ω₂] [Nonempty Ω₂] (e : Ω₁ ≃ Ω₂) (i : ι) (u : ι → Ω₂ → ℝ) :
-    clarkePivot i (fun j ω₁ => u j (e ω₁)) = clarkePivot i u := by
-  refine le_antisymm (Finset.sup'_le _ _ fun ω₁ _ => ?_) (Finset.sup'_le _ _ fun ω₂ _ => ?_)
-  · exact Finset.le_sup' (fun ω₂ => ∑ j ∈ Finset.univ.erase i, u j ω₂) (Finset.mem_univ (e ω₁))
-  · refine Finset.le_sup'_of_le _ (Finset.mem_univ (e.symm ω₂)) ?_
-    simp only [Equiv.apply_symm_apply, le_rfl]
+    clarkePivot i (fun j ω₁ => u j (e ω₁)) = clarkePivot i u :=
+  le_antisymm
+    (Finset.sup'_le _ _ fun ω₁ _ =>
+      Finset.le_sup' (fun ω₂ => ∑ j ∈ Finset.univ.erase i, u j ω₂) (Finset.mem_univ (e ω₁)))
+    (Finset.sup'_le _ _ fun ω₂ _ =>
+      Finset.le_sup'_of_le _ (Finset.mem_univ (e.symm ω₂)) (by simp))
 
 omit [Fintype Ω] [Nonempty Ω] in
 /-- Transporting a VCG mechanism along an equivalence `e : Ω₁ ≃ Ω₂` of outcome types preserves
@@ -300,13 +301,10 @@ valuation receives nonnegative VCG utility. -/
 private theorem vcg_utility_nonneg {f : (ι → Ω → ℝ) → Ω} {b : ι → Ω → ℝ}
     (hf : ∀ ω, welfare b ω ≤ welfare b (f b)) {i : ι} (hb : 0 ≤ b i) :
     0 ≤ (vcg f).utility i (b i) b := by
-  obtain ⟨ω, -, hω⟩ := Finset.exists_mem_eq_sup' (Finset.univ_nonempty (α := Ω))
-    fun ω => ∑ j ∈ Finset.univ.erase i, b j ω
-  have key := hf ω
-  rw [welfare_eq_add _ i, welfare_eq_add _ i] at key
-  have hbi : 0 ≤ b i ω := hb ω
-  simp only [utility, vcg, groves, clarkePivot, hω]
-  linarith
+  simp only [utility, vcg, groves, sub_sub_eq_add_sub, ← welfare_eq_add, sub_nonneg]
+  refine Finset.sup'_le _ _ fun ω _ => ?_
+  have : 0 ≤ b i ω := hb ω
+  linarith [hf ω, welfare_eq_add b i ω]
 
 /-- **VCG is individually rational on nonnegative domains** ([Nisan2007], Lemma 9.20, second
 statement): if `f` maximizes welfare on `V` and every valuation in `V i` is nonnegative, then
@@ -326,11 +324,9 @@ omit [DecidableEq ι] [Fintype Ω] in
 theorem exists_isWelfareMaximizing [Finite Ω] :
     ∃ f : (ι → Ω → ℝ) → Ω, IsWelfareMaximizing f := by
   have := Fintype.ofFinite Ω
-  have : ∀ b : ι → Ω → ℝ, ∃ ω, ∀ ω', welfare b ω' ≤ welfare b ω := fun b => by
-    obtain ⟨ω, -, hω⟩ := Finset.exists_max_image Finset.univ (welfare b) Finset.univ_nonempty
-    exact ⟨ω, fun ω' => hω ω' (Finset.mem_univ _)⟩
-  choose f hf using this
-  exact ⟨f, hf⟩
+  choose f hf using fun b : ι → Ω → ℝ =>
+    Finset.exists_max_image Finset.univ (welfare b) Finset.univ_nonempty
+  exact ⟨f, fun b ω' => (hf b).2 ω' (Finset.mem_univ _)⟩
 
 omit [Fintype Ω] in
 /-- **Vickrey–Clarke–Groves** ([Roughgarden2013CS364A], Lecture 7, Theorem 2.1): in every general

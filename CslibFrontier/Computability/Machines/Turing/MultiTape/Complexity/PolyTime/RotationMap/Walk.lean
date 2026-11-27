@@ -136,13 +136,11 @@ private theorem polytime_finTail (T : ℕ) :
 
 private theorem polytime_finSnoc (T : ℕ) :
     ComputableInPolyTime (fun p : (Fin T → D) × D => Fin.snoc p.1 p.2)
-      (encPair (encPi label) label) (encPi label) := by
-  apply pi
-  intro i
-  refine Fin.lastCases ?_ (fun j => ?_) i
-  · simpa only [Fin.snoc_last] using snd (encPi label) label
-  · simpa only [Fin.snoc_castSucc, Function.comp_def] using
-      (pi_apply label j).comp (fst (encPi label) label)
+      (encPair (encPi label) label) (encPi label) :=
+  pi <| Fin.lastCases (by simpa only [Fin.snoc_last] using snd (encPi label) label)
+    fun j => by
+      simpa only [Fin.snoc_castSucc, Function.comp_def] using
+        (pi_apply label j).comp (fst (encPi label) label)
 
 private theorem polytime_finTake {T n : ℕ} (hn : n ≤ T) :
     ComputableInPolyTime (Fin.take n hn (α := fun _ => D)) (encPi label) (encPi label) :=
@@ -205,10 +203,7 @@ theorem rotationMap_killedPowRotWithInput (T q : ℕ) [NeZero q] (signal : Fin q
         ((fst _ _).prod (((snd _ _).fst').prod
           ((polytime_finTake (killTime_le c)).comp ((snd _ _).snd'.fst'))))
     dsimp only [RotationMap.killedPowRotWithInput]
-    apply hwalk.fst'.prod
-    apply prod ?_ (const c)
-    apply pi
-    intro i
+    refine hwalk.fst'.prod (prod (pi fun i => ?_) (const c))
     by_cases hi : i.val < killTime c
     · simpa only [dite_eq_left hi, Function.comp_def] using
         (pi_apply label ⟨i.val, hi⟩).comp hwalk.snd'

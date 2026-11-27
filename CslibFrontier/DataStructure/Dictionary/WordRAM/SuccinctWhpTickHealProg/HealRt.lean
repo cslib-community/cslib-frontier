@@ -102,33 +102,10 @@ theorem csrToFast_bounds_of_good {c U V n_max : ℕ}
   let X_fin : Fin (numBucketsWhp n_max) → ℕ :=
     fun b => csr.fbStart (b.val + 1) - csr.fbStart b.val
   have hsum_X : ∑ b : Fin (numBucketsWhp n_max), X_fin b = csr.fbStart (numBucketsWhp n_max) := by
-    have hdom_sum : #(Dictionary.dom dict) = ∑ b : Fin (numBucketsWhp n_max), X_fin b := by
-      rw [Finset.card_eq_sum_ones]
-      have h1_sum : ∀ u ∈ Dictionary.dom dict,
-          (1 : ℕ) = ∑ b : Fin (numBucketsWhp n_max),
-            if feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val = b.val then 1
-            else 0 := by
-        intro u _
-        let b₀ : Fin (numBucketsWhp n_max) :=
-          ⟨feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val,
-            feistelBucket_lt (bWhp n_max) (bktHash c U n_max θ.1) u.val⟩
-        rw [Fintype.sum_eq_single b₀]
-        · simp [b₀]
-        · intro b' hb'
-          have hne : feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val ≠ b'.val :=
-            fun h => hb' (Fin.ext h.symm)
-          simp only [hne, ↓reduceIte]
-      calc ∑ u ∈ Dictionary.dom dict, 1
-          = ∑ u ∈ Dictionary.dom dict, ∑ b : Fin (numBucketsWhp n_max),
-              if feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val = b.val then 1
-              else 0 := Finset.sum_congr rfl h1_sum
-        _ = ∑ b : Fin (numBucketsWhp n_max), ∑ u ∈ Dictionary.dom dict,
-              if feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val = b.val then 1
-              else 0 := Finset.sum_comm
-        _ = ∑ b : Fin (numBucketsWhp n_max), X_fin b := by
-            refine Fintype.sum_congr _ _ fun b => ?_
-            rw [← Finset.card_filter, hcard_b b]
-    exact hdom_sum.symm.trans hcard_dom
+    rw [← hcard_dom, card_eq_sum_card_fiberwise (t := univ)
+      (f := fun u => (⟨_, feistelBucket_lt (bWhp n_max) (bktHash c U n_max θ.1) u.val⟩ :
+        Fin (numBucketsWhp n_max))) fun _ _ => mem_univ _]
+    exact Fintype.sum_congr _ _ fun b => by simp [X_fin, ← hcard_b b, Fin.ext_iff]
   obtain ⟨hback_lt_cb, _, hpool_le⟩ := sum_sub_capFront_le_poolSize hth X_fin
     (hsum_X.trans_le hfbM_le)
     (fun b => by
@@ -275,20 +252,14 @@ theorem hl_bounds {c U V w n_max base : ℕ}
   have hM_ge := (large_bounds_lt_n_max hth).1
   have h16M := sixteen_mul_numBuckets_le_n_max hth
   have hcb_le : capBackWhp n_max ≤ (slabScale n_max) ^ 12 := by
-    unfold capBackWhp
-    calc 2 * (slabScale n_max) ^ 11 ≤ slabScale n_max * (slabScale n_max) ^ 11 :=
-          Nat.mul_le_mul_right _ hL2
-      _ = (slabScale n_max) ^ 12 := by ring
+    unfold capBackWhp; rw [pow_succ' _ 11]; exact Nat.mul_le_mul_right _ hL2
   have hMcb : numBucketsWhp n_max * capBackWhp n_max ≤ n_max :=
     (Nat.mul_le_mul_left _ hcb_le).trans hML12
   have htot3 := @totalLocalCoordsWhp_le_three_mul n_max
   have hL_pos : 1 ≤ (slabScale n_max) ^ 12 := Nat.one_le_pow 12 _ (slabScale_pos n_max)
   have h1024 : 1024 * (slabScale n_max) ^ 12 ≤ n_max :=
     (Nat.mul_le_mul_right _ hM_ge).trans hML12
-  have h2tot : 2 * totalLocalCoordsWhp n_max < n_max := by
-    calc 2 * totalLocalCoordsWhp n_max ≤ 6 * (slabScale n_max) ^ 12 := by omega
-      _ < 1024 * (slabScale n_max) ^ 12 := by omega
-      _ ≤ n_max := h1024
+  have h2tot : 2 * totalLocalCoordsWhp n_max < n_max := by omega
   have htc_le : trieChildEntriesWhp c n_max ≤ n_max := by
     have hsub := (sublinear_table_bits_le hth).2.2.2.1
     exact (Nat.le_mul_of_pos_right _ (globalPtrBits_pos_of_large hth)).trans hsub

@@ -50,17 +50,14 @@ theorem referenceMeasure_congr_density (M : POVM A κ) {s t : DeviceState m κ S
 /-- Active unitary evolution preserves every reference POVM law. -/
 theorem referenceMeasure_evolve (M : POVM A κ) (U : Matrix.unitaryGroup (Fin m → Bool) ℂ)
     (s : DeviceState m κ State) : (s.evolve U).referenceMeasure M = s.referenceMeasure M := by
-  unfold referenceMeasure
-  simp only [partialTraceLeft_evolve]
+  simp only [referenceMeasure, partialTraceLeft_evolve]
 
 /-- Even a malformed unitary instruction preserves the reference readout. -/
 theorem referenceMeasure_instruction {a b : ℕ} (M : POVM A κ)
     (H : (Fin a → Bool) → Fin b → Bool) (code : OracleGateCode) (s : DeviceState m κ State) :
     (s.instruction H code).referenceMeasure M = s.referenceMeasure M := by
   rw [instruction_apply]
-  split
-  · exact referenceMeasure_evolve _ _ _
-  · rfl
+  split <;> first | exact referenceMeasure_evolve .. | rfl
 
 /-- Sum over the supported normalized measurement outcomes before reading the reference. -/
 theorem measure_referenceMeasure {Outcome : Type} [Finite Outcome] [DecidableEq Outcome]
@@ -96,19 +93,15 @@ theorem deviceHandler_referenceMeasure (H : (Fin a → Bool) → Fin b → Bool)
     (deviceHandler H service q s).bind (fun p => p.2.referenceMeasure M) =
       s.referenceMeasure M := by
   cases q with
-  | gate code =>
-    rw [deviceHandler_gate, PMF.pure_bind, DeviceState.referenceMeasure_instruction]
-  | query =>
-    rw [deviceHandler_query, PMF.pure_bind, DeviceState.referenceMeasure_instruction]
+  | gate _ => rw [deviceHandler_gate, PMF.pure_bind, DeviceState.referenceMeasure_instruction]
+  | query => rw [deviceHandler_query, PMF.pure_bind, DeviceState.referenceMeasure_instruction]
   | measure wire =>
     rw [deviceHandler_measure, PMF.bind_map]
     exact s.measure_referenceMeasure M (fun x => x wire)
-  | service operation word =>
-    rw [deviceHandler_service, PMF.bind_map]
-    simp only [Function.comp_def]
-    trans (service (operation, word) s.serviceState).bind (fun _ => s.referenceMeasure M)
-    · congr 1
-    · exact PMF.bind_const _ _
+  | service op word =>
+    rw [deviceHandler_service, PMF.bind_map, Function.comp_def]
+    exact (congrArg _ (funext fun _ => (rfl : _ = s.referenceMeasure M))).trans
+      (PMF.bind_const _ _)
 
 /-- Rejected words preserve the state, so the typed reference law also holds on every word. -/
 theorem deviceWordHandler_referenceMeasure (H : (Fin a → Bool) → Fin b → Bool)
@@ -123,7 +116,7 @@ theorem deviceWordHandler_referenceMeasure (H : (Fin a → Bool) → Fin b → B
     rw [DeviceRequest.codec_encodeQuery] at hq
     subst q
     rw [deviceWordHandler_encode]
-    exact deviceHandler_referenceMeasure _ _ _ _ _
+    exact deviceHandler_referenceMeasure ..
   | none => rw [deviceWordHandler_of_invalid _ _ _ h, PMF.pure_bind]
 
 /-- Full adaptive execution preserves every finite reference POVM law. The reference can start
@@ -137,15 +130,14 @@ theorem runWith_deviceWordHandler_referenceMeasure {α : Type}
     (ProbOracleComp.runWith (deviceWordHandler H service) program s).bind
       (fun p => p.2.referenceMeasure M) = s.referenceMeasure M := by
   induction program using OracleComp.induction generalizing s with
-  | pure value => rw [ProbOracleComp.runWith_pure, PMF.pure_bind]
-  | query_bind q next ih =>
+  | pure _ => rw [ProbOracleComp.runWith_pure, PMF.pure_bind]
+  | query_bind q _ ih =>
     rw [ProbOracleComp.runWith, OracleComp.runWith_freeMBind, OracleComp.runWith_query,
       PMF.bind_bind]
     simp only [ProbOracleComp.runWith] at ih
     simp only [ih]
     cases q with
-    | inl n =>
-      simp [OracleComp.sumHandler, Function.comp_def]
-    | inr request => exact deviceWordHandler_referenceMeasure _ _ _ _ _
+    | inl _ => simp [OracleComp.sumHandler, Function.comp_def]
+    | inr _ => exact deviceWordHandler_referenceMeasure ..
 
 end Cslib.Quantum

@@ -133,27 +133,24 @@ theorem realize_onFormula (h : D.Valid M) (φ : L'[[γ]].Formula α) (v : α →
   let := constantsOn.structure (D.value h)
   change _ ↔ φ.Realize v
   have hsem : (I.onFormula (BoundedFormula.constantsVarsEquiv φ)).Realize
-      (fun p => (Sum.elim (D.value h) v p.1).val p.2) ↔ φ.Realize v := by
-    rw [I.realize_onFormula]
-    exact BoundedFormula.realize_constantsVarsEquiv
+      (fun p => (Sum.elim (D.value h) v p.1).val p.2) ↔ φ.Realize v :=
+    (I.realize_onFormula _ _).trans BoundedFormula.realize_constantsVarsEquiv
   fo_simp [onFormula]
   constructor
   · rintro ⟨xs, hxs, hφ⟩
-    have heq : xs = fun p => (D.value h p.1).val p.2 := by
-      funext p
-      have hc := D.eq_value h p.1 ⟨fun i => xs (p.1, i), (hxs p.1).1⟩ (hxs p.1).2
-      exact congrArg (fun x : I.Model M => x.val p.2) hc
+    obtain rfl : xs = fun p => (D.value h p.1).val p.2 :=
+      funext fun p => congrArg (fun x : I.Model M => x.val p.2)
+        (D.eq_value h p.1 ⟨_, (hxs p.1).1⟩ (hxs p.1).2)
     apply hsem.mp
-    subst xs
     convert hφ using 1
     funext p
     rcases p with ⟨c | a, i⟩ <;> rfl
   · intro hφ
-    refine ⟨fun p => (D.value h p.1).val p.2, ?_, ?_⟩
-    · exact fun c => ⟨(D.value h c).property, D.value_spec h c⟩
-    · convert hsem.mpr hφ using 1
-      funext p
-      rcases p with ⟨c | a, i⟩ <;> rfl
+    refine ⟨fun p => (D.value h p.1).val p.2,
+      fun c => ⟨(D.value h c).property, D.value_spec h c⟩, ?_⟩
+    convert hsem.mpr hφ using 1
+    funext p
+    rcases p with ⟨c | a, i⟩ <;> rfl
 
 /-- Pull back a sentence containing the defined target constants. -/
 noncomputable def onSentence (φ : L'[[γ]].Sentence) : L.Sentence :=

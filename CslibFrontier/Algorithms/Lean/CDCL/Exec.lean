@@ -916,6 +916,9 @@ def analyzeGo (log : LRATLog φ) (T : ATrail) (p : ℕ) :
       absurd (hdec (T.entry (p + 1 + k)) (by rw [ATrail.seg_succ]; exact List.mem_cons_self))
         (by rw [ATrail.entry_of_rsn_zero hr]; simp)
     | r + 1 =>
+    -- the variable of the entry, read from its code: the literal is built only at the first unique
+    -- implication point
+    let v := T.lits.getD (p + 1 + k) 0 / 2
     have hN : T.seg (p + 1) (k + 1) = .implied (T.lit (p + 1 + k)) r :: T.seg (p + 1) k := by
       rw [ATrail.seg_succ, ATrail.entry_of_rsn_succ hr]
     have hA : Trail.lits (XTrail.trail (.implied (T.lit (p + 1 + k)) r :: T.seg (p + 1) k) ++
@@ -960,7 +963,8 @@ def analyzeGo (log : LRATLog φ) (T : ATrail) (p : ℕ) :
         rw [show v = (T.lit (p + 1 + k)).1 by simpa [Trail.vars] using hv]; exact hl :
         (cur.unassign [(T.lit (p + 1 + k)).1]).Agrees
           (XTrail.trail (T.seg (p + 1) k) ++ [⟨T.lit p, true⟩]))
-    if hs : m.seen.assigned (T.lit (p + 1 + k)).1 = true then
+    if hs₀ : m.seen.assigned v = true then
+      have hs : m.seen.assigned (T.lit (p + 1 + k)).1 = true := hs₀
       if hp : m.path = 1 then
         m.learned log (T.lit (p + 1 + k)) false hm hs hp hints hh
           (hA (mem_lits_cons.2 (.inl rfl))) hlM cur (by exact value_eq_none_of_agrees hcurA hA)
@@ -978,9 +982,9 @@ def analyzeGo (log : LRATLog φ) (T : ATrail) (p : ℕ) :
                   XEntry.decision (T.lit p) :: T.seg 0 p)) := hRfalse y hy hne
               rw [trail_level, lits_append, List.mem_append] at this
               exact this
-          analyzeGo log T p k hA' (cur.clear (T.lit (p + 1 + k)).1) hcurA'
+          analyzeGo log T p k hA' (cur.clear v) hcurA'
             -- `Marks.absorb` of the state with one off the path, without building that state
-            (Marks.absorbGo (cur.clear (T.lit (p + 1 + k)).1) m.seen m.out (m.path - 1) m.vars R)
+            (Marks.absorbGo (cur.clear v) m.seen m.out (m.path - 1) m.vars R)
             hspec.1
             (by
               change 1 ≤ (Marks.absorb (cur.clear (T.lit (p + 1 + k)).1)
@@ -1004,7 +1008,8 @@ def analyzeGo (log : LRATLog φ) (T : ATrail) (p : ℕ) :
                 · exact .inr (.inr ⟨hspec.2.2.1 _ hys, hy⟩))
             hreasons.tail hdec' hnd'
     else
-      analyzeGo log T p k hA' (cur.clear (T.lit (p + 1 + k)).1) hcurA' m
+      have hs : ¬ m.seen.assigned (T.lit (p + 1 + k)).1 = true := hs₀
+      analyzeGo log T p k hA' (cur.clear v) hcurA' m
         (hm.pass (e := ⟨T.lit (p + 1 + k), false⟩) (by simpa using hs)) hpath hints
         (hh.mono fun y hy => by
           rcases hy with hy | ⟨hys, hy⟩

@@ -432,24 +432,13 @@ private theorem viewWordsOfPrvView_polyTime {γ : Type} {enc : γ ↪ List Bool}
     (hV : ComputableInPolyTime V enc encPrvView) :
     ComputableInPolyTime (fun a => viewWordsOfPrvView (N a) (g a) (x₁ a) (V a)) enc
       encEvaluatorViewWords := by
-  have hX : ComputableInPolyTime (fun a => (V a).input) enc encBits :=
-    encPrvView_input_polyTime hV
-  have hL : ComputableInPolyTime (fun a => (V a).input.length / N a) enc encUnary := by
-    fun_prop
-  have hT : ComputableInPolyTime
-      (fun a => BitString.listRows (N a) ((V a).input.length / N a) (V a).input) enc
-      (encList encBits) :=
-    ComputableInPolyTime.bitsRowsWithInput hN hL hX
-  have hrange : ComputableInPolyTime (fun a => List.range (N a - g a)) enc
-      (encList encUnary) := by
-    fun_prop
-  have hget : ComputableInPolyTime (fun p : γ × ℕ =>
-      (BitString.listRows (N p.1) ((V p.1).input.length / N p.1) (V p.1).input).getD
-        (g p.1 + p.2) []) (encPair enc encUnary) encBits := by
-    fun_prop
+  unfold viewWordsOfPrvView
+  dsimp only
   exact encEvaluatorViewWords_mk_polyTime hx (encPrvView_fn_polyTime hV)
-    (ComputableInPolyTime.listTakeWithInput hT hg) (encPrvView_decInfo_polyTime hV)
-    (ComputableInPolyTime.mapWithInput hrange hget)
+    (ComputableInPolyTime.listTakeWithInput
+      (ComputableInPolyTime.bitsRowsWithInput hN (by fun_prop) (encPrvView_input_polyTime hV)) hg)
+    (encPrvView_decInfo_polyTime hV)
+    (ComputableInPolyTime.mapWithInput (by fun_prop) (by fun_prop))
 
 /-- The word that the evaluator's simulator writes: the one-entry table of the evaluator's view
 words. -/
@@ -919,13 +908,8 @@ theorem Scheme.PrvSimSecureUniversal.yaoOneSidedHybridSemiHonestSecure {encFn : 
     (hsamp : IsPPTOn encUnary (Yao.encParams encFn) samp) (I : Finset (Fin 2)) :
     (Yao.oneSidedFamily G).SemiHonestSecure (fun n => ProbComp.eval (samp n)) I
       (Yao.oneSidedEncoding G encFn) := by
-  have hcases : I = ∅ ∨ I = {0} ∨ I = {1} ∨ I = Finset.univ := by
-    by_cases h0 : (0 : Fin 2) ∈ I <;> by_cases h1 : (1 : Fin 2) ∈ I
-    · right; right; right; ext i; fin_cases i <;> simp [h0, h1]
-    · right; left; ext i; fin_cases i <;> simp [h0, h1]
-    · right; right; left; ext i; fin_cases i <;> simp [h0, h1]
-    · left; ext i; fin_cases i <;> simp [h0, h1]
-  rcases hcases with rfl | rfl | rfl | rfl
+  have hcases : ∀ J : Finset (Fin 2), J = ∅ ∨ J = {0} ∨ J = {1} ∨ J = Finset.univ := by decide
+  rcases hcases I with rfl | rfl | rfl | rfl
   · exact Yao.hybridSemiHonestSecure_oneSided_empty hproj hcorrect _
   · exact Yao.hybridSemiHonestSecure_oneSided_garbler heff.coins hproj hcorrect _
   · exact hG.yaoOneSidedHybridSemiHonestSecure_evaluator heff.inLen heff.ev hproj hcorrect hΦ hsamp

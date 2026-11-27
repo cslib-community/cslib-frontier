@@ -57,21 +57,9 @@ private noncomputable def oneStepMach : Mach ℤ Bool Unit where
 private noncomputable def oneStep : oneStepMach.Step :=
   ((), fun i => if i = 8 then 1 else 0)
 
-private theorem init_closed : Mach.Closed (σi oneStepMach []) := by
-  refine ⟨?_, ?_, ?_⟩
-  · intro c hc i
-    simp only [σi, List.mem_singleton] at hc
-    subst hc
-    fin_cases i <;> rfl
-  · intro j hj
-    simp only [σi, Nat.le_zero] at hj
-    subst hj
-    exact ⟨((), ![0, 0, 0, 0]), by simp [σi], rfl⟩
-  · intro _; simp [σi]
-
 /-- Firing `oneStep` from `σi oneStepMach []` produces a valid sequential and global trace. -/
 private theorem oneStep_gv : Mach.GV (σi oneStepMach []) [oneStep] := by
-  rw [Mach.gv_iff init_closed]
+  rw [Mach.gv_iff (closed_σi oneStepMach [])]
   refine ⟨⟨rfl, ?_, rfl, ?_, by simp [oneStepMach, σi]⟩, rfl, rfl⟩
   · intro i
     fin_cases i <;> rfl
@@ -82,7 +70,7 @@ private theorem oneStep_gv : Mach.GV (σi oneStepMach []) [oneStep] := by
 
 /-- An empty trace is rejected from `σi oneStepMach []` because `m0 = false ≠ true = mh`. -/
 example : ¬ Mach.GV (P := oneStepMach) (σi oneStepMach []) [] := by
-  rw [Mach.gv_iff init_closed]
+  rw [Mach.gv_iff (closed_σi oneStepMach [])]
   rintro ⟨h, _⟩
   exact Bool.false_ne_true h
 

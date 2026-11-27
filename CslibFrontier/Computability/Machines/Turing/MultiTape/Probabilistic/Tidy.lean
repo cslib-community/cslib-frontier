@@ -102,9 +102,8 @@ theorem ComputesTidily.comp_encoded_of_le {Alpha : Type}
       (s : OracleState) (w : List Bool) (s' : OracleState)
       (hw : (w, s') ∈ (ProbOracleComp.runWith oracle (encode <$> prog₁) s).support) :
       w.length ≤ l := by
-    rw [ProbOracleComp.runWith_map] at hw
-    obtain ⟨⟨a, aState⟩, ha, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hw
-    rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
+    rw [ProbOracleComp.runWith_map, PMF.mem_support_map_iff] at hw
+    obtain ⟨⟨a, aState⟩, ha, ⟨rfl, rfl⟩⟩ := hw
     exact hl OracleState oracle s a aState ha
   have hQ₁ (w : List Bool) :
       (fun l : Fin (K + 1 + 1) =>
@@ -124,13 +123,9 @@ theorem ComputesTidily.comp_encoded_of_le {Alpha : Type}
   have hp₁ : ((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.extendTapes
       Fin.castSuccEmb).RunsWords x (fun _ => []) [] (t₁ + (l + 2)) prog₁
       (fun a => Function.update (fun _ => []) A (encode a)) (fun _ => []) := by
-    have h₀ :=
-      ((h₁.extendTapes
-        (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord_of_le hlEncoded []).extendTapes
-          (ws₀ := fun _ => []) Fin.castSuccEmb
-    have htyped := h₀.of_mapped_program encode
     rw [← funext hQ₁]
-    exact htyped
+    exact (((h₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord_of_le
+      hlEncoded []).extendTapes (ws₀ := fun _ => []) Fin.castSuccEmb).of_mapped_program encode
   have hinj₁ : Function.Injective
       (fun a : Alpha =>
         (Function.update (fun _ => []) A (encode a), ([] : List Bool))) := by
@@ -168,16 +163,12 @@ theorem ComputesTidily.comp_encoded_of_le {Alpha : Type}
       exact (RunsWords.of_transformsTapes (Operation := Operation) (out₀ := [] ++ id y)
         (transformsTapes_clearWork_only A (encode a)) rfl (fun _ _ hQ => hQ)).mono
         (time' := 3 * (l + 1)) (by omega)
-    have hseq := hp₂.seq_pure_right hinj₂ hp₃
-    have happend : (fun a : List Bool => id a ++ []) = id := by
-      funext a
-      exact List.append_nil a
-    simpa only [List.nil_append, happend] using hseq
+    have happend : (fun a : List Bool => id a ++ []) = id := funext List.append_nil
+    simpa only [List.nil_append, happend] using hp₂.seq_pure_right hinj₂ hp₃
   have hseq := (hp₁.seq_bind hinj₁ hp₂₃).of_map Prod.snd (fun _ _ => []) id
   have hbind : (Prod.snd <$> (prog₁ >>= fun a => (fun b => (a, b)) <$> prog₂ a)) =
       (prog₁ >>= prog₂) := by
-    have hid : (fun b : List Bool => b) = id := rfl
-    simp only [map_bind, Functor.map_map, hid, id_map]
+    simp [map_bind]
   rw [hbind] at hseq
   exact hseq.mono (by omega)
 
@@ -199,13 +190,8 @@ theorem ComputesTidily.comp_of_le {tm₁ : MultiTapePTM k₁ Bool State₁ Opera
       (w, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support →
         tm₂.ComputesTidily w t₂ (prog₂ w)) :
     (tm₂.tidyComp tm₁ mark).ComputesTidily x (t₁ + t₂ + 4 * l + 9) (prog₁ >>= prog₂) := by
-  have hencBits : (encBits : List Bool → List Bool) = id := by
-    funext word
-    exact encBits_apply word
-  have h₁' : tm₁.ComputesTidily x t₁ (encBits <$> prog₁) := by
-    rw [hencBits, id_map]
-    exact h₁
-  exact ComputesTidily.comp_encoded_of_le encBits mark h₁'
+  have hencBits : (encBits : List Bool → List Bool) = id := funext encBits_apply
+  exact ComputesTidily.comp_encoded_of_le encBits mark (by simpa only [hencBits, id_map] using h₁)
     (fun OracleState oracle s w s' hw => by
       simpa only [encBits_apply] using hl OracleState oracle s w s' hw)
     (fun w OracleState oracle s s' hw => by
@@ -222,8 +208,8 @@ theorem ComputesTidily.comp {tm₁ : MultiTapePTM k₁ Bool State₁ Operation}
       (s s' : OracleState),
       (w, s') ∈ (ProbOracleComp.runWith oracle prog₁
           s).support → tm₂.ComputesTidily w t₂ (prog₂ w)) :
-    (tm₂.tidyComp tm₁ mark).ComputesTidily x (5 * t₁ + t₂ + 9) (prog₁ >>= prog₂) := by
-  exact (h₁.comp_of_le mark (fun _ oracle s _ _ hw => h₁.length_output_le oracle s hw) h₂).mono
+    (tm₂.tidyComp tm₁ mark).ComputesTidily x (5 * t₁ + t₂ + 9) (prog₁ >>= prog₂) :=
+  (h₁.comp_of_le mark (fun _ oracle s _ _ hw => h₁.length_output_le oracle s hw) h₂).mono
     (by omega)
 
 /-- Unconditional typed tidy sequential composition using `h₁.length_output_le`. -/
@@ -240,17 +226,11 @@ theorem ComputesTidily.comp_encoded {Alpha : Type}
       (a, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support →
         tm₂.ComputesTidily (encode a) t₂ (prog₂ a)) :
     (tm₂.tidyComp tm₁ mark).ComputesTidily x (5 * t₁ + t₂ + 9) (prog₁ >>= prog₂) := by
-  have hl (OracleState : Type)
-      (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
-      (s : OracleState) (a : Alpha) (s' : OracleState)
-      (ha : (a, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support) :
-      (encode a).length ≤ t₁ := by
-    have haEncoded : (encode a, s') ∈
-        (ProbOracleComp.runWith oracle (encode <$> prog₁) s).support := by
-      rw [ProbOracleComp.runWith_map]
-      exact (PMF.mem_support_map_iff _ _ _).mpr ⟨(a, s'), ha, rfl⟩
-    exact h₁.length_output_le oracle s haEncoded
-  exact (ComputesTidily.comp_encoded_of_le encode mark h₁ hl h₂).mono (by omega)
+  refine (ComputesTidily.comp_encoded_of_le (l := t₁) encode mark h₁
+    (fun _ oracle s a s' ha => ?_) h₂).mono (by omega)
+  refine h₁.length_output_le (s' := s') oracle s ?_
+  rw [ProbOracleComp.runWith_map]
+  exact (PMF.mem_support_map_iff _ _ _).mpr ⟨(a, s'), ha, rfl⟩
 
 /-- Run `tm₁` and then `tm₂` on the same input, both padded to `max k₁ k₂` work tapes. -/
 def appendPTM (tm₁ : MultiTapePTM k₁ Bool State₁ Operation)
@@ -450,29 +430,21 @@ theorem ComputesTidily.ite {tmc : MultiTapePTM k₀ Bool State₀ Operation}
   set K := max k₀ (max k₁ k₂)
   let clearLast : MultiTapePTM (K + 1) Bool (Unit ⊕ RewindWorkState) Operation :=
     ofDeterministic ((MultiTapeTM.clearWork Bool).extendTapes (tapeEmb (Fin.last K)))
-  have hl : ∀ (OracleState : Type)
+  have hl (OracleState : Type)
       (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
-      (s : OracleState) (w' : List Bool) (s' : OracleState),
-      (w', s') ∈ (ProbOracleComp.runWith oracle (pure w) s).support → w'.length ≤ w.length := by
-    intro _ _ _ w' s' hw'
-    simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff] at hw'
-    rcases Prod.mk.inj hw' with ⟨rfl, rfl⟩
-    exact le_rfl
+      (s : OracleState) (w' : List Bool) (s' : OracleState)
+      (hw' : (w', s') ∈ (ProbOracleComp.runWith oracle (pure w) s).support) :
+      w'.length ≤ w.length := by
+    simp_all [ProbOracleComp.runWith_pure]
   have hp₁ : (tmc.extendTapes (Fin.castLEEmb (le_max_left k₀ (max k₁ k₂)))).outputToWord.RunsWords
       x (fun _ => []) [] (tc + (w.length + 2)) (pure ())
       (fun _ => Function.update (fun _ => []) (Fin.last K) w) (fun _ => []) := by
     have h₀ := (hc.extendTapes (Fin.castLEEmb (le_max_left k₀ (max k₁ k₂)))).outputToWord_of_le
       hl []
-    have hcongr : (tmc.extendTapes
-        (Fin.castLEEmb (le_max_left k₀ (max k₁ k₂)))).outputToWord.RunsWords
-        x (fun _ => []) [] (tc + (w.length + 2)) ((fun _ => w) <$> pure ())
-        (fun w' => Function.update (fun _ => []) (Fin.last K) w') (fun _ => []) := by
-      simpa only [map_pure] using h₀
     intro OracleState oracle s cfg htapes hbuf
-    obtain ⟨hlaw, hclean⟩ := hcongr OracleState oracle s cfg htapes hbuf
-    refine ⟨?_, hclean⟩
-    simpa only [ProbOracleComp.runWith_pure, ProbOracleComp.runWith_map, PMF.pure_map,
-      Prod.map_apply, id_eq] using hlaw
+    obtain ⟨hlaw, hclean⟩ := h₀ OracleState oracle s cfg htapes hbuf
+    exact ⟨by simpa only [ProbOracleComp.runWith_pure, PMF.pure_map, Prod.map_apply, id_eq]
+      using hlaw, hclean⟩
   have hp₂ : (branch (Fin.last K)
       ((tm₁.extendTapes (Fin.castLEEmb ((le_max_left k₁ k₂).trans
         (le_max_right k₀ _)))).extendTapes Fin.castSuccEmb)
@@ -503,9 +475,7 @@ theorem ComputesTidily.ite {tmc : MultiTapePTM k₀ Bool State₀ Operation}
     exact RunsWords.of_transformsTapes (Operation := Operation) (out₀ := [] ++ id y)
       (transformsTapes_clearWork_only (Fin.last K) w) rfl (fun _ _ hQ => hQ)
   have hp₂₃ := hp₂.seq_pure_right hinj₂ hp₃
-  have happend : (fun a : List Bool => id a ++ []) = id := by
-    funext a
-    exact List.append_nil a
+  have happend : (fun a : List Bool => id a ++ []) = id := funext List.append_nil
   rw [happend] at hp₂₃
   have hseq := (hp₁.seq_pure_left hp₂₃).mono
     (time' := tc + (if w = [] then t₂ else t₁) + 4 * w.length + 6)

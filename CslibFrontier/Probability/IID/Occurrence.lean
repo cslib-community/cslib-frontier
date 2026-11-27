@@ -114,10 +114,9 @@ omit [Fintype α] in
 /-- Occurrence counts are invariant under permuting the positions. -/
 theorem occurrenceCount_comp_perm {k : ℕ} (y : Fin k → α) (σ : Equiv.Perm (Fin k)) (b : α) :
     occurrenceCount (y ∘ σ) b = occurrenceCount y b := by
-  have h : (occurrenceCount (y ∘ σ) b : ℝ) = occurrenceCount y b := by
-    rw [occurrenceCount_eq_sum, occurrenceCount_eq_sum]
-    exact Equiv.sum_comp σ fun i => if y i = b then (1 : ℝ) else 0
-  exact_mod_cast h
+  suffices (occurrenceCount (y ∘ σ) b : ℝ) = occurrenceCount y b from mod_cast this
+  simp only [occurrenceCount_eq_sum]
+  exact Equiv.sum_comp σ fun i => if y i = b then (1 : ℝ) else 0
 
 /-- The occurrence counts of all values add up to the number of samples. -/
 theorem sum_occurrenceCount {k : ℕ} (x : Fin k → α) : ∑ b, occurrenceCount x b = k := by
@@ -135,44 +134,32 @@ theorem mul_sum_iid_mul_inv_occurrenceCount_le (μ : PMF α) (m : ℕ) (a : α) 
   set E : Fin (m + 1) → ℝ := fun i => ∑ y, (iid μ (m + 1) y).toReal *
     ((if y i = a then 1 else 0) / occurrenceCount y a) with hE
   have h0 : E 0 = (μ a).toReal * ∑ x, (iid μ m x).toReal / (occurrenceCount x a + 1) := by
-    rw [hE]
-    dsimp only
-    rw [sum_iid_succ_mul, Finset.sum_eq_single a]
-    · congr 1
-      refine Finset.sum_congr rfl fun x _ => ?_
-      rw [occurrenceCount_cons]
-      simp only [Fin.cons_zero, ite_true, mul_one_div]
-      ring
-    · intro b _ hb
-      simp [hb]
-    · intro h
-      exact absurd (mem_univ a) h
+    dsimp only [E]
+    rw [sum_iid_succ_mul, Finset.sum_eq_single a (fun b _ hb => by simp [hb])
+      (fun h => absurd (mem_univ a) h)]
+    refine congrArg _ (Finset.sum_congr rfl fun x _ => ?_)
+    rw [occurrenceCount_cons]
+    simp only [Fin.cons_zero, ite_true, mul_one_div]; ring
   have hi (i : Fin (m + 1)) : E i = E 0 := by
-    rw [hE]
-    dsimp only
+    dsimp only [E]
     rw [← sum_iid_comp_perm μ (Equiv.swap 0 i)]
     refine Finset.sum_congr rfl fun y _ => ?_
     rw [occurrenceCount_comp_perm]
     simp
   have hsum : ∑ i, E i ≤ 1 := by
-    rw [hE]
-    dsimp only
+    dsimp only [E]
     rw [Finset.sum_comm]
     calc ∑ y, ∑ i, (iid μ (m + 1) y).toReal *
           ((if y i = a then 1 else 0) / (occurrenceCount y a : ℝ))
         = ∑ y, (iid μ (m + 1) y).toReal *
-            ((occurrenceCount y a : ℝ) / occurrenceCount y a) := by
-          refine Finset.sum_congr rfl fun y _ => ?_
-          rw [← mul_sum, ← sum_div, ← occurrenceCount_eq_sum]
-      _ ≤ ∑ y, (iid μ (m + 1) y).toReal * 1 := by
-          refine sum_le_sum fun y _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-          exact div_self_le_one _
+            ((occurrenceCount y a : ℝ) / occurrenceCount y a) :=
+          Finset.sum_congr rfl fun y _ => by rw [← mul_sum, ← sum_div, ← occurrenceCount_eq_sum]
+      _ ≤ ∑ y, (iid μ (m + 1) y).toReal * 1 :=
+          sum_le_sum fun y _ => mul_le_mul_of_nonneg_left (div_self_le_one _) ENNReal.toReal_nonneg
       _ = 1 := by rw [← sum_mul, sum_toReal, one_mul]
   have : ∑ i, E i = (m + 1) * E 0 := by
     rw [Finset.sum_congr rfl fun i _ => hi i, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
-    push_cast
-    ring
-  rw [← h0]
-  linarith
+    push_cast; ring
+  rw [← h0]; linarith
 
 end Cslib.Probability.PMF

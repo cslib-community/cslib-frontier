@@ -4,11 +4,17 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.Complexity.Classes.RepeatedTrials
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-! Clients of deterministic repetition without importing complexity-class definitions or
 amplification theorems. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.RepeatedTrials
 
@@ -64,5 +70,19 @@ example {α : Type} {enc : α ↪ List Bool} {V : α × List Bool → Bool}
     ComputableInPolyTime (repeatAny enc trials width V) (encPair enc encBits) encBool ∧
     ComputableInPolyTime (repeatMajority enc trials width V) (encPair enc encBits) encBool :=
   ⟨computableInPolyTime_repeatAny hV _ _, computableInPolyTime_repeatMajority hV _ _⟩
+
+private abbrev encUnaryTape := encPair encUnary encBits
+
+/-- The runtime bound allows a unary trial count supplied by the input even at width zero. -/
+example :
+    ∃ d S, ComputableInO (fun p : ℕ × List Bool => repeatVotes p.1 0 (fun _ => true) p)
+      encUnaryTape encBits
+      (fun p => (p.1 + 1) *
+        (((encUnaryTape p).length + (encUnaryTape p).length + (encUnaryTape p).length + 1) ^ d +
+          (encUnaryTape p).length)) S := by
+  exact computableInO_repeatVotes (ComputableInO.const true) (ComputableInO.fst encUnary encBits)
+    (ComputableInO.const 0) fun p row hrow => by
+      simp only [encUnaryTape, length_encPair, encBits, Function.Embedding.refl_apply, hrow]
+      omega
 
 end CslibFrontierTests.RepeatedTrials

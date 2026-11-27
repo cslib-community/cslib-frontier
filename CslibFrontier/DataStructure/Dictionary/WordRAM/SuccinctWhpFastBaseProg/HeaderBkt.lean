@@ -55,6 +55,71 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
+/-- From `s`, `p` leaves the state unchanged, returns `r`, issues exactly `C` memory operations,
+and is valid below frontier `F`. -/
+private structure ReadSpec {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α) (r : α)
+    (C : ℕ) : Prop where
+  state : (Memory.spec 0).clientState s p = s
+  result : (Memory.spec 0).clientResult s p = r
+  cost : memoryCost p s = C
+  valid : ValidProg w F s p
+
+private theorem ReadSpec.of {α : Type} {w F C : ℕ} {s : Memory.State} {p : Memory.Prog α}
+    {r r' : α} (h : (Memory.spec 0).clientState s p = s ∧ (Memory.spec 0).clientResult s p = r ∧
+      memoryCost p s = C ∧ ValidProg w F s p) (hr : r = r') : ReadSpec w F s p r' C :=
+  ⟨h.1, hr ▸ h.2.1, h.2.2.1, h.2.2.2⟩
+
+private theorem ReadSpec.toAnd {α : Type} {w F C C' : ℕ} {s : Memory.State}
+    {p : Memory.Prog α} {r r' : α} (h : ReadSpec w F s p r C) (hr : r = r') (hC : C = C') :
+    (Memory.spec 0).clientState s p = s ∧ (Memory.spec 0).clientResult s p = r' ∧
+      memoryCost p s = C' ∧ ValidProg w F s p :=
+  ⟨h.state, hr ▸ h.result, hC ▸ h.cost, h.valid⟩
+
+private theorem ReadSpec.toAnd_le {α : Type} {w F C C' : ℕ} {s : Memory.State}
+    {p : Memory.Prog α} {r r' : α} (h : ReadSpec w F s p r C) (hr : r = r') (hC : C ≤ C') :
+    (Memory.spec 0).clientState s p = s ∧ (Memory.spec 0).clientResult s p = r' ∧
+      memoryCost p s ≤ C' ∧ ValidProg w F s p :=
+  ⟨h.state, hr ▸ h.result, h.cost ▸ hC, h.valid⟩
+
+private theorem ReadSpec.pure {α : Type} {w F : ℕ} {s : Memory.State} (a : α) :
+    ReadSpec w F s (pure a) a 0 :=
+  ⟨rfl, rfl, rfl, validProg_pure a⟩
+
+/-- Peel a read-only prefix `m` off `m >>= k`. -/
+private theorem ReadSpec.bind_eq {α β : Type} {w F C : ℕ} {s : Memory.State}
+    {m : Memory.Prog α} {a : α} (hm : ReadSpec w F s m a C) (k : α → Memory.Prog β) :
+    (Memory.spec 0).clientState s (m >>= k) = (Memory.spec 0).clientState s (k a) ∧
+    (Memory.spec 0).clientResult s (m >>= k) = (Memory.spec 0).clientResult s (k a) ∧
+    memoryCost (m >>= k) s = C + memoryCost (k a) s ∧
+    (ValidProg w F s (k a) → ValidProg w F s (m >>= k)) :=
+  ⟨by rw [clientState_bind, hm.state, hm.result], by rw [clientResult_bind, hm.state, hm.result],
+    by rw [memoryCost_bind', hm.state, hm.result, hm.cost],
+    fun h => validProg_bind hm.valid (by rw [hm.state, hm.result]; exact h)⟩
+
+private theorem ReadSpec.bind {α β : Type} {w F C₁ C₂ : ℕ} {s : Memory.State}
+    {m : Memory.Prog α} {k : α → Memory.Prog β} {a : α} {b : β}
+    (hm : ReadSpec w F s m a C₁) (hk : ReadSpec w F s (k a) b C₂) :
+    ReadSpec w F s (m >>= k) b (C₁ + C₂) :=
+  have h := hm.bind_eq k
+  ⟨h.1.trans hk.state, h.2.1.trans hk.result, h.2.2.1.trans (congrArg _ hk.cost),
+    h.2.2.2 hk.valid⟩
+
+private theorem ReadSpec.ite {α : Type} {w F C : ℕ} {s : Memory.State} {c : Prop}
+    [Decidable c] {p₁ p₂ : Memory.Prog α} {r₁ r₂ : α}
+    (h₁ : ReadSpec w F s p₁ r₁ C) (h₂ : ReadSpec w F s p₂ r₂ C) :
+    ReadSpec w F s (if c then p₁ else p₂) (if c then r₁ else r₂) C := by
+  split_ifs <;> assumption
+
+private theorem ReadSpec.if_pos {α : Type} {w F C : ℕ} {s : Memory.State} {c : Prop}
+    [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : c) (h : ReadSpec w F s p₁ r C) :
+    ReadSpec w F s (if c then p₁ else p₂) r C := by
+  rwa [ite_eq_left hc]
+
+private theorem ReadSpec.if_neg {α : Type} {w F C : ℕ} {s : Memory.State} {c : Prop}
+    [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : ¬c) (h : ReadSpec w F s p₂ r C) :
+    ReadSpec w F s (if c then p₁ else p₂) r C := by
+  rwa [ite_eq_right hc]
+
 /-! ## Section 1: Header Word Accessors -/
 
 /-- Read header word `mem[base + hdrOff]` (`hdrOff < 32`). -/
@@ -85,15 +150,15 @@ theorem readHdrProg_spec {w F base hdrOff : ℕ} {s : Memory.State}
   exact ⟨rfl, rfl, rfl, validProg_read ha⟩
 
 /-- Specialization of `readHdrProg_spec` to the `largeSpaceWhp` frontier for any `hdrOff < 32`. -/
-private theorem readHdrProg_large_spec {c U V w n_max base hdrOff : ℕ} {s : Memory.State}
+theorem readHdrProg_large_spec (c U V w n_max : ℕ) {base hdrOff : ℕ} {s : Memory.State}
     (hoff : hdrOff < 32) :
     let prog := readHdrProg (base, hdrOff)
     (Memory.spec 0).clientState s prog = s ∧
     (Memory.spec 0).clientResult s prog = s.mem (base + hdrOff) ∧
     memoryCost prog s = 1 ∧
-    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-  exact readHdrProg_spec (by omega)
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog :=
+  readHdrProg_spec (Nat.add_lt_add_left
+    (hoff.trans_le (headerWords_le_largeSpaceWhp c U V w n_max)) base)
 
 /-- Write header word `mem[base + hdrOff] := val` (`hdrOff < 32`). -/
 @[irreducible] def writeHdrProg : (ℕ × ℕ) × ℕ → Memory.Prog Unit
@@ -143,112 +208,66 @@ theorem writeHdrProg_fastStep {c U V w n_max base hdrOff val : ℕ} {θ : SeedWh
     FastStateStep base c U V w n_max θ (updateFastHdr fs hdrOff val) s s' := by
   have hw := henv.2.1
   have hch := largeOffsetChain c U V w n_max
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   unfold writeHdrProg
   simp only [pure_bind]
   set m' := Function.update s.mem (base + hdrOff) val
-  have hs'_eq : (Memory.spec 0).clientState s (Memory.write (base + hdrOff) val) =
-      { mem := m', frontier := s.frontier } := rfl
-  rw [hs'_eq]
+  change _ ∧ _ ∧ FastStateStep _ _ _ _ _ _ _ _ _ { mem := m', frontier := s.frontier }
   have hrp32 : ∀ {off N k idx}, idx < N → 32 ≤ off →
       readPacked (base + off) k w m' idx = readPacked (base + off) k w s.mem idx :=
     fun hidx hoff => readPacked_update_outside hw hidx (Or.inl (by omega))
-  have hupd_at : ∀ k, m' (base + k) = if k = hdrOff then val else s.mem (base + k) := by
-    intro k
-    dsimp only [m']
-    by_cases hk : k = hdrOff
-    · subst hk; simp
-    · rw [Function.update_of_ne (by omega)]; simp [hk]
-  rcases hrep with ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-    hqv0, hloc0, hbmeta0, hbptr0, hpool0, hsl0, hbuf0, hbuf1, hdirty0⟩
-  have hrep_orig : FastMemRep base c U V w n_max fs s.mem :=
-    ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-      hqv0, hloc0, hbmeta0, hbptr0, hpool0, hsl0, hbuf0, hbuf1, hdirty0⟩
+  have hupd_at : ∀ k, m' (base + k) = if k = hdrOff then val else s.mem (base + k) := fun k => by
+    by_cases hk : k = hdrOff <;> simp [m', hk]
+  obtain ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
+    hqv0, hloc0, hbmeta0, hbptr0, hpool0, _, _, _, hdirty0⟩ := id hrep
   set fs' := updateFastHdr fs hdrOff val
   have hcases : hdrOff = 1 ∨ hdrOff = 2 ∨ hdrOff = 3 ∨ hdrOff = 4 ∨ hdrOff = 5 ∨
       hdrOff = 6 ∨ hdrOff = 7 ∨ hdrOff = 8 ∨ hdrOff = 9 ∨ hdrOff = 10 ∨ hdrOff = 11 := by omega
-  have hscalars :
-      fs'.slices = fs.slices ∧ fs'.buf = fs.buf ∧
-      fs'.quotArr = fs.quotArr ∧ fs'.valArr = fs.valArr ∧ fs'.locState = fs.locState ∧
-      fs'.bktCount = fs.bktCount ∧ fs'.bktSalt = fs.bktSalt ∧ fs'.liveRole = fs.liveRole ∧
-      fs'.liveInsCount = fs.liveInsCount ∧ fs'.overmarsRole = fs.overmarsRole ∧
-      fs'.overmarsActive = fs.overmarsActive ∧ fs'.overmarsCursor = fs.overmarsCursor ∧
-      fs'.overmarsInsCount = fs.overmarsInsCount ∧ fs'.rebDoneFlag = fs.rebDoneFlag ∧
-      fs'.rebQueued = fs.rebQueued ∧ fs'.backPtr = fs.backPtr ∧
-      fs'.poolFreeStack = fs.poolFreeStack ∧ fs'.poolOwner = fs.poolOwner ∧
-      fs'.dirtyBuckets = fs.dirtyBuckets ∧ fs'.dirtyCount ≤ fs.dirtyCount ∧
-      m' (base + hdrMode) = 1 ∧
-      m' (base + hdrPoolFreeTop) = fs'.poolFreeTop ∧
-      m' (base + hdrCurEp) = fs'.curEp ∧
-      m' (base + hdrEpochClock) = fs'.epochClock ∧
-      m' (base + hdrRebStage) = fs'.rebStage ∧
-      m' (base + hdrStageCursor) = fs'.stageCursor ∧
-      m' (base + hdrDirtyCount) = fs'.dirtyCount ∧
-      m' (base + hdrDirtyIdx) = fs'.dirtyIdx ∧
+  let fs₁ : FastState :=
+    { fs with
+      poolFreeTop := fs'.poolFreeTop, curEp := fs'.curEp, epochClock := fs'.epochClock,
+      rebStage := fs'.rebStage, stageCursor := fs'.stageCursor, dirtyCount := fs'.dirtyCount,
+      dirtyIdx := fs'.dirtyIdx, rebCandSalt := fs'.rebCandSalt, rebScanCursor := fs'.rebScanCursor,
+      rebInsCount := fs'.rebInsCount, rebCollision := fs'.rebCollision }
+  have hfs' : fs' = fs₁ := by
+    rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> rfl
+  have hdc_sub : fs'.dirtyCount ≤ fs.dirtyCount := by
+    rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+      first | exact le_rfl | exact hdc rfl
+  have hhdrs :
+      m' (base + hdrMode) = 1 ∧ m' (base + hdrPoolFreeTop) = fs'.poolFreeTop ∧
+      m' (base + hdrCurEp) = fs'.curEp ∧ m' (base + hdrEpochClock) = fs'.epochClock ∧
+      m' (base + hdrRebStage) = fs'.rebStage ∧ m' (base + hdrStageCursor) = fs'.stageCursor ∧
+      m' (base + hdrDirtyCount) = fs'.dirtyCount ∧ m' (base + hdrDirtyIdx) = fs'.dirtyIdx ∧
       m' (base + hdrRebCandSalt) = fs'.rebCandSalt ∧
       m' (base + hdrRebScanCursor) = fs'.rebScanCursor ∧
       m' (base + hdrRebInsCount) = fs'.rebInsCount ∧
       m' (base + hdrRebCollision) = fs'.rebCollision := by
-    dsimp only [hdrMode, hdrPoolFreeTop, hdrCurEp, hdrEpochClock, hdrRebStage,
-      hdrStageCursor, hdrDirtyCount, hdrDirtyIdx, hdrRebCandSalt, hdrRebScanCursor,
-      hdrRebInsCount, hdrRebCollision]
-    rw [hupd_at 0, hupd_at 1, hupd_at 2, hupd_at 3, hupd_at 4, hupd_at 5, hupd_at 6,
-      hupd_at 7, hupd_at 8, hupd_at 9, hupd_at 10, hupd_at 11]
-    rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, le_rfl, hm0, rfl, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11⟩
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, le_rfl, hm0, hm1, rfl, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11⟩
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, le_rfl, hm0, hm1, hm2, rfl, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11⟩
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, le_rfl, hm0, hm1, hm2, hm3, rfl, hm5, hm6, hm7, hm8, hm9, hm10, hm11⟩
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, le_rfl, hm0, hm1, hm2, hm3, hm4, rfl, hm6, hm7, hm8, hm9, hm10, hm11⟩
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, hdc rfl, hm0, hm1, hm2, hm3, hm4, hm5, rfl, hm7, hm8, hm9, hm10, hm11⟩
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, le_rfl, hm0, hm1, hm2, hm3, hm4, hm5, hm6, rfl, hm8, hm9, hm10, hm11⟩
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, le_rfl, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, rfl, hm9, hm10, hm11⟩
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, le_rfl, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, rfl, hm10, hm11⟩
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, le_rfl, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, rfl, hm11⟩
-    · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, le_rfl, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, rfl⟩
-  rcases hscalars with ⟨hsl_e, hbf_e, hq_e, hv_e, hls_e, hbc_e, hbs_e, hlr_e, hli_e, hor_e,
-    hoa_e, hoc_e, hoi_e, hrd_e, hrq_e, hbp_e, hps_e, hpo_e, hdb_e, hdc_sub, hhdrs⟩
-  refine ⟨rfl, validProg_write (by omega) hfit_val,
-    fastStep_nonSliceNonBuf hw rfl hseed hrep_orig hsl_e hbf_e
+    simp only [hdrMode, hdrPoolFreeTop, hdrCurEp, hdrEpochClock, hdrRebStage, hdrStageCursor,
+      hdrDirtyCount, hdrDirtyIdx, hdrRebCandSalt, hdrRebScanCursor, hdrRebInsCount,
+      hdrRebCollision, hupd_at]
+    rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> first | rfl | assumption
+  refine ⟨rfl, validProg_write (by omega) hfit_val, hfs' ▸
+    fastStep_nonSliceNonBuf hw rfl hseed hrep rfl rfl
       (fun a ha =>
-        show Function.update s.mem (base + hdrOff) val a = s.mem a from
-          Function.update_of_ne (by rcases ha with h | h | h | h <;> omega) val s.mem)
-      (fun idx hidx _ => hrp32 hidx (by omega))
+        Function.update_of_ne (by rcases ha with h | h | h | h <;> omega) val s.mem)
+      (fun _ hidx _ => hrp32 hidx (by omega))
       (fun id hid => hrp32 (show id < 6 * qEpochWhp n_max + 6 by omega) (by omega))
       (hdc_sub.trans hdc_le0) hhdrs
-      (fun i hi => by
-        rw [hq_e, hv_e]
-        exact ⟨(hrp32 hi (by omega)).trans (hqv0 i hi).1,
-          (hrp32 hi (by omega)).trans (hqv0 i hi).2⟩)
-      (fun b hb loc hl => by
-        rw [hls_e]
-        exact (hrp32 (mul_add_lt_mul_bound hb hl) (by omega)).trans (hloc0 b hb loc hl))
-      (fun b hb => by
-        rw [hbc_e, hbs_e, hlr_e, hli_e, hor_e, hoa_e, hoc_e, hoi_e, hrd_e, hrq_e]
-        exact bktMeta_congr_of_readPacked
-          (fun k hk => hrp32 (show 16 * b + k < 16 * numBucketsWhp n_max by omega) (by omega))
-          (hbmeta0 b hb))
-      (fun b hb k hk => by
-        rw [hbp_e]
-        exact (hrp32 (mul_add_lt_mul_bound hb hk) (by omega)).trans (hbptr0 b hb k hk))
-      (fun j hj => by
-        rw [hps_e, hpo_e]
-        exact ⟨(hrp32 hj (by omega)).trans (hpool0 j hj).1,
-          (hrp32 hj (by omega)).trans (hpool0 j hj).2⟩)
-      (fun j hj => by
-        rw [hdb_e]
-        exact (hrp32 (show 3 * qEpochWhp n_max + j < 6 * qEpochWhp n_max + 6 by omega)
+      (fun i hi => ⟨(hrp32 hi (by omega)).trans (hqv0 i hi).1,
+        (hrp32 hi (by omega)).trans (hqv0 i hi).2⟩)
+      (fun b hb loc hl =>
+        (hrp32 (mul_add_lt_mul_bound hb hl) (by omega)).trans (hloc0 b hb loc hl))
+      (fun b hb => bktMeta_congr_of_readPacked
+        (fun k hk => hrp32 (show 16 * b + k < 16 * numBucketsWhp n_max by omega) (by omega))
+        (hbmeta0 b hb))
+      (fun b hb k hk =>
+        (hrp32 (mul_add_lt_mul_bound hb hk) (by omega)).trans (hbptr0 b hb k hk))
+      (fun j hj => ⟨(hrp32 hj (by omega)).trans (hpool0 j hj).1,
+        (hrp32 hj (by omega)).trans (hpool0 j hj).2⟩)
+      (fun j (hj : j < fs'.dirtyCount) =>
+        (hrp32 (show 3 * qEpochWhp n_max + j < 6 * qEpochWhp n_max + 6 by omega)
           (by omega)).trans (hdirty0 j (hj.trans_le hdc_sub)))⟩
 
 /-! ## Section 2: Bucket Scalar Metadata Accessors -/
@@ -289,14 +308,13 @@ private theorem bktField_realize_bounds {w base b field : ℕ} {cp : WhpCorePara
     ∃ N', w = wpW cp ∧ 0 < w ∧ wpGlobalPtrBits cp ≤ w ∧ 16 * b + field < N' ∧
       Fits w (base + wpOffBktMeta cp + packedWords N' (wpGlobalPtrBits cp) w) := by
   obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hb, hfield⟩ := h
-  have hw_eq := henv.2.2.1; subst hw_eq
+  obtain rfl := henv.2.2.1
   have hth := henv.2.2.2.1
   have h16M := sixteen_mul_numBuckets_le_n_max hth
   simp only [wp_large_M hth, wp_large_offBktMeta hth, wp_large_globalPtrBits hth,
     wp_large_w hth] at hb ⊢
   exact ⟨henv.fits_const (by decide), henv.fits_of_le_n_max (by omega),
-    by obtain ⟨N', _, h2, h3, h4, h5⟩ := henv.bktMeta_safe (idx := 16 * b + field) (by omega)
-       exact ⟨N', trivial, h2, h3, h4, h5⟩⟩
+    by simpa using henv.bktMeta_safe (idx := 16 * b + field) (by omega)⟩
 
 /-- Read bucket `b`'s scalar metadata field `field < 10` (`d = (((cp, base), b), field)`). -/
 @[expose, irreducible] def readBktFieldGenProg : ((WhpCoreParams × ℕ) × ℕ) × ℕ → Memory.Prog ℕ
@@ -312,8 +330,7 @@ theorem realizes_readBktFieldGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ field < 10)
       (fun _ _ => 0) := by
   unfold readBktFieldGenProg
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, field⟩
     obtain ⟨h16, hidx, hsafe⟩ := bktField_realize_bounds h
@@ -334,24 +351,25 @@ theorem readBktFieldGenProg_spec {c U V w n_max base b field : ℕ} {fs : FastSt
   have hw := henv.2.1
   have hbm_le := seg_add_le (base := base) (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.1
   have hidx : 16 * b + field < 16 * numBucketsWhp n_max := by omega
-  have hm := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 b hb
+  obtain ⟨_, _, _, _, _, _, _, _, _, _⟩ := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 b hb
   unfold readBktFieldGenProg
   simp only [wp_large_offBktMeta hth, wp_large_globalPtrBits hth, wp_large_w hth, pure_bind]
   refine ⟨rfl, ?_, rfl, validProg_readPacked hw hidx hbm_le⟩
   rw [clientResult_readPackedGen]
-  have hcases : field = 0 ∨ field = 1 ∨ field = 2 ∨ field = 3 ∨ field = 4 ∨
-      field = 5 ∨ field = 6 ∨ field = 7 ∨ field = 8 ∨ field = 9 := by omega
-  rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-  · exact hm.1
-  · exact hm.2.1
-  · exact hm.2.2.1
-  · exact hm.2.2.2.1
-  · exact hm.2.2.2.2.1
-  · exact hm.2.2.2.2.2.1
-  · exact hm.2.2.2.2.2.2.1
-  · exact hm.2.2.2.2.2.2.2.1
-  · exact hm.2.2.2.2.2.2.2.2.1
-  · exact hm.2.2.2.2.2.2.2.2.2
+  obtain rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl : field = 0 ∨ field = 1 ∨
+    field = 2 ∨ field = 3 ∨ field = 4 ∨ field = 5 ∨ field = 6 ∨ field = 7 ∨ field = 8 ∨
+    field = 9 := by omega
+  all_goals assumption
+
+/-- `readBktFieldGenProg_spec` packaged as a `CostBoundedStep`. -/
+theorem CostBoundedStep.readBkt {c U V w n_max base b field : ℕ} {fs : FastState}
+    {s : Memory.State} (henv : WhpLargeEnv c U V w n_max w base)
+    (hb : b < numBucketsWhp n_max) (hfield : field < 10)
+    (hrep : FastMemRep base c U V w n_max fs s.mem) :
+    CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (readBktFieldGenProg (((mkWhpCoreParams c U V w n_max, base), b), field)) s
+      (getBktField fs b field) 2 :=
+  .of (readBktFieldGenProg_spec henv hb hfield hrep)
 
 /-- Write bucket `b`'s scalar metadata field `field < 10`
 (`d = ((((cp, base), b), field), val)`). -/
@@ -369,8 +387,7 @@ theorem realizes_writeBktFieldGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ field < 10)
       (fun _ _ => 0) := by
   unfold writeBktFieldGenProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, field⟩, val⟩
     obtain ⟨h16, hidx, hsafe⟩ := bktField_realize_bounds h
@@ -401,11 +418,7 @@ theorem writeBktFieldGenProg_fastStep {c U V w n_max base b field val : ℕ}
   unfold writeBktFieldGenProg
   simp only [wp_large_offBktMeta hth, wp_large_globalPtrBits hth, wp_large_w hth, pure_bind]
   set m' := writePacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idxW val
-  have hs'_eq : (Memory.spec 0).clientState s
-      (writePackedGenProg
-        ((((base, offBktMeta c U V w n_max), (globalPtrBits n_max, w)), idxW), val)) =
-      { mem := m', frontier := s.frontier } := rfl
-  rw [hs'_eq]
+  rw [clientState_writePackedGen]
   have hout_bm : ∀ a, (a < base + offBktMeta c U V w n_max ∨
       base + offFbStart c U V w n_max ≤ a) → m' a = s.mem a :=
     fun a ha => writePacked_outside hw _ hidxW _ (by omega)
@@ -417,85 +430,58 @@ theorem writeBktFieldGenProg_fastStep {c U V w n_max base b field val : ℕ}
     intro b' _ k hk
     by_cases hbk : b' = b ∧ k = field
     · rcases hbk with ⟨rfl, rfl⟩
-      simp only [and_self, ↓reduceIte]
-      exact readPacked_writePacked_self _ _ _ s.mem idxW hval_g
+      simpa using readPacked_writePacked_self _ _ _ s.mem idxW hval_g
     · simp only [hbk, ↓reduceIte]
-      have hne : 16 * b' + k ≠ idxW := by
-        dsimp only [idxW]
-        intro heq
-        have h1 : b' * 16 + k = b * 16 + field := by omega
-        exact hbk (mul_add_inj_right (by omega : k < 16) (by omega : field < 16) h1)
-      exact readPacked_writePacked_of_ne hw s.mem hne val
-  rcases hrep with ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-    hqv0, hloc0, hbmeta0, hbptr0, hpool0, hsl0, hbuf0, hbuf1, hdirty0⟩
-  have hrep_orig : FastMemRep base c U V w n_max fs s.mem :=
-    ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-      hqv0, hloc0, hbmeta0, hbptr0, hpool0, hsl0, hbuf0, hbuf1, hdirty0⟩
+      refine readPacked_writePacked_of_ne hw s.mem (fun heq => hbk ?_) val
+      exact mul_add_inj_right (Nat.lt_of_lt_of_le hk (Nat.le_add_right 10 6))
+        (Nat.lt_of_lt_of_le hfield (Nat.le_add_right 10 6)) (by omega)
+  obtain ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
+    hqv0, hloc0, hbmeta0, hbptr0, hpool0, _, _, _, hdirty0⟩ := id hrep
   set fs' := setBktField fs b field val
   have hcases : field = 0 ∨ field = 1 ∨ field = 2 ∨ field = 3 ∨ field = 4 ∨
       field = 5 ∨ field = 6 ∨ field = 7 ∨ field = 8 ∨ field = 9 := by omega
+  let fs₁ : FastState :=
+    { fs with
+      bktCount := fs'.bktCount, bktSalt := fs'.bktSalt, liveRole := fs'.liveRole,
+      liveInsCount := fs'.liveInsCount, overmarsRole := fs'.overmarsRole,
+      overmarsActive := fs'.overmarsActive, overmarsCursor := fs'.overmarsCursor,
+      overmarsInsCount := fs'.overmarsInsCount, rebDoneFlag := fs'.rebDoneFlag,
+      rebQueued := fs'.rebQueued }
+  have hfs' : fs' = fs₁ := by
+    rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> rfl
   have hhdr_eq : ∀ h < 16, m' (base + h) = s.mem (base + h) :=
     fun h _ => hout_bm (base + h) (Or.inl (by omega))
-  have hunch :
-      fs'.slices = fs.slices ∧ fs'.buf = fs.buf ∧ fs'.dirtyCount = fs.dirtyCount ∧
-      fs'.poolFreeTop = fs.poolFreeTop ∧ fs'.curEp = fs.curEp ∧ fs'.epochClock = fs.epochClock ∧
-      fs'.rebStage = fs.rebStage ∧ fs'.stageCursor = fs.stageCursor ∧
-      fs'.dirtyIdx = fs.dirtyIdx ∧ fs'.rebCandSalt = fs.rebCandSalt ∧
-      fs'.rebScanCursor = fs.rebScanCursor ∧ fs'.rebInsCount = fs.rebInsCount ∧
-      fs'.rebCollision = fs.rebCollision ∧ fs'.quotArr = fs.quotArr ∧ fs'.valArr = fs.valArr ∧
-      fs'.locState = fs.locState ∧ fs'.backPtr = fs.backPtr ∧
-      fs'.poolFreeStack = fs.poolFreeStack ∧ fs'.poolOwner = fs.poolOwner ∧
-      fs'.dirtyBuckets = fs.dirtyBuckets := by
-    rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-      simp [fs', setBktField]
-  rcases hunch with ⟨hsl_e, hbf_e, hdc_e, hpft_e, hce_e, hec_e, hrs_e, hsc_e, hdi_e, hrcs_e,
-    hrsc_e, hric_e, hrcl_e, hq_e, hv_e, hls_e, hbp_e, hps_e, hpo_e, hdb_e⟩
-  refine ⟨rfl, validProg_writePacked hw hgk hidxW hbm_le,
-    fastStep_nonSliceNonBuf hw rfl hseed hrep_orig hsl_e hbf_e
+  have hlo : ∀ {off N k idx}, idx < N → off + packedWords N k w ≤ offBktMeta c U V w n_max →
+      readPacked (base + off) k w m' idx = readPacked (base + off) k w s.mem idx :=
+    fun hidx _ => readPacked_congr hw (hidx := hidx) fun a ⟨_, _⟩ => hout_bm a (Or.inl (by omega))
+  have hhi : ∀ {off N k idx}, idx < N → offFbStart c U V w n_max ≤ off →
+      readPacked (base + off) k w m' idx = readPacked (base + off) k w s.mem idx :=
+    fun hidx _ => readPacked_congr hw (hidx := hidx) fun a ⟨_, _⟩ => hout_bm a (Or.inr (by omega))
+  refine ⟨rfl, validProg_writePacked hw hgk hidxW hbm_le, hfs' ▸
+    fastStep_nonSliceNonBuf hw rfl hseed hrep rfl rfl
       (fun a ha => hout_bm a (by rcases ha with h1 | ⟨_, h2⟩ | ⟨h3, _⟩ | h4 <;> omega))
-      (fun idx _ h10 => readPacked_writePacked_of_ne hw s.mem (by dsimp [idxW]; omega) val)
-      (fun id hid => readPacked_congr hw (hidx := show id < 6 * qEpochWhp n_max + 6 by omega)
-        fun a ⟨ha1, _⟩ => hout_bm a (Or.inr (by omega)))
-      (hdc_e ▸ hdc_le0)
-      ⟨(hhdr_eq hdrMode (by decide)).trans hm0,
-       (hhdr_eq hdrPoolFreeTop (by decide)).trans (hpft_e ▸ hm1),
-       (hhdr_eq hdrCurEp (by decide)).trans (hce_e ▸ hm2),
-       (hhdr_eq hdrEpochClock (by decide)).trans (hec_e ▸ hm3),
-       (hhdr_eq hdrRebStage (by decide)).trans (hrs_e ▸ hm4),
-       (hhdr_eq hdrStageCursor (by decide)).trans (hsc_e ▸ hm5),
-       (hhdr_eq hdrDirtyCount (by decide)).trans (hdc_e ▸ hm6),
-       (hhdr_eq hdrDirtyIdx (by decide)).trans (hdi_e ▸ hm7),
-       (hhdr_eq hdrRebCandSalt (by decide)).trans (hrcs_e ▸ hm8),
-       (hhdr_eq hdrRebScanCursor (by decide)).trans (hrsc_e ▸ hm9),
-       (hhdr_eq hdrRebInsCount (by decide)).trans (hric_e ▸ hm10),
-       (hhdr_eq hdrRebCollision (by decide)).trans (hrcl_e ▸ hm11)⟩
-      (fun i hi => by
-        rw [hq_e, hv_e]
-        exact ⟨(readPacked_congr hw (hidx := hi) fun a ⟨_, ha2⟩ =>
-            hout_bm a (Or.inl (by omega))).trans (hqv0 i hi).1,
-          (readPacked_congr hw (hidx := hi) fun a ⟨_, ha2⟩ =>
-            hout_bm a (Or.inl (by omega))).trans (hqv0 i hi).2⟩)
-      (fun b' hb' loc hl => by
-        rw [hls_e]
-        exact (readPacked_congr hw (hidx := mul_add_lt_mul_bound hb' hl) fun a ⟨_, ha2⟩ =>
-          hout_bm a (Or.inl (by omega))).trans (hloc0 b' hb' loc hl))
+      (fun _ _ _ => readPacked_writePacked_of_ne hw s.mem (by dsimp [idxW]; omega) val)
+      (fun id hid => hhi (show id < 6 * qEpochWhp n_max + 6 by omega) (by omega))
+      hdc_le0
+      ⟨(hhdr_eq _ (by decide)).trans hm0, (hhdr_eq _ (by decide)).trans hm1,
+        (hhdr_eq _ (by decide)).trans hm2, (hhdr_eq _ (by decide)).trans hm3,
+        (hhdr_eq _ (by decide)).trans hm4, (hhdr_eq _ (by decide)).trans hm5,
+        (hhdr_eq _ (by decide)).trans hm6, (hhdr_eq _ (by decide)).trans hm7,
+        (hhdr_eq _ (by decide)).trans hm8, (hhdr_eq _ (by decide)).trans hm9,
+        (hhdr_eq _ (by decide)).trans hm10, (hhdr_eq _ (by decide)).trans hm11⟩
+      (fun i hi => ⟨(hlo hi (by omega)).trans (hqv0 i hi).1,
+        (hlo hi (by omega)).trans (hqv0 i hi).2⟩)
+      (fun b' hb' loc hl =>
+        (hlo (mul_add_lt_mul_bound hb' hl) (by omega)).trans (hloc0 b' hb' loc hl))
       (fun b' hb' => ?_)
-      (fun b' hb' k hk => by
-        rw [hbp_e]
-        exact (readPacked_congr hw (hidx := mul_add_lt_mul_bound hb' hk) fun a ⟨ha1, _⟩ =>
-          hout_bm a (Or.inr (by omega))).trans (hbptr0 b' hb' k hk))
-      (fun j hj => by
-        rw [hps_e, hpo_e]
-        exact ⟨(readPacked_congr hw (hidx := hj) fun a ⟨ha1, _⟩ =>
-            hout_bm a (Or.inr (by omega))).trans (hpool0 j hj).1,
-          (readPacked_congr hw (hidx := hj) fun a ⟨ha1, _⟩ =>
-            hout_bm a (Or.inr (by omega))).trans (hpool0 j hj).2⟩)
-      (fun j hj => by
-        rw [hdc_e] at hj; rw [hdb_e]
-        exact (readPacked_congr hw (hidx :=
-          show 3 * qEpochWhp n_max + j < 6 * qEpochWhp n_max + 6 by omega)
-          fun a ⟨ha1, _⟩ => hout_bm a (Or.inr (by omega))).trans (hdirty0 j hj))⟩
-  dsimp only
+      (fun b' hb' k hk =>
+        (hhi (mul_add_lt_mul_bound hb' hk) (by omega)).trans (hbptr0 b' hb' k hk))
+      (fun j hj => ⟨(hhi hj (by omega)).trans (hpool0 j hj).1,
+        (hhi hj (by omega)).trans (hpool0 j hj).2⟩)
+      (fun j (hj : j < fs.dirtyCount) =>
+        (hhi (show 3 * qEpochWhp n_max + j < 6 * qEpochWhp n_max + 6 by omega)
+          (by omega)).trans (hdirty0 j hj))⟩
+  dsimp only [fs₁]
   obtain ⟨r0, r1, r2, r3, r4, r5, r6, r7, r8, r9⟩ := hbmeta0 b' hb'
   rw [hrp_at b' hb' 0 (by decide), hrp_at b' hb' 1 (by decide), hrp_at b' hb' 2 (by decide),
     hrp_at b' hb' 3 (by decide), hrp_at b' hb' 4 (by decide), hrp_at b' hb' 5 (by decide),
@@ -526,8 +512,7 @@ theorem realizes_readDirtyBucketGen :
       (fun w ((cp, base), j) _ => WhpLargeEnvGen w cp base ∧ j < wpQEpoch cp)
       (fun _ _ => 0) := by
   unfold readDirtyBucketGenProg
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, j⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hj⟩ := h
@@ -582,10 +567,7 @@ theorem realizes_pushDirtyBucketGen :
         WhpLargeEnvGen w cp base ∧ s.mem (base + hdrDirtyCount) < wpQEpoch cp)
       (fun _ _ => 0) := by
   unfold pushDirtyBucketGenProg
-  have hrh := realizes_readHdr
-  have hwp := realizes_writePackedGen
-  have hwh := realizes_writeHdr
-  realize
+  realize [realizes_readHdr, realizes_writePackedGen, realizes_writeHdr]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hdc_lt⟩ := h
@@ -593,8 +575,8 @@ theorem realizes_pushDirtyBucketGen :
     have hth := henv.2.2.2.1
     have h6q := (large_index_bounds hth).2.2.2.2.2
     have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
-    obtain ⟨hrh_st, hrh_res, _, _⟩ := readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-      (n_max := n_max) (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)
+    obtain ⟨hrh_st, hrh_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)
     simp only [hrh_st, hrh_res] at *
     simp only [wp_large_qEpoch hth, wp_large_offTrieItems0 hth, wp_large_globalPtrBits hth,
       wp_large_w hth] at hdc_lt ⊢
@@ -630,59 +612,26 @@ theorem pushDirtyBucketGenProg_fastStep {c U V w n_max base b : ℕ}
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   have hb_g : b < 2 ^ globalPtrBits n_max :=
     lt_two_pow_globalPtrBits_of_le_n_max (hb.le.trans henv.numBuckets_le_n_max)
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-  rcases hrep with ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-    hqv0, hloc0, hbmeta0, hbptr0, hpool0, hsl0, hbuf0, hbuf1, hdirty0⟩
-  have hrep_orig : FastMemRep base c U V w n_max fs s.mem :=
-    ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-      hqv0, hloc0, hbmeta0, hbptr0, hpool0, hsl0, hbuf0, hbuf1, hdirty0⟩
-  obtain ⟨hrh_st, hrh_res, hrh_mc, hrh_vp⟩ := readHdrProg_large_spec (c := c) (U := U) (V := V)
-    (w := w) (n_max := n_max) (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
+  obtain ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
+    hqv0, hloc0, hbmeta0, hbptr0, hpool0, _, _, _, hdirty0⟩ := id hrep
+  have hR := ReadSpec.of (readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)) hm6
   set idxW := 3 * qEpochWhp n_max + fs.dirtyCount
   have hidxW : idxW < 6 * qEpochWhp n_max + 6 := by omega
   set m1 := writePacked (base + offTrieItems0 c U V w n_max) (globalPtrBits n_max) w s.mem idxW b
   set m2 := Function.update m1 (base + hdrDirtyCount) (fs.dirtyCount + 1)
-  have hwh_vp : ValidProg w (base + largeSpaceWhp c U V w n_max)
-      { mem := m1, frontier := s.frontier }
-      (writeHdrProg ((base, hdrDirtyCount), fs.dirtyCount + 1)) := by
-    unfold writeHdrProg; simp only [pure_bind]
-    exact validProg_write (by dsimp [hdrDirtyCount]; omega) (henv.fits_of_le_n_max (by omega))
-  unfold pushDirtyBucketGenProg
+  unfold pushDirtyBucketGenProg writeHdrProg
   simp only [wp_large_qEpoch hth, wp_large_offTrieItems0 hth, wp_large_globalPtrBits hth,
     wp_large_w hth, pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (readHdrProg (base, hdrDirtyCount) >>= fun dc =>
-        writePackedGenProg
-          ((((base, offTrieItems0 c U V w n_max), (globalPtrBits n_max, w)),
-            3 * qEpochWhp n_max + dc), b) >>= fun _ =>
-        writeHdrProg ((base, hdrDirtyCount), dc + 1)) =
-      { mem := m2, frontier := s.frontier } := by
-    rw [clientState_bind, hrh_st, hrh_res, hm6, clientState_bind,
-      clientState_writePackedGen]
-    unfold writeHdrProg
-    simp only [pure_bind]
-    rfl
-  have hmc_eq : memoryCost
-      (readHdrProg (base, hdrDirtyCount) >>= fun dc =>
-        writePackedGenProg
-          ((((base, offTrieItems0 c U V w n_max), (globalPtrBits n_max, w)),
-            3 * qEpochWhp n_max + dc), b) >>= fun _ =>
-        writeHdrProg ((base, hdrDirtyCount), dc + 1)) s = 6 := by
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hrh_st, hrh_res, hrh_mc, hm6, clientState_writePackedGen, memoryCost_writePackedGen]
-    unfold writeHdrProg
-    simp only [pure_bind, memoryCost_memRead_and_write.2]
-  have hvp_all : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-      (readHdrProg (base, hdrDirtyCount) >>= fun dc =>
-        writePackedGenProg
-          ((((base, offTrieItems0 c U V w n_max), (globalPtrBits n_max, w)),
-            3 * qEpochWhp n_max + dc), b) >>= fun _ =>
-        writeHdrProg ((base, hdrDirtyCount), dc + 1)) := by
-    refine validProg_bind hrh_vp ?_
-    rw [hrh_st, hrh_res, hm6]
-    exact validProg_bind (validProg_writePacked hw hgk hidxW
-      (dirtyBuckets_seg_le c U V w n_max base)) hwh_vp
-  rw [hs'_eq]
+  rw [(hR.bind_eq _).1, (hR.bind_eq _).2.2.1, memoryCost_bind', clientState_writePackedGen,
+    memoryCost_writePackedGen, memoryCost_memRead_and_write.2, clientState_bind,
+    clientState_writePackedGen]
+  refine ⟨rfl, (hR.bind_eq _).2.2.2 (validProg_bind (validProg_writePacked hw hgk hidxW
+      (dirtyBuckets_seg_le c U V w n_max base))
+    (validProg_write (by dsimp [hdrDirtyCount]; omega)
+      (henv.fits_of_le_n_max (by omega)))), ?_⟩
+  change FastStateStep base c U V w n_max θ _ s { mem := m2, frontier := s.frontier }
   have hout_m2 : ∀ a, a ≠ base + hdrDirtyCount →
       (a < base + offTrieItems0 c U V w n_max ∨ base + offTrieItems1 c U V w n_max ≤ a) →
       m2 a = s.mem a := fun a hne ha =>
@@ -692,38 +641,25 @@ theorem pushDirtyBucketGenProg_fastStep {c U V w n_max base b : ℕ}
       readPacked (base + off) k w m2 idx = readPacked (base + off) k w s.mem idx :=
     fun hidx h32 hhi => readPacked_congr hw (hidx := hidx) fun a ⟨ha1, ha2⟩ =>
       hout_m2 a (by dsimp [hdrDirtyCount]; omega) (Or.inl (by omega))
-  have hne_dc : ∀ k < 12, k ≠ 6 → base + k ≠ base + hdrDirtyCount := by
-    dsimp only [hdrDirtyCount]; omega
-  refine ⟨hmc_eq, hvp_all,
-    fastStep_nonSliceNonBuf hw rfl hseed hrep_orig rfl rfl
+  have hhdr : ∀ k < 12, k ≠ 6 → m2 (base + k) = s.mem (base + k) := fun k hk h6 =>
+    hout_m2 _ (by dsimp only [hdrDirtyCount]; omega) (Or.inl (by omega))
+  have hupd_rp : ∀ idx < 6 * qEpochWhp n_max + 6,
+      readPacked (base + offTrieItems0 c U V w n_max) (globalPtrBits n_max) w m2 idx =
+      readPacked (base + offTrieItems0 c U V w n_max) (globalPtrBits n_max) w m1 idx :=
+    fun idx hidx => readPacked_update_outside hw hidx (Or.inl (by dsimp [hdrDirtyCount]; omega))
+  refine fastStep_nonSliceNonBuf hw rfl hseed hrep rfl rfl
       (fun a ha => hout_m2 a (by dsimp [hdrDirtyCount]; rcases ha with h | h | h | h <;> omega)
         (by rcases ha with h | h | h | h <;> omega))
       (fun idx hidx _ => hrp_pre hidx (by omega) (by omega))
-      (fun id hid => ?_)
+      (fun id hid => (hupd_rp id (by omega)).trans
+        (readPacked_writePacked_of_ne hw s.mem (by dsimp [idxW]; omega) b))
       (by dsimp only; omega)
-      ⟨(hout_m2 _ (hne_dc hdrMode (by decide) (by decide))
-          (Or.inl (by dsimp [hdrMode]; omega))).trans hm0,
-       (hout_m2 _ (hne_dc hdrPoolFreeTop (by decide) (by decide))
-          (Or.inl (by dsimp [hdrPoolFreeTop]; omega))).trans hm1,
-       (hout_m2 _ (hne_dc hdrCurEp (by decide) (by decide))
-          (Or.inl (by dsimp [hdrCurEp]; omega))).trans hm2,
-       (hout_m2 _ (hne_dc hdrEpochClock (by decide) (by decide))
-          (Or.inl (by dsimp [hdrEpochClock]; omega))).trans hm3,
-       (hout_m2 _ (hne_dc hdrRebStage (by decide) (by decide))
-          (Or.inl (by dsimp [hdrRebStage]; omega))).trans hm4,
-       (hout_m2 _ (hne_dc hdrStageCursor (by decide) (by decide))
-          (Or.inl (by dsimp [hdrStageCursor]; omega))).trans hm5,
-       Function.update_self _ _ _,
-       (hout_m2 _ (hne_dc hdrDirtyIdx (by decide) (by decide))
-          (Or.inl (by dsimp [hdrDirtyIdx]; omega))).trans hm7,
-       (hout_m2 _ (hne_dc hdrRebCandSalt (by decide) (by decide))
-          (Or.inl (by dsimp [hdrRebCandSalt]; omega))).trans hm8,
-       (hout_m2 _ (hne_dc hdrRebScanCursor (by decide) (by decide))
-          (Or.inl (by dsimp [hdrRebScanCursor]; omega))).trans hm9,
-       (hout_m2 _ (hne_dc hdrRebInsCount (by decide) (by decide))
-          (Or.inl (by dsimp [hdrRebInsCount]; omega))).trans hm10,
-       (hout_m2 _ (hne_dc hdrRebCollision (by decide) (by decide))
-          (Or.inl (by dsimp [hdrRebCollision]; omega))).trans hm11⟩
+      ⟨(hhdr _ (by decide) (by decide)).trans hm0, (hhdr _ (by decide) (by decide)).trans hm1,
+        (hhdr _ (by decide) (by decide)).trans hm2, (hhdr _ (by decide) (by decide)).trans hm3,
+        (hhdr _ (by decide) (by decide)).trans hm4, (hhdr _ (by decide) (by decide)).trans hm5,
+        Function.update_self _ _ _, (hhdr _ (by decide) (by decide)).trans hm7,
+        (hhdr _ (by decide) (by decide)).trans hm8, (hhdr _ (by decide) (by decide)).trans hm9,
+        (hhdr _ (by decide) (by decide)).trans hm10, (hhdr _ (by decide) (by decide)).trans hm11⟩
       (fun i hi => ⟨(hrp_pre hi (by omega) (by omega)).trans (hqv0 i hi).1,
         (hrp_pre hi (by omega) (by omega)).trans (hqv0 i hi).2⟩)
       (fun b' hb' loc hl =>
@@ -736,22 +672,16 @@ theorem pushDirtyBucketGenProg_fastStep {c U V w n_max base b : ℕ}
         (hrp_pre (mul_add_lt_mul_bound hb' hk) (by omega) (by omega)).trans (hbptr0 b' hb' k hk))
       (fun j hj => ⟨(hrp_pre hj (by omega) (by omega)).trans (hpool0 j hj).1,
         (hrp_pre hj (by omega) (by omega)).trans (hpool0 j hj).2⟩)
-      (fun j hj => ?_)⟩
-  · dsimp only [m2, m1]
-    rw [readPacked_update_outside hw (show id < 6 * qEpochWhp n_max + 6 by omega)
-      (Or.inl (by dsimp [hdrDirtyCount]; omega))]
-    exact readPacked_writePacked_of_ne hw s.mem (by dsimp [idxW]; omega) b
-  · dsimp only [m2, m1] at hj ⊢
-    rw [readPacked_update_outside hw
-      (show 3 * qEpochWhp n_max + j < 6 * qEpochWhp n_max + 6 by omega)
-      (Or.inl (by dsimp [hdrDirtyCount]; omega))]
-    by_cases hjd : j = fs.dirtyCount
-    · subst hjd
-      simp only [Function.update_self]
-      exact readPacked_writePacked_self _ _ _ s.mem idxW hb_g
-    · simp only [Function.update_of_ne hjd]
-      exact (readPacked_writePacked_of_ne hw s.mem (by dsimp [idxW]; omega) b).trans
-        (hdirty0 j (by omega))
+      (fun j hj => ?_)
+  dsimp only at hj ⊢
+  rw [hupd_rp _ (by omega)]
+  by_cases hjd : j = fs.dirtyCount
+  · subst hjd
+    simp only [Function.update_self]
+    exact readPacked_writePacked_self _ _ _ s.mem idxW hb_g
+  · simp only [Function.update_of_ne hjd]
+    exact (readPacked_writePacked_of_ne hw s.mem (by dsimp [idxW]; omega) b).trans
+      (hdirty0 j (by omega))
 
 /-! ## Section 4: Control-Predicate and Composite Header/Bucket Helpers -/
 
@@ -800,35 +730,10 @@ theorem inLiveTreeProg_spec {w F rebStage oldEp rebDoneB st : ℕ} {s : Memory.S
       (if inLiveTree rebStage oldEp rebDoneB st then 1 else 0) ∧
     memoryCost prog s = 0 ∧
     ValidProg w F s prog := by
-  have hin : (inLiveTree rebStage oldEp rebDoneB st = true) ↔
-      (st = 1 ∨ (st = 2 + oldEp ∧ ((rebStage = 2 ∧ rebDoneB = 1) ∨ rebStage = 3))) := by
-    unfold inLiveTree
-    simp only [Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq]
   dsimp only
-  simp only [hin]
   unfold inLiveTreeProg
   simp only [pure_bind]
-  by_cases h1 : st = 1
-  · subst h1
-    simp only [↓reduceIte, true_or]
-    exact ⟨rfl, rfl, rfl, validProg_pure _⟩
-  · simp only [h1, ↓reduceIte, false_or]
-    by_cases ho : st = 2 + oldEp
-    · simp only [ho, ↓reduceIte, true_and]
-      by_cases hs3 : rebStage = 3
-      · subst hs3
-        simp only [↓reduceIte, or_true]
-        exact ⟨rfl, rfl, rfl, validProg_pure _⟩
-      · simp only [hs3, ↓reduceIte, or_false]
-        by_cases hs2 : rebStage = 2
-        · subst hs2
-          simp only [↓reduceIte, true_and]
-          by_cases hd1 : rebDoneB = 1 <;>
-            (simp only [hd1, ↓reduceIte]; exact ⟨rfl, rfl, rfl, validProg_pure _⟩)
-        · simp only [hs2, ↓reduceIte, false_and]
-          exact ⟨rfl, rfl, rfl, validProg_pure _⟩
-    · simp only [ho, ↓reduceIte, false_and]
-      exact ⟨rfl, rfl, rfl, validProg_pure _⟩
+  split_ifs <;> refine ⟨rfl, ?_, rfl, validProg_pure _⟩ <;> simp_all [inLiveTree]
 
 /-- Check `rebActiveB` for bucket `b` (`d = ((cp, base), b)`), returning `1` or `0`. -/
 @[irreducible] def readRebActiveBGenProg : (WhpCoreParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -864,39 +769,20 @@ theorem realizes_readRebActiveBGen :
         WhpLargeEnvGen w cp base ∧ s.mem (base + hdrDirtyCount) ≤ wpQEpoch cp)
       (fun _ _ => 0) := by
   unfold readRebActiveBGenProg
-  have hrh := realizes_readHdr
-  have hrd := realizes_readDirtyBucketGen
-  realize
+  realize [realizes_readHdr, realizes_readDirtyBucketGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hdc_le⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
-    have hcs_h : ∀ off < 32, ∀ s',
-        (Memory.spec 0).clientState s' (readHdrProg (base, off)) = s' :=
-      fun off hoff s' => (readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-        (n_max := n_max) (s := s') hoff).1
-    have hcr_h : ∀ off < 32, ∀ s',
-        (Memory.spec 0).clientResult s' (readHdrProg (base, off)) = s'.mem (base + off) :=
-      fun off hoff s' => (readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-        (n_max := n_max) (s := s') hoff).2.1
-    have hcs4 := hcs_h hdrRebStage (by decide)
-    have hcr4 := hcr_h hdrRebStage (by decide)
-    have hcs6 := hcs_h hdrDirtyCount (by decide)
-    have hcr6 := hcr_h hdrDirtyCount (by decide)
-    have hcs7 := hcs_h hdrDirtyIdx (by decide)
-    have hcr7 := hcr_h hdrDirtyIdx (by decide)
-    have hcs8 := hcs_h hdrRebCandSalt (by decide)
-    have hcr8 := hcr_h hdrRebCandSalt (by decide)
-    have hcs11 := hcs_h hdrRebCollision (by decide)
-    have hcr11 := hcr_h hdrRebCollision (by decide)
-    simp only [hcs4, hcr4] at *
-    simp only [hcs6, hcr6] at *
-    simp only [hcs7, hcr7] at *
-    simp only [hcs8, hcr8] at *
-    simp only [hcs11, hcr11] at *
-    simp only [wp_large_qEpoch hth] at *
+    have hcs (off) (hoff : off < 32) (s') := (readHdrProg_large_spec c U V w n_max
+      (base := base) (s := s') hoff).1
+    have hcr (off) (hoff : off < 32) (s') := (readHdrProg_large_spec c U V w n_max
+      (base := base) (s := s') hoff).2.1
+    simp only [hcs hdrRebStage (by decide), hcr hdrRebStage (by decide),
+      hcs hdrDirtyCount (by decide), hcr hdrDirtyCount (by decide),
+      hcs hdrDirtyIdx (by decide), hcr hdrDirtyIdx (by decide), wp_large_qEpoch hth] at *
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by decide)
@@ -918,111 +804,29 @@ theorem readRebActiveBGenProg_spec {c U V w n_max base b : ℕ} {fs : FastState}
     memoryCost prog s ≤ 7 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have hth := henv.2.2.2.1
-  rcases hrep with ⟨hdc_le, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-    hqv, hloc, hbmeta, hbptr, hpool, hsl, hbuf0, hbuf1, hdirty⟩
-  have hrep_orig : FastMemRep base c U V w n_max fs s.mem :=
-    ⟨hdc_le, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-      hqv, hloc, hbmeta, hbptr, hpool, hsl, hbuf0, hbuf1, hdirty⟩
-  obtain ⟨hst4, hres4, hmc4, hvp4⟩ := readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-    (n_max := n_max) (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
-  obtain ⟨hst7, hres7, hmc7, hvp7⟩ := readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-    (n_max := n_max) (base := base) (hdrOff := hdrDirtyIdx) (s := s) (by decide)
-  obtain ⟨hst6, hres6, hmc6, hvp6⟩ := readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-    (n_max := n_max) (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)
-  obtain ⟨hst8, hres8, hmc8, hvp8⟩ := readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-    (n_max := n_max) (base := base) (hdrOff := hdrRebCandSalt) (s := s) (by decide)
-  obtain ⟨hst11, hres11, hmc11, hvp11⟩ := readHdrProg_large_spec (c := c) (U := U) (V := V)
-    (w := w) (n_max := n_max) (base := base) (hdrOff := hdrRebCollision) (s := s) (by decide)
+  obtain ⟨_, _, _, _, _, hm4, _, hm6, hm7, hm8, _, _, hm11, _⟩ := id hrep
+  have hR {off v : ℕ} (hoff : off < 32) (hv : s.mem (base + off) = v) :=
+    ReadSpec.of (readHdrProg_large_spec c U V w n_max
+      (base := base) (s := s) hoff) hv
   dsimp only
   unfold readRebActiveBGenProg
   simp only [wp_large_sMax hth, pure_bind]
   by_cases hs2 : fs.rebStage = 2
   · by_cases hdi : fs.dirtyIdx < fs.dirtyCount
-    · obtain ⟨hdb_st, hdb_res, hdb_mc, hdb_vp⟩ :=
-        readDirtyBucketGenProg_spec henv hdi hrep_orig (s := s)
+    · have hdb_r := ReadSpec.of (readDirtyBucketGenProg_spec henv hdi hrep (s := s)) rfl
       by_cases hdb : fs.dirtyBuckets fs.dirtyIdx = b
-      · refine ⟨?_, ?_, ?_, ?_⟩
-        · rw [clientState_bind, hst4, hres4, hm4]; simp only [hs2, ↓reduceIte]
-          rw [clientState_bind, hst7, hres7, hm7, clientState_bind, hst6, hres6, hm6]
-          simp only [hdi, ↓reduceIte]
-          rw [clientState_bind, hdb_st, hdb_res]; simp only [hdb, ↓reduceIte]
-          rw [clientState_bind, hst8, hres8, hm8, clientState_bind, hst11, hres11, hm11]
-          split_ifs <;> rfl
-        · rw [clientResult_bind, hst4, hres4, hm4, ite_eq_left hs2,
-            clientResult_bind, hst7, hres7, hm7, clientResult_bind, hst6, hres6, hm6,
-            ite_eq_left hdi, clientResult_bind, hdb_st, hdb_res, ite_eq_left hdb,
-            clientResult_bind, hst8, hres8, hm8, clientResult_bind, hst11, hres11, hm11]
-          by_cases hcs : fs.rebCandSalt < sMaxWhp c n_max
-          · rw [ite_eq_left hcs]
-            by_cases hcl : fs.rebCollision = 0
-            · rw [ite_eq_left hcl, decide_eq_true ⟨hs2, hdi, hdb, hcs, hcl⟩]; rfl
-            · rw [ite_eq_right hcl, decide_eq_false (fun h => hcl h.2.2.2.2)]; rfl
-          · rw [ite_eq_right hcs, decide_eq_false (fun h => hcs h.2.2.2.1)]; rfl
-        · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-          rw [hst4, hres4, hmc4, hm4]; simp only [hs2, ↓reduceIte, memoryCost_bind]
-          rw [hst7, hres7, hmc7, hm7, hst6, hres6, hmc6, hm6]
-          simp only [hdi, ↓reduceIte, memoryCost_bind]
-          rw [hdb_st, hdb_res, hdb_mc]; simp only [hdb, ↓reduceIte, memoryCost_bind]
-          rw [hst8, hres8, hmc8, hm8, hst11, hres11, hmc11, hm11]
-          split_ifs <;> simp
-        · refine validProg_bind hvp4 ?_
-          rw [hst4, hres4, hm4]; simp only [hs2, ↓reduceIte]
-          refine validProg_bind hvp7 ?_
-          rw [hst7, hres7, hm7]
-          refine validProg_bind hvp6 ?_
-          rw [hst6, hres6, hm6]; simp only [hdi, ↓reduceIte]
-          refine validProg_bind hdb_vp ?_
-          rw [hdb_st, hdb_res]; simp only [hdb, ↓reduceIte]
-          refine validProg_bind hvp8 ?_
-          rw [hst8]
-          refine validProg_bind hvp11 ?_
-          rw [hst11]
-          split_ifs <;> exact validProg_pure _
-      · refine ⟨?_, ?_, ?_, ?_⟩
-        · rw [clientState_bind, hst4, hres4, hm4]; simp only [hs2, ↓reduceIte]
-          rw [clientState_bind, hst7, hres7, hm7, clientState_bind, hst6, hres6, hm6]
-          simp only [hdi, ↓reduceIte]
-          rw [clientState_bind, hdb_st, hdb_res, ite_eq_right hdb]; rfl
-        · rw [clientResult_bind, hst4, hres4, hm4]; simp only [hs2, ↓reduceIte]
-          rw [clientResult_bind, hst7, hres7, hm7, clientResult_bind, hst6, hres6, hm6]
-          simp only [hdi, ↓reduceIte]
-          rw [clientResult_bind, hdb_st, hdb_res, ite_eq_right hdb]; simp [hdb]
-        · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-          rw [hst4, hres4, hmc4, hm4]; simp only [hs2, ↓reduceIte, memoryCost_bind]
-          rw [hst7, hres7, hmc7, hm7, hst6, hres6, hmc6, hm6]
-          simp only [hdi, ↓reduceIte, memoryCost_bind]
-          rw [hdb_st, hdb_res, hdb_mc, ite_eq_right hdb]; simp
-        · refine validProg_bind hvp4 ?_
-          rw [hst4, hres4, hm4]; simp only [hs2, ↓reduceIte]
-          refine validProg_bind hvp7 ?_
-          rw [hst7, hres7, hm7]
-          refine validProg_bind hvp6 ?_
-          rw [hst6, hres6, hm6]; simp only [hdi, ↓reduceIte]
-          refine validProg_bind hdb_vp ?_
-          rw [hdb_st, hdb_res, ite_eq_right hdb]; exact validProg_pure _
-    · refine ⟨?_, ?_, ?_, ?_⟩
-      · rw [clientState_bind, hst4, hres4, hm4]; simp only [hs2, ↓reduceIte]
-        rw [clientState_bind, hst7, hres7, hm7, clientState_bind, hst6, hres6, hm6,
-          ite_eq_right hdi]; rfl
-      · rw [clientResult_bind, hst4, hres4, hm4]; simp only [hs2, ↓reduceIte]
-        rw [clientResult_bind, hst7, hres7, hm7, clientResult_bind, hst6, hres6, hm6,
-          ite_eq_right hdi]; simp [hdi]
-      · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hst4, hres4, hmc4, hm4]; simp only [hs2, ↓reduceIte, memoryCost_bind]
-        rw [hst7, hres7, hmc7, hm7, hst6, hres6, hmc6, hm6, ite_eq_right hdi]; simp
-      · refine validProg_bind hvp4 ?_
-        rw [hst4, hres4, hm4]; simp only [hs2, ↓reduceIte]
-        refine validProg_bind hvp7 ?_
-        rw [hst7, hres7, hm7]
-        refine validProg_bind hvp6 ?_
-        rw [hst6, hres6, hm6, ite_eq_right hdi]; exact validProg_pure _
-  · refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hst4, hres4, hm4, ite_eq_right hs2]; rfl
-    · rw [clientResult_bind, hst4, hres4, hm4, ite_eq_right hs2]; simp [hs2]
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst4, hres4, hmc4, hm4, ite_eq_right hs2]; simp
-    · refine validProg_bind hvp4 ?_
-      rw [hst4, hres4, hm4, ite_eq_right hs2]; exact validProg_pure _
+      · exact ReadSpec.toAnd_le ((hR (by decide) hm4).bind <| .if_pos hs2 <|
+          (hR (by decide) hm7).bind <| (hR (by decide) hm6).bind <| .if_pos hdi <|
+          hdb_r.bind <| .if_pos hdb <| (hR (by decide) hm8).bind <| (hR (by decide) hm11).bind <|
+          .ite (.ite (.pure 1) (.pure 0)) (.pure 0)) (by simp [hs2, hdi, hdb, ite_and]) le_rfl
+      · exact ReadSpec.toAnd_le ((hR (by decide) hm4).bind <| .if_pos hs2 <|
+          (hR (by decide) hm7).bind <| (hR (by decide) hm6).bind <| .if_pos hdi <|
+          hdb_r.bind <| .if_neg hdb <| .pure 0) (by simp [hdb]) (by omega)
+    · exact ReadSpec.toAnd_le ((hR (by decide) hm4).bind <| .if_pos hs2 <|
+        (hR (by decide) hm7).bind <| (hR (by decide) hm6).bind <| .if_neg hdi <| .pure 0)
+        (by simp [hdi]) (by omega)
+  · exact ReadSpec.toAnd_le ((hR (by decide) hm4).bind <| .if_neg hs2 <| .pure 0)
+      (by simp [hs2]) (by omega)
 
 /-- Read `fs.oldEp = 1 - fs.curEp` from `mem[base + hdrCurEp]`. -/
 @[irreducible] def readOldEpProg (base : ℕ) : Memory.Prog ℕ := do
@@ -1038,8 +842,7 @@ theorem realizes_readOldEp :
       (fun w base _ => 2 ≤ w ∧ Fits w (base + hdrCurEp))
       (fun _ _ => 0) := by
   unfold readOldEpProg
-  have hrh := realizes_readHdr
-  realize
+  realize [realizes_readHdr]
   all_goals (
     obtain ⟨hw2, hfit⟩ := h
     first
@@ -1058,19 +861,10 @@ theorem readOldEpProg_spec {w F base : ℕ} {fs : FastState} {s : Memory.State}
     (Memory.spec 0).clientResult s prog = fs.oldEp ∧
     memoryCost prog s = 1 ∧
     ValidProg w F s prog := by
-  obtain ⟨hst, hres, hmc, hvp⟩ := readHdrProg_spec (w := w) (F := F) ha (s := s)
-  rw [hm2] at hres
   unfold readOldEpProg
   simp only [pure_bind]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hst]; split_ifs <;> rfl
-  · rw [clientResult_bind, hst, hres]
-    rcases hce_or with h0 | h1
-    · simp [FastState.oldEp, h0]
-    · simp [FastState.oldEp, h1]
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst, hmc]; split_ifs <;> rfl
-  · refine validProg_bind hvp ?_; rw [hst]; split_ifs <;> exact validProg_pure _
+  exact ReadSpec.toAnd ((ReadSpec.of (readHdrProg_spec (w := w) ha (s := s)) hm2).bind <|
+    .ite (.pure 1) (.pure 0)) (by rcases hce_or with h | h <;> simp [FastState.oldEp, h]) rfl
 
 /-- Read `(bktSalt b, liveSliceIdx b)` for bucket `b` (`d = ((cp, base), b)`). -/
 @[irreducible] def readLiveSaltIdxGenProg :
@@ -1096,8 +890,7 @@ theorem realizes_readLiveSaltIdxGen :
           fs.liveRole b < 3)
       (fun _ _ => 0) := by
   unfold readLiveSaltIdxGenProg
-  have hrb := realizes_readBktFieldGen
-  realize
+  realize [realizes_readBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -1129,30 +922,19 @@ theorem readLiveSaltIdxGenProg_spec {c U V w n_max base b : ℕ}
     (Memory.spec 0).clientResult s prog = (fs.bktSalt b, fs.liveSliceIdx b) ∧
     memoryCost prog s = 4 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  obtain ⟨hr1_st, hr1_res, hr1_mc, hr1_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 1 < 10) hrep (s := s)
-  obtain ⟨hr2_st, hr2_res, hr2_mc, hr2_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 2 < 10) hrep (s := s)
-  simp only [getBktField] at hr1_res hr2_res
   unfold readLiveSaltIdxGenProg
   simp only [pure_bind]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hr1_st, clientState_bind, hr2_st]; rfl
-  · rw [clientResult_bind, hr1_st, hr1_res, clientResult_bind, hr2_st, hr2_res]; rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hr1_st, hr1_mc, hr2_st, hr2_mc]; rfl
-  · refine validProg_bind hr1_vp ?_; rw [hr1_st]
-    refine validProg_bind hr2_vp ?_; rw [hr2_st]
-    exact validProg_pure _
+  exact ReadSpec.toAnd
+    ((ReadSpec.of (readBktFieldGenProg_spec henv hb (by decide : 1 < 10) hrep (s := s)) rfl).bind <|
+      (ReadSpec.of (readBktFieldGenProg_spec henv hb (by decide : 2 < 10) hrep (s := s))
+        rfl).bind <| .pure _) rfl rfl
 
 theorem fpOfSaltOpt_lt (c U n_max salt kv : ℕ) (θ₂ : FpSeed c U n_max) :
     (if hs : salt < sMaxWhp c n_max then
       if hu : kv < U then fpHash c U n_max θ₂ ⟨salt, hs⟩ ⟨kv, hu⟩ else 0
      else 0) < 2 ^ fpBitsWhp n_max := by
   split_ifs with hs hu
-  · exact fpHash_lt c U n_max θ₂ ⟨salt, hs⟩ ⟨kv, hu⟩
-  · exact Nat.two_pow_pos _
-  · exact Nat.two_pow_pos _
+  exacts [fpHash_lt c U n_max θ₂ ⟨salt, hs⟩ ⟨kv, hu⟩, Nat.two_pow_pos _, Nat.two_pow_pos _]
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

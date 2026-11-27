@@ -167,17 +167,14 @@ theorem computableInPolyTime_ofbWordKeystream {family : List Bool → List Bool 
     ComputableInPolyTime (fun a => ofbWordKeystream family (n a) (k a) (iv a) (blocks a))
       input encBits := by
   let EStep := encPair input (encPair encBits encBits)
-  have hy : ComputableInPolyTime
-      (fun p : α × (List Bool × List Bool) => (family (k p.1) p.2.1).take (n p.1)) EStep encBits :=
-    ComputableInPolyTime.bitsTakeWithInput
-      (hpoly.comp ((hk.comp (ComputableInPolyTime.fst _ _)).prod
-        ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))))
-      (hn.comp (ComputableInPolyTime.fst _ _))
-  have hstep : ComputableInPolyTime
-      (fun p : α × (List Bool × List Bool) => ofbWordStep family (n p.1) (k p.1) p.2)
-      EStep (encPair encBits encBits) :=
-    hy.prod (ComputableInPolyTime.bitsAppend
-      ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)) hy)
+  have hy := ComputableInPolyTime.bitsTakeWithInput
+    (hpoly.comp ((hk.comp (ComputableInPolyTime.fst input (encPair encBits encBits))).prod
+      ((ComputableInPolyTime.fst encBits encBits).comp
+        (ComputableInPolyTime.snd input (encPair encBits encBits)))))
+    (hn.comp (ComputableInPolyTime.fst input (encPair encBits encBits)))
+  have hstep := hy.prod (ComputableInPolyTime.bitsAppend
+    ((ComputableInPolyTime.snd encBits encBits).comp
+      (ComputableInPolyTime.snd input (encPair encBits encBits))) hy)
   have hloop := ComputableInPolyTime.iterateWithInput_of_bounded_growth
     (encState := encPair encBits encBits) (count := blocks)
     (init := fun a => (iv a, ([] : List Bool)))
@@ -303,16 +300,15 @@ private theorem isOraclePPTOn_ofbKeystreamQueries {α : Type} {input : α ↪ Li
     IsOraclePPTOn (Operation := Unit) input encBits
       (fun a => ofbKeystreamQueries (n a) (iv a) (blocks a)) := by
   let EStep := encPair input (encPair encBits encBits)
-  have hnStep : ComputableInPolyTime (fun pair : α × (List Bool × List Bool) => n pair.1)
-      EStep encUnary :=
-    hn.comp (ComputableInPolyTime.fst _ _)
   have hquery : IsOraclePPTOn (Operation := Unit) EStep encBits
       (fun pair : α × (List Bool × List Bool) => List.take (n pair.1) <$>
         ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool) ((), pair.2.1)) :=
-    IsOraclePPTOn.query_take () (by dsimp only [EStep]; fun_prop) hnStep
+    IsOraclePPTOn.query_take () (by
+      dsimp only [EStep]
+      fun_prop) (hn.comp (ComputableInPolyTime.fst _ _))
   have hcallbackInput := ComputableInPolyTime.id' (encIn := encPair EStep encBits)
-  have houtput := ComputableInPolyTime.bitsAppend hcallbackInput.fst'.snd'.snd'
-    hcallbackInput.snd'
+  have houtput :=
+    ComputableInPolyTime.bitsAppend hcallbackInput.fst'.snd'.snd' hcallbackInput.snd'
   have hstep : IsOraclePPTOn EStep (encPair encBits encBits)
       (fun pair : α × (List Bool × List Bool) => ofbKeystreamStep (n pair.1) pair.2) :=
     hquery.map_with (f := fun pair y => (y, pair.2.2 ++ y))
@@ -416,10 +412,7 @@ theorem advantage_ofbWordCPAGame_le {family : List Bool → List Bool → List B
     (ProbComp.eval (blockModeIdealExperiment L (blockModeWordAdversary adversary n)))
     (ProbComp.eval (prfIdealGame id id (ofbToPrfDistinguisher adversary true) n)) _).trans ?_
   rw [Nat.cast_mul] at h₀ h₁
-  have hsplit : 2 * ((Q : ℝ) * L) * ((Q : ℝ) * L + L) / 2 ^ n =
-      (Q : ℝ) * L * ((Q : ℝ) * L + L) / 2 ^ n + (Q : ℝ) * L * ((Q : ℝ) * L + L) / 2 ^ n := by
-    ring
-  rw [hsplit]
+  ring_nf at h₀ h₁ ⊢
   linarith
 
 /-- **OFB mode is CPA-secure for a pseudorandom function** ([BonehShoup2023], Exercise 5.15(b)):

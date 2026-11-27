@@ -158,19 +158,15 @@ theorem sequentialProjective_weighted_le {k : ℕ} (φ : AlgState A)
       (∑ g, (φ (E g * W (g i))).re) =
         ∑ a, ∑ g with g i = a, (φ (E g * W a)).re := by
     rw [← sum_fiberwise (univ : Finset (Fin k → α)) (fun g => g i)]
-    refine sum_congr rfl fun a _ => sum_congr rfl fun g hg => ?_
-    rw [(mem_filter.mp hg).2]
-  have hcollapse (a : α) :
-      (∑ g with g i = a, (φ (E g * W a)).re) =
-        ∑ p, (φ (K p * (M i).effect a * star (K p) * W a)).re := by
+    exact sum_congr rfl fun _ _ => sum_congr rfl fun _ hg => by rw [(mem_filter.mp hg).2]
+  have hcollapse (a : α) : (∑ g with g i = a, (φ (E g * W a)).re) =
+      ∑ p, (φ (K p * (M i).effect a * star (K p) * W a)).re := by
     simp only [← Complex.re_sum, ← map_sum, ← sum_mul]
     rw [sum_filter, sequentialProjective_marginal M hM i a]
-  have h := weighted_sandwich_le φ (M i) (hM i) K hK W hW (fun a => hc i a a)
-    (fun a p => star_transcriptProduct_commute (before M i) (W a) (fun j b => hc _ b a) p)
-  rw [hgroup]
+  rw [hgroup, prefixCommutatorDefect]
   simp only [hcollapse]
-  unfold prefixCommutatorDefect
-  exact h
+  exact weighted_sandwich_le φ (M i) (hM i) K hK W hW (fun a => hc i a a)
+    fun a => star_transcriptProduct_commute (before M i) (W a) fun _ b => hc _ b a
 
 end Measurement
 

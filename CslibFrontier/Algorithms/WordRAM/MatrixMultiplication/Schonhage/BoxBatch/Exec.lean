@@ -113,9 +113,7 @@ theorem exec_queryProgram {w L m t AA BB D V K A B Q O : ℕ}
       wram_exec [vn, vo, va, vp.one]
       refine ⟨by regs_frame, by wram_simp, ?_, by wram_simp, by wram_simp, ?_, ?_⟩
       · wram_simp [vs]; simp only [List.length_cons]; omega
-      · intro p hp
-        wram_simp
-        exact vf p (by omega)
+      · exact fun p hp => by wram_simp; exact vf p (by omega)
       · exact vr.transport hAA hBB hDir (by rw [hK]) fun p hp => by wram_simp
     have zcodes (i : Fin qs.length) : z.mem (Q + 1 + i.val) =
         (PrunedQuery.queryIndex (qs.get i)).val := by

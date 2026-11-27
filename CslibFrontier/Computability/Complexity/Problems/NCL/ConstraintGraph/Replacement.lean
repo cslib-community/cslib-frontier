@@ -102,10 +102,7 @@ theorem portMultiset_graph [Fintype V] [∀ v, Fintype (W v)] :
     (graph H).portMultiset =
       ∑ v, Multiset.map (WeightedPort.map (Sum.map id (Sigma.mk v))) (H v).portMultiset := by
   rw [ConstraintGraph.portMultiset, Fintype.sum_sigma]
-  apply Finset.sum_congr rfl
-  intro v _
-  change ((H v).map (Sum.map id (Sigma.mk v))).portMultiset = _
-  exact ConstraintGraph.portMultiset_map _ _
+  exact Finset.sum_congr rfl fun v _ => ConstraintGraph.portMultiset_map (H v) _
 
 variable [∀ v, DecidableEq (I v)]
 
@@ -118,11 +115,7 @@ theorem legal_iff (s : E ⊕ (Σ v, I v) → Bool) :
       Sum.elim (fun e => s (.inl e)) (fun e => s (.inr ⟨v, e⟩)) := by
     funext e
     cases e <;> rfl
-  constructor
-  · intro h v w
-    simpa only [heq] using h ⟨v, w⟩
-  · intro h ⟨v, w⟩
-    simpa only [heq] using h v w
+  exact Sigma.forall.trans (forall_congr' fun v => by simp only [heq])
 
 private theorem unpack_pack (x : (model H).State) : unpack H (pack H x) = x := by
   cases x
@@ -146,12 +139,7 @@ private theorem pack_inner (s : E → Bool) (x : (v : V) → I v → Bool)
   funext y
   rcases y with f | ⟨w, f⟩
   · simp [pack, reverse, Function.update]
-  · by_cases hw : w = v
-    · subst w
-      simp [pack, reverse, Function.update]
-    · have hne : (⟨w, f⟩ : Σ v, I v) ≠ ⟨v, e⟩ :=
-        fun h => hw (congrArg Sigma.fst h)
-      simp [pack, reverse, Function.update, hw, hne]
+  · rcases eq_or_ne w v with rfl | hw <;> simp [pack, reverse, Function.update, *]
 
 private theorem step_pack {x y : (model H).State} (h : (model H).Step x y) :
     (graph H).Step (pack H x) (pack H y) := by

@@ -160,23 +160,18 @@ theorem ceilSqrt_mul_eq_add_div_two {p q : ℕ} (hpq : Even (p + q))
   rw [hA, Nat.mul_div_cancel_left A two_pos]
   have hA1 : 1 ≤ A := by omega
   have hAR : ((p : ℝ) + q) / 2 = A := by
-    have h : ((p + q : ℕ) : ℝ) = ((2 * A : ℕ) : ℝ) := by rw [hA]
-    push_cast at h
-    linarith
+    linarith [(show (p : ℝ) + q = 2 * A by exact_mod_cast hA)]
   have hlemma := abs_add_div_two_sub_sqrt_mul_lt_half (Nat.cast_pos.2 hp) (Nat.cast_pos.2 hq) hclose
   rw [hAR] at hlemma
-  replace hlemma := (abs_lt.1 hlemma).2
-  have hlow : (A - 1) ^ 2 < p * q := by
-    have h1 : ((A - 1 : ℕ) : ℝ) < Real.sqrt ((p : ℝ) * q) := by
-      push_cast [Nat.cast_sub hA1]
-      linarith
-    have h2 := (Real.lt_sqrt (Nat.cast_nonneg _)).1 h1
-    exact_mod_cast h2
+  have h1 : ((A - 1 : ℕ) : ℝ) < Real.sqrt ((p : ℝ) * q) := by
+    push_cast [Nat.cast_sub hA1]
+    linarith [(abs_lt.1 hlemma).2]
+  have hlow : (A - 1) ^ 2 < p * q := by exact_mod_cast (Real.lt_sqrt (Nat.cast_nonneg _)).1 h1
   have hhigh : p * q ≤ A ^ 2 := by nlinarith [four_mul_le_sq_add p q]
-  have hsqrt : A - 1 = (p * q - 1).sqrt := by
-    refine Nat.eq_sqrt'.2 ⟨by omega, ?_⟩
-    rw [Nat.sub_add_cancel hA1]
-    omega
+  suffices (p * q - 1).sqrt = A - 1 by omega
+  refine (Nat.eq_sqrt'.2 ⟨by omega, ?_⟩).symm
+  rw [Nat.sub_add_cancel hA1]
+  have := Nat.mul_pos hp hq
   omega
 
 /-- The two steps of the close-prime attack of [BonehShoup2023], Section 16.4.2.1, p. 699, on a

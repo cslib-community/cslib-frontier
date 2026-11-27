@@ -48,9 +48,6 @@ theorem mulVec_sum_smul_eq_zero_iff {ι κ : Type*} [Fintype ι]
   · intro h
     rw [sum_mulVec]
     refine sum_eq_zero fun k hk => ?_
-    rw [smul_mulVec]
-    by_cases hwk : w k = 0
-    · rw [hwk, zero_smul]
-    · rw [h k hk hwk, smul_zero]
+    by_cases hwk : w k = 0 <;> simp [smul_mulVec, hwk, h k hk]
 
 end Matrix

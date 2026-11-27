@@ -100,21 +100,17 @@ theorem chain_memories (r : List Color) (qs : List Quantifier) :
   | nil => rfl
   | cons q qs ih =>
     have hmem : (quantifier q).orient q.mem = false := by cases q <;> decide +kernel
-    have hh : (chain r (q :: qs)).orient ∘ (Chain.headOcc r q qs).emb =
-        (quantifier q).orient := by
-      let h : Realization Gate.interp (q.gadget.tensor (.id r))
-          (controls r) (controls ([R, R] ++ r)) :=
-        (quantifier q).tensor (.id r _ (by simp))
-      exact (congrArg (fun f => f ∘ tensorLeft q.gadget (.id r))
+    let h : Realization Gate.interp (q.gadget.tensor (.id r))
+        (controls r) (controls ([R, R] ++ r)) := (quantifier q).tensor (.id r _ (by simp))
+    have hh : (chain r (q :: qs)).orient ∘ (Chain.headOcc r q qs).emb = (quantifier q).orient :=
+      (congrArg (· ∘ tensorLeft q.gadget (.id r))
         (Realization.comp_orient_compLeft h (chain ([R, R] ++ r) qs))).trans
-          (Realization.tensor_orient_tensorLeft _ _)
+        (Realization.tensor_orient_tensorLeft _ _)
     have ht : (chain r (q :: qs)).orient ∘ (Chain.tailOcc r q qs).emb =
         (chain ([R, R] ++ r) qs).orient := Realization.comp_orient_compRight _ _
     change ((chain r (q :: qs)).orient ∘ (Chain.headOcc r q qs).emb) q.mem ::
-      Chain.memories ([R, R] ++ r) qs
-        ((chain r (q :: qs)).orient ∘ (Chain.tailOcc r q qs).emb) = _
-    rw [hh, ht, hmem, ih]
-    rfl
+      Chain.memories ([R, R] ++ r) qs ((chain r (q :: qs)).orient ∘ (Chain.tailOcc r q qs).emb) = _
+    rw [hh, ht, hmem, ih]; rfl
 
 /-- The inactive orientation is legal when moving a wire left across a bundle. -/
 theorem legal_moveLeft_zero (l : List Color) (x : Color) (r : List Color) :
@@ -179,10 +175,9 @@ its try wire points up; the construction is independent of the formula's truth. 
 theorem body_memories (qs : List Quantifier) (ms : List (List Bool)) :
     Chain.memories [] qs ((body qs ms).orient ∘ (Matrix.chainOcc qs ms).emb) =
       List.replicate qs.length false := by
-  have h : (body qs ms).orient ∘ (Matrix.chainOcc qs ms).emb = (chain [] qs).orient :=
+  have horient : (body qs ms).orient ∘ (Matrix.chainOcc qs ms).emb = (chain [] qs).orient :=
     Realization.comp_orient_compLeft _ _
-  rw [h]
-  exact chain_memories [] qs
+  rw [horient, chain_memories]
 
 /-- Reversing the body's satisfied wire from the explicit initial configuration implies truth
 of the closed source formula, for every valuation of its free-variable interface. -/
@@ -193,10 +188,8 @@ theorem eval_of_canReverse {V : Type*} [DecidableEq V] (ps : List (V × V))
       (body (Source.quantifiers ps) (Source.masks ps φ)).orient (.inl 0)) (σ : V → Bool) :
     (rounds ps (ofCNF φ)).eval σ = true := by
   let s := body (Source.quantifiers ps) (Source.masks ps φ)
-  have hsat : s.orient (.inl 0) = true := congrArg (fun l => l[0]!) s.top_eq
-  have htry : s.orient (.inl 1) = false := congrArg (fun l => l[1]!) s.top_eq
   obtain ⟨t, ht, he⟩ := h
-  exact Source.eval_of_reachable ps φ hclosed .refl s.legal htry ht
-    (Bool.eq_false_of_not_eq_true (fun heq => he (heq.trans hsat.symm))) σ
+  exact Source.eval_of_reachable ps φ hclosed .refl s.legal (congrArg (·[1]!) s.top_eq) ht
+    (Bool.eq_false_of_not_eq_true fun heq => he (heq.trans (congrArg (·[0]!) s.top_eq).symm)) σ
 
 end Cslib.Complexity.NCL.QBF.Initial

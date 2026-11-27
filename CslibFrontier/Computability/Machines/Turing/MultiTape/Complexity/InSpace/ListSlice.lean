@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
@@ -31,6 +32,8 @@ large binary counts never cause a list of that length to be allocated.
 * `Turing.MultiTapeTM.ComputableInSpace.bitsDrop`, `.bitsGetD`, `.bitsReverse`: the same for a
   plain bit word, and reading one of its bits.
 * `Turing.MultiTapeTM.ComputableInSpace.natShiftRight`: right shift by a binary offset.
+* `Turing.MultiTapeTM.ComputableInSpace.budget_natModTwoPow`: keep a binary-counted number
+  of low bits.
 -/
 
 public section
@@ -41,15 +44,6 @@ namespace Turing.MultiTapeTM.ComputableInSpace
 theorem listReverse {α : Type} (enc : α ↪ List Bool) :
     ComputableInSpace List.reverse (encList enc) (encList enc)
       (fun l => (encList enc l).length) := by
-  have hlist : ComputableInSpace (fun l : List α => l) (encList enc) (encList enc)
-      (fun l => (encList enc l).length) := of_inO ComputableInDegree.id'.inO_one
-  have hinit : ComputableInSpace (fun _ : List α => ([] : List α))
-      (encList enc) (encList enc) (fun l => (encList enc l).length) :=
-    budget_const []
-  have hstep : ComputableInSpace (fun q : List α × α => q.2 :: q.1)
-      (encPair (encList enc) enc) (encList enc)
-      (fun q => (encPair (encList enc) enc q).length) :=
-    budget_cons (snd (encList enc) enc) (fst (encList enc) enc)
   have hstate (l : List α) (i : ℕ) (_hi : i ≤ l.length) :
       (encList enc ((l.take i).foldl (fun acc a => a :: acc) [])).length ≤
         (encList enc l).length := by
@@ -62,9 +56,11 @@ theorem listReverse {α : Type} (enc : α ↪ List Bool) :
     have ha := length_le_encList_of_mem enc (List.getElem_mem hi)
     have hs := hstate l i hi.le
     enc_len
-  have hfold := ComputableInSpace.foldl hlist hinit hstep hspace hstate
-  refine hfold.weaken (.of_le_linear 8 8 fun _ => by omega) |>.of_enc_eq ?_
-  intro l
+  have hfold := ComputableInSpace.foldl (encL := encList enc)
+    (of_inO ComputableInDegree.id'.inO_one)
+    (budget_const (Bs := fun l => (encList enc l).length) ([] : List α))
+    (budget_cons (snd (encList enc) enc) (fst (encList enc) enc)) hspace hstate
+  refine hfold.weaken (.of_le_linear 8 8 fun _ => by omega) |>.of_enc_eq fun l => ?_
   simp only [List.foldl_flip_cons_eq_append', List.append_nil]
 
 /-- Drop a binary-counted prefix without allocating storage according to its numeric length. -/
@@ -130,6 +126,22 @@ theorem natShiftRight : ComputableInSpace (fun p : ℕ × ℕ => p.1 >>> p.2)
   change (p.1 >>> p.2).bits = p.1.bits.drop (min p.2 p.1.size)
   rw [Nat.bits_shiftRight, ← Nat.size_eq_bits_len]
   exact List.drop_eq_drop_min
+
+/-- Keep the low `d` bits of a binary natural within the budget of the two arguments.
+Capping `d` at the actual binary length of the value bounds the temporary modulus. -/
+theorem budget_natModTwoPow {α : Type} {encIn : α ↪ List Bool} {B : α → ℕ}
+    {z d : α → ℕ} (hz : ComputableInSpace z encIn encNat B)
+    (hd : ComputableInSpace d encIn encNat B) :
+    ComputableInSpace (fun x => z x % 2 ^ d x) encIn encNat B := by
+  have hc := budget_natMin hd (budget_comp_linear natSize hz)
+  have hb : (fun x => min (d x) (z x).size) ≼ fun x => (encNat (z x)).length :=
+    .of_le fun x => (min_le_right ..).trans_eq (length_encNat_eq_size _).symm
+  have hp := budget_twoPow hc (hb.trans hz.length_le)
+  refine (budget_natMod hz hp).of_enc_eq fun x => ?_
+  rcases le_total (d x) (z x).size with h | h
+  · rw [min_eq_left h]
+  · rw [min_eq_right h, Nat.mod_eq_of_lt (Nat.lt_size_self _),
+      Nat.mod_eq_of_lt ((Nat.lt_size_self _).trans_le (Nat.pow_le_pow_right two_pos h))]
 
 /-- Read the bit of a bit word at a binary index, or `fallback` beyond its end, in space linear in
 the word and index. -/

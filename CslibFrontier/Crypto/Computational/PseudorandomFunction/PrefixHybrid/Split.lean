@@ -53,20 +53,16 @@ private theorem splitPrefixKey_index {cut width : ℕ} (hwidth : 0 < width)
     {query : List Bool} (hquery : cut < query.length → cut + width ≤ query.length) :
     splitPrefixKey hwidth (splitPrefixIndex cut width query) = query.take (cut + width) := by
   by_cases h : query.length ≤ cut
-  · have hfull : query.length ≤ cut + width := by omega
-    simp [splitPrefixIndex, splitPrefixKey, h, List.take_of_length_le hfull]
-  · have hcut := hquery (Nat.lt_of_not_ge h)
-    have hparent : List.ofFn (BitString.ofList cut query) = query.take cut := by
-      rw [← BitString.ofList_take]
-      exact BitString.ofFn_ofList (by simp [Nat.min_eq_left (by omega : cut ≤ query.length)])
-    have hblock : List.ofFn (BitString.ofList width (query.drop cut)) =
-        (query.drop cut).take width := by
-      have hlength : width ≤ (query.drop cut).length := by
-        simp only [List.length_drop]
-        omega
-      rw [← BitString.ofList_take]
-      exact BitString.ofFn_ofList (by simp only [List.length_take, Nat.min_eq_left hlength])
-    simp [splitPrefixIndex, splitPrefixKey, h, hparent, hblock, List.take_add]
+  · simp [splitPrefixIndex, splitPrefixKey, h]
+    omega
+  · have hofFn {w : ℕ} {xs : List Bool} (hw : w ≤ xs.length) :
+        List.ofFn (BitString.ofList w xs) = xs.take w :=
+      BitString.ofList_take w xs ▸ BitString.ofFn_ofList (List.length_take_of_le hw)
+    have hdrop : width ≤ (query.drop cut).length := by
+      rw [List.length_drop]
+      exact Nat.le_sub_of_add_le' (hquery (Nat.lt_of_not_ge h))
+    simp [splitPrefixIndex, splitPrefixKey, h, hofFn (Nat.le_of_not_ge h), hofFn hdrop,
+      List.take_add]
 
 /-- Read a short word's own label, or find the next-block label in its parent's child table
 and evaluate the remaining suffix. The caller handles query validity. -/

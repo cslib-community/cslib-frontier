@@ -52,11 +52,10 @@ namespace Nat.RecursiveIn.Code
 /-- The subcodes of `Code.pair cf cg` have strictly smaller Gödel numbers than `pair cf cg`. -/
 theorem encodeCode_lt_pair (cf cg : Code) :
     encodeCode cf < encodeCode (pair cf cg) ∧ encodeCode cg < encodeCode (pair cf cg) := by
+  have := Nat.left_le_pair cf.encodeCode cg.encodeCode
+  have := Nat.right_le_pair cf.encodeCode cg.encodeCode
   simp only [encodeCode]
-  have := Nat.mul_le_mul_right (Nat.pair cf.encodeCode cg.encodeCode) (by decide : 1 ≤ 2 * 2)
-  rw [one_mul, mul_assoc] at this
-  have := lt_of_le_of_lt this (lt_add_of_pos_right _ (by decide : 0 < 5))
-  exact ⟨lt_of_le_of_lt (Nat.left_le_pair _ _) this, lt_of_le_of_lt (Nat.right_le_pair _ _) this⟩
+  omega
 
 /-- The subcodes of `Code.comp cf cg` have strictly smaller Gödel numbers than `comp cf cg`. -/
 theorem encodeCode_lt_comp (cf cg : Code) :
@@ -72,8 +71,7 @@ theorem encodeCode_lt_prec (cf cg : Code) :
 
 /-- The subcode of `Code.rfind' cf` has a strictly smaller Gödel number than `rfind' cf`. -/
 theorem encodeCode_lt_rfind' (cf : Code) : encodeCode cf < encodeCode (rfind' cf) := by
-  simp only [encodeCode]
-  omega
+  simp only [encodeCode]; omega
 
 /-- Structural recursion on `Nat.RecursiveIn.Code` with tupled branch functions is primitive
 recursive. Adapted from `Nat.Partrec.Code.primrec_recOn'` with an additional `oracle` branch. -/
@@ -146,20 +144,16 @@ theorem primrec_recOn' {α σ}
   refine (nat_strong_rec (fun a n => F a (ofNat Code n)) this.to₂ fun a n => ?_)
     |>.comp .id (encode_iff.2 hc) |>.of_eq fun a => by simp
   iterate 5 rcases n with - | n; · simp [ofNatCode_eq, Code.ofNatCode]; rfl
-  simp only [G]; rw [List.length_map, List.length_range]
+  simp only [G, List.length_map, List.length_range]
   let m := n.div2.div2
   change G₁ ((a, (List.range (n + 5)).map fun n => F a (ofNat Code n)), n, m) =
     some (F a (ofNat Code (n + 5)))
-  have hm : m < n + 5 := by
-    simp only [m, div2_val]
-    exact lt_of_le_of_lt (le_trans (Nat.div_le_self ..) (Nat.div_le_self ..))
-      (Nat.succ_le_succ (Nat.le_add_right ..))
+  have hm : m < n + 5 := by simp only [m, div2_val]; omega
   have m1 : m.unpair.1 < n + 5 := lt_of_le_of_lt m.unpair_left_le hm
   have m2 : m.unpair.2 < n + 5 := lt_of_le_of_lt m.unpair_right_le hm
   simp only [List.length_map, List.length_range, List.getElem?_eq_getElem, hm, m1, m2,
-    List.getElem_map, List.getElem_range, Option.bind_some, Option.map_some, G₁, m]
-  rw [show ofNat Code (n + 5) = Code.ofNatCode (n + 5) from rfl]
-  simp only [Code.ofNatCode]
+    List.getElem_map, List.getElem_range, Option.bind_some, Option.map_some, G₁, m,
+    ofNatCode_eq, Code.ofNatCode]
   cases n.bodd <;> cases n.div2.bodd <;> rfl
 
 
@@ -232,165 +226,61 @@ private noncomputable def G (σ : List ℕ) (L : List (List (Option ℕ))) : Opt
 
 
 private theorem hG : Primrec₂ G := by
-  have a := (Primrec.ofNat (ℕ × Code)).comp (Primrec.list_length (α := List (Option ℕ)).comp
-    (Primrec.snd (α := List ℕ) (β := List (List (Option ℕ)))))
-  have k := Primrec.fst.comp a
-  refine Primrec.option_some.comp (Primrec.list_map (β := ℕ) (σ := Option ℕ)
-    (Primrec.list_range.comp k) (?_ : Primrec _))
-  replace k := k.comp (Primrec.fst (β := ℕ))
-  have n := Primrec.snd (α := List ℕ × List (List (Option ℕ))) (β := ℕ)
-  refine Primrec.nat_casesOn k (_root_.Primrec.const Option.none) (?_ : Primrec _)
-  have k := k.comp (Primrec.fst (β := ℕ))
-  have n := n.comp (Primrec.fst (β := ℕ))
-  have k' := Primrec.snd (α := (List ℕ × List (List (Option ℕ))) × ℕ) (β := ℕ)
-  have c := Primrec.snd.comp (a.comp <| (Primrec.fst (β := ℕ)).comp (Primrec.fst (β := ℕ)))
-  have σ_expr : Primrec (fun (p : ((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) => p.1.1.1) :=
-    Primrec.fst.comp (Primrec.fst.comp Primrec.fst)
-  have n_expr : Primrec (fun (p : ((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) => p.1.2) :=
-    Primrec.snd.comp Primrec.fst
-  have o_σ := Primrec.list_getElem?.comp σ_expr n_expr
-  -- Projections out of a `pair`, `comp` or `prec` step, shared by those three branches.
-  have L₂ := (Primrec.snd.comp <| Primrec.fst.comp Primrec.fst).comp
-    (Primrec.fst (α := (((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ))
-      (β := Code × Code × Option ℕ × Option ℕ))
-  have k₂ := k.comp (Primrec.fst (β := Code × Code × Option ℕ × Option ℕ))
-  have n₂ := n.comp (Primrec.fst (β := Code × Code × Option ℕ × Option ℕ))
-  have cf := Primrec.fst.comp (Primrec.snd (α := (((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ))
-      (β := Code × Code × Option ℕ × Option ℕ))
-  have cg := (Primrec.fst.comp Primrec.snd).comp
-    (Primrec.snd (α := (((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ))
-      (β := Code × Code × Option ℕ × Option ℕ))
-  apply
-    primrec_recOn c
-      (_root_.Primrec.const (some 0))
-      (Primrec.option_some.comp (_root_.Primrec.succ.comp n))
-      (Primrec.option_some.comp (Primrec.fst.comp <| Primrec.unpair.comp n))
-      (Primrec.option_some.comp (Primrec.snd.comp <| Primrec.unpair.comp n))
-      o_σ
-  · have p_k_cf := k₂.pair cf
-    have p_k_cf_n := p_k_cf.pair n₂
-    have p_L_arg := L₂.pair p_k_cf_n
-    refine Primrec.option_bind (hlup.comp p_L_arg) ?_
-    unfold Primrec₂
-    conv =>
-      congr
-      · ext p
-        dsimp only
-        erw [Option.bind_eq_bind, ← Option.map_eq_bind]
-    have p_k_cg := k₂.pair cg
-    have p_k_cg_n := p_k_cg.pair n₂
-    have p_L_arg2 := L₂.pair p_k_cg_n
-    have H2 : Primrec (fun p : ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-        Code × Code × Option ℕ × Option ℕ) × ℕ => _) :=
-      (hlup.comp p_L_arg2).comp
-        (Primrec.fst (α := ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-          Code × Code × Option ℕ × Option ℕ)) (β := ℕ))
-    refine Primrec.option_map H2 ?_
-    unfold Primrec₂
-    exact Primrec₂.natPair.comp (Primrec.snd.comp Primrec.fst) Primrec.snd
-  · have p_k_cg := k₂.pair cg
-    have p_k_cg_n := p_k_cg.pair n₂
-    have p_L_arg := L₂.pair p_k_cg_n
-    refine Primrec.option_bind (hlup.comp p_L_arg) ?_
-    unfold Primrec₂
-    have p_k_cf := k₂.pair cf
-    have p_k_cf_fst := p_k_cf.comp (Primrec.fst
-      (α := ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-        Code × Code × Option ℕ × Option ℕ)) (β := ℕ))
-    have p_kcf_snd := p_k_cf_fst.pair (Primrec.snd
-      (α := ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-        Code × Code × Option ℕ × Option ℕ)) (β := ℕ))
-    have L_fst := L₂.comp (Primrec.fst
-      (α := ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-        Code × Code × Option ℕ × Option ℕ)) (β := ℕ))
-    have h := hlup.comp (L_fst.pair p_kcf_snd)
-    exact h
-  · have z := Primrec.fst.comp (Primrec.unpair.comp n₂)
-    refine Primrec.nat_casesOn (Primrec.snd.comp (Primrec.unpair.comp n₂)) ?_ ?_
-    · have p_k_cf := k₂.pair cf
-      exact hlup.comp (L₂.pair (p_k_cf.pair z))
-    · have L₂ := L₂.comp (Primrec.fst (β := ℕ))
-      have z := z.comp (Primrec.fst (β := ℕ))
-      have y := Primrec.snd
-        (α := ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-          Code × Code × Option ℕ × Option ℕ))
-        (β := ℕ)
-      have p_kc := k'.pair c
-      have p_kc_fst := p_kc.comp (Primrec.fst
-        (α := (((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ))
-        (β := Code × Code × Option ℕ × Option ℕ))
-      have p_kc_fst_fst := p_kc_fst.comp (Primrec.fst
-        (α := (((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-          Code × Code × Option ℕ × Option ℕ) (β := ℕ))
-      have p_zy := Primrec₂.natPair.comp z y
-      have p_arg2 := p_kc_fst_fst.pair p_zy
-      have h₁ := hlup.comp (L₂.pair p_arg2)
-      refine Primrec.option_bind h₁ (?_ : Primrec _)
-      have z := z.comp (Primrec.fst (β := ℕ))
-      have y := y.comp (Primrec.fst (β := ℕ))
-      have i := Primrec.snd
-        (α := (((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-          Code × Code × Option ℕ × Option ℕ) × ℕ))
-        (β := ℕ)
-      have p_k_cg := k₂.pair cg
-      have p_k_cg_fst := p_k_cg.comp (Primrec.fst
-        (α := ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-          Code × Code × Option ℕ × Option ℕ)) (β := ℕ))
-      have p_k_cg_fst_fst := p_k_cg_fst.comp (Primrec.fst
-        (α := (((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-          Code × Code × Option ℕ × Option ℕ) × ℕ)) (β := ℕ))
-      have p_yi := Primrec₂.natPair.comp y i
-      have p_zyi := Primrec₂.natPair.comp z p_yi
-      have p_arg2 := p_k_cg_fst_fst.pair p_zyi
-      have L_fst := L₂.comp (Primrec.fst
-        (α := (((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-          Code × Code × Option ℕ × Option ℕ) × ℕ)) (β := ℕ))
-      have h₂ := hlup.comp (L_fst.pair p_arg2)
-      exact h₂
-  · have L := (Primrec.snd.comp <| Primrec.fst.comp Primrec.fst).comp
-      (Primrec.fst (α := (((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ))
-        (β := Code × Option ℕ))
-    have k := k.comp (Primrec.fst (β := Code × Option ℕ))
-    have n := n.comp (Primrec.fst (β := Code × Option ℕ))
-    have cf := Primrec.fst.comp (Primrec.snd (α := (((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ))
-        (β := Code × Option ℕ))
-    have z := Primrec.fst.comp (Primrec.unpair.comp n)
-    have m := Primrec.snd.comp (Primrec.unpair.comp n)
-    have p_k_cf := k.pair cf
-    have p_zm := Primrec₂.natPair.comp z m
-    have p_kcf_zm := p_k_cf.pair p_zm
-    have h₁ := hlup.comp (L.pair p_kcf_zm)
-    refine Primrec.option_bind h₁ (?_ : Primrec _)
-    have m := m.comp (Primrec.fst (β := ℕ))
-    refine Primrec.nat_casesOn Primrec.snd (Primrec.option_some.comp m) ?_
-    unfold Primrec₂
-    have p_kc := k'.pair c
-    have p_kc_fst := p_kc.comp (Primrec.fst
-      (α := (((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ)) (β := Code × Option ℕ))
-    have p_kc_fst_fst := p_kc_fst.comp (Primrec.fst
-      (α := ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) × Code × Option ℕ)) (β := ℕ))
-    have z_fst := z.comp (Primrec.fst
-      (α := ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) × Code × Option ℕ)) (β := ℕ))
-    have m_succ := _root_.Primrec.succ.comp m
-    have p_zm := Primrec₂.natPair.comp z_fst m_succ
-    have p_arg2 := p_kc_fst_fst.pair p_zm
-    have L_fst := L.comp (Primrec.fst
-      (α := ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) × Code × Option ℕ)) (β := ℕ))
-    have H3 : Primrec (fun p : ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) ×
-        Code × Option ℕ) × ℕ => _) :=
-      hlup.comp (L_fst.pair p_arg2)
-    exact H3.comp (Primrec.fst
-      (α := ((((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) × Code × Option ℕ) × ℕ) (β := ℕ))
+  have a := (Primrec.ofNat (ℕ × Code)).comp
+    (list_length.comp (snd (α := List ℕ) (β := List (List (Option ℕ)))))
+  refine option_some.comp <| list_map (list_range.comp (fst.comp a)) (.mk ?_)
+  refine nat_casesOn ((fst.comp a).comp fst) (_root_.Primrec.const Option.none) (.mk ?_)
+  -- The recursion context is `(((σ, L), n), k')`, where `(k' + 1, c)` is decoded from `L.length`.
+  have p := fst.comp (fst (α := (List ℕ × List (List (Option ℕ))) × ℕ) (β := ℕ))
+  have n := snd.comp (fst (α := (List ℕ × List (List (Option ℕ))) × ℕ) (β := ℕ))
+  have L := snd.comp p
+  have k := (fst.comp a).comp p
+  have c := snd.comp (a.comp p)
+  have kc := snd.pair c
+  have z := fst.comp (Primrec.unpair.comp n)
+  have m := snd.comp (Primrec.unpair.comp n)
+  -- Projections out of a `pair`, `comp` or `prec` step `(ctx, cf, cg, _, _)` and out of an
+  -- `rfind'` step `(ctx, cf, _)`. The ascriptions `(_ : _)` below elaborate each lookup
+  -- bottom-up, which is much cheaper than unifying against the goal first.
+  have f₂ := fst (α := ((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ)
+    (β := Code × Code × Option ℕ × Option ℕ)
+  have s₂ := snd (α := ((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ)
+    (β := Code × Code × Option ℕ × Option ℕ)
+  have kcf := (k.comp f₂).pair (fst.comp s₂)
+  have kcg := (k.comp f₂).pair (fst.comp (snd.comp s₂))
+  have f₃ := fst (α := ((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) (β := Code × Option ℕ)
+  have s₃ := snd (α := ((List ℕ × List (List (Option ℕ))) × ℕ) × ℕ) (β := Code × Option ℕ)
+  apply primrec_recOn c (_root_.Primrec.const (some 0))
+    (option_some.comp (_root_.Primrec.succ.comp n)) (option_some.comp z) (option_some.comp m)
+    (list_getElem?.comp (fst.comp p) n)
+  · refine option_bind (hlup.comp ((L.comp f₂).pair (kcf.pair (n.comp f₂))) : _) ?_
+    refine option_bind ((hlup.comp ((L.comp f₂).pair (kcg.pair (n.comp f₂)))).comp
+      (fst (β := ℕ)) : _) ?_
+    exact option_some.comp (Primrec₂.natPair.comp (snd.comp fst) snd)
+  · refine option_bind (hlup.comp ((L.comp f₂).pair (kcg.pair (n.comp f₂))) : _) ?_
+    exact (hlup.comp ((L.comp (f₂.comp (fst (β := ℕ)))).pair
+      ((kcf.comp (fst (β := ℕ))).pair snd)) : _)
+  · refine nat_casesOn (m.comp f₂) (hlup.comp ((L.comp f₂).pair (kcf.pair (z.comp f₂))) : _) ?_
+    have f := f₂.comp (fst (β := ℕ))
+    refine option_bind (hlup.comp ((L.comp f).pair ((kc.comp f).pair
+      (Primrec₂.natPair.comp (z.comp f) snd))) : _) ?_
+    have ff := f.comp (fst (β := ℕ))
+    exact (hlup.comp ((L.comp ff).pair ((kcg.comp ((fst (β := ℕ)).comp (fst (β := ℕ)))).pair
+      (Primrec₂.natPair.comp (z.comp ff)
+        (Primrec₂.natPair.comp (snd.comp (fst (β := ℕ))) snd)))) : _)
+  · refine option_bind (hlup.comp ((L.comp f₃).pair (((k.comp f₃).pair (fst.comp s₃)).pair
+      (Primrec₂.natPair.comp (z.comp f₃) (m.comp f₃)))) : _) ?_
+    have f := f₃.comp (fst (β := ℕ))
+    refine nat_casesOn snd (option_some.comp (m.comp f)) ?_
+    have ff := f.comp (fst (β := ℕ))
+    exact (hlup.comp ((L.comp ff).pair ((kc.comp ff).pair
+      (Primrec₂.natPair.comp (z.comp ff) (_root_.Primrec.succ.comp (m.comp ff))))) : _)
 
 private theorem evaln_map (σ k c n) :
     ((List.range k)[n]?.bind fun a ↦ evaln σ k c a) = evaln σ k c n := by
-  by_cases kn : n < k
-  · simp [List.getElem?_range kn]
-  · rw [List.getElem?_eq_none]
-    · cases e : evaln σ k c n
-      · rfl
-      exact kn.elim (evaln_bound e)
-    simpa using kn
+  cases e : evaln σ k c n
+  · by_cases kn : n < k <;> simp [kn, e]
+  · simp [List.getElem?_range (evaln_bound e), e]
 
 /-- The `Nat.RecursiveIn.Code.evaln` function is primitive recursive. -/
 theorem primrec_evaln :
@@ -405,54 +295,37 @@ theorem primrec_evaln :
       simp only [G, prod_ofNat_val, ofNat_nat, List.length_map, List.length_range,
         Nat.pair_unpair, Option.some_inj]
       refine List.map_congr_left fun n => ?_
-      have : List.range p = List.range (Nat.pair p.unpair.1 (encode (ofNat Code p.unpair.2))) := by
-        simp
-      rw [this]
-      generalize p.unpair.1 = k
-      generalize ofNat Code p.unpair.2 = c
+      have hrange : List.range p =
+          List.range (Nat.pair p.unpair.1 (encode (ofNat Code p.unpair.2))) := by simp
+      rw [hrange]
+      generalize p.unpair.1 = k, ofNat Code p.unpair.2 = c
       intro nk
       rcases k with - | k'
       · simp [evaln]
       let k := k' + 1
-      simp only
       simp only [List.mem_range, Nat.lt_succ_iff] at nk
-      have hg :
-        ∀ {k' c' n},
-          Nat.pair k' (encode c') < Nat.pair k (encode c) →
-            lup ((List.range (Nat.pair k (encode c))).map fun n =>
-              (List.range n.unpair.1).map (evaln σ n.unpair.1 (ofNat Code n.unpair.2))) (k', c') n =
-            evaln σ k' c' n := by
-        intro k₁ c₁ n₁ hl
+      have hg {k' c' n} (hl : Nat.pair k' (encode c') < Nat.pair k (encode c)) :
+          lup ((List.range (Nat.pair k (encode c))).map fun n =>
+            (List.range n.unpair.1).map (evaln σ n.unpair.1 (ofNat Code n.unpair.2))) (k', c') n =
+          evaln σ k' c' n := by
         simp [lup, List.getElem?_range hl, evaln_map, Bind.bind, Option.bind_map]
       obtain - | - | - | - | - | ⟨cf, cg⟩ | ⟨cf, cg⟩ | ⟨cf, cg⟩ | cf := c <;>
         simp only [evaln, bind, nk, guard_true, pure, Option.bind_some, unpaired, pair_unpair]
       · obtain ⟨lf, lg⟩ := encodeCode_lt_pair cf cg
         rw [hg (Nat.pair_lt_pair_right _ lf), hg (Nat.pair_lt_pair_right _ lg)]
-        cases evaln σ k cf n
-        · rfl
-        cases evaln σ k cg n <;> rfl
+        cases evaln σ k cf n <;> cases evaln σ k cg n <;> rfl
       · obtain ⟨lf, lg⟩ := encodeCode_lt_comp cf cg
         rw [hg (Nat.pair_lt_pair_right _ lg)]
-        cases evaln σ k cg n
-        · rfl
-        simp [k, hg (Nat.pair_lt_pair_right _ lf)]
+        cases evaln σ k cg n <;> simp [k, hg (Nat.pair_lt_pair_right _ lf)]
       · obtain ⟨lf, lg⟩ := encodeCode_lt_prec cf cg
         rw [hg (Nat.pair_lt_pair_right _ lf)]
-        cases n.unpair.2
+        rcases n.unpair.2 with - | y
         · rfl
-        simp only
-        rw [hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)]
-        cases evaln σ k' _ _
-        · rfl
-        simp [k, hg (Nat.pair_lt_pair_right _ lg)]
-      · have lf := encodeCode_lt_rfind' cf
-        rw [hg (Nat.pair_lt_pair_right _ lf)]
-        rcases evaln σ k cf n with - | x
-        · rfl
-        simp only [Option.bind_some]
-        cases x with
-        | zero => simp
-        | succ _ => simpa using hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)
+        simp only [k, hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)]
+        cases evaln σ k' _ _ <;> simp [k, hg (Nat.pair_lt_pair_right _ lg)]
+      · rw [hg (Nat.pair_lt_pair_right _ (encodeCode_lt_rfind' cf))]
+        rcases evaln σ k cf n with - | - | x <;>
+          simp [k, hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)]
   (Primrec.option_bind
     (Primrec.list_getElem?.comp (this.comp Primrec.fst
       (Primrec.encode_iff.2 (Primrec.fst.comp Primrec.snd))) (Primrec.snd.comp Primrec.snd))

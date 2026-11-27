@@ -70,17 +70,13 @@ variable {F E : (ι → Bool) → Bool} {f e : (ι → Bool) → ℝ}
 /-- If `f` agrees with `F` off `E`, then `F ∨ E` minus `f (1 - E)` is the indicator of `E`. -/
 theorem bitVal_or_sub_mul_one_sub {x : ι → Bool} (hf : E x = false → f x = bitVal ℝ (F x)) :
     bitVal ℝ (F x || E x) - f x * (1 - bitVal ℝ (E x)) = bitVal ℝ (E x) := by
-  cases hE : E x
-  · rw [hf hE]
-    simp
-  · simp
+  cases hE : E x <;> simp [hf, hE]
 
 /-- If `f` agrees with `F` off `E`, then `f (1 - e)` vanishes wherever `F ∨ E` is false. -/
 theorem mul_one_sub_eq_zero_of_or_eq_false {x : ι → Bool}
     (hf : E x = false → f x = bitVal ℝ (F x)) (h : (F x || E x) = false) :
     f x * (1 - e x) = 0 := by
-  rw [Bool.or_eq_false_iff] at h
-  rw [hf h.2, h.1, bitVal_false, zero_mul]
+  rw [hf (Bool.or_eq_false_iff.1 h).2, (Bool.or_eq_false_iff.1 h).1, bitVal_false, zero_mul]
 
 /-- **Mollification** [Braverman, Lemma 10]: if `f` agrees with `F` off `E` and is bounded by `L`,
 then the squared `L²` distance from `F ∨ E` to `f (1 - e)` is at most twice the probability of `E`
@@ -91,12 +87,11 @@ theorem expect_sq_bitVal_or_sub_mul_one_sub_le [Fintype ι] [DecidableEq ι] {L 
       2 * 𝔼 x, bitVal ℝ (E x) + 2 * L ^ 2 * 𝔼 x, (bitVal ℝ (E x) - e x) ^ 2 := by
   rw [mul_expect, mul_expect, ← expect_add_distrib]
   refine expect_le_expect fun x _ => ?_
-  have h := bitVal_or_sub_mul_one_sub (hf x)
   have hsq : f x ^ 2 ≤ L ^ 2 := sq_le_sq' (abs_le.1 (hL x)).1 (abs_le.1 (hL x)).2
   have hE : bitVal ℝ (E x) ^ 2 = bitVal ℝ (E x) := bitVal_pow _ two_ne_zero
   have hd : bitVal ℝ (F x || E x) - f x * (1 - e x) =
       bitVal ℝ (E x) + f x * (e x - bitVal ℝ (E x)) := by
-    linear_combination h
+    linear_combination bitVal_or_sub_mul_one_sub (hf x)
   rw [hd]
   nlinarith [sq_nonneg (bitVal ℝ (E x) - f x * (e x - bitVal ℝ (E x))),
     mul_le_mul_of_nonneg_right hsq (sq_nonneg (bitVal ℝ (E x) - e x))]
@@ -115,15 +110,13 @@ theorem bitVal_sub_one_sub_one_sub_sq {x : ι → Bool} (hf : F' x = false → f
     bitVal ℝ (F' x) - (1 - (1 - f x) ^ 2) = (bitVal ℝ (F' x) - f x) ^ 2 := by
   cases hF : F' x
   · simp [hf hF]
-  · simp only [bitVal_true]
-    ring
+  · simp only [bitVal_true]; ring
 
 /-- If `f` vanishes wherever `F'` is false, then `1 - (1 - f)²` lies below `F'`
 [Braverman, Lemma 11]. -/
 theorem one_sub_one_sub_sq_le_bitVal {x : ι → Bool} (hf : F' x = false → f x = 0) :
     1 - (1 - f x) ^ 2 ≤ bitVal ℝ (F' x) := by
-  have h := bitVal_sub_one_sub_one_sub_sq hf
-  nlinarith [sq_nonneg (bitVal ℝ (F' x) - f x)]
+  nlinarith [bitVal_sub_one_sub_one_sub_sq hf, sq_nonneg (bitVal ℝ (F' x) - f x)]
 
 /-- If `f` vanishes wherever `F'` is false, then the expected gap from `1 - (1 - f)²` to `F'` is
 the squared `L²` distance from `f` to `F'` [Braverman, Lemma 11]. -/
@@ -167,19 +160,14 @@ theorem expect_bitVal_sub_le_of_le (hX : IsKWiseIndependent k X) {p : (ι → Bo
     (hXa : ∑ x, (X x).toReal * bitVal ℝ (F x ^^ F' x) ≤ a)
     (hUa : 𝔼 x, bitVal ℝ (F x ^^ F' x) ≤ a) (hb : 𝔼 x, (bitVal ℝ (F' x) - p x) ≤ b) :
     𝔼 x, bitVal ℝ (F x) - 2 * a - b ≤ ∑ x, (X x).toReal * bitVal ℝ (F x) := by
-  have hXF : ∑ x, (X x).toReal * p x - a ≤ ∑ x, (X x).toReal * bitVal ℝ (F x) := by
-    have h := sum_mul_le_sum_mul X fun x =>
-      (hpF x).trans ((sub_le_iff_le_add.1 (bitVal_sub_bitVal_xor_le (F' x) (F x))).trans_eq
-        (by rw [Bool.xor_comm]))
-    simp only [mul_add, sum_add_distrib] at h
-    linarith
-  have hUF : 𝔼 x, bitVal ℝ (F x) - a ≤ 𝔼 x, bitVal ℝ (F' x) := by
-    have h : 𝔼 x, bitVal ℝ (F x) ≤ 𝔼 x, (bitVal ℝ (F' x) + bitVal ℝ (F x ^^ F' x)) :=
-      expect_le_expect fun x _ => by linarith [bitVal_sub_bitVal_xor_le (F x) (F' x)]
-    rw [expect_add_distrib] at h
-    linarith
+  have hXF := sum_mul_le_sum_mul X fun x => (hpF x).trans
+    ((sub_le_iff_le_add.1 (bitVal_sub_bitVal_xor_le (F' x) (F x))).trans_eq
+      (by rw [Bool.xor_comm]))
+  simp only [mul_add, sum_add_distrib, hX.sum_mul_eq_expect_of_mem_lowDegree hpk] at hXF
+  have hUF : 𝔼 x, bitVal ℝ (F x) ≤ 𝔼 x, (bitVal ℝ (F' x) + bitVal ℝ (F x ^^ F' x)) :=
+    expect_le_expect fun x _ => by linarith [bitVal_sub_bitVal_xor_le (F x) (F' x)]
+  rw [expect_add_distrib] at hUF
   rw [expect_sub_distrib] at hb
-  rw [hX.sum_mul_eq_expect_of_mem_lowDegree hpk] at hXF
   linarith
 
 /-- **Low-degree approximations vanishing off `F'` give one-sided bounds**
@@ -217,11 +205,10 @@ theorem expect_bitVal_sub_le_of_witness (hX : IsKWiseIndependent k X)
     cases F x <;> cases E x <;> norm_num
   have hb : 𝔼 x, (bitVal ℝ (F x || E x) - f x * (1 - e x)) ^ 2 ≤ 2 * a + 2 * L ^ 2 * δ :=
     (expect_sq_bitVal_or_sub_mul_one_sub_le hfE hL).trans (by gcongr)
-  have h := hX.expect_bitVal_sub_le_of_eq_zero (F' := fun x => F x || E x)
+  linarith [hX.expect_bitVal_sub_le_of_eq_zero (F' := fun x => F x || E x)
     (mul_mem_lowDegree hf (one_sub_mem_lowDegree he)) hk
     (fun x hx => mul_one_sub_eq_zero_of_or_eq_false (hfE x) hx)
-    ((sum_mul_le_sum_mul X hxor).trans hXE) ((expect_le_expect fun x _ => hxor x).trans hUE) hb
-  linarith
+    ((sum_mul_le_sum_mul X hxor).trans hXE) ((expect_le_expect fun x _ => hxor x).trans hUE) hb]
 
 /-- **Fooling from an approximation with a witness** [Braverman, Lemmas 10–12 and Main Theorem]:
 under the hypotheses of `expect_bitVal_sub_le_of_witness`, the `k`-wise independent distribution
@@ -236,15 +223,13 @@ theorem fools_bitVal_of_witness (hX : IsKWiseIndependent k X)
     (hδ : 𝔼 x, (bitVal ℝ (E x) - e x) ^ 2 ≤ δ) :
     Fools X (4 * a + 2 * (L + 1) ^ 2 * δ) fun x => bitVal ℝ (F x) := by
   refine fools_bitVal_of_le ?_ ?_
-  · have h := hX.expect_bitVal_sub_le_of_witness hf he hk hfE
-      (fun x => (hL x).trans (le_add_of_nonneg_right zero_le_one)) hXE hUE hδ
-    linarith
-  · have h := hX.expect_bitVal_sub_le_of_witness (F := fun x => !F x) (f := fun x => 1 - f x)
-      (one_sub_mem_lowDegree hf) he hk (fun x hx => by rw [hfE x hx, bitVal_not])
-      (fun x => show |1 - f x| ≤ L + 1 from
-        abs_le.2 ⟨by linarith [(abs_le.1 (hL x)).2], by linarith [(abs_le.1 (hL x)).1]⟩)
-      hXE hUE hδ
-    linarith
+  · linarith [hX.expect_bitVal_sub_le_of_witness hf he hk hfE
+      (fun x => (hL x).trans (le_add_of_nonneg_right zero_le_one)) hXE hUE hδ]
+  · have hL' (x : ι → Bool) : |1 - f x| ≤ L + 1 :=
+      abs_le.2 ⟨by linarith [(abs_le.1 (hL x)).2],
+        by linarith [(abs_le.1 (hL x)).1]⟩
+    linarith [hX.expect_bitVal_sub_le_of_witness (F := fun x => !F x) (f := fun x => 1 - f x)
+      (one_sub_mem_lowDegree hf) he hk (fun x hx => by rw [hfE x hx, bitVal_not]) hL' hXE hUE hδ]
 
 end Witness
 

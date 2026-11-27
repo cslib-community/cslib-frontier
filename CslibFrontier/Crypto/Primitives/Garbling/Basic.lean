@@ -124,13 +124,8 @@ theorem plainRow_trace (C : Circuit σ n m) (I : Interpretation σ Bool)
     (g : Fin C.size) :
     plainRow C I key perm ⟨g, fun k => (activeLabel C I key perm x (C.topology.wires g k)).2⟩ =
       activeLabel C I key perm x (.gate g) := by
-  have hv : (I (C.program.lines g).op fun k =>
-      C.program.trace I x ((C.program.lines g).wires k) + perm ((C.program.lines g).wires k) +
-        perm ((C.program.lines g).wires k)) = C.program.trace I x (.gate g) := by
-    rw [C.program.trace_gate]
-    congr 1 with k : 1
-    rw [add_assoc, BooleanRing.add_self, add_zero]
-  exact congrArg (fun b => (key (.gate g, b + perm (.gate g)), b + perm (.gate g))) hv
+  simp only [plainRow, activeLabel, Circuit.topology, add_assoc, BooleanRing.add_self, add_zero,
+    ← C.program.trace_gate]
 
 variable [AddCommGroup K]
 

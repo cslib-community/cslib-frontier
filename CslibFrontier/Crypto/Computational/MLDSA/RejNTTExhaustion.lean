@@ -45,13 +45,11 @@ private theorem count_accepted {n : ℕ} (b : Fin n → Triple) :
     have ht := ih (fun i => b i.succ)
     rw [List.ofFn_succ, List.flatten_cons, Fin.sum_univ_succ]
     by_cases h : rejects (b 0)
-    · have hx : ¬nttCandidate (b 0 0) (b 0 1) (b 0 2) < 8380417 := Nat.not_lt.mpr h
-      simp only [tripleBytes, List.cons_append, List.nil_append, rejNTTCoefficients, hx, h,
-        ite_false, ite_true] at ht ⊢
+    · simp only [tripleBytes, List.cons_append, List.nil_append, rejNTTCoefficients,
+        Nat.not_lt.mpr h, h, ite_false, ite_true] at ht ⊢
       omega
-    · have hx : nttCandidate (b 0 0) (b 0 1) (b 0 2) < 8380417 := Nat.lt_of_not_ge h
-      simp only [tripleBytes, List.cons_append, List.nil_append, rejNTTCoefficients, hx, h,
-        ite_false, ite_true, List.length_cons] at ht ⊢
+    · simp only [tripleBytes, List.cons_append, List.nil_append, rejNTTCoefficients,
+        Nat.lt_of_not_ge h, h, ite_false, ite_true, List.length_cons] at ht ⊢
       omega
 
 private def groupBytes (n : ℕ) : FixedBytes (n * 3) ≃ (Fin n → Triple) :=
@@ -60,40 +58,30 @@ private def groupBytes (n : ℕ) : FixedBytes (n * 3) ≃ (Fin n → Triple) :=
 private theorem flatten_groupBytes {n : ℕ} (t : FixedBytes (n * 3)) :
     (List.ofFn (fun i => tripleBytes (groupBytes n t i))).flatten = List.ofFn t := by
   rw [List.ofFn_mul t]
-  congr 1
-  apply congrArg List.ofFn
-  funext i
-  have hj (j : Fin 3) : groupBytes n t i j = t ⟨i.val * 3 + j.val, by
-      have := i.isLt; have := j.isLt; omega⟩ := by
-    change t ⟨j.val + 3 * i.val, _⟩ = _
-    congr 1
-    apply Fin.ext
-    dsimp only
+  refine congrArg List.flatten (congrArg List.ofFn (funext fun i => ?_))
+  have hlt (j : Fin 3) : i.val * 3 + j.val < n * 3 := by
+    have := i.isLt
+    have := j.isLt
     omega
-  simp only [tripleBytes, List.ofFn_succ, List.ofFn_zero, hj]
-  rfl
+  have hj (j : Fin 3) : groupBytes n t i j = t ⟨i.val * 3 + j.val, hlt j⟩ := by
+    change t ⟨j.val + 3 * i.val, _⟩ = _
+    exact congrArg t (Fin.ext (by dsimp only; omega))
+  simp [tripleBytes, List.ofFn_succ, hj]
 
 private def tailBytes (j : Fin 3) : Finset Byte :=
   if j = 1 then Icc 224 255 else if j = 2 then {127, 255} else univ
 
 private theorem rejects_mem {b : Triple} (hb : rejects b) (j : Fin 3) :
     b j ∈ tailBytes j := by
-  have ha := (b 0).isLt
-  have hmid := (b 1).isLt
-  have hc := (b 2).isLt
-  change (b 0).val < 256 at ha
-  change (b 1).val < 256 at hmid
-  change (b 2).val < 256 at hc
+  have ha : (b 0).val < 256 := (b 0).isLt
+  have hmid : (b 1).val < 256 := (b 1).isLt
+  have hc : (b 2).val < 256 := (b 2).isLt
   change 8380417 ≤ (b 0).val + 256 * (b 1).val + 65536 * ((b 2).val % 128) at hb
   fin_cases j
   · simp [tailBytes]
-  · change b 1 ∈ Icc (224 : Byte) 255
-    rw [mem_Icc]
-    change 224 ≤ (b 1).val ∧ (b 1).val ≤ 255
+  · simp [tailBytes, mem_Icc, Fin.le_iff_val_le_val]
     omega
-  · change b 2 ∈ ({127, 255} : Finset Byte)
-    simp only [mem_insert, mem_singleton, Fin.ext_iff]
-    change (b 2).val = 127 ∨ (b 2).val = 255
+  · simp [tailBytes, Fin.ext_iff]
     omega
 
 private def allowed : Finset Triple := Fintype.piFinset tailBytes
@@ -127,19 +115,13 @@ private theorem covers_exhaustion (b : Fin 298 → Triple)
   have hlt := (rejNTTPoly_eq_none_iff _).mp h
   rw [← flatten_groupBytes ((groupBytes 298).symm b), Equiv.apply_symm_apply] at hlt
   have hc := count_accepted b
-  rw [Finset.sum_boole] at hc
-  simp only [Nat.cast_id] at hc
+  rw [Finset.sum_boole, Nat.cast_id] at hc
   obtain ⟨J, hJ, hcard⟩ := exists_subset_card_eq
     (show 43 ≤ (univ.filter fun i => rejects (b i)).card by omega)
-  apply Set.mem_iUnion.mpr
-  refine ⟨J, Set.mem_iUnion.mpr ⟨mem_powersetCard.mpr ⟨subset_univ _, hcard⟩, ?_⟩⟩
-  intro i
+  refine Set.mem_iUnion₂.mpr ⟨J, mem_powersetCard.mpr ⟨subset_univ _, hcard⟩, fun i => ?_⟩
   by_cases hi : i ∈ J
-  · rw [ite_eq_left hi]
-    change b i ∈ Fintype.piFinset tailBytes
-    rw [Fintype.mem_piFinset]
-    exact rejects_mem (mem_filter.mp (hJ hi)).2
-  · simp only [hi, ite_false, Set.mem_univ]
+  · simpa [hi, allowed, Fintype.mem_piFinset] using rejects_mem (mem_filter.mp (hJ hi)).2
+  · simp [hi]
 
 /-- With 894 uniformly sampled bytes, FIPS 204 Algorithm 30 exhausts with probability below
 2⁻²⁵⁶. The union counts the possible locations of 43 rejections among 298 three-byte proposals. -/
@@ -149,27 +131,26 @@ theorem prob_rejNTTPoly_exhaustion :
   let P := PMF.uniformOfFintype (Fin 298 → Triple)
   let J := (univ : Finset (Fin 298)).powersetCard 43
   rw [← PMF.uniformOfFintype_map_equiv (groupBytes 298).symm, PMF.toOuterMeasure_map_apply]
-  apply lt_of_le_of_lt (PMF.toOuterMeasure_toReal_mono P (fun b hb => covers_exhaustion b hb))
-  apply lt_of_le_of_lt (PMF.toOuterMeasure_toReal_biUnion_finset_le P J atPositions)
-  have term (j : Finset (Fin 298)) (hj : j ∈ J) :
-      (P.toOuterMeasure (atPositions j)).toReal = (1 / 1024 : ℝ) ^ 43 := by
-    rw [prob_atPositions, (mem_powersetCard.mp hj).2]
-  rw [sum_congr rfl term, sum_const, nsmul_eq_mul]
   have hc : J.card < 2 ^ 174 := by
     rw [show J.card = Nat.choose 298 43 by simp [J], Nat.choose_eq_descFactorial_div_factorial]
     decide +kernel
-  have hreal : (J.card : ℝ) < (2 : ℝ) ^ 174 := by exact_mod_cast hc
-  calc
-    _ < (2 : ℝ) ^ 174 * (1 / 1024 : ℝ) ^ 43 := mul_lt_mul_of_pos_right hreal (by positivity)
-    _ = _ := by norm_num
+  calc (P.toOuterMeasure ((groupBytes 298).symm ⁻¹' {t | rejNTTPoly (List.ofFn t) = none})).toReal
+      ≤ (P.toOuterMeasure (⋃ j ∈ J, atPositions j)).toReal :=
+        PMF.toOuterMeasure_toReal_mono P fun b => covers_exhaustion b
+    _ ≤ ∑ j ∈ J, (P.toOuterMeasure (atPositions j)).toReal :=
+        PMF.toOuterMeasure_toReal_biUnion_finset_le P J atPositions
+    _ = J.card * (1 / 1024 : ℝ) ^ 43 := by
+        rw [sum_congr rfl fun j hj => by rw [prob_atPositions, (mem_powersetCard.mp hj).2],
+          sum_const, nsmul_eq_mul]
+    _ < (2 : ℝ) ^ 174 * (1 / 1024 : ℝ) ^ 43 :=
+        mul_lt_mul_of_pos_right (by exact_mod_cast hc) (by positivity)
+    _ = 1 / (2 : ℝ) ^ 256 := by norm_num
 
 private theorem isSome_ofFnM {n : ℕ} {α : Type*} (f : Fin n → Option α)
     (h : ∀ i, (f i).isSome) : (Vector.ofFnM f).isSome := by
-  let g i := (f i).get (h i)
-  have hf : f = fun i => (pure (g i) : Option α) :=
+  have hf : f = fun i => (pure ((f i).get (h i)) : Option α) :=
     funext fun i => (Option.some_get (h i)).symm
-  rw [hf, Vector.ofFnM_pure]
-  rfl
+  rw [hf, Vector.ofFnM_pure]; rfl
 
 private theorem expandA_exhausts_at_cell (H : Xofs) (s : Level) (rho : List Byte)
     (t : MatrixPrefixes s) (h : (H.withMatrixPrefixes s rho t).expandA s rho = none) :
@@ -177,16 +158,14 @@ private theorem expandA_exhausts_at_cell (H : Xofs) (s : Level) (rho : List Byte
   by_contra! cells
   let entry (i : Fin s.params.k) (j : Fin s.params.ℓ) :=
     (rejNTTPoly (List.ofFn (t i j))).map fromNTT
-  have ok := isSome_ofFnM (fun i => Vector.ofFnM (entry i)) fun i =>
-    isSome_ofFnM (entry i) fun j => by
-      simpa only [entry, Option.isSome_map, Option.isSome_iff_ne_none] using cells i j
-  have success : ((H.withMatrixPrefixes s rho t).expandA s rho).isSome := by
-    let unpack (v : Vector (Vector (Vector (ZMod 8380417) 256) s.params.ℓ) s.params.k) :
-        PublicMatrix s := fun i j => ((v.get i).get j).get
+  have ok := isSome_ofFnM (fun i => Vector.ofFnM (entry i)) fun i => isSome_ofFnM (entry i)
+    fun j => by simpa only [entry, Option.isSome_map, Option.isSome_iff_ne_none] using cells i j
+  have : ((H.withMatrixPrefixes s rho t).expandA s rho).isSome := by
     simp only [Xofs.expandA, read_matrixEntry, bind_pure_comp]
-    change (Option.map unpack (Vector.ofFnM fun i => Vector.ofFnM (entry i))).isSome
+    change (Option.map (fun v i j => ((v.get i).get j).get)
+      (Vector.ofFnM fun i => Vector.ofFnM (entry i))).isSome
     rwa [Option.isSome_map]
-  simp [h] at success
+  simp [h] at this
 
 /-- At a fixed public seed with independent uniform raw SHAKE128 prefixes, the probability
 that FIPS 204 Algorithm 32 exhausts at any entry is below the number of entries times 2⁻²⁵⁶. -/
@@ -199,25 +178,20 @@ theorem prob_expandA_exhaustion (H : Xofs) (s : Level) (rho : List Byte) :
   let J := (univ : Finset (Fin s.params.k × Fin s.params.ℓ))
   let bad (p : Fin s.params.k × Fin s.params.ℓ) : Set (MatrixPrefixes s) :=
     {t | rejNTTPoly (List.ofFn (t p.1 p.2)) = none}
-  apply lt_of_le_of_lt (PMF.toOuterMeasure_toReal_mono P (t := ⋃ p ∈ J, bad p) ?_)
-  · apply lt_of_le_of_lt (PMF.toOuterMeasure_toReal_biUnion_finset_le P J bad)
-    have term (p : Fin s.params.k × Fin s.params.ℓ) :
-        (P.toOuterMeasure (bad p)).toReal < 1 / (2 : ℝ) ^ 256 := by
-      have project : P.map (fun t => t p.1 p.2) = PMF.uniformOfFintype (FixedBytes 894) := by
-        change P.map ((fun row => row p.2) ∘ (fun t => t p.1)) = _
-        rw [← PMF.map_comp, show P = _ from (PMF.pi_uniformOfFintype).symm, PMF.pi_map_eval,
-          ← PMF.pi_uniformOfFintype, PMF.pi_map_eval]
-      have hb := prob_rejNTTPoly_exhaustion
-      rw [← project, PMF.toOuterMeasure_map_apply] at hb
-      exact hb
-    have hne : J.Nonempty := by
-      have hk : 0 < s.params.k := by cases s <;> decide
-      have hl : 0 < s.params.ℓ := by cases s <;> decide
-      exact ⟨(⟨0, hk⟩, ⟨0, hl⟩), mem_univ _⟩
-    exact (sum_lt_sum_of_nonempty hne (fun p _ => term p)).trans_eq
+  refine (PMF.toOuterMeasure_toReal_mono P (t := ⋃ p ∈ J, bad p) fun t ht => ?_).trans_lt
+    ((PMF.toOuterMeasure_toReal_biUnion_finset_le P J bad).trans_lt ?_)
+  · obtain ⟨i, j, hij⟩ := expandA_exhausts_at_cell H s rho t ht
+    exact Set.mem_iUnion₂.mpr ⟨(i, j), mem_univ _, hij⟩
+  · have hne : J.Nonempty :=
+      ⟨(⟨0, by cases s <;> decide⟩,
+        ⟨0, by cases s <;> decide⟩), mem_univ _⟩
+    refine (sum_lt_sum_of_nonempty (g := fun _ => 1 / (2 : ℝ) ^ 256) hne fun p _ => ?_).trans_eq
       (by simp [J, div_eq_mul_inv])
-  · intro t ht
-    obtain ⟨i, j, hij⟩ := expandA_exhausts_at_cell H s rho t ht
-    exact Set.mem_iUnion.mpr ⟨(i, j), Set.mem_iUnion.mpr ⟨mem_univ _, hij⟩⟩
+    have hproj : P.map (fun t => t p.1 p.2) = PMF.uniformOfFintype (FixedBytes 894) := by
+      change P.map ((fun row => row p.2) ∘ (fun t => t p.1)) = _
+      rw [← PMF.map_comp, show P = _ from PMF.pi_uniformOfFintype.symm, PMF.pi_map_eval,
+        ← PMF.pi_uniformOfFintype, PMF.pi_map_eval]
+    have hb := prob_rejNTTPoly_exhaustion
+    rwa [← hproj, PMF.toOuterMeasure_map_apply] at hb
 
 end Cslib.Crypto.MLDSA.FIPS204

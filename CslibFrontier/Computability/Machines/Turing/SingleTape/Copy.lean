@@ -68,17 +68,16 @@ theorem copy_lower_bound {ι : Bool → Symbol} {yes : Symbol} {T : ℕ → ℕ}
   have hm : 2 * d ≤ m := by dsimp [m, d] at *; omega
   let S := (Finset.univ : Finset (Fin m → Bool)).image fun x => (x, x)
   have hcard : S.card = 2 ^ m := by
-    dsimp [S]
-    rw [Finset.card_image_of_injective _ (fun _ _ h => congrArg Prod.fst h)]
+    rw [Finset.card_image_of_injective _ fun _ _ h => congrArg Prod.fst h]
     simp
   have hA (x y : Fin m → Bool) :
       List.ofFn x ++ List.replicate r false ++ (List.ofFn y ++ List.replicate r false) ∈
         Cslib.Language.copy Bool ↔ Communication.equality x y = true := by
-    have h := Cslib.Language.append_mem_copy_iff
-      (u := List.ofFn x ++ List.replicate r false)
-      (v := List.ofFn y ++ List.replicate r false) (by simp)
     simpa only [List.append_assoc, List.append_left_inj, List.ofFn_inj,
-      Communication.equality, decide_eq_true_eq] using h
+      Communication.equality, decide_eq_true_eq] using
+      Cslib.Language.append_mem_copy_iff
+        (u := List.ofFn x ++ List.replicate r false)
+        (v := List.ofFn y ++ List.replicate r false) (by simp)
   have h := crossing_foolingSet_bit_bound hdec
     (Communication.isFoolingSet_equality (Finset.univ : Finset (Fin m → Bool)))
     List.ofFn (List.replicate r false) (fun y => List.ofFn y ++ List.replicate r false)
@@ -87,10 +86,7 @@ theorem copy_lower_bound {ι : Bool → Symbol} {yes : Symbol} {T : ℕ → ℕ}
     m hm (by change 2 ^ m ≤ S.card; rw [hcard])
   simp only [List.length_replicate] at h
   have hquad : n ^ 2 ≤ 4 * (r + 1) * m := by
-    have hrem := Nat.mod_lt n (by decide : 0 < 2)
-    have hdiv := Nat.div_add_mod n 2
-    change 2 * m + n % 2 = n at hdiv
-    rcases (by omega : n = 2 * m ∨ n = 2 * m + 1) with hn' | hn' <;> nlinarith
+    rcases (by dsimp [m]; omega : n = 2 * m ∨ n = 2 * m + 1) with hn' | hn' <;> nlinarith
   nlinarith
 
 end Cslib.Turing.SingleTapeTM

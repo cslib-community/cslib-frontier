@@ -119,15 +119,13 @@ theorem weightedTrial_not (source : ProbComp α) (mask test : α → ProbComp Bo
       1 - Pr[weightedTrial source mask test] := by
   have hfair : ProbComp.eval (Bool.not <$> ProbComp.uniform Bool) =
       ProbComp.eval (ProbComp.uniform Bool) := by
-    ext bit
-    cases bit <;> simp [ProbComp.eval_map, PMF.map_apply,
-      PMF.uniformOfFintype_apply]
+    ext (_ | _) <;> simp [ProbComp.eval_map, PMF.map_apply, PMF.uniformOfFintype_apply]
   have hlaw : ProbComp.eval (weightedTrial source mask (fun value => Bool.not <$> test value)) =
       ProbComp.eval (Bool.not <$> weightedTrial source mask test) := by
     simp only [weightedTrial, map_bind, ProbComp.eval_bind]
-    congr 1 with value : 1
-    congr 1 with active : 1
-    cases active <;> simp only [Bool.false_eq_true, ite_false, ite_true, hfair]
+    refine congrArg (PMF.bind _ ·) (funext fun _ => congrArg (PMF.bind _ ·) (funext fun
+      | false => hfair.symm
+      | true => rfl))
   simpa only [hlaw, ProbComp.eval_map] using
     ProbComp.probability_not (weightedTrial source mask test)
 
@@ -139,8 +137,7 @@ theorem weightedTrial_correlation [Fintype α] (source : ProbComp α)
         (Pr[mask value] * signedVote (predict value) (truth value))) / 2 := by
   rw [weightedTrial_probability, Finset.sum_div]
   congr 1
-  apply Finset.sum_congr rfl
-  intro value _
+  refine Finset.sum_congr rfl fun value _ => ?_
   cases predict value <;> cases truth value <;>
     simp only [signedVote, ProbComp.eval_pure, PMF.pure_apply, beq_self_eq_true, Bool.false_beq,
       Bool.true_beq, Bool.not_true, Bool.true_eq_false, Bool.false_eq_true, ↓reduceIte,
@@ -202,11 +199,7 @@ theorem randomSign_good_probability (candidates : ProbComp (List Bool))
   have hpos : 0 ≤ positive := ENNReal.toReal_nonneg
   have hneg : 0 ≤ negative := ENNReal.toReal_nonneg
   dsimp only [threshold] at hpositive hnegative
-  rcases le_total 0 (Pr[candidates >>= test] - 1 / 2) with hsign | hsign
-  · rw [abs_of_nonneg hsign]
-    linarith
-  · rw [abs_of_nonpos hsign]
-    linarith
+  rcases abs_choice (Pr[candidates >>= test] - 1 / 2) with hsign | hsign <;> linarith
 
 /-- A bounded learner samples both orientations and selects by repeated validation trials. -/
 noncomputable def learn (candidates : ProbComp (List Bool)) (test : List Bool → ProbComp Bool)
@@ -276,18 +269,12 @@ theorem learn_correlation_error_pow [Fintype α] (candidates : ProbComp (List Bo
           (Pr[mask value] * signedVote (signedPredict predict code value)
             (truth value))}).toReal ≤
       (((confidence + 1) * (4 * inverseGap) ^ 2 : ℕ) + 1) * (1 / 2 : ℝ) ^ confidence := by
-  have h := learn_error_pow candidates (fun code => weightedTrial source mask
-    (fun value => pure (predict code value == truth value))) confidence inverseGap hgap hbias
-  refine le_trans ?_ h
-  apply ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _)
-  apply MeasureTheory.measure_mono
+  refine le_trans ?_ (learn_error_pow candidates _ confidence inverseGap hgap hbias)
+  refine ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _) (MeasureTheory.measure_mono ?_)
   intro code hbad hgood
   rw [signedTest_weightedTrial, weightedTrial_correlation] at hgood
-  apply hbad
-  have hscale : (1 : ℝ) / (2 * inverseGap) = 2 * (1 / (4 * inverseGap)) := by
-    field_simp
-    ring
-  linarith
+  have hscale : (1 : ℝ) / (2 * inverseGap) = 2 * (1 / (4 * inverseGap)) := by field_simp; ring
+  exact hbad (by linarith)
 
 /-- Each orientation adds exactly one bit, and empirical selection preserves this bound even
 when its statistical tests fail. The empty fallback also satisfies it. -/
@@ -323,11 +310,9 @@ theorem learn_goodPredictor_error_pow [Fintype α] (candidates : ProbComp (List 
       {code | ¬ state.GoodPredictor (ProbComp.eval source) (signedPredict predict) truth
         params code}).toReal ≤ (((params.confidence + 1) * (4 * inverseGap) ^ 2 : ℕ) + 1) *
         (1 / 2 : ℝ) ^ params.confidence := by
-  have h := learn_correlation_error_pow candidates source mask predict truth params.confidence
-    inverseGap hgap hbias
-  refine le_trans ?_ h
-  apply ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _)
-  apply PMF.toOuterMeasure_mono
+  refine le_trans ?_ (learn_correlation_error_pow candidates source mask predict truth
+    params.confidence inverseGap hgap hbias)
+  refine ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _) (PMF.toOuterMeasure_mono _ ?_)
   rintro code ⟨hbad, hcode⟩ hcorrelation
   apply hbad
   have hsize := learn_length_le candidates _ params.confidence inverseGap bound hbound hcode

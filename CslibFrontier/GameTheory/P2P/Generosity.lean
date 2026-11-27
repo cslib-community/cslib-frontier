@@ -79,48 +79,35 @@ theorem uniformTail_of_le_zero {θ_m t : ℝ} (ht : t ≤ 0) : uniformTail θ_m 
   simp [uniformTail, ht]
 
 theorem uniformTail_nonneg {θ_m : ℝ} (hθ : 0 < θ_m) (t : ℝ) : 0 ≤ uniformTail θ_m t := by
-  dsimp [uniformTail]
+  unfold uniformTail
   split_ifs with h0 ht
-  · norm_num
-  · have : t / θ_m ≤ 1 := (div_le_one hθ).mpr ht
-    linarith
-  · exact le_rfl
+  exacts [zero_le_one, sub_nonneg.mpr ((div_le_one hθ).mpr ht), le_rfl]
 
 theorem uniformTail_le_one {θ_m : ℝ} (hθ : 0 < θ_m) (t : ℝ) : uniformTail θ_m t ≤ 1 := by
-  dsimp [uniformTail]
+  unfold uniformTail
   split_ifs with h0 ht
-  · exact le_rfl
-  · have hpos : 0 ≤ t / θ_m := div_nonneg (lt_of_not_ge h0).le hθ.le
-    linarith
-  · norm_num
+  exacts [le_rfl, sub_le_self _ (div_nonneg (not_le.mp h0).le hθ.le), zero_le_one]
 
 theorem uniformTail_antitone {θ_m : ℝ} (hθ : 0 < θ_m) : Antitone (uniformTail θ_m) := by
   intro t₁ t₂ hle
   by_cases h1 : t₁ ≤ 0
-  · have htail1 : uniformTail θ_m t₁ = 1 := by simp [uniformTail, h1]
-    rw [htail1]
+  · rw [uniformTail_of_le_zero h1]
     exact uniformTail_le_one hθ t₂
   · have ht1_pos : 0 < t₁ := lt_of_not_ge h1
     have h2 : ¬ t₂ ≤ 0 := not_le.mpr (lt_of_lt_of_le ht1_pos hle)
     by_cases h2θ : t₂ ≤ θ_m
-    · have h1θ : t₁ ≤ θ_m := hle.trans h2θ
-      simp only [uniformTail, h1, h2, h1θ, h2θ, ↓reduceIte]
+    · simp only [uniformTail, h1, h2, hle.trans h2θ, h2θ, ↓reduceIte]
       linarith [div_le_div_of_nonneg_right hle hθ.le]
-    · have htail2 : uniformTail θ_m t₂ = 0 := by simp [uniformTail, h2, h2θ]
-      rw [htail2]
+    · simp only [uniformTail, h2, h2θ, ↓reduceIte]
       exact uniformTail_nonneg hθ t₁
 
 theorem uniformTail_of_pos_le {θ_m t : ℝ} (ht0 : 0 < t) (htθ : t ≤ θ_m) :
     uniformTail θ_m t = 1 - t / θ_m := by
-  dsimp [uniformTail]
-  rw [ite_eq_right_iff.mpr (fun h => absurd h ht0.not_ge),
-    ite_eq_left_iff.mpr (fun h => absurd htθ h)]
+  simp [uniformTail, ht0.not_ge, htθ]
 
 theorem uniformTail_of_gt {θ_m t : ℝ} (ht0 : 0 < t) (htθ : θ_m < t) :
     uniformTail θ_m t = 0 := by
-  dsimp [uniformTail]
-  rw [ite_eq_right_iff.mpr (fun h => absurd h ht0.not_ge),
-    ite_eq_right_iff.mpr (fun h => absurd h htθ.not_ge)]
+  simp [uniformTail, ht0.not_ge, htθ.not_ge]
 
 /-- Upper positive equilibrium contribution root `(θ_m + √(θ_m (θ_m - 4))) / (2 θ_m)` of the
 uniform generosity model (NRTV Claim 23.1). -/
@@ -147,58 +134,30 @@ private theorem quad_sol_iff {a b c x : ℝ} (ha : 0 < a) (hdisc : 0 ≤ b ^ 2 -
   set d := Real.sqrt (b ^ 2 - 4 * a * c)
   have hd : d ^ 2 = b ^ 2 - 4 * a * c := Real.sq_sqrt hdisc
   have hfac : 4 * a * (a * x ^ 2 - b * x + c) =
-      (2 * a * x - (b - d)) * (2 * a * x - (b + d)) := by
-    calc
-      4 * a * (a * x ^ 2 - b * x + c) = (2 * a * x - b) ^ 2 - (b ^ 2 - 4 * a * c) := by ring
-      _ = (2 * a * x - b) ^ 2 - d ^ 2 := by rw [← hd]
-      _ = (2 * a * x - (b - d)) * (2 * a * x - (b + d)) := by ring
-  constructor
-  · intro h
-    have h0 : (2 * a * x - (b - d)) * (2 * a * x - (b + d)) = 0 := by rw [← hfac, h, mul_zero]
-    rcases mul_eq_zero.mp h0 with h1 | h2
-    · left; field_simp [ha.ne']; linarith
-    · right; field_simp [ha.ne']; linarith
-  · rintro (rfl | rfl)
-    · have h0 : 2 * a * ((b - d) / (2 * a)) - (b - d) = 0 := by
-        field_simp [ha.ne']; ring
-      have hprod : 4 * a * (a * ((b - d) / (2 * a)) ^ 2 - b * ((b - d) / (2 * a)) + c) = 0 := by
-        rw [hfac, h0, zero_mul]
-      exact (mul_eq_zero.mp hprod).resolve_left (by linarith)
-    · have h0 : 2 * a * ((b + d) / (2 * a)) - (b + d) = 0 := by
-        field_simp [ha.ne']; ring
-      have hprod : 4 * a * (a * ((b + d) / (2 * a)) ^ 2 - b * ((b + d) / (2 * a)) + c) = 0 := by
-        rw [hfac, h0, mul_zero]
-      exact (mul_eq_zero.mp hprod).resolve_left (by linarith)
+      (2 * a * x - (b - d)) * (2 * a * x - (b + d)) := by linarith
+  have h2a : 2 * a ≠ 0 := by positivity
+  have h4a : 4 * a ≠ 0 := by positivity
+  rw [← mul_right_inj' h4a, mul_zero, hfac, mul_eq_zero, sub_eq_zero,
+    sub_eq_zero, eq_div_iff h2a, eq_div_iff h2a, mul_comm x]
 
 /-- Root identities and bounds for `unifLowRoot` and `unifHighRoot` when `4 ≤ θ_m`. -/
 theorem unifRoot_props {θ_m : ℝ} (hθ : 4 ≤ θ_m) :
     0 < unifLowRoot θ_m ∧ unifLowRoot θ_m ≤ unifHighRoot θ_m ∧ unifHighRoot θ_m < 1 := by
   have hθ_pos : 0 < θ_m := by linarith
-  have hrad : 0 ≤ θ_m * (θ_m - 4) := mul_nonneg hθ_pos.le (sub_nonneg.mpr hθ)
-  have hsq : Real.sqrt (θ_m * (θ_m - 4)) < θ_m := by
-    rw [Real.sqrt_lt' hθ_pos]
-    nlinarith
+  have h2θ : 0 < 2 * θ_m := by positivity
+  have hsq : Real.sqrt (θ_m * (θ_m - 4)) < θ_m := (Real.sqrt_lt' hθ_pos).mpr (by nlinarith)
   have hpos_sq : 0 ≤ Real.sqrt (θ_m * (θ_m - 4)) := Real.sqrt_nonneg _
-  refine ⟨?_, ?_, ?_⟩
-  · dsimp [unifLowRoot]
-    exact div_pos (by linarith) (by linarith)
-  · dsimp [unifLowRoot, unifHighRoot]
-    exact div_le_div_of_nonneg_right (by linarith) (by linarith)
-  · dsimp [unifHighRoot]
-    rw [div_lt_one (by linarith)]
-    linarith
+  exact ⟨div_pos (by linarith) h2θ, div_le_div_of_nonneg_right (by linarith) h2θ.le,
+    (div_lt_one h2θ).mpr (by linarith)⟩
 
 private theorem uniformEquilibrium_of_quad {θ_m x : ℝ} (hθ : 0 < θ_m) (hx₀ : 0 < x)
     (hx₁ : x ≤ 1) (hquad : θ_m * x ^ 2 - θ_m * x + 1 = 0) :
     generosityEquilibrium (uniformTail θ_m) x := by
-  have hle_θm : 1 / x ≤ θ_m := by
-    rw [div_le_iff₀ hx₀]
-    have hsq : 0 ≤ θ_m * x ^ 2 := mul_nonneg hθ.le (sq_nonneg x)
-    linarith
+  have hle_θm : 1 / x ≤ θ_m :=
+    (div_le_iff₀ hx₀).mpr (by linarith [mul_nonneg hθ.le (sq_nonneg x)])
   refine ⟨hx₀, hx₁, ?_⟩
   rw [uniformTail_of_pos_le (one_div_pos.mpr hx₀) hle_θm]
-  field_simp [hx₀.ne', hθ.ne']
-  linarith
+  field_simp [hx₀.ne', hθ.ne']; linarith
 
 /-- **Minimalist equilibrium characterization** (NRTV Claim 23.1): for a uniform generosity
 distribution on `[0, θ_m]` (`θ_m > 0`), positive equilibrium contribution fractions exist iff
@@ -212,49 +171,33 @@ theorem uniformEquilibrium_iff {θ_m x : ℝ} (hθ : 0 < θ_m) :
     have hinv_pos : 0 < 1 / x := one_div_pos.mpr hx0
     have hle_θm : 1 / x ≤ θ_m := by
       by_contra hgt
-      have h0 : uniformTail θ_m (1 / x) = 0 := uniformTail_of_gt hinv_pos (lt_of_not_ge hgt)
-      linarith
-    have htail : uniformTail θ_m (1 / x) = 1 - (1 / x) / θ_m :=
-      uniformTail_of_pos_le hinv_pos hle_θm
-    rw [htail] at hxeq
+      linarith [uniformTail_of_gt hinv_pos (lt_of_not_ge hgt)]
+    rw [uniformTail_of_pos_le hinv_pos hle_θm] at hxeq
     have hquad : θ_m * x ^ 2 - θ_m * x + 1 = 0 := by
-      have h1 : x * (θ_m * x) = (1 - (1 / x) / θ_m) * (θ_m * x) := by rw [← hxeq]
-      field_simp [hx0.ne', hθ.ne'] at h1
-      linarith
-    have h4 : 4 ≤ θ_m := by
-      have hsq : 0 ≤ θ_m * (x - 1 / 2) ^ 2 := mul_nonneg hθ.le (sq_nonneg _)
-      have hid : θ_m * (x - 1 / 2) ^ 2 + (4 - θ_m) / 4 = θ_m * x ^ 2 - θ_m * x + 1 := by ring
-      linarith
-    have hdisc : 0 ≤ θ_m ^ 2 - 4 * θ_m * 1 := by
-      rw [hdisc_eq]; exact mul_nonneg hθ.le (sub_nonneg.mpr h4)
-    refine ⟨h4, ?_⟩
-    have hsol := (quad_sol_iff hθ hdisc).mp hquad
-    rw [hdisc_eq] at hsol
-    exact hsol
+      field_simp [hx0.ne', hθ.ne'] at hxeq; linarith
+    have h4 : 4 ≤ θ_m := by nlinarith [mul_nonneg hθ.le (sq_nonneg (x - 1 / 2))]
+    have hdisc : 0 ≤ θ_m ^ 2 - 4 * θ_m * 1 :=
+      hdisc_eq ▸ mul_nonneg hθ.le (sub_nonneg.mpr h4)
+    exact ⟨h4, by simpa only [unifLowRoot, unifHighRoot, hdisc_eq] using
+      (quad_sol_iff hθ hdisc).mp hquad⟩
   · rintro ⟨hθ4, hroot⟩
     obtain ⟨hlow_pos, hlow_le, hhigh_lt⟩ := unifRoot_props hθ4
-    have hdisc : 0 ≤ θ_m ^ 2 - 4 * θ_m * 1 := by
-      rw [hdisc_eq]; exact mul_nonneg hθ.le (sub_nonneg.mpr hθ4)
-    have hx_pos : 0 < x := by rcases hroot with rfl | rfl <;> linarith
-    have hx_le : x ≤ 1 := by rcases hroot with rfl | rfl <;> linarith
-    have hquad : θ_m * x ^ 2 - θ_m * x + 1 = 0 := by
-      refine (quad_sol_iff hθ hdisc).mpr ?_
-      rcases hroot with rfl | rfl
-      · exact Or.inl (by unfold unifLowRoot; rw [← hdisc_eq])
-      · exact Or.inr (by unfold unifHighRoot; rw [← hdisc_eq])
-    exact uniformEquilibrium_of_quad hθ hx_pos hx_le hquad
+    have hdisc : 0 ≤ θ_m ^ 2 - 4 * θ_m * 1 :=
+      hdisc_eq ▸ mul_nonneg hθ.le (sub_nonneg.mpr hθ4)
+    obtain ⟨hx_pos, hx_le⟩ : 0 < x ∧ x ≤ 1 := by
+      rcases hroot with rfl | rfl <;> constructor <;> linarith
+    refine uniformEquilibrium_of_quad hθ hx_pos hx_le ((quad_sol_iff hθ hdisc).mpr ?_)
+    exact hroot.imp (fun h => by rw [h, unifLowRoot, ← hdisc_eq])
+      fun h => by rw [h, unifHighRoot, ← hdisc_eq]
 
 /-- Critical point at `θ_m = 4`: the two equilibrium roots coalesce at `1 / 2`, and strictly below
 `θ_m = 4` positive generosity collapses completely (NRTV Claim 23.1). -/
 theorem uniform_at_four_and_collapse :
     (unifLowRoot 4 = 1 / 2 ∧ unifHighRoot 4 = 1 / 2) ∧
       ∀ {θ_m : ℝ}, 0 < θ_m → θ_m < 4 → ¬ ∃ x, generosityEquilibrium (uniformTail θ_m) x := by
-  refine ⟨⟨?_, ?_⟩, ?_⟩
-  · norm_num [unifLowRoot]
+  refine ⟨⟨by norm_num [unifLowRoot], ?_⟩, fun {θ_m} hθ hlt ⟨_, hx⟩ => ?_⟩
   · norm_num [unifHighRoot]
-  · intro θ_m hθ hlt ⟨x, hx⟩
-    have := (uniformEquilibrium_iff hθ).mp hx
-    linarith
+  · linarith [(uniformEquilibrium_iff hθ).mp hx]
 
 /-- **Best-response stability of `unifHighRoot` vs instability of `unifLowRoot`** (NRTV Claim 23.1):
 for `4 ≤ θ_m`, `uniformTail θ_m (1 / x) > x` strictly on `(unifLowRoot θ_m, unifHighRoot θ_m)`,
@@ -263,7 +206,6 @@ theorem uniform_stability {θ_m : ℝ} (hθ4 : 4 ≤ θ_m) {x : ℝ} (hx₀ : 0 
     (unifLowRoot θ_m < x → x < unifHighRoot θ_m → x < uniformTail θ_m (1 / x)) ∧
       ((x < unifLowRoot θ_m ∨ unifHighRoot θ_m < x) → uniformTail θ_m (1 / x) < x) := by
   have hθ : 0 < θ_m := by linarith
-  have hdisc_eq : θ_m * (θ_m - 4) = θ_m ^ 2 - 4 * θ_m * 1 := by ring
   set d := Real.sqrt (θ_m * (θ_m - 4))
   have hd : d ^ 2 = θ_m * (θ_m - 4) := Real.sq_sqrt (mul_nonneg hθ.le (sub_nonneg.mpr hθ4))
   have hfac : θ_m * x ^ 2 - θ_m * x + 1 =
@@ -272,56 +214,39 @@ theorem uniform_stability {θ_m : ℝ} (hθ4 : 4 ≤ θ_m) {x : ℝ} (hx₀ : 0 
     field_simp [hθ.ne']
     nlinarith [hd]
   have hinv_pos : 0 < 1 / x := one_div_pos.mpr hx₀
-  have hnot0 : ¬ 1 / x ≤ 0 := not_le.mpr hinv_pos
   constructor
   · intro hl hh
     have hquad_neg : θ_m * x ^ 2 - θ_m * x + 1 < 0 := by
       rw [hfac]
-      have h1 : 0 < θ_m * (x - unifLowRoot θ_m) := mul_pos hθ (sub_pos.mpr hl)
-      have h2 : x - unifHighRoot θ_m < 0 := sub_neg.mpr hh
-      exact mul_neg_of_pos_of_neg h1 h2
-    have hle_θm : 1 / x ≤ θ_m := by
-      rw [div_le_iff₀ hx₀]
-      have hsq_pos : 0 < θ_m * x ^ 2 := mul_pos hθ (sq_pos_of_pos hx₀)
-      linarith
+      exact mul_neg_of_pos_of_neg (mul_pos hθ (sub_pos.mpr hl)) (sub_neg.mpr hh)
+    have hle_θm : 1 / x ≤ θ_m :=
+      (div_le_iff₀ hx₀).mpr (by linarith [mul_pos hθ (sq_pos_of_pos hx₀)])
     rw [uniformTail_of_pos_le hinv_pos hle_θm, ← sub_pos]
     have hid : 1 - (1 / x) / θ_m - x = -(θ_m * x ^ 2 - θ_m * x + 1) / (θ_m * x) := by
-      field_simp [hx₀.ne', hθ.ne']
-      ring
-    rw [hid]
-    exact div_pos (by linarith) (mul_pos hθ hx₀)
+      field_simp [hx₀.ne', hθ.ne']; ring
+    exact hid ▸ div_pos (by linarith) (mul_pos hθ hx₀)
   · intro hdisj
     have hquad_pos : 0 < θ_m * x ^ 2 - θ_m * x + 1 := by
       rw [hfac]
+      obtain ⟨_, hle, _⟩ := unifRoot_props hθ4
       rcases hdisj with hl | hh
-      · obtain ⟨_, hle, _⟩ := unifRoot_props hθ4
-        have hh' : x < unifHighRoot θ_m := lt_of_lt_of_le hl hle
-        exact mul_pos_of_neg_of_neg (mul_neg_of_pos_of_neg hθ (sub_neg.mpr hl)) (sub_neg.mpr hh')
-      · obtain ⟨_, hle, _⟩ := unifRoot_props hθ4
-        have hl' : unifLowRoot θ_m < x := lt_of_le_of_lt hle hh
-        exact mul_pos (mul_pos hθ (sub_pos.mpr hl')) (sub_pos.mpr hh)
+      · exact mul_pos_of_neg_of_neg (mul_neg_of_pos_of_neg hθ (sub_neg.mpr hl))
+          (sub_neg.mpr (hl.trans_le hle))
+      · exact mul_pos (mul_pos hθ (sub_pos.mpr (hle.trans_lt hh))) (sub_pos.mpr hh)
     by_cases hle_θm : 1 / x ≤ θ_m
     · rw [uniformTail_of_pos_le hinv_pos hle_θm, ← sub_pos]
       have hid : x - (1 - (1 / x) / θ_m) = (θ_m * x ^ 2 - θ_m * x + 1) / (θ_m * x) := by
-        field_simp [hx₀.ne', hθ.ne']
-        ring
-      rw [hid]
-      exact div_pos hquad_pos (mul_pos hθ hx₀)
-    · rw [uniformTail_of_gt hinv_pos (lt_of_not_ge hle_θm)]
-      exact hx₀
+        field_simp [hx₀.ne', hθ.ne']; ring
+      rw [hid]; positivity
+    · rwa [uniformTail_of_gt hinv_pos (lt_of_not_ge hle_θm)]
 
 private theorem unifHighRoot_eq_half_add {θ_m : ℝ} (hθ : 0 < θ_m) :
     unifHighRoot θ_m = 1 / 2 + Real.sqrt (1 / 4 - 1 / θ_m) := by
   have hid : (θ_m * (θ_m - 4)) / (2 * θ_m) ^ 2 = 1 / 4 - 1 / θ_m := by
     field_simp [hθ.ne']
     ring
-  rw [unifHighRoot, add_div]
-  have hdiv : Real.sqrt (θ_m * (θ_m - 4)) / (2 * θ_m) =
-      Real.sqrt ((θ_m * (θ_m - 4)) / (2 * θ_m) ^ 2) := by
-    rw [Real.sqrt_div', Real.sqrt_sq (by linarith)]
-    · positivity
-  have h1 : θ_m / (2 * θ_m) = 1 / 2 := by field_simp [hθ.ne']
-  rw [h1, hdiv, hid]
+  rw [unifHighRoot, add_div, ← hid, Real.sqrt_div' _ (sq_nonneg _),
+    Real.sqrt_sq (mul_pos two_pos hθ).le, mul_comm 2 θ_m, div_mul_eq_div_div, div_self hθ.ne']
 
 /-- The stable equilibrium contribution fraction `unifHighRoot θ_m` is strictly increasing in
 `θ_m` on `[4, ∞)` (NRTV Claim 23.1). -/
@@ -331,14 +256,10 @@ theorem unifHighRoot_strictMono {θ₁ θ₂ : ℝ} (hθ₁ : 4 ≤ θ₁) (hlt 
   have h2 : 0 < θ₂ := by linarith
   rw [unifHighRoot_eq_half_add h1, unifHighRoot_eq_half_add h2]
   have hsub : 1 / 4 - 1 / θ₁ < 1 / 4 - 1 / θ₂ := by
-    have : 1 / θ₂ < 1 / θ₁ := div_lt_div_of_pos_left zero_lt_one h1 hlt
-    linarith
+    linarith [div_lt_div_of_pos_left zero_lt_one h1 hlt]
   have hnn : 0 ≤ 1 / 4 - 1 / θ₁ := by
-    have : 1 / θ₁ ≤ 1 / 4 := div_le_div_of_nonneg_left zero_le_one (by norm_num) hθ₁
-    linarith
-  have hlt_sqrt : Real.sqrt (1 / 4 - 1 / θ₁) < Real.sqrt (1 / 4 - 1 / θ₂) :=
-    Real.sqrt_lt_sqrt hnn hsub
-  linarith
+    linarith [div_le_div_of_nonneg_left zero_le_one (by norm_num : (0 : ℝ) < 4) hθ₁]
+  linarith [Real.sqrt_lt_sqrt hnn hsub]
 
 /-- As the generosity range `θ_m → ∞`, the stable equilibrium `unifHighRoot θ_m` approaches `1`
 (NRTV Claim 23.1). -/
@@ -363,11 +284,9 @@ theorem unifHighRoot_tendsto_one :
   have hsqrt_gt : 1 / 2 - δ < Real.sqrt (1 / 4 - 1 / θ_m) := by
     rw [← Real.sqrt_sq (by linarith : 0 ≤ 1 / 2 - δ)]
     exact Real.sqrt_lt_sqrt (sq_nonneg _) hlow_sq
-  have hgt : 1 - ε < unifHighRoot θ_m := by
-    rw [unifHighRoot_eq_half_add hθpos]
-    have hδε : δ ≤ ε := min_le_left ε (1 / 2)
-    linarith
-  exact ⟨hgt, (unifRoot_props hθ4).2.2⟩
+  refine ⟨?_, (unifRoot_props hθ4).2.2⟩
+  rw [unifHighRoot_eq_half_add hθpos]
+  linarith [min_le_left ε (1 / 2)]
 
 /-! ### Mixture generosity distributions (NRTV Exercise 23.1) -/
 
@@ -384,20 +303,13 @@ theorem mixtureTail_one (θ_m t : ℝ) : mixtureTail θ_m 1 t = uniformTail θ_m
 
 theorem mixtureTail_of_pos_le {θ_m φ t : ℝ} (ht₀ : 0 < t) (htθ : t ≤ θ_m) :
     mixtureTail θ_m φ t = (1 + φ) / 2 - φ * t / θ_m := by
-  dsimp [mixtureTail]
-  rw [uniformTail_of_pos_le ht₀ htθ,
-    ite_eq_right_iff.mpr fun h => absurd h ht₀.not_ge,
-    ite_eq_left_iff.mpr fun h => absurd htθ h]
+  simp only [mixtureTail, uniformTail_of_pos_le ht₀ htθ, ht₀.not_ge, htθ, ↓reduceIte]
   ring
 
 theorem mixtureTail_of_gt {θ_m φ t : ℝ} (hθ : 0 < θ_m) (ht : θ_m < t) :
     mixtureTail θ_m φ t = 0 := by
   have ht₀ : 0 < t := hθ.trans ht
-  dsimp [mixtureTail]
-  rw [uniformTail_of_gt ht₀ ht,
-    ite_eq_right_iff.mpr fun h => absurd h ht₀.not_ge,
-    ite_eq_right_iff.mpr fun h => absurd h ht.not_ge]
-  ring
+  simp [mixtureTail, uniformTail_of_gt ht₀ ht, ht₀.not_ge, ht.not_ge]
 
 /-- Lower root `(((1 + φ) / 2) θ_m - √((((1 + φ) / 2) θ_m)^2 - 4 θ_m φ)) / (2 θ_m)` of the
 interior quadratic fixed-point equation for `mixtureTail θ_m φ` (NRTV Exercise 23.1). -/
@@ -433,16 +345,11 @@ theorem mixRoot_props {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀ : 0 < φ) (hφ₁
     have : 0 < 4 * θ_m * φ := by positivity
     linarith
   have hsq_nn : 0 ≤ Real.sqrt (((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ) := Real.sqrt_nonneg _
-  have hlt_cap : mixHighRoot θ_m φ < (1 + φ) / 2 := by
-    dsimp [mixHighRoot]
-    rw [div_lt_iff₀ (by linarith)]
-    linarith
+  have h2θ : 0 < 2 * θ_m := mul_pos two_pos hθ
+  have hlt_cap : mixHighRoot θ_m φ < (1 + φ) / 2 := (div_lt_iff₀ h2θ).mpr (by linarith)
   have _ := hthr
-  refine ⟨?_, ?_, hlt_cap, by linarith⟩
-  · dsimp [mixLowRoot]
-    exact div_pos (by linarith) (by linarith)
-  · dsimp [mixLowRoot, mixHighRoot]
-    exact div_le_div_of_nonneg_right (by linarith) (by linarith)
+  exact ⟨div_pos (by linarith) h2θ, div_le_div_of_nonneg_right (by linarith) h2θ.le,
+    hlt_cap, by linarith⟩
 
 /-- Upper bound `x ≤ (1 + φ) / 2` for any positive equilibrium under `mixtureTail θ_m φ`
 (`0 ≤ φ ≤ 1`, `θ_m > 0`), strictly capping equilibrium participation below `1` whenever `φ < 1`
@@ -451,16 +358,11 @@ theorem mixture_upper_bound {θ_m φ x : ℝ} (hθ : 0 < θ_m) (hφ₀ : 0 ≤ �
     (heq : generosityEquilibrium (mixtureTail θ_m φ) x) :
     x ≤ (1 + φ) / 2 := by
   rcases heq with ⟨hx₀, _, hxeq⟩
-  have hinv_pos : 0 < 1 / x := one_div_pos.mpr hx₀
-  have hnot0 : ¬ 1 / x ≤ 0 := not_le.mpr hinv_pos
-  have hu : uniformTail θ_m (1 / x) ≤ 1 := uniformTail_le_one hθ (1 / x)
-  have h0 : (if 1 / x ≤ 0 then (1 : ℝ) else 0) = 0 := ite_eq_right_iff.mpr fun h => absurd h hnot0
   have hm : (if 1 / x ≤ θ_m then (1 : ℝ) else 0) ≤ 1 := by split_ifs <;> norm_num
-  have h1φ : 0 ≤ (1 - φ) / 2 := by linarith
   rw [hxeq]
-  dsimp [mixtureTail]
-  rw [h0]
-  nlinarith
+  simp only [mixtureTail, (one_div_pos.mpr hx₀).not_ge, ↓reduceIte]
+  linarith [mul_le_mul_of_nonneg_left (uniformTail_le_one hθ (1 / x)) hφ₀,
+    mul_le_mul_of_nonneg_left hm (show 0 ≤ (1 - φ) / 2 by linarith)]
 
 private theorem mixture_disc_nonneg_iff {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀ : 0 < φ) :
     16 * φ / (1 + φ) ^ 2 ≤ θ_m ↔ 0 ≤ ((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ := by
@@ -470,10 +372,7 @@ private theorem mixture_disc_nonneg_iff {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀
     field_simp [h1φ_pos.ne']
     ring
   have hcoeff : 0 < θ_m * (1 + φ) ^ 2 / 4 := by positivity
-  rw [hid]
-  exact ⟨fun h => mul_nonneg hcoeff.le (sub_nonneg.mpr h), fun h => by
-    have := nonneg_of_mul_nonneg_right h hcoeff
-    linarith⟩
+  rw [hid, mul_nonneg_iff_of_pos_left hcoeff, sub_nonneg]
 
 /-- **Mixture equilibrium characterization** (NRTV Exercise 23.1): for `0 < θ_m` and
 `0 < φ ≤ 1`, a fraction `x` is a positive generosity equilibrium under `mixtureTail θ_m φ` iff
@@ -486,36 +385,27 @@ theorem mixtureEquilibrium_iff {θ_m φ x : ℝ} (hθ : 0 < θ_m) (hφ₀ : 0 < 
   constructor
   · rintro ⟨hx₀, _, hxeq⟩
     have hinv_pos : 0 < 1 / x := one_div_pos.mpr hx₀
-    have hle_θm : 1 / x ≤ θ_m := by
-      by_contra hgt
-      have h0 : mixtureTail θ_m φ (1 / x) = 0 := mixtureTail_of_gt hθ (lt_of_not_ge hgt)
-      linarith
+    have hle_θm : 1 / x ≤ θ_m :=
+      le_of_not_gt fun hgt => by linarith [mixtureTail_of_gt (φ := φ) hθ hgt]
     rw [mixtureTail_of_pos_le hinv_pos hle_θm] at hxeq
     have hquad : θ_m * x ^ 2 - ((1 + φ) / 2 * θ_m) * x + φ = 0 := by
-      have h1 : x * (θ_m * x) = ((1 + φ) / 2 - φ * (1 / x) / θ_m) * (θ_m * x) := by rw [← hxeq]
-      field_simp [hx₀.ne', hθ.ne'] at h1
+      field_simp [hx₀.ne', hθ.ne'] at hxeq
       linarith
     have hdisc : 0 ≤ ((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ := by
-      have hid : ((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ =
-          (2 * θ_m * x - (1 + φ) / 2 * θ_m) ^ 2 := by
-        nlinarith [hquad]
-      rw [hid]
-      exact sq_nonneg _
+      linarith [sq_nonneg (2 * θ_m * x - (1 + φ) / 2 * θ_m), mul_eq_zero_of_right (4 * θ_m) hquad]
     exact ⟨(mixture_disc_nonneg_iff hθ hφ₀).mpr hdisc, hle_θm, (quad_sol_iff hθ hdisc).mp hquad⟩
   · rintro ⟨hthr, hle_θm, hroot⟩
     obtain ⟨hlow_pos, hlow_le, _, hhigh_lt⟩ := mixRoot_props hθ hφ₀ hφ₁ hthr
-    have hx₀ : 0 < x := by rcases hroot with rfl | rfl <;> linarith
-    have hx₁ : x ≤ 1 := by rcases hroot with rfl | rfl <;> linarith
+    obtain ⟨hx₀, hx₁⟩ : 0 < x ∧ x ≤ 1 := by
+      rcases hroot with rfl | rfl <;> constructor <;> linarith
     have hdisc : 0 ≤ ((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ :=
       (mixture_disc_nonneg_iff hθ hφ₀).mp hthr
     have hquad : θ_m * x ^ 2 - ((1 + φ) / 2 * θ_m) * x + φ = 0 :=
       (quad_sol_iff hθ hdisc).mpr hroot
     refine ⟨hx₀, hx₁, ?_⟩
     rw [mixtureTail_of_pos_le (one_div_pos.mpr hx₀) hle_θm]
-    have h1 : (x - ((1 + φ) / 2 - φ * (1 / x) / θ_m)) * (θ_m * x) = 0 := by
-      field_simp [hx₀.ne', hθ.ne']
-      linarith
-    linarith [(mul_eq_zero.mp h1).resolve_right (mul_pos hθ hx₀).ne']
+    field_simp [hx₀.ne', hθ.ne']
+    linarith
 
 /-- **Two-regime positive-equilibrium threshold for mixture generosity** (NRTV Exercise 23.1):
 for `0 < θ_m` and `0 < φ ≤ 1`, a positive generosity equilibrium exists under `mixtureTail θ_m φ`
@@ -536,32 +426,18 @@ theorem exists_mixtureEquilibrium_iff {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀ :
       have h1φ_sub : 0 < 1 - φ := by linarith
       rw [div_le_iff₀ h1φ_sub]
       have hx₀ : 0 < x := heq.1
-      have hy1 : 1 ≤ θ_m * x := by
-        have := (div_le_iff₀ hx₀).mp hle_θm
-        linarith
+      have hy1 : 1 ≤ θ_m * x := (div_le_iff₀ hx₀).mp hle_θm
       have hdisc : 0 ≤ ((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ :=
         (mixture_disc_nonneg_iff hθ hφ₀).mp hthr
       have hquad : θ_m * x ^ 2 - ((1 + φ) / 2 * θ_m) * x + φ = 0 :=
         (quad_sol_iff hθ hdisc).mpr hroot
       by_contra hlt
       have hlt2 : θ_m * (1 - φ) < 2 := lt_of_not_ge hlt
-      have hsum_zero :
-          (θ_m * x - 1) ^ 2 + (θ_m * x - 1) * (2 - (1 + φ) / 2 * θ_m) +
-            (1 - θ_m * (1 - φ) / 2) = 0 := by
-        calc
-          (θ_m * x - 1) ^ 2 + (θ_m * x - 1) * (2 - (1 + φ) / 2 * θ_m) +
-              (1 - θ_m * (1 - φ) / 2) =
-              θ_m * (θ_m * x ^ 2 - ((1 + φ) / 2 * θ_m) * x + φ) := by ring
-          _ = 0 := by rw [hquad, mul_zero]
+      have hsum_zero : (θ_m * x - 1) ^ 2 + (θ_m * x - 1) * (2 - (1 + φ) / 2 * θ_m) +
+          (1 - θ_m * (1 - φ) / 2) = 0 := by linarith [mul_eq_zero_of_right θ_m hquad]
       have hcoef_pos : 0 < 2 - (1 + φ) / 2 * θ_m := by
-        have h3 : (1 + φ) * θ_m < 2 * (θ_m * (1 - φ)) := by
-          have : 1 + φ < 2 * (1 - φ) := by linarith
-          nlinarith
-        linarith
-      have hterm1 : 0 ≤ (θ_m * x - 1) ^ 2 := sq_nonneg _
-      have hterm2 : 0 ≤ (θ_m * x - 1) * (2 - (1 + φ) / 2 * θ_m) :=
-        mul_nonneg (by linarith) hcoef_pos.le
-      linarith
+        nlinarith [mul_lt_mul_of_pos_left (show 1 + φ < 2 * (1 - φ) by linarith) hθ]
+      linarith [sq_nonneg (θ_m * x - 1), mul_nonneg (sub_nonneg.2 hy1) hcoef_pos.le]
   · rintro (⟨hφ3, hthr⟩ | ⟨hφ_lt, h2⟩)
     · refine ⟨mixHighRoot θ_m φ, (mixtureEquilibrium_iff hθ hφ₀ hφ₁).mpr ⟨hthr, ?_, Or.inr rfl⟩⟩
       obtain ⟨hlow_pos, hlow_le, _, _⟩ := mixRoot_props hθ hφ₀ hφ₁ hthr
@@ -569,20 +445,12 @@ theorem exists_mixtureEquilibrium_iff {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀ :
       rw [div_le_iff₀ hhigh_pos]
       have h1φ_pos : 0 < (1 + φ) ^ 2 := by positivity
       have hmul : 16 * φ ≤ θ_m * (1 + φ) ^ 2 := (div_le_iff₀ h1φ_pos).mp hthr
-      have hb_ge : 2 ≤ (1 + φ) / 2 * θ_m := by
-        have h1φ : 0 < 1 + φ := by linarith
-        have : 2 * (1 + φ) ≤ ((1 + φ) / 2 * θ_m) * (1 + φ) := by
-          calc
-            2 * (1 + φ) ≤ 8 * φ := by linarith
-            _ ≤ θ_m * (1 + φ) ^ 2 / 2 := by linarith
-            _ = ((1 + φ) / 2 * θ_m) * (1 + φ) := by ring
-        exact le_of_mul_le_mul_right this h1φ
+      have hb_ge : 2 ≤ (1 + φ) / 2 * θ_m := by nlinarith
       have hsq_nn : 0 ≤ Real.sqrt (((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ) := Real.sqrt_nonneg _
       have hid : θ_m * mixHighRoot θ_m φ =
           ((1 + φ) / 2 * θ_m + Real.sqrt (((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ)) / 2 := by
         dsimp [mixHighRoot]
         field_simp [hθ.ne']
-      rw [hid]
       linarith
     · have h1φ_sub : 0 < 1 - φ := by linarith
       have h1φ_sq : 0 < (1 + φ) ^ 2 := by positivity
@@ -596,24 +464,16 @@ theorem exists_mixtureEquilibrium_iff {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀ :
       have hhigh_pos : 0 < mixHighRoot θ_m φ := lt_of_lt_of_le hlow_pos hlow_le
       rw [div_le_iff₀ hhigh_pos]
       have h2mul : 2 ≤ θ_m * (1 - φ) := (div_le_iff₀ h1φ_sub).mp h2
-      have hdisc : 0 ≤ ((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ :=
-        (mixture_disc_nonneg_iff hθ hφ₀).mp hthr
       set b := (1 + φ) / 2 * θ_m
       set d := Real.sqrt (b ^ 2 - 4 * θ_m * φ)
-      have hd_sq : d ^ 2 = b ^ 2 - 4 * θ_m * φ := Real.sq_sqrt hdisc
-      have hsq_le : (2 - b) ^ 2 ≤ d ^ 2 := by
-        have hid : d ^ 2 - (2 - b) ^ 2 = 2 * (θ_m * (1 - φ) - 2) := by
-          rw [hd_sq]
-          dsimp [b]
-          ring
+      have hsq_le : (2 - b) ^ 2 ≤ b ^ 2 - 4 * θ_m * φ := by
+        have hid : (b ^ 2 - 4 * θ_m * φ) - (2 - b) ^ 2 = 2 * (θ_m * (1 - φ) - 2) := by
+          dsimp [b]; ring
         linarith
-      have hbd : 2 ≤ b + d := by
-        have hle_d : 2 - b ≤ d := Real.le_sqrt_of_sq_le (hd_sq ▸ hsq_le)
-        linarith
+      have hle_d : 2 - b ≤ d := Real.le_sqrt_of_sq_le hsq_le
       have hid : θ_m * mixHighRoot θ_m φ = (b + d) / 2 := by
         dsimp [mixHighRoot, b, d]
         field_simp [hθ.ne']
-      rw [hid]
       linarith
 
 theorem mixture_threshold_le_four {φ : ℝ} (hφ₀ : 0 ≤ φ) :
@@ -681,9 +541,7 @@ nonnegative support (`∀ t ≤ 0, tail t = 1`), any benefit `α > 0`, and any p
 theorem fullCooperation_penalty_threshold {tail : ℝ → ℝ} (htail : ∀ t ≤ 0, tail t = 1)
     {α p : ℝ} (hα : 0 < α) (hp : 1 / α ≤ p) :
     penaltyThreshold α 1 p ≤ 0 ∧ penaltyEquilibrium tail α p 1 := by
-  have h1α : 1 ≤ α * p := by
-    have h := (div_le_iff₀ hα).mp hp
-    linarith
+  have h1α : 1 ≤ α * p := by rwa [div_le_iff₀ hα, mul_comm] at hp
   have hthr : penaltyThreshold α 1 p ≤ 0 := by
     simp only [penaltyThreshold, requestLoad, sub_self, zero_mul, sub_zero, div_one, mul_one]
     linarith
@@ -723,21 +581,15 @@ theorem exclHighRoot_equilibrium {θ_m z : ℝ} (hθ_pos : 0 < θ_m) (hz₁ : z 
       exclHighRoot θ_m z < 1 := by
   have h1z : 0 < 1 - z := sub_pos.mpr hz₁
   have hrad : 0 ≤ θ_m * (θ_m - 4 * (1 - z)) := mul_nonneg hθ_pos.le (sub_nonneg.mpr hthr)
-  have hsq_lt : Real.sqrt (θ_m * (θ_m - 4 * (1 - z))) < θ_m := by
-    rw [Real.sqrt_lt' hθ_pos]
-    nlinarith
-  have hpos : 0 < exclHighRoot θ_m z := by
-    dsimp [exclHighRoot]
-    have hnn := Real.sqrt_nonneg (θ_m * (θ_m - 4 * (1 - z)))
-    positivity
-  have hlt1 : exclHighRoot θ_m z < 1 := by
-    dsimp [exclHighRoot]
-    rw [div_lt_one (by linarith)]
-    linarith
+  have h2θ : 0 < 2 * θ_m := mul_pos two_pos hθ_pos
+  have hsq_lt : Real.sqrt (θ_m * (θ_m - 4 * (1 - z))) < θ_m :=
+    (Real.sqrt_lt' hθ_pos).mpr (by nlinarith)
+  have hpos : 0 < exclHighRoot θ_m z :=
+    div_pos (by linarith [Real.sqrt_nonneg (θ_m * (θ_m - 4 * (1 - z)))]) h2θ
+  have hlt1 : exclHighRoot θ_m z < 1 := (div_lt_one h2θ).mpr (by linarith)
   have hdisc_eq : θ_m ^ 2 - 4 * θ_m * (1 - z) = θ_m * (θ_m - 4 * (1 - z)) := by ring
-  have hdisc : 0 ≤ θ_m ^ 2 - 4 * θ_m * (1 - z) := by rw [hdisc_eq]; exact hrad
   have hquad : θ_m * (exclHighRoot θ_m z) ^ 2 - θ_m * exclHighRoot θ_m z + (1 - z) = 0 :=
-    (quad_sol_iff hθ_pos hdisc).mpr (Or.inr (by unfold exclHighRoot; rw [← hdisc_eq]))
+    (quad_sol_iff hθ_pos (hdisc_eq ▸ hrad)).mpr (Or.inr (by rw [exclHighRoot, ← hdisc_eq]))
   have hle_θm : (1 - z) / exclHighRoot θ_m z ≤ θ_m := by
     rw [div_le_iff₀ hpos]
     have hlt_prod : exclHighRoot θ_m z ^ 2 < exclHighRoot θ_m z := by nlinarith
@@ -770,23 +622,14 @@ lowers welfare: `exclWelfare 2 (exclHighRoot 5 (1 / 2)) (1 / 2) <
 minimalistWelfare 2 (unifHighRoot 5)`. -/
 theorem excl_can_reduce_welfare :
     exclWelfare 2 (exclHighRoot 5 (1 / 2)) (1 / 2) < minimalistWelfare 2 (unifHighRoot 5) := by
+  have r1 : (5 : ℝ) * (5 - 4) = 5 := by norm_num
+  have r2 : (5 : ℝ) * (5 - 4 * (1 - 1 / 2)) = 15 := by norm_num
   have h1 : minimalistWelfare 2 (unifHighRoot 5) = Real.sqrt 5 / 5 := by
-    simp only [minimalistWelfare, unifHighRoot]
-    have heq : (5 : ℝ) * (5 - 4) = 5 := by ring
-    rw [heq]
-    ring
+    rw [minimalistWelfare, unifHighRoot, r1]; ring
   have h2 : exclWelfare 2 (exclHighRoot 5 (1 / 2)) (1 / 2) = Real.sqrt 15 / 10 := by
-    simp only [exclWelfare, exclHighRoot]
-    have heq : (5 : ℝ) * (5 - 4 * (1 - 1 / 2)) = 15 := by ring
-    rw [heq]
-    ring
-  rw [h1, h2]
+    rw [exclWelfare, exclHighRoot, r2]; ring
   have hlt : Real.sqrt 15 < 2 * Real.sqrt 5 := by
-    have h2eq : 2 * Real.sqrt 5 = Real.sqrt 20 := by
-      have : (20 : ℝ) = 2 ^ 2 * 5 := by norm_num
-      rw [this, Real.sqrt_mul (sq_nonneg 2), Real.sqrt_sq (by norm_num)]
-    rw [h2eq]
-    exact Real.sqrt_lt_sqrt (by norm_num) (by norm_num)
+    rw [Real.sqrt_lt' (by positivity), mul_pow, Real.sq_sqrt (by norm_num)]; norm_num
   linarith
 
 end Cslib.GameTheory.P2P

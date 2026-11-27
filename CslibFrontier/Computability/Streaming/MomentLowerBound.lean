@@ -108,8 +108,7 @@ theorem Algorithm.le_of_approx_freqMoment {σ : Type*} {L b k : ℕ} {η : ℝ} 
     (hA : ∀ s : List (Fin L × Fin 16), s.length ≤ 2 * L →
       |A.run s - freqMoment k s| ≤ η * freqMoment k s)
     (hspace : A.SpaceLE L b) : L ≤ b := by
-  by_contra hb
-  push Not at hb
+  by_contra! hb
   obtain ⟨enc, henc⟩ := hspace
   obtain ⟨C, hC, hCd⟩ := Code.exists_two_pow_le_card_and_le_two_mul_hammingDist L
   -- two codewords whose graph streams lead to the same memory state
@@ -125,33 +124,30 @@ theorem Algorithm.le_of_approx_freqMoment {σ : Type*} {L b k : ℕ} {η : ℝ} 
   have hrun : A.run (graphStream x ++ graphStream x) = A.run (graphStream y ++ graphStream x) := by
     simp only [run, state_append, hstate]
   have hlen (z : Fin L → Fin 16) : (graphStream z ++ graphStream x).length ≤ 2 * L := by
-    rw [List.length_append, length_graphStream, length_graphStream]
-    omega
+    simp only [List.length_append, length_graphStream]; omega
   have h1 := hA _ (hlen x)
   have h2 := hA _ (hlen y)
   rw [hrun] at h1
   set Y := A.run (graphStream y ++ graphStream x)
   -- the two moments
   have hd := hCd y hy x hx (Ne.symm hxy)
-  have hsum := card_filter_eq_add_hammingDist y x
-  rw [Fintype.card_fin] at hsum
+  have hsum := (card_filter_eq_add_hammingDist y x).trans (Fintype.card_fin L)
   have hF1 : (freqMoment k (graphStream x ++ graphStream x) : ℝ) = 2 ^ k * L := by
     simp only [freqMoment_graphStream_append_eq, hammingDist_self, filter_true, card_univ,
       Fintype.card_fin, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat, mul_zero, add_zero]
   have hF2 : (freqMoment k (graphStream y ++ graphStream x) : ℝ) =
       2 ^ k * (#{i | y i = x i} : ℕ) + 2 * (hammingDist y x : ℕ) := by
     rw [freqMoment_graphStream_append_eq]; push_cast; ring
-  rw [hF1] at h1; rw [hF2] at h2
+  rw [hF1] at h1
   have hLpos : (0 : ℝ) < L := by exact_mod_cast lt_of_le_of_lt (Nat.zero_le b) hb
   have hη0 : 0 ≤ η := nonneg_of_mul_nonneg_left ((abs_nonneg _).trans h1) (by positivity)
   have hd' : (L : ℝ) ≤ 2 * (hammingDist y x : ℝ) := by exact_mod_cast hd
   have hδle : (hammingDist y x : ℝ) ≤ L := by exact_mod_cast (by omega : hammingDist y x ≤ L)
-  have hc : ((#{i | y i = x i} : ℕ) : ℝ) = L - (hammingDist y x : ℝ) := by
-    have : ((#{i | y i = x i} : ℕ) : ℝ) + (hammingDist y x : ℝ) = L := by exact_mod_cast hsum
-    linarith
+  have hc : ((#{i | y i = x i} : ℕ) : ℝ) = L - (hammingDist y x : ℝ) :=
+    eq_sub_of_add_eq (by exact_mod_cast hsum)
   set δ : ℝ := (hammingDist y x : ℝ)
-  rw [hc] at h2
-  rw [abs_le] at h1 h2
+  rw [hF2, hc, abs_le] at h2
+  rw [abs_le] at h1
   rcases Nat.eq_zero_or_pos k with rfl | hk0
   · -- `F₀`: `L` against `L + δ` with `L / 2 ≤ δ ≤ L`
     norm_num at h1 h2
@@ -233,16 +229,13 @@ theorem le_of_solves_freqMoment {σ : Type*} {n b r k : ℕ} {ε : ℝ} (hk : k 
   have hcc := μ.ecomplexityFun_le_of_spaceLE hspace u v
     (fun x => (length_graphStream _).le) (fun c => decide (c = 2 * n))
     disjointness (ε := ε) fun x y => by
-      have hlen : (u x ++ v y).length ≤ 2 * n := by
-        simp only [u, v, List.length_append, length_graphStream]
-        omega
-      refine le_trans ?_ (hμ _ hlen)
+      refine le_trans ?_
+        (hμ (u x ++ v y) (by simp only [u, v, List.length_append, length_graphStream]; omega))
       unfold Randomized.errorProb
       refine ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
         (μ.toOuterMeasure.mono fun A hA => ?_)
-      simp only [Set.mem_ofPred_eq] at hA ⊢
-      intro h
-      exact hA (by rw [h, disjointness_eq_decide_freqMoment_eq hk])
+      rw [Set.mem_ofPred_eq] at hA ⊢
+      exact fun h => hA (by rw [h, disjointness_eq_decide_freqMoment_eq hk])
   exact PublicCoin.le_of_ecomplexityFun_disjointness_le hε hr (by exact_mod_cast hcc)
 
 /-- **Computing `F_k` exactly needs `Ω(n)` bits of memory, even with randomness**
@@ -267,8 +260,7 @@ theorem div_le_of_solves_freqMoment {σ : Type*} {N b r k : ℕ} {ε : ℝ} (hk 
     (Randomized.SpaceLE.map_reduce [] (by rwa [List.length_nil, Nat.zero_add]) e id)
   refine (μ.errorProb_map_reduce_le [] e id s fun c hc => ?_).trans
     (hμ _ (by rwa [List.nil_append, List.length_map]))
-  rw [hc, List.nil_append, freqMoment_map e.injective]
-  rfl
+  rw [hc, List.nil_append, freqMoment_map e.injective]; rfl
 
 /-- **Computing `F_k` exactly and deterministically needs `n` bits of memory**, for `k ≠ 1`: a
 deterministic streaming algorithm computing `F_k` on every stream of at most `2 n` items of
@@ -286,11 +278,8 @@ theorem Algorithm.le_of_run_eq_freqMoment {σ : Type*} {n b k : ℕ} (hk : k ≠
     disjointness fun x y => by
       rw [hA _ (by rw [List.length_append, length_graphStream, length_graphStream]; omega),
         disjointness_eq_decide_freqMoment_eq hk]
-  have h2 := ecomplexity_disjointness hn
-  unfold Protocol.ecomplexityFun at h
-  rw [h2] at h
-  have h3 : n + 1 ≤ b + 1 := by exact_mod_cast h
-  omega
+  rw [Protocol.ecomplexityFun, ecomplexity_disjointness hn] at h
+  exact Nat.succ_le_succ_iff.mp (by exact_mod_cast h)
 
 /-- **Computing `F_k` exactly and deterministically needs `Ω(n)` bits of memory**, for `k ≠ 1`, over
 the universe `Fin N`: with at most `b` bits of memory on streams of at most `N / 3` items, a

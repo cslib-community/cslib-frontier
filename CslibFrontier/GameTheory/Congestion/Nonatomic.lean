@@ -145,29 +145,21 @@ theorem IsWardrop.cost_le_sum_mul_pathLatency [DecidableEq K] {f g : P → ℝ}
   by_cases h : ∃ p₀, G.commodity p₀ = k ∧ 0 < f p₀
   · obtain ⟨p₀, hp₀, hpos⟩ := h
     have hL : ∀ p ∈ Finset.univ.filter (G.commodity · = k),
-        f p * G.pathLatency f p = f p * G.pathLatency f p₀ := by
-      intro p hp
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hp
+        f p * G.pathLatency f p = f p * G.pathLatency f p₀ := fun p hp => by
       rcases (hf.1.1 p).lt_or_eq with hfp | hfp
-      · rw [le_antisymm (hf.2 p p₀ (hp.trans hp₀.symm) hfp) (hf.2 p₀ p (hp₀.trans hp.symm) hpos)]
+      · have hp' := (Finset.mem_filter.mp hp).2
+        rw [le_antisymm (hf.2 p p₀ (hp'.trans hp₀.symm) hfp) (hf.2 p₀ p (hp₀.trans hp'.symm) hpos)]
       · rw [← hfp, zero_mul, zero_mul]
-    have hge : ∀ p ∈ Finset.univ.filter (G.commodity · = k),
-        g p * G.pathLatency f p₀ ≤ g p * G.pathLatency f p := by
-      intro p hp
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hp
-      exact mul_le_mul_of_nonneg_left (hf.2 p₀ p (hp₀.trans hp.symm) hpos) (hg.1 p)
     rw [Finset.sum_congr rfl hL, ← Finset.sum_mul, hf.1.2 k, ← hg.2 k, Finset.sum_mul]
-    exact Finset.sum_le_sum hge
+    exact Finset.sum_le_sum fun p hp =>
+      mul_le_mul_of_nonneg_left (hf.2 p₀ p (hp₀.trans (Finset.mem_filter.mp hp).2.symm) hpos)
+        (hg.1 p)
   · push Not at h
-    have hf0 : ∀ p ∈ Finset.univ.filter (G.commodity · = k), f p = 0 := by
-      intro p hp
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hp
-      exact le_antisymm (h p hp) (hf.1.1 p)
-    have hg0 : ∀ p ∈ Finset.univ.filter (G.commodity · = k), g p = 0 := by
-      have hsum : ∑ p with G.commodity p = k, g p = 0 := by
-        rw [hg.2 k, ← hf.1.2 k]
-        exact Finset.sum_eq_zero hf0
-      exact (Finset.sum_eq_zero_iff_of_nonneg fun p _ => hg.1 p).1 hsum
+    have hf0 : ∀ p ∈ Finset.univ.filter (G.commodity · = k), f p = 0 := fun p hp =>
+      le_antisymm (h p (Finset.mem_filter.mp hp).2) (hf.1.1 p)
+    have hg0 : ∀ p ∈ Finset.univ.filter (G.commodity · = k), g p = 0 :=
+      (Finset.sum_eq_zero_iff_of_nonneg fun p _ => hg.1 p).1
+        (by rw [hg.2 k, ← hf.1.2 k, Finset.sum_eq_zero hf0])
     rw [Finset.sum_eq_zero fun p hp => by rw [hf0 p hp, zero_mul],
       Finset.sum_eq_zero fun p hp => by rw [hg0 p hp, zero_mul]]
 

@@ -35,9 +35,8 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 /-- Reassociate `off + len ≤ sp` into `base + off + len ≤ base + sp`. -/
 theorem seg_add_le {base off len sp : ℕ} (h : off + len ≤ sp) :
-    base + off + len ≤ base + sp := by
-  rw [Nat.add_assoc]
-  exact Nat.add_le_add_left h _
+    base + off + len ≤ base + sp :=
+  Nat.add_assoc _ _ _ ▸ Nat.add_le_add_left h _
 
 /-- Packed-array safety discharge in the form expected by `realizes_readPackedGen` /
 `realizes_writePackedGen`. -/
@@ -45,21 +44,16 @@ theorem WhpLargeEnv.packed_safe_true {c U V w n_max base off N k idx : ℕ}
     (henv : WhpLargeEnv c U V w n_max w base)
     (hk : k ≤ w) (hidx : idx < N)
     (hseg : off + packedWords N k w ≤ largeSpaceWhp c U V w n_max) :
-    ∃ N', True ∧ 0 < w ∧ k ≤ w ∧ idx < N' ∧ Fits w (base + off + packedWords N' k w) := by
-  obtain ⟨N', _, h2, h3, h4, h5⟩ := henv.packed_safe_of_le hk hidx hseg
-  exact ⟨N', trivial, h2, h3, h4, h5⟩
+    ∃ N', True ∧ 0 < w ∧ k ≤ w ∧ idx < N' ∧ Fits w (base + off + packedWords N' k w) :=
+  (henv.packed_safe_of_le hk hidx hseg).imp fun _ h => ⟨trivial, h.2⟩
 
 /-- Injectivity of row-major index encoding `a * B + b` for `b < B`. -/
 theorem mul_add_inj_right {B a₁ b₁ a₂ b₂ : ℕ} (hb₁ : b₁ < B) (hb₂ : b₂ < B)
     (heq : a₁ * B + b₁ = a₂ * B + b₂) : a₁ = a₂ ∧ b₁ = b₂ := by
-  have hB : 0 < B := by omega
-  have ha : a₁ = a₂ := by
-    have hd1 : (a₁ * B + b₁) / B = a₁ := by
-      rw [Nat.mul_comm a₁ B, Nat.mul_add_div hB, Nat.div_eq_of_lt hb₁, Nat.add_zero]
-    have hd2 : (a₂ * B + b₂) / B = a₂ := by
-      rw [Nat.mul_comm a₂ B, Nat.mul_add_div hB, Nat.div_eq_of_lt hb₂, Nat.add_zero]
-    rw [← hd1, heq, hd2]
-  exact ⟨ha, by subst ha; omega⟩
+  rcases lt_trichotomy a₁ a₂ with h | rfl | h
+  · linarith [Nat.add_mul a₁ 1 B, Nat.mul_le_mul_right B h]
+  · exact ⟨rfl, by omega⟩
+  · linarith [Nat.add_mul a₂ 1 B, Nat.mul_le_mul_right B h]
 
 /-- Congruence for the 10 scalar bucket-metadata fields in `offBktMeta`. -/
 theorem bktMeta_congr_of_readPacked {base c U V w n_max b : ℕ} {fs : FastState}
@@ -138,50 +132,35 @@ theorem bufTrieMemRep_congr_nonBuf {base c U V w n_max ep : ℕ} {tr : BufTrie}
     fun _ hlo hhi u hu k hk =>
       readPacked_congr hw (hidx := show 4 * u + k < 6 * maxTrieNodesWhp c n_max by omega)
         fun a ⟨h1, h2⟩ => htrie a (by omega) (by omega)
+  have hit : ∀ id < 3 * qEpochWhp n_max,
+      readPacked (base + if ep = 0 then offTrieItems0 c U V w n_max
+        else offTrieItems1 c U V w n_max) (globalPtrBits n_max) w mem₂ id =
+      readPacked (base + if ep = 0 then offTrieItems0 c U V w n_max
+        else offTrieItems1 c U V w n_max) (globalPtrBits n_max) w mem₁ id := by
+    rcases hep with rfl | rfl
+    · exact hit0
+    · rw [ite_eq_right one_ne_zero]
+      exact fun id hid => readPacked_congr hw (hidx := show id < 6 * qEpochWhp n_max + 6 by omega)
+        fun a ⟨h1, h2⟩ => hit1 a h1 (by omega)
+  have hmc := hmeta_eq (if ep = 0 then offTrieMeta0 c U V w n_max else offTrieMeta1 c U V w n_max)
+    (by split <;> omega) (by split <;> omega)
   dsimp only [BufTrieMemRep] at hrep ⊢
   obtain ⟨hna, hia, hhdr_na, hhdr_ia, hchild, hpar, hleaf, hitems⟩ := hrep
-  rcases hep with rfl | rfl
-  · simp only [↓reduceIte] at hhdr_na hhdr_ia hchild hpar hleaf hitems ⊢
-    have hmc := hmeta_eq (offTrieMeta0 c U V w n_max) (by omega) (by omega)
-    refine ⟨hna, hia,
-      (hhdr 12 (by decide) (by decide)).trans hhdr_na,
-      (hhdr 13 (by decide) (by decide)).trans hhdr_ia,
-      fun u hu ch hch_lt =>
-        (hch_eq _ le_rfl (by omega) u hu ch hch_lt).trans (hchild u hu ch hch_lt),
-      fun u hu1 hu =>
-        ⟨(hmc u (hu.trans_le hna) 0 (by decide)).trans (hpar u hu1 hu).1,
-         (hmc u (hu.trans_le hna) 1 (by decide)).trans (hpar u hu1 hu).2⟩,
-      fun u hu =>
-        ⟨(hmc u (hu.trans_le hna) 2 (by decide)).trans (hleaf u hu).1,
-         fun hnz => (hmc u (hu.trans_le hna) 3 (by decide)).trans ((hleaf u hu).2 hnz)⟩,
-      fun id hid => by
-        have hid_q : id < qEpochWhp n_max := hid.trans_le hia
-        exact ⟨(hit0 id (by omega)).trans (hitems id hid).1,
-          (hit0 _ (by omega)).trans (hitems id hid).2.1,
-          (hit0 _ (by omega)).trans (hitems id hid).2.2⟩⟩
-  · simp only [Nat.one_ne_zero, ↓reduceIte] at hhdr_na hhdr_ia hchild hpar hleaf hitems ⊢
-    have hmc := hmeta_eq (offTrieMeta1 c U V w n_max) (by omega) (by omega)
-    refine ⟨hna, hia,
-      (hhdr 14 (by decide) (by decide)).trans hhdr_na,
-      (hhdr 15 (by decide) (by decide)).trans hhdr_ia,
-      fun u hu ch hch_lt =>
-        (hch_eq _ (by omega) (by omega) u hu ch hch_lt).trans (hchild u hu ch hch_lt),
-      fun u hu1 hu =>
-        ⟨(hmc u (hu.trans_le hna) 0 (by decide)).trans (hpar u hu1 hu).1,
-         (hmc u (hu.trans_le hna) 1 (by decide)).trans (hpar u hu1 hu).2⟩,
-      fun u hu =>
-        ⟨(hmc u (hu.trans_le hna) 2 (by decide)).trans (hleaf u hu).1,
-         fun hnz => (hmc u (hu.trans_le hna) 3 (by decide)).trans ((hleaf u hu).2 hnz)⟩,
-      fun id hid => by
-        have hid_q : id < qEpochWhp n_max := hid.trans_le hia
-        exact ⟨(readPacked_congr hw (hidx := show id < 6 * qEpochWhp n_max + 6 by omega)
-            fun a ⟨h1, h2⟩ => hit1 a h1 (by omega)).trans (hitems id hid).1,
-          (readPacked_congr hw
-            (hidx := show qEpochWhp n_max + id < 6 * qEpochWhp n_max + 6 by omega)
-            fun a ⟨h1, h2⟩ => hit1 a h1 (by omega)).trans (hitems id hid).2.1,
-          (readPacked_congr hw
-            (hidx := show 2 * qEpochWhp n_max + id < 6 * qEpochWhp n_max + 6 by omega)
-            fun a ⟨h1, h2⟩ => hit1 a h1 (by omega)).trans (hitems id hid).2.2⟩⟩
+  refine ⟨hna, hia,
+    (hhdr _ (by split <;> decide) (by split <;> decide)).trans hhdr_na,
+    (hhdr _ (by split <;> decide) (by split <;> decide)).trans hhdr_ia,
+    fun u hu ch hch_lt =>
+      (hch_eq _ (by split <;> omega) (by split <;> omega) u hu ch hch_lt).trans
+        (hchild u hu ch hch_lt),
+    fun u hu1 hu =>
+      ⟨(hmc u (hu.trans_le hna) 0 (by decide)).trans (hpar u hu1 hu).1,
+       (hmc u (hu.trans_le hna) 1 (by decide)).trans (hpar u hu1 hu).2⟩,
+    fun u hu =>
+      ⟨(hmc u (hu.trans_le hna) 2 (by decide)).trans (hleaf u hu).1,
+       fun hnz => (hmc u (hu.trans_le hna) 3 (by decide)).trans ((hleaf u hu).2 hnz)⟩,
+    fun id hid => ⟨(hit id (by omega)).trans (hitems id hid).1,
+      (hit _ (by omega)).trans (hitems id hid).2.1,
+      (hit _ (by omega)).trans (hitems id hid).2.2⟩⟩
 
 /-- Master frame helper for scalar/array updates that leave `slices` and `buf` unchanged. -/
 theorem fastStep_nonSliceNonBuf {base c U V w n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -247,11 +226,8 @@ theorem fastStep_nonSliceNonBuf {base c U V w n_max : ℕ} {θ : SeedWhp c U n_m
         (3 * qEpochWhp n_max + j) = fs'.dirtyBuckets j) :
     FastStateStep base c U V w n_max θ fs' s s' := by
   have hch := largeOffsetChain c U V w n_max
-  have hout : ∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → s'.mem a = s.mem a := by
-    intro a ha
-    rcases ha with hlt | hge
-    · exact hfence a (Or.inl hlt)
-    · exact hfence a (Or.inr (Or.inr (Or.inr (by omega))))
+  have hout : ∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → s'.mem a = s.mem a :=
+    fun a ha => hfence a (ha.elim Or.inl fun _ => Or.inr (Or.inr (Or.inr (by omega))))
   have hseed' : SeedWhpMemRep base c U w n_max θ s'.mem :=
     hseed.congr_hash hw fun a ha1 ha2 =>
       (hfence a (Or.inr (Or.inl ⟨by dsimp [offHashBkt] at ha1; omega, ha2⟩))).symm
@@ -330,32 +306,20 @@ theorem fastStep_pureArray {base c U V w n_max offW NW kW idxW valW : ℕ}
       houtW a (by rcases hbm_disj with h1 | h2 <;> omega)
   have hhdr_eq : ∀ h < 16, m' (base + h) = s.mem (base + h) :=
     fun h _ => houtW (base + h) (Or.inl (by omega))
-  rcases hrep with ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-    hqv0, hloc0, hbmeta0, hbptr0, hpool0, hsl0, hbuf0, hbuf1, hdirty0⟩
-  have hrep_orig : FastMemRep base c U V w n_max fs s.mem :=
-    ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-      hqv0, hloc0, hbmeta0, hbptr0, hpool0, hsl0, hbuf0, hbuf1, hdirty0⟩
+  obtain ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
+    -, -, hbmeta0, -, -, -, -, -, hdirty0⟩ := id hrep
   rcases hunch with ⟨hsl_e, hbf_e, hdc_e, hpft_e, hce_e, hec_e, hrs_e, hsc_e, hdi_e, hrcs_e,
     hrsc_e, hric_e, hrcl_e, hbc_e, hbs_e, hlr_e, hli_e, hor_e, hoa_e, hoc_e, hoi_e, hrd_e,
     hrq_e, hdb_e⟩
-  exact fastStep_nonSliceNonBuf hw rfl hseed hrep_orig hsl_e hbf_e
+  exact fastStep_nonSliceNonBuf hw rfl hseed hrep hsl_e hbf_e
     (fun a ha => houtW a (by rcases ha with h1 | ⟨_, h2⟩ | ⟨h3, _⟩ | h4 <;> omega))
     (fun idx hidx _ => hbm_all idx hidx)
     (fun id hid => readPacked_congr hw (hidx := show id < 6 * qEpochWhp n_max + 6 by omega)
       fun a ⟨ha1, _⟩ => houtW a (Or.inr (by omega)))
     (hdc_e ▸ hdc_le0)
-    ⟨(hhdr_eq hdrMode (by decide)).trans hm0,
-     (hhdr_eq hdrPoolFreeTop (by decide)).trans (hpft_e ▸ hm1),
-     (hhdr_eq hdrCurEp (by decide)).trans (hce_e ▸ hm2),
-     (hhdr_eq hdrEpochClock (by decide)).trans (hec_e ▸ hm3),
-     (hhdr_eq hdrRebStage (by decide)).trans (hrs_e ▸ hm4),
-     (hhdr_eq hdrStageCursor (by decide)).trans (hsc_e ▸ hm5),
-     (hhdr_eq hdrDirtyCount (by decide)).trans (hdc_e ▸ hm6),
-     (hhdr_eq hdrDirtyIdx (by decide)).trans (hdi_e ▸ hm7),
-     (hhdr_eq hdrRebCandSalt (by decide)).trans (hrcs_e ▸ hm8),
-     (hhdr_eq hdrRebScanCursor (by decide)).trans (hrsc_e ▸ hm9),
-     (hhdr_eq hdrRebInsCount (by decide)).trans (hric_e ▸ hm10),
-     (hhdr_eq hdrRebCollision (by decide)).trans (hrcl_e ▸ hm11)⟩
+    (by simp (disch := decide) only [hhdr_eq, hpft_e, hce_e, hec_e, hrs_e, hsc_e, hdc_e, hdi_e,
+      hrcs_e, hrsc_e, hric_e, hrcl_e, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10,
+      hm11, and_self])
     hqv hloc
     (fun b hb => by
       rw [hbc_e, hbs_e, hlr_e, hli_e, hor_e, hoa_e, hoc_e, hoi_e, hrd_e, hrq_e]

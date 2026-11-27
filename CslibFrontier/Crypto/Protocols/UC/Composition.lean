@@ -129,11 +129,10 @@ theorem runFrom_interpret_of_forward (M : Machine I E)
     (program : ProbOracleComp K α) (s : M.State) :
     M.runFrom (OracleComp.interpret h₁ program) s =
       (fun a => (a, s)) <$> OracleComp.interpret h₂ program := by
-  have hforward : (fun q => OracleComp.interpret M.handler (h₁ q)) =
-      fun q s => (fun a => (a, s)) <$> h₂ q := by
-    funext q s
-    exact h q s
-  rw [runFrom, OracleComp.interpret_interpret, hforward, OracleComp.run_interpret_stateless]
+  rw [runFrom, OracleComp.interpret_interpret,
+    show (fun q => OracleComp.interpret M.handler (h₁ q)) = fun q s => (fun a => (a, s)) <$> h₂ q
+      from funext₂ h,
+    OracleComp.run_interpret_stateless]
 
 end Machine
 
@@ -218,8 +217,7 @@ theorem corruptRouter_comp {ιJ : Type} {J : ιJ → Type} (C : Finset (Fin n))
   rcases q with ⟨i, x⟩ | ⟨i, x⟩ | q
   · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte] <;> rfl
   · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
-    · exact (StateT.run_map _ _ _).trans (prodAssoc_runFrom_run_map P _ _ _ _).symm
-    · rfl
+    exacts [(StateT.run_map _ _ _).trans (prodAssoc_runFrom_run_map P _ _ _ _).symm, rfl]
   · exact (StateT.run_map _ _ _).trans (prodAssoc_runFrom_run_map P _ _ _ _).symm
 
 /-! ### The subroutine's environment -/
@@ -262,7 +260,7 @@ Replies of the subroutine part do not occur where it is used. -/
 
 /-- A program calling the subroutine's routed network port, as a program calling the composed
 network port: the call `q` becomes `.inr (.inr q)`. -/
-private def liftSubNet
+@[expose] def liftSubNet
     (program : ProbOracleComp (netSpec (RoutedNetQ n SubIn NQ) (RoutedNetR SubOut NR)) α) :
     ProbOracleComp (netSpec (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ))
       (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))) α :=
@@ -278,7 +276,7 @@ private def liftSubNet
 
 /-- The composed simulator's machine: queries for `ρ` are forwarded, and queries for the
 subroutine are answered by the subroutine simulator `S`. -/
-def hybridSimMachine
+@[expose] def hybridSimMachine
     (S : Machine (netSpec (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂))
       (netSpec (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁))) :
     Machine (netSpec (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ₂))
@@ -318,9 +316,7 @@ theorem runFrom_query_sample {ιI ιE : Type} {I : ιI → Type} {E : ιE → Ty
     M.runFrom (OracleComp.query (spec := probOracleSpec E) (Sum.inl k)) s =
       (fun a => (a, s)) <$> OracleComp.query (spec := probOracleSpec I) (Sum.inl k) := by
   rw [Machine.runFrom_call]
-  change (StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run s = _
-  rw [StateT.run_lift, bind_pure_comp]
-  rfl
+  exact (StateT.run_lift _ s).trans (by rw [bind_pure_comp]; rfl)
 
 /-- A program on the party port passes through an adversary in front of the network unchanged. -/
 private theorem runFrom_liftAdversary_liftParty {AdvQ AdvR : Type}
@@ -332,10 +328,7 @@ private theorem runFrom_liftAdversary_liftParty {AdvQ AdvR : Type}
   cases q with
   | inl k => exact runFrom_query_sample _ k s
   | inr p =>
-    change (liftAdversary S).runFrom (ProbOracleComp.query (Sum.inl p)) s = _
-    rw [Machine.runFrom_query]
-    change (StateT.lift (ProbOracleComp.query _)).run s = _
-    rw [StateT.run_lift, bind_pure_comp]
+    exact (Machine.runFrom_query _ _ s).trans ((StateT.run_lift _ s).trans (by rw [bind_pure_comp]))
 
 /-! #### Activations, one case at a time -/
 
@@ -343,9 +336,8 @@ theorem liftAdversary_handle_inl {AdvQ AdvR : Type}
     (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) (p : Fin n × In) (s : A.State) :
     ((liftAdversary (n := n) (In := In) (Out := Out) A).handle (.inl p)).run s =
       (fun a => (a, s)) <$>
-        ProbOracleComp.query (spec := protocolSpec n In Out NetQ NetR) (Sum.inl p) := by
-  change (StateT.lift _).run s = _
-  rw [StateT.run_lift, bind_pure_comp]
+        ProbOracleComp.query (spec := protocolSpec n In Out NetQ NetR) (Sum.inl p) :=
+  (StateT.run_lift _ s).trans (by rw [bind_pure_comp])
 
 theorem liftAdversary_handle_inr {AdvQ AdvR : Type}
     (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) (q : AdvQ) (s : A.State) :
@@ -356,8 +348,7 @@ theorem routeCorrupt_handle_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (i : Fin n) (x : In) (s : P.State) :
     ((routeCorrupt C P).handle (.inl (i, x))).run s =
       if i ∈ C then pure (none, s) else (P.handle (.inl (i, x))).run s := by
-  change (if i ∈ C then pure none else P.handle (.inl (i, x)) :
-    StateT P.State (ProbOracleComp I) (Option Out)).run s = _
+  dsimp only [routeCorrupt]
   split_ifs <;> rfl
 
 theorem routeCorrupt_handle_inr_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
@@ -365,11 +356,7 @@ theorem routeCorrupt_handle_inr_inl {ιI : Type} {I : ιI → Type} (C : Finset 
     ((routeCorrupt C P).handle (.inr (.inl (i, x)))).run s =
       if i ∈ C then (fun p => (Sum.inl p.1, p.2)) <$> (P.handle (.inl (i, x))).run s
       else pure (.inl none, s) := by
-  change (if i ∈ C then Sum.inl <$> P.handle (.inl (i, x)) else pure (.inl none) :
-    StateT P.State (ProbOracleComp I) (RoutedNetR Out NetR)).run s = _
-  split_ifs
-  · exact StateT.run_map _ _ _
-  · rfl
+  by_cases hi : i ∈ C <;> simp [routeCorrupt, hi, StateT.run_map]
 
 theorem routeCorrupt_handle_inr_inr {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (q : NetQ) (s : P.State) :
@@ -393,18 +380,16 @@ private theorem hybridWrap_handle_inr_inl
     (M : Machine (partySpec n SubIn SubOut) (protocolSpec n In Out NetQ NetR)) (q : NetQ)
     (s : M.State) :
     ((hybridWrap (NQ := NQ) (NR := NR) M).handle (.inr (.inl q))).run s =
-      (fun p => (Sum.inl p.1, p.2)) <$> liftParty ((M.handle (.inr q)).run s) := by
-  change liftParty ((Sum.inl <$> M.handle (.inr q)).run s) = _
-  rw [StateT.run_map, liftParty_map]
+      (fun p => (Sum.inl p.1, p.2)) <$> liftParty ((M.handle (.inr q)).run s) :=
+  (congrArg liftParty (StateT.run_map _ _ _)).trans (liftParty_map _ _)
 
 private theorem hybridWrap_handle_inr_inr
     (M : Machine (partySpec n SubIn SubOut) (protocolSpec n In Out NetQ NetR)) (q : NQ)
     (s : M.State) :
     ((hybridWrap (NR := NR) M).handle (.inr (.inr q))).run s =
       (fun a => (Sum.inr a, s)) <$>
-        ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (Sum.inr q) := by
-  change (StateT.lift _).run s = _
-  rw [StateT.run_lift, bind_pure_comp, Functor.map_map]
+        ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (Sum.inr q) :=
+  (StateT.run_lift _ s).trans (by rw [bind_pure_comp, Functor.map_map])
 
 private theorem hybridSimMachine_handle_inl
     (S : Machine (netSpec (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂))
@@ -413,9 +398,8 @@ private theorem hybridSimMachine_handle_inl
     ((hybridSimMachine (NetQ := NetQ) (NetR := NetR) (Out := Out) S).handle (.inl p)).run s =
       (fun a => (outerReply a, s)) <$> ProbOracleComp.query (spec := netSpec
         (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ₂))
-        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂))) (.inl p) := by
-  change (StateT.lift _).run s = _
-  rw [StateT.run_lift, bind_pure_comp, Functor.map_map]
+        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂))) (.inl p) :=
+  (StateT.run_lift _ s).trans (by rw [bind_pure_comp, Functor.map_map])
 
 private theorem hybridSimMachine_handle_inr_inl
     (S : Machine (netSpec (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂))
@@ -424,9 +408,8 @@ private theorem hybridSimMachine_handle_inr_inl
     ((hybridSimMachine (In := In) (NetR := NetR) (Out := Out) S).handle (.inr (.inl q))).run s =
       (fun a => (outerReply a, s)) <$> ProbOracleComp.query (spec := netSpec
         (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ₂))
-        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂))) (.inr (.inl q)) := by
-  change (StateT.lift _).run s = _
-  rw [StateT.run_lift, bind_pure_comp, Functor.map_map]
+        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂))) (.inr (.inl q)) :=
+  (StateT.run_lift _ s).trans (by rw [bind_pure_comp, Functor.map_map])
 
 private theorem liftSubNet_map {β : Type} (f : α → β)
     (program : ProbOracleComp (netSpec (RoutedNetQ n SubIn NQ) (RoutedNetR SubOut NR)) α) :
@@ -440,9 +423,8 @@ private theorem hybridSimMachine_handle_inr_inr
     (s : S.State) :
     ((hybridSimMachine (In := In) (NetQ := NetQ) (NetR := NetR) (Out := Out) S).handle
         (.inr (.inr q))).run s =
-      (fun p => (Sum.inr (Sum.inr p.1), p.2)) <$> liftSubNet ((S.handle q).run s) := by
-  change liftSubNet ((_ <$> S.handle q).run s) = _
-  rw [StateT.run_map, liftSubNet_map]
+      (fun p => (Sum.inr (Sum.inr p.1), p.2)) <$> liftSubNet ((S.handle q).run s) :=
+  (congrArg liftSubNet (StateT.run_map _ _ _)).trans (liftSubNet_map _ _)
 
 /-- Behind a closed machine, the order in which two independent initial states are sampled does
 not change the output distribution. -/
@@ -516,24 +498,20 @@ private theorem handle_swap
   rcases q with ⟨i, x⟩ | ⟨i, x⟩ | q | q
   · erw [liftAdversary_handle_inl, Machine.runFrom_map, Machine.runFrom_query,
       routeCorrupt_handle_inl, routeCorrupt_handle_inl]
-    by_cases hi : i ∈ C
-    · simp only [hi, ↓reduceIte]
-      rfl
-    · simp only [hi, ↓reduceIte]
-      erw [hybridWrap_handle_inl, hybridWrap_handle_inl, runFrom_liftAdversary_liftParty]
+    by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
+    · rfl
+    · erw [hybridWrap_handle_inl, hybridWrap_handle_inl, runFrom_liftAdversary_liftParty]
       repeat erw [Functor.map_map]
       rfl
   · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inl, Machine.liftRightProgram_map,
       Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
       routeCorrupt_handle_inr_inl, routeCorrupt_handle_inr_inl]
-    by_cases hi : i ∈ C
-    · simp only [hi, ↓reduceIte]
-      erw [hybridWrap_handle_inl, hybridWrap_handle_inl, Machine.runFrom_map,
+    by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
+    · erw [hybridWrap_handle_inl, hybridWrap_handle_inl, Machine.runFrom_map,
         runFrom_liftAdversary_liftParty]
       repeat erw [Functor.map_map]
       rfl
-    · simp only [hi, ↓reduceIte]
-      rfl
+    · rfl
   · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inl, Machine.liftRightProgram_map,
       Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
       routeCorrupt_handle_inr_inr, routeCorrupt_handle_inr_inr, hybridWrap_handle_inr_inl,
@@ -567,19 +545,15 @@ theorem eval_run_link_swap {ιI ιJ₁ ιJ₂ ιE α : Type}
     (R.run ((X₁.comp Y₁).link Z)).eval = (R.run ((Y₂.comp X₂).link Z)).eval := by
   let A := X₁.comp Y₁
   let B := Y₂.comp X₂
-  let f : B.State → A.State := fun s => (fX s.2, fY s.1)
-  have hrun (s : B.State) : Prod.fst <$> B.runFrom Z s = Prod.fst <$> A.runFrom Z (f s) := by
-    rw [Machine.runFrom_map_state A B f hswap Z s, Functor.map_map]
-    rfl
-  have hB : B.link Z =
-      ProbOracleComp.sample B.init >>= fun s => Prod.fst <$> A.runFrom Z (f s) := by
-    rw [Machine.link]
-    exact bind_congr hrun
+  have hB : B.link Z = ProbOracleComp.sample B.init >>=
+      fun s => Prod.fst <$> A.runFrom Z (fX s.2, fY s.1) :=
+    bind_congr fun s => by
+      rw [Machine.runFrom_map_state A B (fun s => (fX s.2, fY s.1)) hswap Z s, Functor.map_map]
+      rfl
   have hA : A.link Z =
       ProbOracleComp.sample (do let a ← Y₂.init; let b ← X₂.init; return (b, a)) >>=
         fun s => Prod.fst <$> A.runFrom Z (fX s.1, fY s.2) := by
-    change ProbOracleComp.sample (do let a ← Y₁.init; let b ← X₁.init; return (b, a)) >>=
-      (fun s => Prod.fst <$> A.runFrom Z s) = _
+    dsimp only [A, Machine.link, Machine.comp]
     rw [← hY, ← hX]
     simp only [← bind_pure_comp, ProbOracleComp.sample_bind, ProbOracleComp.sample_pure,
       bind_assoc, pure_bind]
@@ -630,22 +604,18 @@ theorem advantage_compose (ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut)
 /-- Lifting to the party port makes the same number of calls. -/
 theorem isQueryBounded_liftParty {program : ProbOracleComp (partySpec n In Out) α} {m : ℕ}
     (h : program.IsQueryBounded m) :
-    (liftParty (NetQ := NetQ) (NetR := NetR) program).IsQueryBounded m := by
-  refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
-  cases q with
-  | inl k => exact OracleComp.IsCostBounded.query _
-  | inr p => exact OracleComp.IsCostBounded.query _
+    (liftParty (NetQ := NetQ) (NetR := NetR) program).IsQueryBounded m :=
+  h.interpret fun | .inl _ => .query _ | .inr _ => .query _
 
 /-- Lifting to the composed network port makes the same number of calls. -/
 private theorem isQueryBounded_liftSubNet
     {program : ProbOracleComp (netSpec (RoutedNetQ n SubIn NQ) (RoutedNetR SubOut NR)) α}
     {m : ℕ} (h : program.IsQueryBounded m) :
     (liftSubNet (In := In) (Out := Out) (NetQ := NetQ) (NetR := NetR) program).IsQueryBounded
-      m := by
-  refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
-  cases q with
-  | inl k => exact OracleComp.IsCostBounded.query _
-  | inr q => exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
+      m :=
+  h.interpret fun
+    | .inl _ => .query _
+    | .inr _ => (OracleComp.isCostBounded_map_iff _ _ _).mpr (.query _)
 
 /-- Wrapping a hybrid protocol with `t` calls per activation gives at most `t + 1` calls per
 activation: a query for the subroutine's network port is one call. -/
@@ -670,12 +640,10 @@ theorem isBounded_routeCorrupt {ιI : Type} {I : ιI → Type} (C : Finset (Fin 
   rcases q with ⟨i, x⟩ | ⟨i, x⟩ | q
   · erw [routeCorrupt_handle_inl]
     split_ifs
-    · exact .pure _ _
-    · exact h.2 _ s
+    exacts [.pure _ _, h.2 _ s]
   · erw [routeCorrupt_handle_inr_inl]
     split_ifs
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (h.2 _ s)
-    · exact .pure _ _
+    exacts [(OracleComp.isCostBounded_map_iff _ _ _).mpr (h.2 _ s), .pure _ _]
   · erw [routeCorrupt_handle_inr_inr]
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (h.2 _ s)
 
@@ -686,10 +654,9 @@ theorem absorbHybrid_polyBounded (C : Finset (Fin n))
     {Z : Environment n In Out (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ))
       (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))} {pρ pZ : Polynomial ℕ}
     (hρ : ρ.PolyBounded pρ) (hZ : Z.PolyBounded pZ) :
-    (absorbHybrid C ρ Z).PolyBounded (absorbPoly pZ pρ) := fun κ z => by
-  refine (Machine.isQueryBounded_link (isBounded_routeCorrupt C
-    (isBounded_hybridWrap (hρ κ C))) (hZ κ z)).mono (le_of_eq ?_)
-  rw [eval_absorbPoly]
+    (absorbHybrid C ρ Z).PolyBounded (absorbPoly pZ pρ) := fun κ z =>
+  (Machine.isQueryBounded_link (isBounded_routeCorrupt C (isBounded_hybridWrap (hρ κ C)))
+    (hZ κ z)).mono (eval_absorbPoly pZ pρ κ).ge
 
 /-- The composed simulator of a subroutine simulator with budget `pS` has budget `pS + 1`. -/
 theorem hybridSim_polyBounded
@@ -715,10 +682,9 @@ theorem compose_polyBounded {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut
     {σ : Protocol n SubIn SubOut NQ NR} {pρ pσ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ)
     (hσ : σ.PolyBounded pσ) : (compose ρ σ).PolyBounded ((pρ + 1) * (pσ + 1) + pσ) :=
   fun κ C => by
-  have h := (isBounded_hybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR)
-    (hρ κ C)).comp (isBounded_routeCorrupt C (hσ κ C))
-  simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
-  exact h
+    simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
+    exact (isBounded_hybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR)
+      (hρ κ C)).comp (isBounded_routeCorrupt C (hσ κ C))
 
 /-! ### The composition theorem -/
 
@@ -735,9 +701,8 @@ theorem EmulatesDummyWithin.compose {pρ pD : Polynomial ℕ} {ε : Polynomial �
     (hρ : ρ.PolyBounded pρ) (h : EmulatesDummyWithin π φ pD ε) :
     EmulatesDummyWithin (compose ρ π) (compose ρ φ) (pD + 1) (fun pZ => ε (absorbPoly pZ pρ)) := by
   obtain ⟨S, hS, hadv⟩ := h
-  refine ⟨hybridSim S, hybridSim_polyBounded hS, fun C Z pZ hZ κ z => ?_⟩
-  rw [advantage_compose]
-  exact hadv C _ _ (absorbHybrid_polyBounded C hρ hZ) κ z
+  exact ⟨hybridSim S, hybridSim_polyBounded hS, fun C Z pZ hZ κ z =>
+    (advantage_compose ..).trans_le (hadv C _ _ (absorbHybrid_polyBounded C hρ hZ) κ z)⟩
 
 /-- Concrete composition for `EmulatesWithin`, this library's novel call-bounded, fixed-`n`-party,
 port-model emulation notion, a step toward Canetti's computational UC composition theorem but not
@@ -771,9 +736,8 @@ theorem Emulates.compose {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h : 
   obtain ⟨S, pD, hS, hadv⟩ := h
   refine ⟨hybridSim S, pD + 1, hybridSim_polyBounded hS, fun pZ => ?_⟩
   obtain ⟨ν, hν, hbound⟩ := hadv (absorbPoly pZ pρ)
-  refine ⟨ν, hν, fun C Z hZ κ z => ?_⟩
-  rw [advantage_compose]
-  exact hbound C _ (absorbHybrid_polyBounded C hρ hZ) κ z
+  exact ⟨ν, hν, fun C Z hZ κ z =>
+    (advantage_compose ..).trans_le (hbound C _ (absorbHybrid_polyBounded C hρ hZ) κ z)⟩
 
 /-- Replacing an ideal functionality by a protocol that realizes it in the sense of `Realizes`,
 this library's novel call-bounded, fixed-`n`-party, port-model notion: a step after corollary (a)

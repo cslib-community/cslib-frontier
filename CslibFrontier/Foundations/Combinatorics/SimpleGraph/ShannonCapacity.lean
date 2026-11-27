@@ -109,15 +109,12 @@ theorem tendsto_shannonCapacity [Finite V] :
       simpa using indepNum_strongPow_le (G := G) (k + 1)
     rw [h0, Nat.cast_zero, Real.zero_rpow (by positivity)]
   set a : ℕ → ℝ := fun n => ((G.strongPow n).indepNum : ℝ) with ha
-  have hapos : ∀ n, 0 < a n := fun n => by
-    simp only [ha, Nat.cast_pos]
-    exact one_le_indepNum
+  have hapos : ∀ n, 0 < a n := fun _ => Nat.cast_pos.2 one_le_indepNum
   set u : ℕ → ℝ := fun n => (a n)⁻¹ with hu
   have hsub : Submultiplicative u := fun m n => by
-    simp only [hu, ← mul_inv]
-    refine inv_anti₀ (mul_pos (hapos m) (hapos n)) ?_
-    simp only [ha]
-    exact_mod_cast indepNum_strongPow_add m n
+    simpa only [hu, ← mul_inv] using inv_anti₀ (mul_pos (hapos m) (hapos n))
+      (by simpa only [ha, Nat.cast_mul] using
+        (Nat.cast_le (α := ℝ)).2 (indepNum_strongPow_add (G := G) m n))
   have hunn : ∀ n, 0 ≤ u n := fun n => (inv_pos.2 (hapos n)).le
   have hcard : (0 : ℝ) < Nat.card V := by exact_mod_cast Nat.card_pos
   -- the limit of `u n ^ (1 / n)` is at least `1 / |V|`, hence positive
@@ -127,26 +124,22 @@ theorem tendsto_shannonCapacity [Finite V] :
     rintro _ ⟨n, hn, rfl⟩
     have hn0 : n ≠ 0 := Nat.one_le_iff_ne_zero.1 hn
     have h1 : (Nat.card V : ℝ)⁻¹ ^ n ≤ u n := by
-      simp only [hu, ha]
-      rw [inv_pow]
-      refine inv_anti₀ (hapos n) ?_
-      exact_mod_cast indepNum_strongPow_le (G := G) n
+      simpa only [hu, ha, inv_pow, Nat.cast_pow] using inv_anti₀ (hapos n)
+        (Nat.cast_le.2 (indepNum_strongPow_le (G := G) n))
     calc (Nat.card V : ℝ)⁻¹ = ((Nat.card V : ℝ)⁻¹ ^ n) ^ (n : ℝ)⁻¹ :=
           (Real.pow_rpow_inv_natCast (by positivity) hn0).symm
       _ ≤ u n ^ (n : ℝ)⁻¹ := by gcongr
   have hLpos : 0 < hsub.lim := lt_of_lt_of_le (by positivity) hlow
   have hT : Tendsto (fun n => a n ^ (n : ℝ)⁻¹) atTop (𝓝 hsub.lim⁻¹) := by
     refine ((hsub.tendsto_lim hunn).inv₀ hLpos.ne').congr fun n => ?_
-    simp only [hu]
-    rw [Real.inv_rpow (hapos n).le, inv_inv]
+    simp only [hu, Real.inv_rpow (hapos n).le, inv_inv]
   have hT' : Tendsto (fun k : ℕ => a (k + 1) ^ ((k + 1 : ℕ) : ℝ)⁻¹) atTop (𝓝 hsub.lim⁻¹) :=
     (tendsto_add_atTop_iff_nat 1).2 hT
   have hS : G.shannonCapacity = hsub.lim⁻¹ := by
     refine le_antisymm (ciSup_le fun k => ?_) (le_of_tendsto' hT' fun k => ?_)
-    · have h2 := inv_anti₀ hLpos (hsub.lim_le_rpow hunn (Nat.succ_ne_zero k))
-      simp only [hu] at h2
-      rw [Real.inv_rpow (hapos _).le, inv_inv] at h2
-      simpa [ha] using h2
+    · simpa only [hu, Real.inv_rpow (Nat.cast_nonneg _), inv_inv, ha, Nat.cast_add,
+          Nat.cast_one] using
+        inv_anti₀ hLpos (hsub.lim_le_rpow hunn (Nat.add_one_ne_zero k))
     · simpa [ha] using rpow_indepNum_strongPow_le_shannonCapacity (G := G) k
   rw [hS]
   simpa [ha] using hT'

@@ -84,6 +84,13 @@ theorem coeffNorm1_eq_sum_of_support_subset (p : MvPolynomial ι ℤ)
   simpa only [coeffNorm1, MvPolynomial.sum_def] using
     Finsupp.sum_of_support_subset p.coeff hs (fun _ c => c.natAbs) (by simp)
 
+/-- Multiplication by a natural scalar scales the coefficient norm exactly. -/
+theorem coeffNorm1_nsmul (k : ℕ) (p : MvPolynomial ι ℤ) :
+    (k • p).coeffNorm1 = k * p.coeffNorm1 := by
+  rw [coeffNorm1_eq_sum_of_support_subset (k • p) p.support support_smul,
+    coeffNorm1, Finset.mul_sum]
+  simp only [nsmul_eq_mul, ← C_eq_natCast, coeff_C_mul, Int.natAbs_mul, Int.natAbs_natCast]
+
 /-- Triangle inequality for the coefficient norm. -/
 theorem coeffNorm1_add_le (p q : MvPolynomial ι ℤ) :
     coeffNorm1 (p + q) ≤ coeffNorm1 p + coeffNorm1 q :=
@@ -111,12 +118,9 @@ theorem coeffNorm1_mul_le (p q : MvPolynomial ι ℤ) :
 
 /-- Powers satisfy the corresponding coefficient-norm bound. -/
 theorem coeffNorm1_pow_le (p : MvPolynomial ι ℤ) (n : ℕ) :
-    coeffNorm1 (p ^ n) ≤ coeffNorm1 p ^ n := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [pow_succ, pow_succ]
-    exact (coeffNorm1_mul_le _ _).trans (Nat.mul_le_mul_right _ ih)
+    coeffNorm1 (p ^ n) ≤ coeffNorm1 p ^ n :=
+  sum_pow_le_of_submultiplicative Int.natAbs_zero (by decide) Int.natAbs_add_le
+    (fun a b => (Int.natAbs_mul a b).le) p n
 
 /-- Finite products satisfy the corresponding coefficient-norm bound. -/
 theorem coeffNorm1_prod_le {J : Type*} (s : Finset J) (p : J → MvPolynomial ι ℤ) :

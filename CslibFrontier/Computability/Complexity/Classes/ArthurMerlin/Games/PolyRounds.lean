@@ -102,13 +102,8 @@ theorem computableInPolyTime_evalShape (G : List (AMMove × Polynomial ℕ)) :
   induction G with
   | nil => exact ComputableInPolyTime.const []
   | cons x G ih =>
-    obtain ⟨m, p⟩ := x
-    have hlen : ComputableInPolyTime (fun n => p.eval n) encUnary encUnary :=
-      ComputableInPolyTime.unary_eval p
-    have hpair : ComputableInPolyTime (fun n => (m, p.eval n)) encUnary
-        (encPair encAMMove encUnary) :=
-      (ComputableInPolyTime.const m).prod hlen
-    exact (hpair.cons' ih).of_enc_eq fun n => by simp [evalShape]
+    exact (((ComputableInPolyTime.const (encOut := encAMMove) x.1).prod
+      (ComputableInPolyTime.unary_eval x.2)).cons' ih).of_enc_eq fun n => by simp [evalShape]
 
 /-- Iterative state for extracting copy `i` of a parallel repetition over a runtime shape. -/
 private abbrev CopyStepParam := ℕ × ℕ
@@ -133,25 +128,18 @@ theorem computableInPolyTime_copyTranscript_dyn {γ : Type} {encIn : γ ↪ List
     (hm : ComputableInPolyTime m encIn encUnary) (hi : ComputableInPolyTime i encIn encUnary)
     (hg : ComputableInPolyTime g encIn encAMShape) (hw : ComputableInPolyTime w encIn encBits) :
     ComputableInPolyTime (fun x => copyTranscript (m x) (i x) (g x) (w x)) encIn encBits := by
+  let eP := encPair (encPair encUnary encUnary) (encPair encBits encBits)
+  let eX := encPair encAMMove encUnary
   have hstep : ComputableInPolyTime
       (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) =>
         copyStep p.1.1 p.1.2 p.2)
-      (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits))
-        (encPair encAMMove encUnary))
-      (encPair encBits encBits) := by
-    have hp : ComputableInPolyTime
-        (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) => p.1.1)
-        (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits))
-          (encPair encAMMove encUnary)) (encPair encUnary encUnary) := (fst _ _).fst'
-    have hs := (fst (encPair (encPair encUnary encUnary) (encPair encBits encBits))
-      (encPair encAMMove encUnary)).snd'
-    have hn := (snd (encPair (encPair encUnary encUnary) (encPair encBits encBits))
-      (encPair encAMMove encUnary)).snd'
+      (encPair eP eX) (encPair encBits encBits) := by
+    have hp := (fst eP eX).fst'
+    have hs := (fst eP eX).snd'
+    have hn := (snd eP eX).snd'
     have hrow : ComputableInPolyTime
         (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) =>
-          BitString.listRow p.2.2 p.1.1.2 p.1.2.1)
-        (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits))
-          (encPair encAMMove encUnary)) encBits := by fun_prop
+          BitString.listRow p.2.2 p.1.1.2 p.1.2.1) (encPair eP eX) encBits := by fun_prop
     exact (bitsDropWithInput hs.fst' (unary_mul' hp.fst' hn)).prod
       (bitsAppend hs.snd' hrow)
   obtain ⟨c₁, d₁, hwlen⟩ := (show PolyBounded (fun x => (encIn x).length) (fun x => (w x).length)

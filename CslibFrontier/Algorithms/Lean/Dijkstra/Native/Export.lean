@@ -70,16 +70,11 @@ theorem exists_program_state {p : Memory.Prog Unit} (c : ListInstance → ℕ)
   have hpReturn : Realizes .exact (fun _ : Unit => do p; pure 0)
       (WordEncoding.encode (α := Unit)) (WordEncoding.encode (α := ℕ))
       (fun w _ s => ∃ G : ListInstance, s = Memory.State.init G.encode ∧
-        Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2))) (fun _ _ => 0) := by
-    apply (hp.bind₀ hReturn).consequence
-    · intro w d s _ _ h
-      exact ⟨h, trivial⟩
-    · intro _ _
-      exact le_rfl
+        Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2))) (fun _ _ => 0) :=
+    (hp.bind₀ hReturn).consequence (fun _ _ _ _ _ h => ⟨h, trivial⟩) fun _ _ => le_rfl
   obtain ⟨r, C, pc, prog, frontier, _, he⟩ :=
     hpReturn.exists_standard_init_program_state_from_words 0
-  refine ⟨r, C + 1, pc, prog, frontier, ?_⟩
-  intro G w hfit
+  refine ⟨r, C + 1, pc, prog, frontier, fun G w hfit => ?_⟩
   obtain ⟨hvalid, hdist, hcost⟩ := hspec G hfit
   have hfront : Fits w (G.encode.length + 1) := by
     rw [G.encode_length]

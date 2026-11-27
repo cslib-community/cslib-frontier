@@ -80,9 +80,7 @@ theorem realizes_readQuotGen :
       (fun w ((cp, base), p) _ => WhpLargeEnvGen w cp base ∧ p < wpNMax cp)
       (fun _ _ => 0) := by
   unfold readQuotGenProg
-  have hrp := realizes_readPackedGen
-  realize
-  rcases d with ⟨⟨cp, base⟩, p⟩
+  realize [realizes_readPackedGen]
   exact quot_pre_safe h
 
 theorem readQuotGenProg_spec {c U V w n_max base p : ℕ} {fs : FastState} {s : Memory.State}
@@ -113,9 +111,7 @@ theorem realizes_writeQuotGen :
       (fun w (((cp, base), p), _) _ => WhpLargeEnvGen w cp base ∧ p < wpNMax cp)
       (fun _ _ => 0) := by
   unfold writeQuotGenProg
-  have hwp := realizes_writePackedGen
-  realize
-  rcases d with ⟨⟨⟨cp, base⟩, p⟩, q_val⟩
+  realize [realizes_writePackedGen]
   exact quot_pre_safe h
 
 theorem writeQuotGenProg_fastStep {c U V w n_max base p q_val : ℕ}
@@ -157,11 +153,9 @@ theorem writeQuotGenProg_fastStep {c U V w n_max base p q_val : ℕ}
       (fun j hj => ⟨(readPacked_writePacked_disjoint hw hj hp (Or.inr (by omega))).trans
           (hpool0 j hj).1,
         (readPacked_writePacked_disjoint hw hj hp (Or.inr (by omega))).trans (hpool0 j hj).2⟩)⟩
-  by_cases hip : i = p
-  · subst hip; simp only [Function.update_self]
-    exact readPacked_writePacked_self _ _ _ s.mem i hq_lt
-  · simp only [Function.update_of_ne hip]
-    exact (readPacked_writePacked_of_ne hw s.mem hip q_val).trans (hqv0 i hi).1
+  simp only [Function.update_apply]; split_ifs with hip
+  · subst hip; exact readPacked_writePacked_self _ _ _ s.mem i hq_lt
+  · exact (readPacked_writePacked_of_ne hw s.mem hip q_val).trans (hqv0 i hi).1
 
 private theorem val_pre_safe {w base p : ℕ} {cp : WhpCoreParams}
     (h : WhpLargeEnvGen w cp base ∧ p < wpNMax cp) :
@@ -186,9 +180,7 @@ theorem realizes_readValGen :
       (fun w ((cp, base), p) _ => WhpLargeEnvGen w cp base ∧ p < wpNMax cp)
       (fun _ _ => 0) := by
   unfold readValGenProg
-  have hrp := realizes_readPackedGen
-  realize
-  rcases d with ⟨⟨cp, base⟩, p⟩
+  realize [realizes_readPackedGen]
   exact val_pre_safe h
 
 theorem readValGenProg_spec {c U V w n_max base p : ℕ} {fs : FastState} {s : Memory.State}
@@ -219,9 +211,7 @@ theorem realizes_writeValGen :
       (fun w (((cp, base), p), _) _ => WhpLargeEnvGen w cp base ∧ p < wpNMax cp)
       (fun _ _ => 0) := by
   unfold writeValGenProg
-  have hwp := realizes_writePackedGen
-  realize
-  rcases d with ⟨⟨⟨cp, base⟩, p⟩, v_val⟩
+  realize [realizes_writePackedGen]
   exact val_pre_safe h
 
 theorem writeValGenProg_fastStep {c U V w n_max base p v_val : ℕ}
@@ -263,11 +253,9 @@ theorem writeValGenProg_fastStep {c U V w n_max base p v_val : ℕ}
       (fun j hj => ⟨(readPacked_writePacked_disjoint hw hj hp (Or.inr (by omega))).trans
           (hpool0 j hj).1,
         (readPacked_writePacked_disjoint hw hj hp (Or.inr (by omega))).trans (hpool0 j hj).2⟩)⟩
-  by_cases hip : i = p
-  · subst hip; simp only [Function.update_self]
-    exact readPacked_writePacked_self _ _ _ s.mem i hv_lt
-  · simp only [Function.update_of_ne hip]
-    exact (readPacked_writePacked_of_ne hw s.mem hip v_val).trans (hqv0 i hi).2
+  simp only [Function.update_apply]; split_ifs with hip
+  · subst hip; exact readPacked_writePacked_self _ _ _ s.mem i hv_lt
+  · exact (readPacked_writePacked_of_ne hw s.mem hip v_val).trans (hqv0 i hi).2
 
 /-! ## Section 2: `backPtr` Accessors -/
 
@@ -307,13 +295,8 @@ theorem realizes_readBackPtrGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ k < wpCapBack cp)
       (fun _ _ => 0) := by
   unfold readBackPtrGenProg
-  have hrp := realizes_readPackedGen
-  realize
-  all_goals (
-    rcases d with ⟨⟨⟨cp, base⟩, b⟩, k⟩
-    obtain ⟨h2, h3⟩ := backPtr_realize_bounds h
-    first | exact h2 | exact h3
-  )
+  realize [realizes_readPackedGen]
+  all_goals first | exact (backPtr_realize_bounds h).1 | exact (backPtr_realize_bounds h).2
 
 theorem readBackPtrGenProg_spec {c U V w n_max base b k : ℕ} {fs : FastState}
     {s : Memory.State}
@@ -349,13 +332,9 @@ theorem realizes_writeBackPtrGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ k < wpCapBack cp)
       (fun _ _ => 0) := by
   unfold writeBackPtrGenProg
-  have hwp := realizes_writePackedGen
-  realize
-  all_goals (
-    rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, k⟩, pSlot⟩
-    obtain ⟨h2, h3⟩ := backPtr_realize_bounds h
-    first | exact h2 | exact h3
-  )
+  realize [realizes_writePackedGen]
+  · exact (backPtr_realize_bounds h).1
+  · exact (backPtr_realize_bounds h).2
 
 theorem writeBackPtrGenProg_fastStep {c U V w n_max base b k pSlot : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {s : Memory.State}
@@ -400,19 +379,15 @@ theorem writeBackPtrGenProg_fastStep {c U V w n_max base b k pSlot : ℕ}
           (hpool0 j hj).1,
         (readPacked_writePacked_disjoint hw hj hidxW (Or.inr (by omega))).trans
           (hpool0 j hj).2⟩)⟩
-  dsimp only
-  by_cases hbk : b' = b ∧ k' = k
-  · rcases hbk with ⟨rfl, rfl⟩
-    simp only [Function.update_self]
+  simp only [Function.update_apply, ite_apply]
+  split_ifs with hbb hkk
+  · subst hbb hkk
     exact readPacked_writePacked_self _ _ _ s.mem idxW hp_g
-  · have hne : b' * capBackWhp n_max + k' ≠ idxW :=
-      fun heq => hbk (mul_add_inj_right hk' hk heq)
-    rw [readPacked_writePacked_of_ne hw s.mem hne pSlot, hbptr0 b' hb' k' hk']
-    by_cases hbb : b' = b
-    · subst hbb
-      have hkk : k' ≠ k := fun h => hbk ⟨rfl, h⟩
-      simp [hkk]
-    · simp [hbb]
+  · subst hbb
+    exact (readPacked_writePacked_of_ne hw s.mem
+      (fun heq => hkk (mul_add_inj_right hk' hk heq).2) pSlot).trans (hbptr0 _ hb' k' hk')
+  · exact (readPacked_writePacked_of_ne hw s.mem
+      (fun heq => hbb (mul_add_inj_right hk' hk heq).1) pSlot).trans (hbptr0 b' hb' k' hk')
 
 /-! ## Section 3: Composite Coordinate Helpers (`physSlot`, `rKeyAt`, `fpAt`) -/
 
@@ -445,8 +420,7 @@ theorem realizes_physSlotGen :
       PhysSlotPre
       (fun _ _ => 0) := by
   unfold physSlotGenProg
-  have hrb := realizes_readBackPtrGen
-  realize
+  realize [realizes_readBackPtrGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, loc⟩
     dsimp only at *
@@ -459,15 +433,13 @@ theorem realizes_physSlotGen :
     simp only [wp_large_capFront hth, wp_large_frontTotal hth, wp_large_M hth,
       wp_large_capBack hth] at *
     first
-    | (have hlt : b * capFrontWhp n_max + loc < numBucketsWhp n_max * capFrontWhp n_max :=
-         mul_add_lt_mul_bound hb (by omega)
+    | (have _ := mul_add_lt_mul_bound hb (by omega)
        exact henv.fits_of_le_n_max (by omega))
     | omega
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
     | (obtain ⟨_, hres, _, _⟩ := readBackPtrGenProg_spec henv hb (hcb (by omega)) hrep (s := s)
-       rw [hres]
-       have hp := hbp_lt (by omega)
-       exact henv.fits_of_le_n_max (by omega))
+       have _ := hbp_lt (by omega)
+       exact hres.symm ▸ henv.fits_of_le_n_max (by omega))
   )
 
 theorem physSlotGenProg_spec {c U V w n_max base b loc : ℕ} {fs : FastState}
@@ -486,21 +458,18 @@ theorem physSlotGenProg_spec {c U V w n_max base b loc : ℕ} {fs : FastState}
   have hps_eq := (large_index_bounds hth).2.1
   unfold physSlotGenProg FastState.physSlot
   simp only [wp_large_capFront hth, wp_large_frontTotal hth, pure_bind]
-  by_cases hcf : loc < capFrontWhp n_max
-  · simp only [hcf, ↓reduceIte]
-    have hlt := mul_add_lt_mul_bound hb hcf
+  split_ifs with hcf
+  · have hlt := mul_add_lt_mul_bound hb hcf
     exact ⟨rfl, rfl, by omega, Nat.zero_le 2, validProg_pure _⟩
-  · simp only [hcf, ↓reduceIte]
-    have hk : loc - capFrontWhp n_max < capBackWhp n_max := by
+  · have hk : loc - capFrontWhp n_max < capBackWhp n_max := by
       unfold totalLocalCoordsWhp at hloc; omega
     obtain ⟨hst, hres, hmc, hvp⟩ := readBackPtrGenProg_spec henv hb hk hrep (s := s)
     have hp := hbp_lt (Nat.not_lt.mp hcf)
-    refine ⟨?_, ?_, by omega, ?_, ?_⟩
-    · rw [clientState_bind, hst]; rfl
-    · rw [clientResult_bind, hst, hres]; rfl
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst, hmc]; exact le_rfl
-    · refine validProg_bind hvp ?_; rw [hst]; exact validProg_pure _
+    have hstep := CostBoundedStep.bind
+      (g := fun pSlot => pure (numBucketsWhp n_max * capFrontWhp n_max + pSlot))
+      ⟨hst, hres, hmc.le, hvp⟩ (.pure _ _)
+    exact ⟨hstep.clientState_eq, hstep.clientResult_eq, by omega, hstep.memoryCost_le,
+      hstep.validProg⟩
 
 /-- Compute `fs.rKeyAt c U n_max θ b loc` (`d = (((wp, base), b), loc)`). -/
 @[irreducible] def rKeyAtGenProg : ((WhpParams × ℕ) × ℕ) × ℕ → Memory.Prog ℕ
@@ -549,29 +518,49 @@ private theorem coordHashPrefix_spec {c U V w n_max base b loc : ℕ}
     (Memory.spec 0).clientResult s prog = res ∧
     memoryCost prog s ≤ C + 4 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
+  intro wp prog
   have hth := henv.2.2.2.1
-  have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-    simp [mkWhpParams, Nat.not_lt.mpr hth]
+  have hwp1 : mkWhpCoreParams c U V w n_max = wp.1 := by
+    simp [wp, mkWhpParams, Nat.not_lt.mpr hth]
   obtain ⟨hps_st, hps_res, hps_lt, hps_mc, hps_vp⟩ :=
     physSlotGenProg_spec henv hb hloc hbp hrep (s := s)
   obtain ⟨hrq_st, hrq_res, hrq_mc, hrq_vp⟩ := readQuotGenProg_spec henv hps_lt hrep (s := s)
   obtain ⟨hmh_st, hmh_res, hmh_mc, hmh_vp⟩ :=
     mkHashRtGenProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max) (base := base) hth s
   obtain ⟨hc_st, hc_res, hc_mc, hc_vp⟩ := hcont
+  rw [hwp1] at hps_st hps_res hps_mc hps_vp hrq_st hrq_res hrq_mc hrq_vp
+  have hstep : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s prog s res (C + 4) :=
+    .mono (.bind ⟨hps_st, hps_res, hps_mc, hps_vp⟩ <|
+      .bind ⟨hrq_st, hrq_res, hrq_mc.le, hrq_vp⟩ <|
+      .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ ⟨hc_st, hc_res, hc_mc, hc_vp⟩) (by omega)
+  exact ⟨hstep.clientState_eq, hstep.clientResult_eq, hstep.memoryCost_le, hstep.validProg⟩
+
+private theorem coordHashPre_goals {w base b loc : ℕ} {wp : WhpParams} {s : Memory.State}
+    (h : CoordHashPre w (((wp, base), b), loc) s) :
+    let cp := wp.1
+    let p := (Memory.spec 0).clientResult s (physSlotGenProg (((cp, base), b), loc))
+    let s1 := (Memory.spec 0).clientState s (physSlotGenProg (((cp, base), b), loc))
+    let q := (Memory.spec 0).clientResult s1 (readQuotGenProg ((cp, base), p))
+    let s2 := (Memory.spec 0).clientState s1 (readQuotGenProg ((cp, base), p))
+    let hrt := (Memory.spec 0).clientResult s2 (mkHashRtGenProg (wp, base))
+    let s3 := (Memory.spec 0).clientState s2 (mkHashRtGenProg (wp, base))
+    PhysSlotPre w (((cp, base), b), loc) s ∧
+    (WhpLargeEnvGen w cp base ∧ p < wpNMax cp) ∧
+    QuotHashRtEnv w hrt q s3 := by
+  obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hq_all, hb, hloc, hbp⟩ := h
+  obtain rfl := henv.2.2.1
+  have hth := henv.2.2.2.1
+  have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
+    simp [mkWhpParams, Nat.not_lt.mpr hth]
+  obtain ⟨hps_st, hps_res, hps_lt, _, _⟩ := physSlotGenProg_spec henv hb hloc hbp hrep (s := s)
+  obtain ⟨hrq_st, hrq_res, _, _⟩ := readQuotGenProg_spec henv hps_lt hrep (s := s)
+  obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
+    (w := w) (n_max := n_max) (base := base) hth s
   dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hps_st, hps_res, clientState_bind, hrq_st, hrq_res,
-      clientState_bind, hmh_st, hmh_res, hc_st]
-  · rw [clientResult_bind, hps_st, hps_res, clientResult_bind, hrq_st, hrq_res,
-      clientResult_bind, hmh_st, hmh_res, hc_res]
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hps_st, hps_res, hrq_st, hrq_res, hmh_st, hmh_res, hrq_mc, hmh_mc]
-    omega
-  · refine validProg_bind hps_vp ?_; rw [hps_st, hps_res]
-    refine validProg_bind hrq_vp ?_; rw [hrq_st, hrq_res]
-    refine validProg_bind hmh_vp ?_; rw [hmh_st, hmh_res]
-    exact hc_vp
+  simp only [hcp_eq, hps_st, hps_res, hrq_st, hrq_res, hmh_st, hmh_res, wp_large_nMax hth]
+  exact ⟨⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, hloc, hbp⟩,
+    ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hps_lt⟩,
+    ⟨c, U, V, w, n_max, θ, henv, rfl, hseed, hq_all _ hps_lt⟩⟩
 
 theorem realizes_rKeyAtGen :
     Realizes .exact rKeyAtGenProg
@@ -580,31 +569,11 @@ theorem realizes_rKeyAtGen :
       CoordHashPre
       (fun _ _ => 0) := by
   unfold rKeyAtGenProg
-  have hps := realizes_physSlotGen
-  have hrq := realizes_readQuotGen
-  have hmh := realizes_mkHashRtGen
-  have hrk := realizes_rKeyOfQuotRt
-  realize
+  realize [realizes_physSlotGen, realizes_readQuotGen, realizes_mkHashRtGen, realizes_rKeyOfQuotRt]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, loc⟩
-    dsimp only at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep, hq_all, hb, hloc, hbp⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
-    have hth := henv.2.2.2.1
-    have hcp_eq : wp.1 = mkWhpCoreParams c U V w n_max := by
-      rw [heq_wp]; simp [mkWhpParams, Nat.not_lt.mpr hth]
-    obtain ⟨hps_st, hps_res, hps_lt, _, _⟩ := physSlotGenProg_spec henv hb hloc hbp hrep (s := s)
-    obtain ⟨hrq_st, hrq_res, _, _⟩ := readQuotGenProg_spec henv hps_lt hrep (s := s)
-    obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
-      (w := w) (n_max := n_max) (base := base) hth s
-    simp only [hcp_eq] at *
-    simp only [heq_wp] at *
-    simp only [hps_st, hps_res, hrq_st, hrq_res, hmh_st, hmh_res, wp_large_nMax hth] at *
-    first
-    | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, hloc, hbp⟩
-    | exact ⟨c, U, V, w, n_max, henv, rfl⟩
-    | exact hps_lt
-    | exact ⟨c, U, V, w, n_max, θ, henv, rfl, hseed, hq_all _ hps_lt⟩
+    obtain ⟨h1, ⟨h2a, h2b⟩, h3⟩ := coordHashPre_goals h
+    first | exact h1 | exact h2a | exact h2b | exact h3
   )
 
 theorem rKeyAtGenProg_spec {c U V w n_max base b loc : ℕ} {θ : SeedWhp c U n_max}
@@ -641,31 +610,11 @@ theorem realizes_fpAtGen :
       (fun w ((((wp, base), _), b), loc) s => CoordHashPre w (((wp, base), b), loc) s)
       (fun _ _ => 0) := by
   unfold fpAtGenProg
-  have hps := realizes_physSlotGen
-  have hrq := realizes_readQuotGen
-  have hmh := realizes_mkHashRtGen
-  have hfp := realizes_fpOfQuotRt
-  realize
+  realize [realizes_physSlotGen, realizes_readQuotGen, realizes_mkHashRtGen, realizes_fpOfQuotRt]
   all_goals (
     rcases d with ⟨⟨⟨⟨wp, base⟩, salt⟩, b⟩, loc⟩
-    dsimp only at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep, hq_all, hb, hloc, hbp⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
-    have hth := henv.2.2.2.1
-    have hcp_eq : wp.1 = mkWhpCoreParams c U V w n_max := by
-      rw [heq_wp]; simp [mkWhpParams, Nat.not_lt.mpr hth]
-    obtain ⟨hps_st, hps_res, hps_lt, _, _⟩ := physSlotGenProg_spec henv hb hloc hbp hrep (s := s)
-    obtain ⟨hrq_st, hrq_res, _, _⟩ := readQuotGenProg_spec henv hps_lt hrep (s := s)
-    obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
-      (w := w) (n_max := n_max) (base := base) hth s
-    simp only [hcp_eq] at *
-    simp only [heq_wp] at *
-    simp only [hps_st, hps_res, hrq_st, hrq_res, hmh_st, hmh_res, wp_large_nMax hth] at *
-    first
-    | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, hloc, hbp⟩
-    | exact ⟨c, U, V, w, n_max, henv, rfl⟩
-    | exact hps_lt
-    | exact ⟨c, U, V, w, n_max, θ, henv, rfl, hseed, hq_all _ hps_lt⟩
+    obtain ⟨h1, ⟨h2a, h2b⟩, h3⟩ := coordHashPre_goals h
+    first | exact h1 | exact h2a | exact h2b | exact h3
   )
 
 theorem fpAtGenProg_spec {c U V w n_max base salt b loc : ℕ} {θ : SeedWhp c U n_max}

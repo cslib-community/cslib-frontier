@@ -131,13 +131,10 @@ private theorem outcome_eq_ask_of_after_append_singleton {p : WordQueryComp Unit
     {m y : List Bool} (hp : (after p (h ++ [(m, y)])).isSome) : outcome p h = .ask m := by
   rw [after_append] at hp
   unfold outcome
-  rcases hah : after p h with _ | ⟨b⟩ | ⟨q, next⟩ <;> simp only [hah] at hp
-  · simp at hp
-  · simp at hp
-  · change (if m = q.2 then after (next y) [] else none).isSome = true at hp
-    split_ifs at hp with hm
-    · rw [hm]
-    · simp at hp
+  rcases hah : after p h with _ | ⟨b⟩ | ⟨q, next⟩ <;> rw [hah] at hp
+  · cases hp
+  · cases hp
+  · by_cases hm : m = q.2 <;> simp [Option.bind, after, hm] at hp ⊢
 
 /-! ### Acceptance against a prover -/
 
@@ -223,8 +220,7 @@ theorem value_le_card (n : ℕ) (h : History) :
   | zero =>
     refine Finset.card_le_card fun r hr => ?_
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr ⊢
-    rw [hr]
-    exact nofun
+    exact hr ▸ nofun
   | succ n ih =>
     simp only [value, accepted]
     have hstep (m : List Bool) :
@@ -232,20 +228,15 @@ theorem value_le_card (n : ℕ) (h : History) :
         (Finset.univ.filter fun r => outcome (F r) h = .ask m).card :=
       Finset.sup_le fun y _ => (ih _).trans (Finset.card_le_card fun r hr => by
         simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr ⊢
-        refine outcome_eq_ask_of_after_append_singleton (y := y) ?_
-        unfold outcome at hr
-        rcases hah : after (F r) (h ++ [(m, y)]) with _ | p
-        · simp [hah] at hr
-        · rfl)
+        exact outcome_eq_ask_of_after_append_singleton (y := y)
+          (Option.isSome_iff_ne_none.mpr fun hah => hr (by simp [outcome, hah])))
     refine (Nat.add_le_add_left (Finset.sum_le_sum fun m _ => hstep m) _).trans ?_
     rw [← Finset.card_biUnion (fun m _ m' _ hmm' => Finset.disjoint_filter.mpr
       fun r _ hr hr' => hmm' (Outcome.ask.inj (hr.symm.trans hr'))),
       ← Finset.card_union_of_disjoint (Finset.disjoint_left.mpr fun r hr hr' => by
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr
-        simp only [Finset.mem_biUnion, Finset.mem_filter, Finset.mem_univ, true_and] at hr'
-        obtain ⟨m, _, hm⟩ := hr'
-        rw [hr] at hm
-        cases hm)]
+        simp only [Finset.mem_biUnion, Finset.mem_filter, Finset.mem_univ, true_and] at hr hr'
+        obtain ⟨_, _, hm⟩ := hr'
+        exact absurd (hr.symm.trans hm) nofun)]
     refine Finset.card_le_card fun r hr => ?_
     simp only [Finset.mem_union, Finset.mem_filter, Finset.mem_univ, true_and,
       Finset.mem_biUnion] at hr ⊢
@@ -281,18 +272,14 @@ so a prover makes it accept exactly when it has already accepted. -/
 private theorem acceptFrom_after_of_le (hF : IsBounded F D L) (P : Prover Unit) (s : P.State)
     (r : R) {h : History} (hD : D ≤ h.length) :
     acceptFrom P s (after (F r) h) = if outcome (F r) h = .done true then 1 else 0 := by
-  rw [acceptFrom_after_eq P s (F r) h (fun m hm => hF.message r h m hm)]
-  have hnil : ∀ m, outcome (F r) h ≠ .ask m := fun m hm => by
-    have := hF.rounds r h m hm
-    lia
-  rw [Finset.sum_eq_zero fun m _ => ?_, add_zero]
-  refine tsum_eq_zero_iff.mpr fun ys => ?_
-  rw [after_append]
-  unfold outcome at hnil
-  rcases hah : after (F r) h with _ | ⟨b⟩ | ⟨q, next⟩
-  · simp
-  · simp
-  · exact (hnil q.2 (by rw [hah])).elim
+  unfold outcome
+  match hah : after (F r) h with
+  | none => simp
+  | some (.pure b) =>
+    change acceptFrom P s (some (pure b)) = _
+    cases b <;> simp [acceptFrom_pure]
+  | some (.liftBind q _) =>
+    exact absurd (hF.rounds r h q.2 (by rw [outcome, hah])) (not_lt.mpr hD)
 
 private theorem sum_ite_outcome_eq_accepted (h : History) :
     (∑ r : R, if outcome (F r) h = .done true then (1 : ENNReal) else 0) = accepted F h := by
@@ -408,10 +395,9 @@ private theorem sum_acceptFrom_optimalProver_after (hF : IsBounded F D L) (n : �
 with probabilities summing to the value of the empty history. -/
 theorem sum_acceptFrom_optimalProver (hF : IsBounded F D L) :
     ∑ r, acceptFrom (optimalProver F L D) (optimalProver F L D).init (some (F r)) =
-      value F L D [] := by
-  have := sum_acceptFrom_optimalProver_after hF D [] (by simp)
-  simp only [after_nil] at this
-  exact this
+      value F L D [] :=
+  (Finset.sum_congr rfl fun r _ => congrArg (acceptFrom _ _) (after_nil (F r)).symm).trans
+    (sum_acceptFrom_optimalProver_after hF D [] (by simp))
 
 end Optimal
 
@@ -448,12 +434,10 @@ theorem outcome_eq_replay (p : WordQueryComp Unit Bool) (h : History) :
     cases h with
     | nil => rfl
     | cons x h =>
-      obtain ⟨m', y⟩ := x
       change outcome _ _ = replayOutcome ((replayAnswer ((), m) >>= fun u => replay (next u)).run _)
       rw [StateT.run_bind]
-      by_cases hm : m' = m <;>
-        simp only [outcome, after, StateT.run, replayAnswer, hm, ↓reduceIte]
-      · exact ih y h
+      by_cases hm : x.1 = m <;> simp only [outcome, after, StateT.run, replayAnswer, hm, ↓reduceIte]
+      · exact ih x.2 h
       · rfl
 
 end Cslib.Complexity.Interaction

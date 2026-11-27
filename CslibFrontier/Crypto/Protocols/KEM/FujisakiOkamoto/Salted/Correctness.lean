@@ -298,33 +298,9 @@ private theorem lookup_offTargetKeyCache [DecidableEq (JointInput JointPrefix M 
     · have hne : input ≠ cached := by rintro rfl; exact hinput hcached
       simp only [ite_eq_right hinput, List.lookup_cons, beq_eq_false_iff_ne.mpr hne]
   | case3 cached reply rest hcached ih => -- off-target entry: kept
-    by_cases heq : input = cached
-    · subst cached
-      simp only [ite_eq_right hcached, List.lookup_cons, beq_self_eq_true, Option.map_some]
+    rcases eq_or_ne input cached with rfl | heq
+    · simp only [ite_eq_right hcached, List.lookup_cons, beq_self_eq_true, Option.map_some]
     · simp only [List.lookup_cons, beq_eq_false_iff_ne.mpr heq, ih]
-
-private theorem offTargetKeyCache_cons_of_target
-    [DecidableEq (JointInput JointPrefix M Salt)]
-    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K) (pk : PK)
-    (input : JointInput JointPrefix M Salt) (reply : JointReply K R)
-    (entries : List (JointInput JointPrefix M Salt × JointReply K R))
-    (h : input = S.jointInput pk input.message input.salt) :
-    offTargetKeyCache S pk ((input, reply) :: entries) = offTargetKeyCache S pk entries := by
-  change input = ⟨S.jointPrefix pk, input.message, input.salt⟩ at h
-  rw [offTargetKeyCache]
-  rw [ite_eq_left h]
-
-private theorem offTargetKeyCache_cons_of_not_target
-    [DecidableEq (JointInput JointPrefix M Salt)]
-    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K) (pk : PK)
-    (input : JointInput JointPrefix M Salt) (reply : JointReply K R)
-    (entries : List (JointInput JointPrefix M Salt × JointReply K R))
-    (h : input ≠ S.jointInput pk input.message input.salt) :
-    offTargetKeyCache S pk ((input, reply) :: entries) =
-      (input, reply.key) :: offTargetKeyCache S pk entries := by
-  change input ≠ ⟨S.jointPrefix pk, input.message, input.salt⟩ at h
-  rw [offTargetKeyCache]
-  rw [ite_eq_right h]
 
 /-- Construct the source-shaped `J(H(ekPKE) ∥ σ ∥ cKEM)` input. -/
 def rejectionInput (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
@@ -413,21 +389,19 @@ private theorem interpret_completionPrefetchProgram_eq_simProgram
       OracleComp.interpret (fun query => PMF.pure (table query))
         (S.completionSimProgram pk challenge q) := by
   classical
-  rcases q with input | input | ⟨pkeCiphertext, salt⟩
-  · rfl
-  · rfl
-  · by_cases hc : (⟨pkeCiphertext, salt⟩ : Ciphertext CT Salt) = challenge
-    · simp [completionPrefetchProgram, completionSimProgram, Query.dispatch, hc]
-    · simp only [completionPrefetchProgram, completionSimProgram, Query.dispatch, hc, ↓reduceIte]
-      cases hdec : S.pke.dec sk pkeCiphertext with
-      | none => simp only [completionPrefetchDecapsProgram, hdec]
-      | some message =>
-        simp only [completionPrefetchDecapsProgram, completionJointProgram, jointInput, hdec,
-          interp_norm, pmf_norm, ite_true]
-        split_ifs with h
-        · rw [h]
-          simp only [OracleComp.interpret_pure, PMF.monad_pure_eq_pure]
-        · simp only [interp_norm, pmf_norm]
+  rcases q with input | input | ⟨pkeCiphertext, salt⟩ <;> try rfl
+  by_cases hc : (⟨pkeCiphertext, salt⟩ : Ciphertext CT Salt) = challenge
+  · simp [completionPrefetchProgram, completionSimProgram, Query.dispatch, hc]
+  · simp only [completionPrefetchProgram, completionSimProgram, Query.dispatch, hc, ↓reduceIte]
+    cases hdec : S.pke.dec sk pkeCiphertext with
+    | none => simp only [completionPrefetchDecapsProgram, hdec]
+    | some message =>
+      simp only [completionPrefetchDecapsProgram, completionJointProgram, jointInput, hdec,
+        interp_norm, pmf_norm, ite_true]
+      split_ifs with h
+      · rw [h]
+        simp only [OracleComp.interpret_pure, PMF.monad_pure_eq_pure]
+      · simp only [interp_norm, pmf_norm]
 
 /-! ### Concrete real, prefetch, and keyless handlers -/
 
@@ -635,11 +609,10 @@ private theorem GoodCache.of_subset
     {st st' : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
     (h : S.GoodCache pk sk st')
     (hsub : ∀ entry ∈ st.jointCache, entry ∈ st'.jointCache) : S.GoodCache pk sk st := by
-  apply ExplicitCoinPKE.GoodCache.of_subset h
-  intro entry hentry
-  obtain ⟨cached, hcached, heq⟩ := List.mem_map.mp hentry
-  obtain ⟨hcached, htarget⟩ := List.mem_filter.mp hcached
-  exact List.mem_map.mpr ⟨cached, List.mem_filter.mpr ⟨hsub cached hcached, htarget⟩, heq⟩
+  refine ExplicitCoinPKE.GoodCache.of_subset h fun entry hentry => ?_
+  obtain ⟨cached, hcached, rfl⟩ := List.mem_map.mp hentry
+  exact List.mem_map.mpr ⟨cached, List.mem_filter.mpr
+    ⟨hsub cached (List.mem_filter.mp hcached).1, (List.mem_filter.mp hcached).2⟩, rfl⟩
 
 /-! ### Per-oracle completion projections -/
 
@@ -661,7 +634,7 @@ private theorem simJoint_map_completionCache
   | some reply =>
     have hmem : (input, reply) ∈ st.jointCache := by
       obtain ⟨_, _, htable, -⟩ := List.lookup_eq_some_iff.mp hlookup
-      rw [htable]; simp
+      simp [htable]
     simp only [hlookup, RandomOracle.answer, RandomOracle.ofList,
       List.lookup_map_snd, Option.map_some, PMF.monad_bind_eq_bind, PMF.pure_map, PMF.pure_bind]
     by_cases htarget : input = S.jointInput pk input.message input.salt
@@ -672,10 +645,7 @@ private theorem simJoint_map_completionCache
       simp only [RandomOracle.answer, RandomOracle.ofList, hlinked input reply hmem htarget,
         PMF.pure_map, PMF.pure_bind]
     · have hkey : (offTargetKeyCache S pk st.jointCache).lookup input = some reply.key := by
-        have hoff : input ≠ ⟨S.jointPrefix pk, input.message, input.salt⟩ := by
-          simpa only [jointInput] using htarget
-        rw [S.lookup_offTargetKeyCache pk st.jointCache input, ite_eq_right hoff, hlookup]
-        rfl
+        simpa [lookup_offTargetKeyCache, jointInput, hlookup] using htarget
       rw [ite_eq_right htarget]
       simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
         OracleComp.run_interpret_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
@@ -688,28 +658,28 @@ private theorem simJoint_map_completionCache
     simp only [RandomOracle.answer_of_none _ _ _ hcoins, pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun coins _ => ?_
     by_cases htarget : input = S.jointInput pk input.message input.salt
-    · rw [ite_eq_left htarget, ite_eq_left htarget]
+    · have hoff : ∀ r, offTargetKeyCache S pk ((input, r) :: st.jointCache) =
+          offTargetKeyCache S pk st.jointCache := fun _ => by
+        rw [offTargetKeyCache, ite_eq_left (by simpa only [jointInput] using htarget)]
+      rw [ite_eq_left htarget, ite_eq_left htarget]
       simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
         OracleComp.run_interpret_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
       rw [RandomOracle.answer_sum_inl, RandomOracle.answer_sum_inr, PMF.map_comp]
       cases hdec : st.decapsCache.lookup ⟨S.pke.encDet pk input.message coins, input.salt⟩ <;>
-        simp only [ite_true, RandomOracle.answer, RandomOracle.ofList, hdec,
-          S.offTargetKeyCache_cons_of_target pk input _ st.jointCache htarget,
+        simp only [ite_true, RandomOracle.answer, RandomOracle.ofList, hdec, hoff,
           RandomOracle.ofList_cons, List.map_cons, Function.comp_def,
           PMF.map, PMF.bind_bind, PMF.pure_bind]
-    · have hkey : RandomOracle.ofList (offTargetKeyCache S pk st.jointCache) input = none := by
-        have hoff : input ≠ ⟨S.jointPrefix pk, input.message, input.salt⟩ := by
-          simpa only [jointInput] using htarget
-        simp only [RandomOracle.ofList]
-        rw [S.lookup_offTargetKeyCache pk st.jointCache input, ite_eq_right hoff, hlookup]
-        rfl
+    · have hoff : ∀ r, offTargetKeyCache S pk ((input, r) :: st.jointCache) =
+          (input, r.key) :: offTargetKeyCache S pk st.jointCache := fun _ => by
+        rw [offTargetKeyCache, ite_eq_right (by simpa only [jointInput] using htarget)]
+      have hkey : RandomOracle.ofList (offTargetKeyCache S pk st.jointCache) input = none := by
+        simp [RandomOracle.ofList, lookup_offTargetKeyCache, hlookup]
       rw [ite_eq_right htarget, ite_eq_right htarget]
       simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
         OracleComp.run_interpret_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
       rw [RandomOracle.answer_sum_inl, RandomOracle.answer_sum_inl,
         RandomOracle.answer_sum_inr, PMF.map_comp, RandomOracle.answer_of_none _ _ _ hkey]
-      simp only [RandomOracle.ofList_cons,
-        S.offTargetKeyCache_cons_of_not_target pk input _ st.jointCache htarget,
+      simp only [RandomOracle.ofList_cons, hoff,
         PMF.map, List.map_cons, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
 
 private theorem rejection_map_completionCache
@@ -727,7 +697,7 @@ private theorem rejection_map_completionCache
   cases hlookup : st.rejectionCache.lookup input <;>
     simp only [rejection, memoize, hlookup, PMF.map, pmf_norm]
 
-private theorem decapsKey_map_completionCache
+private theorem simDecaps_map_completionCache
     [DecidableEq (JointInput JointPrefix M Salt)]
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
     [DecidableEq (Ciphertext CT Salt)]
@@ -735,14 +705,20 @@ private theorem decapsKey_map_completionCache
     (pk : PK)
     (ciphertext : Ciphertext CT Salt)
     (st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) :
-    (S.decapsKey ciphertext st).map (fun z => (z.1, completionCache S pk z.2)) =
+    ((some <$> S.decapsKey ciphertext) st).map (fun z => (z.1, completionCache S pk z.2)) =
+      (OracleComp.interpret (RandomOracle.answer S.completionDistribution)
+        (some <$> OracleComp.query (.inl (.inr ciphertext)))).run (completionCache S pk st) := by
+  have hkey : (S.decapsKey ciphertext st).map (fun z => (z.1, completionCache S pk z.2)) =
       RandomOracle.answer S.completionDistribution (.inl (.inr ciphertext))
         (completionCache S pk st) := by
-  simp only [completionCache]
-  rw [RandomOracle.answer_sum_inl, RandomOracle.answer_sum_inr, PMF.map_comp,
-    ← RandomOracle.memoize_map_ofList, PMF.map_comp]
-  cases hlookup : st.decapsCache.lookup ciphertext <;>
-    simp only [decapsKey, memoize, hlookup, PMF.map, pmf_norm]
+    simp only [completionCache]
+    rw [RandomOracle.answer_sum_inl, RandomOracle.answer_sum_inr, PMF.map_comp,
+      ← RandomOracle.memoize_map_ofList, PMF.map_comp]
+    cases hlookup : st.decapsCache.lookup ciphertext <;>
+      simp only [decapsKey, memoize, hlookup, PMF.map, pmf_norm]
+  simpa only [StateT.map_apply, PMF.monad_map_eq_map, OracleComp.run_interpret_map,
+    OracleComp.run_interpret_query, PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq] using
+    congrArg (PMF.map (Prod.map some id)) hkey
 
 /-! ### Support characterizations and `Linked` preservation -/
 
@@ -801,14 +777,12 @@ private theorem mem_support_cacheJoint_iff
         refine ⟨coins, hc, ?_⟩
         rcases hbranch with ⟨htarget, hvalid, hdec, rfl⟩ |
             ⟨htarget, hvalid, hdec, hk, rfl⟩ | ⟨hn, hk, rfl⟩
-        · rw [ite_eq_left htarget]; simp [hvalid, hdec]
-        · rw [PMF.mem_support_iff] at hk
-          rw [ite_eq_left htarget]; simp [hvalid, hdec, hk]
-        · rw [PMF.mem_support_iff] at hk
-          by_cases htarget : input = S.jointInput pk input.message input.salt
-          · rw [ite_eq_left htarget]
-            simp [show ¬valid input.message coins from fun hv => hn ⟨htarget, hv⟩, hk]
-          · rw [ite_eq_right htarget]; simp [hk]
+        · simp [ite_eq_left htarget, hvalid, hdec]
+        · simp [ite_eq_left htarget, hvalid, hdec, (PMF.mem_support_iff _ _).mp hk]
+        · by_cases htarget : input = S.jointInput pk input.message input.salt
+          · have hnv : ¬valid input.message coins := fun hv => hn ⟨htarget, hv⟩
+            simp [hnv, (PMF.mem_support_iff _ _).mp hk]
+          · simp [ite_eq_right htarget, (PMF.mem_support_iff _ _).mp hk]
 
 private theorem mem_support_rejection_iff
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
@@ -842,9 +816,8 @@ private theorem lookup_cons_of_lookup_eq_none {α β : Type} [DecidableEq α]
     {l : List (α × β)} {k k' : α} {v v' : β}
     (h : l.lookup k = some v) (hnone : l.lookup k' = none) :
     ((k', v') :: l).lookup k = some v := by
-  by_cases hk : k = k'
-  · subst hk
-    cases h.symm.trans hnone
+  rcases eq_or_ne k k' with rfl | hk
+  · cases h.symm.trans hnone
   · simpa only [List.lookup_cons, beq_eq_false_iff_ne.mpr hk] using h
 
 private theorem Linked.of_simJoint
@@ -857,19 +830,16 @@ private theorem Linked.of_simJoint
     (hz : z ∈ (S.simJoint pk input st).support) : S.Linked pk z.2 := by
   rcases z with ⟨z₁, st'⟩
   rcases (S.mem_support_cacheJoint_iff pk (fun _ _ => True) input st z₁ st').mp hz with
-    ⟨-, rfl⟩ | ⟨-, -, ⟨-, -, hdec, rfl⟩ | ⟨-, -, hnone, -, rfl⟩ | ⟨hn, -, rfl⟩⟩
+    ⟨-, rfl⟩ | ⟨-, -, hbranch⟩
   · exact hlinked
   · intro cached reply hmem hcached
-    rcases List.mem_cons.mp hmem with hnew | hold
-    · cases hnew; exact hdec
+    rcases hbranch with ⟨-, -, hdec, rfl⟩ | ⟨-, -, hnone, -, rfl⟩ | ⟨hn, -, rfl⟩ <;>
+      rcases List.mem_cons.mp hmem with ⟨rfl, rfl⟩ | hold
+    · exact hdec
     · exact hlinked cached reply hold hcached
-  · intro cached reply hmem hcached
-    rcases List.mem_cons.mp hmem with hnew | hold
-    · cases hnew; simp
+    · simp
     · exact lookup_cons_of_lookup_eq_none (hlinked cached reply hold hcached) hnone
-  · intro cached reply hmem hcached
-    rcases List.mem_cons.mp hmem with hnew | hold
-    · cases hnew; exact (hn ⟨hcached, trivial⟩).elim
+    · exact (hn ⟨hcached, trivial⟩).elim
     · exact hlinked cached reply hold hcached
 
 private theorem Linked.of_decapsKey
@@ -914,11 +884,8 @@ private theorem prefetchDecaps_map_completionCache
   classical
   cases hdec : S.pke.dec sk ciphertext.pke with
   | none =>
-    simp only [prefetchDecaps, decapsWithJoint, completionPrefetchDecapsProgram, hdec,
-      StateT.map_apply, PMF.monad_map_eq_map, OracleComp.run_interpret_map,
-      OracleComp.run_interpret_query, PMF.map_comp, Function.comp_def]
-    simpa only [PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq] using
-      congrArg (PMF.map (Prod.map some id)) (S.decapsKey_map_completionCache pk ciphertext st)
+    simpa only [prefetchDecaps, decapsWithJoint, completionPrefetchDecapsProgram, hdec] using
+      S.simDecaps_map_completionCache pk ciphertext st
   | some message =>
     simp only [prefetchDecaps, decapsWithJoint, completionPrefetchDecapsProgram, hdec,
       StateT.bind_apply, PMF.monad_bind_eq_bind, PMF.map_bind, OracleComp.run_interpret_bind,
@@ -927,13 +894,9 @@ private theorem prefetchDecaps_map_completionCache
     refine PMF.bind_congr_on_support _ _ _ fun z _ => ?_
     split <;> rename_i henc
     · simp only [henc, ↓reduceIte, interp_norm, pmf_norm]
-      change PMF.map (fun y => (y.1, completionCache S pk y.2))
-        (PMF.pure (some z.1.key, z.2)) = _
-      exact PMF.pure_map _ _
-    · simpa only [henc, ↓reduceIte, StateT.map_apply, PMF.monad_map_eq_map,
-        OracleComp.run_interpret_map, OracleComp.run_interpret_query, PMF.map_comp,
-        Function.comp_def, Prod.map_apply, id_eq] using
-        congrArg (PMF.map (Prod.map some id)) (S.decapsKey_map_completionCache pk ciphertext z.2)
+      exact PMF.pure_map (fun y => (y.1, completionCache S pk y.2)) (some z.1.key, z.2)
+    · simpa only [henc, ↓reduceIte, Function.comp_def] using
+        S.simDecaps_map_completionCache pk ciphertext z.2
 
 private theorem Linked.of_prefetchDecaps
     [DecidableEq (JointInput JointPrefix M Salt)] [DecidableEq (Ciphertext CT Salt)]
@@ -977,32 +940,6 @@ private theorem Linked.of_dispatch
     · exact hlinked
     · exact hdecaps ciphertext st z hlinked hz
 
-private theorem Linked.of_prefetchHandler
-    [DecidableEq (JointInput JointPrefix M Salt)]
-    [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
-    [DecidableEq (Ciphertext CT Salt)]
-    {S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K}
-    {pk : PK} {sk : SK} {challenge : Ciphertext CT Salt}
-    {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hlinked : S.Linked pk st) (q : Query JointPrefix M Salt RejectPrefix Sigma CT)
-    {z : Response K R q × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hz : z ∈ (S.prefetchHandler pk sk challenge q st).support) : S.Linked pk z.2 :=
-  hlinked.of_dispatch (fun _ _ _ hl h => hl.of_prefetchDecaps h) q hz
-
-private theorem Linked.of_simHandler
-    [DecidableEq (JointInput JointPrefix M Salt)]
-    [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
-    [DecidableEq (Ciphertext CT Salt)]
-    {S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K}
-    {pk : PK} {challenge : Ciphertext CT Salt}
-    {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hlinked : S.Linked pk st) (q : Query JointPrefix M Salt RejectPrefix Sigma CT)
-    {z : Response K R q × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hz : z ∈ (S.simHandler pk challenge q st).support) : S.Linked pk z.2 :=
-  hlinked.of_dispatch (fun _ _ _ hl h => by
-    supp_cases h [simDecaps, StateT.map_apply] with ⟨x, hx, rfl⟩
-    exact hl.of_decapsKey hx) q hz
-
 /-! ### Lifting completion projections and full-run equivalence -/
 
 private theorem dispatch_map_completionCache
@@ -1033,45 +970,8 @@ private theorem dispatch_map_completionCache
   · simpa only [Query.dispatch, OracleComp.run_interpret_query] using
       S.rejection_map_completionCache pk input st
   · by_cases hc : ciphertext = challenge
-    · simp only [Query.dispatch, hc, ↓reduceIte, OracleComp.interpret_pure,
-        StateT.run_pure, PMF.monad_pure_eq_pure]
-      exact PMF.pure_map _ _
+    · simp [Query.dispatch, hc, StateT.run_pure, StateT.pure_apply, PMF.monad_pure_eq_pure]
     · simpa only [Query.dispatch, hc, ↓reduceIte] using hdecaps ciphertext st hlinked
-
-private theorem prefetchHandler_map_completionCache
-    [DecidableEq (JointInput JointPrefix M Salt)]
-    [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
-    [DecidableEq (Ciphertext CT Salt)]
-    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
-    (pk : PK) (sk : SK) (challenge : Ciphertext CT Salt)
-    (q : Query JointPrefix M Salt RejectPrefix Sigma CT)
-    (st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R)
-    (hlinked : S.Linked pk st) :
-    (S.prefetchHandler pk sk challenge q st).map (fun z => (z.1, completionCache S pk z.2)) =
-      (OracleComp.interpret (RandomOracle.answer S.completionDistribution)
-        (S.completionPrefetchProgram pk sk challenge q)).run (completionCache S pk st) := by
-  unfold prefetchHandler completionPrefetchProgram
-  convert S.dispatch_map_completionCache pk challenge
-    (fun c s hl => S.prefetchDecaps_map_completionCache pk sk c s hl) q st hlinked
-
-private theorem simHandler_map_completionCache
-    [DecidableEq (JointInput JointPrefix M Salt)]
-    [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
-    [DecidableEq (Ciphertext CT Salt)]
-    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
-    (pk : PK) (challenge : Ciphertext CT Salt)
-    (q : Query JointPrefix M Salt RejectPrefix Sigma CT)
-    (st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R)
-    (hlinked : S.Linked pk st) :
-    (S.simHandler pk challenge q st).map (fun z => (z.1, completionCache S pk z.2)) =
-      (OracleComp.interpret (RandomOracle.answer S.completionDistribution)
-        (S.completionSimProgram pk challenge q)).run (completionCache S pk st) := by
-  unfold simHandler completionSimProgram
-  convert S.dispatch_map_completionCache pk challenge (fun ciphertext st _ => ?_) q st hlinked
-  simp only [simDecaps, StateT.map_apply, PMF.monad_map_eq_map,
-    OracleComp.run_interpret_map, OracleComp.run_interpret_query, PMF.map_comp, Function.comp_def]
-  simpa only [PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq] using
-    congrArg (PMF.map (Prod.map some id)) (S.decapsKey_map_completionCache pk ciphertext st)
 
 private theorem run_completionHandler_eq_pi
     [Fintype JointPrefix] [Fintype M] [Fintype Salt] [Fintype RejectPrefix]
@@ -1100,16 +1000,15 @@ private theorem run_completionHandler_eq_pi
         OracleComp.interpret (fun q => PMF.pure (table q))
           (OracleComp.interpret prog program) := by
   have hempty : completionCache S pk
-      ({} : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) = fun _ => none := by
-    funext q; rcases q with ((_ | _) | _) | _ <;> rfl
-  have hstate := OracleComp.run_interpret_map_state_of_invariant handler
-    (fun q => OracleComp.interpret (RandomOracle.answer S.completionDistribution) (prog q))
-    (completionCache S pk) (S.Linked pk) hinv hmap program {} (by simp [Linked])
-  have hout := congrArg (PMF.map Prod.fst) hstate
+      ({} : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) = fun _ => none :=
+    funext fun | .inl (.inl (.inl _)) | .inl (.inl (.inr _)) | .inl (.inr _) | .inr _ => rfl
+  have hout := congrArg (PMF.map Prod.fst) <|
+    OracleComp.run_interpret_map_state_of_invariant handler
+      (fun q => OracleComp.interpret (RandomOracle.answer S.completionDistribution) (prog q))
+      (completionCache S pk) (S.Linked pk) hinv hmap program {} (by simp [Linked])
   simp only [PMF.map_comp, Function.comp_def, hempty] at hout
   rw [hout, ← OracleComp.interpret_interpret]
-  exact (RandomOracle.interpret_eq_lazy S.completionDistribution
-    (OracleComp.interpret prog program)).symm
+  exact (RandomOracle.interpret_eq_lazy S.completionDistribution _).symm
 
 /-- The proof-only prefetch handler and observable keyless handler have exactly the same output
 law from empty caches. Their private final caches are deliberately marginalized. -/
@@ -1133,18 +1032,24 @@ private theorem run_prefetchHandler_eq_simHandler
   let _ : Fintype RejectPrefix := Fintype.ofFinite RejectPrefix
   let _ : Fintype Sigma := Fintype.ofFinite Sigma
   let _ : Fintype CT := Fintype.ofFinite CT
-  rw [S.run_completionHandler_eq_pi pk (S.prefetchHandler pk sk challenge)
-      (S.completionPrefetchProgram pk sk challenge)
-      (fun q _ hl _ _ hm => hl.of_prefetchHandler q hm)
-      (fun q st hl => S.prefetchHandler_map_completionCache pk sk challenge q st hl),
-    S.run_completionHandler_eq_pi pk (S.simHandler pk challenge)
-      (S.completionSimProgram pk challenge)
-      (fun q _ hl _ _ hm => hl.of_simHandler q hm)
-      (fun q st hl => S.simHandler_map_completionCache pk challenge q st hl)]
+  dsimp only [prefetchHandler, completionPrefetchProgram, simHandler, completionSimProgram]
+  rw [S.run_completionHandler_eq_pi pk _ _
+      (fun q _ hl _ _ hm => hl.of_dispatch (fun _ _ _ h h' => h.of_prefetchDecaps h') q hm)
+      (fun q st hl => S.dispatch_map_completionCache pk challenge
+        (fun c s h => S.prefetchDecaps_map_completionCache pk sk c s h) q st hl),
+    S.run_completionHandler_eq_pi pk _ _
+      (fun q _ hl _ _ hm => hl.of_dispatch (fun _ _ _ h h' => by
+        supp_cases h' [simDecaps, StateT.map_apply] with ⟨x, hx, rfl⟩
+        exact h.of_decapsKey hx) q hm)
+      (fun q st hl => S.dispatch_map_completionCache pk challenge (decaps := S.simDecaps)
+        (fun c s _ => S.simDecaps_map_completionCache pk c s) q st hl)]
   congr 1 with table : 1
   simp only [OracleComp.interpret_interpret]
   congr 1 with q : 1
-  exact S.interpret_completionPrefetchProgram_eq_simProgram pk sk challenge table q
+  convert S.interpret_completionPrefetchProgram_eq_simProgram pk sk challenge table q using 2 <;>
+    · dsimp only [completionPrefetchProgram, completionSimProgram]
+      congr 1
+      exact Subsingleton.elim _ _
 
 /-! ### Joint-cache monotonicity and `GoodCache` preservation -/
 
@@ -1183,58 +1088,20 @@ private theorem cacheJoint_jointCache_eq_or_cons
     · rw [h] at hn; cases hn
   | none => exact Or.inr (S.cacheJoint_jointCache_of_none pk valid input h hz)
 
-private theorem cacheJoint_jointCache_subset
-    [DecidableEq (JointInput JointPrefix M Salt)] [DecidableEq (Ciphertext CT Salt)]
-    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K) (pk : PK)
-    (valid : M → R → Prop) [∀ m r, Decidable (valid m r)]
-    (input : JointInput JointPrefix M Salt)
-    {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    {z : JointReply K R × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hz : z ∈ (S.cacheJoint pk valid input st).support) :
-    ∀ entry ∈ st.jointCache, entry ∈ z.2.jointCache := by
-  rcases S.cacheJoint_jointCache_eq_or_cons pk valid input hz with h | h <;>
-    intro entry hentry <;> simp [h, hentry]
-
 private theorem coinCache_cons [DecidableEq (JointInput JointPrefix M Salt)]
     (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K) (pk : PK)
     (input : JointInput JointPrefix M Salt) (reply : JointReply K R)
-    (st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) :
-    S.coinCache pk { st with jointCache := (input, reply) :: st.jointCache } =
+    {st st' : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
+    (h : st'.jointCache = (input, reply) :: st.jointCache) :
+    S.coinCache pk st' =
       if input = S.jointInput pk input.message input.salt then
         (input.message, reply.coins) :: S.coinCache pk st
       else S.coinCache pk st := by
   unfold coinCache
-  simp only [List.filter_cons]
-  by_cases h : input = S.jointInput pk input.message input.salt
-  · rw [ite_eq_left h, decide_eq_true h]; rfl
-  · rw [ite_eq_right h, decide_eq_false h]; rfl
-
-private theorem GoodCache.of_cacheJoint
-    [DecidableEq (JointInput JointPrefix M Salt)] [DecidableEq (Ciphertext CT Salt)]
-    {S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K} {pk : PK} {sk : SK}
-    {valid : M → R → Prop} [∀ m r, Decidable (valid m r)]
-    {input : JointInput JointPrefix M Salt}
-    {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    {z : JointReply K R × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hs : S.GoodCache pk sk st)
-    (hcoins : input = S.jointInput pk input.message input.salt →
-      S.pke.dec sk (S.pke.encDet pk input.message z.1.coins) = some input.message)
-    (hz : z ∈ (S.cacheJoint pk valid input st).support) : S.GoodCache pk sk z.2 := by
-  unfold GoodCache ExplicitCoinPKE.GoodCache at hs ⊢
-  rcases S.cacheJoint_jointCache_eq_or_cons pk valid input hz with heq | heq
-  · simpa only [coinCache, heq] using hs
-  · have hcc : S.coinCache pk z.2 =
-        S.coinCache pk { st with jointCache := (input, z.1) :: st.jointCache } := by
-      simp only [coinCache, heq]
-    rw [hcc, S.coinCache_cons]
-    by_cases htarget : input = S.jointInput pk input.message input.salt
-    · rw [ite_eq_left htarget]
-      rintro entry hentry
-      rcases List.mem_cons.mp hentry with rfl | hentry
-      · exact hcoins htarget
-      · exact hs entry hentry
-    · rw [ite_eq_right htarget]
-      exact hs
+  rw [h, List.filter_cons]
+  by_cases ht : input = S.jointInput pk input.message input.salt
+  · rw [ite_eq_left ht, decide_eq_true ht]; rfl
+  · rw [ite_eq_right ht, decide_eq_false ht]; rfl
 
 private theorem rejection_jointCache_eq
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
@@ -1265,8 +1132,7 @@ private theorem toOuterMeasure_notGood_eq_zero
     (hsub : ∀ x ∈ μ.support, ∀ entry ∈ x.2.jointCache, entry ∈ st.jointCache) :
     μ.toOuterMeasure {x | ¬S.GoodCache pk sk x.2} = 0 := by
   rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-  intro x hx hbad
-  exact hbad (hs.of_subset (hsub x hx))
+  exact fun x hx hbad => hbad (hs.of_subset (hsub x hx))
 
 /-! ### Direct joint-query bad-event bounds -/
 
@@ -1288,27 +1154,20 @@ private theorem realJoint_bad_eq_msgFailProb
     simp only [μ, realJoint, cacheJoint, hlookup, ite_eq_left htarget, PMF.map_bind]
     conv_rhs => rw [← PMF.bind_pure (ProbComp.eval S.pke.sampleCoins)]
     refine PMF.bind_congr_on_support _ _ _ fun coins _ => ?_
-    have hmapConst : PMF.map (fun _ : K => coins) (ProbComp.eval S.sampleKey) =
-        PMF.pure coins := PMF.map_const (ProbComp.eval S.sampleKey) coins
-    by_cases hcoins : S.pke.dec sk (S.pke.encDet pk input.message coins) = some input.message
-    · simp only [hcoins, ↓reduceIte]
-      cases st.decapsCache.lookup ⟨S.pke.encDet pk input.message coins, input.salt⟩ with
-      | some _ => simp only [PMF.pure_map]
-      | none => simpa only [PMF.map_comp, Function.comp_def] using hmapConst
-    · simpa only [hcoins, ↓reduceIte, PMF.map_comp, Function.comp_def] using hmapConst
+    split_ifs with hcoins
+    · cases st.decapsCache.lookup ⟨S.pke.encDet pk input.message coins, input.salt⟩
+      · exact (PMF.map_comp _ _ _).trans (PMF.map_const (ProbComp.eval S.sampleKey) coins)
+      · exact PMF.pure_map _ _
+    · exact (PMF.map_comp _ _ _).trans (PMF.map_const (ProbComp.eval S.sampleKey) coins)
   have hbad : μ.toOuterMeasure {z | ¬S.GoodCache pk sk z.2} =
       μ.toOuterMeasure ((fun z => z.1.coins) ⁻¹' {coins |
         S.pke.dec sk (S.pke.encDet pk input.message coins) ≠ some input.message}) := by
     refine μ.toOuterMeasure_apply_eq_of_inter_support_eq (Set.ext fun z => and_congr_left fun hz =>
       not_congr ?_)
-    have hcache : z.2.jointCache = (input, z.1) :: st.jointCache :=
-      S.cacheJoint_jointCache_of_none pk _ input hlookup (by simpa only [μ, realJoint] using hz)
-    have hcc : S.coinCache pk z.2 = (input.message, z.1.coins) :: S.coinCache pk st := by
-      have h1 : S.coinCache pk z.2 =
-          S.coinCache pk { st with jointCache := (input, z.1) :: st.jointCache } := by
-        simp only [coinCache, hcache]
-      rw [h1, S.coinCache_cons, ite_eq_left htarget]
-    rw [GoodCache, ExplicitCoinPKE.GoodCache, hcc]
+    have hcache := S.cacheJoint_jointCache_of_none pk _ input hlookup
+      (by simpa only [μ, realJoint] using hz)
+    rw [GoodCache, ExplicitCoinPKE.GoodCache, S.coinCache_cons pk input z.1 hcache,
+      ite_eq_left htarget]
     exact ⟨fun h => h _ List.mem_cons_self, fun hc e he =>
       (List.mem_cons.mp he).elim (fun h => h ▸ hc) (hs e)⟩
   rw [hbad, ← PMF.toOuterMeasure_map_apply, hmarg, ExplicitCoinPKE.msgFailProb,
@@ -1334,10 +1193,12 @@ private theorem realJoint_bad_le [Fintype M] [Nonempty M]
     | none =>
       exact (S.realJoint_bad_eq_msgFailProb pk sk input hs hlookup htarget).trans_le
         (ENNReal.ofReal_le_ofReal (S.pke.msgFailProb_le_keyPairMaxFailProb pk sk input.message))
-  · refine le_of_eq_of_le ?_ zero_le
-    rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-    intro z hz hbad
-    exact hbad (hs.of_cacheJoint (fun h => (htarget h).elim) hz)
+  · refine le_of_eq_of_le ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr
+      (Set.disjoint_left.mpr fun z hz hbad => hbad ?_)) zero_le
+    rcases S.cacheJoint_jointCache_eq_or_cons pk _ input (by simpa only [realJoint] using hz)
+      with heq | heq
+    · simpa only [GoodCache, coinCache, heq] using hs
+    · simpa only [GoodCache, S.coinCache_cons pk input z.1 heq, ite_eq_right htarget] using hs
 
 /-! ### Identical-until-bad coupling: real versus prefetch handler -/
 
@@ -1353,36 +1214,32 @@ private theorem realJoint_apply_eq_simJoint
     S.realJoint pk sk input st y = S.simJoint pk input st y := by
   unfold realJoint simJoint cacheJoint
   cases hlookup : st.jointCache.lookup input with
-  | some _ => simp only
+  | some _ => rfl
   | none =>
     by_cases htarget : input = S.jointInput pk input.message input.salt
     · simp only [PMF.bind_apply, ite_eq_left htarget]
       refine tsum_congr fun coins => congrArg ((ProbComp.eval S.pke.sampleCoins coins) * ·) ?_
       by_cases hcoins : S.pke.dec sk (S.pke.encDet pk input.message coins) = some input.message
       · simp only [hcoins, ↓reduceIte]
-      · have hbad (key : K) {st' : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-            (hjc : st'.jointCache = (input, ⟨key, coins⟩) :: st.jointCache)
-            (heq : (⟨key, coins⟩, st') = y) : False := by
-          apply hcoins
-          have hmem : (input, ⟨key, coins⟩) ∈ y.2.jointCache := by
-            rw [← heq, hjc]; exact List.mem_cons_self
-          exact hy (input.message, coins) (List.mem_map.mpr ⟨(input, ⟨key, coins⟩),
-            List.mem_filter.mpr ⟨hmem, decide_eq_true htarget⟩, rfl⟩)
-        have hraw : ((ProbComp.eval S.sampleKey).map fun key =>
-            (⟨key, coins⟩, { st with jointCache := (input, ⟨key, coins⟩) :: st.jointCache }))
-            y = 0 := (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by
-          supp_cases hmem with ⟨key, -, heq⟩
-          exact hbad key rfl heq
-        simp only [hcoins, ↓reduceIte, hraw]
-        cases hdecaps : st.decapsCache.lookup
-            ⟨S.pke.encDet pk input.message coins, input.salt⟩ with
-        | some key =>
-          exact Eq.symm ((PMF.apply_eq_zero_iff _ _).mpr fun hmem => by
-            supp_cases hmem
-            exact hbad key rfl rfl)
-        | none =>
-          exact Eq.symm ((PMF.apply_eq_zero_iff _ _).mpr fun hmem => by
-            supp_cases hmem with ⟨key, -, heq⟩; exact hbad key rfl heq)
+      · have hzero {μ : PMF (JointReply K R ×
+            CacheState JointPrefix M Salt RejectPrefix Sigma CT K R)}
+            (hmem_jc : ∀ z ∈ μ.support, ∃ key, z.1 = ⟨key, coins⟩ ∧
+              z.2.jointCache = (input, ⟨key, coins⟩) :: st.jointCache) : μ y = 0 :=
+          (PMF.apply_eq_zero_iff _ _).mpr fun hy_mem => by
+            obtain ⟨key, _, hjc⟩ := hmem_jc y hy_mem
+            exact hcoins (hy (input.message, coins) (List.mem_map.mpr
+              ⟨(input, ⟨key, coins⟩),
+                List.mem_filter.mpr ⟨hjc ▸ List.mem_cons_self, decide_eq_true htarget⟩, rfl⟩))
+        simp only [hcoins, ↓reduceIte]
+        rw [hzero fun z hz => by
+          supp_cases hz with ⟨key, -, rfl⟩
+          exact ⟨key, rfl, rfl⟩]
+        cases st.decapsCache.lookup ⟨S.pke.encDet pk input.message coins, input.salt⟩ <;>
+          refine (hzero fun z hz => ?_).symm
+        · supp_cases hz with ⟨k, -, rfl⟩
+          exact ⟨k, rfl, rfl⟩
+        · supp_cases hz
+          exact ⟨_, rfl, rfl⟩
     · simp only [ite_eq_right htarget]
 
 /-- The continuation after a successful joint lookup leaves the joint cache unchanged, whether
@@ -1422,119 +1279,48 @@ private theorem realDecaps_apply_eq_prefetchDecaps
     simp only
     refine tsum_congr fun z => ?_
     by_cases hz : S.GoodCache pk sk z.2
-    · rw [S.realJoint_apply_eq_simJoint pk sk (S.jointInput pk message ciphertext.salt)
-          st z hz]
+    · rw [S.realJoint_apply_eq_simJoint pk sk _ st z hz]
     · have hcont : ((if S.pke.encDet pk message z.1.coins = ciphertext.pke then
           pure (some z.1.key)
         else
-          some <$> S.decapsKey ciphertext) z.2) y = 0 := by
-        apply (PMF.apply_eq_zero_iff _ _).mpr
-        intro hmem
-        have heq := S.decapsContinuation_jointCache_eq ciphertext z hmem
-        exact hz (hy.of_subset fun entry hentry => by rwa [heq])
+          some <$> S.decapsKey ciphertext) z.2) y = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem => hz <| hy.of_subset fun _ hentry => by
+          rwa [S.decapsContinuation_jointCache_eq ciphertext z hmem]
       rw [hcont, mul_zero, mul_zero]
 
-private theorem decapsWithJoint_jointCache_subset
-    [DecidableEq (Ciphertext CT Salt)]
-    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
-    (pk : PK) (sk : SK)
-    {joint : JointInput JointPrefix M Salt →
-      StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (JointReply K R)}
-    (hjoint : ∀ input
-      {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-      {z : JointReply K R × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R},
-      z ∈ (joint input st).support → ∀ entry ∈ st.jointCache, entry ∈ z.2.jointCache)
-    (ciphertext : Ciphertext CT Salt)
-    {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    {y : Option K × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hy : y ∈ (S.decapsWithJoint pk sk joint ciphertext st).support) :
-    ∀ entry ∈ st.jointCache, entry ∈ y.2.jointCache := by
-  cases hdec : S.pke.dec sk ciphertext.pke with
-  | none =>
-    supp_cases hy [decapsWithJoint, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
-    intro entry hentry
-    dsimp only
-    rwa [S.decapsKey_jointCache_eq ciphertext hx]
-  | some message =>
-    classical
-    supp_cases hy [decapsWithJoint, hdec, StateT.bind_apply] with ⟨z, hz, hy⟩
-    intro entry hentry
-    rw [S.decapsContinuation_jointCache_eq ciphertext z hy]
-    exact hjoint (S.jointInput pk message ciphertext.salt) hz entry hentry
-
-private theorem dispatch_jointCache_subset
+private theorem dispatch_cacheJoint_jointCache_subset
+    [DecidableEq (JointInput JointPrefix M Salt)]
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
     [DecidableEq (Ciphertext CT Salt)]
     (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
-    {joint : JointInput JointPrefix M Salt →
-      StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (JointReply K R)}
-    (hjoint : ∀ input
-      {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-      {z : JointReply K R × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R},
-      z ∈ (joint input st).support → ∀ entry ∈ st.jointCache, entry ∈ z.2.jointCache)
-    {decaps : Ciphertext CT Salt →
-      StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (Option K)}
-    (hdecaps : ∀ ciphertext
-      {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-      {y : Option K × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R},
-      y ∈ (decaps ciphertext st).support → ∀ entry ∈ st.jointCache, entry ∈ y.2.jointCache)
+    (pk : PK) (sk : SK) (valid : M → R → Prop) [∀ m r, Decidable (valid m r)]
     (challenge : Ciphertext CT Salt)
     (q : Query JointPrefix M Salt RejectPrefix Sigma CT)
     {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
     {y : Response K R q × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hy : y ∈ (Query.dispatch joint S.rejection decaps challenge q st).support) :
+    (hy : y ∈ (Query.dispatch (S.cacheJoint pk valid) S.rejection
+      (S.decapsWithJoint pk sk (S.cacheJoint pk valid)) challenge q st).support) :
     ∀ entry ∈ st.jointCache, entry ∈ y.2.jointCache := by
+  have hjoint {input} {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
+      {z : JointReply K R × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
+      (hz : z ∈ (S.cacheJoint pk valid input st).support) :
+      ∀ entry ∈ st.jointCache, entry ∈ z.2.jointCache := by
+    rcases S.cacheJoint_jointCache_eq_or_cons pk valid input hz with h | h <;>
+      intro entry hentry <;> simp [h, hentry]
   rcases q with input | input | ciphertext
-  · exact hjoint input hy
-  · intro entry hentry
-    rwa [S.rejection_jointCache_eq input hy]
+  · exact hjoint hy
+  · exact fun entry hentry => S.rejection_jointCache_eq input hy ▸ hentry
   · supp_cases hy [Query.dispatch, stateT_ite_apply, StateT.pure_apply] with ⟨-, rfl⟩ | ⟨-, hy⟩
     · exact fun _ hentry => hentry
-    · exact hdecaps ciphertext hy
-
-private theorem realHandler_jointCache_subset
-    [DecidableEq (JointInput JointPrefix M Salt)]
-    [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
-    [DecidableEq (Ciphertext CT Salt)]
-    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
-    (pk : PK) (sk : SK) (challenge : Ciphertext CT Salt)
-    (q : Query JointPrefix M Salt RejectPrefix Sigma CT)
-    {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    {y : Response K R q × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hy : y ∈ (S.realHandler pk sk challenge q st).support) :
-    ∀ entry ∈ st.jointCache, entry ∈ y.2.jointCache := by
-  have hjoint : ∀ input
-      {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-      {z : JointReply K R × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R},
-      z ∈ (S.realJoint pk sk input st).support →
-        ∀ entry ∈ st.jointCache, entry ∈ z.2.jointCache := by
-    classical
-    intro input _ _ hz
-    exact S.cacheJoint_jointCache_subset pk _ input (by simpa only [realJoint] using hz)
-  exact S.dispatch_jointCache_subset hjoint
-    (fun ciphertext _ _ h => S.decapsWithJoint_jointCache_subset pk sk hjoint ciphertext h)
-    challenge q hy
-
-private theorem prefetchHandler_jointCache_subset
-    [DecidableEq (JointInput JointPrefix M Salt)]
-    [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
-    [DecidableEq (Ciphertext CT Salt)]
-    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
-    (pk : PK) (sk : SK) (challenge : Ciphertext CT Salt)
-    (q : Query JointPrefix M Salt RejectPrefix Sigma CT)
-    {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    {y : Response K R q × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hy : y ∈ (S.prefetchHandler pk sk challenge q st).support) :
-    ∀ entry ∈ st.jointCache, entry ∈ y.2.jointCache := by
-  have hjoint : ∀ input
-      {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-      {z : JointReply K R × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R},
-      z ∈ (S.simJoint pk input st).support →
-        ∀ entry ∈ st.jointCache, entry ∈ z.2.jointCache :=
-    fun input _ _ hz => S.cacheJoint_jointCache_subset pk (fun _ _ => True) input hz
-  exact S.dispatch_jointCache_subset hjoint
-    (fun ciphertext _ _ h => S.decapsWithJoint_jointCache_subset pk sk hjoint ciphertext h)
-    challenge q hy
+    · cases hdec : S.pke.dec sk ciphertext.pke with
+      | none =>
+        supp_cases hy [decapsWithJoint, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
+        exact fun entry hentry => S.decapsKey_jointCache_eq ciphertext hx ▸ hentry
+      | some message =>
+        classical
+        supp_cases hy [decapsWithJoint, hdec, StateT.bind_apply] with ⟨z, hz, hy⟩
+        exact fun entry hentry =>
+          S.decapsContinuation_jointCache_eq ciphertext z hy ▸ hjoint hz entry hentry
 
 private theorem identicalUntilBad_realHandler_prefetchHandler
     [DecidableEq (JointInput JointPrefix M Salt)]
@@ -1553,10 +1339,11 @@ private theorem identicalUntilBad_realHandler_prefetchHandler
       · simpa only [realHandler, prefetchHandler, Query.dispatch, hc, ↓reduceIte] using
           S.realDecaps_apply_eq_prefetchDecaps pk sk ciphertext st (answer, st')
             (of_not_not hst')
-  absorb_first q st hbad y hy hgood :=
-    hbad (hgood.of_subset (S.realHandler_jointCache_subset pk sk challenge q hy))
+  absorb_first q st hbad y hy hgood := by
+    classical
+    exact hbad (hgood.of_subset (S.dispatch_cacheJoint_jointCache_subset pk sk _ challenge q hy))
   absorb_second q st hbad y hy hgood :=
-    hbad (hgood.of_subset (S.prefetchHandler_jointCache_subset pk sk challenge q hy))
+    hbad (hgood.of_subset (S.dispatch_cacheJoint_jointCache_subset pk sk _ challenge q hy))
 
 /-! ### Decapsulation and per-handler bad-event probabilities -/
 
@@ -1576,25 +1363,17 @@ private theorem realDecaps_bad_eq_realJoint_bad
   simp only [hdec, StateT.bind_apply, PMF.monad_bind_eq_bind]
   rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
   refine tsum_congr fun z => ?_
+  let cont := (if S.pke.encDet pk message z.1.coins = ciphertext.pke then
+    pure (some z.1.key) else some <$> S.decapsKey ciphertext) z.2
+  have hmem_jc {y} (hy : y ∈ cont.support) : y.2.jointCache = z.2.jointCache :=
+    S.decapsContinuation_jointCache_eq ciphertext z hy
   by_cases hbad : ¬S.GoodCache pk sk z.2
-  · have hone :
-        (((if S.pke.encDet pk message z.1.coins = ciphertext.pke then
-              pure (some z.1.key)
-            else
-              some <$> S.decapsKey ciphertext) z.2).toOuterMeasure
-          {y | ¬S.GoodCache pk sk y.2}) = 1 :=
-      (PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr fun y hy hgood => hbad (hgood.of_subset
-        fun _ hentry => by rwa [S.decapsContinuation_jointCache_eq ciphertext z hy])
-    rw [hone, mul_one, Set.indicator_of_mem hbad]
-  · have hzero :
-        (((if S.pke.encDet pk message z.1.coins = ciphertext.pke then
-              pure (some z.1.key)
-            else
-              some <$> S.decapsKey ciphertext) z.2).toOuterMeasure
-          {y | ¬S.GoodCache pk sk y.2}) = 0 :=
-      toOuterMeasure_notGood_eq_zero (not_not.mp hbad) fun y hy _ hentry => by
-        rwa [S.decapsContinuation_jointCache_eq ciphertext z hy] at hentry
-    rw [hzero, mul_zero, Set.indicator_of_notMem hbad]
+  · rw [(PMF.toOuterMeasure_apply_eq_one_iff cont {y | ¬S.GoodCache pk sk y.2}).mpr
+        fun y hy hgood => hbad (hgood.of_subset fun _ h => (hmem_jc hy) ▸ h),
+      mul_one, Set.indicator_of_mem hbad]
+  · rw [toOuterMeasure_notGood_eq_zero (μ := cont) (not_not.mp hbad)
+        fun y hy _ h => (hmem_jc hy) ▸ h,
+      mul_zero, Set.indicator_of_notMem hbad]
 
 /-- From a good cache with a fresh implicit joint input, one successful real decapsulation creates
 a bad cache with exactly the decoded message's decryption-failure probability. This is the
@@ -1657,9 +1436,7 @@ theorem realHandler_decaps_bad_eq_msgFailProb
     (pk : PK) (sk : SK) (challenge : Ciphertext CT Salt)
     (st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) :
     S.realHandler pk sk challenge (.decaps challenge) st = PMF.pure (none, st) := by
-  simp only [realHandler, Query.dispatch, ↓reduceIte]
-  change PMF.pure (none, st) = PMF.pure (none, st)
-  rfl
+  simp [realHandler, Query.dispatch, StateT.pure_apply]
 
 /-- A rejection-oracle query through the real handler cannot create a PKE correctness witness. -/
 theorem realHandler_rejection_bad_eq_zero
@@ -1672,11 +1449,9 @@ theorem realHandler_rejection_bad_eq_zero
     {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
     (hs : S.GoodCache pk sk st) :
     (S.realHandler pk sk challenge (.rejection input) st).toOuterMeasure
-        {z | ¬S.GoodCache pk sk z.2} = 0 := by
-  simp only [realHandler, Query.dispatch]
-  apply toOuterMeasure_notGood_eq_zero hs
-  intro z hz entry hentry
-  rwa [S.rejection_jointCache_eq input hz] at hentry
+        {z | ¬S.GoodCache pk sk z.2} = 0 :=
+  toOuterMeasure_notGood_eq_zero hs fun z hz _ hentry => by
+    rwa [S.rejection_jointCache_eq input hz] at hentry
 
 private theorem realDecaps_bad_le [Fintype M] [Nonempty M]
     [DecidableEq (JointInput JointPrefix M Salt)] [DecidableEq (Ciphertext CT Salt)]
@@ -1688,9 +1463,7 @@ private theorem realDecaps_bad_le [Fintype M] [Nonempty M]
       ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk) := by
   cases hdec : S.pke.dec sk ciphertext.pke with
   | none =>
-    refine le_of_eq_of_le ?_ zero_le
-    apply toOuterMeasure_notGood_eq_zero hs
-    intro z hz entry hentry
+    refine le_of_eq_of_le (toOuterMeasure_notGood_eq_zero hs fun z hz _ hentry => ?_) zero_le
     supp_cases hz [realDecaps, decapsWithJoint, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
     rwa [S.decapsKey_jointCache_eq ciphertext hx] at hentry
   | some message =>
@@ -1712,16 +1485,9 @@ private theorem realHandler_bad_le [Fintype M] [Nonempty M]
   rcases q with input | input | ciphertext
   · simpa only [realHandler, Query.dispatch, Query.jointCost, Query.decapsCost, Nat.cast_one,
       Nat.cast_zero, one_mul, zero_mul, add_zero] using S.realJoint_bad_le pk sk input hs
-  · simp only [realHandler, Query.dispatch, Query.jointCost, Query.decapsCost,
-      Nat.cast_zero, zero_mul, add_zero]
-    exact le_of_eq (toOuterMeasure_notGood_eq_zero hs fun z hz entry hentry => by
-      rwa [S.rejection_jointCache_eq input hz] at hentry)
-  · by_cases hc : ciphertext = challenge
-    · simp only [realHandler, Query.dispatch, hc, ↓reduceIte, Query.jointCost, Query.decapsCost,
-        Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, zero_add]
-      exact (le_of_eq (toOuterMeasure_notGood_eq_zero hs fun z hz entry hentry => by
-          supp_cases hz [StateT.pure_apply]
-          exact hentry)).trans zero_le
+  · simp [S.realHandler_rejection_bad_eq_zero pk sk challenge input hs]
+  · rcases eq_or_ne ciphertext challenge with rfl | hc
+    · simp [hs]
     · simpa only [realHandler, Query.dispatch, hc, ↓reduceIte, Query.jointCost,
         Query.decapsCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, zero_add] using
         S.realDecaps_bad_le pk sk ciphertext hs
@@ -1797,27 +1563,6 @@ private theorem closeTo_run_corr {JointPrefix M Salt RejectPrefix Sigma CT K R S
   refine (hident.closeTo_bind program initial next).mono (hreach.trans_eq ?_)
   rw [← add_mul, ← Nat.cast_add]
 
-private theorem Scheme.closeTo_run_realHandler_prefetchHandler
-    [Fintype M] [Nonempty M]
-    [DecidableEq (JointInput JointPrefix M Salt)]
-    [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
-    [DecidableEq (Ciphertext CT Salt)]
-    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
-    (pk : PK) (sk : SK) (challenge : Ciphertext CT Salt) {A : Type}
-    (program : OracleComp (Response (JointPrefix := JointPrefix) (M := M) (Salt := Salt)
-      (RejectPrefix := RejectPrefix) (Sigma := Sigma) (CT := CT) K R) A)
-    {qRO qD : ℕ} (hbounds : QueryBounds program qRO qD) :
-    CloseTo
-      (((OracleComp.interpret (S.realHandler pk sk challenge) program).run {}).map Prod.fst)
-      (((OracleComp.interpret (S.prefetchHandler pk sk challenge) program).run {}).map Prod.fst)
-      (((qRO + qD : ℕ) : ℝ≥0∞) *
-        ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk)) := by
-  simpa only [PMF.bind_pure_comp] using
-    (closeTo_run_corr (S.identicalUntilBad_realHandler_prefetchHandler pk sk challenge)
-      (fun q st hst => S.realHandler_bad_le pk sk challenge q (of_not_not hst))
-      program hbounds (by simp [Scheme.GoodCache, Scheme.coinCache,
-        ExplicitCoinPKE.GoodCache]) (PMF.pure ∘ Prod.fst))
-
 /-- **Concrete fixed-key salted-FO `CORR` hop.** The decrypt/re-encrypt real handler and the
 secret-key-free keyless handler have output laws within `(qRO + qD)` times the fixed key pair's
 worst-message decryption-failure probability. Private final caches are not observable. -/
@@ -1840,7 +1585,10 @@ theorem Scheme.closeTo_run_realHandler_simHandler
       (((qRO + qD : ℕ) : ℝ≥0∞) *
         ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk)) := by
   rw [← S.run_prefetchHandler_eq_simHandler pk sk challenge program]
-  exact S.closeTo_run_realHandler_prefetchHandler pk sk challenge program hbounds
+  simpa only [PMF.bind_pure_comp] using
+    closeTo_run_corr (S.identicalUntilBad_realHandler_prefetchHandler pk sk challenge)
+      (fun q st hst => S.realHandler_bad_le pk sk challenge q (of_not_not hst))
+      program hbounds (not_not.mpr (GoodCache.empty S pk sk)) (PMF.pure ∘ Prod.fst)
 
 /-- Run a challenge-aware randomized adversary against the post-secret-seed-guessing real
 handler. The adversary's coins are sampled before the common public challenge. -/
@@ -1893,7 +1641,7 @@ theorem Scheme.advantage_randomizedRealHandler_simHandler_le
       (S.randomizedSimHandlerGame challengeSetup A) : ℝ) ≤
       ((qRO + qD : ℕ) : ℝ) * δ := by
   unfold randomizedRealHandlerGame randomizedSimHandlerGame
-  refine S.pke.advantage_bind_keyGen_le
+  exact S.pke.advantage_bind_keyGen_le
     (fun pk sk => (ProbComp.eval A.coins).bind fun coins =>
       (ProbComp.eval (challengeSetup pk)).bind fun challenge =>
         ((OracleComp.interpret (S.realHandler pk sk challenge.1)
@@ -1902,17 +1650,8 @@ theorem Scheme.advantage_randomizedRealHandler_simHandler_le
       (ProbComp.eval (challengeSetup pk)).bind fun challenge =>
         ((OracleComp.interpret (S.simHandler pk challenge.1)
           (A.run coins ⟨pk, challenge.1, challenge.2⟩)).run {}).map Prod.fst)
-    (qRO + qD) (fun pk sk => ?_) hδ
-  refine (CloseTo.bind_right_tsum (ProbComp.eval A.coins)
-    (err := fun _ => (((qRO + qD : ℕ) : ℝ≥0∞) *
-      ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk))) fun coins _ => ?_).mono ?_
-  · refine (CloseTo.bind_right_tsum (ProbComp.eval (challengeSetup pk))
-      (err := fun _ => (((qRO + qD : ℕ) : ℝ≥0∞) *
-        ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk))) fun challenge _ => ?_).mono ?_
-    · exact S.closeTo_run_realHandler_simHandler pk sk challenge.1
-        (A.run coins ⟨pk, challenge.1, challenge.2⟩)
-        (hbounds coins ⟨pk, challenge.1, challenge.2⟩)
-    · rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-  · rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+    (qRO + qD) (fun pk sk => CloseTo.bind_right _ fun coins _ =>
+      CloseTo.bind_right _ fun challenge _ => S.closeTo_run_realHandler_simHandler pk sk
+        challenge.1 _ (hbounds coins ⟨pk, challenge.1, challenge.2⟩)) hδ
 
 end Cslib.Crypto.Protocols.FujisakiOkamoto.Salted

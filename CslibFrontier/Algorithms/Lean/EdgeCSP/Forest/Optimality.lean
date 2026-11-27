@@ -43,11 +43,8 @@ variable {Rel V : Type*} {F : CSP Rel V} [DecidableEq V]
 private theorem outgoing_injective {sem : Rel → List Bool → Bool}
     {f : OccurrenceLabeling F Bool} {rs : List V} {es : Log F}
     (hg : Grown sem f rs es) {a b : Occurrence F}
-    (ha : a ∈ es.outgoing) (hb : b ∈ es.outgoing) (he : a.var = b.var) : a = b := by
-  have hn : (es.outgoing.map Occurrence.var).Nodup := by
-    rw [← Log.children_eq_map_outgoing]
-    exact hg.children_nodup
-  exact List.inj_on_of_nodup_map hn ha hb he
+    (ha : a ∈ es.outgoing) (hb : b ∈ es.outgoing) (he : a.var = b.var) : a = b :=
+  List.inj_on_of_nodup_map (Log.children_eq_map_outgoing _ ▸ hg.children_nodup) ha hb he
 
 private theorem incoming_saturated {sem : Rel → List Bool → Bool}
     {f : OccurrenceLabeling F Bool} {rs : List V} {es : Log F}
@@ -55,10 +52,7 @@ private theorem incoming_saturated {sem : Rel → List Bool → Bool}
     (ha : a ∈ es.used.toFinset \ es.outgoing.toFinset)
     (hb : b ∈ partners sem f a) : b ∈ es.outgoing.toFinset := by
   obtain ⟨hau, hao⟩ := mem_sdiff.mp ha
-  have ham : a ∈ es.arcs.map Arc.occurrence := by
-    rw [Log.map_arcs_occurrence]
-    exact List.mem_toFinset.mp hau
-  obtain ⟨c, hc, rfl⟩ := List.mem_map.mp ham
+  obtain ⟨c, hc, rfl⟩ := List.mem_map.mp (Log.map_arcs_occurrence _ ▸ List.mem_toFinset.mp hau)
   have hci : c.incoming = true := by
     cases hi : c.incoming
     · exact (hao (List.mem_toFinset.mpr (Log.mem_outgoing_of_arc hc hi))).elim
@@ -113,12 +107,8 @@ private theorem fiber_card (hF : EdgeInstance F) (s : Finset (Occurrence F))
       (({o, hF.partner o} : Finset (Occurrence F)).filter fun a => a ∈ s) := by
     ext a
     simp only [mem_filter, mem_insert, mem_singleton]
-    constructor
-    · rintro ⟨ha, hv⟩
-      exact ⟨hF.eq_or_eq_partner hv, ha⟩
-    · rintro ⟨rfl | rfl, ha⟩
-      · exact ⟨ha, rfl⟩
-      · exact ⟨ha, (hF.partner_variable o).symm⟩
+    exact ⟨fun ⟨ha, hv⟩ => ⟨hF.eq_or_eq_partner hv, ha⟩, fun ⟨h, ha⟩ =>
+      ⟨ha, h.elim (fun heq => heq ▸ rfl) fun heq => heq ▸ (hF.partner_variable o).symm⟩⟩
   rw [he]
   by_cases ho : o ∈ s <;> by_cases hp : hF.partner o ∈ s <;>
     simp [filter_insert, filter_singleton, ho, hp, hF.partner_ne o]
@@ -203,27 +193,23 @@ theorem search_exhausted_isOptimalLabeling (sem : Rel → List Bool → Bool)
     (f : OccurrenceLabeling F Bool) (hF : EdgeInstance F)
     (hf : ValidLabeling sem f) (hM : EdgeInstance.EvenConstraints sem F)
     {es : Log F} (hs : search sem f = .exhausted es) : IsOptimalLabeling sem f := by
-  have hg := search_grown sem f hF
-  rw [hs] at hg
+  have hg := hs ▸ search_grown sem f hF
   have hc := search_exhausted_frontier sem f hs
   let O := es.outgoing.toFinset
   let I := es.used.toFinset \ O
   have hIO : Disjoint I O := disjoint_left.mpr fun _ hi ho => (mem_sdiff.mp hi).2 ho
-  have hroot (o : Occurrence F) (hi : Inconsistent f o.var) : o ∈ I := by
-    refine mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc o (Or.inl ((mem_roots f _).mpr hi))), ?_⟩
-    exact fun ho => hg.outgoing_not_root (List.mem_toFinset.mp ho) ((mem_roots f _).mpr hi)
+  have hroot (o : Occurrence F) (hi : Inconsistent f o.var) : o ∈ I :=
+    mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc o (Or.inl ((mem_roots f _).mpr hi))),
+      fun ho => hg.outgoing_not_root (List.mem_toFinset.mp ho) ((mem_roots f _).mpr hi)⟩
   have hout (o : Occurrence F) (ho : o ∈ O) :
       hF.partner o ∈ I ∧ ¬ Inconsistent f o.var := by
     have hom := List.mem_toFinset.mp ho
-    have hvis := Log.Grown.used_visited hg (es.outgoing_subset_used hom)
-    have hpvis : es.Visited (roots f) (hF.partner o).var := by
-      rwa [← hF.partner_variable o]
-    refine ⟨mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc _ hpvis), ?_⟩, ?_⟩
-    · intro hp
-      exact hF.partner_ne o (outgoing_injective hg hom (List.mem_toFinset.mp hp)
-        (hF.partner_variable o))
-    · intro hi
-      exact hg.outgoing_not_root hom ((mem_roots f _).mpr hi)
+    have hpvis : es.Visited (roots f) (hF.partner o).var :=
+      hF.partner_variable o ▸ Log.Grown.used_visited hg (es.outgoing_subset_used hom)
+    exact ⟨mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc _ hpvis), fun hp =>
+        hF.partner_ne o (outgoing_injective hg hom (List.mem_toFinset.mp hp)
+          (hF.partner_variable o))⟩,
+      fun hi => hg.outgoing_not_root hom ((mem_roots f _).mpr hi)⟩
   refine ⟨hf, fun g hvalid => ?_⟩
   have hlocal := local_changes_le hF hM hf hvalid I O hIO
     (fun _ ha _ hb => incoming_saturated hg ha hb)

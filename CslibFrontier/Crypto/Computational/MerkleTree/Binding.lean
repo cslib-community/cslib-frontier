@@ -205,8 +205,7 @@ theorem length_of_mem_merkleLevel {ℓ : ℕ} (hlen : ∀ x, (H k x).length = �
 theorem length_merkleRoot {ℓ : ℕ} (hlen : ∀ x, (H k x).length = ℓ) (leaves : List (List Bool)) :
     (merkleRoot H k leaves).length = ℓ := by
   have hpos : 0 < (merkleLevel H k leaves (Nat.clog 2 leaves.length)).length := by
-    rw [length_merkleLevel, Nat.div_self (Nat.two_pow_pos _)]
-    exact Nat.one_pos
+    simp [length_merkleLevel, Nat.div_self (Nat.two_pow_pos _)]
   rw [merkleRoot, List.headD_eq_head?_getD, List.head?_eq_getElem? ,
     List.getElem?_eq_getElem hpos, Option.getD_some]
   exact length_of_mem_merkleLevel hlen (List.getElem_mem hpos)
@@ -220,17 +219,14 @@ theorem length_of_mem_merklePath {ℓ : ℕ} (hlen : ∀ x, (H k x).length = ℓ
   obtain ⟨t, ht, rfl⟩ := List.mem_map.mp hs
   rw [List.mem_range] at ht
   set d := Nat.clog 2 leaves.length
-  have hlevel : (merkleLevel H k leaves t).length = 2 * 2 ^ (d - t - 1) := by
-    rw [length_merkleLevel, ← pow_succ', show d - t - 1 + 1 = d - t by omega,
-      Nat.pow_div (by omega) (by norm_num)]
+  have hdt : d - t - 1 + 1 = d - t := by omega
   have hpos : i / 2 ^ t < 2 * 2 ^ (d - t - 1) := by
-    rw [← pow_succ', show d - t - 1 + 1 = d - t by omega, Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _),
-      ← pow_add, show d - t + t = d by omega]
+    rw [← pow_succ', hdt, Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), ← pow_add,
+      Nat.sub_add_cancel ht.le]
     exact hi
   have hsib : merkleSibling (i / 2 ^ t) < (merkleLevel H k leaves t).length := by
-    rw [hlevel]
-    generalize i / 2 ^ t = p at hpos ⊢
-    generalize 2 ^ (d - t - 1) = f at hpos ⊢
+    rw [length_merkleLevel, Nat.pow_div ht.le Nat.zero_lt_two, ← hdt, pow_succ']
+    generalize i / 2 ^ t = p, 2 ^ (d - t - 1) = f at hpos ⊢
     unfold merkleSibling
     split <;> omega
   rw [List.getD_eq_getElem _ _ hsib]
@@ -526,18 +522,15 @@ theorem succProbability_merkleBindingGame_le (hlen : ∀ k x, (H k x).length = k
     Game.succProbability (ProbComp.eval (merkleBindingGame H leafSpace adversary n)) ≤
       Game.succProbability (ProbComp.eval
         (collisionGame H (merkleHashDomain leafSpace) (merkleCollisionFinder H adversary) n)) := by
-  apply Game.succProbability_mono
-  simp only [pmf_norm, merkleBindingGame, collisionGame, merkleCollisionFinder]
-  apply PMF.bind_apply_mono_on_support
-  intro k hk
-  have hklen : k.length = n := by
-    rw [BitString.eval_sampleList] at hk
-    exact BitString.length_of_mem_support_uniformList hk
-  apply PMF.bind_apply_mono_on_support
-  intro out _
+  refine Game.succProbability_mono ?_
+  simp only [pmf_norm, merkleBindingGame, collisionGame, merkleCollisionFinder,
+    BitString.eval_sampleList]
+  refine PMF.bind_apply_mono_on_support _ _ fun k hk =>
+    PMF.bind_apply_mono_on_support _ _ fun out _ => ?_
   cases hbreak : merkleBreaksBinding H leafSpace n k out
   · simp
-  · rw [isCollision_of_merkleBreaksBinding hlen hklen hbreak]
+  · rw [isCollision_of_merkleBreaksBinding hlen
+      (BitString.length_of_mem_support_uniformList hk) hbreak]
 
 /-- **The reduction is efficient**: the collision finder of a strict PPT binding adversary is
 strict PPT, for a polynomial-time `H` that returns `k.length` bits. -/

@@ -58,15 +58,13 @@ private theorem outer_lemma_update_of_val_ge {U V n cells w : ℕ} {α_V c_w γ 
       ((T.blockSize ℓ : ℝ) / 2) * Real.logb 2 V -
         (T.blockSize ℓ : ℝ) * Real.logb 2 ((U : ℝ) / (n : ℝ)) := by
     clear hF_lo
-    have hn_pos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast (show 0 < n by omega)
-    have hU_pos : (0 : ℝ) < (U : ℝ) := by exact_mod_cast (show 0 < U by omega)
-    have hV_pos : (0 : ℝ) < (V : ℝ) := by exact_mod_cast hV
+    have hn_pos : (0 : ℝ) < n := Nat.cast_pos.mpr (by omega)
+    have hU_pos : (0 : ℝ) < U := Nat.cast_pos.mpr (by omega)
+    have hV_pos : (0 : ℝ) < V := Nat.cast_pos.mpr hV
     have hlogU_nn : 0 ≤ Real.logb 2 U :=
       Real.logb_nonneg (by norm_num) (by exact_mod_cast (show 1 ≤ U by omega))
     have hlogV_nn : 0 ≤ Real.logb 2 V :=
       Real.logb_nonneg (by norm_num) (by exact_mod_cast hV)
-    have hlogn_nn : 0 ≤ Real.logb 2 n :=
-      Real.logb_nonneg (by norm_num) (by exact_mod_cast (show 1 ≤ n by omega))
     have hlog_V_lo : (2 + α_V) * Real.logb 2 U ≤ Real.logb 2 V + 2 * Real.logb 2 n := by
       have hl := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
         (Real.rpow_pos_of_pos hU_pos _) hV_lo
@@ -74,7 +72,6 @@ private theorem outer_lemma_update_of_val_ge {U V n cells w : ℕ} {α_V c_w γ 
         Real.logb_mul hV_pos.ne' (pow_ne_zero 2 hn_pos.ne'), Real.logb_pow, Nat.cast_ofNat] at hl
     set gap := (1 / 2) * Real.logb 2 V - Real.logb 2 U + Real.logb 2 n
     have hgap1 : (α_V / 2) * Real.logb 2 U ≤ gap := by dsimp only [gap]; linarith
-    have hgap2 : (1 / 2) * Real.logb 2 V - Real.logb 2 U ≤ gap := by dsimp only [gap]; linarith
     set η := min (1 / 4) (α_V / 16)
     have hη_pos : 0 < η := by dsimp only [η]; positivity
     have hconv1 : 4 * η * Real.logb 2 U ≤ (1 - 2 * η) * gap := by
@@ -84,34 +81,31 @@ private theorem outer_lemma_update_of_val_ge {U V n cells w : ℕ} {α_V c_w γ 
             mul_le_mul (by linarith [min_le_left (1 / 4 : ℝ) (α_V / 16)])
               (by linarith [min_le_right (1 / 4 : ℝ) (α_V / 16)]) (by positivity)
               (by linarith [min_le_left (1 / 4 : ℝ) (α_V / 16)])
-      have h2 : 4 * η * Real.logb 2 U ≤ (1 - 2 * η) * (α_V / 2) * Real.logb 2 U :=
-        mul_le_mul_of_nonneg_right h1 hlogU_nn
-      have h3 : (1 - 2 * η) * ((α_V / 2) * Real.logb 2 U) ≤ (1 - 2 * η) * gap :=
-        mul_le_mul_of_nonneg_left hgap1 (by linarith [min_le_left (1 / 4 : ℝ) (α_V / 16)])
-      linarith
+      calc 4 * η * Real.logb 2 U
+          ≤ (1 - 2 * η) * (α_V / 2) * Real.logb 2 U := mul_le_mul_of_nonneg_right h1 hlogU_nn
+        _ = (1 - 2 * η) * ((α_V / 2) * Real.logb 2 U) := mul_assoc _ _ _
+        _ ≤ (1 - 2 * η) * gap :=
+            mul_le_mul_of_nonneg_left hgap1 (by linarith [min_le_left (1 / 4 : ℝ) (α_V / 16)])
     have hgap_lb : η * (Real.logb 2 U + Real.logb 2 V) ≤ gap := by
       have hUV : Real.logb 2 U + Real.logb 2 V ≤ 3 * Real.logb 2 U + 2 * gap := by
-        dsimp only [gap]; linarith [hlogn_nn]
-      have h4 : η * (Real.logb 2 U + Real.logb 2 V) ≤ η * (3 * Real.logb 2 U + 2 * gap) :=
-        mul_le_mul_of_nonneg_left hUV hη_pos.le
-      have hηU_nn : 0 ≤ η * Real.logb 2 U := mul_nonneg hη_pos.le hlogU_nn
-      linarith
+        dsimp only [gap]
+        linarith [Real.logb_nonneg (by norm_num : (1 : ℝ) < 2)
+          (by exact_mod_cast (show 1 ≤ n by omega) : (1 : ℝ) ≤ n)]
+      linarith [mul_le_mul_of_nonneg_left hUV hη_pos.le, mul_nonneg hη_pos.le hlogU_nn]
     set m := (T.blockSize ℓ : ℝ)
     have hm_nn : 0 ≤ m := Nat.cast_nonneg _
-    have h12 : 7 * m + 2 * m * t ≤ 2 * γ * m * Real.logb 2 U :=
-      outer_budget_time_le hγ hm_nn h11 ht_hi
     have h3 : γ * m * (w : ℝ) ≤ c_w * γ * m * (Real.logb 2 U + Real.logb 2 V) := by
-      have := mul_le_mul_of_nonneg_left hw (by positivity : 0 ≤ γ * m); linarith
+      linarith [mul_le_mul_of_nonneg_left hw (by positivity : 0 ≤ γ * m)]
     have h4 : 5 * γ * m * Real.logb 2 U ≤ 5 * γ * m * (Real.logb 2 U + Real.logb 2 V) :=
       mul_le_mul_of_nonneg_left (le_add_of_nonneg_right hlogV_nn) (by positivity)
-    have h5 : ((5 + c_w) * γ) * (m * (Real.logb 2 U + Real.logb 2 V)) ≤
-        η * (m * (Real.logb 2 U + Real.logb 2 V)) :=
-      mul_le_mul_of_nonneg_right hγ_le (by positivity)
-    have h6 : η * (m * (Real.logb 2 U + Real.logb 2 V)) ≤ m * gap :=
-      (mul_le_mul_of_nonneg_left hgap_lb hm_nn).trans_eq' (by ring)
+    have h56 : ((5 + c_w) * γ) * (m * (Real.logb 2 U + Real.logb 2 V)) ≤ m * gap :=
+      (mul_le_mul_of_nonneg_right hγ_le (by positivity)).trans
+        ((mul_le_mul_of_nonneg_left hgap_lb hm_nn).trans_eq' (by ring))
     have hrhs : (m / 2) * Real.logb 2 V - m * Real.logb 2 ((U : ℝ) / (n : ℝ)) = m * gap := by
-      rw [Real.logb_div hU_pos.ne' hn_pos.ne']; dsimp only [gap]; ring
-    rw [hrhs]; linarith
+      rw [Real.logb_div hU_pos.ne' hn_pos.ne']
+      ring
+    rw [hrhs]
+    linarith [outer_budget_time_le hγ hm_nn h11 ht_hi]
   exact outer_lemma_insertDelete hU hV hspace hspace T hcorr hγ ht hℓ ht_stop hF_lo hF_hi
     hR_outer hbud
 
@@ -185,9 +179,9 @@ theorem det_expectedSeqProbes_update_ge_iterLogStar {α_V c_R c_w : ℝ}
             (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
             (D_det.seqProbes ops : ℝ) := by
   obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_update_ge_iterLog hα_V hcR hcw
-  refine ⟨c, hc, fun hn hU hV hV_lo hw hspace _ hcorr => ?_⟩
-  obtain ⟨hk1, hspace'⟩ := iterLog_logStar_space_le hn hspace
-  exact hdet hn hU hV hV_lo hk1 le_rfl hw hspace' hcorr
+  exact ⟨c, hc, fun hn hU hV hV_lo hw hspace _ hcorr =>
+    let ⟨hk1, hspace'⟩ := iterLog_logStar_space_le hn hspace
+    hdet hn hU hV hV_lo hk1 le_rfl hw hspace' hcorr⟩
 
 /-- Zero-error randomized `Ω(n * log* n)` specialization of Theorem 1.3(1) at `k = Nat.logStar n`
 (Las Vegas oblivious model). -/

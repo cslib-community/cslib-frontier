@@ -169,6 +169,11 @@ theorem inCols_succOf (hgood : TrueExactly φ P a) {k : ℕ} (hk : InRows φ P k
       exact (hgood o ho).1 hoP
 
 omit hP in
+private theorem exitSucc_lt_numAux {o : ℕ} (ho : o < numOcc φ) (h : nextOcc φ o = none) :
+    exitSucc φ o < numAux φ := by
+  rw [exitSucc_eq_none h]; exact List.idxOf_lt_length_iff.2 (fst_litAt_mem_varList hφ ho)
+
+omit hP in
 private theorem aux_ne_exit (hgood : TrueExactly φ P a) {k o : ℕ} (hk : k < numAux φ)
     (ho : o < numOcc φ) (hoP : o ∈ P) : auxSucc φ k (a ⟨k, hk⟩) ≠ exitSucc φ o := by
   intro h
@@ -185,10 +190,9 @@ private theorem aux_ne_exit (hgood : TrueExactly φ P a) {k o : ℕ} (hk : k < n
   · rw [auxSucc_eq_none h1, exitSucc_eq_some h2] at h
     have := numAux_le_entryIdx φ o₂
     omega
-  · rw [auxSucc_eq_some h1, exitSucc_eq_none h2] at h
+  · have := exitSucc_lt_numAux hφ ho h2
+    rw [auxSucc_eq_some h1] at h
     have := numAux_le_entryIdx φ o₁
-    have := List.idxOf_lt_length_iff.2 (fst_litAt_mem_varList hφ ho)
-    unfold numAux at *
     omega
   · rw [auxSucc_eq_some h1, exitSucc_eq_some h2] at h
     have h12 := entryIdx_injective φ h
@@ -237,14 +241,12 @@ theorem succOf_injOn (hgood : TrueExactly φ P a) {k₁ k₂ : ℕ} (h₁ : InRo
       · exact absurd hl.symm (nextOcc_eq_none.1 e₁ o₂ ho₂ hlt)
       · exact heq
       · exact absurd hl (nextOcc_eq_none.1 e₂ o₁ ho₁ hgt)
-    · rw [exitSucc_eq_none e₁, exitSucc_eq_some e₂] at h
-      have := numAux_le_entryIdx φ p₂
-      have := List.idxOf_lt_length_iff.2 (fst_litAt_mem_varList hφ ho₁)
-      unfold numAux at *; omega
-    · rw [exitSucc_eq_some e₁, exitSucc_eq_none e₂] at h
-      have := numAux_le_entryIdx φ p₁
-      have := List.idxOf_lt_length_iff.2 (fst_litAt_mem_varList hφ ho₂)
-      unfold numAux at *; omega
+    · have := exitSucc_lt_numAux hφ ho₁ e₁
+      rw [exitSucc_eq_some e₂] at h
+      have := numAux_le_entryIdx φ p₂; omega
+    · have := exitSucc_lt_numAux hφ ho₂ e₂
+      rw [exitSucc_eq_some e₁] at h
+      have := numAux_le_entryIdx φ p₁; omega
     · rw [exitSucc_eq_some e₁, exitSucc_eq_some e₂] at h
       have hp := entryIdx_injective φ h
       subst hp
@@ -281,11 +283,8 @@ theorem trueExactly_of_succOf (hmap : ∀ k, InRows φ P k → InCols φ P (succ
           exact eval_of_litAt_eq a hk (firstOcc_eq_some.1 e).2.1
       · rw [succOf_exit] at hks
         rcases e : nextOcc φ o' with _ | o₁
-        · rw [exitSucc_eq_none e] at hks
-          have := numAux_le_entryIdx φ o
-          have := List.idxOf_lt_length_iff.2
-            (fst_litAt_mem_varList hφ (mem_range.1 (hP ho'P)))
-          unfold numAux at *; omega
+        · have := exitSucc_lt_numAux hφ (mem_range.1 (hP ho'P)) e
+          have := numAux_le_entryIdx φ o; omega
         · rw [exitSucc_eq_some e] at hks
           have := entryIdx_injective φ hks
           subst this
@@ -417,16 +416,9 @@ theorem permOn_trackMatrix (hφ : WellFormed φ) {P : Finset ℕ}
       ext
       change succOf φ (assignOfBij f) u = (f u).val
       rcases hu with hk | ⟨o, hoP, hko⟩
-      · rw [succOf_aux _ hk]
-        rcases (trackEntry_aux_eq_one hφ hk _).1 he with h | h
-        · have : assignOfBij f ⟨u, hk⟩ = true := by
-            simp only [assignOfBij, decide_eq_true_eq]; exact h
-          rw [this, h]
-        · have : assignOfBij f ⟨u, hk⟩ = false := by
-            simp only [assignOfBij, decide_eq_false_iff_not]
-            rw [show (⟨u.val, _⟩ : Fin (size φ)) = u from rfl, h]
-            exact (auxSucc_true_ne_false hφ hk).symm
-          rw [this, h]
+      · have hne := auxSucc_true_ne_false hφ hk
+        rw [succOf_aux _ hk]
+        rcases (trackEntry_aux_eq_one hφ hk _).1 he with h | h <;> simp [assignOfBij, h, hne.symm]
       · rw [hko, succOf_exit]
         rw [hko] at he
         exact ((trackEntry_exit_eq_one o _).1 he).symm
@@ -452,10 +444,8 @@ theorem permOn_trackMatrix (hφ : WellFormed φ) {P : Finset ℕ}
       exact Fin.ext (succOf_injOn hφ hP a ha hu hv this)
     refine ⟨⟨hmap, hinj, ?_, fun u hu => ?_⟩, fun u hu => ?_⟩
     · intro t ht
-      have hsurj := Finset.surj_on_of_inj_on_of_card_le
-        (s := rowSet φ P) (t := colSet φ P) (fun u _ => bijOfAssign hlt a u)
-        hmap (fun u v hu hv h => hinj u hu v hv h) (card_rowSet hP).ge
-      obtain ⟨u, hu, rfl⟩ := hsurj t ht
+      obtain ⟨u, hu, rfl⟩ := Finset.surj_on_of_inj_on_of_card_le (fun u _ => bijOfAssign hlt a u)
+        hmap (fun u v hu hv h => hinj u hu v hv h) (card_rowSet hP).ge t ht
       exact ⟨u, hu, rfl⟩
     · have hu' : ¬ InRows φ P u := by simpa [rowSet] using hu
       simp [bijOfAssign, hu']
@@ -464,9 +454,7 @@ theorem permOn_trackMatrix (hφ : WellFormed φ) {P : Finset ℕ}
       rw [hF u hu]
       rcases hu with hk | ⟨o, hoP, hko⟩
       · rw [succOf_aux a hk, trackEntry_aux_eq_one hφ hk]
-        cases a ⟨u, hk⟩
-        · exact Or.inr rfl
-        · exact Or.inl rfl
+        cases a ⟨u, hk⟩ <;> simp
       · rw [hko, succOf_exit, trackEntry_exit_eq_one]
   · intro f hf
     simp only [mem_filter, mem_univ, true_and]
@@ -481,15 +469,13 @@ theorem permOn_trackMatrix (hφ : WellFormed φ) {P : Finset ℕ}
     refine trueExactly_of_succOf hφ hP a (fun k hk => ?_) (fun l hl => ?_)
     · have hkN : k < size φ := by
         rcases hk with hk | ⟨o, hoP, rfl⟩
-        · exact lt_of_lt_of_le hk (numAux_le_size φ)
-        · exact exitIdx_lt_size (mem_range.1 (hP hoP))
+        exacts [hk.trans_le (numAux_le_size φ), exitIdx_lt_size (mem_range.1 (hP hoP))]
       have := hmaps ⟨k, hkN⟩ (by simp [rowSet, hk])
       simp only [colSet, mem_filter, mem_univ, true_and] at this
       rwa [hF ⟨k, hkN⟩ hk] at this
     · have hlN : l < size φ := by
         rcases hl with hl | ⟨o, hoP, rfl⟩
-        · exact lt_of_lt_of_le hl (numAux_le_size φ)
-        · exact entryIdx_lt_size (mem_range.1 (hP hoP))
+        exacts [hl.trans_le (numAux_le_size φ), entryIdx_lt_size (mem_range.1 (hP hoP))]
       obtain ⟨u, hu, hul⟩ := hsurj ⟨l, hlN⟩ (by simp [colSet, hl])
       simp only [rowSet, mem_filter, mem_univ, true_and] at hu
       refine ⟨u, hu, ?_⟩
@@ -499,13 +485,8 @@ theorem permOn_trackMatrix (hφ : WellFormed φ) {P : Finset ℕ}
     have hi : InRows φ P i := Or.inl i.2
     simp only [assignOfBij, bijOfAssign, hi, dite_true]
     rw [succOf_aux a i.2]
-    have hne := auxSucc_true_ne_false hφ i.2
-    cases h : a i
-    · simp only [decide_eq_false_iff_not]
-      exact hne.symm
-    · simp
-  · intro f hf
-    exact hval f hf
+    cases a i <;> simp [(auxSucc_true_ne_false hφ i.2).symm]
+  · exact hval
 
 
 end Cslib.Complexity.PermanentThreeSAT

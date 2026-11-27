@@ -57,13 +57,8 @@ private noncomputable def edgeVec2 (Q : Multigraph W F) (q : ℝ) (R : ℕ)
 omit [Finite F] in
 private theorem measurable_edgeVec2 (Q : Multigraph W F) (q : ℝ) (R : ℕ) (e : F) :
     Measurable fun ω : W → BlockSample => edgeVec2 Q q R ω e := by
-  refine Measurable.prodMk ?_ ?_
-  · exact (measurable_edgeScore q R e).comp
-      (measurable_pi_iff.mpr fun B => (measurable_fst.comp measurable_fst).comp
-        (measurable_pi_apply B))
-  · exact (measurable_edgeScore q R e).comp
-      (measurable_pi_iff.mpr fun B => (measurable_snd.comp measurable_fst).comp
-        (measurable_pi_apply B))
+  exact ((measurable_edgeScore q R e).comp (by fun_prop)).prodMk
+    ((measurable_edgeScore q R e).comp (by fun_prop))
 
 omit [Finite F] in
 private theorem edgeVec2_congr {Q : Multigraph W F} {q : ℝ} {R : ℕ} {B : W} {e : F}
@@ -81,8 +76,7 @@ private theorem dot2_edgeVec2 (Q : Multigraph W F) (q : ℝ) (R : ℕ) (u : ℝ 
   dsimp [dot2, edgeVec2, edgeScore]
   simp only [PiLp.inner_apply, RCLike.inner_apply, conj_trivial, Finset.mul_sum,
     ← Finset.sum_add_distrib]
-  refine Finset.sum_congr rfl fun B _ => ?_
-  ring
+  exact Finset.sum_congr rfl fun B _ => by ring
 
 omit [Finite F] in
 private theorem edgeVec2_rotSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
@@ -90,17 +84,8 @@ private theorem edgeVec2_rotSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     edgeVec2 Q q R (fun B => rotSample (ω B)) e = rot120 (edgeVec2 Q q R ω e) := by
   have h1 := dot2_edgeVec2 Q q R (-1 / 2, -√3 / 2) ω e
   have h2 := dot2_edgeVec2 Q q R (√3 / 2, -1 / 2) ω e
-  ext
-  · dsimp [edgeVec2, rotSample, rot120, dot2] at h1 ⊢
-    have hfun : (fun B => -1 / 2 * (ω B).1.1 + -√3 / 2 * (ω B).1.2) =
-        fun B => -1 / 2 * (ω B).1.1 - √3 / 2 * (ω B).1.2 := by funext B; ring
-    rw [hfun] at h1
-    linarith only [h1]
-  · dsimp [edgeVec2, rotSample, rot120, dot2] at h2 ⊢
-    have hfun : (fun B => √3 / 2 * (ω B).1.1 + -1 / 2 * (ω B).1.2) =
-        fun B => √3 / 2 * (ω B).1.1 - 1 / 2 * (ω B).1.2 := by funext B; ring
-    rw [hfun] at h2
-    linarith only [h2]
+  simp only [edgeVec2, rotSample, rot120, dot2, neg_div, neg_mul, ← sub_eq_add_neg] at h1 h2 ⊢
+  exact Prod.ext h1.symm h2.symm
 
 omit [Finite F] in
 private theorem edgeVec2_negSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
@@ -108,17 +93,9 @@ private theorem edgeVec2_negSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     edgeVec2 Q q R (fun B => negSample (ω B)) e = neg2 (edgeVec2 Q q R ω e) := by
   have h1 := dot2_edgeVec2 Q q R (-1, 0) ω e
   have h2 := dot2_edgeVec2 Q q R (0, -1) ω e
-  ext
-  · dsimp [edgeVec2, negSample, neg2, dot2] at h1 ⊢
-    have hfun : (fun B => -1 * (ω B).1.1 + 0 * (ω B).1.2) = fun B => -(ω B).1.1 := by
-      funext B; ring
-    rw [hfun] at h1
-    linarith only [h1]
-  · dsimp [edgeVec2, negSample, neg2, dot2] at h2 ⊢
-    have hfun : (fun B => 0 * (ω B).1.1 + -1 * (ω B).1.2) = fun B => -(ω B).1.2 := by
-      funext B; ring
-    rw [hfun] at h2
-    linarith only [h2]
+  simp only [edgeVec2, negSample, neg2, dot2, neg_one_mul, zero_mul, zero_add, add_zero]
+    at h1 h2 ⊢
+  exact Prod.ext h1.symm h2.symm
 
 private theorem toFinset_eq_of_fintype {α : Type*} (S : Set α) (i₁ : Fintype S) [i₂ : Fintype S] :
     @Set.toFinset α S i₁ = @Set.toFinset α S i₂ := by
@@ -137,9 +114,7 @@ private theorem secCount_rotSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     secCount Q q R (fun B' => rotSample (ω B')) B (c + 1) = secCount Q q R ω B c := by
   classical
   have := Fintype.ofFinite F
-  dsimp [secCount]
-  congr 1
-  ext e
+  refine congrArg Finset.card (Finset.ext fun e => ?_)
   simp only [Finset.mem_filter, edgeVec2_rotSample, inOpenSector_rot120]
 
 /-- Lexicographic sector comparison `(secCount, tieBreaker)`. -/
@@ -151,20 +126,15 @@ private def beats (Q : Multigraph W F) (q : ℝ) (R : ℕ)
 private theorem beats_rotSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     (ω : W → BlockSample) (B : W) (c c' : Fin 3) :
     beats Q q R (fun B' => rotSample (ω B')) B (c + 1) (c' + 1) ↔ beats Q q R ω B c c' := by
-  unfold beats
-  rw [secCount_rotSample, secCount_rotSample]
-  dsimp [rotSample]
-  rw [shiftTie_add_one, shiftTie_add_one]
+  rw [beats, secCount_rotSample, secCount_rotSample]
+  simp only [beats, rotSample, shiftTie_add_one]
 
 private theorem beats_asymm {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} {c c' : Fin 3}
     (h : beats Q q R ω B c c') : ¬beats Q q R ω B c' c := by
   simp only [beats] at h ⊢
-  rintro (h' | ⟨heq, hτ'⟩) <;> rcases h with hlt | ⟨heq2, hτ⟩
-  · omega
-  · omega
-  · omega
-  · linarith only [hτ, hτ']
+  rintro (h' | ⟨heq, hτ'⟩) <;> rcases h with hlt | ⟨heq2, hτ⟩ <;>
+    first | omega | linarith only [hτ, hτ']
 
 private theorem beats_total {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} (hinj : Function.Injective (ω B).2)
@@ -208,38 +178,22 @@ private theorem blockColor_eq_iff_of_injective {Q : Multigraph W F} {q : ℝ} {R
     unfold blockColor at hc' ⊢
     split_ifs at hc' ⊢ with h0 h1
     · fin_cases c'
-      · exact absurd rfl hc'
-      · exact h0.1
-      · exact h0.2
+      exacts [absurd rfl hc', h0.1, h0.2]
     · fin_cases c'
-      · rcases ht01 with hb01 | hb10
-        · exact absurd ⟨hb01, beats_trans hb01 h1⟩ h0
-        · exact hb10
-      · exact absurd rfl hc'
-      · exact h1
-    · have hb21 : beats Q q R ω B 2 1 := ht12.resolve_left h1
-      fin_cases c'
-      · rcases ht02 with hb02 | hb20
-        · rcases ht01 with hb01 | hb10
-          · exact absurd ⟨hb01, hb02⟩ h0
-          · exact absurd (beats_trans hb10 hb02) h1
-        · exact hb20
-      · exact hb21
+      exacts [ht01.resolve_left fun hb01 => h0 ⟨hb01, beats_trans hb01 h1⟩, absurd rfl hc', h1]
+    · fin_cases c'
+      · exact ht02.resolve_left fun hb02 =>
+          ht01.elim (fun hb01 => h0 ⟨hb01, hb02⟩) fun hb10 => h1 (beats_trans hb10 hb02)
+      · exact ht12.resolve_left h1
       · exact absurd rfl hc'
   · intro hall
     unfold blockColor
-    fin_cases c
-    · have h0 : beats Q q R ω B 0 1 ∧ beats Q q R ω B 0 2 :=
-        ⟨hall 1 (by decide), hall 2 (by decide)⟩
-      simp only [h0]; rfl
-    · have hn0 : ¬(beats Q q R ω B 0 1 ∧ beats Q q R ω B 0 2) := fun h =>
-        beats_asymm (hall 0 (by decide)) h.1
-      have h1 : beats Q q R ω B 1 2 := hall 2 (by decide)
-      simp only [hn0, h1, ↓reduceIte]; rfl
-    · have hn0 : ¬(beats Q q R ω B 0 1 ∧ beats Q q R ω B 0 2) := fun h =>
-        beats_asymm (hall 0 (by decide)) h.2
-      have hn1 : ¬beats Q q R ω B 1 2 := beats_asymm (hall 1 (by decide))
-      simp only [hn0, hn1, ↓reduceIte]; rfl
+    fin_cases c <;> simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk] at hall ⊢
+    · exact ite_eq_left ⟨hall 1 (by decide), hall 2 (by decide)⟩
+    · rw [ite_eq_right fun h => beats_asymm (hall 0 (by decide)) h.1,
+        ite_eq_left (hall 2 (by decide))]
+    · rw [ite_eq_right fun h => beats_asymm (hall 0 (by decide)) h.2,
+        ite_eq_right (beats_asymm (hall 1 (by decide)))]
 
 private theorem blockColor_of_strict_majority {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} (hinj : Function.Injective (ω B).2) {c : Fin 3}
@@ -250,18 +204,15 @@ private theorem blockColor_of_strict_majority {Q : Multigraph W F} {q : ℝ} {R 
 private theorem blockColor_rotSample {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} (hinj : Function.Injective (ω B).2) :
     blockColor Q q R (fun B' => rotSample (ω B')) B = blockColor Q q R ω B + 1 := by
-  have hinj' : Function.Injective (((fun B' => rotSample (ω B')) B).2) := by
-    intro c₁ c₂ h
-    dsimp [rotSample, shiftTie] at h
-    exact add_right_cancel (hinj h)
+  have hinj' : Function.Injective (((fun B' => rotSample (ω B')) B).2) :=
+    fun _ _ h => add_right_cancel (hinj h)
   set c := blockColor Q q R ω B
   have hall := (blockColor_eq_iff_of_injective hinj c).mp rfl
   refine (blockColor_eq_iff_of_injective (Q := Q) (q := q) (R := R)
       (ω := fun B' => rotSample (ω B')) hinj' (c + 1)).mpr fun c' hc' => ?_
   have hc'_eq : c' = (c' + 2) + 1 := by fin_cases c' <;> decide
   rw [hc'_eq, beats_rotSample]
-  refine hall (c' + 2) fun h => hc' ?_
-  rw [hc'_eq, h]
+  exact hall (c' + 2) fun h => hc' (hc'_eq.trans (congrArg (· + 1) h))
 
 
 omit [Finite F] in
@@ -304,50 +255,21 @@ private theorem measurableSet_beats (Q : Multigraph W F) (q : ℝ) (R : ℕ) (B 
 
 private theorem measurableSet_blockColor_eq (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     (B : W) (c : Fin 3) :
-    MeasurableSet {ω : W → BlockSample | blockColor Q q R ω B = c} := by
-  have hm01 := measurableSet_beats Q q R B 0 1
-  have hm02 := measurableSet_beats Q q R B 0 2
-  have hm12 := measurableSet_beats Q q R B 1 2
-  rcases c with ⟨_ | _ | _ | _, hlt⟩
-  · have hset : {ω | blockColor Q q R ω B = 0} =
-        {ω | beats Q q R ω B 0 1} ∩ {ω | beats Q q R ω B 0 2} := by
-      ext ω
-      simp only [blockColor, mem_ofPred_eq, mem_inter_iff]
-      split_ifs with h0 h1 <;> simp_all
-    change MeasurableSet {ω | blockColor Q q R ω B = 0}
-    rw [hset]; exact hm01.inter hm02
-  · have hset : {ω | blockColor Q q R ω B = 1} =
-        ({ω | beats Q q R ω B 0 1} ∩ {ω | beats Q q R ω B 0 2})ᶜ ∩
-          {ω | beats Q q R ω B 1 2} := by
-      ext ω
-      simp only [blockColor, mem_ofPred_eq, mem_inter_iff, mem_compl_iff]
-      split_ifs with h0 h1 <;> simp_all
-    change MeasurableSet {ω | blockColor Q q R ω B = 1}
-    rw [hset]; exact (hm01.inter hm02).compl.inter hm12
-  · have hset : {ω | blockColor Q q R ω B = 2} =
-        ({ω | beats Q q R ω B 0 1} ∩ {ω | beats Q q R ω B 0 2})ᶜ ∩
-          ({ω | beats Q q R ω B 1 2})ᶜ := by
-      ext ω
-      simp only [blockColor, mem_ofPred_eq, mem_inter_iff, mem_compl_iff]
-      split_ifs with h0 h1 <;> simp_all
-    change MeasurableSet {ω | blockColor Q q R ω B = 2}
-    rw [hset]; exact (hm01.inter hm02).compl.inter hm12.compl
-  · omega
+    MeasurableSet {ω : W → BlockSample | blockColor Q q R ω B = c} :=
+  (Measurable.ite ((measurableSet_beats Q q R B 0 1).inter (measurableSet_beats Q q R B 0 2))
+      measurable_const (Measurable.ite (measurableSet_beats Q q R B 1 2) measurable_const
+        measurable_const) : Measurable fun ω => blockColor Q q R ω B)
+    (measurableSet_singleton c)
 
 private theorem dependsOn_blockColor (Q : Multigraph W F) (q : ℝ) (R : ℕ) (B : W) :
     DependsOn (fun ω => blockColor Q q R ω B) (closedBall Q.toSimpleGraph B (R + 1)) := by
   intro ω₁ ω₂ h12
-  have hB : B ∈ closedBall Q.toSimpleGraph B (R + 1) := by
-    simp [closedBall]
   have hsec (c : Fin 3) : secCount Q q R ω₁ B c = secCount Q q R ω₂ B c := by
     classical
-    dsimp [secCount]
-    congr 1; ext e
-    simp only [Finset.mem_filter, @Set.mem_toFinset _ _ (Fintype.ofFinite _)]
-    refine and_congr_right fun he => ?_
-    rw [edgeVec2_congr he h12]
+    refine congrArg Finset.card (Finset.filter_congr fun e he => ?_)
+    rw [edgeVec2_congr ((@Set.mem_toFinset _ _ (Fintype.ofFinite _)).mp he) h12]
   have hbeats (c c' : Fin 3) : beats Q q R ω₁ B c c' ↔ beats Q q R ω₂ B c c' := by
-    simp only [beats, hsec, h12 B hB]
+    rw [beats, beats, hsec, hsec, h12 B (by simp [closedBall])]
   dsimp only [blockColor]
   rw [hbeats 0 1, hbeats 0 2, hbeats 1 2]
 
@@ -377,6 +299,17 @@ private theorem measureReal_not_injective_tie_zero (B : W) :
   rw [hpre, hmp_eval.measureReal_preimage hm.nullMeasurableSet]
   exact gaussTie_not_injective_zero
 
+/-- Three pairwise disjoint events whose probabilities agree along the cycle `k ↦ k + 1` each
+carry a third of the probability of their union. -/
+private theorem measureReal_eq_third_of_cyclic {Ω : Type*} [MeasurableSpace Ω] {P : Measure Ω}
+    [IsFiniteMeasure P] (E : Fin 3 → Set Ω) (hm : ∀ c, MeasurableSet (E c))
+    (hd : Pairwise (Function.onFun Disjoint E)) (hstep : ∀ k, P.real (E k) = P.real (E (k + 1)))
+    (c : Fin 3) : P.real (E c) = 1 / 3 * P.real (⋃ c, E c) := by
+  have h01 : P.real (E 0) = P.real (E 1) := hstep 0
+  have h12 : P.real (E 1) = P.real (E 2) := hstep 1
+  rw [measureReal_iUnion_fintype hd hm, Fin.sum_univ_three]
+  fin_cases c <;> simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk] <;> linarith only [h01, h12]
+
 /-- **Exact `1 / 3` marginal.** By `Z₃`-symmetry (`rotSample`), every block `B` lands in each color
 `c : Fin 3` with probability `1 / 3`. -/
 private theorem measureReal_blockColor_eq_one_third (Q : Multigraph W F) (q : ℝ) (R : ℕ)
@@ -384,60 +317,20 @@ private theorem measureReal_blockColor_eq_one_third (Q : Multigraph W F) (q : �
     (Measure.pi fun _ : W => blockMeasure).real
       {ω | blockColor Q q R ω B = c} = 1 / 3 := by
   set P := Measure.pi fun _ : W => blockMeasure
-  set N := {ω : W → BlockSample | ¬Function.Injective (ω B).2}
-  have hN0 : P.real N = 0 := measureReal_not_injective_tie_zero B
-  have hN_null : P N = 0 := by
-    have h := hN0
-    rw [measureReal_def, ENNReal.toReal_eq_zero_iff] at h
-    exact h.resolve_right (measure_ne_top _ _)
+  have hN_null : P {ω : W → BlockSample | ¬Function.Injective (ω B).2} = 0 :=
+    (measureReal_eq_zero_iff (measure_ne_top _ _)).mp (measureReal_not_injective_tie_zero B)
   have hmp_rot : MeasurePreserving (fun ω B' => rotSample (ω B')) P P :=
     measurePreserving_pi _ _ fun _ => measurePreserving_rotSample
-  have hstep (k : Fin 3) :
-      P.real {ω | blockColor Q q R ω B = k} = P.real {ω | blockColor Q q R ω B = k + 1} := by
-    have hpre_eq : P.real ((fun ω B' => rotSample (ω B')) ⁻¹'
-        {ω | blockColor Q q R ω B = k + 1}) =
-        P.real {ω | blockColor Q q R ω B = k + 1} :=
-      hmp_rot.measureReal_preimage (measurableSet_blockColor_eq Q q R B (k + 1)).nullMeasurableSet
-    rw [← hpre_eq]
-    refine measureReal_congr ?_
-    filter_upwards [compl_mem_ae_iff.mpr hN_null] with ω hω
-    have hinj : Function.Injective (ω B).2 := by
-      dsimp [N] at hω; exact not_not.mp hω
-    simp only [mem_preimage, mem_ofPred_eq]
-    rw [blockColor_rotSample hinj]
-    exact ⟨fun h => by rw [h], fun h => add_right_cancel h⟩
-  have h01 : P.real {ω | blockColor Q q R ω B = 0} = P.real {ω | blockColor Q q R ω B = 1} :=
-    hstep 0
-  have h12 : P.real {ω | blockColor Q q R ω B = 1} = P.real {ω | blockColor Q q R ω B = 2} :=
-    hstep 1
-  have hpart1 : Disjoint {ω | blockColor Q q R ω B = 0} {ω | blockColor Q q R ω B = 1} :=
-    disjoint_left.mpr fun _ h0 h1 => by
-      rw [mem_ofPred_eq] at h0 h1; rw [h0] at h1; revert h1; decide
-  have hpart2 : Disjoint ({ω | blockColor Q q R ω B = 0} ∪ {ω | blockColor Q q R ω B = 1})
-      {ω | blockColor Q q R ω B = 2} :=
-    disjoint_left.mpr fun _ h01' h2 => by
-      rcases h01' with h0 | h1
-      · rw [mem_ofPred_eq] at h0 h2; rw [h0] at h2; revert h2; decide
-      · rw [mem_ofPred_eq] at h1 h2; rw [h1] at h2; revert h2; decide
-  have huniv : ({ω | blockColor Q q R ω B = 0} ∪ {ω | blockColor Q q R ω B = 1}) ∪
-      {ω | blockColor Q q R ω B = 2} = univ := by
-    ext ω
-    simp only [mem_union, mem_ofPred_eq, mem_univ, iff_true]
-    rcases hc : blockColor Q q R ω B with ⟨val, hlt⟩
-    interval_cases val
-    · exact Or.inl (Or.inl rfl)
-    · exact Or.inl (Or.inr rfl)
-    · exact Or.inr rfl
-  have hsum : P.real {ω | blockColor Q q R ω B = 0} + P.real {ω | blockColor Q q R ω B = 1} +
-      P.real {ω | blockColor Q q R ω B = 2} = 1 := by
-    rw [← measureReal_union hpart1 (measurableSet_blockColor_eq Q q R B 1),
-      ← measureReal_union hpart2 (measurableSet_blockColor_eq Q q R B 2),
-      huniv, probReal_univ]
-  rcases c with ⟨_ | _ | _ | _, hlt⟩
-  · change P.real {ω | blockColor Q q R ω B = 0} = 1 / 3; linarith only [h01, h12, hsum]
-  · change P.real {ω | blockColor Q q R ω B = 1} = 1 / 3; linarith only [h01, h12, hsum]
-  · change P.real {ω | blockColor Q q R ω B = 2} = 1 / 3; linarith only [h01, h12, hsum]
-  · omega
+  have h := measureReal_eq_third_of_cyclic (P := P) (fun c => {ω | blockColor Q q R ω B = c})
+    (measurableSet_blockColor_eq Q q R B)
+    (fun a b hab => disjoint_left.mpr fun _ (ha : _ = a) (hb : _ = b) => hab (ha.symm.trans hb))
+    (fun k => ?_) c
+  · rwa [iUnion_eq_univ_iff.mpr fun ω => ⟨_, rfl⟩, probReal_univ, mul_one] at h
+  rw [← hmp_rot.measureReal_preimage
+    (measurableSet_blockColor_eq Q q R B (k + 1)).nullMeasurableSet]
+  refine measureReal_congr ?_
+  filter_upwards [compl_mem_ae_iff.mpr hN_null] with ω hω
+  simp [blockColor_rotSample (not_not.mp hω)]
 
 /-- Event that quotient edge `e` crosses between color `c` and color `c + 1`. -/
 private def cutPairEvent (Q : Multigraph W F) (q : ℝ) (R : ℕ) (c : Fin 3) (e : F) :
@@ -462,34 +355,26 @@ private theorem dependsOn_cutPairEvent (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     DependsOn (· ∈ cutPairEvent Q q R c e)
       (closedBall Q.toSimpleGraph (Q.src e) (R + 2)) := by
   intro ω₁ ω₂ h12
-  have hsrc_sub : closedBall Q.toSimpleGraph (Q.src e) (R + 1) ⊆
-      closedBall Q.toSimpleGraph (Q.src e) (R + 2) := by
-    intro z hz
+  have hcs := dependsOn_blockColor Q q R (Q.src e) fun z hz => h12 z <| by
     simp only [closedBall, mem_ofPred_eq] at hz ⊢
-    exact hz.trans (Nat.cast_le.mpr (by omega))
-  have htgt_sub : closedBall Q.toSimpleGraph (Q.tgt e) (R + 1) ⊆
-      closedBall Q.toSimpleGraph (Q.src e) (R + 2) :=
-    closedBall_tgt_subset e (R + 1)
-  have hcs := dependsOn_blockColor Q q R (Q.src e) fun z hz => h12 z (hsrc_sub hz)
-  have hct := dependsOn_blockColor Q q R (Q.tgt e) fun z hz => h12 z (htgt_sub hz)
+    exact hz.trans (Nat.cast_le.mpr (Nat.le_succ _))
+  have hct := dependsOn_blockColor Q q R (Q.tgt e) fun z hz =>
+    h12 z (closedBall_tgt_subset e (R + 1) hz)
   simp only [cutPairEvent, mem_ofPred_eq, hcs, hct]
 
 
-private theorem union_cutPairEvent_eq_cutAnyEvent (Q : Multigraph W F) (q : ℝ) (R : ℕ) (e : F) :
-    (cutPairEvent Q q R 0 e ∪ cutPairEvent Q q R 1 e) ∪ cutPairEvent Q q R 2 e =
-      cutAnyEvent Q q R e := by
+private theorem iUnion_cutPairEvent_eq_cutAnyEvent (Q : Multigraph W F) (q : ℝ) (R : ℕ) (e : F) :
+    ⋃ c, cutPairEvent Q q R c e = cutAnyEvent Q q R e := by
   ext ω
-  simp only [mem_union, cutPairEvent, cutAnyEvent, mem_ofPred_eq]
+  simp only [mem_iUnion, cutPairEvent, cutAnyEvent, mem_ofPred_eq]
   generalize blockColor Q q R ω (Q.src e) = a
   generalize blockColor Q q R ω (Q.tgt e) = b
   fin_cases a <;> fin_cases b <;> decide
 
 private theorem measurableSet_cutAnyEvent (Q : Multigraph W F) (q : ℝ) (R : ℕ) (e : F) :
     MeasurableSet (cutAnyEvent Q q R e) := by
-  rw [← union_cutPairEvent_eq_cutAnyEvent Q q R e]
-  exact ((measurableSet_cutPairEvent Q q R 0 e).union
-    (measurableSet_cutPairEvent Q q R 1 e)).union
-    (measurableSet_cutPairEvent Q q R 2 e)
+  rw [← iUnion_cutPairEvent_eq_cutAnyEvent Q q R e]
+  exact .iUnion fun c => measurableSet_cutPairEvent Q q R c e
 
 /-- **Exact `1 / 3` cut symmetry.** Each unordered color pair `{c, c + 1}` receives `1 / 3` of the
 bichromatic probability of every edge `e`. -/
@@ -498,55 +383,23 @@ private theorem measureReal_cutPairEvent_eq_third (Q : Multigraph W F) (q : ℝ)
     (Measure.pi fun _ : W => blockMeasure).real (cutPairEvent Q q R c e) =
       1 / 3 * (Measure.pi fun _ : W => blockMeasure).real (cutAnyEvent Q q R e) := by
   set P := Measure.pi fun _ : W => blockMeasure
-  set N := {ω : W → BlockSample | ¬Function.Injective (ω (Q.src e)).2} ∪
-    {ω : W → BlockSample | ¬Function.Injective (ω (Q.tgt e)).2}
-  have hN0 : P.real N = 0 := by
-    have hle := (measureReal_union_le
-      {ω : W → BlockSample | ¬Function.Injective (ω (Q.src e)).2}
-      {ω : W → BlockSample | ¬Function.Injective (ω (Q.tgt e)).2}).trans_eq
-      (by rw [measureReal_not_injective_tie_zero, measureReal_not_injective_tie_zero, add_zero])
-    exact le_antisymm hle measureReal_nonneg
-  have hN_null : P N = 0 := by
-    rw [measureReal_def, ENNReal.toReal_eq_zero_iff] at hN0
-    exact hN0.resolve_right (measure_ne_top _ _)
+  have hnull (B : W) : P {ω : W → BlockSample | ¬Function.Injective (ω B).2} = 0 :=
+    (measureReal_eq_zero_iff (measure_ne_top _ _)).mp (measureReal_not_injective_tie_zero B)
   have hmp_rot : MeasurePreserving (fun ω B' => rotSample (ω B')) P P :=
     measurePreserving_pi _ _ fun _ => measurePreserving_rotSample
-  have hstep (k : Fin 3) :
-      P.real (cutPairEvent Q q R k e) = P.real (cutPairEvent Q q R (k + 1) e) := by
-    rw [← hmp_rot.measureReal_preimage
-      (measurableSet_cutPairEvent Q q R (k + 1) e).nullMeasurableSet]
-    refine measureReal_congr ?_
-    filter_upwards [compl_mem_ae_iff.mpr hN_null] with ω hω
-    simp only [N, mem_compl_iff, mem_union, mem_ofPred_eq, not_or, not_not] at hω
-    simp only [mem_preimage, cutPairEvent, mem_ofPred_eq]
-    rw [blockColor_rotSample hω.1, blockColor_rotSample hω.2]
-    exact ⟨fun h => h.imp (fun ⟨h1, h2⟩ => ⟨by rw [h1], by rw [h2]⟩)
-        (fun ⟨h1, h2⟩ => ⟨by rw [h1], by rw [h2]⟩),
-      fun h => h.imp (fun ⟨h1, h2⟩ => ⟨add_right_cancel h1, add_right_cancel h2⟩)
-        (fun ⟨h1, h2⟩ => ⟨add_right_cancel h1, add_right_cancel h2⟩)⟩
-  have h01 : P.real (cutPairEvent Q q R 0 e) = P.real (cutPairEvent Q q R 1 e) := hstep 0
-  have h12 : P.real (cutPairEvent Q q R 1 e) = P.real (cutPairEvent Q q R 2 e) := hstep 1
-  have hd01 : Disjoint (cutPairEvent Q q R 0 e) (cutPairEvent Q q R 1 e) := by
-    refine disjoint_left.mpr fun ω h0 h1 => ?_
-    rcases h0 with ⟨ha, hb⟩ | ⟨ha, hb⟩ <;> rcases h1 with ⟨hc1, hd1⟩ | ⟨hc1, hd1⟩ <;>
-      (rw [ha] at hc1; rw [hb] at hd1; revert hc1 hd1; decide)
-  have hd012 : Disjoint (cutPairEvent Q q R 0 e ∪ cutPairEvent Q q R 1 e)
-      (cutPairEvent Q q R 2 e) := by
-    refine disjoint_left.mpr fun ω h01' h2 => ?_
-    rcases h01' with (⟨ha, hb⟩ | ⟨ha, hb⟩) | (⟨ha, hb⟩ | ⟨ha, hb⟩) <;>
-      rcases h2 with ⟨hc1, hd1⟩ | ⟨hc1, hd1⟩ <;>
-      (rw [ha] at hc1; rw [hb] at hd1; revert hc1 hd1; decide)
-  have hsum : P.real (cutPairEvent Q q R 0 e) + P.real (cutPairEvent Q q R 1 e) +
-      P.real (cutPairEvent Q q R 2 e) = P.real (cutAnyEvent Q q R e) := by
-    rw [← measureReal_union hd01 (measurableSet_cutPairEvent Q q R 1 e),
-      ← measureReal_union hd012 (measurableSet_cutPairEvent Q q R 2 e),
-      union_cutPairEvent_eq_cutAnyEvent Q q R e]
-  rcases c with ⟨_ | _ | _ | _, hlt⟩
-  · change P.real (cutPairEvent Q q R 0 e) = _; linarith only [h01, h12, hsum]
-  · change P.real (cutPairEvent Q q R 1 e) = _; linarith only [h01, h12, hsum]
-  · change P.real (cutPairEvent Q q R 2 e) = _; linarith only [h01, h12, hsum]
-  · omega
-
+  rw [← iUnion_cutPairEvent_eq_cutAnyEvent Q q R e]
+  refine measureReal_eq_third_of_cyclic (fun c => cutPairEvent Q q R c e)
+    (fun c => measurableSet_cutPairEvent Q q R c e)
+    (fun a b hab => disjoint_left.mpr fun _ h1 h2 => hab <|
+      (by decide : ∀ u v a b : Fin 3, (u = a ∧ v = a + 1 ∨ u = a + 1 ∧ v = a) →
+        (u = b ∧ v = b + 1 ∨ u = b + 1 ∧ v = b) → a = b) _ _ a b h1 h2)
+    (fun k => ?_) c
+  rw [← hmp_rot.measureReal_preimage
+    (measurableSet_cutPairEvent Q q R (k + 1) e).nullMeasurableSet]
+  refine measureReal_congr ?_
+  filter_upwards [compl_mem_ae_iff.mpr (hnull (Q.src e)), compl_mem_ae_iff.mpr (hnull (Q.tgt e))]
+    with ω h1 h2
+  simp [cutPairEvent, blockColor_rotSample (not_not.mp h1), blockColor_rotSample (not_not.mp h2)]
 
 omit [Finite F] in
 private theorem measure_dot2_edgeVec2_eq_zero {Q : Multigraph W F} {q : ℝ} {R : ℕ} {e : F}

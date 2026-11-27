@@ -102,6 +102,15 @@ private theorem pool_alloc_new {c U V n_max b : ℕ} {θ : SeedWhp c U n_max}
         rw [Function.update_self, Function.update_of_ne (by omega)]
       · rw [Function.update_of_ne hbb]
     · rfl
+  have hk_old : ∀ b' k, k < Function.update fs.bktCount b (X + 1) b' - cf →
+      (b' = b → cf ≤ X → k ≠ X - cf) → k < fs.bktCount b' - cf := by
+    intro b' k hk hbk
+    rcases eq_or_ne b' b with rfl | hbb
+    · rw [Function.update_self] at hk
+      by_cases hcf : cf ≤ X
+      · have := hbk rfl hcf; omega
+      · omega
+    · rwa [Function.update_of_ne hbb] at hk
   have hphys_pres : ∀ b' < numBucketsWhp n_max, ∀ loc < fs.bktCount b',
       fs'.physSlot n_max b' loc = fs.physSlot n_max b' loc := by
     intro b' hb' loc hloc
@@ -171,35 +180,18 @@ private theorem pool_alloc_new {c U V n_max b : ℕ} {θ : SeedWhp c U n_max}
     rw [hbkt'] at hk
     by_cases hcf : cf ≤ X
     · have htop0 := htop_pos hcf
-      set pSlot := fs.poolFreeStack (fs.poolFreeTop - 1)
-      have hp_lt : pSlot < poolSizeWhp n_max := hc.freeStack_lt _ (by omega)
-      rw [hbp', hown', ite_eq_left hcf, ite_eq_left hcf]
       by_cases hbk : b' = b ∧ k = X - cf
       · rcases hbk with ⟨rfl, rfl⟩
-        rw [Function.update_self, Function.update_self, Function.update_self]
-        exact ⟨hp_lt, rfl⟩
-      · have hk_old : k < fs.bktCount b' - cf := by
-          by_cases hbb : b' = b
-          · subst hbb; rw [Function.update_self] at hk
-            have : k ≠ X - cf := fun h => hbk ⟨rfl, h⟩
-            omega
-          · rwa [Function.update_of_ne hbb] at hk
-        have hbp_eq : Function.update fs.backPtr b
-            (Function.update (fs.backPtr b) (X - cf) pSlot) b' k = fs.backPtr b' k := by
-          by_cases hbb : b' = b
-          · subst hbb; rw [Function.update_self, Function.update_of_ne (fun h => hbk ⟨rfl, h⟩)]
-          · rw [Function.update_of_ne hbb]
-        rw [hbp_eq]
-        have hne_ps : fs.backPtr b' k ≠ pSlot :=
-          hc.back_free_disj b' hb' k hk_old (fs.poolFreeTop - 1) (by omega)
-        rw [Function.update_of_ne hne_ps]
-        exact hc.backPtr_valid b' hb' k hk_old
-    · rw [hbp', hown', ite_eq_right hcf, ite_eq_right hcf]
-      have hk_old : k < fs.bktCount b' - cf := by
-        by_cases hbb : b' = b
-        · subst hbb; rw [Function.update_self] at hk; omega
-        · rwa [Function.update_of_ne hbb] at hk
-      exact hc.backPtr_valid b' hb' k hk_old
+        rw [hbp', hown', ite_eq_left hcf, ite_eq_left hcf, Function.update_self,
+          Function.update_self, Function.update_self]
+        exact ⟨hc.freeStack_lt _ (by omega), rfl⟩
+      · have hk0 := hk_old b' k hk fun h _ hk' => hbk ⟨h, hk'⟩
+        rw [hbp_pres b' hb' k hk0, hown', ite_eq_left hcf,
+          Function.update_of_ne (hc.back_free_disj b' hb' k hk0 (fs.poolFreeTop - 1) (by omega))]
+        exact hc.backPtr_valid b' hb' k hk0
+    · have hk0 := hk_old b' k hk fun _ h => absurd h hcf
+      rw [hbp_pres b' hb' k hk0, hown', ite_eq_right hcf]
+      exact hc.backPtr_valid b' hb' k hk0
   · intro j hj
     rw [htop'] at hj; rw [hstk']
     exact hc.freeStack_lt j (by split_ifs at hj <;> omega)
@@ -207,27 +199,19 @@ private theorem pool_alloc_new {c U V n_max b : ℕ} {θ : SeedWhp c U n_max}
     rw [hbkt'] at hk₁ hk₂
     by_cases hcf : cf ≤ X
     · have htop0 := htop_pos hcf
-      set pSlot := fs.poolFreeStack (fs.poolFreeTop - 1)
       have eval_bp : ∀ b' < numBucketsWhp n_max,
           ∀ k < Function.update fs.bktCount b (X + 1) b' - cf,
-          (b' = b ∧ k = X - cf ∧ fs'.backPtr b' k = pSlot) ∨
-          (¬(b' = b ∧ k = X - cf) ∧ k < fs.bktCount b' - cf ∧
-            fs'.backPtr b' k = fs.backPtr b' k) := by
-        intro b' _ k hk
+          (b' = b ∧ k = X - cf ∧ fs'.backPtr b' k = fs.poolFreeStack (fs.poolFreeTop - 1)) ∨
+          (k < fs.bktCount b' - cf ∧ fs'.backPtr b' k = fs.backPtr b' k) := by
+        intro b' hb' k hk
         by_cases hbk : b' = b ∧ k = X - cf
         · rcases hbk with ⟨rfl, rfl⟩
           left; refine ⟨rfl, rfl, ?_⟩
           rw [hbp', ite_eq_left hcf, Function.update_self, Function.update_self]
-        · right
-          have hk0 : k < fs.bktCount b' - cf := by
-            by_cases hbb : b' = b
-            · subst hbb; rw [Function.update_self] at hk
-              have : k ≠ X - cf := fun h => hbk ⟨rfl, h⟩
-              omega
-            · rwa [Function.update_of_ne hbb] at hk
-          exact ⟨hbk, hk0, hbp_pres b' ‹_› k hk0⟩
-      rcases eval_bp b₁ hb₁ k₁ hk₁ with ⟨rfl, rfl, he1⟩ | ⟨_, hk1_0, he1⟩ <;>
-        rcases eval_bp b₂ hb₂ k₂ hk₂ with ⟨rfl, rfl, he2⟩ | ⟨_, hk2_0, he2⟩
+        · have hk0 := hk_old b' k hk fun h _ hk' => hbk ⟨h, hk'⟩
+          exact .inr ⟨hk0, hbp_pres b' hb' k hk0⟩
+      rcases eval_bp b₁ hb₁ k₁ hk₁ with ⟨rfl, rfl, he1⟩ | ⟨hk1_0, he1⟩ <;>
+        rcases eval_bp b₂ hb₂ k₂ hk₂ with ⟨rfl, rfl, he2⟩ | ⟨hk2_0, he2⟩
       · exact ⟨rfl, rfl⟩
       · rw [he1, he2] at heq
         exact absurd heq.symm (hc.back_free_disj b₂ hb₂ k₂ hk2_0 _ (by omega))
@@ -235,16 +219,9 @@ private theorem pool_alloc_new {c U V n_max b : ℕ} {θ : SeedWhp c U n_max}
         exact absurd heq (hc.back_free_disj b₁ hb₁ k₁ hk1_0 _ (by omega))
       · rw [he1, he2] at heq
         exact hc.backPtr_inj b₁ hb₁ k₁ hk1_0 b₂ hb₂ k₂ hk2_0 heq
-    · have hk1_0 : k₁ < fs.bktCount b₁ - cf := by
-        by_cases hbb : b₁ = b
-        · subst hbb; rw [Function.update_self] at hk₁; omega
-        · rwa [Function.update_of_ne hbb] at hk₁
-      have hk2_0 : k₂ < fs.bktCount b₂ - cf := by
-        by_cases hbb : b₂ = b
-        · subst hbb; rw [Function.update_self] at hk₂; omega
-        · rwa [Function.update_of_ne hbb] at hk₂
-      rw [hbp', ite_eq_right hcf] at heq
-      exact hc.backPtr_inj b₁ hb₁ k₁ hk1_0 b₂ hb₂ k₂ hk2_0 heq
+    · rw [hbp', ite_eq_right hcf] at heq
+      exact hc.backPtr_inj b₁ hb₁ k₁ (hk_old b₁ k₁ hk₁ fun _ h => absurd h hcf)
+        b₂ hb₂ k₂ (hk_old b₂ k₂ hk₂ fun _ h => absurd h hcf) heq
   · intro j₁ hj₁ j₂ hj₂ heq
     rw [htop'] at hj₁ hj₂; rw [hstk'] at heq
     exact hc.freeStack_inj j₁ (by split_ifs at hj₁ <;> omega)
@@ -260,19 +237,11 @@ private theorem pool_alloc_new {c U V n_max b : ℕ} {θ : SeedWhp c U n_max}
         intro heq
         have := hc.freeStack_inj (fs.poolFreeTop - 1) (by omega) j (by omega) heq
         omega
-      · have hk0 : k < fs.bktCount b' - cf := by
-          by_cases hbb : b' = b
-          · subst hbb; rw [Function.update_self] at hk
-            have : k ≠ X - cf := fun h => hbk ⟨rfl, h⟩
-            omega
-          · rwa [Function.update_of_ne hbb] at hk
+      · have hk0 := hk_old b' k hk fun h _ hk' => hbk ⟨h, hk'⟩
         rw [hbp_pres b' hb' k hk0]
         exact hc.back_free_disj b' hb' k hk0 j (by omega)
     · rw [ite_eq_right hcf] at hj
-      have hk0 : k < fs.bktCount b' - cf := by
-        by_cases hbb : b' = b
-        · subst hbb; rw [Function.update_self] at hk; omega
-        · rwa [Function.update_of_ne hbb] at hk
+      have hk0 := hk_old b' k hk fun _ h => absurd h hcf
       rw [hbp_pres b' hb' k hk0]
       exact hc.back_free_disj b' hb' k hk0 j hj
 
@@ -493,37 +462,29 @@ theorem fastInsertFresh_base {c U V n_max : ℕ} (hnU : n_max ≤ U)
   set lIdx := fs.liveSliceIdx b
   set fsAlloc := fastInsertAlloc n_max b X fs
   set fsIns := fastInsertFresh c n_max b X q_val v rKey fp lIdx hasFpCollision fsAlloc
-  have hfsIns_bkt : fsIns.bktCount = Function.update fs.bktCount b (X + 1) := by
-    dsimp only [fsIns, fastInsertFresh, fsAlloc, fastInsertAlloc]; split_ifs <;> rfl
-  have hfsIns_stk : fsIns.poolFreeStack = fs.poolFreeStack := by
-    dsimp only [fsIns, fastInsertFresh, fsAlloc, fastInsertAlloc]; split_ifs <;> rfl
-  have hfsIns_top : fsIns.poolFreeTop =
-      if cf ≤ X then fs.poolFreeTop - 1 else fs.poolFreeTop := by
-    dsimp only [fsIns, fastInsertFresh, fsAlloc, fastInsertAlloc]; split_ifs <;> rfl
-  have hfsIns_bp : fsIns.backPtr =
-      if cf ≤ X then
+  set p_new := fsAlloc.physSlot n_max b X
+  obtain ⟨hfsIns_bkt, hfsIns_stk, hfsIns_top, hfsIns_bp, hfsIns_own, hp_new_eq, hfsIns_q,
+      hfsIns_v⟩ :
+      fsIns.bktCount = Function.update fs.bktCount b (X + 1) ∧
+      fsIns.poolFreeStack = fs.poolFreeStack ∧
+      fsIns.poolFreeTop = (if cf ≤ X then fs.poolFreeTop - 1 else fs.poolFreeTop) ∧
+      fsIns.backPtr = (if cf ≤ X then
         Function.update fs.backPtr b
           (Function.update (fs.backPtr b) (X - cf) (fs.poolFreeStack (fs.poolFreeTop - 1)))
-      else fs.backPtr := by
-    dsimp only [fsIns, fastInsertFresh, fsAlloc, fastInsertAlloc]; split_ifs <;> rfl
-  have hfsIns_own : fsIns.poolOwner =
-      if cf ≤ X then
+        else fs.backPtr) ∧
+      fsIns.poolOwner = (if cf ≤ X then
         Function.update fs.poolOwner (fs.poolFreeStack (fs.poolFreeTop - 1))
           (b * capBackWhp n_max + (X - cf))
-      else fs.poolOwner := by
-    dsimp only [fsIns, fastInsertFresh, fsAlloc, fastInsertAlloc]; split_ifs <;> rfl
+        else fs.poolOwner) ∧
+      fsIns.physSlot n_max b X = p_new ∧
+      fsIns.quotArr = Function.update fs.quotArr p_new q_val ∧
+      fsIns.valArr = Function.update fs.valArr p_new v := by
+    dsimp only [fsIns, fastInsertFresh, p_new, FastState.physSlot, fsAlloc, fastInsertAlloc, cf]
+    by_cases hc : hasFpCollision = true <;> by_cases hcap : capFrontWhp n_max ≤ X <;>
+      simp only [hc, hcap, Bool.false_eq_true, ↓reduceIte, true_and]
   obtain ⟨hphys_pair, hpoolTop', hbp_val', hfree_lt', hbp_inj', hfree_inj', hdisj', hcons'⟩ :=
     pool_alloc_new hv.toCore hb hX_lt htop_pos hfsIns_bkt hfsIns_stk hfsIns_top hfsIns_bp
       hfsIns_own
-  set p_new := fsAlloc.physSlot n_max b X
-  have hp_new_eq : fsIns.physSlot n_max b X = p_new := by
-    dsimp only [fsIns, fastInsertFresh, p_new, FastState.physSlot]; split_ifs <;> rfl
-  have hfsIns_q : fsIns.quotArr = Function.update fs.quotArr p_new q_val := by
-    have hqa : fsAlloc.quotArr = fs.quotArr := rfl
-    dsimp only [fsIns, fastInsertFresh]; rw [hqa]; split_ifs <;> rfl
-  have hfsIns_v : fsIns.valArr = Function.update fs.valArr p_new v := by
-    have hva : fsAlloc.valArr = fs.valArr := rfl
-    dsimp only [fsIns, fastInsertFresh]; rw [hva]; split_ifs <;> rfl
   have hqv_pres : ∀ b' < numBucketsWhp n_max, ∀ loc < fs.bktCount b',
       fsIns.quotArr (fsIns.physSlot n_max b' loc) = fs.quotArr (fs.physSlot n_max b' loc) ∧
       fsIns.valArr (fsIns.physSlot n_max b' loc) = fs.valArr (fs.physSlot n_max b' loc) := by
@@ -577,15 +538,9 @@ theorem fastInsertFresh_base {c U V n_max : ℕ} (hnU : n_max ≤ U)
     by_cases hle3 : fs.rebStage ≤ 3
     · rw [ite_eq_left hle3] at hbo
       obtain ⟨_, _, oldMap, hv_old, hrel_old⟩ := hbo
-      have hm_none : oldMap rKey = none :=
-        (hv_old.lookup_eq hrk_lt).symm.trans (hold_lk_none hle3)
-      exact (hrel_old.1 rKey).mp hm_none
+      exact (hrel_old.1 rKey).mp ((hv_old.lookup_eq hrk_lt).symm.trans (hold_lk_none hle3))
     · rw [ite_eq_right hle3] at hbo
-      by_cases heq4 : fs.rebStage = 4
-      · rw [ite_eq_left heq4] at hbo
-        exact fun b' hb' l' hl' hst => absurd hst (hbo.1 b' hb' l' hl')
-      · rw [ite_eq_right heq4] at hbo
-        exact fun b' hb' l' hl' hst => absurd hst (hbo.1 b' hb' l' hl')
+      split_ifs at hbo <;> exact fun b' hb' l' hl' hst => absurd hst (hbo.1 b' hb' l' hl')
   have hno_rk_any : ∀ b' < numBucketsWhp n_max, ∀ l' < fs.bktCount b',
       2 ≤ fs.locState b' l' → fs.rKeyAt c U n_max θ b' l' ≠ rKey := by
     intro b' hb' l' hl' h2
@@ -616,48 +571,43 @@ theorem fastInsertFresh_base {c U V n_max : ℕ} (hnU : n_max ≤ U)
     intro b' hb'
     rw [hfsIns_bkt, Function.update_of_ne (by omega)]
     exact hv.bktCount_ge_zero b' hb'
+  -- Active coordinates of `fsIns`: the old ones and the new `(b, X)`
+  have hlt_new : ∀ b' loc, loc < fsIns.bktCount b' ↔ loc < fs.bktCount b' ∨ (b' = b ∧ loc = X) := by
+    intro b' loc
+    rw [hfsIns_bkt]
+    rcases eq_or_ne b' b with rfl | hbb
+    · rw [Function.update_self, Nat.lt_succ_iff_lt_or_eq]
+      exact ⟨fun h => h.imp_right fun h => ⟨rfl, h⟩, fun h => h.imp_right And.right⟩
+    · rw [Function.update_of_ne hbb]
+      exact ⟨.inl, fun h => h.resolve_right fun h' => hbb h'.1⟩
   have hact_item' : ∀ b' < numBucketsWhp n_max, ∀ l' < fsIns.bktCount b',
       let kv := fsIns.keyValAt c U n_max θ.1 b' l'
       kv < U ∧ feistelBucket (bWhp n_max) h1 kv = b' ∧
       keyQuotient (bWhp n_max) kv = fsIns.quotArr (fsIns.physSlot n_max b' l') ∧
       fsIns.valArr (fsIns.physSlot n_max b' l') < V := by
     intro b' hb' l' hl'
-    rw [hfsIns_bkt] at hl'
-    by_cases hbb : b' = b
-    · subst hbb
-      rw [Function.update_self] at hl'
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hl' with hlt | rfl
-      · dsimp only
-        rw [hkv_pres b hb l' hlt, (hqv_pres b hb l' hlt).1, (hqv_pres b hb l' hlt).2]
-        exact hv.active_item b hb l' hlt
-      · dsimp only
-        rw [hkv_new, hp_new_eq, hfsIns_q, hfsIns_v, Function.update_self, Function.update_self]
-        exact ⟨u.isLt, rfl, rfl, hv_lt⟩
-    · rw [Function.update_of_ne hbb] at hl'
-      dsimp only
-      rw [hkv_pres b' hb' l' hl', (hqv_pres b' hb' l' hl').1, (hqv_pres b' hb' l' hl').2]
-      exact hv.active_item b' hb' l' hl'
+    dsimp only
+    rcases (hlt_new b' l').mp hl' with hlt | ⟨rfl, rfl⟩
+    · rw [hkv_pres b' hb' l' hlt, (hqv_pres b' hb' l' hlt).1, (hqv_pres b' hb' l' hlt).2]
+      exact hv.active_item b' hb' l' hlt
+    · rw [hkv_new, hp_new_eq, hfsIns_q, hfsIns_v, Function.update_self, Function.update_self]
+      exact ⟨u.isLt, rfl, rfl, hv_lt⟩
   have hquot_inj' : ∀ b' < numBucketsWhp n_max, ∀ l₁ < fsIns.bktCount b',
       ∀ l₂ < fsIns.bktCount b',
       fsIns.quotArr (fsIns.physSlot n_max b' l₁) = fsIns.quotArr (fsIns.physSlot n_max b' l₂) →
       l₁ = l₂ := by
     intro b' hb' l₁ hl₁ l₂ hl₂ heq
-    rw [hfsIns_bkt] at hl₁ hl₂
-    by_cases hbb : b' = b
+    rcases (hlt_new b' l₁).mp hl₁ with hl₁' | ⟨hbb, rfl⟩ <;>
+      rcases (hlt_new b' l₂).mp hl₂ with hl₂' | ⟨hbb, rfl⟩
+    · rw [(hqv_pres b' hb' l₁ hl₁').1, (hqv_pres b' hb' l₂ hl₂').1] at heq
+      exact hv.quot_inj b' hb' l₁ hl₁' l₂ hl₂' heq
     · subst hbb
-      rw [Function.update_self] at hl₁ hl₂
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hl₁ with hl₁' | rfl <;>
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hl₂ with hl₂' | rfl
-      · rw [(hqv_pres b hb l₁ hl₁').1, (hqv_pres b hb l₂ hl₂').1] at heq
-        exact hv.quot_inj b hb l₁ hl₁' l₂ hl₂' heq
-      · rw [(hqv_pres b hb l₁ hl₁').1, hp_new_eq, hfsIns_q, Function.update_self] at heq
-        exact absurd heq (hno_q l₁ hl₁')
-      · rw [(hqv_pres b hb l₂ hl₂').1, hp_new_eq, hfsIns_q, Function.update_self] at heq
-        exact absurd heq.symm (hno_q l₂ hl₂')
-      · rfl
-    · rw [Function.update_of_ne hbb] at hl₁ hl₂
-      rw [(hqv_pres b' hb' l₁ hl₁).1, (hqv_pres b' hb' l₂ hl₂).1] at heq
-      exact hv.quot_inj b' hb' l₁ hl₁ l₂ hl₂ heq
+      rw [(hqv_pres b hb l₁ hl₁').1, hp_new_eq, hfsIns_q, Function.update_self] at heq
+      exact absurd heq (hno_q l₁ hl₁')
+    · subst hbb
+      rw [(hqv_pres b hb l₂ hl₂').1, hp_new_eq, hfsIns_q, Function.update_self] at heq
+      exact absurd heq.symm (hno_q l₂ hl₂')
+    · rfl
   have hdict_map' : ∀ u' : Fin U,
       let b' := feistelBucket (bWhp n_max) h1 u'.val
       let q' := keyQuotient (bWhp n_max) u'.val
@@ -705,53 +655,23 @@ theorem fastInsertFresh_base {c U V n_max : ℕ} (hnU : n_max ≤ U)
         change feistelReconstruct (bWhp n_max) h1 b' q' =
           feistelReconstruct (bWhp n_max) h1 b q_val
         rw [hbb, hqq]
-      refine ⟨hn_iff.trans ?_, fun v' => (hs_iff' v').trans ?_⟩
-      · exact ⟨fun hall loc hloc => by
-          rw [hfsIns_bkt] at hloc
-          by_cases hbb : b' = b
-          · rw [hbb, Function.update_self] at hloc
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hloc with hlt | rfl
-            · rw [hbb, (hqv_pres b hb loc hlt).1]
-              have hloc0 : loc < fs.bktCount b' := by rwa [hbb]
-              have hne0 := hall loc hloc0
-              rwa [hbb] at hne0
-            · rw [hbb, hp_new_eq, hfsIns_q, Function.update_self]
-              exact fun heq => hnot_bq ⟨hbb, heq.symm⟩
-          · rw [Function.update_of_ne hbb] at hloc
-            rw [(hqv_pres b' hb' loc hloc).1]; exact hall loc hloc,
-          fun hall loc hloc => by
-            have hloc' : loc < fsIns.bktCount b' := by
-              rw [hfsIns_bkt]
-              by_cases hbb : b' = b
-              · rw [hbb] at hloc ⊢; rw [Function.update_self]; exact Nat.lt_succ_of_lt hloc
-              · rwa [Function.update_of_ne hbb]
-            have := hall loc hloc'
-            rwa [(hqv_pres b' hb' loc hloc).1] at this⟩
-      · exact ⟨fun ⟨loc, hloc, hql, hvl⟩ => by
-          refine ⟨loc, ?_, ?_, ?_⟩
-          · rw [hfsIns_bkt]
-            by_cases hbb : b' = b
-            · rw [hbb] at hloc ⊢; rw [Function.update_self]; exact Nat.lt_succ_of_lt hloc
-            · rwa [Function.update_of_ne hbb]
-          · rw [(hqv_pres b' hb' loc hloc).1]; exact hql
-          · rw [(hqv_pres b' hb' loc hloc).2]; exact hvl,
-          fun ⟨loc, hloc, hql, hvl⟩ => by
-            rw [hfsIns_bkt] at hloc
-            by_cases hbb : b' = b
-            · rw [hbb, Function.update_self] at hloc
-              rcases Nat.lt_succ_iff_lt_or_eq.mp hloc with hlt | rfl
-              · rw [hbb, (hqv_pres b hb loc hlt).1] at hql
-                rw [hbb, (hqv_pres b hb loc hlt).2] at hvl
-                have hlt' : loc < fs.bktCount b' := by rwa [hbb]
-                have hql' : fs.quotArr (fs.physSlot n_max b' loc) = q' := by rwa [hbb]
-                have hvl' : fs.valArr (fs.physSlot n_max b' loc) = v' := by rwa [hbb]
-                exact ⟨loc, hlt', hql', hvl'⟩
-              · rw [hbb, hp_new_eq, hfsIns_q, Function.update_self] at hql
-                exact absurd ⟨hbb, hql.symm⟩ hnot_bq
-            · rw [Function.update_of_ne hbb] at hloc
-              rw [(hqv_pres b' hb' loc hloc).1] at hql
-              rw [(hqv_pres b' hb' loc hloc).2] at hvl
-              exact ⟨loc, hloc, hql, hvl⟩⟩
+      refine ⟨hn_iff.trans ⟨fun hall loc hloc => ?_, fun hall loc hloc => ?_⟩,
+        fun v' => (hs_iff' v').trans
+          ⟨fun ⟨loc, hloc, hql, hvl⟩ => ?_, fun ⟨loc, hloc, hql, hvl⟩ => ?_⟩⟩
+      · rcases (hlt_new b' loc).mp hloc with hlt | ⟨hbb, rfl⟩
+        · rw [(hqv_pres b' hb' loc hlt).1]; exact hall loc hlt
+        · rw [hbb, hp_new_eq, hfsIns_q, Function.update_self]
+          exact fun heq => hnot_bq ⟨hbb, heq.symm⟩
+      · have := hall loc ((hlt_new b' loc).mpr (.inl hloc))
+        rwa [(hqv_pres b' hb' loc hloc).1] at this
+      · exact ⟨loc, (hlt_new b' loc).mpr (.inl hloc), (hqv_pres b' hb' loc hloc).1.trans hql,
+          (hqv_pres b' hb' loc hloc).2.trans hvl⟩
+      · rcases (hlt_new b' loc).mp hloc with hlt | ⟨hbb, rfl⟩
+        · rw [(hqv_pres b' hb' loc hlt).1] at hql
+          rw [(hqv_pres b' hb' loc hlt).2] at hvl
+          exact ⟨loc, hlt, hql, hvl⟩
+        · rw [hbb, hp_new_eq, hfsIns_q, Function.update_self] at hql
+          exact absurd ⟨hbb, hql.symm⟩ hnot_bq
   exact
     { hfsIns_bkt := hfsIns_bkt
       hfp_pres := hfp_pres

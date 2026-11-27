@@ -119,16 +119,15 @@ theorem polling_run {α : Type} (program : ProbOracleComp receiverSpec α) (s : 
         (OracleComp.sumHandler ProbComp.unifOracle (fun _ => pure (observe s))) program).map
           (·, s) := by
   let oracle : (q : ℕ ⊕ Unit) → Store → PMF ((unifSpec ⊕ₒ receiverSpec) q) :=
-    fun q s => OracleComp.sumHandler ProbComp.unifOracle (fun _ => pure (observe s)) q
-  have handlers : OracleComp.sumHandler
+    fun q st => OracleComp.sumHandler ProbComp.unifOracle (fun _ => pure (observe st)) q
+  have hsum : OracleComp.sumHandler
       (fun n => StateT.lift (σ := Store) (ProbComp.unifOracle n))
-      (fun q => world.impl (.inr q)) =
-      fun q s => (fun a => (a, s)) <$> oracle q s := by
-    funext q s
-    cases q <;>
-      simp [oracle, handler, OracleComp.sumHandler, StateT.lift, PMF.map, Function.comp_def]
-  rw [ProbOracleComp.runWith_eq_run_interpret, handlers, OracleComp.run_interpret_readOnly]
-  rw [OracleComp.evalWith_eq_interpret]
+      (fun q => world.impl (.inr q)) = fun q st => (·, st) <$> oracle q st :=
+    funext₂ fun q st => by
+      cases q <;> simp [oracle, handler, OracleComp.sumHandler, StateT.lift, PMF.map,
+        Function.comp_def]
+  rw [ProbOracleComp.runWith_eq_run_interpret, hsum,
+    OracleComp.run_interpret_readOnly, OracleComp.evalWith_eq_interpret]
   rfl
 
 /-- Before opening, receiver-only interaction reveals no committed bit. The program may retain
@@ -158,27 +157,18 @@ theorem committed_invariant {α : Type}
   rw [ProbOracleComp.runWith_eq_run_interpret] at h
   apply OracleComp.run_interpret_invariant
     (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) world.impl)
-    (fun s => s = .committed b ∨ s = .opened b ∨ s = .aborted) _
+    (fun s => s = .committed b ∨ s = .opened b ∨ s = .aborted) ?_
     program (.committed b) (Or.inl rfl) result s h
-  intro q st hst a next hnext
-  cases q with
-  | inl n =>
-    change (a, next) ∈ ((ProbComp.unifOracle n).map (·, st)).support at hnext
-    obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
-    cases heq
+  rintro (n | cmd | _) st hst a next hnext
+  · obtain ⟨_, _, ⟨⟩⟩ := (PMF.mem_support_map_iff _ _ _).mp
+      (hnext : (a, next) ∈ ((ProbComp.unifOracle n).map (·, st)).support)
     exact hst
-  | inr q =>
-    cases q with
-    | inl cmd =>
-      change (a, next) ∈ (PMF.pure ((), advance cmd st)).support at hnext
-      have heq : next = advance cmd st :=
-        congrArg Prod.snd ((PMF.mem_support_pure_iff _ _).mp hnext)
-      rw [heq]
-      exact advance_committed cmd b hst
-    | inr poll =>
-      change (a, next) ∈ (PMF.pure (observe st, st)).support at hnext
-      have heq : next = st := congrArg Prod.snd ((PMF.mem_support_pure_iff _ _).mp hnext)
-      rwa [heq]
+  · cases (PMF.mem_support_pure_iff _ _).mp
+      (hnext : (a, next) ∈ (PMF.pure ((), advance cmd st)).support)
+    exact advance_committed cmd b hst
+  · cases (PMF.mem_support_pure_iff _ _).mp
+      (hnext : (a, next) ∈ (PMF.pure (observe st, st)).support)
+    exact hst
 
 /-- An opened value cannot be overwritten or retracted, even by abort. -/
 theorem opened_terminal (cmd : Command) (b : Bool) : advance cmd (.opened b) = .opened b := by

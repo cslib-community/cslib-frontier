@@ -58,28 +58,21 @@ theorem eval_prefixHybridGame_zero (valid : ℕ → List Bool → Bool)
     (family : List Bool → List Bool → List Bool) (adversary : OracleDistinguisher) (n : ℕ) :
     ProbComp.eval (prefixHybridGame valid family adversary n 0) =
       ProbComp.eval (prfRealGameOn valid family adversary n) := by
-  let root := fun cache : List (List Bool × List Bool) =>
+  let root (cache : List (List Bool × List Bool)) :=
     (cache.lookup []).elim (BitString.uniformList n) PMF.pure
-  have hstep : ∀ query cache,
-      (ProbComp.eval (prefixHybridOracle (valid n) family n 0 query cache)).bind
-        (fun (answer, cache') => (root cache').map (answer, ·)) =
-      (root cache).bind (fun seed =>
-        (PMF.pure (prfOracleOn (valid n) family seed query)).map (·, seed)) := by
-    intro query cache
-    cases hquery : valid n query <;> cases hcache : cache.lookup [] <;>
-      simp [prefixHybridOracle, memoize, root, hquery, hcache, BitString.eval_sampleList,
-        prfOracleOn, PMF.map, Function.comp_def]
   have h := ProbOracleComp.runWith_simulation
     (fun request cache => ProbComp.eval (prefixHybridOracle (valid n) family n 0 request.2 cache))
     (fun request seed =>
       (PMF.pure (prfOracleOn (valid n) family seed request.2)).map (·, seed))
-    root (fun request => hstep request.2) (adversary n []) []
+    root (fun request cache => by
+      cases hquery : valid n request.2 <;> cases hcache : cache.lookup [] <;>
+        simp [prefixHybridOracle, memoize, root, hquery, hcache, BitString.eval_sampleList,
+          prfOracleOn, PMF.map, Function.comp_def]) (adversary n []) []
   simp only [funext (ProbOracleComp.runWith_readOnly _ _)] at h
-  have houtput := congrArg (PMF.map Prod.fst) h
   simpa [prefixHybridGame, prfRealGameOn, ProbOracleComp.run,
     ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.eval_interpret,
     BitString.eval_sampleList, root, PMF.map, Function.comp_def, OracleComp.evalWith_eq_interpret]
-    using houtput
+    using congrArg (PMF.map Prod.fst) h
 
 /-- Once the cut covers all valid queries, a cached label is the reply itself. -/
 theorem prefixHybridOracle_eq_cachedRandomFunctionOracle
@@ -90,9 +83,9 @@ theorem prefixHybridOracle_eq_cachedRandomFunctionOracle
   funext query cache
   cases hquery : valid query
   · simp [prefixHybridOracle, cachedSamplerOracle, hquery]
-  · have hlength := hcut query hquery
-    simp [prefixHybridOracle, cachedSamplerOracle, hquery, List.take_of_length_le hlength,
-      List.drop_eq_nil_of_le hlength, hnil]
+  · simp [prefixHybridOracle, cachedSamplerOracle, hquery,
+      List.take_of_length_le (hcut query hquery),
+      List.drop_eq_nil_of_le (hcut query hquery), hnil]
 
 /-- Each valid query adds at most one prefix label; malformed queries leave the cache unchanged.
 The reply bound also holds on cache hits when every stored label has length at most `n`. -/
@@ -113,18 +106,13 @@ theorem prefixHybridOracle_bounds {valid : List Bool → Bool}
     subst result
     exact ⟨hcache, by simp, by dsimp; lia⟩
   · simp only [prefixHybridOracle, hvalid, ↓reduceIte, ProbComp.eval_bind,
-      PMF.mem_support_bind_iff] at hresult
-    obtain ⟨⟨seed, cache'⟩, hseed, hresult⟩ := hresult
-    simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
-    subst result
-    have hsample : (seed, cache') ∈
-        (memoize (fun _ : List Bool => BitString.uniformList n)
-          (query.take cut) cache).support := by
-      simpa only [ProbComp.eval_memoize, BitString.eval_sampleList] using hseed
+      PMF.mem_support_bind_iff, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
+    obtain ⟨⟨seed, cache'⟩, hseed, rfl⟩ := hresult
     obtain ⟨hwidth, hcache', hgrowth⟩ := memoize_call_size_le encBits encBits
       (fun _ : List Bool => BitString.uniformList n) (query.take cut) cache n hcache
       (fun _ hvalue => (BitString.length_of_mem_support_uniformList hvalue).le)
-      (seed, cache') hsample
+      (seed, cache')
+      (by simpa only [ProbComp.eval_memoize, BitString.eval_sampleList] using hseed)
     have hprefix : (query.take cut).length ≤ query.length := by simp
     refine ⟨hcache', hEval _ _ hwidth, ?_⟩
     simp only [encBits_apply] at hgrowth

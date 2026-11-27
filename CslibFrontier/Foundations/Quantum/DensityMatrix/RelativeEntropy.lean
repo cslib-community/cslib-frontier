@@ -82,10 +82,9 @@ theorem SupportLE.sum_smul {κ : Type*} [Fintype κ] (w : κ → ℝ) (hw : ∀ 
     (fun k _ => hw k) (fun k _ => hσ k) x).mp hx
   rw [sum_mulVec]
   refine sum_eq_zero fun k hk => ?_
-  rw [smul_mulVec]
   by_cases hwk : w k = 0
-  · rw [hwk, zero_smul]
-  · rw [hs k x (hzero k hk hwk), smul_zero]
+  · simp [hwk]
+  · simp [smul_mulVec, hs k x (hzero k hk hwk)]
 
 omit [DecidableEq ι] in
 /-- A rectangular compression preserves support inclusion when its reference is positive
@@ -138,23 +137,19 @@ theorem relativeEntropy_reindex {κ : Type*} [Fintype κ] [DecidableEq κ] (e : 
     {ρ σ : Matrix ι ι ℂ} (hρ : ρ.IsHermitian) (hσ : σ.PosSemidef) :
     relativeEntropy (reindex e e ρ) (reindex e e σ) = relativeEntropy ρ σ := by
   let F := reindexStarAlgEquiv ℂ ℂ e
-  have hσ' : (reindex e e σ).PosSemidef := hσ.submatrix e.symm
-  have hsupp : SupportLE (reindex e e ρ) (reindex e e σ) ↔ SupportLE ρ σ := by
-    constructor
-    · intro h
-      simpa only [reindex_apply, submatrix_submatrix, Equiv.symm_comp_self, submatrix_id_id]
-        using h.submatrix hσ' e
-    · exact fun h => h.submatrix hσ e.symm
+  have hsupp : SupportLE (reindex e e ρ) (reindex e e σ) ↔ SupportLE ρ σ :=
+    ⟨fun h => by simpa [reindex_apply] using h.submatrix (hσ.submatrix e.symm) e,
+      fun h => h.submatrix hσ e.symm⟩
   by_cases hs : SupportLE ρ σ
   · have htr (A : Matrix ι ι ℂ) : (F A).trace = A.trace := by
       change (reindex e e A).trace = _
-      simp only [trace, diag_apply, reindex_apply, submatrix_apply]
-      exact e.symm.sum_comp (fun i : ι => A i i)
-    have hc : Continuous F := F.toAlgEquiv.toLinearMap.continuous_of_finiteDimensional
+      simpa only [trace, diag_apply, reindex_apply, submatrix_apply] using
+        e.symm.sum_comp fun i : ι => A i i
     have hlog (A : Matrix ι ι ℂ) (hA : A.IsHermitian) :
         F (cfc Real.log A) = cfc Real.log (F A) :=
       StarAlgHomClass.map_cfc F Real.log A (A.finite_real_spectrum.continuousOn _)
-        hc hA.isSelfAdjoint (hA.isSelfAdjoint.map F)
+        F.toAlgEquiv.toLinearMap.continuous_of_finiteDimensional
+        hA.isSelfAdjoint (hA.isSelfAdjoint.map F)
     rw [relativeEntropy_of_supportLE (hsupp.mpr hs), relativeEntropy_of_supportLE hs]
     change (relativeEntropyReal (F ρ) (F σ) : WithTop ℝ) = _
     rw [relativeEntropyReal, relativeEntropyReal, ← hlog ρ hρ, ← hlog σ hσ.isHermitian,
@@ -189,9 +184,8 @@ private theorem sum_normSq_row (W : Matrix ι ι ℂ) (h : W * Wᴴ = 1) (i : ι
 
 private theorem sum_normSq_col (W : Matrix ι ι ℂ) (h : Wᴴ * W = 1) (j : ι) :
     ∑ i, Complex.normSq (W i j) = 1 := by
-  have h' : Wᴴ * Wᴴᴴ = 1 := by rwa [conjTranspose_conjTranspose]
-  have hr := sum_normSq_row Wᴴ h' j
-  simpa only [conjTranspose_apply, Complex.star_def, Complex.normSq_conj] using hr
+  simpa only [conjTranspose_apply, Complex.star_def, Complex.normSq_conj] using
+    sum_normSq_row Wᴴ (by rwa [conjTranspose_conjTranspose]) j
 
 /-- The trace pairing of two spectral functions can be evaluated in the two eigenbases. -/
 private theorem trace_cfc_mul_cfc_re (A B : Matrix ι ι ℂ) (hA : A.IsHermitian) (hB : B.IsHermitian)
@@ -224,8 +218,7 @@ private theorem trace_mul_cfc_re (A B : Matrix ι ι ℂ) (hA : A.IsHermitian) (
       Complex.normSq (((hA.eigenvectorUnitary : Matrix ι ι ℂ)ᴴ *
         (hB.eigenvectorUnitary : Matrix ι ι ℂ)) i j) := by
   have h := trace_cfc_mul_cfc_re A B hA hB id f
-  rw [cfc_id (p := IsSelfAdjoint) ℝ A hA] at h
-  exact h
+  rwa [cfc_id (p := IsSelfAdjoint) ℝ A hA.isSelfAdjoint] at h
 
 private theorem sqrt_eq_cfc_real_sqrt (A : Matrix ι ι ℂ) (hA : A.PosSemidef) :
     CFC.sqrt A = cfc Real.sqrt A := by
@@ -391,26 +384,20 @@ theorem exists_pmf_relativeEntropyReal_eq {ρ σ : Matrix ι ι ℂ} (hρ : IsDe
   have hq (i j : ι) : (q (i, j)).toReal = b j * w i j := by
     dsimp only [q]
     rw [PMF.ofFintype_apply, ENNReal.toReal_ofReal (mul_nonneg (hb _) (hw _ _))]
-  have hsupp : p.support ⊆ q.support := by
-    rintro ⟨i, j⟩ hi
+  have hsupp : p.support ⊆ q.support := fun ⟨i, j⟩ hi => by
     have hp' : a i * w i j ≠ 0 := by
       rw [← hp]
       exact ENNReal.toReal_ne_zero.mpr ⟨hi, PMF.apply_ne_top _ _⟩
     have hb' : b j ≠ 0 := fun hz =>
       hp' (eigenvalue_mul_overlap_eq_zero_of_supportLE hA hB hs i j hz)
-    have hq' : (q (i, j)).toReal ≠ 0 := by
-      rw [hq]
-      exact mul_ne_zero hb' (right_ne_zero_of_mul hp')
-    exact (ENNReal.toReal_ne_zero.mp hq').1
+    exact (ENNReal.toReal_ne_zero.mp (hq i j ▸ mul_ne_zero hb' (right_ne_zero_of_mul hp'))).1
   refine ⟨p, q, hsupp, ?_, ?_⟩
   · rw [Fintype.sum_prod_type]
     simp only [hp, hq]
     have hterm (i j : ι) : a i * w i j * Real.log (a i * w i j / (b j * w i j)) =
         (a i * Real.log (a i) - a i * Real.log (b j)) * w i j := by
       by_cases hz : a i * w i j = 0
-      · rcases mul_eq_zero.mp hz with hz' | hz'
-        · simp [hz']
-        · simp [hz']
+      · rcases mul_eq_zero.mp hz with hz' | hz' <;> simp [hz']
       · have hb' : b j ≠ 0 := fun hz' =>
           hz (eigenvalue_mul_overlap_eq_zero_of_supportLE hA hB hs i j hz')
         rw [mul_div_mul_right _ _ (right_ne_zero_of_mul hz),

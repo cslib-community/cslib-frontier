@@ -217,12 +217,11 @@ theorem workTapePos_runFrom (erase : Bool) (cfg : Cfg 3 Symbol Unit input) (coun
     (hend : cfg.workTapes 2 (cfg.workTapePos 2 + count) = none) (time : ℕ) (i : Fin 3) :
     ((copyBlock erase).runFrom cfg time).workTapePos i = cfg.workTapePos i + min time count := by
   by_cases ht : time ≤ count
-  · rw [runFrom_progress erase cfg time hstate (fun j hj => hcount j (by omega)),
+  · rw [runFrom_progress erase cfg time hstate fun j hj => hcount j (by omega),
       Nat.min_eq_left ht]
     rfl
-  · have hhalt := haltsAt_copyBlock erase cfg count hstate hcount hend
-    rw [hhalt.runFrom_eq (by omega), runFrom_copyBlock erase cfg count hstate hcount hend,
-      Nat.min_eq_right (by omega)]
+  · rw [(haltsAt_copyBlock erase cfg count hstate hcount hend).runFrom_eq (by omega),
+      runFrom_copyBlock erase cfg count hstate hcount hend, Nat.min_eq_right (by omega)]
     rfl
 
 /-- A native run path for a length-`count` block visits at most `3 * (count + 1)` work-tape

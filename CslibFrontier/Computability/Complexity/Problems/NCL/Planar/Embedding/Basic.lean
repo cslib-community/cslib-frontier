@@ -73,22 +73,12 @@ private theorem legal_stub (vs : List (Vertex (Fin m))) (color : Fin m → Color
     (Stub.graph (fun i : Fin vs.length => vs.get i) color).Legal u ↔
       (∀ v ∈ Sources.vertexSpecs (fun p => color p.edge) vs, v.Sat u) ∧
         (∀ v ∈ Sinks.capSpecs color (List.finRange m), v.Sat u) := by
-  constructor
-  · intro h
-    constructor
-    · intro v hv
-      obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hv
-      obtain ⟨i, rfl⟩ := List.get_of_mem hw
-      exact h (.inl i)
-    · intro v hv
-      obtain ⟨e, _, rfl⟩ := List.mem_map.1 hv
-      exact h (.inr e)
-  · rintro ⟨hs, ht⟩ v
-    cases v with
-    | inl i =>
-      exact hs _ (List.mem_map.2 ⟨vs.get i, List.get_mem _ i, rfl⟩)
-    | inr e =>
-      exact ht _ (List.mem_map.2 ⟨e, List.mem_finRange e, rfl⟩)
+  refine ⟨fun h => ⟨List.forall_mem_map.2 ?_, List.forall_mem_map.2 fun e _ => h (.inr e)⟩,
+    fun ⟨hs, ht⟩ => Sum.rec (fun i => hs _ (List.mem_map_of_mem (List.get_mem _ i)))
+      (fun e => ht _ (List.mem_map_of_mem (List.mem_finRange e)))⟩
+  intro w hw
+  obtain ⟨i, rfl⟩ := List.get_of_mem hw
+  exact h (.inl i)
 
 /-- The canonical drawing has exactly the incidence-stub graph's legal orientations. -/
 theorem legal_diagram (vs : List (Vertex (Fin m))) (color : Fin m → Color)
@@ -96,9 +86,7 @@ theorem legal_diagram (vs : List (Vertex (Fin m))) (color : Fin m → Color)
     (u : Port (Fin m) → Bool) :
     ((diagram vs color hw).graph Cell.interp).Legal (u ∘ (drawing vs color hw).edgeEquiv) ↔
       (Stub.graph (fun i : Fin vs.length => vs.get i) color).Legal u := by
-  rw [(drawing vs color hw).legal_iff]
-  rw [List.forall_mem_append]
-  exact (legal_stub vs color u).symm
+  rw [(drawing vs color hw).legal_iff, List.forall_mem_append, legal_stub]
 
 /-- The canonical drawing simulates the original graph when its colors match the port weights. -/
 @[expose] def simulation (vs : List (Vertex (Fin m))) (color : Fin m → Color)

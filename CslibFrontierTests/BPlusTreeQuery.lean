@@ -43,6 +43,10 @@ def hollow : BPlusTree ℕ String :=
 
 theorem isWF_twoLevels : IsWF 2 twoLevels := by decide
 
+/-- Passing the last separator leaves a unary node that still has the search invariant. -/
+example : SearchInvariant 2 (.node (.leaf [(3, "c")]) []) :=
+  (show IsWF 2 gap from by decide).searchInvariant.tail
+
 /-! ### Separator search -/
 
 /-- The search passes the separators that are at most the query, a separator equal to the query

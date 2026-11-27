@@ -70,10 +70,9 @@ theorem letterSubst_of_notMem_range {y : Option Γ} (hy : y ∉ Set.range (Optio
 /-- The values of `letterSubst` are affine: variables or `0`. -/
 theorem isAffine_letterSubst (e : Δ → Γ) (N : ℕ) (b : Fin N × Option Γ) :
     IsAffine (letterSubst K e N b) := by
-  obtain ⟨p, y⟩ := b
-  rcases h : Function.partialInv (Option.map e) y with _ | y'
+  rcases h : Function.partialInv (Option.map e) b.2 with _ | y'
   · exact .inl ⟨0, by simp [letterSubst, h]⟩
-  · exact .inr ⟨(p, y'), 1, 0, by simp [letterSubst, h]⟩
+  · exact .inr ⟨(b.1, y'), 1, 0, by simp [letterSubst, h]⟩
 
 variable [DecidableEq Γ] [DecidableEq Δ]
 
@@ -93,16 +92,12 @@ private theorem eval_letterSubst (he : Function.Injective e) (w : List Δ) (b : 
   obtain ⟨p, y⟩ := b
   by_cases hy : y ∈ Set.range (Option.map e)
   · obtain ⟨y, rfl⟩ := hy
-    have : wordCode N (w.map e) (p, y.map e) = wordCode N w (p, y) := by
-      rw [Bool.eq_iff_iff, wordCode_map_iff]
-      simp [(Option.map_injective he).eq_iff]
-    rw [letterSubst_map he, eval_X, this]
-  · have : wordCode N (w.map e) (p, y) = false := by
-      rw [Bool.eq_false_iff, Ne, wordCode_map_iff]
-      rintro ⟨y', -, rfl⟩
-      exact hy ⟨y', rfl⟩
-    rw [letterSubst_of_notMem_range hy, map_zero, this]
-    rfl
+    rw [letterSubst_map he, eval_X]
+    congr 1
+    rw [Bool.eq_iff_iff, wordCode_map_iff]
+    simp [(Option.map_injective he).eq_iff]
+  · rw [letterSubst_of_notMem_range hy, map_zero, ite_eq_right]
+    simpa only [wordCode_map_iff, not_exists, not_and] using fun y' _ h => hy ⟨y', h⟩
 
 /-- **Evaluation at a code after naming the letters.** For an injective `e : Δ → Γ`, a polynomial
 after the substitution `letterSubst K e N` takes at the code of a word `w` over `Δ` the value

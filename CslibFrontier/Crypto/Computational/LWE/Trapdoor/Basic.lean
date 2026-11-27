@@ -168,12 +168,8 @@ theorem trapdoorTransform_map_intCast (w : ℕ) [DecidableEq ι]
     (R : _root_.Matrix μ (ι × Fin w) ℤ) :
     (trapdoorTransform R).map (Int.cast : ℤ → ZMod (2 ^ w)) =
       _root_.Matrix.fromRows (R.map Int.cast) 1 := by
-  rw [trapdoorTransform, _root_.Matrix.fromRows_map]
-  congr 1
-  ext p q
-  by_cases hpq : p = q
-  · subst hpq; simp
-  · simp [_root_.Matrix.one_apply_ne hpq]
+  rw [trapdoorTransform, _root_.Matrix.fromRows_map,
+    _root_.Matrix.map_one _ Int.cast_zero Int.cast_one]
 
 /-- Unrestricted tag equation: `[Abar | H * G - Abar * R] * [R; I] = H * G` modulo `2 ^ w` for any
 `Abar`, `R`, and `H` ([MicciancioPeikert2012], Section 5.2, Algorithm 1). -/
@@ -211,8 +207,7 @@ theorem taggedRightBlock_sub_tag (w : ℕ) [Fintype ι] [DecidableEq ι] [Fintyp
     (H H' : _root_.Matrix ι ι (ZMod (2 ^ w))) :
     taggedRightBlock w Abar R H - (H - H') * gadgetMatrix w =
       taggedRightBlock w Abar R H' := by
-  simp only [taggedRightBlock, _root_.Matrix.sub_mul]
-  abel
+  simp only [taggedRightBlock, _root_.Matrix.sub_mul]; abel
 
 /-- When the tag vanishes (`H = 0`, which is not an invertible tag), the trapdoor
 transformation maps into the kernel of `A`: `taggedMatrix w Abar R 0 * [R; I] = 0`. -/
@@ -229,9 +224,8 @@ theorem taggedMatrix_zero_mul_trapdoorTransform (w : ℕ)
 `q`-ary kernel lattice `Λ^⊥(A)`. -/
 theorem inKernelLattice_of_isSolution {q : ℕ} {ρ : Type*} [Fintype κ]
     {A : _root_.Matrix ρ κ (ZMod q)} {β : ℕ} {z : κ → ℤ} (hz : SIS.IsSolution A β z) :
-    InKernelLattice A z := by
-  obtain ⟨-, -, hker⟩ := hz
-  exact hker
+    InKernelLattice A z :=
+  hz.2.2
 
 /-- Lift an integer vector `z : ι × Fin w → ℤ` in gadget space to `x = [R z; z]` in full column
 space `μ ⊕ (ι × Fin w)`. -/
@@ -257,8 +251,7 @@ theorem cast_comp_liftPreimage (w : ℕ) [Fintype ι] [DecidableEq ι]
     (Int.cast ∘ liftPreimage R z : μ ⊕ (ι × Fin w) → ZMod (2 ^ w)) =
       (trapdoorTransform R).map Int.cast *ᵥ (Int.cast ∘ z) := by
   rw [liftPreimage_eq_mulVec]
-  funext k
-  exact RingHom.map_mulVec (Int.castRingHom (ZMod (2 ^ w))) (trapdoorTransform R) z k
+  exact funext (RingHom.map_mulVec (Int.castRingHom (ZMod (2 ^ w))) (trapdoorTransform R) z)
 
 /-- Action of `taggedMatrix w Abar R H` on a lifted vector `[R z; z]`:
 `A *ᵥ [R z; z] = H *ᵥ (G *ᵥ z)` modulo `2 ^ w`. -/
@@ -306,12 +299,10 @@ theorem extendedGadgetBasis_eq_fromRows (w : ℕ) [Fintype ι] [DecidableEq ι]
     (H : _root_.Matrix ι ι (ZMod (2 ^ w))) :
     taggedMatrix w Abar R H *
         (extendedGadgetBasis w R).map (Int.cast : ℤ → ZMod (2 ^ w)) = 0 := by
-  have hmap :
-      (extendedGadgetBasis w R).map (Int.cast : ℤ → ZMod (2 ^ w)) =
-        (trapdoorTransform R).map Int.cast * (gadgetBasis w).map Int.cast := by
-    ext k q
-    exact RingHom.map_matrix_mul (trapdoorTransform R) (gadgetBasis w) k q
-      (Int.castRingHom (ZMod (2 ^ w)))
+  have hmap : (extendedGadgetBasis w R).map (Int.cast : ℤ → ZMod (2 ^ w)) =
+      (trapdoorTransform R).map Int.cast * (gadgetBasis w).map Int.cast :=
+    _root_.Matrix.ext fun k q =>
+      RingHom.map_matrix_mul (trapdoorTransform R) (gadgetBasis w) k q (Int.castRingHom _)
   rw [hmap, ← _root_.Matrix.mul_assoc, taggedMatrix_mul_trapdoorTransform,
     _root_.Matrix.mul_assoc, gadgetMatrix_mul_gadgetBasis, _root_.Matrix.mul_zero]
 
@@ -321,9 +312,8 @@ theorem extendedGadgetBasis_col_inKernelLattice (w : ℕ)
     (R : _root_.Matrix μ (ι × Fin w) ℤ)
     (H : _root_.Matrix ι ι (ZMod (2 ^ w)))
     (q : ι × Fin w) :
-    InKernelLattice (taggedMatrix w Abar R H) (fun k => extendedGadgetBasis w R k q) := by
-  funext i
-  exact congrFun (congrFun (taggedMatrix_mul_extendedGadgetBasis w Abar R H) i) q
+    InKernelLattice (taggedMatrix w Abar R H) (fun k => extendedGadgetBasis w R k q) :=
+  funext fun i => congrFun (congrFun (taggedMatrix_mul_extendedGadgetBasis w Abar R H) i) q
 
 private theorem natAbs_sum_le {α : Type*} [Fintype α] (f : α → ℤ) (B : ℕ)
     (hf : ∀ a : α, (f a).natAbs ≤ B) :
@@ -340,13 +330,12 @@ theorem natAbs_extendedGadgetBasis_inl_le (w : ℕ) [Fintype ι] [DecidableEq ι
     (hR : ∀ p : ι × Fin w, (R j p).natAbs ≤ B) :
     (extendedGadgetBasis w R (Sum.inl j) q).natAbs ≤ 2 * Fintype.card (ι × Fin w) * B := by
   rw [extendedGadgetBasis_eq_fromRows, _root_.Matrix.fromRows_apply_inl, _root_.Matrix.mul_apply]
-  have hterm : ∀ p : ι × Fin w, (R j p * gadgetBasis w p q).natAbs ≤ 2 * B := fun p => by
-    rw [Int.natAbs_mul, mul_comm]
-    exact Nat.mul_le_mul (natAbs_gadgetBasis_le_two w p q) (hR p)
   calc
     (∑ p : ι × Fin w, R j p * gadgetBasis w p q).natAbs ≤
         Fintype.card (ι × Fin w) * (2 * B) :=
-      natAbs_sum_le (fun p => R j p * gadgetBasis w p q) (2 * B) hterm
+      natAbs_sum_le _ (2 * B) fun p => by
+        rw [Int.natAbs_mul, mul_comm]
+        exact Nat.mul_le_mul (natAbs_gadgetBasis_le_two w p q) (hR p)
     _ = 2 * Fintype.card (ι × Fin w) * B := by ring
 
 /-- Bottom-block entry bound for `extendedGadgetBasis w R`: every entry has magnitude at most `2`.
@@ -389,8 +378,7 @@ theorem IsHTagTrapdoor.surjective [Fintype ι] [DecidableEq ι] [Fintype μ]
     (htrap : IsHTagTrapdoor w A R H) :
     Function.Surjective (fun x : μ ⊕ (ι × Fin w) → ℤ => A *ᵥ (Int.cast ∘ x)) := by
   rcases htrap with ⟨heq, ⟨u, rfl⟩⟩
-  intro v
-  refine ⟨invertSyndrome w ↑u⁻¹ R v, ?_⟩
+  refine fun v => ⟨invertSyndrome w ↑u⁻¹ R v, ?_⟩
   dsimp only [invertSyndrome]
   rw [cast_comp_liftPreimage, _root_.Matrix.mulVec_mulVec, heq,
     ← _root_.Matrix.mulVec_mulVec, gadgetMatrix_mulVec_gadgetDecomp,
@@ -416,12 +404,9 @@ theorem natAbs_invertSyndrome_inl_le (w : ℕ) [Fintype ι]
     (hR : ∀ p : ι × Fin w, (R j p).natAbs ≤ B) :
     (invertSyndrome w Hinv R u (Sum.inl j)).natAbs ≤ Fintype.card (ι × Fin w) * B := by
   simp only [invertSyndrome, liftPreimage_inl, _root_.Matrix.mulVec, dotProduct]
-  refine natAbs_sum_le (fun p : ι × Fin w => R j p * gadgetDecomp w (Hinv *ᵥ u) p) B fun p => ?_
-  calc
-    (R j p * gadgetDecomp w (Hinv *ᵥ u) p).natAbs =
-        (R j p).natAbs * (gadgetDecomp w (Hinv *ᵥ u) p).natAbs := Int.natAbs_mul _ _
-    _ ≤ B * 1 := Nat.mul_le_mul (hR p) (natAbs_gadgetDecomp_le_one w (Hinv *ᵥ u) p)
-    _ = B := Nat.mul_one B
+  refine natAbs_sum_le _ B fun p => ?_
+  simpa only [Int.natAbs_mul, Nat.mul_one] using
+    Nat.mul_le_mul (hR p) (natAbs_gadgetDecomp_le_one w (Hinv *ᵥ u) p)
 
 /-- Bottom-block infinity-norm bound for `invertSyndrome`: every bottom coordinate lies in
 `{0, 1}`, hence has magnitude at most `1`. -/
@@ -461,8 +446,7 @@ theorem cast_comp_projectedError (w : ℕ) [Fintype ι] [DecidableEq ι] [Fintyp
     (Int.cast ∘ projectedError R e : ι × Fin w → ZMod (2 ^ w)) =
       (Int.cast ∘ e) ᵥ* (trapdoorTransform R).map Int.cast := by
   rw [projectedError_eq_vecMul]
-  funext p
-  exact RingHom.map_vecMul (Int.castRingHom (ZMod (2 ^ w))) (trapdoorTransform R) e p
+  exact funext (RingHom.map_vecMul (Int.castRingHom (ZMod (2 ^ w))) (trapdoorTransform R) e)
 
 /-- Fundamental reduction of `g_A` to `g_G` via `[R; I]`: right-multiplying
 `bᵀ = sᵀ A + eᵀ mod 2 ^ w` by `[R; I]` produces `g_G(Hᵀ s, eᵀ [R; I])`
@@ -492,11 +476,9 @@ theorem natAbs_projectedError_le [Fintype μ]
     (he : ∀ k : μ ⊕ (ι × Fin w), (e k).natAbs ≤ B_e) :
     (projectedError R e p).natAbs ≤ (1 + Fintype.card μ * B_R) * B_e := by
   simp only [projectedError, Pi.add_apply, _root_.Matrix.vecMul, dotProduct, Function.comp_apply]
-  have hsum : (∑ j : μ, e (Sum.inl j) * R j p).natAbs ≤ Fintype.card μ * (B_e * B_R) :=
-    natAbs_sum_le (fun j => e (Sum.inl j) * R j p) (B_e * B_R) fun j => by
-      rw [Int.natAbs_mul]
-      exact Nat.mul_le_mul (he (Sum.inl j)) (hR j)
-  have hinr : (e (Sum.inr p)).natAbs ≤ B_e := he (Sum.inr p)
+  have hsum := natAbs_sum_le (fun j => e (Sum.inl j) * R j p) (B_e * B_R) fun j =>
+    (Int.natAbs_mul _ _).trans_le (Nat.mul_le_mul (he _) (hR j))
+  have hinr := he (Sum.inr p)
   have htri := Int.natAbs_add_le (∑ j : μ, e (Sum.inl j) * R j p) (e (Sum.inr p))
   calc
     (∑ j : μ, e (Sum.inl j) * R j p + e (Sum.inr p)).natAbs ≤
@@ -561,12 +543,9 @@ and `2 * |e k| < 2 ^ w`, `invertLWE` recovers the exact pair `(s, e)`. -/
   rw [invertLWESecret_trapdoorLWE w Abar R hH s e hproj]
   congr 1
   funext k
-  have hsub : trapdoorLWE w (taggedMatrix w Abar R H) s e k - (s ᵥ* taggedMatrix w Abar R H) k =
-      (e k : ZMod (2 ^ w)) := by
-    simp [trapdoorLWE]
-  rw [hsub]
   have hk := he k
-  exact (ZMod.valMinAbs_spec (e k : ZMod (2 ^ w)) (e k)).mpr ⟨rfl, by omega, by omega⟩
+  simp only [trapdoorLWE, Pi.add_apply, Function.comp_apply, add_sub_cancel_left]
+  exact (ZMod.valMinAbs_spec _ _).mpr ⟨rfl, by omega, by omega⟩
 
 /-- Infinity-norm analogue of the first claim of [MicciancioPeikert2012], Theorem 5.4:
 if `|R j p| ≤ B_R`, `|e k| ≤ B_e`, and `4 * (1 + |μ| * B_R) * B_e < 2 ^ w`, then `invertLWE`
@@ -590,12 +569,10 @@ theorem invertLWE_trapdoorLWE_of_norm_bound (w : ℕ)
         Nat.mul_le_mul_left 4 (natAbs_projectedError_le R e p B_R B_e (fun j => hR j p) he)
       _ = 4 * (1 + Fintype.card μ * B_R) * B_e := (Nat.mul_assoc _ _ _).symm
       _ < 2 ^ w := hbound
-  · have hle : 2 * (e k).natAbs ≤ 4 * (1 + Fintype.card μ * B_R) * B_e := by
-      calc
-        2 * (e k).natAbs ≤ 2 * B_e := Nat.mul_le_mul_left 2 (he k)
-        _ ≤ 4 * (1 + Fintype.card μ * B_R) * B_e :=
-          Nat.mul_le_mul_right B_e (by omega : 2 ≤ 4 * (1 + Fintype.card μ * B_R))
-    exact Nat.lt_of_le_of_lt hle hbound
+  · calc
+      2 * (e k).natAbs ≤ 2 * B_e := Nat.mul_le_mul_left 2 (he k)
+      _ ≤ 4 * (1 + Fintype.card μ * B_R) * B_e := Nat.mul_le_mul_right B_e (by omega)
+      _ < 2 ^ w := hbound
 
 /-! ### Probabilistic `GenTrap` algorithm and idealized hybrid (Section 5.2, Algorithm 1) -/
 
@@ -618,13 +595,8 @@ theorem mem_support_sampleTrapdoorRow_iff (n w η : ℕ) (row : Fin n × Fin w �
       ∀ p : Fin n × Fin w, (row p).natAbs ≤ η := by
   simp only [sampleTrapdoorRow, ProbComp.eval_map, PMF.mem_support_map_iff,
     ProbComp.mem_support_replicateFin_iff, mem_support_sampleCenteredBinomial_iff]
-  constructor
-  · rintro ⟨blocks, hblocks, rfl⟩ ⟨i, j⟩
-    exact hblocks i j
-  · intro hrow
-    refine ⟨fun i j => row (i, j), fun i j => hrow (i, j), ?_⟩
-    funext ⟨i, j⟩
-    rfl
+  exact ⟨fun ⟨blocks, hblocks, h⟩ => h ▸ fun ⟨i, j⟩ => hblocks i j,
+    fun hrow => ⟨fun i j => row (i, j), fun i j => hrow (i, j), funext fun ⟨_, _⟩ => rfl⟩⟩
 
 /-- Support characterization of `sampleTrapdoorMatrix`: a matrix `R` is in the support iff every
 entry has magnitude at most `η`. -/
@@ -715,24 +687,16 @@ In particular, its distribution is independent of `H`. -/
         (_root_.Matrix (Fin n) (Fin mbar ⊕ (Fin n × Fin w)) (ZMod (2 ^ w))) := by
   simp only [genTrapIdeal, ProbComp.eval_bind, ProbComp.eval_pure,
     eval_sampleMatrix, eval_sampleGadgetBlock]
-  change
-    ((PMF.uniformOfFintype (_root_.Matrix (Fin n) (Fin mbar) (ZMod (2 ^ w)))).bind fun Abar =>
-        (PMF.uniformOfFintype (_root_.Matrix (Fin n) (Fin n × Fin w) (ZMod (2 ^ w)))).map fun U =>
-          _root_.Matrix.fromCols Abar (H * gadgetMatrix w - U)) =
-      PMF.uniformOfFintype
-        (_root_.Matrix (Fin n) (Fin mbar ⊕ (Fin n × Fin w)) (ZMod (2 ^ w)))
+  change ((PMF.uniformOfFintype _).bind fun Abar => (PMF.uniformOfFintype _).map fun U =>
+    _root_.Matrix.fromCols Abar (H * gadgetMatrix w - U)) = _
   rw [PMF.uniformOfFintype_bind_map]
-  let e :
+  exact PMF.uniformOfFintype_map_equiv
+    ({ toFun := fun pair => _root_.Matrix.fromCols pair.1 (H * gadgetMatrix w - pair.2)
+       invFun := fun A => (A.toCols₁, H * gadgetMatrix w - A.toCols₂)
+       left_inv := fun ⟨_, _⟩ => by ext <;> simp
+       right_inv := fun _ => by simp [sub_sub_cancel] } :
       (_root_.Matrix (Fin n) (Fin mbar) (ZMod (2 ^ w)) ×
-          _root_.Matrix (Fin n) (Fin n × Fin w) (ZMod (2 ^ w))) ≃
-        _root_.Matrix (Fin n) (Fin mbar ⊕ (Fin n × Fin w)) (ZMod (2 ^ w)) :=
-    { toFun := fun pair => _root_.Matrix.fromCols pair.1 (H * gadgetMatrix w - pair.2)
-      invFun := fun A => (A.toCols₁, H * gadgetMatrix w - A.toCols₂)
-      left_inv := fun ⟨Abar, U⟩ => by
-        ext <;> simp
-      right_inv := fun A => by
-        simp [sub_sub_cancel] }
-  exact PMF.uniformOfFintype_map_equiv e
+        _root_.Matrix (Fin n) (Fin n × Fin w) (ZMod (2 ^ w))) ≃ _)
 
 /-- Tag-independence of `genTrapIdeal`: any two tags `H` and `H'` induce the exact same public
 matrix distribution. -/

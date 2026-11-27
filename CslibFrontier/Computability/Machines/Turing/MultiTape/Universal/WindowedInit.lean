@@ -109,13 +109,10 @@ private lemma toUnary_inO : ComputableInO (fun t : ℕ => t) encNat encUnary
   refine ((foldl (encA := encBool) (encL := encBits) (list := fun t : ℕ => (encNat t).reverse)
     (init := fun _ => 0) (step := dbl) hrev (const 0) dbl_deg.inO_one
     (R := fun t => 2 * t + 2) (Q := fun t => 2 * t + 2) (B := fun t => t)
-    (fun t i _ => ?_) (fun t i _ => ?_) (fun t i _ => ?_)).mono 8 (fun t => ?_)
-      fun t => ?_).of_enc_eq fun t => ?_
-  · have := foldl_dbl_take_le t i
-    simp only [length_encPair, encUnary_apply, encBool_apply, List.length_replicate,
-      List.length_singleton]
-    omega
-  · have := foldl_dbl_take_le t i
+    ?hRQ ?hRQ (fun t i _ => ?_)).mono 8 (fun t => ?_) fun t => ?_).of_enc_eq fun t =>
+      congrArg encUnary (foldl_dbl_bits t).symm
+  · intro t i _
+    have := foldl_dbl_take_le t i
     simp only [length_encPair, encUnary_apply, encBool_apply, List.length_replicate,
       List.length_singleton]
     omega
@@ -128,7 +125,6 @@ private lemma toUnary_inO : ComputableInO (fun t : ℕ => t) encNat encUnary
   · have := length_encNat_le_self t
     simp only [encBits_apply, List.length_reverse]
     nlinarith
-  · rw [foldl_dbl_bits]
 
 /-! ### Recoding the input symbols -/
 
@@ -174,8 +170,7 @@ private lemma ins_four (x : List ℕ) : ins (ins (ins (ins (encList encUnary x))
     have hsym : eSym (some (a + 1)) = List.replicate (a + 1 + 1) true := rfl
     rw [encList_cons, List.map_cons, encList_cons, ins_append, ins_append, ins_append, ins_append,
       ih, hsym, encUnary_apply, frame_replicate_true, frame_replicate_true, ins_replicate,
-      ins_replicate, ins_replicate, ins_replicate, show 2 * (a + 1 + 1) = 2 * a + 1 + 1 + 1 + 1 by
-        omega]
+      ins_replicate, ins_replicate, ins_replicate, Nat.mul_succ, Nat.mul_succ]
 
 private lemma length_encList_recode (x : List ℕ) :
     (encList eSym (x.map fun a => some (a + 1))).length =
@@ -261,14 +256,7 @@ private lemma fin_inO : ComputableInO (fun m : Desc × ℕ × List (Option ℕ) 
         List.replicate m.1.tapes ⟨0, [], []⟩)
     fun m => rfl
   refine (((pd.prod (pt.prod (hq.prod hw))).mono 512 (fun m => ?_) fun m => ?_).of_enc_eq
-    fun m => ?_)
-  rotate_left 2
-  · obtain ⟨d, t, xs⟩ := m
-    have h : [some 0].take t = if decide (t = 0) = true then [] else [some 0] := by
-      cases t <;> simp
-    dsimp only
-    rw [h]
-    rfl
+    fun ⟨_, t, _⟩ => by cases t <;> simp [eProb])
   all_goals
     have htapes : m.1.tapes ≤ descLen m.1 := by
       simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]
@@ -294,10 +282,7 @@ theorem initProb_inO :
       (fun i => (eIn i).length + (descLen i.1 + 1) ^ 3 +
         (i.2.2 + 1) * ((encNat i.2.2).length + 1)) := by
   refine (((fin_inO.comp mid_inO).mono 8 (fun i => ?_) fun i => ?_).of_enc_eq
-    fun i => ?_)
-  rotate_left 2
-  · rw [extract_initWin]
-    rfl
+    fun i => congrArg (fun c => eProb (i.1, i.2.2, c)) (extract_initWin i.1 i.2.1 i.2.2))
   all_goals
     have h₁ := length_encList_recode i.2.1
     have h₂ := length_le_length_encList encUnary i.2.1

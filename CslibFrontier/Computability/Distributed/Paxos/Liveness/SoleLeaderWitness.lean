@@ -77,22 +77,19 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
   have hbelow : BallotsBelow s₀ b := by
     refine ⟨fun m hm => (Ballot.lt_iff _ _).mpr (Or.inl ?_),
       fun a mb hmb => (Ballot.lt_iff _ _).mpr (Or.inl ?_)⟩
-    · have hle1 := Finset.le_sup (f := fun m : Msg Proposer Acceptor V => m.ballot.round + 1) hm
-      have hle2 : msgBound ≤ r := (le_max_left msgBound accBound).trans (le_max_right _ _)
-      exact Nat.lt_of_succ_le (hle1.trans hle2)
-    · have hle1 : mb.round + 1 ≤ accBound := by
-        have hsup := Finset.le_sup (s := Finset.univ)
-          (f := fun a' : Acceptor => match (s₀.acceptors a').maxBal with
-            | none => 0 | some mb' => mb'.round + 1) (Finset.mem_univ a)
-        simpa only [hmb] using hsup
-      have hle2 : accBound ≤ r := (le_max_right msgBound accBound).trans (le_max_right _ _)
-      exact Nat.lt_of_succ_le (hle1.trans hle2)
+    · exact Nat.lt_of_succ_le ((Finset.le_sup (f := fun m : Msg Proposer Acceptor V =>
+        m.ballot.round + 1) hm).trans (le_max_of_le_right (le_max_left _ _)))
+    · have hsup := Finset.le_sup (s := Finset.univ) (f := fun a' : Acceptor =>
+        match (s₀.acceptors a').maxBal with | none => 0 | some mb' => mb'.round + 1)
+        (Finset.mem_univ a)
+      simp only [hmb] at hsup
+      exact Nat.lt_of_succ_le (hsup.trans (le_max_of_le_right (le_max_right _ _)))
   have hp_round_ok : match (s₀.proposers p).round with | none => True | some r₀ => r₀ < r := by
     cases hpr : (s₀.proposers p).round with
     | none => trivial
     | some r₀ =>
-      have hle : propBound ≤ r := le_max_left _ _
-      simpa only [propBound, hpr, Nat.succ_le_iff] using hle
+      simpa only [r, propBound, hpr, Nat.succ_le_iff] using
+        le_max_left propBound (max msgBound accBound)
   let s₁ := synodStep qs s₀ (.prepare p r)
   have htr_prep : (synodLts qs).Tr s₀ (.prepare p r) s₁ := ⟨⟨hp_live, hp_round_ok⟩, rfl⟩
   let ts : ωSequence (SynodState Proposer Acceptor Learner V) :=
@@ -106,8 +103,7 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
     induction c with
     | zero =>
       refine ⟨?_, hQ_live, hl_live⟩
-      dsimp only [ts, get_fun, soleLeaderStateSeq, s₁, synodStep, synodStepCore]
-      simp only [↓reduceIte, hp_live]
+      simp [ts, get_fun, soleLeaderStateSeq, s₁, synodStep, synodStepCore, hp_live]
     | succ c ih => exact (soleLeaderSweep_mTr qs ih.1 ih.2.1 ih.2.2 (b := b)).2
   have hts_mtr : ∀ c, (synodLts qs).MTr (ts c) (xls c) (ts (c + 1)) :=
     fun c => (soleLeaderSweep_mTr qs (hts_live c).1 (hts_live c).2.1 (hts_live c).2.2).1
@@ -137,13 +133,10 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
     induction n with
     | zero => exact ⟨hp_live, hQ_live, hl_live⟩
     | succ n ih =>
-      have hnd := hxs_nodel n
-      have hpres := synodStep_preserve_of_delivery (qs := qs) (w := ss n) (act := xs n)
-        hnd.1 hnd.2.1 hnd.2.2.1 hnd.2.2.2
+      obtain ⟨h1, h2, h3, h4⟩ := hxs_nodel n
+      obtain ⟨_, hp, ha, hl⟩ := synodStep_preserve_of_delivery (qs := qs) (w := ss n) h1 h2 h3 h4
       rw [(hexec n).2]
-      exact ⟨(hpres.2.1 p).trans ih.1,
-        fun a haQ => (hpres.2.2.1 a).trans (ih.2.1 a haQ),
-        (hpres.2.2.2 l).trans ih.2.2⟩
+      exact ⟨(hp p).trans ih.1, fun a haQ => (ha a).trans (ih.2.1 a haQ), (hl l).trans ih.2.2⟩
   have hmsgs_mono : ∀ {n j}, n ≤ j → (ss n).msgs ⊆ (ss j).msgs := by
     intro n j hle
     obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hle
@@ -158,10 +151,8 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
       m ∈ (ss n).msgs → act ∈ soleLeaderMsgActs b p Q l m →
       ∃ j, n ≤ j ∧ xs j = act := by
     intro n m act hm hact_m
-    have hts_m : m ∈ (ts n).msgs := by
-      have hsub := hmsgs_mono (Nat.le_succ_of_le ((cumLen_strictMono hpos).id_le n))
-      have hss_eq : ss (xls.cumLen n + 1) = ts n := hcum n
-      exact (hss_eq ▸ hsub) hm
+    have hts_m : m ∈ (ts n).msgs :=
+      (hcum n ▸ hmsgs_mono (Nat.le_succ_of_le ((cumLen_strictMono hpos).id_le n))) hm
     have hmem : act ∈ soleLeaderSweep b p Q l (ts n) :=
       List.mem_append_left _ (List.mem_flatMap.mpr ⟨m, Finset.mem_toList.mpr hts_m, hact_m⟩)
     obtain ⟨i, hi, hget⟩ := List.mem_iff_getElem.mp hmem
@@ -173,19 +164,13 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
       learner_live := fun n => (hss_inv n).2.2
       no_drop_ballot := fun n m hm => absurd hm ((hxs_nodel n).1 m)
       fair_phase1a := fun n hm a haQ =>
-        hex_fair n (.phase1a b) (.recvPhase1a a b) hm
-          (by simp only [soleLeaderMsgActs, ↓reduceIte]
-              exact List.mem_map_of_mem (Finset.mem_toList.mpr haQ))
+        hex_fair n (.phase1a b) (.recvPhase1a a b) hm (by simp [soleLeaderMsgActs, haQ])
       fair_phase1b := fun n a mv haQ hm =>
-        hex_fair n (.phase1b a b mv) (.recvPhase1b p a b mv) hm
-          (by simp only [soleLeaderMsgActs, true_and, haQ, ↓reduceIte, List.mem_singleton])
+        hex_fair n (.phase1b a b mv) (.recvPhase1b p a b mv) hm (by simp [soleLeaderMsgActs, haQ])
       fair_phase2a := fun n v hm a haQ =>
-        hex_fair n (.phase2a b v) (.recvPhase2a a b v) hm
-          (by simp only [soleLeaderMsgActs, ↓reduceIte]
-              exact List.mem_map_of_mem (Finset.mem_toList.mpr haQ))
+        hex_fair n (.phase2a b v) (.recvPhase2a a b v) hm (by simp [soleLeaderMsgActs, haQ])
       fair_phase2b := fun n a v haQ hm =>
-        hex_fair n (.phase2b a b v) (.recvPhase2b l a b v) hm
-          (by simp only [soleLeaderMsgActs, true_and, haQ, ↓reduceIte, List.mem_singleton]) }
+        hex_fair n (.phase2b a b v) (.recvPhase2b l a b v) hm (by simp [soleLeaderMsgActs, haQ]) }
   obtain ⟨k, v, hlearnedAt, hlearned⟩ :=
     paxos_liveness_of_sole_leader_crashStop qs hr₀ hexec hQ rfl hbelow hno_higher hlive
   exact ⟨r, ss, xs, k, v, rfl, hexec, rfl, hbelow, hno_higher, hlive, hlearnedAt, hlearned⟩

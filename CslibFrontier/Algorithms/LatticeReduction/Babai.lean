@@ -104,10 +104,7 @@ theorem nearestPlaneAux_spec {G : Vector (Vector ℚ m) n} {B : Vector (Vector �
     set c : ℤ := round (projCoeff (fun l : Fin m => G[k][l]) (fun l : Fin m => (r[l] : ℚ)))
       with hc
     set r1 : Vector ℤ m := Vector.ofFn fun l => r[l] - c * B[k][l] with hr1
-    have hstep : nearestPlaneAux G B (k + 1) r = nearestPlaneAux G B k r1 := by
-      simp only [nearestPlaneAux, hkn, dite_true]
-      rfl
-    rw [hstep]
+    rw [show nearestPlaneAux G B (k + 1) r = nearestPlaneAux G B k r1 from dite_eq_left hkn]
     obtain ⟨e, he, hsum, hbound⟩ := ih r1 hkn.le
     have hr1' : r.get - r1.get = c • rows B kk := by
       funext l
@@ -152,18 +149,13 @@ theorem nearestPlaneAux_spec {G : Vector (Vector ℚ m) n} {B : Vector (Vector �
         rfl
       rw [hRout, inner_sub_right, hin1, sub_zero, hRr1, inner_sub_right, hin2]
       -- the rounding step
-      have hcast : ((projCoeff (fun l : Fin m => G[k][l]) (fun l : Fin m => (r[l] : ℚ)) : ℚ) : ℝ) =
-          inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2 := by
-        have hGk : ratToEuclidean (fun l : Fin m => G[k][l]) = g := hG.ratToEuclidean_eq kk
-        rw [cast_projCoeff, hGk, intToEuclidean_eq_ratToEuclidean]
-        rfl
-      have hround : (c : ℝ) = round (inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2) := by
-        rw [hc, ← hcast, Rat.round_cast]
       rcases eq_or_ne g 0 with h0 | h0
       · simp [h0]
       have hN : 0 < ‖g‖ ^ 2 := by positivity
-      have hr : |inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2 - c| ≤ 1 / 2 :=
-        hround ▸ abs_sub_round _
+      have hr : |inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2 - c| ≤ 1 / 2 := by
+        rw [hc, ← Rat.round_cast (α := ℝ), cast_projCoeff]
+        erw [hG.ratToEuclidean_eq kk, ← intToEuclidean_eq_ratToEuclidean r.get]
+        exact abs_sub_round _
       calc |inner ℝ g (intToEuclidean r.get) - c * ‖g‖ ^ 2|
           = |(inner ℝ g (intToEuclidean r.get) / ‖g‖ ^ 2 - c) * ‖g‖ ^ 2| := by
             rw [sub_mul, div_mul_cancel₀ _ hN.ne']
@@ -196,9 +188,7 @@ target and output embedded in `ℝᵐ`. -/
 theorem isNearestPlane_nearestPlane (B : Vector (Vector ℤ m) n) (t : Vector ℤ m) :
     IsNearestPlane (realRows B) (intToEuclidean t.get) (intToEuclidean (nearestPlane B t).get) := by
   obtain ⟨e, he, hbound⟩ := nearestPlane_spec B t
-  refine ⟨mem_span_realRows_of_eq_sum he, fun j => ?_⟩
-  rw [← map_sub]
-  exact hbound j
+  exact ⟨mem_span_realRows_of_eq_sum he, fun j => map_sub intToEuclidean t.get _ ▸ hbound j⟩
 
 /-- The output of `babai` lies in the lattice spanned by the rows of `B`. -/
 theorem babai_mem_span (B : Vector (Vector ℤ m) n) (t : Vector ℤ m) :

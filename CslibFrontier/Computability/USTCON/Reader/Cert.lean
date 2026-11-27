@@ -395,23 +395,17 @@ private theorem stepT_inSpace : ComputableInSpace stepT encStepIn (encPair encTu
   apply congrArg (encPair encTuple encBits)
   cases ctl
   case eval =>
-    by_cases hfr : fr = []
-    · simp [stepT, step, State.ofTuple, State.toTuple, hfr]
-    · have he := evalStepT_eq n b ⟨v, low, fr⟩
-      simp only at he
-      simp [stepT, step, State.ofTuple, State.toTuple, hfr, he]
+    by_cases hfr : fr = [] <;>
+      simp [stepT, step, State.ofTuple, State.toTuple, hfr, evalStepT_eq n b ⟨v, low, fr⟩]
   case size => by_cases h : cnt = 0 <;> simp [stepT, step, State.ofTuple, State.toTuple, h]
   case fill => by_cases h : low.length = d <;> simp [stepT, step, State.ofTuple, State.toTuple, h]
   case next =>
     by_cases h : j = 0 <;> simp [stepT, step, State.ofTuple, State.toTuple, h, labelOfNat]
   case check =>
     obtain ⟨v₁, v₂⟩ := v
-    by_cases hw : w = 0
-    · by_cases hv : v₁ = t
-      · subst hv
-        simp [stepT, step, State.ofTuple, State.toTuple, hw]
-      · simp [stepT, step, State.ofTuple, State.toTuple, hw, hv]
-    · simp [stepT, step, State.ofTuple, State.toTuple, hw]
+    by_cases hw : w = 0 <;>
+      by_cases hv : v₁ = t <;>
+      simp [stepT, step, State.ofTuple, State.toTuple, hw, hv]
   all_goals cases b <;> simp [stepT, step, State.ofTuple, State.toTuple]
 
 /-! ### On states -/

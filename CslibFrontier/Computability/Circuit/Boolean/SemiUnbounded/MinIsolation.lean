@@ -97,25 +97,15 @@ theorem seededGateWeight_lt_pow (C : LayeredSemiUnboundedCircuit G) (code : G �
     (seed : Fin ℓ → Bool) (g : G) :
     C.seededGateWeight code seed g < 6 ^ (C.andLevel g + ℓ) := by
   unfold seededGateWeight
-  cases C.kind g with
-  | leaf _ | or => positivity
-  | and _ => exact levelWeight_lt_pow (C.andLevel g) (code g) seed
+  cases C.kind g <;> first | positivity | exact levelWeight_lt_pow _ _ _
 
 /-- The seeded weight of a proof tree equals the `multisetWeight` of its AND-gate occurrences. -/
 theorem ProofTree.weight_seededGateWeight {C : LayeredSemiUnboundedCircuit G}
     (code : G → Fin ℓ → Bool) (seed : Fin ℓ → Bool) {g : G} (t : ProofTree C g) :
     t.weight (C.seededGateWeight code seed) =
       multisetWeight C.andLevel code seed (t.andNodes : Multiset G) := by
-  induction t with
-  | leaf hkind =>
-    simp [ProofTree.weight, ProofTree.andNodes, seededGateWeight, hkind]
-  | andUnary hkind sub ih =>
-    simp [ProofTree.weight, ProofTree.andNodes, seededGateWeight, hkind, ih, ← Multiset.cons_coe]
-  | andBinary hkind left right ihl ihr =>
-    simp [ProofTree.weight, ProofTree.andNodes, seededGateWeight, hkind, ihl, ihr,
-      ← Multiset.cons_coe, ← Multiset.coe_add, Nat.add_assoc]
-  | orChoice hkind _ sub ih =>
-    simp [ProofTree.weight, ProofTree.andNodes, seededGateWeight, hkind, ih]
+  induction t <;> simp [ProofTree.weight, ProofTree.andNodes, seededGateWeight, *,
+    ← Multiset.cons_coe, ← Multiset.coe_add, Nat.add_assoc]
 
 open Classical in
 /-- The finite set of all proof trees of a gate in a finite circuit. -/
@@ -154,9 +144,8 @@ theorem minProofTreeWeight_eq_of_isMinOn [Finite G] (C : LayeredSemiUnboundedCir
     (ht : IsMinOn (ProofTree.weight (C.seededGateWeight code seed)) Set.univ t) :
     C.minProofTreeWeight code seed hg = t.weight (C.seededGateWeight code seed) := by
   classical
-  obtain ⟨t', -, ht'⟩ := mem_image.mp (min'_mem
-    ((C.proofTreeFinset g).image fun q => q.weight (C.seededGateWeight code seed))
-    ((C.proofTreeFinset_nonempty hg).image _))
+  obtain ⟨t', -, ht'⟩ := mem_image.mp (min'_mem _
+    ((C.proofTreeFinset_nonempty hg).image fun q => q.weight (C.seededGateWeight code seed)))
   exact le_antisymm (C.minProofTreeWeight_le code seed hg t) (by
     rw [minProofTreeWeight, ← ht']
     exact isMinOn_univ_iff.mp ht t')
@@ -178,13 +167,9 @@ theorem minProofTreeWeight_update_bounds [Finite G] (C : LayeredSemiUnboundedCir
     (C.proofTreeFinset_nonempty hu) (m := C.andLevel u) (c := code u) seed j fun t _ => ?_
   obtain ⟨rest, hnodes, hlt, hcard⟩ := t.andNodes_and_profile hnorm hkind
   rw [t.weight_seededGateWeight, t.weight_seededGateWeight, hnodes]
-  refine multisetWeight_update_bounds C.andLevel code seed u (rest : Multiset G) rfl
-    (fun x hx => hlt x (Multiset.mem_coe.mp hx)) (fun k hk => ?_) j
-  have hlen : ((rest : Multiset G).filter fun x => C.andLevel x = k).card =
-      (rest.filter fun x => decide (C.andLevel x = k)).length := by
-    rw [Multiset.filter_coe, Multiset.coe_card]
-  rw [hlen]
-  exact hcard k hk
+  exact multisetWeight_update_bounds C.andLevel code seed u (rest : Multiset G) rfl
+    (fun x hx => hlt x (Multiset.mem_coe.mp hx))
+    (fun k hk => by simpa only [Multiset.filter_coe, Multiset.coe_card] using hcard k hk) j
 
 /-- Collision bound: for two satisfied AND gates `u` and `v` in the same layer of a normal-form
 circuit, at most `2 ^ (ℓ - hammingDist (code u) (code v))` seeds tie their minimum proof-tree
@@ -196,15 +181,14 @@ theorem card_tyingSeeds_le [Finite G] (C : LayeredSemiUnboundedCircuit G)
     (hlayer : C.layer u = C.layer v) (hu : C.Eval u) (hv : C.Eval v) :
     (univ.filter fun seed =>
       C.minProofTreeWeight code seed hu = C.minProofTreeWeight code seed hv).card ≤
-      2 ^ (ℓ - hammingDist (code u) (code v)) := by
-  have hlevel : C.andLevel u = C.andLevel v := by simp only [andLevel, hlayer]
-  refine card_tyingSeeds_le_of_update_bounds
+      2 ^ (ℓ - hammingDist (code u) (code v)) :=
+  card_tyingSeeds_le_of_update_bounds
     (fun seed => C.minProofTreeWeight code seed hu)
     (fun seed => C.minProofTreeWeight code seed hv)
-    (m := C.andLevel u)
     (fun seed j => C.minProofTreeWeight_update_bounds hnorm code seed hku hu j)
-    (fun seed j => ?_)
-  simpa only [← hlevel] using C.minProofTreeWeight_update_bounds hnorm code seed hkv hv j
+    fun seed j => by
+      simpa only [andLevel, hlayer] using
+        C.minProofTreeWeight_update_bounds hnorm code seed hkv hv j
 
 open Classical in
 /-- Union bound over bad seeds: if distinct AND gates in the same layer have Hamming distance
@@ -221,46 +205,37 @@ theorem card_nonisolatingSeeds_le [Fintype G] (C : LayeredSemiUnboundedCircuit G
       univ.filter fun seed =>
         C.minProofTreeWeight code seed h.2.2.2.1 = C.minProofTreeWeight code seed h.2.2.2.2
     else ∅
-  have hevent (p : G × G) : (events p).card ≤ 2 ^ (ℓ - d) := by
-    obtain ⟨u, v⟩ := p
-    by_cases ht : Odd (C.layer u) ∧ C.layer u = C.layer v ∧ u ≠ v ∧ C.Eval u ∧ C.Eval v
-    · dsimp only [events]
-      rw [dite_eq_left ht]
-      obtain ⟨inpu, hku⟩ := hnorm.and_of_odd ht.1
+  have hevent : ∀ p : G × G, (events p).card ≤ 2 ^ (ℓ - d) := fun ⟨u, v⟩ => by
+    dsimp only [events]
+    split_ifs with ht
+    · obtain ⟨inpu, hku⟩ := hnorm.and_of_odd ht.1
       obtain ⟨inpv, hkv⟩ := hnorm.and_of_odd (ht.2.1 ▸ ht.1)
-      refine (C.card_tyingSeeds_le hnorm code hku hkv ht.2.1 ht.2.2.2.1 ht.2.2.2.2).trans ?_
-      exact Nat.pow_le_pow_right (by decide)
-        (Nat.sub_le_sub_left (hd u v ht.1 ht.2.1 ht.2.2.1) ℓ)
-    · simp [events, ht]
+      exact (C.card_tyingSeeds_le hnorm code hku hkv ht.2.1 ht.2.2.2.1 ht.2.2.2.2).trans
+        (Nat.pow_le_pow_right (by decide) (Nat.sub_le_sub_left (hd u v ht.1 ht.2.1 ht.2.2.1) ℓ))
+    · simp
   have hcover : (univ.filter fun seed => ¬C.IsMinIsolating (C.seededGateWeight code seed)) ⊆
-      univ.biUnion events := by
-    intro seed hseed
+      univ.biUnion events := fun seed hseed => by
     by_contra hout
-    apply (mem_filter.mp hseed).2
-    apply C.isMinIsolating_of_separated (C.seededGateWeight code seed)
-    intro g hgor u v hcu hcv hne tu tv htu htv heq
-    obtain ⟨hoddu, _⟩ := hnorm.and_of_orChild hgor hcu
-    have hlu := C.layer_orChild hgor hcu
-    have hlv := C.layer_orChild hgor hcv
-    have hlayer : C.layer u = C.layer v := by omega
+    refine (mem_filter.mp hseed).2 (C.isMinIsolating_of_separated _ fun g hgor u v hcu hcv hne
+      tu tv htu htv heq => ?_)
+    have hlayer : C.layer u = C.layer v := by
+      have := C.layer_orChild hgor hcu
+      have := C.layer_orChild hgor hcv
+      omega
     have heu : C.Eval u := (C.eval_iff_nonempty_proofTree u).mpr ⟨tu⟩
     have hev : C.Eval v := (C.eval_iff_nonempty_proofTree v).mpr ⟨tv⟩
     have ht : Odd (C.layer u) ∧ C.layer u = C.layer v ∧ u ≠ v ∧ C.Eval u ∧ C.Eval v :=
-      ⟨hoddu, hlayer, hne, heu, hev⟩
-    have hminEq : C.minProofTreeWeight code seed heu = C.minProofTreeWeight code seed hev := by
-      rw [C.minProofTreeWeight_eq_of_isMinOn code seed heu htu,
-        C.minProofTreeWeight_eq_of_isMinOn code seed hev htv, heq]
-    apply hout
-    refine mem_biUnion.mpr ⟨(u, v), mem_univ _, ?_⟩
-    simp only [events, dite_eq_left ht]
-    exact mem_filter.mpr ⟨mem_univ _, hminEq⟩
+      ⟨(hnorm.and_of_orChild hgor hcu).1, hlayer, hne, heu, hev⟩
+    refine hout (mem_biUnion.mpr ⟨(u, v), mem_univ _, ?_⟩)
+    simp only [events, dite_eq_left ht, mem_filter, mem_univ, true_and]
+    rw [C.minProofTreeWeight_eq_of_isMinOn code seed heu htu,
+      C.minProofTreeWeight_eq_of_isMinOn code seed hev htv, heq]
   calc
     _ ≤ (univ.biUnion events).card := card_le_card hcover
     _ ≤ ∑ p : G × G, (events p).card := card_biUnion_le
     _ ≤ ∑ _ : G × G, 2 ^ (ℓ - d) := sum_le_sum fun p _ => hevent p
     _ = Fintype.card G ^ 2 * 2 ^ (ℓ - d) := by
-      simp only [sum_const, card_univ, Fintype.card_prod, smul_eq_mul]
-      ring
+      simp only [sum_const, card_univ, Fintype.card_prod, smul_eq_mul]; ring
 
 /-- A seed min-isolates every true gate of a normal-form circuit whenever the union bound is
 strictly smaller than the seed space `2 ^ ℓ`. -/
@@ -271,10 +246,8 @@ theorem exists_minIsolating_seed [Fintype G] (C : LayeredSemiUnboundedCircuit G)
     (hsize : Fintype.card G ^ 2 * 2 ^ (ℓ - d) < 2 ^ ℓ) :
     ∃ seed, C.IsMinIsolating (C.seededGateWeight code seed) := by
   classical
-  by_contra hne
-  have h := (C.card_nonisolatingSeeds_le hnorm code hd).trans_lt hsize
-  simp only [not_exists] at hne
-  simp [hne] at h
+  by_contra! hne
+  simpa [hne] using (C.card_nonisolatingSeeds_le hnorm code hd).trans_lt hsize
 
 section Justesen
 
@@ -291,27 +264,19 @@ theorem exists_generatedGateWeight_isMinIsolating {N : ℕ}
     (C : LayeredSemiUnboundedCircuit (Fin N)) (hnorm : C.InNormalForm) :
     ∃ seed, C.IsMinIsolating (C.generatedGateWeight seed) := by
   let d := 4 * (Nat.log 2 N + 1)
-  have hd : d ≤ codeLength N 0 := by
-    have h := (codeLength_bounds N 0).1
-    simp only [Nat.zero_add, Nat.mul_one] at h
-    dsimp [d]
-    omega
-  have hbase : N < 2 ^ (Nat.log 2 N + 1) := Nat.lt_pow_succ_log_self (by decide) N
-  have hbound : N ^ 2 < 2 ^ d := by
-    calc
-      N ^ 2 < (2 ^ (Nat.log 2 N + 1)) ^ 2 := Nat.pow_lt_pow_left hbase (by decide)
-      _ = 2 ^ (2 * (Nat.log 2 N + 1)) := by rw [← pow_mul, Nat.mul_comm]
-      _ ≤ 2 ^ d := Nat.pow_le_pow_right (by decide) (by dsimp [d]; omega)
-  have hsize : Fintype.card (Fin N) ^ 2 * 2 ^ (codeLength N 0 - d) < 2 ^ codeLength N 0 := by
-    rw [Fintype.card_fin]
-    calc
-      _ < 2 ^ d * 2 ^ (codeLength N 0 - d) :=
-        Nat.mul_lt_mul_of_pos_right hbound (by positivity)
-      _ = _ := by rw [← pow_add, Nat.add_sub_of_le hd]
-  exact C.exists_minIsolating_seed hnorm (indexedCodeword (n := 0))
-    (fun _ _ _ _ hne => by
-      simpa only [Nat.zero_add, Nat.mul_one] using log_le_hammingDist_indexedCodeword (n := 0) hne)
-    hsize
+  have hd : d ≤ codeLength N 0 :=
+    (Nat.mul_le_mul_right _ (by decide : 4 ≤ 512)).trans
+      (by simpa using (codeLength_bounds N 0).1)
+  have hbound : N ^ 2 < 2 ^ d := calc
+    N ^ 2 < (2 ^ (Nat.log 2 N + 1)) ^ 2 :=
+      Nat.pow_lt_pow_left (Nat.lt_pow_succ_log_self (by decide) N) (by decide)
+    _ = 2 ^ ((Nat.log 2 N + 1) * 2) := (pow_mul _ _ _).symm
+    _ ≤ 2 ^ d := Nat.pow_le_pow_right Nat.zero_lt_two (by dsimp [d]; omega)
+  refine C.exists_minIsolating_seed hnorm (indexedCodeword (n := 0))
+    (fun _ _ _ _ hne => by simpa using log_le_hammingDist_indexedCodeword (n := 0) hne) ?_
+  rw [Fintype.card_fin]
+  conv_rhs => rw [← Nat.add_sub_of_le hd, pow_add]
+  exact Nat.mul_lt_mul_of_pos_right hbound (Nat.two_pow_pos _)
 
 /-- Seed-independent upper bound `6 ^ (maxAndLevel + codeLength gateCount 0)` on generated gate
 weights for circuits of size `gateCount` and maximum AND-level `maxAndLevel`. -/
@@ -341,25 +306,18 @@ theorem generatedGateWeightBound_le_poly (c : ℕ) :
       generatedGateWeightBound N maxAndLevel ≤ (2 * (N + 1)) ^ D := by
   refine ⟨3 * (c + 268435456), fun N maxAndLevel hdepth => ?_⟩
   let L := Nat.log 2 N + 1
-  have hdepth' : maxAndLevel ≤ c * L := hdepth
-  have hlen : codeLength N 0 ≤ 268435456 * L := by
-    have h := (codeLength_bounds N 0).2
-    simpa only [Nat.zero_add, Nat.mul_one] using h
+  have hlen : codeLength N 0 ≤ 268435456 * L := by simpa using (codeLength_bounds N 0).2
   have hexp : maxAndLevel + codeLength N 0 ≤ (c + 268435456) * L := by
-    have : (c + 268435456) * L = c * L + 268435456 * L := Nat.add_mul c 268435456 L
-    omega
+    rw [Nat.add_mul]
+    exact Nat.add_le_add hdepth hlen
   have hpow : 2 ^ L ≤ 2 * (N + 1) := by
-    rw [show L = Nat.log 2 N + 1 from rfl, pow_succ']
-    exact Nat.mul_le_mul_left _ (Nat.pow_log_le_add_one 2 N)
+    simpa only [L, pow_succ'] using Nat.mul_le_mul_left 2 (Nat.pow_log_le_add_one 2 N)
   calc
     generatedGateWeightBound N maxAndLevel
-        ≤ 6 ^ ((c + 268435456) * L) := Nat.pow_le_pow_right (by decide) hexp
-    _ ≤ (2 ^ 3) ^ ((c + 268435456) * L) := Nat.pow_le_pow_left (by decide) _
-    _ = (2 ^ L) ^ (3 * (c + 268435456)) := by
-      have hab : 3 * ((c + 268435456) * L) = L * (3 * (c + 268435456)) := by ac_rfl
-      rw [← pow_mul, ← pow_mul, hab]
-    _ ≤ (2 * (N + 1)) ^ (3 * (c + 268435456)) :=
-      Nat.pow_le_pow_left hpow _
+        ≤ (2 ^ 3) ^ ((c + 268435456) * L) :=
+          (Nat.pow_le_pow_right (by decide) hexp).trans (Nat.pow_le_pow_left (by decide) _)
+    _ = (2 ^ L) ^ (3 * (c + 268435456)) := by rw [← pow_mul, ← pow_mul]; ring_nf
+    _ ≤ (2 * (N + 1)) ^ (3 * (c + 268435456)) := Nat.pow_le_pow_left hpow _
 
 /-- For circuits of logarithmic AND-depth (`C.andLevel g ≤ c * (Nat.log 2 N + 1)`), one
 polynomial in `N` bounds every Justesen-generated gate weight uniformly across all circuit sizes
