@@ -56,7 +56,7 @@ oracle and is correct against every oracle language answering the bits of `g`. H
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, 2007 draft][AroraBarak07]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 
