@@ -128,7 +128,7 @@ private theorem iterate_bumpIndex {σ : Type} (p : σ × ℕ) (i : ℕ) :
 /-- Stream the outputs of a binary-indexed computation on consecutive inputs. The initial state
 contains its fixed parameter and starting index in binary. Only the round count is in unary.
 The output can be longer than the working space of the emission procedure. -/
-theorem ComputableInTimeAndSpace.flatMap_range_binaryIndex {σ : Type} {enc : σ ↪ List Bool}
+private theorem ComputableInTimeAndSpace.flatMap_range_binaryIndex {σ : Type} {enc : σ ↪ List Bool}
     {emit : σ × ℕ → List Bool} {t : σ × ℕ → ℕ} {c : ℕ}
     (he : ComputableInTimeAndSpace emit (encPair enc encNat) encBits t
       (fun p => c * ((encPair enc encNat p).length + 1))) :
@@ -188,18 +188,16 @@ theorem ComputableInLogSpace.flatMap_range {α σ : Type} {encIn : α ↪ List B
   have hpf : ComputableInLogSpace params encIn enc := ⟨tp, cp, hp⟩
   have hargs := ComputableInLogSpace.pair (ComputableInLogSpace.pair hpf
     (ComputableInLogSpace.const (encMid := encNat) 0)) hr
-  obtain ⟨A, D, hcount⟩ := hr.polyBounded_length.exists_le
+  obtain ⟨_, cr, _, hb⟩ := hr.unaryToBinary_inSpace
   obtain ⟨u, C, hu⟩ := he.flatMap_range_binaryIndex
-  have hb : ∀ a, (encNat (count a)).length ≤ (Nat.size A + 2 * D + 1) *
-      (Nat.log2 (encIn a).length + 1) := fun a => length_encNat_le_of_le_mul_pow
-        (by simpa only [encUnary_apply, List.length_replicate] using hcount a)
-  have h := hargs.comp_of_workSpace hu ⟨C * (cp + (Nat.size A + 2 * D + 1) + 1), fun a => by
+  have h := hargs.comp_of_workSpace hu ⟨C * (cp + cr + 1), fun a => by
     dsimp only
     rw [Nat.zero_add, Nat.mul_assoc]
     apply Nat.mul_le_mul_left
     have h₁ := hplen a
     dsimp only at h₁
     have h₂ := hb a
+    dsimp only at h₂
     rw [Nat.add_mul, Nat.add_mul, Nat.one_mul]
     omega⟩
   exact h.congr_fun fun _ => by simp
