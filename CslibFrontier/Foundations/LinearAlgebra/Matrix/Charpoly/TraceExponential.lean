@@ -38,7 +38,9 @@ open scoped BigOperators
 
 variable {R ι : Type*} [CommRing R] [Fintype ι] [DecidableEq ι]
 
-private theorem derivative_det_adjugate (M : Matrix ι ι R[X]) :
+/-- **Jacobi's formula** for a matrix of polynomials:
+`(det M)' = tr (adj M * M')`, with `M'` the entrywise derivative. -/
+theorem derivative_det_adjugate (M : Matrix ι ι R[X]) :
     derivative M.det = (M.adjugate * M.map derivative).trace := by
   classical
   rw [id (α := derivative M.det = ∑ i, (M.updateCol i (fun j => derivative (M j i))).det)

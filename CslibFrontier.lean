@@ -4272,6 +4272,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Step
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import CslibFrontier.Crypto.Computational.Encryption.PublicKeyReplacement
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label
+public import CslibFrontier.Algorithms.LinearAlgebra.FrequencyCertificate
 public import CslibFrontier.Crypto.Primitives.PRF.MultiKey
 public import CslibFrontier.Foundations.Data.Set.Card
 public import CslibFrontier.Foundations.Data.StackTape
@@ -10347,6 +10348,7 @@ public import CslibFrontier.Probability.DDGTree.Digits
 public import CslibFrontier.Algorithms.Lean.SteinerTree.Graph
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalEmissionFrame
 public import CslibFrontier.Computability.QueryComplexity.AdjacentPair.Balanced
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.IntervalSign
 public import CslibFrontier.Crypto.Computational.Encryption.PolyTime
 public import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Insert
