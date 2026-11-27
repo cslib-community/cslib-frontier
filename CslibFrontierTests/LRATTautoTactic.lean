@@ -672,6 +672,14 @@ example (a b : ℕ) (h : a ≠ b) (h' : b = a ∨ a < b) : a < b := by
 example {α β : Type} (a : α) (b : β) (p : Prop) : (HEq a b → p) → HEq b a → p := by
   lrat_tauto
 
+/-- The identity on `ℕ`, which unfolds at reducible transparency. -/
+private abbrev swapTestId (n : ℕ) : ℕ := n
+
+/-- `b = a` is read as the atom `a = swapTestId b`, whose swap it equals only after unfolding
+`swapTestId`; the kernel checks the proof up to that unfolding. -/
+example (p : Prop) (a b : ℕ) : (a = swapTestId b → p) → b = a → p := by
+  lrat_tauto
+
 -- A goal false under independent atoms is still refuted: `a = b` is the atom `b = a`, so the
 -- assignment has two atoms.
 /--

@@ -343,12 +343,12 @@ and the proof `eq_comm` (`HEq.comm` for `HEq b a`). -/
 private partial def Shape.iffGoal : Shape → MetaM (Expr × Expr × Expr)
   | .atom _ e => return (e, e, mkApp (mkConst ``Iff.refl) e)
   | .swapped _ e => do
-    let some x := swapEq? e | throwError "lrat_tauto: {e} is not an equation"
-    let pf ← match e.getAppFnArgs with
-      | (``Eq, #[α, b, a]) => mkAppOptM ``eq_comm #[α, a, b]
-      | (``HEq, #[β, b, α, a]) => mkAppOptM ``HEq.comm #[α, β, a, b]
-      | _ => throwError "lrat_tauto: {e} is not an equation"
-    return (x, e, pf)
+    let us := e.getAppFn.constLevels!
+    match e.getAppFnArgs with
+    | (``Eq, #[α, b, a]) => return (mkApp3 e.getAppFn α a b, e, mkApp3 (.const ``eq_comm us) α a b)
+    | (``HEq, #[β, b, α, a]) =>
+      return (mkApp4 e.getAppFn α a β b, e, mkApp4 (.const ``HEq.comm us) α β a b)
+    | _ => throwError "lrat_tauto: {e} is not an equation"
   | .falsum =>
     return (mkConst ``False, mkConst ``False, mkApp (mkConst ``Iff.refl) (mkConst ``False))
   | .verum => do

@@ -926,10 +926,8 @@ private theorem effective_cut_le {lam B_sup : ℝ} (hlam0 : 0 ≤ lam) (hlam1 : 
             (hg₂ : g ∉ (graph c).edgeCut (D.pastVerts t)) : g ∈ (graph c).edgeCut T_part := by
           rw [hpast_eq] at hg₂
           simp only [Multigraph.mem_edgeCut, mem_union, not_not] at hg₁ hg₂ ⊢
-          lrat_tauto [(fun h => disjoint_left.mp hT_disj h :
-              (graph c).src g ∈ D.Q.blockOf ⁻¹' P_s → (graph c).src g ∉ T_part),
-            (fun h => disjoint_left.mp hT_disj h :
-              (graph c).tgt g ∈ D.Q.blockOf ⁻¹' P_s → (graph c).tgt g ∉ T_part)]
+          lrat_tauto [(disjoint_left.mp hT_disj) (a := (graph c).src g),
+            (disjoint_left.mp hT_disj) (a := (graph c).tgt g)]
         by_cases hB_t : (D.pinB e).1 ∈ (graph c).edgeCut (D.pastVerts t)
         · have hD_not : (D.pinD e).1 ∉ (graph c).edgeCut (D.pastVerts t) :=
             fun hD_t => hnot ⟨hinr_t, hB_t, hD_t⟩
@@ -1472,10 +1470,8 @@ private theorem ncard_edges_step_le [Finite ι] (hdeg : (graph c).MaxDegreeLE 3)
       rw [hun] at hg₁
       simp only [Multigraph.mem_edgeCut, mem_union, not_not] at hg₀ hg₁
       simp only [E_touch, Multigraph.mem_edgeCut]
-      lrat_tauto [(fun h => disjoint_left.mp hdisj h :
-          (graph c).src g ∈ D.nodeVerts x → (graph c).src g ∉ D.pastVerts t),
-        (fun h => disjoint_left.mp hdisj h :
-          (graph c).tgt g ∈ D.nodeVerts x → (graph c).tgt g ∉ D.pastVerts t)]
+      lrat_tauto [(disjoint_left.mp hdisj) (a := (graph c).src g),
+        (disjoint_left.mp hdisj) (a := (graph c).tgt g)]
     have hwit : ∀ e ∈ A_lost, ∃ g ∈ E_touch, g ∈ ({(D.pinB e).1, (D.pinD e).1} : Set (Edge c)) := by
       rintro e ⟨he_t, he_not⟩
       have hinr_1 : .inr e ∈ D.stepLayout.initial (t + 1) :=
