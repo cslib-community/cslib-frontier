@@ -45,17 +45,19 @@ challenges. Coefficients outside the sumcheck namespace retain the chosen backgr
 theorem exists_proof_of_satisfiable {Q L p d : ℕ} [Fact p.Prime]
     (c : Circuit signature Q (3 * (L + 1))) (h : (SuccinctVerifier.toCNF c).Satisfiable)
     (hd : 1 + 3 * c.size + 3 * (L + 1) ≤ d)
-    (other : MvPolynomial (Fin L) (ZMod p) → List Bool → ℕ) :
-    ∃ A ∈ restrictDegree (Fin L) (ZMod p) 1, ∃ π : List Bool → Bool,
+    (other : (A : MvPolynomial (Fin L) (ZMod p)) →
+      A ∈ restrictDegree (Fin L) (ZMod p) 1 → List Bool → ℕ) :
+    ∃ (A : MvPolynomial (Fin L) (ZMod p)) (hA : A ∈ restrictDegree (Fin L) (ZMod p) 1),
+      ∃ π : List Bool → Bool,
       (∀ r z : Fin (Q + c.size) → ZMod p, ∀ w, p ≤ 2 ^ w →
         let s := transcript π p (List.ofFn fun j => (r j).val) d w (List.ofFn fun j => (z j).val)
         s.ok = true ∧ (s.claim : ZMod p) = eval z (tableauConstraintPoly c A r)) ∧
       ∀ key w, key.take 3 ≠ [true, true, false] →
-        ProofWord.value π key w = other A key % 2 ^ w := by
+        ProofWord.value π key w = other A hA key % 2 ^ w := by
   obtain ⟨A, hA, hsum⟩ := sumcheck_proof_complete_of_satisfiable (F := ZMod p) c h hd
   let point (ext : List ℕ) (j : Fin (Q + c.size)) : ZMod p := ext.getD j 0
   let P (ext : List ℕ) := tableauConstraintPoly c A (point ext)
-  obtain ⟨π, hπ, hrest⟩ := exists_proof_transcript_complete P (other A)
+  obtain ⟨π, hπ, hrest⟩ := exists_proof_transcript_complete P (other A hA)
     (fun ext j => (tableauConstraintPoly_degreeOf_le c hA (point ext) j).trans hd)
   refine ⟨A, hA, π, ?_, hrest⟩
   intro r z w hw
