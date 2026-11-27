@@ -4193,6 +4193,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveSigningSimulation
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.SelectorNetwork
 public import CslibFrontier.Logics.Propositional.Algebraic.CNF.Counting
 public import CslibFrontier.MachineLearning.LossMinimization.RLM
+public import CslibFrontier.Computability.Complexity.AcceptCount.Majority
 public import CslibFrontier.Algorithms.WordRAM.AKS
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Layout
 public import CslibFrontier.Computability.Circuit.Rational.EncodingBounds
