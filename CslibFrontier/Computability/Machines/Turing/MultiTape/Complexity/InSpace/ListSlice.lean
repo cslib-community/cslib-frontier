@@ -133,18 +133,10 @@ theorem budget_natModTwoPow {α : Type} {encIn : α ↪ List Bool} {B : α → �
     {z d : α → ℕ} (hz : ComputableInSpace z encIn encNat B)
     (hd : ComputableInSpace d encIn encNat B) :
     ComputableInSpace (fun x => z x % 2 ^ d x) encIn encNat B := by
-  let c (x : α) := min (d x) (z x).size
   have hc := budget_natMin hd (budget_comp_linear natSize hz)
-  have hb : (fun x => (c x + 1) * (encNat 2).length + (encNat (c x)).length + 1) ≼
-      fun x => (encNat (z x)).length := by
-    apply BigOLe.of_le_linear 4 4
-    intro x
-    have ht : (encNat 2).length = 2 := rfl
-    have hl := length_encNat_le_self (c x)
-    have hm : c x ≤ (z x).size := min_le_right _ _
-    rw [ht, length_encNat_eq_size (z x)]
-    omega
-  have hp := budget_natPow_variable (budget_const (encB := encNat) 2) hc (hb.trans hz.length_le)
+  have hb : (fun x => min (d x) (z x).size) ≼ fun x => (encNat (z x)).length :=
+    .of_le fun x => (min_le_right ..).trans_eq (length_encNat_eq_size _).symm
+  have hp := budget_twoPow hc (hb.trans hz.length_le)
   refine (budget_natMod hz hp).of_enc_eq fun x => ?_
   rcases le_total (d x) (z x).size with h | h
   · rw [min_eq_left h]

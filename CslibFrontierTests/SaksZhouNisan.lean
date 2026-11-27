@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.SaksZhou
+import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.SaksZhou.DecisionSpace
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 meta import CslibFrontier.Probability.SaksZhou.Nisan
 import Mathlib.Tactic.NormNum
@@ -175,5 +175,18 @@ example :
   refine ⟨k, State, hfin, M, c, clk, fun a => ?_⟩
   obtain ⟨hs, _, _, _, hmem, hnot⟩ := h a
   exact ⟨hs, hmem, fun h₁ => by_contra fun h₂ => (hnot h₂).asymm h₁⟩
+
+-- An ID equal to the box width is the first invalid row, even when both requested indices agree.
+example {k : ℕ} {State : Type} [Fintype State] (M : Turing.MultiTapePTM k Bool State)
+    (c clk z : ℕ) (w : List Bool) :
+    let B := Turing.MultiTapeNTM.ConfigurationGraph.radix
+      (Turing.MultiTapeNTM.ConfigurationGraph.radixExponent State c) w.length
+    let N := Turing.MultiTapeNTM.ConfigurationGraph.vertexBound (k := k) B
+    Turing.MultiTapePTM.ConfigurationGraph.saksZhouEntryValue M c clk (⟨z, N, N⟩, w) = 0 := by
+  simp [Turing.MultiTapePTM.ConfigurationGraph.saksZhouEntryValue]
+
+-- Instantiate the deterministic class theorem on a nontrivial encoded graph language.
+example : USTCON ∈ DSPACE encUSTCON (fun n => Nat.log2 n * Nat.sqrt (Nat.log2 n)) :=
+  BPL_subset_DSPACE_log2_mul_sqrt (L_subset_BPL USTCON_mem_L)
 
 end CslibFrontierTests.SaksZhouNisan

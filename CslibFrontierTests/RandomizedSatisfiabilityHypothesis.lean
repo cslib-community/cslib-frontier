@@ -66,3 +66,22 @@ example (h : rSH) :
   rw [Nat.cast_zero, zero_add, one_mul]
   simpa only [id_eq, Real.rpow_one] using
     Real.rpow_le_rpow_of_exponent_le hbase (show (1 : ℝ) ≤ 1 + η from le_add_of_nonneg_right hη.le)
+
+-- A unary input supplies the repetition schedule. At input 1, two zero-bit trials agree.
+example :
+    acceptCount (fun p : ℕ × List Bool =>
+      Cslib.BitString.listStrictMajority (repeatVotes (2 * p.1) 0 (fun _ => true) p) != true)
+      1 0 = 0 := by
+  have hr : ComputableInO (fun n : ℕ => n) encUnary encUnary
+      (fun n => (encUnary n).length) (fun n => (encUnary n).length) :=
+    ComputableInO.of_eq fun _ => rfl
+  have hV := ComputableInO.const (encIn := encPair encUnary encBits) (encMid := encBool) true
+  obtain ⟨_, _, _, _, _, _, _, herr⟩ := computableInO_amplifySeededMajority
+    (ComputableInO.const (encMid := encUnary) 0) hr hV
+    (R := fun a => (encPair encUnary encBits (a, [])).length)
+    (fun a w hw => by
+      obtain rfl := List.length_eq_zero_iff.mp hw
+      exact le_rfl)
+  have h := herr 1 true (ε := 0) le_rfl (by norm_num) (by simp)
+  simp only [pow_one, pow_zero, mul_zero, zero_mul] at h
+  exact Nat.eq_zero_of_le_zero (by exact_mod_cast h)

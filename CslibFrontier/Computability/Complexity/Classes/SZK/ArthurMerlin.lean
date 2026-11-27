@@ -68,11 +68,7 @@ private theorem eval_message (x : SDInstance) (b : Bool) :
 
 private theorem isPPTOn_message :
     IsPPTOn (encPair encSDInstance encBool) encBits (fun p => message p.1 p.2) := by
-  have hproj : ComputableInPolyTime
-      (fun x : SDInstance => ((x.inputs, x.outputs), (x.left.code, x.right.code)))
-      encSDInstance (encPair (encPair encUnary encUnary) (encPair encCode encCode)) :=
-    .of_eq fun x => (encSDInstance_apply x).symm
-  have h := hproj.comp (ComputableInPolyTime.fst encSDInstance encBool)
+  have h := computableInPolyTime_parts (ComputableInPolyTime.fst encSDInstance encBool)
   have hc : ComputableInPolyTime (fun p : SDInstance × Bool => (p.1.circuit p.2).code)
       (encPair encSDInstance encBool) encCode := by
     have heq (p : SDInstance × Bool) : (p.1.circuit p.2).code =

@@ -28,9 +28,8 @@ Setting
 and `s` fresh rounding shifts totaling `O(log^{3/2} n)` bits
 (`Cslib.Complexity.exists_saksZhouSeeds_of_mem_BPL`).
 
-The seed reduction is a step toward `BPL ⊆ DSPACE(log^{3/2} n)`. The space inclusion still
-requires evaluating `snapIter` of `bitNisanPow` recursively in `O(log^{3/2} n)` space
-([#459](https://github.com/cslib-community/cslib-frontier/issues/459)).
+The deterministic decision machine in `SaksZhou.DecisionSpace` enumerates these seeds and
+evaluates the rounded acceptance estimate by a space-bounded recursion.
 
 ## Main definitions
 
@@ -48,8 +47,8 @@ requires evaluating `snapIter` of `bitNisanPow` recursively in `O(log^{3/2} n)` 
 ## References
 
 * [N. Nisan, *Pseudorandom generators for space-bounded computation*][Nisan1992]
-* [M. Saks and S. Zhou, *BP_H SPACE(S) ⊆ DSPACE(S^{3/2})*][SaksZhou1999]: publisher copy not
-  consulted.
+* [M. Saks and S. Zhou, *BP_H SPACE(S) ⊆ DSPACE(S^{3/2})*][SaksZhou1999], §1, pp. 377–378,
+  Theorem 1.1.
 * [E. Chattopadhyay and J.-J. Liao, *Optimal Error Pseudodistributions for Read-Once Branching
   Programs*][ChattopadhyayLiao2020], arXiv v4, Appendix A.1
 * [W. M. Hoza, *Better Pseudodistributions and Derandomization for Space-Bounded
@@ -87,7 +86,7 @@ open scoped Classical in
 /-- The rounded Saks–Zhou acceptance estimate on the entire compact configuration box.
 Each row is traversed in increasing compact-ID order. The initial vertex is the native start ID,
 and the terminal vector selects accepting halts. -/
-noncomputable def saksZhouAcceptEst (c : ℕ) {w : List Bool}
+@[expose] noncomputable def saksZhouAcceptEst (c : ℕ) {w : List Bool}
     (hs : machine.toNTM.RunsInSpace w (c * (Nat.log2 w.length + 1))) (m s d : ℕ)
     (p : NisanShiftSeed (2 * m) s s d) : ℝ :=
   let B := radix (radixExponent State c) w.length
@@ -153,16 +152,12 @@ open _root_.Turing.MultiTapeNTM.ConfigurationGraph
 
 variable {α : Type} {enc : α ↪ List Bool} {A : Set α}
 
-private theorem saksZhou_seed_budget_le (clk ℓ : ℕ) :
-    let R := clk * (ℓ + 2) + 1
-    let s := Nat.sqrt R + 1
-    let d := 5 * R + 5
-    let m := 5 * d
-    s * (3 * (2 * m) - 1) + s * d ≤
-      155 * (2 * clk + 2) ^ 2 * (ℓ + 1) * (Nat.sqrt (ℓ + 1) + 1) := by
-  intro R s d m
+/-- The number of rounding levels grows at most as the square root of the log-length
+parameter, with a constant depending only on the clock. -/
+theorem saksZhou_levels_le (clk ℓ : ℕ) :
+    Nat.sqrt (clk * (ℓ + 2) + 1) + 1 ≤ (2 * clk + 2) * (Nat.sqrt (ℓ + 1) + 1) := by
+  let R := clk * (ℓ + 2) + 1
   have hR_le : R ≤ (2 * clk + 1) * (ℓ + 1) := by dsimp only [R]; nlinarith
-  have hR1_le : R + 1 ≤ (2 * clk + 2) * (ℓ + 1) := by dsimp only [R]; nlinarith
   have hlt_sqrt : R < ((2 * clk + 2) * (Nat.sqrt (ℓ + 1) + 1)) ^ 2 := by
     have h1 : ℓ + 1 < (Nat.sqrt (ℓ + 1) + 1) ^ 2 := by
       simpa only [sq] using Nat.lt_succ_sqrt (ℓ + 1)
@@ -170,9 +165,21 @@ private theorem saksZhou_seed_budget_le (clk ℓ : ℕ) :
     calc R ≤ (2 * clk + 1) * (ℓ + 1) := hR_le
       _ < (2 * clk + 2) ^ 2 * (Nat.sqrt (ℓ + 1) + 1) ^ 2 := by nlinarith
       _ = ((2 * clk + 2) * (Nat.sqrt (ℓ + 1) + 1)) ^ 2 := by ring
-  have hs_le : s ≤ (2 * clk + 2) * (Nat.sqrt (ℓ + 1) + 1) :=
-    lt_of_pow_lt_pow_left₀ 2 (Nat.zero_le _)
-      ((by simpa only [sq] using Nat.sqrt_le R : Nat.sqrt R ^ 2 ≤ R).trans_lt hlt_sqrt)
+  exact lt_of_pow_lt_pow_left₀ 2 (Nat.zero_le _)
+    ((by simpa only [sq] using Nat.sqrt_le R : Nat.sqrt R ^ 2 ≤ R).trans_lt hlt_sqrt)
+
+/-- The packed common hashes and all rounding shifts occupy at most a constant times
+`(ℓ + 1) (⌊√(ℓ + 1)⌋ + 1)` bits for logarithmic input length `ℓ`. -/
+theorem saksZhou_seed_budget_le (clk ℓ : ℕ) :
+    let R := clk * (ℓ + 2) + 1
+    let s := Nat.sqrt R + 1
+    let d := 5 * R + 5
+    let m := 5 * d
+    s * (3 * (2 * m) - 1) + s * d ≤
+      155 * (2 * clk + 2) ^ 2 * (ℓ + 1) * (Nat.sqrt (ℓ + 1) + 1) := by
+  intro R s d m
+  have hR1_le : R + 1 ≤ (2 * clk + 2) * (ℓ + 1) := by dsimp only [R]; nlinarith
+  have hs_le := saksZhou_levels_le clk ℓ
   have hm_eq : 3 * (2 * m) - 1 + d ≤ 155 * (R + 1) := by dsimp only [m, d]; omega
   calc s * (3 * (2 * m) - 1) + s * d
       = s * (3 * (2 * m) - 1 + d) := by ring
@@ -266,8 +273,8 @@ length `m` and a clock exponent `clk` such that on every instance `a`, setting
 blocks of `2 * (5 * d)` bits, the entire compact radix box gives a Saks–Zhou iteration using
 `O((log₂ m + 1)^{3/2})` total seed-and-shift bits whose output approximates the acceptance
 probability within `1/16` for all but at most `1/8` of seeds, strictly separating `a ∈ A`
-(fraction `> 1/2`) from `a ∉ A` (fraction `< 1/2`). The space-bounded recursive evaluator remains
-open in #459. -/
+(fraction `> 1/2`) from `a ∉ A` (fraction `< 1/2`). The deterministic simulation in
+`SaksZhou.DecisionSpace` uses this separation. -/
 theorem exists_saksZhouSeeds_of_mem_BPL (h : A ∈ BPL enc) :
     ∃ (k : ℕ) (State : Type) (_ : Fintype State) (M : MultiTapePTM k Bool State) (c clk : ℕ),
       ∀ a, ∃ hspace : M.toNTM.RunsInSpace (enc a) (c * (Nat.log2 (enc a).length + 1)),
