@@ -39,6 +39,11 @@ Specializing to Boolean Toeplitz hashing (`Cslib.Probability.toeplitzHash`) on b
 length `2 * m` gives `bitNisanPow` and the square-root-free bound `dens_snapIter_bitNisanPow_far_le`
 over seeds of `k * (3 * (2 * m) - 1) + n₂ * d` bits.
 
+For a matrix supplied by its integer numerators at denominator `2 ^ d`, `nisanSnapCounts`
+computes all rounds using natural-number weights and hit counts. Its entries divided by `2 ^ d`
+agree with the real iteration for every fixed seed when `d ≤ b` (`snapIter_bitNisanPow_eq_counts`).
+Every positive-round row has total numerator at most `2 ^ d` (`sum_nisanSnapCounts_le`).
+
 ## Main definitions
 
 * `Cslib.Probability.SaksZhou.nisanPow`: approximate `(2 ^ k)`-th power computed by Nisan's
@@ -215,6 +220,81 @@ theorem snapMatrix_bitNisanPow_apply {ι : Type*} {n : ℕ} [Fintype ι] [Decida
     NNRat.cast_natCast]
   simp only [BitString, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
   exact snap_frequency _ _ _ (Nat.two_pow_pos _) _
+
+/-- Integer numerators of a seeded Saks–Zhou iteration. The supplied matrix and every round's
+result have denominator `2 ^ d`. Each starting block is counted at its final column, and the
+result is rounded using that round's shift. -/
+@[expose] def nisanSnapCounts {ι : Type*} {n : ℕ} [Fintype ι] [DecidableEq ι] (order : Fin n ≃ ι)
+    (b d k : ℕ) (hs : Fin k → ToeplitzSeed b) (base : Matrix ι ι ℕ) :
+    (r : ℕ) → (Fin r → Fin (2 ^ d)) → Matrix ι ι ℕ
+  | 0, _ => base
+  | r + 1, shifts =>
+    let counts := nisanSnapCounts order b d k hs base r (Fin.init shifts)
+    let step := walkStepOfCounts order (BitString.equivFin b)
+      (fun i j => counts i j * 2 ^ (b - d))
+    Matrix.of fun i j => snapCount (2 ^ d) #{x : BitString b |
+      (List.ofFn (Nisan.blocks Cslib.Probability.toeplitzHash k x hs)).foldl step (some i) =
+        some j} (2 ^ b) (shifts (Fin.last r))
+
+/-- Integer counts agree entry by entry with the rounded real-matrix iteration for every seed and
+shift sequence, including when the supplied base row sums exceed one. -/
+theorem snapIter_bitNisanPow_eq_counts {ι : Type*} {n b d k : ℕ} [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (hdb : d ≤ b) (hs : Fin k → ToeplitzSeed b) (base : Matrix ι ι ℕ)
+    (A : Matrix ι ι ℝ) (hA : ∀ i j, A i j = (base i j : ℝ) / 2 ^ d)
+    (r : ℕ) (shifts : Fin r → Fin (2 ^ d)) (i j : ι) :
+    snapIter d (fun B => bitNisanPow order b k B hs) A r shifts i j =
+      (nisanSnapCounts order b d k hs base r shifts i j : ℝ) / 2 ^ d := by
+  induction r generalizing i j with
+  | zero => simpa only [snapIter_zero, nisanSnapCounts] using hA i j
+  | succ r ih =>
+    let R := snapIter d (fun B => bitNisanPow order b k B hs) A r (Fin.init shifts)
+    let counts := nisanSnapCounts order b d k hs base r (Fin.init shifts)
+    have hscale (i j : ι) :
+        ⌊R i j * Fintype.card (BitString b)⌋₊ = counts i j * 2 ^ (b - d) := by
+      have hcard : Fintype.card (BitString b) = 2 ^ b := by
+        rw [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
+      have hpow : (2 : ℝ) ^ b = 2 ^ (b - d) * 2 ^ d := by rw [← pow_add, Nat.sub_add_cancel hdb]
+      rw [show R i j = (counts i j : ℝ) / 2 ^ d from ih (Fin.init shifts) i j, hcard,
+        Nat.cast_pow, Nat.cast_ofNat, hpow]
+      rw [show (counts i j : ℝ) / 2 ^ d * (2 ^ (b - d) * 2 ^ d) =
+          ((counts i j * 2 ^ (b - d) : ℕ) : ℝ) by push_cast; field_simp]
+      exact Nat.floor_natCast _
+    rw [snapIter_succ, snapMatrix_bitNisanPow_apply, nisanSnapCounts, Matrix.of_apply]
+    rw [walkStep_eq_walkStepOfCounts order (BitString.equivFin b) R _ hscale]
+
+/-- Every positive round has total numerator at most `2 ^ d` in each row. An initial block can
+contribute to at most one output column, and snapping can only decrease its column's frequency. -/
+theorem sum_nisanSnapCounts_le {ι : Type*} {n : ℕ} [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (b d k : ℕ) (hs : Fin k → ToeplitzSeed b) (base : Matrix ι ι ℕ)
+    (r : ℕ) (shifts : Fin (r + 1) → Fin (2 ^ d)) (i : ι) :
+    ∑ j, nisanSnapCounts order b d k hs base (r + 1) shifts i j ≤ 2 ^ d := by
+  let counts := nisanSnapCounts order b d k hs base r (Fin.init shifts)
+  let step := walkStepOfCounts order (BitString.equivFin b)
+    (fun i j => counts i j * 2 ^ (b - d))
+  let dest (x : BitString b) := (List.ofFn
+    (Nisan.blocks Cslib.Probability.toeplitzHash k x hs)).foldl step (some i)
+  let hits (j : Option ι) := #{x : BitString b | dest x = j}
+  have htotal : ∑ j, hits (some j) ≤ 2 ^ b := by
+    have h := Finset.card_eq_sum_card_fiberwise (f := dest) (s := univ) (t := univ)
+      fun _ _ => mem_univ _
+    rw [Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at h
+    change 2 ^ b = ∑ j, hits j at h
+    rw [Fintype.sum_option] at h
+    omega
+  let shift := (shifts (Fin.last r)).val
+  have hround (x : ℕ) : snapCount (2 ^ d) x (2 ^ b) shift * 2 ^ b ≤ x * 2 ^ d := by
+    apply Nat.le_of_mul_le_mul_right (c := 2 ^ d) _ (Nat.two_pow_pos _)
+    unfold snapCount
+    rw [Nat.mul_assoc]
+    exact (Nat.div_mul_le_self _ _).trans (Nat.sub_le _ _)
+  change ∑ j, snapCount (2 ^ d) (hits (some j)) (2 ^ b) shift ≤ 2 ^ d
+  apply Nat.le_of_mul_le_mul_right (c := 2 ^ b) _ (Nat.two_pow_pos _)
+  rw [Finset.sum_mul]
+  calc
+    _ ≤ ∑ j, hits (some j) * 2 ^ d := sum_le_sum fun _ _ => hround _
+    _ = (∑ j, hits (some j)) * 2 ^ d := (Finset.sum_mul ..).symm
+    _ ≤ 2 ^ b * 2 ^ d := Nat.mul_le_mul_right _ htotal
+    _ = 2 ^ d * 2 ^ b := Nat.mul_comm _ _
 
 /-- **Saks–Zhou iteration with Boolean Toeplitz Nisan powering**: on blocks of `2 * m` bits with
 `d ≤ 2 * m` and `1 ≤ k`, if `(|ι| + 1) * ((2 ^ k - 1) * (|ι| + 1) / 2 ^ m) ≤ ε ^ 2`, all but an

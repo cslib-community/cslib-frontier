@@ -8,10 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Algebra.Order.Archimedean.Real.Basic
 public import Mathlib.Data.Finset.Density
 public import Mathlib.Data.Matrix.Basic
-import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Algebra.Order.Floor.BigOperators
 import Mathlib.Data.Fintype.Sigma
@@ -72,29 +72,44 @@ private def walkEquiv (order : Fin n ≃ ι) (letter : X ≃ Fin b) (c : ι → 
     (finSigmaFinEquiv.symm.trans (Equiv.sigmaCongrLeft (β := fun j => Fin (c j)) order)).sumCongr
       (Equiv.refl _)
 
-/-- The walk of `A` on letters of `X`: `none` is an absorbing sink; from `some i`, the letters are
-numbered by `letter` and allocated to successive columns in `order`. The `⌊A i j |X|⌋₊` letters
-assigned to column `j` move to `some j`, and the
-remaining letters move to `none` (when the parts do not fit, i.e.
-`∑ j ⌊A i j |X|⌋₊ > |X|`, every letter moves to `none`). -/
-noncomputable def walkStep (order : Fin n ≃ ι) (letter : X ≃ Fin b) (A : Matrix ι ι ℝ) :
+/-- Allocate exactly `counts i j` letters of row `i` to each column `j`, consecutively in the
+supplied order. Unallocated letters, oversized rows and the sink all move to the sink. -/
+def walkStepOfCounts (order : Fin n ≃ ι) (letter : X ≃ Fin b) (counts : Matrix ι ι ℕ) :
     Option ι → X → Option ι
   | none, _ => none
   | some i, x =>
-    if h : ∑ j, ⌊A i j * Fintype.card X⌋₊ ≤ Fintype.card X then
+    if h : ∑ j, counts i j ≤ Fintype.card X then
       Sum.elim (fun p => some p.1) (fun _ => none) (walkEquiv order letter _ h x)
     else none
+
+omit [DecidableEq ι] in
+@[simp] theorem walkStepOfCounts_none (counts : Matrix ι ι ℕ) (x : X) :
+    walkStepOfCounts order letter counts none x = none := by
+  rw [walkStepOfCounts]
+
+/-- The walk of `A` on letters of `X` assigns `⌊A i j |X|⌋₊` letters of row `i` to each column
+`j` using `walkStepOfCounts`. -/
+noncomputable def walkStep (order : Fin n ≃ ι) (letter : X ≃ Fin b) (A : Matrix ι ι ℝ) :
+    Option ι → X → Option ι :=
+  walkStepOfCounts order letter (fun i j => ⌊A i j * Fintype.card X⌋₊)
+
+omit [DecidableEq ι] in
+/-- Replace the real matrix in an ordered walk by its integer multiplicities. -/
+theorem walkStep_eq_walkStepOfCounts (A : Matrix ι ι ℝ) (counts : Matrix ι ι ℕ)
+    (h : ∀ i j, ⌊A i j * Fintype.card X⌋₊ = counts i j) :
+    walkStep order letter A = walkStepOfCounts order letter counts :=
+  congrArg (walkStepOfCounts order letter) (funext fun i => funext (h i))
 
 omit [DecidableEq ι] in
 /-- In a row whose weights fit, a letter moves to column `order j` exactly when its index lies
 between the sum of the preceding column weights and that sum plus the current weight. This lets
 an evaluator find the destination by scanning the columns in order. -/
-theorem walkStep_eq_some_iff (A : Matrix ι ι ℝ) (i : ι) (j : Fin n) (x : X)
-    (hfit : ∑ t, ⌊A i t * Fintype.card X⌋₊ ≤ Fintype.card X) :
-    walkStep order letter A (some i) x = some (order j) ↔
-      let start := ∑ t : Fin j, ⌊A i (order (Fin.castLE j.isLt.le t)) * Fintype.card X⌋₊
-      start ≤ (letter x).val ∧ (letter x).val < start + ⌊A i (order j) * Fintype.card X⌋₊ := by
-  let c := fun t => ⌊A i t * Fintype.card X⌋₊
+theorem walkStepOfCounts_eq_some_iff (counts : Matrix ι ι ℕ) (i : ι) (j : Fin n) (x : X)
+    (hfit : ∑ t, counts i t ≤ Fintype.card X) :
+    walkStepOfCounts order letter counts (some i) x = some (order j) ↔
+      let start := ∑ t : Fin j, counts i (order (Fin.castLE j.isLt.le t))
+      start ≤ (letter x).val ∧ (letter x).val < start + counts i (order j) := by
+  let c := counts i
   let e := walkEquiv order letter c hfit
   let start := ∑ t : Fin j, c (order (Fin.castLE j.isLt.le t))
   have index (u : Fin (c (order j))) :
@@ -104,9 +119,9 @@ theorem walkStep_eq_some_iff (A : Matrix ι ι ℝ) (i : ι) (j : Fin n) (x : X)
     have hrel : (Equiv.sigmaCongrLeft (β := fun t => Fin (c t)) order).symm ⟨order j, u⟩ =
         ⟨j, u⟩ := relabel.symm_apply_apply ⟨j, u⟩
     simp [e, walkEquiv, relabel, hrel, finSigmaFinEquiv_apply, start]
-  change (walkStep order letter A (some i) x = some (order j)) ↔
+  change (walkStepOfCounts order letter counts (some i) x = some (order j)) ↔
     start ≤ (letter x).val ∧ (letter x).val < start + c (order j)
-  rw [walkStep, dite_eq_left hfit]
+  simp only [walkStepOfCounts, hfit, ↓reduceDIte]
   change Sum.elim (fun p => some p.1) (fun _ => none) (e x) = some (order j) ↔ _
   constructor
   · intro hx
@@ -127,9 +142,18 @@ theorem walkStep_eq_some_iff (A : Matrix ι ι ℝ) (i : ι) (j : Fin n) (x : X)
     rfl
 
 omit [DecidableEq ι] in
+/-- The destination interval for the integer weights induced by a real matrix. -/
+theorem walkStep_eq_some_iff (A : Matrix ι ι ℝ) (i : ι) (j : Fin n) (x : X)
+    (hfit : ∑ t, ⌊A i t * Fintype.card X⌋₊ ≤ Fintype.card X) :
+    walkStep order letter A (some i) x = some (order j) ↔
+      let start := ∑ t : Fin j, ⌊A i (order (Fin.castLE j.isLt.le t)) * Fintype.card X⌋₊
+      start ≤ (letter x).val ∧ (letter x).val < start + ⌊A i (order j) * Fintype.card X⌋₊ :=
+  walkStepOfCounts_eq_some_iff order letter _ i j x hfit
+
+omit [DecidableEq ι] in
 @[simp] theorem walkStep_none (A : Matrix ι ι ℝ) (x : X) :
     walkStep order letter A none x = none := by
-  rw [walkStep]
+  rfl
 
 omit [DecidableEq ι] in
 private theorem foldl_walkStep_none (A : Matrix ι ι ℝ) (l : List X) :
@@ -157,7 +181,7 @@ private theorem card_walkStep_eq {A : Matrix ι ι ℝ} (h0 : ∀ i j, 0 ≤ A i
   have hcount : #{x : X | walkStep order letter A (some i) x = some j} =
       ⌊A i j * Fintype.card X⌋₊ := by
     rw [Finset.card_filter, ← (walkEquiv order letter _ hfit).symm.sum_comp]
-    simp only [walkStep, hfit, ↓reduceDIte, Equiv.apply_symm_apply]
+    simp only [walkStep, walkStepOfCounts, hfit, ↓reduceDIte, Equiv.apply_symm_apply]
     rw [Fintype.sum_sum_type, Fintype.sum_sigma,
       Finset.sum_eq_single_of_mem j (Finset.mem_univ j) fun l _ hl => by simp [hl]]
     simp

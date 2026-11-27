@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.SaksZhou
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
+meta import CslibFrontier.Probability.SaksZhou.Nisan
 import Mathlib.Tactic.NormNum
 
 /-! Boundary witnesses and non-vacuous instantiations for `walkStep`, `dens_foldl_walkStep_eq`,
@@ -112,6 +113,15 @@ example :
   · rw [dens_foldl_walkStep_eq (Equiv.refl _) finTwoEquiv.symm h0 h1 hA 2 0 1,
       sq, Matrix.mul_apply, Fin.sum_univ_two]
     norm_num [toySub]
+
+-- At one-bit precision, starting from 1/2 and replaying a one-letter walk, two zero shifts
+-- keep the numerator 1 while two unit shifts clip it to 0.
+/-- info: (1, 0) -/
+#guard_msgs in
+#eval
+  let base : Matrix (Fin 1) (Fin 1) ℕ := !![1]
+  let estimate := nisanSnapCounts (Equiv.refl _) 1 1 0 Fin.elim0 base 2
+  (estimate (fun _ => 0) 0 0, estimate (fun _ => 1) 0 0)
 
 /-! ### Non-vacuous `dens_snapIter_bitNisanPow_far_le` and `exists_saksZhouSeeds_of_mem_BPL` -/
 
