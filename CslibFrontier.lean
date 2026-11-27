@@ -2407,6 +2407,7 @@ public import CslibFrontier.Computability.Complexity.ImmermanVardi.Tableau.Corre
 public import CslibFrontier.Algorithms.Lean.StoerWagner.Basic
 public import CslibFrontier.Foundations.Combinatorics.Expander.Tower
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Relays
+public import CslibFrontier.Logics.Propositional.MaxSAT
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteSlab
 public import CslibFrontier.Crypto.Protocols.UOV.Games
 public import CslibFrontier.Computability.Complexity.Fagin.SAT
@@ -10827,6 +10828,7 @@ public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp.BFS
 public import CslibFrontier.Computability.Complexity.Classes.PP.Bit
 public import CslibFrontier.Crypto.Computational.LPN
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Clock
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.MaxSAT
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.Exec.MigrateSetupParams
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImprovementSDP
 public import CslibFrontier.Foundations.Quantum.Fourier
