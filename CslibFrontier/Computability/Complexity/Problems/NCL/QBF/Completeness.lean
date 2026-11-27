@@ -371,6 +371,18 @@ private theorem called_top (p : ℕ) (qs : List Quantifier) (ms : List (List Boo
     (config (p + 1) qs ms true ([value, !value] ++ ls) (by simp [hl]; omega)).top_eq).trans
     (by rw [hsat]; rfl)
 
+private theorem called_bot (p : ℕ) (qs : List Quantifier) (ms : List (List Bool))
+    (ls : List Bool) (hl : ls.length = 2 * p) (value : Bool)
+    {t : (circuit (p + 1) qs ms).Edge → Bool}
+    (h : ((circuit (p + 1) qs ms).graph Gate.interp).ReachableOn
+      (AllowsTop 0)
+      (config (p + 1) qs ms true ([value, !value] ++ ls) (by simp [hl]; omega)).orient t)
+    (hsat : t (.inl ⟨0, by simp⟩) = false) :
+    (circuit (p + 1) qs ms).topList t =
+      forallGadget.botList (ForallGadget.Execution.ready value value false).orient ++ ls := by
+  rw [(ForallGadget.Execution.ready value value false).bot_eq]
+  exact called_top p qs ms ls hl value h hsat
+
 private theorem false_phase (p : ℕ) (qs : List Quantifier) (ms : List (List Bool))
     (ls : List Bool) (hl : ls.length = 2 * p)
     (h : Succeeds (p + 1) qs ms ([false, true] ++ ls) (by simp [hl]; omega)) :
@@ -385,10 +397,7 @@ private theorem false_phase (p : ℕ) (qs : List Quantifier) (ms : List (List Bo
     (fun _ he => he.2.1)
   have hc := call_path p .all qs ms ls hl false (ForallGadget.Execution.ready false false)
     (ForallGadget.Execution.ready_sat false false) ht hsat
-  have hb : (circuit (p + 1) qs ms).topList t =
-      forallGadget.botList (ForallGadget.Execution.ready false false false).orient ++ ls := by
-    rw [(ForallGadget.Execution.ready false false false).bot_eq]
-    exact called_top p qs ms ls hl false ht hsat
+  have hb := called_bot p qs ms ls hl false ht hsat
   have hr := fixed_path p .all qs ms ls hl ForallGadget.Execution.record_false
     (ForallGadget.Execution.ready false false false).legal
     (fun j hn => hn (Or.inr ⟨j, rfl⟩)) (fun _ hn he => hn (Or.inl ⟨1, he⟩))
@@ -412,10 +421,7 @@ private theorem true_phase (p : ℕ) (qs : List Quantifier) (ms : List (List Boo
     (fun he => he.2.2.1 rfl) (fun _ he => he.2.1)
   have hc := call_path p .all qs ms ls hl true (ForallGadget.Execution.ready true true)
     (ForallGadget.Execution.ready_sat true true) ht hsat
-  have hb : (circuit (p + 1) qs ms).topList t =
-      forallGadget.botList (ForallGadget.Execution.ready true true false).orient ++ ls := by
-    rw [(ForallGadget.Execution.ready true true false).bot_eq]
-    exact called_top p qs ms ls hl true ht hsat
+  have hb := called_bot p qs ms ls hl true ht hsat
   have hf := fixed_path p .all qs ms ls hl ForallGadget.Execution.finish
     (ForallGadget.Execution.ready true true false).legal
     (fun j hn => hn.2 j rfl) (fun _ hn => hn.1)
