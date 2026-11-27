@@ -13,11 +13,13 @@ public import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.Bool
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Probabilistic.QueryBounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
-import CslibFrontier.Foundations.Data.BitString.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
+import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Languages.Probabilistic.BitString
 import CslibFrontier.Computability.Probabilistic.Sampling
 public import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
@@ -263,6 +265,17 @@ noncomputable abbrev logged (P : Prover Unit) : Prover Unit where
     ((P.respond q).run st.prover).map fun x =>
       ([x.1.headD false], LoggedState.mk x.2 ((q.2, x.1.headD false) :: st.history))
 
+private theorem run_uniform_query {ι : Type} (P : Prover ι) (n : ℕ) (s : P.State) :
+    P.run (OracleComp.query (Sum.inl n)) s = (ProbComp.unifOracle n).map (·, s) := by
+  rw [← ProbOracleComp.sample_unifFin, Prover.run_sample, ProbComp.eval_unifFin]
+  rfl
+
+private theorem run_logged_query (P : Prover Unit) (q : Unit × List Bool) (s : (logged P).State) :
+    (logged P).run (OracleComp.query (Sum.inr q)) s =
+      ((P.respond q).run s.prover).map fun x =>
+        ([x.1.headD false], LoggedState.mk x.2 ((q.2, x.1.headD false) :: s.history)) :=
+  (logged P).run_query q s
+
 /-- A log is consistent with the proof `π` when every logged bit is the proof's bit. -/
 def Consistent (π : List Bool → Bool) (log : List (List Bool × Bool)) : Prop :=
   ∀ e ∈ log, e.2 = π e.1
@@ -295,24 +308,17 @@ theorem tsum_logged_consistent_le (π : List Bool → Bool) (P : Prover Unit)
       mul_le_mul' le_rfl (ih y.1 y.2)).trans ?_
     cases q with
     | inl n =>
-      have h1 : (logged P).run (OracleComp.query (Sum.inl n)) s =
-          (ProbComp.unifOracle n).map (·, s) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
-      have h2 : (Prover.ofProof (Operation := Unit) π).run (OracleComp.query (Sum.inl n)) () =
-          (ProbComp.unifOracle n).map (·, ()) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
+      have h1 := run_uniform_query (logged P) n s
+      have h2 := run_uniform_query (Prover.ofProof (Operation := Unit) π) n ()
       rw [h1, h2, Probability.PMF.tsum_map_mul, PMF.bind_map, PMF.map_bind, PMF.bind_apply]
       split_ifs with hc
       · exact le_of_eq (tsum_congr fun b => by simp)
       · simp
     | inr q =>
-      have h1 : (logged P).run (OracleComp.query (Sum.inr q)) s =
-          ((P.respond q).run s.prover).map fun x =>
-            ([x.1.headD false], (LoggedState.mk x.2 ((q.2, x.1.headD false) :: s.history))) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
+      have h1 := run_logged_query P q s
       have h2 : (Prover.ofProof (Operation := Unit) π).run (OracleComp.query (Sum.inr q)) () =
           PMF.pure ([π q.2], ()) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
+        exact Prover.run_query _ _ _
       rw [h1, h2, Probability.PMF.tsum_map_mul, PMF.pure_bind]
       calc ∑' b, ((P.respond q).run s.prover) b *
           (if Consistent π ((q.2, b.1.headD false) :: s.history)
@@ -345,17 +351,12 @@ private theorem exists_log_eq_append (P : Prover Unit) {β : Type} (W : WordOrac
     obtain ⟨ext, hext⟩ := ih y.1 y.2 hxy
     cases q with
     | inl n =>
-      have h1 : (logged P).run (OracleComp.query (Sum.inl n)) s =
-          (ProbComp.unifOracle n).map (·, s) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
+      have h1 := run_uniform_query (logged P) n s
       rw [h1, PMF.mem_support_map_iff] at hy
       obtain ⟨b, -, rfl⟩ := hy
       exact ⟨ext, hext⟩
     | inr q =>
-      have h1 : (logged P).run (OracleComp.query (Sum.inr q)) s =
-          ((P.respond q).run s.prover).map fun x =>
-            ([x.1.headD false], (LoggedState.mk x.2 ((q.2, x.1.headD false) :: s.history))) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
+      have h1 := run_logged_query P q s
       rw [h1, PMF.mem_support_map_iff] at hy
       obtain ⟨r, -, rfl⟩ := hy
       exact ⟨ext ++ [(q.2, r.1.headD false)], by simp [hext]⟩
@@ -375,17 +376,12 @@ private theorem length_log_le (P : Prover Unit) {β : Type} {W : WordOracleComp 
     have := ih y.1 y.2 hxy
     cases q with
     | inl m =>
-      have h1 : (logged P).run (OracleComp.query (Sum.inl m)) s =
-          (ProbComp.unifOracle m).map (·, s) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
+      have h1 := run_uniform_query (logged P) m s
       rw [h1, PMF.mem_support_map_iff] at hy
       obtain ⟨b, -, rfl⟩ := hy
       simpa using this
     | inr q =>
-      have h1 : (logged P).run (OracleComp.query (Sum.inr q)) s =
-          ((P.respond q).run s.prover).map fun x =>
-            ([x.1.headD false], (LoggedState.mk x.2 ((q.2, x.1.headD false) :: s.history))) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
+      have h1 := run_logged_query P q s
       rw [h1, PMF.mem_support_map_iff] at hy
       obtain ⟨r, -, rfl⟩ := hy
       simp only [List.length_cons, Sum.elim_inr] at this ⊢
@@ -497,26 +493,18 @@ theorem tsum_composite_before (j : ℕ) (P : Fin 2 → Prover Unit) (ps : (Prove
       Probability.PMF.tsum_bind_mul]
     cases q with
     | inl n =>
-      have h1 : (composite j P).run (OracleComp.query (Sum.inl n))
-          (CompositeState.mk ⟨s.history.length, false⟩ (Function.update ps 0 s.prover)) =
-          (ProbComp.unifOracle n).map (·, (CompositeState.mk ⟨s.history.length, false⟩
-            (Function.update ps 0 s.prover))) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
-      have h2 : (logged (P 0)).run (OracleComp.query (Sum.inl n)) s =
-          (ProbComp.unifOracle n).map (·, s) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
+      have h1 := run_uniform_query (composite j P) n
+        (CompositeState.mk ⟨s.history.length, false⟩ (Function.update ps 0 s.prover))
+      have h2 := run_uniform_query (logged (P 0)) n s
       rw [h1, h2, Probability.PMF.tsum_map_mul, Probability.PMF.tsum_map_mul]
       exact tsum_congr fun b => congrArg _ (ih b ps hps s hs)
     | inr q =>
-      have h2 : (logged (P 0)).run (OracleComp.query (Sum.inr q)) s =
-          (((P 0).respond q).run s.prover).map fun x =>
-            ([x.1.headD false], (LoggedState.mk x.2 ((q.2, x.1.headD false) :: s.history))) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
+      have h2 := run_logged_query (P 0) q s
       have hcomp : (composite j P).run (OracleComp.query (Sum.inr q))
           (CompositeState.mk ⟨s.history.length, false⟩ (Function.update ps 0 s.prover)) =
           ((Prover.independent P).run (handler j q (CheckState.mk s.history.length false))
             (Function.update ps 0 s.prover)).map fun x => (x.1.1, CompositeState.mk x.1.2 x.2) := by
-        rw [Prover.run, ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_query]; rfl
+        exact Prover.run_query _ _ _
       rw [h2, hcomp, Probability.PMF.tsum_map_mul]
       by_cases hlt : s.history.length < j
       · rw [run_handler_of_ne P q _ (by simp only; omega),
@@ -588,9 +576,9 @@ theorem tsum_composite_before (j : ℕ) (P : Fin 2 → Prover Unit) (ps : (Prove
 
 /-- The two answer bits of a prover have total probability one. -/
 private theorem answerProb_add (P : Prover Unit) (q : List Bool) :
-    answerProb P q true + answerProb P q false = 1 := by
-  have := PMF.tsum_coe (((P.respond ((), q)).run P.init).map fun x => x.1.headD false)
-  rwa [tsum_bool, add_comm] at this
+    answerProb P q true + answerProb P q false = 1 :=
+  Probability.PMF.apply_true_add_apply_false
+    (((P.respond ((), q)).run P.init).map fun x : List Bool × P.State => x.1.headD false)
 
 /-- The most likely answer bit of prover `P` to `q`. -/
 noncomputable def likely (P : Prover Unit) (q : List Bool) : Bool :=
@@ -815,18 +803,6 @@ private theorem pow_round_le (T : ℕ) :
         rw [ENNReal.ofReal_div_of_pos (by norm_num), ENNReal.ofReal_one]
         norm_num
 
-/-- The little-endian value of an `n`-bit word is its number. -/
-private theorem ofBits_ofFn {n : ℕ} (x : Fin n → Bool) :
-    ofBits (List.ofFn x) = (BitString.equivFin n x : ℕ) := by
-  induction n with
-  | zero => simp [ofBits]
-  | succ n ih =>
-    have h := BitString.val_equivFin_cons (x 0) (Fin.tail x)
-    rw [Fin.cons_self_tail] at h
-    rw [List.ofFn_succ, ofBits, List.foldr_cons, ← ofBits, show (fun i : Fin n => x i.succ) =
-      Fin.tail x from rfl, ih, h, Nat.bit_val]
-    cases x 0 <;> simp; ring
-
 /-- **The oracularized round with a coin-sampled check index**: the index is the value of `m`
 fair bits. -/
 noncomputable def roundBits (V : WordOracleComp Unit Bool) (m : ℕ) :
@@ -999,17 +975,8 @@ theorem PCPPoly_subset_MIP₂ : PCPPoly enc ⊆ MIP₂ enc := by
   have hpow (a : α) : T₀ a + 1 ≤ 2 ^ m a := Nat.le_pow_clog one_lt_two _
   have hpow' (a : α) : 8 * (2 ^ m a - 1 + 1) ≤ 16 * (T₀ a + 1) := by
     rw [Nat.sub_add_cancel Nat.one_le_two_pow]
-    rcases Nat.eq_zero_or_pos (m a) with h0 | hpos
-    · rw [h0]; omega
-    · have := Nat.pow_pred_clog_lt_self one_lt_two (show 1 < T₀ a + 1 by
-        by_contra hle
-        have : m a = 0 := Nat.clog_of_right_le_one (by omega) _
-        omega)
-      have hma : Nat.clog 2 (T₀ a + 1) = m a := rfl
-      rw [Nat.pred_eq_sub_one, hma] at this
-      have h2 : 2 ^ m a = 2 * 2 ^ (m a - 1) := by
-        rw [← pow_succ', Nat.sub_add_cancel hpos]
-      omega
+    have h : 2 ^ m a ≤ 2 * (T₀ a + 1) := Nat.pow_clog_le_mul one_lt_two (by omega)
+    omega
   refine ⟨fun a => sequentialRepeat (16 * (T₀ a + 1)) (Oracularize.roundBits (V a) (m a)),
     IsOraclePPTOn.sequentialRepeat_count (Oracularize.isOraclePPTOn_roundBits hV hm) hk,
     ⟨fun a ha => ?_, fun a ha P => ?_⟩⟩
