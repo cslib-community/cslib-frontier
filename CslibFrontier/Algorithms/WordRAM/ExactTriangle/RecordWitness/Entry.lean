@@ -98,24 +98,11 @@ theorem exec_input {w m n g p A : ℕ} (values : List ℤ)
     unfold Q RecordProduct.recordQueryCount
     rw [pow_two]
     exact (min_le_right _ _).trans ((Nat.sub_le _ _).trans (Nat.count_le _))
-  have hcell {u v : ℕ} (hu : u < n) (hv' : v < n) : u * n + v < n * n := by
-    have h := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hu)
-    rw [Nat.succ_mul] at h; omega
-  have hmem : ∀ u < n, ∀ v < n,
-      z.mem (5 + (u * n + v)) = Signed.encode (AB u v) ∧
-      z.mem (5 + n * n + (u * n + v)) = Signed.encode (BC u v) ∧
-      z.mem (5 + n * n + n * n + (u * n + v)) = Signed.encode (AC u v) := fun u hu v hv' => by
-    have := hcell hu hv'
-    exact ⟨original_word values a z hout zmap (by omega),
-      by simpa only [Nat.add_assoc] using
-           original_word (q := n * n + (u * n + v)) values a z hout zmap (by omega),
-      by rw [show 5 + n * n + n * n + (u * n + v) = 5 + (2 * (n * n) + (u * n + v)) by omega]
-         exact original_word values a z hout zmap (by omega)⟩
-  have hmag : ∀ u < n, ∀ v < n,
-      (AB u v).natAbs ≤ A ∧ (BC u v).natAbs ≤ A ∧ (AC u v).natAbs ≤ A := fun u hu v hv' => by
-    have := hcell hu hv'
-    exact ⟨original_magnitude values hlen hv (by omega),
-      original_magnitude values hlen hv (by omega), original_magnitude values hlen hv (by omega)⟩
+  have hprefix (j : ℕ) (hj : j < 5 + 3 * (n * n)) : z.mem j =
+      (Data.init (PreparationInput.input n (D m) g p values) : Data 64).mem j :=
+    (congrFun zmem j).trans (hout.2.2.2.2.2.2.2.2.2.2.2 j (Or.inl hj))
+  have hmem := original_matrices values hprefix
+  have hmag := original_magnitudes values hlen hv
   obtain ⟨y, S, he, ys, yf, hS, yiff, answers, yw, frame, regs⟩ := exec_of_output
     V AB BC AC (.init (PreparationInput.input n (D m) g p values)) z hzout hD hg
     (by omega : p ≠ 0) hN rfl rfl rfl idx hidx (by rw [zi, hord]) hmem hmag

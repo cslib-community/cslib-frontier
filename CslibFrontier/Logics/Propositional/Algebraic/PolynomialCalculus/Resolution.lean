@@ -71,17 +71,12 @@ private theorem extend_clause {F ls : List (MvPolynomial (Literal V) R)} {c : Cl
     h.exists_prod_mul hc (S \ c.toFinset) Std.Sat.Literal.negate
   have hcard : (S \ c.toFinset).card + c.width = S.card :=
     Finset.card_sdiff_add_card_eq_card hS
-  have hprod : (∏ l ∈ S \ c.toFinset, X l.negate) * c.toPCRPoly R =
-      ∏ l ∈ S, X l.negate := by
-    rw [Clause.toPCRPoly_eq_prod, Finset.prod_sdiff hS]
-  refine ⟨ms, hms, hsub, hprod ▸ hp, ?_, ?_⟩
-  · have hsupp := c.card_support_toPCRPoly_le (R := R)
-    have hmul := Nat.mul_le_mul_left ((S \ c.toFinset).card + 1) hsupp
-    simp only [Nat.mul_one] at hmul
+  rw [Clause.toPCRPoly_eq_prod, Finset.prod_sdiff hS] at hp
+  refine ⟨ms, hms, hsub, hp, ?_, ?_⟩
+  · have := Nat.mul_le_mul_left ((S \ c.toFinset).card + 1) (c.card_support_toPCRPoly_le (R := R))
     omega
-  · exact hd.trans (max_le_max_left _ (by
-      have := c.totalDegree_toPCRPoly_le (R := R)
-      omega))
+  · have := c.totalDegree_toPCRPoly_le (R := R)
+    omega
 
 /-- A resolution inference can extend a polynomial calculus proof by at most
 `5 * resolvent.width + 13` monomials, with degree at most the larger of its old degree and
@@ -102,44 +97,20 @@ theorem PC.IsProof.exists_toPCRPoly_resolvent
     PC.degree ms ≤ max (PC.degree ls) (d.width + 1)
   let S := d.toFinset
   have hS : S.card = d.width := rfl
-  by_cases hpos : (v, true) ∈ d
-  · have hsub : c₁.toFinset ⊆ S := by
-      intro l hl
-      by_cases heq : l = (v, true)
-      · exact List.mem_toFinset.2 (heq ▸ hpos)
-      · exact List.mem_toFinset.2 (Clause.mem_resolvent.2
-          (.inl ⟨List.mem_toFinset.1 hl, heq⟩))
-    obtain ⟨ms, hms, hls, hp, hs, hd⟩ := extend_clause h h₁ S hsub
-    refine ⟨ms, hms, hls, hp, ?_, ?_⟩
-    · rw [hS] at hs
-      omega
-    · exact hd.trans (max_le_max_left _ (by rw [hS]; omega))
-  by_cases hneg : (v, false) ∈ d
-  · have hsub : c₂.toFinset ⊆ S := by
-      intro l hl
-      by_cases heq : l = (v, false)
-      · exact List.mem_toFinset.2 (heq ▸ hneg)
-      · exact List.mem_toFinset.2 (Clause.mem_resolvent.2
-          (.inr ⟨List.mem_toFinset.1 hl, heq⟩))
-    obtain ⟨ms, hms, hls, hp, hs, hd⟩ := extend_clause h h₂ S hsub
-    refine ⟨ms, hms, hls, hp, ?_, ?_⟩
-    · rw [hS] at hs
-      omega
-    · exact hd.trans (max_le_max_left _ (by rw [hS]; omega))
-  have hposS : (v, true) ∉ S := by simpa [S] using hpos
-  have hnegS : (v, false) ∉ S := by simpa [S] using hneg
-  have hleft : c₁.toFinset ⊆ insert (v, true) S := by
-    intro l hl
-    by_cases heq : l = (v, true)
-    · exact Finset.mem_insert.2 (.inl heq)
-    · exact Finset.mem_insert.2 (.inr (List.mem_toFinset.2
-        (Clause.mem_resolvent.2 (.inl ⟨List.mem_toFinset.1 hl, heq⟩))))
-  have hright : c₂.toFinset ⊆ insert (v, false) S := by
-    intro l hl
-    by_cases heq : l = (v, false)
-    · exact Finset.mem_insert.2 (.inl heq)
-    · exact Finset.mem_insert.2 (.inr (List.mem_toFinset.2
-        (Clause.mem_resolvent.2 (.inr ⟨List.mem_toFinset.1 hl, heq⟩))))
+  have hleft : c₁.toFinset ⊆ insert (v, true) S := Finset.subset_insert_iff.2 fun l hl =>
+    List.mem_toFinset.2 (Clause.mem_resolvent.2
+      (.inl ⟨List.mem_toFinset.1 (Finset.mem_of_mem_erase hl), Finset.ne_of_mem_erase hl⟩))
+  have hright : c₂.toFinset ⊆ insert (v, false) S := Finset.subset_insert_iff.2 fun l hl =>
+    List.mem_toFinset.2 (Clause.mem_resolvent.2
+      (.inr ⟨List.mem_toFinset.1 (Finset.mem_of_mem_erase hl), Finset.ne_of_mem_erase hl⟩))
+  by_cases hone : ∃ c : Clause V, c.toPCRPoly R ∈ ls ∧ c.toFinset ⊆ S
+  · obtain ⟨c, hc, hsub⟩ := hone
+    obtain ⟨ms, hms, hls, hp, hs, hd⟩ := extend_clause h hc S hsub
+    exact ⟨ms, hms, hls, hp, by omega, by omega⟩
+  have hposS : (v, true) ∉ S := fun hp =>
+    hone ⟨c₁, h₁, by rwa [Finset.insert_eq_of_mem hp] at hleft⟩
+  have hnegS : (v, false) ∉ S := fun hn =>
+    hone ⟨c₂, h₂, by rwa [Finset.insert_eq_of_mem hn] at hright⟩
   let M : MvPolynomial (Literal V) R := d.toPCRPoly R
   let a : MvPolynomial (Literal V) R := X (v, false) * M
   let b : MvPolynomial (Literal V) R := X (v, true) * M
@@ -154,55 +125,39 @@ theorem PC.IsProof.exists_toPCRPoly_resolvent
   have hbase : PC.IsProof F base := hm₂.mem hcomp
   obtain ⟨ms₃, hm₃, hls₃, hq, hs₃, hd₃⟩ :=
     hbase.exists_prod_mul (p := PCR.complementAxiom v) List.mem_cons_self S Std.Sat.Literal.negate
-  have hq' : q ∈ ms₃ := hq
   have ha₃ : a ∈ ms₃ := hls₃ (List.mem_cons_of_mem _ (hls₂ ha'))
   have hb₃ : b ∈ ms₃ := hls₃ (List.mem_cons_of_mem _ hb')
   have hsum : PC.IsProof F ((a + b) :: ms₃) := by
     simpa using hm₃.linear 1 1 ha₃ hb₃
   have heq : C (1 : R) * (a + b) + C (-1 : R) * q = M := by
-    simp only [map_one, map_neg, one_mul, neg_one_mul]
-    dsimp only [a, b, q]
-    rw [PCR.complementAxiom]
-    ring
+    simp only [map_one, map_neg, one_mul, neg_one_mul, a, b, q, PCR.complementAxiom]; ring
   have hfinal : PC.IsProof F (M :: (a + b) :: ms₃) :=
-    heq ▸ hsum.linear 1 (-1) List.mem_cons_self (List.mem_cons_of_mem _ hq')
+    heq ▸ hsum.linear 1 (-1) List.mem_cons_self (List.mem_cons_of_mem _ hq)
   have hMsize : M.support.card ≤ 1 := d.card_support_toPCRPoly_le
-  have hasize : a.support.card ≤ 1 := by
-    exact (card_support_monomial_mul_le _ _ M).trans hMsize
-  have hbsize : b.support.card ≤ 1 := by
-    exact (card_support_monomial_mul_le _ _ M).trans hMsize
-  have hsumsize : (a + b).support.card ≤ 2 :=
-    ((Finset.card_le_card support_add).trans (Finset.card_union_le _ _)).trans
-      (by omega)
   have hMdeg : M.totalDegree ≤ d.width := d.totalDegree_toPCRPoly_le
-  have hadeg : a.totalDegree ≤ d.width + 1 :=
-    (totalDegree_mul _ _).trans (by have := totalDegree_X_le (R := R) (v, false); omega)
-  have hbdeg : b.totalDegree ≤ d.width + 1 :=
-    (totalDegree_mul _ _).trans (by have := totalDegree_X_le (R := R) (v, true); omega)
+  have hbounds (sign : Bool) :
+      (X (v, sign) * M).support.card ≤ 1 ∧ (X (v, sign) * M).totalDegree ≤ d.width + 1 := by
+    refine ⟨by simpa only [support_X_mul, Finset.card_map] using hMsize,
+      (totalDegree_mul _ _).trans ?_⟩
+    rw [Nat.add_comm (X (v, sign) : MvPolynomial (Literal V) R).totalDegree]
+    exact Nat.add_le_add hMdeg (totalDegree_X_le _)
+  obtain ⟨hasize, hadeg⟩ := hbounds false
+  obtain ⟨hbsize, hbdeg⟩ := hbounds true
+  have hsumsize : (a + b).support.card ≤ 2 :=
+    (Finset.card_le_card support_add).trans
+      ((Finset.card_union_le _ _).trans (Nat.add_le_add hasize hbsize))
   have hsumdeg : (a + b).totalDegree ≤ d.width + 1 :=
     (totalDegree_add _ _).trans (max_le hadeg hbdeg)
   have hcsize := PCR.card_support_complementAxiom_le (R := R) v
   have hcdeg := PCR.totalDegree_complementAxiom_le (R := R) v
   simp only [Finset.card_insert_of_notMem hposS, Finset.card_insert_of_notMem hnegS, hS]
     at hs₁ hs₂ hd₁ hd₂
-  refine ⟨M :: (a + b) :: ms₃, hfinal, ?_, List.mem_cons_self, ?_, ?_⟩
-  · intro p hp
-    exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+  refine ⟨M :: (a + b) :: ms₃, hfinal, fun p hp => ?_, List.mem_cons_self, ?_, ?_⟩
+  · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _
       (hls₃ (List.mem_cons_of_mem _ (hls₂ (hls₁ hp)))))
   · have hmul := Nat.mul_le_mul_left (S.card + 1) hcsize
-    simp only [base, PC.size_cons, hS] at hs₃ hmul
-    rw [PC.size_cons, PC.size_cons]
-    omega
-  · simp only [base, PC.degree_cons, hS] at hd₃
-    rw [PC.degree_cons, PC.degree_cons]
-    have hd₂' : PC.degree ms₂ ≤ max (PC.degree ls) (d.width + 1) :=
-      hd₂.trans (max_le hd₁ (le_max_right _ _))
-    have hd₃' : PC.degree ms₃ ≤ max (PC.degree ls) (d.width + 1) := by
-      apply hd₃.trans
-      exact max_le (max_le (hcdeg.trans (by omega)) hd₂')
-        (by have := le_max_right (PC.degree ls) (d.width + 1); omega)
-    exact max_le (hMdeg.trans (by have := le_max_right (PC.degree ls) (d.width + 1); omega))
-      (max_le (hsumdeg.trans (le_max_right _ _)) hd₃')
+    simp only [base, PC.size_cons, hS] at hs₃ hmul ⊢; omega
+  · simp only [base, PC.degree_cons, hS] at hd₃ ⊢; omega
 
 variable [Fintype V]
 
@@ -217,32 +172,24 @@ theorem CNF.IsProof.exists_pcr {φ : CNF V} {ls : List (Clause V)} (h : φ.IsPro
   | nil => exact ⟨[], .nil, by simp, by simp, by simp⟩
   | @mem ls c h hc ih =>
     obtain ⟨ms, hm, hlines, hs, hd⟩ := ih (fun d hd => hw d (List.mem_cons_of_mem _ hd))
-    refine ⟨c.toPCRPoly R :: ms, hm.mem (CNF.toPCRPoly_mem_toPCRPolys hc), ?_, ?_, ?_⟩
-    · intro d hd
-      rcases List.mem_cons.1 hd with rfl | hd
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (hlines d hd)
-    · rw [PC.size_cons, List.length_cons, Nat.mul_add, Nat.mul_one]
+    refine ⟨c.toPCRPoly R :: ms, hm.mem (CNF.toPCRPoly_mem_toPCRPolys hc),
+      List.forall_mem_cons.2 ⟨List.mem_cons_self, fun d hd => List.mem_cons_of_mem _ (hlines d hd)⟩,
+      ?_, ?_⟩
+    · rw [PC.size_cons, List.length_cons, Nat.mul_add]
       have := c.card_support_toPCRPoly_le (R := R)
       omega
     · rw [PC.degree_cons]
-      exact max_le ((c.totalDegree_toPCRPoly_le).trans (by
-        have := hw c List.mem_cons_self
-        omega)) hd
+      have := c.totalDegree_toPCRPoly_le (R := R)
+      have := hw c List.mem_cons_self
+      omega
   | @resolvent ls c₁ c₂ v h h₁ h₂ hv₁ hv₂ ih =>
     obtain ⟨ms, hm, hlines, hs, hd⟩ := ih (fun d hd => hw d (List.mem_cons_of_mem _ hd))
     obtain ⟨ns, hn, hsub, hp, hsize, hdeg⟩ := hm.exists_toPCRPoly_resolvent v
       (hlines c₁ h₁) (hlines c₂ h₂)
       (φ.axioms_subset_toPCRPolys (PCR.complementAxiom_mem_axioms v))
     have hwres := hw (c₁.resolvent c₂ v) List.mem_cons_self
-    refine ⟨ns, hn, ?_, ?_, ?_⟩
-    · intro c hc
-      rcases List.mem_cons.1 hc with rfl | hc
-      · exact hp
-      · exact hsub (hlines c hc)
-    · rw [List.length_cons, Nat.mul_add, Nat.mul_one]
-      omega
-    · exact hdeg.trans (max_le hd (by omega))
+    refine ⟨ns, hn, List.forall_mem_cons.2 ⟨hp, fun c hc => hsub (hlines c hc)⟩, ?_, by omega⟩
+    rw [List.length_cons, Nat.mul_add]; omega
 
 /-- A width-`w` resolution refutation with `s` lines has one PCR refutation simultaneously
 bounded by `(5 * w + 13) * s` monomials and degree `w + 1`. -/
@@ -257,8 +204,7 @@ theorem CNF.IsProof.exists_pcr_refutation {φ : CNF V} {ls : List (Clause V)}
 theorem CNF.RefutableInWidth.pcr_refutableInDegree {φ : CNF V} {w : ℕ}
     (h : φ.RefutableInWidth w) : PC.RefutableInDegree (φ.toPCRPolys R) (w + 1) := by
   obtain ⟨ls, hls, hnil, hw⟩ := h
-  obtain ⟨ms, hm, h1, _, hd⟩ := hls.exists_pcr_refutation (R := R) hnil hw
-  exact ⟨ms, hm, h1, hd⟩
+  exact (hls.exists_pcr_refutation (R := R) hnil hw).imp fun _ ⟨hm, h1, _, hd⟩ => ⟨hm, h1, hd⟩
 
 /-- An `s`-line resolution refutation has a PCR refutation of size at most
 `(10 * n + 13) * s`, where `n` is the number of distinct variables occurring in the CNF.
@@ -269,9 +215,6 @@ theorem CNF.RefutableInSize.pcr_refutableInSize {φ : CNF V} {s : ℕ}
   obtain ⟨ls, hls, hnil, hlen⟩ := h
   obtain ⟨ms, hm, h1, hs, _⟩ := hls.exists_pcr_refutation (R := R) hnil
     (w := 2 * φ.vars.toFinset.card) (fun c hc => hls.width_le hc)
-  refine ⟨ms, hm, h1, hs.trans ?_⟩
-  have heq : 5 * (2 * φ.vars.toFinset.card) + 13 = 10 * φ.vars.toFinset.card + 13 := by omega
-  rw [heq]
-  exact Nat.mul_le_mul_left _ hlen
+  exact ⟨ms, hm, h1, hs.trans (Nat.mul_le_mul (by omega) hlen)⟩
 
 end Cslib.Logic.PL

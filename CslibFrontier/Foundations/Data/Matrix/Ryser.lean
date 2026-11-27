@@ -58,53 +58,21 @@ theorem permanent_eq_ryser_bool (A : Matrix n n R) :
         ∑ f : n → n, (if ∀ i, e (f i) = true then (1 : R) else 0) * ∏ i : n, A i (f i) := by
     rw [Fintype.prod_sum]
     refine Finset.sum_congr rfl fun f _ => ?_
-    split_ifs with hf
-    · rw [one_mul]
-      exact Finset.prod_congr rfl fun i _ => by simp [hf i]
-    · rw [zero_mul]
-      push Not at hf
-      obtain ⟨i, hi⟩ := hf
-      exact Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hi])
-  have hstep1 :
-      (∑ e : n → Bool,
-        (∏ j : n, if e j then (1 : R) else -1) *
-          ∏ i : n, ∑ j : n, if e j then A i j else 0) =
-      ∑ f : n → n,
-        (∑ e : n → Bool,
-          (∏ j : n, if e j then (1 : R) else -1) *
-            (if ∀ i, e (f i) = true then (1 : R) else 0)) *
-          ∏ i : n, A i (f i) := by
-    calc _ = ∑ e : n → Bool, ∑ f : n → n,
-          ((∏ j : n, if e j then (1 : R) else -1) *
-            (if ∀ i, e (f i) = true then (1 : R) else 0)) * ∏ i : n, A i (f i) := by
-          refine Finset.sum_congr rfl fun e _ => ?_
-          rw [hprod e, Finset.mul_sum]
-          exact Finset.sum_congr rfl fun f _ => (mul_assoc _ _ _).symm
-      _ = _ := by
-          rw [Finset.sum_comm]
-          exact Finset.sum_congr rfl fun f _ => (Finset.sum_mul _ _ _).symm
-  rw [hstep1]
+    rw [← Finset.prod_congr rfl fun i _ => boole_mul (e (f i) = true) (A i (f i)),
+      Finset.prod_mul_distrib, Finset.prod_boole]
+    simp only [Finset.mem_univ, forall_true_left]
   have hfactor (f : n → n) (e : n → Bool) :
       (∏ j : n, if e j then (1 : R) else -1) *
           (if ∀ i, e (f i) = true then (1 : R) else 0) =
-        ∏ j : n, if e j then (1 : R) else if j ∈ univ.image f then 0 else -1 := by
+        ∏ j : n, if e j then (1 : R) else if ∃ i, f i = j then 0 else -1 := by
     split_ifs with hf
     · rw [mul_one]
       refine Finset.prod_congr rfl fun j _ => ?_
-      by_cases hej : e j = true
-      · simp [hej]
-      · have hj : j ∉ univ.image f := by
-          intro hmem
-          obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hmem
-          exact hej (hf i)
-        simp [hej, hj]
-    · rw [mul_zero]
-      push Not at hf
-      obtain ⟨i, hi⟩ := hf
-      symm
-      refine Finset.prod_eq_zero (Finset.mem_univ (f i)) ?_
-      have hmem : f i ∈ univ.image f := Finset.mem_image_of_mem f (Finset.mem_univ i)
-      simp [hi, hmem]
+      have hne (h0 : e j = false) : ¬ ∃ i, f i = j := fun ⟨i, h⟩ => by simpa [h, h0] using hf i
+      cases hej : e j <;> simp [hne, hej]
+    · obtain ⟨i, hi⟩ := not_forall.1 hf
+      rw [mul_zero, eq_comm]
+      exact Finset.prod_eq_zero (Finset.mem_univ (f i)) (by simp [hi])
   have hsum_e (f : n → n) :
       (∑ e : n → Bool,
           (∏ j : n, if e j then (1 : R) else -1) *
@@ -112,49 +80,21 @@ theorem permanent_eq_ryser_bool (A : Matrix n n R) :
         if Function.Surjective f then (1 : R) else 0 := by
     simp_rw [hfactor]
     rw [← Fintype.prod_sum (fun (j : n) (b : Bool) =>
-      if b = true then (1 : R) else if j ∈ univ.image f then 0 else -1)]
-    have h1 (j : n) :
-        (∑ b : Bool, if b = true then (1 : R) else if j ∈ univ.image f then 0 else -1) =
-          if j ∈ univ.image f then (1 : R) else 0 := by
-      rw [Fintype.sum_bool]
-      by_cases hj : j ∈ univ.image f <;> simp [hj]
-    simp_rw [h1]
-    split_ifs with hsurj
-    · refine Finset.prod_eq_one fun j _ => ?_
-      obtain ⟨i, rfl⟩ := hsurj j
-      have hmem : f i ∈ univ.image f := Finset.mem_image_of_mem f (Finset.mem_univ i)
-      simp [hmem]
-    · unfold Function.Surjective at hsurj
-      push Not at hsurj
-      obtain ⟨j, hj⟩ := hsurj
-      refine Finset.prod_eq_zero (Finset.mem_univ j) ?_
-      have hj' : j ∉ univ.image f := by simpa using hj
-      simp [hj']
-  have hstep2 :
-      (∑ f : n → n,
-        (∑ e : n → Bool,
-          (∏ j : n, if e j then (1 : R) else -1) *
-            (if ∀ i, e (f i) = true then (1 : R) else 0)) *
-          ∏ i : n, A i (f i)) =
-      ∑ f : n → n, (if Function.Surjective f then (1 : R) else 0) * ∏ i : n, A i (f i) :=
-    Finset.sum_congr rfl fun f _ => by rw [hsum_e f]
-  rw [hstep2, ← permanent_transpose, permanent]
-  have hbij :
-      (∑ σ : Perm n, ∏ i : n, Aᵀ (σ i) i) =
-        ∑ f ∈ univ.filter (fun f : n → n => Function.Surjective f), ∏ i : n, A i (f i) := by
-    refine Finset.sum_bij (fun (σ : Perm n) _ => (σ : n → n)) ?_ ?_ ?_ ?_
-    · intro σ _
-      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, σ.surjective⟩
-    · intro σ₁ _ σ₂ _ h
-      exact DFunLike.coe_injective h
-    · intro f hf
-      have hsurj : Function.Surjective f := (Finset.mem_filter.mp hf).2
-      exact ⟨Equiv.ofBijective f (Finite.surjective_iff_bijective.mp hsurj),
-        Finset.mem_univ _, rfl⟩
-    · intro σ _
-      rfl
-  rw [hbij, Finset.sum_filter]
-  refine Finset.sum_congr rfl fun f _ => ?_
-  split_ifs <;> simp
+      if b = true then (1 : R) else if ∃ i, f i = j then 0 else -1)]
+    have h1 (j : n) : (1 : R) + (if ∃ i, f i = j then 0 else -1) =
+        if ∃ i, f i = j then 1 else 0 := by split_ifs <;> simp
+    simp_rw [Fintype.sum_bool, ite_true, Bool.false_eq_true, ite_false, h1,
+      Finset.prod_boole, Finset.mem_univ, forall_true_left]
+    rfl
+  simp_rw [hprod, Finset.mul_sum, ← mul_assoc]
+  rw [Finset.sum_comm]
+  simp_rw [← Finset.sum_mul, hsum_e, ite_mul, one_mul, zero_mul]
+  rw [← Finset.sum_filter, ← permanent_transpose, permanent]
+  exact Finset.sum_bij (fun (σ : Perm n) _ => (σ : n → n))
+    (fun σ _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, σ.surjective⟩)
+    (fun _ _ _ _ h => DFunLike.coe_injective h)
+    (fun f hf => ⟨Equiv.ofBijective f
+      (Finite.surjective_iff_bijective.mp (Finset.mem_filter.mp hf).2), Finset.mem_univ _, rfl⟩)
+    fun _ _ => rfl
 
 end Matrix

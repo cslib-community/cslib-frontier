@@ -34,23 +34,19 @@ theorem abs_lt_coeffNorm1_add_one_of_eval₂_eq_zero {p : Polynomial ℤ} (hp : 
   have hnorm (a : ℤ) : ‖f a‖ = (a.natAbs : ℝ) := by
     change ‖(a : ℝ)‖ = _
     rw [Real.norm_eq_abs, ← Int.cast_abs, ← Int.natCast_natAbs, Int.cast_natCast]
-  have hl : (1 : ℝ) ≤ ‖q.leadingCoeff‖ := by
-    rw [show q.leadingCoeff = f p.leadingCoeff from leadingCoeff_map_of_injective hf p, hnorm]
-    have hn := Int.natAbs_ne_zero.mpr (leadingCoeff_ne_zero.mpr hp)
-    exact_mod_cast Nat.one_le_iff_ne_zero.mpr hn
+  have hl : 1 ≤ ‖q.leadingCoeff‖₊ := by
+    rw [← NNReal.coe_le_coe, coe_nnNorm, NNReal.coe_one, leadingCoeff_map_of_injective hf p, hnorm]
+    exact_mod_cast Nat.one_le_iff_ne_zero.mpr (Int.natAbs_ne_zero.mpr (leadingCoeff_ne_zero.mpr hp))
   let s := (Finset.range q.natDegree).sup (fun i => ‖q.coeff i‖₊)
-  have hs : (s : ℝ) ≤ p.coeffNorm1 := by
-    have hsup : s ≤ (p.coeffNorm1 : NNReal) := by
-      refine Finset.sup_le fun i _ => ?_
-      rw [← NNReal.coe_le_coe, coe_nnNorm, NNReal.coe_natCast,
-        show q.coeff i = f (p.coeff i) from coeff_map f i, hnorm]
-      exact_mod_cast natAbs_coeff_le_coeffNorm1 p i
-    exact_mod_cast hsup
-  have hx' : ‖x‖ < (q.cauchyBound : ℝ) := hroot.norm_lt_cauchyBound hq
-  rw [Real.norm_eq_abs] at hx'
-  refine hx'.trans_le ?_
-  rw [cauchyBound, NNReal.coe_add, NNReal.coe_div, NNReal.coe_one, coe_nnNorm]
-  exact add_le_add ((div_le_self (by positivity) hl).trans hs) le_rfl
+  have hs : s ≤ (p.coeffNorm1 : NNReal) := Finset.sup_le fun i _ => by
+    rw [← NNReal.coe_le_coe, coe_nnNorm, NNReal.coe_natCast, coeff_map, hnorm]
+    exact_mod_cast natAbs_coeff_le_coeffNorm1 p i
+  have hlt : ‖x‖₊ < (p.coeffNorm1 : NNReal) + 1 := by
+    refine (hroot.norm_lt_cauchyBound hq).trans_le ?_
+    rw [cauchyBound]
+    exact add_le_add ((div_le_self zero_le hl).trans hs) le_rfl
+  rw [← Real.norm_eq_abs, ← coe_nnNorm]
+  exact_mod_cast hlt
 
 /-- A nonzero real root has absolute value greater than the reciprocal of the coefficient
 norm plus one, by applying the upper bound to the reversed polynomial. -/

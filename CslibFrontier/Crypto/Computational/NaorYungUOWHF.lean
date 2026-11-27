@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Foundations.Data.BitString.List.Rows
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
@@ -368,8 +369,7 @@ private theorem naorYungStep_inversion_eval_eq
   have hlt_false : ¬ (n + 2 < 2) := by omega
   have hsub : n + 2 - 2 = n := by omega
   simp only [inversionGame, inversionExperiment, naorYungStepInverter, hlt_false, ↓reduceIte, hsub,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.bind_bind,
-    PMF.pure_bind]
+    BitString.eval_sampleList, pmf_norm]
   trans ((BitString.uniformList (n + 2)).map f).bind (fun y =>
     (ProbComp.eval (adversary.choose n)).bind (fun choice =>
       let w₀ := BitString.listRow (n + 2) 0 choice.1
@@ -850,9 +850,8 @@ private theorem naorYungCascadeSlotTrial_eq
   have hlen_sum : j * κ + (κ + (n - j) * κ) = (n + 1) * κ := by
     rw [show j * κ + (κ + (n - j) * κ) = (j + 1 + (n - j)) * κ by ring,
       show j + 1 + (n - j) = n + 1 by omega]
-  simp only [naorYungCascadeSlotTrial, hs, decide_true, ↓reduceIte,
-    cascadeStateDecoder.decode_enc, Nat.min_eq_right hi_le, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+  simp only [naorYungCascadeSlotTrial, hs, decide_true, ↓reduceIte, cascadeStateDecoder.decode_enc,
+    Nat.min_eq_right hi_le, PMF.map, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun choice _ => ?_
   trans (BitString.uniformList (j * κ)).bind (fun front =>
     (BitString.uniformList (κ + (n - j) * κ)).bind (fun rest =>
@@ -911,18 +910,14 @@ theorem succProbability_targetCollisionGame_naorYungCompressionEval_le
         (targetCollisionGame (fun m => m + 2) (naorYungStep f) validStep
           (naorYungCascadeAdversary f adversary) n) =
         (PMF.uniformOfFintype (Fin (dyadicSize (n + 1)))).bind (fun s => slotTrial s.val) := by
-    simp only [targetCollisionGame, naorYungCascadeAdversary, slotTrial,
-      naorYungCascadeSlotTrial, ProbComp.eval_bind,
-      ProbComp.eval_pure, eval_sampleDyadicIndex, BitString.eval_sampleList,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind,
-      PMF.bind_map, Function.comp_def, validStep]
+    simp only [targetCollisionGame, naorYungCascadeAdversary, slotTrial, naorYungCascadeSlotTrial,
+      eval_sampleDyadicIndex, BitString.eval_sampleList, validStep, pmf_norm]
   have hcomp_eq :
       ProbComp.eval
         (targetCollisionGame (fun m => (m + 1) * (m + 2))
           (naorYungCompressionEval f) validComp adversary n) =
         μ.map W := by
-    simp only [targetCollisionGame, μ, W, ProbComp.eval_bind, ProbComp.eval_pure,
-      BitString.eval_sampleList, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, κ]
+    simp only [targetCollisionGame, μ, W, BitString.eval_sampleList, PMF.map, κ, pmf_norm]
   let Wi (s : Fin (dyadicSize (n + 1)))
       (t : (List Bool × List Bool) × List Bool × List Bool) : Bool :=
     if s.val < n + 1 then

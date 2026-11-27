@@ -61,15 +61,10 @@ theorem IsExtendedFormulation.inter_mulVec_eq {Q : Set (ι → K)}
       (fromRows E' C) (fromRows F' (0 : Matrix ρ κ K)) (Sum.elim g' d) := by
   intro x
   simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, hEF x]
-  have heq : ∀ y : κ → K,
-      fromRows E' C *ᵥ x + fromRows F' (0 : Matrix ρ κ K) *ᵥ y = Sum.elim g' d ↔
-        E' *ᵥ x + F' *ᵥ y = g' ∧ C *ᵥ x = d := fun y => by
-    have hsum : fromRows E' C *ᵥ x + fromRows F' (0 : Matrix ρ κ K) *ᵥ y =
-        Sum.elim (E' *ᵥ x + F' *ᵥ y) (C *ᵥ x) := by
-      ext (i | j) <;> simp only [fromRows_mulVec, zero_mulVec, Pi.add_apply, Pi.zero_apply,
-        add_zero, Sum.elim_inl, Sum.elim_inr]
-    rw [hsum, Sum.elim_eq_iff]
-  simp_rw [heq]
+  have hsum (y : κ → K) : fromRows E' C *ᵥ x + fromRows F' (0 : Matrix ρ κ K) *ᵥ y =
+      Sum.elim (E' *ᵥ x + F' *ᵥ y) (C *ᵥ x) := by
+    ext (i | j) <;> simp [fromRows_mulVec]
+  simp_rw [hsum, Sum.elim_eq_iff]
   exact ⟨fun ⟨⟨y, hy, hy'⟩, hCx⟩ => ⟨y, hy, hy', hCx⟩,
     fun ⟨y, hy, hy', hCx⟩ => ⟨⟨y, hy, hy'⟩, hCx⟩⟩
 
@@ -84,10 +79,8 @@ theorem extensionComplexity_inter_mulVec_eq_le [Finite ρ] (Q : Set (ι → K))
 for valid inequalities `c ⬝ᵥ x ≤ δ` this is [FioriniMassarPokuttaTiwaryDeWolf2015, Lemma 9 (ii)]. -/
 theorem extensionComplexity_inter_dotProduct_eq_le (Q : Set (ι → K)) (c : ι → K) (δ : K) :
     extensionComplexity (Q ∩ {x | c ⬝ᵥ x = δ}) ≤ extensionComplexity Q := by
-  have hset : {x : ι → K | c ⬝ᵥ x = δ} = {x | Matrix.of (fun _ : Unit => c) *ᵥ x = fun _ => δ} := by
-    ext x
-    simp only [Set.mem_ofPred_eq]
-    exact ⟨fun h => funext fun _ => h, fun h => congrFun h ()⟩
+  have hset : {x : ι → K | c ⬝ᵥ x = δ} = {x | Matrix.of (fun _ : Unit => c) *ᵥ x = fun _ => δ} :=
+    Set.ext fun _ => ⟨fun h => funext fun _ => h, fun h => congrFun h ()⟩
   rw [hset]
   exact extensionComplexity_inter_mulVec_eq_le Q _ _
 
@@ -111,38 +104,26 @@ theorem IsExtendedFormulation.affineImage [DecidableEq ι] {Q : Set (ν → K)}
   intro x
   rw [Set.mem_image]
   have hblk : ∀ (z : ν → K) (y : κ → K),
-      (0 : Matrix σ ι K) *ᵥ x + fromCols E F *ᵥ Sum.elim z y = E *ᵥ z + F *ᵥ y := by
-    intro z y
+      (0 : Matrix σ ι K) *ᵥ x + fromCols E F *ᵥ Sum.elim z y = E *ᵥ z + F *ᵥ y := fun z y => by
     rw [zero_mulVec, zero_add, fromCols_mulVec, Sum.elim_comp_inl, Sum.elim_comp_inr]
   have heq_blk : ∀ (z : ν → K) (y : κ → K),
       fromRows (-1 : Matrix ι ι K) (0 : Matrix τ ι K) *ᵥ x +
         fromBlocks T (0 : Matrix ι κ K) E' F' *ᵥ Sum.elim z y =
-          Sum.elim (-x + T *ᵥ z) (E' *ᵥ z + F' *ᵥ y) := by
-    intro z y
+          Sum.elim (-x + T *ᵥ z) (E' *ᵥ z + F' *ᵥ y) := fun z y => by
     ext (i | j) <;> simp only [fromRows_mulVec, neg_mulVec, one_mulVec, zero_mulVec,
       fromBlocks_mulVec, Sum.elim_comp_inl, Sum.elim_comp_inr, Sum.elim_inl, Sum.elim_inr,
       Pi.add_apply, Pi.zero_apply, add_zero, zero_add]
   constructor
   · rintro ⟨z, hz, rfl⟩
     obtain ⟨y, hy, hy'⟩ := (hEF z).1 hz
-    refine ⟨Sum.elim z y, ?_, ?_⟩
-    · rwa [hblk]
-    · rw [heq_blk, hy', Sum.elim_eq_iff]
-      refine ⟨?_, rfl⟩
-      ext i
-      simp only [Pi.add_apply, Pi.neg_apply]
-      abel
+    refine ⟨Sum.elim z y, by rwa [hblk], ?_⟩
+    rw [heq_blk, hy', Sum.elim_eq_iff]
+    exact ⟨by abel, rfl⟩
   · rintro ⟨w, hw, hw'⟩
     rw [← Sum.elim_comp_inl_inr w, hblk] at hw
     rw [← Sum.elim_comp_inl_inr w, heq_blk, Sum.elim_eq_iff] at hw'
     refine ⟨w ∘ Sum.inl, (hEF _).2 ⟨w ∘ Sum.inr, hw, hw'.2⟩, ?_⟩
-    ext i
-    have hi := congrFun hw'.1 i
-    simp only [Pi.add_apply, Pi.neg_apply] at hi ⊢
-    calc
-      (T *ᵥ (w ∘ Sum.inl)) i + t i = x i + (-x i + (T *ᵥ (w ∘ Sum.inl)) i) + t i := by abel
-      _ = x i + (-t i) + t i := by rw [hi]
-      _ = x i := by abel
+    rw [neg_add_eq_iff_eq_add.1 hw'.1, neg_add_cancel_right]
 
 /-- An affine image does not increase extension complexity
 [FioriniMassarPokuttaTiwaryDeWolf2015, Lemma 9 (i)]. -/
@@ -169,10 +150,8 @@ variable {ι ν : Type*} [Fintype ι] [Fintype ν]
 theorem extensionComplexity_image_linearMap_le (Q : Set (ν → K)) (f : (ν → K) →ₗ[K] (ι → K)) :
     extensionComplexity (f '' Q) ≤ extensionComplexity Q := by
   classical
-  have him : f '' Q = (fun z => LinearMap.toMatrix' f *ᵥ z) '' Q :=
-    Set.image_congr fun z _ => (LinearMap.toMatrix'_mulVec f z).symm
-  rw [him]
-  exact extensionComplexity_image_mulVec_le Q (LinearMap.toMatrix' f)
+  exact (Set.image_congr (s := Q) fun z _ => (LinearMap.toMatrix'_mulVec f z).symm) ▸
+    extensionComplexity_image_mulVec_le Q (LinearMap.toMatrix' f)
 
 /-- If two sets are mutual linear images of each other, they have the same extension
 complexity. -/
@@ -194,14 +173,10 @@ omit [IsStrictOrderedRing K] in
 /-- An affine matrix map commutes with `convexHull`. -/
 theorem image_affine_convexHull (T : Matrix ι ν K) [Fintype ν] (t : ι → K) (S : Set (ν → K)) :
     (fun z => T *ᵥ z + t) '' convexHull K S =
-      convexHull K ((fun z => T *ᵥ z + t) '' S) := by
-  let φ : (ν → K) →ᵃ[K] (ι → K) :=
-    { toFun := fun z => T *ᵥ z + t
-      linear := T.mulVecLin
-      map_vadd' := fun p v => by
-        simp only [vadd_eq_add, mulVecLin_apply, mulVec_add]
-        abel }
-  exact φ.image_convexHull S
+      convexHull K ((fun z => T *ᵥ z + t) '' S) :=
+  ({ toFun := fun z => T *ᵥ z + t, linear := T.mulVecLin, map_vadd' := fun _ _ => by
+      simp only [vadd_eq_add, mulVecLin_apply, mulVec_add]; abel } :
+      (ν → K) →ᵃ[K] (ι → K)).image_convexHull S
 
 omit [IsStrictOrderedRing K] in
 /-- A finite convex hull `conv (range V)` is nontrivial iff `V` takes two distinct values. -/
@@ -210,11 +185,8 @@ theorem nontrivial_convexHull_range_iff {V : ν → ι → K} :
   constructor
   · intro hP
     by_contra! h
-    refine hP.not_subsingleton ?_
-    have hsub : (Set.range V).Subsingleton := by
-      rintro _ ⟨j₁, rfl⟩ _ ⟨j₂, rfl⟩
-      exact h j₁ j₂
-    simpa only [hsub.convex.convexHull_eq] using hsub
+    have hsub : (Set.range V).Subsingleton := by rintro _ ⟨j₁, rfl⟩ _ ⟨j₂, rfl⟩; exact h j₁ j₂
+    exact hP.not_subsingleton (by rwa [hsub.convex.convexHull_eq])
   · rintro ⟨j₁, j₂, hj⟩
     exact ⟨V j₁, subset_convexHull K _ ⟨j₁, rfl⟩, V j₂, subset_convexHull K _ ⟨j₂, rfl⟩, hj⟩
 
@@ -228,8 +200,7 @@ theorem convexHull_inter_mulVec_eq [Fintype ι] {V : ν → ι → K} {C : Matri
   · rintro x ⟨hx, hCx⟩
     rw [mem_convexHull_iff_exists_fintype] at hx
     obtain ⟨γ, _, w, z, hw0, hw1, hz, rfl⟩ := hx
-    have hzV : ∀ k, ∃ j, V j = z k := fun k => hz k
-    choose idx hidx using hzV
+    choose idx hidx using (hz : ∀ k, ∃ j, V j = z k)
     have hslack : ∀ i : ρ, ∑ k : γ, w k * (d i - C i ⬝ᵥ V (idx k)) = 0 := fun i => by
       have hCxi := congrFun hCx i
       simp only [mulVec, dotProduct_sum, dotProduct_smul, smul_eq_mul] at hCxi
@@ -243,13 +214,9 @@ theorem convexHull_inter_mulVec_eq [Fintype ι] {V : ν → ι → K} {C : Matri
       ext i
       have hterm := (Finset.sum_eq_zero_iff_of_nonneg fun k' _ =>
         mul_nonneg (hw0 k') (sub_nonneg.2 (hV (idx k') i))).1 (hslack i) k (Finset.mem_univ k)
-      rcases mul_eq_zero.1 hterm with hwz | hsub
-      · exact absurd hwz hwk
-      · exact (sub_eq_zero.1 hsub).symm
+      exact (sub_eq_zero.1 ((mul_eq_zero.1 hterm).resolve_left hwk)).symm
     let S : Finset γ := Finset.univ.filter fun k => w k ≠ 0
-    have hSw1 : ∑ k ∈ S, w k = 1 := by
-      rw [← hw1]
-      exact Finset.sum_filter_ne_zero Finset.univ
+    have hSw1 : ∑ k ∈ S, w k = 1 := (Finset.sum_filter_ne_zero _).trans hw1
     have hSx : S.centerMass w z = ∑ k : γ, w k • z k := by
       rw [Finset.centerMass_eq_of_sum_1 _ _ hSw1]
       exact Finset.sum_filter_of_ne fun k _ hnz hwk => hnz (by rw [hwk, zero_smul])
@@ -268,14 +235,10 @@ theorem convexHull_inter_dotProduct_eq [Fintype ι] {V : ν → ι → K} {c : �
     (hV : ∀ j, c ⬝ᵥ V j ≤ δ) :
     convexHull K (Set.range V) ∩ {x | c ⬝ᵥ x = δ} = convexHull K (V '' {j | c ⬝ᵥ V j = δ}) := by
   have hV' : ∀ j, Matrix.of (fun _ : Unit => c) *ᵥ V j ≤ fun _ => δ := fun j _ => hV j
-  have h1 : {x : ι → K | c ⬝ᵥ x = δ} = {x | Matrix.of (fun _ : Unit => c) *ᵥ x = fun _ => δ} := by
-    ext x
-    simp only [Set.mem_ofPred_eq]
-    exact ⟨fun h => funext fun _ => h, fun h => congrFun h ()⟩
-  have h2 : {j : ν | c ⬝ᵥ V j = δ} = {j | Matrix.of (fun _ : Unit => c) *ᵥ V j = fun _ => δ} := by
-    ext j
-    simp only [Set.mem_ofPred_eq]
-    exact ⟨fun h => funext fun _ => h, fun h => congrFun h ()⟩
+  have h1 : {x : ι → K | c ⬝ᵥ x = δ} = {x | Matrix.of (fun _ : Unit => c) *ᵥ x = fun _ => δ} :=
+    Set.ext fun _ => ⟨fun h => funext fun _ => h, fun h => congrFun h ()⟩
+  have h2 : {j : ν | c ⬝ᵥ V j = δ} = {j | Matrix.of (fun _ : Unit => c) *ᵥ V j = fun _ => δ} :=
+    Set.ext fun _ => ⟨fun h => funext fun _ => h, fun h => congrFun h ()⟩
   rw [h1, h2]
   exact convexHull_inter_mulVec_eq hV'
 
@@ -311,11 +274,8 @@ theorem HasExtendedFormulation.three_div_two_pow_le_of_mul_le
   have hr' : extensionComplexity P ≤ r := by
     obtain ⟨_, _, _, _, _, _, _, _, hEF⟩ := hr
     simpa only [Fintype.card_fin] using hEF.extensionComplexity_le
-  have hnat : 3 ^ m ≤ r * 2 ^ m := by
-    simpa only [mul_comm] using
-      (by exact_mod_cast hm.trans (mul_le_mul_right hr' _) : 3 ^ m ≤ 2 ^ m * r)
-  have hcast : ((3 : F) ^ m) ≤ (r : F) * (2 : F) ^ m := by exact_mod_cast hnat
-  rw [div_pow, div_le_iff₀ (by positivity)]
-  exact hcast
+  have hnat : 3 ^ m ≤ 2 ^ m * r := by exact_mod_cast hm.trans (mul_le_mul_right hr' _)
+  rw [div_pow, div_le_iff₀ (by positivity), mul_comm]
+  exact_mod_cast hnat
 
 end ExponentialHelpers

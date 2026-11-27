@@ -70,22 +70,15 @@ private theorem sum_walk_le_of_sublist (δ : α → α → ℕ) (htri : ∀ x y 
   | cons x _ ih =>
     refine (ih a).trans ?_
     rename_i l₁ l₂ _
-    simp only [List.cons_append, List.consecutivePairs_cons_cons]
-    cases l₂ with
-    | nil =>
-      simp only [List.nil_append, List.consecutivePairs_cons_cons, List.consecutivePairs_singleton,
-        List.map_cons, List.map_nil, List.sum_cons, List.sum_nil]
-      have := htri a x b
-      omega
-    | cons y l₂ =>
-      simp only [List.cons_append, List.consecutivePairs_cons_cons, List.map_cons, List.sum_cons]
-      have := htri a x y
-      omega
+    rcases l₂ with _ | ⟨y, _⟩ <;>
+      simp only [List.cons_append, List.nil_append, List.consecutivePairs_cons_cons,
+        List.consecutivePairs_singleton, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
+        Nat.add_zero, ← Nat.add_assoc]
+    · exact htri a x b
+    · exact Nat.add_le_add_right (htri a x y) _
   | cons_cons x _ ih =>
-    simp only [List.cons_append, List.consecutivePairs_cons_cons, List.map_cons, List.sum_cons]
-    have := ih x
-    simp only [List.cons_append] at this
-    omega
+    simpa only [List.cons_append, List.consecutivePairs_cons_cons, List.map_cons, List.sum_cons,
+      Nat.add_le_add_iff_left] using ih x
 
 /-- **Shortcutting** ([WilliamsonShmoys2011], Section 2.4): under the triangle inequality,
 skipping vertices of a closed walk does not increase its cost. -/
@@ -114,17 +107,13 @@ theorem cycleCost_dedup_le_of_isEulerCircuit {δ : α → α → ℕ}
     cycleCost δ w.dedup ≤ (H.map fun e => δ e.1 e.2).sum := by
   rw [← sum_map_consecutivePairs_eq hsymm hw]
   obtain ⟨w', rfl⟩ := List.head?_eq_some_iff.mp hw.head
-  obtain ⟨R, hR⟩ : ∃ R, w' = R ++ [u] := by
+  obtain ⟨R, rfl⟩ : ∃ R, w' = R ++ [u] := by
     cases w' with
     | nil =>
-      have := hw.perm
-      simp only [List.consecutivePairs_singleton, List.map_nil] at this
-      exact absurd (List.map_eq_nil_iff.1 this.symm.eq_nil) hH
-    | cons b w' =>
-      have := hw.getLast
-      rw [List.getLast?_cons_cons] at this
-      exact List.getLast?_eq_some_iff.1 this
-  subst hR
+      have hp := hw.perm
+      simp only [List.consecutivePairs_singleton, List.map_nil] at hp
+      exact absurd (List.map_eq_nil_iff.1 hp.symm.eq_nil) hH
+    | cons b w' => exact List.getLast?_eq_some_iff.1 (List.getLast?_cons_cons ▸ hw.getLast)
   rw [List.dedup_cons_of_mem (by simp)]
   refine (cycleCost_le_of_sublist δ htri (List.dedup_sublist _)).trans ?_
   rw [cycleCost_append_comm, List.singleton_append, cycleCost_cons_eq_sum_consecutivePairs]

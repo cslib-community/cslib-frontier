@@ -56,8 +56,7 @@ theorem complexity_add_proj_le (f : BooleanFunction n) (i : Fin n) :
     complexity interpretation (single (f + fun x => x i)) ≤
       complexity interpretation (single f) + 4 := by
   have h := complexity_xor_le f fun x => x i
-  rw [complexity_single_proj] at h
-  exact h
+  rwa [complexity_single_proj] at h
 
 /-- **Joint complexity of shifts.** The `m` functions `x ↦ f x + x_{i o}` together cost at most
 four gates each more than `f`: compute `f` once beside the inputs, then one exclusive or per
@@ -82,13 +81,10 @@ theorem complexity_add_projs_le {m : ℕ} (f : BooleanFunction n) (i : Fin m →
         (Synthesis.of_mem (s := inputs (1 + n)) (f := fun y => y (Fin.natAdd 1 (i o)))
           ⟨Fin.natAdd 1 (i o), rfl⟩)
     obtain ⟨c, hc, hsize⟩ := hsyn.exists_circuit_outputs
-    refine (complexity_le_of_computes c hc).trans (hsize.trans ?_)
-    simp only [zero_add, Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul,
-      mul_comm, le_refl]
-  have heq : G ∘ F = fun x o => f x + x (i o) := by
-    funext x o
-    simp [F, G, Bool.add_eq_xor]
-  rw [← heq]
+    exact (complexity_le_of_computes c hc).trans (hsize.trans (by simp [mul_comm]))
+  have heq : (fun x o => f x + x (i o)) = G ∘ F :=
+    funext₂ fun _ _ => by simp [F, G, Bool.add_eq_xor]
+  rw [heq]
   exact (complexity_comp_le (I := interpretation) F G).trans (Nat.add_le_add hF hG)
 
 /-- Shifting two projections by the same `f` keeps their computational Hamming distance. -/
@@ -104,21 +100,17 @@ theorem circuitDist_proj_le (i j : Fin n) :
   · simp [hij]
   rw [circuitDist_of_ne hij]
   have h := complexity_xor_le (fun x : BitString n => x i) fun x => x j
-  rw [complexity_single_proj, complexity_single_proj] at h
-  omega
+  rw [complexity_single_proj, complexity_single_proj] at h; omega
 
 /-- Two distinct coordinate projections are at computational Hamming distance at least five:
 their exclusive or is not a projection. -/
 theorem five_le_circuitDist_proj {i j : Fin n} (hij : i ≠ j) :
     5 ≤ circuitDist (fun x : BitString n => x i) (fun x => x j) := by
-  have hne : (fun x : BitString n => x i) ≠ fun x => x j := fun h => by
-    have := congrFun h (Function.update (fun _ => false) i true)
-    simp [Function.update_of_ne hij.symm] at this
-  rw [circuitDist_of_ne hne]
-  have : 1 ≤ complexity interpretation (single fun x => x i ^^ x j) :=
-    one_le_complexity_single fun k h => by
-      have := congrFun h fun _ => true
-      simp at this
+  rw [circuitDist_of_ne fun h => by
+    simpa [Function.update_of_ne hij.symm] using
+      congrFun h (Function.update (fun _ => false) i true)]
+  have := one_le_complexity_single (I := interpretation) (f := fun x => x i ^^ x j) fun _ h => by
+    simpa using congrFun h fun _ => true
   omega
 
 end Cslib.Circuits.Boolean

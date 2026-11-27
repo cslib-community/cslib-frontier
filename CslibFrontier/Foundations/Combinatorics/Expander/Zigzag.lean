@@ -94,17 +94,23 @@ private theorem add_mul_le_mul_sqrt_mul_sqrt {μ ν a₁ a₂ b₁ b₂ : ℝ} (
     (hb₁ : 0 ≤ b₁) (hb₂ : 0 ≤ b₂) :
     a₁ * (μ * b₁) + a₁ * (ν * b₂) + ν * a₂ * b₁ + ν * a₂ * (ν * b₂) ≤
       (μ + ν + ν ^ 2) * (√(a₁ ^ 2 + a₂ ^ 2) * √(b₁ ^ 2 + b₂ ^ 2)) := by
-  have hA₁ : a₁ ≤ √(a₁ ^ 2 + a₂ ^ 2) := Real.le_sqrt_of_sq_le (by nlinarith)
-  have hA₂ : a₂ ≤ √(a₁ ^ 2 + a₂ ^ 2) := Real.le_sqrt_of_sq_le (by nlinarith)
-  have hB₁ : b₁ ≤ √(b₁ ^ 2 + b₂ ^ 2) := Real.le_sqrt_of_sq_le (by nlinarith)
-  have hB₂ : b₂ ≤ √(b₁ ^ 2 + b₂ ^ 2) := Real.le_sqrt_of_sq_le (by nlinarith)
-  have h₁₁ := mul_le_mul hA₁ hB₁ hb₁ (Real.sqrt_nonneg _)
-  have h₂₂ := mul_le_mul hA₂ hB₂ hb₂ (Real.sqrt_nonneg _)
-  have h₁₂ : a₁ * b₂ + a₂ * b₁ ≤ √(a₁ ^ 2 + a₂ ^ 2) * √(b₁ ^ 2 + b₂ ^ 2) := by
+  set A := √(a₁ ^ 2 + a₂ ^ 2)
+  set B := √(b₁ ^ 2 + b₂ ^ 2)
+  have h₁₁ : a₁ * b₁ ≤ A * B := mul_le_mul
+    (Real.le_sqrt_of_sq_le (le_add_of_nonneg_right (sq_nonneg _)))
+    (Real.le_sqrt_of_sq_le (le_add_of_nonneg_right (sq_nonneg _))) hb₁ (Real.sqrt_nonneg _)
+  have h₂₂ : a₂ * b₂ ≤ A * B := mul_le_mul
+    (Real.le_sqrt_of_sq_le (le_add_of_nonneg_left (sq_nonneg _)))
+    (Real.le_sqrt_of_sq_le (le_add_of_nonneg_left (sq_nonneg _))) hb₂ (Real.sqrt_nonneg _)
+  have h₁₂ : a₁ * b₂ + a₂ * b₁ ≤ A * B := by
     rw [← Real.sqrt_mul (by positivity)]
-    exact Real.le_sqrt_of_sq_le (by nlinarith [sq_nonneg (a₁ * b₁ - a₂ * b₂)])
-  nlinarith [mul_le_mul_of_nonneg_left h₁₁ hμ, mul_le_mul_of_nonneg_left h₁₂ hν,
-    mul_le_mul_of_nonneg_left h₂₂ (sq_nonneg ν)]
+    have hid : (a₁ * b₂ + a₂ * b₁) ^ 2 + (a₁ * b₁ - a₂ * b₂) ^ 2 =
+        (a₁ ^ 2 + a₂ ^ 2) * (b₁ ^ 2 + b₂ ^ 2) := by ring
+    exact Real.le_sqrt_of_sq_le (by linarith [sq_nonneg (a₁ * b₁ - a₂ * b₂)])
+  calc a₁ * (μ * b₁) + a₁ * (ν * b₂) + ν * a₂ * b₁ + ν * a₂ * (ν * b₂)
+      = μ * (a₁ * b₁) + ν * (a₁ * b₂ + a₂ * b₁) + ν ^ 2 * (a₂ * b₂) := by ring
+    _ ≤ μ * (A * B) + ν * (A * B) + ν ^ 2 * (A * B) := by gcongr
+    _ = (μ + ν + ν ^ 2) * (A * B) := by ring
 
 /-- The bilinear estimate behind the second zig-zag bound: for `0 ≤ a ≤ A` and `0 ≤ b ≤ B`,
 `(1 - ν)² μ a b + (1 - ν) ν (a B + A b) + ν² A B ≤ (1 - (1 - μ) (1 - ν)²) A B`. -/
@@ -112,13 +118,14 @@ private theorem mul_add_le_one_sub_mul {μ ν a b A B : ℝ} (hμ : 0 ≤ μ) (h
     (ha : 0 ≤ a) (hb : 0 ≤ b) (haA : a ≤ A) (hbB : b ≤ B) :
     (1 - ν) ^ 2 * (a * (μ * b)) + (1 - ν) * (a * (ν * B)) + (1 - ν) * (ν * A * b) +
         ν * A * (ν * B) ≤ (1 - (1 - μ) * (1 - ν) ^ 2) * (A * B) := by
-  have h₁ : a * b ≤ A * B := mul_le_mul haA hbB hb (ha.trans haA)
-  have h₂ : a * B ≤ A * B := mul_le_mul_of_nonneg_right haA (hb.trans hbB)
-  have h₃ : A * b ≤ A * B := mul_le_mul_of_nonneg_left hbB (ha.trans haA)
   have hν' : 0 ≤ 1 - ν := sub_nonneg.2 hν₁
-  nlinarith [mul_le_mul_of_nonneg_left h₁ (mul_nonneg (sq_nonneg (1 - ν)) hμ),
-    mul_le_mul_of_nonneg_left h₂ (mul_nonneg hν' hν),
-    mul_le_mul_of_nonneg_left h₃ (mul_nonneg hν' hν)]
+  have hA : 0 ≤ A := ha.trans haA
+  have hB : 0 ≤ B := hb.trans hbB
+  calc (1 - ν) ^ 2 * (a * (μ * b)) + (1 - ν) * (a * (ν * B)) + (1 - ν) * (ν * A * b) +
+        ν * A * (ν * B)
+      ≤ (1 - ν) ^ 2 * (A * (μ * B)) + (1 - ν) * (A * (ν * B)) + (1 - ν) * (ν * A * B) +
+        ν * A * (ν * B) := by gcongr
+    _ = (1 - (1 - μ) * (1 - ν) ^ 2) * (A * B) := by ring
 
 variable {V D E : Type*} (G : RotationMap V D) (H : RotationMap D E)
 
@@ -192,12 +199,35 @@ private theorem expect_mul_walk_zigzag_eq [Nonempty E] (h₁ f₁ : V → ℝ) (
 /-- On the functions constant on the clouds, `Ã` acts as the walk on `G`. -/
 private theorem expect_mul_comp_rot_le (φ : V → ℝ) {ψ : V → ℝ} (hψ : 𝔼 v, ψ v = 0) :
     𝔼 p, φ p.1 * ψ (G.rot p).1 ≤ √(𝔼 v, φ v ^ 2) * (G.spectralExpansion * √(𝔼 v, ψ v ^ 2)) := by
-  have : 𝔼 p, φ p.1 * ψ (G.rot p).1 = 𝔼 v, φ v * G.walk ψ v := by
-    simp only [Fintype.expect_prod_type, walk_apply, mul_expect]
-    rfl
-  rw [this]
-  refine (expect_mul_le_sqrt_mul_sqrt univ _ _).trans (mul_le_mul_of_nonneg_left ?_ (by positivity))
+  rw [Fintype.expect_prod_type]
+  simp_rw [← mul_expect]
+  refine (expect_mul_le_sqrt_mul_sqrt univ φ (G.walk ψ)).trans
+    (mul_le_mul_of_nonneg_left ?_ (by positivity))
   exact sqrt_le_mul_sqrt G.spectralExpansion_nonneg (expect_walk_sq_le_spectralExpansion_sq_mul hψ)
+
+/-- Four-term Cauchy–Schwarz and spectral estimate for a decomposed bilinear form under `G.rot`. -/
+private theorem expect_rot_bilinear_le [Nonempty D] (h₁ f₁ : V → ℝ) (hf₁ : 𝔼 v, f₁ v = 0)
+    (u w : V × D → ℝ) {c cu cw : ℝ} (hc : 0 ≤ c)
+    (hu : √(𝔼 p, u p ^ 2) ≤ cu) (hw : √(𝔼 p, w p ^ 2) ≤ cw) :
+    𝔼 p, (c * h₁ p.1 + u p) * (c * f₁ (G.rot p).1 + w (G.rot p)) ≤
+      c ^ 2 * (√(𝔼 v, h₁ v ^ 2) * (G.spectralExpansion * √(𝔼 v, f₁ v ^ 2))) +
+        c * (√(𝔼 v, h₁ v ^ 2) * cw) + c * (cu * √(𝔼 v, f₁ v ^ 2)) + cu * cw := by
+  have hsplit (p : V × D) :
+      (c * h₁ p.1 + u p) * (c * f₁ (G.rot p).1 + w (G.rot p)) =
+        c ^ 2 * (h₁ p.1 * f₁ (G.rot p).1) + c * (h₁ p.1 * w (G.rot p)) +
+          c * (u p * f₁ (G.rot p).1) + u p * w (G.rot p) := by ring
+  simp only [hsplit, expect_add_distrib, ← mul_expect]
+  gcongr
+  · exact G.expect_mul_comp_rot_le h₁ hf₁
+  · refine (expect_mul_le_sqrt_mul_sqrt univ _ _).trans ?_
+    rw [expect_comp_fst (fun v ↦ h₁ v ^ 2), expect_comp_rot G (fun p ↦ w p ^ 2)]
+    exact mul_le_mul_of_nonneg_left hw (by positivity)
+  · refine (expect_mul_le_sqrt_mul_sqrt univ _ _).trans ?_
+    rw [expect_comp_rot G (fun p ↦ f₁ p.1 ^ 2), expect_comp_fst (fun v ↦ f₁ v ^ 2)]
+    exact mul_le_mul_of_nonneg_right hu (by positivity)
+  · refine (expect_mul_le_sqrt_mul_sqrt univ _ _).trans ?_
+    rw [expect_comp_rot G (fun p ↦ w p ^ 2)]
+    exact mul_le_mul hu hw (Real.sqrt_nonneg _) ((Real.sqrt_nonneg _).trans hu)
 
 /-- The zig-zag estimate in bilinear form: `𝔼 h · W f ≤ (λ(G) + λ(H) + λ(H)²) ‖h‖ ‖f‖` for `f` of
 expectation zero. -/
@@ -206,35 +236,22 @@ private theorem expect_mul_walk_zigzag_le [Nonempty D] [Nonempty E] (h : V × D 
     𝔼 p, h p * (G.zigzag H).walk f p ≤
       (G.spectralExpansion + H.spectralExpansion + H.spectralExpansion ^ 2) *
         (√(𝔼 p, h p ^ 2) * √(𝔼 p, f p ^ 2)) := by
-  have hμ := G.spectralExpansion_nonneg
   have hν := H.spectralExpansion_nonneg
   obtain ⟨h₁, h₂, rfl, hh₂, -, hhh⟩ := exists_eq_add_expect_fiber_eq_zero h
   obtain ⟨f₁, f₂, rfl, hf₂, hf₁, hff⟩ := exists_eq_add_expect_fiber_eq_zero f
   rw [hf] at hf₁
-  rw [hhh, hff, ← Real.sq_sqrt (expect_nonneg fun v _ ↦ sq_nonneg (h₁ v)),
+  rw [expect_mul_walk_zigzag_eq, hhh, hff,
+    ← Real.sq_sqrt (expect_nonneg fun v _ ↦ sq_nonneg (h₁ v)),
     ← Real.sq_sqrt (expect_nonneg fun p _ ↦ sq_nonneg (h₂ p)),
     ← Real.sq_sqrt (expect_nonneg fun v _ ↦ sq_nonneg (f₁ v)),
     ← Real.sq_sqrt (expect_nonneg fun p _ ↦ sq_nonneg (f₂ p))]
-  refine le_trans ?_ (add_mul_le_mul_sqrt_mul_sqrt hμ hν (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))
-  rw [expect_mul_walk_zigzag_eq]
-  simp only [add_mul]
-  simp only [mul_add, expect_add_distrib]
-  rw [← add_assoc]
   -- the walk on the clouds shrinks the parts of average zero over the clouds by `λ(H)`
-  have hqh := sqrt_le_mul_sqrt hν (H.expect_walk_loops_tensor_sq_le hh₂)
-  have hqf := sqrt_le_mul_sqrt hν (H.expect_walk_loops_tensor_sq_le hf₂)
-  gcongr ?_ + ?_ + ?_ + ?_
-  · exact G.expect_mul_comp_rot_le h₁ hf₁
-  · refine (expect_mul_le_sqrt_mul_sqrt univ _ _).trans ?_
-    rw [expect_comp_fst (fun v ↦ h₁ v ^ 2),
-      expect_comp_rot G (fun p ↦ ((loops V Unit).tensor H).walk f₂ p ^ 2)]
-    exact mul_le_mul_of_nonneg_left hqf (by positivity)
-  · refine (expect_mul_le_sqrt_mul_sqrt univ _ _).trans ?_
-    rw [expect_comp_rot G (fun p ↦ f₁ p.1 ^ 2), expect_comp_fst (fun v ↦ f₁ v ^ 2)]
-    exact mul_le_mul_of_nonneg_right hqh (by positivity)
-  · refine (expect_mul_le_sqrt_mul_sqrt univ _ _).trans ?_
-    rw [expect_comp_rot G (fun p ↦ ((loops V Unit).tensor H).walk f₂ p ^ 2)]
-    exact mul_le_mul hqh hqf (by positivity) (by positivity)
+  have hbil := G.expect_rot_bilinear_le h₁ f₁ hf₁ _ _ zero_le_one
+    (sqrt_le_mul_sqrt hν (H.expect_walk_loops_tensor_sq_le hh₂))
+    (sqrt_le_mul_sqrt hν (H.expect_walk_loops_tensor_sq_le hf₂))
+  simp only [one_mul, one_pow] at hbil
+  exact hbil.trans (add_mul_le_mul_sqrt_mul_sqrt G.spectralExpansion_nonneg hν
+    (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))
 
 /-- The second zig-zag estimate in bilinear form:
 `𝔼 h · W f ≤ (1 - (1 - λ(G)) (1 - λ(H))²) ‖h‖ ‖f‖` for `f` of expectation zero. -/
@@ -243,9 +260,6 @@ private theorem expect_mul_walk_zigzag_le_one_sub [Nonempty D] [Nonempty E] (h :
     𝔼 p, h p * (G.zigzag H).walk f p ≤
       (1 - (1 - G.spectralExpansion) * (1 - H.spectralExpansion) ^ 2) *
         (√(𝔼 p, h p ^ 2) * √(𝔼 p, f p ^ 2)) := by
-  have hμ := G.spectralExpansion_nonneg
-  have hν := H.spectralExpansion_nonneg
-  have hν₁ : 0 ≤ 1 - H.spectralExpansion := sub_nonneg.2 H.spectralExpansion_le_one
   obtain ⟨h₁, h₂, rfl, hh₂, -, hhh⟩ := exists_eq_add_expect_fiber_eq_zero h
   obtain ⟨f₁, f₂, rfl, hf₂, hf₁, hff⟩ := exists_eq_add_expect_fiber_eq_zero f
   rw [hf] at hf₁
@@ -253,34 +267,18 @@ private theorem expect_mul_walk_zigzag_le_one_sub [Nonempty D] [Nonempty E] (h :
   -- `B̃ h = (1 - λ(H)) h₁ + u` with `‖u‖ ≤ λ(H) ‖h‖`, and the same for `f`
   set u : V × D → ℝ := fun p ↦ H.spectralExpansion * h₁ p.1 + ((loops V Unit).tensor H).walk h₂ p
   set w : V × D → ℝ := fun p ↦ H.spectralExpansion * f₁ p.1 + ((loops V Unit).tensor H).walk f₂ p
-  have hsplit (p : V × D) :
-      (h₁ p.1 + ((loops V Unit).tensor H).walk h₂ p) *
-          (f₁ (G.rot p).1 + ((loops V Unit).tensor H).walk f₂ (G.rot p)) =
-        (1 - H.spectralExpansion) ^ 2 * (h₁ p.1 * f₁ (G.rot p).1) +
-          (1 - H.spectralExpansion) * (h₁ p.1 * w (G.rot p)) +
-          (1 - H.spectralExpansion) * (u p * f₁ (G.rot p).1) + u p * w (G.rot p) := by
-    simp only [u, w]
-    ring
-  simp only [hsplit, expect_add_distrib, ← mul_expect]
-  have hu := H.sqrt_expect_mul_add_walk_loops_tensor_sq_le h₁ hh₂
-  have hu' := H.sqrt_expect_mul_add_walk_loops_tensor_sq_le f₁ hf₂
-  have ha : √(𝔼 v, h₁ v ^ 2) ≤ √(𝔼 v, h₁ v ^ 2 + 𝔼 p, h₂ p ^ 2) :=
-    Real.sqrt_le_sqrt (le_add_of_nonneg_right (expect_nonneg fun p _ ↦ sq_nonneg (h₂ p)))
-  have hb : √(𝔼 v, f₁ v ^ 2) ≤ √(𝔼 v, f₁ v ^ 2 + 𝔼 p, f₂ p ^ 2) :=
-    Real.sqrt_le_sqrt (le_add_of_nonneg_right (expect_nonneg fun p _ ↦ sq_nonneg (f₂ p)))
-  refine le_trans ?_ (mul_add_le_one_sub_mul hμ hν H.spectralExpansion_le_one
-    (Real.sqrt_nonneg _) (Real.sqrt_nonneg _) ha hb)
-  gcongr _ * ?_ + _ * ?_ + _ * ?_ + ?_
-  · exact G.expect_mul_comp_rot_le h₁ hf₁
-  · refine (expect_mul_le_sqrt_mul_sqrt univ _ _).trans ?_
-    rw [expect_comp_fst (fun v ↦ h₁ v ^ 2), expect_comp_rot G (fun p ↦ w p ^ 2)]
-    exact mul_le_mul_of_nonneg_left hu' (by positivity)
-  · refine (expect_mul_le_sqrt_mul_sqrt univ _ _).trans ?_
-    rw [expect_comp_rot G (fun p ↦ f₁ p.1 ^ 2), expect_comp_fst (fun v ↦ f₁ v ^ 2)]
-    exact mul_le_mul_of_nonneg_right hu (by positivity)
-  · refine (expect_mul_le_sqrt_mul_sqrt univ _ _).trans ?_
-    rw [expect_comp_rot G (fun p ↦ w p ^ 2)]
-    exact mul_le_mul hu hu' (by positivity) (by positivity)
+  have hbil := G.expect_rot_bilinear_le h₁ f₁ hf₁ u w (sub_nonneg.2 H.spectralExpansion_le_one)
+    (H.sqrt_expect_mul_add_walk_loops_tensor_sq_le h₁ hh₂)
+    (H.sqrt_expect_mul_add_walk_loops_tensor_sq_le f₁ hf₂)
+  have hu_eq (p : V × D) : (1 - H.spectralExpansion) * h₁ p.1 + u p =
+      h₁ p.1 + ((loops V Unit).tensor H).walk h₂ p := by simp only [u]; ring
+  have hw_eq (p : V × D) : (1 - H.spectralExpansion) * f₁ (G.rot p).1 + w (G.rot p) =
+      f₁ (G.rot p).1 + ((loops V Unit).tensor H).walk f₂ (G.rot p) := by simp only [w]; ring
+  simp only [hu_eq, hw_eq] at hbil
+  refine hbil.trans (mul_add_le_one_sub_mul G.spectralExpansion_nonneg H.spectralExpansion_nonneg
+    H.spectralExpansion_le_one (Real.sqrt_nonneg _) (Real.sqrt_nonneg _) ?_ ?_)
+  · exact Real.sqrt_le_sqrt (le_add_of_nonneg_right (expect_nonneg fun p _ ↦ sq_nonneg (h₂ p)))
+  · exact Real.sqrt_le_sqrt (le_add_of_nonneg_right (expect_nonneg fun p _ ↦ sq_nonneg (f₂ p)))
 
 /-- To bound `λ(G ⓩ H)` by `c ≥ 0`, it suffices to bound `𝔼 h · W f` by `c ‖h‖ ‖f‖` for every `h`
 and every `f` of expectation zero, when `D` and `E` are nonempty. -/
@@ -290,9 +288,7 @@ private theorem spectralExpansion_zigzag_le_of_expect_mul_le {c : ℝ} (hc : 0 �
     (G.zigzag H).spectralExpansion ≤ c := by
   refine spectralExpansion_le hc fun f hf ↦ ?_
   rcases isEmpty_or_nonempty E with hE | hE
-  · have : (G.zigzag H).walk f = 0 := funext fun p ↦ by simp [walk_apply]
-    rw [this]
-    simpa using mul_nonneg (sq_nonneg c) (expect_nonneg fun p _ ↦ sq_nonneg (f p))
+  · simpa [walk_apply] using mul_nonneg (sq_nonneg c) (expect_nonneg fun p _ ↦ sq_nonneg (f p))
   rcases isEmpty_or_nonempty D with hD | hD
   · simp
   exact expect_sq_le_of_expect_mul_le (h _ f hf)
@@ -303,8 +299,8 @@ private theorem spectralExpansion_zigzag_le_of_expect_mul_le {c : ℝ} (hc : 0 �
 `G ⓩ H` is at most `λ(G) + λ(H) + λ(H) ^ 2`. -/
 theorem spectralExpansion_zigzag_le :
     (G.zigzag H).spectralExpansion ≤
-      G.spectralExpansion + H.spectralExpansion + H.spectralExpansion ^ 2 := by
-  exact G.spectralExpansion_zigzag_le_of_expect_mul_le H (by positivity) fun h _ hf ↦
+      G.spectralExpansion + H.spectralExpansion + H.spectralExpansion ^ 2 :=
+  G.spectralExpansion_zigzag_le_of_expect_mul_le H (by positivity) fun h _ hf ↦
     G.expect_mul_walk_zigzag_le H h hf
 
 /-- The spectral expansion of `G ⓩ H` is at most `1 - (1 - λ(G)) (1 - λ(H)) ^ 2`: the zig-zag
@@ -315,7 +311,6 @@ theorem spectralExpansion_zigzag_le_one_sub :
       1 - (1 - G.spectralExpansion) * (1 - H.spectralExpansion) ^ 2 := by
   have hμ := G.spectralExpansion_nonneg
   have hν := H.spectralExpansion_nonneg
-  have hμ₁ := G.spectralExpansion_le_one
   have hν₁ := H.spectralExpansion_le_one
   refine G.spectralExpansion_zigzag_le_of_expect_mul_le H ?_ fun h _ hf ↦
     G.expect_mul_walk_zigzag_le_one_sub H h hf

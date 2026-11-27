@@ -83,16 +83,9 @@ theorem zipFold_eq_zipWithLeft (f : π → α → Option β → Option γ) (p : 
 /-- A walk that keeps every element is a `List.mapIdx` that reads the second list at each index. -/
 theorem zipFold_some (g : π → α → Option β → γ) (p : π) (l : List α) (r : List β) :
     zipFold (fun p a b => some (g p a b)) p l r = l.mapIdx fun i a => g p a r[i]? := by
-  have hnil : ∀ xs : List α,
-      xs.zipWithLeft (fun a b => some (g p a b)) [] = xs.map fun a => some (g p a none) :=
-    fun xs => by cases xs <;> rfl
-  rw [zipFold_eq_zipWithLeft]
   induction l generalizing r with
   | nil => rfl
-  | cons a l ih =>
-    rcases r with _ | ⟨b, r⟩
-    · simpa [List.zipWithLeft, hnil, List.mapIdx_cons] using congrArg (g p a none :: ·) (ih [])
-    · simpa [List.zipWithLeft, List.mapIdx_cons] using congrArg (g p a (some b) :: ·) (ih r)
+  | cons a l ih => cases r <;> simp [zipFold, ih, List.mapIdx_cons]
 
 namespace ComputableInO
 
@@ -213,7 +206,7 @@ theorem zipFold [Inhabited β]
       ((encPair encP (encPair (encList encA) (encList encB)) q).length + 1)))
     (B := fun q => 2 * ((encPair encP (encPair (encList encA) (encList encB)) q).length + 1) +
       k * ((encPair encP (encPair (encList encA) (encList encB)) q).length + 1))
-    (fun q i hi => hround q i hi) (fun q i hi => hround q i hi) (fun q i _ => hst q i)
+    hround hround (fun q i _ => hst q i)
   obtain ⟨C, hC⟩ : ∃ C, C = (K + 8) * (8 + 2 * k) + (2 + k) + 2 := ⟨_, rfl⟩
   refine (((snd (encList encB) (encList encC)).comp_linear hfold).mono (C + 8) (fun q => ?_)
     fun q => ?_).of_enc_eq fun q => ?_
@@ -229,13 +222,9 @@ theorem zipFold [Inhabited β]
   · have hin := Nat.mul_le_mul_left (q.2.1.length + 1)
       (show (K + 8) * ((8 + 2 * k) * (X + 1)) + (2 * (X + 1) + k * (X + 1)) + (encP q.1).length +
         (encList encA q.2.1).length ≤ C * (X + 1) by omega)
-    have hcomm : (q.2.1.length + 1) * (C * (X + 1)) = C * ((q.2.1.length + 1) * (X + 1)) :=
-      Nat.mul_left_comm ..
     have hU : X + 1 ≤ (q.2.1.length + 1) * (X + 1) := Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
-    have hexp : (C + 8) * ((q.2.1.length + 1) * (X + 1) + 1) =
-        C * ((q.2.1.length + 1) * (X + 1)) + 8 * ((q.2.1.length + 1) * (X + 1)) + C + 8 := by ring
-    omega
-  · have hexp : (C + 8) * (X + 1) = C * (X + 1) + 8 * (X + 1) := by ring
+    rw [Nat.mul_add (C + 8), Nat.add_mul C 8, Nat.mul_one, ← Nat.mul_left_comm _ C]; omega
+  · rw [Nat.add_mul C 8]
     omega
 
 end ComputableInO

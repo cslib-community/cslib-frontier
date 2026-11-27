@@ -106,10 +106,8 @@ theorem ofFn_mem_yesSet_sqrtThreshold_iff {n : ℕ} {T : BitString (2 ^ n)} :
 
 /-- At perfect squares the threshold is exact: `⌊2 ^ √(m ^ 2)⌋₊ = 2 ^ m`. -/
 theorem sqrtThreshold_sq (m : ℕ) : sqrtThreshold (m ^ 2) = 2 ^ m := by
-  have h : (2 : ℝ) ^ Real.sqrt ((m ^ 2 : ℕ) : ℝ) = ((2 ^ m : ℕ) : ℝ) := by
-    rw [Nat.cast_pow, Real.sqrt_sq (Nat.cast_nonneg m), Real.rpow_natCast, Nat.cast_pow,
-      Nat.cast_ofNat]
-  rw [sqrtThreshold, h, Nat.floor_natCast]
+  rw [sqrtThreshold, Nat.cast_pow, Real.sqrt_sq (Nat.cast_nonneg m), Real.rpow_natCast,
+    ← Nat.cast_ofNat, ← Nat.cast_pow, Nat.floor_natCast]
 
 /-- The threshold is at least `2 ^ ⌊√n⌋`. -/
 theorem two_pow_sqrt_le_sqrtThreshold (n : ℕ) : 2 ^ Nat.sqrt n ≤ sqrtThreshold n := by
@@ -231,23 +229,16 @@ theorem exists_zeroErrorFormula_solvesOnAverage_of_mem_FormulaPoly {s k : ℕ �
   obtain ⟨N, hN⟩ := eventually_atTop.mp
     (eventually_exists_formula_zero_error_average_case_of_mem_FormulaPoly
       hs SubexponentiallyBounded.id hag hL 2 two_pos)
-  let F : ∀ n, Formula signature (2 ^ n) := fun n =>
-    if h : N ≤ n then Classical.choose (hN n h) else Formula.const true
-  have hF : ∀ n, N ≤ n → (F n).leafSize ≤ 2 ^ (n / 2) ∧
-      (∀ T : BitString (2 ^ n), List.ofFn T ∈ GapMCSP.yesSet s →
-        (F n).eval interpretation T = true) ∧
-      (Finset.univ.filter fun T : BitString (2 ^ n) =>
-        (F n).eval interpretation T = true).card ≤ 2 ^ (2 ^ n - n) := by
-    intro n h
-    simp only [F, h, ↓reduceDIte]
-    exact Classical.choose_spec (hN n h)
-  refine ⟨fun n => ofMask (F n), ?_, ?_⟩
+  let F (n : ℕ) : Formula signature (2 ^ n) :=
+    if h : N ≤ n then (hN n h).choose else Formula.const true
+  have hF (n) (h : N ≤ n) : F n = (hN n h).choose := dite_eq_left h
+  refine ⟨fun n => ofMask (F n), ?_, MCSP.solvesOnAverage_iff.mpr ?_⟩
   · filter_upwards [eventually_ge_atTop N] with n hn
-    simpa only [leafSize_ofMask] using (hF n hn).1
-  · rw [MCSP.solvesOnAverage_iff]
-    filter_upwards [eventually_ge_atTop N, hk] with n hn hkn
-    obtain ⟨-, hyes, hcard⟩ := hF n hn
-    exact isZeroErrorDecider_ofMask hyes hcard hkn Nat.lt_two_pow_self.le
+    simpa only [leafSize_ofMask, hF n hn] using (hN n hn).choose_spec.1
+  · filter_upwards [eventually_ge_atTop N, hk] with n hn hkn
+    rw [hF n hn]
+    exact isZeroErrorDecider_ofMask (hN n hn).choose_spec.2.1 (hN n hn).choose_spec.2.2
+      hkn Nat.lt_two_pow_self.le
 
 /-- An eventual bound by `2 ^ (n / 2)` is little-o of `2 ^ n`. -/
 private theorem isLittleO_two_pow_of_eventually_le_two_pow_half {f : ℕ → ℕ}

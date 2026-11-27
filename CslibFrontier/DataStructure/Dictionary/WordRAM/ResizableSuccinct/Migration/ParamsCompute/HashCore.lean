@@ -51,8 +51,6 @@ private theorem clientState_trinomStepProg (x : ℕ × (ℕ × ℕ)) (s : Memory
   rcases x with ⟨hdrAddr, ⟨rem, acc⟩⟩
   dsimp only [trinomStepProg]
   rw [StateTransitionSpec.clientState_bind]
-  have hs0 : (Memory.spec 0).clientState s (Memory.read hdrAddr) = s := rfl
-  rw [hs0]
   split_ifs <;> rfl
 
 private theorem validHistory_trinomStepProg {w hdrAddr rem acc : ℕ} {s : Memory.State}
@@ -115,40 +113,27 @@ private theorem trinomLoop_spec {w hdrAddr B : ℕ} {s₀ : Memory.State}
         subst hs_eq
         rcases st with ⟨rem, acc⟩
         dsimp only at hle_B hrem_bd hsum
-        have hacc_le : acc ≤ trinomialStepAux B := by omega
         have hs' := clientState_trinomStepProg (hdrAddr, (rem, acc)) s
+        have hres : (Memory.spec 0).clientResult s (trinomStepProg (hdrAddr, (rem, acc))) =
+            if 2 < rem then ((rem + 2) / 3, acc + 1) else (rem, acc) := by
+          simp only [trinomStepProg, prog_clientResult_bind, StateTransitionSpec.clientState,
+            prog_runClient_state_read]
+          split_ifs <;> rfl
         refine ⟨⟨hfr, hB2.of_le (by omega), hB2.of_le (by omega), h3⟩,
           validHistory_trinomStepProg hfr,
           memoryCost_trinomStep_le_one _ _,
           congrArg Memory.State.frontier hs',
           (fun _ _ => by rw [hs']),
-          hs', ?_, ?_, ?_⟩
-        · dsimp only [trinomStepProg]
-          simp only [prog_clientResult_bind, StateTransitionSpec.clientState,
-            prog_runClient_state_read]
-          split_ifs with h2
-          · exact (show (rem + 2) / 3 ≤ rem by omega).trans hle_B
-          · exact hle_B
-        · dsimp only [trinomStepProg]
-          simp only [prog_clientResult_bind, StateTransitionSpec.clientState,
-            prog_runClient_state_read]
-          split_ifs with h2 <;> simp only [prog_clientResult_pure] <;> omega
-        · dsimp only [trinomStepProg]
-          simp only [prog_clientResult_bind, StateTransitionSpec.clientState,
-            prog_runClient_state_read]
-          split_ifs with h2
-          · dsimp only [prog_clientResult_pure]
-            have hrec : trinomialStepAux rem = trinomialStepAux ((rem + 2) / 3) + 1 := by
-              rw [trinomialStepAux, ite_eq_right (by omega)]
-            omega
-          · exact hsum)
+          hs', ?_⟩
+        rw [hres]
+        split_ifs with h2 <;> dsimp only
+        · rw [trinomialStepAux, ite_eq_right (by omega)] at hsum
+          exact ⟨by omega, by omega, by omega⟩
+        · exact ⟨hle_B, by omega, hsum⟩)
       (B, 0) s₀ ⟨rfl, le_rfl, by omega, Nat.zero_add _⟩
   refine ⟨hsafe, hv, by simpa only [one_mul] using hcost, hs_eq, ?_⟩
   dsimp only [prog] at *
-  have h0 : trinomialStepAux
-      ((Memory.spec 0).clientResult s₀ (iterate trinomStepProg hdrAddr B (B, 0))).1 = 0 := by
-    rw [trinomialStepAux, ite_eq_left (by omega)]
-  omega
+  rw [trinomialStepAux, ite_eq_left (by omega)] at hsum_end; omega
 
 private def trinomProg : ℕ × ℕ → Memory.Prog ℕ
   | (hdrAddr, B) => do
@@ -179,24 +164,13 @@ private theorem trinomProg_spec {w hdrAddr B : ℕ} {s₀ : Memory.State}
     (Memory.spec 0).clientResult s₀ prog = trinomialStepAux B := by
   intro prog
   obtain ⟨_, hv, hc, hst, hres⟩ := trinomLoop_spec hfr hB2 h3
-  refine ⟨⟨hfr, hB2, h3⟩, ?_, ?_, ?_, ?_⟩
-  · dsimp only [prog, trinomProg]
-    rw [validHistory_bind', hst]
-    rcases (Memory.spec 0).clientResult s₀ (iterate trinomStepProg hdrAddr B (B, 0)) with ⟨_, _⟩
-    exact ⟨hv, trivial⟩
-  · dsimp only [prog, trinomProg]
-    rw [Realization.memoryCost_bind', hst]
-    rcases (Memory.spec 0).clientResult s₀ (iterate trinomStepProg hdrAddr B (B, 0)) with ⟨_, _⟩
-    dsimp only; rw [memoryCost_pure]; omega
-  · dsimp only [prog, trinomProg]
-    rw [StateTransitionSpec.clientState_bind, hst]
-    rcases (Memory.spec 0).clientResult s₀ (iterate trinomStepProg hdrAddr B (B, 0)) with ⟨_, _⟩
-    rfl
-  · dsimp only [prog, trinomProg]
-    rw [prog_clientResult_bind, hst]
-    rcases hp : (Memory.spec 0).clientResult s₀
-      (iterate trinomStepProg hdrAddr B (B, 0)) with ⟨_, r⟩
-    dsimp only; rw [prog_clientResult_pure, ← hres, hp]
+  dsimp only [prog, trinomProg]
+  rw [validHistory_bind', Realization.memoryCost_bind', StateTransitionSpec.clientState_bind,
+    prog_clientResult_bind, hst]
+  rcases hp : (Memory.spec 0).clientResult s₀
+    (iterate trinomStepProg hdrAddr B (B, 0)) with ⟨_, r⟩
+  rw [hp] at hres
+  exact ⟨⟨hfr, hB2, h3⟩, ⟨hv, trivial⟩, by dsimp only; rw [memoryCost_pure]; omega, rfl, hres⟩
 
 private def pow3StepProg : ℕ × ℕ → Memory.Prog ℕ
   | (hdrAddr, acc) => do
@@ -235,14 +209,13 @@ private theorem pow3Loop_spec {w hdrAddr e : ℕ} {s₀ : Memory.State}
   obtain ⟨hsafe, hv, hcost, _, _, hs_eq, hres_eq⟩ :=
     iterate_spec pow3StepProg Pow3StepPre w hdrAddr 1 e inv (fun _ => False)
       (fun k hk acc s ⟨hs_eq, hacc⟩ => by
-        subst hs_eq; subst hacc
+        subst hs_eq hacc
         have hle : 3 * 3 ^ k ≤ 3 ^ e := by
           calc 3 * 3 ^ k = 3 ^ (k + 1) := by rw [pow_succ']
             _ ≤ 3 ^ e := Nat.pow_le_pow_right (by decide) hk
         refine ⟨⟨hfr, hfit.of_le hle⟩, ⟨hfr, trivial⟩, le_rfl, rfl, (fun _ _ => rfl),
           rfl, ?_⟩
-        dsimp only [pow3StepProg]
-        simp only [prog_clientResult_bind, prog_clientResult_pure]
+        simp only [pow3StepProg, prog_clientResult_bind, prog_clientResult_pure]
         rw [pow_succ]; ring)
       1 s₀ ⟨rfl, rfl⟩
   exact ⟨hsafe, hv, by simpa only [one_mul] using hcost, hs_eq, hres_eq⟩
@@ -282,18 +255,22 @@ private theorem pow3Prog_spec {w hdrAddr e : ℕ} {s₀ : Memory.State}
     (Memory.spec 0).clientResult s₀ prog = 3 ^ e := by
   intro prog
   obtain ⟨_, hv, hc, hst, hres⟩ := pow3Loop_spec hfr hfit
-  refine ⟨⟨hfr, hfit⟩, ?_, ?_, ?_, ?_⟩
-  · dsimp only [prog, pow3Prog]; simp only [pure_bind, Nat.add_zero]
-    rw [validHistory_bind', hst]
-    exact ⟨hv, trivial⟩
-  · dsimp only [prog, pow3Prog]; simp only [pure_bind, Nat.add_zero]
-    rw [Realization.memoryCost_bind', hst, memoryCost_pure]; omega
-  · dsimp only [prog, pow3Prog]; simp only [pure_bind, Nat.add_zero]
-    rw [StateTransitionSpec.clientState_bind, hst, StateTransitionSpec.clientState_pure]
-  · dsimp only [prog, pow3Prog]; simp only [pure_bind, Nat.add_zero]
-    rw [prog_clientResult_bind, hst, prog_clientResult_pure, hres]
+  dsimp only [prog, pow3Prog]; simp only [pure_bind, Nat.add_zero]
+  rw [validHistory_bind', Realization.memoryCost_bind', StateTransitionSpec.clientState_bind,
+    prog_clientResult_bind, hst, StateTransitionSpec.clientState_pure, prog_clientResult_pure,
+    memoryCost_pure, hres]
+  exact ⟨⟨hfr, hfit⟩, ⟨hv, trivial⟩, by omega, rfl, rfl⟩
 
 /-! ## `computeHashCoreProg` and Arithmetic Invariants -/
+
+private theorem fits_hashShifts {w t : ℕ} (hc_lt : 2 * reducedChunkBits t < w)
+    (h225 : Fits w 225) :
+    Fits w (3 ^ (t - 3)) ∧ Fits w (3 ^ min t 3) ∧
+      Fits w (min (2 * reducedChunkBits t) (Nat.log 2 (w / (2 * reducedChunkBits t))) + 1) := by
+  have hw_fit : Fits w w := Nat.lt_two_pow_self
+  exact ⟨hw_fit.of_le ((Nat.le_mul_of_pos_left _ two_pos).trans hc_lt.le),
+    h225.of_le ((reducedHalfLimbs_le t).trans (by decide)),
+    hw_fit.of_le (lt_of_le_of_lt (Nat.min_le_left _ _) hc_lt)⟩
 
 /-- Pure arithmetic invariants for `computeHashCoreProg` and `writeHashParamsSubProg`. -/
 theorem computeHashCore_arith {w U N dstMetaBase : ℕ}
@@ -309,36 +286,20 @@ theorem computeHashCore_arith {w U N dstMetaBase : ℕ}
   intro B t c
   have h225 : Fits w 225 := fits_const_of_offCompItems hfit_dst le_rfl
   have hw8 : 8 ≤ w := eight_le_of_fits_225 h225
-  have hw_fit : Fits w w := Nat.lt_two_pow_self
   have hw0_le : epochQBits U N ≤ w := qBits_le_of_le_pow hw hU.le
-  have hb'_eq : totalMicroBits N = Nat.log 2 N := totalMicroBits_eq_log N
-  have hlogN_lt : Nat.log 2 N < w := by
-    have hpow := Nat.pow_log_le_self 2 (by omega : N ≠ 0)
-    have hN_lt : N < 2 ^ w := hU.of_le hNU
-    by_contra hge
-    have : 2 ^ w ≤ 2 ^ Nat.log 2 N := Nat.pow_le_pow_right two_pos (by omega)
-    omega
-  have hb'_le : totalMicroBits N ≤ w := by rw [hb'_eq]; omega
+  have hlogN_lt : Nat.log 2 N < w := Nat.log_lt_of_lt_pow (by omega) (hU.of_le hNU)
+  have hb'_le : totalMicroBits N ≤ w := (totalMicroBits_eq_log N).symm ▸ hlogN_lt.le
   have hfit_hash := fits_hash_of_fits_offCompItems hfit_dst
   have hc_le : 2 * c ≤ w := two_mul_reducedChunkBits_le hw0_le hb'_le (by omega)
   have hc_lt : 2 * c < w := ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space hc_le hfit_hash
   have hB_le : B ≤ 3 * Nat.log 2 N + 3 := by
     dsimp only [B, reducedTargetBits, epochHashB]
-    rw [totalMicroBits_eq_log]
-    have h1 : min (epochQBits U N) (3 * (Nat.log 2 N + 1)) ≤ 3 * Nat.log 2 N + 3 :=
-      (Nat.min_le_right _ _).trans (by omega)
-    exact max_le h1 (by omega)
+    rw [totalMicroBits_eq_log]; omega
   have hB2_fit : Fits w (B + 2) := (fits_three_mul_w_add_five h225).of_le (by omega)
-  have hc_fit : Fits w (3 ^ (t - 3)) := hw_fit.of_le (show c ≤ w by omega)
-  have hl0_fit : Fits w (3 ^ min t 3) := h225.of_le ((reducedHalfLimbs_le t).trans (by decide))
-  have hp_fit : Fits w (min (2 * c) (Nat.log 2 (w / (2 * c))) + 1) :=
-    hw_fit.of_le (by
-      have := Nat.min_le_left (2 * c) (Nat.log 2 (w / (2 * c))); omega)
-  have h2c_le : 2 * c ≤ N + 8 := by
-    have hpow := two_pow_two_mul_reducedChunkBits_hash_le U N
-    change 2 ^ (2 * c) ≤ 8 + N at hpow
-    have hlt := @Nat.lt_two_pow_self (2 * c)
-    omega
+  obtain ⟨hc_fit, hl0_fit, hp_fit⟩ := fits_hashShifts (t := t) hc_lt h225
+  have h2c_le : 2 * c ≤ N + 8 :=
+    ((@Nat.lt_two_pow_self (2 * c)).trans_le
+      ((two_pow_two_mul_reducedChunkBits_hash_le U N).trans_eq (Nat.add_comm 8 N))).le
   exact ⟨hw8, hw0_le, hb'_le, hlogN_lt, hc_lt, hB_le, h2c_le, hB2_fit, hc_fit, hl0_fit, hp_fit⟩
 
 private def computeHashTargetProg : ℕ × (ℕ × ℕ) → Memory.Prog (ℕ × (ℕ × ℕ))
@@ -366,54 +327,22 @@ private theorem computeHashTargetProg_exec {w hdrBase qBitsVal logN : ℕ} {s : 
       (w0, (minW0, trinomialStepAux targB)) ∧
     memoryCost (computeHashTargetProg d) s ≤ 3 * logN + 3 := by
   intro d w0 minW0 targB
-  have h3w : Fits w (3 * w + 5) := fits_three_mul_w_add_five h225
-  have htarg_le : targB ≤ 3 * logN + 3 := by
-    dsimp only [targB, minW0]
-    have h1 : min w0 ((logN + 1) * 3) ≤ 3 * logN + 3 := (Nat.min_le_right _ _).trans (by omega)
-    exact max_le h1 (by omega)
-  have hB2_fit : Fits w (targB + 2) := h3w.of_le (by omega)
+  have htarg_le : targB ≤ 3 * logN + 3 := by dsimp only [targB, minW0]; omega
+  have hB2_fit : Fits w (targB + 2) := (fits_three_mul_w_add_five h225).of_le (by omega)
   obtain ⟨_, hv_tr, hc_tr, hst_tr, hres_tr⟩ :=
-    trinomProg_spec (B := targB) hhdr hB2_fit (h225.of_le (by decide))
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · dsimp only [d, computeHashTargetProg]
-    rw [validHistory_bind', clientState_maxNatProg, clientResult_maxNatProg]
-    refine ⟨validHistory_maxNatProg _ _, ?_⟩
-    rw [validHistory_bind', clientState_minNatProg, clientResult_minNatProg]
-    refine ⟨validHistory_minNatProg _ _, ?_⟩
-    rw [validHistory_bind', clientState_maxNatProg, clientResult_maxNatProg]
-    refine ⟨validHistory_maxNatProg _ _, ?_⟩
-    rw [validHistory_bind', clientState_maxNatProg, clientResult_maxNatProg]
-    refine ⟨validHistory_maxNatProg _ _, ?_⟩
-    change (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (trinomProg (hdrBase, targB) >>= _))
-    rw [validHistory_bind', hst_tr, hres_tr]
-    exact ⟨hv_tr, True.intro⟩
-  · dsimp only [d, computeHashTargetProg]
-    rw [StateTransitionSpec.clientState_bind, clientState_maxNatProg, clientResult_maxNatProg,
-      StateTransitionSpec.clientState_bind, clientState_minNatProg, clientResult_minNatProg,
-      StateTransitionSpec.clientState_bind, clientState_maxNatProg, clientResult_maxNatProg,
-      StateTransitionSpec.clientState_bind, clientState_maxNatProg, clientResult_maxNatProg]
-    change (Memory.spec 0).clientState s (trinomProg (hdrBase, targB) >>= _) = s
-    rw [StateTransitionSpec.clientState_bind, hst_tr, StateTransitionSpec.clientState_pure]
-  · dsimp only [d, computeHashTargetProg]
-    rw [prog_clientResult_bind, clientState_maxNatProg, clientResult_maxNatProg,
-      prog_clientResult_bind, clientState_minNatProg, clientResult_minNatProg,
-      prog_clientResult_bind, clientState_maxNatProg, clientResult_maxNatProg,
-      prog_clientResult_bind, clientState_maxNatProg, clientResult_maxNatProg]
-    change (Memory.spec 0).clientResult s (trinomProg (hdrBase, targB) >>= _) = _
-    rw [prog_clientResult_bind, hst_tr, hres_tr, prog_clientResult_pure]
-  · dsimp only [d, computeHashTargetProg]
-    rw [Realization.memoryCost_bind', memoryCost_maxNatProg, clientState_maxNatProg,
-      clientResult_maxNatProg,
-      Realization.memoryCost_bind', memoryCost_minNatProg, clientState_minNatProg,
-      clientResult_minNatProg,
-      Realization.memoryCost_bind', memoryCost_maxNatProg, clientState_maxNatProg,
-      clientResult_maxNatProg,
-      Realization.memoryCost_bind', memoryCost_maxNatProg, clientState_maxNatProg,
-      clientResult_maxNatProg]
-    change 0 + (0 + (0 + (0 + memoryCost (trinomProg (hdrBase, targB) >>= _) s))) ≤ _
-    rw [Realization.memoryCost_bind', hst_tr, memoryCost_pure]
-    omega
+    trinomProg_spec (B := max (min (max qBitsVal 1) ((logN + 1) * 3)) (max logN 1)) hhdr hB2_fit
+      (h225.of_le (by decide))
+  dsimp only [d, computeHashTargetProg]
+  iterate 5 (
+    rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+      Realization.memoryCost_bind']
+    first
+      | rw [clientState_maxNatProg, clientResult_maxNatProg, memoryCost_maxNatProg]
+      | rw [clientState_minNatProg, clientResult_minNatProg, memoryCost_minNatProg]
+      | rw [hst_tr, hres_tr, StateTransitionSpec.clientState_pure, prog_clientResult_pure,
+          memoryCost_pure])
+  exact ⟨⟨validHistory_maxNatProg _ _, validHistory_minNatProg _ _, validHistory_maxNatProg _ _,
+    validHistory_maxNatProg _ _, hv_tr, trivial⟩, rfl, rfl, by omega⟩
 
 private theorem realizesBounded_computeHashTarget :
     RealizesBounded .exact computeHashTargetProg
@@ -434,10 +363,6 @@ private theorem realizesBounded_computeHashTarget :
     repeat rw [clientState_minNatProg]
     repeat rw [clientResult_minNatProg])
   all_goals (
-    have htarg_le : max (min (max qBitsVal 1) ((logN + 1) * 3)) (max logN 1) ≤ 3 * logN + 3 := by
-      have h1 : min (max qBitsVal 1) ((logN + 1) * 3) ≤ 3 * logN + 3 :=
-        (Nat.min_le_right _ _).trans (by omega)
-      exact max_le h1 (by omega)
     first
     | exact ⟨hhdr, h3w.of_le (by omega), h225.of_le (by decide)⟩
     | exact h3w.of_le (by omega))
@@ -467,57 +392,26 @@ private theorem computeHashShiftsProg_exec {w hdrBase t : ℕ} {s : Memory.State
     memoryCost (computeHashShiftsProg d) s ≤ t + 2 * reducedChunkBits t + 3 := by
   intro d
   have hw_fit : Fits w w := Nat.lt_two_pow_self
-  have hc_fit : Fits w (3 ^ (t - 3)) :=
-    hw_fit.of_le (by change reducedChunkBits t ≤ w; omega)
-  have hl0_fit : Fits w (3 ^ min t 3) :=
-    h225.of_le ((reducedHalfLimbs_le t).trans (by decide))
-  have hp_fit : Fits w (min (2 * reducedChunkBits t)
-      (Nat.log 2 (w / (2 * reducedChunkBits t))) + 1) :=
-    hw_fit.of_le (by
-      have := Nat.min_le_left (2 * reducedChunkBits t)
-        (Nat.log 2 (w / (2 * reducedChunkBits t)))
-      omega)
+  obtain ⟨hc_fit, hl0_fit, hp_fit⟩ := fits_hashShifts hc_lt h225
   obtain ⟨_, hv_p1, hc_p1, hst_p1, hres_p1⟩ := pow3Prog_spec (e := t - 3) hhdr hc_fit
   obtain ⟨_, hv_p2, hc_p2, hst_p2, hres_p2⟩ := pow3Prog_spec (e := min t 3) hhdr hl0_fit
   obtain ⟨_, hv_lg, hc_lg, hst_lg, hres_lg⟩ :=
     log2CapProg_spec (K := 2 * reducedChunkBits t) (x₀ := w / (2 * reducedChunkBits t)) hhdr
       (hw_fit.of_le (Nat.div_le_self _ _)) hp_fit
-  have h2c_sum : 3 ^ (t - 3) + 3 ^ (t - 3) = 2 * reducedChunkBits t := by
-    dsimp only [reducedChunkBits]; ring
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · dsimp only [d, computeHashShiftsProg]
-    rw [validHistory_bind', clientState_subSatProg, clientResult_subSatProg]
-    refine ⟨validHistory_subSatProg _ _, ?_⟩
-    rw [validHistory_bind', clientState_minNatProg, clientResult_minNatProg]
-    refine ⟨validHistory_minNatProg _ _, ?_⟩
-    rw [validHistory_bind', hst_p1, hres_p1]; refine ⟨hv_p1, ?_⟩
-    rw [validHistory_bind', hst_p2, hres_p2]; refine ⟨hv_p2, ?_⟩
-    rw [h2c_sum, validHistory_bind', hst_lg]
-    exact ⟨hv_lg, trivial⟩
-  · dsimp only [d, computeHashShiftsProg]
-    rw [StateTransitionSpec.clientState_bind, clientState_subSatProg, clientResult_subSatProg,
-      StateTransitionSpec.clientState_bind, clientState_minNatProg, clientResult_minNatProg,
-      StateTransitionSpec.clientState_bind, hst_p1, hres_p1,
-      StateTransitionSpec.clientState_bind, hst_p2, hres_p2,
-      h2c_sum, StateTransitionSpec.clientState_bind, hst_lg,
-      StateTransitionSpec.clientState_pure]
-  · dsimp only [d, computeHashShiftsProg]
-    rw [prog_clientResult_bind, clientState_subSatProg, clientResult_subSatProg,
-      prog_clientResult_bind, clientState_minNatProg, clientResult_minNatProg,
-      prog_clientResult_bind, hst_p1, hres_p1,
-      prog_clientResult_bind, hst_p2, hres_p2,
-      h2c_sum, prog_clientResult_bind, hst_lg, hres_lg, prog_clientResult_pure]
-    rfl
-  · dsimp only [d, computeHashShiftsProg]
-    rw [Realization.memoryCost_bind', memoryCost_subSatProg, clientState_subSatProg,
-      clientResult_subSatProg,
-      Realization.memoryCost_bind', memoryCost_minNatProg, clientState_minNatProg,
-      clientResult_minNatProg,
-      Realization.memoryCost_bind', hst_p1, hres_p1,
-      Realization.memoryCost_bind', hst_p2, hres_p2,
-      h2c_sum, Realization.memoryCost_bind', hst_lg, memoryCost_pure]
-    have hmin_le : min t 3 ≤ 3 := Nat.min_le_right t 3
-    omega
+  have h2c_sum : 3 ^ (t - 3) + 3 ^ (t - 3) = 2 * reducedChunkBits t := (two_mul _).symm
+  dsimp only [d, computeHashShiftsProg]
+  iterate 5 (
+    rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+      Realization.memoryCost_bind']
+    first
+      | rw [clientState_subSatProg, clientResult_subSatProg, memoryCost_subSatProg]
+      | rw [clientState_minNatProg, clientResult_minNatProg, memoryCost_minNatProg]
+      | rw [hst_p1, hres_p1]
+      | rw [hst_p2, hres_p2, h2c_sum]
+      | rw [hst_lg, hres_lg, StateTransitionSpec.clientState_pure, prog_clientResult_pure,
+          memoryCost_pure])
+  exact ⟨⟨validHistory_subSatProg _ _, validHistory_minNatProg _ _, hv_p1, hv_p2, hv_lg, trivial⟩,
+    rfl, rfl, by omega⟩
 
 private theorem realizesBounded_computeHashShifts :
     RealizesBounded .exact computeHashShiftsProg
@@ -535,16 +429,7 @@ private theorem realizesBounded_computeHashShifts :
     subst wVal
     try dsimp only at *
     have hw_fit : Fits w w := Nat.lt_two_pow_self
-    have hc_fit : Fits w (3 ^ (t - 3)) :=
-      hw_fit.of_le (by change reducedChunkBits t ≤ w; omega)
-    have hl0_fit : Fits w (3 ^ min t 3) :=
-      h225.of_le ((reducedHalfLimbs_le t).trans (by decide))
-    have hp_fit : Fits w (min (2 * reducedChunkBits t)
-        (Nat.log 2 (w / (2 * reducedChunkBits t))) + 1) :=
-      hw_fit.of_le (by
-        have := Nat.min_le_left (2 * reducedChunkBits t)
-          (Nat.log 2 (w / (2 * reducedChunkBits t)))
-        omega)
+    obtain ⟨hc_fit, hl0_fit, hp_fit⟩ := fits_hashShifts hc_lt h225
     repeat rw [clientState_subSatProg]
     repeat rw [clientResult_subSatProg]
     repeat rw [clientState_minNatProg]
@@ -558,8 +443,7 @@ private theorem realizesBounded_computeHashShifts :
   all_goals try exact ⟨hhdr, hl0_fit⟩
   all_goals (
     obtain ⟨_, _, _, hst_p2, _⟩ := pow3Prog_spec (e := min t 3) hhdr hl0_fit
-    have h2c_sum : 3 ^ (t - 3) + 3 ^ (t - 3) = 2 * reducedChunkBits t := by
-      dsimp only [reducedChunkBits]; ring
+    have h2c_sum : 3 ^ (t - 3) + 3 ^ (t - 3) = 2 * reducedChunkBits t := (two_mul _).symm
     repeat rw [hst_p2]
     repeat rw [h2c_sum])
   all_goals try exact ⟨hhdr, hw_fit.of_le (Nat.div_le_self _ _), hp_fit⟩
@@ -603,15 +487,8 @@ private theorem computeHashTargetProg_epoch {w U N hdrBase dstMetaBase : ℕ} {s
   have hq_le : quotientBits U N ≤ w := (le_max_left _ 1).trans hw0_le
   obtain ⟨hv_tg, hst_tg, hres_tg, hc_tg⟩ :=
     computeHashTargetProg_exec (s := s) hq_le hlogN_lt hhdr h225
-  have h3b_eq : (Nat.log 2 N + 1) * 3 = 3 * epochHashB N := by
-    dsimp only [epochHashB]; rw [totalMicroBits_eq_log]; ring
-  have hw0_def : max (quotientBits U N) 1 = epochQBits U N := rfl
-  have hB_eq : max (min (epochQBits U N) (3 * epochHashB N)) (max (Nat.log 2 N) 1) =
-      reducedTargetBits (epochQBits U N) (epochHashB N) (totalMicroBits N) := by
-    dsimp only [reducedTargetBits]; rw [totalMicroBits_eq_log]
-  have ht_def : trinomialStepAux
-      (reducedTargetBits (epochQBits U N) (epochHashB N) (totalMicroBits N)) = t := rfl
-  rw [hw0_def, h3b_eq, hB_eq, ht_def] at hres_tg
+  simp only [t, epochHashB, reducedTrinomialStep, reducedTargetBits, totalMicroBits_eq_log,
+    mul_comm _ 3] at hres_tg ⊢
   exact ⟨⟨hq_le, hlogN_lt, hhdr, h225⟩, hv_tg, hst_tg, hres_tg, hc_tg⟩
 
 /-- Functional specification and `≤ 7 * N + 20` cost bound for `computeHashCoreProg`. -/
@@ -636,26 +513,16 @@ theorem computeHashCoreProg_exec {w U N hdrBase dstMetaBase : ℕ} {s : Memory.S
     computeHashShiftsProg_exec (s := s) (t := t) hw hhdr hc_lt h225
   have hlog_le_N : Nat.log 2 N ≤ N := Nat.log_le_self 2 N
   have ht_le_N3 : t ≤ 3 * N + 3 :=
-    (Cslib.DataStructure.HashFamily.WordRAM.KWise.trinomialStepAux_le _).trans
-      (hB_le.trans (by omega))
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · dsimp only [d, computeHashCoreProg]
-    rw [validHistory_bind', hst_tg, hres_tg]; refine ⟨hv_tg, ?_⟩
-    dsimp only; rw [validHistory_bind', hst_sh, hres_sh]
-    exact ⟨hv_sh, True.intro⟩
-  · dsimp only [d, computeHashCoreProg]
-    rw [StateTransitionSpec.clientState_bind, hst_tg, hres_tg]; dsimp only
-    rw [StateTransitionSpec.clientState_bind, hst_sh, StateTransitionSpec.clientState_pure]
-  · dsimp only [d, computeHashCoreProg]
-    rw [prog_clientResult_bind, hst_tg, hres_tg]; dsimp only
-    rw [prog_clientResult_bind, hst_sh, hres_sh, prog_clientResult_pure]
-  · dsimp only [d, computeHashCoreProg]
-    rw [Realization.memoryCost_bind', hst_tg, hres_tg]; dsimp only
-    rw [Realization.memoryCost_bind', hst_sh, memoryCost_pure]
-    dsimp only [t] at hc_sh
-    change 2 * reducedChunkBits (reducedTrinomialStep (epochQBits U N) (epochHashB N)
-      (totalMicroBits N)) ≤ N + 8 at h2c_le
-    omega
+    (Cslib.DataStructure.HashFamily.WordRAM.KWise.trinomialStepAux_le _).trans (by omega)
+  dsimp only [t] at hc_sh h2c_le ht_le_N3
+  dsimp only [d, computeHashCoreProg]
+  rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+    Realization.memoryCost_bind', hst_tg, hres_tg]
+  dsimp only
+  rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+    Realization.memoryCost_bind', hst_sh, hres_sh, StateTransitionSpec.clientState_pure,
+    prog_clientResult_pure, memoryCost_pure]
+  exact ⟨⟨hv_tg, hv_sh, trivial⟩, rfl, rfl, by omega⟩
 
 /-- `computeHashCoreProg` compiles via `RealizesBounded .exact`. -/
 theorem realizesBounded_computeHashCore :
@@ -673,10 +540,9 @@ theorem realizesBounded_computeHashCore :
     obtain ⟨hpre_tg, _, hst_tg, hres_tg, _⟩ :=
       computeHashTargetProg_epoch (s := s) hw hN hNU hU hhdr hfit_dst)
   · exact hpre_tg
-  · have h225 : Fits w 225 := fits_const_of_offCompItems hfit_dst le_rfl
-    obtain ⟨_, _, _, _, hc_lt, _, _, _, _, _, _⟩ :=
+  · obtain ⟨_, _, _, _, hc_lt, _, _, _, _, _, _⟩ :=
       computeHashCore_arith hw hN hNU hU hfit_dst
     rw [hst_tg, hres_tg]; dsimp only
-    exact ⟨hw, rfl, hhdr, hc_lt, h225⟩
+    exact ⟨hw, rfl, hhdr, hc_lt, fits_const_of_offCompItems hfit_dst le_rfl⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.ParamsComputeAux

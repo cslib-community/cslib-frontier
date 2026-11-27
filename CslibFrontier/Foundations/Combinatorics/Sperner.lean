@@ -237,37 +237,29 @@ variable {c W H}
 
 theorem next_eq_across {t : GridTriangle} {k : Fin 3} (h : IsExit c t k)
     (hk : interior W H t k = true) : next c W H t = across t k := by
-  have hu := fun l (hl : IsExit c t l) => isExit_unique c hl h
-  unfold next
-  obtain rfl | rfl | rfl : k = 0 ∨ k = 1 ∨ k = 2 := by fin_cases k <;> decide
-  · rw [ite_eq_left ⟨h, hk⟩]
-  · rw [ite_eq_right fun h' => absurd (hu 0 h'.1) (by decide), ite_eq_left ⟨h, hk⟩]
-  · rw [ite_eq_right fun h' => absurd (hu 0 h'.1) (by decide),
-      ite_eq_right fun h' => absurd (hu 1 h'.1) (by decide), ite_eq_left ⟨h, hk⟩]
+  have hne (l : Fin 3) (hlk : l ≠ k) : ¬(IsExit c t l ∧ interior W H t l = true) :=
+    fun ⟨hl, _⟩ => hlk (isExit_unique c hl h)
+  fin_cases k <;> simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk] at h hk hne <;>
+    simp [next, h, hk, hne]
 
 theorem next_eq_self {t : GridTriangle} (h : ∀ k, IsExit c t k → interior W H t k = false) :
     next c W H t = t := by
-  unfold next
-  rw [ite_eq_right fun h' => absurd h'.2 (by rw [h 0 h'.1]; decide),
-    ite_eq_right fun h' => absurd h'.2 (by rw [h 1 h'.1]; decide),
-    ite_eq_right fun h' => absurd h'.2 (by rw [h 2 h'.1]; decide)]
+  have hf (k : Fin 3) : ¬(IsExit c t k ∧ interior W H t k = true) :=
+    fun ⟨hk, hi⟩ => Bool.noConfusion ((h k hk).symm.trans hi)
+  simp [next, hf]
 
 theorem prev_eq_across {t : GridTriangle} {k : Fin 3} (h : IsEntry c t k)
     (hk : interior W H t k = true) : prev c W H t = across t k := by
-  have hu := fun l (hl : IsEntry c t l) => isEntry_unique c hl h
-  unfold prev
-  obtain rfl | rfl | rfl : k = 0 ∨ k = 1 ∨ k = 2 := by fin_cases k <;> decide
-  · rw [ite_eq_left ⟨h, hk⟩]
-  · rw [ite_eq_right fun h' => absurd (hu 0 h'.1) (by decide), ite_eq_left ⟨h, hk⟩]
-  · rw [ite_eq_right fun h' => absurd (hu 0 h'.1) (by decide),
-      ite_eq_right fun h' => absurd (hu 1 h'.1) (by decide), ite_eq_left ⟨h, hk⟩]
+  have hne (l : Fin 3) (hlk : l ≠ k) : ¬(IsEntry c t l ∧ interior W H t l = true) :=
+    fun ⟨hl, _⟩ => hlk (isEntry_unique c hl h)
+  fin_cases k <;> simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk] at h hk hne <;>
+    simp [prev, h, hk, hne]
 
 theorem prev_eq_self {t : GridTriangle} (h : ∀ k, IsEntry c t k → interior W H t k = false) :
     prev c W H t = t := by
-  unfold prev
-  rw [ite_eq_right fun h' => absurd h'.2 (by rw [h 0 h'.1]; decide),
-    ite_eq_right fun h' => absurd h'.2 (by rw [h 1 h'.1]; decide),
-    ite_eq_right fun h' => absurd h'.2 (by rw [h 2 h'.1]; decide)]
+  have hf (k : Fin 3) : ¬(IsEntry c t k ∧ interior W H t k = true) :=
+    fun ⟨hk, hi⟩ => Bool.noConfusion ((h k hk).symm.trans hi)
+  simp [prev, hf]
 
 theorem prev_next {t : GridTriangle} {k : Fin 3} (ht : InGrid W H t) (h : IsExit c t k)
     (hk : interior W H t k = true) : prev c W H (next c W H t) = t := by
@@ -348,34 +340,28 @@ theorem trichromatic_iff_isSink_or_isSource {t : GridTriangle} :
   fin3_injective_iff (c ∘ t.corner)
 
 theorem hasExit_iff {t : GridTriangle} :
-    HasExit c t ↔ HasInteriorExit c W H t ∨ HasBoundaryExit c W H t := by
-  constructor
-  · rintro ⟨k, hk⟩
-    cases h : interior W H t k
-    · exact .inr ⟨k, hk, h⟩
-    · exact .inl ⟨k, hk, h⟩
-  · rintro (⟨k, hk, -⟩ | ⟨k, hk, -⟩) <;> exact ⟨k, hk⟩
+    HasExit c t ↔ HasInteriorExit c W H t ∨ HasBoundaryExit c W H t :=
+  ⟨fun ⟨k, hk⟩ => (Bool.eq_false_or_eq_true (interior W H t k)).elim
+    (fun h => .inl ⟨k, hk, h⟩) fun h => .inr ⟨k, hk, h⟩,
+    fun h => h.elim (fun ⟨k, hk, _⟩ => ⟨k, hk⟩) fun ⟨k, hk, _⟩ => ⟨k, hk⟩⟩
 
 theorem hasEntry_iff {t : GridTriangle} :
-    HasEntry c t ↔ HasInteriorEntry c W H t ∨ HasBoundaryEntry c W H t := by
-  constructor
-  · rintro ⟨k, hk⟩
-    cases h : interior W H t k
-    · exact .inr ⟨k, hk, h⟩
-    · exact .inl ⟨k, hk, h⟩
-  · rintro (⟨k, hk, -⟩ | ⟨k, hk, -⟩) <;> exact ⟨k, hk⟩
+    HasEntry c t ↔ HasInteriorEntry c W H t ∨ HasBoundaryEntry c W H t :=
+  ⟨fun ⟨k, hk⟩ => (Bool.eq_false_or_eq_true (interior W H t k)).elim
+    (fun h => .inl ⟨k, hk, h⟩) fun h => .inr ⟨k, hk, h⟩,
+    fun h => h.elim (fun ⟨k, hk, _⟩ => ⟨k, hk⟩) fun ⟨k, hk, _⟩ => ⟨k, hk⟩⟩
 
 theorem not_hasInteriorExit_and_hasBoundaryExit {t : GridTriangle} :
     ¬(HasInteriorExit c W H t ∧ HasBoundaryExit c W H t) := by
   rintro ⟨⟨k, hk, hi⟩, ⟨l, hl, hb⟩⟩
-  obtain rfl := isExit_unique c hk hl
-  simp_all
+  cases isExit_unique c hk hl
+  exact Bool.noConfusion (hb.symm.trans hi)
 
 theorem not_hasInteriorEntry_and_hasBoundaryEntry {t : GridTriangle} :
     ¬(HasInteriorEntry c W H t ∧ HasBoundaryEntry c W H t) := by
   rintro ⟨⟨k, hk, hi⟩, ⟨l, hl, hb⟩⟩
-  obtain rfl := isEntry_unique c hk hl
-  simp_all
+  cases isEntry_unique c hk hl
+  exact Bool.noConfusion (hb.symm.trans hi)
 
 private theorem card_filter_of_iff_or {α : Type*} (s : Finset α)
     {p q r : α → Prop} [DecidablePred p] [DecidablePred q] [DecidablePred r]
@@ -389,27 +375,15 @@ private theorem card_filter_of_iff_or {α : Type*} (s : Finset α)
 theorem card_hasInteriorExit_eq :
     ((triangles W H).filter (HasInteriorExit c W H)).card =
       ((triangles W H).filter (HasInteriorEntry c W H)).card := by
-  refine Finset.card_nbij' (next c W H) (prev c W H) ?_ ?_ ?_ ?_
-  · intro t ht
-    simp only [Finset.coe_filter, mem_triangles, Set.mem_ofPred_eq] at ht ⊢
+  refine Finset.card_nbij' (next c W H) (prev c W H) ?_ ?_ ?_ ?_ <;> intro t ht <;>
+    simp only [Finset.coe_filter, mem_triangles, Set.mem_ofPred_eq] at ht ⊢ <;>
     obtain ⟨hg, k, hk, hi⟩ := ht
-    obtain ⟨hg', hi', -, -, -⟩ := gluing hg hi
-    rw [next_eq_across hk hi]
-    exact ⟨hg', _, isEntry_across c hg hi hk, hi'⟩
-  · intro t ht
-    simp only [Finset.coe_filter, mem_triangles, Set.mem_ofPred_eq] at ht ⊢
-    obtain ⟨hg, k, hk, hi⟩ := ht
-    obtain ⟨hg', hi', -, -, -⟩ := gluing hg hi
-    rw [prev_eq_across hk hi]
-    exact ⟨hg', _, isExit_across c hg hi hk, hi'⟩
-  · intro t ht
-    simp only [Finset.coe_filter, mem_triangles, Set.mem_ofPred_eq] at ht
-    obtain ⟨hg, k, hk, hi⟩ := ht
-    exact prev_next hg hk hi
-  · intro t ht
-    simp only [Finset.coe_filter, mem_triangles, Set.mem_ofPred_eq] at ht
-    obtain ⟨hg, k, hk, hi⟩ := ht
-    exact next_prev hg hk hi
+  · exact next_eq_across hk hi ▸
+      ⟨(gluing hg hi).1, _, isEntry_across c hg hi hk, (gluing hg hi).2.1⟩
+  · exact prev_eq_across hk hi ▸
+      ⟨(gluing hg hi).1, _, isExit_across c hg hi hk, (gluing hg hi).2.1⟩
+  · exact prev_next hg hk hi
+  · exact next_prev hg hk hi
 
 /-- **Index theorem for the door graph.** In every colouring of the `W × H` grid, the number of
 sinks plus the number of boundary exit doors equals the number of sources plus the number of
@@ -429,13 +403,9 @@ theorem card_isSink_add_card_hasBoundaryExit :
     (r := fun t => IsSink c t ∨ HasExit c t) (fun _ => Iff.rfl) fun t h => h.1.2 h.2
   have hsrc := card_filter_of_iff_or (triangles W H)
     (r := fun t => IsSource c t ∨ HasEntry c t) (fun _ => Iff.rfl) fun t h => h.1.2 h.2
-  have hsame : (triangles W H).filter (fun t => IsSink c t ∨ HasExit c t) =
-      (triangles W H).filter (fun t => IsSource c t ∨ HasEntry c t) := by
-    refine Finset.filter_congr fun t _ => ?_
-    unfold IsSink IsSource
-    tauto
   have := card_hasInteriorExit_eq (c := c) (W := W) (H := H)
-  rw [hsame] at hsink
+  rw [Finset.filter_congr (q := fun t => IsSource c t ∨ HasEntry c t)
+    fun t _ => by simp only [IsSink, IsSource]; tauto] at hsink
   omega
 
 /-! ### Sperner colourings of the square grid -/
@@ -462,10 +432,8 @@ private theorem boundary_corners {t : GridTriangle} {k : Fin 3} (ht : InGrid N N
         (t.corner k).1 = N ∨ (t.corner k).2 = N)) ∧
       ((t.corner (k + 1)).1 ≤ N ∧ (t.corner (k + 1)).2 ≤ N ∧ ((t.corner (k + 1)).1 = 0 ∨
         (t.corner (k + 1)).2 = 0 ∨ (t.corner (k + 1)).1 = N ∨ (t.corner (k + 1)).2 = N)) := by
-  obtain ⟨_ | _, x, y⟩ := t
-  all_goals
-    obtain ⟨hx, hy⟩ := ht
-    fin_cases k <;> simp_all only [interior, corner] <;> simp at hk ⊢ <;> omega
+  obtain ⟨_ | _, x, y⟩ := t <;> obtain ⟨hx, hy⟩ := ht <;> fin_cases k <;>
+    simp_all [interior, corner] <;> omega
 
 private theorem boundary_door {t : GridTriangle} {k : Fin 3} (ht : InGrid N N t)
     (hk : interior N N t k = false) :
@@ -478,18 +446,12 @@ theorem IsSpernerColoring.not_hasBoundaryExit (hc : IsSpernerColoring N c) {t : 
     (ht : InGrid N N t) : ¬HasBoundaryExit c N N t := by
   rintro ⟨k, ⟨h1, h2⟩, hk⟩
   obtain ⟨⟨a1, b1, e1⟩, ⟨a2, b2, e2⟩⟩ := boundary_corners ht hk
-  rw [hc _ _ a1 b1 e1] at h1
-  rw [hc _ _ a2 b2 e2] at h2
-  exact (boundary_door ht hk).1 ⟨h1, h2⟩
+  exact (boundary_door ht hk).1 ⟨hc _ _ a1 b1 e1 ▸ h1, hc _ _ a2 b2 e2 ▸ h2⟩
 
 theorem IsSpernerColoring.isEntry_start (hc : IsSpernerColoring N c) (hN : 0 < N) :
-    IsEntry c start 2 := by
-  constructor
-  · rw [show start.corner 2 = (0, 1) from rfl, hc 0 1 (Nat.zero_le _) hN (.inl rfl)]
-    rfl
-  · rw [show start.corner (2 + 1) = (0, 0) from rfl, hc 0 0 (Nat.zero_le _) (Nat.zero_le _)
-      (.inl rfl)]
-    rfl
+    IsEntry c start 2 :=
+  ⟨(hc 0 1 (Nat.zero_le _) hN (.inl rfl)).trans rfl,
+    (hc 0 0 (Nat.zero_le _) (Nat.zero_le _) (.inl rfl)).trans rfl⟩
 
 theorem interior_start_two : interior N N start 2 = false := rfl
 
@@ -498,32 +460,23 @@ theorem inGrid_start_iff : InGrid N N start ↔ 0 < N := by
 
 theorem IsSpernerColoring.hasBoundaryEntry_iff (hc : IsSpernerColoring N c) {t : GridTriangle}
     (ht : InGrid N N t) : HasBoundaryEntry c N N t ↔ t = start := by
-  constructor
-  · rintro ⟨k, ⟨h1, h2⟩, hk⟩
-    obtain ⟨⟨a1, b1, e1⟩, ⟨a2, b2, e2⟩⟩ := boundary_corners ht hk
-    rw [hc _ _ a1 b1 e1] at h1
-    rw [hc _ _ a2 b2 e2] at h2
-    exact (boundary_door ht hk).2 ⟨h1, h2⟩
-  · rintro rfl
-    exact ⟨2, hc.isEntry_start (inGrid_start_iff.mp ht), interior_start_two⟩
+  refine ⟨fun ⟨k, ⟨h1, h2⟩, hk⟩ => ?_,
+    fun h => h.symm ▸ ⟨2, hc.isEntry_start (inGrid_start_iff.mp (h ▸ ht)), interior_start_two⟩⟩
+  obtain ⟨⟨a1, b1, e1⟩, ⟨a2, b2, e2⟩⟩ := boundary_corners ht hk
+  exact (boundary_door ht hk).2 ⟨hc _ _ a1 b1 e1 ▸ h1, hc _ _ a2 b2 e2 ▸ h2⟩
 
 /-- In a Sperner colouring of the `N × N` grid (`0 < N`), the door graph has exactly one more
 sink than it has sources. -/
 theorem IsSpernerColoring.card_isSink (hc : IsSpernerColoring N c) (hN : 0 < N) :
     ((triangles N N).filter (IsSink c)).card = ((triangles N N).filter (IsSource c)).card + 1 := by
   have h := card_isSink_add_card_hasBoundaryExit (c := c) (W := N) (H := N)
-  have h0 : (triangles N N).filter (HasBoundaryExit c N N) = ∅ :=
-    Finset.filter_eq_empty_iff.mpr fun t ht => hc.not_hasBoundaryExit (mem_triangles.mp ht)
   have h1 : (triangles N N).filter (HasBoundaryEntry c N N) = {start} := by
     ext t
-    simp only [Finset.mem_filter, mem_triangles, Finset.mem_singleton]
-    constructor
-    · rintro ⟨ht, h⟩
-      exact (hc.hasBoundaryEntry_iff ht).mp h
-    · rintro rfl
-      have hs : InGrid N N start := inGrid_start_iff.mpr hN
-      exact ⟨hs, (hc.hasBoundaryEntry_iff hs).mpr rfl⟩
-  rw [h0, h1, Finset.card_empty, Finset.card_singleton] at h
+    simp only [Finset.mem_filter, mem_triangles, Finset.mem_singleton,
+      and_congr_right fun ht => hc.hasBoundaryEntry_iff ht]
+    exact ⟨And.right, fun h => ⟨h ▸ inGrid_start_iff.mpr hN, h⟩⟩
+  rw [Finset.filter_eq_empty_iff.mpr fun _ ht => hc.not_hasBoundaryExit (mem_triangles.mp ht),
+    h1, Finset.card_empty, Finset.card_singleton] at h
   omega
 
 /-- **Sperner's lemma, parity form.** A Sperner colouring of the `N × N` grid (`0 < N`) has an odd
@@ -539,11 +492,10 @@ theorem IsSpernerColoring.odd_card_trichromatic (hc : IsSpernerColoring N c) (hN
 triangle. -/
 theorem IsSpernerColoring.exists_trichromatic (hc : IsSpernerColoring N c) (hN : 0 < N) :
     ∃ t, InGrid N N t ∧ Trichromatic c t := by
-  obtain ⟨k, hk⟩ := hc.odd_card_trichromatic hN
+  obtain ⟨_, hk⟩ := hc.odd_card_trichromatic hN
   obtain ⟨t, ht⟩ := Finset.card_pos.mp
-    (show 0 < ((triangles N N).filter (Trichromatic c)).card by omega)
-  rw [Finset.mem_filter, mem_triangles] at ht
-  exact ⟨t, ht⟩
+    (by omega : 0 < ((triangles N N).filter (Trichromatic c)).card)
+  exact ⟨t, by simpa using ht⟩
 
 /-! ### The door graph as an end-of-line graph -/
 
@@ -561,36 +513,30 @@ theorem prev_eq_self_of_not {t : GridTriangle} (h : ¬HasInteriorEntry c W H t) 
 theorem inGrid_next {t : GridTriangle} (ht : InGrid W H t) : InGrid W H (next c W H t) := by
   by_cases h : HasInteriorExit c W H t
   · obtain ⟨k, hk, hi⟩ := h
-    rw [next_eq_across hk hi]
-    exact (gluing ht hi).1
+    exact next_eq_across hk hi ▸ (gluing ht hi).1
   · rwa [next_eq_self_of_not h]
 
 theorem inGrid_prev {t : GridTriangle} (ht : InGrid W H t) : InGrid W H (prev c W H t) := by
   by_cases h : HasInteriorEntry c W H t
   · obtain ⟨k, hk, hi⟩ := h
-    rw [prev_eq_across hk hi]
-    exact (gluing ht hi).1
+    exact prev_eq_across hk hi ▸ (gluing ht hi).1
   · rwa [prev_eq_self_of_not h]
 
-theorem next_ne_self_iff {t : GridTriangle} : next c W H t ≠ t ↔ HasInteriorExit c W H t := by
-  refine ⟨fun h => by_contra fun h' => h (next_eq_self_of_not h'), fun ⟨k, hk, hi⟩ => ?_⟩
-  rw [next_eq_across hk hi]
-  exact across_ne_self t k
+theorem next_ne_self_iff {t : GridTriangle} : next c W H t ≠ t ↔ HasInteriorExit c W H t :=
+  ⟨fun h => by_contra fun h' => h (next_eq_self_of_not h'),
+    fun ⟨k, hk, hi⟩ => next_eq_across hk hi ▸ across_ne_self t k⟩
 
-theorem prev_ne_self_iff {t : GridTriangle} : prev c W H t ≠ t ↔ HasInteriorEntry c W H t := by
-  refine ⟨fun h => by_contra fun h' => h (prev_eq_self_of_not h'), fun ⟨k, hk, hi⟩ => ?_⟩
-  rw [prev_eq_across hk hi]
-  exact across_ne_self t k
+theorem prev_ne_self_iff {t : GridTriangle} : prev c W H t ≠ t ↔ HasInteriorEntry c W H t :=
+  ⟨fun h => by_contra fun h' => h (prev_eq_self_of_not h'),
+    fun ⟨k, hk, hi⟩ => prev_eq_across hk hi ▸ across_ne_self t k⟩
 
 theorem prev_next_of_hasInteriorExit {t : GridTriangle} (ht : InGrid W H t)
     (h : HasInteriorExit c W H t) : prev c W H (next c W H t) = t :=
-  let ⟨_, hk, hi⟩ := h
-  prev_next ht hk hi
+  h.elim fun _ h => prev_next ht h.1 h.2
 
 theorem next_prev_of_hasInteriorEntry {t : GridTriangle} (ht : InGrid W H t)
     (h : HasInteriorEntry c W H t) : next c W H (prev c W H t) = t :=
-  let ⟨_, hk, hi⟩ := h
-  next_prev ht hk hi
+  h.elim fun _ h => next_prev ht h.1 h.2
 
 /-- Following an interior exit door never leads back to `start`: the entry door of `start` lies
 on the boundary. -/
@@ -602,9 +548,7 @@ theorem IsSpernerColoring.next_ne_start (hc : IsSpernerColoring N c) {t : GridTr
   intro hs
   have he := isEntry_across c ht hi hk
   rw [hs] at he hi' hg
-  have h2 := isEntry_unique c he (hc.isEntry_start (inGrid_start_iff.mp hg))
-  rw [h2, interior_start_two] at hi'
-  exact Bool.false_ne_true hi'
+  exact Bool.noConfusion (isEntry_unique c he (hc.isEntry_start (inGrid_start_iff.mp hg)) ▸ hi')
 
 theorem IsSpernerColoring.hasInteriorExit_iff (hc : IsSpernerColoring N c) {t : GridTriangle}
     (ht : InGrid N N t) : HasInteriorExit c N N t ↔ HasExit c t := by
@@ -613,11 +557,8 @@ theorem IsSpernerColoring.hasInteriorExit_iff (hc : IsSpernerColoring N c) {t : 
 theorem IsSpernerColoring.hasInteriorEntry_iff (hc : IsSpernerColoring N c) {t : GridTriangle}
     (ht : InGrid N N t) : HasInteriorEntry c N N t ↔ HasEntry c t ∧ t ≠ start := by
   rw [hasEntry_iff (W := N) (H := N), ne_eq, ← hc.hasBoundaryEntry_iff ht]
-  constructor
-  · intro h
-    exact ⟨.inl h, fun hb => not_hasInteriorEntry_and_hasBoundaryEntry ⟨h, hb⟩⟩
-  · rintro ⟨h | h, hb⟩
-    exacts [h, absurd h hb]
+  have := not_hasInteriorEntry_and_hasBoundaryEntry (c := c) (W := N) (H := N) (t := t)
+  tauto
 
 /-- The door graph of a Sperner colouring has an outgoing edge at `t` exactly when `t` has an exit
 door. -/
@@ -646,12 +587,9 @@ door. -/
 theorem IsSpernerColoring.trichromatic_iff (hc : IsSpernerColoring N c) {t : GridTriangle}
     (ht : InGrid N N t) :
     Trichromatic c t ↔ (((HasEntry c t ∧ t ≠ start) ↔ HasExit c t) ↔ t = start) := by
-  rw [trichromatic_iff_isSink_or_isSource]
-  unfold IsSink IsSource
-  by_cases hs : t = start
-  · subst hs
-    have he : HasEntry c start := ⟨2, hc.isEntry_start (inGrid_start_iff.mp ht)⟩
-    tauto
-  · tauto
+  have hstart : t = start → HasEntry c t :=
+    fun h => h ▸ ⟨2, hc.isEntry_start (inGrid_start_iff.mp (h ▸ ht))⟩
+  simp only [trichromatic_iff_isSink_or_isSource, IsSink, IsSource]
+  tauto
 
 end Cslib.Sperner

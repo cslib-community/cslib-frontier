@@ -45,20 +45,12 @@ theorem testBit_sub_one_eq_xor {c : ℕ} (hc : 1 ≤ c) (q : ℕ) :
     omega
   | succ q ih =>
     rw [Nat.testBit_succ, Nat.testBit_succ, Nat.pow_succ', Nat.mod_mul]
-    rcases Nat.even_or_odd c with ⟨d, rfl⟩ | ⟨d, rfl⟩
+    obtain ⟨d, rfl | rfl⟩ : ∃ d, c = 2 * d ∨ c = 2 * d + 1 := ⟨c / 2, by omega⟩
     · have hd : 1 ≤ d := by omega
-      have h₁ : (d + d - 1) / 2 = d - 1 := by omega
-      have h₂ : (d + d) / 2 = d := by omega
-      have h₃ : (d + d) % 2 = 0 := by omega
-      rw [h₁, h₂, ih hd, h₃]
-      congr 2
-      rw [Nat.zero_add, Nat.mul_eq_zero]
+      have h₁ : (2 * d - 1) / 2 = d - 1 := by omega
+      rw [h₁, Nat.mul_div_right _ Nat.zero_lt_two, ih hd]
       simp
-    · have h₁ : (2 * d + 1 - 1) / 2 = d := by omega
-      have h₂ : (2 * d + 1) / 2 = d := by omega
-      have h₃ : (2 * d + 1) % 2 = 1 := by omega
-      rw [h₁, h₂, h₃]
-      simp
+    · simp [Nat.mul_add_div]
 
 /-- Bit `q` of `c + 1`: bit `q` of `c`, flipped when the lower bits of `c` are all one. -/
 theorem testBit_add_one_eq_xor (c q : ℕ) :
@@ -73,17 +65,13 @@ theorem testBit_add_one_eq_xor (c q : ℕ) :
   | succ q ih =>
     rw [Nat.testBit_succ, Nat.testBit_succ, Nat.pow_succ', Nat.mod_mul]
     have hq := Nat.one_le_two_pow (n := q)
-    rcases Nat.even_or_odd c with ⟨d, rfl⟩ | ⟨d, rfl⟩
-    · have h₁ : (d + d + 1) / 2 = d := by omega
-      have h₂ : (d + d) / 2 = d := by omega
-      have h₃ : (d + d) % 2 = 0 := by omega
-      rw [h₁, h₂, h₃]
-      have : ¬ (2 * (d % 2 ^ q) = 2 * 2 ^ q - 1) := by omega
-      simp [this]
+    obtain ⟨d, rfl | rfl⟩ : ∃ d, c = 2 * d ∨ c = 2 * d + 1 := ⟨c / 2, by omega⟩
+    · have hne : ¬ 2 * (d % 2 ^ q) = 2 * 2 ^ q - 1 := by omega
+      simp [Nat.mul_add_div, hne]
     · have h₁ : (2 * d + 1 + 1) / 2 = d + 1 := by omega
       have h₂ : (2 * d + 1) / 2 = d := by omega
-      have h₃ : (2 * d + 1) % 2 = 1 := by omega
-      rw [h₁, h₂, h₃, ih d]
+      rw [h₁, h₂, ih d]
+      simp only [Nat.mul_add_mod_self_left, Nat.mod_succ]
       congr 2
       exact propext ⟨fun h => by omega, fun h => by omega⟩
 
@@ -168,9 +156,6 @@ theorem testBit_add_one_of_lowest {N j : ℕ} (hj : N.testBit j = false)
       rw [hj] at ht
       exact Bool.false_ne_true ht,
      fun h i hi => hlow i (Nat.lt_of_lt_of_le hi h)⟩
-  rw [testBit_add_one_eq_ite_forall]
-  by_cases hl : l ≤ j
-  · rw [ite_eq_left (hiff.mpr hl), ite_eq_left hl]
-  · rw [ite_eq_right (mt hiff.mp hl), ite_eq_right hl]
+  simp only [testBit_add_one_eq_ite_forall, hiff]
 
 end Nat

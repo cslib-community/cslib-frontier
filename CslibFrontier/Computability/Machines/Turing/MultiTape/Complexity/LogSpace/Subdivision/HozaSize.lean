@@ -67,8 +67,6 @@ theorem subdivisionSize_vertexCount (width horizon : ℕ) :
 theorem subdivisionSize_inSpace :
     ComputableInSpace (fun p : ℕ × ℕ => subdivisionSize p.1 p.2) (encPair encNat encNat)
       encSubdivisionSize (fun p => (encPair encNat encNat p).length) := by
-  have hin : (fun p => (encPair encNat encNat p).length) ≼
-      (fun p => (encPair encNat encNat p).length) := .refl _
   have hcount := budget_natMul (fst encNat encNat) (budget_natSucc (snd encNat encNat))
   have hbase :=
     budget_const (encIn := (encPair encNat encNat))
@@ -77,17 +75,14 @@ theorem subdivisionSize_inSpace :
   have hbound : ComputableInSpace (fun p : ℕ × ℕ => generatedWeightBound p.1 p.2)
       (encPair encNat encNat) encNat (fun p => (encPair encNat encNat p).length) := by
     unfold generatedWeightBound
-    apply budget_natPow_variable hbase hExp
-    refine .of_le_linear (4 * (268435456 + 1)) (4 * (268435456 + 1) + 4) ?_
-    intro p
+    refine budget_natPow_variable hbase hExp
+      (.of_le_linear (4 * (268435456 + 1)) (4 * (268435456 + 1) + 4) fun p => ?_)
     let e := codeLength p.1 p.2 + p.2.size
     have hc := codeLength_le_encodedDimensions p
     have hs : p.2.size ≤ (encPair encNat encNat p).length := by
-      simp only [length_encPair, length_encNat_eq_size]
-      omega
+      simp only [length_encPair, length_encNat_eq_size]; omega
     have he : (encNat e).length ≤ e := by
-      rw [length_encNat_eq_size, Nat.size_le]
-      exact Nat.lt_two_pow_self
+      simpa only [length_encNat_eq_size, Nat.size_le] using Nat.lt_two_pow_self
     change (e + 1) * (encNat 6).length + (encNat e).length + 1 ≤ _
     rw [show (encNat 6).length = 3 from rfl]
     dsimp only [e] at *
@@ -124,13 +119,9 @@ can be represented in unary within this budget, and the exclusive limit is writt
 theorem seedSearchSize_inSpace :
     ComputableInSpace (fun p : ℕ × ℕ => seedSearchSize p.1 p.2) (encPair encNat encNat)
       encSeedSearchSize (fun p => (encPair encNat encNat p).length) := by
-  have hwidth := budget_comp (of_inO ComputableInO.natToUnary) codeLength_inSpace
-    (.of_le_linear 268435456 268435456 fun p => by
-      have hp := codeLength_le_encodedDimensions p
-      omega)
-  have hlimit := budget_comp_linear
-    (of_inO (ComputableInDegree.two_pow_length encUnary).inO_one) hwidth
   exact encSeedSearchSize_mk_budget subdivisionSize_inSpace codeLength_inSpace
-    (hlimit.of_enc_eq fun _ => by simp [encUnary_apply])
+    (budget_twoPow codeLength_inSpace (.of_le_linear 268435456 268435456 fun p => by
+      have := codeLength_le_encodedDimensions p
+      omega))
 
 end Cslib.Reachability.Hoza

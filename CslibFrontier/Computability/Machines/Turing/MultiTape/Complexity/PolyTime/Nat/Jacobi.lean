@@ -180,35 +180,19 @@ private theorem sign_mul_jacobiSym_jacobiStep {s : State} (hs : s.num < s.mod) :
       jacobiSym.mod_left (n : ℤ) a, ← Int.natCast_mod]
     split_ifs with h4
     · simp [sign, h4.1, h4.2]
-    · by_cases h1 : a % 4 = 3
-      · have h2 : ¬ n % 4 = 3 := fun h2 => h4 ⟨h1, h2⟩
-        simp [sign, h1, h2]
-      · simp [sign, h1]
+    · simp only [not_and] at h4
+      by_cases h1 : a % 4 = 3 <;> simp [sign, h1, h4]
 
 private theorem lt_jacobiStep {s : State} (hs : s.num < s.mod) :
     (jacobiStep s).num < (jacobiStep s).mod := by
-  obtain ⟨a, n, f⟩ := s
-  simp only at hs
   unfold jacobiStep
-  simp only
-  split_ifs with ha0 hn2 ha2 ha2'
-  · exact hs
-  · dsimp only
-    omega
-  · exact Nat.mod_lt _ (by omega)
-  · dsimp only
-    omega
-  · exact Nat.mod_lt _ (by omega)
+  split_ifs <;> first | exact hs | exact Nat.zero_lt_of_lt hs | exact Nat.mod_lt _ (by omega) |
+    exact (Nat.div_le_self _ 2).trans_lt hs
 
 private theorem mod_jacobiStep_le {s : State} (hs : s.num < s.mod) :
     (jacobiStep s).mod ≤ s.mod := by
   unfold jacobiStep
-  split_ifs
-  · exact le_rfl
-  · exact le_rfl
-  · exact Nat.div_le_self _ _
-  · exact le_rfl
-  · exact hs.le
+  split_ifs <;> first | exact le_rfl | exact Nat.div_le_self _ _ | exact hs.le
 
 /-- Every step at least halves the product `s.num * s.mod`. -/
 private theorem two_mul_mul_jacobiStep_le {s : State} (hs : s.num < s.mod) :
@@ -220,14 +204,11 @@ private theorem two_mul_mul_jacobiStep_le {s : State} (hs : s.num < s.mod) :
   split_ifs with ha0 hn2 ha2 ha2'
   · simp [ha0]
   · simp
-  · have hn : 2 * (n / 2) = n := by omega
-    calc 2 * (a % (n / 2) * (n / 2)) = a % (n / 2) * (2 * (n / 2)) := by ring
-      _ = a % (n / 2) * n := by rw [hn]
+  · calc 2 * (a % (n / 2) * (n / 2)) = a % (n / 2) * n := by
+          rw [mul_left_comm, show 2 * (n / 2) = n by omega]
       _ ≤ a * n := Nat.mul_le_mul_right n (Nat.mod_le a (n / 2))
-  · have ha : 2 * (a / 2) = a := by omega
-    rw [← mul_assoc, ha]
-  · calc 2 * (n % a * a) = 2 * (a * (n % a)) := by rw [mul_comm (n % a)]
-      _ ≤ a * n := BinaryGcd.gcd_product_halving (by omega) hs.le
+  · rw [← mul_assoc, show 2 * (a / 2) = a by omega]
+  · exact mul_comm (n % a) a ▸ BinaryGcd.gcd_product_halving (by omega) hs.le
 
 /-- After `i` steps the invariant holds and `2 ^ i` times the product `num * mod` is still below
 `2 ^ jacobiCount p`. -/

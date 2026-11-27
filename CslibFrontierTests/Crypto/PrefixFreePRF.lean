@@ -183,6 +183,33 @@ example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunct
       (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) := by
   exact hF.isMultiQueryUHF_cbcMac (.const 2)
 
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
+    IsComputationalUHF encUnary encBits pure (fun _ d => lpBlockValid (fun _ => 2) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) :=
+  hF.isComputationalUHF_cbcMac (.const 2)
+
+private def emptyWordPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool)) :=
+  fun _ => pure ⟨[], [false, false, false]⟩
+
+example : IsOraclePPT encBool
+    (cbcMacMultiQueryReduction (fun _ => 4) (fun _ => 2)
+      (fun p => collisionPairToBatch (emptyWordPair p))) :=
+  isOraclePPT_cbcMacMultiQueryReduction (.const 4) (.const 2)
+    (isPPTOn_collisionPairToBatch
+      (ComputableInPolyTime.const
+        (⟨[], [false, false, false]⟩ : CollisionGuess (List Bool))).isPPTOn)
+
+/-- The pair bound specializes (7.10) to two messages, one of which can be empty. -/
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) (n : ℕ) :
+    let reduction := cbcMacMultiQueryReduction (fun _ => 4) (fun _ => 2)
+      (fun p => collisionPairToBatch (emptyWordPair p))
+    Game.succProbability (collisionGame pure (fun _ d => lpBlockValid (fun _ => 4) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) emptyWordPair n) ≤
+    Game.advantage (ProbComp.eval (prfRealGame id family reduction n))
+      (ProbComp.eval (prfIdealGame id id reduction n)) +
+      (2 : ℝ≥0) ^ 2 * (4 + 1) ^ 2 / (2 * 2 ^ n) + 1 / (2 : ℝ≥0) ^ n :=
+  succProbability_collisionGame_cbcMac_le hF.length_eq (fun _ => 4) emptyWordPair n
+
 private def emptyWordBatch : ℕ × ℕ → ProbComp (List (List Bool)) :=
   fun _ => pure [[], [false, false, false]]
 

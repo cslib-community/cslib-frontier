@@ -98,64 +98,33 @@ private theorem scaledMinCostMainProg_realizes :
     Realizes .exact scaledMinCostMainProg wordWords wordWords ScaledMinCostSafe (fun _ _ => 0) := by
   unfold scaledMinCostMainProg
   realize [scaledSolveProg_realizes, sumScaledCostProg_realizes]
-  all_goals
-    rcases h with ⟨_, _⟩
-    assumption
+  exacts [h.1, h.2]
 
 private theorem eps_poly_bound (n C eps : ℕ) (hε : 0 < eps) :
     (n * (C + eps) / eps + 1) * (4 * n + 6) + 3 * (n * n) + 5 * n + 3 + 1 ≤
       42 * (n ^ 2 * (C / eps + 1) + 1) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
-  · have hC_lt : C < (C / eps + 1) * eps := by
-      rw [Nat.add_mul, one_mul]
-      exact Nat.lt_div_mul_add hε
-    have heps_le : eps ≤ (C / eps + 1) * eps :=
-      Nat.le_mul_of_pos_left eps (Nat.succ_pos (C / eps))
-    have hCeps_le : C + eps ≤ 2 * (C / eps + 1) * eps := by
-      calc C + eps ≤ (C / eps + 1) * eps + (C / eps + 1) * eps :=
-            Nat.add_le_add (le_of_lt hC_lt) heps_le
-        _ = 2 * (C / eps + 1) * eps := by ring
-    have hmul_le : n * (C + eps) ≤ (2 * n * (C / eps + 1)) * eps := by
-      calc n * (C + eps) ≤ n * (2 * (C / eps + 1) * eps) := Nat.mul_le_mul_left n hCeps_le
-        _ = (2 * n * (C / eps + 1)) * eps := by ring
-    have hdiv_le : n * (C + eps) / eps ≤ 2 * n * (C / eps + 1) :=
-      (Nat.div_le_div_right hmul_le).trans_eq (Nat.mul_div_cancel _ hε)
-    have h1_le : 1 ≤ n * (C / eps + 1) := Nat.mul_pos hn (Nat.succ_pos _)
-    have hbids_le : n * (C + eps) / eps + 1 ≤ 3 * n * (C / eps + 1) := by
-      calc n * (C + eps) / eps + 1
-          ≤ 2 * n * (C / eps + 1) + n * (C / eps + 1) := Nat.add_le_add hdiv_le h1_le
-        _ = 3 * n * (C / eps + 1) := by ring
-    have h4n : 4 * n + 6 ≤ 10 * n := by omega
-    have hprod : (n * (C + eps) / eps + 1) * (4 * n + 6) ≤ 30 * (n ^ 2 * (C / eps + 1)) := by
-      calc (n * (C + eps) / eps + 1) * (4 * n + 6)
-          ≤ (3 * n * (C / eps + 1)) * (10 * n) := Nat.mul_le_mul hbids_le h4n
-        _ = 30 * (n ^ 2 * (C / eps + 1)) := by ring
-    have hquad : 3 * (n * n) + 5 * n + 4 ≤ 12 * (n ^ 2 * (C / eps + 1)) := by
-      have hn2 : 3 * (n * n) + 5 * n + 4 ≤ 12 * n ^ 2 := by nlinarith
-      calc 3 * (n * n) + 5 * n + 4 ≤ 12 * n ^ 2 := hn2
-        _ = 12 * (n ^ 2 * 1) := by ring
-        _ ≤ 12 * (n ^ 2 * (C / eps + 1)) :=
-          Nat.mul_le_mul_left 12 (Nat.mul_le_mul_left _ (Nat.succ_pos _))
-    linarith
+  have hq : 1 ≤ C / eps + 1 := Nat.succ_pos _
+  have hC : C + eps ≤ 2 * (C / eps + 1) * eps := by
+    have := Nat.lt_div_mul_add (a := C) hε
+    nlinarith
+  have hdiv : n * (C + eps) / eps ≤ 2 * n * (C / eps + 1) :=
+    Nat.div_le_of_le_mul (by nlinarith [Nat.mul_le_mul_left n hC])
+  calc _ ≤ (2 * n * (C / eps + 1) + 1) * (4 * n + 6) + 3 * (n * n) + 5 * n + 3 + 1 := by gcongr
+    _ ≤ _ := by
+      nlinarith [Nat.mul_le_mul_left (n * n) hq, Nat.mul_le_mul_left (n * (C / eps + 1)) hn,
+        Nat.mul_le_mul_left n hq]
 
 private theorem scaled_poly_bound (n C : ℕ) :
     (n * ((n + 1) * C + 1) + 1) * (4 * n + 6) + 3 * (n * n) + 7 * n + 3 + 1 ≤
       34 * (n ^ 3 * C + n ^ 2 + 1) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
-  · have h1 : (n + 1) * C + 1 ≤ 2 * n * C + 1 := by
-      have : n + 1 ≤ 2 * n := by omega
-      nlinarith
-    have h2 : n * ((n + 1) * C + 1) + 1 ≤ 2 * n ^ 2 * C + 2 * n := by nlinarith
-    have h3 : 4 * n + 6 ≤ 10 * n := by omega
-    have hprod : (n * ((n + 1) * C + 1) + 1) * (4 * n + 6) ≤
-        20 * (n ^ 3 * C) + 20 * n ^ 2 := by
-      calc (n * ((n + 1) * C + 1) + 1) * (4 * n + 6)
-          ≤ (2 * n ^ 2 * C + 2 * n) * (10 * n) := Nat.mul_le_mul h2 h3
-        _ = 20 * (n ^ 3 * C) + 20 * n ^ 2 := by ring
-    have hquad : 3 * (n * n) + 7 * n + 4 ≤ 14 * n ^ 2 := by nlinarith
-    linarith [Nat.zero_le (n ^ 3 * C)]
+  have h : n * ((n + 1) * C + 1) + 1 ≤ 2 * n ^ 2 * C + 2 * n := by
+    nlinarith [Nat.mul_le_mul_left (n * C) hn]
+  calc _ ≤ (2 * n ^ 2 * C + 2 * n) * (4 * n + 6) + 3 * (n * n) + 7 * n + 3 + 1 := by gcongr
+    _ ≤ _ := by nlinarith [Nat.mul_le_mul_left (n ^ 2 * C) hn, Nat.mul_le_mul_left n hn]
 
 private theorem init_words_spec {w : ℕ} (inst : Instance) (hw : Fits w inst.wordBound) :
     InputFits w inst.encode ∧
@@ -165,9 +134,7 @@ private theorem init_words_spec {w : ℕ} (inst : Instance) (hw : Fits w inst.wo
   refine ⟨inst.inputFits_encode hw,
     hw.of_le (by rw [inst.encode_length]; unfold Instance.wordBound; nlinarith),
     ?_, by rw [inst.encode_length]; omega⟩
-  rintro ⟨_ | _, hj⟩
-  · rfl
-  · omega
+  rintro ⟨_ | _, hj⟩ <;> first | rfl | omega
 
 private theorem scaled_steps_le {m C₁ mc n C : ℕ}
     (hsteps : m + 1 ≤ C₁ * (mc + 0 + 1) + 1)
@@ -203,40 +170,28 @@ theorem exists_epsAuction_program :
   obtain ⟨r, C₁, pc, prog₀, hnw₀, frontier, _, he⟩ :=
     epsMainProg_realizes.exists_standard_basis_init_program_state_from_words (0 : Fin 1)
   let prog := stripRand prog₀
-  have hmain : ∀ {w C : ℕ} (inst : EpsInstance),
-      0 < inst.eps →
-      (∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ)) →
-      Fits w inst.wordBound →
+  have hmain {w C : ℕ} (inst : EpsInstance) (hε : 0 < inst.eps)
+      (hC : ∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ))
+      (hw : Fits w inst.wordBound) :
       ∃ steps, ExecutesList w prog (.init inst.encode) inst.assignment steps ∧
         steps ≤ (42 * C₁ + 1) * (inst.n ^ 2 * (C / inst.eps + 1) + 1) := by
-    intro w C inst hε hC hw
     have hin := inst.inputFits_encode hw
     have hfit_len : Fits w (inst.encode.length + 1) :=
       hw.of_le (by rw [inst.encode_length]; unfold EpsInstance.wordBound; nlinarith)
     have hlayout : ∀ j : Fin 2, inst.encode.getD j.val 0 = pairWords (inst.n, inst.eps) j := by
-      rintro ⟨_ | _ | _, hj⟩
-      · rfl
-      · rfl
-      · omega
+      rintro ⟨_ | _ | _, hj⟩ <;> first | rfl | omega
     have hk : 2 ≤ inst.encode.length := by rw [inst.encode_length]; omega
     obtain ⟨hsafe, hv, hmc, hout, hfit_out⟩ := epsMainProg_spec inst hε hC hw
     obtain ⟨y, m, hruns₀, hhalt₀, hmem, _, hsteps⟩ :=
       he w (inst.n, inst.eps) inst.encode hlayout hk hfit_len hin hsafe hv
     rw [clientState_width w] at hmem
-    rw [clientResult_width w] at hhalt₀
-    dsimp only [wordWords] at hhalt₀
-    have hymem : y.mem =
-        ((Memory.spec 0).clientState (Memory.State.init inst.encode)
-          (epsMainProg (inst.n, inst.eps))).mem :=
-      congrArg Memory.State.mem hmem
+    simp only [clientResult_width w, wordWords] at hhalt₀
     refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, runs_stripRand hruns₀, step_stripRand_of_halt hhalt₀,
-      hymem ▸ hout, hfit_out, rfl⟩, ?_⟩
+      (show y.mem = _ from congrArg Memory.State.mem hmem) ▸ hout, hfit_out, rfl⟩, ?_⟩
     have hp := eps_poly_bound inst.n C inst.eps hε
-    have hmul : C₁ * (memoryCost (epsMainProg (inst.n, inst.eps))
-        (Memory.State.init inst.encode) + 0 + 1) ≤
-        C₁ * (42 * (inst.n ^ 2 * (C / inst.eps + 1) + 1)) :=
-      Nat.mul_le_mul_left C₁ (by omega)
-    have hpos : 1 ≤ inst.n ^ 2 * (C / inst.eps + 1) + 1 := Nat.succ_pos _
+    have hmul := Nat.mul_le_mul_left C₁ (by omega :
+      memoryCost (epsMainProg (inst.n, inst.eps)) (.init inst.encode) + 0 + 1 ≤
+        42 * (inst.n ^ 2 * (C / inst.eps + 1) + 1))
     nlinarith
   refine ⟨r, 42 * C₁ + 1, by omega, prog, not_readsWidth_stripRand hnw₀,
     isRandFree_stripRand prog₀, @hmain, fun inst w ⟨hε, hw⟩ _ =>
@@ -272,44 +227,24 @@ theorem exists_scaledAuction_program :
     obtain ⟨hin, hfit_len, hlayout, hk⟩ := init_words_spec inst hw
     obtain ⟨hsafe, hv_s, hmc_s, _, hws_n, _, _, _, _, hout_s, hfit_ws⟩ :=
       scaledSolveProg_spec inst hC hw
-    have hv : (Memory.spec w).ValidHistory (Memory.State.init inst.encode)
-        ((Memory.spec w).clientHistory (Memory.State.init inst.encode)
-          (scaledMainProg inst.n)) := by
-      unfold scaledMainProg
-      exact validHistory_bind_step hv_s (validHistory_pure w _ _)
-    have hmc : memoryCost (scaledMainProg inst.n) (Memory.State.init inst.encode) ≤
+    have hv : (Memory.spec w).ValidHistory (.init inst.encode)
+        ((Memory.spec w).clientHistory (.init inst.encode) (scaledMainProg inst.n)) :=
+      validHistory_bind_step hv_s (validHistory_pure w _ _)
+    have hmc : memoryCost (scaledMainProg inst.n) (.init inst.encode) ≤
         (inst.n * ((inst.n + 1) * C + 1) + 1) * (4 * inst.n + 6) +
           3 * (inst.n * inst.n) + 7 * inst.n + 2 := by
-      unfold scaledMainProg
-      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
+      rw [scaledMainProg, memoryCost_bind', memoryCost_pure, Nat.add_zero]
       exact hmc_s.trans (by omega)
     obtain ⟨y, m, hruns₀, hhalt₀, hmem, _, hsteps⟩ :=
       he w inst.n inst.encode hlayout hk hfit_len hin hsafe hv
-    rw [clientState_width w] at hmem
-    rw [clientResult_width w] at hhalt₀
-    dsimp only [wordWords] at hhalt₀
-    have hymem : y.mem =
-        ((Memory.spec 0).clientState (Memory.State.init inst.encode)
-          (scaledMainProg inst.n)).mem :=
-      congrArg Memory.State.mem hmem
-    have hres_eq : (Memory.spec 0).clientResult (Memory.State.init inst.encode)
-        (scaledMainProg inst.n) =
-        ((Memory.spec 0).clientResult (Memory.State.init inst.encode)
-          (scaledSolveProg inst.n)).outBase := by
-      unfold scaledMainProg
-      rw [clientResult_bind, clientResult_pure]
-    have hst_eq : (Memory.spec 0).clientState (Memory.State.init inst.encode)
-        (scaledMainProg inst.n) =
-        (Memory.spec 0).clientState (Memory.State.init inst.encode)
-          (scaledSolveProg inst.n) := by
-      unfold scaledMainProg
-      rw [clientState_bind, clientState_pure]
+    rw [clientState_width w, scaledMainProg, clientState_bind, clientState_pure] at hmem
+    simp only [clientResult_width w, wordWords, scaledMainProg, clientResult_bind,
+      clientResult_pure] at hhalt₀
     refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, runs_stripRand hruns₀, step_stripRand_of_halt hhalt₀,
-      ?_, ?_, rfl⟩, scaled_steps_le hsteps hmc⟩
-    · rw [hymem, hst_eq, hres_eq]; exact hout_s
-    · rw [hres_eq, inst.length_assignment]
-      rw [hws_n] at hfit_ws
-      exact hfit_ws.of_le (Nat.le_succ _)
+      (show y.mem = _ from congrArg Memory.State.mem hmem) ▸ hout_s, ?_, rfl⟩,
+      scaled_steps_le hsteps hmc⟩
+    rw [inst.length_assignment]
+    exact (hws_n ▸ hfit_ws).of_le (Nat.le_succ _)
   refine ⟨r, 34 * C₁ + 1, by omega, prog, not_readsWidth_stripRand hnw₀,
     isRandFree_stripRand prog₀, @hmain, fun inst w hw _ =>
       hmain inst inst.sub_le_rowSpread hw⟩
@@ -343,35 +278,18 @@ theorem exists_scaledMinCost_program :
     obtain ⟨hin, hfit_len, hlayout, hk⟩ := init_words_spec inst hw
     obtain ⟨hsafe_s, hv_s, hmc_s, hws_s, hws_n, hws_sc, hM_le, hM_ge, hC_s, hout_s, hfit_ws⟩ :=
       scaledSolveProg_spec inst hC hw
-    let ws := (Memory.spec 0).clientResult (Memory.State.init inst.encode)
-      (scaledSolveProg inst.n)
-    let s_after := (Memory.spec 0).clientState (Memory.State.init inst.encode)
-      (scaledSolveProg inst.n)
     obtain ⟨hsafe_sum, hv_sum, hmc_sum, hres_sum⟩ :=
-      sumScaledCostProg_spec inst ws s_after hws_s hws_n hws_sc hM_le hM_ge hC_s hout_s hw hfit_ws
-    have hsafe : ScaledMinCostSafe w inst.n (Memory.State.init inst.encode) :=
-      ⟨hsafe_s, hsafe_sum⟩
-    have hv : (Memory.spec w).ValidHistory (Memory.State.init inst.encode)
-        ((Memory.spec w).clientHistory (Memory.State.init inst.encode)
-          (scaledMinCostMainProg inst.n)) := by
-      unfold scaledMinCostMainProg
-      exact validHistory_bind_step hv_s hv_sum
-    have hmc : memoryCost (scaledMinCostMainProg inst.n) (Memory.State.init inst.encode) ≤
+      sumScaledCostProg_spec inst _ _ hws_s hws_n hws_sc hM_le hM_ge hC_s hout_s hw hfit_ws
+    have hv := validHistory_bind_step hv_s hv_sum
+    have hmc : memoryCost (scaledMinCostMainProg inst.n) (.init inst.encode) ≤
         (inst.n * ((inst.n + 1) * C + 1) + 1) * (4 * inst.n + 6) +
           3 * (inst.n * inst.n) + 7 * inst.n + 2 := by
-      unfold scaledMinCostMainProg
-      rw [memoryCost_bind']
+      rw [scaledMinCostMainProg, memoryCost_bind']
       exact (Nat.add_le_add hmc_s hmc_sum).trans (by omega)
     obtain ⟨y, m, hruns₀, hhalt₀, _, _, hsteps⟩ :=
-      he w inst.n inst.encode hlayout hk hfit_len hin hsafe hv
-    rw [clientResult_width w] at hhalt₀
-    dsimp only [wordWords] at hhalt₀
-    have hres_eq : (Memory.spec 0).clientResult (Memory.State.init inst.encode)
-        (scaledMinCostMainProg inst.n) = inst.encodedMinCost := by
-      unfold scaledMinCostMainProg
-      rw [clientResult_bind]
-      exact hres_sum
-    rw [hres_eq] at hhalt₀
+      he w inst.n inst.encode hlayout hk hfit_len hin ⟨hsafe_s, hsafe_sum⟩ hv
+    simp only [clientResult_width w, scaledMinCostMainProg, clientResult_bind, hres_sum,
+      wordWords] at hhalt₀
     exact ⟨m + 1, ⟨⟨pc, y⟩, m, runs_stripRand hruns₀, step_stripRand_of_halt hhalt₀, rfl⟩,
       scaled_steps_le hsteps hmc⟩
   refine ⟨r, 34 * C₁ + 1, by omega, prog, not_readsWidth_stripRand hnw₀,

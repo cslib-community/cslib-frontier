@@ -19,11 +19,15 @@ This module defines the compositional transition invariant `FastStateStep` for f
 1. Large-regime index and capacity bounds (`large_index_bounds`, `bufTrie_caps_of_bounds`).
 2. `FastStateStep` reflexivity/transitivity, `bTreeSliceMemRep_congr`, and `FastMemRep`
    slice/buffer projections (`FastMemRep.slice_rep`, `FastMemRep.buf_rep`).
+3. `CostBoundedStep`, the final state, result, cost bound and validity of one run of a
+   `Memory.Prog`, with its `pure`/`bind`/`if` composition rules.
 
 ## Main definitions
 
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.FastStateStep`: compositional invariant
   preserving `SeedWhpMemRep`, `FastMemRep`, `frontier`, and memory outside `largeSpaceWhp`.
+* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.CostBoundedStep`: running a program from
+  a given state ends in a given state with a given result, within a cost bound, and validly.
 
 ## Main results
 
@@ -74,11 +78,9 @@ theorem large_index_bounds {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
   have hps_eq : numBucketsWhp n_max * capFrontWhp n_max + poolSizeWhp n_max = n_max := by
     unfold poolSizeWhp; omega
   have h2tl : 2 * totalLocalCoordsWhp n_max + 32 ≤ n_max := by
-    have htl3 : totalLocalCoordsWhp n_max ≤ 3 * (slabScale n_max) ^ 12 :=
-      totalLocalCoordsWhp_le_three_mul
-    have h1024L12 : 1024 * (slabScale n_max) ^ 12 ≤ n_max :=
-      (Nat.mul_le_mul_right _ hM_ge).trans hML12
-    have hL12_pos : 1 ≤ (slabScale n_max) ^ 12 := Nat.one_le_pow 12 _ (by omega)
+    have := totalLocalCoordsWhp_le_three_mul (n_max := n_max)
+    have := (Nat.mul_le_mul_right _ hM_ge).trans hML12
+    have := Nat.one_le_pow 12 (slabScale n_max) (by omega)
     omega
   exact ⟨hmcb, hps_eq, h2tl, by omega, by omega, h6q⟩
 
@@ -165,6 +167,87 @@ theorem bufTrie_caps_of_bounds {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) 
     _ = 1 + cTabWhp c * (tr.itemAlloc + 1) := by ring
     _ ≤ 1 + cTabWhp c * qEpochWhp n_max := Nat.add_le_add_left (Nat.mul_le_mul_left _ hia_lt) 1
     _ ≤ (cTabWhp c + 1) * qEpochWhp n_max + 2 := by nlinarith
+
+/-! ## Section 3: Cost-Bounded Steps -/
+
+/-- `CostBoundedStep w F s p s' r C`: running the memory program `p` from state `s` ends in state
+`s'` with result `r`, issues at most `C` memory operations (`memoryCost`), and produces a valid
+memory history at word size `w` whenever `s` is well formed with frontier at least `F`
+(`ValidProg`). -/
+structure CostBoundedStep {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α)
+    (s' : Memory.State) (r : α) (C : ℕ) : Prop where
+  /-- Final memory state produced by `p` from `s`. -/
+  clientState_eq : (Memory.spec 0).clientState s p = s'
+  /-- Result returned by `p` from `s`. -/
+  clientResult_eq : (Memory.spec 0).clientResult s p = r
+  /-- Upper bound on memory operations issued by `p` from `s`. -/
+  memoryCost_le : memoryCost p s ≤ C
+  /-- Memory-history validity of `p` from `s` at word size `w` and frontier `F`. -/
+  validProg : ValidProg w F s p
+
+namespace CostBoundedStep
+
+variable {α : Type} {w F C C' : ℕ} {s s' : Memory.State}
+
+/-- A run that leaves the state unchanged at exact cost `C` is a cost-bounded step. -/
+theorem of {p : Memory.Prog α} {r : α}
+    (h : (Memory.spec 0).clientState s p = s ∧ (Memory.spec 0).clientResult s p = r ∧
+      memoryCost p s = C ∧ ValidProg w F s p) : CostBoundedStep w F s p s r C :=
+  let ⟨h1, h2, h3, h4⟩ := h
+  ⟨h1, h2, h3.le, h4⟩
+
+/-- Pure return takes zero memory operations and leaves the state unchanged. -/
+theorem pure (s : Memory.State) (x : α) : CostBoundedStep w F s (Pure.pure x) s x 0 :=
+  ⟨rfl, rfl, (memoryCost_pure x s).le, validProg_pure x⟩
+
+/-- Sequential composition sums cost bounds and threads the intermediate state and result. -/
+theorem bind {β : Type} {C₁ C₂ : ℕ} {s₁ s₂ : Memory.State} {f : Memory.Prog α}
+    {g : α → Memory.Prog β} {x : α} {y : β} (hf : CostBoundedStep w F s f s₁ x C₁)
+    (hg : CostBoundedStep w F s₁ (g x) s₂ y C₂) :
+    CostBoundedStep w F s (f >>= g) s₂ y (C₁ + C₂) where
+  clientState_eq := by
+    rw [StateTransitionSpec.clientState_bind, hf.clientState_eq, hf.clientResult_eq,
+      hg.clientState_eq]
+  clientResult_eq := by
+    rw [StateTransitionSpec.clientResult_bind, hf.clientState_eq, hf.clientResult_eq,
+      hg.clientResult_eq]
+  memoryCost_le := by
+    rw [memoryCost_bind', hf.clientState_eq, hf.clientResult_eq]
+    exact Nat.add_le_add hf.memoryCost_le hg.memoryCost_le
+  validProg := validProg_bind hf.validProg (by
+    rw [hf.clientState_eq, hf.clientResult_eq]
+    exact hg.validProg)
+
+/-- Relax the memory-operation upper bound of a cost-bounded step. -/
+theorem mono {p : Memory.Prog α} {r : α} (h : CostBoundedStep w F s p s' r C) (hC : C ≤ C') :
+    CostBoundedStep w F s p s' r C' :=
+  ⟨h.clientState_eq, h.clientResult_eq, h.memoryCost_le.trans hC, h.validProg⟩
+
+/-- Conditional execution with matching final state and cost bound across both branches. -/
+theorem ite {c : Prop} [Decidable c] {p₁ p₂ : Memory.Prog α} {r₁ r₂ : α}
+    (h₁ : CostBoundedStep w F s p₁ s' r₁ C) (h₂ : CostBoundedStep w F s p₂ s' r₂ C) :
+    CostBoundedStep w F s (if c then p₁ else p₂) s' (if c then r₁ else r₂) C := by
+  split_ifs <;> assumption
+
+/-- Positive branch of a conditional cost-bounded step. -/
+theorem if_pos {c : Prop} [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : c)
+    (h : CostBoundedStep w F s p₁ s' r C) :
+    CostBoundedStep w F s (if c then p₁ else p₂) s' r C := by
+  rwa [ite_eq_left hc]
+
+/-- Negative branch of a conditional cost-bounded step. -/
+theorem if_neg {c : Prop} [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : ¬c)
+    (h : CostBoundedStep w F s p₂ s' r C) :
+    CostBoundedStep w F s (if c then p₁ else p₂) s' r C := by
+  rwa [ite_eq_right hc]
+
+/-- Read a cost-bounded step off as a cost bound, validity and a property of the final state. -/
+theorem elim {p : Memory.Prog α} {r : α} {P : Memory.State → Prop}
+    (h : CostBoundedStep w F s p s' r C) (hC : C ≤ C') (hP : P s') :
+    memoryCost p s ≤ C' ∧ ValidProg w F s p ∧ P ((Memory.spec 0).clientState s p) :=
+  ⟨h.memoryCost_le.trans hC, h.validProg, by rw [h.clientState_eq]; exact hP⟩
+
+end CostBoundedStep
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

@@ -76,12 +76,17 @@ number of AND gates satisfied by the input with true positions `T` is
   evaluation.
 * `Cslib.Circuits.Boolean.SymAnd.SymAndInstance`, `.encSymAndInstance`: circuit instance and
   binary-tape encoding.
+* `Cslib.Circuits.Boolean.SymAnd.SymAndInstance.countList`: the satisfied-AND counts across all
+  `2 ^ x.n` inputs, independent of `out`.
 * `Cslib.Circuits.Boolean.SymAnd.SymAndInstance.truthTableList`: the truth table as a `List Bool`.
 
 ## Main results
 
 * `Cslib.Circuits.Boolean.SymAnd.count_eq_subsetZeta`: the AND count is a zeta transform.
 * `Cslib.Circuits.Boolean.SymAnd.truthTable_eq`: correctness of pure `truthTable`.
+* `Cslib.Circuits.Boolean.SymAnd.computableInO_countList`: multi-tape Turing machine Yates zeta
+  evaluation of `SymAndInstance.countList` in time and space
+  `O((2 ^ n + (|enc x| + 1) ^ c) * (n + 1) ^ c)`.
 * `Cslib.Circuits.Boolean.SymAnd.computableInO_truthTableList_of_computableInO`: Williams's
   Evaluation Lemma on multi-tape Turing machines, parametric in a `ComputableInO` evaluator `out`.
 * `Cslib.Circuits.Boolean.SymAnd.computableInO_truthTableList`: Williams's Evaluation Lemma for any
@@ -233,10 +238,44 @@ enc_structure encSymAndInstance : SymAndInstance where
   gates := (x.gates.map (gateSet x.n) : Multiset (Finset (Fin x.n)))
   out := out
 
+/-- The list of satisfied-AND counts of `x` across all `2 ^ x.n` inputs, in the
+`BitString.equivFin x.n` order `0, …, 2 ^ x.n - 1`. -/
+@[expose] def SymAndInstance.countList (x : SymAndInstance) : List ℕ :=
+  List.ofFn fun k : Fin (2 ^ x.n) =>
+    (x.toSymAnd fun _ => false).count ((BitString.equivFin x.n).symm k)
+
+/-- `x.countList` has length `2 ^ x.n`. -/
+@[simp] theorem SymAndInstance.length_countList (x : SymAndInstance) :
+    x.countList.length = 2 ^ x.n := by
+  simp [SymAndInstance.countList]
+
+/-- Entry `k` of `x.countList` is the number of AND gates satisfied by
+`(BitString.equivFin x.n).symm k`, independent of the symmetric output gate `out`. -/
+theorem SymAndInstance.getElem_countList (x : SymAndInstance) (out : ℕ → Bool)
+    (k : ℕ) (hk : k < x.countList.length) :
+    x.countList[k] =
+      (x.toSymAnd out).count ((BitString.equivFin x.n).symm ⟨k, by simpa using hk⟩) := by
+  simp [SymAndInstance.countList, SymAnd.count, SymAndInstance.toSymAnd]
+
+/-- Every entry of `x.countList` is at most the number of AND gates `x.gates.length`. -/
+theorem SymAndInstance.countList_le_gates_length (x : SymAndInstance) {c : ℕ}
+    (hc : c ∈ x.countList) : c ≤ x.gates.length := by
+  rw [SymAndInstance.countList, List.mem_ofFn] at hc
+  obtain ⟨k, rfl⟩ := hc
+  simpa [SymAnd.size, SymAndInstance.toSymAnd] using
+    (x.toSymAnd fun _ => false).count_le_size ((BitString.equivFin x.n).symm k)
+
 /-- The truth table of `x.toSymAnd out`, listed in the `BitString.equivFin x.n` order
 `0, …, 2 ^ x.n - 1`. -/
 @[expose] def SymAndInstance.truthTableList (x : SymAndInstance) (out : ℕ → Bool) : List Bool :=
   List.ofFn fun k : Fin (2 ^ x.n) => (x.toSymAnd out).eval ((BitString.equivFin x.n).symm k)
+
+/-- The truth table of `x.toSymAnd out` is `out` mapped over `x.countList`. -/
+theorem SymAndInstance.truthTableList_eq_map_countList (x : SymAndInstance) (out : ℕ → Bool) :
+    x.truthTableList out = x.countList.map out := by
+  refine List.ext_getElem (by simp [SymAndInstance.truthTableList]) fun k hk1 hk2 => ?_
+  simp [SymAndInstance.truthTableList, SymAndInstance.countList, SymAnd.eval, SymAnd.count,
+    SymAndInstance.toSymAnd]
 
 /-- Agreement between the list truth table `x.truthTableList out` and pure `truthTable`. -/
 theorem SymAndInstance.truthTableList_eq_truthTable (x : SymAndInstance) (out : ℕ → Bool) :
@@ -4354,6 +4393,31 @@ theorem computableInO_truthTableList {out : ℕ → Bool}
       _ = 2 * ((2 ^ x.n + A ^ (c + d)) * N ^ (c + d)) := by ring
       _ ≤ 2 * ((2 ^ x.n + A ^ (c + d)) * N ^ (c + d) + 1) :=
           Nat.mul_le_mul_left 2 (Nat.le_succ _)
+
+/-- **Yates zeta count table on multi-tape Turing machines**: computing the satisfied-AND count for
+all `2 ^ x.n` inputs (`SymAndInstance.countList`, independent of any symmetric output gate `out`)
+runs in time and space `O((2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c) * (x.n + 1) ^ c)`. -/
+theorem computableInO_countList :
+    ∃ c, ComputableInO SymAndInstance.countList encSymAndInstance (encList encNat)
+      (fun x => (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c) * (x.n + 1) ^ c)
+      (fun x => (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c) * (x.n + 1) ^ c) := by
+  obtain ⟨c, hc⟩ := computableInO_yatesZeta
+  refine ⟨c, hc.of_enc_eq fun x => congrArg (encList encNat) ?_⟩
+  refine List.ext_getElem (by rw [SymAndInstance.length_countList, yatesZeta_countMasks_eq,
+      List.length_map, List.length_range]) fun k hk1 hk2 => ?_
+  have hk : k < 2 ^ x.n := by simpa only [SymAndInstance.length_countList] using hk1
+  rw [SymAndInstance.getElem_countList x (fun _ => false) k hk1]
+  have hcnt := count_eq_subsetZeta_filter (x.toSymAnd fun _ => false)
+    ((BitString.equivFin x.n).symm ⟨k, hk⟩)
+  have hmask_eq : Finset.univ.filter (fun i : Fin x.n =>
+      ((BitString.equivFin x.n).symm ⟨k, hk⟩) i = true) = maskSet x.n k := by
+    ext i
+    simp [BitString.equivFin_symm_apply, mem_maskSet]
+  have hg : (x.toSymAnd fun _ => false).gateMultiplicity =
+      fun T => (x.gates.map (gateSet x.n)).count T := by
+    funext T; simp [gateMultiplicity, SymAndInstance.toSymAnd]
+  rw [hcnt, hmask_eq, hg, subsetZeta_listCount_eq_countP]
+  simp only [yatesZeta_countMasks_eq, List.getElem_map, List.getElem_range, hk, ↓reduceDIte]
 
 end MultiTapeTM
 end Cslib.Circuits.Boolean.SymAnd

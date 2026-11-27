@@ -209,12 +209,8 @@ theorem compressedVerify_compressedSignBoundedFrom (hP : P.Valid)
     {maskAt : ℕ → Fin P.ℓ → Fin P.n → ZMod P.q} {κ K : ℕ} {σ : CompressedSignature P}
     (hout : compressedSignBoundedFrom P d ω H sk msg maskAt κ K = some σ) :
     compressedVerify P d H sk.publicKey msg σ = true := by
-  obtain ⟨i, hi, _⟩ :=
-    (Fin.findSome?_eq_some_iff
-      (f := compressedSignAttempts P d ω H sk msg maskAt κ K) (a := σ)).mp
-      (by simpa only [compressedSignBoundedFrom] using hout)
-  apply compressedVerify_compressedSignAttempt P hP hγq hH hs₂
-  simpa only [compressedSignAttempts] using hi
+  obtain ⟨i, hi, _⟩ := Fin.findSome?_eq_some_iff.mp hout
+  exact compressedVerify_compressedSignAttempt P hP hγq hH hs₂ hi
 
 /-- Every signature returned by bounded signing from Algorithm 7's initial counter passes
 compressed verification under the matching public key. -/
@@ -223,8 +219,7 @@ theorem compressedVerify_compressedSignBounded (hP : P.Valid) (hγq : 4 * P.γ�
     (hs₂ : ∀ i j, |(sk.s₂ i j).valMinAbs| ≤ P.η) {msg : List Bool}
     {maskAt : ℕ → Fin P.ℓ → Fin P.n → ZMod P.q} {K : ℕ} {σ : CompressedSignature P}
     (hout : compressedSignBounded P d ω H sk msg maskAt K = some σ) :
-    compressedVerify P d H sk.publicKey msg σ = true := by
-  apply compressedVerify_compressedSignBoundedFrom P hP hγq hH hs₂
-  simpa only [compressedSignBounded] using hout
+    compressedVerify P d H sk.publicKey msg σ = true :=
+  compressedVerify_compressedSignBoundedFrom P hP hγq hH hs₂ hout
 
 end Cslib.Crypto.MLDSA

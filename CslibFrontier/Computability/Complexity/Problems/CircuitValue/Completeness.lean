@@ -113,9 +113,9 @@ theorem encCircuitValue_tableauInstance (w : List Bool) :
   rw [encCircuitValue_apply]
   simp only [tableauInstance, Tableau.code_circuit, encPair_apply, encUnary_apply, encList_cons,
     encList_nil, List.append_nil, encBits_apply, frame_eq_doubled, doubled_append, Tableau.gates,
-    trailer]
+    trailer, doubled_doubled_replicate]
   have hw : List.ofFn (fun i : Fin w.length => w[i]) = w := List.ofFn_getElem
-  rw [hw, doubled_doubled_replicate]
+  rw [hw]
   have hl : encList encGate ((List.range (Tableau.numGates k State (timeBound C d w.length))).map
       (Tableau.gateCode tm w.length (timeBound C d w.length))) =
       ((List.range (Tableau.numGates k State (timeBound C d w.length))).map fun i =>
@@ -123,15 +123,11 @@ theorem encCircuitValue_tableauInstance (w : List Bool) :
     generalize List.range (Tableau.numGates k State (timeBound C d w.length)) = L
     induction L with
     | nil => rfl
-    | cons i L ih => simp [ih]
-  have hc : gateChunk tm C d w.length = fun i =>
-      doubled (doubled (doubled
-        (encGate (Tableau.gateCode tm w.length (timeBound C d w.length) i)))) ++
-        doubled (doubled [false]) := by
-    funext i
-    simp only [gateChunk, frame_eq_doubled, doubled_append]
-  rw [hl, doubled_flatten, doubled_flatten, List.map_map, List.map_map, hc]
-  simp only [frame_eq_doubled, Function.comp_def, doubled_append, List.append_assoc, doubled_false]
+    | cons _ _ ih => simp [ih]
+  rw [hl, doubled_flatten, doubled_flatten, List.map_map, List.map_map]
+  unfold gateChunk
+  simp only [frame_eq_doubled, Function.comp_def, doubled_append, List.append_assoc,
+    doubled_false]
 
 /-- The uniform writer specification for tableau circuit instances. -/
 noncomputable def tableauSpec : WriterSpec where
@@ -283,13 +279,10 @@ theorem eval_tableau_of_computesFun {α : Type} {enc : α ↪ List Bool} {f : α
       (fun a => s (enc a).length)) (ht : ∀ n, t n ≤ C * (n + 1) ^ d) (a : α) :
     (Tableau.circuit tm (enc a).length (timeBound C d (enc a).length)).eval interpretation
       (fun i => (enc a)[i]) 0 = f a := by
-  rw [Tableau.eval_circuit tm (by simp only [timeBound]; omega)]
   have hw : List.ofFn (fun i : Fin (enc a).length => (enc a)[i]) = enc a := List.ofFn_getElem
-  rw [hw]
-  have hle : t (enc a).length ≤ timeBound C d (enc a).length := by
-    have h := ht (enc a).length
-    dsimp only [timeBound]
-    omega
+  rw [Tableau.eval_circuit tm (by simp only [timeBound]; omega), hw]
+  have hle : t (enc a).length ≤ timeBound C d (enc a).length :=
+    ((ht (enc a).length).trans (Nat.le_add_right _ _)).trans (Nat.le_add_right _ _)
   obtain ⟨-, hout⟩ := (htm a).runFrom_of_le hle
   rw [hout, encBool_apply]
   cases f a <;> simp [OutView.ofList]

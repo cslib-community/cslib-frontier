@@ -73,27 +73,16 @@ theorem countP_range_bitGeneratorNat_accepts {k : ℕ} {State : Type}
       (List.ofFn fun j : Fin (2 ^ r * n) => Crypto.PRG.Nisan.bitGeneratorNat n r z j) =
         List.ofFn (Crypto.PRG.Nisan.bitGenerator n r (Crypto.PRG.Nisan.seedOfNat n r z)) :=
     congrArg List.ofFn (funext fun j => Crypto.PRG.Nisan.bitGeneratorNat_eq n r z j j.isLt)
-  have h := Crypto.PRG.Nisan.countP_range_seedOfNat n r fun s => decide
+  simp only [hfun]
+  refine (Crypto.PRG.Nisan.countP_range_seedOfNat n r fun s => decide
     ((M.stepCoins (List.ofFn (Crypto.PRG.Nisan.bitGenerator n r s))
         (M.toNTM.initCfg input)).Halted ∧
       (M.stepCoins (List.ofFn (Crypto.PRG.Nisan.bitGenerator n r s))
-        (M.toNTM.initCfg input)).output = [true])
-  simp only [hfun]
-  refine h.trans ?_
+        (M.toNTM.initCfg input)).output = [true])).trans ?_
   rw [MultiTapePTM.acceptNisanSeeds]
-  exact congrArg Finset.card (Finset.filter_congr fun s _ => decide_eq_true_iff)
+  exact congrArg Finset.card (Finset.filter_congr fun _ _ => decide_eq_true_iff)
 
 /-! ### The parameters in `O(log² m)` space -/
-
-/-- `⌊log₂⌋` of the length of a word, within logarithmic space. -/
-private theorem log2_length_inSpace :
-    ComputableInSpace (fun w : List Bool => Nat.log2 w.length) encBits encNat
-      fun w => Nat.log2 (encBits w).length :=
-  (ComputableInLogSpace.unaryToBinary
-      (ComputableInLogSpace.unaryLog2 ComputableInLogSpace.bitsLength)).inSpace_of_length_log
-    ⟨1, fun w => by
-      simpa only [one_mul, encBits_apply] using
-        length_encNat_le_log2 (Nat.log2_le_self w.length)⟩
 
 /-- The budget `(log₂ m + 1)²` on words of length `m`. -/
 private abbrev logSqBudget (w : List Bool) : ℕ := (Nat.log2 w.length + 1) ^ 2
@@ -103,7 +92,7 @@ private theorem log2_le_logSqBudget (w : List Bool) : Nat.log2 w.length ≤ logS
 
 private theorem log2_budget :
     ComputableInSpace (fun w : List Bool => Nat.log2 w.length) encBits encNat logSqBudget :=
-  log2_length_inSpace.mono_le fun w => by
+  ComputableInSpace.log2BitsLength.mono_le fun w => by
     rw [encBits_apply]
     exact log2_le_logSqBudget w
 
@@ -144,13 +133,10 @@ private theorem coinCount_budget (d : ℕ) :
     ComputableInSpace (fun w => 2 ^ nisanHashSeeds d w * nisanBlockLen d w) encBits encNat
       logSqBudget :=
   ComputableInSpace.budget_natMul
-    (ComputableInSpace.budget_natPow_variable (ComputableInSpace.budget_const 2)
-      (hashSeeds_budget d) (.of_le_linear (6 * d + 6) 8 fun w => by
-        have h2 : (encNat 2).length = 2 := rfl
-        have hlen := length_encNat_le_log2 (le_refl (nisanHashSeeds d w))
-        have hlog := Nat.log2_le_self (nisanHashSeeds d w)
+    (ComputableInSpace.budget_twoPow (hashSeeds_budget d)
+      (.of_le_linear (2 * d + 1) (2 * d + 1) fun w => by
         have hsq := Nat.le_self_pow two_ne_zero (Nat.log2 w.length + 1)
-        simp only [logSqBudget, h2] at hsq ⊢
+        simp only [logSqBudget, nisanHashSeeds]
         nlinarith))
     (blockLen_budget d)
 
@@ -159,15 +145,9 @@ private theorem two_pow_seedLen_budget {α : Type} {enc : α ↪ List Bool} (d :
     (hs : ∀ a, nisanSeedLen d (enc a) ≤ 39 * (2 * d + 1) ^ 2 * (Nat.log2 (enc a).length + 1) ^ 2) :
     ComputableInSpace (fun a => 2 ^ nisanSeedLen d (enc a)) enc encNat
       fun a => logSqBudget (enc a) :=
-  ComputableInSpace.budget_natPow_variable (ComputableInSpace.budget_const 2)
+  ComputableInSpace.budget_twoPow
     ((seedLen_budget d).of_encIn_eq enc fun a => (encBits_apply (enc a)).symm)
-    (.of_le_linear (4 * 39 * (2 * d + 1) ^ 2) 4 fun a => by
-      have h2 : (encNat 2).length = 2 := rfl
-      have hlen := length_encNat_le_log2 (le_refl (nisanSeedLen d (enc a)))
-      have hlog := Nat.log2_le_self (nisanSeedLen d (enc a))
-      have hsa := hs a
-      simp only [logSqBudget, h2] at hsa ⊢
-      nlinarith)
+    (.of_le_linear (39 * (2 * d + 1) ^ 2) 0 fun a => by simpa using hs a)
 
 /-- A budget for a packed seed `z` and an input `a` of length `m` that covers the logarithm of
 the length of the encoded pair: the seed twice and `(log₂ m + 1)²`. -/
@@ -207,22 +187,19 @@ private theorem coin_inSpace {α : Type} {enc : α ↪ List Bool} (d : ℕ) :
     ComputableInSpace (fun q : ℕ × (ℕ × α) => Crypto.PRG.Nisan.bitGeneratorNat
         (nisanBlockLen d (enc q.2.2)) (nisanHashSeeds d (enc q.2.2)) q.2.1 q.1)
       (encPair encNat (encPair encNat enc)) encBool
-      fun q => (encNat q.1).length + ((encNat q.2.1).length + logSqBudget (enc q.2.2)) := by
-  have hj : ComputableInSpace (fun q : ℕ × (ℕ × α) => q.1) (encPair encNat (encPair encNat enc))
-      encNat fun q => (encNat q.1).length + replayBudget enc q.2 :=
-    ((ComputableInLogSpace.fst encNat (encPair encNat enc)).inSpace_context
-    (.of_le fun _ => Nat.le_add_right _ _)).mono_le fun q => by
-      have := log2_le_replayBudget enc q.2
-      omega
-  have hz := (ComputableInSpace.budget_id (enc := encNat) (.refl _)).comp_logSpace_context
-    ((ComputableInLogSpace.fst encNat enc).comp' (ComputableInLogSpace.snd encNat
-      (encPair encNat enc)))
-    (.of_le fun q => by simp only [replayBudget]; omega) (log2_le_replayBudget enc)
-  have h := ComputableInSpace.budget_comp_linear
-    Crypto.PRG.Nisan.computableInSpace_bitGeneratorNat
+      fun q => (encNat q.1).length + ((encNat q.2.1).length + logSqBudget (enc q.2.2)) :=
+  (ComputableInSpace.budget_comp_linear Crypto.PRG.Nisan.computableInSpace_bitGeneratorNat
     (Crypto.PRG.Nisan.encNisanBitArgs_mk_budget (ofInput_coinBudget (blockLen_budget d))
-      (ofInput_coinBudget (hashSeeds_budget d)) hz hj)
-  exact h.weaken (.of_le_linear 2 2 fun q => by simp only [replayBudget]; omega)
+      (ofInput_coinBudget (hashSeeds_budget d))
+      ((ComputableInSpace.budget_id (enc := encNat) (.refl _)).comp_logSpace_context
+        ((ComputableInLogSpace.fst encNat enc).comp'
+          (ComputableInLogSpace.snd encNat (encPair encNat enc)))
+        (.of_le fun q => by simp only [replayBudget]; omega) (log2_le_replayBudget enc))
+      (((ComputableInLogSpace.fst encNat (encPair encNat enc)).inSpace_context
+        (.of_le fun _ => Nat.le_add_right _ _)).mono_le fun q => by
+          have := log2_le_replayBudget enc q.2
+          omega))).weaken
+    (.of_le_linear 2 2 fun q => by simp only [replayBudget]; omega)
 
 /-- **`BPL ⊆ DSPACE(log² n)`** [Nisan1992]: every language in `Cslib.Complexity.BPL`, decided by
 a fair-coin machine that on inputs of length `n` uses `O(log n)` work-tape cells and halts on every
@@ -238,14 +215,13 @@ theorem BPL_subset_DSPACE_log2_sq {α : Type} {enc : α ↪ List Bool} :
   obtain ⟨k, State, hfin, M, c, d, hs, hM⟩ := exists_acceptNisanSeeds_of_mem_BPL hA
   have hrep := M.replayCoins_inSpace_context c hs (ofInput_seedBudget (coinCount_budget d))
     (coin_inSpace d) fun a => log2_le_logSqBudget (enc a)
-  have hf := (two_pow_seedLen_budget d fun a => (hM a _ _ rfl rfl).1).majorityWith hrep
   refine DSPACE_mono_of_le_mul_add (C := 5) (s₁ := fun n => (Nat.log2 n + 1) ^ 2 + Nat.log2 n)
     (fun n => by nlinarith) ?_
-  convert setOf_mem_DSPACE_of_computableInSpace hf
-    (s := fun n => (Nat.log2 n + 1) ^ 2 + Nat.log2 n) fun a => le_rfl using 1
+  convert setOf_mem_DSPACE_of_computableInSpace
+    ((two_pow_seedLen_budget d fun a => (hM a _ _ rfl rfl).1).majorityWith hrep)
+    (s := fun n => (Nat.log2 n + 1) ^ 2 + Nat.log2 n) fun _ => le_rfl using 1
   ext a
-  simp only [Set.mem_ofPred_eq, decide_eq_true_eq]
-  rw [countP_range_bitGeneratorNat_accepts]
+  simp only [Set.mem_ofPred_eq, decide_eq_true_eq, countP_range_bitGeneratorNat_accepts]
   obtain ⟨-, hmem, hnot⟩ := hM a _ _ rfl rfl
   exact ⟨hmem, fun h => by_contra fun ha => absurd h (Nat.lt_asymm (hnot ha))⟩
 

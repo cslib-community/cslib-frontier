@@ -86,16 +86,11 @@ def ofDecisionTree :
   induction t with
   | leaf o => rfl
   | node i t₀ t₁ ih₀ ih₁ =>
-    have hbit : decide (∃ a, BitString.indexBits a = BitString.indexBits (x i) ∧ y i a = true) =
-        y i (x i) := by
-      cases h : y i (x i)
-      · simp only [decide_eq_false_iff_not, not_exists, not_and]
-        intro a ha
-        rw [BitString.indexBits_injective ha, h]
-        exact Bool.false_ne_true
-      · exact decide_eq_true ⟨x i, rfl, h⟩
-    rw [ofDecisionTree, Protocol.run_aliceSend, Protocol.run_bob, hbit, ih₀, ih₁,
-      DecisionTree.eval_node, ind_apply]
+    have hbit : (∃ a, BitString.indexBits a = BitString.indexBits (x i) ∧ y i a = true) ↔
+        y i (x i) = true :=
+      ⟨fun ⟨_, ha, hy⟩ => BitString.indexBits_injective ha ▸ hy, fun hy => ⟨x i, rfl, hy⟩⟩
+    simp [ofDecisionTree, Protocol.run_aliceSend, Protocol.run_bob, hbit, ih₀, ih₁,
+      DecisionTree.eval_node]
 
 /-- Each query costs `⌈log₂ m⌉ + 1` bits. -/
 theorem depth_ofDecisionTree_le (t : DecisionTree (Fin n) O) :

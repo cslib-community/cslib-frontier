@@ -36,24 +36,24 @@ open Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray
 open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 theorem validWhpProg_laneGetGenProg {w F : ℕ} {s : Memory.State}
-    (d : (ℕ × ℕ) × ℕ) : ValidProg w F s (laneGetGenProg d) := by
-  unfold laneGetGenProg; simp only [pure_bind]; exact validProg_pure _
+    (d : (ℕ × ℕ) × ℕ) : ValidProg w F s (laneGetGenProg d) :=
+  validProg_pure _
 
 theorem validWhpProg_wordInsertAtGenProg {w F : ℕ} {s : Memory.State}
-    (d : ((ℕ × ℕ) × ℕ) × ℕ) : ValidProg w F s (wordInsertAtGenProg d) := by
-  unfold wordInsertAtGenProg; simp only [pure_bind]; exact validProg_pure _
+    (d : ((ℕ × ℕ) × ℕ) × ℕ) : ValidProg w F s (wordInsertAtGenProg d) :=
+  validProg_pure _
 
 theorem validWhpProg_wordDeleteAtGenProg {w F : ℕ} {s : Memory.State}
-    (d : (ℕ × ℕ) × ℕ) : ValidProg w F s (wordDeleteAtGenProg d) := by
-  unfold wordDeleteAtGenProg; simp only [pure_bind]; exact validProg_pure _
+    (d : (ℕ × ℕ) × ℕ) : ValidProg w F s (wordDeleteAtGenProg d) :=
+  validProg_pure _
 
 theorem validWhpProg_wordUpdateAtGenProg {w F : ℕ} {s : Memory.State}
-    (d : ((ℕ × ℕ) × ℕ) × ℕ) : ValidProg w F s (wordUpdateAtGenProg d) := by
-  unfold wordUpdateAtGenProg; simp only [pure_bind]; exact validProg_pure _
+    (d : ((ℕ × ℕ) × ℕ) × ℕ) : ValidProg w F s (wordUpdateAtGenProg d) :=
+  validProg_pure _
 
 theorem validWhpProg_swarRankGenProg {w F : ℕ} {s : Memory.State}
-    (d : WhpCoreParams × ((ℕ × ℕ) × ℕ)) : ValidProg w F s (swarRankGenProg d) := by
-  unfold swarRankGenProg; simp only [pure_bind]; exact validProg_pure _
+    (d : WhpCoreParams × ((ℕ × ℕ) × ℕ)) : ValidProg w F s (swarRankGenProg d) :=
+  validProg_pure _
 
 theorem btree_slice_param_bounds {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     (3 ≤ tMinWhp n_max ∧
@@ -75,21 +75,18 @@ theorem btree_slice_param_bounds {c n_max : ℕ} (hth : whpThreshold c ≤ n_max
       calc slabScale n_max = 2 ^ logLogFactor n_max := rfl
         _ ≤ 2 ^ fpBitsWhp n_max := by
             unfold fpBitsWhp; exact Nat.pow_le_pow_right (by decide) (by omega)
-    have hfp_pos : 0 < 2 ^ fpBitsWhp n_max := Nat.two_pow_pos _
     calc 2 * tMinWhp n_max ≤ 2 * 2 ^ fpBitsWhp n_max :=
           Nat.mul_le_mul_left 2 (ht_le_L.trans hpow)
-      _ < 4 * 2 ^ fpBitsWhp n_max := by omega
+      _ < 4 * 2 ^ fpBitsWhp n_max := Nat.mul_lt_mul_of_pos_right (by decide) (Nat.two_pow_pos _)
       _ = 2 ^ keyLaneBitsWhp n_max := by unfold keyLaneBitsWhp; rw [Nat.pow_add]; ring
   have hnslice_lt : nSliceWhp n_max < 2 ^ valLaneBitsWhp n_max := by
     have hL2 := two_le_slabScale n_max
     have hL12_ge : 4096 ≤ (slabScale n_max) ^ 12 := by
       calc 4096 = 2 ^ 12 := by decide
         _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left hL2 12
-    have hdiv_le : 32 * (slabScale n_max) ^ 12 / (tMinWhp n_max - 1) ≤
-        32 * (slabScale n_max) ^ 12 := Nat.div_le_self _ _
+    have hdiv_le := Nat.div_le_self (32 * (slabScale n_max) ^ 12) (tMinWhp n_max - 1)
     unfold nSliceWhp
-    rw [two_pow_valLaneBitsWhp]
-    omega
+    rw [two_pow_valLaneBitsWhp]; omega
   exact ⟨⟨by omega, hmeta_lt, hkey_lt, hnslice_lt⟩, h8⟩
 
 theorem validWhpProg_splitFullNodeGenProg {w F : ℕ} {s : Memory.State}
@@ -98,10 +95,7 @@ theorem validWhpProg_splitFullNodeGenProg {w F : ℕ} {s : Memory.State}
   simp only [pure_bind]
   refine validProg_bind (validWhpProg_laneGetGenProg _) ?_
   rw [clientState_laneGetGenProg]
-  split_ifs <;>
-    (unfold wordTakeLowGenProg wordDropLowGenProg
-     simp only [pure_bind]
-     exact validProg_pure _)
+  split_ifs <;> exact validProg_pure _
 
 theorem descendToLeaf_leaf {isRoot : Bool}
     {fpBits W_val tMin alloc lo hi q fuel : ℕ}
@@ -115,11 +109,10 @@ theorem descendToLeaf_leaf {isRoot : Bool}
         (.leaf (descendToLeaf fpBits W_val tMin nodes fuel T.rootIdx q) cnt) := by
   induction T generalizing isRoot lo hi fuel with
   | leaf idx cnt =>
-    have hdesc : descendToLeaf fpBits W_val tMin nodes fuel idx q = idx := by
-      cases fuel with
-      | zero => rfl
-      | succ _ => simp only [descendToLeaf, hv.2.1, metaIsLeaf_mkNodeMeta, ↓reduceIte]
-    exact ⟨cnt, lo, hi, le_rfl, by dsimp only [BTreeTree.rootIdx]; rw [hdesc]; exact hv⟩
+    cases fuel <;>
+      exact ⟨cnt, lo, hi, le_rfl, by
+        simp only [BTreeTree.rootIdx, descendToLeaf, hv.2.1, metaIsLeaf_mkNodeMeta, ↓reduceIte]
+        exact hv⟩
   | branch idx cnt cs ih =>
     obtain ⟨fuel', rfl⟩ : ∃ f, fuel = f + 1 :=
       ⟨fuel - 1, by simp only [BTreeTree.height] at hfuel; omega⟩
@@ -127,17 +120,18 @@ theorem descendToLeaf_leaf {isRoot : Bool}
     obtain ⟨_, hmeta, _, _, _, _, _, hhi_last, hmono, _, _, hht, hcs⟩ := hv
     let r_fin : Fin (cnt + 1) := ⟨swarRank fpBits (2 * tMin) cnt q (nodes idx).keysWord,
       Nat.lt_succ_of_le hr_le⟩
+    have hr_root : laneGet W_val (nodes idx).valsWord
+        (swarRank fpBits (2 * tMin) cnt q (nodes idx).keysWord) = (cs r_fin).rootIdx :=
+      (hcs r_fin).1
     have hdesc_step : descendToLeaf fpBits W_val tMin nodes (fuel' + 1) idx q =
         descendToLeaf fpBits W_val tMin nodes fuel' (cs r_fin).rootIdx q := by
       simp only [descendToLeaf, hmeta, metaIsLeaf_mkNodeMeta, metaCount_mkNodeMeta,
-        Bool.false_eq_true, ↓reduceIte]
-      rw [show swarRank fpBits (2 * tMin) cnt q (nodes idx).keysWord = r_fin.val from rfl,
-        (hcs r_fin).1]
+        Bool.false_eq_true, ↓reduceIte, hr_root]
     have hchi_le : childHi (fpBits + 2) hi cnt (nodes idx).keysWord r_fin.val ≤ hi :=
       childHi_le hhi_last.le hmono
     have hfuel_c : (cs r_fin).height ≤ fuel' := by
-      rw [BTreeTree.height_branch_of_eq hht] at hfuel
-      rw [hht r_fin]; omega
+      rw [BTreeTree.height_branch_of_eq hht, ← hht r_fin] at hfuel
+      omega
     obtain ⟨cntL, loL, hiL, hhiL1, hv_leaf⟩ :=
       ih r_fin (hcs r_fin).2 (hchi_le.trans_lt hhi) hclo_q hq_chi hfuel_c
     exact ⟨cntL, loL, hiL, hhiL1.trans hchi_le,
@@ -164,16 +158,12 @@ theorem validSubtree_root_bounds {isRoot : Bool} {c n_max alloc lo hi : ℕ}
   cases T with
   | leaf idx c0 =>
     obtain ⟨hidx, hmeta, hc_le, hkw, _, hbounds, _, _⟩ := hv
-    dsimp only [BTreeTree.rootIdx] at hbits ⊢
-    have hcnt_eq : metaCount (nodes idx).metaWord = c0 := by rw [hmeta, metaCount_mkNodeMeta]
-    rw [hcnt_eq]
+    simp only [BTreeTree.rootIdx, hmeta, metaCount_mkNodeMeta] at hbits ⊢
     exact ⟨hidx, hc_le, hbits.1, hkw, hbits.2.1, hbits.2.2,
       fun j hj => ((hbounds j hj).2).trans_lt hhi⟩
   | branch idx c0 cs =>
     obtain ⟨hidx, hmeta, hdeg, hc_le, hkw, _, _, hhi_last, hmono, _, _, _, _⟩ := hv
-    dsimp only [BTreeTree.rootIdx] at hbits ⊢
-    have hcnt_eq : metaCount (nodes idx).metaWord = c0 := by rw [hmeta, metaCount_mkNodeMeta]
-    rw [hcnt_eq]
+    simp only [BTreeTree.rootIdx, hmeta, metaCount_mkNodeMeta] at hbits ⊢
     refine ⟨hidx, hc_le, hbits.1, hkw, hbits.2.1, hbits.2.2, fun j hj => ?_⟩
     rcases eq_or_lt_of_le (by omega : j ≤ c0 - 1) with rfl | hlt
     · exact hhi_last.trans hhi
@@ -212,6 +202,33 @@ theorem realizes_writeSliceHeaderGen :
     | exact henv.fits_const (by decide)
     | exact henv.fits_of_le_n_max (by omega)
     | exact henv.bktMeta_safe (by omega)
+
+/-- A slice is represented in `m'` when its header words read from `m'` and its node words read
+from `m`, provided `m'` agrees with `m` from `offFbStart` on. -/
+private theorem sliceRep_of_frame {base c U V w n_max sIdx : ℕ} {sl : BTreeSlice}
+    {m m' : ℕ → ℕ} (hw : 0 < w) (hsIdx : sIdx < 3 * numBucketsWhp n_max)
+    (hout : ∀ a, base + offFbStart c U V w n_max ≤ a → m' a = m a)
+    (hA : readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w m'
+      (16 * (sIdx / 3) + 10 + 2 * (sIdx % 3)) = sl.alloc)
+    (hR : readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w m'
+      (16 * (sIdx / 3) + 11 + 2 * (sIdx % 3)) = sl.root)
+    (hle : sl.alloc ≤ nSliceWhp n_max)
+    (hnodes : ∀ u < sl.alloc,
+      let idx := sIdx * nSliceWhp n_max + u
+      readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w m idx =
+        (sl.nodes u).metaWord ∧
+      readPacked (base + offBtKeys c U V w n_max) (keysWordBitsWhp n_max) w m idx =
+        (sl.nodes u).keysWord ∧
+      readPacked (base + offBtVals c U V w n_max) (valsWordBitsWhp n_max) w m idx =
+        (sl.nodes u).valsWord) :
+    BTreeSliceMemRep base c U V w n_max sIdx sl m' := by
+  have hch := largeOffsetChain c U V w n_max
+  refine ⟨hle, hA, hR, fun u hu => ?_⟩
+  have hidx : sIdx * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
+    unfold totalBTreeNodesWhp; exact mul_add_lt_mul_bound hsIdx (hu.trans_le hle)
+  obtain ⟨h1, h2, h3⟩ := hnodes u hu
+  refine ⟨.trans ?_ h1, .trans ?_ h2, .trans ?_ h3⟩ <;>
+    exact readPacked_congr hw (hidx := hidx) fun a ⟨ha, _⟩ => hout a (by omega)
 
 /-- Updating `(alloc, root)` via `writeSliceHeaderGenProg` establishes `BTreeSliceMemRep` at the new
 `(newA, newR)` while framing all other slices, other `bktMeta` fields, and non-`bktMeta` words. -/
@@ -272,64 +289,27 @@ theorem writeSliceHeaderGenProg_sliceRep {c U V w n_max base sIdx newA newR : �
       { mem := mem₂, frontier := s.frontier } := rfl
   rw [hs'_eq]
   have hout : ∀ a, a < base + offBktMeta c U V w n_max ∨ base + offFbStart c U V w n_max ≤ a →
-      mem₂ a = s.mem a := fun a ha => by
-    have hdisj : a < base + offBktMeta c U V w n_max ∨
-        base + offBktMeta c U V w n_max +
-          packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w ≤ a := by omega
-    exact (writePacked_outside hw _ hidxR _ (by cases hdisj <;> omega)).trans
-      (writePacked_outside hw _ hidxA _ (by cases hdisj <;> omega))
+      mem₂ a = s.mem a := fun a ha =>
+    (writePacked_outside hw _ hidxR _ (by omega)).trans
+      (writePacked_outside hw _ hidxA _ (by omega))
   have hother_bm : ∀ idx < 16 * numBucketsWhp n_max, idx ≠ idxA → idx ≠ idxR →
       readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w mem₂ idx =
         readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx :=
     fun idx _ h1 h2 =>
       (readPacked_writePacked_of_ne hw mem₁ h2 newR).trans
         (readPacked_writePacked_of_ne hw s.mem h1 newA)
-  have hbtM_eq : ∀ i < totalBTreeNodesWhp n_max,
-      readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w mem₂ i =
-        readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w s.mem i :=
-    fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))
-  have hbtK_eq : ∀ i < totalBTreeNodesWhp n_max,
-      readPacked (base + offBtKeys c U V w n_max) (keysWordBitsWhp n_max) w mem₂ i =
-        readPacked (base + offBtKeys c U V w n_max) (keysWordBitsWhp n_max) w s.mem i :=
-    fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))
-  have hbtV_eq : ∀ i < totalBTreeNodesWhp n_max,
-      readPacked (base + offBtVals c U V w n_max) (valsWordBitsWhp n_max) w mem₂ i =
-        readPacked (base + offBtVals c U V w n_max) (valsWordBitsWhp n_max) w s.mem i :=
-    fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))
-  refine ⟨rfl, rfl, ?_, ?_, ?_, hother_bm, hout⟩
-  · refine validProg_bind (validProg_writePacked hw hgk hidxA hba_le) ?_
-    change ValidProg w (base + largeSpaceWhp c U V w n_max)
-      { mem := mem₁, frontier := s.frontier } _
-    exact validProg_writePacked hw hgk hidxR hba_le
-  · refine ⟨hnewA, ?_, readPacked_writePacked_self _ _ _ mem₁ idxR hR_lt, fun u hu => ?_⟩
-    · exact (readPacked_writePacked_of_ne hw mem₁ hAR_ne newR).trans
-        (readPacked_writePacked_self _ _ _ s.mem idxA hA_lt)
-    · have hu_ns : u < nSliceWhp n_max := hu.trans_le hnewA
-      have hidx_n : sIdx * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
-        unfold totalBTreeNodesWhp
-        calc sIdx * nSliceWhp n_max + u < sIdx * nSliceWhp n_max + nSliceWhp n_max :=
-              Nat.add_lt_add_left hu_ns _
-          _ = (sIdx + 1) * nSliceWhp n_max := by ring
-          _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
-      exact ⟨(hbtM_eq _ hidx_n).trans (hnodes u hu).1,
-        (hbtK_eq _ hidx_n).trans (hnodes u hu).2.1,
-        (hbtV_eq _ hidx_n).trans (hnodes u hu).2.2⟩
-  · intro sIdx' hsIdx' hne sl' hrep'
-    dsimp only at hrep' ⊢
-    refine ⟨hrep'.1,
-      (hother_bm _ (by omega) (by omega) (by omega)).trans hrep'.2.1,
-      (hother_bm _ (by omega) (by omega) (by omega)).trans hrep'.2.2.1,
-      fun u hu => ?_⟩
-    have hu_ns : u < nSliceWhp n_max := hu.trans_le hrep'.1
-    have hidx_n : sIdx' * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
-      unfold totalBTreeNodesWhp
-      calc sIdx' * nSliceWhp n_max + u < sIdx' * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hu_ns _
-        _ = (sIdx' + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx'
-    exact ⟨(hbtM_eq _ hidx_n).trans (hrep'.2.2.2 u hu).1,
-      (hbtK_eq _ hidx_n).trans (hrep'.2.2.2 u hu).2.1,
-      (hbtV_eq _ hidx_n).trans (hrep'.2.2.2 u hu).2.2⟩
+  refine ⟨rfl, rfl,
+    validProg_bind (validProg_writePacked hw hgk hidxA hba_le)
+      (validProg_writePacked hw hgk hidxR hba_le),
+    sliceRep_of_frame (sl := ⟨newA, newR, nodes⟩) hw hsIdx
+      (fun a h => hout a (.inr h))
+      ((readPacked_writePacked_of_ne hw mem₁ hAR_ne newR).trans
+        (readPacked_writePacked_self _ _ _ s.mem idxA hA_lt))
+      (readPacked_writePacked_self _ _ _ mem₁ idxR hR_lt) hnewA hnodes,
+    fun sIdx' hsIdx' hne sl' hrep' => sliceRep_of_frame hw hsIdx' (fun a h => hout a (.inr h))
+      ((hother_bm _ (by omega) (by omega) (by omega)).trans hrep'.2.1)
+      ((hother_bm _ (by omega) (by omega) (by omega)).trans hrep'.2.2.1) hrep'.1 hrep'.2.2.2,
+    hother_bm, hout⟩
 
 /-- Updating `alloc` alone via `writeSliceAllocGenProg` establishes `BTreeSliceMemRep` at `newA`
 while framing all other slices, other `bktMeta` fields, and non-`bktMeta` words. -/
@@ -383,47 +363,14 @@ theorem writeSliceAllocGenProg_sliceRep {c U V w n_max base sIdx newA root0 : �
       readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w mem₁ idx =
         readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx :=
     fun idx _ h1 => readPacked_writePacked_of_ne hw s.mem h1 newA
-  have hbtM_eq : ∀ i < totalBTreeNodesWhp n_max,
-      readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w mem₁ i =
-        readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w s.mem i :=
-    fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))
-  have hbtK_eq : ∀ i < totalBTreeNodesWhp n_max,
-      readPacked (base + offBtKeys c U V w n_max) (keysWordBitsWhp n_max) w mem₁ i =
-        readPacked (base + offBtKeys c U V w n_max) (keysWordBitsWhp n_max) w s.mem i :=
-    fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))
-  have hbtV_eq : ∀ i < totalBTreeNodesWhp n_max,
-      readPacked (base + offBtVals c U V w n_max) (valsWordBitsWhp n_max) w mem₁ i =
-        readPacked (base + offBtVals c U V w n_max) (valsWordBitsWhp n_max) w s.mem i :=
-    fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))
-  refine ⟨rfl, hcost, hvprog, ?_, ?_, hother_bm, hout⟩
-  · refine ⟨hnewA, readPacked_writePacked_self _ _ _ s.mem idxA hA_lt,
-      (hother_bm idxR (by omega) (by omega)).trans hroot, fun u hu => ?_⟩
-    have hu_ns : u < nSliceWhp n_max := hu.trans_le hnewA
-    have hidx_n : sIdx * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
-      unfold totalBTreeNodesWhp
-      calc sIdx * nSliceWhp n_max + u < sIdx * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hu_ns _
-        _ = (sIdx + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
-    exact ⟨(hbtM_eq _ hidx_n).trans (hnodes u hu).1,
-      (hbtK_eq _ hidx_n).trans (hnodes u hu).2.1,
-      (hbtV_eq _ hidx_n).trans (hnodes u hu).2.2⟩
-  · intro sIdx' hsIdx' hne sl' hrep'
-    dsimp only at hrep' ⊢
-    refine ⟨hrep'.1,
-      (hother_bm _ (by omega) (by omega)).trans hrep'.2.1,
-      (hother_bm _ (by omega) (by omega)).trans hrep'.2.2.1,
-      fun u hu => ?_⟩
-    have hu_ns : u < nSliceWhp n_max := hu.trans_le hrep'.1
-    have hidx_n : sIdx' * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
-      unfold totalBTreeNodesWhp
-      calc sIdx' * nSliceWhp n_max + u < sIdx' * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hu_ns _
-        _ = (sIdx' + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx'
-    exact ⟨(hbtM_eq _ hidx_n).trans (hrep'.2.2.2 u hu).1,
-      (hbtK_eq _ hidx_n).trans (hrep'.2.2.2 u hu).2.1,
-      (hbtV_eq _ hidx_n).trans (hrep'.2.2.2 u hu).2.2⟩
+  refine ⟨rfl, hcost, hvprog, sliceRep_of_frame (sl := ⟨newA, root0, nodes⟩) hw hsIdx
+      (fun a h => hout a (.inr h))
+      (readPacked_writePacked_self _ _ _ s.mem idxA hA_lt)
+      ((hother_bm idxR (by omega) (by omega)).trans hroot) hnewA hnodes,
+    fun sIdx' hsIdx' hne sl' hrep' => sliceRep_of_frame hw hsIdx' (fun a h => hout a (.inr h))
+      ((hother_bm _ (by omega) (by omega)).trans hrep'.2.1)
+      ((hother_bm _ (by omega) (by omega)).trans hrep'.2.2.1) hrep'.1 hrep'.2.2.2,
+    hother_bm, hout⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

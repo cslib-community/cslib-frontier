@@ -47,22 +47,12 @@ private theorem charFun_gaussianWeight (s : ℝ) (hs : 0 < s) (t : E) :
       (gaussianWeight (1 / s) (-(2 * Real.pi)⁻¹ • t) : ℂ) := by
   rw [charFun_eq_fourierIntegral', VectorFourier.fourierIntegral,
     integral_withDensity_eq_integral_toReal_smul (by unfold gaussianWeight; fun_prop)
-      (Filter.Eventually.of_forall (fun _ ↦ ENNReal.ofReal_lt_top))]
-  simp only [ENNReal.toReal_ofReal (div_nonneg (gaussianWeight_pos s _).le
-    (pow_pos hs _).le), Pi.one_apply, innerₗ_apply_apply, Circle.smul_def, smul_eq_mul, mul_one,
-    RCLike.real_smul_eq_coe_mul]
-  change (∫ x : E, ((gaussianWeight s x / s ^ finrank ℝ E : ℝ) : ℂ) *
-    (Real.fourierChar (-⟪x, -(2 * Real.pi)⁻¹ • t⟫) : ℂ)) = _
-  simp only [Complex.ofReal_div, Complex.ofReal_pow]
-  have h : (∫ x : E, ((gaussianWeight s x : ℂ) / (s : ℂ) ^ finrank ℝ E) *
-      (Real.fourierChar (-⟪x, -(2 * Real.pi)⁻¹ • t⟫) : ℂ)) =
-      𝓕 (fun x : E ↦ (gaussianWeight s x : ℂ)) (-(2 * Real.pi)⁻¹ • t) /
-        (s : ℂ) ^ finrank ℝ E := by
-    rw [Real.fourier_eq, ← integral_div]
-    congr 1 with x : 1
-    simp only [Circle.smul_def]
-    ring
-  rw [h, fourier_gaussianWeight s hs]
+      (Filter.Eventually.of_forall fun _ ↦ ENNReal.ofReal_lt_top)]
+  simp only [ENNReal.toReal_ofReal (div_nonneg (gaussianWeight_pos s _).le (pow_pos hs _).le),
+    Pi.one_apply, innerₗ_apply_apply, Circle.smul_def, smul_eq_mul, mul_one, Complex.real_smul,
+    Complex.ofReal_div, Complex.ofReal_pow, div_mul_eq_mul_div, integral_div]
+  simp_rw [mul_comm (gaussianWeight s _ : ℂ), ← smul_eq_mul, ← Circle.smul_def]
+  rw [← Real.fourier_eq, fourier_gaussianWeight s hs]
   exact mul_div_cancel_left₀ _ (pow_ne_zero _ (Complex.ofReal_ne_zero.mpr hs.ne'))
 
 /-- The positive-width normalized Gaussian density is a scaled standard Gaussian measure. -/
@@ -73,12 +63,12 @@ theorem gaussianWeight_withDensity_eq_map_stdGaussian (s : ℝ) (hs : 0 < s) :
   let := isProbabilityMeasure_gaussianWeight (E := E) s hs
   apply Measure.ext_of_charFun
   funext t
-  rw [charFun_gaussianWeight s hs, charFun_map_smul, charFun_stdGaussian]
-  rw [gaussianWeight, Complex.ofReal_exp]
+  rw [charFun_gaussianWeight s hs, charFun_map_smul, charFun_stdGaussian,
+    gaussianWeight, Complex.ofReal_exp]
   have hexp : -Real.pi * ‖-(2 * Real.pi)⁻¹ • t‖ ^ 2 / (1 / s) ^ 2 =
       -‖(s / Real.sqrt (2 * Real.pi)) • t‖ ^ 2 / 2 := by
-    rw [norm_smul, norm_smul, mul_pow, mul_pow, Real.norm_eq_abs, Real.norm_eq_abs,
-      sq_abs, sq_abs, div_pow, div_pow, Real.sq_sqrt (by positivity : 0 ≤ 2 * Real.pi)]
+    simp only [norm_smul, mul_pow, Real.norm_eq_abs, sq_abs, div_pow,
+      Real.sq_sqrt Real.two_pi_pos.le]
     field_simp
   rw [hexp]
   push_cast
@@ -92,20 +82,14 @@ theorem gaussianWeight_withDensity_map_inner (s : ℝ) (hs : 0 < s) (z : E) :
         (fun x ↦ ⟪z, x⟫) =
       gaussianReal 0 (((s * ‖z‖) ^ 2 / (2 * Real.pi)).toNNReal) := by
   rw [gaussianWeight_withDensity_eq_map_stdGaussian s hs,
-    Measure.map_map (by fun_prop) (by fun_prop)]
-  have hfun : (fun x : E ↦ ⟪z, (s / Real.sqrt (2 * Real.pi)) • x⟫) =
-      (fun x ↦ ⟪(s / Real.sqrt (2 * Real.pi)) • z, x⟫) := by
-    funext x
-    rw [inner_smul_right, real_inner_smul_left]
-  change (stdGaussian E).map (fun x ↦ ⟪z, (s / Real.sqrt (2 * Real.pi)) • x⟫) = _
-  rw [hfun, stdGaussian_map_inner]
+    Measure.map_map (by fun_prop) (by fun_prop), Function.comp_def]
+  simp_rw [inner_smul_right, ← real_inner_smul_left]
+  rw [stdGaussian_map_inner]
   congr 1
   apply NNReal.eq
-  change ‖(s / Real.sqrt (2 * Real.pi)) • z‖ ^ 2 =
-    (((s * ‖z‖) ^ 2 / (2 * Real.pi)).toNNReal : ℝ)
   rw [Real.coe_toNNReal _ (by positivity)]
-  simp only [norm_smul, Real.norm_eq_abs, mul_pow, sq_abs]
-  rw [div_pow, Real.sq_sqrt (by positivity : 0 ≤ 2 * Real.pi)]
+  simp only [NNReal.coe_pow, coe_nnNorm, norm_smul, Real.norm_eq_abs, mul_pow, sq_abs, div_pow,
+    Real.sq_sqrt Real.two_pi_pos.le]
   ring
 
 end ProbabilityTheory

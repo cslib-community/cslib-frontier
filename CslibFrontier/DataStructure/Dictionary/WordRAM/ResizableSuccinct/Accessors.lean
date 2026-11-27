@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Compaction
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # `Memory.Prog` Bit-Slice and Dense Pair-Stream Primitives via `realize`
@@ -72,17 +73,6 @@ theorem prog_clientResult_pure {α : Type} (x : α) (s : Memory.State) :
     (Memory.spec 0).clientResult s (pure x : Memory.Prog α) = x := rfl
 theorem prog_runClient_state_pure {α : Type} (x : α) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s (pure x : Memory.Prog α))) = s := rfl
-theorem prog_clientResult_map {α β : Type} (f : α → β) (p : Memory.Prog α)
-    (s : Memory.State) :
-    (Memory.spec 0).clientResult s (f <$> p) = f ((Memory.spec 0).clientResult s p) := by
-  rw [← bind_pure_comp, prog_clientResult_bind, prog_clientResult_pure]
-theorem prog_runClient_state_map {α β : Type} (f : α → β) (p : Memory.Prog α)
-    (s : Memory.State) :
-    Prod.fst (Prod.snd ((Memory.spec 0).runClient s (f <$> p))) =
-      (Memory.spec 0).clientState s p := by rw [← bind_pure_comp, prog_runClient_state_bind]; rfl
-theorem prog_memoryCost_map {α β : Type} (f : α → β) (p : Memory.Prog α)
-    (s : Memory.State) : memoryCost (f <$> p) s = memoryCost p s := by
-  rw [← bind_pure_comp, memoryCost_bind', memoryCost_pure, Nat.add_zero]
 theorem prog_clientResult_read (a : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (Memory.read a) = s.mem a := rfl
 theorem prog_runClient_state_read (a : ℕ) (s : Memory.State) :
@@ -98,8 +88,9 @@ theorem prog_memoryCost_write (a v : ℕ) (s : Memory.State) :
     memoryCost (Memory.write a v) s = 1 := rfl
 
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 

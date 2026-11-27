@@ -101,16 +101,12 @@ theorem ApproximatedWithin.of_isAffineProjection {P : MvPolynomial σ K} {Q : Mv
     ApproximatedWithin P (5 * s) := by
   obtain ⟨ρ, hρ, rfl⟩ := h
   obtain ⟨Q', hQ', hc⟩ := hQ
-  have hA : ∀ i, IsAffine (map (HahnSeries.C : K →+* K⸨X⸩) (ρ i)) := fun i => (hρ i).map_C
-  have hP : IsAffineProjection (aeval (fun i => map (HahnSeries.C : K →+* K⸨X⸩) (ρ i)) Q') Q' :=
-    ⟨_, hA, rfl⟩
-  refine ⟨_, ?_, ComputedWithin.of_isAffineProjection hc hP⟩
+  refine ⟨_, ?_, ComputedWithin.of_isAffineProjection hc
+    ⟨_, fun i => (hρ i).map_C, rfl⟩⟩
   intro d i hi
   classical
-  have hsub : Q.support ⊆ Q'.support := fun b hb => by
-    rw [mem_support_iff] at hb ⊢
-    intro h0
-    exact hb (by simpa [h0] using (hQ' b 0 le_rfl).symm)
+  have hsub : Q.support ⊆ Q'.support := fun b hb => mem_support_iff.2 fun h0 =>
+    mem_support_iff.1 hb (by simpa [h0] using (hQ' b 0 le_rfl).symm)
   have e1 : (aeval (fun i => map HahnSeries.C (ρ i)) Q').coeff d =
       ∑ b ∈ Q'.support, Q'.coeff b * HahnSeries.C ((aeval ρ (monomial b (1 : K))).coeff d) := by
     conv_lhs => rw [Q'.as_sum, map_sum, coeff_sum]
@@ -186,8 +182,7 @@ private theorem ordGe_C {t : ℤ} {a : K⸨X⸩} (ha : ∀ i < t, a.coeff i = 0)
   classical
   rw [coeff_C]
   split_ifs
-  · exact ha i hi
-  · rfl
+  exacts [ha i hi, rfl]
 
 /-- A variable has no terms below `ε ^ 0`. -/
 private theorem ordGe_X (j : σ) : OrdGe 0 (X j : MvPolynomial σ K⸨X⸩) := fun d i hi => by
@@ -205,8 +200,7 @@ private theorem exists_ordGe (u : MvPolynomial σ K⸨X⸩) : ∃ B : ℤ, 0 ≤
     classical
     rw [coeff_monomial]
     split_ifs
-    · exact HahnSeries.coeff_eq_zero_of_lt_order (lt_of_lt_of_le hi (neg_abs_le _))
-    · rfl
+    exacts [HahnSeries.coeff_eq_zero_of_lt_order (lt_of_lt_of_le hi (neg_abs_le _)), rfl]
   | add p q hp hq =>
     obtain ⟨B, hB, h⟩ := hp
     obtain ⟨B', hB', h'⟩ := hq
@@ -222,8 +216,7 @@ private theorem OrdGe.rename {t : ℤ} {u : MvPolynomial σ K⸨X⸩} (h : OrdGe
   intro d i hi
   rw [coeff_monomial]
   split_ifs
-  · exact h e i hi
-  · rfl
+  exacts [h e i hi, rfl]
 
 variable {n g : ℕ}
 
@@ -266,11 +259,9 @@ private theorem ordGe_trace_sub (p : Program (arithSignature K⸨X⸩) n g) {B T
     cases hw : (p.lines k).wires a with
     | input i => simp only [wireIndex, Nat.cast_zero, mul_zero, sub_zero]; nlinarith
     | gate j =>
-      have := p.lt_of_lines_wires_eq_gate k a j hw
-      have : ((j : ℕ) + 1 : ℤ) ≤ k := by exact_mod_cast this
+      have : ((j : ℕ) + 1 : ℤ) ≤ k := mod_cast p.lt_of_lines_wires_eq_gate k a j hw
       simp only [wireIndex]
-      push_cast
-      nlinarith
+      push_cast; nlinarith
   have hkg : (k : ℤ) < g := by exact_mod_cast k.isLt
   rw [p.trace_gate, p.trace_gate]
   generalize p.lines k = line at hk
@@ -322,9 +313,7 @@ theorem ApproximatedWithin.exists_laurentPolynomial {P : MvPolynomial σ K} {s :
           c.program.trace I X (c.outputs 0)) := by
     rw [Circuit.polynomial_mapOp, Circuit.map_eval_arith]
     refine Eq.trans ?_ (add_sub_cancel (c.program.trace I X (c.outputs 0)) _).symm
-    have hX : (map LaurentPolynomial.toLaurentSeries ∘ X : Fin n → MvPolynomial (Fin n) K⸨X⸩) = X :=
-      funext fun a => map_X _ _
-    rw [hX]
+    simp only [Function.comp_def, map_X]
     exact congrArg (fun f => c.eval (arithInterpretationWith _ f) X 0) (funext fun a => map_C _ _)
   have hbound : (1 : ℤ) ≤ T - B₀ * wireIndex (c.outputs 0) := by
     cases c.outputs 0 with

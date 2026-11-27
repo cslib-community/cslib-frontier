@@ -283,26 +283,20 @@ private theorem localSignEdge_planted_spec (S : IndexedSignatureScheme)
             (Prod.mk.inj (huniq _ hp₀_vis _ hvis hslotLt rfl)).1 |>.trans hes)
         have huLt : u < S.capacity n := by omega
         have hlog : signedLogOf front.length ((path, front.length, u, msg) :: allSigned) =
-            (u, msg) :: signedLogOf front.length allSigned := by
-          simp only [signedLogOf, List.filter_cons, beq_self_eq_true, ↓reduceIte, List.map_cons]
-        simp only [↓reduceIte, List.getD_append_cons_length,
-          OracleComp.run_interpret_bind, OracleComp.interpret_map,
-          ProbOracleComp.interpret_query, OracleComp.run_interpret_pure,
+            (u, msg) :: signedLogOf front.length allSigned := by simp [signedLogOf]
+        simp only [↓reduceIte, List.getD_append_cons_length, OracleComp.run_interpret_bind,
+          OracleComp.interpret_map, ProbOracleComp.interpret_query, OracleComp.run_interpret_pure,
           StateT.run_map, IndexedSignatureScheme.indexedSigningOracle,
           IndexedSignatureScheme.requestDecoder.decode_enc, hlog, pmf_norm]
         dsimp only [StateT.run]
         simp only [huLt, hnotMem, not_false_eq_true, and_self, ↓reduceIte, pmf_norm, PMF.map]
-      · have hlog : signedLogOf front.length ((path, idx, u, msg) :: allSigned) =
-            signedLogOf front.length allSigned := by
-          simp only [signedLogOf, List.filter_cons, beq_false_of_ne hidx, Bool.false_eq_true,
-            ↓reduceIte]
-        rw [List.getD_append_cons_of_ne front back (x.1, []) x ([], []) hidx]
-        simp only [hidx, ↓reduceIte, interp_norm, hlog, pmf_norm, PMF.map]
+      · rw [List.getD_append_cons_of_ne front back (x.1, []) x ([], []) hidx]
+        simp only [hidx, ↓reduceIte, interp_norm, signedLogOf, List.filter_cons,
+          beq_false_of_ne hidx, Bool.false_eq_true, pmf_norm, PMF.map]
   · rcases mem_support_localSignEdge hm with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
     · exact hall p₀ idx₀ u₀ m₀ hm_all
     · rcases List.mem_cons.mp hm_all with hhead | ht
-      · simp only [Prod.mk.injEq] at hhead
-        rcases hhead with ⟨rfl, rfl, rfl, rfl⟩
+      · cases hhead
         exact ⟨hvis, by simp⟩
       · obtain ⟨hpv, hpl⟩ := hall p₀ idx₀ u₀ m₀ ht
         refine ⟨hpv, ?_⟩
@@ -366,28 +360,30 @@ private theorem localTreeHandler_planted_step (S : IndexedSignatureScheme) (dept
   obtain ⟨⟨visited, edges, allSigned⟩, ⟨queried, seen, bad⟩⟩ := st
   simp only [localTreeHandler, guardedTreeHandler, plantedTreeHandler]
   split_ifs with hmsg hbad
-  · simp only [OracleComp.run_interpret_pure, pmf_norm]; exact .pure rfl hinv
+  · simp only [OracleComp.run_interpret_pure, pmf_norm]
+    exact .pure rfl hinv
   · simp only [OracleComp.run_interpret_bind, ProbOracleComp.run_interpret_sample,
       BitString.eval_sampleList, pmf_norm]
-    apply (PMF.RepInv.of_eq (PMF.map_id (BitString.uniformList (depth n)))).bind; intro leaf _ _
+    refine (PMF.RepInv.of_eq (PMF.map_id (BitString.uniformList (depth n)))).bind fun leaf _ _ => ?_
     dsimp only [id, localSignBody]
     split_ifs
-    · simp only [OracleComp.run_interpret_pure, pmf_norm]; exact .pure rfl hinv
+    · simp only [OracleComp.run_interpret_pure, pmf_norm]
+      exact .pure rfl hinv
     · simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_pure, pmf_norm]
       exact (localCertify_planted_spec S depth hcap leaf hinv).bind
         fun ⟨⟨node, idx, certs⟩, v', e', a'⟩ _ ⟨hnode_v', hinv'⟩ =>
           (localSignEdge_planted_spec S hcap (by simp) hinv'.slots_unique hinv'.allSigned_ok
             hnode_v' (Bool.toNat_le _) req.2).map
             fun _ _ hedg => ⟨rfl, ⟨hinv'.root_mem, hinv'.slots_lt, hinv'.slots_unique, hedg⟩⟩
-  · simp only [OracleComp.run_interpret_pure, pmf_norm]; exact .pure rfl hinv
+  · simp only [OracleComp.run_interpret_pure, pmf_norm]
+    exact .pure rfl hinv
 
 /-- The index of an extracted forgery is a bit, so it lies below every capacity of at least `2`. -/
 private theorem extractForgery_fst_lt (d target : ℕ) (visited : NodeSlotCache)
     (msg sig : List Bool) {cap : ℕ} (hcap : 2 ≤ cap) :
     (extractForgery d target visited msg sig).1 < cap := by
   unfold extractForgery
-  generalize signatureDecoder.decode sig = t
-  obtain ⟨leaf, certs, last⟩ := t
+  rcases signatureDecoder.decode sig with ⟨leaf, certs, last⟩
   dsimp only
   split_ifs <;> exact (Bool.toNat_le _).trans_lt (by omega)
 
@@ -404,11 +400,10 @@ private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
     plantNodeKeys, ← hK_def, hmin]
   conv_lhs => rw [hsplit, ← ProbComp.eval_replicate_splice]
   simp only [ProbOracleComp.eval_run_interpret, interp_norm, pmf_norm]
-  apply PMF.bind_congr_on_support; intro x _
-  apply PMF.bind_congr_on_support; intro front hfront
-  apply PMF.bind_congr_on_support; intro back _
-  have hfrontLen : front.length = target := ((ProbComp.mem_support_replicate_iff _ _ _).mp hfront).1
-  subst hfrontLen
+  refine PMF.bind_congr_on_support _ _ _ fun x _ =>
+    PMF.bind_congr_on_support _ _ _ fun front hfront =>
+    PMF.bind_congr_on_support _ _ _ fun back _ => ?_
+  obtain rfl : front.length = target := ((ProbComp.mem_support_replicate_iff _ _ _).mp hfront).1
   set keys := front ++ x :: back
   set keys' := front ++ (x.1, []) :: back
   set pk := encPair encUnary encBits (n, (keys.getD 0 ([], [])).1)
@@ -434,13 +429,12 @@ private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
       (localTreeHandler_planted_step S depth hcap q st hst).2 (ans, st') hm)
     (fun q st hst => (localTreeHandler_planted_step S depth hcap q st hst).1)
     (adversary n pk) initPresampledState hinitInv
-  have hpk0 : (keys'.getD 0 ([], [])).1 = (keys.getD 0 ([], [])).1 := fst_getD_splice front back x 0
-  rw [hpk0]
-  have hcomb := (congrArg (PMF.map fun (a, b, c) => ((a, b), c)) hsim).trans hflat.symm
+  rw [fst_getD_splice front back x 0]
   have hwin := congrArg (PMF.map fun ((msig, ps), sg) =>
     let cand := extractForgery (depth n) front.length ps.1.1 msig.1 msig.2
     decide (cand.1 < S.capacity n) && !sg.contains (cand.1, cand.2.1) &&
-      S.verify x.1 cand.1 cand.2.1 cand.2.2) hcomb
+      S.verify x.1 cand.1 cand.2.1 cand.2.2)
+    ((congrArg (PMF.map fun (a, b, c) => ((a, b), c)) hsim).trans hflat.symm)
   simpa only [pmf_norm, PMF.map, plantedWin, keys, List.getD_append_cons_length,
     extractForgery_fst_lt _ _ _ _ _ hcap, decide_true, Bool.true_and] using hwin
 
@@ -781,11 +775,10 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
       (presampledExp S depth slotBound sigCap adversary n).map
         (treeWinOfPresampled S depth n) := by
   set K := dyadicSize (slotBound n) with hK_def
-  have hK2 : 2 ≤ K := two_le_dyadicSize (slotBound n)
   have hslotLt : 1 + Q * (depth n - 1) < K := slot_bound_lt_dyadicSize hdepth_pos hslot
   have hrep : ProbComp.eval (OracleComp.replicate K (S.keyGen n)) =
       (ProbComp.eval (S.keyGen n)).bind fun root => expandKeys S n K [root] := by
-    have hKeq : K = (K - 1) + 1 := by omega
+    have hKeq : K = (K - 1) + 1 := by have := two_le_dyadicSize (slotBound n); omega
     conv_lhs => rw [hKeq, OracleComp.replicate_succ]
     simp only [expandKeys, List.length_singleton, List.singleton_append, pmf_norm]
   simp only [lazyTreeGame, presampledExp, ← hK_def, ProbOracleComp.eval_run_interpret, hrep,
@@ -796,8 +789,7 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
   have hjInv : JointKeysInv S n root initJ.1 :=
     ⟨rfl, rfl, rfl, fun k hk => List.mem_singleton.mp hk ▸ hroot,
       fun e he => by
-        have he' : e = ([], 0) := List.mem_singleton.mp he
-        subst he'
+        rw [List.mem_singleton.mp he]
         simp [initJ, initPresampledState]⟩
   have hproj := ProbOracleComp.run_interpret_map_state_of_invariant _
     (fun q s => ProbComp.eval (lazySignHandler S depth n root q s))
@@ -881,8 +873,7 @@ private theorem allSignedInv_localSignEdge {S : IndexedSignatureScheme}
   · exact hinv
   · intro p i₀ u' m hm'
     rcases List.mem_cons.mp hm' with hhead | ht
-    · simp only [Prod.mk.injEq] at hhead
-      rcases hhead with ⟨rfl, rfl, rfl, rfl⟩
+    · cases hhead
       exact hnew
     · exact hinv p i₀ u' m ht
 
@@ -936,14 +927,12 @@ private theorem localCertify_bounded_inv (S : IndexedSignatureScheme) (depth : �
       have hltK : ∀ ent ∈ vp.2, ent.2 < keys.length := fun ent he =>
         (hvp.mem_or_new ent he).elim (fun h => (hvis_v ent h).2.trans hvLt)
           (fun h => h ▸ (Nat.min_le_left _ _).trans_lt hvLt)
-      have hlift : allSignedInv (depth n) keys vp.2 queried a :=
-        allSignedInv_mono hvp.mono (fun _ h => h) hall_v
       refine ⟨hcLen, hvp.mem_new, hvp.mono _ hroot_v,
         hvp.length_le.trans (Nat.add_le_add_right hgrow_v 1),
         fun ent he => ⟨(hvp.slots_ok ent he).1, (hvp.slots_ok ent he).2 (hltK ent he)⟩,
         fun e₁ he₁ e₂ he₂ heq => hvp.unique e₁ he₁ e₂ he₂ (hltK e₁ he₁) heq,
-        allSignedInv_localSignEdge hm_se hlift ⟨hvp.mono _ hnode_v,
-          Or.inl ⟨hnLen ▸ hkLt, bit, vp.1, rfl, hvp.mem_new, rfl⟩⟩⟩
+        allSignedInv_localSignEdge hm_se (allSignedInv_mono hvp.mono (fun _ h => h) hall_v)
+          ⟨hvp.mono _ hnode_v, Or.inl ⟨hnLen ▸ hkLt, bit, vp.1, rfl, hvp.mem_new, rfl⟩⟩⟩
   intro node idx certs v' e' a' hm
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := hmain _ hm
   exact ⟨by dsimp only at h1; omega, h2, h3, h4, h5, h6, h7⟩
@@ -955,27 +944,24 @@ private theorem localTreeHandler_bounded_inv (S : IndexedSignatureScheme) (depth
     ∀ ans st', (ans, st') ∈ (localTreeHandler S depth keys sigCap n req st).support →
       PresampledBoundedInv (depth n) keys rem st' := by
   obtain ⟨⟨visited, edges, allSigned⟩, ⟨queried, seen, bad⟩⟩ := st
+  obtain ⟨hroot, hbound, hvis_ok, huniq, hall_ok⟩ := hinv
+  dsimp only at hroot hbound hvis_ok huniq hall_ok
   have hmul : (rem + 1) * (depth n - 1) = rem * (depth n - 1) + (depth n - 1) :=
     Nat.succ_mul rem (depth n - 1)
-  have hbound : visited.length + (rem + 1) * (depth n - 1) ≤ keys.length := hinv.cap_ok
-  have hbound' : visited.length + (depth n - 1) ≤ keys.length := by omega
   refine guardedTreeHandler_support_inv depth n (localSignBody S depth keys sigCap n)
     (PresampledBoundedInv (depth n) keys rem) req (visited, edges, allSigned) queried seen bad
-    (fun _ => ⟨hinv.root_mem, show visited.length + rem * (depth n - 1) ≤ keys.length by omega,
-      hinv.visited_ok, hinv.visited_unique,
-      allSignedInv_mono (fun _ h => h) (fun _ => List.mem_cons_of_mem _) hinv.allSigned_ok⟩)
+    (fun _ => ⟨hroot, show visited.length + rem * (depth n - 1) ≤ keys.length by omega, hvis_ok,
+      huniq, allSignedInv_mono (fun _ h => h) (fun _ => List.mem_cons_of_mem _) hall_ok⟩)
     fun _ _ leaf _ _ sig ⟨v', e'', a''⟩ hm => ?_
   supp_cases hm [localSignBody] with ⟨⟨⟨node, idx, certs⟩, v₁, e₁, a₁⟩, hm_cert, ⟨σ, e₃, a₃⟩,
     hm_edge, rfl, rfl, rfl, rfl⟩
   obtain ⟨hnLen, hnode_v', hroot_v', hgrow_v', hvis_v', huniq_v', hall_v'⟩ :=
-    localCertify_bounded_inv S depth keys sigCap n hd leaf hinv.root_mem hbound'
-      hinv.visited_ok hinv.visited_unique hinv.allSigned_ok node idx certs v₁ e₁ a₁ hm_cert
-  exact ⟨hroot_v', Nat.le_trans (Nat.add_le_add_right hgrow_v' _)
-      (by rw [Nat.add_assoc, Nat.add_comm (depth n - 1), ← hmul]; exact hbound),
-      hvis_v', huniq_v',
-    allSignedInv_localSignEdge hm_edge
-      (allSignedInv_mono (fun _ h => h) (fun _ => List.mem_cons_of_mem req.2) hall_v')
-      ⟨hnode_v', Or.inr ⟨hnLen, List.mem_cons_self⟩⟩⟩
+    localCertify_bounded_inv S depth keys sigCap n hd leaf hroot (by omega) hvis_ok huniq hall_ok
+      node idx certs v₁ e₁ a₁ hm_cert
+  exact ⟨hroot_v', show v₁.length + rem * (depth n - 1) ≤ keys.length by omega,
+    hvis_v', huniq_v', allSignedInv_localSignEdge hm_edge
+    (allSignedInv_mono (fun _ h => h) (fun _ => List.mem_cons_of_mem req.2) hall_v')
+    ⟨hnode_v', Or.inr ⟨hnLen, List.mem_cons_self⟩⟩⟩
 
 private def chainPk (pk₀ : List Bool) (certs : List (List Bool × List Bool)) (j : ℕ) :
     List Bool :=
@@ -1025,12 +1011,8 @@ private theorem win_implies_any_plantedWin (S : IndexedSignatureScheme) (depth :
     ne_eq, List.contains_iff_mem, beq_iff_eq] at hwin
   obtain ⟨⟨_, hfresh⟩, hver⟩ := hwin
   set pk₀ := (keys.getD 0 ([], [])).1
-  set leaf := (signatureDecoder.decode sigStar).1
-  set certs := (signatureDecoder.decode sigStar).2.1
-  set last := (signatureDecoder.decode sigStar).2.2
-  simp only [verify, keyDecoder.decode_enc,
-    show signatureDecoder.decode sigStar = (leaf, certs, last) from rfl,
-    Bool.and_eq_true, beq_iff_eq] at hver
+  rcases hdec : signatureDecoder.decode sigStar with ⟨leaf, certs, last⟩
+  simp only [verify, keyDecoder.decode_enc, hdec, Bool.and_eq_true, beq_iff_eq] at hver
   obtain ⟨⟨⟨hleafLen, hcertsLen⟩, hchainOk⟩, hlastOk⟩ := hver
   have hdropLen : leaf.dropLast.length = certs.length := by
     rw [List.length_dropLast, hleafLen]; omega
@@ -1065,28 +1047,25 @@ private theorem win_implies_any_plantedWin (S : IndexedSignatureScheme) (depth :
     obtain ⟨hp_vis, hdisj⟩ := hinv.allSigned_ok p idx u' m' hm_all
     exact (Prod.mk.inj (hinv.visited_unique _ hp_vis _ hmemT rfl)).1 ▸ hdisj
   rw [List.any_eq_true]
-  refine ⟨target, List.mem_range.mpr ?_, ?_⟩
-  · exact ((hinv.visited_ok _ hmemT).2 : target < visited.length).trans_le
-      (hbound.trans_eq hkeysLen)
-  simp only [plantedWin, extractForgery, Bool.and_eq_true, Bool.not_eq_true', Bool.eq_false_iff,
-    ne_eq, List.contains_iff_mem, hpathEq, hpathLen]
-  by_cases hjLt : jStar + 1 < depth n
-  · simp only [hjLt, ↓reduceIte]
-    refine ⟨fun hm => ?_, hpkT ▸ hcertsVer jStar (by omega)⟩
+  refine ⟨target, List.mem_range.mpr
+    (((hinv.visited_ok _ hmemT).2 : target < visited.length).trans_le
+      (hbound.trans_eq hkeysLen)), ?_⟩
+  simp only [plantedWin, extractForgery, hdec, Bool.and_eq_true, Bool.not_eq_true',
+    Bool.eq_false_iff, ne_eq, List.contains_iff_mem, hpathEq, hpathLen]
+  split_ifs with hjLt
+  · refine ⟨fun hm => ?_, hpkT ▸ hcertsVer jStar (by omega)⟩
     rcases hlogMem hm with ⟨_, b, childIdx, hbu, hcVis, hcmEq⟩ | ⟨hbadLen, _⟩
-    · have hbeq : b = leaf.getD jStar false :=
+    · obtain rfl : b = leaf.getD jStar false :=
         (Bool.ofNat_toNat b).symm.trans (hbu ▸ Bool.ofNat_toNat _)
-      subst hbeq
       have hjLeaf : jStar < leaf.length := by omega
       rw [List.getD_eq_getElem _ _ hjLeaf, ← List.take_succ_eq_append_getElem hjLeaf] at hcVis
       exact Nat.findGreatest_is_greatest (lt_add_one jStar) (by omega)
         ⟨childIdx, hcVis, by simpa [chainPk] using hcmEq.symm⟩
     · rw [hpathLen] at hbadLen; omega
-  · simp only [hjLt, ↓reduceIte]
-    have hjEq : jStar = depth n - 1 := by omega
-    refine ⟨fun hm => ?_, by rw [hpkT, hjEq]; exact hlastOk⟩
+  · obtain hje : jStar = depth n - 1 := by omega
+    refine ⟨fun hm => ?_, by rwa [hpkT, hje]⟩
     rcases hlogMem hm with ⟨hbadLt, _⟩ | ⟨_, hmq⟩
-    · rw [hpathLen, hjEq] at hbadLt; omega
+    · rw [hpathLen, hje] at hbadLt; omega
     · exact hfresh hmq
 
 private theorem eval_indexedEufCmaGame_indexedForger (S : IndexedSignatureScheme)
@@ -1164,9 +1143,8 @@ theorem succProbability_lazyTreeGame_le (S : IndexedSignatureScheme)
         (Finset.sum_le_sum fun i hi => by
           rw [map_plantedWin_presampledExp S depth slotBound sigCap hcap adversary
             (Finset.mem_range.mp hi)]))
-  have h := ENNReal.toNNReal_mono (ENNReal.mul_ne_top (by simp) (PMF.apply_ne_top _ _)) hsum
-  rw [ENNReal.toNNReal_mul, ENNReal.toNNReal_natCast] at h
-  exact h
+  simpa only [ENNReal.toNNReal_mul, ENNReal.toNNReal_natCast] using
+    ENNReal.toNNReal_mono (ENNReal.mul_ne_top (by simp) (PMF.apply_ne_top _ _)) hsum
 
 end TreeSignature
 

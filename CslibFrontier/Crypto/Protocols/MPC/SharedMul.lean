@@ -270,8 +270,8 @@ private theorem evalWith_twoPartyMulProtocol (x : Fin 2 → Bool × Bool) :
   have hc₀ :
       c₀ =
         completeShares 2 ((∑ i : Fin 2, (x i).1) * (∑ i : Fin 2, (x i).2))
-          (fun _ => c₀) 0 := by
-    exact (completeShares_castLE 2 _ (fun _ => c₀) 0).symm
+          (fun _ => c₀) 0 :=
+    (completeShares_castLE 2 _ (fun _ => c₀) 0).symm
   refine Prod.ext (funext fun i => ?_) (funext fun i => ?_)
   · fin_cases i
     · refine PartyView.ext rfl ?_ (Prod.ext ?_ rfl)
@@ -868,9 +868,8 @@ theorem realOut_tildeR {m : ℕ} (ℓ : Fin m) (x : Fin m → Bool × Bool)
       ← Finset.add_sum_erase _ y (Finset.mem_univ i)] at hsum
     have herase :
         ∑ j ∈ Finset.univ.erase i, realOut x (tildeR i x y r) j =
-          ∑ j ∈ Finset.univ.erase i, y j := by
-      refine Finset.sum_congr rfl fun j hj => ?_
-      exact realOut_tildeR_of_ne i x y r (Finset.mem_erase.mp hj).1
+          ∑ j ∈ Finset.univ.erase i, y j :=
+      Finset.sum_congr rfl fun j hj => realOut_tildeR_of_ne i x y r (Finset.mem_erase.mp hj).1
     rw [herase] at hsum
     exact add_right_cancel hsum
   · exact realOut_tildeR_of_ne ℓ x y r hi

@@ -46,18 +46,14 @@ coordinate comparison. Horizontal and degenerate segments never contribute. -/
 
 /-- A horizontal segment contributes no ray crossing, even at its own height. -/
 theorem not_rayCrosses_of_im_eq {a b : ℂ} (hab : a.im = b.im) (z : ℂ) :
-    ¬RayCrosses a b z := by
-  simp only [RayCrosses, hab, min_self, max_self]
-  intro h
-  exact (not_lt_of_ge h.1) h.2.1
+    ¬RayCrosses a b z :=
+  fun ⟨h1, h2, _⟩ => (h1.trans_lt h2).ne (by rw [hab, min_self, max_self])
 
 /-- A nonhorizontal supporting line has the same intercept after reversing its ends. -/
 theorem horizontalIntercept_reverse {a b : ℂ} (hab : a.im ≠ b.im) (h : ℝ) :
     horizontalIntercept b a h = horizontalIntercept a b h := by
   unfold horizontalIntercept
-  have hab' : b.im - a.im ≠ 0 := sub_ne_zero.mpr hab.symm
-  have hba' : a.im - b.im ≠ 0 := sub_ne_zero.mpr hab
-  field_simp
+  field_simp [sub_ne_zero.mpr hab.symm, sub_ne_zero.mpr hab]
   ring
 
 /-- The half-open convention depends on height, not on the order of the endpoints. -/
@@ -99,43 +95,30 @@ theorem rayCrosses_iff_exists (a b z : ℂ) :
       (AffineMap.lineMap a b t).im = z.im ∧
       z.re < (AffineMap.lineMap a b t).re ∧ z.im < max a.im b.im := by
   by_cases hab : a.im = b.im
-  · constructor
-    · exact fun h => (not_rayCrosses_of_im_eq hab z h).elim
-    · rintro ⟨t, -, ht, -, hz⟩
-      rw [lineMap_im, hab] at ht
-      simp only [sub_self, mul_zero, add_zero] at ht
-      simp only [hab, max_self, ← ht, lt_self_iff_false] at hz
+  · refine iff_of_false (not_rayCrosses_of_im_eq hab z) fun ⟨t, _, ht, _, hz⟩ => ?_
+    rw [lineMap_im, hab, sub_self, mul_zero, add_zero] at ht
+    simp [hab, ← ht] at hz
   · have hden : b.im - a.im ≠ 0 := sub_ne_zero.mpr (Ne.symm hab)
     constructor
     · rintro ⟨hlo, hhi, hx⟩
       let t := (z.im - a.im) / (b.im - a.im)
       have ht : t ∈ Set.Icc (0 : ℝ) 1 := by
         rcases lt_or_gt_of_ne hab with hab | hab
-        · rw [min_eq_left hab.le] at hlo
-          rw [max_eq_right hab.le] at hhi
+        · simp only [min_eq_left hab.le, max_eq_right hab.le] at hlo hhi
           exact ⟨div_nonneg (sub_nonneg.mpr hlo) (sub_nonneg.mpr hab.le),
             (div_le_one (sub_pos.mpr hab)).mpr (by linarith)⟩
-        · rw [min_eq_right hab.le] at hlo
-          rw [max_eq_left hab.le] at hhi
+        · simp only [min_eq_right hab.le, max_eq_left hab.le] at hlo hhi
           exact ⟨div_nonneg_of_nonpos (by linarith) (by linarith),
             (div_le_one_of_neg (sub_neg.mpr hab)).mpr (by linarith)⟩
-      refine ⟨t, ht, ?_, ?_, hhi⟩
-      · rw [lineMap_im]
-        dsimp only [t]
-        rw [div_mul_cancel₀ _ hden]
-        ring
-      · exact (lineMap_re a b t).symm ▸ hx
+      exact ⟨t, ht, by simp [lineMap_im, t, div_mul_cancel₀ _ hden], (lineMap_re a b t).symm ▸ hx,
+        hhi⟩
     · rintro ⟨t, ht, him, hre, hhi⟩
       rw [lineMap_im] at him
-      have ht' : t = (z.im - a.im) / (b.im - a.im) := by
-        apply (eq_div_iff hden).mpr
-        linarith
+      have ht' : t = (z.im - a.im) / (b.im - a.im) := (eq_div_iff hden).mpr (by linarith)
       refine ⟨?_, hhi, ?_⟩
       · rcases le_total a.im b.im with hab | hab
-        · rw [min_eq_left hab]
-          nlinarith [ht.1]
-        · rw [min_eq_right hab]
-          nlinarith [ht.2]
+        · rw [min_eq_left hab]; nlinarith [ht.1]
+        · rw [min_eq_right hab]; nlinarith [ht.2]
       · simpa only [lineMap_re, ht', horizontalIntercept] using hre
 
 private theorem intercept_lineMap_left {a b : ℂ} (hab : a.im ≠ b.im)
@@ -150,31 +133,21 @@ private theorem decide_rayCrosses_split_of_im_lt {a b : ℂ} (hab : a.im < b.im)
     (z : ℂ) {t : ℝ} (ht : t ∈ Set.Ioo 0 1) :
     decide (RayCrosses a (AffineMap.lineMap a b t) z) +
       decide (RayCrosses (AffineMap.lineMap a b t) b z) = decide (RayCrosses a b z) := by
-  let m := AffineMap.lineMap a b t
-  change decide (RayCrosses a m z) + decide (RayCrosses m b z) =
-    decide (RayCrosses a b z)
-  have ham : a.im < m.im := by
-    change a.im < (AffineMap.lineMap a b t).im
-    rw [lineMap_im]
-    nlinarith [mul_pos ht.1 (sub_pos.mpr hab)]
-  have hmb : m.im < b.im := by
-    change (AffineMap.lineMap a b t).im < b.im
-    rw [lineMap_im]
-    nlinarith [mul_pos (sub_pos.mpr ht.2) (sub_pos.mpr hab)]
+  rcases ht with ⟨ht0, ht1⟩
+  set m := AffineMap.lineMap a b t with hm
+  have ham : a.im < m.im := by rw [hm, lineMap_im]; nlinarith
+  have hmb : m.im < b.im := by rw [hm, lineMap_im]; nlinarith
   have hleft : horizontalIntercept a m z.im = horizontalIntercept a b z.im :=
-    intercept_lineMap_left hab.ne (ne_of_gt ht.1) z.im
+    intercept_lineMap_left hab.ne (ne_of_gt ht0) z.im
   have hright : horizontalIntercept m b z.im = horizontalIntercept a b z.im := by
-    rw [horizontalIntercept_reverse hmb.ne.symm]
-    change horizontalIntercept b (AffineMap.lineMap a b t) z.im = _
-    rw [← AffineMap.lineMap_apply_one_sub b a t,
-      intercept_lineMap_left hab.ne.symm (sub_ne_zero.mpr ht.2.ne.symm),
+    rw [horizontalIntercept_reverse hmb.ne.symm, hm, ← AffineMap.lineMap_apply_one_sub b a t,
+      intercept_lineMap_left hab.ne.symm (sub_ne_zero.mpr ht1.ne.symm),
       horizontalIntercept_reverse hab.ne]
   simp only [RayCrosses, min_eq_left ham.le, min_eq_left hmb.le, min_eq_left hab.le,
     max_eq_right ham.le, max_eq_right hmb.le, max_eq_right hab.le, hleft, hright]
   by_cases hz : z.im < m.im
   · simp [hz, not_le.mpr hz, hz.trans hmb, Bool.add_eq_xor]
-  · have hmz : m.im ≤ z.im := le_of_not_gt hz
-    simp [hz, hmz, ham.le.trans hmz, Bool.add_eq_xor]
+  · simp [hz, le_of_not_gt hz, ham.le.trans (le_of_not_gt hz), Bool.add_eq_xor]
 
 open Classical in
 /-- Splitting a segment at an interior affine parameter preserves its ray-crossing
@@ -184,19 +157,21 @@ theorem decide_rayCrosses_split (a b z : ℂ) {t : ℝ} (ht : t ∈ Set.Ioo 0 1)
       decide (RayCrosses (AffineMap.lineMap a b t) b z) = decide (RayCrosses a b z) := by
   rcases lt_trichotomy a.im b.im with hab | hab | hab
   · exact decide_rayCrosses_split_of_im_lt hab z ht
-  · have hm : (AffineMap.lineMap a b t).im = a.im := by
-      rw [lineMap_im, hab, sub_self, mul_zero, add_zero]
-    rw [decide_eq_false (not_rayCrosses_of_im_eq hm.symm z),
-      decide_eq_false (not_rayCrosses_of_im_eq (hm.trans hab) z),
-      decide_eq_false (not_rayCrosses_of_im_eq hab z)]
-    rfl
+  · have hm : (AffineMap.lineMap a b t).im = a.im := by simp [lineMap_im, hab]
+    simp [not_rayCrosses_of_im_eq hm.symm, not_rayCrosses_of_im_eq (hm.trans hab),
+      not_rayCrosses_of_im_eq hab, Bool.add_eq_xor]
   · have ht' : 1 - t ∈ Set.Ioo (0 : ℝ) 1 := ⟨sub_pos.mpr ht.2, sub_lt_self _ ht.1⟩
     have h := decide_rayCrosses_split_of_im_lt hab z ht'
-    rw [AffineMap.lineMap_apply_one_sub,
+    rwa [AffineMap.lineMap_apply_one_sub,
       rayCrosses_reverse (AffineMap.lineMap a b t) b z,
       rayCrosses_reverse a (AffineMap.lineMap a b t) z,
       rayCrosses_reverse a b z, add_comm] at h
-    exact h
+
+private theorem eventually_lt_iff_of_ne {z : ℂ} {f g : ℂ → ℝ} (hf : ContinuousAt f z)
+    (hg : ContinuousAt g z) (hne : f z ≠ g z) : ∀ᶠ w in nhds z, f w < g w ↔ f z < g z := by
+  rcases lt_or_gt_of_ne hne with hlt | hgt
+  · exact (hf.eventually_lt hg hlt).mono fun w hw => iff_of_true hw hlt
+  · exact (hg.eventually_lt hf hgt).mono fun w hw => iff_of_false hw.not_gt hgt.not_gt
 
 /-- Away from the endpoint heights and the supporting-line intercept, the ray-crossing
 test is constant in a neighborhood. This is a statement about an actual open neighborhood
@@ -205,30 +180,16 @@ of jumps at the endpoint heights of a closed segment chain. -/
 theorem eventually_rayCrosses_iff (a b z : ℂ) (ha : z.im ≠ a.im) (hb : z.im ≠ b.im)
     (hx : z.re ≠ horizontalIntercept a b z.im) :
     ∀ᶠ w in nhds z, RayCrosses a b w ↔ RayCrosses a b z := by
-  have hcompare {f g : ℂ → ℝ} (hf : ContinuousAt f z) (hg : ContinuousAt g z)
-      (hne : f z ≠ g z) : ∀ᶠ w in nhds z, f w < g w ↔ f z < g z := by
-    rcases lt_or_gt_of_ne hne with hlt | hgt
-    · filter_upwards [hf.eventually_lt hg hlt] with w hw
-      exact iff_of_true hw hlt
-    · filter_upwards [hg.eventually_lt hf hgt] with w hw
-      exact iff_of_false (not_lt_of_ge hw.le) (not_lt_of_ge hgt.le)
-  have hmin : z.im ≠ min a.im b.im := by
-    rcases le_total a.im b.im with h | h
-    · simpa only [min_eq_left h] using ha
-    · simpa only [min_eq_right h] using hb
-  have hmax : z.im ≠ max a.im b.im := by
-    rcases le_total a.im b.im with h | h
-    · simpa only [max_eq_right h] using hb
-    · simpa only [max_eq_left h] using ha
+  have hmin : z.im ≠ min a.im b.im := by rcases min_choice a.im b.im with h | h <;> rwa [h]
+  have hmax : z.im ≠ max a.im b.im := by rcases max_choice a.im b.im with h | h <;> rwa [h]
   have hcont : Continuous (fun w : ℂ => horizontalIntercept a b w.im) := by
-    unfold horizontalIntercept
-    fun_prop
-  filter_upwards [hcompare Complex.continuous_im.continuousAt continuousAt_const hmin,
-    hcompare Complex.continuous_im.continuousAt continuousAt_const hmax,
-    hcompare Complex.continuous_re.continuousAt hcont.continuousAt hx] with w hlo hhi hre
-  have hlo' : min a.im b.im ≤ w.im ↔ min a.im b.im ≤ z.im := by
-    simpa only [not_lt] using not_congr hlo
-  simp only [RayCrosses, hlo', hhi, hre]
+    dsimp [horizontalIntercept]; fun_prop
+  have him := Complex.continuous_im.continuousAt (x := z)
+  filter_upwards [eventually_lt_iff_of_ne him continuousAt_const hmin,
+    eventually_lt_iff_of_ne him continuousAt_const hmax,
+    eventually_lt_iff_of_ne Complex.continuous_re.continuousAt hcont.continuousAt hx]
+    with w hlo hhi hre
+  simp only [RayCrosses, ← not_lt (a := w.im), ← not_lt (a := z.im), hlo, hhi, hre]
 
 /-- At a height in the half-open vertical range, a base point off the actual segment
 cannot coincide with the segment's horizontal intercept. -/
@@ -236,26 +197,13 @@ theorem intercept_ne_of_not_mem_segment (a b z : ℂ)
     (hlo : min a.im b.im ≤ z.im) (hhi : z.im < max a.im b.im)
     (hz : z ∉ segment ℝ a b) : z.re ≠ horizontalIntercept a b z.im := by
   intro hx
-  have hab : a.im ≠ b.im := by
-    intro h
-    simp only [h, min_self, max_self] at hlo hhi
-    exact (not_lt_of_ge hlo) hhi
-  let w : ℂ := ⟨z.re - 1, z.im⟩
-  have hw : RayCrosses a b w := ⟨hlo, hhi, by
-    change z.re - 1 < horizontalIntercept a b z.im
-    rw [← hx]
-    linarith⟩
-  obtain ⟨t, ht, him, -, -⟩ := (rayCrosses_iff_exists a b w).mp hw
-  have ht' : t = (z.im - a.im) / (b.im - a.im) := by
-    apply (eq_div_iff (sub_ne_zero.mpr hab.symm)).mpr
-    rw [lineMap_im] at him
-    change a.im + t * (b.im - a.im) = z.im at him
-    linarith
-  have heq : AffineMap.lineMap a b t = z := by
-    apply Complex.ext
-    · rw [lineMap_re, ht']
-      exact hx.symm
-    · exact him
+  have hab : a.im ≠ b.im := fun h => (hlo.trans_lt hhi).ne (by rw [h, min_self, max_self])
+  obtain ⟨t, ht, him, -, -⟩ :=
+    (rayCrosses_iff_exists a b ⟨z.re - 1, z.im⟩).mp ⟨hlo, hhi, (sub_one_lt z.re).trans_eq hx⟩
+  have ht' : t = (z.im - a.im) / (b.im - a.im) :=
+    (eq_div_iff (sub_ne_zero.mpr hab.symm)).mpr (by linarith [lineMap_im a b t, him])
+  have heq : AffineMap.lineMap a b t = z :=
+    Complex.ext (by simpa only [lineMap_re, ht', horizontalIntercept] using hx.symm) him
   exact hz (heq ▸ lineMap_mem_segment ℝ a b ht)
 
 /-- Away from the endpoint heights, avoiding the actual segment is enough for local
@@ -264,19 +212,12 @@ theorem eventually_rayCrosses_iff_of_not_mem_segment (a b z : ℂ)
     (ha : z.im ≠ a.im) (hb : z.im ≠ b.im) (hz : z ∉ segment ℝ a b) :
     ∀ᶠ w in nhds z, RayCrosses a b w ↔ RayCrosses a b z := by
   by_cases hlo : z.im < min a.im b.im
-  · filter_upwards [Complex.continuous_im.continuousAt.eventually_lt continuousAt_const hlo]
-      with w hw
-    exact iff_of_false (fun h => (not_lt_of_ge h.1) hw)
-      (fun h => (not_lt_of_ge h.1) hlo)
+  · exact (Complex.continuous_im.continuousAt.eventually_lt continuousAt_const hlo).mono
+      fun w hw => iff_of_false (fun h => h.1.not_gt hw) (fun h => h.1.not_gt hlo)
   by_cases hhi : max a.im b.im < z.im
-  · filter_upwards [continuousAt_const.eventually_lt Complex.continuous_im.continuousAt hhi]
-      with w hw
-    exact iff_of_false (fun h => (not_lt_of_ge hw.le) h.2.1)
-      (fun h => (not_lt_of_ge hhi.le) h.2.1)
-  have hne : z.im ≠ max a.im b.im := by
-    rcases le_total a.im b.im with h | h
-    · simpa only [max_eq_right h] using hb
-    · simpa only [max_eq_left h] using ha
+  · exact (continuousAt_const.eventually_lt Complex.continuous_im.continuousAt hhi).mono
+      fun w hw => iff_of_false (fun h => h.2.1.not_gt hw) (fun h => h.2.1.not_gt hhi)
+  have hne : z.im ≠ max a.im b.im := by rcases max_choice a.im b.im with h | h <;> rwa [h]
   exact eventually_rayCrosses_iff a b z ha hb
     (intercept_ne_of_not_mem_segment a b z (le_of_not_gt hlo)
       (lt_of_le_of_ne (le_of_not_gt hhi) hne) hz)
@@ -292,44 +233,24 @@ theorem eventually_rayCrosses_endpoint_jump (a b z : ℂ) (hab : a.im ≠ b.im)
       (decide (RayCrosses a b w) ^^ decide (RayCrosses a b z)) =
         (decide (z.re < a.re) && !decide (z.im ≤ w.im)) := by
   have hcont : Continuous (fun w : ℂ => horizontalIntercept a b w.im) := by
-    unfold horizontalIntercept
-    fun_prop
-  have hx' : z.re ≠ horizontalIntercept a b z.im := by
-    simpa only [hz, horizontalIntercept_left] using hx
-  have hcompare : ∀ᶠ w in nhds z,
-      w.re < horizontalIntercept a b w.im ↔ z.re < a.re := by
-    rcases lt_or_gt_of_ne hx' with h | h
-    · filter_upwards [Complex.continuous_re.continuousAt.eventually_lt hcont.continuousAt h]
-        with w hw
-      exact iff_of_true hw (by simpa only [hz, horizontalIntercept_left] using h)
-    · filter_upwards [hcont.continuousAt.eventually_lt Complex.continuous_re.continuousAt h]
-        with w hw
-      exact iff_of_false (not_lt_of_ge hw.le)
-        (by simpa only [hz, horizontalIntercept_left] using not_lt_of_ge h.le)
+    dsimp [horizontalIntercept]; fun_prop
+  have hcompare : ∀ᶠ w in nhds z, w.re < horizontalIntercept a b w.im ↔ z.re < a.re := by
+    simpa only [hz, horizontalIntercept_left] using
+      eventually_lt_iff_of_ne (z := z) Complex.continuous_re.continuousAt hcont.continuousAt
+        (by simpa only [hz, horizontalIntercept_left] using hx)
   rcases lt_or_gt_of_ne hab with hab | hab
   · have hz' : z.im < b.im := hz ▸ hab
     filter_upwards [hcompare,
       Complex.continuous_im.continuousAt.eventually_lt continuousAt_const hz'] with w hw hwb
-    have hcw : RayCrosses a b w ↔ z.im ≤ w.im ∧ z.re < a.re := by
-      unfold RayCrosses
-      rw [min_eq_left hab.le, max_eq_right hab.le, ← hz]
-      simp only [hw, hwb, true_and]
-    have hcz : RayCrosses a b z ↔ z.re < a.re := by
-      simp only [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, hz,
-        le_refl, hab, horizontalIntercept_left, true_and]
-    by_cases hw' : z.im ≤ w.im <;> by_cases hx' : z.re < a.re <;> simp [hcw, hcz, hw', hx']
+    simp only [RayCrosses, hz, min_eq_left hab.le, max_eq_right hab.le, le_refl, hab,
+      horizontalIntercept_left, hw, hwb, true_and]
+    by_cases hw' : a.im ≤ w.im <;> by_cases hx' : z.re < a.re <;> simp [hw', hx']
   · have hz' : b.im < z.im := hz ▸ hab
     filter_upwards [hcompare,
       continuousAt_const.eventually_lt Complex.continuous_im.continuousAt hz'] with w hw hbw
-    have hcw : RayCrosses a b w ↔ w.im < z.im ∧ z.re < a.re := by
-      unfold RayCrosses
-      rw [min_eq_right hab.le, max_eq_left hab.le, ← hz]
-      simp only [hw, hbw.le, true_and]
-    have hcz : ¬RayCrosses a b z := by
-      simp only [RayCrosses, max_eq_left hab.le, hz, lt_self_iff_false, false_and,
-        and_false, not_false_eq_true]
-    by_cases hw' : z.im ≤ w.im <;> by_cases hx' : z.re < a.re <;>
-      simp [hcw, hcz, hw', hx', ← not_le]
+    simp only [RayCrosses, hz, min_eq_right hab.le, max_eq_left hab.le, lt_irrefl,
+      hbw.le, hw, true_and, false_and]
+    by_cases hw' : a.im ≤ w.im <;> by_cases hx' : z.re < a.re <;> simp [hw', hx', ← not_le]
 
 open Classical in
 /-- The complete local change formula for a nonhorizontal segment off its actual support.
@@ -341,9 +262,8 @@ theorem eventually_rayCrosses_jump (a b z : ℂ) (hab : a.im ≠ b.im)
       (decide (RayCrosses a b w) ^^ decide (RayCrosses a b z)) =
         ((decide (a.im = z.im ∧ z.re < a.re) ^^
           decide (b.im = z.im ∧ z.re < b.re)) && !decide (z.im ≤ w.im)) := by
-  have hne (p : ℂ) (hp : p ∈ segment ℝ a b) (him : z.im = p.im) : z.re ≠ p.re := by
-    intro hre
-    exact hz (Complex.ext hre him ▸ hp)
+  have hne (p : ℂ) (hp : p ∈ segment ℝ a b) (him : z.im = p.im) : z.re ≠ p.re :=
+    fun hre => hz (Complex.ext hre him ▸ hp)
   by_cases ha : z.im = a.im
   · filter_upwards [eventually_rayCrosses_endpoint_jump a b z hab ha
       (hne a (left_mem_segment ℝ a b) ha)] with w hw
@@ -368,13 +288,9 @@ The finite index type retains repeated geometric segments as separate occurrence
 theorem rayParity_add {ι : Type*} [Fintype ι] (a b : ι → ℂ)
     (x y : ι → Bool) (z : ℂ) :
     rayParity a b (x + y) z = (rayParity a b x z ^^ rayParity a b y z) := by
-  classical
   rw [← Bool.add_eq_xor]
-  simp only [rayParity, Pi.add_apply]
-  rw [← Finset.sum_add_distrib]
-  apply Finset.sum_congr rfl
-  intro i _
-  split_ifs <;> simp
+  simp only [rayParity, Pi.add_apply, ← Finset.sum_add_distrib]
+  exact Finset.sum_congr rfl fun i _ => by split_ifs <;> simp
 
 /-- The parity of a finite arrangement is constant near any point avoiding all endpoint
 heights and supporting lines. No geometry or topology provider is required. Endpoint-height

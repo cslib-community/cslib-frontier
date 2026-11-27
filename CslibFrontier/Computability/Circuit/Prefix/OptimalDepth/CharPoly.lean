@@ -57,16 +57,8 @@ of optimal fanout-`k` prefix circuit widths ([Sergeev2025PrefixDepth], p. 2). -/
 private theorem prefixCharPoly_succ_sub {k : ℕ} (hk : 2 ≤ k) (x : ℝ) :
     prefixCharPoly (k + 1) x - prefixCharPoly k x = x ^ (k - 1) * (1 + x - x ^ 2) := by
   unfold prefixCharPoly
-  have hsum : ∑ i ∈ Finset.Ico 1 (k + 1 - 1), x ^ i =
-      (∑ i ∈ Finset.Ico 1 (k - 1), x ^ i) + x ^ (k - 1) := by
-    rw [Nat.add_sub_cancel, show k = (k - 1) + 1 by omega]
-    exact Finset.sum_Ico_succ_top (by omega) (fun i => x ^ i)
-  have hpow2 : x ^ (k + 1) = x ^ (k - 1) * x ^ 2 := by
-    rw [← pow_add, show k - 1 + 2 = k + 1 by omega]
-  have hpow1 : x ^ k = x ^ (k - 1) * x := by
-    conv_lhs => rw [show k = (k - 1) + 1 by omega]
-    exact pow_succ x (k - 1)
-  rw [hsum, hpow2, hpow1]
+  obtain ⟨m, rfl⟩ : ∃ m, k = m + 1 := ⟨k - 1, by omega⟩
+  rw [Nat.add_sub_cancel, Nat.add_sub_cancel, Finset.sum_Ico_succ_top (by omega)]
   ring
 
 private theorem sub_one_mul_prefixCharPoly {k : ℕ} (hk : 2 ≤ k) (x : ℝ) :
@@ -77,59 +69,35 @@ private theorem sub_one_mul_prefixCharPoly {k : ℕ} (hk : 2 ≤ k) (x : ℝ) :
     simp only [Nat.reduceSub, Finset.Ico_self, Finset.sum_empty, pow_one]
     ring
   | @step m hm ih =>
-    change (x - 1) * prefixCharPoly (m + 1) x = (x - 2) + x ^ m * (1 + x - x ^ 2)
     have hm2 : 2 ≤ m := hm
-    have hdiff := prefixCharPoly_succ_sub hm x
-    have hstep : prefixCharPoly (m + 1) x =
-        prefixCharPoly m x + x ^ (m - 1) * (1 + x - x ^ 2) := by linarith
-    have hpow : x ^ m = x ^ (m - 1) * x := by
-      conv_lhs => rw [show m = (m - 1) + 1 by omega]
-      exact pow_succ x (m - 1)
-    rw [hstep, mul_add, ih, hpow]
+    have hpow : x ^ m = x * x ^ (m - 1) := by
+      rw [← pow_succ', Nat.sub_add_cancel (by omega)]
+    rw [sub_eq_iff_eq_add'.mp (prefixCharPoly_succ_sub hm2 x), mul_add, ih, Nat.succ_sub_one, hpow]
     ring
 
 private theorem prefixCharPoly_continuous (k : ℕ) : Continuous (prefixCharPoly k) := by
   unfold prefixCharPoly
-  have hsum : ∀ s : Finset ℕ, Continuous fun x : ℝ => ∑ i ∈ s, x ^ i := by
-    intro s
-    induction s using Finset.induction_on with
-    | empty =>
-      simp only [Finset.sum_empty]
-      exact continuous_const
-    | @insert a s ha ih =>
-      have heq : (fun x : ℝ => ∑ i ∈ insert a s, x ^ i) =
-          fun x : ℝ => x ^ a + ∑ i ∈ s, x ^ i := by
-        ext x
-        exact Finset.sum_insert ha
-      rw [heq]
-      exact (continuous_pow a).add ih
-  exact (continuous_const.add (hsum _)).sub (continuous_pow k)
+  fun_prop
 
 private theorem prefixCharPoly_one_pos (k : ℕ) : 0 < prefixCharPoly k 1 := by
   unfold prefixCharPoly
   simp only [one_pow, Finset.sum_const, Nat.card_Ico, nsmul_eq_mul, mul_one]
-  have hnn : (0 : ℝ) ≤ ((k - 1 - 1 : ℕ) : ℝ) := Nat.cast_nonneg _
-  linarith
+  linarith [Nat.cast_nonneg (α := ℝ) (k - 1 - 1)]
 
 private theorem prefixCharPoly_goldenRatio_neg {k : ℕ} (hk : 2 ≤ k) :
     prefixCharPoly k Real.goldenRatio < 0 := by
   have htel := sub_one_mul_prefixCharPoly hk Real.goldenRatio
-  have hsq := Real.goldenRatio_sq
-  have hgt := Real.one_lt_goldenRatio
-  have hlt := Real.goldenRatio_lt_two
-  have hzero : 1 + Real.goldenRatio - Real.goldenRatio ^ 2 = 0 := by linarith
-  rw [hzero, mul_zero, add_zero] at htel
-  nlinarith
+  have hgold : 1 + Real.goldenRatio - Real.goldenRatio ^ 2 = 0 := by linarith [Real.goldenRatio_sq]
+  rw [hgold, mul_zero, add_zero] at htel
+  exact neg_of_mul_neg_right (htel.trans_lt (by linarith [Real.goldenRatio_lt_two]))
+    (sub_nonneg.mpr Real.one_lt_goldenRatio.le)
 
 private theorem prefixCharPoly_three_halves_pos {k : ℕ} (hk : 3 ≤ k) :
     0 < prefixCharPoly k (3 / 2) := by
   have htel := sub_one_mul_prefixCharPoly (by omega : 2 ≤ k) (3 / 2)
   have hpow : (3 / 2 : ℝ) ^ 2 ≤ (3 / 2 : ℝ) ^ (k - 1) :=
     pow_le_pow_right₀ (by norm_num) (by omega)
-  have hnum : (1 : ℝ) + 3 / 2 - (3 / 2) ^ 2 = 1 / 4 := by norm_num
-  have hsq : (3 / 2 : ℝ) ^ 2 = 9 / 4 := by norm_num
-  rw [hnum] at htel
-  rw [hsq] at hpow
+  norm_num at htel hpow
   linarith
 
 private noncomputable def invPoly (k : ℕ) (x : ℝ) : ℝ :=
@@ -139,31 +107,21 @@ private theorem pow_mul_invPoly {k : ℕ} {x : ℝ} (hx : 0 < x) :
     x ^ k * invPoly k x = prefixCharPoly k x := by
   unfold invPoly prefixCharPoly
   have hne : x ≠ 0 := hx.ne'
-  have h1 : x ^ k * (2 * (x⁻¹) ^ k) = 2 := by
-    rw [← mul_assoc, mul_comm (x ^ k) 2, mul_assoc, ← mul_pow, mul_inv_cancel₀ hne,
-      one_pow, mul_one]
+  have h1 : x ^ k * (x⁻¹) ^ k = 1 := by rw [← mul_pow, mul_inv_cancel₀ hne, one_pow]
   have h2 : x ^ k * (∑ i ∈ Finset.Ico 1 (k - 1), (x⁻¹) ^ (k - i)) =
       ∑ i ∈ Finset.Ico 1 (k - 1), x ^ i := by
     rw [Finset.mul_sum]
     refine Finset.sum_congr rfl fun i hi => ?_
-    simp only [Finset.mem_Ico] at hi
     have hxk : x ^ k = x ^ i * x ^ (k - i) := by
-      rw [← pow_add, Nat.add_sub_of_le (by omega)]
+      rw [← pow_add, Nat.add_sub_of_le ((Finset.mem_Ico.mp hi).2.le.trans (Nat.sub_le k 1))]
     rw [hxk, mul_assoc, ← mul_pow, mul_inv_cancel₀ hne, one_pow, mul_one]
   linarith
 
 private theorem invPoly_strictAnti {k : ℕ} (hk : 2 ≤ k) {x y : ℝ} (hx : 0 < x) (hxy : x < y) :
     invPoly k y < invPoly k x := by
   unfold invPoly
-  have hy : 0 < y := hx.trans hxy
-  have hx_inv : 0 < x⁻¹ := inv_pos.mpr hx
-  have hy_inv : 0 < y⁻¹ := inv_pos.mpr hy
-  have hmul_x : x * x⁻¹ = 1 := mul_inv_cancel₀ hx.ne'
-  have hmul_y : y * y⁻¹ = 1 := mul_inv_cancel₀ hy.ne'
-  have hinv : y⁻¹ < x⁻¹ := by
-    by_contra hle
-    have hge : x⁻¹ ≤ y⁻¹ := le_of_not_gt hle
-    nlinarith
+  have hy_inv : 0 < y⁻¹ := inv_pos.mpr (hx.trans hxy)
+  have hinv : y⁻¹ < x⁻¹ := (inv_lt_inv₀ (hx.trans hxy) hx).mpr hxy
   have hpow_lt : (y⁻¹) ^ k < (x⁻¹) ^ k := pow_lt_pow_left₀ hinv hy_inv.le (by omega)
   have hsum_le : (∑ i ∈ Finset.Ico 1 (k - 1), (y⁻¹) ^ (k - i)) ≤
       ∑ i ∈ Finset.Ico 1 (k - 1), (x⁻¹) ^ (k - i) :=
@@ -184,79 +142,57 @@ noncomputable def alphaRoot (k : ℕ) : ℝ :=
 
 private theorem alphaRoot_mem_Icc {k : ℕ} (hk : 2 ≤ k) :
     alphaRoot k ∈ Set.Icc 1 Real.goldenRatio := by
-  unfold alphaRoot
-  simp only [hk, ↓reduceDIte]
+  rw [alphaRoot, dite_eq_left hk]
   exact (Classical.choose_spec (exists_root_mem_Icc hk)).1
 
 /-- `alphaRoot k` is a root of `prefixCharPoly k` for all `k ≥ 2`
 ([Sergeev2025PrefixDepth], p. 2). -/
 theorem prefixCharPoly_alphaRoot {k : ℕ} (hk : 2 ≤ k) :
     prefixCharPoly k (alphaRoot k) = 0 := by
-  unfold alphaRoot
-  simp only [hk, ↓reduceDIte]
+  rw [alphaRoot, dite_eq_left hk]
   exact (Classical.choose_spec (exists_root_mem_Icc hk)).2
 
 /-- `1 < alphaRoot k` for all `k ≥ 2`. -/
-theorem one_lt_alphaRoot {k : ℕ} (hk : 2 ≤ k) : 1 < alphaRoot k := by
-  have hle := (alphaRoot_mem_Icc hk).1
-  refine lt_of_le_of_ne hle fun heq => ?_
-  have hpos := prefixCharPoly_one_pos k
-  have h0 := prefixCharPoly_alphaRoot hk
-  rw [← heq] at h0
-  linarith
+theorem one_lt_alphaRoot {k : ℕ} (hk : 2 ≤ k) : 1 < alphaRoot k :=
+  lt_of_le_of_ne (alphaRoot_mem_Icc hk).1 fun h => by
+    linarith [prefixCharPoly_one_pos k, h ▸ prefixCharPoly_alphaRoot hk]
 
 /-- `alphaRoot k < Real.goldenRatio` for all `k ≥ 2`, immediate from `P_k(φ) < 0` for the
 characteristic polynomial `P_k(x)` ([Sergeev2025PrefixDepth], p. 2). -/
 theorem alphaRoot_lt_goldenRatio {k : ℕ} (hk : 2 ≤ k) :
-    alphaRoot k < Real.goldenRatio := by
-  have hle := (alphaRoot_mem_Icc hk).2
-  refine lt_of_le_of_ne hle fun heq => ?_
-  have hneg := prefixCharPoly_goldenRatio_neg hk
-  have h0 := prefixCharPoly_alphaRoot hk
-  rw [heq] at h0
-  linarith
+    alphaRoot k < Real.goldenRatio :=
+  lt_of_le_of_ne (alphaRoot_mem_Icc hk).2 fun h => by
+    linarith [prefixCharPoly_goldenRatio_neg hk, h ▸ prefixCharPoly_alphaRoot hk]
 
 private theorem alphaRoot_pos {k : ℕ} (hk : 2 ≤ k) : 0 < alphaRoot k :=
   zero_lt_one.trans (one_lt_alphaRoot hk)
 
-private theorem invPoly_alphaRoot {k : ℕ} (hk : 2 ≤ k) : invPoly k (alphaRoot k) = 0 := by
-  have hmul := pow_mul_invPoly (k := k) (alphaRoot_pos hk)
-  rw [prefixCharPoly_alphaRoot hk] at hmul
-  have hp : 0 < (alphaRoot k) ^ k := pow_pos (alphaRoot_pos hk) k
-  exact (mul_eq_zero.mp hmul).resolve_left hp.ne'
+private theorem invPoly_eq_zero_iff {k : ℕ} {x : ℝ} (hx : 0 < x) :
+    invPoly k x = 0 ↔ prefixCharPoly k x = 0 := by
+  rw [← pow_mul_invPoly hx, mul_eq_zero, or_iff_right (pow_pos hx k).ne']
 
 private theorem lt_alphaRoot_of_pos_of_prefixCharPoly_pos {k : ℕ} {x : ℝ}
     (hk : 2 ≤ k) (hx : 0 < x) (hpos : 0 < prefixCharPoly k x) :
     x < alphaRoot k := by
-  have hinv_pos : 0 < invPoly k x := by
-    have hmul := pow_mul_invPoly (k := k) hx
-    have hp : 0 < x ^ k := pow_pos hx k
-    nlinarith
-  have hinv_root := invPoly_alphaRoot hk
-  by_contra hge
-  have hle : alphaRoot k ≤ x := le_of_not_gt hge
+  have hinv_pos : 0 < invPoly k x :=
+    pos_of_mul_pos_right (pow_mul_invPoly hx ▸ hpos) (pow_nonneg hx.le k)
+  have hinv_root := (invPoly_eq_zero_iff (alphaRoot_pos hk)).mpr (prefixCharPoly_alphaRoot hk)
+  by_contra! hle
   rcases eq_or_lt_of_le hle with rfl | hlt
   · linarith
-  · have hanti := invPoly_strictAnti hk (alphaRoot_pos hk) hlt
-    linarith
+  · linarith [invPoly_strictAnti hk (alphaRoot_pos hk) hlt]
 
 /-- Uniqueness of the positive root `alphaRoot k` of `prefixCharPoly k` for `k ≥ 2`
 ([Sergeev2025PrefixDepth], p. 2). -/
 theorem eq_alphaRoot_of_pos_of_prefixCharPoly_eq_zero {k : ℕ} {x : ℝ}
     (hk : 2 ≤ k) (hx : 0 < x) (h0 : prefixCharPoly k x = 0) :
     x = alphaRoot k := by
-  have hinv_x : invPoly k x = 0 := by
-    have hmul := pow_mul_invPoly (k := k) hx
-    rw [h0] at hmul
-    have hp : 0 < x ^ k := pow_pos hx k
-    exact (mul_eq_zero.mp hmul).resolve_left hp.ne'
-  have hinv_root := invPoly_alphaRoot hk
+  have hinv_x := (invPoly_eq_zero_iff hx).mpr h0
+  have hinv_root := (invPoly_eq_zero_iff (alphaRoot_pos hk)).mpr (prefixCharPoly_alphaRoot hk)
   rcases lt_trichotomy x (alphaRoot k) with hlt | heq | hgt
-  · have := invPoly_strictAnti hk hx hlt
-    linarith
+  · linarith [invPoly_strictAnti hk hx hlt]
   · exact heq
-  · have := invPoly_strictAnti hk (alphaRoot_pos hk) hgt
-    linarith
+  · linarith [invPoly_strictAnti hk (alphaRoot_pos hk) hgt]
 
 /-- Original auxiliary root lower bound `3 / 2 < alphaRoot k` for all `k ≥ 3` (via
 `prefixCharPoly k (3 / 2) > 0`), used in the inhomogeneous recurrence bound of
@@ -268,37 +204,24 @@ theorem three_halves_lt_alphaRoot {k : ℕ} (hk : 3 ≤ k) :
 
 /-- At fanout `k = 2`, `alphaRoot 2 = √2`, immediate from `P_2(x) = 2 - x^2`
 ([Sergeev2025PrefixDepth], p. 2). -/
-theorem alphaRoot_two : alphaRoot 2 = Real.sqrt 2 := by
-  symm
-  refine eq_alphaRoot_of_pos_of_prefixCharPoly_eq_zero le_rfl (Real.sqrt_pos.mpr (by norm_num)) ?_
-  unfold prefixCharPoly
-  simp only [Nat.reduceSub, Finset.Ico_self, Finset.sum_empty, add_zero]
-  rw [Real.sq_sqrt (by norm_num)]
-  ring
+theorem alphaRoot_two : alphaRoot 2 = Real.sqrt 2 :=
+  (eq_alphaRoot_of_pos_of_prefixCharPoly_eq_zero le_rfl (Real.sqrt_pos.mpr zero_lt_two) <| by
+    simp [prefixCharPoly]).symm
 
 /-- The positive roots `alphaRoot k` form a strictly increasing sequence on `k ≥ 2`, immediate from
 the definition of `P_k(x)` ([Sergeev2025PrefixDepth], p. 2). -/
 theorem alphaRoot_strictMonoOn : StrictMonoOn alphaRoot (Set.Ici 2) := by
-  have hstep : ∀ k ≥ 2, alphaRoot k < alphaRoot (k + 1) := by
-    intro k hk
-    set x := alphaRoot k
-    have hx_pos := alphaRoot_pos hk
-    have hx_lt_two : x < 2 := (alphaRoot_lt_goldenRatio hk).trans Real.goldenRatio_lt_two
-    have htel := sub_one_mul_prefixCharPoly hk x
+  have hstep : ∀ k ≥ 2, alphaRoot k < alphaRoot (k + 1) := fun k hk => by
+    have htel := sub_one_mul_prefixCharPoly hk (alphaRoot k)
+    have hdiff := prefixCharPoly_succ_sub hk (alphaRoot k)
     rw [prefixCharPoly_alphaRoot hk, mul_zero] at htel
-    have hdiff := prefixCharPoly_succ_sub hk x
     rw [prefixCharPoly_alphaRoot hk, sub_zero] at hdiff
-    have hnext_pos : 0 < prefixCharPoly (k + 1) x := by linarith
-    exact lt_alphaRoot_of_pos_of_prefixCharPoly_pos (by omega) hx_pos hnext_pos
-  intro a ha b _ hab
-  simp only [Set.mem_Ici] at ha
-  obtain ⟨m, rfl⟩ : ∃ m, b = a + m + 1 := ⟨b - a - 1, by omega⟩
-  have hadd : ∀ n : ℕ, alphaRoot a < alphaRoot (a + n + 1) := by
-    intro n
-    induction n with
-    | zero => exact hstep a ha
-    | succ n ih => exact ih.trans (hstep (a + n + 1) (by omega))
-  exact hadd m
+    have hlt2 := (alphaRoot_lt_goldenRatio hk).trans Real.goldenRatio_lt_two
+    exact lt_alphaRoot_of_pos_of_prefixCharPoly_pos (by omega) (alphaRoot_pos hk) (by linarith)
+  rintro a ha b - hab
+  induction b, hab using Nat.le_induction with
+  | base => exact hstep a ha
+  | succ b hab ih => exact ih.trans (hstep b (ha.trans (Nat.le_of_succ_le hab)))
 
 /-- As `k → ∞`, `alphaRoot k` converges to the golden ratio `φ = (1 + √5) / 2`
 ([Sergeev2025PrefixDepth], p. 2). -/
@@ -307,35 +230,25 @@ theorem tendsto_alphaRoot_atTop :
   rw [tendsto_order]
   refine ⟨fun a ha => ?_, fun b hb => ?_⟩
   · have h54_lt : (5 / 4 : ℝ) < Real.goldenRatio := by
-      by_contra hge
-      have hle : Real.goldenRatio ≤ 5 / 4 := le_of_not_gt hge
+      by_contra! hle
       nlinarith [Real.goldenRatio_sq, Real.one_lt_goldenRatio]
     set c := max a (5 / 4)
-    have hc_ge_a : a ≤ c := le_max_left a (5 / 4)
-    have hc_ge_54 : (5 / 4 : ℝ) ≤ c := le_max_right a (5 / 4)
-    have hc1 : 1 < c := by linarith
+    have hc1 : 1 < c := lt_of_lt_of_le (by norm_num) (le_max_right a _)
     have hc_lt : c < Real.goldenRatio := max_lt ha h54_lt
     have hquad_pos : 0 < 1 + c - c ^ 2 := by
-      have hfac : 1 + c - c ^ 2 = (Real.goldenRatio - c) * (c + Real.goldenRatio - 1) := by
-        have hsq := Real.goldenRatio_sq
-        nlinarith
-      rw [hfac]
-      have hgt1 := Real.one_lt_goldenRatio
-      nlinarith
-    have hpow_lim := Filter.tendsto_atTop.mp (tendsto_pow_atTop_atTop_of_one_lt hc1)
-      ((2 - c) / (1 + c - c ^ 2) + 1)
-    obtain ⟨M, hM⟩ := Filter.eventually_atTop.mp hpow_lim
+      nlinarith [Real.goldenRatio_sq, Real.one_lt_goldenRatio]
+    obtain ⟨M, hM⟩ := Filter.eventually_atTop.mp <| Filter.tendsto_atTop.mp
+      (tendsto_pow_atTop_atTop_of_one_lt hc1) ((2 - c) / (1 + c - c ^ 2) + 1)
     refine Filter.eventually_atTop.mpr ⟨max 2 (M + 1), fun k hk => ?_⟩
-    have hk2 : 2 ≤ k := (le_max_left 2 (M + 1)).trans hk
-    have hkM : M ≤ k - 1 := by
-      have := (le_max_right 2 (M + 1)).trans hk
-      omega
-    have hcm := hM (k - 1) hkM
-    have hdiv_lt : (2 - c) / (1 + c - c ^ 2) < c ^ (k - 1) := by linarith
-    have hmul_gt : 2 - c < c ^ (k - 1) * (1 + c - c ^ 2) := (div_lt_iff₀ hquad_pos).mp hdiv_lt
-    have htel := sub_one_mul_prefixCharPoly hk2 c
-    have hc_poly_pos : 0 < prefixCharPoly k c := by nlinarith
-    exact hc_ge_a.trans_lt (lt_alphaRoot_of_pos_of_prefixCharPoly_pos hk2 (by linarith) hc_poly_pos)
+    have hk2 : 2 ≤ k := (le_max_left _ _).trans hk
+    have hcm := hM (k - 1) (by have := (le_max_right 2 (M + 1)).trans hk; omega)
+    have hmul_gt : 2 - c < c ^ (k - 1) * (1 + c - c ^ 2) :=
+      (div_lt_iff₀ hquad_pos).mp (by linarith)
+    have hc_poly_pos : 0 < prefixCharPoly k c :=
+      pos_of_mul_pos_right (a := c - 1) (by linarith [sub_one_mul_prefixCharPoly hk2 c])
+        (by linarith)
+    exact (le_max_left a _).trans_lt
+      (lt_alphaRoot_of_pos_of_prefixCharPoly_pos hk2 (by linarith) hc_poly_pos)
   · exact Filter.eventually_atTop.mpr ⟨2, fun k hk => (alphaRoot_lt_goldenRatio hk).trans hb⟩
 
 private theorem pow_recurrence_sub {k D : ℕ} (hk : 2 ≤ k) (hD : k ≤ D) (x : ℝ) :
@@ -353,11 +266,11 @@ private theorem pow_recurrence_sub {k D : ℕ} (hk : 2 ≤ k) (hD : k ≤ D) (x 
       exact ⟨k - i, by simp only [Finset.mem_Ico]; omega, by omega⟩
     · intro j hj
       simp only [Finset.mem_Ico] at hj
-      rw [← pow_add, show D - k + (k - j) = D - j by omega]
+      have hsub : D - k + (k - j) = D - j := by omega
+      rw [← pow_add, hsub]
   have hpow : x ^ D = x ^ (D - k) * x ^ k := by
     rw [← pow_add, Nat.sub_add_cancel hD]
   rw [hsum, hpow]
   ring
-
 
 end Cslib.Circuits.Prefix

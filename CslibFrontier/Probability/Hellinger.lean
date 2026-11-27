@@ -109,10 +109,8 @@ private lemma abs_toReal_sub_eq (p q : PMF α) (a : α) :
 
 private lemma sqrt_mul_left_mul_sqrt_mul_left {c u v : ℝ} (hc : 0 ≤ c) (hu : 0 ≤ u) :
     Real.sqrt (c * u) * Real.sqrt (c * v) = c * Real.sqrt (u * v) := by
-  rw [Real.sqrt_mul hc, Real.sqrt_mul hc, Real.sqrt_mul hu]
-  have hmul : Real.sqrt c * Real.sqrt u * (Real.sqrt c * Real.sqrt v) =
-      (Real.sqrt c * Real.sqrt c) * (Real.sqrt u * Real.sqrt v) := by ring
-  rw [hmul, Real.mul_self_sqrt hc]
+  rw [Real.sqrt_mul hc, Real.sqrt_mul hc, Real.sqrt_mul hu, mul_mul_mul_comm,
+    Real.mul_self_sqrt hc]
 
 private lemma one_sub_prod_le_sum_one_sub {κ : Type*} (s : Finset κ) (c : κ → ℝ)
     (hc0 : ∀ i ∈ s, 0 ≤ c i) (hc1 : ∀ i ∈ s, c i ≤ 1) :
@@ -190,10 +188,9 @@ theorem hellingerSq_eq_tsum (p q : PMF α) :
     nlinarith [Real.mul_self_sqrt hp, Real.mul_self_sqrt hq]
   simp_rw [hpt]
   rw [Summable.tsum_sub ((summable_toReal p).add (summable_toReal q))
-    ((summable_sqrt_toReal_mul p q).mul_left 2)]
-  rw [Summable.tsum_add (summable_toReal p) (summable_toReal q), tsum_toReal, tsum_toReal,
-    tsum_mul_left]
-  rw [hellingerSq_eq_one_sub_bhattacharyya, ← bhattacharyya_eq_tsum]
+    ((summable_sqrt_toReal_mul p q).mul_left 2), Summable.tsum_add (summable_toReal p)
+    (summable_toReal q), tsum_toReal, tsum_toReal, tsum_mul_left,
+    hellingerSq_eq_one_sub_bhattacharyya, ← bhattacharyya_eq_tsum]
   ring
 
 theorem hellingerSq_eq_sum [Fintype α] (p q : PMF α) :
@@ -226,17 +223,14 @@ theorem hellingerSq_eq_zero_iff (p q : PMF α) : hellingerSq p q = 0 ↔ p = q :
         ((sq_nonneg _).lt_of_ne' hne)).ne' h
     have ha : Real.sqrt (p a).toReal = Real.sqrt (q a).toReal :=
       sub_eq_zero.mp (sq_eq_zero_iff.mp hsq0)
-    have htoReal : (p a).toReal = (q a).toReal := by
-      have := congrArg (· ^ 2) ha
-      rwa [Real.sq_sqrt ENNReal.toReal_nonneg, Real.sq_sqrt ENNReal.toReal_nonneg] at this
-    exact (ENNReal.toReal_eq_toReal_iff' (p.apply_ne_top a) (q.apply_ne_top a)).mp htoReal
+    exact (ENNReal.toReal_eq_toReal_iff' (p.apply_ne_top a) (q.apply_ne_top a)).mp
+      ((Real.sqrt_inj ENNReal.toReal_nonneg ENNReal.toReal_nonneg).1 ha)
   · rintro rfl
     simp
 
 theorem bhattacharyya_eq_one_iff (p q : PMF α) : bhattacharyya p q = 1 ↔ p = q := by
   have := hellingerSq_eq_zero_iff p q
-  rw [hellingerSq_eq_one_sub_bhattacharyya, sub_eq_zero, eq_comm] at this
-  exact this
+  rwa [hellingerSq_eq_one_sub_bhattacharyya, sub_eq_zero, eq_comm] at this
 
 theorem bhattacharyya_eq_zero_iff (p q : PMF α) :
     bhattacharyya p q = 0 ↔ Disjoint p.support q.support := by
@@ -253,19 +247,15 @@ theorem bhattacharyya_eq_zero_iff (p q : PMF α) :
     · exact haq ((ENNReal.toReal_eq_zero_iff _).mp hq0 |>.resolve_right (q.apply_ne_top a))
   · have hzero : ∀ a, Real.sqrt ((p a).toReal * (q a).toReal) = 0 := fun a => by
       by_cases hap : a ∈ p.support
-      · have haq : q a = 0 := (PMF.apply_eq_zero_iff q a).mpr (h hap)
-        simp [haq]
-      · have hp0 : p a = 0 := (PMF.apply_eq_zero_iff p a).mpr hap
-        simp [hp0]
+      · simp [(PMF.apply_eq_zero_iff q a).mpr (h hap)]
+      · simp [(PMF.apply_eq_zero_iff p a).mpr hap]
     simp [hzero]
 
 theorem bhattacharyya_pure_left (a : α) (q : PMF α) :
     bhattacharyya (PMF.pure a) q = Real.sqrt (q a).toReal := by
   classical
-  rw [bhattacharyya_eq_tsum, tsum_eq_single a]
-  · simp
-  · intro x hx
-    simp [PMF.pure_apply, hx]
+  rw [bhattacharyya_eq_tsum, tsum_eq_single a fun x hx => by simp [PMF.pure_apply, hx]]
+  simp
 
 theorem bhattacharyya_pure_right (p : PMF α) (a : α) :
     bhattacharyya p (PMF.pure a) = Real.sqrt (p a).toReal := by
@@ -288,9 +278,8 @@ theorem hellingerDist_sq (p q : PMF α) : hellingerDist p q ^ 2 = hellingerSq p 
 theorem hellingerDist_nonneg (p q : PMF α) : 0 ≤ hellingerDist p q :=
   Real.sqrt_nonneg _
 
-theorem hellingerDist_le_one (p q : PMF α) : hellingerDist p q ≤ 1 := by
-  rw [hellingerDist_eq_sqrt_hellingerSq]
-  exact Real.sqrt_le_one.mpr (hellingerSq_le_one p q)
+theorem hellingerDist_le_one (p q : PMF α) : hellingerDist p q ≤ 1 :=
+  Real.sqrt_le_one.mpr (hellingerSq_le_one p q)
 
 theorem hellingerDist_comm (p q : PMF α) : hellingerDist p q = hellingerDist q p := by
   simp only [hellingerDist, hellingerSq_comm]
@@ -310,37 +299,21 @@ theorem hellingerDist_triangle [Finite α] (p q r : PMF α) :
   let u : α → ℝ := fun a => Real.sqrt (p a).toReal - Real.sqrt (q a).toReal
   let v : α → ℝ := fun a => Real.sqrt (q a).toReal - Real.sqrt (r a).toReal
   have huv_pr : ∑ a, (u a + v a) ^ 2 = 2 * hellingerSq p r := by
-    rw [hellingerSq_eq_sum]
-    have hpt (a : α) : (u a + v a) ^ 2 = (Real.sqrt (p a).toReal - Real.sqrt (r a).toReal) ^ 2 := by
-      simp [u, v]
-    simp_rw [hpt]
+    simp only [u, v, sub_add_sub_cancel, hellingerSq_eq_sum]
     ring
-  have hu2 : ∑ a, u a ^ 2 = 2 * hellingerSq p q := by
-    rw [hellingerSq_eq_sum]
-    ring
-  have hv2 : ∑ a, v a ^ 2 = 2 * hellingerSq q r := by
-    rw [hellingerSq_eq_sum]
-    ring
+  have hu2 : ∑ a, u a ^ 2 = 2 * hellingerSq p q := by rw [hellingerSq_eq_sum]; ring
+  have hv2 : ∑ a, v a ^ 2 = 2 * hellingerSq q r := by rw [hellingerSq_eq_sum]; ring
   have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset α) u v
   rw [hu2, hv2] at hcs
   have hdot : ∑ a, u a * v a ≤ 2 * (hellingerDist p q * hellingerDist q r) := by
-    have hsq : (∑ a, u a * v a) ^ 2 ≤ (2 * (hellingerDist p q * hellingerDist q r)) ^ 2 := by
-      calc (∑ a, u a * v a) ^ 2
-        _ ≤ (2 * hellingerSq p q) * (2 * hellingerSq q r) := hcs
-        _ = (2 * (hellingerDist p q * hellingerDist q r)) ^ 2 := by
-          rw [mul_pow, mul_pow, hellingerDist_sq, hellingerDist_sq]
-          ring
-    exact le_of_sq_le_sq hsq
-      (mul_nonneg (by positivity)
-        (mul_nonneg (hellingerDist_nonneg _ _) (hellingerDist_nonneg _ _)))
+    refine le_of_sq_le_sq (hcs.trans_eq ?_) (mul_nonneg (by positivity)
+      (mul_nonneg (hellingerDist_nonneg _ _) (hellingerDist_nonneg _ _)))
+    rw [mul_pow, mul_pow, hellingerDist_sq, hellingerDist_sq]
+    ring
   have hexp : ∑ a, (u a + v a) ^ 2 = ∑ a, u a ^ 2 + 2 * ∑ a, u a * v a + ∑ a, v a ^ 2 := by
-    simp_rw [add_sq]
-    rw [Finset.sum_add_distrib, Finset.sum_add_distrib, Finset.mul_sum]
-    simp only [mul_assoc]
+    simp only [add_sq, Finset.sum_add_distrib, Finset.mul_sum, mul_assoc]
   have hsq_le : hellingerSq p r ≤ (hellingerDist p q + hellingerDist q r) ^ 2 := by
-    have hpq : hellingerSq p q = hellingerDist p q ^ 2 := (hellingerDist_sq p q).symm
-    have hqr : hellingerSq q r = hellingerDist q r ^ 2 := (hellingerDist_sq q r).symm
-    linarith
+    linarith [hellingerDist_sq p q, hellingerDist_sq q r]
   exact Real.sqrt_le_iff.mpr ⟨add_nonneg (hellingerDist_nonneg _ _) (hellingerDist_nonneg _ _),
     hsq_le⟩
 
@@ -360,17 +333,12 @@ theorem hellingerSq_le_dist [Fintype α] (p q : PMF α) :
 `dist p q ^ 2 ≤ hellingerSq p q * (2 - hellingerSq p q)`. -/
 theorem dist_sq_le_hellingerSq_mul_two_sub [Fintype α] (p q : PMF α) :
     dist p q ^ 2 ≤ hellingerSq p q * (2 - hellingerSq p q) := by
-  have hpt (a : α) : |(p a).toReal - (q a).toReal| =
-      |Real.sqrt (p a).toReal - Real.sqrt (q a).toReal| *
-        (Real.sqrt (p a).toReal + Real.sqrt (q a).toReal) :=
-    abs_toReal_sub_eq p q a
   have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset α)
     (fun a => |Real.sqrt (p a).toReal - Real.sqrt (q a).toReal|)
     (fun a => Real.sqrt (p a).toReal + Real.sqrt (q a).toReal)
   have hsum1 : ∑ a, |Real.sqrt (p a).toReal - Real.sqrt (q a).toReal| ^ 2 =
       2 * hellingerSq p q := by
-    simp_rw [sq_abs]
-    rw [hellingerSq_eq_sum]
+    simp only [sq_abs, hellingerSq_eq_sum]
     ring
   have hsum2 : ∑ a, (Real.sqrt (p a).toReal + Real.sqrt (q a).toReal) ^ 2 =
       4 - 2 * hellingerSq p q := by
@@ -384,11 +352,8 @@ theorem dist_sq_le_hellingerSq_mul_two_sub [Fintype α] (p q : PMF α) :
       sum_toReal, sum_toReal, ← bhattacharyya_eq_sum, hellingerSq_eq_one_sub_bhattacharyya]
     ring
   rw [hsum1, hsum2] at hcs
-  have hdist : (∑ a, |(p a).toReal - (q a).toReal|) = 2 * dist p q := by
-    rw [dist_eq]
-    ring
-  simp_rw [← hpt] at hcs
-  rw [hdist] at hcs
+  have hdist : (∑ a, |(p a).toReal - (q a).toReal|) = 2 * dist p q := by rw [dist_eq]; ring
+  simp only [← abs_toReal_sub_eq, hdist] at hcs
   linarith
 
 /-- Le Cam's sharp upper bound: `dist p q ≤ h(p, q) * √(2 - h²(p, q))`. -/
@@ -503,6 +468,15 @@ theorem dist_iid_le_sqrt_two_mul_nat_mul_hellingerDist [Fintype α] (p q : PMF �
   refine (mul_le_mul_of_nonneg_left (hellingerDist_iid_le p q n) (Real.sqrt_nonneg 2)).trans_eq ?_
   rw [← mul_assoc, ← Real.sqrt_mul (by norm_num)]
 
+/-- Cauchy-Schwarz at one outcome of two finite mixtures. -/
+private theorem sum_sqrt_mul_sqrt_le_bind [Fintype α] (p q : PMF α) (k l : α → PMF β) (b : β) :
+    ∑ a, Real.sqrt ((p a).toReal * (k a b).toReal) * Real.sqrt ((q a).toReal * (l a b).toReal) ≤
+      Real.sqrt ((p.bind k b).toReal * (q.bind l b).toReal) := by
+  have h0 (r : PMF α) (m : α → PMF β) (a : α) : 0 ≤ (r a).toReal * (m a b).toReal :=
+    mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg
+  rw [bind_apply_toReal, bind_apply_toReal, Real.sqrt_mul (Finset.sum_nonneg fun a _ => h0 p k a)]
+  exact Real.sum_sqrt_mul_sqrt_le Finset.univ (h0 p k) (h0 q l)
+
 /-- Joint concavity of the Bhattacharyya coefficient under mixing with weights `μ`. -/
 theorem sum_mul_bhattacharyya_le_bhattacharyya_bind [Finite α] [Finite β]
     (μ : PMF α) (p q : α → PMF β) :
@@ -518,14 +492,7 @@ theorem sum_mul_bhattacharyya_le_bhattacharyya_bind [Finite α] [Finite β]
         Real.sqrt ((μ a).toReal * (p a b).toReal) * Real.sqrt ((μ a).toReal * (q a b).toReal) :=
     (sqrt_mul_left_mul_sqrt_mul_left ENNReal.toReal_nonneg ENNReal.toReal_nonneg).symm
   simp_rw [hpt]
-  have hcs := (Real.sum_sqrt_mul_sqrt_le Finset.univ
-    (f := fun a => (μ a).toReal * (p a b).toReal)
-    (g := fun a => (μ a).toReal * (q a b).toReal)
-    (fun _ => mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)
-    (fun _ => mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)).trans_eq
-    (Real.sqrt_mul
-      (Finset.sum_nonneg fun _ _ => mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg) _).symm
-  simpa only [← bind_apply_toReal] using hcs
+  exact sum_sqrt_mul_sqrt_le_bind μ μ p q b
 
 /-- Square roots of outcome weights, with each coordinate weighted by the square root of
 its sampling probability. -/
@@ -544,8 +511,7 @@ theorem norm_sub_weightedSqrt_sq {α : Type*} [Fintype α] (p : PMF α) (a b : �
     ‖weightedSqrt p a - weightedSqrt p b‖ ^ 2 =
       ∑ i, (p i).toReal * (√(a i) - √(b i)) ^ 2 := by
   rw [EuclideanSpace.real_norm_sq_eq]
-  apply Finset.sum_congr rfl
-  intro i _
+  refine Finset.sum_congr rfl fun i _ => ?_
   change (√((p i).toReal) * √(a i) - √((p i).toReal) * √(b i)) ^ 2 = _
   rw [← mul_sub, mul_pow, Real.sq_sqrt ENNReal.toReal_nonneg]
 
@@ -591,15 +557,7 @@ theorem bhattacharyya_le_bhattacharyya_bind [Finite α] [Finite β]
         sqrt_mul_left_mul_sqrt_mul_left ENNReal.toReal_nonneg ENNReal.toReal_nonneg, mul_comm]
     simp_rw [hpt, ← Finset.mul_sum, sum_toReal, mul_one]
   rw [hrewrite]
-  refine Finset.sum_le_sum fun b _ => ?_
-  have hcs := (Real.sum_sqrt_mul_sqrt_le Finset.univ
-    (f := fun a => (p a).toReal * (kernel a b).toReal)
-    (g := fun a => (q a).toReal * (kernel a b).toReal)
-    (fun _ => mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)
-    (fun _ => mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)).trans_eq
-    (Real.sqrt_mul
-      (Finset.sum_nonneg fun _ _ => mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg) _).symm
-  simpa only [← bind_apply_toReal] using hcs
+  exact Finset.sum_le_sum fun b _ => sum_sqrt_mul_sqrt_le_bind p q kernel kernel b
 
 /-- Data processing inequality for squared Hellinger distance under a Markov kernel. -/
 theorem hellingerSq_bind_le [Finite α] [Finite β] (p q : PMF α) (kernel : α → PMF β) :
@@ -621,10 +579,9 @@ theorem bhattacharyya_le_bhattacharyya_map [Finite α] [Finite β]
 
 /-- Data processing inequality for squared Hellinger distance under deterministic maps. -/
 theorem hellingerSq_map_le [Finite α] [Finite β] (p q : PMF α) (f : α → β) :
-    hellingerSq (p.map f) (q.map f) ≤ hellingerSq p q :=
-  by
-    simp only [hellingerSq_eq_one_sub_bhattacharyya]
-    linarith [bhattacharyya_le_bhattacharyya_map p q f]
+    hellingerSq (p.map f) (q.map f) ≤ hellingerSq p q := by
+  simp only [hellingerSq_eq_one_sub_bhattacharyya]
+  linarith [bhattacharyya_le_bhattacharyya_map p q f]
 
 /-- Data processing inequality for Hellinger distance under deterministic maps. -/
 theorem hellingerDist_map_le [Finite α] [Finite β] (p q : PMF α) (f : α → β) :

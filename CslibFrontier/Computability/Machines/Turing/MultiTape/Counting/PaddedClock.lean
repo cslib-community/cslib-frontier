@@ -225,12 +225,10 @@ theorem haltsWithin_acceptCount_machine (M : MultiTapePTM k Bool State) (r n : �
     have hact : (machine M r).actions (config r c clock pos) = [stop] := by
       rw [actions_config]
       simp [choices, hpos]
-    have hhalt : (stop (k := k) (r := r) (State := State)).apply (config r c clock pos)
-        |>.Halted := rfl
-    refine ⟨.step (by simp [hact]) fun index => ?_, ?_⟩
-    · have hindex : ((machine M r).actions (config r c clock pos))[index] = stop :=
-        List.mem_singleton.mp (hact ▸ List.getElem_mem index.isLt)
-      exact .halt (by rw [hindex]; exact hhalt)
+    refine ⟨.step (by simp [hact]) fun index => .halt ?_, ?_⟩
+    · rw [Fin.getElem_fin,
+        List.mem_singleton.mp ((congrArg (_ ∈ ·) hact).mp (List.getElem_mem index.isLt))]
+      rfl
     · rw [acceptCount, ← countP_runList, runList_succ _ _ _ _ rfl, hact,
         Complexity.acceptCount_zero]
       by_cases hout : c.output = [true] <;> simp [stop, config, Action.apply, hout]
@@ -238,19 +236,14 @@ theorem haltsWithin_acceptCount_machine (M : MultiTapePTM k Bool State) (r n : �
     have hpos : clock pos = some true := by simpa using hclock 0 (Nat.succ_pos n)
     have hnext (bit : Bool) := ih ((M.withCoin bit).toTM.step c) (pos + 1)
       (fun i hi => by
-        have := hclock (i + 1) (by omega)
-        rwa [Nat.cast_add, Nat.cast_one, add_comm (i : ℤ) 1, ← add_assoc] at this)
-      (by
-        have := hstop
-        rwa [Nat.cast_add, Nat.cast_one, add_comm (n : ℤ) 1, ← add_assoc] at this)
+        simpa only [Nat.cast_add, Nat.cast_one, add_comm (i : ℤ) 1, ← add_assoc] using
+          hclock (i + 1) (by omega))
+      (by simpa only [Nat.cast_add, Nat.cast_one, add_comm (n : ℤ) 1, ← add_assoc] using hstop)
     obtain ⟨g, hact, hg⟩ := actions_config_of_clock (r := r) M c clock pos hpos
     refine ⟨.step (by simp [hact]) fun index => ?_, ?_⟩
-    · have hmem : ((machine M r).actions (config r c clock pos))[index] ∈
-          [false, true].map g := by
-        rw [← hact]
-        exact List.getElem_mem index.isLt
-      obtain ⟨bit, -, hbit⟩ := List.mem_map.mp hmem
-      rw [← hbit, hg]
+    · obtain ⟨bit, -, hbit⟩ := List.mem_map.mp
+        ((congrArg (_ ∈ ·) hact).mp (List.getElem_mem index.isLt))
+      rw [Fin.getElem_fin, ← hbit, hg]
       exact (hnext bit).1
     · rw [acceptCount_stepCoins_succ, acceptCount, ← countP_runList,
         runList_succ _ _ _ _ rfl, hact, List.flatMap_map]
@@ -305,8 +298,7 @@ theorem haltsWithin_acceptCount_compile (M : MultiTapePTM k Bool State)
   have hsecond : ∀ result ∈ first.runList time cfg.tapes,
       (machine M r).HaltsWithin (τ + 1) (result.withState (some (machine M r).initial)) := by
     intro result hresult
-    rw [hrun, List.mem_singleton] at hresult
-    rw [hresult, start_eq]
+    rw [List.mem_singleton.mp ((congrArg (result ∈ ·) hrun).mp hresult), start_eq]
     exact hclock.1
   have hstart : Cfg.init (compile M prepare).initial input =
       (Sequential.left (machine M r) cfg).tapes := rfl

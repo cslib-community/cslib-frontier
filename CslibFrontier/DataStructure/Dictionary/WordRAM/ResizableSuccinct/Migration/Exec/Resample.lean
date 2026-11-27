@@ -51,6 +51,27 @@ noncomputable def zeroResampleRegsCode : RCode .exact rResize :=
 @[simp] theorem not_readsWidth_zeroResampleRegsCode : ¬zeroResampleRegsCode.ReadsWidth := by
   simp [zeroResampleRegsCode, RCode.ReadsWidth, Op.ReadsWidth]
 
+/-- Every address of the seed window `[base, base + seedWords w₀ b b' 3)` is the leading word
+`base` or a limb address `base + 1 + (m + L * j)` of `ReducedKWise.SeedRep`. -/
+private theorem seedWindow_cases {base w₀ b b' a : ℕ} (h₁ : base ≤ a)
+    (h₂ : a < base + ReducedKWise.seedWords w₀ b b' 3) :
+    a = base ∨ ∃ (j : Fin 3) (m : Fin (reducedLimbCount (reducedTrinomialStep w₀ b b'))),
+      a = base + 1 + (m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val) := by
+  rcases eq_or_lt_of_le h₁ with rfl | h_gt
+  · exact Or.inl rfl
+  set L := reducedLimbCount (reducedTrinomialStep w₀ b b')
+  have hsw : ReducedKWise.seedWords w₀ b b' 3 = 1 + 3 * L := rfl
+  have hoff_lt : a - (base + 1) < 3 * L := by omega
+  have hmod := Nat.mod_add_div (a - (base + 1)) L
+  exact Or.inr ⟨⟨(a - (base + 1)) / L, Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])⟩,
+    ⟨(a - (base + 1)) % L, Nat.mod_lt _ (by omega)⟩, by dsimp only; omega⟩
+
+private theorem zeroResampleRegs_regs (y : RData rResize) (j : Fin rResize) :
+    (((((y.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0).regs j =
+      if j ∈ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) then 0 else y.regs j := by
+  simp only [RData.set, Function.update_apply, List.mem_cons, List.not_mem_nil, or_false]
+  grind
+
 theorem zeroResampleRegsCode_exec {w L_peak w₀ b b' hashBase : ℕ}
     {θ : ReducedPolySeed w₀ b b' 3} {x y : RData rResize}
     (hx : x.Bounded w) (hy_fr : y.frontier = x.frontier) (hL : x.frontier ≤ L_peak)
@@ -69,73 +90,30 @@ theorem zeroResampleRegsCode_exec {w L_peak w₀ b b' hashBase : ℕ}
       ∀ j, j ∉ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) → z.regs j = x.regs j := by
   have hyL : y.frontier ≤ L_peak := hy_fr.le.trans hL
   have hfz : Fits w 0 := fits_zero w
-  set z₁ := y.set mCur 0
-  have s1 := RDemonicExec.const (B := .exact) (d := mCur) (v := 0) (x := y) hyL hfz
-  set z₂ := z₁.set mIdx 0
-  have s2 := RDemonicExec.const (B := .exact) (d := mIdx) (v := 0) (x := z₁) hyL hfz
-  set z₃ := z₂.set mK 0
-  have s3 := RDemonicExec.const (B := .exact) (d := mK) (v := 0) (x := z₂) hyL hfz
-  set z₄ := z₃.set mOne 0
-  have s4 := RDemonicExec.const (B := .exact) (d := mOne) (v := 0) (x := z₃) hyL hfz
-  set z := z₄.set mRes 0
-  have s5 := RDemonicExec.const (B := .exact) (d := mRes) (v := 0) (x := z₄) hyL hfz
-  refine ⟨z, rfl,
-    (s1.seq_eq (s2.seq_eq (s3.seq_eq (s4.seq_eq s5)))).mono (by omega) (fun _ h => h),
-    ⟨⟨fun j => ?_, fun a => ?_⟩, hy_fr ▸ hx.frontier_fits, fun a ha => ?_⟩,
-    rfl, hy_fr, fun j hj => ?_⟩
-  · dsimp only [z, z₄, z₃, z₂, z₁, RData.set, RData.toData]
-    by_cases h1 : j = mRes
-    · subst h1; rw [Function.update_self]; exact hfz
-    rw [Function.update_of_ne h1]
-    by_cases h2 : j = mOne
-    · subst h2; rw [Function.update_self]; exact hfz
-    rw [Function.update_of_ne h2]
-    by_cases h3 : j = mK
-    · subst h3; rw [Function.update_self]; exact hfz
-    rw [Function.update_of_ne h3]
-    by_cases h4 : j = mIdx
-    · subst h4; rw [Function.update_self]; exact hfz
-    rw [Function.update_of_ne h4]
-    by_cases h5 : j = mCur
-    · subst h5; rw [Function.update_self]; exact hfz
-    rw [Function.update_of_ne h5]
-    have hj_not : j ∉ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) := by
-      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-      exact ⟨h5, h4, h3, h2, h1⟩
-    rw [hframe_reg j hj_not]
-    exact hx.regs_fits j
-  · dsimp only [z, z₄, z₃, z₂, z₁, RData.set, RData.toData]
+  set z := (((((y.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0)
+  have cst (d : Fin rResize) (u : RData rResize) (hu : u.frontier ≤ L_peak) :=
+    RDemonicExec.const (B := .exact) (d := d) (v := 0) (x := u) hu hfz
+  have hz_fr : z.frontier = x.frontier := hy_fr
+  refine ⟨z, rfl, ((cst mCur y hyL).seq_eq ((cst mIdx (y.set mCur 0) hyL).seq_eq
+    ((cst mK ((y.set mCur 0).set mIdx 0) hyL).seq_eq
+      ((cst mOne (((y.set mCur 0).set mIdx 0).set mK 0) hyL).seq_eq
+        (cst mRes ((((y.set mCur 0).set mIdx 0).set mK 0).set mOne 0) hyL))))).mono
+          (by omega) (fun _ h => h),
+    ⟨⟨fun j => ?_, fun a => ?_⟩, hy_fr ▸ hx.frontier_fits,
+      fun a ha => (hframe_mem a (Or.inr (by omega))).trans (hx.zero_above (hz_fr ▸ ha))⟩,
+    rfl, hz_fr, fun j hj => by rw [zeroResampleRegs_regs, ite_eq_right hj, hframe_reg j hj]⟩
+  · dsimp only [z, RData.toData]
+    rw [zeroResampleRegs_regs]
+    split_ifs with hj
+    exacts [hfz, hframe_reg j hj ▸ hx.regs_fits j]
+  · dsimp only [z, RData.set, RData.toData]
     by_cases ha_out : a < hashBase ∨ hashBase + ReducedKWise.seedWords w₀ b b' 3 ≤ a
     · rw [hframe_mem a ha_out]; exact hx.mem_fits a
-    · rw [not_or, not_lt, not_le] at ha_out
-      rcases eq_or_lt_of_le ha_out.1 with rfl | ha_gt
-      · rw [hseed.1]
-        exact lt_of_lt_of_le θ.1.isLt (Nat.pow_le_pow_right two_pos (by omega))
-      · set t := reducedTrinomialStep w₀ b b'
-        set c := reducedChunkBits t
-        set L := reducedLimbCount t
-        have hsw : ReducedKWise.seedWords w₀ b b' 3 = 1 + 3 * L := rfl
-        have hoff_lt : a - (hashBase + 1) < 3 * L := by omega
-        have hL_pos : 0 < L := by omega
-        let m : Fin L := ⟨(a - (hashBase + 1)) % L, Nat.mod_lt _ hL_pos⟩
-        let j : Fin 3 := ⟨(a - (hashBase + 1)) / L,
-          Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])⟩
-        have haddr : hashBase + 1 + (m.val + L * j.val) = a := by
-          have hmod := Nat.mod_add_div (a - (hashBase + 1)) L
-          dsimp only [m, j]; omega
-        rw [← haddr, hseed.2 j m]
-        exact lt_of_lt_of_le (getLimb_lt c _ _) (Nat.pow_le_pow_right two_pos (by omega))
-  · dsimp only [z, z₄, z₃, z₂, z₁, RData.set] at ha ⊢
-    rw [hframe_mem a (Or.inr (by omega))]
-    exact hx.zero_above (hy_fr ▸ ha)
-  · simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hj
-    obtain ⟨h5, h4, h3, h2, h1⟩ := hj
-    dsimp only [z, z₄, z₃, z₂, z₁, RData.set]
-    rw [Function.update_of_ne h1, Function.update_of_ne h2, Function.update_of_ne h3,
-      Function.update_of_ne h4, Function.update_of_ne h5]
-    exact hframe_reg j (by
-      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-      exact ⟨h5, h4, h3, h2, h1⟩)
+    rw [not_or, not_lt, not_le] at ha_out
+    rcases seedWindow_cases ha_out.1 ha_out.2 with rfl | ⟨j, m, rfl⟩
+    · rw [hseed.1]; exact θ.1.isLt.trans_le (Nat.pow_le_pow_right two_pos (by omega))
+    · rw [hseed.2 j m]
+      exact (getLimb_lt _ _ _).trans_le (Nat.pow_le_pow_right two_pos (by omega))
 
 
 /-- Shared post-resample step executing `.op (.copy mTmpA rMeta)` followed by `wInitNewMeta.code`
@@ -194,13 +172,11 @@ theorem exec_postResample_initMeta {U V w N metaBase peakF : ℕ}
   obtain ⟨hsp_le, hsw_le_sp, _, hc_lt⟩ :=
     hashSpace_bounds_of_fits_offCompItems hU hNU hfit_nm
   have heh_val : epochHdrWords = 225 := rfl
-  obtain ⟨z₀', hz₀'_def, _hex_zr, hz₀b, hz₀m, hz₀f_set, hz₀_reg⟩ :=
+  obtain ⟨_, rfl, _hex_zr, hz₀b, _hz₀m, hz₀f_set, hz₀_reg⟩ :=
     zeroResampleRegsCode_exec hy_set_b hrs_fr hy_set_fr.le
       (qBits_le_of_le_pow hw hU.le) hc_lt
       (by rw [hy_set_fr]; linarith only [hnm_le_peak, hsw_le_sp, hsp_le, heh_val])
       hrs_seed hrs_mem hrs_reg
-  have hz₀_eq : z₀' = z₀ := hz₀'_def
-  subst hz₀_eq
   have hz₀f : z₀.frontier = peakF := hz₀f_set.trans hy_set_fr
   set z₁ := z₀.set mTmpA metaBase
   have hz₀_meta : z₀.regs rMeta = metaBase := (hz₀_reg rMeta hr_not).trans hr_meta
@@ -208,33 +184,15 @@ theorem exec_postResample_initMeta {U V w N metaBase peakF : ℕ}
     (d := mTmpA) (s := rMeta) (x := z₀) hz₀f.le
   rw [hz₀_meta] at hex_c1
   have hz₁b : z₁.Bounded w := hz₀b.set (hfit_nm.of_le (Nat.le_add_right _ _))
-  have hz₀_fr_reg : z₀.regs mFr = peakF :=
-    (hz₀_reg mFr
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_fr
-  have hms₁ : memoryState mFr z₁.toData = ⟨y_rs.mem, peakF⟩ :=
-    Memory.State.ext hz₀m (by
-      dsimp only [memoryState, z₁, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mTmpA)]
-      exact hz₀_fr_reg)
+  have hms₁ : memoryState mFr z₁.toData = ⟨y_rs.mem, peakF⟩ := by
+    simpa [memoryState, z₁, z₀, RData.set, RData.toData] using (hrs_reg mFr (by simp)).trans hr_fr
   have hz₁_nhp : ∀ i : Fin 19, z₁.regs (mNewHp i) =
-      mkHashParams w (qBits U N) (hashB N) (totalMicroBits N) 3 i := fun i => by
-    dsimp only [z₁, RData.set]
-    rw [Function.update_of_ne (mNewHp_ne_mReg i (c := 156) (Or.inr (by decide))),
-      hz₀_reg (mNewHp i) (by
-        simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-        exact ⟨mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inl (by decide)),
-          mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inl (by decide)),
-          mNewHp_ne_mReg i (Or.inl (by decide))⟩)]
-    exact hr_nhp i
-  have hz₁_ncp : ∀ i : Fin 36, z₁.regs (mNewCp i) = mkCompParams U V w N i := fun i => by
-    dsimp only [z₁, RData.set]
-    rw [Function.update_of_ne (mNewCp_ne_mReg i (c := 156) (Or.inr (by decide))),
-      hz₀_reg (mNewCp i) (by
-        simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-        exact ⟨mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inl (by decide)),
-          mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inl (by decide)),
-          mNewCp_ne_mReg i (Or.inl (by decide))⟩)]
-    exact hr_ncp i
+      mkHashParams w (qBits U N) (hashB N) (totalMicroBits N) 3 i := fun i =>
+    (Function.update_of_ne (mNewHp_ne_mReg i (c := 156) (Or.inr (by decide))) _ _).trans <|
+      (hz₀_reg _ (by clear * -; simp [Fin.ext_iff]; omega)).trans (hr_nhp i)
+  have hz₁_ncp : ∀ i : Fin 36, z₁.regs (mNewCp i) = mkCompParams U V w N i := fun i =>
+    (Function.update_of_ne (mNewCp_ne_mReg i (c := 156) (Or.inr (by decide))) _ _).trans <|
+      (hz₀_reg _ (by clear * -; simp [Fin.ext_iff]; omega)).trans (hr_ncp i)
   have hin_im : z₁.regs ∘ srcInitNewMeta = WordEncoding.encode d_im :=
     (regs_pairSrc (regs_pairSrc (regs_hp_eq hz₁_nhp) (regs_cp_eq hz₁_ncp))
       (regs_reg1_eq mTmpA (by simp [z₁, RData.set]))).eq
@@ -248,38 +206,24 @@ theorem exec_postResample_initMeta {U V w N metaBase peakF : ℕ}
       d_im hz₁b hz₀f.le hin_im (hms₁ ▸ hpre_im) (hms₁ ▸ hv_im)
       (by rw [hms₁, hfr_im]; exact hz₀f.symm.le)
   rw [hms₁] at hm_im hex_im
-  have hz₂f_eq : z₂.frontier = peakF := hz₂f.trans hz₀f
-  have hz₂_fr_reg : z₂.regs mFr = peakF := (congrArg Memory.State.frontier hm_im).trans hfr_im
   have hz₂_mem_eq : z₂.mem = ((Memory.spec 0).clientState ⟨y_rs.mem, peakF⟩
       (initNewEpochMetaProg d_im)).mem :=
     congrArg Memory.State.mem hm_im
-  have hz₂_keep1 : ∀ reg, reg ≠ mFr → reg.val < 160 → z₂.regs reg = z₁.regs reg :=
-    fun reg h1 h160 => hframe_reg_im reg h1 (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
   have hkeep_set_2 : ∀ reg : Fin rResize, reg.val < 160 →
       reg ∉ ([mFr, mTmpA, mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) →
       z₂.regs reg = y_set.regs reg := fun reg h160 hnot => by
     simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
-    obtain ⟨hfr', hta, hcur, hidx, hk, ho, hres⟩ := hnot
-    calc z₂.regs reg
-        = z₁.regs reg := hz₂_keep1 reg hfr' h160
-      _ = z₀.regs reg := by dsimp only [z₁, RData.set]; rw [Function.update_of_ne hta]
-      _ = y_set.regs reg := hz₀_reg reg (by
-            simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-            exact ⟨hcur, hidx, hk, ho, hres⟩)
+    obtain ⟨hfr', hta, hj⟩ := hnot
+    exact (hframe_reg_im reg hfr' (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))).trans
+      ((Function.update_of_ne hta _ _).trans (hz₀_reg reg (by simpa using hj)))
   have hz₂_not_im : ∀ a, ¬(metaBase + epochHdrWords ≤ a ∧ a < metaBase + offCompItems U w N) →
-      z₂.mem a = y_set.mem a := fun a ha => by
-    rw [hz₂_mem_eq, hframe_im a ha]
-    rcases not_and_or.mp ha with hlt | hge
-    · exact hrs_mem a (Or.inl (not_le.mp hlt))
-    · refine hrs_mem a (Or.inr ?_)
-      have hge' : metaBase + offCompItems U w N ≤ a := not_lt.mp hge
-      linarith only [hge', hsw_le_sp, hsp_le, heh_val]
-  have hs₂_st_eq : ({ mem := z₂.mem, frontier := peakF } : Memory.State) =
-      (Memory.spec 0).clientState ⟨y_rs.mem, peakF⟩ (initNewEpochMetaProg d_im) :=
-    Memory.State.ext hz₂_mem_eq hfr_im.symm
-  refine ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f_eq, hz₂_fr_reg, hz₂_mem_eq,
+      z₂.mem a = y_set.mem a := fun a ha =>
+    (congrFun hz₂_mem_eq a).trans ((hframe_im a ha).trans (hrs_mem a (by omega)))
+  exact ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f.trans hz₀f,
+    (congrArg Memory.State.frontier hm_im).trans hfr_im, hz₂_mem_eq,
     hz₂_mem_eq ▸ hrep_im, hz₂_mem_eq ▸ htot_im, hz₂_mem_eq ▸ hpot_im,
-    by obtain ⟨s_fix₀, hi₀, hc₀⟩ := h_empty_im; exact ⟨s_fix₀, hi₀, hs₂_st_eq ▸ hc₀⟩,
+    h_empty_im.imp (fun _ ⟨hi₀, hc₀⟩ =>
+      ⟨hi₀, Memory.State.ext (x := ⟨z₂.mem, peakF⟩) hz₂_mem_eq hfr_im.symm ▸ hc₀⟩),
     hkeep_set_2, hz₂_not_im⟩
 
 theorem exec_setup_resample_finish
@@ -351,26 +295,9 @@ theorem exec_setup_resample_finish
     rw [heq_seed] at hseed₁
     apply RData.ext
     · funext j
-      dsimp only [RData.set]
-      by_cases h1 : j = mRes
-      · subst h1; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h1, Function.update_of_ne h1]
-      by_cases h2 : j = mOne
-      · subst h2; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h2, Function.update_of_ne h2]
-      by_cases h3 : j = mK
-      · subst h3; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h3, Function.update_of_ne h3]
-      by_cases h4 : j = mIdx
-      · subst h4; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h4, Function.update_of_ne h4]
-      by_cases h5 : j = mCur
-      · subst h5; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h5, Function.update_of_ne h5]
-      have hj_not : j ∉ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) := by
-        simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-        exact ⟨h5, h4, h3, h2, h1⟩
-      rw [hreg₁ j hj_not, hreg₂ j hj_not]
+      rw [zeroResampleRegs_regs, zeroResampleRegs_regs]
+      split_ifs with hj
+      exacts [rfl, (hreg₁ j hj).trans (hreg₂ j hj).symm]
     · funext a
       dsimp only [RData.set]
       by_cases ha_out :
@@ -378,38 +305,18 @@ theorem exec_setup_resample_finish
             metaBase + epochHdrWords +
               ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 ≤ a
       · exact (hmem₁ a ha_out).trans (hmem₂ a ha_out).symm
-      · rw [not_or, not_lt, not_le] at ha_out
-        rcases eq_or_lt_of_le ha_out.1 with rfl | ha_gt
-        · exact hseed₁.1.trans hseed₂.1.symm
-        · set L := reducedLimbCount
-            (reducedTrinomialStep (qBits U N_new) (hashB N_new) (totalMicroBits N_new))
-          have hsw : ReducedKWise.seedWords (qBits U N_new) (hashB N_new)
-              (totalMicroBits N_new) 3 = 1 + 3 * L := rfl
-          have hoff_lt : a - (metaBase + epochHdrWords + 1) < 3 * L := by omega
-          have hL_pos : 0 < L := by omega
-          let m : Fin L := ⟨(a - (metaBase + epochHdrWords + 1)) % L, Nat.mod_lt _ hL_pos⟩
-          let j : Fin 3 := ⟨(a - (metaBase + epochHdrWords + 1)) / L,
-            Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact hoff_lt)⟩
-          have haddr : metaBase + epochHdrWords + 1 + (m.val + L * j.val) = a := by
-            have hmod := Nat.mod_add_div (a - (metaBase + epochHdrWords + 1)) L
-            dsimp only [m, j]; omega
-          rw [← haddr]
-          exact (hseed₁.2 j m).trans (hseed₂.2 j m).symm
+      rw [not_or, not_lt, not_le] at ha_out
+      rcases seedWindow_cases ha_out.1 ha_out.2 with rfl | ⟨j, m, rfl⟩
+      · exact hseed₁.1.trans hseed₂.1.symm
+      · exact (hseed₁.2 j m).trans (hseed₂.2 j m).symm
     · exact hfr₁.trans hfr₂.symm
-  have hex_rep : ∀ θ : QuotHashSeed U N_new,
-      ∃ y_rs ∈ μ_rs.support, extSeed y_rs = θ := fun θ => by
-    have hmem_u : θ ∈ (PMF.uniformOfFintype (QuotHashSeed U N_new)).support :=
-      Cslib.Probability.PMF.mem_support_uniformOfFintype θ
-    rw [← hmap_unif, PMF.mem_support_map_iff] at hmem_u
-    exact hmem_u
+  have hex_rep (θ : QuotHashSeed U N_new) : ∃ y_rs ∈ μ_rs.support, extSeed y_rs = θ :=
+    (PMF.mem_support_map_iff _ _ _).mp (hmap_unif.symm ▸
+      Cslib.Probability.PMF.mem_support_uniformOfFintype θ)
   choose yRep hyRep_supp hyRep_seed using hex_rep
   have hfin_rep := fun θ =>
     hfin_spec θ (yRep θ) (hrs_supp _ (hyRep_supp θ)).1
-      (by
-        have hs := (hrs_supp _ (hyRep_supp θ)).2.1
-        change ReducedKWise.SeedRep _ _ _ _ _ (extSeed (yRep θ)) _ at hs
-        rw [hyRep_seed θ] at hs
-        exact hs)
+      (by convert (hrs_supp _ (hyRep_supp θ)).2.1; exact (hyRep_seed θ).symm)
       (hrs_supp _ (hyRep_supp θ)).2.2.1
       (hrs_supp _ (hyRep_supp θ)).2.2.2
   choose zOf stepsClean hfin_res using hfin_rep
@@ -421,17 +328,13 @@ theorem exec_setup_resample_finish
     obtain ⟨z₀, hz₀_def, hex_zr, _, _, _, _⟩ :=
       zeroResampleRegsCode_exec hy_set_b hfr_y hy_set_fr.le
         (qBits_le_of_le_pow hw hU.le) hc_lt hsw_le_fr hseed_y hmem_y hreg_y
-    have hz₀_eq : z₀ =
-        ((((( (yRep (extSeed y_rs)).set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) :=
-      hz₀_def.trans (hcanon_z₀ hy_rs (hyRep_supp (extSeed y_rs)) (hyRep_seed (extSeed y_rs)).symm)
-    have hex_cl := hz₀_eq ▸ (hfin_res (extSeed y_rs)).1
-    exact ExecRCodeDist.of_demonicExec (hex_zr.seq_eq hex_cl)
+    exact ExecRCodeDist.of_demonicExec (hex_zr.seq_eq
+      ((hz₀_def.trans (hcanon_z₀ hy_rs (hyRep_supp _) (hyRep_seed _).symm)).symm ▸
+        (hfin_res (extSeed y_rs)).1))
   have hex_tail := hex_rs.seq hfin_any
   have hmu_eq : μ_rs.bind (fun y_rs => PMF.pure (zOf (extSeed y_rs))) =
-      (PMF.uniformOfFintype (QuotHashSeed U N_new)).map zOf := by
-    have h1 : μ_rs.bind (fun y_rs => PMF.pure (zOf (extSeed y_rs))) =
-        μ_rs.map (zOf ∘ extSeed) := rfl
-    rw [h1, ← PMF.map_comp, hmap_unif]
+      (PMF.uniformOfFintype (QuotHashSeed U N_new)).map zOf :=
+    (PMF.map_comp extSeed μ_rs zOf).symm.trans (congrArg (PMF.map zOf) hmap_unif)
   have hex_full := (ExecRCodeDist.of_demonicExec hex_set).seq_pure (hmu_eq ▸ hex_tail)
   set μ_u := PMF.uniformOfFintype (QuotHashSeed U N_new)
   have htsum_fin : (∑' y_rs, μ_rs y_rs * ((5 + stepsClean (extSeed y_rs) : ℕ) : ℝ≥0∞)) =
@@ -441,25 +344,14 @@ theorem exec_setup_resample_finish
   have hsw_le_163 :
       ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 ≤ 163 :=
     (ReducedKWise.seedWords_le _ _ _ 3).trans (by decide)
-  have hpt_bound : ∀ θ,
-      ((5 + stepsClean θ : ℕ) : ℝ≥0∞) +
-        (inEpochPotential U w N_new base (zOf θ) : ℝ≥0∞) ≤ (finBound : ℝ≥0∞) := fun θ => by
-    rw [← Nat.cast_add]
-    exact (Nat.cast_le (α := ℝ≥0∞)).mpr (hfin_res θ).2.2
   have hsum_fin_pot :
       (∑' θ, μ_u θ * ((5 + stepsClean θ : ℕ) : ℝ≥0∞)) +
         (∑' θ, μ_u θ * (inEpochPotential U w N_new base (zOf θ) : ℝ≥0∞)) ≤
         (finBound : ℝ≥0∞) := by
     rw [← CompleteLattice.summable.tsum_add CompleteLattice.summable]
-    calc (∑' θ, (μ_u θ * ((5 + stepsClean θ : ℕ) : ℝ≥0∞) +
-            μ_u θ * (inEpochPotential U w N_new base (zOf θ) : ℝ≥0∞)))
-        = ∑' θ, μ_u θ * (((5 + stepsClean θ : ℕ) : ℝ≥0∞) +
-            (inEpochPotential U w N_new base (zOf θ) : ℝ≥0∞)) :=
-          tsum_congr fun _ => (mul_add _ _ _).symm
-      _ ≤ ∑' θ, μ_u θ * (finBound : ℝ≥0∞) :=
-          tsum_le_tsum fun θ => mul_le_mul_right (hpt_bound θ) _
-      _ = (finBound : ℝ≥0∞) := by
-          rw [ENNReal.tsum_mul_right, μ_u.tsum_coe, one_mul]
+    calc _ ≤ ∑' θ, μ_u θ * (finBound : ℝ≥0∞) := tsum_le_tsum fun θ => by
+            rw [← mul_add]; exact mul_le_mul_right (by exact_mod_cast (hfin_res θ).2.2) _
+      _ = (finBound : ℝ≥0∞) := by rw [ENNReal.tsum_mul_right, μ_u.tsum_coe, one_mul]
   refine ⟨zOf, _, hex_full, fun θ => (hfin_res θ).2.1, ?_⟩
   rw [htsum_fin, add_assoc, add_assoc]
   have hsw_b : ((5 * ReducedKWise.seedWords (qBits U N_new) (hashB N_new)

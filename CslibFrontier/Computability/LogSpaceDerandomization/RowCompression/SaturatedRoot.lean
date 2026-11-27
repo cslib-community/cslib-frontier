@@ -63,11 +63,8 @@ private theorem three_mul_scale_le_of_small_error {d e raw loss : ℝ}
     (hθ : 0 < θ) (hmargin : η ≤ θ / 10000) (hd : 16 * (θ + 1) < d)
     (he : e ≤ 1 / 8) (hraw : |raw - d| ≤ (1 + d) * e) (hloss : |loss| ≤ η / 2) :
     3 * θ ≤ raw + loss := by
-  have hd0 : 0 ≤ 1 + d := by linarith
-  have he' := mul_le_mul_of_nonneg_left he hd0
-  have hr := (abs_le.mp hraw).1
-  have hl := (abs_le.mp hloss).1
-  nlinarith
+  nlinarith [mul_le_mul_of_nonneg_left he (by linarith : 0 ≤ 1 + d),
+    (abs_le.mp hraw).1, (abs_le.mp hloss).1]
 
 private theorem eval_iterate_eq_sentinel {ι : Type u} {s : Finset ι} {n : ℕ → ℕ}
     {K : ℕ} {ρ : ℕ → ℝ} {z : ℝ} {truth raw₀ loss : ι → Fin 2 → ℝ}
@@ -100,14 +97,10 @@ private theorem eval_iterate_eq_sentinel {ι : Type u} {s : Finset ι} {n : ℕ 
     (fun i => sentinelFirst marked 0 (Δ i)) (sentinelState marked L a) m
   have hc := iterate_sentinelState_of_clippedError_le (L₀ := 16 * (θ + 1)) m hη
     (by linarith) hz hK hKn hρ hfirst hsecond hloss hcount hε herr hsmall m (le_refl m)
-  change modified = sentinelState marked L actual ∧
-    (∀ y ∈ marked, actual.row y = uncompressedRow Δ a.row m y) ∧
-    (0 < m → firstRank s K actual.defaultValue actual.row =
-      firstRank s K modified.defaultValue modified.row ∧
-      firstRank s K modified.defaultValue modified.row ≤ 2 * (16 * (θ + 1)) + 1) at hc
-  change H (actual.row y 0) (actual.row y 1) (firstRank s K actual.defaultValue actual.row) =
-    H (modified.row y 0) (modified.row y 1) (firstRank s K modified.defaultValue modified.row)
+  dsimp only
   rw [(hc.2.2 hm).1, hc.1]
+  change H (actual.row y 0) (actual.row y 1) _ =
+    H (sentinelFirst marked L actual.row y 0) (sentinelFirst marked L actual.row y 1) _
   by_cases hmarked : y ∈ marked
   · have hE : prefixErrorBudget ε m ≤ 1 / 8 :=
       (le_mul_of_one_le_left (prefixErrorBudget_nonneg hε)
@@ -115,24 +108,13 @@ private theorem eval_iterate_eq_sentinel {ι : Type u} {s : Finset ι} {n : ℕ 
     have he : ε m ≤ 1 / 8 := (le_prefixErrorBudget hε (le_refl _)).trans hE
     have hraw := (abs_sub_le_of_clippedError_le (hfirst y hy) (by linarith : ε m < 1)
       (herr m (le_refl m) y hy)).1
-    have hd : 16 * (θ + 1) < truth y 0 := by grind
-    have hlarge := three_mul_scale_le_of_small_error hθ hmargin hd he hraw (hloss y hy 0)
+    have hlarge := three_mul_scale_le_of_small_error hθ hmargin (by grind) he hraw (hloss y hy 0)
     have hv : θ ≤ actual.row y 0 := by
-      rw [hc.2.1 y hmarked]
-      change θ ≤ uncompressedRow Δ (raw₀ + loss) m y 0
-      have heq : uncompressedRow Δ (raw₀ + loss) m y 0 =
-          uncompressedRow Δ raw₀ m y 0 + loss y 0 := by
-        simp only [uncompressedRow, Pi.add_apply]
-        ring
-      rw [heq]
+      simp only [actual, a, hc.2.1 y hmarked, uncompressedRow, Pi.add_apply] at hlarge ⊢
       linarith
-    change H (actual.row y 0) (actual.row y 1) _ =
-      H (sentinelFirst marked L actual.row y 0) (sentinelFirst marked L actual.row y 1) _
     rw [sentinelFirst_zero_of_mem hmarked, sentinelFirst_one]
     exact hsaturate _ _ _ _ hv (by dsimp only [L]; linarith)
-  · change H (actual.row y 0) (actual.row y 1) _ =
-      H (sentinelFirst marked L actual.row y 0) (sentinelFirst marked L actual.row y 1) _
-    rw [sentinelFirst_of_not_mem hmarked]
+  · rw [sentinelFirst_of_not_mem hmarked]
 
 variable (R : ℝ) (hR : 0 ≤ R)
   (hrange : ∀ {ι : Type u} (s : Finset ι) (K : ℕ) (a b : State ι) (y : ι),
@@ -189,29 +171,19 @@ theorem exists_iterate_root_bound (hθ : 0 < θ) :
         (fun _ => 0) (sentinelState marked L b) m
       have ha := eval_iterate_eq_sentinel H hsaturate hθ hη.le hmargin hz hK m hm hKn hρ
         hfirst hsecond hloss hcount hε herr hsmall y hy
-      change H (actual.row y 0) (actual.row y 1) (firstRank s K actual.defaultValue actual.row) =
-        H (modified.row y 0) (modified.row y 1)
-          (firstRank s K modified.defaultValue modified.row) at ha
       have hb := eval_iterate_eq_sentinel H hsaturate (Δ := fun _ => 0) (raw₀ := truth)
         (ε := fun _ => 0) hθ hη.le hmargin hz hK m hm hKn hρ
         hfirst hsecond hloss hcount (by intros; norm_num)
         (by intros; simp [uncompressedRow, clippedError])
         (by simp [prefixErrorBudget]) y hy
-      have hzero (D : Finset ι) : sentinelFirst D 0 (0 : ι → Fin 2 → ℝ) = 0 := by
-        funext y ν
-        simp [sentinelFirst]
-      dsimp only at hb
+      have hzero (D : Finset ι) : sentinelFirst D 0 (0 : ι → Fin 2 → ℝ) = 0 :=
+        funext fun _ => funext fun _ => by simp [sentinelFirst]
+      dsimp only at ha hb
       rw [hzero] at hb
-      change H (reference.row y 0) (reference.row y 1)
-        (firstRank s K reference.defaultValue reference.row) =
-        H (modifiedReference.row y 0) (modifiedReference.row y 1)
-          (firstRank s K modifiedReference.defaultValue modifiedReference.row) at hb
       have hs := (iterate_sentinelState_stability_of_clippedError_le
         (ρ := ρ) (L := L) (z := z) (loss := loss) m
         (by dsimp only [L]; linarith) hK (fun i hi => hK.trans_le (hKn i hi))
         hfirst hε hεlt herr).2 m (le_refl m)
-      change |modified.defaultValue - modifiedReference.defaultValue| ≤ c * E ∧
-        ∀ y ∈ s, ∀ ν, |modified.row y ν - modifiedReference.row y ν| ≤ c * E at hs
       have hq : |firstRank s K modified.defaultValue modified.row -
           firstRank s K modifiedReference.defaultValue modifiedReference.row| ≤ c * E :=
         (abs_max_sub_max_le_max _ _ _ _).trans (max_le hs.1
@@ -234,33 +206,20 @@ theorem exists_iterate_root_bound (hθ : 0 < θ) :
       have hcard : K ≤ #D := not_lt.mp hcount
       have hraw (i : ℕ) (hi : i ≤ m) (y : ι) (hy : y ∈ D) :
           3 * θ ≤ uncompressedRow Δ a.row i y 0 := by
-        have hys := hDs hy
-        have hd := (mem_filter.mp hy).2
-        have hr := (abs_sub_le_of_clippedError_le (hfirst y hys) (hεlt i hi)
-          (herr i hi y hys)).1
-        have hlarge := three_mul_scale_le_of_small_error hθ hmargin hd (he i hi) hr
-          (hloss y hys 0)
-        change 3 * θ ≤ uncompressedRow Δ (raw₀ + loss) i y 0
-        simpa only [uncompressedRow, Pi.add_apply, add_assoc, add_comm, add_left_comm] using hlarge
+        simpa only [a, uncompressedRow, Pi.add_apply, add_assoc, add_comm, add_left_comm] using
+          three_mul_scale_le_of_small_error hθ hmargin (mem_filter.mp hy).2 (he i hi)
+            (abs_sub_le_of_clippedError_le (hfirst y (hDs hy)) (hεlt i hi)
+              (herr i hi y (hDs hy))).1 (hloss y (hDs hy) 0)
       have hreference (i : ℕ) (_hi : i ≤ m) (y : ι) (hy : y ∈ D) :
           3 * θ ≤ uncompressedRow (fun _ => 0) b.row i y 0 := by
-        have hd := (mem_filter.mp hy).2
-        have hl := (abs_le.mp (hloss y (hDs hy) 0)).1
-        simp only [uncompressedRow, Pi.zero_apply, sum_const_zero, add_zero]
-        change 3 * θ ≤ truth y 0 + loss y 0
-        linarith
+        simp only [b, uncompressedRow, Pi.zero_apply, sum_const_zero, add_zero, Pi.add_apply]
+        linarith [(mem_filter.mp hy).2, (abs_le.mp (hloss y (hDs hy) 0)).1]
       have hqa := le_iterate_firstRank_of_raw_large (s := s) (n := n)
         (K := fun _ => K) (ρ := ρ) hθ hK hDs hcard m hraw
       have hqb := le_iterate_firstRank_of_raw_large (s := s) (n := n)
         (K := fun _ => K) (ρ := ρ) hθ hK hDs hcard m hreference
-      have ha := hgate (actual.row y 0) (actual.row y 1) _ hqa
-      have hb := hgate (reference.row y 0) (reference.row y 1) _ hqb
-      unfold stateRootError
-      rw [ha, hb, sub_self, abs_zero]
-      positivity
-  · apply (hrange s K actual reference y).trans
-    have hlarge := not_le.mp hsmall
-    have hpositive := mul_nonneg hA (mul_nonneg hc0 hE0)
-    nlinarith
+      rw [stateRootError, hgate _ _ _ hqa, hgate _ _ _ hqb, sub_self, abs_zero]; positivity
+  · exact (hrange s K actual reference y).trans
+      (by nlinarith [not_le.mp hsmall, mul_nonneg hA (mul_nonneg hc0 hE0)])
 
 end Cslib.RowCompression

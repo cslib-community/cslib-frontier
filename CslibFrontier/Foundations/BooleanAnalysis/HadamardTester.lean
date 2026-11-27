@@ -216,13 +216,9 @@ theorem eq_tensor_of_lt_tensorTestAcceptance {f : (ι → Bool) → Bool}
   set c' : (ι → Bool) → (ι → Bool) → (ι × ι → Bool) → ℝ := fun y z t =>
     if selfCorrect g (tensor y z) t = hadamardCode w (tensor y z) then 1 else 0
   have hD : 𝔼 y, 𝔼 z, D y z ≤ 3 / 4 := by
-    have hM : ∃ k, (w + tensor x x) k = true := by
-      by_contra hc
-      refine hw (funext fun k => ?_)
-      have hk := not_exists.1 hc k
-      revert hk
-      simp only [Pi.add_apply, Bool.add_eq_xor]
-      cases w k <;> cases tensor x x k <;> simp
+    have hM : ∃ k, (w + tensor x x) k = true := (Function.ne_iff.1 hw).imp fun k => by
+      dsimp only [Pi.add_apply]
+      cases w k <;> cases tensor x x k <;> decide
     have hpt (y z : ι → Bool) : D y z =
         1 - if hadamardCode (w + tensor x x) (tensor y z) = true then 1 else 0 := by
       simp only [D, hadamardCode_add_left, hadamardCode_tensor_tensor]

@@ -66,11 +66,9 @@ theorem fastStep_of_bufEpFrame {base c U V w n_max ep : ℕ} {θ : SeedWhp c U n
         (dsimp only [mkBufRt, brHdrNA, brHdrIA, hdrBuf0NodeAlloc, hdrBuf0ItemAlloc,
           hdrBuf1NodeAlloc, hdrBuf1ItemAlloc];
          exact hne _ (by decide) (by decide)))
-  have hout : ∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → s'.mem a = s.mem a := by
-    intro a ha
-    rcases ha with hlt | hge
-    · exact hpre_tc0 a (by omega) (fun h _ _ => by omega)
-    · exact hbfr.mem_outside hep (Or.inr hge)
+  have hout : ∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → s'.mem a = s.mem a :=
+    fun a ha => ha.elim (fun _ => hpre_tc0 a (by omega) fun _ _ _ => by omega)
+      (hbfr.mem_outside hep ∘ Or.inr)
   have hseed' : SeedWhpMemRep base c U w n_max θ s'.mem :=
     hseed.congr_hash hw fun a ha1 ha2 =>
       (hpre_tc0 a (by omega) (fun h _ _ => by dsimp [offHashBkt] at ha1; omega)).symm
@@ -81,22 +79,14 @@ theorem fastStep_of_bufEpFrame {base c U V w n_max ep : ℕ} {θ : SeedWhp c U n
       readPacked (base + off) k w s'.mem idx = readPacked (base + off) k w s.mem idx :=
     fun hidx hhi hlo => readPacked_congr hw (hidx := hidx) fun a ⟨ha1, ha2⟩ =>
       hpre_tc0 a (by omega) (fun h _ _ => by omega)
-  dsimp only [FastMemRep] at hrep ⊢
+  dsimp only [FastMemRep] at hrep
   rcases hrep with ⟨hdc_le, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
     hqv, hloc, hbmeta, hbptr, hpool, hslices, hbuf0, hbuf1, hdirty⟩
-  refine ⟨hfr, hseed', ⟨hdc_le,
-    (hhdr 0 (by decide)).trans hm0,
-    (hhdr 1 (by decide)).trans hm1,
-    (hhdr 2 (by decide)).trans hm2,
-    (hhdr 3 (by decide)).trans hm3,
-    (hhdr 4 (by decide)).trans hm4,
-    (hhdr 5 (by decide)).trans hm5,
-    (hhdr 6 (by decide)).trans hm6,
-    (hhdr 7 (by decide)).trans hm7,
-    (hhdr 8 (by decide)).trans hm8,
-    (hhdr 9 (by decide)).trans hm9,
-    (hhdr 10 (by decide)).trans hm10,
-    (hhdr 11 (by decide)).trans hm11,
+  refine ⟨hfr, hseed', ?_, hout⟩
+  dsimp only [FastMemRep]
+  simp (disch := decide) only [hhdr, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
+    true_and]
+  refine ⟨hdc_le,
     fun i hi => ⟨(hrp_pre hi (by omega) (by omega)).trans (hqv i hi).1,
       (hrp_pre hi (by omega) (by omega)).trans (hqv i hi).2⟩,
     fun b hb loc hloc_lt => (hrp_pre (mul_add_lt_mul_bound hb hloc_lt) (by omega) (by omega)).trans
@@ -117,13 +107,13 @@ theorem fastStep_of_bufEpFrame {base c U V w n_max ep : ℕ} {θ : SeedWhp c U n
       (fun a ha1 ha2 => hpre_tc0 a ha2 (fun _ _ _ => by omega)) (hslices sIdx hsIdx),
     ?_, ?_,
     fun j hj => (hbfr.2 (3 * qEpochWhp n_max + j) (by omega)
-      (by dsimp only at hj; omega)).trans (hdirty j hj)⟩, hout⟩
+      (by omega)).trans (hdirty j hj)⟩
   · rcases hep with rfl | rfl
     · simpa only [Function.update_self] using htr'
-    · simpa only [Function.update_of_ne (by decide : (0 : ℕ) ≠ 1)] using
+    · simpa only [Function.update_of_ne Nat.zero_ne_one] using
         hbfr.other_bufTrieMemRep hw (Or.inr rfl) hbuf0
   · rcases hep with rfl | rfl
-    · simpa only [Function.update_of_ne (by decide : (1 : ℕ) ≠ 0)] using
+    · simpa only [Function.update_of_ne Nat.one_ne_zero] using
         hbfr.other_bufTrieMemRep hw (Or.inl rfl) hbuf1
     · simpa only [Function.update_self] using htr'
 
@@ -151,16 +141,13 @@ private theorem fastStep_of_sliceUpdate {base c U V w n_max sIdx : ℕ} {θ : Se
     FastStateStep base c U V w n_max θ
       { fs with slices := Function.update fs.slices sIdx sl' } s s' := by
   have hch := largeOffsetChain c U V w n_max
-  have hout : ∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → s'.mem a = s.mem a := by
-    intro a ha
-    rcases ha with hlt | hge
-    · exact hout_seg a (Or.inl (by omega))
-    · exact hout_seg a (Or.inr (Or.inr (by omega)))
+  have hout : ∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → s'.mem a = s.mem a :=
+    fun a ha => hout_seg a (by omega)
   have hseed' : SeedWhpMemRep base c U w n_max θ s'.mem :=
     hseed.congr_hash hw fun a _ ha2 => (hout_seg a (Or.inl (by omega))).symm
   have hhdr : ∀ h < 16, s'.mem (base + h) = s.mem (base + h) :=
     fun h _ => hout_seg (base + h) (Or.inl (by omega))
-  dsimp only [FastMemRep] at hrep ⊢
+  dsimp only [FastMemRep] at hrep
   rcases hrep with ⟨hdc_le, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
     hqv, hloc, hbmeta, hbptr, hpool, hslices, hbuf0, hbuf1, hdirty⟩
   have hbuf_c : ∀ ep, ep = 0 ∨ ep = 1 → ∀ tr,
@@ -171,19 +158,11 @@ private theorem fastStep_of_sliceUpdate {base c U V w n_max sIdx : ℕ} {θ : Se
       (fun id hid => readPacked_congr hw (hidx := show id < 6 * qEpochWhp n_max + 6 by omega)
         fun a ⟨ha1, _⟩ => hout_seg a (Or.inr (Or.inr (by omega))))
       (fun a ha1 _ => hout_seg a (Or.inr (Or.inr (by omega)))) htr
-  refine ⟨hfr, hseed', ⟨hdc_le,
-    (hhdr 0 (by decide)).trans hm0,
-    (hhdr 1 (by decide)).trans hm1,
-    (hhdr 2 (by decide)).trans hm2,
-    (hhdr 3 (by decide)).trans hm3,
-    (hhdr 4 (by decide)).trans hm4,
-    (hhdr 5 (by decide)).trans hm5,
-    (hhdr 6 (by decide)).trans hm6,
-    (hhdr 7 (by decide)).trans hm7,
-    (hhdr 8 (by decide)).trans hm8,
-    (hhdr 9 (by decide)).trans hm9,
-    (hhdr 10 (by decide)).trans hm10,
-    (hhdr 11 (by decide)).trans hm11,
+  refine ⟨hfr, hseed', ?_, hout⟩
+  dsimp only [FastMemRep]
+  simp (disch := decide) only [hhdr, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
+    true_and]
+  refine ⟨hdc_le,
     fun i hi => ⟨(readPacked_congr hw (hidx := hi) fun a ⟨_, ha2⟩ =>
         hout_seg a (Or.inl (by omega))).trans (hqv i hi).1,
       (readPacked_congr hw (hidx := hi) fun a ⟨_, ha2⟩ =>
@@ -205,8 +184,8 @@ private theorem fastStep_of_sliceUpdate {base c U V w n_max sIdx : ℕ} {θ : Se
     hbuf_c 0 (Or.inl rfl) _ hbuf0,
     hbuf_c 1 (Or.inr rfl) _ hbuf1,
     fun j hj => (readPacked_congr hw (hidx :=
-      show 3 * qEpochWhp n_max + j < 6 * qEpochWhp n_max + 6 by dsimp only at hj; omega)
-      fun a ⟨ha1, _⟩ => hout_seg a (Or.inr (Or.inr (by omega)))).trans (hdirty j hj)⟩, hout⟩
+      show 3 * qEpochWhp n_max + j < 6 * qEpochWhp n_max + 6 by omega)
+      fun a ⟨ha1, _⟩ => hout_seg a (Or.inr (Or.inr (by omega)))).trans (hdirty j hj)⟩
   by_cases heq : sIdx' = sIdx
   · subst heq; simpa only [Function.update_self] using hsl'
   · simpa only [Function.update_of_ne heq] using hoth sIdx' hsIdx' heq _ (hslices sIdx' hsIdx')
@@ -228,14 +207,10 @@ private theorem fastStep_of_btreeInPlace {base c U V w n_max sIdx : ℕ} {θ : S
     FastStateStep base c U V w n_max θ
       { fs with slices := Function.update fs.slices sIdx sl' } s s' := by
   have hch := largeOffsetChain c U V w n_max
-  refine fastStep_of_sliceUpdate hw hsIdx hfr hseed hrep hsl' hoth ?_ ?_
-  · intro idx hidx _ _
-    exact readPacked_congr hw (hidx := hidx) fun a ⟨_, ha2⟩ => hout a (Or.inl (by omega))
-  · intro a ha
-    rcases ha with h1 | ⟨_, h2⟩ | h3
-    · exact hout a (Or.inl (by omega))
-    · exact hout a (Or.inl h2)
-    · exact hout a (Or.inr h3)
+  exact fastStep_of_sliceUpdate hw hsIdx hfr hseed hrep hsl' hoth
+    (fun _ hidx _ _ => readPacked_congr hw (hidx := hidx) fun a ⟨_, _⟩ =>
+      hout a (Or.inl (by omega)))
+    fun a _ => hout a (by omega)
 
 theorem resetBTreeSliceGenProg_fastStep {c U V w n_max base sIdx : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} {s : Memory.State}
@@ -253,17 +228,9 @@ theorem resetBTreeSliceGenProg_fastStep {c U V w n_max base sIdx : ℕ} {θ : Se
   have hch := largeOffsetChain c U V w n_max
   obtain ⟨hfr, hmc, hvp, hsl0, hoth, hbm, hout⟩ :=
     resetBTreeSliceGenProg_spec henv.2.2.2.1 henv.2.1 henv.2.2.2.2.1 henv.2.2.2.2.2.1 hsIdx (s := s)
-  have hsl_reset : BTreeSliceMemRep base c U V w n_max sIdx
-      (resetBTreeSlice (fs.slices sIdx))
-      ((Memory.spec 0).clientState s
-        (resetBTreeSliceGenProg ((mkWhpCoreParams c U V w n_max, base), sIdx))).mem :=
-    ⟨hsl0.1, hsl0.2.1, hsl0.2.2.1, fun _ hu => absurd hu (Nat.not_lt_zero _)⟩
-  refine ⟨hmc, hvp, fastStep_of_sliceUpdate henv.2.1 hsIdx hfr hseed hrep hsl_reset hoth hbm ?_⟩
-  intro a ha
-  rcases ha with h1 | ⟨h2, _⟩ | h3
-  · exact hout a (Or.inl h1)
-  · exact hout a (Or.inr h2)
-  · exact hout a (Or.inr (by omega))
+  exact ⟨hmc, hvp, fastStep_of_sliceUpdate henv.2.1 hsIdx hfr hseed hrep
+    ⟨hsl0.1, hsl0.2.1, hsl0.2.2.1, fun _ hu => absurd hu (Nat.not_lt_zero _)⟩ hoth hbm
+    fun a _ => hout a (by omega)⟩
 
 theorem btreeDeleteGenProg_fastStep {c U V w n_max base sIdx insCount q : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {mapFn : ℕ → Option ℕ} {s : Memory.State}

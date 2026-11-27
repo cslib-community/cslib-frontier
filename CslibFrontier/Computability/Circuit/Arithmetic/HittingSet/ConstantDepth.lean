@@ -262,10 +262,8 @@ private theorem eventually_rootCost_lt_nodeCount (K : Type*) [Field K] (Δ c B :
 private theorem coeffs_injective (h : n ≤ prime t n ^ (8 * t + 2)) :
     Function.Injective (coeffs t n) := by
   intro i j hij
-  have hcard : Fintype.card (Fin (8 * t + 2) → ZMod (prime t n)) = prime t n ^ (8 * t + 2) := by
-    simp
   have := congrArg Fin.val ((Fintype.equivFin _).symm.injective hij)
-  simp only [hcard] at this
+  simp only [Fintype.card_fun, Fintype.card_fin, ZMod.card] at this
   rw [Nat.mod_eq_of_lt (i.2.trans_le h), Nat.mod_eq_of_lt (j.2.trans_le h)] at this
   exact Fin.ext this
 
@@ -307,13 +305,12 @@ private theorem card_le_two_pow_two_pow (K : Type*) [Field K] (c : ℕ) (ht : 1 
   rw [Fintype.card_prod, Fintype.card_fin, ZMod.card] at h1
   -- the grid size
   have hD : n ^ c * δ + 1 ≤ 2 ^ ((L + 1) * (c + 1)) := by
-    have hnc : n ^ c ≤ 2 ^ ((L + 1) * c) := by
-      rw [pow_mul]
-      exact Nat.pow_le_pow_left (Nat.lt_pow_succ_log_self one_lt_two n).le c
-    have hδ : δ + 1 ≤ 2 ^ (L + 1) := by
-      refine (depth_succ_le_dim t n).trans (Nat.pow_le_pow_right two_pos ?_)
-      exact (Nat.div_le_self _ _).trans (Nat.le_succ _)
-    have h1 : 1 ≤ n ^ c := Nat.one_le_pow _ _ hn
+    have hnc : n ^ c ≤ 2 ^ ((L + 1) * c) :=
+      pow_mul 2 (L + 1) c ▸ Nat.pow_le_pow_left (Nat.lt_pow_succ_log_self one_lt_two n).le c
+    have hδ : δ + 1 ≤ 2 ^ (L + 1) :=
+      (depth_succ_le_dim t n).trans
+        (Nat.pow_le_pow_right two_pos ((Nat.div_le_self _ _).trans (Nat.le_succ _)))
+    have := Nat.one_le_pow c n hn
     calc n ^ c * δ + 1 ≤ n ^ c * (δ + 1) := by nlinarith
       _ ≤ 2 ^ ((L + 1) * c) * 2 ^ (L + 1) := Nat.mul_le_mul hnc hδ
       _ = 2 ^ ((L + 1) * (c + 1)) := by rw [← pow_add]; ring_nf
@@ -324,7 +321,7 @@ private theorem card_le_two_pow_two_pow (K : Type*) [Field K] (c : ℕ) (ht : 1 
       calc numVars t n = δ * (ν * ν) := rfl
         _ ≤ ν * (ν * ν) := Nat.mul_le_mul_right _ hδν
         _ = ν ^ 3 := by ring
-    have hν1 : 1 ≤ ν ^ 3 := Nat.one_le_pow _ _ (NeZero.pos ν)
+    have := Nat.one_le_pow 3 ν (NeZero.pos ν)
     have hq : q ≤ 6 * ν ^ 3 := by
       have := prime_le t n
       omega
@@ -409,9 +406,8 @@ theorem eventually_isHittingSet_constantDepthHittingSet_circuit (K : Type*) [Fie
     (SPCircuit.productDepth_toSPFormula_le C).trans hCΔ, ?_⟩
   have h1 : 1 ≤ n ^ c := Nat.one_le_pow _ _ (by omega)
   have hbase : C.size + n + 1 ≤ n ^ (c + 2) := by
-    have h2 : n + 2 ≤ n ^ 2 := by nlinarith
-    have h3 := Nat.mul_le_mul_left (n ^ c) h2
-    have h4 := Nat.mul_le_mul_right n h1
+    have := Nat.mul_le_mul_left (n ^ c) (by nlinarith : n + 2 ≤ n ^ 2)
+    have := Nat.mul_le_mul_right n h1
     rw [pow_add]
     nlinarith
   calc C.toSPFormula.nodeCount ≤ (C.size + n + 1) ^ (2 * C.productDepth + 1) :=

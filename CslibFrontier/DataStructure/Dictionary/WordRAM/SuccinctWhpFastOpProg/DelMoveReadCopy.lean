@@ -87,8 +87,7 @@ theorem realizes_delMoveBufGen :
             ∃ m1, ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf 1) m1))
       (fun _ _ => 0) := by
   unfold delMoveBufGenProg
-  have hbi := realizes_bufInsertGen
-  realize
+  realize [realizes_bufInsertGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, loc_del⟩, ⟨st_last, rKey_last⟩⟩
     dsimp only at *
@@ -132,26 +131,14 @@ theorem delMoveBufGenProg_fastStep {c U V w n_max base b loc_del st_last rKey_la
     memoryCost prog s ≤ 20 * cTabWhp c + 24 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ { fs with buf := buf2 } s s' := by
-  dsimp only
   unfold delMoveBufGenProg
   simp only [pure_bind]
-  by_cases hs2 : st_last = 2
-  · simp only [hs2, ↓reduceIte]
-    obtain ⟨hna0, hia0, m0, hv0⟩ := h2 hs2
-    obtain ⟨hmc, hvp, hstep⟩ :=
-      bufInsertGenProg_fastStep henv (Or.inl rfl) hseed hrep hv0 hna0 hia0 hb hld
-        (rKey := rKey_last) (s := s)
-    exact ⟨hmc, hvp, hstep⟩
-  · simp only [hs2, ↓reduceIte]
-    by_cases hs3 : st_last = 3
-    · simp only [hs3, ↓reduceIte]
-      obtain ⟨hna1, hia1, m1, hv1⟩ := h3 hs3
-      obtain ⟨hmc, hvp, hstep⟩ :=
-        bufInsertGenProg_fastStep henv (Or.inr rfl) hseed hrep hv1 hna1 hia1 hb hld
-          (rKey := rKey_last) (s := s)
-      exact ⟨hmc, hvp, hstep⟩
-    · simp only [hs3, ↓reduceIte]
-      exact ⟨Nat.zero_le _, validProg_pure _, FastStateStep.refl hseed hrep⟩
+  split_ifs with hs2 hs3
+  · obtain ⟨hna0, hia0, m0, hv0⟩ := h2 hs2
+    exact bufInsertGenProg_fastStep henv (Or.inl rfl) hseed hrep hv0 hna0 hia0 hb hld
+  · obtain ⟨hna1, hia1, m1, hv1⟩ := h3 hs3
+    exact bufInsertGenProg_fastStep henv (Or.inr rfl) hseed hrep hv1 hna1 hia1 hb hld
+  · exact ⟨Nat.zero_le _, validProg_pure _, FastStateStep.refl hseed hrep⟩
 
 
 /-- Sub-helper 6.2d: copy `(quotArr[p_last], valArr[p_last], st_last)` into `(p_del, loc_del)`
@@ -185,13 +172,8 @@ theorem realizes_delCopySlotGen :
           fs.valArr (fs.physSlot n_max b loc_last) < 2 ^ valBits V)
       (fun _ _ => 0) := by
   unfold delCopySlotGenProg
-  have hps := realizes_physSlotGen
-  have hrq := realizes_readQuotGen
-  have hrv := realizes_readValGen
-  have hwq := realizes_writeQuotGen
-  have hwv := realizes_writeValGen
-  have hwl := realizes_writeFastLocGen
-  realize
+  realize [realizes_physSlotGen, realizes_readQuotGen, realizes_readValGen,
+    realizes_writeQuotGen, realizes_writeValGen, realizes_writeFastLocGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, ⟨loc_del, loc_last⟩⟩, st_last⟩
     dsimp only at *
@@ -269,32 +251,15 @@ theorem delCopySlotGenProg_fastStep
       fs.valArr (fs.physSlot n_max b loc_last)))
   obtain ⟨hwl_mc, hwl_vp, hwl_step⟩ :=
     writeFastLocGenProg_fastStep henv hb hld hst_lt hwv_step.2.1 hwv_step.2.2.1 (s := s2)
-  dsimp only
   unfold delCopySlotGenProg
-  have hs'_eq : (Memory.spec 0).clientState s
-      (physSlotGenProg (((cp, base), b), loc_last) >>= fun p_last =>
-        physSlotGenProg (((cp, base), b), loc_del) >>= fun p_del =>
-        readQuotGenProg ((cp, base), p_last) >>= fun q_last =>
-        readValGenProg ((cp, base), p_last) >>= fun v_last =>
-        writeQuotGenProg (((cp, base), p_del), q_last) >>= fun _ =>
-        writeValGenProg (((cp, base), p_del), v_last) >>= fun _ =>
-        writeFastLocGenProg ((((cp, base), b), loc_del), st_last)) =
-      (Memory.spec 0).clientState s2
-        (writeFastLocGenProg ((((cp, base), b), loc_del), st_last)) := by
-    rw [clientState_bind, hps1_st, hps1_res, clientState_bind, hps2_st, hps2_res,
-      clientState_bind, hrq_st, hrq_res, clientState_bind, hrv_st, hrv_res,
-      clientState_bind, clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, (hwq_step.trans hwv_step).trans hwl_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hps1_st, hps1_res, hps2_st, hps2_res, hrq_st, hrq_res, hrq_mc, hrv_st, hrv_res, hrv_mc]
-    dsimp only [s1, s2, cp] at hps1_mc hps2_mc hwq_mc hwv_mc hwl_mc ⊢
-    omega
-  · refine validProg_bind hps1_vp ?_; rw [hps1_st, hps1_res]
-    refine validProg_bind hps2_vp ?_; rw [hps2_st, hps2_res]
-    refine validProg_bind hrq_vp ?_; rw [hrq_st, hrq_res]
-    refine validProg_bind hrv_vp ?_; rw [hrv_st, hrv_res]
-    exact validProg_bind hwq_vp (validProg_bind hwv_vp hwl_vp)
+  exact CostBoundedStep.elim
+    (.bind ⟨hps1_st, hps1_res, hps1_mc, hps1_vp⟩ <|
+      .bind ⟨hps2_st, hps2_res, hps2_mc, hps2_vp⟩ <|
+      .bind ⟨hrq_st, hrq_res, hrq_mc.le, hrq_vp⟩ <|
+      .bind ⟨hrv_st, hrv_res, hrv_mc.le, hrv_vp⟩ <|
+      .bind ⟨rfl, rfl, hwq_mc.le, hwq_vp⟩ <|
+      .bind ⟨rfl, rfl, hwv_mc.le, hwv_vp⟩ ⟨rfl, rfl, hwl_mc.le, hwl_vp⟩)
+    (by omega) ((hwq_step.trans hwv_step).trans hwl_step)
 
 /-- Read `(st_last, rKey_last)` at `(b, loc_last)` without mutating memory. -/
 @[irreducible] private def delMoveReadStRkGenProg :
@@ -311,22 +276,19 @@ private theorem realizes_delMoveReadStRkGen :
       CoordHashPre
       (fun _ _ => 0) := by
   unfold delMoveReadStRkGenProg
-  have hrl := realizes_readFastLocGen
-  have hrk := realizes_rKeyAtGen
-  realize
+  realize [realizes_readFastLocGen, realizes_rKeyAtGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, loc_last⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep, hq_all, hb, hll, hbp_ll⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hq_all, hb, hll, hbp_ll⟩ := h
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
     obtain ⟨hst_l, _, _, _⟩ := readFastLocGenProg_spec henv hb hll hrep (s := s)
     obtain ⟨hrk_st, _, _, _⟩ := rKeyAtGenProg_spec henv hseed hrep hb hll hbp_ll (s := s)
-    simp only [hcp_eq] at *
-    simp only [hst_l, hrk_st, wp_large_M hth, wp_large_totalLoc hth] at *
+    simp only [hcp_eq, hst_l, hrk_st, wp_large_M hth, wp_large_totalLoc hth] at *
     first
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
     | exact hb
@@ -348,22 +310,19 @@ private theorem realizes_readLiveFpAtGen :
       CoordHashPre
       (fun _ _ => 0) := by
   unfold readLiveFpAtGenProg
-  have hrb := realizes_readBktFieldGen
-  have hfp := realizes_fpAtGen
-  realize
+  realize [realizes_readBktFieldGen, realizes_fpAtGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, loc_last⟩
     dsimp only at *
     simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep, hq_all, hb, hll, hbp_ll⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hq_all, hb, hll, hbp_ll⟩ := h
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
     obtain ⟨hs1_st, _, _, _⟩ := readBktFieldGenProg_spec henv hb (by decide : 1 < 10)
       hrep (s := s)
-    simp only [hcp_eq] at *
-    simp only [hs1_st, wp_large_M hth] at *
+    simp only [hcp_eq, hs1_st, wp_large_M hth] at *
     first
     | decide
     | exact henv.fits_const (by decide)
@@ -386,25 +345,68 @@ private theorem realizes_readCandFpAtGen :
       CoordHashPre
       (fun _ _ => 0) := by
   unfold readCandFpAtGenProg
-  have hrh := realizes_readHdr
-  have hfp := realizes_fpAtGen
-  realize
+  realize [realizes_readHdr, realizes_fpAtGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, loc_last⟩
     dsimp only at *
     simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep, hq_all, hb, hll, hbp_ll⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hq_all, hb, hll, hbp_ll⟩ := h
+    obtain rfl := henv.2.2.1
     obtain ⟨hcs_st, _, _, _⟩ := readHdrProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebCandSalt)
-      (by dsimp [hdrRebCandSalt]; omega) (s := s)
+      (by dsimp [hdrRebCandSalt, largeSpaceWhp]; omega) (s := s)
     simp only [hcs_st] at *
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by decide)
     | exact ⟨c, U, V, w, n_max, θ, fs, henv, rfl, hseed, hrep, hq_all, hb, hll, hbp_ll⟩
   )
+
+private theorem delMoveReadStRkGenProg_step {c U V w n_max base b loc_last : ℕ}
+    {θ : SeedWhp c U n_max} {fs : FastState} {s : Memory.State}
+    (henv : WhpLargeEnv c U V w n_max w base)
+    (hseed : SeedWhpMemRep base c U w n_max θ s.mem)
+    (hrep : FastMemRep base c U V w n_max fs s.mem)
+    (hb : b < numBucketsWhp n_max)
+    (hll : loc_last < totalLocalCoordsWhp n_max)
+    (hbp_ll : capFrontWhp n_max ≤ loc_last →
+      fs.backPtr b (loc_last - capFrontWhp n_max) < poolSizeWhp n_max) :
+    CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (delMoveReadStRkGenProg (((mkWhpParams c U V w n_max, base), b), loc_last)) s
+      (fs.locState b loc_last, fs.rKeyAt c U n_max θ b loc_last)
+      (hashEvalCostWhp c + 7) := by
+  have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
+    simp [mkWhpParams, Nat.not_lt.mpr henv.2.2.2.1]
+  obtain ⟨hst_l, hres_l, hmc_l, hvp_l⟩ := readFastLocGenProg_spec henv hb hll hrep (s := s)
+  obtain ⟨hrk_st, hrk_res, hrk_mc, hrk_vp⟩ :=
+    rKeyAtGenProg_spec henv hseed hrep hb hll hbp_ll (s := s)
+  rw [delMoveReadStRkGenProg, hwp1]
+  exact .mono (.bind ⟨hst_l, hres_l, hmc_l.le, hvp_l⟩ <|
+    .bind ⟨hrk_st, hrk_res, hrk_mc, hrk_vp⟩ <| .pure _ _) (by omega)
+
+private theorem readLiveFpAtGenProg_step {c U V w n_max base b loc_last : ℕ}
+    {θ : SeedWhp c U n_max} {fs : FastState} {s : Memory.State}
+    (henv : WhpLargeEnv c U V w n_max w base)
+    (hseed : SeedWhpMemRep base c U w n_max θ s.mem)
+    (hrep : FastMemRep base c U V w n_max fs s.mem)
+    (hb : b < numBucketsWhp n_max)
+    (hll : loc_last < totalLocalCoordsWhp n_max)
+    (hbp_ll : capFrontWhp n_max ≤ loc_last →
+      fs.backPtr b (loc_last - capFrontWhp n_max) < poolSizeWhp n_max) :
+    CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (readLiveFpAtGenProg (((mkWhpParams c U V w n_max, base), b), loc_last)) s
+      (fs.fpAt c U n_max θ (fs.bktSalt b) b loc_last)
+      (2 * hashEvalCostWhp c + 6) := by
+  have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
+    simp [mkWhpParams, Nat.not_lt.mpr henv.2.2.2.1]
+  obtain ⟨hs1_st, hs1_res, hs1_mc, hs1_vp⟩ :=
+    readBktFieldGenProg_spec henv hb (by decide : 1 < 10) hrep (s := s)
+  simp only [getBktField] at hs1_res
+  obtain ⟨hfp1_st, hfp1_res, hfp1_mc, hfp1_vp⟩ :=
+    fpAtGenProg_spec henv hseed hrep hb hll hbp_ll (salt := fs.bktSalt b) (s := s)
+  rw [readLiveFpAtGenProg, hwp1]
+  exact .mono (.bind ⟨hs1_st, hs1_res, hs1_mc.le, hs1_vp⟩ ⟨hfp1_st, hfp1_res, hfp1_mc, hfp1_vp⟩)
+    (by omega)
 
 /-- Read `(st_last, (rKey_last, (fp_live_last, fp_cand_last)))` for `fastDeleteMoveLastGenProg`
 without mutating memory. -/
@@ -434,106 +436,26 @@ theorem delMoveReadInfoGenProg_spec {c U V w n_max base b loc_last : ℕ}
          fs.fpAt c U n_max θ fs.rebCandSalt b loc_last))) ∧
     memoryCost prog s ≤ 5 * hashEvalCostWhp c + 18 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have hth := henv.2.2.2.1
-  have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-    simp [mkWhpParams, Nat.not_lt.mpr hth]
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-  set cp := mkWhpCoreParams c U V w n_max
-  set wp := mkWhpParams c U V w n_max
-  obtain ⟨hst_l, hres_l, hmc_l, hvp_l⟩ := readFastLocGenProg_spec henv hb hll hrep (s := s)
-  obtain ⟨hrk_st, hrk_res, hrk_mc, hrk_vp⟩ :=
-    rKeyAtGenProg_spec henv hseed hrep hb hll hbp_ll (s := s)
-  obtain ⟨hs1_st, hs1_res, hs1_mc, hs1_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 1 < 10) hrep (s := s)
-  simp only [getBktField] at hs1_res
-  obtain ⟨hfp1_st, hfp1_res, hfp1_mc, hfp1_vp⟩ :=
-    fpAtGenProg_spec henv hseed hrep hb hll hbp_ll (salt := fs.bktSalt b) (s := s)
+  have hsr := delMoveReadStRkGenProg_step henv hseed hrep hb hll hbp_ll (s := s)
+  have hfl := readLiveFpAtGenProg_step henv hseed hrep hb hll hbp_ll (s := s)
   obtain ⟨hcs_st, hcs_res, hcs_mc, hcs_vp⟩ := readHdrProg_spec (w := w)
     (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebCandSalt)
-    (by dsimp [hdrRebCandSalt]; omega) (s := s)
+    (by dsimp [hdrRebCandSalt, largeSpaceWhp]; omega) (s := s)
   rw [hrep.2.2.2.2.2.2.2.2.2.1] at hcs_res
   obtain ⟨hfp2_st, hfp2_res, hfp2_mc, hfp2_vp⟩ :=
     fpAtGenProg_spec henv hseed hrep hb hll hbp_ll (salt := fs.rebCandSalt) (s := s)
-  have hsr_st : (Memory.spec 0).clientState s
-      (delMoveReadStRkGenProg (((wp, base), b), loc_last)) = s := by
-    unfold delMoveReadStRkGenProg; dsimp only; rw [show wp.1 = cp from hwp1]
-    rw [clientState_bind, hst_l, hres_l, clientState_bind, hrk_st, hrk_res]; rfl
-  have hsr_res : (Memory.spec 0).clientResult s
-      (delMoveReadStRkGenProg (((wp, base), b), loc_last)) =
-      (fs.locState b loc_last, fs.rKeyAt c U n_max θ b loc_last) := by
-    unfold delMoveReadStRkGenProg; dsimp only; rw [show wp.1 = cp from hwp1]
-    rw [clientResult_bind, hst_l, hres_l, clientResult_bind, hrk_st, hrk_res]; rfl
-  have hsr_mc : memoryCost (delMoveReadStRkGenProg (((wp, base), b), loc_last)) s ≤
-      hashEvalCostWhp c + 7 := by
-    unfold delMoveReadStRkGenProg; dsimp only; rw [show wp.1 = cp from hwp1]
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst_l, hres_l, hmc_l, hrk_st, hrk_res, memoryCost_pure]
-    have hrk_mc' : memoryCost (rKeyAtGenProg (((wp, base), b), loc_last)) s ≤
-        hashEvalCostWhp c + 5 := hrk_mc
-    omega
-  have hsr_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-      (delMoveReadStRkGenProg (((wp, base), b), loc_last)) := by
-    unfold delMoveReadStRkGenProg; dsimp only; rw [show wp.1 = cp from hwp1]
-    refine validProg_bind hvp_l ?_; rw [hst_l, hres_l]
-    refine validProg_bind hrk_vp ?_; rw [hrk_st, hrk_res]
-    exact validProg_pure _
-  have hfl_st : (Memory.spec 0).clientState s
-      (readLiveFpAtGenProg (((wp, base), b), loc_last)) = s := by
-    unfold readLiveFpAtGenProg; dsimp only; rw [show wp.1 = cp from hwp1]
-    rw [clientState_bind, hs1_st, hs1_res, hfp1_st]
-  have hfl_res : (Memory.spec 0).clientResult s
-      (readLiveFpAtGenProg (((wp, base), b), loc_last)) =
-      fs.fpAt c U n_max θ (fs.bktSalt b) b loc_last := by
-    unfold readLiveFpAtGenProg; dsimp only; rw [show wp.1 = cp from hwp1]
-    rw [clientResult_bind, hs1_st, hs1_res, hfp1_res]
-  have hfl_mc : memoryCost (readLiveFpAtGenProg (((wp, base), b), loc_last)) s ≤
-      2 * hashEvalCostWhp c + 6 := by
-    unfold readLiveFpAtGenProg; dsimp only; rw [show wp.1 = cp from hwp1]
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hs1_st, hs1_res, hs1_mc]
-    have hfp1_mc' : memoryCost (fpAtGenProg ((((wp, base), fs.bktSalt b), b), loc_last)) s ≤
-        2 * hashEvalCostWhp c + 4 := hfp1_mc
-    omega
-  have hfl_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-      (readLiveFpAtGenProg (((wp, base), b), loc_last)) := by
-    unfold readLiveFpAtGenProg; dsimp only; rw [show wp.1 = cp from hwp1]
-    refine validProg_bind hs1_vp ?_; rw [hs1_st, hs1_res]; exact hfp1_vp
-  have hfc_st : (Memory.spec 0).clientState s
-      (readCandFpAtGenProg (((wp, base), b), loc_last)) = s := by
-    unfold readCandFpAtGenProg
-    rw [clientState_bind, hcs_st, hcs_res, hfp2_st]
-  have hfc_res : (Memory.spec 0).clientResult s
-      (readCandFpAtGenProg (((wp, base), b), loc_last)) =
-      fs.fpAt c U n_max θ fs.rebCandSalt b loc_last := by
-    unfold readCandFpAtGenProg
-    rw [clientResult_bind, hcs_st, hcs_res, hfp2_res]
-  have hfc_mc : memoryCost (readCandFpAtGenProg (((wp, base), b), loc_last)) s ≤
-      2 * hashEvalCostWhp c + 5 := by
-    unfold readCandFpAtGenProg
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hcs_st, hcs_res, hcs_mc]
-    have hfp2_mc' : memoryCost (fpAtGenProg ((((wp, base), fs.rebCandSalt), b), loc_last)) s ≤
-        2 * hashEvalCostWhp c + 4 := hfp2_mc
-    omega
-  have hfc_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-      (readCandFpAtGenProg (((wp, base), b), loc_last)) := by
-    unfold readCandFpAtGenProg
-    refine validProg_bind hcs_vp ?_; rw [hcs_st, hcs_res]; exact hfp2_vp
-  dsimp only
-  unfold delMoveReadInfoGenProg
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hsr_st, hsr_res, clientState_bind, hfl_st, hfl_res,
-      clientState_bind, hfc_st, hfc_res]; rfl
-  · rw [clientResult_bind, hsr_st, hsr_res, clientResult_bind, hfl_st, hfl_res,
-      clientResult_bind, hfc_st, hfc_res]; rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hsr_st, hsr_res, hfl_st, hfl_res, hfc_st, hfc_res, memoryCost_pure]
-    dsimp only [wp] at hsr_mc hfl_mc hfc_mc ⊢
-    omega
-  · refine validProg_bind hsr_vp ?_; rw [hsr_st, hsr_res]
-    refine validProg_bind hfl_vp ?_; rw [hfl_st, hfl_res]
-    refine validProg_bind hfc_vp ?_; rw [hfc_st, hfc_res]
-    exact validProg_pure _
+  have htot : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (delMoveReadInfoGenProg (((mkWhpParams c U V w n_max, base), b), loc_last)) s
+      (fs.locState b loc_last,
+       (fs.rKeyAt c U n_max θ b loc_last,
+        (fs.fpAt c U n_max θ (fs.bktSalt b) b loc_last,
+         fs.fpAt c U n_max θ fs.rebCandSalt b loc_last)))
+      (5 * hashEvalCostWhp c + 18) := by
+    unfold delMoveReadInfoGenProg readCandFpAtGenProg
+    exact .mono (.bind hsr <| .bind hfl <|
+      .bind (.bind ⟨hcs_st, hcs_res, hcs_mc.le, hcs_vp⟩ ⟨hfp2_st, hfp2_res, hfp2_mc, hfp2_vp⟩) <|
+      .pure _ _) (by omega)
+  exact ⟨htot.clientState_eq, htot.clientResult_eq, htot.memoryCost_le, htot.validProg⟩
 
 theorem realizes_delMoveReadInfoGen :
     Realizes .exact delMoveReadInfoGenProg
@@ -542,36 +464,15 @@ theorem realizes_delMoveReadInfoGen :
       CoordHashPre
       (fun _ _ => 0) := by
   unfold delMoveReadInfoGenProg
-  have hsr := realizes_delMoveReadStRkGen
-  have hfl := realizes_readLiveFpAtGen
-  have hfc := realizes_readCandFpAtGen
-  realize
+  realize [realizes_delMoveReadStRkGen, realizes_readLiveFpAtGen, realizes_readCandFpAtGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, loc_last⟩
     dsimp only at *
     simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep, hq_all, hb, hll, hbp_ll⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
-    have hth := henv.2.2.2.1
-    have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-      simp [mkWhpParams, Nat.not_lt.mpr hth]
-    obtain ⟨hst_l, hres_l, _, _⟩ := readFastLocGenProg_spec henv hb hll hrep (s := s)
-    obtain ⟨hrk_st, hrk_res, _, _⟩ := rKeyAtGenProg_spec henv hseed hrep hb hll hbp_ll (s := s)
-    obtain ⟨hs1_st, hs1_res, _, _⟩ :=
-      readBktFieldGenProg_spec henv hb (by decide : 1 < 10) hrep (s := s)
-    simp only [getBktField] at hs1_res
-    obtain ⟨hfp1_st, _, _, _⟩ :=
-      fpAtGenProg_spec henv hseed hrep hb hll hbp_ll (salt := fs.bktSalt b) (s := s)
-    have hsr_st : (Memory.spec 0).clientState s
-        (delMoveReadStRkGenProg (((mkWhpParams c U V w n_max, base), b), loc_last)) = s := by
-      unfold delMoveReadStRkGenProg; dsimp only; rw [hcp_eq]
-      rw [clientState_bind, hst_l, hres_l, clientState_bind, hrk_st, hrk_res]; rfl
-    have hfl_st : (Memory.spec 0).clientState s
-        (readLiveFpAtGenProg (((mkWhpParams c U V w n_max, base), b), loc_last)) = s := by
-      unfold readLiveFpAtGenProg; dsimp only; rw [hcp_eq]
-      rw [clientState_bind, hs1_st, hs1_res, hfp1_st]
-    rw [hsr_st] at *
-    rw [hfl_st] at *
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hq_all, hb, hll, hbp_ll⟩ := h
+    obtain rfl := henv.2.2.1
+    try rw [(delMoveReadStRkGenProg_step henv hseed hrep hb hll hbp_ll (s := s)).clientState_eq]
+    try rw [(readLiveFpAtGenProg_step henv hseed hrep hb hll hbp_ll (s := s)).clientState_eq]
     exact ⟨c, U, V, w, n_max, θ, fs, henv, rfl, hseed, hrep, hq_all, hb, hll, hbp_ll⟩
   )
 

@@ -54,11 +54,8 @@ theorem horizon_mul_lt (T : ℕ) : horizon T * blockWidth T < T + blockWidth T :
 
 /-- A positive time guess gives a nonzero schedule horizon. -/
 theorem horizon_pos {T : ℕ} (hT : 0 < T) : 0 < horizon T := by
-  have h := coverage T
-  by_contra hn
-  have hz : horizon T = 0 := by omega
-  rw [hz, Nat.zero_mul] at h
-  omega
+  by_contra! hz
+  simpa [Nat.le_zero.mp hz, hT.ne'] using coverage T
 
 /-- The chosen block square is at most four times the intended time-length product. -/
 theorem blockWidth_sq_le {T : ℕ} (hT : 0 < T) :
@@ -69,9 +66,7 @@ theorem blockWidth_sq_le {T : ℕ} (hT : 0 < T) :
   have hexp : 2 * ((T.size + T.size.size) / 2) ≤ T.size + T.size.size := by omega
   have hp := Nat.pow_le_pow_right (by decide : 1 ≤ (2 : ℕ)) hexp
   have hsq : 2 ^ (2 * ((T.size + T.size.size) / 2)) = blockWidth T ^ 2 := by
-    rw [blockWidth, ← pow_mul]
-    congr 1
-    omega
+    rw [blockWidth, ← pow_mul, Nat.mul_comm]
   rw [hsq, pow_add] at hp
   have hmul := Nat.mul_le_mul h₁ h₂
   nlinarith
@@ -89,9 +84,7 @@ theorem time_mul_size_lt_twice_blockWidth_sq (T : ℕ) :
   have hexp : T.size + T.size.size ≤ 2 * ((T.size + T.size.size) / 2) + 1 := by omega
   have hp := Nat.pow_le_pow_right (by decide : 1 ≤ (2 : ℕ)) hexp
   have hsq : 2 ^ (2 * ((T.size + T.size.size) / 2)) = blockWidth T ^ 2 := by
-    rw [blockWidth, ← pow_mul]
-    congr 1
-    omega
+    rw [blockWidth, ← pow_mul, Nat.mul_comm]
   simp only [pow_add, pow_one, hsq] at hp
   nlinarith
 
@@ -122,13 +115,9 @@ theorem horizon_mul_size_lt {T : ℕ} (hT : 0 < T) :
 /-- Block storage and horizon times binary time length balance within a fixed constant. -/
 theorem combined_le (T : ℕ) :
     blockWidth T + horizon T * T.size ≤ 5 * blockWidth T := by
-  by_cases hz : T = 0
-  · subst T
-    simp only [Nat.size_zero, Nat.mul_zero, Nat.add_zero]
-    omega
-  · have hq := horizon_mul_size_lt (Nat.pos_of_ne_zero hz)
-    have hs := size_lt_twice_blockWidth T
-    omega
+  rcases Nat.eq_zero_or_pos T with rfl | hT
+  · simp; omega
+  · linarith [horizon_mul_size_lt hT, size_lt_twice_blockWidth T]
 
 /-- An integer square bound for the complete balanced storage term. -/
 theorem combined_sq_le {T : ℕ} (hT : 0 < T) :

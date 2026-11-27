@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Counting the accepting coins in polynomial space
@@ -160,116 +161,91 @@ private theorem aliveStep_eq_replayStep (t : ℕ)
       cases MUnit.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
       | step => rfl
       | query op next =>
-        simp only [taggedStep, answerFromHistory, Bool.true_and, id_eq]
-        cases rest with
-        | nil => rfl
-        | cons e rest =>
-          obtain ⟨m, y⟩ := e
-          simp only [List.isEmpty_cons, Bool.false_eq_true, ite_false, List.headD_cons,
-            List.tail_cons, beq_iff_eq]
+        rcases rest with _ | ⟨⟨m, y⟩, rest⟩
+        · rfl
+        · simp only [taggedStep, answerFromHistory, Bool.true_and, id_eq, List.isEmpty_cons,
+            Bool.false_eq_true, ite_false, List.headD_cons, List.tail_cons, beq_iff_eq]
           split_ifs with hm <;> simp
 
-/-- The live replay follows the replay while it succeeds, and dies when it fails (recording the
-channel message when it pauses on an empty history). -/
+private theorem foldl_bind_error {α β γ : Type*} (f : β → γ → Except α β) (l : List γ) (e : α) :
+    l.foldl (fun (acc : Except α β) x => acc.bind fun b => f b x) (.error e) = .error e := by
+  induction l with
+  | nil => rfl
+  | cons _ _ ih => exact ih
+
+/-- The live replay follows the replay while it succeeds, and freezes at the failing configuration
+on the first error (recording the channel message when pausing on an empty history). -/
 private theorem foldl_aliveStep (t : ℕ) (l : List Bool)
-    (acc : Except (Option (List Bool))
-      (MultiTapeMachine.FiniteConfig k Bool Control Unit × History))
-    (s : AliveState k Control Unit (List Bool × List Bool))
-    (hs : (∀ p, acc = .ok p → s = (p.1, p.2, true)) ∧
-      (∀ e, acc = .error e → s.2.2 = false) ∧
-      (∀ m, acc = .error (some m) → (s.1.channels ()).1 = m)) :
-    (∀ p, l.foldl (fun acc b => acc.bind fun p => replayStep MUnit t p b) acc = .ok p →
-        l.foldl (aliveStep (fun _ _ => true) id MUnit t) s = (p.1, p.2, true)) ∧
-      (∀ e, l.foldl (fun acc b => acc.bind fun p => replayStep MUnit t p b) acc = .error e →
-        (l.foldl (aliveStep (fun _ _ => true) id MUnit t) s).2.2 = false) ∧
-      (∀ m, l.foldl (fun acc b => acc.bind fun p => replayStep MUnit t p b) acc = .error (some m) →
-        ((l.foldl (aliveStep (fun _ _ => true) id MUnit t) s).1.channels ()).1 = m) := by
-  induction l generalizing acc s with
-  | nil => exact hs
+    (cfg : MultiTapeMachine.FiniteConfig k Bool Control Unit) (h : History) :
+    match l.foldl (fun acc b => Except.bind acc fun p => replayStep MUnit t p b) (.ok (cfg, h))
+    with
+    | .ok p => l.foldl (aliveStep (fun _ _ => true) id MUnit t) (cfg, h, true) = (p.1, p.2, true)
+    | .error e =>
+      (l.foldl (aliveStep (fun _ _ => true) id MUnit t) (cfg, h, true)).2.2 = false ∧
+      (∀ m, e = some m →
+        ((l.foldl (aliveStep (fun _ _ => true) id MUnit t) (cfg, h, true)).1.channels ()).1
+          = m) := by
+  induction l generalizing cfg h with
+  | nil => rfl
   | cons b l ih =>
-    refine ih _ _ ⟨fun p hp => ?_, fun e he => ?_, fun m hm => ?_⟩
-    · rcases acc with e | q
-      · cases hp
-      · rw [hs.1 q rfl]
-        change replayStep MUnit t q b = .ok p at hp
-        simp only [aliveStep_eq_replayStep, ite_true, hp]
-    · rcases acc with e' | q
-      · have := hs.2.1 e' rfl
-        simp [aliveStep_eq_replayStep, this]
-      · rw [hs.1 q rfl]
-        change replayStep MUnit t q b = .error e at he
-        simp only [aliveStep_eq_replayStep, ite_true, he]
-    · rcases acc with (_ | m') | ⟨cfg, rest⟩
-      · cases hm
-      · change Except.error (some m') = Except.error (some m) at hm
-        simp only [Except.error.injEq, Option.some.injEq] at hm
-        subst hm
-        have hfalse := hs.2.1 (some m') rfl
-        rw [aliveStep_eq_replayStep, ite_eq_right (fun h => by simp [hfalse] at h)]
-        exact hs.2.2 m' rfl
-      · rw [hs.1 (cfg, rest) rfl]
-        change replayStep MUnit t (cfg, rest) b = .error (some m) at hm
-        simp only [aliveStep_eq_replayStep, ite_true, hm]
-        unfold replayStep at hm
-        cases hst : cfg.tapes.state with
-        | none => simp only [hst] at hm; cases hm
-        | some c =>
-          simp only [hst] at hm
-          cases htr : MUnit.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-              cfg.answerSymbols b with
-          | step => simp only [htr] at hm; cases hm
-          | query op next =>
-            simp only [htr] at hm
-            cases hrest : rest with
-            | nil =>
-              simp only [hrest, Except.error.injEq, Option.some.injEq] at hm
-              exact hm
-            | cons e rest' =>
-              simp only [hrest] at hm
-              split_ifs at hm
-              cases hm
+    have hbind : (Except.ok (cfg, h)).bind (fun p => replayStep MUnit t p b) =
+        replayStep MUnit t (cfg, h) b := rfl
+    simp only [List.foldl_cons, aliveStep_eq_replayStep, ite_true, hbind]
+    rcases hr : replayStep MUnit t (cfg, h) b with e | ⟨cfg', h'⟩
+    · simp only [foldl_bind_error, foldl_aliveStep_false, true_and]
+      rintro m rfl
+      unfold replayStep at hr
+      cases hst : cfg.tapes.state with
+      | none => simp [hst] at hr
+      | some c =>
+        simp only [hst] at hr
+        cases htr : MUnit.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
+            cfg.answerSymbols b with
+        | step => simp [htr] at hr
+        | query op next =>
+          cases h with
+          | nil => simpa [htr] using hr
+          | cons _ _ => simp only [htr] at hr; split_ifs at hr; cases hr
+    · exact ih cfg' h'
+
+private theorem aliveRun_spec (x r : List Bool) (h : History) :
+    match simulate MUnit r.length x r h with
+    | .ok p => aliveRun (fun _ _ => true) id MUnit x r h = (p.1, p.2, true)
+    | .error e =>
+      (aliveRun (fun _ _ => true) id MUnit x r h).2.2 = false ∧
+      (∀ m, e = some m → ((aliveRun (fun _ _ => true) id MUnit x r h).1.channels ()).1 = m) :=
+  foldl_aliveStep MUnit r.length r (MultiTapeMachine.FiniteConfig.init MUnit.initial x) h
 
 /-- When the replay succeeds on `x`, `r`, `h`, the live replay stops at the same state and stays
 live. -/
 theorem aliveRun_of_simulate_ok {x r : List Bool} {h : History}
     {p : MultiTapeMachine.FiniteConfig k Bool Control Unit × History}
     (hsim : simulate MUnit r.length x r h = .ok p) :
-    aliveRun (fun _ _ => true) id MUnit x r h = (p.1, p.2, true) :=
-  (foldl_aliveStep MUnit r.length r (.ok (MultiTapeMachine.FiniteConfig.init MUnit.initial x, h))
-    (MultiTapeMachine.FiniteConfig.init MUnit.initial x, h, true)
-    ⟨fun q hq => by simp only [Except.ok.injEq] at hq; subst hq; rfl,
-      ⟨fun e he => (by cases he), fun m hm => (by cases hm)⟩⟩).1 p hsim
+    aliveRun (fun _ _ => true) id MUnit x r h = (p.1, p.2, true) := by
+  simpa [hsim] using aliveRun_spec MUnit x r h
 
 /-- When the replay pauses waiting for a reply to `m`, the live replay stops inactive with `m` on
 channel `()`. -/
 theorem aliveRun_of_simulate_error_some {x r : List Bool} {h : History} {m : List Bool}
     (hsim : simulate MUnit r.length x r h = .error (some m)) :
     ∃ cfg rem, aliveRun (fun _ _ => true) id MUnit x r h = (cfg, rem, false) ∧
-      (cfg.channels ()).1 = m :=
-  have hrun := foldl_aliveStep MUnit r.length r
-    (.ok (MultiTapeMachine.FiniteConfig.init MUnit.initial x, h))
-    (MultiTapeMachine.FiniteConfig.init MUnit.initial x, h, true)
-    ⟨fun q hq => by simp only [Except.ok.injEq] at hq; subst hq; rfl,
-      ⟨fun e he => (by cases he), fun m' hm => (by cases hm)⟩⟩
-  ⟨_, _, Prod.ext rfl (Prod.ext rfl (hrun.2.1 (some m) hsim)), hrun.2.2 m hsim⟩
+      (cfg.channels ()).1 = m := by
+  have hrun := aliveRun_spec MUnit x r h
+  rw [hsim] at hrun
+  exact ⟨_, _, Prod.ext rfl (Prod.ext rfl hrun.1), hrun.2 m rfl⟩
 
 /-- **The live replay decides acceptance**: `accepts` holds exactly when the program of the coins
 accepts after the history. -/
 theorem accepts_eq_true_iff (x r : List Bool) (h : History) :
     accepts (fun _ _ => true) id MUnit x r h = true ↔
       outcome (coinProgram MUnit r.length x r) h = .done true := by
-  have hrun := foldl_aliveStep MUnit r.length r
-    (.ok (MultiTapeMachine.FiniteConfig.init MUnit.initial x, h))
-    (MultiTapeMachine.FiniteConfig.init MUnit.initial x, h, true)
-    ⟨fun p hp => by simp only [Except.ok.injEq] at hp; subst hp; rfl,
-      ⟨fun e he => (by cases he), fun m hm => (by cases hm)⟩⟩
+  have hrun := aliveRun_spec MUnit x r h
   rw [outcome_coinProgram]
-  unfold accepts aliveRun
-  rcases hsim : simulate MUnit r.length x r h with e | ⟨cfg, rest⟩
-  · have hdead := hrun.2.1 e hsim
-    simp only [hdead, Bool.false_and, Bool.false_eq_true, false_iff]
+  unfold accepts
+  rcases hsim : simulate MUnit r.length x r h with e | ⟨cfg, rest⟩ <;> rw [hsim] at hrun
+  · simp only [hrun.1, Bool.false_and, Bool.false_eq_true, false_iff]
     rcases e with _ | m <;> simp [Except.map, replayOutcome]
-  · rw [hrun.1 _ hsim]
+  · rw [hrun]
     cases rest <;> simp [Except.map, replayOutcome]
 
 /-- `accepts_eq_true_iff` for any number of coins equal to the length of the coins. -/
@@ -342,14 +318,12 @@ private theorem computableInPolyTime_aliveStep :
       Operation)))) ?_ ?_
   · have h := computableInPolyTime_instruction M
     fun_prop
-  · rintro ⟨_ | _, _ | (⟨action, symbol, move⟩ | ⟨op, next⟩)⟩
-    · exact (fst _ _).snd'
-    · exact (fst _ _).snd'
-    · exact (fst _ _).snd'
-    · exact (fst _ _).snd'
-    · simp only [taggedStep]
-      fun_prop
-    · exact computableInPolyTime_answerFromHistory matchOp entryPair hmatch hpair op next
+  · intro tag
+    match tag with
+    | (false, _) | (true, none) => exact (fst _ _).snd'
+    | (true, some (.step action symbol move)) => fun_prop [taggedStep]
+    | (true, some (.query op next)) =>
+      exact computableInPolyTime_answerFromHistory matchOp entryPair hmatch hpair op next
 
 omit [Finite Control] [Fintype Operation] in
 /-- A step of the live replay grows the storage by a bounded amount and consumes the history. -/
@@ -377,12 +351,11 @@ private theorem aliveStep_spaceBound {n i t : ℕ} {h : List Entry}
         | cons e rest =>
           simp only [List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte, List.headD_cons,
             List.tail_cons]
-          by_cases hcond : (matchOp op e && (entryPair e).1 == (cfg.channels op).1) = true
-          · simp only [hcond, ↓reduceIte]
-            exact ⟨hspace.receive op next _ (List.length_take_le _ _),
+          by_cases hcond : (matchOp op e && (entryPair e).1 == (cfg.channels op).1) = true <;>
+            simp only [hcond, ↓reduceIte]
+          · exact ⟨hspace.receive op next _ (List.length_take_le _ _),
               (List.suffix_cons _ _).trans hsuffix⟩
-          · simp only [hcond]
-            exact ⟨hspace.mono le_rfl (by lia) le_rfl, hsuffix⟩
+          · exact ⟨hspace.mono le_rfl (by lia) le_rfl, hsuffix⟩
 
 include hmatch hpair in
 /-- **The live replay is polynomial-time** in the input, the coins and the history. -/
@@ -406,19 +379,18 @@ theorem computableInPolyTime_aliveRun :
     (size := fun p => 2 * cf * (3 *
       (encPair encBits (encPair encBits (encList encEntry)) p).length + 1) +
       2 * (encPair encBits (encPair encBits (encList encEntry)) p).length + 3)
-    (PolyBounded.of_forall_le (2 * cf * 3 + 2 * cf + 2 + 3) 1 fun p => by
-      simp only [pow_one]
-      nlinarith)
+    (by growth_poly)
     (fun p consumed s hprefix hs => ?_)).1
   have hcfg := hcf _ _ _ _ hs.1
   have hhist := length_encList_sublist encEntry hs.2.sublist
   have hcons : consumed.length ≤ p.2.1.length := hprefix.length_le
   simp only [encAliveState, length_encPair, encBool_apply, List.length_singleton, encBits_apply]
     at hcfg hhist ⊢
-  have hcfg' := hcfg.trans (Nat.mul_le_mul_left cf (show p.1.length + consumed.length +
-    p.2.1.length + 1 ≤ 3 * (2 * p.1.length + 1 + (2 * p.2.1.length + 1 +
-      (encList encEntry p.2.2).length)) + 1 by lia))
-  nlinarith
+  have hcfg' := Nat.mul_le_mul_left 2 (hcfg.trans (Nat.mul_le_mul_left cf
+    (show p.1.length + consumed.length + p.2.1.length + 1 ≤ 3 * (2 * p.1.length + 1 +
+      (2 * p.2.1.length + 1 + (encList encEntry p.2.2).length)) + 1 by lia)))
+  rw [← Nat.mul_assoc] at hcfg'
+  lia
 
 omit [Fintype Operation] in
 include hmatch hpair in
@@ -428,10 +400,8 @@ theorem computableInPolyTime_accepts [Finite Operation] :
       accepts matchOp entryPair M p.1 p.2.1 p.2.2)
       (encPair encBits (encPair encBits (encList encEntry))) encBool := by
   cases nonempty_fintype Operation
-  have h := computableInPolyTime_aliveRun matchOp entryPair M
-    (encEntry := encEntry) hmatch hpair
-  unfold accepts
-  fun_prop
+  have := computableInPolyTime_aliveRun matchOp entryPair M (encEntry := encEntry) hmatch hpair
+  fun_prop [accepts]
 
 end PolyTime
 
@@ -464,18 +434,14 @@ theorem computableInPolySpace_countAccepts [Finite Control]
     (hfuel : Turing.MultiTapeTM.ComputableInPolyTime fuel enc encUnary) :
     Turing.MultiTapeTM.ComputableInPolySpace (countAccepts MUnit enc fuel) (encPair enc encHistory)
       encNat := by
-  have hfuel' : ComputableInPolyTime (fun q : α × History => fuel q.1)
-      (encPair enc encHistory) encUnary := hfuel.comp (ComputableInPolyTime.fst _ _)
-  have hacc := (computableInPolyTime_accepts (fun _ _ => true) id MUnit
-    (encEntry := encPair encBits encBits)
-    (fun _ => (ComputableInPolyTime.const true))
-    (ComputableInPolyTime.id'))
+  have hacc := computableInPolyTime_accepts (fun _ _ => true) id MUnit
+    (encEntry := encPair encBits encBits) (fun _ => .const true) .id'
   have hverify : ComputableInPolyTime
       (fun p : (α × History) × List Bool =>
         accepts (fun _ _ => true) id MUnit (enc p.1.1) p.2 p.1.2)
       (encPair (encPair enc encHistory) encBits) encBool := by fun_prop
-  exact (computableInPolySpace_acceptCount (.of_polyTime hverify) (hfuel')).congr fun q =>
-    (streamAcceptCount_eq_acceptCount _ q _).symm
+  exact (computableInPolySpace_acceptCount (.of_polyTime hverify)
+    (hfuel.comp (.fst _ _))).congr fun q => (streamAcceptCount_eq_acceptCount _ q _).symm
 
 end Count
 

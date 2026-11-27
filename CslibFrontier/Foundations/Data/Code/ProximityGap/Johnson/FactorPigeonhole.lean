@@ -53,12 +53,8 @@ private theorem exists_eq_C_mul_prod_irreducible_of_ufd {R : Type*} [CommRing R]
   let all := UniqueFactorizationMonoid.factors Q
   obtain ⟨u, hu⟩ := UniqueFactorizationMonoid.factors_prod hQ
   let fs₀ := all.filter (fun f => f.natDegree = 0)
-  let fs := all.filter (fun f => 1 ≤ f.natDegree)
-  have hsplit : all = fs₀ + fs := by
-    have h1 : fs = all.filter (fun f => ¬ f.natDegree = 0) :=
-      Multiset.filter_congr (fun _ _ => by omega)
-    rw [h1]
-    exact (Multiset.filter_add_not (fun f : R[X] => f.natDegree = 0) all).symm
+  let fs := all.filter (fun f => ¬ f.natDegree = 0)
+  have hsplit : all = fs₀ + fs := (Multiset.filter_add_not _ all).symm
   have hirred : ∀ f ∈ all, Irreducible f := UniqueFactorizationMonoid.irreducible_of_factor
   have hfs₀_deg : fs₀.prod.natDegree = 0 := by
     have hne : ∀ f ∈ fs₀, f ≠ 0 := fun f hf =>
@@ -74,35 +70,26 @@ private theorem exists_eq_C_mul_prod_irreducible_of_ufd {R : Type*} [CommRing R]
     change (all.prod * (u : R[X])) = _
     rw [hsplit, Multiset.prod_add]
     ring
-  have hc0 : fs₀.prod.coeff 0 * (u : R[X]).coeff 0 ≠ 0 := by
-    intro h0
-    apply hQ
-    rw [hQ_eq, h0, map_zero, zero_mul]
+  have hc0 : fs₀.prod.coeff 0 * (u : R[X]).coeff 0 ≠ 0 := fun h0 =>
+    hQ (by rw [hQ_eq, h0, map_zero, zero_mul])
   exact ⟨_, fs, hc0, fun f hf => ⟨hirred f (Multiset.mem_of_mem_filter hf),
-    (Multiset.mem_filter.1 hf).2⟩, hQ_eq⟩
+    Nat.one_le_iff_ne_zero.2 (Multiset.mem_filter.1 hf).2⟩, hQ_eq⟩
 
 private theorem weightedDegree_evZ₂_le {d : ℕ} (z : F) (Q : F[X][X][X]) :
-    weightedDegree d (evZ₂ z Q) ≤ weightedDegree d Q := by
-  exact weightedDegree_map_le (evZ z) d Q
+    weightedDegree d (evZ₂ z Q) ≤ weightedDegree d Q :=
+  weightedDegree_map_le (evZ z) d Q
 
 private theorem card_filter_evZ₂_eq_zero_le [DecidableEq F] {Q : F[X][X][X]} (hQ : Q ≠ 0)
     (T : Finset F) :
     #(T.filter fun z => evZ₂ z Q = 0) ≤ degZ Q := by
   classical
-  have hex : ∃ b a, (Q.coeff b).coeff a ≠ 0 := by
-    by_contra hall
-    push Not at hall
-    apply hQ
-    ext b a : 4
-    simpa using hall b a
-  rcases hex with ⟨b, a, hab⟩
+  obtain ⟨b, a, hab⟩ : ∃ b a, (Q.coeff b).coeff a ≠ 0 := by
+    by_contra! hall
+    exact hQ (by ext b a : 4; simpa using hall b a)
   set c₀ : F[X] := (Q.coeff b).coeff a
-  have hsub : T.filter (fun z => evZ₂ z Q = 0) ⊆ T.filter (fun z => c₀.eval z = 0) := by
-    intro z hz
-    rw [mem_filter] at hz ⊢
-    refine ⟨hz.1, ?_⟩
-    have hcoeff := congrArg (fun R : F[X][X] => (R.coeff b).coeff a) hz.2
-    simpa [evZ₂, evZ₁, evZ, c₀] using hcoeff
+  have hsub : T.filter (fun z => evZ₂ z Q = 0) ⊆ T.filter (fun z => c₀.eval z = 0) :=
+    Finset.monotone_filter_right T fun z _ hz => by
+      simpa [evZ₂, evZ₁, evZ, c₀] using congrArg (fun R : F[X][X] => (R.coeff b).coeff a) hz
   exact (card_le_card hsub).trans
     ((card_filter_eval_eq_zero_le hab T).trans (degZ_le_iff.1 le_rfl a b))
 
@@ -117,26 +104,20 @@ private theorem pos_params_of_interpolation {ι : Type*} [Fintype ι] {W : ι �
     1 ≤ W_tot ∧ 1 ≤ D := by
   have hB_pos : 1 ≤ B_W := by
     by_contra h0
-    have hdiv : (B_W + M - 1) / M = 0 := by
-      rw [show B_W = 0 by omega, zero_add]; exact Nat.div_eq_of_lt (by omega)
+    have hdiv : (B_W + M - 1) / M = 0 := Nat.div_eq_of_lt (by omega)
     omega
-  have hW_tot_pos : 1 ≤ W_tot :=
-    hB_pos.trans (hA.trans ((Finset.sum_le_sum_of_subset (Finset.subset_univ _)).trans hW_sum))
   have hcard_pos : 1 ≤ Fintype.card ι :=
     (hk.trans hk_le_t).trans ((ceil_div_le_card_of_sum_le hM hW_le hA).trans (card_le_univ _))
-  have hD_pos : 1 ≤ D := by
-    by_contra h0
-    have htri : 1 ≤ m * (m + 1) / 2 := by
-      have : 2 ≤ m * (m + 1) := Nat.mul_le_mul hm (by omega : 2 ≤ m + 1)
-      omega
-    have hmon0 : #(Sudan.monomials d 0) ≤ 1 := by
-      refine (card_le_card (t := {(0, 0)}) fun p hp => mem_singleton.2 ?_).trans (by simp)
-      obtain ⟨h1, h2, _⟩ := Sudan.mem_monomials.1 hp
-      exact Prod.ext (by omega) (by omega)
-    rw [show D = 0 by omega] at hinterp
-    have := Nat.mul_pos hcard_pos htri
-    omega
-  exact ⟨hW_tot_pos, hD_pos⟩
+  refine ⟨hB_pos.trans (hA.trans ((sum_le_sum_of_subset (subset_univ _)).trans hW_sum)), ?_⟩
+  by_contra h0
+  obtain rfl : D = 0 := by omega
+  have hpos : 0 < Fintype.card ι * (m * (m + 1) / 2) := Nat.mul_pos hcard_pos
+    (Nat.div_pos ((Nat.succ_le_succ hm).trans (Nat.le_mul_of_pos_left _ hm)) zero_lt_two)
+  have hmon0 : #(Sudan.monomials d 0) ≤ 1 := card_le_one.2 fun a ha b hb => by
+    obtain ⟨ha1, ha2, _⟩ := Sudan.mem_monomials.1 ha
+    obtain ⟨hb1, hb2, _⟩ := Sudan.mem_monomials.1 hb
+    exact Prod.ext (by omega) (by omega)
+  omega
 
 /-- Step 2 (UFD factorization in `F[Z][X][Y]` and pigeonhole onto a single irreducible factor `R`).
 -/

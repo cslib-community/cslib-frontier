@@ -108,8 +108,7 @@ theorem isReceiverStrategyProof_receiverDeferredAcceptance :
     (receiverDeferredAcceptance (n := n)).IsReceiverStrategyProof := by
   intro I r π
   have h := I.swap.propRank_deferredAcceptance_le_updatePropPref r π
-  rw [← Instance.swap_updateRecvPref] at h
-  exact h
+  rwa [← Instance.swap_updateRecvPref] at h
 
 /-! ### Roth's impossibility theorem -/
 
@@ -157,16 +156,10 @@ theorem not_isStable_and_strategyProof (M : MatchingMechanism 3) :
     ¬ (M.IsStable ∧ M.IsProposerStrategyProof ∧ M.IsReceiverStrategyProof) := by
   rintro ⟨hs, hp, hr⟩
   rcases (rothInstance_isStable_iff _).1 (hs rothInstance) with h | h
-  · have h1 := hr rothInstance 0 (permOfInjective ![2, 0, 1])
-    have h2 := rothInstance_receiver_gains
-      (hs (rothInstance.updateRecvPref 0 (permOfInjective ![2, 0, 1])))
-    rw [h] at h1
-    exact absurd h1 (not_le_of_gt h2)
-  · have h1 := hp rothInstance 1 (permOfInjective ![0, 1, 2])
-    have h2 := rothInstance_proposer_gains
-      (hs (rothInstance.updatePropPref 1 (permOfInjective ![0, 1, 2])))
-    rw [h] at h1
-    exact absurd h1 (not_le_of_gt h2)
+  · exact (not_le_of_gt (rothInstance_receiver_gains (hs _)))
+      (h ▸ hr rothInstance 0 (permOfInjective ![2, 0, 1]))
+  · exact (not_le_of_gt (rothInstance_proposer_gains (hs _)))
+      (h ▸ hp rothInstance 1 (permOfInjective ![0, 1, 2]))
 
 end MatchingMechanism
 

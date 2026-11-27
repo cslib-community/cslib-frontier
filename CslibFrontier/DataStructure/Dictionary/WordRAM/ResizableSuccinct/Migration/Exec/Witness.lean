@@ -496,24 +496,13 @@ theorem tmpReadOldKV_out_0 :
   (wStreamAll.code_spec mFr srcStreamAll tmpStreamAll
     tmpStreamAll_inj srcStreamAll_ne_tmp tmpStreamAll_ne_mFr srcStreamAll_ne_mFr).1
 
-theorem le_offCompItems_225 (U w N : ℕ) : 225 ≤ offCompItems U w N := by
-  unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
-
 theorem growZeroPost_regs_of_not_mem {s : RData rResize} {reg : Fin rResize}
     (hreg : reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize))) :
     (growZeroPost mK mRes mCur mIdx mZero mOne s).regs reg = s.regs reg := by
   simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hreg
-  obtain ⟨h1, h2, h3, h4, h5⟩ := hreg
-  dsimp only [growZeroPost]
-  rw [Function.update_of_ne h2, Function.update_of_ne h3, Function.update_of_ne h1,
-    Function.update_of_ne h5, Function.update_of_ne h4]
-
-theorem targetCap_bounds_of_pos {U n : ℕ} (hn : 1 ≤ n) (hnU : n ≤ U) :
-    1 ≤ targetCap U n ∧ n ≤ targetCap U n ∧ targetCap U n ≤ 2 * n ∧ targetCap U n ≤ U := by
-  unfold targetCap
-  rw [ite_eq_right (by omega)]
-  exact ⟨le_min (by omega) (hn.trans hnU), le_min (by omega) hnU,
-    min_le_left _ _, min_le_right _ _⟩
+  simp only [growZeroPost, Function.update_of_ne hreg.2.1, Function.update_of_ne hreg.2.2.1,
+    Function.update_of_ne hreg.1, Function.update_of_ne hreg.2.2.2.2,
+    Function.update_of_ne hreg.2.2.2.1]
 
 theorem fixedCoupled_of_shift {metaBase srcItemBase dstItemBase U V w N n : ℕ}
     {s_fix s₀ s₁ : Memory.State} (hw : 0 < w)
@@ -544,38 +533,31 @@ theorem fixedCoupled_of_shift {metaBase srcItemBase dstItemBase U V w N n : ℕ}
     rw [hitem (a - srcItemBase) (by omega), Nat.add_sub_of_le ha.1]
   have hmem_sh_add : ∀ off, mem_sh (srcItemBase + off) = s₁.mem (dstItemBase + off) := fun off => by
     dsimp only [mem_sh]; rw [Nat.add_sub_cancel_left]
-  have hq_eq : compQuotAt dstItemBase U V w N n s₁.mem = compQuotAt srcItemBase U V w N n s₀.mem :=
-    by
-      rw [← compQuotAt_congr (itemBase := srcItemBase) (U := U) (V := V) (N := N) (n := n) hw
-        hitem_congr]
-      funext idx; unfold compQuotAt readBitSlice; dsimp only
-      split_ifs <;> [simp only [Nat.add_assoc, hmem_sh_add]; rfl]
-  have hv_eq : compValAt dstItemBase U V w N n s₁.mem = compValAt srcItemBase U V w N n s₀.mem :=
-    by
-      rw [← compValAt_congr (itemBase := srcItemBase) (U := U) (V := V) (N := N) (n := n) hw
-        hitem_congr]
-      funext idx; unfold compValAt readBitSlice; dsimp only
-      split_ifs <;> [simp only [Nat.add_assoc, hmem_sh_add]; rfl]
-  have htot₁ : totalSlots N (compGmAt metaBase U w N s₁.mem) = n :=
-    (congrArg (totalSlots N) hgm_eq).trans htot
+  have hq_eq :
+      compQuotAt dstItemBase U V w N n s₁.mem = compQuotAt srcItemBase U V w N n s₀.mem := by
+    rw [← compQuotAt_congr (itemBase := srcItemBase) (U := U) (V := V) (N := N) (n := n) hw
+      hitem_congr]
+    exact funext fun _ => by simp only [compQuotAt, readBitSlice, Nat.add_assoc, hmem_sh_add]
+  have hv_eq :
+      compValAt dstItemBase U V w N n s₁.mem = compValAt srcItemBase U V w N n s₀.mem := by
+    rw [← compValAt_congr (itemBase := srcItemBase) (U := U) (V := V) (N := N) (n := n) hw
+      hitem_congr]
+    exact funext fun _ => by simp only [compValAt, readBitSlice, Nat.add_assoc, hmem_sh_add]
+  have hd_bd (d : ℕ) (hd : d < epochTotalSlots N (compGmAt metaBase U w N s₁.mem)) :
+      d < n ∧ d < epochTotalSlots N (compGmAt metaBase U w N s₀.mem) :=
+    ⟨lt_of_lt_of_eq (hgm_eq ▸ hd) htot, hgm_eq ▸ hd⟩
   refine ⟨⟨hgm_eq.trans hcpl.gm_eq, hlm_eq.trans hcpl.lm_eq,
       by rw [hgm_eq, htd_eq, hdt_eq]; exact hcpl.win_inv,
       fun i => by rw [htd_eq]; exact hcpl.td_lt i,
       fun i => by rw [hdt_eq]; exact hcpl.dt_lt i,
       fun d hd => by
-        have hd_n : d < n := by change d < totalSlots N _ at hd; omega
-        have hd₀ : d < epochTotalSlots N (compGmAt metaBase U w N s₀.mem) := by
-          change d < totalSlots N _; omega
-        rw [compQuotAt_of_lt s₁.mem hd hd_n, hq_eq, compQuotAt_of_lt s₀.mem hd_n hd₀,
-          hgm_eq, hdt_eq]
-        exact hcpl.quot_eq d hd₀,
+        rw [compQuotAt_of_lt s₁.mem hd (hd_bd d hd).1, hq_eq,
+          compQuotAt_of_lt s₀.mem (hd_bd d hd).1 (hd_bd d hd).2, hgm_eq, hdt_eq]
+        exact hcpl.quot_eq d (hd_bd d hd).2,
       fun d hd => by
-        have hd_n : d < n := by change d < totalSlots N _ at hd; omega
-        have hd₀ : d < epochTotalSlots N (compGmAt metaBase U w N s₀.mem) := by
-          change d < totalSlots N _; omega
-        rw [compValAt_of_lt s₁.mem hd hd_n, hv_eq, compValAt_of_lt s₀.mem hd_n hd₀,
-          hgm_eq, hdt_eq]
-        exact hcpl.val_eq d hd₀⟩,
+        rw [compValAt_of_lt s₁.mem hd (hd_bd d hd).1, hv_eq,
+          compValAt_of_lt s₀.mem (hd_bd d hd).1 (hd_bd d hd).2, hgm_eq, hdt_eq]
+        exact hcpl.val_eq d (hd_bd d hd).2⟩,
     hgm_eq⟩
 
 /-- Agreement on the caller-supplied ABI input registers `(mBase, mTag, mArgU, mArgV)`. -/
@@ -636,28 +618,18 @@ theorem hashSpace_bounds_of_fits_offCompItems {U w N metaBase : ℕ}
       ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3) ∧
     2 * reducedChunkBits
       (reducedTrinomialStep (qBits U N) (hashB N) (totalMicroBits N)) < w := by
-  have h225_fit : Fits w 225 := fits_const_of_offCompItems hfit_nm le_rfl
-  have hw2 : 2 ≤ w := by
-    by_contra hlt2; have hw1 : w ≤ 1 := by omega
-    have hpow := Nat.pow_le_pow_right two_pos hw1
-    change 225 < 2 ^ w at h225_fit; linarith only [hpow, h225_fit]
-  have hlm_le : offCompLM U w N ≤ offCompItems U w N := by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
+  have h225 : 225 < 2 ^ w := fits_const_of_offCompItems hfit_nm le_rfl
+  have hw2 : 2 ≤ w := by rcases w with _ | _ | _ <;> omega
   have hsp_le : 225 + ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 ≤
       offCompItems U w N := by
-    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
-      at hlm_le ⊢
-    exact hlm_le
-  have hsw_le_sp : ReducedKWise.seedWords (qBits U N) (hashB N) (totalMicroBits N) 3 ≤
-      ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 :=
-    Nat.le_add_right _ _
+    dsimp only [offCompItems, offDenseToTail, offTailToDense, offCompGM, offCompLM,
+      epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
+    omega
   have hfit_h : Fits w ((metaBase + epochHdrWords) +
       ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3) :=
     hfit_nm.of_le (by unfold epochHdrWords; omega)
-  have hc_lt : 2 * reducedChunkBits
-      (reducedTrinomialStep (qBits U N) (hashB N) (totalMicroBits N)) < w :=
+  exact ⟨hsp_le, Nat.le_add_right _ _, hfit_h,
     ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
-      (two_mul_reducedChunkBits_hash_le hw2 hNU hU.le) hfit_h
-  exact ⟨hsp_le, hsw_le_sp, hfit_h, hc_lt⟩
+      (two_mul_reducedChunkBits_hash_le hw2 hNU hU.le) hfit_h⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

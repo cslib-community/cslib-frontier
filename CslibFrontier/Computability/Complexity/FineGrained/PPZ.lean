@@ -173,7 +173,7 @@ theorem runWith_succ (O : (Fin n → Option Bool) → Fin n → Option Bool)
 /-- A run stops after all `n` variables are processed. -/
 theorem runWith_succ_of_le (O : (Fin n → Option Bool) → Fin n → Option Bool)
     (π : Equiv.Perm (Fin n)) {i : ℕ} (h : n ≤ i) : runWith O π (i + 1) = runWith O π i := by
-  simp only [runWith, show ¬ i < n by omega, ↓reduceDIte]
+  simp only [runWith, not_lt.mpr h, ↓reduceDIte]
 
 /-! ### Runs that agree with the solution -/
 
@@ -196,13 +196,10 @@ theorem forced_eq {φ : CNF (Fin n)} {σ : Fin n → Bool} (hσ : φ.eval σ = t
     have := hall l hl
     split_ifs at this with hx
     · rw [← hx, hls, this]
-    · have := hτ _ _ this
-      rw [hls] at this
-      cases l.2 <;> simp at this
+    · exact absurd (hτ _ _ this) (by simp [hls])
   unfold forced at h
-  split_ifs at h with h1 h2
-  · cases h; exact key true h1
-  · cases h; exact key false h2
+  split_ifs at h with h1 h2 <;> cases h
+  exacts [key true h1, key false h2]
 
 theorem mem_prefixSet {π : Equiv.Perm (Fin n)} {i : ℕ} {x : Fin n} :
     x ∈ prefixSet π i ↔ (π.symm x : ℕ) < i := by
@@ -211,24 +208,18 @@ theorem mem_prefixSet {π : Equiv.Perm (Fin n)} {i : ℕ} {x : Fin n} :
 /-- A restriction of `σ` agrees with `σ` where it is defined. -/
 theorem eq_of_restrict_eq_some {σ : Fin n → Bool} {D : Finset (Fin n)} {y : Fin n} {b : Bool}
     (h : restrict σ D y = some b) : σ y = b := by
-  simp only [restrict] at h
-  split_ifs at h
-  exact Option.some_injective _ h
+  by_cases hy : y ∈ D <;> simp_all [restrict]
 
 /-- Once all `n` variables are processed, the restriction of `σ` is all of `σ`. -/
 theorem restrict_prefixSet_self (σ : Fin n → Bool) (π : Equiv.Perm (Fin n)) :
-    restrict σ (prefixSet π n) = fun x => some (σ x) := by
-  funext y
-  simp [restrict, mem_prefixSet]
+    restrict σ (prefixSet π n) = fun x => some (σ x) :=
+  funext fun y => by simp [restrict, mem_prefixSet]
 
 /-- Restricting `σ` to one more variable `x` sets `x` to `σ x`. -/
 theorem restrict_insert (σ : Fin n → Bool) (D : Finset (Fin n)) (x : Fin n) :
     restrict σ (insert x D) = Function.update (restrict σ D) x (some (σ x)) := by
   funext y
-  by_cases hy : y = x
-  · subst hy
-    simp [restrict]
-  · simp [restrict, hy]
+  by_cases hy : y = x <;> simp [restrict, hy]
 
 /-! ### Prefixes of an order -/
 
@@ -236,42 +227,34 @@ theorem restrict_insert (σ : Fin n → Bool) (D : Finset (Fin n)) (x : Fin n) :
 theorem mem_prefixSet_iff_exists {π : Equiv.Perm (Fin n)} {i : ℕ} {x : Fin n} :
     x ∈ prefixSet π i ↔ ∃ j : Fin n, (j : ℕ) < i ∧ π j = x := by
   rw [mem_prefixSet]
-  constructor
-  · intro h
-    exact ⟨π.symm x, h, π.apply_symm_apply x⟩
-  · rintro ⟨j, hj, rfl⟩
-    rwa [Equiv.symm_apply_apply]
+  exact ⟨fun h => ⟨π.symm x, h, π.apply_symm_apply x⟩, fun ⟨j, hj, h⟩ => by simpa [← h] using hj⟩
 
 /-- No variable is processed in zero steps. -/
-theorem prefixSet_zero (π : Equiv.Perm (Fin n)) : prefixSet π 0 = ∅ := by
-  ext x
-  simp [mem_prefixSet]
+theorem prefixSet_zero (π : Equiv.Perm (Fin n)) : prefixSet π 0 = ∅ :=
+  eq_empty_iff_forall_notMem.mpr fun _ => by simp [mem_prefixSet]
 
 /-- All variables are processed in `n` steps. -/
-theorem prefixSet_self (π : Equiv.Perm (Fin n)) : prefixSet π n = univ := by
-  ext x
-  simp [mem_prefixSet]
+theorem prefixSet_self (π : Equiv.Perm (Fin n)) : prefixSet π n = univ :=
+  eq_univ_iff_forall.mpr fun _ => by simp [mem_prefixSet]
 
 /-- The variable at position `i` is not processed in the first `i` steps. -/
 theorem apply_notMem_prefixSet_self (π : Equiv.Perm (Fin n)) {i : ℕ} (hi : i < n) :
     π ⟨i, hi⟩ ∉ prefixSet π i := by
-  rw [mem_prefixSet, Equiv.symm_apply_apply]
-  exact lt_irrefl i
+  simp [mem_prefixSet]
 
 /-- Step `i` adds the variable at position `i`. -/
 theorem prefixSet_succ (π : Equiv.Perm (Fin n)) {i : ℕ} (hi : i < n) :
     prefixSet π (i + 1) = insert (π ⟨i, hi⟩) (prefixSet π i) := by
   ext x
-  rw [mem_insert, mem_prefixSet, mem_prefixSet, ← Equiv.symm_apply_eq, Fin.ext_iff]
-  have : ((⟨i, hi⟩ : Fin n) : ℕ) = i := rfl
+  simp only [mem_insert, mem_prefixSet, ← Equiv.symm_apply_eq, Fin.ext_iff]
   omega
 
 /-- The first `i ≤ n` steps process `i` variables. -/
 theorem card_prefixSet (π : Equiv.Perm (Fin n)) : ∀ {i : ℕ}, i ≤ n → (prefixSet π i).card = i
   | 0, _ => by rw [prefixSet_zero, card_empty]
   | i + 1, hi => by
-    rw [prefixSet_succ π (by omega : i < n),
-      card_insert_of_notMem (apply_notMem_prefixSet_self π _), card_prefixSet π (by omega)]
+    rw [prefixSet_succ π (Nat.lt_of_succ_le hi),
+      card_insert_of_notMem (apply_notMem_prefixSet_self π _), card_prefixSet π (Nat.le_of_lt hi)]
 
 /-- The order `π` agrees with `π₀` on the first `i` positions. -/
 def EqOnPrefix (π π₀ : Equiv.Perm (Fin n)) (i : ℕ) : Prop :=
@@ -287,18 +270,13 @@ theorem EqOnPrefix.prefixSet_eq {π π₀ : Equiv.Perm (Fin n)} {i : ℕ} (h : E
     prefixSet π i = prefixSet π₀ i := by
   ext x
   simp only [mem_prefixSet_iff_exists]
-  constructor
-  · rintro ⟨j, hj, rfl⟩
-    exact ⟨j, hj, (h j hj).symm⟩
-  · rintro ⟨j, hj, rfl⟩
-    exact ⟨j, hj, h j hj⟩
+  exact exists_congr fun j => and_congr_right fun hj => by rw [h j hj]
 
 /-- An order that agrees with `π₀` on the first `i` positions has at position `i` a variable that
 `π₀` does not process in its first `i` steps. -/
 theorem EqOnPrefix.apply_notMem_prefixSet {π π₀ : Equiv.Perm (Fin n)} {i : ℕ}
-    (h : EqOnPrefix π π₀ i) (hi : i < n) : π ⟨i, hi⟩ ∉ prefixSet π₀ i := by
-  rw [← h.prefixSet_eq]
-  exact apply_notMem_prefixSet_self π hi
+    (h : EqOnPrefix π π₀ i) (hi : i < n) : π ⟨i, hi⟩ ∉ prefixSet π₀ i :=
+  h.prefixSet_eq ▸ apply_notMem_prefixSet_self π hi
 
 /-- The orders that agree with `π₀` on the first `i` positions and have `y` at position `i` are
 those that agree on the first `i + 1` positions with `π₀` followed by the swap of `y` with the
@@ -312,17 +290,15 @@ theorem eqOnPrefix_swap_iff {π π₀ : Equiv.Perm (Fin n)} {i : ℕ} (hi : i < 
     rw [Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne]
     · exact fun h => Nat.ne_of_lt hj (congrArg Fin.val (π₀.injective h))
     · exact fun h => hy (by rw [← h]; exact mem_prefixSet_iff_exists.2 ⟨j, hj, rfl⟩)
-  have hi' : (Equiv.swap (π₀ ⟨i, hi⟩) y * π₀) ⟨i, hi⟩ = y := by
-    rw [Equiv.Perm.mul_apply, Equiv.swap_apply_left]
-  constructor
-  · intro h
-    exact ⟨fun j hj => (h j (by omega)).trans (hlt j hj),
-      (h ⟨i, hi⟩ (Nat.lt_succ_self i)).trans hi'⟩
-  · rintro ⟨h, hπ⟩ j hj
-    rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | hj
-    · rw [h j hj, hlt j hj]
-    · obtain rfl : j = ⟨i, hi⟩ := Fin.ext hj
-      rw [hπ, hi']
+  have hi' : (Equiv.swap (π₀ ⟨i, hi⟩) y * π₀) ⟨i, hi⟩ = y :=
+    Equiv.swap_apply_left (π₀ ⟨i, hi⟩) y
+  refine ⟨fun h => ⟨fun j hj => (h j (by omega)).trans (hlt j hj),
+    (h ⟨i, hi⟩ (Nat.lt_succ_self i)).trans hi'⟩, ?_⟩
+  rintro ⟨h, hπ⟩ j hj
+  rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | hj
+  · rw [h j hj, hlt j hj]
+  · obtain rfl : j = ⟨i, hi⟩ := Fin.ext hj
+    rw [hπ, hi']
 
 /-- The first `i + 1` steps of `π₀` followed by the swap of `y` with the variable at position `i`
 process the first `i` variables of `π₀` and `y`. -/
@@ -340,25 +316,17 @@ theorem eq_none_of_mem_support_runWith {O : (Fin n → Option Bool) → Fin n �
     {π : Equiv.Perm (Fin n)} {i : ℕ} {τ : Fin n → Option Bool} (hτ : τ ∈ (runWith O π i).support)
     {y : Fin n} (hy : y ∉ prefixSet π i) : τ y = none := by
   induction i generalizing τ with
-  | zero =>
-    rw [runWith_zero, PMF.support_pure, Set.mem_singleton_iff] at hτ
-    rw [hτ]
+  | zero => simp_all [runWith_zero]
   | succ i ih =>
+    have hy' : y ∉ prefixSet π i := fun h' => hy (by rw [mem_prefixSet] at h' ⊢; omega)
     by_cases h : i < n
     · rw [runWith_succ O π h, PMF.mem_support_bind_iff] at hτ
       obtain ⟨τ', hτ', hmap⟩ := hτ
-      rw [PMF.support_map] at hmap
-      obtain ⟨b, -, rfl⟩ := hmap
-      have hyx : y ≠ π ⟨i, h⟩ := by
-        intro e
-        apply hy
-        rw [mem_prefixSet, e, Equiv.symm_apply_apply]
-        simp
-      dsimp only
-      rw [Function.update_of_ne hyx]
-      exact ih hτ' fun hy' => hy (by rw [mem_prefixSet] at hy' ⊢; omega)
+      obtain ⟨b, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hmap
+      exact (Function.update_of_ne (fun e => hy (by simp [e, mem_prefixSet])) _ _).trans
+        (ih hτ' hy')
     · rw [runWith_succ_of_le O π (by omega)] at hτ
-      exact ih hτ fun hy' => hy (by rw [mem_prefixSet] at hy' ⊢; omega)
+      exact ih hτ hy'
 
 /-- A run of PPZ only assigns the variables it has processed. -/
 theorem eq_none_of_mem_support_run {φ : CNF (Fin n)} {π : Equiv.Perm (Fin n)} {i : ℕ}
@@ -382,36 +350,15 @@ theorem unforcedCountWith_succ (O : (Fin n → Option Bool) → Fin n → Option
     unforcedCountWith O σ π (i + 1) = unforcedCountWith O σ π i +
       if O (restrict σ (prefixSet π i)) (π ⟨i, h⟩) = none then 1 else 0 := by
   unfold unforcedCountWith
-  have hsplit : (univ.filter fun j : Fin n =>
-      (j : ℕ) < i + 1 ∧ O (restrict σ (prefixSet π j)) (π j) = none) =
-      (univ.filter fun j : Fin n =>
-        (j : ℕ) < i ∧ O (restrict σ (prefixSet π j)) (π j) = none) ∪
-      (univ.filter fun j : Fin n =>
-        (j : ℕ) = i ∧ O (restrict σ (prefixSet π j)) (π j) = none) := by
-    ext j
-    simp only [mem_filter, mem_univ, true_and, mem_union]
-    constructor
-    · rintro ⟨h1, h2⟩
-      by_cases h3 : (j : ℕ) < i
-      · exact Or.inl ⟨h3, h2⟩
-      · exact Or.inr ⟨by omega, h2⟩
-    · rintro (⟨h1, h2⟩ | ⟨h1, h2⟩) <;> exact ⟨by omega, h2⟩
-  rw [hsplit, card_union_of_disjoint (disjoint_filter.mpr fun j _ h1 h2 => by omega)]
-  congr 1
-  split_ifs with hU
-  · rw [card_eq_one]
-    refine ⟨⟨i, h⟩, ?_⟩
-    ext j
-    simp only [mem_filter, mem_univ, true_and, mem_singleton]
-    constructor
-    · rintro ⟨hj, -⟩
-      exact Fin.ext hj
-    · rintro rfl
-      exact ⟨rfl, hU⟩
-  · rw [card_eq_zero, filter_eq_empty_iff]
-    rintro j - ⟨hj, hU'⟩
-    obtain rfl : j = ⟨i, h⟩ := Fin.ext hj
-    exact hU hU'
+  split_ifs with ho
+  · rw [← card_insert_of_notMem (a := ⟨i, h⟩) (by simp)]
+    refine congrArg card (Finset.ext fun (⟨j, hj⟩ : Fin n) => ?_)
+    simp only [mem_filter, mem_univ, true_and, mem_insert, Fin.mk.injEq] at ho ⊢
+    grind
+  · rw [add_zero]
+    refine congrArg card (Finset.ext fun (⟨j, hj⟩ : Fin n) => ?_)
+    simp only [mem_filter, mem_univ, true_and] at ho ⊢
+    grind
 
 /-- **A run in a fixed order produces the solution with probability `2^{-u}`**, after
 [Paturi, Pudlák, Saks, Zane, Lemma 1][PaturiPudlakSaksZane2005], where `u` counts the variables
@@ -425,11 +372,7 @@ theorem runWith_apply_restrict {O : (Fin n → Option Bool) → Fin n → Option
     (π : Equiv.Perm (Fin n)) {i : ℕ} :
     runWith O π i (restrict σ (prefixSet π i)) = (2⁻¹ : ENNReal) ^ unforcedCountWith O σ π i := by
   induction i with
-  | zero =>
-    have : restrict σ (prefixSet π 0) = fun _ => none := by
-      funext y
-      simp [restrict, prefixSet_zero]
-    simp [runWith_zero, this, unforcedCountWith]
+  | zero => simp [runWith_zero, restrict, prefixSet_zero, unforcedCountWith, funext_iff]
   | succ i ih =>
     by_cases h : i < n
     · set x := π ⟨i, h⟩
@@ -437,9 +380,7 @@ theorem runWith_apply_restrict {O : (Fin n → Option Bool) → Fin n → Option
       set T' := restrict σ (prefixSet π (i + 1))
       have hxi : x ∉ prefixSet π i := apply_notMem_prefixSet_self π h
       have hT'x : T' = Function.update T x (some (σ x)) := by
-        change restrict σ (prefixSet π (i + 1)) =
-          Function.update (restrict σ (prefixSet π i)) (π ⟨i, h⟩) (some (σ (π ⟨i, h⟩)))
-        rw [prefixSet_succ π h, restrict_insert]
+        simp only [T', T, x, prefixSet_succ π h, restrict_insert]
       rw [runWith_succ O π h, PMF.bind_apply, tsum_eq_single T]
       · rw [PMF.map_apply, tsum_eq_single (σ x)]
         · rw [ite_eq_left hT'x, ih, unforcedCountWith_succ O σ π h, pow_add]
@@ -451,39 +392,22 @@ theorem runWith_apply_restrict {O : (Fin n → Option Bool) → Fin n → Option
             rw [stepWith_of_eq_some hb, hO T (fun _ _ => eq_of_restrict_eq_some) x b hb]
             simp
         · intro b hb
-          rw [ite_eq_right]
-          intro e
-          have := congrFun e x
-          rw [hT'x, Function.update_self, Function.update_self] at this
-          exact hb (Option.some_injective _ this).symm
+          exact ite_eq_right fun e => hb (by simpa [hT'x, x] using (congrFun e x).symm)
       · intro τ hτ
         by_cases hsupp : τ ∈ (runWith O π i).support
         · rw [PMF.map_apply]
           convert mul_zero _
           refine tsum_eq_zero_iff.mpr fun b => ite_eq_right fun e => hτ ?_
           funext y
-          by_cases hy : y = x
-          · subst hy
-            rw [eq_none_of_mem_support_runWith hsupp hxi]
-            simp [T, restrict, hxi]
-          · have := congrFun e y
-            rw [Function.update_of_ne hy, hT'x, Function.update_of_ne hy] at this
-            exact this.symm
+          rcases eq_or_ne y x with rfl | hy
+          · simp [T, restrict, hxi, eq_none_of_mem_support_runWith hsupp hxi]
+          · simpa only [hT'x, x, Function.update_of_ne hy] using (congrFun e y).symm
         · rw [(PMF.apply_eq_zero_iff _ _).mpr hsupp, zero_mul]
-    · have hle : n ≤ i := not_lt.mp h
-      have hpref : prefixSet π (i + 1) = prefixSet π i := by
-        ext x
-        simp only [mem_prefixSet]
-        have := (π.symm x).isLt
-        omega
-      have hcnt : unforcedCountWith O σ π (i + 1) = unforcedCountWith O σ π i := by
-        unfold unforcedCountWith
-        congr 1
-        ext j
-        simp only [mem_filter, mem_univ, true_and]
-        exact and_congr_left fun _ =>
-          iff_of_true (Nat.lt_succ_of_lt (j.isLt.trans_le hle)) (j.isLt.trans_le hle)
-      rw [runWith_succ_of_le O π hle, hpref, hcnt, ih]
+    · have hpref : prefixSet π (i + 1) = prefixSet π i :=
+        Finset.ext fun _ => by simp only [mem_prefixSet]; omega
+      have hcnt : unforcedCountWith O σ π (i + 1) = unforcedCountWith O σ π i :=
+        congrArg card (filter_congr fun _ _ => and_congr_left fun _ => by omega)
+      rw [runWith_succ_of_le O π (not_lt.mp h), hpref, hcnt, ih]
 
 /-- **A PPZ run in a fixed order produces the solution with probability `2^{-u}`**, where `u`
 counts the unforced variables along the run that agrees with `σ`. -/
@@ -519,15 +443,9 @@ theorem unforcedCountWith_eq_card (O : (Fin n → Option Bool) → Fin n → Opt
     unforcedCountWith O σ π n =
       (univ.filter fun x => O (restrict σ (prefixSet π (π.symm x))) x = none).card := by
   unfold unforcedCountWith
-  refine card_bij' (fun j _ => π j) (fun x _ => π.symm x) (fun j hj => ?_) (fun x hx => ?_)
-    (fun j _ => by simp) (fun x _ => by simp)
-  · simp only [mem_filter, mem_univ, true_and] at hj ⊢
-    rw [Equiv.symm_apply_apply]
-    exact hj.2
-  · simp only [mem_filter, mem_univ, true_and] at hx ⊢
-    refine ⟨(π.symm x).isLt, ?_⟩
-    rw [Equiv.apply_symm_apply]
-    exact hx
+  refine card_bij' (fun j _ => π j) (fun x _ => π.symm x)
+    (fun j hj => by simpa using (mem_filter.1 hj).2.2)
+    (fun x hx => by simpa using (mem_filter.1 hx).2) (fun j _ => by simp) (fun x _ => by simp)
 
 /-- **The success probability in terms of forcing probabilities**, after
 [Paturi, Pudlák, Saks, Zane, Lemma 3][PaturiPudlakSaksZane2005]: for an oracle that is sound
@@ -584,8 +502,7 @@ theorem roundWith_apply_ge {O : (Fin n → Option Bool) → Fin n → Option Boo
   calc
     (2 : ℝ) ^ (-(n : ℝ) + ∑ x : Fin n, c x / N) =
         (1 / 2 : ℝ) ^ ((n : ℝ) - ∑ x : Fin n, c x / N) := by
-      rw [show (1 / 2 : ℝ) = 2⁻¹ by norm_num, Real.inv_rpow zero_le_two,
-        ← Real.rpow_neg zero_le_two, neg_sub, neg_add_eq_sub]
+      rw [one_div, Real.inv_rpow zero_le_two, ← Real.rpow_neg zero_le_two, neg_sub, neg_add_eq_sub]
     _ = (1 / 2 : ℝ) ^ ∑ π : Equiv.Perm (Fin n), (N : ℝ)⁻¹ * u π := by rw [havg]
     _ ≤ _ := hprod ▸ hamgm
 
@@ -608,34 +525,21 @@ theorem exists_critical_of_flip {φ : CNF (Fin n)} {σ : Fin n → Bool} (hσ : 
     ∃ c ∈ φ, IsCritical σ x c := by
   set τ := Function.update σ x (!σ x)
   obtain ⟨c, hc, hcτ⟩ : ∃ c ∈ φ, c.eval τ ≠ true := by
-    by_contra hall
-    push Not at hall
-    exact hflip ((CNF.eval_eq_true_iff τ φ).mpr hall)
-  have hfalse : ∀ l ∈ c, τ l.1 ≠ l.2 := fun l hl e =>
-    hcτ ((Clause.eval_eq_true_iff τ c).mpr ⟨l, hl, e⟩)
+    simpa [CNF.eval_eq_true_iff] using hflip
   have hall : ∀ l ∈ c, if l.1 = x then l.2 = σ x else σ l.1 ≠ l.2 := by
     intro l hl
-    have := hfalse l hl
+    have hfalse : τ l.1 ≠ l.2 := fun e => hcτ ((Clause.eval_eq_true_iff τ c).mpr ⟨l, hl, e⟩)
     split_ifs with hx
-    · rw [hx] at this
-      simp only [τ, Function.update_self] at this
-      cases h1 : l.2 <;> cases h2 : σ x <;> simp_all
-    · simpa [τ, Function.update_of_ne hx] using this
-  refine ⟨c, hc, ?_, hall⟩
+    · simpa [τ, hx, eq_comm] using hfalse
+    · simpa [τ, Function.update_of_ne hx] using hfalse
   obtain ⟨l, hl, hls⟩ := (Clause.eval_eq_true_iff σ c).mp ((CNF.eval_eq_true_iff σ φ).mp hσ c hc)
-  refine ⟨l, hl, ?_⟩
-  by_contra hx
-  have := hall l hl
-  rw [ite_eq_right hx] at this
-  exact this hls
+  exact ⟨c, hc, ⟨l, hl, by_contra fun hx => by simpa [hx, hls] using hall l hl⟩, hall⟩
 
 /-- **Critical clauses exist** for every variable of the unique satisfying assignment: flipping
 the variable falsifies some clause. -/
 theorem exists_critical {φ : CNF (Fin n)} {σ : Fin n → Bool} (hσ : φ.eval σ = true)
     (huniq : ∀ τ, φ.eval τ = true → τ = σ) (x : Fin n) : ∃ c ∈ φ, IsCritical σ x c :=
-  exists_critical_of_flip hσ fun h => by
-    have := congrFun (huniq _ h) x
-    simp at this
+  exists_critical_of_flip hσ fun h => by simpa using congrFun (huniq _ h) x
 
 /-- `x` comes after every other variable of `S` in the order `π`. -/
 def IsLast (π : Equiv.Perm (Fin n)) (S : Finset (Fin n)) (x : Fin n) : Prop :=
@@ -652,40 +556,25 @@ theorem forced_ne_none_of_isLast {φ : CNF (Fin n)} {σ : Fin n → Bool} {x : F
     forced φ (restrict σ (prefixSet π (π.symm x))) x ≠ none := by
   have hunit : IsUnitOn (restrict σ (prefixSet π (π.symm x))) x (σ x) c := by
     obtain ⟨⟨l, hl, hlx⟩, hall⟩ := hcrit
-    refine ⟨⟨l, hl, hlx, ?_⟩, fun m hm => ?_⟩
-    · have := hall l hl
-      rwa [ite_eq_left hlx] at this
-    · have := hall m hm
-      split_ifs with hmx
-      · rwa [ite_eq_left hmx] at this
-      · rw [ite_eq_right hmx] at this
-        have hmem : m.1 ∈ prefixSet π (π.symm x) := by
-          rw [mem_prefixSet]
-          exact hlast m.1 (List.mem_toFinset.mpr (List.mem_map_of_mem hm)) hmx
-        simp only [restrict, hmem, ite_true]
-        congr 1
-        cases h1 : σ m.1 <;> cases h2 : m.2 <;> simp_all
+    refine ⟨⟨l, hl, hlx, by simpa [hlx] using hall l hl⟩, fun m hm => ?_⟩
+    have := hall m hm
+    split_ifs at this ⊢ with hmx
+    · exact this
+    · have hmem : m.1 ∈ prefixSet π (π.symm x) :=
+        mem_prefixSet.2 (hlast m.1 (List.mem_toFinset.mpr (List.mem_map_of_mem hm)) hmx)
+      simp [restrict, hmem, Bool.eq_not_iff.2 this]
   unfold forced
-  cases hσx : σ x
-  · rw [hσx] at hunit
-    split_ifs with h1 h2
-    · simp
-    · simp
-    · exact absurd ⟨c, hc, hunit⟩ h2
-  · rw [hσx] at hunit
-    rw [ite_eq_left ⟨c, hc, hunit⟩]
-    simp
+  split_ifs with h1 h2 <;> try exact Option.some_ne_none _
+  cases hσx : σ x <;> rw [hσx] at hunit
+  exacts [absurd ⟨c, hc, hunit⟩ h2, absurd ⟨c, hc, hunit⟩ h1]
 
 /-! ### Random orders -/
 
 /-- **Each variable of `S` comes last in a `1 / |S|` fraction of the orders.** -/
 theorem card_isLast_mul {S : Finset (Fin n)} {x : Fin n} (hx : x ∈ S) :
     (univ.filter fun π : Equiv.Perm (Fin n) => IsLast π S x).card * S.card = n.factorial := by
-  have heq : (univ.filter fun π : Equiv.Perm (Fin n) => IsLast π S x) =
-      (univ.filter fun π : Equiv.Perm (Fin n) => ∀ w ∈ S, w ≠ x → π.symm w < π.symm x) :=
-    Finset.filter_congr (fun _ _ => Iff.rfl)
-  rw [heq]
-  simpa [Fintype.card_fin] using Cslib.Probability.card_filter_perm_symm_greatest_mul_card hx
+  simpa [IsLast, Fintype.card_fin] using
+    Cslib.Probability.card_filter_perm_symm_greatest_mul_card hx
 
 /-! ### The success probability -/
 
@@ -699,10 +588,8 @@ theorem unforcedCount_le {φ : CNF (Fin n)} {σ : Fin n → Bool} {I : Finset (F
   unfold unforcedCount unforcedCountWith
   refine card_le_card_of_injOn (fun j => π j) (fun j hj => ?_) (fun i _ j _ h => π.injective h)
   simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hj ⊢
-  rintro ⟨hI, hlast⟩
-  have := forced_ne_none_of_isLast (hC (π j) hI).1 (hC (π j) hI).2 hlast
-  rw [Equiv.symm_apply_apply] at this
-  exact this hj.2
+  exact fun ⟨hI, hlast⟩ =>
+    forced_ne_none_of_isLast (hC (π j) hI).1 (hC (π j) hI).2 hlast (by simpa using hj.2)
 
 /-- **One satisfying assignment.** Let `σ` satisfy a CNF formula on `n` variables whose clauses have
 at most `k ≥ 1` literals, and let `I` be a set of variables whose flips falsify the formula. Then
@@ -733,15 +620,10 @@ theorem round_apply_ge {k : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)} {σ : Fin n �
     have hmul : ((univ.filter fun π : Equiv.Perm (Fin n) =>
         IsLast π (vars (C x)) x).card : ℝ) * (vars (C x)).card = N := by
       exact_mod_cast card_isLast_mul hxv
-    have hsub : (univ.filter fun π : Equiv.Perm (Fin n) => IsLast π (vars (C x)) x) ⊆
-        univ.filter fun π : Equiv.Perm (Fin n) =>
-          forced φ (restrict σ (prefixSet π (π.symm x))) x ≠ none := by
-      intro π hπ
-      simp only [mem_filter, mem_univ, true_and] at hπ ⊢
-      exact forced_ne_none_of_isLast (hC x hx).1 (hC x hx).2 hπ
     have hlast : ((univ.filter fun π : Equiv.Perm (Fin n) =>
         IsLast π (vars (C x)) x).card : ℝ) ≤ c x :=
-      Nat.cast_le.mpr (card_le_card hsub)
+      Nat.cast_le.mpr (card_le_card fun π hπ => mem_filter.2
+        ⟨mem_univ _, forced_ne_none_of_isLast (hC x hx).1 (hC x hx).2 (mem_filter.1 hπ).2⟩)
     rw [div_le_div_iff₀ hk0 hN, one_mul]
     calc
       (N : ℝ) = _ * (vars (C x)).card := hmul.symm
@@ -763,9 +645,8 @@ theorem round_success {k : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)} {σ : Fin n �
     (hσ : φ.eval σ = true) (huniq : ∀ τ, φ.eval τ = true → τ = σ)
     (hlen : ∀ c ∈ φ, c.length ≤ k) :
     (2 : ℝ) ^ (-((1 - 1 / (k : ℝ)) * n)) ≤ ((round φ) fun x => some (σ x)).toReal := by
-  have h := round_apply_ge hk hσ (I := univ) (fun x _ hflip => by
-    have := congrFun (huniq _ hflip) x
-    simp at this) hlen
+  have h := round_apply_ge hk hσ (I := univ)
+    (fun x _ hflip => by simpa using congrFun (huniq _ hflip) x) hlen
   rw [card_univ, Fintype.card_fin] at h
   convert h using 2
   ring
@@ -793,21 +674,15 @@ theorem round_success_of_satisfiable {k : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)}
     rw [Cslib.Probability.PMF.toOuterMeasure_apply_toReal,
       ← sum_image (f := fun τ => ((round φ) τ).toReal) fun σ _ τ _ h => hg h]
     refine le_trans (le_of_eq (sum_congr rfl fun τ hτ => ?_))
-      (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun τ _ _ => ?_)
-    · obtain ⟨σ, hσ, rfl⟩ := mem_image.mp hτ
-      have : g σ ∈ {τ | ∃ σ, φ.eval σ = true ∧ τ = fun x => some (σ x)} :=
-        ⟨σ, (mem_filter.mp hσ).2, rfl⟩
-      simp only [this, ite_true]
-    · split_ifs
-      · exact ENNReal.toReal_nonneg
-      · exact le_rfl
+      (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => by positivity)
+    obtain ⟨σ, hσ, rfl⟩ := mem_image.mp hτ
+    exact (ite_eq_left ⟨σ, (mem_filter.mp hσ).2, rfl⟩).symm
   -- Each satisfying assignment contributes `2^{-(1 - 1/k) n} · 2^{isolation - n}`.
   have hterm : ∀ σ ∈ S, (2 : ℝ) ^ (-((1 - 1 / (k : ℝ)) * n)) *
       ((2 : ℝ) ^ (Cslib.BitString.isolation S σ) / 2 ^ n) ≤ ((round φ) (g σ)).toReal := by
     intro σ hσ
     set I := univ.filter fun x => Function.update σ x (!σ x) ∉ S
-    have hI : ∀ x ∈ I, φ.eval (Function.update σ x (!σ x)) ≠ true := by
-      intro x hx
+    have hI : ∀ x ∈ I, φ.eval (Function.update σ x (!σ x)) ≠ true := fun x hx => by
       simpa [I, S] using hx
     refine le_trans ?_ (round_apply_ge hk (mem_filter.mp hσ).2 hI hlen)
     have hiso : (Cslib.BitString.isolation S σ : ℝ) = I.card := rfl
@@ -815,19 +690,15 @@ theorem round_success_of_satisfiable {k : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)}
     rw [← Real.rpow_natCast 2 (Cslib.BitString.isolation S σ), ← Real.rpow_natCast 2 n,
       ← Real.rpow_sub two_pos, ← Real.rpow_add two_pos, hiso]
     apply Real.rpow_le_rpow_of_exponent_le one_le_two
-    have : ((I.card : ℝ) - n) ≤ ((I.card : ℝ) - n) / k := by
-      rw [le_div_iff₀ (by linarith)]
-      nlinarith
-    have hrw : -((n : ℝ) - I.card / k) = -((1 - 1 / (k : ℝ)) * n) + ((I.card : ℝ) - n) / k := by
-      field_simp
+    have : ((I.card : ℝ) - n) ≤ ((I.card : ℝ) - n) / k :=
+      (le_div_iff₀ (by linarith)).2 (by nlinarith)
+    have hring : -((n : ℝ) - I.card / k) = -((1 - 1 / (k : ℝ)) * n) + ((I.card : ℝ) - n) / k := by
       ring
-    rw [hrw]
     linarith
   -- The isolation inequality.
-  have hiso := Cslib.BitString.two_pow_le_sum_two_pow_isolation S hS
   have hisoR : (1 : ℝ) ≤ ∑ σ ∈ S, (2 : ℝ) ^ (Cslib.BitString.isolation S σ) / 2 ^ n := by
     rw [← sum_div, le_div_iff₀ (by positivity), one_mul]
-    exact_mod_cast hiso
+    exact_mod_cast Cslib.BitString.two_pow_le_sum_two_pow_isolation S hS
   calc
     (2 : ℝ) ^ (-((1 - 1 / (k : ℝ)) * n)) ≤ (2 : ℝ) ^ (-((1 - 1 / (k : ℝ)) * n)) *
         ∑ σ ∈ S, (2 : ℝ) ^ (Cslib.BitString.isolation S σ) / 2 ^ n :=

@@ -109,12 +109,9 @@ def clauseEvalBits (c : Clause ℕ) (b₀ b₁ b₂ : Bool) : Bool :=
 theorem clauseEvalBits_eq_eval {c : Clause ℕ} (hc : c.length ≤ 3) (σ : ℕ → Bool) :
     clauseEvalBits c (σ (c.getD 0 (0, false)).1) (σ (c.getD 1 (0, false)).1)
       (σ (c.getD 2 (0, false)).1) = c.eval σ := by
-  rcases c with _ | ⟨⟨v₀, p₀⟩, _ | ⟨⟨v₁, p₁⟩, _ | ⟨⟨v₂, p₂⟩, _ | ⟨_, _⟩⟩⟩⟩
-  · rfl
-  · simp [clauseEvalBits]
-  · simp [clauseEvalBits]
-  · simp [clauseEvalBits, Bool.or_assoc]
-  · simp only [List.length_cons] at hc; omega
+  rcases c with _ | ⟨⟨v₀, p₀⟩, _ | ⟨⟨v₁, p₁⟩, _ | ⟨⟨v₂, p₂⟩, _ | ⟨_, _⟩⟩⟩⟩ <;>
+    simp [clauseEvalBits, Bool.or_assoc] at hc ⊢
+  omega
 
 /-- Look up the bit for variable `v` in `vec` at its first occurrence in `φ.vars`, returning
 `false` when `v ∉ φ.vars`. -/
@@ -173,11 +170,10 @@ private theorem naorMaskBits_eq_self_of_imp {openFlags bits : List Bool}
     naorMaskBits openFlags bits = openFlags := by
   apply List.ext_getElem (by simp [hlen])
   intro i hi hi'
-  have hopen : openFlags.getD i false = openFlags[i] := List.getD_eq_getElem _ _ hi'
-  rw [← List.getD_eq_getElem _ false hi, getD_naorMaskBits, hopen]
+  rw [← List.getD_eq_getElem _ false hi, getD_naorMaskBits, List.getD_eq_getElem _ _ hi']
   cases hflag : openFlags[i]
   · simp
-  · simpa using himp i (hopen.trans hflag)
+  · simpa using himp i ((List.getD_eq_getElem _ _ hi').trans hflag)
 
 theorem getD_clauseTableRow (φ : CNF ℕ) (m : List Bool) (c : Clause ℕ) {t : ℕ} (ht : t < 8) :
     (clauseTableRow φ m c).getD t false =
@@ -200,17 +196,14 @@ private theorem naorMaskBits_clauseActiveRow {φ : CNF ℕ} {w m : List Bool} {c
     naorMaskBits (clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]) c)
       (clauseTableRow φ m c) =
       clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]) c := by
-  apply naorMaskBits_eq_self_of_imp (by simp)
-  intro t ht
+  refine naorMaskBits_eq_self_of_imp (by simp) fun t ht => ?_
   by_cases hlt : t < 8
   · rw [getD_clauseActiveRow φ _ c hlt, decide_eq_true_eq] at ht
     rw [getD_clauseTableRow φ m c hlt, ht, gmwBit0Of8_gmwActiveIdx, gmwBit1Of8_gmwActiveIdx,
       gmwBit2Of8_gmwActiveIdx]
-    simp only [varBit_listXor, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
-    rw [clauseEvalBits_eq_eval hc_len (varBit φ w), hc_eval]
-  · have hge : (clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]) c).length ≤ t := by
-      simp only [length_clauseActiveRow]; omega
-    rw [List.getD_eq_default _ _ hge] at ht
+    simp only [varBit_listXor, Bool.xor_assoc, Bool.xor_self, Bool.xor_false,
+      clauseEvalBits_eq_eval hc_len (varBit φ w), hc_eval]
+  · rw [List.getD_eq_default _ _ (by simp only [length_clauseActiveRow]; omega)] at ht
     cases ht
 
 /-- The `8 * φ.length`-bit concatenation of all clause truth tables of `φ` under mask `m`. -/
@@ -222,12 +215,8 @@ def activeTableFlags (φ : CNF ℕ) (v : List Bool) : List Bool :=
 
 private theorem length_flatten_map_eight {α : Type} (xs : List α) (f : α → List Bool)
     (hf : ∀ x ∈ xs, (f x).length = 8) : (xs.map f).flatten.length = 8 * xs.length := by
-  induction xs with
-  | nil => simp
-  | cons x xs ih =>
-    simp only [List.map_cons, List.flatten_cons, List.length_append, List.length_cons,
-      hf x List.mem_cons_self, ih (fun y hy => hf y (List.mem_cons_of_mem _ hy))]
-    omega
+  rw [List.length_flatten, List.map_map]
+  simp [Function.comp_def, List.map_congr_left (g := fun _ => 8) hf, Nat.mul_comm]
 
 @[simp] theorem length_tableBits (φ : CNF ℕ) (m : List Bool) :
     (tableBits φ m).length = 8 * φ.length :=
@@ -239,15 +228,11 @@ private theorem length_flatten_map_eight {α : Type} (xs : List α) (f : α → 
 
 @[simp] theorem tableBits_listRow (φ : CNF ℕ) (m : List Bool) :
     tableBits φ (BitString.listRow φ.vars.length 0 m) = tableBits φ m := by
-  have h : clauseTableRow φ (BitString.listRow φ.vars.length 0 m) = clauseTableRow φ m :=
-    funext (clauseTableRow_listRow φ m)
-  simp [tableBits, h]
+  simp [tableBits, funext (clauseTableRow_listRow φ m)]
 
 @[simp] theorem activeTableFlags_listRow (φ : CNF ℕ) (v : List Bool) :
     activeTableFlags φ (BitString.listRow φ.vars.length 0 v) = activeTableFlags φ v := by
-  have h : clauseActiveRow φ (BitString.listRow φ.vars.length 0 v) = clauseActiveRow φ v :=
-    funext (clauseActiveRow_listRow φ v)
-  simp [activeTableFlags, h]
+  simp [activeTableFlags, funext (clauseActiveRow_listRow φ v)]
 
 private theorem naorMaskBits_activeTableFlags {φ : CNF ℕ} {w m : List Bool}
     (hw : ThreeSAT.verifier (φ, w) = true) :
@@ -257,23 +242,20 @@ private theorem naorMaskBits_activeTableFlags {φ : CNF ℕ} {w m : List Bool}
   simp only [ThreeSAT.verifier, SAT.verifier, Bool.and_eq_true, List.all_eq_true,
     decide_eq_true_eq, ← eval_varBit_eq, CNF.eval_eq_true_iff] at hw
   rcases hw with ⟨hlen, heval⟩
-  unfold activeTableFlags tableBits
-  have hrec : ∀ cs : List (Clause ℕ),
-      (∀ c ∈ cs, c.length ≤ 3) → (∀ c ∈ cs, c.eval (varBit φ w) = true) →
+  suffices ∀ cs : List (Clause ℕ), (∀ c ∈ cs, c.length ≤ 3) →
+      (∀ c ∈ cs, c.eval (varBit φ w) = true) →
       naorMaskBits (cs.map (clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]))).flatten
         (cs.map (clauseTableRow φ m)).flatten =
-        (cs.map (clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]))).flatten := by
-    intro cs hcs_len hcs_eval
-    induction cs with
-    | nil => rfl
-    | cons c cs ih =>
-      simp only [List.map_cons, List.flatten_cons]
-      rw [naorMaskBits_append (by simp),
-        naorMaskBits_clauseActiveRow (hcs_len c List.mem_cons_self)
-          (hcs_eval c List.mem_cons_self),
-        ih (fun c' hc' => hcs_len c' (List.mem_cons_of_mem _ hc'))
-          (fun c' hc' => hcs_eval c' (List.mem_cons_of_mem _ hc'))]
-  exact hrec φ hlen heval
+        (cs.map (clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]))).flatten from
+    this φ hlen heval
+  intro cs hcs_len hcs_eval
+  induction cs with
+  | nil => rfl
+  | cons c cs ih =>
+    rw [List.forall_mem_cons] at hcs_len hcs_eval
+    simp only [List.map_cons, List.flatten_cons]
+    rw [naorMaskBits_append (by simp), naorMaskBits_clauseActiveRow hcs_len.1 hcs_eval.1,
+      ih hcs_len.2 hcs_eval.2]
 
 /-! ### Single-copy and three-copy bit layouts -/
 
@@ -413,13 +395,11 @@ private theorem copyOpenFlags_realCopyBits (φ : CNF ℕ) (b : Bool) (w m : List
     naorMaskBits (copyOpenFlags φ b (simCopyBits φ b rand)) (simCopyBits φ b rand) =
       simCopyBits φ b rand := by
   rw [copyOpenFlags_simCopyBits]
-  cases b
-  · simp only [Bool.false_eq_true, ↓reduceIte, simCopyBits]
-    rw [naorMaskBits_append (by simp), naorMaskBits_append (by simp),
+  cases b <;> simp only [Bool.false_eq_true, ↓reduceIte, simCopyBits]
+  · rw [naorMaskBits_append (by simp), naorMaskBits_append (by simp),
       naorMaskBits_replicate_true (by simp), naorMaskBits_replicate_false (by simp),
       naorMaskBits_replicate_true (by simp)]
-  · simp only [↓reduceIte, simCopyBits]
-    rw [naorMaskBits_append (by simp), naorMaskBits_append (by simp),
+  · rw [naorMaskBits_append (by simp), naorMaskBits_append (by simp),
       naorMaskBits_replicate_false (by simp), naorMaskBits_replicate_true (by simp),
       naorMaskBits_eq_self_of_imp (by simp) (fun _ h => h)]
 
@@ -508,8 +488,7 @@ private theorem naorMaskBits_realCopyBits {φ : CNF ℕ} {w m : List Bool} (b : 
     naorMaskBits (copyOpenFlags φ b (realCopyBits φ w m)) (realCopyBits φ w m) =
       simCopyBits φ b (if b then BitString.listXor φ.vars.length [w, m] else m) := by
   cases b
-  · exact naorMaskBits_realCopyBits_false φ w m
-  · exact naorMaskBits_realCopyBits_true hw
+  exacts [naorMaskBits_realCopyBits_false φ w m, naorMaskBits_realCopyBits_true hw]
 
 theorem naorMaskBits_realBits {φ : CNF ℕ} {w m₀ m₁ m₂ : List Bool} (ch : List Bool)
     (hw : ThreeSAT.verifier (φ, w) = true) :
@@ -575,10 +554,9 @@ theorem length_proverReply2_any (s : ℕ) (φ : CNF ℕ) (ch bits : List Bool)
     (seeds : List (List Bool)) :
     (proverReply2 s φ ch bits seeds).length = bits.length * (s + 1) := by
   have hmap : List.map List.length (naorSelectSeeds s (allOpenFlags φ ch bits) bits seeds) =
-      List.replicate bits.length s := by
-    apply List.ext_getElem (by simp); intro i hi _
-    simp only [List.getElem_map, List.getElem_replicate]
-    exact length_mem_naorSelectSeeds (List.getElem_mem _)
+      List.replicate bits.length s :=
+    List.eq_replicate_iff.mpr ⟨by simp,
+      List.forall_mem_map.mpr fun _ h => length_mem_naorSelectSeeds h⟩
   simp only [proverReply2, List.length_append, length_naorMaskBits,
     List.length_flatten, hmap, List.sum_replicate, smul_eq_mul]; ring
 
@@ -653,8 +631,7 @@ theorem acceptGuess_eq_some {β : Type} {ch_guess : List Bool} {result : β × T
     {out : β} :
     acceptGuess ch_guess result = some out ↔
       result.2.challenge = ch_guess ∧ result.1 = out := by
-  unfold acceptGuess
-  split_ifs with h <;> simp_all
+  by_cases h : result.2.challenge = ch_guess <;> simp [acceptGuess, h]
 
 /-- The private coins of one prover execution: the committed bits and one commitment seed per
 bit. The honest prover commits to `realBits` of its witness and masks; the simulator to `simBits` of
@@ -708,34 +685,33 @@ theorem run_gmwProver_fst {α : Type} (generator : List Bool → List Bool) (s m
         Prod.fst <$> runTwoRound (honestReply1 generator m φ coins)
           (honestReply2 s φ coins) prog .init) := by
   let P := gmwProver generator s m φ w
-  let State' := TwoRoundState × ProverCoins
-  let relate : P.State → PMF State' := fun state => match state.2 with
+  let relate : P.State → PMF (TwoRoundState × ProverCoins) := fun state => match state.2 with
     | none => (ProbComp.eval (sampleHonestCoins s φ w)).map (state.1, ·)
     | some coins => PMF.pure (state.1, coins)
-  let oracle' : Unit × List Bool → StateT State' PMF (List Bool) := fun q state =>
-    let step := twoRoundStep (honestReply1 generator m φ state.2)
-      (honestReply2 s φ state.2) q.2 state.1
-    PMF.pure (step.1, (step.2, state.2))
-  have hsim := ProbOracleComp.runWith_simulation P.respond oracle' relate
-    (fun q state => by
-      rcases state with ⟨st, _ | coins⟩ <;>
-        simp [P, gmwProver, relate, oracle', PMF.bind_map, Function.comp_def]) prog P.init
-  have hmap := congrArg (PMF.map Prod.fst) hsim
+  let oracle' : Unit × List Bool → StateT (TwoRoundState × ProverCoins) PMF (List Bool) :=
+    fun q state =>
+      let step := twoRoundStep (honestReply1 generator m φ state.2)
+        (honestReply2 s φ state.2) q.2 state.1
+      PMF.pure (step.1, (step.2, state.2))
+  have hmap := congrArg (PMF.map Prod.fst) <|
+    ProbOracleComp.runWith_simulation P.respond oracle' relate
+      (fun q state => by
+        rcases state with ⟨st, _ | coins⟩ <;>
+          simp [P, gmwProver, relate, oracle', PMF.bind_map, Function.comp_def])
+      prog P.init
   have hlhs : ((ProbOracleComp.runWith P.respond prog P.init).bind
         (fun (a, s') => (relate s').map (a, ·))).map Prod.fst =
       (P.run prog P.init).map Prod.fst := by
-    simp only [pmf_norm, Prover.run]
-    have hconst : ∀ x : α × P.State, PMF.map (fun _ : State' => x.1) (relate x.2) = PMF.pure x.1 :=
-      fun _ => PMF.map_const _ _
-    simp only [hconst]; rfl
-  rw [hlhs] at hmap; rw [hmap]
+    have hconst (x : α × P.State) : PMF.map (fun _ => x.1) (relate x.2) = PMF.pure x.1 :=
+      PMF.map_const _ _
+    simp only [pmf_norm, Prover.run, hconst]; rfl
+  rw [← hlhs, hmap]
   simp only [pmf_norm, P, gmwProver, relate]
   congr 1 with coins : 1
-  have hstate := ProbOracleComp.runWith_map_state
-    (fun q (st : TwoRoundState) => PMF.pure (twoRoundStep (honestReply1 generator m φ coins)
+  have hstate_fst := congrArg (PMF.map Prod.fst) <| ProbOracleComp.runWith_map_state
+    (fun q st => PMF.pure (twoRoundStep (honestReply1 generator m φ coins)
         (honestReply2 s φ coins) q.2 st))
     oracle' (fun st => (st, coins)) (fun q st => by simp [oracle']) prog .init
-  have hstate_fst := congrArg (PMF.map Prod.fst) hstate
   simp only [PMF.map_comp, Function.comp_def] at hstate_fst
   rw [← hstate_fst, eval_runTwoRound]
 

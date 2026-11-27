@@ -120,9 +120,8 @@ private theorem perm_fin_append {m : ℕ} {f₁ f₂ : Fin m → α} {g : Fin (m
     (h1 : (List.ofFn f₁).Perm (List.ofFn (g ∘ Fin.castAdd m)))
     (h2 : (List.ofFn f₂).Perm (List.ofFn (g ∘ Fin.natAdd m))) :
     (List.ofFn (Fin.append f₁ f₂)).Perm (List.ofFn g) := by
-  have h := h1.append h2
-  have hsplit : Fin.append (g ∘ Fin.castAdd m) (g ∘ Fin.natAdd m) = g := Fin.append_castAdd_natAdd
-  rwa [← List.ofFn_fin_append, ← List.ofFn_fin_append, hsplit] at h
+  simpa only [← List.ofFn_fin_append, Function.comp_def, Fin.append_castAdd_natAdd] using
+    h1.append h2
 
 /-- Bitonic merge preserves the multiset of complete records on every input. -/
 theorem merge_perm [LinearOrder κ] (key : α → κ) (depth : ℕ)
@@ -131,9 +130,7 @@ theorem merge_perm [LinearOrder κ] (key : α → κ) (depth : ℕ)
   induction depth generalizing ascending with
   | zero => exact List.Perm.refl _
   | succ depth ih =>
-    let compared := compareLayer key (n := arity depth) ascending input
-    exact (perm_fin_append (ih ascending (compared ∘ Fin.castAdd (arity depth)))
-      (ih ascending (compared ∘ Fin.natAdd (arity depth)))).trans
+    exact (perm_fin_append (ih ascending _) (ih ascending _)).trans
       (compareLayer_perm key ascending input)
 
 /-- Batcher sorting preserves complete records, not merely their projected keys. -/
@@ -144,7 +141,6 @@ theorem sort_perm [LinearOrder κ] (key : α → κ) (depth : ℕ)
   | zero => exact List.Perm.refl _
   | succ depth ih =>
     exact (merge_perm key (depth + 1) ascending _).trans
-      (perm_fin_append (ih true (input ∘ Fin.castAdd (arity depth)))
-        (ih false (input ∘ Fin.natAdd (arity depth))))
+      (perm_fin_append (ih true _) (ih false _))
 
 end Cslib.BitonicSort

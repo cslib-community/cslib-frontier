@@ -77,16 +77,9 @@ theorem Verifier.RbrSound.bundle {smp : PerChallenge ProbComp s}
   rw [hsmp] at h
   refine RbrFrom.congr (fun _ => Iff.rfl) (fun τ => ?_) h
   rw [Verifier.outputOn_bundle]
-  constructor
-  · rintro ⟨y, hy, hout⟩
-    exact ⟨⟨x.1, y⟩, hy, by rw [hout]; rfl⟩
-  · rintro ⟨⟨θ, y⟩, hy, hout⟩
-    cases hτ : (V x.1).outputOn x.2 τ with
-    | none => rw [hτ] at hout; cases hout
-    | some y' =>
-      rw [hτ] at hout
-      cases hout
-      exact ⟨y', hy, rfl⟩
+  cases (V x.1).outputOn x.2 τ
+  · simp only [Option.map_none, reduceCtorEq, and_false, exists_false]
+  · simp only [Option.map_some, Option.some.injEq, exists_eq_right', Set.mem_ofPred_eq]
 
 /-- The honest run of a bundle on `⟨θ, x⟩` is the honest run of `R θ` on `x`, with the output
 statement tagged by `θ`. -/

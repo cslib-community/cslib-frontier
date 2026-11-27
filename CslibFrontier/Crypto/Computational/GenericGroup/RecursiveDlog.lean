@@ -127,19 +127,13 @@ theorem isQueryBounded_recursiveDlog {base : S → S → OracleComp (GroupOracle
                 .bind (ih₂ g₂ u₂ (by omega)) fun _ => .pure _ 0) ?_
     have hlog (m : ℕ) : Nat.log 2 (q ^ m) ≤ m * Nat.clog 2 q :=
       (Nat.log_le_clog 2 _).trans (Nat.clog_pow_le_mul 2 q m)
-    have hlog_d := hlog d; have hlog_f := hlog f; have hlog_e := hlog e
     have hT : f * T + d * T = e * T := by rw [← add_mul, hfd]
-    have hC1 : 6 * f * Nat.clog 2 q + 6 * d * Nat.clog 2 q = 6 * e * Nat.clog 2 q := by
-      rw [← add_mul, ← mul_add, hfd]
-    have hC2 : 6 * f * Nat.clog 2 e * Nat.clog 2 q + 6 * d * Nat.clog 2 e * Nat.clog 2 q =
-        6 * e * Nat.clog 2 e * Nat.clog 2 q := by rw [← add_mul, ← add_mul, ← mul_add, hfd]
-    have hprod : 4 * (d * Nat.clog 2 q) + 2 * (f * Nat.clog 2 q) + 2 * (e * Nat.clog 2 q) + 1 ≤
-        6 * e * Nat.clog 2 q := by nlinarith [show 4 * d + 2 * f + 2 * e + 1 ≤ 6 * e by omega]
-    have h1 : 6 * f * Nat.clog 2 f * Nat.clog 2 q + 6 * f * Nat.clog 2 q ≤
-        6 * f * Nat.clog 2 e * Nat.clog 2 q := by nlinarith
-    have h2 : 6 * d * Nat.clog 2 d * Nat.clog 2 q + 6 * d * Nat.clog 2 q ≤
-        6 * d * Nat.clog 2 e * Nat.clog 2 q := by nlinarith
-    linarith
+    have hstep : 4 * d + 2 * f + 2 * e + 1 ≤ 6 * e := by omega
+    have hc : 4 * d + 2 * f + 2 * e + 6 * f * Nat.clog 2 f + 6 * d * Nat.clog 2 d + 1 ≤
+        6 * e * Nat.clog 2 e := by nlinarith only [hfd, hclog_f, hclog_d, hstep]
+    have hmul := Nat.mul_le_mul_right (Nat.clog 2 q) hc
+    simp only [add_mul, one_mul, Nat.mul_assoc 4, Nat.mul_assoc 2] at hmul
+    linarith [hT, hCq, hmul, hlog d, hlog f, hlog e]
 
 /-- **Correctness.** For `s` of additive order `q ^ e` (`1 ≤ e`) and a base-case solver `base`
 correct on order `q`, `recursiveDlog base q e (L s) (L (α * s))` outputs `α` for `α < q ^ e`. -/
@@ -168,7 +162,6 @@ theorem evalPure_recursiveDlog {L : ZMod n → S}
         rw [← nsmul_eq_mul, addOrderOf_nsmul_of_dvd hu.ne' (hs ▸ huv ▸ dvd_mul_right u v), hs,
           ← huv, Nat.mul_div_cancel_left _ hu]
       have hs₁ := hs_div hqd_pos (by rw [mul_comm, hpow_fd])
-      have hs₂ := hs_div hqf_pos hpow_fd
       have hpow_e_s' : (q : ZMod n) ^ e * s = 0 := by
         simpa [nsmul_eq_mul, hs] using addOrderOf_nsmul_eq_zero (x := s)
       have hu₁ : (q ^ d : ℕ) * ((α : ZMod n) * s) =
@@ -192,7 +185,7 @@ theorem evalPure_recursiveDlog {L : ZMod n → S}
       have hγ : (recursiveDlog base q d (L ((q ^ f : ℕ) * s))
           (L ((α : ZMod n) * s + ((q ^ e - α % q ^ f : ℕ) : ZMod n) * s))).evalPure O =
             α / q ^ f := by
-        rw [hu₂]; exact ih d (by omega) (by omega) _ hs₂ _
+        rw [hu₂]; exact ih d (by omega) (by omega) _ (hs_div hqf_pos hpow_fd) _
           ((Nat.div_lt_iff_lt_mul hqf_pos).mpr (by simpa [mul_comm, hpow_fd] using hα))
       rw [recursiveDlog_of_one_lt _ _ (by omega)]
       simp only [OracleComp.evalPure_bind, OracleComp.evalPure_pure]
@@ -213,12 +206,10 @@ theorem recursiveDlog_two_pow [DecidableEq S] {ℓ : ℕ} (hℓ : 1 ≤ ℓ) {L 
         (2 * ℓ + 6 * ℓ * Nat.clog 2 ℓ) := by
   have hO : ∀ β₁ β₂ : ZMod (2 ^ ℓ), answer L (.op (L β₁) (L β₂) 1 1) = some (L (β₁ + β₂)) :=
     fun β₁ β₂ => by rw [answer_op_label hL, one_mul, one_mul]
-  have hbase : ∀ t : ZMod (2 ^ ℓ), addOrderOf t = 2 → ∀ a : ℕ, a < 2 →
-      (subgroupDlog 2 (L t) (L (a * t))).evalPure (answer L) = a :=
-    fun t ht a ha => evalPure_subgroupDlog hL hO ht ha
   refine ⟨?_, ?_⟩
   · simpa [mul_one, ZMod.natCast_zmod_val] using
-      evalPure_recursiveDlog hO hbase ℓ hℓ 1 (ZMod.addOrderOf_one (2 ^ ℓ)) α.val (ZMod.val_lt α)
+      evalPure_recursiveDlog hO (fun _ ht _ ha => evalPure_subgroupDlog hL hO ht ha) ℓ hℓ 1
+        (ZMod.addOrderOf_one (2 ^ ℓ)) α.val (ZMod.val_lt α)
   · have hb : ∀ g u : S, OracleComp.IsQueryBounded (subgroupDlog (q := 2 ^ ℓ) 2 g u) 2 :=
       fun g u => by simpa using isQueryBounded_subgroupDlog (q := 2 ^ ℓ) 2 g u
     simpa [show Nat.clog 2 2 = 1 by decide, mul_one, Nat.mul_comm ℓ 2] using
@@ -234,11 +225,8 @@ theorem evalPure_groupAnswer_recursiveDlog [NeZero n] {G : Type} [AddCommGroup G
   let L : ZMod n → G := fun β => β • g
   have hO : ∀ β₁ β₂ : ZMod n, groupAnswer n g (.op (L β₁) (L β₂) 1 1) = some (L (β₁ + β₂)) :=
     fun β₁ β₂ => by simp [L, groupAnswer, one_smul, add_smul]
-  have hbase : ∀ t : ZMod n, addOrderOf t = q → ∀ a : ℕ, a < q →
-      (subgroupDlog q (L t) (L (a * t))).evalPure (groupAnswer n g) = a :=
-    fun t ht a ha => evalPure_subgroupDlog hg hO ht ha
   simpa [L, one_smul, mul_one, ZMod.natCast_zmod_val] using
-    evalPure_recursiveDlog hO hbase e he 1 (by rw [ZMod.addOrderOf_one, hq]) α.val
-      (hq ▸ ZMod.val_lt α)
+    evalPure_recursiveDlog (q := q) hO (fun _ ht _ ha => evalPure_subgroupDlog hg hO ht ha) e he 1
+      (by rw [ZMod.addOrderOf_one, hq]) α.val (hq ▸ ZMod.val_lt α)
 
 end Cslib.Crypto.GenericGroup

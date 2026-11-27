@@ -104,7 +104,7 @@ theorem Record.initial_wires_subset (s : Set (BooleanFunction n)) (f : BitString
       induction bit using Fin.cases with
       | zero => exact hc false
       | succ bit => simpa [Record.encode, Record.query] using hp (prefix_mem f h2 bit)
-    | right bit =>
+    | right =>
       simp only [Record.encode, Record.query, Fin.append_right]
       exact hc _
   · exact hc _
@@ -197,13 +197,12 @@ theorem exists_computesOn_iterate_of_cover (c : Circuit signature n n) (T K : �
   have hcapacity : H.card + (K + 1) ≤ BitonicSort.arity d := by
     simpa only [BitonicSort.arity_eq_two_pow, d, Nat.add_assoc] using
       Nat.le_pow_clog Nat.one_lt_two (H.card + K + 1)
-  have hfit : K < 2 ^ w := by omega
   obtain ⟨out, hout, hsize⟩ := exists_fixedOutput (w := w) c T K d cp
   refine ⟨out, d, fun x hx => ?_, Nat.clog_le_of_le_pow hHK,
     Nat.pow_clog_le_mul Nat.one_lt_two (by omega), hsize⟩
   rw [hout x]
-  apply reconstruct_spec f T K cp x _ _ hfit hKT
-  apply Record.detect_sorted_witness f T K d cp x hcapacity hfit
+  refine reconstruct_spec f T K cp x _ _ (by omega) hKT
+    (Record.detect_sorted_witness f T K d cp x hcapacity (by omega) ?_)
   rcases hcover x hx with ⟨i, j, hij, hj, heq⟩ | ⟨t, ht, hmem⟩
   · exact Or.inr ⟨i, j, hij, hj.le, heq⟩
   · exact Or.inl ⟨t, ht.le, H.equivFin ⟨f^[t] x, hmem⟩, by simp [cp]⟩

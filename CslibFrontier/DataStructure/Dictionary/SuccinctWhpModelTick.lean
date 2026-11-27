@@ -62,35 +62,28 @@ theorem ValidFastState.fastStepPure_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
   cases op with
   | query u =>
     dsimp only [fastStepPure] at hstep
-    cases ht : epochTick c U n_max θ fs with
-    | none => rw [ht] at hstep; cases hstep
-    | some fs1 =>
-      rw [ht] at hstep; injection hstep with hp; injection hp with hfs1 hres
-      rw [← hfs1, ← hres]
+    rcases ht : epochTick c U n_max θ fs with _ | fs1 <;> rw [ht] at hstep
+    · cases hstep
+    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hstep)
       exact ⟨epochTick_spec hv.toCore hv.overmars_valid hv.stage_valid.toPreTick ht,
         hv.fastQuery_spec u⟩
   | delete u =>
     dsimp only [fastStepPure] at hstep
     obtain ⟨hc1, hom1, hpre1, _⟩ := hv.fastDelete_spec u
-    cases ht : epochTick c U n_max θ (fastDelete c U n_max θ fs u) with
-    | none => rw [ht] at hstep; cases hstep
-    | some fs2 =>
-      rw [ht] at hstep; injection hstep with hp; injection hp with hfs2 hres
-      rw [← hfs2, ← hres]
+    rcases ht : epochTick c U n_max θ (fastDelete c U n_max θ fs u) with _ | fs2 <;>
+      rw [ht] at hstep
+    · cases hstep
+    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hstep)
       exact ⟨epochTick_spec hc1 hom1 hpre1 ht, rfl⟩
   | insert u v =>
     dsimp only [fastStepPure] at hstep
-    cases hi : fastInsert c U n_max θ fs u v with
-    | none => rw [hi] at hstep; cases hstep
-    | some fs1 =>
-      rw [hi] at hstep
-      dsimp only at hstep
+    rcases hi : fastInsert c U n_max θ fs u v with _ | fs1 <;> rw [hi] at hstep
+    · cases hstep
+    · dsimp only at hstep
       obtain ⟨hc1, hom1, hst1, _⟩ := hv.fastInsert_spec hnU hvalid hi
-      cases ht : epochTick c U n_max θ fs1 with
-      | none => rw [ht] at hstep; cases hstep
-      | some fs2 =>
-        rw [ht] at hstep; injection hstep with hp; injection hp with hfs2 hres
-        rw [← hfs2, ← hres]
+      rcases ht : epochTick c U n_max θ fs1 with _ | fs2 <;> rw [ht] at hstep
+      · cases hstep
+      · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hstep)
         exact ⟨epochTick_spec hc1 hom1 hst1.toPreTick ht, rfl⟩
 
 /-- Exact single-step `Dynamic.step` refinement of `whpStepPure` for **every** static seed `θ`

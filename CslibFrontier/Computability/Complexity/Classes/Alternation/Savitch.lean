@@ -53,8 +53,9 @@ of at most `w` bits accepts exactly when the existential player wins the midpoin
 (`Turing.MultiTapeNTM.accepts_iff_alternation_midpointGame`), so every problem in `NSPACE s` is a
 midpoint game of `O((n + s n) ^ 2)` moves (`Cslib.Complexity.exists_midpointGame_of_mem_NSPACE`).
 This is the game behind `NSPACE(s) ⊆ ATIME(s ^ 2)` [Chandra, Kozen and
-Stockmeyer][ChandraKozenStockmeyer1981], which is not proved here: that needs the game to be played
-within time `O(s n ^ 2)`.
+Stockmeyer][ChandraKozenStockmeyer1981];
+`Cslib.Complexity.NSPACE_subset_ATIME_sq_of_timeConstructible` plays it within time
+`O((n + s n) ^ 2)` for a time-constructible `s` (#4086 tracks removing time-constructibility).
 
 ## Main definitions
 
@@ -433,10 +434,10 @@ code of the initial view to the accepting code, a game of `2 * ((2 * w + 3) * (2
 single-bit moves.
 
 This is not `NSPACE(s) ⊆ ATIME(s ^ 2)` [Chandra, Kozen and Stockmeyer][ChandraKozenStockmeyer1981];
-it is the game that the alternating machine of that simulation plays. Playing it within time
-`O(s n ^ 2)` further needs a verifier of the winning condition, and a computation of the number of
-moves, within that time; neither is provided here. The views record the input, so the width of the
-codes is linear in `n + s n` rather than in `s n`, and the game has `O(s n ^ 2)` moves only when
+it is the game that the alternating machine of that simulation plays, which
+`Cslib.Complexity.NSPACE_subset_ATIME_sq_of_timeConstructible` does within time `O((n + s n) ^ 2)`
+for a time-constructible `s` (#4086). The views record the input, so the width of the codes is
+linear in `n + s n` rather than in `s n`, and the game has `O(s n ^ 2)` moves only when
 `n = O(s n)`. -/
 theorem exists_midpointGame_of_mem_NSPACE {s : ℕ → ℕ} (h : A ∈ NSPACE enc s) :
     ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k Bool State) (K : ℕ),

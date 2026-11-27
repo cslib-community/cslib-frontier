@@ -95,13 +95,7 @@ theorem dens_exists_outside_clique_le {n : ℕ} (S : Finset (Fin n)) (r : ℕ) :
   have hevent : ({ω : Coins n | ∃ T : Finset (Fin n), Disjoint S T ∧ T.card = r ∧
       (sample S ω).IsClique (T : Set (Fin n))} : Finset _) = W.biUnion D := by
     ext ω
-    simp only [mem_filter, mem_univ, true_and, mem_biUnion, W, mem_powersetCard,
-      subset_univ, D]
-    constructor
-    · rintro ⟨T, hd, hc, hcl⟩
-      exact ⟨T, hc, hd, hcl⟩
-    · rintro ⟨T, hc, hd, hcl⟩
-      exact ⟨T, hd, hc, hcl⟩
+    simp [W, D, and_left_comm]
   rw [hevent]
   have h : (dens (W.biUnion D) : ℝ) ≤ ∑ T ∈ W, (dens (D T) : ℝ) := by
     simpa only [NNRat.cast_sum] using
@@ -127,22 +121,12 @@ theorem dens_exists_clique_ne_le {n : ℕ} (S : Finset (Fin n)) (r : ℕ)
   have hsub : ({ω : Coins n | ∃ Q : Finset (Fin n),
       (sample S ω).IsClique (Q : Set (Fin n)) ∧ Q.card = S.card ∧ Q ≠ S} : Finset _) ⊆ D ∪ O := by
     intro ω hω
-    simp only [mem_filter, mem_univ, true_and] at hω
-    by_cases hd : ω ∈ D
-    · exact mem_union_left O hd
-    by_cases ho : ω ∈ O
-    · exact mem_union_right D ho
-    obtain ⟨Q, hQ, hcard, hne⟩ := hω
-    apply False.elim
-    apply hne
-    apply (sample S ω).clique_eq_of_outside_degree_le_of_no_outside_clique
-      (r := r) _ hr _ hQ hcard
-    · intro v hv
-      apply le_of_not_gt
-      intro hdeg
-      exact hd (mem_filter.mpr ⟨mem_univ _, ⟨v, hv, hdeg⟩⟩)
-    · intro T hdT hcT hcl
-      exact ho (mem_filter.mpr ⟨mem_univ _, ⟨T, hdT, hcT, hcl⟩⟩)
+    obtain ⟨Q, hQ, hcard, hne⟩ := (mem_filter.mp hω).2
+    by_contra hnot
+    simp only [mem_union, D, O, mem_filter, mem_univ, true_and, not_or, not_exists, not_and,
+      not_lt] at hnot
+    exact hne ((sample S ω).clique_eq_of_outside_degree_le_of_no_outside_clique
+      hnot.1 hr hnot.2 hQ hcard)
   calc
     _ ≤ (dens (D ∪ O) : ℝ) := by exact_mod_cast dens_le_dens hsub
     _ ≤ (dens D : ℝ) + (dens O : ℝ) := by exact_mod_cast dens_union_le D O

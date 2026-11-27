@@ -66,31 +66,16 @@ lemma read_ofCells (cells : List (Option Symbol)) (pos : ℕ) (z : ℤ) :
       if 0 ≤ (pos : ℤ) + z then cells.getD ((pos : ℤ) + z).toNat none else none := by
   rcases z with (_ | n) | n
   · simp [read, ofCells]
-  · have h : ((pos : ℤ) + Int.ofNat (n + 1)).toNat = pos + 1 + n := by
-      simp only [Int.ofNat_eq_natCast]
-      omega
-    have h0 : 0 ≤ (pos : ℤ) + Int.ofNat (n + 1) := by
-      simp only [Int.ofNat_eq_natCast]
-      omega
-    simp only [h0, ↓reduceIte, h]
-    simp [read, ofCells, List.getD_eq_getElem?_getD, List.getElem?_drop]
+  · simp only [read, ofCells, StackTape.read_ofList, Int.ofNat_eq_natCast, ← Int.natCast_add,
+      Int.natCast_nonneg, ↓reduceIte, Int.toNat_natCast, List.getD_eq_getElem?_getD,
+      List.getElem?_drop, Nat.add_right_comm pos 1 n, Nat.add_assoc]
   · simp only [read, ofCells, StackTape.read_ofList, List.getD_eq_getElem?_getD,
-      List.getElem?_map]
+      List.getElem?_map, Int.negSucc_eq]
     by_cases hn : n < pos
-    · have h : ((pos : ℤ) + Int.negSucc n).toNat = pos - 1 - n := by
-        simp only [Int.negSucc_eq]
-        omega
-      have h0 : 0 ≤ (pos : ℤ) + Int.negSucc n := by
-        simp only [Int.negSucc_eq]
-        omega
-      simp only [h0, ↓reduceIte, h, List.getElem?_range hn]
-      rfl
-    · have h0 : ¬ 0 ≤ (pos : ℤ) + Int.negSucc n := by
-        simp only [Int.negSucc_eq]
-        omega
-      simp only [h0, ↓reduceIte,
-        List.getElem?_eq_none (by simpa using hn : (List.range pos).length ≤ n)]
-      rfl
+    · rw [ite_eq_left (by omega), List.getElem?_range hn, Option.map_some, Option.getD_some,
+        show ((pos : ℤ) + -(↑n + 1)).toNat = pos - 1 - n by omega]
+    · rw [ite_eq_right (by omega), List.getElem?_eq_none (by simpa using hn),
+        Option.map_none, Option.getD_none]
 
 end BiTape
 

@@ -33,13 +33,9 @@ lemma source_density_sum (D : ZMod P) (s : Fin J) (ks : ℕ) (ss : List (ZMod P)
   have hd (x : ZMod P) :
       (({σ : Environment P J | retainedMask s (side P ks) D ss σ x} : Finset _).dens : ℝ) =
         ((side P ks : ℝ) / P) ^ 4 := by
-    simp only [retainedMask]
-    convert density s (side P ks) (side_le P ks) (CopyPadding.identifier D ss x) using 1
-    congr 2
-    ext σ
-    simp
-  simp_rw [hd]
-  simp only [sum_const, card_univ, ZMod.card, nsmul_eq_mul]
+    convert density s (side P ks) (side_le P ks) (CopyPadding.identifier D ss x) using 2
+    simp [retainedMask]
+  simp only [hd, sum_const, card_univ, ZMod.card, nsmul_eq_mul]
 
 end NormalizedMoments
 open NormalizedMoments
@@ -65,8 +61,7 @@ lemma grid_row_moment_le (D : ZMod P) (s : Fin J) (ks : ℕ) (ss : List (ZMod P)
   have hb := rowNormPow_le_of_card_le (X := retainedMask s (side P ks) D ss)
     (Y := Y) (Z := F) (by decide : 4 ≠ 0) (mul_pos hP hr).le hB hF
     (K := P) (fun σ x _ => (card_le_card (subset_univ _)).trans_eq (by simp))
-  have hm := mul_le_mul_of_nonneg_left hv
-    (mul_nonneg (Nat.cast_nonneg P) (pow_nonneg hB 4))
-  exact hb.trans (by nlinarith only [hm])
+  nlinarith only [hb,
+    mul_le_mul_of_nonneg_left hv (mul_nonneg (Nat.cast_nonneg P) (pow_nonneg hB 4))]
 
 end Matrix.HierarchyParams.H4RankEnvironment

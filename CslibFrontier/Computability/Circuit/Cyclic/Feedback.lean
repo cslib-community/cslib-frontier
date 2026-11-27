@@ -92,9 +92,8 @@ theorem evalGates_feedback : (p.feedback feed).evalGates I hI input =
 /-- Feedback outputs satisfy the program's state-update equations. -/
 theorem eval_feedback_fixed :
     p.eval I (Fin.append input ((p.feedback feed).eval I hI input)) ∘ feed =
-      (p.feedback feed).eval I hI input := by
-  rw [← evalGates_feedback]
-  rfl
+      (p.feedback feed).eval I hI input :=
+  congrArg (· ∘ feed) (evalGates_feedback p feed I hI input).symm
 
 /-- Every pre-fixed state bounds the solved feedback outputs. -/
 theorem eval_feedback_le {state : Fin k → U}
@@ -121,12 +120,9 @@ theorem eval_feedback_le {state : Fin k → U}
 /-- A proved functional update identifies the feedback output with its least fixed point. -/
 theorem eval_feedback_eq_lfp (step : (Fin k → U) →o (Fin k → U))
     (hstep : ∀ state, p.eval I (Fin.append input state) ∘ feed = step state) :
-    (p.feedback feed).eval I hI input = step.lfp := by
-  apply le_antisymm
-  · apply p.eval_feedback_le feed I hI input
-    rw [hstep, step.map_lfp]
-  · apply step.lfp_le
-    rw [← hstep, p.eval_feedback_fixed feed I hI input]
+    (p.feedback feed).eval I hI input = step.lfp :=
+  le_antisymm (p.eval_feedback_le feed I hI input (by rw [hstep, step.map_lfp]))
+    (step.lfp_le (by rw [← hstep, p.eval_feedback_fixed feed I hI input]))
 
 end Cslib.Circuits.Program
 
@@ -149,10 +145,8 @@ private theorem outputs_feedbackGate (c : Circuit σ (n + k) k)
   unfold feedbackGate
   split
   · assumption
-  · rename_i j hj
-    obtain ⟨l, hl⟩ := h i
-    rw [hj] at hl
-    cases hl
+  · obtain ⟨_, hl⟩ := h i
+    simp_all
 
 /-- Feed the outputs of a native circuit back into its final input block. Outputs must be
 internal gates; this excludes direct aliases between state inputs without an operation. -/
@@ -168,11 +162,8 @@ def feedback (c : Circuit σ (n + k) k) (h : ∀ i, ∃ j, c.outputs i = .gate j
 private theorem eval_feedbackGate (c : Circuit σ (n + k) k)
     (h : ∀ i, ∃ j, c.outputs i = .gate j) (I : Interpretation σ U)
     (input : Fin (n + k) → U) :
-    c.program.eval I input ∘ feedbackGate c h = c.eval I input := by
-  funext i
-  change _ = c.program.trace I input (c.outputs i)
-  rw [outputs_feedbackGate c h i]
-  rfl
+    c.program.eval I input ∘ feedbackGate c h = c.eval I input :=
+  funext fun i => (congrArg (c.program.trace I input) (outputs_feedbackGate c h i)).symm
 
 variable [CompleteLattice U] (c : Circuit σ (n + k) k)
   (h : ∀ i, ∃ j, c.outputs i = .gate j)
@@ -181,9 +172,8 @@ variable [CompleteLattice U] (c : Circuit σ (n + k) k)
 /-- The feedback outputs satisfy the ordinary circuit's update equations. -/
 theorem eval_feedback_fixed :
     c.eval I (Fin.append input ((c.feedback h).eval I hI input)) =
-      (c.feedback h).eval I hI input := by
-  rw [← eval_feedbackGate c h I]
-  exact c.program.eval_feedback_fixed _ I hI input
+      (c.feedback h).eval I hI input :=
+  (eval_feedbackGate c h I _).symm.trans (c.program.eval_feedback_fixed _ I hI input)
 
 /-- Every pre-fixed state bounds the circuit's feedback outputs. -/
 theorem eval_feedback_le {state : Fin k → U}

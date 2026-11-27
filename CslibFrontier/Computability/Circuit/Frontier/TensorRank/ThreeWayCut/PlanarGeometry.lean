@@ -100,49 +100,21 @@ private theorem inOpenSector_rot120 (c : Fin 3) (z : ℝ × ℝ) :
 
 private theorem inOpenSector_unique {c₁ c₂ : Fin 3} {z : ℝ × ℝ}
     (h₁ : inOpenSector c₁ z) (h₂ : inOpenSector c₂ z) : c₁ = c₂ := by
-  fin_cases c₁ <;> fin_cases c₂
-  · rfl
-  · exfalso
-    change dot2 (normVec 0) z < 0 ∧ 0 < dot2 (normVec 2) z at h₁
-    change dot2 (normVec 1) z < 0 ∧ 0 < dot2 (normVec 0) z at h₂
-    linarith only [h₁.1, h₂.2]
-  · exfalso
-    change dot2 (normVec 0) z < 0 ∧ 0 < dot2 (normVec 2) z at h₁
-    change dot2 (normVec 2) z < 0 ∧ 0 < dot2 (normVec 1) z at h₂
-    linarith only [h₁.2, h₂.1]
-  · exfalso
-    change dot2 (normVec 1) z < 0 ∧ 0 < dot2 (normVec 0) z at h₁
-    change dot2 (normVec 0) z < 0 ∧ 0 < dot2 (normVec 2) z at h₂
-    linarith only [h₁.2, h₂.1]
-  · rfl
-  · exfalso
-    change dot2 (normVec 1) z < 0 ∧ 0 < dot2 (normVec 0) z at h₁
-    change dot2 (normVec 2) z < 0 ∧ 0 < dot2 (normVec 1) z at h₂
-    linarith only [h₁.1, h₂.2]
-  · exfalso
-    change dot2 (normVec 2) z < 0 ∧ 0 < dot2 (normVec 1) z at h₁
-    change dot2 (normVec 0) z < 0 ∧ 0 < dot2 (normVec 2) z at h₂
-    linarith only [h₁.1, h₂.2]
-  · exfalso
-    change dot2 (normVec 2) z < 0 ∧ 0 < dot2 (normVec 1) z at h₁
-    change dot2 (normVec 1) z < 0 ∧ 0 < dot2 (normVec 0) z at h₂
-    linarith only [h₁.2, h₂.1]
-  · rfl
+  by_contra hne
+  have h : c₂ + 2 = c₁ ∨ c₁ + 2 = c₂ := by fin_cases c₁ <;> fin_cases c₂ <;> simp_all
+  rcases h with rfl | rfl <;> linarith only [h₁.1, h₁.2, h₂.1, h₂.2]
 
 private theorem exists_inOpenSector_of_ne_zero {z : ℝ × ℝ}
     (hz : ∀ c : Fin 3, dot2 (normVec c) z ≠ 0) : ∃ c : Fin 3, inOpenSector c z := by
   have hsum := sum_dot2_normVec z
-  rcases lt_or_gt_of_ne (hz 0) with h0 | h0 <;>
-    rcases lt_or_gt_of_ne (hz 1) with h1 | h1 <;>
-    rcases lt_or_gt_of_ne (hz 2) with h2 | h2
-  · exfalso; linarith only [hsum, h0, h1, h2]
-  · exact ⟨0, h0, h2⟩
-  · exact ⟨2, h2, h1⟩
-  · exact ⟨0, h0, h2⟩
-  · exact ⟨1, h1, h0⟩
-  · exact ⟨1, h1, h0⟩
-  · exact ⟨2, h2, h1⟩
-  · exfalso; linarith only [hsum, h0, h1, h2]
+  rcases lt_or_gt_of_ne (hz 0) with h0 | h0
+  · rcases lt_or_gt_of_ne (hz 2) with h2 | h2
+    · have h1 : 0 < dot2 (normVec 1) z := by linarith only [hsum, h0, h2]
+      exact ⟨2, h2, h1⟩
+    · exact ⟨0, h0, h2⟩
+  · rcases lt_or_gt_of_ne (hz 1) with h1 | h1
+    · exact ⟨1, h1, h0⟩
+    · exact ⟨2, by linarith only [hsum, h0, h1], h1⟩
 
 /-- Oriented crossing of the positive boundary ray `{w | dot2 (normVec c) w = 0}` between `z₁` and
 `z₂`: opposite signs on `normVec c` paired with the matching orientation sign on `det2 z₁ z₂`. -/
@@ -157,11 +129,8 @@ private theorem rayCross_rot120 (c : Fin 3) (z₁ z₂ : ℝ × ℝ) :
 private theorem rayCross_comm (c : Fin 3) (z₁ z₂ : ℝ × ℝ) :
     rayCross c z₁ z₂ ↔ rayCross c z₂ z₁ := by
   have hdet : det2 z₂ z₁ = -det2 z₁ z₂ := by dsimp [det2]; ring
-  simp only [rayCross, hdet]
-  exact ⟨fun h => h.elim (fun ⟨h1, h2, hd⟩ => Or.inr ⟨h1, h2, by linarith only [hd]⟩)
-      (fun ⟨h1, h2, hd⟩ => Or.inl ⟨h1, h2, by linarith only [hd]⟩),
-    fun h => h.elim (fun ⟨h1, h2, hd⟩ => Or.inr ⟨h1, h2, by linarith only [hd]⟩)
-      (fun ⟨h1, h2, hd⟩ => Or.inl ⟨h1, h2, by linarith only [hd]⟩)⟩
+  simp only [rayCross, hdet, Left.neg_pos_iff, Left.neg_neg_iff]
+  exact or_comm
 
 private theorem rayCross_disjoint_neg2 (c : Fin 3) (z₁ z₂ : ℝ × ℝ) :
     ¬(rayCross c z₁ z₂ ∧ rayCross c (neg2 z₁) (neg2 z₂)) := by
@@ -197,67 +166,36 @@ private theorem rayCross_of_adj_sectors_zero {z₁ z₂ : ℝ × ℝ}
       dot2 (normVec 2) z₁ * dot2 (normVec 1) z₂ = √3 / 2 * det2 z₁ z₂ := by
     dsimp [normVec, dot2, det2]
     ring
-  have hsqrt3 : (0 : ℝ) < √3 := sqrt_pos.mpr (by norm_num)
   have hrhs_neg : √3 / 2 * det2 z₁ z₂ < 0 := mul_neg_of_pos_of_neg (by positivity) hd
-  have hprod_pos : 0 < dot2 (normVec 2) z₁ * dot2 (normVec 0) z₂ := mul_pos h₁.2 h₂.2
-  have hn0z1_neg := h₁.1
   have hn2z2_neg : dot2 (normVec 2) z₂ < 0 := by
     by_contra! hge
-    have hle : dot2 (normVec 0) z₁ * dot2 (normVec 2) z₂ ≤ 0 :=
-      mul_nonpos_of_nonpos_of_nonneg hn0z1_neg.le hge
-    linarith only [hid1, hrhs_neg, hprod_pos, hle]
-  have hprod2_neg : dot2 (normVec 2) z₁ * dot2 (normVec 1) z₂ < 0 :=
-    mul_neg_of_pos_of_neg h₁.2 h₂.1
+    linarith only [hid1, hrhs_neg, mul_pos h₁.2 h₂.2, mul_nonpos_of_nonpos_of_nonneg h₁.1.le hge]
   have hn1z1_pos : 0 < dot2 (normVec 1) z₁ := by
     by_contra! hle
-    have hge : 0 ≤ dot2 (normVec 1) z₁ * dot2 (normVec 2) z₂ :=
-      mul_nonneg_of_nonpos_of_nonpos hle hn2z2_neg.le
-    linarith only [hid2, hrhs_neg, hprod2_neg, hge]
+    linarith only [hid2, hrhs_neg, mul_neg_of_pos_of_neg h₁.2 h₂.1,
+      mul_nonneg_of_nonpos_of_nonpos hle hn2z2_neg.le]
   exact ⟨Or.inr ⟨h₂.1, hn1z1_pos, hd⟩, Or.inr ⟨hn2z2_neg, h₁.2, hd⟩⟩
 
 private theorem rayCross_of_adj_sectors (c : Fin 3) {z₁ z₂ : ℝ × ℝ}
     (h₁ : inOpenSector c z₁) (h₂ : inOpenSector (c + 1) z₂) :
     (0 < det2 z₁ z₂ → rayCross c z₁ z₂) ∧
       (det2 z₁ z₂ < 0 → rayCross (c + 1) z₁ z₂ ∧ rayCross (c + 2) z₁ z₂) := by
+  have step {d : Fin 3} {w₁ w₂ : ℝ × ℝ}
+      (h : (0 < det2 (rot120 w₁) (rot120 w₂) → rayCross (d + 1) (rot120 w₁) (rot120 w₂)) ∧
+        (det2 (rot120 w₁) (rot120 w₂) < 0 →
+          rayCross ((d + 1) + 1) (rot120 w₁) (rot120 w₂) ∧
+          rayCross ((d + 1) + 2) (rot120 w₁) (rot120 w₂))) :
+      (0 < det2 w₁ w₂ → rayCross d w₁ w₂) ∧
+        (det2 w₁ w₂ < 0 → rayCross (d + 1) w₁ w₂ ∧ rayCross (d + 2) w₁ w₂) := by
+    have h2 : (d + 1) + 2 = (d + 2) + 1 := by fin_cases d <;> decide
+    simpa only [det2_rot120, h2, rayCross_rot120] using h
   fin_cases c
   · exact rayCross_of_adj_sectors_zero h₁ h₂
-  · have h₁' : inOpenSector 0 (rot120 (rot120 z₁)) := by
-      have hA : inOpenSector (1 + 1) (rot120 z₁) := (inOpenSector_rot120 1 z₁).mpr h₁
-      exact (inOpenSector_rot120 (1 + 1) (rot120 z₁)).mpr hA
-    have h₂' : inOpenSector 1 (rot120 (rot120 z₂)) := by
-      have hA : inOpenSector ((1 + 1) + 1) (rot120 z₂) := (inOpenSector_rot120 (1 + 1) z₂).mpr h₂
-      exact (inOpenSector_rot120 ((1 + 1) + 1) (rot120 z₂)).mpr hA
-    obtain ⟨hpos, hneg⟩ := rayCross_of_adj_sectors_zero h₁' h₂'
-    rw [det2_rot120, det2_rot120] at hpos hneg
-    have hr0 : rayCross 0 (rot120 (rot120 z₁)) (rot120 (rot120 z₂)) ↔ rayCross 1 z₁ z₂ := by
-      calc rayCross 0 (rot120 (rot120 z₁)) (rot120 (rot120 z₂))
-          ↔ rayCross (2 + 1) (rot120 (rot120 z₁)) (rot120 (rot120 z₂)) := Iff.rfl
-        _ ↔ rayCross 2 (rot120 z₁) (rot120 z₂) := rayCross_rot120 2 _ _
-        _ ↔ rayCross (1 + 1) (rot120 z₁) (rot120 z₂) := Iff.rfl
-        _ ↔ rayCross 1 z₁ z₂ := rayCross_rot120 1 _ _
-    have hr1 : rayCross 1 (rot120 (rot120 z₁)) (rot120 (rot120 z₂)) ↔ rayCross (1 + 1) z₁ z₂ := by
-      calc rayCross 1 (rot120 (rot120 z₁)) (rot120 (rot120 z₂))
-          ↔ rayCross (0 + 1) (rot120 (rot120 z₁)) (rot120 (rot120 z₂)) := Iff.rfl
-        _ ↔ rayCross 0 (rot120 z₁) (rot120 z₂) := rayCross_rot120 0 _ _
-        _ ↔ rayCross (2 + 1) (rot120 z₁) (rot120 z₂) := Iff.rfl
-        _ ↔ rayCross (1 + 1) z₁ z₂ := rayCross_rot120 2 _ _
-    have hr2 : rayCross 2 (rot120 (rot120 z₁)) (rot120 (rot120 z₂)) ↔ rayCross (1 + 2) z₁ z₂ := by
-      calc rayCross 2 (rot120 (rot120 z₁)) (rot120 (rot120 z₂))
-          ↔ rayCross (1 + 1) (rot120 (rot120 z₁)) (rot120 (rot120 z₂)) := Iff.rfl
-        _ ↔ rayCross 1 (rot120 z₁) (rot120 z₂) := rayCross_rot120 1 _ _
-        _ ↔ rayCross (0 + 1) (rot120 z₁) (rot120 z₂) := Iff.rfl
-        _ ↔ rayCross (1 + 2) z₁ z₂ := rayCross_rot120 0 _ _
-    exact ⟨fun hd => hr0.mp (hpos hd), fun hd => ⟨hr1.mp (hneg hd).1, hr2.mp (hneg hd).2⟩⟩
-  · have h₁' : inOpenSector 0 (rot120 z₁) := (inOpenSector_rot120 2 z₁).mpr h₁
-    have h₂' : inOpenSector 1 (rot120 z₂) := (inOpenSector_rot120 0 z₂).mpr h₂
-    obtain ⟨hpos, hneg⟩ := rayCross_of_adj_sectors_zero h₁' h₂'
-    rw [det2_rot120] at hpos hneg
-    have hr0 : rayCross 0 (rot120 z₁) (rot120 z₂) ↔ rayCross 2 z₁ z₂ := rayCross_rot120 2 _ _
-    have hr1 : rayCross 1 (rot120 z₁) (rot120 z₂) ↔ rayCross (2 + 1) z₁ z₂ :=
-      rayCross_rot120 0 _ _
-    have hr2 : rayCross 2 (rot120 z₁) (rot120 z₂) ↔ rayCross (2 + 2) z₁ z₂ :=
-      rayCross_rot120 1 _ _
-    exact ⟨fun hd => hr0.mp (hpos hd), fun hd => ⟨hr1.mp (hneg hd).1, hr2.mp (hneg hd).2⟩⟩
+  · exact step <| step <| rayCross_of_adj_sectors_zero
+      ((inOpenSector_rot120 (1 + 1) _).mpr ((inOpenSector_rot120 1 z₁).mpr h₁))
+      ((inOpenSector_rot120 ((1 + 1) + 1) _).mpr ((inOpenSector_rot120 (1 + 1) z₂).mpr h₂))
+  · exact step <| rayCross_of_adj_sectors_zero
+      ((inOpenSector_rot120 2 z₁).mpr h₁) ((inOpenSector_rot120 0 z₂).mpr h₂)
 
 /-- **Cramer's rule for `(0, 0) ∈ conv(z₀, z₁, z₂)`.** When all three cyclic determinants are
 strictly positive, `(0, 0)` is a convex combination of `z₀, z₁, z₂`. -/
@@ -283,27 +221,20 @@ private theorem one_or_two_le_sum_rayCross (c : Fin 3) {z₁ z₂ : ℝ × ℝ}
     1 ≤ (∑ k : Fin 3, if rayCross k z₁ z₂ then (1 : ℕ) else 0) ∧
       (det2 z₁ z₂ < 0 → 2 ≤ ∑ k : Fin 3, if rayCross k z₁ z₂ then (1 : ℕ) else 0) := by
   obtain ⟨hpos, hneg⟩ := rayCross_of_adj_sectors c h₁ h₂
+  have hsum : ∑ k : Fin 3, (if rayCross k z₁ z₂ then (1 : ℕ) else 0) =
+      (if rayCross c z₁ z₂ then 1 else 0) + (if rayCross (c + 1) z₁ z₂ then 1 else 0) +
+        (if rayCross (c + 2) z₁ z₂ then 1 else 0) := by
+    match c with
+    | 0 => exact Fin.sum_univ_three _
+    | 1 => rw [Fin.sum_univ_three]; simp only [Fin.reduceAdd]; omega
+    | 2 => rw [Fin.sum_univ_three]; simp only [Fin.reduceAdd]; omega
+  rw [hsum]
   rcases lt_or_gt_of_ne hd with hlt | hgt
   · obtain ⟨hc1, hc2⟩ := hneg hlt
-    have hne : c + 1 ≠ c + 2 := by fin_cases c <;> decide
-    have hle : ({c + 1, c + 2} : Finset (Fin 3)).card ≤
-        (Finset.univ.filter fun k : Fin 3 => rayCross k z₁ z₂).card := by
-      refine Finset.card_le_card fun k hk => ?_
-      simp only [Finset.mem_insert, Finset.mem_singleton] at hk
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-      rcases hk with rfl | rfl
-      exacts [hc1, hc2]
-    rw [Finset.card_pair hne, Finset.card_filter] at hle
-    exact ⟨ by omega, fun _ => hle⟩
-  · have hc0 := hpos hgt
-    have hle : ({c} : Finset (Fin 3)).card ≤
-        (Finset.univ.filter fun k : Fin 3 => rayCross k z₁ z₂).card := by
-      refine Finset.card_le_card fun k hk => ?_
-      simp only [Finset.mem_singleton] at hk
-      subst hk
-      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hc0⟩
-    rw [Finset.card_singleton, Finset.card_filter] at hle
-    exact ⟨hle, fun hlt => absurd hlt (not_lt.mpr hgt.le)⟩
+    simp only [ite_eq_left hc1, ite_eq_left hc2]
+    exact ⟨by omega, fun _ => by omega⟩
+  · simp only [ite_eq_left (hpos hgt)]
+    exact ⟨by omega, fun hlt => absurd hlt (not_lt.mpr hgt.le)⟩
 
 
 end Cslib.Circuits.Frontier.TensorRank

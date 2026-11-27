@@ -109,12 +109,7 @@ theorem rounds_append (ps qs : List (V × V)) (φ : QBF V) :
 
 /-- Rounds of quantifiers quantify two variables each. -/
 theorem length_roundVars (ps : List (V × V)) : (roundVars ps).length = 2 * ps.length := by
-  induction ps with
-  | nil => rfl
-  | cons p ps ih =>
-    simp only [roundVars, List.flatMap_cons, List.length_append, List.length_cons,
-      List.length_nil] at ih ⊢
-    omega
+  simp [roundVars, List.length_flatMap, List.map_const', Nat.mul_comm]
 
 variable [DecidableEq V]
 
@@ -128,8 +123,7 @@ theorem eval_rounds_eq_true_iff (ps : List (V × V)) (φ : QBF V) (σ : V → Bo
   | nil => simp [rounds, roundVars, updates]
   | cons p ps ih =>
     rw [List.length_cons, Complexity.alternation_replicate_succ]
-    simp only [rounds, List.foldr_cons, eval_ex_eq_true_iff, eval_all_eq_true_iff]
-    simp only [rounds] at ih
+    simp only [rounds, List.foldr_cons, eval_ex_eq_true_iff, eval_all_eq_true_iff] at ih ⊢
     simp only [ih]
     rfl
 
@@ -149,14 +143,18 @@ theorem eval_rounds_congr {φ ψ : QBF V} (h : ∀ σ, φ.eval σ = ψ.eval σ) 
     (σ : V → Bool) : (rounds ps φ).eval σ = (rounds ps ψ).eval σ := by
   induction ps generalizing σ with
   | nil => exact h σ
-  | cons p ps ih => simp only [rounds, List.foldr_cons] at ih ⊢; simp only [eval_ex, eval_all, ih]
+  | cons p ps ih =>
+    simp only [rounds, List.foldr_cons] at ih ⊢
+    simp only [eval_ex, eval_all, ih]
 
 /-- Existential quantifiers over formulas with the same values have the same values. -/
 theorem eval_exs_congr {φ ψ : QBF V} (h : ∀ σ, φ.eval σ = ψ.eval σ) (vs : List V)
     (σ : V → Bool) : (exs vs φ).eval σ = (exs vs ψ).eval σ := by
   induction vs generalizing σ with
   | nil => exact h σ
-  | cons v vs ih => simp only [exs, List.foldr_cons] at ih ⊢; simp only [eval_ex, ih]
+  | cons v vs ih =>
+    simp only [exs, List.foldr_cons] at ih ⊢
+    simp only [eval_ex, ih]
 
 /-- **Vacuous universal quantifiers**: the rounds `∃ v, ∀ d` for the variables `v` of a list, over
 a variable `d` that is not free in the body, are existential quantifiers over the list. -/
@@ -174,14 +172,10 @@ theorem eval_rounds_map_pair {φ : QBF V} {d : V} (hd : d ∉ φ.freeVars) (vs :
 variables of its clauses are quantified. -/
 theorem closed_rounds_ofCNF_iff (ps : List (V × V)) (ψ : CNF V) :
     (rounds ps (ofCNF ψ)).Closed ↔ ∀ c ∈ ψ, ∀ l ∈ c, l.1 ∈ roundVars ps := by
-  rw [Closed, Finset.eq_empty_iff_forall_notMem]
-  simp only [mem_freeVars_rounds, mem_freeVars_ofCNF, CNF.vars, List.mem_map,
-    List.mem_flatten, not_and, not_not]
-  constructor
-  · intro h c hc l hl
-    exact h _ ⟨l, ⟨c, hc, hl⟩, rfl⟩
-  · rintro h _ ⟨l, ⟨c, hc, hl⟩, rfl⟩
-    exact h c hc l hl
+  simp only [Closed, Finset.eq_empty_iff_forall_notMem, mem_freeVars_rounds, mem_freeVars_ofCNF,
+    CNF.vars, List.mem_map, List.mem_flatten, not_and, not_not]
+  exact ⟨fun h c hc l hl => h l.1 ⟨l, ⟨c, hc, hl⟩, rfl⟩,
+    fun h _ ⟨l, ⟨c, hc, hl⟩, he⟩ => he ▸ h c hc l hl⟩
 
 end Cslib.Logic.PL.QBF
 
@@ -215,11 +209,8 @@ theorem roundVars_gamePairs (w : ℕ) :
     QBF.roundVars (gamePairs w) = blockVars w 0 0 ++ blockVars w 1 0 := by
   rw [QBF.roundVars, gamePairs, flatMap_range_pairs, two_mul, List.range_add, List.map_append,
     List.map_map]
-  congr 1
-  · refine List.map_congr_left fun j hj => ?_
-    simp [certVar, List.mem_range.mp hj]
-  · refine List.map_congr_left fun j _ => ?_
-    simp [certVar]
+  exact congrArg₂ _ (List.map_congr_left fun j hj => by simp [certVar, List.mem_range.mp hj])
+    (List.map_congr_left fun j _ => by simp [certVar])
 
 /-- **The formula of a game** on a tableau: rounds of quantifiers over the blocks of level `0`,
 then the tableau as the formula of level `0`. -/
@@ -241,14 +232,12 @@ theorem eval_gameFormula (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ
   rw [gameFormula, QBF.eval_rounds_eq_true_iff, length_gamePairs]
   refine alternation_congr_of_length fun z hz => ?_
   rw [sum_replicate_one] at hz
-  rw [eval_baseFormula]
   have hblocks : block (QBF.updates σ (QBF.roundVars (gamePairs w)) z) w 0 0 ++
       block (QBF.updates σ (QBF.roundVars (gamePairs w)) z) w 1 0 = z := by
     rw [block, block, ← List.map_append, ← roundVars_gamePairs]
     exact QBF.map_updates (roundVars_gamePairs w ▸ nodup_blockVars_append w 0)
-      (by rw [hz, roundVars_gamePairs, List.length_append, blockVars, blockVars, List.length_map,
-        List.length_map, List.length_range, two_mul])
-  rw [hblocks]
+      (by simp [hz, roundVars_gamePairs, blockVars, two_mul])
+  rw [eval_baseFormula, hblocks]
 
 /-- The formula of a game is closed. -/
 theorem closed_gameFormula (tab : CNF (CookLevin.Var k State)) (w : ℕ) :
@@ -294,8 +283,7 @@ theorem gameReduce_mem_TQBF_iff {V : α × List Bool → Bool} {kV : ℕ} {State
   have hrun := (htm (a, z)).runFrom_initCfg
   have hlen : (encPair enc encBits (a, z)).length = 2 * (enc a).length + 2 * w + 1 := by
     rw [length_encPair, encBits_apply, hz]
-    dsimp only
-    omega
+    dsimp only; omega
   dsimp only at hrun
   rw [hlen, encPair_apply, encBits_apply] at hrun
   have htab := CookLevin.exists_eval_tableau_iff (tm := tmV) (u := frame (enc a))
@@ -303,8 +291,7 @@ theorem gameReduce_mem_TQBF_iff {V : α × List Bool → Bool} {kV : ℕ} {State
   rw [hz] at htab
   rw [htab, show 2 * (enc a).length + 2 * w + 2 = 2 * (enc a).length + 2 * w + 1 + 1 by ring,
     hrun.2]
-  simp only [encBool_apply, List.cons.injEq, and_true]
-  exact ⟨fun h => h.2, fun h => ⟨hrun.1, h⟩⟩
+  simpa only [encBool_apply, List.cons.injEq, and_true] using ⟨And.right, And.intro hrun.1⟩
 
 /-- The tokens of a round of the game. -/
 def roundTokens (w i : ℕ) : List (QBF.Kind × ℕ) :=

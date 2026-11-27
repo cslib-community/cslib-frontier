@@ -90,9 +90,9 @@ theorem acceptsWithin_lift_tag (r : ℕ) : ∀ (zd : List Bool) (u : Bool) (n : 
   induction r with
   | zero =>
     intro zd u n
-    rw [show 2 * 0 + 1 + n = n + 1 by omega, List.replicate_zero, List.replicate_zero,
-      List.append_nil, acceptsWithin_succ_of_next_eq (next_lift_halt zd u),
-      Cslib.Complexity.alternation_nil, List.append_nil, add_zero]
+    simpa only [zero_mul, zero_add, add_comm 1 n, List.replicate_zero, List.append_nil,
+      Cslib.Complexity.alternation_nil, add_zero] using
+      acceptsWithin_succ_of_next_eq (next_lift_halt zd u)
   | succ r ih =>
     intro zd u n
     simp only [List.replicate_succ]
@@ -101,20 +101,16 @@ theorem acceptsWithin_lift_tag (r : ℕ) : ∀ (zd : List Bool) (u : Bool) (n : 
         (2 * zd.length + 1))).state = some (.inr (.inl (.move u))) := rfl
     have hgame (b : Bool) := ih (zd ++ [b]) (!u) n
     simp only [Bool.not_not, List.append_assoc, List.singleton_append, List.length_append,
-      List.length_singleton, show zd.length + 1 + r = zd.length + (r + 1) by ring] at hgame
-    rw [show 2 * (r + 1) + 1 + n = 2 * r + 1 + n + 1 + 1 by omega,
-      acceptsWithin_succ_of_next_eq (next_lift_tag zd _ true u)]
+      List.length_singleton, Nat.add_assoc zd.length 1 r, Nat.add_comm 1 r] at hgame
+    have hstep : 2 * (r + 1) + 1 + n = 2 * r + 1 + n + 1 + 1 := by omega
+    rw [hstep, acceptsWithin_succ_of_next_eq (next_lift_tag zd _ true u)]
     cases u
     · rw [(guessVerify B prep verify).acceptsWithin_succ_of_existential hstate rfl,
         Bool.not_false, Cslib.Complexity.alternation_true_one_cons]
-      refine exists_congr fun b => ?_
-      rw [next_lift_move]
-      exact hgame b
+      exact exists_congr fun b => by simpa only [next_lift_move] using hgame b
     · rw [(guessVerify B prep verify).acceptsWithin_succ_of_universal hstate rfl,
         Bool.not_true, Cslib.Complexity.alternation_false_one_cons]
-      refine forall_congr' fun b => ?_
-      rw [next_lift_move]
-      exact hgame b
+      exact forall_congr' fun b => by simpa only [next_lift_move] using hgame b
 
 end GuessVerify
 
@@ -151,31 +147,20 @@ theorem guessVerify_spec {L t₁ t₂ : ℕ} {V : List Bool → Bool}
     (t := t₁) (by rw [hprep]; rfl)
   obtain ⟨hdet, hstart⟩ := GuessVerify.prepare_spec (S₁ := S₁) (verify := verify) hu
     ((hu.runFrom_eq hut).symm.trans hprep)
-  have hguess (zd : List Bool) (hzd : zd = []) (pos : ℕ) (hpos : pos = 2 * zd.length) :
-      GuessVerify.cfg (input := input) (State := GuessState) B (some (.tag false))
-        (frame (List.replicate L true) ++ input) 0 =
-      GuessVerify.cfg B (some (.tag false)) (frame (zd ++ List.replicate L true) ++ input) pos := by
-    subst hzd hpos
-    rfl
-  have hpos (z : List Bool) : 2 * ([] ++ z).length ≤ (frame z ++ input).length := by
-    simpa using two_mul_length_le_length_frame_append z input
   refine ⟨u + (2 * L + 1 + (2 * L + 2 + t₂)), by omega, ?_, ?_⟩
-  · rw [haltsWithin_add_iff_of_next_eq hdet, hstart, hguess [] rfl _ rfl,
-      GuessVerify.haltsWithin_lift_tag]
-    intro z hz
-    have := GuessVerify.haltsWithin_lift_none (S₁ := S₁) (prep := prep) (hpos z)
-      (hverify z hz).1
-    simp only [List.nil_append, List.length_nil, zero_add] at this ⊢
-    rwa [hz] at this
-  · rw [acceptsWithin_add_iff_of_next_eq hdet, hstart, hguess [] rfl _ rfl,
-      GuessVerify.acceptsWithin_lift_tag, Bool.not_false]
+  · rw [haltsWithin_add_iff_of_next_eq hdet, hstart]
+    exact (GuessVerify.haltsWithin_lift_tag L [] false _).mpr fun z hz => by
+      simpa only [List.nil_append, List.length_nil, zero_add, hz] using
+        GuessVerify.haltsWithin_lift_none (S₁ := S₁) (prep := prep)
+          (two_mul_length_le_length_frame_append z input) (hverify z hz).1
+  · rw [acceptsWithin_add_iff_of_next_eq hdet, hstart]
+    refine (GuessVerify.acceptsWithin_lift_tag L [] false _).trans ?_
+    rw [Bool.not_false]
     refine Cslib.Complexity.alternation_congr_of_length fun z hz => ?_
     rw [Cslib.Complexity.sum_replicate_one] at hz
-    have := GuessVerify.acceptsWithin_lift_none (S₁ := S₁) (prep := prep) (hpos z)
-      (hverify z hz).1
-    simp only [List.nil_append, List.length_nil, zero_add, hz] at this ⊢
-    rw [this, (hverify z hz).2]
-    simp
+    simpa [List.nil_append, hz, (hverify z hz).2] using
+      GuessVerify.acceptsWithin_lift_none (S₁ := S₁) (prep := prep)
+        (two_mul_length_le_length_frame_append z input) (hverify z hz).1
 
 end Spec
 
@@ -214,26 +199,22 @@ private theorem decidableInTime_guessVerify {L : α → ℕ} {W : List Bool × �
       (tg a + (frame (List.replicate (L a) true) ++ enc a).length + 2) =
       wordsCfg (enc a) none (Function.update (fun _ => []) B
         (frame (List.replicate (L a) true) ++ enc a)) [] := by
-    obtain ⟨s, hs⟩ := hTg a
-    obtain ⟨ws, em, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
+    obtain ⟨_, hs⟩ := hTg a
+    obtain ⟨_, _, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
       (hs.outputToWord_onTape (Fin.embeddingAt_source hk₁ (Fin.last k₁) B))
-        (enc a) (fun _ => []) [] ⟨rfl, rfl⟩
-    rw [Cfg.init_eq_wordsCfg]
-    exact hrun
+      (enc a) (fun _ => []) [] ⟨rfl, rfl⟩
+    exact Cfg.init_eq_wordsCfg .. ▸ hrun
   have hverify (a : α) (z : List Bool) (hz : z.length = L a) :
       (verify.runFrom (wordsCfg (enc a) (some verify.q₀)
         (Function.update (fun _ => []) B (frame z ++ enc a)) []) (tv a + 4)).state = none ∧
       (verify.runFrom (wordsCfg (enc a) (some verify.q₀)
         (Function.update (fun _ => []) B (frame z ++ enc a)) []) (tv a + 4)).output =
         [W (z, a)] := by
-    obtain ⟨s, hs⟩ := hTv a z hz
-    obtain ⟨ws, em, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
+    obtain ⟨_, hs⟩ := hTv a z hz
+    obtain ⟨_, _, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
       (hs.inputFromWord_extendTapes true (Fin.embeddingAt_source hk₂ (Fin.natAdd k₂ 0) B))
       (enc a) _ [] rfl
-    have hrun' : verify.runFrom (wordsCfg (enc a) (some verify.q₀)
-        (Function.update (fun _ => []) B (frame z ++ enc a)) []) (tv a + 4) = _ := hrun
-    rw [hrun']
-    exact ⟨rfl, rfl⟩
+    exact ⟨congrArg Cfg.state hrun, congrArg Cfg.output hrun⟩
   refine ⟨k₁ + 1 + (k₂ + 2), _, inferInstance, MultiTapeATM.guessVerify B prep verify,
     fun a => ?_⟩
   obtain ⟨T, hT, hhalt, hacc⟩ := MultiTapeATM.guessVerify_spec (hprep a) (hverify a)
@@ -270,9 +251,8 @@ theorem IsGameVerifier.mem_AP {p : Polynomial ℕ} {V : α × List Bool → Bool
     (PolyBounded.of_forall_le (size := id) cv dv fun _ => le_rfl).comp hgl
   have hdec := decidableInTime_guessVerify (A := A) (L := L) (W := fun x => V (x.2, x.1))
     (tg := fun a => cg * ((enc a).length + 1) ^ dg) (tv := fun a => cv * ((g a).length + 1) ^ dv)
-    (fun a => ⟨_, hTg a⟩) (fun a z hz => ⟨_, (hTv (z, a)).mono (le_of_eq (by
-      have hlen : (encPair encBits enc (z, a)).length = (g a).length := by simp [hg_def, hz]
-      rw [hlen])) le_rfl⟩) h
+    (fun a => ⟨_, hTg a⟩)
+    (fun a z hz => ⟨_, (hTv (z, a)).mono (le_of_eq (by simp [hg_def, hz])) le_rfl⟩) h
   exact ⟨_, ((htg.add hgl).add (.const 2)).add ((((PolyBounded.const 4).mul hLb).add
     (.const 3)).add (htv.add (.const 4))), hdec⟩
 
@@ -307,30 +287,25 @@ theorem mem_ATIME_of_alternation {L : α → ℕ} {V : α × List Bool → Bool}
     hV.comp' ((ComputableInO.snd encBits enc).prod (ComputableInO.fst encBits enc))
   obtain ⟨cg, k₁, S₁, _, Tg, hTg⟩ := Internal.NormalForm.bigO hg.computableInBigO
   obtain ⟨cv, k₂, S₂, _, Tv, hTv⟩ := Internal.NormalForm.bigO hV'.computableInBigO
-  have hℓ (a : α) : (frame (List.replicate (L a) true) ++ enc a).length =
-      2 * L a + 1 + (enc a).length := by
-    simp
-  have hdec := decidableInTime_guessVerify (A := A) (L := L) (W := fun x => V (x.2, x.1))
-    (tg := fun a => cg * (TL a + (enc a).length + 1))
-    (tv := fun a => cv * (2 * (2 * L a + 1 + (enc a).length) + (C * t (enc a).length + C) + 1))
-    (fun a => ⟨_, hTg a⟩) (fun a z hz => ⟨_, (hTv (z, a)).mono (Nat.mul_le_mul_left cv (by
-      have hlen := length_encPair (enc₁ := encBits) (enc₂ := enc) (z, a)
-      have hT := hTV a z hz
-      simp only [encBits_apply] at hlen
-      dsimp only
-      omega)) le_rfl⟩) hA
-  obtain ⟨k, State, hfin, atm, hatm⟩ := hdec
+  obtain ⟨k, State, hfin, atm, hatm⟩ :=
+    decidableInTime_guessVerify (A := A) (L := L) (W := fun x => V (x.2, x.1))
+      (tg := fun a => cg * (TL a + (enc a).length + 1))
+      (tv := fun a => cv * (2 * (2 * L a + 1 + (enc a).length) + (C * t (enc a).length + C) + 1))
+      (fun a => ⟨_, hTg a⟩) (fun a z hz => ⟨_, (hTv (z, a)).mono (Nat.mul_le_mul_left cv (by
+        have hlen := length_encPair (enc₁ := encBits) (enc₂ := enc) (z, a)
+        have hT := hTV a z hz
+        simp only [encBits_apply] at hlen
+        dsimp only
+        omega)) le_rfl⟩) hA
   refine ⟨(cg + 5 * cv + 11) * C, (cg + 5 * cv + 11) * C + (cg + 5 * cv + 11), k, State, hfin,
     atm, hatm.mono fun a => ?_⟩
   have h₁ := hTL a
-  have h₂ := hℓ a
   have e₁ : cg * (TL a + (enc a).length + 1) ≤ cg * (C * t (enc a).length + C + 1) :=
     Nat.mul_le_mul_left cg (by omega)
   have e₂ : cv * (2 * (2 * L a + 1 + (enc a).length) + (C * t (enc a).length + C) + 1) ≤
       cv * (5 * (C * t (enc a).length + C + 1)) :=
     Nat.mul_le_mul_left cv (by omega)
-  have hC := Nat.zero_le (C * t (enc a).length)
-  rw [h₂]
-  nlinarith [e₁, e₂, hC]
+  simp only [List.length_append, length_frame, List.length_replicate]
+  nlinarith [e₁, e₂, Nat.zero_le (C * t (enc a).length)]
 
 end Cslib.Complexity

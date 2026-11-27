@@ -170,6 +170,23 @@ theorem dist_sumset_linearStrongExtractor_le {n m : ℕ} {Seed : Type*} [Fintype
   rw [hrewrite, dist_bind_pair]
   exact sum_mul_le B _ ε fun b => hinner b
 
+/-- Average strong-extractor distance over uniform seeds equals the strong-extractor distance. -/
+theorem sum_uniform_dist_strongExtractor {Input Seed Output : Type*}
+    [Fintype Seed] [Nonempty Seed] [Fintype Output] [Nonempty Output]
+    (ext : Input → Seed → Output) (PX : PMF Input) :
+    ∑ s : Seed, ((PMF.uniformOfFintype Seed) s).toReal *
+        dist (PX.map fun x => ext x s) (PMF.uniformOfFintype Output) =
+      dist (PX.bind fun x => (PMF.uniformOfFintype Seed).map fun s => (s, ext x s))
+        (PMF.uniformOfFintype (Seed × Output)) := by
+  have hcomm :
+      (PX.bind fun x => (PMF.uniformOfFintype Seed).map fun s => (s, ext x s)) =
+      (PMF.uniformOfFintype Seed).bind fun s => (PX.map fun x => ext x s).map (s, ·) := by
+    simp only [PMF.map, Function.comp_def]
+    rw [PMF.bind_comm]
+    refine congrArg ((PMF.uniformOfFintype Seed).bind ·) (funext fun s => ?_)
+    simp only [PMF.bind_bind, PMF.pure_bind]
+  rw [hcomm, ← uniformOfFintype_prod, dist_bind_pair]
+
 /-- **Markov bad-seed bound for strong extractors**: if `ext` is a strong `(k, ε)`-extractor and
 `k ≤ minEntropy A`, then for any threshold `γ > 0`, at most `(ε / γ) · |Seed|` seeds fail to make
 `A.map (ext · s)` `γ`-close to uniform. -/
@@ -183,19 +200,8 @@ theorem card_badSeed_le_of_isStrongExtractor {Input Seed Output : Type*}
   classical
   have havg : ∑ s : Seed, ((PMF.uniformOfFintype Seed) s).toReal *
       dist (A.map fun a => ext a s) (PMF.uniformOfFintype Output) ≤ ε := by
-    have hcomm :
-        (A.bind fun a => (PMF.uniformOfFintype Seed).map fun s => (s, ext a s)) =
-        (PMF.uniformOfFintype Seed).bind fun s => (A.map fun a => ext a s).map (s, ·) := by
-      simp only [PMF.map, Function.comp_def]
-      rw [PMF.bind_comm]
-      refine congrArg ((PMF.uniformOfFintype Seed).bind ·) (funext fun s => ?_)
-      simp only [PMF.bind_bind, PMF.pure_bind]
-    have hunif : PMF.uniformOfFintype (Seed × Output) =
-        (PMF.uniformOfFintype Seed).bind fun s => (PMF.uniformOfFintype Output).map (s, ·) :=
-      (uniformOfFintype_prod Seed Output).symm
-    have h := hext A hA
-    rw [hcomm, hunif, dist_bind_pair] at h
-    exact h
+    rw [sum_uniform_dist_strongExtractor]
+    exact hext A hA
   set Q := Finset.univ.filter fun s : Seed =>
     γ < dist (A.map fun a => ext a s) (PMF.uniformOfFintype Output)
   have hcard_pos : (0 : ℝ) < Fintype.card Seed := by exact_mod_cast Fintype.card_pos
@@ -299,8 +305,7 @@ private theorem map_snd_pair {α β : Type*} (P : PMF α) (f : α → β) :
   exact PMF.map_id P
 
 /-- Conditioning `P` on `f x` and mixing back recovers `P`. -/
-private theorem bind_conditionalSnd_pair {α β : Type*}
-    (P : PMF α) (f : α → β) :
+theorem bind_conditionalSnd_of_map {α β : Type*} (P : PMF α) (f : α → β) :
     ((P.map fun x => (f x, x)).map Prod.fst).bind
       (conditionalSnd (P.map fun x => (f x, x))) = P := by
   have h := congrArg (PMF.map Prod.snd) (bind_conditionalSnd (P.map fun x => (f x, x)))
@@ -312,20 +317,70 @@ private theorem bind_conditionalSnd_pair {α β : Type*}
     exact PMF.map_id _
   simpa only [hsimp] using h
 
-/-- Every element in the support of `P` conditioned on `f x = ℓ` satisfies `f x = ℓ`. -/
-private theorem eq_of_mem_support_conditionalSnd_pair {α β : Type*}
-    (P : PMF α) (f : α → β) {ℓ : β}
+/-- Every element in the support of `P` conditioned on `f x = ℓ` satisfies `f x = ℓ` and lies in
+`P.support`. -/
+theorem mem_support_and_eq_of_conditionalSnd_map {α β : Type*} (P : PMF α) (f : α → β) {ℓ : β}
     (hℓ : ℓ ∈ ((P.map fun x => (f x, x)).map Prod.fst).support)
     {x : α} (hx : x ∈ (conditionalSnd (P.map fun x => (f x, x)) ℓ).support) :
-    f x = ℓ := by
+    x ∈ P.support ∧ f x = ℓ := by
   have hpair : (ℓ, x) ∈ (P.map fun a => (f a, a)).support :=
     (mem_support_conditionalSnd_iff _ ℓ hℓ x).mp hx
   rw [PMF.mem_support_map_iff] at hpair
-  obtain ⟨x', -, heq⟩ := hpair
+  obtain ⟨x', hx', heq⟩ := hpair
   have h1 := congrArg Prod.fst heq
   have h2 := congrArg Prod.snd heq
   dsimp only at h1 h2
-  rw [← h2, h1]
+  rw [← h2]
+  exact ⟨hx', h1⟩
+
+/-- Chor–Goldreich distance bound for a conditioned fiber with fixed tampered outputs. -/
+theorem dist_dotProduct_fiber_le {n ℓ r : ℕ} {kSrc kSeed : ℝ}
+    (B : PMF (BitString n)) (J : PMF (BitString ℓ × (Fin r → BitString ℓ)))
+    (proj : BitString n → BitString ℓ) (tamper : Fin r → BitString ℓ)
+    (hB : kSrc ≤ minEntropy (B.map proj)) (hJ : kSeed ≤ minEntropy (J.map Prod.fst)) :
+    dist
+      (B.bind fun b => J.map fun ⟨y, y'⟩ => (proj b ⬝ᵥ y, fun j => tamper j ⬝ᵥ y' j))
+      ((PMF.uniformOfFintype Bool).bind fun u =>
+        B.bind fun _ => J.map fun ⟨_, y'⟩ => (u, fun j => tamper j ⬝ᵥ y' j)) ≤
+      2 ^ (((ℓ : ℝ) - kSrc - kSeed) / 2) / 2 := by
+  let post : (BitString ℓ × (Fin r → BitString ℓ)) × Bool → Bool × (Fin r → Bool) :=
+    fun ⟨⟨_, y'⟩, z⟩ => (z, fun j => tamper j ⬝ᵥ y' j)
+  have hL :
+      (B.bind fun b => J.map fun ⟨y, y'⟩ => (proj b ⬝ᵥ y, fun j => tamper j ⬝ᵥ y' j)) =
+      (J.bind fun ⟨y, y'⟩ => (B.map proj).map fun x => ((y, y'), x ⬝ᵥ y)).map post := by
+    simp only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, post]
+    exact PMF.bind_comm B J _
+  have hR :
+      ((PMF.uniformOfFintype Bool).bind fun u =>
+        B.bind fun _ => J.map fun ⟨_, y'⟩ => (u, fun j => tamper j ⬝ᵥ y' j)) =
+      (J.bind fun yy => (PMF.uniformOfFintype Bool).map fun u => (yy, u)).map post := by
+    simp only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, post]
+    have hconst (u : Bool) :
+        (B.bind fun _ => J.bind fun ⟨_, y'⟩ => PMF.pure (u, fun j => tamper j ⬝ᵥ y' j)) =
+        J.bind fun ⟨_, y'⟩ => PMF.pure (u, fun j => tamper j ⬝ᵥ y' j) := PMF.bind_const B _
+    simp_rw [hconst]
+    exact PMF.bind_comm (PMF.uniformOfFintype Bool) J _
+  rw [hL, hR]
+  refine (dist_map_le _ _ post).trans ?_
+  have hpair :
+      dist (J.bind fun ⟨y, y'⟩ => (B.map proj).map fun x => ((y, y'), x ⬝ᵥ y))
+        (J.bind fun yy => (PMF.uniformOfFintype Bool).map fun u => (yy, u)) =
+      ∑ yy, (J yy).toReal *
+        dist ((B.map proj).map fun x => x ⬝ᵥ yy.1) (PMF.uniformOfFintype Bool) := by
+    have hmapL (yy : BitString ℓ × (Fin r → BitString ℓ)) :
+        ((B.map proj).map fun x => (yy, x ⬝ᵥ yy.1)) =
+          ((B.map proj).map fun x => x ⬝ᵥ yy.1).map (yy, ·) := (PMF.map_comp _ _ _).symm
+    have hrew : (J.bind fun ⟨y, y'⟩ => (B.map proj).map fun x => ((y, y'), x ⬝ᵥ y)) =
+        J.bind fun yy => ((B.map proj).map fun x => x ⬝ᵥ yy.1).map (yy, ·) :=
+      congrArg (J.bind ·) (funext fun ⟨y, y'⟩ => hmapL (y, y'))
+    rw [hrew]
+    exact dist_bind_pair J _ _
+  rw [hpair, ← sum_map_mul J Prod.fst
+    (fun y => dist ((B.map proj).map fun x => x ⬝ᵥ y) (PMF.uniformOfFintype Bool))]
+  simp only [dist_map_uniformOfFintype_bool, mul_div_assoc', ← Finset.sum_div]
+  have hcg := sum_mul_abs_bias_dotProduct_le hB hJ
+  rw [Fintype.card_fin] at hcg
+  exact div_le_div_of_nonneg_right hcg zero_le_two
 
 /-- **Unconditional arbitrary-`t` linear weak-seed correlation breaker**: for every `D ≥ 1`, `ℓ`,
 `t : ℕ`, and `δ > 0`, `blockDotCB D ℓ` satisfies `IsLinearWeakSeedCB` with error
@@ -345,7 +400,7 @@ theorem isLinearWeakSeedCB_blockDot {D ℓ : ℕ} (hD : 1 ≤ D) (t : ℕ) {kSrc
   let JB : PMF (Other × BitString (D * ℓ)) := B.map fun b => (leak b, b)
   let μ : PMF Other := JB.map Prod.fst
   have hJB_snd : JB.map Prod.snd = B := map_snd_pair B leak
-  have hrec : μ.bind (fun rest => conditionalSnd JB rest) = B := bind_conditionalSnd_pair B leak
+  have hrec : μ.bind (fun rest => conditionalSnd JB rest) = B := bind_conditionalSnd_of_map B leak
   have hcard_other : Fintype.card Other = 2 ^ ((D - 1) * ℓ) := by
     simp only [Other, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
       Fintype.card_subtype_compl, Fintype.card_unique, ← pow_mul, mul_comm]
@@ -383,76 +438,42 @@ theorem isLinearWeakSeedCB_blockDot {D ℓ : ℕ} (hD : 1 ≤ D) (t : ℕ) {kSrc
     (hGcompl ▸ toOuterMeasure_badLeak_le μ hδ.le) fun rest hrest hsupp => ?_
   -- Conditioned on `rest`, all blocks other than `α` are fixed to `rest`.
   have hfix : ∀ b ∈ (conditionalSnd JB rest).support, leak b = rest := fun b hb =>
-    eq_of_mem_support_conditionalSnd_pair B leak hsupp hb
+    (mem_support_and_eq_of_conditionalSnd_map B leak hsupp hb).2
   have hinj : Set.InjOn (fun b => BitString.block b α) (conditionalSnd JB rest).support := by
     intro b₁ hb₁ b₂ hb₂ hαeq
     apply BitString.blocksEquiv.injective
     funext j
     by_cases hj : j = α
     · subst hj; exact hαeq
-    · have h1 := congrFun (hfix b₁ hb₁) ⟨j, hj⟩
-      have h2 := congrFun (hfix b₂ hb₂) ⟨j, hj⟩
-      exact h1.trans h2.symm
-  let Bα : PMF (BitString ℓ) := (conditionalSnd JB rest).map fun b => BitString.block b α
-  have hkα : kSrc - ((D - 1) * ℓ : ℕ) - Real.logb 2 δ⁻¹ ≤ minEntropy Bα := by
+    · exact (congrFun (hfix b₁ hb₁) ⟨j, hj⟩).trans (congrFun (hfix b₂ hb₂) ⟨j, hj⟩).symm
+  have hkα : kSrc - ((D - 1) * ℓ : ℕ) - Real.logb 2 δ⁻¹ ≤
+      minEntropy ((conditionalSnd JB rest).map fun b => BitString.block b α) := by
     refine le_minEntropy_map_of_injOn (conditionalSnd JB rest) hinj ?_
     have hchain := minEntropy_map_conditionalSnd_ge_of_apply_ge JB id (k := kSrc) hδ
       (by rw [hJB_snd, PMF.map_id]; exact hB) hrest
-    rw [PMF.map_id, hlog_other] at hchain
-    exact hchain
-  -- Push both sides forward from `(yy, bit)` via the deterministic map using `rest`.
-  let post : (BitString ℓ × (Fin r → BitString ℓ)) × Bool → Bool × (Fin r → Bool) :=
-    fun ⟨⟨_, y'⟩, z⟩ => (z, fun j => rest ⟨α' j, hα' j⟩ ⬝ᵥ y' j)
-  have hP_eq : P rest =
-      (J.bind fun yy => Bα.map fun x => (yy, x ⬝ᵥ yy.1)).map post := by
-    simp only [P, Bα, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
-    rw [PMF.bind_comm (conditionalSnd JB rest) J]
-    refine congrArg (J.bind ·) (funext fun yy => ?_)
-    refine PMF.bind_congr_on_support (conditionalSnd JB rest) _ _ fun b hb => ?_
-    refine congrArg PMF.pure (Prod.ext rfl (funext fun j => ?_))
-    have hrestj := congrFun (hfix b hb) ⟨α' j, hα' j⟩
-    simp only [post, blockDotCB, leak] at hrestj ⊢
-    rw [hrestj]
-  have hQ_eq : Q rest =
-      (J.bind fun yy => (PMF.uniformOfFintype Bool).map fun u => (yy, u)).map post := by
-    simp only [Q, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
-    rw [PMF.bind_comm (PMF.uniformOfFintype Bool) (conditionalSnd JB rest)]
-    have hinner (b : BitString (D * ℓ)) (hb : b ∈ (conditionalSnd JB rest).support) :
-        ((PMF.uniformOfFintype Bool).bind fun u =>
-          J.bind fun yy => PMF.pure (u, fun j => blockDotCB D ℓ b (yy.2 j) (α' j))) =
-        J.bind fun yy => (PMF.uniformOfFintype Bool).bind fun u => PMF.pure (post (yy, u)) := by
-      rw [PMF.bind_comm (PMF.uniformOfFintype Bool) J]
-      refine congrArg (J.bind ·) (funext fun yy => congrArg ((PMF.uniformOfFintype Bool).bind ·)
-        (funext fun u => congrArg PMF.pure (Prod.ext rfl (funext fun j => ?_))))
-      have hrestj := congrFun (hfix b hb) ⟨α' j, hα' j⟩
-      simp only [post, blockDotCB, leak] at hrestj ⊢
-      rw [hrestj]
-    exact (PMF.bind_congr_on_support _ _ (fun _ =>
-      J.bind fun yy => (PMF.uniformOfFintype Bool).bind fun u =>
-        PMF.pure (post (yy, u))) hinner).trans (PMF.bind_const _ _)
+    rwa [PMF.map_id, hlog_other] at hchain
+  let tamper (j : Fin r) : BitString ℓ := rest ⟨α' j, hα' j⟩
+  have hP_eq : P rest = (conditionalSnd JB rest).bind fun b =>
+      J.map fun ⟨y, y'⟩ => (BitString.block b α ⬝ᵥ y, fun j => tamper j ⬝ᵥ y' j) :=
+    PMF.bind_congr_on_support _ _ _ fun b hb => congrArg (J.map ·) (funext fun ⟨y, y'⟩ =>
+      Prod.ext rfl (funext fun j => by
+        have hrestj := congrFun (hfix b hb) ⟨α' j, hα' j⟩
+        simp only [blockDotCB, tamper, leak] at hrestj ⊢
+        rw [hrestj]))
+  have hQ_eq : Q rest = (PMF.uniformOfFintype Bool).bind fun u =>
+      (conditionalSnd JB rest).bind fun _ =>
+        J.map fun ⟨_, y'⟩ => (u, fun j => tamper j ⬝ᵥ y' j) :=
+    congrArg ((PMF.uniformOfFintype Bool).bind ·) (funext fun u =>
+      PMF.bind_congr_on_support _ _ _ fun b hb => congrArg (J.map ·) (funext fun ⟨_, y'⟩ =>
+        Prod.ext rfl (funext fun j => by
+          have hrestj := congrFun (hfix b hb) ⟨α' j, hα' j⟩
+          simp only [blockDotCB, tamper, leak] at hrestj ⊢
+          rw [hrestj])))
   rw [hP_eq, hQ_eq]
-  refine (dist_map_le _ _ post).trans ?_
-  have hpair_dist :
-      dist (J.bind fun yy => Bα.map fun x => (yy, x ⬝ᵥ yy.1))
-        (J.bind fun yy => (PMF.uniformOfFintype Bool).map fun u => (yy, u)) =
-      ∑ yy, (J yy).toReal * dist (Bα.map fun x => x ⬝ᵥ yy.1) (PMF.uniformOfFintype Bool) := by
-    have hmapL (yy : BitString ℓ × (Fin r → BitString ℓ)) :
-        (Bα.map fun x => (yy, x ⬝ᵥ yy.1)) = (Bα.map fun x => x ⬝ᵥ yy.1).map (yy, ·) :=
-      (PMF.map_comp _ _ _).symm
-    simp only [hmapL]
-    exact dist_bind_pair J (fun yy => Bα.map fun x => x ⬝ᵥ yy.1)
-      (fun _ => PMF.uniformOfFintype Bool)
-  rw [hpair_dist, ← sum_map_mul J Prod.fst
-    (fun y => dist (Bα.map fun x => x ⬝ᵥ y) (PMF.uniformOfFintype Bool))]
-  simp only [dist_map_uniformOfFintype_bool, mul_div_assoc', ← Finset.sum_div]
-  have hcg := sum_mul_abs_bias_dotProduct_le hkα hJ
-  rw [Fintype.card_fin] at hcg
-  refine (div_le_div_of_nonneg_right hcg zero_le_two).trans_eq ?_
+  refine (dist_dotProduct_fiber_le _ J _ tamper hkα hJ).trans_eq ?_
   congr 2
-  have hDmul : (D * ℓ : ℕ) = (D - 1) * ℓ + ℓ := by
-    have : D = (D - 1) + 1 := by omega
-    conv_lhs => rw [this, Nat.add_mul, one_mul]
-  rw [hDmul]
+  rw [show D * ℓ = (D - 1) * ℓ + ℓ by
+    rw [Nat.sub_one_mul, Nat.sub_add_cancel (Nat.le_mul_of_pos_left ℓ hD)]]
   push_cast
   ring
 
@@ -544,12 +565,12 @@ theorem dist_sumsetTable_coord_le {n m t : ℕ} {Seed : Type*} [Fintype Seed] [N
           (u, fun j => sumsetTable LExt LCB x (s' j))
     have hPA' : P A' = μB.bind PB := by
       dsimp only [P, PB, μB, JB]
-      conv_lhs => rw [← bind_conditionalSnd_pair B leakB]
+      conv_lhs => rw [← bind_conditionalSnd_of_map B leakB]
       simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
       exact PMF.bind_comm A' _ _
     have hQA' : Q A' = μB.bind QB := by
       dsimp only [Q, QB, μB, JB]
-      conv_lhs => rw [← bind_conditionalSnd_pair B leakB]
+      conv_lhs => rw [← bind_conditionalSnd_of_map B leakB]
       simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
       refine (congrArg ((PMF.uniformOfFintype Bool).bind ·)
         (funext fun _ => PMF.bind_comm A' _ _)).trans ?_
@@ -568,7 +589,7 @@ theorem dist_sumsetTable_coord_le {n m t : ℕ} {Seed : Type*} [Fintype Seed] [N
       rw [PMF.map_id] at hchain
       linarith
     have hBℓ_fix : ∀ b ∈ Bℓ.support, LExt b s₀ = ℓ.1 ∧ ∀ j, LExt b (s' j) = ℓ.2 j := fun b hb => by
-      have h := eq_of_mem_support_conditionalSnd_pair B leakB hsuppB hb
+      have h := (mem_support_and_eq_of_conditionalSnd_map B leakB hsuppB hb).2
       exact ⟨congrArg Prod.fst h, fun j => congrFun (congrArg Prod.snd h) j⟩
     -- Step 2b: Condition `A'` on `A'`'s linear correlation-breaker outputs.
     let LeakA := Bool × (Fin r → Bool)
@@ -593,11 +614,11 @@ theorem dist_sumsetTable_coord_le {n m t : ℕ} {Seed : Type*} [Fintype Seed] [N
           (u, fun j => sumsetTable LExt LCB x (s' j))
     have hPB_eq : PB ℓ = μA.bind PA := by
       dsimp only [PB, PA, Bℓ, μA, JA]
-      conv_lhs => rw [← bind_conditionalSnd_pair A' leakA]
+      conv_lhs => rw [← bind_conditionalSnd_of_map A' leakA]
       simp only [PMF.map_bind, PMF.bind_bind]
     have hQB_eq : QB ℓ = μA.bind QA := by
       dsimp only [QB, QA, Bℓ, μA, JA]
-      conv_lhs => rw [← bind_conditionalSnd_pair A' leakA]
+      conv_lhs => rw [← bind_conditionalSnd_of_map A' leakA]
       simp only [PMF.map_bind, PMF.bind_bind]
       exact PMF.bind_comm (PMF.uniformOfFintype Bool) _ _
     rw [hPB_eq, hQB_eq]
@@ -608,7 +629,7 @@ theorem dist_sumsetTable_coord_le {n m t : ℕ} {Seed : Type*} [Fintype Seed] [N
       (hGAc ▸ toOuterMeasure_badLeak_le μA hδA.le) fun w hw hsuppA => ?_
     let Aw := conditionalSnd JA w
     have hAw_fix : ∀ a ∈ Aw.support, leakA a = w := fun a ha =>
-      eq_of_mem_support_conditionalSnd_pair A' leakA hsuppA ha
+      (mem_support_and_eq_of_conditionalSnd_map A' leakA hsuppA ha).2
     let Jw : PMF (BitString m × (Fin r → BitString m)) := Aw.map seedOf
     have hJw_min : kSeed ≤ minEntropy (Jw.map Prod.fst) := by
       have hmarg : (JA.map Prod.snd).map (Prod.fst ∘ seedOf) =
@@ -628,31 +649,17 @@ theorem dist_sumsetTable_coord_le {n m t : ℕ} {Seed : Type*} [Fintype Seed] [N
       rw [hJw_eq]
       linarith
     -- On `Aw.support × Bℓ.support`, `sumsetTable (a + b)` is `w + (LCB b (seedOf a))`.
-    let addW : Bool × (Fin r → Bool) ≃ Bool × (Fin r → Bool) :=
-      { toFun := fun p => (w.1 + p.1, fun j => w.2 j + p.2 j)
-        invFun := fun p => (w.1 + p.1, fun j => w.2 j + p.2 j)
-        left_inv := fun ⟨b₀, bs⟩ => Prod.ext (by simp [← add_assoc, BooleanRing.add_self])
-          (funext fun j => by simp [← add_assoc, BooleanRing.add_self])
-        right_inv := fun ⟨b₀, bs⟩ => Prod.ext (by simp [← add_assoc, BooleanRing.add_self])
-          (funext fun j => by simp [← add_assoc, BooleanRing.add_self]) }
+    let addW : Bool × (Fin r → Bool) ≃ Bool × (Fin r → Bool) := Equiv.addLeft w
     have htab (a b : BitString n) (ha : a ∈ Aw.support) (hb : b ∈ Bℓ.support) :
         (sumsetTable LExt LCB (a + b) s₀, fun j => sumsetTable LExt LCB (a + b) (s' j)) =
         addW (LCB b (seedOf a).1 s₀, fun j => LCB b ((seedOf a).2 j) (s' j)) := by
       have hfa := hAw_fix a ha
       have hfb := hBℓ_fix b hb
-      have h0 : sumsetTable LExt LCB (a + b) s₀ = w.1 + LCB b (seedOf a).1 s₀ := by
-        simp only [sumsetTable, hLExt.2, hfb.1]
-        rw [hCB.1]
-        have hw1 : LCB a (LExt a s₀ + ℓ.1) s₀ = w.1 := congrArg Prod.fst hfa
-        exact congrArg (· + _) hw1
-      have hj (j : Fin r) :
-          sumsetTable LExt LCB (a + b) (s' j) = w.2 j + LCB b ((seedOf a).2 j) (s' j) := by
-        simp only [sumsetTable, hLExt.2, hfb.2]
-        rw [hCB.1]
-        have hw2 : LCB a (LExt a (s' j) + ℓ.2 j) (s' j) = w.2 j :=
-          congrFun (congrArg Prod.snd hfa) j
-        exact congrArg (· + _) hw2
-      exact Prod.ext h0 (funext hj)
+      refine Prod.ext ?_ (funext fun j => ?_)
+      · simp only [sumsetTable, hLExt.2, hfb.1, hCB.1]
+        exact congrArg (· + _) (congrArg Prod.fst hfa)
+      · simp only [sumsetTable, hLExt.2, hfb.2, hCB.1]
+        exact congrArg (· + _) (congrFun (congrArg Prod.snd hfa) j)
     have hPA_eq : PA w =
         (Bℓ.bind fun b => Jw.map fun yy =>
           (LCB b yy.1 s₀, fun j => LCB b (yy.2 j) (s' j))).map addW := by
@@ -794,27 +801,18 @@ private theorem isKWiseSmallBias_extendOutside {ι : Type*} [Fintype ι] [Decida
       exact ⟨⟨i, hsub hi⟩, Finset.mem_map.mpr ⟨⟨i, hi⟩, Finset.mem_attach _ _, rfl⟩⟩
     · simpa [S'] using hSk
   · -- Some coordinate `i₀ ∈ S` lies in `Q`, so the independent uniform bit `u i₀` kills the bias.
-    obtain ⟨i₀, hi₀S, hi₀Q⟩ : ∃ i₀ ∈ S, i₀ ∈ Q := by
-      rw [Finset.subset_iff] at hsub
-      push Not at hsub
-      obtain ⟨i₀, hi₀S, hi₀not⟩ := hsub
-      exact ⟨i₀, hi₀S, by simpa using hi₀not⟩
+    obtain ⟨i₀, hi₀S, hi₀Q⟩ : ∃ i₀ ∈ S, i₀ ∈ Q := by simpa [Finset.subset_iff] using hsub
     have hzero : bias (extendOutside Q D) S = 0 := by
       rw [bias, extendOutside, sum_bind_mul]
       refine Finset.sum_eq_zero fun z _ => mul_eq_zero_of_right _ ?_
       rw [sum_map_mul]
       -- Flip bit `⟨i₀, hi₀Q⟩` in `u` to cancel terms pairwise.
       let flip : (Q → Bool) ≃ (Q → Bool) :=
-        { toFun := fun u => Function.update u ⟨i₀, hi₀Q⟩ !(u ⟨i₀, hi₀Q⟩)
-          invFun := fun u => Function.update u ⟨i₀, hi₀Q⟩ !(u ⟨i₀, hi₀Q⟩)
-          left_inv := fun u => funext fun j => by
+        Function.Involutive.toPerm (fun u => Function.update u ⟨i₀, hi₀Q⟩ !(u ⟨i₀, hi₀Q⟩))
+          fun u => funext fun j => by
             by_cases hj : j = ⟨i₀, hi₀Q⟩
             · subst hj; simp
             · simp [hj]
-          right_inv := fun u => funext fun j => by
-            by_cases hj : j = ⟨i₀, hi₀Q⟩
-            · subst hj; simp
-            · simp [hj] }
       have hneg (u : Q → Bool) :
           chi ℝ S (fun i => if h : i ∈ Q then flip u ⟨i, h⟩ else z ⟨i, Finset.mem_compl.mpr h⟩) =
           -chi ℝ S (fun i => if h : i ∈ Q then u ⟨i, h⟩ else z ⟨i, Finset.mem_compl.mpr h⟩) := by
@@ -823,7 +821,8 @@ private theorem isKWiseSmallBias_extendOutside {ι : Type*} [Fintype ι] [Decida
         have hhead :
             signVal (if h : i₀ ∈ Q then flip u ⟨i₀, h⟩ else z ⟨i₀, Finset.mem_compl.mpr h⟩) =
             -signVal (if h : i₀ ∈ Q then u ⟨i₀, h⟩ else z ⟨i₀, Finset.mem_compl.mpr h⟩) := by
-          simp only [hi₀Q, ↓reduceDIte, flip, Equiv.coe_fn_mk, Function.update_self]
+          simp only [hi₀Q, ↓reduceDIte, flip, Function.Involutive.toPerm, Equiv.coe_fn_mk,
+            Function.update_self]
           cases u ⟨i₀, hi₀Q⟩ <;> norm_num [signVal]
         have hrest :
             (∏ i ∈ S.erase i₀, signVal (if h : i ∈ Q then flip u ⟨i, h⟩
@@ -833,7 +832,7 @@ private theorem isKWiseSmallBias_extendOutside {ι : Type*} [Fintype ι] [Decida
           refine Finset.prod_congr rfl fun i hi => ?_
           have hne : i ≠ i₀ := (Finset.mem_erase.mp hi).1
           split_ifs with h
-          · simp only [flip, Equiv.coe_fn_mk,
+          · simp only [flip, Function.Involutive.toPerm, Equiv.coe_fn_mk,
               Function.update_of_ne (show (⟨i, h⟩ : Q) ≠ ⟨i₀, hi₀Q⟩ from fun h' =>
                 hne (congrArg Subtype.val h'))]
           · rfl
@@ -884,15 +883,11 @@ private theorem abs_sub_prob_true_le_coalitionInfluence {ι : Type*} [Fintype ι
       by_cases h : R x = true <;> simp [h, eq_comm]
     rw [hPtrue, sum_map_mul, sum_map_mul]
     constructor <;> refine Finset.sum_le_sum fun x _ => mul_le_mul_of_nonneg_left ?_
-      ENNReal.toReal_nonneg
-    · dsimp only [lo]
+      ENNReal.toReal_nonneg <;> dsimp only [lo, hi] <;>
       by_cases hu : IsUndetermined Q R (pad0 (Qᶜ.restrict x))
-      · rw [ite_eq_left hu]; split_ifs <;> norm_num
-      · rw [ite_eq_right hu, hdet x hu]
-    · dsimp only [hi]
-      by_cases hu : IsUndetermined Q R (pad0 (Qᶜ.restrict x))
-      · rw [ite_eq_left hu]; split_ifs <;> norm_num
-      · rw [ite_eq_right hu, hdet x hu]
+    all_goals first
+      | rw [ite_eq_left hu]; split_ifs <;> norm_num
+      | rw [ite_eq_right hu, hdet x hu]
   have hdiff : ∑ z, ((D'.map Qᶜ.restrict) z).toReal * hi z -
       ∑ z, ((D'.map Qᶜ.restrict) z).toReal * lo z = coalitionInfluence D' Q R := by
     rw [← Finset.sum_sub_distrib]

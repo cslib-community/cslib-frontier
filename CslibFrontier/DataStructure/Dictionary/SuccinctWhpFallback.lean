@@ -140,93 +140,10 @@ private theorem smallScan_props (st : SmallDictState) (u_val : ℕ) (k : ℕ) :
     (free1 = 0 ↔ ∀ i < k, st.present i ≠ 0) ∧
     (free1 ≠ 0 → free1 - 1 < k ∧ st.present (free1 - 1) = 0) := by
   induction k with
-  | zero =>
-    simp [smallScan]
+  | zero => simp [smallScan]
   | succ k ih =>
-    dsimp only [smallScan]
-    set p := smallScan st u_val k
-    obtain ⟨hf0, hfnz, hfr0, hfrnz⟩ := ih
-    dsimp only [smallScanStep]
-    by_cases hp : st.present k != 0
-    · have hpk : st.present k ≠ 0 := by simpa using hp
-      simp only [hp, ↓reduceIte]
-      by_cases hcond : (st.keys k == u_val && p.1 == 0) = true
-      · simp only [Bool.and_eq_true, beq_iff_eq] at hcond
-        obtain ⟨hku, hp10⟩ := hcond
-        simp only [hku, hp10, beq_self_eq_true, Bool.and_self, ↓reduceIte]
-        refine ⟨⟨fun h => by omega, fun hall => absurd hku (hall k (Nat.lt_succ_self k) hpk)⟩,
-          fun _ => ⟨by omega, hpk, hku⟩, ?_, ?_⟩
-        · constructor
-          · intro h0 i hi
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | rfl
-            · exact hfr0.mp h0 i hlt
-            · exact hpk
-          · intro hall
-            exact hfr0.mpr fun i hi => hall i (Nat.lt_succ_of_lt hi)
-        · intro hnz
-          obtain ⟨hlt, hz⟩ := hfrnz hnz
-          exact ⟨Nat.lt_succ_of_lt hlt, hz⟩
-      · simp only [hcond, Bool.false_eq_true, ↓reduceIte]
-        have hnot : st.keys k ≠ u_val ∨ p.1 ≠ 0 := by
-          simp only [Bool.and_eq_true, beq_iff_eq, not_and_or] at hcond
-          exact hcond
-        refine ⟨?_, ?_, ?_, ?_⟩
-        · constructor
-          · intro hp10 i hi hpi
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | rfl
-            · exact hf0.mp hp10 i hlt hpi
-            · rcases hnot with hne | hnz
-              · exact hne
-              · exact absurd hp10 hnz
-          · intro hall
-            exact hf0.mpr fun i hi hpi => hall i (Nat.lt_succ_of_lt hi) hpi
-        · intro hnz
-          obtain ⟨hlt, hp', hk'⟩ := hfnz hnz
-          exact ⟨Nat.lt_succ_of_lt hlt, hp', hk'⟩
-        · constructor
-          · intro h0 i hi
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | rfl
-            · exact hfr0.mp h0 i hlt
-            · exact hpk
-          · intro hall
-            exact hfr0.mpr fun i hi => hall i (Nat.lt_succ_of_lt hi)
-        · intro hnz
-          obtain ⟨hlt, hz⟩ := hfrnz hnz
-          exact ⟨Nat.lt_succ_of_lt hlt, hz⟩
-    · have hpk0 : st.present k = 0 := by simpa using hp
-      simp only [hp, Bool.false_eq_true, ↓reduceIte]
-      by_cases hfr_z : p.2 == 0
-      · have hp20 : p.2 = 0 := by simpa using hfr_z
-        simp only [hfr_z, ↓reduceIte]
-        refine ⟨?_, ?_, ⟨fun h => by omega, fun hall => absurd hpk0 (hall k (Nat.lt_succ_self k))⟩,
-          fun _ => ⟨by omega, hpk0⟩⟩
-        · constructor
-          · intro hp10 i hi hpi
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | rfl
-            · exact hf0.mp hp10 i hlt hpi
-            · exact absurd hpk0 hpi
-          · intro hall
-            exact hf0.mpr fun i hi hpi => hall i (Nat.lt_succ_of_lt hi) hpi
-        · intro hnz
-          obtain ⟨hlt, hp', hk'⟩ := hfnz hnz
-          exact ⟨Nat.lt_succ_of_lt hlt, hp', hk'⟩
-      · have hp2nz : p.2 ≠ 0 := by simpa using hfr_z
-        simp only [hfr_z, Bool.false_eq_true, ↓reduceIte]
-        refine ⟨?_, ?_, ⟨fun h0 => absurd h0 hp2nz,
-          fun hall => absurd hpk0 (hall k (Nat.lt_succ_self k))⟩, ?_⟩
-        · constructor
-          · intro hp10 i hi hpi
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | rfl
-            · exact hf0.mp hp10 i hlt hpi
-            · exact absurd hpk0 hpi
-          · intro hall
-            exact hf0.mpr fun i hi hpi => hall i (Nat.lt_succ_of_lt hi) hpi
-        · intro hnz
-          obtain ⟨hlt, hp', hk'⟩ := hfnz hnz
-          exact ⟨Nat.lt_succ_of_lt hlt, hp', hk'⟩
-        · intro hnz
-          obtain ⟨hlt, hz⟩ := hfrnz hnz
-          exact ⟨Nat.lt_succ_of_lt hlt, hz⟩
+    simp only [smallScan, smallScanStep, Nat.forall_lt_succ_right] at ih ⊢
+    split_ifs <;> grind
 
 /-- Small-regime lookup matches `dict u`. -/
 theorem smallQuery_spec {U V n_max : ℕ} {st : SmallDictState} {dict : State U}
@@ -244,6 +161,18 @@ theorem smallQuery_spec {U V n_max : ℕ} {st : SmallDictState} {dict : State U}
     symm
     exact ((hmap u).2 (st.vals (p.1 - 1))).mpr ⟨p.1 - 1, hlt, hp, hk, rfl⟩
 
+/-- The `none` clause of a small-regime slot map follows from its `some` clause. -/
+private theorem smallMap_of_some_iff {o : Option ℕ} {n q : ℕ} {P K W : ℕ → ℕ}
+    (h : ∀ v, o = some v ↔ ∃ i < n, P i ≠ 0 ∧ K i = q ∧ W i = v) :
+    (o = none ↔ ∀ i < n, P i ≠ 0 → K i ≠ q) ∧
+      ∀ v, o = some v ↔ ∃ i < n, P i ≠ 0 ∧ K i = q ∧ W i = v := by
+  refine ⟨⟨fun ho i hi hp hq => ?_, fun hall => ?_⟩, h⟩
+  · simpa [ho] using (h (W i)).mpr ⟨i, hi, hp, hq, rfl⟩
+  · rcases ho : o with _ | v
+    · rfl
+    · obtain ⟨i, hi, hp, hq, -⟩ := (h v).mp ho
+      exact absurd hq (hall i hi hp)
+
 /-- Small-regime deletion preserves `ValidSmallState` and refines `Function.update dict u none`. -/
 theorem smallDelete_spec {U V n_max : ℕ} {st : SmallDictState} {dict : State U}
     (hv : ValidSmallState U V n_max st dict) (u : Fin U) :
@@ -252,72 +181,20 @@ theorem smallDelete_spec {U V n_max : ℕ} {st : SmallDictState} {dict : State U
   have hsc := smallScan_props st u.val n_max
   unfold smallDelete
   set p := smallScan st u.val n_max
-  by_cases hfnz : p.1 != 0
-  · have hf_ne : p.1 ≠ 0 := by simpa using hfnz
-    simp only [hfnz, ↓reduceIte]
-    obtain ⟨hidx_lt, hp_idx, hk_idx⟩ := hsc.2.1 hf_ne
-    set idx := p.1 - 1
-    refine ⟨?_, ?_, ?_, fun x => ⟨?_, fun v => ?_⟩⟩
-    · intro i hi
-      by_cases h : i = idx
-      · subst h; simp
-      · simp [h, hp_le i hi]
-    · intro i hi hpi
-      by_cases h : i = idx
-      · subst h; simp at hpi
-      · simp only [Function.update_of_ne h] at hpi
-        exact hkv i hi hpi
-    · intro i hi j hj hpi hpj heq
-      have hni : i ≠ idx := fun h => by subst h; simp at hpi
-      have hnj : j ≠ idx := fun h => by subst h; simp at hpj
-      simp only [Function.update_of_ne hni, Function.update_of_ne hnj] at hpi hpj
-      exact hinj i hi j hj hpi hpj heq
-    · by_cases hxu : x = u
-      · subst hxu
-        simp only [Function.update_self, true_iff]
-        intro i hi hpi hki
-        have hni : i ≠ idx := fun h => by subst h; simp at hpi
-        simp only [Function.update_of_ne hni] at hpi
-        exact hni (hinj i hi idx hidx_lt hpi hp_idx (hki.trans hk_idx.symm))
-      · rw [Function.update_of_ne hxu, (hmap x).1]
-        constructor
-        · intro hall i hi hpi
-          have hni : i ≠ idx := fun h => by subst h; simp at hpi
-          simp only [Function.update_of_ne hni] at hpi
-          exact hall i hi hpi
-        · intro hall i hi hpi
-          by_cases h : i = idx
-          · subst h
-            rw [hk_idx]
-            exact fun heq => hxu (Fin.ext heq.symm)
-          · exact hall i hi (by simpa [h] using hpi)
-    · by_cases hxu : x = u
-      · subst hxu
-        simp only [Function.update_self, reduceCtorEq, false_iff, not_exists, not_and]
-        intro i hi hpi hki _
-        have hni : i ≠ idx := fun h => by subst h; simp at hpi
-        simp only [Function.update_of_ne hni] at hpi
-        exact hni (hinj i hi idx hidx_lt hpi hp_idx (hki.trans hk_idx.symm))
-      · rw [Function.update_of_ne hxu, (hmap x).2 v]
-        constructor
-        · rintro ⟨i, hi, hpi, hki, hvi⟩
-          have hni : i ≠ idx := by
-            intro h; subst h
-            exact hxu (Fin.ext (hki.symm.trans hk_idx))
-          exact ⟨i, hi, by simpa [hni] using hpi, hki, hvi⟩
-        · rintro ⟨i, hi, hpi, hki, hvi⟩
-          have hni : i ≠ idx := fun h => by subst h; simp at hpi
-          exact ⟨i, hi, by simpa [hni] using hpi, hki, hvi⟩
-  · have hf0 : p.1 = 0 := by simpa using hfnz
-    simp only [hfnz, Bool.false_eq_true, ↓reduceIte]
-    have hnone : dict u = none := (hmap u).1.mpr (hsc.1.mp hf0)
-    have hupd : Function.update dict u none = dict := by
-      ext x
-      by_cases h : x = u
-      · subst h; simp [hnone]
-      · simp [h]
-    rw [hupd]
+  by_cases hf0 : p.1 = 0
+  · simp only [hf0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+    rw [show Function.update dict u none = dict from
+      Function.update_eq_self_iff.mpr ((hmap u).1.mpr (hsc.1.mp hf0)).symm]
     exact ⟨hp_le, hkv, hinj, hmap⟩
+  · obtain ⟨hidx_lt, hp_idx, hk_idx⟩ := hsc.2.1 hf0
+    simp only [bne_iff_ne, ne_eq, hf0, not_false_eq_true, ↓reduceIte]
+    clear hsc
+    refine ⟨?_, ?_, ?_, fun x => smallMap_of_some_iff fun v => ?_⟩ <;>
+      simp only [Function.update_apply]
+    · grind
+    · grind
+    · grind
+    · grind [Fin.ext_iff]
 
 /-- Small-regime insertion preserves `ValidSmallState` and refines
 `Function.update dict u (some v)` whenever `Dynamic.valid V n_max dict (.insert u v)`. -/
@@ -331,48 +208,8 @@ theorem smallInsert_spec {U V n_max : ℕ} {st : SmallDictState} {dict : State U
   have hsc := smallScan_props st u.val n_max
   unfold smallInsert
   set p := smallScan st u.val n_max
-  by_cases hfnz : p.1 != 0
-  · have hf_ne : p.1 ≠ 0 := by simpa using hfnz
-    simp only [hfnz, ↓reduceIte]
-    obtain ⟨hidx_lt, hp_idx, hk_idx⟩ := hsc.2.1 hf_ne
-    set idx := p.1 - 1
-    refine ⟨hp_le, ?_, hinj, fun x => ⟨?_, fun w => ?_⟩⟩
-    · intro i hi hpi
-      by_cases h : i = idx
-      · subst h; rw [hk_idx]; exact ⟨u.isLt, by simp [hv_lt]⟩
-      · simp [h, (hkv i hi hpi).1, (hkv i hi hpi).2]
-    · by_cases hxu : x = u
-      · subst hxu
-        simp only [Function.update_self, reduceCtorEq, false_iff, not_forall, not_not]
-        exact ⟨idx, hidx_lt, hp_idx, hk_idx⟩
-      · rw [Function.update_of_ne hxu, (hmap x).1]
-    · by_cases hxu : x = u
-      · subst hxu
-        simp only [Function.update_self, Option.some.injEq]
-        constructor
-        · rintro rfl
-          exact ⟨idx, hidx_lt, hp_idx, hk_idx, by simp⟩
-        · rintro ⟨i, hi, hpi, hki, hwi⟩
-          have hi_eq : i = idx := hinj i hi idx hidx_lt hpi hp_idx (hki.trans hk_idx.symm)
-          subst hi_eq
-          simpa using hwi
-      · rw [Function.update_of_ne hxu, (hmap x).2 w]
-        constructor
-        · rintro ⟨i, hi, hpi, hki, hwi⟩
-          have hni : i ≠ idx := fun h => by
-            subst h; exact hxu (Fin.ext (hki.symm.trans hk_idx))
-          exact ⟨i, hi, hpi, hki, by simpa [hni] using hwi⟩
-        · rintro ⟨i, hi, hpi, hki, hwi⟩
-          have hni : i ≠ idx := fun h => by
-            subst h; exact hxu (Fin.ext (hki.symm.trans hk_idx))
-          exact ⟨i, hi, hpi, hki, by simpa [hni] using hwi⟩
-  · have hf0 : p.1 = 0 := by simpa using hfnz
-    simp only [hfnz, Bool.false_eq_true, ↓reduceIte]
-    have hnone_u : dict u = none := (hmap u).1.mpr (hsc.1.mp hf0)
-    have hcard_lt : #(Dictionary.dom dict) < n_max := by
-      rcases hcap with hlt | hsome
-      · exact hlt
-      · rw [hnone_u] at hsome; simp at hsome
+  by_cases hf0 : p.1 = 0
+  · have hnone_u : dict u = none := (hmap u).1.mpr (hsc.1.mp hf0)
     have hfr_ne : p.2 ≠ 0 := by
       intro hfr0
       have hall_act : ∀ i < n_max, st.present i ≠ 0 := hsc.2.2.1.mp hfr0
@@ -381,80 +218,33 @@ theorem smallInsert_spec {U V n_max : ℕ} {st : SmallDictState} {dict : State U
       have hto_inj : Function.Injective toKey := fun i j heq =>
         Fin.ext (hinj i.val i.isLt j.val j.isLt (hall_act i.val i.isLt)
           (hall_act j.val j.isLt) (congrArg Fin.val heq))
-      have hto_mem : ∀ i : Fin n_max, toKey i ∈ Dictionary.dom dict := by
-        intro i
+      have hto_mem : ∀ i : Fin n_max, toKey i ∈ Dictionary.dom dict := fun i => by
         by_contra hnot
         rw [Dictionary.notMem_dom_iff] at hnot
         exact (hmap (toKey i)).1.mp hnot i.val i.isLt (hall_act i.val i.isLt) rfl
       have hle : n_max ≤ #(Dictionary.dom dict) := by
-        calc n_max = #(univ : Finset (Fin n_max)) := (Fintype.card_fin n_max).symm
-          _ = #(univ.image toKey) := (Finset.card_image_of_injective _ hto_inj).symm
-          _ ≤ #(Dictionary.dom dict) :=
-              Finset.card_le_card (Finset.image_subset_iff.mpr fun i _ => hto_mem i)
-      omega
-    have hfr_b : (p.2 != 0) = true := by simpa using hfr_ne
-    simp only [hfr_b, ↓reduceIte]
-    obtain ⟨hidx_lt, hp0_idx⟩ := hsc.2.2.2 hfr_ne
-    set idx := p.2 - 1
-    refine ⟨?_, ?_, ?_, fun x => ⟨?_, fun w => ?_⟩⟩
-    · intro i hi
-      by_cases h : i = idx
-      · subst h; simp
-      · simp [h, hp_le i hi]
-    · intro i hi hpi
-      by_cases h : i = idx
-      · subst h; simp [u.isLt, hv_lt]
-      · simp only [Function.update_of_ne h] at hpi ⊢
-        exact hkv i hi hpi
-    · intro i hi j hj hpi hpj heq
-      by_cases hi_eq : i = idx <;> by_cases hj_eq : j = idx
+        simpa using card_le_card_of_injOn (s := univ) toKey (fun i _ => hto_mem i) hto_inj.injOn
+      rcases hcap with hlt | hsome
       · omega
-      · subst hi_eq
-        simp only [Function.update_self, Function.update_of_ne hj_eq] at hpj heq
-        exact absurd heq.symm (hsc.1.mp hf0 j hj hpj)
-      · subst hj_eq
-        simp only [Function.update_self, Function.update_of_ne hi_eq] at hpi heq
-        exact absurd heq (hsc.1.mp hf0 i hi hpi)
-      · simp only [Function.update_of_ne hi_eq, Function.update_of_ne hj_eq] at hpi hpj heq
-        exact hinj i hi j hj hpi hpj heq
-    · by_cases hxu : x = u
-      · subst hxu
-        simp only [Function.update_self, reduceCtorEq, false_iff, not_forall, not_not]
-        exact ⟨idx, hidx_lt, by simp, by simp⟩
-      · rw [Function.update_of_ne hxu, (hmap x).1]
-        constructor
-        · intro hall i hi hpi
-          by_cases h : i = idx
-          · subst h; simp only [Function.update_self]; exact fun heq => hxu (Fin.ext heq.symm)
-          · simp only [Function.update_of_ne h] at hpi ⊢
-            exact hall i hi hpi
-        · intro hall i hi hpi
-          have hni : i ≠ idx := fun h => by subst h; exact hpi hp0_idx
-          simpa [hni] using hall i hi (by simpa [hni] using hpi)
-    · by_cases hxu : x = u
-      · subst hxu
-        simp only [Function.update_self, Option.some.injEq]
-        constructor
-        · rintro rfl
-          exact ⟨idx, hidx_lt, by simp, by simp, by simp⟩
-        · rintro ⟨i, hi, hpi, hki, hwi⟩
-          by_cases h : i = idx
-          · subst h; simpa using hwi
-          · simp only [Function.update_of_ne h] at hpi hki
-            exact absurd hki (hsc.1.mp hf0 i hi hpi)
-      · rw [Function.update_of_ne hxu, (hmap x).2 w]
-        constructor
-        · rintro ⟨i, hi, hpi, hki, hwi⟩
-          have hni : i ≠ idx := fun h => by subst h; exact hpi hp0_idx
-          exact ⟨i, hi, by simpa [hni] using hpi, by simpa [hni] using hki,
-            by simpa [hni] using hwi⟩
-        · rintro ⟨i, hi, hpi, hki, hwi⟩
-          have hni : i ≠ idx := by
-            intro h; subst h
-            simp only [Function.update_self] at hki
-            exact hxu (Fin.ext hki.symm)
-          exact ⟨i, hi, by simpa [hni] using hpi, by simpa [hni] using hki,
-            by simpa [hni] using hwi⟩
+      · simp [hnone_u] at hsome
+    obtain ⟨hidx_lt, hp0_idx⟩ := hsc.2.2.2 hfr_ne
+    have hfree := hsc.1.mp hf0
+    clear hsc hcap hnone_u
+    simp only [hf0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bne_iff_ne, ne_eq,
+      hfr_ne, not_false_eq_true]
+    refine ⟨?_, ?_, ?_, fun x => smallMap_of_some_iff fun w => ?_⟩ <;>
+      simp only [Function.update_apply]
+    · grind
+    · grind
+    · grind
+    · grind [Fin.ext_iff]
+  · obtain ⟨hidx_lt, hp_idx, hk_idx⟩ := hsc.2.1 hf0
+    simp only [bne_iff_ne, ne_eq, hf0, not_false_eq_true, ↓reduceIte]
+    clear hsc hcap
+    refine ⟨hp_le, ?_, hinj, fun x => smallMap_of_some_iff fun w => ?_⟩ <;>
+      simp only [Function.update_apply]
+    · grind
+    · grind [Fin.ext_iff]
 
 /-! ## Section 2: In-place cycle-following slot rearrangement (`permuteByTarget`) -/
 
@@ -865,39 +655,34 @@ theorem fbStart_mono_of_adj {M : ℕ} {f : ℕ → ℕ} (hadj : ∀ b < M, f b �
     · exact le_rfl
     · exact (ih (by omega) (by omega)).trans (hadj b (by omega))
 
+private theorem csr_slot_bucket_unique {M i b₁ b₂ : ℕ} {f : ℕ → ℕ}
+    (hmono : ∀ a b, a ≤ b → b ≤ M → f a ≤ f b)
+    (hb₁ : b₁ < M) (hb₂ : b₂ < M)
+    (hlo₁ : f b₁ ≤ i) (hhi₁ : i < f (b₁ + 1))
+    (hlo₂ : f b₂ ≤ i) (hhi₂ : i < f (b₂ + 1)) : b₁ = b₂ := by
+  rcases lt_trichotomy b₁ b₂ with hlt | heq | hgt
+  · exact (hhi₁.not_ge ((hmono _ _ hlt hb₂.le).trans hlo₂)).elim
+  · exact heq
+  · exact (hhi₂.not_ge ((hmono _ _ hgt hb₁.le).trans hlo₁)).elim
+
 private theorem csrScanRange_props (qArr : ℕ → ℕ) (lo q_val len : ℕ) :
     let f1 := csrScanRange qArr lo q_val len
     (f1 = 0 ↔ ∀ i, lo ≤ i → i < lo + len → qArr i ≠ q_val) ∧
     (f1 ≠ 0 → lo ≤ f1 - 1 ∧ f1 - 1 < lo + len ∧ qArr (f1 - 1) = q_val) := by
   induction len with
-  | zero =>
-    simp only [csrScanRange, Nat.add_zero, true_iff, ne_eq, not_true_eq_false, IsEmpty.forall_iff,
-      and_true]
-    intro i h1 h2; omega
+  | zero => simp only [csrScanRange]; grind
   | succ len ih =>
-    dsimp only [csrScanRange]
-    set prev := csrScanRange qArr lo q_val len
-    by_cases hp : prev != 0
-    · have hp_ne : prev ≠ 0 := by simpa using hp
-      simp only [hp, ↓reduceIte]
-      obtain ⟨hlo_p, hlt_p, hq_p⟩ := ih.2 hp_ne
-      refine ⟨⟨fun h0 => absurd h0 hp_ne, fun hall =>
-        absurd hq_p (hall (prev - 1) hlo_p (by omega))⟩,
-        fun _ => ⟨hlo_p, by omega, hq_p⟩⟩
-    · have hp0 : prev = 0 := by simpa using hp
-      simp only [hp, Bool.false_eq_true, ↓reduceIte]
-      by_cases hqk : qArr (lo + len) == q_val
-      · have hq_eq : qArr (lo + len) = q_val := by simpa using hqk
-        simp only [hqk, ↓reduceIte]
-        refine ⟨⟨fun h => by omega, fun hall =>
-          absurd hq_eq (hall (lo + len) (by omega) (by omega))⟩,
-          fun _ => ⟨by omega, by omega, hq_eq⟩⟩
-      · have hq_ne : qArr (lo + len) ≠ q_val := by simpa using hqk
-        simp only [hqk, Bool.false_eq_true, ↓reduceIte]
-        refine ⟨⟨fun _ i hlo_i hlt_i => ?_, fun _ => by simp⟩, fun h => by simp at h⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp (show i < lo + len + 1 by omega) with hlt' | rfl
-        · exact ih.1.mp hp0 i hlo_i hlt'
-        · exact hq_ne
+    simp only [csrScanRange] at ih ⊢
+    split_ifs <;> grind
+
+private theorem csrScanRange_to_props (qArr : ℕ → ℕ) (q : ℕ) {lo hi : ℕ} (hle : lo ≤ hi) :
+    let hit := csrScanRange qArr lo q (hi - lo)
+    (hit = 0 ↔ ∀ i, lo ≤ i → i < hi → qArr i ≠ q) ∧
+    (hit ≠ 0 → lo ≤ hit - 1 ∧ hit - 1 < hi ∧ qArr (hit - 1) = q) := by
+  have h := csrScanRange_props qArr lo q (hi - lo)
+  dsimp only at h ⊢
+  rw [Nat.add_sub_of_le hle] at h
+  exact h
 
 theorem csrShiftDown_apply (i₀ cnt : ℕ) (qArr vArr : ℕ → ℕ) (x : ℕ) :
     (csrShiftDown i₀ cnt (qArr, vArr)).1 x =
@@ -905,23 +690,11 @@ theorem csrShiftDown_apply (i₀ cnt : ℕ) (qArr vArr : ℕ → ℕ) (x : ℕ) 
     (csrShiftDown i₀ cnt (qArr, vArr)).2 x =
       (if i₀ ≤ x ∧ x < i₀ + cnt then vArr (x + 1) else vArr x) := by
   induction cnt generalizing x with
-  | zero =>
-    simp [csrShiftDown]
+  | zero => simp [csrShiftDown]
   | succ cnt ih =>
     dsimp only [csrShiftDown]
-    by_cases hx : x = i₀ + cnt
-    · subst hx
-      have hn_next : ¬(i₀ ≤ i₀ + cnt + 1 ∧ i₀ + cnt + 1 < i₀ + cnt) := by omega
-      have hyes : i₀ ≤ i₀ + cnt ∧ i₀ + cnt < i₀ + (cnt + 1) := by omega
-      simp only [Function.update_self, (ih (i₀ + cnt + 1)).1, (ih (i₀ + cnt + 1)).2,
-        hn_next, hyes, ↓reduceIte]
-      exact ⟨rfl, rfl⟩
-    · simp only [Function.update_of_ne hx, (ih x).1, (ih x).2]
-      by_cases h1 : i₀ ≤ x ∧ x < i₀ + cnt
-      · have h2 : i₀ ≤ x ∧ x < i₀ + (cnt + 1) := by omega
-        simp [h1, h2]
-      · have h2 : ¬(i₀ ≤ x ∧ x < i₀ + (cnt + 1)) := by omega
-        simp [h1, h2]
+    simp only [Function.update_apply, ih]
+    split_ifs <;> subst_vars <;> first | exact ⟨rfl, rfl⟩ | omega
 
 theorem csrShiftUp_apply (N cnt : ℕ) (hcnt : cnt ≤ N) (qArr vArr : ℕ → ℕ) (x : ℕ) :
     (csrShiftUp N cnt (qArr, vArr)).1 x =
@@ -929,37 +702,28 @@ theorem csrShiftUp_apply (N cnt : ℕ) (hcnt : cnt ≤ N) (qArr vArr : ℕ → �
     (csrShiftUp N cnt (qArr, vArr)).2 x =
       (if N - cnt < x ∧ x ≤ N then vArr (x - 1) else vArr x) := by
   induction cnt generalizing x with
-  | zero =>
-    simp [csrShiftUp]
+  | zero => simp [csrShiftUp]
   | succ cnt ih =>
-    have hcnt' : cnt ≤ N := by omega
     dsimp only [csrShiftUp]
-    by_cases hx : x = N - cnt
-    · subst hx
-      have hn_prev : ¬(N - cnt < N - cnt - 1 ∧ N - cnt - 1 ≤ N) := by omega
-      have hyes : N - (cnt + 1) < N - cnt ∧ N - cnt ≤ N := by omega
-      simp only [Function.update_self, (ih hcnt' (N - cnt - 1)).1, (ih hcnt' (N - cnt - 1)).2,
-        hn_prev, hyes, ↓reduceIte]
-      exact ⟨rfl, rfl⟩
-    · simp only [Function.update_of_ne hx, (ih hcnt' x).1, (ih hcnt' x).2]
-      split_ifs <;> omega
+    simp only [Function.update_apply, ih (by omega)]
+    split_ifs <;> subst_vars <;> first | exact ⟨rfl, rfl⟩ | omega
 
-private theorem csrAdjustStarts_apply (b : ℕ) (dec : Bool) (cnt : ℕ) (f : ℕ → ℕ) (x : ℕ) :
-    csrAdjustStarts b dec cnt f x =
-      if b + 1 ≤ x ∧ x < b + 1 + cnt then
-        (if dec then f x - 1 else f x + 1)
-      else f x := by
-  induction cnt generalizing x with
-  | zero =>
-    simp [csrAdjustStarts]
-  | succ cnt ih =>
-    dsimp only [csrAdjustStarts]
-    by_cases hx : x = b + 1 + cnt
-    · subst hx
-      rw [Function.update_self, ih (b + 1 + cnt)]
-      split_ifs <;> omega
-    · rw [Function.update_of_ne hx, ih x]
-      split_ifs <;> omega
+private theorem csrAdjustStarts_apply {b M : ℕ} (hb : b < M) (dec : Bool)
+    (f : ℕ → ℕ) (x : ℕ) :
+    csrAdjustStarts b dec (M - b) f x =
+      if b + 1 ≤ x ∧ x ≤ M then (if dec then f x - 1 else f x + 1) else f x := by
+  have hlim : b + 1 + (M - b) = M + 1 := by
+    rw [Nat.add_right_comm, Nat.add_sub_of_le hb.le]
+  simp only [adjust (M - b), hlim, Nat.lt_succ_iff]
+where
+  adjust (cnt : ℕ) :
+      csrAdjustStarts b dec cnt f x =
+        if b + 1 ≤ x ∧ x < b + 1 + cnt then (if dec then f x - 1 else f x + 1) else f x := by
+    induction cnt generalizing x with
+    | zero => simp [csrAdjustStarts]
+    | succ cnt ih =>
+      simp only [csrAdjustStarts, Function.update_apply, ih]
+      split_ifs <;> subst_vars <;> omega
 
 /-- Exact bucket-slice bijection for `ValidCsrState`: for every `b : Fin (numBucketsWhp n_max)`,
 `(Dictionary.dom dict).filter (feistelBucket = b)` has cardinality
@@ -977,83 +741,32 @@ theorem ValidCsrState.bucket_and_dom_card {U V n_max : ℕ} {h1 : ℕ → ℕ} {
         feistelBucket (bWhp n_max) h1 u.val = b.val) =
         csr.fbStart (b.val + 1) - csr.fbStart b.val := by
     intro b
-    rcases Nat.eq_zero_or_pos U with rfl | hU_pos
-    · have hemp : (Dictionary.dom dict).filter
-          (fun u : Fin 0 => feistelBucket (bWhp n_max) h1 u.val = b.val) = ∅ := by
-        ext x; exact Fin.elim0 x
-      rw [hemp, card_empty]
-      by_cases hlt : csr.fbStart b.val < csr.fbStart (b.val + 1)
-      · exfalso
-        have hu0 := (hvalid_i b.val b.isLt (csr.fbStart b.val) le_rfl hlt).1
-        omega
-      · have hle := hadj b.val b.isLt
-        omega
-    · let f : ℕ → Fin U := fun i =>
-        if hi : csr.fbStart b.val ≤ i ∧ i < csr.fbStart (b.val + 1) then
-          ⟨feistelReconstruct (bWhp n_max) h1 b.val (csr.qArr i),
-            (hvalid_i b.val b.isLt i hi.1 hi.2).1⟩
-        else ⟨0, hU_pos⟩
-      have himg : (Finset.Ico (csr.fbStart b.val) (csr.fbStart (b.val + 1))).image f =
-          (Dictionary.dom dict).filter fun u =>
-            feistelBucket (bWhp n_max) h1 u.val = b.val := by
-        ext u
-        rw [mem_image, mem_filter, Dictionary.mem_dom_iff]
-        constructor
-        · rintro ⟨i, hi_ico, rfl⟩
-          rw [mem_Ico] at hi_ico
-          have hprops := hvalid_i b.val b.isLt i hi_ico.1 hi_ico.2
-          have hf_eq : (f i).val = feistelReconstruct (bWhp n_max) h1 b.val (csr.qArr i) := by
-            simp [f, hi_ico.1, hi_ico.2]
-          have hsome : dict (f i) = some (csr.vArr i) := by
-            apply ((hmap (f i)).2 (csr.vArr i)).mpr
-            rw [hf_eq, hprops.2.1, hprops.2.2.1]
-            exact ⟨i, hi_ico.1, hi_ico.2, rfl, rfl⟩
-          rw [hf_eq]
-          exact ⟨⟨csr.vArr i, hsome⟩, hprops.2.1⟩
-        · rintro ⟨⟨v, hv_u⟩, hb_u⟩
-          obtain ⟨i, hlo, hhi, hqi, _⟩ := ((hmap u).2 v).mp hv_u
-          rw [hb_u] at hlo hhi
-          refine ⟨i, mem_Ico.mpr ⟨hlo, hhi⟩, Fin.ext ?_⟩
-          have hf_eq : (f i).val = feistelReconstruct (bWhp n_max) h1 b.val (csr.qArr i) := by
-            simp [f, hlo, hhi]
-          rw [hf_eq, hqi, ← hb_u]
-          exact feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val
-      have hinj_f : Set.InjOn f (Finset.Ico (csr.fbStart b.val) (csr.fbStart (b.val + 1))) := by
-        intro i hi j hj heq
-        rw [mem_coe, mem_Ico] at hi hj
-        have h1_eq : (f i).val = feistelReconstruct (bWhp n_max) h1 b.val (csr.qArr i) := by
-          simp [f, hi.1, hi.2]
-        have h2_eq : (f j).val = feistelReconstruct (bWhp n_max) h1 b.val (csr.qArr j) := by
-          simp [f, hj.1, hj.2]
-        have hq_i := (hvalid_i b.val b.isLt i hi.1 hi.2).2.2.1
-        have hq_j := (hvalid_i b.val b.isLt j hj.1 hj.2).2.2.1
-        have hrec_eq : feistelReconstruct (bWhp n_max) h1 b.val (csr.qArr i) =
-            feistelReconstruct (bWhp n_max) h1 b.val (csr.qArr j) := by
-          rw [← h1_eq, ← h2_eq, heq]
-        have hq_eq : csr.qArr i = csr.qArr j := by
-          rw [← hq_i, hrec_eq, hq_j]
-        exact hinj b.val b.isLt i j hi.1 hi.2 hj.1 hj.2 hq_eq
-      rw [← himg, Finset.card_image_of_injOn hinj_f, Nat.card_Ico]
+    -- The slice `[fbStart b, fbStart (b + 1))` maps bijectively onto the keys of bucket `b`.
+    let g : ℕ → ℕ := fun i => feistelReconstruct (bWhp n_max) h1 b.val (csr.qArr i)
+    have himg : (Ico (csr.fbStart b.val) (csr.fbStart (b.val + 1))).image g =
+        ((Dictionary.dom dict).filter fun u =>
+          feistelBucket (bWhp n_max) h1 u.val = b.val).map Fin.valEmbedding := by
+      ext x
+      simp only [mem_image, mem_map, mem_filter, mem_Ico, Dictionary.mem_dom_iff,
+        Fin.valEmbedding_apply]
+      constructor
+      · rintro ⟨i, ⟨hlo, hhi⟩, rfl⟩
+        obtain ⟨hU, hb, hq, -, -⟩ := hvalid_i b.val b.isLt i hlo hhi
+        refine ⟨⟨g i, hU⟩, ⟨⟨csr.vArr i, ((hmap _).2 _).mpr ?_⟩, hb⟩, rfl⟩
+        exact ⟨i, by rwa [hb], by rwa [hb], hq.symm, rfl⟩
+      · rintro ⟨u, ⟨⟨v, hv⟩, hb⟩, rfl⟩
+        obtain ⟨i, hlo, hhi, hqi, -⟩ := ((hmap u).2 v).mp hv
+        rw [hb] at hlo hhi
+        refine ⟨i, ⟨hlo, hhi⟩, ?_⟩
+        simp only [g, hqi, ← hb, feistelReconstruct_feistelBucket]
+    have hinj_g : Set.InjOn g (Ico (csr.fbStart b.val) (csr.fbStart (b.val + 1))) := by
+      intro i hi j hj heq
+      simp only [coe_Ico, Set.mem_Ico] at hi hj
+      have hqi := (hvalid_i b.val b.isLt i hi.1 hi.2).2.2.1
+      have hqj := (hvalid_i b.val b.isLt j hj.1 hj.2).2.2.1
+      exact hinj b.val b.isLt i j hi.1 hi.2 hj.1 hj.2 (by rw [← hqi, ← hqj]; exact congrArg _ heq)
+    rw [← card_map, ← himg, card_image_of_injOn hinj_g, Nat.card_Ico]
   refine ⟨hper_b, ?_⟩
-  have hpart : #(Dictionary.dom dict) =
-      ∑ b : Fin (numBucketsWhp n_max),
-        #((Dictionary.dom dict).filter fun u =>
-          feistelBucket (bWhp n_max) h1 u.val = b.val) := by
-    rw [Finset.card_eq_sum_ones]
-    have h1_sum : ∀ u ∈ Dictionary.dom dict,
-        (1 : ℕ) = ∑ b : Fin (numBucketsWhp n_max),
-          if feistelBucket (bWhp n_max) h1 u.val = b.val then 1 else 0 := by
-      intro u _
-      let b₀ : Fin (numBucketsWhp n_max) :=
-        ⟨feistelBucket (bWhp n_max) h1 u.val, feistelBucket_lt (bWhp n_max) h1 u.val⟩
-      rw [Fintype.sum_eq_single b₀]
-      · simp [b₀]
-      · intro b hne
-        have hv_ne : feistelBucket (bWhp n_max) h1 u.val ≠ b.val := fun h => hne (Fin.ext h.symm)
-        simp [hv_ne]
-    rw [Finset.sum_congr rfl h1_sum, Finset.sum_comm]
-    refine Fintype.sum_congr _ _ fun b => ?_
-    rw [Finset.card_filter]
   have htel : ∀ k ≤ numBucketsWhp n_max,
       ∑ b ∈ range k, (csr.fbStart (b + 1) - csr.fbStart b) = csr.fbStart k := by
     intro k hk
@@ -1063,11 +776,22 @@ theorem ValidCsrState.bucket_and_dom_card {U V n_max : ℕ} {h1 : ℕ → ℕ} {
       rw [sum_range_succ, ih (by omega)]
       have hle := hadj k (by omega)
       omega
-  rw [hpart]
-  simp_rw [hper_b]
-  have htelM := htel (numBucketsWhp n_max) le_rfl
-  rwa [← Fin.sum_univ_eq_sum_range (fun k => csr.fbStart (k + 1) - csr.fbStart k)
-    (numBucketsWhp n_max)] at htelM
+  rw [card_eq_sum_card_fiberwise (t := univ) (fun u _ => mem_univ
+    (⟨feistelBucket (bWhp n_max) h1 u.val, feistelBucket_lt _ _ _⟩ : Fin (numBucketsWhp n_max)))]
+  simp only [Fin.ext_iff, hper_b]
+  rw [Fin.sum_univ_eq_sum_range (fun k => csr.fbStart (k + 1) - csr.fbStart k), htel _ le_rfl]
+
+/-- The `none` clause of a `ValidCsrState` slot map follows from its `some` clause. -/
+private theorem slotMap_of_some_iff {o : Option ℕ} {lo hi q : ℕ} {qa va : ℕ → ℕ}
+    (h : ∀ v, o = some v ↔ ∃ i, lo ≤ i ∧ i < hi ∧ qa i = q ∧ va i = v) :
+    (o = none ↔ ∀ i, lo ≤ i → i < hi → qa i ≠ q) ∧
+      ∀ v, o = some v ↔ ∃ i, lo ≤ i ∧ i < hi ∧ qa i = q ∧ va i = v := by
+  refine ⟨⟨fun ho i hlo hhi hq => ?_, fun hall => ?_⟩, h⟩
+  · simpa [ho] using (h (va i)).mpr ⟨i, hlo, hhi, hq, rfl⟩
+  · rcases ho : o with _ | v
+    · rfl
+    · obtain ⟨i, hlo, hhi, hq, -⟩ := (h v).mp ho
+      exact absurd hq (hall i hlo hhi)
 
 /-- CSR fallback lookup matches `dict u` for every seed `h1`. -/
 theorem csrQuery_spec {U V n_max : ℕ} {h1 : ℕ → ℕ} {csr : CsrState} {dict : State U}
@@ -1079,20 +803,15 @@ theorem csrQuery_spec {U V n_max : ℕ} {h1 : ℕ → ℕ} {csr : CsrState} {dic
   set q := keyQuotient (bWhp n_max) u.val
   have hb_lt : b < numBucketsWhp n_max := feistelBucket_lt (bWhp n_max) h1 u.val
   have hle_fb : csr.fbStart b ≤ csr.fbStart (b + 1) := hadj b hb_lt
-  have hhi_eq : csr.fbStart b + (csr.fbStart (b + 1) - csr.fbStart b) = csr.fbStart (b + 1) := by
-    omega
-  have hsc := csrScanRange_props csr.qArr (csr.fbStart b) q
-    (csr.fbStart (b + 1) - csr.fbStart b)
+  have hsc := csrScanRange_to_props csr.qArr q hle_fb
   dsimp only [csrQuery]
   set f1 := csrScanRange csr.qArr (csr.fbStart b) q (csr.fbStart (b + 1) - csr.fbStart b)
   by_cases hf0 : f1 = 0
   · simp only [hf0, ↓reduceIte]
     have hall := hsc.1.mp hf0
-    rw [hhi_eq] at hall
     exact ((hmap u).1.mpr hall).symm
   · simp only [hf0, ↓reduceIte]
     obtain ⟨hlo, hhi, hqi⟩ := hsc.2 hf0
-    rw [hhi_eq] at hhi
     symm
     exact ((hmap u).2 (csr.vArr (f1 - 1))).mpr ⟨f1 - 1, hlo, hhi, hqi, rfl⟩
 
@@ -1111,32 +830,21 @@ theorem csrDelete_spec {U V n_max : ℕ} {h1 : ℕ → ℕ} {csr : CsrState} {di
   have hb_lt : b < M := feistelBucket_lt (bWhp n_max) h1 u.val
   have hmono := fbStart_mono_of_adj hadj
   have hle_fb : csr.fbStart b ≤ csr.fbStart (b + 1) := hadj b hb_lt
-  have hhi_eq : csr.fbStart b + (csr.fbStart (b + 1) - csr.fbStart b) = csr.fbStart (b + 1) := by
-    omega
-  have hsc := csrScanRange_props csr.qArr (csr.fbStart b) q
-    (csr.fbStart (b + 1) - csr.fbStart b)
+  have hsc := csrScanRange_to_props csr.qArr q hle_fb
   dsimp only [csrDelete]
   set f1 := csrScanRange csr.qArr (csr.fbStart b) q (csr.fbStart (b + 1) - csr.fbStart b)
   by_cases hfnz : f1 != 0
   · have hf_ne : f1 ≠ 0 := by simpa using hfnz
     simp only [hfnz, ↓reduceIte]
     obtain ⟨hlo_0, hhi_0, hq_0⟩ := hsc.2 hf_ne
-    rw [hhi_eq] at hhi_0
     set i₀ := f1 - 1
     set N := csr.fbStart M
     have hi₀_lt_N : i₀ < N := hhi_0.trans_le (hmono (b + 1) M (by omega) le_rfl)
     set sh := csrShiftDown i₀ (N - 1 - i₀) (csr.qArr, csr.vArr)
     set fb' := csrAdjustStarts b true (M - b) csr.fbStart
-    have hMb : b + 1 + (M - b) = M + 1 := by
-      dsimp only [M, b] at hb_lt ⊢
-      omega
-    have hfb'_eq :
-        ∀ x, fb' x = if b + 1 ≤ x ∧ x ≤ M then csr.fbStart x - 1 else csr.fbStart x := by
-      intro x
-      change csrAdjustStarts b true (M - b) csr.fbStart x = _
-      rw [csrAdjustStarts_apply, hMb]
-      simp only [↓reduceIte]
-      split_ifs <;> omega
+    have hfb'_eq (x : ℕ) :
+        fb' x = if b + 1 ≤ x ∧ x ≤ M then csr.fbStart x - 1 else csr.fbStart x := by
+      simpa only [↓reduceIte] using csrAdjustStarts_apply hb_lt true csr.fbStart x
     have hsh_eq : ∀ x < N - 1,
         sh.1 x = csr.qArr (if x < i₀ then x else x + 1) ∧
         sh.2 x = csr.vArr (if x < i₀ then x else x + 1) := by
@@ -1188,7 +896,7 @@ theorem csrDelete_spec {U V n_max : ℕ} {h1 : ℕ → ℕ} {csr : CsrState} {di
         simp only [hn_lt, ↓reduceIte]
         exact ⟨by omega, by omega, by omega, by omega⟩
     dsimp only [ValidCsrState]
-    refine ⟨?_, ?_, ?_, ?_, ?_, fun x => ⟨?_, fun v => ?_⟩⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, fun x => slotMap_of_some_iff fun v => ?_⟩
     · rw [hfb'_eq 0]; split_ifs <;> omega
     · intro b' hb'
       change b' < M at hb'
@@ -1221,49 +929,6 @@ theorem csrDelete_spec {U V n_max : ℕ} {h1 : ℕ → ℕ} {csr : CsrState} {di
         simp only [h1, h2, ↓reduceIte] at horig_eq <;> omega
     · by_cases hxu : x = u
       · subst hxu
-        simp only [Function.update_self, true_iff]
-        intro i' hlo' hhi' hq_eq
-        obtain ⟨hi'_N, hor_lo, hor_hi, hor_ne⟩ := horig_in b hb_lt i' hlo' hhi'
-        rw [(hsh_eq i' hi'_N).1] at hq_eq
-        exact hor_ne (hinj b hb_lt _ i₀ hor_lo hor_hi hlo_0 hhi_0 (hq_eq.trans hq_0.symm))
-      · rw [Function.update_of_ne hxu, (hmap x).1]
-        set bx := feistelBucket (bWhp n_max) h1 x.val
-        have hbx_lt : bx < M := feistelBucket_lt (bWhp n_max) h1 x.val
-        constructor
-        · intro hall i' hlo' hhi'
-          obtain ⟨hi'_N, hor_lo, hor_hi, _⟩ := horig_in bx hbx_lt i' hlo' hhi'
-          rw [(hsh_eq i' hi'_N).1]
-          exact hall _ hor_lo hor_hi
-        · intro hall i hi_lo hi_hi hq_i
-          have hi_ne_i₀ : i ≠ i₀ := by
-            intro h; rw [h] at hi_lo hi_hi hq_i
-            by_cases hbx_eq : bx = b
-            · exact hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx_eq
-                (hq_i.symm.trans hq_0)))
-            · rcases lt_or_gt_of_ne hbx_eq with hlt | hgt
-              · have := hmono (bx + 1) b (by omega) (by omega); omega
-              · have := hmono (b + 1) bx (by omega) (by omega); omega
-          let i' := if i < i₀ then i else i - 1
-          have hi'_in : fb' bx ≤ i' ∧ i' < fb' (bx + 1) ∧
-              (if i' < i₀ then i' else i' + 1) = i := by
-            dsimp only [i']
-            rw [hfb'_eq bx, hfb'_eq (bx + 1)]
-            rcases lt_trichotomy bx b with hlt | heq | hgt
-            · have hle_b := hmono (bx + 1) b (by omega) (by omega)
-              split_ifs <;> omega
-            · rw [heq] at hi_lo hi_hi ⊢
-              have := hge1_pos (b + 1) le_rfl (by omega)
-              split_ifs <;> omega
-            · have := hge1_pos bx (by omega) (by omega)
-              have := hge1_pos (bx + 1) (by omega) (by omega)
-              have hge_b := hmono (b + 1) bx (by omega) (by omega)
-              split_ifs <;> omega
-          obtain ⟨hi'_N, _, _, _⟩ := horig_in bx hbx_lt i' hi'_in.1 hi'_in.2.1
-          apply hall i' hi'_in.1 hi'_in.2.1
-          rw [(hsh_eq i' hi'_N).1, hi'_in.2.2]
-          exact hq_i
-    · by_cases hxu : x = u
-      · subst hxu
         simp only [Function.update_self, reduceCtorEq, false_iff, not_exists, not_and]
         intro i' hlo' hhi' hq_eq _
         obtain ⟨hi'_N, hor_lo, hor_hi, hor_ne⟩ := horig_in b hb_lt i' hlo' hhi'
@@ -1276,12 +941,9 @@ theorem csrDelete_spec {U V n_max : ℕ} {h1 : ℕ → ℕ} {csr : CsrState} {di
         · rintro ⟨i, hi_lo, hi_hi, hq_i, hv_i⟩
           have hi_ne_i₀ : i ≠ i₀ := by
             intro h; rw [h] at hi_lo hi_hi hq_i
-            by_cases hbx_eq : bx = b
-            · exact hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx_eq
-                (hq_i.symm.trans hq_0)))
-            · rcases lt_or_gt_of_ne hbx_eq with hlt | hgt
-              · have := hmono (bx + 1) b (by omega) (by omega); omega
-              · have := hmono (b + 1) bx (by omega) (by omega); omega
+            have hbx := csr_slot_bucket_unique hmono hbx_lt hb_lt hi_lo hi_hi hlo_0 hhi_0
+            exact hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx
+              (hq_i.symm.trans hq_0)))
           let i' := if i < i₀ then i else i - 1
           have hi'_in : fb' bx ≤ i' ∧ i' < fb' (bx + 1) ∧
               (if i' < i₀ then i' else i' + 1) = i := by
@@ -1309,14 +971,8 @@ theorem csrDelete_spec {U V n_max : ℕ} {h1 : ℕ → ℕ} {csr : CsrState} {di
   · have hf0 : f1 = 0 := by simpa using hfnz
     simp only [hfnz, Bool.false_eq_true, ↓reduceIte]
     have hall := hsc.1.mp hf0
-    rw [hhi_eq] at hall
     have hnone_u : dict u = none := (hmap u).1.mpr hall
-    have hupd : Function.update dict u none = dict := by
-      ext x
-      by_cases h : x = u
-      · subst h; simp [hnone_u]
-      · simp [h]
-    rw [hupd]
+    rw [show Function.update dict u none = dict from Function.update_eq_self_iff.mpr hnone_u.symm]
     exact ⟨hfb0, hadj, hfbM_le, hvalid_i, hinj, hmap⟩
 
 theorem keyQuotient_lt_two_pow_quotBitsWhp {U n_max : ℕ} (hnU : n_max ≤ U) (u : Fin U) :
@@ -1329,6 +985,35 @@ theorem keyQuotient_lt_two_pow_quotBitsWhp {U n_max : ℕ} (hnU : n_max ≤ U) (
     rw [hu0]
     exact Nat.two_pow_pos _
   · exact u.isLt.trans_le (Nat.le_pow_clog Nat.one_lt_two U)
+
+private theorem csr_insert_slot_iff {M b b' : ℕ} {f : ℕ → ℕ}
+    (hadj : ∀ j < M, f j ≤ f (j + 1)) (hb : b < M) (hb' : b' < M) (i' : ℕ) :
+    let hi := f (b + 1)
+    let orig := if i' < hi then i' else i' - 1
+    let shifted := fun j => if b + 1 ≤ j ∧ j ≤ M then f j + 1 else f j
+    (shifted b' ≤ i' ∧ i' < shifted (b' + 1)) ↔
+      (b' = b ∧ i' = hi) ∨ (i' ≠ hi ∧ f b' ≤ orig ∧ orig < f (b' + 1)) := by
+  dsimp only
+  have hmono := fbStart_mono_of_adj hadj
+  rcases lt_trichotomy b' b with hlt | rfl | hgt
+  · have hle := hmono (b' + 1) (b + 1) (Nat.succ_le_succ hlt.le) (Nat.succ_le_of_lt hb)
+    rw [ite_eq_right (fun h => hlt.not_ge (Nat.le_of_succ_le h.1)),
+      ite_eq_right (fun h => hlt.not_ge (Nat.le_of_succ_le_succ h.1))]
+    simp only [hlt.ne, false_and, false_or]
+    clear hadj hmono
+    split_ifs <;> lia
+  · have hle := hadj b' hb'
+    rw [ite_eq_right (fun h => (Nat.not_succ_le_self b') h.1),
+      ite_eq_left ⟨le_rfl, Nat.succ_le_of_lt hb'⟩]
+    simp only [true_and]
+    clear hadj hmono
+    split_ifs <;> lia
+  · have hle := hmono (b + 1) b' hgt hb'.le
+    rw [ite_eq_left ⟨hgt, hb'.le⟩,
+      ite_eq_left ⟨Nat.succ_le_succ hgt.le, Nat.succ_le_of_lt hb'⟩]
+    simp only [hgt.ne', false_and, false_or]
+    clear hadj hmono
+    split_ifs <;> lia
 
 /-- CSR fallback insertion preserves `ValidCsrState` and refines
 `Function.update dict u (some v)` whenever `n_max ≤ U` and
@@ -1350,31 +1035,19 @@ theorem csrInsert_spec {U V n_max : ℕ} (hnU : n_max ≤ U) {h1 : ℕ → ℕ} 
   have hq_lt : q < 2 ^ quotBitsWhp U n_max := keyQuotient_lt_two_pow_quotBitsWhp hnU u
   have hmono := fbStart_mono_of_adj hadj
   have hle_fb : csr.fbStart b ≤ csr.fbStart (b + 1) := hadj b hb_lt
-  have hhi_eq : csr.fbStart b + (csr.fbStart (b + 1) - csr.fbStart b) = csr.fbStart (b + 1) := by
-    omega
-  have hsc := csrScanRange_props csr.qArr (csr.fbStart b) q
-    (csr.fbStart (b + 1) - csr.fbStart b)
+  have hsc := csrScanRange_to_props csr.qArr q hle_fb
   dsimp only [csrInsert]
   set f1 := csrScanRange csr.qArr (csr.fbStart b) q (csr.fbStart (b + 1) - csr.fbStart b)
   by_cases hfnz : f1 != 0
   · have hf_ne : f1 ≠ 0 := by simpa using hfnz
     simp only [hfnz, ↓reduceIte]
     obtain ⟨hlo_0, hhi_0, hq_0⟩ := hsc.2 hf_ne
-    rw [hhi_eq] at hhi_0
     set i₀ := f1 - 1
     dsimp only [ValidCsrState]
-    refine ⟨hfb0, hadj, hfbM_le, ?_, hinj, fun x => ⟨?_, fun w => ?_⟩⟩
+    refine ⟨hfb0, hadj, hfbM_le, ?_, hinj, fun x => slotMap_of_some_iff fun w => ?_⟩
     · intro b' hb' i hlo hhi
-      have hp := hvalid_i b' hb' i hlo hhi
-      refine ⟨hp.1, hp.2.1, hp.2.2.1, hp.2.2.2.1, ?_⟩
-      by_cases h : i = i₀
-      · subst h; simp [hv_lt]
-      · simp [h, hp.2.2.2.2]
-    · by_cases hxu : x = u
-      · subst hxu
-        simp only [Function.update_self, reduceCtorEq, false_iff, not_forall, not_not]
-        exact ⟨i₀, hlo_0, hhi_0, hq_0⟩
-      · rw [Function.update_of_ne hxu, (hmap x).1]
+      obtain ⟨hp1, hp2, hp3, hp4, hp5⟩ := hvalid_i b' hb' i hlo hhi
+      exact ⟨hp1, hp2, hp3, hp4, by rw [Function.update_apply]; split_ifs <;> assumption⟩
     · set bx := feistelBucket (bWhp n_max) h1 x.val
       have hbx_lt : bx < M := feistelBucket_lt (bWhp n_max) h1 x.val
       by_cases hxu : x = u
@@ -1388,35 +1061,18 @@ theorem csrInsert_spec {U V n_max : ℕ} (hnU : n_max ≤ U) {h1 : ℕ → ℕ} 
           subst hi_eq
           simpa using hwi
       · rw [Function.update_of_ne hxu, (hmap x).2 w]
-        constructor
-        · rintro ⟨i, hlo, hhi, hqi, hwi⟩
-          change csr.fbStart bx ≤ i at hlo
-          change i < csr.fbStart (bx + 1) at hhi
-          have hni : i ≠ i₀ := by
-            intro h; rw [h] at hlo hhi hqi
-            by_cases hbx : bx = b
-            · exact hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx
-                (hqi.symm.trans hq_0)))
-            · rcases lt_or_gt_of_ne hbx with hlt | hgt
-              · have := hmono (bx + 1) b (by omega) (by omega); omega
-              · have := hmono (b + 1) bx (by omega) (by omega); omega
-          exact ⟨i, hlo, hhi, hqi, by simpa [hni] using hwi⟩
-        · rintro ⟨i, hlo, hhi, hqi, hwi⟩
-          change csr.fbStart bx ≤ i at hlo
-          change i < csr.fbStart (bx + 1) at hhi
-          have hni : i ≠ i₀ := by
-            intro h; rw [h] at hlo hhi hqi
-            by_cases hbx : bx = b
-            · exact hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx
-                (hqi.symm.trans hq_0)))
-            · rcases lt_or_gt_of_ne hbx with hlt | hgt
-              · have := hmono (bx + 1) b (by omega) (by omega); omega
-              · have := hmono (b + 1) bx (by omega) (by omega); omega
-          exact ⟨i, hlo, hhi, hqi, by simpa [hni] using hwi⟩
+        -- A slot of `x ≠ u` never holds the overwritten index `i₀`, which belongs to `u`.
+        have hni : ∀ i, csr.fbStart bx ≤ i → i < csr.fbStart (bx + 1) →
+            csr.qArr i = keyQuotient (bWhp n_max) x.val → i ≠ i₀ := by
+          rintro i hlo hhi hqi rfl
+          have hbx := csr_slot_bucket_unique hmono hbx_lt hb_lt hlo hhi hlo_0 hhi_0
+          exact hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx
+            (hqi.symm.trans hq_0)))
+        exact exists_congr fun i => and_congr_right fun hlo => and_congr_right fun hhi =>
+          and_congr_right fun hqi => by simp only [Function.update_of_ne (hni i hlo hhi hqi)]
   · have hf0 : f1 = 0 := by simpa using hfnz
     simp only [hfnz, Bool.false_eq_true, ↓reduceIte]
     have hall := hsc.1.mp hf0
-    rw [hhi_eq] at hall
     have hnone_u : dict u = none := (hmap u).1.mpr hall
     set hi := csr.fbStart (b + 1)
     set N := csr.fbStart M
@@ -1429,16 +1085,10 @@ theorem csrInsert_spec {U V n_max : ℕ} (hnU : n_max ≤ U) {h1 : ℕ → ℕ} 
     set q' := Function.update sh.1 hi q
     set v' := Function.update sh.2 hi v
     set fb' := csrAdjustStarts b false (M - b) csr.fbStart
-    have hMb : b + 1 + (M - b) = M + 1 := by
-      dsimp only [M, b] at hb_lt ⊢
-      omega
-    have hfb'_eq :
-        ∀ x, fb' x = if b + 1 ≤ x ∧ x ≤ M then csr.fbStart x + 1 else csr.fbStart x := by
-      intro x
-      change csrAdjustStarts b false (M - b) csr.fbStart x = _
-      rw [csrAdjustStarts_apply, hMb]
-      simp only [Bool.false_eq_true, ↓reduceIte]
-      split_ifs <;> omega
+    have hfb'_eq (x : ℕ) :
+        fb' x = if b + 1 ≤ x ∧ x ≤ M then csr.fbStart x + 1 else csr.fbStart x := by
+      simpa only [Bool.false_eq_true, ↓reduceIte] using
+        csrAdjustStarts_apply hb_lt false csr.fbStart x
     have hqv'_eq : ∀ x ≤ N,
         (x < hi → q' x = csr.qArr x ∧ v' x = csr.vArr x) ∧
         (x = hi → q' x = q ∧ v' x = v) ∧
@@ -1454,205 +1104,103 @@ theorem csrInsert_spec {U V n_max : ℕ} (hnU : n_max ≤ U) {h1 : ℕ → ℕ} 
       · have hne : x ≠ hi := by omega
         have hy : N - (N - hi) < x ∧ x ≤ N := by omega
         simp [hne, hqx, hvx, hy]
+    -- Every occupied slot except the new one comes from this index in the old arrays.
+    let orig (i' : ℕ) := if i' < hi then i' else i' - 1
+    have horig_inj {i' j' : ℕ} (hi' : i' ≠ hi) (hj' : j' ≠ hi)
+        (heq : orig i' = orig j') : i' = j' := by
+      dsimp only [orig] at heq
+      clear * - hi' hj' heq
+      split_ifs at heq <;> lia
+    have hslot (b' : ℕ) (hb' : b' < M) (i' : ℕ) :
+        (fb' b' ≤ i' ∧ i' < fb' (b' + 1)) ↔
+        (b' = b ∧ i' = hi) ∨
+          (i' ≠ hi ∧ csr.fbStart b' ≤ orig i' ∧ orig i' < csr.fbStart (b' + 1)) := by
+      rw [hfb'_eq b', hfb'_eq (b' + 1)]
+      exact csr_insert_slot_iff hadj hb_lt hb' i'
+    have hslot_le {b' i' : ℕ} (hb' : b' < M) (hhi' : i' < fb' (b' + 1)) : i' ≤ N := by
+      have hle := hmono (b' + 1) M (Nat.succ_le_of_lt hb') le_rfl
+      rw [hfb'_eq] at hhi'
+      split at hhi'
+      · exact (Nat.le_of_lt_succ hhi').trans hle
+      · exact (hhi'.trans_le hle).le
+    have hqv_orig {i' : ℕ} (hle : i' ≤ N) (hne : i' ≠ hi) :
+        q' i' = csr.qArr (orig i') ∧ v' i' = csr.vArr (orig i') := by
+      dsimp only [orig]
+      split
+      · exact (hqv'_eq i' hle).1 ‹i' < hi›
+      · exact (hqv'_eq i' hle).2.2 (lt_of_le_of_ne (Nat.le_of_not_gt ‹¬i' < hi›) hne.symm)
+    have hnew_slot := (hslot b hb_lt hi).mpr (Or.inl ⟨rfl, rfl⟩)
+    have hqv_new := (hqv'_eq hi hhi_le_N).2.1 rfl
     have hrec_u : feistelReconstruct (bWhp n_max) h1 b q = u.val :=
       feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val
     dsimp only [ValidCsrState]
-    refine ⟨?_, ?_, ?_, ?_, ?_, fun x => ⟨?_, fun w => ?_⟩⟩
-    · rw [hfb'_eq 0]; split_ifs <;> omega
+    refine ⟨?_, ?_, ?_, ?_, ?_, fun x => slotMap_of_some_iff fun w => ?_⟩
+    · rw [hfb'_eq 0, ite_eq_right (fun h => Nat.not_succ_le_zero b h.1)]
+      exact hfb0
     · intro b' hb'
       change b' < M at hb'
       rw [hfb'_eq b', hfb'_eq (b' + 1)]
-      have hle' := hadj b' hb'
-      split_ifs <;> omega
+      by_cases hle : b + 1 ≤ b'
+      · rw [ite_eq_left ⟨hle, hb'.le⟩,
+          ite_eq_left ⟨hle.trans (Nat.le_succ _), Nat.succ_le_of_lt hb'⟩]
+        exact Nat.succ_le_succ (hadj b' hb')
+      · rw [ite_eq_right (fun h => hle h.1)]
+        split
+        · exact Nat.le_succ_of_le (hadj b' hb')
+        · exact hadj b' hb'
     · change fb' M ≤ n_max
-      rw [hfb'_eq M]
-      split_ifs <;> omega
+      rw [hfb'_eq M, ite_eq_left ⟨Nat.succ_le_of_lt hb_lt, le_rfl⟩]
+      exact hN_lt
     · intro b' hb' i' hlo' hhi'
-      change b' < M at hb'
-      rw [hfb'_eq b'] at hlo'
-      rw [hfb'_eq (b' + 1)] at hhi'
-      have hb1_N : csr.fbStart (b' + 1) ≤ N := hmono (b' + 1) M (by omega) le_rfl
-      rcases lt_trichotomy b' b with hlt_b | rfl | hgt_b
-      · have hn1 : ¬(b + 1 ≤ b' ∧ b' ≤ M) := by omega
-        have hn2 : ¬(b + 1 ≤ b' + 1 ∧ b' + 1 ≤ M) := by omega
-        simp only [hn1, hn2, ↓reduceIte] at hlo' hhi'
-        have hle_b := hmono (b' + 1) (b + 1) (by omega) (by omega)
-        obtain ⟨hq_eq, hv_eq⟩ := (hqv'_eq i' (by omega)).1 (by omega)
-        rw [hq_eq, hv_eq]
-        exact hvalid_i b' hb' i' hlo' hhi'
-      · have hn1 : ¬(b + 1 ≤ b ∧ b ≤ M) := by omega
-        have hy2 : b + 1 ≤ b + 1 ∧ b + 1 ≤ M := by omega
-        rw [ite_eq_right hn1] at hlo'
-        rw [ite_eq_left hy2] at hhi'
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hhi' with hlt_hi | rfl
-        · obtain ⟨hq_eq, hv_eq⟩ := (hqv'_eq i' (by omega)).1 hlt_hi
-          rw [hq_eq, hv_eq]
-          exact hvalid_i b hb' i' hlo' hlt_hi
-        · obtain ⟨hq_eq, hv_eq⟩ := (hqv'_eq hi hhi_le_N).2.1 rfl
-          rw [hq_eq, hv_eq, hrec_u]
-          exact ⟨u.isLt, rfl, rfl, hq_lt, hv_lt⟩
-      · have hy1 : b + 1 ≤ b' ∧ b' ≤ M := by omega
-        have hy2 : b + 1 ≤ b' + 1 ∧ b' + 1 ≤ M := by omega
-        rw [ite_eq_left hy1] at hlo'
-        rw [ite_eq_left hy2] at hhi'
-        have hge_hi : hi ≤ csr.fbStart b' := hmono (b + 1) b' (by omega) (by omega)
-        obtain ⟨hq_eq, hv_eq⟩ := (hqv'_eq i' (by omega)).2.2 (by omega)
-        rw [hq_eq, hv_eq]
-        exact hvalid_i b' hb' (i' - 1) (by omega) (by omega)
-    · intro b' hb' i' j' hloi hhii hloj hhij hq_eq
-      change b' < M at hb'
-      rw [hfb'_eq b'] at hloi hloj
-      rw [hfb'_eq (b' + 1)] at hhii hhij
-      have hb1_N : csr.fbStart (b' + 1) ≤ N := hmono (b' + 1) M (by omega) le_rfl
-      rcases lt_trichotomy b' b with hlt_b | rfl | hgt_b
-      · have hn1 : ¬(b + 1 ≤ b' ∧ b' ≤ M) := by omega
-        have hn2 : ¬(b + 1 ≤ b' + 1 ∧ b' + 1 ≤ M) := by omega
-        simp only [hn1, hn2, ↓reduceIte] at hloi hhii hloj hhij
-        have hle_b := hmono (b' + 1) (b + 1) (by omega) (by omega)
-        rw [((hqv'_eq i' (by omega)).1 (by omega)).1,
-          ((hqv'_eq j' (by omega)).1 (by omega)).1] at hq_eq
-        exact hinj b' hb' i' j' hloi hhii hloj hhij hq_eq
-      · have hn1 : ¬(b + 1 ≤ b ∧ b ≤ M) := by omega
-        have hy2 : b + 1 ≤ b + 1 ∧ b + 1 ≤ M := by omega
-        rw [ite_eq_right hn1] at hloi hloj
-        rw [ite_eq_left hy2] at hhii hhij
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hhii with hi_lt | rfl <;>
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hhij with hj_lt | rfl
-        · rw [((hqv'_eq i' (by omega)).1 hi_lt).1,
-            ((hqv'_eq j' (by omega)).1 hj_lt).1] at hq_eq
-          exact hinj b hb' i' j' hloi hi_lt hloj hj_lt hq_eq
-        · rw [((hqv'_eq i' (by omega)).1 hi_lt).1,
-            ((hqv'_eq hi hhi_le_N).2.1 rfl).1] at hq_eq
-          exact absurd hq_eq (hall i' hloi hi_lt)
-        · rw [((hqv'_eq hi hhi_le_N).2.1 rfl).1,
-            ((hqv'_eq j' (by omega)).1 hj_lt).1] at hq_eq
-          exact absurd hq_eq.symm (hall j' hloj hj_lt)
+      rcases (hslot b' hb' i').mp ⟨hlo', hhi'⟩ with ⟨rfl, rfl⟩ | ⟨hne, hlo, hhi⟩
+      · rw [hqv_new.1, hqv_new.2, hrec_u]
+        exact ⟨u.isLt, rfl, rfl, hq_lt, hv_lt⟩
+      · obtain ⟨hqe, hve⟩ := hqv_orig (hslot_le hb' hhi') hne
+        rw [hqe, hve]
+        exact hvalid_i b' hb' _ hlo hhi
+    · intro b' hb' i' j' hloi hhii hloj hhij heq
+      rcases (hslot b' hb' i').mp ⟨hloi, hhii⟩ with ⟨rfl, rfl⟩ | ⟨hni, hloi', hhii'⟩
+      · rcases (hslot b hb' j').mp ⟨hloj, hhij⟩ with ⟨_, rfl⟩ | ⟨hnj, hloj', hhij'⟩
         · rfl
-      · have hy1 : b + 1 ≤ b' ∧ b' ≤ M := by omega
-        have hy2 : b + 1 ≤ b' + 1 ∧ b' + 1 ≤ M := by omega
-        rw [ite_eq_left hy1] at hloi hloj
-        rw [ite_eq_left hy2] at hhii hhij
-        have hge_hi : hi ≤ csr.fbStart b' := hmono (b + 1) b' (by omega) (by omega)
-        rw [((hqv'_eq i' (by omega)).2.2 (by omega)).1,
-          ((hqv'_eq j' (by omega)).2.2 (by omega)).1] at hq_eq
-        have heq1 := hinj b' hb' (i' - 1) (j' - 1) (by omega) (by omega) (by omega) (by omega) hq_eq
-        omega
-    · by_cases hxu : x = u
-      · subst hxu
-        simp only [Function.update_self, reduceCtorEq, false_iff, not_forall, not_not]
-        refine ⟨hi, ?_, ?_, ((hqv'_eq hi hhi_le_N).2.1 rfl).1⟩
-        · rw [hfb'_eq b]; split_ifs <;> omega
-        · rw [hfb'_eq (b + 1)]; split_ifs <;> omega
-      · rw [Function.update_of_ne hxu, (hmap x).1]
-        set bx := feistelBucket (bWhp n_max) h1 x.val
-        set qx := keyQuotient (bWhp n_max) x.val
-        have hbx_lt : bx < M := feistelBucket_lt (bWhp n_max) h1 x.val
-        have hbx1_N : csr.fbStart (bx + 1) ≤ N := hmono (bx + 1) M (by omega) le_rfl
-        rw [hfb'_eq bx, hfb'_eq (bx + 1)]
-        rcases lt_trichotomy bx b with hlt_b | heq_b | hgt_b
-        · have hn1 : ¬(b + 1 ≤ bx ∧ bx ≤ M) := by omega
-          have hn2 : ¬(b + 1 ≤ bx + 1 ∧ bx + 1 ≤ M) := by omega
-          have hle_b := hmono (bx + 1) (b + 1) (by omega) (by omega)
-          rw [ite_eq_right hn1, ite_eq_right hn2]
-          exact ⟨fun hallx i hlo hhi => by
-            rw [((hqv'_eq i (by omega)).1 (by omega)).1]; exact hallx i hlo hhi,
-            fun hallx i hlo hhi => by
-            have := hallx i hlo hhi; rwa [((hqv'_eq i (by omega)).1 (by omega)).1] at this⟩
-        · have hn1 : ¬(b + 1 ≤ bx ∧ bx ≤ M) := by omega
-          have hy2 : b + 1 ≤ bx + 1 ∧ bx + 1 ≤ M := by omega
-          rw [ite_eq_right hn1, ite_eq_left hy2]
-          have hqx_ne : qx ≠ q := fun hqq =>
-            hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq heq_b hqq))
-          have hbx1_eq : csr.fbStart (bx + 1) = hi := by rw [heq_b]
-          constructor
-          · intro hallx i' hlo' hhi'
-            rcases Nat.lt_succ_iff_lt_or_eq.mp (show i' < hi + 1 by omega)
-              with hlt_hi | rfl
-            · rw [((hqv'_eq i' (by omega)).1 hlt_hi).1]
-              exact hallx i' hlo' (by omega)
-            · rw [((hqv'_eq hi hhi_le_N).2.1 rfl).1]
-              exact hqx_ne.symm
-          · intro hallx i hlo hhi
-            have hlt_hi : i < hi := by omega
-            have h1 := hallx i hlo (by omega)
-            rwa [((hqv'_eq i (by omega)).1 hlt_hi).1] at h1
-        · have hy1 : b + 1 ≤ bx ∧ bx ≤ M := by omega
-          have hy2 : b + 1 ≤ bx + 1 ∧ bx + 1 ≤ M := by omega
-          have hge_hi : hi ≤ csr.fbStart bx := hmono (b + 1) bx (by omega) (by omega)
-          rw [ite_eq_left hy1, ite_eq_left hy2]
-          constructor
-          · intro hallx i' hlo' hhi'
-            rw [((hqv'_eq i' (by omega)).2.2 (by omega)).1]
-            exact hallx (i' - 1) (by omega) (by omega)
-          · intro hallx i hlo hhi
-            have h1 := hallx (i + 1) (by omega) (by omega)
-            rwa [((hqv'_eq (i + 1) (by omega)).2.2 (by omega)).1, Nat.add_sub_cancel] at h1
+        · rw [hqv_new.1, (hqv_orig (hslot_le hb' hhij) hnj).1] at heq
+          exact False.elim (hall _ hloj' hhij' heq.symm)
+      · have hqi := (hqv_orig (hslot_le hb' hhii) hni).1
+        rcases (hslot b' hb' j').mp ⟨hloj, hhij⟩ with ⟨rfl, rfl⟩ | ⟨hnj, hloj', hhij'⟩
+        · rw [hqi, hqv_new.1] at heq
+          exact False.elim (hall _ hloi' hhii' heq)
+        · rw [hqi, (hqv_orig (hslot_le hb' hhij) hnj).1] at heq
+          exact horig_inj hni hnj (hinj b' hb' _ _ hloi' hhii' hloj' hhij' heq)
     · by_cases hxu : x = u
       · subst hxu
         simp only [Function.update_self, Option.some.injEq]
-        rw [hfb'_eq b, hfb'_eq (b + 1)]
-        have hn1 : ¬(b + 1 ≤ b ∧ b ≤ M) := by omega
-        have hy2 : b + 1 ≤ b + 1 ∧ b + 1 ≤ M := by omega
-        rw [ite_eq_right hn1, ite_eq_left hy2]
         constructor
         · rintro rfl
-          exact ⟨hi, hle_fb, Nat.lt_succ_self hi,
-            ((hqv'_eq hi hhi_le_N).2.1 rfl).1, ((hqv'_eq hi hhi_le_N).2.1 rfl).2⟩
+          exact ⟨hi, hnew_slot.1, hnew_slot.2, hqv_new.1, hqv_new.2⟩
         · rintro ⟨i', hlo', hhi', hq', hv'⟩
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hhi' with hlt_hi | rfl
-          · rw [((hqv'_eq i' (by omega)).1 hlt_hi).1] at hq'
-            exact absurd hq' (hall i' hlo' hlt_hi)
-          · rw [((hqv'_eq hi hhi_le_N).2.1 rfl).2] at hv'
-            exact hv'
+          rcases (hslot b hb_lt i').mp ⟨hlo', hhi'⟩ with ⟨_, rfl⟩ | ⟨hne, hlo, hhi⟩
+          · exact hqv_new.2.symm.trans hv'
+          · rw [(hqv_orig (hslot_le hb_lt hhi') hne).1] at hq'
+            exact False.elim (hall _ hlo hhi hq')
       · rw [Function.update_of_ne hxu, (hmap x).2 w]
-        set bx := feistelBucket (bWhp n_max) h1 x.val
-        set qx := keyQuotient (bWhp n_max) x.val
+        let bx := feistelBucket (bWhp n_max) h1 x.val
         have hbx_lt : bx < M := feistelBucket_lt (bWhp n_max) h1 x.val
-        have hbx1_N : csr.fbStart (bx + 1) ≤ N := hmono (bx + 1) M (by omega) le_rfl
-        rw [hfb'_eq bx, hfb'_eq (bx + 1)]
-        rcases lt_trichotomy bx b with hlt_b | heq_b | hgt_b
-        · have hn1 : ¬(b + 1 ≤ bx ∧ bx ≤ M) := by omega
-          have hn2 : ¬(b + 1 ≤ bx + 1 ∧ bx + 1 ≤ M) := by omega
-          have hle_b := hmono (bx + 1) (b + 1) (by omega) (by omega)
-          rw [ite_eq_right hn1, ite_eq_right hn2]
-          constructor
-          · rintro ⟨i, hlo, hhi, hqi, hwi⟩
-            obtain ⟨hqe, hve⟩ := (hqv'_eq i (by omega)).1 (by omega)
-            exact ⟨i, hlo, hhi, hqe.trans hqi, hve.trans hwi⟩
-          · rintro ⟨i, hlo, hhi, hqi, hwi⟩
-            obtain ⟨hqe, hve⟩ := (hqv'_eq i (by omega)).1 (by omega)
-            exact ⟨i, hlo, hhi, hqe.symm.trans hqi, hve.symm.trans hwi⟩
-        · have hn1 : ¬(b + 1 ≤ bx ∧ bx ≤ M) := by omega
-          have hy2 : b + 1 ≤ bx + 1 ∧ bx + 1 ≤ M := by omega
-          rw [ite_eq_right hn1, ite_eq_left hy2]
-          have hqx_ne : qx ≠ q := fun hqq =>
-            hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq heq_b hqq))
-          have hbx1_eq : csr.fbStart (bx + 1) = hi := by rw [heq_b]
-          constructor
-          · rintro ⟨i, hlo, hhi, hqi, hwi⟩
-            have hlt_hi : i < hi := by omega
-            obtain ⟨hqe, hve⟩ := (hqv'_eq i (by omega)).1 hlt_hi
-            exact ⟨i, hlo, by omega, hqe.trans hqi, hve.trans hwi⟩
-          · rintro ⟨i', hlo', hhi', hqi', hwi'⟩
-            rcases Nat.lt_succ_iff_lt_or_eq.mp (show i' < hi + 1 by omega)
-              with hlt_hi | rfl
-            · obtain ⟨hqe, hve⟩ := (hqv'_eq i' (by omega)).1 hlt_hi
-              exact ⟨i', hlo', by omega, hqe.symm.trans hqi',
-                hve.symm.trans hwi'⟩
-            · rw [((hqv'_eq hi hhi_le_N).2.1 rfl).1] at hqi'
-              exact absurd hqi'.symm hqx_ne
-        · have hy1 : b + 1 ≤ bx ∧ bx ≤ M := by omega
-          have hy2 : b + 1 ≤ bx + 1 ∧ bx + 1 ≤ M := by omega
-          have hge_hi : hi ≤ csr.fbStart bx := hmono (b + 1) bx (by omega) (by omega)
-          simp only [hy1, hy2, and_self, ↓reduceIte]
-          constructor
-          · rintro ⟨i, hlo, hhi, hqi, hwi⟩
-            obtain ⟨hqe, hve⟩ := (hqv'_eq (i + 1) (by omega)).2.2 (by omega)
-            exact ⟨i + 1, by omega, by omega, by simpa using hqe.trans hqi,
-              by simpa using hve.trans hwi⟩
-          · rintro ⟨i', hlo', hhi', hqi', hwi'⟩
-            obtain ⟨hqe, hve⟩ := (hqv'_eq i' (by omega)).2.2 (by omega)
-            exact ⟨i' - 1, by omega, by omega, hqe.symm.trans hqi', hve.symm.trans hwi'⟩
+        constructor
+        · rintro ⟨i, hlo, hhi, hqi, hwi⟩
+          obtain ⟨i', hne, hi'_orig⟩ : ∃ i', i' ≠ hi ∧ orig i' = i := by
+            by_cases hlt : i < hi
+            · exact ⟨i, Nat.ne_of_lt hlt, ite_eq_left hlt⟩
+            · have hs : hi < i + 1 := Nat.lt_succ_of_le (Nat.le_of_not_gt hlt)
+              exact ⟨i + 1, hs.ne', ite_eq_right (Nat.not_lt_of_ge hs.le)⟩
+          have hslot' := (hslot bx hbx_lt i').mpr (Or.inr ⟨hne, hi'_orig ▸ hlo, hi'_orig ▸ hhi⟩)
+          obtain ⟨hqe, hve⟩ := hqv_orig (hslot_le hbx_lt hslot'.2) hne
+          rw [hi'_orig] at hqe hve
+          exact ⟨i', hslot'.1, hslot'.2, hqe.trans hqi, hve.trans hwi⟩
+        · rintro ⟨i', hlo', hhi', hqi', hwi'⟩
+          rcases (hslot bx hbx_lt i').mp ⟨hlo', hhi'⟩ with ⟨hbx, rfl⟩ | ⟨hne, hlo, hhi⟩
+          · exact False.elim (hxu (Fin.ext (eq_of_feistelBucket_eq_of_keyQuotient_eq hbx
+              (hqi'.symm.trans hqv_new.1))))
+          · obtain ⟨hqe, hve⟩ := hqv_orig (hslot_le hbx_lt hhi') hne
+            exact ⟨_, hlo, hhi, hqe.symm.trans hqi', hve.symm.trans hwi'⟩
 
 /-! ### Overflow-free `GoodSeedOnState` decision & salt-discovery procedure on `CsrState` -/
 
@@ -1668,59 +1216,15 @@ private theorem checkBalancedBucketNat_eq_true_iff {M δ N X_b : ℕ} (hM : 0 < 
     checkBalancedBucketNat M δ N X_b = true ↔
       (M * X_b ≤ N + M * δ ∧ N ≤ M * X_b + M * δ) := by
   unfold checkBalancedBucketNat
-  simp only [Bool.and_eq_true, decide_eq_true_eq]
   have hdiv := Nat.div_add_mod N M
   have hmod_lt : N % M < M := Nat.mod_lt N hM
-  set qN := N / M
-  set rN := N % M
-  constructor
-  · rintro ⟨hub, hlb⟩
-    refine ⟨?_, ?_⟩
-    · calc M * X_b ≤ M * (qN + δ) := Nat.mul_le_mul_left M hub
-        _ = M * qN + M * δ := Nat.mul_add M qN δ
-        _ ≤ (M * qN + rN) + M * δ := by omega
-        _ = N + M * δ := by rw [hdiv]
-    · by_cases hr0 : rN == 0
-      · have hr_eq : rN = 0 := by simpa using hr0
-        simp only [hr0, ↓reduceIte] at hlb
-        have hq_le : qN ≤ X_b + δ := by omega
-        calc N = M * qN + 0 := by rw [← hr_eq, hdiv]
-          _ = M * qN := Nat.add_zero _
-          _ ≤ M * (X_b + δ) := Nat.mul_le_mul_left M hq_le
-          _ = M * X_b + M * δ := Nat.mul_add M X_b δ
-      · have hr_pos : 0 < rN := by
-          have hne : rN ≠ 0 := by simpa using hr0
-          omega
-        simp only [hr0, Bool.false_eq_true, ↓reduceIte] at hlb
-        have hq1_le : qN + 1 ≤ X_b + δ := by omega
-        calc N = M * qN + rN := hdiv.symm
-          _ ≤ M * qN + M := by omega
-          _ = M * (qN + 1) := by ring
-          _ ≤ M * (X_b + δ) := Nat.mul_le_mul_left M hq1_le
-          _ = M * X_b + M * δ := Nat.mul_add M X_b δ
-  · rintro ⟨hub, hlb⟩
-    refine ⟨?_, ?_⟩
-    · by_contra hgt
-      have hge1 : qN + δ + 1 ≤ X_b := by omega
-      have hmul : M * (qN + δ + 1) ≤ M * X_b := Nat.mul_le_mul_left M hge1
-      have hexp : M * (qN + δ + 1) = M * qN + M * δ + M := by ring
-      omega
-    · by_cases hr0 : rN == 0
-      · have hr_eq : rN = 0 := by simpa using hr0
-        simp only [hr0, ↓reduceIte]
-        have hN_eq : N = M * qN := by omega
-        rw [hN_eq, ← Nat.mul_add] at hlb
-        have hle := Nat.le_of_mul_le_mul_left hlb hM
-        omega
-      · have hr_pos : 0 < rN := by
-          have hne : rN ≠ 0 := by simpa using hr0
-          omega
-        simp only [hr0, Bool.false_eq_true, ↓reduceIte]
-        by_contra hlt
-        have hle_q : X_b + δ ≤ qN := by omega
-        have hmul : M * (X_b + δ) ≤ M * qN := Nat.mul_le_mul_left M hle_q
-        rw [Nat.mul_add] at hmul
-        omega
+  -- Scaling the quotient comparisons by `M` reduces everything to `omega`.
+  have hsc : ∀ a b, a ≤ b ↔ M * a ≤ M * b := fun _ _ => (Nat.mul_le_mul_left_iff hM).symm
+  have := hsc X_b (N / M + δ); have := hsc (N / M + δ + 1) X_b
+  have := hsc (N / M + 1) (X_b + δ); have := hsc (X_b + δ) (N / M); have := hsc (N / M) (X_b + δ)
+  simp only [Nat.mul_add, Nat.mul_one] at *
+  simp only [Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq]
+  split_ifs <;> omega
 
 /-- Scan `b = 0 .. k - 1` to find the bucket `b` satisfying
 `fbStart b ≤ i ∧ i < fbStart (b + 1)`. -/
@@ -1737,21 +1241,14 @@ theorem csrBucketOfIdx_spec {M : ℕ} {fbStart : ℕ → ℕ} (h0 : fbStart 0 = 
       b < k ∧ fbStart b ≤ i ∧ i < fbStart (b + 1) := by
   intro k hk
   induction k with
-  | zero =>
-    intro i hi; rw [h0] at hi; exact absurd hi (Nat.not_lt_zero _)
+  | zero => simp [h0]
   | succ k ih =>
     intro i hi
-    dsimp only [csrBucketOfIdx]
-    by_cases hcond : (fbStart k ≤ i && i < fbStart (k + 1)) = true
-    · simp only [hcond, ↓reduceIte]
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
-      exact ⟨Nat.lt_succ_self k, hcond.1, hcond.2⟩
-    · simp only [hcond, Bool.false_eq_true, ↓reduceIte]
-      have hlt_k : i < fbStart k := by
-        simp only [Bool.and_eq_true, decide_eq_true_eq, not_and_or] at hcond
-        rcases hcond with h1 | h2 <;> omega
-      obtain ⟨hb_lt, hlo, hhi⟩ := ih (Nat.le_of_succ_le hk) i hlt_k
-      exact ⟨Nat.lt_succ_of_lt hb_lt, hlo, hhi⟩
+    simp only [csrBucketOfIdx, Bool.and_eq_true, decide_eq_true_eq]
+    split_ifs with hcond
+    · exact ⟨by omega, hcond⟩
+    · obtain ⟨h1, h2, h3⟩ := ih (by omega) i (by omega)
+      exact ⟨by omega, h2, h3⟩
 
 /-- `csrBucketOfIdx` depends only on `fbStart 0 .. fbStart k`. -/
 theorem csrBucketOfIdx_congr {f₁ f₂ : ℕ → ℕ} {i k : ℕ}
@@ -1786,34 +1283,16 @@ private theorem checkNoEqBefore_iff (f : ℕ → ℕ) (target k : ℕ) :
   induction k with
   | zero => simp [checkNoEqBefore]
   | succ k ih =>
-    simp only [checkNoEqBefore, Bool.and_eq_true, ih, bne_iff_ne]
-    constructor
-    · rintro ⟨h1, h2⟩ j hj
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt | rfl
-      · exact h1 j hlt
-      · exact h2
-    · intro hall
-      exact ⟨fun j hj => hall j (Nat.lt_succ_of_lt hj), hall k (Nat.lt_succ_self k)⟩
+    simp only [checkNoEqBefore, Bool.and_eq_true, ih, bne_iff_ne, Nat.forall_lt_succ_right]
 
 private theorem checkPairwiseDistinctOn_iff (f : ℕ → ℕ) (k : ℕ) :
     checkPairwiseDistinctOn f k = true ↔ ∀ i < k, ∀ j < k, f i = f j → i = j := by
   induction k with
   | zero => simp [checkPairwiseDistinctOn]
   | succ k ih =>
-    simp only [checkPairwiseDistinctOn, Bool.and_eq_true, ih, checkNoEqBefore_iff]
-    constructor
-    · rintro ⟨hp, hnew⟩ i hi j hj heq
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hi' | rfl <;>
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj' | rfl
-      · exact hp i hi' j hj' heq
-      · exact absurd heq (hnew i hi')
-      · exact absurd heq.symm (hnew j hj')
-      · rfl
-    · intro hinj
-      refine ⟨fun i hi j hj heq => hinj i (Nat.lt_succ_of_lt hi) j (Nat.lt_succ_of_lt hj) heq,
-        fun j hj heq => ?_⟩
-      have := hinj j (Nat.lt_succ_of_lt hj) k (Nat.lt_succ_self k) heq
-      omega
+    simp only [checkPairwiseDistinctOn, Bool.and_eq_true, ih, checkNoEqBefore_iff,
+      Nat.forall_lt_succ_right]
+    grind
 
 /-- Search `s = 0 .. k - 1` for the first salt `s` making `fpAt s` pairwise distinct on
 `lo .. lo + len - 1`, returning `0` if none exists or `s + 1` if found. -/
@@ -1833,31 +1312,13 @@ private theorem findSaltInRange_props (fpAt : ℕ → ℕ → ℕ) (lo len sMax 
   induction sMax with
   | zero => simp [findSaltInRange]
   | succ s ih =>
-    dsimp only [findSaltInRange]
-    set prev := findSaltInRange fpAt lo len s
-    by_cases hp : prev != 0
-    · have hp_ne : prev ≠ 0 := by simpa using hp
-      simp only [hp, ↓reduceIte]
-      obtain ⟨hlt_s, hinj_p⟩ := ih.2 hp_ne
-      refine ⟨⟨fun h0 => absurd h0 hp_ne, fun hall =>
-        absurd hinj_p (hall (prev - 1) (Nat.lt_succ_of_lt hlt_s))⟩,
-        fun _ => ⟨Nat.lt_succ_of_lt hlt_s, hinj_p⟩⟩
-    · have hp0 : prev = 0 := by simpa using hp
-      simp only [hp, Bool.false_eq_true, ↓reduceIte]
-      cases hchk : checkPairwiseDistinctOn (fun t => fpAt s (lo + t)) len
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        have hnot_s : ¬(∀ i < len, ∀ j < len, fpAt s (lo + i) = fpAt s (lo + j) → i = j) := by
-          intro h; exact Bool.false_ne_true (hchk.symm.trans
-            ((checkPairwiseDistinctOn_iff (fun t => fpAt s (lo + t)) len).mpr h))
-        refine ⟨⟨fun _ s' hs' => ?_, fun _ => by simp⟩, fun h => by simp at h⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hs' with hlt' | rfl
-        · exact ih.1.mp hp0 s' hlt'
-        · exact hnot_s
-      · simp only [↓reduceIte]
-        have hinj_s := (checkPairwiseDistinctOn_iff (fun t => fpAt s (lo + t)) len).mp hchk
-        refine ⟨⟨fun h => by omega, fun hall =>
-          absurd hinj_s (hall s (Nat.lt_succ_self s))⟩,
-          fun _ => ⟨Nat.lt_succ_self s, hinj_s⟩⟩
+    simp only [findSaltInRange, Nat.forall_lt_succ_right, bne_iff_ne, ne_eq,
+      checkPairwiseDistinctOn_iff] at ih ⊢
+    split_ifs with hp hc
+    · exact ⟨iff_of_false (by simp) fun h => h.2 hc, fun _ => ⟨by omega, by simpa using hc⟩⟩
+    · exact ⟨iff_of_true rfl ⟨ih.1.mp hp, hc⟩, fun h => absurd rfl h⟩
+    · obtain ⟨hlt, hinj⟩ := ih.2 hp
+      exact ⟨iff_of_false hp fun h => h.1 _ hlt hinj, fun _ => ⟨by omega, hinj⟩⟩
 
 /-- Pure overflow-free `GoodSeedOnState` check and per-bucket collision-free salt finder on
 `CsrState`. Returns `(ok, saltOfBucket)`. -/
@@ -1887,15 +1348,7 @@ private theorem checkAllBalancedCsr_iff (M δ N : ℕ) (fbStart : ℕ → ℕ) (
       ∀ b < k, checkBalancedBucketNat M δ N (fbStart (b + 1) - fbStart b) = true := by
   induction k with
   | zero => simp [checkAllBalancedCsr]
-  | succ k ih =>
-    simp only [checkAllBalancedCsr, Bool.and_eq_true, ih]
-    constructor
-    · rintro ⟨h1, h2⟩ b hb
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hb with hlt | rfl
-      · exact h1 b hlt
-      · exact h2
-    · intro hall
-      exact ⟨fun b hb => hall b (Nat.lt_succ_of_lt hb), hall k (Nat.lt_succ_self k)⟩
+  | succ k ih => simp only [checkAllBalancedCsr, Bool.and_eq_true, ih, Nat.forall_lt_succ_right]
 
 theorem csrBucketOfIdx_eq_of_in_range {M : ℕ} {fbStart : ℕ → ℕ}
     (h0 : fbStart 0 = 0) (hadj : ∀ b < M, fbStart b ≤ fbStart (b + 1))
@@ -1904,11 +1357,7 @@ theorem csrBucketOfIdx_eq_of_in_range {M : ℕ} {fbStart : ℕ → ℕ}
   have hmono := fbStart_mono_of_adj hadj
   have hi_M : i < fbStart M := hhi.trans_le (hmono (b + 1) M (by omega) le_rfl)
   obtain ⟨hb'_lt, hlo', hhi'⟩ := csrBucketOfIdx_spec h0 hadj M le_rfl i hi_M
-  set b' := csrBucketOfIdx fbStart i M
-  rcases lt_trichotomy b' b with hlt | heq | hgt
-  · have := hmono (b' + 1) b (by omega) (by omega); omega
-  · exact heq
-  · have := hmono (b + 1) b' (by omega) (by omega); omega
+  exact csr_slot_bucket_unique hmono hb'_lt hb hlo' hhi' hlo hhi
 
 /-- **Exact soundness and completeness of `checkGoodSeedOnState`**:
 for any `ValidCsrState`, `(checkGoodSeedOnState c U n_max θ csr).1 = true ↔

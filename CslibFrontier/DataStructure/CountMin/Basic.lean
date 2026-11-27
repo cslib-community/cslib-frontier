@@ -184,11 +184,9 @@ def estimate [NeZero d] (h : Fin d → X → Fin w) (t : Table d w) (x : X) : �
 theorem get_update (h : Fin d → X → Fin w) (t : Table d w) (u : X × ℕ)
     (r : Fin d) (b : Fin w) :
     get (update h t u) r b = get t r b + if h r u.1 = b then u.2 else 0 := by
-  simp only [get, update, Vector.getElem_ofFn, Vector.getElem_set]
   by_cases hb : h r u.1 = b
-  · simp [hb]
-  · have hv : (h r u.1).val ≠ b.val := fun hval => hb (Fin.ext hval)
-    simp [hb, hv]
+  · simp [get, update, hb]
+  · simp [get, update, hb, Fin.val_ne_of_ne hb]
 
 /-- An arbitrary starting table gains exactly the stream's bucket weights. -/
 theorem foldl_update_get (h : Fin d → X → Fin w) (s : List (X × ℕ))
@@ -224,20 +222,14 @@ theorem estimate_run_le_bucket [NeZero d] (h : Fin d → X → Fin w) (s : List 
 /-- A Count-Min point query never underestimates the inserted frequency. -/
 theorem frequency_le_estimate_run [DecidableEq X] [NeZero d] (h : Fin d → X → Fin w)
     (s : List (X × ℕ)) (x : X) : frequency s x ≤ estimate h (run h s) x := by
-  apply Finset.le_inf'
-  intro r _
-  rw [run_get, bucket_hash_eq_frequency_add_noise]
-  exact Nat.le_add_right _ _
+  refine Finset.le_inf' _ _ fun r _ => ?_
+  simp [run_get, bucket_hash_eq_frequency_add_noise]
 
 /-- Concatenating streams agrees exactly with merging tables using the same hash bank. -/
 theorem run_append (h : Fin d → X → Fin w) (s t : List (X × ℕ)) :
     run h (s ++ t) = merge (run h s) (run h t) := by
-  apply Vector.ext
-  intro r hr
-  apply Vector.ext
-  intro b hb
-  change get (run h (s ++ t)) ⟨r, hr⟩ ⟨b, hb⟩ =
-    get (merge (run h s) (run h t)) ⟨r, hr⟩ ⟨b, hb⟩
+  refine Vector.ext fun r hr => Vector.ext fun b hb => ?_
+  change get _ ⟨r, hr⟩ ⟨b, hb⟩ = get _ ⟨r, hr⟩ ⟨b, hb⟩
   rw [get_merge, run_get, run_get, run_get, bucket_append]
 
 /-- Appending one update performs one update on the current table. -/

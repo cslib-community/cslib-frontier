@@ -162,20 +162,9 @@ theorem isLeast_walkCosts_of_forall {d : Fin (n + 1) → Fin (n + 1) → W} {S :
   · obtain ⟨i, hi, rfl⟩ := hmem
     obtain ⟨⟨L, hnd, hL, hc⟩, -⟩ := hf i hi
     have hiL : i ∉ L := fun h => by simpa [hL] using List.mem_toFinset.2 h
-    refine ⟨L ++ [i], ?_, ?_, ?_⟩
-    · exact hnd.append (List.nodup_singleton i) (List.disjoint_singleton.2 hiL)
-    · ext y
-      simp only [List.toFinset_append, hL, Finset.mem_union, Finset.mem_erase, List.mem_toFinset,
-        List.mem_singleton]
-      constructor
-      · rintro (⟨-, hy⟩ | rfl)
-        · exact hy
-        · exact hi
-      · intro hy
-        by_cases hyi : y = i
-        · exact Or.inr hyi
-        · exact Or.inl ⟨hyi, hy⟩
-    · rw [List.map_append, List.map_singleton, walkCost_append_singleton, hc]
+    refine ⟨L ++ [i], hnd.append (List.nodup_singleton i) (List.disjoint_singleton.2 hiL),
+      by simp [hL, Finset.insert_erase hi], ?_⟩
+    rw [List.map_append, List.map_singleton, walkCost_append_singleton, hc]
   · rintro c ⟨L, hnd, hL, rfl⟩
     obtain ⟨i, hi, -⟩ := hmem
     rcases List.eq_nil_or_concat L with rfl | ⟨L', x, rfl⟩
@@ -185,14 +174,7 @@ theorem isLeast_walkCosts_of_forall {d : Fin (n + 1) → Fin (n + 1) → W} {S :
     have hxL' : x ∉ L' := fun h => by
       simpa using (List.nodup_append.1 hnd).2.2 x h x (List.mem_singleton_self x)
     have hL' : L'.toFinset = S.erase x := by
-      ext y
-      simp only [← hL, List.mem_toFinset, Finset.mem_erase, List.mem_append, List.mem_singleton]
-      constructor
-      · intro hy
-        exact ⟨fun h => hxL' (h ▸ hy), Or.inl hy⟩
-      · rintro ⟨hy, hy' | rfl⟩
-        · exact hy'
-        · exact absurd rfl hy
+      simp [← hL, Finset.erase_insert (mt List.mem_toFinset.1 hxL')]
     calc v ≤ f x + d x.succ t := hle x hx
       _ ≤ walkCost d 0 (L'.map Fin.succ) x.succ + d x.succ t :=
           add_le_add ((hf x hx).2 ⟨L', hnd.sublist (List.sublist_append_left _ _), hL', rfl⟩)
@@ -357,15 +339,11 @@ theorem isLeast_table (d : Fin (n + 1) → Fin (n + 1) → W) (k : ℕ) (S : Fin
     rcases Nat.lt_or_ge S.card (k + 1) with hlt | hge
     · exact h1 (S, t) (ih S (by omega) ht)
     · set l := (List.finRange n).filter (· ∈ S)
-      have hlS : l.toFinset = S := by
-        ext i
-        simp [l]
-      have hl : l ∈ (List.finRange n).sublistsLen (k + 1) := by
-        refine List.mem_sublistsLen.2 ⟨List.filter_sublist, ?_⟩
-        rw [← List.toFinset_card_of_nodup ((List.nodup_finRange n).filter _), hlS]
-        omega
-      have := h2 l hl t (hlS ▸ ht)
-      rwa [hlS] at this
+      have hlS : l.toFinset = S := Finset.ext fun _ => by simp [l]
+      have hl : l ∈ (List.finRange n).sublistsLen (k + 1) :=
+        List.mem_sublistsLen.2 ⟨List.filter_sublist, by
+          rw [← List.toFinset_card_of_nodup ((List.nodup_finRange n).filter _), hlS]; omega⟩
+      exact hlS ▸ h2 l hl t (hlS ▸ ht)
 
 end HeldKarp
 

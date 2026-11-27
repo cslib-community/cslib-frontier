@@ -92,19 +92,14 @@ theorem unaryModularList_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
   obtain ⟨A, hA, program, hprogram, heq⟩ := hf'
   let body (w : α) (s : ℕ × List ℕ) : WordQueryComp Unit (ℕ × List ℕ) :=
     (fun v => (s.1 + 1, s.2 ++ [v % modulus w])) <$> program (w, s)
-  have hi : ComputableInPolyTime
-      (fun q : (α × (ℕ × List ℕ)) × ℕ => q.1.2.1 + 1)
-      (encPair callEncoding encNat) encNat := by fun_prop
   have hv : ComputableInPolyTime
       (fun q : (α × (ℕ × List ℕ)) × ℕ => q.2 % modulus q.1.1)
       (encPair callEncoding encNat) encNat :=
     ComputableInPolyTime.binary_mod.comp ((ComputableInPolyTime.snd _ _).prod
       (hmod.comp (by fun_prop)))
-  have ht : ComputableInPolyTime
-      (fun q : (α × (ℕ × List ℕ)) × ℕ => q.1.2.2)
-      (encPair callEncoding encNat) (encList encNat) := by fun_prop
-  have hpost := hi.prod (ComputableInPolyTime.listAppend' ht
-    (ComputableInPolyTime.cons' hv (ComputableInPolyTime.const [])))
+  have hpost : ComputableInPolyTime
+      (fun q : (α × (ℕ × List ℕ)) × ℕ => (q.1.2.1 + 1, q.1.2.2 ++ [q.2 % modulus q.1.1]))
+      (encPair callEncoding encNat) stateEncoding := by fun_prop
   have hstep : IsOraclePPTOn callEncoding stateEncoding (fun q : α × (ℕ × List ℕ) =>
       OracleComp.interpret ProbOracleComp.query (body q.1 q.2)) := by
     simp only [body, OracleComp.interpret_map]
@@ -118,14 +113,10 @@ theorem unaryModularList_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
       next.1 = i + 1 ∧ next.2.length = i + 1 ∧ ∀ v ∈ next.2, v < modulus w := by
     simp only [body, OracleComp.interpret_map] at hnext
     obtain ⟨v, _hv, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-    refine ⟨by simp only; omega, ?_, ?_⟩
-    · simp only [List.length_append, List.length_singleton]
-      omega
-    · intro x hx
-      rcases List.mem_append.mp hx with hx | hx
-      · exact hinv.2.2 x hx
-      · have he : x = v % modulus w := List.mem_singleton.mp hx
-        exact he ▸ Nat.mod_lt _ (hpos w)
+    refine ⟨congrArg (· + 1) hinv.1, by simp [hinv.2.1], fun x hx => ?_⟩
+    rcases List.mem_append.mp hx with hx | hx
+    · exact hinv.2.2 x hx
+    · exact List.mem_singleton.mp hx ▸ Nat.mod_lt _ (hpos w)
   have hbound (w : α) (i : ℕ) (s : ℕ × List ℕ) (hi : i ≤ count w)
       (hinv : s.1 = i ∧ s.2.length = i ∧ ∀ v ∈ s.2, v < modulus w) :
       (stateEncoding s).length ≤
@@ -140,7 +131,8 @@ theorem unaryModularList_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
       simp only [length_encList, List.map_replicate, List.sum_replicate, smul_eq_mul]
     simp only [stateEncoding, length_encPair, hr, encNat_apply, Nat.size_eq_bits_len] at hl ⊢
     rw [hinv.2.1] at hl
-    nlinarith
+    have hmul := Nat.mul_le_mul_right (2 * (modulus w).size + 1) hi
+    omega
   have hloop := (IsOraclePPTOn.iterateWith_spec
     (step := fun w s => OracleComp.interpret ProbOracleComp.query (body w s))
     hcount (ComputableInPolyTime.const ((0 : ℕ), ([] : List ℕ))) hstep
@@ -199,11 +191,10 @@ theorem unaryModularSum_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (hp : ComputableInPolyTime p enc encNat) (hpos : ∀ w, 0 < p w)
     (hv : v ∈ CountingFunction a (encPair enc encNat) encNat) :
     (fun w => unaryModularSum (n w) (p w) (fun i => v (w, i))) ∈
-      CountingFunction a enc encNat := by
-  have hsum := CountingFunction.map (unaryModularList_mem hn hp hpos hv)
-    ComputableInPolyTime.binary_sum
-  simpa only [unaryModularSum] using
-    CountingFunction.nat_mod hsum (CountingFunction.of_polyTime hp)
+      CountingFunction a enc encNat :=
+  CountingFunction.nat_mod
+    (CountingFunction.map (unaryModularList_mem hn hp hpos hv) ComputableInPolyTime.binary_sum)
+    (CountingFunction.of_polyTime hp)
 
 /-- The total sum evaluator casts to the actual finite sum, for every modulus. -/
 theorem unaryModularSum_cast (n p : ℕ) (v : ℕ → ℕ) :
