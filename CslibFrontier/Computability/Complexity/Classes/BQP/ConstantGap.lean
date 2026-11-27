@@ -70,6 +70,12 @@ theorem acceptProb_threshold_eq_sum_choose (F : UniformCircuitFamily) {k t : ℕ
   refine sum_congr rfl fun b _ => ?_
   rw [BitString.bernoulliWeight, BitString.weight, mul_ite, mul_one, mul_zero]
 
+private theorem exp_sq_div_eq (K : ℕ) (δ : ℝ) :
+    Real.exp (-2 * (K * δ) ^ 2 / K) = Real.exp (-2 * K * δ ^ 2) := by
+  by_cases hK : (K : ℝ) = 0
+  · simp [hK]
+  · exact congrArg Real.exp (by field_simp)
+
 /-- **Hoeffding bound for rejection**: if the threshold `t` is at least `k (p + δ) - 1`, with
 `0 ≤ δ`, then the threshold vote accepts with probability at most `exp (-2 k δ²)`. -/
 theorem acceptProb_threshold_le_exp (F : UniformCircuitFamily) {k t : ℕ → ℕ}
@@ -84,14 +90,11 @@ theorem acceptProb_threshold_le_exp (F : UniformCircuitFamily) {k t : ℕ → �
   rw [acceptProb_threshold_eq_sum_choose]
   refine (sum_le_sum_of_subset_of_nonneg (fun j hj => ?_) fun _ _ _ => by positivity).trans
     ((sum_filter_le_sub_choose_mul_pow_le K hp (F.acceptProb_le_one x)
-      (mul_nonneg (Nat.cast_nonneg K) hδ)).trans_eq ?_)
-  · rw [mem_filter] at hj ⊢
-    refine ⟨hj.1, ?_⟩
-    have : ((t x.length : ℕ) : ℝ) + 1 ≤ j := by exact_mod_cast hj.2
-    nlinarith
-  · by_cases hK : (K : ℝ) = 0
-    · simp [hK]
-    · exact congrArg Real.exp (by field_simp)
+      (mul_nonneg (Nat.cast_nonneg K) hδ)).trans_eq (exp_sq_div_eq K δ))
+  rw [mem_filter] at hj ⊢
+  refine ⟨hj.1, ?_⟩
+  have : ((t x.length : ℕ) : ℝ) + 1 ≤ j := by exact_mod_cast hj.2
+  nlinarith
 
 /-- **Hoeffding bound for acceptance**: if the threshold `t` is at most `k (p - δ)`, with `0 ≤ δ`,
 then the threshold vote accepts with probability at least `1 - exp (-2 k δ²)`. -/
@@ -108,14 +111,11 @@ theorem one_sub_exp_le_acceptProb_threshold (F : UniformCircuitFamily) {k t : �
       (K.choose j : ℝ) * p ^ j * (1 - p) ^ (K - j)) ≤ Real.exp (-2 * K * δ ^ 2) := by
     refine (sum_le_sum_of_subset_of_nonneg (fun j hj => ?_) fun _ _ _ => by positivity).trans
       ((sum_filter_le_mul_sub_choose_mul_pow_le K hp (F.acceptProb_le_one x)
-        (mul_nonneg (Nat.cast_nonneg K) hδ)).trans_eq ?_)
-    · rw [mem_filter] at hj ⊢
-      refine ⟨hj.1, ?_⟩
-      have : (j : ℝ) ≤ t x.length := by exact_mod_cast not_lt.mp hj.2
-      nlinarith
-    · by_cases hK : (K : ℝ) = 0
-      · simp [hK]
-      · exact congrArg Real.exp (by field_simp)
+        (mul_nonneg (Nat.cast_nonneg K) hδ)).trans_eq (exp_sq_div_eq K δ))
+    rw [mem_filter] at hj ⊢
+    refine ⟨hj.1, ?_⟩
+    have : (j : ℝ) ≤ t x.length := by exact_mod_cast not_lt.mp hj.2
+    nlinarith
   have htotal := sum_filter_add_sum_filter_not (range (K + 1)) (fun j => t x.length < j)
     fun j => (K.choose j : ℝ) * p ^ j * (1 - p) ^ (K - j)
   rw [sum_choose_mul_pow_eq_one] at htotal
