@@ -157,8 +157,8 @@ private theorem exists_hasWitness (x : SDInstance) (y : BitString x.outputs)
         r ∈ x.hits y (x.inputs - (List.ofFn tag).idxOf true) ∧
         s ∈ x.hits y (x.inputs - (List.ofFn tag).idxOf true) := by
   unfold certWidth
-  rw [exists_append _ _ (fun w => hasWitness x
-    ((List.ofFn y ++ (List.ofFn tag ++ ((List.ofFn r ++ List.ofFn s) ++ List.ofFn pad))) ++ w) = true)]
+  rw [exists_append _ _ (fun w => hasWitness x ((List.ofFn y ++ (List.ofFn tag ++
+    ((List.ofFn r ++ List.ofFn s) ++ List.ofFn pad))) ++ w) = true)]
   have hground : (List.ofFn y ++ (List.ofFn tag ++ ((List.ofFn r ++ List.ofFn s) ++
       List.ofFn pad))).length = x.groundWidth := by simp [groundWidth]; omega
   have hseeds : (List.ofFn r ++ List.ofFn s).length =
