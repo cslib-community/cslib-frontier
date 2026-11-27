@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Algorithms.LinearAlgebra.LyapunovCertificate
+import CslibFrontier.Algorithms.LinearAlgebra.SparseLyapunovCertificate
 import Mathlib.Analysis.Calculus.Deriv.Prod
 import Mathlib.FieldTheory.IsAlgClosed.Spectrum
 
@@ -20,6 +21,8 @@ import Mathlib.FieldTheory.IsAlgClosed.Spectrum
 * A saddle `A = !![0, 1; 1, 0]` (eigenvalues `±1`) with the indefinite `P = !![0, -1; -1, 0]`,
   the sharp rate `ε = 1` and a singular residual witness (`d = (2, 0)`).
 * Corrupted certificates are rejected.
+* The oscillator certificate in sparse form (`SparseInstabilityCert`), through the sparse
+  residual and envelope checker.
 * Bracketing: the instability certificate at rate `1/8` and a stability certificate for
   `A - (3/8) • 1` give `1/8 ≤ α(A) < 3/8` for the oscillator.
 * A negative rate: for the stable `!![0, 1; -2, -3]`, rate `-1` with `P = -ℓ ℓᵀ` certifies that
@@ -82,6 +85,30 @@ example : (⟨(-1/8 : ℚ), [1, 0], certOsc.Q⟩ : InstabilityCert).check 2 Aosc
 
 /-- The stability checker rejects the same matrices, whatever the witnesses. -/
 example : (⟨certOsc.Q, certOsc.Q⟩ : LyapunovCert).check 2 Aosc Posc = false := by decide +kernel
+
+/-! ### The oscillator through the sparse checker
+
+The same certificate in sparse form: the rows of `(A - (1/8) • 1)ᵀ` and an envelope witness for
+the residual `(61/4) • 1`, checked by `EnvLDLCert.factorsWith` on `sparseResidual`. -/
+
+def AoscSp : List (List (ℕ × ℚ)) := [[(1, 1)], [(0, -1), (1, (1/2 : ℚ))]]
+
+def PoscSp : List (List (ℕ × ℚ)) := [[(0, -67), (1, 16)], [(0, 16), (1, -63)]]
+
+def certOscSp : SparseInstabilityCert where
+  rate := (1/8 : ℚ)
+  x₀ := [1, 0]
+  At := [[(0, (-1/8 : ℚ)), (1, -1)], [(0, 1), (1, (3/8 : ℚ))]]
+  Q := ⟨[(0, [1]), (1, [1])], [(61/4 : ℚ), (61/4 : ℚ)], []⟩
+
+theorem certOscSp_ok : certOscSp.check 2 AoscSp PoscSp = true := by decide +kernel
+
+example : ¬(toEuclideanCLM (𝕜 := ℝ) ((ofSparse 2 2 AoscSp).map ((↑) : ℚ → ℝ))).IsLyapunovStable :=
+  SparseInstabilityCert.not_isLyapunovStable_of_check certOscSp_ok (by decide +kernel)
+
+/-- A wrong transpose is rejected. -/
+example : ({ certOscSp with At := [[(0, (-1/8 : ℚ)), (1, 1)], [(0, -1), (1, (3/8 : ℚ))]] } :
+    SparseInstabilityCert).check 2 AoscSp PoscSp = false := by decide +kernel
 
 /-! ### A saddle, with an indefinite `P` and a singular witness -/
 

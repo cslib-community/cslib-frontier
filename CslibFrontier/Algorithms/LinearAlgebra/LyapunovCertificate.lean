@@ -50,7 +50,10 @@ certificate `Cslib.LinearAlgebra.InstabilityCert` lists `ε`, `x₀` and an `LDL
 `-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0`, recomputed from `A`, `ε` and `P` in integers by the
 residual check `LDLCert.factorsLyapunovResidual` that `LyapunovCert.check` also uses. A
 semidefinite residual suffices for the bound, so the witness may be singular; the strict
-inequality `≺ 0` of the textbook statement is the special case of a positive diagonal.
+inequality `≺ 0` of the textbook statement is the special case of a positive diagonal. The sparse
+form `Cslib.LinearAlgebra.SparseInstabilityCert` checks the same conditions through the envelope
+checker of `SparseLyapunovCert`, including rounded witnesses with a diagonally dominant remainder;
+its clients are in `CslibFrontier.Algorithms.LinearAlgebra.SparseLyapunovCertificate`.
 
 An accepted certificate gives:
 

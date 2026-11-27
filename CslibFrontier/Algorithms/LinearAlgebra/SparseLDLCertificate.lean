@@ -104,6 +104,9 @@ linear time. The kernel evaluates `mkRat` like the division it replaces.
   `EnvLDLCert.checkPosSemidef`: envelope certificates for sparse symmetric matrices.
 * `Cslib.LinearAlgebra.sparseResidual`, `Cslib.LinearAlgebra.SparseLyapunovCert`,
   `SparseLyapunovCert.check`.
+* `Cslib.LinearAlgebra.sparseShift`, `Cslib.LinearAlgebra.sparseQuadForm`,
+  `Cslib.LinearAlgebra.SparseInstabilityCert`, `SparseInstabilityCert.check`: the sparse form of
+  the instability certificate `Cslib.LinearAlgebra.InstabilityCert`.
 
 ## Main results
 
@@ -117,6 +120,8 @@ linear time. The kernel evaluates `mkRat` like the division it replaces.
 * `Cslib.LinearAlgebra.SparseLyapunovCert.posDef_of_check`: `P ≻ 0` and
   `-(Aᵀ * P + P * A) ≻ 0` over `ℝ`, with the statement of the dense
   `Cslib.LinearAlgebra.LyapunovCert.posDef_of_check`.
+* `Cslib.LinearAlgebra.SparseInstabilityCert.sound_of_check`: the statement of the dense
+  `Cslib.LinearAlgebra.InstabilityCert.sound_of_check`.
 -/
 
 public section
@@ -1128,5 +1133,160 @@ theorem posDef_of_check {c : SparseLyapunovCert} {n : ℕ} {A P : List (List (�
     Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map] at this
 
 end SparseLyapunovCert
+
+/-! ### Sparse instability certificates -/
+
+/-- Rows `k, k + 1, …` of `A - ε • 1`: the entry `(k + i, -ε)` appended to row `i` of `rs`. -/
+@[expose] def sparseShiftGo (ε : ℚ) : ℕ → List (List (ℕ × ℚ)) → List (List (ℕ × ℚ))
+  | _, [] => []
+  | k, r :: rs => (r ++ [(k, -ε)]) :: sparseShiftGo ε (k + 1) rs
+
+/-- The sparse rows of `A - ε • 1`. -/
+@[expose] def sparseShift (ε : ℚ) (A : List (List (ℕ × ℚ))) : List (List (ℕ × ℚ)) :=
+  sparseShiftGo ε 0 A
+
+private theorem sparseShiftGo_spec (ε : ℚ) :
+    ∀ (rs : List (List (ℕ × ℚ))) (k : ℕ), (sparseShiftGo ε k rs).length = rs.length ∧
+      ∀ i < rs.length, (sparseShiftGo ε k rs).getD i [] = rs.getD i [] ++ [(k + i, -ε)]
+  | [], _ => ⟨rfl, fun _ h => absurd h (Nat.not_lt_zero _)⟩
+  | r :: rs, k => by
+    obtain ⟨hl, hg⟩ := sparseShiftGo_spec ε rs (k + 1)
+    refine ⟨by simp [sparseShiftGo, hl], fun i hi => ?_⟩
+    cases i with
+    | zero => simp [sparseShiftGo]
+    | succ i =>
+      simp only [sparseShiftGo, List.getD_cons_succ]
+      rw [hg i (by simpa using hi)]
+      simp [Nat.add_assoc, Nat.add_comm 1 i]
+
+theorem length_sparseShift (ε : ℚ) (A : List (List (ℕ × ℚ))) :
+    (sparseShift ε A).length = A.length :=
+  (sparseShiftGo_spec ε A 0).1
+
+/-- `sparseShift` computes `A - ε • 1` for `n` rows. -/
+theorem ofSparse_sparseShift {n : ℕ} (ε : ℚ) {A : List (List (ℕ × ℚ))} (hA : A.length = n) :
+    ofSparse n n (sparseShift ε A) = ofSparse n n A - ε • 1 := by
+  ext i j
+  rw [ofSparse_apply, sparseShift, (sparseShiftGo_spec ε A 0).2 i (hA ▸ i.is_lt),
+    sparseGet_append, Matrix.sub_apply, ofSparse_apply, sparseGet_cons, sparseGet_nil]
+  rcases eq_or_ne i j with rfl | hij
+  · simp [sub_eq_add_neg]
+  · have h : (i : ℕ) ≠ j := fun e => hij (Fin.ext e)
+    simp [h, one_apply_ne hij]
+
+/-- The sum `∑ (j, p) ∈ r, p * x j` of a sparse row against a dense vector. -/
+@[expose] def sparseDotDense : List (ℕ × ℚ) → List ℚ → ℚ
+  | [], _ => 0
+  | e :: r, x => e.2 * x.getD e.1 0 + sparseDotDense r x
+
+private theorem sum_sparseGet_singleton {n : ℕ} {x : List ℚ} (hx : x.length ≤ n) (e : ℕ × ℚ) :
+    ∑ j : Fin n, sparseGet [e] j * x.getD j 0 = e.2 * x.getD e.1 0 := by
+  rcases lt_or_ge e.1 n with h | h
+  · rw [Finset.sum_eq_single ⟨e.1, h⟩ (fun j _ hj => ?_) (fun h' => absurd (Finset.mem_univ _) h')]
+    · simp [sparseGet_cons]
+    · have : e.1 ≠ j := fun hj' => hj (Fin.ext hj'.symm)
+      simp [sparseGet_cons, this]
+  · rw [List.getD_eq_default _ _ (by omega), mul_zero]
+    refine Finset.sum_eq_zero fun j _ => ?_
+    have : e.1 ≠ j := by have := j.is_lt; omega
+    simp [sparseGet_cons, this]
+
+/-- `sparseDotDense` is the dot product with the vector padded by zeros, when `x` has at most `n`
+entries. -/
+theorem sparseDotDense_eq {n : ℕ} {x : List ℚ} (hx : x.length ≤ n) :
+    ∀ r : List (ℕ × ℚ), sparseDotDense r x = ∑ j : Fin n, sparseGet r j * x.getD j 0
+  | [] => by simp [sparseDotDense]
+  | e :: r => by
+    rw [sparseDotDense, sparseDotDense_eq hx r, ← sum_sparseGet_singleton hx e,
+      ← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun j _ => ?_
+    rw [show e :: r = [e] ++ r from rfl, sparseGet_append, add_mul]
+
+/-- The quadratic form `xᵀ P x` of the sparse rows `P` at the dense vector `x`. -/
+@[expose] def sparseQuadForm (P : List (List (ℕ × ℚ))) (x : List ℚ) : ℚ :=
+  rowDot x (P.map fun r => sparseDotDense r x)
+
+/-- `sparseQuadForm` computes `x ⬝ᵥ P *ᵥ x` when `x` has exactly `n` entries. -/
+theorem sparseQuadForm_eq {n : ℕ} (P : List (List (ℕ × ℚ))) {x : List ℚ} (hx : x.length = n) :
+    sparseQuadForm P x = ofList n x ⬝ᵥ ofSparse n n P *ᵥ ofList n x := by
+  rw [sparseQuadForm, rowDot_eq_sum _ hx.le]
+  refine Finset.sum_congr rfl fun k _ => ?_
+  rw [ofList_apply]
+  congr 1
+  have hrow : (P.map fun r => sparseDotDense r x).getD k 0 = sparseDotDense (P.getD k []) x := by
+    simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
+    cases P[(k : ℕ)]? <;> simp [sparseDotDense]
+  rw [hrow, sparseDotDense_eq hx.le, mulVec, dotProduct]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  rw [ofSparse_apply, ofList_apply]
+
+/-- A sparse instability certificate for `ẋ = A x` with the symmetric sparse matrix `P`, which
+need not be definite: a rational rate `ε` of either sign, a dense initial vector `x₀` with
+`x₀ᵀ P x₀ < 0`, the sparse rows of `(A - ε • 1)ᵀ`, and an envelope certificate for
+`-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0`. It is the sparse form of `InstabilityCert`. -/
+structure SparseInstabilityCert where
+  /-- The certified rate `ε`. -/
+  rate : ℚ
+  /-- An initial vector of negative energy `x₀ᵀ P x₀ < 0`, as a dense list. -/
+  x₀ : List ℚ
+  /-- The sparse rows of `(A - ε • 1)ᵀ`, checked against `A`. -/
+  At : List (List (ℕ × ℚ))
+  /-- An envelope certificate for `-((A - ε • 1)ᵀ * P + P * (A - ε • 1))`, with `d ≥ 0`. -/
+  Q : EnvLDLCert
+
+namespace SparseInstabilityCert
+
+/-- Whether `c` certifies, for the sparse `n × n` matrices `A` and `P`, that `P` is symmetric,
+`c.x₀ ⬝ᵥ P *ᵥ c.x₀ < 0` and `-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0` for `ε = c.rate`. The
+residual is recomputed by `sparseResidual` from `sparseShift ε A`, `c.At` and `P`, and checked
+by `EnvLDLCert.factorsWith`, as in `SparseLyapunovCert.check`. -/
+@[expose] def check (c : SparseInstabilityCert) (n : ℕ) (A P : List (List (ℕ × ℚ))) : Bool :=
+  isSparseShape n n A && isSparseShape n n P && isSparseShape n n c.At && isTransposeOf P P &&
+    c.x₀.length == n && decide (sparseQuadForm P c.x₀ < 0) &&
+    isTransposeOf (sparseShift c.rate A) c.At &&
+    c.Q.factorsWith n (sparseResidual (sparseShift c.rate A) c.At P) && c.Q.diag.all (0 ≤ ·)
+
+/-- **Soundness.** An accepted sparse instability certificate proves, over `ℝ`, the hypotheses
+of `InstabilityCert.sound_of_check` for the matrices `ofSparse n n A` and `ofSparse n n P`. -/
+theorem sound_of_check {c : SparseInstabilityCert} {n : ℕ} {A P : List (List (ℕ × ℚ))}
+    (h : c.check n A P = true) :
+    (fun i => ((ofList n c.x₀ i : ℚ) : ℝ)) ⬝ᵥ (ofSparse n n P).map ((↑) : ℚ → ℝ) *ᵥ
+        (fun i => ((ofList n c.x₀ i : ℚ) : ℝ)) < 0 ∧
+    (-((((ofSparse n n A).map ((↑) : ℚ → ℝ)) - (c.rate : ℝ) • 1)ᵀ *
+        (ofSparse n n P).map ((↑) : ℚ → ℝ) +
+      (ofSparse n n P).map ((↑) : ℚ → ℝ) *
+        (((ofSparse n n A).map ((↑) : ℚ → ℝ)) - (c.rate : ℝ) • 1))).PosSemidef := by
+  simp only [check, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
+  obtain ⟨⟨⟨⟨⟨⟨⟨⟨hA, hP⟩, hAt⟩, hPs⟩, hx⟩, hq⟩, hT⟩, hQ⟩, hd⟩ := h
+  have hAl := length_of_isSparseShape hA
+  have hPl := length_of_isSparseShape hP
+  have hSl : (sparseShift c.rate A).length = n := (length_sparseShift _ _).trans hAl
+  have hshift : (ofSparse n n (sparseShift c.rate A)).map ((↑) : ℚ → ℝ) =
+      (ofSparse n n A).map ((↑) : ℚ → ℝ) - (c.rate : ℝ) • 1 := by
+    rw [ofSparse_sparseShift _ hAl]
+    ext i j
+    rcases eq_or_ne i j with rfl | hij
+    · simp
+    · simp [one_apply_ne hij]
+  refine ⟨?_, ?_⟩
+  · rw [sparseQuadForm_eq P hx] at hq
+    have hlt : ((ofList n c.x₀ ⬝ᵥ ofSparse n n P *ᵥ ofList n c.x₀ : ℚ) : ℝ) < 0 :=
+      Rat.cast_lt_zero.2 hq
+    convert hlt using 1
+    simp only [dotProduct, mulVec, Rat.cast_sum, Rat.cast_mul, Matrix.map_apply]
+  · have hPs' := ofSparse_eq_transpose_of_isTransposeOf (m := n) (n := n) hPs
+    have hR := ofSparse_sparseResidual hSl (length_of_isSparseShape hAt) hPl hT
+    have hlen : (sparseResidual (sparseShift c.rate A) c.At P).length = n := by
+      simp [sparseResidual, sparseScaledResidual, length_sparseMul, length_of_isSparseShape hAt,
+        hPl]
+    have hsymm : (ofSparse n n (sparseResidual (sparseShift c.rate A) c.At P))ᵀ =
+        ofSparse n n (sparseResidual (sparseShift c.rate A) c.At P) := by
+      rw [hR, transpose_neg, transpose_add, transpose_mul, transpose_mul, transpose_transpose,
+        ← hPs', add_comm]
+    have := c.Q.posSemidef_of_factorsWith hlen hsymm hQ hd
+    rwa [hR, Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
+      Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map, hshift] at this
+
+end SparseInstabilityCert
 
 end Cslib.LinearAlgebra
