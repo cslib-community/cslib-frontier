@@ -288,35 +288,33 @@ theorem intBin_pow : ComputableInPolyTime (fun p : ℤ × ℕ => p.1 ^ p.2)
       lia)
   simpa only [hfold] using h
 
-/-- The sum of a list of binary integers, by a left fold of binary additions. -/
-@[fun_prop]
-theorem intBin_sum : ComputableInPolyTime List.sum (encList encIntBin) encIntBin := by
+private theorem intBin_foldl {op : ℤ → ℤ → ℤ} (z : ℤ)
+    (hop : ComputableInPolyTime (fun p : ℤ × ℤ => op p.1 p.2)
+      (encPair encIntBin encIntBin) encIntBin)
+    (hsize : ∀ s a : ℤ, (op s a).natAbs.size ≤ s.natAbs.size + a.natAbs.size + 1) :
+    ComputableInPolyTime (fun l : List ℤ => l.foldl op z) (encList encIntBin) encIntBin := by
   have hq := fst (encPair (encList encIntBin) encIntBin) encIntBin
-  have h := foldlWith_of_bounded_growth (encA := encIntBin) (encL := encList encIntBin)
+  exact foldlWith_of_bounded_growth (encA := encIntBin) (encL := encList encIntBin)
     (encB := encIntBin) (par := fun l : List ℤ => l) (list := fun l => l)
-    (step := fun _ s a => s + a) id' id' (const 0) (intBin_add.comp (hq.snd'.prod (snd _ _)))
+    (step := fun _ s a => op s a) id' id' (const z) (hop.comp (hq.snd'.prod (snd _ _)))
     (growth := fun l => (encList encIntBin l).length) .self
     (fun l s a ha => by
       have hmem := length_le_encList_of_mem encIntBin ha
-      have := Int.size_natAbs_add_le s a
+      have := hsize s a
       simp only [length_encIntBin] at hmem ⊢
       lia)
-  simpa only [← List.sum_eq_foldl] using h
+
+/-- The sum of a list of binary integers, by a left fold of binary additions. -/
+@[fun_prop]
+theorem intBin_sum : ComputableInPolyTime List.sum (encList encIntBin) encIntBin := by
+  simpa only [← List.sum_eq_foldl] using intBin_foldl 0 intBin_add fun s a =>
+    (Int.size_natAbs_add_le s a).trans (by omega)
 
 /-- The product of a list of binary integers, by a left fold of binary multiplications. -/
 @[fun_prop]
 theorem intBin_prod : ComputableInPolyTime List.prod (encList encIntBin) encIntBin := by
-  have hq := fst (encPair (encList encIntBin) encIntBin) encIntBin
-  have h := foldlWith_of_bounded_growth (encA := encIntBin) (encL := encList encIntBin)
-    (encB := encIntBin) (par := fun l : List ℤ => l) (list := fun l => l)
-    (step := fun _ s a => s * a) id' id' (const 1) (intBin_mul.comp (hq.snd'.prod (snd _ _)))
-    (growth := fun l => (encList encIntBin l).length) .self
-    (fun l s a ha => by
-      have hmem := length_le_encList_of_mem encIntBin ha
-      have := Int.size_natAbs_mul_le s a
-      simp only [length_encIntBin] at hmem ⊢
-      lia)
-  simpa only [← List.prod_eq_foldl] using h
+  simpa only [← List.prod_eq_foldl] using intBin_foldl 1 intBin_mul fun s a =>
+    (Int.size_natAbs_mul_le s a).trans (by omega)
 
 /-- Add computed binary integers, fixing their intermediate encodings for proof search. -/
 @[fun_prop]
