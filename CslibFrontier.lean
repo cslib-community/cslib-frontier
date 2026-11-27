@@ -6780,6 +6780,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Rank
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Native.Decrease
 public import CslibFrontier.Computability.WordRAM.Multiword.Shift
 public import CslibFrontier.Computability.Complexity.Problems.UCONN
+public import CslibFrontier.Computability.Complexity.Classes.MIP.Terminal
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseHermiteRecovery
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Tautology
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.HighestDiff
