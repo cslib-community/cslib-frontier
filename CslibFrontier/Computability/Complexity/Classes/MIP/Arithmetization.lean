@@ -807,9 +807,10 @@ theorem exists_succinctDecoder_of_mem_NEXP {α : Type} {enc : α ↪ List Bool} 
       (tm : MultiTapeTM k Bool State) (n T : α → ℕ),
       ComputableInPolyTime (fun a => Decoder.decoderCode tm (frame (enc a), n a, T a))
         enc encCode ∧
-      PolyBounded (fun a => (enc a).length)
-        (fun a => Tableau.clauseBits k State (T a) + Tableau.labelBits k State (T a)) ∧
-      ∀ a : α, (a ∈ A ↔ (Tableau.succinctCNF tm (frame (enc a)) (n a) (T a)).Satisfiable) ∧
+      ComputableInPolyTime (fun a => Tableau.clauseBits k State (T a)) enc encUnary ∧
+      ComputableInPolyTime (fun a => Tableau.labelBits k State (T a)) enc encUnary ∧
+      ∀ a : α, (frame (enc a)).length ≤ n a ∧ n a < 2 * T a ∧
+        (a ∈ A ↔ (Tableau.succinctCNF tm (frame (enc a)) (n a) (T a)).Satisfiable) ∧
         ∃ c : Circuit signature (Tableau.clauseBits k State (T a))
           (3 * (Tableau.labelBits k State (T a) + 1)),
           c.code = Decoder.decoderCode tm (frame (enc a), n a, T a) ∧
@@ -819,28 +820,26 @@ theorem exists_succinctDecoder_of_mem_NEXP {α : Type} {enc : α ↪ List Bool} 
             List.ofFn (c.eval interpretation fun i => idx.testBit i) =
               (Tableau.clauseAt tm (frame (enc a)) (n a) (T a) idx).flatMap
                 (Decoder.litBits (Tableau.labelBits k State (T a))) := by
-  obtain ⟨k, State, hfin, hdecEq, tm, n, T, hn_pt, hT_pt, hbits, hmem⟩ :=
+  obtain ⟨k, State, hfin, hdecEq, tm, n, T, hn_pt, hT_pt, _, hmem⟩ :=
     exists_succinctCNF_of_mem_NEXP hA
   have henc : ComputableInPolyTime enc enc encBits := of_eq fun _ => rfl
   have hframe : ComputableInPolyTime (fun a => frame (enc a)) enc encBits := by fun_prop
   have harg : ComputableInPolyTime (fun a => (frame (enc a), n a, T a)) enc
       (encPair encBits (encPair encNat encNat)) :=
     hframe.prod (hn_pt.prod hT_pt)
-  have hwidths : PolyBounded (fun a => (enc a).length)
-      (fun a => Tableau.clauseBits k State (T a) + Tableau.labelBits k State (T a)) := by
-    have hconst : PolyBounded (fun a : α => (enc a).length)
-        (fun _ => 4 + slotBits k State + (2 + slotBits k State)) :=
-      PolyBounded.const _
-    have hcb2 : PolyBounded (fun a : α => (enc a).length)
-        (fun a => 2 * (colBits (T a) + timeBits (T a))) :=
-      PolyBounded.mul (PolyBounded.const 2) hbits
-    refine (hconst.add hcb2).mono fun a => ?_
-    simp only [Tableau.clauseBits, Tableau.labelBits]
-    omega
+  have hp := unary_add' (unary_add' (const (slotBits k State)) (computableInPolyTime_colBits hT_pt))
+    (computableInPolyTime_timeBits hT_pt)
+  have hQ : ComputableInPolyTime (fun a => Tableau.clauseBits k State (T a)) enc encUnary := by
+    unfold Tableau.clauseBits
+    exact unary_add' (const 4) hp
+  have hL : ComputableInPolyTime (fun a => Tableau.labelBits k State (T a)) enc encUnary := by
+    unfold Tableau.labelBits
+    exact unary_add' (const 2) hp
   refine ⟨k, State, hfin, hdecEq, tm, n, T,
-    (@computableInPolyTime_decoderCode k State hfin hdecEq tm).comp harg, hwidths, fun a => ?_⟩
+    (@computableInPolyTime_decoderCode k State hfin hdecEq tm).comp harg, hQ, hL, fun a => ?_⟩
   obtain ⟨hle, hlt, hsat⟩ := hmem a
-  exact ⟨hsat, @Decoder.exists_decoder k State hfin hdecEq tm (frame (enc a)) (n a) (T a) hlt hle⟩
+  exact ⟨hle, hlt, hsat,
+    @Decoder.exists_decoder k State hfin hdecEq tm (frame (enc a)) (n a) (T a) hlt hle⟩
 
 end DecoderPolyTime
 
