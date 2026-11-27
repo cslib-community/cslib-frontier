@@ -29,7 +29,7 @@ receives only the instance and samples this joint distribution. Perfect zero kno
 for equality on yes-instances. Statistical zero knowledge allows an error negligible in the
 encoded instance length. Both variants use completeness and soundness errors at most one third,
 following [Dixon, Gayen, Pavan and Vinodchandran][DixonGayenPavanVinodchandran2020],
-Definitions 2.2–2.3, printed p. 5.
+Definitions 2.2–2.3, printed pp. 5–6.
 
 A bounded-error problem has a trivial noninteractive proof: the verifier reads the common string
 as the coins of the bounded-error solver and the proof is empty, so a simulator sampling the
