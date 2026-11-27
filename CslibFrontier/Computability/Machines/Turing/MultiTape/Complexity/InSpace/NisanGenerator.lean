@@ -113,7 +113,7 @@ block `j / n` (`Cslib.Crypto.PRG.Nisan.bitGeneratorNat_eq`). -/
 def bitGeneratorNat (n k z j : ℕ) : Bool := (blockNat n k z (j / n)).testBit (j % n)
 
 /-- The low `n` bits of `blockNat n k z b` are block `b` of the generator. -/
-private theorem testBit_blockNat (n k z b : ℕ) (hb : b < 2 ^ k) :
+theorem testBit_blockNat (n k z b : ℕ) (hb : b < 2 ^ k) :
     (fun i : Fin n => (blockNat n k z b).testBit i) =
       blocks toeplitzHash k (seedOfNat n k z).1 (seedOfNat n k z).2 ⟨b, hb⟩ := by
   have hrange : (List.finRange k).map Fin.val = List.range k :=
@@ -218,6 +218,34 @@ private theorem blockStep_inSpace :
     (budget_prod hb (budget_natSub (budget_natSub hk (budget_const 1)) hl))
   exact encBlockState_mk_budget hn hk hz hb (budget_natSucc hl) (budget_ite hbit hhash hx)
 
+private theorem blockNat_inSpace :
+    ComputableInSpace (fun q : NisanBitArgs => blockNat q.n q.k q.z q.j) encNisanBitArgs
+      encNat fun q => (encNisanBitArgs q).length := by
+  have h := budget_id (BigOLe.refl fun q => (encNisanBitArgs q).length)
+  have hn := encNisanBitArgs_n_budget h
+  have hk := encNisanBitArgs_k_budget h
+  have hz := encNisanBitArgs_z_budget h
+  have hj := encNisanBitArgs_j_budget h
+  have hinit := encBlockState_mk_budget hn hk hz hj (budget_const 0) hz
+  have hloop := budget_iterate hk hinit blockStep_inSpace
+    (B := fun q => 4 * ((encNisanBitArgs q).length + 1)) (fun q t ht => by
+      rw [iterate_blockStep]
+      have h1 := length_encNat_mono ht
+      have h3 := size_foldl_le q.n q.k q.z q.j (List.range t) q.z le_rfl
+      simp only [encBlockState_apply, encBlockStateFields, encNisanBitArgs_apply,
+        encNisanBitArgsFields, length_encPair, length_encNat_eq_size] at h1 ⊢
+      omega) (linear_mul 4)
+  refine (encBlockState_block_budget hloop).of_enc_eq fun q => ?_
+  rw [iterate_blockStep]; rfl
+
+/-- Read the packed block register in the budget of the four binary arguments. Its low `n`
+bits are the block indexed by `t`. -/
+theorem budget_blockNat {α : Type} {enc : α ↪ List Bool} {B n k z t : α → ℕ}
+    (hn : ComputableInSpace n enc encNat B) (hk : ComputableInSpace k enc encNat B)
+    (hz : ComputableInSpace z enc encNat B) (ht : ComputableInSpace t enc encNat B) :
+    ComputableInSpace (fun a => blockNat (n a) (k a) (z a) (t a)) enc encNat B :=
+  budget_comp_linear blockNat_inSpace (encNisanBitArgs_mk_budget hn hk hz ht)
+
 /-- **A bit of Nisan's generator in linear space**: `bitGeneratorNat n k z j` is computable within
 work space linear in the encoded arguments. The work space holds the arguments, the level and one
 block register of at most as many bits as the seed word, and the space of one packed Toeplitz
@@ -227,21 +255,10 @@ theorem computableInSpace_bitGeneratorNat :
       encBool fun q => (encNisanBitArgs q).length := by
   have h := budget_id (BigOLe.refl fun q => (encNisanBitArgs q).length)
   have hn := encNisanBitArgs_n_budget h
-  have hk := encNisanBitArgs_k_budget h
-  have hz := encNisanBitArgs_z_budget h
   have hj := encNisanBitArgs_j_budget h
-  have hinit := encBlockState_mk_budget hn hk hz (budget_natDiv hj hn) (budget_const 0) hz
-  have hloop := budget_iterate hk hinit blockStep_inSpace
-    (B := fun q => 4 * ((encNisanBitArgs q).length + 1)) (fun q t ht => by
-      rw [iterate_blockStep]
-      have h1 := length_encNat_mono ht
-      have h2 := length_encNat_mono (Nat.div_le_self q.j q.n)
-      have h3 := size_foldl_le q.n q.k q.z (q.j / q.n) (List.range t) q.z le_rfl
-      simp only [encBlockState_apply, encBlockStateFields, encNisanBitArgs_apply,
-        encNisanBitArgsFields, length_encPair, length_encNat_eq_size] at h1 h2 ⊢
-      omega) (linear_mul 4)
-  refine (budget_comp_lin natTestBit (linear_mul 32)
-    (budget_prod (encBlockState_block_budget hloop) (budget_natMod hj hn))).of_enc_eq fun q => ?_
-  rw [iterate_blockStep]; rfl
+  have hb := budget_comp_lin natTestBit (linear_mul 32)
+    (budget_prod (budget_blockNat hn (encNisanBitArgs_k_budget h) (encNisanBitArgs_z_budget h)
+      (budget_natDiv hj hn)) (budget_natMod hj hn))
+  exact hb
 
 end Cslib.Crypto.PRG.Nisan

@@ -62,6 +62,12 @@ example :
     (s.1 0).1 0 = true ∧ (s.1 0).2 0 = false ∧ s.2 0 = 2 ∧ s.2 1 = 1 := by
   decide
 
+-- The first Nisan block bypasses the affine hash. Even though high bits of the counter
+-- remain in the register, its numeric letter is just the low input bit. The next block uses
+-- the affine hash with zero diagonal and unit offset.
+example : SaksZhou.nisanBlockValue 1 1 26 0 0 = 0 ∧
+    SaksZhou.nisanBlockValue 1 1 26 0 1 = 1 := by decide
+
 -- Zero-width hashes consume no counter bits. With zero-width shifts as well, there is
 -- exactly one counter value, even when several rounds have been requested.
 example :

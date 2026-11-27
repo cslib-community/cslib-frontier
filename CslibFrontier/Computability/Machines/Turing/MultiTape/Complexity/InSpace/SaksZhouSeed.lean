@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NisanGenerator
 public import CslibFrontier.Probability.SaksZhou.Nisan
+public import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.ListSlice
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 import CslibFrontier.Foundations.Data.List.OfFn
 
 /-!
@@ -22,11 +24,14 @@ the finite averaging space in the Saks–Zhou construction [SaksZhou1999].
 
 ## Main definitions
 
+* `nisanBlockValue` decodes the integer value of an individual walk letter.
 * `nisanRoundingShift` reads a rounding shift directly from the packed integer.
 * `nisanShiftSeedOfNat` decodes the shared hashes and rounding shifts from a binary counter.
 
 ## Main results
 
+* `nisanBlockValue_eq` identifies the packed letter with the little-endian Nisan block.
+* `budget_nisanBlockValue` computes the letter in the argument budget plus one block width.
 * `budget_nisanRoundingShift` extracts a shift within the work-space budget of its binary arguments.
 * `countP_range_nisanShiftSeedOfNat` converts the count of accepted counter values to the
   cardinality of the accepted seed set.
@@ -68,6 +73,29 @@ theorem seedOfNat_mul_add (b k r d z : ℕ) {x : ℕ} (hx : x < 2 ^ b) :
     apply Prod.ext <;> funext i <;>
       simp [seedOfNat, nisanShiftSeedOfNat, hashSeedOfNat, Nat.testBit_two_pow_mul_add, hx,
         Nat.add_assoc]
+
+/-- The integer value of the `t`-th Nisan block on initial block `x` and shared seed `z`.
+Only the low `b` bits of the register are part of the walk letter. -/
+@[expose] def nisanBlockValue (b k z x t : ℕ) : ℕ :=
+  blockNat b k (z * 2 ^ b + x) t % 2 ^ b
+
+/-- The letter computed from the packed seed has the little-endian numbering of the
+corresponding mathematical Nisan block. -/
+theorem nisanBlockValue_eq (b k r d z : ℕ) {x t : ℕ} (hx : x < 2 ^ b) (ht : t < 2 ^ k) :
+    nisanBlockValue b k z x t = BitString.equivFin b
+      (blocks toeplitzHash k (fun i : Fin b => x.testBit i)
+        (nisanShiftSeedOfNat b k r d z).1 ⟨t, ht⟩) := by
+  let seed := z * 2 ^ b + x
+  have hv := testBit_blockNat b k seed t ht
+  rw [show seedOfNat b k seed = _ from seedOfNat_mul_add b k r d z hx] at hv
+  apply Nat.eq_of_testBit_eq
+  intro i
+  by_cases hi : i < b
+  · rw [nisanBlockValue, Nat.testBit_mod_two_pow, decide_eq_true hi, Bool.true_and]
+    exact (congrFun hv ⟨i, hi⟩).trans (BitString.testBit_equivFin _ ⟨i, hi⟩).symm
+  · rw [Nat.testBit_lt_two_pow, Nat.testBit_lt_two_pow] <;>
+      exact lt_of_lt_of_le (by first | exact Nat.mod_lt _ (Nat.two_pow_pos _) | exact Fin.isLt _)
+        (Nat.pow_le_pow_right two_pos (by omega))
 
 /-- The bounded counter visits each shared seed once. -/
 theorem bijective_nisanShiftSeedOfNat (b k r d : ℕ) :
@@ -121,5 +149,20 @@ theorem budget_nisanRoundingShift {α : Type} {enc : α ↪ List Bool} {B b k d 
   budget_natModTwoPow (budget_comp_linear natShiftRight (budget_prod hz (budget_natAdd
     (budget_natMul hk (budget_natSub (budget_natMul (budget_const 3) hb) (budget_const 1)))
     (budget_natMul hi hd)))) hd
+
+/-- Computing a numeric walk letter uses the budget of the binary arguments and enough room
+for one `b`-bit initial block when adjoining it to the shared seed. -/
+theorem budget_nisanBlockValue {α : Type} {enc : α ↪ List Bool} {B b k z x t : α → ℕ}
+    (hb : ComputableInSpace b enc encNat B) (hk : ComputableInSpace k enc encNat B)
+    (hz : ComputableInSpace z enc encNat B) (hx : ComputableInSpace x enc encNat B)
+    (ht : ComputableInSpace t enc encNat B) (hwidth : b ≼ B) :
+    ComputableInSpace (fun a => nisanBlockValue (b a) (k a) (z a) (x a) (t a)) enc encNat B := by
+  have hlen : (fun a => (b a + 1) * (encNat 2).length + (encNat (b a)).length + 1) ≼ b :=
+    .of_le_linear 3 3 fun a => by
+      have := length_encNat_le_self (b a)
+      rw [show (encNat 2).length = 2 from rfl]
+      omega
+  have hp := budget_natPow_variable (budget_const (encB := encNat) 2) hb (hlen.trans hwidth)
+  exact budget_natModTwoPow (budget_blockNat hb hk (budget_natAdd (budget_natMul hz hp) hx) ht) hb
 
 end Cslib.Probability.SaksZhou
