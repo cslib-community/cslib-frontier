@@ -28,11 +28,12 @@ Garey and Johnson ask, for a collection `C` of subsets of a finite set `S` and a
 `K ≤ |S|`, for a set `S' ⊆ S` with `|S'| ≤ K` that contains an element of every member of `C`.
 This formalization differs in three ways:
 
-* `k` is any natural number. With `k = 0` only an empty collection is hit, and a `k` above the
-  number of distinct ground elements behaves like that number.
+* `k` is any natural number. An empty collection is hit for every `k`, by the empty set, and with
+  `k = 0` nothing else is. A `k` above the number of distinct ground elements behaves like that
+  number.
 * The listed subsets need not lie in the ground list. Only ground elements are chosen, so a subset
-  without a ground element is never hit.
-* Repeated ground entries count once.
+  without a ground element, such as the empty subset, is never hit.
+* Repeated ground entries count once, and repeated subsets add no constraint.
 
 For `1 ≤ k ≤ |S|` and subsets of the ground list, this is the problem of Garey and Johnson.
 
@@ -116,34 +117,21 @@ listed subset. -/
 theorem mem_HittingSet_iff (x : HittingSetInstance) :
     x ∈ HittingSet ↔ ∃ H : Finset ℕ, (∀ u ∈ H, u ∈ x.system.ground) ∧ H.card ≤ x.k ∧
       ∀ S ∈ x.system.sets, ∃ u ∈ H, u ∈ S := by
-  unfold HittingSet
-  simp only [Set.mem_ofPred_eq]
   constructor
   · rintro ⟨H, hcard, hhit⟩
-    -- Forget the membership proofs of the elements of `H`.
-    refine ⟨H.map (Function.Embedding.subtype _), ?_, ?_, ?_⟩
-    · intro u hu
-      obtain ⟨v, -, rfl⟩ := Finset.mem_map.mp hu
-      exact v.property
-    · rw [Finset.card_map]
-      exact hcard
-    · intro S hS
-      obtain ⟨u, huH, huS⟩ := hhit S hS
-      exact ⟨u, Finset.mem_map.mpr ⟨u, huH, rfl⟩, huS⟩
+    refine ⟨H.map (.subtype _), fun u hu => ?_, (Finset.card_map _).trans_le hcard,
+      fun S hS => ?_⟩
+    · obtain ⟨v, -, rfl⟩ := Finset.mem_map.1 hu
+      exact v.2
+    · obtain ⟨u, huH, huS⟩ := hhit S hS
+      exact ⟨u, Finset.mem_map_of_mem _ huH, huS⟩
   · rintro ⟨H, hmem, hcard, hhit⟩
-    -- Attach to every element of `H` its membership in the ground list.
-    let H' : Finset {u // u ∈ x.system.ground} :=
-      H.attach.map ⟨fun u => ⟨u.val, hmem u.val u.property⟩, by
-        intro a b h
-        exact Subtype.ext (congrArg (fun v : {u // u ∈ x.system.ground} => v.val) h)⟩
-    refine ⟨H', ?_, ?_⟩
-    · change (H.attach.map _).card ≤ x.k
-      rw [Finset.card_map, Finset.card_attach]
-      exact hcard
-    · intro S hS
-      obtain ⟨u, huH, huS⟩ := hhit S hS
-      refine ⟨⟨u, hmem u huH⟩, ?_, huS⟩
-      exact Finset.mem_map.mpr ⟨⟨u, huH⟩, Finset.mem_attach H ⟨u, huH⟩, rfl⟩
+    have hmap : (H.subtype (· ∈ x.system.ground)).map (.subtype _) = H :=
+      (Finset.subtype_map _).trans (Finset.filter_eq_self.mpr hmem)
+    refine ⟨H.subtype (· ∈ x.system.ground),
+      by rw [← Finset.card_map (.subtype _), hmap]; exact hcard, fun S hS => ?_⟩
+    obtain ⟨u, huH, huS⟩ := hhit S hS
+    exact ⟨⟨u, hmem u huH⟩, Finset.mem_subtype.2 huH, huS⟩
 
 namespace HittingSet
 
@@ -268,8 +256,8 @@ theorem polyTimeReducible_VertexCover_HittingSet :
 theorem HittingSet_npHard : NPHard encHittingSet HittingSet :=
   VertexCover_npHard.trans polyTimeReducible_VertexCover_HittingSet
 
-/-- **`HittingSet` is NP-complete** [Garey and Johnson, Problem SP8][GareyJohnson1979], with the
-target in binary. -/
+/-- **`HittingSet` is NP-complete** [Garey and Johnson, Problem SP8, p. 222][GareyJohnson1979],
+with the target in binary. -/
 theorem HittingSet_npComplete : NPComplete encHittingSet HittingSet :=
   ⟨HittingSet.mem_NP, HittingSet_npHard⟩
 
