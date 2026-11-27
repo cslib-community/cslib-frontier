@@ -26,13 +26,15 @@ encoded-length factors as the deterministic bound.
 
 * `Cslib.Complexity.solvesWithErrorInPowerExpTime_deterministic_iff`: at zero error, the
   bound for a language agrees with deterministic decidability.
+* `Cslib.Complexity.SolvesWithErrorInPowerExpTime.of_promiseReduction`: transfer the power
+  bound through a deterministic promise reduction.
 -/
 
 public section
 
 namespace Cslib.Complexity
 
-open PromiseProblem
+open PromiseProblem Turing.MultiTapeTM
 
 variable {α : Type} {enc : α ↪ List Bool} {μ : α → ℕ} {p : ℝ}
 
@@ -80,5 +82,61 @@ theorem solvesWithErrorInPowerExpTime_deterministic_iff {A : Set α} :
     exact ⟨C, max e 1, (hbridge C e).mp (h.mono 1 (hpad C e) (hnonneg C e))⟩
   · rintro ⟨C, e, h⟩
     exact ⟨C, max e 1, (hbridge C e).mpr (h.mono 1 (hpad C e) (hnonneg C e))⟩
+
+/-- A deterministic promise reduction of power `q` with parameter blowup
+`O((μA + 1) ^ b)` transports a target solver of power `p ≥ 0` to power `max q (b * p)`,
+preserving its error profile. The reduction's time also bounds the length it writes. -/
+theorem SolvesWithErrorInPowerExpTime.of_promiseReduction {β : Type} {encB : β ↪ List Bool}
+    {A : PromiseProblem α} {B : PromiseProblem β} {E : ErrorModel} {μB : β → ℕ} {r : α → β}
+    {q b : ℝ} (hr : ComputableInPowerExpTime r enc encB μ q)
+    (hyes : ∀ a ∈ A.yes, r a ∈ B.yes) (hno : ∀ a ∈ A.no, r a ∈ B.no)
+    {K : ℕ} (hsize : ∀ a, (μB (r a) + 1 : ℝ) ≤ (K + 1 : ℝ) * (μ a + 1 : ℝ) ^ b)
+    (hp : 0 ≤ p) (hB : SolvesWithErrorInPowerExpTime B encB E μB p) :
+    SolvesWithErrorInPowerExpTime A enc E μ (max q (b * p)) := by
+  obtain ⟨C, d, hr⟩ := hr
+  obtain ⟨D, e, hB⟩ := hB
+  let d' := max d 1
+  let P (a : α) : ℝ := (2 : ℝ) ^ (C * (μ a + 1 : ℝ) ^ q) * ((enc a).length + 1) ^ d'
+  let R : ℝ := D * (K + 1 : ℝ) ^ p
+  let X (a : α) : ℝ := (2 : ℝ) ^ (R * (μ a + 1 : ℝ) ^ (b * p))
+  have hR : 0 ≤ R := by dsimp only [R]; positivity
+  have hP (a : α) : ((enc a).length + 1 : ℝ) ≤ P a := by
+    have h := pow_le_two_rpow_mul_pow (L := (enc a).length) (d := 1)
+      (x := C * (μ a + 1 : ℝ) ^ q) (by positivity) (le_max_right d 1)
+    simpa only [pow_one] using h
+  have hP0 (a : α) : 0 ≤ P a := by dsimp only [P]; positivity
+  have hr' : ComputableInTimeO r enc encB P :=
+    hr.mono 1 (fun a =>
+      (two_rpow_mul_pow_le_two_rpow_mul_pow le_rfl (le_max_left d 1) :
+        (2 : ℝ) ^ (C * (μ a + 1 : ℝ) ^ q) * ((enc a).length + 1) ^ d ≤ P a).trans
+        (by rw [Nat.cast_one, one_mul]; exact le_add_of_nonneg_right zero_le_one)) hP0
+  have hX (a : α) : 1 ≤ X a := by
+    dsimp only [X]
+    exact Real.one_le_rpow (by norm_num) (by positivity)
+  have hY (a : α) : (2 : ℝ) ^ (D * (μB (r a) + 1 : ℝ) ^ p) ≤ 1 * X a := by
+    rw [one_mul]
+    exact two_rpow_mul_rpow_le_of_le_mul_rpow (by positivity) (by positivity)
+      (by positivity) (hsize a) hp
+  have h := hB.of_promiseReduction hr' hyes hno hP hX zero_le_one hY
+  refine ⟨⌈R⌉₊ + C * (e + 1), d' * (e + 1), h.mono 1 (fun a => ?_) (fun _ => by positivity)⟩
+  rw [Nat.cast_one, one_mul]
+  exact (power_reduction_envelope_le (C := C) (d := d') (e := e)
+    (x := (μ a + 1 : ℝ)) (y := ((enc a).length + 1 : ℝ)) (q := q) (r := b * p)
+    (le_add_of_nonneg_left (Nat.cast_nonneg _)) (by positivity) hR).trans
+    (le_add_of_nonneg_right zero_le_one)
+
+/-- A polynomial-time promise reduction with parameter blowup `O((μA + 1) ^ b)` transports
+power `p` to `b * p` with the same error profile. -/
+theorem SolvesWithErrorInPowerExpTime.of_polyTime_promiseReduction
+    {β : Type} {encB : β ↪ List Bool} {A : PromiseProblem α} {B : PromiseProblem β} {E : ErrorModel}
+    {μB : β → ℕ} {r : α → β} {b : ℝ} (hr : ComputableInPolyTime r enc encB)
+    (hyes : ∀ a ∈ A.yes, r a ∈ B.yes) (hno : ∀ a ∈ A.no, r a ∈ B.no)
+    {K : ℕ} (hsize : ∀ a, (μB (r a) + 1 : ℝ) ≤ (K + 1 : ℝ) * (μ a + 1 : ℝ) ^ b)
+    (hb : 0 ≤ b) (hp : 0 ≤ p) (hB : SolvesWithErrorInPowerExpTime B encB E μB p) :
+    SolvesWithErrorInPowerExpTime A enc E μ (b * p) := by
+  obtain ⟨e, he⟩ := ComputableInExpTime.of_computableInPolyTime (μ := fun _ => 0) hr
+  rw [← max_eq_right (mul_nonneg hb hp)]
+  exact hB.of_promiseReduction ⟨0, e, by simpa only [Nat.cast_zero, zero_mul] using he⟩
+    hyes hno hsize hp
 
 end Cslib.Complexity
