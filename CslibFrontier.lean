@@ -6808,6 +6808,7 @@ public import CslibFrontier.Computability.WordRAM.Multiword.Shift
 public import CslibFrontier.Computability.Complexity.Problems.UCONN
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseHermiteRecovery
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Tautology
+public import CslibFrontier.Computability.WordRAM.PointerMachine.Local
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.HighestDiff
 public import CslibFrontier.Foundations.Quantum.POVM.Restriction
 public import CslibFrontier.Languages.Probabilistic.Lift
