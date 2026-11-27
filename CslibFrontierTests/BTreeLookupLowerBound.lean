@@ -45,7 +45,7 @@ def sampleTree : BTree ℕ String :=
   .node (.node .leaf [(1, "a", .leaf), (2, "b", .leaf)])
     [(4, "c", .node .leaf [(6, "d", .leaf), (8, "e", .leaf)])]
 
--- Review Focus 1: under `· / 2` the keys 4 and 5 tie, so lookup of 5 returns the value at 4.
+-- Key oracle with ties: under `· / 2` the keys 4 and 5 tie, so lookup of 5 returns the value at 4.
 example : (lookupQ 5 sampleTree).eval (LEQuery.keyOracle (· / 2)) = some "c" := by
   simp [sampleTree, lookupQ_def, lookupM, LEQuery.keyOracle]
 
@@ -53,11 +53,11 @@ example : (lookupBinQ 5 sampleTree).eval (LEQuery.keyOracle (· / 2)) = some "c"
   rw [lookupBinQ_isLookup.correct (· / 2) 5 sampleTree (by decide)]
   decide
 
--- Review Focus 1: the order oracle has no ties, so the same lookup finds nothing.
+-- Order oracle: it has no ties, so the same lookup finds nothing.
 example : (lookupQ 5 sampleTree).eval orderOracle = none := by
   simp [sampleTree, lookupQ_def, lookupM, orderOracle]
 
--- Review Focus 2: without ties the predicate is vacuous. A program that asks nothing ...
+-- Ties are needed: without them the predicate is vacuous. A program that asks nothing ...
 /-- Lookup that asks no comparison and tests keys for equality natively. -/
 def nativeLookup (k : ℕ) (tree : BTree ℕ String) : FreeM (LEQuery ℕ) (Option String) :=
   pure (tree.toList.lookup k)
@@ -96,13 +96,13 @@ example : ¬ IsLookup nativeLookup := by
 def outOfOrderTree : BTree ℕ String :=
   .node (.node .leaf [(3, "a", .leaf)]) [(2, "b", .node .leaf [(0, "c", .leaf)])]
 
--- Review Focus 3: the strict-increase premise is needed; `0` is stored but `lookupQ 0` misses it.
+-- The strict-increase premise is needed: `0` is stored but `lookupQ 0` misses it.
 example : (lookupQ 0 outOfOrderTree).eval orderOracle = none ∧
     outOfOrderTree.toList.lookup 0 = some "c" := by
   refine ⟨?_, by decide⟩
   simp [outOfOrderTree, lookupQ_def, lookupM, orderOracle]
 
--- Review Focus 4: on the empty tree the per-tree bound is `0` ...
+-- Empty tree: the per-tree bound is `0` ...
 example : Nat.clog 2 ((.leaf : BTree ℕ String).size + 1) = 0 := by decide
 
 -- ... and it is attained: `lookupQ` asks nothing on the empty tree, under every oracle.
