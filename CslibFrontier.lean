@@ -4090,6 +4090,7 @@ public import CslibFrontier.Computability.PCP.AssignmentTester.Selection
 public import CslibFrontier.Foundations.Data.BitString.Support.Weight
 public import CslibFrontier.Algorithms.Lean.HousingMarket.Characterization
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySubtraction
 public import CslibFrontier.Crypto.Computational.ModulusGeneration
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Dealing.Templates
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.TimeLayer
@@ -4449,6 +4450,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg.FinishLeaf
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegRank
 public import CslibFrontier.Logics.Propositional.ClauseSet.Basic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.IntBinary
 public import CslibFrontier.Crypto.Computational.DiffieHellman.WithKey
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.NegTriangleSubcubic
 public import CslibFrontier.Computability.Circuit.Boolean.Parity
