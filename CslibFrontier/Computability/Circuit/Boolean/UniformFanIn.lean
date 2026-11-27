@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Circuit.Encoding.Simulation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Tabulation
 import CslibFrontier.Computability.Circuit.Pi
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
+import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Words
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
@@ -26,9 +27,19 @@ Replacing a gate of unbounded fan-in by equal-width layers of binary disjunction
 gate addresses and the incoming wires accessible by arithmetic on indices. At round `t`,
 wire `i` reads the disjunction of `2^t` consecutive leaves, starting at `2^t i` modulo the
 layer width. Thus the first wire reads all leaves after a logarithmic number of rounds.
-`Unbounded.toFanInTwo` implements this replacement on a native circuit. Its serialization is
-generated in logarithmic space from a logspace-uniform source family, giving
-`logspaceUniformAC_subset_NC_succ` at every level.
+
+## Main definitions
+
+* `Unbounded.toFanInTwo` compiles a native single-output circuit over the unbounded basis.
+
+## Main results
+
+* `Unbounded.eval_toFanInTwo` preserves the computed function.
+* `Unbounded.depth_toFanInTwo_le` bounds the extra depth by the source encoding length.
+* `Unbounded.isLogspaceUniform_toFanInTwo` constructs the logspace generator.
+* `logspaceUniformAC_subset_NC_succ` gives the resulting containment at every level.
+
+## References
 
 [Arora and Barak][AroraBarak09], §6.7.1, Definitions 6.24–6.25 and the following paragraph
 (pp. 117–118), gives the fan-in simulation. Here the generator of Definition 6.14, §6.2,
@@ -223,16 +234,14 @@ private theorem code_leaves (k : ℕ) (op : Op) :
       ((List.range (k + 1)).map (leafRow op), (List.range (k + 1)).map (op.arity + ·)) := by
   rw [Circuit.code_pi_singleton _ (fun i => leafRow op i) (fun i => code_leaf op i)]
   · congr 1
-    exact List.ext_getElem (by simp) fun i _ _ => by
-      simp only [List.getElem_ofFn, List.getElem_map, List.getElem_range]
+    exact (List.map_range_eq_ofFn _ _).symm
 
 private theorem code_orRound (k : ℕ) :
     (orRound k).code =
       ((List.range (k + 1)).map (orRow k 0), (List.range (k + 1)).map ((k + 1) + ·)) := by
   rw [orRound, Circuit.code_pi_singleton _ (fun i => orRow k 0 i)]
   · congr 1
-    exact List.ext_getElem (by simp) fun i _ _ => by
-      simp only [List.getElem_ofFn, List.getElem_map, List.getElem_range]
+    exact (List.map_range_eq_ofFn _ _).symm
   · intro i
     rw [Circuit.code_oneGate]
     simp [orRow, cyclicIndex, List.ofFn_succ]
@@ -386,16 +395,11 @@ private theorem encodedLength_fl {C : (n : ℕ) → Circuit signature n 1}
     (ComputableInLogSpace.of_eq (encIn := encCircuit 1) (encMid := encBits)
       fun _ => rfl).comp hC
 
-private theorem encodedLength_poly {C : (n : ℕ) → Circuit signature n 1}
-    (hC : Circuit.IsLogspaceUniform encOp C) :
-    PolynomiallyBounded fun n => encodedLength (C n) := by
-  obtain ⟨a, d, h⟩ := hC.polyBounded_length.exists_le
-  exact PolynomiallyBounded.of_forall_le a d fun n => by simpa [encodedLength] using h n
-
 private theorem exists_depthBound {C : (n : ℕ) → Circuit signature n 1}
     (hC : Circuit.IsLogspaceUniform encOp C) :
     ∃ e, ∀ n, (encodedLength (C n) + 1).log2 + 3 ≤ e * (Nat.log 2 n + 1) := by
-  have hsize := encodedLength_poly hC
+  have hsize : PolynomiallyBounded (fun n => encodedLength (C n)) :=
+    hC.polynomiallyBounded_length
   obtain ⟨e, he⟩ := PolynomiallyBounded.exists_clog_le_mul_log
     (s := fun n => encodedLength (C n) + 1) (by fun_prop)
   refine ⟨e + 3, fun n => ?_⟩
@@ -410,11 +414,6 @@ private theorem blockLength_fl {α : Type} {enc : α ↪ List Bool} {k : α → 
   fun_prop
 
 private def mapInputs {G : Type} (w : ℕ → ℕ) (r : G × List ℕ) := (r.1, r.2.map w)
-
-private theorem mapInputs_ite {G : Type} (w : ℕ → ℕ) (p : Prop) [Decidable p]
-    (a b : G × List ℕ) :
-    mapInputs w (if p then a else b) = if p then mapInputs w a else mapInputs w b := by
-  split <;> rfl
 
 private theorem emittedRow_fl {α : Type} {enc : α ↪ List Bool} {k i : α → ℕ} {op : α → Op}
     {wire : α → ℕ → ℕ} (hk : ComputableInLogSpace k enc encUnary)
@@ -448,7 +447,7 @@ private theorem emittedRow_fl {α : Type} {enc : α ↪ List Bool} {k i : α →
       (fun x => (op x).arity + (i x / (k x + 1) - 1) * (k x + 1)) enc encUnary := by fun_prop
   have hj : ComputableInLogSpace (fun x => i x % (k x + 1)) enc encUnary := by fun_prop
   unfold emittedRow blockRow leafRow finalRow orRow
-  simp only [mapInputs_ite]
+  simp only [apply_ite (mapInputs _)]
   simp only [mapInputs, List.map_nil, List.map_cons]
   apply ComputableInLogSpace.ite_decide (encC := encBool) (by fun_prop)
   · apply ComputableInLogSpace.ite_decide (encC := encBool) (by fun_prop)
