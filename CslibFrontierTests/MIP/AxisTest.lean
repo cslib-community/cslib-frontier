@@ -38,7 +38,7 @@ example : ∃ π : List Bool → Bool, (∀ x : Fin 1 → ZMod 3, proofPoint π 
 example :
     let k := (4 * axisGapDenominator 1).size
     (2 : ℝ) * (3 + 1) / 10009 + 3 * ((1 + 1) * 1 / 10009 ^ 1 + 1 / 2 ^ k) +
-      2 / 2 ^ k ≤ 1 / 2 :=
+      (1 / 2 ^ k + 1 / 2 ^ k) ≤ 1 / 2 :=
   arithmeticError_le_half (n := 1) (p := 10009) (R := 2) (d := 3) (H := 1)
     (by decide) (by norm_num)
 

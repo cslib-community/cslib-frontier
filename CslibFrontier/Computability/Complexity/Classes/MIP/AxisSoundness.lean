@@ -58,13 +58,13 @@ private theorem precision_lower (n : ℕ) :
 /-- In a prime field above the stated size, the arithmetic error, three corrected evaluation
 errors and dyadic sampling errors sum to at most one half. The normalized Hamming bound comes
 from the axis test. -/
-theorem arithmeticError_le_half {n p R d H : ℕ}
+theorem arithmeticError_le_half {n p R d : ℕ} {H : ℝ}
     (hp : 1000 * (n + 1) ^ 3 + 100 * (R + 1) * (d + 1) < p)
-    (hH : (H : ℝ) < (p : ℝ) ^ n / (100 * (n + 1))) :
+    (hH : H < (p : ℝ) ^ n / (100 * (n + 1))) :
     let precision := (4 * axisGapDenominator n).size
     (R : ℝ) * (d + 1) / p +
       3 * ((n + 1 : ℝ) * H / (p : ℝ) ^ n + 1 / 2 ^ precision) +
-      2 / 2 ^ precision ≤ 1 / 2 := by
+      (1 / 2 ^ precision + 1 / 2 ^ precision) ≤ 1 / 2 := by
   dsimp only
   have hpos : 0 < p := by omega
   have hp' : 1000 * ((n : ℝ) + 1) ^ 3 + 100 * (R + 1 : ℝ) * (d + 1 : ℝ) < p := by
@@ -82,8 +82,6 @@ theorem arithmeticError_le_half {n p R d H : ℕ}
   have he : 1 / (2 : ℝ) ^ (4 * axisGapDenominator n).size ≤ 1 / 100 := by
     apply (div_le_iff₀ (by positivity)).2
     linarith
-  rw [show (2 : ℝ) / 2 ^ (4 * axisGapDenominator n).size =
-    2 * (1 / 2 ^ (4 * axisGapDenominator n).size) by ring]
   linarith only [ha, hh, he]
 
 private theorem run_and_true (π : List Bool → Bool) (a b : WordOracleComp Unit Bool) :
