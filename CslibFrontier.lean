@@ -5915,6 +5915,7 @@ public import CslibFrontier.Logics.FirstOrder.ZeroOneLaw.RandomGraph
 public import CslibFrontier.Foundations.Combinatorics.LineCode.HighRate
 public import CslibFrontier.Algorithms.Lean.MaxCut.Derandomized
 public import CslibFrontier.Algorithms.WordRAM.TwoSAT.Defs
+public import CslibFrontier.Computability.RelationProgram
 public import CslibFrontier.Computability.Complexity.Classes.Operators
 public import CslibFrontier.Computability.Probabilistic.Finite
 public import CslibFrontier.Computability.Complexity.Classes.EXPSPACE.Separation
@@ -8501,6 +8502,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination
 public import CslibFrontier.Computability.Circuit.Frontier.Basis.U2.BranchingProgram
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Diagram.Measure
+public import CslibFrontier.Computability.RelationProgram.DNF
 public import CslibFrontier.Computability.Complexity.Classes.IP.Games.GoldwasserSipser
 public import CslibFrontier.Algorithms.WordRAM.RadixSort.Program
 public import CslibFrontier.Computability.Distributed.MutualExclusion.Bakery
