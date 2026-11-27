@@ -37,19 +37,6 @@ open Cslib.Crypto.Protocols.UC
 open Cslib.Crypto.Protocols.UC.Push
 open Cslib.Probability
 
-private theorem runFrom_iterate_step_pure_step {m : ℕ} {Msg : Type} (S : PushSystem m Msg)
-    (κ f : ℕ) {ts : TokenState m Msg} (ho : ts.output = none) (hh : ts.target ∉ ts.halted)
-    {s s' : (SSP.parFin (S.node κ)).State} {out : Outcome m Msg}
-    {v : (S.node κ ts.target).State}
-    (hstep : ((S.node κ ts.target).handle ts.delivery).run (s ts.target) = pure (out, v))
-    (hs : (Function.update s ts.target v : (SSP.parFin (S.node κ)).State) = s') :
-    (SSP.parFin (S.node κ)).runFrom (OracleComp.iterate (f + 1) (step S) ts) s =
-      (SSP.parFin (S.node κ)).runFrom (OracleComp.iterate f (step S) (ts.next S out)) s' := by
-  rw [runFrom_iterate_step_succ_of_not_mem_halted S κ f ho hh s, hstep]
-  change (SSP.parFin (S.node κ)).runFrom
-    (OracleComp.iterate f (step S) (ts.next S out)) (Function.update s ts.target v) = _
-  exact congrArg _ hs
-
 /-! ### Probabilistic Adaptive-Halting Witness (Fuel Monotonicity, Truncation, Invariance) -/
 
 private abbrev branchEnv : ReactiveNode 2 Bool where
@@ -148,10 +135,10 @@ private theorem branchSystem_run3 (κ : ℕ) (z : List Bool) :
     · exact absurd rfl hc
   · split_ifs with hc
     · contradiction
-    · erw [runFrom_iterate_step_pure_step branchSystem κ 1
+    · erw [runFrom_iterate_step_succ_of_handle_eq_pure branchSystem κ 1
         (by simp) (by simp) (by simp; rfl)
         (by rw [bState_update_0]; exact bState_update_1 κ)]
-      erw [runFrom_iterate_step_pure_step branchSystem κ 0
+      erw [runFrom_iterate_step_succ_of_handle_eq_pure branchSystem κ 0
         (by simp) (by simp) (by simp; rfl) (bState_update_0 κ)]
       erw [Machine.runFrom_pure]
       simp [Machine.closeProgram_pure]
