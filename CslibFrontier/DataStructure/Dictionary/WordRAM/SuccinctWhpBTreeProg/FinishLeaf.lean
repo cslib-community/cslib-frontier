@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSwarProg
 import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg.Helpers
+import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg.LocateHit
 import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg.SplitOps
 import CslibFrontier.Tactic.Realize
 
@@ -172,7 +173,6 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
   have hcnt_lt : cnt < 2 * tMinWhp n_max - 1 := by dsimp only [cnt]; omega
   have hr_le : r ≤ cnt :=
     swarRank_le_cntL hth hcnt_lt (hqhi.trans_lt hhi) (hcnt_eq_L ▸ hkw_cnt) (hcnt_eq_L ▸ hlanes)
-  have hoff := largeOffsetChain c U V w n_max
   unfold finishLeafInsertGenProg checkLeafHitGenProg checkLeafHitBody writeNodeOpProg
     wordInsertOpProg
   simp only [wp_large_wKey hth, wp_large_wVal hth, pure_bind]
@@ -253,10 +253,9 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
         BTreeSliceMemRep base c U V w n_max sIdx' sl₂ ((Memory.spec 0).clientState s P).mem) ∧
       (∀ a, a < base + offBtMeta c U V w n_max ∨ base + offTrieChild0 c U V w n_max ≤ a →
         ((Memory.spec 0).clientState s P).mem a = s.mem a) := by
-    obtain ⟨hwn_fr, _, hwn_vp, hwn_up, hwn_other, hwn_out⟩ :=
-      writeBTreeNodeGenProg_spec (nd := nd') henv hsIdx (hleaf_lt.trans_le hrep.1)
+    obtain ⟨hwn_fr, _, hwn_vp, hwn_rep, hwn_other, hwn_out⟩ :=
+      writeBTreeNodeGenProg_inPlace_sliceRep (nd' := nd') henv hsIdx hrep hleaf_lt
         hm'_lt hk'_lt hv'_lt (s := s)
-    dsimp only at hwn_fr hwn_vp hwn_up hwn_other hwn_out
     have hs'_wn : (Memory.spec 0).clientState s P = (Memory.spec 0).clientState s
         (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
           (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))) := by
@@ -266,7 +265,7 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       change (Memory.spec 0).clientState s (hitProg >>= _) = _
       rw [clientState_bind, hhit_st, htail_eq, htail_st]
     rw [hs'_wn]
-    refine ⟨hwn_fr, ?_, ?_, ?_, hwn_other, hwn_out⟩
+    refine ⟨hwn_fr, ?_, ?_, hfin_eq ▸ hwn_rep, hwn_other, hwn_out⟩
     · rw [hP, Realization.memoryCost_bind', hnd_st, hnd_mc, hnd_res,
         Realization.memoryCost_bind', clientState_swarRankGenProg,
         memoryCost_swarRankGenProg, clientResult_swarRankGenProg hth, hr_def]
@@ -280,16 +279,6 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       change ValidProg w _ s (hitProg >>= _)
       refine validProg_bind hhit_vp ?_
       simpa only [hhit_st, htail_eq] using htail_vp hwn_vp
-    · rw [hfin_eq]
-      have hbm_eq : ∀ i < 16 * numBucketsWhp n_max,
-          readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w
-            ((Memory.spec 0).clientState s
-              (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
-                (nd'.metaWord, (nd'.keysWord, nd'.valsWord))))).mem i =
-            readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem i :=
-        fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨_, ha2⟩ => hwn_out a (Or.inl (by omega))
-      exact ⟨hrep.1, (hbm_eq _ (by omega)).trans hrep.2.1,
-        (hbm_eq _ (by omega)).trans hrep.2.2.1, hwn_up sl hrep.1 fun v hv _ => hrep.2.2.2 v hv⟩
   have hvw0 : (sl.nodes leafIdx).valsWord < 2 ^ (cnt * valLaneBitsWhp n_max) :=
     hcnt_eq_L ▸ hv_leaf.2.2.2.2.1
   by_cases hhit : r < cnt ∧ laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r = q
