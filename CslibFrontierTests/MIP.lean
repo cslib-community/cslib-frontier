@@ -7,13 +7,23 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Complexity.Classes.IP.GraphNonIsomorphism
 import CslibFrontier.Computability.Complexity.Classes.IP.Shamir
 import CslibFrontier.Computability.Complexity.Classes.MIP
+import CslibFrontier.Computability.Complexity.Classes.MIP.LineTest
 
 /-! Multiprover interactive proofs (`MIP₂` and `MIP`), non-communicating provers, deterministic
-prover optimality, transcript consistency, the upper bound `MIP ⊆ NEXP`, and consistency checks for proof-oracle verifiers. -/
+prover optimality, transcript consistency, the upper bound `MIP ⊆ NEXP`,
+and consistency checks
+for proof-oracle verifiers. -/
 
 namespace CslibFrontierTests.MIP
 
 open Cslib Cslib.Complexity Cslib.Probability Turing.MultiTapeTM
+
+-- The degree-one reply for t ↦ t is read low coefficient first; the second node detects a lie.
+example : Cslib.Complexity.MIP.checkLineReply 5 1 (QBFProtocol.encodeReply 5 [0, 1]) [1, 2] := by
+  decide
+
+example : Cslib.Complexity.MIP.checkLineReply 5 1 (QBFProtocol.encodeReply 5 [0, 1]) [1, 0] =
+    false := by decide
 
 /-! ### Non-communicating provers and transcript consistency -/
 
@@ -133,7 +143,8 @@ example : acceptProb (Oracularize.round repeatQuery 2) (Prover.independent cheat
     tsum_fintype, Fin.sum_univ_succ]
   norm_num [div_eq_mul_inv, two_mul, Fin.sum_univ_succ]
 
-example : acceptProb (Oracularize.roundBits repeatQuery 2) (Prover.independent cheater) = 3 / 4 := by
+example :
+    acceptProb (Oracularize.roundBits repeatQuery 2) (Prover.independent cheater) = 3 / 4 := by
   rw [Oracularize.acceptProb_roundBits]
   change acceptProb (Oracularize.round repeatQuery 3) _ = _
   rw [Oracularize.round, acceptProb_sample_bind]

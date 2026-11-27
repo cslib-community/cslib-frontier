@@ -15,8 +15,8 @@ public import CslibFrontier.Computability.Complexity.Classes.IP.Repetition
 
 `Cslib.Complexity.sequentialRepeat` runs a verifier several times in sequence. Against a family of
 non-communicating provers (`Cslib.Complexity.Prover.independent`), the provers after any history
-are again an independent family, each restarted from its own state. A bound `ε` on the acceptance of one run
-against every independent family bounds `k` runs by `ε ^ k`
+are again an independent family, each restarted from its own state. A bound `ε` on the acceptance of
+one run against every independent family bounds `k` runs by `ε ^ k`
 (`Cslib.Complexity.acceptProb_sequentialRepeat_independent_le`), as for one prover in
 `CslibFrontier/Computability/Complexity/Classes/IP/Repetition.lean`.
 
@@ -40,7 +40,7 @@ theorem acceptProb_sequentialRepeat_independent_le {ι : Type} [DecidableEq ι]
     (h : ∀ P : ι → Prover Unit, acceptProb round (Prover.independent P) ≤ ε) (k : ℕ)
     (P : ι → Prover Unit) :
     acceptProb (sequentialRepeat k round) (Prover.independent P) ≤ ε ^ k :=
-  acceptProb_sequentialRepeat_le_of_forall_init _ (fun s =>
+  acceptProb_sequentialRepeat_le_of_forall_init (Prover.independent P) (fun s =>
     h (fun i => { P i with init := s i })) k
 
 end Cslib.Complexity

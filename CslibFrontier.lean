@@ -3910,6 +3910,7 @@ public import CslibFrontier.Foundations.Combinatorics.SetFamily.RayChaudhuriWils
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandMemory
 public import CslibFrontier.Computability.LogSpaceDerandomization.InitialPilotCorrectionMean
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Seeded
+public import CslibFrontier.Computability.Complexity.Classes.MIP.CorrectionHonest
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree
 public import CslibFrontier.Logics.Propositional.Algebraic.SumOfSquares.Pigeonhole
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposition.Subtree
@@ -4911,6 +4912,7 @@ public import CslibFrontier.Computability.Automata.MPDA.EmptinessComplete
 public import CslibFrontier.Foundations.Data.Polynomial.FiniteDifference
 public import CslibFrontier.Foundations.Combinatorics.FiniteCover.Basic
 public import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
+public import CslibFrontier.Computability.Complexity.Classes.MIP.LineTest
 public import CslibFrontier.Foundations.Combinatorics.BinomialTail
 public import CslibFrontier.Algorithms.WordRAM.Arborescence.Internal.ContractSpec
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute
@@ -10344,6 +10346,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.LinearMeasurements
 public import CslibFrontier.Computability.Complexity.Classes.PP.Oracle
 public import CslibFrontier.Crypto.Computational.Lattice.MR07Shorten
 public import CslibFrontier.Computability.Communication.Newman
+public import CslibFrontier.Computability.Complexity.Classes.MIP.AxisTest
 public import CslibFrontier.Languages.SQL.Row
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Pi
 public import CslibFrontier.Foundations.Data.MvPolynomial.SetPartitioned
