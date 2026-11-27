@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPowerSection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeCoefficient
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeValue
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
@@ -23,9 +24,11 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEv
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DegreePieceSeparation
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.RelativeValueSection
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -729,5 +732,51 @@ example (P : MvPolynomial (Fin (2 + 1)) ℤ) (a : ℕ)
     (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate ∈
       CountingFunction a (encEvaluation encBits) encNat :=
   (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate_mem
+
+-- The penalty becomes a power of the value, and the parameter retains its own coordinate.
+example :
+    let P : MvPolynomial (Fin (1 + 2)) ℤ := X (Fin.succ 0) + X (Fin.succ (Fin.succ 0))
+    eval₂ (RingHom.id ℤ) (Fin.cons 2 (fun _ => 5)) (MvPolynomial.powerSection 3 P) = 13 := by
+  intro P
+  rw [eval₂_powerSection]
+  simp only [P, eval₂_add, eval₂_X, Fin.cons_succ, Fin.cons_zero]
+  norm_num
+
+-- Taking the fixed-power section of a relative family drops an arity slot at the same level.
+example (P : MvPolynomial (Fin (1 + 1)) ℤ)
+    (C : Controlled (fun _ : ℕ => P) encNat 0) :
+    let Q : Controlled (n := fun _ => 2) _ encNat 10 :=
+      C.relativeValueSection (n := fun _ => 1) (m := fun _ => 1) Decoder.nat (.const 1) (.const 1)
+    Q.evaluate ∈ CountingFunction 10 (encEvaluation encNat) encNat := by
+  intro Q
+  exact Q.evaluate_mem
+
+-- The degree-two coefficient survives specialization to a finite field, including at zero.
+example (x : ZMod 7) :
+    let F : MvPolynomial (Fin (1 + 1)) ℤ := X 1 ^ 2
+    let hF : F.totalDegree ≤ 2 := (totalDegree_pow _ _).trans (by simp)
+    let Q := specializedRelativeValueSection (ell := 2) (n := 1) (m := 1) (by decide)
+      F hF (fun _ => x)
+    Q.coeff 2 = 1 ∧ Q ≠ 0 := by
+  intro F hF Q
+  exact ⟨coeff_specializedRelativeValueSection _ F hF _, specializedRelativeValueSection_ne_zero
+    _ F hF _⟩
+
+-- The test x * v vanishes only at v = 0 and has both eventual signs as x varies.
+example : IsClopen {x : {x : ℝ // x ≠ 0} | 0 < x.val} := by
+  let P : {x : ℝ // x ≠ 0} → Polynomial ℝ := fun _ => Polynomial.X
+  refine Polynomial.eventualSign_isClopen_of_fixed_degree P 1
+    (fun _ => continuous_const) (fun _ => by simp [P]) (fun _ => by simp [P])
+    (fun x v => x.val * v) ((continuous_subtype_val.comp continuous_fst).mul continuous_snd)
+    (fun x => 0 < x.val) ?_ ?_ ?_
+  · intro x v hz
+    have hv : v = 0 := (mul_eq_zero.mp hz).resolve_left x.property
+    simp [P, hv]
+  · intro x hx
+    filter_upwards [Filter.eventually_gt_atTop (0 : ℝ)] with v hv
+    exact mul_pos hx hv
+  · intro x hx
+    filter_upwards [Filter.eventually_gt_atTop (0 : ℝ)] with v hv
+    exact mul_neg_of_neg_of_pos (lt_of_le_of_ne (le_of_not_gt hx) x.property) hv
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

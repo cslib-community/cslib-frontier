@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffNorm1
 public import CslibFrontier.Foundations.Data.MvPolynomial.CriticalSystem
+public import CslibFrontier.Foundations.Data.MvPolynomial.PowerSection
 public import CslibFrontier.Foundations.Data.MvPolynomial.Substitution
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
 public import Mathlib.Algebra.MvPolynomial.Equiv
@@ -32,6 +33,8 @@ The relative construction retains a whole parameter block in the coefficients, s
 specialization gives the critical-value polynomial for an individual witness fiber.
 Evaluation of the flattened relative polynomial agrees with evaluation in that fiber.
 `finiteRelativeValuePolynomial` orders the variables for evaluation from coordinate lists.
+Its fixed-power section `finiteRelativeValueSection` substitutes a power of the critical value
+for the penalty.
 The lower relations and deformed objective have parameter degree at most the source degree
 plus one in each coefficient of the witness variables.
 
@@ -284,6 +287,30 @@ theorem eval₂_flattenedRelativeValuePolynomial (hell : 1 ≤ ell)
       ((totalDegree_map_le _ _).trans ((totalDegree_sumRingEquiv_le F).trans hF))).eval y := by
   rw [flattenedRelativeValuePolynomial, eval₂_optionEquivLeft_symm, ← Polynomial.eval_map,
     relativeValuePolynomial_map]
+
+/-- Substitute the critical value to the power of the witness quotient dimension plus one
+for the penalty in the relative critical-value polynomial. The parameters remain in order. -/
+@[expose] noncomputable def finiteRelativeValueSection {m : ℕ} (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) :
+    MvPolynomial (Fin (m + 1)) ℤ :=
+  powerSection (ell ^ n + 1) (finiteRelativeValuePolynomial hell F hF)
+
+/-- Evaluating the fixed-power section gives the characteristic polynomial of the specialized
+fiber evaluated at the chosen critical value, with the penalty set to the prescribed power. -/
+theorem eval₂_finiteRelativeValueSection {m : ℕ} (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (y : T) (x : Fin m → T) :
+    eval₂ (Int.castRingHom T) (Fin.cons y x) (finiteRelativeValueSection hell F hF) =
+    (valuePolynomial hell (fun _ => 0) (y ^ (ell ^ n + 1))
+      ((sumRingEquiv ℤ (Fin n) (Fin m) (rename finSumFinEquiv.symm F)).map
+        (eval₂Hom (Int.castRingHom T) x))
+      ((totalDegree_map_le _ _).trans ((totalDegree_sumRingEquiv_le _).trans
+        ((totalDegree_rename_le _ _).trans hF)))).eval y := by
+  rw [finiteRelativeValueSection, eval₂_powerSection, finiteRelativeValuePolynomial, eval₂_rename]
+  refine Eq.trans ?_ (eval₂_flattenedRelativeValuePolynomial hell (rename finSumFinEquiv.symm F)
+    ((totalDegree_rename_le _ _).trans hF) y (y ^ (ell ^ n + 1)) x)
+  congr 2
+  funext i
+  rcases i with _ | (_ | i) <;> rfl
 
 end Relative
 

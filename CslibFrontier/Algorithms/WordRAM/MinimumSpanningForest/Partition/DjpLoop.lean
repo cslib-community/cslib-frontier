@@ -619,7 +619,8 @@ private structure DjpS3State
     remDeg n L.offBase s.mem
       (Finset.univ.filter (fun x : Fin n => dead0 x.val ≠ 0) ∪ W.D.treeVerts W.D.numSteps)
 
-private theorem holdsIndexedEdges_append {n : ℕ} {base : ℕ} {xs ys : List (IndexedEdge n)}
+/-- Appends two contiguous stride-4 `HoldsIndexedEdges` regions. -/
+theorem holdsIndexedEdges_append {n : ℕ} {base : ℕ} {xs ys : List (IndexedEdge n)}
     {mem : ℕ → ℕ} (hx : HoldsIndexedEdges base xs mem)
     (hy : HoldsIndexedEdges (base + 4 * xs.length) ys mem) :
     HoldsIndexedEdges base (xs ++ ys) mem := by

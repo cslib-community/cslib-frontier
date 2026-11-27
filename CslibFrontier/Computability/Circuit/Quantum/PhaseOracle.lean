@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Computability.Circuit.Quantum.Controlled
 public import CslibFrontier.Computability.Circuit.Quantum.GateMatrix
+public import CslibFrontier.Computability.Circuit.Quantum.Uniform
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
 /-!
 # Phase oracles and the reflection about zero
@@ -19,7 +22,9 @@ negate the amplitudes of the basis strings with bit `t` set
 (`Cslib.Quantum.Circuit.eval_ofCodes_zCodes`). Computing a bit with classical codes, flipping its
 phase and uncomputing gives the **phase oracle** of the computation
 (`Cslib.Quantum.Circuit.eval_ofCodes_phaseOracleCodes`): the amplitude of `|y⟩` is negated when
-the computed bit is one, and nothing else changes.
+the computed bit is one, and nothing else changes. For arbitrary quantum codes, the amplitude of
+returning to the input after this construction on the output qubit is one minus twice the original
+acceptance probability (`Cslib.Quantum.Circuit.run_phaseOracleCodes_input`).
 
 Toffoli gates compute the AND of any number of qubits into a qubit, given zeroed scratch qubits
 (`Cslib.Quantum.GateCode.readBit_classicalRun_andCodes`). After NOT gates on the inputs they test
@@ -105,8 +110,8 @@ namespace GateCode
 theorem wellFormed_zCodes {t : ℕ} (ht : t < m) : ∀ g ∈ zCodes t, WellFormed m g := by
   simp [zCodes, WellFormed, ht]
 
-/-- Classical codes, the phase flip on qubit `t`, and the codes run backwards: the **phase oracle**
-of bit `t` of `classicalRun gs`. -/
+/-- Apply the circuit, flip the phase on qubit `t`, then uncompute. For classical codes this is
+the phase oracle of bit `t` of `classicalRun gs`. -/
 @[expose] def phaseOracleCodes (gs : List GateCode) (t : ℕ) : List GateCode :=
   gs ++ zCodes t ++ gs.reverse
 
@@ -135,6 +140,43 @@ theorem eval_ofCodes_phaseOracleCodes {gs : List GateCode} (h : IsClassical m gs
   rw [phaseOracleCodes, ofCodes_append, ofCodes_append, eval_append, eval_append,
     eval_ofCodes_apply h.reverse, classicalUnrun_reverse, eval_ofCodes_zCodes ht,
     eval_ofCodes_apply h, classicalUnrun_classicalRun h]
+
+/-- The amplitude of returning to the initial basis state after applying a circuit, flipping the
+phase of its accepting subspace, and running it backwards is its rejection probability minus its
+acceptance probability. This also applies when the circuit prepares a superposition. -/
+theorem run_phaseOracleCodes_input {gs : List GateCode} (hgs : ∀ g ∈ gs, WellFormed m g)
+    (hm : 0 < m) (x : List Bool) :
+    (run (ofCodes m (phaseOracleCodes gs 0)) (inputState m x)).ofLp (inputState m x) =
+      1 - 2 * (acceptProb m gs x : ℂ) := by
+  let X := inputState m x
+  let ψ := run (ofCodes m gs) X
+  have hnorm : ‖ψ‖ = 1 := norm_run _ _
+  have hinner : inner ℂ ψ (eval (ofCodes m (zCodes 0)) ψ) =
+      (measureProb ψ (accepting m)ᶜ : ℂ) - measureProb ψ (accepting m) := by
+    rw [EuclideanSpace.inner_eq_star_dotProduct, dotProduct,
+      ← Finset.sum_add_sum_compl (accepting m)]
+    simp only [measureProb, Complex.ofReal_sum, Pi.star_apply]
+    have hsummand (y : Fin m → Bool) :
+        (eval (ofCodes m (zCodes 0)) ψ).ofLp y * star (ψ.ofLp y) =
+          if y ∈ accepting m then -(‖ψ.ofLp y‖ ^ 2 : ℝ) else (‖ψ.ofLp y‖ ^ 2 : ℝ) := by
+      simp only [eval_ofCodes_zCodes hm, readBit_of_lt _ hm, mem_accepting hm]
+      split_ifs <;> simp_all [Complex.sq_norm, ← Complex.mul_conj]
+    simp only [hsummand, apply_ite Complex.ofReal, Complex.ofReal_neg]
+    rw [Finset.sum_congr rfl (fun y hy => ite_eq_left hy),
+      Finset.sum_congr rfl (fun y hy => ite_eq_right (Finset.mem_compl.mp hy)),
+      Finset.sum_neg_distrib]
+    ring
+  change (eval (ofCodes m (phaseOracleCodes gs 0)) (ket X)).ofLp X = _
+  rw [show ∀ φ : Qubits m, φ.ofLp X = inner ℂ (ket X) φ by
+    intro φ
+    simp [ket, EuclideanSpace.inner_single_left]]
+  rw [phaseOracleCodes, ofCodes_append, ofCodes_append, eval_append, eval_append,
+    ← (eval (ofCodes m gs)).inner_map_map, eval_ofCodes_of_reverse hgs]
+  change inner ℂ ψ (eval (ofCodes m (zCodes 0)) ψ) = _
+  rw [hinner, measureProb_compl, hnorm, one_pow]
+  change (((1 - measureProb ψ (accepting m) : ℝ) : ℂ) - _ = 1 - 2 * (measureProb ψ _ : ℂ))
+  push_cast
+  ring
 
 end Circuit
 
@@ -211,6 +253,31 @@ theorem readBit_classicalRun_andCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ 
 `cs` are zero. -/
 @[expose] def zeroTestCodes (cs : List ℕ) (w : ℕ) : List GateCode :=
   cs.map (fun c => (false, c, [])) ++ andCodes cs w
+
+private theorem andCodes_eq_zipIdx (cs : List ℕ) (w : ℕ) :
+    andCodes cs w = (false, w + cs.length, []) ::
+      ((cs.zipIdx w).map (fun p => (false, p.2, [p.1, p.2 + 1]))).reverse := by
+  induction cs generalizing w with
+  | nil => simp [andCodes]
+  | cons c cs ih =>
+    rw [andCodes, ih]
+    simp only [List.length_cons, List.zipIdx_cons, List.map_cons, List.reverse_cons,
+      List.cons_append, List.cons.injEq, and_true]
+    congr 2
+    omega
+
+open Turing.MultiTapeTM in
+/-- A polynomial-time generator of control indices and a scratch base gives a polynomial-time
+generator of the elementary gates testing those controls for zero. -/
+@[fun_prop] theorem computableInPolyTime_zeroTestCodes {α : Type} {enc : α ↪ List Bool}
+    {cs : α → List ℕ} {w : α → ℕ} (hcs : ComputableInPolyTime cs enc (encList encUnary))
+    (hw : ComputableInPolyTime w enc encUnary) :
+    ComputableInPolyTime (fun a => zeroTestCodes (cs a) (w a)) enc (encList encGateCode) := by
+  have hz : ComputableInPolyTime (fun a => (cs a).zipIdx) enc
+      (encList (encPair encUnary encUnary)) := (ComputableInPolyTime.zipIdx encUnary).comp hcs
+  simp only [zeroTestCodes, andCodes_eq_zipIdx, List.zipIdx_eq_map_add (i := w _), List.map_map,
+    Function.comp_def]
+  fun_prop
 
 theorem isClassical_zeroTestCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ cs, c < w)
     (hw : w + cs.length < m) : IsClassical m (zeroTestCodes cs w) := by

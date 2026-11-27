@@ -34,7 +34,7 @@ Containments, separations, closure properties, complete problems and reductions 
 - **Robust catalytic extensions** ([#2521](https://github.com/cslib-community/cslib-frontier/issues/2521)): the Koucký–Mertz–Sami [robust catalytic extensions](https://arxiv.org/abs/2605.09648) beyond KMPS.
   Their broader collapse is conditional on an explicit circuit-hardness assumption, and their resetting-error and time regimes are kept distinct from the unconditional KMPS results.
 - **Classical randomized-space proof reuse** ([#7602](https://github.com/cslib-community/cslib-frontier/issues/7602)): derive `NSPACE_subset_DSPACE_sq` and `RL ⊆ NL ⊆ DSPACE(log² n)` through the space calculus's midpoint recursion rule, replacing the hand-built Savitch stack machines while preserving encodings and workspace bounds.
-- **Further classical randomized logspace** ([#459](https://github.com/cslib-community/cslib-frontier/issues/459)): two-sided `BPL` amplification, the random-walk proof of `USTCON ∈ RL`, and Saks–Zhou's `BPL ⊆ DSPACE(log^{3/2} n)`.
+- **Further classical randomized logspace** ([#459](https://github.com/cslib-community/cslib-frontier/issues/459)): two-sided `BPL` amplification and the random-walk proof of `USTCON ∈ RL`.
 - **Reingold:** a symmetric-machine model of SL, and the edge-list encoding of USTCON by a logspace reduction.
 - **Cook–Mertz Tree Evaluation refinements** ([#2855](https://github.com/cslib-community/cslib-frontier/issues/2855)): Cook–Mertz malformed-input handling for Tree Evaluation and the refined `O(ℓ + H log(ℓ + 2))` space bound.
 - **Time–space lower bounds for nondeterministic linear time** ([#2896](https://github.com/cslib-community/cslib-frontier/issues/2896)): the Arora–Barak bound `NTIME(n) ⊄ TISP(n^1.2, n^0.2)` by virtual padding and the Lipton–Viglas `n^(√2 − ε)` form, from the speedup and slowdown lemmas for `TISP` and `Σ₂TIME`.
@@ -89,7 +89,7 @@ Containments, separations, closure properties, complete problems and reductions 
   The endpoint is the cross-examination protocol for encoded machines, with prover time, verifier time and verifier query bounds, under a Lipschitz hypothesis whose exact form is settled in the issue.
   Correctness for a prefix-indexed step law alone leaves it open.
   Then prover-estimator debate (arXiv:2506.13609).
-- **Statistical zero knowledge** ([#3205](https://github.com/cslib-community/cslib-frontier/issues/3205)): interactive honest-verifier and general SZK with simulators and equivalence with `PromiseSZK`, giving `SD` membership and completeness in the interactive sense, Entropy Difference (Goldreich–Vadhan), closure under complement (Okamoto), and `SZK ⊆ AM ∩ coAM` (Fortnow; Aiello–Håstad).
+- **Statistical zero knowledge** ([#3205](https://github.com/cslib-community/cslib-frontier/issues/3205)): interactive honest-verifier and general SZK with simulators and equivalence with `PromiseSZK`, giving `SD` membership and completeness in the interactive sense, Entropy Difference (Goldreich–Vadhan), and closure under complement (Okamoto). The `SZK ⊆ AM ∩ coAM` inclusions use the Statistical Difference definition.
   Instances are pairs of De Morgan circuits, with general pairs padded to common input and output counts.
 
 ### Descriptive complexity and first-order reductions

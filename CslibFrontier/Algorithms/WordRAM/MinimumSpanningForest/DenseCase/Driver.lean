@@ -71,27 +71,6 @@ open Cslib.Query.MinimumSpanningForest
 
 /-! ## Private Combinatorial Helpers -/
 
-private theorem nonisolated_le_two_mul_edges {n : ℕ} {es : List (IndexedEdge n)}
-    (hnoniso : ∀ y : Fin n, ∃ e ∈ es, e.u = y ∨ e.v = y) :
-    n ≤ 2 * es.length := by
-  classical
-  have hmem : ∀ y : Fin n, ∃ p : Fin es.length × Bool,
-      (if p.2 then es[p.1.val].u else es[p.1.val].v) = y := by
-    intro y
-    obtain ⟨e, he, hy⟩ := hnoniso y
-    obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp he
-    rcases hy with h | h
-    · exact ⟨(⟨i, hi⟩, true), h⟩
-    · exact ⟨(⟨i, hi⟩, false), h⟩
-  choose f hf using hmem
-  have hinj : Function.Injective f := fun y₁ y₂ heq => by
-    have h1 := hf y₁
-    rw [heq] at h1
-    exact h1.symm.trans (hf y₂)
-  calc n = Fintype.card (Fin n) := (Fintype.card_fin n).symm
-    _ ≤ Fintype.card (Fin es.length × Bool) := Fintype.card_le_of_injective f hinj
-    _ = 2 * es.length := by simp [Fintype.card_prod, Fintype.card_fin, mul_comm]
-
 private theorem empty_FinZero_isMinSpanningForest (es : List (WeightedEdge 0 ℕ)) :
     es = [] ∧ IsMinSpanningForest es ([] : List (WeightedEdge 0 ℕ)) := by
   have hes_nil : es = [] := by
@@ -1166,7 +1145,7 @@ private theorem densePhaseLoopProg_spec {w n₁ edge₁ mRef : ℕ}
   have hfit_alloc : Fits w selEnd := hfit.of_le (by omega)
   have hwf₁ : Memory.WellFormed w s₁ := ⟨hfit_alloc, hwf.mem_fits⟩
   have hin₁' : HoldsIndexedEdges edge₁ es₁ s₁.mem := hin₁
-  have hn1_le_2m : n₁ ≤ 2 * es₁.length := nonisolated_le_two_mul_edges hnoniso₁
+  have hn1_le_2m : n₁ ≤ 2 * es₁.length := card_le_two_mul_of_noIsolated hnoniso₁
   let guard : DensePhaseEnv → DenseLoopState → Prop := fun _ st => 0 < st.numVertices
   let env : DensePhaseEnv := ⟨mRef, selBase, selEnd⟩
   let st₀ : DenseLoopState := ⟨n₁, es₁.length, edge₁, 0⟩
@@ -1294,7 +1273,7 @@ private theorem densePhaseLoop_safe_and_work {w n₁ edge₁ mRef : ℕ}
   let s₁ : Memory.State := ⟨s.mem, selEnd⟩
   have hfit_alloc : Fits w selEnd := hfit.of_le (by omega)
   have hwf₁ : Memory.WellFormed w s₁ := ⟨hfit_alloc, hwf.mem_fits⟩
-  have hn1_le_2m : n₁ ≤ 2 * es₁.length := nonisolated_le_two_mul_edges hnoniso₁
+  have hn1_le_2m : n₁ ≤ 2 * es₁.length := card_le_two_mul_of_noIsolated hnoniso₁
   let env : DensePhaseEnv := ⟨mRef, selBase, selEnd⟩
   let st₀ : DenseLoopState := ⟨n₁, es₁.length, edge₁, 0⟩
   have hinv₀ : denseLoopInv (w := w) (mRef := mRef) (selBase := selBase) (selEnd := selEnd)

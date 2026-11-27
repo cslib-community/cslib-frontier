@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.Exponents
 public import CslibFrontier.Computability.Complexity.FineGrained.FunctionRates
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Closed
 public import CslibFrontier.Probability.BitString
+import CslibFrontier.Computability.Complexity.AcceptCount.Majority
 import CslibFrontier.Computability.Complexity.Classes.Promise.Probabilistic
 import CslibFrontier.Computability.Complexity.Classes.Time.SampleVerify
 import CslibFrontier.Computability.Complexity.FineGrained.Bounds
@@ -31,7 +32,6 @@ import CslibFrontier.Foundations.Data.BitString.List
 import CslibFrontier.Foundations.Data.BitString.WordCount
 import CslibFrontier.Foundations.Data.List.OfFn
 import CslibFrontier.Foundations.Data.Nat.Power
-import CslibFrontier.Probability.MajorityVote
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -89,6 +89,8 @@ promise-problem runtime bounds:
   `Cslib.Complexity.solvesWithErrorInTimeO_oneSidedRP_iff`,
   `Cslib.Complexity.SolvesWithErrorInTimeO.oneSidedRP_to_twoSided`: rate-preserving threshold
   invariance.
+* `Cslib.Complexity.computableInO_amplifySeededMajority`: a seed-length certificate, verifier
+  clock, and pointwise error bound for input-dependent repetition.
 * `Cslib.Complexity.SolvesWithErrorInTimeO.of_promiseReduction`: preserve the error profile
   along a deterministic promise reduction, including the cost of the reduced encoded input.
 * `Cslib.Complexity.rSatExponent_le_rpSatExponent`,
@@ -1144,63 +1146,32 @@ theorem SolvesWithErrorInTimeO.amplify_twoSided {Q : PromiseProblem α} {T : α 
   have hbase_nn : 0 ≤ 4 * ε₁ * (1 - ε₁) := mul_nonneg (by linarith) (by linarith)
   obtain ⟨r, hr⟩ := ((tendsto_pow_atTop_nhds_zero_of_lt_one hbase_nn hbase_lt).eventually
     (gt_mem_nhds h0₂)).exists
-  have hmaj (ℓ : α → ℕ) (a : α) (G : Finset (Fin (ℓ a) → Bool))
-      (hG : (1 - ε₁) * (2 : ℝ) ^ ℓ a ≤ G.card) :
-      ((Finset.univ.filter fun ω : Fin (2 * r) → (Fin (ℓ a) → Bool) =>
-        (Finset.univ.filter fun i => ω i ∈ G).card ≤ r).card : ℝ) ≤
-        ε₂ * (2 : ℝ) ^ ((2 * r) * ℓ a) := by
-    have hcard : (Fintype.card (Fin (ℓ a) → Bool) : ℝ) = (2 : ℝ) ^ ℓ a := by simp
-    have hmom := card_filter_card_filter_le_of_err_lt_half G h0₁ h1₁ (hcard ▸ hG) r
-    rw [hcard, ← pow_mul, mul_comm (ℓ a)] at hmom
-    exact hmom.trans (mul_le_mul_of_nonneg_right hr.le (by positivity))
+  have hmajority (ℓ : α → ℕ) (V : α × List Bool → Bool) (a : α) (truth : Bool)
+      (herror : (acceptCount (fun p => V p != truth) a (ℓ a) : ℝ) ≤ ε₁ * (2 : ℝ) ^ ℓ a) :
+      (acceptCount (fun p => BitString.listStrictMajority (collectVotesConst (2 * r) ℓ V p)
+        != truth) a ((2 * r) * ℓ a) : ℝ) ≤ ε₂ * (2 : ℝ) ^ ((2 * r) * ℓ a) := by
+    let k := 2 * r
+    have hcount :
+        acceptCount (fun p => BitString.listStrictMajority (collectVotesConst k ℓ V p) != truth)
+          a (k * ℓ a) =
+        acceptCount (fun p =>
+          BitString.listStrictMajority ((BitString.listRows k (ℓ a) p.2).map
+            fun w => V (p.1, w)) != truth) a (k * ℓ a) := by
+      unfold acceptCount
+      congr 1
+      exact Finset.filter_congr fun x _ => by
+        dsimp only [Prod.fst, Prod.snd]
+        rw [collectVotesConst_eq_map_listRows k ℓ V a (List.ofFn x) List.length_ofFn]
+    rw [hcount]
+    exact (acceptCount_listStrictMajority_ne_le V a (ℓ a) r truth h0₁ h1₁ herror).trans
+      (mul_le_mul_of_nonneg_right hr.le (by positivity))
   refine solvesWithErrorInTimeO_aggVotesConst hT h (2 * r)
-    (fun votes => decide (r < votes.countP id)) (by fun_prop)
+    BitString.listStrictMajority ComputableInPolyTime.bitsStrictMajority
     (fun ℓ V a hy => ?_) (fun ℓ V a hn => ?_)
-  · let G : Finset (Fin (ℓ a) → Bool) := Finset.univ.filter fun u => V (a, List.ofFn u) = true
-    have hG : (1 - ε₁) * (2 : ℝ) ^ ℓ a ≤ G.card := by
-      have hsum : (G.card : ℝ) + acceptCount (fun q => !V q) a (ℓ a) = (2 : ℝ) ^ ℓ a := by
-        exact_mod_cast acceptCount_add_acceptCount_not V a (ℓ a)
-      linarith [show (acceptCount (fun q => !V q) a (ℓ a) : ℝ) ≤ ε₁ * 2 ^ ℓ a from hy]
-    have hbad_eq : acceptCount
-        (fun q => !decide (r < (collectVotesConst (2 * r) ℓ V q).countP id))
-        a ((2 * r) * ℓ a) =
-        (Finset.univ.filter fun ω : Fin (2 * r) → (Fin (ℓ a) → Bool) =>
-          (Finset.univ.filter fun i => ω i ∈ G).card ≤ r).card := by
-      rw [acceptCount]
-      refine Finset.card_equiv BitString.blocksEquiv fun x => ?_
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, collectVotesConst_ofFn,
-        List.countP_ofFn, id_eq, Bool.not_eq_true', decide_eq_false_iff_not, not_lt,
-        BitString.blocksEquiv_apply, G]
-    rw [hbad_eq]
-    exact hmaj ℓ a G hG
-  · let G : Finset (Fin (ℓ a) → Bool) := Finset.univ.filter fun u => V (a, List.ofFn u) = false
-    have hG : (1 - ε₁) * (2 : ℝ) ^ ℓ a ≤ G.card := by
-      have hsum : (acceptCount V a (ℓ a) : ℝ) + G.card = (2 : ℝ) ^ ℓ a := by
-        exact_mod_cast acceptCount_add_card_filter_eq_false (V := V) (a := a) (n := ℓ a)
-      linarith [show (acceptCount V a (ℓ a) : ℝ) ≤ ε₁ * 2 ^ ℓ a from hn]
-    have hbad_le : acceptCount
-        (fun q => decide (r < (collectVotesConst (2 * r) ℓ V q).countP id))
-        a ((2 * r) * ℓ a) ≤
-        (Finset.univ.filter fun ω : Fin (2 * r) → (Fin (ℓ a) → Bool) =>
-          (Finset.univ.filter fun i => ω i ∈ G).card ≤ r).card := by
-      rw [acceptCount, ← Finset.card_map BitString.blocksEquiv.toEmbedding]
-      refine Finset.card_le_card fun ω hω => ?_
-      obtain ⟨x, hx, rfl⟩ := Finset.mem_map.mp hω
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, collectVotesConst_ofFn,
-        List.countP_ofFn, id_eq, decide_eq_true_eq] at hx
-      refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
-      have hpart := Finset.card_filter_add_card_filter_not
-        (s := (Finset.univ : Finset (Fin (2 * r))))
-        fun i => V (a, List.ofFn (BitString.block x i)) = true
-      simp only [Bool.not_eq_true, Finset.card_univ, Fintype.card_fin] at hpart
-      have hG_card : (Finset.univ.filter
-          fun i : Fin (2 * r) => BitString.blocksEquiv.toEmbedding x i ∈ G).card =
-          (Finset.univ.filter fun i : Fin (2 * r) =>
-            V (a, List.ofFn (BitString.block x i)) = false).card :=
-        congrArg Finset.card (Finset.filter_congr fun i _ => by simp [G])
-      rw [hG_card]
-      omega
-    exact (by exact_mod_cast hbad_le : (acceptCount _ _ _ : ℝ) ≤ _).trans (hmaj ℓ a G hG)
+  · simpa only [Bool.bne_true, ErrorModel.twoSided] using hmajority ℓ V a true
+      (by simpa only [Bool.bne_true, ErrorModel.twoSided] using hy)
+  · simpa only [Bool.bne_false, ErrorModel.twoSided] using hmajority ℓ V a false
+      (by simpa only [Bool.bne_false, ErrorModel.twoSided] using hn)
 
 /-- **Two-sided threshold invariance.** Any two error bounds `ε₁, ε₂ ∈ (0, 1 / 2)` yield the exact
 same `SolvesWithErrorInTimeO` predicate (for `0 ≤ T a`). -/
@@ -1306,6 +1277,63 @@ theorem solvesWithErrorInExpTime_oneSidedRP_iff {Q : PromiseProblem α} {μ : α
       SolvesWithErrorInExpTime Q enc (ErrorModel.oneSidedRP ε₂ h0₂.le h1₂) μ δ :=
   exists_congr fun _ => solvesWithErrorInTimeO_oneSidedRP_iff (fun _ => by positivity)
     h0₁ h1₁ h0₂ h1₂
+
+/-! ### Input-dependent seeded amplification -/
+
+/-- Certify the seed length and verifier for strict majority of `2 * r a` independent
+runs. The unary repetition schedule and seed width depend on the instance alone. The verifier
+clock needs a bound only on seeds of the original width. For either expected answer, the
+fraction of wrong amplified answers is at most `(4 * ε * (1 - ε)) ^ r a` whenever a single run
+errs with probability at most `ε < 1 / 2`. -/
+theorem computableInO_amplifySeededMajority {ℓ r : α → ℕ} {V : α × List Bool → Bool}
+    {Tℓ Sℓ Tr Sr R : α → ℕ} {Tv Sv : α × List Bool → ℕ}
+    (hℓ : ComputableInO ℓ enc encUnary Tℓ Sℓ)
+    (hr : ComputableInO r enc encUnary Tr Sr)
+    (hV : ComputableInO V (encPair enc encBits) encBool Tv Sv)
+    (hR : ∀ a w, w.length = ℓ a → Tv (a, w) ≤ R a) :
+    let amplified (p : α × List Bool) :=
+      BitString.listStrictMajority (repeatVotes (2 * r p.1) (ℓ p.1) V p)
+    ∃ d e f Sseed Sverify,
+      ComputableInO (fun a => (2 * r a) * ℓ a) enc encUnary
+        (fun a => (enc a).length + 2 * Tr a + Tℓ a + (4 * r a + ℓ a + 2) ^ d) Sseed ∧
+      ComputableInO amplified (encPair enc encBits) encBool
+        (fun p => (2 * r p.1 + 1) *
+          ((4 * (encPair enc encBits p).length + 2 * Tr p.1 + Tℓ p.1 + 1) ^ e + R p.1) +
+          (2 * r p.1 + 1) ^ f) Sverify ∧
+      ∀ a truth {ε : ℝ}, 0 ≤ ε → ε < 1 / 2 →
+        (acceptCount (fun p => V p != truth) a (ℓ a) : ℝ) ≤ ε * (2 : ℝ) ^ ℓ a →
+        (acceptCount (fun p => amplified p != truth) a ((2 * r a) * ℓ a) : ℝ) ≤
+          (4 * ε * (1 - ε)) ^ r a * (2 : ℝ) ^ ((2 * r a) * ℓ a) := by
+  obtain ⟨T₂, S₂, h₂, hT₂⟩ := computableInO_const_mul_unary 2 hr
+  have h₂ : ComputableInO (fun a => 2 * r a) enc encUnary
+      (fun a => (enc a).length + 2 * Tr a) S₂ :=
+    (funext hT₂) ▸ h₂
+  obtain ⟨d, _, hmul⟩ := ComputableInPolyTime.unary_mul.exists_degree
+  have hseed := hmul.inO.comp (h₂.prod hℓ)
+  have hfst := ComputableInO.fst enc encBits
+  obtain ⟨e, _, hvotes⟩ := computableInO_repeatVotes hV (h₂.comp hfst) (hℓ.comp hfst)
+    (fun p w hw => hR p.1 w hw)
+  obtain ⟨f, _, hmajority⟩ := ComputableInPolyTime.bitsStrictMajority.exists_degree
+  have hsize (a : α) :
+      (encPair encUnary encUnary (2 * r a, ℓ a)).length + 1 = 4 * r a + ℓ a + 2 := by
+    simp only [length_encPair, encUnary_apply, List.length_replicate]
+    omega
+  simp only [hsize] at hseed
+  have hcert := hmajority.inO.comp hvotes
+  refine ⟨d, e, f, _, _, hseed, hcert.mono_time 1 (fun p => ?_), ?_⟩
+  · have hlen := length_le_encPair_left enc encBits p
+    have hsetup :
+        (encPair enc encBits p).length +
+              ((encPair enc encBits p).length + ((enc p.1).length + 2 * Tr p.1)) +
+              ((encPair enc encBits p).length + Tℓ p.1) + 1 ≤
+            4 * (encPair enc encBits p).length + 2 * Tr p.1 + Tℓ p.1 + 1 := by omega
+    have hclock := Nat.mul_le_mul_left (2 * r p.1 + 1)
+      (Nat.add_le_add_right (Nat.pow_le_pow_left hsetup e) (R p.1))
+    simp only [Function.comp_def, encBits, Function.Embedding.refl_apply, length_repeatVotes,
+      Nat.one_mul]
+    exact (Nat.add_le_add_right hclock _).trans (Nat.le_succ _)
+  · intro a truth ε hε0 hε1 herr
+    exact acceptCount_listStrictMajority_ne_le V a (ℓ a) (r a) truth hε0 hε1 herr
 
 end RandomizedPromise
 
