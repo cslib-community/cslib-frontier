@@ -151,17 +151,21 @@ theorem state_succ (x : V → I) (r : ℕ) (u : V) :
   recv := P.recv
   output := g ∘ P.output
 
-@[simp] theorem mapOutput_state {O' : Type*} (g : O → O') (x : V → I) (r : ℕ) :
-    (P.mapOutput g).state G x r = P.state G x r := by
+private theorem state_eq_of_init_send_recv {I' O' : Type*} {Q : BroadcastProtocol I' S M O'}
+    {x' : V → I'} {x : V → I} (hi : ∀ u, Q.init (x' u) = P.init (x u))
+    (hs : Q.send = P.send) (hr : Q.recv = P.recv) (r : ℕ) :
+    Q.state G x' r = P.state G x r := by
   funext u
   induction r generalizing u with
-  | zero => rfl
+  | zero => exact hi u
   | succ r ih =>
-    have hrecv : (P.mapOutput g).recv = P.recv := rfl
-    have hsend : (P.mapOutput g).send = P.send := rfl
-    rw [state_succ, state_succ, hrecv, hsend, ih u]
+    rw [state_succ, state_succ, hr, hs, ih u]
     congr 1
     exact Multiset.map_congr rfl fun w _ => by rw [ih w]
+
+@[simp] theorem mapOutput_state {O' : Type*} (g : O → O') (x : V → I) (r : ℕ) :
+    (P.mapOutput g).state G x r = P.state G x r :=
+  state_eq_of_init_send_recv P G (Q := P.mapOutput g) (fun _ => rfl) rfl rfl r
 
 @[simp] theorem mapOutput_run {O' : Type*} (g : O → O') (x : V → I) (r : ℕ) (u : V) :
     (P.mapOutput g).run G x r u = g (P.run G x r u) := by
@@ -176,16 +180,8 @@ theorem state_succ (x : V → I) (r : ℕ) (u : V) :
   output := P.output
 
 @[simp] theorem comapInput_state {I' : Type*} (f : I' → I) (x : V → I') (r : ℕ) :
-    (P.comapInput f).state G x r = P.state G (f ∘ x) r := by
-  funext u
-  induction r generalizing u with
-  | zero => rfl
-  | succ r ih =>
-    have hrecv : (P.comapInput f).recv = P.recv := rfl
-    have hsend : (P.comapInput f).send = P.send := rfl
-    rw [state_succ, state_succ, hrecv, hsend, ih u]
-    congr 1
-    exact Multiset.map_congr rfl fun w _ => by rw [ih w]
+    (P.comapInput f).state G x r = P.state G (f ∘ x) r :=
+  state_eq_of_init_send_recv P G (Q := P.comapInput f) (fun _ => rfl) rfl rfl r
 
 @[simp] theorem comapInput_run {I' : Type*} (f : I' → I) (x : V → I') (r : ℕ) (u : V) :
     (P.comapInput f).run G x r u = P.run G (f ∘ x) r u := by
