@@ -533,8 +533,12 @@ Kalai's Fourier-analytic version of Arrow's theorem for 3-candidate Condorcet el
 winner and elects the first candidate under unanimous support is a dictator
 (`Cslib.BitString.exists_eq_of_forall_exists_isCondorcetWinner`). The probability is at most
 `7/9 + 2/9 W¹[f]`, and with the Friedgut–Kalai–Naor theorem a rule whose probability is at least
-`1 - ε` is `14409/2 · ε`-close to a dictator or a negated dictator. Guilbaud's formula for majority
-is not formalized ([#2131](https://github.com/cslib-community/cslib-frontier/issues/2131)).
+`1 - ε` is `14409/2 · ε`-close to a dictator or a negated dictator.
+[CondorcetLimits](../../CslibFrontier/Foundations/BooleanAnalysis/CondorcetLimits.lean) adds
+Guilbaud's formula, the limit `(3/(2π)) arccos(-1/3)` of the probability for majority
+(`Cslib.BitString.tendsto_condorcetWinnerProb_majority`), and the bound
+`7/9 + 4/(9π) + o(1)` for rules whose degree-one Fourier coefficients are all equal
+(`Cslib.BitString.eventually_condorcetWinnerProb_le`).
 
 [alonfeldmanprocacciatennenholtz10]: ../sources.md#alonfeldmanprocacciatennenholtz10
 [hartline21]: ../sources.md#hartline21

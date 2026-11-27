@@ -61,6 +61,7 @@ import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.PredictionMarket
 import CslibFrontierResults.Entries.ODonnellDNFWidth
+import CslibFrontierResults.Entries.ODonnellCondorcetLimits
 import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.LoadBalancing
 import CslibFrontierResults.Entries.PlantedClique

@@ -619,6 +619,7 @@ public import CslibFrontier.Computability.WordRAM.RegisterCopy
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Native.ExtractSource
 public import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 public import CslibFrontier.Computability.MCSP.FormulaMagnification.AverageCase
+public import CslibFrontier.Foundations.BooleanAnalysis.CondorcetLimits
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser.Normal
 public import CslibFrontier.Probability.StatisticalDistance.CouplingBind
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.FiniteEnvelopePayment

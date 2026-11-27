@@ -74,8 +74,8 @@ half. Both the probability and
 (`false ↦ 1`) does not matter. The book states Corollary 2.60 for probability exactly `1 - ε` and
 closeness `O(ε)`; here the hypothesis is `1 - ε ≤ condorcetWinnerProb f`, and the constant is the
 FKN constant `1601` of `BitString.exists_hammingDist_xor_div_le_of_le_levelWeight_one` times
-`9/2`. Guilbaud's formula and Theorem 2.57 need Theorem 2.45, the limit of `Stab_ρ[Maj_n]`, and are
-not part of this module ([#2131](https://github.com/cslib-community/cslib-frontier/issues/2131)).
+`9/2`. Guilbaud's formula and Theorem 2.57, which also need the limit of `Stab_ρ[Maj_n]`
+(Theorem 2.45), are in `CslibFrontier.Foundations.BooleanAnalysis.CondorcetLimits`.
 
 The checked clients in
 [CslibFrontierTests/BooleanAnalysisCondorcetElection.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisCondorcetElection.lean)
