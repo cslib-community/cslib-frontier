@@ -1349,6 +1349,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.GSW.CircuitEvaluati
 public import CslibFrontier.Computability.Communication.OneOutRectangle
 public import CslibFrontier.Algorithms.MatrixMultiplication.Strassen.Defs
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Dealing.GroupTime
+public import CslibFrontier.Foundations.Data.Nat.WeightedIndex
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.FrontProgram
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.VertexFibers
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
@@ -4331,6 +4332,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ParameterSelecting.
 public import CslibFrontier.Computability.Probabilistic.Oracle.Replay
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Recursion
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Partial
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.WeightedIndex
 public import CslibFrontier.Crypto.Computational.RSATrapdoor
 public import CslibFrontier.DataStructure.BTree.WordRAM.Rep
 public import CslibFrontier.MachineLearning.PACLearning.AgnosticVCSharp
