@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.St
 public import CslibFrontier.Crypto.Negligible
 public import CslibFrontier.Probability.PMF.Uniform
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
+import CslibFrontier.Probability.PMF.Map
 
 /-!
 # Noninteractive statistical and perfect zero knowledge
@@ -30,12 +31,24 @@ encoded instance length. Both variants use completeness and soundness errors at 
 following [Dixon, Gayen, Pavan and Vinodchandran][DixonGayenPavanVinodchandran2020],
 Definitions 2.2–2.3, printed p. 5.
 
+A bounded-error problem has a trivial noninteractive proof: the verifier reads the common string
+as the coins of the bounded-error solver and the proof is empty, so a simulator sampling the
+common string itself reproduces the transcript exactly
+(`Cslib.Complexity.PromiseBPP_subset_PromiseNIPZK`).
+
 ## Main definitions
 
 * `Cslib.Complexity.CRSProtocol`: the common-random-string experiment and its proof obligations.
 * `Cslib.Complexity.CRSTranscriptSimulator`: a polynomial-time sampler for the transcript.
 * `Cslib.Complexity.PromiseNISZK` and `Cslib.Complexity.PromiseNIPZK`: the promise classes.
 * `Cslib.Complexity.NISZK` and `Cslib.Complexity.NIPZK`: their language specializations.
+
+## Main results
+
+* `Cslib.Complexity.PromiseNIPZK_subset_PromiseNISZK`, `Cslib.Complexity.NIPZK_subset_NISZK`:
+  perfect simulation is statistical simulation.
+* `Cslib.Complexity.PromiseBPP_subset_PromiseNIPZK`, `Cslib.Complexity.BPP_subset_NIPZK`:
+  `BPP ⊆ NIPZK`, with the common string as the verifier's coins.
 -/
 
 public section
@@ -147,30 +160,36 @@ theorem PromiseNIPZK_subset_PromiseNISZK (enc : α ↪ List Bool) :
 theorem NIPZK_subset_NISZK (enc : α ↪ List Bool) : NIPZK enc ⊆ NISZK enc :=
   fun _ hA => PromiseNIPZK_subset_PromiseNISZK enc hA
 
-/-- A deterministic polynomial-time decider gives a perfect zero-knowledge proof with empty
-common randomness and empty proof. The simulator runs the same decider. -/
-theorem P_subset_NIPZK (enc : α ↪ List Bool) : P enc ⊆ NIPZK enc := by
-  intro A hA
-  obtain ⟨decideA, htime, hdecideA⟩ := mem_P.mp hA
-  have hbit := htime.comp (ComputableInPolyTime.fst enc encBits)
+/-- **`PromiseBPP ⊆ PromiseNIPZK`**: the verifier decides alone, reading the common random string
+as the coins of a bounded-error solver, and the proof is empty. The simulator samples the
+common string itself and outputs the honest transcript, so the simulation is perfect. This is the
+standard observation that bounded-error problems have trivial noninteractive proofs, under the
+definitions of [Dixon, Gayen, Pavan and Vinodchandran][DixonGayenPavanVinodchandran2020],
+Definitions 2.2–2.3. -/
+theorem PromiseBPP_subset_PromiseNIPZK (enc : α ↪ List Bool) :
+    PromiseBPP enc ⊆ PromiseNIPZK enc := by
+  rintro Q ⟨p, V, hV, hQ⟩
   let proof : CRSProtocol enc :=
-    { commonLength := 0, proofLength := 0, verify := fun p => decideA p.1
-      computableInPolyTime_verify := hbit, privateCoins := fun _ => 0
-      respond := fun _ _ _ _ => false }
+    { commonLength := p, proofLength := 0, verify := V, computableInPolyTime_verify := hV
+      privateCoins := fun _ => 0, respond := fun _ _ _ _ => false }
   let sim : CRSTranscriptSimulator enc :=
-    { coinLength := 0, sample := fun p => ⟨[], [], decideA p.1⟩
+    { coinLength := p, sample := fun x => ⟨x.2, [], V x⟩
       computableInPolyTime_sample := by fun_prop }
-  have hreal (a : α) : proof.transcript a = PMF.pure ⟨[], [], decideA a⟩ := by
-    simp only [CRSProtocol.transcript, proof, Polynomial.eval_zero, List.ofFn_zero,
-      PMF.bind_const]
-    exact PMF.map_const _ _
-  refine ⟨proof, sim, ⟨fun a ha => ?_, fun a ha => ?_⟩, fun a _ => ?_⟩
-  · rw [hreal, (hdecideA a).mp ha]
-    norm_num [ENNReal.div_le_iff]
-  · refine boundedErrorAt_false_iff.mpr ?_
-    simp [proof, arthurMerlinSlice, Bool.eq_false_iff.mpr ((hdecideA a).not.mp ha), acceptCount]
-  · rw [hreal]
-    simp only [CRSTranscriptSimulator.run, sim]
-    exact PMF.map_const _ _
+  have hreal (a : α) : proof.transcript a = sim.run a := by
+    simp only [CRSProtocol.transcript, CRSTranscriptSimulator.run, proof, sim,
+      Polynomial.eval_zero, List.ofFn_zero, List.append_nil]
+    exact (congrArg _ (funext fun _ => PMF.map_const _ _)).trans (PMF.bind_pure_comp _ _)
+  refine ⟨proof, sim, ⟨fun a ha => ?_, fun a ha => ?_⟩, fun a _ => (hreal a).symm⟩
+  · rw [hreal, CRSTranscriptSimulator.run, PMF.map_comp, Probability.PMF.uniformOfFintype_map_apply,
+      Nat.card_eq_fintype_card, Fintype.card_subtype, Fintype.card_fun, Fintype.card_bool,
+      Fintype.card_fin, ENNReal.le_div_iff_mul_le (by simp) (by simp), mul_comm, ← mul_div_assoc,
+      ENNReal.div_le_iff (by norm_num) (by norm_num), mul_comm _ (2 : ℝ≥0∞), mul_comm _ (3 : ℝ≥0∞)]
+    exact_mod_cast (hQ a).1 ha
+  · exact ((hQ a).2 ha).congr fun r => by simp [arthurMerlinSlice, proof]
+
+/-- **`BPP ⊆ NIPZK`**: a bounded-error decider, run on the common random string, is a
+noninteractive proof with an empty proof and a perfect simulator. -/
+theorem BPP_subset_NIPZK (enc : α ↪ List Bool) : BPP enc ⊆ NIPZK enc :=
+  fun _ hA => PromiseBPP_subset_PromiseNIPZK enc hA
 
 end Cslib.Complexity
