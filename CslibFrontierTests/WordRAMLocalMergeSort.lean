@@ -22,8 +22,10 @@ open Cslib Cslib.WordRAM Cslib.Algorithms.WordRAM.MergeSort
 
 private meta def localResult (keys : List ℕ) : Option (List ℕ × ℕ) :=
   let n := keys.length
-  (Program.Code.eval (Local.instructionSet LocalRef.model (4 * n + 3) 9 11)
-    n LocalRef.code (LocalRef.inputState keys)).map fun (x, steps) =>
+  let x := LocalRef.inputState keys
+  let x := { x with values := fun a => if a.val < n then x.values a else 99 }
+  (Program.Code.eval (Local.instructionSet LocalRef.model (3 * n) 9 11)
+    n LocalRef.code x).map fun (x, steps) =>
       (LocalRef.permutation (n := n) x, steps)
 
 private meta def indexedResult (keys : List ℕ) : Option (List ℕ × ℕ) :=
@@ -37,8 +39,8 @@ private meta def indexedResult (keys : List ℕ) : Option (List ℕ × ℕ) :=
 
 private meta def duplicateKeys : List ℕ := [4, 1, 4, 0, 3, 2, 0]
 
-#guard localResult [] == some ([], 4)
-#guard localResult [42] == some ([0], 4)
+#guard localResult [] == some ([], 6)
+#guard localResult [42] == some ([0], 6)
 #guard (localResult [1, 1]).map Prod.fst == some [0, 1]
 #guard (localResult [1, 0]).map Prod.fst == some [1, 0]
 #guard (localResult duplicateKeys).map Prod.fst == some [3, 6, 1, 5, 4, 0, 2]
@@ -63,11 +65,11 @@ private meta def counts (keys : List ℕ) : Option (ℕ × ℕ) := do
   let (localPerm, localCost) ← localResult keys
   if indexedPerm == localPerm then some (indexedCost, localCost) else none
 
-#guard counts [1, 0] == some (86, 10)
+#guard counts [1, 0] == some (86, 11)
 #guard counts [0, 1] == some (86, 12)
-#guard counts (List.range 32) == some (4078, 2988)
-#guard counts (List.range 32).reverse == some (4078, 3068)
-#guard counts (mixed 128) == some (23574, 16445)
+#guard counts (List.range 32) == some (4078, 3082)
+#guard counts (List.range 32).reverse == some (4078, 3162)
+#guard counts (mixed 128) == some (23574, 17255)
 
 private meta def compiledRun
     (program : List (PointerMachine.Instr LocalRef.model (Local.layout 9 11))) :
@@ -86,8 +88,9 @@ private meta def compiledRun
     let c := Local.compile LocalRef.code
     let x := Local.encode (LocalRef.inputState duplicateKeys)
     let y := compiledRun c.program steps x
-    y.pc == c.size && y.heap.length == x.heap.length &&
-      ((List.range n).map fun i => (y.heap[2 * n + 1 + i]?).elim 0 fun cell => cell.data 0)
+    y.pc == c.size && y.heap.length == 3 * n &&
+      (y.heap.take n).map (fun cell => cell.data 0) == duplicateKeys &&
+      ((List.range n).map fun i => (y.heap[n + i]?).elim 0 fun cell => cell.data 0)
         == expected
 
 end CslibFrontierTests.WordRAMLocalMergeSort
