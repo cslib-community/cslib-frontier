@@ -7,9 +7,12 @@ Authors: Matthew Doty, Nick L. Leppelmeier
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.Propositional.CNF.Eval
+import CslibFrontier.Logics.Propositional.CNF.Eval
+import Mathlib.Algebra.Order.BigOperators.Group.List
+import Mathlib.Algebra.Order.Ring.Nat
 public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
 public import CslibFrontier.Logics.Propositional.TseitinCNF
+public import Mathlib.Algebra.Order.Monoid.WithTop
 public import Mathlib.Order.WithBot
 
 /-!
@@ -41,8 +44,31 @@ many clauses, clause width at most three, and the same optimum cost:
 * `Cslib.Logic.PL.MaxSAT.HasCostAtMost`, `Cslib.Logic.PL.MaxSAT.HasSatisfiedWeightAtLeast`.
 * `Cslib.Logic.PL.MaxSAT.unweighted`, `Cslib.Logic.PL.MaxSAT.relabel`,
   `Cslib.Logic.PL.MaxSAT.computeOptimum`.
-* `Cslib.Logic.PL.PropMaxSAT`, `Cslib.Logic.PL.PropMaxSAT.toTseitin`,
-  `Cslib.Logic.PL.PropMaxSAT.toPlaistedGreenbaum`.
+* `Cslib.Logic.PL.PropMaxSAT`, `Cslib.Logic.PL.PropMaxSAT.computeOptimum`,
+  `Cslib.Logic.PL.PropMaxSAT.toTseitin`, `Cslib.Logic.PL.PropMaxSAT.toPlaistedGreenbaum`.
+
+## Main results
+
+* `Cslib.Logic.PL.MaxSAT.exists_feasible_cost_eq_optimum`,
+  `Cslib.Logic.PL.MaxSAT.exists_feasible_cost_eq_optimum_support`: attainment of the optimum
+  on satisfiable instances, with a finitely supported optimal assignment.
+* `Cslib.Logic.PL.MaxSAT.hasCostAtMost_iff_optimum_le`,
+  `Cslib.Logic.PL.MaxSAT.hasSatisfiedWeightAtLeast_iff`,
+  `Cslib.Logic.PL.MaxSAT.optimum_add_maxSatisfiedWeight`: equivalence between minimum falsified
+  cost (`optimum`) and maximum satisfied weight (`maxSatisfiedWeight`).
+* `Cslib.Logic.PL.MaxSAT.computeOptimum_eq_optimum`,
+  `Cslib.Logic.PL.PropMaxSAT.computeOptimum_eq_optimum`: correctness of the verified computable
+  solvers.
+* `Cslib.Logic.PL.MaxSAT.optimum_relabel`, `Cslib.Logic.PL.MaxSAT.optimum_le_of_sublist`:
+  invariance under injective variable relabelling and monotonicity under adding hard or soft
+  clauses.
+* `Cslib.Logic.PL.PropMaxSAT.optimum_toTseitin`,
+  `Cslib.Logic.PL.PropMaxSAT.eq_of_feasible_toTseitin`: optimum preservation and atom-determined
+  uniqueness for the Tseitin translation.
+* `Cslib.Logic.PL.PropMaxSAT.optimum_toPlaistedGreenbaum`,
+  `Cslib.Logic.PL.PropMaxSAT.cost_le_cost_toPlaistedGreenbaum`,
+  `Cslib.Logic.PL.PropMaxSAT.not_forall_eq_of_feasible_toPlaistedGreenbaum`: optimum preservation
+  and non-uniqueness for the positive-polarity Plaisted–Greenbaum translation.
 
 ## References
 
@@ -53,26 +79,156 @@ many clauses, clause width at most three, and the same optimum cost:
   translation*][PlaistedGreenbaum1986]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Logic.PL
 
-open Classical in
-private lemma list_sum_map_le_sum_map {α : Type*} (l : List α) (f g : α → ℕ)
-    (h : ∀ x ∈ l, f x ≤ g x) : (l.map f).sum ≤ (l.map g).sum := by
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    simp only [List.map_cons, List.sum_cons]
-    exact Nat.add_le_add (h a List.mem_cons_self) (ih fun x hx => h x (List.mem_cons_of_mem a hx))
+/-! ### Shared minimum-cost and branch-and-enumerate helpers -/
 
-private lemma list_sum_map_add_sum_map {α : Type*} (l : List α) (f g : α → ℕ) :
-    (l.map f).sum + (l.map g).sum = (l.map fun x => f x + g x).sum := by
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    simp only [List.map_cons, List.sum_cons]
-    omega
+private noncomputable def minCostOf {α : Type*}
+    (feas : (α → Bool) → Prop) (cost : (α → Bool) → ℕ) : WithTop ℕ :=
+  open Classical in
+  if h : ∃ σ : α → Bool, feas σ then
+    ((Nat.find (⟨cost h.choose, h.choose, h.choose_spec, rfl⟩ :
+      ∃ k : ℕ, ∃ σ : α → Bool, feas σ ∧ cost σ = k) : ℕ) : WithTop ℕ)
+  else ⊤
+
+private theorem minCostOf_eq_top_iff {α : Type*}
+    (feas : (α → Bool) → Prop) (cost : (α → Bool) → ℕ) :
+    minCostOf feas cost = ⊤ ↔ ¬ ∃ σ : α → Bool, feas σ := by
+  classical
+  unfold minCostOf
+  split_ifs with h
+  · simpa [WithTop.coe_ne_top] using h
+  · exact iff_of_true rfl h
+
+private theorem exists_feas_cost_eq_minCostOf {α : Type*}
+    {feas : (α → Bool) → Prop} {cost : (α → Bool) → ℕ} (h : ∃ σ : α → Bool, feas σ) :
+    ∃ σ : α → Bool, feas σ ∧ (cost σ : WithTop ℕ) = minCostOf feas cost := by
+  classical
+  unfold minCostOf
+  rw [dite_eq_left h]
+  obtain ⟨σ, hσ, hcost⟩ :=
+    Nat.find_spec (⟨cost h.choose, h.choose, h.choose_spec, rfl⟩ :
+      ∃ k : ℕ, ∃ σ : α → Bool, feas σ ∧ cost σ = k)
+  exact ⟨σ, hσ, congrArg ((↑) : ℕ → WithTop ℕ) hcost⟩
+
+private theorem minCostOf_le_cost {α : Type*}
+    {feas : (α → Bool) → Prop} {cost : (α → Bool) → ℕ} {σ : α → Bool} (hσ : feas σ) :
+    minCostOf feas cost ≤ (cost σ : WithTop ℕ) := by
+  classical
+  have h : ∃ σ : α → Bool, feas σ := ⟨σ, hσ⟩
+  unfold minCostOf
+  rw [dite_eq_left h]
+  exact WithTop.coe_le_coe.2 (Nat.find_min' _ ⟨σ, hσ, rfl⟩)
+
+private theorem le_minCostOf_iff {α : Type*}
+    {feas : (α → Bool) → Prop} {cost : (α → Bool) → ℕ} {k : ℕ} :
+    (k : WithTop ℕ) ≤ minCostOf feas cost ↔ ∀ σ : α → Bool, feas σ → k ≤ cost σ := by
+  refine ⟨fun hk σ hσ => WithTop.coe_le_coe.1 (hk.trans (minCostOf_le_cost hσ)), fun hk => ?_⟩
+  by_cases hsat : ∃ σ : α → Bool, feas σ
+  · obtain ⟨σ, hσ, hopt⟩ := exists_feas_cost_eq_minCostOf hsat
+    rw [← hopt]
+    exact WithTop.coe_le_coe.2 (hk σ hσ)
+  · rw [(minCostOf_eq_top_iff feas cost).2 hsat]
+    exact le_top
+
+/-- Branch-and-enumerate minimum cost over a finite variable list `vs`, starting from base
+assignment `σ`. -/
+@[expose] def branchMinCost {α : Type*} [DecidableEq α]
+    (feas : (α → Bool) → Bool) (cost : (α → Bool) → ℕ) :
+    List α → (α → Bool) → WithTop ℕ
+  | [], σ => if feas σ then (cost σ : WithTop ℕ) else ⊤
+  | v :: vs, σ =>
+      min (branchMinCost feas cost vs (fun w => if w = v then true else σ w))
+          (branchMinCost feas cost vs (fun w => if w = v then false else σ w))
+
+private theorem branchMinCost_le_of_agree {α : Type*} [DecidableEq α]
+    (feas : (α → Bool) → Bool) (cost : (α → Bool) → ℕ) (vs : List α)
+    (σ τ : α → Bool) (hτ : feas τ = true) (hout : ∀ w, w ∉ vs → τ w = σ w) :
+    branchMinCost feas cost vs σ ≤ (cost τ : WithTop ℕ) := by
+  induction vs generalizing σ with
+  | nil =>
+    have heq : τ = σ := funext fun w => hout w List.not_mem_nil
+    subst heq
+    simp only [branchMinCost, hτ]
+    exact le_rfl
+  | cons v vs ih =>
+    simp only [branchMinCost]
+    have hnot : ∀ w, w ∉ vs → w ≠ v → τ w = σ w := fun w hw hne =>
+      hout w fun hm => by
+        rcases List.mem_cons.1 hm with rfl | hm
+        · exact hne rfl
+        · exact hw hm
+    cases hv : τ v
+    · refine min_le_of_right_le (ih (fun w => if w = v then false else σ w) fun w hw => ?_)
+      by_cases hweq : w = v
+      · simp [hweq, hv]
+      · simp [hweq, hnot w hw hweq]
+    · refine min_le_of_left_le (ih (fun w => if w = v then true else σ w) fun w hw => ?_)
+      by_cases hweq : w = v
+      · simp [hweq, hv]
+      · simp [hweq, hnot w hw hweq]
+
+private theorem branchMinCost_witness_or_top {α : Type*} [DecidableEq α]
+    (feas : (α → Bool) → Bool) (cost : (α → Bool) → ℕ) (vs : List α)
+    (σ : α → Bool) :
+    branchMinCost feas cost vs σ = ⊤ ∨
+      ∃ τ : α → Bool, (∀ w, w ∉ vs → τ w = σ w) ∧
+        feas τ = true ∧ branchMinCost feas cost vs σ = (cost τ : WithTop ℕ) := by
+  induction vs generalizing σ with
+  | nil =>
+    simp only [branchMinCost]
+    split_ifs with h
+    · exact .inr ⟨σ, fun _ _ => rfl, h, rfl⟩
+    · exact .inl rfl
+  | cons v vs ih =>
+    simp only [branchMinCost]
+    set σt : α → Bool := fun w => if w = v then true else σ w
+    set σf : α → Bool := fun w => if w = v then false else σ w
+    rcases le_total (branchMinCost feas cost vs σt) (branchMinCost feas cost vs σf) with hle | hle
+    · rw [min_eq_left hle]
+      rcases ih σt with ht | ⟨τ, hout, hfeas, hcost⟩
+      · exact .inl ht
+      · refine .inr ⟨τ, fun w hw => ?_, hfeas, hcost⟩
+        have hnotvs : w ∉ vs := fun hm => hw (List.mem_cons_of_mem v hm)
+        have hne : w ≠ v := fun heq => hw (heq ▸ List.mem_cons_self)
+        simpa [σt, hne] using hout w hnotvs
+    · rw [min_eq_right hle]
+      rcases ih σf with hf | ⟨τ, hout, hfeas, hcost⟩
+      · exact .inl hf
+      · refine .inr ⟨τ, fun w hw => ?_, hfeas, hcost⟩
+        have hnotvs : w ∉ vs := fun hm => hw (List.mem_cons_of_mem v hm)
+        have hne : w ≠ v := fun heq => hw (heq ▸ List.mem_cons_self)
+        simpa [σf, hne] using hout w hnotvs
+
+private theorem branchMinCost_eq_minCostOf {α : Type*} [DecidableEq α]
+    (feas : (α → Bool) → Bool) (cost : (α → Bool) → ℕ) (vs : List α)
+    (hfeas_congr : ∀ {σ τ : α → Bool}, (∀ w ∈ vs, σ w = τ w) → feas σ = feas τ)
+    (hcost_congr : ∀ {σ τ : α → Bool}, (∀ w ∈ vs, σ w = τ w) → cost σ = cost τ)
+    (σ : α → Bool) :
+    branchMinCost feas cost vs σ = minCostOf (fun τ => feas τ = true) cost := by
+  classical
+  rcases branchMinCost_witness_or_top feas cost vs σ with htop | ⟨τ, _, hfeas, hcost⟩
+  · have hunsat : ¬ ∃ ρ : α → Bool, feas ρ = true := by
+      rintro ⟨ρ, hρ⟩
+      let ρ' : α → Bool := fun w => if w ∈ vs then ρ w else σ w
+      have hagree : ∀ w ∈ vs, ρ' w = ρ w := fun w hw => by simp [ρ', hw]
+      have hρ' : feas ρ' = true := (hfeas_congr hagree).trans hρ
+      have hle := branchMinCost_le_of_agree feas cost vs σ ρ' hρ' (fun w hw => by simp [ρ', hw])
+      rw [htop, top_le_iff] at hle
+      exact absurd hle (by simp)
+    rw [htop, (minCostOf_eq_top_iff (fun τ => feas τ = true) cost).2 hunsat]
+  · refine le_antisymm ?_ (hcost ▸ minCostOf_le_cost hfeas)
+    by_cases hsat : ∃ ρ : α → Bool, feas ρ = true
+    · obtain ⟨ρ, hρ, hopt⟩ := exists_feas_cost_eq_minCostOf hsat
+      let ρ' : α → Bool := fun w => if w ∈ vs then ρ w else σ w
+      have hagree : ∀ w ∈ vs, ρ' w = ρ w := fun w hw => by simp [ρ', hw]
+      have hρ' : feas ρ' = true := (hfeas_congr hagree).trans hρ
+      have hle := branchMinCost_le_of_agree feas cost vs σ ρ' hρ' (fun w hw => by simp [ρ', hw])
+      rwa [hcost_congr hagree, hopt] at hle
+    · rw [(minCostOf_eq_top_iff (fun τ => feas τ = true) cost).2 hsat]
+      exact le_top
 
 /-! ### Clausal weighted partial MaxSAT -/
 
@@ -90,33 +246,33 @@ namespace MaxSAT
 variable {V : Type*}
 
 /-- An assignment is feasible when it satisfies every hard clause. -/
-def feasible (φ : MaxSAT V) (σ : V → Bool) : Prop :=
+@[expose] def feasible (φ : MaxSAT V) (σ : V → Bool) : Prop :=
   φ.hard.eval σ = true
 
 /-- Total weight of soft clauses falsified by `σ`. -/
-def cost (φ : MaxSAT V) (σ : V → Bool) : ℕ :=
+@[expose] def cost (φ : MaxSAT V) (σ : V → Bool) : ℕ :=
   (φ.soft.map fun cw => if cw.1.eval σ then 0 else cw.2).sum
 
 /-- Total weight of all soft clauses in `φ`. -/
-def totalWeight (φ : MaxSAT V) : ℕ :=
+@[expose] def totalWeight (φ : MaxSAT V) : ℕ :=
   (φ.soft.map Prod.snd).sum
 
 /-- Total weight of soft clauses satisfied by `σ`. -/
-def satisfiedWeight (φ : MaxSAT V) (σ : V → Bool) : ℕ :=
+@[expose] def satisfiedWeight (φ : MaxSAT V) (σ : V → Bool) : ℕ :=
   (φ.soft.map fun cw => if cw.1.eval σ then cw.2 else 0).sum
 
 /-- The underlying soft clauses as a CNF list. -/
-def softClauses (φ : MaxSAT V) : CNF V :=
+@[expose] def softClauses (φ : MaxSAT V) : CNF V :=
   φ.soft.map Prod.fst
 
 /-- All variable occurrences appearing in the hard or soft clauses of `φ`. -/
-def vars (φ : MaxSAT V) : List V :=
+@[expose] def vars (φ : MaxSAT V) : List V :=
   φ.hard.vars ++ φ.softClauses.vars
 
 theorem cost_add_satisfiedWeight (φ : MaxSAT V) (σ : V → Bool) :
     φ.cost σ + φ.satisfiedWeight σ = φ.totalWeight := by
   unfold cost satisfiedWeight totalWeight
-  rw [list_sum_map_add_sum_map]
+  rw [← List.sum_map_add]
   congr 1
   refine List.map_congr_left fun cw _ => ?_
   cases cw.1.eval σ <;> simp
@@ -165,18 +321,10 @@ theorem satisfiedWeight_congr {φ : MaxSAT V} {σ τ : V → Bool}
 
 /-- Minimum cost among feasible assignments of `φ`, or `⊤` when `φ.hard` is unsatisfiable. -/
 noncomputable def optimum (φ : MaxSAT V) : WithTop ℕ :=
-  open Classical in
-  if h : ∃ σ : V → Bool, φ.feasible σ then
-    ((Nat.find (⟨φ.cost h.choose, h.choose, h.choose_spec, rfl⟩ :
-      ∃ k : ℕ, ∃ σ : V → Bool, φ.feasible σ ∧ φ.cost σ = k) : ℕ) : WithTop ℕ)
-  else ⊤
+  minCostOf φ.feasible φ.cost
 
-theorem optimum_eq_top_iff (φ : MaxSAT V) : φ.optimum = ⊤ ↔ ¬ φ.hard.Satisfiable := by
-  classical
-  unfold optimum
-  split_ifs with h
-  · simpa [feasible, CNF.Satisfiable, WithTop.coe_ne_top] using h
-  · simpa [feasible, CNF.Satisfiable] using h
+theorem optimum_eq_top_iff (φ : MaxSAT V) : φ.optimum = ⊤ ↔ ¬ φ.hard.Satisfiable :=
+  minCostOf_eq_top_iff φ.feasible φ.cost
 
 theorem optimum_ne_top_iff (φ : MaxSAT V) : φ.optimum ≠ ⊤ ↔ φ.hard.Satisfiable := by
   rw [ne_eq, optimum_eq_top_iff, not_not]
@@ -184,15 +332,8 @@ theorem optimum_ne_top_iff (φ : MaxSAT V) : φ.optimum ≠ ⊤ ↔ φ.hard.Sati
 /-- **Attainment of the minimum**: every satisfiable MaxSAT instance has a feasible assignment
 achieving `φ.optimum`. -/
 theorem exists_feasible_cost_eq_optimum {φ : MaxSAT V} (h : φ.hard.Satisfiable) :
-    ∃ σ : V → Bool, φ.feasible σ ∧ (φ.cost σ : WithTop ℕ) = φ.optimum := by
-  classical
-  have h' : ∃ σ : V → Bool, φ.feasible σ := h
-  unfold optimum
-  rw [dite_eq_left h']
-  obtain ⟨σ, hσ, hcost⟩ :=
-    Nat.find_spec (⟨φ.cost h'.choose, h'.choose, h'.choose_spec, rfl⟩ :
-      ∃ k : ℕ, ∃ σ : V → Bool, φ.feasible σ ∧ φ.cost σ = k)
-  exact ⟨σ, hσ, congrArg ((↑) : ℕ → WithTop ℕ) hcost⟩
+    ∃ σ : V → Bool, φ.feasible σ ∧ (φ.cost σ : WithTop ℕ) = φ.optimum :=
+  exists_feas_cost_eq_minCostOf h
 
 /-- **Finite-support attainment**: when `φ.hard` is satisfiable, the minimum cost is achieved by
 an assignment that takes `false` on every variable outside `φ.vars`. -/
@@ -207,22 +348,12 @@ theorem exists_feasible_cost_eq_optimum_support {φ : MaxSAT V} (h : φ.hard.Sat
   rw [cost_congr hagree, hopt]
 
 theorem optimum_le_cost {φ : MaxSAT V} {σ : V → Bool} (hσ : φ.feasible σ) :
-    φ.optimum ≤ (φ.cost σ : WithTop ℕ) := by
-  classical
-  have h' : ∃ σ : V → Bool, φ.feasible σ := ⟨σ, hσ⟩
-  unfold optimum
-  rw [dite_eq_left h']
-  exact WithTop.coe_le_coe.2 (Nat.find_min' _ ⟨σ, hσ, rfl⟩)
+    φ.optimum ≤ (φ.cost σ : WithTop ℕ) :=
+  minCostOf_le_cost hσ
 
 theorem le_optimum_iff {φ : MaxSAT V} {k : ℕ} :
-    (k : WithTop ℕ) ≤ φ.optimum ↔ ∀ σ : V → Bool, φ.feasible σ → k ≤ φ.cost σ := by
-  refine ⟨fun hk σ hσ => WithTop.coe_le_coe.1 (hk.trans (optimum_le_cost hσ)), fun hk => ?_⟩
-  by_cases hsat : φ.hard.Satisfiable
-  · obtain ⟨σ, hσ, hopt⟩ := exists_feasible_cost_eq_optimum hsat
-    rw [← hopt]
-    exact WithTop.coe_le_coe.2 (hk σ hσ)
-  · rw [φ.optimum_eq_top_iff.2 hsat]
-    exact le_top
+    (k : WithTop ℕ) ≤ φ.optimum ↔ ∀ σ : V → Bool, φ.feasible σ → k ≤ φ.cost σ :=
+  le_minCostOf_iff
 
 theorem optimum_le_iff {φ : MaxSAT V} {k : ℕ} :
     φ.optimum ≤ (k : WithTop ℕ) ↔ ∃ σ : V → Bool, φ.feasible σ ∧ φ.cost σ ≤ k := by
@@ -230,7 +361,7 @@ theorem optimum_le_iff {φ : MaxSAT V} {k : ℕ} :
     (optimum_le_cost hσ).trans (WithTop.coe_le_coe.2 hcost)⟩
   have hne : φ.optimum ≠ ⊤ := ne_of_lt (lt_of_le_of_lt hk (WithTop.coe_lt_top k))
   obtain ⟨σ, hσ, hopt⟩ := exists_feasible_cost_eq_optimum (φ.optimum_ne_top_iff.1 hne)
-  exact ⟨σ, hσ, WithTop.coe_le_coe.1 (hopt ▸ hk)⟩
+  exact ⟨σ, hσ, WithTop.coe_le_coe.1 (hopt.trans_le hk)⟩
 
 theorem optimum_eq_coe_iff {φ : MaxSAT V} {k : ℕ} :
     φ.optimum = (k : WithTop ℕ) ↔
@@ -238,7 +369,7 @@ theorem optimum_eq_coe_iff {φ : MaxSAT V} {k : ℕ} :
         (∀ σ : V → Bool, φ.feasible σ → k ≤ φ.cost σ) := by
   refine ⟨fun h => ?_, fun ⟨⟨σ, hσ, hc⟩, hmin⟩ =>
     le_antisymm ((optimum_le_cost hσ).trans (by rw [hc])) (le_optimum_iff.2 hmin)⟩
-  have hne : φ.optimum ≠ ⊤ := by simp [h, WithTop.coe_ne_top]
+  have hne : φ.optimum ≠ ⊤ := by simp [h]
   obtain ⟨σ, hσ, hopt⟩ := exists_feasible_cost_eq_optimum (φ.optimum_ne_top_iff.1 hne)
   exact ⟨⟨σ, hσ, WithTop.coe_eq_coe.1 (hopt.trans h)⟩, le_optimum_iff.1 h.ge⟩
 
@@ -260,7 +391,7 @@ theorem optimum_le_optimum_of_forall {W : Type*} {φ : MaxSAT V} {ψ : MaxSAT W}
 /-! ### Decision version and maximum satisfied weight -/
 
 /-- The cost decision problem: `φ` admits a feasible assignment of cost at most `k`. -/
-def HasCostAtMost (φ : MaxSAT V) (k : ℕ) : Prop :=
+@[expose] def HasCostAtMost (φ : MaxSAT V) (k : ℕ) : Prop :=
   ∃ σ : V → Bool, φ.feasible σ ∧ φ.cost σ ≤ k
 
 theorem hasCostAtMost_iff_optimum_le {φ : MaxSAT V} {k : ℕ} :
@@ -269,7 +400,7 @@ theorem hasCostAtMost_iff_optimum_le {φ : MaxSAT V} {k : ℕ} :
 
 /-- The satisfied-weight decision problem: `φ` admits a feasible assignment satisfying weight at
 least `t`. -/
-def HasSatisfiedWeightAtLeast (φ : MaxSAT V) (t : ℕ) : Prop :=
+@[expose] def HasSatisfiedWeightAtLeast (φ : MaxSAT V) (t : ℕ) : Prop :=
   ∃ σ : V → Bool, φ.feasible σ ∧ t ≤ φ.satisfiedWeight σ
 
 theorem hasSatisfiedWeightAtLeast_iff {φ : MaxSAT V} {t : ℕ} :
@@ -308,7 +439,8 @@ theorem satisfiedWeight_le_maxSatisfiedWeight {φ : MaxSAT V} {σ : V → Bool} 
   | coe k =>
     have hk : k ≤ φ.cost σ := WithTop.coe_le_coe.1 (h ▸ optimum_le_cost hσ)
     have hsum := φ.cost_add_satisfiedWeight σ
-    exact WithBot.coe_le_coe.2 (by omega)
+    have hle : φ.satisfiedWeight σ ≤ φ.totalWeight - k := by omega
+    exact WithBot.coe_le_coe.2 hle
 
 theorem exists_feasible_satisfiedWeight_eq_maxSatisfiedWeight {φ : MaxSAT V}
     (h : φ.hard.Satisfiable) :
@@ -317,6 +449,7 @@ theorem exists_feasible_satisfiedWeight_eq_maxSatisfiedWeight {φ : MaxSAT V}
   refine ⟨σ, hσ, ?_⟩
   unfold maxSatisfiedWeight
   rw [← hopt, φ.satisfiedWeight_eq_totalWeight_sub_cost σ]
+  rfl
 
 theorem le_maxSatisfiedWeight_iff {φ : MaxSAT V} {t : ℕ} :
     (t : WithBot ℕ) ≤ φ.maxSatisfiedWeight ↔ φ.HasSatisfiedWeightAtLeast t := by
@@ -336,7 +469,7 @@ theorem maxSatisfiedWeight_eq_coe_iff {φ : MaxSAT V} {t : ℕ} :
         (∀ σ : V → Bool, φ.feasible σ → φ.satisfiedWeight σ ≤ t) := by
   constructor
   · intro h
-    have hne : φ.maxSatisfiedWeight ≠ ⊥ := by simp [h, WithBot.coe_ne_bot]
+    have hne : φ.maxSatisfiedWeight ≠ ⊥ := by simp [h]
     have hsat : φ.hard.Satisfiable := not_not.1 (φ.maxSatisfiedWeight_eq_bot_iff.not.1 hne)
     obtain ⟨σ, hσ, hmax⟩ := exists_feasible_satisfiedWeight_eq_maxSatisfiedWeight hsat
     exact ⟨⟨σ, hσ, WithBot.coe_eq_coe.1 (hmax.trans h)⟩,
@@ -361,148 +494,31 @@ theorem optimum_add_maxSatisfiedWeight {φ : MaxSAT V} (h : φ.hard.Satisfiable)
   refine ⟨φ.cost σ, φ.satisfiedWeight σ, hopt.symm, ?_, φ.cost_add_satisfiedWeight σ⟩
   unfold maxSatisfiedWeight
   rw [← hopt, φ.satisfiedWeight_eq_totalWeight_sub_cost σ]
+  rfl
 
 /-! ### Computable solver over finite variable lists -/
 
-/-- Branch-and-enumerate optimum over a finite list `vs` of variables, starting from base
-assignment `σ`. -/
-def optimumOn [DecidableEq V] (φ : MaxSAT V) : List V → (V → Bool) → WithTop ℕ
-  | [], σ => if φ.hard.eval σ then (φ.cost σ : WithTop ℕ) else ⊤
-  | v :: vs, σ =>
-      min (φ.optimumOn vs (fun w => if w = v then true else σ w))
-          (φ.optimumOn vs (fun w => if w = v then false else σ w))
-
-private theorem optimumOn_le_of_agree [DecidableEq V] (φ : MaxSAT V) (vs : List V)
-    (σ τ : V → Bool) (hτ : φ.feasible τ) (hout : ∀ w, w ∉ vs → τ w = σ w) :
-    φ.optimumOn vs σ ≤ (φ.cost τ : WithTop ℕ) := by
-  induction vs generalizing σ with
-  | nil =>
-    have heq : τ = σ := funext fun w => hout w List.not_mem_nil
-    simp only [optimumOn, heq]
-    split_ifs with h'
-    · exact le_rfl
-    · exact absurd (heq ▸ hτ) h'
-  | cons v vs ih =>
-    simp only [optimumOn]
-    have hnot : ∀ w, w ∉ vs → w ≠ v → τ w = σ w := fun w hw hne =>
-      hout w fun hm => by
-        rcases List.mem_cons.1 hm with rfl | hm
-        · exact hne rfl
-        · exact hw hm
-    cases hv : τ v
-    · refine min_le_of_right_le (ih (fun w => if w = v then false else σ w) fun w hw => ?_)
-      by_cases hweq : w = v
-      · simp [hweq, hv]
-      · simp [hweq, hnot w hw hweq]
-    · refine min_le_of_left_le (ih (fun w => if w = v then true else σ w) fun w hw => ?_)
-      by_cases hweq : w = v
-      · simp [hweq, hv]
-      · simp [hweq, hnot w hw hweq]
-
-private theorem optimumOn_witness_or_top [DecidableEq V] (φ : MaxSAT V) (vs : List V)
-    (σ : V → Bool) :
-    φ.optimumOn vs σ = ⊤ ∨
-      ∃ τ : V → Bool, (∀ w, w ∉ vs → τ w = σ w) ∧
-        φ.feasible τ ∧ φ.optimumOn vs σ = (φ.cost τ : WithTop ℕ) := by
-  induction vs generalizing σ with
-  | nil =>
-    simp only [optimumOn]
-    split_ifs with h
-    · exact .inr ⟨σ, fun _ _ => rfl, h, rfl⟩
-    · exact .inl rfl
-  | cons v vs ih =>
-    simp only [optimumOn]
-    set σt : V → Bool := fun w => if w = v then true else σ w
-    set σf : V → Bool := fun w => if w = v then false else σ w
-    rcases le_total (φ.optimumOn vs σt) (φ.optimumOn vs σf) with hle | hle
-    · rw [min_eq_left hle]
-      rcases ih σt with ht | ⟨τ, hout, hfeas, hcost⟩
-      · exact .inl ht
-      · refine .inr ⟨τ, fun w hw => ?_, hfeas, hcost⟩
-        have hnotvs : w ∉ vs := fun hm => hw (List.mem_cons_of_mem v hm)
-        have hne : w ≠ v := fun heq => hw (heq ▸ List.mem_cons_self)
-        simpa [σt, hne] using hout w hnotvs
-    · rw [min_eq_right hle]
-      rcases ih σf with hf | ⟨τ, hout, hfeas, hcost⟩
-      · exact .inl hf
-      · refine .inr ⟨τ, fun w hw => ?_, hfeas, hcost⟩
-        have hnotvs : w ∉ vs := fun hm => hw (List.mem_cons_of_mem v hm)
-        have hne : w ≠ v := fun heq => hw (heq ▸ List.mem_cons_self)
-        simpa [σf, hne] using hout w hnotvs
-
-/-- When `vs` contains every variable occurring in `φ`, `φ.optimumOn vs σ` computes `φ.optimum`.
--/
-theorem optimumOn_eq_optimum [DecidableEq V] (φ : MaxSAT V) (vs : List V)
-    (hvars : ∀ v ∈ φ.vars, v ∈ vs) (σ : V → Bool) :
-    φ.optimumOn vs σ = φ.optimum := by
-  rcases optimumOn_witness_or_top φ vs σ with htop | ⟨τ, _, hfeas, hcost⟩
-  · have hunsat : ¬ φ.hard.Satisfiable := by
-      rintro ⟨ρ, hρ⟩
-      let ρ' : V → Bool := fun w => if w ∈ vs then ρ w else σ w
-      have hagree : ∀ w ∈ φ.vars, ρ' w = ρ w := fun w hw => by simp [ρ', hvars w hw]
-      have hρ' : φ.feasible ρ' := (feasible_congr hagree).2 hρ
-      have hle := optimumOn_le_of_agree φ vs σ ρ' hρ' (fun w hw => by simp [ρ', hw])
-      rw [htop, top_le_iff] at hle
-      exact absurd hle (by simp)
-    rw [htop, φ.optimum_eq_top_iff.2 hunsat]
-  · refine le_antisymm ?_ (hcost ▸ optimum_le_cost hfeas)
-    by_cases hsat : φ.hard.Satisfiable
-    · obtain ⟨ρ, hρ, hopt⟩ := exists_feasible_cost_eq_optimum hsat
-      let ρ' : V → Bool := fun w => if w ∈ vs then ρ w else σ w
-      have hagree : ∀ w ∈ φ.vars, ρ' w = ρ w := fun w hw => by simp [ρ', hvars w hw]
-      have hle := optimumOn_le_of_agree φ vs σ ρ' ((feasible_congr hagree).2 hρ)
-        (fun w hw => by simp [ρ', hw])
-      rwa [cost_congr hagree, hopt] at hle
-    · rw [φ.optimum_eq_top_iff.2 hsat]
-      exact le_top
-
-/-- Deduplicate a list of variables, preserving membership. -/
-def dedupVars [DecidableEq V] : List V → List V
-  | [] => []
-  | v :: vs => if v ∈ vs then dedupVars vs else v :: dedupVars vs
-
-theorem mem_dedupVars [DecidableEq V] {xs : List V} {v : V} : v ∈ dedupVars xs ↔ v ∈ xs := by
-  induction xs with
-  | nil => simp [dedupVars]
-  | cons a xs ih =>
-    simp only [dedupVars]
-    split_ifs with ha
-    · rw [ih]
-      constructor
-      · exact List.mem_cons_of_mem a
-      · intro hv
-        rcases List.mem_cons.1 hv with rfl | hv'
-        · exact ha
-        · exact hv'
-    · simp only [List.mem_cons, ih]
-
 /-- Computable optimum for instances with decidable variable equality, suitable for `decide`. -/
-def computeOptimum [DecidableEq V] (φ : MaxSAT V) : WithTop ℕ :=
-  φ.optimumOn (dedupVars φ.vars) (fun _ => false)
+@[expose] def computeOptimum [DecidableEq V] (φ : MaxSAT V) : WithTop ℕ :=
+  branchMinCost φ.hard.eval φ.cost φ.vars.eraseDups (fun _ => false)
 
 theorem computeOptimum_eq_optimum [DecidableEq V] (φ : MaxSAT V) :
     φ.computeOptimum = φ.optimum :=
-  optimumOn_eq_optimum φ (dedupVars φ.vars) (fun _ hv => mem_dedupVars.2 hv) _
+  branchMinCost_eq_minCostOf φ.hard.eval φ.cost φ.vars.eraseDups
+    (fun h => Bool.eq_iff_iff.2 (feasible_congr fun v hv => h v (List.mem_eraseDups.2 hv)))
+    (fun h => cost_congr fun v hv => h v (List.mem_eraseDups.2 hv))
+    _
 
 /-! ### Basic theory: empty soft, unweighted, relabelling, and monotonicity -/
 
 theorem optimum_soft_nil_eq_zero_iff (h : CNF V) :
-    ({ hard := h, soft := [] } : MaxSAT V).optimum = ((0 : ℕ) : WithTop ℕ) ↔ h.Satisfiable := by
-  constructor
-  · intro heq
-    have hne : ({ hard := h, soft := [] } : MaxSAT V).optimum ≠ ⊤ := by
-      rw [heq]
-      exact WithTop.coe_ne_top
-    exact (optimum_ne_top_iff _).1 hne
-  · intro ⟨σ, hσ⟩
-    exact optimum_eq_coe_iff.2 ⟨⟨σ, hσ, by simp [cost]⟩, fun _ _ => Nat.zero_le _⟩
-
-theorem optimum_soft_nil_eq_top_iff (h : CNF V) :
-    ({ hard := h, soft := [] } : MaxSAT V).optimum = ⊤ ↔ ¬ h.Satisfiable :=
-  optimum_eq_top_iff _
+    ({ hard := h, soft := [] } : MaxSAT V).optimum = 0 ↔ h.Satisfiable := by
+  rw [show (0 : WithTop ℕ) = ((0 : ℕ) : WithTop ℕ) from WithTop.coe_zero.symm, optimum_eq_coe_iff]
+  refine ⟨fun ⟨⟨σ, hσ, _⟩, _⟩ => ⟨σ, hσ⟩, fun ⟨σ, hσ⟩ => ⟨⟨σ, hσ, ?_⟩, fun _ _ => Nat.zero_le _⟩⟩
+  simp [cost]
 
 /-- Unweighted MaxSAT view of a CNF formula: no hard clauses, each clause given unit weight. -/
-def unweighted (φ : CNF V) : MaxSAT V where
+@[expose] def unweighted (φ : CNF V) : MaxSAT V where
   hard := []
   soft := φ.map (·, 1)
 
@@ -536,8 +552,8 @@ theorem optimum_unweighted_ne_top (φ : CNF V) : (unweighted φ).optimum ≠ ⊤
   (optimum_ne_top_iff _).2 ⟨fun _ => false, by simp [unweighted]⟩
 
 theorem optimum_unweighted_eq_zero_iff (φ : CNF V) :
-    (unweighted φ).optimum = ((0 : ℕ) : WithTop ℕ) ↔ φ.Satisfiable := by
-  rw [optimum_eq_coe_iff]
+    (unweighted φ).optimum = 0 ↔ φ.Satisfiable := by
+  rw [show (0 : WithTop ℕ) = ((0 : ℕ) : WithTop ℕ) from WithTop.coe_zero.symm, optimum_eq_coe_iff]
   constructor
   · rintro ⟨⟨σ, -, hcost⟩, -⟩
     rw [cost_unweighted, CNF.countUnsat_eq_zero_iff] at hcost
@@ -547,7 +563,7 @@ theorem optimum_unweighted_eq_zero_iff (φ : CNF V) :
     rwa [cost_unweighted, CNF.countUnsat_eq_zero_iff]
 
 /-- Rename all variables of a MaxSAT instance along `f : V → W`, reusing `CNF.relabel`. -/
-def relabel {W : Type*} (f : V → W) (φ : MaxSAT V) : MaxSAT W where
+@[expose] def relabel {W : Type*} (f : V → W) (φ : MaxSAT V) : MaxSAT W where
   hard := φ.hard.relabel f
   soft := φ.soft.map fun cw => (cw.1.relabel f, cw.2)
 
@@ -577,29 +593,15 @@ theorem optimum_relabel {W : Type*} {f : V → W} (hf : Function.Injective f) (�
   classical
   refine le_antisymm ?_ (optimum_le_optimum_relabel f φ)
   refine optimum_le_optimum_of_forall fun σ hσ => ?_
-  let τ : W → Bool := fun w => if h : ∃ v, f v = w then σ h.choose else false
-  have hcomp : τ ∘ f = σ := funext fun v => by
-    have hex : ∃ u, f u = f v := ⟨v, rfl⟩
-    simpa [Function.comp_apply, τ, dite_eq_left hex] using congrArg σ (hf hex.choose_spec)
+  let τ : W → Bool := Function.extend f σ (fun _ => false)
+  have hcomp : τ ∘ f = σ := Function.extend_comp hf σ (fun _ => false)
   refine ⟨τ, (feasible_relabel f φ τ).2 (hcomp ▸ hσ), ?_⟩
   rw [cost_relabel, hcomp]
 
-private theorem cost_sublist_aux {l₁ l₂ : List (Clause V × ℕ)} (hs : l₁.Sublist l₂)
-    (σ : V → Bool) :
-    (l₁.map fun cw => if cw.1.eval σ then 0 else cw.2).sum ≤
-      (l₂.map fun cw => if cw.1.eval σ then 0 else cw.2).sum := by
-  induction hs with
-  | slnil => simp
-  | cons a _ ih =>
-    simp only [List.map_cons, List.sum_cons]
-    omega
-  | cons_cons a _ ih =>
-    simp only [List.map_cons, List.sum_cons]
-    exact Nat.add_le_add_left ih _
-
 theorem cost_le_of_sublist {φ ψ : MaxSAT V} (hs : φ.soft.Sublist ψ.soft) (σ : V → Bool) :
-    φ.cost σ ≤ ψ.cost σ :=
-  cost_sublist_aux hs σ
+    φ.cost σ ≤ ψ.cost σ := by
+  unfold cost
+  exact (hs.map _).sum_le_sum fun _ _ => Nat.zero_le _
 
 /-- Adding hard clauses or additional soft clauses can only increase or leave unchanged the
 optimum cost. -/
@@ -621,34 +623,6 @@ end MaxSAT
 
 /-! ### Propositional weighted partial MaxSAT and Tseitin / Plaisted–Greenbaum translations -/
 
-namespace Proposition
-
-/-- All atom occurrences appearing in a proposition. -/
-def atoms {Atom : Type*} : Proposition Atom → List Atom
-  | atom x => [x]
-  | falsum => []
-  | and A B | or A B | imp A B => A.atoms ++ B.atoms
-
-theorem eval_congr {Atom : Type*} {v w : Atom → Bool} {A : Proposition Atom}
-    (h : ∀ x ∈ A.atoms, v x = w x) : A.eval v = A.eval w := by
-  induction A with
-  | atom x => exact h x List.mem_cons_self
-  | falsum => rfl
-  | and A B ihA ihB =>
-    simp only [eval_and_bool]
-    rw [ihA fun x hx => h x (List.mem_append_left _ hx),
-      ihB fun x hx => h x (List.mem_append_right _ hx)]
-  | or A B ihA ihB =>
-    simp only [eval_or_bool]
-    rw [ihA fun x hx => h x (List.mem_append_left _ hx),
-      ihB fun x hx => h x (List.mem_append_right _ hx)]
-  | imp A B ihA ihB =>
-    simp only [eval_imp_bool]
-    rw [ihA fun x hx => h x (List.mem_append_left _ hx),
-      ihB fun x hx => h x (List.mem_append_right _ hx)]
-
-end Proposition
-
 /-- A weighted partial MaxSAT instance over arbitrary propositions. -/
 @[ext]
 structure PropMaxSAT (Atom : Type*) where
@@ -662,31 +636,31 @@ namespace PropMaxSAT
 variable {Atom : Type*}
 
 /-- All hard and soft propositions of `ψ`. -/
-def allProps (ψ : PropMaxSAT Atom) : List (Proposition Atom) :=
+@[expose] def allProps (ψ : PropMaxSAT Atom) : List (Proposition Atom) :=
   ψ.hard ++ ψ.soft.map Prod.fst
 
 /-- Sum of syntactic sizes of all hard and soft propositions of `ψ`. -/
-def totalSize (ψ : PropMaxSAT Atom) : ℕ :=
+@[expose] def totalSize (ψ : PropMaxSAT Atom) : ℕ :=
   (ψ.allProps.map Proposition.size).sum
 
 /-- All atom occurrences appearing in `ψ`. -/
-def atoms (ψ : PropMaxSAT Atom) : List Atom :=
+@[expose] def atoms (ψ : PropMaxSAT Atom) : List Atom :=
   ψ.allProps.flatMap Proposition.atoms
 
 /-- An atom valuation is feasible when every hard proposition holds. -/
-def feasible (ψ : PropMaxSAT Atom) (v : Atom → Bool) : Prop :=
+@[expose] def feasible (ψ : PropMaxSAT Atom) (v : Atom → Bool) : Prop :=
   ∀ A ∈ ψ.hard, A.eval v = true
 
 /-- Total weight of soft propositions falsified by `v`. -/
-def cost (ψ : PropMaxSAT Atom) (v : Atom → Bool) : ℕ :=
+@[expose] def cost (ψ : PropMaxSAT Atom) (v : Atom → Bool) : ℕ :=
   (ψ.soft.map fun Aw => if Aw.1.eval v then 0 else Aw.2).sum
 
 /-- Total weight of all soft propositions in `ψ`. -/
-def totalWeight (ψ : PropMaxSAT Atom) : ℕ :=
+@[expose] def totalWeight (ψ : PropMaxSAT Atom) : ℕ :=
   (ψ.soft.map Prod.snd).sum
 
 /-- Total weight of soft propositions satisfied by `v`. -/
-def satisfiedWeight (ψ : PropMaxSAT Atom) (v : Atom → Bool) : ℕ :=
+@[expose] def satisfiedWeight (ψ : PropMaxSAT Atom) (v : Atom → Bool) : ℕ :=
   (ψ.soft.map fun Aw => if Aw.1.eval v then Aw.2 else 0).sum
 
 theorem feasible_congr {ψ : PropMaxSAT Atom} {v w : Atom → Bool}
@@ -709,154 +683,50 @@ theorem cost_congr {ψ : PropMaxSAT Atom} {v w : Atom → Bool}
 
 /-- Minimum cost among feasible atom valuations of `ψ`, or `⊤` when `ψ.hard` is unsatisfiable. -/
 noncomputable def optimum (ψ : PropMaxSAT Atom) : WithTop ℕ :=
-  open Classical in
-  if h : ∃ v : Atom → Bool, ψ.feasible v then
-    ((Nat.find (⟨ψ.cost h.choose, h.choose, h.choose_spec, rfl⟩ :
-      ∃ k : ℕ, ∃ v : Atom → Bool, ψ.feasible v ∧ ψ.cost v = k) : ℕ) : WithTop ℕ)
-  else ⊤
+  minCostOf ψ.feasible ψ.cost
 
-theorem optimum_eq_top_iff (ψ : PropMaxSAT Atom) : ψ.optimum = ⊤ ↔ ¬ ∃ v, ψ.feasible v := by
-  classical
-  unfold optimum
-  split_ifs with h
-  · simpa [WithTop.coe_ne_top] using h
-  · exact iff_of_true rfl h
+theorem optimum_eq_top_iff (ψ : PropMaxSAT Atom) : ψ.optimum = ⊤ ↔ ¬ ∃ v, ψ.feasible v :=
+  minCostOf_eq_top_iff ψ.feasible ψ.cost
 
 theorem optimum_ne_top_iff (ψ : PropMaxSAT Atom) : ψ.optimum ≠ ⊤ ↔ ∃ v, ψ.feasible v := by
   rw [ne_eq, optimum_eq_top_iff, not_not]
 
 theorem exists_feasible_cost_eq_optimum {ψ : PropMaxSAT Atom} (h : ∃ v, ψ.feasible v) :
-    ∃ v : Atom → Bool, ψ.feasible v ∧ (ψ.cost v : WithTop ℕ) = ψ.optimum := by
-  classical
-  unfold optimum
-  rw [dite_eq_left h]
-  obtain ⟨v, hv, hcost⟩ :=
-    Nat.find_spec (⟨ψ.cost h.choose, h.choose, h.choose_spec, rfl⟩ :
-      ∃ k : ℕ, ∃ v : Atom → Bool, ψ.feasible v ∧ ψ.cost v = k)
-  exact ⟨v, hv, congrArg ((↑) : ℕ → WithTop ℕ) hcost⟩
+    ∃ v : Atom → Bool, ψ.feasible v ∧ (ψ.cost v : WithTop ℕ) = ψ.optimum :=
+  exists_feas_cost_eq_minCostOf h
 
 theorem optimum_le_cost {ψ : PropMaxSAT Atom} {v : Atom → Bool} (hv : ψ.feasible v) :
-    ψ.optimum ≤ (ψ.cost v : WithTop ℕ) := by
-  classical
-  have h : ∃ v : Atom → Bool, ψ.feasible v := ⟨v, hv⟩
-  unfold optimum
-  rw [dite_eq_left h]
-  exact WithTop.coe_le_coe.2 (Nat.find_min' _ ⟨v, hv, rfl⟩)
+    ψ.optimum ≤ (ψ.cost v : WithTop ℕ) :=
+  minCostOf_le_cost hv
 
 theorem le_optimum_iff {ψ : PropMaxSAT Atom} {k : ℕ} :
-    (k : WithTop ℕ) ≤ ψ.optimum ↔ ∀ v : Atom → Bool, ψ.feasible v → k ≤ ψ.cost v := by
-  refine ⟨fun hk v hv => WithTop.coe_le_coe.1 (hk.trans (optimum_le_cost hv)), fun hk => ?_⟩
-  by_cases hsat : ∃ v, ψ.feasible v
-  · obtain ⟨v, hv, hopt⟩ := exists_feasible_cost_eq_optimum hsat
-    rw [← hopt]
-    exact WithTop.coe_le_coe.2 (hk v hv)
-  · rw [ψ.optimum_eq_top_iff.2 hsat]
-    exact le_top
-
-/-- Computable branch-and-enumerate optimum over a list of atoms. -/
-def optimumOn [DecidableEq Atom] (ψ : PropMaxSAT Atom) :
-    List Atom → (Atom → Bool) → WithTop ℕ
-  | [], v => if ψ.hard.all (fun A => A.eval v) then (ψ.cost v : WithTop ℕ) else ⊤
-  | x :: xs, v =>
-      min (ψ.optimumOn xs (fun y => if y = x then true else v y))
-          (ψ.optimumOn xs (fun y => if y = x then false else v y))
-
-private theorem optimumOn_le_of_agree [DecidableEq Atom] (ψ : PropMaxSAT Atom) (xs : List Atom)
-    (v w : Atom → Bool) (hw : ψ.feasible w) (hout : ∀ y, y ∉ xs → w y = v y) :
-    ψ.optimumOn xs v ≤ (ψ.cost w : WithTop ℕ) := by
-  induction xs generalizing v with
-  | nil =>
-    have heq : w = v := funext fun y => hout y List.not_mem_nil
-    have hall : ψ.hard.all (fun A => A.eval v) = true := List.all_eq_true.2 (heq ▸ hw)
-    simp only [optimumOn, heq, hall]
-    exact le_rfl
-  | cons x xs ih =>
-    simp only [optimumOn]
-    have hnot : ∀ y, y ∉ xs → y ≠ x → w y = v y := fun y hy hne =>
-      hout y fun hm => by
-        rcases List.mem_cons.1 hm with rfl | hm
-        · exact hne rfl
-        · exact hy hm
-    cases hx : w x
-    · refine min_le_of_right_le (ih (fun y => if y = x then false else v y) fun y hy => ?_)
-      by_cases hyeq : y = x
-      · simp [hyeq, hx]
-      · simp [hyeq, hnot y hy hyeq]
-    · refine min_le_of_left_le (ih (fun y => if y = x then true else v y) fun y hy => ?_)
-      by_cases hyeq : y = x
-      · simp [hyeq, hx]
-      · simp [hyeq, hnot y hy hyeq]
-
-private theorem optimumOn_witness_or_top [DecidableEq Atom] (ψ : PropMaxSAT Atom) (xs : List Atom)
-    (v : Atom → Bool) :
-    ψ.optimumOn xs v = ⊤ ∨
-      ∃ w : Atom → Bool, (∀ y, y ∉ xs → w y = v y) ∧
-        ψ.feasible w ∧ ψ.optimumOn xs v = (ψ.cost w : WithTop ℕ) := by
-  induction xs generalizing v with
-  | nil =>
-    simp only [optimumOn]
-    split_ifs with h
-    · exact .inr ⟨v, fun _ _ => rfl, List.all_eq_true.1 h, rfl⟩
-    · exact .inl rfl
-  | cons x xs ih =>
-    simp only [optimumOn]
-    set vt : Atom → Bool := fun y => if y = x then true else v y
-    set vf : Atom → Bool := fun y => if y = x then false else v y
-    rcases le_total (ψ.optimumOn xs vt) (ψ.optimumOn xs vf) with hle | hle
-    · rw [min_eq_left hle]
-      rcases ih vt with ht | ⟨w, hout, hfeas, hcost⟩
-      · exact .inl ht
-      · refine .inr ⟨w, fun y hy => ?_, hfeas, hcost⟩
-        have hnotxs : y ∉ xs := fun hm => hy (List.mem_cons_of_mem x hm)
-        have hne : y ≠ x := fun heq => hy (heq ▸ List.mem_cons_self)
-        simpa [vt, hne] using hout y hnotxs
-    · rw [min_eq_right hle]
-      rcases ih vf with hf | ⟨w, hout, hfeas, hcost⟩
-      · exact .inl hf
-      · refine .inr ⟨w, fun y hy => ?_, hfeas, hcost⟩
-        have hnotxs : y ∉ xs := fun hm => hy (List.mem_cons_of_mem x hm)
-        have hne : y ≠ x := fun heq => hy (heq ▸ List.mem_cons_self)
-        simpa [vf, hne] using hout y hnotxs
-
-theorem optimumOn_eq_optimum [DecidableEq Atom] (ψ : PropMaxSAT Atom) (xs : List Atom)
-    (hatoms : ∀ x ∈ ψ.atoms, x ∈ xs) (v : Atom → Bool) :
-    ψ.optimumOn xs v = ψ.optimum := by
-  rcases optimumOn_witness_or_top ψ xs v with htop | ⟨w, _, hfeas, hcost⟩
-  · have hunsat : ¬ ∃ u, ψ.feasible u := by
-      rintro ⟨u, hu⟩
-      let u' : Atom → Bool := fun y => if y ∈ xs then u y else v y
-      have hagree : ∀ y ∈ ψ.atoms, u' y = u y := fun y hy => by simp [u', hatoms y hy]
-      have hle := optimumOn_le_of_agree ψ xs v u' ((feasible_congr hagree).2 hu)
-        (fun y hy => by simp [u', hy])
-      rw [htop, top_le_iff] at hle
-      exact absurd hle (by simp)
-    rw [htop, ψ.optimum_eq_top_iff.2 hunsat]
-  · refine le_antisymm ?_ (hcost ▸ optimum_le_cost hfeas)
-    by_cases hsat : ∃ u, ψ.feasible u
-    · obtain ⟨u, hu, hopt⟩ := exists_feasible_cost_eq_optimum hsat
-      let u' : Atom → Bool := fun y => if y ∈ xs then u y else v y
-      have hagree : ∀ y ∈ ψ.atoms, u' y = u y := fun y hy => by simp [u', hatoms y hy]
-      have hle := optimumOn_le_of_agree ψ xs v u' ((feasible_congr hagree).2 hu)
-        (fun y hy => by simp [u', hy])
-      rwa [cost_congr hagree, hopt] at hle
-    · rw [ψ.optimum_eq_top_iff.2 hsat]
-      exact le_top
+    (k : WithTop ℕ) ≤ ψ.optimum ↔ ∀ v : Atom → Bool, ψ.feasible v → k ≤ ψ.cost v :=
+  le_minCostOf_iff
 
 /-- Computable optimum for propositional MaxSAT instances over atoms with decidable equality. -/
-def computeOptimum [DecidableEq Atom] (ψ : PropMaxSAT Atom) : WithTop ℕ :=
-  ψ.optimumOn (MaxSAT.dedupVars ψ.atoms) (fun _ => false)
+@[expose] def computeOptimum [DecidableEq Atom] (ψ : PropMaxSAT Atom) : WithTop ℕ :=
+  branchMinCost (fun v => ψ.hard.all fun A => A.eval v) ψ.cost ψ.atoms.eraseDups (fun _ => false)
 
 theorem computeOptimum_eq_optimum [DecidableEq Atom] (ψ : PropMaxSAT Atom) :
-    ψ.computeOptimum = ψ.optimum :=
-  optimumOn_eq_optimum ψ (MaxSAT.dedupVars ψ.atoms)
-    (fun _ hx => MaxSAT.mem_dedupVars.2 hx) _
+    ψ.computeOptimum = ψ.optimum := by
+  have heq : minCostOf (fun τ => (ψ.hard.all fun A => A.eval τ) = true) ψ.cost = ψ.optimum := by
+    simp only [List.all_eq_true]
+    rfl
+  rw [← heq]
+  exact branchMinCost_eq_minCostOf (fun v => ψ.hard.all fun A => A.eval v) ψ.cost
+    ψ.atoms.eraseDups
+    (fun h => Bool.eq_iff_iff.2 (by
+      simp only [List.all_eq_true]
+      exact feasible_congr fun x hx => h x (List.mem_eraseDups.2 hx)))
+    (fun h => cost_congr fun x hx => h x (List.mem_eraseDups.2 hx))
+    _
 
 /-! #### Tseitin translation -/
 
 /-- The Tseitin translation of `ψ` into a clausal weighted partial MaxSAT instance: hard
 definitional clauses for every hard and soft proposition, unit hard clauses for `ψ.hard`, and
 unit soft clauses for `ψ.soft` preserving weights. -/
-def toTseitin (ψ : PropMaxSAT Atom) : MaxSAT (Atom ⊕ Proposition Atom) where
+@[expose] def toTseitin (ψ : PropMaxSAT Atom) : MaxSAT (Atom ⊕ Proposition Atom) where
   hard := ψ.allProps.flatMap Proposition.tseitinDefs ++
     ψ.hard.map fun A => [(A.tseitinVar, true)]
   soft := ψ.soft.map fun Aw => ([(Aw.1.tseitinVar, true)], Aw.2)
@@ -882,7 +752,7 @@ theorem feasible_of_feasible_toTseitin {ψ : PropMaxSAT Atom}
   simp only [MaxSAT.feasible, toTseitin, CNF.eval_append, Bool.and_eq_true] at hσ
   intro A hA
   have hdefs : A.tseitinDefs.eval σ = true :=
-    (Proposition.eval_tseitinDefs_flatMap_iff σ ψ.allProps).1 hσ.1 A
+    (CNF.eval_flatMap_eq_true_iff σ ψ.allProps Proposition.tseitinDefs).1 hσ.1 A
       (List.mem_append_left _ hA)
   have hunit : Clause.eval σ [(A.tseitinVar, true)] = true :=
     (CNF.eval_eq_true_iff σ _).1 hσ.2 _ (List.mem_map.2 ⟨A, hA, rfl⟩)
@@ -898,7 +768,7 @@ theorem cost_toTseitin_eq {ψ : PropMaxSAT Atom} {σ : Atom ⊕ Proposition Atom
   congr 1
   refine List.map_congr_left fun Aw hAw => ?_
   have hdefs : Aw.1.tseitinDefs.eval σ = true :=
-    (Proposition.eval_tseitinDefs_flatMap_iff σ ψ.allProps).1 hσ.1 Aw.1
+    (CNF.eval_flatMap_eq_true_iff σ ψ.allProps Proposition.tseitinDefs).1 hσ.1 Aw.1
       (List.mem_append_right _ (List.mem_map.2 ⟨Aw, hAw, rfl⟩))
   have hvar : σ Aw.1.tseitinVar = Aw.1.eval (σ ∘ Sum.inl) :=
     Proposition.eval_tseitinVar_of_eval_tseitinDefs hdefs
@@ -920,7 +790,7 @@ theorem eq_tseitinExtend_of_feasible_toTseitin {ψ : PropMaxSAT Atom}
         (CNF.mem_vars.2 ⟨c, hcdefs, b, hb⟩)
     · simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at hb
       rcases hb with ⟨rfl, -⟩
-      have hdefs := (Proposition.eval_tseitinDefs_flatMap_iff σ ψ.allProps).1 hσ.1 A
+      have hdefs := (CNF.eval_flatMap_eq_true_iff σ ψ.allProps Proposition.tseitinDefs).1 hσ.1 A
         (List.mem_append_left _ hA)
       exact Proposition.eq_tseitinExtend_of_eval_tseitinDefs hdefs (.inl rfl)
   · obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hysoft
@@ -928,7 +798,7 @@ theorem eq_tseitinExtend_of_feasible_toTseitin {ψ : PropMaxSAT Atom}
     obtain ⟨Aw, hAw, rfl⟩ := hc
     simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at hb
     rcases hb with ⟨rfl, -⟩
-    have hdefs := (Proposition.eval_tseitinDefs_flatMap_iff σ ψ.allProps).1 hσ.1 Aw.1
+    have hdefs := (CNF.eval_flatMap_eq_true_iff σ ψ.allProps Proposition.tseitinDefs).1 hσ.1 Aw.1
       (List.mem_append_right _ (List.mem_map.2 ⟨Aw, hAw, rfl⟩))
     exact Proposition.eq_tseitinExtend_of_eval_tseitinDefs hdefs (.inl rfl)
 
@@ -985,7 +855,7 @@ theorem length_le_three_of_mem_toTseitin_soft {ψ : PropMaxSAT Atom}
 
 /-- The positive-polarity Plaisted–Greenbaum translation of `ψ` into a clausal weighted partial
 MaxSAT instance. -/
-def toPlaistedGreenbaum (ψ : PropMaxSAT Atom) : MaxSAT (Atom ⊕ Proposition Atom) where
+@[expose] def toPlaistedGreenbaum (ψ : PropMaxSAT Atom) : MaxSAT (Atom ⊕ Proposition Atom) where
   hard := ψ.allProps.flatMap (Proposition.plaistedGreenbaumDefs true) ++
     ψ.hard.map fun A => [(A.tseitinVar, true)]
   soft := ψ.soft.map fun Aw => ([(Aw.1.tseitinVar, true)], Aw.2)
@@ -1011,7 +881,7 @@ theorem feasible_of_feasible_toPlaistedGreenbaum {ψ : PropMaxSAT Atom}
   simp only [MaxSAT.feasible, toPlaistedGreenbaum, CNF.eval_append, Bool.and_eq_true] at hσ
   intro A hA
   have hdefs : (A.plaistedGreenbaumDefs true).eval σ = true :=
-    (Proposition.eval_plaistedGreenbaumDefs_flatMap_iff σ ψ.allProps).1 hσ.1 A
+    (CNF.eval_flatMap_eq_true_iff σ ψ.allProps (Proposition.plaistedGreenbaumDefs true)).1 hσ.1 A
       (List.mem_append_left _ hA)
   have hunit : Clause.eval σ [(A.tseitinVar, true)] = true :=
     (CNF.eval_eq_true_iff σ _).1 hσ.2 _ (List.mem_map.2 ⟨A, hA, rfl⟩)
@@ -1027,10 +897,10 @@ theorem cost_le_cost_toPlaistedGreenbaum {ψ : PropMaxSAT Atom}
   simp only [MaxSAT.feasible, toPlaistedGreenbaum, CNF.eval_append, Bool.and_eq_true] at hσ
   unfold cost MaxSAT.cost toPlaistedGreenbaum
   simp only [List.map_map, Function.comp_def]
-  refine list_sum_map_le_sum_map ψ.soft _ _ fun Aw hAw => ?_
+  refine List.sum_le_sum fun Aw hAw => ?_
   have hdefs : (Aw.1.plaistedGreenbaumDefs true).eval σ = true :=
-    (Proposition.eval_plaistedGreenbaumDefs_flatMap_iff σ ψ.allProps).1 hσ.1 Aw.1
-      (List.mem_append_right _ (List.mem_map.2 ⟨Aw, hAw, rfl⟩))
+    (CNF.eval_flatMap_eq_true_iff σ ψ.allProps (Proposition.plaistedGreenbaumDefs true)).1 hσ.1
+      Aw.1 (List.mem_append_right _ (List.mem_map.2 ⟨Aw, hAw, rfl⟩))
   by_cases hvar : σ Aw.1.tseitinVar = true
   · have hprop : Aw.1.eval (fun x => σ (Sum.inl x)) = true :=
       Proposition.eval_eq_of_eval_plaistedGreenbaumDefs hdefs hvar

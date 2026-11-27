@@ -24,7 +24,7 @@ Checked clients covering:
    confirming equal optima (`2`), clause size/width bounds, and a concrete Plaisted–Greenbaum
    feasible assignment whose cost strictly exceeds that of its atom restriction.
 4. Smoke checks on the complexity bridges (`FineGrained.MaxSAT`, `ThresholdLanguage`,
-   `MaxTwoSAT`).
+   `MaxTwoSAT`), including an out-of-range variable boundary test for `toLogicMaxSAT`.
 -/
 
 set_option linter.privateModule false
@@ -147,6 +147,15 @@ example : Cslib.Complexity.MaxSAT.optimum sampleFG = 2 := by decide
 
 example : (Cslib.Logic.PL.MaxSAT.unweighted sampleFG.2).optimum = ((1 : ℕ) : WithTop ℕ) := by
   rw [Cslib.Complexity.MaxSAT.logic_optimum_unweighted_eq sampleFG (by decide)]
+  decide
+
+private def sampleOutOfRangeFG : Cslib.Complexity.MaxSAT.Instance :=
+  (1, [[(1, true)]])
+
+example : (Cslib.Complexity.MaxSAT.toLogicMaxSAT sampleOutOfRangeFG).computeOptimum = 1 := by
+  decide
+
+example : (Cslib.Logic.PL.MaxSAT.unweighted sampleOutOfRangeFG.2).computeOptimum = 0 := by
   decide
 
 private def sampleStruct : Cslib.Complexity.MaxSAT.StructInstance :=

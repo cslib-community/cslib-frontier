@@ -62,6 +62,10 @@ formula with a clause of another width becomes a fixed no-instance. Composed wit
   `Cslib.Complexity.polyTimeReducible_ThreeSAT_MaxTwoSAT`: `ExactThreeSAT` and `ThreeSAT` reduce
   to `MaxTwoSAT`.
 * `Cslib.Complexity.MaxTwoSAT_npComplete`: `MaxTwoSAT` is `NP`-complete.
+* `Cslib.Complexity.mem_maxTwoSAT_iff_hasSatisfiedWeightAtLeast`,
+  `Cslib.Complexity.mem_maxTwoSAT_iff_maxSatisfiedWeight`,
+  `Cslib.Complexity.mem_maxTwoSAT_iff_optimum`: bridges to propositional MaxSAT
+  (`Cslib.Logic.PL.MaxSAT`).
 
 ## References
 
@@ -399,7 +403,6 @@ theorem mem_maxTwoSAT_iff_maxSatisfiedWeight (x : MaxTwoSATInstance) :
           (Cslib.Logic.PL.MaxSAT.unweighted x.formula).maxSatisfiedWeight := by
   rw [mem_maxTwoSAT_iff_hasSatisfiedWeightAtLeast,
     ← Cslib.Logic.PL.MaxSAT.le_maxSatisfiedWeight_iff]
-  rfl
 
 /-- `x ∈ MaxTwoSAT` in cost-optimum form via `Cslib.Logic.PL.MaxSAT.unweighted`. -/
 theorem mem_maxTwoSAT_iff_optimum (x : MaxTwoSATInstance) :
@@ -412,6 +415,5 @@ theorem mem_maxTwoSAT_iff_optimum (x : MaxTwoSATInstance) :
     Cslib.Logic.PL.MaxSAT.hasSatisfiedWeightAtLeast_iff,
     Cslib.Logic.PL.MaxSAT.totalWeight_unweighted,
     Cslib.Logic.PL.MaxSAT.hasCostAtMost_iff_optimum_le]
-  rfl
 
 end Cslib.Complexity

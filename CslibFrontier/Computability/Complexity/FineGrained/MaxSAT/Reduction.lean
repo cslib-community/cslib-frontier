@@ -105,6 +105,11 @@ weighted partial MaxSAT formulation bridged to `StructInstance.optimum` and `Thr
   `optimumMaxCSPByBinarySearch_eq_optimum`, `countQueries_optimumMaxCSPByBinarySearchQ_le`,
   `cost_optimumMaxCSPByBinarySearchQ_le`:
   correctness, `FreeM` query-count/cost bounds, and subsampling transfer theorems.
+* `Cslib.Complexity.MaxSAT.StructInstance.optimum_eq_toLogicMaxSAT_maxSatisfiedWeight`,
+  `StructInstance.optimum_eq_logic_maxSatisfiedWeight`,
+  `StructInstance.logic_optimum_unweighted_eq`, `mem_thresholdLanguage_iff_toLogicMaxSAT`,
+  `mem_thresholdLanguage_iff_logic`, `mem_thresholdLanguage_iff_hasCostAtMost`:
+  bridges to propositional MaxSAT (`Cslib.Logic.PL.MaxSAT`).
 
 ## References
 

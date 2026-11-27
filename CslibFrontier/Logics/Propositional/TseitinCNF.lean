@@ -227,20 +227,11 @@ theorem satisfiable_tseitinCNF_iff (A : Proposition Atom) :
   ⟨fun ⟨σ, hσ⟩ => ⟨σ ∘ Sum.inl, ((eval_tseitinCNF_eq_true_iff σ A).1 hσ).1⟩,
     fun ⟨v, hv⟩ => ⟨tseitinExtend v, (eval_tseitinCNF_tseitinExtend v A).trans hv⟩⟩
 
-/-- An assignment satisfies the definitional clauses of a list of propositions iff it satisfies
-those of each proposition in the list. -/
-theorem eval_tseitinDefs_flatMap_iff (σ : Atom ⊕ Proposition Atom → Bool)
-    (fs : List (Proposition Atom)) :
-    CNF.eval σ (fs.flatMap Proposition.tseitinDefs) = true ↔
-      ∀ A ∈ fs, A.tseitinDefs.eval σ = true := by
-  simp only [CNF.eval_eq_true_iff, List.mem_flatMap]
-  exact ⟨fun h A hA c hc => h c ⟨A, hA, hc⟩, fun h c ⟨A, hA, hc⟩ => h A hA c hc⟩
-
 /-- The definitional clauses of a list of propositions hold under the Tseitin extension of any
 atom assignment. -/
 theorem eval_tseitinDefs_flatMap_tseitinExtend (v : Atom → Bool) (fs : List (Proposition Atom)) :
     CNF.eval (tseitinExtend v) (fs.flatMap Proposition.tseitinDefs) = true :=
-  (eval_tseitinDefs_flatMap_iff (tseitinExtend v) fs).2 fun A _ =>
+  (CNF.eval_flatMap_eq_true_iff (tseitinExtend v) fs Proposition.tseitinDefs).2 fun A _ =>
     eval_tseitinDefs_tseitinExtend v A
 
 /-- Under an assignment satisfying the definitional clauses of `fs`, every variable of those
@@ -252,7 +243,8 @@ theorem eq_tseitinExtend_of_eval_tseitinDefs_flatMap {σ : Atom ⊕ Proposition 
   obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hy
   rw [List.mem_flatMap] at hc
   obtain ⟨A, hA, hcA⟩ := hc
-  exact eq_tseitinExtend_of_eval_tseitinDefs ((eval_tseitinDefs_flatMap_iff σ fs).1 hσ A hA)
+  exact eq_tseitinExtend_of_eval_tseitinDefs
+    ((CNF.eval_flatMap_eq_true_iff σ fs Proposition.tseitinDefs).1 hσ A hA)
     (.inr (CNF.mem_vars.2 ⟨c, hcA, b, hb⟩))
 
 /-- Two assignments that satisfy the definitional clauses of `fs` and agree on the atoms agree on

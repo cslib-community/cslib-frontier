@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 import CslibFrontier.Foundations.Data.Nat.SqrtLog.Shifted
+import CslibFrontier.Logics.Propositional.CNF.Eval
 import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.Finset.Lattice.Fold
 
@@ -42,6 +43,9 @@ For the general propositional weighted partial MaxSAT definition and its bridge 
 * `MaxSAT.exists_histogram_algorithm`, `MaxSAT.exists_optimum_algorithm`: native resource bounds.
 * `MaxSAT.exists_sparse_histogram_algorithm`, `MaxSAT.exists_sparse_optimum_algorithm`:
   the rate in declared variables under fixed width and density bounds.
+* `MaxSAT.toLogicMaxSAT`, `MaxSAT.optimum_eq_toLogicMaxSAT_maxSatisfiedWeight`,
+  `MaxSAT.toLogicMaxSAT_optimum_eq`, `MaxSAT.optimum_eq_logic_maxSatisfiedWeight`,
+  `MaxSAT.logic_optimum_unweighted_eq`: bridges to propositional MaxSAT (`Cslib.Logic.PL.MaxSAT`).
 -/
 
 @[expose] public section
@@ -313,7 +317,8 @@ private theorem satisfiedWeight_toLogicMaxSAT_eq_score (F : Instance) {σ : ℕ 
   rw [Cslib.Logic.PL.MaxSAT.satisfiedWeight_unweighted, CNF.countP_eval_congr hagree]
   rfl
 
-theorem feasible_toLogicMaxSAT_nonempty (F : Instance) : (toLogicMaxSAT F).hard.Satisfiable :=
+private theorem feasible_toLogicMaxSAT_nonempty (F : Instance) :
+    (toLogicMaxSAT F).hard.Satisfiable :=
   ⟨assignment F.1 (fun _ => false), feasible_toLogicMaxSAT_assignment F (fun _ => false)⟩
 
 /-- `MaxSAT.optimum F` coincides with the maximum satisfied weight of `toLogicMaxSAT F`. -/

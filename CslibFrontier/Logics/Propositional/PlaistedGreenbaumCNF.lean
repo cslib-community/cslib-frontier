@@ -159,15 +159,6 @@ theorem eval_plaistedGreenbaumCNF_tseitinExtend (v : Atom → Bool) (A : Proposi
     rw [CNF.eval_eq_true_iff] at this
     exact this c (mem_tseitinCNF_of_mem_plaistedGreenbaumCNF hc)
 
-/-- An assignment satisfies the positive-polarity Plaisted–Greenbaum definitional clauses of a
-list of propositions iff it satisfies those of each proposition in the list. -/
-theorem eval_plaistedGreenbaumDefs_flatMap_iff (σ : Atom ⊕ Proposition Atom → Bool)
-    (fs : List (Proposition Atom)) :
-    CNF.eval σ (fs.flatMap (Proposition.plaistedGreenbaumDefs true)) = true ↔
-      ∀ A ∈ fs, (A.plaistedGreenbaumDefs true).eval σ = true := by
-  simp only [CNF.eval_eq_true_iff, List.mem_flatMap]
-  exact ⟨fun h A hA c hc => h c ⟨A, hA, hc⟩, fun h c ⟨A, hA, hc⟩ => h A hA c hc⟩
-
 /-- The positive-polarity Plaisted–Greenbaum definitional clauses of a list of propositions hold
 under the Tseitin extension of any atom assignment. -/
 theorem eval_plaistedGreenbaumDefs_flatMap_tseitinExtend (v : Atom → Bool)
