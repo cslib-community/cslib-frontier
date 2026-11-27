@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Foundations.Data.Nat.WeightedIndex
+import CslibFrontier.Probability.SaksZhou.Sweep
 import CslibFrontier.Probability.SaksZhou
 
 /-! The Saks–Zhou rounding and iteration: concrete values, Lemma A.3, the `pow` hypothesis holding
@@ -146,5 +147,12 @@ example : (1 : ℝ) ^ 3 * (Fintype.card (Fin 1) * (2 / 2 ^ 2)) <
 -- to the next nonempty interval, and a label at the total mass falls through to the sink.
 example : [0, 2, 3, 4, 5].map (Cslib.scanWeightedRow 4 (fun i => [0, 3, 0, 2][i]?.getD 0)) =
     [1, 1, 3, 3, 4] := by decide
+
+-- Of two seeds, one stays in column 0 at both steps while the other enters the sink.
+example :
+    let next := fun q : SweepState =>
+      sweepUpdate 1 2 1 0 0 (fun x _ => x) q (if q.current = 0 ∧ q.j = 0 then 1 else 0)
+    (next^[2 * ((1 + 2) * 2 + 1)] (sweepStart 1 0)).hits = 1 := by
+  decide
 
 end CslibFrontierTests.SaksZhou

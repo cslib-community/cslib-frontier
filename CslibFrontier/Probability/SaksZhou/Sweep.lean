@@ -44,22 +44,22 @@ structure SweepState where
   hits : ℕ
 
 /-- Start the first walk from `source`, before reading its first letter. -/
-@[expose] def sweepStart (n source : ℕ) : SweepState := ⟨0, 0, n+1, source, 0, 0, 0⟩
+@[expose] def sweepStart (n source : ℕ) : SweepState := ⟨0, 0, n + 1, source, 0, 0, 0⟩
 
-/-- Consume one lower-level entry. The marker `n+1` starts a new block and column `n` ends it;
-the marker `len` ends a seed. Each seed therefore makes exactly `(n+2)*len + 1` queries. -/
+/-- Consume one lower-level entry. The marker `n + 1` starts a new block and column `n` ends it;
+the marker `len` ends a seed. Each seed therefore makes exactly `(n + 2) * len + 1` queries. -/
 @[expose] def sweepUpdate (n len scale src dst : ℕ) (label : ℕ → ℕ → ℕ) (s : SweepState)
     (answer : ℕ) : SweepState :=
   if s.t = len then
-    ⟨s.x+1, 0, n+1, src, 0, 0, s.hits + if s.current = dst then 1 else 0⟩
-  else if s.j = n+1 then
+    ⟨s.x + 1, 0, n + 1, src, 0, 0, s.hits + if s.current = dst then 1 else 0⟩
+  else if s.j = n + 1 then
     ⟨s.x, s.t, 0, s.current, 0, label s.x s.t, s.hits⟩
   else if s.j = n then
-    ⟨s.x, s.t+1, n+1, s.candidate, 0, 0, s.hits⟩
+    ⟨s.x, s.t + 1, n + 1, s.candidate, 0, 0, s.hits⟩
   else if s.j = s.candidate ∧ answer * scale ≤ s.residual then
-    ⟨s.x, s.t, s.j+1, s.current, s.candidate+1, s.residual-answer*scale, s.hits⟩
+    ⟨s.x, s.t, s.j + 1, s.current, s.candidate + 1, s.residual - answer * scale, s.hits⟩
   else
-    {s with j := s.j+1}
+    {s with j := s.j + 1}
 
 section Sweep
 
@@ -71,35 +71,76 @@ private def sweepAdvance (s : SweepState) : SweepState :=
 local notation "advance" => (sweepAdvance n len scale src dst label counts)
 
 private theorem sweep_columns (x t u j rem hits left : ℕ) (ht : t < len) (hj : j + left ≤ n) :
-    advance^[left] ⟨x,t,j,u,j,rem,hits⟩ =
-      let selected := scanWeightedRow left (fun q => counts u (j+q) * scale) rem
-      ⟨x,t,j+left,u,j+selected,
-        rem - ∑ q ∈ range selected, counts u (j+q) * scale,hits⟩ := by
+    advance^[left] ⟨x, t, j, u, j, rem, hits⟩ =
+      let selected := scanWeightedRow left (fun q => counts u (j + q) * scale) rem
+      ⟨x, t, j + left, u, j + selected,
+        rem - ∑ q ∈ range selected, counts u (j + q) * scale, hits⟩ := by
   induction left generalizing j rem with
   | zero => simp [scanWeightedRow]
   | succ l ih =>
     have hjn : j < n := by omega
     rw [Function.iterate_succ_apply]
-    simp only [sweepAdvance, sweepUpdate, ht.ne, hjn.ne, show j ≠ n+1 by omega, ite_false, true_and,
-      scanWeightedRow, Nat.add_zero]
+    simp only [sweepAdvance, sweepUpdate, ht.ne, hjn.ne, show j ≠ n + 1 by omega, ite_false,
+      true_and, scanWeightedRow, Nat.add_zero]
     by_cases h : rem < counts u j * scale
     · simp only [h, Nat.not_le.mpr h, ite_false, ite_true]
       have hfreeze (k : ℕ) (hk : j + 1 + k ≤ n) :
-          advance^[k] ⟨x,t,j+1,u,j,rem,hits⟩ = ⟨x,t,j+1+k,u,j,rem,hits⟩ := by
+          advance^[k] ⟨x, t, j + 1, u, j, rem, hits⟩ = ⟨x, t, j + 1 + k, u, j, rem, hits⟩ := by
         induction k with
         | zero => rfl
         | succ k ihk =>
           rw [Function.iterate_succ_apply', ihk (by omega)]
-          simp only [sweepAdvance, sweepUpdate, ht.ne, show j+1+k ≠ n+1 by omega,
-            show j+1+k ≠ n by omega, show j+1+k ≠ j by omega, false_and, ite_false]
+          simp only [sweepAdvance, sweepUpdate, ht.ne, show j + 1 + k ≠ n + 1 by omega,
+            show j + 1 + k ≠ n by omega, show j + 1 + k ≠ j by omega, false_and, ite_false]
           rfl
       rw [hfreeze l (by omega)]
       simp
       omega
     · simp only [h, Nat.le_of_not_lt h, ite_false, ite_true]
-      rw [ih (j+1) (rem - counts u j * scale) (by omega)]
+      rw [ih (j + 1) (rem - counts u j * scale) (by omega)]
       simp only [Nat.add_assoc, Nat.add_comm 1, sum_range_succ', Nat.add_zero, Nat.sub_sub]
-      congr 2 <;> omega
+      congr 2; omega
+
+private theorem sweep_block (x t u hits : ℕ) (ht : t < len) :
+    advance^[n + 2] ⟨x, t, n + 1, u, 0, 0, hits⟩ =
+      ⟨x, t + 1, n + 1, scanWeightedRow n (fun j => counts u j * scale) (label x t),
+        0, 0, hits⟩ := by
+  rw [Function.iterate_succ_apply]
+  simp only [sweepAdvance, sweepUpdate, ht.ne, ite_false, ite_true]
+  rw [Function.iterate_succ_apply',
+    sweep_columns n len scale src dst label counts x t u 0 (label x t) hits n ht (by omega)]
+  simp [sweepAdvance, sweepUpdate, ht.ne]
+
+private theorem sweep_blocks (x hits t : ℕ) (ht : t ≤ len) :
+    advance^[(n + 2) * t] ⟨x, 0, n + 1, src, 0, 0, hits⟩ =
+      ⟨x, t, n + 1, (List.range t).foldl
+        (fun u t => scanWeightedRow n (fun j => counts u j * scale) (label x t)) src,
+        0, 0, hits⟩ := by
+  induction t with
+  | zero => simp
+  | succ t ih =>
+    rw [Nat.mul_succ, Nat.add_comm, Function.iterate_add_apply, ih (by omega),
+      sweep_block _ _ _ _ _ _ _ _ _ _ _ (by omega), List.range_succ, List.foldl_append]
+    rfl
+
+/-- Over all starting blocks, the sweep counts precisely those whose walk ends at `dst`. The
+query count per block depends only on the width and length and includes the finalization steps. -/
+theorem iterate_sweepUpdate_hits (seeds : ℕ) :
+    (((fun s : SweepState => sweepUpdate n len scale src dst label s (counts s.current s.j))^[
+        seeds * ((n + 2) * len + 1)]) (sweepStart n src)).hits =
+      ((List.range seeds).countP fun x => decide ((List.range len).foldl
+        (fun u t => scanWeightedRow n (fun j => counts u j * scale) (label x t)) src = dst)) := by
+  let reached x := (List.range len).foldl
+    (fun u t => scanWeightedRow n (fun j => counts u j * scale) (label x t)) src
+  have cells (y : ℕ) : advance^[y * ((n + 2) * len + 1)] (sweepStart n src) =
+      ⟨y, 0, n + 1, src, 0, 0, (List.range y).countP fun x => decide (reached x = dst)⟩ := by
+    induction y with
+    | zero => simp [sweepStart]
+    | succ y ih =>
+      rw [Nat.succ_mul, Nat.add_comm, Function.iterate_add_apply, ih,
+        Function.iterate_succ_apply', sweep_blocks _ _ _ _ _ _ _ _ _ _ le_rfl]
+      simp [sweepAdvance, sweepUpdate, List.range_succ, reached]
+  exact congrArg SweepState.hits (cells seeds)
 
 end Sweep
 
