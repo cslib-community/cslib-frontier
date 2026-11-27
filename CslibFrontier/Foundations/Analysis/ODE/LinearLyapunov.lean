@@ -256,6 +256,12 @@ private theorem abs_inner_apply_le (y : E) : |⟪y, P y⟫| ≤ ‖P‖ * ‖y�
     _ ≤ ‖y‖ * (‖P‖ * ‖y‖) := mul_le_mul_of_nonneg_left (P.le_opNorm _) (norm_nonneg _)
     _ = ‖P‖ * ‖y‖ ^ 2 := by ring
 
+omit [CompleteSpace E] in
+/-- The upper coercivity constant `‖P‖ + 1 > 0` of the Lyapunov criteria. -/
+private theorem inner_apply_le_norm_add_one_mul (y : E) : ⟪y, P y⟫ ≤ (‖P‖ + 1) * ‖y‖ ^ 2 :=
+  (le_abs_self _).trans <| (abs_inner_apply_le y).trans <|
+    mul_le_mul_of_nonneg_right (le_add_of_nonneg_right zero_le_one) (by positivity)
+
 /-- **Quadratic Lyapunov criterion.** On a finite-dimensional real inner product space, if
 `⟪y, P y⟫ > 0` and `⟪y, (A† P + P A) y⟫ < 0` for every `y ≠ 0`, then `ẋ = A x` is exponentially
 stable. The coercivity constants come from `exists_pos_mul_norm_sq_le_inner_apply`, the upper
@@ -268,9 +274,7 @@ theorem isExponentiallyStable_of_inner_pos [FiniteDimensional ℝ E]
     fun y hy => by rw [neg_apply, inner_neg_right]; linarith [hQ y hy]
   set M := ‖P‖ + 1
   have hM : 0 < M := by positivity
-  have hup : ∀ y, ⟪y, P y⟫ ≤ M * ‖y‖ ^ 2 := fun y =>
-    (le_abs_self _).trans <| (abs_inner_apply_le y).trans <|
-      mul_le_mul_of_nonneg_right (le_add_of_nonneg_right zero_le_one) (by positivity)
+  have hup : ∀ y, ⟪y, P y⟫ ≤ M * ‖y‖ ^ 2 := inner_apply_le_norm_add_one_mul
   refine ⟨Real.sqrt (M / m), c / (2 * M), by positivity, fun x hx t ht => ?_⟩
   have h := hx.norm_sq_le hm hc.le hlow hup
     (fun y => by simpa only [neg_apply, inner_neg_right] using hcQ y) ht
@@ -451,9 +455,7 @@ theorem isLyapunovStable_of_inner_pos_of_nonpos [FiniteDimensional ℝ E]
   obtain ⟨m, hm, hlow⟩ := exists_pos_mul_norm_sq_le_inner_apply hP
   set M := ‖P‖ + 1
   have hM : 0 < M := by positivity
-  have hup : ∀ y, ⟪y, P y⟫ ≤ M * ‖y‖ ^ 2 := fun y =>
-    (le_abs_self _).trans <| (abs_inner_apply_le y).trans <|
-      mul_le_mul_of_nonneg_right (le_add_of_nonneg_right zero_le_one) (by positivity)
+  have hup : ∀ y, ⟪y, P y⟫ ≤ M * ‖y‖ ^ 2 := inner_apply_le_norm_add_one_mul
   refine fun ε hε => ⟨ε * Real.sqrt (m / M), by positivity, fun x hx h0 t ht => ?_⟩
   have hV := hx.inner_apply_le_exp_mul (K := 0) (fun y => by simpa using hQ y) ht
   rw [zero_mul, Real.exp_zero, one_mul] at hV
