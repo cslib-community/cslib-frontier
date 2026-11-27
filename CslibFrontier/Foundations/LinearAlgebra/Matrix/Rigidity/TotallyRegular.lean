@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Data.Matrix.TotallyRegular
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import CslibFrontier.Foundations.Combinatorics.KovariSosTuran
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 
 /-!
@@ -92,57 +93,41 @@ private theorem lt_and_mul_pow_lt {n r N s : ℕ} (hn : n ≤ r * 2 ^ (r + 1))
   set L := Real.logb 2 (n / r) with hLdef
   set w := L / (2 * (r + 1)) with hwdef
   have hr1 : (0 : ℝ) < 2 * (r + 1) := by positivity
-  have hsw : (s : ℝ) < N * w := by
-    calc (s : ℝ) < N / (2 * (r + 1)) * L := hs
-      _ = N * w := by rw [hwdef]; ring
-  have hs0 : (0 : ℝ) ≤ s := Nat.cast_nonneg _
-  have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg _
+  have hsw : (s : ℝ) < N * w := hs.trans_eq (by rw [hwdef]; ring)
   -- The bound is positive, so `r ≥ 1`, `n > r` and `0 < w ≤ 1 / 2`.
-  have hw : 0 < w := by
-    by_contra hw
-    have : (N : ℝ) * w ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hN0 (not_lt.1 hw)
-    linarith
-  have hL : 0 < L := by
-    rw [hwdef] at hw
-    exact (div_pos_iff_of_pos_right hr1).1 hw
+  have hw : 0 < w :=
+    pos_of_mul_pos_right (lt_of_le_of_lt (Nat.cast_nonneg s) hsw) (Nat.cast_nonneg N)
+  have hL : 0 < L := (div_pos_iff_of_pos_right hr1).1 hw
   rcases Nat.eq_zero_or_pos r with rfl | hr
   · simp [hLdef] at hL
   have hrpos : (0 : ℝ) < r := by exact_mod_cast hr
-  have hnr : (0 : ℝ) < n / r := by
-    refine lt_of_le_of_ne (by positivity) fun h => ?_
+  have hnr : (0 : ℝ) < n / r := lt_of_le_of_ne (by positivity) fun h => by
     rw [hLdef, ← h, Real.logb_zero] at hL
     exact lt_irrefl _ hL
   have hnpos : (0 : ℝ) < n := (div_pos_iff_of_pos_right hrpos).1 hnr
   have hLle : L ≤ r + 1 := by
-    rw [hLdef, Real.logb_le_iff_le_rpow (by norm_num) hnr, div_le_iff₀ hrpos]
-    have : (n : ℝ) ≤ r * 2 ^ (r + 1) := by exact_mod_cast hn
-    calc (n : ℝ) ≤ r * 2 ^ (r + 1) := this
-      _ = (2 : ℝ) ^ ((r : ℝ) + 1) * r := by
-        rw [mul_comm, ← Real.rpow_natCast]; push_cast; ring_nf
-  have hw1 : w ≤ 1 / 2 := by
-    rw [hwdef, div_le_iff₀ hr1]
-    linarith
+    rw [hLdef, Real.logb_le_iff_le_rpow one_lt_two hnr, div_le_iff₀ hrpos,
+      show (r : ℝ) + 1 = ((r + 1 : ℕ) : ℝ) by push_cast; rfl, Real.rpow_natCast, mul_comm]
+    exact_mod_cast hn
+  have hw1 : w ≤ 1 / 2 := (div_le_iff₀ hr1).2 (by linarith)
   -- `N - s > N (1 - w)` and `(1 - w) ^ (r + 1) ≥ 2 ^ (-L) = r / n`.
   have hgap : (N : ℝ) * (1 - w) < N - s := by
-    have : (N : ℝ) * (1 - w) = N - N * w := by ring
-    linarith
+    linarith [show (N : ℝ) * (1 - w) = N - N * w by ring]
+  have hNw0 : 0 ≤ (N : ℝ) * (1 - w) := mul_nonneg (Nat.cast_nonneg N) (by linarith)
   have hrn : (r : ℝ) / n ≤ (1 - w) ^ (r + 1) := by
     have h2L : (2 : ℝ) ^ (-L) = r / n := by
-      rw [Real.rpow_neg (by norm_num), hLdef, Real.rpow_logb (by norm_num) (by norm_num) hnr,
-        inv_div]
+      rw [Real.rpow_neg two_pos.le, hLdef, Real.rpow_logb two_pos (by norm_num) hnr, inv_div]
     calc (r : ℝ) / n = 2 ^ (-L) := h2L.symm
       _ = ((2 : ℝ) ^ (-(2 * w))) ^ (r + 1) := by
-        rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num), hwdef]
-        congr 1
-        push_cast
-        field_simp
+        rw [← Real.rpow_natCast, ← Real.rpow_mul two_pos.le, hwdef]
+        congr 1; push_cast; field_simp
       _ ≤ (1 - w) ^ (r + 1) :=
-        pow_le_pow_left₀ (Real.rpow_nonneg (by norm_num) _) (two_rpow_neg_le_one_sub hw.le hw1) _
-  refine ⟨by exact_mod_cast (show (s : ℝ) < N by nlinarith), ?_⟩
+        pow_le_pow_left₀ (Real.rpow_nonneg two_pos.le _) (two_rpow_neg_le_one_sub hw.le hw1) _
+  refine ⟨by exact_mod_cast (show (s : ℝ) < N by linarith), ?_⟩
   calc (r : ℝ) * N ^ (r + 1) = n * (r / n * N ^ (r + 1)) := by field_simp
     _ ≤ n * ((1 - w) ^ (r + 1) * N ^ (r + 1)) := by gcongr
     _ = n * (N * (1 - w)) ^ (r + 1) := by rw [mul_pow]; ring
-    _ < n * (N - s) ^ (r + 1) := by gcongr; nlinarith
+    _ < n * (N - s) ^ (r + 1) := by gcongr
 
 variable {α β : Type*} [Fintype α] [Fintype β]
 
@@ -214,10 +199,10 @@ theorem IsTotallyRegular.le_rigidity {A : Matrix m n K} (hA : A.IsTotallyRegular
     exact not_le.1 hlt
   obtain ⟨I, J, hI, hJ, hdisj⟩ := Cslib.exists_disjoint_product_of_card_lt S hn hS
   -- `A` and `B` agree on `I × J`.
-  have hagree : ∀ i ∈ I, ∀ j ∈ J, A i j = B i j := fun i hi j hj => by
-    by_contra hne
-    have hmem : (i, j) ∈ I ×ˢ J := mem_product.2 ⟨hi, hj⟩
-    exact disjoint_left.1 hdisj hmem (by simpa [hSdef] using hne)
+  have hagree : ∀ i ∈ I, ∀ j ∈ J, A i j = B i j := fun i hi j hj =>
+    by_contra fun hne =>
+      disjoint_left.1 hdisj (show (i, j) ∈ I ×ˢ J from mem_product.2 ⟨hi, hj⟩)
+        (by simpa [hSdef] using hne)
   let f : Fin (r + 1) → m := (↑) ∘ (I.equivFinOfCardEq hI).symm
   let g : Fin (r + 1) → n := (↑) ∘ (J.equivFinOfCardEq hJ).symm
   have hf : f.Injective := Subtype.val_injective.comp (Equiv.injective _)
@@ -244,31 +229,21 @@ theorem IsTotallyRegular.le_rigidity_of_le_two_pow {A : Matrix n n K} (hA : A.Is
   set N := Fintype.card n with hN
   rcases Nat.eq_zero_or_pos r with rfl | hr0
   · simp
-  have hrN : r < N := by
-    have : 1 ≤ 2 ^ r := Nat.one_le_two_pow
-    rcases Nat.eq_zero_or_pos N with h | h
-    · omega
-    · omega
+  have hrN : r < N := by omega
   refine le_trans ?_ (hA.le_rigidity (hn.trans ?_))
   · -- `N / 2 ≤ N - r` and `log₂ (N / r) ≥ 1`.
     have hrpos : (0 : ℝ) < r := by exact_mod_cast hr0
-    have hL : 0 ≤ Real.logb 2 (N / r) := by
-      refine Real.logb_nonneg (by norm_num) ?_
-      rw [le_div_iff₀ hrpos, one_mul]
-      exact_mod_cast hrN.le
+    have hL : 0 ≤ Real.logb 2 (N / r) :=
+      Real.logb_nonneg one_lt_two <| (le_div_iff₀ hrpos).2 (by rw [one_mul]; exact_mod_cast hrN.le)
     have hNr : (N : ℝ) / 2 ≤ (N - r : ℕ) := by
-      rw [Nat.cast_sub hrN.le, div_le_iff₀ (by norm_num)]
-      have : (2 * r : ℝ) ≤ N := by exact_mod_cast hr
-      linarith
+      rw [Nat.cast_sub hrN.le, div_le_iff₀ two_pos]
+      cast_linarith [hr]
     calc (N : ℝ) ^ 2 / (4 * (r + 1)) * Real.logb 2 (N / r)
         = N * (N / 2) / (2 * (r + 1)) * Real.logb 2 (N / r) := by
           rw [show (4 : ℝ) * (r + 1) = 2 * (2 * (r + 1)) by ring, ← div_div]; ring
       _ ≤ N * (N - r : ℕ) / (2 * (r + 1)) * Real.logb 2 (N / r) := by gcongr
   · calc 2 ^ r = 1 * 2 ^ r := (one_mul _).symm
-      _ ≤ r * 2 ^ (r + 1) := by
-        gcongr
-        · omega
-        · omega
+      _ ≤ r * 2 ^ (r + 1) := Nat.mul_le_mul hr0 (Nat.pow_le_pow_right two_pos (Nat.le_succ r))
 
 variable {F : Type*} [Field F]
 

@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.PrefixSums.Spec
 public import Mathlib.Data.List.TakeDrop
 public import Mathlib.Algebra.BigOperators.Group.List.Basic
 public import Mathlib.Data.Nat.Log
+public import CslibFrontier.Tactic.WramOmega.Init
 
 /-!
 # Balanced aggregation trees for dynamic prefix sums
@@ -109,10 +110,10 @@ theorem prefixSum_zero (t : Tree h) : t.prefixSum 0 = 0 := by
 theorem prefixSum_length (t : Tree h) : t.prefixSum (2 ^ h) = t.total := by
   induction t with
   | leaf => simp [prefixSum, total]
-  | @node h l r ihl ihr =>
-    have hp := Nat.two_pow_pos h
-    simp only [prefixSum, pow_succ, show ¬2 ^ h * 2 < 2 ^ h by omega, ↓reduceIte, total]
-    rw [show 2 ^ h * 2 - 2 ^ h = 2 ^ h by omega, ihr]
+  | @node h l r _ ihr =>
+    have := Nat.two_pow_pos h
+    simp only [prefixSum, pow_succ, show ¬2 ^ h * 2 < 2 ^ h by omega, ↓reduceIte, total,
+      show 2 ^ h * 2 - 2 ^ h = 2 ^ h by omega, ihr]
 
 /-- The tree query has the ordinary array-prefix meaning. -/
 theorem prefixSum_eq_sum_take (t : Tree h) (k : ℕ) : t.prefixSum k = (t.leaves.take k).sum := by
@@ -120,10 +121,9 @@ theorem prefixSum_eq_sum_take (t : Tree h) (k : ℕ) : t.prefixSum k = (t.leaves
   | leaf v => cases k <;> simp [prefixSum, leaves]
   | @node h l r ihl ihr =>
     simp only [prefixSum, leaves, List.take_append, List.sum_append, length_leaves]
-    split
-    · next hk => simp [ihl, Nat.sub_eq_zero_of_le hk.le]
-    · next hk =>
-      rw [List.take_of_length_le (by simpa using Nat.le_of_not_gt hk), sum_leaves, ihr]
+    split_ifs with hk
+    · simp [ihl, Nat.sub_eq_zero_of_le hk.le]
+    · rw [List.take_of_length_le (by simpa using Nat.le_of_not_gt hk), sum_leaves, ihr]
 
 /-- Point increments raise the total by precisely the increment. -/
 @[simp]
@@ -139,18 +139,16 @@ theorem leaves_add (t : Tree h) (i δ : ℕ) (hi : i < 2 ^ h) :
     (t.add i δ).leaves = PrefixSums.addAt t.leaves i δ := by
   induction t generalizing i with
   | leaf v =>
-    have : i = 0 := by simpa using hi
-    subst this
+    obtain rfl : i = 0 := by simpa using hi
     rfl
   | @node h l r ihl ihr =>
     simp only [add, leaves, PrefixSums.addAt_append, length_leaves]
-    split
-    · next hl => simp only [leaves, ihl i hl]
-    · next hl =>
-      have hi' : i - 2 ^ h < 2 ^ h := by rw [pow_succ] at hi; omega
-      simp only [leaves, ihr (i - 2 ^ h) hi']
+    split_ifs with hl
+    · simp only [leaves, ihl i hl]
+    · simp only [leaves, ihr (i - 2 ^ h) (by rw [pow_succ] at hi; omega)]
 
 /-- Number of words occupied by a complete aggregation tree. -/
+@[wram_arith]
 def words (h : ℕ) : ℕ := 2 * 2 ^ h - 1
 
 /-- A leaf tree of height zero occupies one word. -/
@@ -159,8 +157,7 @@ theorem words_zero : words 0 = 1 := rfl
 
 private theorem words_succ (h : ℕ) : words (h + 1) = 1 + words h + words h := by
   have := Nat.two_pow_pos h
-  simp only [words, pow_succ]
-  omega
+  simp only [words, pow_succ]; omega
 
 /-- The memory stores each subtree's aggregate at its root, followed by its left and right
 subtrees. No assertion is made about memory outside the occupied interval. -/
@@ -170,37 +167,26 @@ def Rep : {h : ℕ} → Tree h → ℕ → (ℕ → ℕ) → Prop
     mem b = l.total + r.total ∧ l.Rep (b + 1) mem ∧ r.Rep (b + 2 * 2 ^ h) mem
 
 /-- The root word at base address `b` stores `t.total`. -/
-theorem Rep.root {t : Tree h} (ht : t.Rep b mem) : mem b = t.total := by
-  cases t with
-  | leaf => exact ht
-  | node => exact ht.1
+theorem Rep.root {t : Tree h} (ht : t.Rep b mem) : mem b = t.total :=
+  match t, ht with | .leaf _, h => h | .node _ _, h => h.1
 
 /-- A frame rule for the tree representation: only its contiguous footprint matters. -/
 theorem Rep.congr {t : Tree h} (ht : t.Rep b mem)
     (he : ∀ a, b ≤ a → a < b + words h → mem' a = mem a) : t.Rep b mem' := by
   induction t generalizing b with
-  | leaf v =>
-    change mem' b = v
-    rw [he b le_rfl (by simp [words]), ht]
+  | leaf v => exact (he b le_rfl (by simp [words])).trans ht
   | @node h l r ihl ihr =>
-    have hp := Nat.two_pow_pos h
-    obtain ⟨hroot, hl, hr⟩ := ht
-    refine ⟨(he b le_rfl (by rw [words_succ]; omega)).trans hroot, ihl hl ?_, ihr hr ?_⟩
-    · intro a ha ha'
-      apply he a (by omega)
-      rw [words_succ]
-      omega
-    · intro a ha ha'
-      apply he a (by omega)
-      simp only [words, pow_succ] at ha' ⊢
-      omega
+    have := Nat.two_pow_pos h
+    refine ⟨(he b le_rfl (by rw [words_succ]; omega)).trans ht.1,
+      ihl ht.2.1 fun a ha ha' => ?_, ihr ht.2.2 fun a ha ha' => ?_⟩
+    · exact he a (Nat.le_of_succ_le ha) (by rw [words_succ]; omega)
+    · exact he a (Nat.le_trans (Nat.le_add_right _ _) ha)
+        (by simp only [words, pow_succ] at ha' ⊢; omega)
 
 /-- Writing outside the representation's region preserves it. -/
 theorem Rep.update_of_outside {t : Tree h} (ht : t.Rep b mem)
-    (ha : a < b ∨ b + words h ≤ a) (v : ℕ) : t.Rep b (Function.update mem a v) := by
-  apply ht.congr
-  intro j hj hj'
-  exact Function.update_of_ne (by omega) _ _
+    (ha : a < b ∨ b + words h ≤ a) (v : ℕ) : t.Rep b (Function.update mem a v) :=
+  ht.congr fun _ _ _ => Function.update_of_ne (by omega) _ _
 
 /-- The all-zero array has a concrete, nonempty representation in zero memory. -/
 def zero : (h : ℕ) → Tree h

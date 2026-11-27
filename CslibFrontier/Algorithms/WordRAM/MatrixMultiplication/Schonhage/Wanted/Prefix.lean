@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wa
 public import CslibFrontier.Computability.WordRAM.Sequence
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Complete native tile-prefix pass
@@ -46,111 +47,54 @@ theorem exec_prefix {w L m N Q : ℕ} (key : ℕ → ℕ)
         y.mem (cursorAddressBase L m N Q + t) = Nat.count (fun k => key k < t) Q) ∧
       y.mem (offsetAddress L m N Q + numBands L m N ^ 2) = Q ∧
       (∀ a, a < offsetAddress L m N Q ∨ codeAddress L m N Q ≤ a → y.mem a = x.mem a) := by
-  let T := numBands L m N ^ 2
+  have hoa : offsetAddress L m N Q = countAddress L Q + numBands L m N ^ 2 := rfl
+  have hca : cursorAddressBase L m N Q = offsetAddress L m N Q + numBands L m N ^ 2 + 1 := rfl
+  have hda : codeAddress L m N Q = cursorAddressBase L m N Q + numBands L m N ^ 2 := rfl
   let P (j : ℕ) (z : Data 96) : Prop := Parameters L m N Q z ∧
     z.regs total = Nat.count (fun k => key k < j) Q ∧
     (∀ t < j,
       z.mem (offsetAddress L m N Q + t) = Nat.count (fun k => key k < t) Q ∧
       z.mem (cursorAddressBase L m N Q + t) = Nat.count (fun k => key k < t) Q) ∧
-    (∀ t < T, z.mem (countAddress L Q + t) = Nat.count (fun k => key k = t) Q) ∧
+    (∀ t < numBands L m N ^ 2,
+      z.mem (countAddress L Q + t) = Nat.count (fun k => key k = t) Q) ∧
     (∀ a, a < offsetAddress L m N Q ∨ codeAddress L m N Q ≤ a → z.mem a = x.mem a)
-  let start := (x.set index 0).set total 0
-  have hs : ExecWithin w (ram[index ← #0; total ← #0] : Code .standard 96) x start 2 := by
-    ram_eval [start]
-  have hp : Parameters L m N Q start := hx.of_exec hs (by decide +kernel)
-  have hi : P (start.regs index) start := by
-    refine ⟨hp, ?_, by simp [start, index, total],
-      hcounts, by simp [start]⟩
-    simp [start, index, total]
-  have hb (z : Data 96) (hz : P (z.regs index) z) (hn : z.regs index < T) :
+  have hb (z : Data 96) (hz : P (z.regs index) z) (hn : z.regs index < numBands L m N ^ 2) :
       ∃ u, ExecWithin w prefixStep z u 8 ∧
         P (z.regs index + 1) u ∧ u.regs index = z.regs index + 1 := by
     obtain ⟨u, he, hu, hidx, hsum, hoff, hcur, hf⟩ := exec_prefixStep key hn z hz.1 rfl
       hz.2.1 (hz.2.2.2.1 _ hn) hfit
-    refine ⟨u, he, ⟨hu, hsum, ?_, ?_, ?_⟩, hidx⟩
-    · intro t ht
-      by_cases ht' : t = z.regs index
+    refine ⟨u, he, ⟨hu, hsum, fun t ht => ?_, fun t ht => ?_, fun a ha => ?_⟩, hidx⟩
+    · by_cases ht' : t = z.regs index
       · subst t
         exact ⟨hoff, hcur⟩
-      · have hlt : t < z.regs index := by omega
-        have hsep : offsetAddress L m N Q + t < cursorAddressBase L m N Q := by
-          unfold cursorAddressBase
-          omega
-        have hsep' : offsetAddress L m N Q + z.regs index < cursorAddressBase L m N Q := by
-          unfold cursorAddressBase
-          dsimp [T] at hn
-          omega
-        rw [hf _ (by omega) (by omega), hf _ (by omega) (by omega)]
-        exact hz.2.2.1 t hlt
-    · intro t ht
-      have hcount : countAddress L Q + t < offsetAddress L m N Q := by
-        unfold offsetAddress
-        exact Nat.add_lt_add_left ht _
-      have hcursor : offsetAddress L m N Q ≤ cursorAddressBase L m N Q := by
-        unfold cursorAddressBase
-        omega
-      rw [hf _ (by omega) (by omega)]
-      exact hz.2.2.2.1 t ht
-    · intro a ha
-      have hsep : cursorAddressBase L m N Q + z.regs index < codeAddress L m N Q := by
-        unfold codeAddress
-        exact Nat.add_lt_add_left hn _
-      have hsep' : offsetAddress L m N Q + z.regs index < codeAddress L m N Q := by
-        unfold codeAddress cursorAddressBase
-        dsimp [T] at hn
-        omega
-      rw [hf _ (by rcases ha with ha | ha <;> omega)
-        (by rcases ha with ha | ha <;> unfold cursorAddressBase at * <;> omega)]
-      exact hz.2.2.2.2 a ha
-  obtain ⟨y, he, hy, _⟩ := ExecWithin.loop_count P (fun _ hy => hy.1.tileCount)
-    hb (by simp [start, index, total]) hi
-  have hsum : y.regs total = Nat.count (fun k => key k < T) Q := hy.2.1
+      · rw [hf _ (by omega) (by omega), hf _ (by omega) (by omega)]
+        exact hz.2.2.1 t (by omega)
+    · exact (hf _ (by omega) (by omega)).trans (hz.2.2.2.1 t ht)
+    · exact (hf _ (by omega) (by omega)).trans (hz.2.2.2.2 a ha)
   have hl := local_fits hfit
   have hend := memoryLimit_eq L m N Q
   have h10 := Nat.zero_le (10 ^ L)
-  have haddr : Fits w (offsetAddress L m N Q + T) := hl.of_le (by
+  have haddr : Fits w (offsetAddress L m N Q + numBands L m N ^ 2) := hl.of_le (by
     unfold offsetAddress countAddress tableAddress inputLimit
-    dsimp [T]
     omega)
-  let z := (y.set pointer (offsetAddress L m N Q + T)).write
-    (offsetAddress L m N Q + T) (Nat.count (fun k => key k < T) Q)
-  have hz : ExecWithin w (ram[pointer ← offsets + tileCount; *pointer ← total] :
-      Code .standard 96) y z 2 := by
-    ram_eval [z, hy.1.offsets, hy.1.tileCount, hsum, haddr, T,
-      pointer, offsets, tileCount, total, Fin.mk.injEq]
-  have zp : Parameters L m N Q z := hy.1.of_exec hz (by decide +kernel)
-  have hlast : Nat.count (fun k => key k < T) Q = Q := Nat.count_of_forall hkey
-  refine ⟨z, ?_, zp, ?_, ?_, ?_, ?_⟩
-  · apply (ExecWithin.seq_assoc.mp (hs.seq (he.seq hz))).mono
-    have h0 : start.regs index = 0 := by simp [start, index, total]
-    rw [h0, Nat.sub_zero]
-    dsimp [T]
-    omega
-  · intro t ht
-    by_cases h : t = T
+  have hlast : Nat.count (fun k => key k < numBands L m N ^ 2) Q = Q := Nat.count_of_forall hkey
+  refine WP.exists_execWithin ?_
+  unfold prefixCode
+  wram_exec
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.tileCount) hb (Nat.zero_le _)
+    ⟨by regs_frame, by wram_simp; simp, by wram_simp; simp, hcounts, fun _ _ => rfl⟩)
+    with y ⟨⟨hyp, hsum, hyoff, _, hyframe⟩, _⟩
+  wram_exec * [haddr]
+  refine ⟨by regs_frame, fun t ht => ?_, fun t ht => ?_, by wram_simp [hlast], fun a ha => ?_⟩
+  · by_cases h : t = numBands L m N ^ 2
     · subst t
-      exact Function.update_self _ _ _
-    · have ht' : t < T := by omega
-      change Function.update y.mem (offsetAddress L m N Q + T)
-        (Nat.count (fun k => key k < T) Q) (offsetAddress L m N Q + t) = _
-      rw [Function.update_of_ne (by omega)]
-      exact (hy.2.2.1 t ht').1
-  · intro t ht
-    change Function.update y.mem (offsetAddress L m N Q + T)
-      (Nat.count (fun k => key k < T) Q) (cursorAddressBase L m N Q + t) = _
-    rw [Function.update_of_ne (by unfold cursorAddressBase; omega)]
-    exact (hy.2.2.1 t ht).2
-  · change Function.update y.mem (offsetAddress L m N Q + T)
-      (Nat.count (fun k => key k < T) Q) (offsetAddress L m N Q + T) = Q
-    rw [Function.update_self, hlast]
-  · intro a ha
-    change Function.update y.mem (offsetAddress L m N Q + T)
-      (Nat.count (fun k => key k < T) Q) a = x.mem a
-    rw [Function.update_of_ne (by
-      rcases ha with ha | ha
-      · omega
-      · unfold codeAddress cursorAddressBase at ha
-        omega)]
-    exact hy.2.2.2.2 a ha
+      wram_simp
+    · have hne : offsetAddress L m N Q + t ≠ offsetAddress L m N Q + numBands L m N ^ 2 := by omega
+      wram_simp [hne, (hyoff t (by omega)).1]
+  · have hne : cursorAddressBase L m N Q + t ≠ offsetAddress L m N Q + numBands L m N ^ 2 := by
+      omega
+    wram_simp [hne, (hyoff t ht).2]
+  · have hne : a ≠ offsetAddress L m N Q + numBands L m N ^ 2 := by omega
+    wram_simp [hne, hyframe a ha]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

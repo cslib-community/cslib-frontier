@@ -83,9 +83,7 @@ theorem transientDepth_lt_two_pow (x : BitString n) : transientDepth f x < 2 ^ n
 /-- `depthWord f x` has natural value `transientDepth f x`. -/
 @[simp] theorem toNat_depthWord (x : BitString n) : (depthWord f x).toNat = transientDepth f x := by
   have h := transientDepth_lt_two_pow f x
-  rw [depthWord, BitVec.toNat_ofNat, Nat.mod_eq_of_lt]
-  simp only [Nat.pow_succ]
-  omega
+  rw [depthWord, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by simp only [Nat.pow_succ]; omega)]
 
 /-- `phaseWord f x` has natural value `phase f x`. -/
 @[simp] theorem toNat_phaseWord (x : BitString n) : (phaseWord f x).toNat = phase f x :=
@@ -135,8 +133,7 @@ private theorem toNat_navigationDistance (x y : BitString n) :
 
 /-- `depthWord f x` is zero if and only if `transientDepth f x = 0`. -/
 theorem depthWord_eq_zero_iff (x : BitString n) : depthWord f x = 0 ↔ transientDepth f x = 0 := by
-  rw [← BitVec.toNat_inj, toNat_depthWord]
-  rfl
+  simp [← BitVec.toNat_inj]
 
 /-- The word-level reachability flag `navigationFlag f x y` agrees with `reaches f x y`. -/
 theorem navigationFlag_eq_reaches (x y : BitString n) : navigationFlag f x y = reaches f x y := by
@@ -145,12 +142,8 @@ theorem navigationFlag_eq_reaches (x y : BitString n) : navigationFlag f x y = r
   split_ifs with hy
   · exact decide_eq_decide.mpr Iff.rfl
   · by_cases hle : transientDepth f y ≤ transientDepth f x
-    · simp only [BitVec.ult, toNat_depthWord, show ¬transientDepth f x < transientDepth f y by
-        omega, decide_false, Bool.not_false, Bool.true_and, hle, decide_true,
-        toNat_navigationGap f x y hle]
-      exact decide_eq_decide.mpr Iff.rfl
-    · simp only [BitVec.ult, toNat_depthWord, show transientDepth f x < transientDepth f y by
-        omega, decide_true, Bool.not_true, Bool.false_and, hle, decide_false]
+    · simp [BitVec.ult, not_lt.mpr hle, hle, toNat_navigationGap f x y hle]
+    · simp [BitVec.ult, lt_of_not_ge hle, hle]
 
 /-- When `y` is reachable from `x`, `navigationTime f x y` has natural value `hittingTime f x y`. -/
 theorem toNat_navigationTime (x y : BitString n) (h : reaches f x y = true) :
@@ -158,16 +151,13 @@ theorem toNat_navigationTime (x y : BitString n) (h : reaches f x y = true) :
   unfold navigationTime hittingTime
   simp only [depthWord_eq_zero_iff]
   split_ifs with hy
-  · rw [BitVec.toNat_add, toNat_depthWord, toNat_navigationDistance]
-    apply Nat.mod_eq_of_lt
-    have hd : cyclicDistance f x y < cycleLength f x := Nat.mod_lt _ (cycleLength_pos f x)
+  · have hd : cyclicDistance f x y < cycleLength f x := Nat.mod_lt _ (cycleLength_pos f x)
     have hμ := transientDepth_lt_two_pow f x
     have hl := cycleLength_le_two_pow f x
-    simp only [Nat.pow_succ]
-    omega
-  · apply toNat_navigationGap
-    exact ((exists_iterate_eq_iff_of_not_mem_periodicPts f x y fun hp =>
-      hy ((transientDepth_eq_zero_iff f y).mpr hp)).mp ((reaches_iff f x y).mp h)).1
+    rw [BitVec.toNat_add, toNat_depthWord, toNat_navigationDistance,
+      Nat.mod_eq_of_lt (by simp only [Nat.pow_succ]; omega)]
+  · exact toNat_navigationGap f x y ((exists_iterate_eq_iff_of_not_mem_periodicPts f x y
+      fun hp => hy ((transientDepth_eq_zero_iff f y).mpr hp)).mp ((reaches_iff f x y).mp h)).1
 
 /-- One reachability bit followed by `n + 1` bits of the first hitting time. -/
 noncomputable def navigationBits (x y : BitString n) : BitString (1 + (n + 1)) :=
@@ -182,18 +172,18 @@ theorem navigationBits_flag (x y : BitString n) :
 /-- **The output format.** When `y` is reachable from `x`, the time bits of `navigationBits` are
 the first hitting time, which is below `2 ^ n`. -/
 theorem navigationBits_time (x y : BitString n) (h : ∃ t, f^[t] x = y) :
-    let t := (word fun i : Fin (n + 1) => navigationBits f x y (Fin.natAdd 1 i)).toNat
+    let t := (BitString.equivBitVec fun i : Fin (n + 1) =>
+      navigationBits f x y (Fin.natAdd 1 i)).toNat
     f^[t] x = y ∧ (∀ j < t, f^[j] x ≠ y) ∧ t < 2 ^ n := by
   have hr := (reaches_iff f x y).mpr h
   have ht := hittingTime_spec f x y hr
   have hb : hittingTime f x y < 2 ^ n := by simpa using ht.2.2
-  have he : (word fun i : Fin (n + 1) => navigationBits f x y (Fin.natAdd 1 i)) =
-      (navigationTime f x y).setWidth (n + 1) := by
-    apply BitVec.eq_of_getLsbD_eq
-    intro i hi
-    rw [getLsbD_word _ ⟨i, hi⟩]
-    simp only [navigationBits, Fin.append_right, BitVec.getLsbD_setWidth, hi, decide_true,
-      Bool.true_and]
+  have he : (BitString.equivBitVec fun i : Fin (n + 1) =>
+      navigationBits f x y (Fin.natAdd 1 i)) = (navigationTime f x y).setWidth (n + 1) :=
+    BitVec.eq_of_getLsbD_eq fun i hi => by
+      rw [BitString.getLsbD_equivBitVec _ ⟨i, hi⟩]
+      simp only [navigationBits, Fin.append_right, BitVec.getLsbD_setWidth, hi, decide_true,
+        Bool.true_and]
   dsimp only
   rw [he, BitVec.toNat_setWidth, toNat_navigationTime f x y hr,
     Nat.mod_eq_of_lt (hb.trans (Nat.pow_lt_pow_right (by decide) (by omega)))]

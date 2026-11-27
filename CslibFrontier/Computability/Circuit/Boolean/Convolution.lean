@@ -66,31 +66,21 @@ theorem complexity_exists_translate_le {α : Type*}
   classical
   let negated : Set (BooleanFunction n) := Set.range fun i (x : BitString n) => !x i
   have hneg : Synthesis interpretation (inputs n) negated n := by
-    have h := Synthesis.family (fun i (x : BitString n) => !x i) (fun _ : Fin n => 1)
+    simpa [negated] using Synthesis.family (fun i (x : BitString n) => !x i) (fun _ : Fin n => 1)
       fun i => (Synthesis.of_mem (s := inputs n) ⟨i, rfl⟩).not
-    simpa [negated] using h
   have hterm (i : α) : Synthesis interpretation (inputs n ∪ negated)
       {fun x => f i (x + shift i)} (complexity interpretation (single (f i))) := by
     obtain ⟨c, hc, hsize⟩ :=
       exists_computes_size_eq_complexity (I := interpretation) (f := single (f i))
     have hinputs (j : Fin n) : (fun x : BitString n => (x + shift i) j) ∈ inputs n ∪ negated := by
       cases hbit : shift i j
-      · left
-        refine ⟨j, funext fun x => ?_⟩
-        change x j = (x j ^^ shift i j)
-        rw [hbit, Bool.xor_false]
-      · right
-        refine ⟨j, funext fun x => ?_⟩
-        change (!x j) = (x j ^^ shift i j)
-        rw [hbit, Bool.xor_true]
-    have h := Synthesis.circuit (I := interpretation) c
-      (fun j (x : BitString n) => (x + shift i) j) hinputs
-    have heval (y : BitString n) (j : Fin 1) : c.eval interpretation y j = f i y :=
-      congrFun (hc y) j
-    simpa only [heval, Set.range_const, hsize] using h
-  have h := hneg.trans (Synthesis.exists_mem s (fun i x => f i (x + shift i))
-    (fun i => complexity interpretation (single (f i))) fun i _ => hterm i)
-  simpa only [Nat.add_assoc] using h.complexity_le
+      · exact Or.inl ⟨j, funext fun x => by simp [Pi.add_apply, Bool.add_eq_xor, hbit]⟩
+      · exact Or.inr ⟨j, funext fun x => by simp [Pi.add_apply, Bool.add_eq_xor, hbit]⟩
+    simpa only [show ∀ y j, c.eval interpretation y j = f i y from fun y j => congrFun (hc y) j,
+      Set.range_const, hsize] using
+      Synthesis.circuit (I := interpretation) c (fun j (x : BitString n) => (x + shift i) j) hinputs
+  simpa only [Nat.add_assoc] using (hneg.trans (Synthesis.exists_mem s
+    (fun i x => f i (x + shift i)) _ fun i _ => hterm i)).complexity_le
 
 /-- If the sumset `A + B` equals the union of the translates of `B` by the elements of `A₀` and
 the translates of `A` by the elements of `B₀`, compile that cover. The sets and their cover may be

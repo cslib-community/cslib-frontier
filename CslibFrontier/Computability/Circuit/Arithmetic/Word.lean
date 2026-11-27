@@ -137,11 +137,7 @@ theorem sum_filter_greedyWord (a k : ℤ) {t : ℕ} (ht : t ≤ d) :
 /-- The prefix sums of the greedy word stay in `[-k, a]` when `0 ≤ a` and `0 ≤ k`. -/
 theorem greedyPrefix_mem_Icc {a k : ℤ} (ha : 0 ≤ a) (hk : 0 ≤ k) (t : ℕ) :
     -k ≤ greedyPrefix a k t ∧ greedyPrefix a k t ≤ a := by
-  induction t with
-  | zero => exact ⟨by rw [greedyPrefix]; omega, by rw [greedyPrefix]; omega⟩
-  | succ t ih =>
-    rw [greedyPrefix]
-    split_ifs <;> omega
+  fun_induction greedyPrefix a k t <;> omega
 
 /-- **The greedy word is `k`-unbiased** (LST, proof of Lemma 13): if `0 ≤ a ≤ k`, every prefix
 sum of the greedy word over `{a, -k}` has absolute value at most `k`. -/

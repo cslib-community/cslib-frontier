@@ -13,6 +13,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.OutputToTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.RunsWords
 public import Cslib.Foundations.Data.Fin.Tuple
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.SuppCases
 
@@ -69,10 +71,9 @@ theorem RunsWords.extendTapes {machine : MultiTapePTM k Bool State Operation}
   let cfg₀ : Config k Bool State Operation x :=
     { tapes := wordsCfg x (some machine.initial) (fun j => ws₀ (e j)) out₀
       channels := cfg.channels }
-  have hembed : cfg = cfg₀.embed e (fun l => tapeOfList (ws₀ l)) (fun _ => 0) := by
-    refine Config.ext ?_ rfl
-    rw [htapes]
-    exact (MultiTapeTM.embed_wordsCfg e (fun _ => rfl) (fun _ _ => rfl)).symm
+  have hembed : cfg = cfg₀.embed e (fun l => tapeOfList (ws₀ l)) (fun _ => 0) :=
+    Config.ext (htapes.trans
+      (MultiTapeTM.embed_wordsCfg e (fun _ => rfl) (fun _ _ => rfl)).symm) rfl
   have hrun :
       (machine.extendTapes e).runOracleConfigFrom time cfg =
         (fun final => final.embed e (fun l => tapeOfList (ws₀ l)) (fun _ => 0)) <$>
@@ -83,19 +84,11 @@ theorem RunsWords.extendTapes {machine : MultiTapePTM k Bool State Operation}
   dsimp only
   rw [hrun, ProbOracleComp.runWith_map]
   constructor
-  · have hmap :
-        PMF.map (fun (final, s') => (final.tapes, s'))
-          (PMF.map (Prod.map (fun a => a.embed e (fun l => tapeOfList (ws₀ l)) (fun _ => 0)) id)
-            (ProbOracleComp.runWith oracle (machine.runOracleConfigFrom time cfg₀) s)) =
-        PMF.map (fun (tapes, s') =>
-            (MultiTapeTM.embed e tapes (fun l => tapeOfList (ws₀ l)) (fun _ => 0), s'))
-          (PMF.map (fun (final, s') => (final.tapes, s'))
-            (ProbOracleComp.runWith oracle (machine.runOracleConfigFrom time cfg₀) s)) := by
-      simp only [PMF.map_comp, Function.comp_def, Prod.map_fst, Prod.map_snd, id_eq, Config.embed]
-    rw [hmap, hlaw, PMF.map_comp]
-    congr 1
-    funext ⟨a, s'⟩
-    refine Prod.ext ?_ rfl
+  · have hlaw' := congrArg (PMF.map fun (tapes, s') =>
+        (MultiTapeTM.embed e tapes (fun l => tapeOfList (ws₀ l)) (fun _ => 0), s')) hlaw
+    simp only [PMF.map_comp, Function.comp_def, Prod.map_fst, Prod.map_snd, id_eq,
+      Config.embed] at hlaw' ⊢
+    refine hlaw'.trans (congrArg (PMF.map · _) (funext fun ⟨a, s'⟩ => Prod.ext ?_ rfl))
     exact MultiTapeTM.embed_wordsCfg e (fun j => by simp)
       (fun l hl => by simp [MultiTapeTM.partialInv_eq_none e hl])
   · intro final hfinal op
@@ -109,13 +102,10 @@ theorem ComputesTidily.extendTapes {machine : MultiTapePTM k Bool State Operatio
     (h : machine.ComputesTidily x time program) (e : Fin k ↪ Fin k') :
     (machine.extendTapes e).ComputesTidily x time program := by
   intro out₀
-  have hext := (h out₀).extendTapes (ws₀ := fun _ => []) e
-  have hblank : (fun (a : List Bool) (l : Fin k') =>
-      (MultiTapeTM.partialInv e l).elim ([] : List Bool) (fun _ => [])) =
-      fun _ _ => [] := by
-    funext a l
+  have hblank (l : Fin k') :
+      (MultiTapeTM.partialInv e l).elim ([] : List Bool) (fun _ => []) = [] := by
     cases MultiTapeTM.partialInv e l <;> rfl
-  simpa only [hblank] using hext
+  simpa only [hblank] using (h out₀).extendTapes (ws₀ := fun _ => []) e
 
 /-! ### Redirecting output to a work-tape word (`outputToWord`) -/
 
@@ -128,8 +118,7 @@ noncomputable def outputToWord (machine : MultiTapePTM k Bool State Operation) :
 /-- Redirecting the output of a blank `wordsCfg` configuration adds a blank last work tape. -/
 private theorem outCfg_wordsCfg_nil (x : List Bool) (q : Option State) :
     outCfg (wordsCfg x q (fun _ : Fin k => []) []) = wordsCfg x q (fun _ => []) [] := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext l <;> induction l using Fin.lastCases <;>
-    simp [outCfg, wordsCfg]
+  tm_step [outCfg]
 
 /-- Rewinding the last work tape of `outCfg (wordsCfg x _ (fun _ => []) w)` in `r + 2` steps for
 any `w.length ≤ r` leaves `w` on the last work tape and halts. -/
@@ -140,17 +129,13 @@ private theorem runFrom_rewindLast {w : List Bool} {r : ℕ} (hr : w.length ≤ 
   let cfg := outCfg (wordsCfg x (some (rewindWork Bool).q₀) (fun _ : Fin k => []) w)
   have hone : oneTapeCfg (Fin.last k) cfg =
       ⟨some (rewindWork Bool).q₀, 1, fun _ => tapeOfList w, fun _ => (w.length : ℤ), []⟩ := by
-    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;> simp [oneTapeCfg, cfg]
+    tm_step [oneTapeCfg, cfg]
   have hrun₀ : (rewindWork Bool).runFrom (oneTapeCfg (Fin.last k) cfg) (w.length + 2) =
-      ⟨none, 1, fun _ => tapeOfList w, fun _ => 0, []⟩ := by
-    rw [hone]
-    exact runFrom_rewindWork_none _ _ _ rfl le_rfl
-  have hrun : (rewindWork Bool).runFrom (oneTapeCfg (Fin.last k) cfg) (r + 2) =
-      ⟨none, 1, fun _ => tapeOfList w, fun _ => 0, []⟩ := by
-    rw [runFrom_eq_of_halt _ _ (by omega : w.length + 2 ≤ r + 2) (by rw [hrun₀]), hrun₀]
-  rw [runFrom_tapeEmb, hrun, embed_tapeEmb]
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext l <;> induction l using Fin.lastCases <;>
-    simp [wordsCfg]
+      ⟨none, 1, fun _ => tapeOfList w, fun _ => 0, []⟩ :=
+    hone ▸ runFrom_rewindWork_none _ _ _ rfl le_rfl
+  rw [runFrom_tapeEmb, runFrom_eq_of_halt _ _ (Nat.add_le_add_right hr 2) (by rw [hrun₀]), hrun₀,
+    embed_tapeEmb]
+  tm_step
 
 /-- If `machine` computes `program` tidily in `time` steps and every supported output of `program`
 has length at most `l`, then `machine.outputToWord` writes `program`'s output onto its new last
@@ -172,17 +157,20 @@ theorem ComputesTidily.outputToWord_of_le {machine : MultiTapePTM k Bool State O
     ofDeterministic ((rewindWork Bool).extendTapes (tapeEmb (Fin.last k)))
   let cfg₀ : Config k Bool State Operation x :=
     { tapes := wordsCfg x (some machine.initial) (fun _ => []) [], channels := cfg.channels }
-  have hleft : cfg = Sequential.left rew (OutputToTape.config cfg₀) := by
-    refine Config.ext ?_ rfl
-    rw [htapes]
-    change wordsCfg x (some (Sum.inl machine.initial)) (fun _ => []) [] =
-      (outCfg (wordsCfg x (some machine.initial) (fun _ => []) [])).mapState (Option.map Sum.inl)
-    rw [outCfg_wordsCfg_nil]
-    rfl
+  have hleft : cfg = Sequential.left rew (OutputToTape.config cfg₀) :=
+    Config.ext (htapes.trans (congrArg (Cfg.mapState (Option.map Sum.inl))
+      (outCfg_wordsCfg_nil x (some machine.initial)).symm)) rfl
   have houtRun :
       machine.outputToTape.runOracleConfigFrom time (OutputToTape.config cfg₀) =
         OutputToTape.config <$> machine.runOracleConfigFrom time cfg₀ :=
     MultiTapePTM.runConfigFrom_outputToTape machine _ _ time cfg₀
+  have hstart (mid : Config k Bool State Operation x) (w : List Bool)
+      (hmidTapes : mid.tapes = wordsCfg x none (fun _ => []) ([] ++ w)) :
+      (Sequential.start rew (OutputToTape.config mid)).tapes =
+        outCfg (wordsCfg x (some (rewindWork Bool).q₀) (fun _ => []) w) := by
+    simp only [Sequential.start, OutputToTape.config, outCfg, hmidTapes, List.nil_append,
+      wordsCfg_state, wordsCfg_inputPos, wordsCfg_output, wordsCfg_workTapePos]
+    rfl
   have hhalt₁ : ∀ result ∈ (ProbOracleComp.runWith oracle
       (machine.outputToTape.runOracleConfigFrom time (OutputToTape.config cfg₀)) s).support,
       result.1.tapes.state = none := by
@@ -198,12 +186,7 @@ theorem ComputesTidily.outputToWord_of_le {machine : MultiTapePTM k Bool State O
     supp_cases hres [houtRun, ProbOracleComp.runWith_map] with ⟨⟨mid, s₁⟩, hmid, rfl⟩
     dsimp only [Prod.map_apply, id_eq] at hfinal
     obtain ⟨⟨w, hw, hmidTapes⟩, _⟩ := (h []).mem_support oracle s cfg₀ rfl hbuf hmid
-    have hstart : (Sequential.start rew (OutputToTape.config mid)).tapes =
-        outCfg (wordsCfg x (some (rewindWork Bool).q₀) (fun _ => []) w) := by
-      simp only [Sequential.start, OutputToTape.config, outCfg, hmidTapes, id_eq,
-        List.nil_append, wordsCfg_state, wordsCfg_inputPos, wordsCfg_output, wordsCfg_workTapePos]
-      rfl
-    rw [run_interpret_runOracleConfigFrom_ofDeterministic, hstart,
+    rw [run_interpret_runOracleConfigFrom_ofDeterministic, hstart mid w hmidTapes,
       runFrom_rewindLast (hl OracleState oracle s w s₁ hw)] at hfinal
     supp_cases hfinal
     rfl
@@ -221,29 +204,17 @@ theorem ComputesTidily.outputToWord_of_le {machine : MultiTapePTM k Bool State O
       intro ⟨mid, s₁⟩ hmid
       dsimp only [Function.comp_def, Prod.map_apply, id_eq]
       obtain ⟨⟨w, hw, hmidTapes⟩, _⟩ := (h []).mem_support oracle s cfg₀ rfl hbuf hmid
-      have hstart : (Sequential.start rew (OutputToTape.config mid)).tapes =
-          outCfg (wordsCfg x (some (rewindWork Bool).q₀) (fun _ => []) w) := by
-        simp only [Sequential.start, OutputToTape.config, outCfg, hmidTapes, id_eq,
-          List.nil_append, wordsCfg_state, wordsCfg_inputPos, wordsCfg_output,
-          wordsCfg_workTapePos]
-        rfl
-      have hout : mid.tapes.output = w := by rw [hmidTapes]; rfl
-      rw [run_interpret_runOracleConfigFrom_ofDeterministic, hstart,
-        runFrom_rewindLast (hl OracleState oracle s w s₁ hw), hout]
+      rw [run_interpret_runOracleConfigFrom_ofDeterministic, hstart mid w hmidTapes,
+        runFrom_rewindLast (hl OracleState oracle s w s₁ hw), hmidTapes]
       simp only [Sequential.right, Cfg.mapState, PMF.pure_map, wordsCfg_state, Option.map_none,
-        wordsCfg_inputPos, wordsCfg_output]
+        wordsCfg_inputPos, wordsCfg_output, List.nil_append]
       rfl
-    · have hlaw := ((h []) OracleState oracle s cfg₀ rfl hbuf).1
-      have hmapOut := congrArg
-        (PMF.map (fun (p : Cfg k Bool State x × OracleState) =>
+    · erw [PMF.bind_pure_comp]
+      simpa only [PMF.map_comp, Function.comp_def, List.nil_append, id_eq, wordsCfg] using congrArg
+        (PMF.map fun p : Cfg k Bool State x × OracleState =>
           (wordsCfg x (none : Option (State ⊕ RewindWorkState))
-            (Function.update (fun _ => []) (Fin.last k) p.1.output) [], p.2))) hlaw
-      change (ProbOracleComp.runWith oracle (machine.runOracleConfigFrom time cfg₀) s).bind
-        (PMF.pure ∘ fun a =>
-          (wordsCfg x none
-            (Function.update (fun _ => []) (Fin.last k) a.1.tapes.output) [], a.2)) = _
-      rw [PMF.bind_pure_comp]
-      simpa only [PMF.map_comp, Function.comp_def, List.nil_append, id_eq, wordsCfg] using hmapOut
+            (Function.update (fun _ => []) (Fin.last k) p.1.output) [], p.2))
+        ((h []) OracleState oracle s cfg₀ rfl hbuf).1
   · intro final hfinal op
     supp_cases hfinal [houtRun, ProbOracleComp.runWith_map, rew,
       run_interpret_runOracleConfigFrom_ofDeterministic] with ⟨_, ⟨⟨mid₀, s₁⟩, hmid₀, rfl⟩, rfl⟩
@@ -279,7 +250,7 @@ private theorem runFrom_markFlag (write : Option Bool)
     ⟨some (markWork Bool write).q₀, ip, Fin.append WS ![vip, flag], fun _ => 0, out⟩
   have hone : oneTapeCfg (Fin.natAdd k 1) cfg =
       ⟨some (markWork Bool write).q₀, ip, fun _ => flag, fun _ => 0, out⟩ := by
-    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;> simp [oneTapeCfg, cfg, Fin.append_right]
+    tm_step [oneTapeCfg, cfg]
   change (markFlag k write).runFrom cfg 2 = _
   rw [markFlag, runFrom_tapeEmb, hone, runFrom_markWork, embed_tapeEmb]
   refine Cfg.ext rfl rfl ?_ ?_ rfl
@@ -287,17 +258,6 @@ private theorem runFrom_markFlag (write : Option Bool)
       MultiTapeTM.update_append_flag WS vip flag (Function.update flag (-1) write)
   · funext l
     simp [cfg, Function.update_apply]
-
-/-- A `wordsCfg` configuration whose last two words are `w` and `[]`, written out. -/
-private theorem wordsCfg_append_words {State' : Type} {outer : List Bool} (q : Option State')
-    (ws : Fin k → List Bool) (w out : List Bool) :
-    wordsCfg outer q (Fin.append ws ![w, []]) out =
-      ⟨q, 1, Fin.append (fun j => tapeOfList (ws j)) ![tapeOfList w, fun _ => none],
-        fun _ => 0, out⟩ := by
-  refine Cfg.ext rfl rfl
-    ((Fin.comp_append tapeOfList ws ![w, []]).trans (congrArg _ (funext fun i => ?_))) rfl rfl
-  match i with
-  | 0 | 1 => simp
 
 /-- If `machine` transforms `ws₀` to `ws₁ a` and emits `emit a` on input `w`, then
 `machine.inputFromWord mark` transforms `Fin.append ws₀ ![w, []]` to `Fin.append (ws₁ a) ![w, []]`
@@ -318,10 +278,7 @@ theorem RunsWords.inputFromWord {machine : MultiTapePTM k Bool State Operation}
   let cfg₀ : Config (k + 2) Bool MarkWorkState Operation x :=
     { tapes := wordsCfg x (some (markFlag k (some mark)).q₀) (Fin.append ws₀ ![w, []]) out₀
       channels := cfg.channels }
-  have hleft₀ : cfg = Sequential.left midM cfg₀ := by
-    refine Config.ext ?_ rfl
-    rw [htapes]
-    rfl
+  have hleft₀ : cfg = Sequential.left midM cfg₀ := Config.ext htapes rfl
   let cfgIn : Config k Bool State Operation w :=
     { tapes := wordsCfg w (some machine.initial) ws₀ out₀, channels := cfg.channels }
   let ready : Config (k + 2) Bool MarkWorkState Operation x :=
@@ -349,6 +306,15 @@ theorem RunsWords.inputFromWord {machine : MultiTapePTM k Bool State Operation}
         (fun final => InputFromTape.config mark final x 1) <$>
           machine.runOracleConfigFrom time cfgIn :=
     MultiTapePTM.runConfigFrom_inputFromTape machine _ _ mark time cfgIn x 1
+  have hstartErase (mid : Config k Bool State Operation w) (a : α)
+      (hmidTapes : mid.tapes = wordsCfg w none (ws₁ a) (out₀ ++ emit a)) :
+      (Sequential.start eraseF (InputFromTape.config mark mid x 1)).tapes =
+        ⟨some (markFlag k (none : Option Bool)).q₀, 1,
+          Fin.append (fun j => tapeOfList (ws₁ a j))
+            ![tapeOfList w, Function.update (fun _ : ℤ => (none : Option Bool)) (-1) (some mark)],
+          fun _ => 0, out₀ ++ emit a⟩ := by
+    simp [Sequential.start, InputFromTape.config, hmidTapes, inCfg_wordsCfg, Cfg.withState,
+      eraseF, ofDeterministic]
   have hhalt₁ : ∀ result ∈ (ProbOracleComp.runWith oracle
       (machine.inputFromTape.runOracleConfigFrom time (InputFromTape.config mark cfgIn x 1))
       s).support,
@@ -366,14 +332,7 @@ theorem RunsWords.inputFromWord {machine : MultiTapePTM k Bool State Operation}
     supp_cases hres [hinRun, ProbOracleComp.runWith_map] with ⟨⟨mid, s₁⟩, hmid, rfl⟩
     dsimp only [Prod.map_apply, id_eq] at hfinal
     obtain ⟨⟨a, _, hmidTapes⟩, _⟩ := h.mem_support oracle s cfgIn rfl hbuf hmid
-    have hstartErase : (Sequential.start eraseF (InputFromTape.config mark mid x 1)).tapes =
-        ⟨some (markFlag k (none : Option Bool)).q₀, 1,
-          Fin.append (fun j => tapeOfList (ws₁ a j))
-            ![tapeOfList w, Function.update (fun _ : ℤ => (none : Option Bool)) (-1) (some mark)],
-          fun _ => 0, out₀ ++ emit a⟩ := by
-      simp [Sequential.start, InputFromTape.config, hmidTapes, inCfg_wordsCfg, Cfg.withState,
-        eraseF, ofDeterministic]
-    rw [run_interpret_runOracleConfigFrom_ofDeterministic, hstartErase,
+    rw [run_interpret_runOracleConfigFrom_ofDeterministic, hstartErase mid a hmidTapes,
       runFrom_markFlag none] at hfinal
     supp_cases hfinal
     rfl
@@ -415,23 +374,13 @@ theorem RunsWords.inputFromWord {machine : MultiTapePTM k Bool State Operation}
       intro ⟨mid, s₁⟩ hmid
       dsimp only [Function.comp_def, Prod.map_apply, id_eq]
       obtain ⟨⟨a, _, hmidTapes⟩, _⟩ := h.mem_support oracle s cfgIn rfl hbuf hmid
-      have hstartErase : (Sequential.start eraseF (InputFromTape.config mark mid x 1)).tapes =
-          ⟨some (markFlag k (none : Option Bool)).q₀, 1,
-            Fin.append (fun j => tapeOfList (ws₁ a j))
-              ![tapeOfList w, Function.update (fun _ : ℤ => (none : Option Bool)) (-1) (some mark)],
-            fun _ => 0, out₀ ++ emit a⟩ := by
-        simp [Sequential.start, InputFromTape.config, hmidTapes, inCfg_wordsCfg, Cfg.withState,
-          eraseF, ofDeterministic]
-      rw [run_interpret_runOracleConfigFrom_ofDeterministic, hstartErase,
+      rw [run_interpret_runOracleConfigFrom_ofDeterministic, hstartErase mid a hmidTapes,
         runFrom_markFlag none, hmidTapes, Function.update_idem]
       simp [Sequential.right, Cfg.mapState, F, wordsCfg]
-    · have hlaw := (h OracleState oracle s cfgIn rfl hbuf).1
-      have hmapF := congrArg (PMF.map (fun (p : Cfg k Bool State w × OracleState) => (F p.1, p.2)))
-        hlaw
-      change (ProbOracleComp.runWith oracle (machine.runOracleConfigFrom time cfgIn) s).bind
-        (PMF.pure ∘ fun p => (F p.1.tapes, p.2)) = _
-      rw [PMF.bind_pure_comp]
-      simpa only [PMF.map_comp, Function.comp_def, hF_wordsCfg] using hmapF
+    · erw [PMF.bind_pure_comp]
+      simpa only [PMF.map_comp, Function.comp_def, hF_wordsCfg] using
+        congrArg (PMF.map fun p : Cfg k Bool State w × OracleState => (F p.1, p.2))
+          (h OracleState oracle s cfgIn rfl hbuf).1
   · intro final hfinal op
     supp_cases hfinal [hinRun, ProbOracleComp.runWith_map, eraseF,
       run_interpret_runOracleConfigFrom_ofDeterministic] with

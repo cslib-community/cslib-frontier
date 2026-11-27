@@ -86,28 +86,16 @@ private theorem term_mem {h : Code → Code} {e x z : ℕ} (hz : z ∈ (h (ofNat
 private theorem computable_term {h : Code → Code} (hh : Computable h)
     (hgr : ComputablePred fun q : Code × ℕ × ℕ => q.2.2 ∈ (h q.1).eval q.2.1) :
     Computable fun q : ℕ × ℕ × ℕ => term Φ h q.1 q.2.1 q.2.2 := by
-  have hc : Computable fun q : ℕ × ℕ × ℕ => h (ofNat Code q.1) :=
-    hh.comp ((Computable.ofNat Code).comp Computable.fst)
-  have hg : ComputablePred fun q : ℕ × ℕ × ℕ => q.2.2 ∈ (h (ofNat Code q.1)).eval q.2.1 :=
-    hgr.comp ((Computable.ofNat Code).comp Computable.fst |>.pair Computable.snd)
-  obtain ⟨f, hf, hfp⟩ := ComputablePred.computable_iff.1 hg
-  have hp : Partrec fun q : ℕ × ℕ × ℕ =>
-      cond (f q) (Φ.cost (h (ofNat Code q.1)) q.2.1) (Part.some 0) :=
-    Partrec.cond hf (Φ.partrec_cost.comp hc (Computable.fst.comp Computable.snd))
-      (Partrec.const' (Part.some 0))
-  refine hp.of_eq_tot fun q => ?_
-  have hq : q.2.2 ∈ (h (ofNat Code q.1)).eval q.2.1 ↔ f q = true := by
-    rw [show (q.2.2 ∈ (h (ofNat Code q.1)).eval q.2.1) =
-      (fun q : ℕ × ℕ × ℕ => q.2.2 ∈ (h (ofNat Code q.1)).eval q.2.1) q from rfl, hfp]
+  obtain ⟨f, hf, hfp⟩ := ComputablePred.computable_iff.1
+    (hgr.comp ((Computable.ofNat Code).comp Computable.fst |>.pair Computable.snd))
+  refine (Partrec.cond hf
+    (Φ.partrec_cost.comp (hh.comp ((Computable.ofNat Code).comp Computable.fst))
+      (Computable.fst.comp Computable.snd))
+    (Partrec.const' (Part.some 0))).of_eq_tot fun q => ?_
+  have hq : q.2.2 ∈ (h (ofNat Code q.1)).eval q.2.1 ↔ f q = true := (congrFun hfp q).to_iff
   cases hfq : f q with
   | true => exact term_mem Φ (hq.2 hfq)
-  | false =>
-    have hn : q.2.2 ∉ (h (ofNat Code q.1)).eval q.2.1 := fun hm => by
-      have h' := hq.1 hm
-      rw [hfq] at h'
-      exact Bool.false_ne_true h'
-    simp only [term, hn, ↓reduceDIte]
-    exact Part.mem_some 0
+  | false => simp [term, mt hq.1 (by simp [hfq])]
 
 /-- The bound `g x z = ∑_{e ≤ x} term h e x z`. -/
 private noncomputable def bound (h : Code → Code) (x z : ℕ) : ℕ :=
@@ -145,8 +133,8 @@ theorem exists_isHonest_of_measured {h : Code → Code} (hh : Computable h)
       ∀ (i : Code) (f : ℕ → ℕ), (∀ n, f n ∈ (h i).eval n) → Φ.IsHonest g f := by
   refine ⟨bound Φ h, computable_bound Φ hh hgr, fun i f hf => ⟨h i, hf, ?_⟩⟩
   filter_upwards [eventually_ge_atTop (encode i)] with n hn m hm
-  have hmem : f n ∈ (h (ofNat Code (encode i))).eval n := by grind [ofNat_encode]
-  have hterm := term_mem Φ hmem
+  have hterm := term_mem Φ
+    (show f n ∈ (h (ofNat Code (encode i))).eval n by grind [ofNat_encode])
   rw [ofNat_encode] at hterm
   rw [Part.mem_unique hm hterm]
   exact Finset.single_le_sum (f := fun e => term Φ h e n (f n)) (fun _ _ => Nat.zero_le _)
@@ -164,9 +152,8 @@ theorem honesty_theorem :
   obtain ⟨g, hg, hhon⟩ := Φ.exists_isHonest_of_measured hh hgr
   refine ⟨g, hg, fun t ht => ?_⟩
   obtain ⟨i, hi⟩ := Code.exists_code.1 (Partrec.nat_iff.1 ht)
-  have hti : ∀ n, t n ∈ i.eval n := fun n => by rw [hi]; exact Part.mem_some _
-  obtain ⟨t', ht', hcls⟩ := hname i t hti
-  refine ⟨t', ?_, hhon i t' ht', hcls⟩
-  exact Partrec.nat_iff.2 (Code.exists_code.2 ⟨h i, funext fun n => Part.eq_some_iff.2 (ht' n)⟩)
+  obtain ⟨t', ht', hcls⟩ := hname i t fun n => hi ▸ Part.mem_some _
+  exact ⟨t', Partrec.nat_iff.2 (Code.exists_code.2
+    ⟨h i, funext fun n => Part.eq_some_iff.2 (ht' n)⟩), hhon i t' ht', hcls⟩
 
 end Cslib.BlumComplexity.BlumMeasure

@@ -222,12 +222,8 @@ theorem card_interedges_eq_crossCount (G : Graph) (S : Finset ℕ)
     (hnd : (orientations G.edges).Nodup) (hV : ∀ e ∈ G.edges, e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices) :
     (G.induced.interedges (S.subtype (· ∈ G.vertices))
       (S.subtype (· ∈ G.vertices))ᶜ).card = crossCount G.edges fun v => decide (v ∈ S) := by
-  have hloop : ∀ e ∈ G.edges, e.1 ≠ e.2 := by
-    intro e he heq
-    have := (List.nodup_flatMap.1 hnd).1 e he
-    simp only [List.nodup_cons, List.mem_singleton, List.not_mem_nil, not_false_eq_true,
-      List.nodup_nil, and_self, and_true] at this
-    exact this (Prod.ext heq heq.symm)
+  have hloop : ∀ e ∈ G.edges, e.1 ≠ e.2 := fun e he heq =>
+    List.pairwise_pair.1 ((List.nodup_flatMap.1 hnd).1 e he) (Prod.ext heq heq.symm)
   rw [card_interedges_eq_length G S
     (l := (orientations G.edges).filter fun p => decide (p.1 ∈ S) && !decide (p.2 ∈ S))
     (hnd.filter _) fun p => ?_]
@@ -243,11 +239,9 @@ theorem card_interedges_eq_crossCount (G : Graph) (S : Finset ℕ)
       List.not_mem_nil, or_false, Bool.and_eq_true, decide_eq_true_eq,
       Bool.not_eq_true', decide_eq_false_iff_not, Graph.toSimpleGraph_adj]
     constructor
-    · rintro ⟨⟨e, he, hp | hp⟩, h1, h2⟩
-      · subst hp
-        exact ⟨(hV _ he).1, (hV _ he).2, ⟨hloop _ he, Or.inl he⟩, h1, h2⟩
-      · subst hp
-        exact ⟨(hV e he).2, (hV e he).1, ⟨(hloop e he).symm, Or.inr (by simpa using he)⟩,
+    · rintro ⟨⟨e, he, rfl | rfl⟩, h1, h2⟩
+      · exact ⟨(hV _ he).1, (hV _ he).2, ⟨hloop _ he, Or.inl he⟩, h1, h2⟩
+      · exact ⟨(hV e he).2, (hV e he).1, ⟨(hloop e he).symm, Or.inr (by simpa using he)⟩,
           h1, h2⟩
     · rintro ⟨-, -, ⟨-, hp | hp⟩, h1, h2⟩
       · exact ⟨⟨p, hp, Or.inl rfl⟩, h1, h2⟩
@@ -296,10 +290,7 @@ private theorem crossCount_subdivide (E : List (ℕ × ℕ)) (side : ℕ → Boo
 private theorem crossCount_pathEdges_le (e : ℕ × ℕ) (k : ℕ) (side : ℕ → Bool) :
     crossCount (pathEdges e k) side ≤ 2 + crossCount [(2 * e.1, 2 * e.2)] side := by
   simp only [crossCount, pathEdges, List.countP_cons, List.countP_nil]
-  generalize side (2 * e.1) = a
-  generalize side (4 * k + 1) = b
-  generalize side (4 * k + 3) = c
-  generalize side (2 * e.2) = d
+  generalize side (2 * e.1) = a, side (4 * k + 1) = b, side (4 * k + 3) = c, side (2 * e.2) = d
   revert a b c d
   decide
 
@@ -587,11 +578,7 @@ theorem polyTimeReducible_NAEEUThreeSAT_SimpleMaxCut :
   refine .of_guard _ EUThreeSAT.computableInPolyTime_syntaxCheck
     computableInPolyTime_toSimpleMaxCut empty_not_mem_SimpleMaxCut fun φ => ?_
   rw [EUThreeSAT.syntaxCheck_iff]
-  constructor
-  · rintro ⟨h, hs⟩
-    exact ⟨h, (toSimpleMaxCut_mem_iff fun c hc => (h c hc).1).2 hs⟩
-  · rintro ⟨h, hs⟩
-    exact ⟨h, (toSimpleMaxCut_mem_iff fun c hc => (h c hc).1).1 hs⟩
+  exact and_congr_right fun h => (toSimpleMaxCut_mem_iff fun c hc => (h c hc).1).symm
 
 /-- `SimpleMaxCut` is `NP`-hard. -/
 theorem SimpleMaxCut_npHard : NPHard encSimpleMaxCut SimpleMaxCut :=

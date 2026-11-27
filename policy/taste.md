@@ -38,7 +38,10 @@ title and module documentation call it definitions only.
 A transcribed algorithm or new construction comes with the property that shows the transcription
 means something: a signer's signatures verify; padding is block-aligned; no revealed tree node is
 an ancestor of the hidden leaf; a simulator's output is close to the real view. A faithful
-transcription with no such theorem is unvalidated, however careful its source mapping.
+transcription with no such theorem is unvalidated, however careful its source mapping. Where the
+model has subtle boundaries, pair that theorem with a checked boundary witness in the test file
+([New statements and definitions](statements.md#new-statements-and-definitions)), never under
+"Main results".
 
 ## One name per fact
 

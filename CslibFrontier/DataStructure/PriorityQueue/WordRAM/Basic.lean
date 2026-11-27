@@ -282,15 +282,12 @@ private theorem callStaged_exec {P : PQCode B r_pq} {n K_max w base : ℕ} (t_pr
       t + C.potential (z.comap f) ≤ t_prep + C.charge s o + C.potential (x.comap f) →
       Q z t) :
     ∃ z t, ExecWithin w (.seq prep (P.code.rename f)) x z t ∧ Q z t := by
-  have hreg : ∀ i, P.input i = false → x'.regs (f i) = x.regs (f i) := by
-    intro i hi
-    obtain ⟨h2, h1, h0, hv, hk⟩ := not_input_ne hi
-    change (x'.comap f).regs i = (x.comap f).regs i
-    rw [hcomap]
-    exact hnot_in i h2 h1 h0 hv hk
   obtain ⟨z, t, he, hdec, hrep_z, hmod, hregs_z, hpot⟩ :=
-    C.call_rename_ofFn hf o hr hval hprep (hcomap ▸ hb) hreg (fun a _ => congrFun hmem a)
-      (harg_eq ▸ hcomap ▸ hmatch)
+    C.call_rename_ofFn hf o hr hval hprep (hcomap ▸ hb)
+      (fun i hi => by
+        obtain ⟨h2, h1, h0, hv, hk⟩ := not_input_ne hi
+        exact (congrFun (congrArg Data.regs hcomap) i).trans (hnot_in i h2 h1 h0 hv hk))
+      (fun a _ => congrFun hmem a) (harg_eq ▸ hcomap ▸ hmatch)
   exact ⟨z, t, he, hQ hdec hrep_z (hmem ▸ hmod)
     (fun j hj => (hregs_z j hj).trans (hout j hj)) hpot⟩
 
@@ -319,13 +316,10 @@ theorem callIsEmpty_exec {P : PQCode B r_pq} {n K_max w base : ℕ}
     (by simp only [x₃, Data.comap_set hf]; rfl) (by wram_bounded <;> fits)
     (fun _ _ _ _ _ _ => by wram_simp) (fun _ _ => by wram_simp [x₃])
     (by wram_simp [argMatch]) fun {z _} hdec hrep_z hmod hregs_z hpot => ?_
-  rw [hdec_eq] at hdec
-  simp only [decode, indexedMinPQSpec, IndexedMinPQ.step, StateTransitionSpec.stepFn,
+  simp only [hdec_eq, decode, indexedMinPQSpec, IndexedMinPQ.step, StateTransitionSpec.stepFn,
     Option.some.injEq, decide_eq_decide] at hdec
-  refine ⟨?_, hrep_z, hmod, hregs_z, hpot⟩
-  change (z.comap f).regs P.outFlag = 0 ↔ IndexedMinPQ.dom s ≠ ∅
-  exact ⟨fun h0 hd => absurd h0 (hdec.mpr hd),
-    fun hd => Decidable.byContradiction fun hne => hd (hdec.mp hne)⟩
+  exact ⟨⟨fun h0 hd => absurd h0 (hdec.mpr hd),
+    fun hd => Decidable.byContradiction fun hne => hd (hdec.mp hne)⟩, hrep_z, hmod, hregs_z, hpot⟩
 
 /-- Inline execution of `P.callExtractMin`: extracts `findMin s` and charges
 `1 + C.charge s .extractMin`. -/

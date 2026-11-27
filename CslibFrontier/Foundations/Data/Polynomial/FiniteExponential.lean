@@ -86,26 +86,17 @@ theorem finiteExponential_differential_coeff (D : ℕ) (G : K[X])
     (k : ℕ) (hk : k < D) :
     (derivative (finiteExponential D G)).coeff k =
       (derivative G * finiteExponential D G).coeff k := by
-  have hdiv : (X : K[X]) ^ D ∣
-      derivative (finiteExponential D G) - derivative G * finiteExponential D G := by
-    rw [finiteExponential_differential_error D G hK]
-    apply dvd_neg.mpr
-    exact dvd_mul_of_dvd_right (pow_dvd_pow_of_dvd (X_dvd_iff.mpr hG) D) _
-  have hz := X_pow_dvd_iff.mp hdiv k hk
-  simpa only [coeff_sub, sub_eq_zero] using hz
+  rw [← sub_eq_zero, ← coeff_sub]
+  refine X_pow_dvd_iff.mp ?_ k hk
+  rw [finiteExponential_differential_error D G hK, dvd_neg]
+  exact dvd_mul_of_dvd_right (pow_dvd_pow_of_dvd (X_dvd_iff.mpr hG) D) _
 
 /-- The constant coefficient is normalized when the exponent has zero
  constant term. -/
 theorem finiteExponential_coeff_zero (D : ℕ) (G : K[X]) (hG : G.coeff 0 = 0) :
     (finiteExponential D G).coeff 0 = 1 := by
-  have hpow (j : ℕ) : (G ^ j).coeff 0 = G.coeff 0 ^ j := by
-    rw [coeff_zero_eq_eval_zero, eval_pow, ← coeff_zero_eq_eval_zero]
-  unfold finiteExponential
-  simp only [finsetSum_coeff, coeff_C_mul, hpow, hG]
-  rw [Finset.sum_eq_single 0]
-  · simp
-  · intro j _ hj
-    simp [hj]
-  · simp
+  rw [finiteExponential, finsetSum_coeff, Finset.sum_range_succ']
+  simp only [coeff_zero_eq_eval_zero, eval_mul, eval_C, eval_pow] at hG ⊢
+  simp [hG]
 
 end Polynomial

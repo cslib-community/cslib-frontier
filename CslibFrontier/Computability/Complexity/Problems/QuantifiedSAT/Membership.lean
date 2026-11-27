@@ -37,15 +37,16 @@ private theorem wellFormed_iff (i : ℕ) (a : PrenexQBF) :
   rfl
 
 /-- Well-formedness of a grouped prenex instance is decidable in polynomial time. -/
+@[local fun_prop]
 theorem wellFormed_polyTime (i : ℕ) :
     ComputableInPolyTime (fun a : PrenexQBF => decide (a.WellFormed i)) encPrenexQBF encBool := by
-  have hq := computableInPolyTime_decide_quantifierFree.comp (encPrenexQBF_matrix_polyTime .id')
-  have hvars : ComputableInPolyTime (fun a : PrenexQBF => a.blocks.flatten)
-      encPrenexQBF (encList encNat) := by fun_prop
+  have hq : ComputableInPolyTime (fun a : PrenexQBF => decide a.matrix.QuantifierFree)
+      encPrenexQBF encBool := computableInPolyTime_decide_quantifierFree.comp (by fun_prop)
   have hc : ComputableInPolyTime
       (fun a : PrenexQBF => decide (QBF.exs a.blocks.flatten a.matrix).Closed)
-      encPrenexQBF encBool := TQBF.computableInPolyTime_decide_closed.comp
-    (TQBF.computableInPolyTime_exs hvars (encPrenexQBF_matrix_polyTime .id'))
+      encPrenexQBF encBool :=
+    TQBF.computableInPolyTime_decide_closed.comp
+      (TQBF.computableInPolyTime_exs (by fun_prop) (by fun_prop))
   simp only [wellFormed_iff]
   fun_prop
 
@@ -93,13 +94,12 @@ private theorem verifier_polyTime (i : ℕ) (p : Polynomial ℕ) :
         (fun x : PrenexQBF × List Bool => (x.1.blocks.getD j []).length,
           fun x => p.eval (encPrenexQBF x.1).length))
       (by simp only [List.forall_mem_map]; intro j _; exact ⟨by fun_prop, hp⟩) (snd _ _)
-  have hvars : ComputableInPolyTime (fun x : PrenexQBF × List Bool => x.1.blocks.flatten)
-      (encPair encPrenexQBF encBits) (encList encNat) := by fun_prop
-  have htrue := trueVars_polyTime.comp (hvars.prod htake)
   have heval := computableInPolyTime_evalTokens.comp
-    ((encPrenexQBF_matrix_polyTime (fst _ _)).prod htrue)
-  have hvalid := (wellFormed_polyTime i).comp (fst encPrenexQBF encBits)
-  exact bool_and.comp (hvalid.prod heval)
+    ((encPrenexQBF_matrix_polyTime (fst _ _)).prod
+      (trueVars_polyTime.comp
+        (ComputableInPolyTime.prod (f := fun x : PrenexQBF × List Bool => x.1.blocks.flatten)
+          (enc₁ := encList encNat) (by fun_prop) htake)))
+  exact bool_and' ((wellFormed_polyTime i).comp (by fun_prop)) heval
 
 private theorem verifier_spec (i : ℕ) (p : Polynomial ℕ)
     (hp : ∀ a : PrenexQBF, a.blocks.flatten.length ≤ p.eval (encPrenexQBF a).length)
@@ -128,26 +128,26 @@ private theorem verifier_spec (i : ℕ) (p : Polynomial ℕ)
   · simp only [verifier, ha, decide_false, Bool.false_and, Bool.false_eq_true,
       alternation_const, false_and]
 
-/-- Grouped existential-first quantified SAT is in its level of the polynomial hierarchy,
-including level zero. The verifier has native polynomial-time computation evidence. -/
-theorem mem_SigmaP (i : ℕ) : SigmaSAT i ∈ SigmaP i encPrenexQBF := by
+private theorem exists_verifier (i : ℕ) (q : Bool) :
+    ∃ (ps : List (Polynomial ℕ)) (V : PrenexQBF × List Bool → Bool),
+      ps.length = i ∧ ComputableInPolyTime V (encPair encPrenexQBF encBits) encBool ∧
+        IsAlternatingVerifier encPrenexQBF q ps V
+          {a | a.WellFormed i ∧ (a.formula q).eval (fun _ => false) = true} := by
   have hlen : ComputableInPolyTime (fun a : PrenexQBF => a.blocks.flatten.length)
       encPrenexQBF encUnary := by fun_prop
   obtain ⟨p, hp⟩ := hlen.polyBounded.exists_polynomial
   refine ⟨List.replicate i p, verifier i p, List.length_replicate,
     verifier_polyTime i p, fun a => ?_⟩
-  simp only [List.map_replicate]
-  exact (verifier_spec i p hp true a).symm
+  simpa only [List.map_replicate, Set.mem_ofPred_eq] using (verifier_spec i p hp q a).symm
+
+/-- Grouped existential-first quantified SAT is in its level of the polynomial hierarchy,
+including level zero. The verifier has native polynomial-time computation evidence. -/
+theorem mem_SigmaP (i : ℕ) : SigmaSAT i ∈ SigmaP i encPrenexQBF :=
+  exists_verifier i true
 
 /-- Grouped universal-first quantified SAT is in its level of the polynomial hierarchy,
 including level zero. -/
-theorem mem_PiP (i : ℕ) : PiSAT i ∈ PiP i encPrenexQBF := by
-  have hlen : ComputableInPolyTime (fun a : PrenexQBF => a.blocks.flatten.length)
-      encPrenexQBF encUnary := by fun_prop
-  obtain ⟨p, hp⟩ := hlen.polyBounded.exists_polynomial
-  refine ⟨List.replicate i p, verifier i p, List.length_replicate,
-    verifier_polyTime i p, fun a => ?_⟩
-  simp only [List.map_replicate]
-  exact (verifier_spec i p hp false a).symm
+theorem mem_PiP (i : ℕ) : PiSAT i ∈ PiP i encPrenexQBF :=
+  exists_verifier i false
 
 end Cslib.Complexity.PrenexQBF

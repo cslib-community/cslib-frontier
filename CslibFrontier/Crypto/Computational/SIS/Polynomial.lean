@@ -56,12 +56,10 @@ private theorem negacyclicLinearEquiv_apply (hn : n ≠ 0) (a : Fin n → R) :
     negacyclicLinearEquiv hn a =
       ∑ i, algebraMap R _ (a i) * AdjoinRoot.root ((X : R[X]) ^ n + 1) ^ (i : ℕ) := by
   rw [negacyclicLinearEquiv, Basis.equivFun_symm_apply]
-  apply Finset.sum_congr rfl
-  intro i _
+  refine Finset.sum_congr rfl fun i _ => ?_
   rw [Basis.reindex_apply]
   change a i • (AdjoinRoot.powerBasis' _).basis _ = _
-  erw [PowerBasis.basis_eq_pow, Algebra.smul_def]
-  rfl
+  erw [PowerBasis.basis_eq_pow, Algebra.smul_def]; rfl
 
 omit [Nontrivial R] in
 private theorem negacyclic_root_pow :
@@ -80,31 +78,26 @@ private theorem negacyclic_column (hn : n ≠ 0) (a : Fin n → R) (j : Fin n) :
   rw [← (Equiv.addRight j).sum_comp, Finset.sum_mul]
   rotate_left
   · simp
-  apply Finset.sum_congr rfl
-  intro i _
+  refine Finset.sum_congr rfl fun i _ => ?_
   change algebraMap R _ (rotMatrix a (i + j) j) *
     AdjoinRoot.root ((X : R[X]) ^ n + 1) ^ (i + j).val = _
   by_cases h : n ≤ i.val + j.val
-  · have hv : (i + j).val = i.val + j.val - n := by
-      simp only [Fin.val_add_eq_ite, ite_eq_left h]
-    have hj : ¬j.val ≤ (i + j).val := by omega
+  · have hv : (i + j).val = i.val + j.val - n := by simp only [Fin.val_add_eq_ite, ite_eq_left h]
     have hi : (⟨n + (i + j).val - j.val, by omega⟩ : Fin n) = i := by
       ext
       dsimp
       omega
-    simp only [rotMatrix, Matrix.of_apply, dite_eq_right hj, hi, map_neg]
-    rw [mul_assoc, ← pow_add]
-    have he : i.val + j.val = n + (i + j).val := by omega
-    rw [he, pow_add, negacyclic_root_pow]
+    simp only [rotMatrix, Matrix.of_apply, dite_eq_right (show ¬j.val ≤ (i + j).val by omega),
+      hi, map_neg]
+    rw [mul_assoc, ← pow_add, show i.val + j.val = n + (i + j).val by omega, pow_add,
+      negacyclic_root_pow]
     ring
-  · have hv : (i + j).val = i.val + j.val := by
-      simp only [Fin.val_add_eq_ite, ite_eq_right h]
-    have hj : j.val ≤ (i + j).val := by omega
+  · have hv : (i + j).val = i.val + j.val := by simp only [Fin.val_add_eq_ite, ite_eq_right h]
     have hi : (⟨(i + j).val - j.val, by omega⟩ : Fin n) = i := by
       ext
       dsimp
       omega
-    simp only [rotMatrix, Matrix.of_apply, dite_eq_left hj, hi]
+    simp only [rotMatrix, Matrix.of_apply, dite_eq_left (show j.val ≤ (i + j).val by omega), hi]
     rw [mul_assoc, ← pow_add, hv]
 
 private theorem negacyclicLinearEquiv_mul (hn : n ≠ 0) (a b : Fin n → R) :
@@ -116,9 +109,7 @@ private theorem negacyclicLinearEquiv_mul (hn : n ≠ 0) (a b : Fin n → R) :
   simp_rw [mul_right_comm (algebraMap R _ (rotMatrix a _ _)), ← Finset.sum_mul,
     negacyclic_column hn]
   rw [Finset.mul_sum]
-  apply Finset.sum_congr rfl
-  intro i _
-  ring
+  exact Finset.sum_congr rfl fun _ _ => by ring
 
 private theorem negacyclicLinearEquiv_one (hn : n ≠ 0) :
     negacyclicLinearEquiv hn (1 : Negacyclic R n).coeffs = 1 := by

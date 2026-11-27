@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Fr
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Lookup
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OneWorkTape
 public import Mathlib.Data.Fintype.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Basic.Finite.Prod
 import Mathlib.Basic.Finite.Sum
@@ -362,8 +363,7 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
     have hx : inputAt (frame u ++ v) (2 * u.length + 2 + v.length) = none := by
       unfold inputAt
       split_ifs
-      · rfl
-      · exact List.getElem?_eq_none (by omega)
+      exacts [rfl, List.getElem?_eq_none (by omega)]
     have hy : tapeOfList u ((min r u.length : ℕ) : ℤ) = none := by
       rw [tapeOfList_ofNat, List.getElem?_eq_none (by omega)]
     have s₁ : τ.toTM.step (cfgAt (frame u ++ v) (some (.zip q none))
@@ -380,8 +380,7 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
     rw [List.take_one, ← List.head?_tail, List.take_of_length_le (τ.length_final_le q)] at hfin
     rcases hb : (τ.final q).tail.head? with _ | b
     · rw [hb, Option.toList_none, List.append_nil] at hfin
-      rw [hb, Option.map_none] at s₁
-      rw [hfin] at s₁
+      rw [hb, Option.map_none, hfin] at s₁
       exact (Seg.single (cfgAt_mem_cells (by omega) (by omega)) s₁
         (cfgAt_mem_cells (by omega) (by omega))).mono (by omega)
     · rw [hb, Option.map_some] at s₁
@@ -410,18 +409,13 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
         using getElem?_frame_append_boundary u v (min r v.length)
     have hy : tapeOfList u ((min r u.length : ℕ) : ℤ) = (u.drop r).head? := by
       rw [tapeOfList_ofNat, getElem?_min_length]
+    have hsome (l : List Bool) : (l.drop r).head?.isSome = decide (r < l.length) := by
+      rw [List.head?_drop]
+      by_cases h : r < l.length <;> simp [h]
     set x := (v.drop r).head? with hxdef
     set y := (u.drop r).head? with hydef
-    have hxs : x.isSome = decide (r < v.length) := by
-      rw [hxdef, List.head?_drop]
-      rcases Nat.lt_or_ge r v.length with h | h
-      · simp [h]
-      · simp [Nat.not_lt.mpr h]
-    have hys : y.isSome = decide (r < u.length) := by
-      rw [hydef, List.head?_drop]
-      rcases Nat.lt_or_ge r u.length with h | h
-      · simp [h]
-      · simp [Nat.not_lt.mpr h]
+    have hxs : x.isSome = decide (r < v.length) := hsome v
+    have hys : y.isSome = decide (r < u.length) := hsome u
     have hmove : moveInputPosNat (frame u ++ v).length (2 * u.length + 2 + min r v.length)
         (if x.isSome then 1 else 0) = 2 * u.length + 2 + min (r + 1) v.length := by
       rw [hxs]
@@ -435,12 +429,7 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
     have hhead : ((min r u.length : ℕ) : ℤ) + ((if y.isSome then 1 else 0 : SignType) : ℤ) =
         ((min (r + 1) u.length : ℕ) : ℤ) := by
       rw [hys]
-      rcases Nat.lt_or_ge r u.length with h | h
-      · simp only [decide_eq_true h, ↓reduceIte, SignType.coe_one]
-        omega
-      · simp only [decide_eq_false (Nat.not_lt.mpr h), Bool.false_eq_true, ↓reduceIte,
-          SignType.coe_zero]
-        omega
+      by_cases h : r < u.length <;> simp [h] <;> omega
     have s₁ : τ.toTM.step (cfgAt (frame u ++ v) (some (.zip q none))
         (2 * u.length + 2 + min r v.length) (tapeOfList u) (min r u.length : ℕ) o) =
         cfgAt (frame u ++ v) (some (.zip (τ.step q (y, x)).1 (τ.step q (y, x)).2.tail.head?))
@@ -471,9 +460,7 @@ private lemma seg_run (u v : List Bool) :
   have hn := length_frame_append u v
   have hinit : τ.toTM.initCfg (frame u ++ v) =
       cfgAt (frame u ++ v) (some .copy) (2 * 0 + 1) (tapeOfList (u.take 0)) ((0 : ℕ) : ℤ) [] := by
-    refine Cfg.ext rfl (Fin.ext ?_) (funext fun _ => ?_) rfl rfl
-    · simp [MultiTapeNTM.initCfg, Cfg.init, cfgAt]
-    · simp [MultiTapeNTM.initCfg, Cfg.init, cfgAt]
+    tm_step [MultiTapeNTM.initCfg, Cfg.init, cfgAt]
   have hzip := seg_zip (τ := τ) (u := u) (v := v) τ.q₀ (r := 0) (Nat.zero_le _) []
   simp only [Nat.zero_min, Nat.add_zero, Nat.cast_zero, List.drop_zero, List.nil_append,
     Nat.sub_zero] at hzip

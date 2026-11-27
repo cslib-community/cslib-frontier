@@ -16,6 +16,7 @@ import CslibFrontier.Foundations.Analysis.ENNRealTsum
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.SupportTsum
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Expected running time for randomized word RAMs
@@ -123,29 +124,21 @@ def AlmostSurelyHalts (w : ℕ) (p : Program B r) (s : State r) : Prop :=
 theorem evalRand_haltedSet_mono (w : ℕ) (p : Program B r) (s : State r) :
     Monotone fun T => (evalRand w p T s).toOuterMeasure (RandCfg.haltedSet r) := by
   refine monotone_nat_of_le_succ fun T => ?_
-  have hstep : evalRand w p (T + 1) s =
-      (evalRand w p T s).bind (fun cfg => (stepRand w p cfg).eval) := by
-    rw [evalRand, runRand_add w p T 1, ProbComp.eval_bind]
-    simp only [evalRand, runRand_succ, runRand_zero, bind_pure]
-  rw [hstep, PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
+  conv_rhs => rw [evalRand, runRand_add w p T 1, ProbComp.eval_bind]
+  simp only [runRand_succ, runRand_zero, bind_pure, PMF.toOuterMeasure_bind_apply]
+  rw [evalRand, PMF.toOuterMeasure_apply]
   refine tsum_le_tsum fun cfg => ?_
   by_cases hcfg : cfg ∈ RandCfg.haltedSet r
-  · have hmem := hcfg
-    obtain ⟨v, d, rfl⟩ := hcfg
-    have h1 : (stepRand w p (.halted v d)).eval.toOuterMeasure (RandCfg.haltedSet r) = 1 := by
-      simp [stepRand_halted, PMF.toOuterMeasure_pure_apply, hmem]
-    rw [Set.indicator_of_mem hmem, h1, mul_one]
+  · obtain ⟨v, d, rfl⟩ := hcfg
+    simp [Set.indicator_of_mem, stepRand_halted, PMF.toOuterMeasure_pure_apply, RandCfg.haltedSet]
   · simp [Set.indicator_of_notMem hcfg]
 
 /-- Any worst-case bounded execution halts almost surely. -/
 theorem RandHaltsWithin.almostSurelyHalts {w T : ℕ} {p : Program B r} {s : State r}
-    (h : RandHaltsWithin w p s T) : AlmostSurelyHalts w p s := by
-  refine ⟨h.randFaultFree,
-    le_antisymm (iSup_le fun _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
-      (le_iSup_of_le T ?_)⟩
-  refine ((PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr fun cfg hmem => ?_).ge
-  rw [support_evalRand] at hmem
-  exact h cfg hmem
+    (h : RandHaltsWithin w p s T) : AlmostSurelyHalts w p s :=
+  ⟨h.randFaultFree, le_antisymm (iSup_le fun _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
+    (le_iSup_of_le T ((PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr fun cfg hmem =>
+      h cfg (by rwa [support_evalRand] at hmem)).ge)⟩
 
 /-- Expected number of remaining instructions starting from configuration `cfg`, defined via the
 tail sum of active-configuration probabilities. -/
@@ -170,35 +163,21 @@ theorem expectedStepsFrom_faulted (w : ℕ) (p : Program B r) :
     expectedStepsFrom w p .faulted = 0 := by
   simp [expectedStepsFrom, PMF.toOuterMeasure_pure_apply]
 
-private theorem tsum_nat_eq_zero_add (g : ℕ → ℝ≥0∞) :
-    ∑' t : ℕ, g t = g 0 + ∑' t : ℕ, g (t + 1) := by
-  rw [tsum_eq_add_tsum_ite (f := g) 0]
-  congr 1
-  have hsh := Function.Injective.tsum_eq Nat.succ_injective
-    (f := fun t => if t = 0 then 0 else g t) fun t ht => by
-      cases t with
-      | zero => simp at ht
-      | succ k => exact ⟨k, rfl⟩
-  exact (tsum_congr fun x => by split_ifs <;> rfl).trans hsh.symm
-
 /-- 1-step Bellman equation: an active state `s` incurs `1` immediate step plus the expected
 remaining steps from `stepRand w p (.running s)`. -/
 theorem expectedStepsFrom_running (w : ℕ) (p : Program B r) (s : State r) :
     expectedStepsFrom w p (.running s) =
       1 + ProbComp.expect (stepRand w p (.running s)) (expectedStepsFrom w p) := by
-  rw [expectedStepsFrom, tsum_nat_eq_zero_add]
+  rw [expectedStepsFrom, tsum_eq_add_tsum_ite 0]
   have hzero : (runRand w p 0 (.running s)).eval.toOuterMeasure
-      {cfg' | ∃ u, cfg' = .running u} = 1 := by
-    simp [PMF.toOuterMeasure_pure_apply]
-  rw [hzero]
-  congr 1
-  have hsucc : ∀ t : ℕ, (runRand w p (t + 1) (.running s)).eval.toOuterMeasure
-      {cfg' | ∃ u, cfg' = .running u} =
-      ∑' cfg, (stepRand w p (.running s)).eval cfg *
-        (runRand w p t cfg).eval.toOuterMeasure {cfg' | ∃ u, cfg' = .running u} := by
-    intro t
-    rw [runRand_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply]
-  simp only [hsucc]
+      {cfg' | ∃ u, cfg' = .running u} = 1 := by simp [PMF.toOuterMeasure_pure_apply]
+  have hshift := Nat.succ_injective.tsum_eq (f := fun t : ℕ => if t = 0 then 0 else
+      (runRand w p t (.running s)).eval.toOuterMeasure {cfg' | ∃ u, cfg' = .running u})
+    fun t ht => match t with | 0 => absurd rfl ht | k + 1 => ⟨k, rfl⟩
+  simp only [Nat.succ_eq_add_one, Nat.add_eq_zero_iff, one_ne_zero, and_false, ↓reduceIte] at hshift
+  rw [hzero]; congr 1
+  rw [(tsum_congr fun _ => by split_ifs <;> rfl).trans hshift.symm]
+  simp_rw [runRand_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply]
   rw [tsum_comm]
   simp only [ProbComp.expect, expectedStepsFrom, ENNReal.tsum_mul_left]
 
@@ -209,41 +188,22 @@ theorem RandFaultFree.running_add_halted_eq_one {w : ℕ} {p : Program B r} {s :
     (evalRand w p t s).toOuterMeasure {cfg | ∃ u, cfg = .running u} +
       (evalRand w p t s).toOuterMeasure (RandCfg.haltedSet r) = 1 := by
   rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply, ← tsum_add]
-  convert (evalRand w p t s).tsum_coe using 1
-  congr 1
-  funext cfg
+  refine (tsum_congr fun cfg => ?_).trans (evalRand w p t s).tsum_coe
   cases cfg with
-  | running u => simp [RandCfg.haltedSet]
-  | halted v d => simp [RandCfg.haltedSet]
-  | faulted =>
-    simp [RandCfg.haltedSet, hf.evalRand_faulted_eq_zero t]
+  | running _ | halted _ _ => simp [RandCfg.haltedSet]
+  | faulted => simp [RandCfg.haltedSet, hf.evalRand_faulted_eq_zero t]
 
 /-- A fault-free execution with finite expected running time halts almost surely. -/
 theorem AlmostSurelyHalts.of_expectedTime_ne_top {w : ℕ} {p : Program B r} {s : State r}
     (hf : RandFaultFree w p s) (htop : expectedTime w p s ≠ ⊤) :
     AlmostSurelyHalts w p s := by
-  refine ⟨hf, le_antisymm (iSup_le fun _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _) ?_⟩
-  by_contra hlt
-  have hlt1 : (⨆ t : ℕ, (evalRand w p t s).toOuterMeasure (RandCfg.haltedSet r)) < 1 :=
-    lt_of_not_ge hlt
-  set supH := ⨆ t : ℕ, (evalRand w p t s).toOuterMeasure (RandCfg.haltedSet r)
-  have hpos : 0 < 1 - supH := tsub_pos_of_lt hlt1
-  have hle_run : ∀ t : ℕ,
-      1 - supH ≤ (evalRand w p t s).toOuterMeasure {cfg | ∃ u, cfg = .running u} := by
-    intro t
-    have hpart := hf.running_add_halted_eq_one t
-    have hle_sup : (evalRand w p t s).toOuterMeasure (RandCfg.haltedSet r) ≤ supH :=
-      le_iSup (fun k => (evalRand w p k s).toOuterMeasure (RandCfg.haltedSet r)) t
-    refine tsub_le_iff_right.mpr ?_
-    calc
-      1 = (evalRand w p t s).toOuterMeasure {cfg | ∃ u, cfg = .running u} +
-            (evalRand w p t s).toOuterMeasure (RandCfg.haltedSet r) := hpart.symm
-      _ ≤ (evalRand w p t s).toOuterMeasure {cfg | ∃ u, cfg = .running u} + supH := by gcongr
-  have hinf : (⊤ : ℝ≥0∞) ≤ expectedTime w p s := by
-    calc
-      (⊤ : ℝ≥0∞) = ∑' _ : ℕ, (1 - supH) := (ENNReal.tsum_const_eq_top_of_ne_zero hpos.ne').symm
-      _ ≤ expectedTime w p s := tsum_le_tsum hle_run
-  exact htop (top_unique hinf)
+  refine ⟨hf, le_antisymm (iSup_le fun _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
+    (tsub_eq_zero_iff_le.mp <| by_contra fun hne => htop <| top_unique ?_)⟩
+  rw [← ENNReal.tsum_const_eq_top_of_ne_zero (α := ℕ) hne]
+  refine tsum_le_tsum fun t => tsub_le_iff_right.mpr ?_
+  have hpart := hf.running_add_halted_eq_one t
+  exact hpart.ge.trans <| add_le_add le_rfl <|
+    le_iSup (fun k => (evalRand w p k s).toOuterMeasure (RandCfg.haltedSet r)) t
 
 /-- Under `RandHaltsWithin w p s T`, the active-configuration tail sum vanishes from `T` onward and
 reduces to a finite sum over `Finset.range T`. -/
@@ -254,12 +214,11 @@ theorem RandHaltsWithin.expectedTime_eq_sum {w T : ℕ} {p : Program B r} {s : S
         (evalRand w p t s).toOuterMeasure {cfg | ∃ u, cfg = .running u} := by
   rw [expectedTime, tsum_eq_sum (s := Finset.range T)]
   intro t ht
-  have hT : T ≤ t := Nat.le_of_not_lt (Finset.mem_range.not.mp ht)
-  rw [evalRand_eq_of_randHaltsWithin h hT, PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-  intro cfg hmem hrun
-  obtain ⟨u, rfl⟩ := hrun
+  rw [evalRand_eq_of_randHaltsWithin h (Nat.le_of_not_lt (Finset.mem_range.not.mp ht)),
+    PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
+  rintro _ hmem ⟨u, rfl⟩
   rw [support_evalRand] at hmem
-  obtain ⟨v, d, hvd⟩ := h _ hmem
+  obtain ⟨_, _, hvd⟩ := h _ hmem
   cases hvd
 
 /-- A worst-case step bound `RandHaltsWithin w p s T` immediately bounds `expectedTime` by `T`. -/
@@ -267,11 +226,8 @@ theorem expectedTime_le_of_randHaltsWithin {w T : ℕ} {p : Program B r} {s : St
     (h : RandHaltsWithin w p s T) :
     expectedTime w p s ≤ T := by
   rw [h.expectedTime_eq_sum]
-  calc
-    ∑ t ∈ Finset.range T, (evalRand w p t s).toOuterMeasure {cfg | ∃ u, cfg = .running u}
-      ≤ ∑ _t ∈ Finset.range T, (1 : ℝ≥0∞) :=
-        Finset.sum_le_sum fun _ _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _
-    _ = T := by simp
+  exact (Finset.sum_le_sum fun _ _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _).trans_eq
+    (by simp)
 
 /-- Along any deterministic `Runs` of length `m`, `expectedStepsFrom` adds `m` to the expected
 remaining steps at the destination state. -/
@@ -295,6 +251,76 @@ theorem Executes.expectedTime_eq {w n : ℕ} {p : Program B r} {s : State r} {v 
 
 /-! ## Structured `expectedCodeTime` and compilation bridge -/
 
+private theorem contains_seq_right {c₁ c₂ : Code B r} {p : Program B r} {pc : ℕ}
+    (hp : p.Contains pc ((Code.seq c₁ c₂).assemble pc)) :
+    p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
+  simpa [Code.length_assemble] using hp.append_right
+
+private theorem contains_branch_pos {cond : Cond r} {pos neg : Code B r} {p : Program B r} {pc : ℕ}
+    (hp : p.Contains pc ((Code.branch cond pos neg).assemble pc)) :
+    p.Contains (pc + neg.size + 2) (pos.assemble (pc + neg.size + 2)) := by
+  have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
+  rwa [Code.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
+
+private theorem stepRand_branch_pos {w : ℕ} {cond : Cond r} {pos neg : Code B r} {x : Data r}
+    {p : Program B r} {pc : ℕ}
+    (hp : p.Contains pc ((Code.branch cond pos neg).assemble pc)) (hc : cond.Holds x) :
+    stepRand w p (.running ⟨pc, x⟩) = pure (.running ⟨pc + neg.size + 2, x⟩) := by
+  have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
+    simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
+  simp [stepRand_branch (s := ⟨pc, x⟩) hbr, hc]
+
+private theorem stepRand_branch_neg {w : ℕ} {cond : Cond r} {pos neg : Code B r} {x : Data r}
+    {p : Program B r} {pc : ℕ}
+    (hp : p.Contains pc ((Code.branch cond pos neg).assemble pc)) (hc : ¬cond.Holds x) :
+    stepRand w p (.running ⟨pc, x⟩) = pure (.running ⟨pc + 1, x⟩) := by
+  have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
+    simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
+  simp [stepRand_branch (s := ⟨pc, x⟩) hbr, hc]
+
+private theorem stepRand_branch_neg_jump {w : ℕ} {cond : Cond r} {pos neg : Code B r}
+    {p : Program B r} {pc : ℕ}
+    (hp : p.Contains pc ((Code.branch cond pos neg).assemble pc)) (y : Data r) :
+    stepRand w p (.running ⟨pc + 1 + neg.size, y⟩) =
+      pure (.running ⟨pc + (Code.branch cond pos neg).size, y⟩) := by
+  have hj : p[pc + 1 + neg.size]? = some (.jump (pc + neg.size + pos.size + 2)) := by
+    simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head
+  simpa [Code.size, show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
+    using stepRand_jump (s := ⟨pc + 1 + neg.size, y⟩) hj
+
+private theorem contains_loop_body {cond : Cond r} {body : Code B r} {p : Program B r} {pc : ℕ}
+    (hp : p.Contains pc ((Code.loop cond body).assemble pc)) :
+    p.Contains (pc + 2) (body.assemble (pc + 2)) := by
+  simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
+
+private theorem stepRand_loop_holds {w : ℕ} {cond : Cond r} {body : Code B r} {x : Data r}
+    {p : Program B r} {pc : ℕ}
+    (hp : p.Contains pc ((Code.loop cond body).assemble pc)) (hc : cond.Holds x) :
+    stepRand w p (.running ⟨pc, x⟩) = pure (.running ⟨pc + 2, x⟩) := by
+  simp [stepRand_branch (s := ⟨pc, x⟩) hp.head, hc]
+
+private theorem stepRand_loop_not_holds {w : ℕ} {cond : Cond r} {body : Code B r} {x : Data r}
+    {p : Program B r} {pc : ℕ}
+    (hp : p.Contains pc ((Code.loop cond body).assemble pc)) (hc : ¬cond.Holds x) :
+    stepRand w p (.running ⟨pc, x⟩) = pure (.running ⟨pc + 1, x⟩) := by
+  simp [stepRand_branch (s := ⟨pc, x⟩) hp.head, hc]
+
+private theorem stepRand_loop_exit_jump {w : ℕ} {cond : Cond r} {body : Code B r}
+    {p : Program B r} {pc : ℕ}
+    (hp : p.Contains pc ((Code.loop cond body).assemble pc)) (y : Data r) :
+    stepRand w p (.running ⟨pc + 1, y⟩) =
+      pure (.running ⟨pc + (Code.loop cond body).size, y⟩) := by
+  simpa [Code.size, show pc + body.size + 3 = pc + (body.size + 3) by omega]
+    using stepRand_jump (s := ⟨pc + 1, y⟩) hp.cons_tail.head
+
+private theorem stepRand_loop_back {w : ℕ} {cond : Cond r} {body : Code B r}
+    {p : Program B r} {pc : ℕ}
+    (hp : p.Contains pc ((Code.loop cond body).assemble pc)) (y : Data r) :
+    stepRand w p (.running ⟨pc + 2 + body.size, y⟩) = pure (.running ⟨pc, y⟩) := by
+  have hj : p[pc + 2 + body.size]? = some (.jump pc) := by
+    simpa using hp.cons_tail.cons_tail.append_right.head
+  exact stepRand_jump (s := ⟨pc + 2 + body.size, y⟩) hj
+
 /-- Along an assembled structured execution `ExecRand w c x m` inside `p`, the expected remaining
 steps from `⟨pc, x⟩` equal the expected step count of `m` plus the expected continuation steps from
 `⟨pc + c.size, y⟩`. -/
@@ -315,77 +341,44 @@ theorem ExecRand.expectedStepsFrom_assemble {w : ℕ} {c : Code B r} {x : Data r
     simp only [ProbComp.expect_pure, Code.size, Nat.cast_one]
     rw [ProbComp.expect_add, ProbComp.expect_const]
   | @seq c₁ c₂ x m₁ m₂ _ _ ih₁ ih₂ =>
-    have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
-      simpa [Code.length_assemble] using hp.append_right
     rw [ih₁ hp.append_left, ProbComp.expect_bind]
     refine ProbComp.expect_congr_on_support fun z₁ hz₁ => ?_
-    rw [ih₂ z₁ hz₁ hc₂, ProbComp.expect_bind,
+    rw [ih₂ z₁ hz₁ (contains_seq_right hp), ProbComp.expect_bind,
       ← ProbComp.expect_const (m₂ z₁.1) (z₁.2 : ℝ≥0∞), ← ProbComp.expect_add]
-    refine ProbComp.expect_congr_on_support fun z₂ _ => ?_
-    simp only [ProbComp.expect_pure, Code.size, Nat.cast_add, add_assoc]
+    exact ProbComp.expect_congr_on_support fun z₂ _ => by
+      simp only [ProbComp.expect_pure, Code.size, Nat.cast_add, add_assoc]
   | @branch_pos cond pos neg x m hc _ ih =>
-    have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
-      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-    rw [expectedStepsFrom_running, stepRand_branch hbr]
-    simp only [hc, ↓reduceIte, ProbComp.expect_pure]
-    have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
-    rw [Code.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
-    rw [ih hc', ProbComp.expect_map, ← ProbComp.expect_const m 1, ← ProbComp.expect_add]
-    refine ProbComp.expect_congr_on_support fun z _ => ?_
-    simp only [Code.size, Nat.cast_add, Nat.cast_one]
-    rw [show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) by omega]
-    ac_rfl
+    rw [expectedStepsFrom_running, stepRand_branch_pos hp hc, ProbComp.expect_pure,
+      ih (contains_branch_pos hp), ProbComp.expect_map,
+      ← ProbComp.expect_const m 1, ← ProbComp.expect_add]
+    have hpc : pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) := by omega
+    exact ProbComp.expect_congr_on_support fun z _ => by
+      simp only [Code.size, hpc, Nat.cast_add, Nat.cast_one]; ac_rfl
   | @branch_neg cond pos neg x m hc _ ih =>
-    have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
-      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-    rw [expectedStepsFrom_running, stepRand_branch hbr]
-    simp only [hc, ↓reduceIte, ProbComp.expect_pure]
-    rw [ih hp.cons_tail.append_left, ProbComp.expect_map,
+    rw [expectedStepsFrom_running, stepRand_branch_neg hp hc, ProbComp.expect_pure,
+      ih hp.cons_tail.append_left, ProbComp.expect_map,
       ← ProbComp.expect_const m 1, ← ProbComp.expect_add]
     refine ProbComp.expect_congr_on_support fun z _ => ?_
-    have hj : p[pc + 1 + neg.size]? = some (.jump (pc + neg.size + pos.size + 2)) := by
-      simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head
-    rw [expectedStepsFrom_running, stepRand_jump hj, ProbComp.expect_pure]
-    simp only [Code.size, Nat.cast_add, Nat.cast_ofNat]
-    rw [show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
-    set E := expectedStepsFrom w p (.running ⟨pc + (neg.size + pos.size + 2), z.1⟩)
-    calc
-      1 + ((z.2 : ℝ≥0∞) + (1 + E)) = (z.2 : ℝ≥0∞) + (1 + 1) + E := by ac_rfl
-      _ = (z.2 : ℝ≥0∞) + 2 + E := by rw [one_add_one_eq_two]
+    rw [expectedStepsFrom_running, stepRand_branch_neg_jump hp z.1, ProbComp.expect_pure]
+    simp only [Nat.cast_add, Nat.cast_ofNat]
+    rw [show (2 : ℝ≥0∞) = 1 + 1 from one_add_one_eq_two.symm]; ac_rfl
   | @loop_exit cond body x hc =>
-    have hbr : p[pc]? = some (.branch cond (pc + 2)) := hp.head
-    have hj : p[pc + 1]? = some (.jump (pc + body.size + 3)) := hp.cons_tail.head
-    rw [expectedStepsFrom_running, stepRand_branch hbr]
-    simp only [hc, ↓reduceIte, ProbComp.expect_pure]
-    rw [expectedStepsFrom_running, stepRand_jump hj, ProbComp.expect_pure]
-    simp only [Code.size, Nat.cast_ofNat]
-    rw [← add_assoc, one_add_one_eq_two, show pc + body.size + 3 = pc + (body.size + 3) by omega]
+    rw [expectedStepsFrom_running, stepRand_loop_not_holds hp hc, ProbComp.expect_pure,
+      expectedStepsFrom_running, stepRand_loop_exit_jump hp x, ProbComp.expect_pure,
+      ProbComp.expect_pure, Nat.cast_ofNat, ← add_assoc, one_add_one_eq_two]
   | @loop_iter cond body x mb ml hc _ _ ihb ihl =>
-    have hbr : p[pc]? = some (.branch cond (pc + 2)) := hp.head
-    have hbody_contains : p.Contains (pc + 2) (body.assemble (pc + 2)) := by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-    have hj : p[pc + 2 + body.size]? = some (.jump pc) := by
-      simpa using hp.cons_tail.cons_tail.append_right.head
-    rw [expectedStepsFrom_running, stepRand_branch hbr]
-    simp only [hc, ↓reduceIte, ProbComp.expect_pure]
-    rw [ihb hbody_contains, ProbComp.expect_bind, ← ProbComp.expect_const mb 1,
-      ← ProbComp.expect_add]
+    rw [expectedStepsFrom_running, stepRand_loop_holds hp hc, ProbComp.expect_pure,
+      ihb (contains_loop_body hp), ProbComp.expect_bind,
+      ← ProbComp.expect_const mb 1, ← ProbComp.expect_add]
     refine ProbComp.expect_congr_on_support fun z₁ hz₁ => ?_
-    rw [expectedStepsFrom_running, stepRand_jump hj, ProbComp.expect_pure, ihl z₁ hz₁ hp,
-      ProbComp.expect_bind]
-    have hconst : (1 : ℝ≥0∞) + ((z₁.2 : ℝ≥0∞) +
-        (1 + ProbComp.expect (ml z₁.1) fun z =>
-          (z.2 : ℝ≥0∞) + expectedStepsFrom w p (.running ⟨pc + (Code.loop cond body).size, z.1⟩))) =
-        ProbComp.expect (ml z₁.1) (fun _ => (z₁.2 : ℝ≥0∞) + 2) +
-          ProbComp.expect (ml z₁.1) (fun z =>
-            (z.2 : ℝ≥0∞) +
-              expectedStepsFrom w p (.running ⟨pc + (Code.loop cond body).size, z.1⟩)) := by
-      rw [ProbComp.expect_const, ← one_add_one_eq_two]
-      ac_rfl
-    rw [hconst, ← ProbComp.expect_add]
-    refine ProbComp.expect_congr_on_support fun z₂ _ => ?_
-    simp only [ProbComp.expect_pure, Nat.cast_add, Nat.cast_ofNat]
-    rw [← add_assoc ((z₁.2 : ℝ≥0∞) + 2) (z₂.2 : ℝ≥0∞), add_right_comm (z₁.2 : ℝ≥0∞) 2]
+    rw [expectedStepsFrom_running, stepRand_loop_back hp z₁.1, ProbComp.expect_pure,
+      ihl z₁ hz₁ hp, ProbComp.expect_bind,
+      ← add_assoc, ← add_assoc, ← add_comm (z₁.2 : ℝ≥0∞), add_assoc (z₁.2 : ℝ≥0∞) 1 1,
+      one_add_one_eq_two, ← ProbComp.expect_const (ml z₁.1) ((z₁.2 : ℝ≥0∞) + 2),
+      ← ProbComp.expect_add]
+    exact ProbComp.expect_congr_on_support fun z₂ _ => by
+      simp only [ProbComp.expect_pure, Nat.cast_add, Nat.cast_ofNat]
+      rw [← add_assoc ((z₁.2 : ℝ≥0∞) + 2) (z₂.2 : ℝ≥0∞), add_right_comm (z₁.2 : ℝ≥0∞) 2]
 
 /-- Exact bridge: compiling `c` with `c.program out` adds `1` (for the final `halt out`
 instruction) to the expected step count of `ExecRand w c x m`. -/
@@ -457,23 +450,18 @@ theorem expectedCodeTime_seq {w : ℕ} {c₁ c₂ : Code B r} {x : Data r}
       expectedCodeTime w c₁ x + ProbComp.expect m₁ (fun z => expectedCodeTime w c₂ z.1) := by
   classical
   by_cases h₂ : ∀ z ∈ m₁.support, ∃ m₂, ExecRand w c₂ z.1 m₂
-  · have h₂_comp : ∀ z ∈ m₁.support, ExecRand w c₂ z.1 (codeComp w c₂ z.1) :=
-      fun z hz => codeComp_execRand (h₂ z hz)
+  · have h₂_comp := fun z hz => codeComp_execRand (h₂ z hz)
     rw [(h₁.seq h₂_comp).expectedCodeTime_eq, h₁.expectedCodeTime_eq, ProbComp.expect_bind,
       ← ProbComp.expect_add]
     refine ProbComp.expect_congr_on_support fun z hz => ?_
     rw [ProbComp.expect_bind, (h₂_comp z hz).expectedCodeTime_eq,
       ← ProbComp.expect_const (codeComp w c₂ z.1) (z.2 : ℝ≥0∞), ← ProbComp.expect_add]
-    refine ProbComp.expect_congr_on_support fun z₂ _ => ?_
-    simp only [ProbComp.expect_pure, Nat.cast_add]
-  · simp only [not_forall] at h₂
-    obtain ⟨z₀, hz₀, hnot₂⟩ := h₂
-    have hnot_seq : ¬∃ m, ExecRand w (.seq c₁ c₂) x m := by
-      rintro ⟨m, hm⟩
+    exact ProbComp.expect_congr_on_support fun _ _ => by
+      simp only [ProbComp.expect_pure, Nat.cast_add]
+  · simp only [not_forall] at h₂; obtain ⟨z₀, hz₀, hnot₂⟩ := h₂
+    have hnot_seq : ¬∃ m, ExecRand w (.seq c₁ c₂) x m := fun ⟨_, hm⟩ => by
       cases hm with
-      | seq h₁' h₂' =>
-        obtain rfl := h₁.unique h₁'
-        exact hnot₂ (Exists.intro _ (h₂' z₀ hz₀))
+      | seq h₁' h₂' => obtain rfl := h₁.unique h₁'; exact hnot₂ ⟨_, h₂' z₀ hz₀⟩
     rw [expectedCodeTime_eq_top hnot_seq,
       ProbComp.expect_eq_top_of_mem_support hz₀ (expectedCodeTime_eq_top hnot₂), add_top]
 
@@ -491,12 +479,10 @@ theorem expectedCodeTime_branch_pos {w : ℕ} {cond : Cond r} {pos neg : Code B 
   · obtain ⟨m, hm⟩ := hp
     rw [(hm.branch_pos hc).expectedCodeTime_eq, hm.expectedCodeTime_eq, ProbComp.expect_map,
       ← ProbComp.expect_const m 1, ← ProbComp.expect_add]
-    refine ProbComp.expect_congr_on_support fun z _ => ?_
-    simp only [Nat.cast_add, Nat.cast_one]
-  · have hnot : ¬∃ m, ExecRand w (.branch cond pos neg) x m := by
-      rintro ⟨m, hm⟩
+    simp [Nat.cast_add]
+  · have hnot : ¬∃ m, ExecRand w (.branch cond pos neg) x m := fun ⟨_, hm⟩ => by
       cases hm with
-      | branch_pos _ h => exact hp (Exists.intro _ h)
+      | branch_pos _ h => exact hp ⟨_, h⟩
       | branch_neg hc' _ => exact hc' hc
     simp only [expectedCodeTime, hnot, hp, ↓reduceIte, top_add]
 
@@ -508,13 +494,11 @@ theorem expectedCodeTime_branch_neg {w : ℕ} {cond : Cond r} {pos neg : Code B 
   · obtain ⟨m, hm⟩ := hn
     rw [(hm.branch_neg hc).expectedCodeTime_eq, hm.expectedCodeTime_eq, ProbComp.expect_map,
       ← ProbComp.expect_const m 2, ← ProbComp.expect_add]
-    refine ProbComp.expect_congr_on_support fun z _ => ?_
-    simp only [Nat.cast_add, Nat.cast_ofNat]
-  · have hnot : ¬∃ m, ExecRand w (.branch cond pos neg) x m := by
-      rintro ⟨m, hm⟩
+    simp [Nat.cast_add]
+  · have hnot : ¬∃ m, ExecRand w (.branch cond pos neg) x m := fun ⟨_, hm⟩ => by
       cases hm with
       | branch_pos hc' _ => exact hc hc'
-      | branch_neg _ h => exact hn (Exists.intro _ h)
+      | branch_neg _ h => exact hn ⟨_, h⟩
     simp only [expectedCodeTime, hnot, hn, ↓reduceIte, top_add]
 
 /-- Branch convexity / uniform upper bound on `expectedCodeTime (.branch cond pos neg)`. -/
@@ -524,10 +508,8 @@ theorem expectedCodeTime_branch_le {w : ℕ} {cond : Cond r} {pos neg : Code B r
     (hneg : ¬cond.Holds x → expectedCodeTime w neg x + 2 ≤ B_steps) :
     expectedCodeTime w (.branch cond pos neg) x ≤ B_steps := by
   by_cases hc : cond.Holds x
-  · rw [expectedCodeTime_branch_pos hc]
-    exact hpos hc
-  · rw [expectedCodeTime_branch_neg hc]
-    exact hneg hc
+  · rw [expectedCodeTime_branch_pos hc]; exact hpos hc
+  · rw [expectedCodeTime_branch_neg hc]; exact hneg hc
 
 /-- Convex combination of branch expected times under a random input distribution `m`. -/
 theorem expect_expectedCodeTime_branch {w : ℕ} {cond : Cond r} {pos neg : Code B r}
@@ -535,17 +517,15 @@ theorem expect_expectedCodeTime_branch {w : ℕ} {cond : Cond r} {pos neg : Code
     ProbComp.expect m (fun x => expectedCodeTime w (.branch cond pos neg) x) =
       ProbComp.expect m (fun x =>
         open Classical in
-        if cond.Holds x then expectedCodeTime w pos x + 1 else expectedCodeTime w neg x + 2) := by
-  refine ProbComp.expect_congr_on_support fun x _ => ?_
-  by_cases hc : cond.Holds x
-  · simp [hc, expectedCodeTime_branch_pos hc]
-  · simp [hc, expectedCodeTime_branch_neg hc]
+        if cond.Holds x then expectedCodeTime w pos x + 1 else expectedCodeTime w neg x + 2) :=
+  ProbComp.expect_congr_on_support fun x _ => by
+    by_cases hc : cond.Holds x <;>
+      simp [hc, expectedCodeTime_branch_pos, expectedCodeTime_branch_neg]
 
 theorem expectedCodeTime_loop_exit {w : ℕ} {cond : Cond r} {body : Code B r} {x : Data r}
     (hc : ¬cond.Holds x) :
     expectedCodeTime w (.loop cond body) x = 2 := by
-  rw [(ExecRand.loop_exit (body := body) hc).expectedCodeTime_eq, ProbComp.expect_pure]
-  rfl
+  rw [(ExecRand.loop_exit (body := body) hc).expectedCodeTime_eq, ProbComp.expect_pure]; rfl
 
 theorem expectedCodeTime_loop_iter {w : ℕ} {cond : Cond r} {body : Code B r} {x : Data r}
     {mb : ProbComp (Data r × ℕ)} (hc : cond.Holds x) (hb : ExecRand w body x mb) :
@@ -554,9 +534,7 @@ theorem expectedCodeTime_loop_iter {w : ℕ} {cond : Cond r} {body : Code B r} {
         ProbComp.expect mb (fun z => expectedCodeTime w (.loop cond body) z.1) := by
   classical
   by_cases hl : ∀ z ∈ mb.support, ∃ ml, ExecRand w (.loop cond body) z.1 ml
-  · have hl_comp : ∀ z ∈ mb.support,
-        ExecRand w (.loop cond body) z.1 (codeComp w (.loop cond body) z.1) :=
-      fun z hz => codeComp_execRand (hl z hz)
+  · have hl_comp := fun z hz => codeComp_execRand (hl z hz)
     rw [(ExecRand.loop_iter hc hb hl_comp).expectedCodeTime_eq, hb.expectedCodeTime_eq,
       ProbComp.expect_bind, ← ProbComp.expect_const mb 2, ← ProbComp.expect_add,
       ← ProbComp.expect_add]
@@ -564,18 +542,13 @@ theorem expectedCodeTime_loop_iter {w : ℕ} {cond : Cond r} {body : Code B r} {
     rw [ProbComp.expect_bind, (hl_comp z hz).expectedCodeTime_eq,
       ← ProbComp.expect_const (codeComp w (.loop cond body) z.1) ((z.2 : ℝ≥0∞) + 2),
       ← ProbComp.expect_add]
-    refine ProbComp.expect_congr_on_support fun z₂ _ => ?_
-    simp only [ProbComp.expect_pure, Nat.cast_add, Nat.cast_ofNat]
-    ac_rfl
-  · simp only [not_forall] at hl
-    obtain ⟨z₀, hz₀, hnot_l⟩ := hl
-    have hnot_loop : ¬∃ m, ExecRand w (.loop cond body) x m := by
-      rintro ⟨m, hm⟩
+    exact ProbComp.expect_congr_on_support fun _ _ => by
+      simp only [ProbComp.expect_pure, Nat.cast_add, Nat.cast_ofNat]; ac_rfl
+  · simp only [not_forall] at hl; obtain ⟨z₀, hz₀, hnot_l⟩ := hl
+    have hnot_loop : ¬∃ m, ExecRand w (.loop cond body) x m := fun ⟨_, hm⟩ => by
       cases hm with
       | loop_exit hc' => exact hc' hc
-      | loop_iter _ hb' hl' =>
-        obtain rfl := hb.unique hb'
-        exact hnot_l (Exists.intro _ (hl' z₀ hz₀))
+      | loop_iter _ hb' hl' => obtain rfl := hb.unique hb'; exact hnot_l ⟨_, hl' z₀ hz₀⟩
     rw [expectedCodeTime_eq_top hnot_loop,
       ProbComp.expect_eq_top_of_mem_support hz₀ (expectedCodeTime_eq_top hnot_l), add_top]
 
@@ -592,49 +565,27 @@ theorem expectedCodeTime_loop_le_of_drift {w : ℕ} {cond : Cond r} {body : Code
         ProbComp.expect mb (fun z => (z.2 : ℝ≥0∞) + 2 + Ψ z.1) ≤ Ψ s) :
     (∃ m, ExecRand w (.loop cond body) x m) ∧
       expectedCodeTime w (.loop cond body) x ≤ Ψ x + 2 := by
-  suffices ∀ k s, I s → Φ s ≤ k →
+  have hstrong : ∀ k s, Φ s = k → I s →
       (∃ m, ExecRand w (.loop cond body) s m) ∧
-        expectedCodeTime w (.loop cond body) s ≤ Ψ s + 2 from
-    this (Φ x) x hx le_rfl
-  intro k
-  induction k with
-  | zero =>
-    intro s hs hΦ
-    by_cases hc : cond.Holds s
-    · obtain ⟨mb, _, hsup, _⟩ := hstep s hs hc
-      obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty mb
-      have := (hsup z₀ hz₀).2
-      omega
-    · exact ⟨Exists.intro _ (ExecRand.loop_exit hc),
-        by rw [expectedCodeTime_loop_exit hc]; exact le_add_self⟩
-  | succ k ih =>
-    intro s hs hΦ
-    by_cases hc : cond.Holds s
-    · obtain ⟨mb, hb, hsup, hdrift⟩ := hstep s hs hc
-      have hrec : ∀ z ∈ mb.support,
-          (∃ m, ExecRand w (.loop cond body) z.1 m) ∧
-            expectedCodeTime w (.loop cond body) z.1 ≤ Ψ z.1 + 2 :=
-        fun z hz => ih z.1 (hsup z hz).1 (by have := (hsup z hz).2; omega)
-      have hl_comp : ∀ z ∈ mb.support,
-          ExecRand w (.loop cond body) z.1 (codeComp w (.loop cond body) z.1) :=
-        fun z hz => codeComp_execRand (hrec z hz).1
-      refine ⟨Exists.intro _ (ExecRand.loop_iter hc hb hl_comp), ?_⟩
-      rw [expectedCodeTime_loop_iter hc hb, hb.expectedCodeTime_eq]
-      calc
-        ProbComp.expect mb (fun z => (z.2 : ℝ≥0∞)) + 2 +
-            ProbComp.expect mb (fun z => expectedCodeTime w (.loop cond body) z.1)
-          ≤ ProbComp.expect mb (fun z => (z.2 : ℝ≥0∞)) + 2 +
-              ProbComp.expect mb (fun z => Ψ z.1 + 2) := by
-            gcongr
-            exact ProbComp.expect_mono_on_support fun z hz => (hrec z hz).2
-        _ = ProbComp.expect mb (fun z => (z.2 : ℝ≥0∞) + 2 + Ψ z.1) + 2 := by
-            rw [add_right_comm _ 2 _, ← ProbComp.expect_add]
-            congr 1
-            refine ProbComp.expect_congr_on_support fun z _ => ?_
-            ac_rfl
-        _ ≤ Ψ s + 2 := by gcongr
-    · exact ⟨Exists.intro _ (ExecRand.loop_exit hc),
-        by rw [expectedCodeTime_loop_exit hc]; exact le_add_self⟩
+        expectedCodeTime w (.loop cond body) s ≤ Ψ s + 2 := by
+    intro k
+    induction k using Nat.strong_induction_on with
+    | _ k ih =>
+      intro s rfl hs
+      by_cases hc : cond.Holds s
+      · obtain ⟨mb, hb, hsup, hdrift⟩ := hstep s hs hc
+        have hrec := fun z hz => ih (Φ z.1) (hsup z hz).2 z.1 rfl (hsup z hz).1
+        refine ⟨⟨_, ExecRand.loop_iter hc hb fun z hz => codeComp_execRand (hrec z hz).1⟩, ?_⟩
+        rw [expectedCodeTime_loop_iter hc hb, hb.expectedCodeTime_eq]
+        refine (add_le_add le_rfl (ProbComp.expect_mono_on_support fun z hz =>
+          (hrec z hz).2)).trans ?_
+        rw [add_right_comm _ 2 _, ← ProbComp.expect_add]
+        have heq : ProbComp.expect mb (fun z => (z.2 : ℝ≥0∞) + (Ψ z.1 + 2)) =
+            ProbComp.expect mb (fun z => (z.2 : ℝ≥0∞) + 2 + Ψ z.1) :=
+          ProbComp.expect_congr_on_support fun _ _ => by ac_rfl
+        exact heq ▸ add_le_add hdrift le_rfl
+      · exact ⟨⟨_, ExecRand.loop_exit hc⟩, by rw [expectedCodeTime_loop_exit hc]; exact le_add_self⟩
+  exact hstrong (Φ x) x rfl hx
 
 /-! ## Distributional structured execution (`ExecCodeDist`) and geometric Las Vegas loops -/
 
@@ -656,19 +607,13 @@ theorem ExecRand.mapSimulates {B' : Basis} (ψ : B.Simulates B') {w : ℕ} {c : 
 theorem evalRand_halted_mono (w : ℕ) (p : Program B r) (s : State r) (v : ℕ) (d : Data r) :
     Monotone fun T => evalRand w p T s (.halted v d) := by
   refine monotone_nat_of_le_succ fun T => ?_
-  have hstep : evalRand w p (T + 1) s =
-      (evalRand w p T s).bind (fun cfg => (stepRand w p cfg).eval) := by
-    rw [evalRand, runRand_add w p T 1, ProbComp.eval_bind]
-    simp only [evalRand, runRand_succ, runRand_zero, bind_pure]
-  rw [hstep, PMF.bind_apply]
-  calc
-    evalRand w p T s (.halted v d)
-      = evalRand w p T s (.halted v d) * (stepRand w p (.halted v d)).eval (.halted v d) := by
-        simp [stepRand_halted]
-    _ ≤ ∑' cfg, evalRand w p T s cfg * (stepRand w p cfg).eval (.halted v d) :=
-        le_tsum
-          (f := fun cfg => evalRand w p T s cfg * (stepRand w p cfg).eval (.halted v d))
-          (RandCfg.halted v d)
+  conv_rhs => rw [evalRand, runRand_add w p T 1, ProbComp.eval_bind, PMF.bind_apply]
+  simp only [runRand_succ, runRand_zero, bind_pure]
+  have hself : (runRand w p T (.running s)).eval (.halted v d) *
+      (stepRand w p (.halted v d)).eval (.halted v d) = evalRand w p T s (.halted v d) := by
+    simp [evalRand, stepRand_halted]
+  exact hself ▸ le_tsum (f := fun cfg => (runRand w p T (.running s)).eval cfg *
+    (stepRand w p cfg).eval (.halted v d)) (.halted v d)
 
 /-- Finite-horizon approximation of `expectedStepsFrom`: expected number of active (`.running`)
 steps within the first `N` steps starting from configuration `cfg`. -/
@@ -711,19 +656,11 @@ incurs `1` step plus the `N`-step continuation expectation. -/
 theorem expectedStepsWithin_running_succ (w : ℕ) (p : Program B r) (N : ℕ) (s : State r) :
     expectedStepsWithin w p (N + 1) (.running s) =
       1 + ProbComp.expect (stepRand w p (.running s)) (expectedStepsWithin w p N) := by
-  rw [expectedStepsWithin, Finset.sum_range_succ']
+  rw [expectedStepsWithin, Finset.sum_range_succ', add_comm]
   have hzero : (runRand w p 0 (.running s)).eval.toOuterMeasure
-      {cfg' | ∃ u, cfg' = .running u} = 1 := by
-    simp [PMF.toOuterMeasure_pure_apply]
-  rw [hzero, add_comm]
-  congr 1
-  have hsucc : ∀ t : ℕ, (runRand w p (t + 1) (.running s)).eval.toOuterMeasure
-      {cfg' | ∃ u, cfg' = .running u} =
-      ∑' cfg, (stepRand w p (.running s)).eval cfg *
-        (runRand w p t cfg).eval.toOuterMeasure {cfg' | ∃ u, cfg' = .running u} := by
-    intro t
-    rw [runRand_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply]
-  simp only [hsucc]
+      {cfg' | ∃ u, cfg' = .running u} = 1 := by simp [PMF.toOuterMeasure_pure_apply]
+  rw [hzero]
+  simp_rw [runRand_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply]
   rw [← Summable.tsum_finsetSum (fun _ _ => CompleteLattice.summable)]
   simp only [ProbComp.expect, expectedStepsWithin, Finset.mul_sum]
 
@@ -829,23 +766,19 @@ theorem loopIterPMF_mono_of_not_holds (cond : Cond r) (μ_body : Data r → PMF 
     Monotone fun K => loopIterPMF cond μ_body K x y := by
   refine monotone_nat_of_le_succ fun K => ?_
   rw [loopIterPMF_succ_right, PMF.bind_apply]
-  calc
-    loopIterPMF cond μ_body K x y
-      = loopIterPMF cond μ_body K x y * loopStepPMF cond μ_body y y := by
-        rw [loopStepPMF_of_not_holds hy, PMF.pure_apply_self, mul_one]
-    _ ≤ ∑' z, loopIterPMF cond μ_body K x z * loopStepPMF cond μ_body z y :=
-        le_tsum
-          (f := fun z => loopIterPMF cond μ_body K x z * loopStepPMF cond μ_body z y) y
+  have hself : loopIterPMF cond μ_body K x y * loopStepPMF cond μ_body y y =
+      loopIterPMF cond μ_body K x y := by
+    rw [loopStepPMF_of_not_holds hy, PMF.pure_apply_self, mul_one]
+  exact hself ▸ le_tsum
+    (f := fun z => loopIterPMF cond μ_body K x z * loopStepPMF cond μ_body z y) y
 
 theorem loopIterPMF_indicator_mono (cond : Cond r) (μ_body : Data r → PMF (Data r))
     (x y : Data r) :
     Monotone fun K => Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body K x) y := by
   intro K₁ K₂ hK
-  dsimp only
   by_cases hy : y ∈ {z | ¬cond.Holds z}
-  · rw [Set.indicator_of_mem hy, Set.indicator_of_mem hy]
-    exact loopIterPMF_mono_of_not_holds cond μ_body x hy hK
-  · rw [Set.indicator_of_notMem hy, Set.indicator_of_notMem hy]
+  · simpa only [Set.indicator_of_mem hy] using loopIterPMF_mono_of_not_holds cond μ_body x hy hK
+  · simp [Set.indicator_of_notMem hy]
 
 /-- Combined loop state invariant: either active (`cond.Holds x ∧ I x`) or exited
 (`¬cond.Holds x ∧ Q x`). -/
@@ -861,19 +794,14 @@ private theorem loopIterPMF_support_of_preserves {cond : Cond r} {I Q S : Data r
     (K : ℕ) {x : Data r} (hx : LoopStateInv cond I Q x) (hSx : S x) :
     ∀ y ∈ (loopIterPMF cond μ_body K x).support, S y := by
   induction K generalizing x with
-  | zero =>
-    intro y hy
-    rw [loopIterPMF_zero, PMF.support_pure, Set.mem_singleton_iff] at hy
-    rwa [hy]
+  | zero => intro y hy; supp_cases hy [loopIterPMF_zero]; exact hSx
   | succ K ih =>
     intro y hy
-    rw [loopIterPMF_succ, PMF.mem_support_bind_iff] at hy
-    obtain ⟨z, hz, hyz⟩ := hy
+    supp_cases hy [loopIterPMF_succ] with ⟨z, hz, hyz⟩
     rcases hx with ⟨hcx, hIx⟩ | ⟨hcx, hQx⟩
     · rw [loopStepPMF_of_holds hcx] at hz
       exact ih (hinv x hIx hcx z hz) (hS x hIx hcx hSx z hz) y hyz
-    · rw [loopStepPMF_of_not_holds hcx, PMF.support_pure, Set.mem_singleton_iff] at hz
-      subst hz
+    · supp_cases hz [loopStepPMF_of_not_holds hcx]
       exact ih (Or.inr ⟨hcx, hQx⟩) hSx y hyz
 
 theorem loopIterPMF_support_inv {cond : Cond r} {I Q : Data r → Prop}
@@ -887,54 +815,23 @@ private theorem pmf_step_drift_bound (μ : PMF (Data r)) (cond : Cond r)
     {C p_exit : ℝ≥0∞} (hp_pos : 0 < p_exit) (hp_top : p_exit ≠ ⊤)
     (hp_exit : p_exit ≤ μ.toOuterMeasure {y | ¬cond.Holds y}) :
     C + ∑' y, μ y * (if cond.Holds y then C / p_exit else 0) ≤ C / p_exit := by
-  set M := C / p_exit
-  have hC : C = p_exit * M := by
-    rw [mul_comm, ENNReal.div_mul_cancel hp_pos.ne' hp_top]
-  have hact : (∑' y, μ y * (if cond.Holds y then M else 0)) =
-      μ.toOuterMeasure {y | cond.Holds y} * M := by
+  have hact : (∑' y, μ y * (if cond.Holds y then C / p_exit else 0)) =
+      μ.toOuterMeasure {y | cond.Holds y} * (C / p_exit) := by
     rw [PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right]
-    refine tsum_congr fun y => ?_
-    by_cases hc : cond.Holds y <;> simp [hc]
-  calc
-    C + ∑' y, μ y * (if cond.Holds y then M else 0)
-      = p_exit * M + μ.toOuterMeasure {y | cond.Holds y} * M := by rw [hC, hact]
-    _ ≤ μ.toOuterMeasure {y | ¬cond.Holds y} * M +
-          μ.toOuterMeasure {y | cond.Holds y} * M := by gcongr
-    _ = (μ.toOuterMeasure {y | ¬cond.Holds y} +
-          μ.toOuterMeasure {y | cond.Holds y}) * M := by rw [← add_mul]
-    _ = M := by
-      rw [add_comm, show {y : Data r | ¬cond.Holds y} = {y | cond.Holds y}ᶜ from rfl,
-        Cslib.Probability.PMF.toOuterMeasure_add_compl_ennreal, one_mul]
+    exact tsum_congr fun y => by by_cases hc : cond.Holds y <;> simp [hc]
+  calc C + ∑' y, μ y * (if cond.Holds y then C / p_exit else 0)
+      = (p_exit + μ.toOuterMeasure {y | cond.Holds y}) * (C / p_exit) := by
+        rw [hact, add_mul, mul_comm p_exit, ENNReal.div_mul_cancel hp_pos.ne' hp_top]
+    _ ≤ (μ.toOuterMeasure {y | cond.Holds y}ᶜ +
+          μ.toOuterMeasure {y | cond.Holds y}) * (C / p_exit) :=
+        mul_le_mul_left (add_le_add hp_exit le_rfl) _
+    _ = C / p_exit := by
+        rw [add_comm, Cslib.Probability.PMF.toOuterMeasure_add_compl_ennreal, one_mul]
 
 /-- Expected number of active loop iterations within the first `N` steps of `loopIterPMF`. -/
 private noncomputable def loopActiveSteps (cond : Cond r) (μ_body : Data r → PMF (Data r))
     (N : ℕ) (x : Data r) : ℝ≥0∞ :=
   ∑ K ∈ Finset.range N, (loopIterPMF cond μ_body K x).toOuterMeasure {y | cond.Holds y}
-
-private theorem loopActiveSteps_of_not_holds {cond : Cond r} {μ_body : Data r → PMF (Data r)}
-    {x : Data r} (hc : ¬cond.Holds x) (N : ℕ) :
-    loopActiveSteps cond μ_body N x = 0 := by
-  unfold loopActiveSteps
-  refine Finset.sum_eq_zero fun K _ => ?_
-  rw [loopIterPMF_of_not_holds hc, PMF.toOuterMeasure_pure_apply]
-  simp [hc]
-
-private theorem loopActiveSteps_succ_of_holds {cond : Cond r} {μ_body : Data r → PMF (Data r)}
-    {x : Data r} (hc : cond.Holds x) (N : ℕ) :
-    loopActiveSteps cond μ_body (N + 1) x =
-      1 + ∑' z, μ_body x z * loopActiveSteps cond μ_body N z := by
-  rw [loopActiveSteps, Finset.sum_range_succ']
-  have hzero : (loopIterPMF cond μ_body 0 x).toOuterMeasure {y | cond.Holds y} = 1 := by
-    simp [PMF.toOuterMeasure_pure_apply, hc]
-  rw [hzero, add_comm]
-  congr 1
-  have hsucc : ∀ K : ℕ, (loopIterPMF cond μ_body (K + 1) x).toOuterMeasure {y | cond.Holds y} =
-      ∑' z, μ_body x z * (loopIterPMF cond μ_body K z).toOuterMeasure {y | cond.Holds y} := by
-    intro K
-    rw [loopIterPMF_succ, loopStepPMF_of_holds hc, PMF.toOuterMeasure_bind_apply]
-  simp only [hsucc]
-  rw [← Summable.tsum_finsetSum (fun _ _ => CompleteLattice.summable)]
-  simp only [loopActiveSteps, Finset.mul_sum]
 
 private theorem loopActiveSteps_le {cond : Cond r} {I Q : Data r → Prop}
     {μ_body : Data r → PMF (Data r)} {p_exit : ℝ≥0∞}
@@ -947,13 +844,17 @@ private theorem loopActiveSteps_le {cond : Cond r} {I Q : Data r → Prop}
   | zero => simp [loopActiveSteps]
   | succ N ih =>
     rcases hx with ⟨hcx, hIx⟩ | ⟨hcx, _⟩
-    · simp only [hcx, ↓reduceIte]
-      rw [loopActiveSteps_succ_of_holds hcx]
-      exact (add_le_add le_rfl
-        (Cslib.Probability.PMF.tsum_mul_mono_support (μ_body x) fun z hz =>
-          ih (hinv x hIx hcx z hz))).trans
+    · simp only [hcx, ↓reduceIte, loopActiveSteps, Finset.sum_range_succ', loopIterPMF_zero,
+        PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq, add_comm]
+      simp_rw [loopIterPMF_succ, loopStepPMF_of_holds hcx, PMF.toOuterMeasure_bind_apply]
+      rw [← Summable.tsum_finsetSum (fun _ _ => CompleteLattice.summable)]
+      simp_rw [← Finset.mul_sum]
+      exact (add_le_add le_rfl (Cslib.Probability.PMF.tsum_mul_mono_support (μ_body x) fun z hz =>
+        ih (hinv x hIx hcx z hz))).trans
         (pmf_step_drift_bound (μ_body x) cond hp_pos hp_top (hp_exit x hIx hcx))
-    · simp [loopActiveSteps_of_not_holds hcx, hcx]
+    · simp only [hcx, ↓reduceIte, nonpos_iff_eq_zero, loopActiveSteps]
+      exact Finset.sum_eq_zero fun K _ => by
+        simp [loopIterPMF_of_not_holds hcx, PMF.toOuterMeasure_pure_apply, hcx]
 
 theorem hasSum_loopExitDensity {cond : Cond r} {I Q : Data r → Prop}
     {μ_body : Data r → PMF (Data r)} {p_exit : ℝ≥0∞}
@@ -967,34 +868,24 @@ theorem hasSum_loopExitDensity {cond : Cond r} {I Q : Data r → Prop}
     ENNReal.tsum_iSup_of_monotone (loopIterPMF_indicator_mono cond μ_body x)]
   simp_rw [← PMF.toOuterMeasure_apply]
   set b := ⨆ K : ℕ, (loopIterPMF cond μ_body K x).toOuterMeasure {z | ¬cond.Holds z}
-  have hb_le : b ≤ 1 := iSup_le fun K => Cslib.Probability.PMF.toOuterMeasure_le_one _ _
-  have hsub_zero : 1 - b = 0 := by
-    by_contra hne
-    have hN_bound : ∀ N : ℕ, (N : ℝ≥0∞) * (1 - b) ≤ 1 / p_exit := by
-      intro N
-      have hterm : ∀ K : ℕ, 1 - b ≤
-          (loopIterPMF cond μ_body K x).toOuterMeasure {z | cond.Holds z} := by
-        intro K
-        refine tsub_le_iff_left.mpr ?_
-        rw [← Cslib.Probability.PMF.toOuterMeasure_add_compl_ennreal
-          (loopIterPMF cond μ_body K x) {z | cond.Holds z}, add_comm]
-        exact add_le_add
-          (le_iSup (fun J => (loopIterPMF cond μ_body J x).toOuterMeasure {z | ¬cond.Holds z}) K)
-          le_rfl
-      calc
-        (N : ℝ≥0∞) * (1 - b)
-          = ∑ _K ∈ Finset.range N, (1 - b) := by simp
-        _ ≤ ∑ K ∈ Finset.range N,
-              (loopIterPMF cond μ_body K x).toOuterMeasure {z | cond.Holds z} :=
-            Finset.sum_le_sum fun K _ => hterm K
-        _ ≤ if cond.Holds x then 1 / p_exit else 0 :=
-            loopActiveSteps_le hp_pos hp_top hinv hp_exit N hx
-        _ ≤ 1 / p_exit := by split_ifs <;> simp
-    have htop : (⊤ : ℝ≥0∞) ≤ 1 / p_exit := by
-      rw [← ENNReal.top_mul hne, ← ENNReal.iSup_natCast, ENNReal.iSup_mul]
-      exact iSup_le hN_bound
-    exact ENNReal.div_ne_top ENNReal.one_ne_top hp_pos.ne' (top_le_iff.mp htop)
-  exact le_antisymm hb_le (tsub_eq_zero_iff_le.mp hsub_zero)
+  refine le_antisymm (iSup_le fun _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
+    (tsub_eq_zero_iff_le.mp <| by_contra fun hne => ?_)
+  have hN : ∀ N : ℕ, (N : ℝ≥0∞) * (1 - b) ≤ 1 / p_exit := fun N => by
+    have hconst : (N : ℝ≥0∞) * (1 - b) = ∑ _ ∈ Finset.range N, (1 - b) := by
+      rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+    have hsum : (N : ℝ≥0∞) * (1 - b) ≤ loopActiveSteps cond μ_body N x := by
+      rw [hconst]
+      refine Finset.sum_le_sum fun K _ => tsub_le_iff_left.mpr ?_
+      have hc := Cslib.Probability.PMF.toOuterMeasure_add_compl_ennreal
+        (loopIterPMF cond μ_body K x) {z | cond.Holds z}
+      have hK := le_iSup
+        (fun J => (loopIterPMF cond μ_body J x).toOuterMeasure {z | ¬cond.Holds z}) K
+      exact hc.ge.trans (by rw [add_comm]; exact add_le_add hK le_rfl)
+    exact hsum.trans <| (loopActiveSteps_le hp_pos hp_top hinv hp_exit N hx).trans
+      (by split_ifs <;> simp)
+  exact ENNReal.div_ne_top ENNReal.one_ne_top hp_pos.ne' <| top_le_iff.mp <| by
+    rw [← ENNReal.top_mul hne, ← ENNReal.iSup_natCast, ENNReal.iSup_mul]
+    exact iSup_le hN
 
 /-- Limiting exit distribution of `Code.loop cond body` starting from `x` under one-step body
 distribution family `μ_body`. -/
@@ -1013,27 +904,19 @@ theorem loopExitPMF_apply_of_hasSum {cond : Cond r} {μ_body : Data r → PMF (D
     (y : Data r) :
     loopExitPMF cond μ_body x y =
       ⨆ K : ℕ, Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body K x) y := by
-  classical
-  simp only [loopExitPMF, h, ↓reduceDIte]
-  rfl
+  classical simp only [loopExitPMF, h, ↓reduceDIte]; rfl
 
 theorem loopExitPMF_of_not_holds {cond : Cond r} {μ_body : Data r → PMF (Data r)} {x : Data r}
     (hc : ¬cond.Holds x) :
     loopExitPMF cond μ_body x = PMF.pure x := by
   have hfun : (fun y => ⨆ K : ℕ,
-      Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body K x) y) = PMF.pure x := by
-    funext y
-    have hK : ∀ K : ℕ,
-        Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body K x) y = PMF.pure x y := by
-      intro K
-      rw [loopIterPMF_of_not_holds hc]
-      by_cases hyx : y = x
-      · subst hyx
-        simp [hc]
-      · simp [PMF.pure_apply, hyx]
-    simp [hK]
-  ext y
-  rw [loopExitPMF_apply_of_hasSum (hfun ▸ (PMF.pure x).2), congrFun hfun y]
+      Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body K x) y) = PMF.pure x :=
+    funext fun y => by
+      suffices ∀ K, Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body K x) y =
+          PMF.pure x y by simp [this]
+      intro K; rw [loopIterPMF_of_not_holds hc]
+      by_cases hyx : y = x <;> simp [hyx, hc, PMF.pure_apply]
+  ext y; rw [loopExitPMF_apply_of_hasSum (hfun ▸ (PMF.pure x).2), congrFun hfun y]
 
 theorem loopExitPMF_of_holds {cond : Cond r} {I Q : Data r → Prop}
     {μ_body : Data r → PMF (Data r)} {p_exit : ℝ≥0∞}
@@ -1043,37 +926,20 @@ theorem loopExitPMF_of_holds {cond : Cond r} {I Q : Data r → Prop}
     {x : Data r} (hIx : I x) (hcx : cond.Holds x) :
     loopExitPMF cond μ_body x = (μ_body x).bind (loopExitPMF cond μ_body) := by
   ext y
-  have hx : LoopStateInv cond I Q x := Or.inl ⟨hcx, hIx⟩
-  rw [loopExitPMF_apply_of_hasSum (hasSum_loopExitDensity hp_pos hp_top hinv hp_exit hx),
-    PMF.bind_apply]
-  have hzero : Set.indicator {z | ¬cond.Holds z} (PMF.pure x) y = 0 := by
-    by_cases hy : ¬cond.Holds y
-    · have hyx : y ≠ x := fun h => hy (h ▸ hcx)
-      simp [hy, PMF.pure_apply, hyx]
-    · simp [Set.indicator_of_notMem, hy]
-  have hiSup_shift :
-      (⨆ K : ℕ, Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body K x) y) =
-        ⨆ K : ℕ, Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body (K + 1) x) y := by
-    refine le_antisymm (iSup_le fun K => ?_) (iSup_le fun K =>
-      le_iSup (fun J => Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body J x) y) (K + 1))
-    cases K with
-    | zero =>
-      rw [loopIterPMF_zero, hzero]
-      exact zero_le
-    | succ K =>
-      exact le_iSup
-        (fun J => Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body (J + 1) x) y) K
-  rw [hiSup_shift]
-  have hstep : ∀ K : ℕ,
-      Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body (K + 1) x) y =
-        ∑' z, μ_body x z *
-          Set.indicator {w' | ¬cond.Holds w'} (loopIterPMF cond μ_body K z) y := by
-    intro K
+  rw [loopExitPMF_apply_of_hasSum
+    (hasSum_loopExitDensity hp_pos hp_top hinv hp_exit (Or.inl ⟨hcx, hIx⟩)), PMF.bind_apply]
+  have hshift : (⨆ K : ℕ, Set.indicator {z | ¬cond.Holds z}
+      (loopIterPMF cond μ_body K x) y) =
+      ⨆ K : ℕ, Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body (K + 1) x) y :=
+    le_antisymm
+      (iSup_le fun K => le_iSup_of_le K
+        (loopIterPMF_indicator_mono cond μ_body x y (Nat.le_succ K)))
+      (iSup_le fun K => le_iSup_of_le (K + 1) le_rfl)
+  have hstep (K : ℕ) : Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body (K + 1) x) y =
+      ∑' z, μ_body x z * Set.indicator {w' | ¬cond.Holds w'} (loopIterPMF cond μ_body K z) y := by
     rw [loopIterPMF_succ, loopStepPMF_of_holds hcx]
-    by_cases hy : ¬cond.Holds y
-    · simp [Set.indicator_of_mem, hy, PMF.bind_apply]
-    · simp [Set.indicator_of_notMem, hy]
-  simp_rw [hstep]
+    by_cases hy : ¬cond.Holds y <;> simp [hy, PMF.bind_apply]
+  rw [hshift]; simp_rw [hstep]
   rw [← ENNReal.tsum_iSup_of_monotone
     (f := fun K z => μ_body x z *
       Set.indicator {w' | ¬cond.Holds w'} (loopIterPMF cond μ_body K z) y)
@@ -1096,14 +962,11 @@ theorem mem_support_loopExitPMF {cond : Cond r} {I Q : Data r → Prop}
   have ⟨K, hK⟩ : ∃ K : ℕ,
       Set.indicator {z | ¬cond.Holds z} (loopIterPMF cond μ_body K x) y ≠ 0 := by
     by_contra! h
-    exact hy (by simp [h])
-  have hnc : ¬cond.Holds y := by
-    by_contra hc
-    exact hK (by simp [Set.indicator_of_notMem, hc])
-  rw [Set.indicator_of_mem hnc, ← PMF.mem_support_iff] at hK
-  rcases loopIterPMF_support_inv hinv K hx y hK with ⟨hcy, _⟩ | ⟨_, hQy⟩
-  · exact absurd hcy hnc
-  · exact ⟨⟨hnc, hQy⟩, K, hK⟩
+    exact hy (nonpos_iff_eq_zero.mp (iSup_le fun K => (h K).le))
+  rw [Set.indicator_apply_ne_zero] at hK
+  rcases loopIterPMF_support_inv hinv K hx y hK.2 with ⟨hcy, _⟩ | ⟨_, hQy⟩
+  · exact absurd hcy hK.1
+  · exact ⟨⟨hK.1, hQy⟩, K, hK.2⟩
 
 /-! ### Compositional distributional execution (`ExecCodeDist`) -/
 
@@ -1206,8 +1069,7 @@ theorem seq_pure (h₁ : ExecCodeDist w c₁ x (PMF.pure y) T₁)
   classical
   have h := h₁.seq (c₂ := c₂) (μ₂ := fun z => if z = y then μ else PMF.pure z)
     (T₂ := fun z => if z = y then T₂ else 0) fun z hz => by
-      rw [PMF.support_pure, Set.mem_singleton_iff] at hz
-      subst hz
+      supp_cases hz
       simpa only [↓reduceIte] using h₂
   exact h.congr_dist (by simp) (by simp)
 
@@ -1234,14 +1096,12 @@ private theorem expect_snd_bindSteps (m₁ : ProbComp (Data r × ℕ))
       ProbComp.expect m₁ (fun z => (z.2 : ℝ≥0∞)) + d +
         ∑' y, (Prod.fst <$> m₁).eval y * ProbComp.expect (m₂ y) (fun z => (z.2 : ℝ≥0∞)) := by
   simp only [ProbComp.expect_bind, ProbComp.expect_pure, Nat.cast_add]
-  have hinner : ∀ z₁ : Data r × ℕ,
+  have hinner (z₁ : Data r × ℕ) :
       ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₁.2 : ℝ≥0∞) + (z₂.2 : ℝ≥0∞) + d) =
         ((z₁.2 : ℝ≥0∞) + d) + ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₂.2 : ℝ≥0∞)) := by
-    intro z₁
-    simp_rw [show ∀ z₂ : Data r × ℕ,
-        (z₁.2 : ℝ≥0∞) + (z₂.2 : ℝ≥0∞) + d = ((z₁.2 : ℝ≥0∞) + d) + (z₂.2 : ℝ≥0∞)
-      from fun _ => by ac_rfl]
-    rw [ProbComp.expect_add, ProbComp.expect_const]
+    rw [show (fun z₂ : Data r × ℕ => (z₁.2 : ℝ≥0∞) + (z₂.2 : ℝ≥0∞) + d) =
+        fun z₂ => ((z₁.2 : ℝ≥0∞) + d) + (z₂.2 : ℝ≥0∞) from funext fun _ => by ac_rfl,
+      ProbComp.expect_add, ProbComp.expect_const]
   simp_rw [hinner]
   rw [ProbComp.expect_add, ProbComp.expect_add, ProbComp.expect_const,
     ← ProbComp.expect_map Prod.fst m₁ (fun y => ProbComp.expect (m₂ y) fun z₂ => (z₂.2 : ℝ≥0∞))]
@@ -1287,33 +1147,26 @@ private theorem elim_prim {P : Code B r → Data r → PMF (Data r) → ℝ≥0�
     induction hm with
     | op ho => simpa [ProbComp.expect_pure] using h_op ho
     | @rand dst src x hfit =>
-      refine h_congr (h_rand (dst := dst) hfit) ?_ ?_
-      · ext z
-        simp [ProbComp.eval_map, PMF.map_apply]
-      · simp [ProbComp.expect_map, ProbComp.expect_const]
+      exact h_congr (h_rand (dst := dst) hfit)
+        (by ext z; simp [ProbComp.eval_map, PMF.map_apply])
+        (by simp [ProbComp.expect_map, ProbComp.expect_const])
     | @seq c₁ c₂ x m₁ m₂ _ _ ih₁ ih₂ =>
-      refine h_congr (h_seq (T₂ := fun y => ProbComp.expect (m₂ y) fun z => (z.2 : ℝ≥0∞))
-        ih₁ fun y hy => ?_) (eval_fst_bindSteps m₁ m₂ (· + ·)).symm ?_
-      · obtain ⟨z, hz, rfl⟩ := mem_support_eval_fst_iff.mp hy
-        exact ih₂ z hz
-      · simpa using (expect_snd_bindSteps m₁ m₂ 0).ge
+      exact h_congr (h_seq (T₂ := fun y => ProbComp.expect (m₂ y) fun z => (z.2 : ℝ≥0∞))
+        ih₁ fun _ hy => let ⟨z, hz, hzy⟩ := mem_support_eval_fst_iff.mp hy; hzy ▸ ih₂ z hz)
+        (eval_fst_bindSteps m₁ m₂ (· + ·)).symm (by simpa using (expect_snd_bindSteps m₁ m₂ 0).ge)
     | @branch_pos cond pos neg x m hc _ ih =>
-      refine h_congr (h_branch_pos (neg := neg) hc ih) ?_ ?_
-      · simp [Functor.map_map]
-      · simp [ProbComp.expect_map, ProbComp.expect_add, ProbComp.expect_const]
+      exact h_congr (h_branch_pos (neg := neg) hc ih) (by simp [Functor.map_map])
+        (by simp [ProbComp.expect_map, ProbComp.expect_add, ProbComp.expect_const])
     | @branch_neg cond pos neg x m hc _ ih =>
-      refine h_congr (h_branch_neg (pos := pos) hc ih) ?_ ?_
-      · simp [Functor.map_map]
-      · simp [ProbComp.expect_map, ProbComp.expect_add, ProbComp.expect_const]
+      exact h_congr (h_branch_neg (pos := pos) hc ih) (by simp [Functor.map_map])
+        (by simp [ProbComp.expect_map, ProbComp.expect_add, ProbComp.expect_const])
     | @loop_exit cond body x hc =>
       simpa [ProbComp.expect_pure] using h_loop_exit (body := body) hc
     | @loop_iter cond body x mb ml hc _ _ ihb ihl =>
-      refine h_congr (h_loop_iter (Tl := fun y => ProbComp.expect (ml y) fun z => (z.2 : ℝ≥0∞))
-        hc ihb fun y hy => ?_)
-        (eval_fst_bindSteps mb ml (fun a b => a + b + 2)).symm ?_
-      · obtain ⟨z, hz, rfl⟩ := mem_support_eval_fst_iff.mp hy
-        exact ihl z hz
-      · simpa using (expect_snd_bindSteps mb ml 2).ge
+      exact h_congr (h_loop_iter (Tl := fun y => ProbComp.expect (ml y) fun z => (z.2 : ℝ≥0∞))
+        hc ihb fun _ hy => let ⟨z, hz, hzy⟩ := mem_support_eval_fst_iff.mp hy; hzy ▸ ihl z hz)
+        (eval_fst_bindSteps mb ml (fun a b => a + b + 2)).symm
+        (by simpa using (expect_snd_bindSteps mb ml 2).ge)
   | mono _ hle ih => exact h_congr ih rfl hle
   | seq _ _ ih₁ ih₂ => exact h_seq ih₁ ih₂
   | branch_pos hc _ ih => exact h_branch_pos hc ih
@@ -1332,22 +1185,18 @@ private theorem support_of_execRand_preserves {R : Code B r → Prop} {S : Data 
     ∀ y ∈ μ.support, S y := by
   induction h with
   | of_execRand hm =>
-    intro y hy
-    obtain ⟨z, hz, rfl⟩ := mem_support_eval_fst_iff.mp hy
-    exact h_rand hm hR hS z hz
+    intro _ hy; obtain ⟨z, hz, rfl⟩ := mem_support_eval_fst_iff.mp hy; exact h_rand hm hR hS z hz
   | mono _ _ ih => exact ih hR hS
   | seq _ _ ih₁ ih₂ =>
-    intro y hy
-    obtain ⟨z, hz, hyz⟩ := (PMF.mem_support_bind_iff _ _ _).mp hy
+    intro y hy; supp_cases hy with ⟨z, hz, hyz⟩
     exact ih₂ z hz (h_seq hR).2 (ih₁ (h_seq hR).1 hS z hz) y hyz
   | branch_pos _ _ ih => exact ih (h_bpos hR) hS
   | branch_neg _ _ ih => exact ih (h_bneg hR) hS
-  | @loop_geometric cond body I Q μ_body T_body B_body p_exit x
-      hp_pos hp_top _ _ hinv hp_exit hx_inv ih_body =>
+  | loop_geometric _ _ hp_pos hp_top _ _ hinv hp_exit hx_inv ih_body =>
     intro y hy
     obtain ⟨_, K, hK⟩ := mem_support_loopExitPMF hp_pos hp_top hinv hp_exit hx_inv hy
     exact loopIterPMF_support_of_preserves hinv
-      (fun z hIz hcz hz u hu => ih_body z hIz hcz (h_loop hR) hz u hu) K hx_inv hS y hK
+      (fun z hIz hcz hz _ hu => ih_body z hIz hcz (h_loop hR) hz _ hu) K hx_inv hS y hK
 
 /-- Every state in the support of `μ` preserves `Data.Bounded w` when `x.Bounded w`. -/
 theorem bounded (h : ExecCodeDist w c x μ T) (hx : x.Bounded w) :
@@ -1384,9 +1233,9 @@ private theorem extend_left_injective {r' : ℕ} {f : Fin r → Fin r'} (hf : f.
 private theorem pmf_map_apply_not_mem_range {α β : Type*} (p : PMF α) (g : α → β) {b : β}
     (hb : b ∉ Set.range g) :
     p.map g b = 0 :=
-  (PMF.apply_eq_zero_iff _ _).mpr fun h =>
-    let ⟨a, _, ha⟩ := (PMF.mem_support_map_iff _ _ _).mp h
-    hb ⟨a, ha⟩
+  (PMF.apply_eq_zero_iff _ _).mpr fun h => by
+    supp_cases h with ⟨a, _, rfl⟩
+    exact hb ⟨a, rfl⟩
 
 private theorem loopIterPMF_rename {r' : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
     (cond : Cond r) (μ_body : Data r → PMF (Data r)) (x : Data r') (K : ℕ) (u : Data r) :
@@ -1396,19 +1245,82 @@ private theorem loopIterPMF_rename {r' : ℕ} {f : Fin r → Fin r'} (hf : f.Inj
   induction K generalizing u with
   | zero => simp [loopIterPMF]
   | succ K ih =>
-    rw [loopIterPMF_succ, loopIterPMF_succ]
+    have hcond : (cond.rename f).Holds (u.extend f x) ↔ cond.Holds u := by
+      rw [Cond.holds_rename, Data.comap_extend hf]
     by_cases hc : cond.Holds u
-    · have hc' : (cond.rename f).Holds (u.extend f x) := by
-        rw [Cond.holds_rename, Data.comap_extend hf]
-        exact hc
-      rw [loopStepPMF_of_holds hc', loopStepPMF_of_holds hc, Data.comap_extend hf,
-        PMF.bind_map, PMF.map_bind]
-      refine congrArg ((μ_body u).bind ·) (funext fun z => ih z)
-    · have hc' : ¬(cond.rename f).Holds (u.extend f x) := by
-        rw [Cond.holds_rename, Data.comap_extend hf]
-        exact hc
-      rw [loopStepPMF_of_not_holds hc', loopStepPMF_of_not_holds hc, PMF.pure_bind,
-        PMF.pure_bind, ih]
+    · rw [loopIterPMF_succ, loopStepPMF_of_holds (hcond.mpr hc), Data.comap_extend hf,
+        loopIterPMF_succ, loopStepPMF_of_holds hc, PMF.bind_map, PMF.map_bind]
+      exact congrArg ((μ_body u).bind ·) (funext ih)
+    · rw [loopIterPMF_succ, loopStepPMF_of_not_holds (mt hcond.mp hc),
+        loopIterPMF_succ, loopStepPMF_of_not_holds hc, PMF.pure_bind, PMF.pure_bind, ih]
+
+private theorem rename_loop_geometric {r' : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
+    {cond : Cond r} {body : Code B r} {I Q : Data r → Prop}
+    {μ_body : Data r → PMF (Data r)} {T_body : Data r → ℝ≥0∞}
+    {B_body p_exit : ℝ≥0∞} {x : Data r'}
+    (hp_pos : 0 < p_exit) (hp_top : p_exit ≠ ⊤)
+    (hB : ∀ z, I z → cond.Holds z → T_body z ≤ B_body)
+    (hinv : ∀ z, I z → cond.Holds z → ∀ y ∈ (μ_body z).support, LoopStateInv cond I Q y)
+    (hp_exit : ∀ z, I z → cond.Holds z → p_exit ≤ (μ_body z).toOuterMeasure {y | ¬cond.Holds y})
+    (ih_body : ∀ z, I z → cond.Holds z → ∀ {x' : Data r'}, x'.comap f = z →
+      ExecCodeDist w (body.rename f) x' ((μ_body z).map fun y => y.extend f x') (T_body z))
+    (hx_inv : LoopStateInv cond I Q (x.comap f)) :
+    ExecCodeDist w (.loop (cond.rename f) (body.rename f)) x
+      ((loopExitPMF cond μ_body (x.comap f)).map fun y => y.extend f x)
+      ((B_body + 2) / p_exit + 2) := by
+  let g : Data r → Data r' := (·.extend f x)
+  have hg : g.Injective := extend_left_injective hf x
+  have hcond (u : Data r) : (cond.rename f).Holds (g u) ↔ cond.Holds u := by
+    rw [Cond.holds_rename, Data.comap_extend hf]
+  let I' : Data r' → Prop := fun x' => ∃ u, I u ∧ x' = g u
+  let Q' : Data r' → Prop := fun x' => ∃ u, Q u ∧ x' = g u
+  let μ_body' : Data r' → PMF (Data r') := fun x' => (μ_body (x'.comap f)).map g
+  have hinv_img {u : Data r} (h : LoopStateInv cond I Q u) :
+      LoopStateInv (cond.rename f) I' Q' (g u) :=
+    h.elim (fun ⟨hc, hI⟩ => Or.inl ⟨(hcond u).mpr hc, u, hI, rfl⟩)
+      (fun ⟨hc, hQ⟩ => Or.inr ⟨mt (hcond u).mp hc, u, hQ, rfl⟩)
+  have hinv' : ∀ z', I' z' → (cond.rename f).Holds z' →
+      ∀ y' ∈ (μ_body' z').support, LoopStateInv (cond.rename f) I' Q' y' := by
+    rintro _ ⟨u, hIu, rfl⟩ hcz' y' hy'
+    dsimp only [μ_body', g] at hy'
+    rw [Data.comap_extend hf] at hy'
+    supp_cases hy' with ⟨y, hy, rfl⟩
+    exact hinv_img (hinv u hIu ((hcond u).mp hcz') y hy)
+  have hp_exit' : ∀ z', I' z' → (cond.rename f).Holds z' →
+      p_exit ≤ (μ_body' z').toOuterMeasure {y' | ¬(cond.rename f).Holds y'} := by
+    rintro _ ⟨u, hIu, rfl⟩ hcz'
+    have hset : g ⁻¹' {y' | ¬(cond.rename f).Holds y'} = {y | ¬cond.Holds y} :=
+      Set.ext fun y => by simp [hcond y]
+    simpa only [μ_body', g, Data.comap_extend hf, PMF.toOuterMeasure_map_apply, hset] using
+      hp_exit u hIu ((hcond u).mp hcz')
+  have hx_inv' : LoopStateInv (cond.rename f) I' Q' x :=
+    Data.extend_comap hf x ▸ hinv_img hx_inv
+  refine (loop_geometric I' Q' hp_pos hp_top (μ_body := μ_body')
+    (T_body := fun x' => T_body (x'.comap f)) (B_body := B_body) (x := x)
+    (fun _ ⟨u, hIu, hzu⟩ hcz' => hzu ▸ by
+      simpa only [μ_body', g, Data.comap_extend hf, Data.extend_extend hf] using
+        ih_body u hIu ((hcond u).mp (hzu ▸ hcz')) (Data.comap_extend hf u x))
+    (fun _ ⟨u, hIu, hzu⟩ hcz' => hzu ▸ by
+      simpa only [g, Data.comap_extend hf] using hB u hIu ((hcond u).mp (hzu ▸ hcz')))
+    hinv' hp_exit' hx_inv').congr_dist (PMF.ext fun y' => ?_) le_rfl
+  rw [loopExitPMF_apply_of_hasSum (hasSum_loopExitDensity hp_pos hp_top hinv' hp_exit' hx_inv')]
+  have hiter (K : ℕ) : loopIterPMF (cond.rename f) μ_body' K x =
+      (loopIterPMF cond μ_body K (x.comap f)).map g := by
+    conv_lhs => rw [← Data.extend_comap hf x]
+    exact loopIterPMF_rename hf cond μ_body x K (x.comap f)
+  by_cases hy' : y' ∈ Set.range g
+  · obtain ⟨y, rfl⟩ := hy'
+    rw [Probability.PMF.map_apply_of_injective _ hg,
+      loopExitPMF_apply_of_hasSum (hasSum_loopExitDensity hp_pos hp_top hinv hp_exit hx_inv)]
+    refine iSup_congr fun K => ?_
+    rw [hiter K]
+    by_cases hcy : ¬cond.Holds y
+    · simp [hcy, mt (hcond y).mp hcy, Probability.PMF.map_apply_of_injective _ hg]
+    · simp [Set.indicator_of_notMem, hcy, hcond y]
+  · rw [pmf_map_apply_not_mem_range _ g hy']
+    refine nonpos_iff_eq_zero.mp <| iSup_le fun K => by
+      rw [hiter K]; by_cases hcy' : ¬(cond.rename f).Holds y' <;>
+        simp [hcy', pmf_map_apply_not_mem_range _ g hy']
 
 /-- Renaming a distributional execution along an injective register map `f : Fin r → Fin r'`
 transforms the output distribution via `Data.extend f x` and preserves the expected step bound. -/
@@ -1419,188 +1331,97 @@ theorem rename {r' : ℕ} {f : Fin r → Fin r'} (hf : f.Injective) {x : Data r'
   induction h generalizing x with
   | @of_execRand c _ m hm =>
     subst hx₀
-    have hm' := of_execRand (hm.rename hf)
-    refine hm'.congr_dist ?_ ?_
-    · rw [Functor.map_map, ProbComp.eval_map, ProbComp.eval_map, PMF.map_comp]
-      rfl
-    · rw [ProbComp.expect_map]
-  | mono _ hle ih =>
-    exact (ih hx₀).mono hle
+    exact (of_execRand (hm.rename hf)).congr_dist
+      (by rw [Functor.map_map, ProbComp.eval_map, ProbComp.eval_map, PMF.map_comp]; rfl)
+      (by rw [ProbComp.expect_map])
+  | mono _ hle ih => exact (ih hx₀).mono hle
   | @seq c₁ c₂ _ μ₁ μ₂ T₁ T₂ _ _ ih₁ ih₂ =>
     subst hx₀
-    have h₁' := ih₁ rfl
-    have hseq := h₁'.seq
-      (μ₂ := fun y' => (μ₂ (y'.comap f)).map fun z => z.extend f x)
-      (T₂ := fun y' => T₂ (y'.comap f))
-      fun y' hy' => by
-        rw [PMF.mem_support_map_iff] at hy'
-        obtain ⟨y₁, hy₁, rfl⟩ := hy'
-        have h₂' := ih₂ y₁ hy₁ (x := y₁.extend f x) (Data.comap_extend hf y₁ x)
-        simpa only [Data.comap_extend hf, Data.extend_extend hf] using h₂'
+    have hseq := (ih₁ rfl).seq (μ₂ := fun y' => (μ₂ (y'.comap f)).map fun z => z.extend f x)
+      (T₂ := fun y' => T₂ (y'.comap f)) fun y' hy' => by
+        supp_cases hy' with ⟨y₁, hy₁, rfl⟩
+        simpa only [Data.comap_extend hf, Data.extend_extend hf] using
+          ih₂ y₁ hy₁ (x := y₁.extend f x) (Data.comap_extend hf y₁ x)
     refine hseq.congr_dist ?_ ?_
     · rw [PMF.map_bind, PMF.bind_map]
-      refine congrArg (μ₁.bind ·) (funext fun y₁ => ?_)
-      simp [Data.comap_extend hf]
-    · refine add_le_add le_rfl ?_
-      rw [Cslib.Probability.PMF.tsum_map_mul]
-      simp [Data.comap_extend hf]
+      exact congrArg (μ₁.bind ·) (funext fun _ => by simp [Data.comap_extend hf])
+    · rw [Cslib.Probability.PMF.tsum_map_mul]; simp [Data.comap_extend hf]
   | branch_pos hc _ ih =>
-    subst hx₀
-    exact branch_pos ((Cond.holds_rename _ _).2 hc) (ih rfl)
+    subst hx₀; exact branch_pos ((Cond.holds_rename _ _).2 hc) (ih rfl)
   | branch_neg hc _ ih =>
-    subst hx₀
-    exact branch_neg (fun h => hc ((Cond.holds_rename _ _).1 h)) (ih rfl)
-  | @loop_geometric cond body I Q μ_body T_body B_body p_exit _
-      hp_pos hp_top _ hB hinv hp_exit hx_inv ih_body =>
-    subst hx₀
-    let g : Data r → Data r' := fun y => y.extend f x
-    have hg : g.Injective := extend_left_injective hf x
-    let I' : Data r' → Prop := fun x' => ∃ u, I u ∧ x' = g u
-    let Q' : Data r' → Prop := fun x' => ∃ u, Q u ∧ x' = g u
-    let μ_body' : Data r' → PMF (Data r') := fun x' => (μ_body (x'.comap f)).map g
-    let T_body' : Data r' → ℝ≥0∞ := fun x' => T_body (x'.comap f)
-    have hinv' : ∀ z', I' z' → (cond.rename f).Holds z' →
-        ∀ y' ∈ (μ_body' z').support, LoopStateInv (cond.rename f) I' Q' y' := by
-      rintro z' ⟨u, hIu, rfl⟩ hcz' y' hy'
-      have hcu : cond.Holds u := by
-        simpa [g, Cond.holds_rename, Data.comap_extend hf] using hcz'
-      simp only [μ_body', g, Data.comap_extend hf, PMF.mem_support_map_iff] at hy'
-      obtain ⟨y, hy, rfl⟩ := hy'
-      rcases hinv u hIu hcu y hy with ⟨hcy, hIy⟩ | ⟨hcy, hQy⟩
-      · exact Or.inl ⟨by simpa [g, Cond.holds_rename, Data.comap_extend hf] using hcy,
-          ⟨y, hIy, rfl⟩⟩
-      · exact Or.inr ⟨by simpa [g, Cond.holds_rename, Data.comap_extend hf] using hcy,
-          ⟨y, hQy, rfl⟩⟩
-    have hp_exit' : ∀ z', I' z' → (cond.rename f).Holds z' →
-        p_exit ≤ (μ_body' z').toOuterMeasure {y' | ¬(cond.rename f).Holds y'} := by
-      rintro z' ⟨u, hIu, rfl⟩ hcz'
-      have hcu : cond.Holds u := by
-        simpa [g, Cond.holds_rename, Data.comap_extend hf] using hcz'
-      simp only [μ_body', g, Data.comap_extend hf, PMF.toOuterMeasure_map_apply]
-      have hset : ((fun y : Data r => y.extend f x) ⁻¹' {y' | ¬(cond.rename f).Holds y'}) =
-          {y | ¬cond.Holds y} := by
-        ext y
-        simp [Cond.holds_rename, Data.comap_extend hf]
-      rw [hset]
-      exact hp_exit u hIu hcu
-    have hx_inv' : LoopStateInv (cond.rename f) I' Q' x := by
-      rcases hx_inv with ⟨hcx, hIx⟩ | ⟨hcx, hQx⟩
-      · exact Or.inl ⟨(Cond.holds_rename _ _).2 hcx,
-          ⟨x.comap f, hIx, (Data.extend_comap hf x).symm⟩⟩
-      · exact Or.inr ⟨fun h => hcx ((Cond.holds_rename _ _).1 h),
-          ⟨x.comap f, hQx, (Data.extend_comap hf x).symm⟩⟩
-    have hloop := loop_geometric (cond := cond.rename f) (body := body.rename f)
-      I' Q' hp_pos hp_top
-      (μ_body := μ_body') (T_body := T_body') (B_body := B_body) (x := x)
-      (fun z' ⟨u, hIu, hzu⟩ hcz' => by
-        subst hzu
-        have hcu : cond.Holds u := by
-          simpa [g, Cond.holds_rename, Data.comap_extend hf] using hcz'
-        have hb' := ih_body u hIu hcu (x := g u) (Data.comap_extend hf u x)
-        simpa only [μ_body', T_body', g, Data.comap_extend hf, Data.extend_extend hf] using hb')
-      (fun z' ⟨u, hIu, hzu⟩ hcz' => by
-        subst hzu
-        have hcu : cond.Holds u := by
-          simpa [g, Cond.holds_rename, Data.comap_extend hf] using hcz'
-        simpa only [T_body', g, Data.comap_extend hf] using hB u hIu hcu)
-      hinv' hp_exit' hx_inv'
-    refine hloop.congr_dist ?_ le_rfl
-    ext y'
-    rw [loopExitPMF_apply_of_hasSum (hasSum_loopExitDensity hp_pos hp_top hinv' hp_exit' hx_inv')]
-    have hx_eq : x = g (x.comap f) := (Data.extend_comap hf x).symm
-    have hiter (K : ℕ) : loopIterPMF (cond.rename f) μ_body' K x =
-        (loopIterPMF cond μ_body K (x.comap f)).map g := by
-      conv_lhs => rw [hx_eq]
-      exact loopIterPMF_rename hf cond μ_body x K (x.comap f)
-    by_cases hy' : y' ∈ Set.range g
-    · obtain ⟨y, rfl⟩ := hy'
-      rw [Probability.PMF.map_apply_of_injective _ hg,
-        loopExitPMF_apply_of_hasSum (hasSum_loopExitDensity hp_pos hp_top hinv hp_exit hx_inv)]
-      refine iSup_congr fun K => ?_
-      rw [hiter K]
-      by_cases hcy : ¬cond.Holds y
-      · have hcy' : ¬(cond.rename f).Holds (g y) := by
-          simpa [g, Cond.holds_rename, Data.comap_extend hf] using hcy
-        simp [Set.indicator_of_mem, hcy, hcy', Probability.PMF.map_apply_of_injective _ hg]
-      · have hcy' : ¬¬(cond.rename f).Holds (g y) := by
-          simpa [g, Cond.holds_rename, Data.comap_extend hf] using hcy
-        simp [Set.indicator_of_notMem, hcy, hcy']
-    · rw [pmf_map_apply_not_mem_range _ g hy']
-      refine le_antisymm (iSup_le fun K => ?_) zero_le
-      rw [hiter K]
-      by_cases hcy' : ¬(cond.rename f).Holds y'
-      · simp [Set.indicator_of_mem, hcy', pmf_map_apply_not_mem_range _ g hy']
-      · simp [Set.indicator_of_notMem, hcy']
+    subst hx₀; exact branch_neg (fun h => hc ((Cond.holds_rename _ _).1 h)) (ih rfl)
+  | loop_geometric _ _ hp_pos hp_top _ hB hinv hp_exit hx_inv ih_body =>
+    subst hx₀; exact rename_loop_geometric hf hp_pos hp_top hB hinv hp_exit ih_body hx_inv
 
 /-! ### Compilation of `ExecCodeDist` to flat `Program` semantics -/
-
-private theorem contains_branch_pos {p : Program B r} {pc : ℕ}
-    (hp : p.Contains pc ((Code.branch cond pos neg).assemble pc)) :
-    p.Contains (pc + neg.size + 2) (pos.assemble (pc + neg.size + 2)) := by
-  have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
-  rwa [Code.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
-
-private theorem stepRand_branch_pos {p : Program B r} {pc : ℕ}
-    (hp : p.Contains pc ((Code.branch cond pos neg).assemble pc)) (hc : cond.Holds x) :
-    stepRand w p (.running ⟨pc, x⟩) = pure (.running ⟨pc + neg.size + 2, x⟩) := by
-  have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
-    simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-  simp [stepRand_branch (s := ⟨pc, x⟩) hbr, hc]
-
-private theorem stepRand_branch_neg {p : Program B r} {pc : ℕ}
-    (hp : p.Contains pc ((Code.branch cond pos neg).assemble pc)) (hc : ¬cond.Holds x) :
-    stepRand w p (.running ⟨pc, x⟩) = pure (.running ⟨pc + 1, x⟩) := by
-  have hbr : p[pc]? = some (.branch cond (pc + neg.size + 2)) := by
-    simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hp.head
-  simp [stepRand_branch (s := ⟨pc, x⟩) hbr, hc]
-
-private theorem stepRand_branch_neg_jump {p : Program B r} {pc : ℕ}
-    (hp : p.Contains pc ((Code.branch cond pos neg).assemble pc)) (y : Data r) :
-    stepRand w p (.running ⟨pc + 1 + neg.size, y⟩) =
-      pure (.running ⟨pc + (Code.branch cond pos neg).size, y⟩) := by
-  have hj : p[pc + 1 + neg.size]? = some (.jump (pc + neg.size + pos.size + 2)) := by
-    simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head
-  simpa [Code.size, show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
-    using stepRand_jump (s := ⟨pc + 1 + neg.size, y⟩) hj
-
-private theorem contains_loop_body {p : Program B r} {pc : ℕ}
-    (hp : p.Contains pc ((Code.loop cond body).assemble pc)) :
-    p.Contains (pc + 2) (body.assemble (pc + 2)) := by
-  simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-
-private theorem stepRand_loop_holds {p : Program B r} {pc : ℕ}
-    (hp : p.Contains pc ((Code.loop cond body).assemble pc)) (hc : cond.Holds x) :
-    stepRand w p (.running ⟨pc, x⟩) = pure (.running ⟨pc + 2, x⟩) := by
-  simp [stepRand_branch (s := ⟨pc, x⟩) hp.head, hc]
-
-private theorem stepRand_loop_not_holds {p : Program B r} {pc : ℕ}
-    (hp : p.Contains pc ((Code.loop cond body).assemble pc)) (hc : ¬cond.Holds x) :
-    stepRand w p (.running ⟨pc, x⟩) = pure (.running ⟨pc + 1, x⟩) := by
-  simp [stepRand_branch (s := ⟨pc, x⟩) hp.head, hc]
-
-private theorem stepRand_loop_exit_jump {p : Program B r} {pc : ℕ}
-    (hp : p.Contains pc ((Code.loop cond body).assemble pc)) (y : Data r) :
-    stepRand w p (.running ⟨pc + 1, y⟩) =
-      pure (.running ⟨pc + (Code.loop cond body).size, y⟩) := by
-  simpa [Code.size, show pc + body.size + 3 = pc + (body.size + 3) by omega]
-    using stepRand_jump (s := ⟨pc + 1, y⟩) hp.cons_tail.head
-
-private theorem stepRand_loop_back {p : Program B r} {pc : ℕ}
-    (hp : p.Contains pc ((Code.loop cond body).assemble pc)) (y : Data r) :
-    stepRand w p (.running ⟨pc + 2 + body.size, y⟩) = pure (.running ⟨pc, y⟩) := by
-  have hj : p[pc + 2 + body.size]? = some (.jump pc) := by
-    simpa using hp.cons_tail.cons_tail.append_right.head
-  exact stepRand_jump (s := ⟨pc + 2 + body.size, y⟩) hj
 
 private theorem expectedStepsWithin_loop_exit {p : Program B r} {pc : ℕ}
     (hp : p.Contains pc ((Code.loop cond body).assemble pc))
     {z : Data r} (hcz : ¬cond.Holds z) (N : ℕ) :
     expectedStepsWithin w p N (.running ⟨pc, z⟩) ≤
-      2 + expectedStepsWithin w p N (.running ⟨pc + (Code.loop cond body).size, z⟩) := by
-  refine (expectedStepsWithin_le_of_step (stepRand_loop_not_holds hp hcz) N).trans ?_
-  refine (add_le_add le_rfl
-    (expectedStepsWithin_le_of_step (stepRand_loop_exit_jump hp z) N)).trans (le_of_eq ?_)
-  rw [← add_assoc, one_add_one_eq_two]
+      2 + expectedStepsWithin w p N (.running ⟨pc + (Code.loop cond body).size, z⟩) :=
+  ((expectedStepsWithin_le_of_step (stepRand_loop_not_holds hp hcz) N).trans
+    (add_le_add le_rfl (expectedStepsWithin_le_of_step (stepRand_loop_exit_jump hp z) N))).trans_eq
+    (by rw [← add_assoc, one_add_one_eq_two])
+
+private theorem expectedStepsWithin_loop_geometric {I Q : Data r → Prop}
+    {μ_body : Data r → PMF (Data r)} {T_body : Data r → ℝ≥0∞} {B_body p_exit : ℝ≥0∞}
+    {p : Program B r} {pc N : ℕ}
+    (hp : p.Contains pc ((Code.loop cond body).assemble pc))
+    (hp_pos : 0 < p_exit) (hp_top : p_exit ≠ ⊤)
+    (hB : ∀ z, I z → cond.Holds z → T_body z ≤ B_body)
+    (hinv : ∀ z, I z → cond.Holds z → ∀ y ∈ (μ_body z).support, LoopStateInv cond I Q y)
+    (hp_exit : ∀ z, I z → cond.Holds z → p_exit ≤ (μ_body z).toOuterMeasure {y | ¬cond.Holds y})
+    (ih_body : ∀ z, I z → cond.Holds z → ∀ n,
+      expectedStepsWithin w p n (.running ⟨pc + 2, z⟩) ≤ T_body z +
+        ∑' u, μ_body z u * expectedStepsWithin w p n (.running ⟨pc + 2 + body.size, u⟩))
+    (hx_inv : LoopStateInv cond I Q x) :
+    expectedStepsWithin w p N (.running ⟨pc, x⟩) ≤ (B_body + 2) / p_exit + 2 +
+      ∑' y, loopExitPMF cond μ_body x y *
+        expectedStepsWithin w p N (.running ⟨pc + (Code.loop cond body).size, y⟩) := by
+  set K_cont : Data r → ℝ≥0∞ := fun y =>
+    expectedStepsWithin w p N (.running ⟨pc + (Code.loop cond body).size, y⟩)
+  set M := (B_body + 2) / p_exit
+  have hmain : ∀ n ≤ N, ∀ z : Data r, LoopStateInv cond I Q z →
+      expectedStepsWithin w p n (.running ⟨pc, z⟩) ≤
+        (if cond.Holds z then M else 0) + 2 + ∑' y, loopExitPMF cond μ_body z y * K_cont y := by
+    intro n; induction n with
+    | zero => simp
+    | succ n ihn =>
+      intro hn z hz_inv
+      rcases hz_inv with ⟨hcz, hIz⟩ | ⟨hcz, _⟩
+      · simp only [hcz, ↓reduceIte]
+        rw [expectedStepsWithin_running_succ, stepRand_loop_holds hp hcz, ProbComp.expect_pure]
+        have hbody := (ih_body z hIz hcz n).trans (add_le_add (hB z hIz hcz) le_rfl)
+        have hback := tsum_expectedStepsWithin_le_of_step w (stepRand_loop_back hp) (μ_body z) n
+        have hih : (∑' u, μ_body z u * expectedStepsWithin w p n (.running ⟨pc, u⟩)) ≤
+            (∑' u, μ_body z u * (if cond.Holds u then M else 0)) + 2 +
+              ∑' y, loopExitPMF cond μ_body z y * K_cont y :=
+          (Cslib.Probability.PMF.tsum_mul_mono_support (μ_body z) fun u hu =>
+            ihn (Nat.le_of_succ_le hn) u (hinv z hIz hcz u hu)).trans_eq <| by
+            simp_rw [mul_add, tsum_add, ENNReal.tsum_mul_right, (μ_body z).tsum_coe, one_mul,
+              loopExitPMF_of_holds hp_pos hp_top hinv hp_exit hIz hcz,
+              Cslib.Probability.PMF.tsum_bind_mul]
+        have hdrift := pmf_step_drift_bound (μ_body z) cond (C := B_body + 2)
+          hp_pos hp_top (hp_exit z hIz hcz)
+        calc 1 + expectedStepsWithin w p n (.running ⟨pc + 2, z⟩)
+            ≤ 1 + (B_body + (1 + ∑' u, μ_body z u *
+                expectedStepsWithin w p n (.running ⟨pc, u⟩))) :=
+              add_le_add le_rfl (hbody.trans (add_le_add le_rfl hback))
+          _ = B_body + 2 + ∑' u, μ_body z u * expectedStepsWithin w p n (.running ⟨pc, u⟩) := by
+              rw [← one_add_one_eq_two]; ac_rfl
+          _ ≤ (B_body + 2 + ∑' u, μ_body z u * (if cond.Holds u then M else 0)) + 2 +
+                ∑' y, loopExitPMF cond μ_body z y * K_cont y :=
+              (add_le_add le_rfl hih).trans_eq (by ac_rfl)
+          _ ≤ M + 2 + ∑' y, loopExitPMF cond μ_body z y * K_cont y :=
+              add_le_add (add_le_add hdrift le_rfl) le_rfl
+      · classical
+        simp only [hcz, ↓reduceIte, zero_add, loopExitPMF_of_not_holds hcz, PMF.pure_apply,
+          ite_mul, one_mul, zero_mul, tsum_ite_eq]
+        exact (expectedStepsWithin_loop_exit hp hcz (n + 1)).trans
+          (add_le_add le_rfl (expectedStepsWithin_mono w p _ hn))
+  refine (hmain N le_rfl x hx_inv).trans (add_le_add (add_le_add ?_ le_rfl) le_rfl)
+  split_ifs <;> simp
 
 /-- Finite-horizon Bellman inequality for `ExecCodeDist` inside any containing flat program `p`. -/
 theorem expectedStepsWithin_assemble (h : ExecCodeDist w c x μ T) {p : Program B r} {pc : ℕ}
@@ -1613,147 +1434,45 @@ theorem expectedStepsWithin_assemble (h : ExecCodeDist w c x μ T) {p : Program 
       expectedStepsWithin w p N (.running ⟨pc, x⟩) ≤
         T + ∑' y, μ y * expectedStepsWithin w p N (.running ⟨pc + c.size, y⟩))
     ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
-  · intro c x μ μ' T T' ih hμ hT pc hp N
-    subst hμ
-    exact (ih hp N).trans (add_le_add hT le_rfl)
-  · intro o x y ho pc hp N
-    classical
-    simpa [Code.size, PMF.pure_apply] using
-      expectedStepsWithin_le_of_step (stepRand_op (s := ⟨pc, x⟩) hp.head ho) N
-  · intro dst src x hfit pc hp N
-    refine (expectedStepsWithin_running_le w p N ⟨pc, x⟩).trans ?_
-    rw [stepRand_rand_of_fits (s := ⟨pc, x⟩) hp.head hfit, ProbComp.expect_bind]
+  · intro _ _ _ _ _ _ ih hμ hT _ hp N; exact hμ ▸ (ih hp N).trans (add_le_add hT le_rfl)
+  · intro _ _ _ ho _ hp N
+    classical simpa [Code.size, PMF.pure_apply] using
+      expectedStepsWithin_le_of_step (stepRand_op (s := ⟨_, _⟩) hp.head ho) N
+  · intro _ _ _ hfit _ hp N
+    refine (expectedStepsWithin_running_le w p N _).trans_eq ?_
+    rw [stepRand_rand_of_fits hp.head hfit, ProbComp.expect_bind]
     simp only [ProbComp.expect_pure]
-    simp only [Code.size, Cslib.Probability.PMF.tsum_map_mul, ProbComp.expect, le_rfl]
-  · intro c₁ c₂ x μ₁ μ₂ T₁ T₂ ih₁ ih₂ pc hp N
-    have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
-      simpa [Code.length_assemble] using hp.append_right
-    refine (ih₁ hp.append_left N).trans ?_
-    calc
-      T₁ + ∑' y, μ₁ y * expectedStepsWithin w p N (.running ⟨pc + c₁.size, y⟩)
-        ≤ T₁ + ∑' y, μ₁ y * (T₂ y +
-            ∑' z, (μ₂ y) z *
-              expectedStepsWithin w p N (.running ⟨pc + c₁.size + c₂.size, z⟩)) :=
-          add_le_add le_rfl
-            (Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y hy => ih₂ y hy hc₂ N)
-      _ = (T₁ + ∑' y, μ₁ y * T₂ y) +
-            ∑' y, μ₁ y * ∑' z, (μ₂ y) z *
-              expectedStepsWithin w p N (.running ⟨pc + c₁.size + c₂.size, z⟩) := by
-          simp_rw [mul_add, tsum_add, add_assoc]
-      _ = (T₁ + ∑' y, μ₁ y * T₂ y) +
-            ∑' z, (μ₁.bind μ₂) z *
-              expectedStepsWithin w p N (.running ⟨pc + (c₁.seq c₂).size, z⟩) := by
-          congr 1
-          simp only [Code.size, Nat.add_assoc]
-          exact (Cslib.Probability.PMF.tsum_bind_mul μ₁ μ₂ _).symm
-  · intro cond pos neg x μ T hc ih pc hp N
-    refine (expectedStepsWithin_le_of_step (stepRand_branch_pos hp hc) N).trans ?_
-    refine (add_le_add le_rfl (ih (contains_branch_pos hp) N)).trans (le_of_eq ?_)
-    simp only [Code.size,
-      show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) by omega]
-    ac_rfl
-  · intro cond pos neg x μ T hc ih pc hp N
-    refine (expectedStepsWithin_le_of_step (stepRand_branch_neg hp hc) N).trans ?_
-    refine (add_le_add le_rfl (ih hp.cons_tail.append_left N)).trans ?_
-    calc
-      1 + (T + ∑' y, μ y * expectedStepsWithin w p N (.running ⟨pc + 1 + neg.size, y⟩))
-        ≤ 1 + (T + (1 + ∑' y, μ y *
-            expectedStepsWithin w p N (.running ⟨pc + (Code.branch cond pos neg).size, y⟩))) :=
-          add_le_add le_rfl (add_le_add le_rfl
-            (tsum_expectedStepsWithin_le_of_step w (stepRand_branch_neg_jump hp) μ N))
-      _ = (T + (1 + 1)) + ∑' y, μ y *
-            expectedStepsWithin w p N (.running ⟨pc + (Code.branch cond pos neg).size, y⟩) := by
-          ac_rfl
-      _ = (T + 2) + ∑' y, μ y *
-            expectedStepsWithin w p N (.running ⟨pc + (Code.branch cond pos neg).size, y⟩) := by
-          rw [one_add_one_eq_two]
-  · intro cond body x hc pc hp N
-    classical
-    simpa [PMF.pure_apply] using expectedStepsWithin_loop_exit hp hc N
-  · intro cond body x μb μl Tb Tl hc ihb ihl pc hp N
-    have hjump := (tsum_expectedStepsWithin_le_of_step w (stepRand_loop_back hp) μb N).trans
-      (add_le_add le_rfl (Cslib.Probability.PMF.tsum_mul_mono_support μb fun y hy => ihl y hy hp N))
-    calc
-      expectedStepsWithin w p N (.running ⟨pc, x⟩)
-        ≤ 1 + (Tb + (1 + ∑' y, μb y * (Tl y +
-            ∑' z, (μl y) z *
-              expectedStepsWithin w p N (.running ⟨pc + (Code.loop cond body).size, z⟩)))) :=
-          (expectedStepsWithin_le_of_step (stepRand_loop_holds hp hc) N).trans
-            (add_le_add le_rfl ((ihb (contains_loop_body hp) N).trans (add_le_add le_rfl hjump)))
-      _ = (Tb + (1 + 1) + ∑' y, μb y * Tl y) +
-            ∑' y, μb y * ∑' z, (μl y) z *
-              expectedStepsWithin w p N (.running ⟨pc + (Code.loop cond body).size, z⟩) := by
-          simp_rw [mul_add, tsum_add]
-          ac_rfl
-      _ = (Tb + 2 + ∑' y, μb y * Tl y) +
-            ∑' z, (μb.bind μl) z *
-              expectedStepsWithin w p N (.running ⟨pc + (Code.loop cond body).size, z⟩) := by
-          rw [one_add_one_eq_two, Cslib.Probability.PMF.tsum_bind_mul]
-  · intro cond body I Q μ_body T_body B_body p_exit x
-      hp_pos hp_top ih_body hB hinv hp_exit hx_inv pc hp N
-    set K_cont : Data r → ℝ≥0∞ := fun y =>
-      expectedStepsWithin w p N (.running ⟨pc + (Code.loop cond body).size, y⟩)
-    set M := (B_body + 2) / p_exit
-    have hmain : ∀ n ≤ N, ∀ z : Data r, LoopStateInv cond I Q z →
-        expectedStepsWithin w p n (.running ⟨pc, z⟩) ≤
-          (if cond.Holds z then M else 0) + 2 +
-            ∑' y, loopExitPMF cond μ_body z y * K_cont y := by
-      intro n
-      induction n with
-      | zero => simp
-      | succ n ihn =>
-        intro hn z hz_inv
-        rcases hz_inv with ⟨hcz, hIz⟩ | ⟨hcz, _⟩
-        · simp only [hcz, ↓reduceIte]
-          rw [expectedStepsWithin_running_succ, stepRand_loop_holds hp hcz, ProbComp.expect_pure]
-          have hbody_step := (ih_body z hIz hcz (contains_loop_body hp) n).trans
-            (add_le_add (hB z hIz hcz) le_rfl)
-          have hback_step := tsum_expectedStepsWithin_le_of_step w (stepRand_loop_back hp)
-            (μ_body z) n
-          have hih_step :
-              (∑' u, μ_body z u * expectedStepsWithin w p n (.running ⟨pc, u⟩)) ≤
-                (∑' u, μ_body z u * (if cond.Holds u then M else 0)) + 2 +
-                  ∑' y, loopExitPMF cond μ_body z y * K_cont y := by
-            calc
-              (∑' u, μ_body z u * expectedStepsWithin w p n (.running ⟨pc, u⟩))
-                ≤ ∑' u, μ_body z u * ((if cond.Holds u then M else 0) + 2 +
-                    ∑' y, loopExitPMF cond μ_body u y * K_cont y) :=
-                  Cslib.Probability.PMF.tsum_mul_mono_support (μ_body z) fun u hu =>
-                    ihn (Nat.le_of_succ_le hn) u (hinv z hIz hcz u hu)
-              _ = (∑' u, μ_body z u * (if cond.Holds u then M else 0)) + 2 +
-                    ∑' u, μ_body z u * ∑' y, loopExitPMF cond μ_body u y * K_cont y := by
-                  simp_rw [mul_add, tsum_add, ENNReal.tsum_mul_right, (μ_body z).tsum_coe,
-                    one_mul]
-              _ = (∑' u, μ_body z u * (if cond.Holds u then M else 0)) + 2 +
-                    ∑' y, loopExitPMF cond μ_body z y * K_cont y := by
-                  rw [loopExitPMF_of_holds hp_pos hp_top hinv hp_exit hIz hcz,
-                    Cslib.Probability.PMF.tsum_bind_mul]
-          have hdrift := pmf_step_drift_bound (μ_body z) cond (C := B_body + 2)
-            hp_pos hp_top (hp_exit z hIz hcz)
-          calc
-            1 + expectedStepsWithin w p n (.running ⟨pc + 2, z⟩)
-              ≤ 1 + (B_body + (1 + ∑' u, μ_body z u *
-                  expectedStepsWithin w p n (.running ⟨pc, u⟩))) :=
-                add_le_add le_rfl (hbody_step.trans (add_le_add le_rfl hback_step))
-            _ = (B_body + (1 + 1)) + ∑' u, μ_body z u *
-                  expectedStepsWithin w p n (.running ⟨pc, u⟩) := by ac_rfl
-            _ = (B_body + 2) + ∑' u, μ_body z u *
-                  expectedStepsWithin w p n (.running ⟨pc, u⟩) := by rw [one_add_one_eq_two]
-            _ ≤ (B_body + 2) + ((∑' u, μ_body z u * (if cond.Holds u then M else 0)) + 2 +
-                  ∑' y, loopExitPMF cond μ_body z y * K_cont y) :=
-                add_le_add le_rfl hih_step
-            _ = ((B_body + 2) + ∑' u, μ_body z u * (if cond.Holds u then M else 0)) + 2 +
-                  ∑' y, loopExitPMF cond μ_body z y * K_cont y := by ac_rfl
-            _ ≤ M + 2 + ∑' y, loopExitPMF cond μ_body z y * K_cont y :=
-                add_le_add (add_le_add hdrift le_rfl) le_rfl
-        · classical
-          simp only [hcz, ↓reduceIte, zero_add, loopExitPMF_of_not_holds hcz, PMF.pure_apply,
-            ite_mul, one_mul, zero_mul, tsum_ite_eq]
-          exact (expectedStepsWithin_loop_exit hp hcz (n + 1)).trans
-            (add_le_add le_rfl (expectedStepsWithin_mono w p _ hn))
-    refine (hmain N le_rfl x hx_inv).trans ?_
-    refine add_le_add (add_le_add ?_ le_rfl) le_rfl
-    split_ifs <;> simp
+    simp only [Code.size, Cslib.Probability.PMF.tsum_map_mul, ProbComp.expect]
+  · intro c₁ c₂ _ μ₁ μ₂ _ _ ih₁ ih₂ pc hp N
+    refine (ih₁ hp.append_left N).trans <| (add_le_add le_rfl ?_).trans_eq (add_assoc _ _ _).symm
+    refine (Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y hy =>
+      ih₂ y hy (contains_seq_right hp) N).trans_eq ?_
+    simp_rw [mul_add, tsum_add]
+    congr 1; simp only [Code.size, Nat.add_assoc]
+    exact (Cslib.Probability.PMF.tsum_bind_mul μ₁ μ₂ _).symm
+  · intro _ pos neg _ _ _ hc ih pc hp N
+    have hpc : pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) := by omega
+    refine ((expectedStepsWithin_le_of_step (stepRand_branch_pos hp hc) N).trans
+      (add_le_add le_rfl (ih (contains_branch_pos hp) N))).trans_eq ?_
+    simp only [Code.size, hpc]; ac_rfl
+  · intro _ _ _ _ μ _ hc ih _ hp N
+    exact ((expectedStepsWithin_le_of_step (stepRand_branch_neg hp hc) N).trans
+      (add_le_add le_rfl ((ih hp.cons_tail.append_left N).trans (add_le_add le_rfl
+        (tsum_expectedStepsWithin_le_of_step w (stepRand_branch_neg_jump hp) μ N))))).trans_eq <|
+      by rw [← one_add_one_eq_two]; ac_rfl
+  · intro _ _ _ hc _ hp N
+    classical simpa [PMF.pure_apply] using expectedStepsWithin_loop_exit hp hc N
+  · intro _ _ _ μb μl _ _ hc ihb ihl _ hp N
+    refine ((expectedStepsWithin_le_of_step (stepRand_loop_holds hp hc) N).trans
+      (add_le_add le_rfl ((ihb (contains_loop_body hp) N).trans (add_le_add le_rfl <|
+        (tsum_expectedStepsWithin_le_of_step w (stepRand_loop_back hp) μb N).trans
+          (add_le_add le_rfl (Cslib.Probability.PMF.tsum_mul_mono_support μb fun y hy =>
+            ihl y hy hp N)))))).trans_eq ?_
+    simp_rw [mul_add, tsum_add, Cslib.Probability.PMF.tsum_bind_mul]
+    rw [← one_add_one_eq_two]; ac_rfl
+  · intro _ _ _ _ _ _ _ _ _ hp_pos hp_top ih_body hB hinv hp_exit hx_inv _ hp N
+    exact expectedStepsWithin_loop_geometric hp hp_pos hp_top hB hinv hp_exit
+      (fun z hIz hcz n => ih_body z hIz hcz (contains_loop_body hp) n) hx_inv
 
 /-- Full-horizon Bellman inequality for `ExecCodeDist` inside any containing flat program `p`. -/
 theorem expectedStepsFrom_assemble (h : ExecCodeDist w c x μ T) {p : Program B r} {pc : ℕ}
@@ -1782,6 +1501,41 @@ private theorem evalRand_faulted_loop_exit {p : Program B r} {pc T_hor : ℕ}
     (evalRand_faulted_eq_zero_of_step (stepRand_loop_exit_jump hp z)
       fun t ht => hcont t (by omega))
 
+private theorem evalRand_faulted_loop_geometric {I Q : Data r → Prop}
+    {μ_body : Data r → PMF (Data r)} {p_exit : ℝ≥0∞} {p : Program B r} {pc T_hor : ℕ}
+    (hp : p.Contains pc ((Code.loop cond body).assemble pc))
+    (hp_pos : 0 < p_exit) (hp_top : p_exit ≠ ⊤)
+    (hinv : ∀ z, I z → cond.Holds z → ∀ y ∈ (μ_body z).support, LoopStateInv cond I Q y)
+    (hp_exit : ∀ z, I z → cond.Holds z → p_exit ≤ (μ_body z).toOuterMeasure {y | ¬cond.Holds y})
+    (ih_body : ∀ z, I z → cond.Holds z → ∀ k,
+      (∀ u ∈ (μ_body z).support, ∀ t ≤ k, evalRand w p t ⟨pc + 2 + body.size, u⟩ .faulted = 0) →
+      ∀ t ≤ k, evalRand w p t ⟨pc + 2, z⟩ .faulted = 0)
+    (hx_inv : LoopStateInv cond I Q x)
+    (hcont : ∀ y ∈ (loopExitPMF cond μ_body x).support, ∀ t ≤ T_hor,
+      evalRand w p t ⟨pc + (Code.loop cond body).size, y⟩ .faulted = 0) :
+    ∀ t ≤ T_hor, evalRand w p t ⟨pc, x⟩ .faulted = 0 := by
+  have hmain : ∀ n ≤ T_hor, ∀ z, LoopStateInv cond I Q z →
+      (∀ y ∈ (loopExitPMF cond μ_body z).support, ∀ t ≤ T_hor,
+        evalRand w p t ⟨pc + (Code.loop cond body).size, y⟩ .faulted = 0) →
+      evalRand w p n ⟨pc, z⟩ .faulted = 0 := by
+    intro n; induction n using Nat.strong_induction_on with
+    | _ n ihn =>
+      intro hn z hz_inv hcont_z
+      rcases hz_inv with ⟨hcz, hIz⟩ | ⟨hcz, _⟩
+      · cases n with
+        | zero => simp [evalRand]
+        | succ k =>
+          rw [evalRand, runRand_succ, stepRand_loop_holds hp hcz, pure_bind]
+          refine ih_body z hIz hcz k (fun u hu =>
+            evalRand_faulted_eq_zero_of_step (stepRand_loop_back hp u) fun k' hk' =>
+              ihn k' (by omega) (by omega) u (hinv z hIz hcz u hu) fun y hy t'' ht'' =>
+                hcont_z y ?_ t'' ht'') k le_rfl
+          rw [loopExitPMF_of_holds hp_pos hp_top hinv hp_exit hIz hcz, PMF.mem_support_bind_iff]
+          exact ⟨u, hu, hy⟩
+      · exact evalRand_faulted_loop_exit hp hcz
+          (hcont_z z (by simp [loopExitPMF_of_not_holds hcz])) n hn
+  exact fun t ht => hmain t ht x hx_inv hcont
+
 /-- Along `ExecCodeDist w c x μ T`, if no continuation from `⟨pc + c.size, y⟩` faults within
 `T_hor` steps for any supported `y ∈ μ.support`, then running `p` from `⟨pc, x⟩` does not fault
 within `T_hor` steps. -/
@@ -1795,13 +1549,11 @@ theorem evalRand_faulted_eq_zero (h : ExecCodeDist w c x μ T) {p : Program B r}
       (∀ y ∈ μ.support, ∀ t ≤ T_hor, evalRand w p t ⟨pc + c.size, y⟩ .faulted = 0) →
       ∀ t ≤ T_hor, evalRand w p t ⟨pc, x⟩ .faulted = 0)
     ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
-  · intro c x μ μ' _ _ ih hμ _ pc T_hor hp hcont
-    subst hμ
-    exact ih hp hcont
-  · intro o x y ho pc T_hor hp hcont
-    refine evalRand_faulted_eq_zero_of_step (stepRand_op (s := ⟨pc, x⟩) hp.head ho) fun t ht => ?_
-    simpa [Code.size] using hcont y (by simp) t (by omega)
-  · intro dst src x hfit pc T_hor hp hcont t ht
+  · intro _ _ _ _ _ _ ih hμ _ _ _ hp hcont; subst hμ; exact ih hp hcont
+  · intro _ _ y ho _ _ hp hcont
+    exact evalRand_faulted_eq_zero_of_step (stepRand_op (s := ⟨_, _⟩) hp.head ho) fun t ht =>
+      by simpa [Code.size] using hcont y (by simp) t (by omega)
+  · intro dst src x hfit pc _ hp hcont t ht
     cases t with
     | zero => simp [evalRand]
     | succ k =>
@@ -1810,63 +1562,36 @@ theorem evalRand_faulted_eq_zero (h : ExecCodeDist w c x μ T) {p : Program B r}
       rw [ProbComp.eval_bind, PMF.bind_apply, tsum_eq_zero_iff]
       intro j
       by_cases hj : j ∈ (ProbComp.unifFin (x.regs src)).eval.support
-      · have hmem : x.set dst j.val ∈
-            ((ProbComp.unifFin (x.regs src)).eval.map fun k => x.set dst k.val).support :=
-          (PMF.mem_support_map_iff _ _ _).mpr ⟨j, hj, rfl⟩
-        have hzero : (runRand w p k (.running ⟨pc + 1, x.set dst j.val⟩)).eval .faulted = 0 := by
-          simpa [evalRand, Code.size] using hcont _ hmem k (by omega)
+      · have hzero : (runRand w p k (.running ⟨pc + 1, x.set dst j.val⟩)).eval .faulted = 0 := by
+          simpa [evalRand, Code.size] using
+            hcont _ ((PMF.mem_support_map_iff _ _ _).mpr ⟨j, hj, rfl⟩) k (by omega)
         rw [hzero, mul_zero]
       · rw [(PMF.apply_eq_zero_iff _ _).mpr hj, zero_mul]
-  · intro c₁ c₂ x μ₁ μ₂ _ _ ih₁ ih₂ pc T_hor hp hcont
-    have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
-      simpa [Code.length_assemble] using hp.append_right
-    refine ih₁ hp.append_left fun y₁ hy₁ => ih₂ y₁ hy₁ hc₂ fun y₂ hy₂ t ht => ?_
-    have hmem : y₂ ∈ (μ₁.bind μ₂).support :=
-      (PMF.mem_support_bind_iff _ _ _).mpr ⟨y₁, hy₁, hy₂⟩
-    simpa [Code.size, Nat.add_assoc] using hcont y₂ hmem t ht
-  · intro cond pos neg x μ _ hc ih pc T_hor hp hcont
-    refine evalRand_faulted_eq_zero_of_step (stepRand_branch_pos hp hc)
-      (ih (contains_branch_pos hp) fun y hy t ht => ?_)
-    simpa [Code.size, show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) by omega]
-      using hcont y hy t (by omega)
-  · intro cond pos neg x μ _ hc ih pc T_hor hp hcont
-    refine evalRand_faulted_eq_zero_of_step (stepRand_branch_neg hp hc)
+  · intro _ _ _ _ _ _ _ ih₁ ih₂ _ _ hp hcont
+    refine ih₁ hp.append_left fun y₁ hy₁ =>
+      ih₂ y₁ hy₁ (contains_seq_right hp) fun y₂ hy₂ t ht => ?_
+    simpa [Code.size, Nat.add_assoc] using
+      hcont y₂ ((PMF.mem_support_bind_iff _ _ _).mpr ⟨y₁, hy₁, hy₂⟩) t ht
+  · intro _ pos neg _ _ _ hc ih pc _ hp hcont
+    have hpc : pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) := by omega
+    exact evalRand_faulted_eq_zero_of_step (stepRand_branch_pos hp hc)
+      (ih (contains_branch_pos hp) fun y hy t ht => by
+        simpa [Code.size, hpc] using hcont y hy t (by omega))
+  · intro _ _ _ _ _ _ hc ih _ _ hp hcont
+    exact evalRand_faulted_eq_zero_of_step (stepRand_branch_neg hp hc)
       (ih hp.cons_tail.append_left fun y hy =>
         evalRand_faulted_eq_zero_of_step (stepRand_branch_neg_jump hp y)
           fun t ht => hcont y hy t (by omega))
-  · intro cond body x hc pc T_hor hp hcont
-    exact evalRand_faulted_loop_exit hp hc (hcont x (by simp))
-  · intro cond body x μb μl _ _ hc ihb ihl pc T_hor hp hcont
-    refine evalRand_faulted_eq_zero_of_step (stepRand_loop_holds hp hc)
+  · intro _ _ x hc _ _ hp hcont; exact evalRand_faulted_loop_exit hp hc (hcont x (by simp))
+  · intro _ _ _ _ _ _ _ hc ihb ihl _ _ hp hcont
+    exact evalRand_faulted_eq_zero_of_step (stepRand_loop_holds hp hc)
       (ihb (contains_loop_body hp) fun y hy =>
         evalRand_faulted_eq_zero_of_step (stepRand_loop_back hp y)
           (ihl y hy hp fun z hz t ht =>
             hcont z ((PMF.mem_support_bind_iff _ _ _).mpr ⟨y, hy, hz⟩) t (by omega)))
-  · intro cond body I Q μ_body T_body B_body p_exit x
-      hp_pos hp_top ih_body _ hinv hp_exit hx_inv pc T_hor hp hcont
-    have hmain : ∀ n ≤ T_hor, ∀ z : Data r, LoopStateInv cond I Q z →
-        (∀ y ∈ (loopExitPMF cond μ_body z).support, ∀ t ≤ T_hor,
-          evalRand w p t ⟨pc + (Code.loop cond body).size, y⟩ .faulted = 0) →
-        evalRand w p n ⟨pc, z⟩ .faulted = 0 := by
-      intro n
-      induction n using Nat.strong_induction_on with
-      | _ n ihn =>
-        intro hn z hz_inv hcont_z
-        rcases hz_inv with ⟨hcz, hIz⟩ | ⟨hcz, _⟩
-        · cases n with
-          | zero => simp [evalRand]
-          | succ k =>
-            rw [evalRand, runRand_succ, stepRand_loop_holds hp hcz, pure_bind]
-            refine ih_body z hIz hcz (contains_loop_body hp) (T_hor := k) (fun u hu => ?_) k le_rfl
-            refine evalRand_faulted_eq_zero_of_step (stepRand_loop_back hp u) fun k' hk' => ?_
-            refine ihn k' (by omega) (by omega) u (hinv z hIz hcz u hu) fun y hy t'' ht'' => ?_
-            apply hcont_z y _ t'' ht''
-            rw [loopExitPMF_of_holds hp_pos hp_top hinv hp_exit hIz hcz, PMF.mem_support_bind_iff]
-            exact ⟨u, hu, hy⟩
-        · exact evalRand_faulted_loop_exit hp hcz
-            (hcont_z z (by simp [loopExitPMF_of_not_holds hcz])) n hn
-    intro t ht
-    exact hmain t ht x hx_inv hcont
+  · intro _ _ _ _ _ _ _ _ _ hp_pos hp_top ih_body _ hinv hp_exit hx_inv _ _ hp hcont
+    exact evalRand_faulted_loop_geometric hp hp_pos hp_top hinv hp_exit
+      (fun z hIz hcz _ => ih_body z hIz hcz (contains_loop_body hp)) hx_inv hcont
 
 /-- If every continuation from `⟨pc + c.size, y⟩` (`y ∈ μ.support`) is fault-free at all horizons,
 then running `p` from `⟨pc, x⟩` is fault-free at all horizons. -/
@@ -1899,6 +1624,49 @@ private theorem iSup_evalRand_halted_loop_step {p : Program B r} {pc : ℕ}
     mul_le_mul_right (iSup_evalRand_halted_le_of_step (stepRand_loop_back hp u) v d) _).trans
     (ihb.trans (iSup_evalRand_halted_le_of_step (stepRand_loop_holds hp hcz) v d))
 
+private theorem le_iSup_evalRand_halted_loop_geometric {I Q : Data r → Prop}
+    {μ_body : Data r → PMF (Data r)} {p_exit : ℝ≥0∞} {p : Program B r} {pc v : ℕ} {d : Data r}
+    (hp : p.Contains pc ((Code.loop cond body).assemble pc))
+    (hp_pos : 0 < p_exit) (hp_top : p_exit ≠ ⊤)
+    (hinv : ∀ z, I z → cond.Holds z → ∀ y ∈ (μ_body z).support, LoopStateInv cond I Q y)
+    (hp_exit : ∀ z, I z → cond.Holds z → p_exit ≤ (μ_body z).toOuterMeasure {y | ¬cond.Holds y})
+    (ih_body : ∀ z, I z → cond.Holds z →
+      (∑' u, μ_body z u * ⨆ T_hor : ℕ,
+        evalRand w p T_hor ⟨pc + 2 + body.size, u⟩ (.halted v d)) ≤
+      ⨆ T_hor : ℕ, evalRand w p T_hor ⟨pc + 2, z⟩ (.halted v d))
+    (hx_inv : LoopStateInv cond I Q x) :
+    (∑' y, loopExitPMF cond μ_body x y *
+      ⨆ T_hor : ℕ, evalRand w p T_hor ⟨pc + (Code.loop cond body).size, y⟩ (.halted v d)) ≤
+      ⨆ T_hor : ℕ, evalRand w p T_hor ⟨pc, x⟩ (.halted v d) := by
+  set H_loop : Data r → ℝ≥0∞ := fun z => ⨆ T_hor : ℕ, evalRand w p T_hor ⟨pc, z⟩ (.halted v d)
+  set H_exit : Data r → ℝ≥0∞ := fun z =>
+    ⨆ T_hor : ℕ, evalRand w p T_hor ⟨pc + (Code.loop cond body).size, z⟩ (.halted v d)
+  have hiter_le : ∀ K z, LoopStateInv cond I Q z →
+      (∑' y, loopIterPMF cond μ_body K z y * H_loop y) ≤ H_loop z := by
+    intro K; induction K with
+    | zero => intro _ _; simp
+    | succ K ihK =>
+      intro z hz_inv
+      rcases hz_inv with ⟨hcz, hIz⟩ | ⟨hcz, _⟩
+      · rw [loopIterPMF_succ, loopStepPMF_of_holds hcz, Cslib.Probability.PMF.tsum_bind_mul]
+        exact (Cslib.Probability.PMF.tsum_mul_mono_support (μ_body z) fun u hu =>
+          ihK u (hinv z hIz hcz u hu)).trans
+          (iSup_evalRand_halted_loop_step hp hcz v d (ih_body z hIz hcz))
+      · simp [loopIterPMF_of_not_holds hcz]
+  have hrewrite : (∑' y, loopExitPMF cond μ_body x y * H_exit y) =
+      ⨆ K : ℕ, ∑' y,
+        Set.indicator {w' | ¬cond.Holds w'} (loopIterPMF cond μ_body K x) y * H_exit y := by
+    simp_rw [loopExitPMF_apply_of_hasSum
+      (hasSum_loopExitDensity hp_pos hp_top hinv hp_exit hx_inv), ENNReal.iSup_mul]
+    exact ENNReal.tsum_iSup_of_monotone fun y _ _ hK =>
+      mul_le_mul_left (loopIterPMF_indicator_mono cond μ_body x y hK) (H_exit y)
+  rw [hrewrite]
+  refine iSup_le fun K => (tsum_le_tsum fun y => ?_).trans (hiter_le K x hx_inv)
+  by_cases hcy : ¬cond.Holds y
+  · rw [Set.indicator_of_mem hcy]
+    exact mul_le_mul_right (iSup_evalRand_halted_loop_exit hp hcy v d) _
+  · simp [Set.indicator_of_notMem, hcy]
+
 /-- Along `ExecCodeDist w c x μ T`, the `μ`-weighted supremum halting probability from
 `⟨pc + c.size, y⟩` is a lower bound on the supremum halting probability from `⟨pc, x⟩`. -/
 theorem le_iSup_evalRand_halted (h : ExecCodeDist w c x μ T) {p : Program B r} {pc : ℕ}
@@ -1911,83 +1679,44 @@ theorem le_iSup_evalRand_halted (h : ExecCodeDist w c x μ T) {p : Program B r} 
       (∑' y, μ y * ⨆ T_hor : ℕ, evalRand w p T_hor ⟨pc + c.size, y⟩ (.halted v d)) ≤
         ⨆ T_hor : ℕ, evalRand w p T_hor ⟨pc, x⟩ (.halted v d))
     ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
-  · intro c x μ μ' _ _ ih hμ _ pc hp
-    subst hμ
-    exact ih hp
-  · intro o x y ho pc hp
-    classical
-    simpa [Code.size, PMF.pure_apply] using
-      iSup_evalRand_halted_le_of_step (stepRand_op (s := ⟨pc, x⟩) hp.head ho) v d
+  · intro _ _ _ _ _ _ ih hμ _ _ hp; exact hμ ▸ ih hp
+  · intro _ _ _ ho _ hp
+    classical simpa [Code.size, PMF.pure_apply] using
+      iSup_evalRand_halted_le_of_step (stepRand_op (s := ⟨_, _⟩) hp.head ho) v d
   · intro dst src x hfit pc hp
     rw [Cslib.Probability.PMF.tsum_map_mul]
     simp_rw [ENNReal.mul_iSup]
     rw [ENNReal.tsum_iSup_of_monotone
       (f := fun T_hor k => (ProbComp.unifFin (x.regs src)).eval k *
         evalRand w p T_hor ⟨pc + (Code.rand dst src).size, x.set dst k.val⟩ (.halted v d))
-      fun k _ _ hT => mul_le_mul_right (evalRand_halted_mono w p _ v d hT) _]
+      fun _ _ _ hT => mul_le_mul_right (evalRand_halted_mono w p _ v d hT) _]
     refine iSup_le fun T_hor => le_iSup_of_le (T_hor + 1) ?_
     rw [evalRand, runRand_succ, stepRand_rand_of_fits (s := ⟨pc, x⟩) hp.head hfit, bind_assoc]
     simp only [pure_bind, ProbComp.eval_bind, PMF.bind_apply, evalRand, Code.size, le_rfl]
-  · intro c₁ c₂ x μ₁ μ₂ _ _ ih₁ ih₂ pc hp
-    have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
-      simpa [Code.length_assemble] using hp.append_right
+  · intro _ _ _ μ₁ μ₂ _ _ ih₁ ih₂ _ hp
     rw [Cslib.Probability.PMF.tsum_bind_mul]
     simp_rw [Code.size, ← Nat.add_assoc]
-    exact (Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y₁ hy₁ => ih₂ y₁ hy₁ hc₂).trans
-      (ih₁ hp.append_left)
-  · intro cond pos neg x μ _ hc ih pc hp
-    refine (le_of_eq ?_).trans
-      ((ih (contains_branch_pos hp)).trans
-        (iSup_evalRand_halted_le_of_step (stepRand_branch_pos hp hc) v d))
-    refine tsum_congr fun y => ?_
-    simp [Code.size, show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) by omega]
-  · intro cond pos neg x μ _ hc ih pc hp
-    refine (tsum_le_tsum fun y => mul_le_mul_right
-      (iSup_evalRand_halted_le_of_step (stepRand_branch_neg_jump hp y) v d) _).trans ?_
-    exact (ih hp.cons_tail.append_left).trans
-      (iSup_evalRand_halted_le_of_step (stepRand_branch_neg hp hc) v d)
-  · intro cond body x hc pc hp
-    classical
-    simpa [PMF.pure_apply] using iSup_evalRand_halted_loop_exit hp hc v d
-  · intro cond body x μb μl _ _ hc ihb ihl pc hp
+    exact (Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y₁ hy₁ =>
+      ih₂ y₁ hy₁ (contains_seq_right hp)).trans (ih₁ hp.append_left)
+  · intro cond pos neg _ _ _ hc ih pc hp
+    rw [show pc + (Code.branch cond pos neg).size = pc + neg.size + 2 + pos.size by
+      simp only [Code.size]; omega]
+    exact (ih (contains_branch_pos hp)).trans
+      (iSup_evalRand_halted_le_of_step (stepRand_branch_pos hp hc) v d)
+  · intro _ _ _ _ _ _ hc ih _ hp
+    exact (tsum_le_tsum fun y => mul_le_mul_right
+      (iSup_evalRand_halted_le_of_step (stepRand_branch_neg_jump hp y) v d) _).trans
+      ((ih hp.cons_tail.append_left).trans
+        (iSup_evalRand_halted_le_of_step (stepRand_branch_neg hp hc) v d))
+  · intro _ _ _ hc _ hp
+    classical simpa [PMF.pure_apply] using iSup_evalRand_halted_loop_exit hp hc v d
+  · intro _ _ _ μb _ _ _ hc ihb ihl _ hp
     rw [Cslib.Probability.PMF.tsum_bind_mul]
     exact (Cslib.Probability.PMF.tsum_mul_mono_support μb fun y hy => ihl y hy hp).trans
       (iSup_evalRand_halted_loop_step hp hc v d (ihb (contains_loop_body hp)))
-  · intro cond body I Q μ_body T_body B_body p_exit x
-      hp_pos hp_top ih_body _ hinv hp_exit hx_inv pc hp
-    set H_loop : Data r → ℝ≥0∞ := fun z => ⨆ T_hor : ℕ, evalRand w p T_hor ⟨pc, z⟩ (.halted v d)
-    set H_exit : Data r → ℝ≥0∞ := fun z =>
-      ⨆ T_hor : ℕ, evalRand w p T_hor ⟨pc + (Code.loop cond body).size, z⟩ (.halted v d)
-    have hiter_le : ∀ K : ℕ, ∀ z : Data r, LoopStateInv cond I Q z →
-        (∑' y, loopIterPMF cond μ_body K z y * H_loop y) ≤ H_loop z := by
-      intro K
-      induction K with
-      | zero =>
-        intro z _
-        simp
-      | succ K ihK =>
-        intro z hz_inv
-        rcases hz_inv with ⟨hcz, hIz⟩ | ⟨hcz, _⟩
-        · rw [loopIterPMF_succ, loopStepPMF_of_holds hcz, Cslib.Probability.PMF.tsum_bind_mul]
-          exact (Cslib.Probability.PMF.tsum_mul_mono_support (μ_body z) fun u hu =>
-            ihK u (hinv z hIz hcz u hu)).trans
-            (iSup_evalRand_halted_loop_step hp hcz v d
-              (ih_body z hIz hcz (contains_loop_body hp)))
-        · simp [loopIterPMF_of_not_holds hcz]
-    have hrewrite_sum :
-        (∑' y, loopExitPMF cond μ_body x y * H_exit y) =
-          ⨆ K : ℕ, ∑' y,
-            Set.indicator {w' | ¬cond.Holds w'} (loopIterPMF cond μ_body K x) y * H_exit y := by
-      simp_rw [loopExitPMF_apply_of_hasSum
-        (hasSum_loopExitDensity hp_pos hp_top hinv hp_exit hx_inv), ENNReal.iSup_mul]
-      exact ENNReal.tsum_iSup_of_monotone fun y K₁ K₂ hK =>
-        mul_le_mul_left (loopIterPMF_indicator_mono cond μ_body x y hK) (H_exit y)
-    rw [hrewrite_sum]
-    refine iSup_le fun K => (tsum_le_tsum fun y => ?_).trans (hiter_le K x hx_inv)
-    by_cases hcy : ¬cond.Holds y
-    · rw [Set.indicator_of_mem hcy]
-      exact mul_le_mul_right (iSup_evalRand_halted_loop_exit hp hcy v d) _
-    · simp [Set.indicator_of_notMem, hcy]
+  · intro _ _ _ _ _ _ _ _ _ hp_pos hp_top ih_body _ hinv hp_exit hx_inv _ hp
+    exact le_iSup_evalRand_halted_loop_geometric hp hp_pos hp_top hinv hp_exit
+      (fun z hIz hcz => ih_body z hIz hcz (contains_loop_body hp)) hx_inv
 
 /-- Compiling `ExecCodeDist w c x μ T` with `c.program out` yields:
 1. `expectedTime w (c.program out) ⟨0, x⟩ ≤ T + 1`,
@@ -2003,38 +1732,33 @@ theorem program_halts (h : ExecCodeDist w c x μ T) (out : Fin r) :
       μ y ≤ ⨆ T_hor : ℕ, evalRand w (c.program out) T_hor ⟨0, x⟩ (.halted (y.regs out) y) := by
   have hp : (c.program out).Contains 0 (c.assemble 0) :=
     (Program.Contains.self (c.program out)).append_left
-  have hhalt : (c.program out)[0 + c.size]? = some (.halt out) := by
-    simp [Code.program]
-  have hexp : expectedTime w (c.program out) ⟨0, x⟩ ≤ T + 1 := by
-    rw [expectedTime_eq_expectedStepsFrom]
-    refine (h.expectedStepsFrom_le (k := fun _ => 1) hp fun y _ => ?_).trans ?_
-    · rw [expectedStepsFrom_running, stepRand_halt (s := ⟨0 + c.size, y⟩) hhalt,
-        ProbComp.expect_pure, expectedStepsFrom_halted, add_zero]
-    · simp [μ.tsum_coe]
-  have hff : RandFaultFree w (c.program out) ⟨0, x⟩ := by
-    refine h.randFaultFree_assemble hp fun y _ t => ?_
-    rw [← support_evalRand, ← PMF.apply_eq_zero_iff]
-    cases t with
-    | zero => simp [evalRand]
-    | succ k =>
-      rw [evalRand, runRand_succ, stepRand_halt (s := ⟨0 + c.size, y⟩) hhalt, pure_bind,
-        runRand_halted]
-      simp [PMF.pure_apply]
-  refine ⟨hexp, hff, fun hT => ?_, fun y => ?_⟩
-  · refine AlmostSurelyHalts.of_expectedTime_ne_top hff ?_
-    exact ne_top_of_le_ne_top (ENNReal.add_ne_top.mpr ⟨hT, ENNReal.one_ne_top⟩) hexp
-  · have hle := h.le_iSup_evalRand_halted hp (y.regs out) y
-    refine (le_trans ?_
-      (le_tsum
-        (f := fun z => μ z *
-          ⨆ T_hor : ℕ, evalRand w (c.program out) T_hor ⟨0 + c.size, z⟩
-            (.halted (y.regs out) y)) y)).trans hle
-    have h1 : (1 : ℝ≥0∞) ≤
-        ⨆ T_hor : ℕ, evalRand w (c.program out) T_hor ⟨0 + c.size, y⟩ (.halted (y.regs out) y) := by
-      refine le_iSup_of_le 1 ?_
+  have hhalt : (c.program out)[0 + c.size]? = some (.halt out) := by simp [Code.program]
+  have hexp : expectedTime w (c.program out) ⟨0, x⟩ ≤ T + 1 :=
+    (h.expectedStepsFrom_le (k := fun _ => 1) hp fun y _ => by
+      rw [expectedStepsFrom_running, stepRand_halt (s := ⟨0 + c.size, y⟩) hhalt,
+        ProbComp.expect_pure, expectedStepsFrom_halted, add_zero]).trans_eq (by simp [μ.tsum_coe])
+  have hff : RandFaultFree w (c.program out) ⟨0, x⟩ :=
+    h.randFaultFree_assemble hp fun y _ t => by
+      rw [← support_evalRand, ← PMF.apply_eq_zero_iff]
+      cases t with
+      | zero => simp [evalRand]
+      | succ k =>
+        rw [evalRand, runRand_succ, stepRand_halt (s := ⟨0 + c.size, y⟩) hhalt, pure_bind,
+          runRand_halted]
+        simp [PMF.pure_apply]
+  refine ⟨hexp, hff, fun hT => AlmostSurelyHalts.of_expectedTime_ne_top hff
+      (ne_top_of_le_ne_top (ENNReal.add_ne_top.mpr ⟨hT, ENNReal.one_ne_top⟩) hexp), fun y => ?_⟩
+  have h1 : (1 : ℝ≥0∞) ≤
+      ⨆ T_hor : ℕ, evalRand w (c.program out) T_hor ⟨0 + c.size, y⟩ (.halted (y.regs out) y) :=
+    le_iSup_of_le 1 <| by
       rw [evalRand, runRand_succ, stepRand_halt (s := ⟨0 + c.size, y⟩) hhalt, pure_bind,
         runRand_zero, ProbComp.eval_pure, PMF.pure_apply_self]
+  have hμ : μ y ≤ μ y *
+      ⨆ T_hor : ℕ, evalRand w (c.program out) T_hor ⟨0 + c.size, y⟩ (.halted (y.regs out) y) := by
     simpa using mul_le_mul_right h1 (μ y)
+  exact (hμ.trans (le_tsum (f := fun z => μ z *
+      ⨆ T_hor : ℕ, evalRand w (c.program out) T_hor ⟨0 + c.size, z⟩ (.halted (y.regs out) y))
+    y)).trans (h.le_iSup_evalRand_halted hp (y.regs out) y)
 
 end ExecCodeDist
 

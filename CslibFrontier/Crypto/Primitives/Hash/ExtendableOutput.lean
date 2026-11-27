@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Primitives.ByteString
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak
+public import CslibFrontier.Languages.Probabilistic.Basic
 
 /-!
 # Extendable-output functions on raw bit strings
@@ -22,7 +23,7 @@ public section
 namespace Cslib.Crypto
 
 /-- A bit-input XOF with output lengths in bytes. -/
-structure ExtendableOutput where
+@[ext] structure ExtendableOutput where
   /-- The requested number of bytes at this raw input. -/
   read : List Bool → ℕ → List Byte
   /-- Every request returns the specified number of bytes. -/
@@ -33,6 +34,20 @@ structure ExtendableOutput where
 /-- Byte input uses the FIPS 202 least-significant-bit-first convention. -/
 @[expose] def ExtendableOutput.readBytes (H : ExtendableOutput) (input : List Byte) :=
   H.read (Keccak.bytesToBitsLE input)
+
+/-- A call to an extendable-output stream specifies the raw input and requested byte count. -/
+structure ExtendableOutput.Request where
+  /-- Complete input bits, including any message, seed or counter framing. -/
+  input : List Bool
+  /-- Number of bytes requested from the beginning of this stream. -/
+  count : ℕ
+
+/-- Adaptive requests to a single prefix-consistent XOF on raw bit strings. -/
+abbrev ExtendableOutput.Reads := OracleComp (fun _ : ExtendableOutput.Request => List Byte)
+
+/-- Read every request consistently from one XOF. -/
+@[expose] def ExtendableOutput.Request.answer (H : ExtendableOutput)
+    (q : ExtendableOutput.Request) := H.read q.input q.count
 
 /-- Read an XOF with the first bytes of this stream replaced. Requests shorter than the
 replacement are truncations. Longer requests continue with the original tail. -/

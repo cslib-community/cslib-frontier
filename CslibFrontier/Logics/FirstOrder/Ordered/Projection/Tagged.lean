@@ -184,12 +184,8 @@ abbrev maxFin (n : ℕ) [Fact (2 ≤ n)] : Fin n :=
   ⟨n - 1, NumericFunction.index_lt Fact.out .max⟩
 
 theorem zero_ne_maxFin : (0 : Fin n) ≠ maxFin n := by
-  have h2 : 2 ≤ n := Fact.out
-  intro h
-  have hv := congrArg Fin.val h
-  simp only [Fin.val_zero] at hv
-  change 0 = n - 1 at hv
-  omega
+  have := (Fact.out : 2 ≤ n)
+  exact Fin.ne_of_val_ne (by dsimp [maxFin]; omega)
 
 @[simp]
 theorem realize_varEq (a b : α) (v : α → Fin n) :
@@ -315,14 +311,9 @@ theorem matchBinaryTag_unique {n d m : ℕ} [Fact (2 ≤ n)] {bs₁ bs₂ : Fin 
     {u : Fin (d + m) → Fin n} (h₁ : MatchBinaryTag bs₁ u) (h₂ : MatchBinaryTag bs₂ u) :
     bs₁ = bs₂ := by
   funext i
-  have hi := (h₁ i).symm.trans (h₂ i)
-  cases hb₁ : bs₁ i <;> cases hb₂ : bs₂ i
-  · rfl
-  · rw [hb₁, hb₂] at hi
-    exact False.elim (QFNumeric.zero_ne_maxFin hi)
-  · rw [hb₁, hb₂] at hi
-    exact False.elim (QFNumeric.zero_ne_maxFin hi.symm)
-  · rfl
+  have := (Fact.out : 2 ≤ n)
+  have hi := congrArg Fin.val ((h₁ i).symm.trans (h₂ i))
+  cases hb₁ : bs₁ i <;> cases hb₂ : bs₂ i <;> simp_all [QFNumeric.maxFin] <;> omega
 
 @[simp]
 theorem matchBinaryTag_mkTagged {n d m : ℕ} [Fact (2 ≤ n)] (bs₁ bs₂ : Fin d → Bool)
@@ -375,10 +366,7 @@ theorem realize_hasBinaryTag {n r d : ℕ} [Fact (2 ≤ n)] (m : ℕ) (bs : Fin 
     (x : Fin r × Fin (d + m) → Fin n) :
     (hasBinaryTag m bs a).Realize x ↔ MatchBinaryTag bs (fun j => x (a, j)) := by
   rw [hasBinaryTag, Formula.realize_iInf]
-  refine forall_congr' fun i => ?_
-  cases hbi : bs i
-  · simp
-  · simp
+  exact forall_congr' fun i => by cases bs i <;> simp
 
 /-- Disjoint unary dispatch on the binary `{0, max}` tag of tuple argument `a : Fin r`. -/
 noncomputable def dispatchBinaryTag {L : Language} {T : Type*} {r d m : ℕ}
@@ -447,13 +435,8 @@ def swapPairArg {k : ℕ} : Fin 2 × Fin k → Fin 2 × Fin k
 private theorem pair_comp_swapPairArg {α : Type*} {k : ℕ} (u v : Fin k → α) :
     ((fun p : Fin 2 × Fin k => (![u, v] p.1) p.2) ∘ swapPairArg) =
       fun p : Fin 2 × Fin k => (![v, u] p.1) p.2 := by
-  funext ⟨a, j⟩
-  cases a using Fin.cases with
-  | zero => rfl
-  | succ a' =>
-    have ha : a' = 0 := Subsingleton.elim _ _
-    subst ha
-    rfl
+  funext ⟨a, _⟩
+  fin_cases a <;> rfl
 
 /-- Symmetric loopless binary-relation dispatch over pairs of tags from `tags`, symmetrizing an
 asymmetric upper-triangular edge specification `upper`. -/
@@ -550,13 +533,10 @@ theorem irrefl_symmPairBinaryTag {L : Language} {T : Type*} {n d m : ℕ}
     (u : Fin (d + m) → Fin n) :
     ¬ (symmPairBinaryTag code tags upper).toFormula.Realize
         (fun q : Fin 2 × Fin (d + m) => (![u, u] q.1) q.2) := by
-  rw [realize_symmPairBinaryTag hcode tags hasym u u]
-  rintro (⟨t₁, _, t₂, _, hm₁, hm₂, p, h12, -⟩ | ⟨t₁, _, t₂, _, hm₁, hm₂, p, h12, -⟩) <;>
-  · have heq : t₁ = t₂ := hcode (matchBinaryTag_unique hm₁ hm₂)
-    subst heq
-    have hnone := hasym t₁ t₁ p h12
-    rw [h12] at hnone
-    cases hnone
+  rw [realize_symmPairBinaryTag hcode tags hasym u u, or_self]
+  rintro ⟨t₁, _, t₂, _, hm₁, hm₂, p, h12, -⟩
+  obtain rfl := hcode (matchBinaryTag_unique hm₁ hm₂)
+  exact Option.some_ne_none _ (h12.symm.trans (hasym t₁ t₁ p h12))
 
 theorem symm_symmPairBinaryTag {L : Language} {T : Type*} {n d m : ℕ}
     [Fact (2 ≤ n)] [L.Structure (Fin n)]

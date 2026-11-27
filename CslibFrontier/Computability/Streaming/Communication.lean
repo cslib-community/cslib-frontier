@@ -116,7 +116,7 @@ theorem ecomplexityFun_le_of_spaceLE (μ : Randomized σ α β) {m b : ℕ} (hμ
     if h : A.SpaceLE m b then A.toProtocol m b h.choose u v d else Protocol.output false
   refine (PublicCoin.ecomplexity_le_depth (μ := μ.map P) fun x _ y _ => ?_).trans ?_
   · refine le_trans ?_ (hf x y)
-    unfold PublicCoin.errorProb
+    unfold PublicCoin.errorProb Probability.PMF.errorProb
     rw [PMF.toOuterMeasure_map_apply]
     refine ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
       (PMF.toOuterMeasure_mono _ ?_)
@@ -124,11 +124,9 @@ theorem ecomplexityFun_le_of_spaceLE (μ : Randomized σ α β) {m b : ℕ} (hμ
     have hs := hμ A hsupp
     simp only [Set.mem_preimage, Set.mem_ofPred_eq, P, dite_eq_left hs] at hA ⊢
     rwa [A.run_toProtocol hs.choose_spec u v d (hu x) y, eq_comm] at hA
-  · refine PublicCoin.depth_le_iff.2 fun p hp => ?_
-    rw [PMF.support_map] at hp
-    obtain ⟨A, hA, rfl⟩ := hp
+  · refine Probability.PMF.maxCost_map_le_of_le Protocol.depth P μ fun A hA => ?_
     simp only [P, dite_eq_left (hμ A hA)]
-    exact_mod_cast A.depth_toProtocol_le m b _ u v d
+    exact A.depth_toProtocol_le m b _ u v d
 
 end Randomized
 

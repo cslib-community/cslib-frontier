@@ -34,8 +34,8 @@ import CslibFrontier.Crypto.Negligible.InversePolynomial
 import CslibFrontier.Computability.Probabilistic.Traverse
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Foundations.Data.Nat.Power
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.BitString
@@ -196,25 +196,22 @@ theorem eq_of_messageBlock_eq {w : ℕ} {m m' : List Bool} (hw : 0 < w)
   obtain ⟨i, k, hk, rfl⟩ : ∃ i k, k < w ∧ j = i * w + k :=
     ⟨j / w, j % w, Nat.mod_lt j hw, (Nat.div_add_mod' j w).symm⟩
   by_cases hj : i * w + k < m.length
-  · have hi : i < blockCount w m.length := by
-      have : (i + 1) * w ≤ m.length + w - 1 := by rw [Nat.add_mul, Nat.one_mul]; omega
-      exact Nat.lt_of_lt_of_le (Nat.lt_succ_self i) ((Nat.le_div_iff_mul_le hw).2 this)
-    have hj' : i * w + k < m'.length := by omega
-    rw [← getElem?_messageBlock hk hj, ← getElem?_messageBlock hk hj', hblock i hi]
-  · have h1 : m.length ≤ i * w + k := by omega
-    have h2 : m'.length ≤ i * w + k := by omega
-    rw [List.getElem?_eq_none h1, List.getElem?_eq_none h2]
+  · have hi : i < blockCount w m.length := Nat.lt_of_lt_of_le (Nat.lt_succ_self i)
+      ((Nat.le_div_iff_mul_le hw).2 (by rw [Nat.succ_mul]; omega))
+    rw [← getElem?_messageBlock hk hj, ← getElem?_messageBlock hk (hlen ▸ hj), hblock i hi]
+  · rw [List.getElem?_eq_none (by omega), List.getElem?_eq_none (by omega)]
 
 private theorem fieldWidth_pos {L len : ℕ} (h1 : 0 < len) (h2 : len < 2 ^ fieldWidth L) :
     0 < fieldWidth L :=
   Nat.pos_of_ne_zero fun h0 => by rw [h0, pow_zero] at h2; omega
 
 private theorem blockCount_le {w len : ℕ} (hw : 0 < w) (hlen : 0 < len) :
-    blockCount w len ≤ len := by
-  obtain ⟨k, rfl⟩ : ∃ k, len = k + 1 := ⟨len - 1, by omega⟩
-  have h1 : k ≤ w * k := Nat.le_mul_of_pos_left k hw
-  have h2 : w * (k + 1) = w * k + w := by ring
-  exact Nat.div_le_of_le_mul (by omega)
+    blockCount w len ≤ len :=
+  Nat.div_le_of_le_mul (by
+    have := Nat.le_mul_of_pos_left (len - 1) hw
+    have : w * len = w * (len - 1) + w := by
+      rw [← Nat.mul_add_one, Nat.sub_add_cancel hlen]
+    omega)
 
 private theorem blockCount_pos {w len : ℕ} (hw : 0 < w) (hlen : 0 < len) :
     0 < blockCount w len :=
@@ -233,7 +230,6 @@ private theorem fullEncoder_inj {w L len idx len' idx' : ℕ} {r r' b b' : List 
     (h : fullEncoder w L r len idx b = fullEncoder w L r' len' idx' b') :
     r = r' ∧ BitString.lowBits w len = BitString.lowBits w len' ∧
       BitString.lowBits w idx = BitString.lowBits w idx' ∧ b = b' := by
-  simp only [fullEncoder] at h
   obtain ⟨h, -⟩ := List.append_inj' h rfl
   obtain ⟨h, hbb⟩ := List.append_inj' h (hb.trans hb'.symm)
   obtain ⟨h, hidx⟩ := List.append_inj' h (by simp)
@@ -252,18 +248,11 @@ private theorem eq_of_mem_blockInputs_full {L len idx : ℕ} {r r' m block : Lis
   split_ifs at h with hm
   · obtain ⟨i, hi, heq⟩ := List.mem_map.1 h
     have hi' := List.mem_range.1 hi
-    have hw := fieldWidth_pos hm.1 hm.2
-    have hcount := blockCount_le hw hm.1
-    have hm2 := hm.2
+    have hcount := blockCount_le (fieldWidth_pos hm.1 hm.2) hm.1
     obtain ⟨hr, hl, hx, hb⟩ := fullEncoder_inj (length_messageBlock _ _ _) hblock heq
     exact ⟨hr, BitString.lowBits_injective_of_lt hm.2 hlen hl, i, hi',
       BitString.lowBits_injective_of_lt (by omega) hidx hx, hb⟩
   · simp at h
-
-private theorem source_of_mem_authenticatedInputs {E : Encoder} {L : ℕ}
-    {log : List (List Bool × Tag)} {x : List Bool} (hx : x ∈ authenticatedInputs E L log) :
-    ∃ entry ∈ log, x ∈ blockInputs E L entry.2.1 entry.1 := by
-  simpa [authenticatedInputs] using hx
 
 /-- If the logged identifiers are distinct and every block input of `msg` under `r` is covered by
 the log, then `msg` itself was queried. -/
@@ -272,32 +261,29 @@ private theorem mem_of_forall_mem_authenticatedInputs {L : ℕ} {log : List (Lis
     (hm : 0 < msg.length ∧ msg.length < 2 ^ fieldWidth L)
     (hall : ∀ x ∈ blockInputs fullEncoder L r msg, x ∈ authenticatedInputs fullEncoder L log) :
     msg ∈ log.map Prod.fst := by
-  obtain ⟨hm1, hm2⟩ := hm
-  have hw := fieldWidth_pos hm1 hm2
-  have hcount := blockCount_le hw hm1
-  have key : ∀ i < blockCount (fieldWidth L) msg.length, ∃ entry ∈ log, entry.2.1 = r ∧
-      entry.1.length = msg.length ∧
-      messageBlock (fieldWidth L) entry.1 i = messageBlock (fieldWidth L) msg i := by
-    intro i hi
-    obtain ⟨entry, hentry, hx⟩ :=
-      source_of_mem_authenticatedInputs (hall _ (mem_blockInputs_of_lt ⟨hm1, hm2⟩ hi))
+  have hw := fieldWidth_pos hm.1 hm.2
+  have hcount := blockCount_le hw hm.1
+  have key (i : ℕ) (hi : i < blockCount (fieldWidth L) msg.length) :
+      ∃ entry ∈ log, entry.2.1 = r ∧ entry.1.length = msg.length ∧
+        messageBlock (fieldWidth L) entry.1 i = messageBlock (fieldWidth L) msg i := by
+    have hx : ∃ entry ∈ log, fullEncoder (fieldWidth L) L r msg.length (i + 1)
+        (messageBlock (fieldWidth L) msg i) ∈ blockInputs fullEncoder L entry.2.1 entry.1 := by
+      simpa [authenticatedInputs] using hall _ (mem_blockInputs_of_lt hm hi)
+    obtain ⟨entry, hentry, hx⟩ := hx
     obtain ⟨hr, hl, j, -, hj, hb⟩ :=
-      eq_of_mem_blockInputs_full hm2 (by omega) (length_messageBlock _ _ _) hx
-    obtain rfl : j = i := by omega
-    exact ⟨entry, hentry, hr, hl, hb⟩
-  obtain ⟨entry, hentry, hr, hl, -⟩ := key 0 (blockCount_pos hw hm1)
+      eq_of_mem_blockInputs_full hm.2 (by omega) (length_messageBlock _ _ _) hx
+    exact ⟨entry, hentry, hr, hl, by rwa [show j = i by omega] at hb⟩
+  obtain ⟨entry, hentry, hr, hl, -⟩ := key 0 (blockCount_pos hw hm.1)
   refine List.mem_map.2 ⟨entry, hentry, eq_of_messageBlock_eq hw hl fun i hi => ?_⟩
-  obtain ⟨entry', hentry', hr', -, hb'⟩ := key i (by rwa [← hl])
-  obtain rfl : entry' = entry := List.inj_on_of_nodup_map hnodup hentry' hentry (hr'.trans hr.symm)
-  exact hb'
+  obtain ⟨entry', hentry', hr', -, hb'⟩ := key i (hl ▸ hi)
+  exact (List.inj_on_of_nodup_map hnodup hentry' hentry (hr'.trans hr.symm)) ▸ hb'
 
 private theorem length_of_mem_blockInputs {E : Encoder} {L : ℕ} {r m x : List Bool}
     (hE : ∀ len idx b, b.length = fieldWidth L → (E (fieldWidth L) L r len idx b).length = L)
     (hx : x ∈ blockInputs E L r m) : x.length = L := by
   rw [blockInputs] at hx
   split_ifs at hx
-  · obtain ⟨i, -, rfl⟩ := List.mem_map.1 hx
-    exact hE _ _ _ (length_messageBlock _ _ _)
+  · obtain ⟨i, -, rfl⟩ := List.mem_map.1 hx; exact hE _ _ _ (length_messageBlock _ _ _)
   · simp at hx
 
 private theorem length_fullEncoder {L len idx : ℕ} {r b : List Bool}
@@ -305,32 +291,28 @@ private theorem length_fullEncoder {L len idx : ℕ} {r b : List Bool}
     (fullEncoder (fieldWidth L) L r len idx b).length = L := by
   have := four_mul_fieldWidth_le L
   simp only [fullEncoder, List.length_append, BitString.length_lowBits,
-    List.length_replicate, hr, hb]
-  omega
+    List.length_replicate, hr, hb]; omega
 
 private theorem length_noIdentifierEncoder {L len idx : ℕ} {r b : List Bool}
     (hb : b.length = fieldWidth L) :
     (noIdentifierEncoder (fieldWidth L) L r len idx b).length = L := by
   have := four_mul_fieldWidth_le L
   simp only [noIdentifierEncoder, List.length_append, BitString.length_lowBits,
-    List.length_replicate, hb]
-  omega
+    List.length_replicate, hb]; omega
 
 private theorem length_noLengthEncoder {L len idx : ℕ} {r b : List Bool}
     (hr : r.length = fieldWidth L) (hb : b.length = fieldWidth L) :
     (noLengthEncoder (fieldWidth L) L r len idx b).length = L := by
   have := four_mul_fieldWidth_le L
   simp only [noLengthEncoder, List.length_append, BitString.length_lowBits,
-    List.length_replicate, hr, hb]
-  omega
+    List.length_replicate, hr, hb]; omega
 
 private theorem length_noIndexEncoder {L len idx : ℕ} {r b : List Bool}
     (hr : r.length = fieldWidth L) (hb : b.length = fieldWidth L) :
     (noIndexEncoder (fieldWidth L) L r len idx b).length = L := by
   have := four_mul_fieldWidth_le L
   simp only [noIndexEncoder, List.length_append, BitString.length_lowBits,
-    List.length_replicate, hr, hb]
-  omega
+    List.length_replicate, hr, hb]; omega
 
 private theorem messageBlock_zero {w : ℕ} {u v : List Bool} (hu : u.length = w) :
     messageBlock w (u ++ v) 0 = u := by
@@ -350,14 +332,11 @@ private theorem blockInputs_two_blocks {E : Encoder} {L : ℕ} (hw : 3 ≤ field
     blockInputs E L r (u ++ v) =
       [E (fieldWidth L) L r (2 * fieldWidth L) 1 u,
         E (fieldWidth L) L r (2 * fieldWidth L) 2 v] := by
-  have hlen : (u ++ v).length = 2 * fieldWidth L := by rw [List.length_append, hu, hv]; omega
-  have hcount : blockCount (fieldWidth L) (2 * fieldWidth L) = 2 := by
-    unfold blockCount; exact Nat.div_eq_of_lt_le (by omega) (by omega)
-  rw [blockInputs, hlen, ite_eq_left
-    (show 0 < 2 * fieldWidth L ∧ 2 * fieldWidth L < 2 ^ fieldWidth L from
-      ⟨by omega, Nat.two_mul_lt_two_pow hw⟩), hcount]
-  simp only [show List.range 2 = [0, 1] from rfl, List.map_cons, List.map_nil, zero_add,
-    messageBlock_zero hu, messageBlock_one hu hv]
+  have hlen : (u ++ v).length = 2 * fieldWidth L := by simp [hu, hv]; omega
+  rw [blockInputs, hlen, ite_eq_left ⟨by omega, Nat.two_mul_lt_two_pow hw⟩,
+    show blockCount (fieldWidth L) (2 * fieldWidth L) = 2 from
+      Nat.div_eq_of_lt_le (by omega) (by omega)]
+  simp [List.range_succ, messageBlock_zero hu, messageBlock_one hu hv]
 
 private theorem blockInputs_replicate_append {E : Encoder} {L : ℕ} (hw : 3 ≤ fieldWidth L)
     (r : List Bool) (a b : Bool) :
@@ -370,13 +349,11 @@ private theorem blockInputs_replicate {E : Encoder} {L : ℕ} (hw : 3 ≤ fieldW
     (r : List Bool) (a : Bool) :
     blockInputs E L r (List.replicate (fieldWidth L) a) =
       [E (fieldWidth L) L r (fieldWidth L) 1 (List.replicate (fieldWidth L) a)] := by
-  have hlt : fieldWidth L < 2 ^ fieldWidth L := by have := Nat.two_mul_lt_two_pow hw; omega
-  have hcount : blockCount (fieldWidth L) (fieldWidth L) = 1 := by
-    unfold blockCount; exact Nat.div_eq_of_lt_le (by omega) (by omega)
-  rw [blockInputs, List.length_replicate, ite_eq_left (show 0 < fieldWidth L ∧
-    fieldWidth L < 2 ^ fieldWidth L from ⟨by omega, hlt⟩), hcount]
-  simp only [show List.range 1 = [0] from rfl, List.map_cons, List.map_nil, zero_add,
-    messageBlock_single (List.length_replicate ..)]
+  have := Nat.two_mul_lt_two_pow hw
+  rw [blockInputs, List.length_replicate, ite_eq_left ⟨by omega, by omega⟩,
+    show blockCount (fieldWidth L) (fieldWidth L) = 1 from
+      Nat.div_eq_of_lt_le (by omega) (by omega)]
+  simp [messageBlock_single (List.length_replicate ..)]
 
 private theorem eq_of_replicate_eq {w : ℕ} {a b : Bool} (hw : 0 < w)
     (h : List.replicate w a = List.replicate w b) : a = b := by
@@ -391,11 +368,9 @@ private theorem replicate_append_ne {w : ℕ} {a b c d : Bool} (hw : 0 < w) (h :
 
 private theorem forall₂_pair {α β : Type} {R : α → β → Prop} {a b : α} {ys : List β}
     (h : List.Forall₂ R [a, b] ys) : ∃ s t, ys = [s, t] ∧ R a s ∧ R b t := by
-  obtain ⟨s, l, hs, h', rfl⟩ := List.forall₂_cons_left_iff.1 h
-  obtain ⟨t, l', ht, h'', rfl⟩ := List.forall₂_cons_left_iff.1 h'
-  rw [List.forall₂_nil_left_iff] at h''
-  subst h''
-  exact ⟨s, t, rfl, hs, ht⟩
+  rcases h with _ | ⟨hs, _ | ⟨ht, h'⟩⟩
+  cases h'
+  exact ⟨_, _, rfl, hs, ht⟩
 
 /-- The number of block inputs of a message `m` is at most `m.length`. -/
 theorem length_blockInputs_le (E : Encoder) (L : ℕ) (r m : List Bool) :
@@ -491,8 +466,10 @@ theorem computableInPolyTime_blockCount_comp {γ : Type} {encIn : γ ↪ List Bo
 theorem computableInPolyTime_messageBlock :
     ComputableInPolyTime (fun p : ℕ × List Bool × ℕ => messageBlock p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair encBits encUnary)) encBits := by
-  unfold messageBlock
-  fun_prop
+  open ComputableInPolyTime in
+  have hp := id' (encIn := encPair encUnary (encPair encBits encUnary))
+  exact bitsTakeWithInput (bitsAppend (bitsDropWithInput hp.snd'.fst'
+    (unary_mul' hp.snd'.snd' hp.fst')) ((bitsReplicate false).comp hp.fst')) hp.fst'
 
 /-- Composition rule for `messageBlock`. -/
 @[fun_prop]
@@ -526,83 +503,54 @@ theorem IsPolyTimeEncoder.comp {E : Encoder} (hE : IsPolyTimeEncoder E)
       encIn encBits :=
   ComputableInPolyTime.comp hE (hw.prod (hL.prod (hr.prod (hlen.prod (hidx.prod hblock)))))
 
+private theorem isPolyTimeEncoder_of_prefix (k : ℕ)
+    (pref : ℕ → List Bool → ℕ → ℕ → List Bool)
+    (hpref : ComputableInPolyTime
+      (fun p : ℕ × ℕ × List Bool × ℕ × ℕ × List Bool =>
+        pref p.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1)
+      encEncoderInput encBits) :
+    IsPolyTimeEncoder (fun w L r len idx block =>
+      pref w r len idx ++ block ++ List.replicate (L - k * w) false) := by
+  have hp := ComputableInPolyTime.id' (encIn := encEncoderInput)
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend hpref hp.snd'.snd'.snd'.snd'.snd')
+    ((ComputableInPolyTime.bitsReplicate false).comp
+      (ComputableInPolyTime.unary_sub' hp.snd'.fst'
+        (ComputableInPolyTime.unary_mul' (.const k) hp.fst')))
+
+open ComputableInPolyTime in
 /-- `fullEncoder` is polynomial-time. -/
 theorem isPolyTimeEncoder_fullEncoder : IsPolyTimeEncoder fullEncoder := by
-  have hp := ComputableInPolyTime.id' (encIn := encEncoderInput)
-  dsimp only [encEncoderInput] at hp
-  have hw := hp.fst'
-  have hL := hp.snd'.fst'
-  have hr := hp.snd'.snd'.fst'
-  have hlen := hp.snd'.snd'.snd'.fst'
-  have hidx := hp.snd'.snd'.snd'.snd'.fst'
-  have hblock := hp.snd'.snd'.snd'.snd'.snd'
-  have hlenBits := ComputableInPolyTime.bitsLow hw
-    (ComputableInPolyTime.unary_to_binary.comp hlen)
-  have hidxBits := ComputableInPolyTime.bitsLow hw
-    (ComputableInPolyTime.unary_to_binary.comp hidx)
-  unfold IsPolyTimeEncoder fullEncoder
-  have hprefix := ComputableInPolyTime.bitsAppend
-    (ComputableInPolyTime.bitsAppend hr hlenBits) hidxBits
-  exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hprefix hblock)
-    ((ComputableInPolyTime.bitsReplicate false).comp
-      (ComputableInPolyTime.unary_sub' hL
-        (ComputableInPolyTime.unary_mul' (.const 4) hw)))
+  have hp := id' (encIn := encEncoderInput)
+  have hlen := bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.fst')
+  have hidx := bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.snd'.fst')
+  exact isPolyTimeEncoder_of_prefix 4 (fun w r len idx =>
+    r ++ BitString.lowBits w len ++ BitString.lowBits w idx)
+    (bitsAppend (bitsAppend hp.snd'.snd'.fst' hlen) hidx)
 
+open ComputableInPolyTime in
 /-- `noIdentifierEncoder` is polynomial-time. -/
 theorem isPolyTimeEncoder_noIdentifierEncoder : IsPolyTimeEncoder noIdentifierEncoder := by
-  have hp := ComputableInPolyTime.id' (encIn := encEncoderInput)
-  dsimp only [encEncoderInput] at hp
-  have hw := hp.fst'
-  have hL := hp.snd'.fst'
-  have hlen := hp.snd'.snd'.snd'.fst'
-  have hidx := hp.snd'.snd'.snd'.snd'.fst'
-  have hblock := hp.snd'.snd'.snd'.snd'.snd'
-  have hlenBits := ComputableInPolyTime.bitsLow hw
-    (ComputableInPolyTime.unary_to_binary.comp hlen)
-  have hidxBits := ComputableInPolyTime.bitsLow hw
-    (ComputableInPolyTime.unary_to_binary.comp hidx)
-  unfold IsPolyTimeEncoder noIdentifierEncoder
-  exact ComputableInPolyTime.bitsAppend
-    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hlenBits hidxBits) hblock)
-    ((ComputableInPolyTime.bitsReplicate false).comp
-      (ComputableInPolyTime.unary_sub' hL
-        (ComputableInPolyTime.unary_mul' (.const 3) hw)))
+  have hp := id' (encIn := encEncoderInput)
+  have hlen := bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.fst')
+  have hidx := bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.snd'.fst')
+  exact isPolyTimeEncoder_of_prefix 3 (fun w _ len idx =>
+    BitString.lowBits w len ++ BitString.lowBits w idx) (bitsAppend hlen hidx)
 
+open ComputableInPolyTime in
 /-- `noLengthEncoder` is polynomial-time. -/
 theorem isPolyTimeEncoder_noLengthEncoder : IsPolyTimeEncoder noLengthEncoder := by
-  have hp := ComputableInPolyTime.id' (encIn := encEncoderInput)
-  dsimp only [encEncoderInput] at hp
-  have hw := hp.fst'
-  have hL := hp.snd'.fst'
-  have hr := hp.snd'.snd'.fst'
-  have hidx := hp.snd'.snd'.snd'.snd'.fst'
-  have hblock := hp.snd'.snd'.snd'.snd'.snd'
-  have hidxBits := ComputableInPolyTime.bitsLow hw
-    (ComputableInPolyTime.unary_to_binary.comp hidx)
-  unfold IsPolyTimeEncoder noLengthEncoder
-  exact ComputableInPolyTime.bitsAppend
-    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hr hidxBits) hblock)
-    ((ComputableInPolyTime.bitsReplicate false).comp
-      (ComputableInPolyTime.unary_sub' hL
-        (ComputableInPolyTime.unary_mul' (.const 3) hw)))
+  have hp := id' (encIn := encEncoderInput)
+  exact isPolyTimeEncoder_of_prefix 3 (fun w r _ idx => r ++ BitString.lowBits w idx)
+    (bitsAppend hp.snd'.snd'.fst'
+      (bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.snd'.fst')))
 
+open ComputableInPolyTime in
 /-- `noIndexEncoder` is polynomial-time. -/
 theorem isPolyTimeEncoder_noIndexEncoder : IsPolyTimeEncoder noIndexEncoder := by
-  have hp := ComputableInPolyTime.id' (encIn := encEncoderInput)
-  dsimp only [encEncoderInput] at hp
-  have hw := hp.fst'
-  have hL := hp.snd'.fst'
-  have hr := hp.snd'.snd'.fst'
-  have hlen := hp.snd'.snd'.snd'.fst'
-  have hblock := hp.snd'.snd'.snd'.snd'.snd'
-  have hlenBits := ComputableInPolyTime.bitsLow hw
-    (ComputableInPolyTime.unary_to_binary.comp hlen)
-  unfold IsPolyTimeEncoder noIndexEncoder
-  exact ComputableInPolyTime.bitsAppend
-    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hr hlenBits) hblock)
-    ((ComputableInPolyTime.bitsReplicate false).comp
-      (ComputableInPolyTime.unary_sub' hL
-        (ComputableInPolyTime.unary_mul' (.const 3) hw)))
+  have hp := id' (encIn := encEncoderInput)
+  exact isPolyTimeEncoder_of_prefix 3 (fun w r len _ => r ++ BitString.lowBits w len)
+    (bitsAppend hp.snd'.snd'.fst' (bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.fst')))
 
 /-- `blockInputs E` is computable in polynomial time whenever `E` is polynomial-time. -/
 @[fun_prop]
@@ -631,20 +579,20 @@ theorem computableInPolyTime_blockInputs_comp {E : Encoder} (hE : IsPolyTimeEnco
     (hm : ComputableInPolyTime m encIn encBits) :
     ComputableInPolyTime (fun a => blockInputs E (L a) (r a) (m a))
       encIn (encList encBits) :=
-  (computableInPolyTime_blockInputs hE).comp (hL.prod (hr.prod hm))
+  ComputableInPolyTime.comp (g := fun a => (L a, r a, m a))
+    (computableInPolyTime_blockInputs hE) (hL.prod (hr.prod hm))
 
+open ComputableInPolyTime in
 /-- `authenticatedInputs E` is computable in polynomial time whenever `E` is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_authenticatedInputs {E : Encoder} (hE : IsPolyTimeEncoder E) :
     ComputableInPolyTime
       (fun p : ℕ × List (List Bool × Tag) => authenticatedInputs E p.1 p.2)
       (encPair encUnary encLog) (encList encBits) := by
-  have heq : (fun p : ℕ × List (List Bool × Tag) => authenticatedInputs E p.1 p.2) =
-      fun p => p.2.flatMap fun entry => (blockInputs E p.1 entry.2.1 entry.1).reverse := by
-    funext p
-    rfl
-  rw [heq]
-  fun_prop
+  have hp := id' (encIn := encPair (encPair encUnary encLog) encForgerOutput)
+  exact flatMapWithInput (snd encUnary encLog)
+    ((listReverse encBits).comp
+      (computableInPolyTime_blockInputs_comp hE hp.fst'.fst' hp.snd'.snd'.fst' hp.snd'.fst'))
 
 /-- Composition rule for `authenticatedInputs E`. -/
 @[fun_prop]
@@ -655,8 +603,10 @@ theorem computableInPolyTime_authenticatedInputs_comp {E : Encoder} (hE : IsPoly
     (hlog : ComputableInPolyTime log encIn encLog) :
     ComputableInPolyTime (fun a => authenticatedInputs E (L a) (log a))
       encIn (encList encBits) :=
-  (computableInPolyTime_authenticatedInputs hE).comp (hL.prod hlog)
+  ComputableInPolyTime.comp (g := fun a => (L a, log a))
+    (computableInPolyTime_authenticatedInputs hE) (hL.prod hlog)
 
+open ComputableInPolyTime in
 /-- `freshBlockPair E` is computable in polynomial time whenever `E` is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_freshBlockPair {E : Encoder} (hE : IsPolyTimeEncoder E) :
@@ -664,11 +614,17 @@ theorem computableInPolyTime_freshBlockPair {E : Encoder} (hE : IsPolyTimeEncode
       (fun p : ℕ × List (List Bool × Tag) × List Bool × Tag =>
         freshBlockPair E p.1 p.2.1 p.2.2.1 p.2.2.2)
       encFreshBlockInput (encPair encBits encBits) := by
+  have hp := id' (encIn := encFreshBlockInput)
+  have hq := id' (encIn := encPair encFreshBlockInput (encPair encBits encBits))
   unfold freshBlockPair
   simp only [List.contains_eq_mem]
-  exact ComputableInPolyTime.optionGetDWithInput
-    (ComputableInPolyTime.findWithInput (by fun_prop) (by fun_prop))
-    (by fun_prop)
+  refine optionGetDWithInput (findWithInput
+    ((zip encBits encBits).comp
+      ((computableInPolyTime_blockInputs_comp hE hp.fst' hp.snd'.snd'.snd'.fst'
+        hp.snd'.snd'.fst').prod hp.snd'.snd'.snd'.snd'))
+    (bool_not.comp (decide_mem
+      (computableInPolyTime_authenticatedInputs_comp hE hq.fst'.fst' hq.fst'.snd'.fst')
+      hq.snd'.fst'))) (.const ([], []))
 
 /-- Composition rule for `freshBlockPair E`. -/
 @[fun_prop]
@@ -810,15 +766,13 @@ private theorem eval_blockwiseGame (A : BlockwiseMACAdversary) (n : ℕ) :
     ProbComp.eval (M.blockwiseGame E A n) = (ProbComp.eval (M.keyGen n)).bind fun sk =>
       (M.blockwiseRun E A n sk).bind fun out => PMF.pure
         (!(out.2.map Prod.fst).contains out.1.1 && M.blockwiseVerify E n sk out.1.1 out.1.2) := by
-  simp only [blockwiseGame, blockwiseRun, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbOracleComp.eval_run_interpret_eq_runWith]
+  simp only [blockwiseGame, blockwiseRun, runWith_norm, pmf_norm]
 
 private theorem eval_blockwiseRepeatGame (A : BlockwiseMACAdversary) (n : ℕ) :
     ProbComp.eval (M.blockwiseRepeatGame E A n) = (ProbComp.eval (M.keyGen n)).bind fun sk =>
       (M.blockwiseRun E A n sk).bind fun out =>
         PMF.pure (!decide (out.2.map fun entry => entry.2.1).Nodup) := by
-  simp only [blockwiseRepeatGame, blockwiseRun, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbOracleComp.eval_run_interpret_eq_runWith]
+  simp only [blockwiseRepeatGame, blockwiseRun, runWith_norm, pmf_norm]
 
 private theorem eval_blockwiseSigningOracle (n : ℕ) (sk m : List Bool)
     (log : List (List Bool × Tag)) :
@@ -868,45 +822,52 @@ private theorem reductionWins_of_blockwiseWins {n : ℕ} {sk : List Bool}
       true) :
     M.reductionWins n sk (freshBlockPair fullEncoder (M.msgLen n) log msg tag)
       (authenticatedInputs fullEncoder (M.msgLen n) log) = true := by
-  simp only [Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
-    decide_eq_false_iff_not] at hwin
-  obtain ⟨hnew, hver⟩ := hwin
-  simp only [blockwiseVerify, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq,
-    List.all_eq_true] at hver
-  obtain ⟨⟨⟨hm, hr⟩, hlen⟩, hall⟩ := hver
+  simp only [blockwiseVerify, Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
+    decide_eq_false_iff_not, decide_eq_true_eq, beq_iff_eq, List.all_eq_true] at hwin
+  obtain ⟨hnew, ⟨⟨hm, hr⟩, hlen⟩, hall⟩ := hwin
   cases hfind : ((blockInputs fullEncoder (M.msgLen n) tag.1 msg).zip tag.2).find?
       (fun p => !(authenticatedInputs fullEncoder (M.msgLen n) log).contains p.1) with
   | none =>
     refine absurd (mem_of_forall_mem_authenticatedInputs (r := tag.1) hnodup hm fun x hx => ?_) hnew
-    have hx' : x ∈ ((blockInputs fullEncoder (M.msgLen n) tag.1 msg).zip tag.2).map Prod.fst := by
-      rw [List.map_fst_zip (le_of_eq hlen.symm)]
-      exact hx
-    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hx'
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (by rwa [List.map_fst_zip (le_of_eq hlen.symm)])
     simpa using List.find?_eq_none.1 hfind p hp
   | some p =>
     have hp := List.mem_of_find?_eq_some hfind
     have hpred := List.find?_some hfind
-    simp only [freshBlockPair, hfind, Option.getD_some, reductionWins, Bool.and_eq_true,
-      beq_iff_eq]
+    simp only [freshBlockPair, hfind, Option.getD_some, reductionWins, Bool.and_eq_true, beq_iff_eq]
     exact ⟨⟨length_of_mem_blockInputs (fun _ _ _ hb => length_fullEncoder hr hb)
       (List.of_mem_zip hp).1, hpred⟩, hall p hp⟩
 
-/-- Querying `M.msgLen n`-bit words one after another tags each of them with `M.sign` and logs
-them. -/
+/-- Querying `M.msgLen n`-bit words one after another (applying a post-map `f` that leaves every
+valid tag unchanged) tags each word with `M.sign` and logs them. -/
+private theorem runWith_mapM_query_map {n : ℕ} (sk : List Bool) (f : List Bool → List Bool)
+    (hf : ∀ msg, msg.length = M.msgLen n → ∀ tag ∈ (ProbComp.eval (M.sign sk msg)).support,
+      f tag = tag)
+    (xs : List (List Bool)) (hxs : ∀ x ∈ xs, x.length = M.msgLen n) (log : List (List Bool)) :
+    ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle n sk q s))
+      (xs.mapM fun x => f <$> (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool)))
+      log =
+      (ProbComp.eval (xs.mapM (M.sign sk))).map fun tags => (tags, xs.reverse ++ log) := by
+  induction xs generalizing log with
+  | nil => simp
+  | cons x xs ih =>
+    have hx := hxs x (by simp)
+    simp only [List.mapM_cons, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
+      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+      ih fun y hy => hxs y (by simp [hy])]
+    simp only [signingOracle, SignatureScheme.signingOracleOn, beq_iff_eq.mpr hx, ↓reduceIte,
+      ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind,
+      PMF.bind_map, PMF.pure_map, Function.comp_def, Prod.map_apply, id_eq, List.reverse_cons,
+      List.append_assoc, List.singleton_append]
+    exact PMF.bind_congr_on_support _ _ _ fun tag htag => by rw [hf x hx tag htag]
+
 private theorem runWith_mapM_query {n : ℕ} (sk : List Bool) (xs : List (List Bool))
     (hxs : ∀ x ∈ xs, x.length = M.msgLen n) (log : List (List Bool)) :
     ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle n sk q s))
       (xs.mapM fun x => (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) log =
       (ProbComp.eval (xs.mapM (M.sign sk))).map fun tags => (tags, xs.reverse ++ log) := by
-  induction xs generalizing log with
-  | nil => simp
-  | cons x xs ih =>
-    have hx : (x.length == M.msgLen n) = true := beq_iff_eq.mpr (hxs x (by simp))
-    simp only [List.mapM_cons, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
-      ProbOracleComp.runWith_pure, ih fun y hy => hxs y (by simp [hy])]
-    simp only [signingOracle, SignatureScheme.signingOracleOn, hx, ↓reduceIte, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.bind_map, PMF.pure_map,
-      Function.comp_def, List.reverse_cons, List.append_assoc, List.singleton_append]
+  simpa only [id_map] using
+    M.runWith_mapM_query_map sk id (fun _ _ _ _ => rfl) xs hxs log
 
 private theorem runWith_blockwiseSimulator (A : BlockwiseMACAdversary) (n : ℕ)
     (sk : List Bool)
@@ -959,17 +920,16 @@ theorem blockwiseGame_le_add_repeat (A : BlockwiseMACAdversary) (n : ℕ) :
   rw [eval_blockwiseGame,
     eval_eufCmaGame_blockwiseReduction _ _ _ _ fun _ _ _ _ hr hb => length_fullEncoder hr hb,
     eval_blockwiseRepeatGame]
-  refine PMF.bind_apply_le_add_on_support _ _ fun sk _ => ?_
-  refine PMF.bind_apply_le_add_on_support _ _ fun out _ => ?_
+  refine PMF.bind_apply_le_add_on_support _ _ fun sk _ =>
+    PMF.bind_apply_le_add_on_support _ _ fun out _ => ?_
   by_cases hnodup : (out.2.map fun entry => entry.2.1).Nodup
   · by_cases hwin : (!(out.2.map Prod.fst).contains out.1.1 &&
         M.blockwiseVerify fullEncoder n sk out.1.1 out.1.2) = true
     · rw [hwin, M.reductionWins_of_blockwiseWins hnodup hwin, PMF.pure_apply, ite_eq_left rfl]
       exact le_self_add
-    · rw [Bool.eq_false_iff.2 hwin]
-      simp
-  · have h3 : (!decide (out.2.map fun entry => entry.2.1).Nodup) = true := by simp [hnodup]
-    rw [h3, PMF.pure_apply true true, ite_eq_left rfl]
+    · rw [Bool.eq_false_iff.2 hwin]; simp
+  · rw [show (!decide (out.2.map fun entry => entry.2.1).Nodup) = true by simp [hnodup],
+      PMF.pure_apply true true, ite_eq_left rfl]
     exact le_add_left (PMF.coe_le_one _ _)
 
 /-- Correctness of the blockwise scheme: an honest tag on a message in the domain verifies. -/
@@ -1000,24 +960,6 @@ private theorem repeat_cons_le (r : List Bool) (ids : List (List Bool)) :
       (if r ∈ ids.toFinset then 1 else 0) + PMF.pure (!decide ids.Nodup) true := by
   by_cases hr : r ∈ ids <;> by_cases hn : ids.Nodup <;> simp [hr, hn, PMF.pure_apply]
 
-private theorem runWith_inl_bind {β : Type} (o : List Bool → List (List Bool × Tag) →
-      PMF (Tag × List (List Bool × Tag))) (k : ℕ)
-    (cont : Fin (k + 1) → ProbOracleComp (fun _ : List Bool => Tag) β)
-    (log : List (List Bool × Tag)) :
-    ProbOracleComp.runWith o (OracleComp.query (Sum.inl k) >>= cont) log =
-      (ProbComp.unifOracle k).bind fun x => ProbOracleComp.runWith o (cont x) log := by
-  rw [ProbOracleComp.runWith_bind, show ProbOracleComp.runWith o (OracleComp.query (Sum.inl k))
-    log = (ProbComp.unifOracle k).map (·, log) from OracleComp.runWith_query _ _ _, PMF.bind_map]
-  rfl
-
-private theorem runWith_inr_bind {β : Type} (o : List Bool → List (List Bool × Tag) →
-      PMF (Tag × List (List Bool × Tag))) (m : List Bool)
-    (cont : Tag → ProbOracleComp (fun _ : List Bool => Tag) β) (log : List (List Bool × Tag)) :
-    ProbOracleComp.runWith o (OracleComp.query (Sum.inr m) >>= cont) log =
-      (o m log).bind fun x => ProbOracleComp.runWith o (cont x.1) x.2 := by
-  rw [ProbOracleComp.runWith_bind, show ProbOracleComp.runWith o (OracleComp.query (Sum.inr m))
-    log = o m log from OracleComp.runWith_query _ _ _]
-
 private theorem runWith_repeat_le (n : ℕ) (sk : List Bool) {α : Type}
     {p : ProbOracleComp (fun _ : List Bool => Tag) α} {Q : ℕ}
     (hp : ProbOracleComp.IsQueryBounded p Q) (log : List (List Bool × Tag)) :
@@ -1026,30 +968,35 @@ private theorem runWith_repeat_le (n : ℕ) (sk : List Bool) {α : Type}
       PMF.pure (!decide (log.map fun entry => entry.2.1).Nodup) true +
         ((log.length * Q + ∑ i ∈ Finset.range Q, i : ℕ) : ℝ≥0∞) / 2 ^ fieldWidth (M.msgLen n) := by
   induction hp generalizing log with
-  | pure a k =>
-    rw [ProbOracleComp.runWith_pure, PMF.pure_bind]
-    exact le_self_add
+  | pure a k => rw [ProbOracleComp.runWith_pure, PMF.pure_bind]; exact le_self_add
   | liftBind q cont k _ ih =>
     cases q with
     | inl j =>
-      simp only [Sum.elim_inl, add_zero]
-      rw [runWith_inl_bind, PMF.bind_bind]
-      exact PMF.bind_apply_le_on_support _ fun x _ => ih x log
+      rw [ProbOracleComp.runWith_bind, show ProbOracleComp.runWith _ (OracleComp.query (.inl j))
+        log = (ProbComp.unifOracle j).map (·, log) from OracleComp.runWith_query _ _ _,
+        PMF.bind_map, PMF.bind_bind]
+      simpa only [Sum.elim_inl, add_zero, Function.comp_def] using
+        PMF.bind_apply_le_on_support _ fun x _ => ih x log
     | inr m =>
-      simp only [Sum.elim_inr]
-      rw [runWith_inr_bind, eval_blockwiseSigningOracle]
-      simp only [PMF.bind_bind, PMF.pure_bind]
+      rw [ProbOracleComp.runWith_bind,
+        show ProbOracleComp.runWith
+          (fun q s => ProbComp.eval (M.blockwiseSigningOracle E n sk q s))
+          (OracleComp.query (.inr m)) log =
+          ProbComp.eval (M.blockwiseSigningOracle E n sk m log) from
+          OracleComp.runWith_query _ _ _,
+        eval_blockwiseSigningOracle]
+      simp only [Sum.elim_inr, PMF.bind_bind, PMF.pure_bind]
       rw [PMF.bind_apply]
-      refine le_trans (PMF.tsum_mul_le_card_mul_add _
+      refine (PMF.tsum_mul_le_card_mul_add _
         (BitString.uniformList_apply_le (fieldWidth (M.msgLen n)))
         (log.map fun entry => entry.2.1).toFinset
         (B := PMF.pure (!decide (log.map fun entry => entry.2.1).Nodup) true +
           (((log.length + 1) * k + ∑ i ∈ Finset.range k, i : ℕ) : ℝ≥0∞) /
-            2 ^ fieldWidth (M.msgLen n)) fun r => ?_) ?_
-      · refine PMF.bind_apply_le_on_support _ fun tags _ => (ih (r, tags) _).trans ?_
-        rw [List.length_cons, List.map_cons, ← add_assoc]
-        exact add_le_add (repeat_cons_le r _) le_rfl
-      · exact repeat_arith _ ((List.toFinset_card_le _).trans (List.length_map _).le)
+            2 ^ fieldWidth (M.msgLen n)) fun r =>
+          PMF.bind_apply_le_on_support _ fun tags _ => (ih (r, tags) _).trans (by
+            rw [List.length_cons, List.map_cons, ← add_assoc]
+            exact add_le_add (repeat_cons_le r _) le_rfl)).trans
+        (repeat_arith _ ((List.toFinset_card_le _).trans (List.length_map _).le))
 
 /-- If the adversary makes at most `Q` signing queries, two queries share an identifier with
 probability at most `(∑ i ∈ range Q, i) / 2 ^ w`. -/
@@ -1129,6 +1076,28 @@ private theorem wins_of_forall₂ {n : ℕ} {sk : List Bool} {log : List (List B
   have hc : (log.map Prod.fst).contains msg = false := by simpa using hnew
   simp only [hc, M.blockwiseVerify_of_forall₂ E hm hr htags, Bool.not_false, Bool.and_true]
 
+private theorem support_twoBlock_tags {E : Encoder} {n : ℕ} {sk : List Bool}
+    (hsk : sk ∈ (ProbComp.eval (M.keyGen n)).support) (hw : 3 ≤ fieldWidth (M.msgLen n))
+    (hE : ∀ len idx r b, r.length = fieldWidth (M.msgLen n) → b.length = fieldWidth (M.msgLen n) →
+      (E (fieldWidth (M.msgLen n)) (M.msgLen n) r len idx b).length = M.msgLen n)
+    {a b : Bool} {r : List Bool} {tags : List (List Bool)} {log log' : List (List Bool × Tag)}
+    (hq : ((r, tags), log') ∈ (ProbComp.eval (M.blockwiseSigningOracle E n sk
+      (List.replicate (fieldWidth (M.msgLen n)) a ++
+        List.replicate (fieldWidth (M.msgLen n)) b) log)).support) :
+    log' = (List.replicate (fieldWidth (M.msgLen n)) a ++
+        List.replicate (fieldWidth (M.msgLen n)) b, (r, tags)) :: log ∧
+      r.length = fieldWidth (M.msgLen n) ∧
+      ∃ t₁ t₂, tags = [t₁, t₂] ∧
+        M.verify sk (E (fieldWidth (M.msgLen n)) (M.msgLen n) r (2 * fieldWidth (M.msgLen n)) 1
+          (List.replicate (fieldWidth (M.msgLen n)) a)) t₁ = true ∧
+        M.verify sk (E (fieldWidth (M.msgLen n)) (M.msgLen n) r (2 * fieldWidth (M.msgLen n)) 2
+          (List.replicate (fieldWidth (M.msgLen n)) b)) t₂ = true := by
+  obtain ⟨rfl, hr, htags⟩ := M.mem_support_blockwiseSigningOracle E hq
+  have h2 := M.forall₂_of_mem_support_mapM hsk _ (fun x hx =>
+    length_of_mem_blockInputs (fun len idx b hb => hE len idx r b hr hb) hx) htags
+  rw [blockInputs_replicate_append hw] at h2
+  exact ⟨rfl, hr, forall₂_pair h2⟩
+
 /-- Without the block index the construction is not EUF-CMA: `swapBlocksAdversary` wins with
 probability one. -/
 theorem blockwiseGame_noIndex (n : ℕ) (hw : 3 ≤ fieldWidth (M.msgLen n)) :
@@ -1136,18 +1105,12 @@ theorem blockwiseGame_noIndex (n : ℕ) (hw : 3 ≤ fieldWidth (M.msgLen n)) :
   refine M.blockwiseGame_eq_one noIndexEncoder fun sk hsk out hout => ?_
   supp_cases hout [blockwiseRun, swapBlocksAdversary, ProbOracleComp.runWith_bind,
     ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure] with ⟨⟨⟨r, tags⟩, log⟩, hq, rfl⟩
-  obtain ⟨rfl, hr, htags⟩ := M.mem_support_blockwiseSigningOracle noIndexEncoder hq
-  have h2 := M.forall₂_of_mem_support_mapM hsk _ (fun x hx => length_of_mem_blockInputs
-    (fun _ _ _ hb => length_noIndexEncoder hr hb) hx) htags
-  rw [blockInputs_replicate_append hw] at h2
-  obtain ⟨t1, t2, rfl, h1, h2'⟩ := forall₂_pair h2
-  refine M.wins_of_forall₂ noIndexEncoder ?_ ?_ hr ?_
-  · simp only [List.map_cons, List.map_nil, List.mem_singleton]
-    exact replicate_append_ne (by omega) (by decide)
-  · simp only [List.length_append, List.length_replicate]
-    exact ⟨by omega, by have := Nat.two_mul_lt_two_pow hw; omega⟩
-  · rw [blockInputs_replicate_append hw]
-    exact .cons h2' (.cons h1 .nil)
+  obtain ⟨rfl, hr, t₁, t₂, rfl, h1, h2⟩ :=
+    M.support_twoBlock_tags hsk hw (fun _ _ _ _ hr hb => length_noIndexEncoder hr hb) hq
+  exact M.wins_of_forall₂ noIndexEncoder
+    (by simpa using replicate_append_ne (by omega) (by decide))
+    ⟨by simp; omega, by have := Nat.two_mul_lt_two_pow hw; simp; omega⟩
+    hr (by rw [blockInputs_replicate_append hw]; exact .cons h2 (.cons h1 .nil))
 
 /-- Without the message length the construction is not EUF-CMA: `truncateAdversary` wins with
 probability one. -/
@@ -1156,21 +1119,13 @@ theorem blockwiseGame_noLength (n : ℕ) (hw : 3 ≤ fieldWidth (M.msgLen n)) :
   refine M.blockwiseGame_eq_one noLengthEncoder fun sk hsk out hout => ?_
   supp_cases hout [blockwiseRun, truncateAdversary, ProbOracleComp.runWith_bind,
     ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure] with ⟨⟨⟨r, tags⟩, log⟩, hq, rfl⟩
-  obtain ⟨rfl, hr, htags⟩ := M.mem_support_blockwiseSigningOracle noLengthEncoder hq
-  have h2 := M.forall₂_of_mem_support_mapM hsk _ (fun x hx => length_of_mem_blockInputs
-    (fun _ _ _ hb => length_noLengthEncoder hr hb) hx) htags
-  rw [blockInputs_replicate_append hw] at h2
-  obtain ⟨t1, t2, rfl, h1, -⟩ := forall₂_pair h2
-  refine M.wins_of_forall₂ noLengthEncoder ?_ ?_ hr ?_
-  · simp only [List.map_cons, List.map_nil, List.mem_singleton]
-    intro h
-    have := congrArg List.length h
-    simp only [List.length_append, List.length_replicate] at this
-    omega
-  · simp only [List.length_replicate]
-    exact ⟨by omega, by have := Nat.two_mul_lt_two_pow hw; omega⟩
-  · rw [blockInputs_replicate hw]
-    exact .cons h1 .nil
+  obtain ⟨rfl, hr, t₁, t₂, rfl, h1, -⟩ :=
+    M.support_twoBlock_tags hsk hw (fun _ _ _ _ hr hb => length_noLengthEncoder hr hb) hq
+  exact M.wins_of_forall₂ noLengthEncoder
+    (by simp only [List.map_cons, List.map_nil, List.mem_singleton]
+        intro h; have := congrArg List.length h; simp at this; omega)
+    ⟨by simp; omega, by have := Nat.two_mul_lt_two_pow hw; simp; omega⟩
+    hr (by rw [blockInputs_replicate hw]; exact .cons h1 .nil)
 
 /-- Without the identifier the construction is not EUF-CMA: `mixBlocksAdversary` wins with
 probability one. -/
@@ -1180,54 +1135,45 @@ theorem blockwiseGame_noIdentifier (n : ℕ) (hw : 3 ≤ fieldWidth (M.msgLen n)
   supp_cases hout [blockwiseRun, mixBlocksAdversary, ProbOracleComp.runWith_bind,
     ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure]
     with ⟨⟨⟨r, tags⟩, log⟩, hq, ⟨⟨r', tags'⟩, log'⟩, hq', rfl⟩
-  obtain ⟨rfl, hr, htags⟩ := M.mem_support_blockwiseSigningOracle noIdentifierEncoder hq
-  obtain ⟨rfl, -, htags'⟩ := M.mem_support_blockwiseSigningOracle noIdentifierEncoder hq'
-  have h2 := M.forall₂_of_mem_support_mapM hsk _ (fun x hx => length_of_mem_blockInputs
-    (fun _ _ _ hb => length_noIdentifierEncoder hb) hx) htags
-  have h2' := M.forall₂_of_mem_support_mapM hsk _ (fun x hx => length_of_mem_blockInputs
-    (fun _ _ _ hb => length_noIdentifierEncoder hb) hx) htags'
-  rw [blockInputs_replicate_append hw] at h2 h2'
-  obtain ⟨t1, t2, rfl, h1, -⟩ := forall₂_pair h2
-  obtain ⟨s1, s2, rfl, -, hs2⟩ := forall₂_pair h2'
-  refine M.wins_of_forall₂ noIdentifierEncoder ?_ ?_ hr ?_
-  · simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false,
-      not_or]
-    exact ⟨replicate_append_ne (by omega) (by decide),
-      replicate_append_ne (by omega) (by decide)⟩
-  · simp only [List.length_append, List.length_replicate]
-    exact ⟨by omega, by have := Nat.two_mul_lt_two_pow hw; omega⟩
-  · rw [blockInputs_replicate_append hw]
-    exact .cons h1 (.cons hs2 .nil)
+  obtain ⟨rfl, hr, t₁, t₂, rfl, h1, -⟩ :=
+    M.support_twoBlock_tags hsk hw (fun _ _ _ _ _ hb => length_noIdentifierEncoder hb) hq
+  obtain ⟨rfl, -, s₁, s₂, rfl, -, hs2⟩ :=
+    M.support_twoBlock_tags hsk hw (fun _ _ _ _ _ hb => length_noIdentifierEncoder hb) hq'
+  refine M.wins_of_forall₂ noIdentifierEncoder ?_
+    ⟨by simp; omega, by have := Nat.two_mul_lt_two_pow hw; simp; omega⟩ hr
+    (by rw [blockInputs_replicate_append hw]; exact .cons h1 (.cons hs2 .nil))
+  simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false, not_or]
+  exact ⟨replicate_append_ne (by omega) (by decide), replicate_append_ne (by omega) (by decide)⟩
 
 /-! ### Efficiency of the honest algorithms, game, and reduction -/
 
 variable {E}
 
+open ComputableInPolyTime in
 /-- `blockwiseSign E` is strict PPT whenever `E` is a polynomial-time encoder. -/
 @[program_certificate]
 theorem isPPTOn_blockwiseSign (hE : IsPolyTimeEncoder E) :
     IsPPTOn encSignInput encTag
       (fun p : ℕ × List Bool × List Bool => M.blockwiseSign E p.1 p.2.1 p.2.2) := by
-  have hmsgLen := M.msgLen_polyTime
-  have hsample : IsPPTOn encSignInput encBits
-      (fun p : ℕ × List Bool × List Bool =>
-        BitString.sampleList (fieldWidth (M.msgLen p.1))) :=
-    ComputableInPolyTime.sampleList (by fun_prop)
-  have hsign : IsPPTOn (encPair (encPair encSignInput encBits) encBits) encBits
-      (fun q : ((ℕ × List Bool × List Bool) × List Bool) × List Bool =>
-        M.sign q.1.1.2.1 q.2) :=
-    M.sign_ppt.preprocess
-      (input := encPair (encPair encSignInput encBits) encBits)
-      (prepare := fun q : ((ℕ × List Bool × List Bool) × List Bool) × List Bool =>
-        (q.1.1.2.1, q.2))
-      (by fun_prop)
-  have htags : IsPPTOn (encPair encSignInput encBits) (encList encBits)
-      (fun q : (ℕ × List Bool × List Bool) × List Bool =>
-        (blockInputs E (M.msgLen q.1.1) q.2 q.1.2.2).mapM (M.sign q.1.2.1)) :=
-    IsPPTOn.mapMWith hsign (by fun_prop)
-  unfold blockwiseSign
-  simpa only [bind_pure_comp] using
-    hsample.bind_with (htags.map_with (f := fun q tags => (q.2, tags)) (by fun_prop))
+  have hp := id' (encIn := encSignInput)
+  have hq := id' (encIn := encPair encSignInput encBits)
+  have hsample := sampleList (computableInPolyTime_fieldWidth_comp
+    (M.msgLen_polyTime.comp (g := fun p : ℕ × List Bool × List Bool => p.1) hp.fst'))
+  have hsign := M.sign_ppt.preprocess
+    (prepare := fun q : ((ℕ × List Bool × List Bool) × List Bool) × List Bool => (q.1.1.2.1, q.2))
+    ((fst _ encBits).fst'.snd'.fst'.prod (snd (encPair encSignInput encBits) encBits))
+  have htags := IsPPTOn.mapMWith (program := fun (q : (ℕ × List Bool × List Bool) × List Bool) x =>
+      M.sign q.1.2.1 x) hsign
+    (computableInPolyTime_blockInputs_comp hE
+      (M.msgLen_polyTime.comp (g := fun q => q.1.1) hq.fst'.fst') hq.snd' hq.fst'.snd'.snd')
+  have heq : (fun p : ℕ × List Bool × List Bool => M.blockwiseSign E p.1 p.2.1 p.2.2) =
+      fun p => BitString.sampleList (fieldWidth (M.msgLen p.1)) >>= fun r =>
+        (fun tags => (r, tags)) <$>
+          (blockInputs E (M.msgLen p.1) r p.2.2).mapM (M.sign p.2.1) := by
+    funext p; simp only [blockwiseSign, bind_pure_comp]
+  rw [heq]
+  exact hsample.bind_with (htags.map_with (f := fun q tags => (q.2, tags))
+    ((fst _ (encList encBits)).snd'.prod (snd (encPair encSignInput encBits) (encList encBits))))
 
 /-- `blockwiseVerify E` is computable in polynomial time whenever `E` is a polynomial-time
 encoder. -/
@@ -1265,6 +1211,7 @@ theorem isPPTOn_blockwiseSigningOracle (hE : IsPolyTimeEncoder E) :
   simpa only [bind_pure_comp] using
     hsign.map_with (f := fun p tag => (tag, (p.1.2.2, tag) :: p.2)) (by fun_prop)
 
+open ComputableInPolyTime in
 /-- Every `MACScheme` and polynomial-time `Encoder` admits a plain polynomial-time bound
 `replyBound n ℓ` on the encoded length `(encTag tag).length` of every blockwise tag produced on an
 `ℓ`-bit message at security parameter `n`. -/
@@ -1277,12 +1224,19 @@ theorem exists_blockwiseSign_length_bound (hE : IsPolyTimeEncoder E) :
           (encTag tag).length ≤ replyBound n m.length := by
   obtain ⟨ck, dk, hlenk⟩ := M.keyGen_ppt.length_le
   obtain ⟨cs, ds, hlens⟩ := (M.isPPTOn_blockwiseSign hE).length_le
+  have hn := fst encUnary encUnary
+  have hℓ := snd encUnary encUnary
+  have hpoly := unary_mul' (.const cs) ((unary_pow ds).comp (unary_add'
+    (unary_add' (unary_mul' (.const 2) hn)
+      (unary_mul' (.const 2) (unary_add' (unary_add' (unary_mul' (.const 2)
+        (unary_mul' (.const ck) ((unary_pow dk).comp (unary_add' hn (.const 1))))) hℓ)
+        (.const 1)))) (.const 4)))
   refine ⟨fun n ℓ => cs * (2 * n + 2 * (2 * (ck * (n + 1) ^ dk) + ℓ + 1) + 4) ^ ds,
-    by fun_prop, fun n sk hsk m tag htag => ?_⟩
+    hpoly, fun n sk hsk m tag htag => ?_⟩
   have hkeyLen := hlenk n sk hsk
   simp only [encUnary_apply, List.length_replicate, encBits_apply] at hkeyLen
   have htagLen := hlens (n, sk, m) tag htag
-  have hlenInput : (encSignInput (n, sk, m)).length = 2 * n + 2 * sk.length + m.length + 2 := by
+  have : (encSignInput (n, sk, m)).length = 2 * n + 2 * sk.length + m.length + 2 := by
     simp only [encSignInput, length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
     omega
   exact htagLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (by omega) ds))
@@ -1340,6 +1294,14 @@ private theorem run_interpret_blockwiseSigningOracle_toAdversary (F : BlockwiseM
     StateT.run_bind, StateT.run_pure]
   simp only [blockwiseSigningOracle, blockwiseWordSigningOracle, StateT.run, bind_assoc, pure_bind]
 
+private theorem length_encLog_cons (m : List Bool) (tag : Tag) (log : List (List Bool × Tag)) :
+    (encLog ((m, tag) :: log)).length =
+      2 * (2 * m.length + (encTag tag).length + 1) + 1 + (encLog log).length := by
+  simp only [encLog, encForgerOutput, encList_cons, List.length_append, length_frame,
+    length_encPair, encBits_apply]
+  omega
+
+open ComputableInPolyTime in
 /-- `blockwiseGame E F.toAdversary` is strict PPT on the security parameter `n` whenever `E` is
 a polynomial-time encoder and `F` is a strict oracle-PPT blockwise forger. -/
 @[program_certificate]
@@ -1347,45 +1309,39 @@ theorem isPPTOn_blockwiseGame (hE : IsPolyTimeEncoder E) {F : BlockwiseMACForger
     (hF : IsOraclePPT encForgerOutput F) :
     IsPPTOn encUnary encBool (M.blockwiseGame E F.toAdversary) := by
   obtain ⟨cs, ds, hlens⟩ := (M.isPPTOn_blockwiseSign hE).length_le
+  have hrp := id' (encIn := encPair (encPair encUnary encBits) encBits)
+  have hsignLen := length_bits.comp (of_eq (encIn := encSignInput) (fun _ => rfl) |>.comp
+    (hrp.fst'.fst'.prod (hrp.fst'.snd'.prod hrp.snd')))
+  have hres := unary_add' (unary_mul' (.const 2) (unary_add' (unary_add'
+    (unary_mul' (.const 2) (length_bits.comp hrp.snd'))
+    (unary_mul' (.const cs) ((unary_pow ds).comp (unary_add' hsignLen (.const 1)))))
+    (.const 1))) (.const 2)
   have hrun : IsPPTOn (encPair encUnary encBits) (encPair encForgerOutput encLog)
       (fun c : ℕ × List Bool =>
         (OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-            (M.blockwiseWordSigningOracle E c.1 c.2)) (F c.1 [])).run []) := by
-    refine hF.run_interpret_preprocess
-      (input := encPair encUnary encBits)
+            (M.blockwiseWordSigningOracle E c.1 c.2)) (F c.1 [])).run []) :=
+    hF.run_interpret_preprocess (input := encPair encUnary encBits)
       (prepare := fun c : ℕ × List Bool => (c.1, ([] : List Bool)))
       (initial := fun _ : ℕ × List Bool => ([] : List (List Bool × Tag)))
       (resources := fun c w =>
         2 * (2 * w.length + cs * ((encSignInput (c.1, c.2, w)).length + 1) ^ ds + 1) + 2)
-      (by fun_prop) (M.isPPTOn_blockwiseWordSigningOracle hE) (by fun_prop)
-      (fun _ _ => True) (fun _ => trivial) (by fun_prop) ?_
-    intro c request log _ result hresult
-    simp only [blockwiseWordSigningOracle, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hresult
-    obtain ⟨tag, htag, rfl⟩ := hresult
-    have htagLen := hlens (c.1, c.2, request.2) tag htag
-    have hlogLen : (encLog ((request.2, tag) :: log)).length =
-        2 * (2 * request.2.length + (encTag tag).length + 1) + 1 + (encLog log).length := by
-      simp only [encLog, encForgerOutput, encList_cons, List.length_append, length_frame,
-        length_encPair, encBits_apply]
-      omega
-    refine ⟨trivial, ?_, ?_⟩
-    · dsimp only
-      omega
-    · dsimp only
-      omega
-  have hgame : M.blockwiseGame E F.toAdversary = fun n =>
-      M.keyGen n >>= fun sk =>
+      ((fst encUnary encBits).prod (.const []))
+      (M.isPPTOn_blockwiseWordSigningOracle hE) (.const []) (fun _ _ => True)
+      (fun _ => trivial) hres fun c request log _ result hresult => by
+        supp_cases hresult [blockwiseWordSigningOracle, ProbComp.eval_bind, ProbComp.eval_pure]
+          with ⟨tag, htag, rfl⟩
+        have := hlens (c.1, c.2, request.2) tag htag
+        have := length_encLog_cons request.2 tag log
+        dsimp only; exact ⟨trivial, by omega, by omega⟩
+  rw [show M.blockwiseGame E F.toAdversary = fun n => M.keyGen n >>= fun sk =>
       (fun out : (List Bool × Tag) × List (List Bool × Tag) =>
         !decide (out.1.1 ∈ out.2.map Prod.fst) && M.blockwiseVerify E n sk out.1.1 out.1.2) <$>
         (OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-            (M.blockwiseWordSigningOracle E n sk)) (F n [])).run [] := by
-    funext n
-    simp only [blockwiseGame, run_interpret_blockwiseSigningOracle_toAdversary,
-      List.contains_eq_mem, bind_pure_comp]
-  rw [hgame]
+            (M.blockwiseWordSigningOracle E n sk)) (F n [])).run [] from
+    funext fun n => by simp only [blockwiseGame,
+      run_interpret_blockwiseSigningOracle_toAdversary, List.contains_eq_mem, bind_pure_comp]]
   exact M.keyGen_ppt.bind_with (hrun.map_with (by fun_prop))
 
 /-- `blockwiseGame E F.toAdversary` is strict PPT whenever `E` is a polynomial-time encoder and
@@ -1484,24 +1440,18 @@ private theorem blockwiseBoundedSimulator_bound {tagBound : ℕ → ℕ}
     ProbOracleComp.support_sample, BitString.eval_sampleList, OracleComp.supportWith_pure,
     Set.mem_singleton_iff] at hresult
   obtain ⟨r, hr, tags, htags, rfl⟩ := hresult
-  have hrlen := BitString.length_of_mem_support_uniformList hr
   have htagsLen := (length_encList_of_mem_support_mapM_query_take (tagBound c.1) _ htags).trans
     (Nat.mul_le_mul_right _ (length_blockInputs_le E (M.msgLen c.1) r request.2))
-  have hencTag : (encTag (r, tags)).length ≤
+  have : (encTag (r, tags)).length ≤
       2 * fieldWidth (M.msgLen c.1) + request.2.length * (2 * tagBound c.1 + 2) + 1 := by
-    simp only [encTag, length_encPair, encBits_apply, hrlen]
+    simp only [encTag, length_encPair, encBits_apply,
+      BitString.length_of_mem_support_uniformList hr]
     omega
-  have hlogLen : (encLog ((request.2, (r, tags)) :: log)).length =
-      2 * (2 * request.2.length + (encTag (r, tags)).length + 1) + 1 + (encLog log).length := by
-    simp only [encLog, encForgerOutput, encList_cons, List.length_append, length_frame,
-      length_encPair, encBits_apply]
-    omega
-  refine ⟨?_, ?_⟩
-  · dsimp only
-    omega
-  · dsimp only
-    omega
+  have := length_encLog_cons request.2 (r, tags) log
+  dsimp only
+  exact ⟨by omega, by omega⟩
 
+open ComputableInPolyTime in
 /-- `blockwiseBoundedReduction E tagBound F` is uniformly strict oracle PPT whenever `E` is a
 polynomial-time encoder, `tagBound` is polynomial-time, and `F` is a strict oracle-PPT blockwise
 forger. -/
@@ -1509,34 +1459,22 @@ theorem isOraclePPT_blockwiseBoundedReduction (hE : IsPolyTimeEncoder E)
     {tagBound : ℕ → ℕ} (htagBound : ComputableInPolyTime tagBound encUnary encUnary)
     {F : BlockwiseMACForger} (hF : IsOraclePPT encForgerOutput F) :
     IsOraclePPT (encPair encBits encBits) (M.blockwiseBoundedReduction E tagBound F) := by
-  have hmsgLen := M.msgLen_polyTime
   have heq : M.blockwiseBoundedReduction E tagBound F = fun n _ =>
       (fun out : (List Bool × Tag) × List (List Bool × Tag) =>
         freshBlockPair E (M.msgLen n) out.2 out.1.1 out.1.2) <$>
       (OracleComp.interpret
         (OracleComp.sumHandler (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
           (M.blockwiseBoundedSimulator E tagBound n)) (F n [])).run [] := by
-    funext n aux
-    simp only [blockwiseBoundedReduction, bind_pure_comp]
+    funext n aux; simp only [blockwiseBoundedReduction, bind_pure_comp]
   rw [heq]
-  have hn := ComputableInPolyTime.fst encUnary encBits
-  have hprepare := hn.prod (ComputableInPolyTime.const (encOut := encBits) [])
-  have hrp := ComputableInPolyTime.id'
-    (encIn := encPair (encPair encUnary encBits) encBits)
-  have hwidth := (ComputableInPolyTime.unary_div_const 4).comp
-    (hmsgLen.comp hrp.fst'.fst')
-  have htag := htagBound.comp hrp.fst'.fst'
-  have hlength := ComputableInPolyTime.length_bits.comp hrp.snd'
-  have htagSize := ComputableInPolyTime.unary_add'
-    (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' (.const 2) hwidth)
-      (ComputableInPolyTime.unary_mul' hlength
-        (ComputableInPolyTime.unary_add'
-          (ComputableInPolyTime.unary_mul' (.const 2) htag) (.const 2)))) (.const 1)
-  have hresources := ComputableInPolyTime.unary_add'
-    (ComputableInPolyTime.unary_mul' (.const 2)
-      (ComputableInPolyTime.unary_add'
-        (ComputableInPolyTime.unary_add'
-          (ComputableInPolyTime.unary_mul' (.const 2) hlength) htagSize) (.const 1))) (.const 2)
+  have hrp := id' (encIn := encPair (encPair encUnary encBits) encBits)
+  have hwidth := (unary_div_const 4).comp (M.msgLen_polyTime.comp hrp.fst'.fst')
+  have hlength := length_bits.comp hrp.snd'
+  have htagSize := unary_add' (unary_add' (unary_mul' (.const 2) hwidth)
+    (unary_mul' hlength (unary_add' (unary_mul' (.const 2) (htagBound.comp hrp.fst'.fst'))
+      (.const 2)))) (.const 1)
+  have hres := unary_add' (unary_mul' (.const 2)
+    (unary_add' (unary_add' (unary_mul' (.const 2) hlength) htagSize) (.const 1))) (.const 2)
   have hr := hF.run_interpret_preprocess_open
     (input := encPair encUnary encBits)
     (prepare := fun c : ℕ × List Bool => (c.1, ([] : List Bool)))
@@ -1544,39 +1482,16 @@ theorem isOraclePPT_blockwiseBoundedReduction (hE : IsPolyTimeEncoder E)
     (resources := fun c w =>
       2 * (2 * w.length +
         (2 * fieldWidth (M.msgLen c.1) + w.length * (2 * tagBound c.1 + 2) + 1) + 1) + 2)
-    hprepare (M.isOraclePPTOn_blockwiseBoundedSimulator hE htagBound)
-    (ComputableInPolyTime.const (encOut := encLog) [])
-    (fun _ _ => True) (fun _ => trivial) hresources
-    (fun c request log _ result hresult =>
-      ⟨trivial, M.blockwiseBoundedSimulator_bound c request log hresult⟩)
-  have hp := ComputableInPolyTime.id'
-    (encIn := encPair (encPair encUnary encBits) (encPair encForgerOutput encLog))
-  exact (hr.map_with
-    (computableInPolyTime_freshBlockPair_comp hE
-      (hmsgLen.comp hp.fst'.fst') hp.snd'.snd' hp.snd'.fst'.fst' hp.snd'.fst'.snd')).isOraclePPT
-
-private theorem runWith_mapM_query_take {n : ℕ} {sk : List Bool} {tagBound : ℕ → ℕ}
-    (htagBound : ∀ msg, msg.length = M.msgLen n →
-      ∀ tag ∈ (ProbComp.eval (M.sign sk msg)).support, tag.length ≤ tagBound n)
-    (xs : List (List Bool)) (hxs : ∀ x ∈ xs, x.length = M.msgLen n) (log : List (List Bool)) :
-    ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle n sk q s))
-      (xs.mapM fun x =>
-        List.take (tagBound n) <$>
-          (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) log =
-      (ProbComp.eval (xs.mapM (M.sign sk))).map fun tags => (tags, xs.reverse ++ log) := by
-  induction xs generalizing log with
-  | nil => simp
-  | cons x xs ih =>
-    have hx := hxs x (by simp)
-    have hxs' : ∀ y ∈ xs, y.length = M.msgLen n := fun y hy => hxs y (by simp [hy])
-    simp only [List.mapM_cons, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
-      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, ih hxs']
-    simp only [signingOracle, SignatureScheme.signingOracleOn, beq_iff_eq.mpr hx, ↓reduceIte,
-      ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind,
-      PMF.bind_map, PMF.pure_map, Function.comp_def, Prod.map_apply, id_eq, List.reverse_cons,
-      List.append_assoc, List.singleton_append]
-    refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
-    rw [List.take_of_length_le (htagBound x hx tag htag)]
+    ((fst encUnary encBits).prod (.const []))
+    (M.isOraclePPTOn_blockwiseBoundedSimulator hE htagBound)
+    (.const []) (fun _ _ => True) (fun _ => trivial) hres
+    (fun c request log _ _ h => ⟨trivial, M.blockwiseBoundedSimulator_bound c request log h⟩)
+  have hp := id' (encIn := encPair (encPair encUnary encBits) (encPair encForgerOutput encLog))
+  exact (hr.map_with (f := fun (c : ℕ × List Bool)
+      (out : (List Bool × Tag) × List (List Bool × Tag)) =>
+      freshBlockPair E (M.msgLen c.1) out.2 out.1.1 out.1.2)
+    (computableInPolyTime_freshBlockPair_comp hE (M.msgLen_polyTime.comp hp.fst'.fst')
+      hp.snd'.snd' hp.snd'.fst'.fst' hp.snd'.fst'.snd')).isOraclePPT
 
 private theorem runWith_blockwiseBoundedSimulator (F : BlockwiseMACForger) (tagBound : ℕ → ℕ)
     (n : ℕ) (sk : List Bool)
@@ -1606,7 +1521,9 @@ private theorem runWith_blockwiseBoundedSimulator (F : BlockwiseMACForger) (tagB
   have hrlen := BitString.length_of_mem_support_uniformList hr
   have hxs : ∀ x ∈ blockInputs E (M.msgLen n) r request.2, x.length = M.msgLen n :=
     fun x hx => length_of_mem_blockInputs (fun len idx b hb => hElen len idx r b hrlen hb) hx
-  rw [M.runWith_mapM_query_take htagBound _ hxs, M.runWith_mapM_query sk _ hxs]
+  rw [M.runWith_mapM_query_map sk (List.take (tagBound n))
+      (fun m hm t ht => List.take_of_length_le (htagBound m hm t ht)) _ hxs,
+    M.runWith_mapM_query sk _ hxs]
 
 /-- When `tagBound n` bounds all honest tags of `M.sign sk` on `M.msgLen n`-bit messages, running
 `blockwiseBoundedReduction fullEncoder tagBound F` in `M.eufCmaGame` has the exact same output
@@ -1648,16 +1565,14 @@ theorem succProbability_blockwiseGame_le (F : BlockwiseMACForger) (tagBound : �
       Game.succProbability
         (ProbComp.eval (M.eufCmaGame (M.blockwiseBoundedReduction fullEncoder tagBound F) n)) +
         ((∑ i ∈ Finset.range Q, i : ℕ) : ℝ≥0) / 2 ^ fieldWidth (M.msgLen n) := by
-  let err : ℝ≥0 := ((∑ i ∈ Finset.range Q, i : ℕ) : ℝ≥0) / 2 ^ fieldWidth (M.msgLen n)
-  have herr : (err : ℝ≥0∞) =
-      ((∑ i ∈ Finset.range Q, i : ℕ) : ℝ≥0∞) / 2 ^ fieldWidth (M.msgLen n) := by
-    simp [err, ENNReal.coe_div (pow_ne_zero _ two_ne_zero)]
   have hle := M.blockwiseGame_le_blockwiseBoundedReduction F tagBound n Q hF htagBound
+  have herr : ((↑(((∑ i ∈ Finset.range Q, i : ℕ) : ℝ≥0) / 2 ^ fieldWidth (M.msgLen n)) : ℝ≥0∞)) =
+      ((∑ i ∈ Finset.range Q, i : ℕ) : ℝ≥0∞) / 2 ^ fieldWidth (M.msgLen n) := by
+    simp [ENNReal.coe_div (pow_ne_zero _ two_ne_zero)]
   rw [← herr] at hle
-  have hmono := ENNReal.toNNReal_mono
+  have hm := ENNReal.toNNReal_mono
     (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, ENNReal.coe_ne_top⟩) hle
-  rwa [ENNReal.toNNReal_add (PMF.apply_ne_top _ _) ENNReal.coe_ne_top,
-    ENNReal.toNNReal_coe] at hmono
+  rwa [ENNReal.toNNReal_add (PMF.apply_ne_top _ _) ENNReal.coe_ne_top, ENNReal.toNNReal_coe] at hm
 
 /-! ### Uniform asymptotic security and separations -/
 
@@ -1690,32 +1605,21 @@ theorem EUFCMA.blockwiseEUFCMA (h : M.EUFCMA)
     (hmsgLen : PolynomiallyLowerBounded M.msgLen) :
     M.BlockwiseEUFCMA fullEncoder := by
   obtain ⟨tagBound, htagBoundPoly, htagBound⟩ := M.exists_tag_length_bound_of_length_eq
-  apply Game.Indistinguishable.of_negligible_succProbability
-  intro F hF
+  refine Game.Indistinguishable.of_negligible_succProbability fun F hF => ?_
   obtain ⟨c, d, hFbounds⟩ := hF.query_bounds
   let Q : ℕ → ℕ := fun n => c * (n + 2) ^ d
-  have hQpoly : PolynomiallyBounded Q := by
-    dsimp only [Q]
-    fun_prop
-  have hw : PolynomiallyLowerBounded (fun n => fieldWidth (M.msgLen n)) :=
-    hmsgLen.div_const (by decide)
-  have hpow : Negligible (fun n => ((2 : ℝ≥0) ^ fieldWidth (M.msgLen n))⁻¹) :=
-    negligible_inv_two_pow_of_polynomiallyLowerBounded hw
+  have hQpoly : PolynomiallyBounded Q := by dsimp only [Q]; fun_prop
   have hcol : Negligible (fun n =>
-      ((∑ i ∈ Finset.range (Q n), i : ℕ) : ℝ≥0) / 2 ^ fieldWidth (M.msgLen n)) := by
-    refine negligible_of_le (Negligible.polynomiallyBounded_div (hQpoly.mul hQpoly) hpow)
-      fun n => ?_
-    refine div_le_div_of_nonneg_right (Nat.cast_le.mpr ?_) (by positivity)
-    calc
-      ∑ i ∈ Finset.range (Q n), i ≤ ∑ _i ∈ Finset.range (Q n), Q n :=
-        Finset.sum_le_sum fun i hi => (Finset.mem_range.mp hi).le
-      _ = Q n * Q n := by rw [Finset.sum_const, Finset.card_range, smul_eq_mul]
+      ((∑ i ∈ Finset.range (Q n), i : ℕ) : ℝ≥0) / 2 ^ fieldWidth (M.msgLen n)) :=
+    negligible_of_le (Negligible.polynomiallyBounded_div (hQpoly.mul hQpoly)
+      (negligible_inv_two_pow_of_polynomiallyLowerBounded (hmsgLen.div_const (by decide))))
+      fun n => div_le_div_of_nonneg_right (Nat.cast_le.mpr
+        ((Finset.sum_le_sum fun i hi => (Finset.mem_range.mp hi).le).trans_eq
+          (by rw [Finset.sum_const, Finset.card_range, smul_eq_mul]))) (by positivity)
   have hred := h.negligible (M.blockwiseBoundedReduction fullEncoder tagBound F)
     (M.isOraclePPT_blockwiseBoundedReduction isPolyTimeEncoder_fullEncoder htagBoundPoly hF)
-  refine negligible_of_le (hred.add hcol) fun n => ?_
-  have hFn : ProbOracleComp.IsQueryBounded (F n []) (Q n) := by
-    simpa [Q, Nat.add_assoc] using (hFbounds n []).1
-  exact M.succProbability_blockwiseGame_le F tagBound n (Q n) hFn (htagBound n)
+  exact negligible_of_le (hred.add hcol) fun n => M.succProbability_blockwiseGame_le F tagBound n
+    (Q n) (by simpa [Q, Nat.add_assoc] using (hFbounds n []).1) (htagBound n)
 
 variable (M E) in
 /-- When `replyBound n m.length` covers the encoded length of every honest blockwise tag on `m`,
@@ -1727,202 +1631,165 @@ theorem eval_blockwiseGame_toForger (A : BlockwiseMACAdversary) (replyBound : �
         (encTag tag).length ≤ replyBound n m.length) :
     ProbComp.eval (M.blockwiseGame E (A.toForger replyBound).toAdversary n) =
       ProbComp.eval (M.blockwiseGame E A n) := by
-  simp only [blockwiseGame, ProbComp.eval_bind, ProbComp.eval_pure]
+  simp only [blockwiseGame, BlockwiseMACForger.toAdversary, BlockwiseMACAdversary.toForger,
+    runWith_norm, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
-  rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.eval_run_interpret_eq_runWith]
-  congr 1
-  rw [BlockwiseMACForger.toAdversary, BlockwiseMACAdversary.toForger,
-    ProbOracleComp.simulate_simulate, ProbOracleComp.runWith_simulate]
-  congr 1
+  congr 2
   funext m log
-  simp only [ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query,
-    ProbOracleComp.simulate_pure, bind_assoc, pure_bind, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, blockwiseSigningOracle,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [blockwiseSigningOracle, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
   rw [List.take_of_length_le (hbound sk hsk m tag htag), tagDecoder.decode_enc]
 
+private theorem isOraclePPTOn_repPairQuery {M : MACScheme} {replyBound : ℕ → ℕ → ℕ}
+    (hbound : ComputableInPolyTime (fun p : ℕ × ℕ => replyBound p.1 p.2)
+      (encPair encUnary encUnary) encUnary) (b₁ b₂ : Bool) :
+    IsOraclePPTOn (encPair encUnary encBits) encBits
+      (fun p : ℕ × List Bool =>
+        List.take
+          (replyBound p.1
+            (List.replicate (fieldWidth (M.msgLen p.1)) b₁ ++
+              List.replicate (fieldWidth (M.msgLen p.1)) b₂).length) <$>
+          (ProbOracleComp.query
+            ((), List.replicate (fieldWidth (M.msgLen p.1)) b₁ ++
+              List.replicate (fieldWidth (M.msgLen p.1)) b₂) :
+            WordOracleComp Unit (List Bool))) := by
+  open ComputableInPolyTime in
+  have hn := fst encUnary encBits
+  have hw := (unary_div_const 4).comp (M.msgLen_polyTime.comp hn)
+  have hreq := bitsAppend ((bitsReplicate b₁).comp hw) ((bitsReplicate b₂).comp hw)
+  exact IsOraclePPTOn.query_take () hreq (hbound.comp (hn.prod (length_bits.comp hreq)))
+
 variable (M) in
+open ComputableInPolyTime in
 /-- `M.swapBlocksAdversary.toForger replyBound` is strict oracle PPT for any polynomial-time
 `replyBound`. -/
 theorem isOraclePPT_toForger_swapBlocksAdversary {replyBound : ℕ → ℕ → ℕ}
     (hbound : ComputableInPolyTime (fun p : ℕ × ℕ => replyBound p.1 p.2)
       (encPair encUnary encUnary) encUnary) :
     IsOraclePPT encForgerOutput (M.swapBlocksAdversary.toForger replyBound) := by
-  have hmsgLen := M.msgLen_polyTime
-  have heq : M.swapBlocksAdversary.toForger replyBound = fun n _ =>
-      (fun raw : List Bool =>
-        let tag := tagDecoder.decode raw
-        (List.replicate (fieldWidth (M.msgLen n)) true ++
-          List.replicate (fieldWidth (M.msgLen n)) false, (tag.1, tag.2.reverse))) <$>
-        (List.take
-          (replyBound n
-            (List.replicate (fieldWidth (M.msgLen n)) false ++
-              List.replicate (fieldWidth (M.msgLen n)) true).length) <$>
-          ProbOracleComp.query
-            ((), List.replicate (fieldWidth (M.msgLen n)) false ++
-              List.replicate (fieldWidth (M.msgLen n)) true)) := by
-    funext n aux
-    simp only [BlockwiseMACAdversary.toForger, swapBlocksAdversary, ProbOracleComp.simulate_bind,
-      ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
-      map_eq_bind_pure_comp, Function.comp_def]
-  rw [heq]
-  have hn := ComputableInPolyTime.fst encUnary encBits
-  have hwidth := (ComputableInPolyTime.unary_div_const 4).comp (hmsgLen.comp hn)
-  have hfalse := (ComputableInPolyTime.bitsReplicate false).comp hwidth
-  have htrue := (ComputableInPolyTime.bitsReplicate true).comp hwidth
-  have hrequest := ComputableInPolyTime.bitsAppend hfalse htrue
-  have hlimit := hbound.comp
-    (hn.prod (ComputableInPolyTime.length_bits.comp hrequest))
-  have hp := ComputableInPolyTime.fst (encPair encUnary encBits) encBits
-  have htag := tagDecoder.computableInPolyTime.comp
-    (ComputableInPolyTime.snd (encPair encUnary encBits) encBits)
-  have hmessage := ComputableInPolyTime.bitsAppend (htrue.comp hp) (hfalse.comp hp)
-  have hresult := hmessage.prod
-    (htag.fst'.prod ((ComputableInPolyTime.listReverse encBits).comp htag.snd'))
-  exact ((IsOraclePPTOn.query_take () hrequest hlimit).map_with hresult).isOraclePPT
+  have hp := id' (encIn := encPair (encPair encUnary encBits) encBits)
+  have hw := (unary_div_const 4).comp (M.msgLen_polyTime.comp hp.fst'.fst')
+  have htag := tagDecoder.computableInPolyTime.comp hp.snd'
+  have hres := (bitsAppend ((bitsReplicate true).comp hw) ((bitsReplicate false).comp hw)).prod
+    (htag.fst'.prod ((listReverse encBits).comp htag.snd'))
+  refine show IsOraclePPTOn _ _ _ from ?_
+  convert (isOraclePPTOn_repPairQuery (M := M) hbound false true).map_with
+    (f := fun (p : ℕ × List Bool) (raw : List Bool) =>
+      (List.replicate (fieldWidth (M.msgLen p.1)) true ++
+        List.replicate (fieldWidth (M.msgLen p.1)) false,
+        ((tagDecoder.decode raw).1, (tagDecoder.decode raw).2.reverse))) hres using 1
+  funext ⟨n, aux⟩
+  simp only [BlockwiseMACAdversary.toForger, swapBlocksAdversary, ProbOracleComp.simulate_bind,
+    ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
+    map_eq_bind_pure_comp, Function.comp_def]
 
 variable (M) in
+open ComputableInPolyTime in
 /-- `M.truncateAdversary.toForger replyBound` is strict oracle PPT for any polynomial-time
 `replyBound`. -/
 theorem isOraclePPT_toForger_truncateAdversary {replyBound : ℕ → ℕ → ℕ}
     (hbound : ComputableInPolyTime (fun p : ℕ × ℕ => replyBound p.1 p.2)
       (encPair encUnary encUnary) encUnary) :
     IsOraclePPT encForgerOutput (M.truncateAdversary.toForger replyBound) := by
-  have hmsgLen := M.msgLen_polyTime
-  have heq : M.truncateAdversary.toForger replyBound = fun n _ =>
-      (fun raw : List Bool =>
-        let tag := tagDecoder.decode raw
-        (List.replicate (fieldWidth (M.msgLen n)) false, (tag.1, tag.2.take 1))) <$>
-        (List.take
-          (replyBound n
-            (List.replicate (fieldWidth (M.msgLen n)) false ++
-              List.replicate (fieldWidth (M.msgLen n)) true).length) <$>
-          ProbOracleComp.query
-            ((), List.replicate (fieldWidth (M.msgLen n)) false ++
-              List.replicate (fieldWidth (M.msgLen n)) true)) := by
-    funext n aux
-    simp only [BlockwiseMACAdversary.toForger, truncateAdversary, ProbOracleComp.simulate_bind,
-      ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
-      map_eq_bind_pure_comp, Function.comp_def]
-  rw [heq]
-  have hn := ComputableInPolyTime.fst encUnary encBits
-  have hwidth := (ComputableInPolyTime.unary_div_const 4).comp (hmsgLen.comp hn)
-  have hfalse := (ComputableInPolyTime.bitsReplicate false).comp hwidth
-  have htrue := (ComputableInPolyTime.bitsReplicate true).comp hwidth
-  have hrequest := ComputableInPolyTime.bitsAppend hfalse htrue
-  have hlimit := hbound.comp
-    (hn.prod (ComputableInPolyTime.length_bits.comp hrequest))
-  have hp := ComputableInPolyTime.fst (encPair encUnary encBits) encBits
-  have htag := tagDecoder.computableInPolyTime.comp
-    (ComputableInPolyTime.snd (encPair encUnary encBits) encBits)
-  have hresult := (hfalse.comp hp).prod
-    (htag.fst'.prod (ComputableInPolyTime.listTakeWithInput htag.snd' (.const 1)))
-  exact ((IsOraclePPTOn.query_take () hrequest hlimit).map_with hresult).isOraclePPT
+  have hp := id' (encIn := encPair (encPair encUnary encBits) encBits)
+  have hw := (unary_div_const 4).comp (M.msgLen_polyTime.comp hp.fst'.fst')
+  have htag := tagDecoder.computableInPolyTime.comp hp.snd'
+  have hres := ((bitsReplicate false).comp hw).prod
+    (htag.fst'.prod (listTakeWithInput htag.snd' (.const 1)))
+  refine show IsOraclePPTOn _ _ _ from ?_
+  convert (isOraclePPTOn_repPairQuery (M := M) hbound false true).map_with
+    (f := fun (p : ℕ × List Bool) (raw : List Bool) =>
+      (List.replicate (fieldWidth (M.msgLen p.1)) false,
+        ((tagDecoder.decode raw).1, (tagDecoder.decode raw).2.take 1))) hres using 1
+  funext ⟨n, aux⟩
+  simp only [BlockwiseMACAdversary.toForger, truncateAdversary, ProbOracleComp.simulate_bind,
+    ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
+    map_eq_bind_pure_comp, Function.comp_def]
 
 variable (M) in
+open ComputableInPolyTime in
 /-- `M.mixBlocksAdversary.toForger replyBound` is strict oracle PPT for any polynomial-time
 `replyBound`. -/
 theorem isOraclePPT_toForger_mixBlocksAdversary {replyBound : ℕ → ℕ → ℕ}
     (hbound : ComputableInPolyTime (fun p : ℕ × ℕ => replyBound p.1 p.2)
       (encPair encUnary encUnary) encUnary) :
     IsOraclePPT encForgerOutput (M.mixBlocksAdversary.toForger replyBound) := by
-  have hmsgLen := M.msgLen_polyTime
-  have heq : M.mixBlocksAdversary.toForger replyBound = fun n _ =>
-      (List.take
-        (replyBound n
-          (List.replicate (fieldWidth (M.msgLen n)) false ++
-            List.replicate (fieldWidth (M.msgLen n)) false).length) <$>
-        ProbOracleComp.query
-          ((), List.replicate (fieldWidth (M.msgLen n)) false ++
-            List.replicate (fieldWidth (M.msgLen n)) false)) >>= fun raw =>
-      (fun raw' : List Bool =>
-        (List.replicate (fieldWidth (M.msgLen n)) false ++
-          List.replicate (fieldWidth (M.msgLen n)) true,
-          ((tagDecoder.decode raw).1,
-            (tagDecoder.decode raw).2.take 1 ++ (tagDecoder.decode raw').2.drop 1))) <$>
-        (List.take
-          (replyBound n
-            (List.replicate (fieldWidth (M.msgLen n)) true ++
-              List.replicate (fieldWidth (M.msgLen n)) true).length) <$>
-          ProbOracleComp.query
-            ((), List.replicate (fieldWidth (M.msgLen n)) true ++
-              List.replicate (fieldWidth (M.msgLen n)) true)) := by
-    funext n aux
-    simp only [BlockwiseMACAdversary.toForger, mixBlocksAdversary, ProbOracleComp.simulate_bind,
-      ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
-      map_eq_bind_pure_comp, Function.comp_def]
-  rw [heq]
-  have hn := ComputableInPolyTime.fst encUnary encBits
-  have hwidth := (ComputableInPolyTime.unary_div_const 4).comp (hmsgLen.comp hn)
-  have hfalse := (ComputableInPolyTime.bitsReplicate false).comp hwidth
-  have htrue := (ComputableInPolyTime.bitsReplicate true).comp hwidth
-  have hrequest₁ := ComputableInPolyTime.bitsAppend hfalse hfalse
-  have hrequest₂ := ComputableInPolyTime.bitsAppend htrue htrue
-  have hlimit₁ := hbound.comp
-    (hn.prod (ComputableInPolyTime.length_bits.comp hrequest₁))
-  have hlimit₂ := hbound.comp
-    (hn.prod (ComputableInPolyTime.length_bits.comp hrequest₂))
-  have hq1 := IsOraclePPTOn.query_take () hrequest₁ hlimit₁
-  have hcontext := ComputableInPolyTime.fst (encPair encUnary encBits) encBits
-  have hq2 := IsOraclePPTOn.query_take ()
-    (hrequest₂.comp hcontext) (hlimit₂.comp hcontext)
-  have hp := ComputableInPolyTime.id'
-    (encIn := encPair (encPair (encPair encUnary encBits) encBits) encBits)
+  have hq2 := (isOraclePPTOn_repPairQuery (M := M) hbound true true).preprocess
+    (fst (encPair encUnary encBits) encBits)
+  have hp := id' (encIn := encPair (encPair (encPair encUnary encBits) encBits) encBits)
+  have hw := (unary_div_const 4).comp (M.msgLen_polyTime.comp hp.fst'.fst'.fst')
   have htag₁ := tagDecoder.computableInPolyTime.comp hp.fst'.snd'
   have htag₂ := tagDecoder.computableInPolyTime.comp hp.snd'
-  have hmessage := (ComputableInPolyTime.bitsAppend hfalse htrue).comp hp.fst'.fst'
-  have htags := ComputableInPolyTime.listAppend encBits |>.comp
-    ((ComputableInPolyTime.listTakeWithInput htag₁.snd' (.const 1)).prod
-      (ComputableInPolyTime.listDropWithInput htag₂.snd' (.const 1)))
-  have hresult := hmessage.prod (htag₁.fst'.prod htags)
-  exact (hq1.bind_with (hq2.map_with hresult)).isOraclePPT
+  have hres := (bitsAppend ((bitsReplicate false).comp hw) ((bitsReplicate true).comp hw)).prod
+    (htag₁.fst'.prod ((listAppend encBits).comp
+      ((listTakeWithInput htag₁.snd' (.const 1)).prod
+        (listDropWithInput htag₂.snd' (.const 1)))))
+  have hbody := hq2.map_with (f := fun (p : (ℕ × List Bool) × List Bool) (raw' : List Bool) =>
+    (List.replicate (fieldWidth (M.msgLen p.1.1)) false ++
+      List.replicate (fieldWidth (M.msgLen p.1.1)) true,
+      ((tagDecoder.decode p.2).1,
+        (tagDecoder.decode p.2).2.take 1 ++ (tagDecoder.decode raw').2.drop 1))) hres
+  refine show IsOraclePPTOn _ _ _ from ?_
+  convert (isOraclePPTOn_repPairQuery (M := M) hbound false false).bind_with
+    (second := fun (p : ℕ × List Bool) (raw : List Bool) =>
+      (fun raw' : List Bool =>
+        (List.replicate (fieldWidth (M.msgLen p.1)) false ++
+          List.replicate (fieldWidth (M.msgLen p.1)) true,
+          ((tagDecoder.decode raw).1,
+            (tagDecoder.decode raw).2.take 1 ++ (tagDecoder.decode raw').2.drop 1))) <$>
+      (List.take (replyBound p.1
+        (List.replicate (fieldWidth (M.msgLen p.1)) true ++
+          List.replicate (fieldWidth (M.msgLen p.1)) true).length) <$>
+        (ProbOracleComp.query
+          ((), List.replicate (fieldWidth (M.msgLen p.1)) true ++
+            List.replicate (fieldWidth (M.msgLen p.1)) true) :
+          WordOracleComp Unit (List Bool)))) hbody using 1
+  funext ⟨n, aux⟩
+  simp only [BlockwiseMACAdversary.toForger, mixBlocksAdversary, ProbOracleComp.simulate_bind,
+    ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
+    map_eq_bind_pure_comp, Function.comp_def]
+
+private theorem not_blockwiseEUFCMA_of_adversary {E : Encoder} (hE : IsPolyTimeEncoder E)
+    (A : BlockwiseMACAdversary)
+    (hA : ∀ {replyBound : ℕ → ℕ → ℕ},
+      ComputableInPolyTime (fun p : ℕ × ℕ => replyBound p.1 p.2)
+        (encPair encUnary encUnary) encUnary →
+      IsOraclePPT encForgerOutput (A.toForger replyBound))
+    (hwin : ∀ᶠ n in Filter.atTop, ProbComp.eval (M.blockwiseGame E A n) true = 1) :
+    ¬ M.BlockwiseEUFCMA E := by
+  intro hsec
+  obtain ⟨replyBound, hboundPoly, hbound⟩ := M.exists_blockwiseSign_length_bound hE
+  refine not_negligible_of_eventually_eq_one ?_ (hsec.negligible _ (hA hboundPoly))
+  filter_upwards [hwin] with n hn
+  rw [M.eval_blockwiseGame_toForger E A replyBound n (hbound n), Game.succProbability, hn,
+    ENNReal.toNNReal_one]
 
 /-- Without the block index (`noIndexEncoder`), the blockwise construction is not
 `BlockwiseEUFCMA`-secure whenever `3 ≤ fieldWidth (M.msgLen n)` eventually. -/
 theorem not_blockwiseEUFCMA_noIndexEncoder
     (hw : ∀ᶠ n in Filter.atTop, 3 ≤ fieldWidth (M.msgLen n)) :
-    ¬ M.BlockwiseEUFCMA noIndexEncoder := by
-  intro hsec
-  obtain ⟨replyBound, hboundPoly, hbound⟩ :=
-    M.exists_blockwiseSign_length_bound isPolyTimeEncoder_noIndexEncoder
-  have hneg := hsec.negligible (M.swapBlocksAdversary.toForger replyBound)
-    (M.isOraclePPT_toForger_swapBlocksAdversary hboundPoly)
-  refine not_negligible_of_eventually_eq_one ?_ hneg
-  filter_upwards [hw] with n hn
-  rw [M.eval_blockwiseGame_toForger noIndexEncoder M.swapBlocksAdversary replyBound n (hbound n),
-    Game.succProbability, M.blockwiseGame_noIndex n hn, ENNReal.toNNReal_one]
+    ¬ M.BlockwiseEUFCMA noIndexEncoder :=
+  M.not_blockwiseEUFCMA_of_adversary isPolyTimeEncoder_noIndexEncoder M.swapBlocksAdversary
+    (fun h => M.isOraclePPT_toForger_swapBlocksAdversary h)
+    (hw.mono fun n hn => M.blockwiseGame_noIndex n hn)
 
 /-- Without the message length (`noLengthEncoder`), the blockwise construction is not
 `BlockwiseEUFCMA`-secure whenever `3 ≤ fieldWidth (M.msgLen n)` eventually. -/
 theorem not_blockwiseEUFCMA_noLengthEncoder
     (hw : ∀ᶠ n in Filter.atTop, 3 ≤ fieldWidth (M.msgLen n)) :
-    ¬ M.BlockwiseEUFCMA noLengthEncoder := by
-  intro hsec
-  obtain ⟨replyBound, hboundPoly, hbound⟩ :=
-    M.exists_blockwiseSign_length_bound isPolyTimeEncoder_noLengthEncoder
-  have hneg := hsec.negligible (M.truncateAdversary.toForger replyBound)
-    (M.isOraclePPT_toForger_truncateAdversary hboundPoly)
-  refine not_negligible_of_eventually_eq_one ?_ hneg
-  filter_upwards [hw] with n hn
-  rw [M.eval_blockwiseGame_toForger noLengthEncoder M.truncateAdversary replyBound n (hbound n),
-    Game.succProbability, M.blockwiseGame_noLength n hn, ENNReal.toNNReal_one]
+    ¬ M.BlockwiseEUFCMA noLengthEncoder :=
+  M.not_blockwiseEUFCMA_of_adversary isPolyTimeEncoder_noLengthEncoder M.truncateAdversary
+    (fun h => M.isOraclePPT_toForger_truncateAdversary h)
+    (hw.mono fun n hn => M.blockwiseGame_noLength n hn)
 
 /-- Without the identifier (`noIdentifierEncoder`), the blockwise construction is not
 `BlockwiseEUFCMA`-secure whenever `3 ≤ fieldWidth (M.msgLen n)` eventually. -/
 theorem not_blockwiseEUFCMA_noIdentifierEncoder
     (hw : ∀ᶠ n in Filter.atTop, 3 ≤ fieldWidth (M.msgLen n)) :
-    ¬ M.BlockwiseEUFCMA noIdentifierEncoder := by
-  intro hsec
-  obtain ⟨replyBound, hboundPoly, hbound⟩ :=
-    M.exists_blockwiseSign_length_bound isPolyTimeEncoder_noIdentifierEncoder
-  have hneg := hsec.negligible (M.mixBlocksAdversary.toForger replyBound)
-    (M.isOraclePPT_toForger_mixBlocksAdversary hboundPoly)
-  refine not_negligible_of_eventually_eq_one ?_ hneg
-  filter_upwards [hw] with n hn
-  rw [M.eval_blockwiseGame_toForger noIdentifierEncoder M.mixBlocksAdversary replyBound n
-      (hbound n),
-    Game.succProbability, M.blockwiseGame_noIdentifier n hn, ENNReal.toNNReal_one]
+    ¬ M.BlockwiseEUFCMA noIdentifierEncoder :=
+  M.not_blockwiseEUFCMA_of_adversary isPolyTimeEncoder_noIdentifierEncoder M.mixBlocksAdversary
+    (fun h => M.isOraclePPT_toForger_mixBlocksAdversary h)
+    (hw.mono fun n hn => M.blockwiseGame_noIdentifier n hn)
 
 end MACScheme
 

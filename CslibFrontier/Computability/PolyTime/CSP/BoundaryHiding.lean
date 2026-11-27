@@ -12,6 +12,7 @@ import CslibFrontier.Computability.PolyTime.CSP.Boundary
 import CslibFrontier.Computability.PolyTime.CSP.Vars
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Tactic.PolyTime
 
 /-!
 # Native polynomial time for raw head-marker hiding
@@ -36,31 +37,23 @@ open Cslib.Logic.PL Cslib.Logic.PL.CSP OrderedBoundary Graph Turing.MultiTapeTM
 
 variable {Rel : Type}
 
+attribute [local fun_prop] OrderedBoundary.computableInPolyTime_restrictPrefix
+
 /-- Hiding one marker is native polynomial time on every raw encoded state. Names and
 entries remain binary; unary clocks come only from actual lists. No runtime provider or
 source validity invariant is supplied. -/
 theorem computableInPolyTime_hideHead (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (hideHead (Rel := Rel)) (encState encRel) (encState encRel) := by
-  let input := encState encRel
-  have hbody := encState_body_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
-  have hports := encState_ports_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
-  have hrot := encState_rotation_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
-  have htail := (ComputableInPolyTime.tail (encA := encNat)).comp hports
-  have hm : ComputableInPolyTime (fun I : State Rel => I.body.occurrences.length)
-      input encUnary := by
-    have h := (computableInPolyTime_length_vars encRel encNat).comp hbody
-    simpa only [Function.comp_def, CSP.vars_length_eq_occurrences] using h
-  have hn := (ComputableInPolyTime.length_list encNat).comp htail
-  have hcount : ComputableInPolyTime (fun I : State Rel =>
-      2 * (I.body.occurrences.length + I.ports.tail.length)) input encUnary := by fun_prop
-  have htable := OrderedBoundary.computableInPolyTime_restrictPrefix hrot hcount
-  have houtput := encState_mk_polyTime encRel hbody htail htable
-  have hempty := (ComputableInPolyTime.listIsEmpty (encA := encNat)).comp hports
-  have hbranch := hempty.ite (ComputableInPolyTime.id' (encIn := input)) houtput
+  open scoped State in
+  have hbranch : ComputableInPolyTime
+      (fun I : State Rel => if I.ports.isEmpty then I else
+        ⟨I.body, I.ports.tail,
+          restrictPrefix (2 * (I.body.vars.length + I.ports.tail.length)) I.rotation⟩)
+      (encState encRel) (encState encRel) := by polytime
   apply hbranch.of_enc_eq
   intro I
   apply congrArg (encState encRel)
   rcases I with ⟨F, ports, c⟩
-  cases ports <;> rfl
+  cases ports <;> simp [hideHead, CSP.vars_length_eq_occurrences]
 
 end Cslib.Complexity.CSP.CrossInsertion

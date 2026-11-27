@@ -269,15 +269,8 @@ private theorem localNextCell?_cellAt_or_halt {M : OneMachine S Q} {c : Config S
   rcases hstep : M.step c.state (c.tape c.head) with ⟨write, state', move⟩
   by_cases hcenter : pos = c.head
   · subst pos
-    cases hhead : c.head with
-    | zero =>
-        cases move <;>
-          simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID, localNextCell?,
-            Move.apply]
-    | succ pred =>
-        cases move <;>
-          simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID, localNextCell?,
-            Move.apply]
+    cases hhead : c.head <;> cases move <;>
+      simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID, localNextCell?, Move.apply]
   · by_cases hleft : c.head = pos + 1
     · cases hpos : pos with
       | zero =>
@@ -291,42 +284,21 @@ private theorem localNextCell?_cellAt_or_halt {M : OneMachine S Q} {c : Config S
               Move.apply]
     · by_cases hright : pos = c.head + 1
       · subst pos
-        cases hhead : c.head with
-        | zero =>
-            cases move <;>
-              simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID, localNextCell?,
-                Move.apply]
+        rw [Config.cellAtLeft_succ, Config.cellAt_head, Config.cellAt_of_ne (by omega),
+          Config.cellAt_of_ne (by omega), OneMachine.nextID_of_ne_halt hstate]
+        cases move <;> simp [hstate, hstep, localNextCell?, Move.apply, Config.cellAt,
+          show ¬c.head + 1 = c.head - 1 by omega]
+      · have hmove : move.apply c.head ≠ pos := by cases move <;> simp [Move.apply] <;> omega
+        rw [Config.cellAt_of_ne hcenter, Config.cellAt_of_ne (Ne.symm hleft),
+          OneMachine.nextID_of_ne_halt hstate]
+        simp only [hstep, ite_eq_right (by omega : ¬(state' = M.halt ∧ pos = move.apply c.head))]
+        rw [Config.cellAt_of_ne (by simpa using hmove.symm)]
+        simp only [ite_eq_right hcenter]
+        cases pos with
+        | zero => simp [Config.cellAtLeft, localNextCell?]
         | succ pred =>
-            have hpred : pred + 1 + 1 ≠ pred := by omega
-            cases move <;>
-              simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID, localNextCell?,
-                Move.apply]
-      · cases hpos : pos with
-        | zero =>
-            cases hhead : c.head with
-            | zero => omega
-            | succ pred =>
-                cases move <;>
-                  first
-                    | (simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID,
-                        localNextCell?, Move.apply]; omega)
-                    | simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID,
-                        localNextCell?, Move.apply]
-        | succ posPred =>
-            cases hhead : c.head with
-            | zero =>
-                cases move <;>
-                  simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID,
-                    localNextCell?, Move.apply]
-            | succ headPred =>
-                have hleftCell : posPred ≠ headPred + 1 := by omega
-                have hcenterCell : posPred ≠ headPred := by omega
-                have hrightCell : posPred + 1 + 1 ≠ headPred + 1 := by omega
-                have hnewLeft : posPred + 1 ≠ headPred := by omega
-                have hnewRight : posPred + 1 ≠ headPred + 1 + 1 := by omega
-                cases move <;>
-                  simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID,
-                    localNextCell?, Move.apply]
+            rw [Config.cellAtLeft_succ, Config.cellAt_of_ne (by omega)]
+            simp [localNextCell?]
 
 private theorem localNextCell?_cellAt {M : OneMachine S Q} {c : Config S Q} {pos : ℕ}
     (hstate : c.state ≠ M.halt)
@@ -422,9 +394,8 @@ private theorem mem_transition_nextID {M : OneMachine S Q} {current next : Confi
     next = M.nextID current := by
   by_cases hhalt : (M.nextID current).state = M.halt
   · simp [transition, hhalt] at hnext
-  · have hnext' : M.nextID current = next := by
-      simpa [transition, hhalt] using hnext
-    exact hnext'.symm
+  · simp only [transition, hhalt, ↓reduceIte, Option.mem_def, Option.some.injEq] at hnext
+    exact hnext.symm
 
 @[simp] private theorem run_zero (M : OneMachine S Q) (input : List S) :
     run M input 0 = initialID M input :=
@@ -504,24 +475,15 @@ private theorem transition_eval_dom_iff_halts (M : OneMachine S Q) (input : List
     rw [run_succ]
     exact (transition_eq_none_iff M _).1 hnone
   · intro halts
-    rcases exists_first_halting_time halts with
-      ⟨steps, hhalt, before⟩
+    rcases exists_first_halting_time halts with ⟨steps, hhalt, before⟩
+    refine Part.dom_iff_mem.2 ⟨run M input (steps - 1), StateTransition.mem_eval.2 ?_⟩
     cases steps with
     | zero =>
-        have hinitial : (initialID M input).state = M.halt := by
-          simpa using hhalt
-        apply Part.dom_iff_mem.2
-        refine ⟨initialID M input, StateTransition.mem_eval.2 ⟨?_, ?_⟩⟩
-        · exact Relation.ReflTransGen.refl
-        · apply (transition_eq_none_iff M _).2
-          rw [OneMachine.nextID_of_halt M _ hinitial]
-          exact hinitial
+        rw [run_zero] at hhalt
+        exact ⟨Relation.ReflTransGen.refl, (transition_eq_none_iff M _).2 (by simp [hhalt])⟩
     | succ steps =>
-        apply Part.dom_iff_mem.2
-        refine ⟨run M input steps, StateTransition.mem_eval.2 ⟨?_, ?_⟩⟩
-        · exact transition_reaches_run_of_ne_halt (before steps (by omega))
-        · apply (transition_eq_none_iff M _).2
-          simpa [run_succ] using hhalt
+        exact ⟨transition_reaches_run_of_ne_halt (before steps (by omega)),
+          (transition_eq_none_iff M _).2 (by simpa [run_succ] using hhalt)⟩
 
 /-- A local history block cut from two rows of a finite-input run. -/
 private def historyTile (M : OneMachine S Q) (input : List S) (time position : ℕ) :
@@ -625,26 +587,16 @@ private theorem run_one_cell_eq_plain_blank
     (M : OneMachine S Q) (input : List S) {position : ℕ}
     (hlength : input.length ≤ position) (htwo : 2 ≤ position) :
     (run M input 1).cellAt position = Cell.plain M.blank := by
+  rw [show 1 = 0 + 1 by rfl, run_succ, run_zero]
   by_cases hhalt : M.start = M.halt
-  · have hinitial : (initialID M input).state = M.halt := by
-      simpa [initialID] using hhalt
-    rw [show 1 = 0 + 1 by omega, run_succ, run_zero,
-      OneMachine.nextID_of_halt M _ hinitial]
+  · rw [OneMachine.nextID_of_halt M _ hhalt]
     exact run_zero_cell_eq_plain_blank M input hlength (by omega)
-  · have hstate : (initialID M input).state ≠ M.halt := by
-      simpa [initialID] using hhalt
-    have hhead : (M.nextID (initialID M input)).head ≤ 1 := by
-      rw [OneMachine.nextID_head_of_ne_halt hstate]
-      rcases hstep : M.step M.start (tape M.blank input 0) with
-        ⟨write, state, move⟩
-      change (M.step M.start (tape M.blank input 0)).move.apply 0 ≤ 1
-      rw [hstep]
-      cases move <;> simp [Move.apply]
-    rw [show 1 = 0 + 1 by omega, run_succ, run_zero]
-    rw [Config.cellAt_of_ne (by omega : position ≠ (M.nextID (initialID M input)).head)]
-    congr 1
-    rw [OneMachine.nextID_tape_of_ne_head (by simp [initialID]; omega)]
-    exact tape_eq_blank_of_length_le hlength
+  · have hhead : (M.nextID (initialID M input)).head ≤ 1 := by
+      rw [OneMachine.nextID_head_of_ne_halt hhalt]
+      cases hm : (M.step M.start (tape M.blank input 0)).move <;> simp [hm, Move.apply, initialID]
+    rw [Config.cellAt_of_ne (by omega : position ≠ (M.nextID (initialID M input)).head),
+      OneMachine.nextID_tape_of_ne_head (by simp [initialID]; omega)]
+    simp only [initialID, tape_eq_blank_of_length_le hlength]
 
 private theorem run_one_cellLeft_eq_plain_blank
     (M : OneMachine S Q) (input : List S) {position : ℕ}
@@ -666,16 +618,15 @@ private theorem historyTile_zero_eq_blank_of_tailPosition_le
     (M : OneMachine S Q) (input : List S) {position : ℕ}
     (hposition : tailPosition input ≤ position) :
     historyTile M input 0 position = blankHistoryTile M := by
-  have hp : input.length + 3 ≤ position := by
-    simpa [tailPosition] using hposition
+  have hp : input.length + 3 ≤ position := hposition
   unfold historyTile blankHistoryTile
   simp only [Nat.zero_add]
-  rw [run_zero_cellLeft_eq_plain_blank M input (by omega) (by omega)]
-  rw [run_zero_cell_eq_plain_blank M input (by omega) (by omega)]
-  rw [run_zero_cell_eq_plain_blank M input (by omega) (by omega)]
-  rw [run_one_cellLeft_eq_plain_blank M input (by omega) (by omega)]
-  rw [run_one_cell_eq_plain_blank M input (by omega) (by omega)]
-  rw [run_one_cell_eq_plain_blank M input (by omega) (by omega)]
+  rw [run_zero_cellLeft_eq_plain_blank M input (by omega) (by omega),
+    run_zero_cell_eq_plain_blank M input (by omega) (by omega),
+    run_zero_cell_eq_plain_blank M input (by omega) (by omega),
+    run_one_cellLeft_eq_plain_blank M input (by omega) (by omega),
+    run_one_cell_eq_plain_blank M input (by omega) (by omega),
+    run_one_cell_eq_plain_blank M input (by omega) (by omega)]
 
 private theorem historyTile_zero_eq_tail_of_tailPosition_le
     (M : OneMachine S Q) (input : List S) {position : ℕ}
@@ -845,15 +796,12 @@ private theorem initialTile_hMatches (M : OneMachine S Q) (input : List S) (posi
   by_cases hposition : position + 1 < tailPosition input
   · simpa [hposition, show position < tailPosition input by omega,
       hMatches_toWangTile_iff] using historyTile_hMatches M input 0 position
-  · have htail : tailPosition input ≤ position + 1 := by omega
-    by_cases hbefore : position < tailPosition input
-    · have heq : position + 1 = tailPosition input := by omega
-      simpa [hbefore, heq, hMatches_toWangTile_iff] using
-        historyTile_hMatches M input 0 position
-    · rw [historyTile_zero_eq_tail_of_tailPosition_le M input (by omega :
-        tailPosition input ≤ position)]
-      rw [historyTile_zero_eq_tail_of_tailPosition_le M input htail]
-      rw [historyTile_zero_eq_blank_of_tailPosition_le M input (le_refl _)]
+  · by_cases hbefore : position < tailPosition input
+    · simpa [hbefore, show position + 1 = tailPosition input by omega,
+        hMatches_toWangTile_iff] using historyTile_hMatches M input 0 position
+    · rw [historyTile_zero_eq_tail_of_tailPosition_le M input (position := position) (by omega),
+        historyTile_zero_eq_tail_of_tailPosition_le M input (position := position + 1) (by omega),
+        historyTile_zero_eq_blank_of_tailPosition_le M input (le_refl _)]
       simp [hbefore, hposition, hMatches_toWangTile_iff, blankHistoryTile]
 
 /- Soundness: place the actual history tile at `(position, time)`.  Time zero
@@ -949,34 +897,20 @@ private theorem next_initialTile_of_hMatches_mem
     (hmatch : HMatches (initialTile M input position) right)
     (hmem : right ∈ tiles M input) :
     right = initialTile M input (position + 1) := by
+  rw [initialTile] at hmatch ⊢
   rcases (mem_tiles_iff M input right).1 hmem with
-    ⟨next, hnext, hright⟩ | hright | ⟨history, _hhistory, hright⟩
-  · rw [initialTile] at hmatch ⊢
-    split_ifs at hmatch with hposition
-    · rw [← hright] at hmatch
-      have htags := (hMatches_toWangTile_iff _ _ _ _ _ _ _ _ _ _).1 hmatch
-      have heq : next = position + 1 := htags.1.symm
-      subst next
-      rw [ite_eq_left hnext]
-      exact hright.symm
-    · rw [← hright] at hmatch
-      have htags := (hMatches_toWangTile_iff _ _ _ _ _ _ _ _ _ _).1 hmatch
-      omega
-  · rw [initialTile] at hmatch ⊢
-    split_ifs at hmatch with hposition
-    · rw [hright] at hmatch
-      have htags := (hMatches_toWangTile_iff _ _ _ _ _ _ _ _ _ _).1 hmatch
-      have heq : position + 1 = tailPosition input := htags.1
-      rw [ite_eq_right (by omega)]
-      exact hright
-    · rw [ite_eq_right (by omega)]
-      exact hright
-  · rw [initialTile] at hmatch
-    split_ifs at hmatch <;> rw [← hright] at hmatch
-    · exact False.elim (initialRowTag_ne_normalRowTag
-        ((hMatches_toWangTile_iff _ _ _ _ _ _ _ _ _ _).1 hmatch).2.1)
-    · exact False.elim (initialRowTag_ne_normalRowTag
-        ((hMatches_toWangTile_iff _ _ _ _ _ _ _ _ _ _).1 hmatch).2.1)
+    ⟨next, hnext, rfl⟩ | rfl | ⟨history, _hhistory, rfl⟩ <;> split_ifs at hmatch with hposition
+  · obtain rfl : next = position + 1 :=
+      ((hMatches_toWangTile_iff _ _ _ _ _ _ _ _ _ _).1 hmatch).1.symm
+    rw [ite_eq_left hnext]
+  · have := ((hMatches_toWangTile_iff _ _ _ _ _ _ _ _ _ _).1 hmatch).1; omega
+  · have := ((hMatches_toWangTile_iff _ _ _ _ _ _ _ _ _ _).1 hmatch).1
+    rw [ite_eq_right (by omega)]
+  · rw [ite_eq_right (by omega)]
+  · exact absurd ((hMatches_toWangTile_iff _ _ _ _ _ _ _ _ _ _).1 hmatch).2.1
+      initialRowTag_ne_normalRowTag
+  · exact absurd ((hMatches_toWangTile_iff _ _ _ _ _ _ _ _ _ _).1 hmatch).2.1
+      initialRowTag_ne_normalRowTag
 
 private theorem seeded_tiling_row_zero_eq
     {M : OneMachine S Q} {input : List S}
@@ -999,18 +933,14 @@ private theorem normal_of_vMatches
     (hmatches : VMatches lower upper) :
     ∃ history, history ∈ machineHistoryTiles M ∧
       toWangTile 0 0 normalRowTag normalRowTag history = upper := by
-  have upperRowTag : upper.bottom.unpair.1 = normalRowTag := by
-    rw [← hmatches]
-    exact northRowTag_eq_normal_of_mem lowerMem
+  have upperRowTag : upper.bottom.unpair.1 = normalRowTag :=
+    hmatches ▸ northRowTag_eq_normal_of_mem lowerMem
   rcases (mem_tiles_iff M input upper).1 upperMem with
-    ⟨upperPosition, _hupperPosition, hupper⟩ | hupper |
-      ⟨upperHistory, hupperHistory, hupper⟩
-  · have tagEq : initialRowTag = normalRowTag := by
-      simpa [← hupper, toWangTile, taggedTripleCellColor] using upperRowTag
-    exact (initialRowTag_ne_normalRowTag tagEq).elim
-  · have tagEq : initialRowTag = normalRowTag := by
-      simpa [hupper, toWangTile, taggedTripleCellColor] using upperRowTag
-    exact (initialRowTag_ne_normalRowTag tagEq).elim
+    ⟨_, _, rfl⟩ | rfl | ⟨upperHistory, hupperHistory, hupper⟩
+  · exact absurd (by simpa [toWangTile, taggedTripleCellColor] using upperRowTag)
+      initialRowTag_ne_normalRowTag
+  · exact absurd (by simpa [toWangTile, taggedTripleCellColor] using upperRowTag)
+      initialRowTag_ne_normalRowTag
   · exact ⟨upperHistory, hupperHistory, hupper⟩
 
 private theorem positive_row_decode
@@ -1021,8 +951,8 @@ private theorem positive_row_decode
     (time position : ℕ) :
     ∃ history, history ∈ machineHistoryTiles M ∧
       toWangTile 0 0 normalRowTag normalRowTag history =
-        plane position (time + 1) := by
-  exact normal_of_vMatches M input
+        plane position (time + 1) :=
+  normal_of_vMatches M input
     (valid position time).1 (valid position (time + 1)).1
     ((valid position time).2.2)
 
@@ -1062,8 +992,7 @@ private theorem row_one_decoded
     DecodedHistoryRow M input plane 1 := by
   choose row hrow using fun position => positive_row_decode valid 0 position
   refine ⟨row, ⟨fun position => (hrow position).1,
-    fun position => (hrow position).2, ?_⟩⟩
-  intro position
+    fun position => (hrow position).2, fun position => ?_⟩⟩
   have hbottom := seeded_tiling_row_zero_eq valid seeded position
   have hvertical : VMatches
       (initialTile M input position)
@@ -1108,9 +1037,8 @@ private theorem nextCenter_eq_historyTile_nextCenter_of_prev_cells
     (hprevRight : tile.prevRight = (historyTile M input time position).prevRight) :
     tile.nextCenter = (historyTile M input time position).nextCenter := by
   have hlocal := localNextCell?_of_mem_machineHistoryTiles tileMem
-  rw [hprevLeft, hprevCenter, hprevRight] at hlocal
-  have hrun := historyTile_local_of_state_ne_halt hstate hnext position
-  rw [hrun] at hlocal
+  rw [hprevLeft, hprevCenter, hprevRight,
+    historyTile_local_of_state_ne_halt hstate hnext position] at hlocal
   exact Option.some.inj hlocal.symm
 
 /-- Local transition validity and horizontal matching determine all three
@@ -1133,42 +1061,21 @@ private theorem next_cells_eq_historyTile_of_decoded_row
         (historyTile M input (time + 1 + 1) position).prevRight := by
   have nextCenter (p : ℕ) :
       (row p).nextCenter = (historyTile M input (time + 1) p).nextCenter :=
-    nextCenter_eq_historyTile_nextCenter_of_prev_cells
-      (decoded.mem p) hstate hnext
-      (decoded.prevCells p).1 (decoded.prevCells p).2.1
-      (decoded.prevCells p).2.2
-  have nextLeft : (row position).nextLeft =
-      (historyTile M input (time + 1 + 1) position).prevLeft := by
-    cases position with
+    nextCenter_eq_historyTile_nextCenter_of_prev_cells (decoded.mem p) hstate hnext
+      (decoded.prevCells p).1 (decoded.prevCells p).2.1 (decoded.prevCells p).2.2
+  have hmatches (p : ℕ) := (positive_row_hMatches_cells valid
+    (decoded.encoded p) (decoded.encoded (p + 1))).2.2
+  refine ⟨?_, by simpa [historyTile] using nextCenter position, ?_⟩
+  · cases position with
     | zero =>
         rw [nextLeft_boundary_of_mem_machineHistoryTiles (decoded.mem 0)
           (by simpa [historyTile] using (decoded.prevCells 0).1)]
         simp [historyTile]
     | succ predecessor =>
-        have hmatches := positive_row_hMatches_cells valid
-          (time := time) (position := predecessor)
-          (decoded.encoded predecessor) (decoded.encoded (predecessor + 1))
-        calc
-          (row (Nat.succ predecessor)).nextLeft =
-              (row predecessor).nextCenter := by
-            simpa [Nat.succ_eq_add_one] using hmatches.2.2.1.symm
-          _ = (historyTile M input (time + 1) predecessor).nextCenter :=
-            nextCenter predecessor
-          _ = (historyTile M input (time + 1 + 1)
-              (Nat.succ predecessor)).prevLeft := by
-            simp [historyTile, Nat.succ_eq_add_one]
-  have hmatches := positive_row_hMatches_cells valid
-    (time := time) (position := position)
-    (decoded.encoded position) (decoded.encoded (position + 1))
-  exact ⟨nextLeft,
-    by simpa [historyTile] using nextCenter position,
-    calc
-      (row position).nextRight = (row (position + 1)).nextCenter :=
-        hmatches.2.2.2
-      _ = (historyTile M input (time + 1) (position + 1)).nextCenter :=
-        nextCenter (position + 1)
-      _ = (historyTile M input (time + 1 + 1) position).prevRight := by
-        simp [historyTile]⟩
+        rw [← (hmatches predecessor).1, nextCenter predecessor]
+        simp [historyTile]
+  · rw [(hmatches position).2, nextCenter (position + 1)]
+    simp [historyTile]
 
 private theorem next_row_decoded
     {M : OneMachine S Q} {input : List S}
@@ -1184,8 +1091,7 @@ private theorem next_row_decoded
   choose upper hupper using fun position =>
     positive_row_decode valid (time + 1) position
   refine ⟨upper, ⟨fun position => (hupper position).1,
-    fun position => (hupper position).2, ?_⟩⟩
-  intro position
+    fun position => (hupper position).2, fun position => ?_⟩⟩
   have hvertical : VMatches
       (toWangTile 0 0 normalRowTag normalRowTag (lower position))
       (toWangTile 0 0 normalRowTag normalRowTag (upper position)) := by
@@ -1245,55 +1151,33 @@ private theorem false_of_next_halt_from_decoded_row
     (hrow : DecodedHistoryRow M input plane (time + 1))
     (hstate : (run M input (time + 1)).state ≠ M.halt)
     (hnext : (run M input (time + 1 + 1)).state = M.halt) : False := by
-  let configuration := run M input (time + 1)
-  let position :=
-    (M.step configuration.state (configuration.tape configuration.head)).move.apply
-      configuration.head
+  let c := run M input (time + 1)
+  let pos := (M.step c.state (c.tape c.head)).move.apply c.head
   rcases hrow with ⟨row, decoded⟩
-  let tile := row position
-  have tileMem := decoded.mem position
-  have prevCells := decoded.prevCells position
-  have hstate' : configuration.state ≠ M.halt := by
-    simpa [configuration] using hstate
-  have hnextState :
-      (M.step configuration.state (configuration.tape configuration.head)).state =
-        M.halt := by
-    rw [← OneMachine.nextID_state_of_ne_halt hstate']
-    simpa [configuration, run_succ] using hnext
-  have hlocal := localNextCell?_of_mem_machineHistoryTiles tileMem
-  rw [prevCells.1, prevCells.2.1, prevCells.2.2] at hlocal
-  have hnone := OneMachine.localNextCell?_at_next_halt_head
-    (M := M) (c := configuration) hstate' hnextState
-  have hnoneRun :
-      localNextCell? M (historyTile M input (time + 1) position).prevLeft
-          (historyTile M input (time + 1) position).prevCenter
-          (historyTile M input (time + 1) position).prevRight = none := by
-    simpa [historyTile, configuration, position] using hnone
-  rw [hnoneRun] at hlocal
-  cases hlocal
+  have hnextState : (M.step c.state (c.tape c.head)).state = M.halt := by
+    rw [← OneMachine.nextID_state_of_ne_halt hstate]
+    simpa [c, run_succ] using hnext
+  have hlocal := localNextCell?_of_mem_machineHistoryTiles (decoded.mem pos)
+  rw [(decoded.prevCells pos).1, (decoded.prevCells pos).2.1,
+    (decoded.prevCells pos).2.2] at hlocal
+  have hnone : localNextCell? M (historyTile M input (time + 1) pos).prevLeft
+      (historyTile M input (time + 1) pos).prevCenter
+      (historyTile M input (time + 1) pos).prevRight = none := by
+    simpa [historyTile, c, pos] using
+      OneMachine.localNextCell?_at_next_halt_head hstate hnextState
+  simp [hnone] at hlocal
 
 private theorem not_tilesQuadrant_of_halts
     {M : OneMachine S Q} {input : List S} (halts : Halts M input) :
     ¬ TilesQuadrant ⟨tiles M input, seed M input⟩ := by
   rcases exists_first_halting_time halts with ⟨step, hhalt, before⟩
   rintro ⟨plane, seeded, valid⟩
-  cases step with
-  | zero =>
-      apply false_of_run_one_halt valid seeded
-      have hinitial : (initialID M input).state = M.halt := by
-        simpa [run_zero] using hhalt
-      rw [show 1 = 0 + 1 by omega, run_succ, run_zero,
-        OneMachine.nextID_of_halt M _ hinitial]
-      exact hinitial
-  | succ step =>
-      cases step with
-      | zero =>
-          exact false_of_run_one_halt valid seeded (by simpa using hhalt)
-      | succ time =>
-          have hrow := decoded_row_of_nonhalting_prefix
-            valid seeded time (fun k _positive bounded => before k (by omega))
-          exact false_of_next_halt_from_decoded_row hrow
-            (before (time + 1) (by omega)) (by simpa using hhalt)
+  by_cases hstep : step ≤ 1
+  · exact false_of_run_one_halt valid seeded (run_state_eq_halt_of_le hstep hhalt)
+  · obtain ⟨time, rfl⟩ : ∃ time, step = time + 2 := ⟨step - 2, by omega⟩
+    have hrow := decoded_row_of_nonhalting_prefix valid seeded time
+      fun k _ hk => before k (by omega)
+    exact false_of_next_halt_from_decoded_row hrow (before (time + 1) (by omega)) hhalt
 
 private theorem tilesQuadrant_iff_not_halts
     {M : OneMachine S Q} {input : List S} :
@@ -1552,40 +1436,20 @@ private theorem symbolsAt_initial (source : List Γ) (position : ℕ) :
     Folded.symbolsAt
         (Folded.Config.initial (Λ := Λ) source).source.Tape .right 0 position =
       (default, source.getI position) := by
+  have hleft : Folded.sourceOffset .right 0 (Folded.leftAbs position) = Int.negSucc position := by
+    simp [Folded.sourceOffset, Folded.activeAbs, Folded.leftAbs, Folded.rightAbs]; omega
+  have hright : Folded.sourceOffset .right 0 (Folded.rightAbs position) = Int.ofNat position := by
+    simp [Folded.sourceOffset, Folded.activeAbs, Folded.rightAbs]
+  rw [Folded.symbolsAt, hleft, hright]
   cases position with
   | zero =>
-      have hleft : Folded.sourceOffset .right 0
-          (Folded.leftAbs 0) = Int.negSucc 0 := by
-        simp [Folded.sourceOffset, Folded.activeAbs,
-          Folded.leftAbs, Folded.rightAbs]
-      have hright : Folded.sourceOffset .right 0
-          (Folded.rightAbs 0) = 0 := by
-        simp [Folded.sourceOffset, Folded.activeAbs,
-          Folded.rightAbs]
-      rw [Folded.symbolsAt, hleft, hright]
-      have hget : source.headI = source.getI 0 :=
-        (List.getI_zero_eq_headI (l := source)).symm
-      simp [Folded.Config.initial, Turing.TM0.init,
-        Turing.Tape.mk₁, Turing.Tape.mk₂, Turing.Tape.mk', Turing.Tape.nth,
-        hget]
+      simp [Folded.Config.initial, Turing.TM0.init, Turing.Tape.mk₁, Turing.Tape.mk₂,
+        Turing.Tape.mk', Turing.Tape.nth, List.getI_zero_eq_headI]
   | succ position =>
-      have hleft : Folded.sourceOffset .right 0
-          (Folded.leftAbs (position + 1)) =
-            Int.negSucc (position + 1) := by
-        simp [Folded.sourceOffset, Folded.activeAbs,
-          Folded.leftAbs, Folded.rightAbs]
-        omega
-      have hright : Folded.sourceOffset .right 0
-          (Folded.rightAbs (position + 1)) =
-            Int.ofNat (position + 1) := by
-        simp [Folded.sourceOffset, Folded.activeAbs,
-          Folded.rightAbs]
-      rw [Folded.symbolsAt, hleft, hright]
       have hget : source.tail.getI position = source.getI (position + 1) := by
         cases source <;> rfl
-      simp [Folded.Config.initial, Turing.TM0.init,
-        Turing.Tape.mk₁, Turing.Tape.mk₂, Turing.Tape.mk', Turing.Tape.nth,
-        hget]
+      simp [Folded.Config.initial, Turing.TM0.init, Turing.Tape.mk₁, Turing.Tape.mk₂,
+        Turing.Tape.mk', Turing.Tape.nth, hget]
 
 /-- The folded target symbol represented by a semantic TM0 configuration. -/
 private def foldedSymbol (config : Folded.Config Γ Λ) (position : ℕ) : TapeSymbol Γ :=
@@ -1600,23 +1464,14 @@ private def toID (config : Folded.Config Γ Λ) : Config (TapeSymbol Γ) (Contro
 
 private theorem initialID_eq_toID (M : Turing.TM0.Machine Γ Λ) (source : List Γ) :
     initialID (machine M) (foldedInput source) = toID (Folded.Config.initial (Λ := Λ) source) := by
-  apply Config.ext
-  · funext position
-    change tape TapeSymbol.blank (foldedInput source) position =
-      foldedSymbol (Folded.Config.initial (Λ := Λ) source) position
-    change tape TapeSymbol.blank (foldedInput source) position =
-      TapeSymbol.mk (decide (position = 0))
-        (Folded.symbolsAt (Folded.Config.initial (Λ := Λ) source).source.Tape
-          .right 0 position).1
-        (Folded.symbolsAt (Folded.Config.initial (Λ := Λ) source).source.Tape
-          .right 0 position).2
-    rw [symbolsAt_initial]
-    cases position with
-    | zero => simp [tape, foldedInput, List.getI_zero_eq_headI]
-    | succ position =>
-        simp [tape, foldedInput, TapeSymbol.blank, ← List.getI_eq_getElem?_getD]
-  · rfl
-  · rfl
+  refine Config.ext (funext fun position => ?_) rfl rfl
+  dsimp only [initialID, toID, foldedSymbol]
+  rw [show (Folded.Config.initial (Λ := Λ) source).side = .right from rfl,
+    show (Folded.Config.initial (Λ := Λ) source).head = 0 from rfl, symbolsAt_initial]
+  cases position with
+  | zero => simp [tape, foldedInput, List.getI_zero_eq_headI]
+  | succ position =>
+      simp [tape, machine, foldedInput, TapeSymbol.blank, ← List.getI_eq_getElem?_getD]
 
 omit [Inhabited Λ] in
 private theorem foldedSymbol_active_head (config : Folded.Config Γ Λ) :
@@ -1672,36 +1527,33 @@ private theorem nextID_toID (M : Turing.TM0.Machine Γ Λ) (config : Folded.Conf
       | write symbol =>
           simp only [Folded.Config.step, hm, Option.some.injEq] at h
           subst next
-          apply Config.ext
-          · funext p
-            simp only [OneMachine.nextID, toID, machine, typedStep,
-              foldedSymbol_active_head, hm, reduceCtorEq, ↓reduceIte]
-            rw [foldedSymbol_afterWrite]
-            split_ifs with hp <;> simp [hp]
-          · simp [OneMachine.nextID, toID, machine, typedStep,
-              foldedSymbol_active_head, hm, Move.apply, Folded.Config.afterWrite]
-          · simp [OneMachine.nextID, toID, machine, typedStep,
-              foldedSymbol_active_head, hm, Folded.Config.afterWrite]
+          refine Config.ext (funext fun p => ?_)
+            (by simp [OneMachine.nextID, toID, machine, typedStep, foldedSymbol_active_head, hm,
+              Move.apply, Folded.Config.afterWrite])
+            (by simp [OneMachine.nextID, toID, machine, typedStep, foldedSymbol_active_head, hm,
+              Folded.Config.afterWrite])
+          simp only [OneMachine.nextID, toID, machine, typedStep,
+            foldedSymbol_active_head, hm, reduceCtorEq, ↓reduceIte]
+          rw [foldedSymbol_afterWrite]
+          split_ifs with hp <;> simp [hp]
       | move dir =>
           simp only [Folded.Config.step, hm, Option.some.injEq] at h
           subst next
-          apply Config.ext
-          · funext p
-            by_cases hp : p = config.head <;>
-              simp [OneMachine.nextID, toID, machine, typedStep,
-                foldedSymbol_active_head, hm, foldedSymbol_afterMove, hp]
+          refine Config.ext (funext fun p => ?_) ?_
+            (by simp [OneMachine.nextID, toID, machine, typedStep, foldedSymbol_active_head, hm,
+              Folded.Config.afterMove]; rfl)
+          · by_cases hp : p = config.head <;>
+              simp [OneMachine.nextID, toID, machine, typedStep, foldedSymbol_active_head, hm,
+                foldedSymbol_afterMove, hp]
           · simp only [OneMachine.nextID, toID, machine, typedStep,
               foldedSymbol_active_head, hm, reduceCtorEq, ↓reduceIte]
-            exact physicalMove_apply config.side config.head dir
-          · simp only [OneMachine.nextID, toID, machine, typedStep,
-              foldedSymbol_active_head, hm, reduceCtorEq, ↓reduceIte]
-            rfl
+            simpa [foldedSymbol, Folded.Config.afterMove] using
+              physicalMove_apply config.side config.head dir
 
 private theorem configStep_respects_transition (M : Turing.TM0.Machine Γ Λ) :
     StateTransition.Respects (Folded.Config.step M) (transition (machine M))
       (fun c d => toID c = d) := by
-  intro config target htarget
-  subst target
+  rintro config _ rfl
   cases hs : Folded.Config.step M config with
   | none =>
       cases hm : M config.source.q config.source.Tape.head with

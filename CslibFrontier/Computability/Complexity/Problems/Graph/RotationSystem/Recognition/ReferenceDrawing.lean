@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 public import CslibFrontier.Foundations.Geometry.Polygonal.ParabolaChord
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Certificate
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import Mathlib.Data.Bool.Basic
 import Mathlib.Data.List.GetD
@@ -86,29 +87,31 @@ theorem subdivide_source_ne_target {I : FixedRotationInput} (hI : Valid I)
   rcases hs with rfl | rfl | rfl <;>
     dsimp only [Segment.source, Segment.target, Segment.endpoints] <;> omega
 
+/-- Every incidence of a valid input's twice subdivision has a declared vertex. -/
+theorem subdivisionGraph_endpoints_declared {I : FixedRotationInput} (hI : Valid I) :
+    ∀ v ∈ (subdivisionGraph I).incidenceVertices, v ∈ (subdivisionGraph I).vertices := by
+  intro v hv
+  obtain ⟨edge, he, hv⟩ := List.mem_flatMap.mp hv
+  obtain ⟨s, hs, rfl⟩ := List.mem_map.mp he
+  have hb := boundedEndpoints_frame hI s hs
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
+  rcases hv with rfl | rfl
+  · exact List.mem_range.mpr hb.1
+  · exact List.mem_range.mpr hb.2
+
 /-- Both ends of an actual indexed subdivision edge occur in the reference order and
 are distinct. The certificate includes original loops after twice subdivision. -/
 theorem subdivision_endpoint_spec {I : FixedRotationInput} (hI : Valid I)
     (e : Fin (subdivisionGraph I).edges.length) :
     (∀ b, Dart.vertex (e, b) ∈ referenceOrder I) ∧
       Dart.vertex (e, false) ≠ Dart.vertex (e, true) := by
-  have hclosed : ∀ edge ∈ (subdivisionGraph I).edges,
-      edge.1 ∈ (subdivisionGraph I).vertices ∧ edge.2 ∈ (subdivisionGraph I).vertices := by
-    intro edge he
-    obtain ⟨s, hs, rfl⟩ := List.mem_map.mp he
-    have hb := boundedEndpoints_frame hI s hs
-    exact ⟨List.mem_range.mpr hb.1, List.mem_range.mpr hb.2⟩
   refine ⟨fun b => ((referenceOrder_enumerates hI).2 _).mpr
-    ((subdivisionGraph I).edgeEndpoint_mem hclosed e.isLt b), ?_⟩
-  have he : (subdivisionGraph I).edges[e] ∈ (subdivisionGraph I).edges :=
-    List.getElem_mem e.isLt
-  obtain ⟨s, hs, hse⟩ := List.mem_map.mp he
-  have hne := subdivide_source_ne_target hI hs
-  simp only [Fin.getElem_fin] at hse
+    (RotationSystem.vertex_mem (subdivisionGraph_endpoints_declared hI) (e, b)), ?_⟩
+  obtain ⟨s, hs, hse⟩ := List.mem_map.mp (List.getElem_mem e.isLt)
   change ((subdivisionGraph I).edges.getD e.val (0, 0)).1 ≠
     ((subdivisionGraph I).edges.getD e.val (0, 0)).2
   rw [List.getD_eq_getElem _ _ e.isLt, ← hse]
-  exact hne
+  exact subdivide_source_ne_target hI hs
 
 /-- All declared subdivision points, including isolated points, have distinct coordinates. -/
 theorem referenceDrawing_vertices_injective {I : FixedRotationInput} (hI : Valid I) :
@@ -137,25 +140,18 @@ theorem referenceDrawing_vertex_contacts {I : FixedRotationInput} (hI : Valid I)
   let p := referencePoint I
   have hs := subdivision_endpoint_spec hI e
   have hp : p a ≠ p b := fun h => hs.2 (rankPoint_inj (hs.1 false) h)
-  have hline : AffineMap.lineMap (p a) (p b) t = p v := by
-    change (Route.line (p a) (p b)).eval i t = p v at heq
-    exact (Route.eval_line (p a) (p b) i t).symm.trans heq
-  have hm : p v ∈ segment ℝ (p a) (p b) :=
-    hline ▸ lineMap_mem_segment ℝ (p a) (p b) ht
+  have hline : AffineMap.lineMap (p a) (p b) t = p v :=
+    (Route.eval_line (p a) (p b) i t).symm.trans heq
+  have hm : p v ∈ segment ℝ (p a) (p b) := hline ▸ lineMap_mem_segment ℝ (p a) (p b) ht
   have hmem := ((referenceOrder_enumerates hI).2 v).mpr hv
-  have hends : v = a ∨ v = b := by
-    obtain h | h := (parabolaPoint_mem_segment_iff
-      ((referenceOrder I).idxOf a : ℝ) ((referenceOrder I).idxOf b : ℝ)
-      ((referenceOrder I).idxOf v : ℝ)).mp hm
-    · exact Or.inl (rankPoint_inj hmem (congrArg parabolaPoint h))
-    · exact Or.inr (rankPoint_inj hmem (congrArg parabolaPoint h))
-  rcases hends with h | h
-  · have htime : t = 0 :=
-      (AffineMap.lineMap_eq_left_iff.mp (by simpa only [h] using hline)).resolve_left hp
-    exact ⟨false, (Route.atEnd_line_iff _ _ i t false).mpr htime, h.symm⟩
-  · have htime : t = 1 :=
-      (AffineMap.lineMap_eq_right_iff.mp (by simpa only [h] using hline)).resolve_left hp
-    exact ⟨true, (Route.atEnd_line_iff _ _ i t true).mpr htime, h.symm⟩
+  rcases (parabolaPoint_mem_segment_iff ((referenceOrder I).idxOf a : ℝ)
+    ((referenceOrder I).idxOf b : ℝ) ((referenceOrder I).idxOf v : ℝ)).mp hm with h | h
+  · have hv' := rankPoint_inj hmem (congrArg parabolaPoint h)
+    exact ⟨false, (Route.atEnd_line_iff _ _ i t false).mpr
+      ((AffineMap.lineMap_eq_left_iff.mp (hv' ▸ hline)).resolve_left hp), hv'.symm⟩
+  · have hv' := rankPoint_inj hmem (congrArg parabolaPoint h)
+    exact ⟨true, (Route.atEnd_line_iff _ _ i t true).mpr
+      ((AffineMap.lineMap_eq_right_iff.mp (hv' ▸ hline)).resolve_left hp), hv'.symm⟩
 
 private theorem crossing_rankChord_iff {order : List ℕ} {e f : ℕ × ℕ}
     (he : e.1 ∈ order ∧ e.2 ∈ order) (hf : f.1 ∈ order ∧ f.2 ∈ order)

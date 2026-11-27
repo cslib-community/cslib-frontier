@@ -41,23 +41,17 @@ theorem prod_eq_ofReal_mul_prod_normSq (S : Finset ℂ) (f : ℂ → ℂ)
   have hsplit : (S.filter fun z => z.im ≠ 0) = P ∪ N := by
     ext z
     simp only [P, N, mem_filter, mem_union, ← and_or_left, ne_iff_lt_or_gt, or_comm]
-  have hdisjoint : Disjoint P N := by
-    refine disjoint_left.mpr fun z hz hz' => ?_
-    exact lt_asymm (mem_filter.mp hz).2 (mem_filter.mp hz').2
+  have hdisjoint : Disjoint P N :=
+    disjoint_left.mpr fun z hz hz' => lt_asymm (mem_filter.mp hz).2 (mem_filter.mp hz').2
   have himage : P.image conj = N := by
     ext z
     simp only [P, N, mem_image, mem_filter]
-    constructor
-    · rintro ⟨w, ⟨hw, hpos⟩, rfl⟩
-      exact ⟨hS w hw, by simpa only [conj_im, neg_neg_iff_pos] using hpos⟩
-    · intro hz
-      exact ⟨conj z, ⟨hS z hz.1, by simpa only [conj_im, neg_pos] using hz.2⟩, conj_conj z⟩
+    exact ⟨fun ⟨w, ⟨hw, hpos⟩, heq⟩ => heq ▸ ⟨hS w hw, by simpa using hpos⟩,
+      fun ⟨hz, hneg⟩ => ⟨conj z, ⟨hS z hz, by simpa using hneg⟩, conj_conj z⟩⟩
   have hreal : (∏ z ∈ R, f z) = ((∏ z ∈ R, (f z).re : ℝ) : ℂ) := by
     rw [ofReal_prod]
-    refine prod_congr rfl fun z hz => ?_
-    obtain ⟨hzS, hzim⟩ := mem_filter.mp hz
-    have hfix : conj (f z) = f z := by rw [← hf z hzS, conj_eq_iff_im.mpr hzim]
-    exact (conj_eq_iff_re.mp hfix).symm
+    refine prod_congr rfl fun z hz => (conj_eq_iff_re.mp ?_).symm
+    rw [← hf z (mem_filter.mp hz).1, conj_eq_iff_im.mpr (mem_filter.mp hz).2]
   have hpairs : (∏ z ∈ P, f z) * (∏ z ∈ N, f z) =
       ((∏ z ∈ P, normSq (f z) : ℝ) : ℂ) := by
     rw [← himage, prod_image (g := conj) star_injective.injOn, ← prod_mul_distrib, ofReal_prod]

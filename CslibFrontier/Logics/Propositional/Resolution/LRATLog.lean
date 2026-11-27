@@ -8,44 +8,42 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
-import CslibFrontier.Foundations.Data.List.Lookup
+public import CslibFrontier.Foundations.Data.Array.SetGrow
 
-/-! # LRAT certificates built by resolution, step by step
+/-! # LRAT certificates built step by step
 
 A solver that learns clauses builds its certificate as it runs. `Cslib.Logic.PL.CNF.LRATLog φ` is a
 certificate under construction for `φ`: the steps so far, the numbered clauses they lead to, an
 index of them by number, which `Cslib.Logic.PL.CNF.LRATLog.clause?` reads in constant time
 instead of searching the database (`Cslib.Logic.PL.CNF.LRATLog.clause?_eq`), and the next unused
-number, together with the facts that
-the checker passes the steps (`Cslib.Logic.PL.CNF.LRATLog.run`) and that every clause of the
-database holds in every model of `φ` (`Cslib.Logic.PL.CNF.LRATLog.implied`).
+number, together with the facts that the checker passes the steps
+(`Cslib.Logic.PL.CNF.LRATLog.run`) and that every clause of the database holds in every model of
+`φ` (`Cslib.Logic.PL.CNF.LRATLog.implied`).
 
-The log grows by resolution (`Cslib.Logic.PL.CNF.LRATLog.resolve`): the resolvent of two clauses of
-the database is added under the next number, as a RUP step hinting the two
-(`Cslib.Logic.PL.CNF.propagateHints_resolvent`). A resolvent of any two clauses is a RUP clause of
-them, whether or not the variable occurs in them with opposite signs, so every resolution step keeps
-the log correct, and a solver that learns clauses by resolution needs no further proof that its
-certificate is accepted. Any clause with the literals of the resolvent will do, for instance one
-without repeated literals (`Cslib.Logic.PL.CNF.LRATLog.addResolventAs`), since unit propagation
-reads the negated clause only through membership (`Cslib.Logic.PL.CNF.propagateHints_congr`). Any
-RUP clause can be added with its hints, once the checker's unit propagation has succeeded on them
-(`Cslib.Logic.PL.CNF.LRATLog.addRup`), which `Cslib.Logic.PL.CNF.LRATLog.propagate` runs on the
-index. Clauses can be deleted (`Cslib.Logic.PL.CNF.LRATLog.delete`), which clears their index
-entries in place but still filters the database list. Once the database contains the
-empty clause, closing the log with an empty-clause step hinting it gives a certificate that the
-checker accepts (`Cslib.Logic.PL.CNF.LRATLog.checkLRAT_finish`).
+The log grows by RUP steps (`Cslib.Logic.PL.CNF.LRATLog.addRup`): a clause is added under the next
+number with hints along which the checker's unit propagation, from the negation of the clause,
+reaches a conflict. A solver that learns clauses by resolution can build those hints without
+building the resolvents (`Cslib.Logic.PL.CNF.RupHints`): the hints refuting a clause, after a clause
+`R` of the database, refute any clause containing its resolvent with `R`
+(`Cslib.Logic.PL.CNF.RupHints.resolve`), since `R` then propagates the literal resolved on. Chaining
+this from a conflict clause gives the hints of the clause learned from it, with no step for the
+intermediate resolvents. Clauses can be deleted (`Cslib.Logic.PL.CNF.LRATLog.delete`), which clears
+their index entries in place but still filters the database list. Closing the log with an
+empty-clause step, given hints refuting the empty clause, gives a certificate that the checker
+accepts (`Cslib.Logic.PL.CNF.LRATLog.checkLRAT_finish`).
 
 ## Main definitions
 
 * `Cslib.Logic.PL.CNF.LRATLog`: a certificate under construction.
-* `Cslib.Logic.PL.CNF.LRATLog.init`, `Cslib.Logic.PL.CNF.LRATLog.resolve`,
-  `Cslib.Logic.PL.CNF.LRATLog.addRup`, `Cslib.Logic.PL.CNF.LRATLog.delete`,
-  `Cslib.Logic.PL.CNF.LRATLog.finish`: starting, resolving, adding a RUP clause, deleting and
-  closing.
+* `Cslib.Logic.PL.CNF.LRATLog.init`, `Cslib.Logic.PL.CNF.LRATLog.addRup`,
+  `Cslib.Logic.PL.CNF.LRATLog.delete`, `Cslib.Logic.PL.CNF.LRATLog.finish`: starting, adding a RUP
+  clause, deleting and closing.
+* `Cslib.Logic.PL.CNF.RupHints`: hints refuting every clause containing given literals.
 
 ## Main results
 
 * `Cslib.Logic.PL.CNF.LRATLog.checkLRAT_finish`: a closed log is accepted by the checker.
+* `Cslib.Logic.PL.CNF.RupHints.resolve`: resolving with a clause of the database extends the hints.
 -/
 
 @[expose] public section
@@ -53,41 +51,6 @@ checker accepts (`Cslib.Logic.PL.CNF.LRATLog.checkLRAT_finish`).
 namespace Cslib.Logic.PL.CNF
 
 open Std.Tactic.BVDecide (LRAT.IntAction)
-
-/-- Setting the entry `i` of an array of options to `x`, growing the array with `none` if needed. -/
-def optSet {α : Type} (a : Array (Option α)) (i : ℕ) (x : Option α) : Array (Option α) :=
-  if i < a.size then a.set! i x
-  -- pushing directly at the end, so that the array is updated in place
-  else if i = a.size then a.push x
-  else (a ++ Array.replicate (i - a.size) none).push x
-
-theorem getD_optSet {α : Type} (a : Array (Option α)) (i j : ℕ) (x : Option α) :
-    (optSet a i x).getD j none = if j = i then x else a.getD j none := by
-  unfold optSet
-  by_cases hi : i < a.size
-  · rw [ite_eq_left hi]
-    simp only [Array.set!_eq_setIfInBounds, Array.getD_eq_getD_getElem?,
-      Array.getElem?_setIfInBounds]
-    by_cases hj : j = i
-    · subst hj; simp [hi]
-    · simp [hj, Ne.symm hj]
-  rw [ite_eq_right hi]
-  by_cases he : i = a.size
-  · rw [ite_eq_left he]
-    subst he
-    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push]
-    by_cases hj : j = a.size <;> simp [hj]
-  rw [ite_eq_right he]
-  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push, Array.size_append,
-    Array.size_replicate, Array.getElem?_append, Array.getElem?_replicate]
-  by_cases hj : j = i
-  · subst hj; simp only [↓reduceIte]; split <;> first | rfl | omega
-  · have h' : ¬ j = a.size + (i - a.size) := by omega
-    simp only [hj, h', ↓reduceIte]
-    by_cases hlt : j < a.size
-    · simp [hlt]
-    · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : a.size ≤ j)]
-      split <;> rfl
 
 /-- **An index in chunks**: the entries by number, in arrays of `256`, so that updating a shared
 index copies the array of chunks and one chunk rather than every entry. -/
@@ -101,10 +64,15 @@ def chunkGet {α : Type} (a : Chunks α) (i : ℕ) : Option α :=
 def chunkSet {α : Type} (a : Chunks α) (i : ℕ) (x : Option α) : Chunks α :=
   let k := i / 256
   let a := if k < a.size then a else a ++ Array.replicate (k + 1 - a.size) #[]
-  a.modify k fun c => optSet c (i % 256) x
+  a.modify k fun c => c.setGrow (i % 256) none x
 
 theorem chunkGet_empty {α : Type} (j : ℕ) : chunkGet (#[] : Chunks α) j = none := by
   simp [chunkGet]
+
+private theorem lrat_nat_eq_iff_div_mod_256 (j i : ℕ) :
+    j = i ↔ j / 256 = i / 256 ∧ j % 256 = i % 256 := by
+  refine ⟨fun h => h ▸ ⟨rfl, rfl⟩, fun ⟨h₁, h₂⟩ => ?_⟩
+  rw [← Nat.div_add_mod j 256, ← Nat.div_add_mod i 256, h₁, h₂]
 
 theorem chunkGet_chunkSet {α : Type} (a : Chunks α) (i j : ℕ) (x : Option α) :
     chunkGet (chunkSet a i x) j = if j = i then x else chunkGet a j := by
@@ -125,18 +93,14 @@ theorem chunkGet_chunkSet {α : Type} (a : Chunks α) (i j : ℕ) (x : Option α
     split
     · assumption
     · simp; omega
-  have hdecomp : j = i ↔ j / 256 = i / 256 ∧ j % 256 = i % 256 := by
-    constructor
-    · rintro rfl; exact ⟨rfl, rfl⟩
-    · rintro ⟨h₁, h₂⟩
-      rw [← Nat.div_add_mod j 256, ← Nat.div_add_mod i 256, h₁, h₂]
+  have hdecomp := lrat_nat_eq_iff_div_mod_256 j i
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_modify]
   by_cases hk : i / 256 = j / 256
   · rw [ite_eq_left hk, ← hk, Array.getElem?_eq_getElem hsize]
     simp only [Option.map_some, Option.getD_some]
-    rw [show (a'[i / 256]'hsize) = a'.getD (i / 256) #[] by
-      simp [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hsize], hgrow,
-      ← Array.getD_eq_getD_getElem?, getD_optSet]
+    have ha_get : a'[i / 256]'hsize = a'.getD (i / 256) #[] := by
+      simp [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hsize]
+    rw [ha_get, hgrow, ← Array.getD_eq_getD_getElem?, Array.getD_setGrow]
     by_cases hj : j = i
     · subst hj; simp
     · have : ¬ j % 256 = i % 256 := fun h => hj (hdecomp.2 ⟨hk.symm, h⟩)
@@ -155,11 +119,7 @@ def chunkClear {α : Type} (a : Chunks α) (i : ℕ) : Chunks α :=
 theorem chunkGet_chunkClear {α : Type} (a : Chunks α) (i j : ℕ) :
     chunkGet (chunkClear a i) j = if j = i then none else chunkGet a j := by
   unfold chunkGet chunkClear
-  have hdecomp : j = i ↔ j / 256 = i / 256 ∧ j % 256 = i % 256 := by
-    constructor
-    · rintro rfl; exact ⟨rfl, rfl⟩
-    · rintro ⟨h₁, h₂⟩
-      rw [← Nat.div_add_mod j 256, ← Nat.div_add_mod i 256, h₁, h₂]
+  have hdecomp := lrat_nat_eq_iff_div_mod_256 j i
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_modify]
   by_cases hk : i / 256 = j / 256
   · rw [ite_eq_left hk, ← hk]
@@ -198,6 +158,82 @@ theorem chunkGet_chunkIndexOf {α : Type} : ∀ (db : List (ℕ × α)) (i : ℕ
     · subst h; simp
     · simp only [h, ↓reduceIte]
       rw [show (e.1 == i) = false by simpa using Ne.symm h]
+
+/-! ### Hints built by resolution -/
+
+/-- A hinted clause whose literals other than `l` are false propagates `l`: the shared rule
+`Cslib.Logic.PL.CNF.propagateHints_cons_of_forall_ne`, with propagation from `l` succeeding. -/
+theorem propagateHints_cons_unit {db : List (ℕ × Clause ℕ)} {t : List (Literal ℕ)} {r : ℕ}
+    {hs : List ℕ} {R : Clause ℕ} {l : Literal ℕ} (hR : db.find? (·.1 == r) = some (r, R))
+    (hfalse : ∀ y ∈ R, y ≠ l → y.negate ∈ t) (h : propagateHints db (l :: t) hs = true) :
+    propagateHints db t (r :: hs) = true :=
+  propagateHints_cons_of_forall_ne hR hfalse fun _ _ => h
+
+/-- **Unit propagation along hints succeeds from more literals.** A clause with no open literal
+from `t` has none from `t'`, and one with the single open literal `l` from `t` has its other
+literals false under `t'`, so the shared rule applies. -/
+theorem propagateHints_mono {db : List (ℕ × Clause ℕ)} :
+    ∀ {t t' : List (Literal ℕ)} {hs : List ℕ}, (∀ l ∈ t, l ∈ t') →
+      propagateHints db t hs = true → propagateHints db t' hs = true
+  | _, _, [], _, h => by simp [propagateHints_nil] at h
+  | t, t', i :: hs, ht, h => by
+    rw [propagateHints_cons] at h
+    cases hf : db.find? (·.1 == i) with
+    | none => simp [hf] at h
+    | some e =>
+      simp only [hf] at h
+      cases hr : e.2.residual t with
+      | empty =>
+        have hall := Clause.residual_eq_empty_iff.1 hr
+        exact propagateHints_cons_of_forall_ne (l := (0, true)) hf
+          (fun m hm _ => ht _ (hall m hm)) fun hl hn => absurd (ht _ (hall _ hl)) hn
+      | unit l =>
+        obtain ⟨-, -, hothers⟩ := Clause.residual_eq_unit_iff.1 hr
+        rw [hr] at h
+        exact propagateHints_cons_of_forall_ne hf (fun m hm hne => ht _ (hothers m hm hne))
+          fun _ _ => propagateHints_mono (fun x hx => by
+            rcases List.mem_cons.1 hx with rfl | hx
+            · exact List.mem_cons_self
+            · exact List.mem_cons_of_mem _ (ht x hx)) h
+      | other => simp [hr] at h
+
+/-- **Hints refuting the clauses containing `C`**: from the negation of any clause containing the
+literals `C`, unit propagation along `hints` in `db` reaches a conflict. -/
+def RupHints (db : List (ℕ × Clause ℕ)) (C : Literal ℕ → Prop) (hints : List ℕ) : Prop :=
+  ∀ t : List (Literal ℕ), (∀ y, C y → y.negate ∈ t) → propagateHints db t hints = true
+
+namespace RupHints
+
+variable {db : List (ℕ × Clause ℕ)} {C C' : Literal ℕ → Prop} {hints : List ℕ}
+
+/-- A clause of the database hints its own refutation. -/
+theorem single {i : ℕ} {c : Clause ℕ} (hc : db.find? (·.1 == i) = some (i, c)) (hC : ∀ y ∈ c, C y) :
+    RupHints db C [i] := fun _ ht =>
+  propagateHints_cons_of_forall_ne (l := (0, true)) hc (fun m hm _ => ht m (hC m hm))
+    fun hl hn => absurd (ht _ (hC _ hl)) hn
+
+/-- Hints refuting the clauses containing `C` refute those containing more. -/
+theorem mono (h : RupHints db C hints) (hC : ∀ y, C y → C' y) : RupHints db C' hints :=
+  fun t ht => h t fun y hy => ht y (hC y hy)
+
+/-- **Resolving with a clause of the database**: if `C'` contains every literal of the clause `R`
+numbered `r` other than `l`, and every literal of `C` other than the negation of `l`, then the hints
+refuting `C`, after `r`, refute `C'`: the clause `R` propagates `l`, and then the negation of `C`
+holds. -/
+theorem resolve (h : RupHints db C hints) {r : ℕ} {R : Clause ℕ} {l : Literal ℕ}
+    (hR : db.find? (·.1 == r) = some (r, R)) (hRC : ∀ y ∈ R, y ≠ l → C' y)
+    (hC : ∀ y, C y → y = l.negate ∨ C' y) : RupHints db C' (r :: hints) := fun t ht =>
+  propagateHints_cons_unit hR (fun y hy hne => ht y (hRC y hy hne)) <| h _ fun y hy => by
+    rcases hC y hy with rfl | hy
+    · simp [Std.Sat.Literal.negate]
+    · exact List.mem_cons_of_mem _ (ht y hy)
+
+/-- Hints refuting the clauses containing `C` refute a clause `D` containing `C` as a RUP step. -/
+theorem propagateHints_eq (h : RupHints db C hints) {D : Clause ℕ} (hD : ∀ y, C y → y ∈ D) :
+    propagateHints db (D.map Std.Sat.Literal.negate) hints = true :=
+  h _ fun y hy => List.mem_map.2 ⟨y, hD y hy, rfl⟩
+
+end RupHints
 
 /-- **A certificate under construction** for `φ`: the steps so far, newest first, the numbered
 clauses they lead to, indexed by number, and the next unused number. -/
@@ -348,125 +384,93 @@ theorem extends_addRup {log : LRATLog φ} {c : Clause ℕ} {hints : List ℕ}
   rw [show (log.next == i) = false by simp; omega]
   exact h
 
-/-- Adding a clause `c` with the literals of the resolvent of the clauses numbered `i₁` and `i₂` on
-`v`, given those clauses, for instance the resolvent without repeated literals: a RUP step hinting
-the two clauses (`Cslib.Logic.PL.CNF.LRATLog.addRup`). -/
-def addResolventAs (log : LRATLog φ) (i₁ i₂ v : ℕ) (c₁ c₂ : Clause ℕ)
-    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) (c : Clause ℕ)
-    (hc : ∀ l, l ∈ c ↔ l ∈ c₁.resolvent c₂ v) : LRATLog φ :=
-  log.addRup c [i₁, i₂]
-    (by
-      have hprop := propagateHints_resolvent (v := v) (find?_of_clause? h₁) (find?_of_clause? h₂)
-      rw [propagateHints_congr _ (t' := c.map Std.Sat.Literal.negate) (fun l => by
-        simp only [List.mem_map, hc])] at hprop
-      exact hprop)
-    fun l hl => by
-      rcases Clause.mem_resolvent.1 ((hc l).1 hl) with ⟨hl, -⟩ | ⟨hl, -⟩
-      · exact vars_mem_of_clause? h₁ l hl
-      · exact vars_mem_of_clause? h₂ l hl
+/-- Marking each number of `ids` in `a`: a mark within the array is set when its number is in
+`ids`; the array keeps its size. -/
+private theorem getD_foldl_setTrue (ids : List ℕ) (a : Array Bool) (i : ℕ) :
+    (ids.foldl (fun a j => a.setIfInBounds j true) a).getD i false =
+      (a.getD i false || (decide (i < a.size) && ids.contains i)) := by
+  induction ids generalizing a with
+  | nil => simp
+  | cons j ids ih =>
+    rw [List.foldl_cons, ih, Array.size_setIfInBounds]
+    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds, List.contains_cons]
+    by_cases hij : j = i
+    · subst hij; by_cases hi : j < a.size <;> simp [hi]
+    · simp [hij, show (i == j) = false from beq_false_of_ne (Ne.symm hij)]
 
-/-- After adding a clause with the literals of a resolvent, the new number names it. -/
-theorem clause?_addResolventAs {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
-    {h₁ : log.clause? i₁ = some c₁} {h₂ : log.clause? i₂ = some c₂} {c : Clause ℕ}
-    {hc : ∀ l, l ∈ c ↔ l ∈ c₁.resolvent c₂ v} :
-    (log.addResolventAs i₁ i₂ v c₁ c₂ h₁ h₂ c hc).clause? log.next = some c :=
-  clause?_addRup
+private theorem le_foldl_max {ids : List ℕ} {i : ℕ} :
+    ∀ m, i ∈ ids ∨ i ≤ m → i ≤ ids.foldl max m := by
+  induction ids with
+  | nil => intro m h; simpa using h
+  | cons j ids ih =>
+    intro m h
+    refine ih _ ?_
+    rcases h with h | h
+    · rcases List.mem_cons.1 h with rfl | h
+      · exact .inr (le_max_right _ _)
+      · exact .inl h
+    · exact .inr (le_max_of_le_left h)
 
-/-- Adding a clause with the literals of a resolvent extends the log. -/
-theorem extends_addResolventAs {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
-    {h₁ : log.clause? i₁ = some c₁} {h₂ : log.clause? i₂ = some c₂} {c : Clause ℕ}
-    {hc : ∀ l, l ∈ c ↔ l ∈ c₁.resolvent c₂ v} :
-    log.Extends (log.addResolventAs i₁ i₂ v c₁ c₂ h₁ h₂ c hc) :=
-  extends_addRup
+/-- **The numbered clauses `db` without those numbered in `ids`**: the clauses whose number is
+not in `ids` (`eraseIds_eq`). The numbers are marked once, from the least of them, in an array
+reaching the greatest, so that each clause is tested in constant time instead of by searching
+`ids`. The numbers deleted together are mostly recent ones, so the array is much shorter than the
+greatest number. -/
+def eraseIds (db : List (ℕ × Clause ℕ)) (ids : List ℕ) : List (ℕ × Clause ℕ) :=
+  let lo := ids.foldl min (ids.headD 0)
+  let marks := ids.foldl (fun a i => a.setIfInBounds (i - lo) true)
+    (Array.replicate (ids.foldl max 0 + 1 - lo) false)
+  db.filter fun e => !(decide (lo ≤ e.1) && marks.getD (e.1 - lo) false)
 
-/-- Adding the resolvent of the clauses numbered `i₁` and `i₂` on `v`, given those clauses. -/
-def addResolvent (log : LRATLog φ) (i₁ i₂ v : ℕ) (c₁ c₂ : Clause ℕ)
-    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) : LRATLog φ :=
-  log.addResolventAs i₁ i₂ v c₁ c₂ h₁ h₂ (c₁.resolvent c₂ v) fun _ => Iff.rfl
+theorem eraseIds_eq (db : List (ℕ × Clause ℕ)) (ids : List ℕ) :
+    eraseIds db ids = db.filter fun e => !ids.contains e.1 := by
+  unfold eraseIds
+  refine List.filter_congr fun e _ => ?_
+  congr 1
+  have hlo : ∀ j ∈ ids, ids.foldl min (ids.headD 0) ≤ j := fun j hj => by
+    rw [List.foldl_min_eq_min (List.ne_nil_of_mem hj)]
+    exact Nat.le_trans (Nat.min_le_right _ _) (List.min_le_of_mem hj)
+  set lo := ids.foldl min (ids.headD 0)
+  have hf : ∀ A : Array Bool, ids.foldl (fun a i => a.setIfInBounds (i - lo) true) A =
+      (ids.map (· - lo)).foldl (fun a i => a.setIfInBounds i true) A := fun A => by
+    rw [List.foldl_map]
+  rw [hf, getD_foldl_setTrue]
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate, Array.size_replicate]
+  by_cases hle : lo ≤ e.1
+  · have hmem : (ids.map (· - lo)).contains (e.1 - lo) = ids.contains e.1 := by
+      rw [Bool.eq_iff_iff]
+      simp only [List.contains_iff_mem, List.mem_map]
+      constructor
+      · rintro ⟨j, hj, hje⟩
+        have := hlo j hj
+        rwa [show j = e.1 by omega] at hj
+      · exact fun h => ⟨e.1, h, rfl⟩
+    rw [hmem]
+    by_cases hi : e.1 ∈ ids
+    · have : e.1 ≤ ids.foldl max 0 := le_foldl_max 0 (.inl hi)
+      simp [hle, hi, show e.1 - lo < ids.foldl max 0 + 1 - lo by omega]
+    · simp only [hle]; split <;> simp [hi]
+  · have hi : e.1 ∉ ids := fun h => hle (hlo _ h)
+    simp [hle, hi]
 
-/-- After adding a resolvent, the new number names it. -/
-theorem clause?_addResolvent {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
-    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) :
-    (log.addResolvent i₁ i₂ v c₁ c₂ h₁ h₂).clause? log.next = some (c₁.resolvent c₂ v) :=
-  clause?_addResolventAs
-
-/-- Adding a resolvent extends the log. -/
-theorem extends_addResolvent {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
-    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) :
-    log.Extends (log.addResolvent i₁ i₂ v c₁ c₂ h₁ h₂) :=
-  extends_addResolventAs
-
-/-- **Resolving two clauses of the log**: the resolvent of the clauses numbered `i₁` and `i₂` on
-`v`, added under the next number, which is returned with the new log; `none` if a number names no
-clause. -/
-def resolve (log : LRATLog φ) (i₁ i₂ v : ℕ) : Option (LRATLog φ × ℕ) :=
-  match h₁ : log.clause? i₁, h₂ : log.clause? i₂ with
-  | some c₁, some c₂ => some (log.addResolvent i₁ i₂ v c₁ c₂ h₁ h₂, log.next)
-  | _, _ => none
-
-/-- After resolving, the new number names the resolvent. -/
-theorem clause?_resolve {log log' : LRATLog φ} {i₁ i₂ v j : ℕ} {c₁ c₂ : Clause ℕ}
-    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂)
-    (h : log.resolve i₁ i₂ v = some (log', j)) : log'.clause? j = some (c₁.resolvent c₂ v) := by
-  unfold resolve at h
-  split at h
-  · rename_i c₁' c₂' h₁' h₂'
-    rw [h₁] at h₁'
-    rw [h₂] at h₂'
-    cases h₁'
-    cases h₂'
-    cases h
-    exact clause?_addResolvent _ _
-  · simp at h
-
-/-- After resolving, the older numbers name the same clauses. -/
-theorem clause?_resolve_of_lt {log log' : LRATLog φ} {i₁ i₂ v j i : ℕ}
-    (h : log.resolve i₁ i₂ v = some (log', j)) (hi : i < log.next) :
-    log'.clause? i = log.clause? i := by
-  unfold resolve at h
-  split at h
-  · cases h
-    simp only [clause?_eq, addResolvent, addResolventAs, addRup, List.find?_cons]
-    rw [show (log.next == i) = false by simp; omega]
-  · simp at h
-
-/-- Resolving succeeds when both numbers name clauses. -/
-theorem isSome_resolve {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
-    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) :
-    log.resolve i₁ i₂ v = some (log.addResolvent i₁ i₂ v c₁ c₂ h₁ h₂, log.next) := by
-  unfold resolve
-  split
-  · rename_i c₁' c₂' h₁' h₂'
-    rw [h₁] at h₁'
-    rw [h₂] at h₂'
-    cases h₁'
-    cases h₂'
-    rfl
-  · rename_i hne
-    exact absurd h₂ (hne c₁ c₂ h₁)
-
-/-- **Deleting clauses** from the log, given the database `db'` without them, which the caller
-may compute faster than by filtering (`Cslib.Logic.PL.CNF.LRATLog.dropRecent`). An empty list
-deletes nothing and adds no step. The index entries are cleared in place (`chunkClear`), so
-deleting a number that names no clause does not grow the index. -/
-def deleteWith (log : LRATLog φ) (ids : List ℕ) (db' : List (ℕ × Clause ℕ))
-    (hdb : db' = log.db.filter fun e => !ids.contains e.1) : LRATLog φ :=
+/-- **Deleting clauses** from the log. An empty list deletes nothing and adds no step. The index
+entries are cleared in place (`chunkClear`), so deleting a number that names no clause does not
+grow the index. -/
+def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ :=
   if ids.isEmpty then log else
   { steps := .del ids.toArray :: log.steps
-    db := db'
+    db := eraseIds log.db ids
     next := log.next
     run := fun rest => by
-      subst hdb
       simp only [List.reverse_cons, List.append_assoc, List.singleton_append]
-      rw [log.run]
+      rw [log.run, eraseIds_eq]
       simp [checkLRATAux]
-    lt_next := fun e he => log.lt_next e (List.mem_filter.1 (hdb ▸ he)).1
-    implied := fun σ hσ e he => log.implied σ hσ e (List.mem_filter.1 (hdb ▸ he)).1
-    vars_mem := fun e he => log.vars_mem e (List.mem_filter.1 (hdb ▸ he)).1
+    lt_next := fun e he => log.lt_next e (List.mem_filter.1 (eraseIds_eq _ _ ▸ he)).1
+    implied := fun σ hσ e he => log.implied σ hσ e (List.mem_filter.1 (eraseIds_eq _ _ ▸ he)).1
+    vars_mem := fun e he => log.vars_mem e (List.mem_filter.1 (eraseIds_eq _ _ ▸ he)).1
     index := ids.foldl chunkClear log.index
     index_eq := fun i => by
-      subst hdb
-      rw [chunkGet_foldl_chunkClear, log.index_eq, List.find?_filter]
+      rw [chunkGet_foldl_chunkClear, log.index_eq, eraseIds_eq, List.find?_filter]
       split
       · rename_i hi
         symm
@@ -482,120 +486,27 @@ def deleteWith (log : LRATLog φ) (ids : List ℕ) (db' : List (ℕ × Clause �
         · subst he; simp [hi]
         · simp [he]
     next_gt := log.next_gt
-    ordered := hdb ▸ log.ordered.filter _ }
-
-/-- **Deleting clauses** from the log. -/
-def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ := log.deleteWith ids _ rfl
-
-/-- Deleting clauses keeps the clauses of the numbers not deleted. -/
-theorem clause?_deleteWith {log : LRATLog φ} {ids : List ℕ} {db' : List (ℕ × Clause ℕ)}
-    {hdb : db' = log.db.filter fun e => !ids.contains e.1} {i : ℕ} (hi : i ∉ ids) :
-    (log.deleteWith ids db' hdb).clause? i = log.clause? i := by
-  unfold deleteWith
-  split
-  · rfl
-  subst hdb
-  simp only [clause?_eq, List.find?_filter]
-  congr 1
-  refine List.find?_congr fun e _ => ?_
-  by_cases he : e.1 = i
-  · subst he
-    simp [hi]
-  · simp [he]
+    ordered := eraseIds_eq log.db ids ▸ log.ordered.filter _ }
 
 /-- Deleting clauses keeps the clauses of the numbers not deleted. -/
 theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉ ids) :
-    (log.delete ids).clause? i = log.clause? i :=
-  clause?_deleteWith hi
+    (log.delete ids).clause? i = log.clause? i := by
+  unfold delete
+  split
+  · rfl
+  · rw [clause?, chunkGet_foldl_chunkClear, ite_eq_right hi, clause?]
 
-/-- The numbers from `n` to below `next` other than `id`: the intermediate resolvents of a conflict
-analysis whose learned clause is numbered `id`. -/
-def recentIds (n next id : ℕ) : List ℕ := (List.range' n (next - n)).filter (· != id)
+/-- **Closing the log** with an empty-clause step, given hints along which unit propagation
+reaches a conflict from no assumption. -/
+def finish (log : LRATLog φ) (hints : List ℕ) (_h : propagateHints log.db [] hints = true) :
+    Array LRAT.IntAction :=
+  (log.steps.reverse ++ [Std.Tactic.BVDecide.LRAT.Action.addEmpty log.next hints.toArray]).toArray
 
-/-- The numbers in `recentIds n next id`: from `n` to below `next`, other than `id`. -/
-theorem mem_recentIds {n next id i : ℕ} :
-    i ∈ recentIds n next id ↔ n ≤ i ∧ i < next ∧ i ≠ id := by
-  simp only [recentIds, List.mem_filter, List.mem_range'_1, bne_iff_ne, ne_eq]
-  omega
-
-/-- The database without the clauses numbered from `n` up other than `id`, read from the start
-only as long as the numbers are at least `n`: the newest clauses come first. -/
-def dropRecent (n id : ℕ) : List (ℕ × Clause ℕ) → List (ℕ × Clause ℕ)
-  | [] => []
-  | e :: rest =>
-    if e.1 < n then e :: rest
-    else if e.1 = id then e :: dropRecent n id rest
-    else dropRecent n id rest
-
-/-- **Deleting the newest clauses by reading only them**: with the added clauses newest first,
-before the clauses of `φ`, and `n` beyond those, `dropRecent` filters out `recentIds`. -/
-theorem dropRecent_eq {m n next id : ℕ} (hmn : m < n) :
-    ∀ {db : List (ℕ × Clause ℕ)}, db.Pairwise (fun a b => m < b.1 → b.1 < a.1) →
-      (∀ e ∈ db, e.1 < next) →
-      dropRecent n id db = db.filter fun e => !(recentIds n next id).contains e.1
-  | [], _, _ => rfl
-  | e :: rest, hord, hlt => by
-    obtain ⟨hhead, hrest⟩ := List.pairwise_cons.1 hord
-    have hnot : ∀ i, i < n → i ∉ recentIds n next id := fun i hi h => by
-      have := (mem_recentIds.1 h).1
-      omega
-    unfold dropRecent
-    by_cases he : e.1 < n
-    · rw [ite_eq_left he, List.filter_cons, ite_eq_left (by simpa using hnot _ he)]
-      congr 1
-      symm
-      refine List.filter_eq_self.2 fun b hb => ?_
-      have : b.1 < n := by
-        by_cases hb' : m < b.1
-        · exact lt_trans (hhead b hb hb') he
-        · omega
-      simpa using hnot _ this
-    · rw [ite_eq_right he]
-      have ih := dropRecent_eq (id := id) hmn hrest fun b hb => hlt b (List.mem_cons_of_mem _ hb)
-      have hmem : e.1 ∈ recentIds n next id ↔ e.1 ≠ id := by
-        have := hlt e List.mem_cons_self
-        rw [mem_recentIds]
-        omega
-      by_cases hid : e.1 = id
-      · rw [ite_eq_left hid, List.filter_cons, ite_eq_left (by simpa [hmem] using hid), ih]
-      · rw [ite_eq_right hid, List.filter_cons, ite_eq_right (by simpa [hmem] using hid), ih]
-
-/-- **Deleting the intermediate resolvents** of an analysis that started at the number `n`, beyond
-the clauses of `φ`, and learned the clause numbered `id`: as `delete`, reading only the newest
-clauses of the database. -/
-def deleteRecent (log : LRATLog φ) (n id : ℕ) (hn : φ.length < n) : LRATLog φ :=
-  log.deleteWith (recentIds n log.next id) (dropRecent n id log.db)
-    (dropRecent_eq hn log.ordered log.lt_next)
-
-/-- Deleting the intermediate resolvents keeps the clauses of the other numbers. -/
-theorem clause?_deleteRecent {log : LRATLog φ} {n id : ℕ} {hn : φ.length < n} {i : ℕ}
-    (hi : i ∉ recentIds n log.next id) : (log.deleteRecent n id hn).clause? i = log.clause? i :=
-  clause?_deleteWith hi
-
-/-- **Unit propagation along hints on the log's database**, as `propagateHints`, reading the
-hinted clauses from the index: the same worker (`Cslib.Logic.PL.CNF.propagateWith`) with another
-lookup. -/
-def propagate (log : LRATLog φ) : List (Literal ℕ) → List ℕ → Bool :=
-  propagateWith log.clause?
-
-theorem propagate_eq (log : LRATLog φ) (t : List (Literal ℕ)) (hs : List ℕ) :
-    log.propagate t hs = propagateHints log.db t hs := by
-  unfold propagate propagateHints
-  congr 1
-  funext h
-  rw [log.clause?_eq h, List.lookup_eq_map_find?]
-  exact congrArg _ (congrArg (List.find? · _) (funext fun _ => BEq.comm))
-
-/-- **Closing the log** at the empty clause, numbered `i`: its steps followed by an empty-clause
-step hinting it. -/
-def finish (log : LRATLog φ) (i : ℕ) (_h : log.clause? i = some []) : Array LRAT.IntAction :=
-  (log.steps.reverse ++ [Std.Tactic.BVDecide.LRAT.Action.addEmpty log.next #[i]]).toArray
-
-/-- **A log closed at the empty clause is accepted by the checker.** -/
-theorem checkLRAT_finish {log : LRATLog φ} {i : ℕ} (h : log.clause? i = some []) :
-    φ.checkLRAT (log.finish i h) = true := by
+/-- **A closed log is accepted by the checker.** -/
+theorem checkLRAT_finish {log : LRATLog φ} {hints : List ℕ}
+    (h : propagateHints log.db [] hints = true) : φ.checkLRAT (log.finish hints h) = true := by
   rw [checkLRAT, finish, List.toList_toArray, log.run]
-  simp [checkLRATAux, propagateHints_cons, find?_of_clause? h]
+  simpa [checkLRATAux] using h
 
 end LRATLog
 

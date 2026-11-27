@@ -59,49 +59,146 @@ namespace TreeSchedule.TreeState
 
 variable {P : TreeSchedule}
 
-private theorem card_wait_rehash_eq
-    {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
-    {st : P.TreeState} {d : P.PaddedDict} {storeLvl : Fin P.paddedUniv → ℕ}
-    (hwf : st.WellFormedPadded scheme d storeLvl)
-    {ℓ₀ : ℕ} (h2₀ : 2 ≤ ℓ₀) (hℓ₀ : ℓ₀ ≤ P.depth) (u₀ : Fin (P.numNodes ℓ₀))
-    {seeds' : P.SeedAssignment}
+/-! ### Outside-subtree seed agreement helpers -/
+
+section OutsideHelpers
+
+variable {seeds seeds' : P.SeedAssignment} {ℓ₀ : ℕ} {u₀ : Fin (P.numNodes ℓ₀)}
+
+private theorem activeAt_eq_of_outside {S : Finset (Fin P.paddedUniv)}
+    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
+      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = seeds.seed j hj v)
+    {j : ℕ} (hj : j ≤ P.depth) (v : Fin (P.numNodes j)) (hnot : ¬ P.InSubtree ℓ₀ u₀ j v) :
+    seeds'.activeAt S j hj v = seeds.activeAt S j hj v := by
+  ext x
+  simp only [SeedAssignment.mem_activeAt_iff,
+    (SeedAssignment.primCoordAt_congr_ancestors hj v (fun i hi =>
+      houtside i (hi.le.trans hj) _ (P.not_inSubtree_ancestor_of_not_inSubtree hi.le hnot)) x).1]
+
+private theorem activeAt_rehash_root {S : Finset (Fin P.paddedUniv)} (hℓ₀ : ℓ₀ ≤ P.depth)
+    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
+      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = seeds.seed j hj v) :
+    seeds'.activeAt S ℓ₀ hℓ₀ u₀ = seeds.activeAt S ℓ₀ hℓ₀ u₀ := by
+  ext x
+  simp only [SeedAssignment.mem_activeAt_iff,
+    (SeedAssignment.primCoordAt_congr_ancestors hℓ₀ u₀
+      (fun i hi => houtside i (hi.le.trans hℓ₀) _ fun ⟨hge, _⟩ => by omega) x).1]
+
+private theorem levelCoordEquiv_eq_of_outside
+    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
+      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = seeds.seed j hj v)
+    {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
+    (hnot : ¬ P.InSubtree ℓ₀ u₀ j v) {x : Fin P.paddedUniv} (hnx : seeds'.nodeAt j hj x = v) :
+    seeds'.levelCoordEquiv j hj1 hj x = seeds.levelCoordEquiv j hj1 hj x :=
+  SeedAssignment.levelCoordEquiv_congr_ancestors hj1 hj v
+    (fun i hi => houtside i (hi.trans hj) _ (P.not_inSubtree_ancestor_of_not_inSubtree hi hnot))
+    x hnx
+
+private theorem notMem_A0_of_not_anc_not_sub
+    {S : Finset (Fin P.paddedUniv)} (hℓ₀ : ℓ₀ ≤ P.depth) (u₀ : Fin (P.numNodes ℓ₀))
+    {j : ℕ} (hj : j ≤ P.depth) (v : Fin (P.numNodes j)) (hnot_sub : ¬ P.InSubtree ℓ₀ u₀ j v)
+    (hnot_anc : ¬ ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀)
+    {x : Fin P.paddedUniv} (hx : x ∈ seeds'.activeAt S j hj v) :
+    x ∉ seeds'.activeAt S ℓ₀ hℓ₀ u₀ := by
+  intro hxA
+  have hnv := (SeedAssignment.mem_activeAt_iff.mp hx).2
+  have hnu₀ := (SeedAssignment.mem_activeAt_iff.mp hxA).2
+  by_cases hlt : j < ℓ₀
+  · exact hnot_anc ⟨hlt, by rw [← hnv, ← hnu₀, (seeds'.ancestorAt_nodeAt hlt.le hℓ₀ x).symm]⟩
+  · exact hnot_sub ⟨by omega, by rw [← hnv, seeds'.ancestorAt_nodeAt (by omega) hj x, hnu₀]⟩
+
+private theorem image_filter_outside_congr {S : Finset (Fin P.paddedUniv)}
+    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
+      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = seeds.seed j hj v)
+    {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
+    {p p' : Fin P.paddedUniv → Prop} [DecidablePred p] [DecidablePred p']
+    (hnot : ¬ P.InSubtree ℓ₀ u₀ j v)
+    (hp : ∀ x ∈ seeds'.activeAt S j hj v, p x ↔ p' x) :
+    ((seeds.activeAt S j hj v).filter p).image (seeds.idAt j hj1 hj) =
+      ((seeds'.activeAt S j hj v).filter p').image (seeds'.idAt j hj1 hj) := by
+  rw [← activeAt_eq_of_outside houtside hj v hnot, filter_congr hp]
+  exact image_congr fun x hx =>
+    congrArg (fun c => c.2.1)
+      (levelCoordEquiv_eq_of_outside houtside hj1 hj v hnot
+        (SeedAssignment.mem_activeAt_iff.mp (mem_filter.mp hx).1).2).symm
+
+variable {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
+  {st : P.TreeState} {d : P.PaddedDict} {storeLvl : Fin P.paddedUniv → ℕ}
+
+private theorem query_eq_outside (hwf : st.WellFormedPadded scheme d storeLvl)
     (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
       ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
-    (hgood' : seeds'.AllGoodSeeds (P.paddedDom d)) :
+    {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
+    {x : Fin P.paddedUniv} {vx : Fin P.valBound} (hnot : ¬ P.InSubtree ℓ₀ u₀ j v)
+    (hdx : d x = some vx) (hnx : seeds'.nodeAt j hj x = v) (hsl : storeLvl x = j) :
+    st.nodeQuery scheme j hj1 hj v (seeds'.idAt j hj1 hj x) =
+      some (seeds'.quotAt j hj1 hj x, vx) := by
+  have hc := levelCoordEquiv_eq_of_outside houtside hj1 hj v hnot hnx
+  have hnx_old : st.seeds.nodeAt j hj x = v := by
+    rw [← st.seeds.levelCoordEquiv_fst hj1 hj x, ← hc, seeds'.levelCoordEquiv_fst hj1 hj x, hnx]
+  rw [show seeds'.idAt j hj1 hj x = st.seeds.idAt j hj1 hj x from congrArg (·.2.1) hc,
+    show seeds'.quotAt j hj1 hj x = st.seeds.quotAt j hj1 hj x from congrArg (·.2.2) hc,
+    hwf.query_eq_of_storeLvl j hj1 hj v x vx hdx hnx_old hsl]
+
+private theorem wait_lookup_eq_outside (hwf : st.WellFormedPadded scheme d storeLvl)
+    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
+      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
+    {j : ℕ} (hj2 : 2 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)) {x : Fin P.paddedUniv}
+    (hnot : ¬ P.InSubtree ℓ₀ u₀ j v) (hx : x ∈ seeds'.activeAt (P.paddedDom d) j hj v)
+    (hsl : storeLvl x < j) :
+    (st.nodeWait j hj2 hj v).lookup (seeds'.idAt j (by omega) hj x) =
+      some (seeds'.idAt (j - 1) (by omega) (by omega) x) := by
+  have hnx := (SeedAssignment.mem_activeAt_iff.mp hx).2
+  have hc := levelCoordEquiv_eq_of_outside houtside (by omega) hj v hnot hnx
+  have hc_prev := levelCoordEquiv_eq_of_outside houtside (by omega) (by omega)
+    (P.ancestorAt (by omega : j - 1 ≤ j) v)
+    (P.not_inSubtree_ancestor_of_not_inSubtree (by omega) hnot)
+    (by rw [← hnx, seeds'.ancestorAt_nodeAt])
+  rw [show seeds'.idAt j (by omega) hj x = st.seeds.idAt j (by omega) hj x
+      from congrArg (·.2.1) hc,
+    show seeds'.idAt (j - 1) (by omega) (by omega) x = st.seeds.idAt (j - 1) (by omega) (by omega) x
+      from congrArg (·.2.1) hc_prev,
+    hwf.wait_lookup_eq j hj2 hj v x (activeAt_eq_of_outside houtside hj v hnot ▸ hx) hsl]
+
+end OutsideHelpers
+
+/-! ### Storage-level assignment `rehashStoreLvlTwo` (`2 ≤ ℓ₀`) -/
+
+section RehashTwo
+
+variable {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
+  {st : P.TreeState} {d : P.PaddedDict} {storeLvl : Fin P.paddedUniv → ℕ}
+  (hwf : st.WellFormedPadded scheme d storeLvl)
+  {ℓ₀ : ℕ} (h2₀ : 2 ≤ ℓ₀) (hℓ₀ : ℓ₀ ≤ P.depth) (u₀ : Fin (P.numNodes ℓ₀))
+  {seeds' : P.SeedAssignment}
+  (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
+    ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
+  (hgood' : seeds'.AllGoodSeeds (P.paddedDom d))
+
+include hwf h2₀ houtside
+
+private theorem card_wait_rehash_eq :
     let S := P.paddedDom d
     let A₀ := seeds'.activeAt S ℓ₀ hℓ₀ u₀
     let canonLvl := canonicalStoreLvl seeds' S hgood'
     (A₀.filter fun w => storeLvl w < ℓ₀).card = (A₀.filter fun w => canonLvl w < ℓ₀).card := by
   intro S A₀ canonLvl
-  have hwf_canon := P.wellFormedPadded_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
-  have hseeds_canon := P.seeds_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
-  have hact₀ : A₀ = st.seeds.activeAt S ℓ₀ hℓ₀ u₀ := by
-    ext x
-    simp only [A₀, SeedAssignment.mem_activeAt_iff,
-      (SeedAssignment.primCoordAt_congr_ancestors hℓ₀ u₀
-        (fun j hj => houtside j (hj.le.trans hℓ₀) _ fun ⟨hge, _⟩ => by omega) x).1]
   have hp1 := card_filter_add_card_filter_not (s := A₀) (p := fun w => storeLvl w < ℓ₀)
   have hp2 := card_filter_add_card_filter_not (s := A₀) (p := fun w => canonLvl w < ℓ₀)
-  have hn1 : (A₀.filter fun w => ¬ storeLvl w < ℓ₀) =
-      (st.seeds.activeAt S ℓ₀ hℓ₀ u₀).filter fun w => ℓ₀ ≤ storeLvl w := by
-    rw [hact₀]; exact filter_congr fun _ _ => by omega
-  have hn2 : (A₀.filter fun w => ¬ canonLvl w < ℓ₀) =
-      ((P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').seeds.activeAt
-        S ℓ₀ hℓ₀ u₀).filter fun w => ℓ₀ ≤ canonLvl w := by
-    dsimp only [A₀]; rw [hseeds_canon]; exact filter_congr fun _ _ => by omega
-  rw [hn1, subtree_stored_card_eq_nLow hwf h2₀ hℓ₀ u₀] at hp1
-  rw [hn2, subtree_stored_card_eq_nLow hwf_canon h2₀ hℓ₀ u₀] at hp2
+  have h1 : (A₀.filter fun w => ¬ storeLvl w < ℓ₀).card = P.nLow ℓ₀ := by
+    rw [filter_congr (fun _ _ => by omega : ∀ w ∈ A₀, ¬ storeLvl w < ℓ₀ ↔ ℓ₀ ≤ storeLvl w)]
+    dsimp only [A₀]; rw [activeAt_rehash_root hℓ₀ houtside]
+    exact subtree_stored_card_eq_nLow hwf h2₀ hℓ₀ u₀
+  have h2 : (A₀.filter fun w => ¬ canonLvl w < ℓ₀).card = P.nLow ℓ₀ := by
+    have hwf_c := P.wellFormedPadded_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
+    have hsc := P.seeds_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
+    rw [filter_congr (fun _ _ => by omega : ∀ w ∈ A₀, ¬ canonLvl w < ℓ₀ ↔ ℓ₀ ≤ canonLvl w),
+      show A₀ = (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').seeds.activeAt
+        S ℓ₀ hℓ₀ u₀ by simp [A₀, hsc]]
+    exact subtree_stored_card_eq_nLow hwf_c h2₀ hℓ₀ u₀
   omega
 
-private noncomputable def rehashWaitEquiv
-    {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
-    {st : P.TreeState} {d : P.PaddedDict} {storeLvl : Fin P.paddedUniv → ℕ}
-    (hwf : st.WellFormedPadded scheme d storeLvl)
-    {ℓ₀ : ℕ} (h2₀ : 2 ≤ ℓ₀) (hℓ₀ : ℓ₀ ≤ P.depth) (u₀ : Fin (P.numNodes ℓ₀))
-    {seeds' : P.SeedAssignment}
-    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
-    (hgood' : seeds'.AllGoodSeeds (P.paddedDom d)) :
+private noncomputable def rehashWaitEquiv :
     { w // w ∈ (seeds'.activeAt (P.paddedDom d) ℓ₀ hℓ₀ u₀).filter fun w => storeLvl w < ℓ₀ } ≃
     { w // w ∈ (seeds'.activeAt (P.paddedDom d) ℓ₀ hℓ₀ u₀).filter
       fun w => canonicalStoreLvl seeds' (P.paddedDom d) hgood' w < ℓ₀ } :=
@@ -111,15 +208,7 @@ private noncomputable def rehashWaitEquiv
       fun w => canonicalStoreLvl seeds' (P.paddedDom d) hgood' w < ℓ₀).orderIsoOfFin
       (card_wait_rehash_eq hwf h2₀ hℓ₀ u₀ houtside hgood').symm).toEquiv
 
-private noncomputable def rehashStoreLvlTwo
-    {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
-    {st : P.TreeState} {d : P.PaddedDict} {storeLvl : Fin P.paddedUniv → ℕ}
-    (hwf : st.WellFormedPadded scheme d storeLvl)
-    {ℓ₀ : ℕ} (h2₀ : 2 ≤ ℓ₀) (hℓ₀ : ℓ₀ ≤ P.depth) (u₀ : Fin (P.numNodes ℓ₀))
-    {seeds' : P.SeedAssignment}
-    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
-    (hgood' : seeds'.AllGoodSeeds (P.paddedDom d)) : Fin P.paddedUniv → ℕ :=
+private noncomputable def rehashStoreLvlTwo : Fin P.paddedUniv → ℕ :=
   let S := P.paddedDom d
   let A₀ := seeds'.activeAt S ℓ₀ hℓ₀ u₀
   let canonLvl := canonicalStoreLvl seeds' S hgood'
@@ -131,196 +220,123 @@ private noncomputable def rehashStoreLvlTwo
       else canonLvl x
     else storeLvl x
 
-private theorem notMem_A0_of_not_anc_not_sub
-    {S : Finset (Fin P.paddedUniv)} {ℓ₀ : ℕ} (hℓ₀ : ℓ₀ ≤ P.depth)
-    (u₀ : Fin (P.numNodes ℓ₀)) {seeds' : P.SeedAssignment}
-    {j : ℕ} (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
-    (hnot_sub : ¬ P.InSubtree ℓ₀ u₀ j v)
-    (hnot_anc : ¬ ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀)
-    {x : Fin P.paddedUniv} (hx : x ∈ seeds'.activeAt S j hj v) :
-    x ∉ seeds'.activeAt S ℓ₀ hℓ₀ u₀ := by
-  intro hxA
-  have hnv : seeds'.nodeAt j hj x = v := (SeedAssignment.mem_activeAt_iff.mp hx).2
-  have hnu₀ : seeds'.nodeAt ℓ₀ hℓ₀ x = u₀ := (SeedAssignment.mem_activeAt_iff.mp hxA).2
-  by_cases hlt : j < ℓ₀
-  · refine hnot_anc ⟨hlt, ?_⟩
-    rw [← hnv, ← hnu₀, (seeds'.ancestorAt_nodeAt hlt.le hℓ₀ x).symm]
-  · have h0j : ℓ₀ ≤ j := by omega
-    refine hnot_sub ⟨h0j, ?_⟩
-    rw [← hnv, seeds'.ancestorAt_nodeAt h0j hj x, hnu₀]
-
 private theorem rehashStoreLvlTwo_ge_iff
-    {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
-    {st : P.TreeState} {d : P.PaddedDict} {storeLvl : Fin P.paddedUniv → ℕ}
-    (hwf : st.WellFormedPadded scheme d storeLvl)
-    {ℓ₀ : ℕ} (h2₀ : 2 ≤ ℓ₀) (hℓ₀ : ℓ₀ ≤ P.depth) (u₀ : Fin (P.numNodes ℓ₀))
-    {seeds' : P.SeedAssignment}
-    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
-    (hgood' : seeds'.AllGoodSeeds (P.paddedDom d))
     {x : Fin P.paddedUniv} (hxA : x ∈ seeds'.activeAt (P.paddedDom d) ℓ₀ hℓ₀ u₀)
     {j : ℕ} (hj : ℓ₀ ≤ j) :
     (rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood' x = j ↔
       canonicalStoreLvl seeds' (P.paddedDom d) hgood' x = j) ∧
     (rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood' x < j ↔
       canonicalStoreLvl seeds' (P.paddedDom d) hgood' x < j) := by
-  dsimp only [rehashStoreLvlTwo]
-  rw [dite_eq_left hxA]
+  dsimp only [rehashStoreLvlTwo]; rw [dite_eq_left hxA]
   by_cases hlt_c : canonicalStoreLvl seeds' (P.paddedDom d) hgood' x < ℓ₀
   · rw [dite_eq_left hlt_c]
-    set y_sub := (rehashWaitEquiv hwf h2₀ hℓ₀ u₀ houtside hgood').symm
-      ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩
-    have hy_lt : storeLvl y_sub.1 < ℓ₀ := (mem_filter.mp y_sub.2).2
-    exact ⟨⟨fun h => by omega, fun h => by omega⟩, ⟨fun _ => by omega, fun _ => by omega⟩⟩
-  · rw [dite_eq_right hlt_c]
-    exact ⟨Iff.rfl, Iff.rfl⟩
+    have hy_lt := (mem_filter.mp ((rehashWaitEquiv hwf h2₀ hℓ₀ u₀ houtside hgood').symm
+      ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).2).2
+    exact ⟨by constructor <;> intro <;> omega, by constructor <;> intro <;> omega⟩
+  · rw [dite_eq_right hlt_c]; exact ⟨Iff.rfl, Iff.rfl⟩
 
-private theorem validStoreLvl_rehashStoreLvlTwo
-    {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
-    {st : P.TreeState} {d : P.PaddedDict} {storeLvl : Fin P.paddedUniv → ℕ}
-    (hwf : st.WellFormedPadded scheme d storeLvl)
-    {ℓ₀ : ℕ} (h2₀ : 2 ≤ ℓ₀) (hℓ₀ : ℓ₀ ≤ P.depth) (u₀ : Fin (P.numNodes ℓ₀))
-    {seeds' : P.SeedAssignment}
-    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
-    (hgood' : seeds'.AllGoodSeeds (P.paddedDom d)) :
+private theorem card_filter_rehashStoreLvlTwo_lt {j : ℕ} (hj_lt : j < ℓ₀) :
+    let A₀ := seeds'.activeAt (P.paddedDom d) ℓ₀ hℓ₀ u₀
+    (A₀.filter fun x => rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood' x = j).card =
+      (A₀.filter fun y => storeLvl y = j).card := by
+  intro A₀
+  set canonLvl := canonicalStoreLvl seeds' (P.paddedDom d) hgood'
+  let φ := rehashWaitEquiv hwf h2₀ hℓ₀ u₀ houtside hgood'
+  have hlt_of : ∀ {x}, x ∈ A₀.filter (fun x => rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood' x
+      = j) → canonLvl x < ℓ₀ := fun hx => by
+    obtain ⟨hxA, hsl⟩ := mem_filter.mp hx
+    by_contra hge
+    dsimp only [rehashStoreLvlTwo] at hsl; dsimp only [canonLvl] at hge
+    rw [dite_eq_left hxA, dite_eq_right hge] at hsl; omega
+  refine Finset.card_bij
+    (fun x hx => (φ.symm ⟨x, mem_filter.mpr ⟨(mem_filter.mp hx).1, hlt_of hx⟩⟩).1)
+    (fun x hx => ?_)
+    (fun _ _ _ _ heq => congrArg Subtype.val (φ.symm.injective (Subtype.ext heq)))
+    (fun y hy => ?_)
+  · obtain ⟨hxA, hsl⟩ := mem_filter.mp hx
+    have hlt_c := hlt_of hx
+    dsimp only [rehashStoreLvlTwo] at hsl; rw [dite_eq_left hxA, dite_eq_left hlt_c] at hsl
+    exact mem_filter.mpr ⟨(mem_filter.mp (φ.symm ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).2).1, hsl⟩
+  · obtain ⟨hyA, hsly⟩ := mem_filter.mp hy
+    let hyU : y ∈ A₀.filter fun w => storeLvl w < ℓ₀ := mem_filter.mpr ⟨hyA, by omega⟩
+    let x_sub := φ ⟨y, hyU⟩
+    obtain ⟨hxA, hlt_c⟩ := mem_filter.mp x_sub.2
+    have hsymm : φ.symm ⟨x_sub.1, mem_filter.mpr ⟨hxA, hlt_c⟩⟩ = ⟨y, hyU⟩ :=
+      φ.symm_apply_apply ⟨y, hyU⟩
+    refine ⟨x_sub.1, mem_filter.mpr ⟨hxA, ?_⟩, congrArg Subtype.val hsymm⟩
+    dsimp only [rehashStoreLvlTwo]; rw [dite_eq_left hxA, dite_eq_left hlt_c]
+    exact (congrArg (fun p => storeLvl p.1) hsymm).trans hsly
+
+private theorem validStoreLvl_rehashStoreLvlTwo :
     ValidStoreLvl seeds' (P.paddedDom d)
       (rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood') := by
   set S := P.paddedDom d
   set A₀ := seeds'.activeAt S ℓ₀ hℓ₀ u₀
   set canonLvl := canonicalStoreLvl seeds' S hgood'
-  set U_old := A₀.filter fun w => storeLvl w < ℓ₀
-  let φ := rehashWaitEquiv hwf h2₀ hℓ₀ u₀ houtside hgood'
   set storeLvl' := rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
   have hvsl_old := ValidStoreLvl.of_wellFormedPadded hwf
   have hvsl_can := validStoreLvl_canonicalStoreLvl seeds' S hgood'
-  have hact_outside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.activeAt S j hj v = st.seeds.activeAt S j hj v := by
-    intro j hj v hnot; ext x
-    simp only [SeedAssignment.mem_activeAt_iff,
-      (SeedAssignment.primCoordAt_congr_ancestors hj v
-        (fun i hi => houtside i (hi.le.trans hj) _
-          (P.not_inSubtree_ancestor_of_not_inSubtree hi.le hnot)) x).1]
-  have hact₀ : A₀ = st.seeds.activeAt S ℓ₀ hℓ₀ u₀ := by
-    ext x
-    simp only [A₀, SeedAssignment.mem_activeAt_iff,
-      (SeedAssignment.primCoordAt_congr_ancestors hℓ₀ u₀
-        (fun i hi => houtside i (hi.le.trans hℓ₀) _ fun ⟨hge, _⟩ => by omega) x).1]
-  have hfilter_other : ∀ (j : ℕ) (hj : j ≤ P.depth) (u : Fin (P.numNodes j)),
+  have hsub_filter : ∀ {j : ℕ} (hj : j ≤ P.depth) {u : Fin (P.numNodes j)},
+      P.InSubtree ℓ₀ u₀ j u →
+      ((seeds'.activeAt S j hj u).filter fun x => storeLvl' x = j) =
+        (seeds'.activeAt S j hj u).filter fun x => canonLvl x = j :=
+    fun hj u ⟨h0j, hanc_u⟩ => filter_congr fun x hx =>
+      (rehashStoreLvlTwo_ge_iff hwf h2₀ hℓ₀ u₀ houtside hgood'
+        (hanc_u ▸ seeds'.activeAt_subset_ancestor h0j hj u hx) h0j).1
+  have hout_filter : ∀ {j : ℕ} (hj : j ≤ P.depth) (u : Fin (P.numNodes j)),
       ¬ P.InSubtree ℓ₀ u₀ j u → (¬ ∃ hlt : j < ℓ₀, u = P.ancestorAt hlt.le u₀) →
       ((seeds'.activeAt S j hj u).filter fun x => storeLvl' x = j) =
         (st.seeds.activeAt S j hj u).filter fun x => storeLvl x = j := by
     intro j hj u hsub hnot_anc
-    rw [← hact_outside j hj u hsub]
+    rw [← activeAt_eq_of_outside houtside hj u hsub]
     refine filter_congr fun x hx => ?_
     have hxA := notMem_A0_of_not_anc_not_sub hℓ₀ u₀ hj u hsub hnot_anc hx
     dsimp only [storeLvl', rehashStoreLvlTwo]; rw [dite_eq_right hxA]
-  refine
+  exact
     { bounds := fun x hx => by
         dsimp only [storeLvl', rehashStoreLvlTwo]
-        by_cases hxA : x ∈ A₀
-        · rw [dite_eq_left hxA]
-          by_cases hlt_c : canonLvl x < ℓ₀
-          · rw [dite_eq_left hlt_c]
-            have hyS : (φ.symm ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).1 ∈ S :=
-              (SeedAssignment.mem_activeAt_iff.mp
-                (mem_filter.mp (φ.symm ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).2).1).1
-            exact hvsl_old.bounds _ hyS
-          · rw [dite_eq_right hlt_c]; exact hvsl_can.bounds x hx
-        · rw [dite_eq_right hxA]; exact hvsl_old.bounds x hx
+        split_ifs with hxA hlt_c
+        · exact hvsl_old.bounds _ (SeedAssignment.mem_activeAt_iff.mp
+            (mem_filter.mp ((rehashWaitEquiv hwf h2₀ hℓ₀ u₀ houtside hgood').symm
+              ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).2).1).1
+        · exact hvsl_can.bounds x hx
+        · exact hvsl_old.bounds x hx
       outside := fun x hx => by
         have hxA : x ∉ A₀ := fun hm => hx (SeedAssignment.mem_activeAt_iff.mp hm).1
-        dsimp only [storeLvl', rehashStoreLvlTwo]
-        rw [dite_eq_right hxA]
+        dsimp only [storeLvl', rehashStoreLvlTwo]; rw [dite_eq_right hxA]
         exact hvsl_old.outside x hx
-      inner_card := fun j h2 hlt u => ?_
-      leaf_card := fun u => ?_ }
-  · by_cases hsub : P.InSubtree ℓ₀ u₀ j u
-    · obtain ⟨h0j, hanc_u⟩ := hsub
-      have hfeq : ((seeds'.activeAt S j hlt.le u).filter fun x => storeLvl' x = j) =
-          (seeds'.activeAt S j hlt.le u).filter fun x => canonLvl x = j :=
-        filter_congr fun x hx =>
-          (rehashStoreLvlTwo_ge_iff hwf h2₀ hℓ₀ u₀ houtside hgood'
-            (hanc_u ▸ seeds'.activeAt_subset_ancestor h0j hlt.le u hx) h0j).1
-      rw [hfeq]
-      exact hvsl_can.inner_card j h2 hlt u
-    · by_cases hanc_ex : ∃ hj_lt : j < ℓ₀, u = P.ancestorAt hj_lt.le u₀
-      · obtain ⟨hj_lt, rfl⟩ := hanc_ex
-        let B := seeds'.activeAt S j hlt.le (P.ancestorAt hj_lt.le u₀)
-        have hB_eq : B = st.seeds.activeAt S j hlt.le (P.ancestorAt hj_lt.le u₀) :=
-          hact_outside j hlt.le _ hsub
-        have hA_sub_B : A₀ ⊆ B := seeds'.activeAt_subset_ancestor hj_lt.le hℓ₀ u₀
-        have hsplit1 : (B.filter fun x => storeLvl' x = j) =
-            ((B \ A₀).filter fun x => storeLvl' x = j) ∪ (A₀.filter fun x => storeLvl' x = j) := by
-          rw [← filter_union, sdiff_union_of_subset hA_sub_B]
-        have hsplit2 : (B.filter fun x => storeLvl x = j) =
-            ((B \ A₀).filter fun x => storeLvl x = j) ∪ (A₀.filter fun x => storeLvl x = j) := by
-          rw [← filter_union, sdiff_union_of_subset hA_sub_B]
-        have hdisj1 : Disjoint ((B \ A₀).filter fun x => storeLvl' x = j)
-            (A₀.filter fun x => storeLvl' x = j) :=
-          disjoint_sdiff_self_left.mono (filter_subset _ _) (filter_subset _ _)
-        have hdisj2 : Disjoint ((B \ A₀).filter fun x => storeLvl x = j)
-            (A₀.filter fun x => storeLvl x = j) :=
-          disjoint_sdiff_self_left.mono (filter_subset _ _) (filter_subset _ _)
-        have hsdiff_eq : ((B \ A₀).filter fun x => storeLvl' x = j) =
-            (B \ A₀).filter fun x => storeLvl x = j :=
-          filter_congr fun x hx => by
-            have hxA := (mem_sdiff.mp hx).2
-            dsimp only [storeLvl', rehashStoreLvlTwo]; rw [dite_eq_right hxA]
-        have hA_bij : (A₀.filter fun x => storeLvl' x = j).card =
-            (A₀.filter fun y => storeLvl y = j).card := by
-          have hlt_of_mem : ∀ {x}, x ∈ A₀.filter (fun x => storeLvl' x = j) → canonLvl x < ℓ₀ := by
-            intro x hx
-            obtain ⟨hxA, hsl⟩ := mem_filter.mp hx
-            by_contra hge
-            dsimp only [canonLvl, S] at hge
-            dsimp only [storeLvl', rehashStoreLvlTwo] at hsl
-            rw [dite_eq_left hxA, dite_eq_right hge] at hsl
-            omega
-          refine Finset.card_bij
-            (fun x hx => (φ.symm ⟨x, mem_filter.mpr ⟨(mem_filter.mp hx).1, hlt_of_mem hx⟩⟩).1)
-            (fun x hx => ?_) (fun x₁ hx₁ x₂ hx₂ heq => ?_) (fun y hy => ?_)
-          · obtain ⟨hxA, hsl⟩ := mem_filter.mp hx
-            have hlt_c := hlt_of_mem hx
-            dsimp only [storeLvl', rehashStoreLvlTwo] at hsl
-            rw [dite_eq_left hxA, dite_eq_left hlt_c] at hsl
-            have hy_mem := (mem_filter.mp (φ.symm ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).2).1
-            exact mem_filter.mpr ⟨hy_mem, hsl⟩
-          · have hsub_eq : φ.symm ⟨x₁, mem_filter.mpr ⟨(mem_filter.mp hx₁).1, hlt_of_mem hx₁⟩⟩ =
-                φ.symm ⟨x₂, mem_filter.mpr ⟨(mem_filter.mp hx₂).1, hlt_of_mem hx₂⟩⟩ :=
-              Subtype.ext heq
-            exact congrArg Subtype.val (φ.symm.injective hsub_eq)
-          · obtain ⟨hyA, hsly⟩ := mem_filter.mp hy
-            have hyU : y ∈ U_old := mem_filter.mpr ⟨hyA, by omega⟩
-            let x_sub := φ ⟨y, hyU⟩
-            obtain ⟨hxA, hlt_c⟩ := mem_filter.mp x_sub.2
-            have hsymm : φ.symm ⟨x_sub.1, mem_filter.mpr ⟨hxA, hlt_c⟩⟩ = ⟨y, hyU⟩ :=
-              φ.symm_apply_apply ⟨y, hyU⟩
-            have hx_mem : x_sub.1 ∈ A₀.filter (fun x => storeLvl' x = j) := by
-              refine mem_filter.mpr ⟨hxA, ?_⟩
-              dsimp only [storeLvl', rehashStoreLvlTwo]
-              rw [dite_eq_left hxA, dite_eq_left hlt_c]
-              change storeLvl (φ.symm ⟨x_sub.1, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).1 = j
-              rw [hsymm]; exact hsly
-            refine ⟨x_sub.1, hx_mem, ?_⟩
-            change (φ.symm ⟨x_sub.1, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).1 = y
-            rw [hsymm]
-        have hold_card : (B.filter fun x => storeLvl x = j).card = P.tableCap j := by
-          rw [hB_eq]; exact hvsl_old.inner_card j h2 hlt _
-        rw [hsplit1, card_union_of_disjoint hdisj1, hsdiff_eq, hA_bij,
-          ← card_union_of_disjoint hdisj2, ← hsplit2, hold_card]
-      · rw [hfilter_other j hlt.le u hsub hanc_ex]
-        exact hvsl_old.inner_card j h2 hlt u
-  · by_cases hsub : P.InSubtree ℓ₀ u₀ P.depth u
-    · obtain ⟨h0d, hanc_u⟩ := hsub
-      have hfeq : ((seeds'.activeAt S P.depth le_rfl u).filter fun x => storeLvl' x = P.depth) =
-          (seeds'.activeAt S P.depth le_rfl u).filter fun x => canonLvl x = P.depth :=
-        filter_congr fun x hx =>
-          (rehashStoreLvlTwo_ge_iff hwf h2₀ hℓ₀ u₀ houtside hgood'
-            (hanc_u ▸ seeds'.activeAt_subset_ancestor h0d le_rfl u hx) h0d).1
-      rw [hfeq]; exact hvsl_can.leaf_card u
-    · rw [hfilter_other P.depth le_rfl u hsub (fun ⟨hlt, _⟩ => by omega)]
-      exact hvsl_old.leaf_card u
+      inner_card := fun j h2 hlt u => by
+        by_cases hsub : P.InSubtree ℓ₀ u₀ j u
+        · rw [hsub_filter hlt.le hsub]; exact hvsl_can.inner_card j h2 hlt u
+        · by_cases hanc_ex : ∃ hj_lt : j < ℓ₀, u = P.ancestorAt hj_lt.le u₀
+          · obtain ⟨hj_lt, rfl⟩ := hanc_ex
+            set B := seeds'.activeAt S j hlt.le (P.ancestorAt hj_lt.le u₀)
+            have hA_sub : A₀ ⊆ B := seeds'.activeAt_subset_ancestor hj_lt.le hℓ₀ u₀
+            have hcard_split : ∀ f : Fin P.paddedUniv → ℕ,
+                (B.filter fun x => f x = j).card =
+                  ((B \ A₀).filter fun x => f x = j).card +
+                    (A₀.filter fun x => f x = j).card := fun f => by
+              rw [← card_union_of_disjoint
+                    (disjoint_sdiff_self_left.mono (filter_subset _ _) (filter_subset _ _)),
+                ← filter_union, sdiff_union_of_subset hA_sub]
+            have hsdiff : ((B \ A₀).filter fun x => storeLvl' x = j) =
+                (B \ A₀).filter fun x => storeLvl x = j :=
+              filter_congr fun x hx => by
+                dsimp only [storeLvl', rehashStoreLvlTwo]
+                rw [dite_eq_right (mem_sdiff.mp hx).2]
+            rw [hcard_split storeLvl', hsdiff,
+              card_filter_rehashStoreLvlTwo_lt hwf h2₀ hℓ₀ u₀ houtside hgood' hj_lt,
+              ← hcard_split storeLvl]
+            dsimp only [B]; rw [activeAt_eq_of_outside houtside hlt.le _ hsub]
+            exact hvsl_old.inner_card j h2 hlt _
+          · rw [hout_filter hlt.le u hsub hanc_ex]; exact hvsl_old.inner_card j h2 hlt u
+      leaf_card := fun u => by
+        by_cases hsub : P.InSubtree ℓ₀ u₀ P.depth u
+        · rw [hsub_filter le_rfl hsub]; exact hvsl_can.leaf_card u
+        · rw [hout_filter le_rfl u hsub fun ⟨hlt, _⟩ => by omega]
+          exact hvsl_old.leaf_card u }
+
+end RehashTwo
 
 /-- **Pure reconstruction and local-splice step of `Algorithm 4` (`Rehash(u₀)`) under supplied
 validated seeds** ([LiLiangYuZhou2024, Section 5.5], PDF p. 34 / printed p. 33): given replacement
@@ -391,51 +407,21 @@ theorem seeds_rehashSubtree
       ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
     (hgood' : seeds'.AllGoodSeeds (P.paddedDom d)) :
     (st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood').seeds = seeds' := by
-  have hsc := P.seeds_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
+  set st_c := P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
+  have hsc : st_c.seeds = seeds' := P.seeds_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
   dsimp only [rehashSubtree]
   by_cases h0 : ℓ₀ = 0
   · rw [dite_eq_left h0]; exact hsc
-  · rw [dite_eq_right h0]
-    ext j hj v
-    by_cases hj0 : j = 0
-    · subst hj0
-      by_cases h1 : ℓ₀ = 1 <;>
-      · simp only [h1, ↓reduceDIte, seeds_zero]
-        rw [← seeds_zero st hj v]
-        exact (houtside 0 hj v fun ⟨hg, _⟩ => by omega).symm
-    · by_cases hj1 : j = 1
-      · subst hj1
-        by_cases h1 : ℓ₀ = 1
-        · subst h1; rw [dite_eq_left rfl]; simp only [seeds_one]
-          split_ifs with hsub
-          · rw [← seeds_one (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood') hj v, hsc]
-          · rw [← seeds_one st hj v, houtside 1 hj v hsub]
-        · rw [dite_eq_right h1]; simp only [seeds_one]
-          split_ifs with heq
-          · simp
-          · rw [← seeds_one st hj v, houtside 1 hj v fun ⟨hg, _⟩ => by omega]
-      · by_cases hlt : j < P.depth
-        · by_cases h1 : ℓ₀ = 1
-          · rw [dite_eq_left h1]; simp only [seeds_inner _ (by omega) hlt hj]
-            split_ifs with hsub
-            · rw [← seeds_inner (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood')
-                (by omega) hlt hj v, hsc]
-            · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
-          · rw [dite_eq_right h1]; simp only [seeds_inner _ (by omega) hlt hj]
-            split_ifs with hsub hlt0 heq
-            · rw [← seeds_inner (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood')
-                (by omega) hlt hj v, hsc]
-            · simp
-            · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
-            · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
-        · have hd : j = P.depth := by omega
-          subst hd
-          by_cases h1 : ℓ₀ = 1 <;>
-          · simp only [h1, ↓reduceDIte, seeds_depth]
-            split_ifs with hsub
-            · rw [← seeds_depth (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood')
-                hj v, hsc]
-            · rw [← seeds_depth st hj v, houtside P.depth hj v hsub]
+  rw [dite_eq_right h0]; ext j hj v
+  have hc := congrArg (·.seed j hj v) hsc
+  have ho := houtside j hj v
+  rcases (by omega : j = 0 ∨ j = 1 ∨ (2 ≤ j ∧ j < P.depth) ∨ j = P.depth) with
+    rfl | rfl | ⟨h2, hlt⟩ | rfl <;>
+  by_cases h1 : ℓ₀ = 1 <;>
+  simp (disch := omega) only [h1, ↓reduceDIte, seeds_zero, seeds_one, seeds_inner, seeds_depth]
+    at hc ho ⊢ <;>
+  (try split_ifs) <;>
+  first | exact hc | exact (ho ‹_›).symm | exact (ho fun ⟨hg, _⟩ => by omega).symm | simp
 
 /-- Non-ancestor root trees (`u₁ ≠ ancestorAt u₀`, `1 ≤ ℓ₀`) are untouched by `rehashSubtree`. -/
 theorem rehashSubtree_untouched_roots
@@ -449,11 +435,9 @@ theorem rehashSubtree_untouched_roots
     (hgood' : seeds'.AllGoodSeeds (P.paddedDom d))
     (u₁ : Fin (P.numNodes 1)) (hu₁ : u₁ ≠ P.ancestorAt h1₀ u₀) :
     (st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood').roots u₁ = st.roots u₁ := by
-  dsimp only [rehashSubtree]
-  rw [dite_eq_right (by omega)]
+  dsimp only [rehashSubtree]; rw [dite_eq_right (by omega)]
   by_cases h1 : ℓ₀ = 1
   · subst h1
-    rw [dite_eq_left rfl]
     have hnot : ¬ P.InSubtree 1 u₀ 1 u₁ := fun ⟨_, he⟩ =>
       hu₁ (by simpa only [P.ancestorAt_refl] using he)
     simp [hnot]
@@ -474,13 +458,12 @@ theorem rehashSubtree_untouched_inner
     (hnot_anc : ∀ hlt₀ : ℓ < ℓ₀, v ≠ P.ancestorAt hlt₀.le u₀) :
     (st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood').inner ℓ h2 hlt v =
       st.inner ℓ h2 hlt v := by
-  dsimp only [rehashSubtree]
-  rw [dite_eq_right (by omega)]
+  dsimp only [rehashSubtree]; rw [dite_eq_right (by omega)]
   by_cases h1 : ℓ₀ = 1
   · rw [dite_eq_left h1]; dsimp only; rw [ite_eq_right hnot_sub]
   · rw [dite_eq_right h1]; dsimp only; rw [ite_eq_right hnot_sub]
     split_ifs with hlt0 heq
-    · exact False.elim (hnot_anc hlt0 heq)
+    · exact absurd heq (hnot_anc hlt0)
     · rfl
     · rfl
 
@@ -496,9 +479,200 @@ theorem rehashSubtree_untouched_leaves
     (hgood' : seeds'.AllGoodSeeds (P.paddedDom d))
     (v : Fin (P.numNodes P.depth)) (hnot_sub : ¬ P.InSubtree ℓ₀ u₀ P.depth v) :
     (st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood').leaves v = st.leaves v := by
-  dsimp only [rehashSubtree]
-  rw [dite_eq_right (by omega)]
+  dsimp only [rehashSubtree]; rw [dite_eq_right (by omega)]
   split_ifs <;> simp [hnot_sub]
+
+section SpliceHelpers
+
+variable {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
+  {d : P.PaddedDict} {storeLvl : Fin P.paddedUniv → ℕ} {ℓ₀ : ℕ}
+
+private theorem rehashSubtree_node_inSubtree (st : P.TreeState)
+    (hwf : st.WellFormedPadded scheme d storeLvl)
+    (h1₀ : 1 ≤ ℓ₀) (hℓ₀ : ℓ₀ ≤ P.depth) (u₀ : Fin (P.numNodes ℓ₀)) (seeds' : P.SeedAssignment)
+    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
+      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
+    (hgood' : seeds'.AllGoodSeeds (P.paddedDom d))
+    {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
+    (hsub : P.InSubtree ℓ₀ u₀ j v) :
+    let st_fin := st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood'
+    let st_c := P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
+    st_fin.nodeDom j hj1 hj v = st_c.nodeDom j hj1 hj v ∧
+    (∀ k, st_fin.nodeQuery scheme j hj1 hj v k = st_c.nodeQuery scheme j hj1 hj v k) ∧
+    (∀ hj2 : 2 ≤ j, st_fin.nodeWait j hj2 hj v = st_c.nodeWait j hj2 hj v) ∧
+    (∀ (hj2 : 2 ≤ j) (hlt : j < P.depth), st_fin.inner j hj2 hlt v = st_c.inner j hj2 hlt v) := by
+  intro st_fin st_c
+  by_cases hj_one : j = 1
+  · subst hj_one
+    have hℓ1 : ℓ₀ = 1 := by have := hsub.1; omega
+    have hrt : st_fin.roots v = st_c.roots v := by
+      dsimp only [st_fin, rehashSubtree]; subst hℓ1; simp [hsub, st_c]
+    exact ⟨by rw [nodeDom_one, nodeDom_one, hrt],
+      fun k => by rw [nodeQuery_one, nodeQuery_one, hrt], fun hj2 => by omega, fun hj2 => by omega⟩
+  · by_cases hlt : j < P.depth
+    · have hin : st_fin.inner j (by omega) hlt v = st_c.inner j (by omega) hlt v := by
+        dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right (by omega)]
+        by_cases h1 : ℓ₀ = 1 <;> simp [h1, hsub, st_c]
+      exact ⟨by rw [nodeDom_inner _ hj1 (by omega) hlt hj, nodeDom_inner _ hj1 (by omega) hlt hj,
+          hin],
+        fun k => by rw [nodeQuery_inner _ _ hj1 (by omega) hlt hj,
+          nodeQuery_inner _ _ hj1 (by omega) hlt hj, hin],
+        fun hj2 => by rw [nodeWait_inner _ hj2 hlt hj, nodeWait_inner _ hj2 hlt hj, hin],
+        fun _ _ => hin⟩
+    · obtain rfl : j = P.depth := by omega
+      have hlf : st_fin.leaves v = st_c.leaves v := by
+        dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right (by omega)]
+        by_cases h1 : ℓ₀ = 1 <;> simp [h1, hsub, st_c]
+      exact ⟨by rw [nodeDom_depth, nodeDom_depth, hlf],
+        fun k => by rw [nodeQuery_depth, nodeQuery_depth, hlf],
+        fun _ => by rw [nodeWait_depth, nodeWait_depth, hlf], fun _ hlt' => absurd hlt' (by omega)⟩
+
+private theorem rehashSubtree_node_outside (st : P.TreeState)
+    (hwf : st.WellFormedPadded scheme d storeLvl)
+    (h1₀ : 1 ≤ ℓ₀) (hℓ₀ : ℓ₀ ≤ P.depth) (u₀ : Fin (P.numNodes ℓ₀)) (seeds' : P.SeedAssignment)
+    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
+      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
+    (hgood' : seeds'.AllGoodSeeds (P.paddedDom d))
+    {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
+    (hnot_sub : ¬ P.InSubtree ℓ₀ u₀ j v)
+    (hnot_anc : ¬ ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀) :
+    let st_fin := st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood'
+    st_fin.nodeDom j hj1 hj v = st.nodeDom j hj1 hj v ∧
+    (∀ k, st_fin.nodeQuery scheme j hj1 hj v k = st.nodeQuery scheme j hj1 hj v k) ∧
+    (∀ hj2 : 2 ≤ j, st_fin.nodeWait j hj2 hj v = st.nodeWait j hj2 hj v) := by
+  intro st_fin
+  by_cases hj_one : j = 1
+  · subst hj_one
+    have hneq : v ≠ P.ancestorAt h1₀ u₀ := by
+      intro heq
+      by_cases h1 : ℓ₀ = 1
+      · subst h1; exact hnot_sub ⟨le_rfl, by simpa only [P.ancestorAt_refl] using heq⟩
+      · exact hnot_anc ⟨by omega, heq⟩
+    have hrt := st.rehashSubtree_untouched_roots hwf h1₀ hℓ₀ u₀ seeds' houtside hgood' v hneq
+    exact ⟨by rw [nodeDom_one, nodeDom_one, hrt],
+      fun k => by rw [nodeQuery_one, nodeQuery_one, hrt], fun hj2 => by omega⟩
+  · by_cases hlt : j < P.depth
+    · have hin := st.rehashSubtree_untouched_inner hwf h1₀ hℓ₀ u₀ seeds' houtside hgood'
+        (by omega) hlt v hnot_sub fun hlt0 he => hnot_anc ⟨hlt0, he⟩
+      exact ⟨by rw [nodeDom_inner _ hj1 (by omega) hlt hj,
+          nodeDom_inner _ hj1 (by omega) hlt hj, hin],
+        fun k => by rw [nodeQuery_inner _ _ hj1 (by omega) hlt hj,
+          nodeQuery_inner _ _ hj1 (by omega) hlt hj, hin],
+        fun hj2 => by rw [nodeWait_inner _ hj2 hlt hj, nodeWait_inner _ hj2 hlt hj, hin]⟩
+    · obtain rfl : j = P.depth := by omega
+      have hlf := st.rehashSubtree_untouched_leaves hwf h1₀ hℓ₀ u₀ seeds' houtside hgood' v hnot_sub
+      exact ⟨by rw [nodeDom_depth, nodeDom_depth, hlf],
+        fun k => by rw [nodeQuery_depth, nodeQuery_depth, hlf],
+        fun _ => by rw [nodeWait_depth, nodeWait_depth, hlf]⟩
+
+/-- Unified splice verification covering both `ℓ₀ = 1` (vacuous strict-ancestor branch) and
+`2 ≤ ℓ₀` (strict ancestors rebuilt via `buildRootOfStoreLvl` / `buildInnerOfStoreLvl`). -/
+private theorem wellFormedPadded_rehash_pos (st : P.TreeState) {storeLvl' : Fin P.paddedUniv → ℕ}
+    (hwf : st.WellFormedPadded scheme d storeLvl)
+    (h1₀ : 1 ≤ ℓ₀) (hℓ₀ : ℓ₀ ≤ P.depth) (u₀ : Fin (P.numNodes ℓ₀)) {seeds' : P.SeedAssignment}
+    (houtside : ∀ (j : ℕ) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
+      ¬ P.InSubtree ℓ₀ u₀ j v → seeds'.seed j hj v = st.seeds.seed j hj v)
+    (hgood' : seeds'.AllGoodSeeds (P.paddedDom d))
+    (hbounds : ∀ x ∈ P.paddedDom d, 1 ≤ storeLvl' x ∧ storeLvl' x ≤ P.depth)
+    (hstore_out : ∀ x, x ∉ P.paddedDom d → storeLvl' x = 0)
+    (hsub_iff : ∀ {j : ℕ} (hj : j ≤ P.depth) {v : Fin (P.numNodes j)}, P.InSubtree ℓ₀ u₀ j v →
+      ∀ x ∈ seeds'.activeAt (P.paddedDom d) j hj v,
+        (storeLvl' x = j ↔ canonicalStoreLvl seeds' (P.paddedDom d) hgood' x = j) ∧
+        (storeLvl' x < j ↔ canonicalStoreLvl seeds' (P.paddedDom d) hgood' x < j))
+    (hout_eq : ∀ {j : ℕ} (_hj1 : 1 ≤ j) (hj : j ≤ P.depth) {v : Fin (P.numNodes j)},
+      ¬ P.InSubtree ℓ₀ u₀ j v → (¬ ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀) →
+      ∀ x ∈ seeds'.activeAt (P.paddedDom d) j hj v, storeLvl' x = storeLvl x)
+    (hanc : ∀ (h1lt : 1 < ℓ₀), ∃ hvsl' : ValidStoreLvl seeds' (P.paddedDom d) storeLvl',
+      (st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood').roots (P.ancestorAt h1lt.le u₀) =
+        buildRootOfStoreLvl d seeds' storeLvl' (P.ancestorAt h1lt.le u₀) ∧
+      ∀ {j : ℕ} (hj2 : 2 ≤ j) (hlt : j < ℓ₀) (hjd : j < P.depth),
+        (st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood').inner j hj2 hjd
+            (P.ancestorAt hlt.le u₀) =
+          buildInnerOfStoreLvl d seeds' hgood' hvsl' j hj2 hjd (P.ancestorAt hlt.le u₀)) :
+    (st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood').WellFormedPadded
+      scheme d storeLvl' := by
+  have hwf_c := P.wellFormedPadded_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
+  have hsc := P.seeds_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
+  have hsf := st.seeds_rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood'
+  have hsub_node := fun {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
+      (hsub : P.InSubtree ℓ₀ u₀ j v) =>
+    st.rehashSubtree_node_inSubtree hwf h1₀ hℓ₀ u₀ seeds' houtside hgood' hj1 hj v hsub
+  have hout_node := fun {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
+      (hns : ¬ P.InSubtree ℓ₀ u₀ j v) (hna : ¬ ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀) =>
+    st.rehashSubtree_node_outside hwf h1₀ hℓ₀ u₀ seeds' houtside hgood' hj1 hj v hns hna
+  have tri : ∀ {j : ℕ} (v : Fin (P.numNodes j)), P.InSubtree ℓ₀ u₀ j v ∨
+      (∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀) ∨
+      (¬ P.InSubtree ℓ₀ u₀ j v ∧ ¬ ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀) := fun _ => by
+    tauto
+  exact
+    { goodSeeds := by rwa [hsf]
+      storeLvl_bounds := hbounds, storeLvl_outside := hstore_out
+      dom_eq := fun j hj1 hj v => by
+        rw [hsf]
+        rcases tri v with hsub | ⟨hlt, rfl⟩ | ⟨hsub, hanc_ex⟩
+        · rw [(hsub_node hj1 hj v hsub).1, hwf_c.dom_eq j hj1 hj v, hsc]
+          congr 1; exact filter_congr fun x hx => (hsub_iff hj hsub x hx).1.symm
+        · obtain ⟨hvsl', hrt, hin⟩ := hanc (by omega)
+          by_cases hj_one : j = 1
+          · subst hj_one
+            rw [nodeDom_one, hrt, dom_buildRootOfStoreLvl d seeds' hgood' hvsl']
+          · rw [nodeDom_inner _ hj1 (by omega) (hlt.trans_le hℓ₀), hin (by omega) hlt _,
+              dom_buildInnerOfStoreLvl]
+        · rw [(hout_node hj1 hj v hsub hanc_ex).1, hwf.dom_eq j hj1 hj v]
+          exact image_filter_outside_congr houtside hj1 hj v hsub fun x hx => by
+            rw [hout_eq hj1 hj hsub hanc_ex x hx]
+      query_eq_of_storeLvl := fun j hj1 hj v x vx hdx hnx hsl => by
+        rw [hsf] at hnx ⊢
+        have hx_act : x ∈ seeds'.activeAt (P.paddedDom d) j hj v :=
+          SeedAssignment.mem_activeAt_iff.mpr ⟨(P.mem_paddedDom_iff d x).mpr (by simp [hdx]), hnx⟩
+        rcases tri v with hsub | ⟨hlt, rfl⟩ | ⟨hsub, hanc_ex⟩
+        · rw [(hsub_node hj1 hj v hsub).2.1]
+          have hq := hwf_c.query_eq_of_storeLvl j hj1 hj v x vx hdx (by rwa [hsc])
+            ((hsub_iff hj hsub x hx_act).1.mp hsl)
+          rwa [hsc] at hq
+        · obtain ⟨hvsl', hrt, hin⟩ := hanc (by omega)
+          by_cases hj_one : j = 1
+          · subst hj_one; rw [nodeQuery_one, hrt]
+            exact query_buildRootOfStoreLvl hgood' hvsl' _ hdx hnx hsl
+          · rw [nodeQuery_inner _ _ hj1 (by omega) (hlt.trans_le hℓ₀), hin (by omega) hlt _]
+            exact query_buildInnerOfStoreLvl hgood' hvsl' hj1 (by omega) _ _ hdx hnx hsl
+        · rw [(hout_node hj1 hj v hsub hanc_ex).2.1]
+          exact query_eq_outside hwf houtside hj1 hj v hsub hdx hnx
+            (hout_eq hj1 hj hsub hanc_ex x hx_act ▸ hsl)
+      inner_full := fun j hj2 hlt v => by
+        rcases tri v with hsub | ⟨hlt0, rfl⟩ | ⟨hsub, hanc_ex⟩
+        · rw [(hsub_node (by omega) hlt.le v hsub).2.2.2 hj2 hlt]
+          exact hwf_c.inner_full j hj2 hlt v
+        · obtain ⟨_, _, hin⟩ := hanc (by omega)
+          rw [hin hj2 hlt0 hlt]; exact card_dom_buildInnerOfStoreLvl ..
+        · rw [st.rehashSubtree_untouched_inner hwf h1₀ hℓ₀ u₀ seeds' houtside hgood' hj2 hlt v
+            hsub fun hlt0 he => hanc_ex ⟨hlt0, he⟩]
+          exact hwf.inner_full j hj2 hlt v
+      wait_dom_eq := fun j hj2 hj v => by
+        rw [hsf]
+        rcases tri v with hsub | ⟨hlt, rfl⟩ | ⟨hsub, hanc_ex⟩
+        · rw [(hsub_node (by omega) hj v hsub).2.2.1 hj2, hwf_c.wait_dom_eq j hj2 hj v, hsc]
+          congr 1; exact filter_congr fun x hx => (hsub_iff hj hsub x hx).2.symm
+        · obtain ⟨_, _, hin⟩ := hanc (by omega)
+          rw [nodeWait_inner _ hj2 (hlt.trans_le hℓ₀), hin hj2 hlt _, wait_dom_buildInnerOfStoreLvl]
+        · rw [(hout_node (by omega) hj v hsub hanc_ex).2.2 hj2, hwf.wait_dom_eq j hj2 hj v]
+          exact image_filter_outside_congr houtside (by omega) hj v hsub fun x hx => by
+            rw [hout_eq (by omega) hj hsub hanc_ex x hx]
+      wait_lookup_eq := fun j hj2 hj v x hx hsl => by
+        rw [hsf] at hx ⊢
+        rcases tri v with hsub | ⟨hlt, rfl⟩ | ⟨hsub, hanc_ex⟩
+        · rw [(hsub_node (by omega) hj v hsub).2.2.1 hj2]
+          have hw := hwf_c.wait_lookup_eq j hj2 hj v x (by rwa [hsc])
+            ((hsub_iff hj hsub x hx).2.mp hsl)
+          rwa [hsc] at hw
+        · obtain ⟨hvsl', _, hin⟩ := hanc (by omega)
+          rw [nodeWait_inner _ hj2 (hlt.trans_le hℓ₀), hin hj2 hlt _]
+          exact wait_lookup_buildInnerOfStoreLvl hgood' hvsl' hj2 (hlt.trans_le hℓ₀) _ hx hsl
+        · rw [(hout_node (by omega) hj v hsub hanc_ex).2.2 hj2]
+          exact wait_lookup_eq_outside hwf houtside hj2 hj v hsub hx
+            (hout_eq (by omega) hj hsub hanc_ex x hx ▸ hsl) }
+
+end SpliceHelpers
 
 /-- **Subtree reconstruction (`rehashSubtree`, the pure local-splice step of `Algorithm 4` under
 supplied validated seeds) preserves `WellFormedPadded`**. -/
@@ -514,366 +688,50 @@ theorem wellFormedPadded_rehashSubtree
     ∃ storeLvl' : Fin P.paddedUniv → ℕ,
       (st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood').WellFormedPadded
         scheme d storeLvl' := by
-  set S := P.paddedDom d
-  set st_canon := P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
-  set canonLvl := canonicalStoreLvl seeds' S hgood'
-  have hwf_canon := P.wellFormedPadded_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
-  have hseeds_canon := P.seeds_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
-  have hseeds_fin := st.seeds_rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood'
-  have hcoord_outside : ∀ {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-      ¬ P.InSubtree ℓ₀ u₀ j v →
-        seeds'.activeAt S j hj v = st.seeds.activeAt S j hj v ∧
-        ∀ x, seeds'.nodeAt j hj x = v →
-          seeds'.levelCoordEquiv j hj1 hj x = st.seeds.levelCoordEquiv j hj1 hj x := by
-    intro j hj1 hj v hnot
-    have hanc_le : ∀ (i : ℕ) (hi : i ≤ j),
-        seeds'.seed i (hi.trans hj) (P.ancestorAt hi v) =
-          st.seeds.seed i (hi.trans hj) (P.ancestorAt hi v) := fun i hi =>
-      houtside i (hi.trans hj) _ (P.not_inSubtree_ancestor_of_not_inSubtree hi hnot)
-    refine ⟨?_, fun x hnx => SeedAssignment.levelCoordEquiv_congr_ancestors hj1 hj v hanc_le x hnx⟩
-    ext x
-    simp only [SeedAssignment.mem_activeAt_iff,
-      (SeedAssignment.primCoordAt_congr_ancestors hj v (fun i hi => hanc_le i hi.le) x).1]
-  have hdom_outside : ∀ {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
-      {pred pred' : Fin P.paddedUniv → Prop} [DecidablePred pred] [DecidablePred pred'],
-      ¬ P.InSubtree ℓ₀ u₀ j v →
-      (∀ x ∈ seeds'.activeAt S j hj v, pred x ↔ pred' x) →
-      ((st.seeds.activeAt S j hj v).filter pred).image (st.seeds.idAt j hj1 hj) =
-        ((seeds'.activeAt S j hj v).filter pred').image (seeds'.idAt j hj1 hj) := by
-    intro j hj1 hj v _ _ _ _ hsub hpred
-    obtain ⟨hact_eq, hce⟩ := hcoord_outside hj1 hj v hsub
-    rw [← hact_eq, filter_congr hpred]
-    exact image_congr fun x hx =>
-      congrArg (fun c => c.2.1)
-        (hce x (SeedAssignment.mem_activeAt_iff.mp (mem_filter.mp hx).1).2).symm
-  have hquery_outside : ∀ {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
-      {x : Fin P.paddedUniv} {vx : Fin P.valBound},
-      ¬ P.InSubtree ℓ₀ u₀ j v → d x = some vx → seeds'.nodeAt j hj x = v → storeLvl x = j →
-      st.nodeQuery scheme j hj1 hj v (seeds'.idAt j hj1 hj x) =
-        some (seeds'.quotAt j hj1 hj x, vx) := by
-    intro j hj1 hj v x vx hsub hdx hnx hsl
-    have hc := (hcoord_outside hj1 hj v hsub).2 x hnx
-    have hnx_old : st.seeds.nodeAt j hj x = v := by
-      rw [← st.seeds.levelCoordEquiv_fst hj1 hj x, ← hc,
-        seeds'.levelCoordEquiv_fst hj1 hj x, hnx]
-    have hid_eq : seeds'.idAt j hj1 hj x = st.seeds.idAt j hj1 hj x :=
-      congrArg (fun c => c.2.1) hc
-    have hqt_eq : seeds'.quotAt j hj1 hj x = st.seeds.quotAt j hj1 hj x :=
-      congrArg (fun c => c.2.2) hc
-    rw [hid_eq, hqt_eq, hwf.query_eq_of_storeLvl j hj1 hj v x vx hdx hnx_old hsl]
-  have hwait_lookup_outside :
-      ∀ {j : ℕ} (hj2 : 2 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
-        {x : Fin P.paddedUniv},
-        ¬ P.InSubtree ℓ₀ u₀ j v → x ∈ seeds'.activeAt S j hj v → storeLvl x < j →
-        (st.nodeWait j hj2 hj v).lookup (seeds'.idAt j (by omega) hj x) =
-          some (seeds'.idAt (j - 1) (by omega) (by omega) x) := by
-    intro j hj2 hj v x hsub hx hsl
-    obtain ⟨hact_eq, hce⟩ := hcoord_outside (by omega) hj v hsub
-    have hnot_prev : ¬ P.InSubtree ℓ₀ u₀ (j - 1) (P.ancestorAt (by omega) v) :=
-      P.not_inSubtree_ancestor_of_not_inSubtree (by omega) hsub
-    obtain ⟨_, hce_prev⟩ := hcoord_outside (by omega) (by omega) _ hnot_prev
-    have hnx := (SeedAssignment.mem_activeAt_iff.mp hx).2
-    have hc := hce x hnx
-    have hc_prev := hce_prev x (by rw [← hnx, seeds'.ancestorAt_nodeAt])
-    have hid_eq : seeds'.idAt j (by omega) hj x = st.seeds.idAt j (by omega) hj x :=
-      congrArg (fun c => c.2.1) hc
-    have hid_p : seeds'.idAt (j - 1) (by omega) (by omega) x =
-        st.seeds.idAt (j - 1) (by omega) (by omega) x :=
-      congrArg (fun c => c.2.1) hc_prev
-    rw [hid_eq, hid_p, hwf.wait_lookup_eq j hj2 hj v x (hact_eq ▸ hx) hsl]
+  have hwf_c := P.wellFormedPadded_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
   by_cases h0 : ℓ₀ = 0
-  · refine ⟨canonLvl, ?_⟩
-    dsimp only [rehashSubtree]; rw [dite_eq_left h0]; exact hwf_canon
+  · exact ⟨canonicalStoreLvl seeds' (P.paddedDom d) hgood',
+      by dsimp only [rehashSubtree]; rwa [dite_eq_left h0]⟩
   · by_cases h1 : ℓ₀ = 1
     · subst h1
       let h1d : 1 ≤ P.depth := Nat.one_le_of_lt P.two_le_depth
-      let storeLvl' : Fin P.paddedUniv → ℕ := fun x =>
-        if seeds'.nodeAt 1 h1d x = u₀ then canonLvl x else storeLvl x
-      have hsl_out1 : ∀ {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) {v : Fin (P.numNodes j)},
-          ¬ P.InSubtree 1 u₀ j v → ∀ {x}, seeds'.nodeAt j hj x = v → storeLvl' x = storeLvl x := by
-        intro j hj1 hj v hsub x hnx
-        have hn1 : seeds'.nodeAt 1 h1d x ≠ u₀ := fun h =>
-          hsub ⟨hj1, by rw [← hnx, seeds'.ancestorAt_nodeAt hj1 hj x, h]⟩
-        dsimp only [storeLvl']; rw [ite_eq_right hn1]
-      set st_fin := st.rehashSubtree hwf 1 hℓ₀ u₀ seeds' houtside hgood'
-      have hdom_q_fin : ∀ (j : ℕ) (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-          st_fin.nodeDom j hj1 hj v =
-            (if P.InSubtree 1 u₀ j v then st_canon.nodeDom j hj1 hj v
-              else st.nodeDom j hj1 hj v) ∧
-          ∀ k, st_fin.nodeQuery scheme j hj1 hj v k =
-            if P.InSubtree 1 u₀ j v then st_canon.nodeQuery scheme j hj1 hj v k
-            else st.nodeQuery scheme j hj1 hj v k := by
-        intro j hj1 hj v
-        dsimp only [st_fin, rehashSubtree]
-        rw [dite_eq_right (by omega), dite_eq_left rfl]
-        by_cases hj_one : j = 1
-        · subst hj_one
-          by_cases hsub : P.InSubtree 1 u₀ 1 v <;> simp [hsub, st_canon]
-        · by_cases hlt : j < P.depth
-          · rw [nodeDom_inner _ hj1 (by omega) hlt hj, nodeDom_inner _ hj1 (by omega) hlt hj,
-              nodeDom_inner _ hj1 (by omega) hlt hj]
-            refine ⟨by by_cases hsub : P.InSubtree 1 u₀ j v <;> simp [hsub, st_canon], fun k => ?_⟩
-            rw [nodeQuery_inner _ _ hj1 (by omega) hlt hj,
-              nodeQuery_inner _ _ hj1 (by omega) hlt hj,
-              nodeQuery_inner _ _ hj1 (by omega) hlt hj]
-            by_cases hsub : P.InSubtree 1 u₀ j v <;> simp [hsub, st_canon]
-          · have hd : j = P.depth := by omega
-            subst hd
-            by_cases hsub : P.InSubtree 1 u₀ P.depth v <;> simp [hsub, st_canon]
-      have hw_fin : ∀ (j : ℕ) (hj2 : 2 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-          st_fin.nodeWait j hj2 hj v =
-            if P.InSubtree 1 u₀ j v then st_canon.nodeWait j hj2 hj v
-            else st.nodeWait j hj2 hj v := by
-        intro j hj2 hj v
-        dsimp only [st_fin, rehashSubtree]
-        rw [dite_eq_right (by omega), dite_eq_left rfl]
-        by_cases hlt : j < P.depth
-        · rw [nodeWait_inner _ hj2 hlt hj, nodeWait_inner _ hj2 hlt hj,
-            nodeWait_inner _ hj2 hlt hj]
-          by_cases hsub : P.InSubtree 1 u₀ j v <;> simp [hsub, st_canon]
-        · have hd : j = P.depth := by omega
-          subst hd; rw [nodeWait_depth, nodeWait_depth, nodeWait_depth]
-          by_cases hsub : P.InSubtree 1 u₀ P.depth v <;> simp [hsub, st_canon]
-      refine ⟨storeLvl',
-        { goodSeeds := by rw [hseeds_fin]; exact hgood'
-          storeLvl_bounds := fun x hx => by
-            dsimp only [storeLvl']; split_ifs
-            · exact hwf_canon.storeLvl_bounds x hx
-            · exact hwf.storeLvl_bounds x hx
-          storeLvl_outside := fun x hx => by
-            dsimp only [storeLvl']; split_ifs
-            · exact hwf_canon.storeLvl_outside x hx
-            · exact hwf.storeLvl_outside x hx
-          dom_eq := fun j hj1 hj v => by
-            rw [hseeds_fin, (hdom_q_fin j hj1 hj v).1]
-            split_ifs with hsub
-            · obtain ⟨_, hanc⟩ := hsub
-              rw [hwf_canon.dom_eq j hj1 hj v, hseeds_canon]
-              congr 1; refine filter_congr fun x hx => ?_
-              have hn1 : seeds'.nodeAt 1 h1d x = u₀ := by
-                rw [← seeds'.ancestorAt_nodeAt hj1 hj x, (SeedAssignment.mem_activeAt_iff.mp hx).2,
-                  hanc]
-              dsimp only [storeLvl']; rw [ite_eq_left hn1]
-            · rw [hwf.dom_eq j hj1 hj v]
-              exact hdom_outside hj1 hj v hsub fun x hx =>
-                by rw [hsl_out1 hj1 hj hsub (SeedAssignment.mem_activeAt_iff.mp hx).2]
-          query_eq_of_storeLvl := fun j hj1 hj v x vx hdx hnx hsl => by
-            rw [hseeds_fin] at hnx ⊢
-            rw [(hdom_q_fin j hj1 hj v).2]
-            split_ifs with hsub
-            · obtain ⟨_, hanc⟩ := hsub
-              have hn1 : seeds'.nodeAt 1 h1d x = u₀ := by
-                rw [← seeds'.ancestorAt_nodeAt hj1 hj x, hnx, hanc]
-              dsimp only [storeLvl'] at hsl; rw [ite_eq_left hn1] at hsl
-              have hq := hwf_canon.query_eq_of_storeLvl j hj1 hj v x vx hdx
-                (by rw [hseeds_canon]; exact hnx) hsl
-              rwa [hseeds_canon] at hq
-            · rw [hsl_out1 hj1 hj hsub hnx] at hsl
-              exact hquery_outside hj1 hj v hsub hdx hnx hsl
-          inner_full := fun j hj2 hlt v => by
-            dsimp only [st_fin, rehashSubtree]
-            rw [dite_eq_right (by omega), dite_eq_left rfl]
-            dsimp only
-            split_ifs
-            · exact hwf_canon.inner_full j hj2 hlt v
-            · exact hwf.inner_full j hj2 hlt v
-          wait_dom_eq := fun j hj2 hj v => by
-            rw [hseeds_fin, hw_fin]
-            split_ifs with hsub
-            · obtain ⟨h1j, hanc⟩ := hsub
-              rw [hwf_canon.wait_dom_eq j hj2 hj v, hseeds_canon]
-              congr 1; refine filter_congr fun x hx => ?_
-              have hn1 : seeds'.nodeAt 1 h1d x = u₀ := by
-                rw [← seeds'.ancestorAt_nodeAt h1j hj x, (SeedAssignment.mem_activeAt_iff.mp hx).2,
-                  hanc]
-              dsimp only [storeLvl']; rw [ite_eq_left hn1]
-            · rw [hwf.wait_dom_eq j hj2 hj v]
-              exact hdom_outside (by omega) hj v hsub fun x hx =>
-                by rw [hsl_out1 (by omega) hj hsub (SeedAssignment.mem_activeAt_iff.mp hx).2]
-          wait_lookup_eq := fun j hj2 hj v x hx hsl => by
-            rw [hseeds_fin] at hx ⊢
-            rw [hw_fin]
-            split_ifs with hsub
-            · obtain ⟨h1j, hanc⟩ := hsub
-              have hn1 : seeds'.nodeAt 1 h1d x = u₀ := by
-                rw [← seeds'.ancestorAt_nodeAt h1j hj x, (SeedAssignment.mem_activeAt_iff.mp hx).2,
-                  hanc]
-              dsimp only [storeLvl'] at hsl; rw [ite_eq_left hn1] at hsl
-              have hw := hwf_canon.wait_lookup_eq j hj2 hj v x
-                (by rw [hseeds_canon]; exact hx) hsl
-              rwa [hseeds_canon] at hw
-            · rw [hsl_out1 (by omega) hj hsub (SeedAssignment.mem_activeAt_iff.mp hx).2] at hsl
-              exact hwait_lookup_outside hj2 hj v hsub hx hsl }⟩
+      let sl' : Fin P.paddedUniv → ℕ := fun x =>
+        if seeds'.nodeAt 1 h1d x = u₀ then canonicalStoreLvl seeds' (P.paddedDom d) hgood' x
+        else storeLvl x
+      refine ⟨sl', st.wellFormedPadded_rehash_pos hwf le_rfl hℓ₀ u₀ houtside hgood'
+        (fun x hx => by dsimp only [sl']; split_ifs <;>
+          [exact hwf_c.storeLvl_bounds x hx; exact hwf.storeLvl_bounds x hx])
+        (fun x hx => by dsimp only [sl']; split_ifs <;>
+          [exact hwf_c.storeLvl_outside x hx; exact hwf.storeLvl_outside x hx])
+        (fun {j} hj {v} ⟨h1j, hanc⟩ x hx => by
+          have hn1 : seeds'.nodeAt 1 h1d x = u₀ := by
+            rw [← seeds'.ancestorAt_nodeAt h1j hj x,
+              (SeedAssignment.mem_activeAt_iff.mp hx).2, hanc]
+          simp [sl', hn1])
+        (fun {j} hj1 hj {v} hsub _ x hx => by
+          have hne : seeds'.nodeAt 1 h1d x ≠ u₀ := fun h => hsub
+            ⟨hj1, by
+              rw [← (SeedAssignment.mem_activeAt_iff.mp hx).2,
+                seeds'.ancestorAt_nodeAt hj1 hj x, h]⟩
+          simp [sl', hne])
+        (fun hlt => absurd hlt (by omega))⟩
     · have h2₀ : 2 ≤ ℓ₀ := by omega
-      have h1lt₀ : 1 < ℓ₀ := by omega
       let storeLvl' := rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
       have hvsl' := validStoreLvl_rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
-      have hsl_out2 : ∀ {j : ℕ} (hj : j ≤ P.depth) {v : Fin (P.numNodes j)},
-          ¬ P.InSubtree ℓ₀ u₀ j v → (¬ ∃ hlt0 : j < ℓ₀, v = P.ancestorAt hlt0.le u₀) →
-            ∀ {x}, x ∈ seeds'.activeAt S j hj v → storeLvl' x = storeLvl x := by
-        intro j hj v hsub hanc_ex x hx
-        have hxA := notMem_A0_of_not_anc_not_sub hℓ₀ u₀ hj v hsub hanc_ex hx
-        dsimp only [storeLvl', rehashStoreLvlTwo]; rw [dite_eq_right hxA]
-      set st_fin := st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood'
-      have h2_out : ∀ {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-          ¬ P.InSubtree ℓ₀ u₀ j v → (¬ ∃ hlt0 : j < ℓ₀, v = P.ancestorAt hlt0.le u₀) →
-            st_fin.nodeDom j hj1 hj v = st.nodeDom j hj1 hj v ∧
-            ∀ k, st_fin.nodeQuery scheme j hj1 hj v k = st.nodeQuery scheme j hj1 hj v k := by
-        intro j hj1 hj v hsub hanc
-        by_cases hj_one : j = 1
-        · subst hj_one
-          have hrt := st.rehashSubtree_untouched_roots hwf (by omega) hℓ₀ u₀ seeds' houtside
-            hgood' v fun he => hanc ⟨h1lt₀, he⟩
-          exact ⟨by rw [nodeDom_one, nodeDom_one, hrt],
-            fun k => by rw [nodeQuery_one, nodeQuery_one, hrt]⟩
-        · by_cases hlt : j < P.depth
-          · have hin := st.rehashSubtree_untouched_inner hwf (by omega) hℓ₀ u₀ seeds' houtside
-              hgood' (by omega) hlt v hsub fun hlt0 he => hanc ⟨hlt0, he⟩
-            exact ⟨by rw [nodeDom_inner _ hj1 (by omega) hlt hj,
-              nodeDom_inner _ hj1 (by omega) hlt hj, hin],
-              fun k => by rw [nodeQuery_inner _ _ hj1 (by omega) hlt hj,
-                nodeQuery_inner _ _ hj1 (by omega) hlt hj, hin]⟩
-          · have hd : j = P.depth := by omega
-            subst hd
-            have hlf := st.rehashSubtree_untouched_leaves hwf (by omega) hℓ₀ u₀ seeds' houtside
-              hgood' v hsub
-            exact ⟨by rw [nodeDom_depth, nodeDom_depth, hlf],
-              fun k => by rw [nodeQuery_depth, nodeQuery_depth, hlf]⟩
-      have h2_sub : ∀ {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-          P.InSubtree ℓ₀ u₀ j v →
-            st_fin.nodeDom j hj1 hj v = st_canon.nodeDom j hj1 hj v ∧
-            (∀ k, st_fin.nodeQuery scheme j hj1 hj v k = st_canon.nodeQuery scheme j hj1 hj v k) ∧
-            ∀ hj2 : 2 ≤ j, st_fin.nodeWait j hj2 hj v = st_canon.nodeWait j hj2 hj v := by
-        intro j hj1 hj v hsub
-        have hj2 : 2 ≤ j := h2₀.trans hsub.1
-        by_cases hlt : j < P.depth
-        · have hin : st_fin.inner j hj2 hlt v = st_canon.inner j hj2 hlt v := by
-            dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]; dsimp only
-            rw [ite_eq_left hsub]
-          exact ⟨by rw [nodeDom_inner _ hj1 hj2 hlt hj, nodeDom_inner _ hj1 hj2 hlt hj, hin],
-            fun k => by rw [nodeQuery_inner _ _ hj1 hj2 hlt hj,
-              nodeQuery_inner _ _ hj1 hj2 hlt hj, hin],
-            fun hj2' => by rw [nodeWait_inner _ hj2' hlt hj, nodeWait_inner _ hj2' hlt hj, hin]⟩
-        · have hd : j = P.depth := by omega
-          subst hd
-          have hlf : st_fin.leaves v = st_canon.leaves v := by
-            dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]; dsimp only
-            rw [ite_eq_left hsub]
-          exact ⟨by rw [nodeDom_depth, nodeDom_depth, hlf],
-            fun k => by rw [nodeQuery_depth, nodeQuery_depth, hlf],
-            fun _ => by rw [nodeWait_depth, nodeWait_depth, hlf]⟩
-      have hw2_out : ∀ {j : ℕ} (hj2 : 2 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
-          ¬ P.InSubtree ℓ₀ u₀ j v → (¬ ∃ hlt0 : j < ℓ₀, v = P.ancestorAt hlt0.le u₀) →
-            st_fin.nodeWait j hj2 hj v = st.nodeWait j hj2 hj v := by
-        intro j hj2 hj v hsub hanc
-        by_cases hlt : j < P.depth
-        · rw [nodeWait_inner _ hj2 hlt hj, nodeWait_inner _ hj2 hlt hj,
-            st.rehashSubtree_untouched_inner hwf (by omega) hℓ₀ u₀ seeds' houtside hgood'
-              hj2 hlt v hsub fun hlt0 he => hanc ⟨hlt0, he⟩]
-        · have hd : j = P.depth := by omega
-          subst hd
-          rw [nodeWait_depth, nodeWait_depth,
-            st.rehashSubtree_untouched_leaves hwf (by omega) hℓ₀ u₀ seeds' houtside hgood' v hsub]
-      refine ⟨storeLvl',
-        { goodSeeds := by rw [hseeds_fin]; exact hgood'
-          storeLvl_bounds := hvsl'.bounds
-          storeLvl_outside := hvsl'.outside
-          dom_eq := fun j hj1 hj v => ?_
-          query_eq_of_storeLvl := fun j hj1 hj v x vx hdx hnx hsl => ?_
-          inner_full := fun j hj2 hlt v => ?_
-          wait_dom_eq := fun j hj2 hj v => ?_
-          wait_lookup_eq := fun j hj2 hj v x hx hsl => ?_ }⟩
-      · rw [hseeds_fin]
-        by_cases hsub : P.InSubtree ℓ₀ u₀ j v
-        · obtain ⟨h0j, hanc_v⟩ := hsub
-          rw [(h2_sub hj1 hj v ⟨h0j, hanc_v⟩).1, hwf_canon.dom_eq j hj1 hj v, hseeds_canon]
-          congr 1; refine filter_congr fun x hx => ?_
-          exact (rehashStoreLvlTwo_ge_iff hwf h2₀ hℓ₀ u₀ houtside hgood'
-            (hanc_v ▸ seeds'.activeAt_subset_ancestor h0j hj v hx) h0j).1.symm
-        · by_cases hanc_ex : ∃ hlt0 : j < ℓ₀, v = P.ancestorAt hlt0.le u₀
-          · obtain ⟨hlt0, hv⟩ := hanc_ex
-            by_cases hj_one : j = 1
-            · subst hj_one; rw [nodeDom_one]
-              dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]
-              dsimp only; rw [ite_eq_left hv, dom_buildRootOfStoreLvl d seeds' hgood' hvsl' v]
-            · have hlt : j < P.depth := hlt0.trans_le hℓ₀
-              rw [nodeDom_inner st_fin hj1 (by omega) hlt hj]
-              dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]
-              dsimp only
-              rw [ite_eq_right hsub, dite_eq_left hlt0, ite_eq_left hv, dom_buildInnerOfStoreLvl]
-          · rw [(h2_out hj1 hj v hsub hanc_ex).1, hwf.dom_eq j hj1 hj v]
-            exact hdom_outside hj1 hj v hsub fun x hx =>
-              by rw [hsl_out2 hj hsub hanc_ex hx]
-      · rw [hseeds_fin] at hnx ⊢
-        have hx_act : x ∈ seeds'.activeAt S j hj v :=
-          SeedAssignment.mem_activeAt_iff.mpr ⟨(P.mem_paddedDom_iff d x).mpr (by simp [hdx]), hnx⟩
-        by_cases hsub : P.InSubtree ℓ₀ u₀ j v
-        · obtain ⟨h0j, hanc_v⟩ := hsub
-          rw [((h2_sub hj1 hj v ⟨h0j, hanc_v⟩).2.1 _)]
-          have hsl_c := (rehashStoreLvlTwo_ge_iff hwf h2₀ hℓ₀ u₀ houtside hgood'
-            (hanc_v ▸ seeds'.activeAt_subset_ancestor h0j hj v hx_act) h0j).1.mp hsl
-          have hq := hwf_canon.query_eq_of_storeLvl j hj1 hj v x vx hdx
-            (by rw [hseeds_canon]; exact hnx) hsl_c
-          rwa [hseeds_canon] at hq
-        · by_cases hanc_ex : ∃ hlt0 : j < ℓ₀, v = P.ancestorAt hlt0.le u₀
-          · obtain ⟨hlt0, hv⟩ := hanc_ex
-            by_cases hj_one : j = 1
-            · subst hj_one; rw [nodeQuery_one]
-              dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]
-              dsimp only; rw [ite_eq_left hv]
-              exact query_buildRootOfStoreLvl hgood' hvsl' v hdx hnx hsl
-            · have hlt : j < P.depth := hlt0.trans_le hℓ₀
-              rw [nodeQuery_inner scheme st_fin hj1 (by omega) hlt hj]
-              dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]
-              dsimp only; rw [ite_eq_right hsub, dite_eq_left hlt0, ite_eq_left hv]
-              exact query_buildInnerOfStoreLvl hgood' hvsl' hj1 (by omega) hlt v hdx hnx hsl
-          · rw [(h2_out hj1 hj v hsub hanc_ex).2]
-            rw [hsl_out2 hj hsub hanc_ex hx_act] at hsl
-            exact hquery_outside hj1 hj v hsub hdx hnx hsl
-      · dsimp only [st_fin, rehashSubtree]
-        rw [dite_eq_right h0, dite_eq_right h1]
-        dsimp only
-        split_ifs with hsub hlt0 hv
-        · exact hwf_canon.inner_full j hj2 hlt v
-        · exact card_dom_buildInnerOfStoreLvl d seeds' hgood' hvsl' j hj2 hlt v
-        · exact hwf.inner_full j hj2 hlt v
-        · exact hwf.inner_full j hj2 hlt v
-      · rw [hseeds_fin]
-        by_cases hsub : P.InSubtree ℓ₀ u₀ j v
-        · obtain ⟨h0j, hanc_v⟩ := hsub
-          rw [(h2_sub (by omega) hj v ⟨h0j, hanc_v⟩).2.2 hj2, hwf_canon.wait_dom_eq j hj2 hj v,
-            hseeds_canon]
-          congr 1; refine filter_congr fun x hx => ?_
-          exact (rehashStoreLvlTwo_ge_iff hwf h2₀ hℓ₀ u₀ houtside hgood'
-            (hanc_v ▸ seeds'.activeAt_subset_ancestor h0j hj v hx) h0j).2.symm
-        · by_cases hanc_ex : ∃ hlt0 : j < ℓ₀, v = P.ancestorAt hlt0.le u₀
-          · obtain ⟨hlt0, hv⟩ := hanc_ex
-            have hlt : j < P.depth := hlt0.trans_le hℓ₀
-            rw [nodeWait_inner st_fin hj2 hlt hj]
-            dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]; dsimp only
-            rw [ite_eq_right hsub, dite_eq_left hlt0, ite_eq_left hv, wait_dom_buildInnerOfStoreLvl]
-          · rw [hw2_out hj2 hj v hsub hanc_ex, hwf.wait_dom_eq j hj2 hj v]
-            exact hdom_outside (by omega) hj v hsub fun x hx =>
-              by rw [hsl_out2 hj hsub hanc_ex hx]
-      · rw [hseeds_fin] at hx ⊢
-        by_cases hsub : P.InSubtree ℓ₀ u₀ j v
-        · obtain ⟨h0j, hanc_v⟩ := hsub
-          rw [(h2_sub (by omega) hj v ⟨h0j, hanc_v⟩).2.2 hj2]
-          have hsl_c := (rehashStoreLvlTwo_ge_iff hwf h2₀ hℓ₀ u₀ houtside hgood'
-            (hanc_v ▸ seeds'.activeAt_subset_ancestor h0j hj v hx) h0j).2.mp hsl
-          have hw := hwf_canon.wait_lookup_eq j hj2 hj v x
-            (by rw [hseeds_canon]; exact hx) hsl_c
-          rwa [hseeds_canon] at hw
-        · by_cases hanc_ex : ∃ hlt0 : j < ℓ₀, v = P.ancestorAt hlt0.le u₀
-          · obtain ⟨hlt0, hv⟩ := hanc_ex
-            have hlt : j < P.depth := hlt0.trans_le hℓ₀
-            rw [nodeWait_inner st_fin hj2 hlt hj]
-            dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]; dsimp only
-            rw [ite_eq_right hsub, dite_eq_left hlt0, ite_eq_left hv]
-            exact wait_lookup_buildInnerOfStoreLvl hgood' hvsl' hj2 hlt v hx hsl
-          · rw [hw2_out hj2 hj v hsub hanc_ex]
-            rw [hsl_out2 hj hsub hanc_ex hx] at hsl
-            exact hwait_lookup_outside hj2 hj v hsub hx hsl
+      refine ⟨storeLvl', st.wellFormedPadded_rehash_pos hwf (by omega) hℓ₀ u₀ houtside hgood'
+        hvsl'.bounds hvsl'.outside
+        (fun {j} hj {v} ⟨h0j, hanc⟩ x hx => rehashStoreLvlTwo_ge_iff hwf h2₀ hℓ₀ u₀ houtside hgood'
+          (hanc ▸ seeds'.activeAt_subset_ancestor h0j hj v hx) h0j)
+        (fun {j} _ hj {v} hsub hanc x hx => by
+          dsimp only [storeLvl', rehashStoreLvlTwo]
+          exact dite_eq_right (notMem_A0_of_not_anc_not_sub hℓ₀ u₀ hj v hsub hanc hx))
+        (fun _ => ⟨hvsl',
+          by dsimp only [rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]
+             dsimp only; rw [ite_eq_left rfl],
+          fun {j} hj2 hlt hjd => by
+            have hns : ¬ P.InSubtree ℓ₀ u₀ j (P.ancestorAt hlt.le u₀) := fun ⟨hg, _⟩ => by omega
+            dsimp only [rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]
+            dsimp only; rw [ite_eq_right hns, dite_eq_left hlt, ite_eq_left rfl]⟩)⟩
 
 end TreeSchedule.TreeState
 

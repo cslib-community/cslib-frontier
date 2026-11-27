@@ -50,6 +50,9 @@ example : ‖restrictOutcomes {true} (ket true)‖ ^ 2 = 1 := by
 
 /-! ### The containments -/
 
+-- On this language the trace-power count also satisfies the A₀PP half-threshold.
+example : HeadOrEmpty ∈ A0PP encBits := QMA_subset_A0PP headOrEmpty_mem_QMA
+
 -- `QMA ⊆ PP`.
 example : HeadOrEmpty ∈ PP encBits := QMA_subset_PP headOrEmpty_mem_QMA
 

@@ -61,22 +61,15 @@ variable {V : Type*} [DecidableEq V] {θ : ℕ → ℕ}
 theorem exists_choice (θ : ℕ → ℕ) {ψ : ClauseSet V} (h : ¬ Sparse θ ψ) :
     ∃ c H, Choice θ ψ c H := by
   classical
-  have hex : ∃ c, ∃ H, Heavy θ ψ c H := by
-    simp only [Sparse, not_forall, not_not] at h
-    exact h
+  have hex : ∃ c H, Heavy θ ψ c H := by simpa only [Sparse, not_forall, not_not] using h
   set c₀ := Nat.find hex
   -- the largest heart at the smallest clause size
-  have hP : ∃ h, h ≤ c₀ ∧ ∃ H : Finset (Literal V), H.card = h ∧ Heavy θ ψ c₀ H := by
-    obtain ⟨H₀, hH₀⟩ := Nat.find_spec hex
-    exact ⟨H₀.card, hH₀.2.1.le, H₀, rfl, hH₀⟩
-  obtain ⟨h₀, hh₀, H, hH, hheavy⟩ := hP
-  set m := Nat.findGreatest (fun h => ∃ H : Finset (Literal V), H.card = h ∧ Heavy θ ψ c₀ H) c₀
-  obtain ⟨H', hH', hheavy'⟩ : ∃ H : Finset (Literal V), H.card = m ∧ Heavy θ ψ c₀ H :=
-    Nat.findGreatest_spec (P := fun h => ∃ H : Finset (Literal V), H.card = h ∧ Heavy θ ψ c₀ H)
-      hh₀ ⟨H, hH, hheavy⟩
-  refine ⟨c₀, H', hheavy', fun c' H'' h'' => Nat.find_min' hex ⟨H'', h''⟩, fun H'' h'' => ?_⟩
-  rw [hH']
-  exact Nat.le_findGreatest h''.2.1.le ⟨H'', rfl, h''⟩
+  obtain ⟨H₀, hH₀⟩ := Nat.find_spec hex
+  obtain ⟨H', hH', hheavy'⟩ := Nat.findGreatest_spec
+    (P := fun h => ∃ H : Finset (Literal V), H.card = h ∧ Heavy θ ψ c₀ H)
+    hH₀.2.1.le ⟨H₀, rfl, hH₀⟩
+  exact ⟨c₀, H', hheavy', fun _ H'' h'' => Nat.find_min' hex ⟨H'', h''⟩,
+    fun H'' h'' => hH' ▸ Nat.le_findGreatest h''.2.1.le ⟨H'', rfl, h''⟩⟩
 
 /-- The canonical branching choice: a valid choice if there is one. -/
 noncomputable def chooseBranch (θ : ℕ → ℕ) (ψ : ClauseSet V) : ℕ × Finset (Literal V) :=
@@ -135,9 +128,7 @@ its children. -/
 private theorem exists_sat_next {s : σ} (hs : ¬ Sparse θ (R.toClauseSet s)) {x : V → Bool}
     (hx : (R.toClauseSet s).Sat x) : ∃ b, (R.toClauseSet (R.next s b)).Sat x := by
   obtain ⟨c, H, -, hnext⟩ := R.exists_choice_next s hs
-  refine ⟨decide ¬ ∃ l ∈ H, x l.1 = l.2, ?_⟩
-  rw [hnext]
-  exact sat_child_of_sat hx
+  exact ⟨decide ¬ ∃ l ∈ H, x l.1 = l.2, (hnext _).symm ▸ sat_child_of_sat hx⟩
 
 /-- Every clause of a child is contained in a clause of its parent. -/
 private theorem refines_next (hθ : ∀ j, 1 ≤ θ j) {s : σ} (hs : ¬ Sparse θ (R.toClauseSet s))
@@ -205,20 +196,17 @@ theorem exists_path_of_isLeafWord {s : σ} (hred : Reduced (R.toClauseSet s)) {w
       P.len = w.length ∧ Sparse θ (P.node P.len) ∧
       (range P.len).filter (fun i => P.dir i = true) =
         (range w.length).filter fun i => w.getD i false = true := by
-  have hns := hw.isNodeWord.not_isLeaf_take
-  choose! size heart hspec using fun i (hi : i < w.length) => R.exists_choice_next _ (hns i hi)
-  refine ⟨{ len := w.length
-            node := fun i => R.toClauseSet (R.tree.walk s (w.take i))
-            size := size
-            heart := heart
-            dir := fun i => w.getD i false
-            choice := fun i hi => (hspec i hi).1
-            step := fun i hi => by
-              rw [R.tree.walk_take_succ s w hi]
-              exact (hspec i hi).2 _
-            reduced_zero := by simpa [BinaryBranching.walk] using hred },
-    fun i _ => rfl, rfl, ?_, rfl⟩
-  simpa [List.take_length] using hw.isLeaf_walk
+  choose! size heart hspec using fun i (hi : i < w.length) =>
+    R.exists_choice_next _ (hw.isNodeWord.not_isLeaf_take i hi)
+  exact ⟨{ len := w.length
+           node := fun i => R.toClauseSet (R.tree.walk s (w.take i))
+           size := size, heart := heart, dir := fun i => w.getD i false
+           choice := fun i hi => (hspec i hi).1
+           step := fun i hi => by
+             rw [R.tree.walk_take_succ s w hi]
+             exact (hspec i hi).2 _
+           reduced_zero := by simpa [BinaryBranching.walk] using hred },
+    fun _ _ => rfl, rfl, by simpa [List.take_length] using hw.isLeaf_walk, rfl⟩
 
 end BranchingRule
 

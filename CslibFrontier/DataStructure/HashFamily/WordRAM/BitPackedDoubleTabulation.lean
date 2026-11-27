@@ -21,8 +21,14 @@ public import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation
 public import CslibFrontier.Probability.KWiseIndependent.ReducedLimbs
 public import CslibFrontier.Probability.PMF.Uniform
 public import CslibFrontier.Probability.Uniform
+import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
+import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Computability.WordRAM.Width
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Universe-Reduced Salted General-`q` Bit-Packed Double Tabulation (`[Thorup2013]`)
@@ -115,18 +121,17 @@ abbrev botEntries (d b_char : ℕ) : ℕ :=
 @[expose] def space (w c_tab d b_char M_out : ℕ) : ℕ :=
   1 + topWords w c_tab d b_char + botWords w d b_char M_out
 
+attribute [local wram_arith] topWords botWords offBot space
+
 theorem space_pos (w c_tab d b_char M_out : ℕ) : 0 < space w c_tab d b_char M_out := by
-  unfold space
-  omega
+  wram_omega
 
 /-- Bit-packed word bound valid for every word width `w`:
 `space w c_tab d b_char M_out ≤ (topEntries * b_char + botEntries * M_out + w - 1) / w + 6`. -/
 theorem space_le (w c_tab d b_char M_out : ℕ) :
     space w c_tab d b_char M_out ≤
       (topEntries c_tab d b_char * b_char + botEntries d b_char * M_out + w - 1) / w + 6 := by
-  unfold space topWords botWords
-  have h := packedWords_add_le (topEntries c_tab d b_char) b_char (botEntries d b_char) M_out w
-  omega
+  wram_omega [packedWords_add_le (topEntries c_tab d b_char) b_char (botEntries d b_char) M_out w]
 
 /-- Combined seed type `(α, T₁, T₂)` for universe-reduced salted double tabulation. -/
 abbrev Seed (w₀ c_tab d b_char M_out : ℕ) : Type :=
@@ -189,20 +194,13 @@ theorem isKWiseIndependentHash_evalSalted_of_goodTop
     (hgood : GoodTop U w₀ R c_tab d b_char k W_set α T₁) :
     IsKWiseIndependentHash k (fun (T₂ : DoubleTabBotSeed d b_char M_out) (p : Fin s_max × W_set) =>
       evalSalted U w₀ R c_tab d b_char M_out s_max (α, T₁, T₂) (p.1, p.2.val)) := by
-  have hR' : 2 ^ min w₀ R ≤ 2 ^ (c_tab * b_char) := Nat.pow_le_pow_right two_pos hcov
-  have hinj_enc : Function.Injective (fun p : Fin s_max × W_set =>
-      saltedChars c_tab b_char p.1 (multiplyShiftReduced U w₀ R α p.2.val)) := by
-    rintro ⟨s₁, ⟨u₁, hu₁⟩⟩ ⟨s₂, ⟨u₂, hu₂⟩⟩ heq
-    have hprod := @saltedChars_injective c_tab b_char (2 ^ min w₀ R) s_max hs hR'
-      (s₁, multiplyShiftReduced U w₀ R α u₁) (s₂, multiplyShiftReduced U w₀ R α u₂) heq
-    obtain ⟨rfl, hr_eq⟩ := Prod.mk.inj hprod
-    have hu_eq : u₁ = u₂ := hgood.1 hu₁ hu₂ hr_eq
-    subst hu_eq
-    rfl
-  exact isKWiseIndependentHash_of_isKUnique
+  refine isKWiseIndependentHash_of_isKUnique
     (f := fun p : Fin s_max × W_set =>
       simpleTabTuple T₁ (saltedChars c_tab b_char p.1 (multiplyShiftReduced U w₀ R α p.2.1)))
-    (hgood.2.comp_injective hinj_enc)
+    (hgood.2.comp_injective ?_)
+  rintro ⟨s₁, ⟨u₁, hu₁⟩⟩ ⟨s₂, ⟨u₂, hu₂⟩⟩ heq
+  obtain ⟨rfl, hr⟩ := Prod.mk.inj (saltedChars_injective hs (Nat.pow_le_pow_right two_pos hcov) heq)
+  exact Prod.ext rfl (Subtype.ext (hgood.1 hu₁ hu₂ hr))
 
 /-- Probability bound on `¬ IsKUnique k (simpleTabTuple T₁)` under `PMF.uniformOfFintype`, lifted
 from `Cslib.Probability.card_not_isKUnique_le`. -/
@@ -213,35 +211,16 @@ theorem toOuterMeasure_not_isKUnique_le {c d b q k : ℕ} (hc : 1 ≤ c) (hq : 1
       (2 * (doubleTabCodeBound c d q k : ℝ≥0∞) ^ 2) /
         ((2 : ℝ≥0∞) ^ ((q - 1) * b)) ^ 2 := by
   classical
-  let Bad := Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => ¬ IsKUnique k (simpleTabTuple T₁)
-  have hset :
-      {T₁ : DoubleTabTopSeed c d b | ¬ IsKUnique k (simpleTabTuple T₁)} = (Bad : Set _) := by
-    ext T₁
-    simp only [Set.mem_ofPred_eq, mem_coe, Bad, mem_filter, mem_univ, true_and]
-  rw [hset, PMF.toOuterMeasure_apply_finset]
-  simp only [PMF.uniformOfFintype_apply, sum_const, nsmul_eq_mul, ← div_eq_mul_inv]
-  have hcard := card_not_isKUnique_le hc hq hd hbound
-  have hN_pos : 0 < Fintype.card (DoubleTabTopSeed c d b) := Fintype.card_pos
-  have hN_ne : (Fintype.card (DoubleTabTopSeed c d b) : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr hN_pos.ne'
-  have hN_top : (Fintype.card (DoubleTabTopSeed c d b) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-  have hW_ne : (((2 : ℝ≥0∞) ^ ((q - 1) * b)) ^ 2) ≠ 0 := by positivity
-  have hW_top : (((2 : ℝ≥0∞) ^ ((q - 1) * b)) ^ 2) ≠ ⊤ :=
-    ENNReal.pow_ne_top (ENNReal.pow_ne_top (ENNReal.natCast_ne_top 2))
-  rw [ENNReal.div_le_iff_le_mul (Or.inl hN_ne) (Or.inl hN_top), div_eq_mul_inv,
-    mul_right_comm _ _⁻¹, ← div_eq_mul_inv,
-    ENNReal.le_div_iff_mul_le (Or.inl hW_ne) (Or.inl hW_top)]
-  have hcast : ((#Bad : ℝ≥0∞) * (((2 : ℝ≥0∞) ^ ((q - 1) * b)) ^ 2)) =
-      ((((2 ^ ((q - 1) * b)) ^ 2 * #Bad : ℕ) : ℝ≥0∞)) := by
-    push_cast
-    ring
-  have hcast_rhs : (2 * (doubleTabCodeBound c d q k : ℝ≥0∞) ^ 2 *
-      (Fintype.card (DoubleTabTopSeed c d b) : ℝ≥0∞)) =
-      (((2 * (doubleTabCodeBound c d q k) ^ 2 *
-        Fintype.card (DoubleTabTopSeed c d b) : ℕ) : ℝ≥0∞)) := by
-    push_cast
-    ring
-  rw [hcast, hcast_rhs]
-  exact Nat.cast_le.mpr hcard
+  rw [toOuterMeasure_uniformOfFintype, ← div_eq_mul_inv,
+    ENNReal.div_le_iff_le_mul (Or.inl (Nat.cast_ne_zero.mpr Fintype.card_pos.ne'))
+      (Or.inl (ENNReal.natCast_ne_top _)),
+    div_eq_mul_inv, mul_right_comm _ _⁻¹, ← div_eq_mul_inv]
+  rw [ENNReal.le_div_iff_mul_le
+    (Or.inl (pow_ne_zero _ (pow_ne_zero _ (by norm_num : (2 : ℝ≥0∞) ≠ 0))))
+    (Or.inl (ENNReal.pow_ne_top (ENNReal.pow_ne_top (by norm_num : (2 : ℝ≥0∞) ≠ ⊤))))]
+  have hle := Nat.cast_le (α := ℝ≥0∞).mpr (card_not_isKUnique_le hc hq hd hbound)
+  push_cast at hle
+  simpa [mul_comm, mul_left_comm, mul_assoc] using hle
 
 /-- **Explicit failure-probability bound on `¬ GoodTop`**:
 for a uniform seed `θ : Seed w₀ c_tab d b_char M_out`, when `0 < w₀`, `U ≤ 2 ^ w₀`, `1 ≤ q`,
@@ -259,66 +238,56 @@ theorem toOuterMeasure_not_goodTop_le
       ((#W_set * (#W_set - 1) : ℕ) : ℝ≥0∞) / (2 : ℝ≥0∞) ^ R +
         (2 * (doubleTabCodeBound (c_tab + 1) d q k : ℝ≥0∞) ^ 2) /
           ((2 : ℝ≥0∞) ^ ((q - 1) * b_char)) ^ 2 := by
-  let S₁ : Set (Seed w₀ c_tab d b_char M_out) :=
-    {θ | ¬ Set.InjOn (multiplyShiftReduced U w₀ R θ.1) (W_set : Set (Fin U))}
-  let S₂ : Set (Seed w₀ c_tab d b_char M_out) :=
-    {θ | ¬ IsKUnique k (simpleTabTuple θ.2.1)}
-  have hsub : {θ : Seed w₀ c_tab d b_char M_out |
-      ¬ GoodTop U w₀ R c_tab d b_char k W_set θ.1 θ.2.1} ⊆ S₁ ∪ S₂ := by
-    intro θ hθ
-    rw [Set.mem_ofPred_eq, GoodTop, not_and_or] at hθ
-    exact hθ
-  have hfst : (PMF.uniformOfFintype (Seed w₀ c_tab d b_char M_out)).map Prod.fst =
-      PMF.uniformOfFintype (Fin (2 ^ (w₀ - 1))) := by
-    dsimp only [Seed]
-    exact uniformOfFintype_prod_map_fst
-  have hsnd_fst : (PMF.uniformOfFintype (Seed w₀ c_tab d b_char M_out)).map (fun θ => θ.2.1) =
-      PMF.uniformOfFintype (DoubleTabTopSeed (c_tab + 1) d b_char) := by
-    let eSwap : Seed w₀ c_tab d b_char M_out ≃
-        DoubleTabTopSeed (c_tab + 1) d b_char ×
-          (Fin (2 ^ (w₀ - 1)) × DoubleTabBotSeed d b_char M_out) :=
-      { toFun := fun θ => (θ.2.1, (θ.1, θ.2.2))
-        invFun := fun q => (q.2.1, (q.1, q.2.2))
-        left_inv := fun ⟨_, _, _⟩ => rfl
-        right_inv := fun ⟨_, _, _⟩ => rfl }
-    have hfn : (fun θ : Seed w₀ c_tab d b_char M_out => θ.2.1) = Prod.fst ∘ eSwap := rfl
-    rw [hfn, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv eSwap]
-    exact uniformOfFintype_prod_map_fst
-  have hm₁ : (PMF.uniformOfFintype (Seed w₀ c_tab d b_char M_out)).toOuterMeasure S₁ =
-      (PMF.uniformOfFintype (Fin (2 ^ (w₀ - 1)))).toOuterMeasure
-        {α | ¬ Set.InjOn (multiplyShiftReduced U w₀ R α) (W_set : Set (Fin U))} := by
-    rw [← hfst, PMF.toOuterMeasure_map_apply]
-    rfl
-  have hm₂ : (PMF.uniformOfFintype (Seed w₀ c_tab d b_char M_out)).toOuterMeasure S₂ =
-      (PMF.uniformOfFintype (DoubleTabTopSeed (c_tab + 1) d b_char)).toOuterMeasure
-        {T₁ | ¬ IsKUnique k (simpleTabTuple T₁)} := by
-    rw [← hsnd_fst, PMF.toOuterMeasure_map_apply]
-    rfl
   let μ := (PMF.uniformOfFintype (Seed w₀ c_tab d b_char M_out)).toOuterMeasure
-  calc μ {θ | ¬ GoodTop U w₀ R c_tab d b_char k W_set θ.1 θ.2.1}
-      ≤ μ (S₁ ∪ S₂) := μ.mono hsub
-    _ ≤ μ S₁ + μ S₂ := MeasureTheory.measure_union_le S₁ S₂
-    _ ≤ ((#W_set * (#W_set - 1) : ℕ) : ℝ≥0∞) / (2 : ℝ≥0∞) ^ R +
-          (2 * (doubleTabCodeBound (c_tab + 1) d q k : ℝ≥0∞) ^ 2) /
-            ((2 : ℝ≥0∞) ^ ((q - 1) * b_char)) ^ 2 := by
-          rw [hm₁, hm₂]
-          exact add_le_add
-            (toOuterMeasure_not_injOn_multiplyShiftReduced_le hw₀ hU W_set)
-            (toOuterMeasure_not_isKUnique_le (by omega) hq hd hbound)
+  let A : Set (Fin (2 ^ (w₀ - 1))) :=
+    {α | ¬ Set.InjOn (multiplyShiftReduced U w₀ R α) (W_set : Set (Fin U))}
+  let B : Set (DoubleTabTopSeed (c_tab + 1) d b_char) :=
+    {T₁ | ¬ IsKUnique k (simpleTabTuple T₁)}
+  have hm₁ : μ (Prod.fst ⁻¹' A) = (PMF.uniformOfFintype _).toOuterMeasure A := by
+    rw [← uniformOfFintype_prod_map_fst (α := Fin (2 ^ (w₀ - 1)))
+      (β := DoubleTabTopSeed (c_tab + 1) d b_char × DoubleTabBotSeed d b_char M_out),
+      PMF.toOuterMeasure_map_apply]
+  have hm₂ : μ ((Prod.fst ∘ Prod.snd) ⁻¹' B) = (PMF.uniformOfFintype _).toOuterMeasure B := by
+    rw [← uniformOfFintype_prod_map_fst (α := DoubleTabTopSeed (c_tab + 1) d b_char)
+        (β := DoubleTabBotSeed d b_char M_out),
+      ← uniformOfFintype_prod_map_snd (α := Fin (2 ^ (w₀ - 1))),
+      PMF.map_comp, PMF.toOuterMeasure_map_apply]
+  calc μ {θ | ¬ GoodTop U w₀ R c_tab d b_char k W_set θ.1 θ.top}
+      ≤ μ (Prod.fst ⁻¹' A ∪ (Prod.fst ∘ Prod.snd) ⁻¹' B) :=
+        μ.mono fun _ h => not_and_or.mp h
+    _ ≤ μ (Prod.fst ⁻¹' A) + μ ((Prod.fst ∘ Prod.snd) ⁻¹' B) :=
+        MeasureTheory.measure_union_le _ _
+    _ ≤ _ := by
+        rw [hm₁, hm₂]
+        exact add_le_add (toOuterMeasure_not_injOn_multiplyShiftReduced_le hw₀ hU W_set)
+          (toOuterMeasure_not_isKUnique_le (by omega) hq hd hbound)
 
 /-! ## Section 2: Bit-packed slice uniformity, `SeedRep`, and `resampleCode` -/
+
+/-- Top-table row index bound: `j * (c_tab + 1) + i < topEntries c_tab d b_char`. -/
+private theorem topRow_lt_topEntries {c_tab d b_char i j : ℕ}
+    (hi : i < c_tab + 1) (hj : j < d) :
+    j * (c_tab + 1) + i < topEntries c_tab d b_char := by
+  have hrow : j * (c_tab + 1) + i < (c_tab + 1) * d := by
+    simpa only [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hj hi
+  exact Nat.lt_of_lt_of_le hrow (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos b_char))
+
+/-- Top-table flat index bound: `(j * (c_tab + 1) + i) * 2 ^ b_char + ch < topEntries`. -/
+private theorem topIdx_lt_topEntries {c_tab d b_char i j ch : ℕ}
+    (hi : i < c_tab + 1) (hj : j < d) (hch : ch < 2 ^ b_char) :
+    (j * (c_tab + 1) + i) * 2 ^ b_char + ch < topEntries c_tab d b_char := by
+  have hrow : j * (c_tab + 1) + i < (c_tab + 1) * d := by
+    simpa only [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hj hi
+  simpa only [Nat.mul_comm (2 ^ b_char)] using Nat.mul_add_lt_mul_of_lt_of_lt hrow hch
 
 /-- For `0 < w` and `idx < N`, every bit index `idx * k + j` (`j < k`) lies in word
 `(idx * k + j) / w < packedWords N k w`. -/
 theorem mul_add_div_lt_packedWords {N k w idx j : ℕ} (hw : 0 < w) (hidx : idx < N) (hj : j < k) :
     (idx * k + j) / w < packedWords N k w := by
-  unfold packedWords
   have hle : idx * k + j < N * k := by
-    calc idx * k + j < idx * k + k := Nat.add_lt_add_left hj _
-      _ = (idx + 1) * k := by ring
-      _ ≤ N * k := Nat.mul_le_mul_right k hidx
-  have hdiv : (idx * k + j) / w ≤ (N * k + w - 1) / w :=
-    Nat.div_le_div_right (by omega)
+    simpa only [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hidx hj
+  have hdiv : (idx * k + j) / w ≤ (N * k + w - 1) / w := Nat.div_le_div_right (by omega)
+  unfold packedWords
   omega
 
 /-- Exact bit-level characterization of `readPacked`: for `0 < w`, `k ≤ w`, and `j < k`, bit `j` of
@@ -333,64 +302,36 @@ theorem testBit_readPacked {arrBase k w : ℕ} (hw : 0 < w) (hkw : k ≤ w) (mem
   set bOff := bitOffset k w idx
   set k₀ := lowWidth k w idx
   set k₁ := highWidth k w idx
-  have hwOff : wOff = (idx * k) / w := wordOffset_eq_mul_div hw
-  have hbOff : bOff = (idx * k) % w := bitOffset_eq_mul_mod k w idx
   have hb_lt : bOff < w := bitOffset_lt hw
   have hk_sum : k₀ + k₁ = k := lowWidth_add_highWidth k w idx
   have hdecomp : idx * k = w * wOff + bOff := by
-    rw [hwOff, hbOff]
+    rw [show wOff = (idx * k) / w from wordOffset_eq_mul_div hw,
+      show bOff = (idx * k) % w from bitOffset_eq_mul_mod k w idx]
     exact (Nat.div_add_mod (idx * k) w).symm
+  have hdivMod (q r : ℕ) (hr : r < w) (heq : idx * k + j = r + w * q) :
+      (idx * k + j) / w = q ∧ (idx * k + j) % w = r := by
+    rw [heq, Nat.add_mul_div_left _ _ hw, Nat.div_eq_of_lt hr, zero_add,
+      Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hr]
+    exact ⟨rfl, rfl⟩
   change ((mem (arrBase + wOff) >>> bOff &&& 2 ^ k₀ - 1) ^^^
       ((mem (arrBase + wOff + 1) >>> 0 &&& 2 ^ k₁ - 1) <<< k₀)).testBit j = _
   rw [Nat.testBit_xor]
   by_cases hjk₀ : j < k₀
-  · have hbj_lt : bOff + j < w := by
-      have hk₀_le : k₀ ≤ w - bOff := Nat.min_le_right k (w - bOff)
-      omega
-    have hhigh_false : ((((mem (arrBase + wOff + 1) >>> 0) &&& (2 ^ k₁ - 1)) <<< k₀).testBit j) =
-        false := by
-      rw [Nat.testBit_shiftLeft]
-      simp [not_le.mpr hjk₀]
-    have hlow_eq : (((mem (arrBase + wOff) >>> bOff) &&& (2 ^ k₀ - 1)).testBit j) =
-        (mem (arrBase + wOff)).testBit (bOff + j) := by
-      rw [Nat.testBit_and, Nat.testBit_two_pow_sub_one, decide_eq_true hjk₀, Bool.and_true,
-        Nat.testBit_shiftRight]
-    have hdiv_eq : (idx * k + j) / w = wOff := by
-      have heq : idx * k + j = (bOff + j) + w * wOff := by omega
-      rw [heq, Nat.add_mul_div_left _ _ hw, Nat.div_eq_of_lt hbj_lt, zero_add]
-    have hmod_eq : (idx * k + j) % w = bOff + j := by
-      have heq : idx * k + j = (bOff + j) + w * wOff := by omega
-      rw [heq, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hbj_lt]
-    rw [hlow_eq, hhigh_false, Bool.xor_false, hdiv_eq, hmod_eq]
-  · have hk₀_le_j : k₀ ≤ j := not_lt.mp hjk₀
-    have hk₀_eq : k₀ = w - bOff := by
-      dsimp only [k₀, lowWidth] at hk₀_le_j ⊢
-      have hlt : w - bOff < k := by omega
-      exact Nat.min_eq_right hlt.le
-    have hlow_lt : ((mem (arrBase + wOff) >>> bOff) &&& (2 ^ k₀ - 1)) < 2 ^ j := by
-      calc ((mem (arrBase + wOff) >>> bOff) &&& (2 ^ k₀ - 1))
-          < 2 ^ k₀ := by rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (by positivity)
-        _ ≤ 2 ^ j := Nat.pow_le_pow_right two_pos hk₀_le_j
-    have hlow_false : (((mem (arrBase + wOff) >>> bOff) &&& (2 ^ k₀ - 1)).testBit j) = false :=
-      Nat.testBit_lt_two_pow hlow_lt
-    have hj_sub_lt_k₁ : j - k₀ < k₁ := by omega
-    have hj_sub_lt_w : j - k₀ < w := by omega
-    have hhigh_eq : ((((mem (arrBase + wOff + 1) >>> 0) &&& (2 ^ k₁ - 1)) <<< k₀).testBit j) =
-        (mem (arrBase + wOff + 1)).testBit (j - k₀) := by
-      rw [Nat.testBit_shiftLeft, decide_eq_true hk₀_le_j, Bool.true_and, Nat.testBit_and,
-        Nat.testBit_two_pow_sub_one, decide_eq_true hj_sub_lt_k₁, Bool.and_true,
-        Nat.shiftRight_zero]
-    have hdiv_eq : (idx * k + j) / w = wOff + 1 := by
-      have heq : idx * k + j = (j - k₀) + w * (wOff + 1) := by
-        rw [Nat.mul_add, Nat.mul_one]
-        omega
-      rw [heq, Nat.add_mul_div_left _ _ hw, Nat.div_eq_of_lt hj_sub_lt_w, zero_add]
-    have hmod_eq : (idx * k + j) % w = j - k₀ := by
-      have heq : idx * k + j = (j - k₀) + w * (wOff + 1) := by
-        rw [Nat.mul_add, Nat.mul_one]
-        omega
-      rw [heq, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hj_sub_lt_w]
-    rw [hlow_false, Bool.false_xor, hhigh_eq, hdiv_eq, hmod_eq, Nat.add_assoc]
+  · have hk₀_le : k₀ ≤ w - bOff := Nat.min_le_right k (w - bOff)
+    obtain ⟨hd, hm⟩ := hdivMod wOff (bOff + j) (by omega) (by omega)
+    rw [hd, hm, Nat.testBit_and, Nat.testBit_two_pow_sub_one, decide_eq_true hjk₀, Bool.and_true,
+      Nat.testBit_shiftRight, Nat.testBit_shiftLeft, decide_eq_false (by omega),
+      Bool.false_and, Bool.xor_false]
+  · have hk₀_eq : k₀ = w - bOff := Nat.min_eq_right (by dsimp only [k₀, lowWidth] at hjk₀; omega)
+    obtain ⟨hd, hm⟩ := hdivMod (wOff + 1) (j - k₀) (by omega)
+      (by rw [Nat.mul_add, Nat.mul_one]; omega)
+    have hlow : ((mem (arrBase + wOff) >>> bOff) &&& (2 ^ k₀ - 1)).testBit j = false :=
+      Nat.testBit_lt_two_pow
+        ((Nat.and_lt_two_pow _ (Nat.sub_lt (Nat.two_pow_pos _) one_pos)).trans_le
+          (Nat.pow_le_pow_right two_pos (not_lt.mp hjk₀)))
+    rw [hd, hm, hlow, Bool.false_xor, Nat.testBit_shiftLeft, decide_eq_true (not_lt.mp hjk₀),
+      Bool.true_and, Nat.testBit_and, Nat.testBit_two_pow_sub_one, decide_eq_true (by omega),
+      Bool.and_true, Nat.shiftRight_zero, Nat.add_assoc]
 
 /-- Extract `N` bit-packed `k`-bit entries from `mem` starting at `arrBase`. -/
 @[expose] def extractPackedSlice (arrBase N k w : ℕ) (mem : ℕ → ℕ) : Fin N → Fin (2 ^ k) :=
@@ -409,39 +350,26 @@ by reading bits `[idx * k, (idx + 1) * k)`. -/
 private theorem surjective_bitPackedProjHom {N k w : ℕ} (hw : 0 < w) :
     Function.Surjective (bitPackedProjHom N k w hw) := by
   intro target
-  have hk_pos_of_mem : ∀ m < N * k, 0 < k := by
-    intro m hm
-    rcases Nat.eq_zero_or_pos k with rfl | hk
-    · simp at hm
-    · exact hk
   refine ⟨fun q r =>
     if hm : q.val * w + r.val < N * k then
-      let hk := hk_pos_of_mem _ hm
-      target ⟨(q.val * w + r.val) / k,
-        Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm k N]; exact hm)⟩
+      let hk : 0 < k := Nat.pos_of_ne_zero fun hk0 => by simp [hk0] at hm
+      target ⟨(q.val * w + r.val) / k, Nat.div_lt_of_lt_mul (Nat.mul_comm k N ▸ hm)⟩
         ⟨(q.val * w + r.val) % k, Nat.mod_lt _ hk⟩
-    else false, ?_⟩
-  funext i j
+    else false, funext fun i => funext fun j => ?_⟩
   dsimp only [bitPackedProjHom, AddMonoidHom.coe_mk, ZeroHom.coe_mk]
-  have hm_eq : ((i.val * k + j.val) / w) * w + (i.val * k + j.val) % w = i.val * k + j.val := by
-    rw [Nat.mul_comm _ w]
-    exact Nat.div_add_mod (i.val * k + j.val) w
-  have hm_lt : ((i.val * k + j.val) / w) * w + (i.val * k + j.val) % w < N * k := by
-    rw [hm_eq]
-    calc i.val * k + j.val < i.val * k + k := Nat.add_lt_add_left j.isLt _
-      _ = (i.val + 1) * k := by ring
-      _ ≤ N * k := Nat.mul_le_mul_right k i.isLt
-  have hk_pos : 0 < k := Nat.zero_lt_of_lt j.isLt
+  have hm_eq : (i.val * k + j.val) / w * w + (i.val * k + j.val) % w = i.val * k + j.val := by
+    rw [Nat.mul_comm _ w]; exact Nat.div_add_mod _ w
+  have hm_lt : (i.val * k + j.val) / w * w + (i.val * k + j.val) % w < N * k := by
+    rw [hm_eq]; simpa only [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt i.isLt j.isLt
   rw [dite_eq_left hm_lt]
-  have hdiv : (((i.val * k + j.val) / w) * w + (i.val * k + j.val) % w) / k = i.val := by
-    rw [hm_eq, Nat.add_comm, Nat.mul_comm i.val k, Nat.add_mul_div_left _ _ hk_pos,
-      Nat.div_eq_of_lt j.isLt, zero_add]
-  have hmod : (((i.val * k + j.val) / w) * w + (i.val * k + j.val) % w) % k = j.val := by
-    rw [hm_eq, Nat.add_comm, Nat.mul_comm i.val k, Nat.add_mul_mod_self_left,
-      Nat.mod_eq_of_lt j.isLt]
+  have hk_pos : 0 < k := Nat.zero_lt_of_lt j.isLt
   congr 1
-  · exact Fin.ext hdiv
-  · exact Fin.ext hmod
+  · exact Fin.ext (show ((i.val * k + j.val) / w * w + (i.val * k + j.val) % w) / k = i.val by
+      rw [hm_eq, Nat.add_comm, Nat.mul_comm i.val k, Nat.add_mul_div_left _ _ hk_pos,
+        Nat.div_eq_of_lt j.isLt, zero_add])
+  · exact Fin.ext (show ((i.val * k + j.val) / w * w + (i.val * k + j.val) % w) % k = j.val by
+      rw [hm_eq, Nat.add_comm, Nat.mul_comm i.val k, Nat.add_mul_mod_self_left,
+        Nat.mod_eq_of_lt j.isLt])
 
 /-- Map from a raw `w`-bit word slice `Fin (packedWords N k w) → Fin (2 ^ w)` to
 `Fin N → Fin (2 ^ k)` matching `extractPackedSlice`. -/
@@ -461,17 +389,10 @@ private theorem extractPackedSlice_eq_packedSliceOfWords {arrBase N k w : ℕ} (
   funext j
   rw [BitString.equivFin_symm_apply]
   change (readPacked arrBase k w mem i.val).testBit j.val =
-    (BitString.equivFin k).symm
-      (BitString.equivFin k
-        (bitPackedProjHom N k w hw
-          ((Equiv.piCongrRight fun _ => (BitString.equivFin w).symm)
-            (Tabulation.extractSlice arrBase w (packedWords N k w) mem))
-          i)) j
+    ((BitString.equivFin k).symm (BitString.equivFin k _)) j
   rw [Equiv.symm_apply_apply, testBit_readPacked hw hkw mem i.val j.isLt]
-  change _ =
-    ((BitString.equivFin w).symm
-      (wordOfNat w (mem (arrBase + (i.val * k + j.val) / w))))
-      ⟨(i.val * k + j.val) % w, Nat.mod_lt _ hw⟩
+  change _ = ((BitString.equivFin w).symm
+    (wordOfNat w (mem (arrBase + (i.val * k + j.val) / w)))) ⟨(i.val * k + j.val) % w, _⟩
   rw [BitString.equivFin_symm_apply,
     wordOfNat_val_of_lt (hmem _ (mul_add_div_lt_packedWords hw i.isLt j.isLt))]
 
@@ -514,19 +435,15 @@ theorem seedRep_extractSeed {base w w₀ c_tab d b_char M_out : ℕ} {mem : ℕ 
     (hα : mem base < 2 ^ (w₀ - 1)) :
     SeedRep base w w₀ c_tab d b_char M_out
       (extractSeed base w w₀ c_tab d b_char M_out mem) mem := by
-  refine ⟨(wordOfNat_val_of_lt hα).symm, ?_, ?_⟩
-  · intro i j ch
-    change readPacked (base + 1) b_char w mem _ =
+  refine ⟨(wordOfNat_val_of_lt hα).symm, fun i j ch => ?_, fun j y => ?_⟩
+  · change readPacked (base + 1) b_char w mem _ =
       readPacked (base + 1) b_char w mem
         (DoubleTabulation.topIndexEquiv (c_tab + 1) d b_char (i, j, ch)).val
     rw [DoubleTabulation.val_topIndexEquiv]
-  · intro j y
-    change readPacked (base + offBot w c_tab d b_char) M_out w mem _ =
+  · change readPacked (base + offBot w c_tab d b_char) M_out w mem _ =
       readPacked (base + offBot w c_tab d b_char) M_out w mem (finProdFinEquiv (j, y)).val
     rw [finProdFinEquiv_apply_val]
-    congr 1
-    dsimp only
-    ring
+    congr 1; dsimp only; ring
 
 theorem extractSeed_eq_of_seedRep {base w w₀ c_tab d b_char M_out : ℕ}
     {θ : Seed w₀ c_tab d b_char M_out} {mem : ℕ → ℕ}
@@ -534,52 +451,28 @@ theorem extractSeed_eq_of_seedRep {base w w₀ c_tab d b_char M_out : ℕ}
     extractSeed base w w₀ c_tab d b_char M_out mem = θ := by
   rcases θ with ⟨α, T₁, T₂⟩
   rcases hrep with ⟨hα, hT₁, hT₂⟩
-  apply Prod.ext
-  · apply Fin.ext
-    dsimp only [extractSeed]
-    rw [hα, wordOfNat_val_of_lt α.isLt]
-  · apply Prod.ext
-    · funext i j ch
-      apply Fin.ext
-      change readPacked (base + 1) b_char w mem
-        (DoubleTabulation.topIndexEquiv (c_tab + 1) d b_char (i, j, ch)).val = (T₁ i j ch).val
-      rw [DoubleTabulation.val_topIndexEquiv]
-      exact hT₁ i j ch
-    · funext j y
-      apply Fin.ext
-      change readPacked (base + offBot w c_tab d b_char) M_out w mem
-        (finProdFinEquiv (j, y)).val = (T₂ j y).val
-      rw [finProdFinEquiv_apply_val]
-      rw [show (j, y).2.val + 2 ^ b_char * (j, y).1.val = j.val * 2 ^ b_char + y.val by
-        dsimp only; ring]
-      exact hT₂ j y
+  refine Prod.ext (Fin.ext (by dsimp only [extractSeed]; rw [hα, wordOfNat_val_of_lt α.isLt]))
+    (Prod.ext (funext fun i => funext fun j => funext fun ch => Fin.ext ?_)
+      (funext fun j => funext fun y => Fin.ext ?_))
+  · change readPacked _ _ _ _ (DoubleTabulation.topIndexEquiv _ _ _ (i, j, ch)).val = _
+    rw [DoubleTabulation.val_topIndexEquiv]; exact hT₁ i j ch
+  · change readPacked _ _ _ _ (finProdFinEquiv (j, y)).val = _
+    rw [finProdFinEquiv_apply_val, show (j, y).2.val + 2 ^ b_char * (j, y).1.val =
+      j.val * 2 ^ b_char + y.val by dsimp only; ring]
+    exact hT₂ j y
 
 theorem seedRep_congr_mem {base w w₀ c_tab d b_char M_out : ℕ}
     {θ : Seed w₀ c_tab d b_char M_out} {mem mem' : ℕ → ℕ} (hw : 0 < w)
     (hrep : SeedRep base w w₀ c_tab d b_char M_out θ mem)
     (heq : ∀ a, base ≤ a → a < base + space w c_tab d b_char M_out → mem' a = mem a) :
     SeedRep base w w₀ c_tab d b_char M_out θ mem' := by
-  have hsp_eq : space w c_tab d b_char M_out =
-      1 + topWords w c_tab d b_char + botWords w d b_char M_out := rfl
-  refine ⟨(heq base le_rfl (by omega)).trans hrep.1, ?_, ?_⟩
-  · intro i j ch
-    have hidx :
-        (j.val * (c_tab + 1) + i.val) * 2 ^ b_char + ch.val < topEntries c_tab d b_char := by
-      have h := DoubleTabulation.topAddr_lt_base_add_topWords 0 (c_tab + 1) d b_char i j ch
-      dsimp only [DoubleTabulation.topAddr, DoubleTabulation.topWords, topEntries] at h ⊢
-      omega
-    rw [readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
-      heq a (by omega) (by dsimp only [topWords] at hsp_eq; omega)) hidx]
+  refine ⟨(heq base le_rfl (by wram_omega)).trans hrep.1, fun i j ch => ?_, fun j y => ?_⟩
+  · rw [readPacked_congr hw (fun a ⟨ha1, ha2⟩ => heq a (by omega) (by wram_omega))
+      (topIdx_lt_topEntries i.isLt j.isLt ch.isLt)]
     exact hrep.2.1 i j ch
-  · intro j y
-    have hidx : j.val * 2 ^ b_char + y.val < botEntries d b_char := by
-      calc j.val * 2 ^ b_char + y.val
-          < j.val * 2 ^ b_char + 2 ^ b_char := Nat.add_lt_add_left y.isLt _
-        _ = (j.val + 1) * 2 ^ b_char := by ring
-        _ ≤ d * 2 ^ b_char := Nat.mul_le_mul_right _ j.isLt
-    rw [readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
-      heq a (by unfold offBot at ha1; omega)
-        (by dsimp only [offBot, botWords] at ha2 hsp_eq ⊢; omega)) hidx]
+  · have hidx : j.val * 2 ^ b_char + y.val < botEntries d b_char := by
+      simpa only [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt j.isLt y.isLt
+    rw [readPacked_congr hw (fun a ⟨ha1, ha2⟩ => heq a (by omega) (by wram_omega)) hidx]
     exact hrep.2.2 j y
 
 /-- Congruence of `SeedRep` under memory updates preserving `[base, base + space)`. -/
@@ -609,16 +502,13 @@ private def bothPackedProjHom (w c_tab d b_char M_out : ℕ) (hw : 0 < w) :
 private theorem surjective_bothPackedProjHom {w c_tab d b_char M_out : ℕ} (hw : 0 < w) :
     Function.Surjective (bothPackedProjHom w c_tab d b_char M_out hw) := by
   rintro ⟨t₁, t₂⟩
-  obtain ⟨w₁, hw₁⟩ := surjective_bitPackedProjHom (N := topEntries c_tab d b_char)
-    (k := b_char) hw t₁
-  obtain ⟨w₂, hw₂⟩ := surjective_bitPackedProjHom (N := botEntries d b_char)
-    (k := M_out) hw t₂
+  obtain ⟨w₁, hw₁⟩ := surjective_bitPackedProjHom hw t₁
+  obtain ⟨w₂, hw₂⟩ := surjective_bitPackedProjHom hw t₂
   refine ⟨Fin.addCases w₁ w₂, ?_⟩
-  dsimp only [bothPackedProjHom, AddMonoidHom.coe_mk, ZeroHom.coe_mk]
   have hl : (fun q => Fin.addCases w₁ w₂ (Fin.castAdd (botWords w d b_char M_out) q)) = w₁ :=
-    funext fun q => Fin.addCases_left q
+    funext Fin.addCases_left
   have hr : (fun q => Fin.addCases w₁ w₂ (Fin.natAdd (topWords w c_tab d b_char) q)) = w₂ :=
-    funext fun q => Fin.addCases_right q
+    funext Fin.addCases_right
   exact Prod.ext
     ((congrArg (bitPackedProjHom (topEntries c_tab d b_char) b_char w hw) hl).trans hw₁)
     ((congrArg (bitPackedProjHom (botEntries d b_char) M_out w hw) hr).trans hw₂)
@@ -676,6 +566,8 @@ into `[base, base + space w c_tab d b_char M_out)`. -/
 @[expose] def resampleSteps (w c_tab d b_char M_out : ℕ) : ℕ :=
   5 * (topWords w c_tab d b_char + botWords w d b_char M_out) + 10
 
+attribute [local wram_arith] resampleSteps
+
 /-- Explicit `ProbComp (Data 12 × ℕ)` induced by `resampleCode`. -/
 @[expose] noncomputable def resampleComp (base w w₀ c_tab d b_char M_out : ℕ) (x : Data 12) :
     ProbComp (Data 12 × ℕ) := do
@@ -692,144 +584,25 @@ theorem resampleCode_execRand {w w₀ base c_tab d b_char M_out : ℕ} {x : Data
     (hfit_end : Fits w (base + space w c_tab d b_char M_out)) :
     ExecRand w (resampleCode w w₀ c_tab d b_char M_out) x
       (resampleComp base w w₀ c_tab d b_char M_out x) := by
-  have hfit_mask_α : Fits w (2 ^ (w₀ - 1) - 1) := by
-    have hle : w₀ - 1 < w := by omega
-    calc 2 ^ (w₀ - 1) - 1 < 2 ^ (w₀ - 1) := Nat.sub_lt (Nat.two_pow_pos _) one_pos
-      _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hle.le
+  have hfit_mask_α : Fits w (2 ^ (w₀ - 1) - 1) :=
+    (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans_le (Nat.pow_le_pow_right two_pos (by omega))
   have hfit_mask_w : Fits w (2 ^ w - 1) := Nat.sub_lt (Nat.two_pow_pos w) one_pos
-  have hfit_one : Fits w 1 := by
-    change 1 < 2 ^ w
-    exact Nat.one_lt_two_pow hw.ne'
-  have hfit_sp : Fits w (space w c_tab d b_char M_out) := hfit_end.of_le (by omega)
-  have hfit_b1 : Fits w (base + 1) :=
-    hfit_end.of_le (by have := space_pos w c_tab d b_char M_out; omega)
-  set d0 := x.set 5 (2 ^ (w₀ - 1) - 1)
-  have s1 : Exec w (.op (.const 5 (2 ^ (w₀ - 1) - 1)) : Code .exact 12) x d0 1 :=
-    Exec.const hfit_mask_α
-  have s2_raw := ExecRand.rand (B := .exact) (w := w) (dst := (7 : Fin 12)) (src := (5 : Fin 12))
-    (x := d0) (by simp +decide [d0, hfit_mask_α])
-  have hr5_d0 : d0.regs 5 = 2 ^ (w₀ - 1) - 1 := by simp +decide [d0]
-  rw [hr5_d0] at s2_raw
-  have s12 := ExecRand.seq
-    (m₂ := fun z => do
-      let k ← ProbComp.unifFin (2 ^ (w₀ - 1) - 1)
-      pure (z.set 7 k.val, 1))
-    s1.execRand (fun z hz => by cases OracleComp.eq_of_mem_supportWith_pure hz; exact s2_raw)
-  have s_rest : ∀ z ∈ (do
-      let k ← ProbComp.unifFin (2 ^ (w₀ - 1) - 1)
-      pure (d0.set 7 k.val, 1 + 1) : ProbComp (Data 12 × ℕ)).support,
-      ExecRand w
-        (.seq
-          (.seq (.op (.store 0 7))
-          (.seq (.op (.const 6 1))
-          (.seq (.op (.exactBin .add 3 0 6))
-          (.seq (.op (.const 4 (space w c_tab d b_char M_out)))
-          (.seq (.op (.exactBin .add 4 0 4))
-                (.op (.const 5 (2 ^ w - 1))))))))
-          (Tabulation.randFillLoop.rename DoubleTabulation.fillMap12))
-        z.1
-        (do
-          let x1 := ((((((z.1.write base (z.1.regs 7)).set 6 1).set 3 (base + 1)).set 4
-            (base + space w c_tab d b_char M_out)).set 5 (2 ^ w - 1)))
-          let zf ← Tabulation.randFillComp w (base + 1)
-            (topWords w c_tab d b_char + botWords w d b_char M_out)
-            (x1.comap DoubleTabulation.fillMap12)
-          pure (zf.1.extend DoubleTabulation.fillMap12 x1, 6 + zf.2)) := by
-    intro z hz
-    obtain ⟨k, -, hk⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-    cases OracleComp.eq_of_mem_supportWith_pure hk
-    set a0 := d0.set 7 k.val
-    have ha0_0 : a0.regs 0 = base := by simp +decide [a0, d0, hbase]
-    have ha0_7 : a0.regs 7 = k.val := by simp +decide [a0]
-    set a1 := a0.write base k.val
-    have e1 : Exec w (.op (.store 0 7) : Code .exact 12) a0 a1 1 := by
-      simpa [a1, ha0_0, ha0_7] using (Exec.store (B := .exact) (w := w) (a := 0) (s := 7) (x := a0))
-    set a2 := a1.set 6 1
-    have e2 : Exec w (.op (.const 6 1) : Code .exact 12) a1 a2 1 := Exec.const hfit_one
-    set a3 := a2.set 3 (base + 1)
-    have e3 : Exec w (.op (.exactBin .add 3 0 6) : Code .exact 12) a2 a3 1 := by
-      apply Exec.op
-      rw [Op.eval_exactBin]
-      have h0 : a2.regs 0 = base := by simp +decide [a2, a1, Data.write, ha0_0]
-      have h6 : a2.regs 6 = 1 := by simp +decide [a2]
-      rw [h0, h6]
-      exact Data.put_of_fits hfit_b1
-    set a4 := a3.set 4 (space w c_tab d b_char M_out)
-    have e4 : Exec w (.op (.const 4 (space w c_tab d b_char M_out)) : Code .exact 12) a3 a4 1 :=
-      Exec.const hfit_sp
-    set a5 := a4.set 4 (base + space w c_tab d b_char M_out)
-    have e5 : Exec w (.op (.exactBin .add 4 0 4) : Code .exact 12) a4 a5 1 := by
-      apply Exec.op
-      rw [Op.eval_exactBin]
-      have h0 : a4.regs 0 = base := by simp +decide [a4, a3, a2, a1, Data.write, ha0_0]
-      have h4 : a4.regs 4 = space w c_tab d b_char M_out := by simp +decide [a4]
-      rw [h0, h4]
-      exact Data.put_of_fits hfit_end
-    set a6 := a5.set 5 (2 ^ w - 1)
-    have e6 : Exec w (.op (.const 5 (2 ^ w - 1)) : Code .exact 12) a5 a6 1 :=
-      Exec.const hfit_mask_w
-    have edet : Exec w
-        (.seq (.op (.store 0 7))
-        (.seq (.op (.const 6 1))
-        (.seq (.op (.exactBin .add 3 0 6))
-        (.seq (.op (.const 4 (space w c_tab d b_char M_out)))
-        (.seq (.op (.exactBin .add 4 0 4))
-              (.op (.const 5 (2 ^ w - 1)))))))) a0 a6 6 :=
-      e1.seq (e2.seq (e3.seq (e4.seq (e5.seq e6))))
-    have hsp_eq : (base + 1) + (topWords w c_tab d b_char + botWords w d b_char M_out) =
-        base + space w c_tab d b_char M_out := by
-      unfold space; omega
-    have hloop_in := Tabulation.randFillLoop_execRand (w := w) (bits := w) (arrBase := base + 1)
+  have hfit_one : Fits w 1 := Nat.one_lt_two_pow hw.ne'
+  have hsp_eq : (base + 1) + (topWords w c_tab d b_char + botWords w d b_char M_out) =
+      base + space w c_tab d b_char M_out := by wram_omega
+  unfold resampleCode
+  wram_rand_exec (disch := first | fits | omega | wram_omega) [hbase]
+  · wram_rand_call (Tabulation.randFillLoop_execRand (bits := w) (arrBase := base + 1)
       (topWords w c_tab d b_char + botWords w d b_char M_out)
-      (x := a6.comap DoubleTabulation.fillMap12)
-      (by simp +decide [a6, a5, a4, a3, DoubleTabulation.fillMap12, Data.comap])
-      (by simp +decide [a6, a5, DoubleTabulation.fillMap12, Data.comap, hsp_eq])
-      (by simp +decide [a6, DoubleTabulation.fillMap12, Data.comap])
-      (by simp +decide [a6, a5, a4, a3, a2, DoubleTabulation.fillMap12, Data.comap])
-      (by rwa [hsp_eq]) hfit_mask_w
-    have hloop := hloop_in.rename DoubleTabulation.injective_fillMap12
-    have ha6 : a6 = (((((a0.write base k.val).set 6 1).set 3 (base + 1)).set 4
-        (base + space w c_tab d b_char M_out)).set 5 (2 ^ w - 1)) := by
-      dsimp only [a6, a5, a4, a3, a2, a1]
-      congr 1
-      ext i <;> simp [Data.set]
-    have hseq := ExecRand.seq
-      (m₂ := fun zf_in : Data 12 =>
-        (fun zf : Data 6 × ℕ => (zf.1.extend DoubleTabulation.fillMap12 zf_in, zf.2)) <$>
-          Tabulation.randFillComp w (base + 1)
-            (topWords w c_tab d b_char + botWords w d b_char M_out)
-            (zf_in.comap DoubleTabulation.fillMap12))
-      edet.execRand (fun zf_in hz_in => by
-        cases OracleComp.eq_of_mem_supportWith_pure hz_in
-        exact hloop)
-    rw [ha6] at hseq
-    simpa only [ha0_7, bind_assoc, pure_bind, map_eq_bind_pure_comp, Function.comp_def] using hseq
-  have hall := ExecRand.seq
-    (c₁ := .seq (.op (.const 5 (2 ^ (w₀ - 1) - 1))) (.rand 7 5))
-    (c₂ := .seq
-        (.seq (.op (.store 0 7))
-        (.seq (.op (.const 6 1))
-        (.seq (.op (.exactBin .add 3 0 6))
-        (.seq (.op (.const 4 (space w c_tab d b_char M_out)))
-        (.seq (.op (.exactBin .add 4 0 4))
-              (.op (.const 5 (2 ^ w - 1))))))))
-        (Tabulation.randFillLoop.rename DoubleTabulation.fillMap12))
-    (m₂ := fun z => do
-      let x1 := ((((((z.write base (z.regs 7)).set 6 1).set 3 (base + 1)).set 4
-        (base + space w c_tab d b_char M_out)).set 5 (2 ^ w - 1)))
-      let zf ← Tabulation.randFillComp w (base + 1)
-        (topWords w c_tab d b_char + botWords w d b_char M_out)
-        (x1.comap DoubleTabulation.fillMap12)
-      pure (zf.1.extend DoubleTabulation.fillMap12 x1, 6 + zf.2))
-    (by simpa only [bind_assoc, pure_bind] using s12)
-    (fun z hz => by
-      have hz' : z ∈ (do
-          let k ← ProbComp.unifFin (2 ^ (w₀ - 1) - 1)
-          pure (d0.set 7 k.val, 1 + 1) : ProbComp (Data 12 × ℕ)).support := by
-        simpa only [bind_assoc, pure_bind] using hz
-      exact s_rest z hz')
-  simpa only [resampleCode, resampleComp, d0, Data.set_regs, Function.update_self,
-    bind_assoc, pure_bind] using hall
+      (by simp +decide [DoubleTabulation.fillMap12, Data.comap, Data.write])
+      (by simp +decide [DoubleTabulation.fillMap12, Data.comap, Data.write, hsp_eq])
+      (by simp +decide [DoubleTabulation.fillMap12, Data.comap, Data.write])
+      (by simp +decide [DoubleTabulation.fillMap12, Data.comap, Data.write])
+      (hsp_eq.symm ▸ hfit_end) hfit_mask_w) renamed DoubleTabulation.injective_fillMap12
+  · have hset : ∀ (d : Data 12) (a b : ℕ), (d.set 4 a).set 4 b = d.set 4 b := fun _ _ _ => by
+      simp [Data.set]
+    simp only [resampleComp, ← bind_pure_comp, bind_assoc, pure_bind, hset]
+    congr 1; funext kα; congr 1; funext z; congr 2; omega
 
 theorem isQueryBounded_resampleComp (base w w₀ c_tab d b_char M_out : ℕ) (x : Data 12) :
     (resampleComp base w w₀ c_tab d b_char M_out x).IsQueryBounded
@@ -855,42 +628,53 @@ theorem mem_support_resampleComp {base w w₀ c_tab d b_char M_out : ℕ} {x : D
     (∀ a, (a < base ∨ base + space w c_tab d b_char M_out ≤ a) → z.1.mem a = x.mem a) ∧
     z.1.Bounded w ∧
     z.2 = resampleSteps w c_tab d b_char M_out := by
-  have hex := resampleCode_execRand hw hw₀_le hbase hfit_end
-  have hbdd := hex.bounded hx_bdd hz
+  have hbdd := (resampleCode_execRand hw hw₀_le hbase hfit_end).bounded hx_bdd hz
   dsimp only [resampleComp] at hz
-  obtain ⟨kα, -, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-  obtain ⟨zf, hzf, hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
-  cases OracleComp.eq_of_mem_supportWith_pure hpure
+  supp_cases hz with ⟨kα, zf, hzf, rfl⟩
   obtain ⟨hsteps, _, _, _, _, hextra, hlt, hframe⟩ := Tabulation.mem_support_randFillComp hzf
-  set x1 := (((((((x.set 5 (2 ^ (w₀ - 1) - 1)).set 7 kα.val).write base kα.val).set 6 1).set 3
-    (base + 1)).set 4 (base + space w c_tab d b_char M_out)).set 5 (2 ^ w - 1))
-  set y := zf.1.extend DoubleTabulation.fillMap12 x1
-  have hy0 : y.regs 0 = base := by
-    change (y.comap DoubleTabulation.fillMap12).regs Tabulation.regExtra = base
-    rw [Data.comap_extend DoubleTabulation.injective_fillMap12, hextra]
-    simp +decide [x1, Data.write, DoubleTabulation.fillMap12, Data.comap, hbase]
-  have hkα_lt : kα.val < 2 ^ (w₀ - 1) := by
-    have hpos : 1 ≤ 2 ^ (w₀ - 1) := Nat.one_le_two_pow
-    have hk := kα.isLt
-    omega
   have hmem_base : zf.1.mem base = kα.val := by
     rw [hframe base (Or.inl (by omega))]
-    simp [x1, Data.write]
-  have hsp_def : space w c_tab d b_char M_out =
-      1 + topWords w c_tab d b_char + botWords w d b_char M_out := rfl
-  refine ⟨hy0, seedRep_extractSeed
-    (by change zf.1.mem base < 2 ^ (w₀ - 1); rw [hmem_base]; exact hkα_lt), hlt, ?_, hbdd, ?_⟩
-  · intro a ha
-    have ha_ne : a ≠ base := by omega
-    have ha_out : a < base + 1 ∨
-        base + 1 + (topWords w c_tab d b_char + botWords w d b_char M_out) ≤ a := by
-      omega
-    change zf.1.mem a = x.mem a
-    rw [hframe a ha_out]
-    simp [x1, Data.write, Function.update_of_ne ha_ne]
-  · unfold resampleSteps
-    rw [hsteps]
-    omega
+    simp [Data.write]
+  refine ⟨?_, seedRep_extractSeed (by
+    change zf.1.mem base < 2 ^ (w₀ - 1)
+    rw [hmem_base]
+    have := kα.isLt; have : 1 ≤ 2 ^ (w₀ - 1) := Nat.one_le_two_pow; omega),
+    hlt, fun a ha => ?_, hbdd, by wram_omega [hsteps]⟩
+  · change ((zf.1.extend DoubleTabulation.fillMap12 _).comap DoubleTabulation.fillMap12).regs
+      Tabulation.regExtra = base
+    rw [Data.comap_extend DoubleTabulation.injective_fillMap12, hextra]
+    simp +decide [DoubleTabulation.fillMap12, Data.comap, Data.write, hbase]
+  · rw [show (zf.1.extend DoubleTabulation.fillMap12 _).mem a = zf.1.mem a from rfl,
+      hframe a (by wram_omega)]
+    simp [Data.write, Function.update_of_ne (by wram_omega : a ≠ base)]
+
+private theorem extractSeed_eq_tablesOfWords {base w w₀ c_tab d b_char M_out : ℕ}
+    (hw : 0 < w) (hb_le : b_char ≤ w) (hM_le : M_out ≤ w) {mem : ℕ → ℕ}
+    (hlt : ∀ q < topWords w c_tab d b_char + botWords w d b_char M_out,
+      mem (base + 1 + q) < 2 ^ w) :
+    extractSeed base w w₀ c_tab d b_char M_out mem =
+      (wordOfNat (w₀ - 1) (mem base),
+        tablesOfWords w c_tab d b_char M_out hw
+          (Tabulation.extractSlice (base + 1) w
+            (topWords w c_tab d b_char + botWords w d b_char M_out) mem)) := by
+  have htop := extractPackedSlice_eq_packedSliceOfWords (arrBase := base + 1)
+    (N := topEntries c_tab d b_char) (k := b_char) hw hb_le
+    fun q hq => hlt q (by wram_omega)
+  have hbot := extractPackedSlice_eq_packedSliceOfWords
+    (arrBase := base + offBot w c_tab d b_char) (N := botEntries d b_char) (k := M_out) hw hM_le
+    fun q hq => by
+      have := hlt (topWords w c_tab d b_char + q) (by wram_omega)
+      rwa [show base + 1 + (topWords w c_tab d b_char + q) =
+        base + offBot w c_tab d b_char + q by wram_omega] at this
+  refine Prod.ext rfl (Prod.ext ?_ ?_)
+  · dsimp only [extractSeed, tablesOfWords]; rw [htop]; rfl
+  · dsimp only [extractSeed, tablesOfWords]; rw [hbot]
+    dsimp only [packedSliceOfWords, bothPackedProjHom, AddMonoidHom.coe_mk, ZeroHom.coe_mk]
+    congr 3; funext q
+    change (BitString.equivFin w).symm (wordOfNat w (mem (base + offBot _ _ _ _ + q.val))) =
+      (BitString.equivFin w).symm (wordOfNat w (mem (base + 1 + (topWords _ _ _ _ + q.val))))
+    rw [show base + offBot w c_tab d b_char + q.val =
+      base + 1 + (topWords w c_tab d b_char + q.val) by wram_omega]
 
 /-- **Exact product uniformity of `resampleComp`**: when `0 < w`, `b_char ≤ w`, and `M_out ≤ w`,
 the extracted seed `extractSeed base w w₀ c_tab d b_char M_out z.1.mem` under `resampleComp` has
@@ -903,120 +687,46 @@ theorem map_extractSeed_eval_resampleComp {base w w₀ c_tab d b_char M_out : �
   let eα : Fin (2 ^ (w₀ - 1) - 1 + 1) ≃ Fin (2 ^ (w₀ - 1)) :=
     finCongr (Nat.sub_add_cancel Nat.one_le_two_pow)
   let W_tot := topWords w c_tab d b_char + botWords w d b_char M_out
-  have hinner : ∀ kα : Fin (2 ^ (w₀ - 1) - 1 + 1),
+  dsimp only [resampleComp]
+  rw [ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind]
+  have hinner (kα : Fin (2 ^ (w₀ - 1) - 1 + 1)) :
       (let x1 := (((((((x.set 5 (2 ^ (w₀ - 1) - 1)).set 7 kα.val).write base kα.val).set 6 1).set 3
         (base + 1)).set 4 (base + space w c_tab d b_char M_out)).set 5 (2 ^ w - 1))
-       (do
-         let zf ← Tabulation.randFillComp w (base + 1) W_tot (x1.comap DoubleTabulation.fillMap12)
-         pure (zf.1.extend DoubleTabulation.fillMap12 x1, 2 + (6 + zf.2))).eval).map
+       (do let z ← Tabulation.randFillComp w (base + 1) W_tot (x1.comap DoubleTabulation.fillMap12)
+           pure (z.1.extend DoubleTabulation.fillMap12 x1, 2 + (6 + z.2))).eval).map
         (fun z : Data 12 × ℕ => extractSeed base w w₀ c_tab d b_char M_out z.1.mem) =
       (PMF.uniformOfFintype
         (DoubleTabTopSeed (c_tab + 1) d b_char × DoubleTabBotSeed d b_char M_out)).map
           (fun T => (eα kα, T)) := by
-    intro kα
     dsimp only
     set x1 := (((((((x.set 5 (2 ^ (w₀ - 1) - 1)).set 7 kα.val).write base kα.val).set 6 1).set 3
       (base + 1)).set 4 (base + space w c_tab d b_char M_out)).set 5 (2 ^ w - 1))
-    set mf := Tabulation.randFillComp w (base + 1) W_tot (x1.comap DoubleTabulation.fillMap12)
-    have hd : (do
-        let zf ← mf
-        pure (zf.1.extend DoubleTabulation.fillMap12 x1, 2 + (6 + zf.2))) =
-        (fun zf : Data 6 × ℕ => (zf.1.extend DoubleTabulation.fillMap12 x1, 2 + (6 + zf.2))) <$>
-          mf := bind_pure_comp _ _
-    rw [hd, ProbComp.eval_map, PMF.map_comp]
-    have hcongr :
-        mf.eval.map
-          ((fun z : Data 12 × ℕ => extractSeed base w w₀ c_tab d b_char M_out z.1.mem) ∘
-            fun zf : Data 6 × ℕ => (zf.1.extend DoubleTabulation.fillMap12 x1, 2 + (6 + zf.2))) =
-        mf.eval.map
-          ((fun T => (eα kα, T)) ∘
-            tablesOfWords w c_tab d b_char M_out hw ∘
-            fun zf : Data 6 × ℕ => Tabulation.extractSlice (base + 1) w W_tot zf.1.mem) := by
-      refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun zf hzf => ?_
+    rw [bind_pure_comp, ProbComp.eval_map, PMF.map_comp]
+    trans ((Tabulation.randFillComp w (base + 1) W_tot
+        (x1.comap DoubleTabulation.fillMap12)).eval.map
+      ((fun T => (eα kα, T)) ∘ tablesOfWords w c_tab d b_char M_out hw ∘
+        fun zf : Data 6 × ℕ => Tabulation.extractSlice (base + 1) w W_tot zf.1.mem))
+    · refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun zf hzf => ?_
       rw [ProbComp.support_eval] at hzf
       obtain ⟨_, _, _, _, _, _, hlt, hframe⟩ := Tabulation.mem_support_randFillComp hzf
-      have hmem_base : zf.1.mem base = kα.val := by
-        rw [hframe base (Or.inl (by omega))]
-        simp [x1, Data.write]
-      have hα_eq : wordOfNat (w₀ - 1) (zf.1.mem base) = eα kα := by
-        rw [hmem_base, wordOfNat_unifFin]
-      have htop_eq : extractPackedSlice (base + 1) (topEntries c_tab d b_char) b_char w zf.1.mem =
-          (Equiv.piCongrRight fun _ => BitString.equivFin b_char)
-            (bitPackedProjHom (topEntries c_tab d b_char) b_char w hw
-              (fun q => (BitString.equivFin w).symm
-                (Tabulation.extractSlice (base + 1) w W_tot zf.1.mem
-                  (Fin.castAdd (botWords w d b_char M_out) q)))) := by
-        rw [extractPackedSlice_eq_packedSliceOfWords hw hb_le
-          (fun q hq => hlt q (by dsimp only [W_tot, topWords]; omega))]
-        rfl
-      have hbot_eq : extractPackedSlice (base + offBot w c_tab d b_char) (botEntries d b_char)
-          M_out w zf.1.mem =
-          (Equiv.piCongrRight fun _ => BitString.equivFin M_out)
-            (bitPackedProjHom (botEntries d b_char) M_out w hw
-              (fun q => (BitString.equivFin w).symm
-                (Tabulation.extractSlice (base + 1) w W_tot zf.1.mem
-                  (Fin.natAdd (topWords w c_tab d b_char) q)))) := by
-        rw [extractPackedSlice_eq_packedSliceOfWords hw hM_le (fun q hq => by
-          have hq' : topWords w c_tab d b_char + q < W_tot := by
-            dsimp only [W_tot, botWords]; omega
-          simpa only [offBot, Nat.add_assoc] using hlt _ hq')]
-        dsimp only [packedSliceOfWords]
-        congr 2
-        funext q
-        change (BitString.equivFin w).symm
-            (wordOfNat w (zf.1.mem ((base + offBot w c_tab d b_char) + q.val))) =
-          (BitString.equivFin w).symm
-            (wordOfNat w (zf.1.mem ((base + 1) + (topWords w c_tab d b_char + q.val))))
-        rw [show (base + offBot w c_tab d b_char) + q.val =
-          (base + 1) + (topWords w c_tab d b_char + q.val) by unfold offBot; omega]
-      dsimp only [Function.comp_apply, extractSeed, tablesOfWords, Data.extend]
-      rw [hα_eq, htop_eq, hbot_eq]
-      rfl
-    rw [hcongr, ← PMF.map_comp, ← PMF.map_comp, Tabulation.map_extractSlice_eval_randFillComp,
-      uniformOfFintype_map_tablesOfWords]
-  dsimp only [resampleComp]
-  rw [ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind]
-  have hbind :
-      (PMF.uniformOfFintype (Fin (2 ^ (w₀ - 1) - 1 + 1))).bind
-        (fun kα =>
-          (let x1 := (((((((x.set 5 (2 ^ (w₀ - 1) - 1)).set 7 kα.val).write base kα.val).set 6
-            1).set 3 (base + 1)).set 4 (base + space w c_tab d b_char M_out)).set 5 (2 ^ w - 1))
-           (do
-             let zf ← Tabulation.randFillComp w (base + 1) W_tot
-               (x1.comap DoubleTabulation.fillMap12)
-             pure (zf.1.extend DoubleTabulation.fillMap12 x1, 2 + (6 + zf.2))).eval).map
-            (fun z : Data 12 × ℕ => extractSeed base w w₀ c_tab d b_char M_out z.1.mem)) =
-      (PMF.uniformOfFintype (Fin (2 ^ (w₀ - 1) - 1 + 1))).bind
-        (fun kα =>
-          (PMF.uniformOfFintype
-            (DoubleTabTopSeed (c_tab + 1) d b_char × DoubleTabBotSeed d b_char M_out)).map
-              (fun T => (eα kα, T))) := by
-    congr 1
-    funext kα
-    exact hinner kα
+      have hbase : zf.1.mem base = kα.val := by
+        rw [hframe base (Or.inl (by omega))]; simp [x1, Data.write]
+      dsimp only [Function.comp_apply, Data.extend]
+      rw [extractSeed_eq_tablesOfWords hw hb_le hM_le hlt, hbase, wordOfNat_unifFin]
+    · rw [← PMF.map_comp, ← PMF.map_comp, Tabulation.map_extractSlice_eval_randFillComp,
+        uniformOfFintype_map_tablesOfWords]
+  have hbind : _ = (PMF.uniformOfFintype _).bind
+      (fun kα => (PMF.uniformOfFintype _).map fun T => (eα kα, T)) :=
+    congrArg (PMF.uniformOfFintype _).bind (funext hinner)
   rw [hbind]
-  have heq_α := PMF.uniformOfFintype_map_equiv eα
-  have hprod :
-      ((PMF.uniformOfFintype (Fin (2 ^ (w₀ - 1) - 1 + 1))).map eα).bind
-        (fun α =>
-          (PMF.uniformOfFintype
-            (DoubleTabTopSeed (c_tab + 1) d b_char × DoubleTabBotSeed d b_char M_out)).map
-              (fun T => (α, T))) =
+  have hprod : ((PMF.uniformOfFintype (Fin (2 ^ (w₀ - 1) - 1 + 1))).map eα).bind
+      (fun α => (PMF.uniformOfFintype _).map fun T => (α, T)) =
       PMF.uniformOfFintype (Seed w₀ c_tab d b_char M_out) := by
-    rw [heq_α]
-    dsimp only [Seed]
-    exact uniformOfFintype_prod _ _
+    rw [PMF.uniformOfFintype_map_equiv eα]; exact uniformOfFintype_prod _ _
   rwa [PMF.bind_map] at hprod
 
 
 /-! ## Section 3: `Memory.Prog` + `realize` deterministic `O(c_tab * d)` evaluation -/
-
-@[simp]
-private theorem clientResult_pure' {α : Type} (w : ℕ) (s : Memory.State) (a : α) :
-    (Memory.spec w).clientResult s (pure a) = a := rfl
-
-private theorem clientState_pure' {α : Type} (w : ℕ) (s : Memory.State) (a : α) :
-    (Memory.spec w).clientState s (pure a) = s := rfl
 
 /-- Runtime register block of 16 precomputed hash parameters for parameter-free `Realizes`. -/
 @[expose] def HashParams : Type := Fin 16 → ℕ
@@ -1076,39 +786,6 @@ instance : WordEncoding HashParams := ⟨16, Function.Embedding.refl (Fin 16 →
 /-- Dimension $d$ in the hash parameter vector. -/
 @[expose] def hpD (hp : HashParams) : ℕ := hp 15
 
-private theorem mkHashParams_0 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 0 = w := rfl
-private theorem mkHashParams_1 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 1 = w₀ - R := rfl
-private theorem mkHashParams_2 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 2 = (w₀ - 1) / 2 := rfl
-private theorem mkHashParams_3 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 3 = 2 * ((w₀ - 1) / 2) := rfl
-private theorem mkHashParams_4 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 4 = 2 ^ (w₀ - 1) - 1 := rfl
-private theorem mkHashParams_5 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 5 = 2 ^ ((w₀ - 1) / 2) - 1 := rfl
-private theorem mkHashParams_6 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 6 = 2 ^ ((w₀ - 1) - (w₀ - 1) / 2) - 1 := rfl
-private theorem mkHashParams_7 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 7 = 2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1 := rfl
-private theorem mkHashParams_8 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 8 = b_char := rfl
-private theorem mkHashParams_9 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 9 = 2 ^ b_char - 1 := rfl
-private theorem mkHashParams_10 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 10 = 2 ^ b_char := rfl
-private theorem mkHashParams_11 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 11 = M_out := rfl
-private theorem mkHashParams_12 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 12 = offBot w c_tab d b_char := rfl
-private theorem mkHashParams_13 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 13 = c_tab + 1 := rfl
-private theorem mkHashParams_14 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 14 = c_tab := rfl
-private theorem mkHashParams_15 (w w₀ R c_tab d b_char M_out : ℕ) :
-    mkHashParams w w₀ R c_tab d b_char M_out 15 = d := rfl
-
 @[simp] theorem hpW_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpW (mkHashParams w w₀ R c_tab d b_char M_out) = w := rfl
 @[simp] theorem hpShiftR_mk (w w₀ R c_tab d b_char M_out : ℕ) :
@@ -1159,30 +836,39 @@ theorem fits_mkHashParams {w base : ℕ} {hp : HashParams} (henv : HashEnv w hp 
   obtain ⟨w₀, R, c_tab, d, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, _, _, hc1, hd_lt, hfit_sp,
     rfl⟩ := henv
   have hw_lt : w < 2 ^ w := Nat.lt_two_pow_self
+  have mask_lt {k : ℕ} (hk : k ≤ w) : 2 ^ k - 1 < 2 ^ w :=
+    (Nat.sub_lt (Nat.two_pow_pos k) one_pos).trans_le (Nat.pow_le_pow_right two_pos hk)
   fin_cases i <;> dsimp only [mkHashParams, Fits]
   · exact hw_lt
   · exact (Nat.sub_le w₀ R).trans_lt (hw₀_le.trans_lt hw_lt)
   · exact (Nat.div_le_self _ 2).trans_lt ((Nat.sub_le w₀ 1).trans_lt (hw₀_le.trans_lt hw_lt))
   · exact (Nat.mul_div_le (w₀ - 1) 2).trans_lt ((Nat.sub_le w₀ 1).trans_lt (hw₀_le.trans_lt hw_lt))
-  · exact (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans_le
-      (Nat.pow_le_pow_right two_pos (by omega))
-  · exact (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans_le
-      (Nat.pow_le_pow_right two_pos (by omega))
-  · exact (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans_le
-      (Nat.pow_le_pow_right two_pos (by omega))
-  · exact (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans_le
-      (Nat.pow_le_pow_right two_pos (by omega))
+  · exact mask_lt (by omega)
+  · exact mask_lt (by omega)
+  · exact mask_lt (by omega)
+  · exact mask_lt (by omega)
   · exact hb.trans hw_lt
-  · exact (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans (Nat.pow_lt_pow_right (by decide) hb)
+  · exact mask_lt hb.le
   · exact Nat.pow_lt_pow_right (by decide) hb
   · exact hM.trans_lt hw_lt
-  · change offBot w c_tab d b_char < 2 ^ w
-    have hsp_eq : space w c_tab d b_char M_out =
-        offBot w c_tab d b_char + botWords w d b_char M_out := rfl
-    exact hfit_sp.of_le (by omega)
+  · exact hfit_sp.of_le (show offBot w c_tab d b_char ≤ base + space w c_tab d b_char M_out by
+      wram_omega)
   · exact hc1
   · exact (Nat.lt_succ_self c_tab).trans hc1
   · exact hd_lt
+
+/-- An iteration whose state-preserving body has constant memory cost `k` costs `n * k`. -/
+private theorem memoryCost_iterate_const {δ σ : Type} {body : δ × σ → Memory.Prog σ} {d : δ}
+    (s : Memory.State) (k : ℕ)
+    (hst : ∀ a, (Memory.spec 0).clientState s (body (d, a)) = s)
+    (hcost : ∀ a, memoryCost (body (d, a)) s = k) (n : ℕ) (a : σ) :
+    memoryCost (iterate body d n a) s = n * k := by
+  induction n generalizing a with
+  | zero => simp [iterate]
+  | succ n ih =>
+    unfold iterate
+    rw [memoryCost_bind', hcost, hst, ih]
+    ring
 
 /-- Inner-loop body (`p = ((hp, (base, j)), ((i, y_acc), r_cur))`): extracts character `i` from
 `r_cur`, reads `T₁[i, j, ch]`, XORs into `y_acc`, and shifts `r_cur` right by `b_char`. -/
@@ -1221,64 +907,61 @@ private theorem memoryCost_innerStepGenProg_pos (p : (HashParams × (ℕ × ℕ)
     i < hpCTab hp ∧
     y_acc < hpPowB hp
 
+private theorem clientResult_innerStepGenProg (hp : HashParams) (base j i y r : ℕ)
+    (s : Memory.State) :
+    (Memory.spec 0).clientResult s (innerStepGenProg ((hp, (base, j)), ((i, y), r))) =
+      ((i + 1, y ^^^ readPacked (base + 1) (hpBChar hp) (hpW hp) s.mem
+        ((j * hpCPlusOne hp + i) * hpPowB hp + (r &&& hpMaskB hp))), r >>> hpBChar hp) := rfl
+
+private theorem clientState_iterate_innerStep (ctx : HashParams × (ℕ × ℕ)) (n : ℕ)
+    (st : (ℕ × ℕ) × ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientState s (iterate innerStepGenProg ctx n st) = s :=
+  clientState_iterate_eq_of innerStepGenProg ctx (fun _ _ => rfl) n st s
+
+private theorem memoryCost_iterate_innerStep (ctx : HashParams × (ℕ × ℕ)) (n : ℕ)
+    (st : (ℕ × ℕ) × ℕ) (s : Memory.State) :
+    memoryCost (iterate innerStepGenProg ctx n st) s = 2 * n := by
+  simpa only [Nat.mul_comm] using
+    memoryCost_iterate_const s 2 (fun _ => rfl) (fun _ => memoryCost_innerStepGenProg _ s) n st
+
+/-- Shared side-condition pack for a top-table `readPackedGenProg` lookup in `realize`. -/
+private theorem topRead_realizeObligs {w c_tab d_par b_char M_out base i j ch : ℕ}
+    (hw : 0 < w) (hb : b_char ≤ w) (htop_lt : topEntries c_tab d_par b_char < 2 ^ w)
+    (hfit_sp : Fits w (base + space w c_tab d_par b_char M_out))
+    (hi : i < c_tab + 1) (hj : j < d_par) (hch : ch < 2 ^ b_char) :
+    Fits w (j * (c_tab + 1) + i) ∧
+    Fits w ((j * (c_tab + 1) + i) * 2 ^ b_char + ch) ∧
+    Fits w 1 ∧
+    ∃ N, True ∧ 0 < w ∧ b_char ≤ w ∧
+      (j * (c_tab + 1) + i) * 2 ^ b_char + ch < N ∧
+      Fits w (base + 1 + packedWords N b_char w) :=
+  ⟨(topRow_lt_topEntries hi hj).trans htop_lt,
+    (topIdx_lt_topEntries hi hj hch).trans htop_lt,
+    Nat.one_lt_two_pow hw.ne',
+    topEntries c_tab d_par b_char, trivial, hw, hb, topIdx_lt_topEntries hi hj hch, by wram_omega⟩
+
 private theorem realizes_innerStepGen :
     Realizes .exact innerStepGenProg
       (WordEncoding.encode (α := (HashParams × (ℕ × ℕ)) × ((ℕ × ℕ) × ℕ)))
       (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
       InnerStepGenPre
       (fun _ _ => 0) := by
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨hp, base, j⟩, ⟨i, y⟩, r⟩
-    obtain ⟨⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt,
-      hc1, hd_lt, hfit_sp, heq_hp⟩, hj_lt, hi_lt, hy_lt⟩ := h
-    subst heq_hp
-    dsimp only [hpW, hpBChar, hpMaskB, hpPowB, hpCPlusOne, hpCTab, hpD,
-      mkHashParams_0, mkHashParams_8, mkHashParams_9, mkHashParams_10, mkHashParams_13,
-      mkHashParams_14, mkHashParams_15] at *
+    obtain ⟨⟨w₀, R, c_tab, d_par, b_char, M_out, hw, _, _, hb, _, htop_lt, _, hc1, _,
+      hfit_sp, rfl⟩, hj_lt, hi_lt, hy_lt⟩ := h
+    simp only [hpW_mk, hpBChar_mk, hpMaskB_mk, hpPowB_mk, hpCPlusOne_mk, hpCTab_mk, hpD_mk] at *
+    have htop := topRead_realizeObligs (i := i) hw hb.le htop_lt hfit_sp (by omega) hj_lt
+      (Nat.and_lt_two_pow r (Nat.sub_lt (Nat.two_pow_pos _) one_pos))
   )
-  · have hrow_lt : j * (c_tab + 1) + i < d_par * (c_tab + 1) := by
-      calc j * (c_tab + 1) + i
-          < j * (c_tab + 1) + (c_tab + 1) := Nat.add_lt_add_left (by omega) _
-        _ = (j + 1) * (c_tab + 1) := by ring
-        _ ≤ d_par * (c_tab + 1) := Nat.mul_le_mul_right _ hj_lt
-    have hle_top : d_par * (c_tab + 1) ≤ topEntries c_tab d_par b_char := by
-      dsimp only [topEntries]
-      calc d_par * (c_tab + 1) = (c_tab + 1) * d_par * 1 := by ring
-        _ ≤ (c_tab + 1) * d_par * 2 ^ b_char :=
-            Nat.mul_le_mul_left _ (Nat.one_le_two_pow)
-    exact (hrow_lt.trans_le hle_top).trans htop_lt
-  · have hch_lt : r &&& (2 ^ b_char - 1) < 2 ^ b_char := by
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (Nat.two_pow_pos _)
-    have hidx_lt :
-        (j * (c_tab + 1) + i) * 2 ^ b_char + (r &&& (2 ^ b_char - 1)) <
-          topEntries c_tab d_par b_char := by
-      have h := DoubleTabulation.topAddr_lt_base_add_topWords 0 (c_tab + 1) d_par b_char
-        ⟨i, by omega⟩ ⟨j, hj_lt⟩ ⟨_, hch_lt⟩
-      dsimp only [DoubleTabulation.topAddr, DoubleTabulation.topWords, topEntries] at h ⊢
-      omega
-    exact hidx_lt.trans htop_lt
-  · exact Nat.one_lt_two_pow hw.ne'
-  · have hch_lt : r &&& (2 ^ b_char - 1) < 2 ^ b_char := by
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (Nat.two_pow_pos _)
-    have hidx_lt :
-        (j * (c_tab + 1) + i) * 2 ^ b_char + (r &&& (2 ^ b_char - 1)) <
-          topEntries c_tab d_par b_char := by
-      have h := DoubleTabulation.topAddr_lt_base_add_topWords 0 (c_tab + 1) d_par b_char
-        ⟨i, by omega⟩ ⟨j, hj_lt⟩ ⟨_, hch_lt⟩
-      dsimp only [DoubleTabulation.topAddr, DoubleTabulation.topWords, topEntries] at h ⊢
-      omega
-    refine ⟨topEntries c_tab d_par b_char, rfl, hw, hb.le, hidx_lt, ?_⟩
-    exact hfit_sp.of_le (by unfold space topWords; omega)
+  · exact htop.1
+  · exact htop.2.1
+  · exact htop.2.2.1
+  · exact htop.2.2.2
   · exact (by omega : i + 1 < c_tab + 1).trans hc1
-  · have ht_lt : readPacked (base + 1) b_char w s.mem
-        ((j * (c_tab + 1) + i) * 2 ^ b_char + (r &&& (2 ^ b_char - 1))) <
-        2 ^ b_char :=
-      readPacked_lt _ _ _ _ _
-    exact (Nat.xor_lt_two_pow hy_lt ht_lt).trans (Nat.pow_lt_pow_right (by decide) hb)
+  · exact (Nat.xor_lt_two_pow hy_lt (readPacked_lt _ _ _ _ _)).trans
+      (Nat.pow_lt_pow_right (by decide) hb)
 
 /-- Parameter-free wrapper for `iterate innerStepGenProg`. -/
 @[expose] def innerLoopGenProg :
@@ -1319,17 +1002,52 @@ private theorem realizes_innerLoopGen :
     let out_next ← pure (out_acc ^^^ z_j)
     pure (j_next, out_next)
 
+/-- Extract the XOR accumulator `y` from the inner-loop state `((i, y), r)`. -/
+abbrev innerAcc (st : (ℕ × ℕ) × ℕ) : ℕ := st.1.2
+
+private theorem clientState_outerStepGenProg
+    (p : (HashParams × (ℕ × (ℕ × ℕ))) × (ℕ × ℕ)) (s : Memory.State) :
+    (Memory.spec 0).clientState s (outerStepGenProg p) = s := by
+  rcases p with ⟨⟨hp, base, s_val, rKey⟩, j, out_acc⟩
+  unfold outerStepGenProg innerLoopGenProg readPackedGenProg
+  simp only [pure_bind]
+  rw [StateTransitionSpec.clientState_bind, clientState_iterate_innerStep,
+    StateTransitionSpec.clientState_bind, clientState_readPackedProg,
+    StateTransitionSpec.clientState_bind, clientState_readPackedProg]
+  rfl
+
+private theorem clientResult_outerStepGenProg
+    (hp : HashParams) (base s_val rKey j out_acc : ℕ) (s : Memory.State) :
+    let y_acc := innerAcc ((Memory.spec 0).clientResult s
+      (iterate innerStepGenProg (hp, (base, j)) (hpCTab hp) ((0, 0), rKey)))
+    let t_salt := readPacked (base + 1) (hpBChar hp) (hpW hp) s.mem
+      ((j * hpCPlusOne hp + hpCTab hp) * hpPowB hp + s_val)
+    let z_j := readPacked (base + hpOffBot hp) (hpMOut hp) (hpW hp) s.mem
+      (j * hpPowB hp + (y_acc ^^^ t_salt))
+    (Memory.spec 0).clientResult s
+      (outerStepGenProg ((hp, (base, (s_val, rKey))), (j, out_acc))) =
+      (j + 1, out_acc ^^^ z_j) := by
+  unfold outerStepGenProg innerLoopGenProg readPackedGenProg
+  simp only [pure_bind]
+  rw [StateTransitionSpec.clientResult_bind, clientState_iterate_innerStep,
+    StateTransitionSpec.clientResult_bind, clientState_readPackedProg, clientResult_readPackedProg,
+    StateTransitionSpec.clientResult_bind, clientState_readPackedProg, clientResult_readPackedProg,
+    StateTransitionSpec.clientResult_pure]
+
+private theorem memoryCost_outerStepGenProg
+    (hp : HashParams) (base s_val rKey j out_acc : ℕ) (s : Memory.State) :
+    memoryCost (outerStepGenProg ((hp, (base, (s_val, rKey))), (j, out_acc))) s =
+      2 * (hpCTab hp + 2) := by
+  unfold outerStepGenProg innerLoopGenProg readPackedGenProg
+  simp only [pure_bind, memoryCost_bind', memoryCost_pure, memoryCost_iterate_innerStep,
+    memoryCost_readPackedProg]
+  ring
+
 private theorem memoryCost_outerStepGenProg_pos
     (p : (HashParams × (ℕ × (ℕ × ℕ))) × (ℕ × ℕ)) (s : Memory.State) :
     1 ≤ memoryCost (outerStepGenProg p) s := by
   rcases p with ⟨⟨hp, base, s_val, rKey⟩, j, out_acc⟩
-  unfold outerStepGenProg readPackedGenProg
-  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
-  rw [memoryCost_bind, memoryCost_bind, memoryCost_readPackedProg]
-  omega
-
-/-- Extract the XOR accumulator `y` from the inner-loop state `((i, y), r)`. -/
-abbrev innerAcc (st : (ℕ × ℕ) × ℕ) : ℕ := st.1.2
+  rw [memoryCost_outerStepGenProg]; omega
 
 /-- Loop-safety, state-preservation, and accumulator-range invariant for `innerStepGenProg`. -/
 theorem innerLoop_invariant {w : ℕ} {hp : HashParams} {base j : ℕ} {s : Memory.State}
@@ -1340,41 +1058,24 @@ theorem innerLoop_invariant {w : ℕ} {hp : HashParams} {base j : ℕ} {s : Memo
         (iterate innerStepGenProg (hp, (base, j)) m ((i, y), r)) = s ∧
       innerAcc ((Memory.spec 0).clientResult s
         (iterate innerStepGenProg (hp, (base, j)) m ((i, y), r))) < hpPowB hp := by
-  obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt,
-    hc1, hd_lt, hfit_sp, rfl⟩ := henv
+  have henv₀ := henv
+  obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, _, _, _, _, _, _, _, _, _, rfl⟩ := henv
   intro m
   induction m with
-  | zero =>
-    intro i y r _ hy
-    exact ⟨trivial, rfl, hy⟩
+  | zero => exact fun i y r _ hy => ⟨trivial, rfl, hy⟩
   | succ m ih =>
     intro i y r him hy
-    dsimp only [hpCTab_mk, hpPowB_mk] at him hy ⊢
-    have hpre : InnerStepGenPre w ((mkHashParams w w₀ R c_tab d_par b_char M_out, (base, j)),
-        ((i, y), r)) s :=
-      ⟨⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt, hc1,
-        hd_lt, hfit_sp, rfl⟩, hj, by dsimp only [hpCTab_mk]; omega, hy⟩
-    have ht_lt : readPacked (base + 1) b_char w s.mem
-        ((j * (c_tab + 1) + i) * 2 ^ b_char + (r &&& (2 ^ b_char - 1))) < 2 ^ b_char :=
-      readPacked_lt _ _ _ _ _
-    have hy' : y ^^^ readPacked (base + 1) b_char w s.mem
-        ((j * (c_tab + 1) + i) * 2 ^ b_char + (r &&& (2 ^ b_char - 1))) < 2 ^ b_char :=
-      Nat.xor_lt_two_pow hy ht_lt
-    have hstep_st : (Memory.spec 0).clientState s
-        (innerStepGenProg ((mkHashParams w w₀ R c_tab d_par b_char M_out, (base, j)),
-          ((i, y), r))) = s := rfl
-    obtain ⟨hsafe_m, hst_m, hy_m⟩ := ih (i + 1)
-      (y ^^^ readPacked (base + 1) b_char w s.mem
-        ((j * (c_tab + 1) + i) * 2 ^ b_char + (r &&& (2 ^ b_char - 1))))
-      (r >>> b_char) (by dsimp only [hpCTab_mk]; omega) hy'
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_⟩
-    · rw [hstep_st]; exact hsafe_m
-    · unfold iterate
-      rw [StateTransitionSpec.clientState_bind, clientState_width, hstep_st]
-      exact hst_m
-    · unfold iterate
-      rw [StateTransitionSpec.clientResult_bind, clientState_width, hstep_st]
-      exact hy_m
+    simp only [hpCTab_mk, hpPowB_mk] at him hy ⊢
+    have hpre : InnerStepGenPre w ((_, (base, j)), ((i, y), r)) s :=
+      ⟨henv₀, hj, by simp only [hpCTab_mk]; omega, hy⟩
+    have hy' := Nat.xor_lt_two_pow hy (readPacked_lt (base + 1) b_char w s.mem
+      ((j * (c_tab + 1) + i) * 2 ^ b_char + (r &&& (2 ^ b_char - 1))))
+    obtain ⟨hsafe_m, _, hy_m⟩ := ih (i + 1) _ (r >>> b_char) (by simp only [hpCTab_mk]; omega) hy'
+    refine ⟨⟨hpre, hsafe_m⟩, clientState_iterate_innerStep _ _ _ s, ?_⟩
+    rw [iterate, StateTransitionSpec.clientResult_bind,
+      show (Memory.spec 0).clientState s (innerStepGenProg _) = s from rfl,
+      clientResult_innerStepGenProg]
+    simpa only [hpW_mk, hpBChar_mk, hpMaskB_mk, hpPowB_mk, hpCPlusOne_mk] using hy_m
 
 /-- Precondition for `outerStepGenProg`. -/
 private def OuterStepGenPre (w : ℕ) :
@@ -1388,10 +1089,7 @@ private def OuterStepGenPre (w : ℕ) :
 private theorem mul_add_xor_lt_botEntries {j d_par y t b_char : ℕ}
     (hj : j < d_par) (hy : y < 2 ^ b_char) (ht : t < 2 ^ b_char) :
     j * 2 ^ b_char + (y ^^^ t) < botEntries d_par b_char := by
-  calc j * 2 ^ b_char + (y ^^^ t)
-      < j * 2 ^ b_char + 2 ^ b_char := Nat.add_lt_add_left (Nat.xor_lt_two_pow hy ht) _
-    _ = (j + 1) * 2 ^ b_char := by ring
-    _ ≤ d_par * 2 ^ b_char := Nat.mul_le_mul_right _ hj
+  simpa only [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hj (Nat.xor_lt_two_pow hy ht)
 
 private theorem realizes_outerStepGen :
     Realizes .exact outerStepGenProg
@@ -1399,65 +1097,31 @@ private theorem realizes_outerStepGen :
       (WordEncoding.encode (α := ℕ × ℕ))
       OuterStepGenPre
       (fun _ _ => 0) := by
-  have hil := realizes_innerLoopGen
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_innerLoopGen, realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨hp, base, s_val, rKey⟩, j, out⟩
     obtain ⟨henv, hs_lt, hj_lt, hout_lt⟩ := h
-    obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt,
-      hc1, hd_lt, hfit_sp, heq_hp⟩ := henv
-    subst heq_hp
-    dsimp only [hpW, hpBChar, hpMaskB, hpPowB, hpMOut, hpOffBot, hpCPlusOne, hpCTab, hpD,
-      mkHashParams_0, mkHashParams_8, mkHashParams_9, mkHashParams_10, mkHashParams_11,
-      mkHashParams_12, mkHashParams_13, mkHashParams_14, mkHashParams_15] at *
-    have henv' : HashEnv w (mkHashParams w w₀ R c_tab d_par b_char M_out) base :=
-      ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt, hc1,
-        hd_lt, hfit_sp, rfl⟩
-    have hinv := innerLoop_invariant (s := s) henv' (by dsimp only [hpD_mk]; exact hj_lt)
-      c_tab 0 0 rKey (by dsimp only [hpCTab_mk]; omega)
-      (by dsimp only [hpPowB_mk]; exact Nat.two_pow_pos b_char)
-    dsimp only [hpPowB_mk] at hinv
+    have henv' := henv
+    obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, _, _, hb, hM, htop_lt, hbot_lt,
+      _, hd_lt, hfit_sp, rfl⟩ := henv
+    have hinv := innerLoop_invariant (s := s) henv' hj_lt c_tab 0 0 rKey
+      (by simp only [hpCTab_mk]; omega) (Nat.two_pow_pos b_char)
+    simp only [hpW_mk, hpBChar_mk, hpPowB_mk, hpMOut_mk, hpOffBot_mk, hpCPlusOne_mk, hpCTab_mk,
+      hpD_mk, innerLoopGenProg, readPackedGenProg, clientResult_readPackedProg] at *
+    have htop := topRead_realizeObligs (i := c_tab) hw hb.le htop_lt hfit_sp (by omega) hj_lt hs_lt
   )
   · exact hinv.1
-  · have hrow_s : j * (c_tab + 1) + c_tab < d_par * (c_tab + 1) := by
-      calc j * (c_tab + 1) + c_tab
-          < j * (c_tab + 1) + (c_tab + 1) := Nat.add_lt_add_left (by omega) _
-        _ = (j + 1) * (c_tab + 1) := by ring
-        _ ≤ d_par * (c_tab + 1) := Nat.mul_le_mul_right _ hj_lt
-    have hle_top : d_par * (c_tab + 1) ≤ topEntries c_tab d_par b_char := by
-      dsimp only [topEntries]
-      calc d_par * (c_tab + 1) = (c_tab + 1) * d_par * 1 := by ring
-        _ ≤ (c_tab + 1) * d_par * 2 ^ b_char := Nat.mul_le_mul_left _ Nat.one_le_two_pow
-    exact (hrow_s.trans_le hle_top).trans htop_lt
-  · have hidx_s : (j * (c_tab + 1) + c_tab) * 2 ^ b_char + s_val <
-        topEntries c_tab d_par b_char := by
-      have h := DoubleTabulation.topAddr_lt_base_add_topWords 0 (c_tab + 1) d_par b_char
-        ⟨c_tab, by omega⟩ ⟨j, hj_lt⟩ ⟨s_val, hs_lt⟩
-      dsimp only [DoubleTabulation.topAddr, DoubleTabulation.topWords, topEntries] at h ⊢
-      omega
-    exact hidx_s.trans htop_lt
-  · exact Nat.one_lt_two_pow hw.ne'
-  · have hidx_s : (j * (c_tab + 1) + c_tab) * 2 ^ b_char + s_val <
-        topEntries c_tab d_par b_char := by
-      have h := DoubleTabulation.topAddr_lt_base_add_topWords 0 (c_tab + 1) d_par b_char
-        ⟨c_tab, by omega⟩ ⟨j, hj_lt⟩ ⟨s_val, hs_lt⟩
-      dsimp only [DoubleTabulation.topAddr, DoubleTabulation.topWords, topEntries] at h ⊢
-      omega
-    refine ⟨topEntries c_tab d_par b_char, rfl, hw, hb.le, hidx_s, ?_⟩
-    exact hfit_sp.of_le (by unfold space topWords; omega)
-  · dsimp only [innerLoopGenProg, readPackedGenProg, clientResult_readPackedProg]
-    exact (Nat.xor_lt_two_pow hinv.2.2 (readPacked_lt _ _ _ _ _)).trans
+  · exact htop.1
+  · exact htop.2.1
+  · exact htop.2.2.1
+  · exact htop.2.2.2
+  · exact (Nat.xor_lt_two_pow hinv.2.2 (readPacked_lt _ _ _ _ _)).trans
       (Nat.pow_lt_pow_right (by decide) hb)
-  · dsimp only [innerLoopGenProg, readPackedGenProg, clientResult_readPackedProg]
-    exact (mul_add_xor_lt_botEntries hj_lt hinv.2.2 (readPacked_lt _ _ _ _ _)).trans hbot_lt
-  · dsimp only [innerLoopGenProg, readPackedGenProg, clientResult_readPackedProg]
-    refine ⟨botEntries d_par b_char, rfl, hw, hM,
-      mul_add_xor_lt_botEntries hj_lt hinv.2.2 (readPacked_lt _ _ _ _ _), ?_⟩
-    exact hfit_sp.of_le (by unfold space offBot botWords; omega)
+  · exact (mul_add_xor_lt_botEntries hj_lt hinv.2.2 (readPacked_lt _ _ _ _ _)).trans hbot_lt
+  · exact ⟨botEntries d_par b_char, trivial, hw, hM,
+      mul_add_xor_lt_botEntries hj_lt hinv.2.2 (readPacked_lt _ _ _ _ _), by wram_omega⟩
   · exact (by omega : j + 1 ≤ d_par).trans_lt hd_lt
-  · dsimp only [readPackedGenProg, clientResult_readPackedProg]
-    exact (Nat.xor_lt_two_pow hout_lt (readPacked_lt _ _ _ _ _)).trans_le
+  · exact (Nat.xor_lt_two_pow hout_lt (readPacked_lt _ _ _ _ _)).trans_le
       (Nat.pow_le_pow_right two_pos hM)
 
 /-- Parameter-free wrapper for `iterate outerStepGenProg`. -/
@@ -1484,71 +1148,18 @@ private theorem outerLoop_invariant {w : ℕ} {hp : HashParams} {base s_val rKey
       iterationSafe outerStepGenProg OuterStepGenPre w (hp, (base, (s_val, rKey))) m (j, out) s ∧
       (Memory.spec 0).clientState s
         (iterate outerStepGenProg (hp, (base, (s_val, rKey))) m (j, out)) = s := by
-  obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt,
-    hc1, hd_lt, hfit_sp, rfl⟩ := henv
   intro m
   induction m with
-  | zero =>
-    intro j out _ _
-    exact ⟨trivial, rfl⟩
+  | zero => exact fun j out _ _ => ⟨trivial, rfl⟩
   | succ m ih =>
     intro j out hjm hout
-    dsimp only [hpD_mk, hpMOut_mk] at hjm hout ⊢
-    have henv' : HashEnv w (mkHashParams w w₀ R c_tab d_par b_char M_out) base :=
-      ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt, hc1,
-        hd_lt, hfit_sp, rfl⟩
-    have hj_lt : j < hpD (mkHashParams w w₀ R c_tab d_par b_char M_out) := by
-      dsimp only [hpD_mk]; omega
-    have hpre : OuterStepGenPre w
-        ((mkHashParams w w₀ R c_tab d_par b_char M_out, (base, (s_val, rKey))), (j, out)) s :=
-      ⟨henv', hs_lt, hj_lt, hout⟩
-    have hinv_in := innerLoop_invariant (s := s) henv' hj_lt c_tab 0 0 rKey
-      (by dsimp only [hpCTab_mk]; omega) (Nat.two_pow_pos b_char)
-    have hstep_st : (Memory.spec 0).clientState s
-        (outerStepGenProg
-          ((mkHashParams w w₀ R c_tab d_par b_char M_out, (base, (s_val, rKey))), (j, out))) =
-          s := by
-      unfold outerStepGenProg innerLoopGenProg readPackedGenProg
-      simp only [pure_bind, hpCTab_mk]
-      rw [StateTransitionSpec.clientState_bind, clientState_width, hinv_in.2.1,
-        StateTransitionSpec.clientState_bind, clientState_width, clientState_readPackedProg,
-        StateTransitionSpec.clientState_bind, clientState_width, clientState_readPackedProg]
-      rfl
-    have hstep_fst : ((Memory.spec 0).clientResult s
-        (outerStepGenProg
-          ((mkHashParams w w₀ R c_tab d_par b_char M_out, (base, (s_val, rKey))), (j, out)))).1 =
-          j + 1 := by
-      unfold outerStepGenProg innerLoopGenProg readPackedGenProg
-      simp only [pure_bind, hpCTab_mk]
-      rw [StateTransitionSpec.clientResult_bind, clientState_width, hinv_in.2.1,
-        StateTransitionSpec.clientResult_bind, clientState_width, clientState_readPackedProg,
-        StateTransitionSpec.clientResult_bind, clientState_width, clientState_readPackedProg]
-      rfl
-    have hout' : ((Memory.spec 0).clientResult s
-        (outerStepGenProg
-          ((mkHashParams w w₀ R c_tab d_par b_char M_out, (base, (s_val, rKey))), (j, out)))).2 <
-          2 ^ M_out := by
-      unfold outerStepGenProg innerLoopGenProg readPackedGenProg
-      simp only [pure_bind, hpCTab_mk, hpMOut_mk, hpOffBot_mk, hpW_mk]
-      rw [StateTransitionSpec.clientResult_bind, clientState_width, hinv_in.2.1,
-        StateTransitionSpec.clientResult_bind, clientState_width, clientState_readPackedProg,
-        StateTransitionSpec.clientResult_bind, clientState_width, clientResult_width,
-        clientState_readPackedProg, clientResult_readPackedProg]
-      exact Nat.xor_lt_two_pow hout (readPacked_lt _ _ _ _ _)
-    obtain ⟨hsafe_m, hst_m⟩ := ih (j + 1) _ (by dsimp only [hpD_mk]; omega) hout'
-    have hpair_eq : (j + 1, ((Memory.spec 0).clientResult s
-        (outerStepGenProg
-          ((mkHashParams w w₀ R c_tab d_par b_char M_out, (base, (s_val, rKey))), (j, out)))).2) =
-        (Memory.spec 0).clientResult s
-          (outerStepGenProg
-            ((mkHashParams w w₀ R c_tab d_par b_char M_out, (base, (s_val, rKey))), (j, out))) :=
-      Prod.ext hstep_fst.symm rfl
-    rw [hpair_eq] at hsafe_m hst_m
-    refine ⟨⟨hpre, ?_⟩, ?_⟩
-    · rw [clientResult_width, clientState_width, hstep_st]; exact hsafe_m
-    · unfold iterate
-      rw [StateTransitionSpec.clientState_bind, clientResult_width, clientState_width, hstep_st]
-      exact hst_m
+    have hpre : OuterStepGenPre w ((hp, (base, (s_val, rKey))), (j, out)) s :=
+      ⟨henv, hs_lt, by omega, hout⟩
+    refine ⟨⟨hpre, ?_⟩, clientState_iterate_eq_of outerStepGenProg _
+      (fun _ t => clientState_outerStepGenProg _ t) _ _ s⟩
+    rw [clientResult_width, clientState_width, clientState_outerStepGenProg,
+      clientResult_outerStepGenProg]
+    exact (ih (j + 1) _ (by omega) (Nat.xor_lt_two_pow hout (readPacked_lt _ _ _ _ _))).1
 
 /-- Parameter-free `Memory.Prog` hash evaluation (`p = (hp, ((base, s_val), u_val))`):
 computes `rKey = oddMulModWord w₀ (s.mem base) u_val >>> (w₀ - R)` and evaluates `(c_tab + 1, d)`
@@ -1588,42 +1199,6 @@ bit-packed double tabulation in `O(c_tab * d)` deterministic steps. -/
     s_val < hpPowB hp ∧
     u_val ≤ (hpMaskM hp <<< 1) + 1
 
-private theorem mul_parts_fits {w₀ w α_val u_val : ℕ} (hw₀ : 0 < w₀) (hw₀_le : w₀ ≤ w)
-    (hα : α_val < 2 ^ (w₀ - 1)) (hu : u_val < 2 ^ w₀) :
-    let m := w₀ - 1
-    let h := m / 2
-    let x' := u_val &&& (2 ^ m - 1)
-    let α₀ := α_val &&& (2 ^ h - 1)
-    let α₁ := α_val >>> h
-    let x₀ := x' &&& (2 ^ h - 1)
-    let x₁ := x' >>> h
-    let p₀ := (α₀ * x₀) &&& (2 ^ m - 1)
-    let p₁ := ((α₀ * x₁) &&& (2 ^ (m - h) - 1)) <<< h
-    let p₂ := ((α₁ * x₀) &&& (2 ^ (m - h) - 1)) <<< h
-    let p₃ := ((α₁ &&& (2 ^ (m - 2 * h) - 1)) * (x₁ &&& (2 ^ (m - 2 * h) - 1))) <<< (2 * h)
-    let s₁ := (p₀ + p₁) &&& (2 ^ m - 1)
-    let s₂ := (s₁ + p₂) &&& (2 ^ m - 1)
-    let hm := (s₂ + p₃) &&& (2 ^ m - 1)
-    Fits w (α₀ * x₀) ∧
-    Fits w (α₀ * x₁) ∧
-    Fits w (((α₀ * x₁) &&& (2 ^ (m - h) - 1)) <<< h) ∧
-    Fits w (α₁ * x₀) ∧
-    Fits w (((α₁ * x₀) &&& (2 ^ (m - h) - 1)) <<< h) ∧
-    Fits w ((α₁ &&& (2 ^ (m - 2 * h) - 1)) * (x₁ &&& (2 ^ (m - 2 * h) - 1))) ∧
-    Fits w (((α₁ &&& (2 ^ (m - 2 * h) - 1)) * (x₁ &&& (2 ^ (m - 2 * h) - 1))) <<< (2 * h)) ∧
-    Fits w (p₀ + p₁) ∧
-    Fits w (s₁ + p₂) ∧
-    Fits w (s₂ + p₃) ∧
-    Fits w ((u_val >>> 1) + hm) ∧
-    Fits w ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1) ∧
-    Fits w ((u_val &&& 1) + ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1)) := by
-  have hpow : 2 ^ w₀ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hw₀_le
-  obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, h₁₁, h₁₂, h₁₃⟩ :=
-    oddMulModWord_parts_lt hw₀ hα hu
-  exact ⟨h₁.trans_le hpow, h₂.trans_le hpow, h₃.trans_le hpow, h₄.trans_le hpow, h₅.trans_le hpow,
-    h₆.trans_le hpow, h₇.trans_le hpow, h₈.trans_le hpow, h₉.trans_le hpow, h₁₀.trans_le hpow,
-    h₁₁.trans_le hpow, h₁₂.trans_le hpow, h₁₃.trans_le hpow⟩
-
 /-- **Parameter-free `Realizes .exact` certificate for `evalGenProg` (`¬ReadsWidth`, single compiled
 `Code .exact`)**. -/
 theorem realizes_evalGen :
@@ -1632,100 +1207,55 @@ theorem realizes_evalGen :
       (WordEncoding.encode (α := ℕ))
       EvalGenPre
       (fun _ _ => 0) := by
-  have hol := realizes_outerLoopGen
-  realize
+  realize [realizes_outerLoopGen]
   all_goals (
     rcases d with ⟨hp, ⟨base, s_val⟩, u_val⟩
     obtain ⟨henv, hα_le, hs_lt, hu_le⟩ := h
-    obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt,
-      hc1, hd_lt, hfit_sp, heq_hp⟩ := henv
-    subst heq_hp
-    dsimp only [hpW, hpShiftR, hpHalfM, hpTwoHalfM, hpMaskM, hpMaskHalf, hpMaskRem, hpMaskTop,
-      hpBChar, hpMaskB, hpPowB, hpMOut, hpOffBot, hpCPlusOne, hpCTab, hpD,
-      mkHashParams_0, mkHashParams_1, mkHashParams_2, mkHashParams_3, mkHashParams_4,
-      mkHashParams_5, mkHashParams_6, mkHashParams_7, mkHashParams_8, mkHashParams_9,
-      mkHashParams_10, mkHashParams_11, mkHashParams_12, mkHashParams_13, mkHashParams_14,
-      mkHashParams_15] at *
-    have hα_lt : s.mem base < 2 ^ (w₀ - 1) := by
-      have hpos : 1 ≤ 2 ^ (w₀ - 1) := Nat.one_le_two_pow
-      omega
+    have henv' := henv
+    obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, _, _, _, _, _, _, _, rfl⟩ := henv
+    simp only [hpHalfM_mk, hpTwoHalfM_mk, hpMaskM_mk, hpMaskHalf_mk, hpMaskRem_mk, hpMaskTop_mk,
+      hpShiftR_mk, hpD_mk] at *
+    have hα_lt : s.mem base < 2 ^ (w₀ - 1) := by wram_omega
     have hu_lt : u_val < 2 ^ w₀ := by
       rw [Nat.shiftLeft_eq, pow_one] at hu_le
-      have hpow : 2 * 2 ^ (w₀ - 1) = 2 ^ w₀ := by
-        rw [← pow_succ', Nat.sub_add_cancel hw₀]
-      have hpos : 1 ≤ 2 ^ (w₀ - 1) := Nat.one_le_two_pow
-      omega
-    have hmp := mul_parts_fits hw₀ hw₀_le hα_lt hu_lt
+      have : 2 * 2 ^ (w₀ - 1) = 2 ^ w₀ := by rw [← pow_succ', Nat.sub_add_cancel hw₀]
+      wram_omega
+    have hpow : 2 ^ w₀ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hw₀_le
+    obtain ⟨h1, h2, h3, h4, h5, _, h7, h8, h9, h10, h11, _, h13⟩ :=
+      oddMulModWord_parts_lt hw₀ hα_lt hu_lt
   )
-  · exact hmp.1
-  · exact hmp.2.2.1
-  · exact hmp.2.1
-  · exact hmp.2.2.2.2.1
-  · exact hmp.2.2.2.1
-  · exact hmp.2.2.2.2.2.2.1
-  · exact hmp.2.2.2.2.2.2.2.1
-  · exact hmp.2.2.2.2.2.2.2.2.1
-  · exact hmp.2.2.2.2.2.2.2.2.2.1
+  · exact h1.trans_le hpow
+  · exact h3.trans_le hpow
+  · exact h2.trans_le hpow
+  · exact h5.trans_le hpow
+  · exact h4.trans_le hpow
+  · exact h7.trans_le hpow
+  · exact h8.trans_le hpow
+  · exact h9.trans_le hpow
+  · exact h10.trans_le hpow
   · exact Nat.one_lt_two_pow hw.ne'
-  · exact hmp.2.2.2.2.2.2.2.2.2.2.2.2
-  · exact hmp.2.2.2.2.2.2.2.2.2.2.1
-  · refine (outerLoop_invariant
-      ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt, hc1,
-        hd_lt, hfit_sp, rfl⟩ (by dsimp only [hpPowB_mk]; exact hs_lt) d_par 0 0 ?_
-      (by dsimp only [hpMOut_mk]; exact Nat.two_pow_pos M_out)).1
-    dsimp only [hpD_mk]; omega
+  · exact h13.trans_le hpow
+  · exact h11.trans_le hpow
+  · exact (outerLoop_invariant henv' (by simpa only [hpPowB_mk] using hs_lt) d_par 0 0
+      (by simp only [hpD_mk]; omega) (by simp only [hpMOut_mk]; exact Nat.two_pow_pos M_out)).1
 
 /-! ### Functional correctness, `ValidHistory`, and `memoryCost` of `evalProg` -/
 
-private def innerPrefixXor {c_tab d b_char : ℕ}
-    (T₁ : DoubleTabTopSeed (c_tab + 1) d b_char) (chars : Fin (c_tab + 1) → Fin (2 ^ b_char))
-    (j : Fin d) (i : ℕ) (hi : i ≤ c_tab + 1) : Fin (2 ^ b_char) :=
-  BitString.equivFin b_char
-    (∑ k : Fin i,
-      (BitString.equivFin b_char).symm
-        (T₁ (Fin.castLE hi k) j (chars (Fin.castLE hi k))))
+/-- Prefix XOR of the first `m ≤ n` `k`-bit entries of `f : Fin n → Fin (2 ^ k)`. -/
+private def finXorPrefix {k n : ℕ} (f : Fin n → Fin (2 ^ k)) (m : ℕ) (hm : m ≤ n) : Fin (2 ^ k) :=
+  BitString.equivFin k (∑ i : Fin m, (BitString.equivFin k).symm (f (Fin.castLE hm i)))
 
-private theorem val_innerPrefixXor_zero {c_tab d b_char : ℕ}
-    (T₁ : DoubleTabTopSeed (c_tab + 1) d b_char) (chars : Fin (c_tab + 1) → Fin (2 ^ b_char))
-    (j : Fin d) :
-    (innerPrefixXor T₁ chars j 0 (Nat.zero_le _)).val = 0 := by
-  dsimp only [innerPrefixXor]
+private theorem val_finXorPrefix_zero {k n : ℕ} (f : Fin n → Fin (2 ^ k)) :
+    (finXorPrefix f 0 (Nat.zero_le n)).val = 0 := by
+  dsimp only [finXorPrefix]
   rw [Finset.univ_eq_empty, Finset.sum_empty]
-  exact BitString.val_equivFin_false b_char
+  exact BitString.val_equivFin_false k
 
-private theorem val_innerPrefixXor_succ {c_tab d b_char : ℕ}
-    (T₁ : DoubleTabTopSeed (c_tab + 1) d b_char) (chars : Fin (c_tab + 1) → Fin (2 ^ b_char))
-    (j : Fin d) {i : ℕ} (hi : i + 1 ≤ c_tab + 1) :
-    (innerPrefixXor T₁ chars j (i + 1) hi).val =
-      (innerPrefixXor T₁ chars j i (Nat.le_of_succ_le hi)).val ^^^
-        (T₁ ⟨i, hi⟩ j (chars ⟨i, hi⟩)).val := by
-  dsimp only [innerPrefixXor]
-  rw [Fin.sum_univ_castSucc, BitString.val_equivFin_add, Equiv.apply_symm_apply]
-  rfl
-
-private def outerPrefixXor {c_tab d b_char M_out : ℕ}
-    (T₁ : DoubleTabTopSeed (c_tab + 1) d b_char) (T₂ : DoubleTabBotSeed d b_char M_out)
-    (chars : Fin (c_tab + 1) → Fin (2 ^ b_char)) (j : ℕ) (hj : j ≤ d) : Fin (2 ^ M_out) :=
-  BitString.equivFin M_out
-    (∑ k : Fin j,
-      (BitString.equivFin M_out).symm
-        (T₂ (Fin.castLE hj k) (simpleTabTuple T₁ chars (Fin.castLE hj k))))
-
-private theorem val_outerPrefixXor_zero {c_tab d b_char M_out : ℕ}
-    (T₁ : DoubleTabTopSeed (c_tab + 1) d b_char) (T₂ : DoubleTabBotSeed d b_char M_out)
-    (chars : Fin (c_tab + 1) → Fin (2 ^ b_char)) :
-    (outerPrefixXor T₁ T₂ chars 0 (Nat.zero_le d)).val = 0 := by
-  dsimp only [outerPrefixXor]
-  rw [Finset.univ_eq_empty, Finset.sum_empty]
-  exact BitString.val_equivFin_false M_out
-
-private theorem val_outerPrefixXor_succ {c_tab d b_char M_out : ℕ}
-    (T₁ : DoubleTabTopSeed (c_tab + 1) d b_char) (T₂ : DoubleTabBotSeed d b_char M_out)
-    (chars : Fin (c_tab + 1) → Fin (2 ^ b_char)) {j : ℕ} (hj : j + 1 ≤ d) :
-    (outerPrefixXor T₁ T₂ chars (j + 1) hj).val =
-      (outerPrefixXor T₁ T₂ chars j (Nat.le_of_succ_le hj)).val ^^^
-        (T₂ ⟨j, hj⟩ (simpleTabTuple T₁ chars ⟨j, hj⟩)).val := by
-  dsimp only [outerPrefixXor]
+private theorem val_finXorPrefix_succ {k n : ℕ} (f : Fin n → Fin (2 ^ k)) {m : ℕ}
+    (hm : m + 1 ≤ n) :
+    (finXorPrefix f (m + 1) hm).val =
+      (finXorPrefix f m (Nat.le_of_succ_le hm)).val ^^^ (f ⟨m, hm⟩).val := by
+  dsimp only [finXorPrefix]
   rw [Fin.sum_univ_castSucc, BitString.val_equivFin_add, Equiv.apply_symm_apply]
   rfl
 
@@ -1733,154 +1263,82 @@ private theorem iterate_innerStep_eq {base w w₀ R c_tab d b_char M_out s_max :
     {θ : Seed w₀ c_tab d b_char M_out} {s : Memory.State}
     (hrep : SeedRep base w w₀ c_tab d b_char M_out θ s.mem)
     (salt : Fin s_max) (rKey : Fin (2 ^ min w₀ R)) (j : Fin d) :
+    let f : Fin (c_tab + 1) → Fin (2 ^ b_char) :=
+      fun i => θ.top i j (saltedChars c_tab b_char salt rKey i)
     ∀ m i (him : i + m ≤ c_tab),
       (Memory.spec 0).clientResult s
         (iterate innerStepGenProg
           (mkHashParams w w₀ R c_tab d b_char M_out, (base, j.val)) m
-          ((i, (innerPrefixXor θ.2.1 (saltedChars c_tab b_char salt rKey) j i (by omega)).val),
-            rKey.val >>> (i * b_char))) =
-        ((i + m, (innerPrefixXor θ.2.1 (saltedChars c_tab b_char salt rKey) j (i + m)
-          (by omega)).val), rKey.val >>> ((i + m) * b_char)) ∧
-      (Memory.spec 0).clientState s
-        (iterate innerStepGenProg
-          (mkHashParams w w₀ R c_tab d b_char M_out, (base, j.val)) m
-          ((i, (innerPrefixXor θ.2.1 (saltedChars c_tab b_char salt rKey) j i (by omega)).val),
-            rKey.val >>> (i * b_char))) = s := by
-  intro m
+          ((i, (finXorPrefix f i (by omega)).val), rKey.val >>> (i * b_char))) =
+        ((i + m, (finXorPrefix f (i + m) (by omega)).val), rKey.val >>> ((i + m) * b_char)) := by
+  intro f m
   induction m with
-  | zero =>
-    intro i _
-    have h0 : i + 0 = i := Nat.add_zero i
-    simp only [h0]
-    exact ⟨rfl, rfl⟩
+  | zero => intro i _; rfl
   | succ m ih =>
     intro i him
-    have hi_lt : i < c_tab := by omega
-    have hch_eq : ((rKey.val >>> (i * b_char)) &&& (2 ^ b_char - 1)) =
+    have hch : (rKey.val >>> (i * b_char)) &&& (2 ^ b_char - 1) =
         (saltedChars c_tab b_char salt rKey ⟨i, by omega⟩).val := by
-      have hcast : (⟨i, by omega⟩ : Fin (c_tab + 1)) = (⟨i, hi_lt⟩ : Fin c_tab).castSucc := rfl
-      rw [hcast, saltedChars, Fin.snoc_castSucc]
-      rfl
-    have ht_eq : readPacked (base + 1) b_char w s.mem
-        ((j.val * (c_tab + 1) + i) * 2 ^ b_char +
-          ((rKey.val >>> (i * b_char)) &&& (2 ^ b_char - 1))) =
-        (θ.2.1 ⟨i, by omega⟩ j (saltedChars c_tab b_char salt rKey ⟨i, by omega⟩)).val := by
-      rw [hch_eq]
-      exact hrep.2.1 ⟨i, by omega⟩ j _
-    have hshr : (rKey.val >>> (i * b_char)) >>> b_char = rKey.val >>> ((i + 1) * b_char) := by
-      rw [← Nat.shiftRight_add, Nat.add_mul, Nat.one_mul]
-    have hy_succ := val_innerPrefixXor_succ θ.2.1 (saltedChars c_tab b_char salt rKey) j
-      (i := i) (by omega)
-    have hstep_res : (Memory.spec 0).clientResult s
+      change _ = (saltedChars c_tab b_char salt rKey (⟨i, by omega⟩ : Fin c_tab).castSucc).val
+      rw [saltedChars, Fin.snoc_castSucc]; rfl
+    have hstep : (Memory.spec 0).clientResult s
         (innerStepGenProg ((mkHashParams w w₀ R c_tab d b_char M_out, (base, j.val)),
-          ((i, (innerPrefixXor θ.2.1 (saltedChars c_tab b_char salt rKey) j i (by omega)).val),
-            rKey.val >>> (i * b_char)))) =
-        ((i + 1, (innerPrefixXor θ.2.1 (saltedChars c_tab b_char salt rKey) j (i + 1)
-          (by omega)).val), rKey.val >>> ((i + 1) * b_char)) := by
-      unfold innerStepGenProg readPackedGenProg
-      simp only [pure_bind, hpMaskB_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk]
-      rw [StateTransitionSpec.clientResult_bind, clientState_width, clientResult_width,
-        clientResult_readPackedProg, clientState_readPackedProg, clientResult_pure',
-        ht_eq, ← hy_succ, hshr]
-    have hstep_st : (Memory.spec 0).clientState s
-        (innerStepGenProg ((mkHashParams w w₀ R c_tab d b_char M_out, (base, j.val)),
-          ((i, (innerPrefixXor θ.2.1 (saltedChars c_tab b_char salt rKey) j i (by omega)).val),
-            rKey.val >>> (i * b_char)))) = s := rfl
-    obtain ⟨hres_m, hst_m⟩ := ih (i + 1) (by omega)
-    have him_eq : i + 1 + m = i + (m + 1) := by omega
-    refine ⟨?_, ?_⟩
-    · unfold iterate
-      rw [StateTransitionSpec.clientResult_bind, clientState_width, clientResult_width,
-        hstep_st, hstep_res, hres_m]
-      simp only [him_eq]
-    · unfold iterate
-      rw [StateTransitionSpec.clientState_bind, clientState_width, clientResult_width,
-        hstep_st, hstep_res, hst_m]
+          ((i, (finXorPrefix f i (by omega)).val), rKey.val >>> (i * b_char)))) =
+        ((i + 1, (finXorPrefix f (i + 1) (by omega)).val),
+          rKey.val >>> ((i + 1) * b_char)) := by
+      rw [clientResult_innerStepGenProg]
+      simp only [hpMaskB_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk]
+      rw [hch, hrep.2.1 ⟨i, by omega⟩ j _, ← val_finXorPrefix_succ f (by omega),
+        ← Nat.shiftRight_add, Nat.add_mul, Nat.one_mul]
+    rw [iterate, StateTransitionSpec.clientResult_bind,
+      show (Memory.spec 0).clientState s (innerStepGenProg _) = s from rfl, hstep]
+    simpa only [Nat.add_assoc, Nat.add_comm 1 m] using ih (i + 1) (by omega)
 
 private theorem iterate_outerStep_eq {base w w₀ R c_tab d b_char M_out s_max : ℕ}
     {θ : Seed w₀ c_tab d b_char M_out} {s : Memory.State}
     (hs_max : s_max ≤ 2 ^ b_char)
     (hrep : SeedRep base w w₀ c_tab d b_char M_out θ s.mem)
     (salt : Fin s_max) (rKey : Fin (2 ^ min w₀ R)) :
+    let chars := saltedChars c_tab b_char salt rKey
+    let g : Fin d → Fin (2 ^ M_out) := fun j => θ.bot j (simpleTabTuple θ.top chars j)
     ∀ m j (hjm : j + m ≤ d),
       (Memory.spec 0).clientResult s
         (iterate outerStepGenProg
           (mkHashParams w w₀ R c_tab d b_char M_out, (base, (salt.val, rKey.val))) m
-          (j, (outerPrefixXor θ.2.1 θ.2.2 (saltedChars c_tab b_char salt rKey) j (by omega)).val)) =
-        (j + m, (outerPrefixXor θ.2.1 θ.2.2 (saltedChars c_tab b_char salt rKey) (j + m)
-          (by omega)).val) ∧
-      (Memory.spec 0).clientState s
-        (iterate outerStepGenProg
-          (mkHashParams w w₀ R c_tab d b_char M_out, (base, (salt.val, rKey.val))) m
-          (j, (outerPrefixXor θ.2.1 θ.2.2 (saltedChars c_tab b_char salt rKey) j
-            (by omega)).val)) = s := by
-  intro m
+          (j, (finXorPrefix g j (by omega)).val)) =
+        (j + m, (finXorPrefix g (j + m) (by omega)).val) := by
+  intro chars g m
   induction m with
-  | zero =>
-    intro j _
-    have h0 : j + 0 = j := Nat.add_zero j
-    simp only [h0]
-    exact ⟨rfl, rfl⟩
+  | zero => intro j _; rfl
   | succ m ih =>
     intro j hjm
     have hj_lt : j < d := by omega
-    let chars := saltedChars c_tab b_char salt rKey
-    have hin := iterate_innerStep_eq hrep salt rKey ⟨j, hj_lt⟩ c_tab 0 (by omega)
-    simp only [zero_add, zero_mul, Nat.shiftRight_zero, val_innerPrefixXor_zero] at hin
-    have hsalt_ch : salt.val = (chars (Fin.last c_tab)).val := by
-      dsimp only [chars, saltedChars]
-      rw [Fin.snoc_last]
+    let jF : Fin d := ⟨j, hj_lt⟩
+    let f : Fin (c_tab + 1) → Fin (2 ^ b_char) := fun i => θ.top i jF (chars i)
+    have hin := iterate_innerStep_eq hrep salt rKey jF c_tab 0 (by omega)
+    simp only [zero_add, zero_mul, Nat.shiftRight_zero, val_finXorPrefix_zero] at hin
+    have hsalt : salt.val = (chars (Fin.last c_tab)).val := by
+      dsimp only [chars, saltedChars]; rw [Fin.snoc_last]
       exact (Nat.mod_eq_of_lt (salt.isLt.trans_le hs_max)).symm
-    have htsalt : readPacked (base + 1) b_char w s.mem
-        ((j * (c_tab + 1) + c_tab) * 2 ^ b_char + salt.val) =
-        (θ.2.1 (Fin.last c_tab) ⟨j, hj_lt⟩ (chars (Fin.last c_tab))).val := by
-      rw [hsalt_ch]
-      exact hrep.2.1 (Fin.last c_tab) ⟨j, hj_lt⟩ _
-    have hy_full : (innerPrefixXor θ.2.1 chars ⟨j, hj_lt⟩ c_tab (by omega)).val ^^^
-        (θ.2.1 (Fin.last c_tab) ⟨j, hj_lt⟩ (chars (Fin.last c_tab))).val =
-        (simpleTabTuple θ.2.1 chars ⟨j, hj_lt⟩).val := by
-      have hs := val_innerPrefixXor_succ θ.2.1 chars ⟨j, hj_lt⟩ (i := c_tab) le_rfl
-      exact hs.symm
-    have hz_eq : readPacked (base + offBot w c_tab d b_char) M_out w s.mem
-        (j * 2 ^ b_char + (simpleTabTuple θ.2.1 chars ⟨j, hj_lt⟩).val) =
-        (θ.2.2 ⟨j, hj_lt⟩ (simpleTabTuple θ.2.1 chars ⟨j, hj_lt⟩)).val :=
-      hrep.2.2 ⟨j, hj_lt⟩ _
-    have hout_succ := val_outerPrefixXor_succ θ.2.1 θ.2.2 chars (j := j) (by omega)
-    have hstep_st : (Memory.spec 0).clientState s
-        (outerStepGenProg
-          ((mkHashParams w w₀ R c_tab d b_char M_out, (base, (salt.val, rKey.val))),
-            (j, (outerPrefixXor θ.2.1 θ.2.2 chars j (by omega)).val))) = s := by
-      unfold outerStepGenProg innerLoopGenProg readPackedGenProg
-      simp only [pure_bind, hpCTab_mk]
-      rw [StateTransitionSpec.clientState_bind, clientState_width, hin.2,
-        StateTransitionSpec.clientState_bind, clientState_width, clientState_readPackedProg,
-        StateTransitionSpec.clientState_bind, clientState_width, clientState_readPackedProg]
-      rfl
-    have hstep_res : (Memory.spec 0).clientResult s
-        (outerStepGenProg
-          ((mkHashParams w w₀ R c_tab d b_char M_out, (base, (salt.val, rKey.val))),
-            (j, (outerPrefixXor θ.2.1 θ.2.2 chars j (by omega)).val))) =
-        (j + 1, (outerPrefixXor θ.2.1 θ.2.2 chars (j + 1) (by omega)).val) := by
-      unfold outerStepGenProg innerLoopGenProg readPackedGenProg
-      simp only [pure_bind, hpCTab_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk,
-        hpOffBot_mk, hpMOut_mk]
-      rw [StateTransitionSpec.clientResult_bind, clientState_width, clientResult_width,
-        hin.2, hin.1,
-        StateTransitionSpec.clientResult_bind, clientState_width, clientResult_width,
-        clientState_readPackedProg, clientResult_readPackedProg,
-        StateTransitionSpec.clientResult_bind, clientState_width, clientResult_width,
-        clientState_readPackedProg, clientResult_readPackedProg, clientResult_pure',
-        htsalt, hy_full, hz_eq, ← hout_succ]
-    obtain ⟨hres_m, hst_m⟩ := ih (j + 1) (by omega)
-    have hjm_eq : j + 1 + m = j + (m + 1) := by omega
-    refine ⟨?_, ?_⟩
-    · unfold iterate
-      rw [StateTransitionSpec.clientResult_bind, clientState_width, clientResult_width,
-        hstep_st, hstep_res, hres_m]
-      simp only [hjm_eq]
-    · unfold iterate
-      rw [StateTransitionSpec.clientState_bind, clientState_width, clientResult_width,
-        hstep_st, hstep_res, hst_m]
+    have hstep : (Memory.spec 0).clientResult s
+        (outerStepGenProg ((mkHashParams w w₀ R c_tab d b_char M_out,
+          (base, (salt.val, rKey.val))), (j, (finXorPrefix g j (by omega)).val))) =
+        (j + 1, (finXorPrefix g (j + 1) (by omega)).val) := by
+      rw [clientResult_outerStepGenProg]
+      dsimp only [hpCTab_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk, hpOffBot_mk, hpMOut_mk]
+      rw [hin, hsalt]
+      change (j + 1, (finXorPrefix g j _).val ^^^
+        readPacked (base + offBot w c_tab d b_char) M_out w s.mem
+          (jF.val * 2 ^ b_char + ((finXorPrefix f c_tab (by omega)).val ^^^
+            readPacked (base + 1) b_char w s.mem
+              ((jF.val * (c_tab + 1) + (Fin.last c_tab).val) * 2 ^ b_char +
+                (chars (Fin.last c_tab)).val)))) = _
+      rw [hrep.2.1 (Fin.last c_tab) jF _,
+        show (finXorPrefix f c_tab (by omega)).val ^^^
+          (θ.top (Fin.last c_tab) jF (chars (Fin.last c_tab))).val =
+          (simpleTabTuple θ.top chars jF).val from (val_finXorPrefix_succ f le_rfl).symm,
+        hrep.2.2 jF _, ← val_finXorPrefix_succ g (by omega)]
+    rw [iterate, StateTransitionSpec.clientResult_bind, clientState_outerStepGenProg, hstep]
+    simpa only [Nat.add_assoc, Nat.add_comm 1 m] using ih (j + 1) (by omega)
 
 /-- **Exact functional correctness and state preservation of `evalProg`**:
 under `SeedRep`, `evalProg` leaves `s` unchanged and returns `(evalSalted ... θ (salt, u)).val`. -/
@@ -1894,135 +1352,47 @@ theorem evalProg_spec {U w w₀ R c_tab d b_char M_out s_max base : ℕ}
       (evalSalted U w₀ R c_tab d b_char M_out s_max θ (salt, u)).val ∧
     (Memory.spec 0).clientState s
       (evalProg w w₀ R c_tab d b_char M_out ((base, salt.val), u.val)) = s := by
-  have hrkey_eq :
-      oddMulModWord w₀ (s.mem base) u.val >>> (w₀ - R) =
-        (multiplyShiftReduced U w₀ R θ.1 u).val := by
-    rw [hrep.1]
-    exact oddMulModWord_shiftRight_eq_multiplyShiftReduced hw₀ θ.1 u
+  have hrkey : oddMulModWord w₀ (s.mem base) u.val >>> (w₀ - R) =
+      (multiplyShiftReduced U w₀ R θ.1 u).val := by
+    rw [hrep.1]; exact oddMulModWord_shiftRight_eq_multiplyShiftReduced hw₀ θ.1 u
   have hout := iterate_outerStep_eq hs_max hrep salt (multiplyShiftReduced U w₀ R θ.1 u) d 0
     (by omega)
-  simp only [zero_add, val_outerPrefixXor_zero] at hout
-  have hread_res : (Memory.spec 0).clientResult s (Memory.read base) = s.mem base := rfl
-  have hread_st : (Memory.spec 0).clientState s (Memory.read base) = s := rfl
+  simp only [zero_add, val_finXorPrefix_zero] at hout
   unfold evalProg evalGenProg outerLoopGenProg
   simp only [pure_bind, hpMaskM_mk, hpMaskHalf_mk, hpHalfM_mk, hpMaskRem_mk, hpMaskTop_mk,
     hpTwoHalfM_mk, hpShiftR_mk, hpD_mk]
-  rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-    clientState_width, clientResult_width, hread_res, hread_st,
-    StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-    clientState_width, clientResult_width, clientResult_pure', clientState_pure']
-  change (((Memory.spec 0).clientResult s
-      (iterate outerStepGenProg
-        (mkHashParams w w₀ R c_tab d b_char M_out,
-          (base, (salt.val, oddMulModWord w₀ (s.mem base) u.val >>> (w₀ - R)))) d (0, 0))).2 = _ ∧
-    (Memory.spec 0).clientState s
-      (iterate outerStepGenProg
-        (mkHashParams w w₀ R c_tab d b_char M_out,
-          (base, (salt.val, oddMulModWord w₀ (s.mem base) u.val >>> (w₀ - R)))) d (0, 0)) = s)
-  rw [hrkey_eq, hout.1, hout.2]
-  exact ⟨rfl, rfl⟩
+  have hst : (Memory.spec 0).clientState s (Memory.read base) = s := rfl
+  have hres : (Memory.spec 0).clientResult s (Memory.read base) = s.mem base := rfl
+  refine ⟨?_, ?_⟩
+  · rw [StateTransitionSpec.clientResult_bind, hst, hres,
+      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
+    change ((Memory.spec 0).clientResult s (iterate outerStepGenProg
+      (mkHashParams w w₀ R c_tab d b_char M_out,
+        (base, (salt.val, oddMulModWord w₀ (s.mem base) u.val >>> (w₀ - R)))) d (0, 0))).2 = _
+    rw [hrkey, hout]; rfl
+  · rw [StateTransitionSpec.clientState_bind, hst,
+      StateTransitionSpec.clientState_bind,
+      clientState_iterate_eq_of outerStepGenProg _
+        (fun _ t => clientState_outerStepGenProg _ t) _ _ s]
+    rfl
 
 /-- Exact `memoryCost` of `evalProg`: `1 + 2 * d * (c_tab + 2)` (`O(c_tab * d)`). -/
 theorem memoryCost_evalProg (w w₀ R c_tab d b_char M_out : ℕ) (d_in : (ℕ × ℕ) × ℕ)
     (s : Memory.State) :
     memoryCost (evalProg w w₀ R c_tab d b_char M_out d_in) s = 1 + 2 * d * (c_tab + 2) := by
-  have hin_cost : ∀ j m i y r,
-      memoryCost (iterate innerStepGenProg
-        (mkHashParams w w₀ R c_tab d b_char M_out, (d_in.1.1, j)) m ((i, y), r)) s = 2 * m ∧
-      (Memory.spec 0).clientState s
-        (iterate innerStepGenProg
-          (mkHashParams w w₀ R c_tab d b_char M_out, (d_in.1.1, j)) m ((i, y), r)) = s := by
-    intro j m
-    induction m with
-    | zero =>
-      intro i y r
-      exact ⟨rfl, rfl⟩
-    | succ m ih =>
-      intro i y r
-      have hst1 : (Memory.spec 0).clientState s
-          (innerStepGenProg
-            ((mkHashParams w w₀ R c_tab d b_char M_out, (d_in.1.1, j)), ((i, y), r))) = s := rfl
-      have hres1 : (Memory.spec 0).clientResult s
-          (innerStepGenProg
-            ((mkHashParams w w₀ R c_tab d b_char M_out, (d_in.1.1, j)), ((i, y), r))) =
-          ((i + 1, y ^^^ readPacked (d_in.1.1 + 1) b_char w s.mem
-            ((j * (c_tab + 1) + i) * 2 ^ b_char + (r &&& (2 ^ b_char - 1)))),
-            r >>> b_char) := by
-        unfold innerStepGenProg readPackedGenProg
-        simp only [pure_bind, hpMaskB_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk]
-        rw [StateTransitionSpec.clientResult_bind, clientState_width, clientResult_width,
-          clientResult_readPackedProg, clientState_readPackedProg, clientResult_pure']
-      obtain ⟨hc_m, hst_m⟩ := ih (i + 1)
-        (y ^^^ readPacked (d_in.1.1 + 1) b_char w s.mem
-          ((j * (c_tab + 1) + i) * 2 ^ b_char + (r &&& (2 ^ b_char - 1))))
-        (r >>> b_char)
-      refine ⟨?_, ?_⟩
-      · unfold iterate
-        rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_innerStepGenProg,
-          clientState_width, clientResult_width, hst1, hres1, hc_m]
-        ring
-      · unfold iterate
-        rw [StateTransitionSpec.clientState_bind, clientState_width, clientResult_width,
-          hst1, hres1, hst_m]
-  have hout_cost : ∀ rKey m j out,
-      memoryCost (iterate outerStepGenProg
-        (mkHashParams w w₀ R c_tab d b_char M_out, (d_in.1.1, (d_in.1.2, rKey))) m (j, out)) s =
-        2 * m * (c_tab + 2) := by
-    intro rKey m
-    induction m with
-    | zero =>
-      intro j out
-      change 0 = 2 * 0 * (c_tab + 2)
-      simp
-    | succ m ih =>
-      intro j out
-      obtain ⟨hinc, hinst⟩ := hin_cost j c_tab 0 0 rKey
-      have hstep_cost : memoryCost (outerStepGenProg
-          ((mkHashParams w w₀ R c_tab d b_char M_out, (d_in.1.1, (d_in.1.2, rKey))), (j, out))) s =
-          2 * (c_tab + 2) := by
-        unfold outerStepGenProg innerLoopGenProg readPackedGenProg
-        simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, hpCTab_mk]
-        rw [memoryCost_bind, clientState_width, hinc, hinst,
-          memoryCost_bind, clientState_width, clientState_readPackedProg, memoryCost_readPackedProg,
-          memoryCost_bind, clientState_width, clientState_readPackedProg, memoryCost_readPackedProg,
-          memoryCost_pure]
-        ring
-      have hstep_st : (Memory.spec 0).clientState s
-          (outerStepGenProg
-            ((mkHashParams w w₀ R c_tab d b_char M_out, (d_in.1.1, (d_in.1.2, rKey))),
-              (j, out))) = s := by
-        unfold outerStepGenProg innerLoopGenProg readPackedGenProg
-        simp only [pure_bind, hpCTab_mk]
-        rw [StateTransitionSpec.clientState_bind, clientState_width, hinst,
-          StateTransitionSpec.clientState_bind, clientState_width, clientState_readPackedProg,
-          StateTransitionSpec.clientState_bind, clientState_width, clientState_readPackedProg,
-          clientState_pure']
-      unfold iterate
-      rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_cost, clientState_width, hstep_st,
-        ih]
-      ring
-  have hread_cost : memoryCost (Memory.read d_in.1.1) s = 1 := rfl
-  have hread_st : (Memory.spec 0).clientState s (Memory.read d_in.1.1) = s := rfl
   unfold evalProg evalGenProg outerLoopGenProg
-  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, hpD_mk]
-  rw [memoryCost_bind, hread_cost, hread_st, memoryCost_bind, hout_cost, memoryCost_pure]
-  omega
+  simp only [pure_bind, memoryCost_bind', memoryCost_pure, hpD_mk]
+  rw [show memoryCost (Memory.read d_in.1.1) s = 1 from rfl,
+    show (Memory.spec 0).clientState s (Memory.read d_in.1.1) = s from rfl,
+    memoryCost_iterate_const s (2 * (c_tab + 2))
+      (fun _ => clientState_outerStepGenProg _ s)
+      (fun a => memoryCost_outerStepGenProg _ _ _ _ a.1 a.2 s)]
+  ring
 
-private theorem validHistory_bind_of_eq {α β : Type} {w : ℕ} {s : Memory.State}
-    {p : Memory.Prog α} {q : α → Memory.Prog β}
-    (hp : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p))
-    (hq : (Memory.spec w).ValidHistory ((Memory.spec 0).clientState s p)
-      ((Memory.spec w).clientHistory ((Memory.spec 0).clientState s p)
-        (q ((Memory.spec 0).clientResult s p)))) :
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (p >>= q)) := by
-  change (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (p.bind q))
-  rw [validHistory_bind, clientResult_width, clientState_width]
-  exact ⟨hp, hq⟩
-
-private theorem validHistory_iterate_of_safe {δ σ : Type} {w : ℕ}
-    {body : δ × σ → Memory.Prog σ} {safe : ℕ → δ × σ → Memory.State → Prop}
-    {d : δ} (n : ℕ) (a : σ) (s : Memory.State)
-    (hst : ∀ a' s', safe w (d, a') s' → (Memory.spec 0).clientState s' (body (d, a')) = s')
+private theorem validHistory_iterate_const {δ σ : Type} {w : ℕ}
+    {body : δ × σ → Memory.Prog σ} {safe : ℕ → δ × σ → Memory.State → Prop} {d : δ}
+    (n : ℕ) (a : σ) (s : Memory.State)
+    (hst : ∀ a', (Memory.spec 0).clientState s (body (d, a')) = s)
     (hbody : ∀ a', safe w (d, a') s →
       (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (body (d, a'))))
     (hsafe : iterationSafe body safe w d n a s) :
@@ -2030,13 +1400,31 @@ private theorem validHistory_iterate_of_safe {δ σ : Type} {w : ℕ}
   induction n generalizing a with
   | zero => trivial
   | succ n ih =>
-    unfold iterate
-    unfold iterationSafe at hsafe
-    apply validHistory_bind_of_eq (hbody a hsafe.1)
-    have hst' := hst a s hsafe.1
-    rw [clientResult_width, clientState_width] at hsafe
-    rw [hst'] at hsafe ⊢
+    rw [iterate, validHistory_bind']
+    rw [iterationSafe, clientResult_width, clientState_width, hst] at hsafe
+    refine ⟨hbody a hsafe.1, ?_⟩
+    rw [hst]
     exact ih _ hsafe.2
+
+private theorem validHistory_innerLoop {w w₀ R c_tab d_par b_char M_out base j rKey : ℕ}
+    {s : Memory.State}
+    (henv : HashEnv w (mkHashParams w w₀ R c_tab d_par b_char M_out) base)
+    (hw : 0 < w) (hj : j < d_par)
+    (hfr : base + space w c_tab d_par b_char M_out ≤ s.frontier) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
+      (iterate innerStepGenProg (mkHashParams w w₀ R c_tab d_par b_char M_out, (base, j))
+        c_tab ((0, 0), rKey))) := by
+  have hinv := innerLoop_invariant (s := s) henv hj c_tab 0 0 rKey
+    (by simp only [hpCTab_mk]; omega) (by simp only [hpPowB_mk]; exact Nat.two_pow_pos b_char)
+  refine validHistory_iterate_const c_tab ((0, 0), rKey) s (fun _ => rfl)
+    (fun ⟨⟨i, y⟩, r⟩ h => ?_) hinv.1
+  have hi_lt : i < c_tab := h.2.2.1
+  unfold innerStepGenProg readPackedGenProg
+  simp only [pure_bind, hpMaskB_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk]
+  rw [validHistory_bind']
+  exact ⟨validHistory_readPackedProg hw
+    (topIdx_lt_topEntries (by omega) hj
+      (Nat.and_lt_two_pow r (Nat.sub_lt (Nat.two_pow_pos _) one_pos))) (by wram_omega), trivial⟩
 
 /-- Memory history admissibility (`ValidHistory`) for `evalGenProg` under `EvalGenPre` and
 `base + space ≤ s.frontier`. -/
@@ -2047,97 +1435,39 @@ theorem validHistory_evalGenProg {w : ℕ} {hp : HashParams} {base s_val u_val :
     (Memory.spec w).ValidHistory s
       ((Memory.spec w).clientHistory s (evalGenProg (hp, ((base, s_val), u_val)))) := by
   obtain ⟨henv, _, hs_lt, _⟩ := hpre
-  obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt,
-    hc1, hd_lt, hfit_sp, heq_hp⟩ := henv
-  subst heq_hp
-  have henv' : HashEnv w (mkHashParams w w₀ R c_tab d_par b_char M_out) base :=
-    ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt, hc1,
-      hd_lt, hfit_sp, rfl⟩
-  dsimp only [hpCTab_mk, hpD_mk, hpBChar_mk, hpMOut_mk, hpPowB_mk] at hfr hs_lt
-  have hbase_fr : base < s.frontier := by
-    have := space_pos w c_tab d_par b_char M_out
-    omega
-  have hinner_valid : ∀ j (hj : j < d_par) rKey,
-      (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (iterate innerStepGenProg
-            (mkHashParams w w₀ R c_tab d_par b_char M_out, (base, j)) c_tab
-            ((0, 0), rKey))) := by
-    intro j hj rKey
-    have hinv := innerLoop_invariant (s := s) henv' (by dsimp only [hpD_mk]; exact hj)
-      c_tab 0 0 rKey (by dsimp only [hpCTab_mk]; omega)
-      (by dsimp only [hpPowB_mk]; exact Nat.two_pow_pos b_char)
-    refine validHistory_iterate_of_safe c_tab ((0, 0), rKey) s (fun _ _ _ => rfl) ?_ hinv.1
-    intro ⟨⟨i, y⟩, r⟩ hsafe_in
-    have hi_lt : i < c_tab := by simpa only [hpCTab_mk] using hsafe_in.2.2.1
-    have hch_lt : r &&& (2 ^ b_char - 1) < 2 ^ b_char := by
-      rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-    have hidx_lt : (j * (c_tab + 1) + i) * 2 ^ b_char + (r &&& (2 ^ b_char - 1)) <
-        topEntries c_tab d_par b_char := by
-      have h := DoubleTabulation.topAddr_lt_base_add_topWords 0 (c_tab + 1) d_par b_char
-        ⟨i, by omega⟩ ⟨j, hj⟩ ⟨_, hch_lt⟩
-      dsimp only [DoubleTabulation.topAddr, DoubleTabulation.topWords, topEntries] at h ⊢
-      omega
-    unfold innerStepGenProg readPackedGenProg
-    simp only [pure_bind, hpMaskB_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk]
-    refine validHistory_bind_of_eq ?_ trivial
-    exact validHistory_readPackedProg hw hidx_lt (by unfold space topWords at hfr; omega)
-  have houter_valid : ∀ rKey,
-      (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (iterate outerStepGenProg
-            (mkHashParams w w₀ R c_tab d_par b_char M_out, (base, (s_val, rKey))) d_par
-            (0, 0))) := by
-    intro rKey
-    have hinv_out := outerLoop_invariant (rKey := rKey) (s := s) henv'
-      (by dsimp only [hpPowB_mk]; exact hs_lt)
-      d_par 0 0 (by dsimp only [hpD_mk]; omega)
-      (by dsimp only [hpMOut_mk]; exact Nat.two_pow_pos _)
-    refine validHistory_iterate_of_safe d_par (0, 0) s ?_ ?_ hinv_out.1
-    · intro ⟨j, out⟩ s' hsafe_out
-      have hj : j < d_par := by simpa only [hpD_mk] using hsafe_out.2.2.1
-      have hin := innerLoop_invariant (s := s') henv' (by dsimp only [hpD_mk]; exact hj)
-        c_tab 0 0 rKey (by dsimp only [hpCTab_mk]; omega)
-        (by dsimp only [hpPowB_mk]; exact Nat.two_pow_pos b_char)
-      unfold outerStepGenProg innerLoopGenProg readPackedGenProg
-      simp only [pure_bind, hpCTab_mk]
-      rw [StateTransitionSpec.clientState_bind, clientState_width, hin.2.1,
-        StateTransitionSpec.clientState_bind, clientState_width, clientState_readPackedProg,
-        StateTransitionSpec.clientState_bind, clientState_width, clientState_readPackedProg,
-        clientState_pure']
-    · intro ⟨j, out⟩ hsafe_out
-      have hj : j < d_par := by simpa only [hpD_mk] using hsafe_out.2.2.1
-      have hin := innerLoop_invariant (s := s) henv' (by dsimp only [hpD_mk]; exact hj)
-        c_tab 0 0 rKey (by dsimp only [hpCTab_mk]; omega)
-        (by dsimp only [hpPowB_mk]; exact Nat.two_pow_pos b_char)
-      have hidx_s : (j * (c_tab + 1) + c_tab) * 2 ^ b_char + s_val <
-          topEntries c_tab d_par b_char := by
-        have h := DoubleTabulation.topAddr_lt_base_add_topWords 0 (c_tab + 1) d_par b_char
-          ⟨c_tab, by omega⟩ ⟨j, hj⟩ ⟨s_val, hs_lt⟩
-        dsimp only [DoubleTabulation.topAddr, DoubleTabulation.topWords, topEntries] at h ⊢
-        omega
-      unfold outerStepGenProg innerLoopGenProg readPackedGenProg
-      simp only [pure_bind, hpCTab_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk,
-        hpOffBot_mk, hpMOut_mk]
-      refine validHistory_bind_of_eq (hinner_valid j hj rKey) ?_
-      rw [hin.2.1]
-      refine validHistory_bind_of_eq
-        (validHistory_readPackedProg hw hidx_s (by unfold space topWords at hfr; omega)) ?_
-      rw [clientState_readPackedProg, clientResult_readPackedProg]
-      refine validHistory_bind_of_eq
-        (validHistory_readPackedProg hw
-          (mul_add_xor_lt_botEntries hj (by simpa only [hpPowB_mk] using hin.2.2)
-            (readPacked_lt _ _ _ _ _))
-          (by unfold space botWords at hfr; unfold offBot; omega))
-        trivial
+  have henv' := henv
+  obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, _, _, _, _, _, _, _, _, _, rfl⟩ := henv
+  simp only [hpCTab_mk, hpD_mk, hpBChar_mk, hpMOut_mk, hpPowB_mk] at hfr hs_lt
   unfold evalGenProg outerLoopGenProg
-  have hread_valid : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (Memory.read base)) := ⟨hbase_fr, trivial⟩
-  have hread_st : (Memory.spec 0).clientState s (Memory.read base) = s := rfl
-  refine validHistory_bind_of_eq hread_valid ?_
-  rw [hread_st]
+  rw [validHistory_bind']
+  refine ⟨⟨show base < s.frontier by wram_omega, trivial⟩, ?_⟩
+  change (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s _)
   simp only [pure_bind, hpD_mk]
-  exact validHistory_bind_of_eq (houter_valid _) trivial
+  rw [validHistory_bind']
+  refine ⟨?_, trivial⟩
+  suffices ∀ rKey, (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
+      (iterate outerStepGenProg (mkHashParams w w₀ R c_tab d_par b_char M_out,
+        (base, (s_val, rKey))) d_par (0, 0))) from this _
+  intro rKey
+  have hinv := outerLoop_invariant (rKey := rKey) (s := s) henv'
+    (by simpa only [hpPowB_mk] using hs_lt) d_par 0 0 (by simp only [hpD_mk]; omega)
+    (by simp only [hpMOut_mk]; exact Nat.two_pow_pos _)
+  refine validHistory_iterate_const d_par (0, 0) s (fun _ => clientState_outerStepGenProg _ s)
+    (fun ⟨j, out⟩ h => ?_) hinv.1
+  have hj : j < d_par := h.2.2.1
+  have hin := innerLoop_invariant (s := s) henv' hj c_tab 0 0 rKey
+    (by simp only [hpCTab_mk]; omega) (by simp only [hpPowB_mk]; exact Nat.two_pow_pos b_char)
+  unfold outerStepGenProg innerLoopGenProg readPackedGenProg
+  simp only [pure_bind, hpCTab_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk,
+    hpOffBot_mk, hpMOut_mk]
+  rw [validHistory_bind', clientState_iterate_innerStep]
+  refine ⟨validHistory_innerLoop henv' hw hj hfr, ?_⟩
+  rw [validHistory_bind', clientState_readPackedProg, clientResult_readPackedProg]
+  refine ⟨validHistory_readPackedProg hw (topIdx_lt_topEntries (by omega) hj hs_lt)
+    (by wram_omega), ?_⟩
+  rw [validHistory_bind']
+  exact ⟨validHistory_readPackedProg hw (mul_add_xor_lt_botEntries hj
+    (by simpa only [hpPowB_mk] using hin.2.2) (readPacked_lt _ _ _ _ _)) (by wram_omega), trivial⟩
 
 /-- Specialized `ValidHistory` lemma for `evalProg`. -/
 theorem validHistory_evalProg {w w₀ R c_tab d b_char M_out : ℕ} {base s_val u_val : ℕ}

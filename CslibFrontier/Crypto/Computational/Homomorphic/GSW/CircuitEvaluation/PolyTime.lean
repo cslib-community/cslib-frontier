@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists
 import Mathlib.Data.List.GetD
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Uniform native GSW circuit evaluation
@@ -182,9 +183,7 @@ theorem computableInPolyTime_evaluateCircuit {C : α → Σ k, Circuit signature
     (hinputs : ComputableInPolyTime inputs input (encList encBits)) :
     ComputableInPolyTime (fun a => evaluateCircuit (n a) (w a) (C a) (inputs a))
       input encBits := by
-  have hview : ComputableInPolyTime
-      (fun D : Σ k, Circuit signature k 1 => (D.1, D.2.code))
-      (encCircuit 1) (encPair encUnary encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   have hv := hview.comp hC
   have hcompiled := Layered.computableInPolyTime_compile hv.fst' hv.snd'
   have hlayers := computableInPolyTime_evaluateLayers hn hw hinputs hcompiled.fst'

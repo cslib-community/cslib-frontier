@@ -87,12 +87,10 @@ theorem decidesByMajority_iff_decidesByNonstrictMajority_compl {p : Polynomial �
     {V : α × List Bool → Bool} {A : Set α} :
     DecidesByMajority enc p V A ↔ DecidesByNonstrictMajority enc p (fun x => !V x) Aᶜ := by
   refine forall_congr' fun a => ?_
-  have h := acceptCount_add_acceptCount_not V a (p.eval (enc a).length)
-  have key : 2 ^ p.eval (enc a).length ≤
-        2 * acceptCount (fun x => !V x) a (p.eval (enc a).length) ↔
-      ¬2 ^ p.eval (enc a).length < 2 * acceptCount V a (p.eval (enc a).length) := by
-    omega
-  rw [Set.mem_compl_iff, key, not_iff_not]
+  have := acceptCount_add_acceptCount_not V a (p.eval (enc a).length)
+  rw [Set.mem_compl_iff, show 2 ^ p.eval (enc a).length ≤
+      2 * acceptCount (fun x => !V x) a (p.eval (enc a).length) ↔
+    ¬2 ^ p.eval (enc a).length < 2 * acceptCount V a (p.eval (enc a).length) by omega, not_iff_not]
 
 /-- **Non-strict majority defines `PP`**: a problem is in `PP` exactly when a polynomial-time
 verifier accepts the members of the problem, and only them, on at least half of the random
@@ -101,16 +99,12 @@ theorem mem_PP_iff_decidesByNonstrictMajority {A : Set α} :
     A ∈ PP enc ↔ ∃ (p : Polynomial ℕ) (V : α × List Bool → Bool),
       ComputableInPolyTime V (encPair enc encBits) encBool ∧
         DecidesByNonstrictMajority enc p V A := by
-  constructor
-  · intro hA
-    obtain ⟨p, V, hV, h⟩ := mem_PP.mp (compl_mem_PP hA)
-    refine ⟨p, fun x => !V x, ComputableInPolyTime.bool_not.comp hV, ?_⟩
-    simpa using decidesByMajority_iff_decidesByNonstrictMajority_compl.1 h
-  · rintro ⟨p, V, hV, h⟩
-    have h' : DecidesByMajority enc p (fun x => !V x) Aᶜ := by
-      rw [decidesByMajority_iff_decidesByNonstrictMajority_compl]
-      simpa using h
-    simpa using compl_mem_PP ⟨p, _, ComputableInPolyTime.bool_not.comp hV, h'⟩
+  refine ⟨fun hA => ?_, fun ⟨p, V, hV, h⟩ => ?_⟩
+  · obtain ⟨p, V, hV, h⟩ := mem_PP.mp (compl_mem_PP hA)
+    exact ⟨p, fun x => !V x, ComputableInPolyTime.bool_not.comp hV,
+      by simpa using decidesByMajority_iff_decidesByNonstrictMajority_compl.1 h⟩
+  · simpa using compl_mem_PP (A := Aᶜ) ⟨p, _, ComputableInPolyTime.bool_not.comp hV,
+      decidesByMajority_iff_decidesByNonstrictMajority_compl.2 (by simpa using h)⟩
 
 /-! ### Reductions -/
 
@@ -137,54 +131,47 @@ counted by `f`. -/
 theorem mem_PP_iff_exists_SharpP {A : Set α} :
     A ∈ PP enc ↔ ∃ f ∈ SharpP enc, ∃ q : Polynomial ℕ,
       ∀ a, a ∈ A ↔ 2 ^ q.eval (enc a).length < 2 * f a := by
-  constructor
-  · rintro ⟨p, V, hV, h⟩
-    exact ⟨_, ⟨p, V, hV, fun _ => rfl⟩, p, h⟩
-  · rintro ⟨f, ⟨p, V, hV, hf⟩, q, h⟩
-    -- on `false`, accept unless the first `k + 1` bits are `false`; on `true`, accept a
-    -- certificate of `V` followed by a free bit and bits `false`
-    refine ⟨p + q + 1 + 1, selectVerifier
-        (fun x => !andVerifier (fun a => p.eval (enc a).length + 1) allFalseVerifier
-          (fun _ => true) x)
-        (andVerifier (fun a => p.eval (enc a).length) V
-          (selectVerifier allFalseVerifier allFalseVerifier)), by fun_prop, fun a => ?_⟩
-    have hev : (p + q + 1 + 1).eval (enc a).length =
-        p.eval (enc a).length + q.eval (enc a).length + 1 + 1 := by simp
-    have e₀ := acceptCount_andVerifier_true (fun a => p.eval (enc a).length + 1) allFalseVerifier
-      a (q.eval (enc a).length)
-    have e₁ := acceptCount_andVerifier (fun a => p.eval (enc a).length) V
-      (selectVerifier allFalseVerifier allFalseVerifier) a (q.eval (enc a).length + 1)
-    rw [acceptCount_allFalseVerifier, one_mul] at e₀
-    rw [acceptCount_selectVerifier, acceptCount_allFalseVerifier, ← hf a] at e₁
-    rw [h a, hev, acceptCount_selectVerifier, acceptCount_not,
-      show p.eval (enc a).length + q.eval (enc a).length + 1 =
-        p.eval (enc a).length + 1 + q.eval (enc a).length by omega, e₀,
-      show p.eval (enc a).length + 1 + q.eval (enc a).length =
-        p.eval (enc a).length + (q.eval (enc a).length + 1) by omega, e₁]
-    have hj : 2 ^ q.eval (enc a).length ≤
-        2 ^ (p.eval (enc a).length + (q.eval (enc a).length + 1)) :=
-      Nat.pow_le_pow_right (by norm_num) (by omega)
-    rw [pow_succ _ (p.eval (enc a).length + (q.eval (enc a).length + 1))]
-    omega
+  refine ⟨fun ⟨p, V, hV, h⟩ => ⟨_, ⟨p, V, hV, fun _ => rfl⟩, p, h⟩,
+    fun ⟨f, ⟨p, V, hV, hf⟩, q, h⟩ => ?_⟩
+  -- on `false`, accept unless the first `k + 1` bits are `false`; on `true`, accept a
+  -- certificate of `V` followed by a free bit and bits `false`
+  refine ⟨p + q + 1 + 1, selectVerifier
+      (fun x => !andVerifier (fun a => p.eval (enc a).length + 1) allFalseVerifier
+        (fun _ => true) x)
+      (andVerifier (fun a => p.eval (enc a).length) V
+        (selectVerifier allFalseVerifier allFalseVerifier)), by fun_prop, fun a => ?_⟩
+  have e₀ := acceptCount_andVerifier_true (fun a => p.eval (enc a).length + 1) allFalseVerifier
+    a (q.eval (enc a).length)
+  have e₁ := acceptCount_andVerifier (fun a => p.eval (enc a).length) V
+    (selectVerifier allFalseVerifier allFalseVerifier) a (q.eval (enc a).length + 1)
+  rw [acceptCount_allFalseVerifier, one_mul] at e₀
+  rw [acceptCount_selectVerifier, acceptCount_allFalseVerifier, ← hf a] at e₁
+  rw [h a, show (p + q + 1 + 1).eval (enc a).length =
+      p.eval (enc a).length + q.eval (enc a).length + 1 + 1 by simp,
+    acceptCount_selectVerifier, acceptCount_not,
+    show p.eval (enc a).length + q.eval (enc a).length + 1 =
+      p.eval (enc a).length + 1 + q.eval (enc a).length by omega, e₀,
+    show p.eval (enc a).length + 1 + q.eval (enc a).length =
+      p.eval (enc a).length + (q.eval (enc a).length + 1) by omega, e₁,
+    pow_succ _ (p.eval (enc a).length + (q.eval (enc a).length + 1))]
+  have := Nat.pow_le_pow_right (by norm_num : 0 < 2)
+    (by omega : q.eval (enc a).length ≤ p.eval (enc a).length + (q.eval (enc a).length + 1))
+  omega
 
 /-- **`PP` through `GapP`** [Fenner, Fortnow and Kurtz][FennerFortnowKurtz1994]: a problem is in
 `PP` exactly when its members are the instances where some function in `GapP` is positive. -/
 theorem mem_PP_iff_exists_GapP {A : Set α} :
     A ∈ PP enc ↔ ∃ g ∈ GapP enc, ∀ a, a ∈ A ↔ 0 < g a := by
-  constructor
-  · rintro ⟨p, V, hV, h⟩
-    have hf : (fun a => acceptCount V a (p.eval (enc a).length)) ∈ SharpP enc :=
+  refine ⟨fun ⟨p, V, hV, h⟩ => ?_, fun ⟨g, ⟨f₁, hf₁, f₂, hf₂, hg⟩, h⟩ => ?_⟩
+  · have hf : (fun a => acceptCount V a (p.eval (enc a).length)) ∈ SharpP enc :=
       ⟨p, V, hV, fun _ => rfl⟩
     refine ⟨fun a => ((acceptCount V a (p.eval (enc a).length) +
         acceptCount V a (p.eval (enc a).length) : ℕ) : ℤ) - ((2 ^ p.eval (enc a).length : ℕ) : ℤ),
-      ⟨_, SharpP.add_mem hf hf, _, SharpP.two_pow_mem p, fun a => rfl⟩, fun a => ?_⟩
-    rw [h a, sub_pos, Nat.cast_lt]
-    omega
-  · rintro ⟨g, ⟨f₁, hf₁, f₂, hf₂, hg⟩, h⟩
-    obtain ⟨p, hle, hsub⟩ := SharpP.exists_two_pow_sub_mem hf₂
+      ⟨_, SharpP.add_mem hf hf, _, SharpP.two_pow_mem p, fun _ => rfl⟩, fun a => ?_⟩
+    rw [h a, sub_pos, Nat.cast_lt]; omega
+  · obtain ⟨p, hle, hsub⟩ := SharpP.exists_two_pow_sub_mem hf₂
     refine mem_PP_iff_exists_SharpP.2 ⟨_, SharpP.add_mem hf₁ hsub, p + 1, fun a => ?_⟩
     have := hle a
-    rw [h a, hg a, Polynomial.eval_add, Polynomial.eval_one, pow_succ, Pi.add_apply]
-    omega
+    rw [h a, hg a, Polynomial.eval_add, Polynomial.eval_one, pow_succ, Pi.add_apply]; omega
 
 end Cslib.Complexity

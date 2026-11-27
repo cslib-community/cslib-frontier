@@ -4,13 +4,18 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Circuit.Quantum.PhaseOracle
-import CslibFrontier.Foundations.LinearAlgebra.PlaneRotation
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Computability.Circuit.Quantum.PhaseOracle
+public import CslibFrontier.Foundations.LinearAlgebra.PlaneRotation
 
 /-! Controlled circuits, the reflection about zero and rotation by two reflections: the
 controlled `T = H[a] Λ(σ_x)[a, b] H[a]` built from a Toffoli gate (a variant of Shi's `T_{π/4}`,
 without its final `σ_x` on `b`), the reflection about `|00⟩` negating `|00⟩` and fixing `|10⟩`,
 and the quarter turn of the plane `ℝ²` produced by two reflections at angle `π / 4`. -/
+
+public section
 
 namespace CslibFrontierTests.QuantumReflection
 
@@ -30,7 +35,8 @@ example : IsControlled (0 : Fin 3)
       [(true, 1, [])] ++ [(false, 2, [1])] ++ [((true, 1, []) : GateCode)].reverse := rfl
   have hA : ∀ g ∈ ([(true, 1, [])] : List GateCode), WellFormed 3 g := by
     simp [WellFormed]
-  have hAc : ∀ g ∈ ([(true, 1, [])] : List GateCode), ((0 : Fin 3) : ℕ) ∉ g.2.1 :: g.2.2 := by
+  have hAc : ∀ b t cs, (b, t, cs) ∈ ([(true, 1, [])] : List GateCode) →
+      ((0 : Fin 3) : ℕ) ∉ t :: cs := by
     simp
   have hB : IsClassical 3 ([((false, 2, [1]) : GateCode)].map (addControl 0)) := by
     simp [IsClassical, addControl, WellFormed]

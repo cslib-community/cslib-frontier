@@ -44,9 +44,7 @@ def cost (κ n : ℕ) : ℕ :=
 
 /-- The width coefficient is positive, including exponent zero and empty input. -/
 theorem width_pos (κ n : ℕ) : 0 < width κ n := by
-  have := ChanHe.Parameters.width_pos κ n
-  dsimp only [width]
-  omega
+  exact Nat.mul_pos (by decide) (ChanHe.Parameters.width_pos κ n)
 
 /-- The physical width is explicitly `Cκ * clog₂(n+2)` with a positive coefficient. -/
 theorem width_eq (κ n : ℕ) :
@@ -87,20 +85,17 @@ theorem array_budget_le (n U : ℕ) :
 /-- The derived physical width discharges the complete native frontend budget. -/
 theorem array_budget_fits {κ n w : ℕ} (hw : width κ n ≤ w) :
     Fits w (Arrays.budget (layout κ n) ((n + 2) ^ κ)) := by
-  have hp : Fits (ChanHe.Parameters.width κ n)
-      (ChanHe.Parameters.Math.budget n ((n + 2) ^ κ)) := ChanHe.Parameters.budget_fits le_rfl
-  have hpow := Nat.pow_lt_pow_left hp (by decide : (4 : ℕ) ≠ 0)
   have hf : Fits (width κ n) (ChanHe.Parameters.Math.budget n ((n + 2) ^ κ) ^ 4) := by
-    simpa only [Fits, width, ← pow_mul, Nat.mul_comm] using hpow
+    simpa only [Fits, width, ← pow_mul, Nat.mul_comm] using
+      Nat.pow_lt_pow_left (ChanHe.Parameters.budget_fits (κ := κ) (n := n) le_rfl) (by decide)
   exact (hf.of_le (array_budget_le n ((n + 2) ^ κ))).mono hw
 
 /-- Input/header fitting follows from the same global magnitude and width promises. -/
 theorem input_fits {κ w : ℕ} (input : List ℤ) (hw : width κ input.length ≤ w)
     (hvalues : ∀ z ∈ input, |z| ≤ ((input.length + 2) ^ κ : ℕ)) :
     InputFits w (input.map Signed.encode) := by
-  apply ChanHe.Parameters.inputFits input (le_trans ?_ hw) hvalues
-  dsimp only [width]
-  omega
+  exact ChanHe.Parameters.inputFits input
+    ((Nat.le_mul_of_pos_left _ (by decide)).trans hw) hvalues
 
 /-- The lower-level radix bit bound includes the largest signed key, even when `κ=0`. -/
 theorem key_lt_two_pow {U : ℕ} (hU : 1 ≤ U) {z : ℤ} (hz : |z| ≤ (U : ℤ)) :

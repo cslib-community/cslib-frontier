@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Communication.NOF.Protocol
+import CslibFrontier.Foundations.Data.Nat.Power
 
 /-!
 # Leaves of number-on-forehead protocols
@@ -99,10 +100,7 @@ theorem leafCount_eq_one_of_isEmpty [IsEmpty ι] (p : Protocol X Z) : p.leafCoun
 theorem leafCount_le_two_pow_depth (p : Protocol X Z) : p.leafCount ≤ 2 ^ p.depth := by
   induction p with
   | output z => simp
-  | speak i send p₀ p₁ ih₀ ih₁ =>
-    rw [leafCount_speak, depth_speak, pow_succ, mul_two]
-    exact add_le_add (ih₀.trans (Nat.pow_le_pow_right two_pos (le_max_left _ _)))
-      (ih₁.trans (Nat.pow_le_pow_right two_pos (le_max_right _ _)))
+  | speak _ _ _ _ ih₀ ih₁ => exact Nat.add_le_two_pow_max_succ ih₀ ih₁
 
 /-- Two inputs reach the same leaf below a node when the speaker writes the same bit on both and
 they reach the same leaf of the branch taken. -/
@@ -134,21 +132,17 @@ theorem leaf_eq_of_view_eq (p : Protocol X Z) {q : ∀ i, X i} {y : ι → ∀ i
   | output z => rfl
   | speak k send p₀ p₁ ih₀ ih₁ =>
     -- Every witness takes the branch of player `k`'s witness, which is the branch of `q`.
-    have hk : ∀ j, send (view k (y j)) = send (view k q) := fun j => by
+    have hk (j : ι) : send (view k (y j)) = send (view k q) := by
       rcases leaf_speak_eq_iff.mp (hleaf j k) with ⟨hj, hk', _⟩ | ⟨hj, hk', _⟩ <;>
         rw [hj, ← hview k, hk']
     cases hq : send (view k q)
-    · have h₀ : ∀ j j', p₀.leaf (y j) = p₀.leaf (y j') := fun j j' => by
-        rcases leaf_speak_eq_iff.mp (hleaf j j') with ⟨hj, -, -⟩ | ⟨-, -, h⟩
-        · rw [hk j, hq] at hj
-          exact absurd hj (by decide)
-        · exact h
-      exact leaf_speak_eq_iff.mpr (Or.inr ⟨hq, (hk i).trans hq, ih₀ h₀ i⟩)
-    · have h₁ : ∀ j j', p₁.leaf (y j) = p₁.leaf (y j') := fun j j' => by
-        rcases leaf_speak_eq_iff.mp (hleaf j j') with ⟨-, -, h⟩ | ⟨hj, -, -⟩
-        · exact h
-        · rw [hk j, hq] at hj
-          exact absurd hj (by decide)
-      exact leaf_speak_eq_iff.mpr (Or.inl ⟨hq, (hk i).trans hq, ih₁ h₁ i⟩)
+    · refine leaf_speak_eq_iff.mpr (.inr ⟨hq, (hk i).trans hq, ih₀ (fun j j' => ?_) i⟩)
+      rcases leaf_speak_eq_iff.mp (hleaf j j') with ⟨hj, -, -⟩ | ⟨-, -, h⟩
+      · exact absurd ((hk j).symm.trans hj) (by simp [hq])
+      · exact h
+    · refine leaf_speak_eq_iff.mpr (.inl ⟨hq, (hk i).trans hq, ih₁ (fun j j' => ?_) i⟩)
+      rcases leaf_speak_eq_iff.mp (hleaf j j') with ⟨-, -, h⟩ | ⟨hj, -, -⟩
+      · exact h
+      · exact absurd ((hk j).symm.trans hj) (by simp [hq])
 
 end Cslib.Communication.NOF.Protocol

@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Circuit.Boolean.Tableau.ValueGame
 import CslibFrontier.Computability.Complexity.Classes.Alternation.SpaceGame
 import CslibFrontier.Computability.Complexity.Classes.Inclusions
@@ -27,6 +29,8 @@ In the circuit-value game on the tableau of any machine
 (`Cslib.Circuits.Boolean.Tableau.ValueGame`), a claim about a wire is won exactly when the opposite
 claim is lost, and the claims about input wires are decided by the input.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.AlternatingSpaceGame
 
@@ -55,7 +59,7 @@ example (x : Bool) : ¬ Wins List.tail [true, x] := by
 
 /-- The existential player wins from every position `false :: x :: r` and loses from every
 position `true :: x :: r`. -/
-theorem wins_tail : ∀ (r : List Bool) (x : Bool),
+private theorem wins_tail : ∀ (r : List Bool) (x : Bool),
     Wins List.tail (false :: x :: r) ∧ ¬ Wins List.tail (true :: x :: r)
   | [], _ => ⟨.existsMove true .accept, fun h => by cases h with | forallMove h => cases h false⟩
   | y :: r, _ => by
@@ -63,7 +67,7 @@ theorem wins_tail : ∀ (r : List Bool) (x : Bool),
     exact ⟨.existsMove false hwin, fun h => by cases h with | forallMove h => exact hlose (h true)⟩
 
 /-- **The tail game, solved.** -/
-theorem wins_tail_iff (w : List Bool) :
+private theorem wins_tail_iff (w : List Bool) :
     Wins List.tail w ↔ w = [true] ∨ ∃ x r, w = false :: x :: r := by
   refine ⟨fun h => ?_, ?_⟩
   · rcases w with _ | ⟨u, _ | ⟨x, r⟩⟩
@@ -79,7 +83,7 @@ theorem wins_tail_iff (w : List Bool) :
     · exact (wins_tail r x).1
 
 /-- Every play of the tail game ends within the length of the position. -/
-theorem ends_tail : ∀ (n : ℕ) (w : List Bool), w.length ≤ n → Ends List.tail n w
+private theorem ends_tail : ∀ (n : ℕ) (w : List Bool), w.length ≤ n → Ends List.tail n w
   | _, [], _ => by simp [Ends]
   | _, [_], _ => by simp [Ends]
   | 0, _ :: _ :: _, h => by simp at h
@@ -96,7 +100,7 @@ example (n : ℕ) : ¬ Ends id n [false, false] := by
     exact fun h => ih (h false)
 
 /-- Positions reachable in the tail game are no longer than the initial one. -/
-theorem length_le_of_reach {w₀ w : List Bool} (h : Reach List.tail w₀ w) :
+private theorem length_le_of_reach {w₀ w : List Bool} (h : Reach List.tail w₀ w) :
     w.length ≤ w₀.length := by
   induction h with
   | start => exact le_rfl
@@ -130,20 +134,33 @@ section ValueGame
 
 open Cslib.Circuits.Boolean.Tableau Cslib.Circuits.Boolean.Tableau.ValueGame
 
+-- `encClaim` preserves the exact encoded words of the former right-nested tuple encoding.
+example (x : List Bool) (T w : ℕ) (v : Bool) :
+    encClaim ⟨x, T, w, v⟩ =
+      encPair (encList encBool) (encPair encNat (encPair encNat encBool)) (x, T, w, v) :=
+  rfl
+
+-- `encClaim` exposes scoped `fun_prop` rules for projections and constructor across `module`.
+example :
+    ComputableInPolyTime
+      (fun c : Claim => (⟨c.input, c.steps, c.wire, c.value⟩ : Claim))
+      encClaim encClaim := by
+  fun_prop
+
 variable {k : ℕ} {State : Type} [Fintype State] [DecidableEq State]
   (tm : Turing.MultiTapeTM k Bool State)
 
 /-- A claim about a tableau wire is won exactly when the opposite claim is lost. -/
 example (x : List Bool) (T w : ℕ) (hw : w < x.length + numGates k State T) :
-    Wins (update tm encClaim) (position tm encClaim (x, T, w, true)) ↔
-      ¬ Wins (update tm encClaim) (position tm encClaim (x, T, w, false)) := by
+    Wins (update tm encClaim) (position tm encClaim ⟨x, T, w, true⟩) ↔
+      ¬ Wins (update tm encClaim) (position tm encClaim ⟨x, T, w, false⟩) := by
   rw [wins_position_iff x T w hw, wins_position_iff x T w hw]
   cases val tm T x w <;> simp
 
 /-- The true claim about an input wire is won, the false one lost. -/
 example (x : List Bool) (T i : ℕ) (hi : i < x.length) :
-    Wins (update tm encClaim) (position tm encClaim (x, T, i, x[i])) ∧
-      ¬ Wins (update tm encClaim) (position tm encClaim (x, T, i, !x[i])) := by
+    Wins (update tm encClaim) (position tm encClaim ⟨x, T, i, x[i]⟩) ∧
+      ¬ Wins (update tm encClaim) (position tm encClaim ⟨x, T, i, !x[i]⟩) := by
   have hw : i < x.length + numGates k State T := by omega
   rw [wins_position_iff x T i hw, wins_position_iff x T i hw, val_input tm hi]
   simp

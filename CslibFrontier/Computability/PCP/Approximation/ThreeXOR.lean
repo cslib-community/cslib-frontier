@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Logics.Propositional.CSP.Boolean
 public import CslibFrontier.Logics.Propositional.CSP.ToCNF.Count
 public import CslibFrontier.Logics.Propositional.CNF.UnsatVal
 public import CslibFrontier.Computability.PolyTime.CSP.ToCNF
@@ -28,9 +29,8 @@ This module does not establish hardness of MAX-E3LIN or the perfect-completeness
 theorem for MAX-E3SAT; small-soundness Label Cover is in
 `CslibFrontier.Computability.PCP.Approximation.LabelCover.SmallSoundness`.
 
-## Main definitions
-
-* `Cslib.Logic.PL.CSP.paritySem`: the Boolean relation alphabet selecting even or odd parity.
+The parity equations are the relation alphabet `Cslib.Logic.PL.CSP.paritySem` of
+`CslibFrontier.Logics.Propositional.CSP.Boolean`.
 
 ## Main results
 
@@ -44,22 +44,11 @@ theorem for MAX-E3SAT; small-soundness Label Cover is in
 * [J. Håstad, *Some optimal inapproximability results*][Hastad2001], proof of Theorem 6.1, p. 831.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Logic.PL.CSP
 
 variable {V : Type*}
-
-/-- The relation symbol `b` asks that the XOR of the local bits equal `b`. This semantics works
-at every arity; the three-variable reduction explicitly assumes scopes of length three. -/
-def paritySem (b : Bool) (bits : List Bool) : Bool :=
-  bits.foldl Bool.xor false == b
-
-/-- On three bits, `paritySem` is precisely the three-variable XOR equation. -/
-@[simp]
-theorem paritySem_three (b x y z : Bool) :
-    paritySem b [x, y, z] = ((x ^^ y ^^ z) == b) := by
-  cases x <;> rfl
 
 private theorem length_constraint_toCNF_parity (c : Constraint Bool V) (hc : c.scope.length = 3) :
     (Constraint.toCNF paritySem c).length = 4 := by
@@ -69,15 +58,9 @@ private theorem length_constraint_toCNF_parity (c : Constraint Bool V) (hc : c.s
 /-- A system of three-variable parity equations produces exactly four clauses per equation. -/
 theorem length_toCNFBounded_parity {F : CSP Bool V} (hF : ∀ c ∈ F, c.scope.length = 3) :
     (F.toCNFBounded 3 paritySem).length = 4 * F.length := by
-  rw [toCNFBounded_eq_toCNF fun c hc => (hF c hc).le]
-  induction F with
-  | nil => rfl
-  | cons c F ih =>
-    have hc := hF c List.mem_cons_self
-    have hrest := ih fun d hd => hF d (List.mem_cons_of_mem _ hd)
-    simp only [toCNF, List.flatMap_cons, List.length_append, List.length_cons,
-      length_constraint_toCNF_parity c hc, Nat.mul_succ] at hrest ⊢
-    omega
+  rw [toCNFBounded_eq_toCNF fun c hc => (hF c hc).le, toCNF, List.length_flatMap,
+    List.map_congr_left fun c hc => length_constraint_toCNF_parity c (hF c hc)]
+  simp [Nat.mul_comm]
 
 /-- Every clause produced from a three-variable parity system has exactly three literals. -/
 theorem length_clause_mem_toCNFBounded_parity {F : CSP Bool V}
@@ -100,11 +83,8 @@ theorem isExactThreeDistinct_toCNFBounded_parity {F : CSP Bool V}
   obtain ⟨c, hc, hcl⟩ := List.mem_flatMap.mp hcl
   obtain ⟨w, hw, rfl⟩ := List.mem_map.mp hcl
   have hwlen := BitString.length_of_mem_enumList (List.mem_filter.mp hw).1
-  have hvars : (Constraint.forbidClause c.scope w).map Prod.fst = c.scope := by
-    simpa only [Constraint.forbidClause, List.map_map, Function.comp_def] using
-      (List.map_fst_zip hwlen.ge)
-  rw [hvars]
-  exact (hF c hc).2
+  simpa only [Constraint.forbidClause, List.map_map, Function.comp_def,
+    List.map_fst_zip hwlen.ge] using (hF c hc).2
 
 /-- The compiler preserves satisfiability, including the empty system and repeated variables. -/
 theorem satisfiable_toCNFBounded_parity {F : CSP Bool V}

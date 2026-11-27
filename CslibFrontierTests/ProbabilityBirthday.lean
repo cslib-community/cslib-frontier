@@ -6,8 +6,10 @@ Authors: Samuel Schlesinger
 
 module
 
+import CslibFrontier.Probability.HashFamily.PolynomialBirthday
 import CslibFrontier.Probability.IID.Birthday
 import CslibFrontier.Probability.PMF.Coin
+import Mathlib.Data.Nat.Sqrt
 
 /-!
 # Tests for the birthday collision bounds
@@ -17,7 +19,8 @@ import: the exact collision probability of two fair coins; the upper bound on di
 every law, with more samples than points (three samples from a two-point set, where the
 hypothesis of the Theorem B.1(ii) bound cannot be dropped) and with fewer (two samples from a
 four-point set); the first lower bound for a biased coin and for every law on a four-point set;
-the second lower bound for a point mass; and the Theorem B.1(ii) bound on a four-point set.
+the second lower bound for a point mass; the Theorem B.1(ii) bound on a four-point set; and the
+two-block polynomial-hash bound for four draws over `ZMod 17`.
 
 Outside `namespace Cslib.Probability.PMF` the uniform law is written
 `Cslib.Probability.PMF.uniformOfFintype`: there the bare `PMF.uniformOfFintype` is a deprecated
@@ -28,6 +31,7 @@ set_option linter.privateModule false
 
 namespace CslibFrontierTests.ProbabilityBirthday
 
+open Cslib.Probability (polyHash one_eighth_le_polyHash_twoBlock_collision)
 open Cslib.Probability.PMF
 
 /-- Two fair coins collide with probability exactly `1 / 2`. -/
@@ -98,5 +102,21 @@ example : ((iid (Cslib.Probability.PMF.uniformOfFintype (Fin 4)) 2).toOuterMeasu
       1 - Real.exp (-(((2 : ℕ) : ℝ) * ((2 : ℕ) - 1) / 4)) := by
   simpa [Fintype.card_fin] using
     iid_uniformOfFintype_not_injective_le_one_sub_exp_neg (α := Fin 4) (k := 2) (by simp)
+
+/-- Four uniform two-block draws over `ZMod 17` have collision probability at least `1/8`. -/
+example (k : ZMod 17) :
+    (1 / 8 : ℝ) ≤
+      ((iid (uniformOfFintype (ZMod 17 × ZMod 17)) 4).toOuterMeasure
+        {ms | ∃ i j, polyHash k [(ms i).1, (ms i).2] = polyHash k [(ms j).1, (ms j).2] ∧
+          ms i ≠ ms j}).toReal := by
+  have hs : Nat.sqrt (Fintype.card (ZMod 17)) = 4 := by
+    rw [ZMod.card]
+    exact (Nat.eq_sqrt'.mpr (by decide)).symm
+  have hcard : 16 ≤ Fintype.card (ZMod 17) := by
+    rw [ZMod.card]
+    decide
+  have h := one_eighth_le_polyHash_twoBlock_collision k hcard
+  rw [hs] at h
+  exact h
 
 end CslibFrontierTests.ProbabilityBirthday

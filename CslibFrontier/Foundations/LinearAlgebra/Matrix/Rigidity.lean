@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
 public import Mathlib.Data.Set.Card
+import Mathlib.LinearAlgebra.LinearIndependent.Lemmas
 import Mathlib.LinearAlgebra.Matrix.Diagonal
+import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 
 /-!
 # Matrix rigidity
@@ -26,7 +28,11 @@ matrices have no linear circuits of linear size and logarithmic depth
 
 Changing one entry changes the rank by at most one, so `A` must lose `rank A - r` rank and every
 matrix needs at least `rank A - r` changes (`Matrix.rank_sub_le_rigidity`). For the identity matrix
-of size `n` this is exact: `rigidity 1 r = n - r` (`Matrix.rigidity_one`).
+of size `n` this is exact: `rigidity 1 r = n - r` (`Matrix.rigidity_one`). Conversely, when
+`r ≤ rank A`, choosing an invertible `r × r` submatrix and replacing the complementary
+`(|m| - r) × (|n| - r)` block by the Schur-complement product of the bordering blocks brings the
+rank down to `r`, so `A.rigidity r ≤ (|m| - r) (|n| - r)` (`Matrix.rigidity_le_mul_sub`, and
+`(|n| - r) ^ 2` for square matrices in `Matrix.rigidity_le_sq_sub`; [Lokam2009], §2.1, p. 11).
 
 ## Main definitions
 
@@ -40,6 +46,8 @@ of size `n` this is exact: `rigidity 1 r = n - r` (`Matrix.rigidity_one`).
 * `Matrix.rigidity_antitone`: rigidity decreases as the target rank grows.
 * `Matrix.rigidity_eq_zero_iff`: rigidity is zero exactly when the rank is already at most `r`.
 * `Matrix.rigidity_zero`: at target rank zero, rigidity counts the nonzero entries.
+* `Matrix.rigidity_le_mul_sub`, `Matrix.rigidity_le_sq_sub`: every `m × n` matrix has rigidity at
+  most `(|m| - r) (|n| - r)` (and `(|n| - r) ^ 2` when square).
 * `Matrix.rank_le_diffCount_zero`: the rank is at most the number of nonzero entries.
 * `Matrix.rank_sub_diffCount_le_rank`, `Matrix.rank_sub_le_rigidity`: each change lowers the rank
   by at most one, so every matrix needs at least `rank A - r` changes.
@@ -47,7 +55,8 @@ of size `n` this is exact: `rigidity 1 r = n - r` (`Matrix.rigidity_one`).
 
 ## References
 
-* [S. V. Lokam, *Complexity Lower Bounds using Linear Algebra*][Lokam2009], Definition 2.1
+* [S. V. Lokam, *Complexity Lower Bounds using Linear Algebra*][Lokam2009], Definition 2.1 and
+  §2.1, p. 11
 * [L. G. Valiant, *Graph-theoretic arguments in low-level complexity*][Valiant1977]
 -/
 
@@ -59,12 +68,9 @@ variable {m n K α : Type*}
 
 /-- The number of entries where the matrices `A` and `B` differ.
 
-When `m` is infinite (only `n` is required to be finite below), this counts with `Set.ncard`,
-which is `0` on infinite sets. Then, at every target rank `r ≥ 1`, some matrix of rank at most one
-differs from `A` in infinitely many entries, and the rigidity collapses to the junk value `0`; at
-`r = 0` the rigidity is `diffCount A 0` (`Matrix.rigidity_zero`), which can be genuine. The results
-relating rigidity to rank (`Matrix.rigidity_eq_zero_iff` and below) therefore assume
-`[Finite m]`. -/
+This counts differing positions with `Set.ncard`, which returns `0` on infinite sets.
+`Matrix.rigidity` and all rigidity results below therefore require `[Finite m]` alongside
+`[Fintype n]`, so that `diffCount` equals the true Hamming distance on `m × n`. -/
 noncomputable def diffCount (A B : Matrix m n α) : ℕ :=
   {p : m × n | A p.1 p.2 ≠ B p.1 p.2}.ncard
 
@@ -93,19 +99,16 @@ in each row. -/
 theorem diffCount_eq_sum [Fintype m] [DecidableEq α] (A B : Matrix m n α) :
     diffCount A B = ∑ i, (Finset.univ.filter fun j => A i j ≠ B i j).card := by
   classical
-  rw [diffCount, Set.ncard_eq_toFinset_card', ← Finset.card_sigma]
-  refine Finset.card_bij (fun p _ => ⟨p.1, p.2⟩) (by simp) ?_ ?_
-  · rintro ⟨i, j⟩ - ⟨i', j'⟩ - h
-    simp only [Sigma.mk.injEq, heq_eq_eq] at h
-    rw [h.1, h.2]
-  · rintro ⟨i, j⟩ h
-    exact ⟨(i, j), by simpa using h, rfl⟩
+  rw [diffCount_eq_card_filter, Finset.card_filter, Fintype.sum_prod_type]
+  simp [Finset.card_filter]
 
 variable [Field K]
 
 /-- **Matrix rigidity** ([Lokam2009], Definition 2.1): the least number of entries of `A` that must
 be changed to make its rank at most `r`. -/
-noncomputable def rigidity (A : Matrix m n K) (r : ℕ) : ℕ :=
+-- Finiteness restricts the public domain; `sInf` and `ncard` themselves do not require it.
+@[nolint unusedArguments]
+noncomputable def rigidity [Finite m] (A : Matrix m n K) (r : ℕ) : ℕ :=
   sInf (diffCount A '' {B | B.rank ≤ r})
 
 private theorem nonempty_rigiditySet (A : Matrix m n K) (r : ℕ) :
@@ -114,69 +117,62 @@ private theorem nonempty_rigiditySet (A : Matrix m n K) (r : ℕ) :
 
 /-- A matrix `B` of rank at most `r` that differs from `A` in `diffCount A B` entries bounds the
 rigidity of `A`. -/
-theorem rigidity_le {A B : Matrix m n K} {r : ℕ} (hB : B.rank ≤ r) :
+theorem rigidity_le [Finite m] {A B : Matrix m n K} {r : ℕ} (hB : B.rank ≤ r) :
     A.rigidity r ≤ diffCount A B :=
   Nat.sInf_le ⟨B, hB, rfl⟩
-
-/-- Some matrix of rank at most `r` differs from `A` in exactly `A.rigidity r` entries. -/
-theorem exists_rigidity_eq (A : Matrix m n K) (r : ℕ) :
-    ∃ B : Matrix m n K, B.rank ≤ r ∧ diffCount A B = A.rigidity r := by
-  obtain ⟨B, hB, h⟩ := Nat.sInf_mem (nonempty_rigiditySet A r)
-  exact ⟨B, hB, h⟩
-
-/-- `s ≤ A.rigidity r` exactly when every matrix of rank at most `r` differs from `A` in at least
-`s` entries. -/
-theorem le_rigidity_iff {A : Matrix m n K} {r s : ℕ} :
-    s ≤ A.rigidity r ↔ ∀ B : Matrix m n K, B.rank ≤ r → s ≤ diffCount A B := by
-  refine ⟨fun h B hB => h.trans (rigidity_le hB), fun h => ?_⟩
-  obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A r
-  exact hAB ▸ h B hB
-
-/-- Rigidity decreases as the target rank grows. -/
-theorem rigidity_antitone (A : Matrix m n K) : Antitone A.rigidity := fun r r' hr => by
-  obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A r
-  exact hAB ▸ rigidity_le (hB.trans hr)
 
 /-- Rigidity is at most the number of entries. -/
 theorem rigidity_le_card [Fintype m] (A : Matrix m n K) (r : ℕ) :
     A.rigidity r ≤ Fintype.card m * Fintype.card n :=
   (rigidity_le (B := 0) (by simp)).trans (diffCount_le_card _ _)
 
-/-- At target rank zero, the rigidity is the number of nonzero entries. -/
-theorem rigidity_zero (A : Matrix m n K) : A.rigidity 0 = diffCount A 0 := by
-  obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A 0
-  rw [rank_eq_zero_iff.1 (Nat.le_zero.1 hB)] at hAB
-  exact hAB.symm
+section FiniteRows
 
 variable [Finite m]
 
+/-- Some matrix of rank at most `r` differs from `A` in exactly `A.rigidity r` entries. -/
+theorem exists_rigidity_eq (A : Matrix m n K) (r : ℕ) :
+    ∃ B : Matrix m n K, B.rank ≤ r ∧ diffCount A B = A.rigidity r :=
+  Nat.sInf_mem (nonempty_rigiditySet A r)
+
+/-- `s ≤ A.rigidity r` exactly when every matrix of rank at most `r` differs from `A` in at least
+`s` entries. -/
+theorem le_rigidity_iff {A : Matrix m n K} {r s : ℕ} :
+    s ≤ A.rigidity r ↔ ∀ B : Matrix m n K, B.rank ≤ r → s ≤ diffCount A B :=
+  ⟨fun h _ hB => h.trans (rigidity_le hB),
+    fun h =>
+      let ⟨B, hB, hAB⟩ := exists_rigidity_eq A r
+      hAB ▸ h B hB⟩
+
+/-- Rigidity decreases as the target rank grows. -/
+theorem rigidity_antitone (A : Matrix m n K) : Antitone A.rigidity := fun r _ hr =>
+  let ⟨_, hB, hAB⟩ := exists_rigidity_eq A r
+  hAB ▸ rigidity_le (hB.trans hr)
+
+/-- At target rank zero, the rigidity is the number of nonzero entries. -/
+theorem rigidity_zero (A : Matrix m n K) : A.rigidity 0 = diffCount A 0 :=
+  let ⟨_, hB, hAB⟩ := exists_rigidity_eq A 0
+  (rank_eq_zero_iff.1 (Nat.le_zero.1 hB) ▸ hAB).symm
+
 /-- No changes are needed when the rank is already at most `r`. -/
 theorem rigidity_eq_zero_iff {A : Matrix m n K} {r : ℕ} : A.rigidity r = 0 ↔ A.rank ≤ r := by
-  refine ⟨fun h => ?_, fun h => Nat.eq_zero_of_le_zero (rigidity_le h |>.trans_eq (by simp))⟩
+  refine ⟨fun h => ?_, fun h => Nat.eq_zero_of_le_zero ((rigidity_le h).trans_eq (by simp))⟩
   obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A r
   rw [h, diffCount, Set.ncard_eq_zero] at hAB
-  have : A = B := by
-    ext i j
-    by_contra hij
-    exact (Set.eq_empty_iff_forall_notMem.1 hAB) (i, j) hij
-  exact this ▸ hB
+  have hAB' : A = B := Matrix.ext fun i j => by_contra fun hij =>
+    Set.eq_empty_iff_forall_notMem.1 hAB (i, j) hij
+  exact hAB' ▸ hB
 
 /-- The rank of a matrix is at most the number of its nonzero entries. -/
 theorem rank_le_diffCount_zero (C : Matrix m n K) : C.rank ≤ diffCount C 0 := by
   classical
   have := Fintype.ofFinite m
-  let rows : Finset m :=
-    (Finset.univ.filter fun p : m × n => C p.1 p.2 ≠ 0).image Prod.fst
-  have hsupp : Function.support C.row ⊆ rows := by
-    intro i hi
-    obtain ⟨j, hj⟩ : ∃ j, C i j ≠ 0 := by
-      by_contra h
-      exact hi (funext fun j => not_not.1 fun hj => h ⟨j, hj⟩)
-    exact Finset.mem_image.2 ⟨(i, j), by simpa using hj, rfl⟩
-  refine (rank_le_card_of_support_subset C rows hsupp).trans ?_
-  refine Finset.card_image_le.trans ?_
-  rw [diffCount, ← Set.ncard_coe_finset]
-  exact le_of_eq (congrArg Set.ncard (by ext p; simp))
+  refine (rank_le_card_of_support_subset C
+    ((Finset.univ.filter fun p : m × n => C p.1 p.2 ≠ 0).image Prod.fst) fun i hi => ?_).trans
+    (Finset.card_image_le.trans_eq (diffCount_eq_card_filter C 0).symm)
+  obtain ⟨j, hj⟩ : ∃ j, C i j ≠ 0 := by_contra fun h =>
+    hi <| funext fun j => by_contra fun hj => h ⟨j, hj⟩
+  exact Finset.mem_image.2 ⟨(i, j), by simpa using hj, rfl⟩
 
 /-- **Each change lowers the rank by at most one**: the rank of `B` is at least the rank of `A`
 minus the number of entries where they differ. -/
@@ -184,7 +180,7 @@ theorem rank_sub_diffCount_le_rank (A B : Matrix m n K) : A.rank - diffCount A B
   have h := rank_add_le B (A - B)
   rw [add_sub_cancel] at h
   have : diffCount (A - B) 0 = diffCount A B :=
-    congrArg Set.ncard (Set.ext fun p => not_congr sub_eq_zero)
+    congrArg Set.ncard (Set.ext fun _ => not_congr sub_eq_zero)
   have := rank_le_diffCount_zero (A - B)
   omega
 
@@ -194,6 +190,78 @@ theorem rank_sub_le_rigidity (A : Matrix m n K) (r : ℕ) : A.rank - r ≤ A.rig
   obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A r
   have := rank_sub_diffCount_le_rank A B
   omega
+
+/-- A matrix of rank at least `r` over a field contains an invertible `r × r` submatrix. -/
+private theorem exists_submatrix_mul_eq_one_of_le_rank {A : Matrix m n K} {r : ℕ}
+    (hr : r ≤ A.rank) :
+    ∃ (f : Fin r → m) (g : Fin r → n) (M' : Matrix (Fin r) (Fin r) K),
+      Function.Injective f ∧ Function.Injective g ∧
+        A.submatrix f g * M' = 1 ∧ M' * A.submatrix f g = 1 := by
+  classical
+  have := Fintype.ofFinite m
+  obtain ⟨κ, a, ha, hspan, hli⟩ := exists_linearIndependent' K A.row
+  have : Finite κ := Finite.of_injective a ha
+  have := Fintype.ofFinite κ
+  have hκ : r ≤ Fintype.card κ := by
+    rwa [← finrank_span_eq_card hli, hspan, ← A.rank_eq_finrank_span_row]
+  let e₁ : Fin r → κ := (Fintype.equivFin κ).symm ∘ Fin.castLE hκ
+  have he₁ : Function.Injective e₁ := (Equiv.injective _).comp (Fin.castLE_injective hκ)
+  have hf_rank : (A.submatrix (a ∘ e₁) id).rank = r :=
+    ((hli.comp e₁ he₁ : LinearIndependent K (A.submatrix (a ∘ e₁) id).row).rank_matrix).trans
+      (Fintype.card_fin r)
+  obtain ⟨κ', b, hb, hspan', hli'⟩ := exists_linearIndependent' K (A.submatrix (a ∘ e₁) id).col
+  have : Finite κ' := Finite.of_injective b hb
+  have := Fintype.ofFinite κ'
+  have hκ' : Fintype.card κ' = r := by
+    rw [← finrank_span_eq_card hli', hspan', ← rank_eq_finrank_span_cols, hf_rank]
+  let e₂ : Fin r ≃ κ' := Fintype.equivOfCardEq (by rw [Fintype.card_fin, hκ'])
+  obtain ⟨M', hMM'⟩ := exists_mul_eq_one_of_rank_eq_card <|
+    (rank_transpose (A.submatrix (a ∘ e₁) (b ∘ e₂))).symm.trans
+      (hli'.comp e₂ e₂.injective).rank_matrix
+  exact ⟨a ∘ e₁, b ∘ e₂, M', ha.comp he₁, hb.comp e₂.injective, hMM', mul_eq_one_comm.mp hMM'⟩
+
+end FiniteRows
+
+/-- **Upper bound on matrix rigidity** ([Valiant1977]; [Lokam2009], §2.1, p. 11, for square
+matrices). Every `m × n` matrix over a field has rigidity at most `(|m| - r) (|n| - r)` at target
+rank `r`: if `rank A ≤ r` no changes are needed, and if `r < rank A` then `A` contains an
+invertible `r × r` submatrix `A_{I, J}`, so `A_{·, J} A_{I, J}⁻¹ A_{I, ·}` has rank at most `r`
+and agrees with `A` on all of `I × n` and `m × J`. -/
+theorem rigidity_le_mul_sub [Fintype m] (A : Matrix m n K) (r : ℕ) :
+    A.rigidity r ≤ (Fintype.card m - r) * (Fintype.card n - r) := by
+  rcases le_or_gt A.rank r with hle | hlt
+  · simp [rigidity_eq_zero_iff.mpr hle]
+  obtain ⟨f, g, M', hf, hg, hMM', hM'M⟩ := exists_submatrix_mul_eq_one_of_le_rank hlt.le
+  let B : Matrix m n K := A.submatrix id g * M' * A.submatrix f id
+  have hBrank : B.rank ≤ r :=
+    (rank_mul_le_right _ _).trans ((rank_le_card_height _).trans_eq (Fintype.card_fin r))
+  have hBf : B.submatrix f id = A.submatrix f id := by
+    calc B.submatrix f id
+        = (A.submatrix id g * M').submatrix f id * A.submatrix f id := rfl
+      _ = A.submatrix f g * M' * A.submatrix f id := rfl
+      _ = A.submatrix f id := by rw [hMM', Matrix.one_mul]
+  have hBg : B.submatrix id g = A.submatrix id g := by
+    calc B.submatrix id g
+        = A.submatrix id g * M' * (A.submatrix f id).submatrix id g := rfl
+      _ = A.submatrix id g * (M' * A.submatrix f g) := Matrix.mul_assoc _ _ _
+      _ = A.submatrix id g := by rw [hM'M, Matrix.mul_one]
+  have hsub : {p : m × n | A p.1 p.2 ≠ B p.1 p.2} ⊆ (Set.range f)ᶜ ×ˢ (Set.range g)ᶜ :=
+    fun ⟨_, _⟩ hij => ⟨fun ⟨a, ha⟩ => hij (ha ▸ congr_fun₂ hBf.symm a _),
+      fun ⟨b, hb⟩ => hij (hb ▸ congr_fun₂ hBg.symm _ b)⟩
+  refine (rigidity_le hBrank).trans ?_
+  calc diffCount A B
+      ≤ ((Set.range f)ᶜ ×ˢ (Set.range g)ᶜ).ncard := Set.ncard_le_ncard hsub
+    _ = (Set.range f)ᶜ.ncard * (Set.range g)ᶜ.ncard := Set.ncard_prod
+    _ = (Fintype.card m - r) * (Fintype.card n - r) := by
+        rw [Set.ncard_compl, Set.ncard_compl, Set.ncard_range_of_injective hf,
+          Set.ncard_range_of_injective hg]
+        simp only [Nat.card_eq_fintype_card, Fintype.card_fin]
+
+/-- **Upper bound on the rigidity of a square matrix** ([Valiant1977]; [Lokam2009], §2.1, p. 11).
+Every `n × n` matrix over a field has rigidity at most `(|n| - r) ^ 2` at target rank `r`. -/
+theorem rigidity_le_sq_sub (A : Matrix n n K) (r : ℕ) :
+    A.rigidity r ≤ (Fintype.card n - r) ^ 2 :=
+  sq (Fintype.card n - r) ▸ A.rigidity_le_mul_sub r
 
 section One
 
@@ -205,16 +273,13 @@ theorem rigidity_one (r : ℕ) : (1 : Matrix n n K).rigidity r = Fintype.card n 
   classical
   refine le_antisymm ?_ (by simpa [rank_one] using rank_sub_le_rigidity (1 : Matrix n n K) r)
   rcases le_total (Fintype.card n) r with h | h
-  · rw [Nat.sub_eq_zero_of_le h]
-    exact (rigidity_eq_zero_iff.2 (by rw [rank_one]; exact h)).le
+  · simp [Nat.sub_eq_zero_of_le h, rigidity_eq_zero_iff.2 (rank_one.trans_le h)]
   -- keep `r` diagonal entries and zero the others
   obtain ⟨S, hS⟩ := Finset.exists_subset_card_eq (s := (Finset.univ : Finset n)) h
   let w : n → K := fun i => if i ∈ S then 1 else 0
   have hrank : (diagonal w).rank = r := by
     rw [rank_diagonal, Fintype.card_subtype, ← hS.2]
-    congr 1
-    ext i
-    simp [w]
+    exact congrArg Finset.card (Finset.ext fun _ => by simp [w])
   refine (rigidity_le (B := diagonal w) hrank.le).trans_eq ?_
   have hset : {p : n × n | (1 : Matrix n n K) p.1 p.2 ≠ diagonal w p.1 p.2} =
       (fun i => (i, i)) '' ((Sᶜ : Finset n) : Set n) := by
@@ -223,7 +288,7 @@ theorem rigidity_one (r : ℕ) : (1 : Matrix n n K).rigidity r = Fintype.card n 
     · subst hij
       by_cases hi : i ∈ S <;> simp [w, hi]
     · simp [one_apply_ne hij, hij, Ne.symm hij]
-  rw [diffCount, hset, Set.ncard_image_of_injective _ (fun i j h => (Prod.ext_iff.1 h).1),
+  rw [diffCount, hset, Set.ncard_image_of_injective _ (fun _ _ h => (Prod.ext_iff.1 h).1),
     Set.ncard_coe_finset, Finset.card_compl, hS.2]
 
 end One

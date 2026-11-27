@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Data.BitString.List.Dot
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Foundations.Data.BitString.Support.Equiv
 
 /-!
 # Polynomial-time word algorithms for Goldreich–Levin decoding
@@ -76,31 +77,26 @@ theorem polyTime_maskCount {α : Type} {input : α ↪ List Bool} {dimension pre
 def nonzeroSelectors (count : ℕ) : List (List Bool) :=
   (enumList count).filter (fun word => word.any id)
 
-private def selectorEquiv (count : ℕ) : BitString count ≃ Finset (Fin count) where
-  toFun guess := Finset.univ.filter (fun i => guess i)
-  invFun subset i := decide (i ∈ subset)
-  left_inv guess := by funext i; simp
-  right_inv subset := by ext; simp
-
 /-- The word selectors enumerate exactly the finite decoder's voting subsets, once each. -/
 theorem listStrictMajority_nonzeroSelectors (count : ℕ) (vote : List Bool → Bool) :
     listStrictMajority ((nonzeroSelectors count).map vote) =
       strictMajorityOn (nonemptySubsets count)
         (fun s => vote (List.ofFn (fun i => decide (i ∈ s)))) := by
+  let sel : BitString count ≃ Finset (Fin count) := BitString.supportEquiv
   let indices :=
-    ((BitString.enum count).map (selectorEquiv count)).filter (fun s => decide s.Nonempty)
+    ((BitString.enum count).map sel).filter (fun s => decide s.Nonempty)
   have hnodup : indices.Nodup :=
-    ((BitString.nodup_enum count).map (selectorEquiv count).injective).filter _
-  have hall : ∀ s, s ∈ (BitString.enum count).map (selectorEquiv count) := by
+    ((BitString.nodup_enum count).map sel.injective).filter _
+  have hall : ∀ s, s ∈ (BitString.enum count).map sel := by
     intro s
-    exact List.mem_map.mpr ⟨(selectorEquiv count).symm s, BitString.mem_enum _ _, by simp⟩
+    exact List.mem_map.mpr ⟨sel.symm s, BitString.mem_enum _ _, by simp⟩
   have hset : indices.toFinset = nonemptySubsets count := by
     ext s
     simp [indices, hall]
   have heq : nonzeroSelectors count =
       indices.map (fun s => List.ofFn (fun i => decide (i ∈ s))) := by
-    simp only [nonzeroSelectors, enumList, indices, List.filter_map, List.map_map,
-      Function.comp_def, selectorEquiv, Equiv.coe_fn_mk, Finset.mem_filter,
+    simp only [nonzeroSelectors, enumList, indices, sel, List.filter_map, List.map_map,
+      Function.comp_def, BitString.supportEquiv_apply, Finset.mem_filter,
       Finset.mem_univ, true_and, Bool.decide_coe]
     congr 2 with guess : 1
     apply Bool.eq_iff_iff.mpr

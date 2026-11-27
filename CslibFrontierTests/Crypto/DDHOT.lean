@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+module
+-- upstream: local-only (regression tests)
+
 import CslibFrontier.Crypto.Protocols.MPC.DDHOT
 
 /-! # Three-Message DDH Oblivious Transfer: checked instances
@@ -25,6 +28,8 @@ cyclic group `ZMod 5` of order `5` with generator `1 : ZMod 5`:
   that picks one query bit `τ` and receives only `m_τ` falls short of the malicious receiver's
   simultaneous-recovery success probability on `ZMod 5` by at least `1 - 5⁻¹`. -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.Crypto.DDHOT
 
 open Cslib Cslib.Probability Cslib.ProbComp Cslib.Crypto Cslib.Crypto.Protocols.MPC
@@ -35,8 +40,8 @@ private theorem zmod5_gen : ∀ y : ZMod 5, ∃ k : ZMod 5, k • (1 : ZMod 5) =
 
 -- Pointwise decryption check across all choices of σ, sender messages, and receiver mask in ZMod 5.
 example : ∀ (σ : Bool) (m₀ m₁ b : ZMod 5),
-    let c₀ : DDHOTSenderCoins 5 := (2, 1, 3, 4, 2)
-    let u := c₀.1 • (1 : ZMod 5)
+    let c₀ : DDHOTSenderCoins 5 := ⟨2, 1, 3, 4, 2⟩
+    let u := c₀.exponent • (1 : ZMod 5)
     let v := ddhOTReceiverMsg (1 : ZMod 5) σ b u
     let reply := ddhOTSenderReply (1 : ZMod 5) (m₀, m₁) c₀ v
     ddhOTReceiverOutput σ b reply = (if σ then m₁ else m₀) := by
@@ -44,7 +49,7 @@ example : ∀ (σ : Bool) (m₀ m₁ b : ZMod 5),
 
 -- Simultaneous recovery of both sender messages on the unchecked variant in ZMod 5.
 example : ∀ (m₀ m₁ b₀ b₁ : ZMod 5),
-    let c₀ : DDHOTSenderCoins 5 := (2, 1, 3, 4, 2)
+    let c₀ : DDHOTSenderCoins 5 := ⟨2, 1, 3, 4, 2⟩
     let v := ddhOTAttackMsg (1 : ZMod 5) b₀ b₁
     let reply := ddhOTSenderReplyUnchecked (1 : ZMod 5) (m₀, m₁) c₀ v
     ddhOTAttackBothMessages b₀ b₁ reply = (m₀, m₁) := by

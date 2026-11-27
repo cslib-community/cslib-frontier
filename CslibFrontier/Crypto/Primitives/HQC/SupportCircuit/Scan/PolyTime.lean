@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Native generation of a corrected-suffix scan
@@ -62,14 +63,12 @@ theorem headCollisionCode_eq_code (bits offset count : ℕ) (j : Fin count) :
       (Fin.append (Fin.castAdd (count * bits))
         (fun i : Fin bits => Fin.natAdd bits (finProdFinEquiv (j, i))))).code =
       ([], (List.range (bits + bits)).map fun i =>
-        if i < bits then i else bits + (i - bits + bits * j.val)) := by
-    apply Circuit.code_wiring_eq_map
-    intro i
-    refine Fin.addCases (fun k => ?_) (fun k => ?_) i
-    · simp only [Fin.append_left, Fin.val_castAdd, ite_eq_left k.isLt]
-    · simp only [Fin.append_right, Fin.val_natAdd, finProdFinEquiv_apply_val]
-      rw [ite_eq_right (by omega)]
-      omega
+        if i < bits then i else bits + (i - bits + bits * j.val)) :=
+    Circuit.code_wiring_eq_map <| Fin.addCases
+      (fun k => by simp only [Fin.append_left, Fin.val_castAdd, ite_eq_left k.isLt])
+      fun k => by
+        simp only [Fin.append_right, Fin.val_natAdd, finProdFinEquiv_apply_val]
+        rw [ite_eq_right (by omega)]; omega
   have ht : (Circuit.wiring signature
       (Fin.natAdd bits : Fin (count * bits) → Fin (bits + count * bits))).code =
       ([], (List.range (count * bits)).map (bits + ·)) :=
@@ -92,22 +91,18 @@ theorem headCollisionCode_eq_code (bits offset count : ℕ) (j : Fin count) :
       (fun a => (List.range (bits a + bits a)).map fun i =>
         if i < bits a then i else bits a + (i - bits a + bits a * j a))
       enc (encList encNat) := by
-    have hi : ComputableInPolyTime
-        (fun p : α × ℕ => if p.2 < bits p.1 then p.2
-          else bits p.1 + (p.2 - bits p.1 + bits p.1 * j p.1))
-        (encPair enc encUnary) encNat := by
-      have hb' := unary_to_binary.comp (hb.comp (fst enc encUnary))
-      have hj' := hj.comp (fst enc encUnary)
-      have hi' := unary_to_binary.comp (snd enc encUnary)
-      exact ((binary_lt' hi' hb').ite' hi'
-        (binary_add' hb' (binary_add' (binary_sub' hi' hb') (binary_mul' hb' hj')))).of_enc_eq
-          fun p => by simp only [Function.comp_apply, decide_eq_true_eq]
-    exact mapWithInput (by fun_prop) hi
+    refine mapWithInput (by fun_prop) ?_
+    have hb' := unary_to_binary.comp (hb.comp (fst enc encUnary))
+    have hi' := unary_to_binary.comp (snd enc encUnary)
+    exact ((binary_lt' hi' hb').ite' hi'
+      (binary_add' hb' (binary_add' (binary_sub' hi' hb')
+        (binary_mul' hb' (hj.comp (fst enc encUnary)))))).of_enc_eq
+      fun _ => by simp only [Function.comp_apply, decide_eq_true_eq]
   have ht : ComputableInPolyTime
       (fun a => (List.range (count a * bits a)).map (bits a + ·)) enc (encList encNat) := by
     apply mapWithInput (encA := encUnary) (range.comp (by fun_prop))
-    have hb' := unary_to_binary.comp (hb.comp (fst enc encUnary))
-    have hi := unary_to_binary.comp (snd enc encUnary)
+    have := unary_to_binary.comp (hb.comp (fst enc encUnary))
+    have := unary_to_binary.comp (snd enc encUnary)
     fun_prop
   have hstep := computableInPolyTime_collisionStepCircuit hb ho
   simp only [← collisionStepCode_eq_code] at hstep
@@ -179,13 +174,9 @@ private theorem computableInPolyTime_collisionScanFoldStep :
   have hp := ComputableInPolyTime.id' (encIn :=
     encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
   have hb := hp.fst'.fst'.fst'
-  have ho := hp.fst'.fst'.snd'.fst'
   have hc := hp.fst'.fst'.snd'.snd'
-  have hN := ComputableInPolyTime.unary_add' hb
-    (ComputableInPolyTime.unary_mul' hc hb)
-  unfold collisionScanFoldStep
-  exact computableInPolyTime_compCode (unary_to_binary.comp hN) hp.fst'.snd'
-    (computableInPolyTime_headCollisionCode hb ho hc hp.snd')
+  exact computableInPolyTime_compCode (unary_to_binary.comp (unary_add' hb (unary_mul' hc hb)))
+    hp.fst'.snd' (computableInPolyTime_headCollisionCode hb hp.fst'.fst'.snd'.fst' hc hp.snd')
 
 private def collisionScanCodeBound (bits count : ℕ) : ℕ :=
   let N := bits + count * bits
@@ -197,15 +188,7 @@ private theorem polyBounded_collisionScanCodeBound {α : Type} {enc : α ↪ Lis
     (hc : ComputableInPolyTime count enc encUnary) :
     PolyBounded (fun a => (enc a).length)
       (fun a => collisionScanCodeBound (bits a) (count a)) := by
-  have hb' := hb.polyBounded
-  have hc' := hc.polyBounded
-  have hN := hb'.add (hc'.mul hb')
-  have hG := hc'.mul (((PolyBounded.const 13).mul hb').add (.const 6))
-  have hNG := hN.add hG
-  have hleft := (((PolyBounded.const 2).mul hG).mul
-    ((PolyBounded.const 23).add ((PolyBounded.const 8).mul hNG))).add (.const 1)
-  have hright := hN.mul (((PolyBounded.const 2).mul hNG).add (.const 1))
-  simpa [collisionScanCodeBound] using hleft.add hright
+  growth_poly
 
 private theorem length_collisionScanFold_le (bits offset count i : ℕ)
     (hi : i ≤ (List.range count).reverse.length) :
@@ -214,20 +197,15 @@ private theorem length_collisionScanFold_le (bits offset count i : ℕ)
       ([], List.range (bits + count * bits)))).length ≤
         collisionScanCodeBound bits count := by
   obtain ⟨c, he, hs⟩ := exists_circuit_fold_head bits offset count
-    (((List.range count).reverse).take i) (fun j hj => by
-      exact List.mem_range.mp (List.mem_reverse.mp (List.mem_of_mem_take hj)))
-  change (encCode (((List.range count).reverse.take i).foldl
-    (fun acc j => compCode (bits + count * bits) acc
-      (headCollisionCode bits offset count j))
-    ([], List.range (bits + count * bits)))).length ≤ collisionScanCodeBound bits count
+    ((List.range count).reverse.take i)
+    fun _ hj => List.mem_range.mp (List.mem_reverse.mp (List.mem_of_mem_take hj))
+  unfold collisionScanFoldStep
   rw [he]
-  have hsize : c.size ≤ count * (13 * bits + 6) := by
-    rw [hs]
-    exact Nat.mul_le_mul_right _ ((List.length_take_le _ _).trans (by
-      simpa only [List.length_reverse, List.length_range] using hi))
-  exact (length_encCode_le c).trans (by
-    dsimp only [collisionScanCodeBound]
-    gcongr)
+  have hsize : c.size ≤ count * (13 * bits + 6) := hs ▸ Nat.mul_le_mul_right _
+    ((List.length_take_le _ _).trans (by simpa using hi))
+  refine (length_encCode_le c).trans ?_
+  dsimp only [collisionScanCodeBound]
+  gcongr
 
 /-- The whole increasing suffix scan has a native polynomial-time generator in its unary
 parameters, with its complete encoded intermediate circuits charged by the loop bound. -/
@@ -239,28 +217,20 @@ parameters, with its complete encoded intermediate circuits charged by the loop 
     ComputableInPolyTime
       (fun a => (collisionScanCircuit (bits a) (offset a) (count a)
         (List.finRange (count a))).code) enc encCode := by
-  let parEnc := encPair encUnary (encPair encUnary encUnary)
-  have hpar := hb.prod (ho.prod hc)
   have hlist : ComputableInPolyTime (fun a => (List.range (count a)).reverse)
-      enc (encList encNat) := by
-    have hr : ComputableInPolyTime (fun a => List.range (count a)) enc (encList encNat) := by
-      simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-        unary_to_binary.map.comp (range.comp hc)
-    exact (ComputableInPolyTime.listReverseWithInput hr)
+      enc (encList encNat) := listReverseWithInput <| by
+    simpa only [Function.comp_def, List.map_id_fun', id_eq] using
+      unary_to_binary.map.comp (range.comp hc)
   have hinit : ComputableInPolyTime
       (fun a => (([] : List (Op × List ℕ)), List.range (bits a + count a * bits a)))
       enc encCode := by
-    have hN : ComputableInPolyTime (fun a => bits a + count a * bits a) enc encUnary := by
-      fun_prop
-    have hr := unary_to_binary.map.comp (range.comp hN)
-    simpa only [Function.comp_def, List.map_id_fun', id_eq] using (const []).prod hr
-  have h := foldlWith (step := collisionScanFoldStep) hpar hlist hinit
-    (by simpa only [parEnc] using computableInPolyTime_collisionScanFoldStep)
-    (polyBounded_collisionScanCodeBound hb hc) fun a i hi =>
-      length_collisionScanFold_le (bits a) (offset a) (count a) i hi
-  have hcode : ComputableInPolyTime
-      (fun a => collisionScanCode (bits a) (offset a) (count a)) enc encCode := by
-    simpa only [collisionScanFoldStep, List.foldl_reverse, collisionScanCode] using h
-  simpa only [collisionScanCode_eq_code] using hcode
+    have hN : ComputableInPolyTime (fun a => bits a + count a * bits a) enc encUnary := by fun_prop
+    simpa only [Function.comp_def, List.map_id_fun', id_eq] using
+      (const []).prod (unary_to_binary.map.comp (range.comp hN))
+  have h := foldlWith (step := collisionScanFoldStep) (hb.prod (ho.prod hc)) hlist hinit
+    computableInPolyTime_collisionScanFoldStep (polyBounded_collisionScanCodeBound hb hc)
+    fun a i hi => length_collisionScanFold_le (bits a) (offset a) (count a) i hi
+  simpa only [← collisionScanCode_eq_code, collisionScanFoldStep, List.foldl_reverse,
+    collisionScanCode] using h
 
 end Cslib.Crypto.HQC

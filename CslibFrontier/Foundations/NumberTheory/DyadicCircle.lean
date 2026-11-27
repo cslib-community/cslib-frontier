@@ -12,10 +12,6 @@ public import Mathlib.Algebra.Order.Floor.Ring
 public import Mathlib.Data.Rat.Floor
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.BigOperators.Ring.Finset
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Positivity
 
 /-!
 # Dyadic approximation modulo one
@@ -86,11 +82,8 @@ theorem dyadicSumNumerator_error {ι : Type*} [Fintype ι] (B : ℕ) (f : ι →
   · exact div_nonneg (sum_nonneg fun i _ => sub_nonneg.mpr (Int.floor_le _)) hD.le
   · apply (div_le_div_iff_of_pos_right hD).mpr
     calc
-      _ ≤ ∑ _ : ι, (1 : ℚ) := by
-        apply sum_le_sum
-        intro i _
-        have := Int.sub_one_lt_floor ((2 : ℚ) ^ B * f i)
-        linarith
+      _ ≤ ∑ _ : ι, (1 : ℚ) :=
+        sum_le_sum fun i _ => by linarith [Int.sub_one_lt_floor ((2 : ℚ) ^ B * f i)]
       _ = _ := by simp
 
 /-- Rounding a sum congruent to any rational target gives a circular approximation.
@@ -104,11 +97,8 @@ theorem dyadicCircleApprox_close {ι : Type*} [Fintype ι] (B : ℕ) (f : ι →
   let r : ℚ := (dyadicSumNumerator B f : ℚ) / (2 : ℚ) ^ B
   refine ⟨z - ⌊r⌋, ?_⟩
   rw [dyadicCircleApprox_eq_fract, Int.fract, Int.cast_sub]
-  have heq : r - (⌊r⌋ : ℚ) - x - ((z : ℚ) - ⌊r⌋) =
-      -((∑ i, f i) - r) := by linarith
-  change |r - (⌊r⌋ : ℚ) - x - ((z : ℚ) - ⌊r⌋)| < ε
-  rw [heq, abs_neg, abs_of_nonneg herr.1]
-  exact herr.2.trans_lt hε
+  have heq : r - (⌊r⌋ : ℚ) - x - ((z : ℚ) - ⌊r⌋) = -((∑ i, f i) - r) := by linarith
+  simpa only [r, heq, abs_neg, abs_of_nonneg herr.1] using herr.2.trans_lt hε
 
 /-- Zero summands have zero approximation, at every precision. -/
 @[simp] theorem dyadicCircleApprox_zero {ι : Type*} [Fintype ι] (B : ℕ) :

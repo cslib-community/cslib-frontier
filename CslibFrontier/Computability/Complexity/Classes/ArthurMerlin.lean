@@ -55,6 +55,8 @@ the second level of the polynomial hierarchy in
 
 ## Main definitions
 
+* `Cslib.Complexity.coAM` is the class of languages whose complements belong to AM.
+
 * `Cslib.Complexity.IsMerlinArthurVerifier`, `Cslib.Complexity.MA`.
 * `Cslib.Complexity.arthurMerlinSlice`: reply-existence counting slice of an Arthur–Merlin verifier.
 * `Cslib.Complexity.IsArthurMerlinVerifier`, `Cslib.Complexity.AM`.
@@ -151,6 +153,9 @@ theorem mem_AM : A ∈ AM enc ↔ ∃ (p q : Polynomial ℕ) (V : α × List Boo
     ComputableInPolyTime V (encPair enc encBits) encBool ∧
       IsArthurMerlinVerifier enc p q V A :=
   Iff.rfl
+
+/-- Languages whose complements admit an Arthur–Merlin protocol. -/
+def coAM (enc : α ↪ List Bool) : Set (Set α) := {A | Aᶜ ∈ AM enc}
 
 /-! ### `NP` and `BPP` -/
 

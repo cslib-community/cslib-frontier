@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Layered.Padding.PolyTi
 public import CslibFrontier.Computability.Circuit.Boolean.EvaluationTime
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Uniform native certificates for the depth-budgeted scheme
@@ -45,7 +46,7 @@ generated circuit, so no separate runtime assumption on the base decryption func
 * [C. Gentry, *Fully homomorphic encryption using ideal lattices*, Section 2][Gentry2009]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.Homomorphic.Leveled
 
@@ -173,17 +174,10 @@ theorem isPPTOn_evaluateHop
     IsPPTOn input encBits
       (fun a => evaluateHop D (n a) (offset a) (step a) (pk a) (c a) (inputs a)) := by
   have hpublic := publicKeyDecoder.computableInPolyTime.comp hpk
-  have hview : ComputableInPolyTime
-      (fun C : Σ m, Circuit Boolean.signature m 1 => (C.1, C.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
-  have hparts := hview.comp hc
-  have hdrop : ComputableInPolyTime (fun a => 2 * offset a) input encUnary := by
-    fun_prop
+  have hparts := (Boolean.computableInPolyTime_arity_code 1).comp hc
+  have hdrop : ComputableInPolyTime (fun a => 2 * offset a) input encUnary := by fun_prop
   have htail : ComputableInPolyTime (List.tail (α := List Bool))
-      (encList encBits) (encList encBits) := by
-    simpa only [Function.comp_def, List.drop_one] using
-      (ComputableInPolyTime.dropUnary (encA := encBits) (encL := encList encBits)).comp
-        (ComputableInPolyTime.id'.prod (ComputableInPolyTime.const 1))
+      (encList encBits) (encList encBits) := by fun_prop
   have hpks := (ComputableInPolyTime.dropUnary (encA := encBits) (encL := encList encBits)).comp
     ((htail.comp hpublic.fst').prod hdrop)
   have hlinks := (ComputableInPolyTime.dropUnary (encA := encList encBits)
@@ -207,10 +201,7 @@ theorem isPPTOn_evaluate {c : α → Σ m, Circuit Boolean.signature m 1}
     IsPPTOn input encBits
       (fun a => evaluate D (n a) (budget a) (pk a) (c a) (inputs a)) := by
   have hpublic := publicKeyDecoder.computableInPolyTime.comp hpk
-  have hview : ComputableInPolyTime
-      (fun C : Σ m, Circuit Boolean.signature m 1 => (C.1, C.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
-  have hparts := hview.comp hc
+  have hparts := (Boolean.computableInPolyTime_arity_code 1).comp hc
   have htail : ComputableInPolyTime (List.tail (α := List Bool))
       (encList encBits) (encList encBits) := by fun_prop
   apply (isPPTOn_evaluateCircuit hencrypt D hD hevaluate hn hbudget
@@ -227,11 +218,8 @@ of the depth budget. No separate polynomial-width assumption is needed. -/
 theorem polynomiallyBounded_widths :
     PolynomiallyBounded (fun n => 3 * secretWidth n + 1) ∧
       PolynomiallyBounded (fun n => ciphertextWidth n + 1) := by
-  have hview : ComputableInPolyTime
-      (fun c : Σ m, Circuit Boolean.signature m 1 => (c.1, c.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
   have htotal : PolynomiallyBounded (fun n => secretWidth n + ciphertextWidth n) :=
-    (hview.fst'.comp hD).polynomiallyBounded
+    ((Boolean.computableInPolyTime_arity_code 1).fst'.comp hD).polynomiallyBounded
   have hsecret : PolynomiallyBounded secretWidth :=
     htotal.mono_of_le (fun n => Nat.le_add_right (secretWidth n) (ciphertextWidth n))
   have hciphertext : PolynomiallyBounded ciphertextWidth :=

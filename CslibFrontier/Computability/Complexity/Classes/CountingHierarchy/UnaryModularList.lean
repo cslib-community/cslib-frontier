@@ -14,26 +14,25 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Simulation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ListProd
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Group.List.Basic
 
 /-!
-# Same-level unary modular collection and summation
+# Same-level unary modular collection, sums and products
 
 `unaryModularList` collects polynomially many binary oracle values in order, reducing each
 before appending it. The loop invariant bounds the index, list length and every stored entry
 under every supported reply of an arbitrary stateful handler. `unaryModularList_mem` therefore
 retains one fixed counting oracle at the original level.
 
-`unaryModularSum` reuses this list and the certified binary sum program. The complete reduced
-list has polynomial encoded length because the count is unary and the modulus is binary.
-This construction preserves the counting level and polynomial storage; it does not claim a
-small scalar accumulator-space bound. Its total modulus-zero value is the ordinary natural
-sum. Both operations also have direct plain polynomial-time certificates for plain callbacks,
-without requiring the modulus to be positive.
+`unaryModularSum` and `unaryModularProduct` reuse this list and the certified binary arithmetic
+programs. The reduced list and its sum and product have polynomial encoded lengths because the
+count is unary and the modulus is binary. At modulus zero the evaluators give the ordinary
+natural sum and product.
 
-Adapted from `LeanCanny.CountingHierarchy.UnaryModularList` and the sum in
+Adapted from `LeanCanny.CountingHierarchy.UnaryModularList` and
 `UnaryModularAggregation` at lean-canny commit `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 -/
 
@@ -93,19 +92,14 @@ theorem unaryModularList_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
   obtain ⟨A, hA, program, hprogram, heq⟩ := hf'
   let body (w : α) (s : ℕ × List ℕ) : WordQueryComp Unit (ℕ × List ℕ) :=
     (fun v => (s.1 + 1, s.2 ++ [v % modulus w])) <$> program (w, s)
-  have hi : ComputableInPolyTime
-      (fun q : (α × (ℕ × List ℕ)) × ℕ => q.1.2.1 + 1)
-      (encPair callEncoding encNat) encNat := by fun_prop
   have hv : ComputableInPolyTime
       (fun q : (α × (ℕ × List ℕ)) × ℕ => q.2 % modulus q.1.1)
       (encPair callEncoding encNat) encNat :=
     ComputableInPolyTime.binary_mod.comp ((ComputableInPolyTime.snd _ _).prod
       (hmod.comp (by fun_prop)))
-  have ht : ComputableInPolyTime
-      (fun q : (α × (ℕ × List ℕ)) × ℕ => q.1.2.2)
-      (encPair callEncoding encNat) (encList encNat) := by fun_prop
-  have hpost := hi.prod (ComputableInPolyTime.listAppend' ht
-    (ComputableInPolyTime.cons' hv (ComputableInPolyTime.const [])))
+  have hpost : ComputableInPolyTime
+      (fun q : (α × (ℕ × List ℕ)) × ℕ => (q.1.2.1 + 1, q.1.2.2 ++ [q.2 % modulus q.1.1]))
+      (encPair callEncoding encNat) stateEncoding := by fun_prop
   have hstep : IsOraclePPTOn callEncoding stateEncoding (fun q : α × (ℕ × List ℕ) =>
       OracleComp.interpret ProbOracleComp.query (body q.1 q.2)) := by
     simp only [body, OracleComp.interpret_map]
@@ -119,14 +113,10 @@ theorem unaryModularList_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
       next.1 = i + 1 ∧ next.2.length = i + 1 ∧ ∀ v ∈ next.2, v < modulus w := by
     simp only [body, OracleComp.interpret_map] at hnext
     obtain ⟨v, _hv, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-    refine ⟨by simp only; omega, ?_, ?_⟩
-    · simp only [List.length_append, List.length_singleton]
-      omega
-    · intro x hx
-      rcases List.mem_append.mp hx with hx | hx
-      · exact hinv.2.2 x hx
-      · have he : x = v % modulus w := List.mem_singleton.mp hx
-        exact he ▸ Nat.mod_lt _ (hpos w)
+    refine ⟨congrArg (· + 1) hinv.1, by simp [hinv.2.1], fun x hx => ?_⟩
+    rcases List.mem_append.mp hx with hx | hx
+    · exact hinv.2.2 x hx
+    · exact List.mem_singleton.mp hx ▸ Nat.mod_lt _ (hpos w)
   have hbound (w : α) (i : ℕ) (s : ℕ × List ℕ) (hi : i ≤ count w)
       (hinv : s.1 = i ∧ s.2.length = i ∧ ∀ v ∈ s.2, v < modulus w) :
       (stateEncoding s).length ≤
@@ -141,7 +131,8 @@ theorem unaryModularList_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
       simp only [length_encList, List.map_replicate, List.sum_replicate, smul_eq_mul]
     simp only [stateEncoding, length_encPair, hr, encNat_apply, Nat.size_eq_bits_len] at hl ⊢
     rw [hinv.2.1] at hl
-    nlinarith
+    have hmul := Nat.mul_le_mul_right (2 * (modulus w).size + 1) hi
+    omega
   have hloop := (IsOraclePPTOn.iterateWith_spec
     (step := fun w s => OracleComp.interpret ProbOracleComp.query (body w s))
     hcount (ComputableInPolyTime.const ((0 : ℕ), ([] : List ℕ))) hstep
@@ -200,15 +191,40 @@ theorem unaryModularSum_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (hp : ComputableInPolyTime p enc encNat) (hpos : ∀ w, 0 < p w)
     (hv : v ∈ CountingFunction a (encPair enc encNat) encNat) :
     (fun w => unaryModularSum (n w) (p w) (fun i => v (w, i))) ∈
-      CountingFunction a enc encNat := by
-  have hsum := CountingFunction.map (unaryModularList_mem hn hp hpos hv)
-    ComputableInPolyTime.binary_sum
-  simpa only [unaryModularSum] using
-    CountingFunction.nat_mod hsum (CountingFunction.of_polyTime hp)
+      CountingFunction a enc encNat :=
+  CountingFunction.nat_mod
+    (CountingFunction.map (unaryModularList_mem hn hp hpos hv) ComputableInPolyTime.binary_sum)
+    (CountingFunction.of_polyTime hp)
 
 /-- The total sum evaluator casts to the actual finite sum, for every modulus. -/
 theorem unaryModularSum_cast (n p : ℕ) (v : ℕ → ℕ) :
     (unaryModularSum n p v : ZMod p) = ∑ i : Fin n, (v i.val : ZMod p) := by
   rw [unaryModularSum_eq, ZMod.natCast_mod, Nat.cast_sum, Finset.sum_range]
+
+/-- Multiply the collected residues and reduce once more. -/
+@[expose] def unaryModularProduct (n p : ℕ) (v : ℕ → ℕ) : ℕ :=
+  (unaryModularList n p v).prod % p
+
+/-- At positive modulus, a unary number of factors uses one fixed oracle at the original
+function level. The intermediate product has at most the sum of the binary factor lengths. -/
+theorem unaryModularProduct_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
+    {n p : α → ℕ} {v : α × ℕ → ℕ}
+    (hn : ComputableInPolyTime n enc encUnary)
+    (hp : ComputableInPolyTime p enc encNat) (hpos : ∀ w, 0 < p w)
+    (hv : v ∈ CountingFunction a (encPair enc encNat) encNat) :
+    (fun w => unaryModularProduct (n w) (p w) (fun i => v (w, i))) ∈
+      CountingFunction a enc encNat :=
+  CountingFunction.nat_mod
+    (CountingFunction.map (unaryModularList_mem hn hp hpos hv) ComputableInPolyTime.binary_prod)
+    (CountingFunction.of_polyTime hp)
+
+/-- The evaluator casts to the actual finite product at every modulus. -/
+theorem unaryModularProduct_cast (n p : ℕ) (v : ℕ → ℕ) :
+    (unaryModularProduct n p v : ZMod p) = ∏ i : Fin n, (v i.val : ZMod p) := by
+  have h := List.prod_nat_mod ((List.range n).map v) p
+  rw [← List.prod_toFinset _ List.nodup_range, List.toFinset_range] at h
+  have hmod : unaryModularProduct n p v = (∏ i ∈ Finset.range n, v i) % p := by
+    simpa only [unaryModularProduct, unaryModularList, List.map_map, Function.comp_def] using h.symm
+  rw [hmod, ZMod.natCast_mod, Nat.cast_prod, Finset.prod_range]
 
 end Cslib.Complexity

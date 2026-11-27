@@ -104,27 +104,24 @@ variable {n g : ℕ}
 theorem interpretation_of_op_eq_not {l : Line signature n g} (h : l.op = .not)
     (v : Wire n g → Bool) :
     interpretation l.op (fun a => v (l.wires a)) = !v (l.wires ⟨0, by simp [h]⟩) := by
-  obtain ⟨op, ws⟩ := l
-  simp only at h
-  subst h
+  rcases l with ⟨_, _⟩
+  cases h
   rfl
 
 /-- A conjunction gate is true when all its arguments are. -/
 theorem interpretation_of_op_eq_and {l : Line signature n g} {m : ℕ} (h : l.op = .and m)
     (v : Wire n g → Bool) :
     interpretation l.op (fun a => v (l.wires a)) = true ↔ ∀ a, v (l.wires a) = true := by
-  obtain ⟨op, ws⟩ := l
-  simp only at h
-  subst h
+  rcases l with ⟨_, _⟩
+  cases h
   simp
 
 /-- A disjunction gate is true when one of its arguments is. -/
 theorem interpretation_of_op_eq_or {l : Line signature n g} {m : ℕ} (h : l.op = .or m)
     (v : Wire n g → Bool) :
     interpretation l.op (fun a => v (l.wires a)) = true ↔ ∃ a, v (l.wires a) = true := by
-  obtain ⟨op, ws⟩ := l
-  simp only at h
-  subst h
+  rcases l with ⟨_, _⟩
+  cases h
   simp
 
 end Lines
@@ -164,10 +161,7 @@ open Finset in
 theorem cost_andOrCost_eq_card {n g : ℕ} (p : Program signature n g) :
     p.cost andOrCost = #{k | (p.lines k).op ≠ .not} := by
   rw [p.cost_eq_sum, card_eq_sum_ones, sum_filter]
-  refine sum_congr rfl fun k _ => ?_
-  by_cases h : (p.lines k).op = .not
-  · simp [h]
-  · simp [h, andOrCost_eq_one_of_ne_not h]
+  exact sum_congr rfl fun k _ => by cases (p.lines k).op <;> simp
 
 /-- The operations of the unbounded fan-in basis, and one extra gate of every arity. -/
 inductive ExtOp where

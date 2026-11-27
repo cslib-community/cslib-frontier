@@ -119,8 +119,7 @@ theorem isStandardizedInconsistent_iff (R : Set (Fin 4 → Bool)) :
       generalize x 0 = a, x 1 = b, x 2 = c, x 3 = d
       cases a <;> cases b <;> cases c <;> cases d <;>
         simp [standardizedRelation, cross]
-    · intro x hx
-      exact Or.inl hx
+    · exact fun _ => Or.inl
     · intro x hx
       rcases hx with hx | ⟨h, _⟩
       · by_cases h : x 0 = x 1
@@ -208,14 +207,9 @@ theorem figureOneA_target (R : Set (Fin 4 → Bool)) [inst : DecidablePred (· �
     (h : IsStandardizedInconsistent R) :
     figureOneARelation R = cross ∨ figureOneARelation R = nearCross := by
   obtain ⟨p, q, r, rfl⟩ := (isStandardizedInconsistent_iff R).mp h
-  have hi : inst = instDecidableStandardizedRelation p q r := Subsingleton.elim _ _
-  have he := congrArg (@figureOneARelation (standardizedRelation p q r)) hi
-  have ht := he.trans (figureOneARelation_standardized p q r)
-  cases p <;> cases q
-  · exact Or.inl ht
-  · exact Or.inr ht
-  · exact Or.inr ht
-  · exact Or.inr ht
+  cases Subsingleton.elim inst (instDecidableStandardizedRelation p q r)
+  rw [figureOneARelation_standardized]
+  cases p || q <;> simp
 
 /-- The exact first target can be selected by inspecting only `0001` and `0010` in `R`. -/
 theorem figureOneARelation_eq (R : Set (Fin 4 → Bool)) [inst : DecidablePred (· ∈ R)]
@@ -224,9 +218,8 @@ theorem figureOneARelation_eq (R : Set (Fin 4 → Bool)) [inst : DecidablePred (
       if decide (![false, false, false, true] ∈ R ∨ ![false, false, true, false] ∈ R)
       then nearCross else cross := by
   obtain ⟨p, q, r, rfl⟩ := (isStandardizedInconsistent_iff R).mp h
-  have hi : inst = instDecidableStandardizedRelation p q r := Subsingleton.elim _ _
-  have he := congrArg (@figureOneARelation (standardizedRelation p q r)) hi
-  rw [he.trans (figureOneARelation_standardized p q r)]
+  cases Subsingleton.elim inst (instDecidableStandardizedRelation p q r)
+  rw [figureOneARelation_standardized]
   cases p <;> cases q <;> simp [standardizedRelation, cross]
 
 /-- Figure 1(a) with its explicitly identified CROSS or NEAR-CROSS target.

@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Ancestry
-import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Cases
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
@@ -280,7 +279,7 @@ theorem computableInPolyTime_blossom : ComputableInPolyTime
       (hgetR.comp ((ComputableInPolyTime.fst
         (encPair encMeetingArgs (encPair encUnary encUnary)) (encPair encNat encNat)).fst'))
     fun_prop
-  have hcase := NativeCases.sumElimSnd (left := lb) (right := rb) none hlb hrb
+  have hcase := ComputableInPolyTime.sumElimSnd (left := lb) (right := rb) hlb hrb
   have h := ComputableInPolyTime.optionElimWithInput
     (body := fun p a => a.elim (lb p) (rb p)) hh (ComputableInPolyTime.const none) hcase
   apply h.of_enc_eq

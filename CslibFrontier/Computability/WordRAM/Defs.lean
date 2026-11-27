@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.GenericRAM.Defs
 public import CslibFrontier.Computability.WordRAM.Basis
 public import Cslib.Foundations.Relation.RelatesInSteps
 public import Mathlib.Data.Fin.VecNotation
+public import CslibFrontier.Tactic.WramOmega.Init
 
 /-!
 # Word RAMs
@@ -177,6 +178,7 @@ variable {B : Basis} {r : ℕ}
 /-! ## Words -/
 
 /-- A number fits a `w`-bit word if it is below `2 ^ w`. -/
+@[wram_arith]
 def Fits (w v : ℕ) : Prop := v < 2 ^ w
 
 /-- Decidability of `Fits w v`. -/

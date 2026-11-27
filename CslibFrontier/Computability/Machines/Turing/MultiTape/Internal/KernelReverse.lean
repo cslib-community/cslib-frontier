@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Defs
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Tactic.TypeStar
 import Mathlib.Tactic.Lemma
 
@@ -79,10 +81,7 @@ lemma step_scan {n : ℕ} (hn : n < input.length) :
   have hsym : (cfg input (some false) ⟨n + 1, by omega⟩ tapes heads out).inputSymbol =
       some input[n] :=
     inputSymbolInner n (by simp only [cfg]; omega) hn
-  rw [step_of_state rfl, hsym, reverseInput, tr_ofTr]
-  refine Cfg.ext_zero_tapes rfl ?_ (by simp [cfg, Action.apply])
-  simp only [cfg, Action.apply]
-  exact moveInputPos_pos_of_ne_right _ (by simp only; omega)
+  tm_step [reverseInput, cfg, ↓hsym]
 
 /-- After `n ≤ input.length` steps in state `false` from position `1`, the input head is at
 `n + 1` and the output is unchanged. -/
@@ -91,8 +90,7 @@ lemma runFrom_scan (n : ℕ) (hn : n ≤ input.length) :
       cfg input (some false) ⟨n + 1, by omega⟩ tapes heads out := by
   induction n with
   | zero =>
-    refine Cfg.ext_zero_tapes rfl ?_ rfl
-    exact Fin.ext rfl
+    tm_step
   | succ n ih =>
     rw [runFrom_succ, ih (by omega), step_scan (by omega)]
 
@@ -105,10 +103,7 @@ lemma step_turn :
   have hsym : (cfg input (some false) ⟨input.length + 1, by omega⟩ tapes heads out).inputSymbol =
       none :=
     inputSymbol_eq_none_of_boundary (.inr rfl)
-  rw [step_of_state rfl, hsym, reverseInput, tr_ofTr]
-  refine Cfg.ext_zero_tapes rfl ?_ (by simp [cfg, Action.apply])
-  simp only [cfg, Action.apply]
-  exact moveInputPos_neg_of_ne_left _ (by intro h; have := congrArg Fin.val h; simp at this)
+  tm_step [reverseInput, cfg, ↓hsym]
 
 /-- Over an input symbol in state `true`, `reverseInput` emits that symbol and moves one cell
 left. -/
@@ -118,10 +113,7 @@ lemma step_walk {j : ℕ} (hj : j < input.length) (out : List Symbol) :
   have hsym : (cfg input (some true) ⟨j + 1, by omega⟩ tapes heads out).inputSymbol =
       some input[j] :=
     inputSymbolInner j (by simp only [cfg]; omega) hj
-  rw [step_of_state rfl, hsym, reverseInput, tr_ofTr]
-  refine Cfg.ext_zero_tapes rfl ?_ (by simp [cfg, Action.apply])
-  simp only [cfg, Action.apply]
-  exact moveInputPos_neg_of_ne_left _ (by intro h; have := congrArg Fin.val h; simp at this)
+  tm_step [reverseInput, cfg, ↓hsym]
 
 /-- At the left boundary blank in state `true`, `reverseInput` steps right to position `1` and
 halts. -/
@@ -130,10 +122,7 @@ lemma step_halt (out : List Symbol) :
       cfg input none 1 tapes heads out := by
   have hsym : (cfg input (some true) ⟨0, by omega⟩ tapes heads out).inputSymbol = none :=
     inputSymbol_eq_none_of_boundary (.inl rfl)
-  rw [step_of_state rfl, hsym, reverseInput, tr_ofTr]
-  refine Cfg.ext_zero_tapes rfl ?_ (by simp [cfg, Action.apply])
-  simp only [cfg, Action.apply]
-  exact (moveInputPos_pos_of_ne_right _ (by simp only; omega)).trans (Fin.ext rfl)
+  tm_step [reverseInput, cfg, ↓hsym]
 
 /-- From state `true` at position `j ≤ input.length`, `reverseInput` halts at position `1` after
 `j + 1` steps, having appended `(input.take j).reverse` to `out`. -/
@@ -149,8 +138,7 @@ lemma runFrom_walk (j : ℕ) (hj : j ≤ input.length) (out : List Symbol) :
     have htake : (input.take (j + 1)).reverse = [input[j]] ++ (input.take j).reverse := by
       rw [List.take_add_one, List.getElem?_eq_getElem hj', Option.toList_some, List.reverse_append,
         List.reverse_singleton]
-    have hstep : j + 1 + 1 = 1 + (j + 1) := by omega
-    rw [hstep, runFrom_add, runFrom_one, step_walk hj' out, ih (by omega),
+    rw [runFrom_succ_eq_step, step_walk hj' out, ih (by omega),
       List.append_assoc, htake]
 
 /-- Complete run from the initial state at position `1` with arbitrary prior output prefix `out`:

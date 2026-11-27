@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test)
 
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningROM
+import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigningPrefix
 import CslibFrontier.Crypto.Game.CloseTo.RejectedProgramming
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
@@ -212,6 +213,30 @@ example : (interpret countTrials (expandSigningRetries toy 4 interleaved)).run 0
     sumHandler, interpret_bind, interpret_query, countTrials, StateT.run, bind_pure_comp]
   rfl
 
+-- Zero signing trials skip all requests for every response type. Direct calls still reach the
+-- digest oracle.
+example (P : Params) (Digest Reply : Type) (m : List Bool) :
+    expandSigningRetries P 0 (query (spec := SigningTrialSpec P Digest Reply) (.inl m)) =
+      pure none := by simp [expandSigningRetries, sumHandler]
+
+example (P : Params) (Digest Reply : Type) (x : SigningHashPoint P) :
+    expandSigningRetries P 0 (query (spec := SigningTrialSpec P Digest Reply) (.inr x)) =
+      query (spec := SigningTrialSpec P Digest Reply) (.inr x) := by
+  simp [expandSigningRetries, sumHandler]
+
+-- If all three attempts request a retry, the source receives exhaustion after exactly three
+-- calls, even when its terminal response type can represent a separate failure.
+example :
+    let handler : (q : List Bool ⊕ SigningHashPoint toy) →
+        StateM ℕ (SigningTrialSpec toy Bool (Option Unit) q) :=
+      sumHandler (fun _ n => (none, n + 1)) (fun _ n => (false, n))
+    (interpret handler (expandSigningRetries toy 3
+      (query (spec := SigningTrialSpec toy Bool (Option Unit)) (.inl [])))).run 0 = (none, 3) := by
+  have hr : List.range 3 = [0, 1, 2] := by decide
+  simp only [expandSigningRetries, hr, interpret_query, sumHandler, List.findSomeM?_cons,
+    List.findSomeM?_nil, interpret_bind, StateT.run]
+  rfl
+
 -- A failed digest expansion terminates immediately, even when the next trial would sign.
 -- A response rejection consumes one attempt and permits that second trial.
 private def partialTrials (fatal : Bool) : (q : List Bool ⊕ SigningHashPoint toy) →
@@ -246,5 +271,60 @@ example :
     let tapes := [(false, false), (false, true), (true, false), (true, true)]
     (tapes.countP (readAfterRejection true), tapes.countP (readAfterRejection false)) = (1, 2) := by
   decide +kernel
+
+open FIPS204
+
+-- Reading the actual SHAKE bytes through the common register recovers every byte of Algorithm 2.
+example (s : Level) (extra : Finset (List Bool)) (key : List Byte) (q : SigningQuery)
+    (rnd : FixedBytes 32) :
+    (Cslib.OracleComp.evalPure (Xofs.shake.digestTable s extra)
+      (signingRequestQueries s extra Xofs.shake key q rnd)).map FixedBytes.toList =
+      sign s key q.message q.context rnd := by
+  rw [evalPure_signingRequestQueries, sharedXofs_digestTable]
+
+-- The first signing reply controls a free local isometry and the second signing request.
+-- The total cost counts the two services and one intervening coherent XOR call.
+example (s : Level) (extra : Finset (List Bool)) (H : Xofs) (key : List Byte)
+    (q : SigningQuery) (follow : SigningReply s → SigningQuery) (rnd : FixedBytes 32)
+    (gate : SigningReply s → Cslib.Quantum.ValueState (commitmentAddresses s extra)
+      (DigestRegister s) Unit →ₗᵢ[ℂ] Cslib.Quantum.ValueState (commitmentAddresses s extra)
+      (DigestRegister s) Unit) :
+    let emptyCircuit : SigningInteraction s extra Unit Unit := .start
+    let first := measuredSigningCall s extra emptyCircuit H (fun _ => key) (fun _ => q)
+      (fun _ => rnd)
+    let chosen := first.localGate fun b => gate b.2
+    let oracle := chosen.coherent (fun _ => true) (fun _ => LinearIsometry.id)
+    let second := measuredSigningCall s extra oracle H (fun _ => key) (fun b => follow b.2)
+      (fun _ => rnd)
+    second.updateCost = 2 * Real.sqrt (2 * (((s.params.ℓ + 2) * 814 + 2 : ℕ) : ℝ)) + 2 := by
+  simp [Cslib.Quantum.MeasuredPrefix.updateCost]
+  ring
+
+open scoped BigOperators
+
+-- A complete signing reply selects which key is used by the next distinguished trial.
+-- Apply the public refresh bound with one prior service, one retry and no later queries.
+example (s : Level) (extra : Finset (List Bool)) (H : Xofs) (bytes : List Byte)
+    (q : SigningQuery) (rnd : FixedBytes 32) (onSuccess onError : PrivateKey s)
+    (ψ : PublicMatrix s → Cslib.Quantum.ValueState (commitmentAddresses s extra)
+      (DigestRegister s) Unit)
+    (hψ : ∀ A, ‖ψ A‖ = 1) (μ : Cslib.BitString 512) (seed : List Byte)
+    (accept : SigningReply s → SigningReply s →
+      Finset (Unit × (commitmentAddresses s extra × DigestRegister s × Unit))) :
+    let call := measuredSigningCall s extra (.start : SigningInteraction s extra Unit Unit) H
+      (fun _ => bytes) (fun _ => q) (fun _ => rnd)
+    let key := fun b : Unit × SigningReply s => if b.2.isSome then onSuccess else onError
+    let prob := fun mode => 𝔼 A : PublicMatrix s, signingAttemptRefreshProbability s extra mode H A
+      key call (ψ A) (fun _ => μ) (fun _ => seed) 1 s.params.ℓ (fun _ _ => .start)
+        (fun b => accept b.2)
+    |prob .eraseRejected - prob .ambient| ≤
+      (Real.sqrt (2 * (((s.params.ℓ + 2) * 814 + 2 : ℕ) : ℝ)) + Real.sqrt (s.params.ℓ + 2)) *
+        ((11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits)) := by
+  intro call key prob
+  have h := abs_mean_signingAttemptRefreshProbability_sub_le s extra (fun _ => H) (fun _ => key)
+    (fun _ => call) ψ (fun _ _ => μ) (fun _ _ => seed) 1 s.params.ℓ (fun _ _ _ => .start)
+    (fun _ b => accept b.2) (C := call.updateCost) (F := 0) hψ
+    (fun _ => le_rfl) (fun _ _ _ => le_rfl)
+  simpa [prob, call, Cslib.Quantum.MeasuredPrefix.updateCost] using h
 
 end MLDSASigningTests

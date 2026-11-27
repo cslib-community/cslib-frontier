@@ -98,40 +98,16 @@ theorem exec_input {w m n g p A : ℕ} (values : List ℤ)
     unfold Q RecordProduct.recordQueryCount
     rw [pow_two]
     exact (min_le_right _ _).trans ((Nat.sub_le _ _).trans (Nat.count_le _))
-  have hmem : ∀ u < n, ∀ v < n,
-      z.mem (5 + (u * n + v)) = Signed.encode (AB u v) ∧
-      z.mem (5 + n * n + (u * n + v)) = Signed.encode (BC u v) ∧
-      z.mem (5 + n * n + n * n + (u * n + v)) = Signed.encode (AC u v) := by
-    intro u hu v hv'
-    have hn := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hu)
-    rw [Nat.succ_mul] at hn
-    refine ⟨original_word values a z hout zmap (by omega), ?_, ?_⟩
-    · simpa only [Nat.add_assoc] using
-        original_word (q := n * n + (u * n + v)) values a z hout zmap (by omega)
-    · have he : 5 + n * n + n * n + (u * n + v) =
-          5 + (2 * (n * n) + (u * n + v)) := by omega
-      rw [he]
-      exact original_word values a z hout zmap (by omega)
-  have hmag : ∀ u < n, ∀ v < n,
-      (AB u v).natAbs ≤ A ∧ (BC u v).natAbs ≤ A ∧ (AC u v).natAbs ≤ A := by
-    intro u hu v hv'
-    have hn := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hu)
-    rw [Nat.succ_mul] at hn
-    exact ⟨original_magnitude values hlen hv (by omega),
-      original_magnitude values hlen hv (by omega), original_magnitude values hlen hv (by omega)⟩
+  have hprefix (j : ℕ) (hj : j < 5 + 3 * (n * n)) : z.mem j =
+      (Data.init (PreparationInput.input n (D m) g p values) : Data 64).mem j :=
+    (congrFun zmem j).trans (hout.2.2.2.2.2.2.2.2.2.2.2 j (Or.inl hj))
+  have hmem := original_matrices values hprefix
+  have hmag := original_magnitudes values hlen hv
   obtain ⟨y, S, he, ys, yf, hS, yiff, answers, yw, frame, regs⟩ := exec_of_output
     V AB BC AC (.init (PreparationInput.input n (D m) g p values)) z hzout hD hg
     (by omega : p ≠ 0) hN rfl rfl rfl idx hidx (by rw [zi, hord]) hmem hmag
     (signed_fits hW) (physical_fits zheap hQ hN hW)
-  simp only [zmem] at he hS yiff answers yw frame
-  rw [zmem] at answers
-  change ∀ j : Fin qs.length,
-    y.mem (y.regs (productBank RecordProduct.Reg.result) + j.val) = Signed.encode
-      ((RecordProduct.leftMatrix m n g p V idx * RecordProduct.rightMatrix m n g p V idx)
-        (qs.get j).1 (qs.get j).2) at answers
-  change ExecWithin (w + 2) program z y (RecordProduct.timeBound (m := m) qs +
-    5 * Nat.sqrt (D m) + 8 * Q +
-    (42 * min (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g) + 28) * S + 52) at he
+  rw [zmem] at he hS yiff answers yw frame
   have hheap : z.regs (productBank 42) = a.regs Instances.heap :=
     congrArg (fun d : Data 64 => d.regs Instances.heap) zmap
   have hex : ExecWithin (w + 2) entryProgram
@@ -141,18 +117,17 @@ theorem exec_input {w m n g p A : ℕ} (values : List ℤ)
         (42 * min (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g) + 28) * S + 52) := by
     obtain ⟨t, ht, hpref⟩ := hz
     cases hpref with
-    | seq hp hs => exact ((hp.within.seq (hs.within.seq he))).mono (by omega)
-  obtain ⟨-, -, -, hfirst, -, hcoords, -⟩ := record_view V
-    (.init (PreparationInput.input n (D m) g p values)) a hout hD hDn hg (by omega) idx hidx
-  change ∀ i < Q, a.mem (q + 2 * i) < n ∧ a.mem (q + 2 * i + 1) < n at hcoords
+    | seq hp hs => exact (hp.within.seq (hs.within.seq he)).mono (by dsimp only [qs, q, Q]; omega)
+  obtain ⟨-, -, -, hfirst, -,
+      (hcoords : ∀ i < Q, a.mem (q + 2 * i) < n ∧ a.mem (q + 2 * i + 1) < n), -⟩ :=
+    record_view V (.init (PreparationInput.input n (D m) g p values)) a hout hD hDn hg
+      (by omega) idx hidx
   have card := QuerySpec.card_residueClass wAB (by omega : p ≠ 0)
-    (fun q => (V q % (p : ℤ)).toNat) (by intro pair; rfl) idx.residue
+    (fun q => (V q % (p : ℤ)).toNat) (fun _ => rfl) idx.residue
   obtain ⟨-, hnodup, hset⟩ := RecordProduct.decodedQueries_chunkOf V wAB hn (by omega)
-    (by intro u v; rfl) (by omega) hDn hout idx.residue idx.chunk
+    (fun _ _ => rfl) (by omega) hDn hout idx.residue idx.chunk
     ((mem_instanceIndices wAB idx).mp hidx).1
   rw [card] at hnodup hset
-  change qs.Nodup at hnodup
-  change qs.toFinset = chunkOf wAB (D m) p idx.residue idx.chunk at hset
   let argA := fun j => a.mem (q + 2 * j)
   let argB := fun j => a.mem (q + 2 * j + 1)
   have hcoordinate (i : Fin qs.length) :
@@ -161,42 +136,33 @@ theorem exec_input {w m n g p A : ℕ} (values : List ℤ)
     have hh := RecordProduct.decodedQueries_get_val hn a.mem q Q i
       (hcoords i.val hi).1 (hcoords i.val hi).2
     exact ⟨hh.1.symm, hh.2.symm⟩
-  have hquery : ∀ pair ∈ qs, pair ∈ chunkOf wAB (D m) p idx.residue idx.chunk := by
-    intro pair hm
-    rw [← hset, List.mem_toFinset]
-    exact hm
-  let default : Fin n × Fin n := (⟨0, hn⟩, ⟨0, hn⟩)
+  have hquery (pair : Fin n × Fin n) (hm : pair ∈ qs) :
+      pair ∈ chunkOf wAB (D m) p idx.residue idx.chunk := by
+    rw [← (hset : qs.toFinset = _), List.mem_toFinset]; exact hm
   have hfail := native_failed_occurrences_le V AB BC AC wAB wBC wAC hD hg hp
-    (by intro u v; rfl) (by intro u v; rfl) (by intro u v; rfl)
-    (by intro u v; rfl) (by intro u v; rfl) idx hidx qs default hnodup hquery
+    (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl)
+    (fun _ _ => rfl) (fun _ _ => rfl) idx hidx qs (⟨0, hn⟩, ⟨0, hn⟩) hnodup hquery
     argA argB hcoordinate y.mem (y.regs (productBank RecordProduct.Reg.result)) answers
   have hsuccess := actual_success_iff V AB BC AC wAB wBC wAC hD hg hp
-    (by intro u v; rfl) (by intro u v; rfl) (by intro u v; rfl)
-    (by intro u v; rfl) (by intro u v; rfl) idx qs hset
+    (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl)
+    (fun _ _ => rfl) (fun _ _ => rfl) idx qs hset
     argA argB hcoordinate y.mem (y.regs (productBank RecordProduct.Reg.result)) answers
   rw [hlenQ] at hfail hsuccess
   refine ⟨hinput, a, idx, ha, hout, hidx, hord, y, S, hex,
-    hex.bounded (Data.Bounded.init hinput), ys, yf, ?_, yiff.trans hsuccess, ?_, ?_, ?_⟩
-  · exact hS.trans (Nat.add_le_add_right hfail _)
-  · intro hy
-    obtain ⟨ha, hb, hlo, hhi, hz, j, hj, hwa, hwb⟩ := yw hy
-    have hc : y.regs Reg.witnessC < n := by
-      have := min_le_right (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g)
-      omega
-    let u : Fin n := ⟨y.regs Reg.witnessA, ha⟩
-    let v : Fin n := ⟨y.regs Reg.witnessB, hb⟩
-    let c : Fin n := ⟨y.regs Reg.witnessC, hc⟩
-    let i : Fin qs.length := ⟨j, by simpa only [hlenQ] using hj⟩
-    have hpq : (u, v) = qs.get i := Prod.ext (Fin.ext (hwa.trans (hcoordinate i).1))
-      (Fin.ext (hwb.trans (hcoordinate i).2))
-    refine ⟨u, v, c, rfl, rfl, rfl, ?_, ?_, hz⟩
-    · rw [hpq]
-      exact hquery _ (List.get_mem _ _)
-    · exact (mem_piece_iff_interval hD hg c).mpr ⟨hlo, hhi⟩
-  · intro u hu
-    exact frame u (by simpa only [hheap] using hu)
-  · intro j
-    rw [regs _ (by change j.val < 65; omega)]
-    exact congrArg (fun d : Data 64 => d.regs j) zmap
+    hex.bounded (Data.Bounded.init hinput), ys, yf,
+    hS.trans (Nat.add_le_add_right hfail _), yiff.trans hsuccess, ?_,
+    fun u hu => frame u (by simpa only [hheap] using hu),
+    fun j => (regs _ (by change j.val < 65; omega)).trans
+      (congrArg (fun d : Data 64 => d.regs j) zmap)⟩
+  intro hy
+  obtain ⟨ha, hb, hlo, hhi, hz, j, hj, hwa, hwb⟩ := yw hy
+  have hc : y.regs Reg.witnessC < n := by
+    have := min_le_right (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g); omega
+  let i : Fin qs.length := ⟨j, by simpa only [hlenQ] using hj⟩
+  have hpq : (⟨y.regs Reg.witnessA, ha⟩, ⟨y.regs Reg.witnessB, hb⟩) = qs.get i :=
+    Prod.ext (Fin.ext (hwa.trans (hcoordinate i).1)) (Fin.ext (hwb.trans (hcoordinate i).2))
+  exact ⟨⟨_, ha⟩, ⟨_, hb⟩, ⟨_, hc⟩, rfl, rfl, rfl,
+    hpq ▸ hquery _ (List.get_mem _ _),
+    (mem_piece_iff_interval hD hg ⟨_, hc⟩).mpr ⟨hlo, hhi⟩, hz⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

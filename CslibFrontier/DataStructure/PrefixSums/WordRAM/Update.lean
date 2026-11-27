@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.PrefixSums.WordRAM.Tree
 public import CslibFrontier.Computability.WordRAM.Compile
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 
 /-!
 # Fixed Word-RAM point updates for aggregation trees
@@ -113,14 +114,9 @@ private theorem updateBody_exec (hx : Entry b n i δ x) (hi : i < n)
     (ha : Fits w (b + 2 * n)) (hv : Fits w (x.mem b + δ)) :
     ExecWithin w updateBody x (updateNext x b n i δ) 9 := by
   obtain ⟨hz, ho, ht, hp, hl, hi', hd⟩ := hx
-  have hf : Fits w (n / 2) := ha.of_le (by omega)
-  have hb : Fits w (b + 1) := ha.of_le (by omega)
-  have hb' : Fits w (b + n / 2) := ha.of_le (by omega)
-  have hb'' : Fits w (b + n / 2 + n / 2) := ha.of_le (by omega)
-  have hi'' : Fits w (i - n / 2) := ha.of_le (by omega)
-  by_cases hc : i < n / 2
-  · ram_eval [updateBody, updateNext, hp, hl, hi', hd, ho, ht, hc, hv, hf, hb]
-  · ram_eval [updateBody, updateNext, hp, hl, hi', hd, ho, ht, hc, hv, hf, hb', hb'', hi'']
+  refine WP.execWithin ?_
+  unfold updateBody updateNext
+  wram_exec [hp, hl, hi', hd, ho, ht, hv] <;> simp only [hc, ↓reduceIte]
 
 private theorem updateNext_entry (hx : Entry b n i δ x) :
     Entry (if i < n / 2 then b + 1 else b + n / 2 + n / 2) (n / 2)
@@ -146,72 +142,43 @@ theorem updateLoop_spec (t : Tree h) (hx : Entry b (2 ^ h) i δ x) (hi : i < 2 ^
       (∀ a, a < b ∨ b + Tree.words h ≤ a → y.mem a = x.mem a) := by
   induction t generalizing b i x with
   | leaf v =>
-    have hi0 : i = 0 := by simpa using hi
-    subst i
-    let y := updateNext x b 1 0 δ
+    obtain rfl : i = 0 := by simpa using hi
+    let y := updateNext x b (2 ^ 0) 0 δ
     have he := updateBody_exec hx (by decide) ha (by simpa [Tree.total, hr.root] using hv)
     have hy := updateNext_entry hx
-    have hylen : y.regs len = 0 := by simpa [y] using hy.len_eq
-    refine ⟨y, (he.loop_once (cond := .lt zero len) ?_ ?_).mono ?_,
-      ?_, ?_⟩
-    · simp only [Cond.holds_lt, hx.zero_eq, hx.len_eq]; decide
-    · change ¬y.regs zero < y.regs len
-      rw [hylen]
-      omega
-    · omega
-    · simp [Tree.add, Tree.Rep, y, updateNext_mem, hr.root, Tree.total]
-    · intro a ha'
-      simp only [y, updateNext_mem]
-      exact Function.update_of_ne (by simp only [Tree.words_zero] at ha'; omega) _ _
+    have hym : y.mem = Function.update x.mem b (x.mem b + δ) := funext updateNext_mem
+    refine ⟨y, (he.loop_once (cond := .lt zero len)
+      (by simp [Cond.holds_lt, hx.zero_eq, hx.len_eq]) ?_).mono (by omega),
+      by simp [Tree.add, Tree.Rep, hym, hr.root, Tree.total], by mem_frame⟩
+    simp only [Cond.holds_lt, hy.zero_eq, hy.len_eq]
+    decide
   | @node h l r ihl ihr =>
-    have hp := Nat.two_pow_pos h
-    have hhalf : 2 ^ (h + 1) / 2 = 2 ^ h := by simp [pow_succ]
     have hsize : 2 ^ (h + 1) = 2 * 2 ^ h := by simp [pow_succ, Nat.mul_comm]
+    have hhalf : 2 ^ (h + 1) / 2 = 2 ^ h := by omega
     let y := updateNext x b (2 ^ (h + 1)) i δ
     have he := updateBody_exec hx hi ha (by simpa [hr.root] using hv)
     have hy := updateNext_entry hx
+    have hym : y.mem = Function.update x.mem b (x.mem b + δ) := funext updateNext_mem
     have hroot := hr.1
-    have hl : l.Rep (b + 1) y.mem := by
-      apply (hr.2.1.update_of_outside (a := b) (Or.inl (by omega)) (x.mem b + δ)).congr
-      intro a _ _
-      exact updateNext_mem a
-    have hright : r.Rep (b + 2 * 2 ^ h) y.mem := by
-      apply (hr.2.2.update_of_outside (a := b) (Or.inl (by omega)) (x.mem b + δ)).congr
-      intro a _ _
-      exact updateNext_mem a
+    have hl : l.Rep (b + 1) y.mem := hym ▸ hr.2.1.update_of_outside (Or.inl (by omega)) _
+    have hright : r.Rep (b + 2 * 2 ^ h) y.mem :=
+      hym ▸ hr.2.2.update_of_outside (Or.inl (by omega)) _
     have hcond : (Cond.lt zero len).Holds x := by
-      simp only [Cond.holds_lt, hx.zero_eq, hx.len_eq]
-      exact Nat.two_pow_pos _
+      simp only [Cond.holds_lt, hx.zero_eq, hx.len_eq]; exact Nat.two_pow_pos _
     by_cases hleft : i < 2 ^ h
-    · have hy' : Entry (b + 1) (2 ^ h) i δ y := by simpa [hhalf, hleft] using hy
-      obtain ⟨z, hz, hzrep, hzframe⟩ := ihl hy' hleft hl (ha.of_le (by rw [hsize]; omega))
-        (hv.of_le (by simp only [Tree.total]; omega))
-      refine ⟨z, (he.loop_iter hcond hz).mono (by omega), ?_, ?_⟩
-      · simp only [Tree.add, hleft, ↓reduceIte, Tree.Rep, Tree.total_add]
-        refine ⟨?_, hzrep, hright.congr ?_⟩
-        · rw [hzframe b (Or.inl (by omega)), updateNext_mem, Function.update_self, hroot]
-          omega
-        · intro a ha₁ ha₂
-          exact hzframe a (Or.inr (by simp only [Tree.words]; omega))
-      · intro a ha'
-        rw [hzframe a (by
-          simp only [Tree.words, pow_succ] at ha' ⊢; omega), updateNext_mem]
-        exact Function.update_of_ne (by simp only [Tree.words, pow_succ] at ha'; omega) _ _
-    · have hy' : Entry (b + 2 * 2 ^ h) (2 ^ h) (i - 2 ^ h) δ y := by
-        simpa [hhalf, hleft, Nat.mul_two, Nat.two_mul, Nat.add_assoc] using hy
-      obtain ⟨z, hz, hzrep, hzframe⟩ := ihr hy' (by rw [hsize] at hi; omega) hright
-        (ha.of_le (by rw [hsize]; omega)) (hv.of_le (by simp only [Tree.total]; omega))
-      refine ⟨z, (he.loop_iter hcond hz).mono (by omega), ?_, ?_⟩
-      · simp only [Tree.add, hleft, ↓reduceIte, Tree.Rep, Tree.total_add]
-        refine ⟨?_, hl.congr ?_, hzrep⟩
-        · rw [hzframe b (Or.inl (by omega)), updateNext_mem, Function.update_self, hroot]
-          omega
-        · intro a ha₁ ha₂
-          exact hzframe a (Or.inl (by simp only [Tree.words] at ha₂; omega))
-      · intro a ha'
-        rw [hzframe a (by
-          simp only [Tree.words, pow_succ] at ha' ⊢; omega), updateNext_mem]
-        exact Function.update_of_ne (by simp only [Tree.words, pow_succ] at ha'; omega) _ _
+    · obtain ⟨z, hz, hzrep, hzframe⟩ := ihl (by simpa [y, hhalf, hleft] using hy) hleft hl
+        (by fits [hsize]) (by simp only [Tree.total] at hv; fits)
+      refine ⟨z, (he.loop_iter hcond hz).mono (by omega), ?_, by mem_frame⟩
+      simp only [Tree.add, hleft, ↓reduceIte, Tree.Rep, Tree.total_add]
+      exact ⟨by rw [show z.mem b = x.mem b + δ by mem_frame, hroot]; omega,
+        hzrep, hright.congr fun _ _ _ => by mem_frame⟩
+    · obtain ⟨z, hz, hzrep, hzframe⟩ := ihr
+        (by simpa [y, hhalf, hleft, Nat.two_mul, Nat.add_assoc] using hy)
+        (by omega) hright (by fits [hsize]) (by simp only [Tree.total] at hv; fits)
+      refine ⟨z, (he.loop_iter hcond hz).mono (by omega), ?_, by mem_frame⟩
+      simp only [Tree.add, hleft, ↓reduceIte, Tree.Rep, Tree.total_add]
+      exact ⟨by rw [show z.mem b = x.mem b + δ by mem_frame, hroot]; omega,
+        hl.congr fun _ _ _ => by mem_frame, hzrep⟩
 
 end Cslib.DataStructure.PrefixSums.WordRAM
 

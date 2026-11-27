@@ -10,6 +10,8 @@ module
 public import CslibFrontier.DataStructure.Dictionary.SuccinctBucket
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.Basic
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Bit-Packed Memory Layout for Succinct Dictionaries
@@ -70,37 +72,37 @@ open scoped BigOperators ENNReal
 /-! ## Section 1: Array offsets and extraction functions -/
 
 /-- Word offset of `Quotients` relative to `base`. -/
-@[expose]
+@[expose, wram_arith]
 def offQuot (h_space : ℕ) : ℕ :=
   h_space
 
 /-- Word offset of `Values` relative to `base`. -/
-@[expose]
+@[expose, wram_arith]
 def offVal (U w n_max h_space : ℕ) : ℕ :=
   offQuot h_space + packedWords n_max (quotientBits U n_max) w
 
 /-- Word offset of `LocalMeta` relative to `base`. -/
-@[expose]
+@[expose, wram_arith]
 def offLM (U V w n_max h_space : ℕ) : ℕ :=
   offVal U w n_max h_space + packedWords n_max (valBits V) w
 
 /-- Word size of each of the 9 `LocalMeta` sub-arrays of length `totalMicroBuckets n_max`. -/
-@[expose]
+@[expose, wram_arith]
 def lmSubWords (n_max w : ℕ) : ℕ :=
   packedWords (totalMicroBuckets n_max) (effBucketPosBits n_max) w
 
 /-- Word offset of the `c`-th `LocalMeta` sub-array (`c < 9`) relative to `base`. -/
-@[expose]
+@[expose, wram_arith]
 def offLMSub (U V w n_max h_space c : ℕ) : ℕ :=
   offLM U V w n_max h_space + c * lmSubWords n_max w
 
 /-- Word offset of `GlobalMeta` relative to `base`. -/
-@[expose]
+@[expose, wram_arith]
 def offGM (U V w n_max h_space : ℕ) : ℕ :=
   offLM U V w n_max h_space + 9 * lmSubWords n_max w
 
 /-- Total word footprint of the succinct dictionary block starting at `base`. -/
-@[expose]
+@[expose, wram_arith]
 def totalSpace (U V w n_max h_space : ℕ) : ℕ :=
   offGM U V w n_max h_space + packedWords (globalMetaLen n_max) (globalPtrBits n_max) w
 
@@ -110,8 +112,7 @@ theorem totalSpace_le_succinctWords {U V w n_max h_space : ℕ} :
       Dynamic.succinctWords 79 (35 + h_space) U V w n_max := by
   have h := tableArrays_words_le_succinctWords (U := U) (V := V) (w := w) (n_max := n_max)
     (C_hdr := h_space)
-  unfold totalSpace offGM offLM offVal offQuot lmSubWords
-  omega
+  wram_omega
 
 /-- Pure extraction function for `Quotients[idx]` (`0` for `idx ≥ n_max`). -/
 @[expose]
@@ -147,32 +148,28 @@ theorem quotAt_lt (base U w n_max h_space : ℕ) (mem : ℕ → ℕ) (idx : ℕ)
     quotAt base U w n_max h_space mem idx < 2 ^ quotientBits U n_max := by
   unfold quotAt
   split_ifs
-  · exact readPacked_lt _ _ _ _ _
-  · positivity
+  exacts [readPacked_lt .., by positivity]
 
 /-- Value range invariant for `valAt`: every entry is `< 2 ^ valBits V`. -/
 theorem valAt_lt (base U V w n_max h_space : ℕ) (mem : ℕ → ℕ) (idx : ℕ) :
     valAt base U V w n_max h_space mem idx < 2 ^ valBits V := by
   unfold valAt
   split_ifs
-  · exact readPacked_lt _ _ _ _ _
-  · positivity
+  exacts [readPacked_lt .., by positivity]
 
 /-- Value range invariant for `lmAt`: every entry is `< 2 ^ effBucketPosBits n_max`. -/
 theorem lmAt_lt (base U V w n_max h_space : ℕ) (mem : ℕ → ℕ) (p : ℕ × ℕ) :
     lmAt base U V w n_max h_space mem p < 2 ^ effBucketPosBits n_max := by
   unfold lmAt
   split_ifs
-  · exact readPacked_lt _ _ _ _ _
-  · positivity
+  exacts [readPacked_lt .., by positivity]
 
 /-- Value range invariant for `gmAt`: every entry is `< 2 ^ globalPtrBits n_max`. -/
 theorem gmAt_lt (base U V w n_max h_space : ℕ) (mem : ℕ → ℕ) (idx : ℕ) :
     gmAt base U V w n_max h_space mem idx < 2 ^ globalPtrBits n_max := by
   unfold gmAt
   split_ifs
-  · exact readPacked_lt _ _ _ _ _
-  · positivity
+  exacts [readPacked_lt .., by positivity]
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `quotAt` is identically
 zero. -/
@@ -182,14 +179,12 @@ theorem quotAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem :
   funext idx
   unfold quotAt
   split_ifs with hidx
-  · have hlt1 : wordOffset (quotientBits U n_max) w idx + 1 <
-        packedWords n_max (quotientBits U n_max) w :=
-      wordOffset_add_one_lt_packedWords hw hidx
+  · have := wordOffset_add_one_lt_packedWords (k := quotientBits U n_max) hw hidx
     exact readPacked_zero
-      (hzero _ (by unfold offQuot; omega)
-        (by unfold totalSpace offGM offLM offVal offQuot; omega))
-      (hzero _ (by unfold offQuot; omega)
-        (by unfold totalSpace offGM offLM offVal offQuot; omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
   · rfl
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `valAt` is identically
@@ -200,13 +195,12 @@ theorem valAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem : 
   funext idx
   unfold valAt
   split_ifs with hidx
-  · have hlt1 : wordOffset (valBits V) w idx + 1 < packedWords n_max (valBits V) w :=
-      wordOffset_add_one_lt_packedWords hw hidx
+  · have := wordOffset_add_one_lt_packedWords (k := valBits V) hw hidx
     exact readPacked_zero
-      (hzero _ (by unfold offVal offQuot; omega)
-        (by unfold totalSpace offGM offLM offVal offQuot; omega))
-      (hzero _ (by unfold offVal offQuot; omega)
-        (by unfold totalSpace offGM offLM offVal offQuot; omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
   · rfl
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `lmAt` is identically
@@ -218,17 +212,14 @@ theorem lmAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem : �
   unfold lmAt
   dsimp only
   split_ifs with hp
-  · rcases hp with ⟨hc, hidx⟩
-    have hlt1 : wordOffset (effBucketPosBits n_max) w idx + 1 < lmSubWords n_max w :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hsub : (c + 1) * lmSubWords n_max w ≤ 9 * lmSubWords n_max w :=
-      Nat.mul_le_mul_right _ hc
-    rw [Nat.add_one_mul] at hsub
+  · have := wordOffset_add_one_lt_packedWords (k := effBucketPosBits n_max) hw hp.2
+    have hsub : c * lmSubWords n_max w + lmSubWords n_max w ≤ 9 * lmSubWords n_max w :=
+      Nat.add_one_mul c (lmSubWords n_max w) ▸ Nat.mul_le_mul_right _ hp.1
     exact readPacked_zero
-      (hzero _ (by unfold offLMSub offLM offVal offQuot; omega)
-        (by unfold totalSpace offGM offLMSub offLM offVal offQuot; omega))
-      (hzero _ (by unfold offLMSub offLM offVal offQuot; omega)
-        (by unfold totalSpace offGM offLMSub offLM offVal offQuot; omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
   · rfl
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `gmAt` is identically
@@ -239,14 +230,12 @@ theorem gmAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem : �
   funext idx
   unfold gmAt
   split_ifs with hidx
-  · have hlt1 : wordOffset (globalPtrBits n_max) w idx + 1 <
-        packedWords (globalMetaLen n_max) (globalPtrBits n_max) w :=
-      wordOffset_add_one_lt_packedWords hw hidx
+  · have := wordOffset_add_one_lt_packedWords (k := globalPtrBits n_max) hw hidx
     exact readPacked_zero
-      (hzero _ (by unfold offGM offLM offVal offQuot; omega)
-        (by unfold totalSpace offGM offLM offVal offQuot; omega))
-      (hzero _ (by unfold offGM offLM offVal offQuot; omega)
-        (by unfold totalSpace offGM offLM offVal offQuot; omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
+      (hzero _ (by wram_omega)
+        (by wram_omega))
   · rfl
 
 /-- If two memories agree on `[base + h_space, base + totalSpace)`, they have identical `quotAt`,
@@ -258,31 +247,33 @@ theorem arrays_congr_of_eq_on {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem
       valAt base U V w n_max h_space mem₁ = valAt base U V w n_max h_space mem₂ ∧
       lmAt base U V w n_max h_space mem₁ = lmAt base U V w n_max h_space mem₂ ∧
       gmAt base U V w n_max h_space mem₁ = gmAt base U V w n_max h_space mem₂ := by
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · funext idx; unfold quotAt; split_ifs with hidx
+  refine ⟨funext fun idx => ?_, funext fun idx => ?_, funext fun ⟨c, idx⟩ => ?_,
+    funext fun idx => ?_⟩
+  · unfold quotAt
+    split_ifs with hidx
     · exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by dsimp only [offQuot] at ha1; omega)
-          (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha2 ⊢; omega)) hidx
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2])) hidx
     · rfl
-  · funext idx; unfold valAt; split_ifs with hidx
+  · unfold valAt
+    split_ifs with hidx
     · exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by dsimp only [offVal, offQuot] at ha1; omega)
-          (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha2 ⊢; omega)) hidx
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2])) hidx
     · rfl
-  · funext ⟨c, idx⟩; unfold lmAt; split_ifs with hp
-    · rcases hp with ⟨hc, hidx⟩
-      have hsub : (c + 1) * lmSubWords n_max w ≤ 9 * lmSubWords n_max w :=
-        Nat.mul_le_mul_right _ hc
-      rw [Nat.add_one_mul] at hsub
+  · unfold lmAt
+    split_ifs with hp
+    · have hsub : c * lmSubWords n_max w + lmSubWords n_max w ≤ 9 * lmSubWords n_max w :=
+        Nat.add_one_mul c (lmSubWords n_max w) ▸ Nat.mul_le_mul_right _ hp.1
       exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by dsimp only [offLMSub, offLM, offVal, offQuot] at ha1; omega)
-          (by dsimp only [totalSpace, offGM, offLMSub, offLM, offVal, offQuot, lmSubWords]
-                at ha2 hsub ⊢; omega)) hidx
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2, hsub])) hp.2
     · rfl
-  · funext idx; unfold gmAt; split_ifs with hidx
+  · unfold gmAt
+    split_ifs with hidx
     · exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by dsimp only [offGM, offLM, offVal, offQuot] at ha1; omega)
-          (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha2 ⊢; omega)) hidx
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2])) hidx
     · rfl
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

@@ -147,55 +147,48 @@ theorem evalOpCertificate_hasDegree (enc : M.Encoding)
     (hN : N.HasDegree D) (hk : config.HasDegree D) (hc : c.HasDegree D) :
     (evalOpCertificate enc N config c o).HasDegree D := by
   have h1 : 1 ≤ D := by omega
+  have hNone :
+      (const (α := α) (ei := ei) (em := encOption (encoding (r := r) enc)) none).HasDegree D :=
+    const_hasDegree none h1
   cases o with
   | const d literal =>
-    refine (option_hasDegree _ _ _
-      (comp_hasDegree _ _ (hN.constant literal) hk)
-      (const_hasDegree none h1)
+    refine (option_hasDegree _ _ _ (comp_hasDegree _ _ (hN.constant literal) hk) hNone
       (some_hasDegree _ (setCertificate_hasDegree enc _ d _
         (pull_hasDegree c hc h1) (payload_hasDegree ei enc.value h1))) h1).of_eq _ rfl rfl
-      fun a => ?_
-    simp only [Function.comp_apply, evalOp]
-    cases M.checkedConstant literal (k a) <;> rfl
+      fun a => by
+        simp only [Function.comp_apply, evalOp]
+        cases M.checkedConstant literal (k a) <;> rfl
   | copy d src =>
     exact moveCertificate_hasDegree enc N config c d (register enc c src) h1 hN hk hc
       (register_hasDegree enc c src hc)
   | alu op d args =>
     refine (option_hasDegree _ _ _
       (comp_hasDegree _ _ (hN.operation op) (prod_hasDegree _ _ hk
-        (operands_hasDegree enc c args hc)))
-      (const_hasDegree none h1)
+        (operands_hasDegree enc c args hc))) hNone
       (some_hasDegree _ (setCertificate_hasDegree enc _ d _
         (pull_hasDegree c hc h1) (payload_hasDegree ei enc.value h1))) h1).of_eq _ rfl rfl
-      fun a => ?_
-    simp only [Function.comp_apply, evalOp]
-    cases M.checkedOp op (k a, (s a).regs ∘ args) <;> rfl
+      fun a => by
+        simp only [Function.comp_apply, evalOp]
+        cases M.checkedOp op (k a, (s a).regs ∘ args) <;> rfl
   | load d a =>
     have hpullC := pull_hasDegree (ed := enc.address) c hc h1
-    have hpullK := pull_hasDegree (ed := enc.address) config hk h1
-    have hpay := payload_hasDegree ei enc.address h1
     refine (option_hasDegree _ _ _
-      (comp_hasDegree _ _ hN.address (prod_hasDegree _ _ hk (register_hasDegree enc c a hc)))
-      (const_hasDegree none h1)
-      (moveCertificate_hasDegree enc N _ _ d _ h1 hN hpullK hpullC
-        (readCertificate_hasDegree enc _ _ hD hpullC hpay)) h1).of_eq _ rfl rfl fun x => ?_
-    simp only [Function.comp_apply, evalOp]
-    cases M.address (k x) ((s x).regs a) <;> rfl
+      (comp_hasDegree _ _ hN.address (prod_hasDegree _ _ hk (register_hasDegree enc c a hc))) hNone
+      (moveCertificate_hasDegree enc N _ _ d _ h1 hN (pull_hasDegree config hk h1) hpullC
+        (readCertificate_hasDegree enc _ _ hD hpullC (payload_hasDegree ei enc.address h1)))
+      h1).of_eq _ rfl rfl fun x => by
+      simp only [Function.comp_apply, evalOp]; cases M.address (k x) ((s x).regs a) <;> rfl
   | store a src =>
     have hpullC := pull_hasDegree (ed := enc.address) c hc h1
-    have hpullK := pull_hasDegree (ed := enc.address) config hk h1
-    have hpay := payload_hasDegree ei enc.address h1
+    have hreg := register_hasDegree enc _ src hpullC
     refine (option_hasDegree _ _ _
-      (comp_hasDegree _ _ hN.address (prod_hasDegree _ _ hk (register_hasDegree enc c a hc)))
-      (const_hasDegree none h1)
+      (comp_hasDegree _ _ hN.address (prod_hasDegree _ _ hk (register_hasDegree enc c a hc))) hNone
       (branch_hasDegree _ _ _
-        (comp_hasDegree _ _ hN.validMove (prod_hasDegree _ _ hpullK
-          (register_hasDegree enc _ src hpullC)))
-        (some_hasDegree _ (writeCertificate_hasDegree enc _ _ _ hD hpullC hpay
-          (register_hasDegree enc _ src hpullC)))
-        (const_hasDegree none h1)) h1).of_eq _ rfl rfl fun x => ?_
-    simp only [Function.comp_apply, evalOp]
-    cases M.address (k x) ((s x).regs a) <;> rfl
+        (comp_hasDegree _ _ hN.validMove (prod_hasDegree _ _ (pull_hasDegree config hk h1) hreg))
+        (some_hasDegree _ (writeCertificate_hasDegree enc _ _ _ hD hpullC
+          (payload_hasDegree ei enc.address h1) hreg))
+        (const_hasDegree none h1)) h1).of_eq _ rfl rfl fun x => by
+      simp only [Function.comp_apply, evalOp]; cases M.address (k x) ((s x).regs a) <;> rfl
 
 theorem resumeCertificate_hasDegree (enc : M.Encoding) (N : M.NativePrimitives enc)
     (config : NativeCertificate k ei enc.config) (c : NativeCertificate s ei (encoding enc))
@@ -227,23 +220,20 @@ theorem evalInstrCertificate_hasDegree (enc : M.Encoding)
   | jump target =>
     exact resumeCertificate_hasDegree enc N config c target h1 hN hk hc
   | branch test target =>
-    cases test with
-    | test f args =>
-      have hpullK := pull_hasDegree (ed := encBool) config hk h1
-      have hpullC := pull_hasDegree (ed := encBool) c hc h1
-      refine (option_hasDegree _ _ _
-        (comp_hasDegree _ _ (hN.test f) (prod_hasDegree _ _ hk
-          (operands_hasDegree enc c args hc)))
-        (const_hasDegree none h1)
-        (branch_hasDegree _ _ _
-          (payload_hasDegree ei encBool h1)
-          (resumeCertificate_hasDegree enc N _ _ target h1 hN hpullK hpullC)
-          (resumeCertificate_hasDegree enc N _ _ nextPC h1 hN hpullK hpullC)) h1).of_eq _
-        rfl rfl fun a => ?_
-      simp only [Function.comp_apply, evalInstr]
-      cases h : M.evalTest (k a) f ((s a).regs ∘ args) with
-      | none => rfl
-      | some b => cases b <;> rfl
+    rcases test with ⟨f, args⟩
+    have hpullK := pull_hasDegree (ed := encBool) config hk h1
+    have hpullC := pull_hasDegree (ed := encBool) c hc h1
+    refine (option_hasDegree _ _ _
+      (comp_hasDegree _ _ (hN.test f) (prod_hasDegree _ _ hk
+        (operands_hasDegree enc c args hc)))
+      (const_hasDegree none h1)
+      (branch_hasDegree _ _ _
+        (payload_hasDegree ei encBool h1)
+        (resumeCertificate_hasDegree enc N _ _ target h1 hN hpullK hpullC)
+        (resumeCertificate_hasDegree enc N _ _ nextPC h1 hN hpullK hpullC)) h1).of_eq _
+      rfl rfl fun a => ?_
+    simp only [Function.comp_apply, evalInstr]
+    rcases M.evalTest (k a) f ((s a).regs ∘ args) with _ | _ | _ <;> rfl
   | halt idx =>
     exact branch_hasDegree _ _ _
       (comp_hasDegree _ _ hN.validMove (prod_hasDegree _ _ hk (register_hasDegree enc c idx hc)))
@@ -260,8 +250,8 @@ theorem pcEquals_hasDegree (enc : M.Encoding) (c : NativeCertificate s ei (encod
       (encPair encNat encNat) encBool).HasDegree D := by
     refine hasDegree_of_space_linear _ (DegreeBounded.mono_deg ⟨1, fun p => ?_⟩ hD)
       ⟨1, fun p => by simp⟩ (by omega)
-    simp only [length_encPair]
-    nlinarith
+    simp only [length_encPair, one_mul, sq]
+    exact Nat.mul_le_mul (by omega) (by omega)
   exact comp_hasDegree _ _ heq (prod_hasDegree _ _ (fst_hasDegree _ (fields_hasDegree enc c hc))
     (const_hasDegree pc (by omega)))
 
@@ -273,8 +263,7 @@ theorem dispatchCertificate_hasDegree (enc : M.Encoding)
   induction p generalizing pc with
   | nil => exact const_hasDegree none (by omega)
   | cons i p ih =>
-    refine congr_hasDegree _ _ ?_
-    exact (branch_hasDegree _ _ _
+    exact congr_hasDegree _ _ (branch_hasDegree _ _ _
       (pcEquals_hasDegree enc c pc (by omega) hc)
       (evalInstrCertificate_hasDegree enc N config c (pc + 1) i hD hN hk hc)
       (ih (pc + 1)))
@@ -325,17 +314,22 @@ theorem length_loopEncoding_iterate_round (enc : M.Encoding) (p : Program M r) (
       2 * (enc.config k).length + 1 + (resultEncoding enc (run k p j s)).length := by
   rw [iterate_round_inl, length_encPair]
 
-/-- The encoded loop states of the first `n` rounds, plus one, are bounded by `2 |k| + B + 2` when
-the outcomes of those rounds have encoded length at most `B`. Shared by `runTime_le` and
-`runSpace_le`. -/
-private theorem length_loopEncoding_iterate_round_le (enc : M.Encoding) (p : Program M r) {n : ℕ}
-    {k : M.Config} {s : FiniteState M r} {B : ℕ}
-    (hB : ∀ j ≤ n, (resultEncoding enc (run k p j s)).length ≤ B) (j : ℕ) (hj : j ≤ n) :
-    (loopEncoding enc ((round p)^[j] (k, Option.some (.inl s)))).length + 1 ≤
-      2 * (enc.config k).length + B + 2 := by
-  have := hB j hj
-  rw [length_loopEncoding_iterate_round]
-  omega
+/-- Per-round cost and state-length bounds for `n` clocked rounds when the step outcomes have
+encoded length at most `B`. Shared by `runTime_le` and `runSpace_le`. -/
+private theorem round_bounds (enc : M.Encoding) (p : Program M r) {n C B : ℕ}
+    {k : M.Config} {s : FiniteState M r} {cost : M.Config × Result M r → ℕ}
+    (hcost : ∀ x, cost x ≤ C * ((loopEncoding enc x).length + 1) ^ D)
+    (hB : ∀ j ≤ n, (resultEncoding enc (run k p j s)).length ≤ B) :
+    (∀ j ≤ n, cost ((round p)^[j] (k, Option.some (.inl s))) ≤
+        C * (2 * (enc.config k).length + B + 2) ^ D) ∧
+      maxStateLength (encPair enc.config (resultEncoding enc)) (round p) n
+        (k, Option.some (.inl s)) ≤ 2 * (enc.config k).length + B + 2 := by
+  have hloop : ∀ j ≤ n,
+      (loopEncoding enc ((round p)^[j] (k, Option.some (.inl s)))).length + 1 ≤
+        2 * (enc.config k).length + B + 2 := fun j hj => by
+    have := hB j hj; rw [length_loopEncoding_iterate_round]; omega
+  exact ⟨fun j hj => (hcost _).trans <| Nat.mul_le_mul_left C <| Nat.pow_le_pow_left (hloop j hj) D,
+    maxStateLength_le _ _ _ _ fun j hj => (Nat.le_succ _).trans (hloop j hj)⟩
 
 /-- **Explicit clocked run time.** If every round costs at most `C (ℓ + 1) ^ D` on a loop state of
 encoded length `ℓ`, and the outcomes of the first `n` steps have encoded length at most `B`, then
@@ -348,17 +342,12 @@ theorem runTime_le (enc : M.Encoding) (N : M.NativePrimitives enc) (p : Program 
     runTime enc N p (n, (k, s)) ≤ 3 * (runInputEncoding enc (n, (k, s))).length +
       (n + 1) * (C * (2 * (enc.config k).length + B + 2) ^ D +
         (2 * (enc.config k).length + B + 2) + ((encNat n).length + 1) ^ 2) := by
-  have hloop := length_loopEncoding_iterate_round_le enc p hB
-  have hT := maxRoundTime_le (roundCertificate enc N p) n (k, Option.some (.inl s))
-    (R := C * (2 * (enc.config k).length + B + 2) ^ D) fun j hj =>
-      (hround _).trans (Nat.mul_le_mul_left C (Nat.pow_le_pow_left (hloop j hj) D))
-  have hL := maxStateLength_le (encPair enc.config (resultEncoding enc)) (round p) n
-    (k, Option.some (.inl s))
-    (B := 2 * (enc.config k).length + B + 2) fun j hj => (Nat.le_succ _).trans (hloop j hj)
-  have hsum := Nat.mul_le_mul_left (n + 1) (Nat.add_le_add_right (Nat.add_le_add hT hL)
+  obtain ⟨hc, hL⟩ := round_bounds enc p hround hB
+  have hsum := Nat.mul_le_mul_left (n + 1) (Nat.add_le_add_right
+    (Nat.add_le_add (maxRoundTime_le (roundCertificate enc N p) n (k, Option.some (.inl s)) hc) hL)
     (((encNat n).length + 1) ^ 2))
   simp only [runTime, runCertificate, congr_time, snd_time, iterate_time, initLoopCertificate,
-    prod_time, fst_time, snd_time, some_time, inl_time, linear_time]
+    prod_time, fst_time, some_time, inl_time, linear_time]
   omega
 
 /-- **Explicit clocked run space.** The space analogue of `runTime_le`. -/
@@ -369,15 +358,10 @@ theorem runSpace_le (enc : M.Encoding) (N : M.NativePrimitives enc) (p : Program
     runSpace enc N p (n, (k, s)) ≤ 3 * (runInputEncoding enc (n, (k, s))).length +
       C * (2 * (enc.config k).length + B + 2) ^ D + (2 * (enc.config k).length + B + 2) +
         (encNat n).length := by
-  have hloop := length_loopEncoding_iterate_round_le enc p hB
-  have hS := maxRoundSpace_le (roundCertificate enc N p) n (k, Option.some (.inl s))
-    (Q := C * (2 * (enc.config k).length + B + 2) ^ D) fun j hj =>
-      (hround _).trans (Nat.mul_le_mul_left C (Nat.pow_le_pow_left (hloop j hj) D))
-  have hL := maxStateLength_le (encPair enc.config (resultEncoding enc)) (round p) n
-    (k, Option.some (.inl s))
-    (B := 2 * (enc.config k).length + B + 2) fun j hj => (Nat.le_succ _).trans (hloop j hj)
+  obtain ⟨hc, hL⟩ := round_bounds enc p hround hB
+  have hS := maxRoundSpace_le (roundCertificate enc N p) n (k, Option.some (.inl s)) hc
   simp only [runSpace, runCertificate, congr_space, snd_space, iterate_space, initLoopCertificate,
-    prod_space, fst_space, snd_space, some_space, inl_space, linear_space]
+    prod_space, fst_space, some_space, inl_space, linear_space]
   omega
 
 /-- **Whole-run transport with an explicit degree.** Suppose every primitive certificate of the
@@ -414,18 +398,21 @@ theorem transport_inO_of_hasDegree (enc : M.Encoding) (N : M.NativePrimitives en
     (fun a => ?_)
   · have hrun := runTime_le enc N p hCt (steps a) (cfg a) (initState a) (hOutLen a)
     set X := 2 * (enc.config (cfg a)).length + B a + 2
+    set S := ((encNat (steps a)).length + 1) ^ 2
     have hX : X ≤ X ^ D := Nat.le_self_pow (by omega) X
-    have hmul := Nat.mul_le_mul_left (steps a + 1)
-      (show Ct * X ^ D + X + ((encNat (steps a)).length + 1) ^ 2 ≤
-        (Ct + 1) * (X ^ D + ((encNat (steps a)).length + 1) ^ 2) by nlinarith)
-    have hc : (steps a + 1) * ((Ct + 1) * (X ^ D + ((encNat (steps a)).length + 1) ^ 2)) ≤
-        (Ct + Cs + 4) * ((steps a + 1) * (X ^ D + ((encNat (steps a)).length + 1) ^ 2)) := by
-      rw [Nat.mul_left_comm]
-      exact Nat.mul_le_mul_right _ (by omega)
-    nlinarith
+    have hmul : (steps a + 1) * (Ct * X ^ D + X + S) ≤
+        (Ct + Cs + 4) * ((steps a + 1) * (X ^ D + S)) := calc
+      (steps a + 1) * (Ct * X ^ D + X + S)
+        ≤ (steps a + 1) * ((Ct + 1) * (X ^ D + S)) := Nat.mul_le_mul_left _ <| by
+          rw [Nat.add_mul, one_mul, Nat.mul_add]; omega
+      _ = (Ct + 1) * ((steps a + 1) * (X ^ D + S)) := Nat.mul_left_comm _ _ _
+      _ ≤ (Ct + Cs + 4) * ((steps a + 1) * (X ^ D + S)) := Nat.mul_le_mul_right _ (by omega)
+    have hlin := Nat.mul_le_mul_right (cSteps.time a + cCfg.time a + cInit.time a +
+      (runInputEncoding enc (steps a, (cfg a, initState a))).length) (Nat.le_add_left 4 (Ct + Cs))
+    rw [Nat.mul_add, Nat.mul_add]; omega
   · have hrun := runSpace_le enc N p hCs (steps a) (cfg a) (initState a) (hOutLen a)
     set X := 2 * (enc.config (cfg a)).length + B a + 2
     have hX : X ≤ X ^ D := Nat.le_self_pow (by omega) X
-    nlinarith
+    simp only [Nat.add_mul, Nat.mul_add]; omega
 
 end Cslib.GenericRAM.FiniteState

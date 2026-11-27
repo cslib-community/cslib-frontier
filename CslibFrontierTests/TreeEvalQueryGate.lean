@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests of same-input packed interpolation)
 
-public import CslibFrontier.Computability.TreeEval.Ary.Packed.QueryGateInit
+import CslibFrontier.Computability.TreeEval.Ary.Packed.QueryGateInit
 
 /-!
 # Packed interpolation with an actual input-reading supplier
@@ -17,7 +17,7 @@ interpolated value without retaining a table. Its native certificates use binary
 finite bit decoding, and include initialization of the full assignment limit.
 -/
 
-@[expose] public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.TreeEvalQueryGate
 
@@ -45,6 +45,10 @@ def params := prepare input
 
 def loop := machine params supplier start answer
 
+example : Input.alphabet input = 2 ∧ Input.coords input = 1 ∧ Params.limit params = 2 :=
+  ⟨rfl, rfl, rfl⟩
+example (q : Input Unit) : (prepare q).2.2.2 = (prepare q).2.1.2.1 ^ (prepare q).2.1.2.2 :=
+  prepare_limit q
 example : params.2.2.2 = 2 := rfl
 example : loop.run [true, false] 6 = .inl (params, 2, 3) := by rfl
 example : loop.run [false, true] 6 = .inl (params, 2, 3) := by rfl
@@ -84,7 +88,7 @@ private theorem next_native :
       (fun t => (encPair encEntry (encOption encBool) t).length) := by
   open ComputableInSpace in
     exact budget_prod (fst' (fst encEntry (encOption encBool)))
-      (budget_prod (budget_const true (.refl _))
+      (budget_prod (budget_const true)
         (budget_finite (encC := encNat) (fun b : Option Bool => if b.getD false then 1 else 0)
           (snd encEntry (encOption encBool))))
 
@@ -93,7 +97,7 @@ private theorem start_native :
       (fun q => (encState encUnit q).length) := by
   open ComputableInSpace in
     exact budget_prod (fst' (snd (encParams encUnit) (encPair encNat encNat)))
-      (budget_prod (budget_const false (.refl _)) (budget_const 0 (.refl _)))
+      (budget_prod (budget_const false) (budget_const 0))
 
 private theorem answer_native :
     ComputableInSpace answer encEntry encNat (fun t => (encEntry t).length) :=
@@ -145,7 +149,7 @@ example (w : List Bool) :
     rfl
   · intro i hi
     change (encEntry (supplier.runFrom w
-      ((sumState params _ j).2.1, false, 0) i)).length ≤ 7
+      ((sumState params _ j).counter, false, 0) i)).length ≤ 7
     rw [sumState_counter]
     exact supplier_peak w j i hj hi
 

@@ -81,7 +81,6 @@ private theorem positive_budget {n k r l t q : ℕ} (hr : 2 ≤ r) (hlk : l ≤ 
     (hn : q * (r - 1) * k ≤ n) (ht : 2 * l * t < q ^ (l / 2 + 1)) :
     Positive.errorCap n k r l * t < n.choose k := by
   have hq' : 1 ≤ q * (r - 1) := Nat.mul_pos hq (by omega)
-  have hkn : k ≤ n := (Nat.le_mul_of_pos_left k hq').trans hn
   have hsum : q ^ (l / 2 + 1) * ∑ j ∈ Icc (l / 2 + 1) l, (r - 1) ^ j * (n - j).choose (k - j) ≤
       l * n.choose k := by
     rw [mul_sum]
@@ -96,29 +95,25 @@ private theorem positive_budget {n k r l t q : ℕ} (hr : 2 ≤ r) (hlk : l ≤ 
       _ ≤ l * n.choose k := by
         rw [sum_const, smul_eq_mul, Nat.card_Icc]
         exact Nat.mul_le_mul_right _ (by omega)
-  have hchoose : 0 < n.choose k := Nat.choose_pos hkn
   refine Nat.lt_of_mul_lt_mul_left (a := q ^ (l / 2 + 1)) ?_
   calc q ^ (l / 2 + 1) * (Positive.errorCap n k r l * t)
       = (q ^ (l / 2 + 1) * ∑ j ∈ Icc (l / 2 + 1) l, (r - 1) ^ j * (n - j).choose (k - j)) *
           (2 * t) := by rw [Positive.errorCap]; ring
     _ ≤ l * n.choose k * (2 * t) := Nat.mul_le_mul_right _ hsum
     _ = (2 * l * t) * n.choose k := by ring
-    _ < q ^ (l / 2 + 1) * n.choose k := Nat.mul_lt_mul_of_pos_right ht hchoose
+    _ < q ^ (l / 2 + 1) * n.choose k :=
+        Nat.mul_lt_mul_of_pos_right ht (Nat.choose_pos ((Nat.le_mul_of_pos_left k hq').trans hn))
 
 /-- The negative budget: if `2 l ^ 2 ≤ g`, `r ≤ n` and `2 S t < 2 ^ r` for the number `S` of sets
 of at most `l` vertices, a circuit with `t` gates stays below the negative budget. -/
 private theorem negative_budget {n g r l t : ℕ} (hl : 1 ≤ l) (hg : 2 * l ^ 2 ≤ g) (hrn : r ≤ n)
     (ht : 2 * (smallSets n l).card * t < 2 ^ r) :
     2 * Negative.errorCap n g r l * t < g ^ n := by
-  have hgpos : 0 < g := by
-    have := one_le_pow₀ (n := 2) hl
-    omega
-  have hpos : 0 < (l ^ 2) ^ r * g ^ (n - r) := by positivity
+  have hgpos : 0 < g := by have := one_le_pow₀ (n := 2) hl; omega
   calc 2 * Negative.errorCap n g r l * t
       = (2 * (smallSets n l).card * t) * ((l ^ 2) ^ r * g ^ (n - r)) := by
-        simp only [Negative.errorCap, Monotone.Negative.pluckErrorCap]
-        ring
-    _ < 2 ^ r * ((l ^ 2) ^ r * g ^ (n - r)) := Nat.mul_lt_mul_of_pos_right ht hpos
+        simp only [Negative.errorCap, Monotone.Negative.pluckErrorCap]; ring
+    _ < 2 ^ r * ((l ^ 2) ^ r * g ^ (n - r)) := Nat.mul_lt_mul_of_pos_right ht (by positivity)
     _ = (2 * l ^ 2) ^ r * g ^ (n - r) := by rw [mul_pow]; ring
     _ ≤ g ^ r * g ^ (n - r) := Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hg r)
     _ = g ^ n := by rw [← pow_add, Nat.add_sub_cancel' hrn]
@@ -144,29 +139,29 @@ theorem two_pow_lt_size_of_separates {n k g l : ℕ} (hl : 2 ≤ l) (hg : 2 * l 
     {C : Circuit signature (edgeCount n) 1}
     (hC : Separates k g fun x => C.eval interpretation x 0) : 2 ^ l < C.size := by
   have hb : n + 1 ≤ 2 ^ (Nat.log 2 n + 1) := Nat.lt_pow_succ_log_self (by norm_num) n
-  have hk1 : 1 ≤ k := by omega
-  have hr1 : l * (Nat.log 2 n + 2) + 2 - 1 ≤ l * (Nat.log 2 n + 3) := by
-    calc l * (Nat.log 2 n + 2) + 2 - 1 = l * (Nat.log 2 n + 2) + 1 := by omega
-      _ ≤ l * (Nat.log 2 n + 2) + l := by omega
+  have hr1 : l * (Nat.log 2 n + 2) + 2 - 1 ≤ l * (Nat.log 2 n + 3) :=
+    calc l * (Nat.log 2 n + 2) + 2 - 1 ≤ l * (Nat.log 2 n + 2) + l := by omega
       _ = l * (Nat.log 2 n + 3) := by ring
   have hr : 8 * (l * (Nat.log 2 n + 2) + 2 - 1) * k ≤ n := by
     refine le_trans ?_ hn
     rw [mul_assoc 8 l]
     exact Nat.mul_le_mul_right k (Nat.mul_le_mul_left 8 hr1)
-  have hrn : l * (Nat.log 2 n + 2) + 2 ≤ n := by
-    have h8 : l * (Nat.log 2 n + 2) + 2 ≤ 8 * (l * (Nat.log 2 n + 2) + 2 - 1) := by omega
-    exact h8.trans ((Nat.le_mul_of_pos_right _ hk1).trans hr)
-  refine Closure.lt_size_of_separates (r := l * (Nat.log 2 n + 2) + 2) (by omega) hl hg hgk ?_ ?_
-    hC
-  · refine positive_budget (q := 8) (by omega) ?_ (by norm_num) hr (two_mul_mul_two_pow_lt l)
-    have := Nat.le_self_pow two_ne_zero l
+  have hrn : l * (Nat.log 2 n + 2) + 2 ≤ n :=
+    (by omega : l * (Nat.log 2 n + 2) + 2 ≤ 8 * (l * (Nat.log 2 n + 2) + 2 - 1)).trans
+      ((Nat.le_mul_of_pos_right _ (by omega)).trans hr)
+  refine Closure.lt_size_of_separates (r := l * (Nat.log 2 n + 2) + 2) (by omega) hl hg hgk
+    (positive_budget (q := 8) (by omega) ?_ (by norm_num) hr (two_mul_mul_two_pow_lt l))
+    (negative_budget (by omega) hg hrn ?_) hC
+  · have := Nat.le_self_pow two_ne_zero l
     omega
-  · refine negative_budget (by omega) hg hrn ?_
-    calc 2 * (smallSets n l).card * 2 ^ l ≤ 2 * (2 ^ (Nat.log 2 n + 1)) ^ l * 2 ^ l := by
+  · calc 2 * (smallSets n l).card * 2 ^ l ≤ 2 * (2 ^ (Nat.log 2 n + 1)) ^ l * 2 ^ l := by
           gcongr
           exact (card_smallSets_le n l).trans (Nat.pow_le_pow_left hb l)
       _ = 2 ^ (l * (Nat.log 2 n + 1) + l + 1) := by rw [← pow_mul]; ring
-      _ < 2 ^ (l * (Nat.log 2 n + 2) + 2) := Nat.pow_lt_pow_right (by norm_num) (by ring_nf; omega)
+      _ < 2 ^ (l * (Nat.log 2 n + 2) + 2) := by
+          refine Nat.pow_lt_pow_right (by norm_num) ?_
+          ring_nf
+          omega
 
 /-- **The Alon–Boppana lower bound for cliques.** For `2 ≤ l` with `2 l ^ 2 ≤ k - 1` and
 `8 l (⌊log₂ n⌋ + 3) k ≤ n`, every monotone circuit computing `k`-clique on `n` vertices has more
@@ -196,13 +191,12 @@ theorem two_pow_lt_size_of_separates_sqrt {n k : ℕ} (hn : 2 ^ 40 ≤ n) (hk : 
   set a := n.sqrt.sqrt
   have ha : 1024 ≤ a := Nat.le_sqrt.2 (Nat.le_sqrt.2 (le_trans (by norm_num) hn))
   have ha2 : a ^ 2 ≤ n.sqrt := Nat.sqrt_le' _
-  have ha4 : a ^ 4 ≤ n :=
+  have ha4 : a ^ 4 ≤ n := by
     calc a ^ 4 = (a ^ 2) ^ 2 := by ring
       _ ≤ n.sqrt ^ 2 := Nat.pow_le_pow_left ha2 2
       _ ≤ n := Nat.sqrt_le' n
   have hsqrt : n.sqrt < (a + 1) ^ 2 := Nat.lt_succ_sqrt' _
   have hc : 10 ≤ Nat.log 2 a := Nat.le_log_of_pow_le (by norm_num) (le_trans (by norm_num) ha)
-  have hca : 2 ^ Nat.log 2 a ≤ a := Nat.pow_log_le_self 2 (by omega)
   have hlog : Nat.log 2 n < 4 * (Nat.log 2 a + 1) := by
     refine Nat.log_lt_of_lt_pow (by omega) ?_
     calc n < (n.sqrt + 1) ^ 2 := Nat.lt_succ_sqrt' n
@@ -211,7 +205,7 @@ theorem two_pow_lt_size_of_separates_sqrt {n k : ℕ} (hn : 2 ^ 40 ≤ n) (hk : 
           Nat.pow_le_pow_left (Nat.pow_le_pow_left (Nat.lt_pow_succ_log_self (by norm_num) a) 2) 2
       _ = 2 ^ (4 * (Nat.log 2 a + 1)) := by rw [← pow_mul, ← pow_mul]; ring_nf
   have h8 : 8 * (Nat.log 2 n + 3) ≤ a := by
-    have := thirtyTwo_mul_add_le_two_pow hc
+    have := (thirtyTwo_mul_add_le_two_pow hc).trans (Nat.pow_log_le_self 2 (by omega))
     omega
   have hk2 : k ≤ 2 * a ^ 2 := by nlinarith
   refine two_pow_lt_size_of_separates (by omega) ?_ (by omega) ?_ hC

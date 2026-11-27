@@ -23,7 +23,6 @@ carrier as the adjacency callback.
 * `Cslib.Complexity.STCON.JustesenSourceContext`: the data retained across source rounds.
 * `Cslib.Complexity.STCON.justesenRoundMembershipStart`: membership at a requested vertex.
 * `Cslib.Complexity.STCON.justesenSourceMembershipStart`: membership at the designated target.
-* `Cslib.Complexity.STCON.justesenSourceMembershipMachine`: the fixed re-entrant tally.
 
 ## Main results
 
@@ -36,7 +35,8 @@ carrier as the adjacency callback.
   logarithmic state bound at every admissible loop entry.
 * `Cslib.Complexity.STCON.justesenSourceMembership_existsUnique_firstHalting`: one
   successful selector list at a unique passing transcript.
-* `Cslib.Complexity.STCON.justesenSourceMembership_readReply_correct`: a successful reply at
+* `Cslib.Complexity.STCON.justesenRoundMembership_readReply_correct` and
+  `Cslib.Complexity.STCON.justesenSourceMembership_readReply_correct`: a successful reply at
   the exact round totals reports bounded reachability.
 -/
 
@@ -73,6 +73,26 @@ theorem configurationJustesenSourceContext_size {k : ℕ} {State : Type} [Fintyp
         (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount := by
   simp only [JustesenSourceContext.size, configurationJustesenSubdivisionContext,
     (configurationSeedSearchSetup_endpoints ntm c w).1]
+
+/-- The retained subdivision and both valid endpoints have logarithmic encoded length. -/
+theorem length_configurationJustesenSourceContext_le_log {k : ℕ} {State : Type} [Fintype State]
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w : List Bool,
+      let I := configurationInstance ntm c w
+      let n := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount
+      ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin n),
+        (encJustesenSourceContext
+          ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩).length
+            ≤ C * (Nat.log2 w.length + 1) := by
+  obtain ⟨A, hA⟩ := length_configurationJustesenSubdivisionContext_le_log ntm c
+  obtain ⟨B, hB⟩ := length_configurationSubdivisionVertexCount_le_log ntm c
+  refine ⟨2 * A + 3 * B + 2, fun w seed source target => ?_⟩
+  have ha := hA w seed.val seed.isLt
+  have hs := (length_encNat_mono source.isLt.le).trans (hB w)
+  have ht := (length_encNat_mono target.isLt.le).trans (hB w)
+  simp only [encJustesenSourceContext_apply, encJustesenSourceContextFields,
+    length_encPair, Nat.add_mul, Nat.mul_assoc]
+  omega
 
 /-- Read the subdivision size from the existing adjacency context encoding. -/
 theorem encJustesenSourceContext_size_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
@@ -118,14 +138,14 @@ theorem justesenSourceMembershipStart_inSpace :
       (MembershipTally.encRetainedState encJustesenSubdivisionContext encJustesenSubdivisionState)
       (fun r => (E r).length) := by
   intro E
-  have hr := budget_id (enc := E) (.refl _)
-  have hctx := SourceRoundLoop.encRegisters_context_budget encJustesenSourceContext hr
+  have hctx := SourceRoundLoop.encRegisters_context_budget encJustesenSourceContext
+    (budget_id (enc := E) (.refl _))
   have hid := budget_id (enc := encJustesenSourceContext) (.refl _)
-  have hround := SourceRoundLoop.roundContext_inSpace
-    JustesenSourceContext.size JustesenSourceContext.sourceID encJustesenSourceContext
-    (encJustesenSourceContext_size_budget hid) (encJustesenSourceContext_sourceID_budget hid)
   exact justesenRoundMembershipStart_budget (encJustesenSourceContext_adjacency_budget hctx)
-    hround (encJustesenSourceContext_targetID_budget hctx)
+    (SourceRoundLoop.roundContext_inSpace JustesenSourceContext.size
+      JustesenSourceContext.sourceID encJustesenSourceContext
+      (encJustesenSourceContext_size_budget hid) (encJustesenSourceContext_sourceID_budget hid))
+    (encJustesenSourceContext_targetID_budget hctx)
 
 variable {k : ℕ} {State : Type} [Fintype State]
 
@@ -182,21 +202,17 @@ theorem justesenRoundMembership_readReply_iff
       ∃! branch, callBits = MembershipTally.selectors (BoundedWalk.selectors 3) branch ∧
         Scan.run (configurationJustesenSubdivisionAdjacent ntm c w seed)
           source target radius totals branch = some hit := by
-    let entered := M.withInit entry
-    change entered.FirstHalting w callBits entered.init ∧
-      MembershipTally.retainedReply (entered.run w callBits) = some hit ↔ _
-    dsimp only [entered, M, entry, adjacency, ctx]
+    change (M.withInit entry).FirstHalting w callBits (M.withInit entry).init ∧
+      MembershipTally.retainedReply ((M.withInit entry).run w callBits) = some hit ↔ _
+    dsimp only [M, entry, adjacency, ctx]
     rw [justesenRoundMembershipMachine_withInit]
     exact configurationJustesenMembershipTally_firstHalting_iff ntm c w seed source target
       radius totals callBits hit
-  constructor
-  · rintro ⟨callBits, hbits, hfirst, hreply⟩
-    obtain ⟨branch, ⟨rfl, hscan⟩, _⟩ := (hspec callBits).mp ⟨hfirst, hreply⟩
-    exact ⟨branch, hbits, hscan⟩
-  · rintro ⟨branch, hbits, hscan⟩
-    refine ⟨_, hbits, (hspec _).mpr ⟨branch, ⟨rfl, hscan⟩, ?_⟩⟩
-    exact fun _ h =>
-      MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm
+  refine ⟨fun ⟨callBits, hbits, hf⟩ => ?_, fun ⟨branch, hbits, hscan⟩ =>
+    ⟨_, hbits, (hspec _).mpr ⟨branch, ⟨rfl, hscan⟩, fun _ h =>
+      MembershipTally.selectors_injective _ (BoundedWalk.eq_of_selectors_prefix 3) h.1.symm⟩⟩⟩
+  obtain ⟨branch, ⟨rfl, hscan⟩, _⟩ := (hspec callBits).mp hf
+  exact ⟨branch, hbits, hscan⟩
 
 open NondeterministicQueryMachine in
 /-- A final membership return consumes the canonical typed tally selectors and the false
@@ -249,6 +265,32 @@ theorem justesenSourceMembership_existsUnique_firstHalting
     seed source target radius hpass
 
 open NondeterministicQueryMachine in
+/-- At the exact totals, a parsed round membership reply is true precisely when the
+candidate is reachable from the source within the current radius. -/
+theorem justesenRoundMembership_readReply_correct
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin size.vertexCount)
+      (radius : ℕ) (bits : List Bool) (hit : Bool) (suffix : List Bool),
+      let adjacent := configurationJustesenSubdivisionAdjacent ntm c w seed
+      let edge := fun u v => adjacent u v = true
+      let ctx : SourceRound.Context :=
+        ⟨size.vertexCount, source.val, radius, expected edge source radius⟩
+      let adjacency := configurationJustesenSubdivisionContext ntm c w seed.val
+      let entry := justesenRoundMembershipStart adjacency ctx target.val
+      (justesenSourceMembershipMachine ntm c).readReply MembershipTally.retainedReply
+        w entry bits = some (hit, suffix) →
+      (hit ↔ target ∈ Relation.reachableWithin edge source radius) := by
+  intro I size seed source target radius bits hit suffix adjacent edge ctx adjacency entry hreply
+  obtain ⟨branch, _, hscan⟩ :=
+    (justesenRoundMembership_readReply_iff ntm c w seed source target radius
+      (expected edge source radius) bits hit suffix).mp hreply
+  exact Scan.hit_iff_reachable adjacent source target radius branch hit (by
+    rw [Scan.runM_replay]
+    exact hscan)
+
+open NondeterministicQueryMachine in
 /-- At the exact totals, a parsed final reply is true precisely when the target is reachable
 from the source within the current radius. -/
 theorem justesenSourceMembership_readReply_correct
@@ -265,13 +307,10 @@ theorem justesenSourceMembership_readReply_correct
       (justesenSourceMembershipMachine ntm c).readReply MembershipTally.retainedReply
         w entry bits = some (hit, suffix) →
       (hit ↔ target ∈ Relation.reachableWithin edge source radius) := by
-  intro I size seed source target fuel radius bits hit suffix adjacent edge ctx entry hreply
-  obtain ⟨branch, _, hscan⟩ :=
-    (justesenSourceMembership_readReply_iff ntm c w seed source target fuel radius
-      (expected edge source radius) bits hit suffix).mp hreply
-  exact Scan.hit_iff_reachable adjacent source target radius branch hit (by
-    rw [Scan.runM_replay]
-    exact hscan)
+  intro I size seed source target fuel radius bits hit suffix adjacent edge ctx entry
+  simpa only [entry, ctx, justesenSourceMembershipStart, SourceRoundLoop.roundContext,
+    configurationJustesenSourceContext_size] using
+    justesenRoundMembership_readReply_correct ntm c w seed source target radius bits hit suffix
 
 open NondeterministicQueryMachine in
 /-- The final membership callback has a common selector clock and logarithmic encoded-state
@@ -292,28 +331,15 @@ theorem justesenSourceMembership_bounds (ntm : MultiTapeNTM k Bool State) (c : �
               encJustesenSubdivisionState (M.replay w bits entry)).length ≤
                 C * (Nat.log2 w.length + 1) := by
   obtain ⟨C, hlength⟩ := configurationJustesenMembershipTally_length_run_le_log_of_loop_caps ntm c
-  refine ⟨C, fun w => ?_⟩
-  intro I size seed source target limit hlimit ctx r hr M entry
-  have hsize : ctx.size = size.vertexCount :=
-    configurationJustesenSourceContext_size ntm c w seed.val source.val target.val
-  rcases r with ⟨actual, fuel, radius, totals⟩
-  obtain ⟨hctx, hfuel, hc, hs⟩ := hr
-  change actual = ctx at hctx
-  subst actual
-  change fuel + radius = limit at hfuel
-  change totals.count ≤ 1 + radius * ctx.size at hc
-  change totals.lengthSum ≤ ctx.size * radius * radius at hs
-  rw [hsize] at hc hs
-  have hrad : radius ≤ size.vertexCount := by omega
-  have hc' := hc.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hrad) 1)
-  have hs' := hs.trans (Nat.mul_le_mul (Nat.mul_le_mul_left _ hrad) hrad)
-  dsimp only [M, entry]
-  constructor
+  refine ⟨C, fun w seed source target limit hlimit ⟨_, fuel, radius, totals⟩ hr => ?_⟩
+  obtain ⟨_, hrad, hc, hs⟩ := SourceRoundLoop.admissible_caps_le hr hlimit
+  rcases hr.1 with rfl
+  rw [configurationJustesenSourceContext_size] at hc hs
+  refine ⟨?_, fun bits => ?_⟩
   · rw [justesenSourceMembershipMachine_withInit]
     exact configurationJustesenMembershipTally_haltsWithin_clock ntm c w
       seed source target radius totals hrad
-  · intro bits
-    rw [← run_withInit, justesenSourceMembershipMachine_withInit]
-    exact hlength w seed source target radius totals hrad hc' hs' bits
+  · rw [← run_withInit, justesenSourceMembershipMachine_withInit]
+    exact hlength w seed source target radius totals hrad hc hs bits
 
 end Cslib.Complexity.STCON

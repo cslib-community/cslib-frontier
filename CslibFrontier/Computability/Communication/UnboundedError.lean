@@ -102,7 +102,7 @@ noncomputable def uppComplexity (R : X → Y → Z → Prop) (A : Set X) (B : Se
 
 /-- The unbounded-error communication complexity of computing `f`: `uppComplexity` of the
 relation `f x y = z` on all inputs. -/
-noncomputable def uppComplexityFun (f : X → Y → Z) : ℕ∞ :=
+@[expose] noncomputable def uppComplexityFun (f : X → Y → Z) : ℕ∞ :=
   uppComplexity (fun x y z => f x y = z) Set.univ Set.univ
 
 variable {P : PrivateCoin a b X Y Z} {R : X → Y → Z → Prop} {A A' : Set X} {B B' : Set Y}
@@ -143,27 +143,25 @@ theorem SolvesUnbounded.exists_solves (h : P.SolvesUnbounded R A B) :
   linarith
 
 theorem uppComplexity_le_depth (h : P.SolvesUnbounded R A B) : uppComplexity R A B ≤ P.depth :=
-  (iInf_le _ a).trans <| (iInf_le _ b).trans <|
-    iInf_le (fun P : {P : PrivateCoin a b X Y Z // P.SolvesUnbounded R A B} => (P.1.depth : ℕ∞))
-      ⟨P, h⟩
+  ENat.iInf₂_subtype_natCast_le h
 
 theorem le_uppComplexity_iff {k : ℕ∞} :
     k ≤ uppComplexity R A B ↔
-      ∀ a b (P : PrivateCoin a b X Y Z), P.SolvesUnbounded R A B → k ≤ P.depth := by
-  simp only [uppComplexity, le_iInf_iff, Subtype.forall]
+      ∀ a b (P : PrivateCoin a b X Y Z), P.SolvesUnbounded R A B → k ≤ P.depth :=
+  ENat.le_iInf₂_subtype_natCast_iff
 
 theorem uppComplexity_le_iff {k : ℕ} :
     uppComplexity R A B ≤ k ↔
-      ∃ a b, ∃ P : PrivateCoin a b X Y Z, P.SolvesUnbounded R A B ∧ P.depth ≤ k := by
-  simp only [uppComplexity, ENat.iInf_le_natCast_iff, Nat.cast_le, Subtype.exists, exists_prop]
+      ∃ a b, ∃ P : PrivateCoin a b X Y Z, P.SolvesUnbounded R A B ∧ P.depth ≤ k :=
+  ENat.iInf₂_subtype_natCast_le_natCast_iff
 
 /-- **Unbounded error is the limit of bounded error**: the unbounded-error complexity is the
 infimum of the private-coin complexities with error `ε` over all `ε < 1 / 2`
 [Sherstov and Wu, eq. (2.8)][SherstovWu2019]. -/
 theorem uppComplexity_eq_iInf :
     uppComplexity R A B = ⨅ (ε : ℝ) (_ : ε < 1 / 2), ecomplexity ε R A B := by
-  refine le_antisymm (le_iInf₂ fun ε hε => le_ecomplexity_iff.mpr fun a b P hP =>
-    uppComplexity_le_depth (hP.solvesUnbounded hε)) ?_
+  refine le_antisymm (le_iInf₂ fun ε hε =>
+    ENat.iInf₂_subtype_natCast_mono fun _ _ _ hP => hP.solvesUnbounded hε) ?_
   refine le_uppComplexity_iff.mpr fun a b P hP => ?_
   obtain ⟨ε, hε, h⟩ := hP.exists_solves
   exact (iInf₂_le ε hε).trans (ecomplexity_le_depth h)
@@ -182,7 +180,7 @@ theorem uppComplexity_le_protocol : uppComplexity R A B ≤ Protocol.ecomplexity
 /-- Solving a relation with unbounded error on larger sets is harder. -/
 theorem uppComplexity_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
     uppComplexity R A' B' ≤ uppComplexity R A B :=
-  le_uppComplexity_iff.mpr fun _ _ _ hP => uppComplexity_le_depth (hP.mono hA hB)
+  ENat.iInf₂_subtype_natCast_mono fun _ _ _ hP => hP.mono hA hB
 
 variable {f : X → Y → Z}
 

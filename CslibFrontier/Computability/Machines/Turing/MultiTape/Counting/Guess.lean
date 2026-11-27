@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Program
 public import CslibFrontier.Foundations.Data.BitString.Enumeration
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Data.List.Perm.Basic
 import Mathlib.Data.List.Nodup
 
@@ -106,32 +107,26 @@ private theorem actions_inner {input output : List Bool} {index : ℕ}
       [emit false, emit true] := by
   have hsym := inputSymbolInner (cfg := config input (some ()) index output (by lia))
     index (by simp [config]; lia) h
-  simp only [actions, show (config input (some ()) index output (by lia)).state = some ()
-    from rfl, guessMachine, hsym, Option.isSome_some, ↓reduceIte, List.map_map]
+  rw [actions, hsym]
   rfl
 
 private theorem actions_boundary (input output : List Bool) :
     guessMachine.actions (config input (some ()) input.length output le_rfl) = [halt] := by
   have hsym := inputSymbol_eq_none_of_boundary
     (cfg := config input (some ()) input.length output le_rfl) (Or.inr rfl)
-  simp only [actions, show (config input (some ()) input.length output le_rfl).state = some ()
-    from rfl, guessMachine, hsym, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, List.map_map]
+  rw [actions, hsym]
   rfl
 
 private theorem apply_emit {input output : List Bool} {index : ℕ}
     (h : index < input.length) (bit : Bool) :
     (emit bit).apply (config input (some ()) index output (by lia)) =
       config input (some ()) (index + 1) (output ++ [bit]) h := by
-  refine Cfg.ext_zero_tapes rfl ?_ rfl
-  apply Fin.ext
-  change (moveInputPos _ .pos).val = index + 1 + 1
-  rw [moveInputPos_pos_of_ne_right _ (by simp only [config]; lia)]
-  rfl
+  tm_step [emit, config]
 
 private theorem apply_halt (input output : List Bool) :
     halt.apply (config input (some ()) input.length output le_rfl) =
       config input none input.length output le_rfl := by
-  apply Cfg.ext_zero_tapes <;> simp [Turing.Action.apply, halt, config]
+  tm_step [halt, config]
 
 theorem step?_inner {input output : List Bool} {index : ℕ}
     (h : index < input.length) (choice : ℕ) :
@@ -139,10 +134,7 @@ theorem step?_inner {input output : List Bool} {index : ℕ}
       if choice < 2 then
         some (config input (some ()) (index + 1) (output ++ [choice == 1]) h)
       else none := by
-  rcases choice with _ | (_ | choice)
-  · simp [step?, actions_inner h, apply_emit h]
-  · simp [step?, actions_inner h, apply_emit h]
-  · simp [step?, actions_inner h]
+  rcases choice with _ | _ | choice <;> simp [step?, actions_inner h, apply_emit h]
 
 theorem step?_boundary (input output : List Bool) (choice : ℕ) :
     guessMachine.step? (config input (some ()) input.length output le_rfl) choice =
@@ -177,36 +169,26 @@ private theorem haltsWithin_config (input : List Bool) (remaining : ℕ) :
     ∀ (index : ℕ) (output : List Bool) (h : index + remaining = input.length),
       guessMachine.HaltsWithin (remaining + 1)
         (config input (some ()) index output (by lia)) := by
-  induction remaining with
+  intro index output h
+  induction remaining generalizing index output with
   | zero =>
-    intro index output h
-    have hi : index = input.length := by lia
-    subst index
-    apply HaltsWithin.step (by rw [actions_boundary]; simp)
-    rintro ⟨choice, hchoice⟩
+    obtain rfl : index = input.length := by lia
+    refine HaltsWithin.step (by simp [actions_boundary]) fun ⟨choice, hchoice⟩ => ?_
     simp only [actions_boundary, List.length_cons, List.length_nil] at hchoice
-    have hi : choice = 0 := by lia
-    subst choice
-    apply HaltsWithin.halt
-    change ((guessMachine.actions _)[0].apply _).Halted
-    simp only [actions_boundary, List.getElem_cons_zero, apply_halt]
-    rfl
+    obtain rfl : choice = 0 := by lia
+    exact HaltsWithin.halt (by simp [actions_boundary, apply_halt]; rfl)
   | succ remaining ih =>
-    intro index output h
     have hi : index < input.length := by lia
-    apply HaltsWithin.step (by rw [actions_inner hi]; simp)
-    rintro ⟨choice, hchoice⟩
+    refine HaltsWithin.step (by simp [actions_inner hi]) fun ⟨choice, hchoice⟩ => ?_
     simp only [actions_inner hi, List.length_cons, List.length_nil] at hchoice
-    have hc : choice = 0 ∨ choice = 1 := by lia
     change guessMachine.HaltsWithin _ ((guessMachine.actions _)[choice].apply _)
-    rcases hc with hc | hc <;>
-      simpa [actions_inner hi, hc, apply_emit hi] using
-        ih (index + 1) (output ++ [_]) (by lia)
+    rcases (by lia : choice = 0 ∨ choice = 1) with rfl | rfl <;>
+      simpa [actions_inner hi, apply_emit hi] using ih (index + 1) (output ++ [_]) (by lia)
 
 /-- Starting from blank tapes is the zero-position scanner invariant. -/
 theorem init_eq_config (input : List Bool) :
     Cfg.init guessMachine.initial input = config input (some ()) 0 [] (Nat.zero_le _) := by
-  exact Cfg.ext_zero_tapes rfl rfl rfl
+  tm_step
 
 /-- Every branch halts in `n + 1` transitions, with a nonempty choice list at every live node. -/
 theorem haltsWithin (input : List Bool) :
@@ -220,42 +202,32 @@ private theorem word_of_runBranch (input : List Bool) (choices : List ℕ) :
       guessMachine.runBranch (config input (some ()) index output h) choices = some final →
       final.Halted → ∃ word : List Bool, index + word.length = input.length ∧
         choices = trace word ∧ final = config input none input.length (output ++ word) le_rfl := by
-  induction choices with
+  intro index output h final hrun hhalt
+  induction choices generalizing index output with
   | nil =>
-    intro index output h final hrun hhalt
     cases Option.some.inj hrun
     cases hhalt
   | cons choice rest ih =>
-    intro index output h final hrun hhalt
     by_cases hi : index < input.length
     · rw [runBranch_cons, step?_inner hi] at hrun
       split at hrun
       · rename_i hc
         obtain ⟨word, hlen, hrest, rfl⟩ :=
-          ih (index + 1) (output ++ [choice == 1]) hi final hrun hhalt
-        refine ⟨(choice == 1) :: word, ?_, ?_, ?_⟩
-        · simp only [List.length_cons]
-          lia
-        · have hb : (choice == 1).toNat = choice := by
-            have : choice = 0 ∨ choice = 1 := by lia
-            rcases this with rfl | rfl <;> rfl
-          simp [hrest, hb]
-        · simp [List.append_assoc]
+          ih (index + 1) (output ++ [choice == 1]) hi hrun
+        refine ⟨(choice == 1) :: word, ?_, ?_, by simp [List.append_assoc]⟩
+        · simp only [List.length_cons]; omega
+        · rcases (by lia : choice = 0 ∨ choice = 1) with rfl | rfl <;> simp [hrest]
       · simp at hrun
-    · have hi : index = input.length := by lia
-      subst index
+    · obtain rfl : index = input.length := by lia
       rw [runBranch_cons, step?_boundary] at hrun
       split at hrun
       · rename_i hc
         subst choice
         cases rest with
-        | nil =>
-          have heq : config input none input.length output le_rfl = final :=
-            Option.some.inj hrun
-          exact ⟨[], by simp, rfl, by simpa using heq.symm⟩
+        | nil => exact ⟨[], by simp, rfl, by simpa using (Option.some.inj hrun).symm⟩
         | cons choice rest =>
-          simp [runBranch_cons, guessMachine.step?_of_halted
-            (show (config input none input.length output le_rfl).Halted from rfl)] at hrun
+          have hh : (config input none input.length output le_rfl).Halted := rfl
+          simp [runBranch_cons, guessMachine.step?_of_halted hh] at hrun
       · simp at hrun
 
 /-- Soundness and completeness of terminal replay, including its exact output. -/
@@ -299,12 +271,10 @@ theorem mem_branches_iff (input : List Bool) (fuel : ℕ) (choices : List ℕ) :
 theorem trace_bijOn (input : List Bool) :
     Set.BijOn trace {word | word.length = input.length}
       (guessMachine.branches (input.length + 1) (Cfg.init guessMachine.initial input)) := by
-  refine ⟨?_, trace_injective.injOn, ?_⟩
-  · intro word hword
-    exact (mem_branches_iff input _ _).mpr ⟨le_rfl, word, hword, rfl⟩
-  · intro choices hchoices
-    obtain ⟨_, word, hword, heq⟩ := (mem_branches_iff input _ _).mp hchoices
-    exact ⟨word, hword, heq.symm⟩
+  refine ⟨fun word hword => (mem_branches_iff input _ _).mpr ⟨le_rfl, word, hword, rfl⟩,
+    trace_injective.injOn, fun _ hchoices => ?_⟩
+  obtain ⟨_, word, hword, heq⟩ := (mem_branches_iff input _ _).mp hchoices
+  exact ⟨word, hword, heq.symm⟩
 
 /-- The same bijection, enumerated by the existing fixed-width bit-string type. -/
 theorem branches_eq_image (input : List Bool) :
@@ -355,8 +325,7 @@ private theorem interpret_runProgram_config (input : List Bool) (remaining : ℕ
   induction remaining with
   | zero =>
     intro index output h
-    have hi : index = input.length := by lia
-    subst index
+    obtain rfl : index = input.length := by lia
     rw [interpret_runProgram_succ guessMachine _ 0 () rfl, actions_boundary]
     simp [runProgram_zero, apply_halt]
   | succ remaining ih =>
@@ -396,16 +365,11 @@ theorem count_interpret_output (input word : List Bool) :
       (BitString.enumList input.length) := by
     simpa [config, Function.comp_def] using (interpret_runProgram input).map Cfg.output
   rw [OracleComp.interpret_map]
-  change (List.map Cfg.output (OracleComp.interpret
-    (fun n => List.ofFn (id : Fin n → Fin n))
-    (guessMachine.runProgram (input.length + 1)
-      (Cfg.init guessMachine.initial input)))).count word = _
-  rw [hp.count_eq]
-  have hn : (BitString.enumList input.length).Nodup :=
-    (BitString.nodup_enum _).map List.ofFn_injective
+  refine (hp.count_eq word).trans ?_
   by_cases h : word.length = input.length
   · rw [ite_eq_left h]
-    exact List.count_eq_one_of_mem hn (BitString.mem_enumList.mpr h)
+    exact List.count_eq_one_of_mem ((BitString.nodup_enum _).map List.ofFn_injective)
+      (BitString.mem_enumList.mpr h)
   · simp [h, List.count_eq_zero]
 
 end GuessMachine

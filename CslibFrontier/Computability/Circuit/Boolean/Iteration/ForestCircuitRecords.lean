@@ -69,41 +69,31 @@ def forestLabelWord (low high : BitString n → Fin (Nat.card (BitString n)))
 
 /-- Unpack the lower subtree rank word from a forest label record. -/
 def forestLowWord (r : BitString (n + 1 + (n + 1))) : BitVec (n + 1) :=
-  word fun i : Fin (n + 1) => r (Fin.castAdd (n + 1) i)
+  BitString.equivBitVec fun i : Fin (n + 1) => r (Fin.castAdd (n + 1) i)
 
 /-- Unpack the upper subtree rank word from a forest label record. -/
 def forestHighWord (r : BitString (n + 1 + (n + 1))) : BitVec (n + 1) :=
-  word fun i : Fin (n + 1) => r (Fin.natAdd (n + 1) i)
+  BitString.equivBitVec fun i : Fin (n + 1) => r (Fin.natAdd (n + 1) i)
 
 /-- Unpacking the lower word from `forestLabelWord low high x` yields `low x` as an `(n + 1)`-bit
 vector. -/
 @[simp] theorem forestLowWord_bits (low high : BitString n → Fin (Nat.card (BitString n)))
     (x : BitString n) :
     forestLowWord (forestLabelWord low high x) = BitVec.ofNat (n + 1) (low x).val := by
-  simp [forestLowWord, forestLabelWord, word_getLsbD]
+  simp [forestLowWord, forestLabelWord, BitString.equivBitVec_getLsbD]
 
 /-- Unpacking the upper word from `forestLabelWord low high x` yields `high x` as an `(n + 1)`-bit
 vector. -/
 @[simp] theorem forestHighWord_bits (low high : BitString n → Fin (Nat.card (BitString n)))
     (x : BitString n) :
     forestHighWord (forestLabelWord low high x) = BitVec.ofNat (n + 1) (high x).val := by
-  simp only [forestHighWord, forestLabelWord, Fin.append_right, word_getLsbD]
+  simp only [forestHighWord, forestLabelWord, Fin.append_right, BitString.equivBitVec_getLsbD]
 
-private theorem forestLowWord_toNat (low high : BitString n → Fin (Nat.card (BitString n)))
-    (x : BitString n) :
-    (forestLowWord (forestLabelWord low high x)).toNat = (low x).val := by
-  have hlt : (low x).val < 2 ^ n := by
-    simpa [Nat.card_eq_fintype_card] using (low x).isLt
+private theorem ofNat_card_toNat (v : Fin (Nat.card (BitString n))) :
+    (BitVec.ofNat (n + 1) v.val).toNat = v.val := by
+  have hlt : v.val < 2 ^ n := by simpa [Nat.card_eq_fintype_card] using v.isLt
   have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
-  rw [forestLowWord_bits, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
-
-private theorem forestHighWord_toNat (low high : BitString n → Fin (Nat.card (BitString n)))
-    (x : BitString n) :
-    (forestHighWord (forestLabelWord low high x)).toNat = (high x).val := by
-  have hlt : (high x).val < 2 ^ n := by
-    simpa [Nat.card_eq_fintype_card] using (high x).isLt
-  have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
-  rw [forestHighWord_bits, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
 
 /-- Word-level interval containment on unpacked `(n + 1)`-bit words matches rank containment. -/
 theorem forest_label_interval (low high : BitString n → Fin (Nat.card (BitString n)))
@@ -115,7 +105,8 @@ theorem forest_label_interval (low high : BitString n → Fin (Nat.card (BitStri
       (low a ≤ low h ∧ low h ≤ high a) := by
   rw [Bool.and_eq_true, Bool.not_eq_true', Bool.not_eq_true', BitVec.ult, BitVec.ult,
     decide_eq_false_iff_not, decide_eq_false_iff_not, not_lt, not_lt,
-    forestLowWord_toNat, forestLowWord_toNat, forestHighWord_toNat]
+    forestLowWord_bits, forestLowWord_bits, forestHighWord_bits,
+    ofNat_card_toNat, ofNat_card_toNat, ofNat_card_toNat]
   rfl
 
 /-- An anchor record packs a marked state, its two interval words, and its `(n + 3)`-bit depth. -/
@@ -136,7 +127,7 @@ def forestAnchorLabels (r : BitString (n + (n + 1 + (n + 1)) + (n + 3))) :
 
 /-- Unpack the `(n + 3)`-bit transient depth word from an anchor record. -/
 def forestAnchorDepth (r : BitString (n + (n + 1 + (n + 1)) + (n + 3))) : BitVec (n + 3) :=
-  word fun i : Fin (n + 3) => r (Fin.natAdd (n + (n + 1 + (n + 1))) i)
+  BitString.equivBitVec fun i : Fin (n + 3) => r (Fin.natAdd (n + (n + 1 + (n + 1))) i)
 
 /-- Unpacking the state field of `forestAnchorWord f low high x` recovers `x`. -/
 @[simp] theorem forestAnchorState_bits (f : BitString n → BitString n)
@@ -157,7 +148,7 @@ def forestAnchorDepth (r : BitString (n + (n + 1 + (n + 1)) + (n + 3))) : BitVec
 @[simp] theorem forestAnchorDepth_bits (f : BitString n → BitString n)
     (low high : BitString n → Fin (Nat.card (BitString n))) (x : BitString n) :
     forestAnchorDepth (forestAnchorWord f low high x) = depthWord f x := by
-  simp only [forestAnchorDepth, forestAnchorWord, Fin.append_right, word_getLsbD]
+  simp only [forestAnchorDepth, forestAnchorWord, Fin.append_right, BitString.equivBitVec_getLsbD]
 
 /-- Gate bound for a shared fixed-dictionary lookup with `M` keys and `Q` queries of `v`-bit
 records. -/
@@ -187,25 +178,16 @@ theorem synthesis_fixed_dictionary {a v M Q : ℕ} (s : Set (BooleanFunction a))
     simpa [records, stored] using congrFun (lookupOr_of_eq stored hkeys hi) bit.succ
   · rintro _ (⟨j, rfl⟩ | h)
     · exact Set.mem_iUnion.mpr ⟨j, 0, rfl⟩
-    · obtain ⟨j, hj⟩ := Set.mem_iUnion.mp h
-      obtain ⟨bit, rfl⟩ := hj
+    · obtain ⟨j, bit, rfl⟩ := Set.mem_iUnion.mp h
       exact Set.mem_iUnion.mpr ⟨j, bit.succ, rfl⟩
   · unfold dictionaryCost
     have hclog : Nat.clog 2 (Q + M) ≤ Nat.clog 2 (M + Q + 1) :=
       Nat.clog_mono_right _ (by omega)
     set c := Nat.clog 2 (Q + M)
     set c' := Nat.clog 2 (M + Q + 1)
-    have hc1 : c + 1 ≤ c' + n + (1 + v) + 3 := by omega
-    have hnv : n + (v + 1) + 1 ≤ c' + n + (1 + v) + 3 := by omega
-    have hpow : (c + 1) ^ 2 * (n + (v + 1) + 1) ≤ (c' + n + (1 + v) + 3) ^ 3 := by
-      calc (c + 1) ^ 2 * (n + (v + 1) + 1)
-          ≤ (c' + n + (1 + v) + 3) ^ 2 * (c' + n + (1 + v) + 3) :=
-            Nat.mul_le_mul (Nat.pow_le_pow_left hc1 2) hnv
-        _ = (c' + n + (1 + v) + 3) ^ 3 := by ring
-    have hQM : 48 * (Q + M + 1) ≤ 256 * (M + Q + 1) := by omega
     calc 48 * (Q + M + 1) * (c + 1) ^ 2 * (n + (v + 1) + 1)
-        = (48 * (Q + M + 1)) * ((c + 1) ^ 2 * (n + (v + 1) + 1)) := by ring
-      _ ≤ (256 * (M + Q + 1)) * (c' + n + (1 + v) + 3) ^ 3 := Nat.mul_le_mul hQM hpow
+        ≤ 256 * (M + Q + 1) * (c' + n + (1 + v) + 3) ^ 2 * (c' + n + (1 + v) + 3) :=
+          Nat.mul_le_mul (Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left (by omega) 2)) (by omega)
       _ = 256 * (M + Q + 1) * (c' + n + (1 + v) + 3) ^ 3 := by ring
 
 /-- Combined checkpoint-mark and compressed-edge tables for a functional graph on `BitString n`. -/
@@ -246,15 +228,11 @@ theorem exists_forest_circuit_tables (f : BitString n → BitString n) (L : ℕ)
   obtain ⟨edgeTable⟩ := exists_forest_edge_table f H L hL hcover
   let M := forestMarks f H
   let marks : Fin M.card → BitString n := fun j => (M.equivFin.symm j).val
-  have hmarks_inj : Function.Injective marks := by
-    intro i j hij
-    exact M.equivFin.symm.injective (Subtype.ext hij)
-  have hmarks_mem (x : BitString n) : x ∈ forestMarks f H ↔ ∃ i, marks i = x := by
-    constructor
-    · intro hx
-      exact ⟨M.equivFin ⟨x, hx⟩, by simp [marks]⟩
-    · rintro ⟨i, rfl⟩
-      exact (M.equivFin.symm i).property
+  have hmarks_inj : Function.Injective marks :=
+    fun _ _ hij => M.equivFin.symm.injective (Subtype.ext hij)
+  have hmarks_mem (x : BitString n) : x ∈ forestMarks f H ↔ ∃ i, marks i = x :=
+    ⟨fun hx => ⟨M.equivFin ⟨x, hx⟩, by simp [marks]⟩,
+      fun ⟨i, hi⟩ => hi ▸ (M.equivFin.symm i).property⟩
   have hMcard : M.card ≤ 2 * (2 ^ n / L) :=
     (forestMarks_card f H).trans (Nat.mul_le_mul_left 2 hHcard')
   exact ⟨⟨H, hcover, low, high, hinterval, M.card, marks, hmarks_inj, hmarks_mem, hMcard,

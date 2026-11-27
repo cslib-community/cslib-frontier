@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Languages.Probabilistic.IdealCipher
+public import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
 public import CslibFrontier.Crypto.Primitives.Hash.BlockCipherCompression
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Notation
@@ -31,22 +32,22 @@ collision-resistance upper bound for the Davies–Meyer construction `daviesMeye
 ([KatzLindell2020], Section 7.3.1, Figure 7.11, Theorem 7.5). The bound proved is that of
 [BonehShoup2023], Section 8.5.3, Theorem 8.4, p. 302.
 
-Specifically, for every deterministic adaptive finder `A` making at most `Q` forward and inverse
-ideal-cipher queries, `daviesMeyer_collisionGame_le` reduces `collisionGame daviesMeyer A` to the
-forgetful ideal-cipher oracle via `abs_sub_uniformPerm_forgetful_le` and bounds the forgetful
-collision probability via `OracleComp.toOuterMeasure_bad_choose_two_le`, yielding
-`Pr[collisionGame daviesMeyer A] ≤ 2 * ((Q + 2).choose 2 : ℝ) * (Fintype.card Block)⁻¹`
+Specifically, for every randomized adaptive finder `A` (`CollisionFinder`, a `ProbOracleComp` with
+private coins) making at most `Q` forward and inverse ideal-cipher queries (`A.IsQueryBounded Q`),
+`daviesMeyer_collisionGame_le` fixes private coins via `ProbOracleComp.coinLaw`, reduces each
+coin-fixed run to the forgetful ideal-cipher oracle via `abs_sub_uniformPerm_forgetful_le`, and
+bounds the forgetful collision probability via `OracleComp.toOuterMeasure_bad_choose_two_le`,
+yielding `Pr[collisionGame daviesMeyer A] ≤ 2 * ((Q + 2).choose 2 : ℝ) * (Fintype.card Block)⁻¹`
 (equivalently `((Q + 2) * (Q + 1) : ℝ) * (Fintype.card Block)⁻¹`), Boneh–Shoup's
 `(q + 1)(q + 2)/|X|` with `q = Q`. The `+ 2` counts the two forward queries on the finder's
 output pair that `daviesMeyerCollisionProgram` appends. `daviesMeyer F (k, x) = F k x + x` is
 Boneh–Shoup's `h_DM(x, y) = E(y, x) ⊕ x` (Section 8.5.2, p. 300) with its arguments swapped, over
-any finite additive group of blocks in place of `{0, 1}ⁿ` under XOR. The docstring of
-`daviesMeyer_collisionGame_le` says how its finders differ from Boneh–Shoup's adversaries.
+any finite additive group of blocks in place of `{0, 1}ⁿ` under XOR.
 
 ## Main definitions
 
-* `Cslib.IdealCipher.CollisionFinder`: An ideal-cipher adversary that outputs a candidate
-  collision.
+* `Cslib.IdealCipher.CollisionFinder`: A randomized ideal-cipher adversary (`ProbOracleComp`) that
+  outputs a candidate collision.
 * `Cslib.IdealCipher.collides`: The winning test, shared by the game and the Davies–Meyer program.
 * `Cslib.IdealCipher.collisionGame`: The collision-resistance game in the Ideal Cipher Model.
 * `Cslib.IdealCipher.cipherOutputAdversary`: An explicit inverse-query collision finder for
@@ -83,10 +84,10 @@ open OracleComp Cslib.Crypto.BlockCipherCompression Cslib.Probability
 open scoped ENNReal BigOperators
 
 /-- A collision finder against a compression function `Key × Block → Block` built from an ideal
-cipher: an oracle program with forward and inverse ideal-cipher queries that outputs two candidate
-inputs. -/
+cipher: an adaptive oracle program with private coins (`ProbOracleComp`) and forward and inverse
+ideal-cipher queries that outputs two candidate inputs. -/
 abbrev CollisionFinder (Key Block : Type) :=
-  OracleComp (Spec Key Block) ((Key × Block) × (Key × Block))
+  ProbOracleComp (Spec Key Block) ((Key × Block) × (Key × Block))
 
 /-- The winning test: the inputs `x₁` and `x₂` differ and their digests `h₁` and `h₂` agree. -/
 @[expose]
@@ -97,19 +98,21 @@ section Programs
 
 variable {Key Block : Type}
 
-/-- Wrap an adversary `A` with two final forward queries on its candidate pair and test the
-Davies–Meyer digests `E_k(x) + x` with `collides`. -/
+/-- Wrap a coin-fixed adversary `A` with two final forward queries on its candidate pair and test
+the Davies–Meyer digests `E_k(x) + x` with `collides`. -/
 @[expose]
 noncomputable def daviesMeyerCollisionProgram [DecidableEq Key] [DecidableEq Block] [Add Block]
-    (A : CollisionFinder Key Block) : OracleComp (Spec Key Block) Bool := do
+    (A : OracleComp (Spec Key Block) ((Key × Block) × (Key × Block))) :
+    OracleComp (Spec Key Block) Bool := do
   let ((k₁, x₁), (k₂, x₂)) ← A
   let y₁ ← query (k₁, Cslib.RandomPermutation.PermQuery.forward x₁)
   let y₂ ← query (k₂, Cslib.RandomPermutation.PermQuery.forward x₂)
   return collides (k₁, x₁) (k₂, x₂) (y₁ + x₁) (y₂ + x₂)
 
-/-- Appending two forward queries adds `2` to the adversary's query bound. -/
+/-- Appending two forward queries adds `2` to a coin-fixed adversary's query bound. -/
 theorem isQueryBounded_daviesMeyerCollisionProgram [DecidableEq Key] [DecidableEq Block] [Add Block]
-    {A : CollisionFinder Key Block} {Q : ℕ} (hQ : IsQueryBounded A Q) :
+    {A : OracleComp (Spec Key Block) ((Key × Block) × (Key × Block))} {Q : ℕ}
+    (hQ : IsQueryBounded A Q) :
     IsQueryBounded (daviesMeyerCollisionProgram A) (Q + 2) :=
   IsCostBounded.bind hQ fun ⟨⟨_, _⟩, ⟨_, _⟩⟩ =>
     IsCostBounded.bind (IsCostBounded.query _) fun _ =>
@@ -124,21 +127,26 @@ variable {Key Block : Type} [DecidableEq Key] [Fintype Key] [DecidableEq Block]
   [Fintype Block] [Nonempty Block]
 
 /-- The collision-resistance game for a compression function `H` built from a block cipher.
-The adversary has oracle access to the ideal cipher `E` and its inverse, and wins when its
-candidates `x₁` and `x₂` `collide` under `H E`. -/
+The randomized adversary `A` has private coins and oracle access to the ideal cipher `E` and its
+inverse, and wins when its candidates `x₁` and `x₂` `collide` under `H E`. -/
 @[expose]
 noncomputable def collisionGame
     (H : (Key → Equiv.Perm Block) → Key × Block → Block) (A : CollisionFinder Key Block) :
     PMF Bool :=
   (complete fun _ => []).bind fun E =>
-    (interpret lazyEvalPerm A E).map fun ((x₁, x₂), _) => collides x₁ x₂ (H E x₁) (H E x₂)
+    (interpret
+      (sumHandler ProbComp.unifOracle fun (q : Query Key Block) =>
+        PMF.pure (Cslib.RandomPermutation.evalPerm (E q.1) q.2)) A).map
+      fun (x₁, x₂) => collides x₁ x₂ (H E x₁) (H E x₂)
 
 /-- An adversary that finds a collision in `cipherOutput` using two inverse queries. -/
 @[expose]
 def cipherOutputAdversary (k1 k2 : Key) (y : Block) :
-    OracleComp (Spec Key Block) ((Key × Block) × (Key × Block)) := do
-  let x1 ← query (k1, Cslib.RandomPermutation.PermQuery.inverse y)
-  let x2 ← query (k2, Cslib.RandomPermutation.PermQuery.inverse y)
+    ProbOracleComp (Spec Key Block) ((Key × Block) × (Key × Block)) := do
+  let x1 ← ProbOracleComp.query (spec := Spec Key Block)
+    (k1, Cslib.RandomPermutation.PermQuery.inverse y)
+  let x2 ← ProbOracleComp.query (spec := Spec Key Block)
+    (k2, Cslib.RandomPermutation.PermQuery.inverse y)
   return ((k1, x1), (k2, x2))
 
 omit [Nonempty Block] in
@@ -146,43 +154,39 @@ omit [Nonempty Block] in
 collision for `cipherOutput` with probability `1`. -/
 theorem cipherOutputAdversary_wins {k1 k2 : Key} (hk : k1 ≠ k2) (y : Block) :
     collisionGame (cipherOutput (B := Block)) (cipherOutputAdversary k1 k2 y) = PMF.pure true := by
-  unfold collisionGame cipherOutputAdversary lazyEvalPerm
-  simp only [complete_nil, interp_norm]
-  simp [bind, StateT.bind, pure, StateT.pure, Cslib.RandomPermutation.evalPerm, collides,
-    cipherOutput_symm, hk]
+  unfold collisionGame cipherOutputAdversary
+  simp only [complete_nil, interp_norm, pmf_norm]
+  simp [Cslib.RandomPermutation.evalPerm, collides, cipherOutput_symm, hk]
 
 omit [DecidableEq Key] [DecidableEq Block] [Nonempty Block] in
-/-- For `daviesMeyer`, `collisionGame` agrees with interpreting `daviesMeyerCollisionProgram A`
-against uniformly chosen independent permutations `E : Key → Equiv.Perm Block`. -/
+/-- For `daviesMeyer`, `collisionGame` averages over `A`'s private coins (`ProbOracleComp.coinLaw`)
+the execution of `daviesMeyerCollisionProgram (ProbOracleComp.fixCoins A ω)` against uniformly
+chosen independent permutations `E : Key → Equiv.Perm Block`. -/
 theorem collisionGame_daviesMeyer_eq [DecidableEq Key] [DecidableEq Block] [Add Block]
     (A : CollisionFinder Key Block) :
     collisionGame (daviesMeyer (K := Key) (B := Block)) A =
-      (PMF.pi (fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block))).bind fun E =>
-        interpret (fun (q : Query Key Block) =>
-          PMF.pure (Cslib.RandomPermutation.evalPerm (E q.1) q.2))
-          (daviesMeyerCollisionProgram A) := by
+      (ProbOracleComp.coinLaw A).bind fun ω =>
+        (PMF.pi (fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block))).bind fun E =>
+          interpret (fun (q : Query Key Block) =>
+            PMF.pure (Cslib.RandomPermutation.evalPerm (E q.1) q.2))
+            (daviesMeyerCollisionProgram (ProbOracleComp.fixCoins A ω)) := by
   unfold collisionGame daviesMeyerCollisionProgram
   rw [complete_nil]
-  apply congrArg
-  ext1 E
-  have h_ro := OracleComp.run_interpret_readOnly (fun (q : Query Key Block)
-      (P : Key → Equiv.Perm Block) =>
-      PMF.pure (Cslib.RandomPermutation.evalPerm (P q.1) q.2)) A E
-  have h_lazy : (interpret lazyEvalPerm A).run E =
-      (interpret (fun (q : Query Key Block) =>
-        PMF.pure (Cslib.RandomPermutation.evalPerm (E q.1) q.2)) A).map (·, E) :=
-    h_ro
-  change ((interpret lazyEvalPerm A).run E).map _ = _
-  rw [h_lazy, PMF.map_comp, interpret_bind, Probability.PMF.monad_bind_eq_bind,
-    ← PMF.bind_pure_comp]
-  apply congrArg
-  ext1 p
+  simp_rw [← fun E : Key → Equiv.Perm Block =>
+    ProbOracleComp.bind_interpret_fixCoins A fun (q : Query Key Block) =>
+      Cslib.RandomPermutation.evalPerm (E q.1) q.2,
+    PMF.map_bind]
+  rw [PMF.bind_comm]
+  refine congrArg _ (funext fun ω => congrArg _ (funext fun E => ?_))
+  rw [interpret_bind, Probability.PMF.monad_bind_eq_bind, ← PMF.bind_pure_comp]
+  refine congrArg _ (funext fun p => ?_)
   simp only [Cslib.RandomPermutation.evalPerm_forward, interp_norm, pmf_norm, daviesMeyer]
 
 /-- Switching bound between the real ideal cipher and the forgetful sampler on
-`daviesMeyerCollisionProgram A`. -/
+`daviesMeyerCollisionProgram A` for a coin-fixed finder `A`. -/
 theorem daviesMeyer_collision_difference_bound [AddGroup Block]
-    {A : CollisionFinder Key Block} {Q : ℕ} (hQ : IsQueryBounded A Q) :
+    {A : OracleComp (Spec Key Block) ((Key × Block) × (Key × Block))} {Q : ℕ}
+    (hQ : IsQueryBounded A Q) :
     |Pr[(PMF.pi fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block)).bind fun P =>
         interpret (fun (q : Query Key Block) =>
           PMF.pure (Cslib.RandomPermutation.evalPerm (P q.1) q.2))
@@ -261,7 +265,8 @@ private theorem mem_of_mem_support_forgetfulAnswer_forward {Key Block : Type}
 
 private theorem hasDMCollision_of_mem_support_daviesMeyerCollisionProgram {Key Block : Type}
     [DecidableEq Key] [DecidableEq Block] [Fintype Block] [Nonempty Block] [Add Block]
-    {A : CollisionFinder Key Block} {st₀ st : Key → Cslib.RandomPermutation.Cache Block}
+    {A : OracleComp (Spec Key Block) ((Key × Block) × (Key × Block))}
+    {st₀ st : Key → Cslib.RandomPermutation.Cache Block}
     (hmem : (true, st) ∈
       ((interpret forgetfulAnswer (daviesMeyerCollisionProgram A)).run st₀).support) :
     HasDMCollision st := by
@@ -309,10 +314,7 @@ private theorem classify_update_idx {Key Block : Type} [DecidableEq Key]
   · subst hk
     rcases i with ⟨n, hn⟩
     cases n with
-    | zero =>
-      left
-      refine ⟨rfl, rfl, ?_⟩
-      simp
+    | zero => exact Or.inl ⟨rfl, rfl, by simp⟩
     | succ m =>
       right
       have hm : m < (st k).length := by simpa using hn
@@ -343,9 +345,7 @@ private theorem dmTargets_of_hasDMCollision_update {Key Block : Type}
     · rw [hget1, hget2] at heq
       rw [← heq]
       exact mem_dmTargets_of_getElem k1 j1
-    · exfalso
-      apply hst
-      refine ⟨k1, j1, k2, j2, ?_, ?_⟩
+    · refine (hst ⟨k1, j1, k2, j2, ?_, ?_⟩).elim
       · intro hkj
         obtain ⟨hk, hj⟩ := Prod.mk.inj hkj
         apply hne
@@ -380,7 +380,6 @@ private theorem toOuterMeasure_bad_forgetfulAnswer_step {Key Block : Type}
     have hsub : (fun a : Block => (a, Function.update st q.1 (e a :: st q.1))) ⁻¹'
         {x | HasDMCollision x.2} ⊆ {a : Block | f a ∈ dmTargets st} := by
       intro a ha
-      rw [Set.mem_preimage, Set.mem_ofPred_eq] at ha
       rw [Set.mem_ofPred_eq, ← hfe a]
       exact dmTargets_of_hasDMCollision_update hst q.1 (e a) ha
     refine (MeasureTheory.measure_mono hsub).trans ?_
@@ -444,7 +443,8 @@ private theorem forgetfulAnswer_size_grow {Key Block : Type}
 
 private theorem forgetful_daviesMeyer_collision_le {Key Block : Type}
     [DecidableEq Key] [Finite Key] [DecidableEq Block] [Fintype Block] [Nonempty Block]
-    [AddGroup Block] {A : CollisionFinder Key Block} {Q : ℕ} (hQ : IsQueryBounded A Q) :
+    [AddGroup Block] {A : OracleComp (Spec Key Block) ((Key × Block) × (Key × Block))} {Q : ℕ}
+    (hQ : IsQueryBounded A Q) :
     Pr[((interpret forgetfulAnswer (daviesMeyerCollisionProgram A)).run fun _ => []).map
       Prod.fst] ≤
       ((Q + 2).choose 2 : ℝ) * (Fintype.card Block : ℝ)⁻¹ := by
@@ -465,9 +465,7 @@ private theorem forgetful_daviesMeyer_collision_le {Key Block : Type}
     have h_map : (p.map Prod.fst) true = p.toOuterMeasure {x | x.1 = true} := by
       rw [PMF.map_apply, PMF.toOuterMeasure_apply]
       refine tsum_congr fun ⟨b, st⟩ => ?_
-      by_cases hb : b = true
-      · simp [hb]
-      · simp [hb]
+      by_cases hb : b = true <;> simp [hb]
     rw [h_map, PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply]
     refine tsum_le_tsum fun ⟨b, st⟩ => ?_
     by_cases hmem : (b, st) ∈ p.support
@@ -492,33 +490,41 @@ variable {Key Block : Type} [DecidableEq Key] [Fintype Key] [DecidableEq Block]
   [Fintype Block] [Nonempty Block]
 
 /-- **Davies–Meyer Ideal-Cipher Collision Resistance** ([KatzLindell2020], Section 7.3.1,
-Theorem 7.5): every deterministic adaptive collision finder `A` making at most `Q` forward and
-inverse ideal-cipher queries on every path (`IsQueryBounded A Q`) finds a collision in
-`daviesMeyer` with probability at most `2 * ((Q + 2).choose 2) * (Fintype.card Block)⁻¹`. This is
-the bound `(q + 1)(q + 2)/|X|` of [BonehShoup2023], Section 8.5.3, Theorem 8.4, p. 302, with
-`q = Q`, written as `2 · C(Q + 2, 2)/|X|`; `daviesMeyer_collisionGame_mul_le` writes it as a
-product.
+Theorem 7.5): every randomized adaptive collision finder `A` (`CollisionFinder`, with private
+coins) making at most `Q` forward and inverse ideal-cipher queries on every path
+(`A.IsQueryBounded Q`) finds a collision in `daviesMeyer` with probability at most
+`2 * ((Q + 2).choose 2) * (Fintype.card Block)⁻¹`. This is the bound `(q + 1)(q + 2)/|X|` of
+[BonehShoup2023], Section 8.5.3, Theorem 8.4, p. 302, with `q = Q`, written as
+`2 · C(Q + 2, 2)/|X|`; `daviesMeyer_collisionGame_mul_le` writes it as a product.
 
 `collisionGame` evaluates the two digests itself, without charging them to `A`. The `Q + 2` is
 the query count of the proof's `daviesMeyerCollisionProgram`, which appends two forward queries on
-`A`'s outputs: Boneh–Shoup's "reasonable" adversary, with `q' = q + 2` queries. A
-`CollisionFinder` has no private coins, so `A` is deterministic, with no bound on running time;
-Boneh–Shoup's adversary may be randomized, and no private-coin version is proved. -/
+each coin-fixed execution's outputs: Boneh–Shoup's "reasonable" adversary, with `q' = q + 2`
+queries. No bound on local running time is required. -/
 theorem daviesMeyer_collisionGame_le [AddGroup Block]
-    {A : CollisionFinder Key Block} {Q : ℕ} (hQ : IsQueryBounded A Q) :
+    {A : CollisionFinder Key Block} {Q : ℕ} (hQ : A.IsQueryBounded Q) :
     Pr[collisionGame (daviesMeyer (K := Key) (B := Block)) A] ≤
       2 * ((Q + 2).choose 2 : ℝ) * (Fintype.card Block : ℝ)⁻¹ := by
   rw [collisionGame_daviesMeyer_eq]
-  have h_diff := (abs_sub_le_iff.mp (daviesMeyer_collision_difference_bound hQ)).1
-  have h_forg := forgetful_daviesMeyer_collision_le hQ
-  linarith
+  obtain ⟨ω, -, hω⟩ := Cslib.Probability.PMF.exists_bind_apply_le
+    (ProbOracleComp.coinLaw A) _ true
+  have hle : Pr[(PMF.pi fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block)).bind fun E =>
+      interpret (fun (q : Query Key Block) =>
+        PMF.pure (Cslib.RandomPermutation.evalPerm (E q.1) q.2))
+        (daviesMeyerCollisionProgram (ProbOracleComp.fixCoins A ω))] ≤
+      2 * ((Q + 2).choose 2 : ℝ) * (Fintype.card Block : ℝ)⁻¹ := by
+    have hQω := ProbOracleComp.isQueryBounded_fixCoins hQ ω
+    have h_diff := (abs_sub_le_iff.mp (daviesMeyer_collision_difference_bound hQω)).1
+    have h_forg := forgetful_daviesMeyer_collision_le hQω
+    linarith
+  exact (ENNReal.toReal_mono (PMF.apply_ne_top _ _) hω).trans hle
 
 /-- Equivalent product form `((Q + 2) * (Q + 1) : ℝ) * (Fintype.card Block)⁻¹` of
-`daviesMeyer_collisionGame_le` ([KatzLindell2020], Theorem 7.5), for the same deterministic
-adaptive finders making at most `Q` queries. It is the bound `(q + 1)(q + 2)/|X|` of
-[BonehShoup2023], Section 8.5.3, Theorem 8.4, p. 302, with `q = Q`. -/
+`daviesMeyer_collisionGame_le` ([KatzLindell2020], Theorem 7.5), for randomized adaptive finders
+making at most `Q` queries. It is the bound `(q + 1)(q + 2)/|X|` of [BonehShoup2023],
+Section 8.5.3, Theorem 8.4, p. 302, with `q = Q`. -/
 theorem daviesMeyer_collisionGame_mul_le [AddGroup Block]
-    {A : CollisionFinder Key Block} {Q : ℕ} (hQ : IsQueryBounded A Q) :
+    {A : CollisionFinder Key Block} {Q : ℕ} (hQ : A.IsQueryBounded Q) :
     Pr[collisionGame (daviesMeyer (K := Key) (B := Block)) A] ≤
       ((Q + 2) * (Q + 1) : ℝ) * (Fintype.card Block : ℝ)⁻¹ := by
   have hchoose : 2 * ((Q + 2).choose 2 : ℝ) = (Q + 2) * (Q + 1) := by

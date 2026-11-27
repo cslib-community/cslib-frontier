@@ -55,44 +55,37 @@ noncomputable def hingeLoss (w x : E) (y : ℝ) : ℝ :=
 theorem hingeLoss_def (w x : E) (y : ℝ) : hingeLoss w x y = max 0 (1 - y * inner ℝ w x) := by
   rw [hingeLoss]
 
-theorem hingeLoss_nonneg (w x : E) (y : ℝ) : 0 ≤ hingeLoss w x y := by
-  rw [hingeLoss_def]
-  exact le_max_left _ _
+theorem hingeLoss_nonneg (w x : E) (y : ℝ) : 0 ≤ hingeLoss w x y :=
+  hingeLoss_def w x y ▸ le_max_left _ _
 
 /-- The hinge loss vanishes when the margin `y ⟪w, x⟫` is at least `1`. -/
-theorem hingeLoss_eq_zero {w x : E} {y : ℝ} (h : 1 ≤ y * inner ℝ w x) : hingeLoss w x y = 0 := by
-  rw [hingeLoss_def]
-  exact max_eq_left (by linarith)
+theorem hingeLoss_eq_zero {w x : E} {y : ℝ} (h : 1 ≤ y * inner ℝ w x) : hingeLoss w x y = 0 :=
+  hingeLoss_def w x y ▸ max_eq_left (by linarith)
 
 /-- The hinge loss is convex in the predictor. -/
 theorem convexOn_hingeLoss (x : E) (y : ℝ) : ConvexOn ℝ Set.univ fun w => hingeLoss w x y := by
-  have haff : ConvexOn ℝ Set.univ fun w : E => 1 - y * inner ℝ w x := by
-    refine ⟨convex_univ, fun a _ b _ s t _ _ hst => le_of_eq ?_⟩
-    simp only [inner_add_left, real_inner_smul_left, smul_eq_mul]
-    linear_combination (-1 : ℝ) * hst
-  convert (convexOn_const 0 convex_univ).sup haff using 1
+  convert (convexOn_const 0 convex_univ).sup
+    (show ConvexOn ℝ Set.univ fun w : E => 1 - y * inner ℝ w x from
+      ⟨convex_univ, fun a _ b _ s t _ _ hst => le_of_eq <| by
+        simp only [inner_add_left, real_inner_smul_left, smul_eq_mul]
+        linear_combination (-1 : ℝ) * hst⟩) using 1
   funext w
-  rw [hingeLoss_def]
-  rfl
+  exact hingeLoss_def w x y
 
 /-- The hinge loss is `|y| ‖x‖`-Lipschitz in the predictor [ShalevShwartzBenDavid2014,
 Claim 15.6]. -/
 theorem lipschitzWith_hingeLoss (x : E) (y : ℝ) :
     LipschitzWith ⟨|y| * ‖x‖, by positivity⟩ fun w => hingeLoss w x y := by
   refine LipschitzWith.of_dist_le_mul fun w w' => ?_
-  simp only [dist_eq_norm, hingeLoss_def]
-  calc |max 0 (1 - y * inner ℝ w x) - max 0 (1 - y * inner ℝ w' x)|
-      ≤ |(1 - y * inner ℝ w x) - (1 - y * inner ℝ w' x)| := by
-        rw [max_comm 0, max_comm 0]
-        exact abs_max_sub_max_le_abs _ _ _
-    _ = |y * inner ℝ (w - w') x| := by
-        rw [inner_sub_left, ← abs_neg]
-        congr 1
-        ring
-    _ = |y| * |inner ℝ (w - w') x| := abs_mul _ _
-    _ ≤ |y| * (‖w - w'‖ * ‖x‖) := by
-        gcongr
-        exact abs_real_inner_le_norm _ _
+  simp only [dist_eq_norm, hingeLoss_def, max_comm (0 : ℝ)]
+  calc |max (1 - y * inner ℝ w x) 0 - max (1 - y * inner ℝ w' x) 0|
+      ≤ |(1 - y * inner ℝ w x) - (1 - y * inner ℝ w' x)| := abs_max_sub_max_le_abs _ _ _
+    _ = |y| * |inner ℝ (w - w') x| := by
+        have hsub : (1 - y * inner ℝ w x) - (1 - y * inner ℝ w' x) = -(y * inner ℝ (w - w') x) := by
+          rw [inner_sub_left]; ring
+        rw [hsub, abs_neg, abs_mul]
+    _ ≤ |y| * (‖w - w'‖ * ‖x‖) :=
+        mul_le_mul_of_nonneg_left (abs_real_inner_le_norm _ _) (abs_nonneg _)
     _ = |y| * ‖x‖ * ‖w - w'‖ := by ring
 
 /-- With `|y| ≤ 1` and `‖x‖ ≤ ρ`, the hinge loss is `ρ`-Lipschitz in the predictor. -/

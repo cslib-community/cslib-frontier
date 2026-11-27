@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ChildCu
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeRecovery
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ScheduledRecursion
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.VertexDesc
-public import CslibFrontier.Computability.GenericRAM.Native.StackRecursionTree
+public import CslibFrontier.Algorithms.Recursion.StackRecursionTree
 public import CslibFrontier.Computability.PolyTime.PacketPacking
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChild
 import CslibFrontier.Computability.PolyTime.GaloisRingSeries
@@ -21,7 +21,7 @@ import Mathlib.Data.List.GetD
 # The native contraction recursion as a stack recursion
 
 The recursion of Theorem D.1 of [OpenAI2026ETH] (Appendix D.4.7, p. 64), as a depth-first stack
-recursion (`Cslib.GenericRAM.StackRecursion.Scheme`) over *calls*. A call
+recursion (`Cslib.Algorithms.StackRecursion.Scheme`) over *calls*. A call
 (`FastContraction.Call T`) is a described network (`DescribedNetwork (VertexDesc T)`) whose first
 `r` vertices are its rows, with the schedule's scale `s` (the number of edges of the root, since
 the machine sees no other size), its depth `d`, an edge bound, its precision `p` and the
@@ -88,8 +88,8 @@ public section
 
 namespace Cslib.Circuits.Frontier.FastContraction
 
-open GaloisRingArith ChildCursor NativeRecovery ContractionSchedule NativeChild Cslib.GenericRAM
-  Cslib.GenericRAM.StackRecursion
+open GaloisRingArith ChildCursor NativeRecovery ContractionSchedule NativeChild
+  Cslib.Algorithms.StackRecursion
 
 /-- The parameters of a call: the scale `s`, the depth `d`, the edge bound, the precision `p`, the
 coefficients `fl` of the modulus and the number `r` of rows. -/
@@ -287,14 +287,12 @@ variable {x}
 /-- Every node precision is positive at a call with an edge. -/
 theorem nodePrec_pos (hM : 1 ≤ x.edges) (i : ℕ) : 0 < nodePrec x i := by
   unfold nodePrec nodePrecision
-  have : 0 < 8 * x.edges * (slots x + 1) := by positivity
-  omega
+  positivity
 
 /-- Every weight is positive. -/
 theorem weights_pos (i : ℕ) : ∀ w ∈ weights x i, 0 < w := by
-  intro w hw
-  simp only [weights, modeWeights, List.mem_map] at hw
-  obtain ⟨j, -, rfl⟩ := hw
+  rintro w hw
+  obtain ⟨j, -, rfl⟩ := List.mem_map.1 hw
   omega
 
 /-- An active call has an edge. -/
@@ -307,27 +305,18 @@ theorem one_le_edges_of_active (h : active x = true) : 1 ≤ x.edges := by
 `λ ≥ 1`, `a ≤ λ / 32768` (`ContractionSchedule.slotBits_le`), and
 `M > leafSize s = ⌊s / ⌊√λ⌋⌋ ≥ 2 ^ (6 ⌊λ / 32768⌋)`, since `⌊√λ⌋ ≤ 2 ^ ((λ + 1) / 2)`. -/
 theorem pow_slots_le_edges_of_active (h : active x = true) : 64 ^ slots x ≤ x.edges := by
-  have h' := h
-  simp only [active, decide_eq_true_eq] at h'
-  obtain ⟨hleaf, hu, -, -, -, -, -⟩ := h'
+  obtain ⟨hleaf, hu, -, -, -, -, -⟩ := of_decide_eq_true h
   set L := Nat.log 2 x.scale with hL
-  have hL1 : 1 ≤ L := by
-    have : levels x = L / 2 ^ (17 + x.depth) := rfl
-    rcases Nat.eq_zero_or_pos L with h0 | h0
-    · rw [this, h0, Nat.zero_div] at hu; omega
-    · exact h0
-  have hs0 : x.scale ≠ 0 := by
-    intro h0; rw [hL, h0, Nat.log_zero_right] at hL1; omega
+  have hL1 : 1 ≤ L := Nat.pos_of_ne_zero fun h0 => by simp [levels, taper, ← hL, h0] at hu
+  have hs0 : x.scale ≠ 0 := fun h0 => by simp [hL, h0] at hL1
   have hsL : 2 ^ L ≤ x.scale := Nat.pow_log_le_self 2 hs0
   have ha : slots x ≤ L / 32768 := slotBits_le _ _
   -- `⌊√λ⌋ ≤ 2 ^ ((λ + 1) / 2)`.
-  have hsq : Nat.sqrt L ≤ 2 ^ ((L + 1) / 2) := by
-    have h1 : Nat.sqrt L ^ 2 ≤ (2 ^ ((L + 1) / 2)) ^ 2 := by
-      calc Nat.sqrt L ^ 2 ≤ L := Nat.sqrt_le' L
-        _ ≤ 2 ^ L := Nat.lt_two_pow_self.le
-        _ ≤ 2 ^ (2 * ((L + 1) / 2)) := Nat.pow_le_pow_right (by norm_num) (by omega)
-        _ = (2 ^ ((L + 1) / 2)) ^ 2 := by rw [mul_comm, pow_mul]
-    exact (Nat.pow_le_pow_iff_left (by norm_num)).mp h1
+  have hsq : Nat.sqrt L ≤ 2 ^ ((L + 1) / 2) := (Nat.pow_le_pow_iff_left (by norm_num : 2 ≠ 0)).mp <|
+    calc Nat.sqrt L ^ 2 ≤ L := Nat.sqrt_le' L
+      _ ≤ 2 ^ L := Nat.lt_two_pow_self.le
+      _ ≤ 2 ^ (2 * ((L + 1) / 2)) := Nat.pow_le_pow_right (by norm_num) (by omega)
+      _ = (2 ^ ((L + 1) / 2)) ^ 2 := by rw [mul_comm, pow_mul]
   have hsqpos : 0 < Nat.sqrt L := Nat.sqrt_pos.mpr hL1
   have h64 : 64 ^ slots x ≤ 2 ^ (6 * (L / 32768)) := by
     calc 64 ^ slots x = 2 ^ (6 * slots x) := by rw [pow_mul]; norm_num
@@ -337,31 +326,23 @@ theorem pow_slots_le_edges_of_active (h : active x = true) : 64 ^ slots x ≤ x.
       _ = 2 ^ (6 * (L / 32768) + (L + 1) / 2) := (pow_add _ _ _).symm
       _ ≤ 2 ^ L := Nat.pow_le_pow_right (by norm_num) (by omega)
       _ ≤ x.scale := hsL
-  have hle : 64 ^ slots x ≤ leafSize x.scale :=
-    (Nat.le_div_iff_mul_le hsqpos).mpr hprod
-  omega
+  exact ((Nat.le_div_iff_mul_le hsqpos).mpr hprod).trans hleaf.le
 
 /-- An active call has a node of positive multiplicity: the index `2 ^ a + 1`, of level `0`. -/
 theorem nodes_ne_nil_of_active (h : active x = true) : nodes x ≠ [] := by
-  have h' := h
-  simp only [active, decide_eq_true_eq] at h'
-  obtain ⟨-, hu, huM, hua, -, -, -⟩ := h'
+  obtain ⟨-, hu, huM, hua, -, -, -⟩ := of_decide_eq_true h
   have hL : 2 ≤ 2 ^ slots x :=
     (pow_one 2).symm.le.trans (Nat.pow_le_pow_right (by norm_num) (hu.trans hua))
   have hlt : 2 ^ slots x + 1 < 2 ^ (slots x + 1) := by rw [pow_succ]; linarith
-  have hk : 2 ^ slots x + 1 ∈ nodes x := by
-    simp only [nodes, List.mem_filter, List.mem_range, decide_eq_true_eq]
-    refine ⟨hlt, Nat.succ_ne_self _, ?_⟩
-    rw [mult_eq _ _ hlt]
-    have h3 : 3 * x.edges ≤ step x * levels x := le_taperStep_mul hu
-    have hh : 0 < step x := by grind
-    have hv : padicValInt 2 (node (slots x) (2 ^ slots x + 1)) = 0 := by
-      simp [node]
-    simp only [taperMult, hv, Nat.sub_zero]
-    positivity
-  intro hn
-  rw [hn] at hk
-  simp at hk
+  refine List.ne_nil_of_mem (a := 2 ^ slots x + 1) ?_
+  simp only [nodes, List.mem_filter, List.mem_range, decide_eq_true_eq]
+  refine ⟨hlt, Nat.succ_ne_self _, ?_⟩
+  rw [mult_eq _ _ hlt]
+  have h3 : 3 * x.edges ≤ step x * levels x := le_taperStep_mul hu
+  have hh : 0 < step x := by grind
+  have hv : padicValInt 2 (node (slots x) (2 ^ slots x + 1)) = 0 := by simp [node]
+  simp only [taperMult, hv, Nat.sub_zero]
+  positivity
 
 end Walk
 
@@ -399,10 +380,9 @@ theorem walk {x : Call T} (h : active x = true) (vals : State → List ℕ) :
         exact hstep c hc'
       · have hc'' : c = (cursorList (weights x) (nodePrec x) (nodes x).length (numPoints x)
             64).length - 1 := by omega
-        simp only [List.getElem?_eq_none (show (cursorList (weights x) (nodePrec x)
-          (nodes x).length (numPoints x) 64).length ≤ c + 1 by omega)]
-        subst hc''
-        exact hlast
+        have hge := Nat.not_lt.mp hc'
+        simp only [List.getElem?_eq_none hge]
+        exact hc'' ▸ hlast
     · rw [List.take_add_one, List.getElem?_eq_getElem hc]
       simp only [runAcc, Option.toList_some, List.foldl_append, List.foldl_cons, List.foldl_nil]
   · simp only [List.take_length]
@@ -423,12 +403,12 @@ theorem exists_eval (x₀ : Call T) (x : Call T) (hx : (inv ev mk x₀).node x) 
     simp [scheme, value_of_not_active ev mk hl']
   · have hl' : active x = true := by simpa [scheme] using hl
     obtain ⟨h0, hnext, hdone, habs, hfin⟩ := walk ev mk hl' fun c => value ev mk (child x mk c)
+    have hd (s) : (child x mk s).depth = x.depth + 1 := rfl
     refine ⟨(children x).length, frameAt x fun c => value ev mk (child x mk c),
       fun c => child x mk ((children x).getD c (0, 0, [], 0)), h0, hnext, hdone,
-      fun c hc => habs c hc,
-      fun c _ => ⟨trivial, fun h => absurd h (by simp [child]), edges_lt_bound_of_active hl'⟩, ?_⟩
-    simp only [scheme, Prod.mk.injEq, true_and]
-    rw [value_of_active ev mk hl', hfin]
+      fun c hc => by dsimp only; rw [hd]; exact habs c hc, fun c _ => ⟨trivial,
+        fun h : x.depth + 1 = 0 => (nomatch h), edges_lt_bound_of_active hl'⟩, ?_⟩
+    simp only [scheme, value_of_active ev mk hl', hfin]
   · simp only at h0
     rw [hx h0]
 
@@ -449,19 +429,17 @@ theorem getElem_flatMap_range {α : Type*} (f : ℕ → ℕ → α) {T n t k : �
     ((List.range T).flatMap fun t => (List.range n).map (f t))[t * n + k]'(by
       simp only [List.length_flatMap, List.length_map, List.length_range, List.map_const',
         List.sum_replicate, smul_eq_mul]
-      nlinarith) = f t k := by
+      nlinarith only [ht, hk]) = f t k := by
   induction T with
   | zero => omega
   | succ T ih =>
     simp only [List.range_succ, List.flatMap_append, List.flatMap_singleton]
     have hlen : ((List.range T).flatMap fun t => (List.range n).map (f t)).length = T * n := by
       simp
-    rcases Nat.lt_or_ge t T with htT | htT
-    · rw [List.getElem_append_left (by rw [hlen]; nlinarith)]
-      exact ih htT
-    · have htT' : t = T := by omega
-      subst htT'
-      rw [List.getElem_append_right (by rw [hlen]; omega)]
+    rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp ht) with htT | rfl
+    · have htn : t * n + k < T * n := by nlinarith only [htT, hk]
+      exact (List.getElem_append_left (hlen.symm ▸ htn)).trans (ih htT)
+    · rw [List.getElem_append_right (by omega)]
       simp [hlen]
 
 variable {x}
@@ -490,20 +468,15 @@ theorem val_table_runLoop (h : active x = true) (vals : State → List ℕ) {j :
     (T := (nodes x).length) (n := numPoints x) (r := 64) (mul (wide x) x.fl) (add (wide x) x.fl)
     (one x.fl) (zero x.fl) (val (wide x) x.fl) (fun a b => val_mul a b) (fun a b => val_add a b)
     val_one val_zero (by norm_num) (nodePrec_pos hM) weights_pos vals
-  have hloop : (runLoop x vals).2.2 = qs := by rw [runLoop, children, hrun]
-  rw [hloop]
+  rw [runLoop, children, hrun]
   -- The row of the `j`-th node is its block.
   have hnodup : (nodes x).Nodup := (List.nodup_range).filter _
   have hmem : (nodes x)[j] ∈ nodes x := List.getElem_mem hj
-  have hlt : (nodes x)[j] < 2 ^ (slots x + 1) := by
-    have := hmem
-    simp only [nodes, List.mem_filter, List.mem_range] at this
-    exact this.1
+  have hlt : (nodes x)[j] < 2 ^ (slots x + 1) := List.mem_range.1 (List.mem_filter.1 hmem).1
   have hidx : (nodes x).idxOf (nodes x)[j] = j := hnodup.idxOf_getElem j hj
   have hqlen : qs.length = (nodes x).length * numPoints x := by
-    have := congrArg List.length hqs
-    simpa [List.length_flatMap, List.sum_replicate] using this
-  have hpos : j * numPoints x + i < qs.length := by rw [hqlen]; nlinarith
+    simpa [List.length_flatMap, List.sum_replicate] using congrArg List.length hqs
+  have hpos : j * numPoints x + i < qs.length := by rw [hqlen]; nlinarith only [hj, hi]
   have hrow : ((table x qs).getD ((nodes x)[j]) []).getD i [] = qs[j * numPoints x + i] := by
     have htab : (table x qs).getD ((nodes x)[j]) [] =
         (qs.drop (j * numPoints x)).take (numPoints x) := by
@@ -522,8 +495,7 @@ theorem val_table_runLoop (h : active x = true) (vals : State → List ℕ) {j :
     exact Option.some.inj h1
   have hle := nodePrec_le_wide (x := x) j
   rw [← reduce_val hle, hφ, sumAt, map_list_sum, List.map_map]
-  congr 1
-  refine List.map_congr_left fun β _ => ?_
+  refine congrArg List.sum (List.map_congr_left fun β _ => ?_)
   simp only [Function.comp_def, map_list_prod, List.map_map, reduce_val]
 
 /-! ### Correctness -/
@@ -549,13 +521,9 @@ theorem val_value {WF : Call T → Prop} (hstep : StepCorrect ev mk WF) (hwf : W
     (x : Call T) (hx : WF x) :
     val x.prec x.fl (value ev mk x) =
       x.net.contraction fun t bs => val x.prec x.fl (VertexDesc.entry ev t bs) := by
-  induction hb : x.bound using Nat.strong_induction_on generalizing x with
-  | _ b ih =>
-  cases ha : active x
-  · rw [value_of_not_active ev mk ha]
+  fun_induction value ev mk x with
+  | case1 x ha ih => exact hstep x hx ha _ fun c hc => ih c (hwf x hx ha c hc) -- active call
+  | case2 x _ => -- leaf
     exact DescribedNetwork.val_sumValue_galois (VertexDesc.entry ev) (x.prec, x.fl) x.net
-  · rw [value_of_active ev mk ha]
-    refine hstep x hx ha _ fun c hc => ?_
-    exact ih _ (hb ▸ edges_lt_bound_of_active ha) (child x mk c) (hwf x hx ha c hc) rfl
 
 end Cslib.Circuits.Frontier.FastContraction

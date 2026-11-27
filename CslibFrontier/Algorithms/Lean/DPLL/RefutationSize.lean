@@ -108,67 +108,33 @@ private theorem size_search_lt (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Lit
     (hvs : OpenVars φ π vs) → (hfuel : vs.length ≤ fuel) → {c : Clause ℕ} →
     {d : φ.Derivation c} → {h : ∀ l ∈ c, l.negate ∈ π} →
     search φ fuel π vs hvs hfuel = .unsat c d h → d.size < 2 ^ (vs.length + 1) := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    intro π vs hvs hfuel c d h hs
-    obtain rfl : vs = [] := List.eq_nil_of_length_eq_zero (by omega)
-    rw [search] at hs
-    split at hs
-    · cases hs
-      simp
-    · split at hs
-      · cases hs
-      · exact absurd (all_any_holds ‹_› fun x hx => (hvs.covers x hx).resolve_left
-          List.not_mem_nil) ‹_›
-  | succ fuel ih =>
-    intro π vs hvs hfuel c d h hs
-    rw [search] at hs
-    split at hs
-    · cases hs
-      simp
-    · split at hs
-      · cases hs
-      · split at hs
-        · exact absurd (all_any_holds ‹_› fun x hx =>
-            (‹OpenVars φ π []›.covers x hx).resolve_left List.not_mem_nil) ‹_›
-        · omega
-        · rename_i x xs fuel' _ _ hfe _
-          obtain rfl : fuel' = fuel := by omega
-          split at hs
-          rename_i v b hv _
-          have hlen : ((x :: xs).erase v).length = xs.length := by
-            rw [List.length_erase_of_mem hv, List.length_cons, Nat.add_sub_cancel]
-          have hpow : 2 ^ ((x :: xs).length + 1) = 2 * 2 ^ (xs.length + 1) := by
-            rw [List.length_cons, Nat.pow_succ, Nat.mul_comm]
-          rw [hpow]
-          dsimp only at hs
-          split at hs
-          · cases hs
-          · rename_i c₁ d₁ h₁ hs₁
-            have ih₁ := ih _ _ _ _ hs₁
-            rw [hlen] at ih₁
-            split at hs
-            · split at hs
-              · cases hs
-              · rename_i c₂ d₂ h₂ hs₂
-                have ih₂ := ih _ _ _ _ hs₂
-                rw [hlen] at ih₂
-                split at hs
-                · have : d.size = d₁.size + d₂.size + 1 := by
-                    cases b
-                    · simp only [resolveBranches] at hs
-                      cases hs
-                      simp only [Derivation.size_resolvent]
-                    · simp only [resolveBranches] at hs
-                      cases hs
-                      simp only [Derivation.size_resolvent]
-                      omega
-                  omega
-                · cases hs
-                  omega
-            · cases hs
-              omega
+  intro fuel π vs hvs hfuel
+  fun_induction search φ fuel π vs hvs hfuel with
+  | case1 => rintro _ _ _ ⟨⟩; simp
+  | case2 | case3 | case4 => intro _ _ _ hs; cases hs
+  | case5 =>
+    rename_i ih₁ ih₂
+    intro c d h hs
+    have h1 := ih₁ ‹_›
+    have h2 := ih₂ ‹_›
+    rw [List.length_erase_of_mem ‹_›, List.length_cons, Nat.add_sub_cancel] at h1 h2
+    rw [List.length_cons, Nat.pow_succ]
+    cases ‹Bool› <;> simp only [resolveBranches] at hs <;> cases hs <;>
+      simp only [Derivation.size_resolvent] <;> omega
+  | case6 =>
+    rename_i ih₁ ih₂
+    rintro _ _ _ ⟨⟩
+    have h2 := ih₂ ‹_›
+    rw [List.length_erase_of_mem ‹_›, List.length_cons, Nat.add_sub_cancel] at h2
+    rw [List.length_cons, Nat.pow_succ]
+    omega
+  | case7 =>
+    rename_i ih₁
+    rintro _ _ _ ⟨⟩
+    have h1 := ih₁ ‹_›
+    rw [List.length_erase_of_mem ‹_›, List.length_cons, Nat.add_sub_cancel] at h1
+    rw [List.length_cons, Nat.pow_succ]
+    omega
 
 /-- Closing the clause of the search's derivation to the empty clause keeps the derivation. -/
 private theorem size_refutationOf {φ : CNF ℕ} : (c : Clause ℕ) → (d : φ.Derivation c) →
@@ -186,7 +152,7 @@ theorem size_lt_of_refutation?_eq_some {φ : CNF ℕ} {d : φ.Derivation []}
   · cases h
   · rename_i c d' hc hd
     cases h
-    rw [size_refutationOf, List.card_toFinset]
+    rw [size_refutationOf, ← List.length_eraseDups]
     exact size_search_lt φ _ _ _ _ _ hd
 
 /-- **Upper bound on the length of the solver's certificates.** A certificate returned by the
@@ -203,18 +169,6 @@ theorem size_le_of_solve_eq_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDeci
 
 /-! ### The lower bound on pigeonhole formulas -/
 
-/-- A tree-like refutation of `PHP^m_n` relabelled along an injective map, `m > n`, has at least
-`(n / 2 + 1) ^ (n / 2)` leaves. -/
-private theorem pow_half_le_leafCount_relabel_pigeonhole {m n : ℕ} {f : Fin m × Fin n → ℕ}
-    (hf : Function.Injective f) (hnm : n < m) (d : ((pigeonhole m n).relabel f).Derivation []) :
-    (n / 2 + 1) ^ (n / 2) ≤ d.toDecisionTree.leafCount := by
-  obtain ⟨d', hs⟩ := Derivation.exists_size_eq_of_relabel hf d
-  have h₁ := d.two_mul_leafCount_toDecisionTree
-  have h₂ := d'.two_mul_leafCount_toDecisionTree
-  have hle := (Nat.pow_le_pow_left (by omega : n / 2 + 1 ≤ n + 1 - n / 2) (n / 2)).trans
-    (d'.pow_le_leafCount_pigeonhole (n / 2) hnm)
-  omega
-
 /-- **The solver's refutations of the pigeonhole formulas have `2 ^ Ω(n log n)` nodes.** For
 `m > n` and an injective map `f` numbering the variables of `PHP^m_n`, the search finds a refutation
 of the relabelled formula, and it has at least `(n / 2 + 1) ^ (n / 2)` nodes. This is the bound of
@@ -225,7 +179,7 @@ theorem pow_half_le_size_refutation?_pigeonhole {m n : ℕ} {f : Fin m × Fin n 
     ∃ d, refutation? ((pigeonhole m n).relabel f) = some d ∧ (n / 2 + 1) ^ (n / 2) ≤ d.size := by
   obtain ⟨d, hd⟩ := exists_refutation?_eq_some
     (by rw [satisfiable_relabel hf]; exact not_satisfiable_pigeonhole hnm)
-  exact ⟨d, hd, (pow_half_le_leafCount_relabel_pigeonhole hf hnm d).trans
+  exact ⟨d, hd, (d.pow_half_le_leafCount_relabel_pigeonhole hf hnm).trans
     d.leafCount_toDecisionTree_le_size⟩
 
 /-- **The solver's certificates for the pigeonhole formulas have `2 ^ Ω(n log n)` steps.** For
@@ -240,6 +194,6 @@ theorem pow_half_le_size_solve_pigeonhole {m n : ℕ} {f : Fin m × Fin n → �
       (n / 2 + 1) ^ (n / 2) ≤ cert.size := by
   obtain ⟨d, hd, -⟩ := pow_half_le_size_refutation?_pigeonhole hf hnm
   exact ⟨d.toLRAT, solve_eq_unsat_iff.2 ⟨d, hd, rfl⟩,
-    d.size_toLRAT ▸ pow_half_le_leafCount_relabel_pigeonhole hf hnm d⟩
+    d.size_toLRAT ▸ d.pow_half_le_leafCount_relabel_pigeonhole hf hnm⟩
 
 end Cslib.Algorithms.Lean.DPLL

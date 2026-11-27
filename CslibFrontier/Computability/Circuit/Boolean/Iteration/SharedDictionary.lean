@@ -77,17 +77,13 @@ theorem lookupOr_of_eq {keys : Fin M → BitString k} (values : Fin M → BitStr
   funext bit
   apply Bool.eq_iff_iff.mpr
   simp only [lookupOr, decide_eq_true_eq]
-  constructor
-  · rintro ⟨i, hi, hv⟩
-    rwa [hkeys (hi.trans h.symm)] at hv
-  · exact fun hv => ⟨j, h, hv⟩
+  exact ⟨fun ⟨i, hi, hv⟩ => hkeys (hi.trans h.symm) ▸ hv, fun hv => ⟨j, h, hv⟩⟩
 
 /-- When `key` is absent from `keys`, `lookupOr` returns the all-false bit string. -/
 theorem lookupOr_of_forall_ne {keys : Fin M → BitString k} (values : Fin M → BitString v)
     {key : BitString k} (h : ∀ j, keys j ≠ key) : lookupOr keys values key = fun _ => false := by
   funext bit
-  simp only [lookupOr, decide_eq_false_iff_not, not_exists, not_and]
-  exact fun j hj => absurd hj (h j)
+  simp [lookupOr, h]
 
 /-- **Shared lookup.** Answering `Q` available queries against one hardwired table of `M` keys
 costs one `batchOrCircuit`: at most `48 * (Q + M + 1) * (⌈log₂ (Q + M)⌉ + 1) ^ 2 * (k + v + 1)`
@@ -129,7 +125,7 @@ def hitRecord (index : ℕ) (payload : BitString n) : BitString (w + n + 1) :=
 
 /-- The time field of a hit record. -/
 def hitIndex (record : BitString (w + n + 1)) : BitVec w :=
-  word fun bit => record (Fin.castAdd n bit).succ
+  BitString.equivBitVec fun bit => record (Fin.castAdd n bit).succ
 
 /-- The payload field of a hit record. -/
 def hitPayload (record : BitString (w + n + 1)) : BitString n :=
@@ -143,7 +139,7 @@ def hitPayload (record : BitString (w + n + 1)) : BitString n :=
 @[simp] theorem hitIndex_hitRecord (index : ℕ) (payload : BitString n) :
     hitIndex (hitRecord (w := w) index payload) = BitVec.ofNat w index := by
   simpa only [hitIndex, hitRecord, Fin.cons_succ, Fin.append_left] using
-    word_getLsbD (BitVec.ofNat w index)
+    BitString.equivBitVec_getLsbD (BitVec.ofNat w index)
 
 /-- Reading `hitPayload` from `hitRecord index payload` recovers `payload`. -/
 @[simp] theorem hitPayload_hitRecord (index : ℕ) (payload : BitString n) :
@@ -199,7 +195,7 @@ theorem synthesis_finishHit (c : Circuit signature n n) (s : Set (BooleanFunctio
   · let src := s ∪ wires chosen
     have hi : ∀ bit : Fin w, (fun x => (hitIndex (chosen x)).getLsbD bit.val) ∈ src := by
       intro bit
-      simp only [hitIndex, getLsbD_word]
+      simp only [hitIndex, BitString.getLsbD_equivBitVec]
       exact Or.inr ⟨_, rfl⟩
     have hpay : wires (fun x => hitPayload (chosen x)) ⊆ src := by
       rintro _ ⟨bit, rfl⟩

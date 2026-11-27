@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Circuit.Arithmetic.Rigidity
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust
 
 /-!
 # Matrix rigidity and Valiant's criterion
@@ -120,5 +121,19 @@ example {c : Circuit (affineSignature ℚ) 16 16}
     (hfan : c.FanInAtMost 2) (hdepth : c.depth ≤ 1 * Nat.log 2 16) :
     16 * (Nat.log 2 (Nat.log 2 16) + 1) < 2 * 17 * (Nat.log 2 (2 * 1 * 2) + 1) * c.size :=
   hc.mul_log_log_lt_size one_pos two_pos (by norm_num) ones_hyp.1 ones_hyp.2 hfan hdepth
+
+/-! ### Submatrix robustness on rectangular blocks -/
+
+-- Any `k × k` robust matrix with deficiency `2 * Nat.sqrt k + 1` satisfies the rectangular
+-- `min_le` bound on asymmetric row/column subsets over finite index types.
+example :
+    ∃ R : Matrix (Fin 16) (Fin 16) (ZMod 2),
+      R.SubmatrixRobust 9 ∧
+        ∀ (S T : Set (Fin 16)), min S.ncard T.ncard ≤ R.blockRank S T + 9 := by
+  obtain ⟨R, hR⟩ := exists_submatrixRobust 16
+  have hsqrt : 2 * Nat.sqrt 16 + 1 = 9 := by
+    rw [show (16 : ℕ) = 4 * 4 by norm_num, Nat.sqrt_eq]
+  rw [hsqrt] at hR
+  exact ⟨R, hR, fun S T => hR.min_le S T⟩
 
 end CslibFrontierTests.MatrixRigidity

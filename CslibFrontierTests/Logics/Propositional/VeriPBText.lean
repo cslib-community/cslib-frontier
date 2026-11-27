@@ -11,11 +11,15 @@ import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
+import CslibFrontierTests.Logics.Propositional.VeriPBPresFixtures
+import CslibFrontierTests.Logics.Propositional.VeriPBFast
 -- `#guard` evaluates the checkers and the fixtures at compile time.
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
+public meta import CslibFrontierTests.Logics.Propositional.VeriPBPresFixtures
+public meta import CslibFrontierTests.Logics.Propositional.VeriPBFast
 
 /-! The text front end of the VeriPB kernel-proof checker on proofs elaborated to the kernel format
 by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate`):
@@ -35,8 +39,10 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
   only a solution of the input certifies the upper bound or `SAT`;
 * the core/derived split: a checked deletion followed by an upper bound certified by a solution
   that does not solve the input, `deld`, unchecked and checked `delc`, `core id`,
-  strengthening-to-core mode, and the numbering of `red` and `delc` with and without subproofs,
-  each compared with VeriPB 3.0.2 and CakePB;
+  strengthening-to-core mode, the numbering of `red` and `delc` with and without subproofs, and
+  two checked deletions in turn, each compared with VeriPB 3.0.2 and CakePB, and the freshness of
+  the numbers (`Inv.ids`) and the monotonicity facts (`runTop_mono`) under the ordinary imports
+  of this module;
 * `obji`: a lower bound from an asserted value with no logged solution, alone and after `soli`;
 * the conclusion section: `SAT : ρ` and `BOUNDS lb : q ub : ρ` with stated assignments, and
   `NONE`;
@@ -60,6 +66,11 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
   proof by `dom` under it, and the elaborated `lex10` instances of the VeriPB repository, each
   compared with VeriPB and CakePB, and the order checks `eord_def` and `eord_loaded`
   (§5.11.3), which neither tool implements;
+* changing the preserved set (§5.10, §5.11.4): `preserved_add` and `preserved_rm` with their
+  goals proved from the core set, `epreserved`, `solx`, `red` witnesses and `EQUIENUMERABLE`
+  before and after a change, labelled `qed`, and a partial enumeration across a removal, each
+  compared with VeriPB and CakePB, and the public `presChangeCheck` and `presChangeCheck_sound`
+  under the ordinary imports of this module;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
 an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
@@ -529,6 +540,18 @@ end pseudo-Boolean proof;
 "
 
 #guard checkOPB one coreProof == some (.sat none)
+
+/-- Two checked deletions in turn: constraint `2` as in `coreProof`, then `x1 + x2 >= 1` again as
+constraint `5`, whose negation in the subproof is `6`. The numbers of the first subproof are not
+reused. VeriPB and CakePB accept this proof. -/
+def twoCheckedProof : String := coreProof.replace "qed delc : 4;\n"
+  "qed delc : 4;\npol 1 x2 + ;\ncore id 5;\ndelc 5 : : subproof\nrup >= 1 : 6 1;\nqed delc : 7;\n"
+
+#guard (twoCheckedProof.splitOn "delc").length == 5
+#guard checkOPB one twoCheckedProof == some (.sat none)
+-- The number `2` is gone after its deletion, so deleting it again is rejected (VeriPB and CakePB
+-- reject).
+#guard (checkOPB one (twoCheckedProof.replace "delc 5 : :" "delc 2 : :")).isNone
 -- Promoting a core constraint again is a no-op (VeriPB and CakePB accept).
 #guard checkOPB one (coreProof.replace "core id 2;" "core id 2 2;\ncore id 1 2;") ==
   some (.sat none)
@@ -1006,12 +1029,12 @@ def redVar : Option RedProof → Option ℕ
   | some ⟨[.red _ [(v, _)] _ _], _⟩ => some v
   | _ => none
 
--- The proof's names other than `xN` are numbered in order from the base, each at its last
--- occurrence: `version`, `red`, `aux`, …, as `pseudo-Boolean` and `proof` recur at the end. So
--- numbered after the constraints alone (base `1`), `aux` is variable `3`, that is the preserved
--- `x4`; numbered after the preserved set too (base `4`), it is `6`.
-#guard redVar (parseProof 1 1 presOnlyProof) == some 3
-#guard redVar (parseProof 1 4 presOnlyProof) == some 6
+-- The proof's names other than `xN` are numbered from the base in order of first appearance,
+-- keywords included: `pseudo-Boolean`, `proof`, `version`, `red`, `aux`. So numbered after the
+-- constraints alone (base `1`), `aux` is variable `5`, past the preserved `x4` only by chance;
+-- numbered after the preserved set too (base `4`), it is `8`.
+#guard redVar (parseProof 1 1 presOnlyProof) == some 5
+#guard redVar (parseProof 1 4 presOnlyProof) == some 8
 -- So the witness `aux -> 1` leaves the preserved set alone (VeriPB and CakePB accept).
 #guard checkOPB presOnly presOnlyProof == some .noClaim
 
@@ -1732,7 +1755,119 @@ end;
 #guard (checkOPB emptyOpb
   (withNotAux 0 "load_order notaux x1;\nload_order;\neord_loaded notaux x1;\n")).isNone
 
-/-! ### The order and dominance API under ordinary imports
+/-! ### Changing the preserved set (§5.10, §5.11.4)
+
+Each fixture was also run through VeriPB 3.0.2 and CakePB, on VeriPB's elaboration when VeriPB
+accepted. -/
+
+-- `preserved_add x5 : x1 >= 1` after defining `x5 ⇔ x1`, then `epreserved` of the new set in any
+-- order: all three accept; `epreserved` of the old set fails.
+#guard checkOPB pres4 (presProof 4 (defX5 ++ addX5)) == some .noClaim
+#guard checkOPB pres4 (presProof 4 (defX5 ++ addX5 ++ "epreserved x3 x1 x5;\n")) == some .noClaim
+#guard (checkOPB pres4 (presProof 4 (defX5 ++ addX5 ++ "epreserved x1 x3;\n"))).isNone
+-- `epreserved` before any change: the input set matches, a wrong one does not.
+#guard checkOPB pres4 (presProof 4 "epreserved x3 x1;\n") == some .noClaim
+#guard (checkOPB pres4 (presProof 4 "epreserved x1 x2;\n")).isNone
+-- Goal `#2` refuted with the wrong constraint: all three reject.
+#guard (checkOPB pres4 (presProof 4 (defX5 ++ addX5.replace "pol 11 8 +;" "pol 11 6 +;"))).isNone
+-- Goal `#2` without its block: it is the core constraint `8`, but the kernel format needs the
+-- block. CakePB and this checker reject; VeriPB, which autoproves it, accepts.
+#guard (checkOPB pres4 (presProof 4 (defX5 ++ addX5.replace "proofgoal #2\npol 11 8 +;\nqed : 12;\n"
+  ""))).isNone
+-- The definition of `x5` only in the derived set: the goals do not follow from the core set, and
+-- all three reject.
+#guard (checkOPB pres4
+  (presProof 4 ((defX5.replace "core id 6;\n" "").replace "core id 8;\n" "" ++ addX5))).isNone
+-- `x6 ⇔ x2` over the unpreserved `x2`: all three reject.
+#guard (checkOPB pres4 (presProof 4 (defX5 ++ "red 1 x2 1 ~x6 >= 1 : x6 -> 0 : subproof
+qed;
+core id 10;
+red 1 ~x2 1 x6 >= 1 : x6 -> 1 : subproof
+qed;
+core id 12;
+preserved_add x6 : 1 x2 >= 1 : subproof
+proofgoal #1
+pol 13 10 +;
+qed : 14;
+proofgoal #2
+pol 15 12 +;
+qed : 16;
+qed;
+"))).isNone
+-- `solx` is accepted before the change (all three accept) but not after it, as §5.8.3 requires:
+-- VeriPB and this checker reject, CakePB accepts.
+#guard checkOPB pres4 (presProof 4 (defX5 ++ "solx x1 ~x2 x3 x4 x5;\n" ++
+  (addX5.replace "pol 9 6 +;\nqed : 10;" "pol 10 6 +;\nqed : 11;"
+    |>.replace "pol 11 8 +;\nqed : 12;" "pol 12 8 +;\nqed : 13;"))) == some .noClaim
+#guard (checkOPB pres4 (presProof 4 (defX5 ++ addX5 ++ "solx x1 ~x2 x3 x4 x5;\n"))).isNone
+-- `preserved_rm x5 : x1 >= 1` from the input definition of `x5`: all three accept.
+#guard checkOPB pres4Rm (presProof 6 "preserved_rm x5 : 1 x1 >= 1 : subproof
+proofgoal #1
+pol 7 5 +;
+qed : 8;
+proofgoal #2
+pol 9 6 +;
+qed : 10;
+qed;
+epreserved x1 x3;
+") == some .noClaim
+-- `C` mentioning `x5` itself, and an unproved removal: all three reject.
+#guard (checkOPB pres4Rm (presProof 6 "preserved_rm x5 : 1 x1 1 x5 >= 2 : subproof\nqed;\n")).isNone
+#guard (checkOPB pres4Rm (presProof 6 "preserved_rm x2 : 1 x1 >= 1 : subproof\nqed;\n")).isNone
+-- Without a preserved set there is nothing to change: all three reject.
+#guard (checkOPB "* #variable= 5 #constraint= 2\n1 ~x5 1 x1 >= 1 ;\n1 x5 1 ~x1 >= 1 ;\n"
+  (presProof 2 "preserved_add x5 : 1 x1 >= 1 : subproof
+proofgoal #1
+pol 3 1 +;
+qed : 4;
+proofgoal #2
+pol 5 2 +;
+qed : 6;
+qed;
+")).isNone
+-- A solution logged before `preserved_rm` still counts for the input's preserved set: all three
+-- accept.
+#guard checkOPB pres4Rm enumAfterRm == some (.enumPartial 1)
+-- The witnesses of `red` must leave the *current* preserved set alone. Moving `x5` is accepted
+-- before `preserved_add x5` and rejected after it; on `pres4Rm`, it is rejected before
+-- `preserved_rm x5` and accepted after it. All three agree.
+#guard checkOPB pres4 (presProof 4 (defX5 ++ moveX5)) == some .noClaim
+#guard (checkOPB pres4 (presProof 4 (defX5 ++ addX5 ++ moveX5))).isNone
+#guard (checkOPB pres4Rm (presProof 6 moveX5)).isNone
+#guard checkOPB pres4Rm (presProof 6 (rmX5 ++ moveX5)) == some .noClaim
+-- The subproof may close with `qed preserved_add;`, but not with the label of the other rule:
+-- all three accept the first and reject the second.
+#guard checkOPB pres4 (presProof 4 (defX5 ++ addX5.replace "qed;\n" "qed preserved_add;\n")) ==
+  some .noClaim
+#guard (checkOPB pres4
+  (presProof 4 (defX5 ++ addX5.replace "qed;\n" "qed preserved_rm;\n"))).isNone
+
+-- `EQUIENUMERABLE` with the input as the output: accepted with no change of the preserved set,
+-- and after removing `x5` and adding it back, which leaves the core set, the preserved set (as
+-- `epreserved` checks) and the output text the same. All three accept both.
+#guard (checkOPBOutput pres4Rm (presEnumOut "") pres4Rm).isSome
+#guard checkOPB pres4Rm (presProof 6 (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n")) ==
+  some .noClaim
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n"))
+  pres4Rm).isSome
+-- After removing `x5`, the output must preserve the new set `x1 x3`, in any order, not the old
+-- one: all three accept the first and reject the second.
+#guard (checkOPBOutput pres4Rm (presEnumOut rmX5)
+  (pres4Rm.replace "preserved: x1 x3 x5 ;" "preserved: x3 x1 ;")).isSome
+#guard (checkOPBOutput pres4Rm (presEnumOut rmX5) pres4Rm).isNone
+-- After removing `x5` and deleting its definition, `x5` is free: the output without it preserving
+-- `x1 x3` is accepted, and preserving `x1 x3 x5`, which would double the count, is rejected. All
+-- three agree.
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ freeX5)) pres4Free).isSome
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ freeX5))
+  pres4FreeX5).isNone
+-- Removing `x5`, redefining it as `~x1` and adding it back: the output preserves `x1 x3 x5`
+-- again, but its projections are those of the input with `x5` flipped, in bijection and not
+-- equal. All three accept it, and reject the input as the output.
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ flipX5)) pres4Flip).isSome
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ flipX5)) pres4Rm).isNone
+
+/-! ### The order, dominance and preserved-set API under ordinary imports
 
 This module imports `Text`, and with it `Redundance`, by ordinary imports: the checks below use
 only the public API, through `#guard`, exposed bodies and the soundness theorems. -/
@@ -1774,6 +1909,28 @@ def symDom (pres : Option (List ℕ)) (core : List (ℕ × PBConstr)) : Option �
 -- Without the core goal of `1`, the check is the same.
 #guard symDom none [] == some 5
 
+/-- `x1 ⇒ x0` and `x0 ⇒ x1`, as the core constraints `1` and `2`. -/
+def presCore : List (ℕ × PBConstr) :=
+  [(1, ⟨[(1, (1, false)), (1, (0, true))], 1⟩), (2, ⟨[(1, (1, true)), (1, (0, false))], 1⟩)]
+
+/-- `preserved_add x1 : x0 >= 1` or `preserved_rm x1 : x0 >= 1` over the preserved set `P`, with
+`C` given by `c`: the goals `#1` and `#2`, negated as `3` and `5`, are refuted with `1` and
+`2`. -/
+def presX1 (P : List ℕ) (c : PBConstr) : Option ℕ :=
+  presChangeCheck presCore 3 P 1 c
+    [.goal (.hash 1) [.pol [.id 3, .id 1, .add]] 4, .goal (.hash 2) [.pol [.id 5, .id 2, .add]] 6]
+
+#guard presX1 [0, 1] ⟨[(1, (0, true))], 1⟩ == some 7
+-- `C` must avoid `x1` and stay in the preserved set.
+#guard presX1 [0, 1] ⟨[(1, (1, true))], 1⟩ == none
+#guard presX1 [1] ⟨[(1, (0, true))], 1⟩ == none
+
+-- An accepted change makes `x ⇔ C` on every solution of the core set.
+example {core : List (ℕ × PBConstr)} {n n' : ℕ} {P : List ℕ} {x : ℕ} {c : PBConstr}
+    {items : List RedItem} (h : presChangeCheck core n P x c items = some n') (τ : ℕ → Bool)
+    (hτ : AllHold τ core) : τ x = true ↔ c.Holds τ :=
+  (presChangeCheck_sound h).2 τ hτ
+
 -- An accepted `dom` step maps a solution violating its constraint strictly down the order.
 example {σ : ℕ → Bool} {L : LoadedOrder} {pres : Option (List ℕ)} {obj : Option Objective}
     {db core : List (ℕ × PBConstr)} {n n' : ℕ} {c : PBConstr} {ω : Witness}
@@ -1782,6 +1939,23 @@ example {σ : ℕ → Bool} {L : LoadedOrder} {pres : Option (List ℕ)} {obj : 
     (h : domCheck pres obj L db core n c ω items q = some n') :
     L.Le (Witness.apply σ ω) σ ∧ ¬ L.Le σ (Witness.apply σ ω) :=
   ⟨(domCheck_sound hL hdb hcore hc h).2.1, (domCheck_sound hL hdb hcore hc h).2.2.1⟩
+
+/-! ### Fresh numbers and monotonicity -/
+
+-- In a state that an accepted run reaches, two core constraints with the same number are the same,
+-- as checked deletion relies on, and the numbering has only advanced.
+example {F : List PBConstr} {obj : Option Objective} {pres : Option (List ℕ)} {ts : List TopStep}
+    {s : State} (h : runTop F obj (State.init F obj pres) ts = some s) {i : ℕ} {c c' : PBConstr}
+    (hc : (i, c) ∈ s.core) (hc' : (i, c') ∈ s.core) : c = c' ∧ F.length + 1 ≤ s.next :=
+  have hinv := (invariants_of_runTop h).1
+  ⟨hinv.ids.eq_of_mem (hinv.sub _ hc) (hinv.sub _ hc'), (runTop_mono h).next⟩
+
+-- Once `chk` is lost, it is not restored, and a run logs no more projections for an enumeration.
+example {F : List PBConstr} {obj : Option Objective} {s s' : State} {ts : List TopStep}
+    (h : runTop F obj s ts = some s') (hc : s.chk = false) :
+    s'.chk = false ∧ s'.logged = s.logged :=
+  ⟨Bool.eq_false_iff.2 fun h' => by simpa [hc] using (runTop_mono h).chk h',
+    (runTop_mono h).logged_eq hc⟩
 
 /-! ### Soundness -/
 
@@ -1815,5 +1989,80 @@ example (h : (checkOPBOutput enum3 enumPartialProof).map (·.1) = some (.enumPar
 example (h : checkDIMACS php43 php43Kernel = some (.unsat 39)) :
     ∃ φ, parseDIMACS php43 = some φ ∧ ¬ φ.Satisfiable :=
   not_satisfiable_of_checkDIMACS h
+
+
+/-! ### The compiled checker
+
+The compiled checker `Cslib.Logic.PL.VeriPB.checkRedFast` reaches the same final state as the
+reference run on each fixture, or both reject
+(`CslibFrontierTests.Logics.Propositional.VeriPBFast.agree`). -/
+
+open CslibFrontierTests.Logics.Propositional.VeriPBFast in
+section
+
+#guard agreeOPB php32 php32Proof
+#guard agreeOPB php32 (php32Proof.replace "UNSAT : 12" "UNSAT : 11")
+#guard agreeDIMACS php43 php43Kernel
+#guard agreeDIMACS php43 php43Logged
+#guard agreeDIMACS php43 php43DropHint
+#guard agreeDIMACS php43 php43DeleteTwice
+#guard agreeOPB rotation rotationProof
+#guard agreeOPB rotation rotationNoGoal1
+#guard agreeOPB cover coverProof
+#guard agreeOPB cover coverBadRed
+#guard agreeOPB coverDecision coverDecisionSat
+#guard agreeOPB coverDecision objiDecision
+#guard agreeOPB cover objiProof
+#guard agreeOPB delOpt delOptProof
+#guard agreeOPB delDec delDecProof
+#guard agreeOPB ck ckProof
+#guard agreeOPB one coreProof
+#guard agreeOPB one deldProof
+#guard agreeOPB one uncheckedProof
+#guard agreeOPB one redNumProof
+#guard agreeOPB one redNumSubProof
+#guard agreeOPB one tcbProof
+#guard agreeOPB one tcbCheckedProof
+#guard agreeOPB one tcbDeleteProof
+#guard agreeOPB one satAsgProof
+#guard agreeOPB eqOpt objuProof
+#guard agreeOPB eqOpt objuLoggedProof
+#guard agreeOPB twoOpt objuCoreProof
+#guard agreeOPB twoOpt objuConstProof
+#guard agreeOPB cancelOpt cancelProof
+#guard agreeOPB enum3 enumProof
+#guard agreeOPB enum3 enumPartialProof
+#guard agreeOPB enum3 solxNone
+#guard agreeOPB enum3 delcPresProof
+#guard agreeOPB presOnly presOnlyProof
+#guard agreeOPB amo3Opt amo3OptImplicit
+#guard agreeOPB amo3OptPres amo3OptEnum
+#guard agreeOPB enumOut enumOutProof
+#guard agreeOPB sym2 domObjProof
+
+/-! Through ordinary imports: the compiled checker of output sections accepts `enumOut` with
+its output `EQUIENUMERABLE IMPLICIT`, and the equality theorems carry an acceptance by a
+reference checker over to the compiled one. -/
+
+#guard match parseOPB enumOut with
+  | some I =>
+    match parseProof I.constraints.length 1000 (noOutput enumOutProof) with
+    | some P =>
+      (checkRedOutputFast I.constraints I.objective P I.preserved ⟨.equienumerable, none⟩).isSome
+    | none => false
+  | none => false
+
+example (F : List PBConstr) (obj : Option Objective) (P : RedProof) (pres : Option (List ℕ))
+    (h : checkRed F obj P pres = true) : checkRedFast F obj P pres = true := by
+  rw [checkRedFast_eq_checkRed]
+  exact h
+
+example (F : List PBConstr) (obj : Option Objective) (P : RedProof) (pres : Option (List ℕ))
+    (sec : OutputSection) (o : Output) (h : checkRedOutput F obj P pres sec = some o) :
+    checkRedOutputFast F obj P pres sec = some o := by
+  rw [checkRedOutputFast_eq_checkRedOutput]
+  exact h
+
+end
 
 end CslibFrontierTests.Logics.Propositional.VeriPBText

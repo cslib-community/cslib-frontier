@@ -14,7 +14,8 @@ files, with the SATLIB trailer (a line `%` and a line `0`, which MiniSat rejects
 Prints a CSV row per run and, at the end, a Markdown table per family: instances solved within the
 timeout, median and total wall time, and median conflicts. Times are wall-clock times of the whole
 process, parsing included; the CSV also has the time `cdcl` reports for solving alone, without the
-startup of the Lean runtime (about 40 ms) and the parsing.
+startup of the Lean runtime (about 40 ms) and the parsing, and the size in bytes of each
+certificate checked.
 
 Example, with MiniSat and drat-trim from nixpkgs:
 
@@ -169,6 +170,7 @@ def bench_one(args, family: str, src: Path, work: Path) -> dict:
     c = run_cdcl(args.cdcl, cnf, proof, args.timeout)
     m = run_minisat(args.minisat, cnf, args.timeout)
     checked = ""
+    cert_bytes = proof.stat().st_size if c.answer == "UNSAT" and proof and proof.exists() else None
     if c.answer == "SAT":
         checked = "model ok" if satisfies(c.model, nvars, clauses) else "MODEL WRONG"
     elif c.answer == "UNSAT" and proof is not None:
@@ -180,6 +182,7 @@ def bench_one(args, family: str, src: Path, work: Path) -> dict:
     return {"family": family, "instance": src.name, "expected": expected,
             "cdcl": c.answer, "cdcl_ms": round(c.ms), "cdcl_solve_ms": c.solve_ms,
             "cdcl_conflicts": c.conflicts,
+            "cdcl_cert_bytes": cert_bytes,
             "checked": checked, "minisat": m.answer, "minisat_ms": round(m.ms),
             "minisat_conflicts": m.conflicts}
 
@@ -224,7 +227,7 @@ def main() -> int:
     empty: list[str] = []
     writer = csv.DictWriter(sys.stdout, fieldnames=[
         "family", "instance", "expected", "cdcl", "cdcl_ms", "cdcl_solve_ms", "cdcl_conflicts",
-        "checked",
+        "cdcl_cert_bytes", "checked",
         "minisat", "minisat_ms", "minisat_conflicts"])
     writer.writeheader()
     with tempfile.TemporaryDirectory() as tmp, \

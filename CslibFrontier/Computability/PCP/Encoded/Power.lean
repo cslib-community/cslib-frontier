@@ -161,13 +161,9 @@ theorem wellFormed_powerPreprocess (walks : List (PowerLabel D T q)) :
   intro e he
   obtain ⟨⟨⟨i, side⟩, walk⟩, hp, rfl⟩ := List.mem_map.mp he
   have hi := (g.mem_halfEdges_iff _).mp (List.mem_product.mp hp).1
-  constructor
-  · exact halfEdgeNumber_lt hi
-  · change (g.powerPreprocessEdge eval fallback rotate T q
-      (((⟨i, hi⟩ : Fin g.edges.length).val, side), walk)).dst < _
-    rw [dst_powerPreprocessEdge g eval fallback family rotate hrotate T q
-      ((⟨i, hi⟩, side), walk)]
-    exact halfEdgeNumber_lt (Fin.isLt _)
+  refine ⟨halfEdgeNumber_lt hi, ?_⟩
+  simpa only [vertices_powerPreprocess, dst_powerPreprocessEdge g eval fallback family rotate
+    hrotate T q ((⟨i, hi⟩, side), walk)] using halfEdgeNumber_lt (Fin.isLt _)
 
 include hrotate in
 /-- Exact numbering preserves the unsatisfied fraction of the complete powered graph. -/
@@ -223,17 +219,14 @@ private theorem polytime_powerPreprocess (eval : C → α → α → Bool) (fall
     (T q : ℕ) [NeZero q] (walks : List (PowerLabel D T q)) :
     ComputableInPolyTime (powerPreprocess eval fallback rotate T q walks)
       (encoding enc) (encoding encConstraintTable) := by
-  have hedge := polytime_powerPreprocessEdge eval fallback rotate hrotate heval T q
   have hdarts : ComputableInPolyTime
       (fun g : Graph C => g.halfEdges.product walks) (encoding enc)
       (encList (encPair (encPair encUnary encBool)
         (encPair (encPi (encFinite (PreprocessLabel D))) (encPi (encFinEnum (Fin q)))))) := by
     unfold List.product
     fun_prop
-  unfold powerPreprocess
-  refine isPolyTime_mk ?_ ?_
-  · fun_prop
-  · exact mapWithInput hdarts hedge
+  exact isPolyTime_mk (by fun_prop)
+    (mapWithInput hdarts (polytime_powerPreprocessEdge eval fallback rotate hrotate heval T q))
 
 omit [Fintype D] [Fintype α] [DecidableEq D] in
 /-- The output descriptor encoding is arbitrary and fixed. Finite-table conversion hides the

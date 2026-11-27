@@ -222,8 +222,8 @@ example {psel : (∀ p : Fin 16 × ℕ, (fun _ : Fin 16 => Bool) p.1) →
   · simpa [star4CNF] using
       lintegral_parallelRounds_le_of_exp_mul_le_of_pos star4_exact (d := 4) (ε := 1 / 8)
         (by decide) (fun j => (star4_degree j).le) ⟨by norm_num, by norm_num⟩ hlll hrule
-  · exact ae_exists_eval_parallelRun_greedy_of_exp_mul_le star4_exact (d := 4) (ε := 1 / 8)
-      (fun j => (star4_degree j).le) ⟨by norm_num, by norm_num⟩ hlll
+  · exact ae_exists_eval_parallelRun_greedy_of_exp_mul_le star4_exact (d := 4)
+      (fun j => (star4_degree j).le) (hlll.trans (by norm_num))
 
 -- Two disjoint exact `3`-clauses: `greedyParallelCNF` resamples both in round 0 simultaneously.
 private abbrev disj3CNF : CNF (Fin 6) :=

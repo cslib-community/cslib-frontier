@@ -49,9 +49,10 @@ def advanceCycleLabel (r : BitString (n + (chartWidth n + chartWidth n)))
       (streamRemainder (labelLength r) bits))
 
 /-- Advancing the cycle label of `x` by `bits` yields the cycle label of
-`f^[(word bits).toNat] x`. -/
+`f^[(BitString.equivBitVec bits).toNat] x`. -/
 theorem advanceCycleLabel_spec (f : BitVec n → BitVec n) (x : BitVec n) (bits : Fin m → Bool) :
-    advanceCycleLabel (wordCycleLabel f x) bits = wordCycleLabel f (f^[(word bits).toNat] x) := by
+    advanceCycleLabel (wordCycleLabel f x) bits =
+      wordCycleLabel f (f^[(BitString.equivBitVec bits).toNat] x) := by
   let ell := BitVec.ofNat (chartWidth n) (cycleLength f x)
   let p := BitVec.ofNat (chartWidth n) (phase f x)
   have hel : ell.toNat = cycleLength f x := chart_ofNat_toNat (cycleLength_le_words f x)
@@ -65,7 +66,7 @@ theorem advanceCycleLabel_spec (f : BitVec n → BitVec n) (x : BitVec n) (bits 
     lia
   have hrem := toNat_streamRemainder ell bits hpos hwide
   have hphase : addResidue ell p (streamRemainder ell bits) =
-      BitVec.ofNat (chartWidth n) (phase f (f^[(word bits).toNat] x)) := by
+      BitVec.ofNat (chartWidth n) (phase f (f^[(BitString.equivBitVec bits).toNat] x)) := by
     apply BitVec.eq_of_toNat_eq
     rw [toNat_addResidue _ _ _ (by rw [hp, hel]; exact phase_lt f x)
       (by rw [hrem]; exact Nat.mod_lt _ hpos), hrem, hp, hel]
@@ -87,10 +88,10 @@ theorem synthesis_advanceCycleLabel (s : Set (BitString a → Bool))
   let rem := fun z => streamRemainder (ell z) (bits z)
   have he : wordWires ell ⊆ s := by
     rintro _ ⟨i, rfl⟩
-    simpa only [ell, labelLength, getLsbD_word] using hr ⟨_, rfl⟩
+    simpa only [ell, labelLength, BitString.getLsbD_equivBitVec] using hr ⟨_, rfl⟩
   have hp : wordWires p ⊆ s := by
     rintro _ ⟨i, rfl⟩
-    simpa only [p, labelPhase, getLsbD_word] using hr ⟨_, rfl⟩
+    simpa only [p, labelPhase, BitString.getLsbD_equivBitVec] using hr ⟨_, rfl⟩
   have hrem := synthesis_streamRemainder s ell bits (fun i => he ⟨i, rfl⟩) hb hz
   let src := s ∪ wordWires rem
   have hadd := synthesis_addResidue src ell p rem

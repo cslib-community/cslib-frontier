@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.SmallBias.Pointwise
+import CslibFrontier.Tactic.SuppCases
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -46,8 +47,7 @@ theorem exists_pair_of_parity_bias_le (p : PMF X) (q : PMF Y) (F : X → Y → �
     rw [(law.apply_eq_zero_iff z).mpr hn, ENNReal.toReal_zero, mul_zero] at hbound
     norm_num at hbound
     linarith
-  obtain ⟨x, hx, hz⟩ := (PMF.mem_support_bind_iff p (fun x => q.map (F x)) z).mp hz
-  obtain ⟨y, hy, heq⟩ := (PMF.mem_support_map_iff (F x) q z).mp hz
-  exact ⟨x, hx, y, hy, heq⟩
+  supp_cases hz [law] with ⟨x, hx, y, hy, rfl⟩
+  exact ⟨x, hx, y, hy, rfl⟩
 
 end Cslib.Communication.Lifting

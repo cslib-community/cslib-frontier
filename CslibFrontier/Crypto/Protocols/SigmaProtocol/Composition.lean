@@ -389,10 +389,10 @@ theorem parallelRepetition_transcript (k : ℕ) (x : X) (y : Y) (c : Fin k → C
 theorem parallelRepetition_complete {k : ℕ} (h : P.Complete R) :
     (P.parallelRepetition k).Complete R := by
   intro x y hxy c tz htz
-  rw [parallelRepetition_transcript, PMF.mem_support_map_iff] at htz
-  obtain ⟨v, hv, rfl⟩ := htz
-  rw [PMF.mem_support_piFin_iff] at hv
-  exact parallelRepetition_accepts_iff.mpr fun j => h x y hxy (c j) (v j) (hv j)
+  obtain ⟨v, hv, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp
+    (parallelRepetition_transcript k x y c ▸ htz)
+  exact parallelRepetition_accepts_iff.mpr fun j =>
+    h x y hxy (c j) (v j) ((PMF.mem_support_piFin_iff _ _).mp hv j)
 
 /-- Special soundness is preserved under `k`-fold parallel repetition: two distinct challenge
 tuples `c ≠ c'` must differ at some coordinate `j : Fin k`. -/
@@ -405,29 +405,21 @@ theorem parallelRepetition_specialSoundness [DecidableEq C] {W : Type u} [Inhabi
   unfold parallelExtract
   cases hfind : (List.finRange k).find? (fun j => c j != c' j) with
   | none =>
-    exfalso
-    apply hc
-    funext j
-    have hj := List.find?_eq_none.mp hfind j (List.mem_finRange j)
-    simpa using hj
+    exact absurd
+      (funext fun j => by simpa using List.find?_eq_none.mp hfind j (List.mem_finRange j)) hc
   | some j =>
-    have hj : c j ≠ c' j := by
-      simpa using List.find?_some hfind
-    exact h y (t j) (c j) (z j) (c' j) (z' j) hj (hz j) (hz' j)
+    exact h y (t j) (c j) (z j) (c' j) (z' j) (by simpa using List.find?_some hfind) (hz j) (hz' j)
 
 /-- Special honest-verifier zero knowledge is preserved under `k`-fold parallel repetition. -/
 theorem parallelRepetition_specialHVZK {k : ℕ} {simulate : Y → C → PMF (T × Z)}
     (h : P.SpecialHVZK R simulate) :
     (P.parallelRepetition k).SpecialHVZK R (parallelSimulate simulate k) where
   accepts y c tz htz := by
-    unfold parallelSimulate at htz
-    rw [PMF.mem_support_map_iff] at htz
-    obtain ⟨v, hv, rfl⟩ := htz
-    rw [PMF.mem_support_piFin_iff] at hv
-    exact parallelRepetition_accepts_iff.mpr fun j => h.accepts y (c j) (v j) (hv j)
+    obtain ⟨v, hv, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp htz
+    exact parallelRepetition_accepts_iff.mpr fun j =>
+      h.accepts y (c j) (v j) ((PMF.mem_support_piFin_iff _ _).mp hv j)
   transcript_eq x y hxy c := by
-    rw [parallelRepetition_transcript, parallelSimulate]
-    simp only [h.transcript_eq x y hxy]
+    simp only [parallelRepetition_transcript, parallelSimulate, h.transcript_eq x y hxy]
 
 end Parallel
 

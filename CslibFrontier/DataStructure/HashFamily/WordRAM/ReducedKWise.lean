@@ -10,8 +10,12 @@ module
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.Basic
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.Tabulation
 public import CslibFrontier.Probability.KWiseIndependent.ReducedLimbs
+import CslibFrontier.Computability.WordRAM.RegisterFrame
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Tactic.Fits
+import CslibFrontier.Tactic.UpdateSimp
+import CslibFrontier.Tactic.WramOmega
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # Universe-Reduced `k`-Wise Independent Hashing with Bit-Packed Tables
@@ -113,22 +117,38 @@ Four-Russians carryless multiplication table. -/
     (j : Fin k) (m : Fin (reducedLimbCount (reducedTrinomialStep w₀ b b'))) : ℕ :=
   base + 1 + (m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val)
 
+attribute [local wram_arith] seedWords tableWords space tabBase
+
+theorem and_two_pow_sub_one_lt (a n : ℕ) : a &&& (2 ^ n - 1) < 2 ^ n :=
+  Nat.and_lt_two_pow a (Nat.sub_lt (Nat.two_pow_pos n) one_pos)
+
+theorem shiftRight_lt_pow_sub {m h a : ℕ} (hle : h ≤ m) (ha : a < 2 ^ m) :
+    a >>> h < 2 ^ (m - h) := by
+  rw [Nat.shiftRight_eq_div_pow]
+  exact Nat.div_lt_of_lt_mul (by rwa [← pow_add, Nat.add_sub_of_le hle])
+
+private theorem fits_mask_of_le {w n : ℕ} (h : n ≤ w) : Fits w (2 ^ n - 1) :=
+  (Nat.sub_lt (Nat.two_pow_pos n) one_pos).trans_le (Nat.pow_le_pow_right two_pos h)
+
+/-- Bit offset `(idx &&& (2 ^ reducedPackShift t w - 1)) * (2 * reducedChunkBits t)` of a packed
+carryless-multiplication table slot fits below the word width `w`. -/
+theorem packSlot_sh_lt {t w idx : ℕ} (h2c : 2 * reducedChunkBits t ≤ w) :
+    (idx &&& (2 ^ reducedPackShift t w - 1)) * (2 * reducedChunkBits t) < w :=
+  (Nat.mul_lt_mul_of_pos_right (and_two_pow_sub_one_lt idx (reducedPackShift t w))
+    (by have := reducedChunkBits_pos t; omega)).trans_le (two_pow_reducedPackShift_mul_le h2c)
+
 theorem seedWords_pos (w₀ b b' k : ℕ) : 0 < seedWords w₀ b b' k := by
-  dsimp only [seedWords]; omega
+  wram_omega
 
 theorem seedWords_le (w₀ b b' k : ℕ) : seedWords w₀ b b' k ≤ 1 + 54 * k := by
-  dsimp only [seedWords]
-  have hL := reducedLimbCount_le (reducedTrinomialStep w₀ b b')
-  nlinarith
+  have := reducedLimbCount_le (reducedTrinomialStep w₀ b b')
+  dsimp only [seedWords]; nlinarith
 
 theorem tableWords_le {w w₀ b b' : ℕ} (hw₀ : w₀ ≤ w) (hb' : b' ≤ 3 * b) (hb'_w : b' ≤ w)
     (hw : 2 ≤ w) :
-    tableWords w w₀ b b' ≤ 2 * max 8 (2 ^ (b / 2)) / w + 1 := by
-  dsimp only [tableWords]
-  have hc := two_mul_reducedChunkBits_le (b := b) hw₀ hb'_w hw
-  have h1 := reducedTableWords_le hc
-  have h2 := reducedTableBits_le (w₀ := w₀) hb'
-  exact h1.trans (Nat.add_le_add_right (Nat.div_le_div_right (by omega)) 1)
+    tableWords w w₀ b b' ≤ 2 * max 8 (2 ^ (b / 2)) / w + 1 :=
+  (reducedTableWords_le (two_mul_reducedChunkBits_le hw₀ hb'_w hw)).trans <|
+    Nat.add_le_add_right (Nat.div_le_div_right (Nat.mul_le_mul_left 2 (reducedTableBits_le hb'))) 1
 
 /-- **Compact space bound**: whenever `w₀ ≤ w`, `b' ≤ 3 * b`, `b' ≤ w`, and `2 ≤ w`,
 `space w w₀ b b' k` uses at most `2 + 54 * k + 2 * max 8 (2 ^ (b / 2)) / w` words
@@ -136,10 +156,9 @@ theorem tableWords_le {w w₀ b b' : ℕ} (hw₀ : w₀ ≤ w) (hb' : b' ≤ 3 *
 theorem space_le {w w₀ b b' k : ℕ} (hw₀ : w₀ ≤ w) (hb' : b' ≤ 3 * b) (hb'_w : b' ≤ w)
     (hw : 2 ≤ w) :
     space w w₀ b b' k ≤ 2 + 54 * k + 2 * max 8 (2 ^ (b / 2)) / w := by
-  dsimp only [space]
-  have hs := seedWords_le w₀ b b' k
-  have ht := tableWords_le hw₀ hb' hb'_w hw
-  omega
+  have := seedWords_le w₀ b b' k
+  have := tableWords_le hw₀ hb' hb'_w hw
+  wram_omega
 
 /-- Whenever `2 * reducedChunkBits t ≤ w` and `Fits w (base + space w w₀ b b' k)`, we have strict
 inequality `2 * reducedChunkBits t < w` (and hence `2 ^ (2 * reducedChunkBits t) < 2 ^ w`). -/
@@ -147,21 +166,15 @@ theorem two_mul_reducedChunkBits_lt_of_fits_space {w base w₀ b b' k : ℕ}
     (hc : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') ≤ w)
     (hfit : Fits w (base + space w w₀ b b' k)) :
     2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w := by
-  set t := reducedTrinomialStep w₀ b b'
-  set c := reducedChunkBits t
   by_contra hnot
-  have heq : 2 * c = w := by omega
-  have hc_pos : 0 < 2 * c := by have := reducedChunkBits_pos t; omega
-  have hdiv : w / (2 * c) = 1 := by rw [← heq, Nat.div_self hc_pos]
-  have hp0 : reducedPackShift t w = 0 := by
-    dsimp only [reducedPackShift]
-    rw [hdiv]
-    simp
+  have heq : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') = w := by omega
+  have hc_pos : 0 < 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') :=
+    Nat.mul_pos two_pos (reducedChunkBits_pos _)
+  have hp0 : reducedPackShift (reducedTrinomialStep w₀ b b') w = 0 := by
+    simp [reducedPackShift, ← heq, Nat.div_self hc_pos]
   have htw : tableWords w w₀ b b' = 2 ^ w := by
-    dsimp only [tableWords, reducedTableWords]
-    rw [hp0, Nat.sub_zero, heq]
-  have hlt : base + space w w₀ b b' k < 2 ^ w := hfit
-  dsimp only [space] at hlt
+    simp [tableWords, reducedTableWords, hp0, heq]
+  dsimp only [space, Fits] at hfit
   omega
 
 /-- Deterministic precomputed table invariant at `tabBase base w₀ b b' k`: every table word is
@@ -229,9 +242,7 @@ theorem two_mul_reducedChunkBits_lt_of_fits_space {w base w₀ b b' k : ℕ}
 @[simp]
 theorem extractTop_val (base w₀ : ℕ) (mem : ℕ → ℕ) :
     (extractTop base w₀ mem).val = (Cslib.WordRAM.wordOfNat (w₀ - 1) (mem base)).val := by
-  change (Cslib.WordRAM.wordOfNat (w₀ - 1) (mem (base + (0 : Fin 1).val))).val =
-    (Cslib.WordRAM.wordOfNat (w₀ - 1) (mem base)).val
-  rw [Fin.val_zero, Nat.add_zero]
+  simp [extractTop, topSliceEquiv, Tabulation.extractSlice]
 
 theorem getLimb_extractBot_val (base w₀ b b' k : ℕ) (mem : ℕ → ℕ)
     (j : Fin k) (m : Fin (reducedLimbCount (reducedTrinomialStep w₀ b b'))) :
@@ -241,16 +252,35 @@ theorem getLimb_extractBot_val (base w₀ b b' k : ℕ) (mem : ℕ → ℕ)
     getLimb c (extractBot base w₀ b b' k mem j).val m.val =
       (Cslib.WordRAM.wordOfNat c (mem (base + 1 + (m.val + L * j.val)))).val := by
   intro t c L
-  have hc := reducedChunkBits_pos t
-  let f : Fin L → Fin (2 ^ c) := fun m' =>
-    Tabulation.extractSlice (base + 1) c (k * L) mem (finProdFinEquiv (j, m'))
-  have hval : (extractBot base w₀ b b' k mem j).val = (limbsEquivFin c L hc f).val := rfl
-  have hinv : (limbsEquivFin c L hc).symm (limbsEquivFin c L hc f) m = f m := by
-    rw [Equiv.symm_apply_apply]
-  have hinv_val : getLimb c (limbsEquivFin c L hc f).val m.val = (f m).val :=
-    congrArg Fin.val hinv
-  rw [hval, hinv_val]
-  rfl
+  exact congrArg Fin.val (congrFun ((limbsEquivFin c L (reducedChunkBits_pos t)).symm_apply_apply
+    fun m' => Tabulation.extractSlice (base + 1) c (k * L) mem (finProdFinEquiv (j, m'))) m)
+
+/-- Extracting a seed from memory satisfying `SeedRep` recovers the original seed `θ`. -/
+theorem extractSeed_of_seedRep {base w₀ b b' k : ℕ}
+    {θ : ReducedPolySeed w₀ b b' k} {mem : ℕ → ℕ}
+    (hseed : SeedRep base w₀ b b' k θ mem) :
+    extractSeed base w₀ b b' k mem = θ := by
+  unfold extractSeed
+  obtain ⟨h0, hlimb⟩ := hseed
+  refine Prod.ext (Fin.ext ?_) (funext fun j => Fin.ext ?_)
+  · dsimp only
+    rw [extractTop_val, h0]
+    exact Cslib.WordRAM.wordOfNat_val_of_lt θ.1.isLt
+  · dsimp only
+    set t := reducedTrinomialStep w₀ b b'
+    set c := reducedChunkBits t
+    set L := reducedLimbCount t
+    have hc : 0 < c := reducedChunkBits_pos t
+    have hpow : L * c = 2 * 3 ^ t := reducedLimbCount_mul_chunkBits t
+    have ha : (extractBot base w₀ b b' k mem j).val < 2 ^ (L * c) :=
+      hpow.symm ▸ (extractBot base w₀ b b' k mem j).isLt
+    have hb : (θ.2 j).val < 2 ^ (L * c) := hpow.symm ▸ (θ.2 j).isLt
+    rw [← packLimbs_getLimb hc L ha, ← packLimbs_getLimb hc L hb]
+    refine packLimbs_congr fun m hm => ?_
+    have hm' := getLimb_extractBot_val base w₀ b b' k mem j ⟨m, hm⟩
+    dsimp only at hm'
+    rw [hm', hlimb j ⟨m, hm⟩]
+    exact Cslib.WordRAM.wordOfNat_val_of_lt (getLimb_lt c (θ.2 j).val m)
 
 /-! ## Register layout on `Data 240` -/
 
@@ -279,54 +309,31 @@ maps `[0, 1, 2, 3, 4, 5] ↦ [3, 4, 5, 6, 7, 0]`. -/
 theorem injective_fillMap240 : Function.Injective fillMap240 := by
   decide
 
+private theorem tableRep_congr_on_tab {base w w₀ b b' k : ℕ} {mem₁ mem₂ : ℕ → ℕ}
+    (htab : TableRep base w w₀ b b' k mem₁)
+    (heq : ∀ wIdx < tableWords w w₀ b b',
+      mem₁ (tabBase base w₀ b b' k + wIdx) = mem₂ (tabBase base w₀ b b' k + wIdx)) :
+    TableRep base w w₀ b b' k mem₂ :=
+  ⟨fun wIdx hw => heq wIdx hw ▸ htab.1 wIdx hw,
+    fun idx hi => heq _ (shiftRight_lt_reducedTableWords hi) ▸ htab.2 idx hi⟩
+
 /-- `TableRep` depends only on memory in `[base, base + space w w₀ b b' k)`. -/
 theorem tableRep_congr {base w w₀ b b' k : ℕ} {mem₁ mem₂ : ℕ → ℕ}
     (htab : TableRep base w w₀ b b' k mem₁)
     (heq : ∀ a, base ≤ a → a < base + space w w₀ b b' k → mem₁ a = mem₂ a) :
-    TableRep base w w₀ b b' k mem₂ := by
-  rcases htab with ⟨hword, hentry⟩
-  refine ⟨fun wIdx hwIdx => ?_, fun idx hidx => ?_⟩
-  · rw [← heq (tabBase base w₀ b b' k + wIdx)
-      (by dsimp only [tabBase]; omega)
-      (by dsimp only [tabBase, space]; omega)]
-    exact hword wIdx hwIdx
-  · have hsh : idx >>> reducedPackShift (reducedTrinomialStep w₀ b b') w <
-        tableWords w w₀ b b' :=
-      shiftRight_lt_reducedTableWords hidx
-    rw [← heq
-      (tabBase base w₀ b b' k +
-        idx >>> reducedPackShift (reducedTrinomialStep w₀ b b') w)
-      (by dsimp only [tabBase]; rw [Nat.add_assoc]; exact Nat.le_add_right base _)
-      (by dsimp only [tabBase, space]; omega)]
-    exact hentry idx hidx
+    TableRep base w w₀ b b' k mem₂ :=
+  tableRep_congr_on_tab htab fun _ _ => heq _ (by wram_omega) (by wram_omega)
 
 /-- `SeedRep` depends only on memory in `[base, base + space w w₀ b b' k)`. -/
 theorem seedRep_congr {base w w₀ b b' k : ℕ} {θ : ReducedPolySeed w₀ b b' k}
     {mem₁ mem₂ : ℕ → ℕ}
     (hseed : SeedRep base w₀ b b' k θ mem₁)
     (heq : ∀ a, base ≤ a → a < base + space w w₀ b b' k → mem₁ a = mem₂ a) :
-    SeedRep base w₀ b b' k θ mem₂ := by
-  rcases hseed with ⟨h0, hlimb⟩
-  have hs_pos : 0 < seedWords w₀ b b' k := seedWords_pos w₀ b b' k
-  refine ⟨?_, fun j m => ?_⟩
-  · rw [← heq base (le_refl base) (by dsimp only [space]; omega)]
-    exact h0
-  · have hidx : m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val <
-        k * reducedLimbCount (reducedTrinomialStep w₀ b b') := by
-      calc m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val
-          < reducedLimbCount (reducedTrinomialStep w₀ b b') +
-              reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val :=
-            Nat.add_lt_add_right m.isLt _
-        _ = (j.val + 1) * reducedLimbCount (reducedTrinomialStep w₀ b b') := by ring
-        _ ≤ k * reducedLimbCount (reducedTrinomialStep w₀ b b') :=
-            Nat.mul_le_mul_right _ j.isLt
-    have hlt_sp : base + 1 + (m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val) <
-        base + space w w₀ b b' k := by
-      dsimp only [space, seedWords]
-      omega
-    rw [← heq (base + 1 + (m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val))
-      (by omega) hlt_sp]
-    exact hlimb j m
+    SeedRep base w₀ b b' k θ mem₂ :=
+  ⟨(heq base le_rfl (by wram_omega)).symm ▸ hseed.1, fun j m =>
+    (heq (base + 1 + (m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val))
+      (by omega) (by dsimp only [space, seedWords]; stride_omega [j.isLt, m.isLt])).symm ▸
+      hseed.2 j m⟩
 
 /-! ## Section 2: Bit-packed Four-Russians table construction (`initTableCode`) -/
 
@@ -403,6 +410,71 @@ multiplication table. -/
 @[expose] def initTableSteps (w₀ b b' : ℕ) : ℕ :=
   31 * 2 ^ (2 * reducedChunkBits (reducedTrinomialStep w₀ b b')) + 13
 
+/-- Modifying the bit-packed slice `(idx >>> p, idx &&& (2 ^ p - 1))` by clearing all bits at or
+above `sh = (idx &&& (2 ^ p - 1)) * (2 * c)` and XORing in `val <<< sh` (`val < 2 ^ (2 * c)`)
+preserves `getLimb (2 * c)` at every strictly earlier entry `j < idx`. -/
+theorem clmulTab_getLimb_update_lt {p c tBase idx j val : ℕ} {mem : ℕ → ℕ}
+    (hj : j < idx) (hval : val < 2 ^ (2 * c)) :
+    let wIdx := idx >>> p
+    let sh := (idx &&& (2 ^ p - 1)) * (2 * c)
+    let w' := (mem (tBase + wIdx) &&& ((1 <<< sh) - 1)) ^^^ (val <<< sh)
+    getLimb (2 * c) (Function.update mem (tBase + wIdx) w' (tBase + (j >>> p)))
+      (j &&& (2 ^ p - 1)) =
+      getLimb (2 * c) (mem (tBase + (j >>> p))) (j &&& (2 ^ p - 1)) := by
+  intro wIdx sh w'
+  rcases eq_or_ne (j >>> p) wIdx with heq | hne
+  · have hlt := and_lt_of_lt_of_shiftRight_eq hj heq
+    rw [heq]; update_simp
+    simpa only [w', sh, Nat.shiftLeft_eq, one_mul] using
+      (getLimb_xor_shiftLeft_of_ne hval hlt.ne).trans (getLimb_and_low hlt)
+  · update_simp
+
+/-- Updating word `tBase + wIdx` to a value below `B` preserves the `< B` bound on every word
+`tBase + w'` with `w' ≤ wIdx`, assuming all strictly earlier words already satisfy `< B`. -/
+theorem update_word_lt {tBase wIdx newW B : ℕ} {mem : ℕ → ℕ}
+    (hnew : newW < B) (hold : ∀ w' < wIdx, mem (tBase + w') < B)
+    {w' : ℕ} (hw' : w' ≤ wIdx) :
+    Function.update mem (tBase + wIdx) newW (tBase + w') < B := by
+  rcases eq_or_lt_of_le hw' with rfl | hlt <;> update_simp <;> [exact hnew; exact hold w' hlt]
+
+/-- After masking bits at or above slot `(idx &&& (2 ^ p - 1)) * (2 * c)` of word
+`tBase + (idx >>> p)`, reading the packed limb at `prevIdx = ((idx >>> c) <<< c) + (v >>> 1)`
+returns `clmul (idx >>> c) ((idx &&& (2 ^ c - 1)) >>> 1)` whenever all strictly earlier entries
+`< idx` hold their carryless products. -/
+theorem clmulTab_prev_limb {t w tBase idx : ℕ} {mem : ℕ → ℕ}
+    (hidx : idx < 2 ^ (2 * reducedChunkBits t))
+    (hentry : ∀ i < idx,
+      getLimb (2 * reducedChunkBits t)
+        (mem (tBase + (i >>> reducedPackShift t w))) (i &&& (2 ^ reducedPackShift t w - 1)) =
+          clmul (i >>> reducedChunkBits t) (i &&& (2 ^ reducedChunkBits t - 1))) :
+    let c := reducedChunkBits t
+    let p := reducedPackShift t w
+    let u := idx >>> c
+    let v := idx &&& (2 ^ c - 1)
+    let prevIdx := (u <<< c) + (v >>> 1)
+    let wIdx := idx >>> p
+    let masked := mem (tBase + wIdx) &&& ((1 <<< ((idx &&& (2 ^ p - 1)) * (2 * c))) - 1)
+    (Function.update mem (tBase + wIdx) masked (tBase + (prevIdx >>> p)) >>>
+        ((prevIdx &&& (2 ^ p - 1)) * (2 * c))) &&& (2 ^ (2 * c) - 1) =
+      clmul u (v >>> 1) := by
+  intro c p u v prevIdx wIdx masked
+  obtain ⟨_, _, _, _, hprev_lt, hprev_zero, hprev_u, hprev_v⟩ := clmulTab_index_props hidx
+  by_cases hv0 : v = 0
+  · have hpeq : prevIdx = idx := hprev_zero hv0
+    have hw : prevIdx >>> p = wIdx := congrArg (· >>> p) hpeq
+    change getLimb (2 * c) (Function.update mem (tBase + wIdx) masked (tBase + (prevIdx >>> p)))
+      (prevIdx &&& (2 ^ p - 1)) = clmul u (v >>> 1)
+    rw [hw, show prevIdx &&& (2 ^ p - 1) = idx &&& (2 ^ p - 1) from
+        congrArg (· &&& (2 ^ p - 1)) hpeq,
+      Function.update_self, show v >>> 1 = 0 by rw [hv0]; rfl, clmul_zero_right]
+    simpa only [masked, Nat.shiftLeft_eq, one_mul] using
+      getLimb_and_self (2 * c) (mem (tBase + wIdx)) (idx &&& (2 ^ p - 1))
+  · have hplt := hprev_lt hv0
+    have hkeep := clmulTab_getLimb_update_lt (p := p) (c := c) (tBase := tBase) (mem := mem)
+      hplt (val := 0) (Nat.two_pow_pos _)
+    simp only [Nat.zero_shiftLeft, Nat.xor_zero] at hkeep
+    exact hkeep.trans (by rw [hentry prevIdx hplt, hprev_u, hprev_v])
+
 theorem clmulTabLoop_exec {w tBase t : ℕ}
     (hc_lt : 2 * reducedChunkBits t < w)
     (hfit_end : Fits w (tBase + reducedTableWords t w)) :
@@ -436,31 +508,21 @@ theorem clmulTabLoop_exec {w tBase t : ℕ}
           y.mem a = x.mem a) := by
   intro c p rem
   have hc_pos : 0 < c := reducedChunkBits_pos t
-  have h2c_le : 2 * c ≤ w := le_of_lt hc_lt
-  have hpack_le : 2 ^ p * (2 * c) ≤ w := two_pow_reducedPackShift_mul_le h2c_le
-  have hpow_pack_le : 2 ^ (2 ^ p * (2 * c)) ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hpack_le
-  have hpow_2c_lt : 2 ^ (2 * c) < 2 ^ w := Nat.pow_lt_pow_right one_lt_two hc_lt
+  have hp_le : p ≤ 2 * c := reducedPackShift_le t w
+  have hpow_pack : 2 ^ (2 ^ p * (2 * c)) ≤ 2 ^ w := by
+    stride_omega [two_pow_reducedPackShift_mul_le hc_lt.le]
   induction rem with
   | zero =>
-    intro idx x hsum _ h1 h2 h3 _ _ _ _ _ _ _ hword hentry
+    intro idx x hsum _ _ h2 h3 _ _ _ _ _ _ _ hword hentry
     have hidx_eq : idx = 2 ^ (2 * c) := by omega
-    have hc_exit : ¬(Cond.lt (2 : Fin 240) 3).Holds x := by
-      simp [Cond.Holds, h2, h3, hidx_eq]
-    refine ⟨x, Exec.loop_exit hc_exit, rfl, ?_, ?_, fun _ _ => rfl⟩
-    · intro wIdx hwIdx
-      have hsh : idx >>> p = reducedTableWords t w := by
-        rw [hidx_eq]
-        exact two_pow_two_mul_chunkBits_shiftRight t w
-      exact hword wIdx (hsh.symm ▸ hwIdx)
-    · intro i hi
-      exact hentry i (hidx_eq ▸ hi)
+    refine ⟨x, Exec.loop_exit (by simp [Cond.Holds, h2, h3, hidx_eq]), rfl,
+      fun wIdx hw => hword wIdx (by rwa [hidx_eq, two_pow_two_mul_chunkBits_shiftRight]),
+      fun i hi => hentry i (hidx_eq ▸ hi), fun _ _ => rfl⟩
   | succ rem ih =>
     intro idx x hsum _ h1 h2 h3 h4 h5 h6 h7 h8 h9 h18 hword hentry
     have hidx_lt : idx < 2 ^ (2 * c) := by omega
-    have hc_hold : (Cond.lt (2 : Fin 240) 3).Holds x := by
-      simp [Cond.Holds, h2, h3, hidx_lt]
-    obtain ⟨hu_lt, hv_lt, huv_eq, hprev_le, hprev_lt, hprev_zero, hprev_u, hprev_v⟩ :=
-      clmulTab_index_props hidx_lt
+    have hc_hold : (Cond.lt (2 : Fin 240) 3).Holds x := by simp [Cond.Holds, h2, h3, hidx_lt]
+    obtain ⟨hu_lt, hv_lt, _, hprev_le, _, _, _, _⟩ := clmulTab_index_props hidx_lt
     set u := idx >>> c with hu
     set v := idx &&& (2 ^ c - 1) with hv
     set prevIdx := (u <<< c) + (v >>> 1) with hprevIdx
@@ -470,171 +532,69 @@ theorem clmulTabLoop_exec {w tBase t : ℕ}
     set prevWIdx := prevIdx >>> p with hprevWIdx
     set prevSub := prevIdx &&& (2 ^ p - 1) with hprevSub
     set prevSh := prevSub * (2 * c) with hprevSh
+    set maskedWord := x.mem (tBase + wIdx) &&& ((1 <<< sh) - 1) with hmaskedWord
+    set newWord := maskedWord ^^^ (clmul u v <<< sh) with hnewWord
     have hwIdx_lt : wIdx < reducedTableWords t w := shiftRight_lt_reducedTableWords hidx_lt
     have hprevWIdx_le : prevWIdx ≤ wIdx := by
-      dsimp only [prevWIdx, wIdx]
-      rw [Nat.shiftRight_eq_div_pow, Nat.shiftRight_eq_div_pow]
-      exact Nat.div_le_div_right hprev_le
-    have hprevWIdx_lt : prevWIdx < reducedTableWords t w := lt_of_le_of_lt hprevWIdx_le hwIdx_lt
-    have hsub_lt : subIdx < 2 ^ p := by
-      dsimp only [subIdx]
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (Nat.two_pow_pos p)
-    have hprevSub_lt : prevSub < 2 ^ p := by
-      dsimp only [prevSub]
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (Nat.two_pow_pos p)
-    have hsh_lt : sh < w := by
-      dsimp only [sh]
-      calc subIdx * (2 * c) < 2 ^ p * (2 * c) :=
-            Nat.mul_lt_mul_of_pos_right hsub_lt (by omega)
-        _ ≤ w := hpack_le
-    have hprevSh_lt : prevSh < w := by
-      dsimp only [prevSh]
-      calc prevSub * (2 * c) < 2 ^ p * (2 * c) :=
-            Nat.mul_lt_mul_of_pos_right hprevSub_lt (by omega)
-        _ ≤ w := hpack_le
-    have hpow_sh_lt : 2 ^ sh < 2 ^ w := Nat.pow_lt_pow_right one_lt_two hsh_lt
-    have hfit_2c : Fits w (2 ^ (2 * c)) := hpow_2c_lt
-    have hpow_p_le : 2 ^ p ≤ 2 ^ (2 * c) := Nat.pow_le_pow_right two_pos (reducedPackShift_le t w)
-    have hfit_subIdx : Fits w subIdx := (hsub_lt.trans_le hpow_p_le).trans hpow_2c_lt
-    have hfit_sh : Fits w sh := hsh_lt.trans Nat.lt_two_pow_self
-    have hfit_pow_sh : Fits w (1 <<< sh) := by
-      rw [Nat.shiftLeft_eq, one_mul]
-      exact hpow_sh_lt
-    set oldWord := x.mem (tBase + wIdx) with holdWord
-    set maskedWord := oldWord &&& ((1 <<< sh) - 1) with hmaskedWord
+      simpa only [prevWIdx, wIdx, Nat.shiftRight_eq_div_pow] using Nat.div_le_div_right hprev_le
+    have hsub_lt : subIdx < 2 ^ p := and_two_pow_sub_one_lt idx p
+    have hsh_lt : sh < w := packSlot_sh_lt hc_lt.le
+    have hprevSh_lt : prevSh < w := packSlot_sh_lt hc_lt.le
     have hmasked_lt : maskedWord < 2 ^ sh := by
-      dsimp only [maskedWord]
-      rw [Nat.shiftLeft_eq, one_mul, Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (Nat.two_pow_pos sh)
-    have hfit_masked : Fits w maskedWord := hmasked_lt.trans hpow_sh_lt
-    have hpow_c_le : 2 ^ c ≤ 2 ^ (2 * c) := Nat.pow_le_pow_right two_pos (by omega)
-    have hfit_v : Fits w v := by fits
-    have hfit_prevSub : Fits w prevSub := (hprevSub_lt.trans_le hpow_p_le).trans hpow_2c_lt
-    have hfit_prevSh : Fits w prevSh := hprevSh_lt.trans Nat.lt_two_pow_self
-    have hprev_val_lt : clmul u (v >>> 1) < 2 ^ (2 * c - 1) := by
-      have hv_shr_lt : v >>> 1 < 2 ^ (c - 1) := by
-        rw [Nat.shiftRight_eq_div_pow, pow_one]
-        apply Nat.div_lt_of_lt_mul
-        rwa [← pow_succ', Nat.sub_add_cancel hc_pos]
-      have hlt := clmul_lt_two_pow hu_lt hv_shr_lt
-      rwa [show c + (c - 1) = 2 * c - 1 by omega] at hlt
-    have hcl_sh1_lt : clmul u (v >>> 1) <<< 1 < 2 ^ (2 * c) := by
-      rw [Nat.shiftLeft_eq, pow_one]
-      have hpow_split : 2 ^ (2 * c) = 2 ^ (2 * c - 1) * 2 := by
-        conv_lhs => rw [← Nat.sub_add_cancel (show 1 ≤ 2 * c by omega), pow_succ]
-      omega
-    have hfit_vbit : Fits w (v &&& 1) := hfit_v.of_le Nat.and_le_left
-    have hbit_le : (v &&& 1) * u ≤ u := by
-      calc (v &&& 1) * u ≤ 1 * u := Nat.mul_le_mul_right u Nat.and_le_right
-        _ = u := Nat.one_mul u
+      simpa only [maskedWord, Nat.shiftLeft_eq, one_mul] using
+        and_two_pow_sub_one_lt (x.mem (tBase + wIdx)) sh
     have hval_lt : clmul u v < 2 ^ (2 * c) := clmul_lt_two_pow_two_mul hu_lt hv_lt
-    have hval_sh_lt : clmul u v <<< sh < 2 ^ ((subIdx + 1) * (2 * c)) := by
-      rw [Nat.shiftLeft_eq, Nat.succ_mul, pow_add, mul_comm]
-      exact Nat.mul_lt_mul_of_pos_left hval_lt (Nat.two_pow_pos sh)
-    have hsub1_le : (subIdx + 1) * (2 * c) ≤ 2 ^ p * (2 * c) :=
-      Nat.mul_le_mul_right _ hsub_lt
-    have hpow_sub1_le : 2 ^ ((subIdx + 1) * (2 * c)) ≤ 2 ^ (2 ^ p * (2 * c)) :=
-      Nat.pow_le_pow_right two_pos hsub1_le
-    have hfit_val_sh : Fits w (clmul u v <<< sh) :=
-      (hval_sh_lt.trans_le hpow_sub1_le).trans_le hpow_pack_le
-    set newWord := maskedWord ^^^ (clmul u v <<< sh) with hnewWord
-    have hnewWord_lt : newWord < 2 ^ ((subIdx + 1) * (2 * c)) :=
-      xor_shiftLeft_lt_two_pow hmasked_lt hval_lt
-    have hnewWord_pack_lt : newWord < 2 ^ (2 ^ p * (2 * c)) :=
-      hnewWord_lt.trans_le hpow_sub1_le
-    have hfit_newWord : Fits w newWord := hnewWord_pack_lt.trans_le hpow_pack_le
-    set prevWord := (((((((((x.set 10 wIdx).set 10 (tBase + wIdx)).set 11 subIdx).set 11 sh).set
-      12 (1 <<< sh)).set 12 ((1 <<< sh) - 1)).set 13 oldWord).set 13 maskedWord).write
-      (tBase + wIdx) maskedWord).mem (tBase + prevWIdx) with hprevWord
-    have hprevWord_lt : prevWord < 2 ^ (2 ^ p * (2 * c)) := by
-      dsimp only [prevWord, Data.write, Data.set]
-      rcases eq_or_lt_of_le hprevWIdx_le with heq | hlt
-      · rw [heq, Function.update_self]
-        exact hmasked_lt.trans_le
-          (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right _ (le_of_lt hsub_lt)))
-      · rw [Function.update_of_ne (by omega)]
-        exact hword prevWIdx hlt
-    have hprevWord_shr_lt : prevWord >>> prevSh < 2 ^ w :=
-      ((Nat.shiftRight_le prevWord prevSh).trans_lt hprevWord_lt).trans_le hpow_pack_le
-    have hfit_prevWord_shr : Fits w (prevWord >>> prevSh) := hprevWord_shr_lt
-    have hprevWord_limb : (prevWord >>> prevSh) &&& (2 ^ (2 * c) - 1) = clmul u (v >>> 1) := by
-      change getLimb (2 * c) prevWord prevSub = clmul u (v >>> 1)
-      dsimp only [prevWord, Data.write, Data.set]
-      have hmask_eq : (1 <<< sh) - 1 = 2 ^ (subIdx * (2 * c)) - 1 := by
-        rw [Nat.shiftLeft_eq, one_mul]
-      by_cases hv0 : v = 0
-      · have hpeq : prevIdx = idx := hprev_zero hv0
-        have hv_shr0 : v >>> 1 = 0 := by rw [hv0]; rfl
-        have hw_eq : prevWIdx = wIdx := by dsimp only [prevWIdx, wIdx]; rw [hpeq]
-        have hs_eq : prevSub = subIdx := by dsimp only [prevSub, subIdx]; rw [hpeq]
-        rw [hw_eq, hs_eq, Function.update_self, hv_shr0, clmul_zero_right]
-        dsimp only [maskedWord]
-        rw [hmask_eq]
-        exact getLimb_and_self (2 * c) oldWord subIdx
-      · have hplt : prevIdx < idx := hprev_lt hv0
-        rcases eq_or_ne prevWIdx wIdx with hw_eq | hw_ne
-        · rw [hw_eq, Function.update_self]
-          dsimp only [maskedWord, oldWord]
-          rw [hmask_eq]
-          have hsub_lt_prev : prevSub < subIdx :=
-            and_lt_of_lt_of_shiftRight_eq hplt hw_eq
-          rw [getLimb_and_low hsub_lt_prev, ← hw_eq, hentry prevIdx hplt, hprev_u, hprev_v]
-        · rw [Function.update_of_ne (by omega), hentry prevIdx hplt, hprev_u, hprev_v]
+    have hpow_sub1 : 2 ^ ((subIdx + 1) * (2 * c)) ≤ 2 ^ (2 ^ p * (2 * c)) := by stride_omega
+    have hnewWord_lt : newWord < 2 ^ (2 ^ p * (2 * c)) := by
+      stride_omega [xor_shiftLeft_lt_two_pow hmasked_lt hval_lt]
+    have hprevLimb :
+        (Function.update x.mem (tBase + wIdx) maskedWord (tBase + prevWIdx) >>> prevSh) &&&
+          (2 ^ (2 * c) - 1) = clmul u (v >>> 1) :=
+      clmulTab_prev_limb (w := w) (tBase := tBase) hidx_lt hentry
+    have hsh_le : wIdx ≤ (idx + 1) >>> p := by
+      simpa only [wIdx, Nat.shiftRight_eq_div_pow] using Nat.div_le_div_right (Nat.le_succ idx)
     have hword' : ∀ w' < (idx + 1) >>> p,
-        Function.update x.mem (tBase + wIdx) newWord (tBase + w') < 2 ^ (2 ^ p * (2 * c)) := by
-      intro w' hw'
-      have hw'_le : w' ≤ wIdx := by
-        have := shiftRight_add_one_le idx p
-        dsimp only [wIdx]
-        omega
-      rcases eq_or_lt_of_le hw'_le with rfl | hlt
-      · rw [Function.update_self]
-        exact hnewWord_pack_lt
-      · rw [Function.update_of_ne (by omega)]
-        exact hword w' hlt
+        Function.update x.mem (tBase + wIdx) newWord (tBase + w') < 2 ^ (2 ^ p * (2 * c)) :=
+      fun _ hw' => update_word_lt hnewWord_lt hword
+        (by have := shiftRight_add_one_le idx p; omega)
     have hentry' : ∀ i < idx + 1,
         getLimb (2 * c) (Function.update x.mem (tBase + wIdx) newWord (tBase + (i >>> p)))
-          (i &&& (2 ^ p - 1)) =
-          clmul (i >>> c) (i &&& (2 ^ c - 1)) := by
+          (i &&& (2 ^ p - 1)) = clmul (i >>> c) (i &&& (2 ^ c - 1)) := by
       intro i hi
-      have hmask_eq : (1 <<< sh) - 1 = 2 ^ (subIdx * (2 * c)) - 1 := by
-        rw [Nat.shiftLeft_eq, one_mul]
       rcases eq_or_ne i idx with rfl | hne
-      · change getLimb (2 * c)
-            (Function.update x.mem (tBase + wIdx) newWord (tBase + wIdx)) subIdx = clmul u v
-        rw [Function.update_self]
-        dsimp only [newWord, sh]
-        exact getLimb_xor_shiftLeft_self hmasked_lt hval_lt
-      · have hilt : i < idx := by omega
-        rcases eq_or_ne (i >>> p) wIdx with hw_eq | hw_ne
-        · rw [hw_eq, Function.update_self]
-          have hsub_lt_i : i &&& (2 ^ p - 1) < subIdx :=
-            and_lt_of_lt_of_shiftRight_eq hilt hw_eq
-          dsimp only [newWord, maskedWord, oldWord, sh]
-          rw [hmask_eq, getLimb_xor_shiftLeft_of_ne hval_lt (ne_of_lt hsub_lt_i),
-            getLimb_and_low hsub_lt_i, ← hw_eq, hentry i hilt]
-        · rw [Function.update_of_ne (by omega)]
-          exact hentry i hilt
-    have hsh_le : wIdx ≤ (idx + 1) >>> p := by
-      change idx >>> p ≤ (idx + 1) >>> p
-      rw [Nat.shiftRight_eq_div_pow, Nat.shiftRight_eq_div_pow]
-      exact Nat.div_le_div_right (Nat.le_succ idx)
+      · change getLimb (2 * c) (Function.update x.mem (tBase + wIdx) newWord (tBase + wIdx))
+          subIdx = clmul u v
+        update_simp; exact getLimb_xor_shiftLeft_self hmasked_lt hval_lt
+      · rw [clmulTab_getLimb_update_lt (by omega) hval_lt, hentry i (by omega)]
     refine WP.Exact.exists_exec (WP.Exact.loop_iter hc_hold ?_)
     unfold clmulTabBody
+    have hbit_le : (v &&& 1) * u ≤ u := by stride_omega [Nat.and_le_right (n := v) (m := 1)]
+    have hcl_sh1_lt : clmul u (v >>> 1) <<< 1 < 2 ^ (2 * c) :=
+      (Nat.shiftLeft_lt (clmul_lt_two_pow hu_lt (shiftRight_lt_pow_sub hc_pos hv_lt))).trans_eq
+        (congrArg (2 ^ ·) (by omega))
+    have h1sh_lt : Fits w (1 <<< sh) := by rw [Fits, Nat.shiftLeft_eq, one_mul]; stride_omega
+    have hfit_masked : Fits w maskedWord := by stride_omega
+    have hfit_new : Fits w newWord := by stride_omega
+    have hpow_c_le : 2 ^ c ≤ 2 ^ (2 * c) := by stride_omega
+    have hfit_2c : Fits w (2 ^ (2 * c)) := by stride_omega
     wram_exec [h1, h2, h4, h5, h6, h7, h8, h9, h18, ← hu, ← hv, ← hprevIdx, ← hwIdx,
-      ← hsubIdx, ← hsh, ← hprevWIdx, ← hprevSub, ← hprevSh, ← holdWord, ← hmaskedWord,
-      ← hnewWord, ← hprevWord, hprevWord_limb, clmul_eq_bit_mul_xor]
-    wram_call (ih (idx + 1) _ (by omega) rfl (by wram_simp [h1]) (by wram_simp) (by wram_simp [h3])
-      (by wram_simp [h4]) (by wram_simp [h5]) (by wram_simp [h6]) (by wram_simp [h7])
-      (by wram_simp [h8]) (by wram_simp [h9]) (by wram_simp [h18])
-      (by simp only [Data.set_mem, Data.write_mem, Function.update_idem]; exact hword')
-      (by simp only [Data.set_mem, Data.write_mem, Function.update_idem]; exact hentry'))
-      with y ⟨hy0, hyword, hyentry, hyout⟩
-    exact ⟨by omega, hy0.trans (by wram_simp), hyword, hyentry, fun a ha => by
-        rw [hyout a (by omega)]
-        wram_simp⟩
+      ← hsubIdx, ← hsh, ← hprevWIdx, ← hprevSub, ← hprevSh, ← hmaskedWord, ← hnewWord,
+      Data.write_mem, Data.set_mem, hprevLimb, clmul_eq_bit_mul_xor]
+    · wram_call (ih (idx + 1) _ (by omega) rfl (by wram_simp [h1]) (by wram_simp)
+        (by wram_simp [h3]) (by wram_simp [h4]) (by wram_simp [h5]) (by wram_simp [h6])
+        (by wram_simp [h7]) (by wram_simp [h8]) (by wram_simp [h9]) (by wram_simp [h18])
+        (by simp only [Data.set_mem, Data.write_mem, Function.update_idem]; exact hword')
+        (by simp only [Data.set_mem, Data.write_mem, Function.update_idem]; exact hentry'))
+        with y ⟨hy0, hyword, hyentry, hyout⟩
+      exact ⟨by omega, hy0.trans (by wram_simp), hyword, hyentry,
+        fun a ha => (hyout a (by omega)).trans (by wram_simp)⟩
+    all_goals first
+      | exact ((Nat.shiftLeft_lt hval_lt).trans_eq
+          (congrArg (2 ^ ·) (by rw [add_comm, ← Nat.succ_mul]))).trans_le
+          (hpow_sub1.trans hpow_pack)
+      | exact ((Nat.shiftRight_le _ _).trans_lt (update_word_lt
+          (hmasked_lt.trans_le (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right _ hsub_lt.le)))
+          hword hprevWIdx_le)).trans_le hpow_pack
 
 private theorem tableSetup_fits {w base w₀ b b' k : ℕ}
     (hc_lt : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w)
@@ -646,16 +606,9 @@ private theorem tableSetup_fits {w base w₀ b b' k : ℕ}
       Fits w (tabBase base w₀ b b' k) ∧ Fits w c ∧ Fits w (2 ^ c - 1) ∧
       Fits w p ∧ Fits w (2 ^ p - 1) ∧ Fits w (2 * c) := by
   intro t c p
-  have hfit_2c : Fits w (2 ^ (2 * c)) := Nat.pow_lt_pow_right one_lt_two hc_lt
   have hp_le : p ≤ 2 * c := reducedPackShift_le t w
-  exact ⟨hfit_2c,
-    hfit_space.of_le (by dsimp only [space]; omega),
-    hfit_space.of_le (by dsimp only [tabBase, space]; omega),
-    hfit_2c.of_le (le_of_lt (Nat.lt_of_le_of_lt (by omega) Nat.lt_two_pow_self)),
-    hfit_2c.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos (by omega))),
-    hfit_2c.of_le (hp_le.trans (le_of_lt Nat.lt_two_pow_self)),
-    hfit_2c.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos hp_le)),
-    hfit_2c.of_le (le_of_lt Nat.lt_two_pow_self)⟩
+  exact ⟨by stride_omega, by wram_omega, by wram_omega, by stride_omega, by stride_omega,
+    by stride_omega, by stride_omega, by stride_omega⟩
 
 /-- **Deterministic execution of `initTableCode w w₀ b b' k`**: establishes `TableRep`, preserves
 `reg 0 = base`, and modifies only `[tabBase base w₀ b b' k, base + space w w₀ b b' k)`. -/
@@ -675,23 +628,19 @@ theorem initTableCode_exec {w base w₀ b b' k : ℕ} {x : Data 240}
   have hc_lt : 2 * c < w := two_mul_reducedChunkBits_lt_of_fits_space hc hfit_space
   obtain ⟨hfit_2c, hfit_s, hfit_tBase, hfit_c, hfit_mask_c, hfit_p, hfit_mask_p, hfit_2c_val⟩ :=
     tableSetup_fits hc_lt hfit_space
-  have hpow_2c_lt : 2 ^ (2 * c) < 2 ^ w := hfit_2c
   change Fits w (base + s) at hfit_tBase
-  have hfit_end : Fits w (tabBase base w₀ b b' k + reducedTableWords t w) := by
-    simpa only [tabBase, space, tableWords, Nat.add_assoc] using hfit_space
+  have hfit_2c_sub : Fits w (2 ^ (2 * c) - 1) := hfit_2c.of_le (Nat.sub_le _ _)
+  have hfit_end : Fits w (tabBase base w₀ b b' k + reducedTableWords t w) := by wram_omega
   unfold initTableCode initTableSetupCode
   wram_exec [hbase, ← ht, ← hc_def, ← hp_def, ← hs]
   wram_call (clmulTabLoop_exec (tBase := tabBase base w₀ b b' k) (t := t) hc_lt hfit_end
     (2 ^ (2 * c)) 0 _ (Nat.zero_add _) rfl (by wram_simp [tabBase, s]) (by wram_simp)
     (by wram_simp [c, t]) (by wram_simp [c, t]) (by wram_simp [c, t]) (by wram_simp)
     (by wram_simp [p, t]) (by wram_simp [p, t]) (by wram_simp [c, t]) (by wram_simp [c, t])
-    (by intro _ h; simp at h) (by intro _ h; omega))
+    (by simp) (by simp))
     with y ⟨hy0, hyword, hyentry, hyout⟩
-  refine ⟨by simp only [initTableSteps, c, t], hy0.trans (by wram_simp [hbase]),
-    ⟨hyword, hyentry⟩, fun a ha => hyout a ?_⟩
-  simp only [Nat.zero_shiftRight, Nat.add_zero]
-  dsimp only [space, tableWords, tabBase, t] at ha ⊢
-  omega
+  exact ⟨rfl, hy0.trans (by wram_simp [hbase]), ⟨hyword, hyentry⟩,
+    fun a ha => hyout a (by simp only [Nat.zero_shiftRight, Nat.add_zero]; wram_omega)⟩
 
 /-- `ExecWithin` corollary of `initTableCode_exec`. -/
 theorem initTableCode_execWithin {w base w₀ b b' k : ℕ} {x : Data 240}
@@ -777,6 +726,16 @@ private theorem resampleSetup2Code_exec {w base w₀ b b' k : ℕ} {x : Data 240
   unfold resampleSetup2Code resampleSetup2Data
   wram_exec [h4]
 
+private theorem randFill_rename_execRand {w bits arrBase len : ℕ} {x : Data 240}
+    (hptr : x.regs 3 = arrBase) (hend : x.regs 4 = arrBase + len)
+    (hmask : x.regs 5 = 2 ^ bits - 1) (hone : x.regs 6 = 1)
+    (hfit_end : Fits w (arrBase + len)) (hfit_mask : Fits w (2 ^ bits - 1)) :
+    ExecRand w (Tabulation.randFillLoop.rename fillMap240) x
+      ((fun z : Data 6 × ℕ => (z.1.extend fillMap240 x, z.2)) <$>
+        Tabulation.randFillComp bits arrBase len (x.comap fillMap240)) :=
+  (Tabulation.randFillLoop_execRand len hptr hend hmask hone hfit_end hfit_mask).rename
+    injective_fillMap240
+
 /-- **Exact `ExecRand` execution of `resampleCode w₀ b b' k`**. -/
 theorem resampleCode_execRand {w base w₀ b b' k : ℕ} {x : Data 240}
     (hbase : x.regs 0 = base)
@@ -787,78 +746,37 @@ theorem resampleCode_execRand {w base w₀ b b' k : ℕ} {x : Data 240}
   set t := reducedTrinomialStep w₀ b b'
   set c := reducedChunkBits t
   set L := reducedLimbCount t
-  have hfit_end : Fits w (base + 1 + k * L) :=
-    hfit_space.of_le (by dsimp only [space, seedWords, L, t]; omega)
+  have hfit_end : Fits w (base + 1 + k * L) := by wram_omega
   have hfit_top : Fits w (base + 1) := by fits
-  have hfit_mask_top : Fits w (2 ^ (w₀ - 1) - 1) :=
-    (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans_le (Nat.pow_le_pow_right two_pos (by omega))
-  have hfit_mask_c : Fits w (2 ^ c - 1) :=
-    (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans_le (Nat.pow_le_pow_right two_pos (by omega))
-  set x1 := resampleSetup1Data base w₀ x
-  have h1 := (resampleSetup1Code_exec hbase hfit_top hfit_mask_top).execRand
-  have hloop1_inner := Tabulation.randFillLoop_execRand (w := w) (bits := w₀ - 1) (arrBase := base)
-    1 (x := x1.comap fillMap240)
-    (by simp +decide [x1, resampleSetup1Data, fillMap240, Data.comap])
-    (by simp +decide [x1, resampleSetup1Data, fillMap240, Data.comap])
-    (by simp +decide [x1, resampleSetup1Data, fillMap240, Data.comap])
-    (by simp +decide [x1, resampleSetup1Data, fillMap240, Data.comap])
-    hfit_top hfit_mask_top
-  have hloop1 := hloop1_inner.rename injective_fillMap240
-  have hrest : ∀ z1 ∈ (Tabulation.randFillComp (w₀ - 1) base 1
-      (x1.comap fillMap240)).support,
-      ExecRand w (.seq (resampleSetup2Code w₀ b b' k) (Tabulation.randFillLoop.rename fillMap240))
-        (z1.1.extend fillMap240 x1) (do
-          let x2 := resampleSetup2Data base w₀ b b' k (z1.1.extend fillMap240 x1)
-          let z2 ← Tabulation.randFillComp c (base + 1) (k * L) (x2.comap fillMap240)
-          pure (z2.1.extend fillMap240 x2, 4 + z2.2)) := by
-    intro z1 hz1
-    obtain ⟨_, _, hend1, _, hone1, _, _, _⟩ := Tabulation.mem_support_randFillComp hz1
-    set y1 := z1.1.extend fillMap240 x1
-    have hy1_4 : y1.regs 4 = base + 1 := by
-      change (y1.comap fillMap240).regs Tabulation.regEnd = base + 1
-      rw [Data.comap_extend injective_fillMap240, hend1]
-      simp +decide [x1, resampleSetup1Data, fillMap240, Data.comap]
-    have hy1_6 : y1.regs 6 = 1 := by
-      change (y1.comap fillMap240).regs Tabulation.regOne = 1
-      rw [Data.comap_extend injective_fillMap240, hone1]
-      simp +decide [x1, resampleSetup1Data, fillMap240, Data.comap]
-    set x2 := resampleSetup2Data base w₀ b b' k y1
-    have h2 := (resampleSetup2Code_exec hy1_4 hfit_end hfit_mask_c).execRand
-    have hloop2_inner := Tabulation.randFillLoop_execRand (w := w) (bits := c)
-      (arrBase := base + 1) (k * L) (x := x2.comap fillMap240)
-      (by simp +decide [x2, resampleSetup2Data, fillMap240, Data.comap])
-      (by simp +decide [x2, resampleSetup2Data, fillMap240, Data.comap, L, t])
-      (by simp +decide [x2, resampleSetup2Data, fillMap240, Data.comap, c, t])
-      (by simp +decide [x2, resampleSetup2Data, fillMap240, Data.comap, hy1_6])
-      hfit_end hfit_mask_c
-    have hloop2 := hloop2_inner.rename injective_fillMap240
-    have hseq2 := ExecRand.seq
-      (m₂ := fun z : Data 240 =>
-        (fun z2 : Data 6 × ℕ => (z2.1.extend fillMap240 z, z2.2)) <$>
-          Tabulation.randFillComp c (base + 1) (k * L) (z.comap fillMap240))
-      h2 (fun z hz => by
-        cases OracleComp.eq_of_mem_supportWith_pure hz
-        exact hloop2)
-    simpa only [bind_assoc, pure_bind, map_eq_bind_pure_comp, Function.comp_def] using hseq2
+  have hfit_mtop : Fits w (2 ^ (w₀ - 1) - 1) := fits_mask_of_le (by omega)
+  have hfit_mc : Fits w (2 ^ c - 1) := fits_mask_of_le (by omega)
+  have h1 := resampleSetup1Code_exec hbase hfit_top hfit_mtop
+  have hloop1 := randFill_rename_execRand (w := w) (bits := w₀ - 1) (arrBase := base) (len := 1)
+    (x := resampleSetup1Data base w₀ x)
+    (by wram_simp [resampleSetup1Data]) (by wram_simp [resampleSetup1Data])
+    (by wram_simp [resampleSetup1Data]) (by wram_simp [resampleSetup1Data])
+    hfit_top hfit_mtop
   have hseq12 := ExecRand.seq
-    (m₂ := fun z : Data 240 => do
-      let x2 := resampleSetup2Data base w₀ b b' k z
-      let z2 ← Tabulation.randFillComp c (base + 1) (k * L) (x2.comap fillMap240)
-      pure (z2.1.extend fillMap240 x2, 4 + z2.2))
-    hloop1 (fun z hz => by
+    (m₂ := fun z : Data 240 => (fun z2 : Data 6 × ℕ =>
+      (z2.1.extend fillMap240 (resampleSetup2Data base w₀ b b' k z), 4 + z2.2)) <$>
+        Tabulation.randFillComp c (base + 1) (k * L)
+          ((resampleSetup2Data base w₀ b b' k z).comap fillMap240))
+    hloop1 fun z hz => by
       obtain ⟨z1, hz1, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-      exact hrest z1 hz1)
-  have hall := ExecRand.seq
-    (m₂ := fun z : Data 240 => do
-      let z1 ← Tabulation.randFillComp (w₀ - 1) base 1 (z.comap fillMap240)
-      let x2 := resampleSetup2Data base w₀ b b' k (z1.1.extend fillMap240 z)
-      let z2 ← Tabulation.randFillComp c (base + 1) (k * L) (x2.comap fillMap240)
-      pure (z2.1.extend fillMap240 x2, z1.2 + (4 + z2.2)))
-    h1 (fun z hz => by
-      cases OracleComp.eq_of_mem_supportWith_pure hz
-      simpa only [bind_assoc, pure_bind, map_eq_bind_pure_comp, Function.comp_def] using hseq12)
+      obtain ⟨_, _, hend1, _, hone1, _, _, _⟩ := Tabulation.mem_support_randFillComp hz1
+      have hy4 : (z1.1.extend fillMap240 (resampleSetup1Data base w₀ x)).regs 4 = base + 1 := by
+        rw [Data.extend_regs_of_eq injective_fillMap240 _ _ Tabulation.regEnd 4 rfl, hend1]
+        change (resampleSetup1Data base w₀ x).regs 4 = base + 1; wram_simp [resampleSetup1Data]
+      have hy6 : (z1.1.extend fillMap240 (resampleSetup1Data base w₀ x)).regs 6 = 1 := by
+        rw [Data.extend_regs_of_eq injective_fillMap240 _ _ Tabulation.regOne 6 rfl, hone1]
+        change (resampleSetup1Data base w₀ x).regs 6 = 1; wram_simp [resampleSetup1Data]
+      simpa only [bind_assoc, pure_bind, map_eq_bind_pure_comp, Function.comp_def] using
+        (resampleSetup2Code_exec hy4 hfit_end hfit_mc).seqRand <|
+          randFill_rename_execRand (by wram_simp [resampleSetup2Data])
+            (by wram_simp [resampleSetup2Data, L, t]) (by wram_simp [resampleSetup2Data, c, t])
+            (by wram_simp [resampleSetup2Data, hy6]) hfit_end hfit_mc
   simpa only [resampleCode, resampleComp, bind_assoc, pure_bind, map_eq_bind_pure_comp,
-    Function.comp_def] using hall
+    Function.comp_def] using h1.seqRand hseq12
 
 /-- Pathwise postcondition of `resampleComp`: executes in `resampleSteps w₀ b b' k` instructions,
 preserves `reg 0 = base` and `TableRep`, establishes `SeedRep`, and modifies only
@@ -873,68 +791,41 @@ theorem mem_support_resampleComp {base w w₀ b b' k : ℕ} {x : Data 240}
     SeedRep base w₀ b b' k (extractSeed base w₀ b b' k z.1.mem) z.1.mem ∧
     (∀ a, (a < base ∨ base + seedWords w₀ b b' k ≤ a) → z.1.mem a = x.mem a) ∧
     z.2 = resampleSteps w₀ b b' k := by
-  set t := reducedTrinomialStep w₀ b b'
-  set c := reducedChunkBits t
-  set L := reducedLimbCount t
   dsimp only [resampleComp] at hz
-  obtain ⟨z1, hz1, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-  obtain ⟨z2, hz2, hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
+  obtain ⟨z1, hz1, hr⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
+  obtain ⟨z2, hz2, hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp hr
   cases OracleComp.eq_of_mem_supportWith_pure hpure
   obtain ⟨hsteps1, _, _, _, _, hextra1, hlt1, hframe1⟩ := Tabulation.mem_support_randFillComp hz1
   obtain ⟨hsteps2, _, _, _, _, hextra2, hlt2, hframe2⟩ := Tabulation.mem_support_randFillComp hz2
-  set x1 := resampleSetup1Data base w₀ x
-  set y1 := z1.1.extend fillMap240 x1
-  set x2 := resampleSetup2Data base w₀ b b' k y1
-  set y2 := z2.1.extend fillMap240 x2
-  have hy1_0 : y1.regs 0 = base := by
-    change (y1.comap fillMap240).regs Tabulation.regExtra = base
-    rw [Data.comap_extend injective_fillMap240, hextra1]
+  have hreg0 : (z2.1.extend fillMap240
+      (resampleSetup2Data base w₀ b b' k
+        (z1.1.extend fillMap240 (resampleSetup1Data base w₀ x)))).regs 0 = base := by
+    rw [Data.extend_regs_of_eq injective_fillMap240 _ _ Tabulation.regExtra 0 rfl, hextra2]
+    change (z1.1.extend fillMap240 (resampleSetup1Data base w₀ x)).regs 0 = base
+    rw [Data.extend_regs_of_eq injective_fillMap240 _ _ Tabulation.regExtra 0 rfl, hextra1]
     exact hbase
-  have hy2_0 : y2.regs 0 = base := by
-    change (y2.comap fillMap240).regs Tabulation.regExtra = base
-    rw [Data.comap_extend injective_fillMap240, hextra2]
-    exact hy1_0
-  have hframe_all : ∀ a, (a < base ∨ base + seedWords w₀ b b' k ≤ a) →
-      z2.1.mem a = x.mem a := by
-    intro a ha
-    have ha2 : a < base + 1 ∨ base + 1 + k * L ≤ a := by
-      dsimp only [seedWords, L, t] at ha ⊢; omega
-    have ha1 : a < base ∨ base + 1 ≤ a := by
-      dsimp only [seedWords, L, t] at ha ⊢; omega
-    rw [hframe2 a ha2]
-    exact hframe1 a ha1
-  have htab' : TableRep base w w₀ b b' k z2.1.mem := by
-    obtain ⟨hw_old, he_old⟩ := htab
-    refine ⟨fun wIdx hwIdx => ?_, fun idx hidx => ?_⟩
-    · have ha : base + seedWords w₀ b b' k ≤ tabBase base w₀ b b' k + wIdx := by
-        dsimp only [tabBase]; exact Nat.le_add_right _ _
-      rw [hframe_all _ (Or.inr ha)]
-      exact hw_old wIdx hwIdx
-    · have ha : base + seedWords w₀ b b' k ≤
-          tabBase base w₀ b b' k + (idx >>> reducedPackShift t w) := by
-        dsimp only [tabBase]; exact Nat.le_add_right _ _
-      rw [hframe_all _ (Or.inr ha)]
-      exact he_old idx hidx
-  refine ⟨hy2_0, htab', ⟨?_, ?_⟩, hframe_all, ?_⟩
-  · have hm_eq : z2.1.mem base = z1.1.mem base :=
-      hframe2 base (Or.inl (by omega))
-    have hlt_val : z1.1.mem base < 2 ^ (w₀ - 1) := by
-      simpa only [Nat.add_zero] using hlt1 0 Nat.one_pos
+  have hframe : ∀ a, (a < base ∨ base + seedWords w₀ b b' k ≤ a) → z2.1.mem a = x.mem a :=
+    fun a ha => (hframe2 a (by wram_omega)).trans (hframe1 a (by wram_omega))
+  have htab' : TableRep base w w₀ b b' k z2.1.mem :=
+    tableRep_congr_on_tab htab fun _ _ => (hframe _ (Or.inr (by wram_omega))).symm
+  refine ⟨hreg0, htab', ⟨?_, fun j m => ?_⟩, hframe, by dsimp [resampleSteps, seedWords]; omega⟩
+  · have hm_eq : z2.1.mem base = z1.1.mem base := hframe2 base (Or.inl (by omega))
+    have hlt_val : z1.1.mem base < 2 ^ (w₀ - 1) := by simpa using hlt1 0 Nat.one_pos
     change z2.1.mem base = (extractTop base w₀ z2.1.mem).val
     rw [extractTop_val, hm_eq, Cslib.WordRAM.wordOfNat_val_of_lt hlt_val]
-  · intro j m
-    have hidx_lt : m.val + L * j.val < k * L := by
-      calc m.val + L * j.val < L + L * j.val := Nat.add_lt_add_right m.isLt _
-        _ = (j.val + 1) * L := by ring
-        _ ≤ k * L := Nat.mul_le_mul_right L j.isLt
-    have hlt_val : z2.1.mem (base + 1 + (m.val + L * j.val)) < 2 ^ c :=
-      hlt2 (m.val + L * j.val) hidx_lt
-    change z2.1.mem (base + 1 + (m.val + L * j.val)) =
-      getLimb c (extractBot base w₀ b b' k z2.1.mem j).val m.val
-    rw [getLimb_extractBot_val, Cslib.WordRAM.wordOfNat_val_of_lt hlt_val]
-  · dsimp only [resampleSteps, seedWords, L, t]
-    rw [hsteps1, hsteps2]
-    ring
+  · change z2.1.mem _ = getLimb _ (extractBot base w₀ b b' k z2.1.mem j).val m.val
+    rw [getLimb_extractBot_val,
+      Cslib.WordRAM.wordOfNat_val_of_lt (hlt2 _ (by stride_omega [j.isLt, m.isLt]))]
+
+private theorem map_equiv_randFill {α : Type*} [Fintype α] [Nonempty α]
+    (bits arrBase len : ℕ) (x : Data 6) (e : (Fin len → Fin (2 ^ bits)) ≃ α) :
+    (Tabulation.randFillComp bits arrBase len x).eval.map
+        (fun z => e (Tabulation.extractSlice arrBase bits len z.1.mem)) =
+      PMF.uniformOfFintype α := by
+  change ((Tabulation.randFillComp bits arrBase len x).eval.map
+    (e ∘ fun z : Data 6 × ℕ => Tabulation.extractSlice arrBase bits len z.1.mem)) = _
+  rw [← PMF.map_comp, Tabulation.map_extractSlice_eval_randFillComp,
+    PMF.uniformOfFintype_map_equiv]
 
 /-- **Exact product uniformity of `resampleComp`**: `extractSeed base w₀ b b' k z.1.mem` under
 `resampleComp base w₀ b b' k x` has distribution
@@ -942,95 +833,31 @@ theorem mem_support_resampleComp {base w w₀ b b' k : ℕ} {x : Data 240}
 theorem map_extractSeed_eval_resampleComp (base w₀ b b' k : ℕ) (x : Data 240) :
     ((resampleComp base w₀ b b' k x).eval).map (fun z => extractSeed base w₀ b b' k z.1.mem) =
       PMF.uniformOfFintype (ReducedPolySeed w₀ b b' k) := by
-  set t := reducedTrinomialStep w₀ b b'
-  set c := reducedChunkBits t
-  set L := reducedLimbCount t
-  set x1 := resampleSetup1Data base w₀ x
-  set m1 := Tabulation.randFillComp (w₀ - 1) base 1 (x1.comap fillMap240)
-  have hm1_unif : m1.eval.map (fun z1 : Data 6 × ℕ => extractTop base w₀ z1.1.mem) =
-      PMF.uniformOfFintype (ReducedTopSeed w₀) := by
-    have hcomp : (fun z1 : Data 6 × ℕ => extractTop base w₀ z1.1.mem) =
-        topSliceEquiv w₀ ∘
-          fun z1 : Data 6 × ℕ => Tabulation.extractSlice base (w₀ - 1) 1 z1.1.mem := rfl
-    rw [hcomp, ← PMF.map_comp, Tabulation.map_extractSlice_eval_randFillComp,
-      PMF.uniformOfFintype_map_equiv]
-  have hinner : ∀ z1 : Data 6 × ℕ,
-      (let x2 := resampleSetup2Data base w₀ b b' k (z1.1.extend fillMap240 x1)
-       (do
-         let z2 ← Tabulation.randFillComp c (base + 1) (k * L) (x2.comap fillMap240)
-         pure (z2.1.extend fillMap240 x2, 5 + (z1.2 + (4 + z2.2)))).eval).map
-        (fun z : Data 240 × ℕ => extractSeed base w₀ b b' k z.1.mem) =
-      (PMF.uniformOfFintype (ReducedBotSeed w₀ b b' k)).map
-        (fun β => (extractTop base w₀ z1.1.mem, β)) := by
-    intro z1
-    dsimp only
-    set x2 := resampleSetup2Data base w₀ b b' k (z1.1.extend fillMap240 x1)
-    set m2 := Tabulation.randFillComp c (base + 1) (k * L) (x2.comap fillMap240)
-    have hd : (do
-        let z2 ← m2
-        pure (z2.1.extend fillMap240 x2, 5 + (z1.2 + (4 + z2.2)))) =
-        (fun z2 : Data 6 × ℕ => (z2.1.extend fillMap240 x2, 5 + (z1.2 + (4 + z2.2)))) <$> m2 :=
-      bind_pure_comp _ _
-    rw [hd, ProbComp.eval_map, PMF.map_comp]
-    have hcongr :
-        m2.eval.map
-          ((fun z : Data 240 × ℕ => extractSeed base w₀ b b' k z.1.mem) ∘
-            fun z2 : Data 6 × ℕ => (z2.1.extend fillMap240 x2, 5 + (z1.2 + (4 + z2.2)))) =
-        m2.eval.map
-          ((fun β => (extractTop base w₀ z1.1.mem, β)) ∘
-            botSliceEquiv w₀ b b' k ∘
-            fun z2 : Data 6 × ℕ =>
-              Tabulation.extractSlice (base + 1) c (k * L) z2.1.mem) := by
-      refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun z2 hz2 => ?_
-      rw [ProbComp.support_eval] at hz2
-      obtain ⟨_, _, _, _, _, _, _, hframe2⟩ := Tabulation.mem_support_randFillComp hz2
-      have htop_eq : extractTop base w₀ z2.1.mem = extractTop base w₀ z1.1.mem := by
-        dsimp only [extractTop]
-        congr 1 with idx : 1
-        dsimp only [Tabulation.extractSlice]
-        rw [hframe2 (base + idx.val) (Or.inl (by have := idx.isLt; omega))]
-        rfl
-      dsimp only [Function.comp_apply, extractSeed, extractBot, Data.extend]
-      rw [htop_eq]
-    rw [hcongr, ← PMF.map_comp, ← PMF.map_comp, Tabulation.map_extractSlice_eval_randFillComp,
-      PMF.uniformOfFintype_map_equiv]
   dsimp only [resampleComp]
-  rw [ProbComp.eval_bind, PMF.map_bind]
-  have hbind : m1.eval.bind
-      (fun z1 =>
-        (let x2 := resampleSetup2Data base w₀ b b' k (z1.1.extend fillMap240 x1)
-         (do
-           let z2 ← Tabulation.randFillComp c (base + 1) (k * L) (x2.comap fillMap240)
-           pure (z2.1.extend fillMap240 x2, 5 + (z1.2 + (4 + z2.2)))).eval).map
-          (fun z : Data 240 × ℕ => extractSeed base w₀ b b' k z.1.mem)) =
-      m1.eval.bind
-        (fun z1 =>
-          (PMF.uniformOfFintype (ReducedBotSeed w₀ b b' k)).map
-            (fun β => (extractTop base w₀ z1.1.mem, β))) := by
-    congr 1 with z1 : 1
-    exact hinner z1
-  rw [hbind]
-  have hmap_bind :
-      m1.eval.bind
-        (fun z1 =>
-          (PMF.uniformOfFintype (ReducedBotSeed w₀ b b' k)).map
-            (fun β => (extractTop base w₀ z1.1.mem, β))) =
-      (m1.eval.map (fun z1 => extractTop base w₀ z1.1.mem)).bind
-        (fun α => (PMF.uniformOfFintype (ReducedBotSeed w₀ b b' k)).map (α, ·)) := by
-    rw [PMF.bind_map]
-    rfl
-  rw [hmap_bind, hm1_unif, PMF.uniformOfFintype_prod]
+  rw [ProbComp.eval_bind, PMF.map_bind, ← PMF.uniformOfFintype_prod,
+    ← map_equiv_randFill (w₀ - 1) base 1 ((resampleSetup1Data base w₀ x).comap fillMap240)
+      (topSliceEquiv w₀), PMF.bind_map]
+  congr 1; funext z1
+  set x2 := resampleSetup2Data base w₀ b b' k
+    (z1.1.extend fillMap240 (resampleSetup1Data base w₀ x))
+  rw [bind_pure_comp, ProbComp.eval_map, PMF.map_comp]
+  trans ((Tabulation.randFillComp (reducedChunkBits (reducedTrinomialStep w₀ b b')) (base + 1)
+      (k * reducedLimbCount (reducedTrinomialStep w₀ b b')) (x2.comap fillMap240)).eval.map
+      ((extractTop base w₀ z1.1.mem, ·) ∘
+        fun z2 : Data 6 × ℕ => extractBot base w₀ b b' k z2.1.mem))
+  · refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun z2 hz2 => ?_
+    rw [ProbComp.support_eval] at hz2
+    obtain ⟨_, _, _, _, _, _, _, hframe2⟩ := Tabulation.mem_support_randFillComp hz2
+    change (extractTop base w₀ z2.1.mem, extractBot base w₀ b b' k z2.1.mem) =
+      (extractTop base w₀ z1.1.mem, extractBot base w₀ b b' k z2.1.mem)
+    congr 1; dsimp only [extractTop]; congr 1 with idx
+    dsimp only [Tabulation.extractSlice]
+    rw [hframe2 (base + idx.val) (Or.inl (by have := idx.isLt; omega))]; rfl
+  · rw [← PMF.map_comp]
+    dsimp only [extractBot]
+    rw [map_equiv_randFill _ (base + 1) _ _ (botSliceEquiv w₀ b b' k)]; rfl
 
 /-! ## Section 4: Word-RAM `evalCode` and deterministic execution -/
-
-@[simp] private theorem data_set_self {regs : ℕ} (x : Data regs) (r : Fin regs) :
-    x.set r (x.regs r) = x := by
-  cases x
-  simp [Data.set]
-
-private theorem exec_copy_self (w : ℕ) (r : Fin 240) (x : Data 240) :
-    Exec w (.op (.copy r r) : Code .exact 240) x x 1 := by
-  simpa only [data_set_self] using (Exec.copy (B := .exact) (w := w) (d := r) (s := r) (x := x))
 
 /-- Ascending sequential composition of `n` blocks `f 0, f 1, ..., f (n - 1)`. -/
 @[expose] def seqAsc (f : ℕ → Code .exact 240) : ℕ → Code .exact 240
@@ -1044,18 +871,13 @@ private theorem seqAsc_exec {w : ℕ} (f : ℕ → Code .exact 240) (step : ℕ)
     ∃ y, Exec w (seqAsc f n) x y (n * step + 1) ∧ P n y := by
   induction n with
   | zero =>
-    rw [Nat.zero_mul, Nat.zero_add]
-    exact ⟨x, exec_copy_self w 0 x, hx⟩
+    have hxself : x.set 0 (x.regs 0) = x := by cases x; simp [Data.set]
+    exact ⟨x, by simpa only [seqAsc, Nat.zero_mul, Nat.zero_add, hxself] using
+      (Exec.copy (B := .exact) (w := w) (d := 0) (s := 0) (x := x)), hx⟩
   | succ n ih =>
-    obtain ⟨y, hy_exec, hy_P⟩ := ih (fun i hi => hstep i (Nat.lt_succ_of_lt hi))
+    obtain ⟨y, hy_exec, hy_P⟩ := ih fun i hi => hstep i (Nat.lt_succ_of_lt hi)
     obtain ⟨z, hz_exec, hz_P⟩ := hstep n (Nat.lt_succ_self n) y hy_P
-    refine ⟨z, ?_, hz_P⟩
-    rw [show (n + 1) * step + 1 = (n * step + 1) + step by ring]
-    exact hy_exec.seq hz_exec
-
-theorem and_two_pow_sub_one_lt (a n : ℕ) : a &&& (2 ^ n - 1) < 2 ^ n := by
-  rw [Nat.and_two_pow_sub_one_eq_mod]
-  exact Nat.mod_lt a (Nat.two_pow_pos n)
+    exact ⟨z, (show (n * step + 1) + step = (n + 1) * step + 1 by ring) ▸ hy_exec.seq hz_exec, hz_P⟩
 
 @[local wram_simps]
 private theorem set_lit_regs_xReg (x : Data 240) (n m v : ℕ) [OfNat (Fin 240) n]
@@ -1151,201 +973,6 @@ shifts in `regs 5..10`, and splits `α` and `x' = x.regs 1 &&& (2 ^ m - 1)` into
   .seq (halfMulSetupCode (w₀ - 1))
   (.seq halfMulCombineCode (finishReduceCode w₀ b))
 
-theorem shiftRight_lt_pow_sub {m h a : ℕ} (hle : h ≤ m) (ha : a < 2 ^ m) :
-    a >>> h < 2 ^ (m - h) := by
-  rw [Nat.shiftRight_eq_div_pow]
-  apply Nat.div_lt_of_lt_mul
-  rw [← pow_add, Nat.add_sub_of_le hle]
-  exact ha
-
-private theorem halfMulSetupCode_exec {w m : ℕ} (hm : m < w) (x : Data 240)
-    (hα : x.mem (x.regs 0) < 2 ^ m) :
-    let h := m / 2
-    let α := x.mem (x.regs 0)
-    let x' := x.regs 1 &&& (2 ^ m - 1)
-    ∃ y, Exec w (halfMulSetupCode m) x y 12 ∧
-      y.regs 0 = x.regs 0 ∧
-      y.regs 1 = x.regs 1 ∧
-      y.regs 5 = 2 ^ m - 1 ∧
-      y.regs 6 = h ∧
-      y.regs 7 = 2 ^ h - 1 ∧
-      y.regs 8 = 2 ^ (m - h) - 1 ∧
-      y.regs 9 = 2 ^ (m - 2 * h) - 1 ∧
-      y.regs 10 = 2 * h ∧
-      y.regs 12 = α &&& (2 ^ h - 1) ∧
-      y.regs 13 = α >>> h ∧
-      y.regs 14 = x' &&& (2 ^ h - 1) ∧
-      y.regs 15 = x' >>> h ∧
-      y.mem = x.mem := by
-  intro h α x'
-  have hpow_m_lt : 2 ^ m < 2 ^ w := Nat.pow_lt_pow_right one_lt_two hm
-  have hfit_m : Fits w (2 ^ m) := hpow_m_lt
-  have h_le : h ≤ m := Nat.div_le_self m 2
-  have h2_le : 2 * h ≤ m := Nat.mul_div_le m 2
-  have hm_lt_pow : m < 2 ^ m := Nat.lt_two_pow_self
-  have hfit_mask_h : Fits w (2 ^ h - 1) :=
-    hfit_m.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos h_le))
-  have hfit_mask_mh : Fits w (2 ^ (m - h) - 1) :=
-    hfit_m.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos (Nat.sub_le m h)))
-  have hfit_mask_m2h : Fits w (2 ^ (m - 2 * h) - 1) :=
-    hfit_m.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos (Nat.sub_le m (2 * h))))
-  have hx'_lt : x' < 2 ^ m := and_two_pow_sub_one_lt (x.regs 1) m
-  have hfit_α0 : Fits w (α &&& (2 ^ h - 1)) :=
-    hfit_m.of_le ((le_of_lt (and_two_pow_sub_one_lt α h)).trans (Nat.pow_le_pow_right two_pos h_le))
-  have hfit_α1 : Fits w (α >>> h) :=
-    hfit_m.of_le (( Nat.shiftRight_le α h).trans (le_of_lt hα))
-  have hfit_x0 : Fits w (x' &&& (2 ^ h - 1)) :=
-    hfit_m.of_le
-      ((le_of_lt (and_two_pow_sub_one_lt x' h)).trans (Nat.pow_le_pow_right two_pos h_le))
-  have hfit_x1 : Fits w (x' >>> h) :=
-    hfit_m.of_le ((Nat.shiftRight_le x' h).trans (le_of_lt hx'_lt))
-  simp only [h, α, x'] at *
-  unfold halfMulSetupCode
-  wram_exec
-  wram_simp
-
-private theorem halfMulCombineCode_exec {w m α x' : ℕ} (hm : m < w)
-    (hα : α < 2 ^ m) (hx' : x' < 2 ^ m) (x : Data 240)
-    (h5 : x.regs 5 = 2 ^ m - 1)
-    (h6 : x.regs 6 = m / 2)
-    (h8 : x.regs 8 = 2 ^ (m - m / 2) - 1)
-    (h9 : x.regs 9 = 2 ^ (m - 2 * (m / 2)) - 1)
-    (h10 : x.regs 10 = 2 * (m / 2))
-    (h12 : x.regs 12 = α &&& (2 ^ (m / 2) - 1))
-    (h13 : x.regs 13 = α >>> (m / 2))
-    (h14 : x.regs 14 = x' &&& (2 ^ (m / 2) - 1))
-    (h15 : x.regs 15 = x' >>> (m / 2)) :
-    ∃ y, Exec w halfMulCombineCode x y 18 ∧
-      y.regs 0 = x.regs 0 ∧
-      y.regs 1 = x.regs 1 ∧
-      y.regs 3 = halfMulMod m α x' ∧
-      y.regs 5 = 2 ^ m - 1 ∧
-      y.mem = x.mem := by
-  set h := m / 2
-  have h_le : h ≤ m := Nat.div_le_self m 2
-  have h2_le : 2 * h ≤ m := Nat.mul_div_le m 2
-  have hpow_m_le : 2 ^ m + 2 ^ m ≤ 2 ^ w := by
-    have : 2 ^ (m + 1) ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hm
-    rw [pow_succ'] at this
-    linarith
-  have hpow_m_lt : 2 ^ m < 2 ^ w := by linarith
-  have hfit_m : Fits w (2 ^ m) := hpow_m_lt
-  set α₀ := α &&& (2 ^ h - 1)
-  set α₁ := α >>> h
-  set x₀ := x' &&& (2 ^ h - 1)
-  set x₁ := x' >>> h
-  have hα0 : α₀ < 2 ^ h := and_two_pow_sub_one_lt α h
-  have hα1 : α₁ < 2 ^ (m - h) := shiftRight_lt_pow_sub h_le hα
-  have hx0 : x₀ < 2 ^ h := and_two_pow_sub_one_lt x' h
-  have hx1 : x₁ < 2 ^ (m - h) := shiftRight_lt_pow_sub h_le hx'
-  have hmul00 : α₀ * x₀ < 2 ^ m := by
-    calc α₀ * x₀ < 2 ^ h * 2 ^ h := Nat.mul_lt_mul'' hα0 hx0
-      _ = 2 ^ (2 * h) := by rw [← pow_add, two_mul]
-      _ ≤ 2 ^ m := Nat.pow_le_pow_right two_pos h2_le
-  have hmul01 : α₀ * x₁ < 2 ^ m := by
-    calc α₀ * x₁ < 2 ^ h * 2 ^ (m - h) := Nat.mul_lt_mul'' hα0 hx1
-      _ = 2 ^ m := by rw [← pow_add, Nat.add_sub_of_le h_le]
-  have hmul10 : α₁ * x₀ < 2 ^ m := by
-    calc α₁ * x₀ < 2 ^ (m - h) * 2 ^ h := Nat.mul_lt_mul'' hα1 hx0
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h_le]
-  set p₀ := (α₀ * x₀) &&& (2 ^ m - 1) with hp₀
-  set q₁ := (α₀ * x₁) &&& (2 ^ (m - h) - 1) with hq₁
-  set p₁ := q₁ <<< h with hp₁
-  set u₁ := (p₀ + p₁) &&& (2 ^ m - 1) with hu₁
-  set q₂ := (α₁ * x₀) &&& (2 ^ (m - h) - 1) with hq₂
-  set p₂ := q₂ <<< h with hp₂
-  set u₂ := (u₁ + p₂) &&& (2 ^ m - 1) with hu₂
-  set α₁' := α₁ &&& (2 ^ (m - 2 * h) - 1) with hα₁'
-  set x₁' := x₁ &&& (2 ^ (m - 2 * h) - 1) with hx₁'
-  set q₃ := α₁' * x₁' with hq₃
-  set p₃ := q₃ <<< (2 * h) with hp₃
-  set u₃ := (u₂ + p₃) &&& (2 ^ m - 1) with hu₃
-  have hp0 : p₀ < 2 ^ m := and_two_pow_sub_one_lt _ m
-  have hq1 : q₁ < 2 ^ (m - h) := and_two_pow_sub_one_lt _ (m - h)
-  have hp1 : p₁ < 2 ^ m := by
-    dsimp only [p₁]
-    rw [Nat.shiftLeft_eq]
-    calc q₁ * 2 ^ h < 2 ^ (m - h) * 2 ^ h := Nat.mul_lt_mul_of_pos_right hq1 (Nat.two_pow_pos h)
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h_le]
-  have hu1 : u₁ < 2 ^ m := and_two_pow_sub_one_lt _ m
-  have hq2 : q₂ < 2 ^ (m - h) := and_two_pow_sub_one_lt _ (m - h)
-  have hp2 : p₂ < 2 ^ m := by
-    dsimp only [p₂]
-    rw [Nat.shiftLeft_eq]
-    calc q₂ * 2 ^ h < 2 ^ (m - h) * 2 ^ h := Nat.mul_lt_mul_of_pos_right hq2 (Nat.two_pow_pos h)
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h_le]
-  have hu2 : u₂ < 2 ^ m := and_two_pow_sub_one_lt _ m
-  have hα1' : α₁' < 2 ^ (m - 2 * h) := and_two_pow_sub_one_lt _ (m - 2 * h)
-  have hx1' : x₁' < 2 ^ (m - 2 * h) := and_two_pow_sub_one_lt _ (m - 2 * h)
-  have hq3 : q₃ < 2 ^ (m - 2 * h) := by
-    have hd : m - 2 * h ≤ 1 := by omega
-    have hle1 : α₁' ≤ 1 := by
-      have : α₁' < 2 ^ 1 := lt_of_lt_of_le hα1' (Nat.pow_le_pow_right two_pos hd)
-      omega
-    have : q₃ ≤ x₁' := by
-      dsimp only [q₃]
-      calc α₁' * x₁' ≤ 1 * x₁' := Nat.mul_le_mul_right x₁' hle1
-        _ = x₁' := one_mul x₁'
-    exact lt_of_le_of_lt this hx1'
-  have hp3 : p₃ < 2 ^ m := by
-    dsimp only [p₃]
-    rw [Nat.shiftLeft_eq]
-    calc q₃ * 2 ^ (2 * h)
-        < 2 ^ (m - 2 * h) * 2 ^ (2 * h) :=
-          Nat.mul_lt_mul_of_pos_right hq3 (Nat.two_pow_pos (2 * h))
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h2_le]
-  have hu3 : u₃ < 2 ^ m := and_two_pow_sub_one_lt _ m
-  have hpow_mh : 2 ^ (m - h) ≤ 2 ^ m := Nat.pow_le_pow_right two_pos (Nat.sub_le m h)
-  have hpow_m2h : 2 ^ (m - 2 * h) ≤ 2 ^ m := Nat.pow_le_pow_right two_pos (Nat.sub_le m (2 * h))
-  unfold halfMulCombineCode
-  wram_exec [h5, h6, h8, h9, h10, h12, h13, h14, h15, ← hp₀, ← hq₁, ← hp₁, ← hu₁, ← hq₂, ← hp₂,
-    ← hu₂, ← hα₁', ← hx₁', ← hq₃, ← hp₃, ← hu₃]
-  wram_simp [h5, u₃, u₂, u₁, p₃, q₃, α₁', x₁', p₂, q₂, p₁, q₁, p₀, α₀, α₁, x₀, x₁, h, halfMulMod]
-
-private theorem finishReduceCode_exec {w w₀ b α u : ℕ} (hw₀_pos : 0 < w₀) (hw₀ : w₀ ≤ w)
-    (hu : u < 2 ^ w₀) (x : Data 240)
-    (h1 : x.regs 1 = u)
-    (h3 : x.regs 3 = halfMulMod (w₀ - 1) α (u &&& (2 ^ (w₀ - 1) - 1)))
-    (h5 : x.regs 5 = 2 ^ (w₀ - 1) - 1) :
-    ∃ y, Exec w (finishReduceCode w₀ b) x y 9 ∧
-      y.regs 0 = x.regs 0 ∧
-      y.regs 3 = oddMulModWord w₀ α u >>> (w₀ - min w₀ (3 * b)) ∧
-      y.mem = x.mem := by
-  set m := w₀ - 1
-  have hm_eq : m + 1 = w₀ := Nat.sub_add_cancel hw₀_pos
-  have hpow_w0_le : 2 ^ w₀ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hw₀
-  have hpow_m_mul : 2 * 2 ^ m = 2 ^ w₀ := by rw [← pow_succ', hm_eq]
-  have hfit_1 : Fits w 1 := by
-    have : 2 ^ 1 ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
-    change 1 < 2 ^ w; omega
-  set p := halfMulMod m α (u &&& (2 ^ m - 1)) with hp
-  have hp_lt : p < 2 ^ m := halfMulMod_lt m α _
-  have hu_shr_lt : u >>> 1 < 2 ^ m := by
-    have : m = w₀ - 1 := rfl
-    rw [this]
-    exact shiftRight_lt_pow_sub hw₀_pos hu
-  have hadd_lt : (u >>> 1) + p < 2 ^ w₀ := by linarith
-  set q := ((u >>> 1) + p) &&& (2 ^ m - 1) with hq
-  have hq_lt : q < 2 ^ m := and_two_pow_sub_one_lt _ m
-  have hq_shl_lt : q <<< 1 < 2 ^ w₀ := by
-    rw [Nat.shiftLeft_eq, pow_one]
-    linarith
-  have hubit_lt : u &&& 1 < 2 ^ w₀ := by
-    have : u &&& 1 < 2 ^ 1 := and_two_pow_sub_one_lt u 1
-    exact lt_of_lt_of_le this (Nat.pow_le_pow_right two_pos hw₀_pos)
-  have hodd_lt : oddMulModWord w₀ α u < 2 ^ w₀ := oddMulModWord_lt hw₀_pos α u
-  have hrem_shift_lt : w₀ - min w₀ (3 * b) < 2 ^ w := by
-    calc w₀ - min w₀ (3 * b) ≤ w₀ := Nat.sub_le _ _
-      _ ≤ w := hw₀
-      _ < 2 ^ w := Nat.lt_two_pow_self
-  have hres_lt : oddMulModWord w₀ α u >>> (w₀ - min w₀ (3 * b)) < 2 ^ w :=
-    lt_of_le_of_lt (Nat.shiftRight_le _ _) (lt_of_lt_of_le hodd_lt hpow_w0_le)
-  have hodd_eq : (u &&& 1) + (q <<< 1) = oddMulModWord w₀ α u := by
-    simp [oddMulModWord, q, p, m]
-  unfold finishReduceCode
-  wram_exec [h1, h3, h5, ← hq, hodd_eq]
-  wram_simp
-
 /-- Stage 1 execution: computes
 `oddMulModWord w₀ (x.mem (x.regs 0)) (x.regs 1) >>> (w₀ - min w₀ (3 * b))`
 into `reg 3` in `39` steps, preserving `reg 0` and memory. -/
@@ -1355,18 +982,13 @@ theorem reduceKeyCode_exec {w w₀ b : ℕ} (hw₀_pos : 0 < w₀) (hw₀ : w₀
       y.regs 0 = x.regs 0 ∧
       y.regs 3 = oddMulModWord w₀ (x.mem (x.regs 0)) (x.regs 1) >>> (w₀ - min w₀ (3 * b)) ∧
       y.mem = x.mem := by
-  have hm : w₀ - 1 < w := by omega
-  obtain ⟨y1, e1, hy1_0, hy1_1, hy1_5, hy1_6, _, hy1_8, hy1_9, hy1_10, hy1_12, hy1_13, hy1_14,
-      hy1_15, hy1_mem⟩ := halfMulSetupCode_exec hm x hα
-  have hx'_lt : x.regs 1 &&& (2 ^ (w₀ - 1) - 1) < 2 ^ (w₀ - 1) :=
-    and_two_pow_sub_one_lt (x.regs 1) (w₀ - 1)
-  obtain ⟨y2, e2, hy2_0, hy2_1, hy2_3, hy2_5, hy2_mem⟩ :=
-    halfMulCombineCode_exec hm hα hx'_lt y1 hy1_5 hy1_6 hy1_8 hy1_9 hy1_10 hy1_12 hy1_13 hy1_14
-      hy1_15
-  obtain ⟨y3, e3, hy3_0, hy3_3, hy3_mem⟩ :=
-    finishReduceCode_exec hw₀_pos hw₀ hu y2 (hy2_1.trans hy1_1) hy2_3 hy2_5
-  refine ⟨y3, ?_, hy3_0.trans (hy2_0.trans hy1_0), hy3_3, hy3_mem.trans (hy2_mem.trans hy1_mem)⟩
-  simpa only [reduceKeyCode] using e1.seq (e2.seq e3)
+  have hpow_w0 : 2 ^ w₀ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hw₀
+  have hpow_m : 2 ^ (w₀ - 1) < 2 ^ w₀ := Nat.pow_lt_pow_right one_lt_two (by omega)
+  have hα_w : x.mem (x.regs 0) < 2 ^ w₀ := hα.trans hpow_m
+  obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, hodd⟩ := oddMulModWord_parts_lt hw₀_pos hα hu
+  unfold reduceKeyCode halfMulSetupCode halfMulCombineCode finishReduceCode
+  wram_exec
+  wram_simp [oddMulModWord, halfMulMod]
 
 /-- Step `m` of Stage 2 (`5` instructions): extracts limb `m` of `r_val` from `reg 3` into `xReg m`,
 shifts `reg 3` right by `c`, and zeroes `accReg m`. -/
@@ -1393,43 +1015,26 @@ private theorem initLimbsCode_exec {w t r_val : ℕ} (hc_lt : 2 * reducedChunkBi
       y.mem = x.mem := by
   intro c L
   have hL_le : L ≤ 54 := reducedLimbCount_le t
-  have hfit_2c : Fits w (2 ^ (2 * c)) := Nat.pow_lt_pow_right one_lt_two hc_lt
-  have hfit_c : Fits w c :=
-    hfit_2c.of_le (le_of_lt (Nat.lt_of_le_of_lt (by omega) Nat.lt_two_pow_self))
-  have hfit_mask_c : Fits w (2 ^ c - 1) :=
-    hfit_2c.of_le ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos (by omega)))
+  have hfit_c : Fits w c := by stride_omega
+  have hfit_mask_c : Fits w (2 ^ c - 1) := by stride_omega
   let P (n : ℕ) (z : Data 240) : Prop :=
-    z.regs 0 = x.regs 0 ∧
-    z.regs 3 = r_val >>> (n * c) ∧
+    z.regs 0 = x.regs 0 ∧ z.regs 3 = r_val >>> (n * c) ∧
     (∀ m < n, z.regs (xReg m) = getLimb c r_val m) ∧
-    (∀ m < n, z.regs (accReg m) = 0) ∧
-    z.mem = x.mem
-  have hP0 : P 0 x := by
-    refine ⟨rfl, ?_, fun _ hm => (Nat.not_lt_zero _ hm).elim,
-      fun _ hm => (Nat.not_lt_zero _ hm).elim, rfl⟩
-    rw [Nat.zero_mul, Nat.shiftRight_zero, h3]
+    (∀ m < n, z.regs (accReg m) = 0) ∧ z.mem = x.mem
   obtain ⟨y, hy_exec, hy0, _, hyx, hya, hymem⟩ :=
     seqAsc_exec (w := w) (initLimbStep c) 5 P L (fun i hi z ⟨hz0, hz3, hzx, hza, hzmem⟩ => by
-      have hi54 : i < 54 := lt_of_lt_of_le hi hL_le
-      have hfit_limb : Fits w (getLimb c r_val i) :=
-        hfit_2c.of_le ((le_of_lt (getLimb_lt c r_val i)).trans
-          (Nat.pow_le_pow_right two_pos (by omega)))
-      have hfit_shr : Fits w (r_val >>> ((i + 1) * c)) :=
-        lt_of_le_of_lt (Nat.shiftRight_le _ _) hr
-      have hlimb_eq : (r_val >>> (i * c)) &&& (2 ^ c - 1) = getLimb c r_val i := rfl
-      have hshr_eq : (r_val >>> (i * c)) >>> c = r_val >>> ((i + 1) * c) := by
-        rw [← Nat.shiftRight_add, ← Nat.succ_mul]
+      have hi54 : i < 54 := hi.trans_le hL_le
+      have hfit_limb : Fits w (getLimb c r_val i) := by stride_omega [getLimb_lt c r_val i]
+      have hfit_shr : Fits w (r_val >>> ((i + 1) * c)) := (Nat.shiftRight_le _ _).trans_lt hr
       unfold initLimbStep
-      wram_exec [hz3, hlimb_eq, hshr_eq]
+      wram_exec [hz3, show (r_val >>> (i * c)) &&& (2 ^ c - 1) = getLimb c r_val i from rfl,
+        show (r_val >>> (i * c)) >>> c = r_val >>> ((i + 1) * c) by
+          rw [← Nat.shiftRight_add, ← Nat.succ_mul]]
       refine ⟨by wram_simp [hz0], by wram_simp, fun m hm => ?_, fun m hm => ?_, hzmem⟩
-      · rcases eq_or_ne m i with rfl | hne
-        · wram_simp
-        · have hm_lt : m < i := by omega
-          wram_simp [hzx m hm_lt]
-      · rcases eq_or_ne m i with rfl | hne
-        · wram_simp
-        · have hm_lt : m < i := by omega
-          wram_simp [hza m hm_lt]) hP0
+      · rcases eq_or_ne m i with rfl | hne <;> wram_simp [hzx]
+      · rcases eq_or_ne m i with rfl | hne <;> wram_simp [hza])
+      ⟨rfl, by rw [Nat.zero_mul, Nat.shiftRight_zero, h3], fun _ hm => by omega,
+        fun _ hm => by omega, rfl⟩
   exact ⟨y, hy_exec, hy0, hyx, hya, hymem⟩
 
 /-- Stage 2b of `evalCode` (`8` instructions): loads table/chunk constants into `regs 4..9` and
@@ -1539,10 +1144,7 @@ private theorem zeroProdCode_exec {base w w₀ b b' k r_val acc_val : ℕ}
   intro t c L
   have hL_le : L ≤ 54 := reducedLimbCount_le t
   let P (n : ℕ) (z : Data 240) : Prop :=
-    ClmulInv base w w₀ b b' k r_val acc_val z ∧
-    (∀ d < n, z.regs (prodReg d) = 0) ∧
-    z.mem = x.mem
-  have hP0 : P 0 x := ⟨hinv, fun _ hd => (Nat.not_lt_zero _ hd).elim, rfl⟩
+    ClmulInv base w w₀ b b' k r_val acc_val z ∧ (∀ d < n, z.regs (prodReg d) = 0) ∧ z.mem = x.mem
   obtain ⟨y, hy_exec, hy_inv, hy_zero, hy_mem⟩ :=
     seqAsc_exec (w := w) (fun d => .op (.const (prodReg d) 0)) 1 P (2 * L)
       (fun i hi z ⟨hz_inv, hz_zero, hz_mem⟩ => by
@@ -1551,12 +1153,10 @@ private theorem zeroProdCode_exec {base w w₀ b b' k r_val acc_val : ℕ}
         refine ⟨hz_inv.congr fun r hr => by wram_simp, fun d hd => ?_, hz_mem⟩
         rcases eq_or_ne d i with rfl | hne
         · wram_simp
-        · have hd_lt : d < i := by omega
-          wram_simp [hz_zero d hd_lt]) hP0
-  refine ⟨y, hy_exec, hy_inv, fun d hd => ?_, ?_, hy_mem⟩
-  · rw [hy_zero d hd]
-    exact Nat.two_pow_pos c
-  · rw [packLimbs_congr (g := fun _ => 0) hy_zero, packLimbs_zero_fn]
+        · wram_simp [hz_zero d (by omega)])
+      ⟨hinv, fun _ hd => by omega, rfl⟩
+  exact ⟨y, hy_exec, hy_inv, fun d hd => by rw [hy_zero d hd]; exact Nat.two_pow_pos c,
+    by rw [packLimbs_congr (g := fun _ => 0) hy_zero, packLimbs_zero_fn], hy_mem⟩
 
 /-- Inner step `(i, m)` (`13` instructions): looks up `clmul (accLimb i) (xLimb m)` in the
 bit-packed Four-Russians table and XORs its low and high `c`-bit halves into `prodReg (i + m)` and
@@ -1588,19 +1188,13 @@ private theorem pair_index_props {c u v : ℕ} (hu : u < 2 ^ c) (hv : v < 2 ^ c)
     (u <<< c) + v < 2 ^ (2 * c) ∧
     ((u <<< c) + v) >>> c = u ∧
     ((u <<< c) + v) &&& (2 ^ c - 1) = v := by
-  have hpow : 0 < 2 ^ c := Nat.two_pow_pos c
-  have hlt : (u <<< c) + v < 2 ^ (2 * c) := by
-    rw [Nat.shiftLeft_eq, two_mul, pow_add]
-    calc u * 2 ^ c + v < u * 2 ^ c + 2 ^ c := Nat.add_lt_add_left hv _
-      _ = (u + 1) * 2 ^ c := by ring
-      _ ≤ 2 ^ c * 2 ^ c := Nat.mul_le_mul_right _ hu
-  have hdiv : ((u <<< c) + v) >>> c = u := by
-    rw [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq, mul_comm u (2 ^ c),
-      Nat.mul_add_div hpow, Nat.div_eq_of_lt hv, add_zero]
-  have hmod : ((u <<< c) + v) &&& (2 ^ c - 1) = v := by
-    rw [Nat.and_two_pow_sub_one_eq_mod, Nat.shiftLeft_eq, mul_comm u (2 ^ c),
-      Nat.mul_add_mod, Nat.mod_eq_of_lt hv]
-  exact ⟨hlt, hdiv, hmod⟩
+  rw [Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow, Nat.and_two_pow_sub_one_eq_mod,
+    mul_comm u (2 ^ c)]
+  refine ⟨?_, by rw [Nat.mul_add_div (Nat.two_pow_pos c), Nat.div_eq_of_lt hv, add_zero],
+    by rw [Nat.mul_add_mod, Nat.mod_eq_of_lt hv]⟩
+  rw [two_mul, pow_add]
+  have := Nat.mul_le_mul_left (2 ^ c) hu
+  nlinarith
 
 private theorem innerClmulStep_exec {base w w₀ b b' k r_val acc_val i m : ℕ}
     (hc_lt : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w)
@@ -1628,93 +1222,69 @@ private theorem innerClmulStep_exec {base w w₀ b b' k r_val acc_val i m : ℕ}
   set tBase := tabBase base w₀ b b' k
   have hc_pos : 0 < c := reducedChunkBits_pos t
   have hL_le : L ≤ 54 := reducedLimbCount_le t
-  have hpow_2c_lt : 2 ^ (2 * c) < 2 ^ w := Nat.pow_lt_pow_right one_lt_two hc_lt
-  have hfit_2c : Fits w (2 ^ (2 * c)) := hpow_2c_lt
-  have hpack_le : 2 ^ p * (2 * c) ≤ w := two_pow_reducedPackShift_mul_le (le_of_lt hc_lt)
-  have hpow_pack_le : 2 ^ (2 ^ p * (2 * c)) ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hpack_le
-  have hfit_end : Fits w (tBase + reducedTableWords t w) := by
-    simpa only [tBase, tabBase, space, tableWords, Nat.add_assoc] using hfit_space
-  have ⟨⟨h0, h4, h5, h6, h7, h8, h9, h18, hxReg⟩, haccReg⟩ := hinv
-  change x.regs 5 = c at h5
-  change x.regs 6 = 2 ^ c - 1 at h6
-  change x.regs 7 = p at h7
-  change x.regs 8 = 2 ^ p - 1 at h8
-  change x.regs 9 = 2 * c at h9
-  change x.regs 18 = 2 ^ (2 * c) - 1 at h18
-  change i < L at hi
-  change m < L at hm
-  have hu_reg : x.regs (accReg i) = u := haccReg i hi
-  have hv_reg : x.regs (xReg m) = v := hxReg m hm
+  have hfit_2c : Fits w (2 ^ (2 * c)) := by stride_omega
+  have hpow_c_lt : 2 ^ c < 2 ^ w := by stride_omega
+  have hpow_pack_le : 2 ^ (2 ^ p * (2 * c)) ≤ 2 ^ w := by
+    stride_omega [two_pow_reducedPackShift_mul_le hc_lt.le]
+  have hfit_end : Fits w (tBase + reducedTableWords t w) := by wram_omega
+  have ⟨⟨_, h4, h5, h6, h7, h8, h9, h18, hxReg⟩, haccReg⟩ := hinv
   have hu_lt : u < 2 ^ c := getLimb_lt c acc_val i
   have hv_lt : v < 2 ^ c := getLimb_lt c r_val m
   obtain ⟨hidx_lt, hidx_u, hidx_v⟩ := pair_index_props hu_lt hv_lt
   set idx := (u <<< c) + v with hidx
-  have hshl_lt : u <<< c < 2 ^ (2 * c) := lt_of_le_of_lt (Nat.le_add_right _ _) hidx_lt
   set wIdx := idx >>> p with hwIdx
   set subIdx := idx &&& (2 ^ p - 1) with hsubIdx
   set sh := subIdx * (2 * c) with hsh
   have hwIdx_lt : wIdx < reducedTableWords t w := shiftRight_lt_reducedTableWords hidx_lt
-  have hfit_wIdx : Fits w wIdx := hfit_end.of_le (by omega)
-  have hsub_lt : subIdx < 2 ^ p := and_two_pow_sub_one_lt idx p
-  have hsh_lt : sh < w := by
-    calc subIdx * (2 * c) < 2 ^ p * (2 * c) :=
-          Nat.mul_lt_mul_of_pos_right hsub_lt (by omega)
-      _ ≤ w := hpack_le
-  have hfit_sh : Fits w sh := lt_trans hsh_lt Nat.lt_two_pow_self
-  have hfit_sub : Fits w subIdx :=
-    hfit_sh.of_le (Nat.le_mul_of_pos_right _ (by omega : 0 < 2 * c))
-  set word := x.mem (tBase + wIdx) with hword
-  have hword_lt : word < 2 ^ (2 ^ p * (2 * c)) := htab.1 wIdx hwIdx_lt
-  have hfit_word_shr : Fits w (word >>> sh) :=
-    lt_of_le_of_lt (Nat.shiftRight_le _ _) (lt_of_lt_of_le hword_lt hpow_pack_le)
-  have hlimb_eq : (word >>> sh) &&& (2 ^ (2 * c) - 1) = clmul u v := by
+  have hlimb_eq : (x.mem (tBase + wIdx) >>> sh) &&& (2 ^ (2 * c) - 1) = clmul u v := by
     have := htab.2 idx hidx_lt
-    dsimp only [getLimb, wIdx, subIdx, sh, word, tBase] at this ⊢
-    rw [this, hidx_u, hidx_v]
+    dsimp only [getLimb, wIdx, subIdx, sh, tBase] at this ⊢; rw [this, hidx_u, hidx_v]
   have hcl_lt : clmul u v < 2 ^ (2 * c) := clmul_lt_two_pow_two_mul hu_lt hv_lt
   set lo := clmul u v &&& (2 ^ c - 1) with hlo
   set hi_part := clmul u v >>> c with hhi_part
   have hlo_lt : lo < 2 ^ c := and_two_pow_sub_one_lt _ c
   have hhi_lt : hi_part < 2 ^ c := by
-    have := shiftRight_lt_pow_sub (by omega : c ≤ 2 * c) hcl_lt
-    simpa only [Nat.two_mul, Nat.add_sub_cancel] using this
-  have hpow_c_lt : 2 ^ c < 2 ^ w :=
-    lt_of_le_of_lt (Nat.pow_le_pow_right two_pos (by omega : c ≤ 2 * c)) hpow_2c_lt
-  have hfit_lo : Fits w lo := lt_trans hlo_lt hpow_c_lt
-  have hfit_hi : Fits w hi_part := lt_trans hhi_lt hpow_c_lt
-  have him1_lt : i + m + 1 < 2 * L := by omega
-  have him_lt : i + m < 2 * L := by omega
-  set old0 := x.regs (prodReg (i + m)) with hold0
-  set old1 := x.regs (prodReg (i + m + 1)) with hold1
-  have hold0_lt : old0 < 2 ^ c := hprod_lt (i + m) him_lt
-  have hold1_lt : old1 < 2 ^ c := hprod_lt (i + m + 1) him1_lt
-  have hnew0_lt : old0 ^^^ lo < 2 ^ c := Nat.xor_lt_two_pow hold0_lt hlo_lt
-  have hnew1_lt : old1 ^^^ hi_part < 2 ^ c := Nat.xor_lt_two_pow hold1_lt hhi_lt
-  have hfit_new0 : Fits w (old0 ^^^ lo) := lt_trans hnew0_lt hpow_c_lt
-  have hfit_new1 : Fits w (old1 ^^^ hi_part) := lt_trans hnew1_lt hpow_c_lt
-  change x.regs 4 = tBase at h4
+    simpa only [two_mul, Nat.add_sub_cancel] using
+      shiftRight_lt_pow_sub (by omega : c ≤ 2 * c) hcl_lt
+  have him1_lt : i + m + 1 < 2 * L := by change i < L at hi; change m < L at hm; omega
+  have hnew0_lt : x.regs (prodReg (i + m)) ^^^ lo < 2 ^ c :=
+    Nat.xor_lt_two_pow (hprod_lt (i + m) (by omega)) hlo_lt
+  have hnew1_lt : x.regs (prodReg (i + m + 1)) ^^^ hi_part < 2 ^ c :=
+    Nat.xor_lt_two_pow (hprod_lt (i + m + 1) him1_lt) hhi_lt
+  have hfit_sh : Fits w sh := (packSlot_sh_lt hc_lt.le).trans Nat.lt_two_pow_self
+  have _ : Fits w subIdx := hfit_sh.of_le (Nat.le_mul_of_pos_right _ (by omega))
+  have _ : Fits w (x.mem (tBase + wIdx) >>> sh) :=
+    ((Nat.shiftRight_le _ _).trans_lt (htab.1 wIdx hwIdx_lt)).trans_le hpow_pack_le
+  have _ : Fits w (u <<< c) := ((Nat.le_add_right _ _).trans_lt hidx_lt).trans hfit_2c
+  have _ : Fits w wIdx := hfit_end.of_le (by omega)
+  have _ : Fits w lo := by stride_omega
+  have _ : Fits w hi_part := by stride_omega
+  have _ : Fits w (x.regs (prodReg (i + m)) ^^^ lo) := by stride_omega
+  have _ : Fits w (x.regs (prodReg (i + m + 1)) ^^^ hi_part) := by stride_omega
+  have hu_reg : x.regs (accReg i) = u := haccReg i hi
+  have hv_reg : x.regs (xReg m) = v := hxReg m hm
   unfold innerClmulStep
-  wram_exec [h4, h5, h6, h7, h8, h9, h18, hu_reg, hv_reg, ← hidx, ← hwIdx, ← hsubIdx, ← hsh,
-    ← hword, hlimb_eq, ← hlo, ← hhi_part, ← hold0, ← hold1]
+  wram_exec [show x.regs 4 = tBase from h4, show x.regs 5 = c from h5,
+    show x.regs 6 = 2 ^ c - 1 from h6, show x.regs 7 = p from h7,
+    show x.regs 8 = 2 ^ p - 1 from h8, show x.regs 9 = 2 * c from h9,
+    show x.regs 18 = 2 ^ (2 * c) - 1 from h18, hu_reg, hv_reg,
+    ← hidx, ← hwIdx, ← hsubIdx, ← hsh, hlimb_eq, ← hlo, ← hhi_part]
   refine ⟨hinv.congr fun r hr => by wram_simp, fun d hd => ?_, ?_, rfl⟩
   · rcases eq_or_ne d (i + m + 1) with rfl | hne1
-    · wram_simp
-      exact hnew1_lt
+    · wram_simp; exact hnew1_lt
     · rcases eq_or_ne d (i + m) with rfl | hne0
-      · wram_simp
-        exact hnew0_lt
-      · wram_simp
-        exact hprod_lt d hd
+      · wram_simp; exact hnew0_lt
+      · wram_simp; exact hprod_lt d hd
   · rw [packLimbs_congr (g := Function.update
-        (Function.update (fun d => x.regs (prodReg d)) (i + m) (old0 ^^^ lo))
-        (i + m + 1) (old1 ^^^ hi_part)) fun d hd => by
+        (Function.update (fun d => x.regs (prodReg d)) (i + m) (x.regs (prodReg (i + m)) ^^^ lo))
+        (i + m + 1) (x.regs (prodReg (i + m + 1)) ^^^ hi_part)) fun d hd => by
       rcases eq_or_ne d (i + m + 1) with rfl | hne1
       · rw [Function.update_self]; wram_simp
       · rw [Function.update_of_ne hne1]
         rcases eq_or_ne d (i + m) with rfl | hne0
         · rw [Function.update_self]; wram_simp
         · rw [Function.update_of_ne hne0]; wram_simp]
-    exact packLimbs_update_pair hc_pos _ him1_lt hcl_lt
+    exact packLimbs_update_pair _ him1_lt hcl_lt
 
 private theorem outerClmulStep_exec {base w w₀ b b' k r_val acc_val i : ℕ}
     (hc_lt : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w)
@@ -1736,24 +1306,17 @@ private theorem outerClmulStep_exec {base w w₀ b b' k r_val acc_val i : ℕ}
           (clmul (getLimb c acc_val i) (truncLimbs c L r_val) <<< (i * c)) ∧
       y.mem = x.mem := by
   intro t c L
-  set P₀ := packLimbs c (2 * L) (fun d => x.regs (prodReg d))
   let P (m : ℕ) (z : Data 240) : Prop :=
-    ClmulInv base w w₀ b b' k r_val acc_val z ∧
-    (∀ d < 2 * L, z.regs (prodReg d) < 2 ^ c) ∧
+    ClmulInv base w w₀ b b' k r_val acc_val z ∧ (∀ d < 2 * L, z.regs (prodReg d) < 2 ^ c) ∧
     packLimbs c (2 * L) (fun d => z.regs (prodReg d)) =
-      P₀ ^^^ (clmul (getLimb c acc_val i) (truncLimbs c m r_val) <<< (i * c)) ∧
-    z.mem = x.mem
-  have hP0 : P 0 x := by
-    refine ⟨hinv, hprod_lt, ?_, rfl⟩
-    rw [truncLimbs_zero, clmul_zero_right, Nat.zero_shiftLeft, Nat.xor_zero]
-  obtain ⟨y, hy_exec, hy_inv, hy_lt, hy_pack, hy_mem⟩ :=
-    seqAsc_exec (innerClmulStep i) 13 P L (fun m hm z ⟨hz_inv, hz_lt, hz_pack, hz_mem⟩ => by
-      have htab_z : TableRep base w w₀ b b' k z.mem := hz_mem ▸ htab
-      obtain ⟨z', hz'_exec, hz'_inv, hz'_lt, hz'_pack, hz'_mem⟩ :=
-        innerClmulStep_exec hc_lt hfit_space hi hm z hz_inv htab_z hz_lt
-      refine ⟨z', hz'_exec, hz'_inv, hz'_lt, ?_, hz'_mem.trans hz_mem⟩
-      rw [hz'_pack, hz_pack, Nat.xor_assoc, ← clmul_truncLimbs_right_succ]) hP0
-  exact ⟨y, hy_exec, hy_inv, hy_lt, hy_pack, hy_mem⟩
+      packLimbs c (2 * L) (fun d => x.regs (prodReg d)) ^^^
+        (clmul (getLimb c acc_val i) (truncLimbs c m r_val) <<< (i * c)) ∧ z.mem = x.mem
+  exact seqAsc_exec (innerClmulStep i) 13 P L (fun m hm z ⟨hz_inv, hz_lt, hz_pack, hz_mem⟩ => by
+    obtain ⟨z', he, hi', hlt', hpk', hm'⟩ :=
+      innerClmulStep_exec hc_lt hfit_space hi hm z hz_inv (hz_mem ▸ htab) hz_lt
+    exact ⟨z', he, hi', hlt', by rw [hpk', hz_pack, Nat.xor_assoc, ← clmul_truncLimbs_right_succ],
+      hm'.trans hz_mem⟩)
+    ⟨hinv, hprod_lt, by simp, rfl⟩
 
 private theorem clmulLimbsCode_exec {base w w₀ b b' k r_val acc_val : ℕ}
     (hc_lt : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w)
@@ -1778,34 +1341,21 @@ private theorem clmulLimbsCode_exec {base w w₀ b b' k r_val acc_val : ℕ}
       y.mem = x.mem := by
   intro t c L
   let P (i : ℕ) (z : Data 240) : Prop :=
-    ClmulInv base w w₀ b b' k r_val acc_val z ∧
-    (∀ d < 2 * L, z.regs (prodReg d) < 2 ^ c) ∧
+    ClmulInv base w w₀ b b' k r_val acc_val z ∧ (∀ d < 2 * L, z.regs (prodReg d) < 2 ^ c) ∧
     packLimbs c (2 * L) (fun d => z.regs (prodReg d)) = clmul (truncLimbs c i acc_val) r_val ∧
     z.mem = x.mem
-  have hP0 : P 0 x := by
-    refine ⟨hinv, hprod_lt, ?_, rfl⟩
-    rw [hprod_zero, truncLimbs_zero, clmul_zero_left]
   obtain ⟨y, hy_exec, hy_inv, hy_lt, hy_pack, hy_mem⟩ :=
     seqAsc_exec (outerClmulStep L) (L * 13 + 1) P L
       (fun i hi z ⟨hz_inv, hz_lt, hz_pack, hz_mem⟩ => by
-        have htab_z : TableRep base w w₀ b b' k z.mem := hz_mem ▸ htab
-        obtain ⟨z', hz'_exec, hz'_inv, hz'_lt, hz'_pack, hz'_mem⟩ :=
-          outerClmulStep_exec hc_lt hfit_space hi z hz_inv htab_z hz_lt
-        refine ⟨z', hz'_exec, hz'_inv, hz'_lt, ?_, hz'_mem.trans hz_mem⟩
-        rw [hz'_pack, hz_pack, truncLimbs_of_lt hr_lt, ← clmul_truncLimbs_left_succ]) hP0
+        obtain ⟨z', he, hi', hlt', hpk', hm'⟩ :=
+          outerClmulStep_exec hc_lt hfit_space hi z hz_inv (hz_mem ▸ htab) hz_lt
+        exact ⟨z', he, hi', hlt',
+          by rw [hpk', hz_pack, truncLimbs_of_lt hr_lt, ← clmul_truncLimbs_left_succ],
+          hm'.trans hz_mem⟩)
+      ⟨hinv, hprod_lt, by rw [hprod_zero, truncLimbs_zero, clmul_zero_left], rfl⟩
   rw [truncLimbs_of_lt hacc_lt] at hy_pack
-  refine ⟨y, hy_exec, hy_inv.1, fun d hd => ?_, hy_mem⟩
-  rw [← hy_pack, getLimb_packLimbs_of_lt c hd (hy_lt d hd)]
-
-theorem getLimb_eq_zero_of_lt {c n d P : ℕ} (hP : P < 2 ^ (n * c)) (hd : n ≤ d) :
-    getLimb c P d = 0 := by
-  dsimp only [getLimb]
-  have hle : n * c ≤ d * c := Nat.mul_le_mul_right c hd
-  have hlt : P < 2 ^ (d * c) := lt_of_lt_of_le hP (Nat.pow_le_pow_right two_pos hle)
-  have hdiv : P >>> (d * c) = 0 := by
-    rw [Nat.shiftRight_eq_div_pow]
-    exact Nat.div_eq_of_lt hlt
-  rw [hdiv, Nat.zero_and]
+  exact ⟨y, hy_exec, hy_inv.1,
+    fun d hd => by rw [← hy_pack, getLimb_packLimbs_of_lt c hd (hy_lt d hd)], hy_mem⟩
 
 /-- Step `m < 2 * L₀` of trinomial reduction and seed addition (`6` instructions):
 loads limb `m` of coefficient `coeffIdx` from memory, reduces the product limbs in `prodReg`
@@ -1854,68 +1404,52 @@ private theorem reduceAddStep_exec {base w w₀ b b' k r_val P_val : ℕ}
   have hL_le : L ≤ 54 := reducedLimbCount_le t
   change m < 2 * L₀ at hm
   change ∀ d < 2 * (2 * L₀), x.regs (prodReg d) = getLimb c P_val d at hprod
-  have hpow_2c_lt : 2 ^ (2 * c) < 2 ^ w := Nat.pow_lt_pow_right one_lt_two hc_lt
-  have hpow_c_lt : 2 ^ c < 2 ^ w :=
-    lt_of_le_of_lt (Nat.pow_le_pow_right two_pos (by omega : c ≤ 2 * c)) hpow_2c_lt
+  have hpow_c_lt : 2 ^ c < 2 ^ w := by stride_omega
   set off := 1 + (m + 2 * L₀ * coeffIdx.val) with hoff
-  have hoff_lt_seed : off < seedWords w₀ b b' k := by
-    dsimp only [off, seedWords]
+  have hoff_lt : off < seedWords w₀ b b' k := by
     change 1 + (m + L * coeffIdx.val) < 1 + k * L
-    have : m + L * coeffIdx.val < L + L * coeffIdx.val := Nat.add_lt_add_right hm _
-    have hmul : L + L * coeffIdx.val ≤ k * L := by
-      calc L + L * coeffIdx.val = (coeffIdx.val + 1) * L := by ring
-        _ ≤ k * L := Nat.mul_le_mul_right L coeffIdx.isLt
-    omega
-  have hfit_off : Fits w off := hfit_space.of_le (by dsimp only [space]; omega)
-  have hfit_addr : Fits w (base + off) := hfit_space.of_le (by dsimp only [space]; omega)
+    stride_omega [coeffIdx.isLt, show m < L from hm]
+  have hfit_off : Fits w off := by wram_omega
+  have hfit_addr : Fits w (base + off) := by wram_omega
   have h0 : x.regs 0 = base := hc.1
-  set sBot := (θ.2 coeffIdx).val
-  set seedLimb := getLimb c sBot m
-  have hmem_eq : x.mem (base + off) = seedLimb := by
+  have hmem_eq : x.mem (base + off) = getLimb c (θ.2 coeffIdx).val m := by
     have hrep := hseed.2 coeffIdx ⟨m, hm⟩
-    dsimp only [off, seedLimb, sBot]
-    rw [show base + (1 + (m + 2 * L₀ * coeffIdx.val)) = base + 1 + (m + L * coeffIdx.val) by
-      rw [hL_eq]; ring]
-    exact hrep
+    rwa [show base + off = base + 1 + (m + L * coeffIdx.val) by
+      dsimp only [off, L, L₀, reducedLimbCount]; ring]
   set redLimb := getLimb c (reduceTrinomialCode t P_val) m
-  have hfit_red : Fits w redLimb := lt_trans (getLimb_lt _ _ _) hpow_c_lt
-  have hnew_eq : redLimb ^^^ seedLimb = getLimb c newAcc m :=
-    (getLimb_xor c (reduceTrinomialCode t P_val) sBot m).symm
-  have hfit_new : Fits w (getLimb c newAcc m) := lt_trans (getLimb_lt _ _ _) hpow_c_lt
+  have hnew_eq : redLimb ^^^ getLimb c (θ.2 coeffIdx).val m = getLimb c newAcc m :=
+    (getLimb_xor c (reduceTrinomialCode t P_val) (θ.2 coeffIdx).val m).symm
+  have hfit_red : Fits w redLimb := (getLimb_lt _ _ _).trans hpow_c_lt
+  have hfit_new : Fits w (getLimb c newAcc m) := (getLimb_lt _ _ _).trans hpow_c_lt
   have hp_m : x.regs (prodReg m) = getLimb c P_val m := hprod m (by omega)
   unfold reduceAddStep
   split_ifs with hm_low
-  · set v1 := getLimb c P_val m ^^^ getLimb c P_val (3 * L₀ + m) with hv1
-    have hfit_v1 : Fits w v1 :=
-      lt_trans (Nat.xor_lt_two_pow (getLimb_lt _ _ _) (getLimb_lt _ _ _)) hpow_c_lt
-    have hred_eq : v1 ^^^ getLimb c P_val (2 * L₀ + m) = redLimb :=
-      (getLimb_reduceTrinomialCode_low t P_val hm_low).symm
+  on_goal 1 =>
     have hp_3 : x.regs (prodReg (3 * L₀ + m)) = getLimb c P_val (3 * L₀ + m) :=
       hprod (3 * L₀ + m) (by omega)
     have hp_2 : x.regs (prodReg (2 * L₀ + m)) = getLimb c P_val (2 * L₀ + m) :=
       hprod (2 * L₀ + m) (by omega)
+    set v1 := getLimb c P_val m ^^^ getLimb c P_val (3 * L₀ + m) with hv1
+    have hfit_v1 : Fits w v1 :=
+      (Nat.xor_lt_two_pow (getLimb_lt _ _ _) (getLimb_lt _ _ _)).trans hpow_c_lt
+    have hred_eq : v1 ^^^ getLimb c P_val (2 * L₀ + m) = redLimb :=
+      (getLimb_reduceTrinomialCode_low t P_val hm_low).symm
     wram_exec [h0, ← hoff, hmem_eq, hp_m, hp_3, ← hv1, hp_2, hred_eq, hnew_eq]
-    exact ⟨hc.congr fun r hr => by wram_simp, fun d hd => by wram_simp [hprod d hd],
-      by wram_simp, fun i hi => by wram_simp, rfl⟩
-  · have hm_ge : L₀ ≤ m := le_of_not_gt hm_low
-    have hm'_lt : m - L₀ < L₀ := by omega
-    change P_val < 2 ^ ((2 * L) * c) at hP_lt
+  on_goal 2 =>
     have hzero4 : getLimb c P_val (4 * L₀ + (m - L₀)) = 0 :=
-      getLimb_eq_zero_of_lt hP_lt (by omega)
-    have hred_eq : getLimb c P_val m ^^^ getLimb c P_val (L₀ + m) = redLimb := by
-      have hhigh : getLimb c (reduceTrinomialCode t P_val) (L₀ + (m - L₀)) =
-          (getLimb c P_val (L₀ + (m - L₀)) ^^^ getLimb c P_val (4 * L₀ + (m - L₀))) ^^^
-            getLimb c P_val (2 * L₀ + (m - L₀)) :=
-        getLimb_reduceTrinomialCode_high t P_val hm'_lt
-      rw [Nat.add_sub_of_le hm_ge,
-        show 2 * L₀ + (m - L₀) = L₀ + m by omega,
-        hzero4, Nat.xor_zero] at hhigh
-      exact hhigh.symm
-    have hp_1 : x.regs (prodReg (L₀ + m)) = getLimb c P_val (L₀ + m) :=
-      hprod (L₀ + m) (by omega)
-    wram_exec [h0, ← hoff, hmem_eq, hp_m, hp_1, hred_eq, hnew_eq]
-    exact ⟨hc.congr fun r hr => by wram_simp, fun d hd => by wram_simp [hprod d hd],
-      by wram_simp, fun i hi => by wram_simp, rfl⟩
+      getLimb_eq_zero_of_lt (hP_lt.trans_le (Nat.pow_le_pow_right two_pos
+        (Nat.mul_le_mul_right c (by change 2 * (2 * L₀) ≤ _; omega))))
+    have hhigh : getLimb c (reduceTrinomialCode t P_val) (L₀ + (m - L₀)) =
+        (getLimb c P_val (L₀ + (m - L₀)) ^^^ getLimb c P_val (4 * L₀ + (m - L₀))) ^^^
+          getLimb c P_val (2 * L₀ + (m - L₀)) :=
+      getLimb_reduceTrinomialCode_high t P_val (by omega)
+    rw [Nat.add_sub_of_le (le_of_not_gt hm_low), show 2 * L₀ + (m - L₀) = L₀ + m by omega,
+      hzero4, Nat.xor_zero] at hhigh
+    change redLimb = getLimb c P_val m ^^^ getLimb c P_val (L₀ + m) at hhigh
+    have hp_1 : x.regs (prodReg (L₀ + m)) = getLimb c P_val (L₀ + m) := hprod (L₀ + m) (by omega)
+    wram_exec [h0, ← hoff, hmem_eq, hp_m, hp_1, hhigh.symm, hnew_eq]
+  all_goals exact ⟨hc.congr fun r hr => by wram_simp, fun d hd => by wram_simp [hprod d hd],
+    by wram_simp, fun i hi => by wram_simp, rfl⟩
 
 private theorem reduceAddCode_exec {base w w₀ b b' k r_val P_val : ℕ}
     (hc_lt : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w)
@@ -1940,21 +1474,17 @@ private theorem reduceAddCode_exec {base w w₀ b b' k r_val P_val : ℕ}
   let P (n : ℕ) (z : Data 240) : Prop :=
     HornerConsts base w w₀ b b' k r_val z ∧
     (∀ d < 2 * L, z.regs (prodReg d) = getLimb c P_val d) ∧
-    (∀ m < n, z.regs (accReg m) = getLimb c newAcc m) ∧
-    z.mem = x.mem
-  have hP0 : P 0 x := ⟨hc, hprod, fun _ hm => (Nat.not_lt_zero _ hm).elim, rfl⟩
+    (∀ m < n, z.regs (accReg m) = getLimb c newAcc m) ∧ z.mem = x.mem
   obtain ⟨y, hy_exec, hy_hc, _, hy_acc, hy_mem⟩ :=
     seqAsc_exec (reduceAddStep L₀ coeffIdx.val) 6 P L
       (fun m hm z ⟨hz_hc, hz_prod, hz_acc, hz_mem⟩ => by
-        have hseed_z : SeedRep base w₀ b b' k θ z.mem := hz_mem ▸ hseed
-        obtain ⟨z', hz'_exec, hz'_hc, hz'_prod, hz'_m, hz'_prev, hz'_mem⟩ :=
-          reduceAddStep_exec hc_lt hfit_space hP_lt θ coeffIdx m hm z hz_hc hseed_z hz_prod
-        refine ⟨z', hz'_exec, hz'_hc, hz'_prod, fun i hi => ?_, hz'_mem.trans hz_mem⟩
-        rcases eq_or_ne i m with rfl | hne
-        · exact hz'_m
-        · have hilt : i < m := by omega
-          rw [hz'_prev i hilt]
-          exact hz_acc i hilt) hP0
+        obtain ⟨z', he, hc', hp', hm', hprev, hmem'⟩ :=
+          reduceAddStep_exec hc_lt hfit_space hP_lt θ coeffIdx m hm z hz_hc (hz_mem ▸ hseed) hz_prod
+        exact ⟨z', he, hc', hp', fun i hi => by
+          rcases eq_or_ne i m with rfl | hne
+          · exact hm'
+          · exact (hprev i (by omega)).trans (hz_acc i (by omega)), hmem'.trans hz_mem⟩)
+      ⟨hc, hprod, fun _ hm => by omega, rfl⟩
   exact ⟨y, hy_exec, hy_hc, hy_acc, hy_mem⟩
 
 /-- Step `j < k` of Horner polynomial evaluation: multiplies `accReg` by `xReg` into `prodReg`,
@@ -1996,67 +1526,46 @@ private theorem hornerCode_exec {base w w₀ b b' k : ℕ}
   have hLc : L * c = 2 * 3 ^ t := reducedLimbCount_mul_chunkBits t
   have hr_deg : r.val < 2 ^ (2 * 3 ^ t) :=
     r.isLt.trans_le (two_pow_min_le_two_pow_reducedTrinomialDeg w₀ b b')
-  have hx_lt : r.val < 2 ^ (L * c) := by rw [hLc]; exact hr_deg
+  have hx_lt : r.val < 2 ^ (L * c) := hLc.symm ▸ hr_deg
   set c_field : Fin k → TrinomialField t := fun j => (TrinomialField.equivFin t).symm (θ.2 j)
   set x_field : TrinomialField t := AdjoinRoot.mk (trinomial t) (polyOfCode r.val)
   have hx_val : (TrinomialField.equivFin t x_field).val = r.val :=
     TrinomialField.val_equivFin_mk_polyOfCode t hr_deg
   have hzero_val : (TrinomialField.equivFin t (0 : TrinomialField t)).val = 0 := by
-    have h0_eq : (0 : TrinomialField t) = AdjoinRoot.mk (trinomial t) (polyOfCode 0) := by simp
-    rw [h0_eq]
+    rw [show (0 : TrinomialField t) = AdjoinRoot.mk (trinomial t) (polyOfCode 0) by simp]
     exact TrinomialField.val_equivFin_mk_polyOfCode t (by positivity)
   let P (j : ℕ) (z : Data 240) : Prop :=
     HornerConsts base w w₀ b b' k r.val z ∧
     (∀ m < L, z.regs (accReg m) =
       getLimb c (TrinomialField.equivFin t (hornerPrefix t k c_field x_field j)).val m) ∧
     z.mem = x.mem
-  have hP0 : P 0 x := by
-    refine ⟨hc, fun m hm => ?_, rfl⟩
-    rw [hacc0 m hm]
-    dsimp only [hornerPrefix]
-    rw [hzero_val]
-    simp [getLimb]
   obtain ⟨y, hy_exec, hy_hc, hy_acc, hy_mem⟩ :=
-    seqAsc_exec (hornerStep t k) (hornerStepSteps t) P k
+    seqAsc_exec (w := w) (hornerStep t k) (hornerStepSteps t) P k
       (fun j hj z ⟨hz_hc, hz_acc, hz_mem⟩ => by
         set acc := hornerPrefix t k c_field x_field j
-        set acc_val := (TrinomialField.equivFin t acc).val
-        have hacc_lt : acc_val < 2 ^ (L * c) := by
-          rw [hLc]
-          exact (TrinomialField.equivFin t acc).isLt
-        have hinv : ClmulInv base w w₀ b b' k r.val acc_val z := ⟨hz_hc, hz_acc⟩
-        have htab_z : TableRep base w w₀ b b' k z.mem := hz_mem ▸ htab
-        obtain ⟨z1, e1, hz1_inv, hz1_lt, hz1_zero, hz1_mem⟩ := zeroProdCode_exec z hinv
-        have htab_z1 : TableRep base w w₀ b b' k z1.mem := hz1_mem ▸ htab_z
+        have hacc_lt : (TrinomialField.equivFin t acc).val < 2 ^ (L * c) :=
+          hLc.symm ▸ (TrinomialField.equivFin t acc).isLt
+        have hP_lt : clmul (TrinomialField.equivFin t acc).val r.val < 2 ^ (2 * L * c) := by
+          rw [Nat.mul_assoc]; exact clmul_lt_two_pow_two_mul hacc_lt hx_lt
+        obtain ⟨z1, e1, hz1_inv, hz1_lt, hz1_0, hz1_mem⟩ := zeroProdCode_exec z ⟨hz_hc, hz_acc⟩
         obtain ⟨z2, e2, hz2_hc, hz2_prod, hz2_mem⟩ :=
-          clmulLimbsCode_exec hc_lt hfit_space hx_lt hacc_lt z1 hz1_inv htab_z1 hz1_lt hz1_zero
-        have hP_lt : clmul acc_val r.val < 2 ^ (2 * L * c) := by
-          rw [Nat.mul_assoc]
-          exact clmul_lt_two_pow_two_mul hacc_lt hx_lt
-        have hseed_z2 : SeedRep base w₀ b b' k θ z2.mem :=
-          (hz2_mem.trans (hz1_mem.trans hz_mem)) ▸ hseed
+          clmulLimbsCode_exec hc_lt hfit_space hx_lt hacc_lt z1 hz1_inv
+            (hz1_mem ▸ hz_mem ▸ htab) hz1_lt hz1_0
         obtain ⟨z3, e3, hz3_hc, hz3_acc, hz3_mem⟩ :=
-          reduceAddCode_exec hc_lt hfit_space hP_lt θ ⟨k - 1 - j, by omega⟩ z2
-            hz2_hc hseed_z2 hz2_prod
-        have hmem_all : z3.mem = x.mem := hz3_mem.trans (hz2_mem.trans (hz1_mem.trans hz_mem))
-        refine ⟨z3, e1.seq (e2.seq e3), hz3_hc, fun m hm => ?_, hmem_all⟩
+          reduceAddCode_exec hc_lt hfit_space hP_lt θ ⟨k - 1 - j, by omega⟩ z2 hz2_hc
+            (hz2_mem ▸ hz1_mem ▸ hz_mem ▸ hseed) hz2_prod
+        refine ⟨z3, e1.seq (e2.seq e3), hz3_hc, fun m hm => ?_,
+          hz3_mem.trans (hz2_mem.trans (hz1_mem.trans hz_mem))⟩
         rw [hz3_acc m hm]
         congr 1
-        have hmul_val : reduceTrinomialCode t (clmul acc_val r.val) =
-            (TrinomialField.equivFin t (acc * x_field)).val := by
-          rw [TrinomialField.val_equivFin_mul, hx_val]
-        have hseed_val : (θ.2 ⟨k - 1 - j, by omega⟩).val =
-            (TrinomialField.equivFin t (c_field ⟨k - 1 - j, by omega⟩)).val := by
-          have h : TrinomialField.equivFin t (c_field ⟨k - 1 - j, by omega⟩) =
-              θ.2 ⟨k - 1 - j, by omega⟩ :=
-            (TrinomialField.equivFin t).apply_symm_apply (θ.2 ⟨k - 1 - j, by omega⟩)
-          exact (congrArg Fin.val h).symm
-        rw [hmul_val, hseed_val, ← TrinomialField.val_equivFin_add]
         dsimp only [hornerPrefix]
-        rw [dite_eq_left hj]) hP0
-  refine ⟨y, hy_exec, hy_hc, fun m hm => ?_, hy_mem⟩
-  rw [hy_acc m hm, hornerPrefix_self_eq_polynomialHash]
-  rfl
+        rw [dite_eq_left hj, TrinomialField.val_equivFin_add, TrinomialField.val_equivFin_mul,
+          hx_val]
+        congr 2
+        exact ((TrinomialField.equivFin t).apply_symm_apply _).symm)
+      ⟨hc, fun m hm => by rw [hacc0 m hm]; simp [hornerPrefix, hzero_val, getLimb], rfl⟩
+  exact ⟨y, hy_exec, hy_hc, fun m hm => by
+    rw [hy_acc m hm, hornerPrefix_self_eq_polynomialHash]; rfl, hy_mem⟩
 
 /-- Step `m < L` of Stage 4 (`5` instructions): masks and shifts `accReg m` into `reg 2` to
 reconstruct the low `b'` bits of the polynomial evaluation. -/
@@ -2090,38 +1599,24 @@ private theorem packOutStep_exec {w t b' evalVal : ℕ}
       (∀ i < L, y.regs (accReg i) = getLimb c evalVal i) ∧
       y.mem = x.mem := by
   intro c L
-  have hpow_2c_lt : 2 ^ (2 * c) < 2 ^ w := Nat.pow_lt_pow_right one_lt_two hc_lt
-  have hpow_c_lt : 2 ^ c < 2 ^ w :=
-    lt_of_le_of_lt (Nat.pow_le_pow_right two_pos (by omega : c ≤ 2 * c)) hpow_2c_lt
-  have hfit_mask : Fits w (reducedOutMask c b' m) :=
-    lt_trans (reducedOutMask_lt c b' m) hpow_c_lt
-  have hfit_shift : Fits w (reducedOutShift c b' m) := by
-    calc reducedOutShift c b' m ≤ b' := reducedOutShift_le c b' m
-      _ ≤ w := hb'_le
-      _ < 2 ^ w := Nat.lt_two_pow_self
-  set limb := getLimb c evalVal m
-  set masked := limb &&& reducedOutMask c b' m with hmasked
-  set shifted := masked <<< reducedOutShift c b' m with hshifted
-  set next2 := packLimbs c (m + 1) (getLimb c evalVal) &&& (2 ^ b' - 1)
-  have hmasked_lt : masked < 2 ^ c :=
-    lt_of_le_of_lt Nat.and_le_right (reducedOutMask_lt c b' m)
-  have hnext2_eq : x.regs 2 ^^^ shifted = next2 := by
-    rw [h2, ← packLimbs_and_mask_succ c b' m (getLimb c evalVal)]
-  have hnext2_lt : next2 < 2 ^ w := by
-    calc next2 < 2 ^ b' := and_two_pow_sub_one_lt _ b'
-      _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hb'_le
-  have hfit_masked : Fits w masked := lt_trans hmasked_lt hpow_c_lt
-  have hfit_shifted : Fits w shifted :=
-    (and_reducedOutMask_shiftLeft_lt c b' m limb).trans_le
-      (Nat.pow_le_pow_right two_pos (max_le hb'_le (by omega)))
-  have hfit_next2 : Fits w next2 := hnext2_lt
-  have hacc_m : x.regs (accReg m) = limb := hacc m hm
+  have hfit_mask : Fits w (reducedOutMask c b' m) := by stride_omega [reducedOutMask_lt c b' m]
+  have hfit_shift : Fits w (reducedOutShift c b' m) := by stride_omega [reducedOutShift_le c b' m]
+  have hfit_masked : Fits w (getLimb c evalVal m &&& reducedOutMask c b' m) :=
+    Nat.and_le_right.trans_lt hfit_mask
+  have hfit_shifted : Fits w ((getLimb c evalVal m &&& reducedOutMask c b' m) <<<
+      reducedOutShift c b' m) := by
+    stride_omega [and_reducedOutMask_shiftLeft_lt c b' m (getLimb c evalVal m)]
+  have hfit_next : Fits w (packLimbs c (m + 1) (getLimb c evalVal) &&& (2 ^ b' - 1)) := by
+    stride_omega [and_two_pow_sub_one_lt (packLimbs c (m + 1) (getLimb c evalVal)) b']
   have hL_le : L ≤ 54 := reducedLimbCount_le t
   change ∀ i < L, x.regs (accReg i) = getLimb c evalVal i at hacc
+  have hnext_eq : x.regs 2 ^^^
+      ((getLimb c evalVal m &&& reducedOutMask c b' m) <<< reducedOutShift c b' m) =
+      packLimbs c (m + 1) (getLimb c evalVal) &&& (2 ^ b' - 1) := by
+    rw [h2, ← packLimbs_and_mask_succ c b' m (getLimb c evalVal)]
   unfold packOutStep
-  wram_exec [hacc_m, ← hmasked, ← hshifted, hnext2_eq]
-  exact ⟨by wram_simp, by wram_simp, by wram_simp,
-    fun i hi => by wram_simp [hacc i hi], rfl⟩
+  wram_exec [hacc m hm, hnext_eq]
+  exact ⟨by wram_simp, by wram_simp, by wram_simp, fun i hi => by wram_simp [hacc i hi], rfl⟩
 
 private theorem packOutCode_exec {w t b' evalVal : ℕ}
     (hc_lt : 2 * reducedChunkBits t < w)
@@ -2183,18 +1678,9 @@ and packs the low `b'` bits into `reg 2` via Stage 4 (`packOutCode`). -/
 for all `w₀, b, b', k : ℕ`, `evalSteps w₀ b b' k ≤ evalBound k = 47250 * k + 591`. -/
 theorem evalSteps_le (w₀ b b' k : ℕ) : evalSteps w₀ b b' k ≤ evalBound k := by
   dsimp only [evalSteps, hornerStepSteps, evalBound]
-  have hL : reducedLimbCount (reducedTrinomialStep w₀ b b') ≤ 54 :=
-    reducedLimbCount_le (reducedTrinomialStep w₀ b b')
-  have hstep : 2 * reducedLimbCount (reducedTrinomialStep w₀ b b') * 1 + 1 +
-      ((reducedLimbCount (reducedTrinomialStep w₀ b b') *
-        (reducedLimbCount (reducedTrinomialStep w₀ b b') * 13 + 1) + 1) +
-        (reducedLimbCount (reducedTrinomialStep w₀ b b') * 6 + 1)) ≤ 47250 := by
-    nlinarith
-  have hmul : k * (2 * reducedLimbCount (reducedTrinomialStep w₀ b b') * 1 + 1 +
-      ((reducedLimbCount (reducedTrinomialStep w₀ b b') *
-        (reducedLimbCount (reducedTrinomialStep w₀ b b') * 13 + 1) + 1) +
-        (reducedLimbCount (reducedTrinomialStep w₀ b b') * 6 + 1))) ≤ k * 47250 :=
-    Nat.mul_le_mul_left k hstep
+  have hL := reducedLimbCount_le (reducedTrinomialStep w₀ b b')
+  have hmul : k * (2 * _ * 1 + 1 + ((_ * (_ * 13 + 1) + 1) + (_ * 6 + 1))) ≤ k * 47250 :=
+    Nat.mul_le_mul_left k (by nlinarith)
   omega
 
 /-- **Deterministic execution of `evalCode w w₀ b b' k`**:
@@ -2213,49 +1699,39 @@ theorem evalCode_exec {base w U w₀ b b' k : ℕ}
       y.regs 2 = (reducedPolyHash U w₀ b b' k θ u).val ∧
       y.mem = x.mem := by
   set t := reducedTrinomialStep w₀ b b'
-  set c := reducedChunkBits t
-  set L := reducedLimbCount t
-  have hu_lt_w0 : u.val < 2 ^ w₀ := lt_of_lt_of_le u.isLt hU
-  have hα_eq : x.mem (x.regs 0) = θ.1.val := by rw [h0, hseed.1]
-  have hα_lt : x.mem (x.regs 0) < 2 ^ (w₀ - 1) := by rw [hα_eq]; exact θ.1.isLt
-  have hu_reg1 : x.regs 1 < 2 ^ w₀ := by rw [h1]; exact hu_lt_w0
-  obtain ⟨y1, e1, hy1_0, hy1_3, hy1_mem⟩ :=
-    reduceKeyCode_exec hw₀_pos hw₀ x hα_lt hu_reg1
-  rw [h0] at hy1_0
   set r := multiplyShiftReduced U w₀ (3 * b) θ.1 u
   have hr_eq : oddMulModWord w₀ (x.mem (x.regs 0)) (x.regs 1) >>> (w₀ - min w₀ (3 * b)) =
       r.val := by
-    rw [hα_eq, h1, show w₀ - min w₀ (3 * b) = w₀ - 3 * b by omega]
+    rw [h0, hseed.1, h1, show w₀ - min w₀ (3 * b) = w₀ - 3 * b by omega]
     exact oddMulModWord_shiftRight_eq_multiplyShiftReduced hw₀_pos θ.1 u
-  rw [hr_eq] at hy1_3
-  have hr_lt_w : r.val < 2 ^ w :=
-    lt_of_lt_of_le r.isLt
-      (Nat.pow_le_pow_right two_pos ((Nat.min_le_left w₀ (3 * b)).trans hw₀))
-  obtain ⟨y2, e2, hy2_0, hy2_xReg, hy2_accReg, hy2_mem⟩ :=
-    initLimbsCode_exec hc_lt hr_lt_w y1 hy1_3
-  rw [hy1_0] at hy2_0
-  obtain ⟨y3, e3, hy3_0, hy3_4, hy3_5, hy3_6, hy3_7, hy3_8, hy3_9, hy3_18, hy3_high, hy3_mem⟩ :=
-    hornerSetupCode_exec hc_lt hfit_space y2 hy2_0
-  have hy3_consts : HornerConsts base w w₀ b b' k r.val y3 :=
-    ⟨hy3_0, hy3_4, hy3_5, hy3_6, hy3_7, hy3_8, hy3_9, hy3_18, fun m hm =>
-      (hy3_high (xReg m) (by dsimp [xReg]; omega)).trans (hy2_xReg m hm)⟩
-  have hy3_acc0 : ∀ m < L, y3.regs (accReg m) = 0 := fun m hm =>
-    (hy3_high (accReg m) (by dsimp [accReg]; omega)).trans (hy2_accReg m hm)
-  have hmem3 : y3.mem = x.mem := hy3_mem.trans (hy2_mem.trans hy1_mem)
-  obtain ⟨y4, e4, hy4_consts, hy4_acc, hy4_mem⟩ :=
-    hornerCode_exec hc_lt hfit_space θ r y3 hy3_consts (hmem3 ▸ htab) (hmem3 ▸ hseed) hy3_acc0
-  set evalVal := (trinomialPolyEval t k (2 ^ min w₀ (3 * b)) θ.2 r).val
-  have heval_lt : evalVal < 2 ^ (L * c) := by
+  have hr_lt_w : r.val < 2 ^ w := by stride_omega [r.isLt]
+  have heval_lt : (trinomialPolyEval t k (2 ^ min w₀ (3 * b)) θ.2 r).val <
+      2 ^ (reducedLimbCount t * reducedChunkBits t) := by
     rw [reducedLimbCount_mul_chunkBits]
     exact (trinomialPolyEval t k (2 ^ min w₀ (3 * b)) θ.2 r).isLt
-  obtain ⟨y5, e5, hy5_0, _, hy5_2, hy5_mem⟩ :=
-    packOutCode_exec hc_lt hb' heval_lt y4 hy4_acc
-  refine ⟨y5, e1.seq (e2.seq (e3.seq (e4.seq e5))),
-    hy5_0.trans hy4_consts.1,
-    ?_,
-    hy5_mem.trans (hy4_mem.trans hmem3)⟩
-  rw [hy5_2]
-  exact (val_trinomialPolyHash t k (2 ^ min w₀ (3 * b)) b' θ.2 r).symm
+  unfold evalCode
+  refine WP.Exact.exists_exec (WP.Exact.seq ?_)
+  wram_call (reduceKeyCode_exec (b := b) hw₀_pos hw₀ x (by rw [h0, hseed.1]; exact θ.1.isLt)
+    (by rw [h1]; exact u.isLt.trans_le hU)) with y1 ⟨hy1_0, hy1_3, hy1_mem⟩
+  refine WP.Exact.seq ?_
+  wram_call (initLimbsCode_exec (t := t) hc_lt hr_lt_w y1 (hy1_3.trans hr_eq))
+    with y2 ⟨hy2_0, hy2_x, hy2_acc, hy2_mem⟩
+  refine WP.Exact.seq ?_
+  wram_call (hornerSetupCode_exec (w := w) (base := base) (k := k) hc_lt hfit_space y2
+    (hy2_0.trans (hy1_0.trans h0)))
+    with y3 ⟨h3_0, h3_4, h3_5, h3_6, h3_7, h3_8, h3_9, h3_18, h3_hi, hy3_mem⟩
+  have hm3 : y3.mem = x.mem := hy3_mem.trans (hy2_mem.trans hy1_mem)
+  refine WP.Exact.seq ?_
+  wram_call (hornerCode_exec hc_lt hfit_space θ r y3
+    ⟨h3_0, h3_4, h3_5, h3_6, h3_7, h3_8, h3_9, h3_18, fun m hm =>
+      (h3_hi (xReg m) (by dsimp [xReg]; omega)).trans (hy2_x m hm)⟩
+    (hm3 ▸ htab) (hm3 ▸ hseed)
+    (fun m hm => (h3_hi (accReg m) (by dsimp [accReg]; omega)).trans (hy2_acc m hm)))
+    with y4 ⟨hy4_hc, hy4_acc, hy4_mem⟩
+  wram_call (packOutCode_exec hc_lt hb' heval_lt y4 hy4_acc) with y5 ⟨hy5_0, _, hy5_2, hy5_mem⟩
+  exact ⟨by dsimp only [evalSteps, t]; ring, hy5_0.trans hy4_hc.1,
+    hy5_2.trans (val_trinomialPolyHash t k (2 ^ min w₀ (3 * b)) b' θ.2 r).symm,
+    hy5_mem.trans (hy4_mem.trans hm3)⟩
 
 /-- `ExecWithin` wrapper for `evalCode_exec`. -/
 theorem evalCode_execWithin {base w U w₀ b b' k : ℕ}
@@ -2295,13 +1771,8 @@ theorem evalCode_execWithin {base w U w₀ b b' k : ℕ}
   key_ne_base := by decide
   params_ne_base j := Fin.elim0 j
   fits_space := hfit_space
-  fits_tag := by
-    have : 2 ^ 1 ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (hw₀_pos.trans_le hw₀)
-    change 1 < 2 ^ w
-    omega
-  fits_key u := by
-    have hu_lt : u.val < 2 ^ w₀ := lt_of_lt_of_le u.isLt hU
-    exact lt_of_lt_of_le hu_lt (Nat.pow_le_pow_right two_pos hw₀)
+  fits_tag := by stride_omega
+  fits_key u := by stride_omega [u.isLt]
   addReg := Op.exactBin .add
   addReg_eval _ _ _ hfit := Data.put_of_fits hfit
   initTableCode := initTableCode w w₀ b b' k
@@ -2311,30 +1782,19 @@ theorem evalCode_execWithin {base w U w₀ b b' k : ℕ}
   evalCode := evalCode w w₀ b b' k
   evalSteps := evalSteps w₀ b b' k
   initTable_exec {x} _ hbase _ _ := by
-    obtain ⟨y, hex, hy0, htab, hmod⟩ :=
-      initTableCode_execWithin hbase (le_of_lt hc_lt) hfit_space
-    refine ⟨y, hex, hy0, htab, ?_⟩
-    intro a ha
+    obtain ⟨y, hex, hy0, htab, hmod⟩ := initTableCode_execWithin hbase hc_lt.le hfit_space
+    refine ⟨y, hex, hy0, htab, fun a ha => hmod a ?_⟩
     rw [Block.mem_footprint, Block.Owns, not_and_or, not_le, not_lt] at ha
-    apply hmod a
-    rcases ha with hlt | hge
-    · exact Or.inl (lt_of_lt_of_le hlt (Nat.le_add_right base _))
-    · exact Or.inr hge
+    rcases ha with hlt | hge <;> [exact Or.inl (by wram_omega); exact Or.inr hge]
   resample_exec {x} _ hbase htab := by
     refine Impl.resample_exec_of_execRand
       (extractSeed base w₀ b b' k)
-      (resampleCode_execRand hbase hw₀ (le_of_lt hc_lt) hfit_space)
-      (map_extractSeed_eval_resampleComp base w₀ b b' k x) ?_
-    intro z hz
-    obtain ⟨hz0, htab', hseed', hframe, hsteps⟩ :=
-      mem_support_resampleComp hbase htab hz
-    refine ⟨hz0, htab', hseed', ?_, le_of_eq hsteps⟩
-    intro a ha
+      (resampleCode_execRand hbase hw₀ hc_lt.le hfit_space)
+      (map_extractSeed_eval_resampleComp base w₀ b b' k x) fun z hz => ?_
+    obtain ⟨hz0, htab', hseed', hframe, hsteps⟩ := mem_support_resampleComp hbase htab hz
+    refine ⟨hz0, htab', hseed', fun a ha => hframe a ?_, hsteps.le⟩
     rw [Block.mem_footprint, Block.Owns, not_and_or, not_le, not_lt] at ha
-    apply hframe a
-    rcases ha with hlt | hge
-    · exact Or.inl hlt
-    · exact Or.inr (le_trans (Nat.add_le_add_left (Nat.le_add_right _ _) base) hge)
+    rcases ha with hlt | hge <;> [exact Or.inl hlt; exact Or.inr (by wram_omega)]
   eval_exec θ u {x} _ hbase hkey htab hseed :=
     evalCode_execWithin hw₀_pos hw₀ hU hb' hc_lt hfit_space θ u x hbase hkey htab hseed
 

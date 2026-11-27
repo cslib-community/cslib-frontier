@@ -35,21 +35,14 @@ sampled ones has a uniform deterministic polynomial-time realization. -/
 theorem computableInPolyTime_majoritySampleAccepts (k : ℕ) (δ : ℚ) :
     ComputableInPolyTime (fun p : ℕ × ℕ => decide (majoritySampleAccepts p.1 k δ p.2))
       (encPair encNat encNat) encBool := by
-  let input := encPair encNat encNat
   have hn := ComputableInPolyTime.fst encNat encNat
-  have hs := ComputableInPolyTime.snd encNat encNat
-  have hhalf : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 / 2) input encNat := by
-    simpa only [Nat.shiftRight_eq_div_pow, Nat.pow_one] using
-      ComputableInPolyTime.binary_shiftRight' hn (ComputableInPolyTime.const 1)
-  have hwidth := ComputableInPolyTime.unary_succ.comp
-    (ComputableInPolyTime.binary_log_two.comp hn)
-  have hM := ComputableInPolyTime.binary_two_pow.comp hwidth
-  have hleft := ComputableInPolyTime.binary_mul'
-    (ComputableInPolyTime.const (4 * δ.den * k))
-    (ComputableInPolyTime.binary_add' hhalf (ComputableInPolyTime.const 1))
-  have hright := ComputableInPolyTime.binary_mul' hM (ComputableInPolyTime.binary_add'
-    (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const (4 * δ.den)) hs)
-    (ComputableInPolyTime.const (δ.num.toNat * k)))
-  exact ComputableInPolyTime.binary_le' hleft hright
+  have hhalf : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 / 2) (encPair encNat encNat) encNat := by
+    simpa only [Nat.shiftRight_eq_div_pow, Nat.pow_one] using hn.binary_shiftRight' (.const 1)
+  have hM := ComputableInPolyTime.binary_two_pow.comp
+    (ComputableInPolyTime.unary_succ.comp (ComputableInPolyTime.binary_log_two.comp hn))
+  exact .binary_le'
+    (.binary_mul' (.const (4 * δ.den * k)) (hhalf.binary_add' (.const 1)))
+    (.binary_mul' hM (.binary_add'
+      (.binary_mul' (.const (4 * δ.den)) (.snd encNat encNat)) (.const (δ.num.toNat * k))))
 
 end Cslib.BitString

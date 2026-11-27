@@ -33,6 +33,9 @@ adapted word program.
 
 ## Main results
 
+* `Cslib.Crypto.PRF.eval_realExperiment_atLevel_adapt`, `Cslib.Crypto.PRF.idealExperiment_adapt`:
+  the real and ideal finite PRF experiments of an adapted word distinguisher agree with the
+  corresponding word-level games.
 * `Cslib.Crypto.PRF.advantage_atLevel_adapt`: the finite PRF advantage of an adapted word
   distinguisher is its word-level PRF advantage.
 -/
@@ -49,10 +52,8 @@ other request by the empty word. -/
 theorem wordOracle_bitString {m : Type → Type*} [Monad m] [LawfulMonad m] (n : ℕ)
     (f : BitString n → BitString n) :
     (OracleCodec.bitString n).wordOracle (fun x => (pure (f x) : m (BitString n))) =
-      fun request => pure (randomFunctionOracle n f request.2) := by
-  funext ⟨⟨⟩, word⟩
-  by_cases hword : word.length = n <;>
-    simp [OracleCodec.wordOracle, OracleCodec.bitString, randomFunctionOracle, hword]
+      fun request => pure (randomFunctionOracle n f request.2) :=
+  wordOracle_bitStrings n n f
 
 namespace PRF
 
@@ -76,6 +77,24 @@ private theorem randomFunctionOracle_atLevel {family : List Bool → List Bool �
     rw [hlength _ _ (by rw [List.length_ofFn, hquery]), List.length_ofFn]
   · rfl
 
+/-- For a length-preserving family, the finite real PRF experiment on `(OracleCodec.bitString
+n).adapt (A n [])` against `PRF.atLevel family n` has the same Boolean law as
+`prfRealGame id family A n`. -/
+theorem eval_realExperiment_atLevel_adapt {family : List Bool → List Bool → List Bool}
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
+    (A : OracleDistinguisher) (n : ℕ) :
+    ProbComp.eval (realExperiment (atLevel family n) ((OracleCodec.bitString n).adapt (A n []))) =
+      ProbComp.eval (prfRealGame id family A n) := by
+  simp only [realExperiment, prfRealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform,
+    BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, OracleCodec.run_adapt,
+    wordOracle_bitString, Function.comp_def, randomFunctionOracle_atLevel hlength]
+
+/-- The finite ideal PRF experiment on `(OracleCodec.bitString n).adapt (A n [])` equals
+`prfIdealGame id id A n`. -/
+theorem idealExperiment_adapt (A : OracleDistinguisher) (n : ℕ) :
+    idealExperiment ((OracleCodec.bitString n).adapt (A n [])) = prfIdealGame id id A n := by
+  simp only [idealExperiment, prfIdealGame, id_eq, OracleCodec.run_adapt, wordOracle_bitString]
+
 /-- **Finite and word PRF games agree.** For a length-preserving family, the finite PRF advantage
 of the adapted word distinguisher against `PRF.atLevel family n` is the advantage of `A` between
 the word games `prfRealGame id family A n` and `prfIdealGame id id A n`. -/
@@ -85,15 +104,7 @@ theorem advantage_atLevel_adapt {family : List Bool → List Bool → List Bool}
     advantage (atLevel family n) ((OracleCodec.bitString n).adapt (A n [])) =
       Game.advantage (ProbComp.eval (prfRealGame id family A n))
         (ProbComp.eval (prfIdealGame id id A n)) := by
-  have hreal : ProbComp.eval (realExperiment (atLevel family n)
-      ((OracleCodec.bitString n).adapt (A n []))) = ProbComp.eval (prfRealGame id family A n) := by
-    simp only [realExperiment, prfRealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform,
-      BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, OracleCodec.run_adapt,
-      wordOracle_bitString, Function.comp_def, randomFunctionOracle_atLevel hlength]
-  have hideal :
-      idealExperiment ((OracleCodec.bitString n).adapt (A n [])) = prfIdealGame id id A n := by
-    simp only [idealExperiment, prfIdealGame, id_eq, OracleCodec.run_adapt, wordOracle_bitString]
-  rw [advantage, hreal, hideal]
+  rw [advantage, eval_realExperiment_atLevel_adapt hlength, idealExperiment_adapt]
 
 end PRF
 

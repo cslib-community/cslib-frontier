@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.OfTuring
 public import CslibFrontier.Computability.WordRAM.Time
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Word RAMs simulate space-bounded multi-tape Turing machines
@@ -72,33 +73,26 @@ theorem executes_simProgram_of_runsInSpace {tm : MultiTapeTM k Bool Q} {inp : Li
     ∃ n ≤ simTime k m t, Executes w (simProgram δ tm.q₀ e) (State.init (inp.map Bool.toNat))
       (BitString.lsbValue (tm.runFrom (tm.initCfg inp) t).output) n := by
   obtain ⟨t₀, ht₀, hhalts⟩ := MultiTapeTM.exists_haltsAt ht
-  have hhalt : (tm.runFrom (tm.initCfg inp) t₀).state = none := hhalts.halted
-  have hrun : ∀ j < t₀, (tm.runFrom (tm.initCfg inp) j).state ≠ none :=
-    fun j hj => hhalts.not_halted hj
-  have hsame : tm.runFrom (tm.initCfg inp) t = tm.runFrom (tm.initCfg inp) t₀ :=
-    hhalts.runFrom_eq ht₀
   have hk : 2 * k ≤ 2 * k * (s + 1) := Nat.le_mul_of_pos_right _ (by omega)
-  have hbound : inp.length + 2 * k + m + 2 < 2 ^ w := by unfold simBound at hw; omega
+  have hbound : inp.length + 2 * k + m + 2 < 2 ^ w := by wram_omega [hw]
   have hfit : ∀ j ≤ t₀, ∀ i,
-      Fits w (tapeAddr k inp.length i ((tm.runFrom (tm.initCfg inp) j).workTapePos i)) := by
-    intro j _ i
-    have h1 := tapeAddr_lt (n := inp.length) i
-      (z := (tm.runFrom (tm.initCfg inp) j).workTapePos i) (d := s)
-      (MultiTapeTM.natAbs_workTapePos_runFrom_le_of_runsInSpace hs j i)
-    unfold Fits; unfold simBound at hw; omega
-  have hout' : ∀ j ≤ t₀, (tm.runFrom (tm.initCfg inp) j).output.length < w :=
-    fun j hj => lt_of_le_of_lt (length_output_runFrom_mono _ (hj.trans ht₀)) hout
+      Fits w (tapeAddr k inp.length i ((tm.runFrom (tm.initCfg inp) j).workTapePos i)) :=
+    fun j _ i => by
+      have h1 := tapeAddr_lt (n := inp.length) i
+        (MultiTapeTM.natAbs_workTapePos_runFrom_le_of_runsInSpace hs j i)
+      wram_omega [hw]
   obtain ⟨x, hx₁, hsx⟩ := setupCode_spec (e := e) (w := w) tm.q₀ inp hbound
-  obtain ⟨y, hy₁, hsy⟩ := loop_spec (δ := δ) hδ e hrun hhalt hfit hbound hout' t₀ 0 x
-    (by omega) hsx
+  obtain ⟨y, hy₁, hsy⟩ := loop_spec (δ := δ) hδ e (fun _ hj => hhalts.not_halted hj)
+    hhalts.halted hfit hbound
+    (fun _ hj => lt_of_le_of_lt (length_output_runFrom_mono _ (hj.trans ht₀)) hout)
+    t₀ 0 x (by omega) hsx
   obtain ⟨n, hn, hexec⟩ := hx₁.seq hy₁
-  refine ⟨n + 1, ?_, ?_⟩
-  · unfold simTime
-    have := Nat.mul_le_mul_right (stepCost k m + 2) ht₀
-    omega
-  · have h := hexec.executes rVal
-    rw [hsy.val, ← hsame] at h
-    exact h
+  refine ⟨n + 1, ?_, by
+    have h := hexec.executes rVal
+    rwa [hsy.val, ← hhalts.runFrom_eq ht₀] at h⟩
+  unfold simTime
+  have := Nat.mul_le_mul_right (stepCost k m + 2) ht₀
+  omega
 
 end Cslib.WordRAM.OfTuring
 
@@ -125,30 +119,27 @@ theorem uniformDecidableInTimeLogWord_of_decidableInTimeAndSpace {α : Type} {A 
     simProgram tm.tr tm.q₀ (Fintype.equivFin Q), (fun a w hw _ => ?_),
     inputAdmissible_of_widthIndependent _ _⟩
   obtain ⟨hhalt, hout⟩ := (htm a).runFrom_of_le le_rfl
-  have hsp : tm.RunsInSpace (enc a) (s a) := (htm a).2.2
   set n := (enc a).length
   have hpoly : simBound K M n (s a) ≤ D' * (n + 1) ^ (e + 1) := by
     have h1 : 1 ≤ (n + 1) ^ e := Nat.one_le_pow _ _ (by omega)
-    have h2 : (n + 1) ^ (e + 1) = (n + 1) ^ e * (n + 1) := pow_succ _ _
-    have h3 : (n + 1) ^ e ≤ (n + 1) ^ (e + 1) := by
-      rw [h2]; exact Nat.le_mul_of_pos_right _ (by omega)
-    have h4 : n + 1 ≤ (n + 1) ^ (e + 1) := by rw [h2]; exact Nat.le_mul_of_pos_left _ h1
+    have h3 : (n + 1) ^ e ≤ (n + 1) ^ (e + 1) :=
+      pow_succ (n + 1) e ▸ Nat.le_mul_of_pos_right _ (by omega)
+    have h4 : n + 1 ≤ (n + 1) ^ (e + 1) := pow_succ (n + 1) e ▸ Nat.le_mul_of_pos_left _ h1
     have h5 : 2 * K * s a ≤ 2 * K * D * (n + 1) ^ (e + 1) := by
       rw [Nat.mul_assoc (2 * K)]
       exact Nat.mul_le_mul_left _ ((hs a).trans (Nat.mul_le_mul_left _ h3))
-    have h6 : (2 * K + M + 2) * 1 ≤ (2 * K + M + 2) * (n + 1) ^ (e + 1) :=
-      Nat.mul_le_mul_left _ (h1.trans h3)
+    have h6 := Nat.mul_le_mul_left (2 * K + M + 2) (h1.trans h3)
     unfold simBound
     simp only [D']
     nlinarith
   have hb : simBound K M n (s a) < 2 ^ w :=
     calc _ ≤ D' * (n + 1) ^ (e + 1) := hpoly
-      _ < 2 ^ logWidth (D' + (e + 1)) n := lt_two_pow_logWidth _ _ _
+      _ < 2 ^ logWidth (D' + (e + 1)) n := lt_two_pow_logWidth D' (e + 1) n
       _ ≤ 2 ^ w := Nat.pow_le_pow_right (by norm_num)
         ((logWidth_mono (by omega) le_rfl).trans hw)
   have hw2 : 2 ≤ w := le_trans (by unfold logWidth; nlinarith) hw
   obtain ⟨r, hr, hex⟩ := executes_simProgram_of_runsInSpace (fun _ _ _ => rfl)
-    (Fintype.equivFin Q) hhalt hsp hb
+    (Fintype.equivFin Q) hhalt (htm a).2.2 hb
     (by rw [hout]; simp only [encBool_apply, List.length_singleton]; omega)
   rw [hout, encBool_apply, BitString.lsbValue_singleton] at hex
   refine ⟨(g a).toNat, r, hex, hr.trans ?_, Bool.toNat_le _, ?_⟩

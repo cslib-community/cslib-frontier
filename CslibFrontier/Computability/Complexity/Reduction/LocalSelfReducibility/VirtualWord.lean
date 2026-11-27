@@ -33,7 +33,7 @@ open Turing Turing.MultiTapeTM
 
 /-- Data stored for one address of a local query. No reconstructed word is stored. -/
 @[expose] def localQueryAccessData (n : ℕ) (suffix : List Bool) (i : ℕ) : VirtualWord.Data :=
-  (n - Nat.clog 2 n, suffix, i)
+  ⟨n - Nat.clog 2 n, suffix, i⟩
 
 /-- The native accessor emits the exact query bit, including its false out-of-range default. -/
 theorem LocalSelfReductionQuery.access_output {x y : List Bool}
@@ -59,8 +59,8 @@ theorem LocalSelfReductionQuery.access_length {x y : List Bool}
 /-- Both the initial and halted states have logarithmic storage. The prefix is excluded. -/
 theorem LocalSelfReductionQuery.access_state_bound {x y : List Bool}
     (h : LocalSelfReductionQuery x y) {i : ℕ} (hi : i ≤ x.length) (halt : Bool) :
-    (VirtualWord.encState (localQueryAccessData x.length
-      (y.drop (x.length - Nat.clog 2 x.length)) i, halt)).length ≤
+    (VirtualWord.encState ⟨localQueryAccessData x.length
+      (y.drop (x.length - Nat.clog 2 x.length)) i, halt⟩).length ≤
       16 * (Nat.log2 x.length + 1) :=
   VirtualWord.length_encState_le_log halt (Nat.sub_le _ _) hi h.suffix_length
 

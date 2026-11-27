@@ -122,12 +122,10 @@ the shared and `B`-private variables. -/
     (y : Y → Bool) (z : Z → Bool) :
     (A.appendShared B).eval (Sum.elim a (Sum.elim y z)) =
       (A.eval (Sum.elim a y) && B.eval (Sum.elim a z)) := by
-  have hA : Sum.elim a (Sum.elim y z) ∘ Sum.map id Sum.inl = Sum.elim a y := by
-    funext u
-    cases u <;> rfl
-  have hB : Sum.elim a (Sum.elim y z) ∘ Sum.map id Sum.inr = Sum.elim a z := by
-    funext u
-    cases u <;> rfl
+  have hA : Sum.elim a (Sum.elim y z) ∘ Sum.map id Sum.inl = Sum.elim a y :=
+    funext fun | .inl _ => rfl | .inr _ => rfl
+  have hB : Sum.elim a (Sum.elim y z) ∘ Sum.map id Sum.inr = Sum.elim a z :=
+    funext fun | .inl _ => rfl | .inr _ => rfl
   rw [CNF.appendShared, CNF.eval_append, CNF.eval_relabel, CNF.eval_relabel, hA, hB]
 
 /-- A Boolean function `f` of the shared variables is an **interpolant** of `A(x, y)` and
@@ -144,13 +142,11 @@ model of `B`. So `f a = false` certifies that `A(a, ·)` is unsatisfiable, and `
 theorem CNF.IsInterpolant.not_satisfiable {A : CNF (X ⊕ Y)} {B : CNF (X ⊕ Z)}
     {f : (X → Bool) → Bool} (h : A.IsInterpolant B f) : ¬ (A.appendShared B).Satisfiable := by
   rintro ⟨σ, hσ⟩
-  have hσ' : σ = Sum.elim (σ ∘ Sum.inl) (Sum.elim (σ ∘ Sum.inr ∘ Sum.inl)
-      (σ ∘ Sum.inr ∘ Sum.inr)) := by
-    funext u
-    rcases u with _ | _ | _ <;> rfl
+  have hσ' : σ = Sum.elim (σ ∘ Sum.inl)
+      (Sum.elim (σ ∘ Sum.inr ∘ Sum.inl) (σ ∘ Sum.inr ∘ Sum.inr)) :=
+    funext fun | .inl _ => rfl | .inr (.inl _) => rfl | .inr (.inr _) => rfl
   rw [hσ', CNF.eval_appendShared, Bool.and_eq_true] at hσ
-  have := (h.1 _ _ hσ.1).symm.trans (h.2 _ _ hσ.2)
-  exact Bool.noConfusion this
+  exact Bool.noConfusion ((h.1 _ _ hσ.1).symm.trans (h.2 _ _ hσ.2))
 
 /-- **Craig interpolation for CNF formulas.** `A(x, y)` and `B(x, z)` have an interpolant exactly
 when their conjunction is unsatisfiable; whether an assignment of the shared variables extends to
@@ -159,10 +155,9 @@ theorem CNF.exists_isInterpolant_iff {A : CNF (X ⊕ Y)} {B : CNF (X ⊕ Z)} :
     (∃ f, A.IsInterpolant B f) ↔ ¬ (A.appendShared B).Satisfiable := by
   classical
   refine ⟨fun ⟨_, h⟩ => h.not_satisfiable, fun h => ?_⟩
-  refine ⟨fun a => decide (∃ y, A.eval (Sum.elim a y) = true),
-    fun a y hA => decide_eq_true ⟨y, hA⟩, fun a z hB => decide_eq_false ?_⟩
-  rintro ⟨y, hA⟩
-  exact h ⟨Sum.elim a (Sum.elim y z), by rw [CNF.eval_appendShared, hA, hB, Bool.and_self]⟩
+  exact ⟨fun a => decide (∃ y, A.eval (Sum.elim a y) = true),
+    fun a y hA => decide_eq_true ⟨y, hA⟩, fun a z hB => decide_eq_false fun ⟨y, hA⟩ =>
+      h ⟨Sum.elim a (Sum.elim y z), by rw [CNF.eval_appendShared, hA, hB, Bool.and_self]⟩⟩
 
 /-! ### Refutations guide circuit synthesis -/
 
@@ -175,12 +170,9 @@ functions in `T ∪ {f}`. -/
 private theorem forall_mem_cons_union {Good : Clause V → ((Fin n → U) → U) → Prop}
     {ls : List (Clause V)} {c : Clause V} {T : Set ((Fin n → U) → U)} {f : (Fin n → U) → U}
     (hls : ∀ e ∈ ls, ∃ g ∈ T, Good e g) (hc : Good c f) :
-    ∀ e ∈ c :: ls, ∃ g ∈ T ∪ {f}, Good e g := by
-  intro e he
-  rcases List.mem_cons.1 he with rfl | he
-  · exact ⟨f, Set.mem_union_right _ rfl, hc⟩
-  · obtain ⟨g, hg, hge⟩ := hls e he
-    exact ⟨g, Set.mem_union_left _ hg, hge⟩
+    ∀ e ∈ c :: ls, ∃ g ∈ T ∪ {f}, Good e g :=
+  List.forall_mem_cons.2 ⟨⟨f, Set.mem_union_right _ rfl, hc⟩,
+    fun e he => (hls e he).imp fun _ ⟨hg, hge⟩ => ⟨Set.mem_union_left _ hg, hge⟩⟩
 
 variable [DecidableEq V]
 
@@ -259,20 +251,16 @@ variable [DecidableEq V]
 /-- A partial assignment satisfying the first premise satisfies the resolvent, unless it satisfies
 the first premise only through the resolved literal. -/
 private theorem Satisfies.resolvent_left {ρ : V → Option Bool} {c₁ c₂ : Clause V} {v : V}
-    (h : Satisfies ρ c₁) (hv : ρ v ≠ some true) : Satisfies ρ (c₁.resolvent c₂ v) := by
-  obtain ⟨l, hl, hρ⟩ := h
-  refine ⟨l, Clause.mem_resolvent.2 (Or.inl ⟨hl, ?_⟩), hρ⟩
-  rintro rfl
-  exact hv hρ
+    (h : Satisfies ρ c₁) (hv : ρ v ≠ some true) : Satisfies ρ (c₁.resolvent c₂ v) :=
+  let ⟨l, hl, hρ⟩ := h
+  ⟨l, Clause.mem_resolvent.2 (Or.inl ⟨hl, fun heq => hv (by simpa [heq] using hρ)⟩), hρ⟩
 
 /-- A partial assignment satisfying the second premise satisfies the resolvent, unless it satisfies
 the second premise only through the resolved literal. -/
 private theorem Satisfies.resolvent_right {ρ : V → Option Bool} {c₁ c₂ : Clause V} {v : V}
-    (h : Satisfies ρ c₂) (hv : ρ v ≠ some false) : Satisfies ρ (c₁.resolvent c₂ v) := by
-  obtain ⟨l, hl, hρ⟩ := h
-  refine ⟨l, Clause.mem_resolvent.2 (Or.inr ⟨hl, ?_⟩), hρ⟩
-  rintro rfl
-  exact hv hρ
+    (h : Satisfies ρ c₂) (hv : ρ v ≠ some false) : Satisfies ρ (c₁.resolvent c₂ v) :=
+  let ⟨l, hl, hρ⟩ := h
+  ⟨l, Clause.mem_resolvent.2 (Or.inr ⟨hl, fun heq => hv (by simpa [heq] using hρ)⟩), hρ⟩
 
 /-- A partial assignment satisfying both premises satisfies the resolvent. -/
 private theorem Satisfies.resolvent {ρ : V → Option Bool} {c₁ c₂ : Clause V} {v : V}
@@ -328,12 +316,10 @@ variable {ρA : (X → Bool) → (Y → Bool) → X ⊕ (Y ⊕ Z) → Option Boo
 
 /-- At the empty clause the invariant is the interpolation property. -/
 private theorem isInterpolant_of_good {f : (X → Bool) → Bool} (h : Good ρA ρB A B [] f) :
-    A.IsInterpolant B f := by
-  refine ⟨fun a y hA => ?_, fun a z hB => ?_⟩
-  · by_contra hf
-    exact not_satisfies_nil _ (h.1 a y hA (Bool.eq_false_iff.2 hf))
-  · by_contra hf
-    exact not_satisfies_nil _ (h.2 a z hB (Bool.eq_true_of_not_eq_false hf))
+    A.IsInterpolant B f :=
+  ⟨fun a y hA => by_contra fun hf => not_satisfies_nil _ (h.1 a y hA (Bool.eq_false_iff.2 hf)),
+   fun a z hB => by_contra fun hf =>
+     not_satisfies_nil _ (h.2 a z hB (Bool.eq_true_of_not_eq_false hf))⟩
 
 /-- A clause of `A` gets the constant `false`, if `ρA a y` satisfies every literal of it true at
 `(a, y)`. -/
@@ -426,8 +412,7 @@ theorem CNF.isMonotoneInterpolantAt_relabel_inl {pos : Bool}
   · refine good_false hd fun a _ l hl he => ?_
     rcases l with ⟨i | _, b⟩
     · obtain rfl := hpos rfl d hd i b hl
-      simp only [Sum.elim_inl] at he
-      simp [leftPos, he]
+      simpa [leftPos] using he
     · simpa [leftPos] using he
 
 /-- A clause of `B` has the monotone interpolant `true`, if the shared variables occur only
@@ -440,8 +425,7 @@ theorem CNF.isMonotoneInterpolantAt_relabel_inr {pos : Bool}
   · refine good_true hd fun a _ l hl he => ?_
     rcases l with ⟨i | _, b⟩
     · obtain rfl := hneg rfl d hd i b hl
-      simp only [Sum.elim_inl] at he
-      simp [rightNeg, he]
+      simpa [rightNeg] using he
     · simpa [rightNeg] using he
   · exact good_true hd fun _ _ l _ he => by
       rcases l with ⟨_ | _, b⟩ <;> simpa [rightPart] using he
@@ -494,19 +478,14 @@ it serves for the resolvent as well. -/
 private theorem good_posSel {c₁ c₂ : Clause _} {f₁ f₂ : (X → Bool) → Bool} (i : X)
     (h₁ : Good leftPos rightPart A B c₁ f₁) (h₂ : Good leftPos rightPart A B c₂ f₂) :
     Good leftPos rightPart A B (c₁.resolvent c₂ (.inl i)) fun a => (a i || f₁ a) && f₂ a := by
-  refine ⟨fun a y hA hf => ?_, fun a z hB hf => ?_⟩
-  · cases hi : a i
-    · rcases Bool.and_eq_false_iff.1 hf with hf | hf
-      · simp only [hi, Bool.false_or] at hf
-        exact (h₁.1 a y hA hf).resolvent_left (by simp [leftPos, hi])
-      · exact (h₂.1 a y hA hf).resolvent_right (by simp [leftPos, hi])
-    · simp only [hi, Bool.true_or, Bool.true_and] at hf
-      exact (h₂.1 a y hA hf).resolvent_right (by simp [leftPos, hi])
-  · rw [Bool.and_eq_true] at hf
-    cases hi : a i
-    · simp only [hi, Bool.false_or] at hf
-      exact (h₁.2 a z hB hf.1).resolvent_left (by simp [rightPart, hi])
-    · exact (h₂.2 a z hB hf.2).resolvent_right (by simp [rightPart, hi])
+  refine ⟨fun a y hA hf => ?_, fun a z hB hf => ?_⟩ <;> cases hi : a i <;>
+    simp only [hi, Bool.false_or, Bool.true_or, Bool.true_and, Bool.and_eq_false_iff,
+      Bool.and_eq_true] at hf
+  · exact hf.elim (fun hf => (h₁.1 a y hA hf).resolvent_left (by simp [leftPos, hi]))
+      fun hf => (h₂.1 a y hA hf).resolvent_right (by simp [leftPos, hi])
+  · exact (h₂.1 a y hA hf).resolvent_right (by simp [leftPos, hi])
+  · exact (h₁.2 a z hB hf.1).resolvent_left (by simp [rightPart, hi])
+  · exact (h₂.2 a z hB hf).resolvent_right (by simp [rightPart, hi])
 
 /-- When the shared variables occur only negatively in `B`, a resolution on a shared variable `xᵢ`
 gets the monotone gate `(xᵢ ∧ g₂) ∨ g₁`. It differs from the selector only when `a i = true`,
@@ -515,19 +494,14 @@ it serves for the resolvent as well. -/
 private theorem good_negSel {c₁ c₂ : Clause _} {f₁ f₂ : (X → Bool) → Bool} (i : X)
     (h₁ : Good leftPart rightNeg A B c₁ f₁) (h₂ : Good leftPart rightNeg A B c₂ f₂) :
     Good leftPart rightNeg A B (c₁.resolvent c₂ (.inl i)) fun a => (a i && f₂ a) || f₁ a := by
-  refine ⟨fun a y hA hf => ?_, fun a z hB hf => ?_⟩
-  · rw [Bool.or_eq_false_iff] at hf
-    cases hi : a i
-    · exact (h₁.1 a y hA hf.2).resolvent_left (by simp [leftPart, hi])
-    · simp only [hi, Bool.true_and] at hf
-      exact (h₂.1 a y hA hf.1).resolvent_right (by simp [leftPart, hi])
-  · cases hi : a i
-    · simp only [hi, Bool.false_and, Bool.false_or] at hf
-      exact (h₁.2 a z hB hf).resolvent_left (by simp [rightNeg, hi])
-    · rcases Bool.or_eq_true_iff.1 hf with hf | hf
-      · simp only [hi, Bool.true_and] at hf
-        exact (h₂.2 a z hB hf).resolvent_right (by simp [rightNeg, hi])
-      · exact (h₁.2 a z hB hf).resolvent_left (by simp [rightNeg, hi])
+  refine ⟨fun a y hA hf => ?_, fun a z hB hf => ?_⟩ <;> cases hi : a i <;>
+    simp only [hi, Bool.false_and, Bool.true_and, Bool.false_or, Bool.or_eq_false_iff,
+      Bool.or_eq_true_iff] at hf
+  · exact (h₁.1 a y hA hf).resolvent_left (by simp [leftPart, hi])
+  · exact (h₂.1 a y hA hf.1).resolvent_right (by simp [leftPart, hi])
+  · exact (h₁.2 a z hB hf).resolvent_left (by simp [rightNeg, hi])
+  · exact hf.elim (fun hf => (h₂.2 a z hB hf).resolvent_right (by simp [rightNeg, hi]))
+      fun hf => (h₁.2 a z hB hf).resolvent_left (by simp [rightNeg, hi])
 
 /-- A resolution on a shared variable `xᵢ` has the interpolant `if xᵢ then f₂ else f₁`, for
 interpolants `f₁` and `f₂` at its premises. -/
@@ -576,8 +550,7 @@ theorem CNF.IsMonotoneInterpolantAt.resolvent_inr_inl {pos : Bool}
     {c₁ c₂ : Clause (X ⊕ (Y ⊕ Z))} {f₁ f₂ : (X → Bool) → Bool} (j : Y)
     (h₁ : A.IsMonotoneInterpolantAt B pos c₁ f₁) (h₂ : A.IsMonotoneInterpolantAt B pos c₂ f₂) :
     A.IsMonotoneInterpolantAt B pos (c₁.resolvent c₂ (.inr (.inl j))) fun a => f₁ a || f₂ a := by
-  cases pos
-  exacts [good_or (fun _ _ _ => rfl) j h₁ h₂, good_or (fun _ _ _ => rfl) j h₁ h₂]
+  cases pos <;> exact good_or (fun _ _ _ => rfl) j h₁ h₂
 
 /-- A resolution on a `B`-private variable has the monotone interpolant `f₁ ∧ f₂`, for monotone
 interpolants `f₁` and `f₂` at its premises. -/
@@ -585,8 +558,7 @@ theorem CNF.IsMonotoneInterpolantAt.resolvent_inr_inr {pos : Bool}
     {c₁ c₂ : Clause (X ⊕ (Y ⊕ Z))} {f₁ f₂ : (X → Bool) → Bool} (k : Z)
     (h₁ : A.IsMonotoneInterpolantAt B pos c₁ f₁) (h₂ : A.IsMonotoneInterpolantAt B pos c₂ f₂) :
     A.IsMonotoneInterpolantAt B pos (c₁.resolvent c₂ (.inr (.inr k))) fun a => f₁ a && f₂ a := by
-  cases pos
-  exacts [good_and (fun _ _ _ => rfl) k h₁ h₂, good_and (fun _ _ _ => rfl) k h₁ h₂]
+  cases pos <;> exact good_and (fun _ _ _ => rfl) k h₁ h₂
 
 end LineInvariant
 
@@ -631,9 +603,8 @@ private theorem exists_circuit_of_good {σ : Signature} {I : Interpretation σ B
     exacts [hshared i c₁ c₂ f₁ f₂ h₁ h₂, ⟨_, good_or hρB j h₁ h₂, hor f₁ f₂⟩,
       ⟨_, good_and hρA k h₁ h₂, hand f₁ f₂⟩]
   obtain ⟨f, hf, C, hC, hsize⟩ := IsProof.exists_circuit (Good ρA ρB A B) hmem hres h hnil
-  refine ⟨C, hsize, ?_⟩
   have hCf : (fun a => C.eval I a 0) = f := funext fun a => by rw [hC a, single_apply]
-  exact hCf ▸ isInterpolant_of_good hf
+  exact ⟨C, hsize, hCf ▸ isInterpolant_of_good hf⟩
 
 /-- The two premises' gates are available to the gate of their resolvent. -/
 private theorem synthesis_fst {σ : Signature} {I : Interpretation σ Bool}

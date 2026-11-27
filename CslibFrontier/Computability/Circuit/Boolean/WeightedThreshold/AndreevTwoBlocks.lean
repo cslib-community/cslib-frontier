@@ -46,8 +46,10 @@ The draft checks the finite case analysis numerically for `m ≤ 40`; here it is
 
 ## References
 
-* [cslib-frontier#4640](https://github.com/cslib-community/cslib-frontier/issues/4640):
-  original AI-assisted work, milestone M4.
+* [A. E. Andreev, *On a method for obtaining more than quadratic effective lower bounds for the
+  complexity of π-schemes*][Andreev1987]
+* C. Reitwiessner, *Depth-Two Threshold Circuits for Andreev's Function* (unpublished draft, not
+  publicly accessible), Remark "Two address blocks" (`prop:k2`).
 -/
 
 @[expose] public section
@@ -64,9 +66,8 @@ theorem sum_decide_two_mul_succ_le {t : ℤ} {L : ℕ} (h0 : 0 ≤ t) (h : t / 2
   obtain ⟨t, rfl⟩ := Int.eq_ofNat_of_zero_le h0
   have hq : t / 2 ≤ L := by omega
   rw [show (t : ℤ) / 2 = ((t / 2 : ℕ) : ℤ) by omega, ← sum_decide_succ_le hq]
-  exact sum_congr rfl fun j _ => by
-    rw [decide_eq_decide.mpr (show 2 * ((j : ℤ) + 1) ≤ (t : ℤ) ↔ (j : ℤ) + 1 ≤ ((t / 2 : ℕ) : ℤ) by
-      omega)]
+  exact sum_congr rfl fun j _ =>
+    congrArg Nat.cast (congrArg Bool.toNat (decide_eq_decide.mpr (by omega)))
 
 /-! ### The bottom gates -/
 
@@ -154,10 +155,9 @@ theorem andreevTwoBlocksTopSum_eq (x : BitString 2 → Bool) (s : Fin 2 → ℕ)
     andreevTwoBlocksBlock, andreevTwoBlocksTopTable, andreevTwoBlocksAddr, ite_mul, one_mul,
     zero_mul, sum_ite_eq', mem_univ, ite_true, Fin.isValue,
     ← mul_sum, add_mul, sum_add_distrib, Pi.one_apply]
-  have hr0 : (Fin.rev 0 : Fin 2) = 1 := rfl
-  have hr1 : (Fin.rev 1 : Fin 2) = 0 := rfl
-  simp only [hr0, hr1, Bool.false_eq_true, ite_false, one_ne_zero, zero_ne_one, add_zero,
-    zero_add, ← mul_sum, hblock, hsum]
+  simp only [show (Fin.rev 0 : Fin 2) = 1 from rfl, show (Fin.rev 1 : Fin 2) = 0 from rfl,
+    Bool.false_eq_true, ite_false, one_ne_zero, zero_ne_one, add_zero, zero_add, ← mul_sum,
+    hblock, hsum]
   ring
 
 /-- **The finite check**: on counts at most `m`, the top sum is at least `13` exactly when the table
@@ -172,25 +172,18 @@ theorem thirteen_le_andreevTwoBlocksTopSum_iff (x : BitString 2 → Bool) (s : F
   have h3 := Bool.toNat_le (x fun _ => true)
   rcases Nat.mod_two_eq_zero_or_one (s 0) with p0 | p0 <;>
     rcases Nat.mod_two_eq_zero_or_one (s 1) with p1 | p1
-  · have : blockParities 2 s = 0 := by
-      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]
-    rw [this]
-    cases x 0 <;> simp only [Bool.toNat_false, Bool.toNat_true] <;> simp <;> omega
-  · have : blockParities 2 s = Pi.single 1 true := by
-      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]
-    rw [this]
-    cases x (Pi.single 1 true) <;> simp only [Bool.toNat_false, Bool.toNat_true] <;>
-      simp <;> omega
-  · have : blockParities 2 s = Pi.single 0 true := by
-      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]
-    rw [this]
-    cases x (Pi.single 0 true) <;> simp only [Bool.toNat_false, Bool.toNat_true] <;>
-      simp <;> omega
-  · have : blockParities 2 s = fun _ => true := by
-      funext l; fin_cases l <;> simp [blockParities, p0, p1]
-    rw [this]
-    cases x (fun _ => true) <;> simp only [Bool.toNat_false, Bool.toNat_true] <;>
-      simp <;> omega
+  · rw [show blockParities 2 s = 0 by
+      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]]
+    cases x 0 <;> simp <;> omega
+  · rw [show blockParities 2 s = Pi.single 1 true by
+      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]]
+    cases x (Pi.single 1 true) <;> simp <;> omega
+  · rw [show blockParities 2 s = Pi.single 0 true by
+      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]]
+    cases x (Pi.single 0 true) <;> simp <;> omega
+  · rw [show blockParities 2 s = fun _ => true by
+      funext l; fin_cases l <;> simp [blockParities, p0, p1]]
+    cases x (fun _ => true) <;> simp <;> omega
 
 end TopSum
 
@@ -237,10 +230,9 @@ theorem computes_andreevTwoBlocksCircuit (m : ℕ) :
     (andreevTwoBlocksCircuit m).Computes interpretation (single (andreev 2 m)) := by
   intro w
   funext o
-  rw [eval_andreevTwoBlocksCircuit, single_apply, andreev_eq_andreevTable]
-  exact Bool.eq_iff_iff.mpr (by
-    rw [decide_eq_true_iff]
-    exact thirteen_le_andreevTwoBlocksTopSum_iff _ _ (andreevBlockCount_le w))
+  rw [eval_andreevTwoBlocksCircuit, single_apply, andreev_eq_andreevTable, Bool.eq_iff_iff,
+    decide_eq_true_iff]
+  exact thirteen_le_andreevTwoBlocksTopSum_iff _ _ (andreevBlockCount_le w)
 
 /-- The circuit has depth at most `2`. -/
 theorem depth_andreevTwoBlocksCircuit_le (m : ℕ) : (andreevTwoBlocksCircuit m).depth ≤ 2 :=
@@ -249,8 +241,7 @@ theorem depth_andreevTwoBlocksCircuit_le (m : ℕ) : (andreevTwoBlocksCircuit m)
 /-- **Exact gate count**: `4 ⌈m / 2⌉ + m` bottom gates. -/
 theorem card_andreevTwoBlocksIndex (m : ℕ) :
     Fintype.card (AndreevTwoBlocksIndex m) = 4 * ((m + 1) / 2) + m := by
-  simp only [Fintype.card_sum, Fintype.card_prod, Fintype.card_fin, Fintype.card_bool]
-  ring
+  simp only [Fintype.card_sum, Fintype.card_prod, Fintype.card_fin, Fintype.card_bool]; ring
 
 /-- **Size of the circuit**: `4 ⌈m / 2⌉ + m` bottom gates and one top gate. -/
 theorem size_andreevTwoBlocksCircuit (m : ℕ) :

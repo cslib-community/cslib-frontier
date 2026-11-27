@@ -19,6 +19,21 @@ example : editDist (⊤ : SimpleGraph (Fin 3)) ⊥ = 3 := by
   rw [editDist_eq_card]
   decide
 
+-- Distinct finite graphs have strictly positive edit distance, and `editDist` satisfies the
+-- triangle inequality across `⊥`, `⊤`, and a single edge.
+example : editDist (⊥ : SimpleGraph (Fin 2)) ⊤ ≠ 0 := by
+  rw [Ne, editDist_eq_zero]
+  intro h
+  exact (SimpleGraph.bot_adj 0 1).1 (h ▸ (SimpleGraph.top_adj 0 1).2 (by decide))
+
+example : editDist (⊥ : SimpleGraph (Fin 3)) (SimpleGraph.edge 0 1) = 1 ∧
+    editDist (⊥ : SimpleGraph (Fin 3)) (SimpleGraph.edge 0 1) ≤
+      editDist (⊥ : SimpleGraph (Fin 3)) ⊤ +
+        editDist (⊤ : SimpleGraph (Fin 3)) (SimpleGraph.edge 0 1) := by
+  refine ⟨?_, editDist_triangle _ _ _⟩
+  rw [editDist, bot_symmDiff, SimpleGraph.edgeSet_edge_of_ne (by decide), Nat.card_coe_set_eq,
+    Set.ncard_singleton]
+
 -- The complete graph on three vertices is a triangle.
 theorem top_not_cliqueFree : ¬ (⊤ : SimpleGraph (Fin 3)).CliqueFree 3 := fun h =>
   h univ ⟨fun _ _ _ _ huv => huv, by simp⟩
