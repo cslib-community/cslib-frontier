@@ -8,10 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
-public import Std.Data.HashMap.Basic
-public import Std.Data.HashSet.Basic
-import Std.Data.HashMap.Lemmas
-import Std.Data.HashSet.Lemmas
+import Std.Data.HashMap
+import Std.Data.HashSet
 import CslibFrontier.Foundations.Data.List.Lookup
 
 /-! # Trimming and renumbering LRAT certificates
@@ -58,7 +56,7 @@ open Std.Tactic.BVDecide (LRAT.IntAction)
 steps kept so far, in order, and the numbers they hint. An empty-clause step starts afresh, since
 the steps after the first one are never checked; a RUP step is kept when a step kept after it
 hints its number; deletions are dropped, and RAT steps, which the checker rejects, kept. -/
-def trimStep (a : LRAT.IntAction) (s : List LRAT.IntAction × Std.HashSet ℕ) :
+private def trimStep (a : LRAT.IntAction) (s : List LRAT.IntAction × Std.HashSet ℕ) :
     List LRAT.IntAction × Std.HashSet ℕ :=
   match a with
   | .addEmpty _ hints => ([a], hints.foldl (·.insert ·) ∅)
@@ -77,7 +75,7 @@ def trimCert (cert : Array LRAT.IntAction) : Array LRAT.IntAction :=
 
 /-- `renumberCert` from the map `m` of the numbers renamed so far, the next fresh number `next`,
 and the steps `acc` already renumbered. -/
-def renumberCert.go (m : Std.HashMap ℕ ℕ) (next : ℕ) (acc : Array LRAT.IntAction) :
+private def renumberCert.go (m : Std.HashMap ℕ ℕ) (next : ℕ) (acc : Array LRAT.IntAction) :
     List LRAT.IntAction → Array LRAT.IntAction
   | [] => acc
   | .addRup id c hints :: rest =>
@@ -100,7 +98,7 @@ def renumberCert (n : ℕ) (cert : Array LRAT.IntAction) : Array LRAT.IntAction 
 
 /-- **Propagation along hints transfers** to a lookup that finds, at the image of every hinted
 number, the clause the first lookup finds there. -/
-theorem propagateWith_map {L L' : ℕ → Option (Clause ℕ)} {f : ℕ → ℕ} :
+private theorem propagateWith_map {L L' : ℕ → Option (Clause ℕ)} {f : ℕ → ℕ} :
     ∀ {t : List (Literal ℕ)} {hs : List ℕ},
       (∀ h ∈ hs, ∀ c, L h = some c → L' (f h) = some c) →
       propagateWith L t hs = true → propagateWith L' t (hs.map f) = true
