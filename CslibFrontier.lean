@@ -1298,6 +1298,7 @@ public import CslibFrontier.Probability.PMF.AnchorPair
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Exchange
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.Dichotomy
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Median
+public import CslibFrontier.Computability.Complexity.Classes.MIP.CorrectionProbability
 public import CslibFrontier.Crypto.Computational.SIS.ModulusSwitch.CenteredBinomial
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.MeanEvent
 public import CslibFrontier.Foundations.Quantum.Algebra.SandwichedMeasurement
@@ -7900,6 +7901,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Ker
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.BoxTradeoffExponent
 public import CslibFrontier.Foundations.BooleanAnalysis.FiberWeight
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Window
+public import CslibFrontier.Computability.Complexity.Classes.MIP.Correction
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Determinant
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseOperator
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhp
