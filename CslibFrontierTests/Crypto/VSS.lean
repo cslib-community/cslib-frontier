@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Feldman
 import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Pedersen
+import Mathlib.Algebra.Field.ZMod
 
 /-!
 # Concrete Tests and Counterexamples for Feldman and Pedersen VSS
@@ -20,6 +21,7 @@ Pedersen base `h = 5 = 6 * 2`):
    unique degree-`≤ 2` polynomial extraction from `3` verified shares (`J = {0, 1, 2}`), and
    cross-coalition consistency between `{0, 1, 2}` and `{1, 2, 3}`.
 2. **Pedersen VSS (`q = 7, t = 2, n = 4`):** honest share verification, rejecting a tampered share,
+   the honest dealing as a `Pedersen.Dealing` restricted to a coalition,
    perfect hiding across distinct secrets (`a₀ = 3` vs `a₁ = 5`) for an unauthorized coalition
    `I = {0, 2}` (`|I| = 2 ≤ 2`), and explicit discrete-log extraction `extractDLog = 6`
    (`6 • 2 = 5` in `ZMod 7`) from two inconsistent authorized share sets opening to `3 ≠ 5`.
@@ -96,6 +98,18 @@ private def pedC : Fin 3 → ZMod 7 := Pedersen.commit params4 g7 h7 ra7 3 rb7 1
 example (i : Fin 4) :
     Pedersen.verifyShare params4 g7 h7 pedC i (share params4 ra7 3 i) (share params4 rb7 1 i) :=
   Pedersen.verifyShare_commit params4 g7 h7 ra7 3 rb7 1 i
+
+/- The honest dealing as a `Pedersen.Dealing`; restricting it to the coalition `{0, 2}` keeps the
+commitments and each member's `Share`, which verifies through its named `value` and `blinding`. -/
+private noncomputable def pedDealing :
+    Pedersen.Dealing (ZMod 7) (ZMod 7) (Fin 4) params4.threshold where
+  commitments := pedC
+  shares i := ⟨share params4 ra7 3 i, share params4 rb7 1 i⟩
+
+example (i : ({0, 2} : Finset (Fin 4))) :
+    let d := pedDealing.restrict {0, 2}
+    Pedersen.verifyShare params4 g7 h7 d.commitments i.1 (d.shares i).value (d.shares i).blinding :=
+  Pedersen.verifyShare_commit params4 g7 h7 ra7 3 rb7 1 i.1
 
 example :
     ¬ Pedersen.verifyShare params4 g7 h7 pedC 1
