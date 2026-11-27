@@ -72,6 +72,7 @@ import CslibFrontierResults.Entries.SelfClosingDoor
 import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.PotentialPolymatrix
+import CslibFrontierResults.Entries.ODonnellCondorcet
 import CslibFrontierResults.Entries.EvolutionaryStability
 import CslibFrontierResults.Entries.ODonnellFriedgutConcentration
 import CslibFrontierResults.Entries.LupanovRectifier
