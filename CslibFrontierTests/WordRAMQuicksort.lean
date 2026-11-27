@@ -192,12 +192,11 @@ example :
     let input := [4, 1, 4, 0, 3, 2, 0]
     let x := Local.encode (localSortInput input)
     let c := Local.compile localSortLoop
-    let R := Local.randomizedFlatMachine (M := localModel) (p := 16) (d := 16) localKernel
-    ∀ cfg ∈ (R.run c.program ((19 * input.length + 33) * input.length + 1)
-        (R.running 0 x)).support,
-      ∃ y, cfg = R.running c.size y ∧ pointerSortOutput input.length y = [0, 0, 1, 2, 3, 4, 4] ∧
+    ∀ y ∈ (Cslib.PointerMachine.runRand localKernel c.program
+        ((19 * input.length + 33) * input.length + 1) x).support,
+      y.pc = c.size ∧ pointerSortOutput input.length y = [0, 0, 1, 2, 3, 4, 4] ∧
         y.heap.length = 19 := by
-  intro input x c R
+  intro input x c
   obtain ⟨m, _, _, hsorted, hcost⟩ := pointerSort_exec input
   have _expected : ProbComp.expect ((fun z => (Local.encode z.1, z.2)) <$> m)
       (fun z => (z.2 : ℝ≥0∞)) ≤ 4705 := by
@@ -210,7 +209,7 @@ example :
     (List.pairwise_mergeSort' (· ≤ ·) input)
     (by decide : ([0, 0, 1, 2, 3, 4, 4] : List ℕ).Pairwise (· ≤ ·))
   intro cfg hcfg
-  obtain ⟨y, hy, hkeys, hsize⟩ := hsorted cfg hcfg
-  exact ⟨y, hy, hkeys.trans hout, hsize.trans (by decide)⟩
+  obtain ⟨hpc, hkeys, hsize⟩ := hsorted cfg hcfg
+  exact ⟨hpc, hkeys.trans hout, hsize.trans (by decide)⟩
 
 end CslibFrontierTests.WordRAMQuicksort

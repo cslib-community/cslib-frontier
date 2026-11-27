@@ -666,8 +666,10 @@ def pointerSortOutput (n : ℕ) (x : Cslib.PointerMachine.State localModel (Loca
     List ℕ :=
   memSlice 1 (n + 1) fun i => (x.heap[i]?).elim 0 fun r => r.data 0
 
-private theorem pointerSortOutput_encode {n : ℕ} (x : SortState (preparedCapacity n)) :
-    pointerSortOutput n (Local.encode x) = memSlice 1 (n + 1) (partitionView x).mem := by
+private theorem pointerSortOutput_encode {n : ℕ} (x : SortState (preparedCapacity n))
+    (pc : ℕ) :
+    pointerSortOutput n { Local.encode x with pc := pc } =
+      memSlice 1 (n + 1) (partitionView x).mem := by
   apply memSlice_congr
   intro i _ hi
   have hc := input_lt_capacity n
@@ -689,25 +691,26 @@ theorem pointerSort_exec (input : List ℕ) :
     let n := input.length
     let x := Local.encode (localSortInput input)
     let c := Local.compile localSortLoop
-    let R := Local.randomizedFlatMachine (M := localModel) (p := 16) (d := 16) localKernel
+    let run := Cslib.PointerMachine.runRand localKernel c.program ((19 * n + 33) * n + 1) x
     ∃ m : ProbComp (Local.Data localModel (preparedCapacity n) 16 16 × ℕ),
       Program.ExecRand (I := Cslib.PointerMachine.instructionSet localModel (Local.layout 16 16))
-        (Local.evalPointerRand localKernel) c x ((fun z => (Local.encode z.1, z.2)) <$> m) ∧
-      R.run c.program ((19 * n + 33) * n + 1) (R.running 0 x) =
-        ((fun z => R.running c.size (Local.encode z.1)) <$> m) ∧
-      (∀ cfg ∈ (R.run c.program ((19 * n + 33) * n + 1) (R.running 0 x)).support,
-        ∃ y, cfg = R.running c.size y ∧ pointerSortOutput n y = input.mergeSort ∧
-          y.heap.length = preparedCapacity n) ∧
+        (Cslib.PointerMachine.Op.evalRand localKernel) c x
+        ((fun z => (Local.encode z.1, z.2)) <$> m) ∧
+      run = ((fun z => { Local.encode z.1 with pc := c.size }) <$> m) ∧
+      (∀ y ∈ run.support, y.pc = c.size ∧ pointerSortOutput n y = input.mergeSort ∧
+        y.heap.length = preparedCapacity n) ∧
       ProbComp.expect ((fun z => (Local.encode z.1, z.2)) <$> m) (fun z => (z.2 : ℝ≥0∞)) ≤
         ((224 * n * (Nat.log 2 n + 1) + 1 : ℕ) : ℝ≥0∞) := by
-  intro n x c R
+  intro n x c run
   obtain ⟨m, h, hs, he⟩ := localSort_exec input
   have hflat := Local.runRand_compile (M := localModel) localKernel h (fun z hz => (hs z hz).1)
+  change run = ((fun z => { Local.encode z.1 with pc := c.size }) <$> m) at hflat
   refine ⟨m, Local.execRand_compile (M := localModel) localKernel h, hflat, ?_, ?_⟩
   · intro cfg hcfg
     rw [hflat] at hcfg
     obtain ⟨q, hq, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hcfg
-    exact ⟨_, rfl, (pointerSortOutput_encode q.1).trans (hs q hq).2, Local.encode_heap_length q.1⟩
+    exact ⟨rfl, (pointerSortOutput_encode q.1 _).trans (hs q hq).2,
+      Local.encode_heap_length q.1⟩
   · rw [ProbComp.expect_map]
     exact he
 
