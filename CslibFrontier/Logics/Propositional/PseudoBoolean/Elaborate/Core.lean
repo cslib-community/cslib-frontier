@@ -74,9 +74,9 @@ order of terms.
 **Totality.** Every function of the elaborator, its parser and its propagation engine is total,
 by structural or well-founded recursion. The loops over the proof text and over the trail of the
 engine take fuel, chosen above the number of bytes of the text and the number of literal codes:
-each round consumes a token or a trail entry, so the fuel does not run out. This is the first
-step towards proving the elaborator faithful to the declarative semantics of the augmented
-format (`Cslib.Logic.PL.VeriPB.Elab.AugValid`, for the clausal and `pol` fragment).
+each round consumes a token or a trail entry, so the fuel does not run out. Faithfulness and
+completeness of `elaborate` against the declarative semantics of the augmented format
+(`Cslib.Logic.PL.VeriPB.Elab.AugValid`, for the clausal and `pol` fragment) remain open (#8782).
 
 **Not elaborated**: `rup` without hints inside `def_order` (the kernel checker accepts it, as
 `Cslib.Logic.PL.VeriPB.Step.rupSearch`; CakePB does not), solutions with shrunk variables

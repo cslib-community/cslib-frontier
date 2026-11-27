@@ -47,7 +47,7 @@ edition.
 
 References are absolute or relative (`-k`, §5); labels, the deletion by specification
 `del spec` (VeriPB 2's `del find`) and the rest of the format are outside the fragment, and a
-proof using them has no derivation here.
+proof using them has no derivation here (#8782).
 
 **Soundness from the kernel's.** A derivation of `AugValid` is simulated step by step by the
 kernel checker `Cslib.Logic.PL.VeriPB.checkRed`, with the same constraint numbers
