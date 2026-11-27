@@ -155,17 +155,16 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
   obtain ⟨hcs_h, hres_h, hmc_h, hvp_h⟩ := readSliceHeaderGenProg_spec hth hw hsIdx hrep (s := s)
   dsimp only at hcs_h hres_h hmc_h hvp_h
   unfold btreeLocateHitGenProg
-  simp only [wp_large_hMaxBTree hth, wp_large_wKey hth, pure_bind]
+  have hHeader := bind_of_readOnly hcs_h hres_h hvp_h
+  simp only [wp_large_hMaxBTree hth, wp_large_wKey hth, pure_bind, (hHeader _ _).1,
+    (hHeader _ _).2.1, (hHeader _ _).2.2.1, (hHeader _ _).2.2.2, hmc_h]
   obtain ⟨_, ⟨ha0, rfl⟩ | ⟨ha_pos, T, hrt, hht_lt, _, _, hT⟩⟩ :=
     hv.alloc_and_height_lt hth hins
-  · refine ⟨?_, ?_, ?_, Or.inl ⟨?_, ?_, by simp [btreeDelete, ha0],
+  · simp only [ha0, ↓reduceIte, memoryCost_pure, Nat.add_zero]
+    exact ⟨rfl, by decide, validProg_pure _, Or.inl ⟨rfl, trivial, by simp [btreeDelete, ha0],
       fun _ => by simp [btreeUpdate, ha0]⟩⟩
-    · rw [clientState_bind, hcs_h, hres_h]; simp only [ha0, ↓reduceIte]; rfl
-    · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_h, hmc_h, hres_h]; simp [ha0]
-    · exact validProg_bind hvp_h (by simp [hcs_h, hres_h, ha0, validProg_pure])
-    · rw [clientResult_bind, hcs_h, hres_h]; simp [ha0, StateTransitionSpec.clientResult_pure]
-    · rw [← hlk_eq]; simp [btreeLookup, ha0]
-  · have ha_ne : sl.alloc ≠ 0 := by omega
+  · have ha_ne := Nat.ne_of_gt ha_pos
+    simp only [ha_ne, ↓reduceIte]
     obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
     have hhi : 2 ^ fpBitsWhp n_max - 1 < 2 ^ fpBitsWhp n_max :=
       Nat.sub_lt (Nat.two_pow_pos _) one_pos
@@ -192,30 +191,32 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
       obtain ⟨_, hm0, _, _, hvw0, _⟩ := hv_leaf
       have : cnt = cntL := by dsimp [cnt]; rw [hm0, metaCount_mkNodeMeta]
       rwa [this]
+    have hDescend := bind_of_readOnly hdl_st hdl_res hdl_vp
+    have hNode := bind_of_readOnly hnd_st hnd_res hnd_vp
+    let rankInput := (mkWhpCoreParams c U V w n_max,
+      (((sl.nodes leafIdx).metaWord / 2, q), (sl.nodes leafIdx).keysWord))
+    have hRankResult : (Memory.spec 0).clientResult s (swarRankGenProg rankInput) = r := by
+      dsimp only [rankInput]
+      rw [clientResult_swarRankGenProg hth, hcnt_div, hr_def]
+    have hRank := bind_of_readOnly (clientState_swarRankGenProg rankInput s) hRankResult
+      (validWhpProg_swarRankGenProg (w := w) (F := base + largeSpaceWhp c U V w n_max) rankInput)
+    simp only [(hDescend _ _).1, (hDescend _ _).2.1, (hDescend _ _).2.2.1,
+      (hDescend _ _).2.2.2, (hNode _ _).1, (hNode _ _).2.1, (hNode _ _).2.2.1,
+      (hNode _ _).2.2.2]
+    rw [(hRank _ _).1, (hRank _ _).2.1, (hRank _ _).2.2.1, (hRank _ _).2.2.2]
+    rw [hdl_mc]
+    simp only [hnd_mc, memoryCost_swarRankGenProg, hMaxBTree_eq, Nat.zero_add, hcnt_div]
     refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hcs_h, hres_h]; simp only [ha_ne, ↓reduceIte]
-      rw [clientState_bind, hdl_st, hdl_res, clientState_bind, hnd_st, hnd_res,
-        clientState_bind, clientState_swarRankGenProg]
-      split_ifs with hrc
+    · split_ifs with hrc
       · rw [clientState_bind, clientState_laneGetGenProg]
         split_ifs <;> rfl
       · rfl
-    · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_h, hmc_h, hres_h]
-      simp only [ha_ne, ↓reduceIte]
-      rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hdl_st, hdl_mc, hdl_res,
-        ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res,
-        memoryCost_bind, clientState_swarRankGenProg, memoryCost_swarRankGenProg, hMaxBTree_eq]
-      split_ifs with hrc
-      · rw [memoryCost_bind, clientState_laneGetGenProg, memoryCost_laneGetGenProg]
+    · split_ifs with hrc
+      · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, clientState_laneGetGenProg,
+          memoryCost_laneGetGenProg]
         split_ifs <;> simp [memoryCost_pure]
       · simp [memoryCost_pure]
-    · refine validProg_bind hvp_h ?_
-      rw [hcs_h, hres_h]; simp only [ha_ne, ↓reduceIte]
-      refine validProg_bind hdl_vp ?_; rw [hdl_st, hdl_res]
-      refine validProg_bind hnd_vp ?_; rw [hnd_st, hnd_res]
-      refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
-      rw [clientState_swarRankGenProg]
-      split_ifs with hrc
+    · split_ifs with hrc
       · refine validProg_bind (validWhpProg_laneGetGenProg _) ?_
         rw [clientState_laneGetGenProg]
         split_ifs <;> exact validProg_pure _
@@ -226,11 +227,7 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
       refine ⟨leafIdx, r, ?_, hleaf_lt, hrc, hcnt_le, hm_lt, hk_lt, hkw_cnt, hvw_cnt, ?_,
         by simp [btreeDelete, ha_ne, leafIdx, cnt, r, hrc, hkeq],
         fun _ => by simp [btreeUpdate, ha_ne, leafIdx, cnt, r, hrc, hkeq]⟩
-      · rw [clientResult_bind, hcs_h, hres_h]; simp only [ha_ne, ↓reduceIte]
-        rw [clientResult_bind, hdl_st, hdl_res, clientResult_bind, hnd_st, hnd_res,
-          clientResult_bind, clientState_swarRankGenProg, clientResult_swarRankGenProg hth,
-          hcnt_div, hr_def]
-        simp only [hrc, ↓reduceIte]
+      · simp only [hrc, ↓reduceIte]
         rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
         simp [keyLaneBitsWhp, hkeq, StateTransitionSpec.clientResult_pure]
       · simp [← hlk_eq, btreeLookup, ha_ne, leafIdx, cnt, r, hrc, hkeq]
@@ -240,11 +237,6 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
       refine ⟨?_, by simp +contextual [← hlk_eq, btreeLookup, ha_ne, leafIdx, cnt, r, hne],
         by simp +contextual [btreeDelete, ha_ne, leafIdx, cnt, r, hne],
         fun _ => by simp +contextual [btreeUpdate, ha_ne, leafIdx, cnt, r, hne]⟩
-      rw [clientResult_bind, hcs_h, hres_h]
-      simp only [ha_ne, ↓reduceIte]
-      rw [clientResult_bind, hdl_st, hdl_res, clientResult_bind, hnd_st, hnd_res,
-        clientResult_bind, clientState_swarRankGenProg, clientResult_swarRankGenProg hth,
-        hcnt_div, hr_def]
       by_cases hrc : r < cnt
       · simp only [hrc, ↓reduceIte]
         rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
