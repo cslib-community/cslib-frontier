@@ -774,7 +774,7 @@ theorem RealizesWithin.compose_toJoint {m n : ℕ}
     EmulatesWithin (UC.compose ρ.toJoint ρHat) (UC.composeMulti ρ F.toProtocol)
       (Polynomial.X + compSimPoly (g.comp (Polynomial.X + 1) + 1))
       (fun pA pZ => ε 1 (absorbPoly (absorbPoly pZ pA) pρ)) := by
-  have htrans := ((h.compose (toJoint_polyBounded hρ)).trans
+  have htrans := ((EmulatesWithin.compose (toJoint_polyBounded hρ) h).trans
     (EmulatesWithin.toJoint_multiSession ρ F) (fun _ _ _ _ _ => le_rfl)).mono
     (fun _ _ _ => by rw [add_zero])
   rwa [Polynomial.X_comp] at htrans

@@ -97,9 +97,8 @@ operation that replaces many sessions in one step.
   statistical, call-bounded single-subroutine static-corruption composition (#6043).
 * `Cslib.Crypto.Protocols.UC.Realizes.compose`, `Cslib.Crypto.Protocols.UC.Realizes.compose_trans`:
   statistical, call-bounded single-subroutine ideal-functionality replacement (#6043).
-* `Cslib.Crypto.Protocols.UC.RealizesWithin.compose`,
-  `Cslib.Crypto.Protocols.UC.RealizesWithin.compose_trans`: concrete single-subroutine
-  ideal-functionality replacement (#6043).
+* `Cslib.Crypto.Protocols.UC.RealizesWithin.compose_trans`: concrete single-subroutine
+  modular ideal-functionality composition (#6043).
 
 ## References
 
@@ -762,19 +761,6 @@ theorem Realizes.compose_trans {BackQ BackR GQ GR : Type} {π : Protocol n SubIn
     (hρG : Realizes (UC.compose ρ F.toProtocol) G) : Realizes (UC.compose ρ π) G :=
   (hπ.compose hρ).trans hρG
 
-/-- Concrete replacement of an ideal functionality, for `RealizesWithin`, this library's novel
-call-bounded, fixed-`n`-party, port-model notion: a step after corollary (a) of Theorem 3 of
-Section 2.3 of [Canetti2020], not that corollary (#6043). If `π` realizes `F` with overhead `g` and
-error `ε`, then `ρ^π` emulates `ρ^F` with the overhead and error of `EmulatesWithin.compose`. -/
-theorem RealizesWithin.compose {BackQ BackR : Type} {π : Protocol n SubIn SubOut NQ NR}
-    {F : IdealFunctionality n SubIn SubOut BackQ BackR} {pρ g : Polynomial ℕ}
-    {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} (hρ : ρ.PolyBounded pρ)
-    (h : RealizesWithin π F g ε) :
-    EmulatesWithin (compose ρ π) (compose ρ F.toProtocol)
-      (compSimPoly (g.comp (Polynomial.X + 1) + 1))
-      (fun pA pZ => ε 1 (absorbPoly (absorbPoly pZ pA) pρ)) :=
-  EmulatesWithin.compose hρ h
-
 /-- Concrete modular protocol design for `RealizesWithin`, this library's novel call-bounded,
 fixed-`n`-party, port-model notion: a step after corollary (b) of Theorem 3 of Section 2.3 of
 [Canetti2020], not that corollary (#6043). If `ρ^F` realizes `G` with overhead `g'` and error `ε'`
@@ -791,6 +777,6 @@ theorem RealizesWithin.compose_trans {BackQ BackR GQ GR : Type}
       (g'.comp (Polynomial.X + compSimPoly (g.comp (Polynomial.X + 1) + 1)))
       (fun pA pZ κ => ε 1 (absorbPoly (absorbPoly pZ pA) pρ) κ +
         ε' ((compSimPoly (g.comp (Polynomial.X + 1) + 1)).comp (Polynomial.X + pA)) pZ κ) :=
-  (hπ.compose hρ).trans hρG hmono
+  (EmulatesWithin.compose hρ hπ).trans hρG hmono
 
 end Cslib.Crypto.Protocols.UC
