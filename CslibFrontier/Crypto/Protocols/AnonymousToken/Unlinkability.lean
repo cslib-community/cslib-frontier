@@ -1778,6 +1778,10 @@ private def resumeAfterCom {preRounds challengeSpends : ℕ}
       challengeLoopSim env adv pk ctx (pauseSlot + 1) (challengeSpends - (j + 1)) (by omega)
         noteNext (balOther + refOther - d) resp.refund resp.st
 
+private lemma lt_ite_succ_of_lt {m p : ℕ} (isDummy : Bool) (h : m < p) :
+    m < if isDummy then p + 1 else p := by
+  split <;> omega
+
 /-- Pausing `challengeLoopPause` at `pauseSlot` and committing `msgReal` (`isDummy = false`) or
 `msgDummy` (`isDummy = true`) reconstructs `challengeLoopSim` at cutoff `pauseSlot` or
 `pauseSlot + 1`. -/
@@ -1826,8 +1830,8 @@ private lemma challengeLoopPause_resume_eq {preRounds challengeSpends : ℕ}
             PMF.pure_bind, resumeAfterCom, hrem_eq]
       · have hlt : 2 + preRounds + (challengeSpends - (rem' + 1)) < pauseSlot := by omega
         have hlt' : 2 + preRounds + (challengeSpends - (rem' + 1)) <
-            (if isDummy then pauseSlot + 1 else pauseSlot) := by
-          cases isDummy <;> simp <;> omega
+            (if isDummy then pauseSlot + 1 else pauseSlot) :=
+          lt_ite_succ_of_lt isDummy (by omega)
         simp only [heq, ↓reduceIte, hlt, hlt', ProbComp.eval_bind, PMF.bind_bind]
         refine pmfBind_congr _ fun rPrime => pmfBind_congr _ fun pi =>
           pmfBind_congr _ fun resp => ?_
@@ -1885,8 +1889,8 @@ private lemma preLoopPause_resume_eq {preRounds challengeSpends : ℕ}
             PMF.pure_bind, resumeAfterCom, hrem_eq, noteSel]
       · have hlt : 2 + (preRounds - (rem' + 1)) < pauseSlot := by omega
         have hlt' : 2 + (preRounds - (rem' + 1)) <
-            (if isDummy then pauseSlot + 1 else pauseSlot) := by
-          cases isDummy <;> simp <;> omega
+            (if isDummy then pauseSlot + 1 else pauseSlot) :=
+          lt_ite_succ_of_lt isDummy (by omega)
         simp only [heq, ↓reduceIte, hlt, hlt', ProbComp.eval_bind, PMF.bind_bind]
         refine pmfBind_congr _ fun rPrime => pmfBind_congr _ fun pi =>
           pmfBind_congr _ fun resp => ?_
@@ -1939,9 +1943,8 @@ private lemma runPause_resume_eq {preRounds challengeSpends : ℕ}
             preRounds (le_refl _) (by omega) (by omega) _ _ _)
       · simp only [↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind,
           resumeAfterCom, Nat.zero_lt_one, Nat.zero_add, Nat.lt_irrefl]
-    · have h0lt' : 0 < (if isDummy then pauseSlot + 1 else pauseSlot) := by
-        cases isDummy <;> simp
-        omega
+    · have h0lt' : 0 < (if isDummy then pauseSlot + 1 else pauseSlot) :=
+        lt_ite_succ_of_lt isDummy (by omega)
       simp only [h0, h0lt', ↓reduceIte, ProbComp.eval_bind, PMF.bind_bind]
       refine pmfBind_congr _ fun r0 => pmfBind_congr _ fun pi0 => pmfBind_congr _ fun nf1 => ?_
       by_cases h1 : 1 = pauseSlot
@@ -1957,8 +1960,8 @@ private lemma runPause_resume_eq {preRounds challengeSpends : ℕ}
               2 1 preRounds (le_refl _) (by omega) (by omega) _ _ _)
         · simp only [↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind,
             resumeAfterCom, Nat.lt_succ_self]
-      · have h1lt' : 1 < (if isDummy then pauseSlot + 1 else pauseSlot) := by
-          cases isDummy <;> simp <;> omega
+      · have h1lt' : 1 < (if isDummy then pauseSlot + 1 else pauseSlot) :=
+          lt_ite_succ_of_lt isDummy (by omega)
         simp only [h1, h1lt', ↓reduceIte, ProbComp.eval_bind, PMF.bind_bind]
         refine pmfBind_congr _ fun r1 => pmfBind_congr _ fun pi1 =>
           pmfBind_congr _ fun issResp => ?_
