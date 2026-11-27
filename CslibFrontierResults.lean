@@ -36,6 +36,7 @@ import CslibFrontierResults.Entries.HastadInapproximability
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.BoostingMargin
 import CslibFrontierResults.Entries.ODonnellTribes
+import CslibFrontierResults.Entries.ParityPTF
 import CslibFrontierResults.Entries.CountingContainments
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Registry
