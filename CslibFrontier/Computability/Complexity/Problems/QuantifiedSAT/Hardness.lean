@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Tableau
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.TableauDNF
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Parsing
 import CslibFrontier.Computability.Complexity.Classes.PH.Projection
 import CslibFrontier.Computability.Complexity.CookLevin.PolyTime
@@ -35,8 +35,7 @@ namespace Cslib.Complexity.QuantifiedSAT
 
 open Cslib.Logic.PL _root_.Turing _root_.Turing.MultiTapeTM ComputableInPolyTime TQBF
 
-/-- Pad the blocks of an alternating verifier to a common positive even length. -/
-theorem even_verifier {α : Type} {enc : α ↪ List Bool} {A : Set α} {i : ℕ}
+private theorem even_verifier {α : Type} {enc : α ↪ List Bool} {A : Set α} {i : ℕ}
     (hA : A ∈ SigmaP i enc) :
     ∃ (p : Polynomial ℕ) (V : α × List Bool → Bool),
       (∀ n, 1 ≤ p.eval n) ∧ ComputableInPolyTime V (encPair enc encBits) encBool ∧
@@ -59,13 +58,32 @@ theorem even_verifier {α : Type} {enc : α ↪ List Bool} {A : Set α} {i : ℕ
         simp [p']
         omega).symm
 
-/-- Every native `Σᵢ` verifier has a polynomial-time reduction to well-formed, nonempty-block
-prenex formulas at the same positive level. This invariant also supports the dual reduction. -/
-theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α} {i : ℕ}
+open WidthThree
+
+private theorem eval_tableauAt {k : Nat} {State : Type} [Fintype State]
+    (tab : CNF (CookLevin.Var k State)) (w n i : Nat) (r : Bool) (σ : Nat → Bool) :
+    let p : Instance := ⟨(instanceOfTableau tab w n i r).blocks, tableauDNF tab w⟩
+    ((prenexAt r (orientMatrix r p)).formula true).eval σ =
+      ((instanceOfTableau tab w n i r).formula true).eval σ := by
+  dsimp only
+  cases r <;>
+    rw [Bool.eq_iff_iff, PrenexQBF.formula, PrenexQBF.formula, QBF.eval_blocks_eq_true_iff,
+      QBF.eval_blocks_eq_true_iff] <;>
+    apply alternation_congr
+  · intro word
+    simp [prenexAt, instanceOfTableau_matrix, eval_matrix, eval_tableauDNF, orientMatrix]
+  · intro word
+    simp [prenexAt, instanceOfTableau_matrix, QBF.eval_ofCNF, DNF.eval_negate,
+      eval_tableauDNF, orientMatrix, negateMatrix]
+
+/-- A shaped Cook–Levin reduction at any positive level. The last block's polarity
+determines whether the output is interpreted as CNF or DNF. -/
+theorem exists_normalFormReduction {α : Type} {enc : α ↪ List Bool} {A : Set α} {i : Nat}
     (hi : 1 ≤ i) (hA : A ∈ SigmaP i enc) :
-    ∃ f : α → PrenexQBF, ComputableInPolyTime f enc encPrenexQBF ∧
-      ∀ a, (f a).WellFormed i ∧ (∀ b ∈ (f a).blocks, b ≠ []) ∧
-        (a ∈ A ↔ ((f a).formula true).eval (fun _ => false) = true) := by
+    let r := !(Bool.not^[i] true)
+    ∃ f : α → Instance, ComputableInPolyTime f enc encoding ∧
+      (∀ a, (prenexAt false (f a)).WellFormed i ∧ ∀ b ∈ (f a).blocks, b ≠ []) ∧
+      ∀ a, a ∈ A ↔ ((prenexAt r (f a)).formula true).eval (fun _ => false) = true := by
   obtain ⟨p, V, hp, hV, hAV⟩ := even_verifier hA
   let r := !(Bool.not^[i] true)
   let W (x : α × List Bool) := if r then V x else !(V x)
@@ -89,12 +107,34 @@ theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α
     have hframe := bitsFrame enc
     unfold tab time
     fun_prop
-  refine ⟨f, instanceOfTableau_polyTime i r htab hw (unary_mul.comp ((const 2).prod hn)),
-    fun a => ?_⟩
+  have hf := instanceOfTableau_polyTime i r htab hw (unary_mul.comp ((const 2).prod hn))
+  refine ⟨fun a => orientMatrix r ⟨(f a).blocks, tableauDNF (tab a) (width a)⟩,
+    (polytime_orientMatrix r).comp
+      (encoding_mk_polyTime (encPrenexQBF_blocks_polyTime hf) (polytime_tableauDNF htab hw)),
+    ?_, ?_⟩
+  · intro a
+    have hmul : i * (2 * p.eval (enc a).length) = 2 * width a := by dsimp only [width]; ring
+    have well := instanceOfTableau_wellFormed (tab a) (width a) _ i hi hmul r
+    refine ⟨(orientMatrix_wf r _ _).mpr ⟨well.1,
+      QBF.quantifierFree_not.mpr (QBF.quantifierFree_ofCNF _), ?_⟩, ?_⟩
+    swap
+    · have hne := instanceOfTableau_nonempty (tab a) (width a)
+        (2 * p.eval (enc a).length) i hi (by have := hp (enc a).length; omega) r
+      cases r <;> exact hne
+    change (matrix (tableauDNF (tab a) (width a))).freeVars ⊆ (f a).blocks.flatten.toFinset
+    rw [tableau_freeVars]
+    have eq : (f a).matrix.freeVars = (baseMatrix (tab a) (width a)).freeVars := by
+      dsimp only [f]
+      rw [instanceOfTableau_matrix]
+      cases r <;> simp
+    rw [← eq]
+    exact well.2.2
+  intro a
   have hmul : i * (2 * p.eval (enc a).length) = 2 * width a := by dsimp only [width]; ring
-  refine ⟨instanceOfTableau_wellFormed (tab a) (width a) _ i hi hmul r,
-    instanceOfTableau_nonempty (tab a) (width a) (2 * p.eval (enc a).length) i hi
-      (by have := hp (enc a).length; omega) r, ?_⟩
+  rw [show ((prenexAt r (orientMatrix r
+      ⟨(f a).blocks, tableauDNF (tab a) (width a)⟩)).formula true).eval (fun _ => false) =
+        ((f a).formula true).eval (fun _ => false) from
+    eval_tableauAt (tab a) (width a) _ i r _]
   rw [hAV a, eval_instanceOfTableau (tab a) (width a) _ i hi true r
     (by simp only [r, Bool.not_not])]
   refine (eval_certBlocks (width a) _ i hmul true _ fun σ => ?_).symm
@@ -113,5 +153,17 @@ theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α
       show time a = c * (2 * (enc a).length + 2 * width a + 1 + 1) ^ d from rfl, hrun.2]
     simpa only [encBool_apply, List.cons.injEq, and_true] using and_iff_right hrun.1
   cases hr : r <;> simp [hr, QBF.eval_not, hbase, W, z]
+
+/-- Every native `Σᵢ` verifier has a polynomial-time reduction to well-formed, nonempty-block
+prenex formulas at the same positive level. This invariant also supports the dual reduction. -/
+theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α} {i : ℕ}
+    (hi : 1 ≤ i) (hA : A ∈ SigmaP i enc) :
+    ∃ f : α → PrenexQBF, ComputableInPolyTime f enc encPrenexQBF ∧
+      ∀ a, (f a).WellFormed i ∧ (∀ b ∈ (f a).blocks, b ≠ []) ∧
+        (a ∈ A ↔ ((f a).formula true).eval (fun _ => false) = true) := by
+  obtain ⟨f, hf, hvalid, hcorrect⟩ := exists_normalFormReduction hi hA
+  let r := !(Bool.not^[i] true)
+  refine ⟨prenexAt r ∘ f, (polytime_prenexAt r).comp hf, fun a => ?_⟩
+  exact ⟨(prenexAt_wf_iff r (f a) i).mpr (hvalid a).1, (hvalid a).2, hcorrect a⟩
 
 end Cslib.Complexity.QuantifiedSAT

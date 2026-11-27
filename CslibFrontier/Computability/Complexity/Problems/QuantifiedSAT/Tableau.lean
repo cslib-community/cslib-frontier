@@ -112,16 +112,16 @@ private theorem matrix_quantifierFree {k : ℕ} {State : Type} [Fintype State]
 
 /-- Merge the auxiliary tableau variables into the final certificate block. `r` is the
 polarity of that final block; a universal block uses the negated tableau matrix. -/
-noncomputable def instanceOfTableau {k : ℕ} {State : Type} [Fintype State]
+@[expose] noncomputable def instanceOfTableau {k : ℕ} {State : Type} [Fintype State]
     (tab : CNF (CookLevin.Var k State)) (w n i : ℕ) (r : Bool) : PrenexQBF :=
   ⟨QBF.appendLast (certBlocks w n i 0) (baseVars tab w),
     if r then baseMatrix tab w else (baseMatrix tab w).not⟩
 
 /-- The matrix of the tableau uses the polarity of the last block. -/
-theorem instanceOfTableau_matrix {k : ℕ} {State : Type} [Fintype State]
+@[simp] theorem instanceOfTableau_matrix {k : ℕ} {State : Type} [Fintype State]
     (tab : CNF (CookLevin.Var k State)) (w n i : ℕ) (r : Bool) :
     (instanceOfTableau tab w n i r).matrix =
-      (if r then baseMatrix tab w else (baseMatrix tab w).not) := by rfl
+      (if r then baseMatrix tab w else (baseMatrix tab w).not) := rfl
 
 /-- Merging the tableau variables preserves well-formedness and the number of blocks. -/
 theorem instanceOfTableau_wellFormed {k : ℕ} {State : Type} [Fintype State]

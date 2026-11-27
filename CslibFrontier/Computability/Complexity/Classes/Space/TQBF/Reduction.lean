@@ -114,6 +114,68 @@ blocks and asserting the tableau. The auxiliary variables are quantified by `bas
 noncomputable def baseMatrix (tab : CNF (CookLevin.Var k State)) (w : ℕ) : QBF ℕ :=
   .and (certLinks k State w) (QBF.ofCNF (tab.relabel tabVar))
 
+/-- Two width-two clauses express equality of the two certificate wires. -/
+def linkCNF (a b : Nat) : CNF Nat :=
+  [[(a, false), (b, true)], [(a, true), (b, false)]]
+
+/-- The links of the certificate variables to the blocks of level `0` (`certLinks`) as clauses:
+`¬a ∨ b` and `a ∨ ¬b` for each link `a ↔ b`. -/
+noncomputable def certLinkCNF (k : ℕ) (State : Type) [Fintype State] (w : ℕ) : CNF ℕ :=
+  (List.range (2 * w)).flatMap fun j =>
+    linkCNF (tabVar (CookLevin.Var.cert (k := k) (State := State) j)) (certVar w j)
+
+/-- The certificate clauses express the same equalities as the formula of links. -/
+theorem eval_certLinkCNF (w : ℕ) (σ : ℕ → Bool) :
+    CNF.eval σ (certLinkCNF k State w) = (certLinks k State w).eval σ := by
+  rw [Bool.eq_iff_iff, certLinkCNF, CNF.eval_flatMap_eq_true_iff, certLinks, QBF.eval_conj,
+    List.all_map, List.all_eq_true]
+  refine forall₂_congr fun j _ => ?_
+  simp only [linkCNF, CNF.eval_cons, CNF.eval_nil, Clause.eval_cons, Clause.eval_nil, Literal.eval,
+    Function.comp_apply, QBF.eval_iff, QBF.eval_var]
+  cases σ (tabVar (CookLevin.Var.cert (k := k) (State := State) j)) <;>
+    cases σ (certVar w j) <;> rfl
+
+private theorem link_freeVars (σ : Nat) (pairs : List (Nat × Nat)) :
+    σ ∈ (QBF.ofCNF (pairs.flatMap fun p => linkCNF p.1 p.2)).freeVars ↔
+      σ ∈ (QBF.conj (pairs.map fun p => QBF.iff (.var p.1) (.var p.2))).freeVars := by
+  induction pairs with
+  | nil => simp [QBF.ofCNF, QBF.conj]
+  | cons p pairs ih =>
+    rw [List.flatMap_cons, QBF.mem_freeVars_ofCNF]
+    have varsAppend (a b : CNF Nat) : (a ++ b).vars = a.vars ++ b.vars := by
+      simp [CNF.vars]
+    rw [varsAppend, List.mem_append, ← QBF.mem_freeVars_ofCNF
+      (φ := pairs.flatMap fun p => linkCNF p.1 p.2), ih]
+    change (_ ∨ _) ↔ σ ∈
+      ((QBF.iff (.var p.1) (.var p.2)).and
+        (QBF.conj (pairs.map fun a => QBF.iff (.var a.1) (.var a.2)))).freeVars
+    simp [CNF.vars, linkCNF, or_assoc, or_left_comm, or_comm]
+
+/-- The matrix of the normal form of the formula of a game: the links of the certificate variables
+as clauses, then the tableau. -/
+noncomputable def prenexMatrix (tab : CNF (CookLevin.Var k State)) (w : ℕ) : CNF ℕ :=
+  certLinkCNF k State w ++ tab.relabel tabVar
+
+/-- The conjunctive normal form and the original tableau matrix agree on every assignment. -/
+theorem eval_prenexMatrix (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ → Bool) :
+    (QBF.ofCNF (prenexMatrix tab w)).eval σ = (baseMatrix tab w).eval σ := by
+  rw [prenexMatrix, baseMatrix, QBF.eval_ofCNF, CNF.eval_append, eval_certLinkCNF,
+    QBF.eval_and, QBF.eval_ofCNF]
+
+/-- Converting the tableau matrix to CNF preserves its free variables. -/
+theorem freeVars_prenexMatrix (tab : CNF (CookLevin.Var k State)) (w : ℕ) :
+    (QBF.ofCNF (prenexMatrix tab w)).freeVars = (baseMatrix tab w).freeVars := by
+  ext v
+  have hlinks := link_freeVars v ((List.range (2 * w)).map fun j =>
+    (tabVar (CookLevin.Var.cert (k := k) (State := State) j), certVar w j))
+  have eq : v ∈ (certLinkCNF k State w).vars ↔ v ∈ (certLinks k State w).freeVars := by
+    simpa [QBF.mem_freeVars_ofCNF, certLinkCNF, certLinks, List.flatMap_map,
+      Function.comp_def] using hlinks
+  simp [prenexMatrix, baseMatrix, QBF.mem_freeVars_ofCNF,
+    show ∀ (a b : CNF ℕ), (a ++ b).vars = a.vars ++ b.vars by
+      intro a b
+      simp [CNF.vars], eq]
+
 /-- **A tableau as the formula of level `0`**: its variables numbered by odd numbers, its first
 `2 * w` certificate variables linked to the source and target blocks of level `0`, and all of them
 quantified existentially. -/

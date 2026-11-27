@@ -123,23 +123,6 @@ section Prenex
 
 variable {k : ℕ} {State : Type} [Fintype State]
 
-/-- The links of the certificate variables to the blocks of level `0` (`certLinks`) as clauses:
-`¬a ∨ b` and `a ∨ ¬b` for each link `a ↔ b`. -/
-private noncomputable def certLinkCNF (k : ℕ) (State : Type) [Fintype State] (w : ℕ) : CNF ℕ :=
-  (List.range (2 * w)).flatMap fun j =>
-    [[(tabVar (CookLevin.Var.cert (k := k) (State := State) j), false), (certVar w j, true)],
-      [(tabVar (CookLevin.Var.cert (k := k) (State := State) j), true), (certVar w j, false)]]
-
-private theorem eval_certLinkCNF (w : ℕ) (σ : ℕ → Bool) :
-    CNF.eval σ (certLinkCNF k State w) = (certLinks k State w).eval σ := by
-  rw [Bool.eq_iff_iff, certLinkCNF, CNF.eval_flatMap_eq_true_iff, certLinks, QBF.eval_conj,
-    List.all_map, List.all_eq_true]
-  refine forall₂_congr fun j _ => ?_
-  simp only [CNF.eval_cons, CNF.eval_nil, Clause.eval_cons, Clause.eval_nil, Literal.eval,
-    Function.comp_apply, QBF.eval_iff, QBF.eval_var]
-  cases σ (tabVar (CookLevin.Var.cert (k := k) (State := State) j)) <;>
-    cases σ (certVar w j) <;> rfl
-
 /-- A variable of the blocks of level `0` that no formula of a game uses: the first variable of
 the midpoint block of level `0`. -/
 private def dummyVar : ℕ := blockVar 2 0 0
@@ -159,11 +142,6 @@ private theorem dummyVar_ne_certVar (w j : ℕ) : dummyVar ≠ certVar w j := fu
 noncomputable def prenexPairs (tab : CNF (CookLevin.Var k State)) (w : ℕ) : List (ℕ × ℕ) :=
   gamePairs w ++ (baseVars tab w).map fun v => (v, dummyVar)
 
-/-- The matrix of the normal form of the formula of a game: the links of the certificate variables
-as clauses, then the tableau. -/
-noncomputable def prenexMatrix (tab : CNF (CookLevin.Var k State)) (w : ℕ) : CNF ℕ :=
-  certLinkCNF k State w ++ tab.relabel tabVar
-
 private theorem mem_vars_prenexMatrix {tab : CNF (CookLevin.Var k State)} {w x : ℕ}
     (hx : x ∈ (prenexMatrix tab w).vars) :
     (∃ j < 2 * w, x = tabVar (CookLevin.Var.cert (k := k) (State := State) j) ∨
@@ -171,8 +149,8 @@ private theorem mem_vars_prenexMatrix {tab : CNF (CookLevin.Var k State)} {w x :
   simp only [prenexMatrix, CNF.vars, List.flatten_append, List.map_append, List.mem_append,
     List.mem_map, List.mem_flatten] at hx
   rcases hx with ⟨l, ⟨c, hc, hl⟩, rfl⟩ | ⟨l, ⟨c, hc, hl⟩, rfl⟩
-  · simp only [certLinkCNF, List.mem_flatMap, List.mem_range, List.mem_cons, List.not_mem_nil,
-      or_false] at hc
+  · simp only [certLinkCNF, linkCNF, List.mem_flatMap, List.mem_range, List.mem_cons,
+      List.not_mem_nil, or_false] at hc
     obtain ⟨j, hj, rfl | rfl⟩ := hc
     all_goals
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
@@ -197,10 +175,8 @@ theorem eval_prenex (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ → 
       (gameFormula tab w).eval σ := by
   rw [prenexPairs, QBF.rounds_append, gameFormula]
   refine QBF.eval_rounds_congr (fun τ => ?_) _ σ
-  rw [QBF.eval_rounds_map_pair (dummyVar_notMem_freeVars tab w), baseFormula, baseMatrix]
-  exact QBF.eval_exs_congr (fun _ => by
-    rw [prenexMatrix, QBF.eval_ofCNF, CNF.eval_append, eval_certLinkCNF, QBF.eval_and,
-      QBF.eval_ofCNF]) _ τ
+  rw [QBF.eval_rounds_map_pair (dummyVar_notMem_freeVars tab w), baseFormula]
+  exact QBF.eval_exs_congr (eval_prenexMatrix tab w) _ τ
 
 /-- **The normal form of the formula of a game is closed.** -/
 theorem closed_prenex (tab : CNF (CookLevin.Var k State)) (w : ℕ) :
@@ -266,10 +242,6 @@ theorem computableInPolyTime_prenexReduce {kV : ℕ} {StateV : Type} [Fintype St
   have hvars : ComputableInPolyTime (CNF.vars (V := CookLevin.Var kV StateV))
       (encList (encList (encPair CookLevin.encVar encBool))) (encList CookLevin.encVar) :=
     CNF.computableInPolyTime_vars _
-  have hrelabel : ComputableInPolyTime (CNF.relabel (tabVar (k := kV) (State := StateV)))
-      (encList (encList (encPair CookLevin.encVar encBool)))
-      (encList (encList (encPair encNat encBool))) :=
-    CNF.computableInPolyTime_relabel computableInPolyTime_tabVar
   have htabVar := computableInPolyTime_tabVar (k := kV) (State := StateV)
   have hcertVar := CookLevin.computableInPolyTime_cert (k := kV) (State := StateV)
   have hcert : ComputableInPolyTime (fun q : ℕ × ℕ => certVar q.1 q.2)
@@ -289,15 +261,11 @@ theorem computableInPolyTime_prenexReduce {kV : ℕ} {StateV : Type} [Fintype St
       (encList (encPair encNat encNat)) := by
     unfold gamePairs
     fun_prop
-  have hlinks : ComputableInPolyTime (certLinkCNF kV StateV) encUnary encCNF := by
-    unfold certLinkCNF encCNF
-    fun_prop
   exact encPrenexCNF_mk_polyTime
     ((listAppend (encPair encNat encNat)).comp ((hgamePairs.comp hp).prod
       ((map ((id' (encIn := encNat)).prod (const (encOut := encNat) dummyVar))).comp
         (hbase.comp (htableau.prod hp)))))
-    ((listAppend (encList (encPair encNat encBool))).comp
-      ((hlinks.comp hp).prod (hrelabel.comp htableau)))
+    (computableInPolyTime_prenexMatrix htableau hp)
 
 end Reduction
 

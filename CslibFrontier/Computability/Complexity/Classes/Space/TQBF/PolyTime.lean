@@ -387,4 +387,31 @@ theorem computableInPolyTime_reduce {kV : ℕ} {StateV : Type} [Fintype StateV]
 
 end Reduction
 
+section
+
+attribute [local irreducible] ComputableInPolyTime
+
+/-- The positive tableau matrix is polynomial-time in the tableau and unary certificate width. -/
+@[fun_prop]
+theorem computableInPolyTime_prenexMatrix {k : ℕ} {State : Type} [Fintype State]
+    {tab : γ → CNF (CookLevin.Var k State)} {w : γ → ℕ}
+    (htab : ComputableInPolyTime tab encIn (encCNFOver CookLevin.encVar))
+    (hw : ComputableInPolyTime w encIn encUnary) :
+    ComputableInPolyTime (fun a => prenexMatrix (tab a) (w a)) encIn (encCNFOver encNat) := by
+  have hlink : ComputableInPolyTime (fun p : ℕ × ℕ => linkCNF p.1 p.2)
+      (encPair encNat encNat) (encCNFOver encNat) := by
+    unfold linkCNF
+    fun_prop
+  have hleft := (computableInPolyTime_tabVar (k := k) (State := State)).comp
+    ((CookLevin.computableInPolyTime_cert (k := k) (State := State)).comp (snd encIn encUnary))
+  have hright := computableInPolyTime_certVar (hw.comp (fst encIn encUnary)) (snd encIn encUnary)
+  have hlinks : ComputableInPolyTime (fun a => certLinkCNF k State (w a))
+      encIn (encCNFOver encNat) :=
+    flatMapWithInput (unary_range' (unary_mul' (const 2) hw)) (hlink.comp (hleft.prod hright))
+  have hrelabel := (CNF.computableInPolyTime_relabel
+    (computableInPolyTime_tabVar (k := k) (State := State))).comp htab
+  exact (listAppend (encClause encNat)).comp (hlinks.prod hrelabel)
+
+end
+
 end Cslib.Complexity.TQBF
