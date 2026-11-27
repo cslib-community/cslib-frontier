@@ -30,6 +30,8 @@ public section
 
 namespace Cslib.Complexity.MIP
 
+open Polynomial (evalCoeffListMod evalCoeffListMod_lt_modulus)
+
 open Cslib.Code Cslib.Probability Turing.MultiTapeTM QBFProtocol Finset
 open scoped ENNReal
 
@@ -83,7 +85,7 @@ theorem correctPoint_wrong_le (π : List Bool → Bool) {p n : ℕ} [Fact p.Prim
         (univ.filter fun v => checkLineReply p n (correctionReply π x v)
           (List.ofFn fun i : Fin (n + 1) =>
             (proofPoint π p (x + ((i.val + 1 : ℕ) : ZMod p) • v)).val) = true ∧
-          (hornerMod p 0 (decodeReply p n (correctionReply π x v)) : ZMod p) ≠ f x) := by
+          (evalCoeffListMod p 0 (decodeReply p n (correctionReply π x v)) : ZMod p) ≠ f x) := by
       intro v hv
       simp only [mem_filter, mem_univ, true_and] at hv ⊢
       simp only [correctionAnswer] at hv
@@ -91,7 +93,7 @@ theorem correctPoint_wrong_le (π : List Bool → Bool) {p n : ℕ} [Fact p.Prim
       · rename_i hcheck
         refine ⟨hcheck, fun h => ?_⟩
         have he := congrArg ZMod.val h
-        rw [ZMod.val_natCast_of_lt (hornerMod_lt _ _)] at he
+        rw [ZMod.val_natCast_of_lt (evalCoeffListMod_lt_modulus _ _)] at he
         simp [wrong, he] at hv
       · simp [wrong] at hv
     have h := (card_le_card hsub).trans hcard
