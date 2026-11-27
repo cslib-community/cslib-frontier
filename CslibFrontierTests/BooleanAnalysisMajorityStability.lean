@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.BooleanAnalysis.MajorityStability
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.ArcsinSeries
+import Mathlib.Analysis.Real.Pi.Bounds
 
 /-! # Limits of the spectrum and noise stability of majority
 
@@ -17,14 +18,15 @@ first two coefficients of `(2/π) arcsin ρ = (2/π)(ρ + ρ³/6 + ⋯)`. Majori
 degree-one weight `3/4`, above its limit `2/π`, and majority of five bits has degree-one weight
 at most `7/5` times its limit. At `ρ = 1/2` the noise stability of majority tends to
 `(2/π) arcsin(1/2) = 1/3`, and at `δ = 1/2` its noise sensitivity tends to `1/2`. At `ρ = 0` the
-upper bound of Theorem 5.18 holds. At `z = 1` the Maclaurin series of `arcsin` sums to `π/2`.
+upper bound of Theorem 5.18 holds, and the spectrum of majority is `1/2`-concentrated up to degree
+`6`. At `z = 1` the Maclaurin series of `arcsin` sums to `π/2`.
 -/
 
 public section
 
 namespace CslibFrontierTests.BooleanAnalysisMajorityStability
 
-open Cslib Cslib.BitString Filter Topology Real
+open Cslib Cslib.BitString Filter Topology Real Finset
 
 /-- The degree-one weight of majority tends to `2/π`. -/
 theorem tendsto_levelWeight_one :
@@ -60,6 +62,18 @@ example : 2 / π * √(2 / π) ≤ levelWeight 1 (fun x => signVal (majority (2 
   simp only [CharP.cast_eq_zero, mul_zero, zero_add, Real.sqrt_one, mul_one, div_one,
     show (1 + 1 : ℝ) ^ 2 = 4 by norm_num] at h
   exact h
+
+/-- The spectrum of majority is `1/2`-concentrated up to degree `6`, since
+`8 / (π³ (1/2)²) + 4 = 32/π³ + 4 ≤ 6`. -/
+example (m : ℕ) :
+    ∑ S with 6 < #S, fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) S ^ 2 ≤ 1 / 2 := by
+  refine sum_fourierCoeff_sq_signVal_majority_le (by norm_num) ?_ m
+  have h3 := pi_gt_three
+  have : (27 : ℝ) < π ^ 3 := by nlinarith [sq_nonneg π, pi_pos]
+  rw [show (8 : ℝ) / (π ^ 3 * (1 / 2) ^ 2) = 32 / π ^ 3 by field_simp; norm_num]
+  have : 32 / π ^ 3 ≤ 2 := by rw [div_le_iff₀ (by positivity)]; linarith
+  push_cast
+  linarith
 
 /-- At `ρ = 1/2` the noise stability of majority tends to `1/3`. -/
 theorem tendsto_noiseStability_half :

@@ -39,7 +39,11 @@ weight is at most `(1 + 2k/n)` times its limit (`BitString.levelWeight_signVal_m
 The same Wallis bounds place the limit between `(2/π)^(3/2) k^(-3/2)` and `(1 + 1/k)` times it
 (`BitString.two_div_pi_mul_centralBinom_div_mem_Icc`, Exercise 5.27(a)), so for `n ≥ 2k²` the weight
 is `(2/π)^(3/2) k^(-3/2) (1 ± O(1/k))` (`BitString.levelWeight_signVal_majority_mem_Icc`, the first
-statement of Corollary 5.23).
+statement of Corollary 5.23). The limits sum to `(2/π) arcsin 1 = 1`, and their tail above `k`
+telescopes to `(2/π)^(3/2) k^(-1/2) (1 ± O(1/k))`, which gives the weight above level `k`
+(`BitString.sum_Ioc_levelWeight_signVal_majority_le`,
+`BitString.le_sum_Ioc_levelWeight_signVal_majority`, the second statement) and the concentration of
+the spectrum up to degree `8/(π³ε²) + O(1)` (`BitString.sum_fourierCoeff_sq_signVal_majority_le`).
 
 Summing over the levels, with the weights bounded by `1` and the geometric bound `|ρ|^k` for
 `|ρ| < 1` (Tannery's theorem), and using the Maclaurin series of `arcsin`
@@ -66,6 +70,11 @@ proves Theorem 5.22 directly); no central limit theorem is used.
 * `Cslib.BitString.two_div_pi_mul_centralBinom_div_mem_Icc`: the limiting weights are
   `(2/π)^(3/2) k^(-3/2) (1 + O(1/k))` (Exercise 5.27(a)).
 * `Cslib.BitString.levelWeight_signVal_majority_mem_Icc`: the first statement of Corollary 5.23.
+* `Cslib.BitString.sum_Ioc_levelWeight_signVal_majority_le`,
+  `Cslib.BitString.le_sum_Ioc_levelWeight_signVal_majority`: the second statement of
+  Corollary 5.23, `W^{>k}[Maj_n] = (2/π)^(3/2) k^(-1/2) (1 ± O(1/k))`.
+* `Cslib.BitString.sum_fourierCoeff_sq_signVal_majority_le`: the spectrum of majority is
+  `ε`-concentrated up to degree `8/(π³ε²) + 4` (Corollary 5.23).
 * `Cslib.BitString.tendsto_noiseStability_signVal_majority`: Theorem 2.45.
 * `Cslib.BitString.le_noiseStability_signVal_majority`,
   `Cslib.BitString.noiseStability_signVal_majority_le`: the bounds of Theorem 5.18.
@@ -78,9 +87,8 @@ limits are along `m → ∞`, the book's `n → ∞` through the odd numbers. Th
 differs (`true` reads as `-1`), which changes neither level weights nor noise stability. The book's
 form `(4 / (π k 2^k)) C(k - 1, (k - 1)/2)` of the limiting weight is
 `2 / π * (Nat.centralBinom j / 4 ^ j / (2 * j + 1))` at `k = 2 j + 1`, and `(2/π)^(3/2) k^(-3/2)` is
-written `2 / π * √(2 / π) / (k * √k)`. The second statement of Corollary 5.23, on `W^{>k}`, and the
-resulting concentration of the spectrum are not formalized
-([#2131](https://github.com/cslib-community/cslib-frontier/issues/2131)).
+written `2 / π * √(2 / π) / (k * √k)`. The weight above level `k` is the Ioc sum
+`∑ i ∈ Ioc k (2 * m + 1), levelWeight i _`, the book's `W^{>k}`.
 
 ## References
 
@@ -456,6 +464,360 @@ theorem levelWeight_signVal_majority_mem_Icc {m j : ℕ} (h : 2 * (2 * j + 1) ^ 
           (2 / π * √(2 / π) / ((2 * j + 1) * √(2 * j + 1)) * (1 + 1 / (2 * j + 1))) := by
         gcongr
     _ = _ := by ring
+
+/-! ### The weight of majority above a level -/
+
+/-- `1/(x √x) ≤ 1/√(x - 2) - 1/√x` for `x ≥ 3`. -/
+private theorem inv_mul_sqrt_le_sub {x : ℝ} (hx : 3 ≤ x) :
+    1 / (x * √x) ≤ 1 / √(x - 2) - 1 / √x := by
+  have ha : 0 < √(x - 2) := Real.sqrt_pos.2 (by linarith)
+  have hb : 0 < √x := Real.sqrt_pos.2 (by linarith)
+  have ha2 : √(x - 2) ^ 2 = x - 2 := Real.sq_sqrt (by linarith)
+  have hb2 : √x ^ 2 = x := Real.sq_sqrt (by linarith)
+  have hab : √(x - 2) ≤ √x := Real.sqrt_le_sqrt (by linarith)
+  rw [div_sub_div _ _ ha.ne' hb.ne', div_le_div_iff₀ (by positivity) (by positivity)]
+  -- `a b ≤ x √x (√x - a)` where `√x - a = 2/(√x + a)`
+  have key : √(x - 2) * √x * (√x + √(x - 2)) ≤ 2 * (x * √x) := by nlinarith
+  have hdiff : (√x - √(x - 2)) * (√x + √(x - 2)) = 2 := by nlinarith
+  nlinarith [mul_pos ha hb]
+
+/-- `1/√x - 1/√(x + 2) ≤ 1/(x √x)` for `x > 0`. -/
+private theorem sub_le_inv_mul_sqrt {x : ℝ} (hx : 0 < x) :
+    1 / √x - 1 / √(x + 2) ≤ 1 / (x * √x) := by
+  have ha : 0 < √x := Real.sqrt_pos.2 hx
+  have hb : 0 < √(x + 2) := Real.sqrt_pos.2 (by linarith)
+  have ha2 : √x ^ 2 = x := Real.sq_sqrt hx.le
+  have hb2 : √(x + 2) ^ 2 = x + 2 := Real.sq_sqrt (by linarith)
+  have hab : √x ≤ √(x + 2) := Real.sqrt_le_sqrt (by linarith)
+  rw [div_sub_div _ _ ha.ne' hb.ne', div_le_div_iff₀ (by positivity) (by positivity)]
+  have hdiff : (√(x + 2) - √x) * (√(x + 2) + √x) = 2 := by nlinarith
+  have h1 : 2 * √x ^ 3 ≤ √x * √(x + 2) * (√(x + 2) + √x) := by nlinarith
+  have h2 : (√(x + 2) - √x) * √x ^ 3 * (√(x + 2) + √x) ≤
+      √x * √(x + 2) * (√(x + 2) + √x) := by
+    calc (√(x + 2) - √x) * √x ^ 3 * (√(x + 2) + √x)
+        = (√(x + 2) - √x) * (√(x + 2) + √x) * √x ^ 3 := by ring
+      _ = 2 * √x ^ 3 := by rw [hdiff]
+      _ ≤ _ := h1
+  have h3 := le_of_mul_le_mul_right h2 (by positivity)
+  rw [show x * √x = √x ^ 3 by rw [show √x ^ 3 = √x ^ 2 * √x by ring, ha2]]
+  nlinarith [h3]
+
+/-- `∑_{j ≤ J} 1/√(2j+1) ≤ √(2J+1)`. -/
+private theorem sum_one_div_sqrt_le (J : ℕ) :
+    ∑ j ∈ range (J + 1), 1 / √(2 * (j : ℝ) + 1) ≤ √(2 * J + 1) := by
+  induction J with
+  | zero => simp
+  | succ J ih =>
+    rw [sum_range_succ]
+    have hx : (0 : ℝ) < 2 * J + 1 := by positivity
+    have ha : 0 < √(2 * (J : ℝ) + 1) := Real.sqrt_pos.2 hx
+    have hb : 0 < √(2 * ((J + 1 : ℕ) : ℝ) + 1) := Real.sqrt_pos.2 (by positivity)
+    have ha2 : √(2 * (J : ℝ) + 1) ^ 2 = 2 * J + 1 := Real.sq_sqrt hx.le
+    have hb2 : √(2 * ((J + 1 : ℕ) : ℝ) + 1) ^ 2 = 2 * ((J + 1 : ℕ) : ℝ) + 1 :=
+      Real.sq_sqrt (by positivity)
+    push_cast at hb hb2 ⊢
+    have hab : √(2 * (J : ℝ) + 1) ≤ √(2 * ((J : ℝ) + 1) + 1) := Real.sqrt_le_sqrt (by linarith)
+    have hstep : 1 / √(2 * ((J : ℝ) + 1) + 1) ≤ √(2 * ((J : ℝ) + 1) + 1) - √(2 * J + 1) := by
+      rw [div_le_iff₀ hb]; nlinarith
+    linarith
+
+
+/-- The limiting weights `[ρ^k] (2/π) arcsin ρ` over the odd levels sum to `1`. -/
+private theorem hasSum_two_div_pi_mul_centralBinom_div :
+    HasSum (fun j : ℕ => 2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1))) 1 := by
+  have h := (hasSum_arcsin (x := 1) (by norm_num)).mul_left (2 / π)
+  simp only [one_pow, mul_one, arcsin_one] at h
+  convert h using 1
+  field_simp
+
+/-- A sum over the levels below `2J + 2` of a function vanishing on even levels is the sum over the
+odd levels. -/
+private theorem sum_range_two_mul_add_two_of_even {g : ℕ → ℝ} (hg : ∀ i, Even i → g i = 0) (J : ℕ) :
+    ∑ i ∈ range (2 * J + 2), g i = ∑ j ∈ range (J + 1), g (2 * j + 1) := by
+  induction J with
+  | zero => simp [sum_range_succ, hg 0 (by decide)]
+  | succ J ih =>
+    rw [show 2 * (J + 1) + 2 = 2 * J + 2 + 1 + 1 by ring, sum_range_succ, sum_range_succ, ih,
+      sum_range_succ (n := J + 1), hg (2 * J + 2) ⟨J + 1, by ring⟩, add_zero,
+      show 2 * J + 2 + 1 = 2 * (J + 1) + 1 by ring]
+
+/-- The weight of majority above an odd level `k = 2J + 1 ≤ n` is `1` minus the weights of the odd
+levels up to `k`. -/
+private theorem sum_Ioc_levelWeight_signVal_majority_eq {m J : ℕ} (hJ : J ≤ m) :
+    ∑ i ∈ Ioc (2 * J + 1) (2 * m + 1), levelWeight i (fun x => signVal (majority (2 * m + 1) x)) =
+      1 - ∑ j ∈ range (J + 1),
+        levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) := by
+  have htot := sum_levelWeight_signVal (majority (2 * m + 1))
+  rw [Fintype.card_fin, ← sum_range_add_sum_Ico _ (by omega : 2 * J + 2 ≤ 2 * m + 1 + 1),
+    show Ico (2 * J + 2) (2 * m + 1 + 1) = Ioc (2 * J + 1) (2 * m + 1) by
+      ext i; simp only [mem_Ico, mem_Ioc]; omega,
+    sum_range_two_mul_add_two_of_even
+      (fun i hi => levelWeight_signVal_majority_of_even m hi)] at htot
+  linarith
+
+
+/-- The tail of the limiting weights after the level `k = 2J + 1` lies between `A / √(k + 2)` and
+`A (1 + 1/k) / √k`, for `A = (2/π)^(3/2)`. -/
+private theorem tsum_two_div_pi_mul_centralBinom_div_mem_Icc (J : ℕ) :
+    2 / π * √(2 / π) / √(2 * J + 3) ≤
+        ∑' t : ℕ, 2 / π * ((Nat.centralBinom (t + (J + 1)) : ℝ) / 4 ^ (t + (J + 1)) /
+          (2 * ((t + (J + 1) : ℕ) : ℝ) + 1)) ∧
+      ∑' t : ℕ, 2 / π * ((Nat.centralBinom (t + (J + 1)) : ℝ) / 4 ^ (t + (J + 1)) /
+          (2 * ((t + (J + 1) : ℕ) : ℝ) + 1)) ≤
+        2 / π * √(2 / π) * (1 + 1 / (2 * J + 1)) / √(2 * J + 1) := by
+  set L : ℕ → ℝ := fun j => 2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1)) with hL
+  set A : ℝ := 2 / π * √(2 / π) with hA
+  have hpi := pi_pos
+  have hA0 : 0 ≤ A := by positivity
+  have hsum : Summable fun t : ℕ => L (t + (J + 1)) :=
+    (summable_nat_add_iff (J + 1)).2 hasSum_two_div_pi_mul_centralBinom_div.summable
+  have hL0 (j : ℕ) : 0 ≤ L j := by positivity
+  -- telescoping terms `g t = 1 / √(2J + 1 + 2t)`
+  set g : ℕ → ℝ := fun t => 1 / √(2 * J + 1 + 2 * t) with hg
+  have hk : (1 : ℝ) ≤ 2 * J + 1 := by linarith [(J.cast_nonneg : (0 : ℝ) ≤ J)]
+  have hterm_up (t : ℕ) : L (t + (J + 1)) ≤ A * (1 + 1 / (2 * J + 1)) * (g t - g (t + 1)) := by
+    obtain ⟨-, hup⟩ := two_div_pi_mul_centralBinom_div_mem_Icc (t + (J + 1))
+    set x : ℝ := 2 * ((t + (J + 1) : ℕ) : ℝ) + 1 with hx
+    have hx3 : 3 ≤ x := by rw [hx]; push_cast; linarith [(t.cast_nonneg : (0 : ℝ) ≤ t)]
+    have htel := inv_mul_sqrt_le_sub hx3
+    have hgx : g t - g (t + 1) = 1 / √(x - 2) - 1 / √x := by
+      rw [hg, hx]; push_cast; ring_nf
+    have hfac : 1 + 1 / x ≤ 1 + 1 / (2 * J + 1) := by
+      gcongr; rw [hx]; push_cast; linarith [(t.cast_nonneg : (0 : ℝ) ≤ t)]
+    calc L (t + (J + 1)) ≤ A / (x * √x) * (1 + 1 / x) := hup
+      _ = A * (1 + 1 / x) * (1 / (x * √x)) := by ring
+      _ ≤ A * (1 + 1 / (2 * J + 1)) * (1 / √(x - 2) - 1 / √x) := by
+          gcongr
+      _ = _ := by rw [hgx]
+  have hterm_low (t : ℕ) : A * (g (t + 1) - g (t + 2)) ≤ L (t + (J + 1)) := by
+    obtain ⟨hlow, -⟩ := two_div_pi_mul_centralBinom_div_mem_Icc (t + (J + 1))
+    set x : ℝ := 2 * ((t + (J + 1) : ℕ) : ℝ) + 1 with hx
+    have hx0 : 0 < x := by positivity
+    have htel := sub_le_inv_mul_sqrt hx0
+    have hgx : g (t + 1) - g (t + 2) = 1 / √x - 1 / √(x + 2) := by
+      rw [hg, hx]; push_cast; ring_nf
+    calc A * (g (t + 1) - g (t + 2)) = A * (1 / √x - 1 / √(x + 2)) := by rw [hgx]
+      _ ≤ A * (1 / (x * √x)) := by gcongr
+      _ = A / (x * √x) := by ring
+      _ ≤ _ := hlow
+  have hg0 (t : ℕ) : 0 ≤ g t := by positivity
+  constructor
+  · -- lower bound: partial sums, then `N → ∞`
+    have hpartial (N : ℕ) : A * (g 1 - g (N + 1)) ≤ ∑' t : ℕ, L (t + (J + 1)) := by
+      calc A * (g 1 - g (N + 1)) = ∑ t ∈ range N, A * (g (t + 1) - g (t + 1 + 1)) := by
+            rw [← mul_sum, sum_range_sub' (fun t => g (t + 1))]
+        _ ≤ ∑ t ∈ range N, L (t + (J + 1)) := sum_le_sum fun t _ => hterm_low t
+        _ ≤ _ := hsum.sum_le_tsum _ fun t _ => hL0 _
+    have hlim : Tendsto (fun N : ℕ => A * (g 1 - g (N + 1))) atTop (𝓝 (A * (g 1 - 0))) := by
+      refine tendsto_const_nhds.mul (tendsto_const_nhds.sub ?_)
+      have h1 : Tendsto (fun N : ℕ => (2 * J + 1 + 2 * ((N + 1 : ℕ) : ℝ))) atTop atTop := by
+        refine tendsto_atTop_add_const_left _ _ ?_
+        exact (tendsto_natCast_atTop_atTop.comp (tendsto_add_atTop_nat 1)).const_mul_atTop
+          (zero_lt_two' ℝ)
+      have h2 := tendsto_inv_atTop_zero.comp (Real.tendsto_sqrt_atTop.comp h1)
+      simpa [hg, Function.comp_def] using h2
+    have := le_of_tendsto' hlim hpartial
+    calc A / √(2 * J + 3) = A * (g 1 - 0) := by
+          rw [hg]; push_cast; ring_nf
+      _ ≤ _ := this
+  · -- upper bound
+    refine tsum_le_of_sum_range_le (fun t => hL0 _) fun N => ?_
+    calc ∑ t ∈ range N, L (t + (J + 1))
+        ≤ ∑ t ∈ range N, A * (1 + 1 / (2 * J + 1)) * (g t - g (t + 1)) :=
+          sum_le_sum fun t _ => hterm_up t
+      _ = A * (1 + 1 / (2 * J + 1)) * (g 0 - g N) := by rw [← mul_sum, sum_range_sub']
+      _ ≤ A * (1 + 1 / (2 * J + 1)) * g 0 := by
+          have := hg0 N; gcongr; linarith
+      _ = _ := by rw [hg]; simp; ring
+
+
+/-- The weight of majority above `k` is `1` minus its weights up to `k`, and the limiting weights
+above `k` are `1` minus the limiting weights up to `k`. -/
+private theorem tsum_two_div_pi_mul_centralBinom_div_eq (J : ℕ) :
+    ∑' t : ℕ, 2 / π * ((Nat.centralBinom (t + (J + 1)) : ℝ) / 4 ^ (t + (J + 1)) /
+        (2 * ((t + (J + 1) : ℕ) : ℝ) + 1)) =
+      1 - ∑ j ∈ range (J + 1), 2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1)) := by
+  have h := hasSum_two_div_pi_mul_centralBinom_div.summable.sum_add_tsum_nat_add (J + 1)
+  rw [hasSum_two_div_pi_mul_centralBinom_div.tsum_eq] at h
+  linarith
+
+/-- **The weight of majority above level `k`, upper bound** [O'Donnell, Corollary 5.23, second
+statement][ODonnell2014]: for odd `k = 2J + 1` and every `n = 2m + 1`,
+`W^{>k}[Maj_n] ≤ (2/π)^(3/2) k^(-1/2) (1 + 1/k)`, written with
+`(2/π)^(3/2) k^(-1/2) = (2/π) √(2/π) / √k`. The weights up to `k` are at least their limits, which
+sum to `1`, and the tail of the limits telescopes against `1/√(2i - 1) - 1/√(2i + 1)`. -/
+theorem sum_Ioc_levelWeight_signVal_majority_le (m J : ℕ) :
+    ∑ i ∈ Ioc (2 * J + 1) (2 * m + 1), levelWeight i (fun x => signVal (majority (2 * m + 1) x)) ≤
+      2 / π * √(2 / π) * (1 + 1 / (2 * J + 1)) / √(2 * J + 1) := by
+  have hpi := pi_pos
+  rcases le_or_gt J m with hJ | hJ
+  · rw [sum_Ioc_levelWeight_signVal_majority_eq hJ]
+    have hW : ∑ j ∈ range (J + 1), 2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1)) ≤
+        ∑ j ∈ range (J + 1),
+          levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) :=
+      sum_le_sum fun j hj => le_levelWeight_signVal_majority (by simp at hj; omega)
+    have := (tsum_two_div_pi_mul_centralBinom_div_mem_Icc J).2
+    rw [tsum_two_div_pi_mul_centralBinom_div_eq] at this
+    linarith
+  · rw [Ioc_eq_empty (by omega), sum_empty]
+    positivity
+
+/-- **The weight of majority above level `k`, lower bound** [O'Donnell, Corollary 5.23, second
+statement][ODonnell2014]: for odd `k = 2J + 1` and `n = 2m + 1 ≥ 2k²`,
+`W^{>k}[Maj_n] ≥ (2/π)^(3/2) k^(-1/2) (1 - 3/k)`. Together with
+`BitString.sum_Ioc_levelWeight_signVal_majority_le` this is the book's
+`W^{>k}[Maj_n] = (2/π)^(3/2) k^(-1/2) (1 ± O(1/k))`. -/
+theorem le_sum_Ioc_levelWeight_signVal_majority {m J : ℕ} (h : 2 * (2 * J + 1) ^ 2 ≤ 2 * m + 1) :
+    2 / π * √(2 / π) * (1 - 3 / (2 * J + 1)) / √(2 * J + 1) ≤
+      ∑ i ∈ Ioc (2 * J + 1) (2 * m + 1),
+        levelWeight i (fun x => signVal (majority (2 * m + 1) x)) := by
+  have hpi := pi_pos
+  have hsq : 2 * J + 1 ≤ (2 * J + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
+  set A : ℝ := 2 / π * √(2 / π) with hA
+  set k : ℝ := 2 * J + 1 with hk
+  set n : ℝ := 2 * m + 1 with hn
+  have hA0 : 0 ≤ A := by positivity
+  have hk1 : 1 ≤ k := by rw [hk]; linarith [(J.cast_nonneg : (0 : ℝ) ≤ J)]
+  have hkn : 2 * k ^ 2 ≤ n := by
+    have : ((2 * (2 * J + 1) ^ 2 : ℕ) : ℝ) ≤ ((2 * m + 1 : ℕ) : ℝ) := by exact_mod_cast h
+    push_cast at this; rw [hk, hn]; linarith
+  have hsk : 0 < √k := Real.sqrt_pos.2 (by linarith)
+  rw [sum_Ioc_levelWeight_signVal_majority_eq (by omega)]
+  -- each low weight is at most its limit plus `(2/n) A (1 + 1/(2j+1)) / √(2j+1)`
+  have hlow (j : ℕ) (hj : j ∈ range (J + 1)) :
+      levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) ≤
+        2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1)) +
+          2 / n * (2 * A / √(2 * (j : ℝ) + 1)) := by
+    have hjJ : j ≤ J := by simp at hj; omega
+    have h515 := levelWeight_signVal_majority_le (m := m) (j := j) (by omega)
+    obtain ⟨-, hup⟩ := two_div_pi_mul_centralBinom_div_mem_Icc j
+    have hx : (1 : ℝ) ≤ 2 * j + 1 := by linarith [(j.cast_nonneg : (0 : ℝ) ≤ j)]
+    have hsx : 0 < √(2 * (j : ℝ) + 1) := Real.sqrt_pos.2 (by linarith)
+    have hsx2 : √(2 * (j : ℝ) + 1) ^ 2 = 2 * j + 1 := Real.sq_sqrt (by linarith)
+    set L : ℝ := 2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1))
+    -- `(2j+1) L ≤ A (1 + 1/(2j+1)) / √(2j+1) ≤ 2A / √(2j+1)`
+    have hkL : (2 * j + 1) * L ≤ 2 * A / √(2 * (j : ℝ) + 1) := by
+      have h1 : (2 * j + 1) * L ≤ (2 * j + 1) * (A / ((2 * j + 1) * √(2 * (j : ℝ) + 1)) *
+          (1 + 1 / (2 * j + 1))) := mul_le_mul_of_nonneg_left hup (by linarith)
+      have h2 : (1 : ℝ) + 1 / (2 * j + 1) ≤ 2 := by
+        have : 1 / (2 * (j : ℝ) + 1) ≤ 1 := by rw [div_le_one (by linarith)]; exact hx
+        linarith
+      calc (2 * j + 1) * L ≤ _ := h1
+        _ = A / √(2 * (j : ℝ) + 1) * (1 + 1 / (2 * j + 1)) := by field_simp
+        _ ≤ A / √(2 * (j : ℝ) + 1) * 2 := by gcongr
+        _ = _ := by ring
+    have hnpos : 0 < n := by rw [hn]; positivity
+    calc levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x))
+        ≤ (1 + 2 * (2 * j + 1) / (2 * m + 1)) * L := h515
+      _ = L + 2 / n * ((2 * j + 1) * L) := by rw [hn]; ring
+      _ ≤ L + 2 / n * (2 * A / √(2 * (j : ℝ) + 1)) := by gcongr
+  have hsumW := sum_le_sum hlow
+  rw [sum_add_distrib, ← mul_sum, ← mul_sum] at hsumW
+  have hroots := sum_one_div_sqrt_le J
+  have hsum_roots : ∑ j ∈ range (J + 1), 2 * A / √(2 * (j : ℝ) + 1) ≤ 2 * A * √k := by
+    calc ∑ j ∈ range (J + 1), 2 * A / √(2 * (j : ℝ) + 1)
+        = 2 * A * ∑ j ∈ range (J + 1), 1 / √(2 * (j : ℝ) + 1) := by
+          rw [mul_sum]; exact sum_congr rfl fun j _ => by ring
+      _ ≤ 2 * A * √k := by rw [hk]; gcongr
+  have htail := (tsum_two_div_pi_mul_centralBinom_div_mem_Icc J).1
+  rw [tsum_two_div_pi_mul_centralBinom_div_eq] at htail
+  -- `A / √(k + 2) ≥ (A / √k) (1 - 1/k)` and `(2/n) 2A √k ≤ (A / √k) (2/k)`
+  have hfirst : A * (1 - 1 / k) / √k ≤ A / √(2 * J + 3) := by
+    have hk3 : (2 * (J : ℝ) + 3) = k + 2 := by rw [hk]; ring
+    rw [hk3]
+    have hsk2 : 0 < √(k + 2) := Real.sqrt_pos.2 (by linarith)
+    rw [div_le_div_iff₀ hsk hsk2]
+    have hratio : (1 - 1 / k) * √(k + 2) ≤ √k := by
+      rcases le_or_gt (1 - 1 / k) 0 with hneg | hpos
+      · nlinarith
+      · rw [← Real.sqrt_sq hpos.le, ← Real.sqrt_mul (sq_nonneg _)]
+        refine Real.sqrt_le_sqrt ?_
+        have e : k - (1 - 1 / k) ^ 2 * (k + 2) = (3 * k - 2) / k ^ 2 := by field_simp; ring
+        have : 0 ≤ (3 * k - 2) / k ^ 2 := div_nonneg (by linarith) (by positivity)
+        linarith
+    nlinarith
+  have hsecond : 2 / n * (2 * A * √k) ≤ A * (2 / k) / √k := by
+    have hnpos : 0 < n := by rw [hn]; positivity
+    have hsk2 : √k ^ 2 = k := Real.sq_sqrt (by linarith)
+    rw [div_mul_eq_mul_div, div_le_div_iff₀ hnpos hsk]
+    have : 2 * (2 * A * √k) * √k = 4 * A * k := by rw [mul_assoc, mul_assoc, ← sq, hsk2]; ring
+    rw [this]
+    have hk0 : 0 < k := by linarith
+    rw [show A * (2 / k) * n = 2 * A * n / k by ring, le_div_iff₀ hk0]
+    nlinarith
+  have hgoal : A * (1 - 3 / k) / √k = A * (1 - 1 / k) / √k - A * (2 / k) / √k := by ring
+  rw [hgoal]
+  rw [← hA] at htail
+  have hsumL : ∑ j ∈ range (J + 1), 2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1)) =
+      2 / π * ∑ j ∈ range (J + 1), (Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1) :=
+    (mul_sum _ _ _).symm
+  have hroots' : 2 / n * ∑ j ∈ range (J + 1), 2 * A / √(2 * (j : ℝ) + 1) ≤ 2 / n * (2 * A * √k) :=
+    mul_le_mul_of_nonneg_left hsum_roots (by rw [hn]; positivity)
+  linarith
+
+/-- **Majority's spectrum is concentrated up to degree `8/(π³ε²) + O(1)`** [O'Donnell,
+Corollary 5.23][ODonnell2014]: for every `ε > 0` and every degree `d ≥ 8/(π³ε²) + 4`, majority of
+any odd number of bits has Fourier weight at most `ε` above degree `d`. -/
+theorem sum_fourierCoeff_sq_signVal_majority_le {ε : ℝ} (hε : 0 < ε) {d : ℕ}
+    (hd : 8 / (π ^ 3 * ε ^ 2) + 4 ≤ d)
+    (m : ℕ) :
+    ∑ S with d < #S, fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) S ^ 2 ≤ ε := by
+  have hpi := pi_pos
+  -- an odd level `k = 2J + 1 ∈ {d - 1, d}`
+  obtain ⟨J, hJd, hJk⟩ : ∃ J : ℕ, 2 * J + 1 ≤ d ∧ (d : ℝ) ≤ 2 * J + 2 := by
+    have hd1 : 1 ≤ d := by
+      have h0 : 0 ≤ 8 / (π ^ 3 * ε ^ 2) := by positivity
+      have : (1 : ℝ) ≤ d := by linarith
+      exact_mod_cast this
+    refine ⟨(d - 1) / 2, by omega, ?_⟩
+    have : d ≤ 2 * ((d - 1) / 2) + 2 := by omega
+    exact_mod_cast this
+  rw [← sum_levelWeight_Ioc, Fintype.card_fin]
+  calc ∑ i ∈ Ioc d (2 * m + 1), levelWeight i (fun x => signVal (majority (2 * m + 1) x))
+      ≤ ∑ i ∈ Ioc (2 * J + 1) (2 * m + 1),
+          levelWeight i (fun x => signVal (majority (2 * m + 1) x)) :=
+        sum_le_sum_of_subset_of_nonneg (Ioc_subset_Ioc_left hJd) fun i _ _ => levelWeight_nonneg _ _
+    _ ≤ 2 / π * √(2 / π) * (1 + 1 / (2 * J + 1)) / √(2 * J + 1) :=
+        sum_Ioc_levelWeight_signVal_majority_le m J
+    _ ≤ ε := by
+      set k : ℝ := 2 * J + 1 with hk
+      have hk1 : 1 ≤ k := by rw [hk]; linarith [(J.cast_nonneg : (0 : ℝ) ≤ J)]
+      have hkK : 8 / (π ^ 3 * ε ^ 2) + 3 ≤ k := by rw [hk]; linarith
+      have hsk : 0 < √k := Real.sqrt_pos.2 (by linarith)
+      have hsk2 : √k ^ 2 = k := Real.sq_sqrt (by linarith)
+      have hs2 : √(2 / π) ^ 2 = 2 / π := Real.sq_sqrt (by positivity)
+      rw [div_le_iff₀ hsk]
+      -- compare squares: `(2/π)³ (1 + 1/k)² ≤ ε² k`
+      have hlhs : 0 ≤ 2 / π * √(2 / π) * (1 + 1 / k) := by positivity
+      refine (pow_le_pow_iff_left₀ hlhs (by positivity) two_ne_zero).1 ?_
+      set B : ℝ := 8 / π ^ 3 with hB
+      have hB0 : 0 < B := by positivity
+      have hA2 : (2 / π * √(2 / π)) ^ 2 = B := by
+        rw [mul_pow, hs2, hB]; field_simp; ring
+      have hKB : B / ε ^ 2 + 3 ≤ k := by
+        have : 8 / (π ^ 3 * ε ^ 2) = B / ε ^ 2 := by rw [hB]; field_simp
+        linarith
+      have hε2 : 0 < ε ^ 2 := by positivity
+      have h1 : B + 3 * ε ^ 2 ≤ ε ^ 2 * k := by
+        have := mul_le_mul_of_nonneg_left hKB hε2.le
+        rw [mul_add, mul_div_cancel₀ _ hε2.ne'] at this
+        linarith
+      have h2 : B / k ≤ ε ^ 2 := by
+        rw [div_le_iff₀ (by linarith)]
+        have : B / ε ^ 2 ≤ k := by linarith
+        rw [div_le_iff₀ hε2] at this
+        linarith
+      have h3 : (1 + 1 / k) ^ 2 ≤ 1 + 3 / k := by
+        have hk0 : 0 < k := by linarith
+        have : 1 / k ≤ 1 := by rw [div_le_one hk0]; exact hk1
+        have e : (1 + 1 / k) ^ 2 = 1 + 2 / k + 1 / k * (1 / k) := by ring
+        have : 1 / k * (1 / k) ≤ 1 / k := mul_le_of_le_one_right (by positivity) this
+        rw [e]; linarith [show 2 / k + 1 / k = 3 / k by ring]
+      rw [mul_pow, hA2, mul_pow, hsk2]
+      calc B * (1 + 1 / k) ^ 2 ≤ B * (1 + 3 / k) := by gcongr
+        _ = B + 3 * (B / k) := by ring
+        _ ≤ B + 3 * ε ^ 2 := by linarith
+        _ ≤ ε ^ 2 * k := h1
 
 /-! ### The noise stability of majority -/
 
