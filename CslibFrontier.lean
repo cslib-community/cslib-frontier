@@ -8784,6 +8784,7 @@ public import CslibFrontier.Computability.Complexity.Problems.GeneralIntegerProg
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.GridDrawing.Pad
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Uniform
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.LiftM
+public import CslibFrontier.Computability.Circuit.Boolean.PPoly.ReductionSize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Oracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
