@@ -89,7 +89,7 @@ Containments, separations, closure properties, complete problems and reductions 
   The endpoint is the cross-examination protocol for encoded machines, with prover time, verifier time and verifier query bounds, under a Lipschitz hypothesis whose exact form is settled in the issue.
   Correctness for a prefix-indexed step law alone leaves it open.
   Then prover-estimator debate (arXiv:2506.13609).
-- **Statistical zero knowledge** ([#3205](https://github.com/cslib-community/cslib-frontier/issues/3205)): interactive honest-verifier and general SZK with simulators and equivalence with `PromiseSZK`, giving `SD` membership and completeness in the interactive sense, Entropy Difference (Goldreich–Vadhan), closure under complement (Okamoto), and `SZK ⊆ AM ∩ coAM` (Fortnow; Aiello–Håstad).
+- **Statistical zero knowledge** ([#3205](https://github.com/cslib-community/cslib-frontier/issues/3205)): interactive honest-verifier and general SZK with simulators and equivalence with `PromiseSZK`, giving `SD` membership and completeness in the interactive sense, Entropy Difference (Goldreich–Vadhan), closure under complement (Okamoto), and `SZK ⊆ coAM` (Fortnow). The `SZK ⊆ AM` inclusion uses the Statistical Difference definition.
   Instances are pairs of De Morgan circuits, with general pairs padded to common input and output counts.
 
 ### Descriptive complexity and first-order reductions

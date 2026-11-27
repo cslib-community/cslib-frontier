@@ -17,6 +17,15 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 The columns of a row receive consecutive intervals of natural labels, of lengths given by their
 weights. Subtracting each weight from the remaining label finds the column containing it. A label
 outside every interval returns the row width. This also handles zero weights and empty rows.
+
+## Main definitions
+
+* `Cslib.scanWeightedRow` selects the column containing a natural label.
+
+## Main results
+
+* `Cslib.scanWeightedRow_spec` bounds the returned column and its prefix weight.
+* `Cslib.scanWeightedRow_eq_iff` characterizes each real column by its half-open interval.
 -/
 
 public section

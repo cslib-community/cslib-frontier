@@ -20,6 +20,11 @@ A native machine selects the interval containing a binary label when the weights
 one at a time from a column counter and the read-only input. It holds the row width, the current
 column and the residual label. When the residual is smaller than the current weight, the machine
 stops at that column. Exhausting all columns returns the width.
+
+## Main results
+
+* `Turing.MultiTapeTM.ComputableInSpace.scanWeightedRow_inSpace` proves the common space bound
+  for selection from an implicitly given row.
 -/
 
 public section
@@ -28,6 +33,7 @@ namespace Turing.MultiTapeTM.ComputableInSpace
 
 open Cslib Finset
 
+/-- The row width, next column to inspect, and label remaining after the preceding columns. -/
 private structure RowCursor where
   width : ℕ
   column : ℕ
