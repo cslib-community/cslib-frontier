@@ -55,38 +55,28 @@ theorem tail_degree : ComputableInDegree List.tail encBits encBits 1 1 :=
 theorem empty_degree : ComputableInDegree List.isEmpty encBits encBool 1 1 :=
   ListEncoding.isEmpty (enc₁ := encBool) (enc := encBits)
 
-/-- Read the initial frame on every word, including incomplete frames. -/
-theorem unframe_degree : ComputableInDegree unframe encBits encBits 1 1 := by
-  let τ := Internal.FrameMachines.readFrameT true
+private theorem readFrameT_degree (keep : Bool) {f : List Bool → List Bool}
+    (hf : ∀ w, (Internal.FrameMachines.readFrameT keep).run .marker w = f w) :
+    ComputableInDegree f encBits encBits 1 1 := by
+  let τ := Internal.FrameMachines.readFrameT keep
   have htm (w : List Bool) := τ.computesInTimeAndSpace_toTM w
   refine ⟨⟨fun w => 2 * w.length + 3, fun _ => 0,
     ⟨3, fun _ => by simp only [pow_one, encBits, Function.Embedding.refl_apply]; omega⟩,
     DegreeBounded.const 0, 0, _, inferInstance, τ.toTM, fun w => ?_⟩,
     ⟨3, fun w => ?_⟩⟩
-  · simpa only [τ, show (Internal.FrameMachines.readFrameT true).q₀ = .marker from rfl,
-      Internal.FrameMachines.readFrameT_run_true,
+  · simpa only [τ, show (Internal.FrameMachines.readFrameT keep).q₀ = .marker from rfl, hf,
       encBits, Function.Embedding.refl_apply] using htm w
   · have hlen := (htm w).length_output_le
-    simpa only [τ, show (Internal.FrameMachines.readFrameT true).q₀ = .marker from rfl,
-      Internal.FrameMachines.readFrameT_run_true,
+    simpa only [τ, show (Internal.FrameMachines.readFrameT keep).q₀ = .marker from rfl, hf,
       encBits, Function.Embedding.refl_apply, pow_one] using hlen.trans
         (by omega : 2 * w.length + 3 ≤ 3 * (w.length + 1))
 
+/-- Read the initial frame on every word, including incomplete frames. -/
+theorem unframe_degree : ComputableInDegree unframe encBits encBits 1 1 :=
+  readFrameT_degree true Internal.FrameMachines.readFrameT_run_true
+
 /-- Read what follows the initial frame on every word, including incomplete frames. -/
-theorem dropFrame_degree : ComputableInDegree dropFrame encBits encBits 1 1 := by
-  let τ := Internal.FrameMachines.readFrameT false
-  have htm (w : List Bool) := τ.computesInTimeAndSpace_toTM w
-  refine ⟨⟨fun w => 2 * w.length + 3, fun _ => 0,
-    ⟨3, fun _ => by simp only [pow_one, encBits, Function.Embedding.refl_apply]; omega⟩,
-    DegreeBounded.const 0, 0, _, inferInstance, τ.toTM, fun w => ?_⟩,
-    ⟨3, fun w => ?_⟩⟩
-  · simpa only [τ, show (Internal.FrameMachines.readFrameT false).q₀ = .marker from rfl,
-      Internal.FrameMachines.readFrameT_run_false,
-      encBits, Function.Embedding.refl_apply] using htm w
-  · have hlen := (htm w).length_output_le
-    simpa only [τ, show (Internal.FrameMachines.readFrameT false).q₀ = .marker from rfl,
-      Internal.FrameMachines.readFrameT_run_false,
-      encBits, Function.Embedding.refl_apply, pow_one] using hlen.trans
-        (by omega : 2 * w.length + 3 ≤ 3 * (w.length + 1))
+theorem dropFrame_degree : ComputableInDegree dropFrame encBits encBits 1 1 :=
+  readFrameT_degree false Internal.FrameMachines.readFrameT_run_false
 
 end Turing.MultiTapeTM.Internal.DecoderWords
