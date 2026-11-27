@@ -352,6 +352,11 @@ theorem norm_signProjection_sq {k : ℕ} (b : Fin k → ι → Bool) (x : Euclid
   simp only [signProjection_apply, mul_pow, inv_pow, Real.sq_sqrt (Nat.cast_nonneg k), ← mul_sum]
   rw [inv_mul_eq_div]
 
+private lemma cast_dens_le_exp_neg_zero_mul {α : Type*} [Fintype α] (s : Finset α) (c : ℝ) :
+    (dens s : ℝ) ≤ exp (-(((0 : ℕ) : ℝ) / 2) * c) := by
+  simp only [CharP.cast_eq_zero, zero_div, neg_zero, zero_mul, exp_zero]
+  exact_mod_cast dens_le_one
+
 /-- **Upper tail for a vector** [Achlioptas2003]: for `0 ≤ ε`,
 `Pr[(1 + ε) ‖x‖² < ‖signProjection b x‖²] ≤ exp (-(k / 2) (ε² / 2 - ε³ / 3))`. -/
 theorem dens_lt_norm_signProjection_sq_le (k : ℕ) (x : EuclideanSpace ℝ ι) {ε : ℝ}
@@ -359,8 +364,7 @@ theorem dens_lt_norm_signProjection_sq_le (k : ℕ) (x : EuclideanSpace ℝ ι) 
     (dens ({b | (1 + ε) * ‖x‖ ^ 2 < ‖signProjection b x‖ ^ 2} : Finset (Fin k → ι → Bool)) : ℝ) ≤
       exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by
   rcases eq_or_ne k 0 with rfl | hk
-  · simp only [CharP.cast_eq_zero, zero_div, neg_zero, zero_mul, exp_zero]
-    exact_mod_cast dens_le_one
+  · exact cast_dens_le_exp_neg_zero_mul _ _
   refine le_trans ?_ (dens_mul_lt_sum_sq_sum_mul_signVal_le (fun i => x i) k hε)
   refine NNRat.cast_le.2 (dens_le_dens fun b hb => ?_)
   simp only [mem_filter, mem_univ, true_and] at hb ⊢
@@ -375,8 +379,7 @@ theorem dens_norm_signProjection_sq_lt_le (k : ℕ) (x : EuclideanSpace ℝ ι) 
     (dens ({b | ‖signProjection b x‖ ^ 2 < (1 - ε) * ‖x‖ ^ 2} : Finset (Fin k → ι → Bool)) : ℝ) ≤
       exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by
   rcases eq_or_ne k 0 with rfl | hk
-  · simp only [CharP.cast_eq_zero, zero_div, neg_zero, zero_mul, exp_zero]
-    exact_mod_cast dens_le_one
+  · exact cast_dens_le_exp_neg_zero_mul _ _
   refine le_trans ?_ (dens_sum_sq_sum_mul_signVal_lt_mul_le (fun i => x i) k hε)
   refine NNRat.cast_le.2 (dens_le_dens fun b hb => ?_)
   simp only [mem_filter, mem_univ, true_and] at hb ⊢

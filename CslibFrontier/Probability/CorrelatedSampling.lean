@@ -331,23 +331,26 @@ theorem toOuterMeasure_firstIn_union (i j : I) :
   refine sum_congr rfl fun c hc => ?_
   rw [weightedDraw_apply, ite_eq_left (inter_subset_union hc)]
 
+omit [Fintype S] in
+private theorem mem_values_of_eq_or_eq {i j : I} {s : S} {x : ℝ≥0}
+    (h : x = (P i s).toNNReal ∨ x = (P j s).toNNReal) : x ∈ values P s := by
+  rcases h with rfl | rfl
+  · exact mem_values i s
+  · exact mem_values j s
+
 /-- The regions of two parties meet in length `∑ s, min (P i s) (P j s)` and together have length
 `∑ s, max (P i s) (P j s)`. -/
 theorem sum_weight_region_inter (i j : I) :
     ∑ c ∈ region P i ∩ region P j, weight P c = ∑ s, min (P i s).toNNReal (P j s).toNNReal := by
   rw [region, region, under_inter_under, sum_weight_under fun s => ?_]
   · rfl
-  · rcases min_choice (P i s).toNNReal (P j s).toNNReal with h | h
-    · exact (congrArg (· ∈ values P s) h).mpr (mem_values i s)
-    · exact (congrArg (· ∈ values P s) h).mpr (mem_values j s)
+  · exact mem_values_of_eq_or_eq (min_choice _ _)
 
 theorem sum_weight_region_union (i j : I) :
     ∑ c ∈ region P i ∪ region P j, weight P c = ∑ s, max (P i s).toNNReal (P j s).toNNReal := by
   rw [region, region, under_union_under, sum_weight_under fun s => ?_]
   · rfl
-  · rcases max_choice (P i s).toNNReal (P j s).toNNReal with h | h
-    · exact (congrArg (· ∈ values P s) h).mpr (mem_values i s)
-    · exact (congrArg (· ∈ values P s) h).mpr (mem_values j s)
+  · exact mem_values_of_eq_or_eq (max_choice _ _)
 
 open scoped Cslib.Probability.PMF in
 /-- **Correlated sampling** [Holenstein, proof of Lemma 5.2, p. 153][Holenstein2009]. The outputs of

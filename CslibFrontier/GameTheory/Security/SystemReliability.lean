@@ -188,6 +188,27 @@ private theorem IsStandaloneOpt.lt_of_open_segment {P : ℝ → ℝ} {V C : ℝ}
     rw [← hcomb]; ring
   nlinarith [hOpt u]
 
+private theorem IsStandaloneOpt.lt_of_strictly_between {P : ℝ → ℝ} {V C : ℝ} {zStar u m : ℝ≥0}
+    (hOpt : IsStandaloneOpt P V C zStar) (hConc : StrictConcaveOn ℝ (Set.Ici 0) P)
+    (hV : 0 < V)
+    (hm : (u : ℝ) < m ∧ (m : ℝ) < zStar ∨ (zStar : ℝ) < m ∧ (m : ℝ) < u) :
+    V * (1 - P m) + C * (m : ℝ) < V * (1 - P u) + C * (u : ℝ) := by
+  have hne : (u : ℝ) ≠ (zStar : ℝ) := by
+    rcases hm with h | h
+    · exact (h.1.trans h.2).ne
+    · exact (h.1.trans h.2).ne'
+  have hden : (zStar : ℝ) - u ≠ 0 := sub_ne_zero.mpr hne.symm
+  -- `m` is the convex combination of `u` and `zStar` with weight `(zStar - m) / (zStar - u)`.
+  refine hOpt.lt_of_open_segment hConc hV hne (((zStar : ℝ) - m) / ((zStar : ℝ) - u)) ?_ ?_ ?_
+  · rcases hm with h | h
+    · exact div_pos (by linarith) (by linarith)
+    · exact div_pos_of_neg_of_neg (by linarith) (by linarith)
+  · rw [one_sub_div hden]
+    rcases hm with h | h
+    · exact div_pos (by linarith) (by linarith)
+    · exact div_pos_of_neg_of_neg (by linarith) (by linarith)
+  · field_simp; ring
+
 /-- Under strict concavity of `P` on `[0, ∞)` and `0 < V`, standalone cost strictly decreases on
 `[0, zStar]`. -/
 theorem IsStandaloneOpt.lt_of_lt_of_le {P : ℝ → ℝ} {V C : ℝ} {zStar a b : ℝ≥0}
@@ -196,15 +217,7 @@ theorem IsStandaloneOpt.lt_of_lt_of_le {P : ℝ → ℝ} {V C : ℝ} {zStar a b 
     V * (1 - P b) + C * (b : ℝ) < V * (1 - P a) + C * (a : ℝ) := by
   rcases eq_or_lt_of_le hb with rfl | hbz
   · exact hOpt.strict_lt_of_ne hConc hV hab.ne
-  · have habR : (a : ℝ) < (b : ℝ) := hab
-    have hbzR : (b : ℝ) < (zStar : ℝ) := hbz
-    have hden : 0 < (zStar : ℝ) - (a : ℝ) := sub_pos.mpr (habR.trans hbzR)
-    set θ : ℝ := ((zStar : ℝ) - (b : ℝ)) / ((zStar : ℝ) - (a : ℝ))
-    refine hOpt.lt_of_open_segment hConc hV (habR.trans hbzR).ne θ
-      (div_pos (sub_pos.mpr hbzR) hden)
-      (sub_pos.mpr ((div_lt_one hden).mpr (sub_lt_sub_left habR _))) ?_
-    simp only [θ]
-    field_simp; ring
+  · exact hOpt.lt_of_strictly_between hConc hV (Or.inl ⟨hab, hbz⟩)
 
 /-- Under strict concavity of `P` on `[0, ∞)` and `0 < V`, standalone cost strictly increases on
 `[zStar, ∞)`. -/
@@ -214,15 +227,7 @@ theorem IsStandaloneOpt.lt_of_le_of_lt {P : ℝ → ℝ} {V C : ℝ} {zStar a b 
     V * (1 - P a) + C * (a : ℝ) < V * (1 - P b) + C * (b : ℝ) := by
   rcases eq_or_lt_of_le ha with rfl | haz
   · exact hOpt.strict_lt_of_ne hConc hV hab.ne'
-  · have hazR : (zStar : ℝ) < (a : ℝ) := haz
-    have habR : (a : ℝ) < (b : ℝ) := hab
-    have hden : 0 < (b : ℝ) - (zStar : ℝ) := sub_pos.mpr (hazR.trans habR)
-    set θ : ℝ := ((a : ℝ) - (zStar : ℝ)) / ((b : ℝ) - (zStar : ℝ))
-    refine hOpt.lt_of_open_segment hConc hV (hazR.trans habR).ne' θ
-      (div_pos (sub_pos.mpr hazR) hden)
-      (sub_pos.mpr ((div_lt_one hden).mpr (sub_lt_sub_right habR _))) ?_
-    simp only [θ]
-    field_simp; ring
+  · exact hOpt.lt_of_strictly_between hConc hV (Or.inr ⟨haz, hab⟩)
 
 /-- Monotone comparative statics of standalone optimal effort in the benefit-cost ratio `V / C`:
 if `V₁ / C₁ < V₂ / C₂`, then any standalone optimum for `(V₁, C₁)` is at most any standalone
