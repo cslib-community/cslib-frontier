@@ -10329,6 +10329,7 @@ public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase3Mem
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ExplicitTablesPolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.RotationMap
 public import CslibFrontier.Algorithms.Lean.EdgeCSP.Blossom.Lifting
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.RupRefutation
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.HashParams
 public import CslibFrontier.GameTheory.Strategic.ApproxNash
 public import CslibFrontier.Logics.Propositional.Resolution.CliqueColoring

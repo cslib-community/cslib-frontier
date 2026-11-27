@@ -118,4 +118,36 @@ example : checkRed enumF none
 example : checkRed enumF none ⟨[], .sat (some (solutionOf [1, 2] fun v => v == 1))⟩ = true := by
   decide +kernel
 
+/-! ### The produced proofs
+
+The producers build proofs for the same instances, accepted by `decide +kernel`: the decision-tree
+refutation of `card` (`15` `rup` steps over its three variables), the optimum `-4` of `knap`, and
+the three projections of `enumF`. -/
+
+theorem refute_card_ok :
+    ((refute card).map fun P => (checkRed card none P, P.conclusion, P.steps.length)) =
+      some (true, .unsat 17, 15) := by
+  decide +kernel
+
+example : ¬ ∃ σ, ∀ c ∈ card, c.Holds σ := isSome_refute.1 (by decide +kernel)
+
+theorem optimize_knap_ok : checkRed knap (some knapObj) (optimize knap knapObj) = true ∧
+    (optimize knap knapObj).conclusion = .bounds (some (-4)) 9 (some (-4)) none := by
+  decide +kernel
+
+/-- The optimum is `-4`, from the produced proof. -/
+example : IsLeast (knapObj.eval '' {σ | ∀ c ∈ knap, c.Holds σ}) (-4) :=
+  isLeast_iff_exists_checkRed_bounds.2 ⟨_, 9, optimize_knap_ok.2, optimize_knap_ok.1⟩
+
+theorem enumerate_enumF_ok : checkRed enumF none (enumerate enumF [1, 2]) (some [1, 2]) = true ∧
+    (enumerate enumF [1, 2]).conclusion = .enumComplete 3 11 := by
+  decide +kernel
+
+/-- `x1 + x2 ≥ 1` has exactly three solutions on `x1, x2`, from the produced proof. -/
+example : (projections enumF [1, 2]).encard = 3 :=
+  encard_eq_iff_exists_checkRed_enumComplete.2
+    ⟨_, 11, enumerate_enumF_ok.2, enumerate_enumF_ok.1⟩
+
+example : ((solve enumF).map fun P => checkRed enumF none P) = some true := by decide +kernel
+
 end CslibFrontierTests.Logics.Propositional.VeriPBCompleteness
