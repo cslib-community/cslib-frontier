@@ -834,6 +834,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.CarryLookahead
 public import CslibFrontier.Logics.SecondOrder.WordMSO.ToRegular
 public import CslibFrontier.Foundations.Data.BitString.Block.Cons
 public import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
+public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.OptimalMSF.PartitionRound
 public import CslibFrontier.Logics.FirstOrder.Problems.Coloring
 public import CslibFrontier.Computability.Complexity.Reduction.LocalSelfReducibility.VirtualWord
 public import CslibFrontier.Computability.Automata.MPDA.EmptinessSound
@@ -9219,6 +9220,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Circuit.Boolean.Lupanov.FormulaSynthesis
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Logics.FirstOrder.Raw.Graph
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledDegreePiece
 public import CslibFrontier.Foundations.Probability.Gaussian.DiscreteTail
 public import CslibFrontier.Computability.LogSpaceDerandomization.ColumnDetector
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.TotalComputability

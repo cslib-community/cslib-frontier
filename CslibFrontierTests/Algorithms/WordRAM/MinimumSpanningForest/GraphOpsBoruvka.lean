@@ -49,11 +49,6 @@ open CslibFrontierTests.Algorithms.WordRAM.MinimumSpanningForest.GraphOpsTestSup
 
 /-! ## Private MSF base witnesses for concrete `L_out` checks -/
 
-private theorem isMinSpanningForest_nil {n : ℕ} :
-    IsMinSpanningForest (n := n) ([] : List (WeightedEdge n ℕ)) [] := by
-  refine ⟨⟨List.Subperm.refl _, isAcyclic_nil, rfl⟩, fun F' hF' => ?_⟩
-  rw [List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero hF'.1.length_le)]
-
 private theorem isMinSpanningForest_singleton {n : ℕ} (e : WeightedEdge n ℕ) (hne : e.u ≠ e.v) :
     IsMinSpanningForest [e] [e] := by
   have hrel_false : (DisjointSet.Partition.discrete n).rel e.u e.v = false :=

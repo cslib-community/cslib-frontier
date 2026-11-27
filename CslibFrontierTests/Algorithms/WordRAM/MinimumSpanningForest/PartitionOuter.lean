@@ -66,11 +66,6 @@ private theorem isSimple_of_pairs {n : ℕ} {es : List (IndexedEdge n)}
     · exact hinj ⟨j.val, by simpa using j.isLt⟩ ⟨i.val, by simpa using i.isLt⟩ hgt
         (Sym2.eq_iff.mp h_sym.symm)
 
-private theorem isMinSpanningForest_nil {n : ℕ} :
-    IsMinSpanningForest ([] : List (WeightedEdge n ℕ)) [] := by
-  simpa [kruskalEdges, sortEdges, kruskalScan] using
-    kruskalEdges_isMinSpanningForest ([] : List (WeightedEdge n ℕ))
-
 private theorem edgePartitionFrom_fin1_eq {xs : List (WeightedEdge 1 ℕ)}
     (p : Partition 1) : edgePartitionFrom p xs = p := by
   induction xs generalizing p with

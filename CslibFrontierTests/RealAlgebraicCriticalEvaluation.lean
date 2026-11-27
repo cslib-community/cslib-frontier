@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledDegreePiece
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFirstCoefficient
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
@@ -896,5 +897,30 @@ example :
     decide
   · rw [Q.evaluate_eq _ _ _ (by decide) (hcut _ (by decide))]
     norm_num [evaluation, finSuccEquiv_X_zero, hX, Polynomial.coeff_X_mul]
+
+-- For P = X₀, the k = 0 lift contributes one from the inverse equation and
+-- one from the coefficient of degree 1.
+example :
+    let C : Controlled (fun _ : ℕ => X (0 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let W := C.degreePiece (n := fun _ => 1) Decoder.nat (.const 1)
+      (fun _ => 1) (fun _ => 0) (.const 1) (.const 0)
+    ∃ p, p.Prime ∧ W.cutoff 0 < p ∧ W.evaluate (0, p, [1, 3]) = (2 : ZMod p).val := by
+  intro C W
+  obtain ⟨p, hbound, hp⟩ := Nat.exists_infinite_primes (W.cutoff 0 + 1)
+  have hcut : W.cutoff 0 < p := hbound
+  refine ⟨p, hp, hcut, ?_⟩
+  rw [W.evaluate_eq _ p _ hp hcut, evaluation]
+  have hpoint : (fun i : Fin 2 => (([1, 3][i.val]?.getD 0 : ℕ) : ZMod p)) =
+      Fin.cons (1 : ZMod p) (fun _ : Fin 1 => 3) := by
+    funext i
+    refine Fin.cases ?_ (fun j => ?_) i
+    · simp
+    · have hj : j = 0 := Subsingleton.elim _ _
+      subst j
+      simp
+  have hI : Finset.Ioc (0 : ℕ) 1 = {1} := by decide
+  rw [hpoint, eval₂_degreePiecePolynomial]
+  norm_num [hI, finSuccEquiv_X_zero]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
