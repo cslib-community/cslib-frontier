@@ -58,7 +58,7 @@ lists of its evaluation point and direction. -/
   List.ofFn fun i : Fin (replyLimit p n) => π (encPair encBits encNat (key, i.val))
 
 /-- The deterministic line check on the tables of the same proof, evaluated on field elements. -/
-@[expose] def correctionAnswer (π : List Bool → Bool) {p n : ℕ} [NeZero p]
+@[expose] def correctionAnswer (π : List Bool → Bool) {p n : ℕ}
     (x v : Fin n → ZMod p) : Option ℕ :=
   let word := correctionReply π x v
   let reads := List.ofFn fun i : Fin (n + 1) =>
