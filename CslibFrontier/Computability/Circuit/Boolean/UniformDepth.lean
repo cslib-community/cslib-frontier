@@ -34,7 +34,7 @@ variable {σ : Signature} {encOp : σ.Op ↪ List Bool}
 
 /-- A single logarithmic-space machine writes the native circuit, with binary wire numbers, on
 input the length in unary. The number of outputs is fixed throughout the family. -/
-def Circuit.IsLogspaceUniform {m : ℕ} (encOp : σ.Op ↪ List Bool)
+@[expose] def Circuit.IsLogspaceUniform {m : ℕ} (encOp : σ.Op ↪ List Bool)
     (C : (n : ℕ) → Circuit σ n m) : Prop :=
   ComputableInLogSpace (fun n => (⟨n, C n⟩ : Σ n, Circuit σ n m)) encUnary
     (Circuit.encCircuit encOp m)
@@ -52,7 +52,7 @@ namespace Boolean
 
 /-- Languages decided by logspace-uniform circuits over the given encoded basis and of depth at
 most a constant multiple of `D n`. The transducer bound supplies polynomial size. -/
-def LogspaceUniformDepthClass (I : Interpretation σ Bool) (encOp : σ.Op ↪ List Bool)
+@[expose] def LogspaceUniformDepthClass (I : Interpretation σ Bool) (encOp : σ.Op ↪ List Bool)
     (D : ℕ → ℕ) : Set (Language Bool) :=
   {L | ∃ (C : (n : ℕ) → Circuit σ n 1), Circuit.IsLogspaceUniform encOp C ∧ ∃ c, ∀ n,
     (C n).Computes I (single (L.slice n)) ∧ (C n).depth ≤ c * D n}
@@ -64,12 +64,12 @@ theorem LogspaceUniformDepthClass.subset_depthClass {I : Interpretation σ Bool}
   exact ⟨c, _, hC.polynomiallyBounded_size, fun n => ⟨C n, (h n).1, (h n).2, le_rfl⟩⟩
 
 /-- Logspace-uniform ACⁱ, with unbounded fan-in and depth `O((log n) ^ i)`. -/
-def LogspaceUniformAC (i : ℕ) : Set (Language Bool) :=
+@[expose] def LogspaceUniformAC (i : ℕ) : Set (Language Bool) :=
   LogspaceUniformDepthClass Unbounded.interpretation Unbounded.encOp fun n =>
     (Nat.log 2 n + 1) ^ i
 
 /-- Logspace-uniform NCⁱ, with the De Morgan basis of fan-in two and depth `O((log n) ^ i)`. -/
-def LogspaceUniformNC (i : ℕ) : Set (Language Bool) :=
+@[expose] def LogspaceUniformNC (i : ℕ) : Set (Language Bool) :=
   LogspaceUniformDepthClass interpretation Boolean.encOp fun n => (Nat.log 2 n + 1) ^ i
 
 end Boolean
