@@ -25,8 +25,8 @@ For a nonzero integer gap `g`, the dyadic sign product at `g` and at `-g` assign
 weight to its sign. The closure of GapP under polynomially many products makes the two weights
 uniform in the instance. Our factors have distinct dyadic roots. This adapts the geometric-root
 product of [Newman][Newman1964], p. 11, and the dyadic product with repeated factors used in
-[Fortnow and Reingold][FortnowReingold1996], §4. The weights are used for truth-table closure [FortnowReingold1996] and can
-also serve as amplitudes for a postselected quantum decision. The single tagged function in
+[Fortnow and Reingold][FortnowReingold1996], §4. The weights serve both truth-table closure and
+postselected quantum decisions. The single tagged function in
 `exists_gapP_separation_of_mem_PP` is an original formulation of this counting argument.
 
 ## Main definitions
@@ -63,8 +63,8 @@ theorem one_le_newmanPoly {M : ℕ} {z : ℤ} (hz : 1 ≤ z) : 1 ≤ newmanPoly 
     have : (0 : ℤ) ≤ (2 : ℤ) ^ j := by positivity
     omega
 
-/-- **Sign separation for the dyadic product.** For `1 ≤ z ≤ 2 ^ M`, twice `|newmanPoly M (-z)|` is at most
-`newmanPoly M z`. -/
+/-- **Sign separation for the dyadic product.** For `1 ≤ z ≤ 2 ^ M`, twice
+`|newmanPoly M (-z)|` is at most `newmanPoly M z`. -/
 theorem two_mul_abs_newmanPoly_neg_le {M : ℕ} {z : ℤ} (hz₁ : 1 ≤ z) (hz₂ : z ≤ (2 : ℤ) ^ M) :
     2 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
   have h : 3 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
