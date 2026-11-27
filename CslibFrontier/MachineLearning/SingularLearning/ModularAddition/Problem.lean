@@ -76,12 +76,12 @@ rests on resolution of singularities; that agreement is not proved in this libra
 * `Cslib.MachineLearning.ModularAddition.exists_isMinOn_exactFitsInBall`: for odd `p` and
   `H ≥ 2 p - 1` the ball contains an exact fit of smallest coefficient, so the statement
   constrains at least one parameter.
-* `Cslib.MachineLearning.ModularAddition.not_fourierStructureForced_of_isMinOn`: the direct
-  form of a refutation, an exact fit of smallest coefficient with an active neuron not of
-  single-frequency form.
-* `Cslib.MachineLearning.ModularAddition.not_fourierStructureForced`: one sufficient test for a
-  refutation, by strict separation of an upper bound at one exact fit from a lower bound at the
-  exact fits of single-frequency form.
+* `Cslib.MachineLearning.ModularAddition.not_fourierStructureForced`: a sufficient test for a
+  refutation, by separation: an exact fit with an active neuron not of single-frequency form, an
+  upper bound `c` on its coefficient, and the lower bound `c` at the exact fits of
+  single-frequency form. Ties at `c` are covered.
+* `Cslib.MachineLearning.ModularAddition.not_fourierStructureForced_of_lt`: the same test with a
+  strict lower bound, without exhibiting a neuron.
 
 ## The degenerate case `p = 3`
 
@@ -201,52 +201,51 @@ theorem exists_isMinOn_exactFitsInBall (hp : Odd p) {H : ℕ} (hH : 2 * p - 1 �
   exists_isMinOn_learningCoeff loss (isCompact_exactFitsInBall p H _)
     (exactFitsInBall_fourierRadius_nonempty hp hH)
 
-/-- **A refutation, in direct form.** The statement for a width and a radius fails as soon as
-some exact fit in the ball that attains the smallest local learning coefficient has an active
-neuron that is not of single-frequency form. This is the negation of the statement read off,
-and it also covers the case in which fits of single-frequency form attain the same smallest
-value. -/
-theorem not_fourierStructureForced_of_isMinOn {H : ℕ} {R : ℝ} {w : Params p (Fin H)}
-    (hw : w ∈ exactFitsInBall p H R)
-    (hmin : IsMinOn (learningCoeff loss) (exactFitsInBall p H R) w)
-    {j : Fin H} (hj : IsActive w j) (hns : ¬ IsSingleFrequency w j) :
-    ¬ FourierStructureForced p H R :=
-  fun hforced => hns (hforced w hw hmin j hj)
-
-/-- **One sufficient test for a refutation, by strict separation.** To refute the statement for
-a width and a radius it is enough to give an exact fit `w` in the ball with an active neuron
-that is not of single-frequency form, a bound `c` with `λ(w) ≤ c`, and the bound `c < λ(v)` for
-every exact fit `v` in the ball all of whose active neurons have single-frequency form. A
-smallest coefficient is attained in the ball, and under these bounds it is not attained at a fit
-of single-frequency form.
-
-The test cannot express a tie at the minimum between `w` and a fit of single-frequency form;
-`not_fourierStructureForced_of_isMinOn` covers that case. Nothing in this library supplies such
-bounds. -/
+/-- **A sufficient test for a refutation, by separation.** To refute the statement for a width
+and a radius it is enough to give an exact fit `w` in the ball with an active neuron that is not
+of single-frequency form, a bound `c` with `λ(w) ≤ c`, and the bound `c ≤ λ(v)` for every exact
+fit `v` in the ball all of whose active neurons have single-frequency form. A smallest
+coefficient is attained in the ball. If the statement held, it would be attained at a fit of
+single-frequency form, so under these bounds `w` would attain it too, and the statement would
+fail at `w`. Ties at `c` are covered. With `c = λ(w)` at an exact fit `w` of smallest coefficient
+this is the negation of the statement read off. Nothing in this library supplies such bounds. -/
 theorem not_fourierStructureForced {H : ℕ} {R : ℝ} {w : Params p (Fin H)} {c : EReal}
     (hw : w ∈ exactFitsInBall p H R) {j : Fin H} (hj : IsActive w j)
     (hns : ¬ IsSingleFrequency w j) (hupper : learningCoeff loss w ≤ c)
     (hlower : ∀ v ∈ exactFitsInBall p H R,
-      (∀ i, IsActive v i → IsSingleFrequency v i) → c < learningCoeff loss v) :
+      (∀ i, IsActive v i → IsSingleFrequency v i) → c ≤ learningCoeff loss v) :
     ¬ FourierStructureForced p H R := by
   intro hforced
   obtain ⟨v, hv, hmin⟩ :=
     exists_isMinOn_learningCoeff loss (isCompact_exactFitsInBall p H R) ⟨w, hw⟩
-  by_cases hvw : learningCoeff loss v = learningCoeff loss w
-  · -- Then `w` is a minimizer too, and its active neuron contradicts the statement.
-    have hminw : IsMinOn (learningCoeff loss) (exactFitsInBall p H R) w := fun u hu => by
-      rw [Set.mem_ofPred_eq, ← hvw]
-      exact hmin hu
-    exact hns (hforced w hw hminw j hj)
-  · exact absurd ((hlower v hv (hforced v hv hmin)).trans_le ((hmin hw).trans hupper))
-      (lt_irrefl _)
+  -- The minimizer `v` has single-frequency form, so `λ(w) ≤ c ≤ λ(v)` and `w` is a minimizer.
+  have hminw : IsMinOn (learningCoeff loss) (exactFitsInBall p H R) w :=
+    isMinOn_iff.2 fun u hu =>
+      (hupper.trans (hlower v hv (hforced v hv hmin))).trans (isMinOn_iff.1 hmin u hu)
+  exact hns (hforced w hw hminw j hj)
+
+/-- **A refutation by strict separation.** To refute the statement for a width and a radius it is
+enough to give an exact fit `w` in the ball, a bound `c` with `λ(w) ≤ c`, and the bound
+`c < λ(v)` for every exact fit `v` in the ball all of whose active neurons have single-frequency
+form. No neuron needs to be exhibited: the bounds force `w` to have an active neuron not of
+single-frequency form, since otherwise they give `c < λ(w) ≤ c`. Nothing in this library
+supplies such bounds. -/
+theorem not_fourierStructureForced_of_lt {H : ℕ} {R : ℝ} {w : Params p (Fin H)} {c : EReal}
+    (hw : w ∈ exactFitsInBall p H R) (hupper : learningCoeff loss w ≤ c)
+    (hlower : ∀ v ∈ exactFitsInBall p H R,
+      (∀ i, IsActive v i → IsSingleFrequency v i) → c < learningCoeff loss v) :
+    ¬ FourierStructureForced p H R := by
+  obtain ⟨j, hj, hns⟩ : ∃ j, IsActive w j ∧ ¬ IsSingleFrequency w j := by
+    by_contra h
+    exact lt_irrefl c
+      ((hlower w hw fun i hi => not_not.1 fun hns => h ⟨i, hi, hns⟩).trans_le hupper)
+  exact not_fourierStructureForced hw hj hns hupper fun v hv hsf => (hlower v hv hsf).le
 
 /-! ### The case `p = 3` -/
 
-omit [NeZero p] in
 /-- If the tables of frequency `1` are all tables, then every neuron has single-frequency form
 and the statement holds for every width and every radius. -/
-theorem fourierStructureForced_of_freqSpace_eq_top [NeZero p] (h : freqSpace p 1 = ⊤) (H : ℕ)
+theorem fourierStructureForced_of_freqSpace_eq_top (h : freqSpace p 1 = ⊤) (H : ℕ)
     (R : ℝ) : FourierStructureForced p H R :=
   fun _ _ _ _ _ => ⟨1, h ▸ Submodule.mem_top, h ▸ Submodule.mem_top⟩
 

@@ -9,9 +9,10 @@ module
 
 public import CslibFrontier.MachineLearning.SingularLearning.ModularAddition.Network
 import Mathlib.Algebra.BigOperators.Fin
-import Mathlib.Analysis.SpecialFunctions.Trigonometric.Complex
+import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.LinearCombination
+import Mathlib.Tactic.NormNum
 
 /-!
 # The Fourier fit for modular addition

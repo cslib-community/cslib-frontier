@@ -19,8 +19,8 @@ Checks for `CslibFrontier/MachineLearning/SingularLearning/ModularAddition/`:
   smallest local learning coefficient;
 * a neuron with zero output vector is not active, whatever its tables;
 * at `p = 5` the frequency of a single-frequency neuron may be taken to be `0`, `1` or `2`;
-* the problem at its intended parameters holds for `p = 3`, where the direct form of a
-  refutation therefore never applies.
+* the problem at its intended parameters holds for `p = 3`, where the separation test therefore
+  never applies, and the hypotheses of the strict separation test are contradictory.
 -/
 
 public section
@@ -56,13 +56,21 @@ example (w : Params 5 (Fin 9)) (j : Fin 9) (h : IsSingleFrequency w j) :
     ∃ k ≤ 2, left w j ∈ freqSpace 5 k ∧ right w j ∈ freqSpace 5 k :=
   (isSingleFrequency_iff_exists_le (by decide) w j).1 h
 
-/-- The direct form of a refutation never applies at `p = 3`: there no exact fit of smallest
-coefficient has an active neuron that is not of single-frequency form. -/
+/-- The separation test never applies at `p = 3`: there no exact fit of smallest coefficient
+has an active neuron that is not of single-frequency form. -/
 example (H : ℕ) (R : ℝ) (w : Params 3 (Fin H)) (hw : w ∈ exactFitsInBall 3 H R)
     (hmin : IsMinOn (learningCoeff loss) (exactFitsInBall 3 H R) w) (j : Fin H)
     (hj : IsActive w j) : IsSingleFrequency w j :=
-  not_not.1 fun hns =>
-    not_fourierStructureForced_of_isMinOn hw hmin hj hns (fourierStructureForced_three H R)
+  not_not.1 fun hns => not_fourierStructureForced hw hj hns le_rfl (fun _ hv _ => hmin hv)
+    (fourierStructureForced_three H R)
+
+/-- At `p = 3` the hypotheses of the strict separation test are contradictory: every exact fit
+has single-frequency form, so the strict lower bound at `w` itself contradicts the upper bound. -/
+example (H : ℕ) (R : ℝ) (w : Params 3 (Fin H)) (hw : w ∈ exactFitsInBall 3 H R) (c : EReal)
+    (hupper : learningCoeff loss w ≤ c)
+    (hlower : ∀ v ∈ exactFitsInBall 3 H R,
+      (∀ i, IsActive v i → IsSingleFrequency v i) → c < learningCoeff loss v) : False :=
+  not_fourierStructureForced_of_lt hw hupper hlower (fourierStructureForced_three H R)
 
 /-- The problem at its intended parameters holds for `p = 3` at width five. -/
 example : FourierStructureProblem 3 5 := fourierStructureProblem_three 5
