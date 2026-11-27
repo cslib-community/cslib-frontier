@@ -14,10 +14,10 @@ import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg.Desce
 import CslibFrontier.Tactic.Realize
 
 /-!
-# Shared Leaf-Locate Prefix (`btreeLocateHitGenProg`) and In-Place Node Write Frame
+# Shared Leaf-Locate Prefix (`btreeLocateHitGenProg`)
 
 Shared leaf-descent and SWAR rank hit-detection subroutine for `btreeLookupGenProg`,
-`btreeDeleteGenProg`, and `btreeUpdateGenProg`, plus in-place node update preservation.
+`btreeDeleteGenProg`, and `btreeUpdateGenProg`.
 -/
 
 public section
@@ -35,51 +35,6 @@ open Cslib.DataStructure.Dictionary.SuccinctWhp
 open Cslib.DataStructure.Dictionary.Dynamic (logLogFactor one_le_logLogFactor)
 open Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray
 open Cslib.DataStructure.Dictionary.WordRAM.Succinct
-
-/-- Writing an updated node `nd'` at an already-allocated index `u < sl.alloc` preserves
-`BTreeSliceMemRep` for `{ sl with nodes := Function.update sl.nodes u nd' }` and frames all other
-slices and non-B+-tree memory words. -/
-theorem writeBTreeNodeGenProg_inPlace_sliceRep {c U V w n_max base sIdx u : ℕ}
-    {sl : BTreeSlice} {nd' : BTreeNode} {s : Memory.State}
-    (henv : WhpLargeEnv c U V w n_max w base)
-    (hsIdx : sIdx < 3 * numBucketsWhp n_max)
-    (hrep : BTreeSliceMemRep base c U V w n_max sIdx sl s.mem)
-    (hu : u < sl.alloc)
-    (hm_lt : nd'.metaWord < 2 ^ nodeMetaBitsWhp n_max)
-    (hk_lt : nd'.keysWord < 2 ^ keysWordBitsWhp n_max)
-    (hv_lt : nd'.valsWord < 2 ^ valsWordBitsWhp n_max) :
-    let prog := writeBTreeNodeGenProg
-      ((((mkWhpCoreParams c U V w n_max, base), sIdx), u),
-        (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))
-    let s' := (Memory.spec 0).clientState s prog
-    s'.frontier = s.frontier ∧
-    memoryCost prog s = 12 ∧
-    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
-    BTreeSliceMemRep base c U V w n_max sIdx { sl with nodes := Function.update sl.nodes u nd' }
-      s'.mem ∧
-    (∀ sIdx' < 3 * numBucketsWhp n_max, sIdx' ≠ sIdx → ∀ sl₂,
-      BTreeSliceMemRep base c U V w n_max sIdx' sl₂ s.mem →
-      BTreeSliceMemRep base c U V w n_max sIdx' sl₂ s'.mem) ∧
-    (∀ a, a < base + offBtMeta c U V w n_max ∨ base + offTrieChild0 c U V w n_max ≤ a →
-      s'.mem a = s.mem a) := by
-  have hw := henv.2.1
-  have hoff := largeOffsetChain c U V w n_max
-  obtain ⟨hwn_fr, hwn_mc, hwn_vp, hwn_up, hwn_other, hwn_out⟩ :=
-    writeBTreeNodeGenProg_spec (nd := nd') henv hsIdx (hu.trans_le hrep.1) hm_lt hk_lt hv_lt
-      (s := s)
-  dsimp only at hwn_fr hwn_mc hwn_vp hwn_up hwn_other hwn_out ⊢
-  have hbm_eq : ∀ i < 16 * numBucketsWhp n_max,
-      readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w
-        ((Memory.spec 0).clientState s
-          (writeBTreeNodeGenProg
-            ((((mkWhpCoreParams c U V w n_max, base), sIdx), u),
-              (nd'.metaWord, (nd'.keysWord, nd'.valsWord))))).mem i =
-        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem i :=
-    fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨_, ha2⟩ => hwn_out a (Or.inl (by omega))
-  exact ⟨hwn_fr, hwn_mc, hwn_vp,
-    ⟨hrep.1, (hbm_eq _ (by omega)).trans hrep.2.1, (hbm_eq _ (by omega)).trans hrep.2.2.1,
-      hwn_up sl hrep.1 fun v hv _ => hrep.2.2.2 v hv⟩,
-    hwn_other, hwn_out⟩
 
 /-- Shared leaf-locate prefix for `btreeLookupGenProg`, `btreeDeleteGenProg`, and
 `btreeUpdateGenProg`: descends to the leaf for `q`, ranks `q` in `keysWord`, and returns

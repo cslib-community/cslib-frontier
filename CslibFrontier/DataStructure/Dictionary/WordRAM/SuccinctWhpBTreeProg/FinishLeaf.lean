@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSwarProg
 import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg.Helpers
-import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg.LocateHit
 import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg.SplitOps
 import CslibFrontier.Tactic.Realize
 
