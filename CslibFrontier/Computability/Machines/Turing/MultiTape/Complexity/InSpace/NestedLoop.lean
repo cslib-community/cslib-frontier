@@ -88,9 +88,8 @@ def entry (a : α) (d : ℕ) (j : J) : Frame J R :=
 /-- Perform the next local operation on a frame and any reply waiting for it. A left result
 suspends a frame and launches a child. A right result returns a value. -/
 def body (p : (Frame J R × Option β) × α) : (Frame J R × Frame J R) ⊕ β :=
-  let f := p.1.1
-  let a := p.2
-  let r := p.1.2.elim f.reg (L.update a f.level f.job f.reg)
+  let ((f, reply), a) := p
+  let r := reply.elim f.reg (L.update a f.level f.job f.reg)
   match f.level, f.remaining with
   | 0, _ => .inr (L.base a f.job)
   | d + 1, 0 => .inr (L.finish a (d + 1) f.job r)
