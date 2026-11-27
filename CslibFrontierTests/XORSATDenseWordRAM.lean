@@ -18,7 +18,9 @@ meta import CslibFrontier.Computability.Complexity.Problems.XORSAT.Dense
 Run the assembled `Cslib.Algorithms.WordRAM.XORSATDense.program` with `Cslib.WordRAM.run` (which
 counts the final `halt`) on `encode q` for concrete well-formed instances `q`, and check that the
 answer is `(XORSAT.Dense.decide q).toNat` and that the instruction count is at most the proved
-bound `30 (m + 1) (n + 1)`:
+bound `30 (m + 1) (n + 1)`. Two `example`s also apply the public theorems `computesInTime_decide`
+and `decidesInTime_decide` to a concrete instance through the exposed `FitsWidth` and `encode`,
+as an ordinary `module` client:
 
 * a satisfiable `2 × 2` system and an unsatisfiable `2 × 1` system (`x₀ = 1`, `x₀ = 0`);
 * the three-equation cycle `x₀ + x₁ = 1`, `x₁ + x₂ = 1`, `x₀ + x₂ = 1` (unsatisfiable) and the
@@ -54,6 +56,26 @@ def ok (w : ℕ) (q : Instance) : Bool :=
 def okInput (w : ℕ) (q : Input) : Bool :=
   if h : (q.rows.all fun e => e.coeffs.length == q.width) = true then ok w (mkInst q h)
   else false
+
+/-- A concrete satisfiable `2 × 2` instance. -/
+def q₀ : Instance := mkInst ⟨2, [⟨[true, true], true⟩, ⟨[false, true], true⟩]⟩ rfl
+
+/-- `q₀` is admitted at width `8`, through the exposed `FitsWidth`. -/
+theorem fitsWidth_q₀ : FitsWidth q₀ 8 := ⟨by decide, by decide⟩
+
+/-- The encoding of `q₀` fits at width `8`. -/
+theorem inputFits_q₀ : InputFits 8 (encode q₀) := by decide
+
+/-- Client check across the `module` boundary, without `import all`: the public running-time
+theorem applies to `q₀` at width `8`. -/
+example : ∃ n, Executes 8 program (.init (encode q₀)) (decide q₀.1).toNat n ∧
+    n ≤ 30 * (2 + 1) * (2 + 1) :=
+  computesInTime_decide q₀ 8 fitsWidth_q₀ inputFits_q₀
+
+/-- Client check: the public decision theorem applies to `q₀` at width `8`. -/
+example : (WordSizeDependentProgram.const program 8).Answers 8 (encode q₀)
+    (q₀ ∈ {q : Instance | Satisfiable q.1.width q.1.rows}) (30 * (2 + 1) * (2 + 1)) :=
+  decidesInTime_decide q₀ 8 fitsWidth_q₀ inputFits_q₀
 
 #guard okInput 8 ⟨2, [⟨[true, true], true⟩, ⟨[false, true], true⟩]⟩
 #guard decide ⟨2, [⟨[true, true], true⟩, ⟨[false, true], true⟩]⟩

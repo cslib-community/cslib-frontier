@@ -9,9 +9,12 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.XORSAT.Dense
 public import CslibFrontier.Computability.WordRAM.Function
+public import CslibFrontier.Foundations.Data.BitString.Counter
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Foundations.Data.List.Forall2
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import Mathlib.Data.List.GetD
 
 /-!
 # Word-RAM dense Gaussian elimination over `𝔽₂` with one row per word
@@ -44,6 +47,8 @@ test and the final `halt` is charged by the Word-RAM semantics.
 ## Main definitions
 
 * `Cslib.Algorithms.WordRAM.XORSATDense.rowWord`: the packed word of a dense row.
+* `Cslib.Algorithms.WordRAM.XORSATDense.RowRel`: a packed word represents a partially eliminated
+  row.
 * `Cslib.Algorithms.WordRAM.XORSATDense.colStep`, `cols`: elimination columns on packed rows.
 * `Cslib.Algorithms.WordRAM.XORSATDense.Instance`, `encode`, `FitsWidth`: well-formed instances,
   their word layout and the admitted widths.
@@ -66,38 +71,18 @@ test and the final `halt` is charged by the Word-RAM semantics.
   argument formalized in `XORSAT.Dense`.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Algorithms.WordRAM.XORSATDense
 
 open Cslib.Complexity.XORSAT.Dense
 
-/-! ## Packing Boolean lists into words -/
-
-/-- Little-endian word of a Boolean list: entry `j` is bit `j`. -/
-def bitsVal : List Bool → ℕ
-  | [] => 0
-  | b :: bs => Nat.bit b (bitsVal bs)
-
-theorem testBit_bitsVal (l : List Bool) (j : ℕ) :
-    (bitsVal l).testBit j = l.getD j false := by
-  induction l generalizing j with
-  | nil => simp [bitsVal]
-  | cons b bs ih =>
-    cases j with
-    | zero => simp [bitsVal]
-    | succ j => simp [bitsVal, Nat.testBit_bit_succ, ih]
-
-theorem bitsVal_lt (l : List Bool) : bitsVal l < 2 ^ l.length := by
-  induction l with
-  | nil => simp [bitsVal]
-  | cons b bs ih =>
-    simp only [bitsVal, List.length_cons, pow_succ, Nat.bit_val]
-    cases b <;> simp <;> omega
+/-! ## Packed rows -/
 
 /-- The packed word of a dense row: coefficients at bits `0, …, n - 1`, right-hand side at bit
-`n`, where `n` is the number of coefficients. -/
-def rowWord (e : Row) : ℕ := bitsVal (e.coeffs ++ [e.rhs])
+`n`, where `n` is the number of coefficients (least significant bit first, `lsbValue`). -/
+@[expose]
+def rowWord (e : Row) : ℕ := Cslib.BitString.lsbValue (e.coeffs ++ [e.rhs])
 
 /-! ## Packed rows representing a partially eliminated row -/
 
@@ -110,22 +95,22 @@ structure RowRel (n c x : ℕ) (e : Row) : Prop where
   rhs : x.testBit n = e.rhs
   lt : x < 2 ^ (n + 1)
 
-theorem rowRel_rowWord {n : ℕ} {e : Row} (h : e.coeffs.length = n) :
+private theorem rowRel_rowWord {n : ℕ} {e : Row} (h : e.coeffs.length = n) :
     RowRel n 0 (rowWord e) e where
   len := by simpa using h
   coeff j hj := by
-    rw [rowWord, testBit_bitsVal, zero_add]
+    rw [rowWord, Cslib.BitString.testBit_lsbValue, zero_add]
     simp only [List.getD_eq_getElem?_getD]
     rw [List.getElem?_append_left (by omega)]
   rhs := by
-    rw [rowWord, testBit_bitsVal]
+    rw [rowWord, Cslib.BitString.testBit_lsbValue]
     simp [List.getD_eq_getElem?_getD, h]
   lt := by
-    have := bitsVal_lt (e.coeffs ++ [e.rhs])
+    have := Cslib.BitString.lsbValue_lt (e.coeffs ++ [e.rhs])
     unfold rowWord
     simpa [h] using this
 
-theorem RowRel.testBit_eq_headD {n c x : ℕ} {e : Row} (h : RowRel n c x e) (hc : c < n) :
+private theorem RowRel.testBit_eq_headD {n c x : ℕ} {e : Row} (h : RowRel n c x e) (hc : c < n) :
     x.testBit c = e.coeffs.headD false := by
   have := h.coeff 0 (by omega)
   rw [Nat.add_zero] at this
@@ -135,15 +120,19 @@ theorem RowRel.testBit_eq_headD {n c x : ℕ} {e : Row} (h : RowRel n c x e) (hc
 /-! ## One elimination column on packed rows -/
 
 /-- The pivot word for column `c`: the first row with bit `c` set, or `0` if there is none. -/
+@[expose]
 def pivotWord (c : ℕ) (W : List ℕ) : ℕ := (W.find? fun x => x.testBit c).getD 0
 
 /-- Eliminate column `c` from one packed row using the pivot word `pv`. -/
+@[expose]
 def elimWord (c pv x : ℕ) : ℕ := if x.testBit c then x ^^^ pv else x
 
 /-- One elimination column on packed rows. -/
+@[expose]
 def colStep (c : ℕ) (W : List ℕ) : List ℕ := W.map (elimWord c (pivotWord c W))
 
 /-- Packed rows after the first `c` elimination columns. -/
+@[expose]
 def cols (W : List ℕ) : ℕ → List ℕ
   | 0 => W
   | c + 1 => colStep c (cols W c)
@@ -214,7 +203,7 @@ private theorem rowRel_xor {n c x y : ℕ} {e p : Row} (hx : RowRel n c x e)
   lt := Nat.xor_lt_two_pow hx.lt hy.lt
 
 /-- One packed elimination column represents one `XORSAT.Dense.step`. -/
-theorem forall₂_colStep {n c : ℕ} (hc : c < n) {W : List ℕ} {F : System}
+private theorem forall₂_colStep {n c : ℕ} (hc : c < n) {W : List ℕ} {F : System}
     (h : List.Forall₂ (RowRel n c) W F) :
     List.Forall₂ (RowRel n (c + 1)) (colStep c W) (step F) := by
   have hpq : ∀ x e, RowRel n c x e → x.testBit c = e.coeffs.headD false :=
@@ -250,7 +239,7 @@ theorem forall₂_cols {n : ℕ} {W : List ℕ} {F : System}
     exact forall₂_colStep (by omega) (forall₂_cols h c (by omega))
 
 /-- Packing every row of a system of width `n` gives related words. -/
-theorem forall₂_rowWord {n : ℕ} : ∀ {F : System}, Width n F →
+private theorem forall₂_rowWord {n : ℕ} : ∀ {F : System}, Width n F →
     List.Forall₂ (RowRel n 0) (F.map rowWord) F
   | [], _ => .nil
   | e :: _, h =>
@@ -275,41 +264,40 @@ section Program
 open Cslib.WordRAM
 
 /-- Number of columns `n`. -/
-abbrev rN : Fin 14 := 0
+private abbrev rN : Fin 14 := 0
 /-- Number of rows `m`. -/
-abbrev rM : Fin 14 := 1
+private abbrev rM : Fin 14 := 1
 /-- Base address `3` of the packed rows. -/
-abbrev rBase : Fin 14 := 2
+private abbrev rBase : Fin 14 := 2
 /-- Constant one. -/
-abbrev rOne : Fin 14 := 3
+private abbrev rOne : Fin 14 := 3
 /-- Constant zero. -/
-abbrev rZero : Fin 14 := 4
+private abbrev rZero : Fin 14 := 4
 /-- Current column `c`. -/
-abbrev rC : Fin 14 := 5
+private abbrev rC : Fin 14 := 5
 /-- Current row `k`. -/
-abbrev rK : Fin 14 := 6
+private abbrev rK : Fin 14 := 6
 /-- Row address. -/
-abbrev rA : Fin 14 := 7
+private abbrev rA : Fin 14 := 7
 /-- Current row word. -/
-abbrev rX : Fin 14 := 8
+private abbrev rX : Fin 14 := 8
 /-- Tested bit. -/
-abbrev rB : Fin 14 := 9
+private abbrev rB : Fin 14 := 9
 /-- Pivot word. -/
-abbrev rPiv : Fin 14 := 10
+private abbrev rPiv : Fin 14 := 10
 /-- Whether a pivot has been found. -/
-abbrev rFound : Fin 14 := 11
+private abbrev rFound : Fin 14 := 11
 /-- Answer. -/
-abbrev rOk : Fin 14 := 12
+private abbrev rOk : Fin 14 := 12
 /-- Scratch register. -/
-abbrev rT : Fin 14 := 13
+private abbrev rT : Fin 14 := 13
 
 /-- Bit `c` of `x`, as a word. -/
-theorem shiftRight_and_one (x c : ℕ) : (x >>> c) &&& 1 = (x.testBit c).toNat := by
-  rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, Nat.testBit_eq_decide_div_mod_eq]
-  rcases Nat.mod_two_eq_zero_or_one (x / 2 ^ c) with h | h <;> simp [h]
+private theorem shiftRight_and_one (x c : ℕ) : (x >>> c) &&& 1 = (x.testBit c).toNat := by
+  rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, Nat.toNat_testBit]
 
 /-- One step of the pivot search: remember row `k` if it is the first with bit `c` set. -/
-def searchBody : Code .standard 14 := ram[
+private def searchBody : Code .standard 14 := ram[
   rA ← rBase + rK; rX ← *rA; rB ← rX >>> rC; rB ← rB &&& rOne;
   if rB = rOne then [ if rFound = rZero then [ rPiv ← rX; rFound ← rOne ] else [ rT ← rT ] ]
     else [ rT ← rT ];
@@ -332,8 +320,9 @@ private theorem exec_searchBody {w : ℕ} (y : Data 14) (v : ℕ)
   unfold searchBody
   wram_exec [hone, hzero, ha, hk, hv, hvf, hb, hs, h1, shiftRight_and_one]
   all_goals
-    refine ⟨by wram_simp, fun i hi => by fin_cases i <;> simp at hi <;> wram_simp, by wram_simp,
-      ?_, ?_⟩ <;> wram_simp <;> simp_all
+    refine ⟨by wram_simp, fun i hi => by
+        fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
+      by wram_simp, ?_, ?_⟩ <;> wram_simp <;> simp_all
 
 /-! ### Pure facts used by the loop invariants -/
 
@@ -341,17 +330,12 @@ private theorem getD_mem {W : List ℕ} {j : ℕ} (hj : j < W.length) : W.getD j
   rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj]
   exact List.getElem_mem hj
 
-private theorem getD_eq_getElem' {W : List ℕ} {j : ℕ} (hj : j < W.length) :
-    W.getD j 0 = W[j] := by
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj, Option.getD_some]
-
 private theorem take_succ_eq {W : List ℕ} {k : ℕ} (hk : k < W.length) :
     W.take (k + 1) = W.take k ++ [W.getD k 0] := by
-  rw [List.take_add_one, List.getElem?_eq_getElem hk, getD_eq_getElem' hk]
-  rfl
+  rw [List.take_succ_eq_append_getElem hk, List.getD_eq_getElem _ _ hk]
 
 /-- Pivot search over the first `k` rows. -/
-def prefPiv (c : ℕ) (W : List ℕ) (k : ℕ) : Option ℕ := (W.take k).find? fun x => x.testBit c
+private def prefPiv (c : ℕ) (W : List ℕ) (k : ℕ) : Option ℕ := (W.take k).find? fun x => x.testBit c
 
 private theorem prefPiv_succ {c : ℕ} {W : List ℕ} {k : ℕ} (hk : k < W.length) :
     prefPiv c W (k + 1) =
@@ -374,18 +358,11 @@ private theorem pivotWord_lt {c B : ℕ} {W : List ℕ} (hB : 0 < B) (h : ∀ x 
 
 private theorem getD_colStep {c : ℕ} {W : List ℕ} {j : ℕ} (hj : j < W.length) :
     (colStep c W).getD j 0 = elimWord c (pivotWord c W) (W.getD j 0) := by
-  rw [colStep, getD_eq_getElem' (by simpa using hj), List.getElem_map, getD_eq_getElem' hj]
-
-private theorem forall₂_left {α β : Type*} {R : α → β → Prop} :
-    ∀ {l₁ : List α} {l₂ : List β}, List.Forall₂ R l₁ l₂ → ∀ a ∈ l₁, ∃ b, R a b
-  | _, _, .nil => fun _ h => absurd h List.not_mem_nil
-  | _, _, .cons h t => fun a ha => by
-    rcases List.mem_cons.mp ha with rfl | ha
-    · exact ⟨_, h⟩
-    · exact forall₂_left t a ha
+  rw [colStep, List.getD_eq_getElem _ _ (by simpa using hj), List.getElem_map,
+    List.getD_eq_getElem _ _ hj]
 
 /-- The pivot search: after the loop, `rPiv` holds `pivotWord c W`. -/
-def search : Code .standard 14 :=
+private def search : Code .standard 14 :=
   .seq (ram[ rK ← #0; rFound ← #0; rPiv ← #0 ]) (.loop (.lt rK rM) searchBody)
 
 private theorem exec_search {w : ℕ} (W : List ℕ) (y : Data 14)
@@ -424,13 +401,13 @@ private theorem exec_search {w : ℕ} (W : List ℕ) (y : Data 14)
   wram_exec
   wram_call (ExecWithin.loop_count P (fun z hz => ((hz.1 rM (by decide)).trans hm)) hbody
     (by wram_simp; omega)
-    ⟨fun i hi => by fin_cases i <;> simp at hi <;> wram_simp, by wram_simp,
-      by wram_simp; simp [prefPiv], by wram_simp; simp [prefPiv]⟩)
+    ⟨fun i hi => by fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
+      by wram_simp, by wram_simp; simp [prefPiv], by wram_simp; simp [prefPiv]⟩)
     with z ⟨⟨hr, hzm, hpiv, _⟩, _⟩
   exact ⟨by wram_simp; omega, hzm, hr, by rw [hpiv, prefPiv_length]⟩
 
 /-- Eliminate column `c` from row `k` using the pivot word, and store it back. -/
-def elimBody : Code .standard 14 := ram[
+private def elimBody : Code .standard 14 := ram[
   rA ← rBase + rK; rX ← *rA; rB ← rX >>> rC; rB ← rB &&& rOne;
   if rB = rOne then [ rX ← rX ^^^ rPiv ] else [ rT ← rT ];
   *rA ← rX; rK ← rK + rOne ]
@@ -453,13 +430,13 @@ private theorem exec_elimBody {w : ℕ} (y : Data 14) (v : ℕ)
   all_goals
     refine ⟨?_, fun i hi => by
       rcases hi with hi | rfl
-      · fin_cases i <;> simp at hi <;> wram_simp
+      · fin_cases i <;> first | exact absurd hi (by decide) | wram_simp
       · wram_simp, by wram_simp⟩
     wram_simp
     simp_all [elimWord]
 
 /-- The elimination pass over all rows for the current column. -/
-def elim : Code .standard 14 := .seq (ram[ rK ← #0 ]) (.loop (.lt rK rM) elimBody)
+private def elim : Code .standard 14 := .seq (ram[ rK ← #0 ]) (.loop (.lt rK rM) elimBody)
 
 private theorem exec_elim {w n : ℕ} (W : List ℕ) (y : Data 14)
     (hm : y.regs rM = W.length) (hbase : y.regs rBase = 3) (hone : y.regs rOne = 1)
@@ -512,7 +489,7 @@ private theorem exec_elim {w n : ℕ} (W : List ℕ) (y : Data 14)
   wram_call (ExecWithin.loop_count P (fun z hz => ((hz.1 rM (by decide)).trans hm)) hbody
     (by wram_simp; omega)
     ⟨fun i hi => by rcases hi with hi | rfl
-                    · fin_cases i <;> simp at hi <;> wram_simp
+                    · fin_cases i <;> first | exact absurd hi (by decide) | wram_simp
                     · wram_simp,
       by wram_simp; funext a; simp only [mem]; split_ifs <;> first | rfl | omega⟩)
     with z ⟨⟨hr, hzm⟩, _⟩
@@ -522,7 +499,7 @@ private theorem exec_elim {w n : ℕ} (W : List ℕ) (y : Data 14)
     ↓reduceIte, hmem j hj]
 
 /-- One elimination column: pivot search, elimination pass, next column. -/
-def colBody : Code .standard 14 := .seq search (.seq elim (ram[ rC ← rC + rOne ]))
+private def colBody : Code .standard 14 := .seq search (.seq elim (ram[ rC ← rC + rOne ]))
 
 private theorem exec_colBody {w n : ℕ} (W : List ℕ) (y : Data 14)
     (hm : y.regs rM = W.length) (hbase : y.regs rBase = 3) (hone : y.regs rOne = 1)
@@ -548,7 +525,8 @@ private theorem exec_colBody {w n : ℕ} (W : List ℕ) (y : Data 14)
     have hc' : Fits w (y₂.regs rC + 1) := by rw [hc₂]; exact hc
     refine WP.exists_execWithin ?_
     wram_exec [ho₂, hc']
-    exact ⟨rfl, fun i hi => by fin_cases i <;> simp at hi <;> wram_simp, by wram_simp⟩
+    exact ⟨rfl, fun i hi => by fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
+      by wram_simp⟩
   obtain ⟨z, he₃, hm₃, hr₃, hc₃⟩ := hinc
   refine ⟨z, (he₁.seq (he₂.seq he₃)).mono (by omega),
     fun i hi => (hr₃ i hi).trans ((hr₂ i (by omega)).trans (hr₁ i (by omega))),
@@ -556,10 +534,10 @@ private theorem exec_colBody {w n : ℕ} (W : List ℕ) (y : Data 14)
   rw [hm₃, hm₂ j hj, getD_colStep hj, hp₁, (hr₁ rC (by decide))]
 
 /-- All `n` elimination columns. -/
-def eliminate : Code .standard 14 := .loop (.lt rC rN) colBody
+private def eliminate : Code .standard 14 := .loop (.lt rC rN) colBody
 
 /-- Check that no row has right-hand-side bit `n` set. -/
-def checkBody : Code .standard 14 := ram[
+private def checkBody : Code .standard 14 := ram[
   rA ← rBase + rK; rX ← *rA; rB ← rX >>> rN; rB ← rB &&& rOne;
   if rB = rOne then [ rOk ← rZero ] else [ rT ← rT ];
   rK ← rK + rOne ]
@@ -578,13 +556,15 @@ private theorem exec_checkBody {w : ℕ} (y : Data 14) (v : ℕ)
   unfold checkBody
   wram_exec [hone, hzero, ha, hk, hv, hvf, hb, hs, h1, shiftRight_and_one]
   all_goals
-    refine ⟨by wram_simp, fun i hi => by fin_cases i <;> simp at hi <;> wram_simp, by wram_simp,
-      ?_⟩
+    refine ⟨by wram_simp, fun i hi => by
+        fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
+      by wram_simp, ?_⟩
     wram_simp
     simp_all
 
 /-- The final check over all rows. -/
-def check : Code .standard 14 := .seq (ram[ rOk ← #1; rK ← #0 ]) (.loop (.lt rK rM) checkBody)
+private def check : Code .standard 14 :=
+  .seq (ram[ rOk ← #1; rK ← #0 ]) (.loop (.lt rK rM) checkBody)
 
 private theorem exec_check {w : ℕ} (W : List ℕ) (y : Data 14)
     (hm : y.regs rM = W.length) (hbase : y.regs rBase = 3) (hone : y.regs rOne = 1)
@@ -619,17 +599,17 @@ private theorem exec_check {w : ℕ} (W : List ℕ) (y : Data 14)
   wram_exec
   wram_call (ExecWithin.loop_count P (fun z hz => ((hz.1 rM (by decide)).trans hm)) hbody
     (by wram_simp; omega)
-    ⟨fun i hi => by fin_cases i <;> simp at hi <;> wram_simp, by wram_simp,
-      by wram_simp; simp⟩)
+    ⟨fun i hi => by fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
+      by wram_simp, by wram_simp; simp⟩)
     with z ⟨⟨_, _, hok⟩, _⟩
   exact ⟨by wram_simp; omega, by rw [hok, List.take_length]⟩
 
 /-- Read `n` and `m` from the input header and set the constants. -/
-def setup : Code .standard 14 := ram[
+private def setup : Code .standard 14 := ram[
   rT ← #1; rN ← *rT; rT ← #2; rM ← *rT; rBase ← #3; rOne ← #1; rZero ← #0; rC ← #0 ]
 
 /-- The whole computation: setup, all elimination columns, the final check. -/
-def code : Code .standard 14 := .seq setup (.seq eliminate check)
+private def code : Code .standard 14 := .seq setup (.seq eliminate check)
 
 /-- The fixed standard-basis program; its answer is register `rOk`. -/
 def program : Program .standard 14 := code.program rOk
@@ -644,14 +624,16 @@ open Cslib.WordRAM
 abbrev Instance := {q : Input // Width q.width q.rows}
 
 /-- Word-RAM input layout `[n, m] ++ packed rows`. -/
+@[expose]
 def encode (q : Instance) : List ℕ := q.1.width :: q.1.rows.length :: q.1.rows.map rowWord
 
 /-- Admitted widths: a packed row (`n + 1` bits) fits in one word, and so do the row addresses
 `3, …, m + 2`. This is the word-width condition of the bit-packed representation. -/
+@[expose]
 def FitsWidth (q : Instance) (w : ℕ) : Prop :=
   q.1.width + 1 ≤ w ∧ Fits w (q.1.rows.length + 3)
 
-theorem length_cols (W : List ℕ) : ∀ c, (cols W c).length = W.length
+private theorem length_cols (W : List ℕ) : ∀ c, (cols W c).length = W.length
   | 0 => rfl
   | c + 1 => by simp [cols, colStep, length_cols W c]
 
@@ -698,7 +680,7 @@ private theorem exec_code {w : ℕ} (q : Instance) (hw : FitsWidth q w) :
     (∀ i : Fin 14, i.val < 5 → y.regs i = y₀.regs i) ∧
       ∀ j < m, y.mem (3 + j) = (cols W c).getD j 0
   have hrel (c : ℕ) (hc : c ≤ n) : ∀ x ∈ cols W c, x < 2 ^ (n + 1) := fun x hx => by
-    obtain ⟨_, hr⟩ := forall₂_left (forall₂_cols hF c hc) x hx
+    obtain ⟨_, _, hr⟩ := (forall₂_cols hF c hc).exists_mem_of_mem hx
     exact hr.lt
   have hbody (y : Data 14) (hy : P (y.regs rC) y) (hlt : y.regs rC < n) :
       ∃ z, ExecWithin w colBody y z (28 * m + 9) ∧ P (y.regs rC + 1) z ∧
