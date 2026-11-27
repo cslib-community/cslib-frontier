@@ -34,9 +34,12 @@ import Mathlib.Algebra.MvPolynomial.Rename
 /-!
 # Arithmetization of `NEXP` via succinct tableau decoding
 
-This module develops the arithmetization and uniform succinct-decoder bridge needed for
-$\mathsf{NEXP} \subseteq \mathsf{MIP}_2$ (`#892` M5a)
-[Babai, Fortnow, Lund, §6][BabaiFortnowLund1991], [Williams, Theorem 6.1][Williams2010]:
+The tableau argument in [Babai, Fortnow and Lund, §4.2, Proposition 4.2][BabaiFortnowLund1991]
+reduces a nondeterministic exponential-time computation to a formula tested with three assignment
+oracle calls. Here a circuit returns the three signed variable addresses of an indexed tableau
+clause. For the circuit indexing local clauses, see the proof sketch of Theorem 6.1 in
+[Williams, p. 20][Williams2010]. The construction provides the following parts of the
+two-prover simulation:
 
 1. **Unconditional `NEXP` to succinct tableau CNF reduction** (`exists_succinctCNF_of_mem_NEXP`):
    every language `A ∈ NEXP enc` reduces to satisfiability of the uniform bit-field tableau CNF
@@ -57,11 +60,7 @@ $\mathsf{NEXP} \subseteq \mathsf{MIP}_2$ (`#892` M5a)
    on unsatisfiable formulas induces a nonzero multilinear polynomial detected by Schwartz–Zippel
    and `Cslib.Interactive.Sumcheck.proof`.
 
-*Note on citations*: primary PDFs for [BabaiFortnowLund1991] and [Williams2010] were not
-re-verified on disk here; theorem/section citations follow `Cslib.Circuits.Boolean.Tableau.Succinct`
-and `Cslib.Complexity.MIP` (`NEXP.lean`) (locator not re-verified against primary PDF).
-This module provides M5a infrastructure (`Refs #892`); assembling the full two-prover protocol
-`NEXP ⊆ MIP₂` (M5b) remains open on `#892`.
+The class containment and the assembled verifier are tracked in #892.
 
 ## Main definitions
 
@@ -112,7 +111,8 @@ open scoped BigOperators ENNReal
 /-- **Unconditional `NEXP` to succinct tableau CNF reduction**: every `A ∈ NEXP enc` is decided
 by satisfiability of `Tableau.succinctCNF tm (frame (enc a)) (n a) (T a)` for one deterministic
 multi-tape machine `tm` and binary polynomial-time bounds `n, T : α → ℕ` whose bit-widths are
-polynomially bounded in `(enc a).length` [Babai, Fortnow, Lund, §6][BabaiFortnowLund1991]. -/
+polynomially bounded in `(enc a).length`. This is the tableau step from the proof of
+[Babai, Fortnow and Lund, §4.2, Proposition 4.2][BabaiFortnowLund1991]. -/
 theorem exists_succinctCNF_of_mem_NEXP {α : Type} {enc : α ↪ List Bool} {A : Set α}
     (hA : A ∈ NEXP enc) :
     ∃ (k : ℕ) (State : Type) (_ : Fintype State) (_ : DecidableEq State)
@@ -797,19 +797,19 @@ theorem computableInPolyTime_decoderCode {k : ℕ} {State : Type} [Fintype State
   rcases a with ⟨x, n, T⟩
   rw [Decoder.decoderCode]
 
-/-- **Bundled `NEXP` succinct-decoder reduction**: combines `exists_succinctCNF_of_mem_NEXP` with
-`computableInPolyTime_decoderCode` to yield a fixed deterministic machine `tm`, binary
-polynomial-time parameters `(n, T)`, and a uniform polynomial-time succinct decoder circuit for
-`succinctCNF`. -/
+/-- Every native `NEXP` language has a polynomial-time succinct decoder. The gate code and both
+unary address widths are computable in polynomial time. The frame length and clock bounds let
+the caller relate the decoded clauses to the satisfiable tableau of the fixed machine. -/
 theorem exists_succinctDecoder_of_mem_NEXP {α : Type} {enc : α ↪ List Bool} {A : Set α}
     (hA : A ∈ NEXP enc) :
     ∃ (k : ℕ) (State : Type) (_ : Fintype State) (_ : DecidableEq State)
       (tm : MultiTapeTM k Bool State) (n T : α → ℕ),
       ComputableInPolyTime (fun a => Decoder.decoderCode tm (frame (enc a), n a, T a))
         enc encCode ∧
-      PolyBounded (fun a => (enc a).length)
-        (fun a => Tableau.clauseBits k State (T a) + Tableau.labelBits k State (T a)) ∧
-      ∀ a : α, (a ∈ A ↔ (Tableau.succinctCNF tm (frame (enc a)) (n a) (T a)).Satisfiable) ∧
+      ComputableInPolyTime (fun a => Tableau.clauseBits k State (T a)) enc encUnary ∧
+      ComputableInPolyTime (fun a => Tableau.labelBits k State (T a)) enc encUnary ∧
+      ∀ a : α, (frame (enc a)).length ≤ n a ∧ n a < 2 * T a ∧
+        (a ∈ A ↔ (Tableau.succinctCNF tm (frame (enc a)) (n a) (T a)).Satisfiable) ∧
         ∃ c : Circuit signature (Tableau.clauseBits k State (T a))
           (3 * (Tableau.labelBits k State (T a) + 1)),
           c.code = Decoder.decoderCode tm (frame (enc a), n a, T a) ∧
@@ -819,28 +819,26 @@ theorem exists_succinctDecoder_of_mem_NEXP {α : Type} {enc : α ↪ List Bool} 
             List.ofFn (c.eval interpretation fun i => idx.testBit i) =
               (Tableau.clauseAt tm (frame (enc a)) (n a) (T a) idx).flatMap
                 (Decoder.litBits (Tableau.labelBits k State (T a))) := by
-  obtain ⟨k, State, hfin, hdecEq, tm, n, T, hn_pt, hT_pt, hbits, hmem⟩ :=
+  obtain ⟨k, State, hfin, hdecEq, tm, n, T, hn_pt, hT_pt, _, hmem⟩ :=
     exists_succinctCNF_of_mem_NEXP hA
   have henc : ComputableInPolyTime enc enc encBits := of_eq fun _ => rfl
   have hframe : ComputableInPolyTime (fun a => frame (enc a)) enc encBits := by fun_prop
   have harg : ComputableInPolyTime (fun a => (frame (enc a), n a, T a)) enc
       (encPair encBits (encPair encNat encNat)) :=
     hframe.prod (hn_pt.prod hT_pt)
-  have hwidths : PolyBounded (fun a => (enc a).length)
-      (fun a => Tableau.clauseBits k State (T a) + Tableau.labelBits k State (T a)) := by
-    have hconst : PolyBounded (fun a : α => (enc a).length)
-        (fun _ => 4 + slotBits k State + (2 + slotBits k State)) :=
-      PolyBounded.const _
-    have hcb2 : PolyBounded (fun a : α => (enc a).length)
-        (fun a => 2 * (colBits (T a) + timeBits (T a))) :=
-      PolyBounded.mul (PolyBounded.const 2) hbits
-    refine (hconst.add hcb2).mono fun a => ?_
-    simp only [Tableau.clauseBits, Tableau.labelBits]
-    omega
+  have hp := unary_add' (unary_add' (const (slotBits k State)) (computableInPolyTime_colBits hT_pt))
+    (computableInPolyTime_timeBits hT_pt)
+  have hQ : ComputableInPolyTime (fun a => Tableau.clauseBits k State (T a)) enc encUnary := by
+    unfold Tableau.clauseBits
+    exact unary_add' (const 4) hp
+  have hL : ComputableInPolyTime (fun a => Tableau.labelBits k State (T a)) enc encUnary := by
+    unfold Tableau.labelBits
+    exact unary_add' (const 2) hp
   refine ⟨k, State, hfin, hdecEq, tm, n, T,
-    (@computableInPolyTime_decoderCode k State hfin hdecEq tm).comp harg, hwidths, fun a => ?_⟩
+    (@computableInPolyTime_decoderCode k State hfin hdecEq tm).comp harg, hQ, hL, fun a => ?_⟩
   obtain ⟨hle, hlt, hsat⟩ := hmem a
-  exact ⟨hsat, @Decoder.exists_decoder k State hfin hdecEq tm (frame (enc a)) (n a) (T a) hlt hle⟩
+  exact ⟨hle, hlt, hsat,
+    @Decoder.exists_decoder k State hfin hdecEq tm (frame (enc a)) (n a) (T a) hlt hle⟩
 
 end DecoderPolyTime
 

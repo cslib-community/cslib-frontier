@@ -27,6 +27,7 @@ import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.RelativeValueSection
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -748,5 +749,16 @@ example (P : MvPolynomial (Fin (1 + 1)) ℤ)
     Q.evaluate ∈ CountingFunction 10 (encEvaluation encNat) encNat := by
   intro Q
   exact Q.evaluate_mem
+
+-- The degree-two coefficient survives specialization to a finite field, including at zero.
+example (x : ZMod 7) :
+    let F : MvPolynomial (Fin (1 + 1)) ℤ := X 1 ^ 2
+    let hF : F.totalDegree ≤ 2 := (totalDegree_pow _ _).trans (by simp)
+    let Q := specializedRelativeValueSection (ell := 2) (n := 1) (m := 1) (by decide)
+      F hF (fun _ => x)
+    Q.coeff 2 = 1 ∧ Q ≠ 0 := by
+  intro F hF Q
+  exact ⟨coeff_specializedRelativeValueSection _ F hF _, specializedRelativeValueSection_ne_zero
+    _ F hF _⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

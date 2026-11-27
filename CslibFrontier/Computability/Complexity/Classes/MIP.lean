@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.MIP.Defs
 public import CslibFrontier.Computability.Complexity.Classes.MIP.OptimalProver
 public import CslibFrontier.Computability.Complexity.Classes.MIP.NEXP
+public import CslibFrontier.Computability.Complexity.Classes.MIP.Oracularization
 
 /-!
 # Multiprover interactive proofs (`MIP₂` and `MIP`)
@@ -31,9 +32,11 @@ This umbrella module re-exports the multiprover interactive proof development:
   verification, the exponential-padding translation in `Classes.Padding`, and the unconditional
   upper bounds
   `MIP_subset_NEXP : MIP enc ⊆ NEXP enc` and `MIP₂_subset_NEXP : MIP₂ enc ⊆ NEXP enc`.
+* `CslibFrontier.Computability.Complexity.Classes.MIP.Oracularization`: simulation of strict
+  adaptive proof-oracle verifiers by two classical provers (`PCPPoly_subset_MIP₂`).
 
-The converse inclusion `NEXP ⊆ MIP₂` (Babai–Fortnow–Lund multilinearity testing and
-arithmetization of `NEXP` verification tableaux) remains open.
+For the converse inclusion `NEXP ⊆ MIP₂`, construction of the proof-oracle verifier
+from the arithmetized exponential-time computation remains open.
 
 ## References
 
