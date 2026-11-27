@@ -223,11 +223,10 @@ decisions `words.map (fun word => decide (word ∈ O))`. -/
 theorem interpret_queryWords (O : Set (List Bool)) (words : List (List Bool)) :
     OracleComp.interpret (m := Id) (languageOracle O) (queryWords words) =
       words.map fun word => decide (word ∈ O) := by
-  have key : ∀ (words : List (List Bool)) (acc : List Bool),
+  have key (words : List (List Bool)) : ∀ acc : List Bool,
       OracleComp.interpret (m := Id) (languageOracle O)
         (OracleComp.iterate words.length queryWordsStep (words, acc)) =
         ([], acc ++ words.map fun word => decide (word ∈ O)) := by
-    intro words
     induction words with
     | nil => intro acc; simp only [List.length_nil, List.map_nil, List.append_nil]; rfl
     | cons word words ih =>
@@ -237,11 +236,8 @@ theorem interpret_queryWords (O : Set (List Bool)) (words : List (List Bool)) :
         (OracleComp.iterate words.length queryWordsStep
           (OracleComp.interpret (m := Id) (languageOracle O)
             (queryWordsStep (word :: words, acc)))) = _
-      rw [interpret_id_queryWordsStep, ih]
-      simp [List.append_assoc]
-  unfold queryWords
-  rw [OracleComp.interpret_map, key]
-  simp only [List.nil_append]
+      simp [interpret_id_queryWordsStep, ih, List.append_assoc]
+  rw [queryWords, OracleComp.interpret_map, key, List.nil_append]
   rfl
 
 open Classical in
@@ -504,18 +500,12 @@ theorem NPHard.NP_eq_coNP_of_turing_mem_NP_inter_coNP {B : Set (List Bool)}
     (hL : NPHard encL L) (hLB : PolyTimeTuringReducible encL encBits L B)
     (hB_np : B ∈ NP encBits) (hB_conp : B ∈ coNP encBits) :
     NP encBits = coNP encBits := by
-  have hsub : NP encBits ⊆ coNP encBits := fun A hA => by
-    have ht : PolyTimeTuringReducible encBits encBits A B :=
-      hL.polyTimeTuringHard_of_turing hLB encBits A hA
-    rw [polyTimeTuringReducible_bits_iff_mem_PWithOracle] at ht
-    exact (PWithOracle_subset_NP_inter_coNP hB_np hB_conp ht).2
+  have hsub : NP encBits ⊆ coNP encBits := fun A hA =>
+    (PWithOracle_subset_NP_inter_coNP hB_np hB_conp
+      (polyTimeTuringReducible_bits_iff_mem_PWithOracle.mp
+        (hL.polyTimeTuringHard_of_turing hLB encBits A hA))).2
   ext A
-  constructor
-  · exact fun hA => hsub hA
-  · intro hA
-    rw [mem_coNP] at hA
-    have hAc := hsub hA
-    rw [mem_coNP, compl_compl] at hAc
-    exact hAc
+  exact ⟨fun hA => hsub hA, fun hA => by
+    simpa only [mem_coNP, compl_compl] using hsub (mem_coNP.mp hA)⟩
 
 end Cslib.Complexity

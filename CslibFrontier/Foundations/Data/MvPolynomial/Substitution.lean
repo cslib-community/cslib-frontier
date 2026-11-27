@@ -9,9 +9,11 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Algebra.MvPolynomial.Degrees
+public import Mathlib.Algebra.MvPolynomial.Equiv
 public import Mathlib.Algebra.MvPolynomial.PDeriv
 public import Mathlib.Algebra.Polynomial.AlgebraMap
 public import Mathlib.Algebra.Polynomial.BigOperators
+import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 
 /-!
 # Substitution: total degree and the chain rule
@@ -29,6 +31,8 @@ substitution follow the chain rule (`MvPolynomial.pderiv_aeval`).
   multiplies the degree by at most `k`.
 * `MvPolynomial.totalDegree_aeval_le`: substituting polynomials of degree at most `1` does not raise
   the degree.
+* `MvPolynomial.totalDegree_sumRingEquiv_le`: viewing one variable block as coefficient
+  parameters does not raise the degree in the other block.
 * `MvPolynomial.natDegree_aeval_le_of_support`: bound the degree by weighted monomial degrees.
 * `MvPolynomial.natDegree_aeval_le_mul`: substituting univariate polynomials of degree at most
   `k`, over an algebra, gives a polynomial of degree at most `k` times the total degree.
@@ -65,6 +69,50 @@ degree. -/
 theorem totalDegree_aeval_le {g : τ → MvPolynomial σ R} (hg : ∀ i, (g i).totalDegree ≤ 1)
     (P : MvPolynomial τ R) : (aeval g P).totalDegree ≤ P.totalDegree :=
   (totalDegree_aeval_le_mul hg P).trans_eq (Nat.mul_one _)
+
+/-- Retaining one block of variables in the coefficient ring does not increase the
+total degree in the other block. -/
+theorem totalDegree_sumRingEquiv_le (P : MvPolynomial (σ ⊕ τ) R) :
+    (sumRingEquiv R σ τ P).totalDegree ≤ P.totalDegree := by
+  let g : σ ⊕ τ → MvPolynomial σ (MvPolynomial τ R) := Sum.elim X (C ∘ X)
+  let f := (aeval g).toRingHom.comp (map (C : R →+* MvPolynomial τ R))
+  have hf : (sumRingEquiv R σ τ).toRingHom = f := by
+    apply MvPolynomial.ringHom_ext
+    · intro r
+      simp [f, MvPolynomial.algebraMap_eq]
+    · intro i
+      cases i <;> simp [f, g]
+  change ((sumRingEquiv R σ τ).toRingHom P).totalDegree ≤ _
+  rw [hf]
+  refine (totalDegree_aeval_le (g := g) ?_ _).trans (totalDegree_map_le _ _)
+  intro i
+  cases i with
+  | inl i => exact totalDegree_X_le i
+  | inr i => simp [g]
+
+/-- Taking a coefficient in each retained block recovers the original coefficient. -/
+theorem coeff_coeff_sumRingEquiv (P : MvPolynomial (σ ⊕ τ) R)
+    (s : σ →₀ ℕ) (t : τ →₀ ℕ) :
+    ((sumRingEquiv R σ τ P).coeff s).coeff t = P.coeff (s.sumElim t) := by
+  change (AddMonoidAlgebra.mapDomainRingEquiv R Finsupp.sumFinsuppAddEquivProdFinsupp P).coeff
+    (s, t) = _
+  rw [AddMonoidAlgebra.coeff_mapDomainRingEquiv, Finsupp.equivMapDomain_apply]
+  rfl
+
+/-- The degree of a retained coefficient is at most the original total degree. -/
+theorem totalDegree_coeff_sumRingEquiv_le (P : MvPolynomial (σ ⊕ τ) R) (s : σ →₀ ℕ) :
+    ((sumRingEquiv R σ τ P).coeff s).totalDegree ≤ P.totalDegree := by
+  classical
+  refine Finset.sup_le fun t ht => ?_
+  have ht' : s.sumElim t ∈ P.support := by
+    simpa only [mem_support_iff, coeff_coeff_sumRingEquiv] using ht
+  refine le_trans ?_ (le_totalDegree ht')
+  have hsplit : s.sumElim t =
+      s.embDomain Function.Embedding.inl + t.embDomain Function.Embedding.inr := by
+    ext j
+    cases j <;> simp
+  rw [hsplit, Finsupp.sum_add_index (fun _ _ => rfl) (fun _ _ _ _ => rfl)]
+  simp only [Finsupp.sum_embDomain, Nat.le_add_left]
 
 /-- Bound the degree of a univariate substitution by a weighted degree of each original
 monomial. The weight of a variable is any upper bound on the degree of its replacement. -/

@@ -43,28 +43,22 @@ theorem controller_injective (r : ℕ) : (controllerRegisters r).Injective :=
 /-- No live traversal register aliases a host or solver register. -/
 theorem preprocessing_ne_host {r : ℕ} (i : Fin 128) (j : Fin (64 + (r + 7))) :
     preprocessingRegisters r i ≠ hostRegisters r j := by
-  intro h
-  have hv := congrArg Fin.val h
-  have hi := i.isLt
-  simp only [preprocessingRegisters, hostRegisters, Fin.val_natAdd, Fin.val_castAdd] at hv
+  simp only [ne_eq, preprocessingRegisters, hostRegisters, Fin.ext_iff, Fin.val_natAdd,
+    Fin.val_castAdd]
   omega
 
 /-- No outer control aliases a host or solver register. -/
 theorem controller_ne_host {r : ℕ} (i : Fin 16) (j : Fin (64 + (r + 7))) :
     controllerRegisters r i ≠ hostRegisters r j := by
-  intro h
-  have hv := congrArg Fin.val h
-  have hj := j.isLt
-  simp only [controllerRegisters, hostRegisters, Fin.val_natAdd, Fin.val_castAdd] at hv
+  simp only [ne_eq, controllerRegisters, hostRegisters, Fin.ext_iff, Fin.val_natAdd,
+    Fin.val_castAdd]
   omega
 
 /-- No outer control aliases a preprocessing register. -/
 theorem controller_ne_preprocessing {r : ℕ} (i : Fin 16) (j : Fin 128) :
     controllerRegisters r i ≠ preprocessingRegisters r j := by
-  intro h
-  have hv := congrArg Fin.val h
-  have hj := j.isLt
-  simp only [controllerRegisters, preprocessingRegisters, Fin.val_natAdd, Fin.val_castAdd] at hv
+  simp only [ne_eq, controllerRegisters, preprocessingRegisters, Fin.ext_iff, Fin.val_natAdd,
+    Fin.val_castAdd]
   omega
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision

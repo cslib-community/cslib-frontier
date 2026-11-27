@@ -39,6 +39,7 @@ import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Algebra.Group.Units.Equiv
 import Mathlib.Data.Nat.Choose.Basic
 import Mathlib.Tactic.Linarith
@@ -642,8 +643,7 @@ private theorem bind_innerRounds_eq_realHandler {ι α : Type} {spec : ι → Ty
       (PMF.uniformOfFintype (Bool × G → G)).map splitBoolTable =
         (PMF.uniformOfFintype (G → G)).bind fun f₂ =>
           (PMF.uniformOfFintype (G → G)).map fun f₃ => (f₂, f₃) := by
-    rw [Probability.PMF.uniformOfFintype_map_equiv splitBoolTable,
-      Probability.PMF.uniformOfFintype_prod]
+    relabel_uniform splitBoolTable
   have hbind := congrArg (fun d : PMF ((G → G) × (G → G)) => d.bind fun fg => target fg.1 fg.2)
     hunif
   simp only [pmf_norm, splitBoolTable, Equiv.coe_fn_mk] at hbind
@@ -1337,9 +1337,7 @@ theorem eval_independentTableStrongGame_feistel3CCAAttack (l₀ l₁ r₀ : G) :
       (PMF.uniformOfFintype (G × G → G × G)).bind fun encTable =>
         (PMF.uniformOfFintype (G × G → G × G)).map fun decTable =>
           splitBoolTable.symm (encTable, decTable) := by
-    rw [← Probability.PMF.uniformOfFintype_map_equiv splitBoolTable.symm,
-      ← Probability.PMF.uniformOfFintype_prod, PMF.map_bind]
-    simp only [PMF.map_comp, Function.comp_def]
+    relabel_uniform splitBoolTable.symm
   rw [independentTableStrongGame, Probability.PMF.monad_bind_eq_bind, hprod]
   simp only [interp_norm, pmf_norm, feistel3CCAAttack, splitBoolTable, Equiv.coe_fn_symm_mk,
     Bool.cond_false, Bool.cond_true]
@@ -1682,8 +1680,7 @@ theorem advantage_feistel4StrongRandomRoundsGame_idealStrongGame_le
     (feistel4StrongRandomRoundsGame_apply_le hQ true)
     (idealStrongGame_apply_le_feistel4StrongRandomRoundsGame hQ true)
   ennreal_to_real at h
-  rw [Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at h
-  exact h
+  rwa [Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at h
 
 /-- Concrete instantiation of the 4-round strong Luby–Rackoff theorem on `BitString n`
 (block size `2n`): the information-theoretic chosen-ciphertext collision error is at most

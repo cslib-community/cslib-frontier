@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import Mathlib.NumberTheory.Bertrand
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -311,9 +312,7 @@ private lemma below_pt :
 attribute [local fun_prop] head_pt top_pt below_pt
 
 private lemma message_pt :
-    ComputableInPolyTime message encStepData encBits := by
-  unfold message
-  exact encoding_comp (by fun_prop)
+    ComputableInPolyTime message encStepData encBits := encoding_comp (by fun_prop)
 
 private lemma reject_pt :
     ComputableInPolyTime reject encStepData encVState := by
@@ -350,33 +349,23 @@ private lemma ask_pt : IsOraclePPTOn encStepData encBits ask :=
   IsOraclePPTOn.query_take () message_pt (by fun_prop)
 
 private lemma opCont_pt (o : ArithQBF.Operator) :
-    IsOraclePPTOn (encPair encStepData encBits) encVState (fun pair => opCont o pair.1 pair.2) := by
-  unfold opCont
-  have hsample : IsOraclePPTOn (Operation := Unit) (encPair encStepData encBits) encUnary
-      (fun pair : StepData × List Bool => ProbOracleComp.sample (sampleMod pair.1.modulus)) :=
-    (isPPTOn_sampleMod (by fun_prop)).isOraclePPTOn
-  exact IsOraclePPTOn.cond (opCheck_pt o) (hsample.map_with opNext_pt)
-    ((ComputableInPolyTime.isOraclePPTOn (f := fun pair : StepData × List Bool =>
-      reject pair.1) (by fun_prop)))
+    IsOraclePPTOn (encPair encStepData encBits) encVState (fun pair => opCont o pair.1 pair.2) :=
+  IsOraclePPTOn.cond (opCheck_pt o)
+    (((isPPTOn_sampleMod (by fun_prop)).isOraclePPTOn).map_with opNext_pt)
+    (ComputableInPolyTime.isOraclePPTOn (f := fun pair : StepData × List Bool => reject pair.1)
+      (by fun_prop))
 
 private lemma stepAt_pt (k : ArithQBF.Kind) :
     IsOraclePPTOn encStepData encVState (stepAt k) := by
-  cases k
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      a.below (decide (lookupPt a.top.point a.head.2 % a.modulus = a.top.value % a.modulus)))
-      (by fun_prop)
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      a.below (decide (1 % a.modulus = a.top.value % a.modulus))) (by fun_prop)
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      a.below (decide (0 % a.modulus = a.top.value % a.modulus))) (by fun_prop)
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      (⟨normPt a.modulus a.xs a.top.point, subMod a.modulus 1 a.top.value⟩ :: a.below) true)
-      (by fun_prop)
-  · exact ask_pt.bind_with (binNext_pt .and).isOraclePPTOn
-  · exact ask_pt.bind_with (binNext_pt .or).isOraclePPTOn
-  · exact ask_pt.bind_with (opCont_pt .ex)
-  · exact ask_pt.bind_with (opCont_pt .all)
-  · exact ask_pt.bind_with (opCont_pt .lin)
+  cases k with
+  | var | top | bot | not =>
+    unfold stepAt
+    exact ComputableInPolyTime.isOraclePPTOn (by fun_prop)
+  | and => exact ask_pt.bind_with (binNext_pt .and).isOraclePPTOn
+  | or => exact ask_pt.bind_with (binNext_pt .or).isOraclePPTOn
+  | ex => exact ask_pt.bind_with (opCont_pt .ex)
+  | all => exact ask_pt.bind_with (opCont_pt .all)
+  | lin => exact ask_pt.bind_with (opCont_pt .lin)
 
 /-- **A step of the machine is strict oracle PPT** in the encoded input and state. -/
 private theorem isOraclePPTOn_step :
@@ -466,24 +455,20 @@ theorem length_encVState_le_of_mem_support_step (I : LoopInput) (st : VState) {n
   unfold step at h
   split_ifs at h with hactive
   · generalize hk : (st.tokens.headD (.top, 0)).1 = k at h
-    cases k
-    · rw [OracleComp.eq_of_mem_supportWith_pure h]
+    cases k with
+    | var | top | bot =>
+      rw [OracleComp.eq_of_mem_supportWith_pure h]
       exact length_encVState_push_le st [] _ (by simp) (by simp)
-    · rw [OracleComp.eq_of_mem_supportWith_pure h]
-      exact length_encVState_push_le st [] _ (by simp) (by simp)
-    · rw [OracleComp.eq_of_mem_supportWith_pure h]
-      exact length_encVState_push_le st [] _ (by simp) (by simp)
-    · rw [OracleComp.eq_of_mem_supportWith_pure h]
-      refine length_encVState_push_le st [_] true (by simp) ?_
-      simp only [List.mem_singleton, forall_eq]
-      exact hnorm _ _ (subMod_lt _ _)
-    · exact hbin .and h
-    · exact hbin .or h
-    · exact hop .ex h
-    · exact hop .all h
-    · exact hop .lin h
-  · rw [OracleComp.eq_of_mem_supportWith_pure h]
-    omega
+    | not =>
+      rw [OracleComp.eq_of_mem_supportWith_pure h]
+      exact length_encVState_push_le st [_] true (by simp)
+        (by simpa [StepData.modulus, StepData.xs] using hnorm _ _ (subMod_lt _ _))
+    | and => exact hbin .and h
+    | or => exact hbin .or h
+    | ex => exact hop .ex h
+    | all => exact hop .all h
+    | lin => exact hop .lin h
+  · rw [OracleComp.eq_of_mem_supportWith_pure h]; omega
 
 /-! ### The machine in polynomial time -/
 
@@ -497,18 +482,7 @@ private lemma init_pt : ComputableInPolyTime init encLoopInput encVState := by
 
 private lemma growth_polyBounded :
     PolyBounded (fun I => (encLoopInput I).length) (fun I => 8 * claimBound I + 8) := by
-  refine PolyBounded.of_forall_le 64 2 fun I => ?_
-  have hparams : (encParams I.toParams).length ≤ (encLoopInput I).length :=
-    length_le_encPair_left encParams _ (I.toParams, I.tokens)
-  have hxs : (encList encNat I.xs).length ≤ (encLoopInput I).length := by
-    refine le_trans ?_ hparams
-    rw [encParams_apply]
-    exact length_le_encPair_left _ _ (I.xs, I.modulusPred, I.degree)
-  have hq : I.modulusPred ≤ (encLoopInput I).length := by
-    refine le_trans ?_ hparams
-    enc_len [encParams_apply, encParamsFields]
-  unfold claimBound
-  nlinarith
+  growth_poly
 
 /-- **The machine is strict oracle PPT** in its encoded input. -/
 private theorem isOraclePPTOn_loop : IsOraclePPTOn encLoopInput encVState loop := by
@@ -553,13 +527,11 @@ noncomputable def verifier (ψ : QBF ℕ) : WordOracleComp Unit Bool :=
 /-- By Bertrand's postulate, the modulus is a prime above the bound. -/
 theorem prime_modulus (ψ : QBF ℕ) : (modulus ψ).Prime ∧ primeBound ψ < modulus ψ := by
   have hB : primeBound ψ ≠ 0 := by
-    have := QBF.tokens_ne_nil ψ
-    have : 0 < ψ.tokens.length := List.length_pos_of_ne_nil this
+    have := List.length_pos_of_ne_nil (QBF.tokens_ne_nil ψ)
     unfold primeBound
     positivity
   obtain ⟨q, hq, hlt, hle⟩ := Nat.exists_prime_lt_and_le_two_mul (primeBound ψ) hB
-  have hge : q ≤ modulus ψ := Nat.le_findGreatest hle hq
-  exact ⟨Nat.findGreatest_spec hle hq, hlt.trans_le hge⟩
+  exact ⟨Nat.findGreatest_spec hle hq, hlt.trans_le (Nat.le_findGreatest hle hq)⟩
 
 theorem lt_modulus (ψ : QBF ℕ) : primeBound ψ < modulus ψ := (prime_modulus ψ).2
 
@@ -585,22 +557,19 @@ private lemma linVars_pt : ComputableInPolyTime linVars encQBF (encList encNat) 
   unfold linVars
   fun_prop
 
-private lemma modulus_qbf_pt : ComputableInPolyTime modulus encQBF encUnary := by
-  have hbnd : ComputableInPolyTime (fun ψ => 2 * primeBound ψ) encQBF encUnary := by
+private lemma modulus_qbf_pt : ComputableInPolyTime modulus encQBF encUnary :=
+  ComputableInPolyTime.findGreatest (by
     unfold primeBound
-    fun_prop
-  unfold modulus
-  exact ComputableInPolyTime.findGreatest hbnd
+    fun_prop)
     (ComputableInPolyTime.unary_decide_prime.comp (.snd _ _))
 
 private lemma loopInput_pt : ComputableInPolyTime loopInput encQBF encLoopInput := by
-  have hexpand : ComputableInPolyTime (fun p : QBF ℕ × (QBF.Kind × ℕ) =>
-      QBF.expandToken (linVars p.1) p.2) (encPair encQBF encToken) (encList encArithToken) := by
-    have := linVars_pt
-    unfold QBF.expandToken
-    fun_prop
   have := linVars_pt
   have := modulus_qbf_pt
+  have hexpand : ComputableInPolyTime (fun p : QBF ℕ × (QBF.Kind × ℕ) =>
+      QBF.expandToken (linVars p.1) p.2) (encPair encQBF encToken) (encList encArithToken) := by
+    unfold QBF.expandToken
+    fun_prop
   unfold loopInput degreeBound
   fun_prop
 

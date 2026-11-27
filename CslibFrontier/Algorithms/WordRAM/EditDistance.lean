@@ -13,6 +13,7 @@ import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Data.List.MinMax
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -250,9 +251,7 @@ private theorem dpRowMem_read {α : Type*} (mem₀ : ℕ → ℕ) (dpBase : ℕ)
     (x y : List α) (s k : ℕ) (hk : k ≤ y.length) :
     dpRowMem mem₀ dpBase D x y s (dpBase + k) =
       D.value (x.drop (x.length - s)) (y.drop (y.length - k)) := by
-  have hin : dpBase ≤ dpBase + k ∧ dpBase + k < dpBase + (y.length + 1) := by omega
-  have hsub : dpBase + k - dpBase = k := by omega
-  rw [dpRowMem, ite_eq_left hin, hsub]
+  rw [dpRowMem, ite_eq_left (by omega), Nat.add_sub_cancel_left]
 
 private theorem dpMidMem_zero {α : Type*} (mem₀ : ℕ → ℕ) (dpBase : ℕ) (D : GridDP α ℕ)
     (x y : List α) (s : ℕ) :
@@ -261,25 +260,19 @@ private theorem dpMidMem_zero {α : Type*} (mem₀ : ℕ → ℕ) (dpBase : ℕ)
       dpMidMem mem₀ dpBase D x y s 0 := by
   funext addr
   rcases eq_or_ne addr dpBase with rfl | h
-  · have hin : addr ≤ addr ∧ addr < addr + (0 + 1) := by omega
-    rw [Function.update_self, dpMidMem, ite_eq_left hin, Nat.sub_self, Nat.sub_zero,
+  · rw [Function.update_self, dpMidMem, ite_eq_left (by omega), Nat.sub_self, Nat.sub_zero,
       List.drop_length]
-  · rw [Function.update_of_ne h]
-    have hnot : ¬(dpBase ≤ addr ∧ addr < dpBase + (0 + 1)) := by omega
+  · rw [Function.update_of_ne h, dpMidMem, ite_eq_right (by omega), dpRowMem]
     have heq : (dpBase + (0 + 1) ≤ addr ∧ addr < dpBase + (y.length + 1)) ↔
         (dpBase ≤ addr ∧ addr < dpBase + (y.length + 1)) := by omega
-    rw [dpMidMem, ite_eq_right hnot, dpRowMem]
     simp only [heq]
 
 private theorem dpMidMem_read_next {α : Type*} (mem₀ : ℕ → ℕ) (dpBase : ℕ) (D : GridDP α ℕ)
     (x y : List α) (s : ℕ) {t : ℕ} (ht : t < y.length) :
     dpMidMem mem₀ dpBase D x y s t (dpBase + t + 1) =
       D.value (x.drop (x.length - s)) (y.drop (y.length - (t + 1))) := by
-  have hnot : ¬(dpBase ≤ dpBase + t + 1 ∧ dpBase + t + 1 < dpBase + (t + 1)) := by omega
-  have hin : dpBase + (t + 1) ≤ dpBase + t + 1 ∧ dpBase + t + 1 < dpBase + (y.length + 1) := by
-    omega
-  have hsub : dpBase + t + 1 - dpBase = t + 1 := by omega
-  rw [dpMidMem, ite_eq_right hnot, ite_eq_left hin, hsub]
+  rw [dpMidMem, ite_eq_right (by omega)]
+  rw [ite_eq_left (by omega), Nat.add_assoc, Nat.add_sub_cancel_left]
 
 private theorem dpMidMem_succ {α : Type*} (mem₀ : ℕ → ℕ) (dpBase : ℕ) (D : GridDP α ℕ)
     (x y : List α) (s : ℕ) {t : ℕ} (_ht : t < y.length) :
@@ -288,9 +281,8 @@ private theorem dpMidMem_succ {α : Type*} (mem₀ : ℕ → ℕ) (dpBase : ℕ)
       dpMidMem mem₀ dpBase D x y s (t + 1) := by
   funext addr
   rcases eq_or_ne addr (dpBase + t + 1) with rfl | h
-  · have hin : dpBase ≤ dpBase + t + 1 ∧ dpBase + t + 1 < dpBase + (t + 1 + 1) := by omega
-    have hsub : dpBase + t + 1 - dpBase = t + 1 := by omega
-    rw [Function.update_self, dpMidMem, ite_eq_left hin, hsub]
+  · rw [Function.update_self, dpMidMem, ite_eq_left (by omega), Nat.add_assoc,
+      Nat.add_sub_cancel_left]
   · rw [Function.update_of_ne h]
     by_cases h1 : dpBase ≤ addr ∧ addr < dpBase + (t + 1)
     · have h1' : dpBase ≤ addr ∧ addr < dpBase + (t + 1 + 1) := by omega
@@ -305,29 +297,25 @@ private theorem dpMidMem_end {α : Type*} (mem₀ : ℕ → ℕ) (dpBase : ℕ) 
     (x y : List α) (s : ℕ) :
     dpMidMem mem₀ dpBase D x y s y.length = dpRowMem mem₀ dpBase D x y (s + 1) := by
   funext addr
-  have h2 : ¬(dpBase + (y.length + 1) ≤ addr ∧ addr < dpBase + (y.length + 1)) := by omega
   by_cases h1 : dpBase ≤ addr ∧ addr < dpBase + (y.length + 1)
   · rw [dpMidMem, ite_eq_left h1, dpRowMem, ite_eq_left h1]
-  · rw [dpMidMem, ite_eq_right h1, ite_eq_right h2, dpRowMem, ite_eq_right h1]
+  · rw [dpMidMem, ite_eq_right h1, ite_eq_right (by omega), dpRowMem, ite_eq_right h1]
 
 private theorem dpInitMem_lt {α : Type*} (mem₀ : ℕ → ℕ) (dpBase : ℕ) (D : GridDP α ℕ)
     (y : List α) (t addr : ℕ) (ha : addr < dpBase) :
     dpInitMem mem₀ dpBase D y t addr = mem₀ addr := by
-  have hnot : ¬(dpBase ≤ addr ∧ addr < dpBase + (t + 1)) := by omega
-  rw [dpInitMem, ite_eq_right hnot]
+  rw [dpInitMem, ite_eq_right (by omega)]
 
 private theorem dpRowMem_lt {α : Type*} (mem₀ : ℕ → ℕ) (dpBase : ℕ) (D : GridDP α ℕ)
     (x y : List α) (s addr : ℕ) (ha : addr < dpBase) :
     dpRowMem mem₀ dpBase D x y s addr = mem₀ addr := by
-  have hnot : ¬(dpBase ≤ addr ∧ addr < dpBase + (y.length + 1)) := by omega
-  rw [dpRowMem, ite_eq_right hnot]
+  rw [dpRowMem, ite_eq_right (by omega)]
 
 private theorem dpMidMem_lt {α : Type*} (mem₀ : ℕ → ℕ) (dpBase : ℕ) (D : GridDP α ℕ)
     (x y : List α) (s t addr : ℕ) (ha : addr < dpBase) :
     dpMidMem mem₀ dpBase D x y s t addr = mem₀ addr := by
-  have h1 : ¬(dpBase ≤ addr ∧ addr < dpBase + (t + 1)) := by omega
-  have h2 : ¬(dpBase + (t + 1) ≤ addr ∧ addr < dpBase + (y.length + 1)) := by omega
-  rw [dpMidMem, ite_eq_right h1, ite_eq_right h2]
+  rw [dpMidMem, ite_eq_right (by omega)]
+  exact ite_eq_right (by omega)
 
 /-- Execute `gridCode` on any `GridDP α ℕ` whose corner, border, and interior updates are
 implemented by `initCell`, `borderCell`, and `innerCell`. -/
@@ -632,6 +620,19 @@ private def min3Tail : Code .standard 22 :=
       (ram[ regNext ← regNext ])
       (ram[ regNext ← regTmp0 ]))
 
+private theorem editDist_set_regs_lt19 (st : Data 22) {r i : Fin 22} (v : ℕ)
+    (hr : 19 ≤ r.val) (hi : i.val < 19) :
+    (st.set r v).regs i = st.regs i :=
+  Data.set_regs_of_ne (fun h => Nat.lt_irrefl _ (lt_of_lt_of_le (h ▸ hi) hr)) v
+
+private theorem gridFixedRegs_of_lt19 {x₀ st st' : Data 22} (hfix : GridFixedRegs x₀ st)
+    (hfr : ∀ i : Fin 22, i.val < 19 → st'.regs i = st.regs i) :
+    GridFixedRegs x₀ st' := by
+  have hf (i : Fin 22) (hi : i.val < 19 := by decide) := hfr i hi
+  exact ⟨(hf _).trans hfix.m, (hf _).trans hfix.n, (hf _).trans hfix.xb, (hf _).trans hfix.yb,
+    (hf _).trans hfix.dpb, (hf _).trans hfix.sig, (hf _).trans hfix.delb, (hf _).trans hfix.insb,
+    (hf _).trans hfix.subb⟩
+
 private theorem exec_min3Tail {w : ℕ} (st : Data 22) :
     ∃ st', ExecWithin w min3Tail st st' 6 ∧
       st'.mem = st.mem ∧
@@ -640,9 +641,7 @@ private theorem exec_min3Tail {w : ℕ} (st : Data 22) :
   unfold min3Tail
   wram_exec
   all_goals refine ⟨rfl, fun i hi => ?_, by wram_simp; omega⟩
-  all_goals
-    rw [Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-      Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide))]
+  all_goals simp +decide only [editDist_set_regs_lt19, hi]
 
 /-! ## Word-encoded sequence pairs: LCS length and unit-cost edit distance -/
 
@@ -701,22 +700,22 @@ private theorem exec_seqPairSetup {w : ℕ} (I : WordSeqPair) (hw : I.FitsWidth 
   · exact ⟨rfl, by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *⟩
   all_goals exact hw.of_le (by omega)
 
+private theorem editDist_init_mem_slice (enc pre mid post : List ℕ) {addr i : ℕ}
+    (henc : enc = pre ++ (mid ++ post)) (hi : i < mid.length)
+    (haddr : pre.length + 1 + i = addr := by simp <;> omega) :
+    (Data.init enc : Data 22).mem addr = mid[i] := by
+  subst henc haddr
+  exact Data.init_realizes_append (r := 22) pre mid post ⟨i, hi⟩
+
 private theorem seqPair_read_src (I : WordSeqPair) {i : ℕ} (hi : i < I.src.length) :
-    (Data.init I.encode : Data 22).mem (3 + i) = I.src[i] := by
-  have h := Data.init_realizes_append (r := 22) [I.src.length, I.tgt.length] I.src I.tgt ⟨i, hi⟩
-  change (Data.init ([I.src.length, I.tgt.length] ++ (I.src ++ I.tgt)) : Data 22).mem (2 + 1 + i) =
-    I.src[i] at h
-  rwa [← List.append_assoc] at h
+    (Data.init I.encode : Data 22).mem (3 + i) = I.src[i] :=
+  editDist_init_mem_slice I.encode [I.src.length, I.tgt.length] I.src I.tgt
+    (by simp [WordSeqPair.encode]) hi
 
 private theorem seqPair_read_tgt (I : WordSeqPair) {j : ℕ} (hj : j < I.tgt.length) :
-    (Data.init I.encode : Data 22).mem (3 + I.src.length + j) = I.tgt[j] := by
-  have h := Data.init_realizes_append (r := 22) ([I.src.length, I.tgt.length] ++ I.src) I.tgt []
-    ⟨j, hj⟩
-  change (Data.init (([I.src.length, I.tgt.length] ++ I.src) ++ (I.tgt ++ [])) : Data 22).mem
-    (([I.src.length, I.tgt.length] ++ I.src).length + 1 + j) = I.tgt[j] at h
-  have haddr : ([I.src.length, I.tgt.length] ++ I.src).length + 1 + j = 3 + I.src.length + j := by
-    simp; omega
-  rwa [List.append_nil, haddr] at h
+    (Data.init I.encode : Data 22).mem (3 + I.src.length + j) = I.tgt[j] :=
+  editDist_init_mem_slice I.encode ([I.src.length, I.tgt.length] ++ I.src) I.tgt []
+    (by simp [WordSeqPair.encode]) hj
 
 /-- Shared execution of `.seq seqPairSetup (gridCode 0 initCell borderCell innerCell)` for
 `WordSeqPair` programs with `D.nilNil = 0` and no per-row auxiliary invariant. -/
@@ -779,14 +778,9 @@ private theorem exec_seqPairGrid {w : ℕ} (Ti Tb Tc : ℕ) (D : GridDP ℕ ℕ)
     (fun _ _ _ _ _ _ => trivial)
     (fun s t hs ht st hfix hone _ _ ha hb hdiag hup hcur => by
       obtain ⟨st', hex, hmem', hfr, hnext'⟩ := hinner s t hs ht st hone ha hb hdiag hup hcur
-      exact ⟨st', hex, hmem',
-        ⟨(hfr _ (by decide)).trans hfix.m, (hfr _ (by decide)).trans hfix.n,
-         (hfr _ (by decide)).trans hfix.xb, (hfr _ (by decide)).trans hfix.yb,
-         (hfr _ (by decide)).trans hfix.dpb, (hfr _ (by decide)).trans hfix.sig,
-         (hfr _ (by decide)).trans hfix.delb, (hfr _ (by decide)).trans hfix.insb,
-         (hfr _ (by decide)).trans hfix.subb⟩,
-        (hfr _ (by decide)).trans hone, hfr _ (by decide), hfr _ (by decide),
-        hfr _ (by decide), hfr _ (by decide), trivial, hnext'⟩)
+      have hf (i : Fin 22) (hi : i.val < 19 := by decide) := hfr i hi
+      exact ⟨st', hex, hmem', gridFixedRegs_of_lt19 hfix hfr, (hf _).trans hone,
+        hf _, hf _, hf _, hf _, trivial, hnext'⟩)
   rw [hNil] at hgrid
   obtain ⟨xf, hexec, hres⟩ := hgrid
   exact ⟨xf, (hsetup.seq hexec).mono (by omega), hres⟩
@@ -821,29 +815,27 @@ private theorem exec_lcsLengthCode {w : ℕ} (I : WordSeqPair) (hw : I.FitsWidth
       wram_exec *
       exact ⟨rfl, fun i hi => Data.set_regs_of_ne hi _, by wram_simp *; rfl⟩)
     (fun s t hs _ht st hone ha hb hdiag hup hcur => by
-      have hd_le : lcsLength (I.src.drop (I.src.length - s))
-          (I.tgt.drop (I.tgt.length - t)) ≤ s := by
-        have := lcsLength_le_left (I.src.drop (I.src.length - s)) (I.tgt.drop (I.tgt.length - t))
-        simp only [List.length_drop] at this; omega
+      have hd_le := lcsLength_le_left (I.src.drop (I.src.length - s))
+        (I.tgt.drop (I.tgt.length - t))
+      simp only [List.length_drop] at hd_le
       unfold lcsInnerCell
       wram_exec *
-      · refine ⟨rfl,
-          fun i hi => Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)) _, ?_⟩
+      · refine ⟨rfl, fun i hi => editDist_set_regs_lt19 _ _ (by decide) hi, ?_⟩
         wram_simp *
         change _ = if I.src[I.src.length - 1 - s] = I.tgt[I.tgt.length - 1 - t] then _ + 1 else _
         rw [ite_eq_left hc]
       · rename_i hc1
-        refine ⟨rfl,
-          fun i hi => Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)) _, ?_⟩
+        refine ⟨rfl, fun i hi => editDist_set_regs_lt19 _ _ (by decide) hi, ?_⟩
         wram_simp *
         change _ = if I.src[I.src.length - 1 - s] = I.tgt[I.tgt.length - 1 - t] then _ else max _ _
-        rw [ite_eq_right hc1]; omega
+        rw [ite_eq_right hc1]
+        omega
       · rename_i hc1
-        refine ⟨rfl,
-          fun i hi => Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)) _, ?_⟩
+        refine ⟨rfl, fun i hi => editDist_set_regs_lt19 _ _ (by decide) hi, ?_⟩
         wram_simp *
         change _ = if I.src[I.src.length - 1 - s] = I.tgt[I.tgt.length - 1 - t] then _ else max _ _
-        rw [ite_eq_right hc1]; omega
+        rw [ite_eq_right hc1]
+        omega
       · change Fits w (lcsLength (I.src.drop (I.src.length - s))
           (I.tgt.drop (I.tgt.length - t)) + 1)
         exact hw.of_le (by omega))
@@ -898,6 +890,14 @@ private def unitEditDistCode : Code .standard 22 :=
 def unitEditDistProgram : Program .standard 22 :=
   unitEditDistCode.program regCur
 
+private theorem editDist_unit_sub_fits {I : WordSeqPair} {w : ℕ} (hw : I.FitsWidth w)
+    (xs ys : List ℕ) (hxs : xs.length ≤ I.src.length := by simp)
+    (hys : ys.length ≤ I.tgt.length := by simp) :
+    Fits w ((wagnerFischer (Costs.unit (α := ℕ))).value xs ys + 1) := by
+  have h : (wagnerFischer (Costs.unit (α := ℕ))).value xs ys ≤ xs.length + ys.length :=
+    editDist_unit_le_add xs ys
+  exact hw.of_le (by omega)
+
 private theorem exec_unitEditDistCode {w : ℕ} (I : WordSeqPair) (hw : I.FitsWidth w) :
     ∃ xf, ExecWithin w unitEditDistCode (.init I.encode) xf
         (26 * I.src.length * I.tgt.length + 13 * I.src.length + 10 * I.tgt.length + 18) ∧
@@ -905,39 +905,18 @@ private theorem exec_unitEditDistCode {w : ℕ} (I : WordSeqPair) (hw : I.FitsWi
   obtain ⟨xf, hexec, hres⟩ := exec_seqPairGrid 1 1 11 (wagnerFischer (Costs.unit (α := ℕ))) rfl I hw
     (ram[ regCur ← regCur + regOne ]) (ram[ regCur ← regDiag + regOne ]) unitInnerCell
     (fun t ht st hone hcur => by
-      have hle : editDist Costs.unit [] (I.tgt.drop (I.tgt.length - t)) ≤ t := by
-        have := editDist_unit_le_add ([] : List ℕ) (I.tgt.drop (I.tgt.length - t))
-        simp only [List.length_nil, List.length_drop] at this; omega
       wram_exec *
       · refine ⟨rfl, fun i hi => Data.set_regs_of_ne hi _, ?_⟩
-        wram_simp *; change _ = 1 + _; omega
-      · change Fits w (editDist Costs.unit [] (I.tgt.drop (I.tgt.length - t)) + 1)
-        exact hw.of_le (by omega))
+        wram_simp *
+        exact Nat.add_comm _ 1
+      · exact editDist_unit_sub_fits hw _ _)
     (fun s hs st hone hdiag => by
-      have hle : editDist Costs.unit (I.src.drop (I.src.length - s)) [] ≤ s := by
-        have := editDist_unit_le_add (I.src.drop (I.src.length - s)) ([] : List ℕ)
-        simp only [List.length_nil, List.length_drop] at this; omega
       wram_exec *
       · refine ⟨rfl, fun i hi => Data.set_regs_of_ne hi _, ?_⟩
-        wram_simp *; change _ = 1 + _; omega
-      · change Fits w (editDist Costs.unit (I.src.drop (I.src.length - s)) [] + 1)
-        exact hw.of_le (by omega))
+        wram_simp *
+        exact Nat.add_comm _ 1
+      · exact editDist_unit_sub_fits hw _ _)
     (fun s t hs ht st hone ha hb hdiag hup hcur => by
-      have hd_le : editDist Costs.unit (I.src.drop (I.src.length - s))
-          (I.tgt.drop (I.tgt.length - t)) ≤ s + t := by
-        have := editDist_unit_le_add (I.src.drop (I.src.length - s))
-          (I.tgt.drop (I.tgt.length - t))
-        simp only [List.length_drop] at this; omega
-      have hu_le : editDist Costs.unit (I.src.drop (I.src.length - s))
-          (I.tgt.drop (I.tgt.length - (t + 1))) ≤ s + t + 1 := by
-        have := editDist_unit_le_add (I.src.drop (I.src.length - s))
-          (I.tgt.drop (I.tgt.length - (t + 1)))
-        simp only [List.length_drop] at this; omega
-      have hl_le : editDist Costs.unit (I.src.drop (I.src.length - (s + 1)))
-          (I.tgt.drop (I.tgt.length - t)) ≤ s + 1 + t := by
-        have := editDist_unit_le_add (I.src.drop (I.src.length - (s + 1)))
-          (I.tgt.drop (I.tgt.length - t))
-        simp only [List.length_drop] at this; omega
       have hpre : ∃ s1, ExecWithin w
           (.seq
             (.branch (.eq regA regB) (ram[ regNext ← regDiag ])
@@ -951,23 +930,14 @@ private theorem exec_unitEditDistCode {w : ℕ} (I : WordSeqPair) (hw : I.FitsWi
           s1.regs regTmp1 = 1 + st.regs regCur := by
         wram_exec *
         · refine ⟨rfl, fun i hi => ?_, ?_, by wram_simp *; omega, by wram_simp *; omega⟩
-          · rw [Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-              Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-              Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide))]
-          · wram_simp *; rw [Costs.unit_sub, ite_eq_left hc, Nat.zero_add]
+          · simp +decide only [editDist_set_regs_lt19, hi]
+          · wram_simp *
+            rw [Costs.unit_sub, ite_eq_left hc, Nat.zero_add]
         · refine ⟨rfl, fun i hi => ?_, ?_, by wram_simp *; omega, by wram_simp *; omega⟩
-          · rw [Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-              Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-              Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide))]
-          · wram_simp *; rw [Costs.unit_sub, ite_eq_right hc, Nat.add_comm]
-        all_goals
-          first
-          | (change Fits w (editDist Costs.unit (I.src.drop (I.src.length - s))
-              (I.tgt.drop (I.tgt.length - (t + 1))) + 1); exact hw.of_le (by omega))
-          | (change Fits w (editDist Costs.unit (I.src.drop (I.src.length - (s + 1)))
-              (I.tgt.drop (I.tgt.length - t)) + 1); exact hw.of_le (by omega))
-          | (change Fits w (editDist Costs.unit (I.src.drop (I.src.length - s))
-              (I.tgt.drop (I.tgt.length - t)) + 1); exact hw.of_le (by omega))
+          · simp +decide only [editDist_set_regs_lt19, hi]
+          · wram_simp *
+            rw [Costs.unit_sub, ite_eq_right hc, Nat.add_comm]
+        all_goals exact editDist_unit_sub_fits hw _ _
       obtain ⟨s1, he1, hm1, hr1, hv1, hv0, hvt1⟩ := hpre
       obtain ⟨s2, he2, hm2, hr2, hv2⟩ := exec_min3Tail (w := w) s1
       exact ⟨s2, (he1.seq he2).mono (by omega), hm2.trans hm1,
@@ -1067,12 +1037,9 @@ theorem FitsWidth.inputFits {I : WeightedInstance} {w : ℕ} (hw : I.FitsWidth w
   refine ⟨hwAddr.of_le (by omega), fun v hv => ?_⟩
   simp only [encode, List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
     List.mem_map] at hv
-  rcases hv with (((rfl | rfl | rfl) | ⟨a, _, rfl⟩) | ⟨b, _, rfl⟩) | hcost
-  · exact hwAddr.of_le (by omega)
-  · exact hwAddr.of_le (by omega)
-  · exact hwAddr.of_le (by omega)
-  · exact hwAddr.of_le (by have := a.isLt; omega)
-  · exact hwAddr.of_le (by have := b.isLt; omega)
+  rcases hv with hhead | hcost
+  · refine hwAddr.of_le ?_
+    rcases hhead with ((rfl | rfl | rfl) | ⟨a, _, rfl⟩) | ⟨b, _, rfl⟩ <;> omega
   · have hle : v ≤ I.maxOpCost := List.le_max_of_le' 0 hcost le_rfl
     exact hwVal.of_le (by omega)
 
@@ -1174,65 +1141,41 @@ def weightedEditDistProgram : Program .standard 22 :=
 
 private theorem weighted_read_src (I : WeightedInstance) {i : ℕ} (hi : i < I.src.length) :
     (Data.init I.encode : Data 22).mem (4 + i) = (I.src[i]).val := by
-  have hi' : i < (I.src.map Fin.val).length := by simp [hi]
-  have h := Data.init_realizes_append (r := 22) [I.sigma, I.src.length, I.tgt.length]
-    (I.src.map Fin.val) (I.tgt.map Fin.val ++ I.opCosts) ⟨i, hi'⟩
-  change (Data.init ([I.sigma, I.src.length, I.tgt.length] ++
-      (I.src.map Fin.val ++ (I.tgt.map Fin.val ++ I.opCosts))) : Data 22).mem (3 + 1 + i) =
-    (I.src.map Fin.val)[i] at h
-  simpa [WeightedInstance.encode, List.append_assoc] using h
+  rw [← List.getElem_map Fin.val]
+  exact editDist_init_mem_slice I.encode [I.sigma, I.src.length, I.tgt.length]
+    (I.src.map Fin.val) (I.tgt.map Fin.val ++ I.opCosts)
+    (by simp [WeightedInstance.encode, List.append_assoc])
+    (by simpa using hi)
 
 private theorem weighted_read_tgt (I : WeightedInstance) {j : ℕ} (hj : j < I.tgt.length) :
     (Data.init I.encode : Data 22).mem (4 + I.src.length + j) = (I.tgt[j]).val := by
-  have hj' : j < (I.tgt.map Fin.val).length := by simp [hj]
-  have h := Data.init_realizes_append (r := 22)
+  rw [← List.getElem_map Fin.val]
+  exact editDist_init_mem_slice I.encode
     ([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val)
-    (I.tgt.map Fin.val) I.opCosts ⟨j, hj'⟩
-  change (Data.init (([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val) ++
-      (I.tgt.map Fin.val ++ I.opCosts)) : Data 22).mem
-    (([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val).length + 1 + j) =
-    (I.tgt.map Fin.val)[j] at h
-  have haddr : ([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val).length + 1 + j =
-      4 + I.src.length + j := by simp; omega
-  rw [haddr] at h
-  simpa [WeightedInstance.encode, List.append_assoc] using h
+    (I.tgt.map Fin.val) I.opCosts
+    (by simp [WeightedInstance.encode, List.append_assoc])
+    (by simpa using hj)
 
 private theorem weighted_read_del (I : WeightedInstance) (a : Fin I.sigma) :
     (Data.init I.encode : Data 22).mem (4 + I.src.length + I.tgt.length + a.val) =
       I.costs.del a := by
-  have ha : a.val < (List.ofFn I.costs.del).length := by simp
-  have h := Data.init_realizes_append (r := 22)
+  rw [← List.getElem_ofFn (f := I.costs.del) (i := a.val) (by simp)]
+  exact editDist_init_mem_slice I.encode
     ([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++ I.tgt.map Fin.val)
-    (List.ofFn I.costs.del) (List.ofFn I.costs.ins ++ I.subTable) ⟨a.val, ha⟩
-  change (Data.init (([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++
-      I.tgt.map Fin.val) ++ (List.ofFn I.costs.del ++ (List.ofFn I.costs.ins ++ I.subTable))) :
-    Data 22).mem
-    (([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++ I.tgt.map Fin.val).length +
-      1 + a.val) = (List.ofFn I.costs.del)[a.val] at h
-  have haddr : ([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++
-      I.tgt.map Fin.val).length + 1 + a.val = 4 + I.src.length + I.tgt.length + a.val := by
-    simp; omega
-  rw [haddr] at h
-  simpa [WeightedInstance.encode, WeightedInstance.opCosts, List.append_assoc] using h
+    (List.ofFn I.costs.del) (List.ofFn I.costs.ins ++ I.subTable)
+    (by simp [WeightedInstance.encode, WeightedInstance.opCosts, List.append_assoc])
+    (by simp)
 
 private theorem weighted_read_ins (I : WeightedInstance) (b : Fin I.sigma) :
     (Data.init I.encode : Data 22).mem (4 + I.src.length + I.tgt.length + I.sigma + b.val) =
       I.costs.ins b := by
-  have hb : b.val < (List.ofFn I.costs.ins).length := by simp
-  have h := Data.init_realizes_append (r := 22)
+  rw [← List.getElem_ofFn (f := I.costs.ins) (i := b.val) (by simp)]
+  exact editDist_init_mem_slice I.encode
     ([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++ I.tgt.map Fin.val ++
       List.ofFn I.costs.del)
-    (List.ofFn I.costs.ins) I.subTable ⟨b.val, hb⟩
-  change (Data.init (([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++
-      I.tgt.map Fin.val ++ List.ofFn I.costs.del) ++ (List.ofFn I.costs.ins ++ I.subTable)) :
-    Data 22).mem
-    (([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++ I.tgt.map Fin.val ++
-      List.ofFn I.costs.del).length + 1 + b.val) = (List.ofFn I.costs.ins)[b.val] at h
-  have haddr : ([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++
-      I.tgt.map Fin.val ++ List.ofFn I.costs.del).length + 1 + b.val =
-      4 + I.src.length + I.tgt.length + I.sigma + b.val := by simp; omega
-  rw [haddr] at h
-  simpa [WeightedInstance.encode, WeightedInstance.opCosts, List.append_assoc] using h
+    (List.ofFn I.costs.ins) I.subTable
+    (by simp [WeightedInstance.encode, WeightedInstance.opCosts, List.append_assoc])
+    (by simp)
 
 private theorem weighted_read_sub (I : WeightedInstance) (a b : Fin I.sigma) :
     (Data.init I.encode : Data 22).mem
@@ -1240,28 +1183,14 @@ private theorem weighted_read_sub (I : WeightedInstance) (a b : Fin I.sigma) :
       I.costs.sub a b := by
   have hab : a.val * I.sigma + b.val < I.subTable.length := by
     rw [WeightedInstance.length_subTable]
-    have ha : a.val + 1 ≤ I.sigma := a.isLt
-    have hb : b.val < I.sigma := b.isLt
-    nlinarith
-  have h := Data.init_realizes_append (r := 22)
+    exact List.mul_add_lt_sq a.isLt b.isLt
+  rw [← subTable_getElem I a b]
+  exact editDist_init_mem_slice I.encode
     ([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++ I.tgt.map Fin.val ++
       List.ofFn I.costs.del ++ List.ofFn I.costs.ins)
-    I.subTable [] ⟨a.val * I.sigma + b.val, hab⟩
-  change (Data.init (([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++
-      I.tgt.map Fin.val ++ List.ofFn I.costs.del ++ List.ofFn I.costs.ins) ++
-      (I.subTable ++ [])) : Data 22).mem
-    (([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++ I.tgt.map Fin.val ++
-      List.ofFn I.costs.del ++ List.ofFn I.costs.ins).length + 1 + (a.val * I.sigma + b.val)) =
-    I.subTable[a.val * I.sigma + b.val] at h
-  have haddr : ([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++
-      I.tgt.map Fin.val ++ List.ofFn I.costs.del ++ List.ofFn I.costs.ins).length + 1 +
-      (a.val * I.sigma + b.val) =
-      4 + I.src.length + I.tgt.length + 2 * I.sigma + a.val * I.sigma + b.val := by simp; omega
-  have henc : ([I.sigma, I.src.length, I.tgt.length] ++ I.src.map Fin.val ++
-      I.tgt.map Fin.val ++ List.ofFn I.costs.del ++ List.ofFn I.costs.ins) ++ I.subTable =
-      I.encode := by simp [WeightedInstance.encode, WeightedInstance.opCosts, List.append_assoc]
-  rw [List.append_nil, haddr, henc, subTable_getElem I a b] at h
-  exact h
+    I.subTable []
+    (by simp [WeightedInstance.encode, WeightedInstance.opCosts, List.append_assoc])
+    hab
 
 private theorem weighted_entry_le (I : WeightedInstance) (k₁ k₂ : ℕ) :
     (wagnerFischer I.costs).value (I.src.drop k₁) (I.tgt.drop k₂) ≤
@@ -1297,11 +1226,6 @@ private theorem exec_weightedSetup {w : ℕ} (I : WeightedInstance)
   refine ⟨rfl, by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *,
     by wram_simp *, by wram_simp *, by wram_simp *, ?_⟩
   wram_simp *; omega
-
-private theorem mul_add_lt_sq {σ a b : ℕ} (ha : a < σ) (hb : b < σ) :
-    a * σ + b < σ * σ := by
-  have ha1 : a + 1 ≤ σ := ha
-  nlinarith
 
 private theorem mul_lt_sq {σ a : ℕ} (ha : a < σ) : a * σ < σ * σ := by
   have ha1 : a + 1 ≤ σ := ha
@@ -1427,7 +1351,7 @@ private theorem exec_weightedInnerCell {w : ℕ} (I : WeightedInstance) (x₀ : 
     (I.tgt[I.tgt.length - 1 - t]).isLt
   have hprod_lt : (I.src[I.src.length - 1 - s]).val * I.sigma +
       (I.tgt[I.tgt.length - 1 - t]).val < I.sigma * I.sigma :=
-    mul_add_lt_sq (I.src[I.src.length - 1 - s]).isLt hb_lt
+    List.mul_add_lt_sq (I.src[I.src.length - 1 - s]).isLt hb_lt
   have hread_sub :
       st.mem (4 + I.src.length + I.tgt.length + 2 * I.sigma +
         (I.src[I.src.length - 1 - s]).val * I.sigma +
@@ -1464,13 +1388,7 @@ private theorem exec_weightedInnerCell {w : ℕ} (I : WeightedInstance) (x₀ : 
       s1.regs regTmp1 = I.costs.ins I.tgt[I.tgt.length - 1 - t] + st.regs regCur := by
     wram_exec * [hinsb, hread_sub, hread_ins]
     refine ⟨rfl, fun i hi => ?_, ?_, ?_, ?_⟩
-    · rw [Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-        Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-        Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-        Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-        Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-        Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
-        Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide))]
+    · simp +decide only [editDist_set_regs_lt19, hi]
     · wram_simp * [hread_sub]
     · wram_simp *
     · wram_simp * [hinsb, hread_ins]
@@ -1479,15 +1397,9 @@ private theorem exec_weightedInnerCell {w : ℕ} (I : WeightedInstance) (x₀ : 
   unfold weightedInnerCell
   have hr12 : ∀ i : Fin 22, i.val < 19 → s2.regs i = st.regs i :=
     fun i hi => (hr2 i hi).trans (hr1 i hi)
-  refine ⟨s2, (he1.seq he2).mono (by omega), hm2.trans hm1,
-    ⟨(hr12 _ (by decide)).trans hfix.m, (hr12 _ (by decide)).trans hfix.n,
-     (hr12 _ (by decide)).trans hfix.xb, (hr12 _ (by decide)).trans hfix.yb,
-     (hr12 _ (by decide)).trans hfix.dpb, (hr12 _ (by decide)).trans hfix.sig,
-     (hr12 _ (by decide)).trans hfix.delb, (hr12 _ (by decide)).trans hfix.insb,
-     (hr12 _ (by decide)).trans hfix.subb⟩,
-    (hr12 _ (by decide)).trans hone,
-    hr12 _ (by decide), hr12 _ (by decide), hr12 _ (by decide), hr12 _ (by decide),
-    ⟨(hr12 _ (by decide)).trans hra0, (hr12 _ (by decide)).trans hra1⟩, ?_⟩
+  have hf (i : Fin 22) (hi : i.val < 19 := by decide) := hr12 i hi
+  refine ⟨s2, (he1.seq he2).mono (by omega), hm2.trans hm1, gridFixedRegs_of_lt19 hfix hr12,
+    (hf _).trans hone, hf _, hf _, hf _, hf _, ⟨(hf _).trans hra0, (hf _).trans hra1⟩, ?_⟩
   rw [hv2, hvNext, hvT0, hvT1, hdiag, hup, hcur]
   rfl
 

@@ -512,6 +512,30 @@ private theorem isOraclePPTOn_simLookup {select : SimCall F.toPrimeOrderGroupFam
     cases p.2 <;> simp [bind_pure_comp]
   exact hfind.bind_with hcont
 
+private theorem dhkem_eq_key_of_mem_support_select {w : List Bool} {e : DHKEMSimEntry}
+    {v : List Bool}
+    (h : some v ∈ OracleComp.support (hashSelectWord w e) ∨
+      some v ∈ OracleComp.support (decapsSelectWord w e)) : v = e.key := by
+  have hpure {b : Bool} (hv : some v ∈ OracleComp.support
+      (pure (if b then some e.key else none) : WordOracleComp Unit (Option (List Bool)))) :
+      v = e.key := by
+    simp only [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff] at hv
+    split_ifs at hv
+    exact Option.some.inj hv
+  have hmap {q : WordOracleComp Unit Bool}
+      (hv : some v ∈ OracleComp.support ((fun b => if b then some e.key else none) <$> q)) :
+      v = e.key := by
+    simp only [OracleComp.support, OracleComp.mem_supportWith_map_iff] at hv
+    obtain ⟨(_ | _), _, hb⟩ := hv
+    · simp at hb
+    · exact Option.some.inj hb.symm
+  rcases h with h | h <;> by_cases hd : e.isDecaps <;>
+    simp only [hashSelectWord, decapsSelectWord, hd, Bool.false_eq_true, ↓reduceIte] at h
+  · exact hmap h
+  · exact hpure h
+  · exact hpure h
+  · exact hmap h
+
 private theorem isOraclePPTOn_simWordHandler {keyLen : ℕ → ℕ}
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary) :
     IsOraclePPTOn
@@ -531,29 +555,11 @@ private theorem isOraclePPTOn_simWordHandler {keyLen : ℕ → ℕ}
       (ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime)) ?_
     exact (isOraclePPTOn_queryDDHWord (by polytime) (by polytime)).map_with (by polytime)
   have hhashLookup := F.isOraclePPTOn_simLookup (select := fun c e => hashSelectWord c.word e)
-    hkeyLen false hhashSel fun _ e v hv => by
-      by_cases hd : e.isDecaps
-      · simp only [hashSelectWord, hd, ↓reduceIte, OracleComp.support,
-          OracleComp.mem_supportWith_map_iff] at hv
-        obtain ⟨b, _, hb⟩ := hv
-        cases b <;> simp only [↓reduceIte, reduceCtorEq, Option.some.injEq] at hb
-        exact hb ▸ Nat.le_add_left _ _
-      · simp only [hashSelectWord, hd, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-          OracleComp.supportWith_pure, Set.mem_singleton_iff] at hv
-        split_ifs at hv with heq
-        · injection hv.symm with hv'; exact hv' ▸ Nat.le_add_left _ _
+    hkeyLen false hhashSel fun _ _ _ hv =>
+      dhkem_eq_key_of_mem_support_select (.inl hv) ▸ Nat.le_add_left _ _
   have hdecLookup := F.isOraclePPTOn_simLookup (select := fun c e => decapsSelectWord c.word e)
-    hkeyLen true hdecSel fun _ e v hv => by
-      by_cases hd : e.isDecaps
-      · simp only [decapsSelectWord, hd, ↓reduceIte, OracleComp.support,
-          OracleComp.supportWith_pure, Set.mem_singleton_iff] at hv
-        split_ifs at hv with heq
-        · injection hv.symm with hv'; exact hv' ▸ Nat.le_add_left _ _
-      · simp only [decapsSelectWord, hd, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-          OracleComp.mem_supportWith_map_iff] at hv
-        obtain ⟨b, _, hb⟩ := hv
-        cases b <;> simp only [↓reduceIte, reduceCtorEq, Option.some.injEq] at hb
-        exact hb ▸ Nat.le_add_left _ _
+    hkeyLen true hdecSel fun _ _ _ hv =>
+      dhkem_eq_key_of_mem_support_select (.inr hv) ▸ Nat.le_add_left _ _
   have hop : ComputableInPolyTime (SimCall.op (F := F.toPrimeOrderGroupFamily))
       (encSimCall F.toPrimeOrderGroupFamily) (encFinEnum DHKEMOp) :=
     encSimCall_op_polyTime F.toPrimeOrderGroupFamily ComputableInPolyTime.id'
@@ -594,84 +600,66 @@ private theorem simWordHandler_preserve (keyLen : ℕ → ℕ)
         (encList encDHKEMSimEntry table).length +
           (4 * req.2.length + 2 * keyLen c.input.secParam + 16) := by
   obtain ⟨op, w⟩ := req
+  obtain ⟨resKey, resTable⟩ := res
+  dsimp only
+  have hlookup (isDec : Bool) (select : DHKEMSimEntry → WordOracleComp Unit (Option (List Bool)))
+      (hsel : ∀ e v, some v ∈ OracleComp.support (select e) → v = e.key)
+      {key : List Bool} {t' : List DHKEMSimEntry}
+      (hm : (key, t') ∈ OracleComp.support
+        (simLookupWord (keyLen c.input.secParam) select isDec w table)) :
+      (∀ e ∈ t', e.key.length ≤ keyLen c.input.secParam) ∧
+        key.length ≤ keyLen c.input.secParam ∧
+        (encList encDHKEMSimEntry t').length ≤
+          (encList encDHKEMSimEntry table).length +
+            (4 * w.length + 2 * keyLen c.input.secParam + 16) := by
+    simp only [simLookupWord, OracleComp.support, OracleComp.mem_supportWith_bind_iff] at hm
+    obtain ⟨found, hfound, hm⟩ := hm
+    cases found with
+    | some k =>
+      simp only [OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hm
+      obtain ⟨rfl, rfl⟩ := hm
+      obtain ⟨e, he, hse⟩ := mem_support_findSomeM? hfound
+      exact ⟨hinv, hsel e _ hse ▸ hinv e he, by omega⟩
+    | none =>
+      have hm' : (key, t') ∈ OracleComp.support (do
+          let k ← ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))
+          pure (k, DHKEMSimEntry.mk isDec w k :: table)) := hm
+      simp only [OracleComp.support, OracleComp.mem_supportWith_bind_iff,
+        OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hm'
+      obtain ⟨_, hk, rfl, rfl⟩ := hm'
+      have hks : key ∈ OracleComp.support
+          (ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))) := hk
+      have hlen : key.length = keyLen c.input.secParam := by
+        simpa only [ProbOracleComp.support_sample, BitString.eval_sampleList,
+          BitString.mem_support_uniformList_iff] using hks
+      refine ⟨List.forall_mem_cons.mpr ⟨by simp [hlen], hinv⟩, hlen.le, ?_⟩
+      enc_len [encDHKEMSimEntry_apply, hlen]
   cases op with
   | hash =>
     by_cases helem : F.isElem (c.input.groupParameters, w) = true
-    · simp only [simWordHandler, helem, ↓reduceIte, simLookupWord, OracleComp.support,
-        OracleComp.mem_supportWith_bind_iff] at hmem
-      obtain ⟨found, hfound, hmem⟩ := hmem
-      cases found with
-      | some key =>
-        simp only [OracleComp.supportWith_pure, Set.mem_singleton_iff] at hmem
-        subst hmem; dsimp only
-        obtain ⟨e, he, hse⟩ := mem_support_findSomeM? hfound
-        have hk : key = e.key := by
-          by_cases hd : e.isDecaps
-          · simp only [hashSelectWord, hd, ↓reduceIte, OracleComp.support,
-              OracleComp.mem_supportWith_map_iff] at hse
-            obtain ⟨b, _, hb⟩ := hse; cases b <;> simp at hb; exact hb.symm
-          · simp only [hashSelectWord, hd, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-              OracleComp.supportWith_pure, Set.mem_singleton_iff] at hse
-            split_ifs at hse; injection hse.symm with hkeq; exact hkeq.symm
-        have hkle : key.length ≤ keyLen c.input.secParam := hk ▸ hinv e he
-        exact ⟨hinv, by omega, by omega⟩
-      | none =>
-        have hmem' : res ∈ OracleComp.support (do
-            let key ← ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))
-            pure (key, DHKEMSimEntry.mk false w key :: table)) := hmem
-        simp only [OracleComp.support, OracleComp.mem_supportWith_bind_iff,
-          OracleComp.supportWith_pure, Set.mem_singleton_iff] at hmem'
-        obtain ⟨key, hkey, rfl⟩ := hmem'; dsimp only
-        have hlen : key.length = keyLen c.input.secParam := by
-          have hks : key ∈ OracleComp.support
-              (ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))) := hkey
-          simpa only [ProbOracleComp.support_sample, BitString.eval_sampleList,
-            BitString.mem_support_uniformList_iff] using hks
-        refine ⟨List.forall_mem_cons.mpr ⟨by simp [hlen], hinv⟩, by omega, ?_⟩
-        enc_len [encDHKEMSimEntry_apply, hlen]
+    · simp only [simWordHandler, helem, ↓reduceIte] at hmem
+      obtain ⟨h1, h2, h3⟩ := hlookup false (hashSelectWord w)
+        (fun _ _ hv => dhkem_eq_key_of_mem_support_select (.inl hv)) hmem
+      exact ⟨h1, by omega, h3⟩
     · simp only [simWordHandler, helem, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-        OracleComp.supportWith_pure, Set.mem_singleton_iff] at hmem
-      subst hmem; dsimp only; exact ⟨hinv, by simp, by omega⟩
+        OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hmem
+      obtain ⟨rfl, rfl⟩ := hmem
+      exact ⟨hinv, by simp,
+        by omega⟩
   | decaps =>
     by_cases hbad : (!F.isElem (c.input.groupParameters, w) ||
         w == c.input.leftPublic) = true
     · simp only [simWordHandler, hbad, ↓reduceIte, OracleComp.support,
-        OracleComp.supportWith_pure, Set.mem_singleton_iff] at hmem
-      subst hmem; dsimp only; exact ⟨hinv, by simp, by omega⟩
+        OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hmem
+      obtain ⟨rfl, rfl⟩ := hmem
+      exact ⟨hinv, by simp,
+        by omega⟩
     · simp only [simWordHandler, hbad, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-        OracleComp.mem_supportWith_map_iff, simLookupWord,
-        OracleComp.mem_supportWith_bind_iff] at hmem
-      obtain ⟨⟨key, t'⟩, ⟨found, hfound, hmem⟩, rfl⟩ := hmem
-      cases found with
-      | some k =>
-        simp only [OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hmem
-        obtain ⟨rfl, rfl⟩ := hmem; dsimp only
-        obtain ⟨e, he, hse⟩ := mem_support_findSomeM? hfound
-        have hk : key = e.key := by
-          by_cases hd : e.isDecaps
-          · simp only [decapsSelectWord, hd, ↓reduceIte, OracleComp.support,
-              OracleComp.supportWith_pure, Set.mem_singleton_iff] at hse
-            split_ifs at hse; injection hse.symm with hkeq; exact hkeq.symm
-          · simp only [decapsSelectWord, hd, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-              OracleComp.mem_supportWith_map_iff] at hse
-            obtain ⟨b, _, hb⟩ := hse; cases b <;> simp at hb; exact hb.symm
-        have hkle : key.length ≤ keyLen c.input.secParam := hk ▸ hinv e he
-        exact ⟨hinv, by simp [encOption]; omega, by omega⟩
-      | none =>
-        have hmem' : (key, t') ∈ OracleComp.support (do
-            let k ← ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))
-            pure (k, DHKEMSimEntry.mk true w k :: table)) := hmem
-        simp only [OracleComp.support, OracleComp.mem_supportWith_bind_iff,
-          OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hmem'
-        obtain ⟨k, hk, rfl, rfl⟩ := hmem'; dsimp only
-        have hlen : key.length = keyLen c.input.secParam := by
-          have hks : key ∈ OracleComp.support
-              (ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))) := hk
-          simpa only [ProbOracleComp.support_sample, BitString.eval_sampleList,
-            BitString.mem_support_uniformList_iff] using hks
-        refine ⟨List.forall_mem_cons.mpr ⟨by simp [hlen], hinv⟩,
-          by simp [encOption, hlen]; omega, ?_⟩
-        enc_len [encDHKEMSimEntry_apply, hlen]
+        OracleComp.mem_supportWith_map_iff, Prod.mk.injEq] at hmem
+      obtain ⟨⟨key, t'⟩, hlk, rfl, rfl⟩ := hmem
+      obtain ⟨h1, h2, h3⟩ := hlookup true (decapsSelectWord w)
+        (fun _ _ hv => dhkem_eq_key_of_mem_support_select (.inr hv)) hlk
+      exact ⟨h1, by simp [encOption]; omega, h3⟩
 
 private theorem isOraclePPTOn_extractDHWord :
     IsOraclePPTOn

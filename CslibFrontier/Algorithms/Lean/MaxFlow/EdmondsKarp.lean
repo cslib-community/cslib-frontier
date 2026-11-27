@@ -8,10 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.MaxFlow.Basic
-public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Data.Fintype.Prod
-import CslibFrontier.Algorithms.Lean.TimeM.Simps
 import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Card
@@ -22,7 +20,8 @@ import Mathlib.Data.Finset.Card
 Formalizes the **Edmonds–Karp algorithm** ([EdmondsKarp1972], Section 1, Theorem 1, pp. 249–253;
 [CLRS2009], Section 26.2, Lemma 26.7 and Theorem 26.8, pp. 727–730): augmenting an integral network
 flow along breadth-first (fewest-arc) residual `s`-`t` paths guarantees monotonic residual
-shortest-path distances and terminates in strongly polynomial time independent of arc capacities.
+shortest-path distances and terminates in strongly polynomial augmentation count independent of arc
+capacities.
 
 ## Mathematical and algorithmic overview
 
@@ -38,32 +37,12 @@ shortest-path distances and terminates in strongly polynomial time independent o
    shortest-path augmentations by `N.symArcs.card * (|V| / 2) ≤ |V| * N.posArcs.card`
    ([CLRS2009], Theorem 26.8, p. 729; compare [EdmondsKarp1972], Theorem 1, p. 251, which obtains
    `(|V|^3 - |V|) / 4` by combining source- and sink-distance monotonicity).
-4. **Executable `TimeM` solver (`edmondsKarpM`, `edmondsKarpDenseM`):** over `Network (Fin n)` with
+4. **Pure executable solver (`edmondsKarp`, `edmondsKarpDense`):** over `Network (Fin n)` with
    candidate neighbor lists `adj : Fin n → List (Fin n)`, maintains an explicit `n × n` `Vector`
-   matrix (`FlowMatrix N`) for `O(1)` flow lookups and arc-by-arc bottleneck updates, finishing in
-   at most `(N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n)` charged steps (`O(|V| |E|^2)`
-   on sparse nonempty adjacency lists and `O(n^5)` on `defaultAdj n`).
-
-## Cost model and limitations
-
-* **Charged (`TimeM ℕ` ticks):**
-  * `2 * n` ticks in `initFlowMatrixM` (`n` ticks to allocate an all-zero row of length `n` and `n`
-    ticks to replicate that row reference across `n` vertices);
-  * `n + adjSteps adj` ticks in `countAdjM` to compute sparse fuel `adjSteps adj * (n / 2)`
-    without dense `Fin n × Fin n` enumeration;
-  * per `bfsM` call (`adjSteps adj + 3 * n` ticks upper bound, `≥ n` ticks lower bound): `n` ticks
-    for visited/path-table initialization (`replicateM`), `1` tick per popped frontier vertex
-    (`≤ n`), `1` tick per candidate neighbor `v ∈ adj u` (`≤ adjSteps adj`), and either `p.length`
-    ticks to reverse the found augmenting path (`≤ n`) or `n` ticks to extract the reachable cut
-    (`extractFinsetM`);
-  * per augmentation (`augmentFlowMatrixM`, `2 * (pathArcs p).length ≤ 2 * n` ticks): `1` tick per
-    path arc to compute `δ ← bottleneckM` and `1` tick per path arc in `updateArcsMatM` to update
-    the forward and reverse entries of `FlowMatrix N` using `δ`.
-* **Abstract unit-cost primitives:** `Vector` indexing/update (`vget`, `vset`, `fget`, `fset`),
-  `Finset.insert`, arithmetic on `ℕ`, and evaluating `N.cap u v` are treated as `O(1)` operations
-  within each charged step; this models abstract RAM-style algorithmic steps in `TimeM ℕ`, not
-  bit-level Turing-machine time or persistent-array reference-counting copy costs when shared zero
-  rows are first mutated.
+   matrix (`FlowMatrix N`) and performs breadth-first shortest-path augmentations (`bfs`), returning
+   an integral maximum flow, its minimum `s`-`t` cut, and the number of augmentations performed
+   (`edmondsKarp_correct`, `edmondsKarpDense_correct`). For the checked machine running-time bound
+   (`O(n ^ 5)` dense Word-RAM instructions), see `CslibFrontier.Algorithms.WordRAM.EdmondsKarp`.
 
 ## Main definitions
 
@@ -73,9 +52,9 @@ shortest-path distances and terminates in strongly polynomial time independent o
 * `Cslib.Algorithms.Lean.MaxFlow.Network.symArcs`, `Network.posArcs`,
   `Network.IsShortestAugmentingSeq`: active directed residual pairs and shortest-augmentation
   traces.
-* `Cslib.Algorithms.Lean.MaxFlow.AdjValid`, `adjSteps`, `defaultAdj`, `FlowMatrix`, `bfsM`,
-  `Output`, `edmondsKarpM`, `edmondsKarpDenseM`: executable BFS and Edmonds–Karp solver in
-  `TimeM ℕ`.
+* `Cslib.Algorithms.Lean.MaxFlow.AdjValid`, `adjSteps`, `defaultAdj`, `FlowMatrix`, `bfs`,
+  `Output`, `edmondsKarp`, `edmondsKarpDense`: pure executable BFS and Edmonds–Karp solver over
+  `Fin n`.
 
 ## Main results
 
@@ -83,8 +62,8 @@ shortest-path distances and terminates in strongly polynomial time independent o
   distance monotonicity.
 * `Cslib.Algorithms.Lean.MaxFlow.Network.shortestAugmentingSeq_length_le` and
   `shortestAugmentingSeq_length_le_card_mul_posArcs`: polynomial augmentation bounds.
-* `Cslib.Algorithms.Lean.MaxFlow.edmondsKarpM_correct` and `edmondsKarpM_time_le`: max-flow /
-  min-cut certification and explicit `TimeM` step bound.
+* `Cslib.Algorithms.Lean.MaxFlow.edmondsKarp_correct` and `edmondsKarpDense_correct`: max-flow /
+  min-cut certification and augmentation-count bounds.
 
 ## References
 
@@ -97,9 +76,6 @@ shortest-path distances and terminates in strongly polynomial time independent o
 public section
 
 namespace Cslib.Algorithms.Lean.MaxFlow
-
-open Cslib.Algorithms.Lean
-open scoped TimeM
 
 namespace Network
 
@@ -140,6 +116,14 @@ private theorem card_symArcs_mul_half_le [DecidableEq V] (m : ℕ) :
 theorem card_symArcs_le_card_sq [DecidableEq V] :
     N.symArcs.card ≤ Fintype.card V * Fintype.card V :=
   (Finset.card_le_univ _).trans_eq (Fintype.card_prod V V)
+
+theorem card_symArcs_le_mul_pred [DecidableEq V] :
+    N.symArcs.card ≤ Fintype.card V * (Fintype.card V - 1) := by
+  have hsub : N.symArcs ⊆ Finset.univ.offDiag := fun e he => by
+    simp only [symArcs, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_offDiag] at he ⊢
+    exact he.1
+  exact (Finset.card_le_card hsub).trans_eq <| by
+    rw [Finset.offDiag_card, Finset.card_univ, ← Nat.mul_sub_one]
 
 namespace Flow
 
@@ -458,20 +442,10 @@ end DistanceAndCriticalArcs
 
 end Network
 
-/-! ### Executable BFS and Edmonds–Karp solver in `TimeM ℕ` over `Fin n` -/
+
+/-! ### Executable BFS and Edmonds–Karp solver over `Fin n` -/
 
 section ExecutableFin
-
-/-- Attach the definitional equality `x = m.ret` as an erased `Subtype` witness (`0` extra ticks).
--/
-@[expose] def attachRet {T α : Type*} (m : TimeM T α) : TimeM T { x : α // x = m.ret } :=
-  ⟨⟨m.ret, rfl⟩, m.time⟩
-
-@[simp]
-theorem attachRet_val {T α : Type*} (m : TimeM T α) : (attachRet m).ret.1 = m.ret := rfl
-
-@[simp, time_simps]
-theorem attachRet_time {T α : Type*} (m : TimeM T α) : (attachRet m).time = m.time := rfl
 
 /-- Total `Fin n`-indexed lookup on `Vector α n`. -/
 @[expose] def vget {α : Type*} {n : ℕ} (tbl : Vector α n) (v : Fin n) : α := tbl[v.1]
@@ -518,128 +492,6 @@ theorem fget_fset_ne {α : Type*} {n : ℕ} (mat : Vector (Vector α n) n) {a b 
     simp [fget, fset, vget_vset_ne _ _ hbv]
   · simp [fget, fset, vget_vset_ne _ _ hau]
 
-/-- Allocate `Vector.replicate m a` in `m` `TimeM` ticks (`1` tick per slot). -/
-@[expose] def replicateM {α : Type*} : (m : ℕ) → α → TimeM ℕ (Vector α m)
-  | 0, _ => pure #v[]
-  | m + 1, a => do
-    ✓
-    let rest ← replicateM m a
-    pure (rest.push a)
-
-@[simp, time_simps]
-theorem replicateM_ret {α : Type*} (m : ℕ) (a : α) :
-    (replicateM m a).ret = Vector.replicate m a := by
-  time_spec replicateM [Vector.replicate_succ]
-
-@[simp, time_simps]
-theorem replicateM_time {α : Type*} (m : ℕ) (a : α) :
-    (replicateM m a).time = m := by
-  time_spec replicateM
-
-/-- Filter `vs` into a `Finset`, charging `1` tick per inspected element. -/
-@[expose] def filterFinsetM {α : Type*} [DecidableEq α] (p : α → Bool) :
-    List α → Finset α → TimeM ℕ (Finset α)
-  | [], acc => pure acc
-  | v :: vs, acc => do
-    ✓
-    let acc' := if p v then insert v acc else acc
-    filterFinsetM p vs acc'
-
-theorem mem_filterFinsetM_ret {α : Type*} [DecidableEq α] (p : α → Bool)
-    (vs : List α) (acc : Finset α) (x : α) :
-    x ∈ (filterFinsetM p vs acc).ret ↔ x ∈ acc ∨ (x ∈ vs ∧ p x = true) := by
-  time_spec filterFinsetM
-
-@[simp]
-theorem filterFinsetM_time {α : Type*} [DecidableEq α] (p : α → Bool)
-    (vs : List α) (acc : Finset α) :
-    (filterFinsetM p vs acc).time = vs.length := by
-  time_spec filterFinsetM
-
-/-- Scan all `n` vertices of `Fin n` into `Finset.univ.filter (fun v => p v = true)` in `n` ticks.
--/
-@[expose] def extractFinsetM {n : ℕ} (p : Fin n → Bool) : TimeM ℕ (Finset (Fin n)) :=
-  filterFinsetM p (List.finRange n) ∅
-
-@[simp, time_simps]
-theorem extractFinsetM_ret {n : ℕ} (p : Fin n → Bool) :
-    (extractFinsetM p).ret = Finset.univ.filter fun v => p v = true := by
-  ext v
-  simp [extractFinsetM, mem_filterFinsetM_ret, List.mem_finRange]
-
-@[simp, time_simps]
-theorem extractFinsetM_time {n : ℕ} (p : Fin n → Bool) :
-    (extractFinsetM p).time = n := by
-  simp [extractFinsetM]
-
-/-- Tail-recursive list reversal charging `1` tick per element. -/
-@[expose] def reverseLoopM {α : Type*} : List α → List α → TimeM ℕ (List α)
-  | [], acc => pure acc
-  | x :: xs, acc => do
-    ✓
-    reverseLoopM xs (x :: acc)
-
-/-- Reverse `xs` in `xs.length` `TimeM` ticks. -/
-@[expose] def reverseM {α : Type*} (xs : List α) : TimeM ℕ (List α) :=
-  reverseLoopM xs []
-
-private theorem reverseLoopM_ret {α : Type*} (xs acc : List α) :
-    (reverseLoopM xs acc).ret = xs.reverseAux acc := by
-  time_spec reverseLoopM
-
-private theorem reverseLoopM_time {α : Type*} (xs acc : List α) :
-    (reverseLoopM xs acc).time = xs.length := by
-  time_spec reverseLoopM
-
-@[simp]
-theorem reverseM_ret {α : Type*} (xs : List α) : (reverseM xs).ret = xs.reverse :=
-  reverseLoopM_ret xs []
-
-@[simp]
-theorem reverseM_time {α : Type*} (xs : List α) : (reverseM xs).time = xs.length :=
-  reverseLoopM_time xs []
-
-/-- Fold residual-capacity minimum across arcs, charging `1` tick per arc. -/
-@[expose] def foldMinArcsM {V : Type*} [Fintype V] {N : Network V} (f : N.Flow) :
-    List (V × V) → ℕ → TimeM ℕ ℕ
-  | [], acc => pure acc
-  | e :: es, acc => do
-    ✓
-    foldMinArcsM f es (min acc (f.resCap e.1 e.2))
-
-/-- Compute `f.bottleneck p` in `(pathArcs p).length` `TimeM` ticks. -/
-@[expose] def bottleneckM {V : Type*} [Fintype V] {N : Network V} (f : N.Flow)
-    (p : List V) : TimeM ℕ ℕ :=
-  match pathArcs p with
-  | [] => pure 0
-  | e :: es => do
-    ✓
-    foldMinArcsM f es (f.resCap e.1 e.2)
-
-private theorem foldMinArcsM_ret {V : Type*} [Fintype V] {N : Network V} (f : N.Flow)
-    (es : List (V × V)) (acc : ℕ) :
-    (foldMinArcsM f es acc).ret = es.foldl (fun m b => min m (f.resCap b.1 b.2)) acc := by
-  time_spec foldMinArcsM
-
-@[time_simps]
-private theorem foldMinArcsM_time {V : Type*} [Fintype V] {N : Network V} (f : N.Flow)
-    (es : List (V × V)) (acc : ℕ) :
-    (foldMinArcsM f es acc).time = es.length := by
-  time_spec foldMinArcsM
-
-@[simp]
-theorem bottleneckM_ret {V : Type*} [Fintype V] {N : Network V} (f : N.Flow) (p : List V) :
-    (bottleneckM f p).ret = f.bottleneck p := by
-  unfold bottleneckM Network.Flow.bottleneck
-  rcases pathArcs p with _ | ⟨e, es⟩
-  · rfl
-  · exact foldMinArcsM_ret f es (f.resCap e.1 e.2)
-
-@[simp, time_simps]
-theorem bottleneckM_time {V : Type*} [Fintype V] {N : Network V} (f : N.Flow) (p : List V) :
-    (bottleneckM f p).time = (pathArcs p).length := by
-  time_spec bottleneckM
-
 /-- Candidate neighbor lists `adj` cover `N` when every non-loop pair `(u, v)` with positive
 capacity in either direction appears in `adj u`. -/
 @[expose] def AdjValid {n : ℕ} (N : Network (Fin n)) (adj : Fin n → List (Fin n)) : Prop :=
@@ -677,59 +529,6 @@ theorem card_symArcs_le_adjSteps {n : ℕ} {N : Network (Fin n)} {adj : Fin n �
       Finset.mem_image.mpr ⟨v, List.mem_toFinset.mpr (hadj u v he.1 he.2), rfl⟩⟩
   exact (Finset.card_le_card hsub).trans (Finset.card_biUnion_le.trans
     (Finset.sum_le_sum fun u _ => Finset.card_image_le.trans (List.toFinset_card_le _)))
-
-/-- Count elements of `xs`, charging `1` tick per element. -/
-@[expose] def countListM {α : Type*} : List α → ℕ → TimeM ℕ ℕ
-  | [], acc => pure acc
-  | _ :: xs, acc => do
-    ✓
-    countListM xs (acc + 1)
-
-@[time_simps]
-private theorem countListM_ret {α : Type*} (xs : List α) (acc : ℕ) :
-    (countListM xs acc).ret = acc + xs.length := by
-  time_spec countListM
-
-@[time_simps]
-private theorem countListM_time {α : Type*} (xs : List α) (acc : ℕ) :
-    (countListM xs acc).time = xs.length := by
-  time_spec countListM
-
-/-- Count total neighbor entries across `us`, charging `1` tick per vertex and `1` tick per
-neighbor entry. -/
-@[expose] def countAdjLoopM {n : ℕ} (adj : Fin n → List (Fin n)) :
-    List (Fin n) → ℕ → TimeM ℕ ℕ
-  | [], acc => pure acc
-  | u :: us, acc => do
-    ✓
-    let acc' ← countListM (adj u) acc
-    countAdjLoopM adj us acc'
-
-@[time_simps]
-private theorem countAdjLoopM_ret {n : ℕ} (adj : Fin n → List (Fin n))
-    (us : List (Fin n)) (acc : ℕ) :
-    (countAdjLoopM adj us acc).ret = acc + (us.map fun u => (adj u).length).sum := by
-  time_spec countAdjLoopM
-
-@[time_simps]
-private theorem countAdjLoopM_time {n : ℕ} (adj : Fin n → List (Fin n))
-    (us : List (Fin n)) (acc : ℕ) :
-    (countAdjLoopM adj us acc).time = us.length + (us.map fun u => (adj u).length).sum := by
-  time_spec countAdjLoopM
-
-/-- Compute `adjSteps adj` in `n + adjSteps adj` `TimeM` ticks without `Fin n × Fin n` scans. -/
-@[expose] def countAdjM {n : ℕ} (adj : Fin n → List (Fin n)) : TimeM ℕ ℕ :=
-  countAdjLoopM adj (List.finRange n) 0
-
-@[simp]
-theorem countAdjM_ret {n : ℕ} (adj : Fin n → List (Fin n)) :
-    (countAdjM adj).ret = adjSteps adj := by
-  time_spec countAdjM
-
-@[simp]
-theorem countAdjM_time {n : ℕ} (adj : Fin n → List (Fin n)) :
-    (countAdjM adj).time = n + adjSteps adj := by
-  time_spec countAdjM [List.length_finRange]
 
 /-! #### Reversed-walk validity and executable BFS -/
 
@@ -770,11 +569,8 @@ structure BfsResult {n : ℕ} {N : Network (Fin n)} (f : N.Flow) where
   /-- Residual-reachability cut (`f.reachableCut` when `augPath = none`). -/
   cut : Finset (Fin n)
 
-theorem tblValid_init {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
-    (baseTbl : Vector (Option (List (Fin n))) n)
-    (hbase : baseTbl = Vector.replicate n none) :
-    TblValid f (vset baseTbl N.s (some [N.s])) := by
-  subst hbase
+theorem tblValid_init {n : ℕ} {N : Network (Fin n)} (f : N.Flow) :
+    TblValid f (vset (Vector.replicate n none) N.s (some [N.s])) := by
   have hget_eq {v : Fin n} {rp : List (Fin n)}
       (h : vget (vset (Vector.replicate n none) N.s (some [N.s])) v = some rp) :
       v = N.s ∧ rp = [N.s] := by
@@ -825,15 +621,14 @@ theorem tblValid_insert {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
     · exact hisSome_mono x
         (htbl.mem_isSome w rp (by simpa [vget_vset_ne _ _ hvw] using hget) x hx)
 
-/-- Scan candidate neighbors `vs` of `u`, charging `1` tick per neighbor inspection. -/
-@[expose] def scanNeighborsM {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
+/-- Scan candidate neighbors `vs` of `u`, discovering newly reachable vertices in the residual
+graph of `f`. -/
+@[expose] def scanNeighbors {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (u : Fin n) (rp_u : List (Fin n)) (hu_walk : IsRevWalkTo f u rp_u) :
     List (Fin n) → (st : BfsState f) →
-    (∀ x ∈ rp_u.reverse, (vget st.revPath x).isSome = true) →
-    TimeM ℕ (BfsState f)
-  | [], st, _ => pure st
-  | v :: vs, st, hu_mem => do
-    ✓
+    (∀ x ∈ rp_u.reverse, (vget st.revPath x).isSome = true) → BfsState f
+  | [], st, _ => st
+  | v :: vs, st, hu_mem =>
     if hcond : (0 < f.resCap u v && (vget st.revPath v).isNone) = true then
       let hpos : 0 < f.resCap u v := of_decide_eq_true (Bool.and_eq_true_iff.mp hcond).1
       let hnone : (vget st.revPath v).isNone = true := (Bool.and_eq_true_iff.mp hcond).2
@@ -842,61 +637,54 @@ theorem tblValid_insert {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
         { revPath := vset st.revPath v (some (v :: rp_u))
           frontier := v :: st.frontier
           tblValid := hins.1 }
-      scanNeighborsM f u rp_u hu_walk vs st' hins.2
+      scanNeighbors f u rp_u hu_walk vs st' hins.2
     else
-      scanNeighborsM f u rp_u hu_walk vs st hu_mem
+      scanNeighbors f u rp_u hu_walk vs st hu_mem
 
-/-- Expand all vertices in `layer`, charging `1` tick per popped frontier vertex. -/
-@[expose] def expandLayerM {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
+/-- Expand all vertices in `layer`. -/
+@[expose] def expandLayer {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (adj : Fin n → List (Fin n)) :
-    List (Fin n) → BfsState f → TimeM ℕ (BfsState f)
-  | [], st => pure st
-  | u :: us, st => do
-    ✓
-    let st' ←
+    List (Fin n) → BfsState f → BfsState f
+  | [], st => st
+  | u :: us, st =>
+    let st' :=
       match hget : vget st.revPath u with
-      | none => pure st
+      | none => st
       | some rp_u =>
-        scanNeighborsM f u rp_u (st.tblValid.walk u rp_u hget) (adj u) st
+        scanNeighbors f u rp_u (st.tblValid.walk u rp_u hget) (adj u) st
           (st.tblValid.mem_isSome u rp_u hget)
-    expandLayerM f adj us st'
+    expandLayer f adj us st'
 
 /-- Run `k` BFS layer expansions from `(revPath, frontier)`. -/
-@[expose] def bfsLoopM {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
+@[expose] def bfsLoop {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (adj : Fin n → List (Fin n)) :
-    ℕ → BfsState f → TimeM ℕ (BfsState f)
-  | 0, st => pure st
-  | k + 1, st => do
-    let st' ← expandLayerM f adj st.frontier
+    ℕ → BfsState f → BfsState f
+  | 0, st => st
+  | k + 1, st =>
+    let st' := expandLayer f adj st.frontier
       { revPath := st.revPath, frontier := [], tblValid := st.tblValid }
-    bfsLoopM f adj k st'
+    bfsLoop f adj k st'
 
-/-- Breadth-first search for a shortest residual `s`-`t` augmenting path in `TimeM ℕ`. -/
-@[expose] def bfsM {n : ℕ} (N : Network (Fin n)) (adj : Fin n → List (Fin n))
-    (f : N.Flow) : TimeM ℕ (BfsResult f) := do
-  let ⟨baseTbl, hbase⟩ ← attachRet (replicateM n (none : Option (List (Fin n))))
+/-- Pure breadth-first search for a shortest residual `s`-`t` augmenting path. -/
+@[expose] def bfs {n : ℕ} (N : Network (Fin n)) (adj : Fin n → List (Fin n))
+    (f : N.Flow) : BfsResult f :=
   let initSt : BfsState f :=
-    { revPath := vset baseTbl N.s (some [N.s])
+    { revPath := vset (Vector.replicate n none) N.s (some [N.s])
       frontier := [N.s]
-      tblValid := tblValid_init f baseTbl (hbase.trans (replicateM_ret n none)) }
-  let finalSt ← bfsLoopM f adj (n - 1) initSt
+      tblValid := tblValid_init f }
+  let finalSt := bfsLoop f adj (n - 1) initSt
   match hget : vget finalSt.revPath N.t with
   | some rp_t =>
-    let ⟨p, hp⟩ ← attachRet (reverseM rp_t)
-    pure
-      { augPath := some p
-        augPath_valid := fun q hq => by
-          injection hq with hq_eq
-          subst hq_eq
-          rw [hp, reverseM_ret]
-          exact (finalSt.tblValid.walk N.t rp_t hget).isAugmentingPath
-        cut := ∅ }
+    { augPath := some rp_t.reverse
+      augPath_valid := fun q hq => by
+        injection hq with hq_eq
+        subst hq_eq
+        exact (finalSt.tblValid.walk N.t rp_t hget).isAugmentingPath
+      cut := ∅ }
   | none =>
-    let cut ← extractFinsetM fun v => (vget finalSt.revPath v).isSome
-    pure
-      { augPath := none
-        augPath_valid := fun _ h => nomatch h
-        cut := cut }
+    { augPath := none
+      augPath_valid := fun _ h => nomatch h
+      cut := Finset.univ.filter fun v => (vget finalSt.revPath v).isSome = true }
 
 private structure ValidRevPath {n : ℕ} {N : Network (Fin n)} (f : N.Flow) (v : Fin n)
     (rp : List (Fin n)) : Prop extends IsRevWalkTo f v rp where
@@ -917,28 +705,7 @@ private structure StepInv {n : ℕ} {N : Network (Fin n)} (f : N.Flow) (d : ℕ)
   valid_entry : ∀ w rp, vget st.revPath w = some rp →
     ValidRevPath f w rp ∧ f.resDist w < n ∧ f.resDist w ≤ d + 1
 
-private theorem scanNeighborsM_time {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
-    (u : Fin n) (rp_u : List (Fin n)) (hu_walk : IsRevWalkTo f u rp_u)
-    (vs : List (Fin n)) (st : BfsState f)
-    (hu_mem : ∀ x ∈ rp_u.reverse, (vget st.revPath x).isSome = true) :
-    (scanNeighborsM f u rp_u hu_walk vs st hu_mem).time = vs.length := by
-  time_spec scanNeighborsM
-
-private theorem expandLayerM_time_le {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
-    (adj : Fin n → List (Fin n)) (us : List (Fin n)) (st : BfsState f) :
-    (expandLayerM f adj us st).time ≤ (us.map fun u => 1 + (adj u).length).sum := by
-  induction us generalizing st with
-  | nil => simp [expandLayerM]
-  | cons u us' ih =>
-    simp only [expandLayerM, TimeM.time_bind, TimeM.time_tick, List.map_cons, List.sum_cons]
-    split
-    · have := ih st; simp only [TimeM.time_bind, TimeM.ret_pure, TimeM.time_pure]; omega
-    · rename_i rp_u hget
-      have := ih (scanNeighborsM f u rp_u (st.tblValid.walk u rp_u hget) (adj u) st
-        (st.tblValid.mem_isSome u rp_u hget)).ret
-      simp only [TimeM.time_bind, scanNeighborsM_time]; omega
-
-private theorem scanNeighborsM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Flow} {d : ℕ}
+private theorem scanNeighbors_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Flow} {d : ℕ}
     {baseTbl : Vector (Option (List (Fin n))) n}
     (hbase : ∀ v, (vget baseTbl v).isSome ↔ f.resDist v < n ∧ f.resDist v ≤ d)
     {u : Fin n} {rp_u : List (Fin n)} (hu_walk : IsRevWalkTo f u rp_u)
@@ -946,24 +713,22 @@ private theorem scanNeighborsM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.
     (vs : List (Fin n)) {st : BfsState f}
     (hu_mem : ∀ x ∈ rp_u.reverse, (vget st.revPath x).isSome = true)
     (hst : StepInv f d baseTbl st) :
-    StepInv f d baseTbl (scanNeighborsM f u rp_u hu_walk vs st hu_mem).ret ∧
+    StepInv f d baseTbl (scanNeighbors f u rp_u hu_walk vs st hu_mem) ∧
       (∀ w rp, vget st.revPath w = some rp →
-        vget (scanNeighborsM f u rp_u hu_walk vs st hu_mem).ret.revPath w = some rp) ∧
+        vget (scanNeighbors f u rp_u hu_walk vs st hu_mem).revPath w = some rp) ∧
       (∀ v ∈ vs, 0 < f.resCap u v →
-        (vget (scanNeighborsM f u rp_u hu_walk vs st hu_mem).ret.revPath v).isSome = true) := by
+        (vget (scanNeighbors f u rp_u hu_walk vs st hu_mem).revPath v).isSome = true) := by
   induction vs generalizing st with
   | nil => exact ⟨hst, fun _ _ h => h, by simp⟩
   | cons v vs' ih =>
-    simp only [scanNeighborsM, TimeM.ret_bind]
+    simp only [scanNeighbors]
     by_cases hcond : (0 < f.resCap u v && (vget st.revPath v).isNone) = true
     · simp only [hcond, ↓reduceDIte]
       obtain ⟨hpos', hnone⟩ := Bool.and_eq_true_iff.mp hcond
       have hpos : 0 < f.resCap u v := of_decide_eq_true hpos'
       have hnone_st : vget st.revPath v = none := Option.isNone_iff_eq_none.mp hnone
-      have hnone_base : vget baseTbl v = none := by
-        cases hb : vget baseTbl v with
-        | none => rfl
-        | some rp => exact absurd (hst.mono_base v rp hb) (by simp [hnone_st])
+      have hnone_base : vget baseTbl v = none := Option.eq_none_iff_forall_ne_some.mpr
+        fun rp hb => by simpa [hnone_st] using hst.mono_base v rp hb
       have hv_lt : f.resDist v < n := by
         have hu_r := (f.resDist_lt_card_iff_resReachable u).mp (by simpa [Fintype.card_fin])
         simpa [Fintype.card_fin] using (f.resDist_lt_card_iff_resReachable v).mpr (hu_r.tail hpos)
@@ -1012,16 +777,16 @@ private theorem scanNeighborsM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.
         simp [hmono' w rp_w hrp_w]
       · exact hcov' w hw' hres_w
 
-private theorem expandLayerM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
+private theorem expandLayer_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
     {adj : Fin n → List (Fin n)} {d : ℕ}
     {baseSt : BfsState f} (hinv : LayerInv f d baseSt)
     (us : List (Fin n)) (hus : ∀ u ∈ us, u ∈ baseSt.frontier)
     {st : BfsState f} (hst : StepInv f d baseSt.revPath st) :
-    StepInv f d baseSt.revPath (expandLayerM f adj us st).ret ∧
+    StepInv f d baseSt.revPath (expandLayer f adj us st) ∧
       (∀ w rp, vget st.revPath w = some rp →
-        vget (expandLayerM f adj us st).ret.revPath w = some rp) ∧
+        vget (expandLayer f adj us st).revPath w = some rp) ∧
       (∀ u ∈ us, ∀ v ∈ adj u, 0 < f.resCap u v →
-        (vget (expandLayerM f adj us st).ret.revPath v).isSome = true) := by
+        (vget (expandLayer f adj us st).revPath v).isSome = true) := by
   induction us generalizing st with
   | nil => exact ⟨hst, fun _ _ h => h, by simp⟩
   | cons u us' ih =>
@@ -1029,13 +794,13 @@ private theorem expandLayerM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Fl
     obtain ⟨rp_u, hrp_base⟩ := Option.isSome_iff_exists.mp
       ((hinv.isSome_iff u).mpr ⟨hu_lt, hu_dist.le⟩)
     have hrp_st := hst.mono_base u rp_u hrp_base
-    simp only [expandLayerM, TimeM.ret_bind]
+    simp only [expandLayer]
     split
     · simp_all
     · rename_i rp_u' hget
       obtain rfl : rp_u' = rp_u := Option.some.inj (hget.symm.trans hrp_st)
       obtain ⟨hst_mid, hmono_mid, hcov_u⟩ :=
-        scanNeighborsM_preserves hinv.isSome_iff (st.tblValid.walk u rp_u' hget)
+        scanNeighbors_preserves hinv.isSome_iff (st.tblValid.walk u rp_u' hget)
           (hinv.valid_revPath u rp_u' hrp_base) hu_lt hu_dist (adj u)
           (st.tblValid.mem_isSome u rp_u' hget) hst
       obtain ⟨hst_end, hmono_end, hcov_us⟩ :=
@@ -1049,8 +814,8 @@ private theorem expandLayerM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Fl
 private theorem layerInv_step {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
     {adj : Fin n → List (Fin n)} (hadj : AdjValid N adj) {d : ℕ}
     {baseSt : BfsState f} (hinv : LayerInv f d baseSt) :
-    let st := (expandLayerM f adj baseSt.frontier
-      { revPath := baseSt.revPath, frontier := [], tblValid := baseSt.tblValid }).ret
+    let st := expandLayer f adj baseSt.frontier
+      { revPath := baseSt.revPath, frontier := [], tblValid := baseSt.tblValid }
     LayerInv f (d + 1) st := by
   let st0 : BfsState f := ⟨baseSt.revPath, [], baseSt.tblValid⟩
   have hst0 : StepInv f d baseSt.revPath st0 :=
@@ -1058,9 +823,9 @@ private theorem layerInv_step {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
       fun w rp hw =>
         let ⟨hlt, _⟩ := (hinv.isSome_iff w).mp (by simp [st0] at hw; simp [hw])
         ⟨hinv.valid_revPath w rp hw, hlt, by omega⟩⟩
-  obtain ⟨hst, -, hcov⟩ := expandLayerM_preserves hinv baseSt.frontier (fun _ h => h) hst0
+  obtain ⟨hst, -, hcov⟩ := expandLayer_preserves hinv baseSt.frontier (fun _ h => h) hst0
   have hsome_iff (v : Fin n) :
-      (vget (expandLayerM f adj baseSt.frontier st0).ret.revPath v).isSome ↔
+      (vget (expandLayer f adj baseSt.frontier st0).revPath v).isSome ↔
         f.resDist v < n ∧ f.resDist v ≤ d + 1 := by
     refine ⟨fun hs => let ⟨rp, hrp⟩ := Option.isSome_iff_exists.mp hs
         let ⟨_, hlt, hle⟩ := hst.valid_entry v rp hrp; ⟨hlt, hle⟩,
@@ -1079,15 +844,11 @@ private theorem layerInv_step {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
     rw [← hinv.isSome_iff v]; cases vget baseSt.revPath v <;> simp
   rw [this]; omega
 
-private theorem layerInv_init {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
-    (baseTbl : Vector (Option (List (Fin n))) n)
-    (hbase : baseTbl = Vector.replicate n none)
-    (htbl : TblValid f (vset baseTbl N.s (some [N.s]))) :
+private theorem layerInv_init {n : ℕ} {N : Network (Fin n)} (f : N.Flow) :
     LayerInv f 0
-      { revPath := vset baseTbl N.s (some [N.s])
+      { revPath := vset (Vector.replicate n none) N.s (some [N.s])
         frontier := [N.s]
-        tblValid := htbl } := by
-  subst hbase
+        tblValid := tblValid_init f } := by
   have hn : 0 < n := Nat.zero_lt_of_lt N.s.isLt
   refine ⟨List.nodup_singleton N.s,
     fun v => ⟨by rintro h; rw [List.mem_singleton.mp h]; exact ⟨by simp [hn], f.resDist_source⟩,
@@ -1102,101 +863,44 @@ private theorem layerInv_init {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
       exact ⟨⟨List.nodup_singleton _, rfl, rfl, by simp⟩, by simp⟩
     · simp [vget_vset_ne _ _ hne.symm] at hget
 
-private theorem bfsLoopM_spec {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
+private theorem bfsLoop_spec {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
     {adj : Fin n → List (Fin n)} (hadj : AdjValid N adj) :
     ∀ (k d : ℕ) (st : BfsState f),
       LayerInv f d st →
-      LayerInv f (d + k) (bfsLoopM f adj k st).ret
-  | 0, _, st, hinv => by simpa [bfsLoopM] using hinv
+      LayerInv f (d + k) (bfsLoop f adj k st)
+  | 0, _, st, hinv => by simpa [bfsLoop] using hinv
   | k + 1, d, st, hinv => by
-    simp only [bfsLoopM, TimeM.ret_bind]
+    simp only [bfsLoop]
     simpa [Nat.add_right_comm, Nat.add_assoc] using
-      bfsLoopM_spec hadj k (d + 1) _ (layerInv_step hadj hinv)
+      bfsLoop_spec hadj k (d + 1) _ (layerInv_step hadj hinv)
 
-private theorem bfsLoopM_time_le_sum {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
-    {adj : Fin n → List (Fin n)} (hadj : AdjValid N adj) :
-    ∀ (k d : ℕ) (st : BfsState f),
-      LayerInv f d st →
-      (bfsLoopM f adj k st).time ≤
-        ∑ i ∈ Finset.range k,
-          ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = d + i),
-            (1 + (adj u).length)
-  | 0, _, _, _ => by simp [bfsLoopM]
-  | k + 1, d, st, hinv => by
-    simp only [bfsLoopM, TimeM.time_bind]
-    have hexp := expandLayerM_time_le f adj st.frontier
-      { revPath := st.revPath, frontier := [], tblValid := st.tblValid }
-    have hfront : (st.frontier.map fun u => 1 + (adj u).length).sum ≤
-        ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = d), (1 + (adj u).length) := by
-      rw [← List.sum_toFinset _ hinv.frontier_nodup]
-      exact Finset.sum_le_sum_of_subset fun u hu => Finset.mem_filter.mpr
-        ⟨Finset.mem_univ _, ((hinv.mem_frontier u).mp (List.mem_toFinset.mp hu)).2⟩
-    have hrec := bfsLoopM_time_le_sum hadj k (d + 1) _ (layerInv_step hadj hinv)
-    rw [Finset.sum_range_succ']
-    have hshift :
-        (∑ i ∈ Finset.range k,
-            ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = d + (i + 1)),
-              (1 + (adj u).length)) =
-          ∑ i ∈ Finset.range k,
-            ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = d + 1 + i),
-              (1 + (adj u).length) :=
-      Finset.sum_congr rfl fun i _ => by simp only [Nat.add_assoc, Nat.add_comm i 1]
-    rw [hshift]
-    simp only [Nat.add_zero]
-    omega
-
-private theorem sum_range_filter_resDist_le {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
-    (g : Fin n → ℕ) (k : ℕ) :
-    (∑ i ∈ Finset.range k,
-        ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = i), g u) ≤
-      ∑ u : Fin n, g u := by
-  rw [← Finset.sum_biUnion fun i _ j _ hne => Finset.disjoint_left.mpr fun u hi hj =>
-    hne ((Finset.mem_filter.mp hi).2.symm.trans (Finset.mem_filter.mp hj).2)]
-  exact Finset.sum_le_sum_of_subset (Finset.subset_univ _)
-
-private theorem bfsM_loop_inv {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
-    (hadj : AdjValid N adj) (f : N.Flow) :
-    let baseTbl := (replicateM n (none : Option (List (Fin n)))).ret
-    let initSt : BfsState f :=
-      { revPath := vset baseTbl N.s (some [N.s])
-        frontier := [N.s]
-        tblValid := tblValid_init f baseTbl (rfl.trans (replicateM_ret n none)) }
-    LayerInv f (n - 1) (bfsLoopM f adj (n - 1) initSt).ret ∧
-      (bfsLoopM f adj (n - 1) initSt).time ≤ n + adjSteps adj := by
-  intro baseTbl initSt
-  have hinit := layerInv_init f baseTbl (replicateM_ret n none) initSt.tblValid
-  refine ⟨by simpa using bfsLoopM_spec hadj (n - 1) 0 initSt hinit, ?_⟩
-  have hsum := bfsLoopM_time_le_sum hadj (n - 1) 0 initSt hinit
-  simp only [Nat.zero_add] at hsum
-  have hub := sum_range_filter_resDist_le f (fun u => 1 + (adj u).length) (n - 1)
-  have htot : (∑ u : Fin n, (1 + (adj u).length)) = n + adjSteps adj := by
-    simp [Finset.sum_add_distrib, adjSteps]
-  omega
-
-/-- Specification of `bfsM`: when `augPath = some p`, `p` is a shortest residual `s`-`t`
+/-- Specification of `bfs`: when `augPath = some p`, `p` is a shortest residual `s`-`t`
 augmenting path of length at most `n`; when `augPath = none`, `f` has no augmenting path and
 `cut = f.reachableCut`. -/
-theorem bfsM_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
+theorem bfs_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
     (hadj : AdjValid N adj) (f : N.Flow) :
-    (∀ p, (bfsM N adj f).ret.augPath = some p →
+    (∀ p, (bfs N adj f).augPath = some p →
       f.IsShortestAugmentingPath p ∧ p.length ≤ n) ∧
-    ((bfsM N adj f).ret.augPath = none →
-      (¬ ∃ p, f.IsAugmentingPath p) ∧ (bfsM N adj f).ret.cut = f.reachableCut) := by
-  have hinv := (bfsM_loop_inv hadj f).1
-  unfold bfsM
-  simp only [TimeM.ret_bind]
-  dsimp only [attachRet]
+    ((bfs N adj f).augPath = none →
+      (¬ ∃ p, f.IsAugmentingPath p) ∧ (bfs N adj f).cut = f.reachableCut) := by
+  let initSt : BfsState f :=
+    { revPath := vset (Vector.replicate n none) N.s (some [N.s])
+      frontier := [N.s]
+      tblValid := tblValid_init f }
+  have hinv : LayerInv f (n - 1) (bfsLoop f adj (n - 1) initSt) := by
+    simpa using bfsLoop_spec hadj (n - 1) 0 initSt (layerInv_init f)
+  dsimp only [initSt] at hinv
+  unfold bfs
+  dsimp only
   split
   · rename_i rp_t hget
-    simp only [TimeM.ret_bind, reverseM_ret, TimeM.ret_pure, Option.some.injEq,
-      reduceCtorEq, false_implies, and_true]
+    simp only [Option.some.injEq, reduceCtorEq, false_implies, and_true]
     rintro p rfl
     have hv := hinv.valid_revPath N.t rp_t hget
     exact ⟨⟨hv.toIsRevWalkTo.isAugmentingPath, hv.length_eq⟩,
       by simpa [Fintype.card_fin] using hv.nodup.length_le_card⟩
   · rename_i hget
-    simp only [TimeM.ret_bind, extractFinsetM_ret, TimeM.ret_pure, reduceCtorEq, false_implies,
-      implies_true, true_and]
+    simp only [reduceCtorEq, false_implies, implies_true, true_and]
     refine fun _ => ⟨fun hex => ?_, ?_⟩
     · have hlt : f.resDist N.t < n := by
         simpa [Fintype.card_fin] using (f.resDist_lt_card_iff_resReachable N.t).mpr
@@ -1207,28 +911,6 @@ theorem bfsM_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, f.mem_reachableCut_iff,
         ← f.resDist_lt_card_iff_resReachable, Fintype.card_fin, hinv.isSome_iff v]
       omega
-
-/-- Every `bfsM` call charges at least `n` ticks (table initialization). -/
-theorem n_le_bfsM_time {n : ℕ} (N : Network (Fin n)) (adj : Fin n → List (Fin n)) (f : N.Flow) :
-    n ≤ (bfsM N adj f).time := by
-  time_spec bfsM
-
-/-- Each `bfsM` call takes at most `adjSteps adj + 3 * n` charged `TimeM` ticks. -/
-theorem bfsM_time_le {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
-    (hadj : AdjValid N adj) (f : N.Flow) :
-    (bfsM N adj f).time ≤ adjSteps adj + 3 * n := by
-  obtain ⟨hinv, hloop_le⟩ := bfsM_loop_inv hadj f
-  unfold bfsM
-  simp only [TimeM.time_bind, attachRet_time, replicateM_time]
-  dsimp only [attachRet]
-  split
-  · rename_i rp_t hget
-    simp only [TimeM.time_bind, reverseM_time, TimeM.time_pure]
-    have hlen : rp_t.length ≤ n := by
-      simpa [Fintype.card_fin] using (hinv.valid_revPath N.t rp_t hget).nodup.length_le_card
-    omega
-  · simp only [TimeM.time_bind, extractFinsetM_time, TimeM.time_pure]
-    omega
 
 /-! #### Explicit `n × n` `FlowMatrix` and arc-by-arc bottleneck augmentation -/
 
@@ -1252,57 +934,38 @@ structure FlowMatrix {n : ℕ} (N : Network (Fin n)) where
 theorem FlowMatrix.toFlow_apply {n : ℕ} {N : Network (Fin n)} (M : FlowMatrix N) (u v : Fin n) :
     M.toFlow u v = fget M.mat u v := rfl
 
-/-- Allocate the all-zero `FlowMatrix N` in `2 * n` `TimeM` ticks. -/
-@[expose] def initFlowMatrixM {n : ℕ} (N : Network (Fin n)) : TimeM ℕ (FlowMatrix N) := do
-  let ⟨row, hrow⟩ ← attachRet (replicateM n (0 : ℕ))
-  let ⟨mat, hmat⟩ ← attachRet (replicateM n row)
-  pure
-    { mat := mat
-      le_cap := fun u v => by
-        rw [hmat, replicateM_ret, hrow, replicateM_ret]
-        simp [fget]
-      conserve := fun v _ _ => by
-        rw [hmat, replicateM_ret, hrow, replicateM_ret]
-        simp [fget] }
+/-- The all-zero `FlowMatrix N`. -/
+@[expose] def initFlowMatrix {n : ℕ} (N : Network (Fin n)) : FlowMatrix N where
+  mat := Vector.replicate n (Vector.replicate n 0)
+  le_cap u v := by simp [fget]
+  conserve v _ _ := by simp [fget]
 
 @[simp]
-theorem initFlowMatrixM_toFlow {n : ℕ} (N : Network (Fin n)) :
-    (initFlowMatrixM N).ret.toFlow = Network.Flow.zero N := by
+theorem initFlowMatrix_toFlow {n : ℕ} (N : Network (Fin n)) :
+    (initFlowMatrix N).toFlow = Network.Flow.zero N := by
   ext u v
-  simp [initFlowMatrixM, fget]
+  simp [initFlowMatrix, fget]
 
-@[simp, time_simps]
-theorem initFlowMatrixM_time {n : ℕ} (N : Network (Fin n)) :
-    (initFlowMatrixM N).time = 2 * n := by
-  time_spec initFlowMatrixM
-
-/-- Push `δ` units along directed arcs `es` in `mat`, charging `1` tick per arc. -/
-@[expose] def updateArcsMatM {n : ℕ} (δ : ℕ) :
-    List (Fin n × Fin n) → Vector (Vector ℕ n) n → TimeM ℕ (Vector (Vector ℕ n) n)
-  | [], mat => pure mat
-  | (a, b) :: es, mat => do
-    ✓
+/-- Push `δ` units along directed arcs `es` in `mat`. -/
+@[expose] def updateArcsMat {n : ℕ} (δ : ℕ) :
+    List (Fin n × Fin n) → Vector (Vector ℕ n) n → Vector (Vector ℕ n) n
+  | [], mat => mat
+  | (a, b) :: es, mat =>
     let cancel := min δ (fget mat b a)
     let mat₁ := fset mat b a (fget mat b a - cancel)
     let mat₂ := fset mat₁ a b (fget mat a b + (δ - cancel))
-    updateArcsMatM δ es mat₂
+    updateArcsMat δ es mat₂
 
-@[simp, time_simps]
-theorem updateArcsMatM_time {n : ℕ} (δ : ℕ) (es : List (Fin n × Fin n))
-    (mat : Vector (Vector ℕ n) n) :
-    (updateArcsMatM δ es mat).time = es.length := by
-  time_spec updateArcsMatM
-
-private theorem fget_updateArcsMatM_ret {n : ℕ} (δ : ℕ) {es : List (Fin n × Fin n)}
+private theorem fget_updateArcsMat {n : ℕ} (δ : ℕ) {es : List (Fin n × Fin n)}
     (hnodup : es.Nodup) (hloopless : ∀ e ∈ es, e.1 ≠ e.2)
     (hnoswap : ∀ u v, (u, v) ∈ es → (v, u) ∉ es)
     (mat : Vector (Vector ℕ n) n) (u v : Fin n) :
-    fget (updateArcsMatM δ es mat).ret u v =
+    fget (updateArcsMat δ es mat) u v =
       if (u, v) ∈ es then fget mat u v + (δ - min δ (fget mat v u))
       else if (v, u) ∈ es then fget mat u v - min δ (fget mat u v)
       else fget mat u v := by
   induction es generalizing mat with
-  | nil => simp [updateArcsMatM]
+  | nil => simp [updateArcsMat]
   | cons e es' ih =>
     rcases e with ⟨a, b⟩
     obtain ⟨hab_not, hnodup'⟩ := List.nodup_cons.mp hnodup
@@ -1323,7 +986,7 @@ private theorem fget_updateArcsMatM_ret {n : ℕ} (δ : ℕ) {es : List (Fin n �
         · have hba : (b, a) ≠ (x, y) := fun h => by
             rcases Prod.mk.inj h with ⟨rfl, rfl⟩; exact hyx rfl
           simp [hxy, hyx, mat₂, mat₁, fget_fset_ne _ _ hxy.symm, fget_fset_ne _ _ hba]
-    simp only [updateArcsMatM, TimeM.ret_bind]
+    simp only [updateArcsMat]
     rw [ih hnodup' (fun _ h => hloopless _ (List.mem_cons_of_mem _ h))
       (fun x y h₁ h₂ => hnoswap x y (List.mem_cons_of_mem _ h₁) (List.mem_cons_of_mem _ h₂)) mat₂]
     by_cases huv : (u, v) ∈ es'
@@ -1339,42 +1002,33 @@ private theorem fget_updateArcsMatM_ret {n : ℕ} (δ : ℕ) {es : List (Fin n �
           ↓reduceIte, hstep, h₁]
       · simp only [huv, hvu, ↓reduceIte, hstep, List.mem_cons, or_false]
 
-/-- Compute `δ ← bottleneckM M.toFlow p` (`(pathArcs p).length` ticks) and update `M` arc-by-arc
-along `pathArcs p` using `δ` (`(pathArcs p).length` ticks). -/
-@[expose] def augmentFlowMatrixM {n : ℕ} {N : Network (Fin n)} (M : FlowMatrix N)
-    (p : List (Fin n)) (hp : M.toFlow.IsAugmentingPath p) : TimeM ℕ (FlowMatrix N) := do
-  let ⟨δ, hδ⟩ ← attachRet (bottleneckM M.toFlow p)
-  let ⟨mat', hmat'⟩ ← attachRet (updateArcsMatM δ (pathArcs p) M.mat)
+/-- Augment `M` along the augmenting path `p` by its bottleneck `M.toFlow.bottleneck p`. -/
+@[expose] def augmentFlowMatrix {n : ℕ} {N : Network (Fin n)} (M : FlowMatrix N)
+    (p : List (Fin n)) (hp : M.toFlow.IsAugmentingPath p) : FlowMatrix N :=
+  let δ := M.toFlow.bottleneck p
+  let mat' := updateArcsMat δ (pathArcs p) M.mat
   have hfun : ∀ u v, fget mat' u v = (M.toFlow.augmentByBottleneck p hp) u v := fun u v => by
-    rw [hmat', fget_updateArcsMatM_ret δ (nodup_pathArcs hp.nodup)
+    rw [fget_updateArcsMat δ (nodup_pathArcs hp.nodup)
       (fun e he => ne_of_mem_pathArcs hp.nodup he)
-      (fun a b hab => not_swap_mem_pathArcs hp.nodup hab), hδ, bottleneckM_ret]
+      (fun a b hab => not_swap_mem_pathArcs hp.nodup hab)]
     rfl
-  pure
-    { mat := mat'
-      le_cap := fun u v => by
-        rw [hfun u v]
-        exact (M.toFlow.augmentByBottleneck p hp).le_cap u v
-      conserve := fun v hvs hvt => by
-        simp only [hfun]
-        exact (M.toFlow.augmentByBottleneck p hp).conserve v hvs hvt }
+  { mat := mat'
+    le_cap := fun u v => by
+      rw [hfun u v]
+      exact (M.toFlow.augmentByBottleneck p hp).le_cap u v
+    conserve := fun v hvs hvt => by
+      simp only [hfun]
+      exact (M.toFlow.augmentByBottleneck p hp).conserve v hvs hvt }
 
 @[simp]
-theorem augmentFlowMatrixM_toFlow {n : ℕ} {N : Network (Fin n)} (M : FlowMatrix N)
+theorem augmentFlowMatrix_toFlow {n : ℕ} {N : Network (Fin n)} (M : FlowMatrix N)
     (p : List (Fin n)) (hp : M.toFlow.IsAugmentingPath p) :
-    (augmentFlowMatrixM M p hp).ret.toFlow = M.toFlow.augmentByBottleneck p hp := by
+    (augmentFlowMatrix M p hp).toFlow = M.toFlow.augmentByBottleneck p hp := by
   ext u v
-  simp only [augmentFlowMatrixM, TimeM.ret_bind, attachRet_val, bottleneckM_ret, TimeM.ret_pure,
-    FlowMatrix.toFlow_apply]
-  exact fget_updateArcsMatM_ret (M.toFlow.bottleneck p) (nodup_pathArcs hp.nodup)
+  simp only [augmentFlowMatrix, FlowMatrix.toFlow_apply]
+  exact fget_updateArcsMat (M.toFlow.bottleneck p) (nodup_pathArcs hp.nodup)
     (fun e he => ne_of_mem_pathArcs hp.nodup he)
     (fun a b hab => not_swap_mem_pathArcs hp.nodup hab) M.mat u v
-
-@[simp, time_simps]
-theorem augmentFlowMatrixM_time {n : ℕ} {N : Network (Fin n)} (M : FlowMatrix N)
-    (p : List (Fin n)) (hp : M.toFlow.IsAugmentingPath p) :
-    (augmentFlowMatrixM M p hp).time = 2 * (pathArcs p).length := by
-  time_spec augmentFlowMatrixM
 
 /-- Output of the Edmonds–Karp algorithm on `N : Network (Fin n)`. -/
 structure Output {n : ℕ} (N : Network (Fin n)) where
@@ -1390,38 +1044,36 @@ on `N` ([CLRS2009], Theorem 26.8, p. 729). -/
 def maxAugmentations {n : ℕ} (N : Network (Fin n)) : ℕ :=
   N.symArcs.card * (n / 2)
 
-/-- Bounded-fuel Edmonds–Karp loop over `FlowMatrix N`: runs `bfsM` and augments along shortest
-paths while `fuel` remains, finishing with one certifying `bfsM` search when `fuel = 0` or
+/-- Bounded-fuel Edmonds–Karp loop over `FlowMatrix N`: runs `bfs` and augments along shortest
+paths while `fuel` remains, finishing with one certifying `bfs` search when `fuel = 0` or
 `augPath = none`. -/
-@[expose] def edmondsKarpLoopM {n : ℕ} (N : Network (Fin n)) (adj : Fin n → List (Fin n)) :
-    ℕ → FlowMatrix N → ℕ → TimeM ℕ (Output N)
-  | 0, M, k => do
-    let res ← bfsM N adj M.toFlow
-    pure { flow := M.toFlow, cut := res.cut, augmentations := k }
-  | fuel + 1, M, k => do
-    let res ← bfsM N adj M.toFlow
+@[expose] def edmondsKarpLoop {n : ℕ} (N : Network (Fin n)) (adj : Fin n → List (Fin n)) :
+    ℕ → FlowMatrix N → ℕ → Output N
+  | 0, M, k =>
+    let res := bfs N adj M.toFlow
+    { flow := M.toFlow, cut := res.cut, augmentations := k }
+  | fuel + 1, M, k =>
+    let res := bfs N adj M.toFlow
     match haug : res.augPath with
-    | none => pure { flow := M.toFlow, cut := res.cut, augmentations := k }
+    | none => { flow := M.toFlow, cut := res.cut, augmentations := k }
     | some p =>
-      let M' ← augmentFlowMatrixM M p (res.augPath_valid p haug)
-      edmondsKarpLoopM N adj fuel M' (k + 1)
+      let M' := augmentFlowMatrix M p (res.augPath_valid p haug)
+      edmondsKarpLoop N adj fuel M' (k + 1)
 
 /-- Execute the **Edmonds–Karp shortest-augmenting-path algorithm** on `N : Network (Fin n)` using
-candidate neighbor lists `adj` in `TimeM ℕ`. -/
-@[expose] def edmondsKarpM {n : ℕ} (N : Network (Fin n))
-    (adj : Fin n → List (Fin n)) : TimeM ℕ (Output N) := do
-  let M₀ ← initFlowMatrixM N
-  ✓
+candidate neighbor lists `adj`. -/
+@[expose] def edmondsKarp {n : ℕ} (N : Network (Fin n))
+    (adj : Fin n → List (Fin n)) : Output N :=
+  let M₀ := initFlowMatrix N
   if N.s = N.t then
-    pure { flow := M₀.toFlow, cut := ∅, augmentations := 0 }
+    { flow := M₀.toFlow, cut := ∅, augmentations := 0 }
   else
-    let m ← countAdjM adj
-    edmondsKarpLoopM N adj (m * (n / 2)) M₀ 0
+    edmondsKarpLoop N adj (adjSteps adj * (n / 2)) M₀ 0
 
-/-- Dense specialization of `edmondsKarpM` using `defaultAdj n` (`List.finRange n` at every
+/-- Dense specialization of `edmondsKarp` using `defaultAdj n` (`List.finRange n` at every
 vertex), requiring no external adjacency structure. -/
-@[expose] def edmondsKarpDenseM {n : ℕ} (N : Network (Fin n)) : TimeM ℕ (Output N) :=
-  edmondsKarpM N (defaultAdj n)
+@[expose] def edmondsKarpDense {n : ℕ} (N : Network (Fin n)) : Output N :=
+  edmondsKarp N (defaultAdj n)
 
 private theorem isShortestAugmentingSeq_snoc {V : Type*} [Fintype V] [DecidableEq V] {N : Network V}
     {k : ℕ} {flows : ℕ → N.Flow} {paths : ℕ → List V}
@@ -1436,165 +1088,98 @@ private theorem isShortestAugmentingSeq_snoc {V : Type*} [Fintype V] [DecidableE
     simp only [le_rfl, lt_self_iff_false, show ¬ t + 1 ≤ t by omega, ↓reduceIte]
     exact ⟨hp, trivial⟩
 
-private theorem edmondsKarpLoopM_stop {n : ℕ} {N : Network (Fin n)}
+private theorem edmondsKarpLoop_stop {n : ℕ} {N : Network (Fin n)}
     {adj : Fin n → List (Fin n)} (hadj : AdjValid N adj) (hst : N.s ≠ N.t)
     {k : ℕ} {M : FlowMatrix N} {flows : ℕ → N.Flow} {paths : ℕ → List (Fin n)}
     (hseq : N.IsShortestAugmentingSeq k flows paths)
-    (hnone : (bfsM N adj M.toFlow).ret.augPath = none) :
+    (hnone : (bfs N adj M.toFlow).augPath = none) :
     (¬ ∃ p, M.toFlow.IsAugmentingPath p) ∧
-      (bfsM N adj M.toFlow).ret.cut = M.toFlow.reachableCut ∧
+      (bfs N adj M.toFlow).cut = M.toFlow.reachableCut ∧
       k ≤ maxAugmentations N ∧
-      k ≤ n * N.posArcs.card ∧
-      (bfsM N adj M.toFlow).time ≤ (maxAugmentations N - k + 1) * (adjSteps adj + 5 * n) := by
-  obtain ⟨hno, hcut⟩ := (bfsM_spec hadj M.toFlow).2 hnone
-  refine ⟨hno, hcut,
+      k ≤ n * N.posArcs.card := by
+  obtain ⟨hno, hcut⟩ := (bfs_spec hadj M.toFlow).2 hnone
+  exact ⟨hno, hcut,
     by simpa [maxAugmentations, Fintype.card_fin] using N.shortestAugmentingSeq_length_le hst hseq,
-    by simpa [Fintype.card_fin] using N.shortestAugmentingSeq_length_le_card_mul_posArcs hst hseq,
-    (bfsM_time_le hadj M.toFlow).trans
-      ((by omega : adjSteps adj + 3 * n ≤ 1 * (adjSteps adj + 5 * n)).trans
-        (Nat.mul_le_mul_right _ (by omega)))⟩
+    by simpa [Fintype.card_fin] using N.shortestAugmentingSeq_length_le_card_mul_posArcs hst hseq⟩
 
-private theorem edmondsKarpLoopM_spec {n : ℕ} {N : Network (Fin n)}
+private theorem edmondsKarpLoop_spec {n : ℕ} {N : Network (Fin n)}
     {adj : Fin n → List (Fin n)} (hadj : AdjValid N adj) (hst : N.s ≠ N.t) :
     ∀ (fuel k : ℕ) (M : FlowMatrix N) (flows : ℕ → N.Flow) (paths : ℕ → List (Fin n)),
       maxAugmentations N ≤ fuel + k →
       N.IsShortestAugmentingSeq k flows paths →
       flows k = M.toFlow →
-      let call := edmondsKarpLoopM N adj fuel M k
-      (¬ ∃ p, call.ret.flow.IsAugmentingPath p) ∧
-        call.ret.cut = call.ret.flow.reachableCut ∧
-        call.ret.augmentations ≤ maxAugmentations N ∧
-        call.ret.augmentations ≤ n * N.posArcs.card ∧
-        call.time ≤ (maxAugmentations N - k + 1) * (adjSteps adj + 5 * n)
+      let call := edmondsKarpLoop N adj fuel M k
+      (¬ ∃ p, call.flow.IsAugmentingPath p) ∧
+        call.cut = call.flow.reachableCut ∧
+        call.augmentations ≤ maxAugmentations N ∧
+        call.augmentations ≤ n * N.posArcs.card
   | 0, k, M, flows, paths, hfuel, hseq, hfk => by
-    simp only [edmondsKarpLoopM, time_simps]
-    rcases haug : (bfsM N adj M.toFlow).ret.augPath with _ | p
-    · simpa using edmondsKarpLoopM_stop hadj hst hseq haug
+    simp only [edmondsKarpLoop]
+    rcases haug : (bfs N adj M.toFlow).augPath with _ | p
+    · exact edmondsKarpLoop_stop hadj hst hseq haug
     · have hlen' : k + 1 ≤ maxAugmentations N := by
         simpa [maxAugmentations, Fintype.card_fin] using N.shortestAugmentingSeq_length_le hst
-          (isShortestAugmentingSeq_snoc hseq (hfk ▸ ((bfsM_spec hadj M.toFlow).1 p haug).1))
+          (isShortestAugmentingSeq_snoc hseq (hfk ▸ ((bfs_spec hadj M.toFlow).1 p haug).1))
       omega
   | fuel + 1, k, M, flows, paths, hfuel, hseq, hfk => by
-    simp only [edmondsKarpLoopM, time_simps]
+    simp only [edmondsKarpLoop]
     split
     · rename_i haug
-      simpa [TimeM.ret_pure, TimeM.time_pure] using edmondsKarpLoopM_stop hadj hst hseq haug
+      exact edmondsKarpLoop_stop hadj hst hseq haug
     · rename_i p haug
-      simp only [time_simps]
-      obtain ⟨hshort, hplen⟩ := (bfsM_spec hadj M.toFlow).1 p haug
-      have hbfs_t := bfsM_time_le hadj M.toFlow
-      have hp := (bfsM N adj M.toFlow).ret.augPath_valid p haug
+      obtain ⟨hshort, _⟩ := (bfs_spec hadj M.toFlow).1 p haug
+      have hp := (bfs N adj M.toFlow).augPath_valid p haug
       have hseq' := isShortestAugmentingSeq_snoc hseq (hfk ▸ hshort)
-      have hlen' : k + 1 ≤ maxAugmentations N := by
-        simpa [maxAugmentations, Fintype.card_fin] using N.shortestAugmentingSeq_length_le hst hseq'
       have hfk' :
           (if k + 1 ≤ k then flows (k + 1)
            else (flows k).augmentByBottleneck p (hfk ▸ hshort).isAugmentingPath) =
-            (augmentFlowMatrixM M p hp).ret.toFlow := by
-        simp only [show ¬ k + 1 ≤ k by omega, ↓reduceIte, augmentFlowMatrixM_toFlow]
+            (augmentFlowMatrix M p hp).toFlow := by
+        simp only [show ¬ k + 1 ≤ k by omega, ↓reduceIte, augmentFlowMatrix_toFlow]
         ext u v
         change (flows k).augmentFun p ((flows k).bottleneck p) u v =
           M.toFlow.augmentFun p (M.toFlow.bottleneck p) u v
         rw [hfk]
-      obtain ⟨hno, hcut, hk_sym, hk_pos, hrec_t⟩ :=
-        edmondsKarpLoopM_spec hadj hst fuel (k + 1) _ _ _ (by omega) hseq' hfk'
-      have harc_len := length_pathArcs_add_one (show p ≠ [] by intro h; simpa [h] using hp.head?)
-      have hmul : (maxAugmentations N - k + 1) * (adjSteps adj + 5 * n) =
-          (adjSteps adj + 5 * n) + (maxAugmentations N - (k + 1) + 1) * (adjSteps adj + 5 * n) := by
-        rw [show maxAugmentations N - k + 1 = 1 + (maxAugmentations N - (k + 1) + 1) by omega,
-          Nat.add_mul, Nat.one_mul]
-      exact ⟨hno, hcut, hk_sym, hk_pos, by omega⟩
-
-/-- `edmondsKarpLoopM_spec` for the call made by `edmondsKarpM`: zero flow, no augmentations yet
-and `adjSteps adj * (n / 2)` fuel. Shared by `edmondsKarpM_correct` and `edmondsKarpM_time_le`. -/
-private theorem edmondsKarpLoopM_spec_init {n : ℕ} {N : Network (Fin n)}
-    {adj : Fin n → List (Fin n)} (hadj : AdjValid N adj) (hst : N.s ≠ N.t) :
-    let call := edmondsKarpLoopM N adj (adjSteps adj * (n / 2)) (initFlowMatrixM N).ret 0
-    (¬ ∃ p, call.ret.flow.IsAugmentingPath p) ∧
-      call.ret.cut = call.ret.flow.reachableCut ∧
-      call.ret.augmentations ≤ maxAugmentations N ∧
-      call.ret.augmentations ≤ n * N.posArcs.card ∧
-      call.time ≤ (maxAugmentations N + 1) * (adjSteps adj + 5 * n) := by
-  refine edmondsKarpLoopM_spec hadj hst _ 0 _ (fun _ => Network.Flow.zero N) (fun _ => [])
-    ?_ (fun _ ht => absurd ht (Nat.not_lt_zero _)) (initFlowMatrixM_toFlow N).symm
-  simp only [maxAugmentations, Nat.add_zero]
-  exact Nat.mul_le_mul_right _ (card_symArcs_le_adjSteps hadj)
+      exact edmondsKarpLoop_spec hadj hst fuel (k + 1) _ _ _ (by omega) hseq' hfk'
 
 /-- **Edmonds–Karp correctness theorem** ([EdmondsKarp1972], Theorem 1, p. 251; [CLRS2009],
 Theorems 26.6 & 26.8, pp. 723, 729): on any integral network `N : Network (Fin n)` with `N.s ≠ N.t`
-and valid candidate neighbor lists `adj`, `edmondsKarpM N adj` returns an integral maximum flow
+and valid candidate neighbor lists `adj`, `edmondsKarp N adj` returns an integral maximum flow
 `out.flow` and minimum `s`-`t` cut `out.cut = out.flow.reachableCut` with
 `out.flow.value = N.cutCapacity out.cut` in at most `N.symArcs.card * (n / 2)` (and at most
 `n * N.posArcs.card`) augmentations. -/
-theorem edmondsKarpM_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
+theorem edmondsKarp_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
     (hadj : AdjValid N adj) (hst : N.s ≠ N.t) :
-    let out := (edmondsKarpM N adj).ret
+    let out := edmondsKarp N adj
     out.flow.IsMaxFlow ∧
       N.IsMinCut out.cut ∧
       out.flow.value = (N.cutCapacity out.cut : ℤ) ∧
       out.cut = out.flow.reachableCut ∧
       out.augmentations ≤ N.symArcs.card * (n / 2) ∧
       out.augmentations ≤ n * N.posArcs.card := by
-  simp only [edmondsKarpM, TimeM.ret_bind, hst, ↓reduceIte, countAdjM_ret]
-  obtain ⟨hno, hcut_eq, haug_sym, haug_pos, _⟩ := edmondsKarpLoopM_spec_init hadj hst
+  simp only [edmondsKarp, hst, ↓reduceIte]
+  obtain ⟨hno, hcut_eq, haug_sym, haug_pos⟩ :=
+    edmondsKarpLoop_spec hadj hst (adjSteps adj * (n / 2)) 0 (initFlowMatrix N)
+      (fun _ => Network.Flow.zero N) (fun _ => [])
+      (by
+        simp only [maxAugmentations, Nat.add_zero]
+        exact Nat.mul_le_mul_right _ (card_symArcs_le_adjSteps hadj))
+      (fun _ ht => absurd ht (Nat.not_lt_zero _)) (initFlowMatrix_toFlow N).symm
   have hval := Network.Flow.value_eq_cutCapacity_reachableCut _ hno
   have hmin := Network.Flow.isMinCut_of_value_eq_cutCapacity _
     (Network.Flow.reachableCut_isCut _ hno) hval
   exact ⟨(Network.Flow.isMaxFlow_iff_not_exists_augmentingPath _ hst).mpr hno,
     hcut_eq ▸ hmin, hcut_eq ▸ hval, hcut_eq, haug_sym, haug_pos⟩
 
-/-- **Edmonds–Karp `TimeM` complexity bound** ([EdmondsKarp1972], Theorem 1, p. 251; [CLRS2009],
-Theorem 26.8, p. 729): `edmondsKarpM N adj` terminates in at most
-`(N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n)` charged ticks (`O(|V| |E|^2)` when
-`adjSteps adj = O(|E|)` and `|V| = O(|E|)`).
-
-**Limitations / cost model:** each charged tick treats `Vector` indexing/update (`FlowMatrix`),
-`Finset.insert`, `ℕ` arithmetic, and `N.cap u v` evaluation as unit-cost primitives; persistent
-`Vector` copy-on-write and bit-level arithmetic costs are not modeled. -/
-theorem edmondsKarpM_time_le {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
-    (hadj : AdjValid N adj) :
-    (edmondsKarpM N adj).time ≤ (N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n) := by
-  have hn : 0 < n := Nat.zero_lt_of_lt N.s.isLt
-  simp only [edmondsKarpM, time_simps]
-  by_cases hst : N.s = N.t
-  · simp only [hst, ↓reduceIte, TimeM.time_pure]
-    exact (by omega : 2 * n + (1 + 0) ≤ 2 * (adjSteps adj + 5 * n)).trans
-      (Nat.mul_le_mul_right _ (by omega))
-  · simp only [hst, ↓reduceIte, TimeM.time_bind, countAdjM_time, countAdjM_ret]
-    obtain ⟨_, _, _, _, hloop_t⟩ := edmondsKarpLoopM_spec_init hadj hst
-    have hmul : (N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n) =
-        (adjSteps adj + 5 * n) + (N.symArcs.card * (n / 2) + 1) * (adjSteps adj + 5 * n) := by
-      rw [show N.symArcs.card * (n / 2) + 2 = 1 + (N.symArcs.card * (n / 2) + 1) by omega,
-        Nat.add_mul, Nat.one_mul]
-    simp only [maxAugmentations] at hloop_t; omega
-
-/-- Sparse `posArcs` corollary of `edmondsKarpM_time_le`: `edmondsKarpM N adj` takes at most
-`(n * N.posArcs.card + 2) * (adjSteps adj + 5 * n)` charged ticks. -/
-theorem edmondsKarpM_time_le_posArcs {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
-    (hadj : AdjValid N adj) :
-    (edmondsKarpM N adj).time ≤ (n * N.posArcs.card + 2) * (adjSteps adj + 5 * n) :=
-  (edmondsKarpM_time_le hadj).trans
-    (Nat.mul_le_mul_right _ (Nat.add_le_add_right (N.card_symArcs_mul_half_le n) 2))
-
-/-- Correctness of `edmondsKarpDenseM` without external adjacency obligations. -/
-theorem edmondsKarpDenseM_correct {n : ℕ} {N : Network (Fin n)} (hst : N.s ≠ N.t) :
-    let out := (edmondsKarpDenseM N).ret
+/-- Correctness of `edmondsKarpDense` without external adjacency obligations. -/
+theorem edmondsKarpDense_correct {n : ℕ} {N : Network (Fin n)} (hst : N.s ≠ N.t) :
+    let out := edmondsKarpDense N
     out.flow.IsMaxFlow ∧
       N.IsMinCut out.cut ∧
       out.flow.value = (N.cutCapacity out.cut : ℤ) ∧
       out.cut = out.flow.reachableCut ∧
       out.augmentations ≤ N.symArcs.card * (n / 2) ∧
       out.augmentations ≤ n * N.posArcs.card :=
-  edmondsKarpM_correct (adjValid_defaultAdj N) hst
-
-/-- Polynomial `O(n^5)` `TimeM` step bound for `edmondsKarpDenseM` under the same unit-cost
-`Vector`, `Finset.insert`, `ℕ`, and `N.cap` primitive model as `edmondsKarpM_time_le`. -/
-theorem edmondsKarpDenseM_time_le {n : ℕ} (N : Network (Fin n)) :
-    (edmondsKarpDenseM N).time ≤ (n * n * (n / 2) + 2) * (n * n + 5 * n) := by
-  have h1 := edmondsKarpM_time_le (adjValid_defaultAdj N)
-  rw [adjSteps_defaultAdj] at h1
-  have hsq : N.symArcs.card ≤ n * n := by simpa [Fintype.card_fin] using N.card_symArcs_le_card_sq
-  exact h1.trans (Nat.mul_le_mul_right _ (Nat.add_le_add_right (Nat.mul_le_mul_right _ hsq) 2))
+  edmondsKarp_correct (adjValid_defaultAdj N) hst
 
 end ExecutableFin
 

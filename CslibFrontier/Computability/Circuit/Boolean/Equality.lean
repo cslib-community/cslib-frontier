@@ -62,12 +62,8 @@ def equalBits {n : ℕ} : {k : ℕ} → (Fin k → Fin n) → (Fin k → Fin n) 
         x (left 0) = x (right 0) := by
       cases x (left 0) <;> cases x (right 0) <;> simp
     rw [head]
-    constructor
-    · rintro ⟨hzero, htail⟩
-      funext i
-      exact Fin.cases hzero (fun j => congrFun htail j) i
-    · intro h
-      exact ⟨congrFun h 0, funext fun j => congrFun h j.succ⟩
+    exact ⟨fun ⟨hzero, htail⟩ => funext (Fin.cases hzero (congrFun htail)),
+      fun h => ⟨congrFun h 0, funext fun j => congrFun h j.succ⟩⟩
 
 /-- Each coordinate uses three AND gates, two negations and one OR, after one true constant. -/
 theorem cost_equalBits {n k : ℕ} (left right : Fin k → Fin n) (cost : signature.Op → ℕ) :

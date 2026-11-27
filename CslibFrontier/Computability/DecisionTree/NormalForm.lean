@@ -76,9 +76,7 @@ private theorem eval_lookup {p : Term ι} {i : ι} {b : Bool} (h : p.lookup i = 
     · subst hji
       simp only [BEq.rfl, Option.some.injEq] at h
       simpa [h] using hx.1
-    · have hne : (i == j) = false := by simpa using hji
-      rw [hne] at h
-      exact ih h hx.2
+    · exact ih (by simpa [beq_eq_false_iff_ne.2 hji] using h) hx.2
 
 private theorem eval_toDNFAux (t : DecisionTree ι Bool) (p : Term ι) (x : ι → Bool) :
     DNF.eval x (toDNFAux t p) = (p.eval x && t.eval x) := by
@@ -111,22 +109,19 @@ private theorem mem_toDNFAux {t : DecisionTree ι Bool} {p q : Term ι} (hq : q 
   | node i t₀ t₁ ih₀ ih₁ =>
     simp only [toDNFAux] at hq
     split at hq
-    · obtain ⟨h₁, h₂⟩ := ih₁ hq
-      exact ⟨h₁.trans (by simp only [depth_node]; omega), h₂⟩
-    · obtain ⟨h₁, h₂⟩ := ih₀ hq
-      exact ⟨h₁.trans (by simp only [depth_node]; omega), h₂⟩
+    · exact (ih₁ hq).imp_left fun h₁ => h₁.trans (by simp only [depth_node]; omega)
+    · exact (ih₀ hq).imp_left fun h₁ => h₁.trans (by simp only [depth_node]; omega)
     · rename_i hnone
       have hi : i ∉ p.map Prod.fst := fun hi => by
         obtain ⟨⟨j, c⟩, hj, rfl⟩ := List.mem_map.1 hi
-        rw [List.lookup_eq_none_iff] at hnone
-        simpa using hnone _ hj
+        simpa using List.lookup_eq_none_iff.1 hnone _ hj
       rcases List.mem_append.1 hq with hq | hq
       · obtain ⟨h₁, h₂⟩ := ih₀ hq
-        refine ⟨h₁.trans (by simp only [List.length_cons, depth_node]; omega), fun hp => h₂ ?_⟩
-        exact List.nodup_cons.2 ⟨hi, hp⟩
+        exact ⟨h₁.trans (by simp only [List.length_cons, depth_node]; omega),
+          fun hp => h₂ (List.nodup_cons.2 ⟨hi, hp⟩)⟩
       · obtain ⟨h₁, h₂⟩ := ih₁ hq
-        refine ⟨h₁.trans (by simp only [List.length_cons, depth_node]; omega), fun hp => h₂ ?_⟩
-        exact List.nodup_cons.2 ⟨hi, hp⟩
+        exact ⟨h₁.trans (by simp only [List.length_cons, depth_node]; omega),
+          fun hp => h₂ (List.nodup_cons.2 ⟨hi, hp⟩)⟩
 
 /-- The terms of the normal form of a tree have at most `depth` literals. -/
 theorem length_le_depth_of_mem_toDNF {t : DecisionTree ι Bool} {q : Term ι} (hq : q ∈ t.toDNF) :

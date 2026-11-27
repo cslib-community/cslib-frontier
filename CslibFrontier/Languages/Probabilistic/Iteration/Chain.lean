@@ -15,8 +15,8 @@ public import CslibFrontier.Languages.Probabilistic.Iteration
 A bounded loop `OracleComp.iterate count step initial` that is run with a probabilistic stateful
 handler, or evaluated as a closed program, has the law of the `count`-step chain
 `Nat.iterate (fun dist => dist.bind next) count (PMF.pure start)`. In this form, two loops can be
-compared one step at a time with `Probability.PMF.map_iterate_bind_of_invariant` and
-`Probability.PMF.iterate_bind_comm_of_invariant`.
+compared one step at a time with `Probability.PMF.RepInv.iterate` and
+`Probability.PMF.HiddenCoupling.iterate`.
 
 ## Main results
 

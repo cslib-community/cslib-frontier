@@ -89,8 +89,8 @@ example : ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (x₀ : Fin N �
     TwoLocal C →
     (∀ x, C.run (glue e x x₀) =
       ket (glue e (boolMulVec (robustBijectiveMatrix n) x) x₀)) →
-      (7 / 2 - 1 / 100 : ℝ) * n < twoQubitCount C :=
-  eventually_lt_twoQubitCount_linear_twoLocal_two_fifths (ε := 1 / 100) (by norm_num)
+      (4 - 1 / 100 : ℝ) * n < twoQubitCount C :=
+  eventually_lt_twoQubitCount_linear_twoLocal (ε := 1 / 100) (by norm_num)
 
 example : ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool)
     (C : Circuit N), AllBondRankTwo C →
@@ -111,5 +111,30 @@ example : ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (q_out : Fin N)
       else quantumAcceptProb C q_out e x₀ x < θ) →
       (144699 / 100000 - 1 / 100 : ℝ) * n < twoQubitCount C :=
   eventually_lt_twoQubitCount_uqp_hardForm_144699 (ε := 1 / 100) (by norm_num)
+
+/-! The general two-qubit clients exercise thresholds strictly above the old `A₄ = 2 / 5`
+bounds, using only the public quantum API. -/
+
+example : ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop,
+    ∀ (N : ℕ) (e : Fin n ↪ Fin N) (q_out : Fin N) (x₀ : Fin N → Bool) (C : Circuit N),
+      TwoLocal C → (twoQubitCount C : ℝ) ≤ (87 / 50) * n →
+        |quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀)| ≤
+          (2 : ℝ) ^ (-γ * n) := by
+  convert eventually_abs_quantumCorrelation_hardForm_le_twoLocal
+    (ε := 1 / 100) (by norm_num) using 1; norm_num
+
+example : ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (q_out : Fin N) (x₀ : Fin N → Bool)
+    (θ : ℝ) (C : Circuit N), TwoLocal C →
+    (∀ x, if hardForm n x then θ < quantumAcceptProb C q_out e x₀ x
+      else quantumAcceptProb C q_out e x₀ x < θ) →
+      (273 / 200 : ℝ) * n < twoQubitCount C := by
+  convert eventually_lt_twoQubitCount_uqp_hardForm_twoLocal
+    (ε := 1 / 100) (by norm_num) using 1; norm_num
+
+example : ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool)
+    (C : Circuit N), TwoLocal C → (twoQubitCount C : ℝ) ≤ (249 / 100) * n →
+      ‖inner ℂ (phaseState (hardMatrix n) e x₀) (C.run x₀)‖ ^ 2 ≤ (2 : ℝ) ^ (-γ * n) := by
+  convert eventually_fidelity_phaseState_hardMatrix_le_twoLocal
+    (ε := 1 / 100) (by norm_num) using 1; norm_num
 
 end CslibFrontierTests.FrontierQuantum

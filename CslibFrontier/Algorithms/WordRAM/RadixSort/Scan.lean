@@ -124,12 +124,8 @@ theorem exec {w s d b t : ℕ} (xs acc : List ℕ) (x : Data 16)
       simp only [select, List.filter_cons, List.filter_nil, decide_eq_true_eq]
       split_ifs <;> simp only [List.append_assoc, List.append_nil]
     have hjne (j : Fin 16) (hj : j.val ≤ 6) :
-        j ≠ idx ∧ j ≠ out ∧ j ≠ addr ∧ j ≠ value ∧ j ≠ keyDigit :=
-      ⟨Fin.ne_of_val_ne (by change j.val ≠ 7; omega),
-       Fin.ne_of_val_ne (by change j.val ≠ 8; omega),
-       Fin.ne_of_val_ne (by change j.val ≠ 9; omega),
-       Fin.ne_of_val_ne (by change j.val ≠ 10; omega),
-       Fin.ne_of_val_ne (by change j.val ≠ 11; omega)⟩
+        j ≠ idx ∧ j ≠ out ∧ j ≠ addr ∧ j ≠ value ∧ j ≠ keyDigit := by
+      refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> rintro rfl <;> exact absurd hj (by decide)
     apply WP.exists_execWithin
     unfold body
     by_cases heq : digit b xs[y.regs idx] = t
@@ -145,11 +141,9 @@ theorem exec {w s d b t : ℕ} (xs acc : List ℕ) (x : Data 16)
         wram_simp; exact hr j hj
       · rcases hdisj with h | h <;> ram_keep hm
       · intro a hnot
-        have hne : a ≠ d + (selected (y.regs idx)).length := by
-          intro heqa
-          exact hnot (Block.mem_footprint.mpr (by dsimp only [Block.Owns]; omega))
-        rw [Function.update_of_ne hne]
-        exact hf a hnot
+        have hne : a ≠ d + (selected (y.regs idx)).length := fun heqa =>
+          hnot (Block.mem_footprint.mpr (by dsimp only [Block.Owns]; omega))
+        exact (Function.update_of_ne hne ..).trans (hf a hnot)
     · have hdig : (xs[y.regs idx] >>> b) % 2 ≠ t := by rwa [← digit_eq_shift]
       wram_exec * [hread]
       wram_simp * [P, hsuc, heq, List.append_nil]

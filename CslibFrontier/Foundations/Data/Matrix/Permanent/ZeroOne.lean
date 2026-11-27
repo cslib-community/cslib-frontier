@@ -58,10 +58,7 @@ theorem card_filter_isPermMatrix (r : Fin n → Fin n → Prop) [∀ i j, Decida
     refine ⟨fun i => ⟨σ i, rfl⟩, fun i j k hj hk => hj ▸ hk, fun i k j hi hk => ?_,
       fun i j h => h ▸ hσ i⟩
     exact σ.injective (hi.trans hk.symm)
-  · ext i
-    have := congrFun (congrFun h i) (σ i)
-    simp only [decide_true] at this
-    exact congrArg Fin.val (of_decide_eq_true this.symm).symm
+  · exact Equiv.ext fun i => by simpa [eq_comm] using congrFun (congrFun h i) (σ i)
   · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hM
     obtain ⟨hrow, huniq, hcol, hsupp⟩ := hM
     choose f hf using hrow
@@ -72,13 +69,9 @@ theorem card_filter_isPermMatrix (r : Fin n → Fin n → Prop) [∀ i j, Decida
       exact fun i => hsupp i (f i) (hf i)
     funext i j
     change decide (f i = j) = M i j
-    by_cases h : M i j = true
-    · rw [h, decide_eq_true_iff]
-      exact huniq i (f i) j (hf i) h
-    · rw [Bool.not_eq_true] at h
-      rw [h, decide_eq_false_iff_not]
-      rintro rfl
-      exact absurd (hf i) (by simp [h])
+    cases h : M i j
+    · exact decide_eq_false fun hfj => by simp [← hfj, hf i] at h
+    · exact decide_eq_true (huniq i (f i) j (hf i) h)
 
 end
 

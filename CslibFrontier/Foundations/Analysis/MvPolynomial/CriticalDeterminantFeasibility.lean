@@ -62,13 +62,11 @@ private theorem criticalRootLabel_inputs_bounds {n ell b : ℕ} (hell : 2 ≤ el
       using Nat.succ_le_of_lt hD)
   refine ⟨hqD, ?_, (coeffNorm1_valuePolynomial_at_pow_two_le hell F hF hb _).trans
     (Nat.pow_le_pow_right (by decide) (le_max_left _ _))⟩
-  have hx : (Polynomial.X : ℤ[X]).coeffNorm1 = 1 := by
-    simpa only [mul_one, Polynomial.coeffNorm1_one] using Polynomial.coeffNorm1_X_mul 1
   have hR : ((2 : ℤ) ^ (H + 1)).natAbs = 2 ^ (H + 1) := by
     rw [Int.natAbs_pow]
     rfl
   apply (Polynomial.coeffNorm1_sub_le _ _).trans
-  rw [Polynomial.coeffNorm1_C, hx, hR]
+  rw [Polynomial.coeffNorm1_C, Polynomial.coeffNorm1_X, hR]
   refine le_trans ?_ (Nat.pow_le_pow_right (by decide) (le_max_right _ _))
   rw [show H + 2 = (H + 1) + 1 by rfl, pow_succ]
   have := Nat.one_le_two_pow (n := H + 1)
@@ -96,7 +94,7 @@ theorem criticalShiftedRootLabel_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
     let D := ell ^ n
     let N := n * ell.size
     let B := criticalRootLabelCoeffNormExponent n ell b
-    let s := Polynomial.sparseRootLabelPrecision D B
+    let s := Polynomial.derivativeRootLabelPrecision D B
     let g := criticalShiftedRootLabel (by omega) b F hF L e
     g.natDegree ≤ Polynomial.signLabelDegreeBound (N + 1) s D ∧
       g.coeffNorm1 ≤ 2 ^ (Polynomial.signLabelNormExponent (N + 1) s
@@ -115,7 +113,8 @@ theorem criticalShiftedRootLabel_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
   let D := ell ^ n
   let N := n * ell.size
   let B := criticalRootLabelCoeffNormExponent n ell b
-  Polynomial.signLabelDegreeBound (N + 1) (Polynomial.sparseRootLabelPrecision D B) D * (ell + 1)
+  let s := Polynomial.derivativeRootLabelPrecision D B
+  Polynomial.signLabelDegreeBound (N + 1) s D * (ell + 1)
 
 /-- Binary coefficient-norm budget for the shifted label evaluated at the integer critical
 objective. -/
@@ -123,7 +122,7 @@ objective. -/
   let D := ell ^ n
   let N := n * ell.size
   let B := criticalRootLabelCoeffNormExponent n ell b
-  let s := Polynomial.sparseRootLabelPrecision D B
+  let s := Polynomial.derivativeRootLabelPrecision D B
   let d := Polynomial.signLabelDegreeBound (N + 1) s D
   let k := Polynomial.signLabelNormExponent (N + 1) s
     (Polynomial.iterateDerivativeNormExponent D B) + N + 3

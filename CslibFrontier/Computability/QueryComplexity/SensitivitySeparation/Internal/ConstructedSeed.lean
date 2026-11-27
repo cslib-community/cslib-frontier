@@ -49,10 +49,7 @@ namespace Internal
 /-- For `0 < M`, the number of labels `Nat.ceil (Real.sqrt M)` is positive. -/
 theorem construction_label_count_pos {M : ℕ} (hM : 0 < M) :
     0 < Nat.ceil (Real.sqrt (M : ℝ)) :=
-  Nat.pos_of_ne_zero fun he => by
-    have h := le_ceil_sqrt_sq M
-    rw [he, zero_pow two_ne_zero] at h
-    omega
+  Nat.ceil_pos.mpr (Real.sqrt_pos.mpr (Nat.cast_pos.mpr hM))
 
 /-- For `1 ≤ d` and `9 ^ (d + 1) ≤ M` there is a nonconstant Boolean function `f` on
 `constructionDimension d M (Nat.ceil (Real.sqrt M)) > 0` variables with
@@ -67,15 +64,13 @@ theorem exists_constructed_seed (d M : ℕ) (hd : 1 ≤ d) (hM : 9 ^ (d + 1) ≤
   have h81 := parameter_ge_eighty_one hd hM
   have hMp : 0 < M := by omega
   have hr := construction_label_count_pos hMp
-  obtain ⟨A⟩ := regular_goodLabeling_exists (show 3 ≤ M by omega)
+  obtain ⟨A⟩ := regular_goodLabeling_exists (Nat.le_trans (by decide) h81)
   let f := finalWitness d (regularCyclicTournament M) A
-  have hs := finalWitness_sensitivity d (regularCyclicTournament M) A hMp hr
-    (parameter_epsilon_budget hd hM)
   have hb := finalWitness_blockSensitivity d (regularCyclicTournament M) A hr
   have hbp : 0 < M ^ 2 * (2 * M ^ 2 + 1) ^ d := by positivity
-  have hnc := nonconstant_of_blockSensitivityAt_pos f (fun _ => false) (hbp.trans_le hb)
-  exact ⟨f, constructionDimension_pos hMp hr,
-    finalWitness_zero d (regularCyclicTournament M) A hr, hnc, hs, hb⟩
+  exact ⟨f, constructionDimension_pos hMp hr, finalWitness_zero d _ A hr,
+    nonconstant_of_blockSensitivityAt_pos f _ (hbp.trans_le hb),
+    finalWitness_sensitivity d _ A hMp hr (parameter_epsilon_budget hd hM), hb⟩
 
 end Internal
 

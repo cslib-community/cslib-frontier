@@ -109,12 +109,12 @@ noncomputable def CommitmentScheme.hidingForKey {Key : Type}
     (S : CommitmentScheme Key) (k : Key)
     (adversary : Encryption.WordAdversary) (bit : Bool) (n : ℕ) : Game := do
   let choice ← ProbComp.eval (adversary.choose n (S.encodeKey k))
-  let msgs := choice.1
+  let ⟨⟨m₀, m₁⟩, st⟩ := choice
   let msg := open Classical in
-    if bit ∧ S.ValidMessage k msgs.1 ∧ S.ValidMessage k msgs.2 then msgs.2
-    else msgs.1
+    if bit ∧ S.ValidMessage k m₀ ∧ S.ValidMessage k m₁ then m₁
+    else m₀
   let co ← S.commitDist k msg
-  ProbComp.eval (adversary.guess n choice.2 co.1)
+  ProbComp.eval (adversary.guess n st co.1)
 
 /-- If the commitment-string marginal `(S.commitDist k msg).map Prod.fst` is independent of the
 message word, then `S.hidingForKey k` produces the exact same output distribution for any two hidden
@@ -187,12 +187,10 @@ theorem CommitmentScheme.StatisticalHiding.computationalHiding {Key : Type}
 openings `(m₀, o₀)` and `(m₁, o₁)` are accepted by `S.verify k` for the commitment string `c`. -/
 def CommitmentScheme.isBindingCollision {Key : Type} (S : CommitmentScheme Key) (k : Key)
     (out : List Bool × (List Bool × List Bool) × (List Bool × List Bool)) : Bool :=
-  let openings := out.2
-  let open₀ := openings.1
-  let open₁ := openings.2
-  decide (open₀.1 ≠ open₁.1) &&
-    S.verify k open₀.1 out.1 open₀.2 &&
-    S.verify k open₁.1 out.1 open₁.2
+  let ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩ := out
+  decide (m₀ ≠ m₁) &&
+    S.verify k m₀ c o₀ &&
+    S.verify k m₁ c o₁
 
 /-- The commitment binding experiment ([BonehShoup2023], Section 8.12, p. 344, and
 Definition 8.8): draw `k ← keyDist n`, give `S.encodeKey k` to `adversary`, and accept when the

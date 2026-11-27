@@ -83,18 +83,14 @@ theorem not_adj_reverse {i j : Fin k} (h : T.Adj i j) : ¬ T.Adj j i :=
 
 /-- Distinct vertices are joined by an edge in at least one of the two directions. -/
 theorem adj_or_reverse {i j : Fin k} (h : i ≠ j) : T.Adj i j ∨ T.Adj j i := by
-  by_cases hh : T.Adj j i
-  · exact Or.inr hh
-  · exact Or.inl ((T.edge_compl h).mpr hh)
+  exact or_iff_not_imp_right.mpr (T.edge_compl h).mpr
 
 /-- Two vertices of a set `I`, neither having an outgoing edge into `I`, are equal. -/
 theorem internal_sink_unique {I : Finset (Fin k)} {i j : Fin k}
     (hi : i ∈ I) (hj : j ∈ I)
     (hsi : ∀ v ∈ I, ¬ T.Adj i v) (hsj : ∀ v ∈ I, ¬ T.Adj j v) : i = j := by
   by_contra h
-  rcases T.adj_or_reverse h with hh | hh
-  · exact hsi j hj hh
-  · exact hsj i hi hh
+  exact (T.adj_or_reverse h).elim (hsi j hj) (hsj i hi)
 
 end Tournament
 
@@ -106,7 +102,7 @@ variable {k r : ℕ} {T : Tournament k} (A : GoodLabeling T r)
 theorem good_implies_card_lt_sixteen (I : Finset (Fin k)) (m : Fin k → Fin r)
     (h : ∀ i ∈ I, ∀ j ∈ I, T.Adj i j → A.label i j = m j) : I.card < 16 := by
   by_contra hn
-  obtain ⟨J, hJI, hJ⟩ := Finset.exists_subset_card_eq (show 16 ≤ I.card by omega)
+  obtain ⟨J, hJI, hJ⟩ := Finset.exists_subset_card_eq (Nat.le_of_not_lt hn)
   obtain ⟨i, hi, j, hj, hij, hne⟩ := A.good J hJ m
   exact hne (h i (hJI hi) j (hJI hj) hij)
 

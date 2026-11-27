@@ -9,14 +9,18 @@ module
 
 public import CslibFrontier.Algorithms.Lean.DFS.TopologicalSort
 public import CslibFrontier.Algorithms.Lean.DFS.Dominance
+public import CslibFrontier.Algorithms.WordRAM.DFS
+public meta import CslibFrontier.Algorithms.WordRAM.DFS
+meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 /-!
 # Depth-first search and topological sort: worked examples
 
 Kernel-checked examples (no `native_decide`) of depth-first search and topological sort: a DAG
-with its topological order and exact tick count, a cyclic graph and a self-loop, on which
-topological sort is not a topological order, reachability from a single root, and the edgeless
-graph.
+with its topological order, a cyclic graph and a self-loop, on which topological sort is not a
+topological order, reachability from a single root, and the standard-basis word-RAM topological
+sort `Cslib.Algorithms.WordRAM.DFS.topoProgram` on the CSR encoding, including the edgeless graph,
+the empty graph, a self-loop and parallel arcs.
 -/
 
 public section
@@ -24,6 +28,7 @@ public section
 namespace CslibFrontierTests.DFS
 
 open Cslib.Algorithms.Lean.DFS
+open Cslib.WordRAM
 
 /-! ### A DAG -/
 
@@ -56,13 +61,6 @@ example : ¬ IsTopologicalOrder diamond [0, 1, 3, 2] := fun h => by
 /-- The diamond is acyclic, witnessed by an explicit topological order. -/
 example : Relation.Acyclic (Edge diamond) :=
   acyclic_iff_exists_isTopologicalOrder.2 ⟨[0, 1, 2, 3], by decide, by decide, by decide⟩
-
-/-- Four vertices and four edges: eight ticks. -/
-example : (topologicalSortM diamond (List.finRange 4)).time = 8 := by
-  rw [time_topologicalSortM List.mem_finRange]
-  decide
-
-example : (topologicalSortM diamond (List.finRange 4)).time = 8 := by decide +kernel
 
 /-! ### Cyclic graphs -/
 
@@ -110,12 +108,47 @@ example : (0 : Fin 4) ∉ (dfs diamond 4 [1]).visited := by
       · simp [Edge, diamond] at he
   simpa using key 0 h
 
-/-! ### The edgeless graph -/
+/-! ### Word-RAM topological sort on the CSR encoding -/
 
-/-- With no edges, the cost is the number of roots. -/
-example (n : ℕ) : (topologicalSortM (fun _ : Fin n => ([] : List (Fin n))) (List.finRange n)).time =
-    n := by
-  rw [time_topologicalSortM List.mem_finRange]
-  simp
+private meta def runTopo (G : Cslib.Algorithms.WordRAM.DFS.Graph) (w : ℕ) :
+    Option (List ℕ × Bool) :=
+  (Cslib.Algorithms.WordRAM.DFS.topoCode.eval w w (Data.init G.encodeCSR)).map fun (y, t) =>
+    (outputList y.mem (y.regs Cslib.Algorithms.WordRAM.DFS.Reg.outReg),
+      decide (t < 128 * (G.n + G.m + 1)))
+
+/-- The diamond as a CSR graph: `4` vertices and `4` arcs. -/
+abbrev diamondG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨4, diamond⟩
+
+example : diamondG.encodeCSR = [4, 4, 0, 2, 3, 4, 4, 1, 2, 3, 3] := by decide +kernel
+
+example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.topoProgram
+    (State.init diamondG.encodeCSR) [0, 2, 1, 3] n ∧ n ≤ 128 * (4 + 4 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_topoProgram diamondG 16
+    (by decide +kernel) (diamondG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.topoWords diamondG = [0, 2, 1, 3] := by decide +kernel
+  have hm : diamondG.m = 4 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- The triangle, a self-loop, parallel arcs `0 ⇉ 1`, the edgeless graph on three vertices, and
+the empty graph. -/
+abbrev triangleG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨3, triangle⟩
+abbrev selfLoopG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨1, selfLoop⟩
+abbrev parallelG : Cslib.Algorithms.WordRAM.DFS.Graph :=
+  ⟨2, fun v => if v = 0 then [1, 1] else []⟩
+abbrev edgelessG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨3, fun _ => []⟩
+abbrev emptyG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨0, fun v => v.elim0⟩
+
+/-- info: some ([0, 2, 1, 3], true) -/
+#guard_msgs in
+#eval runTopo diamondG 16
+
+/-- info: (some ([0, 1, 2], true), some ([0], true), some ([0, 1], true)) -/
+#guard_msgs in
+#eval (runTopo triangleG 16, runTopo selfLoopG 16, runTopo parallelG 16)
+
+/-- info: (some ([2, 1, 0], true), some ([], true)) -/
+#guard_msgs in
+#eval (runTopo edgelessG 16, runTopo emptyG 16)
 
 end CslibFrontierTests.DFS

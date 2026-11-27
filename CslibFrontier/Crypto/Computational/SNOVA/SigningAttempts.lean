@@ -84,12 +84,8 @@ theorem mem_signingAttemptCounters_iff (counter : Fin 256) :
     fin_index [i]
 
 /-- SNOVA's attempted counter bytes occur in strictly increasing order. -/
-theorem pairwise_lt_signingAttemptCounters : signingAttemptCounters.Pairwise (· < ·) := by
-  dsimp only [signingAttemptCounters]
-  apply (List.pairwise_lt_finRange 254).map
-  intro a b hab
-  change a.val + 1 < b.val + 1
-  omega
+theorem pairwise_lt_signingAttemptCounters : signingAttemptCounters.Pairwise (· < ·) :=
+  (List.pairwise_lt_finRange 254).map _ fun _ _ hab => Nat.add_lt_add_right hab 1
 
 /-- SNOVA's attempted counter bytes contain no duplicates. -/
 theorem nodup_signingAttemptCounters : signingAttemptCounters.Nodup :=
@@ -97,14 +93,12 @@ theorem nodup_signingAttemptCounters : signingAttemptCounters.Nodup :=
 
 /-- The first attempted counter byte is `1`. -/
 theorem first_signingAttemptCounter :
-    signingAttemptCounters[0]'(by simp) = (1 : Fin 256) := by
-  apply Fin.ext
-  exact getElem_signingAttemptCounters 0 (by simp)
+    signingAttemptCounters[0]'(by simp) = (1 : Fin 256) :=
+  Fin.ext (getElem_signingAttemptCounters 0 (by simp))
 
 /-- The last attempted counter byte is `254`. -/
 theorem last_signingAttemptCounter :
-    signingAttemptCounters[253]'(by simp) = (254 : Fin 256) := by
-  apply Fin.ext
-  exact getElem_signingAttemptCounters 253 (by simp)
+    signingAttemptCounters[253]'(by simp) = (254 : Fin 256) :=
+  Fin.ext (getElem_signingAttemptCounters 253 (by simp))
 
 end Cslib.Crypto.SNOVA

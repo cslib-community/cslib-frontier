@@ -132,41 +132,29 @@ theorem eval_game_modLeveledAdversary_eq_map_coins (E : Scheme)
           else Encryption.ChoiceOut.msg₀ chosen) encSeed) guessSeed
   have hchoiceReplay (target) (htarget : target ∈ (ProbComp.eval (E.keyGen n)).support) :
       ProbComp.eval ((modLeveledAdversary E coins depth capacity adversary).choose n target.1) =
-        (BitString.uniformList choiceBudget).map (chooseReplay target.1) := by
-    apply eval_modLeveledAdversary_choose_eq_map_coins E adversary coins depth capacity
-      evaluateKey evaluateZero n (keyCoins n)
-        (depth n * keyCoins n + (depth n * capacity n * encCoins n + chooseCoins n)) target.1 hkey
-    · exact eval_zeroLinkAdversary_choose_eq_map_coins E adversary depth evaluateKey evaluateEncrypt
-        evaluateChoose n (capacity n) pkBound (encCoins n) (keyCoins n) (chooseCoins n)
-          target.1 (hkeys target htarget).1 hkey hkeys hencrypt
-          (fun artifact hbound => (hchoose artifact hbound).1)
-    · omega
+        (BitString.uniformList choiceBudget).map (chooseReplay target.1) :=
+    eval_modLeveledAdversary_choose_eq_map_coins E adversary coins depth capacity evaluateKey
+      evaluateZero n (keyCoins n)
+      (depth n * keyCoins n + (depth n * capacity n * encCoins n + chooseCoins n)) target.1 hkey
+      (eval_zeroLinkAdversary_choose_eq_map_coins E adversary depth evaluateKey evaluateEncrypt
+        evaluateChoose n (capacity n) pkBound (encCoins n) (keyCoins n) (chooseCoins n) target.1
+        (hkeys target htarget).1 hkey hkeys hencrypt fun artifact hb => (hchoose artifact hb).1)
+      (by omega)
   simp only [Encryption.game, Encryption.gameOn, ↓reduceIte, ProbComp.eval_bind]
-  trans (ProbComp.eval (E.keyGen n)).bind (fun target =>
-    (BitString.uniformList choiceBudget).bind (fun choiceSeed =>
-      (BitString.uniformList (encCoins n)).bind (fun encSeed =>
+  trans (ProbComp.eval (E.keyGen n)).bind fun target =>
+    (BitString.uniformList choiceBudget).bind fun choiceSeed =>
+      (BitString.uniformList (encCoins n)).bind fun encSeed =>
         (BitString.uniformList guessBudget).map
-          (finish target (chooseReplay target.1 choiceSeed) encSeed))))
-  · apply PMF.bind_congr_on_support
-    intro target htarget
-    trans (ProbComp.eval ((modLeveledAdversary E coins depth capacity adversary).choose n
-      target.1)).bind (fun chosen =>
-        (ProbComp.eval (E.encrypt n target.1 (if bit then Encryption.ChoiceOut.msg₁ chosen
-          else Encryption.ChoiceOut.msg₀ chosen))).bind (fun challenge =>
-            (BitString.uniformList guessBudget).map
-              (modLeveledGuessCoins evaluateChoose evaluateEncrypt evaluateGuess n (capacity n)
-                (encCoins n) (chooseCoins n) (guessCoins n) chosen.2 challenge)))
-    · apply PMF.bind_congr_on_support
-      intro chosen hchosen
-      apply PMF.bind_congr_on_support
-      intro challenge hchallenge
-      exact eval_modLeveledAdversary_guess_eq_map_coins E adversary coins depth capacity
-        evaluateChoose evaluateEncrypt evaluateGuess n pkBound (encCoins n) (chooseCoins n)
+          (finish target (chooseReplay target.1 choiceSeed) encSeed)
+  · refine PMF.bind_congr_on_support _ _ _ fun target htarget => ?_
+    have hpk := (hkeys target htarget).1
+    refine (PMF.bind_congr_on_support _ _ _ fun chosen hchosen =>
+      PMF.bind_congr_on_support _ _ _ fun challenge hchallenge =>
+        eval_modLeveledAdversary_guess_eq_map_coins E adversary coins depth capacity
+          evaluateChoose evaluateEncrypt evaluateGuess n pkBound (encCoins n) (chooseCoins n)
           (guessCoins n) target chosen challenge hkeys htarget hchosen
-          ((hencrypt target.1 (hkeys target htarget).1 _).2 challenge hchallenge)
-          hencrypt hchoose hguess
-    rw [hchoiceReplay target htarget, PMF.bind_map]
-    simp only [(hencrypt target.1 (hkeys target htarget).1 _).1, PMF.bind_map]
+          ((hencrypt target.1 hpk _).2 challenge hchallenge) hencrypt hchoose hguess).trans ?_
+    simp only [hchoiceReplay target htarget, (hencrypt target.1 hpk _).1, PMF.bind_map]
     rfl
   rw [hkey, PMF.bind_map]
   dsimp only [Function.comp_def]
@@ -175,11 +163,8 @@ theorem eval_game_modLeveledAdversary_eq_map_coins (E : Scheme)
       finish (evaluateKey n keys) (chooseReplay (evaluateKey n keys).1 (rest.take choiceBudget))
         ((rest.drop choiceBudget).take (encCoins n))
         ((rest.drop choiceBudget).drop (encCoins n))
-  · congr 1 with keys : 1
-    exact (BitString.uniformList_map_split3 _ _ _ _).symm
-  · unfold modLeveledGameCoinBudget modLeveledGameCoins
-    dsimp only [choiceBudget, guessBudget, evaluateZero, chooseReplay, finish]
-    exact (BitString.uniformList_map_split _ _ _).symm
+  · exact congrArg _ (funext fun _ => (BitString.uniformList_map_split3 _ _ _ _).symm)
+  · exact (BitString.uniformList_map_split _ _ _).symm
 
 /-- The complete replay is native polynomial time in the unary parameter and complete tape,
 for either fixed challenge world. This does not assert a multiplicative runtime ratio to the
@@ -192,11 +177,11 @@ adversary's running time. -/
     (hkey : ComputableInPolyTime (fun (n, tape) => evaluateKey n tape)
       (encPair encUnary encBits) (encPair encBits encBits))
     (hencrypt : ComputableInPolyTime (fun (input, tape) => evaluateEncrypt input tape)
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) encBits)
+      (encPair (encKeyedInput encBool) encBits) encBits)
     (hchoose : ComputableInPolyTime (fun (input, tape) => evaluateChoose input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      encChooseCoinsInput (Encryption.encChoiceOut encBool))
     (hguess : ComputableInPolyTime (fun (input, tape) => evaluateGuess input tape)
-      (encPair (encPair encUnary (encPair encBits encBits)) encBits) encBool)
+      (encPair Encryption.encGuessInput encBits) encBool)
     {coins depth capacity keyCoins encCoins chooseCoins guessCoins : ℕ → ℕ}
     (hcoins : ComputableInPolyTime coins encUnary encUnary)
     (hdepth : ComputableInPolyTime depth encUnary encUnary)
@@ -212,28 +197,25 @@ adversary's running time. -/
     evaluateEncrypt evaluateChoose input.1 (depth input.1) (capacity input.1)
       (keyCoins input.1) (encCoins input.1) input.2 seed
   have hzero : ComputableInPolyTime (fun (input, seed) => evaluateZero input seed)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits) := by
+      encChooseCoinsInput (Encryption.encChoiceOut encBool) := by
     apply computableInPolyTime_zeroLinkChooseCoins hkey hencrypt hchoose <;> fun_prop
   let choiceBudget := fun n => modLeveledChooseCoinBudget (coins n) (depth n) (capacity n)
     (keyCoins n) (encCoins n) (chooseCoins n)
   have hchoiceBudget : ComputableInPolyTime choiceBudget encUnary encUnary := by
     dsimp only [choiceBudget, modLeveledChooseCoinBudget]
     fun_prop
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have htape := ComputableInPolyTime.snd encUnary encBits
   let target := fun (p : ℕ × List Bool) => evaluateKey p.1 (p.2.take (keyCoins p.1))
-  have htarget : ComputableInPolyTime target (encPair encUnary encBits)
-      (encPair encBits encBits) := hkey.comp (show ComputableInPolyTime
-        (fun p : ℕ × List Bool => (p.1, p.2.take (keyCoins p.1))) (encPair encUnary encBits)
-          (encPair encUnary encBits) by fun_prop)
+  have htarget := hkey.comp (hn.prod (htape.bitsTakeWithInput (hkeyCoins.comp hn)))
   let chosen := fun (p : ℕ × List Bool) => modLeveledChooseCoins evaluateKey evaluateZero p.1
     (coins p.1) (depth p.1) (capacity p.1) (keyCoins p.1) (target p).1
       ((p.2.drop (keyCoins p.1)).take (choiceBudget p.1))
-  have hn := ComputableInPolyTime.fst encUnary encBits
-  have htape := ComputableInPolyTime.snd encUnary encBits
   have hremaining := htape.bitsDropWithInput (hkeyCoins.comp hn)
   have hrest := hremaining.bitsDropWithInput (hchoiceBudget.comp hn)
   -- Explicit replay arguments avoid unfolding the whole selector while inferring its inputs.
   have hchosen : ComputableInPolyTime chosen (encPair encUnary encBits)
-      (encPair (encPair encBool encBool) encBits) :=
+      (Encryption.encChoiceOut encBool) :=
     computableInPolyTime_modLeveledChooseCoins
       (evaluateKey := evaluateKey) (evaluateZero := evaluateZero)
       (n := fun p : ℕ × List Bool => p.1)
@@ -244,24 +226,15 @@ adversary's running time. -/
       hkey hzero hn (hcoins.comp hn) (hdepth.comp hn)
       (hcapacity.comp hn) (hkeyCoins.comp hn) htarget.fst'
       (hremaining.bitsTakeWithInput (hchoiceBudget.comp hn))
-  let challenge := fun (p : ℕ × List Bool) => evaluateEncrypt
-    (p.1, (target p).1, if bit then (chosen p).1.2 else (chosen p).1.1)
-    (((p.2.drop (keyCoins p.1)).drop (choiceBudget p.1)).take (encCoins p.1))
   have hmessage : ComputableInPolyTime
       (fun p => if bit then (chosen p).1.2 else (chosen p).1.1)
       (encPair encUnary encBits) encBool := by
     cases bit
     · exact hchosen.fst'.fst'
     · exact hchosen.fst'.snd'
-  have hchallenge : ComputableInPolyTime challenge (encPair encUnary encBits) encBits :=
-    hencrypt.comp ((hn.prod (htarget.fst'.prod hmessage)).prod
-      (hrest.bitsTakeWithInput (hencCoins.comp hn)))
-  change ComputableInPolyTime (fun p => modLeveledGuessCoins evaluateChoose evaluateEncrypt
-    evaluateGuess p.1 (capacity p.1) (encCoins p.1) (chooseCoins p.1) (guessCoins p.1)
-      (chosen p).2 (challenge p)
-      (((p.2.drop (keyCoins p.1)).drop (choiceBudget p.1)).drop (encCoins p.1))) _ _
-  apply computableInPolyTime_modLeveledGuessCoins hchoose hencrypt hguess hchooseCoins
-    hencCoins hguessCoins hcapacity
-    hn hchosen.snd' hchallenge (hrest.bitsDropWithInput (hencCoins.comp hn))
+  have hchallenge := hencrypt.comp ((hn.prod (htarget.fst'.prod hmessage)).prod
+    (hrest.bitsTakeWithInput (hencCoins.comp hn)))
+  exact computableInPolyTime_modLeveledGuessCoins hchoose hencrypt hguess hchooseCoins hencCoins
+    hguessCoins hcapacity hn hchosen.snd' hchallenge (hrest.bitsDropWithInput (hencCoins.comp hn))
 
 end Cslib.Crypto.Homomorphic.Leveled

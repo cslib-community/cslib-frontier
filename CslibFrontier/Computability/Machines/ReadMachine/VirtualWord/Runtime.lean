@@ -223,12 +223,12 @@ theorem next_inSpace : ComputableInSpace machine.next
     (hsingleton.append hh (fun _ => rfl)).weaken (.add (.refl _) (.refl _))
   have hn := budget_natSucc hc
   have hstep := encScan_mk_budget hh hn
-  have hf := budget_const (encB := encBool) false (.refl (fun p =>
-    (encPair encState (encOption encBool) p).length))
-  have ht := budget_const (encB := encBool) true (.refl (fun p =>
-    (encPair encState (encOption encBool) p).length))
-  have hnone := budget_const (encB := encOption encBool) none (.refl (fun p =>
-    (encPair encState (encOption encBool) p).length))
+  have hf := budget_const (encIn := encPair encState (encOption encBool)) (Bs := fun p =>
+    (encPair encState (encOption encBool) p).length) (encB := encBool) false
+  have ht := budget_const (encIn := encPair encState (encOption encBool)) (Bs := fun p =>
+    (encPair encState (encOption encBool) p).length) (encB := encBool) true
+  have hnone := budget_const (encIn := encPair encState (encOption encBool)) (Bs := fun p =>
+    (encPair encState (encOption encBool) p).length) (encB := encOption encBool) none
   exact budget_ite hr (encState_mk_budget hscan hp ht hsome)
     (budget_ite hp (encState_mk_budget (encScan_mk_budget hcons hn) hf hf hnone)
       (budget_ite hb (encState_mk_budget hstep ht hf hnone)
@@ -237,7 +237,7 @@ theorem next_inSpace : ComputableInSpace machine.next
 /-- No output is accumulated while scanning. -/
 theorem emit_inSpace : ComputableInSpace machine.emit
     (encPair encState (encOption encBool)) encBits
-    (fun p => (encPair encState (encOption encBool) p).length) := budget_const [] (.refl _)
+    (fun p => (encPair encState (encOption encBool) p).length) := budget_const []
 
 /-- The final answer uses the existing native selector certificate. -/
 theorem finish_inSpace : ComputableInSpace machine.finish encState encBits
@@ -246,7 +246,7 @@ theorem finish_inSpace : ComputableInSpace machine.finish encState encBits
     (encState_bit_budget (budget_id (.refl _)))
   have ha := budget_comp_linear answer_inSpace (budget_prod header_inSpace hb)
   exact budget_ite halted_inSpace (budget_finite (encC := encBits) (fun b => [b]) ha)
-    (budget_const [] (.refl _))
+    (budget_const [])
 
 private theorem before_initialized (h x : List Bool) {t : ℕ} (ht : t < 2 * h.length + 1) :
     (machine.run (frame h ++ x) t).bit = none ∧
@@ -269,21 +269,14 @@ theorem first_halt (p : Input) :
     ∀ t < 2 * (encData p.data).length + 2,
       machine.halted (machine.run (encInput p) t) = false := by
   rcases p with ⟨d, x⟩
-  constructor
-  · rw [run_halted]
+  refine ⟨by rw [run_halted]; rfl, fun t ht => ?_⟩
+  dsimp only at ht
+  by_cases hpre : t < 2 * (encData d).length + 1
+  · simpa [machine] using (before_initialized (encData d) x hpre).1
+  · obtain rfl : t = 2 * (encData d).length + 1 := by omega
+    change (machine.run (frame (encData d) ++ x) _).bit.isSome = false
+    rw [run_initialized]
     rfl
-  · intro t ht
-    dsimp only at ht
-    by_cases hpre : t < 2 * (encData d).length + 1
-    · have hb := (before_initialized (encData d) x hpre).1
-      change (machine.run (frame (encData d) ++ x) t).bit.isSome = false
-      rw [hb]
-      rfl
-    · have heq : t = 2 * (encData d).length + 1 := by omega
-      subst t
-      change machine.halted (machine.run (frame (encData d) ++ x) _) = false
-      rw [run_initialized]
-      rfl
 
 /-- Every live and halted state retains at most the supplied header and its binary scan offset. -/
 theorem run_storage (p : Input) {t : ℕ} (ht : t ≤ 2 * (encData p.data).length + 2) :
@@ -367,12 +360,12 @@ theorem budget_le_original_log (p : Input) (hp : Admissible p) :
     simp only [pow_one]
     omega
   have hsize := length_encNat_le_of_le_mul_pow hpoly
-  have hlog : Nat.log2 (encInput ⟨⟨cut, suffix, i⟩, x⟩).length ≤
-      (encInput ⟨⟨cut, suffix, i⟩, x⟩).length.size :=
-    ((Nat.log2_lt (by omega)).mpr (Nat.lt_size_self _)).le
   rw [encNat_apply, Nat.size_eq_bits_len] at hsize
   have hbound : (encInput ⟨⟨cut, suffix, i⟩, x⟩).length.size ≤
       8 * (Nat.log2 x.length + 1) := hsize
+  have hlog : Nat.log2 (encInput ⟨⟨cut, suffix, i⟩, x⟩).length ≤
+      (encInput ⟨⟨cut, suffix, i⟩, x⟩).length.size :=
+    ((Nat.log2_lt (by omega)).mpr (Nat.lt_size_self _)).le
   dsimp only
   omega
 
@@ -390,8 +383,8 @@ theorem access_inOriginalLogSpace : ∃ time c, ComputableInTimeAndSpace
     (fun p : {p : Input // Admissible p} => access p.val)
     ((Function.Embedding.subtype Admissible).trans encInput) encBool time
     (fun p => c * (Nat.log2 p.val.original.length + 1)) := by
-  let enc := (Function.Embedding.subtype Admissible).trans encInput
-  obtain ⟨time, c, h⟩ := machine.computableInSpace (encS := encState) (enc := enc)
+  obtain ⟨time, c, h⟩ := machine.computableInSpace (encS := encState)
+    (enc := (Function.Embedding.subtype Admissible).trans encInput)
     (encOut := encBool) (f := fun p : {p : Input // Admissible p} => access p.val)
     query_inSpace next_inSpace emit_inSpace halted_inSpace finish_inSpace
     (fun p => 2 * (encData p.val.data).length + 2)
@@ -404,8 +397,7 @@ theorem access_inOriginalLogSpace : ∃ time c, ComputableInTimeAndSpace
       omega)
     ⟨16, fun p t ht => (length_run_le p.val ht).trans
       (Nat.mul_le_mul_left 16 (budget_le_original_log p.val p.property))⟩
-  refine ⟨time, c * 17, h.mono (fun _ => le_rfl) (fun p => ?_)⟩
-  exact (Nat.mul_assoc c 17 _).symm.le
+  exact ⟨time, c * 17, h.mono (fun _ => le_rfl) fun _ => (Nat.mul_assoc c 17 _).symm.le⟩
 
 /-- For a valid cut the runtime output is exactly the virtual-word bit, including its default. -/
 theorem output_word (cut i : ℕ) (suffix x : List Bool) (hc : cut ≤ x.length) :

@@ -128,10 +128,8 @@ theorem runs_input {κ w r T : ℕ} (input : List ℤ) (solver : Code .standard 
         hf.2.mono (show w ≤ w + 2 by omega)))
   simp only [Data.comap_mem, x, Data.init_mem_zero, List.length_map] at ha hap
   simp only [Data.comap_mem] at ham
-  have hinput : ∀ i < N, a.mem (1 + i) = encode (μ i) := by
-    intro i hi
-    rw [ham]
-    exact hmem i hi
+  have hinput : ∀ i < N, a.mem (1 + i) = encode (μ i) :=
+    fun i hi => (congrFun ham _).trans (hmem i hi)
   obtain ⟨y, hy, -, -, hyf, hyans, hym⟩ := exec_loop μ solver a hap hai haf hinput
     (fun s hs => index_fits hw hs) (filler_fits hw).1
     (fun i hi => value_fits hw (hμ i hi))
@@ -142,12 +140,8 @@ theorem runs_input {κ w r T : ℕ} (input : List ℤ) (solver : Code .standard 
   have hr := he.runs (pc := 0) (p := (body κ solver).program (hostRegisters found))
     (Program.Contains.self _).append_left
   have hi := ChanHe.Parameters.inputFits input hpw hvalues
-  refine ⟨y, n + 1, ?_, ?_, he.executes (hostRegisters found), hyf, hans, ?_, ?_⟩
-  · dsimp only [time, N] at hn ⊢
-    omega
-  · simpa only [Nat.add_sub_cancel, Nat.zero_add, body, State.init] using hr
-  · intro a ha
-    exact (hym a ha).trans (congrFun ham a)
-  · exact hr.bounded_init hi
+  refine ⟨y, n + 1, by dsimp only [time, N] at hn ⊢; omega, ?_, he.executes (hostRegisters found),
+    hyf, hans, fun a ha => (hym a ha).trans (congrFun ham a), hr.bounded_init hi⟩
+  simpa only [Nat.add_sub_cancel, Nat.zero_add, body, State.init] using hr
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Host

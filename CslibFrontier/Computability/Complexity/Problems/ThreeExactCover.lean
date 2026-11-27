@@ -142,20 +142,17 @@ private theorem computableInPolyTime_occ_unary :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => occ p.1 p.2) (encPair encCNF encNat)
       (encList encUnary) := by
   unfold occ
-  refine ComputableInPolyTime.filterWithInput (encA := encUnary) ?_ ?_
-  · fun_prop
-  · have h1 : ComputableInPolyTime (fun q : (CNF ℕ × ℕ) × ℕ => (q.1.1.getD q.2 []).map Prod.fst)
-        (encPair (encPair encCNF encNat) encUnary) (encList encNat) := by
-      unfold encCNF
-      fun_prop
+  have h1 : ComputableInPolyTime (fun q : (CNF ℕ × ℕ) × ℕ => (q.1.1.getD q.2 []).map Prod.fst)
+      (encPair (encPair encCNF encNat) encUnary) (encList encNat) := by
+    unfold encCNF
     fun_prop
+  exact ComputableInPolyTime.filterWithInput (encA := encUnary) (by fun_prop) (by fun_prop)
 
 private theorem computableInPolyTime_occ :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => occ p.1 p.2) (encPair encCNF encNat)
       (encList encNat) := by
-  have h := (ComputableInPolyTime.map (encA := encUnary) (encB := encNat) (f := fun n => n)
-    ComputableInPolyTime.unary_to_binary).comp computableInPolyTime_occ_unary
-  simpa using h
+  simpa using (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
+    computableInPolyTime_occ_unary
 
 private theorem computableInPolyTime_gadget :
     ComputableInPolyTime (fun p : ℕ × List ℕ => gadget p.1 p.2) (encPair encUnary (encList encNat))
@@ -200,10 +197,7 @@ private theorem check_iff (C l : List (List ℕ)) (hl : l.Nodup) :
       ∀ u ∈ C.flatten, (l.toFinset.filter (u ∈ ·)).card = 1 := by
   simp only [check, Bool.and_eq_true, List.all_eq_true, isTriple_iff, beq_iff_eq]
   refine and_congr Iff.rfl (forall₂_congr fun u _ => ?_)
-  have h := List.toFinset_card_of_nodup (hl.filter fun S => decide (u ∈ S))
-  rw [List.toFinset_filter] at h
-  simp only [decide_eq_true_eq] at h
-  rw [h]
+  simp [← List.toFinset_card_of_nodup (hl.filter fun S => decide (u ∈ S)), List.toFinset_filter]
 
 /-! ### The shape of the reduced instance -/
 
@@ -216,10 +210,8 @@ private theorem mem_windows {m k : ℕ} {W : List ℕ} :
 private theorem window_props {m k i : ℕ} (h : i + k ≤ 2 * m) :
     ((List.range k).map (m + i + ·)).length = k ∧ ((List.range k).map (m + i + ·)).Nodup ∧
       ∀ d ∈ (List.range k).map (m + i + ·), m ≤ d ∧ d < 3 * m := by
-  refine ⟨by simp, List.nodup_range.map fun a b hab => by simpa using hab, fun d hd => ?_⟩
-  obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hd
-  have := List.mem_range.mp ha
-  omega
+  refine ⟨by simp, List.nodup_range.map fun a b hab => by simpa using hab,
+    List.forall_mem_map.mpr fun a ha => by have := List.mem_range.mp ha; omega⟩
 
 private theorem mem_occ {φ : CNF ℕ} {v j : ℕ} :
     j ∈ occ φ v ↔ j < φ.length ∧ v ∈ (φ.getD j []).map Prod.fst := by
@@ -233,15 +225,13 @@ private theorem exists_pad_of_mem_gadget {m : ℕ} {O S : List ℕ} (h : S ∈ g
     ∃ P, S = O ++ P ∧ O.length + P.length = 3 ∧ (∀ d ∈ P, m ≤ d ∧ d < 3 * m) ∧ P.Nodup := by
   unfold gadget at h
   split_ifs at h with h₃ h₁₂
-  · rw [List.mem_singleton] at h
-    exact ⟨[], by simp [h], by simpa using h₃, by simp, List.nodup_nil⟩
+  · obtain rfl := List.mem_singleton.mp h
+    exact ⟨[], by simp, by simpa using h₃, by simp, List.nodup_nil⟩
   · obtain ⟨W, hW, rfl⟩ := List.mem_map.mp h
     obtain ⟨i, hi, rfl⟩ := mem_windows.mp hW
     obtain ⟨hlen, hnd, hd⟩ := window_props hi
-    refine ⟨_, rfl, ?_, hd, hnd⟩
-    rw [hlen]
     simp only [Bool.or_eq_true, beq_iff_eq] at h₁₂
-    omega
+    exact ⟨_, rfl, by omega, hd, hnd⟩
   · simp at h
 
 /-- Padding `O` by consecutive dummy elements gives a set of its gadget. -/
@@ -251,14 +241,10 @@ private theorem append_range_mem_gadget {m off : ℕ} {O : List ℕ} (h₁ : 1 �
   unfold gadget
   by_cases h : O.length = 3
   · simp [h]
-  · have h₁₂ : (O.length == 1 || O.length == 2) = true := by
-      simp only [Bool.or_eq_true, beq_iff_eq]
-      omega
-    have h3 : (O.length == 3) = false := by simpa using h
-    simp only [h3, h₁₂, Bool.false_eq_true, ↓reduceIte]
-    refine List.mem_map.mpr ⟨_, mem_windows.mpr ⟨off, ?_, rfl⟩, rfl⟩
+  · have h₁₂ : (O.length == 1 || O.length == 2) = true := by simp [beq_iff_eq]; omega
     have := hoff (3 - O.length - 1) (by omega)
-    omega
+    simp only [beq_eq_false_iff_ne.mpr h, h₁₂, Bool.false_eq_true, ↓reduceIte]
+    exact List.mem_map.mpr ⟨_, mem_windows.mpr ⟨off, by omega, rfl⟩, rfl⟩
 
 /-! ### Occurrences under the syntax guard -/
 
@@ -269,8 +255,7 @@ private theorem length_filter_range_getD {α : Type*} (l : List α) (d : α) (p 
   | cons a l ih =>
     rw [List.length_cons, List.range_succ_eq_map, List.filter_cons, List.filter_map,
       List.countP_cons, ← ih]
-    simp only [List.getD_cons_zero, Function.comp_def, List.getD_cons_succ]
-    split <;> simp
+    by_cases hp : p a <;> simp [hp, Function.comp_def]
 
 private theorem vars_cons (c : Clause ℕ) (φ : CNF ℕ) :
     CNF.vars (c :: φ) = c.map Prod.fst ++ φ.vars := by
@@ -313,9 +298,7 @@ private theorem lt_of_mem_reduce {φ : CNF ℕ}
   rcases hS with ⟨v, -, hS⟩ | hS
   · obtain ⟨P, rfl, -, hP, -⟩ := exists_pad_of_mem_gadget hS
     rcases List.mem_append.mp hx with hx | hx
-    · have := (mem_occ.mp hx).1
-      omega
-    · exact (hP x hx).2
+    exacts [((mem_occ.mp hx).1).trans_le (Nat.le_mul_of_pos_left _ (by decide)), (hP x hx).2]
   · obtain ⟨i, hi, rfl⟩ := mem_windows.mp hS
     exact ((window_props hi).2.2 x hx).2
 
@@ -326,13 +309,10 @@ private theorem isTriple_of_mem_reduce (φ : CNF ℕ) {S : List ℕ} (hS : S ∈
   · rw [reduce_of_syntaxCheck hs, List.mem_append, List.mem_flatMap] at hS
     rcases hS with ⟨v, -, hS⟩ | hS
     · obtain ⟨P, rfl, hlen, hP, hPn⟩ := exists_pad_of_mem_gadget hS
-      refine ⟨by simpa using hlen, List.nodup_append.mpr ⟨nodup_occ φ v, hPn, ?_⟩⟩
-      intro a ha b hb
-      have := (mem_occ.mp ha).1
-      have := (hP b hb).1
-      omega
+      exact ⟨by simpa using hlen, List.nodup_append.mpr ⟨nodup_occ φ v, hPn,
+        fun a ha b hb => ((mem_occ.mp ha).1.trans_le (hP b hb).1).ne⟩⟩
     · obtain ⟨i, hi, rfl⟩ := mem_windows.mp hS
-      exact ⟨(window_props hi).1, (window_props hi).2.1⟩
+      exact (window_props hi).imp_right And.left
   · simp only [reduce, hs, Bool.false_eq_true, ite_false, noInstance, List.mem_cons,
       List.not_mem_nil, or_false] at hS
     rcases hS with rfl | rfl <;> decide
@@ -362,12 +342,8 @@ private theorem card_filter_toFinset_eq_one {L : List (List ℕ)} (hL : L.flatte
   have hpw := (List.nodup_flatten.mp hL).2
   refine Finset.card_eq_one.mpr ⟨S, Finset.ext fun S' => ?_⟩
   simp only [Finset.mem_filter, List.mem_toFinset, Finset.mem_singleton]
-  constructor
-  · rintro ⟨hS', huS'⟩
-    by_contra hne
-    exact List.disjoint_left.mp (hpw.forall hS' hS hne) huS' huS
-  · rintro rfl
-    exact ⟨hS, huS⟩
+  exact ⟨fun ⟨hS', huS'⟩ => by_contra fun hne =>
+    List.disjoint_left.mp (hpw.forall hS' hS hne) huS' huS, fun h => h ▸ ⟨hS, huS⟩⟩
 
 /-- The clause indices of a set of a reduced instance are the occurrences of a variable: every
 set containing a clause index comes from the gadget of a variable. -/
@@ -405,39 +381,33 @@ theorem oneSatisfiable_of_mem {φ : CNF ℕ}
   obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hc
   have hvars : ∀ v ∈ φ[j].map Prod.fst, v ∈ φ.vars := fun v hv => mem_vars.mpr ⟨_, hc, hv⟩
   -- the clause index `j` is covered by exactly one set `S₀` of the cover
-  obtain ⟨w, hw⟩ : ∃ w, w ∈ φ[j].map Prod.fst :=
-    List.exists_mem_of_length_pos (l := φ[j].map Prod.fst)
-      (by rw [List.length_map, (hcl _ hc).1]; omega)
+  obtain ⟨w, hw⟩ := List.exists_mem_of_length_pos (l := φ[j].map Prod.fst)
+    (by simp [(hcl _ hc).1])
   have hjw := mem_occ_of_mem hj hw
   have hocc₁ := one_le_length_occ (hvars w hw)
   have hocc₃ := (length_occ_le_count φ w).trans (hcount w)
   have hjC : j ∈ (reduce φ).flatten := by
     refine List.mem_flatten.mpr ⟨occ φ w ++ (List.range (3 - (occ φ w).length)).map (m + 0 + ·),
       ?_, List.mem_append_left _ hjw⟩
-    rw [reduce_of_syntaxCheck hs]
-    refine List.mem_append_left _ (List.mem_flatMap.mpr ⟨w, hvars w hw, ?_⟩)
-    exact append_range_mem_gadget (off := 0) hocc₁ hocc₃ fun i hi => by omega
+    exact reduce_of_syntaxCheck hs ▸ List.mem_append_left _ (List.mem_flatMap.mpr
+      ⟨w, hvars w hw, append_range_mem_gadget (off := 0) hocc₁ hocc₃ fun i hi => by omega⟩)
   obtain ⟨S₀, hS₀⟩ := Finset.card_eq_one.mp (hD j hjC)
-  have hmem : S₀ ∈ D.filter (j ∈ ·) := hS₀ ▸ Finset.mem_singleton_self S₀
-  obtain ⟨hS₀D, hjS₀⟩ := Finset.mem_filter.mp hmem
-  have huniq : ∀ S ∈ D, j ∈ S → S = S₀ := fun S hS hjS =>
-    Finset.mem_singleton.mp (hS₀ ▸ Finset.mem_filter.mpr ⟨hS, hjS⟩)
+  obtain ⟨⟨hS₀D, hjS₀⟩, huniq⟩ : (S₀ ∈ D ∧ j ∈ S₀) ∧ ∀ S, S ∈ D ∧ j ∈ S → S = S₀ := by
+    simpa only [Finset.eq_singleton_iff_unique_mem, Finset.mem_filter] using hS₀
   obtain ⟨w', hw', hS₀occ⟩ := exists_occ_of_mem_reduce hs (hDC S₀ hS₀D) hjS₀ hj
   -- the true variable of the clause is the least one with the occurrences of `S₀`
   have hP : ∃ n, n ∈ φ.vars ∧ occ φ n = occ φ w' := ⟨w', hw', rfl⟩
   obtain ⟨hvs, hvocc⟩ := Nat.find_spec hP
-  have hjocc : j ∈ occ φ (Nat.find hP) := by
-    rw [hvocc, ← hS₀occ]
-    exact List.mem_filter.mpr ⟨hjS₀, by simpa using hj⟩
-  have hvj : Nat.find hP ∈ φ[j].map Prod.fst := by
-    have := (mem_occ.mp hjocc).2
-    rwa [List.getD_eq_getElem _ _ hj] at this
-  refine countP_eq_one_of_unique (hcl _ hc).2 hvj ?_ fun v hv hσv => ?_
-  · refine decide_eq_true ⟨S₀, hS₀D, hS₀occ.trans hvocc.symm, fun u hu hocc => ?_⟩
-    exact Nat.find_min' hP ⟨hu, hocc.trans hvocc⟩
+  have hjocc : j ∈ occ φ (Nat.find hP) :=
+    (congrArg (j ∈ ·) (hvocc.trans hS₀occ.symm)).mpr (List.mem_filter.mpr ⟨hjS₀, decide_eq_true hj⟩)
+  have hvj : Nat.find hP ∈ φ[j].map Prod.fst :=
+    List.getD_eq_getElem φ [] hj ▸ (mem_occ.mp hjocc).2
+  refine countP_eq_one_of_unique (hcl _ hc).2 hvj
+    (decide_eq_true ⟨S₀, hS₀D, hS₀occ.trans hvocc.symm, fun u hu hocc =>
+      Nat.find_min' hP ⟨hu, hocc.trans hvocc⟩⟩) fun v hv hσv => ?_
   · obtain ⟨S, hSD, hSocc, hmin⟩ := of_decide_eq_true hσv
     have hjS : j ∈ S := (List.mem_filter.mp (hSocc ▸ mem_occ_of_mem hj hv)).1
-    have hoccv : occ φ v = occ φ w' := by rw [← hSocc, huniq S hSD hjS, hS₀occ]
+    have hoccv : occ φ v = occ φ w' := by rw [← hSocc, huniq S ⟨hSD, hjS⟩, hS₀occ]
     exact le_antisymm (hmin _ hvs (hvocc.trans hoccv.symm))
       (Nat.find_min' hP ⟨hvars v hv, hoccv⟩)
 
@@ -464,14 +434,11 @@ private theorem perm_flatten_padBlocks (m : ℕ) (Os : List (List ℕ)) (off : �
     have hr : (List.range (deficit (O :: Os))).map (m + off + ·) =
         (List.range (3 - O.length)).map (m + off + ·) ++
           (List.range (deficit Os)).map (m + (off + (3 - O.length)) + ·) := by
-      rw [show deficit (O :: Os) = (3 - O.length) + deficit Os by simp [deficit],
-        List.range_add, List.map_append, List.map_map]
-      congr 1
-      exact List.map_congr_left fun i _ => by simp only [Function.comp_apply]; omega
+      simp only [deficit, List.map_cons, List.sum_cons, List.range_add, List.map_append,
+        List.map_map, Function.comp_def, Nat.add_assoc]
     simp only [padBlocks, List.flatten_cons, List.append_assoc, hr]
-    refine List.Perm.append_left O ?_
-    refine ((ih _).append_left _).trans ?_
-    exact List.perm_iff_count.mpr fun a => by simp only [List.count_append]; omega
+    exact List.Perm.append_left O
+      (((ih _).append_left _).trans (List.perm_append_comm_assoc _ _ _))
 
 private theorem flatten_restTriples (start q : ℕ) :
     (restTriples start q).flatten = (List.range (3 * q)).map (start + ·) := by
@@ -479,7 +446,7 @@ private theorem flatten_restTriples (start q : ℕ) :
   | zero => simp [restTriples]
   | succ q ih =>
     rw [restTriples, List.range_succ, List.map_append, List.flatten_append, ← restTriples, ih,
-      show 3 * (q + 1) = 3 * q + 3 by ring, List.range_add, List.map_append, List.map_map]
+      Nat.mul_succ, List.range_add, List.map_append, List.map_map]
     simp [List.range_succ, Function.comp_def, Nat.add_assoc]
 
 private theorem deficit_add_sum (Os : List (List ℕ)) (h : ∀ O ∈ Os, O.length ≤ 3) :
@@ -492,16 +459,6 @@ private theorem deficit_add_sum (Os : List (List ℕ)) (h : ∀ O ∈ Os, O.leng
     simp only [deficit, List.map_cons, List.sum_cons, List.length_cons] at this ⊢
     omega
 
-private theorem length_le_sum (Os : List (List ℕ)) (h : ∀ O ∈ Os, 1 ≤ O.length) :
-    Os.length ≤ (Os.map List.length).sum := by
-  induction Os with
-  | nil => simp
-  | cons O Os ih =>
-    have h₀ := h O List.mem_cons_self
-    have := ih fun O' hO' => h O' (List.mem_cons_of_mem _ hO')
-    simp only [List.map_cons, List.sum_cons, List.length_cons]
-    omega
-
 private theorem mem_padBlocks {m : ℕ} {Os : List (List ℕ)} {off : ℕ} {S : List ℕ}
     (h : S ∈ padBlocks m Os off) :
     ∃ O ∈ Os, ∃ off', S = O ++ (List.range (3 - O.length)).map (m + off' + ·) := by
@@ -510,8 +467,7 @@ private theorem mem_padBlocks {m : ℕ} {Os : List (List ℕ)} {off : ℕ} {S : 
   | cons O Os ih =>
     rcases List.mem_cons.mp h with rfl | h
     · exact ⟨O, List.mem_cons_self, off, rfl⟩
-    · obtain ⟨O', hO', off', rfl⟩ := ih h
-      exact ⟨O', List.mem_cons_of_mem _ hO', off', rfl⟩
+    · exact (ih h).imp fun O' ⟨hO', off', hS⟩ => ⟨List.mem_cons_of_mem _ hO', off', hS⟩
 
 /-- **Exact-one assignments give exact covers.** The true variables of the clauses have disjoint
 occurrence lists covering all clause indices; padding them with distinct dummy elements and
@@ -526,15 +482,14 @@ theorem mem_of_oneSatisfiable {φ : CNF ℕ}
   set m := φ.length with hm
   -- every clause has exactly one true variable
   have hone : ∀ j (hj : j < m), (φ[j].map Prod.fst).countP σ = 1 := fun j hj => by
-    have := List.all_eq_true.mp hσ _ (List.getElem_mem hj)
-    simpa [Clause.evalOne, countP_eval_eq (hpos _ (List.getElem_mem hj))] using this
+    simpa [Clause.evalOne, countP_eval_eq (hpos _ (List.getElem_mem hj))] using
+      List.all_eq_true.mp hσ _ (List.getElem_mem hj)
   let T := φ.vars.dedup.filter fun v => σ v
   have hT : ∀ v, v ∈ T ↔ v ∈ φ.vars ∧ σ v = true := fun v => by simp [T]
   let Os := T.map (occ φ)
-  have hOsle : ∀ O ∈ Os, 1 ≤ O.length ∧ O.length ≤ 3 := by
-    simp only [Os, List.mem_map]
-    rintro O ⟨v, hv, rfl⟩
-    exact ⟨one_le_length_occ ((hT v).mp hv).1, (length_occ_le_count φ v).trans (hcount v)⟩
+  have hOsle : ∀ O ∈ Os, 1 ≤ O.length ∧ O.length ≤ 3 :=
+    List.forall_mem_map.mpr fun v hv =>
+      ⟨one_le_length_occ ((hT v).mp hv).1, (length_occ_le_count φ v).trans (hcount v)⟩
   have hmemj : ∀ {v j}, j ∈ occ φ v → ∃ hj : j < m, v ∈ φ[j].map Prod.fst := fun {v j} h => by
     obtain ⟨hj, hv⟩ := mem_occ.mp h
     exact ⟨hj, by rwa [List.getD_eq_getElem _ _ hj] at hv⟩
@@ -548,37 +503,27 @@ theorem mem_of_oneSatisfiable {φ : CNF ℕ}
     exact (List.existsUnique_mem_of_countP_eq_one (hone j hj)).unique ⟨hu', ((hT u).mp hu).2⟩
       ⟨hv', ((hT v).mp hv).2⟩
   have hOs_mem : ∀ j, j ∈ Os.flatten ↔ j < m := fun j => by
-    constructor
-    · intro h
-      obtain ⟨O, hO, hjO⟩ := List.mem_flatten.mp h
-      obtain ⟨v, -, rfl⟩ := List.mem_map.mp hO
-      exact (hmemj hjO).1
-    · intro hj
-      obtain ⟨v, hv, hσv⟩ := List.countP_pos_iff.mp (by rw [hone j hj]; omega)
-      exact List.mem_flatten.mpr ⟨occ φ v, List.mem_map.mpr
-        ⟨v, (hT v).mpr ⟨mem_vars.mpr ⟨_, List.getElem_mem hj, hv⟩, hσv⟩, rfl⟩,
-        mem_occ_of_mem hj hv⟩
+    simp only [Os, List.mem_flatten, List.mem_map]
+    refine ⟨fun ⟨_, ⟨v, _, rfl⟩, hjv⟩ => (hmemj hjv).1, fun hj => ?_⟩
+    obtain ⟨v, hv, hσv⟩ := List.countP_pos_iff.mp (by rw [hone j hj]; omega)
+    exact ⟨_, ⟨v, (hT v).mpr ⟨mem_vars.mpr ⟨_, List.getElem_mem hj, hv⟩, hσv⟩, rfl⟩,
+      mem_occ_of_mem hj hv⟩
   have hperm_O : Os.flatten.Perm (List.range m) :=
     (List.perm_ext_iff_of_nodup hOs_nodup List.nodup_range).mpr fun j => by
       rw [hOs_mem, List.mem_range]
   have hsum : (Os.map List.length).sum = m := by
     rw [← List.length_flatten, hperm_O.length_eq, List.length_range]
   have hdef := deficit_add_sum Os fun O hO => (hOsle O hO).2
-  have hTm := length_le_sum Os fun O hO => (hOsle O hO).1
+  have hTm : Os.length ≤ (Os.map List.length).sum := by
+    simpa using List.length_le_sum_of_one_le _ (List.forall_mem_map.2 fun O hO => (hOsle O hO).1)
   rw [hsum] at hdef hTm
   -- the exact cover
   let L := padBlocks m Os 0 ++ restTriples (m + deficit Os) (m - Os.length)
+  have hm3 : 3 * m = (m + deficit Os) + 3 * (m - Os.length) := by omega
   have hL : L.flatten.Perm (List.range (3 * m)) := by
-    have e₁ := ((perm_flatten_padBlocks m Os 0).trans (hperm_O.append_right _)).append
-      (List.Perm.refl (restTriples (m + deficit Os) (m - Os.length)).flatten)
-    rw [List.flatten_append]
-    refine e₁.trans (List.Perm.of_eq ?_)
-    rw [flatten_restTriples, List.append_assoc,
-      show 3 * m = m + (deficit Os + 3 * (m - Os.length)) by omega, List.range_add,
-      List.range_add, List.map_append, List.map_map]
-    congr 1
-    congr 1
-    exact List.map_congr_left fun i _ => by simp only [Function.comp_apply]; omega
+    rw [List.flatten_append, flatten_restTriples, hm3, List.range_add, List.range_add]
+    simpa only [Nat.add_zero] using
+      ((perm_flatten_padBlocks m Os 0).trans (hperm_O.append_right _)).append (List.Perm.refl _)
   have hLnodup : L.flatten.Nodup := hL.nodup_iff.mpr List.nodup_range
   have hLlt : ∀ S ∈ L, ∀ x ∈ S, x < 3 * m := fun S hS x hx =>
     List.mem_range.mp (hL.subset (List.mem_flatten.mpr ⟨S, hS, hx⟩))
@@ -611,10 +556,8 @@ private theorem noInstance_notMem : noInstance ∉ ThreeExactCover := by
   rw [Finset.filter_true_of_mem fun S hS => by rcases hmem S hS with rfl | rfl <;> simp] at h0
   obtain ⟨S, rfl⟩ := Finset.card_eq_one.mp h0
   rcases hmem S (Finset.mem_singleton_self S) with rfl | rfl
-  · have h := hD 3 (by simp [noInstance])
-    simp [Finset.filter_singleton] at h
-  · have h := hD 2 (by simp [noInstance])
-    simp [Finset.filter_singleton] at h
+  · simpa [Finset.filter_singleton] using hD 3 (by simp [noInstance])
+  · simpa [Finset.filter_singleton] using hD 2 (by simp [noInstance])
 
 /-- The reduction is correct. -/
 theorem reduce_mem_iff (φ : CNF ℕ) :
@@ -622,21 +565,18 @@ theorem reduce_mem_iff (φ : CNF ℕ) :
   rw [PositiveOneInExactThreeSATThree.mem_iff_syntaxCheck]
   by_cases hs : PositiveOneInExactThreeSATThree.syntaxCheck φ = true
   · exact ⟨fun h => ⟨hs, oneSatisfiable_of_mem hs h⟩, fun h => mem_of_oneSatisfiable hs h.2⟩
-  · rw [Bool.not_eq_true] at hs
-    simp only [reduce, hs, Bool.false_eq_true, ↓reduceIte, false_and, iff_false]
-    exact noInstance_notMem
+  · simpa [reduce, hs] using noInstance_notMem
 
 end ThreeExactCover
 
 open ThreeExactCover in
 /-- 3XC is in NP: a certificate selects the sets of the exact cover. -/
 theorem ThreeExactCover_mem_NP : ThreeExactCover ∈ NP encNatSetList := by
-  have h := mem_NP_of_subsetWitness (enc := encNatSetList) (encγ := encList encNat)
+  convert mem_NP_of_subsetWitness (enc := encNatSetList) (encγ := encList encNat)
     (vs := fun C => C) (check := check)
     (P := fun C D => (∀ S ∈ C, S.length = 3 ∧ S.Nodup) ∧
       ∀ u ∈ C.flatten, (D.filter (u ∈ ·)).card = 1)
-    (by fun_prop) computableInPolyTime_check fun C l hl _ => check_iff C l hl
-  convert h using 1
+    (by fun_prop) computableInPolyTime_check (fun C l hl _ => check_iff C l hl) using 1
   ext C
   simp only [ThreeExactCover, IsExactCover, Set.mem_ofPred_eq]
   tauto

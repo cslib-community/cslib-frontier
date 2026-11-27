@@ -57,22 +57,15 @@ private theorem parameter_scale_bounds (κ n : ℕ) :
   let B := n + 2
   let L := Nat.log 2 B + 1
   let S := Nat.sqrt B + 1
-  have hB : 2 ≤ B := by dsimp only [B]; omega
-  have hL : 1 ≤ L := by dsimp only [L]; omega
-  have hS : 1 ≤ S := by dsimp only [S]; omega
   constructor
   · have hm := Cslib.Algorithms.ThreeSum.ChanHe.mPar_shifted_pow_le n κ
-    have hu : 1 ≤ S * L ^ 2 := by
-      have hp : 0 < S * L ^ 2 := by positivity
-      omega
+    have hu : 1 ≤ S * L ^ 2 := Nat.pos_of_ne_zero (by dsimp only [S, L]; positivity)
     calc _ ≤ ((5 * κ + 16) * (10 * κ + 40)) * S * L ^ 2 + S * L ^ 2 :=
         Nat.add_le_add hm hu
       _ = paramFactor κ * S * L ^ 2 := by dsimp only [paramFactor]; ring
-  · have hs := Nat.sqrt_le B
-    have ht := Nat.sqrt_le_self B
-    change S ^ 2 ≤ 4 * B
-    dsimp only [S]
-    nlinarith only [hs, ht, hB]
+  · change (Nat.sqrt B + 1) ^ 2 ≤ 4 * B
+    have hB : 2 ≤ B := Nat.le_add_left 2 n
+    nlinarith [Nat.sqrt_le B, Nat.sqrt_le_self B]
 
 /-- The complete root cost at the actual magnitude-derived candidate window. -/
 theorem root_cost_bound (κ n : ℕ) :
@@ -87,14 +80,12 @@ theorem root_cost_bound (κ n : ℕ) :
   obtain ⟨hmb, hsquare⟩ := parameter_scale_bounds κ n
   change m + 1 ≤ paramFactor κ * S * L ^ 2 at hmb
   change S ^ 2 ≤ 4 * B at hsquare
-  have hcube : S ^ 3 ≤ 4 * B * S := by
-    rw [show S ^ 3 = S ^ 2 * S by ring]
-    exact Nat.mul_le_mul_right S hsquare
+  have hcube : S ^ 3 ≤ 4 * B * S := Nat.pow_succ S 2 ▸ Nat.mul_le_mul_right S hsquare
   have lp {i j : ℕ} (hij : i ≤ j) : L ^ i ≤ L ^ j :=
-    Nat.pow_le_pow_right (by dsimp only [L]; omega) hij
+    Nat.pow_le_pow_right (Nat.succ_pos _) hij
   have hr := Traversal.rootTime_fuel_square_le n (n + 1) m
-  have hlog : Nat.log 2 n ≤ Nat.log 2 B := Nat.log_mono_right (by dsimp only [B]; omega)
-  have hlogs : 2 * Nat.log 2 n + 2 ≤ 2 * L := by dsimp only [L]; omega
+  have hlogs : 2 * Nat.log 2 n + 2 ≤ 2 * L :=
+    Nat.add_le_add_right (Nat.mul_le_mul_left 2 (Nat.log_mono_right (Nat.le_add_right n 2))) 2
   calc Traversal.rootTime (Cslib.Algorithms.ThreeSum.ChanHe.fuel n) (n + 1) m (2 * m ^ 2)
       ≤ 70 + 6144 * (2 * L) ^ 5 *
         (B * (paramFactor κ * S * L ^ 2) + (paramFactor κ * S * L ^ 2) ^ 3) := by
@@ -106,11 +97,8 @@ theorem root_cost_bound (κ n : ℕ) :
       ring
     _ ≤ 70 + 196608 *
         (paramFactor κ * B * S * L ^ 11 + paramFactor κ ^ 3 * (4 * B * S) * L ^ 11) := by
-      have hl : paramFactor κ * B * S * L ^ 7 ≤ paramFactor κ * B * S * L ^ 11 :=
-        Nat.mul_le_mul_left _ (lp (show 7 ≤ 11 by decide))
-      have hr' : paramFactor κ ^ 3 * S ^ 3 * L ^ 11 ≤ paramFactor κ ^ 3 * (4 * B * S) * L ^ 11 :=
-        Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hcube)
-      exact Nat.add_le_add_left (Nat.mul_le_mul_left _ (Nat.add_le_add hl hr')) _
+      gcongr _ + _ * (_ * ?_ + _ * ?_ * _)
+      exact lp (by decide)
     _ ≤ rootCoefficient κ * B * S * L ^ 11 := by
       have hu : 1 ≤ B * S * L ^ 11 := Nat.pos_of_ne_zero (by dsimp only [B, S, L]; positivity)
       change _ ≤ (70 + 196608 * (paramFactor κ + 4 * paramFactor κ ^ 3)) * B * S * L ^ 11
@@ -146,47 +134,27 @@ private theorem prime_time_bound (B S C L m : ℕ)
     (hmb : m + 1 ≤ C * S * L ^ 2) (hsquare : S ^ 2 ≤ 4 * B) :
     (m + 1) * (7 * m + 15) + 8 ≤
       (60 * C ^ 2 + 8) * (B * S * L ^ 13) := by
-  let V := B * S * L ^ 13
-  have hV : 1 ≤ V := by
-    have hp : 0 < V := by dsimp only [V]; positivity
-    omega
-  have lp {i j : ℕ} (hij : i ≤ j) : L ^ i ≤ L ^ j := Nat.pow_le_pow_right hL hij
-  have hprime : (m + 1) * (7 * m + 15) + 8 ≤ (60 * C ^ 2 + 8) * V := by
-    have hm2 := Nat.pow_le_pow_left hmb 2
-    have hs := Nat.mul_le_mul_right (C ^ 2 * L ^ 4) hsquare
-    have hsmall : B * L ^ 4 ≤ V := by
-      have hh := Nat.mul_le_mul_left B (lp (show 4 ≤ 13 by decide))
-      calc B * L ^ 4 ≤ B * L ^ 13 := hh
-        _ ≤ B * S * L ^ 13 := Nat.mul_le_mul_right _ (by nlinarith only [hS])
-    have hms : (m + 1) ^ 2 ≤ 4 * C ^ 2 * B * L ^ 4 := by nlinarith only [hm2, hs]
-    have hh := Nat.mul_le_mul_left (60 * C ^ 2) hsmall
-    nlinarith only [hms, hh, hV]
-  exact hprime
+  have hV : 0 < B * S * L ^ 13 := by positivity
+  have hsmall : B * L ^ 4 ≤ B * S * L ^ 13 := by
+    rw [Nat.mul_assoc]
+    exact Nat.mul_le_mul_left _
+      ((Nat.pow_le_pow_right hL (by decide)).trans (Nat.le_mul_of_pos_left _ hS))
+  have hms : (m + 1) ^ 2 ≤ 4 * C ^ 2 * B * L ^ 4 := by
+    nlinarith only [Nat.pow_le_pow_left hmb 2, Nat.mul_le_mul_right (C ^ 2 * L ^ 4) hsquare]
+  nlinarith only [hms, Nat.mul_le_mul_left (60 * C ^ 2) hsmall, hV]
 
 private theorem frontend_time_bound (κ n : ℕ) :
     Frontend.cost κ n ≤ Frontend.costCoefficient κ *
       ((n + 2) * (Nat.sqrt (n + 2) + 1) * (Nat.log 2 (n + 2) + 1) ^ 13) := by
-  let B := n + 2
-  let L := Nat.log 2 B + 1
-  let S := Nat.sqrt B + 1
-  let V := B * S * L ^ 13
-  have hL : 1 ≤ L := by dsimp only [L]; omega
-  have hS : 1 ≤ S := by dsimp only [S]; omega
-  have lp {i j : ℕ} (hij : i ≤ j) : L ^ i ≤ L ^ j := Nat.pow_le_pow_right hL hij
-  have hclog : Nat.clog 2 B ≤ L :=
-    Nat.clog_le_of_le_pow (Nat.lt_pow_succ_log_self (by decide) B).le
-  have hfront : Frontend.cost κ n ≤ Frontend.costCoefficient κ * V := by
-    have hh := Frontend.cost_bound κ n
-    have hlogs := Nat.pow_le_pow_left hclog 2
-    have hp := lp (show 2 ≤ 13 by decide)
-    have hnb : n + 1 ≤ B := by dsimp only [B]; omega
-    have hsmall : (n + 1) * Nat.clog 2 B ^ 2 ≤ V := by
-      calc (n + 1) * Nat.clog 2 B ^ 2 ≤ B * L ^ 13 :=
-          Nat.mul_le_mul hnb (hlogs.trans hp)
-        _ ≤ B * S * L ^ 13 := Nat.mul_le_mul_right _ (by nlinarith only [hS])
-    rw [Nat.mul_assoc] at hh
-    exact hh.trans (Nat.mul_le_mul_left (Frontend.costCoefficient κ) hsmall)
-  exact hfront
+  have hclog : Nat.clog 2 (n + 2) ≤ Nat.log 2 (n + 2) + 1 :=
+    Nat.clog_le_of_le_pow (Nat.lt_pow_succ_log_self (by decide) _).le
+  have hh := Frontend.cost_bound κ n
+  rw [Nat.mul_assoc] at hh
+  refine hh.trans (Nat.mul_le_mul_left _ ?_)
+  calc (n + 1) * Nat.clog 2 (n + 2) ^ 2 ≤ (n + 2) * 1 * (Nat.log 2 (n + 2) + 1) ^ 13 :=
+        Nat.mul_le_mul (by omega)
+          ((Nat.pow_le_pow_left hclog 2).trans (Nat.pow_le_pow_right (by omega) (by decide)))
+    _ ≤ _ := Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (Nat.le_add_left 1 _))
 
 /-- The actual native program has a genuinely subquadratic polynomial factor and fixed polylog. -/
 theorem cost_bound (κ n : ℕ) :
@@ -198,50 +166,33 @@ theorem cost_bound (κ n : ℕ) :
   let m := Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * B ^ κ)
   let F := Cslib.Algorithms.ThreeSum.ChanHe.fuel n
   let V := B * S * L ^ 13
-  have hB : 2 ≤ B := by dsimp only [B]; omega
-  have hL : 1 ≤ L := by dsimp only [L]; omega
-  have hS : 1 ≤ S := by dsimp only [S]; omega
-  have hlog : Nat.log 2 n ≤ Nat.log 2 B := Nat.log_mono_right (by dsimp only [B]; omega)
+  have hlog : Nat.log 2 n ≤ Nat.log 2 B := Nat.log_mono_right (Nat.le_add_right n 2)
   obtain ⟨hmb, hsquare⟩ := parameter_scale_bounds κ n
   change m + 1 ≤ paramFactor κ * S * L ^ 2 at hmb
   change S ^ 2 ≤ 4 * B at hsquare
-  have lp {i j : ℕ} (hij : i ≤ j) : L ^ i ≤ L ^ j := Nat.pow_le_pow_right hL hij
-  have hV : 1 ≤ V := by
-    have hp : 0 < V := by dsimp only [V]; positivity
-    omega
+  have hV : 0 < V := by dsimp only [V]; positivity
   have hforest := forest_time_bound κ n
   change (Frontend.layout κ n).count *
     (Traversal.rootTime F (n + 1) m (2 * m ^ 2) + 17) ≤
       (4 * (κ + 3) ^ 2 * (rootCoefficient κ + 17)) * V at hforest
   have hprime : (m + 1) * (7 * m + 15) + 8 ≤ (60 * paramFactor κ ^ 2 + 8) * V :=
-    prime_time_bound B S (paramFactor κ) L m (by omega) hS hL hmb hsquare
+    prime_time_bound B S (paramFactor κ) L m (Nat.succ_pos _) (Nat.succ_pos _) (Nat.succ_pos _)
+      hmb hsquare
   have hfront : Frontend.cost κ n ≤ Frontend.costCoefficient κ * V := frontend_time_bound κ n
   have hheight : Cslib.Algorithms.ThreeSum.ChanHe.height n ≤ Nat.log 2 n + 2 :=
     Nat.clog_le_of_le_pow Nat.lt_two_pow_self.le
-  have hF : 4 * F + 45 ≤ 69 * V := by
-    have hLV : L ≤ V := by
-      have hh := lp (show 1 ≤ 13 by decide)
-      simp only [pow_one] at hh
-      calc L ≤ L ^ 13 := hh
-        _ ≤ B * S * L ^ 13 := Nat.le_mul_of_pos_left _ (by positivity)
-    have hsmall : F ≤ 6 * L := by
-      change 3 * Cslib.Algorithms.ThreeSum.ChanHe.height n - 2 ≤ _
-      dsimp only [L]
-      omega
-    have hh : 4 * F + 45 ≤ 69 * L := by nlinarith only [hsmall, hL]
-    exact hh.trans (Nat.mul_le_mul_left 69 hLV)
+  have hLV : L ≤ V :=
+    (Nat.le_self_pow (by decide) L).trans (Nat.le_mul_of_pos_left _ (by positivity))
+  have hsmall : F ≤ 6 * L := by
+    change 3 * Cslib.Algorithms.ThreeSum.ChanHe.height n - 2 ≤ _
+    dsimp only [L]
+    omega
   change Frontend.cost κ n + (m + 1) * (7 * m + 15) + 8 + 4 * F + 45 +
     (Frontend.layout κ n).count * (Traversal.rootTime F (n + 1) m (2 * m ^ 2) + 17) ≤ _
   rw [show costCoefficient κ * (n + 2) * (Nat.sqrt (n + 2) + 1) *
       (Nat.log 2 (n + 2) + 1) ^ 13 = costCoefficient κ * V by dsimp only [V, B, S, L]; ring]
   change _ ≤ (Frontend.costCoefficient κ + 60 * paramFactor κ ^ 2 + 77 +
     4 * (κ + 3) ^ 2 * (rootCoefficient κ + 17)) * V
-  calc _ = Frontend.cost κ n + ((m + 1) * (7 * m + 15) + 8) +
-        (4 * F + 45) + (Frontend.layout κ n).count *
-          (Traversal.rootTime F (n + 1) m (2 * m ^ 2) + 17) := by omega
-    _ ≤ Frontend.costCoefficient κ * V + (60 * paramFactor κ ^ 2 + 8) * V + 69 * V +
-        (4 * (κ + 3) ^ 2 * (rootCoefficient κ + 17)) * V :=
-      Nat.add_le_add (Nat.add_le_add (Nat.add_le_add hfront hprime) hF) hforest
-    _ = _ := by ring
+  linarith only [hfront, hprime, hforest, hsmall, hLV, hV]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Preprocessing

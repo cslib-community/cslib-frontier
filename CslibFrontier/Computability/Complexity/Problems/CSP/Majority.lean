@@ -47,15 +47,11 @@ theorem exists_twoCNF_templates (arity : Rel → ℕ) (sem : Rel → List Bool �
     ∃ template : Rel → CNF ℕ, CSP.CNFTemplates arity sem template ∧
       ∀ R c, c ∈ template R → c.length ≤ 2 := by
   classical
-  have hex (R : Rel) := (isPolymorphism_majority_iff_exists_twoCNF
-    (CSP.booleanRelation arity sem R)).mp (h R)
-  choose φ hwidth hφ using hex
-  let template : Rel → CNF ℕ := fun R => (φ R).relabel Fin.val
-  refine ⟨template, ?_, ?_⟩
-  · exact CSP.cnfTemplates_relabel_fin hφ
-  · intro R c hc
-    obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hc
-    simpa [Clause.relabel] using hwidth R d hd
+  choose φ hwidth hφ using fun R =>
+    (isPolymorphism_majority_iff_exists_twoCNF (CSP.booleanRelation arity sem R)).mp (h R)
+  refine ⟨fun R => (φ R).relabel Fin.val, CSP.cnfTemplates_relabel_fin hφ, fun R c hc => ?_⟩
+  obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hc
+  simpa [Clause.relabel] using hwidth R d hd
 
 /-- Fixed correct width-two templates induce a native polynomial-time reduction to 2SAT. -/
 theorem polyTimeReducible_TwoSAT_of_templates [Finite Rel] (encRel : Rel ↪ List Bool)

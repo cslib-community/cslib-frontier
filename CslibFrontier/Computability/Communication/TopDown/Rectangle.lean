@@ -58,22 +58,19 @@ def DensityRectangle (X Y : Finset (ι → Bool)) (p k : ℝ) : Prop :=
 /-- Density rectangles are symmetric. -/
 theorem DensityRectangle.swap {X Y : Finset (ι → Bool)} {p k : ℝ}
     (h : DensityRectangle X Y p k) : DensityRectangle Y X p k := by
-  rcases h with ⟨hX, hY, hdX, hdY, r, hr, hrp, hl | hl⟩
-  · exact ⟨hY, hX, hdY, hdX, r, hr, hrp, Or.inr hl⟩
-  · exact ⟨hY, hX, hdY, hdX, r, hr, hrp, Or.inl hl⟩
+  rcases h with ⟨hX, hY, hdX, hdY, r, hr, hrp, hl⟩
+  exact ⟨hY, hX, hdY, hdX, r, hr, hrp, hl.symm⟩
 
 /-- No coordinate separates a density rectangle of rate below `3 / 4`. -/
 theorem DensityRectangle.not_separated {X Y : Finset (ι → Bool)} {p k : ℝ}
     (h : DensityRectangle X Y p k) (hp : p < 3 / 4) (i : ι) :
     ¬ ∀ x ∈ X, ∀ y ∈ Y, x i ≠ y i := by
   intro hsep
-  rcases h with ⟨hX, hY, _, _, r, hr, hrp, hl | hl⟩
-  · obtain ⟨x, hx⟩ := hX
-    obtain ⟨y, hy, he⟩ := (hl x hx).exists_mem_apply_eq hr.le (hrp.trans_lt hp) i
-    exact hsep x hx y hy he.symm
-  · obtain ⟨y, hy⟩ := hY
-    obtain ⟨x, hx, he⟩ := (hl y hy).exists_mem_apply_eq hr.le (hrp.trans_lt hp) i
-    exact hsep x hx y hy he
+  rcases h with ⟨⟨x, hx⟩, ⟨y, hy⟩, _, _, r, hr, hrp, hl | hl⟩
+  · obtain ⟨y', hy', he⟩ := (hl x hx).exists_mem_apply_eq hr.le (hrp.trans_lt hp) i
+    exact hsep x hx y' hy' he.symm
+  · obtain ⟨x', hx', he⟩ := (hl y hy).exists_mem_apply_eq hr.le (hrp.trans_lt hp) i
+    exact hsep x' hx' y hy he
 
 /-- **One message keeps a density rectangle**: if Alice sends one of at most `2 ^ m` messages, some
 message leaves a density rectangle of rate `p'` and deficit `k'`, for `k ≥ 1`, `k' ≥ 194 k`,
@@ -88,30 +85,25 @@ theorem DensityRectangle.select_left_message {M : Type*} [Fintype M]
   classical
   rcases h with ⟨hX, hY, hdX, hdY, r, hr, hrp, hl⟩
   have hkmono : k ≤ k' := by linarith
-  have hp0 : 0 ≤ p := hr.le.trans hrp
-  have hpmono : p ≤ p' := by nlinarith [mul_nonneg hp0 (sub_nonneg.mpr hk)]
+  have hpmono : p ≤ p' := by nlinarith [mul_nonneg (hr.le.trans hrp) (sub_nonneg.mpr hk)]
   have hselect (Z : Finset (ι → Bool)) (hZX : Z ⊆ X) (hZ : Z.Nonempty)
       (hdef : uniformDeficit Z + m ≤ k') (s : ℝ) (hs : 0 < s) (hsp : s ≤ p')
       (hlim : ∀ z ∈ Z, IsDensityLimit Y s k' z) :
       ∃ (a : M) (X' : Finset (ι → Bool)), X' ⊆ X ∧ (∀ x ∈ X', send x = a) ∧
         DensityRectangle X' Y p' k' := by
     obtain ⟨a, hne, hd⟩ := exists_uniformDeficit_fiber_le Z hZ send hM
-    refine ⟨a, Z.filter (fun x => send x = a), (filter_subset _ _).trans hZX,
-      (fun x hx => (mem_filter.mp hx).2), hne, hY, hd.trans hdef, hdY.trans hkmono,
-      s, hs, hsp, Or.inl ?_⟩
-    exact fun x hx => hlim x (mem_filter.mp hx).1
+    exact ⟨a, Z.filter (send · = a), (filter_subset _ _).trans hZX,
+      fun _ hx => (mem_filter.mp hx).2, hne, hY, hd.trans hdef, hdY.trans hkmono, s, hs, hsp,
+      Or.inl fun x hx => hlim x (mem_filter.mp hx).1⟩
   rcases hl with hl | hl
-  · apply hselect X (Subset.refl _) hX (by linarith) r hr (hrp.trans hpmono)
-    intro x hx
-    exact (hl x hx).mono_right hr.le (by linarith [hrp.trans hpmono]) hkmono
+  · exact hselect X Subset.rfl hX (by linarith) r hr (hrp.trans hpmono) fun x hx =>
+      (hl x hx).mono_right hr.le (by linarith [hrp.trans hpmono]) hkmono
   · let q := 32768 * k * r
     have hqpos : 0 < q := by dsimp [q]; positivity
     have hqp : q ≤ p' :=
-      (mul_le_mul_of_nonneg_left hrp (show 0 ≤ 32768 * k by positivity)).trans hscale
-    obtain ⟨Z, hZX, hZ, hdef, hlim⟩ := exists_mirror_set Y X hY hk hdY hr rfl
-      (show q ≤ 1 / 2 by linarith) hl
-    apply hselect Z hZX hZ (by linarith) q hqpos hqp
-    intro z hz
-    exact (hlim z hz).mono_right hqpos.le (by linarith) hkk
+      (mul_le_mul_of_nonneg_left hrp (by positivity : 0 ≤ 32768 * k)).trans hscale
+    obtain ⟨Z, hZX, hZ, hdef, hlim⟩ := exists_mirror_set Y X hY hk hdY hr rfl (by linarith) hl
+    exact hselect Z hZX hZ (by linarith) q hqpos hqp fun z hz =>
+      (hlim z hz).mono_right hqpos.le (by linarith) hkk
 
 end Cslib.Communication

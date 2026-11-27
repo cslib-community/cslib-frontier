@@ -128,16 +128,22 @@ noncomputable def nextRegisters (n : ℕ) (r : Register k → ℕ) (a : Action k
   | .control => stateCode a.state
   | .output => outputStep (r .output) a.output
   | .head i => (tapeStep (a.workTapes i) (r (.head i), r (.left i), r (.right i))).1
-  | .left i => (tapeStep (a.workTapes i) (r (.head i), r (.left i), r (.right i))).2.1
-  | .right i => (tapeStep (a.workTapes i) (r (.head i), r (.left i), r (.right i))).2.2
+  | .left i =>
+    let ⟨_, l, _⟩ := tapeStep (a.workTapes i) (r (.head i), r (.left i), r (.right i))
+    l
+  | .right i =>
+    let ⟨_, _, rt⟩ := tapeStep (a.workTapes i) (r (.head i), r (.left i), r (.right i))
+    rt
 
 /-- The finite tuple of fields of a native action. -/
 def actionEquiv : Action k Bool State ≃
     SignType × (Fin k → Option (Option Bool) × SignType) × Option Bool × Option State where
   toFun a := (a.inputTape, a.workTapes, a.output, a.state)
-  invFun a := ⟨a.1, a.2.1, a.2.2.1, a.2.2.2⟩
+  invFun a :=
+    let ⟨inputTape, workTapes, output, state⟩ := a
+    ⟨inputTape, workTapes, output, state⟩
   left_inv a := by cases a; rfl
-  right_inv a := by rcases a with ⟨_, _, _, _⟩; rfl
+  right_inv _ := rfl
 
 /-- Native actions form a finite type over finite control and a fixed tape count. -/
 noncomputable local instance instFintypeActionBool : Fintype (Action k Bool State) :=
@@ -147,14 +153,28 @@ noncomputable local instance instFintypeActionBool : Fintype (Action k Bool Stat
 abbrev Instruction (k : ℕ) (State : Type) :=
   State × Option Bool × (Fin k → Option Bool) × Action k Bool State
 
+/-- The source control state of a transition-table entry. -/
+abbrev Instruction.state {k : ℕ} {State : Type} (t : Instruction k State) : State := t.1
+
+/-- The observed input-tape symbol of a transition-table entry. -/
+abbrev Instruction.input {k : ℕ} {State : Type} (t : Instruction k State) : Option Bool := t.2.1
+
+/-- The observed work-tape symbols of a transition-table entry. -/
+abbrev Instruction.workTapes {k : ℕ} {State : Type} (t : Instruction k State) :
+    Fin k → Option Bool := t.2.2.1
+
+/-- The transition action of a transition-table entry. -/
+abbrev Instruction.action {k : ℕ} {State : Type} (t : Instruction k State) :
+    Action k Bool State := t.2.2.2
+
 /-- The finite table is selected once from the source transition relation. Its selection need
 not be uniform in the machine; no runtime input influences this table. -/
 noncomputable def instructions (ntm : MultiTapeNTM k Bool State) : List (Instruction k State) := by
   classical
-  exact (Finset.univ.filter fun t => ntm.Tr t.1 t.2.1 t.2.2.1 t.2.2.2).toList
+  exact (Finset.univ.filter fun t => ntm.Tr t.state t.input t.workTapes t.action).toList
 
 theorem mem_instructions (ntm : MultiTapeNTM k Bool State) (t : Instruction k State) :
-    t ∈ instructions ntm ↔ ntm.Tr t.1 t.2.1 t.2.2.1 t.2.2.2 := by
+    t ∈ instructions ntm ↔ ntm.Tr t.state t.input t.workTapes t.action := by
   classical
   simp [instructions]
 
@@ -169,9 +189,9 @@ noncomputable def valid (B n u : ℕ) : Bool :=
 /-- Check that a decoded source has the observations of a fixed table entry. -/
 noncomputable def matchesEntry (n : ℕ) (r : Register k → ℕ) (symbol : Option Bool)
     (t : Instruction k State) : Bool :=
-  decide (r .control = stateCode (some t.1)) &&
-    decide (inputSymbol n (r .inputPos) symbol = t.2.1) &&
-    (List.ofFn fun i : Fin k => decide (r (.head i) = symbolCode (t.2.2.1 i))).all id
+  decide (r .control = stateCode (some t.state)) &&
+    decide (inputSymbol n (r .inputPos) symbol = t.input) &&
+    (List.ofFn fun i : Fin k => decide (r (.head i) = symbolCode (t.workTapes i))).all id
 
 /-- Guard every successor component against radix overflow. -/
 noncomputable def fitsB (B : ℕ) (r : Register k → ℕ) : Bool :=
@@ -185,8 +205,8 @@ noncomputable def edgeWithSymbol (ntm : MultiTapeNTM k Bool State) (B n u v : �
   valid (k := k) (State := State) B n u && valid (k := k) (State := State) B n v &&
     ((decide (r .control = stateCode (none : Option State)) && decide (v = u)) ||
       (instructions ntm).any fun t =>
-        matchesEntry n r symbol t && fitsB B (nextRegisters n r t.2.2.2) &&
-          decide (v = Cslib.Radix.pack B (nextRegisters n r t.2.2.2)))
+        matchesEntry n r symbol t && fitsB B (nextRegisters n r t.action) &&
+          decide (v = Cslib.Radix.pack B (nextRegisters n r t.action)))
 
 /-- Accepting halted vertices, the bad set for complement reachability. -/
 noncomputable def bad (B n u : ℕ) : Bool :=
@@ -201,7 +221,7 @@ noncomputable def overflow (ntm : MultiTapeNTM k Bool State) (B n u : ℕ)
   let r := readRegisters (k := k) B u
   valid (k := k) (State := State) B n u &&
     (instructions ntm).any fun t =>
-      matchesEntry n r symbol t && !fitsB B (nextRegisters n r t.2.2.2)
+      matchesEntry n r symbol t && !fitsB B (nextRegisters n r t.action)
 
 /-- The start vertex depends only on the radix, since initial storage is blank. -/
 noncomputable def startID (ntm : MultiTapeNTM k Bool State) (B : ℕ) : ℕ :=

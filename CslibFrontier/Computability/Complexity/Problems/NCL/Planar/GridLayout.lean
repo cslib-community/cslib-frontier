@@ -43,8 +43,8 @@ open GridRouting
 /-- The cell occupies at most three columns, leaving a gap before the suffix wires. -/
 theorem columns_strictMono (k a r : ℕ) (ha : a ≤ 3) : StrictMono (columns k a r) := by
   intro i j hij
-  have hi := i.isLt
-  have hj := j.isLt
+  have := i.isLt
+  have := j.isLt
   simp only [columns]
   split_ifs <;> omega
 
@@ -99,24 +99,19 @@ abbrev Strand (k a b r : ℕ) := Fin k ⊕ ((Fin a ⊕ Fin b) ⊕ Fin r)
 theorem middlePath_contains_iff {k a b r : ℕ} (e : Strand k a b r) (p : Point) :
     (middlePath e).Contains p ↔ MiddleContains e p := by
   rcases e with i | ((i | j) | j)
-  · simp only [middlePath, Path.Contains, MiddleContains]
-    omega
+  · simp only [middlePath, Path.Contains, MiddleContains]; omega
   · change ((GridStar.path (Sum.inl i : Fin a ⊕ Fin b)).translate (4 * k) 0).Contains p ↔ _
-    rw [Path.contains_translate, GridStar.path_contains_iff]
-    simp only [MiddleContains, Nat.sub_zero, Nat.zero_le, true_and]
+    simp only [Path.contains_translate, GridStar.path_contains_iff, MiddleContains, Nat.sub_zero,
+      Nat.zero_le, true_and]
   · change ((GridStar.path (Sum.inr j : Fin a ⊕ Fin b)).translate (4 * k) 0).Contains p ↔ _
-    rw [Path.contains_translate, GridStar.path_contains_iff]
-    simp only [MiddleContains, Nat.sub_zero, Nat.zero_le, true_and]
-  · simp only [middlePath, Path.Contains, MiddleContains]
-    omega
+    simp only [Path.contains_translate, GridStar.path_contains_iff, MiddleContains, Nat.sub_zero,
+      Nat.zero_le, true_and]
+  · simp only [middlePath, Path.Contains, MiddleContains]; omega
 
 /-- Every middle strand lies between the two boundary rows. -/
 theorem middle_row_le {k a b r : ℕ} (h : a + b = 3) {e : Strand k a b r} {p : Point}
     (hp : MiddleContains e p) : p.2 ≤ 2 := by
-  rcases e with i | (e | j)
-  · exact hp.2
-  · exact (GridStar.bounded h hp.2).2
-  · exact hp.2
+  rcases e with _ | (e | _) <;> first | exact hp.2 | exact (GridStar.bounded h hp.2).2
 
 /-- Distinct middle strands can meet only at the unique cell vertex. -/
 theorem middle_intersection {k a b r : ℕ} (h : a + b = 3)
@@ -124,39 +119,27 @@ theorem middle_intersection {k a b r : ℕ} (h : a + b = 3)
     (he : MiddleContains e p) (hf : MiddleContains f p) :
     p = (4 * k + GridStar.center a, 1) ∧
       (∃ q, e = .inr (.inl q)) ∧ (∃ q, f = .inr (.inl q)) := by
-  rcases e with i | (e | i) <;> rcases f with j | (f | j)
-  · have hij : i.val ≠ j.val := fun hh => hef (congrArg Sum.inl (Fin.ext hh))
-    simp only [MiddleContains] at he hf
+  rcases e with i | (e | i) <;> rcases f with j | (f | j) <;> simp only [MiddleContains] at he hf
+  · exact absurd (Fin.ext (by omega : i.val = j.val)) (fun hh => hef (congrArg Sum.inl hh))
+  · have := i.isLt
     omega
   · have := i.isLt
-    simp only [MiddleContains] at he hf
-    omega
-  · have := i.isLt
-    simp only [MiddleContains] at he hf
     omega
   · have := j.isLt
-    simp only [MiddleContains] at he hf
     omega
-  · have hne : e ≠ f := fun hh => hef (congrArg (Sum.inr ∘ Sum.inl) hh)
-    obtain hh := GridStar.intersection h hne he.2 hf.2
-    have hx := congrArg Prod.fst hh
-    have hy := congrArg Prod.snd hh
-    refine ⟨Prod.ext ?_ hy, ⟨e, rfl⟩, ⟨f, rfl⟩⟩
+  · have hh := GridStar.intersection h (fun hh => hef (congrArg (Sum.inr ∘ Sum.inl) hh)) he.2 hf.2
+    have hx : p.1 - 4 * k = GridStar.center a := congrArg Prod.fst hh
+    have hy : p.2 = 1 := congrArg Prod.snd hh
     have := he.1
-    omega
-  · have hx := (GridStar.bounded h he.2).1
-    simp only [MiddleContains] at he hf
+    exact ⟨Prod.ext (by omega) hy, ⟨e, rfl⟩, ⟨f, rfl⟩⟩
+  · have := (GridStar.bounded h he.2).1
     omega
   · have := j.isLt
-    simp only [MiddleContains] at he hf
     omega
-  · have hx := (GridStar.bounded h hf.2).1
-    simp only [MiddleContains] at he hf
+  · have := (GridStar.bounded h hf.2).1
     omega
-  · have hij : i.val ≠ j.val := fun hh =>
-      hef (congrArg (Sum.inr ∘ Sum.inr) (Fin.ext hh))
-    simp only [MiddleContains] at he hf
-    omega
+  · exact absurd (Fin.ext (by omega : i.val = j.val))
+      (fun hh => hef (congrArg (Sum.inr ∘ Sum.inr) hh))
 
 /-- Routing data for a layer with `k` prefix wires, `r` suffix wires, and a cell of arity three.
 The middle band is `MiddleContains`; the two ordered routings attach to its ports. -/
@@ -188,8 +171,7 @@ theorem middle_boundary_unique {k a b r : ℕ} (h : a + b = 3) {e f : Strand k a
     {x y : ℕ} (hy : y = 0 ∨ y = 2) (he : MiddleContains e (x, y))
     (hf : MiddleContains f (x, y)) : e = f := by
   by_contra hef
-  have hp := (middle_intersection h hef he hf).1
-  have hrow := congrArg Prod.snd hp
+  have hrow := congrArg Prod.snd (middle_intersection h hef he hf).1
   rcases hy with rfl | rfl <;> cases hrow
 
 /-- The upper routing and the cell band meet only at their common input port. -/
@@ -198,10 +180,8 @@ theorem Layer.upper_middle_intersection {k a b r : ℕ} (L : Layer k a b r)
     (hu : L.upper.Contains i p) (hm : 2 * (k + a + r + 1) ≤ p.2 ∧
       MiddleContains e (p.1, p.2 - 2 * (k + a + r + 1))) :
     p.2 = 2 * (k + a + r + 1) ∧ p.1 = columns k a r i := by
-  have hy := L.upper.row_le i hu
-  have heq : p.2 = 2 * (k + a + r + 1) := by omega
-  refine ⟨heq, ?_⟩
-  exact (L.upper.bottom_iff i p.1).1 (heq ▸ hu)
+  have heq : p.2 = 2 * (k + a + r + 1) := by have := L.upper.row_le i hu; omega
+  exact ⟨heq, (L.upper.bottom_iff i p.1).1 (heq ▸ hu)⟩
 
 /-- The cell band and the lower routing meet only at their common output port. -/
 theorem Layer.middle_lower_intersection {k a b r : ℕ} (L : Layer k a b r)
@@ -209,10 +189,8 @@ theorem Layer.middle_lower_intersection {k a b r : ℕ} (L : Layer k a b r)
     (hm : MiddleContains e (x, y))
     (hl : 2 ≤ y ∧ L.lower.Contains j (x, y - 2)) :
     y = 2 ∧ x = columns k b r j := by
-  have hy := middle_row_le L.arity hm
-  have heq : y = 2 := by omega
-  refine ⟨heq, ?_⟩
-  exact (L.lower.top_iff j x).1 (by simpa only [heq, Nat.sub_self] using hl.2)
+  have heq : y = 2 := by have := middle_row_le L.arity hm; omega
+  exact ⟨heq, (L.lower.top_iff j x).1 (by simpa only [heq, Nat.sub_self] using hl.2)⟩
 
 /-- The upper and lower routing bands are separated by the cell's two rows. -/
 theorem Layer.upper_lower_disjoint {k a b r : ℕ} (L : Layer k a b r)

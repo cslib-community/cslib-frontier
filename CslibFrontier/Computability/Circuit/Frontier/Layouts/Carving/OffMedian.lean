@@ -67,22 +67,15 @@ theorem measureReal_straddleEvent_le_of_ncard_eq_three [Finite E] (hloop : G.Loo
   have hcard : s.card = 3 := by rw [← ncard_coe_finset, hs, hv]
   have hunit (e : E) : ‖edgeVector G q R e‖ = 1 := norm_edgeVector hloop hdeg hq (by linarith) hρ e
   have hjensen := sum_arccos_edgeVector_offDiag_le hloop hdeg hq hρ₀ hρ hs hcard
-  have hshep (p : E × E) : (Measure.pi fun _ : V => gaussianReal 0 1).real
-      {ω | t ∈ Ι (edgeScore G q R ω p.1) (edgeScore G q R ω p.2)} ≤
-        exp (-t ^ 2 / 2) * (arccos ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ / π) :=
-    measureReal_mem_uIoc_le_exp_mul (hunit p.1) (hunit p.2) t
   have h4 := (four_mul_measureReal_straddleEvent_le (q := q) (R := R) hs hcard t).trans
-    (Finset.sum_le_sum fun p (_ : p ∈ s.offDiag) => hshep p)
+    (Finset.sum_le_sum fun p (_ : p ∈ s.offDiag) =>
+      measureReal_mem_uIoc_le_exp_mul (hunit p.1) (hunit p.2) t)
   rw [← Finset.mul_sum, ← Finset.sum_div] at h4
-  have hdiv : (∑ x ∈ s.offDiag, arccos ⟪edgeVector G q R x.1, edgeVector G q R x.2⟫) / π ≤
-      6 * arccos ((1 + 3 * ρ₀) / 4) / π :=
-    div_le_div_of_nonneg_right hjensen pi_pos.le
-  have h4' : 4 * (Measure.pi fun _ : V => gaussianReal 0 1).real (straddleEvent G q R t v) ≤
-      exp (-t ^ 2 / 2) * (6 * arccos ((1 + 3 * ρ₀) / 4) / π) :=
-    h4.trans (mul_le_mul_of_nonneg_left hdiv (exp_pos _).le)
-  unfold straddleBound
+  have h4' := h4.trans (mul_le_mul_of_nonneg_left
+    (div_le_div_of_nonneg_right hjensen pi_pos.le) (exp_pos _).le)
   have hident : exp (-t ^ 2 / 2) * (6 * arccos ((1 + 3 * ρ₀) / 4) / π) =
-      4 * (exp (-t ^ 2 / 2) * (3 / (2 * π) * arccos ((1 + 3 * ρ₀) / 4))) := by
+      4 * (exp (-t ^ 2 / 2) * straddleBound ρ₀) := by
+    unfold straddleBound
     field_simp; ring
   linarith
 

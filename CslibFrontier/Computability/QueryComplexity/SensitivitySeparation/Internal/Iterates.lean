@@ -93,9 +93,8 @@ private theorem sensitivity_iterateCompose_le (f : (I → Bool) → Bool) (m : �
     sensitivity (iterateCompose f m) ≤ sensitivity f ^ m := by
   induction m with
   | zero =>
-    apply sensitivity_le
-    intro x
-    exact (sensitivityAt_le_card (iterateCompose f 0) x).trans_eq (iterateCoord_card 0)
+    exact sensitivity_le _ fun x =>
+      (sensitivityAt_le_card (iterateCompose f 0) x).trans_eq (iterateCoord_card 0)
   | succ m ih =>
     change sensitivity (compose f (iterateCompose f m)) ≤ _
     calc
@@ -111,17 +110,10 @@ private theorem blockSensitivityAt_iterateCompose_zero (f : (I → Bool) → Boo
       blockSensitivityAt (iterateCompose f m) (fun _ => false) := by
   induction m with
   | zero =>
-    have h := le_blockSensitivityAt (iterateCompose f 0) (fun _ => false)
-      ({{()}} : Finset (Finset Unit))
-      (by
-        intro A hA B hB hne
-        exact (hne ((Finset.mem_singleton.mp hA).trans (Finset.mem_singleton.mp hB).symm)).elim)
-      (by
-        intro B hB
-        have hB' : B = {()} := Finset.mem_singleton.mp hB
-        subst B
-        exact ⟨Finset.singleton_nonempty _, by simp [iterateCompose, BitString.flipOn_apply]⟩)
-    simpa only [Finset.card_singleton, pow_zero] using h
+    simpa only [Finset.card_singleton, pow_zero] using
+      le_blockSensitivityAt (iterateCompose f 0) (fun _ => false) {{()}}
+        (fun _ _ _ _ _ => by simp_all)
+        (fun _ _ => by simp_all [iterateCompose, BitString.flipOn_apply])
   | succ m ih =>
     change _ ≤ blockSensitivityAt (compose f (iterateCompose f m)) (fun _ => false)
     calc
@@ -163,8 +155,7 @@ open scoped Classical in
 theorem nonconstant_of_blockSensitivityAt_pos (f : (I → Bool) → Bool) (x : I → Bool)
     (h : 0 < blockSensitivityAt f x) : ∃ y z, f y ≠ f z := by
   obtain ⟨blocks, hc, _, hb⟩ := exists_blockSensitivityAt_family f x
-  have hn : blocks.Nonempty := Finset.card_pos.mp (hc.symm ▸ h)
-  obtain ⟨B, hB⟩ := hn
+  obtain ⟨B, hB⟩ := Finset.card_pos.mp (hc.symm ▸ h)
   exact ⟨BitString.flipOn B x, x, (hb B hB).2⟩
 
 /-- If `f` rejects the all-false input and has positive block sensitivity there, then every
@@ -172,8 +163,8 @@ theorem nonconstant_of_blockSensitivityAt_pos (f : (I → Bool) → Bool) (x : I
 theorem iterateFin_nonconstant (f : (I → Bool) → Bool)
     (hf : f (fun _ => false) = false)
     (h : 0 < blockSensitivityAt f (fun _ => false)) (m : ℕ) :
-    ∃ x y, iterateFin f m x ≠ iterateFin f m y := by
-  exact nonconstant_of_blockSensitivityAt_pos _ _
+    ∃ x y, iterateFin f m x ≠ iterateFin f m y :=
+  nonconstant_of_blockSensitivityAt_pos _ _
     ((Nat.pow_pos h).trans_le (blockSensitivityAt_iterateFin_zero f hf m))
 
 end Internal

@@ -95,25 +95,12 @@ theorem isCorrect_iff (hP : P.IsLinearSummation) : P.IsCorrect ↔
     ∀ i r q, (r, q) ∈ (ProbComp.eval (P.query i)).support →
       q false + q true = Pi.single i true := by
   rw [P.isCorrect_iff]
-  constructor
-  · intro h i r q hrq
-    funext j
-    have := h (Pi.single j true) i r q hrq
-    rw [hP.reconstruct_eq, hP.answer_eq, hP.answer_eq, ← dotProduct_add, single_dotProduct,
-      Pi.single_apply] at this
-    rw [Pi.single_apply]
-    generalize (q false + q true) j = a at this ⊢
-    by_cases hji : j = i
-    · rw [ite_eq_left hji]
-      rw [ite_eq_left hji.symm] at this
-      revert this
-      cases a <;> decide
-    · rw [ite_eq_right hji]
-      rw [ite_eq_right (Ne.symm hji)] at this
-      revert this
-      cases a <;> decide
-  · intro h x i r q hrq
-    rw [hP.reconstruct_eq, hP.answer_eq, hP.answer_eq, ← dotProduct_add, h i r q hrq]
+  refine ⟨fun h i r q hrq => funext fun j => ?_, fun h x i r q hrq => ?_⟩
+  · have := h (Pi.single j true) i r q hrq
+    rw [hP.reconstruct_eq, hP.answer_eq, hP.answer_eq, ← dotProduct_add, single_dotProduct] at this
+    change 1 * (q false + q true) j = (Pi.single j true : ι → Bool) i at this
+    simpa only [one_mul, Pi.single_apply, eq_comm] using this
+  · rw [hP.reconstruct_eq, hP.answer_eq, hP.answer_eq, ← dotProduct_add, h i r q hrq]
     exact dotProduct_single_one x i
 
 /-- In a correct linear-summation scheme, the two queries add up to `eᵢ`. -/
@@ -132,18 +119,13 @@ theorem add_single_mem (hP : P.IsLinearSummation) (hcorrect : P.IsCorrect)
   rw [hprivate.eval_serverQuery_eq s i h, P.eval_serverQuery] at hv
   rw [hprivate.eval_serverQuery_eq (!s) i h, P.eval_serverQuery]
   obtain ⟨⟨r, q⟩, hrq, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hv
-  refine (PMF.mem_support_map_iff _ _ _).2 ⟨(r, q), hrq, ?_⟩
-  have hsum := hP.query_add_query hcorrect hrq
-  funext j
-  have hj := congrFun hsum j
-  rw [Pi.add_apply] at hj
+  refine (PMF.mem_support_map_iff _ _ _).2 ⟨(r, q), hrq, funext fun j => ?_⟩
+  have hj := congrFun (hP.query_add_query hcorrect hrq) j
   change q (!s) j = q s j + (Pi.single h true : ι → Bool) j
   rw [← hj]
-  cases s
-  · change q true j = q false j + (q false j + q true j)
-    rw [← add_assoc, BooleanRing.add_self, zero_add]
-  · change q false j = q true j + (q false j + q true j)
-    rw [add_comm (q false j), ← add_assoc, BooleanRing.add_self, zero_add]
+  cases s <;> simp only [Bool.not_false, Bool.not_true, Pi.add_apply]
+  · rw [← add_assoc, BooleanRing.add_self, zero_add]
+  · rw [add_comm (q false j), ← add_assoc, BooleanRing.add_self, zero_add]
 
 omit [DecidableEq ι] in
 /-- **The Claim of [CGKS, Section 5.2][ChorGoldreichKushilevitzSudan1998].** In a correct, private
@@ -161,21 +143,16 @@ theorem mem_support_add (hP : P.IsLinearSummation) (hcorrect : P.IsCorrect)
     induction D using Finset.induction_on with
     | empty => simpa only [sum_empty, add_zero] using hv
     | insert a D ha ih =>
-      rw [sum_insert ha, sum_insert ha]
-      rw [show v + (Pi.single a (w a + v a) + ∑ h ∈ D, Pi.single h (w h + v h)) =
-          (v + ∑ h ∈ D, Pi.single h (w h + v h)) + Pi.single a (w a + v a) by abel,
-        show s + (w a + v a + ∑ h ∈ D, (w h + v h)) =
-          (s + ∑ h ∈ D, (w h + v h)) + (w a + v a) by abel]
+      rw [sum_insert ha, sum_insert ha, ← add_assoc v, add_right_comm v,
+        ← add_assoc s, add_right_comm s]
       cases w a + v a
-      · rw [show ∀ b : Bool, b + false = b from Bool.xor_false,
-          show (Pi.single a false : ι → Bool) = 0 from Pi.single_zero a, add_zero]
-        exact ih
-      · rw [show ∀ b : Bool, b + true = !b from Bool.xor_true]
-        exact hP.add_single_mem hcorrect hprivate ih a
-  have h := key univ
-  rwa [univ_sum_single (fun h => w h + v h),
-    show v + (fun h => w h + v h) = w from funext fun h => by
-      rw [Pi.add_apply, add_comm (w h), ← add_assoc, BooleanRing.add_self, zero_add]] at h
+      · change _ + Pi.single a 0 ∈ (ProbComp.eval (P.serverQuery (_ + 0) i)).support
+        simpa only [Pi.single_zero, add_zero] using ih
+      · generalize s + ∑ h ∈ D, (w h + v h) = b at ih ⊢
+        cases b <;> exact hP.add_single_mem hcorrect hprivate ih a
+  have hvw : v + (fun h => w h + v h) = w := funext fun h => by
+    rw [Pi.add_apply, add_comm (w h), ← add_assoc, BooleanRing.add_self, zero_add]
+  simpa only [univ_sum_single (fun h => w h + v h), hvw] using key univ
 
 omit [DecidableEq ι] in
 /-- In a correct, private linear-summation scheme, the server `s` can receive at least half of all
@@ -192,22 +169,16 @@ theorem two_pow_le_two_mul_ncard_support (hP : P.IsLinearSummation) (hcorrect : 
   · rw [Fintype.card_eq_zero, pow_zero]
     omega
   -- Every set can be received by `s` or by the other server.
-  have hcover : (Set.univ : Set (ι → Bool)) ⊆ T s ∪ T (!s) := by
-    intro w _
+  have hcover : (Set.univ : Set (ι → Bool)) ⊆ T s ∪ T (!s) := fun w _ => by
     have hw := hP.mem_support_add hcorrect hprivate hv w
-    cases hsum : ∑ h, (w h + v h)
-    · rw [hsum, show ∀ b : Bool, b + false = b from Bool.xor_false] at hw
-      exact Or.inl hw
-    · rw [hsum, show ∀ b : Bool, b + true = !b from Bool.xor_true] at hw
-      exact Or.inr hw
+    cases hsum : ∑ h, (w h + v h) <;> rw [hsum] at hw
+    · cases s <;> exact Or.inl hw
+    · cases s <;> exact Or.inr hw
   -- Flipping the position `h₀` maps the sets of the other server into those of `s`.
-  have hflip : (T (!s)).ncard ≤ (T s).ncard := by
-    refine Set.ncard_le_ncard_of_injOn (fun w => w + Pi.single h₀ true) ?_ ?_
-    · intro w hw
-      have := hP.add_single_mem hcorrect hprivate hw h₀
-      rwa [Bool.not_not] at this
-    · intro w _ w' _ hww'
-      exact add_right_cancel hww'
+  have hflip : (T (!s)).ncard ≤ (T s).ncard :=
+    Set.ncard_le_ncard_of_injOn (· + Pi.single h₀ true)
+      (fun w hw => by simpa only [Bool.not_not] using hP.add_single_mem hcorrect hprivate hw h₀)
+      fun _ _ _ _ => add_right_cancel
   have huniv := (Set.ncard_le_ncard hcover).trans (Set.ncard_union_le _ _)
   rw [Set.ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool] at huniv
   omega
@@ -297,8 +268,9 @@ theorem isLinearSummation_evenTwoServer : (evenTwoServer h₀).IsLinearSummation
 theorem isCorrect_evenTwoServer : (evenTwoServer h₀).IsCorrect := by
   rw [(isLinearSummation_evenTwoServer h₀).isCorrect_iff]
   intro i r q hrq
-  simp only [evenTwoServer, ProbComp.mem_support_eval_uniform_bind_pure, Prod.mk.injEq] at hrq
-  obtain ⟨u, -, rfl⟩ := hrq
+  obtain ⟨u, -, rfl⟩ := (by
+    simpa only [evenTwoServer, ProbComp.mem_support_eval_uniform_bind_pure, Prod.mk.injEq]
+      using hrq)
   exact BitString.add_single_false_add_add_single_true (makeEven h₀ u) i
 
 /-- **The even-set scheme is private**: the server `σ` receives the uniform even set made odd at
@@ -313,13 +285,9 @@ theorem isPrivate_evenTwoServer : (evenTwoServer h₀).IsPrivate := by
     congr 1 with u : 1
     change makeEven h₀ (u + Pi.single i σ) + Pi.single i σ = makeEven h₀ u + Pi.single h₀ σ
     rw [makeEven_add_single]
-    funext j
-    simp only [Pi.add_apply]
-    generalize makeEven h₀ u j = a
-    generalize (Pi.single i σ : ι → Bool) j = b
-    generalize (Pi.single h₀ σ : ι → Bool) j = c
-    revert a b c
-    decide
+    ext j
+    rw [Pi.add_apply, Pi.add_apply, Pi.add_apply, add_right_comm, add_assoc (makeEven h₀ u j),
+      BooleanRing.add_self, add_zero, ← Pi.add_apply]
   intro σ i i'
   rw [key, key]
 
@@ -338,15 +306,12 @@ private theorem injOn_restrict_of_sum_eq (σ : Bool) :
   classical
   intro v hv w hw hvw
   funext h
-  by_cases hh : h = h₀
-  · subst hh
-    have hv' : ∑ j, v j = σ := hv
+  rcases eq_or_ne h h₀ with rfl | hh
+  · have hv' : ∑ j, v j = σ := hv
     have hw' : ∑ j, w j = σ := hw
-    rw [Fintype.sum_eq_add_sum_compl h] at hv' hw'
-    have hrest : ∑ j ∈ {h}ᶜ, v j = ∑ j ∈ {h}ᶜ, w j := by
-      refine sum_congr rfl fun j hj => ?_
-      exact congrFun hvw ⟨j, by simpa only [mem_compl, mem_singleton] using hj⟩
-    rw [hrest] at hv'
+    rw [Fintype.sum_eq_add_sum_compl h, sum_congr rfl fun j hj =>
+      congrFun hvw ⟨j, by simpa only [mem_compl, mem_singleton] using hj⟩] at hv'
+    rw [Fintype.sum_eq_add_sum_compl h] at hw'
     exact add_right_cancel (hv'.trans hw'.symm)
   · exact congrFun hvw ⟨h, hh⟩
 
@@ -372,12 +337,10 @@ theorem exists_injOn_evenTwoServer (σ : Bool) :
   have hcard : Fintype.card {h // h ≠ h₀} = Fintype.card ι - 1 := by
     rw [Fintype.card_subtype_compl, Fintype.card_subtype_eq]
   let e := Fintype.equivFinOfCardEq hcard
-  refine ⟨fun v k => v (e.symm k), fun i => ?_⟩
-  intro v hv w hw hvw
-  refine injOn_restrict_of_sum_eq h₀ σ (sum_of_mem_support_evenTwoServer h₀ hv)
-    (sum_of_mem_support_evenTwoServer h₀ hw) (funext fun h => ?_)
-  have := congrFun hvw (e h)
-  simpa only [Equiv.symm_apply_apply] using this
+  refine ⟨fun v k => v (e.symm k), fun i v hv w hw hvw =>
+    injOn_restrict_of_sum_eq h₀ σ (sum_of_mem_support_evenTwoServer h₀ hv)
+      (sum_of_mem_support_evenTwoServer h₀ hw) (funext fun h => ?_)⟩
+  simpa only [Equiv.symm_apply_apply] using congrFun hvw (e h)
 
 end TwoServer
 

@@ -155,20 +155,11 @@ theorem isPPTOn_lyubashevskySignAttemptNative
     (hhash : ComputableInPolyTime hash (encPair encBits encBits) encBits) :
     IsPPTOn encLyubashevskySignInput encCommitResponseOrAbort
       (lyubashevskySignAttemptNative hash) := by
-  have hγ : ComputableInPolyTime (fun x : LyubashevskySignInput => x.1.γ)
-      encLyubashevskySignInput encNat := by
-    unfold encLyubashevskySignInput
-    fun_prop
-  have hm : ComputableInPolyTime (fun x : LyubashevskySignInput => x.1.m)
-      encLyubashevskySignInput encUnary := by
-    unfold encLyubashevskySignInput
-    fun_prop
-  have hw : ComputableInPolyTime (fun x : LyubashevskySignInput => x.1.width)
-      encLyubashevskySignInput encUnary := by
-    unfold encLyubashevskySignInput
-    fun_prop
-  exact (isPPTOn_sampleIntBoxList hγ hm hw).map_with
+  refine (isPPTOn_sampleIntBoxList ?_ ?_ ?_).map_with
     (computableInPolyTime_lyubashevskySignPostprocess hhash)
+  all_goals
+    unfold encLyubashevskySignInput
+    fun_prop
 
 /-- Canonical native input for a typed secret and public matrix. The public `T = A S` matrix
 is not needed by signing. -/
@@ -337,9 +328,7 @@ theorem lyubashevskySignBoundedNative_none_le (hash : List Bool × List Bool →
   have h := (closeTo_lyubashevskySignBoundedNative hash p S y msg K).symm {none}
   rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply] at h
   have hpre : (lyubashevskySignatureWords p) ⁻¹' {none} = {none} := by
-    ext sig
-    cases sig <;> simp [lyubashevskySignatureWords]
-  rw [hpre, PMF.toOuterMeasure_apply_singleton, lyubashevskySignBounded_apply_none] at h
-  exact h
+    ext (_ | _) <;> simp [lyubashevskySignatureWords]
+  simpa only [hpre, PMF.toOuterMeasure_apply_singleton, lyubashevskySignBounded_apply_none] using h
 
 end Cslib.Crypto.Protocols.SigmaProtocol

@@ -102,10 +102,9 @@ private theorem countQueries_submodularGreedyStepM_eq
     (submodularGreedyStepM ValueQuery.ask u S).countQueries oracle =
       (u.filter (· ∉ S)).length := by
   unfold submodularGreedyStepM
-  cases u.filter (· ∉ S) with
-  | nil => simp
-  | cons c₀ cs =>
-    simp [countQueries_scanCandidatesM, Nat.add_comm]
+  rcases u.filter (· ∉ S) with _ | ⟨c₀, cs⟩
+  · simp
+  · simp [countQueries_scanCandidatesM, Nat.add_comm]
 
 private theorem eval_submodularGreedyStepM
     (oracle : {ι : Type} → ValueQuery α β ι → ι)
@@ -118,12 +117,11 @@ private theorem eval_submodularGreedyStepM
 private theorem length_filter_notMem_eq_sub
     {u : List α} (hu : u.Nodup) {S : Finset α} (hS : S ⊆ u.toFinset) :
     (u.filter (· ∉ S)).length = u.length - S.card := by
-  have hnodup : (u.filter (· ∉ S)).Nodup := hu.filter _
-  have htoFinset : (u.filter (· ∉ S)).toFinset = u.toFinset \ S := by
-    ext x
+  have hfin : (u.filter (· ∉ S)).toFinset = u.toFinset \ S := by
+    ext
     simp
-  rw [← List.toFinset_card_of_nodup hnodup, htoFinset, Finset.card_sdiff_of_subset hS,
-    List.toFinset_card_of_nodup hu]
+  rw [← List.toFinset_card_of_nodup (hu.filter _), hfin,
+    Finset.card_sdiff_of_subset hS, List.toFinset_card_of_nodup hu]
 
 private theorem length_sub_card_submodularGreedyStep
     (f : Finset α → β) {u : List α} (hu : u.Nodup) {S : Finset α} (hS : S ⊆ u.toFinset) :
@@ -133,17 +131,12 @@ private theorem length_sub_card_submodularGreedyStep
   | nil =>
     dsimp only
     have hzero := length_filter_notMem_eq_sub hu hS
-    rw [hfilt, List.length_nil] at hzero
-    omega
+    rw [hfilt, List.length_nil] at hzero; omega
   | cons c₀ cs =>
+    have hmem : (scanCandidates f S c₀ (f (insert c₀ S)) cs).1 ∈ u.filter (· ∉ S) :=
+      hfilt ▸ scanCandidates_fst_mem f S c₀ (f (insert c₀ S)) cs
     dsimp only
-    have hmem : (scanCandidates f S c₀ (f (insert c₀ S)) cs).1 ∈ c₀ :: cs :=
-      scanCandidates_fst_mem f S c₀ (f (insert c₀ S)) cs
-    rw [← hfilt] at hmem
-    have hnotMem : (scanCandidates f S c₀ (f (insert c₀ S)) cs).1 ∉ S :=
-      of_decide_eq_true (List.mem_filter.mp hmem).2
-    rw [Finset.card_insert_of_notMem hnotMem]
-    omega
+    rw [Finset.card_insert_of_notMem (of_decide_eq_true (List.mem_filter.mp hmem).2)]; omega
 
 private theorem countQueries_submodularGreedyLoopM_eq
     (oracle : {ι : Type} → ValueQuery α β ι → ι)
@@ -157,14 +150,10 @@ private theorem countQueries_submodularGreedyLoopM_eq
       countQueries_submodularGreedyStepM_eq, length_filter_notMem_eq_sub hu hS,
       eval_submodularGreedyStepM]
     let f : Finset α → β := fun T => oracle (.value T)
-    have hS' : submodularGreedyStep f u S ⊆ u.toFinset :=
-      submodularGreedyStep_subset_toFinset f hS
-    rw [ih hS', Finset.sum_range_succ']
+    rw [ih (submodularGreedyStep_subset_toFinset f hS), Finset.sum_range_succ']
     simp only [Nat.sub_zero, Nat.add_comm (∑ x ∈ Finset.range k, _)]
-    congr 1
-    refine Finset.sum_congr rfl fun t _ => ?_
-    rw [length_sub_card_submodularGreedyStep f hu hS]
-    omega
+    refine congrArg (_ + ·) (Finset.sum_congr rfl fun t _ => ?_)
+    rw [length_sub_card_submodularGreedyStep f hu hS]; omega
 
 /-- Exact multi-round query count: across `k` greedy rounds, `submodularGreedyQuery xs k` evaluates
 `xs.toFinset.card - t` remaining candidates in round `t` (`0` once all distinct candidates are
@@ -173,9 +162,9 @@ theorem countQueries_submodularGreedyQuery_eq
     (oracle : {ι : Type} → ValueQuery α β ι → ι) (xs : List α) (k : ℕ) :
     (submodularGreedyQuery xs k).countQueries oracle =
       ∑ t ∈ Finset.range k, (xs.toFinset.card - t) := by
-  have h := countQueries_submodularGreedyLoopM_eq oracle (List.nodup_eraseDups xs) k
-    (Finset.empty_subset xs.eraseDups.toFinset)
-  simpa [submodularGreedyQuery, submodularGreedyM, List.length_eraseDups] using h
+  simpa [submodularGreedyQuery, submodularGreedyM, List.length_eraseDups] using
+    countQueries_submodularGreedyLoopM_eq oracle (List.nodup_eraseDups xs) k
+      (Finset.empty_subset xs.eraseDups.toFinset)
 
 @[simp] theorem countQueries_submodularGreedyQuery_zero
     (oracle : {ι : Type} → ValueQuery α β ι → ι) (xs : List α) :

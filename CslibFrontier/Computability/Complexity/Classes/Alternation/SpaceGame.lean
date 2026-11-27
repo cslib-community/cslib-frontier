@@ -231,24 +231,24 @@ theorem EXP_subset_APSPACE : EXP enc ⊆ APSPACE enc := by
         (encB := encBits) (g := fun a => enc a) fun _ => rfl)).weaken hin)
   have hn : ComputableInSpace n enc encNat Bs := budget_length hx
   have hE : ComputableInSpace E enc encNat Bs :=
-    budget_natAdd (budget_natAdd (budget_natAdd (budget_natPow hn hin d) (budget_const c₁ hin))
-      (budget_const c₂ hin)) hn
+    budget_natAdd (budget_natAdd (budget_natAdd (budget_natPow hn d) (budget_const c₁))
+      (budget_const c₂)) hn
   have hT : ComputableInSpace T enc encNat Bs := by
-    refine budget_natPow_variable (budget_const 2 hin) hE (.of_le_linear 3 3 fun a => ?_)
+    refine budget_natPow_variable (budget_const 2) hE (.of_le_linear 3 3 fun a => ?_)
     have h2 : (encNat 2).length = 2 := rfl
     have hEl : (encNat (E a)).length ≤ E a :=
       length_encNat_le_of_lt_two_pow Nat.lt_two_pow_self
     simp only [h2, Bs]
     nlinarith
   have hN : ComputableInSpace N enc encNat Bs :=
-    outWire_inSpace (k := k) (State := State) hT hin hn
+    outWire_inSpace (k := k) (State := State) hT hn
   have hM : ComputableInSpace M enc encNat Bs :=
-    budget_natAdd hn (budget_natAdd (budget_const 2 hin)
-      (budget_natMul (budget_natAdd hT (budget_const 1 hin))
-        (blockSize_inSpace (k := k) (State := State) hT hin)))
+    budget_natAdd hn (budget_natAdd (budget_const 2)
+      (budget_natMul (budget_natAdd hT (budget_const 1))
+        (blockSize_inSpace (k := k) (State := State) hT)))
   have hBs : PolyBounded (fun a => (enc a).length) Bs := by growth_poly
-  have hJ := encClaim_mk_budget hx hT hN (budget_const (encB := encBool) true hin)
-  have hJM := encClaim_mk_budget hx hT hM (budget_const (encB := encBool) true hin)
+  have hJ := encClaim_mk_budget hx hT hN (budget_const (encB := encBool) true)
+  have hJM := encClaim_mk_budget hx hT hM (budget_const (encB := encBool) true)
   have hI := ComputableInPolySpace.of_inSpace hBs
     (budget_comp_linear (position_inSpace tm) hJ)
   have hℓ := (ComputableInPolySpace.of_inSpace hBs hJM).polyBounded_length.add
@@ -266,18 +266,15 @@ theorem EXP_subset_APSPACE : EXP enc ⊆ APSPACE enc := by
     exact (length_position_le _).trans (Nat.add_le_add_right (length_encClaim_mono hw'.le) 2)
   · exact fun a => ⟨N a, ends_position (tm := tm) encClaim (enc a) (T a) (N a) (hNM a) true⟩
   · intro a
-    rw [wins_position_iff (enc a) (T a) (N a) (hNM a) true]
     have hnT : (enc a).length < 2 * T a := by
       have : n a < 2 ^ n a := Nat.lt_two_pow_self
       have : 2 ^ n a ≤ T a := Nat.pow_le_pow_right (by norm_num) (by simp only [E]; omega)
       simp only [n] at *
       omega
-    have hval : val tm (T a) (enc a) (N a) =
-        decide (OutView.ofList (tm.runFrom (tm.initCfg (enc a)) (T a)).output = .one true) :=
-      evalOutput_gates tm hnT
     have hle : c₁ * 2 ^ (enc a).length ^ d + c₂ ≤ T a := two_pow_bound _ _ _ _
     obtain ⟨-, hout⟩ := (htm a).runFrom_of_le hle
-    rw [hval, hout]
+    refine Iff.trans ?_ (wins_position_outWire_iff (tm := tm) encClaim hnT).symm
+    rw [hout]
     by_cases h : a ∈ A <;> simp [h, indicator, OutView.ofList]
 
 end EXP

@@ -48,12 +48,8 @@ theorem supportsLengthAt_bind_iff {ι : Type*} (μ : ℕ → PMF ι)
     (X : ι → ℕ → PMF (List Bool)) (L : ℕ → ℕ) (n : ℕ) :
     SupportsLengthAt (fun n => (μ n).bind (fun i => X i n)) L n ↔
       ∀ i ∈ (μ n).support, SupportsLengthAt (X i) L n := by
-  constructor
-  · intro h i hi x hx
-    exact h x ((PMF.mem_support_bind_iff _ _ _).mpr ⟨i, hi, hx⟩)
-  · intro h x hx
-    obtain ⟨i, hi, hix⟩ := (PMF.mem_support_bind_iff _ _ _).mp hx
-    exact h i hi x hix
+  simp only [SupportsLengthAt, PMF.mem_support_bind_iff, forall_exists_index, and_imp]
+  exact ⟨fun h i hi x hx => h x i hi hx, fun h x i hi hx => h i hi x hx⟩
 
 /-- Mixing ensembles with a common length cap preserves that cap. -/
 theorem SupportsLength.bind {ι : Type*} {X : ι → ℕ → PMF (List Bool)} {L : ℕ → ℕ}
@@ -95,15 +91,11 @@ theorem ComputationallyIndistinguishable.bind_uniformBool
       (fun n => (PMF.uniformOfFintype Bool).bind (fun b => Y b n)) := by
   rw [computationallyIndistinguishable_iff]
   intro family
-  apply negligible_of_le
+  refine negligible_of_le
     (((computationallyIndistinguishable_iff.mp (h false)) family).add
-      ((computationallyIndistinguishable_iff.mp (h true)) family))
-  intro n
+      ((computationallyIndistinguishable_iff.mp (h true)) family)) fun n => ?_
   simp only [distinguishingGame, PMF.bind_bind]
-  apply Game.advantage_bind_le_nnreal
-  intro b
-  cases b
-  · exact le_add_of_nonneg_right zero_le
-  · exact le_add_of_nonneg_left zero_le
+  exact Game.advantage_bind_le_nnreal _ _ _
+    (Bool.rec (le_add_of_nonneg_right zero_le) (le_add_of_nonneg_left zero_le))
 
 end Cslib.Crypto.NativeQuantum

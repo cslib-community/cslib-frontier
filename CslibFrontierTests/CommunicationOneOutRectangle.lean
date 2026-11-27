@@ -6,7 +6,6 @@ Authors: Christian Reitwiessner
 
 import CslibFrontier.Computability.Communication.OneOutRectangle
 import CslibFrontier.Probability.IID.Distinct
-import Mathlib.Tactic
 
 /-! The actual projected rectangle solver on a nonconstant two-input equality relation,
 and nonuniform sampling/empty-tuple clients for the distinctness estimate. -/

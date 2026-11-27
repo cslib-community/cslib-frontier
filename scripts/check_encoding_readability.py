@@ -112,8 +112,6 @@ MODIFIER = r"(?:public|private|protected|noncomputable|unsafe|partial|nonrec|sco
 PREFIX = re.compile(r"(?:open|set_option|include|omit|variable|attribute|unseal|seal|#\w+)\b"
                     r"[^\n]*?(?<![\w'.!?])in(?![\w'!?])")
 HEADER = re.compile(rf"((?:{MODIFIER}\s+)*)(class\s+inductive|[a-z_]+)(?![\w'!?])")
-# `public meta section`, which `proof_lengths.COMMAND` does not recognize as a command.
-EXTRA_SCOPE = re.compile(rf"^(?:@\[[^\]\n]*\]\s*)*(?:{MODIFIER}\s+)+section\b", re.M)
 DECLARATIONS = {"theorem", "lemma", "def", "abbrev", "instance", "structure", "class",
                 "class inductive", "inductive", "opaque", "axiom"}
 TYPE_DECLARATIONS = {"structure", "class", "class inductive", "inductive"}
@@ -351,8 +349,7 @@ def commands(text: str) -> Iterator[Command]:
     namespace, default visibility and `variable`s in force. Comments and strings are masked."""
     _, syntax = masks(text)
     in_module = re.search(r"^module\b", syntax, re.M) is not None
-    starts = sorted(set(command_starts(syntax)) | {m.start() for m in EXTRA_SCOPE.finditer(syntax)})
-    starts.append(len(syntax))
+    starts = command_starts(syntax) + [len(syntax)]
     scopes = [_Scope("", (), not in_module)]
     for start, end in zip(starts, starts[1:]):
         command = syntax[start:end]

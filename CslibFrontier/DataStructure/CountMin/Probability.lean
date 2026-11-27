@@ -63,21 +63,18 @@ theorem expect_noise_le (hash : Seed → X → Fin w)
     rcases event with ⟨y, c⟩
     simp only [noise_cons, mass_cons, Nat.cast_add, expect_add_distrib, add_div]
     refine add_le_add ?_ ih
-    by_cases hy : y = x
-    · simp only [hy, ne_eq, not_true_eq_false, false_and, ite_false, Nat.cast_zero,
+    rcases eq_or_ne y x with rfl | hy
+    · simp only [ne_eq, not_true_eq_false, false_and, ite_false, Nat.cast_zero,
         Fintype.expect_const]
       positivity
-    · have hcoll := hh.expect_boole_le hy
-      simp only [Fintype.card_fin] at hcoll
-      calc
-        (𝔼 seed, ((if y ≠ x ∧ hash seed y = hash seed x then c else 0 : ℕ) : ℝ)) =
-            (c : ℝ) * (𝔼 seed, if hash seed y = hash seed x then (1 : ℝ) else 0) := by
-          rw [mul_expect]
-          apply expect_congr rfl
-          intro seed _
-          simp [hy]
-        _ ≤ (c : ℝ) * (w : ℝ)⁻¹ := mul_le_mul_of_nonneg_left hcoll (Nat.cast_nonneg c)
-        _ = (c : ℝ) / w := (div_eq_mul_inv _ _).symm
+    · have hcoll : (𝔼 seed, if hash seed y = hash seed x then (1 : ℝ) else 0) ≤ (w : ℝ)⁻¹ := by
+        simpa only [Fintype.card_fin] using hh.expect_boole_le hy
+      calc (𝔼 seed, ((if y ≠ x ∧ hash seed y = hash seed x then c else 0 : ℕ) : ℝ))
+          = (c : ℝ) * 𝔼 seed, if hash seed y = hash seed x then (1 : ℝ) else 0 := by
+            rw [mul_expect]
+            exact expect_congr rfl fun _ _ => by simp [hy]
+        _ ≤ (c : ℝ) / w := by
+            simpa only [div_eq_mul_inv] using mul_le_mul_of_nonneg_left hcoll (Nat.cast_nonneg c)
 
 /-- Markov's inequality bounds the fraction of seeds whose collision noise exceeds `t`. -/
 theorem dens_noise_gt_le (hash : Seed → X → Fin w)
@@ -85,16 +82,14 @@ theorem dens_noise_gt_le (hash : Seed → X → Fin w)
     {t : ℝ} (ht : 0 < t) :
     (dens {seed | t < (noise (hash seed) s x : ℝ)} : ℝ) ≤ (mass s : ℝ) / (w * t) := by
   classical
-  have hsub :
-      (dens {seed | t < (noise (hash seed) s x : ℝ)} : ℝ) ≤
-        dens {seed | t ≤ (noise (hash seed) s x : ℝ)} := by
-    exact_mod_cast dens_mono (fun seed hseed => by
-      simp only [mem_filter, mem_univ, true_and] at hseed ⊢
-      exact hseed.le)
-  have hmarkov := Fintype.mul_dens_filter_le_expect
-    (f := fun seed => (noise (hash seed) s x : ℝ)) (fun _ => Nat.cast_nonneg _) t
-  have hbound := (mul_le_mul_of_nonneg_left hsub ht.le).trans
-    (hmarkov.trans (expect_noise_le hash hh s x))
+  have hsub : (dens {seed | t < (noise (hash seed) s x : ℝ)} : ℝ) ≤
+      dens {seed | t ≤ (noise (hash seed) s x : ℝ)} := by
+    exact_mod_cast dens_mono fun _ h => by
+      simp only [mem_filter, mem_univ, true_and] at h ⊢
+      exact h.le
+  have hbound := ((mul_le_mul_of_nonneg_left hsub ht.le).trans
+    (Fintype.mul_dens_filter_le_expect (fun _ => Nat.cast_nonneg _) t)).trans
+    (expect_noise_le hash hh s x)
   calc
     _ ≤ ((mass s : ℝ) / w) / t :=
       (le_div_iff₀ ht).mpr (by simpa only [mul_comm] using hbound)
@@ -111,29 +106,22 @@ theorem dens_estimate_gt_le [NeZero d] (hash : Seed → X → Fin w)
       ((mass s : ℝ) / (w * t)) ^ d := by
   classical
   let bad : Finset Seed := {seed | t < (noise (hash seed) s x : ℝ)}
-  have hsub :
-      ({seeds : Fin d → Seed | (frequency s x : ℝ) + t <
-        (estimate (fun r => hash (seeds r)) (run (fun r => hash (seeds r)) s) x : ℝ)} :
-          Finset (Fin d → Seed)) ⊆
-      Fintype.piFinset (fun _ : Fin d => bad) := by
+  have hsub : ({seeds : Fin d → Seed | (frequency s x : ℝ) + t <
+      (estimate (fun r => hash (seeds r)) (run (fun r => hash (seeds r)) s) x : ℝ)} :
+        Finset (Fin d → Seed)) ⊆ Fintype.piFinset fun _ : Fin d => bad := by
     intro seeds hseeds
     simp only [mem_filter, mem_univ, true_and] at hseeds
-    apply Fintype.mem_piFinset.mpr
-    intro r
-    simp only [bad, mem_filter, mem_univ, true_and]
-    have hrow :
-        (estimate (fun r => hash (seeds r)) (run (fun r => hash (seeds r)) s) x : ℝ) ≤
-          (bucket (hash (seeds r)) s (hash (seeds r) x) : ℝ) := by
+    refine Fintype.mem_piFinset.mpr fun r => ?_
+    have hrow : (estimate (fun r => hash (seeds r)) (run (fun r => hash (seeds r)) s) x : ℝ) ≤
+        bucket (hash (seeds r)) s (hash (seeds r) x) := by
       exact_mod_cast estimate_run_le_bucket (fun r => hash (seeds r)) s x r
     rw [bucket_hash_eq_frequency_add_noise, Nat.cast_add] at hrow
+    simp only [bad, mem_filter, mem_univ, true_and]
     linarith
   calc
-    _ ≤ (dens (Fintype.piFinset (fun _ : Fin d => bad)) : ℝ) := by
-      exact_mod_cast dens_mono hsub
-    _ = (dens bad : ℝ) ^ d := by
-      rw [Fintype.dens_piFinset_const, Fintype.card_fin, NNRat.cast_pow]
-    _ ≤ _ := pow_le_pow_left₀ (NNRat.cast_nonneg _)
-      (dens_noise_gt_le hash hh s x ht) d
+    _ ≤ (dens (Fintype.piFinset fun _ : Fin d => bad) : ℝ) := by exact_mod_cast dens_mono hsub
+    _ = (dens bad : ℝ) ^ d := by rw [Fintype.dens_piFinset_const, Fintype.card_fin, NNRat.cast_pow]
+    _ ≤ _ := pow_le_pow_left₀ (NNRat.cast_nonneg _) (dens_noise_gt_le hash hh s x ht) d
 
 /-- A fixed Count-Min query has additive error at most `ε * mass s` except on a fraction
 `(w * ε)⁻ᵈ` of the independently sampled uniform hash banks. -/
@@ -145,27 +133,21 @@ theorem dens_estimate_error_le [NeZero d] [NeZero w] (hash : Seed → X → Fin 
         (estimate (fun r => hash (seeds r)) (run (fun r => hash (seeds r)) s) x : ℝ)} : ℝ) ≤
       ((w : ℝ) * ε)⁻¹ ^ d := by
   classical
-  by_cases hm : mass s = 0
-  · have hempty :
-        ({seeds : Fin d → Seed | (frequency s x : ℝ) + ε * mass s <
-          (estimate (fun r => hash (seeds r)) (run (fun r => hash (seeds r)) s) x : ℝ)} :
-            Finset (Fin d → Seed)) = ∅ := by
-      apply eq_empty_of_forall_notMem
-      intro seeds hseeds
+  rcases eq_or_ne (mass s) 0 with hm | hm
+  · have hempty : ({seeds : Fin d → Seed | (frequency s x : ℝ) + ε * mass s <
+        (estimate (fun r => hash (seeds r)) (run (fun r => hash (seeds r)) s) x : ℝ)} :
+          Finset (Fin d → Seed)) = ∅ := eq_empty_of_forall_notMem fun seeds hseeds => by
       simp only [mem_filter, mem_univ, true_and, hm, Nat.cast_zero, mul_zero, add_zero] at hseeds
-      have hrow := estimate_run_le_bucket (fun r => hash (seeds r)) s x (0 : Fin d)
-      have hmass := bucket_le_mass (hash (seeds 0)) s (hash (seeds 0) x)
-      have hz : estimate (fun r => hash (seeds r))
-          (run (fun r => hash (seeds r)) s) x = 0 := Nat.eq_zero_of_le_zero (hm ▸ hrow.trans hmass)
+      have hz := Nat.eq_zero_of_le_zero (hm ▸ (estimate_run_le_bucket
+        (fun r => hash (seeds r)) s x 0).trans (bucket_le_mass _ s _))
       rw [hz, Nat.cast_zero] at hseeds
       exact (not_lt_of_ge (Nat.cast_nonneg _)) hseeds
     rw [hempty, dens_empty, NNRat.cast_zero]
     positivity
   · have hmpos : (0 : ℝ) < mass s := by exact_mod_cast Nat.pos_of_ne_zero hm
-    have hwpos : (0 : ℝ) < w := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne w)
-    have heq : (mass s : ℝ) / (w * (ε * mass s)) = ((w : ℝ) * ε)⁻¹ := by
-      field_simp
-    simpa only [heq] using dens_estimate_gt_le (d := d) hash hh s x (mul_pos hε hmpos)
+    have hwpos : (0 : ℝ) < w := by exact_mod_cast NeZero.pos w
+    simpa only [show (mass s : ℝ) / (w * (ε * mass s)) = ((w : ℝ) * ε)⁻¹ by field_simp] using
+      dens_estimate_gt_le (d := d) hash hh s x (mul_pos hε hmpos)
 
 /-- With at least `2 / ε` buckets, each additional independent row halves the failure bound. -/
 theorem dens_estimate_error_le_inv_two_pow [NeZero d] [NeZero w]

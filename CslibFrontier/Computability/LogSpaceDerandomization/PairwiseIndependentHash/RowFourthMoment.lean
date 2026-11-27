@@ -60,15 +60,10 @@ theorem rowNormPow_conditionalWalk_component_le
     rowNormPow 4 N u X Y (fun σ x z =>
       conditionalWalk X Y G (fun _ _ => t) F σ x z - rowSliceMean X Y F x z) ≤
       32 * (1 - 1 / (155648 * (J + 1) * H ^ 4)) ^ (2 * t) * rowNormPow 4 N u X Y F := by
-  have hden : (1 : ℝ) ≤ 155648 * ((J : ℝ) + 1) * (H : ℝ) ^ 4 := by
-    have hHpos : 0 < H := by omega
-    have hn : 1 ≤ 155648 * (J + 1) * H ^ 4 := Nat.succ_le_of_lt (by positivity)
-    exact_mod_cast hn
-  have hgap0 : (0 : ℝ) ≤ 1 - 1 / (155648 * (J + 1) * H ^ 4) := by
-    have hdiv : (1 : ℝ) / (155648 * (J + 1) * H ^ 4) ≤ 1 := by
-      apply (div_le_iff₀ (by linarith : (0 : ℝ) < 155648 * (J + 1) * H ^ 4)).2
-      simpa only [one_mul] using hden
-    linarith
+  have hHpos : 0 < H := by omega
+  have hpos : 0 < 155648 * (J + 1) * H ^ 4 := by positivity
+  have hgap0 : (0 : ℝ) ≤ 1 - 1 / (155648 * (J + 1) * H ^ 4) :=
+    sub_nonneg.2 (div_le_one_of_le₀ (mod_cast hpos) (mod_cast hpos.le))
   apply rowNormPow_conditionalWalk_le_raw X Y hNu G
   intro x z
   rcases isEmpty_or_nonempty (RetainedPairSlice X Y x z) with hs | hs

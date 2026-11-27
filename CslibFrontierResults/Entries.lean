@@ -67,9 +67,9 @@ import CslibFrontier.Algorithms.Lean.MaxDicut.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
 import CslibFrontier.Algorithms.Lean.TwoSAT
-import CslibFrontier.Algorithms.Lean.TrimmedYates
+import CslibFrontier.Algorithms.WordRAM.TrimmedYates
 import CslibFrontier.Algorithms.LinearAlgebra.BareissElimination
-import CslibFrontier.Algorithms.Lean.TreeDecomposition.CSP
+import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP
 import CslibFrontier.Algorithms.WordRAM.Schoening.Amplify
 import CslibFrontier.Crypto.Computational.Encryption.IVStream.Malleability
 import CslibFrontier.Crypto.Computational.RSACRT
@@ -340,7 +340,6 @@ import CslibFrontier.Crypto.Computational.OneWayToSignature
 import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.HashThenPRF
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.SchnorrProtocol
@@ -391,7 +390,6 @@ import CslibFrontier.DataStructure.NearNeighbor.PStable
 import CslibFrontier.DataStructure.Paging.Marking
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RootBound
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Sturm
-import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalIsolation
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CFI
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.ColorRefinement
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.WeisfeilerLeman
@@ -5608,10 +5606,13 @@ register_result "edmonds-optimum-branchings" where
     thresholds in binary (encIntBin); roots are binary naturals (encNat). Subtraction-free \
     contraction keeps intermediate table entries within (n + 1) ^ i · M₀, yielding native \
     multi-tape P deciders for bounded-cost spanning in- and out-arborescences and \
-    bounded-weight branchings. Related O(n³) TimeM bounds and weight-shift reductions live \
-    in the sibling Arborescence.Table and Arborescence.Branching modules; Edmonds' Theorem 2 \
-    (the branching polytope) and sparse O(m log n) / O(m + n log n) implementations are not \
-    formalized."
+    bounded-weight branchings. Materialized Vector-table solvers, weight-shift reductions, and \
+    standard-basis Word-RAM programs running in C * (n + 1) ^ 3 instructions at every word width \
+    w satisfying Fits w I.wordBound (I.wordBound < 2 ^ w, where the polynomial wordBound bounds \
+    word values and addresses so w of order log(n + 2) + log(M₀ + 2) bits suffices) live in the \
+    sibling Arborescence.Table, Arborescence.Branching, and \
+    CslibFrontier.Algorithms.WordRAM.Arborescence modules; Edmonds' Theorem 2 (the branching \
+    polytope) and sparse O(m log n) / O(m + n log n) implementations are not formalized."
 register_result "simhash" where
   title := "Charikar's SimHash collision law"
   topic := "algorithms"
@@ -5986,55 +5987,97 @@ register_result "bareiss-rational-elimination-polytime" where
     rational elimination in binary input encoding size. Bounded milestone of Issue #3672 \
     (circulant spectra and fibre-sum bounds remain open there)."
 
-register_result "kosaraju-scc" where
-  title := "Kosaraju's linear-time strongly connected components and condensation order"
+register_result "topological-sort" where
+  title := "Depth-first-search topological sort iff acyclic"
   topic := "algorithms"
   sources := [
-    { paper := CLRS2009, theorem := unverified, locator := unverified }
+    { paper := CLRS2009, theorem := "§22.4 TOPOLOGICAL-SORT and Theorem 22.12",
+      locator := "3rd ed., §22.4 TOPOLOGICAL-SORT & cost paragraph (printed p. 613) and \
+        Theorem 22.12 (p. 614)" }
+  ]
+  theorems := [
+    Cslib.Algorithms.Lean.DFS.isTopologicalOrder_topologicalSort_iff,
+    Cslib.Algorithms.Lean.DFS.acyclic_iff_exists_isTopologicalOrder
+  ]
+  scope := "Pure reverse-DFS-finishing-order topological sort on adjacency lists adj : V → List V, \
+    requiring a supplied vertex list vs covering all vertices (∀ v, v ∈ vs). Whereas CLRS proves \
+    correctness on DAGs, Lean returns reverse DFS finishing order on every graph and proves it is \
+    a topological order if and only if the graph is acyclic. Linear-time standard-basis Word-RAM \
+    execution is registered separately in topological-sort-wordram."
+
+register_result "kosaraju-scc" where
+  title := "Kosaraju's strongly connected components and condensation order"
+  topic := "algorithms"
+  sources := [
+    { paper := CLRS2009, theorem := "§22.5 STRONGLY-CONNECTED-COMPONENTS and Theorem 22.16",
+      locator := "3rd ed., §22.5 STRONGLY-CONNECTED-COMPONENTS & cost paragraph (p. 617), \
+        Theorem 22.16 (pp. 619–620), and condensation-order paragraph (p. 620)" }
   ]
   theorems := [
     Cslib.Algorithms.Lean.DFS.isSCCCondensation_sccs,
-    Cslib.Algorithms.Lean.DFS.time_sccsM_of_nodup,
     Cslib.Algorithms.Lean.DFS.IsSCCCondensation.indexComponents_eq_iff,
     Cslib.Algorithms.Lean.DFS.IsSCCCondensation.indexComponents_le_of_edge
   ]
-  scope := "Two-pass Kosaraju SCC decomposition on adjacency lists adj : V → List V in TimeM, \
-    returning duplicate-free mutual-reachability components in forward condensation topological \
-    order at exact cost 3 * (|vs| + ∑ v, |adj v|) for duplicate-free vertex lists covering V, \
-    plus O(|V|) component-index lookup. Visited-set membership, insertion, and function-update \
-    array steps are counted as unit-cost operations."
+  scope := "Pure two-pass Kosaraju SCC decomposition on adjacency lists adj : V → List V, \
+    requiring the supplied vertex list vs to cover all vertices (∀ v, v ∈ vs), as required by \
+    isSCCCondensation_sccs. Returns duplicate-free mutual-reachability components in forward \
+    condensation topological order, together with the component-label partition and condensation \
+    monotonicity bridges (indexComponents_eq_iff, indexComponents_le_of_edge). Linear-time \
+    standard-basis Word-RAM execution is registered separately in kosaraju-scc-wordram."
 
-register_result "selected-entries-subset-convolution-timem" where
+register_result "selected-entries-subset-convolution" where
   title := "Selected entries of ranked subset convolution by the trimmed fast zeta transform"
   topic := "algorithms"
   sources := [
     { paper := ChanItakuraMaYu2026, theorem := "Theorem 2.2",
-      locator := "Section 2.1, p. 5" }
+      locator := "STOC submission 1421 (Nov. 3, 2026 manuscript), §2.1 Problem 2.1 & \
+        Theorem 2.2, p. 5; recurrences and word-RAM footnote 7, pp. 5–6" }
   ]
   theorems := [
-    Cslib.Algorithms.Lean.TrimmedYates.ret_solveM,
-    Cslib.Algorithms.Lean.TrimmedYates.time_solveM
+    Cslib.Algorithms.WordRAM.TrimmedYates.exec_solveFromTries_subsetConvolution,
+    Cslib.Algorithms.WordRAM.TrimmedYates.computesListInTime_program,
+    Cslib.Algorithms.WordRAM.TrimmedYates.executesList_program
   ]
-  scope := "TimeM unit-cost model (one tick per table cell; enumeration and dictionary \
-    construction uncharged), not Word-RAM time. Inputs are look-up functions, so the paper's n \
-    term for storing the input sets is absent; the bound 3 (d + 1) (sum_{j <= s} (d choose j) + \
-    |queries| sum_{s <= j <= 2t} (2t choose j)) is exact. Weights in a commutative ring."
+  scope := "Standard unit-cost Word-RAM (Basis.standard) over signed integer weights at explicit \
+    word width w, charging sparse input insertion, bounded-cardinality enumeration, depth-d \
+    binary trie indexing, signed arithmetic, and halting. computesListInTime_program gives \
+    unconditional Program.ComputesListInTime for general coveringProduct on all queries under \
+    Instance.FitsWidth in 250 * (d + 1)^2 * (n + sum_{j <= s} (d choose j) + |queries| * \
+    max 1 (highPeak s queries)) instructions (covering #C < s directly from preprocessing). \
+    executesList_program (initialized from State.init inst.encode, 250 * (d + 1)^2 * (n + \
+    sum_{j <= s} (d choose j) + |queries| * sum_{s <= j <= t₁ + t₂} (t₁ + t₂ choose j))) and \
+    exec_solveFromTries_subsetConvolution (from pre-built input tries, 200 * (d + 1)^2 * \
+    (sum_{j <= s} (d choose j) + |Cs| * sum_{s <= j <= t₁ + t₂} (t₁ + t₂ choose j))) \
+    specialize to ranked integer subsetConvolution when entries with nonzero weight (for \
+    executesList_program) / sets with nonzero value (for exec_solveFromTries_subsetConvolution) \
+    have cardinalities t₁, t₂ (Theorem 2.2 sets t₁ = t₂ = t), every query C has size t₁ + t₂, and \
+    s <= t₁ + t₂. executesList_program requires Fits w (solveSpace ...) and Fits w \
+    (valueEnvelope inst.d inst.weightSum); exec_solveFromTries_subsetConvolution takes sound \
+    read-only trie representations (HoldsTrie) of f, g with a bound W on |f S|, |g S| \
+    (∀ S, (f S).natAbs ≤ W and (g S).natAbs ≤ W) and requires Fits w (solveSpace baseFree d s \
+    Cs.length (highCount (t₁ + t₂) s)) and Fits w (valueEnvelope d W). Pure commutative-ring \
+    correctness is in CslibFrontier.Algorithms.Lean.TrimmedYates; Theorem 2.3 (3SUM hashing) \
+    remains open (#4667)."
 
 register_result "twosat-linear-timem" where
-  title := "Aspvall–Plass–Tarjan linear-time 2-SAT solver and witness construction in TimeM"
+  title := "Aspvall–Plass–Tarjan implication-graph 2-SAT solver and witness construction"
   topic := "algorithms"
   sources := [
-    { paper := AspvallPlassTarjan1979, theorem := unverified, locator := unverified }
+    { paper := AspvallPlassTarjan1979, theorem := "Theorem 1 and \"Two-satisfiability algorithm\"",
+      locator := "1979 journal scan, printed p. 121 steps 1(i)–(ii) and p. 122" }
   ]
   theorems := [
     Cslib.Algorithms.Lean.TwoSAT.solve_eq_some,
     Cslib.Algorithms.Lean.TwoSAT.isSome_solve_iff,
-    Cslib.Algorithms.Lean.TwoSAT.time_solveFinM_le,
+    Cslib.Algorithms.Lean.TwoSAT.solveFin_eq_some,
     Cslib.Algorithms.Lean.TwoSAT.isSome_solveNat_iff
   ]
-  scope := "Linear-time 2-SAT decision and satisfying-assignment construction via Kosaraju SCCs \
-    of the implication graph in TimeM (at most 12 * n + 8 * |φ| + 1 steps on CNF (Fin n)), \
-    together with variable compaction connecting solveNat to Cslib.Complexity.TwoSAT."
+  scope := "Pure 2-SAT decision and satisfying-assignment construction on CNF V and CNF (Fin n), \
+    together with variable compaction connecting solveNat to Cslib.Complexity.TwoSAT. Implements \
+    the paper's implication-graph SCC characterization via Kosaraju's SCC pass (this \
+    formalization's own refinement; the paper uses Tarjan's SCC algorithm and also studies \
+    quantified 2-CNF). Linear-time standard-basis Word-RAM execution is registered separately in \
+    twosat-linear-wordram."
 
 register_result "twosat-polytime" where
   title := "Native multi-tape polynomial-time 2-SAT decision and witness construction"
@@ -6281,37 +6324,6 @@ register_result "mahler-mignotte-root-separation" where
     separable integer and cleared-denominator rational polynomials of degree d >= 2, combining \
     Mahler's discriminant/Mahler-measure inequality with |discr p| >= 1 and Landau's l^2 bound."
 
-register_result "certified-real-root-isolation" where
-  title := "Certified Sturm-bisection real-root isolation with Mignotte depth and TimeM bounds"
-  topic := "algorithms"
-  sources := [
-    { paper := BasuPollackRoy2006, theorem := unverified, locator := unverified },
-    { paper := Mahler1964, theorem := unverified, locator := "pp. 257–262" },
-    { paper := Mignotte1982, theorem := unverified, locator := "pp. 259–263" }
-  ]
-  theorems := [
-    Cslib.RealRoot.isolateRootsTotal_isIsolatingFor,
-    Cslib.RealRoot.isolateRootsTotal_pairwise_disjoint,
-    Cslib.RealRoot.isolateRootsTotal_bijective_of_squarefree,
-    Cslib.RealRoot.isolateRootsTotal_endpoint_bounds_of_bitBound,
-    Cslib.RealRoot.isolateRootsTotalM_time_le_of_bitBound,
-    Cslib.RealRoot.isolateRootsTotal_spec_of_eq,
-    Cslib.RealRoot.isolatePolyRootsTotal_bijective,
-    Cslib.RealRoot.isolatePolyRootsTotalM_time_le_of_bitBound
-  ]
-  scope := "End-to-end TimeM ℕ-charged Sturm-bisection real-root isolator over ℚ[X]: \
-    isolateRootsTotalM / isolateRootsTotal on List ℚ is executable (decide +kernel / #eval), \
-    charging all preprocessing (trim, Euclidean Sturm sequence, Cauchy bound, denominator \
-    clearing, l^2 norm, and Nat.clog), bisection, left-root refinement, and Mignotte-fueled \
-    boundary separation into strictly disjoint closed intervals (J₁.upper < J₂.lower), whereas \
-    isolatePolyRootsTotalM / isolatePolyRootsTotal on Polynomial ℚ is noncomputable (inheriting \
-    Polynomial's noncomputable Finsupp representation) and measures the TimeM ℕ cost of \
-    isolateRootsTotalM on p.coeffsBelow (p.natDegree + 1) without charging coefficient extraction \
-    from Polynomial ℚ. Certifies strict monotone bijection onto {x : ℝ // aeval x p = 0} for \
-    every squarefree p : ℚ[X], dyadic endpoint numerator/denominator bit bounds, and O(n^5 (B+2)) \
-    TimeM ℕ operation count under HasCoeffBitBound B cs. TimeM ℕ counts unit-cost algebraic/RAM \
-    scalar operations on ℚ/ℤ/ℕ rather than bit-level Turing complexity along Euclidean Sturm \
-    remainders."
 register_result "yap-collapse" where
   title := "Yap's theorem: coNP in NP/poly collapses the polynomial hierarchy to Σ₃"
   topic := "structural complexity"
@@ -9680,22 +9692,31 @@ register_result "csp-bounded-treewidth" where
   title := "Exact counting and decision for finite-domain CSPs over bounded treewidth"
   topic := "parameterized algorithms"
   sources := [
-    { paper := CyganEtAl2015, theorem := "Lemma 7.4 (nice trees)", locator := "p.161" }
+    { paper := CyganEtAl2015, theorem := "Lemma 7.4 (nice trees, background)",
+      locator := "p.161 (May 30, 2016 PDF)" }
   ]
   theorems := [
-    Cslib.Algorithms.Lean.TreeDecomposition.ret_cspCountRootedM,
-    Cslib.Algorithms.Lean.TreeDecomposition.ret_cspDecideRootedM,
-    Cslib.Algorithms.Lean.TreeDecomposition.time_cspCountRootedM_le,
-    Cslib.Algorithms.Lean.TreeDecomposition.ret_cspCountActiveRootedM,
-    Cslib.Algorithms.Lean.TreeDecomposition.ret_cspCountNiceM_equiv
+    Cslib.Algorithms.WordRAM.TreeDecomposition.exists_program_cspDecide_rooted,
+    Cslib.Algorithms.WordRAM.TreeDecomposition.exists_program_cspCount_rooted,
+    Cslib.Algorithms.WordRAM.TreeDecomposition.exists_program_cspDecide_nice,
+    Cslib.Algorithms.WordRAM.TreeDecomposition.exists_program_cspCount_nice
   ]
-  scope := "Finite constraint domains Fin q (and arbitrary Fintype/Inhabited D via Equiv D \
-    (Fin q)) over a supplied RootedTreeDecomposition of the primal or active primal graph. \
-    Normalizes via toNiceTreePruned to at most (3 w + 5)(|V| + 1) nice nodes (size, not runtime \
-    bound) and charges unit-cost TimeM inner-loop ticks bounded by (3 w + 5)(|V| + 1) · q^(w + 1) \
-    · dpNodeCost w F (excluding recursive list-manipulation overhead like bagList, sem \
-    evaluations, and unbounded integer arithmetic). The generic CSP-counting DP extension is an \
-    adaptation/original implementation. Computing the tree decomposition is external."
+  scope := "Original formalization of generic exact counting and satisfiability for finite-domain \
+    CSPs over Fin q with q > 0 (and arbitrary Fintype/Inhabited D via Equiv D (Fin q)) over a \
+    supplied RootedTreeDecomposition or NiceTreeDecomposition of width ≤ k of the primal graph, \
+    using Cygan et al., Lemma 7.4 (p. 161 in the authors' May 30, 2016 PDF) as background to \
+    normalize a rooted decomposition via toNiceTreePruned to at most (3 * k + 5) * (m + 1) nice \
+    nodes (m = |V|). Proves exact-basis Word-RAM step bounds C * (cspNiceStepBound q N.size k \
+    |F.vars| |F| + 1) + 1 for nice trees and C * (cspRootedStepBound q m k |F.vars| |F| + 1) + 1 \
+    for rooted trees (including additive terms at k = 0 and empty inputs) at any word width w \
+    satisfying Fits w inst.wordBound (which implies InputFits w inst.encode; decision requires \
+    entries ≤ 1, while exact counting additionally requires word capacity for counts up to \
+    q ^ T.size), charging bag construction/erasure, materialized constraint truth-table
+    lookups, radix projections, and bounded-word arithmetic. Pure DP correctness
+    (cspCountRooted_eq_modelCount, cspDecideRooted_eq_true_iff,
+    cspCountActiveRooted_eq_modelCount, cspCountNice_equiv) is in
+    CslibFrontier.Algorithms.Lean.TreeDecomposition.CSP; tree-decomposition computation,
+    nice-tree conversion, and truth-table materialization are external to the Word-RAM program."
 
 register_result "kleene-post-incomparable" where
   title := "Kleene–Post theorem: existence of Turing-incomparable degrees"
@@ -11060,27 +11081,6 @@ register_result "computational-universal-hash-single-to-multi-query" where
     accounts for exhaustion while preserving the Q²/2 loss. The reduction derives the polynomial \
     query bound from the setup and adversary certificates. The predicates express security for an \
     existing family and leave the hash algorithm's own efficiency requirements to the caller."
-
-register_result "hash-then-prf-computational-security" where
-  title := "Hash-then-PRF composition from a computational universal hash"
-  topic := "cryptography"
-  sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 7.7",
-      locator := "v0.6, Section 7.3, printed pp. 262–265; equations (7.18)–(7.22)" }
-  ]
-  theorems := [
-    Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable,
-    Cslib.Crypto.PRF.computableInPolyTime_hashThenPRFWord,
-    Cslib.Crypto.PRF.advantage_hashThenPRFWord_le_add_multiQuery,
-    Cslib.Crypto.PRF.advantage_hashThenPRFWord_le_add_collision
-  ]
-  scope := "Uniform strict oracle-PPT word adversaries. The hash and PRF keys are sampled \
-    independently at fixed widths computable from the unary security parameter. The message \
-    domain has a polynomial-time validity test and maps to the fixed-width input of the PRF. \
-    The ideal function consistently samples independent replies on valid messages. Repetitions \
-    are allowed, and malformed messages receive empty replies in both games. The explicit \
-    wrappers have strict PPT certificates and the single-pair bound uses bounded fair-bit \
-    rejection sampling."
 
 register_result "xor-hash-computational-universality" where
   title := "XOR-hash from a secure PRF is computationally universal"
@@ -13534,22 +13534,20 @@ register_result "odonnell-unbiased-noise-stability-dictators" where
     case fails at both endpoints."
 
 register_result "odonnell-level-one-inequality" where
-  title := "Level-1 Inequality with the explicit constant 16"
+  title := "Level-1 Inequality for [−1, 1]-valued functions, with the constant 16"
   topic := "analysis of Boolean functions"
   sources := [
     { paper := ODonnell2014, theorem := "Level-1 Inequality",
       locator := "arXiv:2105.10386v1, §5.4, printed p. 126; proof for [−1, 1]-valued functions \
         on printed p. 128" }
   ]
-  theorems := [
-    Cslib.BitString.levelWeight_one_le_of_abs_le_one,
-    Cslib.BitString.levelWeight_one_bitVal_le
-  ]
-  scope := "Uniform cube on any finite coordinate type. The source's O(α² log(1/α)) is stated \
-    with the explicit constant 16 and the natural logarithm: W¹[f] ≤ 16 α² ln(1/α) whenever \
-    α ≤ 1/2, for f with values in [−1, 1] and α = 𝔼|f| (the setting of the source's proof), and \
-    for a Boolean function read as 0 or 1 with α its mean. The sharp constant 2 of Remark 5.28 \
-    is not covered."
+  theorems := [Cslib.BitString.levelWeight_one_le_of_abs_le_one]
+  scope := "Uniform cube on any finite coordinate type, for f with values in [−1, 1] and \
+    α = 𝔼|f| ≤ 1/2, the setting of the source's proof. The source's O(α² log(1/α)) is stated \
+    with the explicit constant 16 and the natural logarithm: W¹[f] ≤ 16 α² ln(1/α). The sharp \
+    constant 2 of Remark 5.28 is not covered in this setting; for {0, 1}-valued f it is the \
+    entry odonnell-sharp-level-one-inequality. The source states it for f : {−1, 1}ⁿ → {0, 1} of \
+    mean α; that is the case of values in {0, 1}, where 𝔼|f| = α."
 
 register_result "azuma-hoeffding-seq-process" where
   title := "Azuma–Hoeffding exponential moment and tail inequalities for sequential PMF processes"

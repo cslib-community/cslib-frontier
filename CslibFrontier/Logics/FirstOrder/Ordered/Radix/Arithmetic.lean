@@ -53,9 +53,7 @@ noncomputable def mulEq (L : Language) {α : Type*} (x y z : (language L).Term �
 theorem realize_mulEq {L : Language} {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)]
     {α : Type*} (x y z : (language L).Term α) (v : α → Fin n) :
     (mulEq L x y z).Realize v ↔ (x.realize v).val * (y.realize v).val = (z.realize v).val := by
-  change ((multiplication L).subst ![x, y, z]).Realize v _ ↔ _
-  rw [BoundedFormula.realize_subst]
-  exact realize_multiplication _
+  fo_simp [mulEq]
 
 namespace Radix
 
@@ -105,7 +103,7 @@ theorem realize_cell (B a b y c z c' : (language L).Term α) (v : α → Fin n) 
       (a.realize v).val * (b.realize v).val + (y.realize v).val + (c.realize v).val =
         (z.realize v).val + (B.realize v).val * (c'.realize v).val ∧
       (a.realize v).val * (b.realize v).val + (y.realize v).val + (c.realize v).val < n := by
-  fo_simp [cell, Function.comp_def, and_assoc]
+  fo_simp [cell, and_assoc]
   constructor
   · rintro ⟨u, hp, ht, hs, hu, he⟩
     have := (u 2).isLt
@@ -133,7 +131,7 @@ theorem realize_affine {d : ℕ} (B b : (language L).Term α)
           (List.ofFn fun i => ((x i).realize v).val) +
         Nat.ofDigits (B.realize v).val (List.ofFn fun i => ((y i).realize v).val) =
         Nat.ofDigits (B.realize v).val (List.ofFn fun i => ((z i).realize v).val) := by
-  fo_simp [affine, Fin.ext_iff, Function.comp_def, Fin.le_def, and_assoc]
+  fo_simp [affine, Fin.ext_iff, Fin.le_def, and_assoc]
   constructor
   · rintro ⟨hb, hx, hy, hz, c, hc0, hce, hc, hstep⟩
     refine ⟨hb, hx, hy, hz, ?_⟩

@@ -35,11 +35,19 @@ Elementary inequalities on powers and products of natural numbers: powers of pol
 * `Nat.pow_le_two_pow`: `1 ≤ D → 4 * D ^ 2 ≤ b → b ^ D ≤ 2 ^ b`.
 * `Nat.succ_pow_sub_pow_le`: `(c + 1) ^ (j + 1) - c ^ (j + 1) ≤ (j + 1) * (c + 1) ^ j`.
 * `Nat.add_le_two_pow_max_succ`: `l₀ ≤ 2 ^ d₀ → l₁ ≤ 2 ^ d₁ → l₀ + l₁ ≤ 2 ^ (max d₀ d₁ + 1)`.
+* `Nat.pow_mul_add_one_le_of_pow_le`: `b ≠ 0 → x ≤ y → y ^ (2 b E a) ≤ v ^ b → x ^ (2 E) ≤ v →
+  x ^ (E (a + 1)) ≤ v`.
+* `Nat.mul_pow_le_pow_of_add_le`: `2 ≤ L → k + e ≤ C → k * L ^ e ≤ L ^ C`.
 
 ## References
 
 * [N. Alon, Y. Matias, M. Szegedy, *The space complexity of approximating the frequency
   moments*, proof of Theorem 2.1][AlonMatiasSzegedy1999]
+* [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
+  proof of Theorem K.7, p. 59 (`Nat.pow_mul_add_one_le_of_pow_le`, with `x = lg v` and
+  `y = lg m`); module `Nc.End.PermThm` (`lg_pow_transport`); proof of Theorem H.2, p. 47
+  (`Nat.mul_pow_le_pow_of_add_le`, bounded factors absorbed in `Λ = (lg M) ^ C`); module
+  `Paper.Tree` (`const_mul_pow_le`)
 -/
 
 public section
@@ -88,8 +96,7 @@ theorem le_two_pow_mul (c k : ℕ) (hk : 1 ≤ k) : c ≤ 2 ^ (c * k) :=
 theorem mul_add_one_pow_le {R M d : ℕ} (h : (R + 1) * d ≤ M) :
     R * (M + 1) ^ d ≤ (R + 1) * M ^ d := by
   -- `(M + 1) ^ d * (M - d) ≤ M ^ (d + 1)` by induction.
-  have key : ∀ e : ℕ, e ≤ M → (M + 1) ^ e * (M - e) ≤ M ^ (e + 1) := by
-    intro e
+  have key (e : ℕ) : e ≤ M → (M + 1) ^ e * (M - e) ≤ M ^ (e + 1) := by
     induction e with
     | zero => intro _; simp
     | succ e ih =>
@@ -142,9 +149,7 @@ theorem sq_le_two_pow : ∀ {s : ℕ}, 4 ≤ s → s ^ 2 ≤ 2 ^ s
     induction n with
     | zero => decide
     | succ n ih =>
-      have hnn : 0 ≤ n * n := Nat.zero_le _
-      have hlin : (n + 1 + 4) ^ 2 ≤ 2 * (n + 4) ^ 2 := by nlinarith
-      calc (n + 1 + 4) ^ 2 ≤ 2 * (n + 4) ^ 2 := hlin
+      calc (n + 1 + 4) ^ 2 ≤ 2 * (n + 4) ^ 2 := by nlinarith [Nat.zero_le (n * n)]
         _ ≤ 2 * 2 ^ (n + 4) := Nat.mul_le_mul_left 2 ih
         _ = 2 ^ (n + 1 + 4) := by rw [← pow_succ']
 
@@ -158,11 +163,9 @@ theorem pow_le_two_pow {D b : ℕ} (hD : 1 ≤ D) (hb : 4 * D ^ 2 ≤ b) :
       _ ≤ b := hb
   have hs4 : 4 ≤ s := by nlinarith
   have hb_le_sq : b ≤ s ^ 2 := by
-    have hdiv : b < (s + 1) * D := by
-      have hmod := Nat.div_add_mod b D
-      have hlt := Nat.mod_lt b hD
-      calc b = D * s + b % D := hmod.symm
-        _ < D * s + D := Nat.add_lt_add_left hlt _
+    have hdiv : b < (s + 1) * D :=
+      calc b = D * s + b % D := (Nat.div_add_mod b D).symm
+        _ < D * s + D := Nat.add_lt_add_left (Nat.mod_lt b hD) _
         _ = (s + 1) * D := by ring
     nlinarith
   calc b ^ D ≤ (s ^ 2) ^ D := Nat.pow_le_pow_left hb_le_sq D
@@ -196,5 +199,23 @@ theorem add_le_two_pow_max_succ {l₀ l₁ d₀ d₁ : ℕ}
   rw [Nat.pow_succ, Nat.mul_two]
   exact Nat.add_le_add (h₀.trans (Nat.pow_le_pow_right Nat.two_pos (le_max_left _ _)))
     (h₁.trans (Nat.pow_le_pow_right Nat.two_pos (le_max_right _ _)))
+
+/-- Transporting a power bound to a smaller base: if `x ≤ y`, `y ^ (2 b E a) ≤ v ^ b` with
+`b ≠ 0`, and `x ^ (2 E) ≤ v`, then `x ^ (E (a + 1)) ≤ v`. -/
+theorem pow_mul_add_one_le_of_pow_le {x y v a b E : ℕ} (hb : b ≠ 0) (hxy : x ≤ y)
+    (hy : y ^ (2 * b * E * a) ≤ v ^ b) (hx : x ^ (2 * E) ≤ v) : x ^ (E * (a + 1)) ≤ v := by
+  refine (Nat.pow_le_pow_iff_left (n := 2 * b) (by omega)).1 ?_
+  calc (x ^ (E * (a + 1))) ^ (2 * b) = x ^ (2 * b * E * a) * (x ^ (2 * E)) ^ b := by ring
+    _ ≤ v ^ b * v ^ b :=
+      Nat.mul_le_mul ((Nat.pow_le_pow_left hxy _).trans hy) (Nat.pow_le_pow_left hx _)
+    _ = v ^ (2 * b) := by ring
+
+/-- A number times a power of `L ≥ 2` is at most a power: `k L ^ e ≤ L ^ C` if `k + e ≤ C`. -/
+theorem mul_pow_le_pow_of_add_le {L k e C : ℕ} (hL : 2 ≤ L) (h : k + e ≤ C) :
+    k * L ^ e ≤ L ^ C :=
+  calc k * L ^ e ≤ L ^ k * L ^ e :=
+        Nat.mul_le_mul_right _ (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left hL k))
+    _ = L ^ (k + e) := (pow_add _ _ _).symm
+    _ ≤ L ^ C := Nat.pow_le_pow_right (by omega) h
 
 end Nat

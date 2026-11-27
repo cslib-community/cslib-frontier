@@ -66,11 +66,8 @@ private theorem snapshot_exec {κ n w : ℕ} (x : Data 128)
     (hc : x.regs Frontend.descriptorCount = (Frontend.layout κ n).count)
     (he : x.regs Frontend.heapEnd = (Frontend.layout κ n).endpoint)
     (h6 : Fits w 6) : ∃ y, Exec w snapshot x y 13 ∧ Saved κ n y ∧ y.mem = x.mem := by
-  have hf := hp.fuel
-  have hU := hp.magnitude
-  have hm := hp.primeBound
-  have hΛ := hp.digits
-  have hN := hp.packedLen
+  obtain ⟨hf, hU, hm, hΛ, hN⟩ : _ ∧ _ ∧ _ ∧ _ ∧ _ :=
+    ⟨hp.fuel, hp.magnitude, hp.primeBound, hp.digits, hp.packedLen⟩
   simp only [Data.comap_regs] at hf hU hm hΛ hN
   refine WP.Exact.exists_exec ?_
   unfold snapshot
@@ -115,18 +112,12 @@ private theorem primes_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
   refine ⟨y, he, hs.congr (fun i hi _ => he.regs_eq (hh i hi)), hmemory, hcount, ?_, ?_⟩
   · intro q hq
     rw [hmemory]
-    dsimp only [base]
-    simp only [PrimeTable.memory,
-      show (Frontend.layout κ n).endpoint ≤ (Frontend.layout κ n).endpoint + q ∧
-        (Frontend.layout κ n).endpoint + q < (Frontend.layout κ n).endpoint + (m + 1) by omega,
-      and_self, ↓reduceIte, Nat.add_sub_cancel_left]
+    simp only [PrimeTable.memory, base]
+    rw [ite_eq_left (by omega), Nat.add_sub_cancel_left]
   · intro q hq
     rw [hmemory]
-    dsimp only [base]
-    simp only [PrimeTable.memory,
-      show ¬((Frontend.layout κ n).endpoint ≤ q ∧ q < (Frontend.layout κ n).endpoint + (m + 1)) by
-        omega,
-      ↓reduceIte]
+    simp only [PrimeTable.memory, base]
+    exact ite_eq_right (by omega)
 
 /-- Execute all shared traversal arguments, constants and explicit-stack reservations. -/
 private theorem setupTraversal_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
@@ -143,11 +134,9 @@ private theorem setupTraversal_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ
       Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) + 1 +
       7 * (2 * Cslib.Algorithms.ThreeSum.ChanHe.fuel n + 1) ≤ (arena κ n x.mem).floor := by
     dsimp only [arena]; omega
-  have hUeq : (arena κ n x.mem).U = 2 * (n + 2) ^ κ := rfl
-  have hNeq : (arena κ n x.mem).N =
-      2 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2 := rfl
-  have hFeq : (arena κ n x.mem).fuel = Cslib.Algorithms.ThreeSum.ChanHe.fuel n := rfl
-  rw [hUeq, hNeq, hFeq] at hfit
+  change Fits w ((arena κ n x.mem).floor + 2 * (n + 2) ^ κ +
+    2 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2 +
+    Cslib.Algorithms.ThreeSum.ChanHe.fuel n + 16) at hfit
   have hdiv : 8 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2 / 4 =
       2 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2 := by omega
   have hc' := hc
@@ -203,16 +192,13 @@ private theorem finish_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
     unfold finishLayout
     wram_exec [ps.count, hpower, hout, hfl_eq]
     exact ⟨by wram_simp [pcount], by wram_simp, by wram_simp [arena], by wram_simp, by wram_simp⟩
-  have ys : Saved κ n y := ps.congr (fun i hi hj => hz.within.regs_eq (by
-    have hh : ∀ i : Fin 128, 109 ≤ i.val → (i.val ≤ 120 ∨ i.val = 126) →
-        finishLayout.Preserves i := by decide
-    exact hh i hi hj))
-  have yc : (arena κ n x.mem).Controls y := pc.congr (by
-    intro i hi
-    apply hz.within.regs_eq
-    have hh : ∀ i : Fin 128, i.val ∈ [71, 72, 73, 74, 75, 76, 78, 80, 81, 82, 83] →
-        finishLayout.Preserves i := by decide
-    exact hh i hi)
+  have ys : Saved κ n y := ps.congr fun i hi hj =>
+    hz.within.regs_eq ((by decide : ∀ i : Fin 128, 109 ≤ i.val →
+      (i.val ≤ 120 ∨ i.val = 126) → finishLayout.Preserves i) i hi hj)
+  have yc : (arena κ n x.mem).Controls y := pc.congr fun i hi =>
+    hz.within.regs_eq ((by decide : ∀ i : Fin 128,
+      i.val ∈ [71, 72, 73, 74, 75, 76, 78, 80, 81, 82, 83] →
+      finishLayout.Preserves i) i hi)
   exact ⟨y, (he.seq hz.within).mono (by omega), ys, yc, hycount, hyheap, hycap, hyfl,
     hym.trans hmem⟩
 

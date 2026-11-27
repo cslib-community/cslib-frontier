@@ -58,9 +58,7 @@ theorem card_filter_castHom_eq {n d : ℕ} [NeZero n] (hd : d ∣ n) (r : ZMod d
 /-- An integer not divisible by `n ≠ 0` is not divisible by some prime power dividing `n`. -/
 private theorem exists_prime_pow_dvd_not_dvd {n : ℕ} {c : ℤ} (hn0 : n ≠ 0) (hc : ¬(n : ℤ) ∣ c) :
     ∃ p e : ℕ, p.Prime ∧ p ^ e ∣ n ∧ ¬(p : ℤ) ^ e ∣ c := by
-  have hc0 : c ≠ 0 := by
-    rintro rfl
-    exact hc (dvd_zero _)
+  have hc0 : c ≠ 0 := fun h => hc (h ▸ dvd_zero _)
   have hm : ¬n ∣ c.natAbs := fun h => hc (Int.natCast_dvd.mpr h)
   rw [← Nat.factorization_le_iff_dvd hn0 (Int.natAbs_ne_zero.mpr hc0), Finsupp.le_def] at hm
   push Not at hm
@@ -70,9 +68,7 @@ private theorem exists_prime_pow_dvd_not_dvd {n : ℕ} {c : ℤ} (hn0 : n ≠ 0)
     rw [Nat.factorization_eq_zero_of_not_prime n hnp] at hp
     omega
   refine ⟨p, n.factorization p, hpp, Nat.ordProj_dvd n p, fun h => ?_⟩
-  have h' : p ^ n.factorization p ∣ c.natAbs := by
-    rw [← Int.natCast_dvd]
-    exact_mod_cast h
+  have h' : p ^ n.factorization p ∣ c.natAbs := Int.natCast_dvd.1 (by exact_mod_cast h)
   rw [hpp.pow_dvd_iff_le_factorization (Int.natAbs_ne_zero.mpr hc0)] at h'
   omega
 
@@ -87,8 +83,7 @@ theorem card_filter_eval_eq_zero_le {n : ℕ} [NeZero n] {f : (ZMod n)[X]} (hf :
       ZMod.intCast_surjective (f.coeff k))
   have hFnat : F.natDegree = f.natDegree := natDegree_eq_of_degree_eq hFdeg
   obtain ⟨i, hi⟩ : ∃ i, ¬(n : ℤ) ∣ F.coeff i := by
-    by_contra h
-    push Not at h
+    by_contra! h
     apply hf
     rw [← hFmap]
     ext i
@@ -99,24 +94,16 @@ theorem card_filter_eval_eq_zero_le {n : ℕ} [NeZero n] {f : (ZMod n)[X]} (hf :
   have hex : ∃ k, ¬C ((p : ℤ) ^ k) ∣ F :=
     ⟨e, fun h => hnot ((C_dvd_iff_dvd_coeff _ _).1 h i)⟩
   set k := Nat.find hex with hk
-  have hk0 : k ≠ 0 := by
-    intro h0
-    have h := Nat.find_spec hex
-    rw [← hk, h0, pow_zero, map_one] at h
-    exact h (one_dvd _)
+  have hk0 : k ≠ 0 := ((Nat.find_pos hex).2 (by simp)).ne'
   have hke : k ≤ e := Nat.find_min' hex fun h => hnot ((C_dvd_iff_dvd_coeff _ _).1 h i)
   have hdvd : C ((p : ℤ) ^ (k - 1)) ∣ F := by
     simpa using Nat.find_min hex (show k - 1 < Nat.find hex by omega)
   obtain ⟨G, hG⟩ := hdvd
   have hpow0 : (p : ℤ) ^ (k - 1) ≠ 0 := pow_ne_zero _ (by exact_mod_cast hp.ne_zero)
-  have hGmap : G.map (Int.castRingHom (ZMod p)) ≠ 0 := by
-    intro h0
-    have hpG : C (p : ℤ) ∣ G := by
-      rw [C_dvd_iff_dvd_coeff]
-      intro j
-      have h := congrArg (fun g => g.coeff j) h0
-      simp only [coeff_map, eq_intCast, coeff_zero] at h
-      exact (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).1 h
+  have hGmap : G.map (Int.castRingHom (ZMod p)) ≠ 0 := fun h0 => by
+    have hpG : C (p : ℤ) ∣ G := (C_dvd_iff_dvd_coeff _ _).2 fun j =>
+      (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).1
+        (by simpa [coeff_map] using congrArg (·.coeff j) h0)
     apply Nat.find_spec hex
     rw [← hk, hG, show k = (k - 1) + 1 by omega, pow_succ, C_mul]
     exact mul_dvd_mul_left _ hpG
@@ -131,13 +118,10 @@ theorem card_filter_eval_eq_zero_le {n : ℕ} [NeZero n] {f : (ZMod n)[X]} (hf :
     rw [Multiset.mem_toFinset, mem_roots hGmap, IsRoot, ZMod.castHom_apply, ZMod.cast_eq_val,
       ← Int.cast_natCast, eval_intCast_map, eq_intCast, ZMod.intCast_zmod_eq_zero_iff_dvd]
     have hx' : (n : ℤ) ∣ F.eval (x.val : ℤ) := by
-      have h := congrArg (fun g => g.eval ((x.val : ℤ) : ZMod n)) hFmap
+      have h := congrArg (Polynomial.eval ((x.val : ℤ) : ZMod n)) hFmap
       simp only [eval_intCast_map, eq_intCast] at h
-      have hxc : ((x.val : ℤ) : ZMod n) = x := by
-        rw [Int.cast_natCast, ZMod.natCast_zmod_val]
-      rw [hxc, hx] at h
-      rw [← ZMod.intCast_zmod_eq_zero_iff_dvd]
-      exact_mod_cast h
+      simpa only [Int.cast_natCast, ZMod.natCast_zmod_val, hx,
+        ZMod.intCast_zmod_eq_zero_iff_dvd] using h
     have h1 : (p : ℤ) ^ (k - 1) * p ∣ (p : ℤ) ^ (k - 1) * G.eval (x.val : ℤ) := by
       rw [← pow_succ, ← eval_C (a := (p : ℤ) ^ (k - 1)) (x := (x.val : ℤ)), ← eval_mul, ← hG]
       refine dvd_trans (pow_dvd_pow (p : ℤ) (show k - 1 + 1 ≤ e by omega)) (dvd_trans ?_ hx')
@@ -152,15 +136,10 @@ theorem card_filter_eval_eq_zero_le {n : ℕ} [NeZero n] {f : (ZMod n)[X]} (hf :
   have h2 : (s.image g).card ≤ f.natDegree := by
     refine (Finset.card_le_card ?_).trans ((Multiset.toFinset_card_le _).trans
       ((card_roots' _).trans hGdeg))
-    intro a ha
-    obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp ha
-    exact hfib x (Finset.mem_filter.mp hx).2
+    exact Finset.image_subset_iff.2 fun x hx => hfib x (Finset.mem_filter.mp hx).2
   have h3 : n / p ≤ n / n.minFac :=
     Nat.div_le_div_left (Nat.minFac_le_of_dvd hp.two_le hpn) (Nat.minFac_pos n)
-  calc s.card ≤ n / p * f.natDegree := h1.trans (Nat.mul_le_mul_left _ h2)
-    _ ≤ f.natDegree * (n / n.minFac) := by
-      rw [mul_comm]
-      exact Nat.mul_le_mul_left _ h3
+  exact (h1.trans (Nat.mul_le_mul h3 h2)).trans_eq (mul_comm _ _)
 
 end ZMod
 
