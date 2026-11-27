@@ -106,14 +106,23 @@ private def lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit) :
     else
       Lit.node (n + g) false
 
-/-- Propagate literals along a `fullSignature 2 Bool` program: constant and unary lines fold into
-a `Lit` of an input or an earlier binary gate, while genuinely binary lines introduce `n + g`. -/
-private def programGateLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Fin g → Lit :=
+/-- Propagate literals along a `fullSignature 2 Bool` program, in program order: constant and
+unary lines fold into a `Lit` of an input or an earlier binary gate, while genuinely binary lines
+introduce `n + g`. Each line reads the literals of earlier gates by index from the vector built so
+far, instead of recomputing them. -/
+private def programGateLitVector {g : ℕ} (p : Program (fullSignature 2 Bool) n g) :
+    Vector Lit g :=
   match p with
-  | .empty => Fin.elim0
+  | .empty => #v[]
   | @Program.gate _ _ _ p line =>
-    let prior := programGateLit p
-    Fin.lastCases (lineBinaryLit (Wire.elim (fun i => Lit.node i false) prior) line) prior
+    let prior := programGateLitVector p
+    prior.push (lineBinaryLit (Wire.elim (fun i => Lit.node i false) prior.get) line)
+
+/-- The folded literal of each gate of `p`, read from `programGateLitVector p`. Separate calls
+may rebuild the vector; each rebuild is one pass over the program. This module does not certify a
+running-time bound. -/
+private def programGateLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Fin g → Lit :=
+  (programGateLitVector p).get
 
 /-- The literal carried by any wire of `p` when constant and unary lines are folded. -/
 private def programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Wire n g → Lit :=
@@ -122,12 +131,12 @@ private def programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : 
 private theorem programWireLit_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) :
     programWireLit (p.gate line) (.gate (Fin.last g)) = lineBinaryLit (programWireLit p) line := by
-  simp [programWireLit, programGateLit]
+  exact Vector.getElem_push_last
 
 private theorem programWireLit_gate_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) (j : Fin g) :
     programWireLit (p.gate line) (.gate j.castSucc) = programWireLit p (.gate j) := by
-  simp [programWireLit, programGateLit]
+  exact Vector.getElem_push_lt j.isLt
 
 /-- The indices `n + k` of genuinely binary gates in `p`. -/
 private def programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Finset ℕ :=
