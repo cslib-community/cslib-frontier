@@ -7,10 +7,13 @@ Authors: vhalan anandarajah
 module
 -- upstream: candidate
 
+public import CslibFrontier.Init
+public import Mathlib.Data.Fintype.Card
 public import Mathlib.Order.FixedPoints
-public import Mathlib.Data.Finset.Card
-import Mathlib.Data.Nat.Basic
+import CslibFrontier.Foundations.Order.FiniteFixedPoint
 import Mathlib.Algebra.BigOperators.Group.List.Basic
+import Mathlib.Data.BitVec
+import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
 # Finite Boolean relation programs
@@ -23,12 +26,21 @@ procedure. The construction here does not include the paper's pushdown simulatio
 
 ## Main definitions
 
-* `Equation`, `Program`, `Fact` describe the finite system.
-* `consequence` is its monotone operator and `evaluate` decides derivability.
+* `Equation`: the six positive forms of a relation equation.
+* `Program`: one equation per predicate.
+* `Fact`: a predicate applied to a bit-vector address.
+* `Fact.equivFin`: the numbering of ground facts by predicate and address.
+* `consequence`: the monotone consequence operator on sets of facts.
+* `next`: one executable round of the program.
+* `evaluate`: the decision procedure for derivability.
 
 ## Main results
 
-* `derives_fixed`, `derives_iff_all_closed`, `lfp_consequence`, `evaluate_eq_true_iff`.
+* `derives_fixed`: the derivable facts are a fixed point.
+* `derives_iff_all_closed`: derivability is membership in every closed set.
+* `lfp_consequence`: the derivable facts form the least fixed point.
+* `derives_iff_stage_card`: at most one iteration per ground fact suffices.
+* `evaluate_eq_true_iff`: the executable iteration decides derivability.
 
 ## References
 
@@ -36,7 +48,7 @@ procedure. The construction here does not include the paper's pushdown simulatio
   Machines][BalasubramanianMajumdar2026Pushdown], arXiv:2611.27814v2, Section 4.1.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.RelationProgram
 
@@ -44,7 +56,7 @@ variable {r H : ℕ}
 
 /-- The six positive equation forms in Balasubramanian and Majumdar's
 relation programs. Assignment modifies the queried address, not the program. -/
-inductive Equation (r H : Nat)
+inductive Equation (r H : ℕ)
   | top
   | bot
   | test (position : Fin H) (value : Bool)
@@ -53,7 +65,8 @@ inductive Equation (r H : Nat)
   | write (source : Fin r) (position : Fin H) (value : Bool)
 
 /-- One positive equation for each predicate. -/
-abbrev Program (r H : Nat) := Fin r → Equation r H
+abbrev Program (r H : ℕ) := Fin r → Equation r H
+
 /-- An application of a predicate to a Boolean address. -/
 structure Fact (r H : ℕ) where
   /-- Predicate applied by this fact. -/
@@ -62,8 +75,17 @@ structure Fact (r H : ℕ) where
   address : BitVec H
   deriving DecidableEq
 
+/-- Number the ground facts in predicate and address order. -/
+def Fact.equivFin : Fact r H ≃ Fin (r * 2 ^ H) :=
+  let pair : Fact r H ≃ Fin r × BitVec H :=
+    ⟨fun f => (f.predicate, f.address), fun (a, u) => ⟨a, u⟩, fun _ => rfl, fun _ => rfl⟩
+  pair.trans ((Equiv.prodCongr (Equiv.refl _) BitVec.equivFin.toEquiv).trans finProdFinEquiv)
+
+instance : Fintype (Fact r H) :=
+  Fintype.ofEquiv (Fin (r * 2 ^ H)) Fact.equivFin.symm
+
 /-- Set one bit of an address, preserving the other bits. -/
-def overwrite (u : BitVec H) (p : Fin H) (b : Bool) : BitVec H :=
+@[expose] def overwrite (u : BitVec H) (p : Fin H) (b : Bool) : BitVec H :=
   let mask := BitVec.twoPow H p.val
   if b then u ||| mask else u &&& ~~~mask
 
@@ -73,9 +95,8 @@ theorem overwrite_bit (u : BitVec H) (p q : Fin H) (b : Bool) :
   cases b <;> by_cases e : p.val = q.val <;>
     simp [overwrite, q.isLt, e, eq_comm]
 
-
 /-- Apply all positive equations once to a candidate set of facts. -/
-def step (P : Program r H) (X : Fact r H → Prop) (f : Fact r H) : Prop :=
+@[expose] def step (P : Program r H) (X : Fact r H → Prop) (f : Fact r H) : Prop :=
   match P f.predicate with
   | .top => True
   | .bot => False
@@ -97,14 +118,14 @@ theorem step_mono (P : Program r H) {X Y : Fact r H → Prop}
   · exact h _
 
 /-- Iterate the consequence operator starting with no facts. -/
-def stage (P : Program r H) : Nat → Fact r H → Prop
+def stage (P : Program r H) : ℕ → Fact r H → Prop
   | 0 => fun _ => False
   | j + 1 => step P (stage P j)
 
 /-- Later stages contain every fact from earlier stages. -/
-theorem stage_le (P : Program r H) {i j : Nat} (h : i ≤ j) (f : Fact r H) :
+theorem stage_le (P : Program r H) {i j : ℕ} (h : i ≤ j) (f : Fact r H) :
     stage P i f → stage P j f := by
-  have next (k : Nat) (f : Fact r H) : stage P k f → stage P (k + 1) f := by
+  have next (k : ℕ) (f : Fact r H) : stage P k f → stage P (k + 1) f := by
     induction k generalizing f with
     | zero => simp [stage]
     | succ k ih => exact step_mono P ih f
@@ -116,7 +137,7 @@ theorem stage_le (P : Program r H) {i j : Nat} (h : i ≤ j) (f : Fact r H) :
 def derives (P : Program r H) (f : Fact r H) : Prop := ∃ j, stage P j f
 
 /-- A set is closed when it contains all of its immediate consequences. -/
-def Closed (P : Program r H) (X : Fact r H → Prop) : Prop :=
+@[expose] def Closed (P : Program r H) (X : Fact r H → Prop) : Prop :=
   ∀ f, step P X f → X f
 
 /-- The set of derivable facts is closed. -/
@@ -144,7 +165,7 @@ theorem derives_iff_all_closed (P : Program r H) (f : Fact r H) :
     derives P f ↔ ∀ X, Closed P X → X f := by
   constructor
   · rintro ⟨j, hj⟩ X hX
-    have subset (i : Nat) : ∀ g, stage P i g → X g := by
+    have subset (i : ℕ) : ∀ g, stage P i g → X g := by
       induction i with
       | zero => intro g h; exact h.elim
       | succ i ih => exact fun g hg => hX g (step_mono P ih g hg)
@@ -159,35 +180,8 @@ theorem derives_fixed (P : Program r H) (f : Fact r H) :
   · exact hj.elim
   · exact step_mono P (fun g hg => ⟨j, hg⟩) f hj
 
-/-- Flatten the predicate and address into a binary variable index. -/
-def name (f : Fact r H) : Nat := f.predicate.val * 2 ^ H + f.address.toNat
-
-/-- The variable index is bounded by the number of ground facts. -/
-theorem name_lt (f : Fact r H) : name f < r * 2 ^ H := by
-  calc
-    _ < (f.predicate.val + 1) * 2 ^ H := by
-      rw [name, Nat.add_mul, Nat.one_mul]
-      exact Nat.add_lt_add_left f.address.isLt _
-    _ ≤ _ := Nat.mul_le_mul_right _ f.predicate.isLt
-
-/-- Distinct ground facts get distinct indices. -/
-theorem name_injective : Function.Injective (@name r H) := by
-  rintro ⟨a, u⟩ ⟨b, v⟩ h
-  have pos : 0 < 2 ^ H := Nat.pow_pos (by decide)
-  change a.val * 2 ^ H + u.toNat = b.val * 2 ^ H + v.toNat at h
-  have add (i j : Nat) (hj : j < 2 ^ H) :
-      (i * 2 ^ H + j) / (2 ^ H) = i := by
-    rw [Nat.mul_comm, Nat.mul_add_div pos, Nat.div_eq_of_lt hj, Nat.add_zero]
-  have e := congrArg (· / (2 ^ H)) h
-  rw [add _ _ u.isLt, add _ _ v.isLt] at e
-  have ab : a = b := Fin.ext e
-  subst b
-  have huv := BitVec.eq_of_toNat_eq (Nat.add_left_cancel h)
-  subst v
-  rfl
-
 /-- Enumerate all ground facts in predicate and address order. -/
-def facts (r H : Nat) : List (Fact r H) :=
+@[expose] def facts (r H : ℕ) : List (Fact r H) :=
   (List.finRange r).flatMap fun a =>
     (List.finRange (2 ^ H)).map fun u => ⟨a, BitVec.ofFin u⟩
 
@@ -197,7 +191,7 @@ theorem mem_facts (f : Fact r H) : f ∈ facts r H := by
   exact List.mem_flatMap.mpr ⟨a, by simp, List.mem_map.mpr ⟨u.toFin, by simp, by simp⟩⟩
 
 /-- There are `r * 2 ^ H` ground facts. -/
-theorem facts_length (r H : Nat) : (facts r H).length = r * 2 ^ H := by
+theorem facts_length (r H : ℕ) : (facts r H).length = r * 2 ^ H := by
   simp [facts, List.length_flatMap, List.map_const', List.sum_replicate]
 
 /-- The order homomorphism on sets of ground facts induced by a relation program. -/
@@ -215,43 +209,25 @@ theorem lfp_consequence (P : Program r H) : (consequence P).lfp = {f | derives P
     change g ∈ consequence P (consequence P).lfp at hg
     rwa [OrderHom.map_lfp] at hg
 
+private theorem iterate_consequence (P : Program r H) (i : ℕ) :
+    ((consequence P)^[i]) ⊥ = {f | stage P i f} := by
+  induction i with
+  | zero => rfl
+  | succ i ih =>
+    rw [Function.iterate_succ_apply', ih]
+    rfl
+
 /-- Iteration over the grounded facts reaches the least model in at most one stage per fact. -/
 theorem derives_iff_stage_card (P : Program r H) (f : Fact r H) :
     derives P f ↔ stage P (r * 2 ^ H) f := by
-  classical
-  let N := r * 2 ^ H
-  let groundFacts := (facts r H).toFinset
-  let level (i : ℕ) := groundFacts.filter (stage P i)
-  have memLevel (i : ℕ) (g : Fact r H) : g ∈ level i ↔ stage P i g := by
-    simp [level, groundFacts, mem_facts]
-  have bound (i : ℕ) : (level i).card ≤ N :=
-    (Finset.card_le_card (Finset.filter_subset _ _)).trans
-      ((List.toFinset_card_le _).trans_eq (facts_length r H))
-  have stationary : ∃ i ≤ N, level i = level (i + 1) := by
-    by_contra! h
-    have growth (i : ℕ) (hi : i ≤ N + 1) : i ≤ (level i).card := by
-      induction i with
-      | zero => exact Nat.zero_le _
-      | succ i ih =>
-        have sub : level i ⊆ level (i + 1) := fun g hg =>
-          (memLevel _ g).mpr (stage_le P (Nat.le_succ i) _ ((memLevel _ g).mp hg))
-        have strict : level i ⊂ level (i + 1) :=
-          Finset.ssubset_iff_subset_ne.mpr ⟨sub, h i (by omega)⟩
-        exact Nat.succ_le_of_lt ((ih (by omega)).trans_lt (Finset.card_lt_card strict))
-    have hcard := growth (N + 1) le_rfl
-    have hbound := bound (N + 1)
-    omega
-  obtain ⟨i, hi, eq⟩ := stationary
-  have closed : Closed P (stage P i) := by
-    intro g hg
-    apply (memLevel i g).mp
-    rw [eq]
-    exact (memLevel (i + 1) g).mpr hg
-  exact ⟨fun h => stage_le P hi f ((derives_iff_all_closed P f).mp h _ closed),
-    fun h => ⟨N, h⟩⟩
+  have card : Fintype.card (Fact r H) = r * 2 ^ H := by
+    rw [Fintype.card_congr Fact.equivFin, Fintype.card_fin]
+  have fixed := OrderHom.iterate_card_bot_eq_lfp (consequence P)
+  rw [card, iterate_consequence, lfp_consequence] at fixed
+  exact (Set.ext_iff.mp fixed f).symm
 
 /-- One executable round of the positive equations. -/
-def next (P : Program r H) (X : Fact r H → Bool) (f : Fact r H) : Bool :=
+@[expose] def next (P : Program r H) (X : Fact r H → Bool) (f : Fact r H) : Bool :=
   match P f.predicate with
   | .top => true
   | .bot => false
@@ -276,7 +252,7 @@ private theorem iterate_next_eq_true (P : Program r H) (i : ℕ) (f : Fact r H) 
     rw [eq]
 
 /-- Decide derivability by iterating over the finite address space. -/
-def evaluate (P : Program r H) (f : Fact r H) : Bool :=
+@[expose] def evaluate (P : Program r H) (f : Fact r H) : Bool :=
   ((next P)^[r * 2 ^ H] (fun _ => false)) f
 
 /-- The executable iteration returns true exactly on derivable facts. -/

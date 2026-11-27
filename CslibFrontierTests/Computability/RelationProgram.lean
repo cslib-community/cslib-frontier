@@ -28,3 +28,12 @@ example : facts 0 1 = [] := by decide
 example : ∀ σ, (certificateMatrix sample ⟨3, 0⟩).eval σ = true :=
   (certificateMatrix_correct sample ⟨3, 0⟩).mpr
     ((evaluate_eq_true_iff sample ⟨3, 0⟩).mp (by decide))
+
+/-- The self-dependent predicate has no finite universal certificate. -/
+example :
+    ¬ ∀ σ : Fin (6 * 2 ^ 1) → Bool, (certificateMatrix sample ⟨4, 0⟩).eval
+      (fun v => if h : v < 6 * 2 ^ 1 then σ ⟨v, h⟩ else false) = true := by
+  intro valid
+  have derived := (certificateMatrix_finite_correct sample ⟨4, 0⟩).mp valid
+  exact (by decide : evaluate sample ⟨4, 0⟩ ≠ true)
+    ((evaluate_eq_true_iff sample ⟨4, 0⟩).mpr derived)

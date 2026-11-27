@@ -8,8 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.RelationProgram
-public import CslibFrontier.Logics.Propositional.DNF
-public import CslibFrontier.Logics.Propositional.CNF.Encoding
+public import CslibFrontier.Logics.Propositional.DNF.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
@@ -17,9 +16,10 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 /-!
 # Universal DNF certificates for relation programs
 
-For every proposed set of ground facts, the matrix tests that the query holds or a closure
-implication is violated. Each violation uses at most three literals and each fact contributes
-at most two terms. All costs here are representation sizes.
+The certificate construction is original to this formalization. It dualizes the ground Horn
+closure implications: for every proposed set of ground facts, the matrix tests that the query
+holds or a closure implication is violated. Each violation uses at most three literals and
+each fact contributes at most two terms. The bounds count terms and encoded bits.
 
 ## Main definitions
 
@@ -27,7 +27,11 @@ at most two terms. All costs here are representation sizes.
 
 ## Main results
 
-* `certificateMatrix_correct`, `matrix_terms`, `certificateMatrix_bits_upper`.
+* `certificateMatrix_correct`: universal validity is equivalent to derivability.
+* `certificateMatrix_name_lt`: literal indices lie in the finite ground-variable block.
+* `certificateMatrix_finite_correct`: quantifying over that finite block suffices.
+* `matrix_terms`: at most two violation terms per fact plus the query.
+* `certificateMatrix_bits_upper`: an upper bound on the length of the encoded matrix.
 -/
 
 public section
@@ -38,9 +42,11 @@ open Cslib.Logic.PL Turing.MultiTapeTM
 
 variable {r H : ℕ}
 
+private abbrev name (f : Fact r H) : ℕ := (Fact.equivFin f).val
+
 /-- Each term is one way for a truth assignment to violate this equation's
 closure implication. Disjunction in the premise creates two such terms. -/
-def violations (P : Program r H) (f : Fact r H) : DNF Nat :=
+private def violations (P : Program r H) (f : Fact r H) : DNF ℕ :=
   let no := (name f, false)
   match P f.predicate with
   | .top => [[no]]
@@ -51,21 +57,21 @@ def violations (P : Program r H) (f : Fact r H) : DNF Nat :=
   | .write a p b => [[(name ⟨a, overwrite f.address p b⟩, true), no]]
 
 /-- A violation term holds precisely for a missing immediate consequence. -/
-theorem violations_correct (P : Program r H) (σ : Nat → Bool) (f : Fact r H) :
+private theorem violations_correct (P : Program r H) (σ : ℕ → Bool) (f : Fact r H) :
     (violations P f).eval σ = true ↔
       step P (fun g => σ (name g) = true) f ∧ σ (name f) = false := by
   cases h : P f.predicate <;>
     simp [violations, step, h, DNF.eval, Literal.eval] <;> tauto
 
 /-- A DNF states that the query holds or the proposed set of facts is not closed. -/
-def certificateMatrix (P : Program r H) (target : Fact r H) : DNF Nat :=
+def certificateMatrix (P : Program r H) (target : Fact r H) : DNF ℕ :=
   [(name target, true)] :: (facts r H).flatMap (violations P)
 
 /-- Universally quantifying the DNF is equivalent to the query being derivable. -/
 theorem certificateMatrix_correct (P : Program r H) (target : Fact r H) :
-    (∀ σ : Nat → Bool, (certificateMatrix P target).eval σ = true) ↔ derives P target := by
+    (∀ σ : ℕ → Bool, (certificateMatrix P target).eval σ = true) ↔ derives P target := by
   rw [derives_iff_all_closed]
-  have matrix (σ : Nat → Bool) :
+  have matrix (σ : ℕ → Bool) :
       (certificateMatrix P target).eval σ = true ↔
         σ (name target) = true ∨
           ∃ f, step P (fun g => σ (name g) = true) f ∧ σ (name f) = false := by
@@ -76,9 +82,10 @@ theorem certificateMatrix_correct (P : Program r H) (target : Fact r H) :
   constructor
   · intro hall X hX
     classical
-    let σ (i : Nat) : Bool := decide (∃ f, name f = i ∧ X f)
+    let σ (i : ℕ) : Bool := decide (∃ f, name f = i ∧ X f)
     have eval (f : Fact r H) : σ (name f) = true ↔ X f := by
-      simp only [σ, decide_eq_true_eq, name_injective.eq_iff, exists_eq_left]
+      simp only [σ, decide_eq_true_eq, name, Fin.val_eq_val, Equiv.apply_eq_iff_eq,
+        exists_eq_left]
     have eq : (fun f => σ (name f) = true) = X := funext fun f => propext (eval f)
     rcases (matrix σ).mp (hall σ) with h | ⟨f, hf, no⟩
     · exact (eval _).mp h
@@ -98,22 +105,12 @@ private theorem violations_names (P : Program r H) (f : Fact r H) :
     ∀ t ∈ violations P f, ∀ l ∈ t, l.1 < r * 2 ^ H := by
   unfold violations
   split
-  · simp [name_lt]
   · simp
-  · split <;> simp [name_lt]
-  · intro t ht l hl
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
-    rcases ht with rfl | rfl <;>
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hl <;>
-      rcases hl with rfl | rfl <;> exact name_lt _
-  · intro t ht l hl
-    obtain rfl := List.mem_singleton.mp ht
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-    rcases hl with rfl | rfl | rfl <;> exact name_lt _
-  · intro t ht l hl
-    obtain rfl := List.mem_singleton.mp ht
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-    rcases hl with rfl | rfl <;> exact name_lt _
+  · simp
+  · split <;> simp
+  · simp [forall_and]
+  · simp [forall_and, or_imp]
+  · simp [forall_and]
 
 /-- Every literal in the matrix refers to one of the grounded facts. -/
 theorem certificateMatrix_name_lt (P : Program r H) (target : Fact r H)
@@ -122,7 +119,7 @@ theorem certificateMatrix_name_lt (P : Program r H) (target : Fact r H)
   rcases List.mem_cons.mp ht with e | other
   · subst t
     obtain rfl := List.mem_singleton.mp hl
-    exact name_lt target
+    exact (Fact.equivFin target).isLt
   · obtain ⟨f, _, hf⟩ := List.mem_flatMap.mp other
     exact violations_names P f t hf l hl
 
@@ -180,14 +177,14 @@ theorem matrix_terms (P : Program r H) (target : Fact r H) :
 theorem certificateMatrix_bits_upper (P : Program r H) (target : Fact r H) :
     let F := r * 2 ^ H
     let B := Nat.log2 F + 1
-    (encCNFOver encNat (certificateMatrix P target)).length ≤
+    (encDNFOver encNat (certificateMatrix P target)).length ≤
       (2 * F + 1) * (24 * B + 31) := by
   let F := r * 2 ^ H
   let B := Nat.log2 F + 1
   let d := certificateMatrix P target
-  have clause (t : Clause Nat) (ht : t ∈ d) : ((encClause encNat) t).length ≤
+  have encodedTerm (t : Term ℕ) (ht : t ∈ d) : (encTermOver encNat t).length ≤
       3 * (4 * B + 5) := by
-    have literals (l : Literal Nat) (hl : l ∈ t) :
+    have literals (l : Literal ℕ) (hl : l ∈ t) :
         ((encPair encNat encBool) l).length ≤ 2 * B + 2 := by
       have lt : l.1 < F := certificateMatrix_name_lt P target ht hl
       have size : (encNat l.1).length ≤ B := length_encNat_le_log2 lt.le
@@ -205,8 +202,8 @@ theorem certificateMatrix_bits_upper (P : Program r H) (target : Fact r H) :
       have eq : 2 * (2 * B + 2) + 1 = 4 * B + 5 := by omega
       rw [eq]
       exact Nat.mul_le_mul_right _ term)
-  change (encCNFOver encNat d).length ≤ _
-  have h := length_encList_le (encClause encNat) d (b := 3 * (4 * B + 5)) clause
+  change (encDNFOver encNat d).length ≤ _
+  have h := length_encList_le (encTermOver encNat) d (b := 3 * (4 * B + 5)) encodedTerm
   have hl : d.length ≤ 2 * F + 1 := matrix_terms P target
   refine h.trans ?_
   have eq : 2 * (3 * (4 * B + 5)) + 1 = 24 * B + 31 := by omega
