@@ -75,7 +75,8 @@ meets.
 
 ## References
 
-* [M. R. Garey and D. S. Johnson, *Computers and Intractability*][GareyJohnson1979], Problem SP8.
+* [M. R. Garey and D. S. Johnson, *Computers and Intractability*][GareyJohnson1979], Problem SP8,
+  p. 222.
 * [R. M. Karp, *Reducibility among combinatorial problems*][Karp1972]
 -/
 
