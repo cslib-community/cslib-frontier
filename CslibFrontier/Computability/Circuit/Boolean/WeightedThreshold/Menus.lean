@@ -299,6 +299,12 @@ noncomputable def menuHistory (p : Program signature n g) (dir : Fin g → Fin d
     else fun _ _ => false,
    fun gate => if d + gate.val < i then p.eval interpretation x gate else false)
 
+private theorem menuHistory_snd_eq_false (p : Program signature n g) (dir : Fin g → Fin d)
+    (w : Fin d → Fin n → ℝ) (scale : Fin g → ℝ) (S : Finset (Fin d)) {a : Fin d} {i : ℕ}
+    (hi : i ≤ a.val + 1) (x : Fin n → Bool) (gate : Fin g) :
+    (menuHistory p dir w scale S i x).2 gate = false :=
+  ite_eq_right (by omega)
+
 private theorem menuHistory_step_dir (p : Program signature n g) (dir : Fin g → Fin d)
     (w : Fin d → Fin n → ℝ) (scale : Fin g → ℝ) (S : Finset (Fin d)) (a : Fin d) :
     (BlockKind.oneDim (if a ∈ S then directionMenuSum p dir a else 0)).Step
@@ -321,10 +327,8 @@ private theorem menuHistory_step_dir (p : Program signature n g) (dir : Fin g �
           dsimp [menuHistory]
           rw [Function.update_of_ne hb]
           simp only [hlt]
-      · have h1 : ¬ d + gate'.val < a.val + 1 := by omega
-        have h2 : ¬ d + gate'.val < a.val := by omega
-        dsimp [menuHistory]
-        rw [ite_eq_right h1, ite_eq_right h2]
+      · exact (menuHistory_snd_eq_false p dir w scale S (i := a.val + 1) le_rfl x gate').trans
+          (menuHistory_snd_eq_false p dir w scale S (i := a.val) (Nat.le_succ _) x gate').symm
   · simp only [haS, ite_false, BlockKind.Step]
     refine ⟨fun _ => 0, fun η _ => η, fun _ => ChangesAtMost.const _, fun x => ?_⟩
     refine Prod.ext (funext fun b => ?_) (funext fun gate' => ?_)
@@ -335,10 +339,8 @@ private theorem menuHistory_step_dir (p : Program signature n g) (dir : Fin g �
         have hlt : b.val < a.val + 1 ↔ b.val < a.val := by omega
         dsimp [menuHistory]
         simp only [hlt]
-    · have h1 : ¬ d + gate'.val < a.val + 1 := by omega
-      have h2 : ¬ d + gate'.val < a.val := by omega
-      dsimp [menuHistory]
-      rw [ite_eq_right h1, ite_eq_right h2]
+    · exact (menuHistory_snd_eq_false p dir w scale S (i := a.val + 1) le_rfl x gate').trans
+        (menuHistory_snd_eq_false p dir w scale S (i := a.val) (Nat.le_succ _) x gate').symm
 
 private theorem menuHistory_step_gate (p : Program signature n g) (dir : Fin g → Fin d)
     (w : Fin d → Fin n → ℝ) (scale : Fin g → ℝ)
