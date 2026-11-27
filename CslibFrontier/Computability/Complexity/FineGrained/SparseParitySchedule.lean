@@ -655,30 +655,18 @@ theorem CNF.exists_greedy_parityRowSystem_branch_schedule_of_le_clog_pow (k C_B 
                           e univ (φ.parityRowSystem (A i)) b)
                         (numNodes n') (numGroups n') (intervalStart (2 * β_B + 5) n')
                         (rowBound (2 * β_B + 5) n') (tauRat n')) := by
-  obtain ⟨n₀, hn₀20, hsched⟩ :=
-    exists_branch_schedule_replacementDesign (β := 2 * β_B + 5) (by omega)
-  set C := CNF.parityScheduleCoeff k C_B β_B
-  refine ⟨max (2 * n₀) (2 ^ (C + 1)), by omega,
-    fun {V _ _} φ {B} hk hN₀ hB1 hB_le hm => ?_⟩
+  obtain ⟨N₀, hN₀20, hsched⟩ := CNF.exists_branch_schedule_parityRowSystem_of_le_clog_pow k C_B β_B
+  refine ⟨N₀, hN₀20, fun {V _ _} φ {B} hk hN₀ hB1 hB_le hm => ?_⟩
   intro D₀ P b₀
   obtain ⟨A₀, hlen0, hw0, hgreedy⟩ :=
     φ.exists_initialTests_commonZeroCount_greedy hk (by omega) hB1 hm
   refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ => ⟨(hgreedy A γ h0 hA hγ).1, fun i hi => ?_⟩⟩
-  obtain ⟨hlen_i, hscope_i⟩ := (hgreedy A γ h0 hA hγ).2 i hi
-  refine ⟨hlen_i, fun {n'} e => ?_⟩
-  have hscope_D₀ : ∀ j : Fin (A i).length,
-      #(equationScope (φ.parityRowSystem (A i) j)) ≤ k * (D₀ * 2 ^ k) := fun j => by
-    simpa only [D₀, P, max_initialRowWeightBound_greedyRowListLength] using (hscope_i j).2.2
-  have hsqrt :=
-    two_le_sqrt_clog_two ((by omega : 20 ≤ 2 * n₀).trans ((le_max_left _ _).trans hN₀))
-  have hM_le :=
-    CNF.totalIncidence_mul_le_of_card_equationScope_le hscope_D₀ hlen_i (Nat.le_succ _ : _ ≤ b₀)
-  have hcard := card_le_two_mul_freeVar_of_heavyVars univ _ hsqrt hM_le e
-  obtain ⟨hn₀_le, hcoeff⟩ := le_and_le_clog_of_max_le hN₀ hcard.1
-  obtain ⟨hb₀_pow, hw_pow⟩ :=
-    parityBranchThreshold_succ_and_width_le_clog_pow (by omega) hcard.1 (by omega) hm hB_le
-      le_rfl hcoeff
-  exact ⟨hcard, card_branchAssignments_heavyVars_le_two_pow_div univ _ (by omega) hM_le,
-    fun b => hsched univ univ _ (Subset.refl _) e hn₀_le hb₀_pow hw_pow (fun j _ => hscope_D₀ j) b⟩
+  have hwt (j : ℕ) : ∀ r ∈ A j, weight r ≤ D₀ :=
+    Nat.rec (fun r hr => hw0 r (h0 ▸ hr))
+      (fun j ih r hr => (List.mem_append.mp (hA j ▸ hr)).elim (ih r) fun hr' =>
+        (List.mem_singleton.mp hr' ▸ weight_testRow_le (γ j)).trans
+          (greedyRowListLength_le_initialRowWeightBound B φ.length)) j
+  have hlen_i := ((hgreedy A γ h0 hA hγ).2 i hi).1
+  exact ⟨hlen_i, fun {n'} e => (hsched hk hN₀ hm hB_le le_rfl (hwt i) hlen_i e).2⟩
 
 end Cslib.Logic.PL

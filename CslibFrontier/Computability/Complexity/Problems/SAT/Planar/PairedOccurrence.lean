@@ -116,14 +116,12 @@ def allPathPortSignals (φ : CNF ℕ) : List Variable :=
 theorem allPathPortSignals_nodup {φ : CNF ℕ}
     (hw : ∀ c ∈ φ, c.length ≤ 3) (hv : ∀ v, φ.vars.count v ≤ 3) :
     (allPathPortSignals φ).Nodup := by
-  have heq : allPathPortSignals φ =
-      (((paths φ).flatMap pathPortKeys).product [0, 1]).map
-        (portKeySignal (crossingSites φ)) := by
-    change ((paths φ).flatMap fun r =>
-      ((pathPortKeys r).product [0, 1]).map (portKeySignal (crossingSites φ))) = _
-    simp [List.product, List.map_flatMap, List.flatMap_assoc]
-  rw [heq]
-  exact ((PlanarCompile.pathPorts_nodup hw hv).product (by decide)).map (portKeySignal_injective _)
+  suffices allPathPortSignals φ =
+      (((paths φ).flatMap pathPortKeys).product [0, 1]).map (portKeySignal (crossingSites φ)) from
+    this ▸ ((PlanarCompile.pathPorts_nodup hw hv).product (by decide)).map
+      (portKeySignal_injective _)
+  unfold allPathPortSignals pathPortSignals
+  simp [List.product, List.map_flatMap, List.flatMap_assoc]
 
 private theorem vars_originalClauses (φ : CNF ℕ) (sites : List Point) :
     CNF.vars ((originalClauses φ sites).map Prod.fst) =
@@ -228,18 +226,10 @@ theorem count_vars_rawFormula_le (φ : CNF ℕ) (v : Variable) :
       (crossingSignals φ).count v + (allPathPortSignals φ).count v := by
   have he := count_external_blocks_le (φ := φ) (crossingSites φ)
     (Cslib.Logic.PL.occurrences φ) (fun _ => PlanarCompile.occurrencePath_length_ge_two) v
-  have heq : ((Cslib.Logic.PL.occurrences φ).flatMap fun o =>
-      pathPortSignals (crossingSites φ) (occurrencePath φ o)) = allPathPortSignals φ := by
-    rw [allPathPortSignals, paths, ← PlanarCompile.occurrencePaths_eq_paths, List.flatMap_map]
-  rw [heq] at he
-  have ho : CNF.vars (((ordinaryCells φ).flatMap ordinaryClauses).map Prod.fst) =
-      ordinarySignals φ := by
-    simp_rw [vars_flatMap, vars_ordinaryBlock, ordinarySignals]
-  have hc : CNF.vars (((crossingSites φ).flatMap crossingClauses).map Prod.fst) =
-      crossingSignals φ := by
-    simp_rw [vars_flatMap, vars_crossingBlock, crossingSignals]
-  simp only [rawFormula, placedClauses, List.map_append, count_vars_append,
-    vars_originalClauses, ho, hc]
+  rw [allPathPortSignals, paths, ← PlanarCompile.occurrencePaths_eq_paths, List.flatMap_map]
+  simp only [rawFormula, placedClauses, List.map_append, count_vars_append, vars_originalClauses,
+    vars_flatMap, vars_ordinaryBlock, vars_crossingBlock, ordinarySignals, crossingSignals,
+    occurrencePath] at he ⊢
   omega
 
 private theorem count_allPathPortSignals_nonterminal {φ : CNF ℕ} (p : Point)

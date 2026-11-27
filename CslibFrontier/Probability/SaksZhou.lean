@@ -219,11 +219,10 @@ theorem sum_abs_snapIter_sub_pow_le (d n₁ : ℕ) {M : Matrix ι ι ℝ}
 
 private theorem card_le_of_dens_le {α : Type*} [Fintype α] {s : Finset α} {ε : ℝ}
     (h : (s.dens : ℝ) ≤ ε) : (#s : ℝ) ≤ ε * Fintype.card α := by
-  rcases Nat.eq_zero_or_pos (Fintype.card α) with h0 | h0
-  · have : IsEmpty α := Fintype.card_eq_zero_iff.1 h0
-    simp [Finset.eq_empty_of_isEmpty s]
+  rcases isEmpty_or_nonempty α with _ | _
+  · simp [Subsingleton.elim s ∅]
   · rwa [Finset.dens, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
-      div_le_iff₀ (by exact_mod_cast h0)] at h
+      div_le_iff₀ (Nat.cast_pos.2 Fintype.card_pos)] at h
 
 private theorem dens_le_of_card_le {α : Type*} [Fintype α] {s : Finset α} {ε : ℝ} (hε : 0 ≤ ε)
     (h : (#s : ℝ) ≤ ε * Fintype.card α) : (s.dens : ℝ) ≤ ε := by
@@ -248,16 +247,14 @@ private theorem card_ne_le_of_step {Ω T S : Type*} [Fintype Ω] [Fintype T] [De
   | zero =>
     simp [Finset.filter_false_of_mem fun (p : Ω × (Fin 0 → T)) _ => not_not.2 (h0 p.1 p.2)]
   | succ n ih =>
-    let e : (Ω × (Fin n → T)) × T ≃ Ω × (Fin (n + 1) → T) :=
-      { toFun := fun q => (q.1.1, Fin.snoc q.1.2 q.2)
-        invFun := fun p => ((p.1, Fin.init p.2), p.2 (Fin.last n))
-        left_inv := fun q => by simp
-        right_inv := fun p => by simp }
     have hcard : #{p : Ω × (Fin (n + 1) → T) | X (n + 1) p.1 p.2 ≠ R (n + 1) p.1 p.2} =
         #{q : (Ω × (Fin n → T)) × T |
-          F q.1.1 (X n q.1.1 q.1.2) q.2 ≠ G (R n q.1.1 q.1.2) q.2} := by
-      refine (Finset.card_equiv e fun q => ?_).symm
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, e, Equiv.coe_fn_mk, hX, hR]
+          F q.1.1 (X n q.1.1 q.1.2) q.2 ≠ G (R n q.1.1 q.1.2) q.2} :=
+      (Finset.card_equiv ((Equiv.prodAssoc _ _ _).trans
+        (.prodCongr (.refl Ω) ((Equiv.prodComm _ _).trans (Fin.snocEquiv fun _ => T)))) fun _ => by
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Equiv.trans_apply,
+            Equiv.prodAssoc_apply, Equiv.prodCongr_apply, Prod.map_apply, Equiv.refl_apply,
+            Equiv.prodComm_apply, Prod.swap_prod_mk, Fin.snocEquiv_apply, hX, hR]).symm
     have hpt (q : Ω × (Fin n → T)) (t : T) :
         (if F q.1 (X n q.1 q.2) t ≠ G (R n q.1 q.2) t then (1 : ℝ) else 0) ≤
           (if X n q.1 q.2 ≠ R n q.1 q.2 then 1 else 0) +
@@ -322,9 +319,9 @@ private theorem card_snap_pow_ne_le {Ω : Type*} [Fintype Ω] (d n₁ : ℕ)
     _ ≤ 2 ^ d * (ε * Fintype.card Ω) + Fintype.card Ω * c := by gcongr
     _ = (ε + Fintype.card ι ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) *
           (Fintype.card Ω * Fintype.card (Fin (2 ^ d))) := by
-        rw [Fintype.card_fin, hc, show (4 : ℝ) ^ d = 2 ^ d * 2 ^ d by rw [← mul_pow]; norm_num]
-        push_cast
-        field_simp
+        have h4 : (4 : ℝ) ^ d = 2 ^ d * 2 ^ d := by rw [← mul_pow]; norm_num
+        rw [Fintype.card_fin, hc, h4]
+        push_cast; field_simp
 
 /-- **Coupling with the reference iteration** [ChattopadhyayLiao2020, proof of Lemma A.4]. Let
 `M` be substochastic, and suppose that for `A = M` and for every dyadic substochastic `A` at
@@ -391,12 +388,11 @@ theorem dens_snapIter_far_le_of_two_le {Ω : Type*} [Fintype Ω] (d : ℕ) {n₁
         (fun p : Ω × (Fin n₂ → Fin (2 ^ d)) => snapIter d (fun A => pow A p.1) M n₂ p.2)
         (M ^ n₁ ^ n₂)).dens : ℝ) ≤
       n₂ * (ε + Fintype.card ι ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) := by
-  refine le_trans ?_ (dens_snapIter_far_le d n₁ n₂ pow h0 h1 hε hpow)
-  refine NNRat.cast_le.2 (Finset.dens_le_dens fun p => ?_)
-  simp only [mem_rowFarSet]
-  rintro ⟨i, hi⟩
+  refine le_trans (NNRat.cast_le.2 (Finset.dens_le_dens fun p hp => ?_))
+    (dens_snapIter_far_le d n₁ n₂ pow h0 h1 hε hpow)
+  obtain ⟨i, hi⟩ := mem_rowFarSet.1 hp
   have hgeom : ∑ k ∈ range n₂, (n₁ : ℝ) ^ k ≤ (n₁ : ℝ) ^ n₂ := by
-    exact_mod_cast (Nat.geomSum_lt hn₁ fun k hk => Finset.mem_range.1 hk).le
-  exact ⟨i, lt_of_le_of_lt (by gcongr) hi⟩
+    exact_mod_cast (Nat.geomSum_lt hn₁ fun _ hk => Finset.mem_range.1 hk).le
+  exact mem_rowFarSet.2 ⟨i, lt_of_le_of_lt (by gcongr) hi⟩
 
 end Cslib.Probability.SaksZhou

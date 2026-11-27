@@ -207,24 +207,20 @@ theorem exists_contracted_subdivision_embedding {I : FixedRotationInput} (hI : V
   let D : PolygonalDrawing I.graph := {
     vertex := F.vertex
     route := joinedRoute F
-    endpoint_eq := by
-      intro i b
+    endpoint_eq := fun i b => by
       obtain ⟨hs, hpq, hjoin, ht⟩ := piece_endpoints F i
-      change (((F.route (pieceEdge I i 0)).concat (F.route (pieceEdge I i 1))).concat
-        (F.route (pieceEdge I i 2))).endpoint b = _
-      rw [Route.endpoint_concat _ _ hjoin]
       cases b
-      · exact (Route.endpoint_concat _ _ hpq false).trans hs
-      · exact ht
+      · exact (Route.endpoint_concat _ _ hjoin false).trans
+          ((Route.endpoint_concat _ _ hpq false).trans hs)
+      · exact (Route.endpoint_concat _ _ hjoin true).trans ht
   }
-  have hnames : I.graph.vertices = List.range I.graph.vertices.length := hI.1
   have hbound (v : ℕ) (hv : v ∈ I.graph.vertices) : v < I.graph.vertices.length :=
-    List.mem_range.mp (hnames ▸ hv)
+    List.mem_range.mp (hI.1 ▸ hv)
   have hsub (v : ℕ) (hv : v ∈ I.graph.vertices) : v ∈ (subdivisionGraph I).vertices := by
     simp only [subdivisionGraph, subdivisionSize, List.mem_range]
     linarith [hbound v hv]
   have hevertex (d : Dart I.graph) : d.vertex ∈ I.graph.vertices :=
-    RotationSystem.vertex_mem (fun v hv => hnames ▸ List.mem_range.mpr (hI.2.1 v hv)) d
+    RotationSystem.vertex_mem (fun v hv => hI.1 ▸ List.mem_range.mpr (hI.2.1 v hv)) d
   have hvertex : ∀ i (a : Fin (D.route i).segments) (s : ℝ), s ∈ Set.Icc 0 1 →
       ∀ v ∈ I.graph.vertices, (D.route i).eval a s = D.vertex v →
       ∃ b, (D.route i).AtEnd a s b ∧ Dart.vertex (i, b) = v := by

@@ -134,11 +134,7 @@ theorem ofFn_evalBits (G : PRG.Generator (BitString k) (BitString (2 * k)))
     List.ofFn (evalBits G seed x) = eval (listGenerator G) (List.ofFn seed) (List.ofFn x) := by
   induction n generalizing seed with
   | zero => simp
-  | succ n ih =>
-    rw [evalBits_succ, ih, List.ofFn_succ, eval_cons, child, List.length_ofFn, ofFn_block,
-      listGenerator]
-    congr 3 with i : 1
-    simp
+  | succ n ih => simp [evalBits_succ, ih, eval_cons, child, ofFn_block, listGenerator]; rfl
 
 /-- **The GGM family of Boolean functions** [RazborovRudich1997]: the function with key `seed`
 maps an input of `n` bits to the first bit of the label it reaches in the GGM tree. -/
@@ -395,14 +391,13 @@ theorem secure_truthTableGenerator_booleanFamily [NeZero k]
     | succ m ih =>
       intro j h
       have hstep := abs_hybridProb_sub_le G D h (ε := ε) fun c q => by
-        have hadv := hG (fun y => PMF.pure (D (truthTable n fun x =>
-          leaves G (j + 1) m (by omega) (reshape (update c q y)) x 0)))
-          ⟨_, (complexity_slice_le G D (j := j) (m := m) (by omega) c q).trans
-            ((add_comm _ _).trans_le (add_le_add hD (Nat.mul_le_mul_left _
-              (Nat.succ_le_succ (Nat.mul_le_mul_right _ (by omega)))))), rfl⟩
-        rwa [PRG.Generator.advantage, PRG.Generator.toReal_realExperiment_pure,
-          PRG.Generator.toReal_idealExperiment_pure, ← Fintype.expect_boole,
-          ← Fintype.expect_boole] at hadv
+        simpa only [PRG.Generator.advantage, PRG.Generator.toReal_realExperiment_pure,
+          PRG.Generator.toReal_idealExperiment_pure, ← Fintype.expect_boole] using
+          hG (fun y => PMF.pure (D (truthTable n fun x =>
+            leaves G (j + 1) m (by omega) (reshape (update c q y)) x 0)))
+            ⟨_, (complexity_slice_le G D (j := j) (m := m) (by omega) c q).trans
+              ((add_comm _ _).trans_le (add_le_add hD (Nat.mul_le_mul_left _
+                (Nat.succ_le_succ (Nat.mul_le_mul_right _ (by omega)))))), rfl⟩
       calc _ ≤ |hybridProb G D j (m + 1) h - hybridProb G D (j + 1) m (by omega)| +
             |hybridProb G D (j + 1) m (by omega) - hybridProb G D n 0 (add_zero n)| :=
             abs_sub_le _ _ _
@@ -438,10 +433,8 @@ theorem isExponentiallySecure_booleanFamily
   filter_upwards [hkey, hpoly.eventually_lt_two_pow, eventually_ge_atTop (c + 3)] with n hG hn hc
   -- the generator resists circuits with `2 ^ (n ^ 2)` gates
   have hsec : (G ((n + 1) ^ (2 * d + 1))).Secure (IsCircuitTest (2 ^ (n ^ 2))) (2 ^ (n ^ 2))⁻¹ :=
-    hG _ (by
-      rw [← pow_mul]
-      exact (Nat.pow_le_pow_left (Nat.le_succ n) _).trans
-        (Nat.pow_le_pow_right (Nat.succ_pos n) (Nat.le_succ _)))
+    hG _ ((pow_mul n 2 d).symm ▸ (Nat.pow_le_pow_left n.le_succ _).trans
+      (Nat.pow_le_pow_right n.succ_pos (Nat.le_succ _)))
   -- which exceeds the size of the reduction
   have hsize : 2 ^ (c * n) +
       2 ^ n * (n * complexity interpretation ⇑(G ((n + 1) ^ (2 * d + 1))) + 1) ≤ 2 ^ (n ^ 2) := by

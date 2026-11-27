@@ -141,12 +141,11 @@ open Classical in
 /-- The error probability of the correction at each point is at most `2ε`. -/
 theorem correction_error (f : G → H) {φ : G → H} (hφ : IsPlurality f φ) (x : G) :
     (𝔼 y, if φ x ≠ vote f x y then (1 : ℝ) else 0) ≤ 2 * rejection f := by
-  have h := concentration f hφ x
   have he : (𝔼 y, if φ x ≠ vote f x y then (1 : ℝ) else 0) =
       1 - 𝔼 y, if vote f x y = φ x then (1 : ℝ) else 0 := by
     rw [← Fintype.expect_const (ι := G) (1 : ℝ), ← expect_sub_distrib]
     exact expect_congr rfl fun y _ => by split_ifs <;> simp_all
-  linarith
+  linarith [concentration f hφ x]
 
 open Classical in
 /-- Below rejection `1/6`, every plurality correction preserves addition. -/
@@ -184,8 +183,7 @@ theorem closeness (f : G → H) {φ : G → H} (hφ : IsPlurality f φ)
     by_cases hx : f x = φ x
     · simp only [hx, ne_eq, not_true_eq_false, ite_false, mul_zero]
       exact expect_nonneg fun _ _ => by positivity
-    · have hc := concentration f hφ x
-      have hm : (𝔼 y, if vote f x y = φ x then (1 : ℝ) else 0) ≤
+    · have hm : (𝔼 y, if vote f x y = φ x then (1 : ℝ) else 0) ≤
           𝔼 y, if f x + f y ≠ f (x + y) then (1 : ℝ) else 0 :=
         expect_le_expect fun y _ => by
           by_cases hv : vote f x y = φ x
@@ -193,7 +191,7 @@ theorem closeness (f : G → H) {φ : G → H} (hφ : IsPlurality f φ)
               hx (by rw [← hv, vote, ← he, add_sub_cancel_right])]
           · rw [ite_eq_right hv]; positivity
       simp only [hx, ne_eq, not_false_eq_true, ite_true, mul_one]
-      linarith
+      linarith [concentration f hφ x]
   have h := expect_le_expect (s := univ) fun x _ => point x
   rw [← mul_expect, ← hammingDist_div_eq_expect, ← rejection_eq_expect] at h
   linarith
@@ -239,9 +237,8 @@ theorem disagreement_sub_two_sq_le_onlyFirst (f : G → H) (h : G →+ H) :
       if OnlyFirstDisagreement f h x y then 1 else 0 by
         dsimp [OnlyFirstDisagreement]
         split_ifs <;> simp_all
-  simp only [expect_sub_distrib] at hp
   dsimp only at ha hab hac ⊢
-  rw [ha, hab, hac] at hp
+  simp only [expect_sub_distrib, ha, hab, hac] at hp
   linarith
 
 open Classical in
@@ -292,11 +289,9 @@ theorem exists_closest [Finite H] (f : G → H) : ∃ h : G →+ H,
     ∀ k : G →+ H, hammingDist f h ≤ hammingDist f k := by
   classical
   let := Fintype.ofFinite H
-  let : Fintype (G →+ H) := Fintype.ofInjective (fun h : G →+ H => (h : G → H))
-    DFunLike.coe_injective
-  obtain ⟨h, -, hh⟩ := univ.exists_min_image (fun h : G →+ H => hammingDist f h)
-    (show (univ : Finset (G →+ H)).Nonempty from ⟨0, mem_univ _⟩)
-  exact ⟨h, fun k => hh k (mem_univ _)⟩
+  let : Fintype (G →+ H) := Fintype.ofInjective _ DFunLike.coe_injective
+  exact (univ.exists_min_image (fun h : G →+ H => hammingDist f h) univ_nonempty).imp fun _ h k =>
+    h.2 k (mem_univ _)
 
 open Classical in
 /-- Minimum normalized disagreement with an additive homomorphism. -/

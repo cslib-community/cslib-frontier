@@ -94,20 +94,15 @@ theorem rayParity_endpoints_add_eq_sum_intersections {ι : Type*} [Fintype ι]
       rayParity a b x (p.point j.succ) + rayParity a b x (p.point j.castSucc) =
         ∑ i, x i * decide ((openSegment ℝ (a i) (b i) ∩
           openSegment ℝ (p.point j.castSucc) (p.point j.succ)).Nonempty) := by
-    have hsupport : segment ℝ (p.point j.castSucc) (p.point j.succ) ⊆ p.support := by
-      rw [segment_eq_image_lineMap]
-      rintro z ⟨t, ht, rfl⟩
-      exact p.at_mem_support j ht
     apply rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
       a b x _ _ hheight (hpheight j) (hnodes j.castSucc) (hnodes j.succ)
-    · exact fun i hx hz => (hends i hx).1 (hsupport hz)
-    · exact fun i hx hz => (hends i hx).2 (hsupport hz)
+    · exact fun i hx hz => (hends i hx).1 (Set.mem_iUnion.mpr ⟨j, hz⟩)
+    · exact fun i hx hz => (hends i hx).2 (Set.mem_iUnion.mpr ⟨j, hz⟩)
     · exact fun z _ => sum_rayParity_endpoint_jumps_eq_zero a b x heven z
   calc
     _ = ∑ j : Fin p.segments,
         (rayParity a b x (p.point j.castSucc) + rayParity a b x (p.point j.succ)) := by
-      rw [sum_segment_endpoints]
-      exact add_comm _ _
+      rw [sum_segment_endpoints, add_comm]
     _ = _ := Finset.sum_congr rfl fun j _ => (add_comm _ _).trans (hpiece j)
 
 /-- Ray parity of the actual route segments after multiplication by a common complex
@@ -214,10 +209,8 @@ theorem rayParity_eq_false_of_support_subset_convex (p : Route) {K : Set ℂ}
     {z : ℂ} (hz : z ∉ K) {u : ℂ} : p.rayParity u z = false := by
   classical
   by_cases hu : u = 0
-  · subst u
-    change p.rayParity 0 z = 0
-    simp only [Route.rayParity, Cslib.Polygonal.rayParity, zero_mul,
-      not_rayCrosses_of_im_eq rfl, ite_false, Finset.sum_const_zero]
+  · simp only [Route.rayParity, Cslib.Polygonal.rayParity, hu, zero_mul,
+      not_rayCrosses_of_im_eq rfl, ite_false, Finset.sum_const_zero, ← Bool.zero_eq_false]
   let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
   let K' := f '' K
   let z' := u * z
@@ -315,12 +308,8 @@ private theorem exists_pos_rayParity_eq_of_fixed_incident_segments (p : Route) (
     let d := q i.succ
     let K := segment ℝ a b + Metric.ball (0 : ℂ) ε
     have hK : Convex ℝ K := (convex_segment _ _).add (convex_ball _ _)
-    have hzK : z ∉ K := by
-      rintro ⟨x, hx, w, hw, heq⟩
-      have hdist' : dist x z < ε := by
-        rw [dist_comm, dist_eq_norm, ← heq, add_sub_cancel_left]
-        simpa only [Metric.mem_ball, dist_zero_right] using hw
-      exact hball (show x ∈ Metric.ball z ε from hdist') (Set.mem_iUnion.mpr ⟨⟨i, hi⟩, hx⟩)
+    have hzK : z ∉ K := fun ⟨x, hx, w, hw, heq⟩ =>
+      hball (by simpa [← heq, dist_eq_norm] using hw) (Set.mem_iUnion.mpr ⟨⟨i, hi⟩, hx⟩)
     have old {x : ℂ} (hx : x ∈ segment ℝ a b) : x ∈ K :=
       ⟨x, hx, 0, Metric.mem_ball_self hε, add_zero x⟩
     have moved {x y : ℂ} (hx : x ∈ segment ℝ a b) (hy : dist y x < ε) : y ∈ K :=

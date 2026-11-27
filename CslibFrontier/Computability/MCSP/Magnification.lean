@@ -403,24 +403,17 @@ theorem circuitMinMergeLanguage_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBit
     CircuitMinMergeLanguage ∈ PPolyOn encMerge := by
   let encQ := encPair encMerge encBits
   have hok : {a : MergeInput | mergeOk₀ a = true ∧ mergeOk₁ a = true} ∈ PPolyOn encMerge := by
-    have hok₀ : ComputableInPolyTime mergeOk₀ encMerge encBool :=
-      bitsGetDWithInput (by fun_prop) (const 0) false
-    have hok₁ : ComputableInPolyTime mergeOk₁ encMerge encBool :=
-      bitsGetDWithInput (by fun_prop) computableInPolyTime_mergeStateWidth false
-    simpa [Bool.and_eq_true] using PPolyOn.of_computableInPolyTime (bool_and' hok₀ hok₁)
+    have hcs : ComputableInPolyTime MergeInput.childStates encMerge encBits := by fun_prop
+    simpa [Bool.and_eq_true, mergeOk₀, mergeOk₁] using PPolyOn.of_computableInPolyTime
+      (bool_and' (bitsGetDWithInput hcs (const 0) false)
+        (bitsGetDWithInput hcs computableInPolyTime_mergeStateWidth false))
   have hj_q : ComputableInPolyTime
       (fun q : MergeInput × List Bool => q.1.header.bitIndex) encQ encUnary := by fun_prop
   have hbit_q : {q : MergeInput × List Bool |
       (q.1.header.bitIndex == 0 || q.2.getD (q.1.header.bitIndex - 1) false) = true} ∈
-      PPolyOn encQ := by
-    have hj0 : ComputableInPolyTime
-        (fun q : MergeInput × List Bool => q.1.header.bitIndex == 0) encQ encBool :=
-      hj_q.beq (const 0)
-    have hget : ComputableInPolyTime
-        (fun q : MergeInput × List Bool => q.2.getD (q.1.header.bitIndex - 1) false)
-        encQ encBool :=
+      PPolyOn encQ :=
+    PPolyOn.of_computableInPolyTime <| bool_or.comp <| (hj_q.beq (const 0)).prod <|
       bitsGetDWithInput (snd encMerge encBits) (unary_sub.comp (hj_q.prod (const 1))) false
-    exact PPolyOn.of_computableInPolyTime (bool_or.comp (hj0.prod hget))
   have hex : {a : MergeInput |
       ∃ w : List Bool, w.length = certLength a.header.arity a.header.size ∧
         (IsMinMergedCert a.header.arity a.header.size a.header.subcube
@@ -820,8 +813,7 @@ theorem exists_complexity_yesSet_le_of_NP_subset_PPoly
       calc M ≤ c₀ * (49 * N ^ 2) ^ c₀ :=
             Nat.mul_le_mul_left c₀ (Nat.pow_le_pow_left h48 c₀)
         _ = c₀ * 49 ^ c₀ * (N ^ 2) ^ c₀ := by rw [Nat.mul_pow, Nat.mul_assoc]
-    have hpow_pos : 1 ≤ (N ^ 2) ^ c₀ := Nat.one_le_pow _ _ (by nlinarith)
-    nlinarith
+    nlinarith [Nat.one_le_pow c₀ (N ^ 2) (Nat.pow_pos hN_pos)]
   have hprod : stateWidth n (s n) * (M + 3) ≤ C₁ * N ^ D₁ := by
     calc stateWidth n (s n) * (M + 3)
         ≤ (6 * N ^ 2) * ((c₀ * 49 ^ c₀ + 3) * (N ^ 2) ^ c₀) := Nat.mul_le_mul hsw hM_le

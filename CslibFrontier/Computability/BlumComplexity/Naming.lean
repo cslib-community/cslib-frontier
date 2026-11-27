@@ -664,18 +664,15 @@ theorem computablePred_mem_name :
     Defd Φ q.1 q.2.1 z ∧ val Φ q.1 q.2.1 z = q.2.2) hp
     (Computable.succ.comp (Computable.snd.comp Computable.snd))).of_eq fun q => ?_
   rw [mem_name]
-  refine ⟨fun ⟨z, _, hz⟩ => ⟨z, hz⟩, fun ⟨z, hd, hv⟩ => ?_⟩
-  dsimp only [nameInput, nameValue] at hv
-  have := le_val (Φ := Φ) q.1 q.2.1 z
-  exact ⟨z, by omega, hd, hv⟩
+  exact ⟨fun ⟨z, _, hz⟩ => ⟨z, hz⟩, fun ⟨z, hd, hv⟩ =>
+    ⟨z, Nat.lt_succ_of_le ((le_val (Φ := Φ) _ _ z).trans_eq hv), hd, hv⟩⟩
 
 variable {Φ}
 
 /-- A name is defined wherever the program it names halts. -/
-theorem dom_name {i : Code} {x : ℕ} (h : (i.eval x).Dom) : (Φ.name i x).Dom := by
-  obtain ⟨c, hc⟩ := Part.dom_iff_mem.1 ((Φ.dom_cost_iff i x).2 h)
-  obtain ⟨z, hz⟩ := exists_defd (show Halts Φ i x c from ⟨c, hc, le_rfl⟩)
-  exact Part.dom_iff_mem.2 ⟨_, mem_name.2 ⟨z, hz, rfl⟩⟩
+theorem dom_name {i : Code} {x : ℕ} (h : (i.eval x).Dom) : (Φ.name i x).Dom :=
+  let ⟨z, hz⟩ := exists_defd (Φ := Φ) ⟨_, Part.get_mem ((Φ.dom_cost_iff i x).2 h), le_rfl⟩
+  Part.dom_iff_mem.2 ⟨_, mem_name.2 ⟨z, hz, rfl⟩⟩
 
 namespace Naming
 
@@ -954,17 +951,14 @@ theorem naming_theorem :
       ∀ i : Code, ∀ t : ℕ → ℕ, (∀ n, t n ∈ i.eval n) →
         ∃ t' : ℕ → ℕ, (∀ n, t' n ∈ (h i).eval n) ∧
           Φ.complexityClass t' = Φ.complexityClass t := by
-  have hF : Nat.Partrec fun n => Φ.name (ofNat Code (Nat.unpair n).1) (Nat.unpair n).2 :=
-    Partrec.nat_iff.1 ((Φ.partrec_name.comp ((Computable.ofNat Code).comp
-      (Computable.fst.comp Computable.unpair)) (Computable.snd.comp Computable.unpair)).of_eq
-        fun _ => rfl)
-  obtain ⟨c, hc⟩ := Code.exists_code.1 hF
-  have hh : ∀ i x, (Code.curry c (encode i)).eval x = Φ.name i x := fun i x => by
+  obtain ⟨c, hc⟩ := Code.exists_code.1 <| Partrec.nat_iff.1 <|
+    Φ.partrec_name.comp ((Computable.ofNat Code).comp (Computable.fst.comp Computable.unpair))
+      (Computable.snd.comp Computable.unpair)
+  have hh (i : Code) (x : ℕ) : (Code.curry c (encode i)).eval x = Φ.name i x := by
     simp only [Code.eval_curry, hc, Nat.unpair_pair, ofNat_encode]
-  refine ⟨fun i => Code.curry c (encode i), Code.primrec₂_curry.to_comp.comp
-    (Computable.const c) Computable.encode, (Φ.computablePred_mem_name).of_eq fun q => by rw [hh],
-    fun i t ht => ?_⟩
-  obtain ⟨t', ht'⟩ := Φ.exists_name_total ht
-  exact ⟨t', fun n => (hh i n).symm ▸ ht' n, complexityClass_name ht ht'⟩
+  exact ⟨fun i => Code.curry c (encode i), Code.primrec₂_curry.to_comp.comp
+    (Computable.const c) Computable.encode, Φ.computablePred_mem_name.of_eq fun _ => by rw [hh],
+    fun i t ht => (Φ.exists_name_total ht).imp fun _ ht' =>
+      ⟨fun n => (hh i n).symm ▸ ht' n, complexityClass_name ht ht'⟩⟩
 
 end Cslib.BlumComplexity.BlumMeasure

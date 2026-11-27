@@ -542,12 +542,11 @@ private theorem fit_of_approx {m p N N₀ N₁ : ℕ} {e e₀ e₁ : ℕ × ℕ}
     (hp : 2 * m - 1 ≤ p) (hN : N = N₀ + N₁) (he : ApproxWithin N p e.1 e.2)
     (he₀ : ApproxWithin N₀ p e₀.1 e₀.2) (he₁ : ApproxWithin N₁ p e₁.1 e₁.2) :
     weight m e e₀ e₁ false + weight m e e₀ e₁ true ≤ total m e e₀ e₁ := by
-  have hl := lower_of_approx he
   have hu₀ := upper_of_approx he₀
   have hu₁ := upper_of_approx he₁
   have hM : ((m - 1 : ℕ) : ℝ) = m - 1 := by rw [Nat.cast_sub hm, Nat.cast_one]
-  have hp' : (0 : ℝ) < p := by exact_mod_cast (show 0 < p by omega)
-  have hpm : 2 * (m : ℝ) ≤ p + 1 := by exact_mod_cast (show 2 * m ≤ p + 1 by omega)
+  have hp' : (0 : ℝ) < p := Nat.cast_pos.2 (by omega)
+  have hpm : 2 * (m : ℝ) ≤ p + 1 := by exact_mod_cast Nat.le_add_of_sub_le hp
   have hdiv : (2 * (m : ℝ) - 1) / p ≤ 1 := (div_le_one hp').2 (by linarith only [hpm])
   have hkey : ((m : ℝ) - 1) * (1 + 1 / p) ≤ m * (1 - 1 / p) :=
     sub_nonneg.1 ((sub_nonneg.2 hdiv).trans_eq (by ring))
@@ -563,7 +562,7 @@ private theorem fit_of_approx {m p N N₀ N₁ : ℕ} {e e₀ e₁ : ℕ × ℕ}
     _ = ((m : ℝ) - 1) * (1 + 1 / p) * (N * e.2 * e₀.2 * e₁.2) := by rw [hN']; ring
     _ ≤ m * (1 - 1 / p) * (N * e.2 * e₀.2 * e₁.2) := by gcongr
     _ = m * e₀.2 * e₁.2 * (N * (1 - 1 / p) * e.2) := by ring
-    _ ≤ m * e₀.2 * e₁.2 * e.1 := mul_le_mul_of_nonneg_left hl (by positivity)
+    _ ≤ m * e₀.2 * e₁.2 * e.1 := mul_le_mul_of_nonneg_left (lower_of_approx he) (by positivity)
     _ = (m : ℝ) * e.1 * e₀.2 * e₁.2 := by ring
 
 private theorem one_le_weight {m : ℕ} {e e₀ e₁ : ℕ × ℕ} (hm : 2 ≤ m) {c : Bool}
@@ -637,14 +636,12 @@ theorem le_eval_walk (R : SelfReducible enc W) {A : α → ℕ → ℕ → ProbC
           _ ≤ _ := mul_le_mul' (le_eval_choose hfit hwc) hrec
       rw [eval_walk_succ]
       refine le_of_le_of_eq ?_ (PMF.toOuterMeasure_apply_singleton _ _)
-      have hsucc : stepFactor t extra ^ (n + 1) =
-          stepFactor t extra ^ n * ((1 - (1 / 2 : ℝ) ^ t) ^ 2 * (1 - (1 / 2 : ℝ) ^ extra)) :=
-        pow_succ _ _
       calc ENNReal.ofReal (stepFactor t extra ^ (n + 1) * levelFactor m ^ (n + 1) * invEstimate e)
           = ENNReal.ofReal (1 - (1 / 2 : ℝ) ^ t) * (ENNReal.ofReal (1 - (1 / 2 : ℝ) ^ t) *
               ENNReal.ofReal ((1 - (1 / 2 : ℝ) ^ extra) * stepFactor t extra ^ n *
                 levelFactor m ^ (n + 1) * invEstimate e)) := by
-            rw [← ENNReal.ofReal_mul hδ, ← ENNReal.ofReal_mul hδ, hsucc]
+            rw [← ENNReal.ofReal_mul hδ, ← ENNReal.ofReal_mul hδ, pow_succ (stepFactor t extra),
+              stepFactor]
             congr 1
             ring
         _ ≤ _ := by
@@ -739,14 +736,11 @@ private theorem final_aux (ℓ q : ℕ) :
 
 private theorem three_quarters_le_card_mul_invEstimate {N p : ℕ} {e : ℕ × ℕ} (hN : 1 ≤ N)
     (hp : 3 ≤ p) (he : ApproxWithin N p e.1 e.2) : 3 / 4 ≤ (N : ℝ) * invEstimate e := by
-  have hu := upper_of_approx he
   have ha' : (0 : ℝ) < e.1 := by exact_mod_cast pos_of_approx he hN (by omega)
-  have hp' : (3 : ℝ) ≤ p := by exact_mod_cast hp
-  have hinv : (1 : ℝ) / p ≤ 1 / 3 := one_div_le_one_div_of_le (by norm_num) hp'
-  have hprod := mul_le_mul_of_nonneg_left hinv (show (0 : ℝ) ≤ N * e.2 by positivity)
-  rw [mul_add, mul_one, add_mul, mul_right_comm] at hu
+  have hinv : (1 : ℝ) / p ≤ 1 / 3 := one_div_le_one_div_of_le (by norm_num) (by exact_mod_cast hp)
+  have hu : (e.1 : ℝ) ≤ N * (1 + 1 / 3) * e.2 := (upper_of_approx he).trans (by gcongr)
   rw [invEstimate, mul_div_assoc', le_div_iff₀ ha']
-  linarith only [hu, hprod]
+  linarith only [hu]
 
 end Constants
 
@@ -812,10 +806,10 @@ theorem eval_trial_none_le (R : SelfReducible enc W) {A : α → ℕ → ℕ →
   have htot : (ProbComp.eval (R.trial A x q e) none).toReal +
       ∑ w ∈ W x, (ProbComp.eval (R.trial A x q e) (some w)).toReal = 1 := by
     ennreal_to_real using eval_trial_none_add_sum R A x q e
-  have hle : (ProbComp.eval (R.trial A x q e) none).toReal ≤ 7 / 8 := by
-    linarith only [hsl, h8, htot]
   calc ProbComp.eval (R.trial A x q e) none
-      ≤ ENNReal.ofReal (7 / 8) := by ennreal_to_real using hle
+      ≤ ENNReal.ofReal (7 / 8) :=
+        (ENNReal.le_ofReal_iff_toReal_le (PMF.apply_ne_top _ _) (by norm_num)).2
+          (by linarith only [hsl, h8, htot])
     _ = 7 / 8 := by
         rw [ENNReal.ofReal_div_of_pos (by norm_num)]
         norm_num

@@ -459,9 +459,7 @@ private theorem computableInPolyTime_symmetricDDHCheck :
   have hr1 := (ComputableInPolyTime.snd _ _).comp hflat
   have hr2 := (ComputableInPolyTime.snd _ _).comp hr1
   have hr3 := (ComputableInPolyTime.snd _ _).comp hr2
-  have hd : ComputableInPolyTime (fun x : P.G₀.DDHInput => x.groupParameters)
-      P.G₀.encDDHInput P.G₀.encDesc :=
-    ((ComputableInPolyTime.fst _ _).comp hr1).of_enc_eq fun _ => rfl
+  have hd := (ComputableInPolyTime.fst _ _).comp hr1
   have h1 := P.computableInPolyTime_pairEncoded.comp (hd.prod
     (((ComputableInPolyTime.fst _ _).comp hr2).prod ((ComputableInPolyTime.fst _ _).comp hr3)))
   have h2 := P.computableInPolyTime_pairEncoded.comp (hd.prod
@@ -485,16 +483,13 @@ private theorem symmetricDDHCheck_eq_of_symmetric (h : P.G₁ = P.G₀.self) (d 
         (P.G₀.encode d (β • P.G₀.generator d))
         (P.G₀.encode d (γ • P.G₀.generator d)) =
       decide (α * β = γ) := by
-  obtain ⟨G₀, G₁, GT, pair, hgen, pe, hpe, hppt⟩ := P
+  obtain ⟨G₀, G₁, GT, pair, hgen, pe, hpe, _⟩ := P
   dsimp only at h
   subst h
-  simp only [symmetricDDHCheck]
-  change decide (pe (d, G₀.encode d (α • G₀.generator d),
-      G₀.self.encode d (β • G₀.self.generator d)) =
-    pe (d, G₀.encode d (G₀.generator d),
-      G₀.self.encode d (γ • G₀.self.generator d))) = decide (α * β = γ)
-  rw [hpe, hpe, decide_eq_decide, (GT.encode_injective d).eq_iff, LinearMap.map_smul₂, map_smul,
-    smul_smul, map_smul, hgen]
+  rw [symmetricDDHCheck, decide_eq_decide]
+  dsimp only
+  erw [hpe, hpe]
+  rw [(GT.encode_injective d).eq_iff, LinearMap.map_smul₂, map_smul, smul_smul, map_smul, hgen]
   exact (GT.toFamily.smul_generator_injective d).eq_iff
 
 /-- **DDH is easy in a symmetric pairing group** ([BonehShoup2023], Section 15.4, equation (15.8),

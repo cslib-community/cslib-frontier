@@ -86,9 +86,7 @@ theorem chain_len {ι : Type*} (l : List ι) (f g : ι → List Bool) (a b : Lis
     (h : a :: l.map f = l.map g ++ [b]) (hfg : ∀ r ∈ l, (f r).length = (g r).length) :
     (∀ r ∈ l, (g r).length = a.length) ∧ b.length = a.length := by
   induction l generalizing a with
-  | nil =>
-    simp only [List.map_nil, List.nil_append, List.cons.injEq, and_true] at h
-    exact ⟨by simp, congrArg List.length h.symm⟩
+  | nil => simpa using congrArg (List.map List.length) h.symm
   | cons r l ih =>
     simp only [List.map_cons, List.cons_append, List.cons.injEq] at h
     obtain ⟨h1, h2⟩ := ih (f r) h.2 fun r hr => hfg r (List.mem_cons_of_mem _ hr)
@@ -104,9 +102,7 @@ theorem chain_val {ι : Type*} (l : List ι) (f g : ι → List Bool) (a b : Lis
         (List.range l.length).map (fun j => binaryValue a + j) ∧
       binaryValue b = binaryValue a + l.length := by
   induction l generalizing a with
-  | nil =>
-    simp only [List.map_nil, List.nil_append, List.cons.injEq, and_true] at h
-    exact ⟨rfl, by rw [h, List.length_nil, Nat.add_zero]⟩
+  | nil => simpa using congrArg (List.map binaryValue) h.symm
   | cons r l ih =>
     simp only [List.map_cons, List.cons_append, List.cons.injEq] at h
     obtain ⟨h1, h2⟩ := ih (f r) h.2 fun r hr => hfg r (List.mem_cons_of_mem _ hr)
@@ -261,15 +257,11 @@ theorem block_of {P : Mach A M K} {x : XP P}
     (hx : ∀ s ∈ x.steps, s.2.length = x.init.length + 1) :
     (dfs x).map (fun c => (false, oc c)) ++ (lks x).map (fun c => (true, oc c)) =
       recs 0 (lsN (x.init.length + 1) (x.steps.map nst)) := by
-  rw [recs_lsN]
-  congr 1
-  · congr 1
-    rw [dfs, dfN, List.map_cons, List.map_map, List.map_map]
-    exact congrArg₂ List.cons (by rw [cN, unb_zero])
-      (List.map_congr_left fun s hs => by simp only [Function.comp, cN, ← alc_eq (hx s hs)]; rfl)
-  · congr 1
-    rw [lks, List.map_map, List.map_map]
-    exact List.map_congr_left fun s hs => by simp only [Function.comp, cN, ← ldc_eq (hx s hs)]; rfl
+  rw [recs_lsN, dfs, dfN, lks]
+  simp only [List.map_cons, List.map_map, Function.comp_def, cN, unb_zero]
+  exact congrArg₂ (· ++ ·) (congrArg (List.cons _)
+    (List.map_congr_left fun s hs => by rw [alc_eq (hx s hs)]; rfl))
+    (List.map_congr_left fun s hs => by rw [ldc_eq (hx s hs)]; rfl)
 
 theorem MX.block [Fintype K] [DecidableEq K] {P : Mach A M K} {x : XP P} {bits : List Bool}
     (hx : MX x bits) :

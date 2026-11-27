@@ -284,21 +284,15 @@ theorem configurationJustesenMembershipTally_stateBound_le_log_of_loop_caps
     omega
   have hlogN : Nat.log2 n ≤ (encNat n).length :=
     (Nat.log2_le_size _).trans_eq (length_encNat_eq_size _).symm
-  have hlogSum : Nat.log2 (n * radius) ≤ 2 * (encNat n).length := by
-    have hlen := length_encNat_mul_le n radius
-    have hlog := (Nat.log2_le_size (n * radius)).trans_eq (length_encNat_eq_size _).symm
-    dsimp only [n] at hlen hlog ⊢; omega
-  have hb : 1 ≤ b := Nat.succ_le_succ (Nat.zero_le _)
-  change MembershipTally.retainedStateBound 3 params
-    (encJustesenSubdivisionContext ctx).length calleeBound ≤ _ * b + _
+  have hlogSum : Nat.log2 (n * radius) ≤ 2 * (encNat n).length :=
+    ((Nat.log2_le_size _).trans_eq (length_encNat_eq_size _).symm).trans
+      ((length_encNat_mul_le n radius).trans (by dsimp only [n] at hradius ⊢; omega))
+  have hps : params.size = n := rfl
+  have hpr : params.radius = radius := rfl
   simp only [MembershipTally.retainedStateBound, MembershipTally.runtimeWalkStateBound,
-    MembershipTally.stateBound, Nat.add_mul, Nat.mul_assoc]
-  change 2 * (encJustesenSubdivisionContext ctx).length + 1 +
-    (4 * (MembershipTally.encContext params).length + 12 * (Nat.log2 n + 1) +
-      4 * (Nat.log2 (n * radius) + 1) +
-      BoundedWalk.Runtime.stateBound n radius 3
-        (encJustesenSubdivisionContext ctx).length calleeBound + 15) ≤ _
-  dsimp only [n] at hn hW hparams hlogN hlogSum ⊢; omega
+    MembershipTally.stateBound, hps, hpr, Nat.add_mul, Nat.mul_assoc]
+  dsimp only [n, b] at hn hctx hW hparams hlogN hlogSum ⊢
+  omega
 
 /-- The tally envelope is logarithmic apart from the charged adjacency callback state. -/
 theorem configurationJustesenMembershipTally_stateBound_le_log

@@ -218,9 +218,7 @@ private theorem patch_word_pair_cases {ι : Type*} (L : List ι) (a b : ℂ)
     cases L with
     | nil =>
       obtain ⟨rfl, rfl⟩ : tag = .inl false ∧ next = .inl true := by
-        simpa only [List.map_nil, List.cons_append, List.nil_append,
-          List.consecutivePairs_cons_cons, List.consecutivePairs_singleton,
-          List.mem_singleton, Prod.mk.injEq] using hp
+        simpa [List.consecutivePairs_cons_cons, List.consecutivePairs_singleton] using hp
       exact Or.inr (Or.inl ⟨rfl, hx, hy⟩)
     | cons z zs =>
       rw [List.consecutivePairs_append (by simp) (by simp), List.mem_append] at hp
@@ -353,17 +351,14 @@ private theorem assembled_support_cases {I : FixedRotationInput}
   cases hf : ((subdivide I)[e.val]'(by
       simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen with
   | true =>
-    have hroute' : A.drawing.route e = D.route e := by simpa only [hf, ↓reduceIte] using hroute
-    rw [hroute'] at hw
+    rw [hroute, ite_eq_left hf] at hw
     obtain ⟨i, t, ht, heq⟩ := ((D.route e).mem_support_iff w).mp hw
     obtain rfl : i = 0 := Fin.ext (Nat.lt_one_iff.mp i.isLt)
     by_cases hpatch : ∃ z : Z, t ∈ Set.Ioo (α z) (β z)
     · obtain ⟨z, hz⟩ := hpatch
       refine Or.inl ⟨z, ?_⟩
-      rw [A.frozen_patch ⟨z.val, z.property.1⟩ ⟨e, z.property.2⟩ hf, Route.support_line]
-      change w ∈ segment ℝ (AffineMap.lineMap (D.route e).start (D.route e).finish (α z))
-        (AffineMap.lineMap (D.route e).start (D.route e).finish (β z))
-      rw [← image_segment ℝ (AffineMap.lineMap (D.route e).start (D.route e).finish) (α z) (β z),
+      rw [A.frozen_patch ⟨z.val, z.property.1⟩ ⟨e, z.property.2⟩ hf, Route.support_line,
+        ← image_segment ℝ (AffineMap.lineMap (D.route e).start (D.route e).finish) (α z) (β z),
         segment_eq_Icc (hcut z).2.1.le]
       exact ⟨t, ⟨hz.1.le, hz.2.le⟩, heq⟩
     · exact Or.inr ⟨t, ht, heq, fun z hz => hpatch ⟨z, hz⟩⟩
@@ -426,6 +421,19 @@ private theorem patch_strict_slab_or_ends {I : FixedRotationInput}
     simpa only [subdivisionGraph, List.length_map] using e.val.isLt)).frozen
   let raw := if keep then Route.line (⟨-r, -r * s⟩ : ℂ) ⟨r, r * s⟩
     else Route.slopeDetour r s (A.height z e)
+  have hmid {p q v : ℂ} {t : ℝ} (he : AffineMap.lineMap p q t = v)
+      (hp : -r ≤ p.re) (hq : q.re ≤ r) (ht : t ∈ Set.Icc 0 1)
+      (hl : t = 0 → -r < p.re) (hu : t = 1 → q.re < r) (hpq : p.re < q.re) :
+      v.re ∈ Set.Ioo (-r) r := by
+    have hx := congrArg Complex.re he
+    simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.smul_re, smul_eq_mul] at hx
+    constructor
+    · rcases eq_or_lt_of_le ht.1 with rfl | ht0
+      · linarith [hl rfl]
+      · nlinarith [ht.2]
+    · rcases eq_or_lt_of_le ht.2 with rfl | ht1
+      · linarith [hu rfl]
+      · nlinarith [ht.1]
   have hraw : ∀ v ∈ raw.support, v = raw.start ∨ v = raw.finish ∨ v.re ∈ Set.Ioo (-r) r := by
     dsimp only [raw]
     cases hf : keep <;> simp only [Bool.false_eq_true, ↓reduceIte]
@@ -436,21 +444,13 @@ private theorem patch_strict_slab_or_ends {I : FixedRotationInput}
         by_cases ht0 : t = 0
         · exact Or.inl <| by simpa only [raw, hf, Bool.false_eq_true, ↓reduceIte, ht0,
             AffineMap.lineMap_apply_zero, Route.start_slopeDetour] using he.symm
-        · have hx := congrArg Complex.re he
-          simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.smul_re,
-            smul_eq_mul, mul_zero, add_zero] at hx
-          have htpos := lt_of_le_of_ne ht.1 (Ne.symm ht0)
-          exact Or.inr <| Or.inr ⟨by linarith [mul_pos htpos hr],
-            by linarith [mul_nonneg (sub_nonneg.mpr ht.2) hr.le]⟩
+        · exact .inr (.inr (hmid he le_rfl hr.le ht (absurd · ht0) (fun _ => hr) (by linarith)))
       · rw [ite_eq_right hi] at he
         by_cases ht1 : t = 1
         · exact Or.inr <| Or.inl <| by simpa only [raw, hf, Bool.false_eq_true, ↓reduceIte, ht1,
             AffineMap.lineMap_apply_one, Route.finish_slopeDetour] using he.symm
-        · have hx := congrArg Complex.re he
-          simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.smul_re,
-            smul_eq_mul, mul_zero, zero_add] at hx
-          have h1t := sub_pos.mpr (lt_of_le_of_ne ht.2 ht1)
-          exact Or.inr <| Or.inr ⟨by linarith [mul_nonneg ht.1 hr.le], by linarith [mul_pos h1t hr]⟩
+        · exact .inr (.inr (hmid he (by linarith) le_rfl ht (fun _ => neg_lt_zero.mpr hr)
+            (absurd · ht1) hr))
     · rw [Route.eval_line] at he
       by_cases ht0 : t = 0
       · exact Or.inl <| by simpa only [raw, hf, ↓reduceIte, ht0,
@@ -458,12 +458,7 @@ private theorem patch_strict_slab_or_ends {I : FixedRotationInput}
       · by_cases ht1 : t = 1
         · exact Or.inr <| Or.inl <| by simpa only [raw, hf, ↓reduceIte, ht1,
             AffineMap.lineMap_apply_one, Route.finish_line] using he.symm
-        · have hx := congrArg Complex.re he
-          simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.smul_re,
-            smul_eq_mul] at hx
-          have htpos := lt_of_le_of_ne ht.1 (Ne.symm ht0)
-          have h1t := sub_pos.mpr (lt_of_le_of_ne ht.2 ht1)
-          exact Or.inr <| Or.inr ⟨by linarith [mul_pos htpos hr], by linarith [mul_pos h1t hr]⟩
+        · exact .inr (.inr (hmid he le_rfl le_rfl ht (absurd · ht0) (absurd · ht1) (by linarith)))
   have hp := A.patch_eq z e
   change A.patch z e = (if decide (((referenceDrawing I).route e.val).finish.re <
     ((referenceDrawing I).route e.val).start.re) then raw.reverse else raw).translate z.val at hp
@@ -483,10 +478,11 @@ private theorem patch_strict_slab_or_ends {I : FixedRotationInput}
         Route.endpoint_reverse] <;> rcases hu with rfl | rfl
     all_goals first | exact .inl rfl | exact .inr rfl
   rcases hraw v hv' with rfl | rfl | hx
-  · rcases hend (Or.inl rfl) with h | h <;> simp [h]
-  · rcases hend (Or.inr rfl) with h | h <;> simp [h]
-  · exact Or.inr <| Or.inr <| by
-      simp only [Complex.add_re]; exact ⟨by linarith [hx.1], by linarith [hx.2]⟩
+  · exact (hend (.inl rfl)).imp_right Or.inl
+  · exact (hend (.inr rfl)).imp_right Or.inl
+  · refine .inr (.inr (by
+      simp only [Set.mem_Ioo, Complex.add_re] at hx ⊢
+      constructor <;> linarith [hx.1, hx.2]))
 
 private theorem reference_open_of_support {I : FixedRotationInput} (hI : Valid I)
     (e : Fin (subdivisionGraph I).edges.length) {w : ℂ}

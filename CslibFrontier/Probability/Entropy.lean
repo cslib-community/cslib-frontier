@@ -70,9 +70,8 @@ theorem surprisal_nonneg (p : PMF α) (a : α) : 0 ≤ surprisal p a :=
 /-- A lower bound on the outcome's probability bounds its information content. -/
 theorem surprisal_le_of_mass_ge (p : PMF α) (a : α) {bound : ℝ}
     (hmass : (2 : ℝ) ^ (-bound) ≤ (p a).toReal) : surprisal p a ≤ bound := by
-  simpa only [surprisal, neg_neg] using neg_le_neg <|
-    (Real.le_logb_iff_rpow_le (by norm_num)
-      ((Real.rpow_pos_of_pos (by norm_num : (0 : ℝ) < 2) _).trans_le hmass)).mpr hmass
+  have hpos : 0 < (p a).toReal := lt_of_lt_of_le (by positivity) hmass
+  rwa [surprisal, neg_le, Real.le_logb_iff_rpow_le (by norm_num) hpos]
 
 /-- On the support, an upper information bound is exactly a lower probability bound. -/
 theorem surprisal_le_iff_mass_ge (p : PMF α) (a : α) (ha : a ∈ p.support) {bound : ℝ} :
@@ -331,15 +330,12 @@ theorem conditionalEntropy_map_le_of_determined [Fintype α] [Finite β] [Fintyp
   split_ifs with hbad
   · exact mul_le_mul_of_nonneg_left (entropy_le_log_card _) ENNReal.toReal_nonneg
   · by_cases hb : b ∈ (joint.map Prod.fst).support
-    · refine le_of_eq ((mul_eq_zero_of_right _
-        (entropy_eq_zero_of_subsingleton_support _ fun z hz w hw => ?_)).trans (mul_zero _).symm)
-      obtain ⟨x, _, hx⟩ := (PMF.mem_support_map_iff _ _ _).mp
-        ((mem_support_conditionalSnd_iff joint b hb z).mp hz)
-      obtain ⟨y, _, hy⟩ := (PMF.mem_support_map_iff _ _ _).mp
-        ((mem_support_conditionalSnd_iff joint b hb w).mp hw)
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hx
-      obtain ⟨hob, rfl⟩ := Prod.mk.inj hy
-      exact hdetermined x y hbad hob.symm
+    · rw [entropy_eq_zero_of_subsingleton_support _ fun z hz w hw => ?_, mul_zero]
+      simp only [mem_support_conditionalSnd_iff joint b hb, joint, PMF.mem_support_map_iff,
+        Prod.mk.injEq] at hz hw
+      obtain ⟨x, -, rfl, rfl⟩ := hz
+      obtain ⟨y, -, hy, rfl⟩ := hw
+      exact hdetermined x y hbad hy.symm
     · simp [(PMF.apply_eq_zero_iff (joint.map Prod.fst) b).mpr hb]
 
 open Classical in

@@ -727,23 +727,20 @@ private theorem inv_scan {labels : List α} (hlabels : ∀ a, a ∈ labels) {g :
     have hstep := foldl_visit_step labels (adj g u) hb
     have hu : (S1.get u).isSome := h.stack u (by simp [hst])
     have hsem : SemInv τ s S1 := ⟨h.sem.val, h.sem.cand⟩
-    refine ⟨?_, fun v f hv => hstep.get v f (h.old v f hv), ?_, ?_, ?_, ?_⟩
-    · rw [hstep.length]; exact h.length
+    refine ⟨hstep.length.trans h.length, fun v f hv => hstep.get v f (h.old _ _ hv), ?_, ?_, ?_, ?_⟩
     · exact foldl_visit_sem hlabels _
         (fun e he => ⟨hinj e (mem_adj.1 he).1, hτ e (mem_adj.1 he).1⟩) hsem
     · intro v hv
       rcases hstep.stack v hv with hv | ⟨_, hT⟩
-      · have hv' : v ∈ S.stack := by rw [hst]; exact List.mem_cons_of_mem _ hv
-        obtain ⟨f, hf⟩ := Option.isSome_iff_exists.1 (h.stack v hv')
+      · obtain ⟨f, hf⟩ := Option.isSome_iff_exists.1 (h.stack v (hst ▸ List.mem_cons_of_mem _ hv))
         rw [hstep.get v f hf]; rfl
       · exact hT
     · intro v hv h0
       cases hS : S.get v with
       | none =>
         -- newly visited during this scan: it is on the stack
-        exact Or.inl (by_contra fun hns => by
-          have : (S.get v).isSome := ((hstep.done v).1 ⟨hv, hns⟩).1
-          simp [hS] at this)
+        exact Or.inl (by_contra fun hns =>
+          Option.not_isSome_iff_eq_none.2 hS ((hstep.done v).1 ⟨hv, hns⟩).1)
       | some f =>
         rcases h.fresh v (by simp [hS]) h0 with hv' | hv'
         · rw [hst] at hv'
@@ -770,9 +767,7 @@ private theorem inv_iterate_scan {labels : List α} (hlabels : ∀ a, a ∈ labe
     Inv g τ s S0 ((scan labels g)^[k] S) := by
   induction k with
   | zero => exact h
-  | succ k ih =>
-    rw [Function.iterate_succ_apply']
-    exact inv_scan hlabels hinj hτ ih
+  | succ k ih => exact Function.iterate_succ_apply' _ k S ▸ inv_scan hlabels hinj hτ ih
 
 end Scan
 
@@ -912,8 +907,7 @@ private theorem good_settle [Inhabited α] {labels : List α} (hlabels : ∀ a, 
     intro v f hv; rw [hval v f hv]; rfl
   have hclosed : ∀ e ∈ g.edges, (S.get e.src).isSome ∨ (S.get e.dst).isSome → S.Settled e :=
     fun e he hor => h.settled e he (hor.imp (⟨·, by simp [hstack]⟩) (⟨·, by simp [hstack]⟩))
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [settle_length]; exact h.length
+  refine ⟨(settle_length labels S).trans h.length, ?_, ?_, ?_⟩
   · intro v f hv a
     cases hS : S.get v with
     | none => simp [settle_get_none labels hS] at hv
@@ -980,8 +974,7 @@ theorem length_step [Inhabited α] (labels : List α) (g : Graph (α → α)) (S
   unfold step
   split
   · rfl
-  · rw [settle_length, length_iterate_scan]
-    exact List.length_set
+  · exact (settle_length _ _).trans ((length_iterate_scan _ _ _ _).trans List.length_set)
 
 private theorem foldl_step_isSome [Inhabited α] (labels : List α) (g : Graph (α → α))
     (l : List (Edge (α → α))) {S : State α} {v : ℕ} (hv : (S.get v).isSome) :
@@ -1001,9 +994,8 @@ private theorem foldl_step_good [Inhabited α] {labels : List α} (hlabels : ∀
   | cons e l ih =>
     obtain ⟨τ1, h1⟩ := step_good hlabels hinj h (hl e (by simp))
     obtain ⟨τ2, h2, hsrc⟩ := ih (fun d hd => hl d (List.mem_cons_of_mem _ hd)) h1
-    refine ⟨τ2, h2, ?_⟩
-    rw [List.forall_mem_cons]
-    exact ⟨foldl_step_isSome labels g l (step_src labels g h.length (hl e (by simp))), hsrc⟩
+    exact ⟨τ2, h2, List.forall_mem_cons.2
+      ⟨foldl_step_isSome labels g l (step_src labels g h.length (hl e (by simp))), hsrc⟩⟩
 
 omit [DecidableEq α] in
 private theorem good_init {g : Graph (α → α)} {τ : ℕ → α}

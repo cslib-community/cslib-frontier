@@ -200,16 +200,9 @@ theorem exists_glPredictor_agree (enc : F ≃ BitString w) (h : BitString b ↪ 
     (ε / 2) (by positivity) hK hsize good fun x hx => (mem_filter.1 hx).2
   refine ⟨masks, guess, ?_⟩
   have hcount : #{x | glPredictor enc C masks guess x = p x} =
-      #{x | Crypto.GoldreichLevin.candidate (pred x) masks guess = target x} := by
-    have hpred (x) : (fun r => C (Fin.append x r)) = pred x := rfl
-    refine card_nbij' (BitString.pointBits enc) (BitString.pointEquiv enc).symm
-      (fun x hx => ?_) (fun x hx => ?_)
-      (fun x _ => BitString.pointEquiv_symm_pointBits enc x)
-      (fun x _ => BitString.pointBits_pointEquiv_symm enc x)
-    · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx ⊢
-      simp [target, BitString.pointEquiv_symm_pointBits, ← hx, glPredictor, hpred]
-    · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx ⊢
-      simp [glPredictor, BitString.pointBits_pointEquiv_symm, hpred, hx, target]
+      #{x | Crypto.GoldreichLevin.candidate (pred x) masks guess = target x} :=
+    card_equiv (BitString.pointEquiv enc) fun x => by
+      simp [glPredictor, pred, target, Equiv.symm_apply_eq]
   rw [hcount]
   have : (#good : ℝ) ≤ 2 ^ (K + 1) *
       #{x | Crypto.GoldreichLevin.candidate (pred x) masks guess = target x} := by
@@ -460,7 +453,7 @@ private theorem bitBlastCost_le (hq : q = 2 ^ w) (_hw : 1 ≤ w) :
   have hq1 : 1 ≤ q ^ 2 := Nat.one_le_pow _ _ (by rw [hq]; positivity)
   have hw2 : w ≤ w ^ 2 := Nat.le_self_pow (by decide : 2 ≠ 0) w
   unfold bitBlastCost
-  rw [show 2 ^ (2 * w) = q ^ 2 by rw [hq, ← pow_mul, mul_comm]]
+  rw [mul_comm 2 w, pow_mul, ← hq]
   nlinarith [Nat.mul_le_mul_right (q ^ 2) hw2, hw2.trans (Nat.le_mul_of_pos_right _ hq1)]
 
 private theorem kernelVecCost_le (hM : M ≤ q ^ 2) (hq : 1 ≤ q) :
@@ -502,7 +495,7 @@ private theorem henselCost_le (hM : M ≤ q ^ 2) (hd : d ≤ q) (hq : 1 ≤ q) :
 private theorem glCost_le (hw : 1 ≤ w) : glCost w K s ≤ 7 * w * 4 ^ K * (s + 1) := by
   set X := 2 ^ K - 1
   have h4 : 4 ^ K = (X + 1) ^ 2 := by
-    rw [show X + 1 = 2 ^ K by grind, ← pow_mul, mul_comm, pow_mul]; norm_num
+    rw [Nat.sub_add_cancel Nat.one_le_two_pow, ← pow_mul, mul_comm, pow_mul]; norm_num
   unfold glCost
   rw [h4]
   change 2 + w * (X * (s + 1) + (2 + X * (2 * (X + 2)))) ≤ _
@@ -533,9 +526,7 @@ theorem reconstructionCost_le {w b m D K L s q M : ℕ} (hq : q = 2 ^ w) (hw : 1
   set E := 4 ^ K
   have hgl : glCost w K s ≤ 7 * w * E * (s + 1) := glCost_le hw
   set T := P * m * w ^ 2 * q ^ 9 * E * (s + 1) with hT_def
-  have hT0 : 0 < T := Nat.mul_pos (Nat.mul_pos (Nat.mul_pos (Nat.mul_pos (Nat.mul_pos
-    (Nat.one_le_pow _ _ (by norm_num)) hm) (pow_pos hw 2)) (pow_pos hq1 9))
-    (Nat.one_le_pow _ _ (by norm_num))) s.succ_pos
+  have hT0 : 0 < T := by positivity
   -- each monomial of the expanded bound divides `T`
   have hT : ∀ X Y, X * Y = T → X ≤ T := fun X Y h => Nat.le_of_dvd hT0 ⟨Y, h.symm⟩
   calc _ ≤ m * w * (q * (2 * w + 2) + 1) +

@@ -78,12 +78,9 @@ private theorem Program.support_subset_reachableInputs
   induction program with
   | empty =>
     intro frontier i hi
-    obtain ⟨wire, wireSelected, hi⟩ := Finset.mem_biUnion.mp hi
-    cases wire with
-    | input input =>
-      rw [Program.wireSupport_input, Finset.mem_singleton] at hi
-      simpa [hi, Cslib.Circuits.Program.reachableInputs] using wireSelected
-    | gate impossible => exact Fin.elim0 impossible
+    rcases Finset.mem_biUnion.mp hi with ⟨input | impossible, wireSelected, hi⟩
+    · simpa [Cslib.Circuits.Program.reachableInputs, Finset.mem_singleton.mp hi] using wireSelected
+    · exact impossible.elim0
   | @gate g program line ih =>
     intro frontier i hi
     refine ih _ (Finset.mem_biUnion.mpr ?_)
@@ -119,12 +116,11 @@ private theorem Line.card_opened_le (line : Line σ n g) (w : σ.Op → ℕ)
       cases wire <;> simp [Fin.castSucc_ne_last]
     have lineBound : lineInputs.card ≤ 1 + w line.op :=
       (Finset.card_image_le.trans_eq (by simp)).trans hw
-    have erased := Finset.card_erase_of_mem lastSelected
-    have frontierPositive : 1 ≤ frontier.card := Finset.one_le_card.mpr ⟨_, lastSelected⟩
     calc (prior ∪ lineInputs).card
         ≤ prior.card + lineInputs.card := Finset.card_union_le _ _
       _ ≤ (frontier.erase (Wire.gate (Fin.last g))).card + (1 + w line.op) := by gcongr
-      _ = frontier.card + w line.op := by omega
+      _ = frontier.card + w line.op := by
+          rw [← add_assoc, Finset.card_erase_add_one lastSelected]
   · exact (Finset.card_le_card_of_injOn Wire.castSucc
       (fun wire present => by simpa [prior] using present)
       Wire.castSucc_injective.injOn).trans (Nat.le_add_right _ _)

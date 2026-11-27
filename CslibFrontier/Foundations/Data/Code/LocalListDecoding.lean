@@ -161,8 +161,7 @@ private theorem sum_lineAgree_sub_sq_le (A : Finset (Fin m → F)) :
     ∑ xu ∈ seeds m F,
         ((lineAgree A xu.1 xu.2 : ℝ) - Fintype.card F * #A / Fintype.card F ^ m) ^ 2 ≤
       Fintype.card F * #A * (Fintype.card F ^ m - 1) := by
-  have haQ : (#A : ℝ) ≤ Fintype.card F ^ m := by
-    exact_mod_cast (card_le_univ A).trans_eq (by simp)
+  have haQ : (#A : ℝ) ≤ Fintype.card F ^ m := mod_cast (card_le_univ A).trans_eq (by simp)
   have hq1 : (1 : ℝ) ≤ Fintype.card F := by exact_mod_cast Fintype.card_pos
   have hQ1 : (1 : ℝ) ≤ Fintype.card F ^ m := one_le_pow₀ hq1
   have ha0 : (0 : ℝ) ≤ #A := by positivity
@@ -208,10 +207,9 @@ noncomputable def lineListDecode (g : (Fin m → F) → F) (d D : ℕ) (z : Fin 
 a set. -/
 theorem lineAgree_smul (A : Finset (Fin m → F)) (x u : Fin m → F) {c : F} (hc : c ≠ 0) :
     lineAgree A x (c • u) = lineAgree A x u := by
-  refine card_nbij' (fun t => t * c) (fun t => t * c⁻¹) (fun t ht => ?_) (fun t ht => ?_)
+  refine card_nbij' (fun t => t * c) (fun t => t * c⁻¹)
+    (fun t ht => by simpa [mul_smul] using ht) (fun t ht => by simpa [smul_smul, hc] using ht)
     (fun t _ => by simp [hc]) (fun t _ => by simp [hc])
-  · simpa [mul_smul] using ht
-  · simpa [smul_smul, hc] using ht
 
 /-- **The decoder at a pair of points.** With `c = firstNonzero (z - x)` and
 `v = c⁻¹ • (z - x)`, the decoder with advice `p z` is Sudan decoding with the hint `p (x + c • v)`
@@ -247,20 +245,18 @@ private def normDirs (m : ℕ) (F : Type*) [Field F] [Fintype F] [DecidableEq F]
 private theorem card_normDirs_mul_le :
     #(normDirs m F) * (Fintype.card F - 1) ≤ Fintype.card F ^ m - 1 := by
   have h := card_le_card_of_injOn (s := normDirs m F ×ˢ (univ.erase (0 : F)))
-    (t := (univ : Finset (Fin m → F)).erase 0) (fun vc => vc.2 • vc.1) (fun vc hvc => by
+    (t := (univ : Finset (Fin m → F)).erase 0) (fun vc => vc.2 • vc.1)
+    (fun ⟨v, c⟩ hvc => by
       simp only [coe_product, Set.mem_prod, mem_coe, normDirs, mem_filter, mem_univ, true_and,
         mem_erase, ne_eq, and_true] at hvc ⊢
-      exact fun h0 => (smul_eq_zero.1 h0).elim hvc.2 fun h0 =>
-        one_ne_zero (hvc.1.symm.trans (firstNonzero_eq_zero_iff.2 h0)))
-      (fun vc hvc vc' hvc' heq => by
+      exact smul_ne_zero hvc.2 fun hv => by simp [firstNonzero_eq_zero_iff.2 hv] at hvc)
+    (fun ⟨v, c⟩ hvc ⟨v', c'⟩ hvc' heq => by
       simp only [coe_product, Set.mem_prod, mem_coe, normDirs, mem_filter, mem_univ, true_and,
         mem_erase, ne_eq, and_true] at hvc hvc' heq
-      have hc : vc.2 = vc'.2 := by
-        simpa only [firstNonzero_smul, hvc.1, hvc'.1, mul_one] using congrArg firstNonzero heq
-      rw [hc] at heq
-      exact Prod.ext (smul_right_injective _ hvc'.2 heq) hc)
-  rwa [card_product, card_erase_of_mem (mem_univ _), card_erase_of_mem (mem_univ _), card_univ,
-    card_univ, Fintype.card_fun, Fintype.card_fin] at h
+      obtain rfl : c = c' := by
+        simpa [firstNonzero_smul, hvc.1, hvc'.1] using congrArg firstNonzero heq
+      exact Prod.ext (smul_right_injective _ hvc.2 heq) rfl)
+  simpa [card_erase_of_mem] using h
 
 /-- For a fixed `x`, at most `#(normDirs m F) * (D - d)` points `z ≠ x` lie on a line through `x`
 with more than `D` agreements yet make `lineListDecode` fail at `x`. -/

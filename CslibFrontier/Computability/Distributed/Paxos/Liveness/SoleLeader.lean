@@ -116,22 +116,18 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
   have hexists_2a : ∃ n₂ v, 1 ≤ n₂ ∧ Msg.phase2a b v ∈ (ss n₂).msgs := by
     by_cases hprop_ever : ∃ n, 1 ≤ n ∧ ((ss n).proposers p).proposed = true
     · obtain ⟨n_wit, hn_wit, htrue_wit⟩ := hprop_ever
-      obtain ⟨d_wit, rfl⟩ := Nat.exists_eq_add_of_le hn_wit
-      obtain ⟨d, hd_not, hd_true⟩ := Nat.exists_not_and_succ_of_not_zero_of_exists
-        (p := fun d => ((ss (1 + d)).proposers p).proposed = true)
-        (by simp only [Nat.add_zero, hs1_prop_false, Bool.false_eq_true, not_false_eq_true])
-        ⟨d_wit, htrue_wit⟩
-      set m := 1 + d
-      have hm1 : 1 ≤ m := Nat.le_add_right 1 d
+      obtain ⟨d, hd_not, hm_true⟩ := Nat.exists_not_and_succ_of_not_zero_of_exists
+        (p := fun d => ((ss (d + 1)).proposers p).proposed = true)
+        (by simp [hs1_prop_false])
+        ⟨n_wit - 1, by rwa [Nat.sub_add_cancel hn_wit]⟩
+      set m := d + 1
       have hm_false : ((ss m).proposers p).proposed = false := Bool.eq_false_iff.mpr hd_not
-      have hm_true : ((ss (m + 1)).proposers p).proposed = true := by
-        simpa only [m, Nat.add_assoc] using hd_true
-      have ⟨hm_round, hm_noprep⟩ := hround_inv m hm1
+      have ⟨hm_round, hm_noprep⟩ := hround_inv m (Nat.succ_pos d)
       rw [(hexec m).2] at hm_true
       rcases proposers_synodStep_cases qs (ss m) (xs m) p with heq | ⟨r', hact, _⟩ |
           ⟨_, _, _, r_m, val, _, hr_m, _, _, _, _, h2a_mem⟩ |
           ⟨_, _, _, _, _, _, _, _, _, heq⟩ | ⟨_, heq⟩
-      · exact absurd (heq.symm ▸ hm_true) (by rw [hm_false]; exact Bool.false_ne_true)
+      · simp [heq, hm_false] at hm_true
       · exact absurd hact (hm_noprep r')
       · obtain rfl : r_m = r := Option.some.inj (hr_m.symm.trans hm_round)
         exact ⟨m + 1, val, by omega, (hexec m).2 ▸ h2a_mem⟩
@@ -196,25 +192,17 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
           rw [ite_eq_left ⟨rfl, ha_already⟩]
           split_ifs <;> simp only [↓reduceIte] <;> exact Finset.mem_insert_self _ _
       choose! stepOf hstep₁ hstep using hQ_prom
-      let N_all := max 1 (Q.sup stepOf)
-      have hQ_sub_Nall : Q ⊆ ((ss N_all).proposers p).promised := fun a haQ =>
-        promised_mono qs hexec hprep₀ hno_higher (hstep₁ a haQ)
-          ((Finset.le_sup haQ).trans (le_max_right 1 _)) (hstep a haQ)
       have hnot_1 : ¬ (Q ⊆ ((ss 1).proposers p).promised) := by
         rw [hs1_prom_empty]
         obtain ⟨a₀, ha₀⟩ := qs.prepareQuorum_nonempty hQ₁
         exact fun hsub => Finset.notMem_empty a₀ (hsub (hQ₁_sub ha₀))
-      obtain ⟨d_all, hd_eq⟩ := Nat.exists_eq_add_of_le (le_max_left 1 (Q.sup stepOf))
-      obtain ⟨d, hm_not_sub, hd_sub⟩ := Nat.exists_not_and_succ_of_not_zero_of_exists
-        (p := fun d => Q ⊆ ((ss (1 + d)).proposers p).promised)
-        (by simpa only [Nat.add_zero] using hnot_1)
-        ⟨d_all, hd_eq ▸ hQ_sub_Nall⟩
-      set m := 1 + d
-      have hm1 : 1 ≤ m := Nat.le_add_right 1 d
-      have hm_sub : Q ⊆ ((ss (m + 1)).proposers p).promised := by
-        simpa only [m, Nat.add_assoc] using hd_sub
-      have ⟨_, hm_noprep⟩ := hround_inv m hm1
-      have hm_pfalse := hprop_false m hm1
+      obtain ⟨d, hm_not_sub, hm_sub⟩ := Nat.exists_not_and_succ_of_not_zero_of_exists
+        (p := fun d => Q ⊆ ((ss (d + 1)).proposers p).promised) hnot_1
+        ⟨Q.sup stepOf, fun a haQ => promised_mono qs hexec hprep₀ hno_higher (hstep₁ a haQ)
+          ((Finset.le_sup haQ).trans (Nat.le_succ _)) (hstep a haQ)⟩
+      set m := d + 1
+      have ⟨_, hm_noprep⟩ := hround_inv m (Nat.succ_pos d)
+      have hm_pfalse := hprop_false m (Nat.succ_pos d)
       have hm_next_pfalse := hprop_false (m + 1) (by omega)
       rw [(hexec m).2] at hm_sub hm_next_pfalse
       rcases proposers_synodStep_cases qs (ss m) (xs m) p with heq | ⟨r', hact, _⟩ |
@@ -228,11 +216,11 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
       · exact (hm_not_sub (by simpa [heq] using hm_sub)).elim
   -- The accept phase needs only the accept quorum inside the live cohort.
   obtain ⟨n₂, v, _, h2a_mem⟩ := hexists_2a
-  obtain ⟨k, hlearned, hreg⟩ := paxos_liveness_from_phase2a_crashStop qs hr₀ hexec hQ₂
+  exact (paxos_liveness_from_phase2a_crashStop qs hr₀ hexec hQ₂
     (fun n a _ mb => (hceil n).2 a mb)
     (fun n w hm a ha => hlive.fair_phase2a n w hm a (hQ₂_sub ha))
-    (fun n a w ha hm => hlive.fair_phase2b n a w (hQ₂_sub ha) hm) h2a_mem
-  exact ⟨k, v, hlearned, hreg⟩
+    (fun n a w ha hm => hlive.fair_phase2b n a w (hQ₂_sub ha) hm) h2a_mem).imp
+    fun _ hk => ⟨v, hk⟩
 
 end SoleLeader
 

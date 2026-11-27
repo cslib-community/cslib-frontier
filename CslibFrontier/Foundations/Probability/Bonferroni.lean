@@ -169,22 +169,17 @@ theorem measurableSet_natCard_eq [Finite ι] {A : ι → Set Ω}
     MeasurableSet {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} := by
   classical
   let _ := Fintype.ofFinite ι
-  have heq :
-      {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} =
-        ⋃ t ∈ (Finset.univ : Finset ι).powersetCard k,
-          (⋂ i ∈ t, A i) ∩ ⋂ i ∈ tᶜ, (A i)ᶜ := by
-    ext ω
-    simp only [Set.mem_ofPred_eq, natCard_subtype_mem_eq_card, Set.mem_iUnion,
-      Finset.mem_powersetCard, Finset.subset_univ, true_and, Set.mem_inter_iff, Set.mem_iInter,
-      Finset.mem_compl, Set.mem_compl_iff]
-    refine ⟨fun h => ⟨Finset.univ.filter (ω ∈ A ·), h, fun _ hi => (Finset.mem_filter.mp hi).2,
-      fun _ hi => by simpa using hi⟩, fun ⟨t, hk, h1, h2⟩ => hk ▸ congrArg Finset.card ?_⟩
-    ext i
-    simpa using ⟨fun hω => by_contra fun hnt => h2 i hnt hω, h1 i⟩
-  rw [heq]
-  exact MeasurableSet.biUnion (Finset.countable_toSet _) fun t _ =>
-    (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => hA i).inter
-      (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => (hA i).compl)
+  convert MeasurableSet.biUnion (Finset.univ.powersetCard k).countable_toSet fun t _ =>
+    (MeasurableSet.biInter t.countable_toSet fun i _ => hA i).inter
+      (MeasurableSet.biInter tᶜ.countable_toSet fun i _ => (hA i).compl) using 1
+  ext ω
+  simp only [Set.mem_ofPred_eq, natCard_subtype_mem_eq_card, Set.mem_iUnion, Finset.mem_val,
+    Finset.mem_powersetCard, Finset.subset_univ, true_and, Set.mem_inter_iff, Set.mem_iInter,
+    Finset.mem_compl, Set.mem_compl_iff]
+  refine ⟨fun h => ⟨Finset.univ.filter (ω ∈ A ·), h, fun _ hi => (Finset.mem_filter.mp hi).2,
+    fun _ hi => by simpa using hi⟩, fun ⟨t, hk, h1, h2⟩ => hk ▸ congrArg Finset.card ?_⟩
+  ext i
+  simpa using ⟨fun hω => by_contra fun hnt => h2 i hnt hω, h1 i⟩
 
 private theorem integrable_bonferroni_sum [Fintype ι] (μ : Measure Ω) [IsFiniteMeasure μ]
     {A : ι → Set Ω} (hA : ∀ i, MeasurableSet (A i)) (k N : ℕ) :
@@ -308,14 +303,13 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
         ((r + k).choose k : ℝ) * (r.factorial * k.factorial : ℝ) = (r + k).factorial := by
       exact_mod_cast ((mul_assoc _ _ _).symm.trans (mul_right_comm _ _ _)).trans
         (Nat.add_sub_cancel r k ▸ Nat.choose_mul_factorial_mul_factorial (Nat.le_add_left k r))
-    have hfac_ne : ((r + k).factorial : ℝ) ≠ 0 := by positivity
     calc ((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial)
         = (((r + k).choose k : ℝ) * (r.factorial * k.factorial : ℝ) / (r + k).factorial) *
             (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by
             rw [pow_add]
             field_simp
       _ = (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by
-            rw [hchoose, div_self hfac_ne, one_mul]
+            rw [hchoose, div_self (Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero _)), one_mul]
   have hsum_lim (M : ℕ) : Tendsto (fun n => ∑ r ∈ Finset.range M, (-1 : ℝ) ^ r *
       ((r + k).choose k : ℝ) * ∑ s ∈ (Finset.univ : Finset (ι n)).powersetCard (r + k),
         (μ n).real (⋂ i ∈ s, A n i)) atTop

@@ -216,10 +216,8 @@ theorem floorLogStar_le_self (n : ℕ) : floorLogStar n ≤ n :=
   (floorLogStar_le_logStar n).trans (logStar_le_self n)
 
 /-- Clamping at `4` makes the two-step floor logarithm at least `1`. -/
-theorem one_le_iterLog_two_max_four (n : ℕ) : 1 ≤ iterLog 2 (max n 4) := by
-  have h4 : iterLog 2 4 = 1 := by decide
-  rw [← h4]
-  exact iterLog_mono 2 (_root_.le_max_right n 4)
+theorem one_le_iterLog_two_max_four (n : ℕ) : 1 ≤ iterLog 2 (max n 4) :=
+  Nat.le_trans (by decide) (iterLog_mono 2 (_root_.le_max_right n 4))
 
 /-- Exact clamping bridge: `max (iterLog 2 (max n 4)) 1 = iterLog 2 (max n 4)`. -/
 theorem max_iterLog_two_max_four (n : ℕ) :
@@ -525,15 +523,8 @@ theorem lt_iterClogBeta_iff {t n k : ℕ} (hk : 1 ≤ k) :
 
 /-- `iterClogBeta t n = 1` iff `n ≤ 2 ^ max 1 t`. -/
 theorem iterClogBeta_eq_one_iff {t n : ℕ} : iterClogBeta t n = 1 ↔ n ≤ 2 ^ max 1 t := by
-  constructor
-  · intro h
-    have hle : iterClogBeta t n ≤ 1 := h.le
-    rw [iterClogBeta_le_iff_le_iterPow2 le_rfl] at hle
-    simpa [iterPow2] using hle
-  · intro hn
-    refine le_antisymm ?_ (one_le_iterClogBeta t n)
-    rw [iterClogBeta_le_iff_le_iterPow2 le_rfl]
-    simpa [iterPow2] using hn
+  rw [le_antisymm_iff, and_iff_left (one_le_iterClogBeta t n),
+    iterClogBeta_le_iff_le_iterPow2 le_rfl, iterPow2_succ, iterPow2_zero]
 
 /-- When `t ≤ 1`, `iterClogBeta t n` equals `max 1 (logStar n)`. -/
 theorem iterClogBeta_of_le_one {t : ℕ} (ht : t ≤ 1) (n : ℕ) :
@@ -583,15 +574,11 @@ then `iterClogBeta t₂ n₂ < iterClogBeta t₁ n₁`. -/
 theorem iterClogBeta_lt_of_two_pow_le {t₁ t₂ n₁ n₂ : ℕ} (hn : n₂ ≤ n₁)
     (hgt : 2 ^ max 1 t₁ < n₁) (hstep : 2 ^ max 1 t₁ ≤ max 1 t₂) :
     iterClogBeta t₂ n₂ < iterClogBeta t₁ n₁ := by
-  have hne1 : iterClogBeta t₁ n₁ ≠ 1 := by
-    rw [ne_eq, iterClogBeta_eq_one_iff]
-    omega
-  have hge2 : 2 ≤ iterClogBeta t₁ n₁ := by
-    have := one_le_iterClogBeta t₁ n₁
-    omega
+  have hge2 : 2 ≤ iterClogBeta t₁ n₁ :=
+    Nat.lt_of_le_of_ne (one_le_iterClogBeta t₁ n₁)
+      (Ne.symm (mt iterClogBeta_eq_one_iff.mp hgt.not_ge))
   have hcur : n₁ ≤ iterPow2 (iterClogBeta t₁ n₁) (max 1 t₁) := le_iterPow2_iterClogBeta t₁ n₁
-  have hsub : iterClogBeta t₁ n₁ = (iterClogBeta t₁ n₁ - 1) + 1 := by omega
-  rw [hsub, iterPow2_succ_apply] at hcur
+  rw [← Nat.sub_add_cancel (one_le_iterClogBeta t₁ n₁), iterPow2_succ_apply] at hcur
   have hle : iterClogBeta t₂ n₂ ≤ iterClogBeta t₁ n₁ - 1 :=
     (iterClogBeta_le_iff_le_iterPow2 (by omega)).mpr
       (hn.trans (hcur.trans (iterPow2_mono (iterClogBeta t₁ n₁ - 1) hstep)))
@@ -653,10 +640,7 @@ private theorem iterClog_succ_mul_iterClogBeta_le (k t n : ℕ) :
 theorem iterClogBeta_div_mono_right (c : ℕ) : Monotone (fun n => iterClogBeta (c / n) n) := by
   intro a b hab
   rcases Nat.eq_zero_or_pos a with rfl | ha
-  · have h1 : iterClogBeta (c / 0) 0 = 1 := iterClogBeta_eq_one_iff.mpr (Nat.zero_le _)
-    dsimp only
-    rw [h1]
-    exact one_le_iterClogBeta _ _
+  · exact (iterClogBeta_eq_one_iff.mpr (Nat.zero_le _)).trans_le (one_le_iterClogBeta _ _)
   · exact (iterClogBeta_mono_right (c / a) hab).trans
       (iterClogBeta_anti_left b (Nat.div_le_div_left hab ha))
 

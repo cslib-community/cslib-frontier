@@ -236,8 +236,7 @@ theorem Valid.step_of_degeneratePair {S : State n} (hS : S.Valid f) (hexcl : S.E
       simp only [List.mem_cons, List.not_mem_nil, or_false]
       rintro N (rfl | rfl)
       exacts [deletable_fixConst_child hS _ false hN₁, deletable_fixConst_child hS _ false hN₂])
-    have h := h₁.trans h₂
-    rw [Finset.union_empty] at h
+    have h := Finset.union_empty {p} ▸ h₁.trans h₂
     refine ⟨S', h.step hS (by simp) (by simp) ?_⟩
     have hW := h.W_le (fun _ => 0) (fun u => if S.IsPartner p u then 7 else 0) fun u hu => by
       have hup := Finset.notMem_singleton.1 (Finset.mem_sdiff.1 hu).2
@@ -401,14 +400,13 @@ theorem Valid.step_of_pairInSystem {S : State n} {d : ℕ} (hS : S.Valid f)
         (fun _ hx hxu => hup (hS.isPartner_unique (Finset.mem_singleton.1 hx ▸ hxu) hpr.symm))
         fun _ hN _ => ⟨r, hr, Ne.symm (by simpa using hur), List.mem_singleton.1 hN ▸ hHr⟩) 0
   have hpr' : p ∈ S.params \ {r} := Finset.mem_sdiff.2 ⟨hp, by simpa using hrp.symm⟩
-  rw [Finset.sum_ite_eq' (S.params \ {r}) p, ite_eq_left hpr', Finset.sum_singleton,
-    wt_of_paired hpr.symm.paired, hS.card_pairsMeeting_singleton,
-    ite_eq_left hpr.symm.paired] at hW
   have ha₂ := h.a_add hS
   have hm₂ := h.m_add
   have hs₂ := h.s_add
-  simp only [Finset.sum_const_zero, List.length_singleton, Finset.card_singleton,
-    hS.card_pairsMeeting_singleton, ite_eq_left hpr.symm.paired] at hW ha₂ hm₂ hs₂
+  simp only [Finset.sum_ite_eq' (S.params \ {r}) p, ite_eq_left hpr', Finset.sum_singleton,
+    wt_of_paired hpr.symm.paired, Finset.sum_const_zero, List.length_singleton,
+    Finset.card_singleton, hS.card_pairsMeeting_singleton,
+    ite_eq_left hpr.symm.paired] at hW ha₂ hm₂ hs₂
   have hdeg₂ : S₂.deg p ≤ 1 := (Finset.card_le_card hcp₂).trans (by simp)
   rcases Nat.eq_zero_or_pos (S₂.deg p) with h0 | h1
   · -- `p` became unused
@@ -467,11 +465,9 @@ theorem Valid.step_of_andOnPair {S : State n} (hS : S.Valid f) (hexcl : S.Exclus
   obtain ⟨b, c, hc⟩ := Gate.exists_const_of_not_isAffineOp hand hargs
   have h₁ := Valid.reduction_fixConst hS hr false
   have h₂ := Valid.reduction_fixConst h₁.valid (Finset.mem_erase.2 ⟨hwr, hw⟩) b
-  have h₃ := h₂.valid.reduction_deleteGate (J := G) (ℓ := Lit.const c) (T := [])
-    ⟨hG, fun t ht => by simp [Lit.Reads, Lit.const] at ht, Or.inl fun val _ _ => by
-      simp only [fixConst_gate, Gate.eval_subst_const, Lit.eval_const]
-      exact hc _ (by rw [Function.update_of_ne hwr, Function.update_self])⟩
-    fun t ht => by simp [Lit.Reads, Lit.const] at ht
+  have h₃ := h₂.valid.reduction_deleteConst (c := c) hG fun val _ _ => by
+    simp only [fixConst_gate, Gate.eval_subst_const]
+    exact hc _ (by rw [Function.update_of_ne hwr, Function.update_self])
   obtain ⟨S', h₄⟩ := h₃.valid.exists_reduction_deleteAll [.inl Hg] (by simp) (by
     simp only [List.mem_singleton, forall_eq]
     exact h₃.deletable _ (by simp [hHgG]) (h₂.deletable _ (by simp)

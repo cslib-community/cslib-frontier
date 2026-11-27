@@ -120,10 +120,8 @@ theorem bad_reply_le [DecidableEq H] (first : PMF S)
     ((fork first A).map (fun r => r.any fun (_, a, b) => bad (reply a) (reply b)) true) ≤
       Finset.univ.sup (fun c => (PMF.uniformOfFintype H).map (bad c) true) := by
   simp only [fork, onTapes, pmf_norm]
-  apply Probability.PMF.bind_apply_le_on_support
-  intro s _
-  apply Probability.PMF.bind_apply_le_on_support
-  intro h _
+  refine Probability.PMF.bind_apply_le_on_support _ fun s _ =>
+    Probability.PMF.bind_apply_le_on_support _ fun h _ => ?_
   cases hj : (A s h).1 with
   | none => simp
   | some j =>
@@ -131,8 +129,7 @@ theorem bad_reply_le [DecidableEq H] (first : PMF S)
       (Finset.mem_univ (h j)))
     rw [← Probability.PMF.pi_map_eval (fun _ : Fin q => PMF.uniformOfFintype H) j,
       Probability.PMF.pi_uniformOfFintype, PMF.map_comp, ← PMF.bind_pure_comp]
-    apply Probability.PMF.bind_apply_mono_on_support
-    intro h' _
+    refine Probability.PMF.bind_apply_mono_on_support _ _ fun h' _ => ?_
     by_cases hf : (A s (splice j h h')).1 = some j ∧ h j ≠ h' j
     · simp [hf, named s h j hj, named s (splice j h h') j hf.1, splice, Function.comp_def]
     · simp [hf]
@@ -154,18 +151,16 @@ private theorem bind_glue {γ : Type} (j : Fin q) (k : (Fin q → H) → PMF γ)
   relabel_uniform (fun (x : (Fin q → H) × H × (Fin q → H)) =>
     (glue j x.1 x.2.1 x.2.2, fun i => if i < j then x.2.2 i else x.1 i, x.2.2 j))
   rintro ⟨b₁, t₁, r₁⟩ ⟨b₂, t₂, r₂⟩ h
-  simp only [Prod.mk.injEq] at h
-  rcases h with ⟨hg, hbr, hrj⟩
+  obtain ⟨hg, hbr, hrj⟩ : glue j b₁ t₁ r₁ = _ ∧ _ ∧ _ := by simpa using h
   refine Prod.ext (funext fun i => ?_) (Prod.ext ?_ (funext fun i => ?_))
   · by_cases hi : i < j
     · simpa [glue, hi] using congrFun hg i
     · simpa [hi] using congrFun hbr i
   · simpa [glue] using congrFun hg j
-  · by_cases hi : i < j
+  · rcases lt_trichotomy i j with hi | rfl | hi
     · simpa [hi] using congrFun hbr i
-    · by_cases heq : i = j
-      · exact heq ▸ hrj
-      · simpa [glue, hi, heq] using congrFun hg i
+    · exact hrj
+    · simpa [glue, hi.not_gt, hi.ne'] using congrFun hg i
 
 omit [Fintype H] [Nonempty H] in
 private theorem glue_self (j : Fin q) (b : Fin q → H) (t : H) (r : Fin q → H) :

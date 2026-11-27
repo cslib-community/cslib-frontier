@@ -157,30 +157,31 @@ private lemma cellAt_write (t : Tape) (o : Option ℕ) (i : ℤ) :
   rcases lt_trichotomy i 0 with hi | rfl | hi
   · simp only [cellAt_of_neg _ hi, ite_eq_right (ne_of_lt hi), Tape.write]
   · simp [cellAt, Tape.write]
-  · rw [cellAt_of_nonneg _ hi.le, cellAt_of_nonneg _ hi.le, ite_eq_right (by omega)]
-    simp only [Tape.write]
-    rw [show i.toNat = (i - 1).toNat + 1 by omega, List.getD_cons_succ, getD_tail']
+  · have hn : i.toNat = (i - 1).toNat + 1 := by omega
+    rw [cellAt_of_nonneg _ hi.le, cellAt_of_nonneg _ hi.le, ite_eq_right hi.ne', Tape.write, hn,
+      List.getD_cons_succ, getD_tail']
 
 private lemma cellAt_move (t : Tape) (m : SignType) (i : ℤ) :
     cellAt (t.move m) i = cellAt t (i + m) := by
   rcases m with _ | _ | _
   · simp [Tape.move, SignType.zero_eq_zero]
-  · rw [show ((SignType.neg : SignType) : ℤ) = -1 by simp [SignType.neg_eq_neg_one]]
+  · change cellAt (t.move .neg) i = cellAt t (i + -1)
     rcases lt_trichotomy i 0 with hi | rfl | hi
-    · rw [cellAt_of_neg _ hi, cellAt_of_neg _ (by omega), Tape.move, getD_tail',
-        show (-i - 1).toNat + 1 = (-(i + -1) - 1).toNat by omega]
+    · obtain ⟨hi', hn⟩ : i + -1 < 0 ∧ (-i - 1).toNat + 1 = (-(i + -1) - 1).toNat := by omega
+      rw [cellAt_of_neg _ hi, cellAt_of_neg _ hi', Tape.move, getD_tail', hn]
     · simp only [cellAt, Tape.move]
       cases t.left <;> rfl
-    · rw [cellAt_of_nonneg _ hi.le, cellAt_of_nonneg _ (by omega), Tape.move,
-        show i.toNat = (i + -1).toNat + 1 by omega, List.getD_cons_succ]
-  · rw [show ((SignType.pos : SignType) : ℤ) = 1 by simp [SignType.pos_eq_one]]
+    · obtain ⟨hi', hn⟩ : 0 ≤ i + -1 ∧ i.toNat = (i + -1).toNat + 1 := by omega
+      rw [cellAt_of_nonneg _ hi.le, cellAt_of_nonneg _ hi', Tape.move, hn, List.getD_cons_succ]
+  · change cellAt (t.move .pos) i = cellAt t (i + 1)
     rcases lt_trichotomy i (-1) with hi | rfl | hi
-    · rw [cellAt_of_neg _ (by omega), cellAt_of_neg _ (by omega), Tape.move,
-        show (-i - 1).toNat = (-(i + 1) - 1).toNat + 1 by omega, List.getD_cons_succ]
+    · obtain ⟨hi₀, hi₁, hn⟩ : i < 0 ∧ i + 1 < 0 ∧ (-i - 1).toNat = (-(i + 1) - 1).toNat + 1 := by
+        omega
+      rw [cellAt_of_neg _ hi₀, cellAt_of_neg _ hi₁, Tape.move, hn, List.getD_cons_succ]
     · simp only [cellAt, Tape.move, Tape.read]
       cases t.right <;> rfl
-    · rw [cellAt_of_nonneg _ (by omega), cellAt_of_nonneg _ (by omega), Tape.move, getD_tail',
-        show (i + 1).toNat = i.toNat + 1 by omega]
+    · obtain ⟨hi₀, hi₁, hn⟩ : 0 ≤ i ∧ 0 ≤ i + 1 ∧ (i + 1).toNat = i.toNat + 1 := by omega
+      rw [cellAt_of_nonneg _ hi₀, cellAt_of_nonneg _ hi₁, Tape.move, getD_tail', hn]
 
 private lemma head_apply (t : Tape) (a : Option (Option ℕ) × SignType) :
     (t.apply a).head = t.head + a.2 := by
@@ -302,8 +303,10 @@ private def inCell (x : List ℕ) (z : ℤ) : Option ℕ :=
 private lemma inSym_inCell (x : List ℕ) (p : ℕ) : inSym (inCell x p) = inputSymbol x p := by
   rcases p with _ | p
   · simp [inSym, inCell, inputSymbol]
-  · rw [inCell, ite_eq_right (by omega), ite_eq_left (by omega),
-      show (((p + 1 : ℕ) : ℤ) - 1).toNat = p by omega]
+  · obtain ⟨h0, h1, hto⟩ :
+        ((p + 1 : ℕ) : ℤ) ≠ 0 ∧ (0 : ℤ) < (p + 1 : ℕ) ∧ (((p + 1 : ℕ) : ℤ) - 1).toNat = p := by
+      omega
+    rw [inCell, ite_eq_right h0, ite_eq_left h1, hto]
     cases h : x[p]? <;> simp [inputSymbol, inSym, h]
 
 private lemma inPos_inCell (x : List ℕ) (p : ℕ) : inPos (inCell x p) = 0 ↔ p = 0 := by
@@ -558,9 +561,7 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
     rcases k with _ | k
     · simp only [List.getElem?_cons_zero, view, Option.some.injEq] at hW hF hW' hF'
       subst hW hF hW' hF'
-      have habs : absApply (inCell x, p) (none, m) = (inCell x, (p : ℤ) + m) := by simp [absApply]
-      rw [hm₂, ← habs]
-      exact tr_apply hi (none, m)
+      simpa [Tape.apply, absApply, ← hm₂] using tr_apply hi (none, m)
     · rw [List.getElem?_cons_succ] at hW
       obtain ⟨t, ht, rfl⟩ := Option.map_eq_some_iff.1 (by simpa [view] using hF)
       simp only [view, List.getElem?_cons_succ, List.getElem?_map, getElem?_applyTapes, hW, ht,
@@ -569,8 +570,7 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     intro c hq hlen hagr
     have hrs : firstHalf (n + 2) + (n + 2) / 2 = n + 2 := by simp only [firstHalf]; omega
-    have hsucc : n.succ.succ = n + 2 := rfl
-    rw [hsucc] at hagr ⊢
+    dsimp only [Nat.succ_eq_add_one, Nat.add_assoc] at hagr ⊢
     simp only [r₂, w₁, r₁] at ih₂ ⊢
     clear r₂ w₁ r₁
     generalize firstHalf (n + 2) = r at hrs ih₁ ih₂ ⊢
@@ -606,10 +606,10 @@ private lemma cellAt_initWin_input (x : List ℕ) (z : ℤ) :
     cellAt ⟨0, [some 0], x.map fun a => some (a + 1)⟩ (z - (1 : ℕ)) = inCell x z := by
   rcases lt_trichotomy z 0 with hz | rfl | hz
   · rw [cellAt_of_neg _ (by omega), List.getD_eq_default _ _ (by simp; omega)]
-    simp [inCell, show z ≠ 0 by omega, show ¬0 < z by omega]
+    simp [inCell, ne_of_lt hz, not_lt_of_gt hz]
   · simp [cellAt, inCell]
   · rw [cellAt_of_nonneg _ (by omega)]
-    simp only [Nat.cast_one, Int.pred_toNat, inCell, show z ≠ 0 by omega, ↓reduceIte, hz]
+    simp only [Nat.cast_one, Int.pred_toNat, inCell, ne_of_gt hz, ↓reduceIte, hz]
     rcases Nat.lt_or_ge (z.toNat - 1) x.length with h | h
     · rw [List.getD_eq_getElem _ _ (by simp [h]), List.getElem_map, List.getElem?_eq_getElem h,
         Option.map_some]
@@ -621,9 +621,8 @@ after `t` steps. -/
 theorem universal_eq_sim (d : Desc) (x : List ℕ) (t : ℕ) :
     universal (d, x, t) = ((sim d t (extract t (initWin d x))).2,
       (sim d t (extract t (initWin d x))).1.1.isNone) := by
-  have hagr : ∀ (k : ℕ) W F, (extract t (initWin d x)).2[k]? = some W →
-      (view x (init d))[k]? = some F → Agr t W F := by
-    intro k W F hW hF
+  have hagr (k : ℕ) (W : Tape) (F : ATape) (hW : (extract t (initWin d x)).2[k]? = some W)
+      (hF : (view x (init d))[k]? = some F) : Agr t W F := by
     rcases k with _ | k
     · simp only [extract, initWin, view, List.map_cons, List.getElem?_cons_zero,
         Option.some.injEq] at hW hF
@@ -636,8 +635,7 @@ theorem universal_eq_sim (d : Desc) (x : List ℕ) (t : ℕ) :
       exact Agr.cut fun _ _ _ => rfl
   obtain ⟨o, q, -, -⟩ := sim_spec d x t (init d) (extract t (initWin d x)) rfl
     (by simp [extract, initWin, view, init]) hagr
-  change ((run d x t (init d)).2, (run d x t (init d)).1.state.isNone) = _
-  rw [o, q]
+  exact Prod.ext o.symm (congrArg Option.isNone q.symm)
 
 /-! ### Sizes of the windows
 
@@ -668,8 +666,7 @@ theorem length_sim (d : Desc) (n : ℕ) (w : Win) : (sim d n w).1.2.length = w.2
     · simp [wstep_eq, length_applyTapes_eq]
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hle : ∀ r w, (extract r w).2.length = w.2.length := by simp [extract]
-    simp only [r₂, w₁, r₁, length_restore, ih₁, ih₂, hle]
-    omega
+    simp only [r₂, w₁, r₁, length_restore, ih₁, ih₂, hle]; omega
 
 private lemma length_apply_le (t : Tape) (a : Option (Option ℕ) × SignType) :
     (t.apply a).left.length ≤ t.left.length + 1 ∧
@@ -716,10 +713,9 @@ private lemma cells_move {S : Option ℕ → Prop} (h0 : S none) {t : Tape} (h :
     (m : SignType) : Cells S (t.move m) := by
   have hl : ∀ o ∈ t.left, S o := fun o ho => h o (List.mem_append_left _ ho)
   have hr : ∀ o ∈ t.right, S o := fun o ho => h o (List.mem_append_right _ ho)
-  have hd : ∀ l : List (Option ℕ), (∀ o ∈ l, S o) → S (l.headD none) := fun l hl' => by
-    cases l with
-    | nil => exact h0
-    | cons a _ => exact hl' a List.mem_cons_self
+  have hd : ∀ l : List (Option ℕ), (∀ o ∈ l, S o) → S (l.headD none)
+    | [], _ => h0
+    | a :: _, hl' => hl' a List.mem_cons_self
   intro o ho
   rcases m with _ | _ | _
   · exact h o ho

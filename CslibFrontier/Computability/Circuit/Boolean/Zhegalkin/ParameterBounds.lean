@@ -72,13 +72,12 @@ private theorem sq_mul_ceilDiv_le {L s M : ℕ} (A B : ℕ) (hL : 0 < L) (hs : 0
 theorem exists_log_threshold (C : ℕ) :
     ∃ L₁ : ℕ, 8 ≤ L₁ ∧ C ≤ L₁ ∧
       ∀ {L : ℕ}, L₁ ≤ L → C * Nat.log 2 L ≤ L ∧ 6 * Nat.log 2 L ≤ L ∧ L ^ 2 ≤ 2 ^ L := by
-  have hev := (Filter.eventually_ge_atTop (max 8 C)).and
-    ((Nat.eventually_mul_log_le (max C 6) one_lt_two).and
-      (Nat.eventually_mul_pow_le_pow 1 2 one_lt_two))
-  obtain ⟨L₁, hL₁⟩ := Filter.eventually_atTop.mp hev
-  obtain ⟨hge₀, _, _⟩ := hL₁ L₁ le_rfl
-  refine ⟨L₁, le_trans (le_max_left 8 C) hge₀, le_trans (le_max_right 8 C) hge₀,
-    fun {L} hL => ?_⟩
+  obtain ⟨L₁, hL₁⟩ := Filter.eventually_atTop.mp <|
+    (Filter.eventually_ge_atTop (max 8 C)).and
+      ((Nat.eventually_mul_log_le (max C 6) one_lt_two).and
+        (Nat.eventually_mul_pow_le_pow 1 2 one_lt_two))
+  refine ⟨L₁, (le_max_left 8 C).trans (hL₁ L₁ le_rfl).1,
+    (le_max_right 8 C).trans (hL₁ L₁ le_rfl).1, fun {L} hL => ?_⟩
   obtain ⟨_, hlog, hpow⟩ := hL₁ L hL
   exact ⟨(Nat.mul_le_mul_right _ (le_max_left C 6)).trans hlog,
     (Nat.mul_le_mul_right _ (le_max_right C 6)).trans hlog, one_mul (L ^ 2) ▸ hpow⟩
@@ -94,11 +93,6 @@ theorem log_param_props {M : ℕ} (hL8 : 8 ≤ Nat.log 2 M)
   set s := L - 3 * Nat.log 2 L
   have hM0 : M ≠ 0 := fun h0 => by simp [L, h0] at hL8
   have hpowM : 2 ^ L ≤ M := Nat.pow_log_le_self 2 hM0
-  have hs_pos : 0 < s := by omega
-  have hs_le : s ≤ L := Nat.sub_le _ _
-  have hL_2s : L ≤ 2 * s := by omega
-  have hlogL1 : 1 ≤ Nat.log 2 L := Nat.le_log_of_pow_le one_lt_two (by omega)
-  have hL2M : L ^ 2 ≤ M := hpow2.trans hpowM
   have hL_lt : L ≤ 2 * 2 ^ Nat.log 2 L :=
     (pow_succ' 2 _ ▸ Nat.lt_pow_succ_log_self one_lt_two L).le
   have hcubes : (2 * 2 ^ Nat.log 2 L) ^ 3 = 8 * 2 ^ (3 * Nat.log 2 L) := by
@@ -111,7 +105,9 @@ theorem log_param_props {M : ℕ} (hL8 : 8 ≤ Nat.log 2 M)
       _ = 8 * 2 ^ (3 * Nat.log 2 L + s) := by rw [← pow_add]
       _ = 8 * 2 ^ L := congrArg (8 * 2 ^ ·) (by omega)
       _ ≤ 8 * M := Nat.mul_le_mul_left 8 hpowM
-  exact ⟨hs_pos, hs_le, hL_2s, hlogL1, hL2M, hL3⟩
+  exact ⟨by omega, Nat.sub_le _ _,
+    by omega,
+    Nat.le_log_of_pow_le one_lt_two (by omega), hpow2.trans hpowM, hL3⟩
 
 private theorem natLog_le_logb {m : ℕ} (hm : 1 ≤ m) :
     (Nat.log 2 m : ℝ) ≤ Real.logb 2 m := by
@@ -223,8 +219,7 @@ theorem zhegRem_mul_sq_le (n M : ℕ)
   have hs_le_M : s ≤ M := hs_le.trans ((Nat.le_self_pow (by norm_num) L).trans hL2M)
   have ht1 := sq_mul_div_le (n + M) hL_2s hL3
   have hp_le : L ^ 2 * ((2 * M) / L ^ 2 + 1) ≤ 3 * M := by
-    have := Nat.mul_div_le (2 * M) (L ^ 2)
-    nlinarith
+    nlinarith [Nat.mul_div_le (2 * M) (L ^ 2)]
   have hs1_le : L ^ 2 * (s + 1) ≤ 16 * M := by
     have : L ^ 3 ≤ L ^ 3 * 2 ^ s := Nat.le_mul_of_pos_right _ (by positivity)
     have : L ^ 2 * (s + 1) ≤ L ^ 2 * (2 * L) := by gcongr; omega

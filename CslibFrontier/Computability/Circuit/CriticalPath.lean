@@ -402,27 +402,22 @@ theorem Circuit.rank_lt_criticalPathAux_getElem (C : Circuit σ n m) :
       (hj : j < (C.criticalPathAux fuel v).length),
       i < j → (C.criticalPathAux fuel v)[i].rank < (C.criticalPathAux fuel v)[j].rank
   | 0, v, i, j, hi, hj, hij => by
-    simp only [Circuit.criticalPathAux, List.length_singleton] at hi hj
-    omega
+    simp only [Circuit.criticalPathAux, List.length_singleton] at hi hj; omega
   | fuel + 1, v, i, j, hi, hj, hij => by
     cases h : C.uniqueReaderSlot v with
     | none =>
-      simp only [Circuit.criticalPathAux, h, List.length_singleton] at hi hj
-      omega
+      simp only [Circuit.criticalPathAux, h, List.length_singleton] at hi hj; omega
     | some s =>
+      simp only [Circuit.criticalPathAux, h, List.length_cons] at hi hj
       rcases i, j with ⟨_ | i', _ | j'⟩
       · omega
-      · have hj' : j' < (C.criticalPathAux fuel (.gate s.1)).length := by
-          grind [Circuit.criticalPathAux, List.length_cons]
-        simpa only [Circuit.criticalPathAux, h, List.getElem_cons_zero,
+      · simpa only [Circuit.criticalPathAux, h, List.getElem_cons_zero,
           List.getElem_cons_succ] using C.rank_lt_of_mem_tail_criticalPathAux (fuel + 1) v _
-            (by simpa only [Circuit.criticalPathAux, h, List.tail_cons] using List.getElem_mem hj')
+            (by simpa only [Circuit.criticalPathAux, h, List.tail_cons] using
+              List.getElem_mem (by omega))
       · omega
       · simpa only [Circuit.criticalPathAux, h, List.getElem_cons_succ] using
-          C.rank_lt_criticalPathAux_getElem fuel (.gate s.1)
-            (by grind [Circuit.criticalPathAux, List.length_cons])
-            (by grind [Circuit.criticalPathAux, List.length_cons])
-            (by omega)
+          C.rank_lt_criticalPathAux_getElem fuel (.gate s.1) (by omega) (by omega) (by omega)
 
 /-- Every consecutive pair `(p[i], p[i + 1])` in `C.criticalPathAux fuel v` witnesses a unique
 outgoing slot reading `p[i]` at gate `p[i + 1]`. -/
@@ -466,9 +461,9 @@ theorem Circuit.outDeg_getLast_criticalPathAux_ne_one (C : Circuit σ n m) :
       simp only [Circuit.criticalPathAux, hu, List.getLast_singleton]
       exact C.uniqueReaderSlot_eq_none_iff.mp hu
     | some s =>
-      have hs := C.uniqueReaderSlot_eq_some_iff.mp hu
       have hstep : v.rank < (Wire.gate s.1 : Wire n C.size).rank :=
-        C.rank_lt_of_slotWire_eq (C.mem_slotReaders.mp (by simp [hs]))
+        C.rank_lt_of_slotWire_eq
+          (C.mem_slotReaders.mp (by simp [C.uniqueReaderSlot_eq_some_iff.mp hu]))
       simp only [Circuit.criticalPathAux, hu,
         List.getLast_cons (C.criticalPathAux_ne_nil fuel (.gate s.1))]
       exact C.outDeg_getLast_criticalPathAux_ne_one fuel (.gate s.1) (by omega)
@@ -558,7 +553,9 @@ theorem Circuit.two_mul_sub_two_mul_le_size (C : Circuit σ n m)
 /-- In a single-output circuit with `NoDeadGates`, the designated output wire has out-degree `0`. -/
 theorem Circuit.outDeg_output_eq_zero_of_noDeadGates (C : Circuit σ n 1) (hnoDead : C.NoDeadGates) :
     C.outDeg (C.outputs 0) = 0 := by
-  by_contra hpos
+  rw [C.outDeg_eq_zero_iff]
+  by_contra! hpos
+  obtain ⟨s₀, hs₀⟩ := hpos
   let Reach : Wire n C.size → Wire n C.size → Prop :=
     fun w₁ w₂ => ∃ s : C.Slot, C.slotWire s = w₁ ∧ w₂ = .gate s.1
   have hrank : ∀ w₁ w₂, Relation.TransGen Reach w₁ w₂ → w₁.rank < w₂.rank := fun w₁ w₂ htr => by
@@ -568,11 +565,8 @@ theorem Circuit.outDeg_output_eq_zero_of_noDeadGates (C : Circuit σ n 1) (hnoDe
   classical
   let S : Finset (Fin C.size) :=
     Finset.univ.filter fun k => Relation.TransGen Reach (C.outputs 0) (.gate k)
-  have hne : S.Nonempty := by
-    obtain ⟨s, hs⟩ := List.exists_mem_of_ne_nil _
-      (by grind [Circuit.outDeg] : C.slotReaders (C.outputs 0) ≠ [])
-    exact ⟨s.1, Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-      Relation.TransGen.single ⟨s, C.mem_slotReaders.mp hs, rfl⟩⟩⟩
+  have hne : S.Nonempty :=
+    ⟨s₀.1, Finset.mem_filter.mpr ⟨Finset.mem_univ _, .single ⟨s₀, hs₀, rfl⟩⟩⟩
   let kMax := S.max' hne
   have hkMaxMem : Relation.TransGen Reach (C.outputs 0) (.gate kMax) :=
     (Finset.mem_filter.mp (Finset.max'_mem S hne)).2
@@ -745,10 +739,9 @@ theorem Circuit.exists_bottleneck_of_not_disjoint_criticalPath {U : Type u} [Dec
       · exact hpq.resolve_left (lt_irrefl _)
       simp only [T, Program.trace_gate]
       refine congrArg _ (funext fun t => ?_)
-      have hlt : (C.slotWire ⟨k, t⟩).rank < (Wire.gate k : Wire n C.size).rank :=
-        C.rank_lt_of_slotWire_eq rfl
       exact ih t (fun ht => (hclosedX ⟨k, t⟩ ht).elim hkG hkx)
-        (fun ht => (hclosedY ⟨k, t⟩ ht).elim hkG hky) p q (hpq.imp_left hlt.trans)
+        (fun ht => (hclosedY ⟨k, t⟩ ht).elim hkG hky) p q
+        (hpq.imp_left (C.rank_lt_of_slotWire_eq (s := ⟨k, t⟩) rfl).trans)
   /- A wire of `Px` depends only on `bx`, and a wire of `Py` only on `by_`. Both follow from one
   argument about a prefix `P` whose only input is `z`: a slot read on `P` from outside `P` lies
   below `G`, and also outside the other prefix `Q`, so it lies on neither prefix. -/
@@ -793,11 +786,11 @@ theorem Circuit.exists_bottleneck_of_not_disjoint_criticalPath {U : Type u} [Dec
       exact (congrArg (T · p) hxWire).trans (hX _ hxMem _ _ rfl)
     · obtain rfl := (hslots t).resolve_left ht
       exact (congrArg (T · p) hyWire).trans (hY _ hyMem _ _ rfl)
-  have hout0 := C.outDeg_output_eq_zero_of_noDeadGates hnoDead
+  have hnot1 : C.outDeg (C.outputs 0) ≠ 1 := by
+    simp [C.outDeg_output_eq_zero_of_noDeadGates hnoDead]
   have hfactor : (T (C.outputs 0)).FactorsThrough (T (.gate G)) := fun p q hpq =>
-    hout _ (fun h => absurd (C.outDeg_eq_one_of_mem_take_criticalPath x ha h) (by omega))
-      (fun h => absurd (C.outDeg_eq_one_of_mem_take_criticalPath y hb h) (by omega)) p q
-      (Or.inr hpq)
+    hout _ (fun h => hnot1 (C.outDeg_eq_one_of_mem_take_criticalPath x ha h))
+      (fun h => hnot1 (C.outDeg_eq_one_of_mem_take_criticalPath y hb h)) p q (Or.inr hpq)
   exact ⟨Function.extend (T (.gate G)) (T (C.outputs 0)) _root_.id, fun bx => T px[a] (bx, bx),
     fun by_ => T py[b] (by_, by_),
     fun bx by_ => (hfactor.extend_apply _ (bx, by_)).symm.trans (congrArg _ (hG (bx, by_)))⟩

@@ -379,10 +379,7 @@ theorem HoleBoundary.append_push {i : Fin n} {ps : List (ℕ × Γ)} {a : α} {�
     rw [hw1, hlen, Nat.add_sub_cancel]
     rcases k with _ | k
     · simp
-    · simp only [net, Op.net, OpKind.net, Op.kind, Int.reduceNeg, List.extract_eq_take_drop,
-        add_tsub_cancel_left, List.drop_left', List.take_succ_cons, List.take_nil, List.map_cons,
-        List.map_nil, List.sum_cons, List.sum_nil, add_zero]
-      split_ifs <;> simp
+    · by_cases hij : j = i <;> simp [List.extract_eq_take_drop, net, Op.net, hij, Ne.symm]
   have hnew : PendingAt w' w.length (w'.length - 1) :=
     ⟨by omega, by omega, i, ⟨a, γ, by simp [w']⟩, fun k => by
       simp [hlen, List.extract_eq_take_drop]⟩
@@ -455,22 +452,18 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
     by_contra hne
     obtain ⟨q, hq, ⟨a, δ, hqa⟩, hqk⟩ := exists_pending_push (u := w.extract (p + 1) w.length) hk
       (lt_of_le_of_ne hge (Ne.symm hne))
-    rw [List.extract_eq_take_drop, List.length_take, List.length_drop] at hq
-    have hqw : p + 1 + q < w.length := by omega
-    have hqa' : w[p + 1 + q]? = some (a, .push i δ) := by
-      rwa [List.extract_eq_take_drop, List.getElem?_take_of_lt (by omega),
-        List.getElem?_drop] at hqa
+    have hex : w.extract (p + 1) w.length = w.drop (p + 1) := by simp [List.extract_eq_take_drop]
+    rw [hex, List.length_drop] at hq
+    rw [hex, List.getElem?_drop] at hqa
+    rw [hex, List.drop_drop, ← Nat.add_assoc] at hqk
+    dsimp only [c₀] at hqk
     have hqpend : PendingAt w (p + 1 + q) (w.length - 1) := by
-      refine ⟨by omega, by omega, i, ⟨a, δ, hqa'⟩, fun k => ?_⟩
-      have hsub : w.length - (p + 1) - (q + 1) = w.length - (p + 1 + q + 1) := by omega
-      have hd : (w.extract (p + 1) w.length).drop (q + 1) =
-          w.extract (p + 1 + q + 1) (w.length - 1 + 1) := by
-        rw [hw1, List.extract_eq_take_drop, List.extract_eq_take_drop, List.drop_take,
-          List.drop_drop, hsub, ← Nat.add_assoc]
-      exact hd ▸ hqk k
+      refine ⟨by omega, by omega, i, ⟨a, δ, hqa⟩, fun k => ?_⟩
+      rw [hw1, List.extract_eq_take_drop, List.take_of_length_le List.length_drop.le]
+      exact hqk k
     obtain ⟨c, hc, e, he, he'⟩ := h₄ _ hqpend
     obtain ⟨⟨a', hea⟩, -⟩ := h₂ c hc e he
-    have hci : c.stack = i := IsPushOn.unique ⟨a', e.2, hea⟩ ⟨a, δ, he' ▸ hqa'⟩
+    have hci : c.stack = i := IsPushOn.unique ⟨a', e.2, hea⟩ ⟨a, δ, he' ▸ hqa⟩
     exact absurd (holder c hc e he hci (by omega)) (by omega)
   -- The factor up to the pop is the factor up to the end of `w`, then the pop.
   have hsplit : ∀ e, e ≤ w.length →

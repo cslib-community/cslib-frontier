@@ -231,22 +231,15 @@ theorem eval_coalitionQuery_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
     (T : Finset S) (hT : T.card ≤ params.threshold) (i : D → ι) :
     ProbComp.eval ((shamirCube D ι params).coalitionQuery T i) =
       PMF.uniformOfFintype (T → D → ι → F) := by
-  rw [Scheme.eval_coalitionQuery, shamirCube]
-  simp only [pmf_norm, ProbComp.eval_uniform]
-  let cur : ((D × ι) → Shamir.Randomness params) ≃ (D → ι → Shamir.Randomness params) :=
-    Equiv.curry D ι (Shamir.Randomness params)
-  let outCur : (T → (D × ι) → F) ≃ (T → D → ι → F) :=
-    Equiv.arrowCongr (Equiv.refl T) (Equiv.curry D ι F)
-  change (PMF.uniformOfFintype (D → ι → Shamir.Randomness params)).map
-    (fun r (s : T) l u => Shamir.share params (r l u) (if u = i l then 1 else 0) s) = _
-  rw [← PMF.uniformOfFintype_map_equiv cur, PMF.map_comp,
-    show ((fun (r : D → ι → Shamir.Randomness params) (s : T) l u =>
-        Shamir.share params (r l u) (if u = i l then 1 else 0) s) ∘ cur) =
-      outCur ∘ fun (r : (D × ι) → Shamir.Randomness params) (s : T) lu =>
-        Shamir.share params (r lu) (if lu.2 = i lu.1 then 1 else 0) s from rfl,
-    ← PMF.map_comp,
-    Shamir.uniformOfFintype_map_restrict_share_pi params T hT
-      (fun lu : D × ι => if lu.2 = i lu.1 then 1 else 0)]
+  let cur := Equiv.curry D ι (Shamir.Randomness params)
+  let outCur := Equiv.arrowCongr (Equiv.refl T) (Equiv.curry D ι F)
+  simp only [Scheme.eval_coalitionQuery, shamirCube, pmf_norm, ProbComp.eval_uniform]
+  change (PMF.uniformOfFintype _).map _ = _
+  have hcomp : ((fun (r : D → ι → Shamir.Randomness params) (s : T) l u =>
+      Shamir.share params (r l u) (if u = i l then 1 else 0) s) ∘ cur) =
+      outCur ∘ fun r s lu => Shamir.share params (r lu) (if lu.2 = i lu.1 then 1 else 0) s := rfl
+  rw [← PMF.uniformOfFintype_map_equiv cur, PMF.map_comp, hcomp, ← PMF.map_comp,
+    Shamir.uniformOfFintype_map_restrict_share_pi params T hT]
   exact PMF.uniformOfFintype_map_equiv outCur
 
 /-- **Degree-`d` polynomial PIR is `t`-private** for `t = params.threshold`. -/
@@ -324,7 +317,7 @@ theorem reconstruct_answer_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
       Shamir.Polynomial.constantCoeff_sharingPolynomial, Finset.prod_const_one]
   · intro j _ hji
     obtain ⟨l₀, hl₀⟩ := Function.ne_iff.mp hji
-    cases hxj : x j <;> simp only [Bool.false_eq_true, ↓reduceIte, map_zero,
+    by_cases hxj : x j <;> simp only [hxj, Bool.false_eq_true, ↓reduceIte, map_zero,
       map_prod _root_.Polynomial.constantCoeff]
     exact Finset.prod_eq_zero (Finset.mem_univ l₀)
       (by simp only [factor, hl₀, ↓reduceIte, Shamir.Polynomial.constantCoeff_sharingPolynomial])
@@ -336,9 +329,9 @@ theorem isCorrect_shamirCube {D ι : Type} [Fintype D] [DecidableEq D] [Fintype 
     (params : Shamir.Params F S) (hdeg : Fintype.card D * params.threshold < Fintype.card S) :
     (shamirCube D ι params).IsCorrect := by
   classical
-  refine (Scheme.isCorrect_iff _).2 fun x i r q hrq => ?_
-  rw [reconstruct_shamirCube, reconstruct_answer_shamirCube params hdeg x i hrq]
-  cases x i <;> simp
+  exact (Scheme.isCorrect_iff _).2 fun x i r q hrq => by
+    by_cases hxi : x i <;>
+      simp [reconstruct_shamirCube, reconstruct_answer_shamirCube params hdeg x i hrq, hxi]
 
 end ShamirPIR
 
