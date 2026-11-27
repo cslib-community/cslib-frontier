@@ -15,8 +15,7 @@ public import CslibFrontier.DataStructure.BTree.Comparisons.LowerBound
 Checks that:
 * both `rankQ` (linear in-node scan) and `rankBinQ` (binary in-node search) satisfy `IsRank`;
 * `IsRank.lowerBound_wfInput_infinite` composes directly with `rankBinQ_upperBound_size` and
-  `rankQ_upperBound_size` via
-  `Cslib.Query.LowerBound.le_upperBound`;
+  `rankQ_upperBound_size` via `Cslib.Query.LowerBound.le_upperBound`;
 * on an unsorted tree, `rankQ` can disagree with the full-list filter count, witnessing that the
   strict key-sortedness premise of `IsRank` is essential.
 -/

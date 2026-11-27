@@ -19,8 +19,11 @@ Checks that:
 * without ties the correctness predicate is vacuous: a program that asks nothing is correct under
   every injective key function and is not `IsLookup`;
 * the strict-increase premise of `IsLookup` is needed, on an out-of-order tree;
-* the per-tree bound holds on the empty tree and on a sample tree, and the lower bound composes
-  with `lookupBinQ_upperBound_size` and `lookupQ_upperBound_size`.
+* the per-tree bound is `0` on the empty tree, where `lookupQ` attains it, and holds on a sample
+  tree;
+* `IsLookup.lowerBound_infinite` applies to `lookupQ` over arbitrary inputs, and the lower bound
+  over well-formed inputs composes with `lookupBinQ_upperBound_size` and
+  `lookupQ_upperBound_size`.
 -/
 
 public section
@@ -47,11 +50,7 @@ example : (lookupQ 5 sampleTree).eval (LEQuery.keyOracle (· / 2)) = some "c" :=
   simp [sampleTree, lookupQ_def, lookupM, LEQuery.keyOracle]
 
 example : (lookupBinQ 5 sampleTree).eval (LEQuery.keyOracle (· / 2)) = some "c" := by
-  have hs : ((sampleTree.mapKeys (· / 2)).toList).IsSortedAssoc := by
-    rw [toList_mapKeys, List.isSortedAssoc_iff_pairwise, List.map_map]
-    decide
-  rw [eval_lookupBinQ_keyOracle, lookupBin_eq_lookup hs, lookup_eq_of_isSortedAssoc hs,
-    toList_mapKeys]
+  rw [lookupBinQ_isLookup.correct (· / 2) 5 sampleTree (by decide)]
   decide
 
 -- Review Focus 1: the order oracle has no ties, so the same lookup finds nothing.
@@ -59,6 +58,7 @@ example : (lookupQ 5 sampleTree).eval orderOracle = none := by
   simp [sampleTree, lookupQ_def, lookupM, orderOracle]
 
 -- Review Focus 2: without ties the predicate is vacuous. A program that asks nothing ...
+/-- Lookup that asks no comparison and tests keys for equality natively. -/
 def nativeLookup (k : ℕ) (tree : BTree ℕ String) : FreeM (LEQuery ℕ) (Option String) :=
   pure (tree.toList.lookup k)
 
@@ -102,13 +102,13 @@ example : (lookupQ 0 outOfOrderTree).eval orderOracle = none ∧
   refine ⟨?_, by decide⟩
   simp [outOfOrderTree, lookupQ_def, lookupM, orderOracle]
 
--- Review Focus 4: the per-tree bound on the empty tree, obtained from the theorem at `n = 0`.
-example : ∃ (k : ℕ) (oracle : {ι : Type} → LEQuery ℕ ι → ι),
-    0 ≤ (lookupQ k (.leaf : BTree ℕ String)).countQueries oracle := by
-  obtain ⟨k, oracle, h⟩ :=
-    lookup_lowerBound_infinite (lookupQ_isLookup (α := ℕ) (β := String))
-    .leaf (by simp [BTree.toList]) (by simp [BTree.toList])
-  exact ⟨k, oracle, (Nat.zero_le _).trans h⟩
+-- Review Focus 4: on the empty tree the per-tree bound is `0` ...
+example : Nat.clog 2 ((.leaf : BTree ℕ String).size + 1) = 0 := by decide
+
+-- ... and it is attained: `lookupQ` asks nothing on the empty tree, under every oracle.
+example (oracle : {ι : Type} → LEQuery ℕ ι → ι) (k : ℕ) :
+    (lookupQ k (.leaf : BTree ℕ String)).countQueries oracle = 0 := by
+  simp [lookupQ_def, lookupM]
 
 -- Per-tree bound on `sampleTree`: size 5, so 3 comparisons.
 example : ∃ (k : ℕ) (oracle : {ι : Type} → LEQuery ℕ ι → ι),
@@ -117,6 +117,11 @@ example : ∃ (k : ℕ) (oracle : {ι : Type} → LEQuery ℕ ι → ι),
   have hvals : (sampleTree.toList.map Prod.snd).Nodup := by decide
   obtain ⟨k, oracle, h⟩ := lookup_lowerBound_infinite lookupBinQ_isLookup sampleTree hkeys hvals
   exact ⟨k, oracle, (by decide : 3 ≤ Nat.clog 2 (sampleTree.size + 1)).trans h⟩
+
+-- Uncurried `LowerBound` for `lookupQ` without fixing a tree degree.
+example : LowerBound (fun p : BTree ℕ ℕ × ℕ => lookupQ p.2 p.1) (fun p => p.1.size)
+    (fun n => Nat.clog 2 (n + 1)) :=
+  lookupQ_isLookup.lowerBound_infinite
 
 -- The lower bound composes with the upper bound.
 example {t : ℕ} (ht : 2 ≤ t) (n : ℕ) :
