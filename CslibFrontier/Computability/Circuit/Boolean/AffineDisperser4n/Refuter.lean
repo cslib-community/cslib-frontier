@@ -28,9 +28,9 @@ corresponding lemma proves to be a step (`State.deleteConstraint`, `State.partne
 `State.andOnPairStep`, …). None of these needs the disperser property. Where the existence proof
 uses it, `chooseStep?` stops instead: when the output is a constant, a parameter, an auxiliary
 variable over no gates, the Case 5a gate (`findAndOnPair`), or the minimal gate.
-`findCounterexample` then searches `2^d` inputs of an affine subspace of dimension `d` on which the
-output is constant (affine representations of auxiliary variables are computed by dense `XORSAT`
-elimination, `evaluateAux`).
+`findCounterexample` then searches the `2^d` candidate inputs (`candidates`) of an affine subspace
+of dimension `d` on which the output is constant (affine representations of auxiliary variables are
+computed by dense `XORSAT` elimination, `evaluateAux`).
 
 ## Main definitions
 
@@ -38,6 +38,9 @@ elimination, `evaluateAux`).
   `Cslib.Circuits.Boolean.AffineDisperser4n.applyStep`: choosing and performing a step.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.refuterRun`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.refuterLoop`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.candidateFamily`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.candidatePoint`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.candidates`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.findCounterexample`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.refute`: the refuter.
 -/
@@ -350,21 +353,19 @@ def allAssignments : ℕ → List (List Bool)
   | 0 => [[]]
   | m + 1 => let r := allAssignments m; r.map (false :: ·) ++ r.map (true :: ·)
 
-/-- Search the `2^d` assignments of a terminal state for an input on which `C` and `f` disagree. -/
-def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitString n → Bool)
-    (d : ℕ) (S : State n) : Option (BitString n) :=
+/-- The input `Φ(val)` for the parameter values `σ`: every auxiliary variable takes the value of
+its affine representation over the parameters. -/
+def candidatePoint {n} (S : State n) (σ : ℕ → Bool) : BitString n :=
+  S.phi fun y => if decide (y ∈ S.params) then σ y else evaluateAux S y σ
+
+/-- The parameter values searched on a terminal state, one assignment for each list `A` of `d`
+bits, or `none` when the terminal state has no search. -/
+def candidateFamily {n} (d : ℕ) (S : State n) : Option (List Bool → ℕ → Bool) :=
   match S.out.arg with
   | .const _b =>
     let F := (S.params.sort (· ≤ ·)).filter (fun x => !(isFstOfAnyPair S x))
     let d_params := F.take d
-    (allAssignments d).findSome? fun A =>
-      let val_param := terminalVal S d_params A
-      let val_all := fun y =>
-        if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
-      let x_vec : BitString n := S.phi val_all
-      if C.eval fullInterpretation x_vec 0 != f x_vec then
-        some x_vec
-      else none
+    some fun A => terminalVal S d_params A
   | .node u =>
     let F := (S.params.sort (· ≤ ·)).filter (fun x => !(isFstOfAnyPair S x))
     if decide (u ∈ S.params) || S.gates.card == 0 then
@@ -373,24 +374,15 @@ def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitStri
       match F.find? (fun v => decide (v ∈ T_out)) with
       | some pivot =>
         let d_params := (F.filter (· ≠ pivot)).take d
-        (allAssignments d).findSome? fun A =>
+        some fun A =>
           let val_param_part := terminalVal S d_params A
           let T_erase := T_out.filter (· ≠ pivot)
           let xorSum := (T_erase.sort (· ≤ ·)).foldl (fun acc y => acc ^^ val_param_part y) false
           let pivot_val := c_out ^^ S.out.neg ^^ xorSum
-          let val_param := fun y => if y = pivot then pivot_val else val_param_part y
-          let val_all := fun y =>
-            if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
-          let x_vec : BitString n := S.phi val_all
-          if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
+          fun y => if y = pivot then pivot_val else val_param_part y
       | none =>
         let d_params := F.take d
-        (allAssignments d).findSome? fun A =>
-          let val_param := terminalVal S d_params A
-          let val_all := fun y =>
-            if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
-          let x_vec : BitString n := S.phi val_all
-          if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
+        some fun A => terminalVal S d_params A
     else if let some (G, p) := findAndOnPair S then
       match findPair S p with
       | some pr =>
@@ -398,28 +390,31 @@ def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitStri
         let r := pr.partner p
         let br := pr.partnerBias p
         let d_params := (F.filter (· ≠ pr.snd)).take d
-        (allAssignments d).findSome? fun A =>
+        some fun A =>
           let val_param_part := terminalVal S d_params A
-          let val_param := fun y =>
-            if y = p then bp else if y = r then br else val_param_part y
-          let val_all := fun y =>
-            if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
-          let x_vec : BitString n := S.phi val_all
-          if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
+          fun y => if y = p then bp else if y = r then br else val_param_part y
       | none => none
     else if hne : S.gates.Nonempty then
       let G := S.gates.min' hne
       let α := decide ((S.gate G).op true false == (S.gate G).op true true)
       let t1 := match (S.gate G).left with | .node x => x | _ => 0
       let d_params := (F.filter (· ≠ t1)).take d
-      (allAssignments d).findSome? fun A =>
+      some fun A =>
         let val_param_part := terminalVal S d_params A
-        let val_param := fun y => if y = t1 then α else val_param_part y
-        let val_all := fun y =>
-          if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
-        let x_vec : BitString n := S.phi val_all
-        if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
+        fun y => if y = t1 then α else val_param_part y
     else none
+
+/-- The candidate inputs of the final search of a terminal state: `candidatePoint` of each of the
+`2^d` parameter assignments of `candidateFamily`, in the order of `allAssignments d`. -/
+def candidates {n} (d : ℕ) (S : State n) : List (BitString n) :=
+  match candidateFamily d S with
+  | some σ => (allAssignments d).map fun A => candidatePoint S (σ A)
+  | none => []
+
+/-- The first candidate of a terminal state on which `C` and `f` disagree. -/
+def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitString n → Bool)
+    (d : ℕ) (S : State n) : Option (BitString n) :=
+  (candidates d S).find? fun x => C.eval fullInterpretation x 0 != f x
 
 /-- Apply refuter steps until a terminal state is reached or `fuel` runs out, and add the number of
 steps applied to `steps`. -/
