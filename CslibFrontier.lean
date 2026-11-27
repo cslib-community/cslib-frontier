@@ -3253,6 +3253,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Ladner.Density
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateReindex
 public import CslibFrontier.Logics.SecondOrder.Existential
 public import CslibFrontier.DataStructure.StateTransition.ClientSimps.Init
+public import CslibFrontier.Foundations.Analysis.ODE.PulseContamination
 public import CslibFrontier.Algorithms.Matching.Edmonds
 public import CslibFrontier.Foundations.Quantum.Clifford
 public import CslibFrontier.Computability.Kolmogorov.Conditional
@@ -10519,6 +10520,7 @@ public import CslibFrontier.Crypto.Protocols.PIR.Block
 public import CslibFrontier.Computability.PCP.RegularConstraintGraph
 public import CslibFrontier.Computability.CellProbe.OfWordRAM
 public import CslibFrontier.Crypto.Computational.CollisionResistant.Birthday
+public import CslibFrontier.Foundations.MeasureTheory.Integral.ConvolutionWindow
 public import CslibFrontier.Computability.Communication.Lifting.ExponentParameters
 public import CslibFrontier.Computability.Complexity.Problems.CSP.Horn
 public import CslibFrontier.Algorithms.Lean.Karger.MinCutCount

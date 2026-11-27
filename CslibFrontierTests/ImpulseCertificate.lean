@@ -21,7 +21,9 @@ rejection is closed by `decide +kernel`. The clients are those of #8322:
   by Taylor lower bounds for `exp`;
   overclaimed rates, energies, bounds and settling times, negative squared radii, a
   sign-corrupted model and a model with direct feedthrough are rejected;
-* an RC circuit with `τ = 1/1000 s`: energy `500 s⁻¹` and decay at rate `1000 s⁻¹`;
+* an RC circuit with `τ = 1/1000 s`: energy `500 s⁻¹` and decay at rate `1000 s⁻¹`, and the
+  contamination of a gated reading over `[3 ms, 4 ms]` by a `1 ms` rectangular pulse ending at
+  `0`, from the certified tail `∫_{3 ms}^∞ h² ≤ 5/4 s⁻¹` (#7465);
 * the repeated-pole client of #8321, `h t = t exp (-t)`: energy `1/4` and decay at rate `1/2`;
   its initial output `h 0` vanishes;
 * the damped RLC-type client of #8321, `h t = exp (-t) sin t`: energy `1/8`;
@@ -223,6 +225,56 @@ theorem rc_energy : (⟨[[1/2000]], ⟨⟨[[1]], [1/2000]⟩, ⟨[[1]], [1]⟩�
 theorem rc_decay : (⟨⟨1000, 1, 1, 1, 1000000⟩, [[1]], zero₁, zero₁, zero₁, zero₁, zero₁⟩ :
     DecayCert).check rc = true := by
   decide +kernel
+
+/-- The decay certificate `rc_decay` as a named value. -/
+def rcDecay : DecayCert := ⟨⟨1000, 1, 1, 1, 1000000⟩, [[1]], zero₁, zero₁, zero₁, zero₁, zero₁⟩
+
+/-- The certified tail `∫_{3 ms}^∞ h² ≤ 5/4 s⁻¹`: with `τ = tr (Bᵀ P B) = 10⁶`, the check is
+`γ τ / (2 α) = 500 ≤ (5/4) expLower 14 6`, and `expLower 14 6 ≈ 401.96 ≤ exp 6`. -/
+theorem rc_tail : rcDecay.tailBelow (rowsTrace 1 (rowsCongr 1 1 rc.B rcDecay.P)) (5/4) (3/1000)
+    14 = true := by
+  decide +kernel
+
+/-- With one Taylor term fewer, `expLower 13 6 ≈ 399.87 < 400`, the same tail is rejected. -/
+example : rcDecay.tailBelow (rowsTrace 1 (rowsCongr 1 1 rc.B rcDecay.P)) (5/4) (3/1000)
+    13 = false := by
+  decide +kernel
+
+/-- **Inter-pulse contamination for the RC channel.** A rectangular source pulse of height
+`v` volts on `[-1 ms, 0]` (so `‖p‖₁ = |v| · 10⁻³ V s`) drives the RC circuit at rest. A gated
+readout integrates the capacitor voltage over the window `[3 ms, 4 ms]`. The pulse's
+contribution to the reading satisfies `(∫ y)² ≤ v² · 10⁻⁶ · 10⁻³ · 5/4 = v² / (8 · 10⁸)`, i.e.
+`|∫ y| ≤ 3.54 · 10⁻⁵ |v| V s`. The exact value is
+`v (1 - e⁻¹) (e⁻³ - e⁻⁴) / 1000 ≈ 1.99 · 10⁻⁵ v V s`, so the bound is within a factor `1.8`.
+The output is the zero-state convolution with the causal kernel (the pulse is discontinuous, so
+it is not an admissible input of the ODE layer). -/
+example (v : ℝ) :
+    (∫ t in (3/1000 : ℝ)..4/1000,
+        ∫ s, (Ici 0).indicator (fun t => rc.toSystem.responseKernel t 0 0) (t - s) *
+          (Icc (-(1/1000 : ℝ)) 0).indicator (fun _ => v) s) ^ 2 ≤ v ^ 2 / 800000000 := by
+  have hp : Integrable ((Icc (-(1/1000 : ℝ)) 0).indicator fun _ => v) :=
+    (integrable_indicator_iff measurableSet_Icc).2 (integrableOn_const (by simp))
+  have hpa : ∀ s : ℝ, 0 < s → (Icc (-(1/1000 : ℝ)) 0).indicator (fun _ => v) s = 0 :=
+    fun s hs => indicator_of_notMem (fun h => by linarith [h.2]) _
+  have hn : ∫ s, |(Icc (-(1/1000 : ℝ)) 0).indicator (fun _ => v) s| = |v| / 1000 := by
+    have : (fun s => |(Icc (-(1/1000 : ℝ)) 0).indicator (fun _ => v) s|) =
+        (Icc (-(1/1000 : ℝ)) 0).indicator fun _ => |v| := by
+      funext s
+      by_cases hs : s ∈ Icc (-(1/1000 : ℝ)) 0
+      · rw [indicator_of_mem hs, indicator_of_mem hs]
+      · rw [indicator_of_notMem hs, indicator_of_notMem hs, abs_zero]
+    rw [this, integral_indicator measurableSet_Icc, setIntegral_const]
+    simp
+    ring
+  have := ((DecayCert.decayInequalities rc_decay).sq_window_integral_le_of_tailBelow rc_tail hp
+    hpa (by norm_num : (0 : ℝ) ≤ 1/1000)).2
+  have hw₁ : ((0 : ℝ) + ((3/1000 : ℚ) : ℝ)) = 3/1000 := by norm_num
+  have hw₂ : (3/1000 : ℝ) + 1/1000 = 4/1000 := by norm_num
+  rw [hn, hw₁, hw₂] at this
+  refine this.trans_eq ?_
+  rw [div_pow, sq_abs]
+  push_cast
+  ring
 
 /-! ### Two-state clients -/
 
