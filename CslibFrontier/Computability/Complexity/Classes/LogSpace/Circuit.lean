@@ -318,7 +318,8 @@ private theorem acceptanceCircuit_uniform :
   have hw : ComputableInLogSpace (fun p : ℕ × ℕ => routedWire ntm D p.1 p.2)
       (encPair encUnary encUnary) encNat := by
     obtain ⟨t, b, h, _⟩ := routedWire_budget ntm D
-      (unaryToBinary_inSpace (fst encUnary encUnary)) (unaryToBinary_inSpace (snd encUnary encUnary))
+      (unaryToBinary_inSpace (fst encUnary encUnary))
+      (unaryToBinary_inSpace (snd encUnary encUnary))
     exact ⟨t, b, h⟩
   have hsq := computableInLogSpace_iterate_squareGateList
     (wire := routedWire ntm D)
