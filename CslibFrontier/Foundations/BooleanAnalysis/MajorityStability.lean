@@ -36,6 +36,10 @@ least its limit (`BitString.le_levelWeight_signVal_majority`), the lower half of
 bound (5.15). For the upper half, the weight at level `k = 2j + 1` is `(π/2) n c_{m-j} c_m` times
 its limit, with `c_a = C(2a, a)/4^a`; Wallis's product gives `c_a² ≤ 1/(πa)`, so for `k < n/2` the
 weight is at most `(1 + 2k/n)` times its limit (`BitString.levelWeight_signVal_majority_le`).
+The same Wallis bounds place the limit between `(2/π)^(3/2) k^(-3/2)` and `(1 + 1/k)` times it
+(`BitString.two_div_pi_mul_centralBinom_div_mem_Icc`, Exercise 5.27(a)), so for `n ≥ 2k²` the weight
+is `(2/π)^(3/2) k^(-3/2) (1 ± O(1/k))` (`BitString.levelWeight_signVal_majority_mem_Icc`, the first
+statement of Corollary 5.23).
 
 Summing over the levels, with the weights bounded by `1` and the geometric bound `|ρ|^k` for
 `|ρ| < 1` (Tannery's theorem), and using the Maclaurin series of `arcsin`
@@ -59,6 +63,9 @@ proves Theorem 5.22 directly); no central limit theorem is used.
 * `Cslib.BitString.tendsto_levelWeight_signVal_majority`: the limit in Theorem 5.22.
 * `Cslib.BitString.le_levelWeight_signVal_majority`,
   `Cslib.BitString.levelWeight_signVal_majority_le`: the error bound (5.15) of Theorem 5.22.
+* `Cslib.BitString.two_div_pi_mul_centralBinom_div_mem_Icc`: the limiting weights are
+  `(2/π)^(3/2) k^(-3/2) (1 + O(1/k))` (Exercise 5.27(a)).
+* `Cslib.BitString.levelWeight_signVal_majority_mem_Icc`: the first statement of Corollary 5.23.
 * `Cslib.BitString.tendsto_noiseStability_signVal_majority`: Theorem 2.45.
 * `Cslib.BitString.le_noiseStability_signVal_majority`,
   `Cslib.BitString.noiseStability_signVal_majority_le`: the bounds of Theorem 5.18.
@@ -70,8 +77,10 @@ Majority of `2 m + 1` bits read as signs is `fun x => signVal (majority (2 * m +
 limits are along `m → ∞`, the book's `n → ∞` through the odd numbers. The book's sign convention
 differs (`true` reads as `-1`), which changes neither level weights nor noise stability. The book's
 form `(4 / (π k 2^k)) C(k - 1, (k - 1)/2)` of the limiting weight is
-`2 / π * (Nat.centralBinom j / 4 ^ j / (2 * j + 1))` at `k = 2 j + 1`. The asymptotics of
-Corollary 5.23 are not formalized ([#2131](https://github.com/cslib-community/cslib-frontier/issues/2131)).
+`2 / π * (Nat.centralBinom j / 4 ^ j / (2 * j + 1))` at `k = 2 j + 1`, and `(2/π)^(3/2) k^(-3/2)` is
+written `2 / π * √(2 / π) / (k * √k)`. The second statement of Corollary 5.23, on `W^{>k}`, and the
+resulting concentration of the spectrum are not formalized
+([#2131](https://github.com/cslib-community/cslib-frontier/issues/2131)).
 
 ## References
 
@@ -333,6 +342,120 @@ theorem levelWeight_signVal_majority_le {m j : ℕ} (h : 2 * (2 * j + 1) < 2 * m
     _ ≤ (1 + 2 * k / n) * (2 / π * (cj / k)) :=
         mul_le_mul_of_nonneg_right hA (by positivity)
     _ = _ := by rw [hn]; push_cast; ring
+
+/-- By Wallis's product, `(C(2a, a) / 4^a)² ≥ 2 / (π (2a + 1))`. -/
+private theorem two_div_le_sq_centralBinom_div_four_pow (a : ℕ) :
+    2 / (π * (2 * a + 1)) ≤ ((Nat.centralBinom a : ℝ) / 4 ^ a) ^ 2 := by
+  have hle := Real.Wallis.W_le a
+  rw [Real.Wallis.W_eq_factorial_ratio] at hle
+  rw [Nat.centralBinom_eq_two_mul_choose, Nat.cast_choose ℝ (by omega : a ≤ 2 * a),
+    show 2 * a - a = a by omega]
+  have h4 : (4 : ℝ) ^ a = 2 ^ (2 * a) := by rw [pow_mul]; norm_num
+  have h44 : (2 : ℝ) ^ (4 * a) = (2 ^ (2 * a)) ^ 2 := by rw [← pow_mul]; ring_nf
+  rw [h4]
+  rw [h44] at hle
+  have hX : (0 : ℝ) < ((2 * a).factorial : ℝ) := by positivity
+  have hY : (0 : ℝ) < (a.factorial : ℝ) := by positivity
+  have hP : (0 : ℝ) < 2 ^ (2 * a) := by positivity
+  have hpi := pi_pos
+  rw [div_le_iff₀ (by positivity)] at hle
+  have he : ((((2 * a).factorial : ℝ) / (a.factorial * a.factorial)) / 2 ^ (2 * a)) ^ 2 =
+      ((2 * a).factorial : ℝ) ^ 2 / ((a.factorial : ℝ) ^ 4 * (2 ^ (2 * a)) ^ 2) := by
+    field_simp
+  rw [he, div_le_div_iff₀ (by positivity) (by positivity)]
+  nlinarith
+
+/-- **The size of the limiting weights of majority** [O'Donnell, Exercise 5.27(a)][ODonnell2014]:
+for odd `k = 2j + 1`,
+`(2/π)^(3/2) k^(-3/2) ≤ [ρ^k] (2/π) arcsin ρ ≤ (2/π)^(3/2) k^(-3/2) (1 + 1/k)`, written with
+`(2/π)^(3/2) k^(-3/2) = (2/π) √(2/π) / (k √k)`. The book's upper factor is `1 + O(1/k)`. -/
+theorem two_div_pi_mul_centralBinom_div_mem_Icc (j : ℕ) :
+    2 / π * √(2 / π) / ((2 * j + 1) * √(2 * j + 1)) ≤
+        2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1)) ∧
+      2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1)) ≤
+        2 / π * √(2 / π) / ((2 * j + 1) * √(2 * j + 1)) * (1 + 1 / (2 * j + 1)) := by
+  set c : ℝ := (Nat.centralBinom j : ℝ) / 4 ^ j with hc
+  set k : ℝ := 2 * j + 1 with hk
+  have hpi := pi_pos
+  have hk1 : 1 ≤ k := by rw [hk]; linarith [(j.cast_nonneg : (0 : ℝ) ≤ j)]
+  have hc0 : 0 ≤ c := by positivity
+  have hsk : 0 < √k := Real.sqrt_pos.2 (by linarith)
+  have hs2 : 0 < √(2 / π) := Real.sqrt_pos.2 (by positivity)
+  -- `√(2/π) / √k ≤ c`
+  have hlow : √(2 / π) / √k ≤ c := by
+    rw [← Real.sqrt_div' _ (by linarith : (0 : ℝ) ≤ k), div_div]
+    exact Real.sqrt_le_iff.2
+      ⟨hc0, (two_div_le_sq_centralBinom_div_four_pow j).trans_eq (by rw [hc])⟩
+      |>.trans_eq' rfl
+  constructor
+  · calc 2 / π * √(2 / π) / (k * √k) = 2 / π * ((√(2 / π) / √k) / k) := by
+          field_simp
+      _ ≤ 2 / π * (c / k) := by gcongr
+  · rcases Nat.eq_zero_or_pos j with rfl | hj
+    · -- `k = 1`: `c = 1` and `1 ≤ 2 √(2/π)` since `π ≤ 8`
+      simp only [Nat.centralBinom_zero, Nat.cast_one, pow_zero, CharP.cast_eq_zero, mul_zero,
+        zero_add, div_self one_ne_zero] at hc hk
+      rw [hc, hk]
+      have h8 : 1 / 2 ≤ √(2 / π) := by
+        rw [Real.le_sqrt (by norm_num) (by positivity), le_div_iff₀ hpi]
+        nlinarith [pi_lt_four]
+      have h2 : 2 / π * 1 ≤ 2 / π * (√(2 / π) * 2) := by gcongr; linarith
+      have e1 : 2 / π * √(2 / π) / (1 * √1) * (1 + 1 / 1) = 2 / π * (√(2 / π) * 2) := by
+        rw [Real.sqrt_one]; ring
+      have e2 : 2 / π * ((1 : ℝ) / 1) = 2 / π * 1 := by ring
+      rw [e1, e2]
+      exact h2
+    · -- `c ≤ 1/√(π j) = √(2/π) / √(k - 1)`, and `√k ≤ (1 + 1/k) √(k - 1)`
+      have hj1 : (1 : ℝ) ≤ j := by exact_mod_cast hj
+      have hup : c ^ 2 ≤ 1 / (π * j) := sq_centralBinom_div_four_pow_le hj
+      have hkm : 0 < k - 1 := by rw [hk]; linarith
+      have hc' : c ≤ √(2 / π) / √(k - 1) := by
+        rw [← Real.sqrt_div' _ hkm.le]
+        refine Real.le_sqrt_of_sq_le (hup.trans_eq ?_)
+        rw [hk]; field_simp; ring
+      have hroot : √k ≤ (1 + 1 / k) * √(k - 1) := by
+        rw [← Real.sqrt_sq (by positivity : (0 : ℝ) ≤ 1 + 1 / k), ← Real.sqrt_mul (by positivity)]
+        refine Real.sqrt_le_sqrt ?_
+        have hk3 : 3 ≤ k := by rw [hk]; linarith
+        have he : (1 + 1 / k) ^ 2 * (k - 1) - k = (k ^ 2 - k - 1) / k ^ 2 := by
+          field_simp; ring
+        have : 0 ≤ (k ^ 2 - k - 1) / k ^ 2 := div_nonneg (by nlinarith) (by positivity)
+        linarith
+      have hsk1 : 0 < √(k - 1) := Real.sqrt_pos.2 hkm
+      calc 2 / π * (c / k) ≤ 2 / π * ((√(2 / π) / √(k - 1)) / k) := by gcongr
+        _ = 2 / π * √(2 / π) / (k * √k) * (√k / √(k - 1)) := by field_simp
+        _ ≤ 2 / π * √(2 / π) / (k * √k) * (1 + 1 / k) := by
+          gcongr
+          rw [div_le_iff₀ hsk1]; exact hroot
+
+/-- **The asymptotic level weights of majority** [O'Donnell, Corollary 5.23, first statement]
+[ODonnell2014]: for odd `k = 2j + 1` and `n = 2m + 1 ≥ 2k²`, the weight of majority of `n` bits at
+level `k` is `(2/π)^(3/2) k^(-3/2) (1 ± O(1/k))`: it lies between `(2/π)^(3/2) k^(-3/2)` and
+`(2/π)^(3/2) k^(-3/2) (1 + 1/k)²`. The second statement of the corollary, on `W^{>k}`, is not
+formalized. -/
+theorem levelWeight_signVal_majority_mem_Icc {m j : ℕ} (h : 2 * (2 * j + 1) ^ 2 ≤ 2 * m + 1) :
+    2 / π * √(2 / π) / ((2 * j + 1) * √(2 * j + 1)) ≤
+        levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) ∧
+      levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) ≤
+        2 / π * √(2 / π) / ((2 * j + 1) * √(2 * j + 1)) * (1 + 1 / (2 * j + 1)) ^ 2 := by
+  have hsq : 2 * j + 1 ≤ (2 * j + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
+  obtain ⟨hlow, hupp⟩ := two_div_pi_mul_centralBinom_div_mem_Icc j
+  refine ⟨hlow.trans (le_levelWeight_signVal_majority (by omega)), ?_⟩
+  have h515 := levelWeight_signVal_majority_le (m := m) (j := j) (by omega)
+  have hk : (0 : ℝ) < 2 * j + 1 := by positivity
+  have hn : (2 * ((2 * j + 1 : ℕ) : ℝ) ^ 2) ≤ 2 * m + 1 := by exact_mod_cast h
+  push_cast at hn
+  have hratio : 2 * (2 * j + 1 : ℝ) / (2 * m + 1) ≤ 1 / (2 * j + 1) := by
+    rw [div_le_div_iff₀ (by positivity) hk]; nlinarith
+  have hL0 : 0 ≤ 2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1)) := by
+    have := pi_pos; positivity
+  calc levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x))
+      ≤ (1 + 2 * (2 * j + 1) / (2 * m + 1)) *
+          (2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1))) := h515
+    _ ≤ (1 + 1 / (2 * j + 1)) *
+          (2 / π * √(2 / π) / ((2 * j + 1) * √(2 * j + 1)) * (1 + 1 / (2 * j + 1))) := by
+        gcongr
+    _ = _ := by ring
 
 /-! ### The noise stability of majority -/
 
