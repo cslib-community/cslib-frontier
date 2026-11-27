@@ -53,7 +53,8 @@ theorem findPair_spec {S : State n} {x : ℕ} {pr : ZeroPair} (h : findPair S x 
     pr ∈ S.pairs ∧ (pr.fst = x ∨ pr.snd = x) := by
   obtain ⟨r, -, hr⟩ := List.exists_of_findSome?_eq_some h
   have hmem := List.mem_of_find?_eq_some hr
-  refine ⟨by simpa using List.find?_some hr, ?_⟩
+  have hp := List.find?_some hr
+  refine ⟨by simpa using hp, ?_⟩
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
   rcases hmem with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
 
@@ -71,11 +72,14 @@ theorem findPair_isSome {f : BooleanFunction n} {S : State n} (hS : S.Valid f)
       List.find?_isSome.2 ⟨⟨fst, b₁, snd, b₂⟩, by cases b₁ <;> cases b₂ <;> simp,
         by simpa using hpr⟩⟩
 
-private theorem findPair_fst {f : BooleanFunction n} {S : State n} (hS : S.Valid f)
-    {pr : ZeroPair} (hpr : pr ∈ S.pairs) : findPair S pr.fst = some pr := by
-  obtain ⟨pr', h'⟩ := Option.isSome_iff_exists.1 (findPair_isSome hS hpr (Or.inl rfl))
-  obtain ⟨hpr', hx'⟩ := findPair_spec h'
-  rw [h', hS.pair_unique hpr' hpr hx' (Or.inl rfl)]
+private theorem eq_of_findPair_eq_some {f : BooleanFunction n} {S : State n} (hS : S.Valid f)
+    {x : ℕ}
+    {pr pr' : ZeroPair} (h : findPair S x = some pr') (hpr : pr ∈ S.pairs) (hx : pr.fst = x) :
+    pr' = pr := by
+  obtain ⟨hpr', hx'⟩ := findPair_spec h
+  by_contra hne
+  have := hS.pairs_disjoint pr' hpr' pr hpr hne
+  rcases hx' with h' | h' <;> simp only at this <;> omega
 
 private theorem isFstOfAnyPair_eq_true_iff {f : BooleanFunction n} {S : State n} (hS : S.Valid f)
     {x : ℕ} : isFstOfAnyPair S x = true ↔ ∃ pr ∈ S.pairs, pr.fst = x := by
@@ -85,12 +89,14 @@ private theorem isFstOfAnyPair_eq_true_iff {f : BooleanFunction n} {S : State n}
     exact fun pr hpr hx => by simpa [h] using findPair_isSome hS hpr (Or.inl hx)
   · simp only [decide_eq_true_eq]
     exact ⟨fun hx => ⟨pr, (findPair_spec h).1, hx⟩,
-      fun ⟨pr', hpr', hx⟩ => by subst hx; rw [findPair_fst hS hpr'] at h; cases h; rfl⟩
+      fun ⟨pr', hpr', hx⟩ => eq_of_findPair_eq_some hS h hpr' hx ▸ hx⟩
 
 private theorem terminalVal_fst {f : BooleanFunction n} {S : State n} (hS : S.Valid f) (L : List ℕ)
     (A : List Bool) {pr : ZeroPair} (hpr : pr ∈ S.pairs) :
     terminalVal S L A pr.fst = pr.fstBias := by
-  simp [terminalVal, findPair_fst hS hpr]
+  obtain ⟨pr', h'⟩ := Option.isSome_iff_exists.1 (findPair_isSome hS hpr (Or.inl rfl))
+  obtain rfl := eq_of_findPair_eq_some hS h' hpr rfl
+  simp [terminalVal, h']
 
 private theorem findIdx?_eq_some_of_nodup {L : List ℕ} (hL : L.Nodup) {j : ℕ} (hj : j < L.length) :
     L.findIdx? (· = L[j]) = some j := by
@@ -102,9 +108,11 @@ private theorem terminalVal_of_getElem {S : State n} {L : List ℕ} (hL : L.Nodu
     {j : ℕ} (hj : j < L.length) (hfst : isFstOfAnyPair S L[j] = false) :
     terminalVal S L A L[j] = A.getD j false := by
   unfold terminalVal
-  unfold isFstOfAnyPair at hfst
   rw [findIdx?_eq_some_of_nodup hL hj]
-  split <;> simp_all
+  rcases h : findPair S L[j] with _ | pr
+  · rfl
+  · simp only [isFstOfAnyPair, h, decide_eq_false_iff_not] at hfst
+    simp [hfst]
 
 private theorem isAffine_getD_ofFn {d : ℕ} (i : ℕ) :
     IsAffine fun u : BitString d => (List.ofFn u).getD i false := fun _ _ _ => by
@@ -116,10 +124,14 @@ private theorem isAffine_getD_ofFn {d : ℕ} (i : ℕ) :
 private theorem isAffine_terminalVal {d : ℕ} (S : State n) (L : List ℕ) (x : ℕ) :
     IsAffine fun u : BitString d => terminalVal S L (List.ofFn u) x := by
   unfold terminalVal
-  repeat' split
-  all_goals first
-    | exact Cslib.BitString.isAffine_const (fun b => Bool.xor_self b) _
-    | exact isAffine_getD_ofFn _
+  rcases findPair S x with _ | pr
+  · cases L.findIdx? (· = x)
+    exacts [isAffine_const Bool.xor_self false, isAffine_getD_ofFn _]
+  · by_cases h : pr.fst = x
+    · simpa [h] using isAffine_const Bool.xor_self pr.fstBias
+    · simp only [h, ite_false]
+      cases L.findIdx? (· = x)
+      exacts [isAffine_const Bool.xor_self false, isAffine_getD_ofFn _]
 
 /-! ### The free parameters -/
 
@@ -171,10 +183,12 @@ private theorem findSome_isSome_of_family {d : ℕ} (C : Circuit (fullSignature 
         if decide (y ∈ S.params) then σ A y else evaluateAux S y (σ A)
       if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none).isSome := by
   set g : BitString d → BitString n := fun u => S.phi (σ (List.ofFn u)) with hg_def
-  have hgaff : IsAffine g := hS.phi_affine.comp fun x y z => funext fun i => hσ i x y z
+  have hgaff : IsAffine g :=
+    hS.phi_affine.comp fun x y z => funext fun i => hσ i x y z
   have hginj : Function.Injective g := fun u v h =>
     inj_of_coords σ hLp hlen hcoord u v (hS.phi_injective _ _ h)
-  have hval : ∀ w, C.eval fullInterpretation (g w) 0 = b := fun w => by
+  have hval : ∀ w, C.eval fullInterpretation (g w) 0 = b := by
+    intro w
     obtain ⟨val, hv, hcons⟩ := hS.wf.exists_consistent (σ (List.ofFn w))
     have hlv : S.Locus val := fun pr hpr =>
       (ZeroPair.holds_congr (hv _ (hS.pair_mem pr hpr).1)
@@ -185,9 +199,10 @@ private theorem findSome_isSome_of_family {d : ℕ} (C : Circuit (fullSignature 
   have hx : ∀ w, (S.phi fun y => if decide (y ∈ S.params) then σ (List.ofFn w) y else
       evaluateAux S y (σ (List.ofFn w))) = g w :=
     fun w => hS.phi_congr _ _ fun j hj => by simp [hj]
-  obtain ⟨w, hw⟩ : ∃ w, C.eval fullInterpretation (g w) 0 ≠ f (g w) := by
-    by_contra! h
-    exact huv (by rw [← h u, ← h v, hval, hval])
+  obtain ⟨w, hw⟩ : ∃ w, C.eval fullInterpretation (g w) 0 ≠ f (g w) :=
+    if hu : C.eval fullInterpretation (g u) 0 = f (g u) then
+      ⟨v, fun hv => huv (by rw [← hu, ← hv, hval, hval])⟩
+    else ⟨u, hu⟩
   refine List.findSome?_isSome_iff.2 ⟨List.ofFn w, mem_allAssignments (by simp), ?_⟩
   rw [hx w]
   simp [hw]
@@ -241,9 +256,10 @@ private theorem filter_ne_take_props {f : BooleanFunction n} {S : State n} (hS :
       ∀ x ∈ ((freeParams S).filter (fun x => decide (x ≠ p))).take d, x ≠ p := by
   refine ⟨?_, fun x hx => by simpa using (List.mem_filter.1 (List.mem_of_mem_take hx)).2⟩
   refine take_props ((nodup_freeParams S).filter _) (fun x hx => (List.mem_filter.1 hx).1) ?_
-  rw [show (freeParams S).filter (fun x => decide (x ≠ p)) = (freeParams S).erase p from
-    ((nodup_freeParams S).erase_eq_filter p).symm, List.length_erase_of_mem hp,
-    length_freeParams hS]
+  have hfe : (freeParams S).filter (fun x => decide (x ≠ p)) = (freeParams S).erase p := by
+    rw [(nodup_freeParams S).erase_eq_filter]
+    congr 1
+  rw [hfe, List.length_erase_of_mem hp, length_freeParams hS]
   omega
 
 /-- The search pinning the free parameter `t` to `c A`, and reading the other parameters with
@@ -351,10 +367,13 @@ private theorem terminal_gate_shape {f : BooleanFunction n} {S : State n} (hS : 
   set G := S.gates.min' hne with hG_def
   have hG : G ∈ S.gates := Finset.min'_mem _ _
   have hGs : G ∈ S.gates.sort (· ≤ ·) := (Finset.mem_sort _).2 hG
-  have h12 := List.find?_eq_none.1 h1 G hGs
-  unfold isDegenerate at h12
-  rcases hl : (S.gate G).left with b₁ | t₁ <;> rcases hr : (S.gate G).right with b₂ | t₂ <;>
-    simp only [hl, hr, not_true_eq_false, decide_eq_true_eq] at h12
+  obtain ⟨t₁, t₂, hl, hr, h12⟩ :
+      ∃ t₁ t₂, (S.gate G).left = .node t₁ ∧ (S.gate G).right = .node t₂ ∧ t₁ ≠ t₂ := by
+    have hdeg := List.find?_eq_none.1 h1 G hGs
+    unfold isDegenerate at hdeg
+    rcases hl : (S.gate G).left with b₁ | t₁ <;> rcases hr : (S.gate G).right with b₂ | t₂ <;>
+      simp only [hl, hr, not_true_eq_false, decide_eq_true_eq] at hdeg
+    exact ⟨t₁, t₂, rfl, rfl, hdeg⟩
   have hnotgate : ∀ t, (S.gate G).Reads t → t ∉ S.gates := fun t ht htg =>
     absurd (hS.wf.reads_lt G hG t htg ht) (not_lt.2 (Finset.min'_le _ _ htg))
   have hparam {t : ℕ} (ht : (S.gate G).Reads t) : t ∈ S.params := by
@@ -364,12 +383,12 @@ private theorem terminal_gate_shape {f : BooleanFunction n} {S : State n} (hS : 
   have ht₁p := hparam (Or.inl hl)
   have ht₂p := hparam (Or.inr hr)
   have hnaff : ¬ IsAffineOp (S.gate G).op := by
-    simpa [hl, hr, isGate, hnotgate t₁ (Or.inl hl), hnotgate t₂ (Or.inr hr)] using
-      List.find?_eq_none.1 hm G hGs
+    have := List.find?_eq_none.1 hm G hGs
+    simpa [hl, hr, isGate, hnotgate t₁ (Or.inl hl), hnotgate t₂ (Or.inr hr)] using this
   have hpaired : ¬ S.Paired t₁ := fun hp => by
     have := List.findSome?_eq_none_iff.1 hAOP G hGs
     simp [hl, hr, hnaff, ht₁p, ht₂p, h12, hp] at this
-  exact ⟨t₁, t₂, rfl, rfl, ht₁p, hpaired, hnaff, huG⟩
+  exact ⟨t₁, t₂, hl, hr, ht₁p, hpaired, hnaff, huG⟩
 
 /-- On a valid terminal state of the refuter for the function of `C` with `d < S.a`, the final
 search of `findCounterexample` succeeds. -/
@@ -379,13 +398,12 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
     (ha : d < S.a)
     (hrep : ∀ u ∈ S.aux, S.AffineIn u (findAffineRep S u).1 (findAffineRep S u).2) :
     (findCounterexample C f d S).isSome := by
-  have htake := take_props (nodup_freeParams S) (fun _ h => h) (d := d)
-    (by rw [length_freeParams hS]; omega)
   unfold findCounterexample
   split
   · rename_i b hb
-    exact findSome_isSome_terminalVal C f hf hS htake (b ^^ S.out.neg) fun _ _ _ _ => by
-      simp [Lit.eval, hb, Arg.eval]
+    exact findSome_isSome_terminalVal C f hf hS
+      (take_props (nodup_freeParams S) (fun _ h => h) (by rw [length_freeParams hS]; omega))
+      (b ^^ S.out.neg) fun _ _ _ _ => by simp [Lit.eval, hb, Arg.eval]
   · rename_i u hu
     split
     · rename_i hcase
@@ -403,17 +421,19 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
       dsimp only
       split
       · rename_i pivot hpiv
+        have hpF : pivot ∈ freeParams S := List.mem_of_find?_eq_some hpiv
         have hpT : pivot ∈ T_out := by simpa using List.find?_some hpiv
         set L := ((freeParams S).filter (fun x => decide (x ≠ pivot))).take d with hL_def
-        refine findSome_isSome_pin C f hf hS (List.mem_of_find?_eq_some hpiv) ha
-          (fun A => c_out ^^ S.out.neg ^^ List.foldl (fun acc y => acc ^^ terminalVal S L A y)
-            false ({x ∈ T_out | x ≠ pivot}.sort (· ≤ ·))) ?_ false fun A val hcons hval => ?_
+        refine findSome_isSome_pin C f hf hS hpF ha (fun A => c_out ^^ S.out.neg ^^
+            List.foldl (fun acc y => acc ^^ terminalVal S L A y) false
+              ({x ∈ T_out | x ≠ pivot}.sort (· ≤ ·))) ?_ false ?_
         · simp only [foldl_xor_eq_sum]
           exact isAffine_const_add_sum
             (σ := fun u : BitString d => fun y => terminalVal S L (List.ofFn u) y)
             (fun a b c => funext fun y => isAffine_terminalVal S L y a b c)
             (c_out ^^ S.out.neg) {x ∈ T_out | x ≠ pivot}
-        · simp only [Lit.eval, hu, Arg.eval, hAff.2 val hcons.1]
+        · intro A val hcons hval
+          simp only [Lit.eval, hu, Arg.eval, hAff.2 val hcons.1]
           rw [← Finset.add_sum_erase _ _ hpT, hval pivot (hAff.1 hpT), ite_eq_left rfl,
             foldl_xor_eq_sum, Finset.filter_ne',
             Finset.sum_congr rfl fun y hy => (hval y (hAff.1 (Finset.mem_of_mem_erase hy))).trans
@@ -421,16 +441,20 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
           cases c_out <;> cases S.out.neg <;>
             cases ∑ y ∈ T_out.erase pivot, terminalVal S L A y <;> rfl
       · rename_i hpiv
-        refine findSome_isSome_terminalVal C f hf hS htake
+        have hnot : ∀ v ∈ freeParams S, v ∉ T_out := fun v hv => by
+          simpa using List.find?_eq_none.1 hpiv v hv
+        refine findSome_isSome_terminalVal C f hf hS
+          (take_props (nodup_freeParams S) (fun _ h => h) (by rw [length_freeParams hS]; omega))
           ((c_out + ∑ y ∈ T_out, terminalVal S ((freeParams S).take d) [] y) ^^ S.out.neg)
           fun A val hcons hval => ?_
-        simp only [Lit.eval, hu, Arg.eval, hAff.2 val hcons.1]
-        congr 2
-        refine Finset.sum_congr rfl fun y hy => ?_
-        obtain ⟨pr, hpr, rfl⟩ := (isFstOfAnyPair_eq_true_iff hS).1 <| by_contra fun h => by
-          simpa [hy] using List.find?_eq_none.1 hpiv y
-            (mem_freeParams.2 ⟨hAff.1 hy, by simpa using h⟩)
-        rw [hval _ (hAff.1 hy), terminalVal_fst hS _ _ hpr, terminalVal_fst hS _ _ hpr]
+        have hsum : ∑ y ∈ T_out, val y =
+            ∑ y ∈ T_out, terminalVal S ((freeParams S).take d) [] y := by
+          refine Finset.sum_congr rfl fun y hy => ?_
+          have hyp := hAff.1 hy
+          obtain ⟨pr, hpr, rfl⟩ := (isFstOfAnyPair_eq_true_iff hS).1
+            (Bool.eq_true_of_not_eq_false fun h => hnot y (mem_freeParams.2 ⟨hyp, h⟩) hy)
+          rw [hval _ hyp, terminalVal_fst hS _ _ hpr, terminalVal_fst hS _ _ hpr]
+        simp only [Lit.eval, hu, Arg.eval, hAff.2 val hcons.1, hsum]
     · rename_i hcase
       have hup : u ∉ S.params := fun h => by simp [h] at hcase
       split
@@ -502,7 +526,8 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
             (Cslib.BitString.isAffine_const (fun b => Bool.xor_self b) _)
             (op (decide ((op true false == op true true) = true)) false ^^ S.out.neg)
             fun A val hcons hval => ?_
-          have h1 := (hval _ ht₁p).trans (ite_eq_left rfl)
+          have h1 : val t₁ = decide ((op true false == op true true) = true) := by
+            rw [hval _ ht₁p, ite_eq_left rfl]
           simp only [Lit.eval, hu, Arg.eval, huG, hcons.2 _ (Finset.min'_mem _ hne), Gate.eval,
             hl, hr, h1, ← hop]
           congr 1
