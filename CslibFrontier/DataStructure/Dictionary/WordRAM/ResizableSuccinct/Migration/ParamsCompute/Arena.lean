@@ -71,6 +71,13 @@ new compacted items and the right-aligned suffix `[i, n)` of unread old compacte
   offCompItems U w N_old + offCompItems U w (targetCap U n) +
     migrateArenaWords U V w N_old (targetCap U n) n
 
+/-- The absolute end of the migration workspace is the arena base plus its word length. -/
+theorem base_add_migratePeakWords (base U V w N_old n : ℕ) :
+    base + migratePeakWords U V w N_old n =
+      base + offCompItems U w N_old + offCompItems U w (targetCap U n) +
+        migrateArenaWords U V w N_old (targetCap U n) n := by
+  simp only [migratePeakWords, Nat.add_assoc]
+
 private theorem div_ceil_le_div_add_one {a w : ℕ} (hw : 0 < w) :
     (a + w - 1) / w ≤ a / w + 1 := by
   have hle : a + w - 1 ≤ a + 1 * w := by omega
@@ -191,27 +198,24 @@ lower-order `O(n log log n)` bits, never `2 · OPT`. -/
 theorem migratePeakWords_le_succinctWords {U V w N_old n : ℕ}
     (hw : 0 < w) (hU : Fits w U) (hn : 1 ≤ n) (hev : EpochValid U n N_old) :
     migratePeakWords U V w N_old n ≤ Dynamic.succinctWords 2699 888 U V w n := by
-  rcases hev with ⟨rfl, _⟩ | ⟨_, hn_old, hN4_old, hNU_old⟩
-  · omega
-  · have hnU : n ≤ U := hn_old.trans hNU_old
-    have hev_new := epochValid_targetCap hnU
-    rcases hev_new with ⟨rfl, _⟩ | ⟨_, hn_new, hN4_new, hNU_new⟩
-    · omega
-    · have hm_old := offCompItems_le_div_metaBits hw hNU_old hU.le hN4_old
-      have hm_new := offCompItems_le_div_metaBits hw hNU_new hU.le hN4_new
-      have har : migrateArenaWords U V w N_old (targetCap U n) n ≤
-          (Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n + w - 1) / w + 8 :=
-        Nat.add_le_add_right (max_le (compactedItemWords_le_div_optBits U V w hn_old hN4_old)
-          (compactedItemWords_le_div_optBits U V w hn_new hN4_new)) 6
-      set M := 1344 * n * Dynamic.logLogFactor n
-      set I := Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n
-      have hc1 := div_ceil_add_div_ceil_le (A := M) (B := M) hw
-      have hc2 := div_ceil_add_div_ceil_le (A := M + M) (B := I) hw
-      have htot : M + M + I = Dynamic.optBits U V n + 2699 * n * Dynamic.logLogFactor n := by
-        dsimp only [M, I]; ring
-      rw [htot] at hc2
-      unfold migratePeakWords Dynamic.succinctWords
-      omega
+  obtain ⟨hn_old, hN4_old, hNU_old⟩ := epochValid_iff_capacity_bounds.mp hev
+  obtain ⟨_, hn_new, hN2_new, hNU_new⟩ := targetCap_bounds_of_pos hn (hn_old.trans hNU_old)
+  have hN4_new := hN2_new.trans (by lia : 2 * n ≤ 4 * n)
+  have hm_old := offCompItems_le_div_metaBits hw hNU_old hU.le hN4_old
+  have hm_new := offCompItems_le_div_metaBits hw hNU_new hU.le hN4_new
+  have har : migrateArenaWords U V w N_old (targetCap U n) n ≤
+      (Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n + w - 1) / w + 8 :=
+    Nat.add_le_add_right (max_le (compactedItemWords_le_div_optBits U V w hn_old hN4_old)
+      (compactedItemWords_le_div_optBits U V w hn_new hN4_new)) 6
+  set M := 1344 * n * Dynamic.logLogFactor n
+  set I := Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n
+  have hc1 := div_ceil_add_div_ceil_le (A := M) (B := M) hw
+  have hc2 := div_ceil_add_div_ceil_le (A := M + M) (B := I) hw
+  have htot : M + M + I = Dynamic.optBits U V n + 2699 * n * Dynamic.logLogFactor n := by
+    dsimp only [M, I]; ring
+  rw [htot] at hc2
+  unfold migratePeakWords Dynamic.succinctWords
+  omega
 
 /-- **`1 · OPT` Migration Peak Bit-Space Bound (`w_mul_migratePeakWords_le_bits`):**
 Multiplying `migratePeakWords U V w N_old n` by `w` yields at most
@@ -281,20 +285,16 @@ with constants completely independent of `(U, V, w)`. -/
 theorem migratePeakWords_le_linear {U V w N_old n : ℕ}
     (hw : 0 < w) (hU : Fits w U) (hV : V ≤ 2 ^ w) (hn : 1 ≤ n) (hev : EpochValid U n N_old) :
     migratePeakWords U V w N_old n ≤ 1514 * n + 886 := by
-  rcases hev with ⟨rfl, _⟩ | ⟨_, hn_old, hN4_old, hNU_old⟩
-  · omega
-  · have hnU : n ≤ U := hn_old.trans hNU_old
-    have htc : targetCap U n = min (2 * n) U := by
-      unfold targetCap
-      exact ite_eq_right (by omega)
-    have hm_old := (offCompItems_le_linear hw hNU_old hU).trans
-      (Nat.add_le_add_right (Nat.mul_le_mul_left 252 hN4_old) 439)
-    have hm_new := (offCompItems_le_linear hw (htc ▸ min_le_right _ _) hU).trans
-      (Nat.add_le_add_right (Nat.mul_le_mul_left 252 (htc ▸ min_le_left _ _)) 439)
-    have har : migrateArenaWords U V w N_old (targetCap U n) n ≤ 2 * n + 8 :=
-      Nat.add_le_add_right (max_le (compactedItemWords_le_linear hw hU.le hV)
-        (compactedItemWords_le_linear hw hU.le hV)) 6
-    unfold migratePeakWords
-    omega
+  obtain ⟨hn_old, hN4_old, hNU_old⟩ := epochValid_iff_capacity_bounds.mp hev
+  obtain ⟨_, _, htc_le_2n, htc_le_U⟩ := targetCap_bounds_of_pos hn (hn_old.trans hNU_old)
+  have hm_old := (offCompItems_le_linear hw hNU_old hU).trans
+    (Nat.add_le_add_right (Nat.mul_le_mul_left 252 hN4_old) 439)
+  have hm_new := (offCompItems_le_linear hw htc_le_U hU).trans
+    (Nat.add_le_add_right (Nat.mul_le_mul_left 252 htc_le_2n) 439)
+  have har : migrateArenaWords U V w N_old (targetCap U n) n ≤ 2 * n + 8 :=
+    Nat.add_le_add_right (max_le (compactedItemWords_le_linear hw hU.le hV)
+      (compactedItemWords_le_linear hw hU.le hV)) 6
+  unfold migratePeakWords
+  omega
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

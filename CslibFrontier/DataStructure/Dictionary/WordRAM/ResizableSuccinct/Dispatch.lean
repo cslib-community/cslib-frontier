@@ -1919,8 +1919,7 @@ theorem inEpochOpCode_expected_amortized {U V w N n n_init base : ℕ}
   refine ⟨yOf, stepsOf, fun θ => ?_, ?_⟩
   · obtain ⟨h1, h2, h3, h4, h5, h6, h7, _⟩ := hspec θ
     exact ⟨h1, h2, h3, h4, h5, h6, h7⟩
-  · have hNU : N ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-    have hnN : n ≤ N := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  · obtain ⟨hnN, _, hNU⟩ := epochValid_iff_capacity_bounds.mp hev
     obtain ⟨θ₀⟩ : Nonempty (QuotHashSeed U N) := inferInstance
     have hcard : (Dictionary.dom s_abs).card = n := (hx_split θ₀).card_eq
     have hS_le : ((Dictionary.dom s_abs).erase (opKey o)).card ≤ N :=
