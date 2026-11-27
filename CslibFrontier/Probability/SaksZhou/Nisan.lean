@@ -193,6 +193,19 @@ noncomputable def bitNisanPow {ι : Type*} [Fintype ι] [DecidableEq ι] (b k : 
           some j} : ℝ) :=
   nisanPow_apply Cslib.Probability.toeplitzHash k A hs i j
 
+/-- A rounded entry of Nisan powering can be computed from the number of starting blocks whose
+walk ends at the requested column, using natural arithmetic for the final rounding. -/
+theorem snapMatrix_bitNisanPow_apply {ι : Type*} [Fintype ι] [DecidableEq ι] (b k d : ℕ)
+    (A : Matrix ι ι ℝ) (hs : Fin k → ToeplitzSeed b) (y : Fin (2 ^ d)) (i j : ι) :
+    snapMatrix d (bitNisanPow b k A hs) y i j =
+      (snapCount (2 ^ d) #{x : BitString b | (List.ofFn
+        (Nisan.blocks Cslib.Probability.toeplitzHash k x hs)).foldl (walkStep A) (some i) =
+          some j} (2 ^ b) y : ℝ) / 2 ^ d := by
+  rw [snapMatrix_apply, bitNisanPow_apply, Finset.dens, NNRat.cast_div, NNRat.cast_natCast,
+    NNRat.cast_natCast]
+  simp only [BitString, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
+  exact snap_frequency _ _ _ (Nat.two_pow_pos _) _
+
 /-- **Saks–Zhou iteration with Boolean Toeplitz Nisan powering**: on blocks of `2 * m` bits with
 `d ≤ 2 * m` and `1 ≤ k`, if `(|ι| + 1) * ((2 ^ k - 1) * (|ι| + 1) / 2 ^ m) ≤ ε ^ 2`, all but an
 `n₂ * (ε + |ι| ^ 2 * (2 ^ d * ε + 2 ^ (-d)))` fraction of `NisanShiftSeed (2 * m) k n₂ d` pairs
