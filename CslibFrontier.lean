@@ -5972,6 +5972,7 @@ public import CslibFrontier.Algorithms.Lean.BinPacking.OnlineLowerBound
 public import CslibFrontier.Computability.Complexity.Classes.BPP.RandomizedReduction
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.PolyTime
 public import CslibFrontier.Foundations.Data.Nat.RadixUpdate
+public import CslibFrontier.Logics.Propositional.CNF.LRATTrim
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Frame
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.States

@@ -11,7 +11,7 @@ public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
 public import CslibFrontier.Logics.Propositional.CNF.LRATKernel
 public meta import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Numbered
 public meta import CslibFrontier.Algorithms.Lean.CDCL.Watched
-public meta import CslibFrontier.Logics.Propositional.CNF.LRATFast
+public meta import CslibFrontier.Logics.Propositional.CNF.LRATTrim
 public meta import Mathlib.Util.AtomM
 public meta import Lean.Elab.Tactic.ElabTerm
 
@@ -114,10 +114,12 @@ for `∀ n : ℕ, 0 + n = n`, the one atom `0 + n = n`, which the reflexivity ch
 is assigned `False`. Otherwise the solver
 returns a certificate, which is proved correct (`Cslib.Algorithms.Lean.CDCL.solveCompact_unsat`)
 but is not trusted here: the kernel checks it as it checks a supplied one. The certificate is first
-trimmed to the steps that the empty clause depends on, without the deletions, and the clauses it
-adds are renumbered `n + 1, n + 2, …` after the `n` clauses of the formula, which keeps the
-kernel checker's trie shallow. The untrimmed certificate is used if the result fails the
-array-based checker `Cslib.Logic.PL.CNF.checkLRATFast`, evaluated in the interpreter.
+trimmed to the steps that the empty clause depends on, without the deletions
+(`Cslib.Logic.PL.CNF.trimCert`), and the clauses it adds are renumbered `n + 1, n + 2, …` after
+the `n` clauses of the formula (`Cslib.Logic.PL.CNF.renumberCert`), which keeps the kernel
+checker's trie shallow. Both are proved to preserve acceptance
+(`Cslib.Logic.PL.CNF.checkLRAT_renumberCert_trimCert`), so the result is not checked before the
+kernel checks it.
 `set_option trace.lrat_tauto true` reports the sizes of the formula and of the certificate and
 the times taken.
 
@@ -483,50 +485,6 @@ module docstring states this contract. -/
 private def generateCert (φ : CNF ℕ) : Cslib.Algorithms.Lean.DPLL.Result :=
   Cslib.Algorithms.Lean.CDCL.solveCompact φ
 
-/-- The steps of a certificate that the empty clause depends on, through the hints, in order;
-deletions are dropped. The kernel checker accepts the result whenever it accepts the
-certificate, since a deleted clause is never hinted again. Dropping the deletions measured faster
-than keeping the solver's or deleting each clause after its last hint: the checker's trie does
-not get shallower when clauses are deleted, and each deletion costs a step. -/
-private def trimCert (cert : Array LRAT.IntAction) : Array LRAT.IntAction := Id.run do
-  let mut needed : Std.HashSet ℕ := {}
-  let mut kept : Array LRAT.IntAction := #[]
-  -- The steps after the first empty clause are never checked.
-  let stop := (cert.findIdx? fun | .addEmpty .. => true | _ => false).getD cert.size
-  for a in (cert.extract 0 (stop + 1)).reverse do
-    match a with
-    | .addEmpty _ hints =>
-      needed := hints.foldl (·.insert ·) needed
-      kept := kept.push a
-    | .addRup id _ hints =>
-      if needed.contains id then
-        needed := hints.foldl (·.insert ·) needed
-        kept := kept.push a
-    | .addRat .. => kept := kept.push a
-    | .del _ => pure ()
-  return kept.reverse
-
-/-- Renumbers the clauses that a certificate adds as `n + 1, n + 2, …` in order, after the `n`
-clauses of the formula, and its hints and deletions accordingly, so that the kernel checker's
-trie stays shallow. A hint to a number the certificate has not added keeps that number. -/
-private def renumberCert (n : ℕ) (cert : Array LRAT.IntAction) : Array LRAT.IntAction :=
-  Id.run do
-  let mut m : Std.HashMap ℕ ℕ := {}
-  let mut next := n + 1
-  let mut out : Array LRAT.IntAction := #[]
-  for a in cert do
-    match a with
-    | .addRup id c hints =>
-      out := out.push (.addRup next c (hints.map fun h => m.getD h h))
-      m := m.insert id next
-      next := next + 1
-    | .addEmpty _ hints =>
-      out := out.push (.addEmpty next (hints.map fun h => m.getD h h))
-      next := next + 1
-    | .del ids => out := out.push (.del (ids.map fun h => m.getD h h))
-    | .addRat .. => out := out.push a
-  return out
-
 /-- A certificate as an expression, with its numbers as raw literals. -/
 private def certToExpr (cert : Array LRAT.IntAction) : Expr :=
   let natE (n : ℕ) : Expr := mkRawNatLit n
@@ -553,18 +511,17 @@ private def certToExpr (cert : Array LRAT.IntAction) : Expr :=
     (cert.toList.map action)
 
 /-- The certificate for the numbered Plaisted–Greenbaum transformation `φ` of a negated formula,
-from the generator (`generateCert`), trimmed when the trimmed one is accepted; or, if `φ` is
-satisfiable, the assignment the generator found. -/
+from the generator (`generateCert`), trimmed and renumbered; or, if `φ` is satisfiable, the
+assignment the generator found. The trimmed certificate is accepted whenever the generator's is
+(`Cslib.Logic.PL.CNF.checkLRAT_renumberCert_trimCert`), so it is not checked here. -/
 private def certFor (φ : CNF ℕ) : MetaM (Except (ℕ → Bool) (Array LRAT.IntAction)) := do
   let start ← IO.monoMsNow
   match ← IO.lazyPure fun _ => generateCert φ with
   | .unsat cert =>
-    let trimmed := renumberCert φ.length (trimCert cert)
-    let ok := CNF.checkLRATFast φ trimmed
+    let trimmed := CNF.renumberCert φ.length (CNF.trimCert cert)
     trace[lrat_tauto] "{φ.length} clauses; the solver's certificate has {cert.size} steps, \
-      {trimmed.size} after trimming{if ok then "" else ", rejected, so it is not used"}; \
-      {(← IO.monoMsNow) - start} ms"
-    return .ok (if ok then trimmed else cert)
+      {trimmed.size} after trimming; {(← IO.monoMsNow) - start} ms"
+    return .ok trimmed
   | .sat σ => return .error σ
 
 /-- The error for a formula that the assignment `σ` falsifies: the goal is false and the premises
