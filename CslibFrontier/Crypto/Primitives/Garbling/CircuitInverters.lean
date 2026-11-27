@@ -45,11 +45,13 @@ Combining these inverters with the reductions of
 advantage relations behind Corollaries 1 and 2 of [BellareHoangRogaway2012], Sections 4.2 and 4.3,
 for `phiTopo`, `phiSize` and `phiCirc`. They are steps, not the corollaries. Each corollary is an
 equality between sets of garbling schemes that are secure against every polynomial-time adversary,
-with a polynomial-time simulator for the simulation notions (Section 3.7). The library has no
-asymptotic `prv.ind`, `obv.ind` or `obv.sim` notion (only `Scheme.PrvSimSecure`), and it proves
-neither that the reductions `prvIndToSim`, `prvSimToInd`, `obvIndToSim` and `obvSimToInd` run in
-polynomial time nor that the simulators built from the inverters do. The corollaries stay open
-(#5293); the reductions' missing certificates are entries of the reduction-witness baseline.
+with a polynomial-time simulator for the simulation notions (Section 3.7).
+`CslibFrontier.Crypto.Primitives.Garbling.FoundationsAsymptotic` defines the asymptotic notions and
+proves Propositions 2 and 3, certifying the reductions `prvIndToSim`, `prvSimToInd`, `obvIndToSim`
+and `obvSimToInd` and the simulators built from any polynomial-time inverter as strict PPT. The
+corollaries stay open (#5293): they also need polynomial-time certificates for the inverters
+`mTopo`, `mSize`, `mTopoInv` and `mSizeInv` and for the side information `phiSize`, which are not
+proved.
 
 ## Main definitions
 

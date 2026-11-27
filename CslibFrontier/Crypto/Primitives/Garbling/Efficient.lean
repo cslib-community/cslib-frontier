@@ -42,7 +42,8 @@ For circuit garbling, `encConventionalCircuit` encodes a conventional circuit by
 unary followed by its gates, each the binary numbers of its two argument wires and its truth table
 as four bits; `encValidCircuit` restricts it to valid circuits. `encValidTopo` encodes the
 topology `(n, m, q, A, B)` revealed by `phiTopo` in the same layout without the truth tables, and
-`encPrvView` encodes the view `(F, X, d)` of a privacy adversary.
+`encPrvView` and `encObvView` encode the views `(F, X, d)` of a privacy adversary and `(F, X)` of an
+obliviousness or authenticity adversary.
 
 The plaintext wire values and the semantics `evalCirc` of a valid circuit are computed in
 polynomial time from its word (`wires_polyTime`, `evalCirc_polyTime`), by a fold over the gates
@@ -58,8 +59,9 @@ scheme whose semantics is `evalCirc`.
   conventional circuits as data.
 * `Cslib.Crypto.Garbling.Topo.gateList`, `Cslib.Crypto.Garbling.encTopo`,
   `Cslib.Crypto.Garbling.encValidTopo`: topologies, the side information of `phiTopo`, as data.
-* `Cslib.Crypto.Garbling.encPrvView`, `Cslib.Crypto.Garbling.encQuery`: the encodings of a
-  privacy view `(F, X, d)` and of a query `(f, x)`.
+* `Cslib.Crypto.Garbling.encPrvView`, `Cslib.Crypto.Garbling.encObvView`,
+  `Cslib.Crypto.Garbling.encQuery`: the encodings of a privacy view `(F, X, d)`, of an
+  obliviousness or authenticity view `(F, X)` and of a query `(f, x)`.
 
 ## Main results
 
@@ -328,6 +330,10 @@ theorem phiTopo_polyTime : ComputableInPolyTime phiTopo.phi encValidCircuit encV
 /-- The encoding of a privacy view `(F, X, d)`: `F` and `X` framed, then `d`. -/
 enc_structure encPrvView : PrvView where
   fn : encBits, input : encBits, decInfo : encBits
+
+/-- The encoding of an obliviousness or authenticity view `(F, X)`: `F` framed, then `X`. -/
+enc_structure encObvView : ObvView where
+  fn : encBits, input : encBits
 
 /-- The encoding of a query `(f, x)`: `f` by `encFn`, framed, then `x`. -/
 enc_structure encQuery (Fn : Type) (encFn : Fn ↪ List Bool) : Query Fn where
