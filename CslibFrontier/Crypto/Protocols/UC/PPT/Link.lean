@@ -48,6 +48,8 @@ the specified caller reaches only replies covered by an efficiently computable c
 
 * `Cslib.Crypto.Protocols.UC.RepliesFitOn`: a cap on the replies along the supported
   continuations of one caller linked to one machine.
+* `Cslib.Crypto.Protocols.UC.Computational.ReplyCap`: one computable cap covers the reachable
+  replies for a given tester, machine family and corruption set.
 
 ## Main results
 
@@ -410,6 +412,46 @@ theorem Environment.IsPPT.isOraclePPTOn_lowerWith_link_of_reachable
   simp only [param, ProbOracleComp.lowerWith, PMF.map_comp] at hstep
   exact hstep
 
+namespace Computational
+
+/-- A uniform caller-specific cap on encoded machine replies for a fixed static corruption set.
+The same polynomial-time computable cap covers all external stateful oracles and each supported
+initial machine state. It can depend on the security parameter, auxiliary word and reply bound. -/
+@[expose] def ReplyCap {n : ℕ} {ι : Type} {I : ι → Type} {In Out Q R : Type}
+    (M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out Q R))
+    (iI : WordInterface I) (party : WordPort (Fin n × In) (Option Out)) (adv : WordPort Q R)
+    (C : Finset (Fin n)) (Z : Environment n In Out Q R) : Prop :=
+  ∃ cap : EnvParam → ℕ, ComputableInPolyTime cap encEnvParam encUnary ∧
+    ∀ (e : EnvParam) (State : Type)
+      (oracle : iI.Channel × List Bool → StateT State PMF (List Bool))
+      (sO : State) (s0 : (M e.secParam C).State), s0 ∈ (M e.secParam C).init.eval.support →
+      RepliesFitOn (M e.secParam C) iI (WordInterface.exec party adv) e.replyBound
+        (cap e) oracle (Z e.secParam e.aux) s0 sO
+
+/-- A polynomial majorant of a machine-wide reply bound gives a computable cap for each caller. -/
+theorem ReplyCap.of_global {n : ℕ} {ι : Type} {I : ι → Type} {In Out Q R : Type}
+    {M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out Q R)}
+    {iI : WordInterface I} {party : WordPort (Fin n × In) (Option Out)} {adv : WordPort Q R}
+    (Z : Environment n In Out Q R) (C : Finset (Fin n))
+    (hMR : Machine.IsReplyBounded M iI (WordInterface.exec party adv)) :
+    ReplyCap M iI party adv C Z := by
+  obtain ⟨bound, hpoly, hle⟩ := hMR
+  obtain ⟨c, d, hcd⟩ := hpoly.exists_le
+  let param : EnvParam → PPTParam n := fun e => ⟨e.secParam, e.replyBound, C⟩
+  let cap : EnvParam → ℕ := fun e => c * ((encPPTParam n (param e)).length + 1) ^ d
+  have hconst : ComputableInPolyTime (fun _ : EnvParam => C)
+      encEnvParam (encFinite (Finset (Fin n))) := .const C
+  have hparam : ComputableInPolyTime param encEnvParam (encPPTParam n) := by fun_prop
+  have hcap : ComputableInPolyTime cap encEnvParam encUnary :=
+    (show ComputableInPolyTime (fun k : ℕ => c * (k + 1) ^ d) encUnary encUnary by fun_prop).comp
+      ((ComputableInPolyTime.encoding_length (encPPTParam n)).comp hparam)
+  refine ⟨cap, hcap, fun e _ _ _ _ _ => ?_⟩
+  apply RepliesFitOn.mono_cap _ (hcd (param e))
+  apply RepliesFitOn.of_global
+  exact hle (param e)
+
+end Computational
+
 /-- Library infrastructure (no cited result): linking a strict-PPT environment against any
 reply-bounded strict-PPT machine family yields a uniform strict oracle-PPT program over the
 machine's lowered imported interface. -/
@@ -426,21 +468,8 @@ theorem Environment.IsPPT.isOraclePPTOn_lowerWith_link
     IsOraclePPTOn (Operation := iI.Channel) encEnvParam encBool
       (fun e : EnvParam =>
         ProbOracleComp.lowerWith iI e.replyBound ((M e.secParam C).link (Z e.secParam e.aux))) := by
-  rcases hMR with ⟨bound, hpoly, hle⟩
-  obtain ⟨c, d, hcd⟩ := hpoly.exists_le
-  let param : EnvParam → PPTParam n := fun e => ⟨e.secParam, e.replyBound, C⟩
-  let cap : EnvParam → ℕ := fun e => c * ((encPPTParam n (param e)).length + 1) ^ d
-  have hconst : ComputableInPolyTime (fun _ : EnvParam => C)
-      encEnvParam (encFinite (Finset (Fin n))) := .const C
-  have hparam : ComputableInPolyTime param encEnvParam (encPPTParam n) := by fun_prop
-  have hcap : ComputableInPolyTime cap encEnvParam encUnary :=
-    (show ComputableInPolyTime (fun k : ℕ => c * (k + 1) ^ d) encUnary encUnary by fun_prop).comp
-      ((ComputableInPolyTime.encoding_length (encPPTParam n)).comp hparam)
-  apply hZ.isOraclePPTOn_lowerWith_link_of_reachable hM C cap hcap
-  intro e State oracle sO s0 _
-  apply RepliesFitOn.mono_cap _ (hcd (param e))
-  apply RepliesFitOn.of_global
-  exact hle (param e)
+  obtain ⟨cap, hcap, hreach⟩ := Computational.ReplyCap.of_global Z C hMR
+  exact hZ.isOraclePPTOn_lowerWith_link_of_reachable hM C cap hcap hreach
 
 /-- Library infrastructure (no cited result), toward #6043 (not Proposition 7 of [Canetti2020]):
 linking a strict-PPT environment against a certified machine family with polynomially bounded
