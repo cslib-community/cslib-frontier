@@ -48,7 +48,8 @@ example :
     ∃ (verify : DeclaredCNF × List Bool → Bool) (T S : DeclaredCNF × List Bool → ℕ),
       ComputableInO verify (encPair encDeclaredCNF encBits) encBool T S ∧
       verify (⟨0, [[(0, true)]]⟩, []) = false ∧
-      (acceptCount (fun p => verify p != decide (0 < p.1.formula.modelCount)) ⟨0, []⟩ 2 : ℝ) ≤ 4 := by
+      (acceptCount (fun p => verify p != decide (0 < p.1.formula.modelCount))
+        ⟨0, []⟩ 2 : ℝ) ≤ 4 := by
   let allowance (p : DeclaredCNF × List Bool) :=
     let a := p.1
     let M := countingThresholdBase 2 (countingPowerBudget 2 a.numVars)
