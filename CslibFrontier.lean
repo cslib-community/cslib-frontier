@@ -9133,6 +9133,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.FirstOrder.Ordered.Par
 public import CslibFrontier.GameTheory.Strategic.Mixed
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Scheme
 public import CslibFrontier.Foundations.Data.Nat.LogStar
+public import CslibFrontier.Computability.Complexity.Classes.MIP.SumcheckVerifier.Soundness
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.AndreevLowerBound
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.NearVertex
 public import CslibFrontier.Crypto.Protocols.VOLE.MulCheck
@@ -9386,6 +9387,7 @@ public import CslibFrontier.Probability.LocalitySensitiveHash.MinHash
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Walk
 public import CslibFrontier.Computability.Complexity.Classes.LogarithmicTimeHierarchy
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalResources
+public import CslibFrontier.Computability.Complexity.Classes.MIP.SumcheckVerifier.Tableau
 public import CslibFrontier.Crypto.Protocols.BCS.ROM.Soundness
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.EpochClock
 public import CslibFrontier.Computability.Complexity.Reduction.Turing
