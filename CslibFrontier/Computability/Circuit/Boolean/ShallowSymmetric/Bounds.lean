@@ -58,9 +58,7 @@ theorem construction_size_bound {k n U V B N A D E : ℕ} (hk : 1 ≤ k)
     (Nat.mul_le_two_pow_add_mul hn1 (Nat.add_le_two_pow_add_add_one_mul hk h1
       (Nat.mul_le_two_pow_add_mul (Nat.mul_le_two_pow_add_mul hU hn1)
         (Nat.add_le_two_pow_add_add_one_mul hk h2 (Nat.mul_le_two_pow_add_mul hv hB2)))))
-  convert h using 1
-  congr 1
-  ring
+  exact h.trans_eq (congrArg (2 ^ ·) (by ring))
 
 /-- Polynomial factors in the moduli fit into the exponential envelope. -/
 theorem sum_sq_moduli_bound {r C k : ℕ} (hk : 1 ≤ k)
@@ -75,10 +73,7 @@ theorem sum_sq_moduli_bound {r C k : ℕ} (hk : 1 ≤ k)
     ∑ i, (m i) ^ 2 ≤ ∑ _i : Fin r, (C * k) ^ 2 :=
       sum_le_sum fun i _ => Nat.pow_le_pow_left (hm i) 2
     _ = r * ((C * k) * (C * k)) := by simp [pow_two]
-    _ ≤ _ := by
-      convert h using 1
-      congr 1
-      ring
+    _ ≤ _ := h.trans_eq (congrArg (2 ^ ·) (by ring))
 
 /-- Two blocks fit into the smaller instance used by the depth induction. -/
 theorem pair_size_bound {n d k m : ℕ} (hk : 1 ≤ k) (hn : n ≤ k ^ (d + 2))

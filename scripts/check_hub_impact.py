@@ -5,15 +5,25 @@ Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 
-Editing a low-level module's public interface invalidates every module that transitively
-imports it, causing thousands of modules to rebuild across CI, merge groups, and contributor
-worktrees. Under AGENTS.md, new helper lemmas should generally go in a small topic module
-instead of appending to a hub module.
+Under Lean 4 and Lake 5's `module` system (`Lake/Build/Module.lean`, `ModuleImportInfo.addImport`),
+editing a module `M`'s public `.olean` invalidates downstream modules as follows:
+1. Exported imports (`public [meta] import`, or any `import` in a classic file without `module`)
+   propagate `transTrace` / `artsTrace` invalidation transitively, while plain private `import`
+   rebuilds only one hop because its own exported `.olean` and `transTrace` stay unchanged when its
+   public surface and axiom set do not change.
+2. `[public] meta import` (without `all`) mixes `metaTransTrace` across the unrestricted import
+   closure (`{M} ∪ Reach_any+(M)`), rebuilding `meta import` clients and re-exporting invalidation
+   into `transTrace` for `public meta import` clients.
+3. Classic files without `module` mix `legacyTransTrace` across `{M} ∪ Reach_any+(M)`, rebuilding
+   and re-exporting invalidation to their importers.
+4. `[meta] import all` chains propagate from any rebuilt module (`allTransTrace` / `allArtsTrace`).
 
-This script scans `import` headers across `CslibFrontier/` and `CslibFrontierTests/` (no Lean
-invocation needed), computes direct and transitive reverse-importer counts for each modified
-library module relative to `--base`, and prints an advisory summary when any exceeds
-`--threshold`. It never fails the job on findings.
+Under AGENTS.md, new helper lemmas should generally go in a small topic module instead of appending
+to a hub module. This script scans `import` headers across `CslibFrontier/` and `CslibFrontierTests/`
+(excluding the root aggregator `CslibFrontier.lean`; no Lean invocation needed), computes direct
+importer counts and Lake 5 transitive rebuild counts for each modified library module relative to
+`--base`, and prints an advisory summary when any reaches `--threshold`. It never fails the job on
+findings.
 """
 
 from __future__ import annotations
@@ -24,14 +34,23 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from typing import NamedTuple
 
 try:
-    from scripts.ci.select_guide import AmbiguousHeader, parse_header_imports_text
+    from scripts.ci.select_guide import (
+        AmbiguousHeader,
+        HeaderImport,
+        parse_header_details_text,
+    )
 except ModuleNotFoundError:
     _CI_DIR = str(Path(__file__).resolve().parent / "ci")
     if _CI_DIR not in sys.path:
         sys.path.insert(0, _CI_DIR)
-    from select_guide import AmbiguousHeader, parse_header_imports_text
+    from select_guide import (
+        AmbiguousHeader,
+        HeaderImport,
+        parse_header_details_text,
+    )
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,18 +58,54 @@ DEFAULT_THRESHOLD = 500
 HIGH_THRESHOLD = 2000
 
 
-def scan_local_imports(path: Path) -> set[str]:
-    """Collect `CslibFrontier.*` module imports from the header of `path`."""
+class ReverseGraph(NamedTuple):
+    """Reverse import edges across `CslibFrontier/` and `CslibFrontierTests/`.
+
+    - `any_importers[M]`: modules that directly import `M` with any modifier.
+    - `exported_importers[M]`: modules whose `transTrace` mixes `M` (`public [meta] import`, or any
+      import in a classic file without `module`).
+    - `meta_importers[M]`: modules that import `M` with `[public] meta import` (without `all`),
+      mixing `M`'s `metaTransTrace` into their elaboration `trace`.
+    - `public_meta_importers[M]`: modules that import `M` with `public meta import` (or `meta` in a
+      non-`module` file), mixing `M`'s `metaTransTrace` into their exported `transTrace`.
+    - `all_importers[M]`: modules that import `M` with `[meta] import all`, mixing `M`'s
+      `allTransTrace` and `allArtsTrace` into their elaboration `trace`.
+    - `non_module_files`: scanned modules without a `module` header keyword, which mix
+      `legacyTransTrace` across their unrestricted transitive import closure.
+    """
+
+    any_importers: dict[str, set[str]]
+    exported_importers: dict[str, set[str]]
+    meta_importers: dict[str, set[str]]
+    public_meta_importers: dict[str, set[str]]
+    all_importers: dict[str, set[str]]
+    non_module_files: frozenset[str]
+
+
+def scan_local_imports(path: Path) -> tuple[bool, list[HeaderImport]]:
+    """Return `(has_module_kw, local_imports)` from the header of `path`."""
     try:
-        mods = parse_header_imports_text(path.read_text(encoding="utf-8", errors="replace"))
+        has_module, imports = parse_header_details_text(
+            path.read_text(encoding="utf-8", errors="replace")
+        )
     except AmbiguousHeader:
-        return set()
-    return {m for m in mods if m == "CslibFrontier" or m.startswith("CslibFrontier.")}
+        return True, []
+    return has_module, [
+        imp
+        for imp in imports
+        if imp.module == "CslibFrontier"
+        or imp.module.startswith(("CslibFrontier.", "CslibFrontierTests."))
+    ]
 
 
-def build_reverse_graph(root: Path) -> tuple[dict[str, set[str]], int]:
-    """Return `(reverse_importers, total_modules)` over `CslibFrontier/` and `CslibFrontierTests/`."""
-    rev: dict[str, set[str]] = defaultdict(set)
+def build_reverse_graph(root: Path) -> tuple[ReverseGraph, int]:
+    """Return `(reverse_graph, total_modules)` over `CslibFrontier/` and `CslibFrontierTests/`."""
+    any_imp: dict[str, set[str]] = defaultdict(set)
+    exp_imp: dict[str, set[str]] = defaultdict(set)
+    meta_imp: dict[str, set[str]] = defaultdict(set)
+    pub_meta_imp: dict[str, set[str]] = defaultdict(set)
+    all_imp: dict[str, set[str]] = defaultdict(set)
+    non_mod: set[str] = set()
     total = 0
     for dirname in ("CslibFrontier", "CslibFrontierTests"):
         base_dir = root / dirname
@@ -61,21 +116,86 @@ def build_reverse_graph(root: Path) -> tuple[dict[str, set[str]], int]:
                 continue
             mod = ".".join(path.relative_to(root).with_suffix("").parts)
             total += 1
-            for dep in scan_local_imports(path):
-                rev[dep].add(mod)
-    return rev, total
+            has_module, imports = scan_local_imports(path)
+            if not has_module:
+                non_mod.add(mod)
+            for imp in imports:
+                dep = imp.module
+                if dep == mod:
+                    continue
+                any_imp[dep].add(mod)
+                is_exported = imp.is_public or not has_module
+                if is_exported:
+                    exp_imp[dep].add(mod)
+                if imp.is_meta and not imp.is_all:
+                    meta_imp[dep].add(mod)
+                if is_exported and imp.is_meta:
+                    pub_meta_imp[dep].add(mod)
+                if imp.is_all:
+                    all_imp[dep].add(mod)
+    graph = ReverseGraph(
+        any_importers=dict(any_imp),
+        exported_importers=dict(exp_imp),
+        meta_importers=dict(meta_imp),
+        public_meta_importers=dict(pub_meta_imp),
+        all_importers=dict(all_imp),
+        non_module_files=frozenset(non_mod),
+    )
+    return graph, total
 
 
-def transitive_importers(rev: dict[str, set[str]], module: str) -> int:
-    seen: set[str] = {module}
-    queue: deque[str] = deque([module])
-    while queue:
-        u = queue.popleft()
-        for v in rev.get(u, ()):
-            if v not in seen:
-                seen.add(v)
-                queue.append(v)
-    return len(seen) - 1
+def rebuilt_importers(graph: ReverseGraph, module: str) -> set[str]:
+    """Return downstream modules rebuilt by Lake 5 when `module`'s public `.olean` changes."""
+    reach_any: set[str] = {module}
+    any_queue: deque[str] = deque([module])
+    while any_queue:
+        u = any_queue.popleft()
+        for v in graph.any_importers.get(u, ()):
+            if v not in reach_any:
+                reach_any.add(v)
+                any_queue.append(v)
+
+    trans_changed: set[str] = {module}
+    rebuilt: set[str] = set()
+    pub_queue: deque[str] = deque([module])
+    all_queue: deque[str] = deque()
+
+    def mark_rebuilt(node: str) -> None:
+        if node != module and node not in rebuilt:
+            rebuilt.add(node)
+            all_queue.append(node)
+
+    def mark_trans_changed(node: str) -> None:
+        if node not in trans_changed:
+            trans_changed.add(node)
+            pub_queue.append(node)
+        mark_rebuilt(node)
+
+    for d in reach_any:
+        if d != module and d in graph.non_module_files:
+            mark_trans_changed(d)
+        for v in graph.public_meta_importers.get(d, ()):
+            mark_trans_changed(v)
+        for v in graph.meta_importers.get(d, ()):
+            mark_rebuilt(v)
+
+    while pub_queue or all_queue:
+        while pub_queue:
+            u = pub_queue.popleft()
+            for v in graph.exported_importers.get(u, ()):
+                mark_trans_changed(v)
+            for x in graph.any_importers.get(u, ()):
+                mark_rebuilt(x)
+        while all_queue:
+            u = all_queue.popleft()
+            for w in graph.all_importers.get(u, ()):
+                mark_rebuilt(w)
+    return rebuilt
+
+
+def transitive_importers(graph: ReverseGraph, module: str) -> int:
+    """Count downstream modules rebuilt by Lake 5 when `module`'s public `.olean` changes."""
+    return len(rebuilt_importers(graph, module))
 
 
 def modified_library_modules(root: Path, base: str) -> list[str]:
@@ -96,18 +216,18 @@ def modified_library_modules(root: Path, base: str) -> list[str]:
 
 def analyze(root: Path, base: str, threshold: int = DEFAULT_THRESHOLD
             ) -> tuple[list[tuple[str, int, int]], int]:
-    """Return `([(rel_path, direct, transitive), ...], total_modules)` exceeding `threshold`."""
+    """Return `([(rel_path, direct, transitive), ...], total_modules)` meeting `threshold`."""
     modified = modified_library_modules(root, base)
     if not modified:
         return [], 0
-    rev, total = build_reverse_graph(root)
+    graph, total = build_reverse_graph(root)
     hits: list[tuple[str, int, int]] = []
     for rel in modified:
         mod = ".".join(Path(rel).with_suffix("").parts)
-        direct = len(rev.get(mod, ()))
+        direct = len(graph.any_importers.get(mod, ()))
         if direct == 0:
             continue
-        trans = transitive_importers(rev, mod)
+        trans = transitive_importers(graph, mod)
         if trans >= threshold:
             hits.append((rel, direct, trans))
     hits.sort(key=lambda row: (-row[2], -row[1], row[0]))
@@ -119,9 +239,11 @@ def format_markdown(hits: list[tuple[str, int, int]], total: int, threshold: int
         "### High-fan-in module impact (advisory)",
         "",
         f"This change modifies {len(hits)} module(s) with at least **{threshold}** transitive "
-        f"importers (out of {total:,} `CslibFrontier` / `CslibFrontierTests` modules). "
-        "Any public interface edit forces Lake to rebuild those dependents across concurrent PRs, "
-        "merge groups, and contributor worktrees.",
+        f"importers rebuilt by Lake 5 on a public `.olean` change (out of {total:,} "
+        "`CslibFrontier` / `CslibFrontierTests` modules, respecting `module` private-import "
+        "cutoff, `[public] meta import`, `import all`, and non-`module` traces). Any public "
+        "interface edit forces Lake to rebuild those dependents across concurrent PRs, merge "
+        "groups, and contributor worktrees.",
         "",
         "| Module | Direct importers | Transitive importers | Share |",
         "| --- | ---: | ---: | ---: |",

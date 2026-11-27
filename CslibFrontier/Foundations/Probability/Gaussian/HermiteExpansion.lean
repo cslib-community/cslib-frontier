@@ -99,19 +99,18 @@ private noncomputable def hermiteSeq : Polynomial.Sequence ℝ where
 private theorem exists_pow_eq_sum_normalizedHermite (n : ℕ) :
     ∃ (s : Finset ℕ) (c : ℕ → ℝ), ∀ x : ℝ, x ^ n = ∑ j ∈ s, c j * normalizedHermite j x := by
   have hspan : (X ^ n : ℝ[X]) ∈ Submodule.span ℝ (Set.range hermiteSeq) := by
-    rw [hermiteSeq.span fun j => ?_]
-    · trivial
-    · exact ((hermite_monic j).map (algebraMap ℤ ℝ)).leadingCoeff.symm ▸ isUnit_one
+    rw [hermiteSeq.span fun j =>
+      ((hermite_monic j).map (algebraMap ℤ ℝ)).leadingCoeff.symm ▸ isUnit_one]
+    trivial
   obtain ⟨c, hc⟩ := Finsupp.mem_span_range_iff_exists_finsupp.1 hspan
   refine ⟨c.support, fun j => c j * √(j ! : ℝ), fun x => ?_⟩
   have hx := congrArg (eval x) hc
   rw [eval_pow, eval_X] at hx
   rw [← hx, Finsupp.sum, eval_finsetSum]
   refine Finset.sum_congr rfl fun j _ => ?_
-  have hj : √(j ! : ℝ) ≠ 0 := (sqrt_pos.2 (Nat.cast_pos.2 (Nat.factorial_pos j))).ne'
   change eval x (c j • (hermite j).map (algebraMap ℤ ℝ)) = _
   rw [eval_smul, eval_map_algebraMap, normalizedHermite_def, smul_eq_mul, mul_assoc,
-    mul_div_cancel₀ _ hj]
+    mul_div_cancel₀ _ (sqrt_pos.2 (Nat.cast_pos.2 (Nat.factorial_pos j))).ne']
 
 /-- A function in `L²(γⁿ)` orthogonal to every `h_α` vanishes almost everywhere: it is orthogonal
 to every monomial. -/
@@ -126,7 +125,7 @@ private theorem ae_eq_zero_of_forall_integral_mul_multiHermite_eq_zero {f : (ι 
   have hpt (z : ι → ℝ) : f z * ∏ i, z i ^ k i = ∑ β ∈ Fintype.piFinset fun i => s (k i),
       (∏ i, c (k i) (β i)) * (f z * multiHermite β z) := by
     simp only [hsc, Finset.prod_univ_sum, Finset.mul_sum, multiHermite_def, Finset.prod_mul_distrib]
-    exact Finset.sum_congr rfl fun β _ => by ring
+    exact Finset.sum_congr rfl fun _ _ => by ring
   simp only [hpt]
   rw [integral_finsetSum _ fun β _ => ?_]
   · simp only [integral_const_mul, h, mul_zero, Finset.sum_const_zero]
@@ -137,8 +136,8 @@ private theorem ae_eq_zero_of_forall_integral_mul_multiHermite_eq_zero {f : (ι 
 theorem orthonormal_multiHermite :
     Orthonormal ℝ fun α : ι → ℕ => (memLp_multiHermite α).toLp (multiHermite α) := by
   classical
-  refine orthonormal_iff_ite.2 fun α β => ?_
-  simp only [L2.inner_toLp_toLp, conj_trivial, integral_multiHermite_mul_multiHermite]
+  exact orthonormal_iff_ite.2 fun _ _ => by
+    simp only [L2.inner_toLp_toLp, conj_trivial, integral_multiHermite_mul_multiHermite]
 
 /-- **Completeness of the Hermite polynomials** [O'Donnell, Proposition 11.33][ODonnell2014]: the
 multivariate Hermite polynomials `h_α` span a dense subspace of `L²(γⁿ)`. The one-dimensional case,
@@ -285,10 +284,10 @@ theorem hermiteCoeff_sum_mul_prod [DecidableEq ι] (s : Finset (Finset ι)) (c :
     hermiteCoeff (fun z => ∑ S ∈ s, c S * ∏ i ∈ S, z i) (fun i => if i ∈ T then 1 else 0) =
       if T ∈ s then c T else 0 := by
   have hind (S : Finset ι) : ((fun i => if i ∈ S then 1 else 0 : ι → ℕ) =
-      fun i => if i ∈ T then 1 else 0) ↔ S = T := by
-    refine ⟨fun h => Finset.ext fun i => ?_, fun h => h ▸ rfl⟩
-    have := congrFun h i
-    split_ifs at this <;> simp_all
+      fun i => if i ∈ T then 1 else 0) ↔ S = T :=
+    ⟨fun h => Finset.ext fun i => by
+      have := congrFun h i
+      split_ifs at this <;> simp_all, fun h => h ▸ rfl⟩
   simp only [← multiHermite_indicator, hermiteCoeff_sum_mul_multiHermite, hind,
     Finset.sum_ite_eq']
 
@@ -360,10 +359,10 @@ theorem hermiteCoeff_eq_of_tendsto_sum_degree_le [DecidableEq ι] {f : (ι → �
       Filter.atTop (nhds (hf.toLp f))) :
     hermiteCoeff f = c := by
   funext β
-  have h' := ((innerSL ℝ ((memLp_multiHermite β).toLp (multiHermite β))).continuous.tendsto
-    _).comp h
   rw [← hermiteBasis_repr hf, HilbertBasis.repr_apply_apply, hermiteBasis_apply]
-  refine tendsto_nhds_unique h' (tendsto_const_nhds.congr' ?_)
+  refine tendsto_nhds_unique
+    (((innerSL ℝ ((memLp_multiHermite β).toLp (multiHermite β))).continuous.tendsto _).comp h)
+    (tendsto_const_nhds.congr' ?_)
   filter_upwards [Filter.eventually_ge_atTop (∑ i, β i)] with k hk
   simp only [Function.comp_apply, map_sum, map_smul, innerSL_apply_apply,
     orthonormal_iff_ite.1 orthonormal_multiHermite β, smul_eq_mul, mul_ite, mul_one, mul_zero,
@@ -387,10 +386,8 @@ theorem hasSum_hermiteCoeff_mul_hermiteCoeff {f g : (ι → ℝ) → ℝ}
       (∫ z, f z * g z ∂Measure.pi fun _ : ι => gaussianReal 0 1) := by
   have h := ((hermiteBasis ι).summable_inner_mul_inner (hf.toLp f) (hg.toLp g)).hasSum
   rw [(hermiteBasis ι).tsum_inner_mul_inner, L2.inner_toLp_toLp] at h
-  simp only [conj_trivial] at h
-  convert h using 2 with α
-  rw [← hermiteBasis_repr hf, ← hermiteBasis_repr hg, HilbertBasis.repr_apply_apply,
-    HilbertBasis.repr_apply_apply, real_inner_comm]
+  simpa only [conj_trivial, ← hermiteBasis_repr hf, ← hermiteBasis_repr hg,
+    HilbertBasis.repr_apply_apply, real_inner_comm] using h
 
 /-- **Plancherel's formula** for Hermite expansions [O'Donnell, Proposition 11.36][ODonnell2014]:
 for `f, g ∈ L²(γⁿ)`, `⟨f, g⟩ = ∑ α, f̂(α) ĝ(α)`. The series is summable by
@@ -426,8 +423,7 @@ theorem hermiteCoeff_gaussianNoiseOp {ρ : ℝ} (hρ : |ρ| ≤ 1) {f : (ι → 
     (hf : MemLp f 2 (Measure.pi fun _ : ι => gaussianReal 0 1)) (α : ι → ℕ) :
     hermiteCoeff (gaussianNoiseOp ρ f) α = ρ ^ (∑ i, α i) * hermiteCoeff f α := by
   rw [hermiteCoeff, ← integral_mul_gaussianNoiseOp_comm hρ hf (memLp_multiHermite α)]
-  simp only [gaussianNoiseOp_multiHermite hρ, mul_left_comm (f _)]
-  rw [integral_const_mul, hermiteCoeff]
+  simp only [gaussianNoiseOp_multiHermite hρ, mul_left_comm (f _), integral_const_mul, hermiteCoeff]
 
 /-- **The Hermite expansion of `U_ρ f`** [O'Donnell, Proposition 11.37][ODonnell2014]: for
 `f ∈ L²(γⁿ)` and `|ρ| ≤ 1`, `U_ρ f = ∑ α, ρ ^ |α| f̂(α) h_α` in `L²(γⁿ)`. -/
@@ -447,8 +443,7 @@ theorem hasSum_gaussianNoiseStability {ρ : ℝ} (hρ : |ρ| ≤ 1) {f : (ι →
     HasSum (fun α => ρ ^ (∑ i, α i) * hermiteCoeff f α ^ 2) (gaussianNoiseStability ρ f) := by
   rw [gaussianNoiseStability_eq_integral_mul_gaussianNoiseOp hρ hf]
   convert hasSum_hermiteCoeff_mul_hermiteCoeff hf (hf.gaussianNoiseOp hρ one_le_two) using 2 with α
-  rw [hermiteCoeff_gaussianNoiseOp hρ hf]
-  ring
+  rw [hermiteCoeff_gaussianNoiseOp hρ hf]; ring
 
 /-- **Noise stability from the Hermite expansion** [O'Donnell, Proposition 11.37][ODonnell2014]:
 for `f ∈ L²(γⁿ)` and `|ρ| ≤ 1`, `Stab_ρ[f] = ∑ α, ρ ^ |α| f̂(α)²`. -/

@@ -28,24 +28,19 @@ theorem blocksEquiv_symm_cons {α : Type*} {count bits : ℕ}
     blocksEquiv.symm (Fin.cons a later) ∘
       Fin.cast (by rw [Nat.add_comm, ← Nat.succ_mul] : bits + count * bits =
         (count + 1) * bits) = Fin.append a (blocksEquiv.symm later) := by
+  have hc : bits + count * bits = (count + 1) * bits := by rw [Nat.add_comm, ← Nat.succ_mul]
   funext i
   cases i using Fin.addCases with
   | left i =>
-    simp only [Function.comp_apply, Fin.append_left]
-    rw [show Fin.cast _ (Fin.castAdd (count * bits) i) =
-      finProdFinEquiv ((0 : Fin (count + 1)), i) by
-        ext
-        simp [finProdFinEquiv_apply_val]]
-    simp [blocksEquiv_symm_apply]
+    have h : Fin.cast hc (Fin.castAdd (count * bits) i) =
+        finProdFinEquiv ((0 : Fin (count + 1)), i) :=
+      Fin.ext <| by simp [finProdFinEquiv_apply_val]
+    simp [h, blocksEquiv_symm_apply]
   | right i =>
     obtain ⟨⟨j, k⟩, rfl⟩ := finProdFinEquiv.surjective i
-    simp only [Function.comp_apply, Fin.append_right]
-    rw [show Fin.cast _ (Fin.natAdd bits (finProdFinEquiv (j, k))) =
-      finProdFinEquiv (j.succ, k) by
-        ext
-        simp only [Fin.val_cast, Fin.val_natAdd, finProdFinEquiv_apply_val, Fin.val_succ,
-          Nat.mul_add, Nat.mul_one]
-        omega]
-    simp [blocksEquiv_symm_apply]
+    have h : Fin.cast hc (Fin.natAdd bits (finProdFinEquiv (j, k))) =
+        finProdFinEquiv (j.succ, k) :=
+      Fin.ext <| by simp [finProdFinEquiv_apply_val, Nat.mul_add]; omega
+    simp [h, blocksEquiv_symm_apply]
 
 end Cslib.BitString

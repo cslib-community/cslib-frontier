@@ -85,10 +85,8 @@ measurements have zero cost. -/
 private theorem sum_sq_record {R E : Type} [Fintype R] [DecidableEq R] [NormedAddCommGroup E]
     (r : R) (a b : E) :
     ∑ v, ‖(if r = v then a else 0) - (if r = v then b else 0)‖ ^ 2 = ‖a - b‖ ^ 2 := by
-  rw [sum_eq_single r]
-  · simp
-  · intro x _ hx; simp [Ne.symm hx]
-  · simp
+  rw [Fintype.sum_eq_single r fun x hx => by simp [hx.symm]]
+  simp
 
 omit [DecidableEq ι] in
 /-- The branches carry exactly the squared norm of the input register, even for adaptively
@@ -103,15 +101,7 @@ theorem sum_sq_state {B} [Fintype B] (p : MeasuredPrefix ι D V W B)
     simpa [state, apply_ite] using ih
   | measure p read ih =>
     simpa only [state, Fintype.sum_prod_type, sum_sq_norm_projOutcomes_fibers] using ih
-  | service p run K _ ih =>
-    simp only [state, Fintype.sum_prod_type]
-    convert ih using 1
-    apply sum_congr rfl
-    intro b _
-    rw [sum_eq_single (evalPure H (run b))]
-    · simp
-    · intro r _ hr; simp [Ne.symm hr]
-    · simp
+  | service p run K _ ih => simpa [state, Fintype.sum_prod_type, apply_ite] using ih
 
 omit [DecidableEq ι] in
 private theorem state_add {B} [Fintype B] (p : MeasuredPrefix ι D V W B) (H : ι → D)
@@ -157,12 +147,7 @@ omit [DecidableEq ι] in
 /-- Disturbance costs are nonnegative. -/
 theorem updateCost_nonneg {B} [Fintype B] (p : MeasuredPrefix ι D V W B) :
     0 ≤ p.updateCost := by
-  induction p with
-  | start => exact (le_rfl : (0 : ℝ) ≤ 0)
-  | localGate p g ih => exact ih
-  | coherent p enabled gate ih => exact add_nonneg ih (by norm_num)
-  | measure p read ih => exact ih
-  | service p run K hb ih => exact add_nonneg ih (Real.sqrt_nonneg _)
+  induction p <;> simp only [updateCost] <;> positivity
 
 private theorem sum_sq_triangle {J E : Type} [Fintype J] [NormedAddCommGroup E]
     (a b c : J → E) {d e : ℝ} (hd : 0 ≤ d) (he : 0 ≤ e)
@@ -170,8 +155,7 @@ private theorem sum_sq_triangle {J E : Type} [Fintype J] [NormedAddCommGroup E]
     ∑ j, ‖a j - c j‖ ^ 2 ≤ (d + e) ^ 2 := by
   let pack (x : J → E) : PiLp 2 (fun _ : J => E) := WithLp.toLp 2 x
   have sq (x y : J → E) : ‖pack x - pack y‖ ^ 2 = ∑ j, ‖x j - y j‖ ^ 2 := by
-    rw [PiLp.norm_sq_eq_of_L2]
-    rfl
+    simp [pack, PiLp.norm_sq_eq_of_L2]
   rw [← sq] at hab hbc ⊢
   exact pow_le_pow_left₀ (norm_nonneg _)
     ((norm_sub_le_norm_sub_add_norm_sub _ _ _).trans
@@ -202,34 +186,27 @@ private theorem sum_sq_service_change {R E : Type} [Fintype R] [DecidableEq R]
   classical
   let reads := (queriesWith H run).toFinset
   have stab (i : ι) (hi : i ∉ reads) :
-      evalPure (Function.update H i v) run = evalPure H run := by
-    apply (interpret_id_congr H (Function.update H i v) run ?_).1
-    intro j hj
-    exact Function.update_of_ne (fun he => hi (by simpa [he, reads] using hj)) ..
+      evalPure (Function.update H i v) run = evalPure H run :=
+    (interpret_id_congr H (Function.update H i v) run fun _ hj =>
+      Function.update_of_ne (fun he => hi (by simpa [he, reads] using hj)) ..).1
   have row (i : ι) :
       (∑ r, ‖(if evalPure (Function.update H i v) run = r then u else 0) -
         (if evalPure H run = r then u else 0)‖ ^ 2) ≤
         if i ∈ reads then 2 * ‖u‖ ^ 2 else 0 := by
     by_cases hi : i ∈ reads
     · rw [ite_eq_left hi]
-      let a := evalPure (Function.update H i v) run
-      let b := evalPure H run
-      change (∑ r, ‖(if a = r then u else 0) - (if b = r then u else 0)‖ ^ 2) ≤ _
-      by_cases hab : a = b
+      rcases eq_or_ne (evalPure (Function.update H i v) run) (evalPure H run) with hab | hab
       · simp [hab]
-      · have per (r : R) : ‖(if a = r then u else 0) - (if b = r then u else 0)‖ ^ 2 =
-            (if a = r then ‖u‖ ^ 2 else 0) + (if b = r then ‖u‖ ^ 2 else 0) := by
-          by_cases ha : a = r <;> by_cases hb : b = r <;> simp_all
-        simp [per, sum_add_distrib, two_mul]
+      · rw [Fintype.sum_eq_add _ _ hab fun r ⟨ha, hb⟩ => by simp [ha.symm, hb.symm]]
+        simp [hab, hab.symm, two_mul]
     · simp [hi, stab i hi]
   calc
     _ ≤ ∑ i, if i ∈ reads then 2 * ‖u‖ ^ 2 else 0 := sum_le_sum fun i _ => row i
     _ = reads.card * (2 * ‖u‖ ^ 2) := by simp
-    _ ≤ _ := by
-      have hn := List.toFinset_card_le (queriesWith H run) |>.trans (budget.length_queriesWith_le H)
-      calc
-        _ ≤ (K : ℝ) * (2 * ‖u‖ ^ 2) := by gcongr
-        _ = _ := by ring
+    _ ≤ K * (2 * ‖u‖ ^ 2) := by
+      gcongr
+      exact_mod_cast (List.toFinset_card_le _).trans (budget.length_queriesWith_le H)
+    _ = _ := by ring
 
 /-- Sum, over changed table addresses and all outward histories, of the squared difference
 between the two retained states. The estimate includes all earlier adaptive classical services
@@ -247,9 +224,7 @@ theorem sum_sq_state_update_sub_le {B} [Fintype B] (p : MeasuredPrefix ι D V W 
     apply extend_bound (p.state step ψ) move H v p.updateCost_nonneg (by norm_num : (0 : ℝ) ≤ 2)
       ih
     · intro G x y
-      apply sum_congr rfl
-      intro b _
-      cases hv : enabled b <;> simp [move, hv, ← map_sub]
+      exact sum_congr rfl fun b _ => by cases hv : enabled b <;> simp [move, hv, ← map_sub]
     · rw [sum_comm]
       calc
         _ ≤ ∑ b, 4 * ‖p.state step ψ H b‖ ^ 2 := by
@@ -272,15 +247,13 @@ theorem sum_sq_state_update_sub_le {B} [Fintype B] (p : MeasuredPrefix ι D V W 
       if evalPure G (run br.1) = br.2 then x br.1 else 0
     apply extend_bound (p.state step ψ) move H v p.updateCost_nonneg
       (Real.sqrt_nonneg (2 * (K : ℝ))) ih
-    · intro G x y
-      simp only [move, Fintype.sum_prod_type, sum_sq_record]
+    · exact fun G x y => by simp only [move, Fintype.sum_prod_type, sum_sq_record]
     · simp only [move, Fintype.sum_prod_type]
       rw [sum_comm]
       calc
         _ ≤ ∑ b, (2 * K : ℝ) * ‖p.state step ψ H b‖ ^ 2 := sum_le_sum fun b _ =>
           sum_sq_service_change H v (run b) (budget b) _
-        _ = _ := by rw [← mul_sum, sum_sq_state, Real.sq_sqrt (by positivity)]
-                    rw [hψ]; ring
+        _ = _ := by rw [← mul_sum, sum_sq_state, Real.sq_sqrt (by positivity), hψ, one_pow, mul_one]
 
 /-- Acceptance when a bounded classical service returns a reply and the adversary resumes its
 measured quantum computation on the same table, starting in the supplied residual state. -/
@@ -313,29 +286,26 @@ private theorem mean_change_unit {R O : Type} [Fintype O] (run : OracleComp (fun
     by_cases hi : i ∈ reads
     · simp only [hi, ↓reduceIte]
       exact (pow_le_one₀ (abs_nonneg _) (one i)).trans (le_add_of_nonneg_right (sq_nonneg _))
-    · have same : evalPure (G i) run = r := by
-        apply (interpret_id_congr H (G i) run ?_).1
-        intro j hj
-        exact Function.update_of_ne (fun he => hi (by simpa [he, reads] using hj)) ..
-      have near := abs_measureProb_sub_le_norm_sub (ψ := U (G i)) (φ := U H)
-        (by simp [U, hu]) (by simp [U, hu]) (accept r)
-      simp only [hi, ↓reduceIte, zero_add]
-      apply pow_le_pow_left₀ (abs_nonneg _) _ 2
-      simpa only [gap, score, serviceAcceptance, same, r, U] using near
+    · have same : evalPure (G i) run = r :=
+        (interpret_id_congr H (G i) run fun _ hj =>
+          Function.update_of_ne (fun he => hi (by simpa [he, reads] using hj)) ..).1
+      have near := abs_measureProb_sub_le_norm_sub
+        (((next r).outcomeIsometry step (G i)).norm_map u |>.trans hu)
+        (((next r).outcomeIsometry step H).norm_map u |>.trans hu) (accept r)
+      simpa only [hi, ↓reduceIte, zero_add, gap, score, serviceAcceptance, same, r, U] using
+        pow_le_pow_left₀ (abs_nonneg _) near 2
   have all : ∑ i, ‖U (G i) - U H‖ ^ 2 ≤ (next r).updateCost ^ 2 := by
-    have h := (next r).sum_sq_state_update_sub_le step u hu H v
     simpa only [U, outcomeIsometry, EuclideanSpace.norm_sq_eq, PiLp.sub_apply,
-      Fintype.sum_prod_type, LinearIsometry.coe_mk, LinearMap.coe_mk, AddHom.coe_mk] using h
-  have card : reads.card ≤ K :=
-    (List.toFinset_card_le (queriesWith H run)).trans (bound.length_queriesWith_le H)
+      Fintype.sum_prod_type, LinearIsometry.coe_mk, LinearMap.coe_mk, AddHom.coe_mk] using
+      (next r).sum_sq_state_update_sub_le step u hu H v
   have squares : ∑ i, gap i ^ 2 ≤ K + (next r).updateCost ^ 2 := by
     refine (sum_le_sum fun i _ => each i).trans ?_
-    simpa [sum_add_distrib] using add_le_add (show (reads.card : ℝ) ≤ K by exact_mod_cast card) all
+    simpa [sum_add_distrib] using add_le_add
+      (Nat.cast_le.mpr ((List.toFinset_card_le _).trans (bound.length_queriesWith_le H))) all
   have jensen := Probability.PMF.sq_tsum_le_tsum_sq μ (g := gap) (fun _ => abs_nonneg _) one
   rw [tsum_fintype, tsum_fintype] at jensen
-  apply Real.le_sqrt_of_sq_le
-  refine jensen.trans ((sum_le_sum fun i _ =>
-    mul_le_mul_of_nonneg_right (hp i) (sq_nonneg _)).trans ?_)
+  refine Real.le_sqrt_of_sq_le (jensen.trans ((sum_le_sum fun i _ =>
+    mul_le_mul_of_nonneg_right (hp i) (sq_nonneg _)).trans ?_))
   rw [← mul_sum]
   exact mul_le_mul_of_nonneg_left squares
     (ENNReal.toReal_nonneg.trans (hp μ.support_nonempty.choose))
@@ -352,19 +322,15 @@ theorem mean_abs_serviceAcceptance_update_sub_le {R O : Type} [Fintype O]
       ‖u‖ ^ 2 * Real.sqrt (δ * (K + (next (evalPure H run)).updateCost ^ 2)) := by
   by_cases hu : u = 0
   · simp [hu, serviceAcceptance, measureProb]
-  let z : ℂ := (‖u‖ : ℂ)
-  let φ := z⁻¹ • u
-  have hz : z ≠ 0 := by simpa [z] using hu
-  have normφ : ‖φ‖ = 1 := by simp [φ, z, norm_smul, hu]
-  have eq : z • φ = u := by simp [φ, smul_smul, hz]
+  let φ := (‖u‖ : ℂ)⁻¹ • u
+  have normφ : ‖φ‖ = 1 := by simp [φ, norm_smul, hu]
   have scale (T) : serviceAcceptance step run next accept T u =
       ‖u‖ ^ 2 * serviceAcceptance step run next accept T φ := by
-    conv_lhs => rw [← eq]
-    simp only [serviceAcceptance, map_smul, measureProb_smul]
-    simp [z]
+    conv_lhs => rw [← show (‖u‖ : ℂ) • φ = u from smul_inv_smul₀ (by simpa using hu) u]
+    simp only [serviceAcceptance, map_smul, measureProb_smul, Complex.norm_real,
+      Real.norm_of_nonneg (norm_nonneg u)]
   simp_rw [scale, ← mul_sub, abs_mul, abs_of_nonneg (sq_nonneg ‖u‖),
-    ← mul_assoc, mul_comm _ (‖u‖ ^ 2), mul_assoc]
-  rw [← mul_sum]
+    ← mul_assoc, mul_comm _ (‖u‖ ^ 2), mul_assoc, ← mul_sum]
   exact mul_le_mul_of_nonneg_left (mean_change_unit step run next accept H v φ normφ bound μ hp)
     (sq_nonneg _)
 

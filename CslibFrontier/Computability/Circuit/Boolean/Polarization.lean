@@ -150,13 +150,9 @@ def xorMixBlock {n m : ℕ} (C₀ C₁ : Circuit signature n m) : Circuit signat
 theorem eval_xorMixBlock {n m : ℕ} (C₀ C₁ : Circuit signature n m) (b : Bool) (y : BitString n) :
     (xorMixBlock C₀ C₁).eval interpretation (Fin.cons b y) =
       bif b then C₁.eval interpretation y else C₀.eval interpretation y := by
-  have h₁ : (Fin.cons b y : BitString (n + 1)) ∘ Fin.succ = y := by
-    funext t
-    simp
+  have h₁ : (Fin.cons b y : BitString (n + 1)) ∘ Fin.succ = y := funext fun _ => rfl
   have h₂ : (Fin.cons b y : BitString (n + 1)) ∘ (fun _ : Fin 1 => (0 : Fin (n + 1))) =
-      fun _ => b := by
-    funext t
-    simp
+      fun _ => b := funext fun _ => rfl
   simp only [circuit_simps, xorMixBlock, h₁, h₂, eval_muxCircuit]
   cases b <;> rfl
 
@@ -192,14 +188,10 @@ theorem outputDist_xorMixCircuit {n m : ℕ} (C₀ C₁ : Circuit signature n m)
       ((Equiv.prodCongr (Equiv.refl _)
         (BitString.blocksEquiv (m := j + 1) (k := n) (α := Bool)).symm).trans
         (Fin.appendEquiv j ((j + 1) * n))), PMF.map_comp]
-  congr 1 with p : 1
-  obtain ⟨r, d⟩ := p
+  congr 1 with ⟨r, d⟩ : 1
   apply BitString.blocksEquiv.injective
-  have happ : (Fin.appendEquiv j ((j + 1) * n)) (r, BitString.blocksEquiv.symm d) =
-      Fin.append r (BitString.blocksEquiv.symm d) :=
-    rfl
   simp only [Function.comp_apply, Equiv.trans_apply, Equiv.prodCongr_apply, Equiv.coe_refl,
-    Prod.map_apply, id, Equiv.apply_symm_apply, BitString.blocksEquiv_apply, happ]
+    Prod.map_apply, id, Equiv.apply_symm_apply, BitString.blocksEquiv_apply]
   exact eval_xorMixCircuit C₀ C₁ j c r d
 
 /-- **The polarization construction on circuits** [SahaiVadhan2003, proof of Lemma 3.3]: the XOR

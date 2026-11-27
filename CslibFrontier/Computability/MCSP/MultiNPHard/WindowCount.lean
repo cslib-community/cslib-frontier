@@ -176,10 +176,9 @@ theorem three_mul_card_cheap_le (A : Fin t → Finset (Fin (2 ^ p))) (ℓ d : �
       intro T hT T' hT' heq
       rw [mem_coe] at hT hT'
       simp only [Cons, mem_filter, mem_univ, true_and] at hT hT'
-      have hout : ∀ y ∉ P, T y = T' y := fun y hy => by
-        have := congrArg (y ∈ ·) heq
-        simp only [mem_filter, mem_compl, hy, not_false_eq_true, true_and, eq_iff_iff] at this
-        exact Bool.eq_iff_iff.mpr this
+      have hout : ∀ y ∉ P, T y = T' y := fun y hy => Bool.eq_iff_iff.mpr <| by
+        simpa only [mem_filter, mem_compl, hy, not_false_eq_true, true_and, eq_iff_iff] using
+          congrArg (y ∈ ·) heq
       funext y
       obtain ⟨x, rfl⟩ := (BitString.equivFin p).surjective y
       have hT1 := hT x
@@ -208,20 +207,15 @@ theorem three_mul_card_cheap_le (A : Fin t → Finset (Fin (2 ^ p))) (ℓ d : �
     have h := three_mul_le_pow hX (hℓ.trans ht) hM (Boolean.DeMorganBasis.card_op_le I)
       (card_computableFunctions_mul_factorial_le_of_arity_le I (p + gateCount p t) ℓ 2
         (Boolean.DeMorganBasis.arity_le_two I))
-    calc 3 * #(computableFunctions I (p + gateCount p t) ℓ) ≤ (2 ^ p) ^ (5 * ℓ + 5) := h
-      _ = 2 ^ (p * (5 * ℓ + 5)) := by rw [← pow_mul]
-      _ ≤ 2 ^ d := Nat.pow_le_pow_right (by norm_num) hd
+    rw [← pow_mul] at h
+    exact h.trans (Nat.pow_le_pow_right (by norm_num) hd)
   have hdle : d ≤ 2 ^ p := by
     obtain ⟨P, hP, -⟩ := hcover ∅ (by simp)
     exact hP.trans ((card_le_univ P).trans_eq (Fintype.card_fin _))
-  calc 3 * #{T : Fin (2 ^ p) → Bool |
-        ecomplexity I (fun x => Fin.append (template A T x) (single (tableFun T) x)) ≤
-          ((#(nonInputComponents (template A T)) + ℓ : ℕ) : ℕ∞)}
-      ≤ 3 * #((computableFunctions I (p + gateCount p t) ℓ).biUnion Cons) :=
-        Nat.mul_le_mul_left 3 (card_le_card hsub)
-    _ ≤ 3 * (#(computableFunctions I (p + gateCount p t) ℓ) * 2 ^ (2 ^ p - d)) :=
-        Nat.mul_le_mul_left 3 (card_biUnion_le_card_mul _ _ _ hfiber)
-    _ = 3 * #(computableFunctions I (p + gateCount p t) ℓ) * 2 ^ (2 ^ p - d) := by ring
+  calc _ ≤ 3 * #(computableFunctions I (p + gateCount p t) ℓ) * 2 ^ (2 ^ p - d) := by
+        rw [mul_assoc]
+        exact Nat.mul_le_mul_left 3
+          ((card_le_card hsub).trans (card_biUnion_le_card_mul _ _ _ hfiber))
     _ ≤ 2 ^ d * 2 ^ (2 ^ p - d) := Nat.mul_le_mul_right _ hcount
     _ = 2 ^ (2 ^ p) := by rw [← pow_add, Nat.add_sub_cancel' hdle]
 

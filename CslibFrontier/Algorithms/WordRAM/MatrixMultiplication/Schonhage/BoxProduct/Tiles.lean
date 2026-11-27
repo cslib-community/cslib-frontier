@@ -96,20 +96,7 @@ theorem exec_evaluateTiles {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht :
     obtain ⟨y, hr, yp, yb, yi, yg, ye, ygeom, yvalues, yf⟩ :=
       exec_tileStep hw hm ht X Y qs old z hz.fixed hz.boxes rfl hj
         hz.groups hz.catalogue hz.geometry hvalues hoffsets hX hY hmag hfit
-    have ha := (hz.groups.offsets _ hj.le).trans (hoffsets _ hj.le)
-    have hb := (hz.groups.offsets _ (Nat.succ_le_of_lt hj)).trans
-      (hoffsets _ (Nat.succ_le_of_lt hj))
-    have hdiff :
-        z.mem (QueriedProduct.offsetBase L m N qs.length + z.regs QueriedProduct.Reg.index + 1) -
-          z.mem (QueriedProduct.offsetBase L m N qs.length + z.regs QueriedProduct.Reg.index) =
-        Nat.count (fun k => key k = z.regs QueriedProduct.Reg.index) qs.length := by
-      rw [show QueriedProduct.offsetBase L m N qs.length + z.regs QueriedProduct.Reg.index + 1 =
-          QueriedProduct.offsetBase L m N qs.length +
-            (z.regs QueriedProduct.Reg.index + 1) by omega,
-        hb, ha, CountingSort.count_lt_succ]
-      dsimp only [key]
-      omega
-    rw [hdiff] at hr
+    rw [hz.groups.span_length key hoffsets hj] at hr
     refine ⟨y, _, hr, ?_, ?_⟩
     · refine ⟨yp, yb, by rw [yi]; omega, yg, ye, ygeom, ?_, ?_⟩
       · intro i hik
@@ -117,18 +104,13 @@ theorem exec_evaluateTiles {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht :
         by_cases hki : key i.val = z.regs QueriedProduct.Reg.index
         · exact yvalues i hki
         · have hold : key i.val < z.regs QueriedProduct.Reg.index := by rw [yi] at hik; omega
-          have hs := (CountingSort.position_mem key i.isLt).2
-          have hmcount : Nat.count (fun k => key k < key i.val + 1) qs.length ≤
-              Nat.count (fun k => key k < z.regs QueriedProduct.Reg.index) qs.length :=
-            Nat.count_mono_left (fun k _ hk => by omega)
-          have hpos := CountingSort.position_lt key i.isLt
-          dsimp only [key] at hs hmcount hpos
-          rw [yf _ (by omega) (by omega)]
-          exact hz.answers i hold
+          have hpos := hz.groups.position_lt_span key hoffsets hj.le i.isLt hold
+          have hposQ := CountingSort.position_lt key i.isLt
+          dsimp only [key] at hpos hposQ
+          exact (yf _ (by omega) (by omega)).trans (hz.answers i hold)
       · intro p ho hf
         have hbQ := (hz.groups.span_bounds key hoffsets hj).2
-        rw [yf p (by omega) hf]
-        exact hz.frame p ho hf
+        exact (yf p (by omega) hf).trans (hz.frame p ho hf)
     · have hsplit := Finset.sum_eq_sum_Ico_succ_bot hj (tileCharge L m t qs)
       dsimp only [Φ]
       rw [yi, hsplit]
@@ -140,12 +122,9 @@ theorem exec_evaluateTiles {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht :
     simp only [Cond.holds_lt, hy.fixed.tiles] at hc
     dsimp only [T] at *
     omega
-  refine ⟨y, ?_, hy.fixed, hy.boxes, hy.groups, hy.catalogue, hy.geometry, ?_, hy.frame⟩
-  · simpa only [Φ, hi, Nat.Ico_zero_eq_range, T, evaluateTiles] using hr
-  · intro i
-    apply hy.answers i
-    rw [hlast]
-    exact Wanted.tileKey_lt hm (Wanted.inputPairs qs i.val)
-      (Wanted.inputPairs_lt qs i i.isLt).1 (Wanted.inputPairs_lt qs i i.isLt).2
+  refine ⟨y, by simpa only [Φ, hi, Nat.Ico_zero_eq_range, T, evaluateTiles] using hr, hy.fixed,
+    hy.boxes, hy.groups, hy.catalogue, hy.geometry, fun i => hy.answers i ?_, hy.frame⟩
+  obtain ⟨h1, h2⟩ := Wanted.inputPairs_lt qs i i.isLt
+  exact hlast ▸ Wanted.tileKey_lt hm _ h1 h2
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

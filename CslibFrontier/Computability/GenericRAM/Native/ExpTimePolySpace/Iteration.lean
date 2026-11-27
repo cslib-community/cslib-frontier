@@ -10,28 +10,85 @@ module
 public import CslibFrontier.Computability.GenericRAM.Native.ExpTimePolySpace
 
 /-!
-# Polynomially many exponential-time calls in polynomial space
+# Binary-counted iteration in factored time and polynomial space
 
-A native iteration retains time `2 ^ E` times a polynomial and polynomial space when its number
-of rounds and live states have polynomial bounds, and every reached round has that same time
-exponent in the original input. The callbacks may depend on earlier results. The iterator charges
-one maximum round workspace, so the number of rounds does not multiply its space bound.
+A native binary-counted iteration (`Cslib.GenericRAM.NativeCertificate.iterate`) runs in time
+`(count a + 1) * K a` times a polynomial and in polynomial space whenever the round count and
+initial state are produced in polynomial time, every reached state has polynomially bounded encoded
+length, and every reached round runs in time `K a` times a polynomial and polynomial space.
 
 ## Main results
 
-* `Cslib.GenericRAM.NativeCertificate.ExpTimePolySpace.iterate_of_bounds`: iteration under
-  polynomial bounds on the round count, initialization, reached states and round resources,
-  without increasing the common exponent.
+* `Cslib.GenericRAM.NativeCertificate.FactorTimePolySpace.iterate_of_bounds`,
+  `Cslib.GenericRAM.NativeCertificate.FactorTimePolySpace.iterate`: binary-counted iteration with
+  general runtime round count `count a`.
+* `Cslib.GenericRAM.NativeCertificate.ExpTimePolySpace.iterate_of_bounds`: iteration under a
+  polynomially bounded round count without increasing the common exponent.
 -/
 
 public section
 
-namespace Cslib.GenericRAM.NativeCertificate.ExpTimePolySpace
+namespace Cslib.GenericRAM.NativeCertificate
 
 open Turing.MultiTapeTM
 
 variable {α β : Type} {enc : α ↪ List Bool} {encState : β ↪ List Bool}
-  {count : α → ℕ} {init : α → β} {step : β → β} {E R Q B : α → ℕ}
+  {count : α → ℕ} {init : α → β} {step : β → β}
+
+namespace FactorTimePolySpace
+
+/-- **Binary-counted iteration under explicit reachable-round bounds.** Every reached round
+`j ≤ count a` uses time at most `K a * R a` and workspace at most `Q a`, where `R`, `Q` and the
+live-state bound `B` are polynomially bounded in the input length. -/
+theorem iterate_of_bounds (cn : NativeCertificate count enc encNat)
+    (ci : NativeCertificate init enc encState) (cs : NativeCertificate step encState encState)
+    (hcn : cn.IsPolynomial) (hci : ci.IsPolynomial) {K R Q B : α → ℕ} (hK : ∀ a, 1 ≤ K a)
+    (hR : PolyBounded (fun a => (enc a).length) R) (hQ : PolyBounded (fun a => (enc a).length) Q)
+    (hB : PolyBounded (fun a => (enc a).length) B)
+    (ht : ∀ a j, j ≤ count a → cs.time (step^[j] (init a)) ≤ K a * R a)
+    (hs : ∀ a j, j ≤ count a → cs.space (step^[j] (init a)) ≤ Q a)
+    (hb : ∀ a j, j ≤ count a → (encState (step^[j] (init a))).length ≤ B a) :
+    (NativeCertificate.iterate cn ci cs).FactorTimePolySpace (fun a => (count a + 1) * K a) := by
+  have hclock := (cn.polyTime hcn).polyBounded_length
+  refine of_polyBounded ((((hcn.1.add hci.1).add hR).add hB).add ((hclock.add (.const 1)).pow 2))
+    (((((hcn.2.add hci.2).add hQ).add hB).add hclock).mono fun a => ?_) fun a => ?_
+  · have := maxRoundSpace_le cs (count a) (init a) (hs a)
+    have := maxStateLength_le encState step (count a) (init a) (hb a)
+    simp only [iterate_space]; omega
+  · have hbody := Nat.add_le_add (Nat.add_le_add (maxRoundTime_le cs (count a) (init a) (ht a))
+        ((maxStateLength_le encState step (count a) (init a) (hb a)).trans
+          (Nat.le_mul_of_pos_left _ (hK a))))
+        (Nat.le_mul_of_pos_left (((encNat (count a)).length + 1) ^ 2) (hK a))
+    rw [iterate_time]
+    calc _ ≤ ((count a + 1) * K a) * (cn.time a + ci.time a) +
+          (count a + 1) * (K a * R a + K a * B a + K a * ((encNat (count a)).length + 1) ^ 2) :=
+          Nat.add_le_add (Nat.le_mul_of_pos_left _ (Nat.mul_pos (Nat.succ_pos _) (hK a)))
+            (Nat.mul_le_mul_left _ hbody)
+      _ = _ := by ring
+
+/-- **Binary-counted iteration of a `FactorTimePolySpace` step certificate** under a polynomial
+reachable-state length bound `B` and a per-input bound `K a` on the step factor. -/
+theorem iterate (cn : NativeCertificate count enc encNat)
+    (ci : NativeCertificate init enc encState) (cs : NativeCertificate step encState encState)
+    {Ks : β → ℕ} {K B : α → ℕ} (hcn : cn.IsPolynomial) (hci : ci.IsPolynomial)
+    (hcs : cs.FactorTimePolySpace Ks) (hK : ∀ a, 1 ≤ K a)
+    (hB : PolyBounded (fun a => (enc a).length) B)
+    (hKs : ∀ a j, j ≤ count a → Ks (step^[j] (init a)) ≤ K a)
+    (hb : ∀ a j, j ≤ count a → (encState (step^[j] (init a))).length ≤ B a) :
+    (NativeCertificate.iterate cn ci cs).FactorTimePolySpace (fun a => (count a + 1) * K a) := by
+  obtain ⟨Cs, ds, hcs⟩ := hcs
+  have hP := polyBounded_pow_of_polyBounded hB Cs ds
+  refine iterate_of_bounds cn ci cs hcn hci hK hP hP hB (fun a j hj => ?_) (fun a j hj => ?_) hb
+  · exact ((hcs _).1.trans (Nat.mul_le_mul (Nat.mul_le_mul_left Cs (hKs a j hj))
+      (Nat.pow_le_pow_left (Nat.add_le_add_right (hb a j hj) 1) ds))).trans_eq (by ring)
+  · exact (hcs _).2.trans
+      (Nat.mul_le_mul_left Cs (Nat.pow_le_pow_left (Nat.add_le_add_right (hb a j hj) 1) ds))
+
+end FactorTimePolySpace
+
+namespace ExpTimePolySpace
+
+variable {E R Q B : α → ℕ}
 
 /-- **Polynomially many adaptive calls preserve the common exponential time factor.** The
 round count and state bounds are measured against the original encoded input. Every reached
@@ -41,59 +98,16 @@ theorem iterate_of_bounds (cn : NativeCertificate count enc encNat)
     (ci : NativeCertificate init enc encState) (cs : NativeCertificate step encState encState)
     (hcn : cn.IsPolynomial) (hci : ci.IsPolynomial)
     (hcount : PolyBounded (fun a => (enc a).length) count)
-    (hR : PolyBounded (fun a => (enc a).length) R)
-    (hQ : PolyBounded (fun a => (enc a).length) Q)
+    (hR : PolyBounded (fun a => (enc a).length) R) (hQ : PolyBounded (fun a => (enc a).length) Q)
     (hB : PolyBounded (fun a => (enc a).length) B)
     (ht : ∀ a j, j ≤ count a → cs.time (step^[j] (init a)) ≤ R a * 2 ^ E a)
     (hs : ∀ a j, j ≤ count a → cs.space (step^[j] (init a)) ≤ Q a)
     (hb : ∀ a j, j ≤ count a → (encState (step^[j] (init a))).length ≤ B a) :
-    (NativeCertificate.iterate cn ci cs).ExpTimePolySpace E := by
-  have hclock : PolyBounded (fun a => (enc a).length)
-      (fun a => (encNat (count a)).length) := (cn.polyTime hcn).polyBounded_length
-  let timeFactor a := cn.time a + ci.time a +
-    (count a + 1) * (R a + B a + ((encNat (count a)).length + 1) ^ 2)
-  let spaceFactor a := cn.space a + ci.space a + Q a + B a + (encNat (count a)).length
-  have htimeFactor : PolyBounded (fun a => (enc a).length) timeFactor :=
-    (hcn.1.add hci.1).add
-      ((hcount.add (.const 1)).mul ((hR.add hB).add ((hclock.add (.const 1)).pow 2)))
-  have hspaceFactor : PolyBounded (fun a => (enc a).length) spaceFactor :=
-    (((hcn.2.add hci.2).add hQ).add hB).add hclock
-  have htime (a : α) : (NativeCertificate.iterate cn ci cs).time a ≤ timeFactor a * 2 ^ E a := by
-    have hmaxT := maxRoundTime_le cs (count a) (init a) (ht a)
-    have hmaxB := maxStateLength_le encState step (count a) (init a) (hb a)
-    have hbody : maxRoundTime cs (count a) (init a) +
-        maxStateLength encState step (count a) (init a) +
-        ((encNat (count a)).length + 1) ^ 2 ≤
-          (R a + B a + ((encNat (count a)).length + 1) ^ 2) * 2 ^ E a := by
-      calc _ ≤ R a * 2 ^ E a + B a * 2 ^ E a +
-            ((encNat (count a)).length + 1) ^ 2 * 2 ^ E a :=
-            Nat.add_le_add (Nat.add_le_add hmaxT
-              (hmaxB.trans (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _))))
-              (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _))
-        _ = _ := by ring
-    rw [iterate_time]
-    calc _ ≤ (cn.time a + ci.time a) * 2 ^ E a +
-          (count a + 1) * ((R a + B a + ((encNat (count a)).length + 1) ^ 2) * 2 ^ E a) :=
-          Nat.add_le_add (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _))
-            (Nat.mul_le_mul_left _ hbody)
-      _ = _ := by dsimp only [timeFactor]; ring
-  have hspace (a : α) : (NativeCertificate.iterate cn ci cs).space a ≤ spaceFactor a := by
-    have hmaxS := maxRoundSpace_le cs (count a) (init a) (hs a)
-    have hmaxB := maxStateLength_le encState step (count a) (init a) (hb a)
-    simp only [iterate_space, spaceFactor]
-    omega
-  obtain ⟨ct, dt, htFactor⟩ := htimeFactor.exists_le
-  obtain ⟨cq, dq, hqFactor⟩ := hspaceFactor.exists_le
-  refine ⟨ct + cq, dt + dq, fun a => ⟨?_, ?_⟩⟩
-  · calc _ ≤ timeFactor a * 2 ^ E a := htime a
-      _ ≤ (ct * ((enc a).length + 1) ^ dt) * 2 ^ E a :=
-          Nat.mul_le_mul_right _ (htFactor a)
-      _ ≤ ((ct + cq) * ((enc a).length + 1) ^ (dt + dq)) * 2 ^ E a :=
-          Nat.mul_le_mul_right _ (Nat.mul_le_mul (Nat.le_add_right _ _)
-            (Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_add_right _ _)))
-      _ = _ := by ring
-  · exact (hspace a).trans ((hqFactor a).trans
-      (Nat.mul_le_mul (Nat.le_add_left _ _)
-        (Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_add_left _ _))))
+    (NativeCertificate.iterate cn ci cs).ExpTimePolySpace E :=
+  (FactorTimePolySpace.iterate_of_bounds cn ci cs hcn hci (fun _ => Nat.two_pow_pos _) hR hQ hB
+    (fun a j hj => (ht a j hj).trans_eq (Nat.mul_comm _ _)) hs hb).absorb_polyBounded
+    (hcount.add (.const 1))
 
-end Cslib.GenericRAM.NativeCertificate.ExpTimePolySpace
+end ExpTimePolySpace
+
+end Cslib.GenericRAM.NativeCertificate

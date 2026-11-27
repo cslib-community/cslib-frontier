@@ -73,21 +73,15 @@ theorem reconnect_child (s : State M (layout extra regs))
       t.heap = s.heap.modify a (fun r => { r with ptr := Function.update r.ptr field (s.ptr 0) }) ∧
       t.data = s.data ∧
       (∀ i, i ≠ 2 → i ≠ 3 → i ≠ 5 → t.ptr i = s.ptr i) := by
-  have main : ∃ t, ExecWithin reconnect s t 8 ∧ ∃ field : Fin 3,
-      (field = 0 ∨ field = 1) ∧ par.ptr field = s.ptr 6 ∧
-      t.heap = s.heap.modify a
-        (fun r => { r with ptr := Function.update r.ptr field (s.ptr 0) }) ∧
-      t.data = s.data ∧ (∀ i, i ≠ 2 → i ≠ 3 → i ≠ 5 → t.ptr i = s.ptr i) := by
-    apply WP.exists_execWithin
-    by_cases h : par.ptr 0 = s.ptr 6
-    · pm_exec [reconnect, read, parent, lookup, h]
-      exact ⟨by omega, 0, .inl rfl, h, by simp [State.modify], by simp,
-        fun i h2 h3 h5 => by simp [h2, h3, h5]⟩
-    · pm_exec [reconnect, read, parent, lookup, h]
-      exact ⟨by omega, 1, .inr rfl, attached.resolve_left h, by simp [State.modify], by simp,
-        fun i h2 h3 h5 => by simp [h2, h3, h5]⟩
-  obtain ⟨t, run, field, rest⟩ := main
-  exact ⟨t, field, run, rest⟩
+  simp only [exists_and_left]
+  apply WP.exists_execWithin
+  by_cases h : par.ptr 0 = s.ptr 6
+  · pm_exec [reconnect, read, parent, lookup, h]
+    exact ⟨by omega, 0, .inl rfl, h, by simp [State.modify], by simp,
+      fun i h2 h3 h5 => by simp [h2, h3, h5]⟩
+  · pm_exec [reconnect, read, parent, lookup, h]
+    exact ⟨by omega, 1, .inr rfl, attached.resolve_left h, by simp [State.modify], by simp,
+      fun i h2 h3 h5 => by simp [h2, h3, h5]⟩
 
 open Register in
 /-- Move the cursor to its parent. -/

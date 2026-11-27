@@ -286,34 +286,48 @@ theorem guessAdvantage_biasedBool_pure_true :
 
 /-! ### 3. Computational unpredictability (`SecretGuessHard`) and lazy Theorem 8.10 -/
 
+/-- Encoding-layout migration check: `encSigma encUnary (fun _ => encX₀)` produces the exact same
+bit words as `encPair encUnary encX₀`. -/
+theorem encSigma_const_eq_encPair {X₀ : Type} (encX₀ : X₀ ↪ List Bool) (n : ℕ) (x : X₀) :
+    encSigma encUnary (fun _ => encX₀) ⟨n, x⟩ = encPair encUnary encX₀ (n, x) := rfl
+
+/-- Encoding-layout migration check: `encWordROInput (fun _ => encX₀)` produces the exact same bit
+words as `encPair encUnary (encPair encX₀ encBits)`. -/
+theorem encWordROInput_eq_encPair {X₀ : Type} (encX₀ : X₀ ↪ List Bool)
+    (y : WordROInput (fun _ => X₀)) :
+    encWordROInput (fun _ => encX₀) y =
+      encPair encUnary (encPair encX₀ encBits) (y.secParam, y.sideInfo, y.key) := rfl
+
 /-- Echo guesser for `not_secretGuessHard_echo`: reads the leaked bit list as an `n`-bit string. -/
-def echoGuessAdversary : GuessFamilyAdversary (List Bool) id :=
+def echoGuessAdversary : GuessFamilyAdversary (fun _ => List Bool) BitString :=
   fun n w => pure (BitString.ofList n w)
 
-theorem isPPT_echoGuessAdversary : echoGuessAdversary.IsPPT encBits := by
+theorem isPPT_echoGuessAdversary :
+    echoGuessAdversary.IsPPT (fun _ => encBits) encBitString := by
+  let E₀ := encSigma encUnary fun _ : ℕ => encBits
   let E := encPair encUnary encBits
+  have hview : ComputableInPolyTime (fun p : Σ _ : ℕ, List Bool => (p.1, p.2)) E₀ E :=
+    ComputableInPolyTime.of_enc_eq (ComputableInPolyTime.id' (encIn := E₀)) fun _ => rfl
   have hn : ComputableInPolyTime (fun p : ℕ × List Bool => p.1) E encUnary := by fun_prop
-  have hw : ComputableInPolyTime (fun p : ℕ × List Bool => p.2) E encBits := by fun_prop
   have hpad : ComputableInPolyTime (fun p : ℕ × List Bool => List.replicate p.1 false) E encBits :=
     (bits_encList_polyTime encBool).2.comp
       (ComputableInPolyTime.replicate hn (ComputableInPolyTime.const false))
   have hslice : ComputableInPolyTime
       (fun p : ℕ × List Bool => (p.2 ++ List.replicate p.1 false).take p.1) E encBits := by
-    exact by fun_prop
-  refine hslice.isPPTOn.congr fun p => ?_
-  simp only [echoGuessAdversary, id_eq, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_map,
-    BitString.ofFn_ofList_eq_take]
+    fun_prop
+  refine (hslice.comp hview).isPPTOn.congr fun p => ?_
+  simp only [echoGuessAdversary, encBitString_apply, ProbComp.eval_map, ProbComp.eval_pure,
+    PMF.pure_map, Function.comp_def, BitString.ofFn_ofList_eq_take]
 
 /-- **Nonvacuity (`not_secretGuessHard_echo`)**: when `info n s = List.ofFn s` leaks the entire
 `n`-bit secret, `echoGuessAdversary` is uniform strict PPT and wins with probability `1`, refuting
 `SecretGuessHard`. -/
 theorem not_secretGuessHard_echo :
-    ¬ SecretGuessHard encBits id (fun n => uniformOfFintype (BitString n))
-        (fun _ s => List.ofFn s) := by
+    ¬ SecretGuessHard (fun _ => encBits) encBitString
+        (fun n => uniformOfFintype (BitString n)) (fun _ s => List.ofFn s) := by
   intro h
   refine not_negligible_const (c := 1) (by norm_num)
     ((h echoGuessAdversary isPPT_echoGuessAdversary).congr fun n => ?_)
-  dsimp only [id_eq]
   unfold guessAdvantage Game.succProbability
   have htrue : guessOutput (uniformOfFintype (BitString n)) (fun s => List.ofFn s)
       (echoGuessAdversary n) true = 1 := by
@@ -324,10 +338,10 @@ theorem not_secretGuessHard_echo :
 /-- **Satisfying instance (`secretGuessHard_uniform_unit`)**: a uniform `n`-bit secret with no side
 information (`info n _ = ()`) satisfies `SecretGuessHard`. -/
 theorem secretGuessHard_uniform_unit :
-    SecretGuessHard encUnit id (fun n => uniformOfFintype (BitString n)) (fun _ _ => ()) := by
+    SecretGuessHard (fun _ => encUnit) encBitString
+      (fun n => uniformOfFintype (BitString n)) (fun _ _ => ()) := by
   intro A _
   refine negligible_of_le negligible_one_div_two_pow fun n => ?_
-  dsimp only [id_eq]
   rw [guessAdvantage_uniformOfFintype_const ()]
   have hcard : Fintype.card (BitString n) = 2 ^ n := by simp [BitString, Fintype.card_pi]
   simp [hcard, one_div]
@@ -337,19 +351,20 @@ with no side information, every uniform strict oracle-PPT word distinguisher has
 random-oracle KDF distinguishing advantage for any unary-poly-time `outLen`. -/
 theorem negligible_roAdvantage_uniform_unit {outLen : ℕ → ℕ}
     (hout : ComputableInPolyTime outLen encUnary encUnary)
-    {D : WordRODistinguisher Unit} (hD : D.IsPPT encUnit) :
+    {D : WordRODistinguisher (fun _ => Unit)} (hD : D.IsPPT (fun _ => encUnit)) :
     Negligible fun n =>
       roAdvantage (uniformOfFintype (BitString n)) (fun _ => ())
-        (toRODistinguisher id outLen D n) :=
-  secretGuessHard_uniform_unit.negligible_roAdvantage .id' hout
+        (toBitStringRODistinguisher id outLen D n) :=
+  secretGuessHard_uniform_unit.negligible_roAdvantage_bitString .id' hout
     ⟨0, 0, fun _ _ _ => by simp [encUnit]; rfl⟩ hD
 
 /-- **Satisfying instance with growing side information** ([BonehShoup2023], §8.10.1 third example,
 pp. 325–326, and Theorem 8.10, pp. 331–332): on a uniform `(n + n)`-bit secret leaking its first `n`
-bits as `List Bool`, `SecretGuessHard` holds and `SecretGuessHard.negligible_roAdvantage` yields
-negligible random-oracle KDF advantage for every uniform strict oracle-PPT word distinguisher. -/
+bits as `List Bool`, `SecretGuessHard` holds and `SecretGuessHard.negligible_roAdvantage_bitString`
+yields negligible random-oracle KDF advantage for every uniform strict oracle-PPT word
+distinguisher. -/
 theorem secretGuessHard_bitString_take :
-    SecretGuessHard encBits (fun n => n + n)
+    SecretGuessHard (fun _ => encBits) (fun n => encBitString (n + n))
       (fun n => uniformOfFintype (BitString (n + n)))
       (fun n s => List.ofFn (Fin.take n (Nat.le_add_right n n) s)) := by
   intro A _
@@ -364,12 +379,12 @@ theorem secretGuessHard_bitString_take :
 
 theorem negligible_roAdvantage_word_bitString_take {outLen : ℕ → ℕ}
     (hout : ComputableInPolyTime outLen encUnary encUnary)
-    {D : WordRODistinguisher (List Bool)} (hD : D.IsPPT encBits) :
+    {D : WordRODistinguisher (fun _ => List Bool)} (hD : D.IsPPT (fun _ => encBits)) :
     Negligible fun n =>
       roAdvantage (uniformOfFintype (BitString (n + n)))
         (fun s => List.ofFn (Fin.take n (Nat.le_add_right n n) s))
-        (toRODistinguisher (fun n => n + n) outLen D n) :=
-  secretGuessHard_bitString_take.negligible_roAdvantage
+        (toBitStringRODistinguisher (fun n => n + n) outLen D n) :=
+  secretGuessHard_bitString_take.negligible_roAdvantage_bitString
     (by fun_prop) hout ⟨1, 1, fun n _ _ => by simp⟩ hD
 
 end CslibFrontierTests.Crypto.RandomOracleKDF

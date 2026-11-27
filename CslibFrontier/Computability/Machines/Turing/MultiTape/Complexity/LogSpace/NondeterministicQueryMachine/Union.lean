@@ -105,46 +105,32 @@ theorem step_union_none (s : σ) (t : τ) (c : Bool) :
 theorem union_accepts_iff (s : σ) (t : τ) :
     ((union M N).withInit ⟨s, t, none⟩).Accepts x ↔
       (M.withInit s).Accepts x ∨ (N.withInit t).Accepts x := by
+  simp only [Accepts, run_withInit]
+  dsimp only [withInit]
   constructor
   · rintro ⟨_ | ⟨c, cs⟩, hh, ha⟩
-    · change (union M N).halted ⟨s, t, none⟩ = true at hh
-      simp [union] at hh
-    · change (union M N).halted ((union M N).replay x (c :: cs) ⟨s, t, none⟩) = true at hh
-      change (union M N).accept ((union M N).replay x (c :: cs) ⟨s, t, none⟩) = true at ha
-      rw [replay_cons, step_union_none] at hh ha
+    · simp [union] at hh
+    · rw [replay_cons, step_union_none] at hh ha
       cases c
       · rw [replay_union_left] at hh ha
-        have hh' : M.halted (M.replay x cs s) = true := by simpa [union] using hh
-        have ha' : M.accept (M.replay x cs s) = true := by simpa [union] using ha
-        exact .inl ⟨cs, hh', ha'⟩
+        simp only [union, Option.isSome_some, Option.getD_some, Bool.true_and,
+          Bool.false_eq_true, ↓reduceIte] at hh ha
+        exact .inl ⟨cs, hh, ha⟩
       · rw [replay_union_right] at hh ha
-        have hh' : N.halted (N.replay x cs t) = true := by simpa [union] using hh
-        have ha' : N.accept (N.replay x cs t) = true := by simpa [union] using ha
-        exact .inr ⟨cs, hh', ha'⟩
+        simp only [union, Option.isSome_some, Option.getD_some, Bool.true_and,
+          ↓reduceIte] at hh ha
+        exact .inr ⟨cs, hh, ha⟩
   · rintro (⟨cs, hh, ha⟩ | ⟨cs, hh, ha⟩)
     · refine ⟨false :: cs, ?_, ?_⟩
-      · change (union M N).halted ((union M N).replay x (false :: cs) ⟨s, t, none⟩) = true
-        rw [replay_cons, step_union_none, replay_union_left]
-        rw [run_withInit] at hh
-        simp only [union, Option.isSome_some, Option.getD_some, Bool.true_and, Bool.false_eq_true,
-          ↓reduceIte]
-        exact hh
-      · change (union M N).accept ((union M N).replay x (false :: cs) ⟨s, t, none⟩) = true
-        rw [replay_cons, step_union_none, replay_union_left]
-        rw [run_withInit] at ha
-        simp only [union, Option.getD_some, Bool.false_eq_true, ↓reduceIte]
-        exact ha
+      · rw [replay_cons, step_union_none, replay_union_left]
+        simpa [union] using hh
+      · rw [replay_cons, step_union_none, replay_union_left]
+        simpa [union] using ha
     · refine ⟨true :: cs, ?_, ?_⟩
-      · change (union M N).halted ((union M N).replay x (true :: cs) ⟨s, t, none⟩) = true
-        rw [replay_cons, step_union_none, replay_union_right]
-        rw [run_withInit] at hh
-        simp only [union, Option.isSome_some, Option.getD_some, Bool.true_and, ↓reduceIte]
-        exact hh
-      · change (union M N).accept ((union M N).replay x (true :: cs) ⟨s, t, none⟩) = true
-        rw [replay_cons, step_union_none, replay_union_right]
-        rw [run_withInit] at ha
-        simp only [union, Option.getD_some, ↓reduceIte]
-        exact ha
+      · rw [replay_cons, step_union_none, replay_union_right]
+        simpa [union] using hh
+      · rw [replay_cons, step_union_none, replay_union_right]
+        simpa [union] using ha
 
 /-! ### The parts, in linear space -/
 

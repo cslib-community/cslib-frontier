@@ -154,8 +154,7 @@ hypothesis `ε < 1` does not suffice (`exists_secure_not_isSmallBias`). -/
 theorem Generator.Secure.lt_two_pow {k ℓ s : ℕ} {G : Generator (Fin k → Bool) (Fin ℓ → Bool)}
     {ε : ℝ≥0} (hs : 1 ≤ s) (hε : (ε : ℝ) < 1 / 2) (hG : G.Secure (IsReadOnceTest (2 ^ s)) ε) :
     ℓ < 2 ^ k := by
-  have h := card_lt_card_of_isSmallBias (by linarith) (hG.isSmallBias hs)
-  simpa using h
+  simpa using card_lt_card_of_isSmallBias (by linarith) (hG.isSmallBias hs)
 
 /-- **Counterexample to the printed Exercises 8.38 and 8.25(2)** [Goldreich][Goldreich2007DraftR4]:
 the generator `σ ↦ σσ` on one seed bit fools every test, however large its space, with error
@@ -175,9 +174,7 @@ theorem exists_secure_not_isSmallBias :
     have hx (x : Fin (2 ^ 1) → Bool) : |(G.outputDist x).toReal -
         (PMF.uniformOfFintype (Fin (2 ^ 1) → Bool) x).toReal| = 1 / 4 := by
       rw [Generator.outputDist, toReal_uniformOfFintype_map_apply, PMF.uniformOfFintype_apply,
-        nnratCast_dens]
-      have hG : ⇑G = fun σ _ => σ 0 := rfl
-      rw [hG]
+        nnratCast_dens, show ⇑G = fun σ _ => σ 0 from rfl]
       simp only [Fintype.card_pi, Fintype.card_bool, prod_const, card_univ, Fintype.card_fin,
         ENNReal.toReal_inv]
       rcases hcases x with h | h <;> rw [h] <;> norm_num
@@ -185,14 +182,10 @@ theorem exists_secure_not_isSmallBias :
       Fintype.card_fin, nsmul_eq_mul]
     norm_num
   refine ⟨G, fun A _ => ?_, fun hG => ?_⟩
-  · have h := PMF.abs_bind_apply_toReal_sub_le_dist G.outputDist
-      (PMF.uniformOfFintype (Fin (2 ^ 1) → Bool)) A true
-    rw [hdist] at h
-    rw [Generator.advantage]
-    exact_mod_cast h
+  · rw [Generator.advantage]
+    exact_mod_cast hdist ▸ PMF.abs_bind_apply_toReal_sub_le_dist G.outputDist _ A true
   · have h := hG univ univ_nonempty
-    have hpar (σ : Fin 1 → Bool) : parityOn univ (G σ) = false := by
-      revert σ; decide
+    have hpar : ∀ σ : Fin 1 → Bool, parityOn univ (G σ) = false := by decide
     rw [Generator.outputDist, bias_uniformOfFintype_map] at h
     simp_rw [chi_eq_signVal_parityOn, hpar] at h
     rw [Finset.expect_const univ_nonempty] at h

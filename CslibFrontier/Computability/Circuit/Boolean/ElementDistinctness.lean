@@ -103,11 +103,9 @@ theorem two_pow_le_card_subfunctions_elementDistinctness (hm : m ≤ 2 ^ t) (i :
     fun x => elementDistinctness m (t + t) ((blockBits (t + t) i).piecewise x (tagged (w u)))
   have hg (u : {j // j ≠ i} → Fin t → Bool) (x : BitString (m * (t + t))) :
       g u x = decide (Function.Injective fun j => if j = i then block x j else val u j) := by
-    have h : block ((blockBits (t + t) i).piecewise x (tagged (w u))) =
-        fun j => if j = i then block x j else val u j := by
-      funext j
-      rw [block_piecewise, block_tagged]
-    simp only [g, elementDistinctness, h]
+    simp only [g, elementDistinctness]
+    exact congrArg (fun f => decide (Function.Injective f))
+      (funext fun j => by rw [block_piecewise, block_tagged])
   have hinj : Set.InjOn g (univ : Finset ({j // j ≠ i} → Fin t → Bool)) := by
     intro u _ u' _ huu
     by_contra hne
@@ -115,11 +113,8 @@ theorem two_pow_le_card_subfunctions_elementDistinctness (hm : m ≤ 2 ^ t) (i :
     -- The value of block `j` under `u` is not the value of any other block under `u'`.
     have key (l : Fin m) (hl : l ≠ i) (h : val u j = val u' l) : False := by
       obtain rfl := htag h
-      refine hj (funext fun c => ?_)
-      have hc := congrFun h (Fin.natAdd t c)
-      simp only [val] at hc
-      rw [Fin.append_right, Fin.append_right] at hc
-      simpa [w, j.2] using hc
+      exact hj (funext fun c => by
+        simpa only [val, Fin.append_right, w, j.2, ↓reduceDIte] using congrFun h (Fin.natAdd t c))
     -- An input whose block `i` repeats block `j` of the first assignment.
     let x : BitString (m * (t + t)) := fun p => val u j (finProdFinEquiv.symm p).2
     have hx : ∀ l, block x l = val u j := fun l => funext fun b => by
@@ -133,11 +128,9 @@ theorem two_pow_le_card_subfunctions_elementDistinctness (hm : m ≤ 2 ^ t) (i :
       intro l₁ l₂ h
       by_cases h₁ : l₁ = i <;> by_cases h₂ : l₂ = i
       · exact h₁.trans h₂.symm
-      · simp only [h₁, h₂, ↓reduceIte, hx] at h
-        exact (key l₂ h₂ h).elim
-      · simp only [h₁, h₂, ↓reduceIte, hx] at h
-        exact (key l₁ h₁ h.symm).elim
-      · simpa [h₁, h₂] using htag (u := u') (u' := u') (by simpa [h₁, h₂] using h)
+      · exact (key l₂ h₂ (by simpa [h₁, h₂, hx] using h)).elim
+      · exact (key l₁ h₁ (by simpa [h₁, h₂, hx] using h.symm)).elim
+      · exact htag (u := u') (u' := u') (by simpa [h₁, h₂] using h)
     exact absurd (congrFun huu x) (by rw [h₁, h₂]; decide)
   have hcard : Fintype.card ({j // j ≠ i} → Fin t → Bool) = 2 ^ (t * (m - 1)) := by
     rw [Fintype.card_fun, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,

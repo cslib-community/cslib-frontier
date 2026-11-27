@@ -148,12 +148,8 @@ theorem exists_perfectSemiHonestPrivate_ot14_of_polyTime {α : Type} {enc : α �
         CoalitionSimulator.Family.IsPPT enc m n k I
           (fun a => encGMWPartyView m (coins a) (n a) (k a) (C a))
           (fun a => gmwOT14RandomizedSim m (coins a) (n a) (k a) (C a) I)) := by
-  have h_in : ComputableInPolyTime (fun a => m * n a + coins a) enc encUnary :=
-    .unary_add' (.unary_mul' (.const m) hn) hcoins
-  have h_out : ComputableInPolyTime (fun a => m * k a) enc encUnary :=
-    .unary_mul' (.const m) hk
-  obtain ⟨C, hC_code, hC_eval⟩ :=
-    Cslib.Complexity.CircuitValue.exists_uniformCircuitFamily h_in h_out hF
+  obtain ⟨C, hC_code, hC_eval⟩ := Cslib.Complexity.CircuitValue.exists_uniformCircuitFamily
+    (.unary_add' (.unary_mul' (.const m) hn) hcoins) (.unary_mul' (.const m) hk) hF
   refine ⟨C, hC_code, hC_eval, fun a => ?_,
     familyIsOraclePPT_gmwOT14RandomizedProtocol m hcoins hn hk hC_code,
     fun I _ => familyIsPPT_gmwOT14RandomizedSim m hcoins hn hk hC_code I⟩

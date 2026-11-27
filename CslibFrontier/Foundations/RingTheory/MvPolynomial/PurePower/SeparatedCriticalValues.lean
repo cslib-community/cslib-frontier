@@ -35,8 +35,7 @@ private theorem eval_potentialPolynomial_mul_of_pow_eq_one {S : Type*} [CommRing
       (ell + 1 : ℕ) * (∑ i, a i ^ (ell + 1)) -
         (ell : S) * (∑ i, a i ^ (ell + 1) * z i) := by
   rw [potentialPolynomial, map_sum, Finset.mul_sum, Finset.mul_sum, ← Finset.sum_sub_distrib]
-  apply Finset.sum_congr rfl
-  intro i _
+  refine Finset.sum_congr rfl fun i _ => ?_
   simp only [map_add, map_sub, map_mul, map_pow, eval_X, eval_C, mul_pow,
     pow_succ, hz, Nat.cast_add, Nat.cast_one]
   ring
@@ -52,20 +51,16 @@ theorem eq_of_eval_potentialPolynomial_eq_of_pow_eq_one {n ell : ℕ} (hell : 1 
   have hR : 2 * ell + 1 ≤ R := by
     have hbase : 4 * ell ≤ (4 * ell) ^ (ell + 1) := le_self_pow₀ (by omega) (by omega)
     omega
-  have hell0 : ell ≠ 0 := by omega
-  have hcast : (ell : ℂ) ≠ 0 := by exact_mod_cast hell0
-  have hR0 : (R : ℂ) ≠ 0 := by exact_mod_cast (by omega : R ≠ 0)
   rw [eval_potentialPolynomial_mul_of_pow_eq_one ell _ z hz,
     eval_potentialPolynomial_mul_of_pow_eq_one ell _ w hw] at hvalue
-  have hs := mul_left_cancel₀ hcast (sub_right_inj.mp hvalue)
+  have hs := mul_left_cancel₀ (mod_cast (by omega : ell ≠ 0)) (sub_right_inj.mp hvalue)
   have hweight (i : Fin n) : (separatedCenters ell i : ℂ) ^ (ell + 1) =
       (R : ℂ) * (R : ℂ) ^ i.val := by
     change (((4 * ell) ^ (i.val + 1) : ℕ) : ℂ) ^ (ell + 1) = _
-    rw [Nat.cast_pow, pow_right_comm, ← Nat.cast_pow]
-    change (R : ℂ) ^ (i.val + 1) = _
-    rw [pow_succ']
+    rw [Nat.cast_pow, pow_right_comm, ← Nat.cast_pow, pow_succ' (R : ℂ)]
   simp_rw [hweight, mul_assoc] at hs
   rw [← Finset.mul_sum, ← Finset.mul_sum] at hs
-  exact Complex.eq_of_weighted_sum_eq_of_pow_eq_one hell0 hR hz hw (mul_left_cancel₀ hR0 hs)
+  exact Complex.eq_of_weighted_sum_eq_of_pow_eq_one (by omega) hR hz hw
+    (mul_left_cancel₀ (mod_cast (by omega : R ≠ 0)) hs)
 
 end MvPolynomial.CriticalSystem

@@ -48,14 +48,10 @@ theorem snd_aeval_dualNumber [Fintype σ] (P : MvPolynomial σ R) (u : σ → R[
   | C c => simp [algebraMap_eq_inl]
   | add P Q hP hQ => simp [hP, hQ, add_mul, Finset.sum_add_distrib]
   | mul_X P i hP =>
-    have hX (a : σ) :
-        eval (fun b => (u b).fst) (pderiv a (X i : MvPolynomial σ R)) =
-          (Pi.single i 1 : σ → R) a := by
-      by_cases h : a = i <;> simp [h, Ne.symm]
     rw [map_mul, aeval_X, DualNumber.snd_mul, fst_aeval_dualNumber, hP, Finset.sum_mul]
-    simp only [pderiv_mul, map_add, map_mul, eval_X, hX, add_mul, Finset.sum_add_distrib,
-      Pi.single_apply, mul_ite, ite_mul, mul_one, mul_zero, zero_mul, Finset.sum_ite_eq',
-      Finset.mem_univ, ite_true]
+    simp only [pderiv_mul, pderiv_X, Pi.single_apply, map_add, map_mul, eval_X,
+      apply_ite (eval _), map_zero, add_mul, Finset.sum_add_distrib, mul_ite, ite_mul,
+      mul_one, mul_zero, zero_mul, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte]
     rw [add_comm]
     exact congrArg (· + _) (Finset.sum_congr rfl fun a _ => mul_right_comm _ _ _)
 

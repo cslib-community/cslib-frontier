@@ -41,11 +41,8 @@ def Entry.Around (e : Entry) (base capacity : ℕ) : Prop :=
 
 /-- Avoiding a larger reserved gap also avoids each smaller gap with the same base. -/
 theorem Entry.Around.mono_capacity {e : Entry} {base small large : ℕ}
-    (h : e.Around base large) (hle : small ≤ large) : e.Around base small := by
-  intro j
-  rcases h j with hj | hj
-  · exact Or.inl hj
-  · exact Or.inr (by omega)
+    (h : e.Around base large) (hle : small ≤ large) : e.Around base small :=
+  fun j => (h j).imp_right fun hj => by omega
 
 /-- A concrete stack frame cannot alter any live column around its reserved interval. -/
 theorem Entry.Stored.of_stack_frame {e : Entry} {before after : ℕ → ℕ}
@@ -83,16 +80,8 @@ theorem pop_entry {w base capacity : ℕ} (x : Data 128) (e : Entry) (es : List 
       (x.comap registers) := by
     simpa +decide [a, List.flatMap_cons, Entry.words] using hr
   obtain ⟨y, hy, hry, hslots, hframe, hp⟩ := popFrame_exec x _ a h2 hcap hrep
-  refine ⟨y, hy, hry, ⟨hslots 0, ?_, ?_⟩, hframe, hp⟩
-  · intro j
-    fin_cases j
-    · exact hslots 1
-    · exact hslots 3
-    · exact hslots 5
-  · intro j
-    fin_cases j
-    · exact hslots 2
-    · exact hslots 4
-    · exact hslots 6
+  refine ⟨y, hy, hry, ⟨hslots 0, fun j => ?_, fun j => ?_⟩, hframe, hp⟩
+  · fin_cases j <;> first | exact hslots 1 | exact hslots 3 | exact hslots 5
+  · fin_cases j <;> first | exact hslots 2 | exact hslots 4 | exact hslots 6
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

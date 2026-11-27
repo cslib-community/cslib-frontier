@@ -96,12 +96,9 @@ theorem SPFormula.smCost_le_two_pow {d b : ℕ} (hd : d + 1 ≤ 2 ^ b) :
     calc 2 * (d + 1) ^ 2 ≤ 2 * (2 ^ b) ^ 2 := by gcongr
       _ = 2 ^ (2 * b + 1) := by ring
   calc SPFormula.smCost d = 4 * (2 * (d + 1) ^ 2) ^ (d + 1) := by
-        rw [SPFormula.smCost, SPFormula.gadgetCost]
-        ring
+        rw [SPFormula.smCost, SPFormula.gadgetCost]; ring
     _ ≤ 4 * (2 ^ (2 * b + 1)) ^ (d + 1) := by gcongr
-    _ = 2 ^ ((2 * b + 1) * (d + 1) + 2) := by
-        rw [pow_add, ← pow_mul]
-        ring
+    _ = 2 ^ ((2 * b + 1) * (d + 1) + 2) := by rw [pow_add, ← pow_mul]; ring
 
 /-- A quadratic is eventually below `2 ^ d`. -/
 theorem eventually_mul_sq_le_two_pow (a : ℕ) :
@@ -113,9 +110,11 @@ theorem eventually_mul_sq_le_two_pow (a : ℕ) :
   have h4 : (0 : ℝ) < 4 * a + 1 := by positivity
   rw [div_lt_div_iff₀ h2 h4, one_mul] at hd
   have hd' : (4 * a + 1) * d ^ 2 < 2 ^ d := by exact_mod_cast (mul_comm _ _).trans_lt hd
-  have hsq : (d + 1) ^ 2 ≤ 4 * d ^ 2 := by nlinarith
+  have hsq : (d + 1) ^ 2 ≤ 4 * d ^ 2 :=
+    (Nat.pow_le_pow_left (by omega : d + 1 ≤ 2 * d) 2).trans_eq (by ring)
   calc a * (d + 1) ^ 2 ≤ a * (4 * d ^ 2) := Nat.mul_le_mul_left _ hsq
-    _ ≤ (4 * a + 1) * d ^ 2 := by nlinarith
+    _ = 4 * a * d ^ 2 := by ring
+    _ ≤ (4 * a + 1) * d ^ 2 := Nat.mul_le_mul_right _ (by omega)
     _ ≤ 2 ^ d := hd'.le
 
 /-- The superpolynomial lower bound for formulas at `L = ⌊log₂ n⌋` and `d = ⌊log₂ L⌋`, for `d`
@@ -132,7 +131,9 @@ private theorem SPFormula.pow_lt_nodeCount_of_imm {K : Type*} [Field K] {n d N :
   have hdd : d + 1 ≤ 2 ^ d := Nat.lt_two_pow_self
   have hL1 : 1 ≤ L := (Nat.one_le_two_pow).trans h2d
   have hdpow' : (4 * Δ + 10) * (d + 1) ^ 2 ≤ L := hdpow.trans h2d
-  have hdL : 10 * d ≤ L := by nlinarith
+  have hdL : 10 * d ≤ L :=
+    (Nat.mul_le_mul (by omega : 10 ≤ 4 * Δ + 10)
+      ((Nat.le_succ d).trans (Nat.le_self_pow two_ne_zero _))).trans hdpow'
   by_contra hs
   have hs : F.nodeCount ≤ n ^ c := not_lt.mp hs
   have h := SPFormula.two_rpow_le_of_imm e hdL h2L hΔ hFΔ hFP
@@ -141,9 +142,10 @@ private theorem SPFormula.pow_lt_nodeCount_of_imm {K : Type*} [Field K] {n d N :
     refine (Nat.pow_le_pow_left (SPFormula.smCost_le_two_pow hdd) Δ).trans ?_
     rw [← pow_mul]
     refine Nat.pow_le_pow_right two_pos ?_
-    have h4 : (2 * d + 1) * (d + 1) + 2 ≤ 4 * (d + 1) ^ 2 := by nlinarith
+    have h4 : (2 * d + 1) * (d + 1) + 2 ≤ 4 * (d + 1) ^ 2 :=
+      Nat.le.intro (k := 2 * d ^ 2 + 5 * d + 1) (by ring)
     calc ((2 * d + 1) * (d + 1) + 2) * Δ ≤ 4 * (d + 1) ^ 2 * Δ := Nat.mul_le_mul_right _ h4
-      _ ≤ (4 * Δ + 10) * (d + 1) ^ 2 := by nlinarith
+      _ ≤ (4 * Δ + 10) * (d + 1) ^ 2 := Nat.le.intro (k := 10 * (d + 1) ^ 2) (by ring)
       _ ≤ L := hdpow'
   have hR : SPFormula.smCost d ^ Δ * F.nodeCount ≤ 2 ^ (L * A) := by
     have hnc : n ^ c ≤ 2 ^ ((L + 1) * c) := by
@@ -153,30 +155,21 @@ private theorem SPFormula.pow_lt_nodeCount_of_imm {K : Type*} [Field K] {n d N :
     rw [← pow_add]
     refine Nat.pow_le_pow_right two_pos ?_
     rw [hA]
-    nlinarith
+    calc L + (L + 1) * c ≤ L + 2 * L * c :=
+          Nat.add_le_add_left (Nat.mul_le_mul_right c (by omega)) L
+      _ ≤ L * (2 * c + 2) := Nat.le.intro (k := L) (by ring)
   -- the exponent of the left side exceeds `L A`
-  have hq : q ≠ 0 := by
-    have : 4 ^ 1 ≤ 4 ^ Δ := Nat.pow_le_pow_right (by norm_num) hΔ
-    omega
+  have hq : q ≠ 0 := Nat.sub_ne_zero_of_lt (Nat.one_lt_pow (by omega) (by norm_num))
   have hqR : (4 ^ Δ - 1 : ℝ) = (q : ℝ) := by
-    have : 1 ≤ 4 ^ Δ := Nat.one_le_pow _ _ (by norm_num)
-    rw [hqdef, Nat.cast_sub this]
-    push_cast
-    ring
+    simp [hqdef, Nat.cast_sub (Nat.one_le_pow Δ 4 (by norm_num))]
   have hr : (20 * A + 11 : ℝ) ≤ (d : ℝ) ^ (1 / (4 ^ Δ - 1 : ℝ)) := by
     rw [hqR, one_div, ← Real.pow_rpow_inv_natCast (by positivity : (0 : ℝ) ≤ 20 * A + 11) hq]
-    refine Real.rpow_le_rpow (by positivity) ?_ (by positivity)
-    exact_mod_cast hdq
-  have hLpos : (1 : ℝ) ≤ L := by exact_mod_cast hL1
+    exact Real.rpow_le_rpow (by positivity) (by exact_mod_cast hdq) (by positivity)
   have hexp : ((L * A : ℕ) : ℝ) < (L : ℝ) * ((d : ℝ) ^ (1 / (4 ^ Δ - 1 : ℝ)) / 20 - 1 / 2) := by
     push_cast
-    nlinarith
-  have hlt := Real.rpow_lt_rpow_of_exponent_lt one_lt_two hexp
-  rw [Real.rpow_natCast] at hlt
-  have hR' : ((SPFormula.smCost d ^ Δ * F.nodeCount : ℕ) : ℝ) ≤ 2 ^ (L * A) := by
-    exact_mod_cast hR
-  push_cast at hR'
-  linarith
+    exact mul_lt_mul_of_pos_left (by linarith) (by exact_mod_cast hL1)
+  have hR' : (SPFormula.smCost d ^ Δ : ℝ) * F.nodeCount ≤ 2 ^ (L * A) := by exact_mod_cast hR
+  linarith [Real.rpow_natCast 2 (L * A), Real.rpow_lt_rpow_of_exponent_lt one_lt_two hexp]
 
 /-- **Superpolynomial lower bound for constant-depth formulas computing IMM over any field**
 (LST Corollary 4, p. 4, at constant product-depth and `d = ⌊log₂ ⌊log₂ n⌋⌋`, over any field by
@@ -194,7 +187,7 @@ theorem SPFormula.eventually_pow_lt_nodeCount_of_imm (K : Type*) [Field K] (Δ c
       (eventually_mul_sq_le_two_pow (4 * max Δ 1 + 10)))
   refine eventually_atTop.mpr ⟨2 ^ 2 ^ D, fun n hn _ N e F hFΔ hFP => ?_⟩
   have hLD : 2 ^ D ≤ Nat.log 2 n := Nat.le_log_of_pow_le one_lt_two hn
-  have hL0 : Nat.log 2 n ≠ 0 := by grind
+  have hL0 : Nat.log 2 n ≠ 0 := by have := Nat.one_le_two_pow (n := D); omega
   obtain ⟨hdq, hdpow⟩ := hD _ (Nat.le_log_of_pow_le one_lt_two hLD)
   exact SPFormula.pow_lt_nodeCount_of_imm (le_max_right Δ 1)
     (Nat.pow_log_le_self 2 (NeZero.ne n)) (Nat.lt_pow_succ_log_self one_lt_two n)
@@ -224,12 +217,10 @@ theorem two_rpow_le_of_imm [Field K] [NeZero n] (e : Fin N → Fin d × Fin n ×
     (hCΔ : C.productDepth ≤ Δ) (hCP : rename e C.polynomial = imm K n d) :
     (2 : ℝ) ^ ((k : ℝ) * ((d : ℝ) ^ (1 / (4 ^ Δ - 1 : ℝ)) / 20 - 1 / 2)) ≤
       SPFormula.smCost d ^ Δ * (C.size + N + 1) ^ (2 * Δ + 1) := by
-  have h := SPFormula.two_rpow_le_of_imm e hk hn hΔ
-    ((productDepth_toSPFormula_le C).trans hCΔ) (by rw [polynomial_toSPFormula, hCP])
-  refine h.trans ?_
-  have hsize : C.toSPFormula.nodeCount ≤ (C.size + N + 1) ^ (2 * Δ + 1) :=
-    (nodeCount_toSPFormula_le hC).trans (Nat.pow_le_pow_right (Nat.succ_pos _) (by omega))
-  exact_mod_cast Nat.mul_le_mul_left (SPFormula.smCost d ^ Δ) hsize
+  refine (SPFormula.two_rpow_le_of_imm e hk hn hΔ
+    ((productDepth_toSPFormula_le C).trans hCΔ) (by rw [polynomial_toSPFormula, hCP])).trans ?_
+  exact_mod_cast Nat.mul_le_mul_left (SPFormula.smCost d ^ Δ)
+    ((nodeCount_toSPFormula_le hC).trans (Nat.pow_le_pow_right (Nat.succ_pos _) (by omega)))
 
 /-- **Superpolynomial lower bound for constant-depth circuits computing IMM over any field**
 (LST Theorem 1, p. 1, and Corollary 4, p. 4, at constant product-depth and
@@ -250,19 +241,16 @@ theorem eventually_pow_lt_size_of_imm (K : Type*) [Field K] (Δ c : ℕ) :
     (by rw [polynomial_toSPFormula]; exact hCP)
   have hN : N ≤ n ^ 3 := by
     have hcard : N = Nat.log 2 (Nat.log 2 n) * (n * n) := by simpa using Fintype.card_congr e
-    have hd : Nat.log 2 (Nat.log 2 n) ≤ n :=
-      (Nat.log_le_self 2 _).trans (Nat.log_le_self 2 n)
-    rw [hcard, pow_succ, pow_two]
-    exact (Nat.mul_le_mul_right _ hd).trans_eq (by ring)
+    rw [hcard]
+    exact (Nat.mul_le_mul_right _ ((Nat.log_le_self 2 _).trans (Nat.log_le_self 2 n))).trans_eq
+      (by ring)
   have hbase : C.size + N + 1 ≤ n ^ (c + 5) := by
     have h1 : 1 ≤ n ^ c := Nat.one_le_pow _ _ (by omega)
     have h3 : n ^ 3 ≤ n ^ (c + 3) := Nat.pow_le_pow_right (by omega) (by omega)
-    have h4 : 4 ≤ n ^ 2 := by nlinarith
-    calc C.size + N + 1 ≤ n ^ c + n ^ (c + 3) + n ^ c := by omega
-      _ ≤ n ^ (c + 3) + n ^ (c + 3) + n ^ (c + 3) := by
-        have : n ^ c ≤ n ^ (c + 3) := Nat.pow_le_pow_right (by omega) (by omega)
-        omega
-      _ ≤ n ^ (c + 3) * n ^ 2 := by nlinarith
+    have h4 : 4 ≤ n ^ 2 := (by norm_num : 4 ≤ 2 ^ 2).trans (Nat.pow_le_pow_left hn2 2)
+    have hc3 : n ^ c ≤ n ^ (c + 3) := Nat.pow_le_pow_right (by omega) (by omega)
+    calc C.size + N + 1 ≤ 3 * n ^ (c + 3) := by omega
+      _ ≤ n ^ 2 * n ^ (c + 3) := Nat.mul_le_mul_right _ (by omega)
       _ = n ^ (c + 5) := by ring
   have hnode := nodeCount_toSPFormula_le hC
   have hmono : (C.size + N + 1) ^ (2 * C.productDepth + 1) ≤

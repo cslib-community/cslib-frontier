@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandParameters
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandMemory
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandSplit
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Guarded native matrix reads for band arrays
@@ -82,20 +83,16 @@ theorem exec_readCell {w L m N : ℕ} (side : Bool) (a : Fin (7 ^ L)) (β : ℕ)
   have hlookup : x.mem (inverseBase L m N + p.mask) = q := htable _ hp.1
   have haddr : Fits w (inverseBase L m N + p.mask) :=
     ((memory_fits hfit).of_le (table_le_memoryEnd L m N)).of_le (by
-      unfold tableBase
-      have := hp.1
-      omega)
-  let u := ((x.set address (inverseBase L m N + p.mask)).set rank q).set value 0
+      unfold tableBase; have := hp.1; omega)
+  have hsmall : Fits w 256 := small_fits hfit le_rfl
   by_cases hq : q = 0
-  · let y := u.set value 0
-    refine ⟨y, ?_, ?_, rfl⟩
-    · ram_eval [readCell, y, u, hx.inverse, hx.fixed.zero, hm, hlookup, haddr,
-        small_fits hfit (by decide : 0 ≤ 256), hq,
-        inverse, maskAcc, address, rank, value, zero, Fin.mk.injEq]
-    · change y.regs value = encode (if q = 0 then 0 else _)
-      rw [ite_eq_left hq]
-      simp only [y, Data.set_regs, Function.update_self]
-      rfl
+  · unfold readCell
+    wram_exec * [hq]
+    refine ⟨?_, rfl⟩
+    change _ = encode (if q = 0 then 0 else _)
+    rw [ite_eq_left hq]
+    wram_simp
+    rfl
   · have hqpos : 0 < q := Nat.pos_of_ne_zero hq
     let b := if side then (q - 1) % K0 L m else (q - 1) / K0 L m
     let r := (β * K0 L m + b) * N0 L m + p.outer
@@ -107,90 +104,28 @@ theorem exec_readCell {w L m N : ℕ} (side : Bool) (a : Fin (7 ^ L)) (β : ℕ)
       nlinarith only [h7, Nat.zero_le L, Nat.zero_le N, Nat.zero_le (N * D m),
         Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L)])
     have hqbound : q ≤ p.mask + 1 := MaskTable.lookup_le L m p.mask
-    have hqfit : Fits w (q - 1) := hlocal.of_le (by have := hp.1; omega)
-    have hbfit : Fits w b := hlocal.of_le (by have := hbounds.2.1; omega)
-    have hβfit : Fits w (β * K0 L m) := hlocal.of_le (by have := hbounds.1; omega)
-    have hblockfit : Fits w (β * K0 L m + b) := hlocal.of_le (by have := hbounds.2.1; omega)
-    have hrowfit : Fits w ((β * K0 L m + b) * N0 L m) :=
-      hlocal.of_le (by have := hbounds.2.2.1; omega)
-    have hrfit : Fits w r := hlocal.of_le (by have := hbounds.2.2.2; dsimp [r]; omega)
-    let v := ((((((u.set rank (q - 1)).set block b).set temporary (β * K0 L m)).set
-      block (β * K0 L m + b)).set row ((β * K0 L m + b) * N0 L m)).set row r)
     by_cases hr : r < N
     · obtain ⟨hleft, hright⟩ := matrix_indices_lt hr hparts.2
-      have hinput : Fits w (inputEnd m N) :=
-        (memory_fits hfit).of_le (input_le_memoryEnd L m N)
-      have hnd : Fits w (N * D m) := hinput.of_le (by unfold inputEnd; omega)
-      have hleftMul : Fits w (r * D m) := hnd.of_le (by omega)
-      have hleftAdd : Fits w (r * D m + p.inner) := hnd.of_le hleft.le
-      have hrightMul : Fits w (p.inner * N) := hnd.of_le (by omega)
-      have hrightAdd : Fits w (p.inner * N + r) := hnd.of_le hright.le
-      have hrightOff : Fits w (p.inner * N + r + N * D m) :=
-        hinput.of_le (by unfold inputEnd; omega)
-      have hleftFour : Fits w (r * D m + p.inner + 4) :=
-        hinput.of_le (by unfold inputEnd; omega)
-      have hrightFour : Fits w (p.inner * N + r + N * D m + 4) :=
-        hinput.of_le (by unfold inputEnd; omega)
-      have hleftAddress : Fits w (snapshotBase L m N + (r * D m + p.inner + 4)) :=
-        ((memory_fits hfit).of_le (inverse_le_memoryEnd L m N)).of_le (by
-          unfold inverseBase inputEnd
-          omega)
-      have hrightAddress : Fits w (snapshotBase L m N + (p.inner * N + r + N * D m + 4)) :=
-        ((memory_fits hfit).of_le (inverse_le_memoryEnd L m N)).of_le (by
-          unfold inverseBase inputEnd
-          omega)
+      have hinvFit : Fits w (snapshotBase L m N + (4 + 2 * (N * D m))) :=
+        (memory_fits hfit).of_le (inverse_le_memoryEnd L m N)
       have hcell := hmat r hr p.inner hparts.2
       dsimp only [matrixAddress, matrixOffset] at hcell
-      dsimp only [b, r] at hbfit hblockfit hrowfit hrfit hr
-      dsimp only [b, r] at hleftMul hleftAdd hrightAdd hrightOff hleftFour hrightFour
-      dsimp only [b, r] at hleftAddress hrightAddress hcell
-      let y := if side then
-          (((((((v.set address (p.inner * N)).set address (p.inner * N + r)).set
-            temporary (N * D m)).set address (p.inner * N + r + N * D m)).set
-            address (p.inner * N + r + N * D m + 4)).set
-            address (snapshotBase L m N + (p.inner * N + r + N * D m + 4))).set
-            value (encode (matrix r p.inner)))
-        else
-          (((((v.set address (r * D m)).set address (r * D m + p.inner)).set
-            address (r * D m + p.inner + 4)).set
-            address (snapshotBase L m N + (r * D m + p.inner + 4))).set
-            value (encode (matrix r p.inner)))
-      refine ⟨y, ?_, ?_, ?_⟩
-      · cases side <;>
-          simp only [Bool.false_eq_true, ↓reduceIte] at hbfit hblockfit hrowfit hrfit hr <;>
-          simp only [Bool.false_eq_true, ↓reduceIte] at hleftMul hleftAdd hrightAdd
-            <;> simp only [Bool.false_eq_true, ↓reduceIte] at hrightOff hleftFour hrightFour
-            <;> simp only [Bool.false_eq_true, ↓reduceIte] at hleftAddress hrightAddress hcell <;>
-          ram_eval [readCell, y, v, u, b, r, hx.inverse, hx.snapshot, hx.root, hx.outerSize,
-            hx.columns, hx.fixed.zero, hx.fixed.one, hx.fixed.four, hx.fixed.rows,
-            hm, ho, hi, hb, hlookup, haddr, hqpos, hr,
-            small_fits hfit (by decide : 0 ≤ 256), hqfit, hbfit, hβfit, hblockfit,
-            hrowfit, hrfit, hnd, hleftMul, hleftAdd, hrightMul, hrightAdd,
-            hrightOff, hleftFour, hrightFour, hleftAddress, hrightAddress,
-            hcell, matrixAddress, matrixOffset,
-            inverse, snapshot, root, outerSize, columns, zero, one, four, rows,
-            maskAcc, outerAcc, innerAcc, band, address, rank, value, block, temporary,
-            row, Fin.mk.injEq]
-      · change y.regs value = encode (if q = 0 then 0 else
-          if r < N then matrix r p.inner else 0)
-        rw [ite_eq_right hq, ite_eq_left hr]
-        cases side <;> simp [y]
-      · cases side <;> rfl
-    · let y := v.set value 0
-      dsimp only [b, r] at hbfit hblockfit hrowfit hrfit hr
-      refine ⟨y, ?_, ?_, rfl⟩
-      · cases side <;>
-          simp only [Bool.false_eq_true, ↓reduceIte] at hbfit hblockfit hrowfit hrfit hr <;>
-          ram_eval [readCell, y, v, u, b, r, hx.inverse, hx.root, hx.outerSize,
-            hx.fixed.zero, hx.fixed.one, hx.fixed.rows, hm, ho, hi, hb,
-            hlookup, haddr, hqpos, hr, small_fits hfit (by decide : 0 ≤ 256),
-            hqfit, hbfit, hβfit, hblockfit, hrowfit, hrfit,
-            inverse, root, outerSize, zero, one, rows, maskAcc, outerAcc, band,
-            address, rank, value, block, temporary, row, Fin.mk.injEq]
-      · change y.regs value = encode (if q = 0 then 0 else
-          if r < N then matrix r p.inner else 0)
-        rw [ite_eq_right hq, ite_eq_right hr]
-        simp only [y, Data.set_regs, Function.update_self]
-        rfl
+      unfold readCell
+      cases side <;> (
+        simp only [b, r, Bool.false_eq_true, ↓reduceIte] at hbounds hr hleft hright hcell ⊢
+        wram_exec * [hcell]
+        refine ⟨?_, rfl⟩
+        change _ = encode (if q = 0 then 0 else _)
+        simp only [p, q, hq, hr, Bool.false_eq_true, ↓reduceIte]
+        wram_simp)
+    · unfold readCell
+      cases side <;> (
+        simp only [b, r, Bool.false_eq_true, ↓reduceIte] at hbounds hr ⊢
+        wram_exec *
+        refine ⟨?_, rfl⟩
+        change _ = encode (if q = 0 then 0 else _)
+        simp only [p, q, hq, hr, Bool.false_eq_true, ↓reduceIte]
+        wram_simp
+        rfl)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

@@ -33,9 +33,7 @@ theorem exec_entryHeader {W n F : ℕ} (x : Data 640) (hn : x.mem 1 = n) (hF : x
       y.regs Reg.bc = 3 + n * n ∧ y.regs Reg.ac = 3 + 2 * (n * n) ∧
       y.regs Reg.free = 3 + 3 * (n * n) := by
   let bank := selectorBank ∘ PrimeSelection.counterRegisters
-  have inj : Function.Injective bank := by
-    intro i j h
-    exact Fin.ext (congrArg (fun k : Fin 640 => k.val) h)
+  have inj : Function.Injective bank := fun _ _ h => Fin.ext (congrArg (Fin.val : Fin 640 → ℕ) h)
   unfold entryHeader
   wram_exec
   wram_call (CountPrime.exec_header (x.comap bank) hn hF hfit) renamed inj with
@@ -50,20 +48,17 @@ theorem input_fits {W n F : ℕ} (values : List ℤ) (hlen : values.length = 3 *
     (hW : executionWidth n F (3 + 3 * (n * n)) 3 (3 + n * n) (3 + 2 * (n * n)) values ≤ W) :
     InputFits W (CountPrime.inputWords n F values) := by
   have fit := envelope_fits values hW
-  have hn := Nat.le_mul_self n
-  refine ⟨?_, ?_⟩
-  · simpa only [CountPrime.inputWords, List.length_append, List.length_cons, List.length_nil,
-      List.length_map, hlen, Nat.reduceAdd] using fit.of_le (by dsimp only [envelope]; omega)
-  · intro v hm
-    rcases List.mem_append.mp hm with hm | hm
+  have := Nat.le_mul_self n
+  refine ⟨?_, fun v hm => ?_⟩
+  · simpa [CountPrime.inputWords, hlen] using fit.of_le (by dsimp only [envelope]; omega)
+  · rcases List.mem_append.mp hm with hm | hm
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
-      rcases hm with rfl | rfl
-      · exact fit.of_le (by dsimp only [envelope]; omega)
-      · exact fit.of_le (by dsimp only [envelope]; omega)
+      rcases hm with rfl | rfl <;> exact fit.of_le (by dsimp only [envelope]; omega)
     · obtain ⟨z, hz, rfl⟩ := List.mem_map.mp hm
-      have hb := hv z hz
-      apply fit.of_le
-      have henc : Signed.encode z ≤ 2 * F + 1 := by unfold Signed.encode; split_ifs <;> omega
-      exact henc.trans (by dsimp only [envelope]; omega)
+      have := hv z hz
+      refine fit.of_le ?_
+      unfold Signed.encode
+      dsimp only [envelope]
+      split_ifs <;> omega
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting

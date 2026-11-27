@@ -87,21 +87,18 @@ private theorem exists_protocol_clique_indepSet [Fintype V] [DecidableEq V] (r :
       | none => qb.bind afterB
     refine ⟨qa.bind afterA, ?_, fun hW C I hC hI hsub => ?_⟩
     · set c := Nat.clog 2 (Fintype.card V + 1)
-      have hB : ∀ o, (afterB o).depth ≤ 1 + r * (2 * c + 1) := by
-        rintro (_ | u)
-        · simp [afterB]
-        · simp only [afterB, Protocol.depth_alice, Protocol.depth_output]
+      have hB : ∀ o, (afterB o).depth ≤ 1 + r * (2 * c + 1)
+        | none => by simp [afterB]
+        | some u => by
           have := hnext (nonNbr u)
-          omega
-      have hA : ∀ o, (afterA o).depth ≤ c + 1 + r * (2 * c + 1) := by
-        rintro (_ | v)
-        · exact (Protocol.depth_bind_le hB).trans (by omega)
-        · simp only [afterA, Protocol.depth_bob, Protocol.depth_output]
+          simp only [afterB, Protocol.depth_alice, Protocol.depth_output]; omega
+      have hA : ∀ o, (afterA o).depth ≤ c + 1 + r * (2 * c + 1)
+        | none => (Protocol.depth_bind_le hB).trans (by omega)
+        | some v => by
           have := hnext (nbr v)
-          omega
+          simp only [afterA, Protocol.depth_bob, Protocol.depth_output]; omega
       have hmul : (r + 1) * (2 * c + 1) = r * (2 * c + 1) + (2 * c + 1) := by ring
-      refine (Protocol.depth_bind_le hA).trans ?_
-      omega
+      exact (Protocol.depth_bind_le hA).trans (by omega)
     have hpow : 2 ^ (r + 1) = 2 * 2 ^ r := by rw [pow_succ]; ring
     -- A named vertex in both sets is their unique common vertex.
     have hone : ∀ v ∈ C, v ∈ I → 1 = #(C ∩ I) := fun v hvC hvI =>
@@ -116,9 +113,8 @@ private theorem exists_protocol_clique_indepSet [Fintype V] [DecidableEq V] (r :
       · simpa [hvI] using hone v hvC hvI
       simp only [hvI, decide_false, Bool.cond_false]
       refine hnext_run _ (by omega) C I hC hI fun w hw => ?_
-      have hw' := mem_inter.mp hw
-      have hne : v ≠ w := fun h => hvI (h ▸ hw'.2)
-      exact mem_filter.mpr ⟨hsub hw, hC hvC hw'.1 hne⟩
+      obtain ⟨hwC, hwI⟩ := mem_inter.mp hw
+      exact mem_filter.mpr ⟨hsub hw, hC hvC hwC fun h => hvI (h ▸ hwI)⟩
     by_cases hB : ∃ u, goodB I u
     · obtain ⟨huI, -, hu⟩ := hB.choose_spec
       simp only [choiceA, dite_eq_right hA, afterA, Protocol.run_bind, hqb_run, choiceB,
@@ -128,22 +124,19 @@ private theorem exists_protocol_clique_indepSet [Fintype V] [DecidableEq V] (r :
       · simpa [huC] using hone u huC huI
       simp only [huC, decide_false, Bool.cond_false]
       refine hnext_run _ (by omega) C I hC hI fun w hw => ?_
-      have hw' := mem_inter.mp hw
-      have hne : w ≠ u := fun h => huC (h ▸ hw'.1)
-      exact mem_filter.mpr ⟨hsub hw, hne, hI huI hw'.2 hne.symm⟩
+      obtain ⟨hwC, hwI⟩ := mem_inter.mp hw
+      exact mem_filter.mpr ⟨hsub hw, fun h => huC (h ▸ hwC), hI huI hwI fun h => huC (h ▸ hwC)⟩
     -- Neither player can announce a vertex: no vertex is common.
     simp only [choiceA, dite_eq_right hA, afterA, Protocol.run_bind, hqb_run, choiceB,
       dite_eq_right hB, afterB, Protocol.run_output]
     refine (card_eq_zero.mpr (eq_empty_of_forall_notMem fun w hw => ?_)).symm
-    have hw' := mem_inter.mp hw
-    have hwW := hsub hw
-    have hA' : ¬ 2 * #(nbr w) ≤ #W := fun h => hA ⟨w, hw'.1, hwW, h⟩
-    have hB' : ¬ 2 * #(nonNbr w) ≤ #W := fun h => hB ⟨w, hw'.2, hwW, h⟩
+    obtain ⟨hwC, hwI⟩ := mem_inter.mp hw
+    have hA' : ¬ 2 * #(nbr w) ≤ #W := fun h => hA ⟨w, hwC, hsub hw, h⟩
+    have hB' : ¬ 2 * #(nonNbr w) ≤ #W := fun h => hB ⟨w, hwI, hsub hw, h⟩
     have hdisj : Disjoint (nbr w) (nonNbr w) :=
       disjoint_filter.mpr fun _ _ hadj hnon => hnon.2 hadj
-    have := card_le_card (union_subset (filter_subset _ W) (filter_subset _ W) :
-      nbr w ∪ nonNbr w ⊆ W)
-    rw [card_union_of_disjoint hdisj] at this
+    have := (card_union_of_disjoint hdisj).symm.trans_le (card_le_card
+      (union_subset (filter_subset _ W) (filter_subset _ W) : nbr w ∪ nonNbr w ⊆ W))
     omega
 
 /-- **Clique versus independent set** (Yannakakis; [AroraBarak07], Chapter 12, Exercise 8):

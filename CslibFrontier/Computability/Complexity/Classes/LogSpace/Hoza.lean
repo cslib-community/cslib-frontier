@@ -59,26 +59,19 @@ theorem NL_subset_UL {α : Type} {enc : α ↪ List Bool} : NL enc ⊆ UL enc :=
   let : ∀ b, Finite (R.SP b) := R.finiteP
   let : Finite R.SF := R.finiteF
   let M := Native.countingMachine R.I R.P R.F R.C
-  let count (a : α) : ℕ := if a ∈ A then 1 else 0
-  refine ⟨count, ⟨R.k, _, inferInstance, M, L, fun a => ?_⟩, ?_, ?_⟩
-  · let w := enc a
-    let clock := polyClock d w.length
-    have ⟨hspace, hclock⟩ := hresource w
-    have haccept : STCON.configurationInstance ntm c w ∈ STCON ↔ a ∈ A :=
-      (STCON.configurationInstance_mem_iff ntm c (hdecides.1 a).1).trans (hdecides.1 a).2.symm
-    have hcount := STCON.configurationJustesenSeedScheduler_acceptCount ntm c R w hclock
-    have hmachine : M.toNTM = R.machine := Native.toNTM_countingMachine R.I R.P R.F R.C
-    have hcfg : Cfg.init M.initial w = R.machine.initCfg w :=
-      congrArg (fun machine => machine.initCfg w) hmachine
-    refine ⟨hmachine.symm ▸ hspace, clock, ?_, ?_⟩
-    · rw [hcfg]
-      exact Native.countingMachine_haltsWithin R.I R.P R.F R.C hclock
-    · rw [hcfg]
-      simpa only [count, haccept, M, clock] using hcount.symm
-  · intro a
-    by_cases ha : a ∈ A <;> simp [count, ha]
-  · intro a
-    by_cases ha : a ∈ A <;> simp [count, ha]
+  refine ⟨fun a => if a ∈ A then 1 else 0,
+    ⟨R.k, _, inferInstance, M, L, fun a => ?_⟩,
+    fun a => by by_cases ha : a ∈ A <;> simp [ha],
+    fun a => by by_cases ha : a ∈ A <;> simp [ha]⟩
+  have ⟨hspace, hclock⟩ := hresource (enc a)
+  have hmachine : M.toNTM = R.machine := Native.toNTM_countingMachine R.I R.P R.F R.C
+  have hcfg : Cfg.init M.initial (enc a) = R.machine.initCfg (enc a) :=
+    congrArg (·.initCfg (enc a)) hmachine
+  refine ⟨hmachine.symm ▸ hspace, polyClock d (enc a).length, ?_, ?_⟩
+  · rw [hcfg]
+    exact Native.countingMachine_haltsWithin R.I R.P R.F R.C hclock
+  · rw [hcfg, STCON.configurationJustesenSeedScheduler_acceptCount ntm c R (enc a) hclock,
+      (STCON.configurationInstance_mem_iff ntm c (hdecides.1 a).1).trans (hdecides.1 a).2.symm]
 
 /-- Hoza's `NL = UL` [Hoza2026NLUL], Theorem 1.1, for native language classes in any
 injective binary input encoding. -/

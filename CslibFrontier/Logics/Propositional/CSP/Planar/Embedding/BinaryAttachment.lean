@@ -46,14 +46,10 @@ theorem nodup_binaryAttachmentPorts (k a : ℕ) (j : Fin k) :
     obtain ⟨i, hi⟩ := List.mem_ofFn.mp he
     have := Sum.inl.inj hi
     fin_index
-  have hn := List.nodup_cons.mpr ⟨hlast, hno⟩
-  have hp := (List.perm_append_comm (l₁ := [Sum.inl (Fin.last k)])
-    (l₂ := output.take j.val)).append_right (output.drop j.val)
-  have hp' : (Sum.inl (Fin.last k) :: output).Perm
-      (output.take j.val ++ Sum.inl (Fin.last k) :: output.drop j.val) := by
-    simpa only [List.singleton_append, List.cons_append, List.append_assoc,
-      List.take_append_drop, List.nil_append] using hp
-  exact hn.perm hp'
+  have hn : (Sum.inl (Fin.last k) :: (output.take j.val ++ output.drop j.val)).Nodup := by
+    rw [List.take_append_drop]
+    exact List.nodup_cons.mpr ⟨hlast, hno⟩
+  exact hn.perm List.perm_middle.symm
 
 /-- Exactly one fresh free marker is added to the existing `k` markers. -/
 theorem length_binaryAttachmentPorts (k a : ℕ) (j : Fin k) :
@@ -82,24 +78,15 @@ theorem eraseIdx_binaryAttachmentPorts_swap (k a : ℕ) (j : Fin k) :
     simp only [List.eraseIdx_cons_succ, List.eraseIdx_cons_zero]
     exact (List.set_eq_take_cons_drop (Sum.inl (Fin.last k)) hj).symm
   rw [herase]
-  apply List.ext_getElem
-  · simp only [List.length_map, List.length_set, old]
-  · intro i hi hb
-    have hib : i < k := by simpa only [old, List.length_ofFn] using hb
-    rw [List.getElem_map]
-    by_cases he : j.val = i
-    · subst i
-      rw [List.getElem_set_self (by simpa only [List.length_set] using hj)]
-      simp only [List.getElem_ofFn]
-      change Sum.inl (Equiv.swap j.castSucc (Fin.last k) (Fin.last k)) = Sum.inl j.castSucc
-      rw [Equiv.swap_apply_right]
-    · rw [List.getElem_set_ne he]
-      simp only [old, List.getElem_ofFn]
-      change Sum.inl (Equiv.swap j.castSucc (Fin.last k) (Fin.castSucc ⟨i, hib⟩)) =
-        Sum.inl (Fin.castSucc ⟨i, hib⟩)
-      rw [Equiv.swap_apply_of_ne_of_ne ?_ (Fin.castSucc_ne_last _)]
-      intro he'
-      exact he (congrArg Fin.val he').symm
+  refine List.ext_getElem (by simp [old]) fun i hi hb => ?_
+  have hib : i < k := by simpa only [old, List.length_ofFn] using hb
+  rw [List.getElem_map]
+  by_cases he : j.val = i
+  · subst i
+    simp [old]
+  · rw [List.getElem_set_ne he]
+    simp only [old, List.getElem_ofFn, Sum.map_inl, Sum.inl.injEq]
+    exact Equiv.swap_apply_of_ne_of_ne (Fin.val_ne_iff.mp (Ne.symm he)) (Fin.castSucc_ne_last _)
 
 /-- Source binary argument order starting with the other port and ending at the attachment.
 At two ports both cases are positive cyclic shifts, never a higher-arity reflection. -/

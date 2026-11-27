@@ -188,12 +188,10 @@ variable {α : Type} [DecidableEq α] {m n : Type → Type*} [Monad m] [Monad n]
     (I : Finset α) :
     exchTablesM (fun S => (pure (indep₁ S) : m Bool)) (fun S => pure (indep₂ S)) V I =
       pure (exchTables indep₁ indep₂ V I) := by
-  simp only [exchTablesM, exchTables]
-  rw [List.filterM_pure (p := fun y => indep₁ (insert y I)),
+  simp only [exchTablesM, exchTables, List.filterM_pure (p := fun y => indep₁ (insert y I)),
     List.filterM_pure (p := fun y => indep₂ (insert y I)),
     List.filterM_pure (p := fun e : α × α => indep₁ (insert e.2 (I.erase e.1))),
-    List.filterM_pure (p := fun e : α × α => indep₂ (insert e.2 (I.erase e.1)))]
-  simp only [pure_bind]
+    List.filterM_pure (p := fun e : α × α => indep₂ (insert e.2 (I.erase e.1))), pure_bind]
 
 @[simp] theorem maxCommonIndepLoopM_pure [LawfulMonad m] (indep₁ indep₂ : Finset α → Bool)
     (V : List α) (fuel : ℕ) (I : Finset α) :
@@ -275,16 +273,12 @@ private theorem arc_exchTables_iff (h₁ : ∀ S, indep₁ S = true ↔ M₁.Ind
     (hIV : I ⊆ V.toFinset) {u v : α} :
     (exchTables indep₁ indep₂ V I).arc u v = true ↔ IsExchArc M₁ M₂ V.toFinset I u v := by
   have hI : ∀ x ∈ I, x ∈ V := fun x hx => List.mem_toFinset.mp (hIV hx)
-  rw [ExchTables.arc_eq_true_iff]
-  simp only [exchTables, List.mem_filter, mem_exchPairs, h₁, h₂, IsExchArc, Finset.mem_sdiff,
-    List.mem_toFinset]
-  constructor
-  · rintro (⟨⟨-, hu, hv, hvI⟩, hind⟩ | ⟨⟨-, hv, hu, huI⟩, hind⟩)
-    · exact .inl ⟨hu, ⟨hv, hvI⟩, hind⟩
-    · exact .inr ⟨⟨hu, huI⟩, hv, hind⟩
-  · rintro (⟨hu, ⟨hv, hvI⟩, hind⟩ | ⟨⟨hu, huI⟩, hv, hind⟩)
-    · exact .inl ⟨⟨hI u hu, hu, hv, hvI⟩, hind⟩
-    · exact .inr ⟨⟨hI v hv, hv, hu, huI⟩, hind⟩
+  simp only [ExchTables.arc_eq_true_iff, exchTables, List.mem_filter, mem_exchPairs, h₁, h₂,
+    IsExchArc, Finset.mem_sdiff, List.mem_toFinset]
+  exact ⟨fun h => h.imp (fun ⟨⟨_, hu, hv, hvI⟩, hind⟩ => ⟨hu, ⟨hv, hvI⟩, hind⟩)
+      fun ⟨⟨_, hv, hu, huI⟩, hind⟩ => ⟨⟨hu, huI⟩, hv, hind⟩,
+    fun h => h.imp (fun ⟨hu, ⟨hv, hvI⟩, hind⟩ => ⟨⟨hI u hu, hu, hv, hvI⟩, hind⟩)
+      fun ⟨⟨hu, huI⟩, hv, hind⟩ => ⟨⟨hI v hv, hv, hu, huI⟩, hind⟩⟩
 
 private theorem isSrcTgtWalk_exchTables_iff (h₁ : ∀ S, indep₁ S = true ↔ M₁.Indep (S : Set α))
     (h₂ : ∀ S, indep₂ S = true ↔ M₂.Indep (S : Set α)) {V : List α} {I : Finset α}
@@ -309,7 +303,7 @@ theorem augment_of_exchSearch_eq_inl (h₁ : ∀ S, indep₁ S = true ↔ M₁.I
     I ∆ p.toFinset ⊆ V.toFinset ∧ IsCommonIndep M₁ M₂ (I ∆ p.toFinset) ∧
       (I ∆ p.toFinset).card = I.card + 1 := by
   obtain ⟨hwalk, hmin⟩ := isShortestSrcTgtWalk_of_findWalk_eq_inl hp
-  refine IsShortestExchAugWalk.augment ⟨(isSrcTgtWalk_exchTables_iff h₁ h₂ hIV).mp hwalk,
+  exact IsShortestExchAugWalk.augment ⟨(isSrcTgtWalk_exchTables_iff h₁ h₂ hIV).mp hwalk,
     fun q hq => hmin q ((isSrcTgtWalk_exchTables_iff h₁ h₂ hIV).mpr hq)⟩ hIV
 
 /-- **One phase, stopping case** ([Schrijver2017], Theorem 10.7): if the search in the exchange
@@ -325,28 +319,24 @@ theorem card_eq_of_exchSearch_eq_inr (h₁ : ∀ S, indep₁ S = true ↔ M₁.I
   have hRV' : R.toFinset ⊆ V.toFinset := fun v hv =>
     List.mem_toFinset.mpr (hRV v (List.mem_toFinset.mp hv))
   rw [Finset.sdiff_sdiff_eq_self hRV']
-  refine card_eq_eRk_add_eRk_of_closed hIV hI ?_ ?_ ?_ ?_
-  · intro y hy hind
-    obtain ⟨hyV, hyI⟩ := Finset.mem_sdiff.mp hy
-    exact List.mem_toFinset.mpr (hsrc y (List.mem_toFinset.mp hyV)
-      ((src_exchTables_iff h₁).mpr ⟨hy, hind⟩))
-  · intro y hy hind
-    obtain ⟨hyR, hyI⟩ := Finset.mem_sdiff.mp hy
-    have hyV : y ∈ V.toFinset := hRV' hyR
-    have := htgt y (List.mem_toFinset.mp hyR)
-    rw [← Bool.not_eq_true, tgt_exchTables_iff h₂] at this
-    exact this ⟨Finset.mem_sdiff.mpr ⟨hyV, hyI⟩, hind⟩
-  · intro x hx y hy hind
-    obtain ⟨hxR, hxI⟩ := Finset.mem_inter.mp hx
-    exact List.mem_toFinset.mpr (hcl x (List.mem_toFinset.mp hxR) y
-      (List.mem_toFinset.mp (Finset.mem_sdiff.mp hy).1)
-      ((arc_exchTables_iff h₁ h₂ hIV).mpr (.inl ⟨hxI, hy, hind⟩)))
-  · intro y hy x hx hind
-    obtain ⟨hyR, hyI⟩ := Finset.mem_sdiff.mp hy
-    exact List.mem_toFinset.mpr (hcl y (List.mem_toFinset.mp hyR) x
-      (List.mem_toFinset.mp (hIV hx))
-      ((arc_exchTables_iff h₁ h₂ hIV).mpr
-        (.inr ⟨Finset.mem_sdiff.mpr ⟨hRV' hyR, hyI⟩, hx, hind⟩)))
+  refine card_eq_eRk_add_eRk_of_closed hIV hI
+    (fun y hy hind => List.mem_toFinset.mpr
+      (hsrc y (List.mem_toFinset.mp (Finset.mem_sdiff.mp hy).1)
+        ((src_exchTables_iff h₁).mpr ⟨hy, hind⟩)))
+    (fun y hy hind => ?_)
+    (fun x hx y hy hind => List.mem_toFinset.mpr
+      (hcl x (List.mem_toFinset.mp (Finset.mem_inter.mp hx).1) y
+        (List.mem_toFinset.mp (Finset.mem_sdiff.mp hy).1)
+        ((arc_exchTables_iff h₁ h₂ hIV).mpr (.inl ⟨(Finset.mem_inter.mp hx).2, hy, hind⟩))))
+    (fun y hy x hx hind => List.mem_toFinset.mpr
+      (hcl y (List.mem_toFinset.mp (Finset.mem_sdiff.mp hy).1) x (List.mem_toFinset.mp (hIV hx))
+        ((arc_exchTables_iff h₁ h₂ hIV).mpr (.inr
+          ⟨Finset.mem_sdiff.mpr ⟨hRV' (Finset.mem_sdiff.mp hy).1, (Finset.mem_sdiff.mp hy).2⟩,
+            hx, hind⟩))))
+  obtain ⟨hyR, hyI⟩ := Finset.mem_sdiff.mp hy
+  have h := htgt y (List.mem_toFinset.mp hyR)
+  rw [← Bool.not_eq_true, tgt_exchTables_iff h₂] at h
+  exact h ⟨Finset.mem_sdiff.mpr ⟨hRV' hyR, hyI⟩, hind⟩
 
 private theorem maxCommonIndepLoop_spec (h₁ : ∀ S, indep₁ S = true ↔ M₁.Indep (S : Set α))
     (h₂ : ∀ S, indep₂ S = true ↔ M₂.Indep (S : Set α)) (V : List α) :

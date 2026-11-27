@@ -42,38 +42,30 @@ theorem IsEmbedding.exists_square_move {G : Graph} {D : PolygonalDrawing G}
   classical
   obtain ⟨F, walls, hinj, hv, hfixed, hline⟩ := Polygonal.exists_square_move (D.vertex v) b hr hb
   obtain ⟨P, hP, hvertex, hsupport⟩ := hD.exists_image_across_walls walls hinj hline
-  let exterior (z : ℂ) : Prop := r ≤ max |z.re - (D.vertex v).re| |z.im - (D.vertex v).im|
-  let fixed (e : Fin G.edges.length) : Prop := ∀ z ∈ (D.route e).support, exterior z
+  let fixed (e : Fin G.edges.length) : Prop :=
+    ∀ z ∈ (D.route e).support, r ≤ max |z.re - (D.vertex v).re| |z.im - (D.vertex v).im|
   let routes (e : Fin G.edges.length) := if fixed e then D.route e else P.route e
-  have route_fixed (e : Fin G.edges.length) (he : fixed e) : routes e = D.route e := by
-    simp [routes, he]
-  have route_moved (e : Fin G.edges.length) (he : ¬fixed e) : routes e = P.route e := by
-    simp [routes, he]
   have hend (e : Fin G.edges.length) (side : Bool) :
       (routes e).endpoint side = P.vertex (Dart.vertex (e, side)) := by
     by_cases he : fixed e
     · have hm := (D.route e).at_mem_support ((D.route e).endSegment side)
         (Route.endTime_mem side (t := 0) ⟨le_rfl, zero_le_one⟩)
       rw [(D.route e).eval_near_end, zero_smul, add_zero] at hm
-      have heq := hfixed _ (he _ hm)
-      rw [route_fixed e he, hvertex, Function.comp_apply, ← D.endpoint_eq e side, heq]
-    · simpa only [route_moved e he] using P.endpoint_eq e side
-  let E : PolygonalDrawing G := ⟨P.vertex, routes, hend⟩
+      simp only [routes, he, ↓reduceIte, hvertex, Function.comp_apply, ← D.endpoint_eq e side,
+        hfixed _ (he _ hm)]
+    · simp [routes, he, P.endpoint_eq]
   have hsimple (e : Fin G.edges.length) : (routes e).IsSimple := by
-    by_cases he : fixed e
-    · simpa only [route_fixed e he] using hD.simple e
-    · simpa only [route_moved e he] using hP.simple e
+    by_cases he : fixed e <;> simp [routes, he, hD.simple, hP.simple]
   have hsame (e : Fin G.edges.length) : (routes e).support = (P.route e).support := by
     by_cases he : fixed e
-    · rw [route_fixed e he, hsupport e]
+    · simp only [routes, he, ↓reduceIte, hsupport e]
       ext z
-      constructor
-      · intro hz
-        exact ⟨z, hz, hfixed z (he z hz)⟩
-      · rintro ⟨w, hw, rfl⟩
-        rwa [hfixed w (he w hw)]
-    · simp only [route_moved e he]
-  refine ⟨E, hP.of_same_route_supports hG rfl hsimple hsame, ?_, ?_, ?_⟩
+      refine ⟨fun hz => ⟨z, hz, hfixed z (he z hz)⟩, ?_⟩
+      rintro ⟨w, hw, rfl⟩
+      rwa [hfixed w (he w hw)]
+    · simp [routes, he]
+  refine ⟨⟨P.vertex, routes, hend⟩, hP.of_same_route_supports hG rfl hsimple hsame, ?_, ?_,
+    fun e he => ite_eq_left he⟩
   · change P.vertex v = b
     rw [hvertex]
     exact hv
@@ -81,7 +73,5 @@ theorem IsEmbedding.exists_square_move {G : Graph} {D : PolygonalDrawing G}
     change P.vertex w = D.vertex w
     rw [hvertex]
     exact hfixed _ hw
-  · intro e he
-    exact route_fixed e he
 
 end Cslib.Complexity.Graph.PolygonalDrawing

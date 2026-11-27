@@ -59,18 +59,9 @@ theorem exec_selectPrime {w W n D b ap bp cp F : ℕ} (x : Data 640) (u v z : �
   obtain ⟨y, hy, ⟨_, hp, hcount, frame, regs⟩, outside⟩ :=
     ExecWithin.rename_post selectorBank_injective (PrimeSelection.exec (x.comap selectorBank)
       u v z hD hn hd ha hb hc hs haEnd hbEnd hcEnd hu hv hz hinU hinV hinZ hmag hw hwidth hctrl)
-  refine ⟨y, hy, hp, hcount, frame, ?_⟩
-  intro j hj
+  refine ⟨y, hy, hp, hcount, frame, fun j hj => ?_⟩
   by_cases hlt : j.val < 160
-  · let i : Fin 160 := ⟨j.val, hlt⟩
-    have hi : selectorBank i = j := Fin.ext rfl
-    rw [← hi]
-    exact regs i (Or.inr hj)
-  · exact outside j (by
-      intro i hi
-      have hv := congrArg Fin.val hi
-      have := i.isLt
-      change i.val = j.val at hv
-      omega)
+  · exact (Fin.ext rfl : selectorBank ⟨j.val, hlt⟩ = j) ▸ regs ⟨j.val, hlt⟩ (Or.inr hj)
+  · exact outside j fun i hi => hlt (congrArg Fin.val hi ▸ i.isLt)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting

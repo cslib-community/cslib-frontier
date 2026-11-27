@@ -225,9 +225,8 @@ omit [DecidableEq State] in
 /-- Decoding the label of an input gives its wire. -/
 @[simp] theorem wireOf_inputLabel (n T i : ℕ) :
     wireOf (k := k) (State := State) n T (inputLabel i) = i := by
-  have h₁ : inputLabel i % 4 = 1 := by unfold inputLabel; omega
-  have h₂ : inputLabel i / 4 = i := by unfold inputLabel; omega
-  simp [wireOf, h₁, h₂]
+  obtain ⟨h₁, h₂⟩ := tag_fields (p := i) (by decide : 1 < 4)
+  simp [wireOf, inputLabel, h₁, h₂]
 
 omit [DecidableEq State] in
 /-- Decoding the label of a position gives its wire. -/
@@ -303,12 +302,12 @@ omit [DecidableEq State] in
 /-- **Decoding the label of a reference gives its wire.** -/
 theorem wireOf_label {n T t c : ℕ} {r : Ref k State} (hr : r.InWindow n T c) :
     wireOf (k := k) (State := State) n T (r.label n T t c) = r.resolve n T t c := by
-  rcases r with _ | _ | _ | ⟨p, l, cs, g⟩
-  · simp [Ref.label, Ref.resolve]
-  · simp [Ref.label, Ref.resolve]
-  · simp only [Ref.resolve, Ref.label]
+  cases r with
+  | fls | tru => simp [Ref.label, Ref.resolve]
+  | inp =>
+    simp only [Ref.resolve, Ref.label]
     split_ifs <;> simp
-  · simp only [Ref.InWindow] at hr
+  | node p l cs g =>
     by_cases hg : g.test n T c = true
     · simp only [Ref.resolve, Ref.label, hg, ↓reduceIte]
       rw [wireOf_posLabel _ (lt_of_le_of_lt (Loc.labelCol_le l _)
@@ -337,11 +336,9 @@ theorem table_inWindow {n T c : ℕ} (hc : c < numCols T) (tm : MultiTapeTM k Bo
   change (table tm l).2.1.InWindow n T c ∧ (table tm l).2.2.InWindow n T c
   have hw {r : Ref k State} (h : ∀ p l g, r = .node p l .next g → g = .ltLast) :
       r.InWindow n T c := by
-    rcases r with _ | _ | _ | ⟨p, l, cs, g⟩
-    · trivial
-    · trivial
-    · trivial
-    · exact inWindow_of_cs hc fun hcs => h p l g (by rw [hcs])
+    cases r with
+    | node p l cs g => exact inWindow_of_cs hc fun hcs => h p l g (hcs ▸ rfl)
+    | _ => trivial
   have hterm {L : List (Ref k State × Ref k State)}
       (hL : ∀ q ∈ L, ∀ p l g, (q.1 = .node p l .next g → g = .ltLast) ∧
         (q.2 = .node p l .next g → g = .ltLast)) (j : ℕ) :
@@ -456,10 +453,10 @@ noncomputable def succinctCNF (x : List Bool) (n T : ℕ) : CNF ℕ :=
 /-- The clause of a number with the fields `j`, `tag` and `p`. -/
 theorem clauseAt_fields (x : List Bool) (n T : ℕ) {j tag : ℕ} (p : ℕ) (hj : j < 4)
     (htag : tag < 4) : clauseAt tm x n T (j + 4 * (tag + 4 * p)) = clauseOf tm x n T j tag p := by
-  have h₁ : (j + 4 * (tag + 4 * p)) % 4 = j := by omega
-  have h₂ : (j + 4 * (tag + 4 * p)) / 4 % 4 = tag := by omega
-  have h₃ : (j + 4 * (tag + 4 * p)) / 16 = p := by omega
-  rw [clauseAt, h₁, h₂, h₃]
+  obtain ⟨h₁, h₂⟩ := tag_fields (p := tag + 4 * p) hj
+  obtain ⟨h₃, -⟩ := tag_fields (p := p) htag
+  have h₄ : (j + 4 * (tag + 4 * p)) / 16 = p := by omega
+  rw [clauseAt, h₁, h₂, h₃, h₄]
 
 omit [DecidableEq State] in
 /-- The numbers of the clauses with a payload of `slotBits + colBits + timeBits` bits are below
@@ -492,8 +489,7 @@ theorem forall_eval_posClause_iff (σ : ℕ → Bool) (n T t c : ℕ) (l : Loc k
   unfold posClause
   split_ifs
   · exact forall_eval_tseitinClause_iff _ _ _ _ _
-  · generalize table tm l = e
-    obtain ⟨op, left, right⟩ := e
+  · obtain ⟨op, left, right⟩ := table tm l
     exact forall_eval_tseitinClause_iff _ _ _ _ _
 
 /-- **Every clause holds** under an assignment of labels that gives the constants their values,
@@ -509,19 +505,15 @@ theorem eval_clauseOf {x : List Bool} {n T : ℕ} {σ : ℕ → Bool}
           op.value (σ (left.label n T t c)) (σ (right.label n T t c)))
     (j tag p : ℕ) : (clauseOf tm x n T j tag p).eval σ = true := by
   unfold clauseOf
-  split_ifs with hj h₀ hp h₁ hp' h₂ h₃
+  split_ifs with hj h₀ hp h₁ hp' h₂ h₃ <;> try exact eval_tautology σ
   · exact (forall_eval_tseitinClause_iff _ _ _ _ σ).2 (hconst _) _
-  · exact eval_tautology σ
   · simpa using hin p hp'.2
-  · exact eval_tautology σ
   · split
     · split_ifs with h
-      · exact (forall_eval_posClause_iff tm σ _ _ _ _ _).2 (hpos _ h.1 _ _ h.2) _
-      · exact eval_tautology σ
+      exacts [(forall_eval_posClause_iff tm σ _ _ _ _ _).2 (hpos _ h.1 _ _ h.2) _,
+        eval_tautology σ]
     · exact eval_tautology σ
   · simpa using hout
-  · exact eval_tautology σ
-  · exact eval_tautology σ
 
 /-! ### Comparison with the Tseitin formula of the tableau -/
 
@@ -564,10 +556,8 @@ theorem satisfiable_succinctCNF_iff_tseitin {n T : ℕ} (hn : n < 2 * T) {x : Li
       (tseitinSatCNF x n (gates tm n T) (outWire k State n T)).Satisfiable := by
   have hcb : 2 * T < 2 ^ colBits T := Nat.lt_size_self _
   have hpay {p : ℕ} (hp : p < 2 ^ colBits T) :
-      p < 2 ^ (slotBits k State + colBits T + timeBits T) := by
-    have : 2 ^ colBits T ≤ 2 ^ (slotBits k State + colBits T + timeBits T) :=
-      Nat.pow_le_pow_right (by norm_num) (by omega)
-    omega
+      p < 2 ^ (slotBits k State + colBits T + timeBits T) :=
+    hp.trans_le (Nat.pow_le_pow_right (by norm_num) (by omega))
   have hout_ok : (Loc.gf (k := k) (State := State) (.out (.one true)) true 7).ColOK T 0 := rfl
   constructor
   · rintro ⟨σ, hσ⟩
@@ -582,11 +572,10 @@ theorem satisfiable_succinctCNF_iff_tseitin {n T : ℕ} (hn : n < 2 * T) {x : Li
     · have := hfield (j := 0) (tag := 3) (p := 0) (by omega) (by omega) (Nat.two_pow_pos _)
       simpa [clauseOf, outWire, wireLabel_wire hout_ok, outLabel] using this
     · have := hfield (j := 0) (tag := 1) (p := i) (by omega) (by omega) (hpay (by omega))
-      simpa [clauseOf, hi, wireLabel_of_lt (show i < n by omega)] using this
+      simpa [clauseOf, hi, wireLabel_of_lt (lt_of_lt_of_le hi hx)] using this
     · rw [eval_tseitinCNF_eq_true_iff]
       intro g hg
       rw [getElem_gates]
-      rw [length_gates] at hg
       by_cases hg₂ : g < 2
       · have hcode : gateCode tm n T g = (.const (decide (g = 1)), []) := by
           simp [gateCode, hg₂]
@@ -595,25 +584,21 @@ theorem satisfiable_succinctCNF_iff_tseitin {n T : ℕ} (hn : n < 2 * T) {x : Li
             have := hfield (j := j) (tag := 0) (p := g) (by omega) (by omega) (hpay (by omega))
             simpa [clauseOf, j.isLt, hg₂] using this
         have hw : n + g = n + (decide (g = 1)).toNat := by
-          rcases (show g = 0 ∨ g = 1 by omega) with rfl | rfl <;> rfl
-        rw [hcode, hw, wireLabel_const]
-        exact hc
+          rcases (by omega : g = 0 ∨ g = 1) with rfl | rfl <;> rfl
+        rwa [hcode, hw, wireLabel_const]
       · obtain ⟨t, ht, l, c, hl, hw⟩ := exists_wire_eq (k := k) (State := State) (n := n)
-          (Nat.le_of_not_lt hg₂) hg
+          (Nat.le_of_not_lt hg₂) (length_gates tm n T ▸ hg)
         have hwn : n + (wire n T t l c - n) = wire n T t l c := by simp only [wire]; omega
         have hp := fields_lt (d := timeBits T) (slot_lt_two_pow l)
           (lt_of_lt_of_le hl.lt (numCols_le_two_pow T)) (lt_two_pow_timeBits ht)
-        have hpos := (forall_eval_posClause_iff tm σ n T t c l).1 fun j => by
-          rw [← clauseOf_pos tm x j ht hl]
-          exact hfield (by omega) (by omega) hp
+        have hpos := (forall_eval_posClause_iff tm σ n T t c l).1 fun j =>
+          clauseOf_pos tm x j ht hl ▸ hfield (by omega) (by omega) hp
         have hwin := table_inWindow (n := n) hl.lt tm l
-        have hv := value_gateAt tm (fun w => σ (wireLabel k State n T w)) n T t c l
-        rw [← hw, gateCode_wire tm hl, hv, hwn, wireLabel_wire hl, hpos]
-        generalize table tm l = e at hwin ⊢
-        obtain ⟨op, left, right⟩ := e
-        obtain ⟨hra, hrb⟩ := hwin
-        dsimp only
-        rw [wireLabel_resolve hra, wireLabel_resolve hrb]
+        rw [← hw, gateCode_wire tm hl,
+          value_gateAt tm (fun w => σ (wireLabel k State n T w)), hwn, wireLabel_wire hl, hpos]
+        rcases h : table tm l with ⟨op, left, right⟩
+        simp only [h] at hwin ⊢
+        rw [wireLabel_resolve hwin.1, wireLabel_resolve hwin.2]
   · rintro ⟨τ, hτ⟩
     obtain ⟨hτo, hτx, hτφ⟩ := (eval_tseitinSatCNF_eq_true_iff _ _ _ _ _).1 hτ
     rw [eval_tseitinCNF_eq_true_iff] at hτφ
@@ -633,20 +618,15 @@ theorem satisfiable_succinctCNF_iff_tseitin {n T : ℕ} (hn : n < 2 * T) {x : Li
     rw [succinctCNF, CNF.eval_map_eq_true_iff]
     intro idx _
     refine eval_clauseOf tm (fun b => ?_) (fun i hi => ?_) ?_ (fun t ht c l hl => ?_) _ _ _
-    · rw [wireOf_constLabel]
-      cases b
-      · simpa [gateCode, Op.value] using hgate (g := 0) (by omega)
-      · simpa [gateCode, Op.value] using hgate (g := 1) (by omega)
+    · have hb := hgate ((Bool.toNat_lt b).trans_le h2)
+      cases b <;> simpa [wireOf_constLabel, gateCode, Op.value] using hb
     · simpa using hτx i hi
-    · simpa [outLabel, outWire, wireOf_posLabel _ (show 0 < 2 ^ colBits T from Nat.two_pow_pos _)]
-        using hτo
+    · simpa [outLabel, outWire, wireOf_posLabel _ (Nat.two_pow_pos _)] using hτo
     · have hwin := table_inWindow (n := n) hl.lt tm l
       rw [wireOf_posLabel _ (lt_of_lt_of_le hl.lt (numCols_le_two_pow T)), hwire hl ht]
-      generalize table tm l = e at hwin ⊢
-      obtain ⟨op, left, right⟩ := e
-      obtain ⟨hra, hrb⟩ := hwin
-      dsimp only
-      rw [wireOf_label hra, wireOf_label hrb]
+      rcases h : table tm l with ⟨op, left, right⟩
+      simp only [h] at hwin ⊢
+      rw [wireOf_label hwin.1, wireOf_label hwin.2]
 
 /-- **The tableau formula on labels is satisfiable** exactly when, on some input of length `n`
 extending `x`, the machine `tm` has written exactly `[true]` after `T` steps, whether or not it
@@ -669,23 +649,13 @@ theorem length_of_mem_succinctCNF {x : List Bool} {n T : ℕ} {C : Clause ℕ}
     (hC : C ∈ succinctCNF tm x n T) : C.length = 3 := by
   obtain ⟨idx, -, rfl⟩ := List.mem_map.1 hC
   unfold clauseAt clauseOf
-  split_ifs
-  · exact length_tseitinClause _ _ _ _ _
-  · rfl
-  · rfl
-  · rfl
-  · split
-    · split_ifs
-      · unfold posClause
-        split_ifs
-        · exact length_tseitinClause _ _ _ _ _
-        · split
-          exact length_tseitinClause _ _ _ _ _
-      · rfl
-    · rfl
-  · rfl
-  · rfl
-  · rfl
+  split_ifs <;> try rfl
+  split <;> try rfl
+  split_ifs <;> try rfl
+  unfold posClause
+  split_ifs <;> try rfl
+  split
+  exact length_tseitinClause _ _ _ _ _
 
 /-- The formula has `2 ^ clauseBits k State T` clauses. -/
 theorem length_succinctCNF (x : List Bool) (n T : ℕ) :
@@ -701,18 +671,15 @@ omit [DecidableEq State] in
 theorem posLabel_lt {T t c : ℕ} (l : Loc k State) (hc : c < 2 ^ colBits T) (ht : t ≤ T) :
     posLabel k State T t c l < 2 ^ labelBits k State T := by
   have := fields_lt (slot_lt_two_pow l) hc (lt_two_pow_timeBits ht)
-  rw [labelBits, Nat.pow_add]
-  simp only [posLabel]
+  rw [labelBits, Nat.pow_add, posLabel]
   omega
 
 omit [DecidableEq State] in
 /-- The labels of the inputs `i < 2 T` fit in `labelBits` bits. -/
 theorem inputLabel_lt {T i : ℕ} (hi : i < 2 * T) : inputLabel i < 2 ^ labelBits k State T := by
-  have hcb : 2 * T < 2 ^ colBits T := Nat.lt_size_self _
-  have : 2 ^ colBits T ≤ 2 ^ (slotBits k State + colBits T + timeBits T) :=
-    Nat.pow_le_pow_right (by norm_num) (by omega)
-  rw [labelBits, Nat.pow_add]
-  simp only [inputLabel]
+  have := (Nat.lt_size_self (2 * T)).trans_le (Nat.pow_le_pow_right (by norm_num)
+    (by omega : colBits T ≤ slotBits k State + colBits T + timeBits T))
+  rw [labelBits, Nat.pow_add, inputLabel]
   omega
 
 omit [DecidableEq State] in
@@ -726,25 +693,19 @@ omit [DecidableEq State] in
 theorem Ref.label_lt {n T t c : ℕ} (hn : n < 2 * T) (ht : t ≤ T) {r : Ref k State}
     (hr : r.InWindow n T c) : r.label n T t c < 2 ^ labelBits k State T := by
   have hT : 1 ≤ T := by omega
-  rcases r with _ | _ | _ | ⟨p, l, cs, g⟩
-  · exact constLabel_lt hT _
-  · exact constLabel_lt hT _
-  · simp only [Ref.label]
+  cases r with
+  | fls | tru => exact constLabel_lt hT _
+  | inp =>
+    simp only [Ref.label]
     split_ifs
     · exact inputLabel_lt (by omega)
     · exact constLabel_lt hT _
-  · simp only [Ref.InWindow] at hr
+  | node p l cs g =>
     by_cases hg : g.test n T c = true
-    · simp only [Ref.label, hg, ↓reduceIte]
+    · rw [Ref.label, ite_eq_left hg]
       exact posLabel_lt _ (lt_of_le_of_lt (Loc.labelCol_le l _)
         (lt_of_lt_of_le (hr hg) (numCols_le_two_pow T))) (by split <;> omega)
-    · simp only [Ref.label, hg, Bool.false_eq_true, ↓reduceIte]
-      exact constLabel_lt hT _
-
-omit [DecidableEq State] in
-private theorem mem_tseitinClause {op : Op} {w a b v : ℕ} {s : Bool} {j : Fin 3}
-    (h : (v, s) ∈ tseitinClause op w a b j) : v = w ∨ v = a ∨ v = b := by
-  fin_cases j <;> cases op <;> simp [tseitinClause] at h <;> omega
+    · simpa only [Ref.label, hg, Bool.false_eq_true, ↓reduceIte] using constLabel_lt hT false
 
 /-- **Every variable of the formula is below `2 ^ labelBits k State T`**, for `n < 2 T`: labels
 have `labelBits k State T` bits. -/
@@ -756,17 +717,13 @@ theorem lt_two_pow_labelBits_of_mem_vars {n T : ℕ} (hn : n < 2 * T) {x : List 
   obtain ⟨C, hC, s, hvC⟩ := CNF.mem_vars.1 hv
   obtain ⟨idx, -, rfl⟩ := List.mem_map.1 hC
   unfold clauseAt clauseOf at hvC
-  split_ifs at hvC with hj h₀ hp h₁ hp' h₂ h₃
+  have htaut (h : (v, s) ∈ tautology) : v < 2 ^ labelBits k State T := by
+    simp [tautology] at h; omega
+  split_ifs at hvC with hj h₀ hp h₁ hp' h₂ h₃ <;> try exact htaut hvC
   · rcases mem_tseitinClause hvC with rfl | rfl | rfl
-    · exact constLabel_lt hT _
-    · exact h0
-    · exact h0
-  · simp [tautology] at hvC; omega
-  · simp only [unitClause, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false,
-      or_self] at hvC
-    rw [hvC.1]
+    exacts [constLabel_lt hT _, h0, h0]
+  · obtain ⟨rfl, -⟩ : v = inputLabel (idx / 16) ∧ _ := by simpa [unitClause] using hvC
     exact inputLabel_lt (by omega)
-  · simp [tautology] at hvC; omega
   · split at hvC
     · rename_i l _
       split_ifs at hvC with h
@@ -782,13 +739,9 @@ theorem lt_two_pow_labelBits_of_mem_vars {n T : ℕ} (hn : n < 2 * T) {x : List 
           | exact h0
           | exact Ref.label_lt hn h.1 hra
           | exact Ref.label_lt hn h.1 hrb
-      · simp [tautology] at hvC; omega
-    · simp [tautology] at hvC; omega
-  · simp only [unitClause, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false,
-      or_self] at hvC
-    rw [hvC.1]
+      · exact htaut hvC
+    · exact htaut hvC
+  · obtain ⟨rfl, -⟩ : v = outLabel k State T ∧ _ := by simpa [unitClause] using hvC
     exact posLabel_lt _ (Nat.two_pow_pos _) le_rfl
-  · simp [tautology] at hvC; omega
-  · simp [tautology] at hvC; omega
 
 end Cslib.Circuits.Boolean.Tableau

@@ -78,8 +78,7 @@ theorem expansionAuxName_injective
     refine Fin.addCases (fun i => ?_) (fun i => ?_) i <;>
       refine Fin.addCases (fun j => ?_) (fun j => ?_) j
     · simp only [expansionAuxName, Fin.addCases_left]
-      intro he
-      exact congrArg (Fin.castAdd _) (Fin.ext he)
+      exact fun he => congrArg (Fin.castAdd _) (Fin.ext he)
     · simp only [expansionAuxName, Fin.addCases_left, Fin.addCases_right]
       have hi := i.isLt.trans_le (hB c.rel)
       omega
@@ -87,8 +86,7 @@ theorem expansionAuxName_injective
       have hj := j.isLt.trans_le (hB c.rel)
       omega
     · simp only [expansionAuxName, Fin.addCases_right]
-      intro he
-      exact congrArg (Fin.natAdd _) (ih _ (Nat.add_left_cancel he))
+      exact fun he => congrArg (Fin.natAdd _) (ih _ (Nat.add_left_cancel he))
 
 /-- Free source names occupy even numbers; each ragged auxiliary occupies the odd
 number for its original source-constraint occurrence. -/
@@ -105,19 +103,14 @@ theorem expansionName_injective
     (B : ℕ) (hB : ∀ r, (gadgets r).numAux ≤ B)
     {k : ℕ} (F : CSP Src (Fin k)) (hF : WellFormed srcArity F) :
     Function.Injective (expansionName gadgets B F hF) := by
-  intro i j he
-  cases i with
-  | inl i =>
-    cases j with
-    | inl j => exact congrArg Sum.inl (Fin.ext (by simpa [expansionName] using he))
-    | inr j => simp only [expansionName, Sum.elim_inl, Sum.elim_inr] at he; omega
-  | inr i =>
-    cases j with
-    | inl j => simp only [expansionName, Sum.elim_inl, Sum.elim_inr] at he; omega
-    | inr j =>
-      apply congrArg Sum.inr
-      apply expansionAuxName_injective gadgets B hB F hF
-      simpa [expansionName] using he
+  rintro (i | i) (j | j) he
+  · exact congrArg Sum.inl (Fin.ext (by simpa [expansionName] using he))
+  · simp only [expansionName, Sum.elim_inl, Sum.elim_inr] at he
+    omega
+  · simp only [expansionName, Sum.elim_inl, Sum.elim_inr] at he
+    omega
+  · exact congrArg Sum.inr
+      (expansionAuxName_injective gadgets B hB F hF (by simpa [expansionName] using he))
 
 private theorem expandList_body_numeric_from
     (gadgets : ∀ r, PPGadget arity sem (booleanRelation srcArity srcSem r))
@@ -137,51 +130,26 @@ private theorem expandList_body_numeric_from
     congr 1
     · unfold instantiate template CSP.relabel
       simp only [List.map_map]
-      apply List.map_congr_left
-      intro d _
-      apply Constraint.ext
-      · rfl
-      change List.map (Sum.elim (fun i : Fin k => 2 * i.val)
-          (fun i : Fin ((gadgets c.rel).numAux + (expandList gadgets cs ht).numAux) =>
-            2 * (B * start + Fin.addCases Fin.val
-              (fun j => B + expansionAuxName gadgets B cs ht j) i) + 1))
-          ((d.scope.map (Sum.map (fun i => c.scope[i.val]'(by
-              rw [hF c List.mem_cons_self]; exact i.isLt)) id)).map
-            (Sum.map id (Fin.castAdd (expandList gadgets cs ht).numAux))) =
-        (d.scope.map (Sum.elim (fun i => (false, i.val)) (fun i => (true, i.val)))).map
-          (fun p => if p.1 then 2 * (B * start + p.2) + 1
-            else 2 * (c.scope.map Fin.val).getD p.2 0)
+      refine List.map_congr_left fun d _ => Constraint.ext rfl ?_
+      dsimp only [Function.comp_def, Constraint.relabel]
       simp only [List.map_map]
-      apply List.map_congr_left
-      intro v _
+      refine (List.map_map ..).trans (List.map_congr_left fun v _ => ?_)
       cases v with
       | inl i =>
-        have hi : i.val < c.scope.length := by
-          rw [hF c List.mem_cons_self]
-          exact i.isLt
-        simp [List.getElem?_eq_getElem hi, Function.comp_def]
-      | inr i => simp [Function.comp_def]
+        have hi : i.val < c.scope.length := (hF c List.mem_cons_self).symm ▸ i.isLt
+        simp [Function.comp, Sum.map, Sum.elim, List.getElem?_eq_getElem hi]
+      | inr i =>
+        simp [Function.comp, Sum.map, Sum.elim]
     · rw [← ih (start + 1) ht]
       simp only [CSP.relabel]
-      apply List.map_congr_left
-      intro d _
-      apply Constraint.ext
-      · rfl
-      change List.map (Sum.elim (fun i : Fin k => 2 * i.val)
-          (fun i : Fin ((gadgets c.rel).numAux + (expandList gadgets cs ht).numAux) =>
-            2 * (B * start + Fin.addCases Fin.val
-              (fun j => B + expansionAuxName gadgets B cs ht j) i) + 1))
-          (d.scope.map (Sum.map id (Fin.natAdd (gadgets c.rel).numAux))) =
-        d.scope.map (Sum.elim (fun i => 2 * i.val)
-          (fun i => 2 * (B * (start + 1) + expansionAuxName gadgets B cs ht i) + 1))
-      rw [List.map_map]
-      apply List.map_congr_left
-      intro v _
+      refine List.map_congr_left fun d _ => Constraint.ext rfl ?_
+      dsimp only [Function.comp_def, Constraint.relabel]
+      refine (List.map_map ..).trans (List.map_congr_left fun v _ => ?_)
       cases v with
       | inl i => rfl
       | inr i =>
-        simp only [Function.comp_apply, Sum.map_inr, Sum.elim_inr,
-          Fin.addCases_right, Nat.mul_add, Nat.mul_one]
+        dsimp only [Function.comp, Sum.map, Sum.elim, id]
+        simp only [Fin.addCases_right, Nat.mul_add, Nat.mul_one]
         omega
 
 /-- The finite semantic expansion, with its actual ragged blocks, is exactly the existing

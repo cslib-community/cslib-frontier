@@ -104,16 +104,44 @@ example (x : Data 4) (h : ∃ y, ExecWithin 8 writeSeven (Data.init []) y 3 ∧ 
     WP 8 (writeSeven.rename bank) x (fun _ t => t ≤ 3) := by
   wram_call h canonical (by decide : bank.Injective) with y _
 
+/-- Auto-proved `Injective` proof for `canonical` on both `WP` and `WP.Exact`,
+including direct `Exec` contracts without `with`. -/
+example {w : ℕ} (x : Data 4) (h9 : Fits w 9) :
+    WP w (.seq (writeSeven.rename bank) (ram[ dest ← out ])) x
+      (fun y t => t ≤ 4 ∧ y.regs dest = 7 ∧ y.mem 3 = 7) := by
+  have h7 : Fits w 7 := h9.of_le (by omega)
+  wram_call writeSeven_spec canonical with y ⟨hm, hv, _⟩
+  wram_exec [hv]
+  wram_simp [hm, Function.update_apply]
+
+example {w : ℕ} (x : Data 4) (h7 : Fits w 7) :
+    WP.Exact w (writeSeven.rename bank) x (fun y t => t = 3 ∧ y.regs 1 = x.regs 1) := by
+  have he : Exec w writeSeven (x.comap bank)
+      ((((x.comap bank).set a 3).set b 7).write 3 7) 3 := by
+    unfold writeSeven
+    wram_exec [h7, h7.of_le (show 3 ≤ 7 by decide)]
+  wram_call he canonical
+  exact ⟨trivial, by wram_simp⟩
+
+/-- Symbolic `Fin.castLE` embedding in `Data.reduceExtendRegs`. -/
+example (x : Data 4) (y : Data 2) (h : y.regs 1 = 17) :
+    (y.extend (Fin.castLE (by omega)) x).regs 1 = 17 ∧
+    (y.extend (Fin.castLE (by omega)) x).regs 3 = x.regs 3 := by
+  exact ⟨by wram_simp [h], by wram_simp⟩
+
+/-- Canonical calls also support exact instruction counts (`WP.Exact` / `Exec`). -/
+example (x : Data 4) (h : ∃ y, Exec 8 writeSeven (x.comap bank) y 3 ∧ True) :
+    WP.Exact 8 (writeSeven.rename bank) x (fun _ t => t = 3) := by
+  wram_call h canonical (by decide : bank.Injective) with y _
+
 /--
 error: wram_call: the contract does not apply to the goal
   WP.Exact 8 (Code.rename bank writeSeven) x fun x t => t = 3
-The canonical form has no rule for exact instruction counts; at a `WP.Exact` goal, use
-`wram_call h renamed hf with …`.
-The contract has type
-  ∃ y, Exec 8 writeSeven (Data.comap bank x) y 3 ∧ True
+For the goal `WP.Exact w (c.rename f) x Q`, the contract must have type
+`∃ y, Exec w c (x.comap f) y T ∧ P y`, with `hf : f.Injective`.
 -/
-#guard_msgs (whitespace := lax) in
-example (x : Data 4) (h : ∃ y, Exec 8 writeSeven (x.comap bank) y 3 ∧ True) :
+#guard_msgs (whitespace := lax, substring := true) in
+example (x : Data 4) (h : ∃ y, Exec 8 writeSeven (Data.init []) y 3 ∧ True) :
     WP.Exact 8 (writeSeven.rename bank) x (fun _ t => t = 3) := by
   wram_call h canonical (by decide : bank.Injective) with y _
 

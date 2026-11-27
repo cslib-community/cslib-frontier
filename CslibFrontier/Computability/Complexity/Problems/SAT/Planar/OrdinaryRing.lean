@@ -156,16 +156,10 @@ theorem incidence_points_nodup : ∀ e ∈ incidenceRoutes, e.2.2.Nodup := by de
 /-- Every incidence is continuously simple. -/
 theorem incidence_isSimple {e : ℕ × Variable × Route} (he : e ∈ incidenceRoutes) :
     IsSimple e.2.2 := by
-  refine ⟨incidence_points_nodup e he, ?_⟩
-  intro a ha b hb hne
-  rw [incidence_pair e he] at ha hb
-  have ha' : a = (clausePosition e.1, variablePosition e.2.1) := by
-    simpa only [List.consecutivePairs, List.tail_cons, List.tail_nil, List.zip_cons_cons,
-      List.zip_nil_right, List.mem_singleton] using ha
-  have hb' : b = (clausePosition e.1, variablePosition e.2.1) := by
-    simpa only [List.consecutivePairs, List.tail_cons, List.tail_nil, List.zip_cons_cons,
-      List.zip_nil_right, List.mem_singleton] using hb
-  exact False.elim (hne (ha'.trans hb'.symm))
+  refine ⟨incidence_points_nodup e he, fun a ha b hb hne => ?_⟩
+  simp only [incidence_pair e he, List.consecutivePairs, List.tail_cons,
+    List.zip_cons_cons, List.zip_nil_right, List.mem_singleton] at ha hb
+  exact (hne (ha.trans hb.symm)).elim
 
 /-- All listed core points lie in `[20,220]²`. -/
 theorem core_bounds : ∀ e ∈ incidenceRoutes, ∀ p ∈ e.2.2,
@@ -184,15 +178,11 @@ theorem clause_bounds : ∀ p ∈ clausePositions,
 theorem core_support_interior {e : ℕ × Variable × Route} (he : e ∈ incidenceRoutes)
     {p : ℝ × ℝ} (hp : p ∈ support e.2.2) :
     0 < p.1 ∧ p.1 < 240 ∧ 0 < p.2 ∧ p.2 < 240 := by
-  have hsub : support e.2.2 ⊆ openCell 120 (0, 0) := by
-    apply support_subset_openCell
-    intro q hq
-    have hb := core_bounds e he q hq
-    have hq' : 0 < q.1 ∧ q.1 < 240 ∧ 0 < q.2 ∧ q.2 < 240 := by omega
-    have hreal : (0 : ℝ) < q.1 ∧ (q.1 : ℝ) < 240 ∧
-        (0 : ℝ) < q.2 ∧ (q.2 : ℝ) < 240 := by exact_mod_cast hq'
-    simpa [openCell, realPoint] using hreal
-  simpa [openCell] using hsub hp
+  suffices p ∈ openCell 120 (0, 0) by simpa [openCell] using this
+  refine support_subset_openCell (fun q hq => ?_) hp
+  have := core_bounds e he q hq
+  norm_num [openCell, realPoint]
+  norm_cast; omega
 
 /-- Finite certificate of all permitted contacts between distinct incidences. -/
 theorem routes_contact_check : ∀ e ∈ incidenceRoutes, ∀ f ∈ incidenceRoutes, e ≠ f →

@@ -57,8 +57,7 @@ omit [Fintype Ω] in
 /-- A tuple with at most `r` of its `2 r` entries good has weight at least `2 ^ r`. -/
 private theorem two_pow_le_prod_voteWeight (G : Finset Ω) {r : ℕ} (ω : Fin (2 * r) → Ω)
     (hω : (univ.filter fun i => ω i ∈ G).card ≤ r) : (2 : ℝ) ^ r ≤ ∏ i, voteWeight G (ω i) := by
-  simp only [voteWeight]
-  rw [prod_ite, prod_const_one, prod_const, one_mul]
+  simp only [voteWeight, prod_ite, prod_const_one, prod_const, one_mul]
   refine pow_le_pow_right₀ (by norm_num) ?_
   have := card_filter_add_card_filter_not (s := (univ : Finset (Fin (2 * r))))
     (fun i => ω i ∈ G)
@@ -68,12 +67,9 @@ private theorem two_pow_le_prod_voteWeight (G : Finset Ω) {r : ℕ} (ω : Fin (
 /-- The expected weight of one trial is at most `4 / 3`. -/
 private theorem sum_mul_voteWeight_le (q : Ω → ℝ) (hsum : ∑ ω, q ω = 1) (G : Finset Ω)
     (hG : 2 ≤ 3 * ∑ ω ∈ G, q ω) : ∑ a, q a * voteWeight G a ≤ 4 / 3 := by
-  have hsplit : ∑ a, q a * voteWeight G a = 2 - ∑ a ∈ G, q a := by
-    simp only [voteWeight, mul_ite, mul_one]
-    rw [sum_ite, filter_mem_eq_inter, univ_inter, ← sum_mul, mul_comm]
-    have h := sum_filter_add_sum_filter_not (univ : Finset Ω) (fun a => a ∈ G) q
-    rw [filter_mem_eq_inter, univ_inter, hsum] at h
-    linarith
+  have h := sum_filter_add_sum_filter_not (univ : Finset Ω) (fun a => a ∈ G) q
+  simp only [voteWeight, mul_ite, mul_one, sum_ite, filter_mem_eq_inter, univ_inter,
+    ← sum_mul, hsum] at h ⊢
   linarith
 
 /-- **Majority votes over independent trials.** If each trial is good with probability at least

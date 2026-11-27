@@ -107,13 +107,10 @@ theorem lyubashevskySigningParams_failure_le (security : ℕ)
       (lyubashevskySignInput (lyubashevskySigningParams security) S A msg, security + 1)) none ≤
       (1 / 2 : ℝ≥0∞) ^ (security + 1) +
         (security + 1) ^ 2 * (8 * (security + 1) ^ 2 + 1) / 2 ^ security := by
-  have h := lyubashevskySignBoundedNative_none_le hash (lyubashevskySigningParams security)
-    S (A, 0) msg (security + 1)
-  have hp := pow_le_pow_left' (lyubashevskySigningParams_attempt_none_le security hS
-    (A, 0) hash msg) (security + 1)
-  refine h.trans ((add_le_add hp le_rfl).trans ?_)
-  apply le_of_eq
-  congr 1
+  refine (lyubashevskySignBoundedNative_none_le hash (lyubashevskySigningParams security)
+    S (A, 0) msg (security + 1)).trans ((add_le_add (pow_le_pow_left'
+      (lyubashevskySigningParams_attempt_none_le security hS (A, 0) hash msg) _)
+      le_rfl).trans_eq (congrArg (_ + ·) ?_))
   dsimp only [lyubashevskySigningParams]
   push_cast
   simp only [div_eq_mul_inv]
@@ -140,15 +137,8 @@ theorem negligible_lyubashevskySigningParams_failure
           (S security) (A security) (msg security), security + 1)) none).toNNReal) := by
   apply negligible_of_le negligible_lyubashevskySigningParams_bound
   intro security
-  have h := ENNReal.toNNReal_mono (by finiteness)
-    (lyubashevskySigningParams_failure_le security (hS security) (A security) hash (msg security))
-  have heq : ((1 / 2 : ℝ≥0∞) ^ (security + 1) +
-      (security + 1) ^ 2 * (8 * (security + 1) ^ 2 + 1) / 2 ^ security) =
-      (((1 / 2 : ℝ≥0) ^ (security + 1) +
-        (security + 1) ^ 2 * (8 * (security + 1) ^ 2 + 1) / 2 ^ security : ℝ≥0) : ℝ≥0∞) := by
-    push_cast
-    rfl
-  rw [heq, ENNReal.toNNReal_coe] at h
-  exact h
+  rw [← ENNReal.coe_le_coe, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
+  push_cast
+  exact lyubashevskySigningParams_failure_le security (hS security) (A security) hash (msg security)
 
 end Cslib.Crypto.Protocols.SigmaProtocol

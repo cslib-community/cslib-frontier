@@ -89,13 +89,9 @@ theorem count_eq {k D d : ℕ} {wt : Rel → List Bool → ℕ} {F : CSP Rel ℕ
   · subst F
     rw [count_nil, CSP.partitionFunction]
     change 1 = ∑ _ : (CSP.vars ([] : CSP Rel ℕ)).toFinset → Bool, (1 : ℕ)
-    rw [Finset.sum_const, Finset.card_univ]
-    have hc : Fintype.card ((CSP.vars ([] : CSP Rel ℕ)).toFinset → Bool) = 1 := by
-      rw [Fintype.card_fun, Fintype.card_coe]
-      simp [CSP.vars]
-    rw [hc, one_nsmul]
+    rw [Finset.sum_const, Finset.card_univ, show Fintype.card _ = 1 by simp [CSP.vars], one_nsmul]
   · rw [count, ite_eq_left (guard_eq_true_iff.mpr ⟨hF, hk, hB⟩),
-      contraction_cspNetwork (fun c hc => (hk c hc).2)]
+      contraction_cspNetwork fun c hc => (hk c hc).2]
 
 variable (encRel : Rel ↪ List Bool) (k D d : ℕ) (wt : Rel → List Bool → ℕ)
   (hwt : ∀ w : List Bool, w.length ≤ k →
@@ -106,14 +102,12 @@ include hwt
 /-- The scope and bit-budget checks are polynomial-time for the fixed parameters. -/
 theorem guard_polyTime :
     ComputableInPolyTime (guard k D d wt) (encCSP encRel encNat) encBool := by
-  have hnet := computableInPolyTime_cspNetwork encRel k wt hwt
-  have hG := hnet.snd'
-  have hB := ExplicitTensorNetwork.binaryTableBound_polyTime.comp hG
-  have hM := DescribedNetwork.numEdges_polyTime.comp hG
+  have hG := (computableInPolyTime_cspNetwork encRel k wt hwt).snd'
   have hbudget := unary_mul' (const D)
-    ((unary_pow d).comp (unary_add' hM (const 1)))
+    ((unary_pow d).comp (unary_add' (DescribedNetwork.numEdges_polyTime.comp hG) (const 1)))
   exact bool_and.comp ((ContractionPartitionFunction.computableInPolyTime_guard encRel k).prod
-    (binary_le' (unary_to_binary.comp hB) (unary_to_binary.comp hbudget)))
+    (binary_le' (unary_to_binary.comp (ExplicitTensorNetwork.binaryTableBound_polyTime.comp hG))
+      (unary_to_binary.comp hbudget)))
 
 /-- Native construction of the constraint network followed by exact binary-weight contraction. -/
 noncomputable def coreCertificate :
@@ -139,27 +133,22 @@ private theorem coreCertificate_bound :
         (coreCertificate encRel k wt hwt).space F ≤
           H * ((encCSP encRel encNat F).length + 1) ^ H := by
   obtain ⟨K, hK⟩ := BinaryWeights.certificate_bound (max k 4) 1 D d
-  have hnet := computableInPolyTime_cspNetwork encRel k wt hwt
   obtain ⟨H, hH⟩ := NativeCertificate.exists_polynomial_overhead
-    (BinaryWeights.certificate (max k 4)) hnet (id' (encIn := encNat)) K
+    (BinaryWeights.certificate (max k 4))
+    (computableInPolyTime_cspNetwork encRel k wt hwt) (id' (encIn := encNat)) K
   refine ⟨3 * K, H, fun F hg => ?_⟩
   obtain ⟨hne, hcl, hB⟩ := guard_eq_true_iff.mp hg
   have hm := CSP.length_le_length_vars fun c hc => (hcl c hc).1
-  have h1 : 1 ≤ F.length := List.length_pos_iff.mpr hne
-  have hN : 1 ≤ F.vars.length := h1.trans hm
-  have hs : 2 ≤ (cspNetwork k wt F).2.numEdges := by rw [numEdges_cspNetwork]; omega
-  have hv : (cspNetwork k wt F).2.vertices.length ≤ 1 * (cspNetwork k wt F).2.numEdges := by
-    rw [length_vertices_cspNetwork, numEdges_cspNetwork]
-    omega
-  obtain ⟨ht, hspace⟩ := hK (cspNetwork k wt F).1 (cspNetwork k wt F).2 hs
-    (isRowsFirstBipartite_cspNetwork k wt F) hv
+  have h1 := List.length_pos_iff.mpr hne
+  obtain ⟨ht, hspace⟩ := hK (cspNetwork k wt F).1 (cspNetwork k wt F).2
+    (by rw [numEdges_cspNetwork]; omega) (isRowsFirstBipartite_cspNetwork k wt F)
+    (by rw [length_vertices_cspNetwork, numEdges_cspNetwork]; omega)
     (maxDegree_cspNetwork_le fun c hc => (hcl c hc).2) hB
-  have hexp := ContractionCounting.exponent_le_occurrences (K := K) hN
   rw [numEdges_cspNetwork] at ht
-  have htime := ht.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by decide) hexp))
   obtain ⟨hT, hS⟩ := hH F
     (2 ^ (3 * K * (F.vars.length + 1) / Nat.sqrt (Nat.log 2 (F.vars.length + 2))))
-    Nat.one_le_two_pow htime hspace
+    Nat.one_le_two_pow (ht.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by decide)
+      (ContractionCounting.exponent_le_occurrences (K := K) (h1.trans_le hm))))) hspace
   exact ⟨(Nat.le_add_right _ _).trans hT, (Nat.le_add_right _ _).trans hS⟩
 
 /-- One fixed occurrence exponent and polynomial bound control the total guarded machine,
@@ -181,9 +170,8 @@ theorem certificate_bound :
   refine ⟨A, C, e, fun F => ?_⟩
   let n := (encCSP encRel encNat F).length
   let X := 2 ^ (A * (F.vars.length + 1) / Nat.sqrt (Nat.log 2 (F.vars.length + 2)))
-  have hX : 1 ≤ X := Nat.one_le_two_pow
-  have hpX : p n ≤ p n * X := Nat.le_mul_of_pos_right _ hX
-  have hqX : q n ≤ q n * X := Nat.le_mul_of_pos_right _ hX
+  have hpX : p n ≤ p n * X := Nat.le_mul_of_pos_right _ Nat.one_le_two_pow
+  have hqX : q n ≤ q n * X := Nat.le_mul_of_pos_right _ Nat.one_le_two_pow
   have htime : (certificate encRel k D d wt hwt).time F ≤ Q n * X := by
     change (NativeCertificate.ofPolyTime (guard_polyTime encRel k D d wt hwt)).time F +
       (if guard k D d wt F then (coreCertificate encRel k wt hwt).time F else
@@ -191,9 +179,8 @@ theorem certificate_bound :
           (ContractionPartitionFunction.computableInPolyTime_fallback encRel)).time F) ≤ _
     split
     · next hg =>
-      have hc := (hcore F hg).1
       calc _ ≤ p n * X + (H * (n + 1) ^ H) * X :=
-          Nat.add_le_add ((hguard F).1.trans hpX) hc
+          Nat.add_le_add ((hguard F).1.trans hpX) (hcore F hg).1
         _ = (p n + H * (n + 1) ^ H) * X := by ring
         _ ≤ Q n * X := Nat.mul_le_mul_right _ (by dsimp only [Q]; omega)
     · calc _ ≤ p n * X + q n * X :=
@@ -227,13 +214,12 @@ theorem exists_partitionFunctionCounter :
         (fun F => ((encCSP encRel encNat F).length + 1) ^ b) := by
   obtain ⟨A, C, e, h⟩ := certificate_bound encRel k D d wt hwt
   refine ⟨count k D d wt, A, e, e, fun F hk hB => count_eq hk hB,
-    (certificate encRel k D d wt hwt).computes.mono C (fun F => ?_) (fun F => ?_)⟩
-  · have hT := (h F).1
-    calc _ ≤ C * (2 ^ (A * (F.vars.length + 1) / Nat.sqrt (Nat.log 2 (F.vars.length + 2))) *
-        ((encCSP encRel encNat F).length + 1) ^ e) := by
-          simpa only [mul_assoc, mul_comm, mul_left_comm] using hT
-      _ ≤ _ := Nat.mul_le_mul_left _ (Nat.le_succ _)
-  · exact (h F).2.trans (Nat.mul_le_mul_left _ (Nat.le_succ _))
+    (certificate encRel k D d wt hwt).computes.mono C (fun F => ?_)
+      fun F => (h F).2.trans (Nat.mul_le_mul_left _ (Nat.le_succ _))⟩
+  calc _ ≤ C * (2 ^ (A * (F.vars.length + 1) / Nat.sqrt (Nat.log 2 (F.vars.length + 2))) *
+      ((encCSP encRel encNat F).length + 1) ^ e) := by
+        simpa only [mul_assoc, mul_comm, mul_left_comm] using (h F).1
+    _ ≤ _ := Nat.mul_le_mul_left _ (Nat.le_succ _)
 
 /-- Bounded variable occurrence converts the occurrence numerator to a variable numerator.
 The machine and polynomial exponents are selected before the occurrence bound. -/
@@ -253,13 +239,13 @@ theorem exists_partitionFunctionCounter_boundedDegree :
   refine ⟨counter, _, _, e, b, hcorrect, hc, fun _ => rfl,
     fun Δ => ⟨A * (Δ + 1), fun F hF => ?_⟩⟩
   have hn : F.numVars ≤ F.vars.length := List.toFinset_card_le _
+  have h := CSP.length_vars_le_mul_numVars hF
   refine Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide)
-    (Nat.div_le_div ?_ (Nat.sqrt_le_sqrt (Nat.log_mono_right (by omega))) ?_))
-  · have h := CSP.length_vars_le_mul_numVars hF
-    have hN : F.vars.length + 1 ≤ (Δ + 1) * (F.numVars + 1) := by nlinarith
-    calc A * (F.vars.length + 1) ≤ A * ((Δ + 1) * (F.numVars + 1)) := Nat.mul_le_mul_left _ hN
-      _ = A * (Δ + 1) * (F.numVars + 1) := by ring
-  · exact Nat.sqrt_eq_zero.not.mpr (Nat.log_pos (by decide) (by omega)).ne'
+    (Nat.div_le_div ?_ (Nat.sqrt_le_sqrt (Nat.log_mono_right (by omega)))
+      (Nat.sqrt_eq_zero.not.mpr (Nat.log_pos (by decide) (by omega)).ne')))
+  calc A * (F.vars.length + 1) ≤ A * ((Δ + 1) * (F.numVars + 1)) :=
+      Nat.mul_le_mul_left _ (by nlinarith)
+    _ = A * (Δ + 1) * (F.numVars + 1) := by ring
 
 /-- Polynomially many bits per local weight suffice: the total network bit budget follows with
 the explicit coefficient `3 * 2 ^ (max k 4) + 1` and exponent `d + 1`. The natural weight

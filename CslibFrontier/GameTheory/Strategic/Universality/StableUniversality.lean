@@ -95,18 +95,15 @@ open MvPolynomial Finset Function
 @[expose] noncomputable def ratioInv (t : ℝ) : ℝ := (t + √(t ^ 2 + 4)) / 2
 
 theorem ratioInv_pos (t : ℝ) : 0 < ratioInv t := by
-  have h0 := Real.sqrt_nonneg (t ^ 2 + 4)
-  have h1 := Real.sq_sqrt (show (0 : ℝ) ≤ t ^ 2 + 4 by positivity)
   unfold ratioInv
   by_contra h
-  nlinarith
+  nlinarith [Real.sqrt_nonneg (t ^ 2 + 4), Real.sq_sqrt (show (0 : ℝ) ≤ t ^ 2 + 4 by positivity)]
 
 theorem ratioInv_sub_inv (t : ℝ) : ratioInv t - (ratioInv t)⁻¹ = t := by
   have hp := ratioInv_pos t
-  have h1 := Real.sq_sqrt (show (0 : ℝ) ≤ t ^ 2 + 4 by positivity)
   have hq : ratioInv t ^ 2 - t * ratioInv t - 1 = 0 := by
     unfold ratioInv
-    linear_combination h1 / 4
+    linear_combination Real.sq_sqrt (show (0 : ℝ) ≤ t ^ 2 + 4 by positivity) / 4
   field_simp
   linear_combination hq
 
@@ -129,12 +126,10 @@ private theorem ratioCoord_of_div_eq {a b t : ℝ} (h : a / b = ratioInv t) :
 theorem ratioInv_ratioCoord {a b : ℝ} (ha : 0 < a) (hb : 0 < b) :
     ratioInv (ratioCoord a b) = a / b := by
   have hy : 0 < a / b := div_pos ha hb
-  rw [ratioCoord_eq]
-  set y := a / b
-  have hs : √((y - y⁻¹) ^ 2 + 4) = y + y⁻¹ := by
-    rw [show (y - y⁻¹) ^ 2 + 4 = (y + y⁻¹) ^ 2 by field_simp; ring]
-    exact Real.sqrt_sq (by positivity)
-  rw [ratioInv, hs]
+  have hsq : (a / b - (a / b)⁻¹) ^ 2 + 4 = (a / b + (a / b)⁻¹) ^ 2 := by
+    field_simp
+    ring
+  rw [ratioCoord_eq, ratioInv, hsq, Real.sqrt_sq (by positivity)]
   ring
 
 theorem ratioCoord_mul {a b c : ℝ} (hc : c ≠ 0) : ratioCoord (c * a) (c * b) = ratioCoord a b := by
@@ -239,12 +234,11 @@ theorem toUnit_lt_one (t : ℝ) : toUnit t < 1 := by
   rw [toUnit, div_lt_one (by linarith [ratioInv_pos t])]
   linarith
 
-theorem ratioCoord_toUnit (t : ℝ) : ratioCoord (toUnit t) (1 - toUnit t) = t := by
-  have := ratioInv_pos t
-  refine ratioCoord_of_div_eq ?_
-  unfold toUnit
-  field_simp
-  ring
+theorem ratioCoord_toUnit (t : ℝ) : ratioCoord (toUnit t) (1 - toUnit t) = t :=
+  ratioCoord_of_div_eq <| by
+    have := ratioInv_pos t
+    unfold toUnit
+    field_simp; ring
 
 theorem toUnit_ratioCoord {u : ℝ} (h0 : 0 < u) (h1 : u < 1) :
     toUnit (ratioCoord u (1 - u)) = u := by
@@ -321,10 +315,8 @@ theorem ratioMap_binaryProfile {d : ℕ} (q : DattaBinary.Player n d m → ℝ)
 private theorem exists_eq_uncurry_binaryProfile {P : Type*} [Fintype P] [DecidableEq P]
     {G : CostGame P fun _ => Bool} {y : (Σ _ : P, Bool) → ℝ}
     (hy : G.IsTotallyMixedNash (Sigma.curry y)) :
-    ∃ q, y = Sigma.uncurry (binaryProfile q) := by
-  refine ⟨fun v => y ⟨v, true⟩, ?_⟩
-  have h : Sigma.curry y = binaryProfile fun v => y ⟨v, true⟩ := hy.eq_binaryProfile
-  rw [← h, Sigma.uncurry_curry]
+    ∃ q, y = Sigma.uncurry (binaryProfile q) :=
+  ⟨_, by simpa using congrArg Sigma.uncurry hy.eq_binaryProfile⟩
 
 /-- **The binary change of variables.** For `0 < n`, `V × ℝ^{m − n}` is semialgebraically
 isomorphic to the set of totally mixed Nash equilibria of `binaryGame F`. The map is
@@ -420,9 +412,7 @@ theorem one_sub_sum_simplexPoint (t : ι → ℝ) :
   ring
 
 theorem sum_simplexPoint_lt_one (t : ι → ℝ) : ∑ i, simplexPoint t i < 1 := by
-  have := inv_pos.2 (one_add_sum_ratioInv_pos t)
-  rw [← one_sub_sum_simplexPoint] at this
-  linarith
+  linarith [one_sub_sum_simplexPoint t, inv_pos.2 (one_add_sum_ratioInv_pos t)]
 
 /-- The ratio coordinates of `c · simplexPoint t`, against the reference weight
 `c (1 − ∑ simplexPoint t)`, are `t`. -/
@@ -439,11 +429,8 @@ coordinates against `c − ∑ x`. -/
 theorem mul_simplexPoint_ratioCoord {c : ℝ} {x : ι → ℝ} (hx : ∀ i, 0 < x i) (hs : ∑ i, x i < c)
     (i : ι) : c * simplexPoint (fun i => ratioCoord (x i) (c - ∑ i', x i')) i = x i := by
   have h0 : 0 < c - ∑ i, x i := sub_pos.2 hs
-  have hc : c ≠ 0 := by
-    have := sum_nonneg fun i (_ : i ∈ univ) => (hx i).le
-    linarith
-  simp only [simplexPoint, ratioInv_ratioCoord (hx _) h0]
-  rw [← sum_div]
+  have hc : c ≠ 0 := by linarith [sum_nonneg fun i (_ : i ∈ univ) => (hx i).le]
+  simp only [simplexPoint, ratioInv_ratioCoord (hx _) h0, ← sum_div]
   field_simp
   rw [sub_add_cancel]
   field_simp
@@ -499,17 +486,12 @@ theorem one_sub_sum_critter {G : Fin m → MvPolynomial (Fin n) ℝ} {q : Coord 
     1 - ∑ s, q (cCoord s) =
       (Fintype.card (Extra n m) + 1) * critterWeight G -
         ∑ j : Extra n m, q (cCoord (.inr j.1)) := by
-  rw [Fintype.sum_sum_type,
-    ← Fintype.sum_subtype_add_sum_subtype (fun j : Fin m => n ≤ j.val) fun j => q (cCoord (.inr j))]
+  rw [Fintype.sum_sum_type, ← Fintype.sum_subtype_add_sum_subtype (fun j : Fin m => n ≤ j.val)
+    fun j => q (cCoord (.inr j)), sum_congr rfl fun ν _ => h1 ν,
+    sum_congr rfl fun (j : {j : Fin m // ¬n ≤ j.val}) _ => h2 j.1 (not_le.1 j.2)]
   have hcard := Fintype.sum_subtype_add_sum_subtype (fun j : Fin m => n ≤ j.val) fun _ => (1 : ℝ)
-  simp only [sum_const, card_univ, nsmul_eq_mul, mul_one, Fintype.card_fin] at hcard
-  have e1 : ∑ ν : bobNodes G, q (cCoord (.inl ν)) = ∑ _ν : bobNodes G, critterWeight G :=
-    sum_congr rfl fun ν _ => h1 ν
-  have e2 : ∑ j : {j : Fin m // ¬ n ≤ j.val}, q (cCoord (.inr j.1)) =
-      ∑ _j : {j : Fin m // ¬ n ≤ j.val}, critterWeight G :=
-    sum_congr rfl fun j _ => h2 j.1 (not_le.1 j.2)
-  rw [e1, e2]
-  simp only [sum_const, card_univ, nsmul_eq_mul, Fintype.card_coe]
+  simp only [sum_const, card_univ, nsmul_eq_mul, mul_one, Fintype.card_fin, Fintype.card_coe]
+    at hcard ⊢
   have hw : critterWeight G * (#(bobNodes G) + m + 1) = 1 := by
     unfold critterWeight
     field_simp
@@ -556,10 +538,8 @@ theorem ratioMap_simplexProfile_inr {F : Fin m → MvPolynomial (Fin n) ℝ}
 private theorem exists_eq_uncurry_simplexProfile {P : Type*} {T : P → Type*} [Fintype P]
     [DecidableEq P] [∀ p, Fintype (T p)] {G : CostGame P fun p => Option (T p)}
     {y : (Σ p, Option (T p)) → ℝ} (hy : G.IsTotallyMixedNash (Sigma.curry y)) :
-    ∃ q, y = Sigma.uncurry (simplexProfile q) := by
-  refine ⟨fun v => y ⟨v.1, some v.2⟩, ?_⟩
-  have h : Sigma.curry y = simplexProfile fun v => y ⟨v.1, some v.2⟩ := hy.eq_simplexProfile
-  rw [← h, Sigma.uncurry_curry]
+    ∃ q, y = Sigma.uncurry (simplexProfile q) :=
+  ⟨_, by simpa using congrArg Sigma.uncurry hy.eq_simplexProfile⟩
 
 /-- Critter's reference probability at `hornerPoint F z`. -/
 theorem one_sub_sum_hornerPoint (F : Fin m → MvPolynomial (Fin n) ℝ)
@@ -568,9 +548,8 @@ theorem one_sub_sum_hornerPoint (F : Fin m → MvPolynomial (Fin n) ℝ)
       freeBudget F * (1 - ∑ j, simplexPoint (z ∘ Sum.inr) j) := by
   rw [one_sub_sum_critter (fun _ => rfl) fun j hj => dite_eq_right (not_le.2 hj), freeBudget,
     mul_sub, mul_one, mul_sum]
-  congr 1
-  refine sum_congr rfl fun j _ => ?_
-  simp only [hornerPoint, dite_eq_left j.2, freeBudget]
+  exact congrArg _ (sum_congr rfl fun j _ => by
+    simp only [hornerPoint, dite_eq_left j.2, freeBudget])
 
 /-- **The three-player change of variables.** `V × ℝ^{Extra n m}` is semialgebraically
 isomorphic to the set of totally mixed Nash equilibria of `hornerGame F`. The map is
@@ -717,16 +696,14 @@ same polynomials in `n + 1` variables. -/
 theorem stablyIsomorphic_rename_castSucc (F : Fin m → MvPolynomial (Fin n) ℝ) :
     StablyIsomorphic {x : Fin n → ℝ | ∀ j, eval x (F j) = 0}
       {x : Fin (n + 1) → ℝ | ∀ j, eval x (rename Fin.castSucc (F j)) = 0} := by
-  have e := SemialgebraicHomeomorph.reindex finSumFinEquiv
-    ((isSemialgebraic_setOf_eval_eq_zero F).preimage_comp (σ := Fin n ⊕ Fin 1) Sum.inl)
   have hset : {y : Fin (n + 1) → ℝ | y ∘ finSumFinEquiv ∈
       (fun x : Fin n ⊕ Fin 1 → ℝ => x ∘ Sum.inl) ⁻¹' {x | ∀ j, eval x (F j) = 0}} =
       {x : Fin (n + 1) → ℝ | ∀ j, eval x (rename Fin.castSucc (F j)) = 0} := by
     ext y
-    simp only [Set.mem_ofPred_eq, Set.mem_preimage, eval_rename]
-    rfl
-  rw [hset] at e
-  exact (StablyIsomorphic.prod_fin _ 1).symm.trans (.of_homeomorph e)
+    simp only [Set.mem_ofPred_eq, Set.mem_preimage, eval_rename]; rfl
+  exact (StablyIsomorphic.prod_fin _ 1).symm.trans (.of_homeomorph
+    (hset ▸ SemialgebraicHomeomorph.reindex finSumFinEquiv
+      ((isSemialgebraic_setOf_eval_eq_zero F).preimage_comp (σ := Fin n ⊕ Fin 1) Sum.inl)))
 
 /-- **Theorem 1 of [Datta2003]** (arXiv:math/0301001, p. 1): every real algebraic set
 `V = {x ∈ ℝⁿ | F₀(x) = ⋯ = F_{m-1}(x) = 0}` is stably isomorphic to the set of totally mixed Nash

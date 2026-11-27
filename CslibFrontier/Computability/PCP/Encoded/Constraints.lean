@@ -145,10 +145,8 @@ theorem isPolyTime_constraintTableEval [Fintype α] (alphabet : α ↪ List Bool
 theorem length_constraintTable_le [Fintype α] (table : α → α → Bool) :
     (encConstraintTable table).length ≤ Fintype.card α * (6 * Fintype.card α + 1) := by
   have hrow (a : α) : (encPi encBool (table a)).length ≤ 3 * Fintype.card α := by
-    simpa only [Nat.mul_comm, show 2 * 1 + 1 = 3 from rfl] using
-      length_encPi_le encBool (table a) (bound := 1) (by intro b; simp)
-  simpa only [← Nat.mul_assoc] using
-    length_encPi_le (encPi encBool) table hrow
+    simpa only [Nat.mul_comm] using length_encPi_le encBool (table a) (bound := 1) (by simp)
+  simpa only [← Nat.mul_assoc] using length_encPi_le (encPi encBool) table hrow
 
 /-- Bounded growth per descriptor gives bounded total encoded growth. Both the inner edge
 encoding and the outer list framing are charged. -/
@@ -156,21 +154,19 @@ theorem length_encoding_mapConstraints_le (g : Graph C) (f : C → C') (bound : 
     (hf : ∀ c, (enc' (f c)).length ≤ (enc c).length + bound) :
     (encoding enc' (g.mapConstraints f)).length ≤
       (encoding enc g).length + 2 * g.edges.length * bound := by
-  have he (e : Edge C) : (Edge.encoding enc' ⟨e.src, e.dst, f e.constraint⟩).length ≤
-      (Edge.encoding enc e).length + bound := by
-    change (encPair encUnary (encPair encUnary enc') (e.src, e.dst, f e.constraint)).length ≤
-      (encPair encUnary (encPair encUnary enc) (e.src, e.dst, e.constraint)).length + bound
-    simp only [length_encPair]
-    have h := hf e.constraint
-    lia
   have hlist : (encList (Edge.encoding enc')
       (g.edges.map fun e => ⟨e.src, e.dst, f e.constraint⟩)).length ≤
       (encList (Edge.encoding enc) g.edges).length + 2 * g.edges.length * bound := by
     induction g.edges with
     | nil => simp
     | cons e edges ih =>
+      have he : (Edge.encoding enc' ⟨e.src, e.dst, f e.constraint⟩).length ≤
+          (Edge.encoding enc e).length + bound := by
+        change (encPair encUnary (encPair encUnary enc') _).length ≤
+          (encPair encUnary (encPair encUnary enc) _).length + bound
+        simp only [length_encPair]
+        linarith [hf e.constraint]
       simp only [List.map_cons, encList_cons, List.length_append, length_frame, List.length_cons]
-      have h := he e
       nlinarith
   change (encPair encUnary (encList (Edge.encoding enc'))
       (g.vertices, g.edges.map fun e => ⟨e.src, e.dst, f e.constraint⟩)).length ≤

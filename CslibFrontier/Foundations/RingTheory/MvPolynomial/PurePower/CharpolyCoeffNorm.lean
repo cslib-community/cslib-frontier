@@ -236,8 +236,7 @@ theorem sum_multiplicationMatrix_charpoly_le_pow_two {S : Type*} [CommRing S] {w
     conv_rhs =>
       rw [pow_add 2 _ bv, pow_add 2 _ (br * B),
         pow_add 2 ((B + 1).size * n), pow_mul 2 (B + 1).size, pow_mul 2 br B]
-    exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _
-      (Nat.mul_le_mul (Nat.pow_le_pow_left (Nat.lt_size_self _).le _) hJ))
+    gcongr; exact (Nat.lt_size_self _).le
   refine hq.trans ((Nat.mul_le_mul (Nat.lt_size_self _).le (Nat.pow_le_pow_left hA _)).trans_eq ?_)
   rw [← pow_mul, ← pow_add]
   simp only [multiplicationMatrixCharpolyCoeffNormExponent, Nat.succ_sub_one]

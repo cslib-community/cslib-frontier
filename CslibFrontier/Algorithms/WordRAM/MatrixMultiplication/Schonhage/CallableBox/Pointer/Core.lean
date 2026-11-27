@@ -70,14 +70,13 @@ theorem exec_core {W b m t N s r q : ℕ}
         y.mem (b + a) % windowSize N qs.length =
           (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.mem a) ∧
       (∀ a, a < b ∨ b + windowSize N qs.length ≤ a → y.mem a = x.mem a) := by
-  let original :=
-    (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.mem
+  let original := (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.mem
   have hsource (a : ℕ) (ha : 0 < a) (ha' : a < QueriedProduct.inputEnd m N qs.length) :
       original a =
         (State.init (QueriedProduct.input true (21 * m) X Y qs) : State 160).data.mem a :=
     BoxProduct.input_prefix true X Y qs a ha ha'
-  have hXabs (i k) : |X i k| ≤ (1 : ℤ) := by rw [abs_of_nonneg (hX i k).1]; exact (hX i k).2
-  have hYabs (k j) : |Y k j| ≤ (1 : ℤ) := by rw [abs_of_nonneg (hY k j).1]; exact (hY k j).2
+  have hXabs (i k) : |X i k| ≤ (1 : ℤ) := (abs_of_nonneg (hX i k).1).trans_le (hX i k).2
+  have hYabs (k j) : |Y k j| ≤ (1 : ℤ) := (abs_of_nonneg (hY k j).1).trans_le (hY k j).2
   obtain ⟨hw, hmag, hbudget⟩ := CallableBoxProduct.source_admission (Q := qs.length) ht hN
   have htwo : sourceWidth N qs.length - 2 + 2 = sourceWidth N qs.length := by omega
   have hbudget' : Fits (sourceWidth N qs.length - 2 + 2)
@@ -106,42 +105,35 @@ theorem exec_core {W b m t N s r q : ℕ}
       unfold QueriedProduct.outputBase QueriedProduct.groupedBase QueriedProduct.originalBase
         QueriedProduct.codeBase QueriedProduct.offsetBase
       omega
-    have hspans := (CallableBoxProduct.spans_le_budget (21 * m) m t N qs.length).2
+    have := (CallableBoxProduct.spans_le_budget (21 * m) m t N qs.length).2
     exact (hsnap.trans (by omega)).trans_lt hbudget
   have hS : 5 ≤ QueriedProduct.snapshotBase (21 * m) m N qs.length := by
     unfold QueriedProduct.snapshotBase QueriedProduct.inputEnd; omega
-  obtain ⟨g, hg, gm, gf⟩ := exec_gather u ub up.snapshot up.matrixWords up.queryCount
-    up.two up.five (by regs_frame) (by regs_frame) (by regs_frame) hS hsb hrb hqb (hfit.of_le (by
-      unfold QueriedProduct.inputEnd at hspan; omega))
-  have gb : g.regs Reg.base = b := by regs_frame
-  have gM : g.regs (callableBank CallableProduct.Reg.modulus) = windowSize N qs.length := by
+  obtain ⟨us, ur, uq⟩ : u.regs Reg.left = s ∧ u.regs Reg.right = r ∧ u.regs Reg.queries = q := by
     regs_frame
-  have gvbound : (view (sourceWidth N qs.length) b g).Bounded (sourceWidth N qs.length) := by
-    constructor
-    · intro i
-      change g.regs (sourceBank i) < _
-      rw [gf _ (by change i.val < 166; omega)]
-      exact ubound.1 i
-    · intro a
-      exact Nat.mod_lt _ (Nat.two_pow_pos _)
+  obtain ⟨g, hg, gm, gf⟩ := exec_gather u ub up.snapshot up.matrixWords up.queryCount
+    up.two up.five us ur uq hS hsb hrb hqb
+    (hfit.of_le (by unfold QueriedProduct.inputEnd at hspan; omega))
+  obtain ⟨gb, gM⟩ :
+      g.regs Reg.base = b ∧
+      g.regs (callableBank CallableProduct.Reg.modulus) = windowSize N qs.length := by regs_frame
+  have gvbound : (view (sourceWidth N qs.length) b g).Bounded (sourceWidth N qs.length) :=
+    ⟨fun i => (gf (sourceBank i) (by change i.val < 166; omega)).symm ▸ ubound.1 i,
+     fun _ => Nat.mod_lt _ (Nat.two_pow_pos _)⟩
   have gp : QueriedProduct.Parameters (21 * m) m N qs.length
       (view (sourceWidth N qs.length) b g) :=
-    up.of_frame (fun i _ => gf (sourceBank i) (by change i.val < 166; omega))
+    up.of_frame fun i _ => gf (sourceBank i) (by change i.val < 166; omega)
   have gt : (view (sourceWidth N qs.length) b g).regs BoxProduct.Reg.threshold = t :=
     (gf _ (by decide)).trans ut
   have gframe (a : ℕ) (ha : a < b ∨ b + windowSize N qs.length ≤ a) : g.mem a = x.mem a := by
-    rw [gm, gatherMemory_outside _ _ _ _ _ _ _ _ _ (by
-      unfold QueriedProduct.inputEnd at hspan; omega), um]
+    rw [gm, gatherMemory_outside _ _ _ _ _ _ _ _ _
+      (by unfold QueriedProduct.inputEnd at hspan; omega), um]
   have gsnapshot (a : ℕ) (ha : a < QueriedProduct.inputEnd m N qs.length) :
       (view (sourceWidth N qs.length) b g).mem
         (QueriedProduct.snapshotBase (21 * m) m N qs.length + a) = original a := by
     change g.mem (b + (_ + a)) % _ = _
-    rw [gm, ← Nat.add_assoc b]
-    rw [gatherMemory_readback u.mem original b _ (N * D m) qs.length s r q hS hsb hrb hqb
-      (by intro j hj; rw [um]; exact hheader j hj)
-      (by intro j hj; rw [um]; exact hleft j hj)
-      (by intro j hj; rw [um]; exact hright j hj)
-      (by intro j hj; rw [um]; exact hqueries j hj) a ha,
+    rw [gm, ← Nat.add_assoc b, gatherMemory_readback u.mem original b _ (N * D m) qs.length
+      s r q hS hsb hrb hqb (um ▸ hheader) (um ▸ hleft) (um ▸ hright) (um ▸ hqueries) a ha,
       Nat.mod_eq_of_lt (hi'.2 a)]
   have gheader (a : ℕ) (ha : 0 < a) (ha5 : a < 5) :
       (view (sourceWidth N qs.length) b g).mem a =
@@ -153,26 +145,17 @@ theorem exec_core {W b m t N s r q : ℕ}
   obtain ⟨p, hp, pp, _, pv, pi, pt, _⟩ := BoxProduct.exec_fromSnapshot hw (show m ≤ 21 * m by omega)
     ht true X Y qs original (view (sourceWidth N qs.length) b g) hsource gp gt gheader gsnapshot
     hXabs hYabs (fun _ => ⟨fun i k => (hX i k).1, fun k j => (hY k j).1⟩) hmag hbudget'
-  have hp' : ExecWithin (sourceWidth N qs.length) (BoxProduct.programFromSnapshot true)
-      (view (sourceWidth N qs.length) b g) p (BoxProduct.snapshotTimeBound (21 * m) m t qs) := by
-    simpa only [htwo] using hp
-  obtain ⟨y, hy, ym, yf, _⟩ := exec_source hp' (by decide) gvbound g
+  obtain ⟨y, hy, ym, yf, _⟩ := exec_source (by simpa only [htwo] using hp) (by decide) gvbound g
     ⟨rfl, gb, gM⟩ (setup_fits hphysical).1
     (hfit.of_le (by change b + windowSize N qs.length ≤ _; omega))
   refine ⟨y, (hu.seq (hg.seq hy)).mono (by unfold coreTime; omega),
     ym.base_eq, ym.modulus_eq, ym.regs _ |>.trans pp.inputSize,
-    ym.regs _ |>.trans pp.queryCount, ym.regs _ |>.trans pp.output, ?_, ?_, ?_⟩
-  · intro i
-    exact (ym.mem _).trans (pv i)
-  · intro a ha
-    have yread : y.mem (b + a) % windowSize N qs.length = p.mem a := ym.mem a
-    rw [yread]
-    by_cases hai : a < QueriedProduct.inputEnd m N qs.length
-    · exact pi a hai
-    · have heq : a = QueriedProduct.inputEnd m N qs.length := by omega
-      subst a
-      exact pt.trans (BoxProduct.input_threshold true X Y qs).symm
-  · intro a ha
-    exact (yf a ha).trans (gframe a ha)
+    ym.regs _ |>.trans pp.queryCount, ym.regs _ |>.trans pp.output,
+    fun i => (ym.mem _).trans (pv i), ?_, fun a ha => (yf a ha).trans (gframe a ha)⟩
+  intro a ha
+  refine (ym.mem a).trans ?_
+  rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ ha) with hai | rfl
+  · exact pi a hai
+  · exact pt.trans (BoxProduct.input_threshold true X Y qs).symm
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PointerBoxProduct

@@ -71,8 +71,7 @@ private theorem halving_realizes :
     Realizes .exact (fun (d, a) => boundedWhile guard half d (rank a + 8) a) words word
       (fun w (_, a) _ => Fits w a ∧ rank a ≤ rank a + 8)
       (fun (d, a) s => whileWork guard half (fun _ _ => 3) d (rank a + 8) a s) := by
-  have hHalf := half_realizes zeroInput
-  realize
+  realize [half_realizes zeroInput]
   intro hv
   refine whileSafe_of_measure _ _ _ w _ (fun a _ => Fits w a) (fun a _ => rank a)
     (fun a _ _ hr => by

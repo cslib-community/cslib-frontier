@@ -71,21 +71,20 @@ private def pairEquiv (d : Nat) : Fin (2 ^ d) × Bool ≃ Fin (2 ^ (d + 1)) :=
     finProdFinEquiv.trans <| finCongr (by simp [pow_succ])
 
 private theorem pairEquiv_apply {d : Nat} (i : Fin (2 ^ d)) (b : Bool) :
-    pairEquiv d (i, b) = pairIndex i b := by
-  apply Fin.ext
-  cases b <;>
-    simp [pairIndex, pairEquiv, finProdFinEquiv, finTwoEquiv, Nat.bit_val, Nat.add_comm]
+    pairEquiv d (i, b) = pairIndex i b :=
+  Fin.ext <| by
+    cases b <;> simp [pairIndex, pairEquiv, finProdFinEquiv, finTwoEquiv, Nat.bit_val, Nat.add_comm]
 
 private theorem pairIndex_val {d : Nat} (i : Fin (2 ^ d)) (b : Bool) :
     (pairIndex i b : Nat) = Nat.bit b i := rfl
 
 private theorem testBit_pairIndex_zero {d : Nat} (i : Fin (2 ^ d)) (b : Bool) :
-    (pairIndex i b : Nat).testBit 0 = b := by
-  rw [pairIndex_val, Nat.testBit_bit_zero]
+    (pairIndex i b : Nat).testBit 0 = b :=
+  Nat.testBit_bit_zero _ _
 
 private theorem testBit_pairIndex_succ {d : Nat} (i : Fin (2 ^ d)) (b : Bool) (j : Nat) :
-    (pairIndex i b : Nat).testBit (j + 1) = (i : Nat).testBit j := by
-  rw [pairIndex_val, show j + 1 = Nat.succ j by omega, Nat.testBit_bit_succ]
+    (pairIndex i b : Nat).testBit (j + 1) = (i : Nat).testBit j :=
+  Nat.testBit_bit_succ _ _ _
 
 /-- Pair adjacent rows as in line 9 of Figure 5.6. -/
 @[expose] def pairRows {d outputLength : Nat}
@@ -124,7 +123,7 @@ private def selectedRows {d outputLength : Nat}
 
 private theorem sum_pairIndex {d : Nat} {A : Type*} [AddCommMonoid A]
     (f : Fin (2 ^ (d + 1)) → A) :
-    (∑ i, f i) = ∑ i : Fin (2 ^ d), (f (pairIndex i false) + f (pairIndex i true)) := by
+    (∑ i, f i) = ∑ i : Fin (2 ^ d), (f (pairIndex i false) + f (pairIndex i true)) :=
   calc
     (∑ i, f i) = ∑ p, f (pairEquiv d p) := ((pairEquiv d).sum_comp f).symm
     _ = ∑ i : Fin (2 ^ d), (f (pairIndex i false) + f (pairIndex i true)) := by
@@ -136,9 +135,7 @@ private theorem convertExpandedRows_u {d outputLength : Nat}
   induction d with
   | zero => simp [convertExpandedRows, allRows]
   | succ d ih =>
-    simp only [convertExpandedRows]
-    rw [ih]
-    exact (sum_pairIndex rows).symm
+    simpa only [convertExpandedRows, ih, allRows, pairRows] using (sum_pairIndex rows).symm
 
 private theorem convertExpandedRows_column {d outputLength : Nat}
     (rows : Fin (2 ^ d) → BitString outputLength) (j : Fin d) :
@@ -147,28 +144,20 @@ private theorem convertExpandedRows_column {d outputLength : Nat}
   | zero => exact Fin.elim0 j
   | succ d ih =>
     refine Fin.cases ?_ (fun j => ?_) j
-    · simp only [convertExpandedRows, Fin.cases_zero]
-      unfold oddColumn selectedRows
-      rw [← (pairEquiv d).sum_comp, Fintype.sum_prod_type]
-      simp only [Fintype.sum_bool, pairEquiv_apply, Fin.val_zero, testBit_pairIndex_zero,
-        Bool.false_eq_true, ↓reduceIte, add_zero]
-    · simp only [convertExpandedRows, Fin.cases_succ]
-      rw [ih]
-      unfold selectedRows
-      rw [← (pairEquiv d).sum_comp, Fintype.sum_prod_type]
-      simp only [Fintype.sum_bool, pairEquiv_apply, Fin.val_succ, testBit_pairIndex_succ]
-      apply Finset.sum_congr rfl
-      intro i _hi
-      by_cases h : (i : Nat).testBit j = true <;> simp [h, pairRows, add_comm]
+    · simp only [convertExpandedRows, Fin.cases_zero, oddColumn, selectedRows, sum_pairIndex,
+        Fin.val_zero, testBit_pairIndex_zero, Bool.false_eq_true, ↓reduceIte, zero_add]
+    · simp only [convertExpandedRows, Fin.cases_succ, ih, selectedRows, sum_pairIndex,
+        Fin.val_succ, testBit_pairIndex_succ]
+      refine Finset.sum_congr rfl fun i _ => ?_
+      by_cases h : (i : Nat).testBit j = true <;> simp [h, pairRows]
 
 /-- Bounded bitwise xor of two depth-`d` leaf indices. -/
 @[expose] def xorIndex {d : Nat} (i delta : Fin (2 ^ d)) : Fin (2 ^ d) :=
   ⟨i.val ^^^ delta.val, Nat.xor_lt_two_pow i.isLt delta.isLt⟩
 
 private theorem xorIndex_involutive {d : Nat} (delta i : Fin (2 ^ d)) :
-    xorIndex (xorIndex i delta) delta = i := by
-  apply Fin.ext
-  simp only [xorIndex, Nat.xor_assoc, Nat.xor_self, Nat.xor_zero]
+    xorIndex (xorIndex i delta) delta = i :=
+  Fin.ext (by simp only [xorIndex, Nat.xor_assoc, Nat.xor_self, Nat.xor_zero])
 
 /-- Xoring with a fixed bounded index is a permutation. -/
 private def xorEquiv {d : Nat} (delta : Fin (2 ^ d)) : Fin (2 ^ d) ≃ Fin (2 ^ d) :=
@@ -182,8 +171,8 @@ private theorem xorEquiv_apply {d : Nat} (delta i : Fin (2 ^ d)) :
 
 private theorem testBit_xorIndex {d : Nat} (delta i : Fin (2 ^ d)) (j : Nat) :
     (xorIndex i delta : Nat).testBit j =
-      bne ((i : Nat).testBit j) ((delta : Nat).testBit j) := by
-  exact Nat.testBit_xor i delta j
+      bne ((i : Nat).testBit j) ((delta : Nat).testBit j) :=
+  Nat.testBit_xor i delta j
 
 /-- Verifier rows from Proposition 5.2: row zero is missing and therefore zero, while every
 positive input position `i` contains prover row `i xor Delta`. -/
@@ -200,60 +189,35 @@ private def unselectedRows {d outputLength : Nat}
 private theorem unselectedRows_eq_selectedRows_add_allRows {d outputLength : Nat}
     (rows : Fin (2 ^ d) → BitString outputLength) (j : Fin d) :
     unselectedRows rows j = selectedRows rows j + allRows rows := by
-  unfold unselectedRows selectedRows allRows
-  rw [← Finset.sum_add_distrib]
-  apply Finset.sum_congr rfl
-  intro i _hi
-  cases (i : Nat).testBit j <;> simp
+  rw [unselectedRows, selectedRows, allRows, ← Finset.sum_add_distrib]
+  exact Finset.sum_congr rfl fun i _ => by cases (i : Nat).testBit j <;> simp
 
 private theorem selectedRows_verifierRows {d outputLength : Nat}
     (rows : Fin (2 ^ d) → BitString outputLength) (delta : Fin (2 ^ d)) (j : Fin d) :
     selectedRows (verifierRows rows delta) j =
       selectedRows rows j + fun k => (BitString.equivFin d).symm delta j * allRows rows k := by
-  unfold selectedRows
   have hremove :
-      (∑ i : Fin (2 ^ d),
-          if (i : Nat).testBit j then verifierRows rows delta i else 0) =
-        ∑ i : Fin (2 ^ d), if (i : Nat).testBit j then rows (xorIndex i delta) else 0 := by
-    apply Finset.sum_congr rfl
-    intro i _hi
-    by_cases hbit : (i : Nat).testBit j = true
-    · have hne : i ≠ 0 := by
-        intro hi
-        subst i
-        simp at hbit
-      simp [hbit, verifierRows, hne]
-    · simp [hbit]
+      selectedRows (verifierRows rows delta) j =
+        ∑ i : Fin (2 ^ d), if (i : Nat).testBit j then rows (xorIndex i delta) else 0 :=
+    Finset.sum_congr rfl fun i _ => by
+      by_cases hbit : (i : Nat).testBit j = true
+      · simp [hbit, verifierRows, show i ≠ 0 from fun hi => by simp [hi] at hbit]
+      · simp [hbit]
   rw [hremove, ← (xorEquiv delta).sum_comp]
   simp only [xorEquiv_apply, xorIndex_involutive, testBit_xorIndex]
   cases hdelta : (delta : Nat).testBit j
-  · rw [show
-        (∑ i : Fin (2 ^ d), if bne ((i : Nat).testBit j) false then rows i else 0) =
-            selectedRows rows j by
-        unfold selectedRows
-        apply Finset.sum_congr rfl
-        intro i _hi
-        cases (i : Nat).testBit j <;> simp]
-    have hmul : (fun k => (BitString.equivFin d).symm delta j * allRows rows k) = 0 := by
-      funext k
-      rw [BitString.equivFin_symm_apply, hdelta]
-      cases allRows rows k <;> rfl
-    rw [hmul, add_zero]
-    rfl
-  · rw [show
-        (∑ i : Fin (2 ^ d), if bne ((i : Nat).testBit j) true then rows i else 0) =
-            unselectedRows rows j by
-        unfold unselectedRows
-        apply Finset.sum_congr rfl
-        intro i _hi
-        cases (i : Nat).testBit j <;> simp]
-    rw [unselectedRows_eq_selectedRows_add_allRows]
-    have hmul : (fun k => (BitString.equivFin d).symm delta j * allRows rows k) = allRows rows := by
-      funext k
-      rw [BitString.equivFin_symm_apply, hdelta]
-      cases allRows rows k <;> rfl
-    rw [hmul]
-    rfl
+  · have hmul : (fun k => (BitString.equivFin d).symm delta j * allRows rows k) = 0 :=
+      funext fun k => by
+        rw [BitString.equivFin_symm_apply, hdelta]
+        cases allRows rows k <;> rfl
+    rw [hmul, add_zero, selectedRows]
+    exact Finset.sum_congr rfl fun i _ => by cases (i : Nat).testBit j <;> simp
+  · have hmul : (fun k => (BitString.equivFin d).symm delta j * allRows rows k) = allRows rows :=
+      funext fun k => by
+        rw [BitString.equivFin_symm_apply, hdelta]
+        cases allRows rows k <;> rfl
+    rw [hmul, ← unselectedRows_eq_selectedRows_add_allRows]
+    exact Finset.sum_congr rfl fun i _ => by cases (i : Nat).testBit j <;> simp
 
 /-- Proposition 5.2 of FAEST v3: consistent prover and missing-row verifier conversions satisfy
 `q_j = v_j xor delta_j * u` for every tree level `j`.
@@ -284,7 +248,7 @@ theorem conversionCorrelation_valid {d outputLength : Nat}
     (rows : Fin (2 ^ d) → BitString outputLength) (delta : Fin (2 ^ d)) (j : Fin d) :
     (conversionCorrelation rows delta j).Valid := by
   intro k
-  have h := congrFun (convertExpandedRows_correlation rows delta j) k
-  simpa only [conversionCorrelation, Pi.add_apply, Pi.zero_apply, mul_comm, add_comm] using h
+  simpa only [conversionCorrelation, Pi.add_apply, Pi.zero_apply, mul_comm, add_comm] using
+    congrFun (convertExpandedRows_correlation rows delta j) k
 
 end Cslib.Crypto.FAEST

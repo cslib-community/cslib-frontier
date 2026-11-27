@@ -7,9 +7,17 @@ Authors: Samuel Schlesinger, Christian Reitwiessner
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.PCP.Approximation.FGLSSRuntime
 public import CslibFrontier.Computability.PCP.Approximation.MaxExactThreeSAT
+public import CslibFrontier.Computability.Complexity.Classes.PCP.Robustness
 public import CslibFrontier.Computability.Complexity.Problems.Clique
 public import CslibFrontier.Computability.Complexity.Problems.VertexCover
+import CslibFrontier.Computability.PCP.Completeness
+import CslibFrontier.Foundations.Combinatorics.SimpleGraph.IndepNum
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Independent Set, Clique and Vertex Cover are NP-hard to approximate
@@ -25,16 +33,28 @@ number `Graph.vertexCoverNum`, the extreme targets of the decision problems `Ind
 
 The yes-instances of the first two are exactly `IndependentSet` and `Clique`.
 
-The reductions use Karp's graph of a formula (`Cslib.Complexity.SAT.toIndependentSet`: a vertex
-for each occurrence of a literal, edges inside clauses and between complementary occurrences), not
-the graph of Feige, Goldwasser, Lovász, Safra and Szegedy built from a PCP verifier
-[FeigeGoldwasserLovaszSafraSzegedy1996]. An independent set of Karp's graph picks consistent
-literals in distinct clauses, so it has at most as many vertices as some assignment satisfies
-clauses (`Cslib.Complexity.SAT.exists_card_add_countUnsat_le`). Hence the gap of MAX-3SAT
-(`Cslib.Complexity.GapThreeSAT`) [Arora, Lund, Motwani, Sudan and
-Szegedy][AroraLundMotwaniSudanSzegedy1998] transfers to independent sets with the same soundness,
-and to cliques of the complement graph (`Cslib.Complexity.Graph.compl`) [Arora and Barak,
-Chapter 11][AroraBarak09].
+For Independent Set and Clique, the reduction of Feige, Goldwasser, Lovász, Safra and Szegedy
+[FeigeGoldwasserLovaszSafraSzegedy1996] ([Goldreich2007DraftR5], Exercise 9.18; [Arora and Barak,
+Chapter 11][AroraBarak09]) maps an instance `a` of a nonadaptive `(1, s)`-PCP verifier `V` to its
+explicit accepting-view conflict graph `V.fglssEdgeList a` paired with target `2 ^ V.coins a`
+(`Cslib.Complexity.PCPVerifier.fglssToIndependentSet`). By `PCPVerifier.fglssGraphIso` and the
+independence-number identity `PCPVerifier.exists_acceptCount_eq_indepNum_fglssGraph`, members have
+independence number `2 ^ V.coins a` and non-members have independence number at most
+`s * 2 ^ V.coins a`; when `V` uses `O(log n)` coins and `O(1)` queries, the reduction runs in
+polynomial time (`PCPVerifier.computableInPolyTime_fglssToIndependentSet`,
+`polyTimeReducible_GapIndependentSet_of_mem_PCPWith`). Combining the PCP theorem
+`NP = PCP(log n, 1)` (`Cslib.Complexity.NP_eq_PCP_log`) with constant-fold independent repetition
+(`Cslib.Complexity.PCPWith_one`) and graph complementation
+(`polyTimeReducible_GapIndependentSet_GapClique`) shows that for **every constant `0 < s < 1`**,
+`GapIndependentSet s` and `GapClique s` are NP-hard (`GapIndependentSet_npHard`, `GapClique_npHard`)
+and lie outside `PromiseP` unless `P = NP`. Size-dependent subconstant gaps are not addressed here.
+
+Karp's graph of a formula (`Cslib.Complexity.SAT.toIndependentSet`: a vertex for each occurrence of
+a literal, edges inside clauses and between complementary occurrences) also gives a gap-preserving
+reduction from MAX-3SAT (`Cslib.Complexity.GapThreeSAT`) [Arora, Lund, Motwani, Sudan and
+Szegedy][AroraLundMotwaniSudanSzegedy1998]: an independent set picks consistent literals in distinct
+clauses, so it has at most as many vertices as some assignment satisfies clauses
+(`Cslib.Complexity.SAT.exists_card_add_countUnsat_le`).
 
 A vertex cover is the complement of an independent set, so `vertexCoverNum G = n - indepNum G` for
 the number `n` of distinct declared vertices (`Graph.vertexCoverNum_eq_card_sub_indepNum`). For a
@@ -42,13 +62,9 @@ formula with `m` clauses of exactly three, not necessarily distinct, literals
 (`Cslib.Complexity.GapExactThreeSAT`), Karp's graph has `n = 3 m` vertices, a satisfiable formula
 has a cover of `2 m` vertices, and if every assignment satisfies at most `s * m` clauses every
 cover has at least `(3 - s) * m = (1 + (1 - s) / 2) * 2 m` vertices [Arora and Barak, Chapter
-11][AroraBarak09].
-
-From the gap `1 - 1 / (3 * 2 ^ 77)` of MAX-3SAT (`Cslib.Complexity.GapThreeSAT_npHard`), it is
-NP-hard to approximate the independence number and the clique number within `1 - 1 / (3 * 2 ^ 77)`
-and the vertex cover number within `1 + 1 / (3 * 2 ^ 78)`. The constants are far from the best
-known; amplification to every constant (and beyond) for Independent Set and Clique, as in Feige,
-Goldwasser, Lovász, Safra and Szegedy, is not proved here.
+11][AroraBarak09]. From the gap `1 - 1 / (3 * 2 ^ 77)` of MAX-E3SAT
+(`Cslib.Complexity.GapExactThreeSAT_npHard`), it is NP-hard to approximate the vertex cover number
+within `1 + 1 / (3 * 2 ^ 78)`.
 
 With thresholds proportional to the number `n` of vertices instead of an input target
 (`Cslib.Complexity.GapVertexCoverFraction`, Goldreich's `gapVC_{s,L}`), the same graph has a cover
@@ -61,6 +77,8 @@ for `s = 2 / 3` and `L = 2 / 3 + 1 / (18 * 2 ^ 77)` [Goldreich2007DraftR5], Exer
   `Cslib.Complexity.GapVertexCover`: the gap problems.
 * `Cslib.Complexity.GapVertexCoverFraction`: vertex cover with thresholds proportional to the
   number of vertices.
+* `Cslib.Complexity.PCPVerifier.fglssToIndependentSet`: the FGLSS reduction from a PCP verifier to
+  `IndependentSetInstance`.
 
 ## Main results
 
@@ -69,14 +87,19 @@ for `s = 2 / 3` and `L = 2 / 3 + 1 / (18 * 2 ^ 77)` [Goldreich2007DraftR5], Exer
 * `Cslib.Complexity.SAT.indepNum_toIndependentSet_le`: the independence number of Karp's graph is
   at most `(1 - unsatVal φ) * m`.
 * `Cslib.Complexity.yes_GapIndependentSet`, `Cslib.Complexity.yes_GapClique`: the yes-instances.
+* `Cslib.Complexity.PCPVerifier.indepNum_fglssEdgeList`,
+  `Cslib.Complexity.PCPVerifier.computableInPolyTime_fglssToIndependentSet`,
+  `Cslib.Complexity.polyTimeReducible_GapIndependentSet_of_mem_PCPWith`: the FGLSS gap-preserving
+  reduction from `PCP_{1, s}(log n, q)` to `GapIndependentSet s`.
 * `Cslib.Complexity.polyTimeReducible_GapThreeSAT_GapIndependentSet`,
   `Cslib.Complexity.polyTimeReducible_GapIndependentSet_GapClique`,
   `Cslib.Complexity.polyTimeReducible_GapExactThreeSAT_GapVertexCover`,
-  `Cslib.Complexity.polyTimeReducible_GapExactThreeSAT_GapVertexCoverFraction`: the
-  gap-preserving reductions.
-* `Cslib.Complexity.GapIndependentSet_npHard`, `Cslib.Complexity.GapClique_npHard`,
-  `Cslib.Complexity.GapVertexCover_npHard`, `Cslib.Complexity.GapVertexCoverFraction_npHard`:
-  constant-factor inapproximability.
+  `Cslib.Complexity.polyTimeReducible_GapExactThreeSAT_GapVertexCoverFraction`: the formula-graph
+  and complement gap-preserving reductions.
+* `Cslib.Complexity.GapIndependentSet_npHard`, `Cslib.Complexity.GapClique_npHard`: NP-hardness of
+  approximating maximum independent set and maximum clique within every constant factor `0 < s < 1`.
+* `Cslib.Complexity.GapVertexCover_npHard`, `Cslib.Complexity.GapVertexCoverFraction_npHard`:
+  constant-factor inapproximability of minimum vertex cover.
 * `Cslib.Complexity.GapIndependentSet_notMem_PromiseP`,
   `Cslib.Complexity.GapClique_notMem_PromiseP`,
   `Cslib.Complexity.GapVertexCover_notMem_PromiseP`: unless `P = NP`, no polynomial-time algorithm
@@ -90,7 +113,7 @@ for `s = 2 / 3` and `L = 2 / 3 + 1 / (18 * 2 ^ 77)` [Goldreich2007DraftR5], Exer
 * [U. Feige, S. Goldwasser, L. Lovász, S. Safra, M. Szegedy, *Interactive proofs and the hardness
   of approximating cliques*][FeigeGoldwasserLovaszSafraSzegedy1996]
 * [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, draft
-  r5][Goldreich2007DraftR5], Definition 10.4 and Exercise 10.4
+  r5][Goldreich2007DraftR5], Exercise 9.18, Definition 10.4 and Exercise 10.4
 * [R. M. Karp, *Reducibility among combinatorial problems*][Karp1972]
 -/
 
@@ -119,8 +142,7 @@ theorem card_toFinset_vertices_toIndependentSet {φ : CNF ℕ} (h3 : ∀ c ∈ �
       exact ⟨(i, j), Finset.mem_product.2 ⟨Finset.mem_range.2 hi,
         Finset.mem_range.2 ((h3 _ (List.getElem_mem hi)) ▸ hj)⟩, rfl⟩
     · rintro ⟨⟨i, j⟩, hij, rfl⟩
-      obtain ⟨hi, hj⟩ := Finset.mem_product.1 hij
-      rw [Finset.mem_range] at hi hj
+      obtain ⟨hi, hj⟩ := by simpa only [Finset.mem_product, Finset.mem_range] using hij
       have hj' : j < φ[i].length := (h3 _ (List.getElem_mem hi)).symm ▸ hj
       exact ⟨⟨i, j, φ[i][j]⟩, mem_occurrences.2 ⟨hi, hj', rfl⟩, rfl⟩
   rw [hset, Finset.card_image_of_injective _ fun p q h => Prod.ext (Nat.pair_eq_pair.1 h).1
@@ -135,15 +157,11 @@ assignment satisfies**, which is at most `(1 - unsatVal φ) * m` for `m` clauses
 theorem indepNum_toIndependentSet_le (φ : CNF ℕ) :
     ((toIndependentSet φ).graph.indepNum : ℝ) ≤ (1 - φ.unsatVal) * φ.length := by
   obtain ⟨σ, hσ⟩ := (le_indepNum_toIndependentSet_iff φ _).1 le_rfl
-  have hcast : (((toIndependentSet φ).graph.indepNum + φ.countUnsat σ : ℕ) : ℝ) ≤
-      φ.length := by exact_mod_cast hσ
-  push_cast at hcast
+  have hcast : ((toIndependentSet φ).graph.indepNum : ℝ) + φ.countUnsat σ ≤ φ.length := mod_cast hσ
   have hle : φ.unsatVal * φ.length ≤ φ.countUnsat σ := by
     rcases Nat.eq_zero_or_pos φ.length with h0 | h0
     · simp [h0]
-    · have h0' : (0 : ℝ) < φ.length := by exact_mod_cast h0
-      have := φ.unsatVal_le σ
-      rwa [le_div_iff₀ h0'] at this
+    · exact (le_div_iff₀ (mod_cast h0)).mp (φ.unsatVal_le σ)
   linarith
 
 /-- A cover of Karp's graph of a formula whose clauses have three literals is the complement of an
@@ -152,11 +170,9 @@ private theorem vertexCoverNum_toIndependentSet {φ : CNF ℕ} (h3 : ∀ c ∈ �
     ((toIndependentSet φ).graph.vertexCoverNum : ℝ) =
       3 * φ.length - (toIndependentSet φ).graph.indepNum := by
   have hle := Graph.indepNum_le_card (toIndependentSet φ).graph
-  rw [card_toFinset_vertices_toIndependentSet h3] at hle
-  rw [Graph.vertexCoverNum_eq_card_sub_indepNum, card_toFinset_vertices_toIndependentSet h3,
-    Nat.cast_sub hle]
-  push_cast
-  ring
+  rw [Graph.vertexCoverNum_eq_card_sub_indepNum, Nat.cast_sub hle,
+    card_toFinset_vertices_toIndependentSet h3]
+  push_cast; ring
 
 end SAT
 
@@ -208,6 +224,69 @@ theorem yes_GapClique : (GapClique s).yes = Clique := by
 
 /-! ### Reductions -/
 
+namespace PCPVerifier
+
+variable {α : Type} (V : PCPVerifier α)
+
+/-- The independence number of the explicit FGLSS edge-list graph equals that of `V.fglssGraph`. -/
+theorem indepNum_fglssEdgeList (a : α) :
+    (V.fglssEdgeList a).indepNum = (V.fglssGraph a).indepNum :=
+  (V.fglssGraphIso a).symm.indepNum_eq
+
+/-- Nonadaptive FGLSS reduction map (after [FeigeGoldwasserLovaszSafraSzegedy1996], Section 3;
+[Goldreich2007DraftR5], Exercise 9.18) from an instance `a` of a nonadaptive PCP verifier `V` to
+`IndependentSetInstance`: the explicit accepting-view conflict graph `V.fglssEdgeList a` paired with
+target `2 ^ V.coins a`. -/
+def fglssToIndependentSet (a : α) : IndependentSetInstance :=
+  ⟨V.fglssEdgeList a, 2 ^ V.coins a⟩
+
+/-- Under a logarithmic coin bound and a constant query bound on valid random strings, the FGLSS
+reduction `V.fglssToIndependentSet` is computable in polynomial time. -/
+theorem computableInPolyTime_fglssToIndependentSet {enc : α ↪ List Bool} (hV : V.PolyTime enc)
+    {c d : ℕ} (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1))
+    (hq : ∀ a ρ, ρ.length = V.coins a → (V.queries (a, ρ)).length ≤ d) :
+    ComputableInPolyTime V.fglssToIndependentSet enc encIndependentSetInstance := by
+  have hgraph := V.computableInPolyTime_fglssEdgeList hV hcoins hq
+  have htarget : ComputableInPolyTime (fun a => 2 ^ V.coins a) enc encNat :=
+    ComputableInPolyTime.binary_two_pow.comp
+      (.binary_to_unary_bounded hV.coins (by fun_prop) hcoins)
+  unfold fglssToIndependentSet
+  fun_prop
+
+end PCPVerifier
+
+/-- Nonadaptive FGLSS gap-reduction step toward [Goldreich2007DraftR5], Exercise 9.18 (#4772) and
+[Arora and Barak, Chapter 11][AroraBarak09] (#4711), after [FeigeGoldwasserLovaszSafraSzegedy1996],
+Section 3: every problem in `PCP_{1, s}(log n, q)` (for nonadaptive `PCPVerifier`) with constant
+query bound `q` and soundness `s < 1` reduces in polynomial time to `GapIndependentSet s` via
+`PCPVerifier.fglssToIndependentSet`. -/
+theorem polyTimeReducible_GapIndependentSet_of_mem_PCPWith {α : Type} {enc : α ↪ List Bool}
+    {A : Set α} {q : ℕ} (hs1 : s < 1)
+    (hA : A ∈ PCPWith 1 s (fun n => Nat.log 2 n + 1) (fun _ => q) enc) :
+    PromiseProblem.PolyTimeReducible enc encIndependentSetInstance (.ofSet A)
+      (GapIndependentSet s) := by
+  obtain ⟨V, c_r, c_q, hV, hpcp⟩ := hA
+  refine ⟨V.fglssToIndependentSet,
+    V.computableInPolyTime_fglssToIndependentSet hV hpcp.coins_le hpcp.length_queries_le,
+    fun a ha => ?_, fun a ha => ?_⟩
+  · obtain ⟨π, hπ⟩ := hpcp.complete a ha
+    have hacc : V.acceptCount a π = 2 ^ V.coins a :=
+      (V.acceptCount_eq_two_pow_iff a π).mpr ((V.one_le_acceptProb_iff a π).mp hπ)
+    have hind : (V.fglssGraph a).indepNum = 2 ^ V.coins a :=
+      le_antisymm (V.indepNum_fglssGraph_le a)
+        (hacc ▸ PCPVerifier.acceptCount_le_indepNum_fglssGraph π)
+    simp only [GapIndependentSet, PromiseProblem.mem_yes_gapMax, PCPVerifier.fglssToIndependentSet,
+      PCPVerifier.indepNum_fglssEdgeList, hind, le_rfl]
+  · obtain ⟨π, hπ⟩ := V.exists_acceptCount_eq_indepNum_fglssGraph a
+    have hpos : (0 : ℝ) < 2 ^ V.coins a := by positivity
+    have hprob : (V.acceptCount a π : ℝ) ≤ s * (2 ^ V.coins a : ℕ) := by
+      simpa only [PCPVerifier.acceptProb, div_le_iff₀ hpos, Nat.cast_pow, Nat.cast_ofNat] using
+        hpcp.sound a ha π
+    refine (PromiseProblem.mem_no_gapMax_of_lt
+      (show s * (2 ^ V.coins a : ℕ) < (2 ^ V.coins a : ℕ) by push_cast; nlinarith)).2 ?_
+    dsimp only [PCPVerifier.fglssToIndependentSet]
+    rwa [PCPVerifier.indepNum_fglssEdgeList, ← hπ]
+
 /-- **MAX-3SAT reduces to maximum independent set with the same gap**, by Karp's graph: a
 satisfiable formula has an independent set with a vertex in each clause, and an independent set
 gives an assignment satisfying as many clauses. -/
@@ -215,19 +294,13 @@ theorem polyTimeReducible_GapThreeSAT_GapIndependentSet (hs : s < 1) :
     PromiseProblem.PolyTimeReducible encCNF encIndependentSetInstance (GapThreeSAT s)
       (GapIndependentSet s) := by
   refine ⟨SAT.toIndependentSet, SAT.computableInPolyTime_toIndependentSet,
-    fun φ hφ => ?_, fun φ hφ => ?_⟩
-  · rw [yes_GapThreeSAT] at hφ
-    rw [yes_GapIndependentSet]
-    exact (SAT.toIndependentSet_mem_iff φ).2 hφ.2
-  · obtain ⟨-, hval⟩ := (mem_no_GapThreeSAT hs).1 hφ
-    have hm : (0 : ℝ) < φ.length := by
-      exact_mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
-    have hα := SAT.indepNum_toIndependentSet_le φ
-    refine (PromiseProblem.mem_no_gapMax_of_lt ?_).2 ?_
-    · change s * (φ.length : ℝ) < φ.length
-      nlinarith
-    · change ((SAT.toIndependentSet φ).graph.indepNum : ℝ) ≤ s * φ.length
-      nlinarith
+    fun φ hφ => yes_GapIndependentSet.symm ▸ (SAT.toIndependentSet_mem_iff φ).2
+      (yes_GapThreeSAT ▸ hφ).2, fun φ hφ => ?_⟩
+  obtain ⟨-, hval⟩ := (mem_no_GapThreeSAT hs).1 hφ
+  have hm : (0 : ℝ) < φ.length := mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
+  have hα := SAT.indepNum_toIndependentSet_le φ
+  exact (PromiseProblem.mem_no_gapMax_of_lt (show s * (φ.length : ℝ) < φ.length by nlinarith)).2
+    (show ((SAT.toIndependentSet φ).graph.indepNum : ℝ) ≤ s * φ.length by nlinarith)
 
 /-- **Maximum independent set reduces to maximum clique with the same gap**, by complementing the
 graph on its declared vertices. -/
@@ -250,24 +323,22 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCover (hs : s < 1) :
   have hred (φ : CNF ℕ) (h3 : ∀ c ∈ φ, c.length = 3) :
       IndependentSet.toVertexCover (SAT.toIndependentSet φ) =
         ⟨(SAT.toIndependentSet φ).graph, 2 * φ.length⟩ := by
+    have hle : φ.length ≤ 3 * φ.length := by omega
     rw [IndependentSet.toVertexCover, SAT.card_toFinset_vertices_toIndependentSet h3,
-      SAT.toIndependentSet_m, ite_eq_left (show φ.length ≤ 3 * φ.length by omega)]
+      SAT.toIndependentSet_m, ite_eq_left hle]
     congr 1
     omega
   refine ⟨fun φ => IndependentSet.toVertexCover (SAT.toIndependentSet φ),
     IndependentSet.computableInPolyTime_toVertexCover.comp
       SAT.computableInPolyTime_toIndependentSet, fun φ hφ => ?_, fun φ hφ => ?_⟩
-  · rw [yes_GapExactThreeSAT] at hφ
-    obtain ⟨h3, hsat⟩ := hφ
-    have hα : (φ.length : ℝ) ≤ (SAT.toIndependentSet φ).graph.indepNum := by
-      exact_mod_cast Graph.le_indepNum_iff.2 ((SAT.toIndependentSet_mem_iff φ).2 hsat)
+  · obtain ⟨h3, hsat⟩ := yes_GapExactThreeSAT ▸ hφ
+    have hα : (φ.length : ℝ) ≤ (SAT.toIndependentSet φ).graph.indepNum :=
+      mod_cast Graph.le_indepNum_iff.2 ((SAT.toIndependentSet_mem_iff φ).2 hsat)
     simp only [GapVertexCover, PromiseProblem.mem_yes_gapMin, hred φ h3,
       SAT.vertexCoverNum_toIndependentSet h3]
-    push_cast
-    linarith
+    cast_linarith
   · obtain ⟨h3, hval⟩ := (mem_no_GapExactThreeSAT hs).1 hφ
-    have hm : (0 : ℝ) < φ.length := by
-      exact_mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
+    have hm : (0 : ℝ) < φ.length := mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
     have hα := SAT.indepNum_toIndependentSet_le φ
     simp only [GapVertexCover, PromiseProblem.mem_no_gapMin, hred φ h3,
       SAT.vertexCoverNum_toIndependentSet h3]
@@ -286,44 +357,45 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCoverFraction (hs : s < 1) {
   refine ⟨fun φ => (SAT.toIndependentSet φ).graph,
     by have h := SAT.computableInPolyTime_toIndependentSet; fun_prop,
     fun φ hφ => ?_, fun φ hφ => ?_⟩
-  · rw [yes_GapExactThreeSAT] at hφ
-    obtain ⟨h3, hsat⟩ := hφ
-    have hα : (φ.length : ℝ) ≤ (SAT.toIndependentSet φ).graph.indepNum := by
-      exact_mod_cast Graph.le_indepNum_iff.2 ((SAT.toIndependentSet_mem_iff φ).2 hsat)
-    change ((SAT.toIndependentSet φ).graph.vertexCoverNum : ℝ) ≤
-      2 / 3 * (SAT.toIndependentSet φ).graph.vertices.toFinset.card
-    rw [SAT.vertexCoverNum_toIndependentSet h3, SAT.card_toFinset_vertices_toIndependentSet h3]
-    push_cast
-    linarith
+  · obtain ⟨h3, hsat⟩ := yes_GapExactThreeSAT ▸ hφ
+    have hα : (φ.length : ℝ) ≤ (SAT.toIndependentSet φ).graph.indepNum :=
+      mod_cast Graph.le_indepNum_iff.2 ((SAT.toIndependentSet_mem_iff φ).2 hsat)
+    simp only [GapVertexCoverFraction, Set.mem_ofPred_eq, SAT.vertexCoverNum_toIndependentSet h3,
+      SAT.card_toFinset_vertices_toIndependentSet h3]
+    cast_linarith
   · obtain ⟨h3, hval⟩ := (mem_no_GapExactThreeSAT hs).1 hφ
-    have hm : (0 : ℝ) < φ.length := by
-      exact_mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
+    have hm : (0 : ℝ) < φ.length := mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
     have hα := SAT.indepNum_toIndependentSet_le φ
-    refine ⟨hL, ?_⟩
-    change L * (SAT.toIndependentSet φ).graph.vertices.toFinset.card <
-      ((SAT.toIndependentSet φ).graph.vertexCoverNum : ℝ)
-    rw [SAT.vertexCoverNum_toIndependentSet h3, SAT.card_toFinset_vertices_toIndependentSet h3]
-    push_cast
-    nlinarith
+    simp only [GapVertexCoverFraction, Set.mem_ofPred_eq, SAT.vertexCoverNum_toIndependentSet h3,
+      SAT.card_toFinset_vertices_toIndependentSet h3]
+    exact ⟨hL, by cast_nlinarith⟩
 
 /-! ### Inapproximability -/
 
-/-- **Maximum independent set is NP-hard to approximate** within `1 - 1 / (3 * 2 ^ 77)`: given a
-graph and a target `k`, distinguishing graphs with an independent set of `k` vertices from graphs
-without an independent set of more than `(1 - 1 / (3 * 2 ^ 77)) * k` vertices is NP-hard. The gap
-comes from MAX-3SAT [AroraLundMotwaniSudanSzegedy1998] through Karp's graph. -/
-theorem GapIndependentSet_npHard :
-    PromiseProblem.NPHard encIndependentSetInstance
-      (GapIndependentSet (1 - 1 / (3 * 2 ^ 77))) :=
-  GapThreeSAT_npHard.trans (polyTimeReducible_GapThreeSAT_GapIndependentSet (by norm_num))
+/-- **Constant-factor NP-hardness of maximum independent set** ([Goldreich2007DraftR5],
+Exercise 9.18, final claim; constant-factor specialization after
+[FeigeGoldwasserLovaszSafraSzegedy1996], Section 3 and [AroraLundMotwaniSudanSzegedy1998]): for
+every fixed constant `0 < s < 1`, distinguishing graphs with an independent set of `k` declared
+vertices from graphs without an independent set of more than `s * k` declared vertices is NP-hard.
+The proof amplifies `NP = PCP(log n, 1)` (`Cslib.Complexity.NP_eq_PCP_log`) to soundness `s` by
+independent verifier repetition (`Cslib.Complexity.PCPWith_one`) and applies the nonadaptive FGLSS
+reduction (`Cslib.Complexity.polyTimeReducible_GapIndependentSet_of_mem_PCPWith`). Size-dependent
+subconstant gaps (#4772, #4711) remain open. -/
+theorem GapIndependentSet_npHard (hs0 : 0 < s) (hs1 : s < 1) :
+    PromiseProblem.NPHard encIndependentSetInstance (GapIndependentSet s) := by
+  intro _ enc A hA
+  rw [NP_eq_PCP_log, ← PCPWith_one hs0 hs1] at hA
+  exact polyTimeReducible_GapIndependentSet_of_mem_PCPWith hs1 hA
 
-/-- **Maximum clique is NP-hard to approximate** within `1 - 1 / (3 * 2 ^ 77)`: given a graph and
-a target `k`, distinguishing graphs with a clique of `k` vertices from graphs without a clique of
-more than `(1 - 1 / (3 * 2 ^ 77)) * k` vertices is NP-hard. The gap of maximum independent set
-transfers to the complement graph. -/
-theorem GapClique_npHard :
-    PromiseProblem.NPHard encCliqueInstance (GapClique (1 - 1 / (3 * 2 ^ 77))) :=
-  GapIndependentSet_npHard.trans polyTimeReducible_GapIndependentSet_GapClique
+/-- **Constant-factor NP-hardness of maximum clique** ([Goldreich2007DraftR5], Exercise 9.18, final
+claim; constant-factor specialization after [FeigeGoldwasserLovaszSafraSzegedy1996], Section 3 and
+[AroraLundMotwaniSudanSzegedy1998]): for every fixed constant `0 < s < 1`, distinguishing graphs
+with a clique of `k` declared vertices from graphs without a clique of more than `s * k` declared
+vertices is NP-hard. The gap of maximum independent set transfers to the complement graph;
+size-dependent subconstant gaps (#4772, #4711) remain open. -/
+theorem GapClique_npHard (hs0 : 0 < s) (hs1 : s < 1) :
+    PromiseProblem.NPHard encCliqueInstance (GapClique s) :=
+  (GapIndependentSet_npHard hs0 hs1).trans polyTimeReducible_GapIndependentSet_GapClique
 
 /-- **Minimum vertex cover is NP-hard to approximate** within `1 + 1 / (3 * 2 ^ 78)`
 [AroraLundMotwaniSudanSzegedy1998]: given a graph and a target `k`, distinguishing graphs with a
@@ -332,11 +404,9 @@ vertex cover of at most `k` vertices from graphs without a vertex cover of fewer
 theorem GapVertexCover_npHard :
     PromiseProblem.NPHard encVertexCoverInstance
       (GapVertexCover (1 + 1 / (3 * 2 ^ 78))) := by
-  have h := polyTimeReducible_GapExactThreeSAT_GapVertexCover
-    (s := 1 - 1 / (3 * 2 ^ 77)) (by norm_num)
-  rw [show (1 + (1 - (1 - 1 / (3 * 2 ^ 77))) / 2 : ℝ) = 1 + 1 / (3 * 2 ^ 78) by norm_num] at h
-  intro _ enc A hA
-  exact (GapExactThreeSAT_npHard enc A hA).trans h
+  have h : (1 + (1 - (1 - 1 / (3 * 2 ^ 77))) / 2 : ℝ) = 1 + 1 / (3 * 2 ^ 78) := by norm_num
+  exact fun _ enc A hA => (GapExactThreeSAT_npHard enc A hA).trans
+    (h ▸ polyTimeReducible_GapExactThreeSAT_GapVertexCover (by norm_num))
 
 /-- **Minimum vertex cover is NP-hard to approximate relative to the number of vertices**
 ([Goldreich2007DraftR5], Exercise 10.4, a weak version of Theorem 10.7): for the constants
@@ -347,23 +417,25 @@ the exercise asks, the proof uses the PCP Theorem (Theorem 9.16, here through th
 FGLSS clique reduction of the draft's guideline. -/
 theorem GapVertexCoverFraction_npHard :
     PromiseProblem.NPHard encGraph
-      (GapVertexCoverFraction (2 / 3) (2 / 3 + 1 / (18 * 2 ^ 77))) := by
-  intro _ enc A hA
-  exact (GapExactThreeSAT_npHard enc A hA).trans
+      (GapVertexCoverFraction (2 / 3) (2 / 3 + 1 / (18 * 2 ^ 77))) :=
+  fun _ enc A hA => (GapExactThreeSAT_npHard enc A hA).trans
     (polyTimeReducible_GapExactThreeSAT_GapVertexCoverFraction (by norm_num) (by norm_num)
       (by norm_num))
 
-/-- Unless `P = NP`, no polynomial-time algorithm distinguishes graphs with an independent set of
-`k` vertices from graphs without one of more than `(1 - 1 / (3 * 2 ^ 77)) * k` vertices. -/
-theorem GapIndependentSet_notMem_PromiseP {β : Type} {enc : β ↪ List Bool} (h : P enc ≠ NP enc) :
-    GapIndependentSet (1 - 1 / (3 * 2 ^ 77)) ∉ PromiseP encIndependentSetInstance :=
-  GapIndependentSet_npHard.notMem_PromiseP h
+/-- Unless `P = NP`, for every `0 < s < 1`, no polynomial-time algorithm distinguishes graphs with
+an independent set of `k` declared vertices from graphs without one of more than `s * k` declared
+vertices. -/
+theorem GapIndependentSet_notMem_PromiseP (hs0 : 0 < s) (hs1 : s < 1) {β : Type}
+    {enc : β ↪ List Bool} (h : P enc ≠ NP enc) :
+    GapIndependentSet s ∉ PromiseP encIndependentSetInstance :=
+  (GapIndependentSet_npHard hs0 hs1).notMem_PromiseP h
 
-/-- Unless `P = NP`, no polynomial-time algorithm distinguishes graphs with a clique of `k`
-vertices from graphs without one of more than `(1 - 1 / (3 * 2 ^ 77)) * k` vertices. -/
-theorem GapClique_notMem_PromiseP {β : Type} {enc : β ↪ List Bool} (h : P enc ≠ NP enc) :
-    GapClique (1 - 1 / (3 * 2 ^ 77)) ∉ PromiseP encCliqueInstance :=
-  GapClique_npHard.notMem_PromiseP h
+/-- Unless `P = NP`, for every `0 < s < 1`, no polynomial-time algorithm distinguishes graphs with a
+clique of `k` declared vertices from graphs without one of more than `s * k` declared vertices. -/
+theorem GapClique_notMem_PromiseP (hs0 : 0 < s) (hs1 : s < 1) {β : Type} {enc : β ↪ List Bool}
+    (h : P enc ≠ NP enc) :
+    GapClique s ∉ PromiseP encCliqueInstance :=
+  (GapClique_npHard hs0 hs1).notMem_PromiseP h
 
 /-- Unless `P = NP`, no polynomial-time algorithm distinguishes graphs with a vertex cover of at
 most `k` vertices from graphs without one of fewer than `(1 + 1 / (3 * 2 ^ 78)) * k` vertices. -/

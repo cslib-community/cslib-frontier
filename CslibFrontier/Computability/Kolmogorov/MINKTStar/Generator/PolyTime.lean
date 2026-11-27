@@ -141,8 +141,7 @@ theorem exists_toMINKTStar_mem (Δ k : ℕ) :
     (GenWitness.computableInPolyTime_generate Δ k ComputableInPolyTime.id')
   refine ⟨pG, c, hmono, fun g σ I hI lam hlam f => ?_⟩
   obtain ⟨w, rfl, rfl, hcons, hsize⟩ := GenWitness.exists_consistent_generate Δ k hI hlam f
-  have hlen : (GenWitness.enc w).length + c ≤ GenWitness.sizeBound Δ w.inst w.lam + c :=
-    Nat.add_le_add_right hsize c
+  have hlen : (GenWitness.enc w).length + c ≤ GenWitness.sizeBound Δ w.inst w.lam + c := by gcongr
   refine ⟨_, hcons, ?_⟩
   calc timeBoundedAt (pG.eval (GenWitness.sizeBound Δ w.inst w.lam + c)) (w.generate Δ k)
       = timeBounded (fun _ => pG.eval (GenWitness.sizeBound Δ w.inst w.lam + c))
