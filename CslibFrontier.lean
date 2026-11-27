@@ -9454,6 +9454,7 @@ public import CslibFrontier.Computability.PropertyTesting.DenseGraph.Canonical
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Loop
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
 public import CslibFrontier.DataStructure.BTree.WordRAM.Loops
+public import CslibFrontier.Computability.Complexity.Classes.MIP.ConstraintCheck
 public import CslibFrontier.Crypto.Primitives.Garbling.Foundations
 public import CslibFrontier.Foundations.BooleanAnalysis.FourierRestriction
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
