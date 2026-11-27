@@ -3948,6 +3948,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Sp
 public import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.DyadicCost.Asymptotics
 public import CslibFrontier.Foundations.Data.Nat.MultiplyHigh
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.MidpointCertificates
 public import CslibFrontier.Computability.MCSP.HardnessConsequences
 public import CslibFrontier.Logics.Propositional.QBF.Blocks
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.ShortDesc
