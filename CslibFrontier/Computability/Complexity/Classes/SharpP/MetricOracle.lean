@@ -148,15 +148,8 @@ theorem MetricReducible.polyTimeOracleProgram {f : α → Y} {g : β → ℕ}
       (isOraclePPTOn_readBitsProgram hreq hcount).map_with hpost',
     fun A hA => funext fun a => ?_⟩
   rw [OracleComp.interpret_map, interpret_readBitsProgram, hfg a]
-  have hbits : (List.ofFn fun i : Fin (count a) => decide (req a i ∈ A)) =
-      Cslib.BitString.lowBits (count a) (g (r a)) := by
-    refine List.ext_getElem (by simp [Cslib.BitString.lowBits]) fun i _ _ => ?_
-    simp only [List.getElem_ofFn, Cslib.BitString.lowBits, List.getElem_map,
-      List.getElem_range, req]
-    rw [Bool.eq_iff_iff, decide_eq_true_iff]
-    exact hA (r a) i
   change post (a, ofBits (List.ofFn _)) = _
-  rw [hbits, ofBits_lowBits (hp (r a))]
+  rw [hA.ofFn_eq_lowBits (r a) (count a), ofBits_lowBits (hp (r a))]
 
 /-- A metric reduction to a function `g` with polynomially many bits makes `f` computable in
 polynomial time relative to the bit graph of `g`: `f ∈ FP^g` in the sense of Arora and Barak. -/

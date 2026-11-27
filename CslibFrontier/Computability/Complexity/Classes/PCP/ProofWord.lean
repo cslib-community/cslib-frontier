@@ -139,15 +139,8 @@ theorem exists_value_eq_mod (table : List Bool → ℕ) :
     ∃ π : List Bool → Bool, ∀ key width, value π key width = table key % 2 ^ width := by
   classical
   refine ⟨fun q => decide (q ∈ bitGraph encBits table), fun key width => ?_⟩
-  have hbits : (List.ofFn fun i : Fin width =>
-      decide (encPair encBits encNat (key, i.val) ∈ bitGraph encBits table)) =
-      BitString.lowBits width (table key) := by
-    apply List.ext_getElem (by simp [BitString.lowBits])
-    intro i hi hj
-    simp only [List.getElem_ofFn, BitString.lowBits, List.getElem_map, List.getElem_range]
-    rw [Bool.eq_iff_iff, decide_eq_true_iff]
-    exact answersBits_bitGraph encBits table key i
-  rw [value, hbits, ← BitString.lowBits_mod_two_pow,
+  rw [value, (answersBits_bitGraph encBits table).ofFn_eq_lowBits,
+    ← BitString.lowBits_mod_two_pow,
     ofBits_lowBits (Nat.mod_lt _ (by positivity))]
 
 end Cslib.Complexity.ProofWord
