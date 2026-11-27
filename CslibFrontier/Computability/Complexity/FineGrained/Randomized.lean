@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.Exponents
 public import CslibFrontier.Computability.Complexity.FineGrained.FunctionRates
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Closed
 public import CslibFrontier.Probability.BitString
+import CslibFrontier.Computability.Complexity.AcceptCount.Majority
 import CslibFrontier.Computability.Complexity.Classes.Promise.Probabilistic
 import CslibFrontier.Computability.Complexity.Classes.Time.SampleVerify
 import CslibFrontier.Computability.Complexity.FineGrained.Bounds
@@ -31,7 +32,6 @@ import CslibFrontier.Foundations.Data.BitString.List
 import CslibFrontier.Foundations.Data.BitString.WordCount
 import CslibFrontier.Foundations.Data.List.OfFn
 import CslibFrontier.Foundations.Data.Nat.Power
-import CslibFrontier.Probability.MajorityVote
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -1144,63 +1144,32 @@ theorem SolvesWithErrorInTimeO.amplify_twoSided {Q : PromiseProblem α} {T : α 
   have hbase_nn : 0 ≤ 4 * ε₁ * (1 - ε₁) := mul_nonneg (by linarith) (by linarith)
   obtain ⟨r, hr⟩ := ((tendsto_pow_atTop_nhds_zero_of_lt_one hbase_nn hbase_lt).eventually
     (gt_mem_nhds h0₂)).exists
-  have hmaj (ℓ : α → ℕ) (a : α) (G : Finset (Fin (ℓ a) → Bool))
-      (hG : (1 - ε₁) * (2 : ℝ) ^ ℓ a ≤ G.card) :
-      ((Finset.univ.filter fun ω : Fin (2 * r) → (Fin (ℓ a) → Bool) =>
-        (Finset.univ.filter fun i => ω i ∈ G).card ≤ r).card : ℝ) ≤
-        ε₂ * (2 : ℝ) ^ ((2 * r) * ℓ a) := by
-    have hcard : (Fintype.card (Fin (ℓ a) → Bool) : ℝ) = (2 : ℝ) ^ ℓ a := by simp
-    have hmom := card_filter_card_filter_le_of_err_lt_half G h0₁ h1₁ (hcard ▸ hG) r
-    rw [hcard, ← pow_mul, mul_comm (ℓ a)] at hmom
-    exact hmom.trans (mul_le_mul_of_nonneg_right hr.le (by positivity))
+  have hmajority (ℓ : α → ℕ) (V : α × List Bool → Bool) (a : α) (truth : Bool)
+      (herror : (acceptCount (fun p => V p != truth) a (ℓ a) : ℝ) ≤ ε₁ * (2 : ℝ) ^ ℓ a) :
+      (acceptCount (fun p => BitString.listStrictMajority (collectVotesConst (2 * r) ℓ V p)
+        != truth) a ((2 * r) * ℓ a) : ℝ) ≤ ε₂ * (2 : ℝ) ^ ((2 * r) * ℓ a) := by
+    let k := 2 * r
+    have hcount :
+        acceptCount (fun p => BitString.listStrictMajority (collectVotesConst k ℓ V p) != truth)
+          a (k * ℓ a) =
+        acceptCount (fun p =>
+          BitString.listStrictMajority ((BitString.listRows k (ℓ a) p.2).map
+            fun w => V (p.1, w)) != truth) a (k * ℓ a) := by
+      unfold acceptCount
+      congr 1
+      exact Finset.filter_congr fun x _ => by
+        dsimp only [Prod.fst, Prod.snd]
+        rw [collectVotesConst_eq_map_listRows k ℓ V a (List.ofFn x) List.length_ofFn]
+    rw [hcount]
+    exact (acceptCount_listStrictMajority_ne_le V a (ℓ a) r truth h0₁ h1₁ herror).trans
+      (mul_le_mul_of_nonneg_right hr.le (by positivity))
   refine solvesWithErrorInTimeO_aggVotesConst hT h (2 * r)
-    (fun votes => decide (r < votes.countP id)) (by fun_prop)
+    BitString.listStrictMajority ComputableInPolyTime.bitsStrictMajority
     (fun ℓ V a hy => ?_) (fun ℓ V a hn => ?_)
-  · let G : Finset (Fin (ℓ a) → Bool) := Finset.univ.filter fun u => V (a, List.ofFn u) = true
-    have hG : (1 - ε₁) * (2 : ℝ) ^ ℓ a ≤ G.card := by
-      have hsum : (G.card : ℝ) + acceptCount (fun q => !V q) a (ℓ a) = (2 : ℝ) ^ ℓ a := by
-        exact_mod_cast acceptCount_add_acceptCount_not V a (ℓ a)
-      linarith [show (acceptCount (fun q => !V q) a (ℓ a) : ℝ) ≤ ε₁ * 2 ^ ℓ a from hy]
-    have hbad_eq : acceptCount
-        (fun q => !decide (r < (collectVotesConst (2 * r) ℓ V q).countP id))
-        a ((2 * r) * ℓ a) =
-        (Finset.univ.filter fun ω : Fin (2 * r) → (Fin (ℓ a) → Bool) =>
-          (Finset.univ.filter fun i => ω i ∈ G).card ≤ r).card := by
-      rw [acceptCount]
-      refine Finset.card_equiv BitString.blocksEquiv fun x => ?_
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, collectVotesConst_ofFn,
-        List.countP_ofFn, id_eq, Bool.not_eq_true', decide_eq_false_iff_not, not_lt,
-        BitString.blocksEquiv_apply, G]
-    rw [hbad_eq]
-    exact hmaj ℓ a G hG
-  · let G : Finset (Fin (ℓ a) → Bool) := Finset.univ.filter fun u => V (a, List.ofFn u) = false
-    have hG : (1 - ε₁) * (2 : ℝ) ^ ℓ a ≤ G.card := by
-      have hsum : (acceptCount V a (ℓ a) : ℝ) + G.card = (2 : ℝ) ^ ℓ a := by
-        exact_mod_cast acceptCount_add_card_filter_eq_false (V := V) (a := a) (n := ℓ a)
-      linarith [show (acceptCount V a (ℓ a) : ℝ) ≤ ε₁ * 2 ^ ℓ a from hn]
-    have hbad_le : acceptCount
-        (fun q => decide (r < (collectVotesConst (2 * r) ℓ V q).countP id))
-        a ((2 * r) * ℓ a) ≤
-        (Finset.univ.filter fun ω : Fin (2 * r) → (Fin (ℓ a) → Bool) =>
-          (Finset.univ.filter fun i => ω i ∈ G).card ≤ r).card := by
-      rw [acceptCount, ← Finset.card_map BitString.blocksEquiv.toEmbedding]
-      refine Finset.card_le_card fun ω hω => ?_
-      obtain ⟨x, hx, rfl⟩ := Finset.mem_map.mp hω
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, collectVotesConst_ofFn,
-        List.countP_ofFn, id_eq, decide_eq_true_eq] at hx
-      refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
-      have hpart := Finset.card_filter_add_card_filter_not
-        (s := (Finset.univ : Finset (Fin (2 * r))))
-        fun i => V (a, List.ofFn (BitString.block x i)) = true
-      simp only [Bool.not_eq_true, Finset.card_univ, Fintype.card_fin] at hpart
-      have hG_card : (Finset.univ.filter
-          fun i : Fin (2 * r) => BitString.blocksEquiv.toEmbedding x i ∈ G).card =
-          (Finset.univ.filter fun i : Fin (2 * r) =>
-            V (a, List.ofFn (BitString.block x i)) = false).card :=
-        congrArg Finset.card (Finset.filter_congr fun i _ => by simp [G])
-      rw [hG_card]
-      omega
-    exact (by exact_mod_cast hbad_le : (acceptCount _ _ _ : ℝ) ≤ _).trans (hmaj ℓ a G hG)
+  · simpa only [Bool.bne_true, ErrorModel.twoSided] using hmajority ℓ V a true
+      (by simpa only [Bool.bne_true, ErrorModel.twoSided] using hy)
+  · simpa only [Bool.bne_false, ErrorModel.twoSided] using hmajority ℓ V a false
+      (by simpa only [Bool.bne_false, ErrorModel.twoSided] using hn)
 
 /-- **Two-sided threshold invariance.** Any two error bounds `ε₁, ε₂ ∈ (0, 1 / 2)` yield the exact
 same `SolvesWithErrorInTimeO` predicate (for `0 ≤ T a`). -/

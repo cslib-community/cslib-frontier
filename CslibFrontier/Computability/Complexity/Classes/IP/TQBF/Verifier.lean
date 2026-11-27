@@ -19,11 +19,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Prime
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Search
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Prime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import Mathlib.NumberTheory.Bertrand
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.SuppCases
@@ -510,7 +508,7 @@ def degreeBound (ψ : QBF ℕ) : ℕ := 2 * ψ.tokens.length
 def primeBound (ψ : QBF ℕ) : ℕ := 12 * ψ.tokens.length ^ 2 * (ψ.tokens.length + 1)
 
 /-- The modulus: the greatest prime at most twice the bound. -/
-def modulus (ψ : QBF ℕ) : ℕ := Nat.findGreatest Nat.Prime (2 * primeBound ψ)
+def modulus (ψ : QBF ℕ) : ℕ := bertrandPrime (primeBound ψ)
 
 /-- The parameters and tokens of the machine for a formula. -/
 def loopInput (ψ : QBF ℕ) : LoopInput where
@@ -530,8 +528,7 @@ theorem prime_modulus (ψ : QBF ℕ) : (modulus ψ).Prime ∧ primeBound ψ < mo
     have := List.length_pos_of_ne_nil (QBF.tokens_ne_nil ψ)
     unfold primeBound
     positivity
-  obtain ⟨q, hq, hlt, hle⟩ := Nat.exists_prime_lt_and_le_two_mul (primeBound ψ) hB
-  exact ⟨Nat.findGreatest_spec hle hq, hlt.trans_le (Nat.le_findGreatest hle hq)⟩
+  exact ⟨(bertrandPrime_spec hB).1, (bertrandPrime_spec hB).2.1⟩
 
 theorem lt_modulus (ψ : QBF ℕ) : primeBound ψ < modulus ψ := (prime_modulus ψ).2
 
@@ -558,10 +555,7 @@ private lemma linVars_pt : ComputableInPolyTime linVars encQBF (encList encNat) 
   fun_prop
 
 private lemma modulus_qbf_pt : ComputableInPolyTime modulus encQBF encUnary :=
-  ComputableInPolyTime.findGreatest (by
-    unfold primeBound
-    fun_prop)
-    (ComputableInPolyTime.unary_decide_prime.comp (.snd _ _))
+  unary_bertrandPrime (by unfold primeBound; fun_prop)
 
 private lemma loopInput_pt : ComputableInPolyTime loopInput encQBF encLoopInput := by
   have := linVars_pt

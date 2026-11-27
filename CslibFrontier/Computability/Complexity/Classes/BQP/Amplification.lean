@@ -162,14 +162,15 @@ theorem block_apply (hm : m ≤ w) (j : Fin k) (i : Fin m) :
 
 /-! ### The classical steps -/
 
-theorem isClassical_copyCodes (hn : n ≤ w) (hw : 0 < w) :
-    IsClassical (width w k t) (copyCodes n w k) := by
+/-- The CNOT layer is well formed on any register that contains all the copy blocks. -/
+theorem isClassical_copyCodes {N : ℕ} (hn : n ≤ w) (hN : base w k ≤ N) :
+    IsClassical N (copyCodes n w k) := by
   refine IsClassical.flatMap fun j hj => fun g hg => ?_
   obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hg
   have hj : j < k := List.mem_range.mp hj
   have hi : i < n := List.mem_range.mp hi
-  have hlt := (block_lt (k := k) hj (show i < w by omega)).trans (base_lt_width (t := t))
-  have : 0 < (j + 1) * w := Nat.mul_pos (by omega) hw
+  have hlt := (block_lt (k := k) hj (show i < w by omega)).trans_le hN
+  have : 0 < (j + 1) * w := Nat.mul_pos (by omega) (by omega)
   refine ⟨rfl, by simp, ?_, ?_⟩
   · simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, List.nodup_nil,
       not_false_eq_true, and_true]
@@ -177,11 +178,13 @@ theorem isClassical_copyCodes (hn : n ≤ w) (hw : 0 < w) :
   · simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
     omega
 
-/-- **The copy step puts the input in every block**, and leaves the other qubits unchanged. -/
-theorem readBit_classicalRun_copyCodes (hn : n ≤ w) (hw : 0 < w) (X : Fin (width w k t) → Bool)
-    (hX : ∀ p, n ≤ p → readBit X p = false) (p : ℕ) :
+/-- In each copy block the CNOT gates XOR the first `n` source bits into the destination.
+All other bits retain their initial values. The destination may contain arbitrary data. -/
+theorem readBit_classicalRun_copyCodes {N : ℕ} (hn : n ≤ w) (hN : base w k ≤ N)
+    (X : Fin N → Bool) (p : ℕ) :
     readBit (classicalRun (copyCodes n w k) X) p =
-      if ∃ j < k, ∃ i < w, p = i + (j + 1) * w then readBit X (p % w) else readBit X p := by
+      if ∃ j < k, ∃ i < n, p = i + (j + 1) * w then
+        readBit X p ^^ readBit X (p % w) else readBit X p := by
   have hread : ∀ g ∈ copyCodes n w k, ∀ g' ∈ copyCodes n w k, g.2.1 ∉ g'.2.2 := by
     intro g hg g' hg'
     simp only [copyCodes, List.mem_flatMap, List.mem_map, List.mem_range] at hg hg'
@@ -190,7 +193,7 @@ theorem readBit_classicalRun_copyCodes (hn : n ≤ w) (hw : 0 < w) (X : Fin (wid
     have : w ≤ (j + 1) * w := Nat.le_mul_of_pos_left w (by omega)
     simp only [List.mem_cons, List.not_mem_nil, or_false]
     omega
-  rw [readBit_classicalRun_of_forall_notMem (isClassical_copyCodes hn hw) hread, copyCodes,
+  rw [readBit_classicalRun_of_forall_notMem (isClassical_copyCodes hn hN) hread, copyCodes,
     List.foldl_flatMap]
   -- each block contributes the exclusive or of its copies of the input bits
   have hinner (b : Bool) (j : ℕ) :
@@ -206,18 +209,14 @@ theorem readBit_classicalRun_copyCodes (hn : n ≤ w) (hw : 0 < w) (X : Fin (wid
       rw [foldl_xor_range n n _ _ fun i hi _ => by simp [hp' i hi]]
       simp [hp]
   simp only [hinner]
-  by_cases hp : ∃ j < k, ∃ i < w, p = i + (j + 1) * w
+  by_cases hp : ∃ j < k, ∃ i < n, p = i + (j + 1) * w
   · obtain ⟨j₀, hj₀, i₀, hi₀, rfl⟩ := hp
     rw [ite_eq_left ⟨j₀, hj₀, i₀, hi₀, rfl⟩, foldl_xor_range k j₀ _ _ fun j _ hne => ?_]
-    · have hw' : w ≤ (j₀ + 1) * w := Nat.le_mul_of_pos_left w (by omega)
-      rw [hX _ (by omega), Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hi₀]
-      by_cases hi : i₀ < n
-      · simp [hj₀, hi]
-      · simp [hj₀, hi, hX i₀ (by omega)]
+    · simp [hj₀, hi₀]
     · refine Bool.and_eq_false_iff.mpr (Or.inl (decide_eq_false fun ⟨i, hi, h⟩ => ?_))
       have hmod := congrArg (· / w) h
-      simp only [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt hi₀,
-        Nat.div_eq_of_lt (show i < w by omega)] at hmod
+      simp only [Nat.add_mul_div_right _ _ (by omega : 0 < w), Nat.div_eq_of_lt (hi₀.trans_le hn),
+        Nat.div_eq_of_lt (hi.trans_le hn)] at hmod
       omega
   · rw [ite_eq_right hp, foldl_xor_range k k _ _ fun j hj _ => ?_]
     · simp
@@ -231,27 +230,35 @@ theorem classicalRun_copyCodes_comp_block (hn : n ≤ m) (hm : m ≤ w) {x : Lis
     classicalRun (copyCodes n w k) (inputState (width w k t) x) ∘ block hm j =
       inputState m x := by
   funext i
-  have hw : 0 < w := lt_of_le_of_lt (Nat.zero_le _) (lt_of_lt_of_le i.2 hm)
-  have hlen : x.length ≤ width w k t :=
-    hx.trans (hn.trans (hm.trans (le_base.trans base_lt_width.le)))
-  have h := readBit_classicalRun_copyCodes (k := k) (t := t) (hn.trans hm) hw (inputState _ x)
-    (fun p hp => readBit_inputState_of_le (by omega)) (i + (j + 1) * w)
-  rw [ite_eq_left ⟨j, j.2, i, lt_of_lt_of_le i.2 hm, rfl⟩, Nat.add_mul_mod_self_right,
-    Nat.mod_eq_of_lt (lt_of_lt_of_le i.2 hm), readBit_inputState hlen] at h
-  rw [Function.comp_apply, ← readBit_fin (classicalRun _ _), block_apply, blocks_apply_val, h]
-  rfl
+  have hiw := i.isLt.trans_le hm
+  have hbase : w ≤ (j + 1) * w := Nat.le_mul_of_pos_left _ (by omega)
+  have hz : readBit (inputState (width w k t) x) (i + (j + 1) * w) = false :=
+    readBit_inputState_of_le (by omega)
+  rw [Function.comp_apply, ← readBit_fin (classicalRun _ _), block_apply, blocks_apply_val,
+    readBit_classicalRun_copyCodes (hn.trans hm) base_lt_width.le, hz]
+  by_cases hi : (i : ℕ) < n
+  · rw [ite_eq_left ⟨j, j.isLt, i, hi, rfl⟩, Bool.false_xor, Nat.add_mul_mod_self_right,
+      Nat.mod_eq_of_lt hiw, readBit_inputState (hx.trans (hn.trans (hm.trans
+        (le_base.trans base_lt_width.le))))]
+    rfl
+  · rw [ite_eq_right]
+    · rw [← readBit_fin (inputState m x) i, readBit_inputState_of_le (by omega)]
+    · rintro ⟨j', _, i', hi', he⟩
+      have hmod := congrArg (· % w) he
+      simp only [Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hiw,
+        Nat.mod_eq_of_lt (hi'.trans_le (hn.trans hm))] at hmod
+      omega
 
 /-- **The copy step keeps the counter's ancillas zero**: started from the input `x` of length
 `n ≤ w`, the qubits from `base w k` on read zero. -/
-theorem readBit_classicalRun_copyCodes_of_base_le (hn : n ≤ w) (hw : 0 < w) {x : List Bool}
+theorem readBit_classicalRun_copyCodes_of_base_le (hn : n ≤ w) {x : List Bool}
     (hx : x.length ≤ n) {c : ℕ} (hc : base w k ≤ c) :
     readBit (classicalRun (copyCodes n w k) (inputState (width w k t) x)) c = false := by
   have : w ≤ base w k := le_base
-  rw [readBit_classicalRun_copyCodes hn hw (inputState _ x)
-      (fun p hp => readBit_inputState_of_le (by omega)),
+  rw [readBit_classicalRun_copyCodes hn base_lt_width.le,
     ite_eq_right, readBit_inputState_of_le (show x.length ≤ c by omega)]
   rintro ⟨j, hj, i, hi, rfl⟩
-  exact absurd hc (not_le.mpr (block_lt hj hi))
+  exact absurd hc (not_le.mpr (block_lt hj (hi.trans_le hn)))
 
 theorem isClassical_counter_swap (hw : 0 < w) :
     IsClassical (width w k t) (Counter.codes (base w k) (t + 1) (fun s => (s + 1) * w) k ++
@@ -386,7 +393,7 @@ theorem acceptProb_threshold_codes {n w k t : ℕ} {gs : List GateCode} (hw : 0 
   have hXblock (j : Fin k) : X ∘ block (t := t) (le_refl w) j = inputState w x :=
     classicalRun_copyCodes_comp_block hn le_rfl hx.le j
   have hXhigh (p : ℕ) (hp : base w k ≤ p) : readBit X p = false :=
-    readBit_classicalRun_copyCodes_of_base_le hn hw hx.le hp
+    readBit_classicalRun_copyCodes_of_base_le hn hx.le hp
   -- the amplitudes of the copies are products
   have hamp (Y : Fin N → Bool) :
       (Circuit.eval (Circuit.ofCodes N (copiesCodes w k gs)) (ket X)).ofLp Y =
@@ -405,7 +412,7 @@ theorem acceptProb_threshold_codes {n w k t : ℕ} {gs : List GateCode} (hw : 0 
   -- the acceptance probability as a sum over the blocks' outcomes
   unfold acceptProb
   rw [codes, Circuit.ofCodes_append, Circuit.ofCodes_append, Circuit.run, Circuit.eval_append,
-    Circuit.eval_append, Circuit.eval_ofCodes_ket (isClassical_copyCodes hn hw),
+    Circuit.eval_append, Circuit.eval_ofCodes_ket (isClassical_copyCodes hn base_lt_width.le),
     Circuit.measureProb_eval_ofCodes (isClassical_counter_swap hw), ← hXdef]
   have hnorm (Y : Fin N → Bool) :
       ‖(if AgreeOff (blocks w k t le_rfl) Y X then
@@ -526,7 +533,7 @@ def threshold (F : UniformCircuitFamily) (k t : ℕ → ℕ)
   wellFormed n g hg := by
     have hw := F.width_pos n
     rcases List.mem_append.mp hg with hg | hg
-    · exact (isClassical_copyCodes (F.le_width n) hw g hg).2
+    · exact (isClassical_copyCodes (F.le_width n) base_lt_width.le g hg).2
     rcases List.mem_append.mp hg with hg | hg
     · obtain ⟨j, hj, hg⟩ := List.mem_flatMap.mp hg
       obtain ⟨g, hg', rfl⟩ := List.mem_map.mp hg
