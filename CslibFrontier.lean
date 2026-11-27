@@ -5710,6 +5710,7 @@ public import CslibFrontier.Crypto.Computational.PRGToOneWay
 public import CslibFrontier.Foundations.Relation.Transport
 public import CslibFrontier.Algorithms.WordRAM.Yates
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
+public import CslibFrontier.Computability.Complexity.Classes.MIP.ArithmeticRound
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.DirectProduct.Decode
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Nondeterministic
@@ -10253,6 +10254,7 @@ public import CslibFrontier.Computability.Distributed.SetAgreement.ImmediateSnap
 public import CslibFrontier.Computability.Circuit.Approximation.Hamming
 public import CslibFrontier.Foundations.NumberTheory.AKS.Introspective
 public import CslibFrontier.Logics.Propositional.CNF.Moser
+public import CslibFrontier.Computability.Complexity.Classes.MIP.Challenges
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Consolidation
 public import CslibFrontier.Computability.Circuit.Boolean.SuccinctVerifier
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase3Mem
