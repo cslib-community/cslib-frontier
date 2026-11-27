@@ -21,7 +21,15 @@ wire numbers. This is the generator convention for logspace uniformity
 [Arora and Barak][AroraBarak09], Definition 6.14. The transducer's logarithmic workspace already
 implies that every circuit it writes has polynomial size.
 
-`LogspaceUniformAC` and `LogspaceUniformNC` use the same bases and depth bounds as `AC` and `NC`.
+## Main definitions
+
+* `Circuit.IsLogspaceUniform` is the generator condition for a family with fixed output width.
+* `LogspaceUniformAC` and `LogspaceUniformNC` use the same bases and depth bounds as `AC` and `NC`.
+
+## Main results
+
+* `Circuit.IsLogspaceUniform.polynomiallyBounded_length` bounds the full circuit encoding.
+* `LogspaceUniformDepthClass.subset_depthClass` forgets the generator and preserves the depth.
 -/
 
 public section
@@ -39,14 +47,18 @@ input the length in unary. The number of outputs is fixed throughout the family.
   ComputableInLogSpace (fun n => (⟨n, C n⟩ : Σ n, Circuit σ n m)) encUnary
     (Circuit.encCircuit encOp m)
 
+/-- The full serialization produced by a logspace-uniform family has polynomial length. -/
+theorem Circuit.IsLogspaceUniform.polynomiallyBounded_length {m : ℕ}
+    {C : (n : ℕ) → Circuit σ n m} (h : Circuit.IsLogspaceUniform encOp C) :
+    PolynomiallyBounded fun n => (Circuit.encCircuit encOp m ⟨n, C n⟩).length := by
+  obtain ⟨c, d, hlen⟩ := h.polyBounded_length.exists_le
+  exact PolynomiallyBounded.of_forall_le c d fun n => by simpa using hlen n
+
 /-- A logspace-uniform family has polynomially many gates, since the generator's output is
 polynomially long and each gate contributes to the encoded length. -/
 theorem Circuit.IsLogspaceUniform.polynomiallyBounded_size {m : ℕ} {C : (n : ℕ) → Circuit σ n m}
-    (h : Circuit.IsLogspaceUniform encOp C) : PolynomiallyBounded fun n => (C n).size := by
-  obtain ⟨c, d, hlen⟩ := h.polyBounded_length.exists_le
-  apply PolynomiallyBounded.of_forall_le c d
-  intro n
-  exact (Circuit.size_le_length_encCircuit encOp ⟨n, C n⟩).trans (by simpa using hlen n)
+    (h : Circuit.IsLogspaceUniform encOp C) : PolynomiallyBounded fun n => (C n).size :=
+  h.polynomiallyBounded_length.mono_of_le fun n => Circuit.size_le_length_encCircuit encOp ⟨n, C n⟩
 
 namespace Boolean
 
