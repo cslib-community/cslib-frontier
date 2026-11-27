@@ -64,7 +64,8 @@ theorem isOraclePPTOn_verifyRounds {α : Type} {e : α ↪ List Bool} {p d width
     exact ComputableInPolyTime.listGetDWithInput (hr.comp (.fst _ _))
       ((ComputableInPolyTime.length_list encNat).comp (encWordState_challenges_polyTime (.snd _ _)))
       0
-  · exact (PolyBounded.const 8).mul ((hr.polyBounded_length.add hp.polyBounded_length).add (.const 2))
+  · exact (PolyBounded.const 8).mul
+      ((hr.polyBounded_length.add hp.polyBounded_length).add (.const 2))
   · intro a s next hnext
     obtain ⟨cs, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
     let r := (rs a).getD s.challenges.length 0
@@ -80,7 +81,7 @@ theorem isOraclePPTOn_verifyRounds {α : Type} {e : α ↪ List Bool} {p d width
     enc_len [encWordState_apply, encWordStateFields]
 
 /-- The transcript obtained by interpreting a static table at the actual public prefixes. -/
-def transcript (π : List Bool → Bool) (p : ℕ) (external : List ℕ) (d width : ℕ)
+@[expose] def transcript (π : List Bool → Bool) (p : ℕ) (external : List ℕ) (d width : ℕ)
     (rs : List ℕ) : WordState :=
   rs.foldl (fun s r => s.advance p (row π external s.challenges d width) r) ⟨[], 0, true⟩
 
@@ -101,6 +102,15 @@ theorem transcript_snoc (π : List Bool → Bool) (p : ℕ) (ext : List ℕ) (d 
   induction rs using List.reverseRecOn with
   | nil => rfl
   | append_singleton rs r ih => simp [transcript_snoc, WordState.advance, ih]
+
+/-- Every claim returned by a nonzero-modulus transcript is a canonical residue. -/
+theorem transcript_claim_lt (π : List Bool → Bool) {p : ℕ} (hp : 0 < p) (ext : List ℕ)
+    (d w : ℕ) (rs : List ℕ) : (transcript π p ext d w rs).claim < p := by
+  induction rs using List.reverseRecOn with
+  | nil => exact hp
+  | append_singleton rs r _ =>
+    rw [transcript_snoc]
+    exact (Polynomial.evalCoeffListMod_lt p r _).trans_le (max_le le_rfl hp)
 
 /-- Under a static proof, the word verifier computes precisely the prefix-dependent transcript. -/
 theorem run_verifyRounds (π : List Bool → Bool) (p : ℕ) (ext : List ℕ) (d w : ℕ)
