@@ -13,6 +13,7 @@ public import Mathlib.Algebra.BigOperators.Intervals
 public import Mathlib.Algebra.Module.Defs
 public import Mathlib.Order.Interval.Finset.Fin
 import Mathlib.Algebra.BigOperators.Module
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Abel
 
 /-!
@@ -45,6 +46,34 @@ theorem sum_univ_adjacent_differences {M : Type*} [AddCommGroup M] {n : ℕ}
   rw [Finset.sum_sub_distrib, Finset.sum_sub_distrib,
     Fin.sum_univ_castSucc exit, Fin.sum_univ_succ entry]
   abel
+
+/-- A weighted sum of within-round potential drops from `a` to `b` is bounded by the
+endpoint difference in weighted slack plus the inter-round drift. The `hslack` condition
+compares weights at the same potential and holds automatically for constant weights. -/
+theorem sum_range_mul_sub_le_of_adjacent {R : Type*} [Ring R] [LinearOrder R]
+    [IsOrderedAddMonoid R] (w a b drift : ℕ → R) (D : R) (T : ℕ)
+    (hslack : ∀ t < T, w t * (D - a (t + 1)) ≤ w (t + 1) * (D - a (t + 1)))
+    (hdrift : ∀ t < T, w t * (a (t + 1) - b t) ≤ drift t) :
+    ∑ t ∈ range (T + 1), w t * (a t - b t) ≤
+      w T * (D - b T) - w 0 * (D - a 0) + ∑ t ∈ range T, drift t := by
+  let entry (i : Fin (T + 1)) := w i * (D - a i)
+  let exit (i : Fin (T + 1)) := w i * (D - b i)
+  have hwithin (i : Fin (T + 1)) : exit i - entry i = w i * (a i - b i) := by
+    simp only [entry, exit, ← mul_sub, sub_sub_sub_cancel_left]
+  have hbetween (i : Fin T) : exit i.castSucc - entry i.succ ≤ drift i := by
+    calc
+      exit i.castSucc - entry i.succ ≤ w i * (D - b i) - w i * (D - a (i + 1)) :=
+        sub_le_sub_left (hslack i i.isLt) _
+      _ = w i * (a (i + 1) - b i) := by rw [← mul_sub, sub_sub_sub_cancel_left]
+      _ ≤ drift i := hdrift i i.isLt
+  have htel := sum_univ_adjacent_differences entry exit
+  simp only [hwithin] at htel
+  rw [← Fin.sum_univ_eq_sum_range _ (T + 1), ← Fin.sum_univ_eq_sum_range _ T]
+  change _ ≤ exit (Fin.last T) - entry 0 + _
+  rw [← htel, add_assoc, le_add_iff_nonneg_right, ← Finset.sum_add_distrib]
+  exact Finset.sum_nonneg fun i _ => by
+    rw [sub_add_eq_add_sub, sub_nonneg]
+    exact (sub_le_iff_le_add.mp (hbetween i)).trans_eq (add_comm _ _)
 
 /-- Summation by parts on a finite vector using prefix sums and successive differences. -/
 theorem sum_univ_smul_by_parts_prefix {R M : Type*} [Ring R] [AddCommGroup M] [Module R M]
