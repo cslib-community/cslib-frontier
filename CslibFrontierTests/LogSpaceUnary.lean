@@ -80,10 +80,11 @@ example : ComputableInLogSpace (fun w : List Bool => w.length ^ 2) encBits encNa
   fail_if_success fun_prop
   exact ComputableInLogSpace.unaryToBinary (by fun_prop)
 
--- Nested variable-length rows. The first row is empty and later rows share both outer parameters.
-example : ComputableInLogSpace (fun p : ℕ × ℕ => (List.range p.1).map fun j =>
-    (List.range j).map fun i => p.2 + i + j) (encPair encUnary encUnary)
-    (encList (encList encUnary)) := by
+-- Flatten variable-length rows, including an empty row and rows that depend on both indices.
+example : ComputableInLogSpace (fun p : ℕ × ℕ => ((List.range p.1).map fun j =>
+    (List.range j).map fun i => p.2 + i + j).flatten) (encPair encUnary encUnary)
+    (encList encUnary) := by
+  apply (ComputableInLogSpace.listFlatten encUnary).comp
   apply ComputableInLogSpace.map_range (.pair .unary .unary) (r := Prod.fst)
     (f := fun p : (ℕ × ℕ) × ℕ => (List.range p.2).map fun i => p.1.2 + i + p.2) (by fun_prop)
   apply ComputableInLogSpace.map_range (.pair (.pair .unary .unary) .unary) (r := Prod.snd)
