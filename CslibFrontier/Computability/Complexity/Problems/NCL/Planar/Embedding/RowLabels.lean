@@ -150,6 +150,18 @@ private theorem atRow_append_right (xs ys : List (ℕ × ℕ)) (i : ℕ) :
   simp only [atRow, List.getD_eq_getElem?_getD,
     List.getElem?_append_right (Nat.le_add_right _ _), Nat.add_sub_cancel_left]
 
+private theorem atRow_crossingPairs_append_left {Γ : List Color → List Color → Type}
+    {a b : List Color} (D : Diagram Γ a b) (label : D.Edge → ℕ) (ys : List (ℕ × ℕ)) (i : ℕ)
+    (hi : i < D.swapCount) :
+    atRow (D.crossingPairs label ++ ys) i = atRow (D.crossingPairs label) i :=
+  atRow_append_left _ _ _ (by rw [length_crossingPairs]; exact hi)
+
+private theorem atRow_crossingPairs_append_right {Γ : List Color → List Color → Type}
+    {a b : List Color} (D : Diagram Γ a b) (label : D.Edge → ℕ) (ys : List (ℕ × ℕ)) (i : ℕ) :
+    atRow (D.crossingPairs label ++ ys) (D.swapCount + i) = atRow ys i := by
+  rw [← length_crossingPairs D label]
+  exact atRow_append_right _ _ _
+
 private def wireVertexRow {Γ : List Color → List Color → Type}
     (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b) {a b : List Color}
     (D : Diagram Γ a b) (h : D.checkGens (fun _ => false) = true) (label : D.Edge → ℕ)
@@ -166,16 +178,10 @@ private theorem wireVertexRow_comp {Γ : List Color → List Color → Type}
         (wireVertexRow H D' (Bool.and_eq_true_iff.mp h).2 (label ∘ compRight D D')) := by
   funext v
   rcases v with v | v
-  · apply atRow_append_left
-    rw [length_crossingPairs]
-    exact (crossingOrigin H D (Bool.and_eq_true_iff.mp h).1 v).isLt
-  · change atRow (D.crossingPairs (label ∘ compLeft D D') ++
-        D'.crossingPairs (label ∘ compRight D D'))
-        (D.swapCount + (crossingOrigin H D' (Bool.and_eq_true_iff.mp h).2 v).val) =
-      atRow (D'.crossingPairs (label ∘ compRight D D'))
-        (crossingOrigin H D' (Bool.and_eq_true_iff.mp h).2 v).val
-    rw [← length_crossingPairs D (label ∘ compLeft D D')]
-    exact atRow_append_right _ _ _
+  · exact atRow_crossingPairs_append_left D (label ∘ compLeft D D') _ _
+      (crossingOrigin H D (Bool.and_eq_true_iff.mp h).1 v).isLt
+  · exact atRow_crossingPairs_append_right D (label ∘ compLeft D D')
+      (D'.crossingPairs (label ∘ compRight D D')) _
 
 private theorem wireVertexRow_tensor {Γ : List Color → List Color → Type}
     (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b) {a b c d : List Color}
@@ -187,16 +193,10 @@ private theorem wireVertexRow_tensor {Γ : List Color → List Color → Type}
         (wireVertexRow H D' (Bool.and_eq_true_iff.mp h).2 (label ∘ tensorRight D D')) := by
   funext v
   rcases v with v | v
-  · apply atRow_append_left
-    rw [length_crossingPairs]
-    exact (crossingOrigin H D (Bool.and_eq_true_iff.mp h).1 v).isLt
-  · change atRow (D.crossingPairs (label ∘ tensorLeft D D') ++
-        D'.crossingPairs (label ∘ tensorRight D D'))
-        (D.swapCount + (crossingOrigin H D' (Bool.and_eq_true_iff.mp h).2 v).val) =
-      atRow (D'.crossingPairs (label ∘ tensorRight D D'))
-        (crossingOrigin H D' (Bool.and_eq_true_iff.mp h).2 v).val
-    rw [← length_crossingPairs D (label ∘ tensorLeft D D')]
-    exact atRow_append_right _ _ _
+  · exact atRow_crossingPairs_append_left D (label ∘ tensorLeft D D') _ _
+      (crossingOrigin H D (Bool.and_eq_true_iff.mp h).1 v).isLt
+  · exact atRow_crossingPairs_append_right D (label ∘ tensorLeft D D')
+      (D'.crossingPairs (label ∘ tensorRight D D')) _
 
 private def CrossNear {Γ : List Color → List Color → Type} {a b : List Color}
     (D : Diagram Γ a b) (label : D.Edge → ℕ) : Prop :=
