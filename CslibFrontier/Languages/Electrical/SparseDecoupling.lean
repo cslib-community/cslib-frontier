@@ -14,19 +14,24 @@ import Mathlib.Data.List.GetD
 /-!
 # Certified stability of circuits through structured decouplings
 
-The circuit-level stability theorem of `CslibFrontier.Languages.Electrical.LinearCircuit`,
-for any index-one decoupling of the modified nodal equations
-(`Cslib.Electrical.Netlist.isExponentiallyStable_of_decoupling`), and its instance for an
-accepted structured certificate (`Cslib.LinearAlgebra.SparseDecouplingCert`), whose check is
-sparse and much faster than that of a dense `Cslib.LinearAlgebra.DecouplingCert` on circuits of
-more than a few nodes.
+The modified nodal equations of a netlist as sparse rows, built in one pass over the branches
+(`Cslib.Electrical.Netlist.eSparse`, `fSparse`), and the circuit-level stability theorem of
+`CslibFrontier.Languages.Electrical.LinearCircuit`
+(`Cslib.Electrical.Netlist.isExponentiallyStable_of_decoupling`) for an accepted structured
+certificate (`Cslib.LinearAlgebra.SparseDecouplingCert`), whose check is sparse and much faster
+than that of a dense `Cslib.LinearAlgebra.DecouplingCert` on circuits of more than a few nodes.
+
+## Main definitions
+
+* `Cslib.Electrical.Netlist.eSparse`, `Cslib.Electrical.Netlist.fSparse`: the sparse rows of
+  `E` and `F`.
 
 ## Main results
 
-* `Cslib.Electrical.Netlist.isExponentiallyStable_of_decoupling`
+* `Cslib.Electrical.Netlist.mna_E_eq`, `Cslib.Electrical.Netlist.mna_F_eq`: they are the rows of
+  the modified nodal equations.
 * `Cslib.Electrical.Netlist.isExponentiallyStable_of_sparseCheck`
 -/
-
 public section
 
 open Set Matrix Mathlib.Tactic.Matrix Cslib.LinearAlgebra
@@ -163,38 +168,6 @@ theorem mna_F_eq : c.mna.F = realOfSparse c.size c.size c.fSparse := by
       sparseGet_sparseScale, sparseGet_vSparse]
 
 variable {c : Netlist}
-
-/-- **Exponential stability of a circuit from a decoupling.** Let the netlist be well formed, `D`
-an index-one decoupling of its modified nodal equations, `z₀` an equilibrium, and `ẋ = A x`
-exponentially stable for the state matrix of `D`. Then, with zero input, `z₀` is a circuit
-trajectory, every differential state `x₀` (read through `D.Q₁'`) starts a circuit trajectory on
-`[0, ∞)`, and every circuit trajectory on `[0, ∞)` converges to `z₀` exponentially in the
-Euclidean norm of all potentials and branch currents. -/
-theorem isExponentiallyStable_of_decoupling {κ ρ : Type*} [Fintype κ] [Fintype ρ]
-    [DecidableEq κ] [DecidableEq ρ] (hc : c.check = true) (D : c.mna.IndexOneDecoupling κ ρ)
-    {z₀ : Fin c.size → ℝ} (heq : c.mna.IsEquilibrium z₀)
-    (hA : (toEuclideanCLM (𝕜 := ℝ) D.A).IsExponentiallyStable) :
-    c.IsTrajectoryOn 0 (fun _ j => z₀ (Fin.castAdd _ j)) (fun _ b => z₀ (Fin.natAdd _ b))
-        (Ici 0) ∧
-      (∀ x₀ : κ → ℝ, ∃ φ i, c.IsTrajectoryOn 0 φ i (Ici 0) ∧
-        D.Q₁' *ᵥ Fin.append (φ 0) (i 0) = x₀) ∧
-      ∃ M α : ℝ, 0 < α ∧ ∀ φ i, c.IsTrajectoryOn 0 φ i (Ici 0) → ∀ t ≥ 0,
-        ‖WithLp.toLp 2 (Fin.append (φ t) (i t) - z₀)‖ ≤
-          M * Real.exp (-(α * t)) * ‖WithLp.toLp 2 (Fin.append (φ 0) (i 0) - z₀)‖ := by
-  have hs := uniqueDiffOn_Ici (0 : ℝ)
-  refine ⟨?_, fun x₀ => ?_, ?_⟩
-  · rw [isTrajectoryOn_iff hc hs]
-    simpa only [Fin.append_castAdd_natAdd] using heq.isSolutionOn (Ici 0)
-  · obtain ⟨z, hz, h0⟩ := (D.exists_isSolutionOn_Ici_iff (u := 0) continuousOn_const
-      (D.reconstruct x₀ 0)).2
-      (by rw [DescriptorSystem.IndexOneDecoupling.Q₁'_mulVec_reconstruct]; rfl)
-    refine ⟨fun t j => z t (Fin.castAdd _ j), fun t b => z t (Fin.natAdd _ b), ?_, ?_⟩
-    · rw [isTrajectoryOn_iff hc hs]
-      simpa only [Fin.append_castAdd_natAdd] using hz
-    · rw [Fin.append_castAdd_natAdd, h0]
-      exact DescriptorSystem.IndexOneDecoupling.Q₁'_mulVec_reconstruct (D := D) x₀ 0
-  · obtain ⟨M, α, hα, hM⟩ := D.isExponentiallyStableAt heq hA
-    exact ⟨M, α, hα, fun φ i h t ht => hM _ ((isTrajectoryOn_iff hc hs).1 h) t ht⟩
 
 /-- **Certified exponential stability of a circuit, structured certificate.** The conclusions
 of `isExponentiallyStable_of_decoupling` for an accepted structured decoupling `d`, an exactly
