@@ -10,16 +10,19 @@ module
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffList
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import Mathlib.Data.ZMod.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-!
-# Modular Horner evaluation on binary words
+# Modular Horner evaluation on binary and unary inputs
 
 Reducing each intermediate value modulo the input modulus bounds the accumulator throughout the
-fold. The modulus, the evaluation point and the coefficients all use binary encodings.
+fold. The binary machine certificate also handles unary input and output by changing encodings
+and using the unary modulus as a bound for the returned value.
 
 ## Main definitions
 
@@ -28,7 +31,8 @@ fold. The modulus, the evaluation point and the coefficients all use binary enco
 ## Main results
 
 * `Polynomial.natCast_evalCoeffListMod` interprets the returned residue as a polynomial value.
-* `Turing.MultiTapeTM.ComputableInPolyTime.evalCoeffListMod` gives the polynomial-time certificate.
+* `Turing.MultiTapeTM.ComputableInPolyTime.evalCoeffListMod` and
+  `Turing.MultiTapeTM.ComputableInPolyTime.evalCoeffListMod_unary` give the machine certificates.
 -/
 
 public section
@@ -47,6 +51,11 @@ theorem evalCoeffListMod_lt (p z : ℕ) (l : List ℕ) : evalCoeffListMod p z l 
     change 0 < max p 1
     omega
   | cons a l => exact Nat.mod_lt _ (by omega)
+
+/-- With a positive modulus, the returned representative is strictly below the modulus. -/
+theorem evalCoeffListMod_lt_modulus {p : ℕ} [NeZero p] (z : ℕ) (l : List ℕ) :
+    evalCoeffListMod p z l < p := by
+  simpa only [max_eq_left (NeZero.one_le (n := p))] using evalCoeffListMod_lt p z l
 
 /-- Modular Horner evaluation agrees with evaluation of the coefficient polynomial in `ZMod p`. -/
 theorem natCast_evalCoeffListMod {p : ℕ} [NeZero p] (z : ℕ) (l : List ℕ) :
@@ -85,5 +94,21 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
       rw [Polynomial.evalCoeffListMod, ← List.foldl_reverse, List.reverse_reverse] at hlt
       simpa only [encNat_apply, Nat.size_eq_bits_len] using Nat.size_le_size hlt.le)
   simpa only [Polynomial.evalCoeffListMod, List.foldl_reverse] using hfold
+
+/-- Modular evaluation of unary coefficients, point and modulus, returning the residue in
+unary. The modulus bounds the conversion of the binary result back to unary. -/
+@[fun_prop] theorem evalCoeffListMod_unary {α : Type} {enc : α ↪ List Bool} {p z : α → ℕ}
+    {l : α → List ℕ} (hp : ComputableInPolyTime p enc encUnary)
+    (hz : ComputableInPolyTime z enc encUnary)
+    (hl : ComputableInPolyTime l enc (encList encUnary)) :
+    ComputableInPolyTime (fun x => Polynomial.evalCoeffListMod (p x) (z x) (l x)) enc encUnary := by
+  have hcoeff : ComputableInPolyTime l enc (encList encNat) := by
+    simpa using (map unary_to_binary).comp hl
+  apply binary_to_unary_bounded (evalCoeffListMod (unary_to_binary.comp hp)
+    (unary_to_binary.comp hz) hcoeff) hp
+  intro x
+  change Polynomial.evalCoeffListMod (p x) (z x) (l x) ≤ p x
+  have := Polynomial.evalCoeffListMod_lt (p x) (z x) (l x)
+  omega
 
 end Turing.MultiTapeTM.ComputableInPolyTime
