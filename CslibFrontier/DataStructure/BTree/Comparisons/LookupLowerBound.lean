@@ -8,7 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.BTree.Comparisons.KeyOracle
-import CslibFrontier.DataStructure.BTree.Comparisons.LowerBound
+import Mathlib.Data.Fintype.EquivFin
+import Mathlib.SetTheory.Cardinal.Order
 
 /-!
 # Comparison lower bound for B-tree lookup
@@ -199,25 +200,6 @@ theorem lookup_lowerBound_infinite [Infinite α]
     fun i j hij => hans ((heval i).symm.trans (hij.trans (heval j)))
   exact ⟨k, LEQuery.keyOracle (key i), hi⟩
 
-/-- **Comparison lower bound for B-tree lookup (`Cslib.Query.LowerBound`).** Any `IsLookup` program
-on an infinite key type `α` and infinite value type `β` has worst-case comparison query complexity
-at least `⌈log₂(n + 1)⌉` on trees of size at most `n`. -/
-theorem IsLookup.lowerBound_infinite [Infinite α] [Infinite β]
-    {prog : α → BTree α β → FreeM (LEQuery α) (Option β)} (h : IsLookup prog) :
-    LowerBound (fun p : BTree α β × α => prog p.2 p.1) (fun p => p.1.size)
-      (fun n => Nat.clog 2 (n + 1)) := by
-  intro n
-  -- Well-formedness is discarded, so any linear order on `α` serves to build the tree.
-  obtain ⟨tree, -, hkeys, hvals⟩ := letI := IsWellOrder.linearOrder (α := α) WellOrderingRel
-    exists_isWF_toList_map_snd_eq (α := α) (t := 2) le_rfl
-      ((List.range n).map (Infinite.natEmbedding β))
-  have hsize : tree.size = n := by
-    rw [← length_toList, ← List.length_map Prod.snd, hvals, List.length_map, List.length_range]
-  obtain ⟨k, oracle, hi⟩ :=
-    lookup_lowerBound_infinite h tree hkeys
-      (hvals ▸ List.nodup_range.map (Infinite.natEmbedding β).injective)
-  exact ⟨(tree, k), hsize.le, oracle, hsize ▸ hi⟩
-
 /-- **Comparison lower bound for B-tree lookup over well-formed inputs (`WFInput`).** When
 `2 ≤ t`, any `IsLookup` program restricted to well-formed B-trees of minimum degree `t`
 (`WFInput α β t`) on an infinite key type `α` and infinite value type `β` still has worst-case
@@ -228,14 +210,25 @@ theorem IsLookup.lowerBound_wfInput_infinite [LinearOrder α] [Infinite α] [Inf
     LowerBound (fun p : WFInput α β t => prog p.val.2 p.val.1) (fun p => p.val.1.size)
       (fun n => Nat.clog 2 (n + 1)) := by
   intro n
-  obtain ⟨tree, hwf, hkeys, hvals⟩ :=
-    exists_isWF_toList_map_snd_eq (α := α) ht ((List.range n).map (Infinite.natEmbedding β))
-  have hsize : tree.size = n := by
-    rw [← length_toList, ← List.length_map Prod.snd, hvals, List.length_map, List.length_range]
-  obtain ⟨k, oracle, hi⟩ :=
-    lookup_lowerBound_infinite h tree hkeys
-      (hvals ▸ List.nodup_range.map (Infinite.natEmbedding β).injective)
+  let vs := (List.range n).map (Infinite.natEmbedding β)
+  obtain ⟨tree, hwf, hsize, hkeys, hvals⟩ := exists_isWF_toList_map_snd_eq (α := α) ht vs
+  rw [List.length_map, List.length_range] at hsize
+  obtain ⟨k, oracle, hi⟩ := lookup_lowerBound_infinite h tree hkeys
+    (hvals ▸ List.nodup_range.map (Infinite.natEmbedding β).injective)
   exact ⟨⟨(tree, k), hwf⟩, hsize.le, oracle, hsize ▸ hi⟩
+
+/-- **Comparison lower bound for B-tree lookup (`Cslib.Query.LowerBound`).** Any `IsLookup` program
+on an infinite key type `α` and infinite value type `β` has worst-case comparison query complexity
+at least `⌈log₂(n + 1)⌉` on trees of size at most `n`. -/
+theorem IsLookup.lowerBound_infinite [Infinite α] [Infinite β]
+    {prog : α → BTree α β → FreeM (LEQuery α) (Option β)} (h : IsLookup prog) :
+    LowerBound (fun p : BTree α β × α => prog p.2 p.1) (fun p => p.1.size)
+      (fun n => Nat.clog 2 (n + 1)) :=
+  -- Forget well-formedness under some linear order on `α`.
+  letI := IsWellOrder.linearOrder (α := α) WellOrderingRel
+  fun n =>
+    let ⟨x, hx, oracle, hi⟩ := h.lowerBound_wfInput_infinite (t := 2) le_rfl n
+    ⟨x.val, hx, oracle, hi⟩
 
 end LowerBound
 
