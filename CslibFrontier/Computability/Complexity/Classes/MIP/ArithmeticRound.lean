@@ -44,16 +44,13 @@ private theorem isOraclePPTOn_verifyChallenges {α : Type} {e : α ↪ List Bool
     (hr : ComputableInPolyTime r e (encList encUnary))
     (hz : ComputableInPolyTime z e (encList encUnary)) :
     IsOraclePPTOn e encBool (fun a => verifyChallenges (x a) (p a) (precision a) (r a) (z a)) := by
-  have bin {f : α → List ℕ} (h : ComputableInPolyTime f e (encList encUnary)) :
-      ComputableInPolyTime f e (encList encNat) := by
-    simpa using (ComputableInPolyTime.map (f := id) ComputableInPolyTime.unary_to_binary).comp h
   have pb := ComputableInPolyTime.unary_to_binary.comp hp
   have hfst := ComputableInPolyTime.fst e encWordState
   have hsnd := ComputableInPolyTime.snd e encWordState
   unfold verifyChallenges
-  apply (SumcheckProof.isOraclePPTOn_verifyRounds pb (bin hr)
+  apply (SumcheckProof.isOraclePPTOn_verifyRounds pb (hr.reencodeList .unary_to_binary)
     (Succinct3CNFInstance.computableInPolyTime_sumcheckDegree.comp hx)
-    (ComputableInPolyTime.binary_size.comp pb) (bin hz)).bind_with
+    (ComputableInPolyTime.binary_size.comp pb) (hz.reencodeList .unary_to_binary)).bind_with
   apply IsOraclePPTOn.cond (encWordState_ok_polyTime hsnd)
   · exact isOraclePPTOn_checkTerminal (hx.comp hfst) (hp.comp hfst) (hprec.comp hfst)
       (hr.comp hfst) (hz.comp hfst) (encWordState_claim_polyTime hsnd)
