@@ -4380,6 +4380,7 @@ Read on 2026-11-26: §2.5, pp. 57–61, the 3-candidate Condorcet election (the 
 [CondorcetElection](../CslibFrontier/Foundations/BooleanAnalysis/CondorcetElection.lean) models a ranking as a permutation of `Fin 3` giving each candidate's position, so that impartial culture is the uniform distribution on profiles, and reads the book's `+1` as `true`.
 It proves Theorem 2.56, Corollary 2.59 and Arrow's Theorem, the last assuming only `f(1, …, 1) = 1` of the two unanimity conditions; Corollary 2.60 is proved for probability at least `1 − ε`, with closeness `14409/2 · ε` from the library's FKN constant `1601`.
 Exercise 2.50's value `17/18` is checked in the module's test file.
+§2.6, p. 65, Exercise 2.51(a) (three unanimous rules that always give a Condorcet winner are equal, via `g(x) = −f(−x)`) is proved along the hint; part (b), more than three candidates, is not formalized.
 Guilbaud's Formula and Theorem 2.57, which depend on Theorem 2.45, are not formalized.
 
 <a id="oliveirapichsanthanam2019"></a>

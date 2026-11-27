@@ -38,6 +38,11 @@ pairs of strings whose coordinate pairs are independent, with mean-zero signs of
 Arrow's Theorem follows (`BitString.exists_eq_of_forall_exists_isCondorcetWinner`): if there is
 always a Condorcet winner, then `Stab_{-1/3}[F] = -1/3`, so `f` is a literal `x ↦ b ⊕ x_i`
 (`BitString.noiseStability_signVal_eq_iff_of_neg`), and unanimity forces the dictator `x ↦ x_i`.
+Arrow's Theorem also allows a different unanimous rule in each election: if there is always a
+Condorcet winner, the three rules agree (`BitString.eq_of_forall_exists_isCondorcetWinner`), so they
+are one dictator (`BitString.exists_forall_eq_of_forall_exists_isCondorcetWinner`)
+[O'Donnell, Exercise 2.51(a)][ODonnell2014]; `BitString.IsCondorcetWinner` takes one rule per
+election, and the book's election using `f` is `fun _ => f`.
 The same formula bounds the probability by `7/9 + 2/9 W^1[F]`
 (`BitString.condorcetWinnerProb_le`) [O'Donnell, Corollary 2.59][ODonnell2014]. With the
 Friedgut–Kalai–Naor theorem this gives the robust version: if the probability is at least
@@ -60,6 +65,9 @@ Friedgut–Kalai–Naor theorem this gives the robust version: if the probabilit
 * `Cslib.BitString.condorcetWinnerProb_le`: Corollary 2.59.
 * `Cslib.BitString.exists_hammingDist_xor_div_le_of_le_condorcetWinnerProb`: Corollary 2.60, with
   the explicit constant `14409/2`.
+* `Cslib.BitString.eq_of_forall_exists_isCondorcetWinner`,
+  `Cslib.BitString.exists_forall_eq_of_forall_exists_isCondorcetWinner`: Exercise 2.51(a), Arrow's
+  Theorem for three different unanimous rules.
 
 ## Usage
 
@@ -106,16 +114,18 @@ candidate (`0` at the top), votes `true`, for `c`, when ranking `c` above `c + 1
 @[expose] def condorcetVotes (π : ι → Equiv.Perm (Fin 3)) (c : Fin 3) (i : ι) : Bool :=
   decide (π i c < π i (c + 1))
 
-/-- Candidate `c` is a **Condorcet winner** of the 3-candidate Condorcet election using the voting
-rule `f` on the rankings `π`: it wins both pairwise elections in which it takes part, the election
-of `c` against `c + 1`, where `f` returning `true` elects `c`, and that of `c - 1` against `c`,
-where `f` returning `false` elects `c` [O'Donnell, Definition 2.55][ODonnell2014]. -/
-@[expose] def IsCondorcetWinner (f : (ι → Bool) → Bool) (π : ι → Equiv.Perm (Fin 3)) (c : Fin 3) :
-    Prop :=
-  f (condorcetVotes π c) = true ∧ f (condorcetVotes π (c - 1)) = false
+/-- Candidate `c` is a **Condorcet winner** of the 3-candidate Condorcet election that decides the
+election of each `d` against `d + 1` by the voting rule `F d`, on the rankings `π`: it wins both
+pairwise elections in which it takes part, the election of `c` against `c + 1`, where `F c`
+returning `true` elects `c`, and that of `c - 1` against `c`, where `F (c - 1)` returning `false`
+elects `c` [O'Donnell, Definition 2.55 and Exercise 2.51][ODonnell2014]. The book's election
+using one rule `f` is `F = fun _ => f`. -/
+@[expose] def IsCondorcetWinner (F : Fin 3 → (ι → Bool) → Bool) (π : ι → Equiv.Perm (Fin 3))
+    (c : Fin 3) : Prop :=
+  F c (condorcetVotes π c) = true ∧ F (c - 1) (condorcetVotes π (c - 1)) = false
 
-instance (f : (ι → Bool) → Bool) (π : ι → Equiv.Perm (Fin 3)) (c : Fin 3) :
-    Decidable (IsCondorcetWinner f π c) :=
+instance (F : Fin 3 → (ι → Bool) → Bool) (π : ι → Equiv.Perm (Fin 3)) (c : Fin 3) :
+    Decidable (IsCondorcetWinner F π c) :=
   instDecidableAnd
 
 end Definitions
@@ -127,7 +137,7 @@ rule `f`, under the *impartial culture assumption*: every voter independently ra
 candidates by one of the six permutations, uniformly at random
 [O'Donnell, Section 2.5][ODonnell2014]. -/
 @[expose] noncomputable def condorcetWinnerProb (f : (ι → Bool) → Bool) : ℝ :=
-  𝔼 π : ι → Equiv.Perm (Fin 3), if ∃ c, IsCondorcetWinner f π c then 1 else 0
+  𝔼 π : ι → Equiv.Perm (Fin 3), if ∃ c, IsCondorcetWinner (fun _ => f) π c then 1 else 0
 
 /-! ### The not-all-equal predicate -/
 
@@ -137,12 +147,12 @@ indicator of that event is `3/4 - 1/4 (w₀ w₁ + w₀ w₂ + w₁ w₂)` in th
 outcomes. -/
 private theorem ite_exists_isCondorcetWinner (f : (ι → Bool) → Bool)
     (π : ι → Equiv.Perm (Fin 3)) :
-    (if ∃ c, IsCondorcetWinner f π c then (1 : ℝ) else 0) =
+    (if ∃ c, IsCondorcetWinner (fun _ => f) π c then (1 : ℝ) else 0) =
       3 / 4 - 1 / 4 *
         (signVal (f (condorcetVotes π 0)) * signVal (f (condorcetVotes π 1)) +
           signVal (f (condorcetVotes π 0)) * signVal (f (condorcetVotes π 2)) +
           signVal (f (condorcetVotes π 1)) * signVal (f (condorcetVotes π 2))) := by
-  have hex : (∃ c, IsCondorcetWinner f π c) ↔
+  have hex : (∃ c, IsCondorcetWinner (fun _ => f) π c) ↔
       (f (condorcetVotes π 0) = true ∧ f (condorcetVotes π 2) = false) ∨
       (f (condorcetVotes π 1) = true ∧ f (condorcetVotes π 0) = false) ∨
       (f (condorcetVotes π 2) = true ∧ f (condorcetVotes π 1) = false) := by
@@ -259,7 +269,7 @@ excludes the negated dictators. The book assumes unanimity, `f (fun _ => true) =
 `f (fun _ => false) = false`; only the first half is needed. -/
 theorem exists_eq_of_forall_exists_isCondorcetWinner {ι : Type*} [Finite ι]
     {f : (ι → Bool) → Bool} (htrue : f (fun _ => true) = true)
-    (h : ∀ π, ∃ c, IsCondorcetWinner f π c) : ∃ i, f = fun x => x i := by
+    (h : ∀ π, ∃ c, IsCondorcetWinner (fun _ => f) π c) : ∃ i, f = fun x => x i := by
   cases nonempty_fintype ι
   classical
   have hprob : condorcetWinnerProb f = 1 := by simp [condorcetWinnerProb, h]
@@ -269,6 +279,98 @@ theorem exists_eq_of_forall_exists_isCondorcetWinner {ι : Type*} [Finite ι]
   cases b
   · exact ⟨i, by simp⟩
   · simp at htrue
+
+/-! ### Three different voting rules -/
+
+omit [Fintype ι] [DecidableEq ι] in
+/-- Every not-all-equal triple of votes in the elections `0` vs. `1`, `1` vs. `2` and `2` vs. `0`
+is cast by some electorate. -/
+private theorem exists_condorcetVotes {x y z : ι → Bool} (h : ∀ i, ¬(x i = y i ∧ y i = z i)) :
+    ∃ π : ι → Equiv.Perm (Fin 3),
+      condorcetVotes π 0 = x ∧ condorcetVotes π 1 = y ∧ condorcetVotes π 2 = z := by
+  have hσ (a b c : Bool) (h : ¬(a = b ∧ b = c)) : ∃ σ : Equiv.Perm (Fin 3),
+      decide (σ 0 < σ 1) = a ∧ decide (σ 1 < σ 2) = b ∧ decide (σ 2 < σ 0) = c := by
+    revert a b c; decide
+  choose σ hσ' using fun i => hσ (x i) (y i) (z i) (h i)
+  exact ⟨σ, funext fun i => (hσ' i).1, funext fun i => (hσ' i).2.1, funext fun i => (hσ' i).2.2⟩
+
+omit [Fintype ι] [DecidableEq ι] in
+/-- There is a Condorcet winner exactly when the three outcomes are not all equal. -/
+private theorem exists_isCondorcetWinner_iff (F : Fin 3 → (ι → Bool) → Bool)
+    (π : ι → Equiv.Perm (Fin 3)) :
+    (∃ c, IsCondorcetWinner F π c) ↔
+      ¬(F 0 (condorcetVotes π 0) = F 1 (condorcetVotes π 1) ∧
+        F 1 (condorcetVotes π 1) = F 2 (condorcetVotes π 2)) := by
+  have hex : (∃ c, IsCondorcetWinner F π c) ↔
+      (F 0 (condorcetVotes π 0) = true ∧ F 2 (condorcetVotes π 2) = false) ∨
+      (F 1 (condorcetVotes π 1) = true ∧ F 0 (condorcetVotes π 0) = false) ∨
+      (F 2 (condorcetVotes π 2) = true ∧ F 1 (condorcetVotes π 1) = false) := by
+    constructor
+    · rintro ⟨c, h₁, h₂⟩
+      fin_cases c
+      exacts [.inl ⟨h₁, h₂⟩, .inr (.inl ⟨h₁, h₂⟩), .inr (.inr ⟨h₁, h₂⟩)]
+    · rintro (⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩)
+      exacts [⟨0, h₁, h₂⟩, ⟨1, h₁, h₂⟩, ⟨2, h₁, h₂⟩]
+  rw [hex]
+  cases F 0 (condorcetVotes π 0) <;> cases F 1 (condorcetVotes π 1) <;>
+    cases F 2 (condorcetVotes π 2) <;> decide
+
+omit [Fintype ι] [DecidableEq ι] in
+/-- **Unanimous rules that always give a Condorcet winner agree** [O'Donnell, Exercise 2.51(a)]
+[ODonnell2014]: if the three pairwise elections are decided by unanimous voting rules `F 0`, `F 1`
+and `F 2` and there is always a Condorcet winner, then `F 0 = F 1 = F 2`. Following the book's
+hint, the votes `x`, `¬x` and the constant `F c x` in the elections `c`, `c + 1` and `c + 2` are
+cast by some electorate, which forces `F (c + 1) (¬x) = ¬F c x`; going around the three elections
+gives the claim. -/
+theorem eq_of_forall_exists_isCondorcetWinner {F : Fin 3 → (ι → Bool) → Bool}
+    (htrue : ∀ c, F c (fun _ => true) = true) (hfalse : ∀ c, F c (fun _ => false) = false)
+    (h : ∀ π, ∃ c, IsCondorcetWinner F π c) (c : Fin 3) : F c = F 0 := by
+  have hconst (d : Fin 3) (b : Bool) : F d (fun _ => b) = b := by
+    cases b; exacts [hfalse d, htrue d]
+  have hne (x : ι → Bool) (i : ι) : x i ≠ !x i := by cases x i <;> decide
+  -- the three relations `F (d + 1) (¬x) = ¬F d x`
+  have R0 (x : ι → Bool) : F 1 (fun i => !x i) = !F 0 x := by
+    obtain ⟨π, h0, h1, h2⟩ := exists_condorcetVotes (x := x) (y := fun i => !x i)
+      (z := fun _ => F 0 x) fun i hi => hne x i hi.1
+    have := (exists_isCondorcetWinner_iff F π).1 (h π)
+    rw [h0, h1, h2, hconst] at this
+    revert this; cases F 0 x <;> cases F 1 (fun i => !x i) <;> decide
+  have R1 (y : ι → Bool) : F 2 (fun i => !y i) = !F 1 y := by
+    obtain ⟨π, h0, h1, h2⟩ := exists_condorcetVotes (x := fun _ => F 1 y) (y := y)
+      (z := fun i => !y i) fun i hi => hne y i hi.2
+    have := (exists_isCondorcetWinner_iff F π).1 (h π)
+    rw [h0, h1, h2, hconst] at this
+    revert this; cases F 1 y <;> cases F 2 (fun i => !y i) <;> decide
+  have R2 (z : ι → Bool) : F 0 (fun i => !z i) = !F 2 z := by
+    obtain ⟨π, h0, h1, h2⟩ := exists_condorcetVotes (x := fun i => !z i) (y := fun _ => F 2 z)
+      (z := z) fun i hi => hne z i (hi.2.symm.trans hi.1.symm)
+    have := (exists_isCondorcetWinner_iff F π).1 (h π)
+    rw [h0, h1, h2, hconst] at this
+    revert this; cases F 0 (fun i => !z i) <;> cases F 2 z <;> decide
+  have hnn (x : ι → Bool) : (fun i => !(!x i)) = x := funext fun i => Bool.not_not _
+  have h20 : F 2 = F 0 := funext fun x => by
+    have := R1 (fun i => !x i)
+    rw [hnn, R0, Bool.not_not] at this
+    exact this
+  have h10 : F 1 = F 0 := funext fun y => by
+    have h := R0 (fun i => !y i)
+    rw [hnn] at h
+    rw [h, R2, h20, Bool.not_not]
+  fin_cases c
+  exacts [rfl, h10, h20]
+
+/-- **Arrow's Theorem for three voting rules** [O'Donnell, Exercise 2.51(a)][ODonnell2014]: if the
+three pairwise elections are decided by unanimous voting rules and there is always a Condorcet
+winner, then all three rules are the same dictator `x ↦ x_i`. -/
+theorem exists_forall_eq_of_forall_exists_isCondorcetWinner {ι : Type*} [Finite ι]
+    {F : Fin 3 → (ι → Bool) → Bool}
+    (htrue : ∀ c, F c (fun _ => true) = true) (hfalse : ∀ c, F c (fun _ => false) = false)
+    (h : ∀ π, ∃ c, IsCondorcetWinner F π c) : ∃ i, ∀ c, F c = fun x => x i := by
+  have hF : F = fun _ => F 0 := funext (eq_of_forall_exists_isCondorcetWinner htrue hfalse h)
+  rw [hF] at h
+  obtain ⟨i, hi⟩ := exists_eq_of_forall_exists_isCondorcetWinner (htrue 0) h
+  exact ⟨i, fun c => (eq_of_forall_exists_isCondorcetWinner htrue hfalse
+    (by rw [hF]; exact h) c).trans hi⟩
 
 /-- `(-1/3) ^ k` is at least `-1/3` at `k = 1` and at least `-1/27` elsewhere. -/
 private theorem le_neg_third_pow (k : ℕ) :
