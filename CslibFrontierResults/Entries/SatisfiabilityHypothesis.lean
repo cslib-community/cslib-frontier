@@ -7,6 +7,7 @@ Authors: Erik Demaine
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
 import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
+import CslibFrontier.Computability.Complexity.FineGrained.Schaefer
 import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
 import CslibFrontier.Computability.Complexity.FineGrained.SharpTwoSATPower
 import CslibFrontier.Computability.Complexity.FineGrained.WeakExponentialTimeHypothesis
@@ -119,6 +120,22 @@ register_result "sh-exponent-transfer" where
     rules out a deterministic target solver in 2 ^ O((N + 1) ^ p) times a polynomial in the \
     target encoding length whenever b > 0, p > 0 and b * p < 1. The hypothesis q < 1 allows \
     q = 0 for polynomial-time reductions. The reduction's time bounds the length it writes."
+
+register_result "sh-iff-schaefer-cspsat" where
+  title := "SH is equivalent to variable-count lower bounds for hard Boolean constraint languages"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Corollary 4.1",
+      locator := "arXiv:2611.02650v2, §4, p. 9" }
+  ]
+  theorems := [Cslib.Complexity.SH_iff_CSPSAT_numVars]
+  scope := "For each fixed finite Boolean constraint language without a common Schaefer \
+    polymorphism, SH is equivalent to the absence of a deterministic multitape solver with any \
+    fixed power saving in the exponent measured in occurring variables. The native CSP encoding \
+    uses binary variable labels and the time bound allows polynomial overhead in encoded input \
+    length. The exact-arity language permits repeated variables and constraints and rejects \
+    malformed scopes."
 
 register_result "sharp-sh-three-occurrence-sharp-two-sat" where
   title := "The counting Satisfiability Hypothesis gives a bounded-degree #2SAT lower bound"
