@@ -84,8 +84,8 @@ operation that replaces many sessions in one step.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.UC.corruptRouter_comp`: routing in front of a composition routes the outer
-  machine.
+* `Cslib.Crypto.Protocols.UC.routeCorrupt_comp`, `Cslib.Crypto.Protocols.UC.corruptRouter_comp`:
+  routing in front of a composition routes the outer machine.
 * `Cslib.Crypto.Protocols.UC.exec_compose_dummy`,
   `Cslib.Crypto.Protocols.UC.eval_exec_compose_hybridSim`,
   `Cslib.Crypto.Protocols.UC.advantage_compose`: absorbing the hybrid protocol into the environment.
@@ -208,17 +208,24 @@ private theorem prodAssoc_runFrom_run_map {ιI ιJ : Type} {I : ιI → Type} {J
   rw [StateT.run_map, Machine.runFrom_map, Functor.map_map, Functor.map_map]
   rfl
 
-/-- Corruption routing in front of a composition routes the outer machine. -/
-theorem corruptRouter_comp {ιJ : Type} {J : ιJ → Type} (C : Finset (Fin n))
-    (M : Machine J (protocolSpec n In Out NetQ NetR)) (P : Machine OracleSpec.empty J) :
-    corruptRouter C (M.comp P) = (routeCorrupt C M).comp P := by
-  simp only [corruptRouter, routeCorrupt, Machine.comp]
+/-- Static-corruption routing in front of a composition routes the outer machine, for an inner
+machine `P` with arbitrary imports `I`. -/
+theorem routeCorrupt_comp {ιI ιJ : Type} {I : ιI → Type} {J : ιJ → Type}
+    (C : Finset (Fin n)) (M : Machine J (protocolSpec n In Out NetQ NetR)) (P : Machine I J) :
+    routeCorrupt C (M.comp P) = (routeCorrupt C M).comp P := by
+  simp only [routeCorrupt, Machine.comp]
   congr 1 with q s : 2
   rcases q with ⟨i, x⟩ | ⟨i, x⟩ | q
   · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte] <;> rfl
   · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
     exacts [(StateT.run_map _ _ _).trans (prodAssoc_runFrom_run_map P _ _ _ _).symm, rfl]
   · exact (StateT.run_map _ _ _).trans (prodAssoc_runFrom_run_map P _ _ _ _).symm
+
+/-- Corruption routing in front of a composition routes the outer machine. -/
+theorem corruptRouter_comp {ιJ : Type} {J : ιJ → Type} (C : Finset (Fin n))
+    (M : Machine J (protocolSpec n In Out NetQ NetR)) (P : Machine OracleSpec.empty J) :
+    corruptRouter C (M.comp P) = (routeCorrupt C M).comp P :=
+  routeCorrupt_comp C M P
 
 /-! ### The subroutine's environment -/
 

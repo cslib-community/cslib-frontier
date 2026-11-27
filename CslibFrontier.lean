@@ -3378,6 +3378,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Iteration.InPlace
 public import CslibFrontier.Logics.Propositional.Resolution.Space
 public import CslibFrontier.Computability.PolyTime.GreedyLabelSchedule
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Input
+public import CslibFrontier.Crypto.Protocols.UC.GlobalSetup
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Entry
 public import CslibFrontier.Foundations.Geometry.Polyhedra.PiecewiseQuadratic
 public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.Fine
