@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.BinarySearch
+public import CslibFrontier.Computability.Complexity.Classes.ModP
 public import CslibFrontier.Computability.Complexity.Classes.PP
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
 public import CslibFrontier.Computability.Complexity.Classes.Toda
@@ -17,12 +18,14 @@ import CslibFrontier.Computability.Complexity.Classes.Inclusions
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
 import CslibFrontier.Computability.Complexity.Classes.PP.Characterization
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Closure
+import CslibFrontier.Computability.Complexity.Classes.SharpP.MetricOracle
 import CslibFrontier.Computability.Complexity.Classes.SharpP.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Simulation
@@ -59,6 +62,11 @@ With Toda's theorem `PH ⊆ P^#P` (`Cslib.Complexity.PH_subset_PWithSharpPOracle
 **Toda's theorem `PH ⊆ P^PP`** [Toda][Toda1991] (`Cslib.Complexity.PH_subset_PWithPPOracle`).
 The classes do not count queries.
 
+A problem in `ModP k` is decided by reading all bits of its `#P` count, as in a metric reduction
+(`Cslib.Complexity.MetricReducible.polyTimeOracleProgram`), and testing the residue modulo `k`.
+So `ModP k ⊆ P^#P ⊆ P^PP` for every modulus `k` (`Cslib.Complexity.ModP_subset_PWithSharpPOracle`,
+`Cslib.Complexity.ModP_subset_PWithPPOracle`).
+
 ## Main definitions
 
 * `Cslib.Complexity.PWithPPOracle`: polynomial time with a `PP` oracle.
@@ -80,6 +88,8 @@ The classes do not count queries.
   and strict oracle PPT.
 * `Cslib.Complexity.mem_PWithPPOracle_of_testBit`: one bit of a `#P` value is in `P^PP`.
 * `Cslib.Complexity.PWithSharpPOracle_subset_PWithPPOracle`: `P^#P ⊆ P^PP`.
+* `Cslib.Complexity.ModP_subset_PWithSharpPOracle`, `Cslib.Complexity.ModP_subset_PWithPPOracle`:
+  `ModP k ⊆ P^#P` and `ModP k ⊆ P^PP` for every `k`.
 * `Cslib.Complexity.BPOp_ParityP_subset_PWithPPOracle`: `BP·⊕P ⊆ P^PP`.
 * `Cslib.Complexity.PH_subset_PWithPPOracle`: **Toda's theorem, `PH ⊆ P^PP`**.
 
@@ -248,6 +258,27 @@ theorem PWithSharpPOracle_subset_PWithPPOracle : PWithSharpPOracle enc ⊆ PWith
         · exact absurd (hbit.trans rfl) hq
     dsimp only
     rw [hL A' hA' a, OracleComp.interpret_interpret, hhandler]
+
+/-! ### Modular counting -/
+
+/-- **`ModP k ⊆ P^#P`**, for every modulus `k`: the program reads the bits of the `#P` count
+`f a ≤ 2 ^ r (|enc a|)` and tests whether `f a` is nonzero modulo `k`. At `k = 0` this is
+`NP ⊆ P^#P` (`Cslib.Complexity.ModP_zero`). The argument is elementary. -/
+theorem ModP_subset_PWithSharpPOracle (k : ℕ) : ModP k enc ⊆ PWithSharpPOracle enc := by
+  rintro L ⟨f, hf, hL⟩
+  obtain ⟨r, hr⟩ := SharpP.exists_le_two_pow hf
+  have hred : MetricReducible enc enc encBool encNat (fun a => decide (0 < f a % k)) f :=
+    ⟨id, fun q => decide (0 < q.2 % k), .id',
+      .binary_lt' (.const 0) (.binary_mod' (.snd _ _) (.const k)), fun _ => rfl⟩
+  obtain ⟨program, hcert, hprogram⟩ := hred.polyTimeOracleProgram (p := r + 1) fun a =>
+    (hr a).trans_lt (Nat.pow_lt_pow_right (by norm_num) (by simp))
+  exact ⟨α, enc, f, hf, program, hcert, fun A hA a => by
+    rw [hprogram A hA, hL a, decide_eq_true_iff, Nat.pos_iff_ne_zero]⟩
+
+/-- **`ModP k ⊆ P^PP`**, for every modulus `k`: the count is read in `P^#P`, and
+`P^#P ⊆ P^PP`. -/
+theorem ModP_subset_PWithPPOracle (k : ℕ) : ModP k enc ⊆ PWithPPOracle enc :=
+  (ModP_subset_PWithSharpPOracle k).trans PWithSharpPOracle_subset_PWithPPOracle
 
 /-! ### Toda's theorem -/
 
