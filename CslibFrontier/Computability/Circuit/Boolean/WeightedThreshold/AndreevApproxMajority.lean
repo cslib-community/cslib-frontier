@@ -95,6 +95,9 @@ private theorem le_half_of_card_eval_eq_andreev_ge {b m : ℕ} {ε : ℝ}
 
 /-! ### Gate and wire bounds for approximate majorities -/
 
+private theorem log_cast_add_one_nonneg (s : ℕ) : 0 ≤ Real.log ((s : ℝ) + 1) :=
+  Real.log_nonneg (by linarith [(Nat.cast_nonneg s : (0 : ℝ) ≤ s)])
+
 /-- Gate bound for an `ε`-approximate majority of depth-two circuits with at most `s` gates each. -/
 theorem size_ge_of_approxMajority_andreev {b m t : ℕ} (hm : 0 < m) (ht : 0 < t) {ε : ℝ}
     (hε : 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b) ≤ ε)
@@ -106,8 +109,7 @@ theorem size_ge_of_approxMajority_andreev {b m t : ℕ} (hm : 0 < m) (ht : 0 < t
       36 * ((b : ℝ) + 2 + Real.log (s + 1)) * (s : ℝ) * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
   obtain ⟨i, hi⟩ := exists_card_eval_eq_andreev_ge_of_approxMajority ht C hmaj
   have hsi : ((C i).size : ℝ) ≤ s := by exact_mod_cast hs i
-  have hlog : 0 ≤ Real.log ((s : ℝ) + 1) :=
-    Real.log_nonneg (by linarith [(Nat.cast_nonneg s : (0 : ℝ) ≤ s)])
+  have hlog := log_cast_add_one_nonneg s
   refine (size_ge_of_card_eval_eq_andreev_ge_of_le_eps hm hε (C i) (hd i) 0 hi).trans ?_
   gcongr
 
@@ -141,8 +143,7 @@ theorem wireCount_ge_of_approxMajority_andreev {b m t : ℕ} (hm : 0 < m) (ht : 
       36 * ((b : ℝ) + 2 + Real.log (s + 1)) * (s : ℝ) := by
   obtain ⟨i, hi⟩ := exists_card_eval_eq_andreev_ge_of_approxMajority ht C hmaj
   have hsi : ((C i).wireCount : ℝ) ≤ s := by exact_mod_cast hs i
-  have hlog : 0 ≤ Real.log ((s : ℝ) + 1) :=
-    Real.log_nonneg (by linarith [(Nat.cast_nonneg s : (0 : ℝ) ≤ s)])
+  have hlog := log_cast_add_one_nonneg s
   refine (wireCount_ge_of_card_eval_eq_andreev_ge_of_le_eps hm hε (C i) (hd i) 0 hi).trans ?_
   gcongr
 

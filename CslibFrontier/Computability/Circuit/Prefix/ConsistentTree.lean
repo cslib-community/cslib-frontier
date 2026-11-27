@@ -224,22 +224,18 @@ private theorem segmentWidth_mono_left (k : ℕ) :
       rw [segmentWidth_zero_left]
       exact segmentWidth_pos k 1 (h + 1)
     | succ d =>
+      change (∑ i ∈ Finset.Ico 1 (min (d + 1) (k - 1)), segmentWidth k (d + 1 - i) h) +
+          2 * segmentWidth k (d + 1 - min (d + 1) (k - 1)) h ≤
+        (∑ i ∈ Finset.Ico 1 (min (d + 2) (k - 1)), segmentWidth k (d + 2 - i) h) +
+          2 * segmentWidth k (d + 2 - min (d + 2) (k - 1)) h
       by_cases hle : d + 2 ≤ k - 1
       · have hl1 : min (d + 1) (k - 1) = d + 1 := Nat.min_eq_left (by omega)
         have hl2 : min (d + 2) (k - 1) = d + 2 := Nat.min_eq_left hle
-        change (∑ i ∈ Finset.Ico 1 (min (d + 1) (k - 1)), segmentWidth k (d + 1 - i) h) +
-            2 * segmentWidth k (d + 1 - min (d + 1) (k - 1)) h ≤
-          (∑ i ∈ Finset.Ico 1 (min (d + 2) (k - 1)), segmentWidth k (d + 2 - i) h) +
-            2 * segmentWidth k (d + 2 - min (d + 2) (k - 1)) h
         rw [hl1, hl2, Nat.sub_self, Nat.sub_self,
           sum_Ico_one_succ_shift (l := d + 1) (by omega) (d + 1) (fun x => segmentWidth k x h)]
         omega
       · have hl1 : min (d + 1) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
         have hl2 : min (d + 2) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
-        change (∑ i ∈ Finset.Ico 1 (min (d + 1) (k - 1)), segmentWidth k (d + 1 - i) h) +
-            2 * segmentWidth k (d + 1 - min (d + 1) (k - 1)) h ≤
-          (∑ i ∈ Finset.Ico 1 (min (d + 2) (k - 1)), segmentWidth k (d + 2 - i) h) +
-            2 * segmentWidth k (d + 2 - min (d + 2) (k - 1)) h
         rw [hl1, hl2]
         have hsum : ∑ i ∈ Finset.Ico 1 (k - 1), segmentWidth k (d + 1 - i) h ≤
             ∑ i ∈ Finset.Ico 1 (k - 1), segmentWidth k (d + 2 - i) h := by

@@ -581,6 +581,16 @@ private theorem modeValue_cauchyModeSplitting (q : P) (g : G) (X : E → Bool) {
     · obtain ⟨hq, hg⟩ := S.form_ne_zero (q, Z) e' h0
       exact absurd ⟨hq.symm, hg.symm.trans hZ⟩ h'
 
+omit [Fintype E] [DecidableEq E] in
+private theorem filter_block_eq_map_packetModes (block : P × Fin (2 ^ (i + 1)) × Fin p → P × G)
+    (modes : Fin (2 ^ (i + 1)) × Fin p → Bool) (q : P) (g : G)
+    (hblock : ∀ q' Z, block (q', Z) = (q, g) ↔ q' = q ∧ modes Z = true) :
+    ({Z | block Z = (q, g)} : Finset (P × Fin (2 ^ (i + 1)) × Fin p)) =
+      ({Z | modes Z = true} : Finset (Fin (2 ^ (i + 1)) × Fin p)).map (packetModes q) := by
+  ext ⟨q', Z⟩
+  simp only [mem_filter, mem_univ, true_and, mem_map, hblock, packetModes_apply, Prod.mk.injEq]
+  exact ⟨fun ⟨rfl, h⟩ => ⟨Z, h, rfl, rfl⟩, fun ⟨_, h, hq, hZ⟩ => ⟨hq.symm, hZ ▸ h⟩⟩
+
 /-- **The packet tensors of the Cauchy children.** For lists `rows` and `cols` of the row and
 column ports of the packet `q` in the group `g`, without repetition and in any order, the packet
 tensor of `cauchyModeSplitting` is `packetEntry` at their slots and bits. -/
@@ -596,18 +606,12 @@ theorem packetTensor_cauchyModeSplitting (β : P × Fin (2 ^ (i + 1)) × Fin p �
   set S := cauchyModeSplitting side hsrc htgt horient hslot hia κ ζ hp ht hti hti'
   have htarget : ({Z | S.targetBlock Z = (q, g)} : Finset (P × Fin (2 ^ (i + 1)) × Fin p)) =
       ({Z | modeTargets i (decide ((sym q).1 = g)) (decide ((sym q).2 = g)) Z.1 = true} :
-        Finset (Fin (2 ^ (i + 1)) × Fin p)).map (packetModes q) := by
-    ext ⟨q', Z⟩
-    simp only [S, mem_filter, mem_univ, true_and, mem_map, targetBlock_eq_iff, packetModes_apply,
-      Prod.mk.injEq]
-    exact ⟨fun ⟨rfl, h⟩ => ⟨Z, h, rfl, rfl⟩, fun ⟨_, h, hq, hZ⟩ => ⟨hq.symm, hZ ▸ h⟩⟩
+        Finset (Fin (2 ^ (i + 1)) × Fin p)).map (packetModes q) :=
+    filter_block_eq_map_packetModes _ _ q g fun _ _ => targetBlock_eq_iff ..
   have hsource : ({Z | S.sourceBlock Z = (q, g)} : Finset (P × Fin (2 ^ (i + 1)) × Fin p)) =
       ({Z | modeSources i (decide ((sym q).1 = g)) (decide ((sym q).2 = g)) Z.1 = true} :
-        Finset (Fin (2 ^ (i + 1)) × Fin p)).map (packetModes q) := by
-    ext ⟨q', Z⟩
-    simp only [S, mem_filter, mem_univ, true_and, mem_map, sourceBlock_eq_iff, packetModes_apply,
-      Prod.mk.injEq]
-    exact ⟨fun ⟨rfl, h⟩ => ⟨Z, h, rfl, rfl⟩, fun ⟨_, h, hq, hZ⟩ => ⟨hq.symm, hZ ▸ h⟩⟩
+        Finset (Fin (2 ^ (i + 1)) × Fin p)).map (packetModes q) :=
+    filter_block_eq_map_packetModes _ _ q g fun _ _ => sourceBlock_eq_iff ..
   rw [ModeSplitting.packetTensor, packetEntry, S.blockCoeff_eq_listCoeff (q, g) β Y X hrows
     (fun e => (hrows' e).trans (by rw [ModeSplitting.rowBlock, Prod.mk.injEq]; exact Iff.rfl)),
     htarget, listCoeff_map, hsource, prod_map,
