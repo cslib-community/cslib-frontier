@@ -7711,6 +7711,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Probability.KWiseIndependent.SecondMoment
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Units
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Frontend.Time
+public import CslibFrontier.Computability.Complexity.Classes.A0PP
 public import CslibFrontier.Foundations.Probability.Combinatorics.BinomialRandomGraph.ConnectivityThreshold
 public import CslibFrontier.Foundations.Data.Finset.SymmDiff
 public import CslibFrontier.Computability.Circuit.Boolean.Formula.Subbotovskaya
