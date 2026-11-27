@@ -8,8 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.RefuterProofs
-import all CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.Refuter
-import all CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.RefuterProofs
 
 /-!
 # Step count and size invariants of the 4n − 9d refuter's run
@@ -19,7 +17,8 @@ the loop's steps and bounds the sizes of every state the loop visits, in terms o
 `C.size`. These are statements about the refuter's own states; no cost model or running time is
 claimed here.
 
-The loop's result is `loopStep^[refuterSteps S fuel] S` (`refuterLoop_eq_iterate`), so every state
+`refuterRun` runs the loop and counts its steps; `refuterLoop` is its first component. The loop's
+result is `loopStep^[m] S` with `m` the count (`refuterLoop_eq_iterate`), so every state
 it visits is `loopStep^[k] (initialState C)` for some `k ≤ 5 n + 7 C.size` (`refute_steps`). Along
 the run:
 
@@ -32,16 +31,15 @@ the run:
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.AffineDisperser4n.refuterSteps`: the number of `applyStep` calls of
-  `refuterLoop S fuel`.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.loopStep`: one iteration of the loop body.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.nameSet`: the parameters, auxiliary variables and gates
   of a state.
 
 ## Main results
 
-* `Cslib.Circuits.Boolean.AffineDisperser4n.refuterLoop_eq_iterate`: the loop is an iterate of
-  `loopStep`.
+* `Cslib.Circuits.Boolean.AffineDisperser4n.refuterRun_eq_iterate`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.refuterLoop_eq_iterate`: the loop is an iterate of
+  `loopStep`, as many times as `refuterRun` counts.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.refuterMeasure_initialState`: the initial measure is
   exactly `5 n + 7 · C.program.cost binaryB2Cost`.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.refute_steps`: at most `5 n + 7 C.size` steps.
@@ -61,23 +59,6 @@ variable {n : ℕ}
 
 /-! ### Step count -/
 
-/-- The number of `applyStep` calls `refuterLoop S fuel` makes. -/
-@[expose]
-def refuterSteps (S : State n) : ℕ → ℕ
-  | 0 => 0
-  | fuel + 1 =>
-    match chooseStep? S with
-    | some choice => refuterSteps (applyStep S choice) fuel + 1
-    | none => 0
-
-theorem refuterSteps_le : ∀ (S : State n) (fuel : ℕ), refuterSteps S fuel ≤ fuel
-  | _, 0 => le_rfl
-  | S, fuel + 1 => by
-    unfold refuterSteps
-    split
-    · exact Nat.succ_le_succ (refuterSteps_le _ fuel)
-    · exact Nat.zero_le _
-
 /-- One iteration of the loop body: `applyStep` with the chosen step, or `S` when none applies. -/
 @[expose]
 def loopStep (S : State n) : State n :=
@@ -85,19 +66,33 @@ def loopStep (S : State n) : State n :=
   | some choice => applyStep S choice
   | none => S
 
-/-- `refuterLoop S fuel` is `refuterSteps S fuel` iterations of `loopStep`. -/
-theorem refuterLoop_eq_iterate :
-    ∀ (S : State n) (fuel : ℕ), refuterLoop S fuel = loopStep^[refuterSteps S fuel] S
-  | _, 0 => rfl
-  | S, fuel + 1 => by
-    unfold refuterLoop refuterSteps
+/-- `refuterRun S fuel steps` applies `m ≤ fuel` iterations of `loopStep` and adds `m` to
+`steps`. -/
+theorem refuterRun_eq_iterate : ∀ (fuel : ℕ) (S : State n) (steps : ℕ),
+    ∃ m ≤ fuel, refuterRun S fuel steps = (loopStep^[m] S, steps + m)
+  | 0, S, steps => ⟨0, le_rfl, rfl⟩
+  | fuel + 1, S, steps => by
+    unfold refuterRun
     cases h : chooseStep? S with
-    | none => rfl
+    | none => exact ⟨0, Nat.zero_le _, rfl⟩
     | some choice =>
-      simp only [Function.iterate_succ, Function.comp_apply]
-      rw [refuterLoop_eq_iterate (applyStep S choice) fuel]
+      obtain ⟨m, hm, he⟩ := refuterRun_eq_iterate fuel (applyStep S choice) (steps + 1)
+      refine ⟨m + 1, by omega, ?_⟩
+      simp only [he, Function.iterate_succ, Function.comp_apply, loopStep, h]
       congr 1
-      simp [loopStep, h]
+      omega
+
+/-- The step count of `refuterRun` is at most the fuel. -/
+theorem refuterRun_snd_le (S : State n) (fuel : ℕ) : (refuterRun S fuel 0).2 ≤ fuel := by
+  obtain ⟨m, hm, he⟩ := refuterRun_eq_iterate fuel S 0
+  rw [he]
+  simpa using hm
+
+/-- `refuterLoop S fuel` is `(refuterRun S fuel 0).2` iterations of `loopStep`. -/
+theorem refuterLoop_eq_iterate (S : State n) (fuel : ℕ) :
+    refuterLoop S fuel = loopStep^[(refuterRun S fuel 0).2] S := by
+  obtain ⟨m, -, he⟩ := refuterRun_eq_iterate fuel S 0
+  simp [refuterLoop, he]
 
 /-- The initial measure, exactly: `n` parameters, `C.program.cost binaryB2Cost` gates, no
 equations and no auxiliary variables. -/
@@ -137,8 +132,8 @@ theorem refuterMeasure_initialState_le (C : Circuit (fullSignature 2 Bool) n 1) 
 
 /-- The loop of `refute` makes at most `5 n + 7 C.size` steps. -/
 theorem refute_steps (C : Circuit (fullSignature 2 Bool) n 1) :
-    refuterSteps (initialState C) (refuterMeasure (initialState C)) ≤ 5 * n + 7 * C.size :=
-  (refuterSteps_le _ _).trans (refuterMeasure_initialState_le C)
+    (refuterRun (initialState C) (refuterMeasure (initialState C)) 0).2 ≤ 5 * n + 7 * C.size :=
+  (refuterRun_snd_le _ _).trans (refuterMeasure_initialState_le C)
 
 /-! ### No step creates a parameter, auxiliary variable or gate name -/
 
@@ -252,18 +247,13 @@ private theorem nameSet_unitDelete (S : State n) (x e : ℕ) :
 /-- A step chosen by the refuter creates no parameter, auxiliary variable or gate name. -/
 theorem nameSet_applyStep {S : State n} {c : StepChoice} (hc : chooseStep? S = some c) :
     nameSet (applyStep S c) ⊆ nameSet S := by
-  obtain ⟨u, -, -, hspec⟩ := chooseStep?_spec hc
   cases c with
   | deleteConstantGate J => exact (shrinks_deleteConstraint _ _).nameSet
   | deleteDeadGate J => exact (shrinks_deleteGate _ _ _).nameSet
   | deleteShortEqn e => exact (shrinks_deleteConstraint _ _).nameSet
   | deleteUnitParam x e => exact nameSet_unitDelete _ _ _
   | moveAffine J =>
-    have hJ : J ∈ S.gates := by
-      dsimp only [ChoiceSpec] at hspec
-      have h5 := hspec.2.2.2.2
-      unfold findMovable at h5
-      exact (Finset.mem_sort _).1 (List.mem_of_find?_eq_some h5)
+    have hJ : J ∈ S.gates := mem_gates_of_chooseStep?_moveAffine hc
     intro i hi
     change i ∈ S.params ∪ insert J S.aux ∪ S.gates.erase J at hi
     simp only [Finset.mem_union, Finset.mem_insert, Finset.mem_erase] at hi
