@@ -62,8 +62,6 @@ its slack at every assignment (`Cslib.Logic.PL.VeriPB.slack_normalize`).
   literals ending in a constraint of negative slack is a run of hints that reaches a conflict.
   Unlike `Cslib.Logic.PL.VeriPB.RupOk`, this needs no distinct variables: it is stated with the
   slack, which only falls as the trail grows (`Cslib.Logic.PL.VeriPB.slack_anti`).
-* `Cslib.Logic.PL.PBConstr.normalize_eq_reverse`: the normal form of a constraint with positive
-  coefficients on distinct variables is its terms in reverse order.
 -/
 
 @[expose] public section
@@ -539,36 +537,6 @@ theorem slack_append_singleton {ρ : List (Literal ℕ)} {m : Literal ℕ} (hm :
         · simp [h1, hf, ht, ih]; omega
         · simp [h1, hf, ht, ih]
   rw [key c.terms (fun _ _ => trivial)]
-  omega
-
-/-- **The normal form of a constraint with positive coefficients on distinct variables** is
-its terms in reverse order, with the same degree. -/
-theorem _root_.Cslib.Logic.PL.PBConstr.normalize_eq_reverse {c : PBConstr}
-    (hd : (c.terms.map termVar).Nodup) (hpos : ∀ t ∈ c.terms, 0 < t.1) :
-    c.normalize = ⟨c.terms.reverse, c.degree⟩ := by
-  have hlin : ∀ ts : List (ℕ × Literal ℕ), (ts.map termVar).Nodup →
-      toLinear ts = (ts.map fun t => (termVar t, termCoeff t)).reverse := by
-    intro ts hts
-    induction ts with
-    | nil => rfl
-    | cons t ts ih =>
-      simp only [List.map_cons, List.nodup_cons] at hts
-      have hn : termVar t ∉ (toLinear ts).map Prod.fst := fun h => hts.1 (by
-        obtain ⟨e, he, hev⟩ := List.mem_map.1 h
-        exact hev ▸ fst_mem_of_mem_toLinear he)
-      rw [show toLinear (t :: ts) = insertCoeff (termVar t) (termCoeff t) (toLinear ts) from rfl,
-        insertCoeff_of_not_mem hn, ih hts.2]
-      simp
-  have hent : ∀ t ∈ c.terms, entryTerm (termVar t, termCoeff t) = some t := by
-    rintro ⟨a, v, b⟩ ht
-    have ha := hpos _ ht
-    simp only at ha
-    cases b <;> simp [entryTerm, termCoeff, termPos, ha]
-  have hfm : (c.terms.map fun t => (termVar t, termCoeff t)).filterMap entryTerm = c.terms := by
-    rw [List.filterMap_map]
-    exact (List.filterMap_congr (g := some) fun t ht => hent t ht).trans List.filterMap_some
-  rw [normalize, fromLinear, negMass_toLinear_of_nodup hd, hlin _ hd, List.filterMap_reverse, hfm]
-  congr 1
   omega
 
 end Cslib.Logic.PL.VeriPB

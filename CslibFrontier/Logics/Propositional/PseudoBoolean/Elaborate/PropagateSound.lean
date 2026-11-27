@@ -93,10 +93,6 @@ private theorem ByteArray.data_set! (b : ByteArray) (i : ℕ) (v : UInt8) :
     (b.set! i v).data = b.data.set! i v := by
   cases b; rfl
 
-private theorem ByteArray.data_push (b : ByteArray) (v : UInt8) :
-    (b.push v).data = b.data.push v := by
-  cases b; rfl
-
 /-- A byte read after a write. -/
 private theorem ByteArray.get!_set! (b : ByteArray) (i j : ℕ) (v : UInt8) :
     (b.set! i v).get! j = if i = j ∧ i < b.size then v else b.get! j := by
@@ -104,19 +100,11 @@ private theorem ByteArray.get!_set! (b : ByteArray) (i j : ℕ) (v : UInt8) :
     Array.getElem?_setIfInBounds, ← ByteArray.size_data]
   split_ifs <;> grind
 
-private theorem ByteArray.size_set! (b : ByteArray) (i : ℕ) (v : UInt8) :
-    (b.set! i v).size = b.size := by
-  simp only [← ByteArray.size_data, ByteArray.data_set!, Array.size_set!]
-
 private theorem ByteArray.get!_push (b : ByteArray) (j : ℕ) (v : UInt8) :
     (b.push v).get! j = if j = b.size then v else b.get! j := by
   simp only [ByteArray.get!_eq, ByteArray.data_push, getElem!_eq, Array.getElem?_push,
     ← ByteArray.size_data]
   split_ifs <;> simp
-
-private theorem ByteArray.size_push' (b : ByteArray) (v : UInt8) :
-    (b.push v).size = b.size + 1 := by
-  simp only [← ByteArray.size_data, ByteArray.data_push, Array.size_push]
 
 private theorem ByteArray.get!_ge (b : ByteArray) {j : ℕ} (h : b.size ≤ j) : b.get! j = 0 := by
   rw [ByteArray.get!_eq, getElem!_eq, Array.getElem?_eq_none (by rw [ByteArray.size_data]; exact h)]
@@ -2441,7 +2429,7 @@ private theorem litCode_spec {s : EState} {G : ℕ → Option PBConstr} (h : Inv
           nodup := hasg.nodup
           value_eq := by
             intro ℓ hℓ
-            rw [ByteArray.get!_push, ByteArray.get!_push, ByteArray.size_push', hasg.value_size]
+            rw [ByteArray.get!_push, ByteArray.get!_push, ByteArray.size_push, hasg.value_size]
             by_cases h1 : ℓ < 2 * vars.size
             · rw [ite_neg (by omega), ite_neg (by omega)]; exact hasg.value_eq ℓ h1
             · have hl : ℓ ∉ trail := fun hm => by have := hn2 ℓ hm; omega
@@ -2735,8 +2723,8 @@ private theorem setPush_size (b : ByteArray) (i : ℕ) (v : UInt8) :
     (EState.setPush b i v).size = if i < b.size then b.size else b.size + 1 := by
   unfold EState.setPush
   split
-  · exact ByteArray.size_set! _ _ _
-  · exact ByteArray.size_push' _ _
+  · exact ByteArray.size_set! ..
+  · exact ByteArray.size_push
 
 private theorem end_le {s : EState} {G : ℕ → Option PBConstr} (h : InvCore s G) :
     ∀ c, 1 ≤ c → c < s.cons.size → s.cons[c]!.start + s.cons[c]!.size ≤ s.lits.size := by
@@ -3843,13 +3831,6 @@ private theorem coeffSum_posTerms (c : PBConstr) : coeffSum (posTerms c) = coeff
     · have : t.1 = 0 := by omega
       simp [ih, this]
 
-private theorem perm_sum_nat {l₁ l₂ : List ℕ} (h : l₁.Perm l₂) : l₁.sum = l₂.sum := by
-  induction h with
-  | nil => rfl
-  | cons x _ ih => simp [ih]
-  | swap x y l => simp; omega
-  | trans _ _ ih₁ ih₂ => exact ih₁.trans ih₂
-
 /-- The total of the coefficients computed by `add`. -/
 private theorem foldl_fst_eq {vars : Array ℕ} {ts : Array (ℕ × ℕ)} {c : PBConstr}
     (h : (ts.toList.map fun p => (p.1, dec vars p.2)).Perm (posTerms c)) :
@@ -3857,7 +3838,7 @@ private theorem foldl_fst_eq {vars : Array ℕ} {ts : Array (ℕ × ℕ)} {c : P
   rw [← coeffSum_posTerms, ← Array.foldl_toList]
   have hp := h.map (·.1)
   simp only [List.map_map, Function.comp_def] at hp
-  rw [coeffSum, ← perm_sum_nat hp]
+  rw [coeffSum, ← hp.sum_nat]
   generalize ts.toList = l
   suffices ∀ n, l.foldl (fun t x => t + x.1) n = n + (l.map (·.1)).sum by simpa using this 0
   induction l with

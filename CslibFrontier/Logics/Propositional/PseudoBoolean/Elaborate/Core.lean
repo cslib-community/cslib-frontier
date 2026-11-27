@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Propagate
-import CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Syntax
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 
@@ -490,13 +490,13 @@ def negateParsed (c : PBConstr) : PBConstr :=
 `Cslib.Logic.PL.VeriPB.Elab.normalizeParsed` is the kernel's normalization. -/
 theorem normalizeParsed_eq {c : PBConstr} (hd : (c.terms.map termVar).Nodup)
     (hpos : ∀ t ∈ c.terms, 0 < t.1) : normalizeParsed c = c.normalize :=
-  (normalize_eq_reverse hd hpos).symm
+  (normalize_of_nodup hd hpos).symm
 
 /-- On a constraint with positive coefficients on distinct variables, as the parser produces,
 `Cslib.Logic.PL.VeriPB.Elab.negateParsed` is the kernel's negation. -/
 theorem negateParsed_eq {c : PBConstr} (hd : (c.terms.map termVar).Nodup)
     (hpos : ∀ t ∈ c.terms, 0 < t.1) : negateParsed c = c.negate := by
-  rw [negate, normalize_eq_reverse hd hpos, negateParsed]
+  rw [negate, normalize_of_nodup hd hpos, negateParsed]
   simp [coeffSum, List.map_reverse, List.sum_reverse]
 
 /-- The literal axiom `ℓ ≥ 0` (`Cslib.Logic.PL.PBConstr.litAxiom`), in canonical form. -/
