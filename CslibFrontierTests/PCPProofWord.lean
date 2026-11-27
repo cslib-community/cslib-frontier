@@ -33,4 +33,15 @@ example : MIP.SumcheckProof.rowPolynomial (fun _ => true) 5 [] [] 0 3 =
   change Polynomial.ofCoeffList ([((7 : ℕ) : ZMod 5)]) = _
   simp [Polynomial.ofCoeffList_cons, show (7 : ZMod 5) = 2 by decide]
 
+-- The same dishonest constant row over modulus 5 is consistent with claim 4 and fails claim 3.
+example :
+    (Prover.ofProof (fun _ => true)).run
+        (MIP.SumcheckProof.advance 5 [] 0 3 1 ⟨[], 4, true⟩) () =
+      PMF.pure (⟨[1], 2, true⟩, ()) ∧
+    (Prover.ofProof (fun _ => true)).run
+        (MIP.SumcheckProof.advance 5 [] 0 3 1 ⟨[], 3, true⟩) () =
+      PMF.pure (⟨[1], 2, false⟩, ()) := by
+  simp only [MIP.SumcheckProof.run_advance]
+  exact ⟨rfl, rfl⟩
+
 end CslibFrontierTests.PCPProofWord

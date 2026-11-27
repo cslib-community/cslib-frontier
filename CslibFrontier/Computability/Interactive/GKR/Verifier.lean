@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.Classes.IP
+public import CslibFrontier.Computability.Interactive.Sumcheck.Words
 public import CslibFrontier.Computability.Interactive.GKR.Protocol
 public import CslibFrontier.Computability.Interactive.GKR.Uniform
 public import CslibFrontier.Computability.Interactive.ToIP
@@ -122,6 +123,9 @@ namespace Cslib.Interactive.GKR
 
 open MvPolynomial Cslib.BitString Cslib.ProbComp Cslib.Probability Cslib.Complexity
   Turing.MultiTapeTM Spec
+open Sumcheck (WordState encWordState encWordState_mk_polyTime encWordState_challenges_polyTime
+  encWordState_ok_polyTime encWordState_claim_polyTime)
+open Polynomial (evalCoeffListMod)
 open scoped ENNReal
 
 /-! ### Instances, table encoding, and modular arithmetic -/
@@ -204,11 +208,6 @@ private def lineMod (p k : ℕ) (y w : List ℕ) (t : ℕ) : List ℕ :=
   else (List.range k).map fun j =>
     (y.getD j 0 + t * subModNat p (w.getD j 0) (y.getD j 0)) % p
 
-/-- Modular Horner evaluation of coefficient list `l` (constant term first) at `z` modulo `p`,
-returning `0` when `p = 0`. -/
-private def hornerModBin (p z : ℕ) (l : List ℕ) : ℕ :=
-  if p = 0 then 0 else l.reverse.foldl (fun acc a => (a + z * acc) % max p 1) 0
-
 /-- Decode a prover bit word as `D + 1` binary residues modulo `p` (`[]` when `p = 0`). -/
 private def decodeResidues (p D : ℕ) (word : List Bool) : List ℕ :=
   if p = 0 then []
@@ -282,31 +281,6 @@ private theorem vecOfList_lineMod {p k : ℕ} [Fact p.Prime] (y w : List ℕ) (t
     List.getElem?_map, List.getElem?_range j.isLt, Option.map_some, Option.getD_some,
     ZMod.natCast_mod, Nat.cast_add, Nat.cast_mul, natCast_subModNat]
   rfl
-
-private theorem foldl_horner_lt {p z : ℕ} (l : List ℕ) :
-    l.foldl (fun acc a => (a + z * acc) % max p 1) 0 < max p 1 := by
-  have hpos : 0 < max p 1 := lt_of_lt_of_le Nat.zero_lt_one (Nat.le_max_right p 1)
-  induction l using List.reverseRecOn with
-  | nil => simp [hpos]
-  | append_singleton l a _ =>
-    rw [List.foldl_append, List.foldl_cons, List.foldl_nil]
-    exact Nat.mod_lt _ hpos
-
-private theorem hornerModBin_lt {p : ℕ} (hp : 0 < p) (z : ℕ) (l : List ℕ) :
-    hornerModBin p z l < p := by
-  simp only [hornerModBin, hp.ne', ↓reduceIte]
-  simpa only [Nat.max_eq_left hp] using foldl_horner_lt (p := p) (z := z) l.reverse
-
-private theorem natCast_hornerModBin {p : ℕ} [NeZero p] (z : ℕ) (l : List ℕ) :
-    ((hornerModBin p z l : ℕ) : ZMod p) =
-      Polynomial.evalCoeffList (z : ZMod p) (l.map Nat.cast) := by
-  simp only [hornerModBin, NeZero.ne p, ↓reduceIte, Nat.max_eq_left (NeZero.one_le),
-    List.foldl_reverse]
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    rw [List.foldr_cons, ZMod.natCast_mod, Nat.cast_add, Nat.cast_mul, ih, List.map_cons,
-      Polynomial.evalCoeffList_cons]
 
 private theorem length_decodeResidues {p : ℕ} (hp : 0 < p) (D : ℕ) (word : List Bool) :
     (decodeResidues p D word).length = D + 1 := by
@@ -570,54 +544,6 @@ private lemma lineMod_pt {γ : Type} {encIn : γ ↪ List Bool}
     exact binary_mod' (binary_add' hyj (binary_mul' (ht.comp (fst _ _)) hsub)) (hp.comp (fst _ _))
   exact ite_decide hp0 hnil (mapWith hcoord id' hrng)
 
-private lemma hornerModBin_pt {γ : Type} {encIn : γ ↪ List Bool}
-    {p z : γ → ℕ} {l : γ → List ℕ}
-    (hp : ComputableInPolyTime p encIn encNat)
-    (hz : ComputableInPolyTime z encIn encNat)
-    (hl : ComputableInPolyTime l encIn encNatList) :
-    ComputableInPolyTime (fun x => hornerModBin (p x) (z x) (l x)) encIn encNat := by
-  unfold hornerModBin
-  have hp0 : ComputableInPolyTime (fun x => decide (p x = 0)) encIn encBool :=
-    decide_eq' hp (const 0)
-  have hmod : ComputableInPolyTime (fun x => max (p x) 1) encIn encNat :=
-    (ite_decide hp0 (const 1) hp).of_enc_eq fun x => by
-      by_cases h : p x = 0
-      · simp [h]
-      · have : 1 ≤ p x := Nat.one_le_iff_ne_zero.mpr h
-        simp [h, Nat.max_eq_left this]
-  have hrev : ComputableInPolyTime (fun x => (l x).reverse) encIn encNatList :=
-    (listReverse encNat).comp hl
-  have hstep : ComputableInPolyTime
-      (fun q : ((ℕ × ℕ) × ℕ) × ℕ => (q.2 + q.1.1.2 * q.1.2) % q.1.1.1)
-      (encPair (encPair (encPair encNat encNat) encNat) encNat) encNat := by
-    let E := encPair (encPair (encPair encNat encNat) encNat) encNat
-    have hm' : ComputableInPolyTime (fun q : ((ℕ × ℕ) × ℕ) × ℕ => q.1.1.1) E encNat := by
-      fun_prop
-    have hz' : ComputableInPolyTime (fun q : ((ℕ × ℕ) × ℕ) × ℕ => q.1.1.2) E encNat := by
-      fun_prop
-    have hacc : ComputableInPolyTime (fun q : ((ℕ × ℕ) × ℕ) × ℕ => q.1.2) E encNat := by
-      fun_prop
-    have ha : ComputableInPolyTime (fun q : ((ℕ × ℕ) × ℕ) × ℕ => q.2) E encNat := by
-      fun_prop
-    exact binary_mod' (binary_add' ha (binary_mul' hz' hacc)) hm'
-  have hfold := foldlWith (encA := encNat) (encB := encNat) (encL := encNatList)
-    (encP := encPair encNat encNat)
-    (par := fun x => (max (p x) 1, z x)) (list := fun x => (l x).reverse) (init := fun _ => 0)
-    (step := fun par acc a => (a + par.2 * acc) % par.1)
-    (hmod.prod hz) hrev (const (encIn := encIn) (encOut := encNat) 0) hstep
-    (B := fun x => (encNat (p x)).length + 1)
-    (hp.polyBounded_length.add (.const 1))
-    (fun x i _ => by
-      have hlt := foldl_horner_lt (p := p x) (z := z x) (List.take i (l x).reverse)
-      simp only [encNat_apply, Nat.size_eq_bits_len]
-      have hmle : max (p x) 1 < 2 ^ ((p x).size + 1) := by
-        rw [Nat.pow_succ]
-        have hpLt := Nat.lt_size_self (p x)
-        have hpos : 0 < 2 ^ (p x).size := by positivity
-        exact max_lt (hpLt.trans (by omega)) (by omega)
-      exact Nat.size_le.2 (hlt.trans hmle))
-  exact ite_decide hp0 (const 0) hfold
-
 private lemma decodeResidues_pt {γ : Type} {encIn : γ ↪ List Bool}
     {p D : γ → ℕ} {word : γ → List Bool}
     (hp : ComputableInPolyTime p encIn encNat)
@@ -701,21 +627,6 @@ end PolyTime
 
 /-! ### Executable polynomial-time word GKR verifier -/
 
-/-- State tracked across the `2 * width i` sumcheck rounds of one GKR layer. -/
-private structure SumcheckState where
-  /-- Accumulated sumcheck challenges `(y, w)` (length `j ≤ 2 * width i`). -/
-  challenges : List ℕ
-  /-- Current claimed partial sum modulo `p`. -/
-  claim : ℕ
-  /-- Accumulated check bit across sumcheck rounds completed so far. -/
-  ok : Bool
-
-/-- Tuple encoding of `SumcheckState`, keeping `challenges` and `claim` in binary. -/
-private enc_structure encSumcheckState : SumcheckState where
-  challenges : encNatList,
-  claim : encNat,
-  ok : encBool
-
 /-- State tracked across the layer-by-layer GKR descent (`depth` down to `0`). -/
 private structure LayerState where
   /-- Number of layers still to descend (`depth` initially, `0` before the input step). -/
@@ -737,14 +648,13 @@ private enc_structure encLayerState : LayerState where
 /-- One sumcheck round of GKR on binary modulus `p` and coin width `coinWidth`: read the degree-`2`
 prover polynomial `g`, draw a challenge `r ← sampleModNat coinWidth p`, send `encNat r`, verify
 `g(0) + g(1) ≡ sc.claim (mod p)`, and update the challenge list and claim. -/
-private noncomputable def sumcheckStep (p coinWidth : ℕ) (sc : SumcheckState) :
-    WordOracleComp Unit SumcheckState := do
+private noncomputable def sumcheckStep (p coinWidth : ℕ) (sc : WordState) :
+    WordOracleComp Unit WordState := do
   let raw ← List.take (polyLimit p 2) <$> ProbOracleComp.query ((), [])
   let r ← ProbOracleComp.sample (sampleModNat coinWidth p)
   let _ ← List.take 0 <$> ProbOracleComp.query ((), encNat r)
   let rs := decodeResidues p 2 raw
-  let stepOk := decide ((hornerModBin p 0 rs + hornerModBin p 1 rs) % p = sc.claim % p)
-  return ⟨sc.challenges ++ [r], hornerModBin p r rs, sc.ok && stepOk⟩
+  return sc.advance p rs r
 
 /-- The GKR line-reduction step after layer `i := st.remaining - 1` sumcheck finishes: read the
 degree-`width i` line polynomial `q`, evaluate `F.evalWiring` for `.add` and `.mul` at `(z, y, w)`,
@@ -752,7 +662,7 @@ draw `t ← sampleModNat coinWidth p`, send `encNat t`, check
 `sc.claim ≡ ãdd*(q 0 + q 1) + m̃ult*(q 0 * q 1)`, and output the reduced claim on `line y w t`. -/
 private noncomputable def lineStepExec {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) (inst : Instance I) (coinWidth : ℕ)
-    (st : LayerState) (sc : SumcheckState) : WordOracleComp Unit LayerState := do
+    (st : LayerState) (sc : WordState) : WordOracleComp Unit LayerState := do
   let p := inst.modulus
   let i := st.remaining - 1
   let kIn := (F.circuit inst.index).width i
@@ -764,11 +674,11 @@ private noncomputable def lineStepExec {I : Type} {encI : I ↪ List Bool}
   let rs := decodeResidues p kIn raw
   let addVal := F.evalWiring ⟨inst.index, .add, i, p, st.point, y, w⟩
   let mulVal := F.evalWiring ⟨inst.index, .mul, i, p, st.point, y, w⟩
-  let q0 := hornerModBin p 0 rs
-  let q1 := hornerModBin p 1 rs
+  let q0 := evalCoeffListMod p 0 rs
+  let q1 := evalCoeffListMod p 1 rs
   let rhs := (addVal * ((q0 + q1) % p) + mulVal * ((q0 * q1) % p)) % p
   let lineOk := decide (sc.claim % p = rhs)
-  return ⟨i, lineMod p kIn y w t, hornerModBin p t rs, sc.ok && lineOk⟩
+  return ⟨i, lineMod p kIn y w t, evalCoeffListMod p t rs, sc.ok && lineOk⟩
 
 /-- One complete GKR layer reduction (`sumcheckStage` followed by `lineStepExec`) descending from
 layer `st.remaining` to `st.remaining - 1`. -/
@@ -836,13 +746,11 @@ private lemma sampleModNat_support_size_le {coinWidth p r : ℕ}
     have hlt : x % p < p := Nat.mod_lt _ hp
     exact (Nat.size_le_size hlt.le).trans (by omega)
 
-private lemma hornerModBin_size_le {p z : ℕ} {l : List ℕ} :
-    (encNat (hornerModBin p z l)).length ≤ (encNat p).length + 1 := by
+private lemma evalCoeffListMod_size_le {p z : ℕ} {l : List ℕ} :
+    (encNat (evalCoeffListMod p z l)).length ≤ (encNat p).length + 1 := by
   simp only [encNat_apply, Nat.size_eq_bits_len]
-  rcases Nat.eq_zero_or_pos p with rfl | hp
-  · simp [hornerModBin]
-  · have hlt := hornerModBin_lt hp z l
-    exact (Nat.size_le_size hlt.le).trans (Nat.le_succ _)
+  have h := Polynomial.evalCoeffListMod_lt p z l
+  exact (Nat.size_le_size (by omega : evalCoeffListMod p z l ≤ p)).trans (Nat.le_succ _)
 
 private lemma evalTableMLEMod_size_le {p k : ℕ} {vals r : List ℕ} :
     (encNat (evalTableMLEMod p k vals r)).length ≤ (encNat p).length + 1 := by
@@ -902,16 +810,16 @@ private lemma uniform_width_polyBounded {I : Type} {encI : I ↪ List Bool}
         Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hn1 hexp)
 
 private lemma sumcheckStep_ppt :
-    IsOraclePPTOn (encPair (encPair encNat encUnary) encSumcheckState) encSumcheckState
-      (fun pair : (ℕ × ℕ) × SumcheckState => sumcheckStep pair.1.1 pair.1.2 pair.2) := by
+    IsOraclePPTOn (encPair (encPair encNat encUnary) encWordState) encWordState
+      (fun pair : (ℕ × ℕ) × WordState => sumcheckStep pair.1.1 pair.1.2 pair.2) := by
   unfold sumcheckStep
-  let encIn := encPair (encPair encNat encUnary) encSumcheckState
-  have hp : ComputableInPolyTime (fun x : (ℕ × ℕ) × SumcheckState => x.1.1) encIn encNat := by
+  let encIn := encPair (encPair encNat encUnary) encWordState
+  have hp : ComputableInPolyTime (fun x : (ℕ × ℕ) × WordState => x.1.1) encIn encNat := by
     fun_prop
-  have hcw : ComputableInPolyTime (fun x : (ℕ × ℕ) × SumcheckState => x.1.2) encIn encUnary := by
+  have hcw : ComputableInPolyTime (fun x : (ℕ × ℕ) × WordState => x.1.2) encIn encUnary := by
     fun_prop
   have hsc : ComputableInPolyTime
-      (fun x : (ℕ × ℕ) × SumcheckState => x.2) encIn encSumcheckState := by
+      (fun x : (ℕ × ℕ) × WordState => x.2) encIn encWordState := by
     fun_prop
   have hAsk : IsOraclePPTOn encIn encBits
       (fun x => List.take (polyLimit x.1.1 2) <$> ProbOracleComp.query ((), [])) :=
@@ -927,33 +835,19 @@ private lemma sumcheckStep_ppt :
         (snd (encPair encIn encBits) encNat))
       (const 0)
   have hPost : ComputableInPolyTime
-      (fun u : ((((ℕ × ℕ) × SumcheckState) × List Bool) × ℕ) × List Bool =>
+      (fun u : ((((ℕ × ℕ) × WordState) × List Bool) × ℕ) × List Bool =>
         let x := u.1.1.1
         let raw := u.1.1.2
         let r := u.1.2
-        let rs := decodeResidues x.1.1 2 raw
-        let stepOk := decide ((hornerModBin x.1.1 0 rs + hornerModBin x.1.1 1 rs) % x.1.1 =
-          x.2.claim % x.1.1)
-        ({ challenges := x.2.challenges ++ [r],
-           claim := hornerModBin x.1.1 r rs,
-           ok := x.2.ok && stepOk } : SumcheckState))
-      (encPair (encPair (encPair encIn encBits) encNat) encBits) encSumcheckState := by
+        x.2.advance x.1.1 (decodeResidues x.1.1 2 raw) r)
+      (encPair (encPair (encPair encIn encBits) encNat) encBits) encWordState := by
     let encAll := encPair (encPair (encPair encIn encBits) encNat) encBits
     have hx : ComputableInPolyTime (fun u => u.1.1.1) encAll encIn := by fun_prop
     have hp' := hp.comp hx
     have hsc' := hsc.comp hx
     have hraw : ComputableInPolyTime (fun u => u.1.1.2) encAll encBits := by fun_prop
     have hr : ComputableInPolyTime (fun u => u.1.2) encAll encNat := by fun_prop
-    have hrs := decodeResidues_pt hp' (const 2) hraw
-    have h0 := hornerModBin_pt hp' (const 0) hrs
-    have h1 := hornerModBin_pt hp' (const 1) hrs
-    have hrVal := hornerModBin_pt hp' hr hrs
-    have hSum := binary_mod' (binary_add' h0 h1) hp'
-    have hClaimMod := binary_mod' (encSumcheckState_claim_polyTime hsc') hp'
-    have hStepOk := decide_eq' hSum hClaimMod
-    have hChall := (encSumcheckState_challenges_polyTime hsc').listAppend' (hr.cons' (const []))
-    have hOk := (encSumcheckState_ok_polyTime hsc').bool_and' hStepOk
-    exact encSumcheckState_mk_polyTime hChall hrVal hOk
+    exact WordState.computableInPolyTime_advance hsc' hp' (decodeResidues_pt hp' (const 2) hraw) hr
   exact hAsk.bind_with (hSample.bind_with (hSend.bind_with
     (hPost.isOraclePPTOn (Operation := Unit))))
 
@@ -961,7 +855,7 @@ private lemma lineStepExec_post_pt {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
     ComputableInPolyTime
       (fun q :
-          ((((Instance I × ℕ) × (LayerState × SumcheckState)) × List Bool) × ℕ) × List Bool =>
+          ((((Instance I × ℕ) × (LayerState × WordState)) × List Bool) × ℕ) × List Bool =>
         let u := q.1.1.1
         let raw := q.1.1.2
         let t := q.1.2
@@ -973,36 +867,36 @@ private lemma lineStepExec_post_pt {I : Type} {encI : I ↪ List Bool}
         let rs := decodeResidues p kIn raw
         let addVal := F.evalWiring ⟨u.1.1.index, .add, i, p, u.2.1.point, y, w⟩
         let mulVal := F.evalWiring ⟨u.1.1.index, .mul, i, p, u.2.1.point, y, w⟩
-        let q0 := hornerModBin p 0 rs
-        let q1 := hornerModBin p 1 rs
+        let q0 := evalCoeffListMod p 0 rs
+        let q1 := evalCoeffListMod p 1 rs
         let rhs := (addVal * ((q0 + q1) % p) + mulVal * ((q0 * q1) % p)) % p
         let lineOk := decide (u.2.2.claim % p = rhs)
         ({ remaining := i,
            point := lineMod p kIn y w t,
-           value := hornerModBin p t rs,
+           value := evalCoeffListMod p t rs,
            ok := u.2.2.ok && lineOk } : LayerState))
       (encPair (encPair (encPair
-        (encPair (encPair (encInstance I encI) encUnary) (encPair encLayerState encSumcheckState))
+        (encPair (encPair (encInstance I encI) encUnary) (encPair encLayerState encWordState))
         encBits) encNat) encBits)
       encLayerState := by
   let encIn :=
-    encPair (encPair (encInstance I encI) encUnary) (encPair encLayerState encSumcheckState)
+    encPair (encPair (encInstance I encI) encUnary) (encPair encLayerState encWordState)
   let encAll := encPair (encPair (encPair encIn encBits) encNat) encBits
   have hu : ComputableInPolyTime
-      (fun q : ((((Instance I × ℕ) × (LayerState × SumcheckState)) × List Bool) × ℕ) × List Bool =>
+      (fun q : ((((Instance I × ℕ) × (LayerState × WordState)) × List Bool) × ℕ) × List Bool =>
         q.1.1.1) encAll encIn := by fun_prop
   have hraw : ComputableInPolyTime
-      (fun q : ((((Instance I × ℕ) × (LayerState × SumcheckState)) × List Bool) × ℕ) × List Bool =>
+      (fun q : ((((Instance I × ℕ) × (LayerState × WordState)) × List Bool) × ℕ) × List Bool =>
         q.1.1.2) encAll encBits := by fun_prop
   have ht : ComputableInPolyTime
-      (fun q : ((((Instance I × ℕ) × (LayerState × SumcheckState)) × List Bool) × ℕ) × List Bool =>
+      (fun q : ((((Instance I × ℕ) × (LayerState × WordState)) × List Bool) × ℕ) × List Bool =>
         q.1.2) encAll encNat := by fun_prop
-  have hInst : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × SumcheckState) =>
+  have hInst : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × WordState) =>
       u.1.1) encIn (encInstance I encI) := by fun_prop
-  have hSt : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × SumcheckState) =>
+  have hSt : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × WordState) =>
       u.2.1) encIn encLayerState := by fun_prop
-  have hSc : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × SumcheckState) =>
-      u.2.2) encIn encSumcheckState := by fun_prop
+  have hSc : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × WordState) =>
+      u.2.2) encIn encWordState := by fun_prop
   have hInst' := hInst.comp hu
   have hSt' := hSt.comp hu
   have hSc' := hSc.comp hu
@@ -1010,7 +904,7 @@ private lemma lineStepExec_post_pt {I : Type} {encI : I ↪ List Bool}
   have hIdx' := encInstance_index_polyTime I encI hInst'
   have hi' := unary_sub.comp ((encLayerState_remaining_polyTime hSt').prod (const 1))
   have hkIn' := F.uniform.width_polyTime.comp (ComputableInPolyTime.prod hIdx' hi')
-  have hCh := encSumcheckState_challenges_polyTime hSc'
+  have hCh := encWordState_challenges_polyTime hSc'
   have hy := listTakeWithInput hCh hkIn'
   have hw := listTakeWithInput (listDropWithInput hCh hkIn') hkIn'
   have hz := encLayerState_point_polyTime hSt'
@@ -1019,31 +913,31 @@ private lemma lineStepExec_post_pt {I : Type} {encI : I ↪ List Bool}
   have hAdd := F.wiringMLE.polyTime.comp hAddQ
   have hMul := F.wiringMLE.polyTime.comp hMulQ
   have hrs := decodeResidues_pt hp' hkIn' hraw
-  have hq0 := hornerModBin_pt hp' (const 0) hrs
-  have hq1 := hornerModBin_pt hp' (const 1) hrs
+  have hq0 := ComputableInPolyTime.evalCoeffListMod hp' (const 0) hrs
+  have hq1 := ComputableInPolyTime.evalCoeffListMod hp' (const 1) hrs
   have hrhs := binary_mod' (binary_add'
     (binary_mul' hAdd (binary_mod' (binary_add' hq0 hq1) hp'))
     (binary_mul' hMul (binary_mod' (binary_mul' hq0 hq1) hp'))) hp'
-  have hlineOk := decide_eq' (binary_mod' (encSumcheckState_claim_polyTime hSc') hp') hrhs
+  have hlineOk := decide_eq' (binary_mod' (encWordState_claim_polyTime hSc') hp') hrhs
   have hLineMod := lineMod_pt hp' hkIn' hy hw ht
-  have hVal := hornerModBin_pt hp' ht hrs
-  have hOk := (encSumcheckState_ok_polyTime hSc').bool_and' hlineOk
+  have hVal := ComputableInPolyTime.evalCoeffListMod hp' ht hrs
+  have hOk := (encWordState_ok_polyTime hSc').bool_and' hlineOk
   exact encLayerState_mk_polyTime hi' hLineMod hVal hOk
 
 private lemma lineStepExec_ppt {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
     IsOraclePPTOn
-      (encPair (encPair (encInstance I encI) encUnary) (encPair encLayerState encSumcheckState))
+      (encPair (encPair (encInstance I encI) encUnary) (encPair encLayerState encWordState))
       encLayerState
       (fun u => lineStepExec F u.1.1 u.1.2 u.2.1 u.2.2) := by
   unfold lineStepExec
   let encIn :=
-    encPair (encPair (encInstance I encI) encUnary) (encPair encLayerState encSumcheckState)
-  have hInst : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × SumcheckState) =>
+    encPair (encPair (encInstance I encI) encUnary) (encPair encLayerState encWordState)
+  have hInst : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × WordState) =>
       u.1.1) encIn (encInstance I encI) := by fun_prop
-  have hcw : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × SumcheckState) =>
+  have hcw : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × WordState) =>
       u.1.2) encIn encUnary := by fun_prop
-  have hSt : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × SumcheckState) =>
+  have hSt : ComputableInPolyTime (fun u : (Instance I × ℕ) × (LayerState × WordState) =>
       u.2.1) encIn encLayerState := by fun_prop
   have hP := encInstance_modulus_polyTime I encI hInst
   have hIdx := encInstance_index_polyTime I encI hInst
@@ -1072,7 +966,7 @@ private lemma lineStepExec_ppt {I : Type} {encI : I ↪ List Bool}
 
 private lemma layerExec_sumcheckLoop_ppt {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
-    IsOraclePPTOn (encPair (encPair (encInstance I encI) encUnary) encLayerState) encSumcheckState
+    IsOraclePPTOn (encPair (encPair (encInstance I encI) encUnary) encLayerState) encWordState
       (fun pair => OracleComp.iterate
         (2 * (F.circuit pair.1.1.index).width (pair.2.remaining - 1))
         (sumcheckStep pair.1.1.modulus pair.1.2)
@@ -1096,20 +990,20 @@ private lemma layerExec_sumcheckLoop_ppt {I : Type} {encI : I ↪ List Bool}
     (const 2).unary_mul' hkIn
   have hInit : ComputableInPolyTime
       (fun p : (Instance I × ℕ) × LayerState =>
-        ({ challenges := [], claim := p.2.value, ok := p.2.ok } : SumcheckState))
-      encOuter encSumcheckState :=
-    encSumcheckState_mk_polyTime (const []) (encLayerState_value_polyTime hSt)
+        ({ challenges := [], claim := p.2.value, ok := p.2.ok } : WordState))
+      encOuter encWordState :=
+    encWordState_mk_polyTime (const []) (encLayerState_value_polyTime hSt)
       (encLayerState_ok_polyTime hSt)
-  have hStep' : IsOraclePPTOn (encPair encOuter encSumcheckState) encSumcheckState
+  have hStep' : IsOraclePPTOn (encPair encOuter encWordState) encWordState
       (fun q => sumcheckStep q.1.1.1.modulus q.1.1.2 q.2) := by
     have hPre : ComputableInPolyTime
-        (fun q : ((Instance I × ℕ) × LayerState) × SumcheckState =>
+        (fun q : ((Instance I × ℕ) × LayerState) × WordState =>
           ((q.1.1.1.modulus, q.1.1.2), q.2))
-        (encPair encOuter encSumcheckState)
-        (encPair (encPair encNat encUnary) encSumcheckState) := by
-      have hp := encInstance_modulus_polyTime I encI (hInst.comp (fst encOuter encSumcheckState))
-      have hc := hcw.comp (fst encOuter encSumcheckState)
-      exact (hp.prod hc).prod (snd encOuter encSumcheckState)
+        (encPair encOuter encWordState)
+        (encPair (encPair encNat encUnary) encWordState) := by
+      have hp := encInstance_modulus_polyTime I encI (hInst.comp (fst encOuter encWordState))
+      have hc := hcw.comp (fst encOuter encWordState)
+      exact (hp.prod hc).prod (snd encOuter encWordState)
     exact sumcheckStep_ppt.preprocess hPre
   obtain ⟨cK, dK, hK⟩ := hkIn.polyBounded.exists_le
   let scSizeFun : ℕ → ℕ := fun n =>
@@ -1120,7 +1014,7 @@ private lemma layerExec_sumcheckLoop_ppt {I : Type} {encI : I ↪ List Bool}
   have hSize : PolyBounded (fun p => (encOuter p).length)
       (fun p => scSizeFun (encOuter p).length) :=
     PolyBounded.of_polynomiallyBounded (fun p => (encOuter p).length) hSizeFun
-  let scInv (p : (Instance I × ℕ) × LayerState) (j : ℕ) (sc : SumcheckState) : Prop :=
+  let scInv (p : (Instance I × ℕ) × LayerState) (j : ℕ) (sc : WordState) : Prop :=
     sc.challenges.length = j ∧
       (∀ v ∈ sc.challenges, (encNat v).length ≤ (encNat p.1.1.modulus).length + p.1.2 + 1) ∧
       (encNat sc.claim).length ≤ (encNat p.1.1.modulus).length + (encLayerState p.2).length + 1
@@ -1130,7 +1024,7 @@ private lemma layerExec_sumcheckLoop_ppt {I : Type} {encI : I ↪ List Bool}
       dsimp only
       omega⟩)
     (fun p j sc hj hsc next hnext => by
-      simp only [sumcheckStep, OracleComp.mem_supportWith_bind_iff,
+      simp only [sumcheckStep, WordState.advance, OracleComp.mem_supportWith_bind_iff,
         OracleComp.mem_supportWith_map_iff, OracleComp.supportWith_pure, Set.mem_singleton_iff,
         ProbOracleComp.support_sample] at hnext
       obtain ⟨raw, -, r, hr, _, -, rfl⟩ := hnext
@@ -1139,7 +1033,7 @@ private lemma layerExec_sumcheckLoop_ppt {I : Type} {encI : I ↪ List Bool}
         rcases hv with hv | rfl
         · exact hsc.2.1 v hv
         · exact sampleModNat_support_size_le hr
-      · exact (hornerModBin_size_le).trans (by omega))
+      · exact (evalCoeffListMod_size_le).trans (by omega))
     hSize
     (fun p j sc hj hsc => by
       have hOuterLen : (encPair (encInstance I encI) encUnary p.1).length ≤
@@ -1158,31 +1052,31 @@ private lemma layerExec_sumcheckLoop_ppt {I : Type} {encI : I ↪ List Bool}
       have hj' : j ≤ 2 * (cK * ((encOuter p).length + 1) ^ dK) :=
         hj.trans (Nat.mul_le_mul_left 2 (hK p))
       rw [hsc.1] at hchLen
-      have hB1 : (encNatList sc.challenges).length ≤
+      have hB1 : (encList encNat sc.challenges).length ≤
           2 * (cK * ((encOuter p).length + 1) ^ dK) * (2 * (2 * (encOuter p).length + 1) + 1) :=
         hchLen.trans (Nat.mul_le_mul (Nat.le_of_eq rfl |>.trans hj') (by omega))
       have hB2 : (encNat sc.claim).length ≤ 2 * (encOuter p).length + 1 := by omega
       dsimp only [scSizeFun]
-      enc_len [encSumcheckState_apply, encSumcheckStateFields])).1
+      enc_len [Sumcheck.encWordState_apply, Sumcheck.encWordStateFields])).1
 
 private lemma layerExec_ppt {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
     IsOraclePPTOn (encPair (encPair (encInstance I encI) encUnary) encLayerState) encLayerState
       (fun pair => layerExec F pair.1.1 pair.1.2 pair.2) := by
   let encOuter := encPair (encPair (encInstance I encI) encUnary) encLayerState
-  have h1 : ComputableInPolyTime (fun q : ((Instance I × ℕ) × LayerState) × SumcheckState =>
-      q.1.1) (encPair encOuter encSumcheckState) (encPair (encInstance I encI) encUnary) :=
+  have h1 : ComputableInPolyTime (fun q : ((Instance I × ℕ) × LayerState) × WordState =>
+      q.1.1) (encPair encOuter encWordState) (encPair (encInstance I encI) encUnary) :=
     (fst (encPair (encInstance I encI) encUnary) encLayerState).comp
-      (fst encOuter encSumcheckState)
-  have h2 : ComputableInPolyTime (fun q : ((Instance I × ℕ) × LayerState) × SumcheckState =>
-      q.1.2) (encPair encOuter encSumcheckState) encLayerState :=
+      (fst encOuter encWordState)
+  have h2 : ComputableInPolyTime (fun q : ((Instance I × ℕ) × LayerState) × WordState =>
+      q.1.2) (encPair encOuter encWordState) encLayerState :=
     (snd (encPair (encInstance I encI) encUnary) encLayerState).comp
-      (fst encOuter encSumcheckState)
-  have h3 : ComputableInPolyTime (fun q : ((Instance I × ℕ) × LayerState) × SumcheckState =>
-      q.2) (encPair encOuter encSumcheckState) encSumcheckState :=
-    snd encOuter encSumcheckState
+      (fst encOuter encWordState)
+  have h3 : ComputableInPolyTime (fun q : ((Instance I × ℕ) × LayerState) × WordState =>
+      q.2) (encPair encOuter encWordState) encWordState :=
+    snd encOuter encWordState
   have hLinePre := h1.prod (h2.prod h3)
-  have hLine : IsOraclePPTOn (encPair encOuter encSumcheckState) encLayerState
+  have hLine : IsOraclePPTOn (encPair encOuter encWordState) encLayerState
       (fun q => lineStepExec F q.1.1.1 q.1.1.2 q.1.2 q.2) := by
     refine ((lineStepExec_ppt F).preprocess hLinePre).congr fun q State oracle s =>
       congrArg (fun p => ProbOracleComp.runWith oracle p s) ?_
@@ -1298,7 +1192,7 @@ private lemma verifier_layerLoop_ppt {I : Type} {encI : I ↪ List Bool}
         · have hvlt := mem_lineMod_lt hpos _ _ _ v hv
           simp only [encNat_apply, Nat.size_eq_bits_len] at hMod ⊢
           exact (Nat.size_le_size hvlt.le).trans (by omega)
-      · have hSz := hornerModBin_size_le (p := a.1.1.modulus) (z := t)
+      · have hSz := evalCoeffListMod_size_le (p := a.1.1.modulus) (z := t)
           (l := decodeResidues a.1.1.modulus ((F.circuit a.1.1.index).width (st.remaining - 1)) raw)
         dsimp only
         exact hSz.trans (by omega))
@@ -1489,8 +1383,8 @@ private theorem natDegree_decodePoly_le {p : ℕ} [Fact p.Prime] (D : ℕ) (word
 
 private theorem eval_decodePoly {p : ℕ} [Fact p.Prime] (D : ℕ) (word : List Bool) (z : ℕ) :
     (decodePoly p D word).eval (z : ZMod p) =
-      ((hornerModBin p z (decodeResidues p D word) : ℕ) : ZMod p) := by
-  rw [decodePoly, Polynomial.eval_ofCoeffList, natCast_hornerModBin]
+      ((evalCoeffListMod p z (decodeResidues p D word) : ℕ) : ZMod p) := by
+  rw [decodePoly, Polynomial.natCast_evalCoeffListMod]
 
 private theorem decodePoly_take_encodePoly {p : ℕ} [Fact p.Prime] {D : ℕ}
     {g : Polynomial (ZMod p)} (hdeg : g.natDegree ≤ D) :
@@ -1644,7 +1538,7 @@ private theorem runWordState_bundle {s : Spec} {Θ : Type} {S₁ S₂ : Θ → T
   congr 1 with ⟨ok, τ⟩ : 1
   cases ok <;> cases x? <;> simp [Verifier.outputOn_bundle]
 
-private def SumcheckState.toClaim? (p j : ℕ) (sc : SumcheckState) :
+private def toSumcheckClaim? (p j : ℕ) (sc : WordState) :
     Option (Sumcheck.Claim (ZMod p) j) :=
   if sc.ok then some ⟨vecOfList p j sc.challenges, (sc.claim : ZMod p)⟩ else none
 
@@ -1728,15 +1622,15 @@ private theorem val_natCast_of_mem_sampleModNat {p cw t : ℕ} (hp : 0 < p)
   exact ZMod.val_natCast_of_lt (Nat.mod_lt _ hp)
 
 private theorem runWith_sumcheckStep_eq {p coinWidth n j : ℕ} [Fact p.Prime]
-    (P : MvPolynomial (Fin n) (ZMod p)) (sc : SumcheckState) (hlen : sc.challenges.length = j)
+    (P : MvPolynomial (Fin n) (ZMod p)) (sc : WordState) (hlen : sc.challenges.length = j)
     {State : Type} (respond : Unit × List Bool → StateT State PMF (List Bool)) (s : State) :
     (ProbOracleComp.runWith respond (sumcheckStep p coinWidth sc) s).map
-        (Prod.map (SumcheckState.toClaim? p (j + 1)) id) =
+        (Prod.map (toSumcheckClaim? p (j + 1)) id) =
       ProbOracleComp.runWith respond
         (runWordState (Sumcheck.round 2 P j).verifier
           (polyProverCodec p 2, fieldChallengeCodec p, ())
           (Nat.cast <$> sampleModNat coinWidth p, ())
-          (sc.toClaim? p j)) s := by
+          (toSumcheckClaim? p j sc)) s := by
   have hp : 0 < p := Nat.Prime.pos Fact.out
   simp only [sumcheckStep, runWordState, runWordRounds, ProbOracleComp.runWith_bind,
     ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, ProbOracleComp.runWith_sample,
@@ -1750,66 +1644,56 @@ private theorem runWith_sumcheckStep_eq {p coinWidth n j : ℕ} [Fact p.Prime]
   simp only [PMF.pure_map, Prod.map, id_eq]
   congr 2
   simp only [polyProverCodec, ProverCodec.ofTotal, ProverCodec.decodeOrDefault,
-    Option.isSome_some, Option.getD_some, Bool.true_and, SumcheckState.toClaim?]
-  by_cases hok : sc.ok
-  · simp only [hok, ↓reduceIte, Option.bind_some]
-    rw [sumcheck_round_outputOn]
-    have hdeg : (decodePoly p 2 (raw.take (polyLimit p 2))).natDegree ≤ 2 :=
-      natDegree_decodePoly_le 2 _
-    have heval01 :
-        ((decodePoly p 2 (raw.take (polyLimit p 2))).eval 0 +
-          (decodePoly p 2 (raw.take (polyLimit p 2))).eval 1 = (sc.claim : ZMod p)) ↔
-        (hornerModBin p 0 (decodeResidues p 2 (raw.take (polyLimit p 2))) +
-          hornerModBin p 1 (decodeResidues p 2 (raw.take (polyLimit p 2)))) % p =
-          sc.claim % p := by
-      rw [show (0 : ZMod p) = ((0 : ℕ) : ZMod p) by simp,
-        show (1 : ZMod p) = ((1 : ℕ) : ZMod p) by simp,
-        eval_decodePoly, eval_decodePoly, ← Nat.cast_add, ZMod.natCast_eq_natCast_iff']
-    by_cases hstep : (hornerModBin p 0 (decodeResidues p 2 (raw.take (polyLimit p 2))) +
-        hornerModBin p 1 (decodeResidues p 2 (raw.take (polyLimit p 2)))) % p = sc.claim % p
-    · have ha : Sumcheck.accepts 2 (sc.claim : ZMod p)
-          (decodePoly p 2 (raw.take (polyLimit p 2))) := ⟨hdeg, heval01.mpr hstep⟩
-      simp only [hstep, decide_true, Bool.true_and, ↓reduceIte]
-      rw [ite_eq_left ha]
-      simp [vecOfList_append_singleton hlen r, (eval_decodePoly 2 _ r).symm]
-    · have ha : ¬ Sumcheck.accepts 2 (sc.claim : ZMod p)
-          (decodePoly p 2 (raw.take (polyLimit p 2))) := fun h => hstep (heval01.mp h.2)
-      simp only [hstep, decide_false, Bool.and_false, Bool.false_eq_true, ↓reduceIte]
-      rw [ite_eq_right ha]
-  · simp [hok]
+    Option.isSome_some, Option.getD_some, Bool.true_and, toSumcheckClaim?]
+  let word := raw.take (polyLimit p 2)
+  have hdeg := natDegree_decodePoly_le 2 word (p := p)
+  have hok : (sc.advance p (decodeResidues p 2 word) r).ok = true ↔
+      sc.ok = true ∧ Sumcheck.accepts 2 (sc.claim : ZMod p) (decodePoly p 2 word) :=
+    sc.advance_ok_iff (decodeResidues p 2 word) r hdeg
+  change (if (sc.advance p (decodeResidues p 2 word) r).ok then _ else _) = _
+  rw [if_congr hok rfl rfl]
+  by_cases hold : sc.ok <;> simp only [hold, Bool.false_eq_true, ↓reduceIte, false_and,
+    true_and, Option.bind_none, Option.bind_some]
+  rw [sumcheck_round_outputOn]
+  change (if Sumcheck.accepts 2 (sc.claim : ZMod p) (decodePoly p 2 word) then some _ else none) =
+    (if Sumcheck.accepts 2 (sc.claim : ZMod p) (decodePoly p 2 word) then some _ else none)
+  split_ifs
+  · simp [WordState.advance, vecOfList_append_singleton hlen r,
+      (eval_decodePoly 2 _ r).symm]
+  · rfl
 
 private theorem runWith_sumcheck_iterate {p coinWidth n : ℕ} [Fact p.Prime]
-    (P : MvPolynomial (Fin n) (ZMod p)) (sc₀ : SumcheckState) (h0 : sc₀.challenges = []) :
+    (P : MvPolynomial (Fin n) (ZMod p)) (sc₀ : WordState) (h0 : sc₀.challenges = []) :
     ∀ (k : ℕ) {State : Type} (respond : Unit × List Bool → StateT State PMF (List Bool))
       (s : State),
       (ProbOracleComp.runWith respond (OracleComp.iterate k (sumcheckStep p coinWidth) sc₀) s).map
-          (Prod.map (SumcheckState.toClaim? p k) id) =
+          (Prod.map (toSumcheckClaim? p k) id) =
         ProbOracleComp.runWith respond
           (runWordState
             (Reduction.iterate (s := fun _ => Sumcheck.roundSpec (ZMod p))
               (S := Sumcheck.Claim (ZMod p)) (W := fun _ => Unit) (Sumcheck.round 2 P) k).verifier
             (sumcheckCodecs p k) (sumcheckSamplersApprox p coinWidth k)
-            (sc₀.toClaim? p 0)) s
+            (toSumcheckClaim? p 0 sc₀)) s
   | 0, State, respond, s => by
       simp only [OracleComp.iterate_zero, ProbOracleComp.runWith_pure, PMF.pure_map, Prod.map,
         id_eq, Reduction.iterate, iterSpec, sumcheckCodecs, sumcheckSamplersApprox,
         runWordState, runWordRounds, ProbOracleComp.runWith_map]
       have hel : vecOfList p 0 sc₀.challenges = Fin.elim0 := funext fun j => j.elim0
       by_cases hok : sc₀.ok
-      · simp [SumcheckState.toClaim?, reduction_id_outputOn, hok, hel]
-      · simp [SumcheckState.toClaim?, hok]
+      · simp [toSumcheckClaim?, reduction_id_outputOn, hok, hel]
+      · simp [toSumcheckClaim?, hok]
   | k + 1, State, respond, s => by
       rw [OracleComp.iterate_succ]
       change (ProbOracleComp.runWith respond
         (OracleComp.iterate k (sumcheckStep p coinWidth) sc₀ >>= sumcheckStep p coinWidth) s).map
-        (Prod.map (SumcheckState.toClaim? p (k + 1)) id) = _
+        (Prod.map (toSumcheckClaim? p (k + 1)) id) = _
       have hlen :
           ∀ sc ∈ OracleComp.support (OracleComp.iterate k (sumcheckStep p coinWidth) sc₀),
             sc.challenges.length = k := by
         intro sc hsc
         refine OracleComp.iterate_invariant (fun j x => x.challenges.length = j)
           (by simp [h0]) (fun j st _ hj next hnext => ?_) sc hsc
-        simp only [sumcheckStep, OracleComp.mem_supportWith_bind_iff,
+        simp only [sumcheckStep, WordState.advance, OracleComp.mem_supportWith_bind_iff,
           OracleComp.mem_supportWith_map_iff, OracleComp.supportWith_pure, Set.mem_singleton_iff,
           ProbOracleComp.support_sample] at hnext
         obtain ⟨raw, -, r, -, _, -, rfl⟩ := hnext
@@ -1832,7 +1716,7 @@ private theorem runWith_sumcheck_iterate {p coinWidth n : ℕ} [Fact p.Prime]
           (PerChallenge.append (iterSpec (fun _ => Sumcheck.roundSpec (ZMod p)) k)
             (Sumcheck.roundSpec (ZMod p)) (sumcheckSamplersApprox p coinWidth k)
             (Nat.cast <$> sampleModNat coinWidth p, ()))
-          (sc₀.toClaim? p 0)) s
+          (toSumcheckClaim? p 0 sc₀)) s
       rw [runWordState_append]
       simpa only [Prod.map_id, PMF.map_id] using
         runWith_map_bind_eq respond
@@ -1842,13 +1726,13 @@ private theorem runWith_sumcheck_iterate {p coinWidth n : ℕ} [Fact p.Prime]
               (S := Sumcheck.Claim (ZMod p)) (W := fun _ => Unit)
               (Sumcheck.round 2 P) k).verifier
             (sumcheckCodecs p k) (sumcheckSamplersApprox p coinWidth k)
-            (sc₀.toClaim? p 0))
-          (SumcheckState.toClaim? p k)
+            (toSumcheckClaim? p 0 sc₀))
+          (toSumcheckClaim? p k)
           (fun sc => sumcheckStep p coinWidth sc)
           (runWordState (Sumcheck.round 2 P k).verifier
             (polyProverCodec p 2, fieldChallengeCodec p, ())
             (Nat.cast <$> sampleModNat coinWidth p, ()))
-          (SumcheckState.toClaim? p (k + 1)) id s
+          (toSumcheckClaim? p (k + 1)) id s
           (runWith_sumcheck_iterate P sc₀ h0 k respond s)
           fun sc hsc s' => by
             simpa only [PMF.map_id, Prod.map_id] using
@@ -1858,7 +1742,7 @@ private theorem runWith_lineStep_eq {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) (inst : Instance I) [Fact inst.modulus.Prime]
     (coinWidth i : ℕ) (hi : i < (F.circuit inst.index).depth)
     (W : (Fin ((F.circuit inst.index).width i) → Bool) → ZMod inst.modulus)
-    (st : LayerState) (hrem : st.remaining = i + 1) (sc : SumcheckState)
+    (st : LayerState) (hrem : st.remaining = i + 1) (sc : WordState)
     (_ : sc.challenges.length = (F.circuit inst.index).sumcheckVars i)
     {State : Type} (respond : Unit × List Bool → StateT State PMF (List Bool)) (s : State) :
     (ProbOracleComp.runWith respond (lineStepExec F inst coinWidth st sc) s).map
@@ -1868,7 +1752,7 @@ private theorem runWith_lineStep_eq {I : Type} {encI : I ↪ List Bool}
           (polyProverCodec inst.modulus ((F.circuit inst.index).width i),
             fieldChallengeCodec inst.modulus, ())
           (Nat.cast <$> sampleModNat coinWidth inst.modulus, ())
-          ((sc.toClaim? inst.modulus ((F.circuit inst.index).sumcheckVars i)).map
+          ((toSumcheckClaim? inst.modulus ((F.circuit inst.index).sumcheckVars i) sc).map
             (fun c : Sumcheck.Claim (ZMod inst.modulus) ((F.circuit inst.index).sumcheckVars i) =>
               (⟨vecOfList inst.modulus ((F.circuit inst.index).width (i + 1)) st.point, c⟩ :
                 SumcheckEnd (F.circuit inst.index) (ZMod inst.modulus) i))))
@@ -1890,7 +1774,7 @@ private theorem runWith_lineStep_eq {I : Type} {encI : I ↪ List Bool}
   simp only [PMF.pure_map, Prod.map, id_eq]
   congr 2
   simp only [polyProverCodec, ProverCodec.ofTotal, ProverCodec.decodeOrDefault,
-    Option.isSome_some, Option.getD_some, Bool.true_and, SumcheckState.toClaim?]
+    Option.isSome_some, Option.getD_some, Bool.true_and, toSumcheckClaim?]
   by_cases hok : sc.ok
   · simp only [hok, ↓reduceIte, Option.map_some, Option.bind_some]
     rw [lineStep_outputOn']
@@ -1910,17 +1794,17 @@ private theorem runWith_lineStep_eq {I : Type} {encI : I ↪ List Bool}
       intro g
       rw [hy, hw]
       exact F.wiringMLE.eval_eq inst.index p g i hi st.point y w
-    have hq0 : q.eval 0 = ((hornerModBin p 0 rs : ℕ) : ZMod p) := by
+    have hq0 : q.eval 0 = ((evalCoeffListMod p 0 rs : ℕ) : ZMod p) := by
       rw [show (0 : ZMod p) = ((0 : ℕ) : ZMod p) by simp]
       exact eval_decodePoly (C.width i) _ 0
-    have hq1 : q.eval 1 = ((hornerModBin p 1 rs : ℕ) : ZMod p) := by
+    have hq1 : q.eval 1 = ((evalCoeffListMod p 1 rs : ℕ) : ZMod p) := by
       rw [show (1 : ZMod p) = ((1 : ℕ) : ZMod p) by simp]
       exact eval_decodePoly (C.width i) _ 1
     have hdeg : q.natDegree ≤ C.width i := natDegree_decodePoly_le (C.width i) _
     let rhs := (F.evalWiring ⟨inst.index, .add, i, p, st.point, y, w⟩ *
-        ((hornerModBin p 0 rs + hornerModBin p 1 rs) % p) +
+        ((evalCoeffListMod p 0 rs + evalCoeffListMod p 1 rs) % p) +
       F.evalWiring ⟨inst.index, .mul, i, p, st.point, y, w⟩ *
-        ((hornerModBin p 0 rs * hornerModBin p 1 rs) % p)) % p
+        ((evalCoeffListMod p 0 rs * evalCoeffListMod p 1 rs) % p)) % p
     have hcomb :
         ((sc.claim : ZMod p) = C.combine i xEnd.point xEnd.left xEnd.right (q.eval 0) (q.eval 1)) ↔
           sc.claim % p = rhs := by
@@ -1936,7 +1820,7 @@ private theorem runWith_lineStep_eq {I : Type} {encI : I ↪ List Bool}
       simp only [LayerState.toClaim?, Bool.true_and]
       change (if decide (sc.claim % p = rhs) = true then
           some (LayerClaim.ofPoint (vecOfList p (C.width i) (lineMod p (C.width i) y w t))
-            ((hornerModBin p t rs : ℕ) : ZMod p))
+            ((evalCoeffListMod p t rs : ℕ) : ZMod p))
         else none) = some (C.lineClaim i xEnd q (t : ZMod p))
       simp only [hline, decide_true, ↓reduceIte, LayeredCircuit.lineClaim]
       rw [vecOfList_lineMod, ← hy, ← hw, ← eval_decodePoly (C.width i) _ t]
@@ -1945,7 +1829,7 @@ private theorem runWith_lineStep_eq {I : Type} {encI : I ↪ List Bool}
       simp only [LayerState.toClaim?, Bool.true_and]
       change (if decide (sc.claim % p = rhs) = true then
           some (LayerClaim.ofPoint (vecOfList p (C.width i) (lineMod p (C.width i) y w t))
-            ((hornerModBin p t rs : ℕ) : ZMod p))
+            ((evalCoeffListMod p t rs : ℕ) : ZMod p))
         else none) = none
       simp only [hline, decide_false, Bool.false_eq_true, ↓reduceIte]
   · simp [hok, LayerState.toClaim?]
@@ -1967,7 +1851,7 @@ private theorem runWith_layerExec_eq {I : Type} {encI : I ↪ List Bool}
   let p := inst.modulus
   let W := C.value x i
   let z := vecOfList p (C.width (i + 1)) st.point
-  let sc₀ : SumcheckState := ⟨[], st.value, st.ok⟩
+  let sc₀ : WordState := ⟨[], st.value, st.ok⟩
   have hLayerDef :
       (C.layer x i).verifier =
         (C.sumcheckStage i W).verifier.append (C.lineStep i W).verifier := rfl
@@ -1983,14 +1867,14 @@ private theorem runWith_layerExec_eq {I : Type} {encI : I ↪ List Bool}
     simp only [layerExec, hrem, Nat.add_sub_cancel, two_mul, LayeredCircuit.sumcheckVars]
     rfl
   rw [hExec]
-  have hStart : st.toClaim? C p (i + 1) = (sc₀.toClaim? p 0).map (Sigma.mk z) := by
+  have hStart : st.toClaim? C p (i + 1) = (toSumcheckClaim? p 0 sc₀).map (Sigma.mk z) := by
     have hel : Fin.elim0 = vecOfList p 0 [] := funext fun j => j.elim0
-    by_cases hok : st.ok <;> simp [LayerState.toClaim?, SumcheckState.toClaim?, sc₀, hok, z, hel]
+    by_cases hok : st.ok <;> simp [LayerState.toClaim?, toSumcheckClaim?, sc₀, hok, z, hel]
   have hStage :
       (ProbOracleComp.runWith respond
           (OracleComp.iterate (C.sumcheckVars i) (sumcheckStep p coinWidth) sc₀) s).map
           (Prod.map
-            (fun sc => (sc.toClaim? p (C.sumcheckVars i)).map
+            (fun sc => (toSumcheckClaim? p (C.sumcheckVars i) sc).map
               (fun c : Sumcheck.Claim (ZMod p) (C.sumcheckVars i) =>
                 (⟨z, c⟩ : SumcheckEnd C (ZMod p) i)))
             id) =
@@ -2009,7 +1893,7 @@ private theorem runWith_layerExec_eq {I : Type} {encI : I ↪ List Bool}
     have hIter :
         (ProbOracleComp.runWith respond
             (OracleComp.iterate (C.sumcheckVars i) (sumcheckStep p coinWidth) sc₀) s).map
-            (Prod.map (SumcheckState.toClaim? p (C.sumcheckVars i)) id) =
+            (Prod.map (toSumcheckClaim? p (C.sumcheckVars i)) id) =
           ProbOracleComp.runWith respond
             (runWordState
               (Reduction.iterate (s := fun _ => Sumcheck.roundSpec (ZMod p))
@@ -2017,7 +1901,7 @@ private theorem runWith_layerExec_eq {I : Type} {encI : I ↪ List Bool}
                 (Sumcheck.round 2 (C.summand i W z)) (C.sumcheckVars i)).verifier
               (sumcheckCodecs p (C.sumcheckVars i))
               (sumcheckSamplersApprox p coinWidth (C.sumcheckVars i))
-              (sc₀.toClaim? p 0)) s :=
+              (toSumcheckClaim? p 0 sc₀)) s :=
       runWith_sumcheck_iterate (coinWidth := coinWidth) (C.summand i W z) sc₀ rfl
         (C.sumcheckVars i) respond s
     rw [← hIter, PMF.map_comp]
@@ -2029,7 +1913,7 @@ private theorem runWith_layerExec_eq {I : Type} {encI : I ↪ List Bool}
     intro sc hsc
     refine OracleComp.iterate_invariant (fun j x => x.challenges.length = j) rfl
       (fun j _ _ hj next hnext => ?_) sc hsc
-    simp only [sumcheckStep, OracleComp.mem_supportWith_bind_iff,
+    simp only [sumcheckStep, WordState.advance, OracleComp.mem_supportWith_bind_iff,
       OracleComp.mem_supportWith_map_iff, OracleComp.supportWith_pure, Set.mem_singleton_iff,
       ProbOracleComp.support_sample] at hnext
     obtain ⟨raw, -, r, -, _, -, rfl⟩ := hnext
@@ -2041,7 +1925,7 @@ private theorem runWith_layerExec_eq {I : Type} {encI : I ↪ List Bool}
         (sumcheckCodecs p (C.sumcheckVars i))
         (sumcheckSamplersApprox p coinWidth (C.sumcheckVars i))
         (st.toClaim? C p (i + 1)))
-      (fun sc => (sc.toClaim? p (C.sumcheckVars i)).map
+      (fun sc => (toSumcheckClaim? p (C.sumcheckVars i) sc).map
         (fun c : Sumcheck.Claim (ZMod p) (C.sumcheckVars i) =>
           (⟨z, c⟩ : SumcheckEnd C (ZMod p) i)))
       (lineStepExec F inst coinWidth st)
