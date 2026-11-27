@@ -68,18 +68,13 @@ private theorem equivBitVec_eval_partialProduct (i : Fin w) (a b : BitString w) 
   cases hb : b i
   · have hzero : (partialProduct w i).eval interpretation (Fin.append a b) = 0 :=
       funext fun j => by simp [eval_partialProduct, hb, Bool.zero_eq_false]
-    rw [hzero, BitString.equivBitVec_zero]
-    rfl
+    simp [hzero, BitString.equivBitVec_zero]
   · simp only [↓reduceIte]
-    apply BitVec.eq_of_getLsbD_eq
-    intro j hj
+    refine BitVec.eq_of_getLsbD_eq fun j hj => ?_
     rw [BitString.getLsbD_equivBitVec _ ⟨j, hj⟩, eval_partialProduct, hb]
     by_cases h : i.val ≤ j
-    · have hji : j - i.val < w := by omega
-      have hbit := BitString.getLsbD_equivBitVec a ⟨j - i.val, hji⟩
-      simp_all
-    · have hij : j < i.val := Nat.lt_of_not_ge h
-      simp_all
+    · simp [h, hj, Nat.not_lt.mpr h]
+    · simp [h, Nat.lt_of_not_ge h]
 
 /-- Unsigned value of one shifted partial product, including overflow truncation. -/
 theorem val_eval_partialProduct (i : Fin w) (a b : BitString w) :

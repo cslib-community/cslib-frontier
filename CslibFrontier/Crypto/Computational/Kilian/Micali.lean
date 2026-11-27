@@ -173,9 +173,7 @@ theorem evalPure_kilianCheckProg (h : List Bool → List Bool) (V : PCPVerifier 
   simp only [kilianCheckProg, OracleComp.evalPure_bind, OracleComp.evalPure_mapM,
     OracleComp.evalPure_pure, kilianCheck, List.all_map]
   congr 2
-  refine List.all_congr rfl ?_
-  rintro ⟨a, o⟩
-  simp [MerkleOpening.verify]
+  exact List.all_congr rfl fun ⟨a, o⟩ => by simp [MerkleOpening.verify]
 
 @[simp]
 theorem evalPure_kilianVerifyProg (h : List Bool → List Bool) (V : PCPVerifier α) (x : α)
@@ -185,9 +183,7 @@ theorem evalPure_kilianVerifyProg (h : List Bool → List Bool) (V : PCPVerifier
   simp only [kilianVerifyProg, OracleComp.evalPure_bind, OracleComp.evalPure_mapM,
     OracleComp.evalPure_pure, kilianVerify, List.all_map]
   congr 1
-  refine List.all_congr rfl ?_
-  rintro ⟨ρ, answers⟩
-  simp
+  exact List.all_congr rfl fun ⟨ρ, answers⟩ => by simp
 
 /-! #### Micali prover, verifier and perfect completeness -/
 
@@ -315,16 +311,13 @@ the honest Micali ROM experiment accepts with probability `1`. -/
 theorem micaliHonestGame_eq_pure_true [DecidableEq α] (V : PCPVerifier α) {x : α}
     {table : List Bool} (htable : V.tableVerifier (x, table) = true) (σ m : ℕ) :
     micaliHonestGame V x table σ m = PMF.pure true := by
-  unfold micaliHonestGame
   refine OracleComp.map_fst_runWith_answer_eq_pure (micaliOracleDist V σ m)
     (micaliHonestProg V x table) true fun h hh => ?_
-  have hsplit : h = micaliOracle (fun msg => h (.inl msg))
-      (fun xrt => h (.inr xrt)) := by
-    ext q
-    cases q <;> rfl
+  have hsplit : h = micaliOracle (fun msg => h (.inl msg)) (fun xrt => h (.inr xrt)) :=
+    funext fun | .inl _ | .inr _ => rfl
   rw [hsplit]
-  refine micaliVerify_micaliProve_eq_true (ℓ := σ) (fun y => ?_) htable fun ρ hρ => ?_
-  · exact BitString.length_of_mem_support_uniformList (hh (.inl y))
+  refine micaliVerify_micaliProve_eq_true
+    (fun y => BitString.length_of_mem_support_uniformList (hh (.inl y))) htable fun ρ hρ => ?_
   have hmem := hh (.inr (x, kilianCommit (fun _ => fun msg => h (.inl msg)) V [] x table))
   simp only [micaliOracleDist, kilianChallenges, ProbComp.mem_support_replicate_iff] at hmem
   exact BitString.length_of_mem_support_uniformList (by simpa using hmem.2 ρ hρ)

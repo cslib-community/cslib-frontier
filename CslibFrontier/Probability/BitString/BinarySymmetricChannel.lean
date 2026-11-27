@@ -7,15 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.Code.NearestDecoding
 public import CslibFrontier.Foundations.BooleanAnalysis.Bernoulli
 public import CslibFrontier.Probability.Product
 public import CslibFrontier.Probability.PMF.Coin
 public import Mathlib.Analysis.Complex.Exponential
-public import Mathlib.InformationTheory.Hamming
 public import Mathlib.Probability.ProbabilityMassFunction.Constructions
-public import Mathlib.Topology.UnitInterval
 import CslibFrontier.Foundations.Combinatorics.BinomialTail
 import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Probability.PMF.Event

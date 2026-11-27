@@ -96,10 +96,7 @@ private theorem aeval_update_aeval_C_mul_X_eq_zero [DecidableEq σ] {γ : σ →
   rw [← h0, shift, ← AlgHom.comp_apply, ← AlgHom.comp_apply, comp_aeval, comp_aeval]
   congr 2
   funext v
-  by_cases hv : v = j
-  · subst hv
-    simp [hg]
-  · simp [hg, hv]
+  by_cases hv : v = j <;> simp [hg, hv]
 
 /-- The coefficient extraction behind the lowest-order part: a quotient by `(X - c) ^ i` of a
 combination of constants takes at `c` the value of the combination of the `i`-th coefficients of
@@ -277,10 +274,7 @@ theorem isConcentrating_seedPoint {P : Finset (Fin n → Fin k)} (hP : IsPerfect
         (Function.update (X : Fin n → MvPolynomial (Fin n) F[X][X]) j 1 i)) =
         Function.update X j 1 := by
       funext v
-      by_cases hv : v = j
-      · subst hv
-        simp
-      · simp [Function.update_of_ne hv]
+      by_cases hv : v = j <;> simp [hv, Function.update_of_ne]
     have e2 : (fun v => map (Polynomial.evalRingHom (Polynomial.C ((e₀ : ℕ) : F)))
         (C (γ v) * X v)) = fun v => C (Polynomial.X ^ (δ + 1) ^ (h v : ℕ) : F[X]) * X v := by
       funext v
@@ -291,8 +285,7 @@ private theorem exists_eval_natCast_ne_zero {A : Type*} [CommRing A] [IsDomain A
     {q : A[X]} (hq : q ≠ 0) {N : ℕ} (hN : q.natDegree ≤ N) :
     ∃ x ∈ range (N + 1), q.eval (x : A) ≠ 0 := by
   classical
-  by_contra hcon
-  push Not at hcon
+  by_contra! hcon
   refine hq (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' q
     ((range (N + 1)).image Nat.cast) (fun y hy => ?_) ?_)
   · obtain ⟨x, hx, rfl⟩ := mem_image.1 hy

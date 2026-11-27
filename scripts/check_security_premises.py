@@ -52,8 +52,8 @@ touched modules (a flagged premise without an entry, an entry that no longer mat
 premise, an entry without a `why`), emits a GitHub `::notice` when running in Actions, and
 succeeds. A flagged premise is a prompt for the reviewer to open the statement, not a failure. The
 scan still fails when it cannot run or the baseline is malformed, because that is a broken tool
-and not a finding. `--report` prints every difference in every module and always succeeds; merge
-groups and pushes to `main` run it.
+and not a finding. `--report` prints every difference in every module and always succeeds; pushes
+to `main` run it.
 
 Without `--advisory`, `--base` and `--all` enforce, which CI no longer does and which remains for
 local use: a difference in a touched module (`--all`: in any module) fails, and differences in

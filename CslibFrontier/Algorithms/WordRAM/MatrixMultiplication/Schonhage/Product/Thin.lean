@@ -39,10 +39,6 @@ public theorem thin_timeBound (m N : ℕ) (qs : List (Fin N × Fin N))
         (65 * ((D m : ℝ) ^ (-(1 / 18 : ℝ)) * (N : ℝ) ^ 2) + qs.length) := by
   have hm : m ≤ 19 * m := by omega
   have hNpos : 0 < N := (Nat.pow_pos (show 0 < D m from Nat.pow_pos (by decide))).trans_le hN
-  have hB := numBands_pos hm hNpos
-  have hH : 10 ^ (19 * m) ≤ numBands (19 * m) m N * 10 ^ (19 * m) :=
-    Nat.le_mul_of_pos_left _ hB
-  have hprep := preparation_shape_le hm hNpos
   have henc := encodings_total_le m N hN
   have htiles := minutiae_total_le m N qs.toFinset hN hW
   have hleaves := total_leaves_le (MaskTable.layout hm) qs.toFinset hN hW
@@ -51,9 +47,11 @@ public theorem thin_timeBound (m N : ℕ) (qs : List (Fin N × Fin N))
   rw [hc] at htiles
   have hprepR : ((1 + N * D m + 2 ^ (19 * m) +
       2 * numBands (19 * m) m N * 10 ^ (19 * m) : ℕ) : ℝ) ≤
-      5 * ((numBands (19 * m) m N * 10 ^ (19 * m) : ℕ) : ℝ) := by exact_mod_cast hprep
+      5 * ((numBands (19 * m) m N * 10 ^ (19 * m) : ℕ) : ℝ) := by
+    exact_mod_cast preparation_shape_le hm hNpos
   have hHR : ((10 ^ (19 * m) : ℕ) : ℝ) ≤
-      ((numBands (19 * m) m N * 10 ^ (19 * m) : ℕ) : ℝ) := by exact_mod_cast hH
+      ((numBands (19 * m) m N * 10 ^ (19 * m) : ℕ) : ℝ) := by
+    exact_mod_cast Nat.le_mul_of_pos_left _ (numBands_pos hm hNpos)
   have hshape : ((1 + N * D m + qs.length + 2 ^ (19 * m) +
       (numBands (19 * m) m N + 1) * 10 ^ (19 * m) + numBands (19 * m) m N ^ 2 +
         ∑ T ∈ tiles (19 * m) m N,
@@ -64,16 +62,9 @@ public theorem thin_timeBound (m N : ℕ) (qs : List (Fin N × Fin N))
     nlinarith only [hprepR, hHR, henc, htiles, hleaves, hnonneg,
       Nat.cast_nonneg (α := ℝ) (K (19 * m) m), Nat.cast_nonneg (α := ℝ) qs.toFinset.card,
       Nat.cast_nonneg (α := ℝ) (N * D m), Nat.cast_nonneg (α := ℝ) (2 ^ (19 * m))]
-  have hcost := timeBound_le hm qs
-  have hcostR : ((timeBound hm qs + 1 : ℕ) : ℝ) ≤
-      65536 * ((19 * m + 1 : ℕ) : ℝ) *
-        ((1 + N * D m + qs.length + 2 ^ (19 * m) +
-          (numBands (19 * m) m N + 1) * 10 ^ (19 * m) + numBands (19 * m) m N ^ 2 +
-            ∑ T ∈ tiles (19 * m) m N,
-              (leaves
-                (wantedStrings (MaskTable.layout hm) qs.toFinset T.1 T.2)).card : ℕ) : ℝ) := by
-    exact_mod_cast hcost
-  exact hcostR.trans (mul_le_mul_of_nonneg_left hshape (by positivity))
+  refine (Nat.cast_le.mpr (timeBound_le hm qs)).trans ?_
+  rw [Nat.cast_mul, Nat.cast_mul, Nat.cast_ofNat]
+  exact mul_le_mul_of_nonneg_left hshape (by positivity)
 
 /-- A bound on all original occurrences, rather than only distinct coordinates, absorbs
 the actual list-input/reporting charge. The final halt is included. -/

@@ -64,8 +64,8 @@ theorem polytime_lookup (label : D ↪ List Bool) :
   let row : ((D × D) → ℕ × (D × D)) ↪ List Bool :=
     encPi (encPair encUnary (encPair label label))
   let rows := encList row
-  have htail : ComputableInPolyTime List.tail rows rows := by
-    exact (ListEncoding.tail (enc₁ := row) (enc := rows)).computableInPolyTime
+  have htail : ComputableInPolyTime List.tail rows rows :=
+    (ListEncoding.tail (enc₁ := row) (enc := rows)).computableInPolyTime
   have heq (l : List ((D × D) → ℕ × (D × D))) (n : ℕ) :
       (List.replicate n true).foldl (fun acc _ => acc.tail) l = l.drop n := by
     simp [List.foldl_const, List.tail_iterate]
@@ -86,13 +86,11 @@ theorem polytime_lookup (label : D ↪ List Bool) :
         omega)
     simpa only [heq] using hfold
   have hhead : ComputableInPolyTime
-      (fun l : List ((D × D) → ℕ × (D × D)) => l.headD (fun label => (0, label))) rows row := by
-    exact (ListEncoding.headD
-      (enc₁ := row) (enc := rows) (fun label => (0, label))).computableInPolyTime
+      (fun l : List ((D × D) → ℕ × (D × D)) => l.headD (fun label => (0, label))) rows row :=
+    (ListEncoding.headD (enc₁ := row) (enc := rows) (fun label => (0, label))).computableInPolyTime
   have htable := ComputableInPolyTime.fst rows (encPair encUnary (encPair label label))
   have hargs := ComputableInPolyTime.snd rows (encPair encUnary (encPair label label))
-  have hrow := hhead.comp (hdrop.comp (htable.prod hargs.fst'))
-  have hp := ComputableInPolyTime.pi_apply' hrow hargs.snd'
+  have hp := (hhead.comp (hdrop.comp (htable.prod hargs.fst'))).pi_apply' hargs.snd'
   simpa only [lookup, List.headD_eq_head?_getD, List.head?_drop,
     List.getD_eq_getElem?_getD, Function.comp_def, encoding, rows, row] using hp
 
@@ -114,8 +112,7 @@ theorem polytime_nextRow (H : RotationMap (Fin b) D) (e : Fin b ≃ (Fin 2 → D
       (encPair label label) := .of_finite _
   have hval : ComputableInPolyTime (Fin.val : Fin b → ℕ) vertexEncoding encUnary :=
     .of_eq (fun _ => rfl)
-  apply ComputableInPolyTime.pi
-  intro edge
+  refine ComputableInPolyTime.pi fun edge => ?_
   have htable := ComputableInPolyTime.fst (encoding label) encUnary
   have hvertex := ComputableInPolyTime.snd (encoding label) encUnary
   have hfirst := hbase.comp

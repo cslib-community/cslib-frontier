@@ -75,9 +75,8 @@ omit [DecidableEq V] in
 theorem FalsifiedBy.left_of_resolvent {c₁ c₂ : Clause V} {v : V}
     (h : FalsifiedBy ρ (c₁.resolvent c₂ v)) (hv : ρ v = some false) : FalsifiedBy ρ c₁ := by
   intro l hl
-  by_cases hlv : l = (v, true)
-  · subst hlv
-    exact hv
+  rcases eq_or_ne l (v, true) with rfl | hlv
+  · exact hv
   · exact h l (mem_resolvent.2 (Or.inl ⟨hl, hlv⟩))
 
 /-- If `ρ` falsifies the resolvent of `c₁` and `c₂` on `v` and sets `v` to `true`, it falsifies
@@ -85,20 +84,17 @@ theorem FalsifiedBy.left_of_resolvent {c₁ c₂ : Clause V} {v : V}
 theorem FalsifiedBy.right_of_resolvent {c₁ c₂ : Clause V} {v : V}
     (h : FalsifiedBy ρ (c₁.resolvent c₂ v)) (hv : ρ v = some true) : FalsifiedBy ρ c₂ := by
   intro l hl
-  by_cases hlv : l = (v, false)
-  · subst hlv
-    exact hv
+  rcases eq_or_ne l (v, false) with rfl | hlv
+  · exact hv
   · exact h l (mem_resolvent.2 (Or.inr ⟨hl, hlv⟩))
 
 /-- Setting a variable that `ρ` leaves unset keeps every clause `ρ` falsifies falsified. -/
 theorem FalsifiedBy.update {c : Clause V} (h : FalsifiedBy ρ c) {v : V} (hv : ρ v = none)
     (b : Bool) : FalsifiedBy (Function.update ρ v (some b)) c := by
   intro l hl
-  have hne : l.1 ≠ v := by
-    intro he
-    have := h l hl
-    rw [he, hv] at this
-    cases this
+  have hne : l.1 ≠ v := fun he => by
+    have := he ▸ h l hl
+    simp [hv] at this
   rw [Function.update_of_ne hne]
   exact h l hl
 

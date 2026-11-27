@@ -58,15 +58,9 @@ def childLift {J I : Type} (j : J) (A : Finset I) : Finset (J × I) :=
 @[simp] theorem mem_childLift {J I : Type} (j : J) (A : Finset I) (p : J × I) :
     p ∈ childLift j A ↔ p.1 = j ∧ p.2 ∈ A := by
   rcases p with ⟨k, a⟩
-  unfold childLift
-  rw [Finset.mem_map]
-  constructor
-  · rintro ⟨b, hb, hp⟩
-    change (j, b) = (k, a) at hp
-    cases hp
-    exact ⟨rfl, hb⟩
-  · rintro ⟨rfl, ha⟩
-    exact ⟨a, ha, rfl⟩
+  simp only [childLift, Finset.mem_map]
+  exact ⟨fun ⟨_, ha, h⟩ => ⟨(Prod.mk.inj h).1.symm, (Prod.mk.inj h).2 ▸ ha⟩,
+    fun ⟨rfl, ha⟩ => ⟨a, ha, rfl⟩⟩
 
 /-- `childLift j A` has the same cardinality as `A`. -/
 @[simp] theorem childLift_card {J I : Type} (j : J) (A : Finset I) :

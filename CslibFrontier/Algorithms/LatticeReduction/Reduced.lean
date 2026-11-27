@@ -82,12 +82,10 @@ structure IsReduced (δ : ℝ) (b : Fin n → E) : Prop where
 theorem norm_sq_gramSchmidt_add_smul (b : Fin n → E) {i j : Fin n} (hij : i < j) (μ : ℝ) :
     ‖gramSchmidt ℝ b j + μ • gramSchmidt ℝ b i‖ ^ 2 =
       ‖gramSchmidt ℝ b j‖ ^ 2 + μ ^ 2 * ‖gramSchmidt ℝ b i‖ ^ 2 := by
-  have h0 : inner ℝ (gramSchmidt ℝ b j) (μ • gramSchmidt ℝ b i) = 0 := by
-    rw [inner_smul_right, gramSchmidt_orthogonal ℝ b (ne_of_gt hij), mul_zero]
-  have h := norm_add_sq_eq_norm_sq_add_norm_sq_of_inner_eq_zero _ _ h0
+  have h := norm_add_sq_eq_norm_sq_add_norm_sq_of_inner_eq_zero _ (μ • gramSchmidt ℝ b i)
+    (by rw [inner_smul_right, gramSchmidt_orthogonal ℝ b (ne_of_gt hij), mul_zero])
   rw [norm_smul, Real.norm_eq_abs] at h
-  rw [sq, h, ← sq_abs μ]
-  ring
+  rw [sq, h, ← sq_abs μ]; ring
 
 /-- The first step of the proof of (1.6) in [LenstraLenstraLovasz1982], for `δ > 1/4`: size
 reduction and the exchange condition give `‖b*ᵢ‖² ≤ 4/(4δ-1) · ‖b*ⱼ‖²`. -/
@@ -98,10 +96,8 @@ theorem norm_sq_gramSchmidt_le_of_exchangeCondAt {δ : ℝ} (hδ : 1 / 4 < δ) {
   unfold ExchangeCondAt at hex
   rw [norm_sq_gramSchmidt_add_smul b hij] at hex
   have hμ : gramSchmidtCoeff ℝ b j i ^ 2 ≤ 1 / 4 := by
-    have := sq_abs (gramSchmidtCoeff ℝ b j i)
-    nlinarith [abs_nonneg (gramSchmidtCoeff ℝ b j i)]
-  have hpos : 0 < 4 * δ - 1 := by linarith
-  rw [div_mul_eq_mul_div, le_div_iff₀ hpos]
+    nlinarith [sq_abs (gramSchmidtCoeff ℝ b j i), abs_nonneg (gramSchmidtCoeff ℝ b j i)]
+  rw [div_mul_eq_mul_div, le_div_iff₀ (by linarith)]
   nlinarith [sq_nonneg ‖gramSchmidt ℝ b i‖, sq_nonneg ‖gramSchmidt ℝ b j‖,
     mul_le_mul_of_nonneg_right hμ (sq_nonneg ‖gramSchmidt ℝ b i‖)]
 
@@ -116,8 +112,7 @@ theorem IsReduced.norm_sq_gramSchmidt_chain {δ : ℝ} {b : Fin n → E} (hb : I
   | succ k ih =>
     intro hk
     have hk' : (j : ℕ) + k < n := by omega
-    have hlt : (⟨j + k, hk'⟩ : Fin n) < ⟨j + (k + 1), hk⟩ := by
-      rw [Fin.mk_lt_mk]; omega
+    have hlt : (⟨j + k, hk'⟩ : Fin n) < ⟨j + (k + 1), hk⟩ := Fin.mk_lt_mk.mpr (by omega)
     have hstep := norm_sq_gramSchmidt_le_of_exchangeCondAt hδ hlt
       (hb.sizeReduced _ _ hlt) (hb.exchange _ _ (by simp; omega))
     have hα : 0 ≤ (4 / (4 * δ - 1)) ^ k := pow_nonneg (by
@@ -125,8 +120,7 @@ theorem IsReduced.norm_sq_gramSchmidt_chain {δ : ℝ} {b : Fin n → E} (hb : I
     calc ‖gramSchmidt ℝ b j‖ ^ 2
         ≤ (4 / (4 * δ - 1)) ^ k * ‖gramSchmidt ℝ b ⟨j + k, hk'⟩‖ ^ 2 := ih hk'
       _ ≤ (4 / (4 * δ - 1)) ^ k *
-            (4 / (4 * δ - 1) * ‖gramSchmidt ℝ b ⟨j + (k + 1), hk⟩‖ ^ 2) :=
-          mul_le_mul_of_nonneg_left hstep hα
+            (4 / (4 * δ - 1) * ‖gramSchmidt ℝ b ⟨j + (k + 1), hk⟩‖ ^ 2) := by gcongr
       _ = (4 / (4 * δ - 1)) ^ (k + 1) * ‖gramSchmidt ℝ b ⟨j + (k + 1), hk⟩‖ ^ 2 := by
           rw [pow_succ]; ring
 
@@ -138,16 +132,15 @@ theorem IsReduced.norm_sq_le {δ : ℝ} {b : Fin (n + 1) → E} (hb : IsReduced 
     (hδ : 1 / 4 < δ) (hδ1 : δ ≤ 1) {x : E} (hx : x ∈ Submodule.span ℤ (Set.range b))
     (hx0 : x ≠ 0) : ‖b 0‖ ^ 2 ≤ (4 / (4 * δ - 1)) ^ n * ‖x‖ ^ 2 := by
   obtain ⟨i, hi⟩ := exists_norm_gramSchmidt_le_of_mem_span_int (𝕜 := ℝ) hx hx0
-  have h0 : gramSchmidt ℝ b 0 = b 0 := by
-    rw [← bot_eq_zero]; exact gramSchmidt_bot ℝ b
   have hchain := hb.norm_sq_gramSchmidt_chain hδ 0 i (by simp; omega)
   have hidx : (⟨(0 : Fin (n + 1)) + (i : ℕ), by simp; omega⟩ : Fin (n + 1)) = i := by
-    ext; simp
-  rw [hidx, h0] at hchain
+    ext
+    simp
+  rw [hidx, ← bot_eq_zero, gramSchmidt_bot ℝ b] at hchain
   have hα1 : 1 ≤ 4 / (4 * δ - 1) := by
-    rw [le_div_iff₀ (by linarith)]; linarith
+    rw [le_div_iff₀ (by linarith)]
+    linarith
   have hin : (i : ℕ) ≤ n := Nat.lt_succ_iff.1 i.isLt
-  have hsq : ‖gramSchmidt ℝ b i‖ ^ 2 ≤ ‖x‖ ^ 2 := by gcongr
   calc ‖b 0‖ ^ 2 ≤ (4 / (4 * δ - 1)) ^ (i : ℕ) * ‖gramSchmidt ℝ b i‖ ^ 2 := hchain
     _ ≤ (4 / (4 * δ - 1)) ^ n * ‖x‖ ^ 2 := by gcongr
 
@@ -158,11 +151,9 @@ theorem IsReduced.norm_le_sqrt_two_pow_mul {b : Fin (n + 1) → E} (hb : IsReduc
     {x : E} (hx : x ∈ Submodule.span ℤ (Set.range b)) (hx0 : x ≠ 0) :
     ‖b 0‖ ≤ Real.sqrt 2 ^ n * ‖x‖ := by
   have h := hb.norm_sq_le (by norm_num) (by norm_num) hx hx0
-  have h2 : (4 : ℝ) / (4 * (3 / 4) - 1) = 2 := by norm_num
-  rw [h2] at h
   have hrhs : (Real.sqrt 2 ^ n * ‖x‖) ^ 2 = 2 ^ n * ‖x‖ ^ 2 := by
     rw [mul_pow, ← pow_mul, mul_comm n 2, pow_mul, Real.sq_sqrt (by norm_num)]
-  rw [← hrhs] at h
+  rw [show (4 : ℝ) / (4 * (3 / 4) - 1) = 2 by norm_num, ← hrhs] at h
   exact (pow_le_pow_iff_left₀ (norm_nonneg _)
     (mul_nonneg (pow_nonneg (Real.sqrt_nonneg _) _) (norm_nonneg _)) two_ne_zero).1 h
 

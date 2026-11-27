@@ -52,27 +52,26 @@ theorem dyadicSignProductResidue_mem {α : Type} {enc : α ↪ List Bool} {a : �
     (fun w => dyadicSignProductResidue (p w) (B w) (s w) (z w)) ∈
       CountingFunction (a + 3) enc encNat := by
   have hf := ComputableInPolyTime.fst enc encBits
-  have hp' := hp.comp hf
   have hcount := ComputableInPolyTime.binary_add'
     (ComputableInPolyTime.binary_mul' (.const 2) hB) (.const 1)
   have hj : ComputableInPolyTime (fun q : α × List Bool => BitString.binaryValue q.2)
       (encPair enc encBits) encNat := by fun_prop
-  have hscale := computableInPolyTime_powMod hp (.const 2) hB
-  have hweight := computableInPolyTime_powMod hp' (.const 2) hj
-  have hscaled := CountingFunction.nat_mul (CountingFunction.of_polyTime (hscale.comp hf))
-    (CountingFunction.preprocess hz hf)
   have hsum := CountingFunction.map
-    (CountingFunction.prod (CountingFunction.of_polyTime hweight) hscaled)
+    (CountingFunction.prod
+      (CountingFunction.of_polyTime (computableInPolyTime_powMod (hp.comp hf) (.const 2) hj))
+      (CountingFunction.nat_mul
+        (CountingFunction.of_polyTime ((computableInPolyTime_powMod hp (.const 2) hB).comp hf))
+        (CountingFunction.preprocess hz hf)))
     ComputableInPolyTime.binary_add
-  have htest := CountingFunction.nat_lt (a := a) (CountingFunction.of_polyTime hj)
-    (CountingFunction.of_polyTime (hcount.comp hf))
-  have hfactor := CountingFunction.ite htest
-    (CountingFunction.nat_mod hsum (CountingFunction.of_polyTime hp'))
+  have hfactor := CountingFunction.ite
+    (CountingFunction.nat_lt (a := a) (CountingFunction.of_polyTime hj)
+      (CountingFunction.of_polyTime (hcount.comp hf)))
+    (CountingFunction.nat_mod hsum (CountingFunction.of_polyTime (hp.comp hf)))
     (CountingFunction.of_polyTime (.const 1))
-  have hproduct := CountingFunction.primeFieldProduct_mem E hfactor hp
-    (ComputableInPolyTime.binary_size.comp hcount)
   simpa only [dyadicSignProductResidue, decide_eq_true_eq, Function.comp_apply] using
-    CountingFunction.powMod (CountingFunction.of_polyTime hp) hproduct
+    CountingFunction.powMod (CountingFunction.of_polyTime hp)
+      (CountingFunction.primeFieldProduct_mem E hfactor hp
+        (ComputableInPolyTime.binary_size.comp hcount))
       (CountingFunction.of_polyTime (ComputableInPolyTime.binary_mul' (.const 2) hs))
 
 /-- The binary evaluator computes the common-scale integer polynomial at every prime. -/
@@ -107,14 +106,14 @@ theorem signTestResidues_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
       CountingFunction (a + 3) enc encNat) ∧
     ((fun w => signTestNumeratorResidue (p w) (B w) (s w) (z w)) ∈
       CountingFunction (a + 3) enc encNat) := by
-  have hneg := modularSub_mem (CountingFunction.of_polyTime hp)
-    (CountingFunction.of_polyTime (.const 0)) hz
-  have hposProduct := dyadicSignProductResidue_mem E hp hB hs hz
-  have hnegProduct := dyadicSignProductResidue_mem E hp hB hs hneg
+  have hpos := dyadicSignProductResidue_mem E hp hB hs hz
+  have hneg := dyadicSignProductResidue_mem E hp hB hs
+    (modularSub_mem (CountingFunction.of_polyTime hp)
+      (CountingFunction.of_polyTime (.const 0)) hz)
   exact ⟨CountingFunction.nat_mod
-    (CountingFunction.map (CountingFunction.prod hposProduct hnegProduct)
+    (CountingFunction.map (CountingFunction.prod hpos hneg)
       ComputableInPolyTime.binary_add) (CountingFunction.of_polyTime hp),
-    modularSub_mem (CountingFunction.of_polyTime hp) hposProduct hnegProduct⟩
+    modularSub_mem (CountingFunction.of_polyTime hp) hpos hneg⟩
 
 /-- The cleared residues cast to the sum and difference used by the sign-label polynomial. -/
 theorem signTestResidues_cast {p : ℕ} [Fact p.Prime] (B s z : ℕ) :
@@ -122,12 +121,7 @@ theorem signTestResidues_cast {p : ℕ} [Fact p.Prime] (B s z : ℕ) :
     (signTestDenominatorResidue p B s z : ZMod p) = f (z : ZMod p) + f (-(z : ZMod p)) ∧
     (signTestNumeratorResidue p B s z : ZMod p) = f (z : ZMod p) - f (-(z : ZMod p)) := by
   have hp := (Fact.out : p.Prime).pos
-  dsimp only
-  constructor
-  · rw [signTestDenominatorResidue, ZMod.natCast_mod, Nat.cast_add,
-      dyadicSignProductResidue_cast, dyadicSignProductResidue_cast, modularSub_cast hp,
-      Nat.cast_zero, zero_sub]
-  · rw [signTestNumeratorResidue, modularSub_cast hp, dyadicSignProductResidue_cast,
-      dyadicSignProductResidue_cast, modularSub_cast hp, Nat.cast_zero, zero_sub]
+  exact ⟨by simp [signTestDenominatorResidue, dyadicSignProductResidue_cast, modularSub_cast hp],
+    by simp [signTestNumeratorResidue, dyadicSignProductResidue_cast, modularSub_cast hp]⟩
 
 end Cslib.Complexity.RealAlgebraic

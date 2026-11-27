@@ -33,15 +33,12 @@ namespace Cslib.Orthogonal
 
 
 private theorem cutPoint_two_one_ne_even (a b v : Point) : cutPoint 2 1 a b ≠ 2 • v := by
-  have hd := direction_unit a b
   rcases a with ⟨ax, ay⟩
   rcases v with ⟨vx, vy⟩
   intro h
-  rcases hd with hd | hd | hd | hd
-  all_goals
+  rcases direction_unit (ax, ay) b with hd | hd | hd | hd <;>
     simp only [cutPoint, hd, one_smul, Prod.smul_mk, Int.nsmul_eq_mul,
-      Prod.mk_add_mk, Prod.mk.injEq] at h
-    omega
+      Prod.mk_add_mk, Prod.mk.injEq] at h <;> omega
 
 /-- Equal cardinal directions force a common point that is not an integer grid point. -/
 theorem nonGrid_contact_of_direction_eq {a b c : Point}
@@ -53,23 +50,14 @@ theorem nonGrid_contact_of_direction_eq {a b c : Point}
     dsimp only [p]
     rw [smul_smul]
     norm_num
-  have hq₁ : realPoint q ∈ segment (2 • a) (2 • b) :=
-    cutPoint_mem_segment hab (by decide)
-  have hq₂ : realPoint q ∈ segment (2 • a) (2 • c) := by
-    have heq : cutPoint 2 1 a b = cutPoint 2 1 a c := by simp only [cutPoint, hd]
-    change realPoint (cutPoint 2 1 a b) ∈ segment (2 • a) (2 • c)
-    rw [heq]
-    exact cutPoint_mem_segment hac (by decide)
-  have hp₁ : p ∈ segment a b := (mem_segment_nsmul_iff (by decide : 2 ≠ 0) a b p).1
-    (by simpa only [Nat.cast_ofNat, he] using hq₁)
-  have hp₂ : p ∈ segment a c := (mem_segment_nsmul_iff (by decide : 2 ≠ 0) a c p).1
-    (by simpa only [Nat.cast_ofNat, he] using hq₂)
-  refine ⟨p, hp₁, hp₂, ?_⟩
-  intro v hv
-  have hv' : realPoint q = realPoint (2 • v) := by
-    rw [← he, hv, realPoint_nsmul]
-    norm_num
-  exact cutPoint_two_one_ne_even a b v (realPoint_injective hv')
+  have hp_mem {x : Point} (hx : AxisAligned a x) (hdx : direction a b = direction a x) :
+      p ∈ segment a x :=
+    (mem_segment_nsmul_iff (by decide : 2 ≠ 0) a x p).1
+      (by simpa only [Nat.cast_ofNat, he, q, cutPoint, hdx] using
+        cutPoint_mem_segment hx (by decide))
+  refine ⟨p, hp_mem hab rfl, hp_mem hac hd, fun v hv =>
+    cutPoint_two_one_ne_even a b v (realPoint_injective ?_)⟩
+  rw [← he, hv, realPoint_nsmul]; norm_num
 
 /-- If common segment points must be integer graph vertices, two incidences cannot leave
 their shared initial vertex in the same direction. -/
@@ -79,7 +67,6 @@ theorem direction_ne_of_grid_contacts {a b c : Point}
     direction a b ≠ direction a c := by
   intro hd
   obtain ⟨p, hp, hq, hng⟩ := nonGrid_contact_of_direction_eq hab hac hd
-  obtain ⟨v, hv⟩ := hc p hp hq
-  exact hng v hv
+  exact (hc p hp hq).elim hng
 
 end Cslib.Orthogonal

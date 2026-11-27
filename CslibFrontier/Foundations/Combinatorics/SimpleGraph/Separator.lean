@@ -96,10 +96,9 @@ theorem mem_reachAvoiding_of_adj {u v : V} (hu : u ∈ G.reachAvoiding A Y) (huv
     (hv : v ∉ Y) : v ∈ G.reachAvoiding A Y := by
   obtain ⟨a, ha, p, hp⟩ := hu
   refine ⟨a, ha, p.concat huv, fun x hx => ?_⟩
-  rw [Walk.support_concat, List.mem_append, List.mem_singleton] at hx
-  rcases hx with hx | rfl
+  rcases List.mem_append.1 (p.support_concat huv ▸ hx) with hx | hx
   · exact hp x hx
-  · exact hv
+  · exact List.mem_singleton.1 hx ▸ hv
 
 /-- It suffices to check paths: a walk avoiding `Y` contains a path (`Walk.bypass`) with the same
 endpoints and fewer vertices. -/
@@ -107,20 +106,17 @@ theorem isSeparator_iff_forall_isPath :
     G.IsSeparator A B Y ↔
       ∀ ⦃a⦄, a ∈ A → ∀ ⦃b⦄, b ∈ B → ∀ p : G.Walk a b, p.IsPath → ∃ x ∈ p.support, x ∈ Y := by
   classical
-  refine ⟨fun h a ha b hb p _ => h ha hb p, fun h a ha b hb p => ?_⟩
-  obtain ⟨x, hx, hxY⟩ := h ha hb p.bypass p.bypass_isPath
-  exact ⟨x, p.support_bypass_subset_support hx, hxY⟩
+  exact ⟨fun h _ ha _ hb p _ => h ha hb p, fun h _ ha _ hb p =>
+    let ⟨x, hx, hxY⟩ := h ha hb p.bypass p.bypass_isPath
+    ⟨x, p.support_bypass_subset_support hx, hxY⟩⟩
 
 /-- `Y` separates `A` from `B` exactly when no vertex of `B` is reached from `A` avoiding `Y`. -/
 theorem isSeparator_iff_forall_notMem_reachAvoiding :
     G.IsSeparator A B Y ↔ ∀ b ∈ B, b ∉ G.reachAvoiding A Y := by
-  constructor
-  · rintro h b hb ⟨a, ha, p, hp⟩
-    obtain ⟨x, hx, hxY⟩ := h ha hb p
+  refine ⟨fun h _ hb ⟨_, ha, p, hp⟩ => ?_, fun h a ha b hb p => ?_⟩
+  · obtain ⟨x, hx, hxY⟩ := h ha hb p
     exact hp x hx hxY
-  · intro h a ha b hb p
-    by_contra hp
-    push Not at hp
+  · by_contra! hp
     exact h b hb ⟨a, ha, p, hp⟩
 
 /-- A labelling `f` that is constant along walks avoiding `Y` takes the same value at both
@@ -142,8 +138,7 @@ theorem isSeparator_of_forall_adj (f : V → Bool)
     (hA : ∀ a ∈ A, a ∉ Y → f a = true) (hB : ∀ b ∈ B, b ∉ Y → f b = false) :
     G.IsSeparator A B Y := by
   intro a ha b hb p
-  by_contra hp
-  push Not at hp
+  by_contra! hp
   have hab := apply_eq_of_forall_adj hf p hp
   rw [hA a ha (hp a p.start_mem_support), hB b hb (hp b p.end_mem_support)] at hab
   exact Bool.noConfusion hab
@@ -171,18 +166,12 @@ theorem isVertexSeparator_iff_not_reachable_induce {u v : V} {T : Finset V} :
     G.IsVertexSeparator u v T ↔
       ∃ (hu : u ∉ T) (hv : v ∉ T), ¬ (G.induce (T : Set V)ᶜ).Reachable ⟨u, hu⟩ ⟨v, hv⟩ := by
   rw [isVertexSeparator_iff_forall_walk]
-  constructor
-  · rintro ⟨hu, hv, h⟩
-    refine ⟨hu, hv, fun ⟨w⟩ => ?_⟩
-    obtain ⟨x, hx, hxT⟩ := h (w.map ⟨Subtype.val, id⟩)
-    rw [Walk.support_map, List.mem_map] at hx
-    obtain ⟨⟨y, hy⟩, _, rfl⟩ := hx
+  refine ⟨fun ⟨hu, hv, h⟩ => ⟨hu, hv, fun ⟨w⟩ => ?_⟩, fun ⟨hu, hv, h⟩ => ⟨hu, hv, fun w => ?_⟩⟩
+  · obtain ⟨x, hx, hxT⟩ := h (w.map ⟨Subtype.val, id⟩)
+    obtain ⟨⟨y, hy⟩, _, rfl⟩ := List.mem_map.1 (Walk.support_map _ w ▸ hx)
     exact hy hxT
-  · rintro ⟨hu, hv, h⟩
-    refine ⟨hu, hv, fun w => ?_⟩
-    by_contra hp
-    push Not at hp
-    exact h ⟨w.induce (T : Set V)ᶜ fun x hx => hp x hx⟩
+  · by_contra! hp
+    exact h ⟨w.induce _ hp⟩
 
 /-- Closed-set certificate for a vertex separator: if `u ∈ S`, `v ∉ S`, `T` avoids `u` and `v`,
 and every edge leaving `S` ends in `T`, then `T` separates `u` from `v`. -/
@@ -191,21 +180,12 @@ theorem isVertexSeparator_of_forall_adj {u v : V} {S T : Finset V} (hu : u ∈ S
     G.IsVertexSeparator u v T := by
   classical
   refine isVertexSeparator_iff_isSeparator.mpr ⟨huT, hvT, isSeparator_of_forall_adj
-    (fun x => decide (x ∈ S)) (fun a b hab ha hb => ?_) (fun a ha _ => ?_) (fun b hb _ => ?_)⟩
-  · by_contra hne
-    rcases Bool.eq_false_or_eq_true (decide (a ∈ S)) with h | h <;>
-        rcases Bool.eq_false_or_eq_true (decide (b ∈ S)) with h' | h'
-    · exact hne (h.trans h'.symm)
-    · simp only [decide_eq_true_eq] at h
-      simp only [decide_eq_false_iff_not] at h'
-      exact hb (Finset.mem_coe.mpr (hST a h b hab h'))
-    · simp only [decide_eq_false_iff_not] at h
-      simp only [decide_eq_true_eq] at h'
-      exact ha (Finset.mem_coe.mpr (hST b h' a hab.symm h))
-    · exact hne (h.trans h'.symm)
-  · simp only [Set.mem_singleton_iff] at ha
-    simp [ha, hu]
-  · simp only [Set.mem_singleton_iff] at hb
-    simp [hb, hv]
+    (fun x => decide (x ∈ S)) (fun a b hab ha hb => ?_)
+    (fun _ ha _ => by simp [Set.mem_singleton_iff.mp ha, hu])
+    (fun _ hb _ => by simp [Set.mem_singleton_iff.mp hb, hv])⟩
+  by_cases haS : a ∈ S <;> by_cases hbS : b ∈ S
+  all_goals simp only [haS, hbS, decide_true, decide_false]
+  · exact (hb (Finset.mem_coe.mpr (hST a haS b hab hbS))).elim
+  · exact (ha (Finset.mem_coe.mpr (hST b hbS a hab.symm haS))).elim
 
 end SimpleGraph

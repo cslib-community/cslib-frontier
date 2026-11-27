@@ -81,10 +81,8 @@ theorem step {a : Cfg k Symbol State x} {b : Cfg k Symbol State y}
     exact h
   | some q =>
     rw [tm.step_of_state hs, tm.step_of_state (h.state.symm.trans hs)]
-    have hw : a.workTapeSymbols = b.workTapeSymbols := by
-      funext i
-      change a.workTapes i (a.workTapePos i) = b.workTapes i (b.workTapePos i)
-      rw [h.workTapes, h.workTapePos]
+    have hw : a.workTapeSymbols = b.workTapeSymbols :=
+      funext fun _ => by simp only [Cfg.workTapeSymbols, h.workTapes, h.workTapePos]
     rw [hread, hw]
     exact h.apply_action ha hb _
 
@@ -101,28 +99,24 @@ theorem matches_runFrom_append (tm : MultiTapeTM k Symbol State) (x y : List Sym
   | zero => exact Cfg.Matches.init _
   | succ t ih =>
     have ih := ih (by omega)
-    have hp := tm.inputPos_runFrom_le (tm.initCfg x) t
-    have hi : (tm.initCfg x).inputPos.val = 1 := by simp [MultiTapeNTM.initCfg, Cfg.init]
-    rw [hi] at hp
-    have hp' : (tm.runFrom (tm.initCfg x) t).inputPos.val ≤ x.length := by omega
-    have hp'' : (tm.runFrom (tm.initCfg (x ++ y)) t).inputPos.val ≤ (x ++ y).length := by
-      rw [← ih.inputPos, List.length_append]
+    have hp : (tm.runFrom (tm.initCfg x) t).inputPos.val ≤ x.length := by
+      have hle := tm.inputPos_runFrom_le (tm.initCfg x) t
+      rw [show (tm.initCfg x).inputPos.val = 1 by simp [MultiTapeNTM.initCfg, Cfg.init]] at hle
       omega
+    have hp'' : (tm.runFrom (tm.initCfg (x ++ y)) t).inputPos.val ≤ (x ++ y).length := by
+      simpa only [← ih.inputPos, List.length_append] using Nat.le_add_right_of_le hp
     rw [runFrom_succ, runFrom_succ]
-    apply ih.step hp' hp'' ?_ tm
-    rw [Cfg.inputSymbol_eq_inputAt, Cfg.inputSymbol_eq_inputAt, ← ih.inputPos]
-    unfold inputAt
+    apply ih.step hp hp'' ?_ tm
+    rw [Cfg.inputSymbol_eq_inputAt, Cfg.inputSymbol_eq_inputAt, ← ih.inputPos, inputAt, inputAt]
     split_ifs with hz
     · rfl
     · rw [List.getElem?_append_left (by omega)]
 
 /-- Halting within the input's length also bounds the runtime on every extension. -/
 theorem runsInTime_append {tm : MultiTapeTM k Symbol State} {x y : List Symbol} {t : ℕ}
-    (ht : t ≤ x.length) (h : tm.RunsInTime x t) : tm.RunsInTime (x ++ y) t := by
-  apply runsInTime_iff_halted.mpr
-  change (tm.runFrom (tm.initCfg (x ++ y)) t).state = none
-  rw [← (matches_runFrom_append tm x y ht).state]
-  exact runsInTime_iff_halted.mp h
+    (ht : t ≤ x.length) (h : tm.RunsInTime x t) : tm.RunsInTime (x ++ y) t :=
+  runsInTime_iff_halted.mpr
+    ((matches_runFrom_append tm x y ht).state.symm.trans (runsInTime_iff_halted.mp h))
 
 end MultiTapeTM
 end Turing

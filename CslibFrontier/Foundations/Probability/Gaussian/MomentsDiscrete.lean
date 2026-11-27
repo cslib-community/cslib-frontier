@@ -8,15 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Analysis.Lattice.Dual
-public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
 public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Foundations.Probability.IndependentSumNorm
-public import Mathlib.MeasureTheory.Function.LpSpace.Basic
 
-import CslibFrontier.Foundations.Probability.Gaussian.Poisson
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import Mathlib.Analysis.Calculus.SmoothSeries
-import Mathlib.Analysis.InnerProductSpace.PiL2
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.Probability.ProbabilityMassFunction.Integrals
 
@@ -75,16 +71,13 @@ variable {E : Type*} [NormedAddCommGroup E]
 
 private theorem real_le_exp_three_quarters_pi_sq (r : ℝ) :
     r ≤ Real.exp (3 * Real.pi / 4 * r ^ 2) := by
-  have h1 : (1 : ℝ) ≤ 3 * Real.pi / 4 := by linarith [Real.pi_gt_three]
-  have h2 : r ^ 2 ≤ 3 * Real.pi / 4 * r ^ 2 := le_mul_of_one_le_left (sq_nonneg r) h1
-  exact (by linarith [sq_nonneg (r - 1 / 2)] : r ≤ 3 * Real.pi / 4 * r ^ 2 + 1).trans
-    (Real.add_one_le_exp _)
+  linarith [sq_nonneg r, sq_nonneg (r - 1 / 2), Real.add_one_le_exp (3 * Real.pi / 4 * r ^ 2),
+    mul_le_mul_of_nonneg_right Real.pi_gt_three.le (sq_nonneg r)]
 
 private theorem sq_le_exp_three_quarters_pi_sq (r : ℝ) :
     r ^ 2 ≤ Real.exp (3 * Real.pi / 4 * r ^ 2) := by
-  have h1 : (1 : ℝ) ≤ 3 * Real.pi / 4 := by linarith [Real.pi_gt_three]
-  have h2 : r ^ 2 ≤ 3 * Real.pi / 4 * r ^ 2 := le_mul_of_one_le_left (sq_nonneg r) h1
-  exact (by linarith : r ^ 2 ≤ 3 * Real.pi / 4 * r ^ 2 + 1).trans (Real.add_one_le_exp _)
+  linarith [sq_nonneg r, Real.add_one_le_exp (3 * Real.pi / 4 * r ^ 2),
+    mul_le_mul_of_nonneg_right Real.pi_gt_three.le (sq_nonneg r)]
 
 private theorem gaussianWeight_le_gaussianWeight_two_mul (s : ℝ) (x : E) :
     gaussianWeight s x ≤ gaussianWeight (2 * s) x := by
@@ -227,13 +220,11 @@ private theorem integrable_of_summable_discreteGaussian [MeasurableSpace E] [Bor
         ENNReal.ofReal (∑' x : L, (discreteGaussian L s hs c x).toReal * ‖f x‖) := by
     rw [ENNReal.ofReal_tsum_of_nonneg
       (fun x ↦ mul_nonneg ENNReal.toReal_nonneg (norm_nonneg _)) hsum]
-    apply tsum_congr
-    intro x
+    refine tsum_congr fun x ↦ ?_
     rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
       ENNReal.ofReal_mul ENNReal.toReal_nonneg,
       ENNReal.ofReal_toReal (PMF.apply_ne_top _ _), mul_comm]
-  rw [heq]
-  exact ENNReal.ofReal_lt_top
+  exact heq ▸ ENNReal.ofReal_lt_top
 
 /-- The centered displacement `x ↦ (x : E) - c` is square-integrable (`MemLp 2`) under
 `(discreteGaussian L s hs c).toMeasure` for every discrete `ℤ`-submodule `L`. -/
@@ -301,8 +292,7 @@ private theorem gaussianMass_eq_tsum_dual_cos [MeasurableSpace E] [BorelSpace E]
   rw [h]
   congr 1
   rw [← Complex.reCLM_apply, Complex.reCLM.map_tsum hsum]
-  apply tsum_congr
-  intro w
+  refine tsum_congr fun w ↦ ?_
   rw [Complex.reCLM_apply, Real.fourierChar_apply, Complex.re_ofReal_mul,
     Complex.exp_ofReal_mul_I_re, show 2 * Real.pi * -⟪c, (w : E)⟫ = -(2 * Real.pi * ⟪c, (w : E)⟫)
       by ring, Real.cos_neg]
@@ -542,11 +532,8 @@ private theorem primal_eq_dual_first_deriv [MeasurableSpace E] [BorelSpace E]
     funext y
     rw [gaussianMass_eq_tsum_dual_cos L s hs (c + y • u)]
     congr 1
-    apply tsum_congr
-    intro w
-    rw [inner_add_left, inner_smul_left, RCLike.conj_to_real]
-    congr 2
-    ring
+    exact tsum_congr fun w ↦ by
+      rw [inner_add_left, inner_smul_left, RCLike.conj_to_real]; congr 2; ring
   rw [heq] at h1
   exact h1.unique h2
 
@@ -573,15 +560,6 @@ private theorem primal_eq_dual_second_deriv [MeasurableSpace E] [BorelSpace E]
     filter_upwards [Ioo_mem_nhds (by norm_num : (-1 : ℝ) < 0) (by norm_num : (0 : ℝ) < 1)] with y hy
     exact primal_eq_dual_first_deriv L s hs c u hy
   exact (h1.congr_of_eventuallyEq hcongr.symm).unique h2
-
-private theorem tsum_eq_tsum_ne_zero {α : Type*} [Zero α] {f : α → ℝ}
-    (hf : Summable f) (h0 : f 0 = 0) :
-    (∑' x : α, f x) = ∑' x : ↥{x : α | x ≠ 0}, f x := by
-  classical
-  have h := hf.sum_add_tsum_compl (s := ({0} : Finset α))
-  have hset : (↑({0} : Finset α) : Set α)ᶜ = {x : α | x ≠ 0} := by ext x; simp
-  rw [hset, Finset.sum_singleton, h0, zero_add] at h
-  exact h.symm
 
 private theorem abs_tsum_dual_le_of_bound [MeasurableSpace E] [BorelSpace E]
     (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
@@ -615,20 +593,16 @@ private theorem abs_tsum_dual_le_of_bound [MeasurableSpace E] [BorelSpace E]
     (hmono.trans hdual))).1
   have hlo : 1 - ε ≤ cv / sp * m := by linarith
   have h1m : 0 < 1 - ε := sub_pos.mpr hε
-  have hinv := one_div_le_one_div_of_le h1m hlo
   have hscale : sp / cv / m ≤ 1 / (1 - ε) := by
-    have hrew : 1 / (cv / sp * m) = sp / cv / m := by
-      have hcv0 : cv ≠ 0 := hcv.ne'
-      have hsp0 : sp ≠ 0 := hsp.ne'
-      have hm0 : m ≠ 0 := hm.ne'
-      field_simp
-    rwa [hrew] at hinv
+    have hinv := one_div_le_one_div_of_le h1m hlo
+    rwa [div_mul_eq_mul_div, one_div_div, ← div_div] at hinv
   have hsum_dom : Summable fun w : D ↦ C * gaussianWeight (2 / s) (w : E) := by
     simpa only [sub_zero] using (summable_gaussianWeight D (2 / s) (by positivity) 0).mul_left C
   have hsum_g : Summable g := Summable.of_norm_bounded hsum_dom hbound
   have hsum_abs : |∑' w : D, g w| ≤ C * (gaussianMass D (2 / s) 0 - 1) := by
-    rw [tsum_eq_tsum_ne_zero hsum_g hg0, ← Real.norm_eq_abs,
-      gaussianMass_zero_sub_one_eq_tsum D (2 / s) (by positivity), ← tsum_mul_left]
+    rw [← tsum_subtype_eq_of_support_subset (s := {w : D | w ≠ 0}) fun w hw h ↦ hw (h ▸ hg0),
+      ← Real.norm_eq_abs, gaussianMass_zero_sub_one_eq_tsum D (2 / s) (by positivity),
+      ← tsum_mul_left]
     exact (norm_tsum_le_tsum_norm (hsum_g.norm.subtype _)).trans
       (Summable.tsum_le_tsum (fun w ↦ hbound w) (hsum_g.norm.subtype _) (hsum_dom.subtype _))
   rw [abs_mul, abs_of_nonneg (by positivity : 0 ≤ sp / cv / m)]
@@ -777,9 +751,8 @@ theorem norm_tsum_discreteGaussian_smul_sub_sq_le
     rw [hmap, ← sq_abs]
     exact pow_le_pow_left₀ (abs_nonneg _)
       (abs_tsum_discreteGaussian_mul_inner_sub_le L s hs c (b i) (b.orthonormal.1 i) ε hε hdual) 2
-  have hle := Finset.sum_le_card_nsmul Finset.univ _ ((ε / (1 - ε) * s) ^ 2) fun i _ ↦ hcoord i
-  simp only [Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at hle
-  exact hle.trans_eq (by ring)
+  refine (Finset.sum_le_sum fun i _ ↦ hcoord i).trans_eq ?_
+  rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]; ring
 
 /-- Dual-mass step toward [MicciancioRegev2007], Lemma 4.3 (expected squared norm, p. 14 of the
 December 27, 2005 author version), stated directly under `ρ_{2/s}(L* \ {0}) ≤ ε < 1` rather than
@@ -806,10 +779,8 @@ theorem tsum_discreteGaussian_mul_norm_sub_sq_le
       (b.orthonormal.1 i) ε hε hdual)).2
     linarith [show s ^ 2 / (2 * Real.pi) + ε / (1 - ε) * s ^ 2 =
       (1 / (2 * Real.pi) + ε / (1 - ε)) * s ^ 2 by ring]
-  have hle := Finset.sum_le_card_nsmul Finset.univ _
-    ((1 / (2 * Real.pi) + ε / (1 - ε)) * s ^ 2) fun i _ ↦ hcoord i
-  simp only [Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at hle
-  exact hle.trans_eq (by ring)
+  refine (Finset.sum_le_sum fun i _ ↦ hcoord i).trans_eq ?_
+  rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]; ring
 
 private theorem dual_mass_two_div_le_of_two_mul_smoothingParameter_le
     (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]

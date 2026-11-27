@@ -203,11 +203,10 @@ has at least `2 ^ s - 1` nodes. The survey states `tree-size(F) ≥ 2 ^ space(F)
 game that shifts a pebble from a premise to the resolvent, whose space is at most one less than
 clause space here. -/
 theorem two_pow_le_size_add_one (d : φ.Derivation []) {s : ℕ} (h : ¬ φ.RefutableInSpace s) :
-    2 ^ s ≤ d.size + 1 := by
-  have hs : s ≤ d.strahler + 1 := by
-    by_contra hs
-    exact h (d.refutableInSpace.mono (by omega))
-  exact (Nat.pow_le_pow_right (by norm_num) hs).trans d.two_pow_strahler_add_one_le
+    2 ^ s ≤ d.size + 1 :=
+  (Nat.pow_le_pow_right (by norm_num)
+    (not_lt.1 fun hs => h (d.refutableInSpace.mono (by omega)))).trans
+    d.two_pow_strahler_add_one_le
 
 end Derivation
 
@@ -277,9 +276,7 @@ private theorem exists_derivation_strahler_le_aux (φ : CNF V) (h : ¬ φ.Satisf
     · exact ⟨_, f₁, List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₁ (h₁' l hl ▸ hl), by omega⟩
   · exact ⟨_, f₀, List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₀ (h₀' l hl ▸ hl), by omega⟩
 termination_by #φ.vars.toFinset
-decreasing_by
-  · exact hlt false
-  · exact hlt true
+decreasing_by all_goals exact hlt _
 
 /-- An unsatisfiable formula on `n` variables has a tree-like refutation of Strahler number at most
 `n`. -/
@@ -292,9 +289,9 @@ theorem exists_derivation_strahler_le (h : ¬ φ.Satisfiable) :
 `n + 1` of [Torán, Section 4][Toran2004], for a pebble game that shifts a pebble from a premise to
 the resolvent, in the convention of `Cslib.Logic.PL.CNF.configLTS`. -/
 theorem refutableInSpace_of_not_satisfiable (h : ¬ φ.Satisfiable) :
-    φ.RefutableInSpace (#φ.vars.toFinset + 2) := by
-  obtain ⟨d, hd⟩ := exists_derivation_strahler_le h
-  exact d.refutableInSpace.mono (by omega)
+    φ.RefutableInSpace (#φ.vars.toFinset + 2) :=
+  let ⟨d, hd⟩ := exists_derivation_strahler_le h
+  d.refutableInSpace.mono (by omega)
 
 end CNF
 

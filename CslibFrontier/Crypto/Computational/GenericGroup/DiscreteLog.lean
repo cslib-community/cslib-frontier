@@ -105,9 +105,9 @@ private theorem dlogGame_eq_linearGame [NeZero q] [Fintype S] [DecidableEq S]
   rw [← PMF.uniformOfFintype_map_equiv (Equiv.funUnique Unit (ZMod q)), PMF.bind_map]
   refine congrArg (PMF.bind _) (funext fun x => ?_)
   rw [runLabeled, OracleComp.interpret_map, PMF.monad_map_eq_map, PMF.bind_map]
-  refine congrArg (PMF.bind _) (funext fun guess => congrArg PMF.pure (decide_eq_decide.mpr
-    ⟨fun h => ⟨Empty.elim, fun k => k.elim, decide_eq_true h⟩, fun ⟨_, _, hv⟩ => ?_⟩))
-  exact of_decide_eq_true hv
+  exact congrArg (PMF.bind _) (funext fun guess => congrArg PMF.pure (decide_eq_decide.mpr
+    ⟨fun h => ⟨Empty.elim, fun k => k.elim, decide_eq_true h⟩,
+      fun ⟨_, _, hv⟩ => of_decide_eq_true hv⟩))
 
 /-- **Theorem 16.3, sharp form.** For prime `q` and an adversary that makes at most `T` queries to
 the group oracle on every path, the discrete-logarithm game in the generic group model is won with
@@ -121,20 +121,16 @@ theorem succProbability_dlogGame_le_choose [NeZero q] [Fintype S] [Nonempty (ZMo
   have hW (guess : ZMod q) (_ : Empty → (Unit → ZMod q) × ZMod q) :
       (((Finset.univ.filter fun x : Unit → ZMod q => decide (guess = x ())).card : ℕ) : ℝ≥0) ≤
         1 / q * (q : ℝ≥0) ^ Fintype.card Unit := by
-    have hcard : (Finset.univ.filter fun x : Unit → ZMod q => decide (guess = x ())).card ≤ 1 :=
-      Finset.card_le_one.mpr fun x hx y hy => by
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq] at hx hy
-        funext u
-        rw [← hx, ← hy]
     rw [Fintype.card_unit, pow_one, one_div, inv_mul_cancel₀ (Nat.cast_ne_zero.mpr hq.ne_zero)]
-    exact_mod_cast hcard
+    exact_mod_cast Finset.card_le_one.mpr fun x hx y hy => funext fun _ => by
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq] at hx hy
+      rw [← hx, ← hy]
   rw [dlogGame_eq_linearGame]
   refine (succProbability_linearGame_le hq (fun x guess _ => decide (guess = x ()))
     (A := fun g u => (fun guess => (guess, Empty.elim)) <$> A g (u ()))
     (fun g u => (OracleComp.isCostBounded_map_iff _ _ _).mpr (hA g (u ()))) _ hW).trans_eq ?_
   rw [Fintype.card_unit, Fintype.card_empty, ← add_div]
-  push_cast
-  rfl
+  push_cast; rfl
 
 /-- **Theorem 16.3** ([BonehShoup2023], p. 693, eq. (16.6)). For prime `q` and an adversary that
 makes at most `T` queries to the group oracle on every path, the discrete-logarithm game in the
@@ -157,8 +153,8 @@ theorem le_of_half_le_succProbability_dlogGame [NeZero q] [Fintype S] [Nonempty 
     (hq : q.Prime) {T : ℕ} {A : S → S → ProbOracleComp (GroupOracleSpec q S) (ZMod q)}
     (hA : ∀ g u, (A g u).IsQueryBounded T) (h : 1 / 2 ≤ (dlogGame A).succProbability) :
     q ≤ (3 * T + 2) ^ 2 + 2 := by
-  have h' := h.trans (succProbability_dlogGame_le hq hA)
-  rw [le_div_iff₀ (Nat.cast_pos.mpr hq.pos)] at h'
+  have h' := (le_div_iff₀ (Nat.cast_pos.mpr hq.pos)).mp
+    (h.trans (succProbability_dlogGame_le hq hA))
   have h'' : ((1 / 2 * q : ℝ≥0) : ℝ) ≤ (((3 * T + 2 : ℝ≥0) ^ 2 / 2 + 1 : ℝ≥0) : ℝ) := h'
   push_cast at h''
   exact_mod_cast (by push_cast; linarith : (q : ℝ) ≤ ((3 * T + 2) ^ 2 + 2 : ℕ))

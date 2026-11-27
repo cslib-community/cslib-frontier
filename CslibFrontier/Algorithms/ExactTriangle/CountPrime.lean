@@ -51,9 +51,8 @@ theorem pCoefficients_natAbs_le_one {n : ℕ} (p : ℕ) (wAC : Fin n → Fin n �
 
 /-- The transposed monomial matrix has the same unit coefficient bound. -/
 theorem qCoefficients_natAbs_le_one {n : ℕ} (p : ℕ) (wBC : Fin n → Fin n → ℤ) (i : ℕ) :
-    (qCoefficients p wBC i).natAbs ≤ 1 := by
-  unfold qCoefficients
-  split_ifs <;> decide
+    (qCoefficients p wBC i).natAbs ≤ 1 :=
+  pCoefficients_natAbs_le_one p (Function.swap wBC) i
 
 private noncomputable def pad {n p : ℕ} (M : Matrix (Fin n) (Fin n) (CyclicIntRing p))
     (a b : ℕ) : CyclicIntRing p := if h : a < n ∧ b < n then M ⟨a, h.1⟩ ⟨b, h.2⟩ else 0
@@ -69,14 +68,8 @@ private theorem pCoefficients_eq {n p : ℕ} (hp : p ≠ 0) (wAC : Fin n → Fin
   · simp only [pCoefficients, coefficients, pad, dite_eq_right h, map_zero]
 
 private theorem qCoefficients_eq {n p : ℕ} (hp : p ≠ 0) (wBC : Fin n → Fin n → ℤ) :
-    qCoefficients p wBC = coefficients hp (pad (matQ wBC p)) := by
-  funext i
-  by_cases h : Nat.Morton.row (i / p) < n ∧ Nat.Morton.column (i / p) < n
-  · simp only [qCoefficients, coefficients, pad, dite_eq_left h, matQ, Matrix.of_apply,
-      coeff_x_pow]
-    rw [Nat.mod_eq_of_lt (show (wBC ⟨_, h.2⟩ ⟨_, h.1⟩ % (p : ℤ)).toNat < p from
-      Int.natMod_lt hp)]
-  · simp only [qCoefficients, coefficients, pad, dite_eq_right h, map_zero]
+    qCoefficients p wBC = coefficients hp (pad (matQ wBC p)) :=
+  pCoefficients_eq hp (Function.swap wBC)
 
 private theorem sum_pad {n p N : ℕ} (hN : n ≤ N)
     (M K : Matrix (Fin n) (Fin n) (CyclicIntRing p)) (a b : Fin n) :
@@ -95,9 +88,8 @@ theorem multiply_entry_eq_coeff {n p k : ℕ} (hp : p ≠ 0) (hn : n ≤ 2 ^ k)
       (Nat.Morton.index a b * p + r) =
       CyclicIntRing.coeff hp r ((matP wAC p * matQ wBC p) a b) := by
   have hi := Nat.Morton.index_lt (a.isLt.trans_le hn) (b.isLt.trans_le hn)
-  have hmul := Nat.mul_le_mul_right p (Nat.succ_le_of_lt hi)
-  rw [Nat.succ_mul] at hmul
-  have hidx : Nat.Morton.index a b * p + r < 4 ^ k * p := by omega
+  have hidx : Nat.Morton.index a b * p + r < 4 ^ k * p := by
+    simpa only [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hi hr
   rw [multiply_eq_coefficients hp k (pad (matP wAC p)) (pad (matQ wBC p))
     (pCoefficients p wAC) (qCoefficients p wBC)
     (fun i _ => congrFun (pCoefficients_eq hp wAC) i)

@@ -96,7 +96,7 @@ theorem realEncode_apply (ψ : Qubits m) (z : Fin (m + 1) → Bool) :
 bit is `b`. -/
 theorem eq_snoc_iff {z : Fin (m + 1) → Bool} {x : Fin m → Bool} {b : Bool} :
     z = Fin.snoc x b ↔ Fin.init z = x ∧ z (Fin.last m) = b := by
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro rfl
     simp
   · rintro ⟨rfl, rfl⟩
@@ -106,11 +106,9 @@ theorem eq_snoc_iff {z : Fin (m + 1) → Bool} {x : Fin m → Bool} {b : Bool} :
 @[simp] theorem realEncode_ket (x : Fin m → Bool) :
     realEncode (ket x) = ket (Fin.snoc x false) := by
   ext z
-  obtain ⟨y, b, rfl⟩ : ∃ y b, z = Fin.snoc y b :=
-    ⟨Fin.init z, z (Fin.last m), (Fin.snoc_init_self z).symm⟩
-  rw [realEncode_apply_snoc]
+  rw [← Fin.snoc_init_self z, realEncode_apply_snoc]
   simp only [ket_apply, eq_snoc_iff, Fin.init_snoc, Fin.snoc_last]
-  by_cases h : y = x <;> cases b <;> simp [h]
+  by_cases h : Fin.init z = x <;> cases z (Fin.last m) <;> simp [h]
 
 /-- A sum over the bit strings of `m + 1` qubits, split along the last qubit. -/
 theorem sum_bitString_succ {M : Type*} [AddCommMonoid M] (f : (Fin (m + 1) → Bool) → M) :
@@ -131,10 +129,8 @@ theorem measureProb_realEncode (ψ : Qubits m) (S : Finset (Fin m → Bool)) :
   refine sum_congr rfl fun x _ => ?_
   simp only [Fin.init_snoc]
   split_ifs with hx
-  · rw [realEncode_apply_snoc, realEncode_apply_snoc, Complex.sq_norm (ψ.ofLp x),
-      Complex.normSq_apply]
-    simp only [Bool.false_eq_true, ite_false, ite_true, Complex.norm_real, Real.norm_eq_abs,
-      sq_abs]
+  · simp only [realEncode_apply_snoc, Complex.sq_norm (ψ.ofLp x), Complex.normSq_apply,
+      Bool.false_eq_true, ite_false, ite_true, Complex.norm_real, Real.norm_eq_abs, sq_abs]
     ring
   · simp
 
@@ -236,27 +232,25 @@ theorem matrix_mapWires_castSuccEmb (g : PlacedGate m) (z z' : Fin (m + 1) → B
     ((g.mapWires Fin.castSuccEmb).matrix : Matrix _ _ ℂ) z z' =
       if z (Fin.last m) = z' (Fin.last m) then (g.matrix : Matrix _ _ ℂ) (Fin.init z) (Fin.init z')
       else 0 := by
-  have h : AgreeOff Fin.castSuccEmb z z' ↔ z (Fin.last m) = z' (Fin.last m) := by
-    refine ⟨fun h => h _ fun i => Fin.castSucc_ne_last i, fun h j hj => ?_⟩
-    obtain ⟨j, rfl⟩ | rfl := Fin.eq_castSucc_or_eq_last j
-    · exact absurd rfl (hj j)
-    · exact h
-  rw [matrix_mapWires, if_congr h rfl rfl]
-  rfl
+  rw [matrix_mapWires]
+  refine if_congr ⟨fun h => h _ fun i => Fin.castSucc_ne_last i, fun h j hj => ?_⟩ rfl rfl
+  rcases Fin.eq_castSucc_or_eq_last j with ⟨j, rfl⟩ | rfl
+  · exact absurd rfl (hj j)
+  · exact h
 
 /-- **A gate with real entries simulates itself** through the real encoding, placed on the same
 qubits away from the encoding qubit. -/
 theorem realSimulates_mapWires_castSuccEmb (g : PlacedGate m)
     (hg : ∀ y x, ((g.gate : Matrix (Fin g.arity → Bool) (Fin g.arity → Bool) ℂ) y x).im = 0) :
     Circuit.RealSimulates [g.mapWires Fin.castSuccEmb] [g] := by
-  have hreal (y x : Fin m → Bool) : ((g.matrix : Matrix _ _ ℂ) y x).im = 0 := by
+  refine Circuit.realSimulates_of_matrix fun z z' => ?_
+  have hreal : ((g.matrix : Matrix _ _ ℂ) (Fin.init z) (Fin.init z')).im = 0 := by
     rw [matrix_apply]
     split_ifs
     · exact hg _ _
     · rfl
-  refine Circuit.realSimulates_of_matrix fun z z' => ?_
-  simp only [Circuit.matrix_cons, Circuit.matrix_nil, one_mul]
-  rw [matrix_mapWires_castSuccEmb, realEntry_of_im_eq_zero (hreal _ _)]
+  simp only [Circuit.matrix_cons, Circuit.matrix_nil, one_mul, matrix_mapWires_castSuccEmb,
+    realEntry_of_im_eq_zero hreal]
 
 end PlacedGate
 

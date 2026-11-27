@@ -43,13 +43,11 @@ private theorem isPlanar_mem_NP : {g : AndOrGraph | g.IsPlanar} ∈ NP encAndOrG
   let D : Decoder Graph.encRotationCertificate :=
     Decoder.nat.list.map Graph.RotationCertificate.mk Graph.RotationCertificate.successor
       (fun _ => rfl) (fun _ => rfl)
+  have hg := AndOrGraph.computableInPolyTime_incidenceGraph
   have hcheck : ComputableInPolyTime
       (fun p : AndOrGraph × Graph.RotationCertificate =>
         Graph.RotationCertificate.verifyGenusZero p.1.incidenceGraph p.2)
-      (encPair encAndOrGraph Graph.encRotationCertificate) encBool :=
-    Graph.RotationCertificate.computableInPolyTime_verifyGenusZero.comp
-      ((AndOrGraph.computableInPolyTime_incidenceGraph.comp
-        (ComputableInPolyTime.fst _ _)).pair (ComputableInPolyTime.snd _ _))
+      (encPair encAndOrGraph Graph.encRotationCertificate) encBool := by fun_prop
   obtain ⟨p, hp⟩ :=
     AndOrGraph.computableInPolyTime_incidenceGraph.polyBounded_length.exists_polynomial
   have hequiv (x : AndOrGraph) :=

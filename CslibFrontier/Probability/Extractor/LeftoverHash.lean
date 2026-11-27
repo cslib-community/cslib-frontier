@@ -78,9 +78,8 @@ theorem IsTwoUniversal.isStrongExtractor {hash : Seed → Input → Output}
       (Real.sqrt (Fintype.card Output * 2 ^ (-k)) / 2) := by
   intro source hsource
   have := Fintype.ofFinite Input
-  have h := hhash.leftover_hash_of_isSource (isSource_of_le_minEntropy hsource 0)
-  rw [uniformOfFintype_prod, NNReal.coe_zero, zero_add] at h
-  rwa [bind_map_eq_seededHash]
+  simpa only [bind_map_eq_seededHash, uniformOfFintype_prod, NNReal.coe_zero, zero_add] using
+    hhash.leftover_hash_of_isSource (isSource_of_le_minEntropy hsource 0)
 
 /-- **Entropy loss of hashing.** If `log₂ |Output| + 2 log₂ (1 / δ) ≤ k`, a two-universal family
 under the uniform seed is a strong `(k, δ / 2)`-extractor. -/
@@ -90,10 +89,8 @@ theorem IsTwoUniversal.isStrongExtractor_of_logb_le {hash : Seed → Input → O
     IsStrongExtractor (fun x s => hash s x) k (δ / 2) := by
   intro source hsource
   have := Fintype.ofFinite Input
-  have h := hhash.leftover_hash_of_isSource_of_logb_le
-    (isSource_of_le_minEntropy hsource 0) hδ hk
-  rw [uniformOfFintype_prod, NNReal.coe_zero, zero_add] at h
-  rwa [bind_map_eq_seededHash]
+  simpa only [bind_map_eq_seededHash, uniformOfFintype_prod, NNReal.coe_zero, zero_add] using
+    hhash.leftover_hash_of_isSource_of_logb_le (isSource_of_le_minEntropy hsource 0) hδ hk
 
 /-- **`ε`-universal hashing as a strong extractor.** An `ε`-universal family under the uniform
 seed is a strong `(k, √(|Output| · (2⁻ᵏ + ε) - 1) / 2)`-extractor. For `ε = 1 / |Output|` this is
@@ -124,12 +121,8 @@ theorem IsUniversalHash.isStrongExtractor_of_entropy_div
   by_cases hk : k = 0
   · subst k
     intro source _
-    have heq : (source.bind fun x =>
-        (PMF.uniformOfFintype (BitString t)).map fun s => (s, hash s x)) =
-        PMF.uniformOfFintype (BitString t × BitString 0) := by
-      rw [bind_map_eq_seededHash, seededHash_eq_uniform_of_subsingleton,
-        uniformOfFintype_prod]
-    rw [heq, dist_self]
+    rw [bind_map_eq_seededHash, seededHash_eq_uniform_of_subsingleton, uniformOfFintype_prod,
+      dist_self]
     exact Real.sqrt_nonneg _
   have hpow : (2 : ℝ) ^ ((k : ℝ) - (k : ℝ) / δ) ≤ 2 * δ := by
     have hu : 1 ≤ δ⁻¹ := (one_le_inv₀ hδ).2 (by linarith)
@@ -148,8 +141,7 @@ theorem IsUniversalHash.isStrongExtractor_of_entropy_div
         apply (div_le_iff₀ (by positivity : 0 < 1 + δ⁻¹)).2
         rw [mul_add, mul_one, mul_assoc, mul_inv_cancel₀ hδ.ne']
         linarith
-  have h := hhash.isStrongExtractor (by finiteness) ((k : ℝ) / δ)
-  refine h.mono le_rfl ?_
+  refine (hhash.isStrongExtractor (by finiteness) ((k : ℝ) / δ)).mono le_rfl ?_
   have hcard : (Fintype.card (BitString k) : ℝ) = (2 : ℝ) ^ k := by simp
   rw [hcard, ENNReal.toReal_ofReal (by positivity)]
   have hrad : (2 : ℝ) ^ k * (2 ^ (-((k : ℝ) / δ)) + (1 + δ) / 2 ^ k) - 1 =
@@ -159,12 +151,8 @@ theorem IsUniversalHash.isStrongExtractor_of_entropy_div
     ring_nf
   rw [hrad]
   have hs := Real.sqrt_le_sqrt (show (2 : ℝ) ^ ((k : ℝ) - (k : ℝ) / δ) + δ ≤
-      4 * (2 * δ) by linarith)
-  rw [Real.sqrt_mul (by norm_num : (0 : ℝ) ≤ 4)] at hs
-  have hfour : Real.sqrt 4 = 2 := by
-    rw [Real.sqrt_eq_iff_mul_self_eq (by norm_num) (by norm_num)]
-    norm_num
-  rw [hfour] at hs
+      2 ^ 2 * (2 * δ) by linarith)
+  rw [Real.sqrt_mul (by norm_num : (0 : ℝ) ≤ 2 ^ 2), Real.sqrt_sq (by norm_num : (0 : ℝ) ≤ 2)] at hs
   linarith
 
 /-- Digest-first concatenation form of [AroraBarak07], Lemma 16.42 / Exercise 16.12.
@@ -180,19 +168,13 @@ theorem IsUniversalHash.isExtractor_append_of_entropy_div
   intro source hsource
   let e : (BitString t × BitString k) ≃ BitString (k + t) :=
     (Equiv.prodComm _ _).trans (Fin.appendEquiv k t)
-  have h := hhash.isStrongExtractor_of_entropy_div hδ source hsource
   have hm := dist_map_le
     (source.bind fun x => (PMF.uniformOfFintype (BitString t)).map fun s => (s, hash s x))
     (PMF.uniformOfFintype (BitString t × BitString k)) e
-  rw [uniformOfFintype_map_equiv] at hm
-  have he : (source.bind fun x =>
-      (PMF.uniformOfFintype (BitString t)).map fun s => (s, hash s x)).map e =
-      source.bind (fun x => (PMF.uniformOfFintype (BitString t)).map
-        fun s => Fin.append (hash s x) s) := by
-    simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
-    rfl
-  rw [he] at hm
-  exact hm.trans h
+  rw [uniformOfFintype_map_equiv, PMF.map_bind] at hm
+  simp only [PMF.map_comp, Function.comp_def, e, Equiv.trans_apply, Equiv.prodComm_apply,
+    Prod.swap_prod_mk] at hm
+  exact hm.trans (hhash.isStrongExtractor_of_entropy_div hδ source hsource)
 
 end Cslib.Probability
 

@@ -60,12 +60,10 @@ private theorem relocated_step {code : List (Instr M L)}
   | none => simp [step, get] at h
   | some i =>
     have hi := fetch pre post next get
-    cases i <;> simp only [step, get] at h
-    all_goals first
+    cases i <;> simp only [step, get] at h <;> first
       | contradiction
       | (cases h
-         simp only [step, shift, hi, Instr.relocate]
-         simp only [Instr.effect, Instr.next,
+         simp only [step, shift, hi, Instr.relocate, Instr.effect, Instr.next,
            State.setPtr, State.setData, State.modify, State.deref, Option.elim, Nat.add_assoc])
     all_goals split <;> simp_all only
 
@@ -77,10 +75,7 @@ theorem Executes.inBlock {code : List (Instr M L)} {x y : State M L} {time : ℕ
     Runs (pre ++ code.map (Instr.relocate pre.length next) ++ post)
       { x with pc := pre.length + x.pc } { y with pc := next } time := by
   obtain ⟨n, run, halt, rfl⟩ := exec
-  have mapped : Runs (pre ++ code.map (Instr.relocate pre.length next) ++ post)
-      (shift pre.length x) (shift pre.length y) n :=
-    run.map (shift pre.length) (fun _ _ h => relocated_step pre post next h)
-  refine mapped.tail _ _ _ _ ?_
+  refine (run.map (shift pre.length) fun _ _ => relocated_step pre post next).tail _ _ _ _ ?_
   have hi := fetch pre post next halt
   simp only [step, shift, hi, Instr.relocate, Instr.effect, Instr.next]
 
@@ -107,20 +102,16 @@ theorem Executes.branch (test : M.Test) (r s : Fin L.dataRegs)
       yes.map (Instr.relocate (1 + no.length) join) ++ [.halt])[join]? = _
     rw [List.getElem?_append_right (by simp [join, Nat.add_comm, Nat.add_left_comm])]
     simp [join, Nat.add_comm, Nat.add_left_comm]
-  cases h : M.evalTest test (x.data r) (x.data s) with
-  | false =>
+  cases h : M.evalTest test (x.data r) (x.data s) <;>
     simp only [h, Bool.false_eq_true, ↓reduceIte] at exec
-    have run := exec.inBlock [.ifTest test r s (1 + no.length)]
+  · have run := exec.inBlock [.ifTest test r s (1 + no.length)]
       (yes.map (Instr.relocate (1 + no.length) join) ++ [.halt]) join
     have run' : Runs (PointerMachine.branch test r s yes no) { x with pc := 1 }
         { y with pc := join } time := by
       simpa [PointerMachine.branch, join, pc, List.append_assoc, Nat.add_comm] using run
     refine ⟨time + 1, run'.head x _ _ _ ?_, halt, by omega⟩
     simp [step, PointerMachine.branch, pc, Instr.effect, Instr.next, h]
-  | true =>
-    simp only [h, ↓reduceIte] at exec
-    have run := exec.inBlock
-      ([.ifTest test r s (1 + no.length)] ++ no.map (Instr.relocate 1 join))
+  · have run := exec.inBlock ([.ifTest test r s (1 + no.length)] ++ no.map (Instr.relocate 1 join))
       [.halt] join
     have run' : Runs (PointerMachine.branch test r s yes no) { x with pc := 1 + no.length }
         { y with pc := join } time := by
@@ -143,17 +134,15 @@ theorem Executes.sequence {first second : List (Instr M L)} {x y z : State M L}
     (h₂ : Executes second { y with pc := 0 } z time₂) :
     Executes (PointerMachine.sequence first second) x
       { z with pc := first.length + second.length } (time₁ + time₂ + 1) := by
-  have one := h₁.inBlock []
-    (second.map (Instr.relocate first.length (first.length + second.length)) ++ [.halt])
-    first.length
-  have two := h₂.inBlock (first.map (Instr.relocate 0 first.length)) [.halt]
-    (first.length + second.length)
   have one' : Runs (PointerMachine.sequence first second) x
       { y with pc := first.length } time₁ := by
-    simpa [PointerMachine.sequence, List.append_assoc] using one
+    simpa [PointerMachine.sequence, List.append_assoc] using h₁.inBlock []
+      (second.map (Instr.relocate first.length (first.length + second.length)) ++ [.halt])
+      first.length
   have two' : Runs (PointerMachine.sequence first second) { y with pc := first.length }
       { z with pc := first.length + second.length } time₂ := by
-    simpa [PointerMachine.sequence] using two
+    simpa [PointerMachine.sequence] using h₂.inBlock
+      (first.map (Instr.relocate 0 first.length)) [.halt] (first.length + second.length)
   refine ⟨time₁ + time₂, one'.trans two', ?_, rfl⟩
   simp only [PointerMachine.sequence]
   rw [List.getElem?_append_right (by simp)]

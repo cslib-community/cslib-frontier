@@ -214,36 +214,31 @@ theorem sq_sub_mul_le_twice [Finite T] {κ : ℝ}
   set g : S → ℝ := fun s => ∑ t, (challenge s t).toReal * p s t
   set h : S → ℝ := fun s => ∑ t, (challenge s t).toReal *
     ∑ t', (challenge s t').toReal * (if t = t' then 0 else p s t * p s t')
-  have hg (s : S) : 0 ≤ g s ∧ g s ≤ 1 :=
-    average_mem_Icc (challenge s) _ (pass_nonneg answer ok s) (pass_le_one answer ok s)
-  have hpair (s : S) (t t' : T) :
-      0 ≤ (if t = t' then 0 else p s t * p s t') ∧ (if t = t' then 0 else p s t * p s t') ≤ 1 := by
+  have h0 := pass_nonneg answer ok
+  have h1 := pass_le_one answer ok
+  have hg (s : S) : 0 ≤ g s ∧ g s ≤ 1 := average_mem_Icc (challenge s) _ (h0 s) (h1 s)
+  have hpair (s : S) (t t' : T) : (if t = t' then 0 else p s t * p s t') ∈ Set.Icc 0 1 := by
     split_ifs
     · exact ⟨le_rfl, zero_le_one⟩
-    · exact ⟨mul_nonneg (pass_nonneg _ _ _ _) (pass_nonneg _ _ _ _),
-        (mul_le_mul (pass_le_one _ _ _ _) (pass_le_one _ _ _ _) (pass_nonneg _ _ _ _)
-          zero_le_one).trans_eq (one_mul 1)⟩
-  have hh (s : S) : 0 ≤ h s ∧ h s ≤ 1 := by
-    refine average_mem_Icc (challenge s) _
-      (fun t => (average_mem_Icc (challenge s) _ (fun t' => (hpair s t t').1)
-        fun t' => (hpair s t t').2).1)
-      fun t => (average_mem_Icc (challenge s) _ (fun t' => (hpair s t t').1)
-        fun t' => (hpair s t t').2).2
-  have hm : Summable fun s => (first s).toReal := Probability.PMF.summable_toReal first
-  have hsum {f : S → ℝ} (f0 : ∀ s, 0 ≤ f s) (f1 : ∀ s, f s ≤ 1) :
+    · exact ⟨mul_nonneg (h0 s t) (h0 s t'),
+        (mul_le_of_le_one_right (h0 s t) (h1 s t')).trans (h1 s t)⟩
+  have hinner (s : S) (t : T) :=
+    average_mem_Icc (challenge s) _ (fun t' => (hpair s t t').1) fun t' => (hpair s t t').2
+  have hh (s : S) : 0 ≤ h s ∧ h s ≤ 1 :=
+    average_mem_Icc (challenge s) _ (fun t => (hinner s t).1) fun t => (hinner s t).2
+  have hsum {f : S → ℝ} (hf : ∀ s, 0 ≤ f s ∧ f s ≤ 1) :
       Summable fun s => (first s).toReal * f s :=
-    hm.of_nonneg_of_le (fun s => mul_nonneg ENNReal.toReal_nonneg (f0 s))
-      fun s => mul_le_of_le_one_right ENNReal.toReal_nonneg (f1 s)
-  have hsumg := hsum (fun s => (hg s).1) fun s => (hg s).2
-  have hsumg2 := hsum (fun s => sq_nonneg (g s)) fun s => pow_le_one₀ (hg s).1 (hg s).2
-  have hsumh := hsum (fun s => (hh s).1) fun s => (hh s).2
+    (Probability.PMF.summable_toReal first).of_nonneg_of_le
+      (fun s => mul_nonneg ENNReal.toReal_nonneg (hf s).1)
+      fun s => mul_le_of_le_one_right ENNReal.toReal_nonneg (hf s).2
+  have hsumg := hsum hg
+  have hsumg2 := hsum fun s => ⟨sq_nonneg _, pow_le_one₀ (hg s).1 (hg s).2⟩
   have hpoint (s : S) :
       (first s).toReal * g s ^ 2 - κ * ((first s).toReal * g s) ≤ (first s).toReal * h s := by
     by_cases hs : s ∈ first.support
     · calc _ = (first s).toReal * (g s ^ 2 - κ * g s) := by ring
            _ ≤ _ := mul_le_mul_of_nonneg_left
-             (sq_sub_le_pairs (challenge s) (p s) (pass_nonneg answer ok s)
-               (pass_le_one answer ok s) (hκ s hs)) ENNReal.toReal_nonneg
+             (sq_sub_le_pairs (challenge s) (p s) (h0 s) (h1 s) (hκ s hs)) ENNReal.toReal_nonneg
     · simp [(PMF.apply_eq_zero_iff first s).mpr hs]
   rw [toReal_once, toReal_twice]
   calc (∑' s, (first s).toReal * g s) ^ 2 - κ * (∑' s, (first s).toReal * g s)
@@ -253,7 +248,7 @@ theorem sq_sub_mul_le_twice [Finite T] {κ : ℝ}
     _ = ∑' s, ((first s).toReal * g s ^ 2 - κ * ((first s).toReal * g s)) := by
         rw [hsumg2.tsum_sub (hsumg.mul_left κ), tsum_mul_left]
     _ ≤ ∑' s, (first s).toReal * h s :=
-        (hsumg2.sub (hsumg.mul_left κ)).tsum_le_tsum hpoint hsumh
+        (hsumg2.sub (hsumg.mul_left κ)).tsum_le_tsum hpoint (hsum hh)
 
 omit [Fintype T] [DecidableEq T] in
 /-- Solving a quadratic rewinding bound `ε ^ 2 - κ * ε ≤ δ` for `ε` gives `ε ≤ κ + √δ` when
@@ -262,10 +257,8 @@ theorem le_add_sqrt_of_sq_sub_mul_le {ε δ κ : ℝ} (hκ0 : 0 ≤ κ) (h : ε 
     ε ≤ κ + √δ := by
   by_cases hε : ε ≤ κ
   · exact hε.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
-  · have hsq : (ε - κ) ^ 2 ≤ δ := by
-      nlinarith [mul_nonneg hκ0 (sub_nonneg.mpr (le_of_not_ge hε))]
-    have := Real.abs_le_sqrt hsq
-    linarith [le_abs_self (ε - κ)]
+  · have hsq : (ε - κ) ^ 2 ≤ δ := by nlinarith
+    exact sub_le_iff_le_add'.mp (Real.le_sqrt_of_sq_le hsq)
 
 omit [Fintype T] in
 /-- The bounded-atom rewinding inequality solved for one-run success: `ε ≤ κ + √δ`.

@@ -105,15 +105,12 @@ theorem mem_PromisePCP_of_gapReduction {graph : Input → Graph C} (width : ℕ)
   constructor
   case coins_le =>
     intro x
-    change repeats * Nat.clog 2 (graph x).edges.length ≤
-      repeats * constant * (Nat.log 2 (input x).length + 1)
-    have hb : (graph x).edges.length ≤ c * ((input x).length + 1) ^ d := by
-      simpa using hbound x
-    calc
+    have hb : (graph x).edges.length ≤ c * ((input x).length + 1) ^ d := by simpa using hbound x
+    calc repeats * Nat.clog 2 (graph x).edges.length
       _ ≤ repeats * Nat.clog 2 (c * ((input x).length + 1) ^ d) := by gcongr
       _ ≤ repeats * (constant * (Nat.log 2 (input x).length + 1)) :=
         Nat.mul_le_mul_left _ (hconstant _)
-      _ = _ := (Nat.mul_assoc _ _ _).symm
+      _ = repeats * constant * (Nat.log 2 (input x).length + 1) := (Nat.mul_assoc _ _ _).symm
   case length_queries_le =>
     intro x random _
     simp only [reductionVerifier, length_queries_repeatedEdgeVerifier, mul_one, le_refl]
@@ -125,14 +122,12 @@ theorem mem_PromisePCP_of_gapReduction {graph : Input → Graph C} (width : ℕ)
         (hwellFormed x hx) labels hlabels random⟩
   case sound =>
     intro x hx proof
-    apply (acceptCount_le_half_iff _ _ _).mpr
-    change (((BitString.uniformList (repeats * Nat.clog 2 (graph x).edges.length)).map
-      (fun random => (repeatedEdgeVerifier width repeats decode eval).accepts
-        (graph x) proof random)) true).toReal ≤ 1 / 2
-    rw [acceptProb_repeatedEdgeVerifier, ENNReal.toReal_pow]
-    have h := acceptProb_edgeVerifier_le width decode eval (graph x) proof
-    have hs := hsound x hx
-    exact (pow_le_pow_left₀ ENNReal.toReal_nonneg (by linarith) repeats).trans hrepeats.le
+    refine (acceptCount_le_half_iff _ _ _).mpr ?_
+    erw [acceptProb_repeatedEdgeVerifier]
+    rw [ENNReal.toReal_pow]
+    exact (pow_le_pow_left₀ ENNReal.toReal_nonneg
+      (by linarith [acceptProb_edgeVerifier_le width decode eval (graph x) proof, hsound x hx])
+      repeats).trans hrepeats.le
 
 /-- An efficient well-formed graph reduction with a fixed positive gap gives a PCP using logarithmic
 randomness and constantly many queries. The alphabet representation precedes the input. -/

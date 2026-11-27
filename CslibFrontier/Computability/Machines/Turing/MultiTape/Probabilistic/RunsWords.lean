@@ -40,6 +40,8 @@ oracle state.
 * `Turing.MultiTapePTM.RunsWords.law_bind`: the law of a run composed of two phases, from the
   law of each phase, when the first phase's tapes determine its program value.
 * `Turing.MultiTapePTM.RunsWords.seq_bind`: sequence two `RunsWords` phases.
+* `Turing.MultiTapePTM.RunsWords.map_iff`: a run of `f <$> program` is a run of `program` whose
+  tape and output maps are precomposed with `f`.
 * `Turing.MultiTapePTM.RunsWords.of_nil_output`: an initial output prefix is retained automatically.
 * `Turing.MultiTapePTM.RunsWords.of_first_step_mapState`: lift a `RunsWords` specification across a
   deterministic first-step dispatch into a state-mapped submachine.
@@ -298,15 +300,32 @@ theorem congr (h : machine.RunsWords x ws₀ out₀ time program ws₁ emit)
   rw [← heq OracleState oracle s]
   exact h OracleState oracle s cfg htapes hbuf
 
+/-- A run of `f <$> program` is a run of `program` whose tape and output maps are precomposed with
+`f`. -/
+theorem map_iff (f : α → β) (ws₁' : β → Fin k → List Bool) (emit' : β → List Bool) :
+    machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁' emit' ↔
+      machine.RunsWords x ws₀ out₀ time program (fun a => ws₁' (f a)) (fun a => emit' (f a)) := by
+  constructor
+  all_goals
+    intro h OracleState oracle s cfg htapes hbuf
+    obtain ⟨hlaw, hclean⟩ := h OracleState oracle s cfg htapes hbuf
+    refine ⟨?_, hclean⟩
+    rw [hlaw, ProbOracleComp.runWith_map, PMF.map_comp]
+    rfl
+
 /-- Map a function across the program result when the tape and output maps factor through it. -/
 theorem of_map (f : α → β) (ws₁' : β → Fin k → List Bool) (emit' : β → List Bool)
     (h : machine.RunsWords x ws₀ out₀ time program (fun a => ws₁' (f a)) (fun a => emit' (f a))) :
-    machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁' emit' := by
-  intro OracleState oracle s cfg htapes hbuf
-  obtain ⟨hlaw, hclean⟩ := h OracleState oracle s cfg htapes hbuf
-  refine ⟨?_, hclean⟩
-  rw [hlaw, ProbOracleComp.runWith_map, PMF.map_comp]
-  rfl
+    machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁' emit' :=
+  (map_iff f ws₁' emit').mpr h
+
+/-- The forward direction of `map_iff`: a run of `f <$> program` is a run of `program` with the
+result map moved into the tape and output maps. -/
+theorem of_mapped_program (f : α → β) {ws₁' : β → Fin k → List Bool}
+    {emit' : β → List Bool}
+    (h : machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁' emit') :
+    machine.RunsWords x ws₀ out₀ time program (fun a => ws₁' (f a)) (fun a => emit' (f a)) :=
+  (map_iff f ws₁' emit').mp h
 
 /-- Lift a deterministic `TransformsTapes` specification to `ofDeterministic`. -/
 theorem of_transformsTapes {tm : MultiTapeTM k Bool State}
@@ -392,15 +411,21 @@ theorem seq_bind {first : MultiTapePTM k Bool State₀ Operation}
   intro OracleState oracle s cfg htapes hbuf
   let cfg₀ : Config k Bool State₀ Operation x :=
     { tapes := wordsCfg x (some first.initial) ws₀ out₀, channels := cfg.channels }
-  have hleft : cfg = Sequential.left second cfg₀ := by
-    refine Config.ext ?_ rfl
-    rw [htapes]
-    rfl
+  have hleft : cfg = Sequential.left second cfg₀ := Config.ext htapes rfl
   let f (a : α) : Cfg k Bool State₀ x := wordsCfg x none (ws₁ a) (out₀ ++ emit₁ a)
-  have hf : Function.Injective f := by
-    intro a₁ a₂ heq
-    obtain ⟨hws, hem⟩ := wordsCfg_injective heq
-    exact hinj (Prod.ext hws hem)
+  have hf : Function.Injective f := fun _ _ heq =>
+    hinj (Prod.ext (wordsCfg_injective heq).1 (wordsCfg_injective heq).2)
+  have hmidSpec {mid : Config k Bool State₀ Operation x} {s₁ : OracleState}
+      (hmid : (mid, s₁) ∈
+        (ProbOracleComp.runWith oracle (first.runOracleConfigFrom t₁ cfg₀) s).support) :
+      ∃ a, mid.tapes = wordsCfg x none (ws₁ a) (out₀ ++ emit₁ a) ∧
+        second.RunsWords x (ws₁ a) (out₀ ++ emit₁ a) t₂ (prog₂ a) (ws₂ a) (emit₂ a) ∧
+        (Sequential.start second mid).tapes =
+          wordsCfg x (some second.initial) (ws₁ a) (out₀ ++ emit₁ a) ∧
+        ∀ op, (mid.channels op).queryBuffer = [] := by
+    obtain ⟨⟨a, ha, hmidTapes⟩, hmidBuf⟩ := h₁.mem_support oracle s cfg₀ rfl hbuf hmid
+    exact ⟨a, hmidTapes, h₂ a OracleState oracle s s₁ ha,
+      by simp [Sequential.start, hmidTapes], hmidBuf⟩
   have hhalt₁ := h₁.halted oracle s cfg₀ rfl hbuf
   have hhalt₂ : ∀ result ∈ (ProbOracleComp.runWith oracle (first.runOracleConfigFrom t₁ cfg₀)
       s).support,
@@ -408,24 +433,16 @@ theorem seq_bind {first : MultiTapePTM k Bool State₀ Operation}
           (second.runOracleConfigFrom t₂ (Sequential.start second result.1)) result.2).support,
         final.1.tapes.state = none := by
     rintro ⟨mid, s₁⟩ hmid
-    obtain ⟨⟨a, ha, hmidTapes⟩, hmidBuf⟩ := h₁.mem_support oracle s cfg₀ rfl hbuf hmid
-    have hstart : (Sequential.start second mid).tapes =
-        wordsCfg x (some second.initial) (ws₁ a) (out₀ ++ emit₁ a) := by
-      simp [Sequential.start, hmidTapes]
-    exact (h₂ a OracleState oracle s s₁ ha).halted oracle s₁ (Sequential.start second mid)
-      hstart hmidBuf
+    obtain ⟨_, _, h2, hstart, hmidBuf⟩ := hmidSpec hmid
+    exact h2.halted oracle s₁ (Sequential.start second mid) hstart hmidBuf
   dsimp only
   rw [hleft, run_interpret_runOracleConfigFrom_seq first second oracle cfg₀ t₁ t₂ s hhalt₁ hhalt₂]
   constructor
   · refine law_bind Config.tapes Config.tapes hf
       (fun a b => wordsCfg x none (ws₂ a b) (out₀ ++ (emit₁ a ++ emit₂ a b)))
       (h₁ OracleState oracle s cfg₀ rfl hbuf).1 fun ⟨mid, s₁⟩ hmid => ?_
-    obtain ⟨⟨a, ha, hmidTapes⟩, hmidBuf⟩ := h₁.mem_support oracle s cfg₀ rfl hbuf hmid
-    have hstart : (Sequential.start second mid).tapes =
-        wordsCfg x (some second.initial) (ws₁ a) (out₀ ++ emit₁ a) := by
-      simp [Sequential.start, hmidTapes]
-    have hsecondLaw := ((h₂ a OracleState oracle s s₁ ha) OracleState oracle s₁
-      (Sequential.start second mid) hstart hmidBuf).1
+    obtain ⟨a, hmidTapes, h2, hstart, hmidBuf⟩ := hmidSpec hmid
+    have hsecondLaw := (h2 OracleState oracle s₁ (Sequential.start second mid) hstart hmidBuf).1
     have hright :
         PMF.map (fun p => (p.1.tapes, p.2))
           (PMF.map (fun p => (Sequential.right (State₀ := State₀) p.1, p.2))
@@ -445,12 +462,9 @@ theorem seq_bind {first : MultiTapePTM k Bool State₀ Operation}
     rfl
   · intro final hfinal op
     supp_cases hfinal with ⟨⟨mid, s₁⟩, hmid, ⟨final₀, s₂⟩, hfinal₀, rfl⟩
-    obtain ⟨⟨a, ha, hmidTapes⟩, hmidBuf⟩ := h₁.mem_support oracle s cfg₀ rfl hbuf hmid
-    have hstart : (Sequential.start second mid).tapes =
-        wordsCfg x (some second.initial) (ws₁ a) (out₀ ++ emit₁ a) := by
-      simp [Sequential.start, hmidTapes]
-    exact ((h₂ a OracleState oracle s s₁ ha) OracleState oracle s₁
-      (Sequential.start second mid) hstart hmidBuf).2 (final₀, s₂) hfinal₀ op
+    obtain ⟨_, _, h2, hstart, hmidBuf⟩ := hmidSpec hmid
+    exact (h2 OracleState oracle s₁ (Sequential.start second mid) hstart hmidBuf).2
+      (final₀, s₂) hfinal₀ op
 
 /-- Sequence a deterministic `pure ()` preparation phase before a `RunsWords` continuation. -/
 theorem seq_pure_left {first : MultiTapePTM k Bool State₀ Operation}
@@ -674,17 +688,10 @@ theorem runOracle (h : machine.ComputesTidily x time program)
   have hlaw := ((h []) OracleState oracle s (machine.initialConfig x)
     (Cfg.init_eq_wordsCfg machine.initial x) (fun _ => rfl)).1
   have hout := congrArg (PMF.map (fun p => (p.1.output, p.2))) hlaw
+  simp only [PMF.map_comp, Function.comp_def, wordsCfg_output, List.nil_append, id_eq,
+    Prod.mk.eta] at hout
   rw [runOracle_eq_map, ProbOracleComp.runWith_map]
-  refine Eq.trans ?_ (hout.trans ?_)
-  · rw [PMF.map_comp]
-    congr 1
-  · rw [PMF.map_comp]
-    have hcomp :
-        ((fun p : Cfg k Bool State x × OracleState => (p.1.output, p.2)) ∘
-          fun (a, s') => (wordsCfg x none (fun _ => []) ([] ++ id a), s')) = id := by
-      funext ⟨a, s'⟩
-      simp
-    rw [hcomp, PMF.map_id]
+  simpa only [Prod.map_def, id_eq] using hout.trans (PMF.map_id _)
 
 /-- A deterministic tidy machine lifts directly to `ComputesTidily` via `ofDeterministic`. -/
 theorem of_deterministic {tm : MultiTapeTM k Bool State} {output : List Bool} {t s : ℕ}

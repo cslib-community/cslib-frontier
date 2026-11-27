@@ -11,6 +11,8 @@ import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ChunkCatalogue
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.Parameters
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ResidueClasses
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
@@ -120,12 +122,6 @@ private theorem bank_injective : Function.Injective bank := by
   intro i j h
   exact Fin.ext (congrArg (fun k : Fin 32 => k.val) h)
 
-private theorem parameters_preserves : ∀ i : Fin 32, 15 ≤ i.val → parameters.Preserves i := by
-  decide
-
-private theorem chunks_preserves : ∀ i : Fin 32,
-    28 ≤ i.val → ChunkCatalogue.program.Preserves i := by decide
-
 /-- Exact computed parameters, residue/query arrays, concatenated descriptors and memory
 frame. This is the readback established by the actual native catalogue execution. -/
 @[expose]
@@ -179,151 +175,64 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
   let out := queryBase + 2 * N * p
   change Fits (w + 2)
     (4 * (N * N) + 20 * p * N + 30 * N + 8 * D + 8 * g + 8 * n + 8 * p + 64) at hbudget
-  obtain ⟨a, ha, har, hac, haq, hares, hacounts, hapairs, haframe⟩ :=
-    ResidueClasses.exec_at (w := w) 3 n p values initial hnHeader hpHeader hinput hp hmod
-      hvalues (hbudget.of_le (by dsimp [ResidueClasses.addressBoundAt, N]; nlinarith only []))
+  have hs : sOf D ≤ D := Nat.sqrt_le_self D
+  have hpiece : pieceSize D g ≤ D := (pieceSize_le_sOf hg).trans hs
+  have hC : ∀ rho < p, C rho ≤ N := fun _ _ => Nat.count_le _
+  refine WP.exists_execWithin ?_
+  unfold program deliverParameters parameters deliverChunks
+  refine WP.seq ?_
+  wram_call (ResidueClasses.exec_at (w := w) 3 n p values initial hnHeader hpHeader hinput hp hmod
+    hvalues (hbudget.of_le (by dsimp [ResidueClasses.addressBoundAt, N]; nlinarith only [])))
+    with a ⟨har, hac, haq, hares, hacounts, hapairs, haframe⟩
   change a.regs ResidueClasses.counts = countBase at hac
   change a.regs ResidueClasses.queries = queryBase at haq
   have ha1 : a.mem 1 = D := (haframe 1 (Or.inl (by omega))).trans hDHeader
   have ha2 : a.mem 2 = g := (haframe 2 (Or.inl (by omega))).trans hgHeader
   have ha3 : a.mem 3 = n := (haframe 3 (Or.inl (by omega))).trans hnHeader
   have ha4 : a.mem 4 = p := (haframe 4 (Or.inl (by omega))).trans hpHeader
-  have h1 : Fits (w + 2) 1 := hbudget.of_le (by omega)
-  have h4 : Fits (w + 2) 4 := hbudget.of_le (by omega)
-  let b := a.set 31 1 |>.set 0 1 |>.set 7 D |>.set 0 2 |>.set 8 g |>.set 0 3 |>.set 6 n
-  have hb : ExecWithin (w + 2) deliverParameters a b 7 := by
-    ram_eval [deliverParameters, b, ha1, ha2, ha3, h1, Fin.mk.injEq]
-  have hb6 : (b.comap bank).regs Parameters.size = n := by
-    simp +decide [b, bank, Parameters.size]
-  have hb7 : (b.comap bank).regs Parameters.dimension = D := by
-    simp +decide [b, bank, Parameters.dimension]
-  have hb8 : (b.comap bank).regs Parameters.divisor = g := by
-    simp +decide [b, bank, Parameters.divisor]
-  have hs : sOf D ≤ D := Nat.sqrt_le_self D
-  have hpiece : pieceSize D g ≤ D := (pieceSize_le_sOf hg).trans hs
-  obtain ⟨c, hv, ⟨hvs, hvq, hvB, hvH, hvn, -, -, hvm⟩, -⟩ :=
-    ExecWithin.rename_post bank_injective (Parameters.exec (b.comap bank)
-      (by rw [hb7]; exact hbudget.of_le (by omega))
-      (by rw [hb6]; exact hbudget.of_le (by dsimp [N]; omega))
-      (by rw [hb7, hb8]; exact hbudget.of_le (by omega))
-      (by rw [hb6, hb7, hb8]; exact hbudget.of_le (by omega)))
-  have hc : ExecWithin (w + 2) parameters b c (5 * sOf D + 5 * queryCap n D + 27) := by
-    simpa only [parameters, hb6, hb7] using hv
-  simp only [Data.comap_regs] at hb6 hb7 hb8
-  have hc6 : c.regs 6 = n := by
-    change c.regs (bank Parameters.size) = n
-    exact hvn.trans hb6
-  have hc10 : c.regs 10 = queryCap n D := by
-    change c.regs (bank Parameters.capacity) = _
-    simpa only [Data.comap_regs, hb6, hb7] using hvq
-  have hc11 : c.regs 11 = pieceSize D g := by
-    change c.regs (bank Parameters.pieceLength) = _
-    simpa only [Data.comap_regs, hb7, hb8] using hvB
-  have hc12 : c.regs 12 = numPieces n D g := by
-    change c.regs (bank Parameters.pieces) = _
-    simpa only [Data.comap_regs, hb6, hb7, hb8] using hvH
-  have hc28 : c.regs 28 = countBase := by
-    have h := hc.regs_eq (parameters_preserves 28 (by decide))
-    exact h.trans ((by simp +decide [b] : b.regs 28 = a.regs 28).trans hac)
-  have hc29 : c.regs 29 = queryBase := by
-    have h := hc.regs_eq (parameters_preserves 29 (by decide))
-    exact h.trans ((by simp +decide [b] : b.regs 29 = a.regs 29).trans haq)
-  have hcmem : c.mem = a.mem := hvm
-  let d := c.set 14 countBase |>.set 15 queryBase |>.set 16 n |>.set 19 (queryCap n D)
-    |>.set pieceLength (pieceSize D g) |>.set pieces (numPieces n D g)
-    |>.set 25 4 |>.set 17 p |>.set 18 N |>.set 18 (N + N)
-    |>.set 18 ((N + N) * p) |>.set 18 ((N + N) * p + queryBase)
-  have hN : Fits (w + 2) (n * n) := hbudget.of_le (by dsimp [N]; omega)
-  have h2N : Fits (w + 2) (n * n + n * n) := hbudget.of_le (by dsimp [N]; omega)
-  have h2Np : Fits (w + 2) ((n * n + n * n) * p) :=
-    hbudget.of_le (by dsimp [N]; nlinarith only [])
+  wram_exec [ha1, ha2, ha3]
+  wram_call (Parameters.exec ..) canonical bank_injective [hbudget.of_le, N]
+    with c ⟨hvs, hvq, hvB, hvH, hvn, _, _, hvm⟩
+  wram_simp at hvq hvB hvH hvn hvm
+  have hc4 : c.mem 4 = p := (congrFun hvm 4).trans ha4
+  have h2Np : Fits (w + 2) ((n * n + n * n) * p) := hbudget.of_le (by dsimp [N]; nlinarith only [])
   have hOut : Fits (w + 2) ((n * n + n * n) * p + queryBase) :=
     hbudget.of_le (by dsimp [N, queryBase, countBase]; nlinarith only [])
-  have hd : ExecWithin (w + 2) deliverChunks c d 12 := by
-    have hc4 : c.mem 4 = p := (congrFun hcmem 4).trans ha4
-    ram_eval [deliverChunks, d, hc28, hc29, hc6, hc10, hc11, hc12, hc4,
-      h4, hN, h2N, h2Np, hOut, N, pieceLength, pieces, ChunkCatalogue.counts,
-      ChunkCatalogue.queries, ChunkCatalogue.size, ChunkCatalogue.capacity,
-      ChunkCatalogue.modulus, ChunkCatalogue.dst, ChunkCatalogue.addr, Fin.mk.injEq]
-  have hd14 : d.regs ChunkCatalogue.counts = countBase := by
-    simp +decide [d, ChunkCatalogue.counts, pieceLength, pieces]
-  have hd15 : d.regs ChunkCatalogue.queries = queryBase := by
-    simp +decide [d, ChunkCatalogue.queries, pieceLength, pieces]
-  have hd16 : d.regs ChunkCatalogue.size = n := by
-    simp +decide [d, ChunkCatalogue.size, pieceLength, pieces]
-  have hd17 : d.regs ChunkCatalogue.modulus = p := by
-    simp +decide [d, ChunkCatalogue.modulus, pieceLength, pieces]
-  have hd18 : d.regs ChunkCatalogue.dst = out := by
-    simp +decide [d, ChunkCatalogue.dst, out, pieceLength, pieces, two_mul, Nat.add_comm]
-  have hd19 : d.regs ChunkCatalogue.capacity = queryCap n D := by
-    simp +decide [d, ChunkCatalogue.capacity, pieceLength, pieces]
-  have hdmem : d.mem = a.mem := hcmem
-  have hC : ∀ rho < p, C rho ≤ N := fun rho _ => Nat.count_le _
-  obtain ⟨y, hy, hycount, hyheap, hymeta, hycells, hyframe⟩ := ChunkCatalogue.exec d C
-    (by
-      rw [hd17]
-      intro rho hrho
-      rw [hd14, hdmem]
-      exact hacounts rho hrho)
-    (by rw [hd17, hd16]; exact hC)
-    (by rw [hd19]; exact one_le_queryCap hD hDn)
-    (by rw [hd14, hd17, hd18]; dsimp [out, queryBase]; omega)
-    (by rw [hd15, hd17, hd16, hd18]; dsimp [out, N]; nlinarith only [])
-    (hbudget.of_le (by
-      rw [hd18, hd17, hd16, hd14, hd15]
-      dsimp [out, queryBase, countBase, N]
-      nlinarith only []))
-  rw [hd17, hd16] at hy
-  rw [hd19, hd17] at hycount
-  rw [hd18] at hyheap
-  rw [hd17, hd19, hd18, hd15, hd16] at hycells
-  rw [hd18] at hyframe
-  have hlen : y.regs pieceLength = pieceSize D g := by
-    rw [hy.regs_eq (chunks_preserves pieceLength (by decide))]
-    simp +decide [d, pieceLength, pieces]
-  have hpieces : y.regs pieces = numPieces n D g := by
-    rw [hy.regs_eq (chunks_preserves pieces (by decide))]
-    simp +decide [d, pieces]
-  have hyold (a' : ℕ) (ha' : a' < out) : y.mem a' = a.mem a' :=
-    (hyframe a' (by omega)).trans (congrFun hdmem a')
-  refine ⟨y, ?_, by regs_frame, by regs_frame,
-    by regs_frame, by regs_frame, by regs_frame, by regs_frame,
-    hlen, hpieces, hycount, hyheap, ?_, ?_, ?_, hycells, ?_⟩
-  · convert ha.seq (hb.seq (hc.seq (hd.seq hy))) using 1
-    · rfl
-    · dsimp [cost, N]
-      ring
+  wram_exec [hac, haq, hvn, hvq, hvB, hvH, hc4]
+  have hout_eq : (n * n + n * n) * p + queryBase = out := by dsimp [out, N]; nlinarith only []
+  have hq := one_le_queryCap hD hDn
+  wram_call (ChunkCatalogue.exec _ C _ _ _ (by wram_simp; dsimp [queryBase]; omega)
+    (by wram_simp; nlinarith only [])
+    (by wram_simp; exact hbudget.of_le (by dsimp [queryBase, countBase, N]; nlinarith only [])))
+    framed [hvm] with vy my ⟨hycount, hyheap, -, hycells, hyframe⟩
+  rw [hout_eq] at hyheap hycells hyframe
+  have hyold (a' : ℕ) (ha' : a' < out) : my a' = a.mem a' := hyframe a' (by omega)
+  refine ⟨by wram_simp [cost, N]; ring_nf; omega,
+    by wram_simp, by wram_simp, by wram_simp; rfl, by wram_simp; rfl,
+    by wram_simp [hout_eq]; rfl, by wram_simp,
+    by wram_simp, by wram_simp, by wram_simp [hycount]; rfl,
+    by wram_simp [hyheap, hycount]; rfl,
+    ?_, ?_, ?_, ?_, ?_⟩
   · intro q hq
-    rw [hyold _ (by dsimp [out, queryBase, countBase]; omega)]
-    exact hares q hq
+    wram_simp
+    exact (hyold _ (by dsimp [out, queryBase, countBase, N] at *; omega)).trans (hares q hq)
   · intro rho hrho
-    rw [hyold _ (by dsimp [out, queryBase, countBase]; omega)]
-    exact hacounts rho hrho
+    wram_simp
+    exact (hyold _ (by dsimp [out, queryBase, countBase, N] at *; omega)).trans (hacounts rho hrho)
   · intro rho hrho q hq hRq
+    wram_simp
     have hcount : Nat.count (fun k => R k = rho) q ≤ q := Nat.count_le _
     have hbound := Nat.mul_le_mul_left (2 * N) (Nat.succ_le_of_lt hrho)
     rw [Nat.mul_succ] at hbound
-    have h0 : 5 + 6 * N + p + 2 * N * rho +
-        2 * Nat.count (fun k => R k = rho) q < out := by dsimp [out, queryBase, countBase]; omega
-    have h1 : 5 + 6 * N + p + 2 * N * rho +
-        2 * Nat.count (fun k => R k = rho) q + 1 < out := by
-      dsimp [out, queryBase, countBase]
-      omega
-    rw [hyold _ h0, hyold _ h1]
+    rw [hyold _ (by dsimp [out, queryBase, countBase, N, R] at *; omega),
+        hyold _ (by dsimp [out, queryBase, countBase, N, R] at *; omega)]
     exact hapairs rho hrho q hq hRq
+  · wram_simp; exact hycells
   · intro a' ha'
-    change a' < 5 + 3 * N ∨ out + 3 * y.regs ChunkCatalogue.written ≤ a' at ha'
-    have hframe : ¬(out ≤ a' ∧ a' < out + 3 * y.regs ChunkCatalogue.written) := by
-      rcases ha' with h | h
-      · have hlt : a' < out := by dsimp [out, queryBase, countBase]; omega
-        omega
-      · omega
-    rw [hyframe a' hframe, hdmem]
-    apply haframe a'
-    rcases ha' with h | h
-    · exact Or.inl h
-    · apply Or.inr
-      change out ≤ a'
-      omega
+    wram_simp at ha' ⊢
+    change a' < 5 + 3 * N ∨ out + 3 * vy ChunkCatalogue.written ≤ a' at ha'
+    have hlt : 5 + 3 * N ≤ out := by dsimp only [out, queryBase, countBase]; omega
+    rw [hyframe a' (by omega)]
+    exact haframe a' (ha'.imp_right fun _ => by change out ≤ a'; omega)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.Catalogue

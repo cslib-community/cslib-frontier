@@ -5,9 +5,10 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate (Mathlib for `ENNReal.Finiteness.sum_ne_top`, the `PMF.apply_ne_top` tag,
--- and, as changes to `finiteness` itself, the `x < _` hypothesis rule and the `applyHyps` tag;
--- addition to `Cslib/Probability/PMF.lean` for the `toOuterMeasure_ne_top` tag)
+-- upstream: candidate (Mathlib for `ENNReal.Finiteness.sum_ne_top`, the `ENNReal.prod_ne_top`
+-- and `PMF.apply_ne_top` tags, and, as changes to `finiteness` itself, the `x < _` hypothesis rule
+-- and the `applyHyps` tag; addition to `Cslib/Probability/PMF.lean` for the `toOuterMeasure_ne_top`
+-- tag)
 
 public import CslibFrontier.Probability.PMF.Event
 public import Mathlib.Basic.ENNReal.BigOperators
@@ -17,17 +18,19 @@ public import Mathlib.Tactic.Finiteness
 # `finiteness` rules for discrete distributions
 
 Mathlib's `finiteness` proves goals `x ≠ ∞` in `ℝ≥0∞` from the syntax of `x`, with rules for
-sums, products, powers, quotients, inverses and casts. This module adds the rules that bounds on
+powers, quotients, inverses, casts and finite measures. This module adds the rules that bounds on
 discrete distributions need: the mass `p a` of an outcome and the probability
-`p.toOuterMeasure s` of an event are finite, and so is a finite sum of finite terms. With them
-the side conditions of `ENNReal.toReal_add`, `ENNReal.toReal_mono` and `ENNReal.toNNReal_mono`
-in probability bounds are `by finiteness`, whatever the shape of the bound. It also applies
-hypotheses such as `∀ i, f i ≠ ∞`, and keeps Mathlib's proof of `x ≠ ∞` from a hypothesis `x < _`
-working alongside the sum rule.
+`p.toOuterMeasure s` of an event are finite, and so are finite sums and finite products of finite
+terms. With them the side conditions of `ENNReal.toReal_add`, `ENNReal.toReal_mono` and
+`ENNReal.toNNReal_mono` in probability bounds are `by finiteness`, whatever the shape of the bound.
+It also applies hypotheses such as `∀ i, f i ≠ ∞`, and keeps Mathlib's proof of `x ≠ ∞` from a
+hypothesis `x < _` working alongside the sum rule.
 
 ## Main results
 
 * `ENNReal.Finiteness.sum_ne_top`: a finite sum of finite terms is finite, as a `finiteness` rule.
+* `ENNReal.prod_ne_top`: registered as an unsafe `finiteness` rule (matching `ENNReal.mul_ne_top`,
+  since `0 * ∞ = 0`).
 * `PMF.apply_ne_top`, `Cslib.Probability.PMF.toOuterMeasure_ne_top`: registered as `finiteness`
   rules.
 
@@ -64,6 +67,9 @@ end ENNReal
 
 attribute [aesop (rule_sets := [finiteness]) safe -10 apply] PMF.apply_ne_top
   Cslib.Probability.PMF.toOuterMeasure_ne_top
+
+-- Unsafe, like `ENNReal.mul_ne_top`, because a zero factor makes a product with `∞` finite.
+attribute [aesop (rule_sets := [finiteness]) unsafe 75% apply] ENNReal.prod_ne_top
 
 end
 

@@ -88,27 +88,18 @@ theorem lyubashevsky_predict_difference_le {n m k q η : ℕ} [NeZero q] {Ω : T
       j (fun values out a ha b hb => ?_)
     · simpa [joint, PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_map, PMF.map_comp,
         Function.comp_def, Box, Fintype.card_pi, card_intBox] using h
-    apply Subtype.ext
-    funext i
+    refine Subtype.ext (funext fun i => ?_)
     have heq : (secrets (Function.update values j a) -
         secrets (Function.update values j b)) *ᵥ delta out = 0 := by
       rw [Matrix.sub_mulVec, ← ha.2, ← hb.2, sub_self]
     have hi := congrFun heq i
-    simp only [Matrix.mulVec, dotProduct, Pi.zero_apply] at hi
-    rw [Finset.sum_eq_single j] at hi
-    · have hd : delta out j ≠ 0 := by
-        cases hc : c out j <;> cases hc' : c' out j <;>
-          simp_all [delta, lyubashevskyChallenge]
-      have hab : (a.val i - b.val i) * delta out j = 0 := by
-        change ((Function.update values j a j).val i -
-          (Function.update values j b j).val i) * delta out j = 0 at hi
-        simpa only [Function.update_self] using hi
-      exact sub_eq_zero.mp ((mul_eq_zero.mp hab).resolve_right hd)
-    · intro j' _ hj'
-      change ((Function.update values j a j').val i -
-        (Function.update values j b j').val i) * delta out j' = 0
-      simp [Function.update_of_ne hj']
-    · simp
+    simp only [Matrix.mulVec, dotProduct, Pi.zero_apply, secrets] at hi
+    rw [Finset.sum_eq_single j (fun j' _ hj' => by simp [Function.update_of_ne hj'])
+      (by simp)] at hi
+    have hd : delta out j ≠ 0 := by
+      cases hc : c out j <;> cases hc' : c' out j <;>
+        simp_all [delta, lyubashevskyChallenge]
+    exact sub_eq_zero.mp ((mul_eq_zero.mp (by simpa [secrets] using hi)).resolve_right hd)
   rw [hsource, PMF.bind_map]
   change ((uniformOfFintype (Fin k → Box)).bind fun values =>
     (kernel (A * (secrets values).map Int.cast)).map fun out =>
@@ -121,29 +112,19 @@ theorem lyubashevsky_predict_difference_le {n m k q η : ℕ} [NeZero q] {Ω : T
       PMF.pure_map, PMF.bind_pure, PMF.map_comp, PMF.map, PMF.bind_bind, PMF.pure_bind,
       Function.comp_def] using h
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-  have hcover : {pair : (Fin k → Box) × Ω | c pair.2 ≠ c' pair.2 ∧
-      difference pair.2 = secrets pair.1 *ᵥ delta pair.2} ⊆
-      ⋃ j : Fin k, {pair | c pair.2 j ≠ c' pair.2 j ∧
-        difference pair.2 = secrets pair.1 *ᵥ delta pair.2} := by
-    intro pair hp
-    obtain ⟨j, hj⟩ := Function.ne_iff.mp hp.1
-    exact Set.mem_iUnion.mpr ⟨j, hj, hp.2⟩
   calc
     _ ≤ joint.toOuterMeasure (⋃ j : Fin k, {pair | c pair.2 j ≠ c' pair.2 j ∧
-        difference pair.2 = secrets pair.1 *ᵥ delta pair.2}) := by
-      apply MeasureTheory.measure_mono
-      intro pair hp
-      exact hcover (of_decide_eq_true hp)
+        difference pair.2 = secrets pair.1 *ᵥ delta pair.2}) :=
+      MeasureTheory.measure_mono fun pair hp => Set.mem_iUnion.mpr <|
+        (Function.ne_iff.mp (of_decide_eq_true hp).1).imp fun _ hj => ⟨hj, (of_decide_eq_true hp).2⟩
     _ ≤ ∑' j : Fin k, joint.toOuterMeasure {pair | c pair.2 j ≠ c' pair.2 j ∧
         difference pair.2 = secrets pair.1 *ᵥ delta pair.2} := MeasureTheory.measure_iUnion_le _
     _ = ∑ j : Fin k, (joint.map fun pair => decide (c pair.2 j ≠ c' pair.2 j ∧
         difference pair.2 = secrets pair.1 *ᵥ delta pair.2)) true := by
       simp only [tsum_fintype]
-      apply Finset.sum_congr rfl
-      intro j _
+      refine Finset.sum_congr rfl fun j _ => ?_
       rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-      congr 1
-      ext pair
+      congr 1 with pair
       simp
     _ ≤ ∑ _j : Fin k, (q : ℝ≥0∞) ^ n / (2 * η + 1) ^ m :=
       Finset.sum_le_sum fun j _ => hcoord j
@@ -170,19 +151,14 @@ theorem lyubashevsky_fork_success_le_sis_add {n m k q η γ β : ℕ} [NeZero q]
       (z out - z' out - S *ᵥ (lyubashevskyChallenge (c out) -
         lyubashevskyChallenge (c' out))))) true + k * (q : ℝ≥0∞) ^ n / (2 * η + 1) ^ m := by
   classical
-  let experiment : PMF (Matrix (Fin m) (Fin k) ℤ × Ω) := do
-    let cols ← iid (uniformOfFinset (intBox (Fin m) η) (intBox_nonempty η)) k
-    let S : Matrix (Fin m) (Fin k) ℤ := Matrix.of fun i j => cols j i
-    let out ← kernel (A * S.map Int.cast)
-    return (S, out)
+  intro experiment
   have hsecret (pair) (hpair : pair ∈ experiment.support) :
       lyubashevskyRelation η pair.1 (A, A * pair.1.map Int.cast) := by
     simp only [experiment, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hpair
     obtain ⟨cols, hcols, out, _, rfl⟩ := hpair
-    refine ⟨rfl, fun i j => ?_⟩
-    have hj := (mem_support_iid_iff _ _).mp hcols j
-    exact mem_intBox.mp ((mem_support_uniformOfFinset_iff _ _).mp hj) i
+    exact ⟨rfl, fun i j => mem_intBox.mp
+      ((mem_support_uniformOfFinset_iff _ _).mp ((mem_support_iid_iff _ _).mp hcols j)) i⟩
   have hbad : (experiment.map fun (S, out) => decide (c out ≠ c' out ∧
       z out - z' out = S *ᵥ (lyubashevskyChallenge (c out) -
         lyubashevskyChallenge (c' out)))) true ≤
@@ -203,8 +179,7 @@ theorem lyubashevsky_fork_success_le_sis_add {n m k q η γ β : ℕ} [NeZero q]
   by_cases heq : z out - z' out = S *ᵥ
       (lyubashevskyChallenge (c out) - lyubashevskyChallenge (c' out))
   · exact Or.inr (decide_eq_true ⟨hc, heq⟩)
-  · apply Or.inl
-    apply decide_eq_true
+  · refine Or.inl (decide_eq_true ?_)
     simpa only [extractSISFromTwoTranscripts_eq_sub, Option.getD_some] using
       lyubashevskyForkToSIS (hsecret (S, out) hpair) hz hz' heq
 

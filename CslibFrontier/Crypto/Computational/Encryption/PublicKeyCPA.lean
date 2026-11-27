@@ -299,14 +299,11 @@ theorem isPPTOn_runWithEncryption {Caller α β : Type} {input : Caller ↪ List
   let encCall : Call ↪ List Bool := encHandlerCall input (encFinEnum Unit) (encFinEnum Unit)
   have hhandler : IsPPTOn encCall (encPair encBits (encFinEnum Unit))
       (fun call : Call => encryptionOracle encrypt (param call.1) (pk call.1) call.2.1 call.2.2) :=
-    by
-    have hargs : ComputableInPolyTime (fun call : Call => (param call.1, pk call.1, call.2.1.2))
-        encCall (encPair encUnary (encPair encBits encBits)) :=
-      (hparam.comp' (ComputableInPolyTime.fst _ _)).prod
-        ((hpk.comp' (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _).fst'.snd')
-    exact (hencrypt.preprocess hargs).map_pair (second := fun q => (q.2, q.1.2.2))
-      (ComputableInPolyTime.prod (g := fun _ => ())
-        (ComputableInPolyTime.snd encCall encBits) (ComputableInPolyTime.const ()))
+    (hencrypt.preprocess ((hparam.comp' (ComputableInPolyTime.fst _ _)).prod
+      ((hpk.comp' (ComputableInPolyTime.fst _ _)).prod
+        (ComputableInPolyTime.snd _ _).fst'.snd'))).map_pair (second := fun q => (q.2, q.1.2.2))
+      ((ComputableInPolyTime.snd encCall encBits).prod (g := fun _ => ())
+        (ComputableInPolyTime.const ()))
   have hresources : PolyBounded (fun pair => (encPair input encBits pair).length)
       (fun pair : Caller × List Bool =>
         c * (2 * param pair.1 + 2 * (pk pair.1).length + pair.2.length + 5) ^ d) := by
@@ -329,13 +326,10 @@ theorem isPPTOn_runWithEncryption {Caller α β : Type} {input : Caller ↪ List
       simp only [encryptionOracle, ProbComp.eval_bind, ProbComp.eval_pure,
         PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hsupp
       obtain ⟨ciphertext, hciphertext, rfl⟩ := hsupp
-      have hsize : (encPair encUnary (encPair encBits encBits)
-          (param a, pk a, request.2)).length + 1 ≤
-          2 * param a + 2 * (pk a).length + request.2.length + 5 := by
-        enc_len
-      refine ⟨trivial, ?_, Nat.le_add_right _ _⟩
-      exact (hlen (param a, pk a, request.2) ciphertext hciphertext).trans
-        (Nat.mul_le_mul_left c (Nat.pow_le_pow_left hsize d))
+      refine ⟨trivial, (hlen (param a, pk a, request.2) ciphertext hciphertext).trans
+        (Nat.mul_le_mul_left c (Nat.pow_le_pow_left ?_ d)), Nat.le_add_right _ _⟩
+      change (encPair encUnary (encPair encBits encBits) (param a, pk a, request.2)).length + 1 ≤ _
+      enc_len
     · rw [ProbOracleComp.sample_run_interpret]
   exact hrun.bind_with (second := fun _ out => pure out.1)
     (ComputableInPolyTime.snd input (encPair output (encFinEnum Unit))).fst'.isPPTOn

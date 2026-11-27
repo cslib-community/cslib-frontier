@@ -248,8 +248,7 @@ theorem eval_excludingClause (y x : BitString n) :
 
 /-- `excludingClause y` has size `1`. -/
 theorem size_excludingClause (y : BitString n) : size (excludingClause y) = 1 := by
-  rw [excludingClause, size_gate]
-  simp [size]
+  simp [excludingClause, size]
 
 /-- The formula in conjunctive normal form excluding every false input of `f`. -/
 noncomputable def cnf (f : BitString n → Bool) : AltFormula n 2 :=
@@ -257,25 +256,19 @@ noncomputable def cnf (f : BitString n → Bool) : AltFormula n 2 :=
 
 /-- `cnf f` evaluates to `f x` on every input `x` with root operation `.and`. -/
 theorem eval_cnf (f : BitString n → Bool) (x : BitString n) : eval .and (cnf f) x = f x := by
-  apply Bool.eq_iff_iff.2
-  rw [cnf, eval_gate_and]
+  rw [Bool.eq_iff_iff, cnf, eval_gate_and]
   simp only [eval_excludingClause]
-  constructor
-  · intro h
-    cases hf : f x with
-    | false => exact (h ⟨x, hf⟩ rfl).elim
-    | true => rfl
-  · intro h y he
-    subst x
-    exact Bool.noConfusion (h.symm.trans y.2)
+  refine ⟨fun h => ?_, fun h y he => Bool.noConfusion (h.symm.trans (he ▸ y.2))⟩
+  cases hf : f x with
+  | false => exact (h ⟨x, hf⟩ rfl).elim
+  | true => rfl
 
 /-- The canonical CNF formula `cnf f` has size at most `2 ^ n + 1`. -/
 theorem size_cnf_le (f : BitString n → Bool) : size (cnf f) ≤ 2 ^ n + 1 := by
-  have hc : Fintype.card {y : BitString n // f y = false} ≤ 2 ^ n := by
+  have : Fintype.card {y : BitString n // f y = false} ≤ 2 ^ n := by
     simpa using Fintype.card_subtype_le fun y : BitString n => f y = false
   rw [cnf, size_gate]
-  simp only [size_excludingClause, sum_const, card_univ, smul_eq_mul, mul_one]
-  omega
+  simp only [size_excludingClause, sum_const, card_univ, smul_eq_mul, mul_one]; omega
 
 /-- **Normal forms**: every Boolean function has alternating formulas of depth two, with either
 root operation, of size at most `2 ^ n + 1`. -/
@@ -284,9 +277,8 @@ theorem exists_depth_two (f : BitString n → Bool) (op : AltOp) :
   cases op with
   | and => exact ⟨cnf f, size_cnf_le f, eval_cnf f⟩
   | or =>
-    refine ⟨neg (cnf fun x => !f x), ?_, fun x => ?_⟩
-    · simpa only [size_neg] using size_cnf_le fun x => !f x
-    · exact (eval_neg _ .and x).trans (by simp [eval_cnf])
+    exact ⟨neg (cnf fun x => !f x), by simpa only [size_neg] using size_cnf_le fun x => !f x,
+      fun x => (eval_neg _ .and x).trans (by simp [eval_cnf])⟩
 
 /-! ### Alternating formulas as circuits -/
 
@@ -319,19 +311,13 @@ theorem eval_toFormula {d : ℕ} (op : AltOp) (f : AltFormula n d) (x : BitStrin
   induction d generalizing op with
   | zero =>
     obtain ⟨i, s⟩ := f
-    cases s
-    · simp only [toFormula, Bool.false_eq_true, ↓reduceIte, Formula.eval_input, literals,
-        Fin.append_right, eval, Literal.eval]
-      cases x i <;> rfl
-    · simp only [toFormula, ↓reduceIte, Formula.eval_input, literals, Fin.append_left, eval,
-        Literal.eval]
-      cases x i <;> rfl
+    cases s <;> simp only [toFormula, Bool.false_eq_true, ↓reduceIte, Formula.eval_input, literals,
+      Fin.append_left, Fin.append_right, eval, Literal.eval] <;> cases x i <;> rfl
   | succ d ih =>
-    cases op
-    · simp only [toFormula, Formula.eval_gate, Unbounded.interpretation_and, ih, eval]
-      exact decide_forall_get f fun g => eval .or g x
-    · simp only [toFormula, Formula.eval_gate, Unbounded.interpretation_or, ih, eval]
-      exact decide_exists_get f fun g => eval .and g x
+    cases op <;> simp only [toFormula, Formula.eval_gate, Unbounded.interpretation_and,
+      Unbounded.interpretation_or, ih, eval]
+    · exact decide_forall_get f fun g => eval .or g x
+    · exact decide_exists_get f fun g => eval .and g x
 
 /-- Translating an alternating formula to an unbounded fan-in formula preserves its gate count. -/
 theorem size_toFormula {d : ℕ} (op : AltOp) (f : AltFormula n d) :
@@ -339,11 +325,8 @@ theorem size_toFormula {d : ℕ} (op : AltOp) (f : AltFormula n d) :
   induction d generalizing op with
   | zero => rfl
   | succ d ih =>
-    have h (g : AltOp) : ∑ j : Fin (List.length f), (toFormula g (f.get j)).size =
-        (f.map size).sum := by
-      simp only [ih]
-      rw [← List.sum_ofFn, List.ofFn_comp', List.ofFn_get]
-    cases op <;> simp only [toFormula, Formula.size_gate, h, size] <;> omega
+    cases op <;> simp only [toFormula, Formula.size_gate, ih, size] <;>
+      rw [← List.sum_ofFn, List.ofFn_comp', List.ofFn_get] <;> omega
 
 /-- An alternating formula of depth `d` translates to a formula of depth at most `d`. -/
 @[circuit_bound]
@@ -351,8 +334,7 @@ theorem depth_toFormula_le {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     (toFormula op f).depth ≤ d := by
   induction d generalizing op with
   | zero => exact Nat.zero_le _
-  | succ d ih =>
-    cases op <;> exact Nat.succ_le_succ (Finset.sup_le fun j _ => ih _ _)
+  | succ d ih => cases op <;> circuit_bound [toFormula]
 
 /-- An alternating formula of depth `d` translates to a formula of AND/OR depth at most `d`. -/
 @[circuit_bound]
@@ -360,8 +342,7 @@ theorem depthWith_toFormula_le {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     (toFormula op f).depthWith Unbounded.andOrCost ≤ d := by
   induction d generalizing op with
   | zero => exact Nat.zero_le _
-  | succ d ih =>
-    cases op <;> exact Nat.add_le_add (Finset.sup_le fun j _ => ih _ _) le_rfl
+  | succ d ih => cases op <;> circuit_bound [toFormula, Unbounded.andOrCost]
 
 /-- The circuit computing the positive and the negated inputs, with one negation gate per
 input. -/
@@ -403,9 +384,7 @@ theorem depth_literalsCircuit_le (n : ℕ) : (literalsCircuit n).depth ≤ 1 := 
 @[circuit_bound]
 theorem depthWith_literalsCircuit (n : ℕ) :
     (literalsCircuit n).depthWith Unbounded.andOrCost = 0 :=
-  Nat.eq_zero_of_le_zero <| (Circuit.depthWith_append_le _ _ _).trans <| max_le
-    (Circuit.depthWith_wiring _ _).le
-    (Circuit.depthWith_pi_le _ _ fun _ => (Circuit.depthWith_oneGate _ _ _).le)
+  Nat.eq_zero_of_le_zero (by circuit_bound [literalsCircuit, Unbounded.andOrCost])
 
 /-- **Alternating formulas are circuits**: an alternating formula of depth `d` computing `f`
 with root `op` is a circuit over the unbounded fan-in basis of AND/OR depth at most `d`, and of
@@ -415,11 +394,9 @@ theorem exists_circuit {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     ∃ c : Circuit Unbounded.signature n 1,
       c.Computes Unbounded.interpretation (single (eval op f)) ∧
         c.depthWith Unbounded.andOrCost ≤ d ∧ c.depth ≤ d + 1 ∧ c.size = size f + n := by
-  refine ⟨(toFormula op f).toCircuit.comp (literalsCircuit n), fun x => ?_, ?_, ?_, ?_⟩
-  · rw [Circuit.eval_comp, eval_literalsCircuit]
-    funext j
-    rw [Formula.eval_toCircuit, eval_toFormula]
-    rfl
+  refine ⟨(toFormula op f).toCircuit.comp (literalsCircuit n), fun x => funext fun _ => ?_,
+    ?_, ?_, ?_⟩
+  · rw [Circuit.eval_comp, eval_literalsCircuit, Formula.eval_toCircuit, eval_toFormula]; rfl
   · circuit_bound
   · circuit_bound
   · rw [Circuit.size_comp, size_literalsCircuit, Formula.size_toCircuit, size_toFormula,

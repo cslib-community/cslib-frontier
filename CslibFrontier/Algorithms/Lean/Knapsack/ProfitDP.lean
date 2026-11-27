@@ -8,11 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib.Data.List.Basic
-public import Mathlib.Algebra.BigOperators.Group.List.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Data.List.GetD
-import Mathlib.Order.Basic
 
 /-!
 # The knapsack dynamic program by profit
@@ -99,9 +96,7 @@ theorem lighter_eq_some {x y : Option (List ι)} {s : List ι} (h : lighter w x 
     | none => exact Or.inl h
     | some u =>
       simp only [lighter, Option.elim_some] at h
-      split_ifs at h
-      · exact Or.inr h
-      · exact Or.inl h
+      split_ifs at h <;> simp [h]
 
 /-- The lighter of a selection and anything weighs at most the selection. -/
 theorem exists_lighter_left (s : List ι) (y : Option (List ι)) :
@@ -111,8 +106,7 @@ theorem exists_lighter_left (s : List ι) (y : Option (List ι)) :
   | some t =>
     simp only [lighter, Option.elim_some]
     split_ifs with h
-    · exact ⟨t, rfl, h.le⟩
-    · exact ⟨s, rfl, le_rfl⟩
+    exacts [⟨t, rfl, h.le⟩, ⟨s, rfl, le_rfl⟩]
 
 /-- The lighter of anything and a selection weighs at most the selection. -/
 theorem exists_lighter_right (x : Option (List ι)) (t : List ι) :
@@ -122,8 +116,7 @@ theorem exists_lighter_right (x : Option (List ι)) (t : List ι) :
   | some s =>
     simp only [lighter, Option.elim_some]
     split_ifs with h
-    · exact ⟨t, rfl, le_rfl⟩
-    · exact ⟨s, rfl, not_lt.mp h⟩
+    exacts [⟨t, rfl, le_rfl⟩, ⟨s, rfl, not_lt.mp h⟩]
 
 /-- The entries of one step of the dynamic program. -/
 theorem getElem?_profitStep (T : List (Option (List ι))) (a : ι) (q : ℕ) :
@@ -150,15 +143,12 @@ theorem getElem?_profitStep (T : List (Option (List ι))) (a : ι) (q : ℕ) :
           List.getElem?_map, ite_eq_left (by omega), List.length_replicate,
           List.getElem?_eq_getElem (by omega), List.getD_eq_getElem _ _ (by omega), Option.map_some]
     rw [hX, hY]
-  · have hlen : (T ++ List.replicate (p a) none).length ≤ q := by grind
-    rw [ite_eq_right hq, List.getElem?_eq_none hlen]
+  · rw [ite_eq_right hq, List.getElem?_eq_none (by grind)]
 
 private theorem getD_eq_some {T : List (Option (List ι))} {q : ℕ} {s : List ι}
     (h : T.getD q none = some s) : T[q]? = some (some s) := by
   rw [List.getD_eq_getElem?_getD] at h
-  cases hT : T[q]? with
-  | none => rw [hT] at h; exact absurd h (by simp)
-  | some x => rw [hT] at h; exact congrArg some h
+  cases hT : T[q]? <;> simp_all
 
 /-- The invariant of the profit table of `l`: its length, and soundness and completeness of its
 entries. -/
@@ -194,23 +184,13 @@ theorem TableSpec.step {l : List ι} {T : List (Option (List ι))} (hT : TableSp
     omega
   · intro q s h
     rw [getElem?_profitStep] at h
-    by_cases hq : q < T.length + p a
-    · rw [ite_eq_left hq, Option.some.injEq] at h
-      rcases lighter_eq_some h with hx | hy
-      · obtain ⟨hs, hsum⟩ := hT.sound q s (getD_eq_some hx)
-        exact ⟨hs.trans (List.sublist_append_left l [a]), hsum⟩
-      · by_cases hpq : p a ≤ q
-        · rw [ite_eq_left hpq] at hy
-          obtain ⟨s', hs', rfl⟩ := Option.map_eq_some_iff.mp hy
-          obtain ⟨hsub, hsum⟩ := hT.sound _ s' (getD_eq_some hs')
-          refine ⟨hsub.append (List.Sublist.refl [a]), ?_⟩
-          simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil,
-            List.sum_cons, List.sum_nil, hsum]
-          omega
-        · rw [ite_eq_right hpq] at hy
-          exact absurd hy (by simp)
-    · rw [ite_eq_right hq] at h
-      exact absurd h (by simp)
+    obtain ⟨_, h⟩ := Option.ite_none_right_eq_some.mp h
+    rcases lighter_eq_some (Option.some.inj h) with hx | hy
+    · exact (hT.sound q s (getD_eq_some hx)).imp_left (·.trans (List.sublist_append_left l [a]))
+    · obtain ⟨hpq, hy⟩ := Option.ite_none_right_eq_some.mp hy
+      obtain ⟨s', hs', rfl⟩ := Option.map_eq_some_iff.mp hy
+      obtain ⟨hsub, hsum⟩ := hT.sound _ s' (getD_eq_some hs')
+      exact ⟨hsub.append (List.Sublist.refl [a]), by simp [hsum]; omega⟩
   · intro s hs
     obtain ⟨l₁, l₂, rfl, h₁, h₂⟩ := List.sublist_append_iff.mp hs
     obtain ⟨r, hr, hrw⟩ := hT.complete l₁ h₁
@@ -218,19 +198,12 @@ theorem TableSpec.step {l : List ι} {T : List (Option (List ι))} (hT : TableSp
     have hget : T.getD (l₁.map p).sum none = some r := (List.getD_eq_getElem _ _ hlt).trans hr'
     rcases List.sublist_singleton.mp h₂ with rfl | rfl
     · rw [List.append_nil, getElem?_profitStep, ite_eq_left (by omega), hget]
-      obtain ⟨r', hr', hr'w⟩ := exists_lighter_left (w := w) r
-        (if p a ≤ (l₁.map p).sum then (T.getD ((l₁.map p).sum - p a) none).map (· ++ [a])
-          else none)
-      exact ⟨r', by rw [hr'], hr'w.trans hrw⟩
-    · have hsum : ((l₁ ++ [a]).map p).sum = (l₁.map p).sum + p a := by simp
-      rw [hsum, getElem?_profitStep, ite_eq_left (by omega), ite_eq_left (by omega),
-        Nat.add_sub_cancel, hget]
-      obtain ⟨r', hr', hr'w⟩ := exists_lighter_right (w := w)
-        (T.getD ((l₁.map p).sum + p a) none) (r ++ [a])
-      refine ⟨r', by rw [Option.map_some, hr'], hr'w.trans ?_⟩
-      simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil, List.sum_cons,
-        List.sum_nil]
-      omega
+      obtain ⟨r', hr', hr'w⟩ := exists_lighter_left (w := w) r _
+      exact ⟨r', congrArg some hr', hr'w.trans hrw⟩
+    · rw [show ((l₁ ++ [a]).map p).sum = (l₁.map p).sum + p a by simp, getElem?_profitStep,
+        ite_eq_left (by omega), ite_eq_left (by omega), Nat.add_sub_cancel, hget, Option.map_some]
+      obtain ⟨r', hr', hr'w⟩ := exists_lighter_right (w := w) _ (r ++ [a])
+      exact ⟨r', congrArg some hr', hr'w.trans (by simp; omega)⟩
 
 /-- Folding the dynamic program over more items preserves the invariant. -/
 theorem TableSpec.foldl {l₀ : List ι} {T : List (Option (List ι))} (hT : TableSpec w p l₀ T)
@@ -259,30 +232,21 @@ private theorem foldl_selectStep_spec {B : ℕ} (L : List (Option (List ι))) (b
   | nil => exact ⟨hbest, Or.inl rfl, le_rfl, by simp⟩
   | cons x L ih =>
     simp only [List.foldl_cons, List.mem_cons]
-    have hstep : ((selectStep w p B best x).map w).sum ≤ B ∧
-        (selectStep w p B best x = best ∨ some (selectStep w p B best x) = x) ∧
-        (best.map p).sum ≤ ((selectStep w p B best x).map p).sum ∧
-        ∀ s, some s = x → (s.map w).sum ≤ B →
-          (s.map p).sum ≤ ((selectStep w p B best x).map p).sum := by
-      cases x with
-      | none => exact ⟨hbest, Or.inl rfl, le_rfl, by simp⟩
-      | some s =>
-        simp only [selectStep, Option.elim_some, Option.some.injEq]
-        split_ifs with h
-        · exact ⟨h.1, Or.inr rfl, h.2, fun t ht _ => ht ▸ le_rfl⟩
-        · refine ⟨hbest, Or.inl rfl, le_rfl, fun t ht htw => ?_⟩
-          subst ht
-          exact (not_and.mp h htw |> not_le.mp).le
-    obtain ⟨h1, h2, h3, h4⟩ := ih _ hstep.1
-    refine ⟨h1, ?_, hstep.2.2.1.trans h3, ?_⟩
-    · rcases h2 with h2 | h2
-      · rcases hstep.2.1 with h | h
-        · exact Or.inl (h2.trans h)
-        · exact Or.inr (Or.inl (by rw [h2]; exact h))
-      · exact Or.inr (Or.inr h2)
-    · rintro s (hs | hs) hsw
-      · exact (hstep.2.2.2 s hs hsw).trans h3
-      · exact h4 s hs hsw
+    cases x with
+    | none =>
+      obtain ⟨h1, h2, h3, h4⟩ := ih best hbest
+      exact ⟨h1, h2.imp_right Or.inr, h3, fun s hs => hs.elim (by simp) (h4 s)⟩
+    | some u =>
+      simp only [selectStep, Option.elim_some, Option.some.injEq]
+      split_ifs with h
+      · obtain ⟨h1, h2, h3, h4⟩ := ih u h.1
+        exact ⟨h1, Or.inr h2, h.2.trans h3,
+          fun s hs hsw => hs.elim (fun e => e ▸ h3) fun hs => h4 s hs hsw⟩
+      · obtain ⟨h1, h2, h3, h4⟩ := ih best hbest
+        refine ⟨h1, h2.imp_right Or.inr, h3, ?_⟩
+        rintro s (rfl | hs) hsw
+        · exact ((not_le.mp (not_and.mp h hsw)).le).trans h3
+        · exact h4 s hs hsw
 
 /-- The selection scan over the profit table stays a subsequence of the items. -/
 theorem foldl_selectStep_sublist {B : ℕ} {l : List ι} {L : List (Option (List ι))}

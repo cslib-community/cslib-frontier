@@ -81,13 +81,10 @@ theorem HammingAdjacent.symm {x y : ι → X} (h : HammingAdjacent x y) : Hammin
 theorem hammingAdjacent_update [DecidableEq ι] (x : ι → X) (i : ι) (a : X) :
     HammingAdjacent x (Function.update x i a) := by
   intro j hj k hk
-  simp only [Set.mem_ofPred_eq] at hj hk
   by_contra hne
   rcases eq_or_ne j i with rfl | hji
-  · rw [Function.update_of_ne (Ne.symm hne)] at hk
-    exact hk rfl
-  · rw [Function.update_of_ne hji] at hj
-    exact hj rfl
+  · exact hk (Function.update_of_ne (Ne.symm hne) _ _).symm
+  · exact hj (Function.update_of_ne hji _ _).symm
 
 /-- A Hamming-adjacent dataset is obtained by changing any row in which it differs. -/
 theorem HammingAdjacent.eq_update [DecidableEq ι] {x y : ι → X} (h : HammingAdjacent x y)
@@ -110,16 +107,13 @@ theorem exists_hammingDist_le_and_hammingAdjacent [Fintype ι] [DecidableEq X] {
   obtain ⟨i, hi⟩ := Function.ne_iff.mp hxy
   refine ⟨Function.update y i (x i), ?_, (hammingAdjacent_update y i (x i)).symm⟩
   have hsub : (Finset.univ.filter fun j => x j ≠ Function.update y i (x i) j) ⊆
-      (Finset.univ.filter fun j => x j ≠ y j).erase i := by
-    intro j hj
+      (Finset.univ.filter fun j => x j ≠ y j).erase i := fun j hj => by
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase] at hj ⊢
     rcases eq_or_ne j i with rfl | hji
     · simp at hj
     · rw [Function.update_of_ne hji] at hj
       exact ⟨hji, hj⟩
-  have hmem : i ∈ Finset.univ.filter fun j => x j ≠ y j := by simpa using hi
-  have := Finset.card_le_card hsub
-  rw [Finset.card_erase_of_mem hmem] at this
+  have := (Finset.card_le_card hsub).trans_eq (Finset.card_erase_of_mem (by simpa using hi))
   unfold hammingDist at h ⊢
   omega
 
@@ -137,14 +131,11 @@ theorem hammingDist_le (h : DifferentiallyPrivate HammingAdjacent M ε δ) (k : 
       (∑ i ∈ Finset.range k, ENNReal.ofReal (Real.exp (i * ε)) * δ) := by
   induction k with
   | zero =>
-    intro x y hxy S
-    have : x = y := hammingDist_eq_zero.mp (Nat.le_zero.mp hxy)
-    subst this
+    rintro x y hxy S
+    obtain rfl := hammingDist_eq_zero.mp (Nat.le_zero.mp hxy)
     simp
   | succ k ih =>
-    have := (ih.trans h).mono_adj (Adj' := fun x y => hammingDist x y ≤ k + 1)
-      fun x y hxy => exists_hammingDist_le_and_hammingAdjacent hxy
-    convert this using 1
+    convert ((ih.trans h).mono_adj fun _ _ => exists_hammingDist_le_and_hammingAdjacent) using 1
     · push_cast
       ring
     · rw [Finset.sum_range_succ]
@@ -187,13 +178,8 @@ theorem DifferentiallyPrivate.pi {ι X Y : Type*} [Fintype ι] [Finite Y]
   · subst hxy'
     exact le_mul_of_one_le_left zero_le (ENNReal.one_le_ofReal.mpr (Real.one_le_exp hε))
   obtain ⟨i, hi⟩ := Function.ne_iff.mp hxy'
-  have hrest : ∀ j ∈ Finset.univ.erase i, M j (x j) (r j) = M j (y j) (r j) := by
-    intro j hj
-    have hji : j ≠ i := Finset.ne_of_mem_erase hj
-    have : x j = y j := by
-      by_contra hne
-      exact hji (hxy hne hi)
-    rw [this]
+  have hrest : ∀ j ∈ Finset.univ.erase i, M j (x j) (r j) = M j (y j) (r j) := fun j hj => by
+    rw [Classical.not_not.mp fun hne => Finset.ne_of_mem_erase hj (hxy hne hi)]
   rw [← Finset.mul_prod_erase _ _ (Finset.mem_univ i),
     ← Finset.mul_prod_erase _ _ (Finset.mem_univ i), Finset.prod_congr rfl hrest, ← mul_assoc]
   gcongr

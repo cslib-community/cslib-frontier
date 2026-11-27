@@ -92,16 +92,12 @@ theorem sum_norm_sq_le_dual_shearTranslation (Φ : ZMod n × ZMod n → ℂ) (h0
   simp only [Fin.sum_univ_four, shearTranslationMove, Matrix.cons_val_zero, Matrix.cons_val_one,
     Matrix.cons_val_two, Matrix.cons_val_three, Matrix.head_cons, Matrix.tail_cons,
     Equiv.coe_addRight] at hP
-  have e₁ := ZMod.sum_norm_sq_dftProd_shearFst_sub f f 1
-  have e₂ := ZMod.sum_norm_sq_dftProd_shearSnd_sub f f 1
   have e₃ := ZMod.sum_norm_sq_dftProd_translate f (1, 0)
   have e₄ := ZMod.sum_norm_sq_dftProd_translate f (0, 1)
   simp only [mul_one, mul_zero, add_zero, zero_add] at e₃ e₄
-  have hM := ZMod.sum_norm_sq_dftProd f
-  have hn : (0 : ℝ) ≤ (n : ℝ) ^ 2 := by positivity
-  have := mul_le_mul_of_nonneg_left hP hn
-  rw [hM, e₁, e₂, e₃, e₄]
-  linarith
+  rw [ZMod.sum_norm_sq_dftProd, ZMod.sum_norm_sq_dftProd_shearFst_sub f f 1,
+    ZMod.sum_norm_sq_dftProd_shearSnd_sub f f 1, e₃, e₄]
+  linarith [mul_le_mul_of_nonneg_left hP (sq_nonneg (n : ℝ))]
 
 omit [NeZero n] in
 /-- Only the zero vector is sheared to zero. -/
@@ -147,24 +143,18 @@ theorem sum_norm_sq_sub_fiber_le_twistedShearTranslation (π₁ π₂ : Equiv.Pe
     (f : X × (ZMod n × ZMod n) → ℂ) :
     ∑ p, ‖f p - (∑ w, f (p.1, w)) / (n : ℂ) ^ 2‖ ^ 2 ≤
       512 * ∑ k, ∑ p, ‖f (twistedShearTranslationMove π₁ π₂ n k p) - f p‖ ^ 2 := by
-  have hn : (0 : ℝ) < (n : ℝ) ^ 2 := by
-    have : (0 : ℝ) < n := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne n)
-    positivity
+  have hn : (0 : ℝ) < (n : ℝ) ^ 2 := pow_pos (Nat.cast_pos.2 (NeZero.pos n)) 2
   have hnC : (n : ℂ) ^ 2 ≠ 0 := pow_ne_zero _ (Nat.cast_ne_zero.2 (NeZero.ne n))
   -- The transforms of the fibers, and of the fibers minus their averages.
   set F : X → ZMod n × ZMod n → ℂ := fun x ↦ ZMod.dftProd fun w ↦ f (x, w) with hF
   set g : X → ℂ := fun x ↦ (∑ w, f (x, w)) / (n : ℂ) ^ 2 with hg
-  have hcard : (Fintype.card (ZMod n × ZMod n) : ℂ) = (n : ℂ) ^ 2 := by
-    simp [Fintype.card_prod, ZMod.card, sq]
   have hdft (x : X) (ξ : ZMod n × ZMod n) :
       ‖ZMod.dftProd (fun w ↦ f (x, w) - g x) ξ‖ ^ 2 = if ξ = 0 then 0 else ‖F x ξ‖ ^ 2 := by
     split_ifs with hξ
     · subst hξ
-      rw [ZMod.dftProd_zero, sum_sub_distrib, sum_const, card_univ, nsmul_eq_mul, hcard]
-      simp only [hg]
-      rw [mul_div_cancel₀ _ hnC, sub_self, norm_zero, sq, mul_zero]
-    · have : (fun w ↦ f (x, w) - g x) = (fun w ↦ f (x, w)) - fun _ ↦ g x := rfl
-      rw [this, ZMod.dftProd_sub, Pi.sub_apply, ZMod.dftProd_const_of_ne_zero _ hξ, sub_zero]
+      simp [ZMod.dftProd_zero, Fintype.card_prod, ← sq, hg, mul_div_cancel₀ _ hnC]
+    · change ‖ZMod.dftProd ((fun w ↦ f (x, w)) - fun _ ↦ g x) ξ‖ ^ 2 = ‖F x ξ‖ ^ 2
+      rw [ZMod.dftProd_sub, Pi.sub_apply, ZMod.dftProd_const_of_ne_zero _ hξ, sub_zero]
   -- The function on the frequencies: the `ℓ²` norm over `X` of the nonzero frequencies.
   set ψ : ZMod n × ZMod n → ℝ := fun ξ ↦ if ξ = 0 then 0 else √(∑ x, ‖F x ξ‖ ^ 2) with hψ
   have hψsq (ξ : ZMod n × ZMod n) :
@@ -186,48 +176,36 @@ theorem sum_norm_sq_sub_fiber_le_twistedShearTranslation (π₁ π₂ : Equiv.Pe
           sum_congr rfl fun x _ ↦ ZMod.sum_norm_sq_dftProd _
       _ = _ := by rw [← mul_sum, Fintype.sum_prod_type]
   -- The changes of `ψ` along the dual shears are at most those of `F`.
-  have hshear (π : Equiv.Perm X) (s : Equiv.Perm (ZMod n × ZMod n)) (hs : ∀ ξ, s ξ = 0 ↔ ξ = 0)
-      (ξ : ZMod n × ZMod n) :
-      ‖(ψ (s ξ) : ℂ) - ψ ξ‖ ^ 2 ≤ ∑ x, ‖F (π x) (s ξ) - F x ξ‖ ^ 2 := by
+  have hshear (π : Equiv.Perm X) (s : Equiv.Perm (ZMod n × ZMod n)) (hs : ∀ ξ, s ξ = 0 ↔ ξ = 0) :
+      ∑ ξ, ‖(ψ (s ξ) : ℂ) - ψ ξ‖ ^ 2 ≤ ∑ x, ∑ ξ, ‖F (π x) (s ξ) - F x ξ‖ ^ 2 := by
+    rw [sum_comm]
+    refine sum_le_sum fun ξ _ ↦ ?_
     rw [← Complex.ofReal_sub, Complex.norm_real, Real.norm_eq_abs, sq_abs]
     by_cases hξ : ξ = 0
-    · subst hξ
-      have h0 : s 0 = 0 := (hs 0).2 rfl
-      have e : ψ (s 0) - ψ 0 = 0 := by simp only [hψ, h0, ite_true, sub_self]
-      rw [e, sq, mul_zero]
-      exact sum_nonneg fun _ _ ↦ by positivity
-    · have : s ξ ≠ 0 := fun h ↦ hξ ((hs ξ).1 h)
-      simp only [hψ, this, hξ, ite_false]
+    · simp only [hξ, hψ, (hs 0).2 rfl, ite_true, sub_self, sq, mul_zero]
+      positivity
+    · simp only [hψ, mt (hs ξ).1 hξ, hξ, ite_false]
       rw [← Equiv.sum_comp π fun x ↦ ‖F x (s ξ)‖ ^ 2]
       exact sq_sqrt_sub_sqrt_le (fun x ↦ F (π x) (s ξ)) (fun x ↦ F x ξ)
   have hS₁ : ∑ ξ, ‖(ψ (shearSnd (-1) ξ) : ℂ) - ψ ξ‖ ^ 2 ≤
       (n : ℝ) ^ 2 * ∑ p, ‖f (twistedShearTranslationMove π₁ π₂ n 0 p) - f p‖ ^ 2 := by
-    calc _ ≤ ∑ ξ, ∑ x, ‖F (π₁ x) (shearSnd (-1) ξ) - F x ξ‖ ^ 2 :=
-          sum_le_sum fun ξ _ ↦ hshear π₁ _ (shearSnd_eq_zero_iff _) ξ
-      _ = _ := by
-        rw [sum_comm, Fintype.sum_prod_type, mul_sum]
-        refine sum_congr rfl fun x _ ↦ ?_
-        exact ZMod.sum_norm_sq_dftProd_shearFst_sub (fun w ↦ f (π₁ x, w)) (fun w ↦ f (x, w)) 1
+    refine (hshear π₁ _ (shearSnd_eq_zero_iff _)).trans_eq ?_
+    rw [Fintype.sum_prod_type, mul_sum]
+    exact sum_congr rfl fun x _ ↦ ZMod.sum_norm_sq_dftProd_shearFst_sub _ (fun w ↦ f (x, w)) 1
   have hS₂ : ∑ ξ, ‖(ψ (shearFst (-1) ξ) : ℂ) - ψ ξ‖ ^ 2 ≤
       (n : ℝ) ^ 2 * ∑ p, ‖f (twistedShearTranslationMove π₁ π₂ n 1 p) - f p‖ ^ 2 := by
-    calc _ ≤ ∑ ξ, ∑ x, ‖F (π₂ x) (shearFst (-1) ξ) - F x ξ‖ ^ 2 :=
-          sum_le_sum fun ξ _ ↦ hshear π₂ _ (shearFst_eq_zero_iff _) ξ
-      _ = _ := by
-        rw [sum_comm, Fintype.sum_prod_type, mul_sum]
-        refine sum_congr rfl fun x _ ↦ ?_
-        exact ZMod.sum_norm_sq_dftProd_shearSnd_sub (fun w ↦ f (π₂ x, w)) (fun w ↦ f (x, w)) 1
+    refine (hshear π₂ _ (shearFst_eq_zero_iff _)).trans_eq ?_
+    rw [Fintype.sum_prod_type, mul_sum]
+    exact sum_congr rfl fun x _ ↦ ZMod.sum_norm_sq_dftProd_shearSnd_sub _ (fun w ↦ f (x, w)) 1
   -- The translation weights of `ψ` are those of `F`.
   have hweight (c : ZMod n × ZMod n → ℝ) (hc : ∀ ξ, 0 ≤ c ξ) :
       ∑ ξ, c ξ * ‖(ψ ξ : ℂ)‖ ^ 2 ≤ ∑ x, ∑ ξ, c ξ * ‖F x ξ‖ ^ 2 := by
     rw [sum_comm]
     refine sum_le_sum fun ξ _ ↦ ?_
     rw [hψsq, mul_sum]
-    refine sum_le_sum fun x _ ↦ ?_
+    refine sum_le_sum fun x _ ↦ mul_le_mul_of_nonneg_left ?_ (hc ξ)
     split_ifs
-    · have := hc ξ
-      simp only [mul_zero]
-      positivity
-    · exact le_rfl
+    exacts [sq_nonneg _, le_rfl]
   have hT₁ : ∑ ξ, ‖ZMod.stdAddChar ξ.1 - 1‖ ^ 2 * ‖(ψ ξ : ℂ)‖ ^ 2 ≤
       (n : ℝ) ^ 2 * ∑ p, ‖f (twistedShearTranslationMove π₁ π₂ n 2 p) - f p‖ ^ 2 := by
     refine (hweight _ fun _ ↦ by positivity).trans_eq ?_

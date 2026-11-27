@@ -89,6 +89,8 @@ uniformity.
   `⌊n/2⌋ - o(n)`, for every `γ < (c* - c)/(2L)`.
 * `Cslib.Circuits.Frontier.half_le_cutRank_hardMatrix`: the bisection cut rank of the chosen
   family.
+* `Cslib.Circuits.Frontier.isLittleO_hardDeficiency`: sublinearity (`o(n)`) of the bisection
+  cut-rank deficiency of `hardMatrix n`.
 * `Cslib.Circuits.Frontier.eventually_abs_correlation_hardForm_le`: the headline bound for the
   chosen family.
 * `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_of_lt`: below `c n`
@@ -136,28 +138,17 @@ private theorem gaussian_rate_eq (c : ℝ) :
         (2 * (1 + 1 / (2 * Gaussian.gaussianCoefficient))) =
       (1 + π / (6 * arccos ((1 + 2 * √2) / 4)) - c) /
         (2 * (1 + π / (3 * arccos ((1 + 2 * √2) / 4)))) := by
-  have h := Gaussian.one_add_inv_two_mul_gaussianCoefficient
-  have hp := Gaussian.gaussianCoefficient_pos
-  have h' : 1 / (2 * Gaussian.gaussianCoefficient) = π / (3 * arccos ((1 + 2 * √2) / 4)) := by
-    linarith
-  have h4 : 1 / (2 * (2 * Gaussian.gaussianCoefficient)) =
-      π / (6 * arccos ((1 + 2 * √2) / 4)) := by
-    have e1 : 1 / (2 * (2 * Gaussian.gaussianCoefficient)) =
-        1 / (2 * Gaussian.gaussianCoefficient) / 2 := by
-      field_simp
-    rw [e1, h']
-    ring
-  rw [h4, h']
+  have h : 1 / (2 * Gaussian.gaussianCoefficient) = π / (3 * arccos ((1 + 2 * √2) / 4)) := by
+    linarith [Gaussian.one_add_inv_two_mul_gaussianCoefficient]
+  rw [show 1 / (2 * (2 * Gaussian.gaussianCoefficient)) =
+    1 / (2 * Gaussian.gaussianCoefficient) / 2 by ring, h]
+  ring
 
 /-- **The threshold is above `2.78`**: `c* = 1 + π / (6 arccos ((1 + 2√2)/4)) ≥ 139/50`, since
 `c* = (1 + L)/2` and `L ≥ 114/25` (`Gaussian.circuitCoefficient_ge_456`). -/
 theorem correlationThreshold_ge : (139 / 50 : ℝ) ≤ 1 + π / (6 * arccos ((1 + 2 * √2) / 4)) := by
-  have h := Gaussian.circuitCoefficient_ge_456
-  have : π / (6 * arccos ((1 + 2 * √2) / 4)) = π / (3 * arccos ((1 + 2 * √2) / 4)) / 2 := by
-    rw [div_div]
-    ring_nf
-  rw [this]
-  linarith
+  linarith [Gaussian.circuitCoefficient_ge_456, show π / (6 * arccos ((1 + 2 * √2) / 4)) =
+    π / (3 * arccos ((1 + 2 * √2) / 4)) / 2 by ring]
 
 /-- **Exponentially small correlation below `2.78 n` gates.** If every set of `⌊n/2⌋` coordinates
 has cut rank at least `⌊n/2⌋ - o(n)` in `Q_n + Q_nᵀ`, then for every `c ≥ 1/2` and every
@@ -248,7 +239,7 @@ theorem half_le_cutRank_hardMatrix (n : ℕ) {U : Set (Fin n)} (hU : U.ncard = n
     (by rw [Nat.card_eq_fintype_card, Fintype.card_fin]; omega) hU
 
 /-- The deficiency `2 (2 ⌊√⌊n/2⌋⌋ + 1) + 1` of the chosen family is sublinear. -/
-private theorem isLittleO_hardDeficiency :
+theorem isLittleO_hardDeficiency :
     (fun n : ℕ => ((2 * (2 * Nat.sqrt (n / 2) + 1) + 1 : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) := by
   rw [isLittleO_iff]
   intro ε hε
@@ -276,7 +267,7 @@ private theorem isLittleO_hardDeficiency :
   linarith
 
 /-- The bisection hypothesis for the chosen family, in the form used by the asymptotic bounds. -/
-private theorem half_le_cutRank_hardMatrix_add (n : ℕ) (U : Set (Fin n)) (hU : U.ncard = n / 2) :
+theorem half_le_cutRank_hardMatrix_add (n : ℕ) (U : Set (Fin n)) (hU : U.ncard = n / 2) :
     ((n / 2 : ℕ) : ℝ) ≤ (hardMatrix n + (hardMatrix n)ᵀ).cutRank U +
       ((2 * (2 * Nat.sqrt (n / 2) + 1) + 1 : ℕ) : ℝ) := by
   exact_mod_cast half_le_cutRank_hardMatrix n hU
@@ -305,15 +296,11 @@ private theorem exists_eventually_of_lt_threshold {c c_star L : ℝ} (hc : c < c
     ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool)
       (Acc : Set Bool) (C : Circuit σ n 1), C.FanInAtMost 2 → (sizeFn C : ℝ) ≤ c * n →
         |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) := by
-  set c' := max c (1 / 2)
-  have hc' : c' < c_star := max_lt hc hc_star
-  set r := (c_star - c') / (2 * L)
-  have hr : 0 < r := div_pos (by linarith) (by positivity)
-  refine ⟨r / 2, by positivity, ?_⟩
-  filter_upwards [hbound (le_max_right c (1 / 2)) (γ := r / 2) (by linarith)] with n hn
-  intro σ I Acc C hfan hsize
-  exact hn σ I Acc C hfan
-    (hsize.trans (mul_le_mul_of_nonneg_right (le_max_left c _) (Nat.cast_nonneg n)))
+  have hr : 0 < (c_star - max c (1 / 2)) / (2 * L) :=
+    div_pos (sub_pos.mpr (max_lt hc hc_star)) (by positivity)
+  refine ⟨_, half_pos hr, (hbound (le_max_right c _) (half_lt_self hr)).mono ?_⟩
+  exact fun n hn σ I Acc C hf hs =>
+    hn σ I Acc C hf (hs.trans (mul_le_mul_of_nonneg_right (le_max_left c _) (Nat.cast_nonneg n)))
 
 /-- **Every coefficient below the threshold.** For every `c < c*`, where
 `c* = 1 + π / (6 arccos ((1 + 2√2)/4)) ≈ 2.78125`, some fixed `γ > 0` bounds, for all large `n`,
@@ -347,14 +334,11 @@ private theorem switched_rate_eq (c : ℝ) :
         (2 * (1 + 1 / (2 * Switched.switchedCoefficient))) =
       (1 + π / (3 * arccos (5 / 6)) - c) /
         (2 * (1 + 2 * π / (3 * arccos (5 / 6)))) := by
-  have h := Switched.one_add_inv_two_mul_switchedCoefficient
-  have h' : 1 / (2 * Switched.switchedCoefficient) = 2 * π / (3 * arccos (5 / 6)) := by linarith
-  have h4 : 1 / (2 * (2 * Switched.switchedCoefficient)) = π / (3 * arccos (5 / 6)) := by
-    have e1 : 1 / (2 * (2 * Switched.switchedCoefficient)) =
-        1 / (2 * Switched.switchedCoefficient) / 2 := by field_simp
-    rw [e1, h']
-    ring
-  rw [h4, h']
+  have h : 1 / (2 * Switched.switchedCoefficient) = 2 * π / (3 * arccos (5 / 6)) := by
+    linarith [Switched.one_add_inv_two_mul_switchedCoefficient]
+  rw [show 1 / (2 * (2 * Switched.switchedCoefficient)) =
+    1 / (2 * Switched.switchedCoefficient) / 2 by ring, h]
+  ring
 
 /-- **Exponentially small correlation below `c₃* n ≈ 2.787986 n` multiary gates.** Using the
 median-switched Gaussian layout bound `layoutBound_switched`, under the same cut-rank
@@ -392,10 +376,10 @@ theorem eventually_abs_correlation_quadForm_le_switched {c γ : ℝ} (hc : 1 / 2
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
       (C : Circuit σ n 1), C.FanInAtMost 2 → (C.innerSize : ℝ) ≤ c * n →
         |correlation {x | BitString.quadForm (Q n) x} {x | C.eval I x 0 ∈ Acc}| ≤
-          (2 : ℝ) ^ (-γ * n) := by
-  filter_upwards [eventually_abs_correlation_quadForm_le_switched_multiarySize.{v} hc hγ Q e he hQ]
-    with n hn σ I Acc C hfan hsize
-  exact hn σ I Acc C hfan ((Nat.cast_le.mpr C.multiarySize_le_innerSize).trans hsize)
+          (2 : ℝ) ^ (-γ * n) :=
+  (eventually_abs_correlation_quadForm_le_switched_multiarySize.{v} hc hγ Q e he hQ).mono
+    fun _ hn σ I Acc C hf hs =>
+      hn σ I Acc C hf ((Nat.cast_le.mpr C.multiarySize_le_innerSize).trans hs)
 
 /-- **Exponentially small correlation with `hardForm n` below `c₃* n ≈ 2.787986 n` multiary
 gates.** -/
@@ -414,10 +398,10 @@ theorem eventually_abs_correlation_hardForm_le_switched {c γ : ℝ} (hc : 1 / 2
       (2 * (1 + 2 * π / (3 * arccos (5 / 6))))) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
       (C : Circuit σ n 1), C.FanInAtMost 2 → (C.innerSize : ℝ) ≤ c * n →
-        |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) := by
-  filter_upwards [eventually_abs_correlation_hardForm_le_switched_multiarySize.{v} hc hγ]
-    with n hn σ I Acc C hfan hsize
-  exact hn σ I Acc C hfan ((Nat.cast_le.mpr C.multiarySize_le_innerSize).trans hsize)
+        |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
+  (eventually_abs_correlation_hardForm_le_switched_multiarySize.{v} hc hγ).mono
+    fun _ hn σ I Acc C hf hs =>
+      hn σ I Acc C hf ((Nat.cast_le.mpr C.multiarySize_le_innerSize).trans hs)
 
 /-- **Every multiary gate coefficient below `c₃* = 1 + π / (3 arccos (5 / 6)) ≈ 2.787986`.** -/
 theorem exists_eventually_abs_correlation_hardForm_le_of_lt_switched_multiarySize {c : ℝ}
@@ -437,9 +421,8 @@ theorem exists_eventually_abs_correlation_hardForm_le_of_lt_switched {c : ℝ}
         |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) := by
   obtain ⟨γ, hγ, hn⟩ :=
     exists_eventually_abs_correlation_hardForm_le_of_lt_switched_multiarySize.{v} hc
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hn] with n hn' σ I Acc C hfan hsize
-  exact hn' σ I Acc C hfan ((Nat.cast_le.mpr C.multiarySize_le_innerSize).trans hsize)
+  exact ⟨γ, hγ, hn.mono fun _ hn' σ I Acc C hf hs =>
+    hn' σ I Acc C hf ((Nat.cast_le.mpr C.multiarySize_le_innerSize).trans hs)⟩
 
 /-- **Below `2.787 n` multiary gates.** Some fixed `γ > 0` bounds, for all large `n`, the
 correlation of every circuit of fan-in at most two with at most `2.787 n` multiary gates (`arity =

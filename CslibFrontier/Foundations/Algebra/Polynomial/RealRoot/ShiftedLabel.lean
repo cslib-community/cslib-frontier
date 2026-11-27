@@ -45,26 +45,22 @@ theorem shiftedRootLabel_bounds (g : Polynomial ℤ) {D e N b : ℕ}
     (shiftedRootLabel D e g).natDegree ≤ g.natDegree ∧
       (shiftedRootLabel D e g).coeffNorm1 ≤ 2 ^ (b + N + 3) := by
   unfold shiftedRootLabel
-  constructor
-  · refine (natDegree_add_le _ _).trans (max_le (natDegree_mul_le.trans ?_) ?_)
-    · rw [natDegree_C, zero_add]
-    · rw [natDegree_C]
-      exact Nat.zero_le _
-  · refine (coeffNorm1_add_le _ _).trans ?_
-    have hmul : (C (-(4 * (D : ℤ))) * g).coeffNorm1 ≤ 4 * (2 ^ N * 2 ^ b) := by
-      refine (coeffNorm1_C_mul_le _ _).trans ?_
-      simp only [Int.natAbs_neg, Int.natAbs_mul, Int.natAbs_natCast,
-        show (4 : ℤ).natAbs = 4 from rfl, mul_assoc]
-      exact Nat.mul_le_mul_left _ (Nat.mul_le_mul hD hg)
-    have he' : e ≤ 2 ^ N * 2 ^ b := by
-      have h := Nat.mul_le_mul_left (2 ^ N) (Nat.one_le_two_pow (n := b))
-      apply (he.trans hD).trans
-      simpa only [mul_one] using h
-    rw [coeffNorm1_C, Int.natAbs_natCast]
-    calc
-      _ ≤ 4 * (2 ^ N * 2 ^ b) + (2 ^ N * 2 ^ b) := Nat.add_le_add hmul he'
-      _ ≤ 8 * (2 ^ N * 2 ^ b) := by omega
-      _ = 2 ^ (b + N + 3) := by rw [pow_add, pow_add, show (2 : ℕ) ^ 3 = 8 by decide]; ac_rfl
+  refine ⟨(natDegree_add_le _ _).trans (max_le (natDegree_C_mul_le _ _) (by simp)),
+    (coeffNorm1_add_le _ _).trans ?_⟩
+  have hmul : (C (-(4 * (D : ℤ))) * g).coeffNorm1 ≤ 4 * (2 ^ N * 2 ^ b) := by
+    refine (coeffNorm1_C_mul_le _ _).trans ?_
+    simp only [Int.natAbs_neg, Int.natAbs_mul, Int.natAbs_natCast,
+      show (4 : ℤ).natAbs = 4 from rfl, mul_assoc]
+    exact Nat.mul_le_mul_left _ (Nat.mul_le_mul hD hg)
+  have he' : e ≤ 2 ^ N * 2 ^ b :=
+    (he.trans hD).trans (Nat.le_mul_of_pos_right _ (by positivity))
+  rw [coeffNorm1_C, Int.natAbs_natCast]
+  calc
+    _ ≤ 4 * (2 ^ N * 2 ^ b) + (2 ^ N * 2 ^ b) := Nat.add_le_add hmul he'
+    _ ≤ 8 * (2 ^ N * 2 ^ b) := by omega
+    _ = 2 ^ (b + N + 3) := by
+      rw [pow_add, pow_add, show (2 : ℕ) ^ 3 = 8 by decide]
+      ac_rfl
 
 /-- Among `D + 1` natural shifts, some shifted label is nonzero on `p.aroots A`
 when `p` has degree at most `D` and `A` is a characteristic-zero domain. -/

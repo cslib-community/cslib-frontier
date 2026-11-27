@@ -104,22 +104,14 @@ theorem card_acceptingShifts {t : G} (w : G → G) (hw : ∑ i, w i = t) :
 
 /-- Some test accepts a weight vector exactly when its sum is the target. -/
 theorem exists_shiftTest_iff (t : G) (w : G → G) :
-    (∃ s, ShiftTest t w s) ↔ ∑ i, w i = t := by
-  constructor
-  · rintro ⟨s, hs⟩
-    exact hs.sound
-  · intro hw
-    exact ⟨_, shiftTest_perm w hw (Equiv.refl G)⟩
+    (∃ s, ShiftTest t w s) ↔ ∑ i, w i = t :=
+  ⟨fun ⟨_, hs⟩ => hs.sound, fun hw => ⟨_, shiftTest_perm w hw (.refl G)⟩⟩
 
 /-- Distinctness is a conjunction of constraints involving only two weights. -/
 theorem shiftTest_iff_pairwise (t : G) (w s : G → G) :
     ShiftTest t w s ↔ (∑ i, s i) = residueSum G - t ∧
-      ∀ i j, i ≠ j → w i + s i ≠ w j + s j := by
-  simp only [ShiftTest, Function.Injective, ne_eq]
-  constructor
-  · rintro ⟨hs, hi⟩
-    exact ⟨hs, fun i j hij h => hij (hi h)⟩
-  · rintro ⟨hs, hi⟩
-    exact ⟨hs, fun i j h => Classical.byContradiction fun hij => hi i j hij h⟩
+      ∀ i j, i ≠ j → w i + s i ≠ w j + s j :=
+  and_congr_right' ⟨fun hi _ _ hij h => hij (hi h),
+    fun hi _ _ h => Classical.byContradiction fun hij => hi _ _ hij h⟩
 
 end Cslib.Circuits.Boolean.ShallowSymmetric

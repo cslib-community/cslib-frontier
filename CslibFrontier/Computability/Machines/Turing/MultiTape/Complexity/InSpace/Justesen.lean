@@ -142,7 +142,7 @@ private theorem threshold_inSpace : ComputableInSpace threshold encDimensions en
     (fun p => (encDimensions p).length) := by
   have hm := budget_natMul (fst encNat encNat) (budget_natSucc (snd encNat encNat))
   have hsize := budget_comp_linear natSize hm
-  exact (budget_natMul (budget_const 512 (.refl _))
+  exact (budget_natMul (budget_const 512)
     (budget_natSucc (budget_natPred hsize))).of_enc_eq fun p => by
       simp only [threshold, Nat.log2_eq_size_sub_one]
 
@@ -156,8 +156,8 @@ private theorem advance_inSpace :
   have hnext : ComputableInSpace
       (fun s => CapacityState.mk s.threshold (s.degree + 16) (s.power * 65536))
       encCapacityState encCapacityState (fun s => (encCapacityState s).length) :=
-    encCapacityState_mk_budget ht (budget_natAdd hd (budget_const 16 (.refl _)))
-      (budget_natMul hp (budget_const 65536 (.refl _)))
+    encCapacityState_mk_budget ht (budget_natAdd hd (budget_const 16))
+      (budget_natMul hp (budget_const 65536))
   exact (budget_ite (budget_natLt (budget_natMul hp hd) ht) hnext h).of_enc_eq fun s => by
     simp only [advance, decide_eq_true_eq]
 
@@ -166,8 +166,8 @@ private theorem computed_inSpace :
       (fun p => (encDimensions p).length) := by
   let : Inhabited CapacityState := ⟨atScale 0 0⟩
   exact budget_iterate threshold_inSpace
-    (encCapacityState_mk_budget threshold_inSpace (budget_const 16 (.refl _))
-      (budget_const 32768 (.refl _))) advance_inSpace
+    (encCapacityState_mk_budget threshold_inSpace (budget_const 16)
+      (budget_const 32768)) advance_inSpace
     (fun p i _ => length_iterate_le p i)
     (.of_le_linear 40000000 40000000 fun _ => by omega)
 
@@ -192,14 +192,11 @@ theorem fieldDegree_inSpace :
 theorem codeLength_inSpace :
     ComputableInSpace (fun p : ℕ × ℕ => codeLength p.1 p.2) (encPair encNat encNat) encNat
       (fun p => (encPair encNat encNat p).length) := by
-  have hin := BigOLe.refl fun s => (encCapacityState s).length
-  have h := budget_id hin
-  have hd := encCapacityState_degree_budget h
-  have hp := encCapacityState_power_budget h
-  have htwo := budget_const (encB := encNat) 2 hin
-  have hlength := budget_natMul (budget_natPred (budget_natMul htwo hp)) (budget_natMul htwo hd)
-  refine (budget_comp_linear hlength computed_inSpace).of_enc_eq ?_
-  intro p
+  have h := budget_id (BigOLe.refl fun s => (encCapacityState s).length)
+  have hlength := budget_natMul
+    (budget_natPred (budget_natMul (budget_const 2) (encCapacityState_power_budget h)))
+    (budget_natMul (budget_const 2) (encCapacityState_degree_budget h))
+  refine (budget_comp_linear hlength computed_inSpace).of_enc_eq fun p => ?_
   obtain ⟨s, hs, hds⟩ := computed_eq_atScale p
   rw [hs, codeLength, hds, pow_scaleDegree]
   rfl
@@ -214,7 +211,7 @@ theorem decodeIndex_inSpace :
       encCoordinateNumbers (fun p => (encPair encNat encNat p).length) := by
   have hdegree := fst encNat encNat
   have hindex := snd encNat encNat
-  have hblock := budget_natMul (budget_const 2 (.refl _)) hdegree
+  have hblock := budget_natMul (budget_const 2) hdegree
   have hwithin := budget_natMod hindex hblock
   exact encCoordinateNumbers_mk_budget (budget_natSucc (budget_natDiv hindex hblock))
     (budget_natDiv hwithin hdegree) (budget_natMod hwithin hdegree)
@@ -242,24 +239,19 @@ private theorem decodeCoordinateWord_inSpace :
       (fun p => p.1 + (encPair encNat encNat p).length) := by
   let encDecoded := encPair encNat encCoordinateNumbers
   let budget (p : ℕ × CoordinateNumbers) := p.1 + (encDecoded p).length
-  have hin : (fun p => (encDecoded p).length) ≼ budget := .of_le fun p => by
-    change _ ≤ p.1 + _
-    omega
-  have hd := (fst encNat encCoordinateNumbers).weaken hin
+  have hin : (fun p => (encDecoded p).length) ≼ budget := .of_le fun _ => Nat.le_add_left _ _
   have hc := (snd encNat encCoordinateNumbers).weaken hin
-  have hargs := budget_prod hd (encCoordinateNumbers_point_budget hc)
-  have hwidth : (fun p : ℕ × CoordinateNumbers => p.1) ≼ budget := .of_le fun p => by
-    change p.1 ≤ p.1 + _
-    omega
-  have hpoint := budget_comp lowBits_inSpace hargs (hwidth.add hargs.length_le)
+  have hargs := budget_prod ((fst encNat encCoordinateNumbers).weaken hin)
+    (encCoordinateNumbers_point_budget hc)
+  have hpoint := budget_comp lowBits_inSpace hargs
+    ((BigOLe.of_le fun _ => Nat.le_add_right _ _).add hargs.length_le)
   have hword := encCoordinateWord_mk_budget hpoint (encCoordinateNumbers_half_budget hc)
     (encCoordinateNumbers_bit_budget hc)
-  have hin : (fun p : ℕ × ℕ => (encPair encNat encNat p).length) ≼
-      fun p => p.1 + (encPair encNat encNat p).length := .of_le fun _ => by omega
-  have hin' : (fun p : ℕ × ℕ => p.1) ≼
-      fun p => p.1 + (encPair encNat encNat p).length := .of_le fun _ => by omega
-  have hdecoded := (budget_prod (fst encNat encNat) decodeIndex_inSpace).weaken hin
-  exact (budget_comp hword hdecoded (hin'.add hdecoded.length_le)).of_enc_eq fun _ => rfl
+  have hdecoded := (budget_prod (fst encNat encNat) decodeIndex_inSpace).weaken
+    (.of_le fun p => Nat.le_add_left _ p.1)
+  exact (budget_comp hword hdecoded
+    ((BigOLe.of_le fun p : ℕ × ℕ => Nat.le_add_right p.1 _).add hdecoded.length_le)).of_enc_eq
+      fun _ => rfl
 
 private theorem fieldDegree_le_codeLength_size (w n : ℕ) :
     fieldDegree w n ≤ (codeLength w n).size := by
@@ -347,9 +339,7 @@ theorem fieldContext_inSpace :
       rw [hs, coefficientCount_eq, hd]
       rfl
   let B (p : ℕ × ℕ) := p.1 + (encDimensions p).length
-  have hin : (fun p => (encDimensions p).length) ≼ B := .of_le fun p => by
-    change _ ≤ p.1 + _
-    omega
+  have hin : (fun p => (encDimensions p).length) ≼ B := .of_le fun _ => Nat.le_add_left _ _
   have hd := (fst encNat encNat).weaken hin
   have hc := (snd encNat encNat).weaken hin
   have hm := budget_comp Turing.BinaryField.modulusBitsScan_inSpace hd
@@ -382,13 +372,10 @@ theorem fieldContext_decodeWord_eq {w n : ℕ} (j : Fin (codeLength w n)) :
     (fieldContext w n).decodeWord j.val =
       let (point, half, bit) := decodeCoordinate w n j
       ⟨List.ofFn (nonzeroPointBits point), half.val, bit.val⟩ := by
-  unfold FieldContext.decodeWord
+  unfold FieldContext.decodeWord decodeCoordinateWord
   rw [length_fieldContext_modulus, Nat.add_sub_cancel]
-  have hpoint := lowBits_decodeIndex_point j
-  have hcoord := decodeIndex_eq_decodeCoordinate j
-  unfold decodeCoordinateWord
-  dsimp only at hpoint hcoord ⊢
-  rw [hpoint, hcoord]
+  dsimp only
+  rw [lowBits_decodeIndex_point j, decodeIndex_eq_decodeCoordinate j]
 
 /-- Preparing a point word and its indexes fits space linear in the retained context and binary
 index. The stored modulus pays for all coefficients of the point word. -/
