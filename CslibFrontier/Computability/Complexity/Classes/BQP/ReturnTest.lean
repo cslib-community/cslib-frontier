@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Quantum.Uniform
+import CslibFrontier.Computability.Circuit.Quantum.PhaseOracle
 import CslibFrontier.Computability.Complexity.Classes.BQP.Amplification
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -16,7 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 # Measuring the return probability of a uniform circuit
 
 A CNOT layer saves the initial register, including its zero padding. After the circuit runs,
-the same layer adds its final register to the saved copy. A reversible counter detects whether
+the same layer adds its final register to the saved copy. A reversible zero test detects whether
 all the differences vanish. The resulting uniform circuit accepts with probability equal to the
 squared norm of the diagonal entry at the input basis state.
 
@@ -37,109 +38,68 @@ open Finset GateCode Turing.MultiTapeTM
 
 namespace ReturnTest
 
-private abbrev width (w : ℕ) := 3 * w + 2
+private abbrev width (w : ℕ) := 3 * w + 1
 
 private abbrev copyBits (w : ℕ) := Amplify.copyCodes w w 1
 
-private theorem copyBits_eq (w : ℕ) :
-    copyBits w = (List.range w).map fun i => ((false, i + w, [i]) : GateCode) := by
-  simp [copyBits, Amplify.copyCodes, List.range_one]
+private theorem copy_fits (w : ℕ) : Amplify.base w 1 ≤ width w := by
+  simp [Amplify.base, width]; omega
 
-private theorem classical_copy (w : ℕ) : IsClassical (width w) (copyBits w) := by
-  intro g hg
-  rw [copyBits_eq] at hg
-  obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hg
-  have hi' := List.mem_range.mp hi
-  simp [WellFormed, width]; omega
+private theorem classical_copy (w : ℕ) : IsClassical (width w) (copyBits w) :=
+  Amplify.isClassical_copyCodes le_rfl (copy_fits w)
 
 private theorem copy_at (w : ℕ) (X : Fin (width w) → Bool) {i : ℕ} (hi : i < w) :
-    readBit (classicalRun (copyBits w) X) (i + w) =
-      (readBit X (i + w) ^^ readBit X i) := by
-  rw [copyBits_eq]
-  let gs := (List.range w).map fun j => ((false, j + w, [j]) : GateCode)
-  have hmem : ((false, i + w, [i]) : GateCode) ∈ gs :=
-    List.mem_map.mpr ⟨i, List.mem_range.mpr hi, rfl⟩
-  have hlt : ∀ g ∈ gs, target g < width w := by
-    rintro _ hg
-    obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hg
-    have := List.mem_range.mp hj
-    dsimp only [target, width]
-    omega
-  have hnd : (gs.map target).Nodup := by
-    change (((List.range w).map fun j => ((false, j + w, [j]) : GateCode)).map target).Nodup
-    rw [List.map_map]
-    exact List.nodup_range.map (f := fun j => j + w) (by intro a b h; exact Nat.add_right_cancel h)
-  have hread : ∀ g ∈ gs, ∀ g' ∈ gs, target g ∉ controls g' := by
-    rintro _ hg _ hg'
-    obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hg
-    obtain ⟨j', hj', rfl⟩ := List.mem_map.mp hg'
-    have := List.mem_range.mp hj'
-    simp only [target, controls, List.mem_singleton]
-    omega
-  simpa using readBit_classicalRun_of_mem hlt hnd hread X hmem
+    readBit (classicalRun (copyBits w) X) (i + w) = (readBit X (i + w) ^^ readBit X i) := by
+  rw [Amplify.readBit_classicalRun_copyCodes le_rfl (copy_fits w), ite_eq_left]
+  · simp [Nat.mod_eq_of_lt hi]
+  · exact ⟨0, Nat.zero_lt_one, i, hi, by simp⟩
 
 private theorem copy_off (w : ℕ) (X : Fin (width w) → Bool) {i : ℕ}
     (hi : i < w ∨ 2 * w ≤ i) :
     readBit (classicalRun (copyBits w) X) i = readBit X i := by
-  apply readBit_classicalRun_of_forall_ne
-  intro g hg
-  rw [copyBits_eq] at hg
-  obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hg
-  have := List.mem_range.mp hj
-  dsimp only [target]
+  rw [Amplify.readBit_classicalRun_copyCodes le_rfl (copy_fits w), ite_eq_right]
+  rintro ⟨j, hj, b, hb, rfl⟩
+  have : j = 0 := by omega
+  subst j
+  simp only [zero_add, one_mul] at hi
   omega
 
-private abbrev counter (w : ℕ) :=
-  Counter.codes (2 * w) 1 (fun j => j + w) w
+private abbrev savedWires (w : ℕ) := (List.range w).map (fun i => i + w)
 
-private abbrev answer (w : ℕ) := Counter.level (2 * w) 1 w 0
+private theorem savedWires_lt {c w : ℕ} (hc : c ∈ savedWires w) : c < 2 * w := by
+  obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hc
+  have := List.mem_range.mp hi
+  omega
 
 private abbrev suffix (w : ℕ) : List GateCode :=
-  copyBits w ++ (counter w ++ (swapCodes (answer w) ++ [(false, 0, [])]))
+  copyBits w ++ (zeroTestCodes (savedWires w) (2 * w) ++ swapCodes (2 * w))
 
-private theorem classical_suffix (w : ℕ) : IsClassical (width w) (suffix w) := by
-  have hcounter : IsClassical (width w) (counter w) :=
-    Counter.isClassical_codes (by intro s hs; omega) (by simp [width]; omega)
-  have haswap : IsClassical (width w) (swapCodes (answer w)) :=
-    isClassical_swapCodes (by simp [answer, Counter.level])
-      (by simp [answer, width, Counter.level]; omega)
-  exact IsClassical.append.mpr ⟨classical_copy w, IsClassical.append.mpr ⟨hcounter,
-    IsClassical.append.mpr ⟨haswap, fun g hg => by
-      simp only [List.mem_singleton] at hg
-      subst g
-      simp [WellFormed, width]⟩⟩⟩
+private theorem classical_suffix {w : ℕ} (hw : 0 < w) : IsClassical (width w) (suffix w) :=
+  IsClassical.append.mpr ⟨classical_copy w, IsClassical.append.mpr
+    ⟨isClassical_zeroTestCodes (fun _ => savedWires_lt)
+      (by simp [savedWires, width]; omega),
+      isClassical_swapCodes (by omega) (by unfold width; omega)⟩⟩
 
-private theorem accepts_suffix (w : ℕ) (Y : Fin (width w) → Bool)
+private theorem accepts_suffix {w : ℕ} (hw : 0 < w) (Y : Fin (width w) → Bool)
     (hY : ∀ i, 2 * w ≤ i → readBit Y i = false) :
     classicalRun (suffix w) Y ∈ accepting (width w) ↔
       ∀ i < w, readBit Y (i + w) = readBit Y i := by
-  let Z := classicalRun (copyBits w) Y
-  have hZ (i : ℕ) (hi : 2 * w ≤ i) : readBit Z i = false :=
-    (copy_off w Y (.inr hi)).trans (hY i hi)
-  have hc := (Counter.readBit_classicalRun_codes (base := 2 * w) (T := 1) (k := w)
-    (src := fun j => j + w) (by intro j hj; omega) (by simp [width]; omega) Z hZ).2 0 (by omega)
   have h0 : 0 < width w := by simp [width]
-  rw [mem_accepting h0, ← readBit_fin (classicalRun (suffix w) Y) (⟨0, h0⟩ : Fin (width w))]
-  simp only [suffix, classicalRun_append, classicalRun_cons, classicalRun_nil]
-  change readBit (classicalStep _ _) 0 = true ↔ _
-  rw [readBit_classicalStep]
-  simp only [target, controls, and_self, h0, decide_true, List.all_nil, Bool.and_self,
-    Bool.xor_true, Bool.not_eq_true']
-  rw [readBit_classicalRun_swapCodes (by simp [answer, Counter.level])
-    (by simp [width, answer, Counter.level]; omega), hc]
-  simp only [decide_eq_false_iff_not, Nat.not_lt, Nat.le_zero, Counter.count,
-    Finset.card_eq_zero, Finset.filter_eq_empty_iff, Finset.mem_range]
-  apply forall_congr'
-  intro i
-  apply forall_congr'
-  intro hi
-  rw [show readBit Z (i + w) = _ from copy_at w Y hi]
-  cases readBit Y (i + w) <;> cases readBit Y i <;> decide
+  rw [mem_accepting h0, ← readBit_fin (classicalRun (suffix w) Y) (⟨0, h0⟩ : Fin (width w)),
+    suffix, classicalRun_append, classicalRun_append, readBit_classicalRun_swapCodes (by omega)
+      (by unfold width; omega), readBit_classicalRun_zeroTestCodes]
+  · simp only [savedWires, List.all_map, Function.comp_apply, List.all_eq_true, List.mem_range,
+      Bool.not_eq_true']
+    exact forall_congr' fun i => forall_congr' fun hi => (copy_at w Y hi) ▸ bne_eq_false_iff_eq
+  · exact List.nodup_range.map (by intro a b h; exact Nat.add_right_cancel h)
+  · exact fun _ => savedWires_lt
+  · simp [savedWires, width]; omega
+  · exact fun i hi _ => (copy_off w Y (.inr hi)).trans (hY i hi)
 
 private abbrev codes (w : ℕ) (gs : List GateCode) : List GateCode :=
   copyBits w ++ (gs ++ suffix w)
 
-private theorem wellFormed_codes {w : ℕ} {gs : List GateCode}
+private theorem wellFormed_codes {w : ℕ} (hw : 0 < w) {gs : List GateCode}
     (hgs : ∀ g ∈ gs, WellFormed w g) : ∀ g ∈ codes w gs, WellFormed (width w) g := by
   intro g hg
   rcases List.mem_append.mp hg with h | h
@@ -147,7 +107,7 @@ private theorem wellFormed_codes {w : ℕ} {gs : List GateCode}
   rcases List.mem_append.mp h with h | h
   · simpa only [GateCode.shift_zero] using (hgs g h).shift (o := 0) (N := width w)
       (by unfold width; omega)
-  · exact (classical_suffix w g h).2
+  · exact (classical_suffix hw g h).2
 
 private theorem uniform_codes (F : UniformCircuitFamily) :
     ComputableInPolyTime (fun n => codes (F.width n) (F.gates n)) encUnary
@@ -156,22 +116,14 @@ private theorem uniform_codes (F : UniformCircuitFamily) :
   have hg := F.computableInPolyTime_gates
   have hcopy := Amplify.computableInPolyTime_copyCodes hw hw
     (ComputableInPolyTime.const 1 (encIn := encUnary) (encOut := encUnary))
-  have hstage := Amplify.computableInPolyTime_stage (enc := encPair encUnary encUnary)
-    (base := fun p => 2 * F.width p.1) (T := fun _ => 1)
-    (b := fun p => p.2 + F.width p.1) (s := fun p => p.2)
-    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-  have hcounter : ComputableInPolyTime (fun n => counter (F.width n)) encUnary
+  have hswap : ComputableInPolyTime (fun n => swapCodes (2 * F.width n)) encUnary
       (encList encGateCode) := by
-    unfold counter Counter.codes
+    simp only [swapCodes, swapWireCodes]
     fun_prop
-  have hswap : ComputableInPolyTime (fun n => swapCodes (answer (F.width n))) encUnary
-      (encList encGateCode) := by
-    simp only [swapCodes, swapWireCodes, answer, Counter.level]
-    fun_prop
-  simp only [codes, suffix, copyBits]
+  simp only [codes, suffix, copyBits, savedWires]
   fun_prop
 
-private theorem acceptProb_codes {w : ℕ} {gs : List GateCode}
+private theorem acceptProb_codes {w : ℕ} (hw : 0 < w) {gs : List GateCode}
     (hgs : ∀ g ∈ gs, WellFormed w g) {x : List Bool} (hx : x.length ≤ w) :
     acceptProb (width w) (codes w gs) x =
       ‖(Circuit.run (Circuit.ofCodes w gs) (inputState w x)).ofLp (inputState w x)‖ ^ 2 := by
@@ -203,7 +155,7 @@ private theorem acceptProb_codes {w : ℕ} {gs : List GateCode}
         have : j.val + 0 = i := congrArg Fin.val he
         omega
       · rw [readBit_of_le Y (by omega), readBit_of_le X (by omega)]
-    rw [accepts_suffix w Y (fun i hi => (hsame i (by omega)).trans (hXhigh i hi))]
+    rw [accepts_suffix hw Y (fun i hi => (hsame i (by omega)).trans (hXhigh i hi))]
     constructor
     · intro heq
       apply funext_readBit
@@ -219,7 +171,7 @@ private theorem acceptProb_codes {w : ℕ} {gs : List GateCode}
   unfold Quantum.acceptProb
   rw [codes, Circuit.ofCodes_append, Circuit.ofCodes_append, Circuit.run, Circuit.eval_append,
     Circuit.eval_append, Circuit.eval_ofCodes_ket (classical_copy w),
-    Circuit.measureProb_eval_ofCodes (classical_suffix w)]
+    Circuit.measureProb_eval_ofCodes (classical_suffix hw)]
   change (∑ Y, if classicalRun (suffix w) Y ∈ accepting N then
     ‖(Circuit.eval (Circuit.ofCodes N gs) (ket X)).ofLp Y‖ ^ 2 else 0) = _
   rw [Finset.sum_eq_single X]
@@ -249,7 +201,7 @@ def returnTest (F : UniformCircuitFamily) : UniformCircuitFamily where
   computableInPolyTime_gates := ReturnTest.uniform_codes F
   le_width n := by have := F.le_width n; unfold ReturnTest.width; omega
   width_pos n := by simp [ReturnTest.width]
-  wellFormed n := ReturnTest.wellFormed_codes (F.wellFormed n)
+  wellFormed n := ReturnTest.wellFormed_codes (F.width_pos n) (F.wellFormed n)
 
 /-- Measuring the designated output of the return test gives the squared norm of the
 diagonal matrix entry indexed by the padded input. -/
@@ -257,7 +209,7 @@ theorem acceptProb_returnTest (F : UniformCircuitFamily) (x : List Bool) :
     F.returnTest.acceptProb x =
       ‖(Circuit.run (Circuit.ofCodes (F.width x.length) (F.gates x.length))
         (inputState _ x)).ofLp (inputState _ x)‖ ^ 2 :=
-  ReturnTest.acceptProb_codes (F.wellFormed _) (F.le_width _)
+  ReturnTest.acceptProb_codes (F.width_pos _) (F.wellFormed _) (F.le_width _)
 
 end UniformCircuitFamily
 end Cslib.Quantum

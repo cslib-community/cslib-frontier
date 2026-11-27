@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.ConfigurationMatrix
 public import CslibFrontier.Probability.SaksZhou.Nisan
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 import Mathlib.Data.Nat.Sqrt
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -59,6 +60,22 @@ inclusion, which additionally requires evaluating `snapIter` of `bitNisanPow` re
 -/
 
 public section
+
+namespace Cslib.Probability.SaksZhou
+
+open Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInSpace
+
+/-- Binary rounding of a counted frequency fits in the workspace used for its counts, scale
+and shift. The scale is supplied in binary as the grid denominator `2 ^ d`. -/
+theorem computableInSpace_snapCount {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    {scale hits total shift : α → ℕ}
+    (hq : ComputableInSpace scale enc encNat S) (hh : ComputableInSpace hits enc encNat S)
+    (ht : ComputableInSpace total enc encNat S) (hy : ComputableInSpace shift enc encNat S) :
+    ComputableInSpace (fun a => snapCount (scale a) (hits a) (total a) (shift a)) enc encNat S :=
+  budget_natDiv (budget_natSub (budget_natMul (budget_natMul hh hq) hq) (budget_natMul hy ht))
+    (budget_natMul ht hq)
+
+end Cslib.Probability.SaksZhou
 
 namespace Turing.MultiTapePTM
 

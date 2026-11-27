@@ -13,6 +13,7 @@ public import Mathlib.Data.Finset.Density
 public import Mathlib.Data.Matrix.Basic
 import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Algebra.Order.Floor.BigOperators
+import Mathlib.Algebra.Order.Floor.Semifield
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -111,17 +112,41 @@ theorem abs_snap_sub_le (d : ℕ) {x : ℝ} (hx : 0 ≤ x) (y : Fin (2 ^ d)) :
   rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.2 (snap_le d hx y))]
   linarith [sub_le_snap d x y]
 
-/-- Snapped values are multiples of `2 ^ (-d)`. -/
-theorem exists_snap_eq (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) :
-    ∃ k : ℕ, snap d x y = k / 2 ^ d := by
-  refine ⟨(⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋).toNat, ?_⟩
-  rw [snap_def]
-  rcases le_total 0 ⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ with h | h
+/-- Snapping uses the natural floor, which incorporates the lower cutoff at zero. -/
+theorem snap_eq_natFloor (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) :
+    snap d x y = (⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋₊ : ℝ) / 2 ^ d := by
+  rw [snap_def, ← Int.floor_toNat]
+  generalize ⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ = z
+  rcases le_total 0 z with h | h
   · rw [max_eq_left (div_nonneg (by exact_mod_cast h) (by positivity))]
     exact congrArg (· / 2 ^ d) (by exact_mod_cast (Int.toNat_of_nonneg h).symm)
   · rw [Int.toNat_eq_zero.2 h,
       max_eq_right (div_nonpos_of_nonpos_of_nonneg (by exact_mod_cast h) (by positivity))]
     simp
+
+/-- Snapped values are multiples of `2 ^ (-d)`. -/
+theorem exists_snap_eq (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) :
+    ∃ k : ℕ, snap d x y = k / 2 ^ d :=
+  ⟨_, snap_eq_natFloor d x y⟩
+
+/-- Numerator after shifted rounding of a frequency `hits / total` to the grid of denominator
+`scale`. Natural subtraction clips negative values before the division. -/
+@[expose] def snapCount (scale hits total shift : ℕ) : ℕ :=
+  (hits * scale * scale - shift * total) / (total * scale)
+
+/-- Exact binary arithmetic for rounding a frequency at precision `d`. -/
+theorem snap_frequency (d hits total : ℕ) (ht : 0 < total) (y : Fin (2 ^ d)) :
+    snap d (hits / total) y = (snapCount (2 ^ d) hits total y : ℝ) / 2 ^ d := by
+  rw [snap_eq_natFloor]
+  congr 2
+  let q : ℕ := 2 ^ d
+  have hq : 0 < q := Nat.two_pow_pos d
+  have heq : (hits : ℝ) / total * 2 ^ d - (y : ℝ) / 2 ^ d =
+      ((hits * q * q : ℕ) - (y.val * total : ℕ) : ℝ) / (total * q : ℕ) := by
+    simp only [q, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
+    field_simp
+  rw [heq, Nat.floor_div_natCast, Nat.floor_sub_natCast, Nat.floor_natCast]
+  rfl
 
 /-- Hermite's identity over a reversed complete residue system:
 `∑_{t < q} ⌊c - t / q⌋ = ⌊q c⌋ - (q - 1)`. -/
