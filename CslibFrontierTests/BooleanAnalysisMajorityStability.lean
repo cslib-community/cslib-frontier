@@ -53,6 +53,14 @@ example : levelWeight 1 (fun x => signVal (majority 5 x)) ≤ 7 / 5 * (2 / π) :
   norm_num at h ⊢
   linarith
 
+/-- Corollary 5.23 at `k = 1`, `n = 3`: `(2/π)^(3/2) ≤ W^1[Maj₃] = 3/4 ≤ 4 (2/π)^(3/2)`. -/
+example : 2 / π * √(2 / π) ≤ levelWeight 1 (fun x => signVal (majority (2 * 1 + 1) x)) ∧
+    levelWeight 1 (fun x => signVal (majority (2 * 1 + 1) x)) ≤ 2 / π * √(2 / π) * 4 := by
+  have h := levelWeight_signVal_majority_mem_Icc (m := 1) (j := 0) (by norm_num)
+  simp only [CharP.cast_eq_zero, mul_zero, zero_add, Real.sqrt_one, mul_one, div_one,
+    show (1 + 1 : ℝ) ^ 2 = 4 by norm_num] at h
+  exact h
+
 /-- At `ρ = 1/2` the noise stability of majority tends to `1/3`. -/
 theorem tendsto_noiseStability_half :
     Tendsto (fun m : ℕ => noiseStability (1 / 2) (fun x => signVal (majority (2 * m + 1) x)))

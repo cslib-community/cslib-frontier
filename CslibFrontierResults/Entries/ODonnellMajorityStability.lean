@@ -42,6 +42,20 @@ register_result "odonnell-majority-level-weight-limit" where
     k = 2j + 1 < n/2 = (2m + 1)/2, the error bound (5.15). The book also states that the \
     weights decrease in n (Corollary 5.21, registered separately)."
 
+register_result "odonnell-majority-level-weight-asymptotics" where
+  title := "The level weights of majority are (2/π)^(3/2) k^(−3/2) (1 ± O(1/k))"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 5.23 (first statement) and Exercise 5.27(a)",
+      locator := "arXiv:2105.10386v1, §5.3, printed p. 124; §5.6, printed p. 137" }
+  ]
+  theorems := [Cslib.BitString.two_div_pi_mul_centralBinom_div_mem_Icc,
+    Cslib.BitString.levelWeight_signVal_majority_mem_Icc]
+  scope := "For odd k = 2j + 1: (2/π)^(3/2) k^(−3/2) ≤ [ρ^k] (2/π) arcsin ρ ≤ \
+    (2/π)^(3/2) k^(−3/2) (1 + 1/k); and for n = 2m + 1 ≥ 2k², W^k of majority of n bits lies \
+    between (2/π)^(3/2) k^(−3/2) and (2/π)^(3/2) k^(−3/2) (1 + 1/k)². The second statement of \
+    Corollary 5.23 (on W^{>k}) is not covered."
+
 register_result "odonnell-majority-noise-stability-bounds" where
   title := "The noise stability of majority is within O(1/√((1 − ρ²) n)) above (2/π) arcsin ρ"
   topic := "analysis of Boolean functions"
