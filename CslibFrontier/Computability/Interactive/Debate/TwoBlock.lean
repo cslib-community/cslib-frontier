@@ -7,7 +7,7 @@ Authors: Richard Dodson
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Interactive.Debate.CopyChain
+public import CslibFrontier.Computability.Interactive.Debate.Machine
 public import CslibFrontier.Probability.PMF.Coin
 import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Probability.PMF.Bind

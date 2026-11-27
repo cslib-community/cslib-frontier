@@ -71,6 +71,8 @@ the number of oracle queries of any party, or about machines given by an encodin
 * `Cslib.Interactive.Debate.run`: the protocol.
 * `Cslib.Interactive.Debate.honestProposer`, `Cslib.Interactive.Debate.honestChallenger`: the
   prescribed strategies.
+* `Cslib.Interactive.Debate.Params.figure1`: the constants printed in
+  [BrownCohenIrvingPiliouras2024, Figure 1] and the proof of Theorem 6.2.
 
 ## Main results
 
@@ -282,6 +284,29 @@ accepts a claim within `c` and rejects a claim off by `s`, each except with prob
   challengerTolerance := 7 / (200 * K)
   verifierSamples := sampleCount (1 / (200 * K)) (1 / 100)
   verifierTolerance := 3 / (200 * K)
+
+/-- The parameters of [BrownCohenIrvingPiliouras2024, Figure 1] and of the proof of Theorem 6.2
+for a `T`-step computation with Lipschitz constant `K`, with `d = ⌈150 K⌉` (`dedebate.tex`,
+line 252):
+
+* `T` rounds (line 253);
+* the verifier draws `r = ⌈192 d ^ 2 log 100⌉` samples (line 263) and accepts when the claim is
+  within `1 / (4 d)` of their mean (line 264);
+* the honest provers draw `R = ⌈192 d ^ 2 log (100 T)⌉` samples (lines 461 and 546), which is
+  also the grid, so that the honest proposer's sample mean is a grid point;
+* the honest challenger aborts unless the claim is within `1 / (2 d)` of its sample mean
+  (line 546).
+
+The source writes `log` without a base and does not round the sample counts. The logarithm is
+natural here: the proof equates `2 exp (-R / (192 d ^ 2))` with `1 / (50 T)` (line 487), which
+holds for the natural logarithm only. The counts are rounded up. -/
+@[expose] noncomputable def Params.figure1 (K : ℝ≥0) (T : ℕ) : Params where
+  rounds := T
+  grid := ⌈192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log (100 * T)⌉₊
+  challengerSamples := ⌈192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log (100 * T)⌉₊
+  challengerTolerance := 1 / (2 * (⌈150 * (K : ℝ)⌉₊ : ℝ))
+  verifierSamples := ⌈192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log 100⌉₊
+  verifierTolerance := 1 / (4 * (⌈150 * (K : ℝ)⌉₊ : ℝ))
 
 /-! ### Evaluation against a step law -/
 

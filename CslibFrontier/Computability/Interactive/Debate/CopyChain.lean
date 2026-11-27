@@ -61,7 +61,6 @@ at least `1 - (1 - k / N) ^ rounds`.
 
 * `Cslib.Interactive.Debate.copyChain`: the machine.
 * `Cslib.Interactive.Debate.copyChainProposer`: the proposer that wins against it.
-* `Cslib.Interactive.Debate.Params.figure1`: the constants of the source.
 
 ## Main results
 
@@ -364,29 +363,6 @@ private theorem pow_307_lt : ((600 : ℝ) / 601) ^ 307 < 3 / 5 := by
     rw [← pow_add]
   rw [hsplit]
   norm_num
-
-/-- The parameters of [BrownCohenIrvingPiliouras2024, Figure 1] and of the proof of Theorem 6.2
-for a `T`-step computation with Lipschitz constant `K`, with `d = ⌈150 K⌉` (`dedebate.tex`,
-line 252):
-
-* `T` rounds (line 253);
-* the verifier draws `r = ⌈192 d ^ 2 log 100⌉` samples (line 263) and accepts when the claim is
-  within `1 / (4 d)` of their mean (line 264);
-* the honest provers draw `R = ⌈192 d ^ 2 log (100 T)⌉` samples (lines 461 and 546), which is
-  also the grid, so that the honest proposer's sample mean is a grid point;
-* the honest challenger aborts unless the claim is within `1 / (2 d)` of its sample mean
-  (line 546).
-
-The source writes `log` without a base and does not round the sample counts. The logarithm is
-natural here: the proof equates `2 exp (-R / (192 d ^ 2))` with `1 / (50 T)` (line 487), which
-holds for the natural logarithm only. The counts are rounded up. -/
-@[expose] noncomputable def Params.figure1 (K : ℝ≥0) (T : ℕ) : Params where
-  rounds := T
-  grid := ⌈192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log (100 * T)⌉₊
-  challengerSamples := ⌈192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log (100 * T)⌉₊
-  challengerTolerance := 1 / (2 * (⌈150 * (K : ℝ)⌉₊ : ℝ))
-  verifierSamples := ⌈192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log 100⌉₊
-  verifierTolerance := 1 / (4 * (⌈150 * (K : ℝ)⌉₊ : ℝ))
 
 /-- **The protocol of Figure 1 is not sound under Definition 6.1.** With the constants of
 [BrownCohenIrvingPiliouras2024, Figure 1] for `K = 1` (`Params.figure1 1 T`) and `T ≥ 307`, the
