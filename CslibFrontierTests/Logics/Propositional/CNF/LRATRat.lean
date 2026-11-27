@@ -20,8 +20,9 @@ The four clauses over `a = 0` and `b = 1` (DIMACS `1` and `2`) are refuted throu
 `x = 2` (DIMACS `3`). Clause `5`, `x`, is a RAT clause with no hints: no clause contains `¬x`.
 Clause `6`, `¬x ∨ a`, is a RAT clause on the pivot `¬x`: its only candidate is clause `5`, and the
 resolvent `¬x ∨ a` is refuted from `x, ¬a` by the hints `1, 2`. Then `a` is a RUP clause through
-clauses `6` and `5`, and the empty clause follows. The three checkers with RAT steps accept it
-and `checkLRAT` rejects it. A wrong RAT chain, a missing RAT hint and a RAT step adding `¬a` to the
+clauses `6` and `5`, and the empty clause follows. `checkLRATRat`, the kernel checker
+`checkLRATKernel` and the array checker `checkLRATFast` accept it, and the RUP checker `checkLRAT`
+rejects it. A wrong RAT chain, a missing RAT hint and a RAT step adding `¬a` to the
 satisfiable formula `a` are rejected; a candidate with a tautological resolvent needs no hint.
 
 A certificate from an independent solver: CaDiCaL 3.0.1 with `--factor` (bounded variable
@@ -54,14 +55,12 @@ example : φ.checkLRATRat cert = true := by decide
 
 example : ¬ φ.Satisfiable := CNF.not_satisfiable_of_checkLRATRat (cert := cert) (by decide)
 
-example : φ.checkLRATRatKernel cert = true := by decide +kernel
+example : φ.checkLRATKernel cert = true := by decide +kernel
 
 #guard φ.checkLRATFast cert
 
 -- The RUP checker rejects RAT steps.
 example : φ.checkLRAT cert = false := by decide
-
-example : φ.checkLRATKernel cert = false := by decide +kernel
 
 -- Lean core's checker accepts the same certificate.
 /-- info: true -/
@@ -1021,11 +1020,11 @@ private def phpCert : Array LRAT.IntAction :=
     909 #[-22] #[906, 640], .addRup 910 #[-14] #[907, 610], .addRup 911 #[-20] #[907, 611], .addRup
     912 #[-26] #[907, 612], .addEmpty 913 #[910, 908, 814, 877, 547, 901, 3]]
 
-example : php.checkLRATRatKernel phpCert = true := by decide +kernel
+example : php.checkLRATKernel phpCert = true := by decide +kernel
 
 example : ¬ php.Satisfiable :=
   CNF.not_satisfiable_of_checkLRATRat (cert := phpCert)
-    ((CNF.checkLRATRatKernel_eq_checkLRATRat _ _).symm.trans (by decide +kernel))
+    ((CNF.checkLRATKernel_eq_checkLRATRat _ _).symm.trans (by decide +kernel))
 
 #guard php.checkLRATFast phpCert
 
@@ -1037,7 +1036,7 @@ private def phpCertWrong : Array LRAT.IntAction :=
   phpCert.set! 601
     (.addRat 602 #[-43, 31, 37] (43, false) #[] #[(599, #[]), (600, #[]), (601, #[])])
 
-example : php.checkLRATRatKernel phpCertWrong = false := by decide +kernel
+example : php.checkLRATKernel phpCertWrong = false := by decide +kernel
 
 #guard !php.checkLRATFast phpCertWrong
 

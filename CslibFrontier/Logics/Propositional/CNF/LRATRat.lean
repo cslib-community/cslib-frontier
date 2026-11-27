@@ -48,7 +48,7 @@ certificates refute their formula (`Cslib.Logic.PL.CNF.not_satisfiable_of_checkL
 accepts every certificate `checkLRAT` accepts (`Cslib.Logic.PL.CNF.checkLRATRat_of_checkLRAT`), so
 it is also complete (`Cslib.Algorithms.Lean.DPLL.exists_checkLRATRat_iff`). The RAT check is
 written for any clause lookup and any test over the stored clauses, so that the kernel checker
-`Cslib.Logic.PL.CNF.checkLRATRatKernel` and the array checker `Cslib.Logic.PL.CNF.checkLRATFast`
+`Cslib.Logic.PL.CNF.checkLRATKernel` and the array checker `Cslib.Logic.PL.CNF.checkLRATFast`
 run the same check on their own databases.
 
 ## Main definitions
