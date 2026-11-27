@@ -40,6 +40,8 @@ words of `QBFProtocol.decodeReply`.
 
 namespace Cslib.Complexity.MIP
 
+open Polynomial (evalCoeffListMod natCast_evalCoeffListMod evalCoeffListMod_lt_modulus)
+
 open Cslib.Code Cslib.BitString Turing.MultiTapeTM QBFProtocol Finset
 open scoped Polynomial
 
@@ -47,7 +49,7 @@ open scoped Polynomial
 in that order. Missing coefficients and oracle values are zero-padded. -/
 def checkLineReply (p n : ℕ) (reply : List Bool) (reads : List ℕ) : Bool :=
   (List.range (n + 1)).all fun i =>
-    decide (hornerMod p (i + 1) (decodeReply p n reply) = reads.getD i 0)
+    decide (evalCoeffListMod p (i + 1) (decodeReply p n reply) = reads.getD i 0)
 
 /-- Checking all the line samples is polynomial-time for unary dimension, modulus and samples. -/
 @[fun_prop] theorem computableInPolyTime_checkLineReply {α : Type} {enc : α ↪ List Bool}
@@ -61,7 +63,7 @@ def checkLineReply (p n : ℕ) (reply : List Bool) (reads : List ℕ) : Bool :=
     (ComputableInPolyTime.range.comp (hn.unary_add' (.const 1)))
   have hpar := ComputableInPolyTime.fst enc encUnary
   have hidx := ComputableInPolyTime.snd enc encUnary
-  exact (computableInPolyTime_hornerMod (hp.comp hpar) (hidx.unary_add' (.const 1))
+  exact (ComputableInPolyTime.evalCoeffListMod_unary (hp.comp hpar) (hidx.unary_add' (.const 1))
     ((computableInPolyTime_decodeReply hp hn hr).comp hpar)).decide_eq'
       (ComputableInPolyTime.listGetDWithInput (hw.comp hpar) hidx 0)
 
@@ -80,8 +82,8 @@ private noncomputable def linePolynomial (p n : ℕ) (reply : List Bool) : Polyn
 
 private theorem eval_linePolynomial {p : ℕ} [NeZero p] (n z : ℕ) (reply : List Bool) :
     (linePolynomial p n reply).eval (z : ZMod p) =
-      (hornerMod p z (decodeReply p n reply) : ZMod p) := by
-  rw [linePolynomial, Polynomial.eval_ofCoeffList, natCast_hornerMod]
+      (evalCoeffListMod p z (decodeReply p n reply) : ZMod p) := by
+  rw [linePolynomial, natCast_evalCoeffListMod]
 
 private theorem mem_reedMuller_of_multilinear {F : Type*} [Field F] {n : ℕ}
     {f : (Fin n → F) → F} (hf : IsMultilinear f) : f ∈ reedMuller F n n := by
@@ -110,13 +112,13 @@ theorem exists_checkLineReply {p n : ℕ} [Fact p.Prime] {f : (Fin n → ZMod p)
     ∃ reply, reply.length ≤ replyLimit p n ∧
       checkLineReply p n reply (List.ofFn fun i : Fin (n + 1) =>
         (f (x + ((i.val + 1 : ℕ) : ZMod p) • v)).val) = true ∧
-      (hornerMod p 0 (decodeReply p n reply) : ZMod p) = f x := by
+      (evalCoeffListMod p 0 (decodeReply p n reply) : ZMod p) = f x := by
   obtain ⟨P, hdeg, hP⟩ := exists_natDegree_le_eval_eq_of_mem_reedMuller
     (mem_reedMuller_of_multilinear hf) x v
   obtain ⟨reply, hlen, heq⟩ := exists_linePolynomial P hdeg
-  have heval (z : ℕ) : hornerMod p z (decodeReply p n reply) =
+  have heval (z : ℕ) : evalCoeffListMod p z (decodeReply p n reply) =
       (f (x + (z : ZMod p) • v)).val := by
-    rw [← hP, ← heq, eval_linePolynomial, ZMod.val_natCast_of_lt (hornerMod_lt _ _)]
+    rw [← hP, ← heq, eval_linePolynomial, ZMod.val_natCast_of_lt (evalCoeffListMod_lt_modulus _ _)]
   refine ⟨reply, hlen, List.all_eq_true.mpr ?_, ?_⟩
   · intro i hi
     have hi' := List.mem_range.mp hi
@@ -131,7 +133,7 @@ theorem card_checkLineReply_wrong_le {p n : ℕ} [Fact p.Prime] (hp : n + 1 < p)
     (x : Fin n → ZMod p) (reply : (Fin n → ZMod p) → List Bool) :
     #{v | checkLineReply p n (reply v) (List.ofFn fun i : Fin (n + 1) =>
         (w (x + ((i.val + 1 : ℕ) : ZMod p) • v)).val) = true ∧
-      (hornerMod p 0 (decodeReply p n (reply v)) : ZMod p) ≠ f x} ≤
+      (evalCoeffListMod p 0 (decodeReply p n (reply v)) : ZMod p) ≠ f x} ≤
       (n + 1) * #{y | w y ≠ f y} := by
   classical
   have hnode (i : Fin (n + 1)) : node hp i ≠ 0 := by
