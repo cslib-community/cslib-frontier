@@ -862,19 +862,13 @@ private theorem saltedTrackInv_step {Salt : Type} [DecidableEq M] [DecidableEq S
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
     obtain ⟨r, -, yx, -, -, rfl⟩ := hstep
     refine ⟨hnone, ?_, ?_, ?_⟩
-    · intro m' r' y' hmem
-      rcases List.mem_cons.mp hmem with heq | hmem
-      · obtain ⟨hm, -⟩ := Prod.mk.inj (Prod.mk.inj heq).1
-        subst hm; exact List.mem_cons_self
+    · rintro m' r' y' (_ | ⟨_, hmem⟩)
+      · exact List.mem_cons_self
       · exact List.mem_cons_of_mem _ (hsign m' r' y' hmem)
-    · intro q' y' k hmem
-      rcases List.mem_cons.mp hmem with heq | hmem
-      · simp at heq
-      · exact hlt q' y' k hmem
-    · intro q' y' hmem
-      rcases List.mem_cons.mp hmem with heq | hmem
-      · simp at heq
-      · exact hyj q' y' hmem
+    · rintro q' y' k (_ | ⟨_, hmem⟩)
+      exact hlt q' y' k hmem
+    · rintro q' y' (_ | ⟨_, hmem⟩)
+      exact hyj q' y' hmem
   | inr hq =>
     dsimp only [saltedTrackHandler] at hstep
     cases hlu : st.cache.lookup hq with
@@ -892,21 +886,13 @@ private theorem saltedTrackInv_step {Salt : Type} [DecidableEq M] [DecidableEq S
         dsimp only at hle ⊢
         have hne : st.hCount ≠ jStar := by omega
         simp [hne, hnone (by omega)]
-      · intro m' r' y' hmem
-        rcases List.mem_cons.mp hmem with heq | hmem
-        · simp at heq
-        · exact hsign m' r' y' hmem
-      · intro q' y' k hmem
-        dsimp only at hmem ⊢
-        rcases List.mem_cons.mp hmem with heq | hmem
-        · obtain rfl := Option.some.inj (Prod.mk.inj (Prod.mk.inj heq).2).2
-          omega
+      · rintro m' r' y' (_ | ⟨_, hmem⟩)
+        exact hsign m' r' y' hmem
+      · rintro q' y' k (_ | ⟨_, hmem⟩)
+        · dsimp only; omega
         · exact Nat.lt_succ_of_lt (hlt q' y' k hmem)
-      · intro q' y' hmem
-        dsimp only at hmem ⊢
-        rcases List.mem_cons.mp hmem with heq | hmem
-        · obtain ⟨rfl, hk⟩ := Prod.mk.inj (Prod.mk.inj heq).2
-          simp [Option.some.inj hk]
+      · rintro q' y' (_ | ⟨_, hmem⟩)
+        · simp
         · have := hlt q' y' jStar hmem
           simp [show st.hCount ≠ jStar by omega, hyj q' y' hmem]
 
@@ -2072,14 +2058,19 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
           (fun (st : List (M × Option Preimage) × List (M × Target)) =>
             (st.2, st.1.map Prod.fst))
           ?_ (forger pk) ([], [])
-        rintro (m | m) ⟨pairs, cache⟩
-        · simp only [ROMSignature.logSigning, StateT.run, ProbOracleComp.runWith_bind,
+        rintro (m | m) ⟨pairs, cache⟩ <;>
+          simp only [ROMSignature.logSigning, StateT.run, ProbOracleComp.runWith_bind,
             ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, ROMSignature.forgerWorldImpl,
             detScheme, interp_norm, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind,
             PMF.map_comp, Function.comp_def]
+        on_goal 1 =>
           change PMF.map _ ((((ROMSignature.oracle Target m).run cache).bind fun x =>
             PMF.pure (invTable x.1, x.2)).bind fun x =>
             PMF.pure ((x.1, (m, x.1) :: pairs), x.2)) = _
+        on_goal 2 =>
+          change PMF.map _ (((ROMSignature.oracle Target m).run cache).bind fun x =>
+            PMF.pure ((x.1, pairs), x.2)) = _
+        all_goals
           cases hlu : cache.lookup m with
           | some y =>
             rw [ROMSignature.run_oracle_of_lookup_eq_some hlu]
@@ -2087,20 +2078,6 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
           | none =>
             rw [ROMSignature.run_oracle_of_lookup_eq_none hlu]
             simp only [PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.pure_map, List.map_cons]
-            exact (PMF.bind_pure_comp _ _).symm
-        · simp only [ROMSignature.logSigning, StateT.run, ProbOracleComp.runWith_bind,
-            ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, ROMSignature.forgerWorldImpl,
-            detScheme, interp_norm, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind,
-            PMF.map_comp, Function.comp_def]
-          change PMF.map _ (((ROMSignature.oracle Target m).run cache).bind fun x =>
-            PMF.pure ((x.1, pairs), x.2)) = _
-          cases hlu : cache.lookup m with
-          | some y =>
-            rw [ROMSignature.run_oracle_of_lookup_eq_some hlu]
-            simp [PMF.pure_bind, PMF.pure_map]
-          | none =>
-            rw [ROMSignature.run_oracle_of_lookup_eq_none hlu]
-            simp only [PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.pure_map]
             exact (PMF.bind_pure_comp _ _).symm
       rw [h1]
       symm
@@ -2122,48 +2099,25 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
           intro α cache cache' m signedOut signed' a hinv outSome outNone hstep
           cases hlu : cache.lookup m with
           | some yx =>
-            rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
-            obtain ⟨-, rfl, -⟩ := hstep
+            rw [hlu, PMF.mem_support_pure_iff] at hstep
+            cases hstep
             exact hinv
           | none =>
             rw [hlu, PMF.mem_support_map_iff] at hstep
-            obtain ⟨y, -, heq⟩ := hstep
-            rw [Prod.mk.injEq, Prod.mk.injEq] at heq
-            obtain ⟨-, rfl, -⟩ := heq
-            intro m' y' x' hm'
-            rcases List.mem_cons.mp hm' with hhd | htl
-            · injection hhd with _ h2
-              injection h2 with hy hx
-              subst hy hx
-              rfl
+            obtain ⟨y, -, ⟨⟩⟩ := hstep
+            rintro m' y' x' (_ | ⟨_, htl⟩)
+            · rfl
             · exact hinv m' y' x' htl
-        rintro q ⟨cache, signed⟩ hinv a ⟨cache', signed'⟩ hstep
-        cases q with
-        | inl m =>
+        rintro (m | m) ⟨cache, signed⟩ hinv a ⟨cache', signed'⟩ hstep <;>
           dsimp only [eagerH] at hinv hstep
-          exact hbranch (m := m) (signedOut := m :: signed) (signed' := signed')
-            (outSome := fun (_, x) => x) (outNone := invTable) hinv hstep
-        | inr m =>
-          dsimp only [eagerH] at hinv hstep
-          exact hbranch (m := m) (signedOut := signed) (signed' := signed')
-            (outSome := fun (y, _) => y) (outNone := fun y => y) hinv hstep
-      · rintro q ⟨cache, signed⟩ hinv
-        cases q with
-        | inl m =>
-          dsimp only [eagerH]
-          rw [lookup_map_fst]
-          cases hlu : cache.lookup m with
-          | some yx =>
-            have hx : yx.2 = invTable yx.1 := hinv m yx.1 yx.2 (mem_of_lookup_eq_some hlu)
-            simp [hx, PMF.pure_map]
-          | none =>
-            simp [PMF.map_comp, Function.comp_def]
-        | inr m =>
-          dsimp only [eagerH]
-          rw [lookup_map_fst]
-          cases hlu : cache.lookup m with
-          | some yx => simp [PMF.pure_map]
-          | none => simp [PMF.map_comp, Function.comp_def]
+        · exact hbranch (outSome := fun (_, x) => x) (outNone := invTable) hinv hstep
+        · exact hbranch (outSome := fun (y, _) => y) (outNone := fun y => y) hinv hstep
+      · rintro (m | m) ⟨cache, signed⟩ hinv <;> dsimp only [eagerH] <;> rw [lookup_map_fst] <;>
+        cases hlu : cache.lookup m with
+        | some yx =>
+          have hx : yx.2 = invTable yx.1 := hinv m yx.1 yx.2 (mem_of_lookup_eq_some hlu)
+          simp [hx, PMF.pure_map]
+        | none => simp [PMF.map_comp, Function.comp_def]
     -- Now rewrite both sides through `hproj_world`.
     have hL :
         (ProbOracleComp.runWith (ROMSignature.forgerWorldImpl (detScheme sys) (sk, invTable))
@@ -2207,10 +2161,8 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
           (ROMSignature.worldRealize (detScheme sys) pk (forger pk) eufCmaAccept)) =
       (ProbOracleComp.runWith (memoize fun y => ProbComp.eval (sys.invert sk y))
         (detEagerProg sys pk forger) []).map Prod.fst := by
-    have h1 := PMF.bind_congr_on_support (PMF.pi fun y => ProbComp.eval (sys.invert sk y))
-      _ _ fun invTable _ => heager invTable
-    exact h1.trans (RandomOracle.interpret_prob_eq_memoize
-      (fun y => ProbComp.eval (sys.invert sk y)) (detEagerProg sys pk forger))
+    exact (PMF.bind_congr_on_support _ _ _ fun invTable _ => heager invTable).trans
+      (RandomOracle.interpret_prob_eq_memoize _ (detEagerProg sys pk forger))
   rw [heager_bind]
   -- Step 1b: Expand `runWith memoize (detEagerProg ...)` via `withBadFlag (detLazyInvStep ...)`.
   let post : (M × Option Preimage) ×
@@ -2355,8 +2307,7 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
     (δ := (Fintype.card Target : ℝ≥0∞)⁻¹)
     (hstep := by
       rintro q ⟨⟨cache, signed, invCache⟩, b⟩ hb
-      have hbf : b = false := Bool.eq_false_iff.mpr hb
-      subst hbf
+      obtain rfl : b = false := Bool.eq_false_iff.mpr hb
       rw [OracleComp.withBadFlag_false]
       cases q with
       | inl m =>
@@ -2369,8 +2320,7 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
           (fun y x => ((m, (y, x)) :: cache, signed, (y, x) :: invCache)))
     (hgrow := by
       rintro (m | m) ⟨⟨cache, signed, invCache⟩, b⟩ hb x hx _ <;>
-      · have hbf : b = false := Bool.eq_false_iff.mpr hb
-        subst hbf
+      · obtain rfl : b = false := Bool.eq_false_iff.mpr hb
         rw [OracleComp.withBadFlag_false] at hx
         dsimp only [detFreshInvStep] at hx
         cases hlu : cache.lookup m with
@@ -2458,14 +2408,10 @@ private theorem detCache_cons_indexed {M Target Payload : Type}
     (∀ m' y' p' k, (m', (y', p', some k)) ∈ (m, (y, p, some hCount)) :: cache →
       k < hCount + 1) := by
   refine ⟨?_, ?_⟩
-  · intro m' y' p' hm'
-    rcases List.mem_cons.mp hm' with hhd | htl
-    · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-    · exact hsign m' y' p' htl
-  · intro m' y' p' k hm'
-    rcases List.mem_cons.mp hm' with hhd | htl
-    · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
-      injection h4 with hk; subst hk; omega
+  · rintro m' y' p' (_ | ⟨_, htl⟩)
+    exact hsign m' y' p' htl
+  · rintro m' y' p' k (_ | ⟨_, htl⟩)
+    · omega
     · exact Nat.lt_succ_of_lt (hlt m' y' p' k htl)
 
 private theorem detCache_cons_unindexed {M Target Payload : Type}
@@ -2476,14 +2422,11 @@ private theorem detCache_cons_unindexed {M Target Payload : Type}
     (∀ m' y' p', (m', (y', p', none)) ∈ (m, (y, p, none)) :: cache → m' ∈ m :: signed) ∧
     (∀ m' y' p' k, (m', (y', p', some k)) ∈ (m, (y, p, none)) :: cache → k < hCount) := by
   refine ⟨?_, ?_⟩
-  · intro m' y' p' hm'
-    rcases List.mem_cons.mp hm' with hhd | htl
-    · injection hhd with hm' _; subst hm'; exact List.mem_cons_self
+  · rintro m' y' p' (_ | ⟨_, htl⟩)
+    · exact List.mem_cons_self
     · exact List.mem_cons_of_mem _ (hsign m' y' p' htl)
-  · intro m' y' p' k hm'
-    rcases List.mem_cons.mp hm' with hhd | htl
-    · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-    · exact hlt m' y' p' k htl
+  · rintro m' y' p' k (_ | ⟨_, htl⟩)
+    exact hlt m' y' p' k htl
 
 private def DetTrackInv {M Target Preimage : Type} (jStar : ℕ)
     (st : DetTrackState M Target Preimage) : Prop :=
@@ -2525,23 +2468,16 @@ private theorem detTrackInv_step [DecidableEq M]
         exact List.mem_cons_self
     | none =>
       rw [hlu, PMF.mem_support_map_iff] at hstep
-      obtain ⟨yx, -, heq⟩ := hstep
-      rw [Prod.mk.injEq] at heq
-      obtain ⟨-, rfl⟩ := heq
+      obtain ⟨yx, -, ⟨⟩⟩ := hstep
       obtain ⟨hsign', hlt'⟩ := detCache_cons_unindexed m yx.1 yx.2 hsign hlt
       refine ⟨hsign', hlt', ?_, ?_⟩
-      · intro m₁ y₁ x₁ m₂ y₂ x₂ hm₁ hm₂
-        rcases List.mem_cons.mp hm₁ with hhd | htl₁
-        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-        rcases List.mem_cons.mp hm₂ with hhd | htl₂
-        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
+      · rintro m₁ y₁ x₁ m₂ y₂ x₂ (_ | ⟨_, htl₁⟩) (_ | ⟨_, htl₂⟩)
         exact huniq m₁ y₁ x₁ m₂ y₂ x₂ htl₁ htl₂
       · intro hb
         obtain ⟨hgt, hs⟩ := hbad hb
         refine ⟨hgt, fun m' y' x' hm' => ?_⟩
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-        · exact List.mem_cons_of_mem _ (hs m' y' x' htl)
+        obtain _ | ⟨_, htl⟩ := hm'
+        exact List.mem_cons_of_mem _ (hs m' y' x' htl)
   | inr m =>
     dsimp only [detTrackHandler] at hstep
     cases hlu : st.cache.lookup m with
@@ -2552,26 +2488,19 @@ private theorem detTrackInv_step [DecidableEq M]
       exact ⟨hsign, hlt, huniq, hbad⟩
     | none =>
       rw [hlu, PMF.mem_support_map_iff] at hstep
-      obtain ⟨yx, -, heq⟩ := hstep
-      rw [Prod.mk.injEq] at heq
-      obtain ⟨-, rfl⟩ := heq
+      obtain ⟨yx, -, ⟨⟩⟩ := hstep
       obtain ⟨hsign', hlt'⟩ := detCache_cons_indexed m yx.1 yx.2 hsign hlt
       refine ⟨hsign', hlt', ?_, ?_⟩
-      · intro m₁ y₁ x₁ m₂ y₂ x₂ hm₁ hm₂
-        rcases List.mem_cons.mp hm₁ with hhd₁ | htl₁ <;>
-          rcases List.mem_cons.mp hm₂ with hhd₂ | htl₂
-        · injection hhd₁ with hm1 _; injection hhd₂ with hm2 _; exact hm1.trans hm2.symm
-        · injection hhd₁ with _ h2; injection h2 with _ h3; injection h3 with _ h4
-          injection h4 with hj; have := hlt m₂ y₂ x₂ jStar htl₂; omega
-        · injection hhd₂ with _ h2; injection h2 with _ h3; injection h3 with _ h4
-          injection h4 with hj; have := hlt m₁ y₁ x₁ jStar htl₁; omega
+      · rintro m₁ y₁ x₁ m₂ y₂ x₂ (_ | ⟨_, htl₁⟩) (_ | ⟨_, htl₂⟩)
+        · rfl
+        · have := hlt _ _ _ _ htl₂; omega
+        · have := hlt _ _ _ _ htl₁; omega
         · exact huniq m₁ y₁ x₁ m₂ y₂ x₂ htl₁ htl₂
       · intro hb
         obtain ⟨hgt, hs⟩ := hbad hb
-        refine ⟨Nat.lt_succ_of_lt hgt, fun m' y' x' hm' => ?_⟩
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
-          injection h4 with hj; exact absurd hj (by omega)
+        refine ⟨Nat.lt_succ_of_lt hgt, ?_⟩
+        rintro m' y' x' (_ | ⟨_, htl⟩)
+        · omega
         · exact hs m' y' x' htl
 
 private theorem detTrack_identicalUntilBad_detAbort [DecidableEq M]
@@ -2595,34 +2524,20 @@ private theorem detTrack_identicalUntilBad_detAbort [DecidableEq M]
             by_cases hidx : idxOpt = some jStar
             · subst hidx
               simp only [beq_self_eq_true, Bool.or_true, ↓reduceIte, PMF.pure_apply]
-              have hne1 :
-                  (a, st') ≠ (x, { st with signed := m :: st.signed, badSignJ := true }) := by
-                intro h; have := congrArg (fun p => p.2.badSignJ) h; simp [hbf'] at this
-              have hne2 :
-                  (a, st') ≠ (none, { st with signed := m :: st.signed, badSignJ := true }) := by
-                intro h; have := congrArg (fun p => p.2.badSignJ) h; simp [hbf'] at this
-              simp [hne1, hne2]
+              have hne : ∀ b,
+                  (a, st') ≠ (b, { st with signed := m :: st.signed, badSignJ := true }) := by
+                intro b h; have := congrArg (fun p => p.2.badSignJ) h; simp [hbf'] at this
+              simp [hne]
             · have hbeq : (idxOpt == some jStar) = false := beq_false_of_ne hidx
               simp [hidx, hbeq, hbf]
         | inr m => rfl
       absorb_first := by
-        intro q st hst x hx
-        cases q with
-        | inl m =>
-          dsimp only [detTrackHandler] at hx
-          cases hlu : st.cache.lookup m with
-          | some yxk =>
-            rw [hlu, PMF.mem_support_pure_iff] at hx; subst hx; simp [hst]
-          | none =>
-            rw [hlu, PMF.mem_support_map_iff] at hx
-            obtain ⟨_, -, rfl⟩ := hx; exact hst
-        | inr m =>
-          dsimp only [detTrackHandler] at hx
-          cases hlu : st.cache.lookup m with
-          | some yxk => rw [hlu, PMF.mem_support_pure_iff] at hx; subst hx; exact hst
-          | none =>
-            rw [hlu, PMF.mem_support_map_iff] at hx
-            obtain ⟨_, -, rfl⟩ := hx; exact hst
+        rintro (m | m) st hst x hx <;> dsimp only [detTrackHandler] at hx <;>
+        cases hlu : st.cache.lookup m with
+        | some yxk => rw [hlu, PMF.mem_support_pure_iff] at hx; subst hx; simp [hst]
+        | none =>
+          rw [hlu, PMF.mem_support_map_iff] at hx
+          obtain ⟨_, -, rfl⟩ := hx; exact hst
       absorb_second := by
         intro q st hst x hx
         cases q with
@@ -2781,15 +2696,11 @@ private theorem detOneInv_step [DecidableEq M]
         exact ⟨hnone, fun m' y' x' hm' => List.mem_cons_of_mem _ (hsign m' y' x' hm'), hlt, hyj⟩
     | none =>
       rw [hlu, PMF.mem_support_map_iff] at hstep
-      obtain ⟨yx, -, heq⟩ := hstep
-      rw [Prod.mk.injEq] at heq
-      obtain ⟨-, rfl⟩ := heq
+      obtain ⟨yx, -, ⟨⟩⟩ := hstep
       obtain ⟨hsign', hlt'⟩ := detCache_cons_unindexed m yx.1 (some yx.2) hsign hlt
       refine ⟨hnone, hsign', hlt', ?_⟩
-      · intro m' y' x' hm'
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-        · exact hyj m' y' x' htl
+      · rintro m' y' x' (_ | ⟨_, htl⟩)
+        exact hyj m' y' x' htl
   | inr m =>
     dsimp only [detOneTrackHandler] at hstep
     cases hlu : st.cache.lookup m with
@@ -2801,23 +2712,16 @@ private theorem detOneInv_step [DecidableEq M]
       rw [hlu] at hstep
       split_ifs at hstep with heq
       · rw [PMF.mem_support_map_iff] at hstep
-        obtain ⟨y, -, hpair⟩ := hstep
-        rw [Prod.mk.injEq] at hpair
-        obtain ⟨-, rfl⟩ := hpair
+        obtain ⟨y, -, ⟨⟩⟩ := hstep
         refine detOneInv_cons_cache hsign hlt (fun hle => by omega) ?_
-        intro m' y' x' hm'
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with _ h2; injection h2 with hy' _; subst hy'; rfl
+        rintro m' y' x' (_ | ⟨_, htl⟩)
+        · rfl
         · have := hlt m' y' x' jStar htl; omega
       · rw [PMF.mem_support_map_iff] at hstep
-        obtain ⟨yx, -, hpair⟩ := hstep
-        rw [Prod.mk.injEq] at hpair
-        obtain ⟨-, rfl⟩ := hpair
+        obtain ⟨yx, -, ⟨⟩⟩ := hstep
         refine detOneInv_cons_cache hsign hlt (fun hle => hnone (Nat.le_of_succ_le hle)) ?_
-        intro m' y' x' hm'
-        rcases List.mem_cons.mp hm' with hhd | htl
-        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
-          injection h4 with hk; exact absurd hk.symm heq
+        rintro m' y' x' (_ | ⟨_, htl⟩)
+        · exact absurd rfl heq
         · exact hyj m' y' x' htl
 
 /-- Unified upfront-vs-lazy embedding simulation for `detScheme`, parameterized by any `μStar`. -/
@@ -2918,9 +2822,7 @@ private theorem detOneEmbedHandler_yStar_step [DecidableEq M]
           obtain ⟨-, -, rfl⟩ := hstep; rfl)
     | none =>
       rw [hlu, PMF.mem_support_map_iff] at hstep
-      obtain ⟨_, -, heq⟩ := hstep
-      rw [Prod.mk.injEq, Prod.mk.injEq] at heq
-      obtain ⟨-, -, rfl⟩ := heq; rfl
+      obtain ⟨_, -, ⟨⟩⟩ := hstep; rfl
   | inr m =>
     dsimp only [detOneEmbedHandler] at hstep
     cases hlu : st.cache.lookup m with
@@ -2933,9 +2835,7 @@ private theorem detOneEmbedHandler_yStar_step [DecidableEq M]
       · rw [PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
         obtain ⟨-, -, rfl⟩ := hstep; rfl
       · rw [PMF.mem_support_map_iff] at hstep
-        obtain ⟨_, -, heq2⟩ := hstep
-        rw [Prod.mk.injEq, Prod.mk.injEq] at heq2
-        obtain ⟨-, -, rfl⟩ := heq2; rfl
+        obtain ⟨_, -, ⟨⟩⟩ := hstep; rfl
 
 private theorem detOneEmbed_map_eq_detPSOneSim [DecidableEq M]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK) (jStar : ℕ) (yStar : Target)
@@ -3152,9 +3052,8 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
           obtain ⟨_, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
           rw [Prod.mk.injEq] at heq; obtain ⟨-, rfl⟩ := heq; simp
         | inr q =>
-          cases q with
-          | inl m =>
-            dsimp only [OracleComp.sumHandler, detTrackHandler, Sum.elim_inr,
+          rcases q with m | m <;>
+          · dsimp only [OracleComp.sumHandler, detTrackHandler, Sum.elim_inr,
               ROMSignature.hashCost] at hx ⊢
             cases hlu : s.cache.lookup m with
             | some yxk =>
@@ -3162,19 +3061,7 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
               obtain ⟨-, rfl⟩ := hx; simp
             | none =>
               rw [hlu, PMF.mem_support_map_iff] at hx
-              obtain ⟨_, -, heq⟩ := hx
-              rw [Prod.mk.injEq] at heq; obtain ⟨-, rfl⟩ := heq; simp
-          | inr m =>
-            dsimp only [OracleComp.sumHandler, detTrackHandler, Sum.elim_inr,
-              ROMSignature.hashCost] at hx ⊢
-            cases hlu : s.cache.lookup m with
-            | some yxk =>
-              rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq] at hx
-              obtain ⟨-, rfl⟩ := hx; omega
-            | none =>
-              rw [hlu, PMF.mem_support_map_iff] at hx
-              obtain ⟨_, -, heq⟩ := hx
-              rw [Prod.mk.injEq] at heq; obtain ⟨-, rfl⟩ := heq; dsimp only; omega)
+              obtain ⟨_, -, ⟨⟩⟩ := hx; simp)
       (s := ⟨[], [], 0, false⟩) (result := out) (s' := st)
       (hmem := by rwa [← ProbOracleComp.runWith_eq_run_interpret])
     have h2 := ProbOracleComp.runWith_invariant (detTrackHandler sys pk jStar.val)
@@ -3251,10 +3138,7 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
       · have heq := (detTrack_identicalUntilBad_detAbort sys pk jStar.val).run_apply (forger pk)
           ⟨[], [], 0, false⟩ (mStar, sigStar) st hbad
         rw [heq]
-    · have h0 : (ProbOracleComp.runWith (detTrackHandler sys pk jStar.val) (forger pk)
-          ⟨[], [], 0, false⟩) ((mStar, sigStar), st) = 0 :=
-        (PMF.apply_eq_zero_iff _ _).mpr hmem
-      rw [h0, zero_mul]
+    · rw [(PMF.apply_eq_zero_iff _ _).mpr hmem, zero_mul]
       exact zero_le
   refine habort_le.trans (le_of_eq ?_)
   -- Step 2b: Project `detAbortHandler` to `detOneTrackHandler` with `μSim = sampleSimPair.map fst`,
@@ -3546,8 +3430,7 @@ private theorem detPSOneReal_le_targetExperiment [DecidableEq M] [DecidableEq Ta
                   obtain ⟨-, rfl⟩ := hx; simp)
             | none =>
               rw [hlu, PMF.mem_support_map_iff] at hx
-              obtain ⟨_, -, heq⟩ := hx
-              rw [Prod.mk.injEq] at heq; obtain ⟨-, rfl⟩ := heq; simp
+              obtain ⟨_, -, ⟨⟩⟩ := hx; simp
           | inr m =>
             dsimp only [OracleComp.sumHandler, detOneTrackHandler, Sum.elim_inr,
               ROMSignature.hashCost] at hx ⊢
@@ -4957,8 +4840,7 @@ private theorem romBindingExperiment_detScheme_eq
     have h2 := h1.trans (RandomOracle.interpret_prob_eq_memoize
       (fun y => ProbComp.eval (sys.invert sk y)) (detBindingProg com sys pk A))
     rw [h2, ProbOracleComp.eval_runState]
-    congr 1
-    congr 1
+    congr 2
     funext y invCache
     cases hlu : invCache.lookup y with
     | some x =>

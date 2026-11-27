@@ -168,17 +168,13 @@ theorem shapleyValue_eq_sum_card {A : Type*} [Fintype A] [DecidableEq A]
       ∑ s ∈ Finset.range (Fintype.card A),
         shapleyWeight (Fintype.card A) s *
           ∑ S ∈ (Finset.univ.erase i).powersetCard s, (G.cost (insert i S) - G.cost S) := by
-  have hcard : (Finset.univ.erase i).card + 1 = Fintype.card A := by
-    rw [Finset.card_erase_of_mem (Finset.mem_univ i), ← Finset.card_univ]
-    have hpos : 1 ≤ (Finset.univ : Finset A).card :=
-      Finset.one_le_card.2 ⟨i, Finset.mem_univ i⟩
-    omega
+  have hcard : (Finset.univ.erase i).card + 1 = Fintype.card A :=
+    (Finset.card_erase_add_one (Finset.mem_univ i)).trans Finset.card_univ
   rw [shapleyValue, ← hcard, (Finset.univ.erase i).powerset_card_biUnion,
     Finset.sum_biUnion (fun _ _ _ _ hne => Finset.pairwise_disjoint_powersetCard _ hne)]
   refine Finset.sum_congr rfl fun s _ => ?_
   rw [Finset.mul_sum]
-  refine Finset.sum_congr rfl fun S hS => ?_
-  rw [(Finset.mem_powersetCard.1 hS).2]
+  exact Finset.sum_congr rfl fun S hS => by rw [(Finset.mem_powersetCard.1 hS).2]
 
 /-- Set of agents appearing strictly before `i` under an agent ordering `σ : Fin (card A) ≃ A`
 ([TardosVazirani2007], Example 1.14). -/
@@ -258,39 +254,18 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
   -- (GIdx ≃ GVal)`.
   let bij : {σ : Fin n ≃ A // orderPredecessors σ i = S} ≃ (LIdx ≃ LVal) × (GIdx ≃ GVal) :=
     { toFun := fun ⟨σ, hσ⟩ =>
-        have hpos_eq : σ.symm i = iPos := by
-          ext
-          exact (card_orderPredecessors σ i).symm.trans (hσ ▸ rfl)
+        have hpos_eq : σ.symm i = iPos :=
+          Fin.ext ((card_orderPredecessors σ i).symm.trans (hσ ▸ rfl))
         have hσ_iPos : σ iPos = i := by
           rw [← hpos_eq, σ.apply_symm_apply]
-        ( { toFun := fun ⟨k, hk⟩ =>
-              ⟨σ k, hσ ▸ Finset.mem_filter.2 ⟨Finset.mem_univ _, by
-                simpa only [σ.symm_apply_apply, hpos_eq] using hk⟩⟩
-            invFun := fun ⟨x, hx⟩ =>
-              ⟨σ.symm x, by
-                have := (Finset.mem_filter.1 (hσ.symm ▸ hx)).2
-                rwa [hpos_eq] at this⟩
-            left_inv := fun ⟨k, _⟩ => Subtype.ext (σ.symm_apply_apply k)
-            right_inv := fun ⟨x, _⟩ => Subtype.ext (σ.apply_symm_apply x) },
-          { toFun := fun ⟨k, hk⟩ =>
-              ⟨σ k, Finset.mem_sdiff.2
-                ⟨Finset.mem_erase.2 ⟨fun hki => hk.ne' (σ.injective (hki.trans hσ_iPos.symm)),
-                  Finset.mem_univ _⟩,
-                 fun hkS => by
-                   have hlt := (Finset.mem_filter.1 (hσ.symm ▸ hkS)).2
-                   rw [σ.symm_apply_apply, hpos_eq] at hlt
-                   exact (hk.trans hlt).false⟩⟩
-            invFun := fun ⟨x, hx⟩ =>
-              ⟨σ.symm x, by
-                obtain ⟨hx_er, hx_notS⟩ := Finset.mem_sdiff.1 hx
-                have hne_i : x ≠ i := (Finset.mem_erase.1 hx_er).1
-                have hne_pos : σ.symm x ≠ iPos := fun h =>
-                  hne_i (by rw [← σ.apply_symm_apply x, h, hσ_iPos])
-                have hnot_lt : ¬ σ.symm x < iPos := fun hlt =>
-                  hx_notS (hσ ▸ Finset.mem_filter.2 ⟨Finset.mem_univ _, hpos_eq.symm ▸ hlt⟩)
-                exact lt_of_le_of_ne (not_lt.1 hnot_lt) hne_pos.symm⟩
-            left_inv := fun ⟨k, _⟩ => Subtype.ext (σ.symm_apply_apply k)
-            right_inv := fun ⟨x, _⟩ => Subtype.ext (σ.apply_symm_apply x) } )
+        -- `σ` maps positions before (after) `iPos` onto `S` (onto `R`).
+        ( σ.subtypeEquiv fun k => by
+            rw [← hσ, mem_orderPredecessors, σ.symm_apply_apply, hpos_eq],
+          σ.subtypeEquiv fun k => by
+            simp only [R, ← hσ, Finset.mem_sdiff, Finset.mem_erase, mem_orderPredecessors,
+              σ.symm_apply_apply, Finset.mem_univ, and_true, not_lt, ← hσ_iPos,
+              σ.injective.ne_iff]
+            exact ⟨fun h => ⟨h.ne', h.le⟩, fun h => lt_of_le_of_ne h.2 h.1.symm⟩ )
       invFun := fun ⟨eL, eG⟩ =>
         let fwd : Fin n → A := fun k =>
           if hlt : k < iPos then (eL ⟨k, hlt⟩).1
@@ -305,14 +280,10 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
         have hleft : Function.LeftInverse bwd fwd := fun k => by
           dsimp only [fwd, bwd]
           by_cases hlt : k < iPos
-          · have hmemS : (eL ⟨k, hlt⟩).1 ∈ S := (eL ⟨k, hlt⟩).2
-            simp only [hlt, hmemS, ↓reduceDIte, Subtype.eta, Equiv.symm_apply_apply]
+          · simp only [hlt, (eL ⟨k, hlt⟩).2, ↓reduceDIte, Subtype.eta, Equiv.symm_apply_apply]
           · by_cases hgt : iPos < k
-            · have hmemG : (eG ⟨k, hgt⟩).1 ∈ R := (eG ⟨k, hgt⟩).2
-              have hnotS : (eG ⟨k, hgt⟩).1 ∉ S := (Finset.mem_sdiff.1 hmemG).2
-              have hnei : (eG ⟨k, hgt⟩).1 ≠ i :=
-                (Finset.mem_erase.1 (Finset.mem_sdiff.1 hmemG).1).1
-              simp only [hlt, hgt, hnotS, hnei, ↓reduceDIte, Subtype.eta,
+            · obtain ⟨hmemE, hnotS⟩ := Finset.mem_sdiff.1 (eG ⟨k, hgt⟩).2
+              simp only [hlt, hgt, hnotS, (Finset.mem_erase.1 hmemE).1, ↓reduceDIte, Subtype.eta,
                 Equiv.symm_apply_apply]
             · have heq : k = iPos := le_antisymm (not_lt.1 hgt) (not_lt.1 hlt)
               subst heq
@@ -320,15 +291,14 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
         have hright : Function.RightInverse bwd fwd := fun x => by
           dsimp only [fwd, bwd]
           by_cases hxS : x ∈ S
-          · have hklt : (eL.symm ⟨x, hxS⟩).1 < iPos := (eL.symm ⟨x, hxS⟩).2
-            simp only [hxS, hklt, ↓reduceDIte, Subtype.eta, Equiv.apply_symm_apply]
+          · simp only [hxS, (eL.symm ⟨x, hxS⟩).2, ↓reduceDIte, Subtype.eta,
+              Equiv.apply_symm_apply]
           · by_cases hxi : x = i
             · subst hxi
               simp only [hxS, ↓reduceDIte, lt_irrefl]
             · have hkgt : iPos < (eG.symm ⟨x, hmemR x hxS hxi⟩).1 :=
                 (eG.symm ⟨x, hmemR x hxS hxi⟩).2
-              have hnotlt : ¬ (eG.symm ⟨x, hmemR x hxS hxi⟩).1 < iPos := not_lt_of_gt hkgt
-              simp only [hxS, hxi, hnotlt, hkgt, ↓reduceDIte, Subtype.eta,
+              simp only [hxS, hxi, not_lt_of_gt hkgt, hkgt, ↓reduceDIte, Subtype.eta,
                 Equiv.apply_symm_apply]
         ⟨⟨fwd, bwd, hleft, hright⟩, by
           ext x
@@ -346,13 +316,11 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
               exact not_lt_of_gt (eG.symm ⟨x, hmemR x hxS hxi⟩).2⟩
       left_inv := fun ⟨σ, hσ⟩ => by
         ext k
-        have hpos_eq : σ.symm i = iPos := by
-          ext
-          exact (card_orderPredecessors σ i).symm.trans (hσ ▸ rfl)
+        have hpos_eq : σ.symm i = iPos :=
+          Fin.ext ((card_orderPredecessors σ i).symm.trans (hσ ▸ rfl))
         change (if hlt : k < iPos then σ k else if hgt : iPos < k then σ k else i) = σ k
         split_ifs with hlt hgt
-        · rfl
-        · rfl
+        iterate 2 rfl
         · have heq : k = iPos := le_antisymm (not_lt.1 hgt) (not_lt.1 hlt)
           rw [heq, ← hpos_eq, σ.apply_symm_apply]
       right_inv := fun ⟨eL, eG⟩ => by
@@ -366,13 +334,10 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
           have hnotlt : ¬ k < iPos := not_lt_of_gt hk
           split_ifs
           rfl }
-  have hcard_LIdx : Fintype.card LIdx = s := by
-    rw [Fintype.card_subtype]
-    exact card_fin_lt iPos
+  have hcard_LIdx : Fintype.card LIdx = s := (Fintype.card_subtype _).trans (card_fin_lt iPos)
   have hcard_LVal : Fintype.card LVal = s := Fintype.card_coe S
-  have hcard_GIdx : Fintype.card GIdx = n - 1 - s := by
-    rw [Fintype.card_subtype]
-    exact card_fin_gt iPos
+  have hcard_GIdx : Fintype.card GIdx = n - 1 - s :=
+    (Fintype.card_subtype _).trans (card_fin_gt iPos)
   have hcard_GVal : Fintype.card GVal = n - 1 - s := by
     rw [Fintype.card_coe, Finset.card_sdiff, Finset.inter_eq_left.2 hS, herase_card]
   have hequivL : LIdx ≃ LVal := Fintype.equivOfCardEq (hcard_LIdx.trans hcard_LVal.symm)
@@ -386,12 +351,9 @@ Example 1.14, p. 22). -/
 theorem shapleyValue_eq_permShapleyValue (G : CostSharingGame A) (i : A) :
     shapleyValue G i = permShapleyValue G i := by
   have hmem : ∀ σ : Fin (Fintype.card A) ≃ A,
-      orderPredecessors σ i ∈ (Finset.univ.erase i).powerset := by
-    intro σ
-    refine Finset.mem_powerset.2 fun j hj => Finset.mem_erase.2 ⟨?_, Finset.mem_univ j⟩
-    intro hji
-    subst hji
-    exact not_mem_orderPredecessors σ j hj
+      orderPredecessors σ i ∈ (Finset.univ.erase i).powerset := fun σ =>
+    Finset.mem_powerset.2 fun j hj =>
+      Finset.mem_erase.2 ⟨fun hji => not_mem_orderPredecessors σ i (hji ▸ hj), Finset.mem_univ j⟩
   have hpart :
       (∑ σ : Fin (Fintype.card A) ≃ A,
           (G.cost (insert i (orderPredecessors σ i)) - G.cost (orderPredecessors σ i))) =
@@ -415,11 +377,8 @@ theorem shapleyValue_eq_permShapleyValue (G : CostSharingGame A) (i : A) :
       ((Finset.univ.filter (fun σ : Fin (Fintype.card A) ≃ A =>
           orderPredecessors σ i = S)).card : ℝ) *
         (G.cost (insert i S) - G.cost S) := by
-    calc
-      _ = ∑ _σ ∈ Finset.univ.filter (fun σ : Fin (Fintype.card A) ≃ A =>
-            orderPredecessors σ i = S), (G.cost (insert i S) - G.cost S) :=
-          Finset.sum_congr rfl fun σ hσ => by rw [(Finset.mem_filter.1 hσ).2]
-      _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
+    rw [← nsmul_eq_mul, ← Finset.sum_const]
+    exact Finset.sum_congr rfl fun σ hσ => by rw [(Finset.mem_filter.1 hσ).2]
   rw [hconst, card_filter_orderPredecessors_eq i (Finset.mem_powerset.1 hS)]
   simp only [shapleyWeight, div_eq_mul_inv, Nat.cast_mul]
   ring
@@ -544,15 +503,16 @@ theorem IsAnonymousValue.isSymmetricValue {A : Type*} [DecidableEq A]
   have hperm : G.perm π = G := by
     ext S
     rw [CostSharingGame.perm_cost, Equiv.symm_swap]
-    by_cases hi : i ∈ S <;> by_cases hj : j ∈ S
-    · congr 1
+    -- `swap i j` fixes `S` when `i` and `j` are both in `S` or both outside it.
+    have hfix (h : i ∈ S ↔ j ∈ S) : S.map π.toEmbedding = S := by
       ext x
-      rw [Finset.mem_map_equiv, Equiv.symm_swap]
-      by_cases hxi : x = i
-      · subst hxi; simp [hi, hj]
-      · by_cases hxj : x = j
-        · subst hxj; simp [hi, hj]
-        · simp [Equiv.swap_apply_of_ne_of_ne hxi hxj]
+      rw [Finset.mem_map_equiv, Equiv.symm_swap, Equiv.swap_apply_def]
+      split_ifs with hxi hxj
+      · exact hxi ▸ h.symm
+      · exact hxj ▸ h
+      · rfl
+    by_cases hi : i ∈ S <;> by_cases hj : j ∈ S
+    · rw [hfix (iff_of_true hi hj)]
     · have hij : i ≠ j := fun h => hj (h ▸ hi)
       have hmap_eq : S.map π.toEmbedding = insert j (S.erase i) := by
         ext x
@@ -575,14 +535,7 @@ theorem IsAnonymousValue.isSymmetricValue {A : Type*} [DecidableEq A]
           · simp [Equiv.swap_apply_of_ne_of_ne hxi hxj, hxi, hxj]
       rw [hmap_eq, hsym (S.erase j) (fun h => hi (Finset.erase_subset j S h))
         (Finset.notMem_erase j S), Finset.insert_erase hj]
-    · congr 1
-      ext x
-      rw [Finset.mem_map_equiv, Equiv.symm_swap]
-      by_cases hxi : x = i
-      · subst hxi; simp [hi, hj]
-      · by_cases hxj : x = j
-        · subst hxj; simp [hi, hj]
-        · simp [Equiv.swap_apply_of_ne_of_ne hxi hxj]
+    · rw [hfix (iff_of_false hi hj)]
   have h := hanon π G i
   rw [hperm, Equiv.swap_apply_left] at h
   exact h.symm
@@ -624,25 +577,14 @@ theorem shapleyValue_isEfficient : IsEfficientValue (shapleyValue (A := A)) := b
         simp only [Finset.mem_insert, orderPredecessors, pref, Finset.mem_filter, Finset.mem_univ,
           true_and, σ.symm_apply_apply]
         change (j = σ k ∨ (σ.symm j : ℕ) < (k : ℕ)) ↔ (σ.symm j : ℕ) < (k : ℕ) + 1
-        constructor
-        · rintro (rfl | hlt)
-          · rw [σ.symm_apply_apply]; omega
-          · omega
-        · intro hlt
-          rcases Nat.eq_or_lt_of_le (Nat.le_of_lt_succ hlt) with heq | hlt'
-          · left
-            have hfin : σ.symm j = k := Fin.ext heq
-            rw [← hfin, σ.apply_symm_apply]
-          · exact .inr hlt'
+        rw [Nat.lt_add_one_iff_lt_or_eq, Fin.val_inj, σ.symm_apply_eq, or_comm]
       rw [hins, hpred]
     rw [Finset.sum_congr rfl fun k _ => hstep k,
       Fin.sum_univ_eq_sum_range (fun m => G.cost (pref (m + 1)) - G.cost (pref m)),
       Finset.sum_range_sub (fun m => G.cost (pref m)), hprefN, hpref0, G.cost_empty, sub_zero]
   rw [Finset.sum_congr rfl fun σ _ => htelescope σ, Finset.sum_const, Finset.card_univ,
     Fintype.card_equiv (Fintype.equivFin A).symm, Fintype.card_fin, nsmul_eq_mul]
-  have hpos : (0 : ℝ) < (Fintype.card A).factorial := by
-    exact_mod_cast Nat.factorial_pos (Fintype.card A)
-  rw [inv_mul_cancel_left₀ hpos.ne']
+  rw [inv_mul_cancel_left₀ (by positivity)]
 
 /-- `shapleyValue` satisfies **Anonymity**. -/
 theorem shapleyValue_isAnonymous : IsAnonymousValue (shapleyValue (A := A)) := by
@@ -700,38 +642,19 @@ theorem eq_sum_unanimityGame (G : CostSharingGame A) :
     G = ∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
       unanimityGame x.1 (Finset.mem_filter.1 x.2).2 (Cslib.BitString.subsetMobius G.cost x.1) := by
   ext S
+  have hdiv0 : Cslib.BitString.subsetMobius G.cost ∅ = 0 := by
+    simp [Cslib.BitString.subsetMobius]
+  have hpow : (Finset.univ : Finset A).powerset.filter (· ⊆ S) = S.powerset := by
+    ext T
+    simp
+  -- Only the coalitions `T ⊆ S` contribute; the empty coalition has dividend `0`.
   rw [CostSharingGame.sum_cost]
-  have hsum_pow :
-      (∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-          (unanimityGame x.1 (Finset.mem_filter.1 x.2).2
-            (Cslib.BitString.subsetMobius G.cost x.1)).cost S) =
-        ∑ T ∈ S.powerset, Cslib.BitString.subsetMobius G.cost T := by
-    have hattach :
-        (∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-            (unanimityGame x.1 (Finset.mem_filter.1 x.2).2
-              (Cslib.BitString.subsetMobius G.cost x.1)).cost S) =
-          ∑ T ∈ (Finset.univ : Finset A).powerset.filter Finset.Nonempty,
-            if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0 :=
-      Finset.sum_attach _ (fun T => if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0)
-    rw [hattach]
-    have hdiv0 : Cslib.BitString.subsetMobius G.cost ∅ = 0 := by
-      simp [Cslib.BitString.subsetMobius]
-    calc
-      (∑ T ∈ (Finset.univ : Finset A).powerset.filter Finset.Nonempty,
-          if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0)
-        = ∑ T ∈ (Finset.univ : Finset A).powerset,
-            if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0 := by
-          refine Finset.sum_subset (Finset.filter_subset _ _) fun T _ hnot => ?_
-          simp only [Finset.mem_filter, Finset.mem_powerset.2 (Finset.subset_univ T),
-            true_and] at hnot
-          rw [Finset.not_nonempty_iff_eq_empty.1 hnot]
-          simp only [Finset.empty_subset S, ↓reduceIte, hdiv0]
-      _ = ∑ T ∈ S.powerset, Cslib.BitString.subsetMobius G.cost T := by
-          rw [← Finset.sum_filter]
-          refine Finset.sum_congr ?_ fun _ _ => rfl
-          ext T
-          simp only [Finset.mem_filter, Finset.mem_powerset, Finset.subset_univ, true_and]
-  rw [hsum_pow, Cslib.BitString.sum_powerset_subsetMobius]
+  simp only [unanimityGame_cost]
+  rw [Finset.sum_attach _ fun T => if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0,
+    Finset.sum_filter_of_ne fun T _ h =>
+      Finset.nonempty_iff_ne_empty.2 fun hT => h (by simp only [hT, Finset.empty_subset,
+        ↓reduceIte, hdiv0]),
+    ← Finset.sum_filter, hpow, Cslib.BitString.sum_powerset_subsetMobius]
 
 private theorem value_unanimityGame_of_axioms {φ : CostSharingGame A → A → ℝ}
     (heff : IsEfficientValue φ) (hsym : IsSymmetricValue φ) (hdum : SatisfiesDummy φ)
@@ -740,11 +663,10 @@ private theorem value_unanimityGame_of_axioms {φ : CostSharingGame A → A → 
   have hdum_out : ∀ j ∉ T, φ (unanimityGame T hT w) j = 0 := by
     intro j hjT
     refine hdum _ j fun S _ => ?_
-    simp only [unanimityGame]
     have hiff : T ⊆ insert j S ↔ T ⊆ S :=
       ⟨fun h x hx => (Finset.mem_insert.1 (h hx)).resolve_left (fun hxj => hjT (hxj ▸ hx)),
        fun h => h.trans (Finset.subset_insert j S)⟩
-    simp only [hiff]
+    simp only [unanimityGame_cost, hiff]
   have hsym_in : ∀ j ∈ T, ∀ k ∈ T,
       φ (unanimityGame T hT w) j = φ (unanimityGame T hT w) k := by
     intro j hjT k hkT
@@ -767,9 +689,8 @@ private theorem value_unanimityGame_of_axioms {φ : CostSharingGame A → A → 
         φ (unanimityGame T hT w) i := by
       calc
         (∑ j : A, φ (unanimityGame T hT w) j)
-          = ∑ j ∈ T, φ (unanimityGame T hT w) j := by
-            refine (Finset.sum_subset (Finset.subset_univ T) fun j _ hjT => ?_).symm
-            exact hdum_out j hjT
+          = ∑ j ∈ T, φ (unanimityGame T hT w) j :=
+            (Finset.sum_subset (Finset.subset_univ T) fun j _ hjT => hdum_out j hjT).symm
         _ = ∑ _j ∈ T, φ (unanimityGame T hT w) i :=
             Finset.sum_congr rfl fun j hj => hsym_in j hj i hiT
         _ = (T.card : ℝ) * φ (unanimityGame T hT w) i := by rw [Finset.sum_const, nsmul_eq_mul]
@@ -1035,19 +956,12 @@ theorem convex_individuallyRational (B : BargainingProblem) :
     Convex ℝ B.individuallyRational := by
   refine B.convex.inter ?_
   intro x hx y hy a b ha hb hab
+  obtain rfl : b = 1 - a := by linarith
   simp only [Set.mem_ofPred_eq, Prod.smul_fst, Prod.smul_snd, Prod.fst_add, Prod.snd_add,
     smul_eq_mul] at hx hy ⊢
-  constructor
-  · calc
-      B.disagreement.1 = (a + b) * B.disagreement.1 := by rw [hab, one_mul]
-      _ = a * B.disagreement.1 + b * B.disagreement.1 := add_mul a b _
-      _ ≤ a * x.1 + b * y.1 :=
-        add_le_add (mul_le_mul_of_nonneg_left hx.1 ha) (mul_le_mul_of_nonneg_left hy.1 hb)
-  · calc
-      B.disagreement.2 = (a + b) * B.disagreement.2 := by rw [hab, one_mul]
-      _ = a * B.disagreement.2 + b * B.disagreement.2 := add_mul a b _
-      _ ≤ a * x.2 + b * y.2 :=
-        add_le_add (mul_le_mul_of_nonneg_left hx.2 ha) (mul_le_mul_of_nonneg_left hy.2 hb)
+  -- `d = a • d + (1 - a) • d ≤ a • x + (1 - a) • y` in each coordinate.
+  exact ⟨by linarith [mul_le_mul_of_nonneg_left hx.1 ha, mul_le_mul_of_nonneg_left hy.1 hb],
+    by linarith [mul_le_mul_of_nonneg_left hx.2 ha, mul_le_mul_of_nonneg_left hy.2 hb]⟩
 
 theorem individuallyRational_nonempty (B : BargainingProblem) :
     B.individuallyRational.Nonempty :=
@@ -1419,13 +1333,8 @@ theorem eq_nashBargainingSolution_of_axioms {φ : BargainingProblem → ℝ × �
     ext <;> simp only [B', BargainingProblem.mapAffine_disagreement, b₁, b₂] <;> ring
   have hx' : nashBargainingSolution B' = (1, 1) := by
     rw [nashBargainingSolution_isScaleInvariant]
-    ext
-    · change u₁⁻¹ * x.1 + -(u₁⁻¹ * d.1) = 1
-      rw [← sub_eq_add_neg, ← mul_sub]
-      exact inv_mul_cancel₀ hu₁.ne'
-    · change u₂⁻¹ * x.2 + -(u₂⁻¹ * d.2) = 1
-      rw [← sub_eq_add_neg, ← mul_sub]
-      exact inv_mul_cancel₀ hu₂.ne'
+    ext <;> dsimp only [a₁, a₂, b₁, b₂] <;> rw [← sub_eq_add_neg, ← mul_sub]
+    exacts [inv_mul_cancel₀ hu₁.ne', inv_mul_cancel₀ hu₂.ne']
   have hsum_le : ∀ y ∈ B'.feasible, y.1 + y.2 ≤ 2 :=
     fun _ hy => sum_le_two_of_unit_nashMax hd' hx' hy
   -- Enclose `B'.feasible` inside a compact, convex, symmetric triangle `H`.
@@ -1483,30 +1392,24 @@ theorem eq_nashBargainingSolution_of_axioms {φ : BargainingProblem → ℝ × �
     simp only [B'', H, Set.mem_ofPred_eq] at hmem
     have hsym_eq : (φ B'').1 = (φ B'').2 := hsym B'' hB''_sym
     have hle1 : (φ B'').1 ≤ 1 := by linarith [hmem.2.2]
-    have hge1 : 1 ≤ (φ B'').1 := by
-      by_contra hlt1
-      have hlt : (φ B'').1 < 1 := not_le.1 hlt1
-      exact hwpo B'' ⟨(1, 1), h1_mem_H, hlt, hsym_eq ▸ hlt⟩
+    -- Weak Pareto optimality rules out `(φ B'').1 = (φ B'').2 < 1`, as `(1, 1) ∈ H`.
+    have hge1 : 1 ≤ (φ B'').1 :=
+      not_lt.1 fun hlt => hwpo B'' ⟨(1, 1), h1_mem_H, hlt, hsym_eq ▸ hlt⟩
     have h1 : (φ B'').1 = 1 := le_antisymm hle1 hge1
-    ext
-    · exact h1
-    · exact hsym_eq.symm.trans h1
+    exact Prod.ext h1 (hsym_eq.symm.trans h1)
   have h1_mem_B' : ((1 : ℝ), (1 : ℝ)) ∈ B'.feasible := hx' ▸ nashBargainingSolution_mem B'
   have hφB' : φ B' = (1, 1) :=
     (hiia B' B'' hd' hsub_H (hφB''.symm ▸ h1_mem_B')).trans hφB''
   have hφB_scale : (a₁ * (φ B).1 + b₁, a₂ * (φ B).2 + b₂) = (1, 1) :=
     (hscale B a₁ a₂ ha₁ ha₂ b₁ b₂).symm.trans hφB'
-  have hc₁ : u₁⁻¹ * (φ B).1 + -(u₁⁻¹ * d.1) = 1 := congr_arg Prod.fst hφB_scale
-  have hc₂ : u₂⁻¹ * (φ B).2 + -(u₂⁻¹ * d.2) = 1 := congr_arg Prod.snd hφB_scale
-  ext
-  · have h := (inv_mul_eq_one₀ (b := (φ B).1 - d.1) hu₁.ne').1
-      (by rw [mul_sub, sub_eq_add_neg]; exact hc₁)
-    dsimp only [u₁] at h
-    linarith
-  · have h := (inv_mul_eq_one₀ (b := (φ B).2 - d.2) hu₂.ne').1
-      (by rw [mul_sub, sub_eq_add_neg]; exact hc₂)
-    dsimp only [u₂] at h
-    linarith
+  have hc₁ : u₁⁻¹ * ((φ B).1 - d.1) = 1 := by
+    rw [mul_sub, sub_eq_add_neg]; exact congr_arg Prod.fst hφB_scale
+  have hc₂ : u₂⁻¹ * ((φ B).2 - d.2) = 1 := by
+    rw [mul_sub, sub_eq_add_neg]; exact congr_arg Prod.snd hφB_scale
+  have h₁ := (inv_mul_eq_one₀ hu₁.ne').1 hc₁
+  have h₂ := (inv_mul_eq_one₀ hu₂.ne').1 hc₂
+  dsimp only [u₁, u₂] at h₁ h₂
+  ext <;> linarith
 
 /-- **Theorem 15.28 (Nash's bargaining theorem, existence and uniqueness)** ([JainMahdian2007],
 Definition 15.27 & Theorem 15.28, pp. 404–405): `nashBargainingSolution` is the unique bargaining

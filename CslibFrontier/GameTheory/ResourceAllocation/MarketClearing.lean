@@ -624,21 +624,12 @@ private theorem IsRegularMarketClearing.demand_eq_mul_unit {D : ℝ → ℝ → 
       hD.concaveOn_priceTaking hp (KellyGame.isAdmissibleUtility_linear (by linarith : 0 < p + 1))
     simpa only [show ∀ t, (p + 1) * D p t - p * D p t = D p t from fun t => by ring] using h
   have hconv1 : ConvexOn ℝ (Ici 0) (D p) := by
+    -- the payoff `(p / 2) D - p D = -(p / 2) D` is concave, so `D = (2 / p) • -(that)` is convex
     have h := hD.concaveOn_priceTaking hp (KellyGame.isAdmissibleUtility_linear (half_pos hp))
-    have hneg : ConcaveOn ℝ (Ici 0) (fun t => -(p / 2) * D p t) := by
-      simpa only [show ∀ t, p / 2 * D p t - p * D p t = -(p / 2) * D p t from fun t => by ring]
-        using h
-    refine ⟨convex_Ici 0, fun x hx y hy a b ha hb hab => ?_⟩
-    have hc := hneg.2 hx hy ha hb hab
-    simp only [smul_eq_mul] at hc ⊢
-    have hmul := mul_le_mul_of_nonneg_left hc (by positivity : 0 ≤ 2 / p)
-    have hpne : p ≠ 0 := hp.ne'
-    have hlhs : 2 / p * (a * (-(p / 2) * D p x) + b * (-(p / 2) * D p y)) =
-        -(a * D p x + b * D p y) := by field_simp [hpne]; ring
-    have hrhs : 2 / p * (-(p / 2) * D p (a * x + b * y)) = -D p (a * x + b * y) := by
-      field_simp [hpne]
-    rw [hlhs, hrhs] at hmul
-    linarith
+    refine (h.neg.smul (by positivity : 0 ≤ 2 / p)).congr fun t _ => ?_
+    simp only [smul_eq_mul, Pi.neg_apply]
+    rw [div_mul_eq_mul_div, div_eq_iff hp.ne']
+    ring
   have haff : ∀ θ, 0 ≤ θ → D p θ = (D p 1 - D p 0) * θ + D p 0 :=
     fun θ hθ => eq_affine_of_concaveOn_convexOn_Ici hconc1 hconv1 hθ
   set a := D p 1 - D p 0
@@ -677,10 +668,7 @@ private theorem convexOn_payment_of_payoff {s : Set ℝ} (hs : Convex ℝ s) {a 
     have hmul := hk.mul_const (a t)
     rw [zero_mul] at hmul
     simpa only [zero_sub] using hmul.sub_const (w t)
-  refine ⟨hs, fun x hx y hy p q hp hq hpq => ?_⟩
-  have hc := hneg.2 hx hy hp hq hpq
-  simp only [smul_eq_mul] at hc ⊢
-  linarith
+  exact hneg.neg.congr fun t _ => neg_neg (w t)
 
 /-- Step 4 of Theorem 21.10 ([Johari2007], p. 556): user `r`'s equilibrium payment
 `p_D(θ) D(p_D(θ), θ_r)` is convex in `θ_r`. -/
@@ -1179,8 +1167,7 @@ private theorem IsRegularMarketClearing.concaveOn_payoff_nonneg_fintype
       simp [Function.update_of_ne hr, Function.update_of_ne hne]
   have hp_eq : clearingPrice D G.capacity (Function.update (θ ∘ e.symm) (e i) t) =
       clearingPrice D G.capacity (Function.update θ i t) := by
-    have h1 : ∀ j, 0 ≤ Function.update θ i t j := fun j => by
-      by_cases hj : j = i <;> simp [hj, ht0, hθ]
+    have h1 := (update_nonneg_and_sum hθ i ht0).1
     have h2 : ∃ j, Function.update θ i t j ≠ 0 :=
       ⟨j₀, by simp [Function.update_of_ne hj₀_ne, hj₀_nz]⟩
     have h1' : ∀ r, 0 ≤ Function.update (θ ∘ e.symm) (e i) t r := fun r => by
@@ -1188,14 +1175,8 @@ private theorem IsRegularMarketClearing.concaveOn_payoff_nonneg_fintype
     have h2' : ∃ r, Function.update (θ ∘ e.symm) (e i) t r ≠ 0 := by
       rw [hupd_eq]; exact ⟨e j₀, by simp [Function.update_of_ne hj₀_ne, hj₀_nz]⟩
     rw [hD.smooth.clearingPrice_eq_iff (by simpa using hcard) hC h1' h2', hupd_eq]
-    have hsum : (∑ r, D (clearingPrice D G.capacity (Function.update θ i t))
-        ((Function.update θ i t ∘ e.symm) r)) =
-        ∑ j, D (clearingPrice D G.capacity (Function.update θ i t))
-          (Function.update θ i t j) :=
-      e.symm.sum_comp
-        (fun j => D (clearingPrice D G.capacity (Function.update θ i t)) (Function.update θ i t j))
-    rw [hsum]
-    exact hD.smooth.clearingPrice_spec hcard hC h1 h2
+    obtain ⟨hpos, hspec⟩ := hD.smooth.clearingPrice_spec hcard hC h1 h2
+    exact ⟨hpos, (e.symm.sum_comp _).trans hspec⟩
   simp only [marketPayoff_apply, marketAllocation_apply, hp_eq, Function.update_self]
 
 /-- At any Nash equilibrium of `D ∈ 𝒟`, every user faces a strictly positive sum of competing bids
@@ -1204,9 +1185,7 @@ private theorem IsMarketNashEquilibrium.sum_erase_pos {ι : Type*} [Fintype ι] 
     {D : ℝ → ℝ → ℝ} {G : KellyGame ι} {θ : ι → ℝ} (hne : IsMarketNashEquilibrium D G θ)
     (hD : IsRegularMarketClearing D) (hcard : 2 ≤ Fintype.card ι) (hC : 0 < G.capacity)
     (i : ι) : 0 < ∑ j ∈ Finset.univ.erase i, θ j := by
-  have hnonneg : 0 ≤ ∑ j ∈ Finset.univ.erase i, θ j :=
-    Finset.sum_nonneg fun j _ => hne.nonneg j
-  refine lt_of_le_of_ne hnonneg (Ne.symm fun hzero => ?_)
+  refine (Finset.sum_nonneg fun j _ => hne.nonneg j).lt_of_ne (Ne.symm fun hzero => ?_)
   obtain ⟨_, _, _, _, _, _, hΛ_spec, _, hΛ_mono, _, _⟩ := hD.priceScale_props
   have hsum_eq : ∑ j, θ j = θ i := by
     rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i), hzero, add_zero]
@@ -1634,8 +1613,7 @@ theorem IsRegularMarketClearing.existsUnique_isMarketNashEquilibrium
     have htan_lo := hΛ_conv.add_le_of_hasFDerivAt hμ_lo_pos
       (mem_Ioi.mpr (by positivity : 0 < 2 * μ_lo)) hdΛ_lo.hasFDerivAt
     simp only [ContinuousLinearMap.toSpanSingleton_apply, smul_eq_mul] at htan_lo
-    have h2sub : 2 * μ_lo - μ_lo = μ_lo := by ring
-    rw [h2sub, hΛ_2μ_lo] at htan_lo
+    rw [show 2 * μ_lo - μ_lo = μ_lo by ring, hΛ_2μ_lo] at htan_lo
     have hΛ_lo_pos : 0 < Λ μ_lo := (hΛ_spec μ_lo hμ_lo_pos).2
     have hrhs_lt : rhs μ_lo x_mid < m_lo := by
       dsimp only [rhs]
@@ -1759,7 +1737,6 @@ theorem elasticityEfficiencyBound_eq_of_one_lt {c : ℝ} (hc : 1 < c) :
   have hs_sq : s ^ 2 = c := Real.sq_sqrt (by linarith)
   have hsub_ne : s - 1 ≠ 0 := by linarith
   have hadd_ne : s + 1 ≠ 0 := by linarith
-  have hc_ne : c - 1 ≠ 0 := by linarith
   rw [← hs_sq]
   field_simp [hsub_ne, hadd_ne, (show s ^ 2 - 1 ≠ 0 by nlinarith)]
   ring
@@ -1776,9 +1753,7 @@ theorem elasticityEfficiencyBound_strictAntiOn :
     rw [← Real.sqrt_one]
     exact Real.sqrt_le_sqrt hc₁
   have hs_lt : s₁ < s₂ := Real.sqrt_lt_sqrt (by linarith [mem_Ici.mp hc₁]) hlt
-  have hd₁ : 0 < (s₁ + 1) ^ 2 := by positivity
-  have hd₂ : 0 < (s₂ + 1) ^ 2 := by positivity
-  rw [div_lt_div_iff₀ hd₂ hd₁]
+  rw [div_lt_div_iff₀ (by positivity) (by positivity)]
   have hdiff : (2 * s₁ + 1) * (s₂ + 1) ^ 2 - (2 * s₂ + 1) * (s₁ + 1) ^ 2 =
       (s₂ - s₁) * (2 * s₁ * s₂ + s₁ + s₂) := by ring
   have hpos : 0 < (s₂ - s₁) * (2 * s₁ * s₂ + s₁ + s₂) :=
@@ -1796,26 +1771,13 @@ private theorem elasticityEfficiencyBound_le_F {c y : ℝ} (hc : 1 ≤ c) (hy0 :
     elasticityEfficiencyBound c ≤ (1 - y) ^ 2 / (1 + (c - 1) * y) + y := by
   rw [elasticityEfficiencyBound_def]
   set s := Real.sqrt c
-  have hs_ge : 1 ≤ s := by rw [← Real.sqrt_one]; exact Real.sqrt_le_sqrt hc
   have hs_sq : s ^ 2 = c := Real.sq_sqrt (by linarith)
-  have hden1 : 0 < 1 + (c - 1) * y := by
-    have : 0 ≤ (c - 1) * y := mul_nonneg (by linarith) hy0
-    linarith
-  have hden2 : 0 < (s + 1) ^ 2 := by positivity
-  have h1 : (2 * s + 1) * (1 + (c - 1) * y) ≤
-      ((1 - y) ^ 2 + y * (1 + (c - 1) * y)) * (s + 1) ^ 2 := by
-    have hdiff : ((1 - y) ^ 2 + y * (1 + (s ^ 2 - 1) * y)) * (s + 1) ^ 2 -
-        (2 * s + 1) * (1 + (s ^ 2 - 1) * y) = s ^ 2 * ((s + 1) * y - 1) ^ 2 := by ring
-    have hnn : 0 ≤ s ^ 2 * ((s + 1) * y - 1) ^ 2 := by positivity
-    rw [← hs_sq]
-    linarith
-  have h2 : (2 * s + 1) / (s + 1) ^ 2 ≤
-      ((1 - y) ^ 2 + y * (1 + (c - 1) * y)) / (1 + (c - 1) * y) :=
-    (div_le_div_iff₀ hden2 hden1).mpr h1
-  have h3 : ((1 - y) ^ 2 + y * (1 + (c - 1) * y)) / (1 + (c - 1) * y) =
-      (1 - y) ^ 2 / (1 + (c - 1) * y) + y := by
-    rw [add_div, mul_div_cancel_right₀ _ hden1.ne']
-  linarith
+  have hden1 : 0 < 1 + (c - 1) * y := by have := mul_nonneg (sub_nonneg.2 hc) hy0; linarith
+  rw [div_add' _ _ _ hden1.ne', div_le_div_iff₀ (by positivity) hden1, ← hs_sq]
+  -- cross-multiplied, the gap is the perfect square `s² ((s + 1) y - 1)²`
+  have hdiff : ((1 - y) ^ 2 + y * (1 + (s ^ 2 - 1) * y)) * (s + 1) ^ 2 -
+      (2 * s + 1) * (1 + (s ^ 2 - 1) * y) = s ^ 2 * ((s + 1) * y - 1) ^ 2 := by ring
+  linarith [mul_nonneg (sq_nonneg s) (sq_nonneg ((s + 1) * y - 1))]
 
 end ElasticityBound
 
@@ -1928,8 +1890,7 @@ private theorem IsRegularMarketClearing.efficiencyRatio_le_elasticityEfficiencyB
   have hα_le_A : α ≤ A := by
     dsimp only [α, A]
     rw [hμd_eq, div_le_iff₀ (by linarith)]
-    have h1 : d ≤ 1 / (s + 1) := hd_lt_d₁.le
-    have h2 : d * (s + 1) ≤ 1 := (le_div_iff₀ (by positivity)).mp h1
+    have h2 : d * (s + 1) ≤ 1 := (le_div_iff₀ (by positivity)).mp (hd_lt_d₁.le : d ≤ 1 / (s + 1))
     have hfac : (s + 1) * Λ μ * (1 - d) - (Λ μ * (1 - d) + s ^ 2 * Λ μ * d) =
         s * Λ μ * (1 - d * (s + 1)) := by ring
     have hnn : 0 ≤ s * Λ μ * (1 - d * (s + 1)) :=
@@ -1940,8 +1901,8 @@ private theorem IsRegularMarketClearing.efficiencyRatio_le_elasticityEfficiencyB
   have hU_inst : ∀ r : Fin (n + 1), IsAdmissibleUtility (G_inst.utility r) := fun r => by
     dsimp only [G_inst]
     split_ifs
-    · exact KellyGame.isAdmissibleUtility_linear hA_pos
-    · exact KellyGame.isAdmissibleUtility_linear hα_pos
+    exacts [KellyGame.isAdmissibleUtility_linear hA_pos,
+      KellyGame.isAdmissibleUtility_linear hα_pos]
   have hU0_inst : ∀ r : Fin (n + 1), 0 ≤ G_inst.utility r 0 := fun r => by
     dsimp only [G_inst]; split_ifs <;> simp
   set θ_inst : Fin (n + 1) → ℝ := fun r => if r = 0 then μ * d₁ else μ * d
@@ -1990,9 +1951,8 @@ private theorem IsRegularMarketClearing.efficiencyRatio_le_elasticityEfficiencyB
         rw [hur, KellyGame.derivWithin_linear hd_pos.le]
         simp only [G_inst, div_one, α]
         exact div_mul_cancel₀ _ (by linarith)
-    refine ⟨hθ0_inst, herase_inst, fun r => ?_, fun r _ => ?_⟩
-    · rw [hμ_eq]; exact (hfoc r).le
-    · rw [hμ_eq]; exact hfoc r
+    exact ⟨hθ0_inst, herase_inst, fun r => by rw [hμ_eq]; exact (hfoc r).le,
+      fun r _ => by rw [hμ_eq]; exact hfoc r⟩
   set opt : Fin (n + 1) → ℝ := Pi.single 0 1
   have hopt_w : G_inst.welfare opt = A := by
     simp [KellyGame.welfare, Fin.sum_univ_succ, opt, G_inst]
@@ -2004,8 +1964,7 @@ private theorem IsRegularMarketClearing.efficiencyRatio_le_elasticityEfficiencyB
       _ ≤ ∑ r, A * x r := Finset.sum_le_sum fun r _ => by
           dsimp only [G_inst]
           split_ifs
-          · exact le_rfl
-          · exact mul_le_mul_of_nonneg_right hα_le_A (hx.1 r)
+          exacts [le_rfl, mul_le_mul_of_nonneg_right hα_le_A (hx.1 r)]
       _ = A * ∑ r, x r := (Finset.mul_sum ..).symm
       _ ≤ A * 1 := mul_le_mul_of_nonneg_left hx.2 hA_pos.le
       _ = A := mul_one A
@@ -2118,16 +2077,14 @@ private theorem IsRegularMarketClearing.efficiencyRatio_eq_three_fourths_of_scal
       have hW_pos : 0 < ∑ j, θb j :=
         Finset.sum_pos' (fun j _ => hθb0 j) ⟨j₀, Finset.mem_univ _, (hθb0 j₀).lt_of_ne' hj₀⟩
       simp only [marketPayoff_apply, KellyGame.payoff, KellyGame.allocation, hp_eq, halloc_eq]
-      have hsum_w : ∑ j, Δ * θb j = Δ * ∑ j, θb j := (Finset.mul_sum ..).symm
-      rw [hsum_w]
+      rw [← Finset.mul_sum]
       have halloc_w : G.capacity * (Δ * θb r) / (Δ * ∑ j, θb j) =
           G.capacity * θb r / ∑ j, θb j := by
         field_simp [hΔ.ne', hW_pos.ne']
       rw [halloc_w]
       congr 1
       field_simp [hC.ne', hW_pos.ne']
-    have hupd0 : ∀ j, 0 ≤ Function.update θ r (t / Δ) j := fun j => by
-      by_cases hj : j = r <;> simp [hj, div_nonneg ht0 hΔ.le, hne.nonneg]
+    have hupd0 := (update_nonneg_and_sum hne.nonneg r (div_nonneg ht0 hΔ.le)).1
     rw [hpay_eq _ hupd0 hnz_upd, hpay_eq θ hne.nonneg hne.exists_ne_zero] at hbr
     have hupd_w : (fun j => Δ * Function.update θ r (t / Δ) j) = Function.update w r t := by
       funext j
@@ -2255,14 +2212,8 @@ theorem isSmoothMarketClearing_powerElasticity {c : ℝ} (hc : 0 < c) :
   refine ⟨?_, fun p hp θ hθ => mul_nonneg hθ (Real.rpow_nonneg hp.le _), ?_⟩
   · rintro ⟨p, θ⟩ ⟨hp, _⟩
     have hp_pos : 0 < p := hp
-    have hd1 : DifferentiableAt ℝ (fun x : ℝ × ℝ => x.2) (p, θ) := differentiableAt_snd
-    have hrp : DifferentiableAt ℝ (fun z : ℝ => z ^ (-1 / c)) p :=
-      (Real.hasDerivAt_rpow_const (Or.inl hp_pos.ne')).differentiableAt
-    have hcomp : DifferentiableAt ℝ ((fun z : ℝ => z ^ (-1 / c)) ∘ Prod.fst) (p, θ) :=
-      DifferentiableAt.comp (𝕜 := ℝ) (p, θ) hrp differentiableAt_fst
-    have hd2 : DifferentiableAt ℝ (fun x : ℝ × ℝ => x.1 ^ (-1 / c)) (p, θ) :=
-      hcomp.congr_of_eventuallyEq (Filter.Eventually.of_forall fun _ => by simp)
-    exact (hd1.mul hd2).differentiableWithinAt
+    exact (differentiableAt_snd.mul (differentiableAt_fst.rpow_const (p := -1 / c)
+      (Or.inl hp_pos.ne'))).differentiableWithinAt
   · intro R _ C hC θ hθ hne
     obtain ⟨hpStar, hu⟩ := existsUnique_clearingPrice_powerElasticity hc hC hθ hne
     exact ⟨((∑ r, θ r) / C) ^ c, hpStar, hu⟩
@@ -2298,12 +2249,8 @@ theorem isRegularMarketClearing_powerElasticity {c : ℝ} (hc : 1 ≤ c) :
     have hrpow_conv : ConvexOn ℝ (Ioi 0) (fun t : ℝ => C ^ (1 - c) * t ^ c) :=
       ((convexOn_rpow hc).subset Ioi_subset_Ici_self (convex_Ioi 0)).smul
         (Real.rpow_nonneg hC.le _)
-    have hconc_target : ConcaveOn ℝ (Ioi 0) (fun t : ℝ => u C - C ^ (1 - c) * t ^ c) := by
-      refine ⟨convex_Ioi 0, fun x hx y hy a b ha hb hab => ?_⟩
-      have hcv := hrpow_conv.2 hx hy ha hb hab
-      simp only [smul_eq_mul] at hcv ⊢
-      have huC : a * u C + b * u C = u C := by rw [← add_mul, hab, one_mul]
-      linarith
+    have hconc_target : ConcaveOn ℝ (Ioi 0) (fun t : ℝ => u C - C ^ (1 - c) * t ^ c) :=
+      (concaveOn_const _ (convex_Ioi 0)).sub hrpow_conv
     refine hconc_target.congr fun t ht => ?_
     have ht_pos : 0 < t := mem_Ioi.mp ht
     have hupd0 : ∀ s, 0 ≤ Function.update θ r t s := fun s => by
@@ -2409,10 +2356,7 @@ theorem isRegularMarketClearing_powerElasticity {c : ℝ} (hc : 1 ≤ c) :
         have hlin_pos : 0 ≤ c * t + 2 * S := by nlinarith
         positivity
       have hg'_mono : MonotoneOn (deriv g) (interior (Ici 0)) := by
-        rw [interior_Ici]
-        intro x hx y hy hxy
-        rw [hg'_eq hx, hg'_eq hy]
-        exact hg'_mono_aux hx hy hxy
+        rw [interior_Ici]; exact hg'_mono_aux.congr hg'_eq.symm
       exact hg'_mono.convexOn_of_deriv (convex_Ici 0) hg_cont hg_diff
     have hpay_conc : ConcaveOn ℝ (Ici 0)
         (fun t : ℝ => u (C * t / (t + S)) - C ^ (1 - c) * g t) := by
@@ -2485,8 +2429,7 @@ private theorem pointwise_powerElasticity_bound {u : ℝ → ℝ} (hu : IsAdmiss
   have hdC_nonneg : 0 ≤ d / C := div_nonneg hd.1 hC.le
   have hdC_le_one : d / C ≤ 1 := (div_le_one hC).mpr hd.2
   have hden_ge : 1 ≤ 1 + (c - 1) * (d / C) := by
-    have : 0 ≤ (c - 1) * (d / C) := mul_nonneg (by linarith) hdC_nonneg
-    linarith
+    have := mul_nonneg (sub_nonneg.2 hc) hdC_nonneg; linarith
   have hγ_nonneg : 0 ≤ γ := div_nonneg (sub_nonneg.mpr hdC_le_one) (by linarith)
   have hγ_le_one : γ ≤ 1 := by
     dsimp only [γ]
@@ -2511,14 +2454,10 @@ private theorem pointwise_powerElasticity_bound {u : ℝ → ℝ} (hu : IsAdmiss
     set y := d / x
     have hy0 : 0 ≤ y := div_nonneg hd.1 hx_pos.le
     have hy_lt1 : y < 1 := (div_lt_one hx_pos).mpr hdx
-    have hdC_le_y : d / C ≤ y := by
-      dsimp only [y]
-      exact div_le_div_of_nonneg_left hd.1 hx_pos hx.2
+    have hdC_le_y : d / C ≤ y := div_le_div_of_nonneg_left hd.1 hx_pos hx.2
     set w := (1 - y) / (1 + (c - 1) * y)
     have hden_y : 0 < 1 + (c - 1) * y := by
-      have : 0 ≤ (c - 1) * y := mul_nonneg (by linarith) hy0
-      linarith
-    have hw_nonneg : 0 ≤ w := div_nonneg (by linarith) hden_y.le
+      have := mul_nonneg (sub_nonneg.2 hc) hy0; linarith
     have hw_le_one : w ≤ 1 := by
       dsimp only [w]
       rw [div_le_one hden_y]
@@ -2548,9 +2487,7 @@ private theorem pointwise_powerElasticity_bound {u : ℝ → ℝ} (hu : IsAdmiss
       have : 0 ≤ (1 - y) * u 0 := mul_nonneg (by linarith) hu0
       linarith
     have hstep2 : ((1 - w) * y + w) * u x ≤ u d + w * (u x - u d) := by
-      have h1w : 0 ≤ 1 - w := by linarith
-      have hm := mul_le_mul_of_nonneg_left hud_ge h1w
-      linarith
+      linarith [mul_le_mul_of_nonneg_left hud_ge (sub_nonneg.2 hw_le_one)]
     have hF_eq : (1 - w) * y + w = (1 - y) ^ 2 / (1 + (c - 1) * y) + y := by
       dsimp only [w]
       field_simp [hden_y.ne']

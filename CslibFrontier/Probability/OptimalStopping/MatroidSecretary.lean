@@ -242,11 +242,7 @@ theorem card_filter_mem_sample_not_mem_sample {a b : α} (hab : a ≠ b) {s : �
     ext τ
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_biUnion,
       Finset.mem_product, P, Q, F]
-    constructor
-    · rintro ⟨ha, hb⟩
-      exact ⟨(τ (e a), τ (e b)), ⟨ha, hb⟩, rfl, rfl⟩
-    · rintro ⟨⟨p, q⟩, ⟨hp, hq⟩, rfl, rfl⟩
-      exact ⟨hp, hq⟩
+    exact ⟨fun h => ⟨(τ (e a), τ (e b)), h, rfl, rfl⟩, by rintro ⟨⟨p, q⟩, hpq, rfl, rfl⟩; exact hpq⟩
   have hdisj : ((P ×ˢ Q : Finset (Fin n × Fin n)) : Set (Fin n × Fin n)).PairwiseDisjoint F := by
     rintro ⟨p₁, q₁⟩ _ ⟨p₂, q₂⟩ _ hne
     refine Finset.disjoint_left.mpr fun τ h₁ h₂ => hne ?_
@@ -256,9 +252,7 @@ theorem card_filter_mem_sample_not_mem_sample {a b : α} (hab : a ≠ b) {s : �
   have hfib : ∀ pq ∈ P ×ˢ Q, (F pq).card = Nat.factorial (n - 2) := by
     rintro ⟨p, q⟩ hpq
     simp only [Finset.mem_product, Finset.mem_filter, Finset.mem_univ, true_and, P, Q] at hpq
-    have hpqne : p ≠ q := fun h => by
-      have : p.val = q.val := congrArg Fin.val h
-      omega
+    have hpqne : p ≠ q := by rintro rfl; omega
     exact card_filter_perm_eq_two (e.injective.ne hab) hpqne
   rw [Finset.sum_congr rfl hfib, Finset.sum_const, Finset.card_product, smul_eq_mul,
     card_filter_fin_lt n s hs, card_filter_fin_ge n s hs]
@@ -277,9 +271,7 @@ theorem one_fourth_le_prob_split {a b : α} (hab : a ≠ b) (hn : 2 ≤ Fintype.
   have hs : s ≤ n := by omega
   rw [toOuterMeasure_uniformOfFintype_toReal]
   have hcard : Fintype.card (Fin n ≃ α) = Nat.factorial n := by
-    have he : (Fin n ≃ α) ≃ Equiv.Perm (Fin n) :=
-      Equiv.equivCongr (Equiv.refl (Fin n)) (Fintype.equivFin α)
-    rw [Fintype.card_congr he, Fintype.card_perm, Fintype.card_fin]
+    rw [Fintype.card_equiv (Fintype.equivFin α).symm, Fintype.card_fin]
   have hfact : Nat.factorial n = n * (n - 1) * Nat.factorial (n - 2) := by
     have h1 : Nat.factorial n = n * Nat.factorial (n - 1) :=
       (Nat.mul_factorial_pred (show n ≠ 0 by omega)).symm
@@ -370,21 +362,14 @@ private theorem cutoffValue_antitone_step {n : ℕ} (hn : 1 ≤ n) :
         rw [cutoffValue_eq_of_pos hcpos, cutoffValue_eq_of_pos hcpos]
         rw [Finset.sum_Ico_succ_top (by omega)]
         change (c : ℝ) / ((n + 1 : ℕ) : ℝ) * (S + 1 / (n : ℝ)) ≤ (c : ℝ) / (n : ℝ) * S
-        have hn1 : (0 : ℝ) < ((n + 1 : ℕ) : ℝ) := by positivity
-        have hnc : (0 : ℝ) ≤ c := by positivity
-        have hl : (c : ℝ) / ((n + 1 : ℕ) : ℝ) * (S + 1 / (n : ℝ)) =
-            (c : ℝ) * (S * n + 1) / ((n : ℝ) * ((n + 1 : ℕ) : ℝ)) := by
+        -- The difference of the two sides is `c * (S - 1) / (n * (n + 1)) ≥ 0`.
+        have hdiff : (c : ℝ) / (n : ℝ) * S - (c : ℝ) / ((n + 1 : ℕ) : ℝ) * (S + 1 / (n : ℝ)) =
+            (c : ℝ) * (S - 1) / ((n : ℝ) * ((n + 1 : ℕ) : ℝ)) := by
           field_simp
-        have hr : (c : ℝ) / (n : ℝ) * S =
-            (c : ℝ) * S * ((n + 1 : ℕ) : ℝ) / ((n : ℝ) * ((n + 1 : ℕ) : ℝ)) := by
-          field_simp
-        rw [hl, hr]
-        refine div_le_div_of_nonneg_right ?_ (by positivity)
-        have hdiff : (c : ℝ) * S * ((n + 1 : ℕ) : ℝ) - (c : ℝ) * (S * n + 1) =
-            (c : ℝ) * (S - 1) := by
           push_cast
           ring
-        have hpos : 0 ≤ (c : ℝ) * (S - 1) := mul_nonneg hnc (sub_nonneg.mpr hS1)
+        have hS1' := sub_nonneg.mpr hS1
+        have hpos : 0 ≤ (c : ℝ) * (S - 1) / ((n : ℝ) * ((n + 1 : ℕ) : ℝ)) := by positivity
         linarith
       have hsp := successProb_le_successProb_optimalCutoff (cutoffRule (c + 1)) n
       rw [successProb_cutoffRule_succ c n] at hsp
@@ -420,27 +405,20 @@ private theorem cutoffValue_antitone_step {n : ℕ} (hn : 1 ≤ n) :
           have hcmr : (0 : ℝ) < ((c - 1 : ℕ) : ℝ) := by exact_mod_cast hcm
           have hcm_cast : ((c - 1 : ℕ) : ℝ) + 1 = (c : ℝ) := by
             exact_mod_cast show c - 1 + 1 = c by omega
-          have hn1 : (0 : ℝ) < ((n + 1 : ℕ) : ℝ) := by positivity
-          have hleft : (c : ℝ) / ((n + 1 : ℕ) : ℝ) * (S + 1 / (n : ℝ)) =
-              (c : ℝ) * ((n : ℝ) * S + 1) / ((n : ℝ) * ((n + 1 : ℕ) : ℝ)) := by
-            field_simp
-          have hright : ((c - 1 : ℕ) : ℝ) / (n : ℝ) * (1 / ((c - 1 : ℕ) : ℝ) + S) =
-              (((n + 1 : ℕ) : ℝ) * (1 + ((c - 1 : ℕ) : ℝ) * S)) /
-                ((n : ℝ) * ((n + 1 : ℕ) : ℝ)) := by
-            field_simp
-          rw [hleft, hright, div_le_div_iff₀ (by positivity) (by positivity)]
           have h_le : (c : ℝ) ≤ (n : ℝ) := by exact_mod_cast hc_le
-          have hineq : (c : ℝ) * ((n : ℝ) * S + 1) ≤
-              ((n + 1 : ℕ) : ℝ) * (1 + ((c - 1 : ℕ) : ℝ) * S) := by
-            have hdiff : ((n + 1 : ℕ) : ℝ) * (1 + ((c - 1 : ℕ) : ℝ) * S) -
-                (c : ℝ) * ((n : ℝ) * S + 1) =
-                ((n : ℝ) + 1 - (c : ℝ)) * (1 - S) := by
-              rw [← hcm_cast]
-              push_cast
-              ring
-            have hpos_prod : 0 ≤ ((n : ℝ) + 1 - (c : ℝ)) * (1 - S) := by nlinarith
-            linarith
-          nlinarith [show (0 : ℝ) < (n : ℝ) * ((n + 1 : ℕ) : ℝ) by positivity]
+          -- The difference of the two sides is `(n + 1 - c) * (1 - S) / (n * (n + 1)) ≥ 0`.
+          have hdiff : ((c - 1 : ℕ) : ℝ) / (n : ℝ) * (1 / ((c - 1 : ℕ) : ℝ) + S) -
+              (c : ℝ) / ((n + 1 : ℕ) : ℝ) * (S + 1 / (n : ℝ)) =
+              ((n : ℝ) + 1 - (c : ℝ)) * (1 - S) / ((n : ℝ) * ((n + 1 : ℕ) : ℝ)) := by
+            rw [← hcm_cast]
+            field_simp
+            push_cast
+            ring
+          have hn1c : 0 ≤ (n : ℝ) + 1 - (c : ℝ) := by linarith
+          have hS1' : 0 ≤ 1 - S := by linarith
+          have hpos : 0 ≤ ((n : ℝ) + 1 - (c : ℝ)) * (1 - S) / ((n : ℝ) * ((n + 1 : ℕ) : ℝ)) := by
+            positivity
+          linarith
       have hsp := successProb_le_successProb_optimalCutoff (cutoffRule c) n
       have hsp' := successProb_cutoffRule_succ (c - 1) n
       rw [show c - 1 + 1 = c by omega] at hsp'
@@ -849,11 +827,8 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
             stopIndex (cutoffRule (optimalCutoff m)) [] (Secretary.relRanks (eτ τ)) =
               some k.val := by
         rw [hxStar_seq]
-        constructor
-        · rintro ⟨k, hk1, hk2⟩
-          exact ⟨⟨k.val, hlen' ▸ k.isLt⟩, hk1, hk2⟩
-        · rintro ⟨k, hk1, hk2⟩
-          exact ⟨⟨k.val, by rw [hlen']; exact k.isLt⟩, hk1, hk2⟩
+        exact ⟨fun ⟨k, hk1, hk2⟩ => ⟨⟨k.val, hlen' ▸ k.isLt⟩, hk1, hk2⟩,
+          fun ⟨k, hk1, hk2⟩ => ⟨⟨k.val, by rw [hlen']; exact k.isLt⟩, hk1, hk2⟩⟩
       rw [hxStar_mem_iff, Secretary.Wins]
       constructor
       · rintro ⟨k, hkq, hstop⟩
@@ -881,12 +856,7 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
         = ∑' τ : Equiv.Perm B, uniformOfFintype (Equiv.Perm B) τ *
             ({π | Secretary.Wins (cutoffRule (optimalCutoff m)) π} : Set _).indicator 1 (eτ τ) := by
           refine tsum_congr fun τ => ?_
-          by_cases h : xStar.1 ∈ partitionSelect part w (σ.trans (Equiv.Perm.ofSubtype τ))
-          · have h' := (hiff τ).mp h
-            simp [Set.indicator, h, h']
-          · have h' : ¬ Secretary.Wins (cutoffRule (optimalCutoff m)) (eτ τ) :=
-              fun hw => h ((hiff τ).mpr hw)
-            simp [Set.indicator, h, h']
+          simp only [Set.indicator_apply, Set.mem_ofPred_eq, Pi.one_apply, hiff τ]
       _ = ∑' π : Equiv.Perm (Fin m), uniformOfFintype (Equiv.Perm (Fin m)) π *
             ({π | Secretary.Wins (cutoffRule (optimalCutoff m)) π} : Set _).indicator 1 π := by
           rw [← uniformOfFintype_map_equiv eτ, tsum_map_mul]
@@ -963,33 +933,12 @@ theorem exp_neg_one_mul_sum_le_expectedPartitionSecretary (part : α → ι) (w 
   let B : ι → Finset α := fun i => Finset.univ.filter fun a : α => part a = i
   let blkW : ι → ℝ := fun i => if h : (B i).Nonempty then w (blockMaxElem part w i h) else 0
   have hI_bound : ∑ x ∈ I, w x ≤ ∑ i ∈ J, blkW i := by
-    have hsum_eq : ∑ x ∈ I, w x = ∑ i ∈ J,
-        if h : ∃ x ∈ I, part x = i then w (Classical.choose h) else 0 := by
-      refine Finset.sum_bij (fun x _ => part x) (fun x hx => Finset.mem_image_of_mem part hx)
-        (fun x₁ hx₁ x₂ hx₂ h => hinj hx₁ hx₂ h) ?_ ?_
-      · intro i hi
-        obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp hi
-        exact ⟨x, hx, rfl⟩
-      · intro x hx
-        have hex : ∃ y ∈ I, part y = part x := ⟨x, hx, rfl⟩
-        simp only [hex, ↓reduceDIte]
-        have hch := Classical.choose_spec hex
-        rw [hinj hch.1 hx hch.2]
-    rw [hsum_eq]
-    refine Finset.sum_le_sum fun i _ => ?_
-    by_cases hex : ∃ x ∈ I, part x = i
-    · simp only [hex, ↓reduceDIte]
-      have hx := Classical.choose_spec hex
-      have hne : (B i).Nonempty :=
-        ⟨Classical.choose hex, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx.2⟩⟩
-      dsimp only [blkW]
-      simp only [hne, ↓reduceDIte]
-      exact mem_block_le_blockMaxElem part w i hne (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx.2⟩)
-    · simp only [hex, ↓reduceDIte]
-      dsimp only [blkW]
-      split_ifs with hne
-      · exact hw _
-      · exact le_rfl
+    dsimp only [J]
+    rw [Finset.sum_image hinj]
+    refine Finset.sum_le_sum fun x _ => ?_
+    have hxB : x ∈ B (part x) := Finset.mem_filter.mpr ⟨Finset.mem_univ _, rfl⟩
+    simp only [blkW, show (B (part x)).Nonempty from ⟨x, hxB⟩, ↓reduceDIte]
+    exact mem_block_le_blockMaxElem part w (part x) ⟨x, hxB⟩ hxB
   let μ := uniformOfFintype (Fin (Fintype.card α) ≃ α)
   have hstep : ∀ i ∈ J, Real.exp (-1) * blkW i ≤
       ∑ σ : Fin (Fintype.card α) ≃ α, (μ σ).toReal *
@@ -1182,25 +1131,17 @@ private theorem sum_layerGap_mul_countHalf {α : Type*} (w : α → ℝ) {v : �
     have hFne : F.Nonempty := let ⟨i, hi⟩ := hex; ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩⟩
     let i0 := F.min' hFne
     have hi0_mem : v i0.val / 2 ≤ w y := (Finset.mem_filter.mp (F.min'_mem hFne)).2
-    have hiff : ∀ i : Fin q, v i.val / 2 ≤ w y ↔ i0 ≤ i := by
-      intro i
-      constructor
-      · intro hi
-        exact Finset.min'_le F i (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩)
-      · intro hi
-        have hvi : v i.val ≤ v i0.val := hv_anti hi i.isLt
-        linarith
+    have hiff : ∀ i : Fin q, v i.val / 2 ≤ w y ↔ i0 ≤ i := fun i =>
+      ⟨fun hi => Finset.min'_le F i (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩),
+        fun hi => by linarith [hv_anti hi i.isLt]⟩
     calc ∑ i : Fin q, layerGap v q i * (if v i.val / 2 ≤ w y then (1 : ℝ) else 0)
         = ∑ i : Fin q, (if i0 ≤ i then layerGap v q i else 0) :=
           Finset.sum_congr rfl fun i _ => by simp only [hiff i]; split_ifs <;> ring
       _ = v i0.val := sum_layerGap_ge i0
       _ ≤ 2 * w y := by linarith
   · push Not at hex
-    calc ∑ i : Fin q, layerGap v q i * (if v i.val / 2 ≤ w y then (1 : ℝ) else 0)
-        = ∑ _i : Fin q, (0 : ℝ) :=
-          Finset.sum_congr rfl fun i _ => by simp [not_le.mpr (hex i)]
-      _ = 0 := Finset.sum_const_zero
-      _ ≤ 2 * w y := mul_nonneg (by norm_num) (hS y hy)
+    rw [Finset.sum_eq_zero fun i _ => by simp [not_le.mpr (hex i)]]
+    linarith [hS y hy]
 
 private theorem list_map_sum_eq_sum_fin {α : Type*} (w : α → ℝ) (xs : List α) :
     (xs.map w).sum = ∑ t : Fin xs.length, w xs[t.val] := by
@@ -1261,6 +1202,13 @@ and uniform random threshold exponent `j : Fin (Nat.clog 2 M.eRank.toNat + 1)`. 
     ((uniformOfFintype (Fin (Fintype.card α) ≃ α) σ).toReal) *
       ((uniformOfFintype (Fin (Nat.clog 2 M.eRank.toNat + 1)) j).toReal) *
       ∑ x ∈ thresholdPriceRun M w σ j, w x
+
+private theorem expectedThresholdPrice_nonneg (M : Matroid α)
+    [DecidablePred fun S : Finset α => M.Indep (S : Set α)] {w : α → ℝ} (hw : ∀ x, 0 ≤ w x) :
+    0 ≤ expectedThresholdPrice M w :=
+  Finset.sum_nonneg fun _ _ => Finset.sum_nonneg fun _ _ =>
+    mul_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)
+      (Finset.sum_nonneg fun x _ => hw x)
 
 theorem expectedThresholdPrice_eq_tsum (M : Matroid α)
     [DecidablePred fun S : Finset α => M.Indep (S : Set α)] (w : α → ℝ) :
@@ -1459,14 +1407,9 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
   have hI_le_BStar : ∑ x ∈ I, w x ≤ ∑ x ∈ BStar, w x :=
     sum_le_greedyMaxBasis_of_indep (M := M) (fun _ => decide_eq_true_iff) w Finset.univ.toList
       (fun x _ => hw x) hI fun x _ => Finset.mem_toList.mpr (Finset.mem_univ x)
-  have hexp_nonneg : 0 ≤ expectedThresholdPrice M w := by
-    unfold expectedThresholdPrice
-    refine Finset.sum_nonneg fun σ _ => Finset.sum_nonneg fun j _ => ?_
-    refine mul_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)
-      (Finset.sum_nonneg fun x _ => hw x)
   by_cases hzero : ∑ x ∈ BStar, w x = 0
   · rw [hzero] at hI_le_BStar
-    exact hI_le_BStar.trans (mul_nonneg (by positivity) hexp_nonneg)
+    exact hI_le_BStar.trans (mul_nonneg (by positivity) (expectedThresholdPrice_nonneg M hw))
   -- `xs`: elements of `BStar` sorted descending by `w`.
   let xs : List α := BStar.toList.mergeSort (fun a b => decide (w b ≤ w a))
   have hperm : xs.Perm BStar.toList := List.mergeSort_perm BStar.toList _
@@ -1479,10 +1422,7 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
   have hBStar_sum : ∑ x ∈ BStar, w x = (xs.map w).sum := by
     rw [(hperm.map w).sum_eq]
     simp
-  have hxs_ne : xs ≠ [] := by
-    intro h
-    have : ∑ x ∈ BStar, w x = 0 := by simp [hBStar_sum, h]
-    exact hzero this
+  have hxs_ne : xs ≠ [] := fun h => hzero (by simp [hBStar_sum, h])
   have hxs_len_pos : 0 < xs.length := List.length_pos_of_ne_nil hxs_ne
   have hxs_len_le_k : xs.length ≤ k := by
     rw [hperm.length_eq, Finset.length_toList]
@@ -1499,14 +1439,13 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
     rcases Nat.eq_zero_or_pos idx with rfl | hidx_pos
     · exact le_rfl
     · exact (List.pairwise_iff_getElem.mp hxs_sorted) 0 idx hxs_len_pos hidx hidx_pos
-  have hv1_pos : 0 < w x1 := by
-    by_contra hle
-    have hx1_zero : w x1 = 0 := le_antisymm (not_lt.mp hle) (hw x1)
-    have hall_zero : ∑ x ∈ BStar, w x = 0 := by
-      refine Finset.sum_eq_zero fun y _ => le_antisymm ((hx1_max y).trans hx1_zero.le) (hw y)
-    exact hzero hall_zero
+  have hv1_pos : 0 < w x1 := (hw x1).lt_of_ne fun h => hzero <|
+    Finset.sum_eq_zero fun y _ => le_antisymm ((hx1_max y).trans h.ge) (hw y)
   -- Define `v : ℕ → ℝ` with `v t = w xs[t]` for `t < xs.length`, and `q = #{t | w x1 / k ≤ v t}`.
   let v : ℕ → ℝ := fun t => if h : t < xs.length then w (xs[t]'h) else 0
+  have hv_nonneg : ∀ t, 0 ≤ v t := fun t => by
+    unfold v; split_ifs
+    exacts [hw _, le_rfl]
   have hv_anti : ∀ ⦃a b : ℕ⦄, a ≤ b → b < xs.length → v b ≤ v a := by
     intro a b hab hb
     have ha : a < xs.length := hab.trans_lt hb
@@ -1522,9 +1461,7 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
     exact div_le_self hv1_pos.le (by exact_mod_cast hk_pos)
   set q := qFin.card
   have hq_pos : 1 ≤ q := Finset.card_pos.mpr ⟨_, hq0⟩
-  have hq_le_len : q ≤ xs.length := by
-    calc q ≤ (Finset.univ : Finset (Fin xs.length)).card := Finset.card_filter_le _ _
-      _ = xs.length := Fintype.card_fin _
+  have hq_le_len : q ≤ xs.length := (Finset.card_le_univ qFin).trans_eq (Fintype.card_fin _)
   -- Since `v` is antitone, indices `< q` are precisely those with `w x1 / k ≤ v t`.
   have hlt_q_ge : ∀ t : Fin q, w x1 / (k : ℝ) ≤ v t.val := by
     intro t
@@ -1601,10 +1538,8 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
               rw [Finset.sum_const, hcard_tail, nsmul_eq_mul]
       have hcard_mul : ((xs.length - q : ℕ) : ℝ) * (w x1 / (k : ℝ)) ≤ w x1 := by
         have hk_real : (0 : ℝ) < k := by exact_mod_cast hk_pos
-        have hsub_le : ((xs.length - q : ℕ) : ℝ) ≤ (k : ℝ) := by
-          exact_mod_cast show xs.length - q ≤ k by omega
         calc ((xs.length - q : ℕ) : ℝ) * (w x1 / (k : ℝ))
-            ≤ (k : ℝ) * (w x1 / (k : ℝ)) := mul_le_mul_of_nonneg_right hsub_le (by positivity)
+            ≤ (k : ℝ) * (w x1 / (k : ℝ)) := by gcongr; omega
           _ = w x1 := mul_div_cancel₀ _ hk_real.ne'
       have hv0_le : w x1 ≤ ∑ j : Fin q, v j.val := by
         calc w x1 = v 0 := by
@@ -1612,10 +1547,8 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
               simp only [hxs_len_pos, ↓reduceDIte]
           _ = v (⟨0, hq_pos⟩ : Fin q).val := rfl
           _ ≤ ∑ j : Fin q, v j.val :=
-            Finset.single_le_sum (f := fun j : Fin q => v j.val) (fun (j : Fin q) _ => by
-              have hjl := j.isLt.trans_le hq_le_len
-              simp only [v, hjl, ↓reduceDIte]
-              exact hw _) (Finset.mem_univ (⟨0, hq_pos⟩ : Fin q))
+            Finset.single_le_sum (f := fun j : Fin q => v j.val) (fun j _ => hv_nonneg _)
+              (Finset.mem_univ (⟨0, hq_pos⟩ : Fin q))
       exact hstep.trans (hcard_mul.trans hv0_le)
     rw [hBStar_sum, hxs_sum_eq, hsplit]
     linarith
@@ -1631,9 +1564,7 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
     intro i
     have hi_len : i.val < xs.length := i.isLt.trans_le hq_le_len
     have hcard_perm : (Fintype.card (Fin n ≃ α) : ℝ) = ((Nat.factorial n : ℕ) : ℝ) := by
-      have he : (Fin n ≃ α) ≃ Equiv.Perm (Fin n) :=
-        Equiv.equivCongr (Equiv.refl (Fin n)) (Fintype.equivFin α)
-      rw [Fintype.card_congr he, Fintype.card_perm, Fintype.card_fin]
+      rw [Fintype.card_equiv (Fintype.equivFin α).symm, Fintype.card_fin]
     have hμσ_eq : ∀ σ, (μσ σ).toReal = ((Nat.factorial n : ℕ) : ℝ)⁻¹ := fun σ => by
       simp [μσ, uniformOfFintype_apply, hcard_perm]
     have hμj_eq : ∀ j, (μj j).toReal = ((d + 1 : ℕ) : ℝ)⁻¹ := fun j => by
@@ -1643,11 +1574,8 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
     have hfact_pos : (0 : ℝ) < ((Nat.factorial n : ℕ) : ℝ) := by exact_mod_cast Nat.factorial_pos n
     rcases Nat.eq_zero_or_pos i.val with hi0 | hipos
     · -- Case `i = 0`: split `x2 ∈ S` and `x1 ∉ S`, with `j = 0`.
-      have hne_erase : (Finset.univ.erase x1).Nonempty := by
-        have h1lt : 1 < (Finset.univ : Finset α).card := by
-          rw [Finset.card_univ]
-          exact Nat.lt_of_lt_of_le Nat.one_lt_two hn
-        exact Finset.card_pos.mp (by rw [Finset.card_erase_of_mem (Finset.mem_univ x1)]; omega)
+      have hne_erase : (Finset.univ.erase x1).Nonempty := Finset.card_pos.mp <| by
+        rw [Finset.card_erase_of_mem (Finset.mem_univ x1), Finset.card_univ]; omega
       obtain ⟨x2, hx2_mem, hx2_max⟩ := (Finset.univ.erase x1).exists_max_image w hne_erase
       have hx2_ne : x2 ≠ x1 := (Finset.mem_erase.mp hx2_mem).1
       have hprob_split := one_fourth_le_prob_split hx2_ne hn
@@ -1711,20 +1639,9 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
         have hprob_eq : ((μσ.toOuterMeasure {σ | x2 ∈ sampleSet σ s ∧ x1 ∉ sampleSet σ s}).toReal) =
             ∑ σ : Fin n ≃ α, (μσ σ).toReal *
               if x2 ∈ sampleSet σ s ∧ x1 ∉ sampleSet σ s then (1 : ℝ) else 0 := by
-          calc ((μσ.toOuterMeasure {σ | x2 ∈ sampleSet σ s ∧ x1 ∉ sampleSet σ s}).toReal)
-              = ((Finset.univ.filter fun σ : Fin n ≃ α =>
-                  x2 ∈ sampleSet σ s ∧ x1 ∉ sampleSet σ s).card : ℝ) /
-                  ((Nat.factorial n : ℕ) : ℝ) := by
-                rw [toOuterMeasure_uniformOfFintype_toReal, hcard_perm]
-                rfl
-            _ = ((Nat.factorial n : ℕ) : ℝ)⁻¹ * ∑ σ : Fin n ≃ α,
-                  if x2 ∈ sampleSet σ s ∧ x1 ∉ sampleSet σ s then (1 : ℝ) else 0 := by
-                rw [Finset.sum_boole, div_eq_inv_mul]
-            _ = ∑ σ : Fin n ≃ α, (μσ σ).toReal *
-                  if x2 ∈ sampleSet σ s ∧ x1 ∉ sampleSet σ s then (1 : ℝ) else 0 := by
-                rw [Finset.mul_sum]
-                refine Finset.sum_congr rfl fun σ _ => ?_
-                rw [hμσ_eq]
+          rw [toOuterMeasure_uniformOfFintype_toReal, hcard_perm]
+          simp only [hμσ_eq, ← Finset.mul_sum, Set.mem_ofPred_eq, Finset.sum_boole,
+            div_eq_inv_mul]
         refine hprob_split.trans (hprob_eq.le.trans (Finset.sum_le_sum fun σ _ => ?_))
         refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
         split_ifs with hs
@@ -1749,9 +1666,7 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
               refine Finset.sum_le_sum fun σ _ => Finset.single_le_sum (f := fun j : Fin (d + 1) =>
                 (μσ σ).toReal * (μj j).toReal *
                   ((((thresholdPriceRun M w σ j).filter fun y => v i.val / 2 ≤ w y).card : ℕ) : ℝ))
-                (fun (j : Fin (d + 1)) _ =>
-                  mul_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)
-                    (Nat.cast_nonneg _)) (Finset.mem_univ (0 : Fin (d + 1)))
+                (fun j _ => by positivity) (Finset.mem_univ (0 : Fin (d + 1)))
       have hi_eq : ((i.val + 1 : ℕ) : ℝ) = 1 := by simp [hi0]
       rw [hi_eq]
       rw [hμj_eq 0] at hsingle_j
@@ -1817,16 +1732,9 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
           have ht_tau : τ ≤ w t := hT_ge_tau t ht
           exact thresholdPriceRun_blocked M w σ j0 ht_post (hτ_pos.trans_le ht_tau) ht_tau ht_not
         have hT_le_B : T.card ≤ (thresholdPriceRun M w σ j0).card := by
-          have := (isPSystem_matroid M).card_le_mul_card_of_blocked hB_indep hT_indep hblock
-          simpa using this
-        have hB_eq_filter : (thresholdPriceRun M w σ j0).filter (fun y => v i.val / 2 ≤ w y) =
-            thresholdPriceRun M w σ j0 := by
-          ext y
-          simp only [Finset.mem_filter, and_iff_left_iff_imp]
-          intro hy
-          exact hτ_ge_half.trans (thresholdPriceRun_subset_post M w σ j0 hy).2.2
-        rw [hB_eq_filter]
-        exact hT_le_B
+          simpa using (isPSystem_matroid M).card_le_mul_card_of_blocked hB_indep hT_indep hblock
+        rwa [Finset.filter_true_of_mem fun y hy =>
+          hτ_ge_half.trans (thresholdPriceRun_subset_post M w σ j0 hy).2.2]
       have hcount_sum :
           (i.val : ℝ) * (((Nat.factorial n : ℕ) : ℝ) / 4) ≤
             ∑ σ : Fin n ≃ α, (if x1 ∈ sampleSet σ s then (1 : ℝ) else 0) *
@@ -1874,11 +1782,7 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
           intro r
           have hne_xr : x1 ≠ AList[r.val + 1]'(by rw [hAList_len]; omega) := by
             intro h
-            have h0 : AList[0]'(by rw [hAList_len]; omega) = x1 := by
-              change (xs.take (i.val + 1))[0]'(by
-                rw [List.length_take_of_le (by omega)]
-                exact Nat.zero_lt_succ _) = xs[0]'hxs_len_pos
-              exact List.getElem_take
+            have h0 : AList[0]'(by rw [hAList_len]; omega) = x1 := List.getElem_take
             rw [← h0] at h
             have heq := (hAList_nodup.getElem_inj_iff).mp h
             omega
@@ -1930,9 +1834,7 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
             ((Nat.factorial n : ℕ) : ℝ)⁻¹ * ((d + 1 : ℕ) : ℝ)⁻¹ *
               ∑ σ : Fin n ≃ α, ((((thresholdPriceRun M w σ j0).filter fun y =>
                 v i.val / 2 ≤ w y).card : ℕ) : ℝ) := by
-          rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun σ _ => ?_
-          rw [hμσ_eq, hμj_eq]
+          simp only [hμσ_eq, hμj_eq, Finset.mul_sum]
         rw [hfactor]
         have hmul := mul_le_mul_of_nonneg_left hcomb (by positivity :
           0 ≤ ((Nat.factorial n : ℕ) : ℝ)⁻¹ * ((d + 1 : ℕ) : ℝ)⁻¹)
@@ -1948,27 +1850,19 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
         exact Finset.single_le_sum (f := fun j : Fin (d + 1) =>
           (μσ σ).toReal * (μj j).toReal *
             ((((thresholdPriceRun M w σ j).filter fun y => v i.val / 2 ≤ w y).card : ℕ) : ℝ))
-          (fun (j : Fin (d + 1)) _ =>
-            mul_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)
-              (Nat.cast_nonneg _)) (Finset.mem_univ j0)
-      have hi_le_2 : ((i.val + 1 : ℕ) : ℝ) ≤ 2 * (i.val : ℝ) := by
-        exact_mod_cast show i.val + 1 ≤ 2 * i.val by omega
-      calc ((i.val + 1 : ℕ) : ℝ) ≤ 2 * (i.val : ℝ) := hi_le_2
+          (fun j _ => by positivity) (Finset.mem_univ j0)
+      calc ((i.val + 1 : ℕ) : ℝ) ≤ 2 * (i.val : ℝ) := by
+            exact_mod_cast show i.val + 1 ≤ 2 * i.val by omega
         _ = 8 * ((d + 1 : ℕ) : ℝ) * ((i.val : ℝ) / (4 * ((d + 1 : ℕ) : ℝ))) := by
             field_simp; ring
         _ ≤ _ := mul_le_mul_of_nonneg_left hfull_j (by positivity)
-  have hv_nonneg : ∀ i : Fin q, 0 ≤ v i.val := by
-    intro i
-    have hi : i.val < xs.length := i.isLt.trans_le hq_le_len
-    simp only [v, hi, ↓reduceDIte]
-    exact hw _
   have hgap_nonneg : ∀ i : Fin q, 0 ≤ layerGap v q i := by
     intro i
     unfold layerGap
     split_ifs with hi
     · exact sub_nonneg.mpr (hv_anti (by omega) (hi.trans_le hq_le_len))
     · rw [sub_zero]
-      exact hv_nonneg i
+      exact hv_nonneg _
   have hv_anti_q : ∀ ⦃a b : ℕ⦄, a ≤ b → b < q → v b ≤ v a := fun _ _ hab hb =>
     hv_anti hab (hb.trans_le hq_le_len)
   have hswap :
@@ -2048,11 +1942,7 @@ theorem sum_le_sixtyFour_clog_mul_expectedThresholdPrice (M : Matroid α)
       64 * (Nat.clog 2 M.eRank.toNat : ℝ) * expectedThresholdPrice M w := by
   have hclog : 1 ≤ Nat.clog 2 M.eRank.toNat := Nat.clog_pos (by decide) hr
   have hbase := sum_le_mul_expectedThresholdPrice M w hw hwb hnl hn hI
-  have hexp_nonneg : 0 ≤ expectedThresholdPrice M w := by
-    unfold expectedThresholdPrice
-    refine Finset.sum_nonneg fun σ _ => Finset.sum_nonneg fun j _ => ?_
-    exact mul_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)
-      (Finset.sum_nonneg fun x _ => hw x)
+  have hexp_nonneg := expectedThresholdPrice_nonneg M hw
   have hcoef : ((Nat.clog 2 M.eRank.toNat + 1 : ℕ) : ℝ) ≤ 2 * (Nat.clog 2 M.eRank.toNat : ℝ) := by
     exact_mod_cast show Nat.clog 2 M.eRank.toNat + 1 ≤ 2 * Nat.clog 2 M.eRank.toNat by omega
   calc ∑ x ∈ I, w x
