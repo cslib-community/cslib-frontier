@@ -47,27 +47,22 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 theorem orConvolution_eq_true_iff_exists_add (f g : (ι → Bool) → Bool) (x : ι → Bool) :
     orConvolution f g x = true ↔ ∃ a b, f a = true ∧ g b = true ∧ a + b = x := by
   rw [orConvolution_eq_true]
-  constructor
-  · rintro ⟨a, ha, hb⟩
-    exact ⟨a, x + a, ha, hb, by rw [add_left_comm, BitString.add_self, add_zero]⟩
-  · rintro ⟨a, b, ha, hb, rfl⟩
-    exact ⟨a, ha, by rwa [add_right_comm, BitString.add_self, zero_add]⟩
+  refine ⟨fun ⟨a, ha, hb⟩ => ⟨a, x + a, ha, hb, ?_⟩, fun ⟨a, b, ha, hb, h⟩ => ⟨a, ha, ?_⟩⟩
+  · rw [add_left_comm, BitString.add_self, add_zero]
+  · rwa [← h, add_right_comm, BitString.add_self, zero_add]
 
 /-- Swapping the two input functions preserves existential convolution. -/
 theorem orConvolution_comm (f g : (ι → Bool) → Bool) :
     orConvolution f g = orConvolution g f := by
   funext x
-  rw [Bool.eq_iff_iff, orConvolution_eq_true_iff_exists_add,
-    orConvolution_eq_true_iff_exists_add]
-  constructor <;> rintro ⟨a, b, ha, hb, hab⟩
-  · exact ⟨b, a, hb, ha, (add_comm b a).trans hab⟩
-  · exact ⟨b, a, hb, ha, (add_comm b a).trans hab⟩
+  rw [Bool.eq_iff_iff, orConvolution_eq_true_iff_exists_add, orConvolution_eq_true_iff_exists_add]
+  exact ⟨fun ⟨a, b, ha, hb, hab⟩ => ⟨b, a, hb, ha, (add_comm b a).trans hab⟩,
+    fun ⟨a, b, ha, hb, hab⟩ => ⟨b, a, hb, ha, (add_comm b a).trans hab⟩⟩
 
 /-- An empty accepted set has empty convolution with every Boolean function. -/
 @[simp] theorem orConvolution_false_left (g : (ι → Bool) → Bool) :
-    orConvolution (fun _ => false) g = fun _ => false := by
-  funext x
-  simp [orConvolution]
+    orConvolution (fun _ => false) g = fun _ => false :=
+  funext fun _ => by simp [orConvolution]
 
 /-- An empty accepted set on the right also has empty convolution. -/
 @[simp] theorem orConvolution_false_right (f : (ι → Bool) → Bool) :
@@ -78,7 +73,7 @@ theorem orConvolution_comm (f g : (ι → Bool) → Bool) :
 @[simp] theorem orConvolution_point_left (a : ι → Bool) (g : (ι → Bool) → Bool) :
     orConvolution (fun y => decide (y = a)) g = fun x => g (x + a) := by
   funext x
-  rw [Bool.eq_iff_iff, orConvolution_eq_true]
+  rw [Bool.eq_iff_iff]
   simp
 
 end Cslib.BitString

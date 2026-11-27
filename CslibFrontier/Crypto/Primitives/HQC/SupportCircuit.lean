@@ -61,40 +61,30 @@ theorem val_eval_candidateCircuit {width bits n offset : ℕ} (hoff : offset < n
     (hn : n < 2 ^ bits) (x : BitString width) :
     (equivFin bits ((candidateCircuit width bits n offset).eval interpretation x) : ℕ) =
       offset + (equivFin width x : ℕ) * (n - offset) / 2 ^ width := by
-  have hpad : Fin.append x (fun _ : Fin bits => false) =
-      zeroExtend (d' := width + bits) x := by
-    funext i
-    cases i using Fin.addCases with
-    | left i => simp [zeroExtend, i.isLt]
-    | right i => simp [zeroExtend, Nat.not_lt.mpr (Nat.le_add_right width i.val)]
-  have hwide : n < 2 ^ (width + bits) :=
-    hn.trans_le (Nat.pow_le_pow_right (by decide) (by omega))
+  have hpad : Fin.append x (fun _ : Fin bits => false) = zeroExtend (d' := width + bits) x :=
+    funext fun i => Fin.addCases (fun i => by simp [zeroExtend, i.isLt])
+      (fun i => by simp [zeroExtend, Nat.not_lt.mpr (Nat.le_add_right width i.val)]) i
   have hc (r a : ℕ) : (equivFin r (fun i : Fin r => a.testBit i.val) : ℕ) = a % 2 ^ r := by
-    rw [val_equivFin_eq_div_mod_of_testBit (s := 0) (N := a) (by simp),
-      Nat.pow_zero, Nat.div_one]
+    simpa using val_equivFin_eq_div_mod_of_testBit (s := 0) (N := a) (by simp)
   have hlow := Nat.mul_div_lt_of_lt (M := 2 ^ width) (d := n - offset)
     (by positivity) (by omega) (equivFin width x).isLt
-  have hmul : (equivFin width x : ℕ) * (n - offset) < 2 ^ (width + bits) := by
-    rw [pow_add]
-    exact Nat.mul_lt_mul'' (equivFin width x).isLt ((Nat.sub_le n offset).trans_lt hn)
   let product := (Modular.multiply (width + bits)).eval interpretation
     (Fin.append (zeroExtend (d' := width + bits) x)
-      (fun i : Fin (width + bits) => (n - offset).testBit i.val))
-  have hp : (equivFin (width + bits) product : ℕ) =
-      (equivFin width x : ℕ) * (n - offset) := by
-    dsimp only [product]
+      fun i : Fin (width + bits) => (n - offset).testBit i.val)
+  have hp : (equivFin (width + bits) product : ℕ) = (equivFin width x : ℕ) * (n - offset) := by
     rw [Modular.val_eval_multiply, val_equivFin_zeroExtend_of_ge (by omega), hc,
-      Nat.mod_eq_of_lt ((Nat.sub_le n offset).trans_lt hwide), Nat.mod_eq_of_lt hmul]
+      Nat.mod_eq_of_lt ((Nat.sub_le n offset).trans_lt
+        (hn.trans_le (Nat.pow_le_pow_right (by decide) (by omega)))),
+      Nat.mod_eq_of_lt (pow_add 2 width bits ▸
+        Nat.mul_lt_mul'' (equivFin width x).isLt ((Nat.sub_le n offset).trans_lt hn))]
   have hh : (equivFin bits (product ∘ Fin.natAdd width) : ℕ) =
       (equivFin width x : ℕ) * (n - offset) / 2 ^ width := by
-    simp only [Function.comp_def]
-    rw [val_equivFin_eq_div_mod_of_testBit (s := width) (N := equivFin (width + bits) product)
-      (fun i => (testBit_equivFin product (Fin.natAdd width i)).symm), hp,
+    rw [Function.comp_def, val_equivFin_eq_div_mod_of_testBit (s := width)
+      (N := equivFin (width + bits) product) (fun i => (testBit_equivFin product _).symm), hp,
       Nat.mod_eq_of_lt (hlow.trans ((Nat.sub_le n offset).trans_lt hn))]
   simp only [circuit_simps, candidateCircuit, eval_wordConstCircuit, Function.comp_id, hpad]
   rw [val_eval_carryLookaheadAdd, hh, hc, Nat.mod_eq_of_lt (hoff.trans hn),
-    Nat.mod_eq_of_lt (show (equivFin width x : ℕ) * (n - offset) / 2 ^ width + offset <
-      2 ^ bits by omega)]
+    Nat.mod_eq_of_lt (by omega)]
   omega
 
 /-- There are three two-gate constant words, plus the existing multiplier and adder.
@@ -102,8 +92,7 @@ Output selections and input copies are free wires in the Boolean circuit model. 
 theorem size_candidateCircuit (width bits n offset : ℕ) :
     (candidateCircuit width bits n offset).size =
       (Modular.multiply (width + bits)).size + (carryLookaheadAdd bits).size + 6 := by
-  simp only [circuit_simps, candidateCircuit, size_wordConstCircuit]
-  omega
+  simp only [circuit_simps, candidateCircuit, size_wordConstCircuit]; omega
 
 /-- Every constant, multiplier and adder gate is charged; output selections are free wires. -/
 theorem size_candidateCircuit_le (width bits n offset : ℕ) :

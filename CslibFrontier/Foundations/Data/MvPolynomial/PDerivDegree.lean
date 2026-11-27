@@ -31,22 +31,12 @@ theorem totalDegree_pderiv_le (p : MvPolynomial ι R) (i : ι) :
     (pderiv i p).totalDegree ≤ p.totalDegree - 1 := by
   classical
   rw [totalDegree]
-  apply Finset.sup_le
-  intro m hm
-  have hc : p.coeff (m + Finsupp.single i 1) ≠ 0 := by
-    intro h
-    have hn := MvPolynomial.mem_support_iff.mp hm
-    rw [coeff_pderiv, h, zero_mul] at hn
-    exact hn rfl
+  refine Finset.sup_le fun m hm => ?_
+  have hc : p.coeff (m + Finsupp.single i 1) ≠ 0 := fun h => by
+    simpa [coeff_pderiv, h] using MvPolynomial.mem_support_iff.mp hm
   have hd := le_totalDegree (MvPolynomial.mem_support_iff.mpr hc)
-  have he : (m + Finsupp.single i 1).sum (fun _ e => e) = m.sum (fun _ e => e) + 1 := by
-    rw [Finsupp.sum_add_index]
-    · simp
-    · intro _ _
-      rfl
-    · intro _ _ _ _
-      rfl
-  rw [he] at hd
+  rw [Finsupp.sum_add_index (fun _ _ => rfl) (fun _ _ _ _ => rfl)] at hd
+  simp only [Finsupp.sum_single_index] at hd
   omega
 
 

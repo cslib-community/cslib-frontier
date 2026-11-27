@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.StronglyUnpredictabl
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Strong ciphertext unpredictability of ElGamal encryption
@@ -89,28 +90,15 @@ theorem eval_bind_sampleExp_apply_le (F : PrimeOrderGroupFamily)
     have hadv : Game.advantage gReal gIdeal ≤ 1 / 2 ^ n :=
       F.advantage_bind_sampleExp_le n d (fun β => PMF.pure (decide (β = β₀)))
     have hideal : gIdeal.succProbability = (F.order d : ℝ≥0)⁻¹ := by
-      apply NNReal.eq
-      rw [Game.succProbability]
-      have hval : gIdeal true = (F.order d : ℝ≥0∞)⁻¹ := by
-        dsimp only [gIdeal]
-        rw [PMF.bind_apply, tsum_fintype]
-        simp [PMF.uniformOfFintype_apply, PMF.pure_apply, ZMod.card]
-      rw [hval]
-      simp
+      simp [Game.succProbability, gIdeal, PMF.bind_apply, tsum_fintype,
+        PMF.uniformOfFintype_apply, ZMod.card]
     have hreal_le : gReal.succProbability ≤ (F.order d : ℝ≥0)⁻¹ + 1 / 2 ^ n := by
       rw [← NNReal.coe_le_coe, NNReal.coe_add, ← hideal]
-      have hadv' : |(gReal.succProbability : ℝ) - gIdeal.succProbability| ≤
-          ((1 / 2 ^ n : ℝ≥0) : ℝ) := by
-        rw [← Game.coe_advantage]
-        exact NNReal.coe_le_coe.mpr hadv
+      have hadv' := Game.coe_advantage gReal gIdeal ▸ NNReal.coe_le_coe.mpr hadv
       linarith [le_abs_self ((gReal.succProbability : ℝ) - gIdeal.succProbability)]
     exact (ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) hle_ind).trans hreal_le
   · push Not at hex
-    have hzero : (ProbComp.eval (do let b ← F.sampleExp n d; body b)) x = 0 := by
-      rw [ProbComp.eval_bind, PMF.bind_apply]
-      simp [hex]
-    rw [hzero]
-    simp
+    simp [ProbComp.eval_bind, PMF.bind_apply, hex]
 
 /-- At each security parameter `n`, multiplicative ElGamal encryption `elGamalEncryptProb` has
 ciphertext hit bound `(F.order (d n) : ℝ≥0)⁻¹ + 1 / 2 ^ n`, uniformly over all public keys and
@@ -177,22 +165,9 @@ theorem ciphertextHitBound_hybrid_hashedElGamal (F : PrimeOrderGroupFamily)
         return encPair encBits encBits
           (F.smul (d n, b, F.encode (d n) (F.generator (d n))), ctDem)) c ≠ 0) :
       unframe c = F.encode (d n) ((b : ZMod (F.order (d n))) • F.generator (d n)) := by
-    rw [ProbComp.eval_bind, PMF.bind_apply] at hb
-    have hex : ∃ ctDem,
-        ProbComp.eval (encryptSym n (H (d n, F.smul (d n, b, dropFrame pk))) m) ctDem *
-          ProbComp.eval (pure (encPair encBits encBits
-            (F.smul (d n, b, F.encode (d n) (F.generator (d n))), ctDem))) c ≠ 0 := by
-      by_contra hnone
-      push Not at hnone
-      exact hb (tsum_eq_zero_iff.mpr hnone)
-    rcases hex with ⟨ctDem, hterm⟩
-    have hp : ProbComp.eval (pure (encPair encBits encBits
-        (F.smul (d n, b, F.encode (d n) (F.generator (d n))), ctDem))) c ≠ 0 :=
-      right_ne_zero_of_mul hterm
-    simp only [ProbComp.eval_pure, PMF.pure_apply, ne_eq, ite_eq_right_iff, one_ne_zero, imp_false,
-      not_not] at hp
-    have hu := (congrArg unframe hp).trans (unframe_encPair_encBits _ _ _)
-    simpa [F.smul_encode] using hu
+    have hc := (PMF.mem_support_iff _ _).mpr hb
+    supp_cases hc
+    simp [F.smul_encode]
   exact F.smul_generator_injective (d n)
     (F.encode_injective (d n) ((extract b₁ h₁).symm.trans (extract b₂ h₂)))
 

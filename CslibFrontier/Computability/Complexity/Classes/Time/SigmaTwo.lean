@@ -151,7 +151,7 @@ private theorem computableInO_dropBlock (second : Bool) :
     · exact (ComputableInO.fst encBits encBits).comp_linear hpair
     · exact (ComputableInO.snd encBits encBits).comp_linear hpair
   exact ((ComputableInO.fst enc (encPair encBits encBits)).prod hblock).mono 2
-    (fun x => by omega) fun x => by omega
+    (fun _ => by omega) fun _ => by omega
 
 /-- **Nondeterministic time is in `Σ₂TIME`**, with a universal block that the verifier ignores. -/
 theorem NTIME_subset_SigmaTwoTIME {t : ℕ → ℕ} : NTIME enc t ⊆ SigmaTwoTIME enc t := by
@@ -183,25 +183,19 @@ two blocks of equal length `c * n ^ k + c`. -/
 theorem mem_SigmaP_two_of_mem_SigmaTwoTIME {A : Set α} {k : ℕ}
     (hA : A ∈ SigmaTwoTIME enc (· ^ k)) : A ∈ SigmaP 2 enc := by
   obtain ⟨V, c, hV, hA⟩ := hA
-  set p : Polynomial ℕ := Polynomial.C c * Polynomial.X ^ k + Polynomial.C c
-  have hp (n : ℕ) : p.eval n = c * n ^ k + c := by simp [p]
+  let p : Polynomial ℕ := Polynomial.C c * Polynomial.X ^ k + Polynomial.C c
   refine ⟨[p, p], fun x => V (x.1, (x.2.take (p.eval (enc x.1).length),
     x.2.drop (p.eval (enc x.1).length))), rfl, ?_, fun a => ?_⟩
-  · have hVp : ComputableInPolyTime V (encPair enc (encPair encBits encBits)) encBool :=
-      hV.computableInPolyTime .self .self
-    have hn : ComputableInPolyTime (fun x : α × List Bool => p.eval (enc x.1).length)
-        (encPair enc encBits) encUnary :=
-      (ComputableInPolyTime.unary_eval p).comp
-        ((ComputableInPolyTime.encoding_length enc).comp (ComputableInPolyTime.fst enc encBits))
-    exact hVp.comp ((ComputableInPolyTime.fst enc encBits).prod
-      ((ComputableInPolyTime.bitsTakeWithInput (ComputableInPolyTime.snd enc encBits) hn).prod
-        (ComputableInPolyTime.bitsDropWithInput (ComputableInPolyTime.snd enc encBits) hn)))
-  · rw [hA a _ (hp _).ge]
-    simp only [List.map_cons, List.map_nil, alternation_true_cons,
-      alternation_false_cons, alternation_nil, List.append_nil]
-    refine exists_congr fun u => and_congr_right fun hu => forall_congr' fun v =>
-      forall_congr' fun _ => ?_
-    rw [List.take_left' hu, List.drop_left' hu]
+  · have hn := (ComputableInPolyTime.unary_eval p).comp
+      ((ComputableInPolyTime.encoding_length enc).comp (ComputableInPolyTime.fst enc encBits))
+    exact (hV.computableInPolyTime .self .self).comp ((ComputableInPolyTime.fst enc encBits).prod
+      ((ComputableInPolyTime.bitsTakeWithInput (.snd enc encBits) hn).prod
+        (ComputableInPolyTime.bitsDropWithInput (.snd enc encBits) hn)))
+  · rw [hA a (p.eval (enc a).length) (by simp [p])]
+    simp only [List.map_cons, List.map_nil, alternation_true_cons, alternation_false_cons,
+      alternation_nil, List.append_nil]
+    exact exists_congr fun u => and_congr_right fun hu => forall_congr' fun v =>
+      forall_congr' fun _ => by rw [List.take_left' hu, List.drop_left' hu]
 
 /-- Cut the two blocks of a `Σ₂TIME` certificate to the lengths `P₁` and `P₂` of the blocks of a
 `Σ₂ᵖ` certificate, and concatenate them. -/
@@ -215,14 +209,11 @@ private theorem exists_computableInO_eval (p : Polynomial ℕ) :
         (encPair enc (encPair encBits encBits)) encUnary
         (fun x => (encPair enc (encPair encBits encBits) x).length +
           c * ((enc x.1).length + 1) ^ d) S := by
-  obtain ⟨T, S, hT, -, h⟩ := (ComputableInPolyTime.unary_eval p).exists_computableInO
+  obtain ⟨T, _, hT, -, h⟩ := (ComputableInPolyTime.unary_eval p).exists_computableInO
   obtain ⟨c, d, hc⟩ := hT.exists_le
-  have hn : ComputableInO (fun x : α × (List Bool × List Bool) => (enc x.1).length)
-      (encPair enc (encPair encBits encBits)) encUnary
-      (fun x => (encPair enc (encPair encBits encBits) x).length)
-      (fun x => (encPair enc (encPair encBits encBits) x).length) :=
-    (ComputableInO.lengthUnary.comp_enc enc).comp_linear (ComputableInO.fst enc _)
-  refine ⟨c, d, _, (h.comp hn).mono_time 1 fun x => ?_⟩
+  refine ⟨c, d, _, (h.comp ((ComputableInO.lengthUnary.comp_enc enc).comp_linear
+    (ComputableInO.fst enc _))).mono_time 1 fun x => ?_⟩
+  dsimp only [Function.comp_apply]
   have := hc (enc x.1).length
   enc_len at this
 
@@ -233,23 +224,19 @@ exceeds that polynomial. -/
 theorem exists_mem_SigmaTwoTIME_of_mem_SigmaP_two {A : Set α} (hA : A ∈ SigmaP 2 enc) :
     ∃ k, A ∈ SigmaTwoTIME enc (· ^ k) := by
   obtain ⟨ps, V, hlen, hV, hA⟩ := hA
-  obtain ⟨p₁, p₂, rfl⟩ : ∃ p₁ p₂, ps = [p₁, p₂] := by
-    match ps, hlen with
-    | [p₁, p₂], _ => exact ⟨p₁, p₂, rfl⟩
-  obtain ⟨TV, SV, hTV, -, hVO⟩ := hV.exists_computableInO
+  obtain ⟨p₁, p₂, rfl⟩ : ∃ p₁ p₂, ps = [p₁, p₂] :=
+    match ps, hlen with | [p₁, p₂], _ => ⟨p₁, p₂, rfl⟩
+  obtain ⟨TV, _, hTV, -, hVO⟩ := hV.exists_computableInO
   obtain ⟨cV, dV, hcV⟩ := hTV.exists_le
-  obtain ⟨c₁, d₁, S₁, h₁⟩ := exists_computableInO_eval (enc := enc) p₁
-  obtain ⟨c₂, d₂, S₂, h₂⟩ := exists_computableInO_eval (enc := enc) p₂
+  obtain ⟨c₁, d₁, _, h₁⟩ := exists_computableInO_eval (enc := enc) p₁
+  obtain ⟨c₂, d₂, _, h₂⟩ := exists_computableInO_eval (enc := enc) p₂
   -- the cut blocks, within linear time plus polynomials of the instance length
-  have hu := ComputableInO.of_linear ComputableInDegree.bitsTake |>.comp
+  have hu := (ComputableInO.of_linear ComputableInDegree.bitsTake).comp
     (((ComputableInO.fst encBits encBits).comp_linear (ComputableInO.snd enc _)).prod h₁)
-  have hv := ComputableInO.of_linear ComputableInDegree.bitsTake |>.comp
+  have hv := (ComputableInO.of_linear ComputableInDegree.bitsTake).comp
     (((ComputableInO.snd encBits encBits).comp_linear (ComputableInO.snd enc _)).prod h₂)
-  have hcut := hu.append hv (encOut := encBits)
-    (g := fun x : α × (List Bool × List Bool) =>
-      cutBlocks (p₁.eval (enc x.1).length) (p₂.eval (enc x.1).length) x.2.1 x.2.2)
-    fun _ => rfl
-  have hW := hVO.comp ((ComputableInO.fst enc _).prod hcut)
+  have hcut := hu.append hv (encOut := encBits) (g := fun x : α × (List Bool × List Bool) =>
+    cutBlocks (p₁.eval (enc x.1).length) (p₂.eval (enc x.1).length) x.2.1 x.2.2) fun _ => rfl
   -- the polynomial of the instance length that the certificates must exceed
   obtain ⟨c₀, d₀, hR⟩ : ∃ c₀ d₀ : ℕ, ∀ n,
       4 * (c₁ * (n + 1) ^ d₁ + c₂ * (n + 1) ^ d₂) + p₁.eval n + p₂.eval n +
@@ -260,12 +247,12 @@ theorem exists_mem_SigmaTwoTIME_of_mem_SigmaP_two {A : Set α} (hA : A ∈ Sigma
         p₁.eval (enc a).length + p₂.eval (enc a).length +
         cV * (2 * (enc a).length + 2 + p₁.eval (enc a).length + p₂.eval (enc a).length + 1) ^ dV
         ≤ L := by
-    have h₁ := hR (enc a).length
-    have h₂ := Nat.mul_add_one_pow_le_two_pow c₀ d₀ (enc a).length
-    have h₃ : c₀ ≤ c₀ * 2 ^ d₀ := Nat.le_mul_of_pos_right c₀ (Nat.two_pow_pos d₀)
+    have := hR (enc a).length
+    have := Nat.mul_add_one_pow_le_two_pow c₀ d₀ (enc a).length
+    have := Nat.le_mul_of_pos_right c₀ (Nat.two_pow_pos d₀)
     omega
-  refine ⟨d₀, mem_SigmaTwoTIME_of_time_le (c := c₀ * 2 ^ d₀) (K := 8) hW
-    (fun a L hL u v hu hv => ?_) fun a L hL => ?_⟩
+  refine ⟨d₀, mem_SigmaTwoTIME_of_time_le (c := c₀ * 2 ^ d₀) (K := 8)
+    (hVO.comp ((ComputableInO.fst enc _).prod hcut)) (fun a L hL u v _ _ => ?_) fun a L hL => ?_⟩
   · -- the running time
     have hRL := hRL a L hL
     have hpre : (encPair enc encBits (a, cutBlocks (p₁.eval (enc a).length)
@@ -277,16 +264,14 @@ theorem exists_mem_SigmaTwoTIME_of_mem_SigmaP_two {A : Set α} (hA : A ∈ Sigma
     enc_len [Function.comp_apply, hu, hv] at hTVa ⊢
   · -- correctness
     have hRL := hRL a L hL
-    have hP₁ : p₁.eval (enc a).length ≤ L := by omega
-    have hP₂ : p₂.eval (enc a).length ≤ L := by omega
     rw [hA a]
     simp only [List.map_cons, List.map_nil, alternation_true_cons, alternation_false_cons,
       alternation_nil, List.append_nil, Function.comp_apply, cutBlocks]
     -- the padded blocks quantify, through their prefixes, over the original blocks
     exact ((List.exists_length_eq_take_iff (P := fun u => ∀ v : List Bool, v.length = L →
-        V (a, u ++ v.take (p₂.eval (enc a).length)) = true) hP₁).trans
+        V (a, u ++ v.take (p₂.eval (enc a).length)) = true) (by omega)).trans
       (exists_congr fun u => and_congr_right fun _ =>
-        List.forall_length_eq_take_iff (P := fun v => V (a, u ++ v) = true) hP₂)).symm
+        List.forall_length_eq_take_iff (P := fun v => V (a, u ++ v) = true) (by omega))).symm
 
 /-- **The second level of the polynomial hierarchy is the union of `Σ₂TIME(n ^ k)`.** -/
 theorem mem_SigmaP_two_iff_exists_mem_SigmaTwoTIME {A : Set α} :

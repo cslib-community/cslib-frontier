@@ -91,11 +91,9 @@ theorem productDepth_substFormula_le {G : Fin n → SPFormula K m} {B : ℕ}
   | input i => simpa [substFormula] using hG i
   | gate op args ih =>
     simp only [productDepth, substFormula, Formula.gate_bind, Formula.depthWith_gate] at ih ⊢
-    have h : (univ.sup fun j => ((args j).bind G).depthWith SigmaPiOp.mulCost) ≤
-        (univ.sup fun j => (args j).depthWith SigmaPiOp.mulCost) + B :=
-      Finset.sup_le fun j _ => (ih j).trans <| Nat.add_le_add_right
-        (Finset.le_sup (f := fun j => (args j).depthWith SigmaPiOp.mulCost) (mem_univ j)) B
-    exact (Nat.add_le_add_right h _).trans_eq (Nat.add_right_comm _ _ _)
+    exact (Nat.add_le_add_right (Finset.sup_le fun j _ => (ih j).trans <| Nat.add_le_add_right
+      (Finset.le_sup (f := fun j => (args j).depthWith SigmaPiOp.mulCost) (mem_univ j)) B) _
+      ).trans_eq (Nat.add_right_comm _ _ _)
 
 /-- Substituting formulas of at most `S` nodes, with `1 ≤ S`, multiplies the number of nodes by
 at most `S`. -/
@@ -125,8 +123,7 @@ def constInput (ρ : Fin n → Fin m ⊕ K) (i : Fin n) : SPFormula K m :=
 /-- An input or a constant has product-depth zero. -/
 @[simp] theorem productDepth_constInput (ρ : Fin n → Fin m ⊕ K) (i : Fin n) :
     (constInput ρ i).productDepth = 0 := by
-  rw [constInput]
-  cases ρ i <;> simp
+  cases h : ρ i <;> simp [constInput, h]
 
 /-- An input or a constant is one node. -/
 @[simp] theorem nodeCount_constInput (ρ : Fin n → Fin m ⊕ K) (i : Fin n) :
@@ -203,16 +200,14 @@ theorem totalDegree_polynomial_le_nodeCount [CommSemiring K] (F : SPFormula K n)
     rw [Formula.nodeCount_gate]
     cases op with
     | add k c =>
-      refine (congrArg totalDegree (polynomial_add c args)).trans_le ?_
-      refine (totalDegree_finsetSum_le fun j _ => ?_).trans (Nat.le_succ _)
-      refine (totalDegree_mul _ _).trans ?_
-      rw [totalDegree_C, zero_add]
-      exact (ih j).trans
-        (single_le_sum (f := fun j => (args j).nodeCount) (fun _ _ => Nat.zero_le _) (mem_univ j))
+      refine (congrArg totalDegree (polynomial_add c args)).trans_le <|
+        (totalDegree_finsetSum_le fun j _ => ?_).trans (Nat.le_succ _)
+      exact ((totalDegree_mul _ _).trans (by rw [totalDegree_C, zero_add])).trans <|
+        (ih j).trans (single_le_sum (f := fun j => (args j).nodeCount)
+          (fun _ _ => Nat.zero_le _) (mem_univ j))
     | mul k =>
-      refine (congrArg totalDegree (polynomial_mul args)).trans_le ?_
-      exact ((totalDegree_finsetProd _ _).trans (sum_le_sum fun j _ => ih j)).trans
-        (Nat.le_succ _)
+      exact (congrArg totalDegree (polynomial_mul args)).trans_le <|
+        ((totalDegree_finsetProd _ _).trans (sum_le_sum fun j _ => ih j)).trans (Nat.le_succ _)
     | const a => exact (totalDegree_C a).le.trans (Nat.zero_le _)
 
 end Cslib.Circuits.Arithmetic.SPFormula

@@ -95,13 +95,9 @@ theorem coNP_subset_coNPPoly : coNP enc ⊆ coNPPoly enc := fun _ hA => NP_subse
 private theorem sum_map_range_le (adv : ℕ → List Bool) (N M : ℕ)
     (h : ∀ m < N, (adv m).length ≤ M) :
     ((List.range N).map fun m => 2 * (adv m).length + 1).sum ≤ N * (2 * M + 1) := by
-  have := List.sum_le_length_nsmul ((List.range N).map fun m => 2 * (adv m).length + 1)
-    (2 * M + 1) (by
-      simp only [List.mem_map, List.mem_range]
-      rintro _ ⟨m, hm, rfl⟩
-      have := h m hm
-      omega)
-  simpa using this
+  refine (List.sum_le_length_nsmul _ (2 * M + 1) ?_).trans_eq (by simp)
+  simp only [List.mem_map, List.mem_range, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂]
+  exact fun m hm => Nat.add_le_add_right (Nat.mul_le_mul_left 2 (h m hm)) 1
 
 /-- **`NP/poly` is closed under polynomial-time reductions.** The advice for instances of length
 `n` lists the advice of the target problem for every length up to a polynomial bound on the length
@@ -131,11 +127,8 @@ theorem PolyTimeReducible.mem_NPPoly (h : PolyTimeReducible enc encB A B)
     exact Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)
   · have hlt : (encB (f a)).length < ((List.range (q.eval (enc a).length + 1)).map adv).length := by
       simpa using Nat.lt_succ_of_le (hq a)
-    have hdec : D.decode (adv' (enc a).length) =
-        (List.range (q.eval (enc a).length + 1)).map adv := D.decode_enc _
-    change a ∈ A ↔ g (adv' (enc a).length, a) ∈ B'
-    simp only [g, hdec, List.getD_eq_getElem _ _ hlt, List.getElem_map, List.getElem_range]
-    exact (hAB a).trans (hBB' (f a))
+    simpa only [Set.mem_preimage, g, adv', D.decode_enc, List.getD_eq_getElem _ _ hlt,
+      List.getElem_map, List.getElem_range] using (hAB a).trans (hBB' (f a))
 
 /-- `coNP/poly` is closed under polynomial-time reductions. -/
 theorem PolyTimeReducible.mem_coNPPoly (h : PolyTimeReducible enc encB A B)

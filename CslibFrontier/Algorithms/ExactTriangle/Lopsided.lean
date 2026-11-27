@@ -88,10 +88,8 @@ theorem commonNeighborCount_ofMatrices {n D : ℕ} (X : Matrix (Fin n) (Fin D) �
     (Y : Matrix (Fin D) (Fin n) ℤ) (W : Finset (Fin n × Fin n)) (a b : Fin n) :
     (ofMatrices X Y W).commonNeighborCount a b =
       (Finset.univ.filter fun v : Fin D => X a v = 1 ∧ Y v b = 1).card := by
-  unfold ofMatrices commonNeighborCount
-  congr 1
-  ext v
-  simp
+  dsimp only [ofMatrices, commonNeighborCount]
+  congr 2
 
 open Classical in
 /-- The first biadjacency matrix, with zero columns outside the injection range. -/
@@ -110,16 +108,12 @@ variable {n D : ℕ} (I : LopsidedGraph n) (e : I.M ↪ Fin D)
 /-- Every first biadjacency entry is zero or one. -/
 theorem matX_eq_zero_or_one (a : Fin n) (j : Fin D) :
     I.matX e a j = 0 ∨ I.matX e a j = 1 := by
-  classical
-  simp only [matX, Matrix.of_apply]
-  split_ifs <;> simp
+  classical simpa only [matX, Matrix.of_apply] using (ite_eq_or_eq _ _ _).symm
 
 /-- Every second biadjacency entry is zero or one. -/
 theorem matY_eq_zero_or_one (j : Fin D) (b : Fin n) :
     I.matY e j b = 0 ∨ I.matY e j b = 1 := by
-  classical
-  simp only [matY, Matrix.of_apply]
-  split_ifs <;> simp
+  classical simpa only [matY, Matrix.of_apply] using (ite_eq_or_eq _ _ _).symm
 
 /-- A middle part of cardinality at most `D` admits the required numbering. -/
 theorem nonempty_embedding (h : Fintype.card I.M ≤ D) : Nonempty (I.M ↪ Fin D) :=

@@ -6,7 +6,7 @@ Authors: OpenAI, Samuel Schlesinger
 
 module
 
-public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingTreeBounds
+public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingQuantitative
 
 public section
 
@@ -182,5 +182,21 @@ example :
   refine ⟨hsum.trans hmc, hlen, fun L hL => ?_⟩
   obtain ⟨hs, hr, hnt, hk, -⟩ := hleaves L hL
   exact ⟨hs, hr, hnt, hk⟩
+
+-- The selected budget is positive even on zero variables.
+example : countingPowerBudget 2 0 = 1 := by decide
+
+-- The quantitative decomposition counts the assignments of an unused declared variable.
+example :
+    let φ : CNF (Fin 2) := [[(0, true)]]
+    let declared : Finset (Fin 2) := univ
+    let M := countingThresholdBase 3 (countingPowerBudget 2 declared.card)
+    ((countingLeaves (M ^ ·) (reduce (nontautological φ.toClauseSet))).map
+      fun L => L.toCNF.modelCountOn declared).sum = 2 := by
+  intro φ declared M
+  obtain ⟨_, h⟩ := countingLeaves_nontautological_powerBudget_spec (k := 3) (d := 2)
+    (by decide) (by decide)
+  have hc := (h φ declared (by decide) (fun _ _ => mem_univ _)).2.1
+  exact hc.trans (by decide)
 
 end CslibFrontierTests.SparsificationCountingTreeBounds

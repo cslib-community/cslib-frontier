@@ -72,9 +72,8 @@ theorem exists_length_shortMembers_le (hS : S ∈ SPARSE encBits) :
     ∃ c d : ℕ, ∀ n, (shortMembers S n).length ≤ c * (n + 1) ^ d := by
   classical
   obtain ⟨c, d, hcard⟩ := exists_card_le_of_mem_SPARSE hS
-  refine ⟨c, d, fun n => ?_⟩
-  rw [length_shortMembers]
-  exact hcard n _ fun w hw => by simpa [and_comm] using hw
+  exact ⟨c, d, fun n => (length_shortMembers S n).trans_le
+    (hcard n _ fun _ hw => by simpa [and_comm] using hw)⟩
 
 /-- **Short members of a sparse language have a short listing**: the encoded list of the members
 of length at most `n` has length at most `c (n + 1) ^ d`. -/
@@ -82,19 +81,18 @@ theorem exists_length_encList_shortMembers_le (hS : S ∈ SPARSE encBits) :
     ∃ c d : ℕ, ∀ n, (encList encBits (shortMembers S n)).length ≤ c * (n + 1) ^ d := by
   obtain ⟨c, d, hcensus⟩ := exists_length_shortMembers_le hS
   refine ⟨2 * c, d + 1, fun n => ?_⟩
-  have hlen := hcensus n
   have hsum : ((shortMembers S n).map fun w => 2 * (encBits w).length + 1).sum ≤
       (shortMembers S n).length * (2 * n + 1) := by
-    have h := List.sum_le_length_nsmul ((shortMembers S n).map fun w => 2 * (encBits w).length + 1)
-      (2 * n + 1) fun x hx => by
-        obtain ⟨w, hw, rfl⟩ := List.mem_map.mp hx
-        have := (mem_shortMembers.mp hw).2
-        simp only [encBits_apply]
-        omega
-    simpa only [List.length_map, smul_eq_mul] using h
+    simpa only [List.length_map, smul_eq_mul] using
+      List.sum_le_length_nsmul ((shortMembers S n).map fun w => 2 * (encBits w).length + 1)
+        (2 * n + 1) fun _ hx => by
+          obtain ⟨w, hw, rfl⟩ := List.mem_map.mp hx
+          have := (mem_shortMembers.mp hw).2
+          simp only [encBits_apply]
+          omega
   rw [length_encList]
   calc _ ≤ (shortMembers S n).length * (2 * n + 1) := hsum
-    _ ≤ c * (n + 1) ^ d * (2 * (n + 1)) := Nat.mul_le_mul hlen (by omega)
+    _ ≤ c * (n + 1) ^ d * (2 * (n + 1)) := Nat.mul_le_mul (hcensus n) (by omega)
     _ = 2 * c * (n + 1) ^ (d + 1) := by ring
 
 /-- **Polynomial time relative to a sparse oracle is in `P/poly`.** The advice at length `n` lists
@@ -103,21 +101,21 @@ theorem PWithOracle_subset_PPolyOn (hS : S ∈ SPARSE encBits) (enc : α ↪ Lis
     PWithOracle S enc ⊆ PPolyOn enc := by
   rintro L ⟨f, hf, hL⟩
   obtain ⟨F, q, hF, hFS⟩ := hf.exists_listOracle_bool
-  have hF' : ComputableInPolyTime (fun x : List (List Bool) × α => F (x.2, x.1))
-      (encPair (encList encBits) enc) encBool :=
-    hF.comp (g := fun x : List (List Bool) × α => (x.2, x.1))
-      ((ComputableInPolyTime.snd _ _).prod (.fst _ _))
-  obtain ⟨M, hM, hFM⟩ := PPoly.exists_of_polyTime hF'
+  obtain ⟨M, hM, hFM⟩ := PPoly.exists_of_polyTime
+    (hF.comp (g := fun x : List (List Bool) × α => (x.2, x.1))
+      ((ComputableInPolyTime.snd _ _).prod (.fst _ _)) :
+      ComputableInPolyTime (fun x : List (List Bool) × α => F (x.2, x.1))
+        (encPair (encList encBits) enc) encBool)
   obtain ⟨c, d, hadv⟩ := exists_length_encList_shortMembers_le hS
   let adv : ℕ → List Bool := fun n => encList encBits (shortMembers S (q.eval n))
-  have hadvPoly : PolynomiallyBounded fun n => (adv n).length := by
-    refine PolynomiallyBounded.mono_of_le (g := fun n => c * (q.eval n + 1) ^ d) (by fun_prop)
-      fun n => hadv _
-  let L' : Language Bool := {x : List Bool | frame (adv x.length) ++ x ∈ M}
-  refine ⟨L', PPoly.of_advice hM adv hadvPoly (fun _ => Iff.rfl), fun a => ?_⟩
+  have hadvPoly : PolynomiallyBounded fun n => (adv n).length :=
+    PolynomiallyBounded.mono_of_le (g := fun n => c * (q.eval n + 1) ^ d) (by fun_prop)
+      fun _ => hadv _
+  refine ⟨{x : List Bool | frame (adv x.length) ++ x ∈ M},
+    PPoly.of_advice hM adv hadvPoly (fun _ => Iff.rfl), fun a => ?_⟩
   change a ∈ L ↔ frame (adv (enc a).length) ++ enc a ∈ M
   have hFM' := hFM (shortMembers S (q.eval (enc a).length), a)
-  rw [encPair_apply] at hFM'
+  rw [encPair_apply, Function.comp_apply] at hFM'
   rw [hL a, ← hFM', hFS a _ fun w hw => by simp only [mem_shortMembers, hw, and_true]]
 
 /-- **A sparse Turing-hard set for `NP` collapses `PH` to `Σ₂`**: if `SAT` is decided in

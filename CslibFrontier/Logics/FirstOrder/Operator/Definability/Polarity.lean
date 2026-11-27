@@ -30,7 +30,8 @@ atoms are available only positively. Unmarked relation atoms are available with 
 
 * `PolarityDefinable.toDefinable`: forget the additional polarity certificate.
 * `PolarityDefinable.neg`, `PolarityDefinable.conj`, `PolarityDefinable.disj`,
-  `PolarityDefinable.ex`, `PolarityDefinable.all`: compositional synthesis rules.
+  `PolarityDefinable.ex`, `PolarityDefinable.exs`, `PolarityDefinable.all`:
+  compositional synthesis rules, including fixed-width tuples of bound variables.
 * `PolarityDefinable.head_vars`: a positive recursive atom in the nearest relation binder.
 -/
 
@@ -61,15 +62,13 @@ variable {L : Language.{u, v}} {O : Type s} {shape : O → Shape} {policy : Poli
 
 /-- Forget the polarity requirement while retaining the well-formed defining formula. -/
 theorem toDefinable (h : PolarityDefinable (L := L) policy mark sign M I ρ P) :
-    Definable (L := L) policy M I ρ P := by
-  obtain ⟨φ, hφ, _, hP⟩ := h
-  exact ⟨φ, hφ, hP⟩
+    Definable (L := L) policy M I ρ P :=
+  h.imp fun _ h => ⟨h.1, h.2.2⟩
 
 /-- Equivalent semantic presentations use the same syntax and polarity certificate. -/
 theorem congr (hP : PolarityDefinable (L := L) policy mark sign M I ρ P)
-    (h : ∀ i v, P i v ↔ Q i v) : PolarityDefinable (L := L) policy mark sign M I ρ Q := by
-  obtain ⟨φ, hφ, hp, hP⟩ := hP
-  exact ⟨φ, hφ, hp, fun i v => (hP i v).trans (h i v)⟩
+    (h : ∀ i v, P i v ↔ Q i v) : PolarityDefinable (L := L) policy mark sign M I ρ Q :=
+  hP.imp fun _ ⟨hφ, hp, hP⟩ => ⟨hφ, hp, fun i v => (hP i v).trans (h i v)⟩
 
 /-- Native first-order formulas are independent of all scoped relation variables. -/
 theorem ofFO (φ : L.Formula α) :
@@ -87,8 +86,7 @@ theorem neg (hP : PolarityDefinable (L := L) policy mark (!sign) M I ρ P) :
 theorem conj (hP : PolarityDefinable (L := L) policy mark sign M I ρ P)
     (hQ : PolarityDefinable (L := L) policy mark sign M I ρ Q) :
     PolarityDefinable (L := L) policy mark sign M I ρ (fun i v => P i v ∧ Q i v) := by
-  obtain ⟨φ, hφ, hp, hP⟩ := hP
-  obtain ⟨ψ, hψ, hq, hQ⟩ := hQ
+  rcases hP, hQ with ⟨⟨φ, hφ, hp, hP⟩, ⟨ψ, hψ, hq, hQ⟩⟩
   exact ⟨.conj φ ψ, by simp [Formula.wellFormed, hφ, hψ],
     by simp [Formula.checkPolarity, hp, hq], fun i v => and_congr (hP i v) (hQ i v)⟩
 
@@ -96,8 +94,7 @@ theorem conj (hP : PolarityDefinable (L := L) policy mark sign M I ρ P)
 theorem disj (hP : PolarityDefinable (L := L) policy mark sign M I ρ P)
     (hQ : PolarityDefinable (L := L) policy mark sign M I ρ Q) :
     PolarityDefinable (L := L) policy mark sign M I ρ (fun i v => P i v ∨ Q i v) := by
-  obtain ⟨φ, hφ, hp, hP⟩ := hP
-  obtain ⟨ψ, hψ, hq, hQ⟩ := hQ
+  rcases hP, hQ with ⟨⟨φ, hφ, hp, hP⟩, ⟨ψ, hψ, hq, hQ⟩⟩
   refine ⟨φ.disj ψ, by simp [Formula.disj, Formula.wellFormed, hφ, hψ],
     by simp [Formula.disj, Formula.checkPolarity, hp, hq], ?_⟩
   exact fun i v => (Formula.realize_disj _ _ _ _ _).trans (or_congr (hP i v) (hQ i v))
@@ -116,16 +113,24 @@ theorem ex {P : ∀ i, M i → (α → M i) → Prop}
   obtain ⟨φ, hφ, hp, hP⟩ := hP
   exact ⟨.ex φ, hφ, hp, fun i v => exists_congr fun x => hP i (Option.elim · x v)⟩
 
+/-- Existentially quantify a fixed-width tuple without changing the syntactic polarity. -/
+theorem exs {n : ℕ} {P : ∀ i, (α → M i) → (Fin n → M i) → Prop}
+    (hP : PolarityDefinable (L := L) policy mark sign M I ρ
+      (fun i v => P i (v ∘ Sum.inl) (v ∘ Sum.inr))) :
+    PolarityDefinable (L := L) policy mark sign M I ρ (fun i v => ∃ xs, P i v xs) := by
+  obtain ⟨φ, hφ, hp, hP⟩ := hP
+  exact ⟨φ.exs n, by rwa [Formula.wellFormed_exs], by rwa [Formula.checkPolarity_exs],
+    fun i v => (Formula.realize_exs ..).trans (exists_congr fun xs => hP i (Sum.elim v xs))⟩
+
 /-- Universal quantification preserves polarity while binding a fresh first-order variable. -/
 theorem all {P : ∀ i, M i → (α → M i) → Prop}
     (hP : PolarityDefinable (L := L) policy mark sign M I ρ
       (fun i v => P i (v none) (fun a => v (some a)))) :
     PolarityDefinable (L := L) policy mark sign M I ρ (fun i v => ∀ x, P i x v) := by
   obtain ⟨φ, hφ, hp, hP⟩ := hP
-  refine ⟨φ.all, hφ, by simpa only [Formula.all, Formula.checkPolarity, Bool.not_not]
-    using hp, ?_⟩
-  exact fun i v => (Formula.realize_all _ _ _ _).trans
-    (forall_congr' fun x => hP i (Option.elim · x v))
+  refine ⟨φ.all, hφ, ?_, fun i v =>
+    (Formula.realize_all ..).trans (forall_congr' fun x => hP i (Option.elim · x v))⟩
+  simpa only [Formula.all, Formula.checkPolarity, Bool.not_not] using hp
 
 /-- The constant true predicate has either polarity. -/
 theorem truth :
@@ -199,7 +204,7 @@ theorem head_vars {k : ℕ} (mark : Marking (k :: Γ)) (R : ∀ i, Set (Fin k �
   rel .here (fun j => .var (args j))
 
 attribute [aesop safe apply (rule_sets := [FODefinable])]
-  ofFO neg conj disj imp ex all truth falsity equal var_eq relation relation_vars relation₂
+  ofFO neg conj disj imp ex exs all truth falsity equal var_eq relation relation_vars relation₂
   rel rel_unmarked rel_vars rel_vars_unmarked head_vars
 
 end PolarityDefinable

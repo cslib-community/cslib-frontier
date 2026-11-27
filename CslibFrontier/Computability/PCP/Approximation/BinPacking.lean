@@ -98,21 +98,16 @@ theorem decidePartition_iff {A : List ℕ × ℕ → List (List ℕ)}
         have h1 := hsum b List.mem_cons_self
         have h2 := hsum b' (List.mem_cons_of_mem _ List.mem_cons_self)
         simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, add_zero] at htot
-        refine mem_Partition_iff.2 ⟨b, ?_, by rw [Multiset.sum_coe]; omega⟩
-        have hsub : b.Subperm l :=
-          (List.sublist_append_left b b').subperm.trans
-            (by simpa using hpack.subperm)
-        exact Multiset.coe_le.2 hsub
+        exact mem_Partition_iff.2 ⟨b, Multiset.coe_le.2
+          ((List.sublist_append_left b b').subperm.trans (by simpa using hpack.subperm)),
+          by rw [Multiset.sum_coe]; omega⟩
   · intro h
     by_cases h0 : l.sum = 0
     · exact Or.inl h0
-    right
     obtain ⟨s, hs, hsum⟩ := mem_Partition_iff_sublist.1 h
     obtain ⟨t, ht⟩ := hs.exists_perm_append
-    have htsum := ht.sum_eq
-    rw [List.sum_append] at htsum
-    have hle : ∀ a ∈ l, a ≤ l.sum / 2 := by
-      intro a ha
+    have htsum : l.sum = s.sum + t.sum := by rw [ht.sum_eq, List.sum_append]
+    have hle : ∀ a ∈ l, a ≤ l.sum / 2 := fun a ha => by
       rcases List.mem_append.1 (ht.mem_iff.1 ha) with ha | ha
       · have := List.le_sum_of_mem ha
         omega
@@ -120,13 +115,11 @@ theorem decidePartition_iff {A : List ℕ × ℕ → List (List ℕ)}
         omega
     have hQ : IsPacking (l.sum / 2) l [s, t] :=
       ⟨by simpa using ht.symm, by
-        intro b hb
-        simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
-        rcases hb with rfl | rfl <;> omega⟩
-    have hne : l ≠ [] := by rintro rfl; exact h0 rfl
-    have := hratio l (l.sum / 2) [s, t] hne hQ
+        simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
+        omega⟩
+    have := hratio l (l.sum / 2) [s, t] (fun hl => h0 (by simp [hl])) hQ
     simp only [List.length_cons, List.length_nil] at this
-    exact ⟨hle, by omega⟩
+    exact Or.inr ⟨hle, by omega⟩
 
 /-- The decider built from a polynomial-time algorithm is polynomial-time. -/
 theorem computableInPolyTime_decidePartition {A : List ℕ × ℕ → List (List ℕ)}
@@ -161,9 +154,7 @@ theorem P_eq_NP_of_binPacking_ratio {A : List ℕ × ℕ → List (List ℕ)} {�
     {α : Type} (enc : α ↪ List Bool) : P enc = NP enc := by
   refine P_eq_NP_of_binPacking_approx hA hvalid (fun l C Q hl hQ => ?_) enc
   have h := hratio l C Q hl hQ
-  have hQ0 : (0 : ℝ) < Q.length := by
-    exact_mod_cast List.length_pos_iff.2 (hQ.ne_nil hl)
-  have : (2 * (A (l, C)).length : ℝ) < 3 * Q.length := by nlinarith
-  exact_mod_cast this
+  have hQ0 : (0 : ℝ) < Q.length := mod_cast List.length_pos_iff.2 (hQ.ne_nil hl)
+  exact_mod_cast (by nlinarith : (2 * (A (l, C)).length : ℝ) < 3 * Q.length)
 
 end Cslib.Complexity

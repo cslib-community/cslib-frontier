@@ -108,12 +108,11 @@ theorem Instr.mapOp_additiveHomStandard_isAdditive (i : Instr .additive r) :
   cases i with
   | op o =>
     cases o with
-    | alu f d args =>
-      rcases f with ⟨f, hf⟩
+    | alu f _ _ =>
+      rcases f with ⟨_, hf⟩
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hf
       rcases hf with rfl | rfl
-      · exact Or.inl rfl
-      · exact Or.inr rfl
+      exacts [Or.inl rfl, Or.inr rfl]
     | _ => trivial
   | _ => trivial
 
@@ -306,6 +305,18 @@ private theorem reaches_set_jump {q : RAM.Program} {pc target : ℕ} {x : Data r
   rw [he] at hfirst
   exact hfirst.trans (reaches_jump h1 (hσ.set d v).one)
 
+private theorem reaches_address {q : RAM.Program} {base length pc : ℕ} {o : Op .standard r}
+    {a : Fin r} {x : Data r} {σ : URM.Regs}
+    (hcode : BlockAt q base length pc (.op o)) (hσ : Represents x σ)
+    (hi : compileInstr base length pc (.op o) 0 = .add (address r) (a + 1) (offset r)) :
+    Represents x (σ.write (address r) (memoryBase r + x.regs a)) ∧
+      Reaches q ⟨entry base pc, σ⟩
+        ⟨entry base pc + 1, σ.write (address r) (memoryBase r + x.regs a)⟩
+        (RAM.bitLength (x.regs a) + RAM.bitLength (memoryBase r)) :=
+  ⟨hσ.scratch (Or.inl rfl) _, by
+    simpa [hi, RAM.Instr.exec, RAM.logCost, hσ.regs, hσ.offset, Nat.add_comm]
+      using Reaches.step (s := ⟨entry base pc, σ⟩) hcode.first⟩
+
 private theorem op_simulation {q : RAM.Program} {base length pc w : ℕ} {o : Op .standard r}
     {x y : Data r} {σ : URM.Regs} (hcode : BlockAt q base length pc (.op o))
     (ho : (Instr.op o).IsAdditive) (hσ : Represents x σ) (hx : x.Bounded w)
@@ -333,37 +344,23 @@ private theorem op_simulation {q : RAM.Program} {base length pc w : ℕ} {o : Op
     cases f with
     | width => cases ho
     | bin f =>
-      rcases ho with rfl | rfl
-      all_goals obtain ⟨_, rfl⟩ := Data.put_eq_some.1 he
-      · refine ⟨_, (reaches_set_jump hσ hcode.first ?_ (hcode 1 (by decide))).mono ?_,
-          hσ.set d (x.regs (args (0 : Fin 2)) + x.regs (args (1 : Fin 2)))⟩
-        · simp [compileInstr, RAM.Instr.exec, hσ.regs]
-        · simp only [compileInstr, RAM.logCost, hσ.regs]
-          have := hr (args (0 : Fin 2))
-          have := hr (args (1 : Fin 2))
-          lia
-      · refine ⟨_, (reaches_set_jump hσ hcode.first ?_ (hcode 1 (by decide))).mono ?_,
-          hσ.set d (x.regs (args (0 : Fin 2)) - x.regs (args (1 : Fin 2)))⟩
-        · simp [compileInstr, RAM.Instr.exec, hσ.regs]
-        · simp only [compileInstr, RAM.logCost, hσ.regs]
-          have := hr (args (0 : Fin 2))
-          have := hr (args (1 : Fin 2))
-          lia
+      obtain ⟨_, rfl⟩ := Data.put_eq_some.1 he
+      refine ⟨_, (reaches_set_jump hσ hcode.first ?_
+        (by rcases ho with rfl | rfl <;> exact hcode 1 (by decide))).mono ?_, hσ.set d _⟩
+      · rcases ho with rfl | rfl <;>
+          (simp [compileInstr, RAM.Instr.exec, BinOp.eval, hσ.regs]; rfl)
+      · have := hr (args (0 : Fin 2))
+        have := hr (args (1 : Fin 2))
+        rcases ho with rfl | rfl <;> simp only [compileInstr, RAM.logCost, hσ.regs] <;> lia
   | load d a =>
     cases he
-    let σ₁ := σ.write (address r) (memoryBase r + x.regs a)
-    have hσ₁ : Represents x σ₁ := hσ.scratch (Or.inl rfl) _
-    have hfirst : Reaches q ⟨entry base pc, σ⟩ ⟨entry base pc + 1, σ₁⟩
-        (RAM.bitLength (x.regs a) + RAM.bitLength (memoryBase r)) := by
-      simpa [compileInstr, RAM.Instr.exec, RAM.logCost, hσ.regs, hσ.offset, σ₁, Nat.add_comm]
-        using Reaches.step (s := ⟨entry base pc, σ⟩) hcode.first
+    obtain ⟨hσ₁, hfirst⟩ := reaches_address hcode hσ rfl
     have hrest := reaches_set_jump hσ₁ (hcode 1 (by decide))
       (d := d) (v := x.mem (x.regs a)) (by
-        simp [compileInstr, RAM.Instr.exec, σ₁, hσ₁.mem])
+        simp [compileInstr, RAM.Instr.exec, hσ₁.mem])
       (by simpa [compileInstr, Nat.add_assoc] using hcode 2 (by decide))
     refine ⟨_, (hfirst.trans hrest).mono ?_, hσ₁.set d _⟩
-    simp only [compileInstr, RAM.logCost, show σ₁.read (address r) = memoryBase r + x.regs a from
-      URM.Regs.write_read_self _ _ _, hσ₁.mem]
+    simp only [compileInstr, RAM.logCost, URM.Regs.write_read_self, hσ₁.mem]
     have := RAM.bitLength_add_le (memoryBase r) (x.regs a)
     have := hr a
     have := hm (x.regs a)
@@ -371,17 +368,12 @@ private theorem op_simulation {q : RAM.Program} {base length pc w : ℕ} {o : Op
   | store a i =>
     cases he
     let σ₁ := σ.write (address r) (memoryBase r + x.regs a)
-    have hσ₁ : Represents x σ₁ := hσ.scratch (Or.inl rfl) _
-    have hfirst : Reaches q ⟨entry base pc, σ⟩ ⟨entry base pc + 1, σ₁⟩
-        (RAM.bitLength (x.regs a) + RAM.bitLength (memoryBase r)) := by
-      simpa [compileInstr, RAM.Instr.exec, RAM.logCost, hσ.regs, hσ.offset, σ₁, Nat.add_comm]
-        using Reaches.step (s := ⟨entry base pc, σ⟩) hcode.first
+    obtain ⟨hσ₁, hfirst⟩ := reaches_address hcode hσ rfl
     let σ₂ := σ₁.write (memoryBase r + x.regs a) (x.regs i)
     have hσ₂ : Represents (x.write (x.regs a) (x.regs i)) σ₂ := hσ₁.write _ _
     have hsecond : Reaches q ⟨entry base pc + 1, σ₁⟩ ⟨entry base pc + 2, σ₂⟩
         (RAM.bitLength (memoryBase r + x.regs a) + RAM.bitLength (x.regs i)) := by
-      simpa [compileInstr, RAM.Instr.exec, RAM.logCost, σ₂, hσ₁.regs,
-        show σ₁.read (address r) = memoryBase r + x.regs a from URM.Regs.write_read_self _ _ _,
+      simpa [compileInstr, RAM.Instr.exec, RAM.logCost, σ₁, σ₂, hσ₁.regs, URM.Regs.write_read_self,
         Nat.add_assoc] using Reaches.step (s := ⟨entry base pc + 1, σ₁⟩) (hcode 1 (by decide))
     refine ⟨_, ((hfirst.trans hsecond).trans
       (reaches_jump (hcode 2 (by decide)) hσ₂.one)).mono ?_, hσ₂⟩
@@ -389,6 +381,28 @@ private theorem op_simulation {q : RAM.Program} {base length pc w : ℕ} {o : Op
     have := hr a
     have := hr i
     lia
+
+private theorem reaches_sub_jpos {q : RAM.Program} {pc jumpTarget : ℕ} {i j : Fin r}
+    {x : Data r} {σ : URM.Regs} (hσ : Represents x σ)
+    (hsub : q[pc]? = some (.sub (test r) (j + 1) (i + 1)))
+    (hjpos : q[pc + 1]? = some (.jpos (test r) jumpTarget)) :
+    Represents x (σ.write (test r) (x.regs j - x.regs i)) ∧
+      Reaches q ⟨pc, σ⟩
+        ⟨if x.regs i < x.regs j then jumpTarget else pc + 2,
+          σ.write (test r) (x.regs j - x.regs i)⟩
+        (RAM.bitLength (x.regs j) + RAM.bitLength (x.regs i) +
+          RAM.bitLength (x.regs j - x.regs i)) := by
+  let τ := σ.write (test r) (x.regs j - x.regs i)
+  refine ⟨hσ.scratch (Or.inr rfl) _, ?_⟩
+  have hfirst : Reaches q ⟨pc, σ⟩ ⟨pc + 1, τ⟩
+      (RAM.bitLength (x.regs j) + RAM.bitLength (x.regs i)) := by
+    simpa [RAM.Instr.exec, RAM.logCost, hσ.regs, τ] using Reaches.step (s := ⟨pc, σ⟩) hsub
+  have hsecond : Reaches q ⟨pc + 1, τ⟩ ⟨if x.regs i < x.regs j then jumpTarget else pc + 2, τ⟩
+      (RAM.bitLength (x.regs j - x.regs i)) := by
+    by_cases hij : x.regs i < x.regs j <;>
+      simpa [RAM.Instr.exec, RAM.logCost, τ, Nat.sub_pos_iff_lt, hij, Nat.add_assoc] using
+        Reaches.step (s := ⟨pc + 1, τ⟩) hjpos
+  exact hfirst.trans hsecond
 
 private theorem branch_simulation {q : RAM.Program} {base length pc target w : ℕ}
     {c : Cond r} {x : Data r} {σ : URM.Regs}
@@ -402,73 +416,39 @@ private theorem branch_simulation {q : RAM.Program} {base length pc target w : �
     (RAM.bitLength_mono (Nat.sub_le _ _)).trans (hr i)
   cases c with
   | lt i j =>
-    let σ₁ := σ.write (test r) (x.regs j - x.regs i)
-    have hσ₁ : Represents x σ₁ := hσ.scratch (Or.inr rfl) _
-    have hfirst : Reaches q ⟨entry base pc, σ⟩ ⟨entry base pc + 1, σ₁⟩
-        (RAM.bitLength (x.regs j) + RAM.bitLength (x.regs i)) := by
-      simpa [compileInstr, RAM.Instr.exec, RAM.logCost, hσ.regs, σ₁]
-        using Reaches.step (s := ⟨entry base pc, σ⟩) hcode.first
-    have hsecond := Reaches.step (s := ⟨entry base pc + 1, σ₁⟩) (hcode 1 (by decide))
+    obtain ⟨hσ₁, hstep⟩ := reaches_sub_jpos hσ hcode.first (hcode 1 (by decide))
     by_cases hij : x.regs i < x.regs j
-    · have hsecond' : Reaches q ⟨entry base pc + 1, σ₁⟩ ⟨entry base target, σ₁⟩
-          (RAM.bitLength (x.regs j - x.regs i)) := by
-        simpa [compileInstr, RAM.Instr.exec, RAM.logCost, σ₁, Nat.sub_pos_iff_lt, hij] using hsecond
-      refine ⟨_, ?_, hσ₁⟩
-      simpa only [Cond.holds_lt, ite_eq_left hij] using (hfirst.trans hsecond').mono (by
+    · refine ⟨_, ?_, hσ₁⟩
+      simpa only [Cond.holds_lt, ite_eq_left hij] using hstep.mono (by
         have := hr i; have := hr j; have := hd j i; lia)
-    · have hsecond' : Reaches q ⟨entry base pc + 1, σ₁⟩ ⟨entry base pc + 2, σ₁⟩
-          (RAM.bitLength (x.regs j - x.regs i)) := by
-        simpa [compileInstr, RAM.Instr.exec, RAM.logCost, σ₁, Nat.sub_pos_iff_lt, hij,
-          Nat.add_assoc] using hsecond
+    · rw [ite_eq_right hij] at hstep
       refine ⟨_, ?_, hσ₁⟩
       simpa only [Cond.holds_lt, ite_eq_right hij] using
-        ((hfirst.trans hsecond').trans (reaches_jump (hcode 2 (by decide)) hσ₁.one)).mono (by
+        (hstep.trans (reaches_jump (hcode 2 (by decide)) hσ₁.one)).mono (by
           have := hr i; have := hr j; have := hd j i; lia)
   | eq i j =>
-    let σ₁ := σ.write (test r) (x.regs i - x.regs j)
-    have hσ₁ : Represents x σ₁ := hσ.scratch (Or.inr rfl) _
-    have hfirst : Reaches q ⟨entry base pc, σ⟩ ⟨entry base pc + 1, σ₁⟩
-        (RAM.bitLength (x.regs i) + RAM.bitLength (x.regs j)) := by
-      simpa [compileInstr, RAM.Instr.exec, RAM.logCost, hσ.regs, σ₁]
-        using Reaches.step (s := ⟨entry base pc, σ⟩) hcode.first
-    have hsecond := Reaches.step (s := ⟨entry base pc + 1, σ₁⟩) (hcode 1 (by decide))
+    obtain ⟨hσ₁, hstep₁⟩ := reaches_sub_jpos hσ hcode.first (hcode 1 (by decide))
     by_cases hji : x.regs j < x.regs i
-    · have hsecond' : Reaches q ⟨entry base pc + 1, σ₁⟩ ⟨entry base (pc + 1), σ₁⟩
-          (RAM.bitLength (x.regs i - x.regs j)) := by
-        simpa [compileInstr, RAM.Instr.exec, RAM.logCost, σ₁, Nat.sub_pos_iff_lt, hji] using hsecond
-      refine ⟨_, ?_, hσ₁⟩
+    · refine ⟨_, ?_, hσ₁⟩
+      rw [ite_eq_left hji] at hstep₁
       simpa only [Cond.holds_eq, ite_eq_right (by lia : x.regs i ≠ x.regs j)] using
-        (hfirst.trans hsecond').mono (by have := hr i; have := hr j; have := hd i j; lia)
-    · have hsecond' : Reaches q ⟨entry base pc + 1, σ₁⟩ ⟨entry base pc + 2, σ₁⟩
-          (RAM.bitLength (x.regs i - x.regs j)) := by
-        simpa [compileInstr, RAM.Instr.exec, RAM.logCost, σ₁, Nat.sub_pos_iff_lt, hji,
-          Nat.add_assoc] using hsecond
-      let σ₂ := σ₁.write (test r) (x.regs j - x.regs i)
-      have hσ₂ : Represents x σ₂ := hσ₁.scratch (Or.inr rfl) _
-      have hthird : Reaches q ⟨entry base pc + 2, σ₁⟩ ⟨entry base pc + 3, σ₂⟩
-          (RAM.bitLength (x.regs j) + RAM.bitLength (x.regs i)) := by
-        simpa [compileInstr, RAM.Instr.exec, RAM.logCost, hσ₁.regs, σ₂, Nat.add_assoc]
-          using Reaches.step (s := ⟨entry base pc + 2, σ₁⟩) (hcode 2 (by decide))
-      have hfourth := Reaches.step (s := ⟨entry base pc + 3, σ₂⟩) (hcode 3 (by decide))
+        hstep₁.mono (by have := hr i; have := hr j; have := hd i j; lia)
+    · rw [ite_eq_right hji] at hstep₁
+      obtain ⟨hσ₂, hstep₂⟩ := reaches_sub_jpos hσ₁
+        (by simpa [compileInstr, Nat.add_assoc] using hcode 2 (by decide))
+        (by simpa [compileInstr, Nat.add_assoc] using hcode 3 (by decide))
       by_cases hij : x.regs i < x.regs j
-      · have hfourth' : Reaches q ⟨entry base pc + 3, σ₂⟩ ⟨entry base (pc + 1), σ₂⟩
-            (RAM.bitLength (x.regs j - x.regs i)) := by
-          simpa [compileInstr, RAM.Instr.exec, RAM.logCost, σ₂, Nat.sub_pos_iff_lt, hij]
-            using hfourth
-        refine ⟨_, ?_, hσ₂⟩
+      · refine ⟨_, ?_, hσ₂⟩
+        rw [ite_eq_left hij] at hstep₂
         simpa only [Cond.holds_eq, ite_eq_right (by lia : x.regs i ≠ x.regs j)] using
-          (((hfirst.trans hsecond').trans hthird).trans hfourth').mono (by
+          (hstep₁.trans hstep₂).mono (by
             have := hr i; have := hr j; have := hd i j; have := hd j i; lia)
       · have heq : x.regs i = x.regs j := by lia
-        have hfourth' : Reaches q ⟨entry base pc + 3, σ₂⟩ ⟨entry base pc + 4, σ₂⟩
-            (RAM.bitLength (x.regs j - x.regs i)) := by
-          simpa [compileInstr, RAM.Instr.exec, RAM.logCost, σ₂, Nat.sub_pos_iff_lt, hij,
-            Nat.add_assoc] using hfourth
+        rw [ite_eq_right hij, show entry base pc + 2 + 2 = entry base pc + 4 by lia] at hstep₂
         refine ⟨_, ?_, hσ₂⟩
         simpa only [Cond.holds_eq, ite_eq_left heq] using
-          ((((hfirst.trans hsecond').trans hthird).trans hfourth').trans
-            (reaches_jump (hcode 4 (by decide)) hσ₂.one)).mono (by
-              have := hr i; have := hr j; have := hd i j; have := hd j i; lia)
+          ((hstep₁.trans hstep₂).trans (reaches_jump (hcode 4 (by decide)) hσ₂.one)).mono (by
+            have := hr i; have := hr j; have := hd i j; have := hd j i; lia)
 
 private theorem halt_simulation {q : RAM.Program} {base length pc w : ℕ} {i : Fin r}
     {x : Data r} {σ : URM.Regs} (hcode : BlockAt q base length pc (.halt i))

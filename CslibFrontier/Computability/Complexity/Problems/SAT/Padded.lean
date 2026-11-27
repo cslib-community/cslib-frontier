@@ -85,11 +85,9 @@ private theorem length_canonicalize (φ : CNF ℕ) (w : List Bool) :
   simp [canonicalize]
 
 private theorem getD_canonicalize (φ : CNF ℕ) (w : List Bool) (i : ℕ) :
-    (canonicalize φ w).getD i false = (w.getD i false && SharpSAT.isFirst φ i) := by
-  by_cases hi : i < w.length
-  · exact List.getD_map_range _ false hi
-  · have : w.length ≤ i := Nat.le_of_not_lt hi
-    simp [canonicalize, List.getD_eq_getElem?_getD, this]
+    (canonicalize φ w).getD i false = (w.getD i false && SharpSAT.isFirst φ i) :=
+  if hi : i < w.length then List.getD_map_range _ false hi
+  else by simp [canonicalize, List.getD_eq_getElem?_getD, Nat.le_of_not_lt hi]
 
 /-- Canonicalizing a certificate keeps the assignment it describes. -/
 private theorem verifier_canonicalize (φ : CNF ℕ) (w : List Bool) :
@@ -100,9 +98,8 @@ private theorem verifier_canonicalize (φ : CNF ℕ) (w : List Bool) :
 
 private theorem canonical_canonicalize (φ : CNF ℕ) (w : List Bool) :
     SharpSAT.canonical φ (canonicalize φ w) = true :=
-  SharpSAT.canonical_eq_true_iff.2 fun i _ h => by
-    rw [getD_canonicalize, Bool.and_eq_true] at h
-    exact h.2
+  SharpSAT.canonical_eq_true_iff.2 fun i _ h =>
+    ((Bool.and_eq_true _ _).mp (getD_canonicalize φ w i ▸ h)).2
 
 private theorem computableInPolyTime_canonicalize :
     ComputableInPolyTime (fun x : CNF ℕ × List Bool => canonicalize x.1 x.2 ++ [false])
@@ -174,8 +171,7 @@ theorem exercise_6_36a :
   refine ⟨paddedRelation.isWitness_mem_FNP, paddedRelation_levinHard,
     searchCount_paddedRelation_sharpPMetricComplete,
     mem_PromiseP_iff.2 ⟨fun _ => false, const false, fun φ hφ => ?_, fun _ _ => rfl⟩⟩
-  change searchCount paddedRelation.IsWitness φ = 1 at hφ
-  rw [searchCount_paddedRelation] at hφ
+  rw [Set.mem_ofPred_eq, searchCount_paddedRelation] at hφ
   omega
 
 end Cslib.Complexity.SAT

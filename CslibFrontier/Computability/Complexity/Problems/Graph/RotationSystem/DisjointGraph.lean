@@ -99,22 +99,17 @@ theorem endpoints_declared_disjointUnion (G H : Graph)
     ∀ v ∈ (G.disjointUnion H).incidenceVertices, v ∈ (G.disjointUnion H).vertices := by
   intro v hv
   obtain ⟨edge, he, hv⟩ := List.mem_flatMap.mp hv
-  rcases List.mem_append.mp he with he | he
-  · obtain ⟨old, ho, rfl⟩ := List.mem_map.mp he
-    rcases List.mem_cons.mp hv with rfl | hv
+  rcases List.mem_append.mp he with he | he <;> obtain ⟨old, ho, rfl⟩ := List.mem_map.mp he
+  · rcases List.mem_cons.mp hv with rfl | hv
     · exact List.mem_append_left _ (List.mem_map_of_mem
         (hG old.1 (List.mem_flatMap.mpr ⟨old, ho, by simp⟩)))
-    · have hv' : v = 2 * old.2 := by simpa only [List.mem_cons, List.not_mem_nil, or_false] using hv
-      subst v
+    · obtain rfl : v = 2 * old.2 := by simpa using hv
       exact List.mem_append_left _ (List.mem_map_of_mem
         (hG old.2 (List.mem_flatMap.mpr ⟨old, ho, by simp⟩)))
-  · obtain ⟨old, ho, rfl⟩ := List.mem_map.mp he
-    rcases List.mem_cons.mp hv with rfl | hv
+  · rcases List.mem_cons.mp hv with rfl | hv
     · exact List.mem_append_right _ (List.mem_map_of_mem
         (hH old.1 (List.mem_flatMap.mpr ⟨old, ho, by simp⟩)))
-    · have hv' : v = 2 * old.2 + 1 := by
-        simpa only [List.mem_cons, List.not_mem_nil, or_false] using hv
-      subst v
+    · obtain rfl : v = 2 * old.2 + 1 := by simpa using hv
       exact List.mem_append_right _ (List.mem_map_of_mem
         (hH old.2 (List.mem_flatMap.mpr ⟨old, ho, by simp⟩)))
 

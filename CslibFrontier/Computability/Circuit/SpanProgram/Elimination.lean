@@ -199,13 +199,11 @@ theorem matrix_mulVec_nullVector (P : MonotoneSpanProgram F (Fin N)) {s : Finset
 /-- The first entry of `nullVector` is one exactly on the coalitions that are not accepted. -/
 theorem nullVector_zero_eq_one_iff (P : MonotoneSpanProgram F (Fin N)) (s : Finset (Fin N)) :
     P.nullVector s 0 = 1 ↔ ¬ P.Accepts s := by
-  constructor
-  · intro h
-    exact P.not_accepts_of_exists_nullVector _ h fun i hi => P.matrix_mulVec_nullVector hi
-  · intro hs
-    obtain ⟨v, hv0, hv⟩ := P.exists_nullVector_of_not_accepts hs
-    exact (Cslib.LinearAlgebra.kernelVecAt_apply_self_eq_one_iff _ _).2
-      ⟨v, (P.stack_mulVec_eq_zero_iff s v).2 hv, by rw [hv0]; exact one_ne_zero⟩
+  refine ⟨fun h => P.not_accepts_of_exists_nullVector _ h fun _ => P.matrix_mulVec_nullVector,
+    fun hs => ?_⟩
+  obtain ⟨v, hv0, hv⟩ := P.exists_nullVector_of_not_accepts hs
+  exact (Cslib.LinearAlgebra.kernelVecAt_apply_self_eq_one_iff _ _).2
+    ⟨v, (P.stack_mulVec_eq_zero_iff s v).2 hv, hv0 ▸ one_ne_zero⟩
 
 /-- On an accepted coalition, `nullVector` is the zero vector. -/
 theorem nullVector_eq_zero_of_accepts (P : MonotoneSpanProgram F (Fin N)) {s : Finset (Fin N)}

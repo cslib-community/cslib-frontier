@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Computability.Circuit.Boolean.Oracle
 public import CslibFrontier.Computability.Circuit.Boolean.Oracle.LocalClass
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Oracle formulas and local formula classes
@@ -117,29 +118,20 @@ def maxQueryArity : OracleFormula n → ℕ
 @[simp] theorem queryCount_mapOp_toOracle (F : Formula signature n) :
     queryCount (F.mapOp toOracle) = 0 := by
   induction F with
-  | input i => simp
-  | gate op args ih =>
-    rw [Formula.mapOp_gate, queryCount_gate]
-    simp only [toOracle, DFunLike.coe, OracleOp.queryWeight_base, add_zero]
-    exact Finset.sum_eq_zero fun j _ => ih _
+  | input => simp
+  | gate op _ ih => exact show _ = (toOracle op).queryWeight by simp [ih]
 
 @[simp] theorem adaptivity_mapOp_toOracle (F : Formula signature n) :
     adaptivity (F.mapOp toOracle) = 0 := by
   induction F with
-  | input i => simp
-  | gate op args ih =>
-    rw [Formula.mapOp_gate, adaptivity_gate]
-    simp only [toOracle, DFunLike.coe, OracleOp.queryWeight_base, add_zero]
-    exact le_antisymm (Finset.sup_le fun j _ => (ih _).le) (Nat.zero_le _)
+  | input => simp
+  | gate op _ ih => exact show _ = (toOracle op).queryWeight by simp [ih]
 
 @[simp] theorem maxQueryArity_mapOp_toOracle (F : Formula signature n) :
     maxQueryArity (F.mapOp toOracle) = 0 := by
   induction F with
-  | input i => simp
-  | gate op args ih =>
-    rw [Formula.mapOp_gate, maxQueryArity_gate]
-    simp only [toOracle, DFunLike.coe, OracleOp.queryArity_base, zero_max]
-    exact le_antisymm (Finset.sup_le fun j _ => (ih _).le) (Nat.zero_le _)
+  | input => simp
+  | gate op _ ih => exact show _ = (toOracle op).queryArity by simp [ih]
 
 /-! ### Oracle gates on De Morgan formulas -/
 
@@ -153,13 +145,8 @@ def query (fs : List (Formula signature n)) : OracleFormula n :=
     {x : Fin n → Bool} :
     (query fs).eval (oracleInterpretation O) x = true ↔ fs.map (·.eval interpretation x) ∈ O := by
   simp only [query, Formula.eval_gate, oracleInterpretation_query, Language.slice_eq_true_iff]
-  have h : (List.ofFn fun i : Fin fs.length =>
-      (fs[i].mapOp toOracle).eval (oracleInterpretation O) x) =
-        fs.map (·.eval interpretation x) := by
-    refine List.ext_getElem (by simp) fun i _ _ => ?_
-    simp only [List.getElem_ofFn, List.getElem_map]
-    exact Formula.eval_mapOp (I := interpretation) _ x
-  rw [h]
+  exact Eq.to_iff (congrArg (· ∈ O) (List.ext_getElem (by simp)
+    fun _ _ _ => by simpa using Formula.eval_mapOp (I := interpretation) _ x))
 
 @[simp] theorem queryCount_query (fs : List (Formula signature n)) :
     queryCount (query fs) = 1 := by
@@ -183,9 +170,7 @@ def query (fs : List (Formula signature n)) : OracleFormula n :=
 arguments. -/
 theorem leafSize_query_le {fs : List (Formula signature n)} (hfs : ∀ F ∈ fs, F.leafSize ≤ 1) :
     (query fs).leafSize ≤ fs.length := by
-  rw [leafSize_query]
-  refine (List.sum_le_length_nsmul _ 1 ?_).trans (by simp)
-  simpa using hfs
+  circuit_bound [leafSize_query]
 
 /-! ### Conjunctions -/
 

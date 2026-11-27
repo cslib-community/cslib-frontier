@@ -66,24 +66,21 @@ private theorem prod_reverseCycle {A : Matrix α α R} (hA : Aᵀ = -A) {σ : Pe
     (hx : Odd #(σ.cycleOf x).support) :
     ∏ i, A (reverseCycle σ x i) i = -∏ i, A (σ i) i := by
   have hσx := apply_ne_of_odd_card_support_cycleOf hx
-  set S := (σ.cycleOf x).support with hS
-  have hmem : ∀ y, y ∈ S ↔ σ.SameCycle x y := fun y => mem_support_cycleOf_iff' hσx
-  rw [← prod_mul_prod_compl S, ← prod_mul_prod_compl S (fun i => A (σ i) i)]
+  set S := (σ.cycleOf x).support
+  have hmem (y) : y ∈ S ↔ σ.SameCycle x y := mem_support_cycleOf_iff' hσx
   have hc : ∏ i ∈ Sᶜ, A (reverseCycle σ x i) i = ∏ i ∈ Sᶜ, A (σ i) i :=
     prod_congr rfl fun i hi => by
-      rw [reverseCycle_apply, ite_eq_right (by rw [← hmem]; simpa using hi)]
-  have hs : ∏ i ∈ S, A (reverseCycle σ x i) i = -∏ i ∈ S, A (σ i) i := by
-    rw [prod_congr rfl fun i hi => by rw [reverseCycle_apply, ite_eq_left ((hmem i).1 hi)]]
-    have hre : ∏ i ∈ S, A (σ⁻¹ i) i = ∏ j ∈ S, A j (σ j) := by
-      refine prod_nbij' (fun i => σ⁻¹ i) (fun j => σ j) (fun i hi => ?_) (fun j hj => ?_)
-        (fun i _ => σ.apply_symm_apply i) (fun j _ => σ.symm_apply_apply j)
-        (fun i _ => by rw [show σ (σ⁻¹ i) = i from σ.apply_symm_apply i])
-      · exact (hmem _).2 (sameCycle_symm_apply_right.2 ((hmem i).1 hi))
-      · exact (hmem _).2 (sameCycle_apply_right.2 ((hmem j).1 hj))
-    have hneg : ∀ j, A j (σ j) = -A (σ j) j := fun j => by
-      rw [← transpose_apply A (σ j) j, hA, Matrix.neg_apply]
-    rw [hre, prod_congr rfl fun j _ => hneg j, prod_neg, hx.neg_one_pow, neg_one_mul]
-  rw [hs, hc, neg_mul]
+      rw [reverseCycle_apply, ite_eq_right ((hmem i).not.1 (mem_compl.1 hi))]
+  rw [← prod_mul_prod_compl S, ← prod_mul_prod_compl S fun i => A (σ i) i, hc,
+    prod_congr rfl fun i hi => by rw [reverseCycle_apply, ite_eq_left ((hmem i).1 hi)]]
+  have hre : ∏ i ∈ S, A (σ⁻¹ i) i = ∏ j ∈ S, A j (σ j) :=
+    prod_nbij' (σ⁻¹ ·) (σ ·)
+      (fun i hi => (hmem _).2 (sameCycle_symm_apply_right.2 ((hmem i).1 hi)))
+      (fun j hj => (hmem _).2 (sameCycle_apply_right.2 ((hmem j).1 hj)))
+      (fun i _ => σ.apply_symm_apply i) (fun j _ => σ.symm_apply_apply j)
+      fun i _ => by rw [show σ (σ⁻¹ i) = i from σ.apply_symm_apply i]
+  rw [hre, prod_congr rfl fun j _ => by rw [← transpose_apply A (σ j) j, hA, Matrix.neg_apply],
+    prod_neg, hx.neg_one_pow, neg_one_mul, neg_mul]
 
 /-- A point of a nonempty finite set, chosen so that equal sets give equal points. -/
 private noncomputable def pick (s : Finset α) (hs : s.Nonempty) : α := hs.choose
@@ -103,19 +100,14 @@ private theorem sum_oddPoints_nonempty_eq_zero {A : Matrix α α R} (hA : Aᵀ =
     ∑ σ ∈ univ.filter (fun σ : Perm α => (oddPoints σ).Nonempty),
       sign σ • ∏ i, A (σ i) i = 0 := by
   refine sum_involution
-    (fun σ hσ => reverseCycle σ (pick (oddPoints σ) (mem_filter.1 hσ).2)) ?_ ?_ ?_ ?_
-  · intro σ hσ
-    have hx := pick_mem _ (mem_filter.1 hσ).2
-    rw [mem_oddPoints] at hx
-    rw [sign_reverseCycle, prod_reverseCycle hA hx, smul_neg, add_neg_cancel]
-  · intro σ hσ _
-    have hx := pick_mem _ (mem_filter.1 hσ).2
-    rw [mem_oddPoints] at hx
-    exact reverseCycle_ne hx
-  · intro σ hσ
-    simpa only [mem_filter, mem_univ, true_and, oddPoints_reverseCycle] using hσ
-  · intro σ hσ
-    rw [pick_congr (oddPoints_reverseCycle _ _) _ (mem_filter.1 hσ).2, reverseCycle_reverseCycle]
+    (fun σ hσ => reverseCycle σ (pick (oddPoints σ) (mem_filter.1 hσ).2))
+    (fun σ hσ => ?_)
+    (fun σ hσ _ => reverseCycle_ne (mem_oddPoints.1 (pick_mem _ (mem_filter.1 hσ).2)))
+    (fun σ hσ => by simpa only [mem_filter, mem_univ, true_and, oddPoints_reverseCycle] using hσ)
+    fun σ hσ => by rw [pick_congr (oddPoints_reverseCycle _ _) _ (mem_filter.1 hσ).2,
+      reverseCycle_reverseCycle]
+  rw [sign_reverseCycle, prod_reverseCycle hA (mem_oddPoints.1 (pick_mem _ (mem_filter.1 hσ).2)),
+    smul_neg, add_neg_cancel]
 
 /-- **Odd cycles cancel**: the determinant of a skew-symmetric matrix is the Leibniz sum over the
 permutations all of whose cycles have even length. -/
@@ -135,17 +127,12 @@ theorem det_eq_zero_of_transpose_eq_neg_of_odd {A : Matrix α α R} (hA : Aᵀ =
     (hdiag : ∀ i, A i i = 0) (hα : Odd (Fintype.card α)) : A.det = 0 := by
   rw [det_eq_sum_even_cycleType_of_transpose_eq_neg hA]
   refine sum_eq_zero fun σ hσ => ?_
-  rw [mem_filter] at hσ
-  have hsupp : #σ.support ≠ Fintype.card α := by
-    intro h
-    have heven : 2 ∣ σ.cycleType.sum :=
-      Multiset.dvd_sum fun n hn => even_iff_two_dvd.1 (hσ.2 n hn)
-    rw [sum_cycleType, h] at heven
-    exact Nat.not_even_iff_odd.2 hα (even_iff_two_dvd.2 heven)
   obtain ⟨x, hx⟩ : ∃ x, σ x = x := by
     by_contra! hall
-    refine hsupp ?_
-    rw [← card_univ, eq_univ_of_forall fun x => mem_support.2 (hall x)]
+    have heven : 2 ∣ σ.cycleType.sum :=
+      Multiset.dvd_sum fun n hn => even_iff_two_dvd.1 ((mem_filter.1 hσ).2 n hn)
+    rw [sum_cycleType, eq_univ_of_forall fun x => mem_support.2 (hall x), card_univ] at heven
+    exact Nat.not_even_iff_odd.2 hα (even_iff_two_dvd.2 heven)
   rw [prod_eq_zero (mem_univ x) (by rw [hx, hdiag]), smul_zero]
 
 end Matrix

@@ -52,15 +52,11 @@ theorem sqrt_logb_mul_le_two_mul_sqrt_log_two {d n : ℕ}
     have hpow : 2 ^ 9 ≤ n := by norm_num; omega
     simpa only [show 3 * 3 = 9 by rfl] using le_log_of_pow_le one_lt_two hpow)
   have hlogn : Real.logb 2 (n : ℝ) < (L : ℝ) + 1 := by
-    rw [Real.logb_lt_iff_lt_rpow (by norm_num) (by positivity)]
-    have hpow : (n : ℝ) < (2 : ℝ) ^ (L + 1) := by
-      exact_mod_cast lt_pow_succ_log_self one_lt_two n
-    rw [← Real.rpow_natCast] at hpow
-    exact_mod_cast hpow
+    rw [Real.logb_lt_iff_lt_rpow (by norm_num) (by positivity), ← Nat.cast_add_one,
+      Real.rpow_natCast]
+    exact_mod_cast lt_pow_succ_log_self one_lt_two n
   have hL : (L : ℝ) + 1 ≤ ((q : ℝ) + 1) ^ 2 := by
-    have h : L + 1 ≤ (q + 1) ^ 2 := by
-      simpa only [pow_two] using Nat.succ_le_of_lt (lt_succ_sqrt L)
-    exact_mod_cast h
+    exact_mod_cast Nat.succ_le_of_lt (by simpa only [pow_two] using lt_succ_sqrt L)
   have hlogd : Real.logb 2 (d : ℝ) ≤ Real.logb 2 (n : ℝ) :=
     Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast hd) (by exact_mod_cast hdn)
   have hlogdn : Real.logb 2 ((d * n : ℕ) : ℝ) ≤ 2 * Real.logb 2 (n : ℝ) := by
@@ -81,12 +77,8 @@ theorem mul_sqrt_logb_div_lt_of_div_lt {K d n v : ℕ}
   have hsqrt := sqrt_logb_mul_le_two_mul_sqrt_log_two hd hdn hn
   have hq : (sqrt (log 2 n) : ℝ) ≤ q := by
     exact_mod_cast sqrt_log_two_mono (show n ≤ n + 2 by omega)
-  have hsqrt' : Real.sqrt (Real.logb 2 ((d * n : ℕ) : ℝ)) ≤ 2 * (q : ℝ) := by
-    linarith
-  have hnat : n * q < v * K := (div_lt_iff_lt_mul hK).1 h
-  have hreal : (n : ℝ) * q < (v : ℝ) * K := by exact_mod_cast hnat
-  have hdreal : (0 : ℝ) < d := by exact_mod_cast hd
-  have hKreal : (0 : ℝ) < K := by exact_mod_cast hK
+  have hsqrt' : Real.sqrt (Real.logb 2 ((d * n : ℕ) : ℝ)) ≤ 2 * (q : ℝ) := by linarith
+  have hreal : (n : ℝ) * q < (v : ℝ) * K := by exact_mod_cast (div_lt_iff_lt_mul hK).1 h
   rw [div_lt_iff₀ (by positivity)]
   have hscaled := mul_lt_mul_of_pos_left hreal (show (0 : ℝ) < 2 * d by positivity)
   have hle := mul_le_mul_of_nonneg_left hsqrt' (show (0 : ℝ) ≤ (d * n : ℕ) by positivity)

@@ -115,14 +115,11 @@ private noncomputable def walkStep (p t m extra : ℕ) (s : WalkState α) :
 private def walkFinish (W : α → Finset (List Bool)) (s : WalkState α) : Option (List Bool) :=
   if s.2.2.2 && decide ([] ∈ W s.1) then some s.2.2.1.reverse else none
 
-private theorem walkStep_stopped (p t m extra : ℕ) (y : α) (e : ℕ × ℕ) (acc : List Bool) :
-    R.walkStep A p t m extra (y, e, acc, false) = pure (y, e, acc, false) := rfl
-
 private theorem iterate_walkStep_stopped (p t m extra n : ℕ) (y : α) (e : ℕ × ℕ)
     (acc : List Bool) :
     OracleComp.iterate n (R.walkStep A p t m extra) (y, e, acc, false) =
       pure (y, e, acc, false) :=
-  OracleComp.iterate_eq_pure n _ _ (R.walkStep_stopped A p t m extra y e acc)
+  OracleComp.iterate_eq_pure n _ _ rfl
 
 /-- **The walk as a loop**: `n` loop steps from a running state at `y` with recorded bits `acc`
 give the walk's result, prefixed by the recorded bits. -/

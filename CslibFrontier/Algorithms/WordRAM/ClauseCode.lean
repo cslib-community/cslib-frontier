@@ -46,8 +46,9 @@ open Cslib.Logic.PL
 
 variable {α : Type*} (f : α → ℕ)
 
-/-- The word code `2 f(v) + b` of the literal `(v, b)`. -/
-def litCodeBy (l : Literal α) : ℕ := 2 * f l.1 + l.2.toNat
+/-- The word code `2 f(v) + b` of the literal `(v, b)`. Inlined, so that compiled code computes
+the code without a call through `f`. -/
+@[inline] def litCodeBy (l : Literal α) : ℕ := 2 * f l.1 + l.2.toNat
 
 /-- A clause is stored as its length followed by the codes of its literals. -/
 def encodeClauseBy (c : Clause α) : List ℕ := c.length :: c.map (litCodeBy f)
@@ -88,6 +89,10 @@ theorem litCodeBy_injective {f : α → ℕ} (hf : Function.Injective f) :
   simp only [litCodeBy_shiftRight, litCodeBy_and_one] at h1 h2
   rw [hf h1]
   cases b <;> cases b' <;> simp_all
+
+/-- The codes of literals over `ℕ` determine the literals. -/
+theorem litCode_injective : Function.Injective litCode :=
+  litCodeBy_injective Function.injective_id
 
 /-- **Flipping the low bit negates**: the code of the negation of a literal. -/
 theorem litCodeBy_xor_one (l : Literal α) :

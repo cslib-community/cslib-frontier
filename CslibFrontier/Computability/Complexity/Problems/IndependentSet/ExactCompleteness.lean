@@ -86,80 +86,63 @@ private theorem mergeAssignment_comp_odd (a b : ℕ → Bool) (guard : Bool) :
 
 private theorem exists_countUnsat_guardFormula_le_one (p : CNF ℕ × CNF ℕ) :
     (∃ σ : ℕ → Bool, (guardFormula p).countUnsat σ ≤ 1) ↔ p.1 ∈ SAT := by
-  constructor
-  · rintro ⟨σ, hσ⟩
-    rw [countUnsat_guardFormula] at hσ
-    exact ⟨σ ∘ (fun v => 2 * v + 2), CNF.countUnsat_eq_zero_iff.1 (by omega)⟩
-  · rintro ⟨a, ha⟩
-    refine ⟨mergeAssignment a (fun _ => false) true, ?_⟩
-    rw [countUnsat_guardFormula, mergeAssignment_comp_even, CNF.countUnsat_eq_zero_iff.2 ha]
+  refine ⟨fun ⟨σ, hσ⟩ => ?_, fun ⟨a, ha⟩ => ⟨mergeAssignment a (fun _ => false) true, ?_⟩⟩
+  · rw [countUnsat_guardFormula] at hσ
+    exact ⟨σ ∘ fun v => 2 * v + 2, CNF.countUnsat_eq_zero_iff.1 (by omega)⟩
+  · rw [countUnsat_guardFormula, mergeAssignment_comp_even, CNF.countUnsat_eq_zero_iff.2 ha]
     simp [mergeAssignment]
 
 private theorem exists_countUnsat_guardFormula_eq_zero (p : CNF ℕ × CNF ℕ) :
     (∃ σ : ℕ → Bool, (guardFormula p).countUnsat σ = 0) ↔ p.1 ∈ SAT ∧ p.2 ∈ SAT := by
-  constructor
-  · rintro ⟨σ, hσ⟩
-    rw [countUnsat_guardFormula] at hσ
+  refine ⟨fun ⟨σ, hσ⟩ => ?_, fun ⟨⟨a, ha⟩, ⟨b, hb⟩⟩ => ⟨mergeAssignment a b false, ?_⟩⟩
+  · rw [countUnsat_guardFormula] at hσ
     cases hz : σ 0 <;> simp only [hz, Bool.false_eq_true, ↓reduceIte] at hσ
-    · exact ⟨⟨σ ∘ (fun v => 2 * v + 2), CNF.countUnsat_eq_zero_iff.1 (by omega)⟩,
-        ⟨σ ∘ (fun v => 2 * v + 1), CNF.countUnsat_eq_zero_iff.1 (by omega)⟩⟩
+    · exact ⟨⟨σ ∘ fun v => 2 * v + 2, CNF.countUnsat_eq_zero_iff.1 (by omega)⟩,
+        ⟨σ ∘ fun v => 2 * v + 1, CNF.countUnsat_eq_zero_iff.1 (by omega)⟩⟩
     · omega
-  · rintro ⟨⟨a, ha⟩, ⟨b, hb⟩⟩
-    refine ⟨mergeAssignment a b false, ?_⟩
-    rw [countUnsat_guardFormula, mergeAssignment_comp_even, mergeAssignment_comp_odd,
+  · rw [countUnsat_guardFormula, mergeAssignment_comp_even, mergeAssignment_comp_odd,
       CNF.countUnsat_eq_zero_iff.2 ha, CNF.countUnsat_eq_zero_iff.2 hb]
     simp [mergeAssignment]
 
 /-- The target in Karp's graph is exactly its independence number for SAT–UNSAT pairs. -/
 theorem toExactIndependentSet_mem_iff (p : CNF ℕ × CNF ℕ) :
     toExactIndependentSet p ∈ ExactIndependentSet ↔ p ∈ SATUNSAT := by
-  rw [mem_ExactIndependentSet_iff]
-  change
-    ((⟨(SAT.toIndependentSet (guardFormula p)).graph, (guardFormula p).length - 1⟩ :
-        IndependentSetInstance) ∈ IndependentSet ∧
-      (⟨(SAT.toIndependentSet (guardFormula p)).graph, (guardFormula p).length - 1 + 1⟩ :
-        IndependentSetInstance) ∉ IndependentSet) ↔ _
-  rw [← Graph.le_indepNum_iff, ← Graph.le_indepNum_iff,
-    SAT.le_indepNum_toIndependentSet_iff, SAT.le_indepNum_toIndependentSet_iff]
   have hpos := guardFormula_length_pos p
-  simp only [show ∀ n : ℕ, (guardFormula p).length - 1 + n ≤ (guardFormula p).length ↔ n ≤ 1
-    from fun _ => by omega,
-    show ∀ n : ℕ, (guardFormula p).length - 1 + 1 + n ≤ (guardFormula p).length ↔ n = 0
-    from fun _ => by omega,
+  have hle₁ (n : ℕ) : (guardFormula p).length - 1 + n ≤ (guardFormula p).length ↔ n ≤ 1 := by omega
+  have hle₂ (n : ℕ) : (guardFormula p).length - 1 + 1 + n ≤ (guardFormula p).length ↔ n = 0 := by
+    omega
+  rw [mem_ExactIndependentSet_iff]
+  change ((⟨(SAT.toIndependentSet (guardFormula p)).graph, (guardFormula p).length - 1⟩ :
+      IndependentSetInstance) ∈ IndependentSet ∧
+    (⟨(SAT.toIndependentSet (guardFormula p)).graph, (guardFormula p).length - 1 + 1⟩ :
+      IndependentSetInstance) ∉ IndependentSet) ↔ p.1 ∈ SAT ∧ p.2 ∉ SAT
+  simp only [← Graph.le_indepNum_iff, SAT.le_indepNum_toIndependentSet_iff, hle₁, hle₂,
     exists_countUnsat_guardFormula_le_one, exists_countUnsat_guardFormula_eq_zero]
-  change (p.1 ∈ SAT ∧ ¬(p.1 ∈ SAT ∧ p.2 ∈ SAT)) ↔ p.1 ∈ SAT ∧ p.2 ∉ SAT
   tauto
 
 private theorem computableInPolyTime_guardFormula :
     ComputableInPolyTime guardFormula (encPair encCNF encCNF) encCNF := by
   have hdouble : ComputableInPolyTime (fun v : ℕ => 2 * v) encNat encNat := by
-    rw [show (fun v : ℕ => 2 * v) = (fun v => v + v) from funext two_mul]
-    exact ComputableInPolyTime.binary_add' ComputableInPolyTime.id' ComputableInPolyTime.id'
-  have heven := ComputableInPolyTime.binary_add' hdouble (ComputableInPolyTime.const 2)
-  have hodd := ComputableInPolyTime.binary_add' hdouble (ComputableInPolyTime.const 1)
-  have hfirst := (CNF.computableInPolyTime_relabel heven).comp
-    (ComputableInPolyTime.fst encCNF encCNF)
-  have hclause := Clause.computableInPolyTime_relabel hodd
-  have hguard : ComputableInPolyTime
-      (fun c : Clause ℕ => (0, true) :: c.relabel (fun v => 2 * v + 1))
-      (encClause encNat) (encClause encNat) := by
-    fun_prop
-  have hsecond := (ComputableInPolyTime.map hguard).comp (ComputableInPolyTime.snd encCNF encCNF)
-  exact ComputableInPolyTime.listAppend' (ComputableInPolyTime.listAppend' hfirst hfirst)
-    (ComputableInPolyTime.cons' (ComputableInPolyTime.const [(0, false)]) hsecond)
+    rw [show (fun v : ℕ => 2 * v) = fun v => v + v from funext two_mul]
+    exact .binary_add' .id' .id'
+  have hfirst := (CNF.computableInPolyTime_relabel (.binary_add' hdouble (.const 2))).comp
+    (.fst encCNF encCNF)
+  have hclause := Clause.computableInPolyTime_relabel (.binary_add' hdouble (.const 1))
+  exact .listAppend' (.listAppend' hfirst hfirst)
+    (.cons' (.const [(0, false)]) ((ComputableInPolyTime.map
+      (by fun_prop : ComputableInPolyTime
+        (fun c : Clause ℕ => (0, true) :: c.relabel (fun v => 2 * v + 1))
+        (encClause encNat) (encClause encNat))).comp (.snd encCNF encCNF)))
 
 /-- The exact independent-set map is polynomial-time under the framed CNF-pair encoding. -/
 theorem computableInPolyTime_toExactIndependentSet :
     ComputableInPolyTime toExactIndependentSet (encPair encCNF encCNF) encIndependentSetInstance :=
-  have hφ := computableInPolyTime_guardFormula
-  have hgraph := encIndependentSetInstance_graph_polyTime
-    (SAT.computableInPolyTime_toIndependentSet.comp hφ)
-  have hlen := SAT.computableInPolyTime_length hφ
-  have ht : ComputableInPolyTime (fun p => (guardFormula p).length - 1)
-      (encPair encCNF encCNF) encNat :=
-    ComputableInPolyTime.unary_to_binary.comp
-      (ComputableInPolyTime.unary_sub' hlen (ComputableInPolyTime.const 1))
-  encIndependentSetInstance_mk_polyTime hgraph ht
+  encIndependentSetInstance_mk_polyTime
+    (encIndependentSetInstance_graph_polyTime
+      (SAT.computableInPolyTime_toIndependentSet.comp computableInPolyTime_guardFormula))
+    (ComputableInPolyTime.unary_to_binary.comp
+      (.unary_sub' (SAT.computableInPolyTime_length computableInPolyTime_guardFormula)
+        (.const 1)))
 
 end SATUNSAT
 

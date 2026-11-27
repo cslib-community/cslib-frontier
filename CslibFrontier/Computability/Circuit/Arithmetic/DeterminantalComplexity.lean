@@ -8,28 +8,35 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant
-public import CslibFrontier.Foundations.LinearAlgebra.Matrix.HessianPermanent
+import CslibFrontier.Computability.Circuit.Arithmetic.Determinant.Projection
 import CslibFrontier.Foundations.Data.Matrix.Permanent.Blocks
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.GrenetPermanent
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.HessianPermanent
 import Mathlib.Algebra.MvPolynomial.CommRing
+import Mathlib.Data.ENat.Lattice
 
 /-!
-# Determinantal complexity: the Mignon–Ressayre and Grenet bounds
+# Determinantal complexity: universality, Grenet's upper bound and the Mignon–Ressayre lower bound
 
 A polynomial `f` has a *determinantal representation of size `m`* if it is the determinant of an
 `m × m` matrix whose entries are affine-linear polynomials (total degree at most one). Its
 *determinantal complexity* `determinantalComplexity f : ℕ∞` is the least such `m`.
 
-`determinantalComplexity f = ⊤` means that `f` has no representation. Valiant
-[Valiant1979Algebra] shows that every polynomial has a determinantal representation, so the
-determinantal complexity is finite. That universality theorem is not formalized here, so
-finiteness is known here only for specific polynomials such as the permanent.
+**Valiant's universality** [Valiant][Valiant1979Algebra]: over every commutative ring `K` and
+arbitrary variable index type `σ` (with no finiteness or decidability assumption on `σ` and no
+nontriviality assumption on `K`), every polynomial `f : MvPolynomial σ K` is a projection of a
+generic determinant (`exists_isProjection_det` in
+`CslibFrontier/Computability/Circuit/Arithmetic/Determinant/Projection.lean`), so `f` has a
+determinantal representation of some finite size (`exists_hasDeterminantalRepresentation`), finite
+determinantal complexity (`determinantalComplexity_lt_top`), and an attaining representation
+(`exists_hasDeterminantalRepresentation_eq_determinantalComplexity`). Arithmetic formulas achieve
+the explicit linear bound `F.size + 1` in
+`CslibFrontier/Computability/Circuit/Arithmetic/Determinant/Formula.lean`.
 
 **Grenet's theorem** [Grenet][Grenet2011]: the generic `n × n` permanent is a projection of the
 generic `(2ⁿ - 1) × (2ⁿ - 1)` determinant (`isProjection_permanent_det_two_pow_sub_one`), over
-every commutative ring. Hence `dc(perm_n) ≤ 2ⁿ - 1` (`determinantalComplexity_permanent_le`), so
-the determinantal complexity of the permanent is finite. The matrix is
-`Matrix.grenetMatrix`.
+every commutative ring. Hence `dc(perm_n) ≤ 2ⁿ - 1` (`determinantalComplexity_permanent_le`). The
+matrix is `Matrix.grenetMatrix`.
 
 **Mignon–Ressayre theorem** [Mignon and Ressayre][MignonRessayre2004]: over a field of
 characteristic zero, the generic `n × n` permanent has determinantal complexity at least `n² / 2`
@@ -57,8 +64,11 @@ representation form `sq_le_two_mul_of_hasDeterminantalRepresentation_permanent` 
 
 * `Cslib.Circuits.Arithmetic.hasDeterminantalRepresentation_of_isProjection`: a projection of the
   generic `m × m` determinant has a determinantal representation of size `m`.
-* `Cslib.Circuits.Arithmetic.isProjection_det_of_forall_exists_eq`: the determinant of a matrix of
-  variables and constants is a projection of the generic determinant.
+* `Cslib.Circuits.Arithmetic.exists_hasDeterminantalRepresentation`,
+  `Cslib.Circuits.Arithmetic.determinantalComplexity_lt_top`,
+  `Cslib.Circuits.Arithmetic.exists_hasDeterminantalRepresentation_eq_determinantalComplexity`:
+  Valiant's universality: every multivariate polynomial over a commutative ring has finite
+  determinantal complexity and an attaining representation.
 * `Cslib.Circuits.Arithmetic.isProjection_permanent_det_two_pow_sub_one`: Grenet's theorem, the
   `n × n` permanent is a projection of the `(2ⁿ - 1) × (2ⁿ - 1)` determinant.
 * `Cslib.Circuits.Arithmetic.determinantalComplexity_permanent_le`: `dc(perm_n) ≤ 2ⁿ - 1`.
@@ -71,6 +81,8 @@ representation form `sq_le_two_mul_of_hasDeterminantalRepresentation_permanent` 
 
 ## References
 
+* [L. G. Valiant, *Completeness classes in algebra*][Valiant1979Algebra], §1–§2, Theorem 1
+  (pp. 249–251)
 * [B. Grenet, *An upper bound for the permanent versus determinant problem*][Grenet2011]
 * [T. Mignon, N. Ressayre, *A quadratic bound for the determinant and permanent
   problem*][MignonRessayre2004]
@@ -99,48 +111,67 @@ is, polynomials of total degree at most one. -/
 noncomputable def determinantalComplexity (f : MvPolynomial σ K) : ℕ∞ :=
   ⨅ (m : ℕ) (_ : HasDeterminantalRepresentation f m), (m : ℕ∞)
 
+/-- Every determinantal representation of size `m` bounds `determinantalComplexity f` by `m`. -/
 theorem determinantalComplexity_le {f : MvPolynomial σ K} {m : ℕ}
     (h : HasDeterminantalRepresentation f m) : determinantalComplexity f ≤ m :=
   iInf₂_le m h
 
+/-- `k ≤ determinantalComplexity f` holds exactly when every determinantal representation of `f` has
+size at least `k`. -/
 theorem le_determinantalComplexity_iff {f : MvPolynomial σ K} {k : ℕ∞} :
     k ≤ determinantalComplexity f ↔ ∀ m, HasDeterminantalRepresentation f m → k ≤ m :=
   le_iInf₂_iff
 
 /-- A projection of the generic `m × m` determinant has a determinantal representation of size
-`m`. -/
-theorem hasDeterminantalRepresentation_of_isProjection [Nontrivial K] {f : MvPolynomial σ K}
+`m`, over every commutative ring `K`. -/
+theorem hasDeterminantalRepresentation_of_isProjection {f : MvPolynomial σ K}
     {m : ℕ} (h : IsProjection f (genericMatrix K m).det) : HasDeterminantalRepresentation f m := by
   obtain ⟨ρ, rfl⟩ := h
   refine ⟨(genericMatrix K m).map (projection ρ), fun i j => ?_, ?_⟩
   · simp only [Matrix.map_apply, genericMatrix, Matrix.of_apply, projection_X]
-    cases ρ (finProdFinEquiv (i, j)) <;> simp
+    rcases ρ (finProdFinEquiv (i, j)) with k | a
+    · exact (totalDegree_monomial_le _ _).trans (by simp)
+    · simp
   · rw [AlgHom.map_det]
     rfl
 
 /-- The generic `m × m` determinant has a determinantal representation of size `m`. -/
-theorem hasDeterminantalRepresentation_det [Nontrivial K] (m : ℕ) :
+theorem hasDeterminantalRepresentation_det (m : ℕ) :
     HasDeterminantalRepresentation (genericMatrix K m).det m :=
   hasDeterminantalRepresentation_of_isProjection (IsProjection.refl _)
 
 /-- The generic `m × m` determinant has determinantal complexity at most `m`. -/
-theorem determinantalComplexity_det_le [Nontrivial K] (m : ℕ) :
+theorem determinantalComplexity_det_le (m : ℕ) :
     determinantalComplexity (genericMatrix K m).det ≤ m :=
   determinantalComplexity_le (hasDeterminantalRepresentation_det m)
 
-/-- The determinant of an `m × m` matrix whose entries are variables or constants is a projection
-of the generic `m × m` determinant. -/
-theorem isProjection_det_of_forall_exists_eq {m : ℕ}
-    (M : Matrix (Fin m) (Fin m) (MvPolynomial σ K))
-    (hM : ∀ i j, ∃ s : σ ⊕ K, Sum.elim X (fun a => C a) s = M i j) :
-    IsProjection M.det (genericMatrix K m).det := by
-  choose ρ hρ using hM
-  refine ⟨fun v => ρ (finProdFinEquiv.symm v).1 (finProdFinEquiv.symm v).2, ?_⟩
-  rw [AlgHom.map_det]
-  congr 1
-  refine Matrix.ext fun i j => ?_
-  rw [AlgHom.mapMatrix_apply, Matrix.map_apply, genericMatrix, Matrix.of_apply, projection_X,
-    Equiv.symm_apply_apply, hρ]
+/-- **Valiant's determinantal universality**: over every commutative ring `K` and arbitrary
+variable index type `σ`, every polynomial `f : MvPolynomial σ K` has a determinantal representation
+of some finite size [Valiant][Valiant1979Algebra]. -/
+theorem exists_hasDeterminantalRepresentation (f : MvPolynomial σ K) :
+    ∃ m, HasDeterminantalRepresentation f m := by
+  obtain ⟨m, hm⟩ := exists_isProjection_det f
+  exact ⟨m, hasDeterminantalRepresentation_of_isProjection hm⟩
+
+/-- **Valiant's determinantal universality**: over every commutative ring `K` and arbitrary
+variable index type `σ`, every polynomial `f : MvPolynomial σ K` has finite determinantal
+complexity [Valiant][Valiant1979Algebra]. -/
+theorem determinantalComplexity_lt_top (f : MvPolynomial σ K) :
+    determinantalComplexity f < ⊤ := by
+  obtain ⟨m, hm⟩ := exists_hasDeterminantalRepresentation f
+  exact (determinantalComplexity_le hm).trans_lt (ENat.natCast_lt_top m)
+
+/-- Every polynomial `f : MvPolynomial σ K` over a commutative ring attains its determinantal
+complexity at some finite matrix dimension `m`. -/
+theorem exists_hasDeterminantalRepresentation_eq_determinantalComplexity
+    (f : MvPolynomial σ K) :
+    ∃ m : ℕ, HasDeterminantalRepresentation f m ∧ (m : ℕ∞) = determinantalComplexity f := by
+  have : Nonempty {m : ℕ // HasDeterminantalRepresentation f m} :=
+    nonempty_subtype.2 (exists_hasDeterminantalRepresentation f)
+  obtain ⟨⟨m, hm⟩, hmin⟩ := ENat.exists_eq_iInf
+    fun m : {m : ℕ // HasDeterminantalRepresentation f m} => (m.1 : ℕ∞)
+  refine ⟨m, hm, hmin.trans ?_⟩
+  simp only [determinantalComplexity, iInf_subtype]
 
 /-- **Grenet's theorem** [Grenet][Grenet2011]: over every commutative ring, the generic `n × n`
 permanent is a projection of the generic `(2ⁿ - 1) × (2ⁿ - 1)` determinant, with every variable
@@ -149,24 +180,17 @@ of the determinant sent to a variable of the permanent, to `0` or to `-1`. The m
 theorem isProjection_permanent_det_two_pow_sub_one (n : ℕ) :
     IsProjection (genericMatrix K n).permanent (genericMatrix K (2 ^ n - 1)).det := by
   rw [Matrix.permanent_eq_det_grenetMatrix]
-  refine isProjection_det_of_forall_exists_eq _ fun a b => ?_
+  refine isProjection_det_iff_exists_isSubstMatrix.mpr ⟨_, fun a b => ?_, rfl⟩
   rcases Matrix.grenetMatrix_apply_eq (genericMatrix K n) a b with ⟨i, j, h⟩ | h | h
-  · exact ⟨Sum.inl (finProdFinEquiv (i, j)), by rw [h]; rfl⟩
-  · exact ⟨Sum.inr 0, by simp [h]⟩
-  · exact ⟨Sum.inr (-1), by simp [h]⟩
+  · rw [h]; exact .X (finProdFinEquiv (i, j))
+  · rw [h]; exact .zero
+  · rw [h]; exact .neg_one
 
 /-- Grenet's theorem as a determinantal representation of size `2ⁿ - 1` of the generic `n × n`
 permanent [Grenet][Grenet2011], over every commutative ring. -/
 theorem hasDeterminantalRepresentation_permanent_two_pow_sub_one (n : ℕ) :
-    HasDeterminantalRepresentation (genericMatrix K n).permanent (2 ^ n - 1) := by
-  refine ⟨(genericMatrix K n).grenetMatrix, fun a b => ?_,
-    (Matrix.permanent_eq_det_grenetMatrix _).symm⟩
-  rcases Matrix.grenetMatrix_apply_eq (genericMatrix K n) a b with ⟨i, j, h⟩ | h | h
-  · rw [h, genericMatrix, Matrix.of_apply, X]
-    exact (totalDegree_monomial_le _ _).trans (by simp)
-  · simp [h]
-  · rw [h, totalDegree_neg, totalDegree_one]
-    exact zero_le_one
+    HasDeterminantalRepresentation (genericMatrix K n).permanent (2 ^ n - 1) :=
+  hasDeterminantalRepresentation_of_isProjection (isProjection_permanent_det_two_pow_sub_one n)
 
 /-- **Grenet's upper bound** [Grenet][Grenet2011]: over every commutative ring, the generic
 `n × n` permanent has determinantal complexity at most `2ⁿ - 1`; in particular it is finite. -/

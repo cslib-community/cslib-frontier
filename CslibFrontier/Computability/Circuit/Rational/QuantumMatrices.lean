@@ -63,17 +63,13 @@ lemma coeff_mul_support_superset (x y : HahnSeries Γ R) (a : Γ)
     (x * y).coeff a = ∑ ij ∈ Finset.antidiagonal hs ht a,
       x.coeff ij.1 * y.coeff ij.2 := by
   rw [HahnSeries.coeff_mul]
-  apply Finset.sum_subset
-  · intro ij hij
-    rw [Finset.mem_antidiagonal] at hij ⊢
+  refine Finset.sum_subset (fun ij hij => ?_) fun ij hij hnot => ?_
+  · rw [Finset.mem_antidiagonal] at hij ⊢
     exact ⟨hxs hij.1, hyt hij.2.1, hij.2.2⟩
-  · intro ij hij hnot
-    rw [Finset.mem_antidiagonal] at hij
-    by_cases hx : x.coeff ij.1 = 0
-    · simp [hx]
-    by_cases hy : y.coeff ij.2 = 0
-    · simp [hy]
-    exact False.elim (hnot (Finset.mem_antidiagonal.mpr ⟨hx, hy, hij.2.2⟩))
+  · rw [Finset.mem_antidiagonal] at hij
+    by_contra hmul
+    exact hnot (Finset.mem_antidiagonal.mpr
+      ⟨left_ne_zero_of_mul hmul, right_ne_zero_of_mul hmul, hij.2.2⟩)
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
@@ -88,11 +84,8 @@ omit [AddCommGroup Γ] [IsOrderedAddMonoid Γ] [Fintype ι] [DecidableEq ι] in
 
 omit [AddCommGroup Γ] [IsOrderedAddMonoid Γ] [Fintype ι] [DecidableEq ι] in
 private lemma entry_support (x : HahnSeries Γ (Matrix ι ι R)) (i j : ι) :
-    (entry x i j).support ⊆ x.support := by
-  intro a ha
-  change x.coeff a ≠ 0
-  intro h
-  exact ha (by change x.coeff a i j = 0; rw [h]; rfl)
+    (entry x i j).support ⊆ x.support :=
+  fun _ ha h => ha (by simp [entry_coeff, h])
 
 /-- Identify a matrix-valued Hahn series with a matrix of scalar Hahn series. -/
 def split : HahnSeries Γ (Matrix ι ι R) →+* Matrix ι ι (HahnSeries Γ R) where
@@ -184,9 +177,7 @@ def weylUnit (a b : ZMod d) : (Matrix (ZMod d) (ZMod d) K)ˣ :=
 @[simp] lemma weylUnit_val (a b : ZMod d) : (weylUnit χ a b : Matrix _ _ K) = weyl χ a b := rfl
 
 /-- The `(0, 0)` Weyl unit is `1`. -/
-@[simp] lemma weylUnit_zero : weylUnit χ 0 0 = 1 := by
-  apply Units.ext
-  exact weyl_zero χ
+@[simp] lemma weylUnit_zero : weylUnit χ 0 0 = 1 := Units.ext (weyl_zero χ)
 
 end
 end Rational.QuantumMatrices
@@ -215,11 +206,8 @@ theorem fourier_reconstruction (R : Matrix (ZMod d) (ZMod d) K) :
       fourierCoeff χ R a (i - j) * χ (a * i) := by
     rw [Finset.sum_eq_single (i - j)]
     · simp
-    · intro b hb hne
-      rw [ite_eq_right]
-      intro h
-      apply hne
-      linear_combination -h
+    · intro b _ hne
+      exact ite_eq_right fun h => hne (by linear_combination -h)
     · simp
   simp_rw [heq, fourierCoeff, mul_assoc, Finset.sum_mul]
   rw [← Finset.mul_sum, Finset.sum_comm]
@@ -291,14 +279,9 @@ def lift (R : Matrix (ZMod d) (ZMod d) K) : Ambient (K := K) (d := d) :=
 omit [CharZero K] in
 /-- The Fourier lift of any matrix belongs to `divisionSubring χ`. -/
 lemma lift_mem (R : Matrix (ZMod d) (ZMod d) K) : lift χ R ∈ divisionSubring χ := by
-  apply Subring.sum_mem
-  intro a ha
-  apply Subring.sum_mem
-  intro b hb
-  apply single_mem (monomialUnit χ) (monomialUnit_zero χ) (monomialUnit_mul χ)
-  apply Submodule.mem_span_singleton.mpr
-  refine ⟨fourierCoeff χ R a b, ?_⟩
-  simp [monomialUnit]
+  refine Subring.sum_mem _ fun a _ => Subring.sum_mem _ fun b _ g => ?_
+  refine single_mem (monomialUnit χ) (monomialUnit_zero χ) (monomialUnit_mul χ) ?_ g
+  exact Submodule.mem_span_singleton.mpr ⟨fourierCoeff χ R a b, by simp [monomialUnit]⟩
 
 /-- The finite Fourier lift as an element of the division subring. -/
 def liftD (R : Matrix (ZMod d) (ZMod d) K) : divisionSubring χ := ⟨lift χ R, lift_mem χ R⟩

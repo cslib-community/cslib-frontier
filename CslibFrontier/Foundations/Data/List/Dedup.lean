@@ -33,12 +33,7 @@ theorem dedup_filter (p : α → Bool) (l : List α) : (l.filter p).dedup = l.de
   induction l with
   | nil => rfl
   | cons a l ih =>
-    by_cases ha : a ∈ l <;> by_cases hp : p a
-    · rw [filter_cons_of_pos hp, dedup_cons_of_mem (mem_filter.mpr ⟨ha, hp⟩),
-        dedup_cons_of_mem ha, ih]
-    · rw [filter_cons_of_neg hp, dedup_cons_of_mem ha, ih]
-    · rw [filter_cons_of_pos hp, dedup_cons_of_notMem fun h => ha (mem_filter.mp h).1,
-        dedup_cons_of_notMem ha, filter_cons_of_pos hp, ih]
-    · rw [filter_cons_of_neg hp, dedup_cons_of_notMem ha, filter_cons_of_neg hp, ih]
+    by_cases ha : a ∈ l <;> by_cases hp : p a <;>
+      simp [dedup_cons_of_mem, dedup_cons_of_notMem, ha, hp, ih]
 
 end List

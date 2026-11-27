@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Computability.Complexity.FineGrained.Schaefer
 import CslibFrontier.Computability.Complexity.Problems.CSP.Hardness
 
 /-!
@@ -70,6 +71,12 @@ private theorem nae_missing : ¬ CSP.HasSchaeferPolymorphism naeArity naeSem := 
 
 private def encUnit : Unit ↪ List Bool :=
   ⟨fun _ => [], fun _ _ _ => Subsingleton.elim _ _⟩
+
+example (hSH : SH) :
+    ¬DecidableInPowerExpTime (CSPSAT naeArity naeSem) (encCSP encUnit encNat) CSP.numVars
+      (1 / 2 : ℝ) :=
+  hSH.not_decidableInPowerExpTime_CSPSAT_numVars encUnit naeArity naeSem nae_missing
+    (by norm_num) (by norm_num)
 
 -- A single witness has native polynomial time, correctness, and a uniform clause-linear bound.
 example : ∃ (f : CNF ℕ → CSP Unit ℕ) (C : ℕ),

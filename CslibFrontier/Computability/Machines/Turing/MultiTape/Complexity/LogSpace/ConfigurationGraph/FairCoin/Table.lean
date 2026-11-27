@@ -145,13 +145,9 @@ theorem computableInLogSpace_coinTable :
     (D * Fintype.card (Register k) + 1) fun w => ?_
   simp only [encFramed_apply, encBits_apply]
   obtain ⟨hN, _, h2⟩ := configurationCounter_bounds (k := k) D w
-  have hinput : (frame w).length ≤
-      ((frame w).length + 1) ^ (D * Fintype.card (Register k) + 1) := by
-    rw [pow_succ]
-    have hone : 1 ≤ ((frame w).length + 1) ^ (D * Fintype.card (Register k)) :=
-      Nat.one_le_pow _ _ (by omega)
-    exact (Nat.le_succ _).trans (Nat.le_mul_of_pos_left _ hone)
-  obtain ⟨regs, hr, hregs⟩ := reachesOut_coinTableProgram machine D w hinput (by omega) h2
+  obtain ⟨regs, hr, hregs⟩ := reachesOut_coinTableProgram machine D w
+    ((Nat.le_add_right _ 1).trans (Nat.le_self_pow (Nat.add_one_ne_zero _) _))
+    ((Nat.le_add_right _ 1).trans hN) h2
   exact ⟨(22, regs), _, [], hr, rfl, by simp, hregs⟩
 
 end Turing.MultiTapePTM.ConfigurationGraph

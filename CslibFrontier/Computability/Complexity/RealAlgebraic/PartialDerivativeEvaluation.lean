@@ -51,42 +51,28 @@ private theorem secondPartialAddress_get {n k : ℕ} (i j : ℕ) (hk : k < n) :
       (if k = j then 1 else 0) + (if k = i then 1 else 0) := by
   simp [secondPartialAddress, hk]
 
+private theorem indicator_eq_polyTime {α : Type} {enc : α ↪ List Bool} {i : α → ℕ}
+    (hi : ComputableInPolyTime i enc encNat) :
+    ComputableInPolyTime (fun q : α × ℕ => if q.2 = i q.1 then (1 : ℕ) else 0)
+      (encPair enc encUnary) encNat := by
+  have hk := ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd enc encUnary)
+  have htest := ComputableInPolyTime.decide_eq' hk (hi.comp (ComputableInPolyTime.fst enc encUnary))
+  simpa only [Function.comp_apply, decide_eq_true_eq] using
+    ComputableInPolyTime.ite' htest (.const (1 : ℕ)) (.const 0)
+
 private theorem firstPartialAddress_polyTime {α : Type} {enc : α ↪ List Bool} {n i : α → ℕ}
     (hn : ComputableInPolyTime n enc encUnary) (hi : ComputableInPolyTime i enc encNat) :
-    ComputableInPolyTime (fun w => firstPartialAddress (n w) (i w)) enc (encList encNat) := by
-  have hk := ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd enc encUnary)
-  have hi' := hi.comp (ComputableInPolyTime.fst enc encUnary)
-  have htest : ComputableInPolyTime
-      (fun q : α × ℕ => decide (q.2 = i q.1)) (encPair enc encUnary) encBool :=
-    ComputableInPolyTime.decide_eq' hk hi'
-  have hval : ComputableInPolyTime (fun q : α × ℕ => if q.2 = i q.1 then 1 else 0)
-      (encPair enc encUnary) encNat := by
-    simpa only [decide_eq_true_eq] using
-      ComputableInPolyTime.ite' htest (.const (1 : ℕ)) (.const 0)
-  exact ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hn) hval
+    ComputableInPolyTime (fun w => firstPartialAddress (n w) (i w)) enc (encList encNat) :=
+  ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hn)
+    (indicator_eq_polyTime hi)
 
 private theorem secondPartialAddress_polyTime {α : Type} {enc : α ↪ List Bool} {n i j : α → ℕ}
     (hn : ComputableInPolyTime n enc encUnary) (hi : ComputableInPolyTime i enc encNat)
     (hj : ComputableInPolyTime j enc encNat) :
     ComputableInPolyTime (fun w => secondPartialAddress (n w) (i w) (j w))
-      enc (encList encNat) := by
-  have hk := ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd enc encUnary)
-  have hi' := hi.comp (ComputableInPolyTime.fst enc encUnary)
-  have hj' := hj.comp (ComputableInPolyTime.fst enc encUnary)
-  have htesti : ComputableInPolyTime
-      (fun q : α × ℕ => decide (q.2 = i q.1)) (encPair enc encUnary) encBool :=
-    ComputableInPolyTime.decide_eq' hk hi'
-  have htestj : ComputableInPolyTime
-      (fun q : α × ℕ => decide (q.2 = j q.1)) (encPair enc encUnary) encBool :=
-    ComputableInPolyTime.decide_eq' hk hj'
-  have hval := ComputableInPolyTime.binary_add'
-    (ComputableInPolyTime.ite' htestj (.const (1 : ℕ)) (.const 0))
-    (ComputableInPolyTime.ite' htesti (.const (1 : ℕ)) (.const 0))
-  simp only [decide_eq_true_eq] at hval
-  have hres := ComputableInPolyTime.mapWithInput
-    (f := fun w k => (if k = j w then 1 else 0) + (if k = i w then 1 else 0))
-    (ComputableInPolyTime.range.comp hn) hval
-  simpa only [secondPartialAddress, decide_eq_true_eq, Function.comp_apply] using hres
+      enc (encList encNat) :=
+  ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hn)
+    (ComputableInPolyTime.binary_add' (indicator_eq_polyTime hj) (indicator_eq_polyTime hi))
 
 /-- Evaluate one formal partial derivative by a translated coefficient sum. -/
 @[expose] noncomputable def firstPartialResidue (p n i : ℕ) (z : List ℕ)
@@ -174,10 +160,6 @@ theorem secondPartialResidue_cast {p n : ℕ} [Fact p.Prime]
         simp only [Finsupp.add_apply, Finsupp.single_apply, Fin.val_inj, eq_comm]) hv,
     second_derivative_translation_coeff]
   congr 1
-  by_cases hij : i = j
-  · subst j
-    simp
-  · have hval : i.val ≠ j.val := fun h => hij (Fin.ext h)
-    simp [hij, hval]
+  by_cases hij : i = j <;> simp [Fin.val_inj, hij]
 
 end Cslib.Complexity.RealAlgebraic

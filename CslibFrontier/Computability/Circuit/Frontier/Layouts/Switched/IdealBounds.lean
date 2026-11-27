@@ -121,8 +121,6 @@ private theorem idealProb_eq {r t : ℝ} (hr : 0 < r) (hr1 : r ≤ 1) (ht : 0 �
 
 /-- **`f_r(0) = κ(r)`.** -/
 theorem idealProb_zero {r : ℝ} (hr : 0 < r) (hr1 : r < 1) : idealProb r 0 = kappa r := by
-  have hb : ∀ i, ⟪bstar r i, bstar r i⟫ = 1 := fun i => by
-    have := inner_bstar hr1.le (by linarith) i i; simpa using this
   have hp : ∀ i j, i ≠ j → ⟪bstar r i, bstar r j⟫ = pairCorr r := fun i j hij => by
     have := inner_bstar hr1.le (by linarith) i j; simpa [hij] using this
   rw [idealProb_eq hr hr1.le le_rfl, gaussianReal_Ici_zero]
@@ -131,10 +129,7 @@ theorem idealProb_zero {r : ℝ} (hr : 0 < r) (hr1 : r < 1) : idealProb r 0 = ka
     ext y
     simp only [Set.mem_ofPred_eq, Fin.forall_fin_succ, Fin.isValue]
     tauto
-  have hbn : ∀ j : Fin 3, ‖bstar r j‖ = 1 := fun j => by
-    have := real_inner_self_eq_norm_sq (bstar r j)
-    have := hb j
-    nlinarith [norm_nonneg (bstar r j)]
+  have hbn : ∀ i, ‖bstar r i‖ = 1 := norm_bstar hr1.le (by linarith)
   rw [hset, stdGaussian_real_pos_orthant_three (hbn 0) (hbn 1) (hbn 2),
     hp 0 1 (by decide), hp 0 2 (by decide),
     hp 1 2 (by decide), kappa]
@@ -161,7 +156,7 @@ theorem idealProb_le_zero {r t : ℝ} (hr : 0 < r) (hr1 : r < 1) (ht : 0 ≤ t) 
   -- `O 0 \ O t` is covered by the three "minimizer" events
   set A : Fin 3 → Set E3 := fun k => {y | 0 < ⟪bstar r k, y⟫ ∧ ⟪bstar r k, y⟫ ≤ t ∧
     ∀ j, ⟪bstar r k, y⟫ ≤ ⟪bstar r j, y⟫}
-  have hcover : O 0 \ O t ⊆ A 0 ∪ A 1 ∪ A 2 := by
+  have hcover : O 0 \ O t ⊆ ⋃ k, A k := by
     intro y hy
     obtain ⟨h0, ht'⟩ := hy
     simp only [O, Set.mem_ofPred_eq, not_forall, not_lt] at h0 ht'
@@ -169,38 +164,24 @@ theorem idealProb_le_zero {r t : ℝ} (hr : 0 < r) (hr1 : r < 1) (ht : 0 ≤ t) 
     -- the minimizing neighbor
     obtain ⟨k, -, hk⟩ := Finset.exists_min_image Finset.univ (fun j => ⟪bstar r j, y⟫)
       ⟨0, Finset.mem_univ _⟩
-    have hkA : y ∈ A k := ⟨h0 k, le_trans (hk j₀ (Finset.mem_univ _)) hj₀,
+    exact mem_iUnion.mpr ⟨k, h0 k, (hk j₀ (Finset.mem_univ _)).trans hj₀,
       fun j => hk j (Finset.mem_univ _)⟩
+  have hAk (k i j : Fin 3) (h : k ≠ i ∧ k ≠ j ∧ i ≠ j) :
+      μ.real (A k) ≤ 1 / 3 * γ.real (Ioc 0 t) := by
+    refine le_trans (measureReal_mono ?_ (measure_ne_top _ _))
+      (min_bound (hb k) (hb i) (hb j) hbm hb1 (hp k i h.1) (hp k j h.2.1) (hp i j h.2.2) (t := t))
+    exact fun y hy => ⟨hy.1, hy.2.1, hy.2.2 i, hy.2.2 j⟩
+  have hA (k : Fin 3) : μ.real (A k) ≤ 1 / 3 * γ.real (Ioc 0 t) := by
     fin_cases k
-    · exact Or.inl (Or.inl hkA)
-    · exact Or.inl (Or.inr hkA)
-    · exact Or.inr hkA
-  have hAk : ∀ k, μ.real (A k) ≤ 1 / 3 * γ.real (Ioc 0 t) := by
-    intro k
-    fin_cases k
-    · have := min_bound (hb 0) (hb 1) (hb 2) hbm hb1 (hp 0 1 (by decide)) (hp 0 2 (by decide))
-        (hp 1 2 (by decide)) (t := t)
-      refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) this
-      intro y hy
-      exact ⟨hy.1, hy.2.1, hy.2.2 1, hy.2.2 2⟩
-    · have := min_bound (hb 1) (hb 0) (hb 2) hbm hb1 (hp 1 0 (by decide)) (hp 1 2 (by decide))
-        (hp 0 2 (by decide)) (t := t)
-      refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) this
-      intro y hy
-      exact ⟨hy.1, hy.2.1, hy.2.2 0, hy.2.2 2⟩
-    · have := min_bound (hb 2) (hb 0) (hb 1) hbm hb1 (hp 2 0 (by decide)) (hp 2 1 (by decide))
-        (hp 0 1 (by decide)) (t := t)
-      refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) this
-      intro y hy
-      exact ⟨hy.1, hy.2.1, hy.2.2 0, hy.2.2 1⟩
+    · exact hAk 0 1 2 (by decide)
+    · exact hAk 1 0 2 (by decide)
+    · exact hAk 2 0 1 (by decide)
   have hdiff : μ.real (O 0) - μ.real (O t) ≤ γ.real (Ioc 0 t) := by
     rw [← measureReal_sdiff hOsub (hOm t)]
-    calc μ.real (O 0 \ O t) ≤ μ.real (A 0 ∪ A 1 ∪ A 2) :=
-          measureReal_mono hcover (measure_ne_top _ _)
-      _ ≤ μ.real (A 0) + μ.real (A 1) + μ.real (A 2) := by
-          refine (measureReal_union_le _ _).trans ?_
-          linarith [measureReal_union_le (μ := μ) (A 0) (A 1)]
-      _ ≤ γ.real (Ioc 0 t) := by linarith [hAk 0, hAk 1, hAk 2]
+    calc μ.real (O 0 \ O t) ≤ μ.real (⋃ k, A k) := measureReal_mono hcover
+      _ ≤ ∑ k, μ.real (A k) := measureReal_iUnion_fintype_le A
+      _ ≤ ∑ _ : Fin 3, 1 / 3 * γ.real (Ioc 0 t) := Finset.sum_le_sum fun k _ => hA k
+      _ = γ.real (Ioc 0 t) := by rw [Fin.sum_univ_three]; ring
   -- `P(0 ≤ Z) - P(t ≤ Z) = P(0 < Z ≤ t)` up to null endpoints
   have hint : γ.real (Ici 0) - γ.real (Ici t) = γ.real (Ioc 0 t) := by
     let _ := nullSingletonClass_gaussianReal (μ := 0) (by norm_num : (1 : NNReal) ≠ 0)

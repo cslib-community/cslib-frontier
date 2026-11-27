@@ -125,34 +125,26 @@ variable [DecidableEq M]
 theorem unspreadPointPKE_msgFailProb_le (P : ExplicitCoinPKE PK SK M R CT) (m₀ : M)
     (pk : PK) (sk : SK) (m : M) :
     (unspreadPointPKE P m₀).msgFailProb pk sk m ≤ P.msgFailProb pk sk m := by
-  by_cases hm : m = m₀
-  · subst hm
-    have h0 : (unspreadPointPKE P m).msgFailProb pk sk m = 0 := by
-      simp [ExplicitCoinPKE.msgFailProb, unspreadPointPKE]
-    rw [h0]
-    exact P.msgFailProb_nonneg pk sk m
-  · have hset : {r : R | (unspreadPointPKE P m₀).dec sk
+  rcases eq_or_ne m m₀ with rfl | hm
+  · simp [ExplicitCoinPKE.msgFailProb, unspreadPointPKE]
+  · suffices {r : R | (unspreadPointPKE P m₀).dec sk
         ((unspreadPointPKE P m₀).encDet pk m r) ≠ some m} =
-        {r : R | P.dec sk (P.encDet pk m r) ≠ some m} := by
-      ext r
-      simp only [unspreadPointPKE, hm, ↓reduceIte, Set.mem_ofPred_eq]
-      cases hdec : P.dec sk (P.encDet pk m r) with
-      | none => simp
-      | some m' =>
-        by_cases hm' : m' = m₀
-        · subst hm'; simp [Ne.symm hm]
-        · simp [hm']
-    rw [ExplicitCoinPKE.msgFailProb, ExplicitCoinPKE.msgFailProb, hset]
-    rfl
+        {r : R | P.dec sk (P.encDet pk m r) ≠ some m} by
+      rw [ExplicitCoinPKE.msgFailProb, ExplicitCoinPKE.msgFailProb, this]
+      exact le_rfl
+    ext r
+    simp only [unspreadPointPKE, hm, ↓reduceIte, Set.mem_ofPred_eq]
+    cases hdec : P.dec sk (P.encDet pk m r) with
+    | none => simp
+    | some m' => rcases eq_or_ne m' m₀ with rfl | hm' <;> simp [Ne.symm hm, *]
 
 /-- `unspreadPointPKE P m₀` is `δ`-correct whenever `P` is. -/
 theorem unspreadPointPKE_deltaCorrect [Fintype M] [Nonempty M]
     (P : ExplicitCoinPKE PK SK M R CT) (m₀ : M) {δ : ℝ}
     (hδ : P.DeltaCorrect δ) : (unspreadPointPKE P m₀).DeltaCorrect δ := by
   unfold ExplicitCoinPKE.DeltaCorrect at hδ ⊢
-  refine le_trans (ENNReal.toReal_mono ?_ ?_) hδ
-  · refine ne_top_of_le_ne_top ENNReal.one_ne_top ?_
-    rw [ProbComp.expect]
+  refine (ENNReal.toReal_mono (ne_top_of_le_ne_top ENNReal.one_ne_top ?_) ?_).trans hδ
+  · rw [ProbComp.expect]
     calc ∑' x, ProbComp.eval P.keyGen x * ENNReal.ofReal (P.keyPairMaxFailProb x.1 x.2)
         ≤ ∑' x, ProbComp.eval P.keyGen x * 1 := by
           gcongr with x
@@ -160,9 +152,7 @@ theorem unspreadPointPKE_deltaCorrect [Fintype M] [Nonempty M]
       _ = 1 := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
   · simp only [ProbComp.expect, unspreadPointPKE]
     gcongr with x
-    rw [ExplicitCoinPKE.keyPairMaxFailProb, Finset.sup'_le_iff]
-    intro m _
-    exact le_trans (unspreadPointPKE_msgFailProb_le P m₀ x.1 x.2 m)
+    exact Finset.sup'_le _ _ fun m _ => (unspreadPointPKE_msgFailProb_le P m₀ x.1 x.2 m).trans
       (P.msgFailProb_le_keyPairMaxFailProb x.1 x.2 m)
 
 /-- On any pair of challenge messages `m₁ ≠ m₀` and `m₂ ≠ m₀`, `unspreadPointPKE P m₀` has the exact
@@ -198,9 +188,7 @@ theorem unspreadPointPKE_not_gammaSpread_of_pos (P : ExplicitCoinPKE PK SK M R C
   obtain ⟨⟨pk, sk⟩, hkeys⟩ := (ProbComp.eval P.keyGen).support_nonempty
   have hle := hspread pk sk hkeys m₀ none
   rw [unspreadPointPKE_coinMass_m₀_none] at hle
-  have hlt : (2 : ℝ) ^ (-γ) < 1 :=
-    Real.rpow_lt_one_of_one_lt_of_neg one_lt_two (neg_lt_zero.mpr hγ)
-  linarith
+  linarith [Real.rpow_lt_one_of_one_lt_of_neg one_lt_two (neg_lt_zero.mpr hγ)]
 
 /-- `Scheme` wrapper around `unspreadPointPKE P m₀`. -/
 @[expose] def unspreadScheme (P : ExplicitCoinPKE PK SK M R CT) (m₀ : M)
@@ -244,15 +232,13 @@ private theorem gCache_eq_of_mem_support_simHashH_singleton (S : Scheme PK SK M 
       else simHashHRaw S.sampleKey (false, mStar, cStar)) a.2)).support at hz
   rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hz
   obtain ⟨⟨r, st₁⟩, hr, hz⟩ := hz
-  have hlookup : ([(mStar, rStar)] : List (M × R)).lookup mStar = some rStar := by simp
-  rw [simHashG, RandomOracle.eval_zoomStateT_memoize, memoize_of_some _ _ _ _ hlookup,
+  have hmem_m : ([(mStar, rStar)] : List (M × R)).lookup mStar = some rStar := by simp
+  rw [simHashG, RandomOracle.eval_zoomStateT_memoize, memoize_of_some _ _ _ _ hmem_m,
     PMF.monad_pure_eq_pure, PMF.pure_map, PMF.mem_support_pure_iff] at hr
   cases hr
-  by_cases henc : S.pke.encDet pk mStar rStar = cStar
-  · simp only [henc, ↓reduceIte] at hz
-    exact Scheme.simHashHq_gCache_eq S.sampleKey cStar _ z hz
-  · simp only [henc, ↓reduceIte] at hz
-    exact Scheme.simHashHRaw_gCache_eq S.sampleKey (false, mStar, cStar) _ z hz
+  split_ifs at hz
+  · exact Scheme.simHashHq_gCache_eq S.sampleKey cStar _ z hz
+  · exact Scheme.simHashHRaw_gCache_eq S.sampleKey (false, mStar, cStar) _ z hz
 
 /-- In the keyless simulator game `simBotGame`, `probeDecapsAdv` outputs `false` with probability
 `1`: when `m* = m₀` the query `none` equals `c*` and is rejected; when `m* ≠ m₀` the only cached
@@ -273,9 +259,8 @@ theorem eval_simBotGame_probeDecapsAdv (P : ExplicitCoinPKE PK SK M R CT) (m₀ 
   congr 1 with rStar : 1
   refine (bind_congr_on_support _ _ (fun _ => PMF.pure false) fun z hz => ?_).trans
     (PMF.bind_const _ _)
-  have hg : z.2.gCache = [(mStar, rStar)] :=
-    gCache_eq_of_mem_support_simHashH_singleton S pk mStar rStar
-      (S.pke.encDet pk mStar rStar) z hz
+  have hg := gCache_eq_of_mem_support_simHashH_singleton S pk mStar rStar
+    (S.pke.encDet pk mStar rStar) z hz
   rw [← PMF.bind_const (ProbComp.eval S.sampleKey) (PMF.pure false)]
   congr 1 with kRand : 1
   dsimp only [Scheme.simFilterHandler, Scheme.simFilterDispatch, ROQuery.dispatch]
@@ -285,9 +270,9 @@ theorem eval_simBotGame_probeDecapsAdv (P : ExplicitCoinPKE PK SK M R CT) (m₀ 
     simp [hc]
   · have hc : (none : Option CT) ≠ S.pke.encDet pk mStar rStar := by
       simp [S, unspreadScheme, unspreadPointPKE, hm]
-    have hcheck : Scheme.simBotCheck S.pke pk z.2.gCache none = false := by
+    have hbot : Scheme.simBotCheck S.pke pk z.2.gCache none = false := by
       simp [Scheme.simBotCheck, hg, S, unspreadScheme, unspreadPointPKE, hm]
-    simp only [StateT.run, hc, ↓reduceIte, filterDecaps, hcheck, Bool.cond_false]
+    simp only [StateT.run, hc, ↓reduceIte, filterDecaps, hbot, Bool.cond_false]
     change (((pure (none, z.2) : ProbComp (Option K × SimState M R (Option CT) K)).eval.bind
       fun a => PMF.pure (Option.isSome a.1, a.2)).bind fun a => PMF.pure a.1) = PMF.pure false
     simp
@@ -321,9 +306,9 @@ theorem eval_roIndCcaBotGame_probeDecapsAdv (P : ExplicitCoinPKE PK SK M R CT) (
     simp [hc, hm]
   · have hc : (none : Option CT) ≠ S.pke.encDet pk mStar rStar := by
       simp [S, unspreadScheme, unspreadPointPKE, hm]
-    have hdec : S.pke.dec sk none = some m₀ := rfl
     have henc (r' : R) : S.pke.encDet pk m₀ r' = none := by
       simp [S, unspreadScheme, unspreadPointPKE]
+    have hdec : S.pke.dec sk none = some m₀ := rfl
     simp [StateT.run_bind, hc, hdec, henc, hm, pmf_norm, Scheme.decapsBotM_eq]
 
 /-- **Necessity of the `qD · 2^{-γ}` spreadness term in `FO^⊥`**: for a uniform message sampler on a
@@ -343,23 +328,15 @@ theorem advantage_eagerIndCcaBotGame_simBotGame_probeDecapsAdv
   rw [← S.eval_roIndCcaBotGame_eq_eagerIndCcaBotGame probeDecapsAdv b,
     eval_roIndCcaBotGame_probeDecapsAdv, eval_simBotGame_probeDecapsAdv, hmsg,
     Game.advantage_pure_false]
-  have hcoe : (Game.succProbability
-      ((PMF.uniformOfFintype M).map (fun mStar => decide (mStar ≠ m₀))) : ℝ) =
-      (((PMF.uniformOfFintype M).map (fun mStar => decide (mStar ≠ m₀))) true).toReal := rfl
-  rw [hcoe]
+  change (((PMF.uniformOfFintype M).map (fun mStar => decide (mStar ≠ m₀))) true).toReal = _
   have hmap : (PMF.uniformOfFintype M).map (fun mStar => decide (mStar ≠ m₀)) true =
       (Finset.univ.filter (fun mStar : M => mStar ≠ m₀)).card / (Fintype.card M : ℝ≥0∞) := by
-    rw [PMF.map_apply]
-    simp only [PMF.uniformOfFintype_apply, true_eq_decide_iff, div_eq_mul_inv]
-    rw [tsum_fintype, ← Finset.sum_filter]
-    simp
-  have hcard : (Finset.univ.filter (fun mStar : M => mStar ≠ m₀)).card = Fintype.card M - 1 := by
-    rw [Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ m₀), Finset.card_univ]
-  have hpos : 1 ≤ Fintype.card M := Fintype.card_pos
-  rw [hmap, hcard, ENNReal.toReal_div, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
-    Nat.cast_sub hpos, Nat.cast_one]
-  have hne : (Fintype.card M : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
-  rw [sub_div, div_self hne]
+    simp only [PMF.map_apply, PMF.uniformOfFintype_apply, true_eq_decide_iff, div_eq_mul_inv,
+      tsum_fintype, ← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
+  rw [hmap, Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ m₀), Finset.card_univ,
+    ENNReal.toReal_div, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
+    Nat.cast_sub Fintype.card_pos, Nat.cast_one, sub_div,
+    div_self (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)]
 
 end Evaluation
 

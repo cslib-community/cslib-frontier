@@ -28,10 +28,12 @@ calculation, load, increment, store and loop test is charged.
 
 * `Histogram.count`: bucket sizes in an input prefix.
 * `Histogram.pairs`: ordered collisions accumulated by prefix insertion.
+* `Histogram.clearBlock`: parameterized zeroing of `[base..base+count)` via `zeroFill`.
 * `Histogram.program`: clear the buckets, then insert the input keys.
 
 ## Main results
 
+* `Histogram.exec_clearBlock`: `4 * count + 6` bound and frame for `Histogram.clearBlock`.
 * `Histogram.exec`: histogram construction and collision counting with a linear instruction bound.
 
 ## References
@@ -94,23 +96,16 @@ theorem pairs_eq_card (keys : ℕ → ℕ) (k : ℕ) :
       ext p
       simp only [C, mem_filter, mem_product, mem_singleton]
       aesop
-    have hAB : Disjoint A B := by
-      rw [disjoint_left]
-      intro p hp hq
-      have hp' := (mem_offDiag.mp (mem_filter.mp hp).1).1
-      have hq' := mem_singleton.mp (mem_product.mp (mem_filter.mp hq).1).1
-      have : p.1 < k := mem_range.mp hp'
+    have hAB : Disjoint A B := disjoint_left.mpr fun p hp hq => by
+      have := mem_range.mp (mem_offDiag.mp (mem_filter.mp hp).1).1
+      have := mem_singleton.mp (mem_product.mp (mem_filter.mp hq).1).1
       omega
-    have hAC : Disjoint (A ∪ B) C := by
-      rw [disjoint_left]
-      intro p hp hq
-      have hq' := mem_singleton.mp (mem_product.mp (mem_filter.mp hq).1).2
+    have hAC : Disjoint (A ∪ B) C := disjoint_left.mpr fun p hp hq => by
+      have := mem_singleton.mp (mem_product.mp (mem_filter.mp hq).1).2
       rcases mem_union.mp hp with hp | hp
-      · have hp' := (mem_offDiag.mp (mem_filter.mp hp).1).2.1
-        have : p.2 < k := mem_range.mp hp'
+      · have := mem_range.mp (mem_offDiag.mp (mem_filter.mp hp).1).2.1
         omega
-      · have hp' := (mem_product.mp (mem_filter.mp hp).1).2
-        have : p.2 < k := mem_range.mp hp'
+      · have := mem_range.mp (mem_product.mp (mem_filter.mp hp).1).2
         omega
     have hsplit : {p ∈ (range (k + 1)).offDiag | keys p.1 = keys p.2} = A ∪ B ∪ C := by
       rw [range_add_one, offDiag_insert (notMem_range_self : k ∉ range k),
@@ -176,9 +171,49 @@ abbrev one : Fin 11 := 9
 /-- Constant zero. -/
 abbrev zero : Fin 11 := 10
 
-/-- Clear one histogram cell and advance the cursor. -/
-def clearBody : Code .standard 11 := ram[
-  addr ← dst + idx; *addr ← zero; idx ← idx + one ]
+/-- Clear `[base..base+count)` via `zeroFill`, loading `zero = 0` and `one = 1` and using `cur`
+and `stop` as scratch cursor and end-address registers. -/
+def clearBlock {r : ℕ} (base count cur stop zero one : Fin r) : Code .standard r :=
+  .seq (ram[ zero ← #0; one ← #1; cur ← base; stop ← base + count ])
+    (zeroFill cur stop zero one)
+
+/-- Clearing `count` cells with `clearBlock` executes in `4 * count + 6` instructions, leaves
+`zero = 0` and `one = 1`, and preserves every register distinct from `cur`, `stop`, `zero`, and
+`one`. -/
+theorem exec_clearBlock {r w : ℕ} (base count cur stop zero one : Fin r)
+    (hnodup : [base, count, cur, stop, zero, one].Nodup)
+    (x : Data r) (h1 : Fits w 1) (hd : Fits w (x.regs base + x.regs count)) :
+    ∃ y, ExecWithin w (clearBlock base count cur stop zero one) x y (4 * x.regs count + 6) ∧
+      y.mem = Cslib.WordRAM.clear x.mem (x.regs base) (x.regs count) ∧
+      (∀ i : Fin r, i ≠ cur → i ≠ stop → i ≠ zero → i ≠ one → y.regs i = x.regs i) ∧
+      y.regs zero = 0 ∧ y.regs one = 1 := by
+  simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, not_or,
+    List.nodup_nil, and_true] at hnodup
+  obtain ⟨⟨_, hbc, _, hbz, hbo⟩, ⟨hcc, _, hcz, hco⟩, ⟨hcs, hcuz, hcuo⟩, ⟨hsz, hso⟩,
+    hzo, -⟩ := hnodup
+  have hinit : ∃ x₀, ExecWithin w
+      (ram[ zero ← #0; one ← #1; cur ← base; stop ← base + count ]) x x₀ 4 ∧
+      (∀ i : Fin r, i ≠ cur → i ≠ stop → i ≠ zero → i ≠ one → x₀.regs i = x.regs i) ∧
+      x₀.regs cur = x.regs base ∧ x₀.regs stop = x.regs base + x.regs count ∧
+      x₀.regs zero = 0 ∧ x₀.regs one = 1 ∧ x₀.mem = x.mem := by
+    refine WP.exists_execWithin ?_
+    wram_exec [h1, hd, hbc, hbz, hbo, hcc, hcz, hco]
+    refine ⟨fun i hc hs hz ho => by wram_simp [hc, hs, hz, ho],
+      by wram_simp [Ne.symm hcs, hbz, hbo],
+      by wram_simp [hbc, hbz, hbo, hcc, hcz, hco],
+      by wram_simp [Ne.symm hsz, Ne.symm hcuz, Ne.symm hzo],
+      by wram_simp [Ne.symm hso, Ne.symm hcuo],
+      by wram_simp⟩
+  obtain ⟨x₀, he₀, hr₀, hidx₀, haddr₀, hz₀, ho₀, hm₀⟩ := hinit
+  have hzf := (zeroFill_exec (w := w) (cur := cur) (stop := stop) (zero := zero) (one := one)
+    (x := x₀) hcs hcuz hcuo hz₀ ho₀
+    (by rw [hidx₀, haddr₀]; omega) (by rwa [haddr₀])).within
+  refine ⟨_, (he₀.seq hzf).mono (by rw [hidx₀, haddr₀]; omega), ?_,
+    fun i hc hs hz ho => (Function.update_of_ne hc _ _).trans (hr₀ i hc hs hz ho),
+    (Function.update_of_ne (Ne.symm hcuz) _ _).trans hz₀,
+    (Function.update_of_ne (Ne.symm hcuo) _ _).trans ho₀⟩
+  dsimp only
+  rw [hm₀, hidx₀, haddr₀, Nat.add_sub_cancel_left]
 
 /-- Insert one key and add twice its old bucket count. -/
 def body : Code .standard 11 := ram[
@@ -188,7 +223,7 @@ def body : Code .standard 11 := ram[
 
 /-- Clear the histogram, retaining the input and all four parameters. -/
 def clear : Code .standard 11 :=
-  .seq (ram[ idx ← #0; one ← #1; zero ← #0 ]) (.loop (.lt idx bins) clearBody)
+  clearBlock dst bins idx addr zero one
 
 /-- Insert all keys into a cleared histogram. -/
 def insert : Code .standard 11 :=
@@ -199,36 +234,14 @@ def program : Code .standard 11 := .seq clear insert
 
 private theorem exec_clear {w : ℕ} (x : Data 11) (h1 : Fits w 1)
     (hd : Fits w (x.regs dst + x.regs bins)) :
-    ∃ y, ExecWithin w clear x y (5 * x.regs bins + 5) ∧
+    ∃ y, ExecWithin w clear x y (4 * x.regs bins + 6) ∧
       y.mem = Cslib.WordRAM.clear x.mem (x.regs dst) (x.regs bins) ∧
       (∀ i, i.val < 4 → y.regs i = x.regs i) ∧ y.regs one = 1 := by
-  let P (j : ℕ) (y : Data 11) : Prop :=
-    (∀ i, i.val < 4 → y.regs i = x.regs i) ∧ y.regs one = 1 ∧ y.regs zero = 0 ∧
-      y.mem = Cslib.WordRAM.clear x.mem (x.regs dst) j
-  have hbody (y : Data 11) (hy : P (y.regs idx) y) (hlt : y.regs idx < x.regs bins) :
-      ∃ z, ExecWithin w clearBody y z 3 ∧ P (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, ho, hz, hm⟩ := hy
-    have hdst := hr dst (by decide)
-    have ha : Fits w (y.regs dst + y.regs idx) := hd.of_le (by rw [hdst]; omega)
-    have hn : Fits w (y.regs idx + 1) := hd.of_le (by omega)
-    refine WP.exists_execWithin ?_
-    unfold clearBody
-    wram_exec [ho, hz, ha, hn]
-    refine ⟨⟨fun i hi => by
-      have hri := hr i hi
-      fin_cases i <;> norm_num at hi <;> wram_simp [hri],
-      by wram_simp [ho], by wram_simp [hz], ?_⟩, by wram_simp⟩
-    wram_simp
-    rw [hm, hdst, ← Cslib.WordRAM.clear_succ]
-  refine WP.exists_execWithin ?_
-  unfold clear
-  wram_exec [h1]
-  wram_call (ExecWithin.loop_count P (fun y hy => hy.1 bins (by decide)) hbody
-    (by wram_simp; omega) ⟨fun i hi => by fin_cases i <;> norm_num at hi <;> wram_simp,
-      by wram_simp, by wram_simp, by wram_simp [Cslib.WordRAM.clear_zero]⟩)
-    with y ⟨⟨hr, ho, _, hm⟩, _⟩
-  exact ⟨by wram_simp; omega, hm, hr, ho⟩
+  obtain ⟨y, he, hm, hr, _, ho⟩ := exec_clearBlock dst bins idx addr zero one (by decide) x h1 hd
+  exact ⟨y, he, hm, fun i hi => hr i (by fin_cases i <;> norm_num at hi <;> decide)
+    (by fin_cases i <;> norm_num at hi <;> decide)
+    (by fin_cases i <;> norm_num at hi <;> decide)
+    (by fin_cases i <;> norm_num at hi <;> decide), ho⟩
 
 private theorem exec_insert {w : ℕ} (x : Data 11) (keys : ℕ → ℕ)
     (hs : Fits w (x.regs src + x.regs len))
@@ -302,7 +315,7 @@ private theorem exec_insert {w : ℕ} (x : Data 11) (keys : ℕ → ℕ)
     with y ⟨⟨hr, ho, hp, hm⟩, _⟩
   exact ⟨by wram_simp; omega, hm, hp, hr, ho⟩
 
-/-- Build a histogram and count ordered collisions within `5M + 11n + 9` native instructions.
+/-- Build a histogram and count ordered collisions within `4M + 11n + 10` native instructions.
 The input keys lie in `[0,M)`. The input precedes the output block. Both one-past-end
 addresses and the quadratic counter bound must fit. These are explicit local contracts;
 constructing the keys and deriving a logarithmic width are separate client obligations. -/
@@ -313,7 +326,7 @@ theorem exec {w : ℕ} (x : Data 11) (keys : ℕ → ℕ) (h1 : Fits w 1)
     (hdisj : x.regs src + x.regs len ≤ x.regs dst)
     (hkeys : ∀ i < x.regs len, keys i < x.regs bins)
     (hinput : ∀ i < x.regs len, x.mem (x.regs src + i) = keys i) :
-    ∃ y, ExecWithin w program x y (5 * x.regs bins + 11 * x.regs len + 9) ∧
+    ∃ y, ExecWithin w program x y (4 * x.regs bins + 11 * x.regs len + 10) ∧
       y.mem = memory x.mem keys (x.regs dst) (x.regs bins) (x.regs len) ∧
       y.regs total = pairs keys (x.regs len) ∧
       (∀ i, i.val < 4 → y.regs i = x.regs i) := by

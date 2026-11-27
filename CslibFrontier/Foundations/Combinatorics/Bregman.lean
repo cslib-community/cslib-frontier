@@ -13,6 +13,7 @@ public import Mathlib.Data.Fintype.Perm
 public import Mathlib.LinearAlgebra.Matrix.Permanent
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogSum
 import CslibFrontier.Foundations.Data.Matrix.Permanent.ZeroOne
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.GroupTheory.Perm.DomMulAct
 
 /-!
@@ -91,18 +92,11 @@ private theorem row_identity (s : Finset β) {k : β} (hk : k ∈ s) :
       ∑ b ∈ s.erase k, bregmanWeight a + ∑ b ∈ sᶜ, bregmanWeight #s := by
     rw [← sum_filter_add_sum_filter_not (univ.erase k) (· ∈ s)]
     congr 1
-    · have : (univ.erase k).filter (· ∈ s) = s.erase k := by
-        ext b; simp [and_comm]
-      rw [this]
-      refine sum_congr rfl fun b hb => ?_
-      rw [card_erase_of_mem (mem_of_mem_erase hb), hs, ha, card_erase_of_mem hk, hs]
-      simp [ha]
-    · have : (univ.erase k).filter (· ∉ s) = sᶜ := by
-        ext b; simp only [mem_filter, mem_erase, mem_univ, and_true, mem_compl]
-        constructor
-        · exact fun h => h.2
-        · exact fun h => ⟨fun hb => h (hb ▸ hk), h⟩
-      rw [this]
+    · rw [filter_mem_eq_inter, erase_inter, univ_inter]
+      exact sum_congr rfl fun b hb => by
+        rw [card_erase_of_mem (mem_of_mem_erase hb), ha, card_erase_of_mem hk]
+    · rw [filter_notMem_eq_sdiff, erase_sdiff_comm, erase_eq_of_notMem (by simp [hk]),
+        ← compl_eq_univ_sdiff]
       exact sum_congr rfl fun b hb => by rw [erase_eq_of_notMem (mem_compl.1 hb)]
   rw [hsplit, sum_const, sum_const, nsmul_eq_mul, nsmul_eq_mul, ← ha]
   have hcompl : (#sᶜ : ℝ) + #s = Fintype.card β := by
@@ -111,8 +105,7 @@ private theorem row_identity (s : Finset β) {k : β} (hk : k ∈ s) :
   have h2 : (#s : ℝ) * bregmanWeight #s = Real.log (#s).factorial := mul_bregmanWeight _
   rw [hs, Nat.factorial_succ, Nat.cast_mul, Real.log_mul (by positivity) (by positivity)] at h2
   rw [← hcompl, hs] at *
-  push_cast at *
-  linarith
+  cast_linarith
 
 universe u v
 
@@ -127,11 +120,9 @@ private theorem log_card_le_sum_bregmanWeight :
   | zero =>
     intro α β _ _ _ _ R _ hn
     have : IsEmpty α := Fintype.card_eq_zero_iff.1 hn
-    have hle : #{e : α ≃ β | ∀ a, R a (e a)} ≤ 1 :=
-      card_le_one.2 fun e _ e' _ => Equiv.ext fun a => isEmptyElim a
-    have : Real.log #{e : α ≃ β | ∀ a, R a (e a)} ≤ 0 :=
-      Real.log_nonpos (Nat.cast_nonneg _) (by exact_mod_cast hle)
-    linarith [sum_nonneg fun a (_ : a ∈ univ) => bregmanWeight_nonneg #{b | R a b}]
+    refine (Real.log_nonpos (Nat.cast_nonneg _) ?_).trans
+      (sum_nonneg fun a _ => bregmanWeight_nonneg _)
+    exact_mod_cast card_le_one.2 fun e _ e' _ => Equiv.ext isEmptyElim
   | succ n ih =>
     intro α β _ _ _ _ R _ hn
     obtain ⟨M, hM⟩ : ∃ M : Finset (α ≃ β),
@@ -162,15 +153,12 @@ private theorem log_card_le_sum_bregmanWeight :
           (fun e => e.1.subtypeEquiv (hiff e.1 (mem_filter.1 e.2).2)) ?_ ?_
         · intro e _
           simp only [coe_filter, Set.mem_ofPred_eq, mem_univ, true_and]
-          intro a
-          exact (memM _).1 (mem_filter.1 e.2).1 a
+          exact fun a => (memM _).1 (mem_filter.1 e.2).1 a
         · intro e _ e' _ h
-          apply Subtype.ext
-          ext a
+          refine Subtype.ext (Equiv.ext fun a => ?_)
           by_cases ha : a = i
           · rw [ha, (mem_filter.1 e.2).2, (mem_filter.1 e'.2).2]
-          · have := congrArg (fun f => (f ⟨a, ha⟩ : β)) h
-            simpa using this
+          · simpa using congrArg (fun f => (f ⟨a, ha⟩ : β)) h
       have hlog : Real.log #{e ∈ M | e i = k} ≤
           Real.log #{e : {a // a ≠ i} ≃ {b // b ≠ k} | ∀ a : {a // a ≠ i}, R a (e a)} := by
         rcases Nat.eq_zero_or_pos #{e ∈ M | e i = k} with h0 | hpos
@@ -179,8 +167,7 @@ private theorem log_card_le_sum_bregmanWeight :
       refine hlog.trans (hIH.trans_eq ?_)
       rw [sum_subtype (univ.erase i) (p := fun a => a ≠ i) (by simp)
         (f := fun j => bregmanWeight #((s j).erase k))]
-      refine sum_congr rfl fun a _ => ?_
-      congr 1
+      refine sum_congr rfl fun a _ => congrArg _ ?_
       rw [← card_map (Function.Embedding.subtype _)]
       congr 1
       ext b

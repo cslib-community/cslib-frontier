@@ -139,8 +139,6 @@ theorem uniformDecidableInO_one9992 (κ : ℕ) :
   intro input W hn _
   apply (Nat.cast_le (α := ℝ)).mp
   push_cast
-  exact (hcost input.val.length hn).trans
-    (mul_le_mul (Nat.le_ceil C) (Nat.le_ceil _) (Real.rpow_nonneg (by positivity) _)
-      (by positivity))
+  exact (hcost input.val.length hn).trans (by gcongr <;> exact Nat.le_ceil _)
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision

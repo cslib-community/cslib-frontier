@@ -27,22 +27,18 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting
 open Cslib.WordRAM
 
 /-- The actual16-register parameter placement is injective. -/
-theorem parameterBank_injective : Function.Injective parameterBank := by
-  intro i j h
-  apply Fin.ext
-  have h' := congrArg Fin.val h
-  dsimp only [parameterBank] at h'
-  omega
+theorem parameterBank_injective : Function.Injective parameterBank := fun _ _ h => by
+  have := congrArg Fin.val h
+  dsimp only [parameterBank] at this
+  exact Fin.ext (by omega)
 
 /-- The full actual selector bank is embedded without aliasing. -/
-theorem selectorBank_injective : Function.Injective selectorBank := by
-  intro i j h
-  exact Fin.ext (congrArg (fun k : Fin 640 => k.val) h)
+theorem selectorBank_injective : Function.Injective selectorBank :=
+  fun _ _ h => Fin.ext (congrArg (fun k : Fin 640 => k.val) h)
 
 /-- The full actual exhaustive bank is embedded without aliasing. -/
-theorem slowBank_injective : Function.Injective slowBank := by
-  intro i j h
-  exact Fin.ext (congrArg (fun k : Fin 640 => k.val) h)
+theorem slowBank_injective : Function.Injective slowBank :=
+  fun _ _ h => Fin.ext (congrArg (fun k : Fin 640 => k.val) h)
 
 /-- Parameters preserve the complete original protocol and all high saved arguments. -/
 theorem parameters_preserves (j : Fin 640) (hj : j.val < 144 ∨ 160 ≤ j.val) :
@@ -69,11 +65,8 @@ theorem program_fixed : (program.program Reg.result).length ≤ 434000 ∧
   have hc := CallableFixedPrime.program_fixed.1
   simp only [Code.program, List.length_append, Code.length_assemble,
     List.length_singleton] at hp hs hc ⊢
-  have hcounter : CountPrime.program.size ≤ 32768 := by
-    have hle : CountPrime.program.size ≤ CountPrime.entryProgram.size := by
-      change _ ≤ CountPrime.input.size + CountPrime.program.size
-      omega
-    omega
+  have hle : CountPrime.program.size ≤ CountPrime.entryProgram.size :=
+    show _ ≤ CountPrime.input.size + CountPrime.program.size by omega
   have hslow : ThreeSum.Host.Slow.program.size ≤ 128 := by decide +kernel
   have htotal : program.size = save.size +
       (parameters.size + ((slow.size + fast.size + 2) + restore.size)) := by
@@ -83,12 +76,11 @@ theorem program_fixed : (program.program Reg.result).length ≤ 434000 ∧
   have hsmall : slow.size = 6 + (ThreeSum.Host.Slow.program.size + 1) := by
     change 6 + ((ThreeSum.Host.Slow.program.rename slowBank).size + 1) = _
     rw [Code.size_rename]
-  have hparams : parameters.size = DyadicParameters.program.size := Code.size_rename _ _
   have hselect : selectPrime.size = CountPrime.program.size + 50 := by
     simpa only [selectPrime, Code.size_rename] using PrimeSelection.program_size CountPrime.program
-  have hsave : save.size = 8 := rfl
-  have hrestore : restore.size = 7 := rfl
-  rw [htotal, hfast, hsmall, hparams, hselect, hsave, hrestore]
+  have hparam : parameters.size = DyadicParameters.program.size := Code.size_rename _ _
+  rw [htotal, hfast, hsmall, hparam, hselect, show save.size = 8 from rfl,
+    show restore.size = 7 from rfl]
   omega
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting
