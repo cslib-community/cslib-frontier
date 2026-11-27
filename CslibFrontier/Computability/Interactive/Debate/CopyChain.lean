@@ -98,11 +98,6 @@ never queries its oracle. -/
 @[expose] def copyChain : Machine Query where
   step bits := .det (bits.headD false)
 
-/-- The step law of the copy chain against any oracle: the point mass at the previous bit. -/
-theorem stepLaw_copyChain (O : Query → PMF Bool) :
-    (copyChain : Machine Query).stepLaw O = fun bits => PMF.pure (bits.headD false) :=
-  rfl
-
 private theorem evalWith_transcript_copyChain (O : Query → PMF Bool) :
     ∀ n, OracleComp.evalWith (sumHandler ProbComp.unifOracle O)
       ((copyChain : Machine Query).transcript n) = PMF.pure (List.replicate n false)
