@@ -87,3 +87,4 @@ import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.ODonnellLevelK
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
 import CslibFrontierResults.Entries.SatisfiabilityHypothesis
+import CslibFrontierResults.Entries.TwoProverNEXP
