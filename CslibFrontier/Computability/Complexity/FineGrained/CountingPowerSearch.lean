@@ -9,10 +9,11 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingExponents
-public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
+public import CslibFrontier.Computability.Complexity.FineGrained.RandomizedPowerTime
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingSparsificationUniform
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingQuantitative
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Declared
+import CslibFrontier.Computability.Complexity.FineGrained.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.BitString.Cut
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingParametersPolyTime
@@ -27,8 +28,10 @@ the disjoint sparse-leaf sum over the original declared variables. The certifica
 the encoded input, including the unary declared size, and the supplied leaf computation.
 Its round factor uses the power saving from [MITHardnessGroup2026SH, Lemma 2.2, §2.2].
 A size-based power saving transfers to the occurring variable count for both counting
-and decision after polynomial-time dense relabeling. The randomized decision hypothesis
-equivalences remain open in #8457.
+and decision after polynomial-time dense relabeling. In the randomized decision case,
+a solver on declared formulas follows from leaf verifiers with sufficiently small error.
+Deriving those verifiers by amplification and the randomized hypothesis equivalences remain
+open in #8457.
 
 ## Main results
 
@@ -37,6 +40,8 @@ equivalences remain open in #8457.
   and workspace bounds from a certified leaf counter.
 * `exists_computableInO_seededSearch_powerBudget`: a seed-carrying decision machine and
   its error bound from a certified leaf verifier.
+* `solvesWithErrorInPowerExpTime_of_powerBudgetLeaves`: allocate a shared seed and combine
+  leaf verifiers whose clocks, seed widths, and errors meet the sparsification bounds.
 * `ComputableInPowerExpTime.SharpKSAT_numVars_of_size`: transfer a size-based power saving
   to a power saving in occurring variables.
 * `DecidableInPowerExpTime.KSAT_numVars_of_size`: the decision transfer using positive
@@ -470,6 +475,144 @@ theorem exists_computableInO_seededSearch_powerBudget {k d : ℕ} (hk : 2 ≤ k)
         Nat.two_pow_pos, W, g, query, input, seed, base, budget]
     rw [hcongr]
     exact hW
+
+/-- The shared-seed assembly step of [MITHardnessGroup2026SH, v2, §7, Theorem 7.1(a)].
+Given leaf verifiers with a power-saving clock, a common bound on their seed widths, and error
+at most one third of the reciprocal leaf-count bound, the native sparsifier decides declared
+width-`k` satisfiability with bounded error. The unary seed allocation and the full
+seeded search both run with a fixed power saving in the declared variable count. -/
+theorem solvesWithErrorInPowerExpTime_of_powerBudgetLeaves {k d : ℕ} (hk : 2 ≤ k) (hd : 1 ≤ d)
+    {width : DeclaredCNF → ℕ} {V : DeclaredCNF × List Bool → Bool}
+    {Tw Sw : DeclaredCNF → ℕ} {Tv Sv : DeclaredCNF × List Bool → ℕ}
+    (hwidth : ComputableInO width encDeclaredCNF encUnary Tw Sw)
+    (hV : ComputableInO V (encPair encDeclaredCNF encBits) encBool Tv Sv)
+    {p : ℝ} (hp : p < 1) (A e : ℕ) :
+    let encInput := encPair encDeclaredCNF encBits
+    let rate (a : DeclaredCNF) := (2 : ℝ) ^ (A * (a.numVars + 1 : ℝ) ^ p)
+    let admissible (a : DeclaredCNF) (ψ : CNF ℕ) :=
+      let M := countingThresholdBase k (countingPowerBudget d a.numVars)
+      (∀ c ∈ ψ, c.length ≤ k) ∧ isSparse (countingThreshold M) k ψ = true ∧
+        ψ.vars.toFinset ⊆ Finset.range a.numVars ∧ ψ.length ≤ occBound k M * a.numVars + 1 ∧
+        (encCNF ψ).length ≤ nodeBound k (countingDepthCoeff k M) a.formula
+    (∀ (a : DeclaredCNF) (ψ : CNF ℕ) (seed : List Bool), admissible a ψ →
+      let leaf : DeclaredCNF := ⟨a.numVars, ψ⟩
+      let cost := 20 * (encInput (leaf, seed)).length
+      let query := (leaf, seed.take (width leaf))
+      let bound := rate a * ((encInput (a, seed)).length + 1 : ℝ) ^ e
+      ((cost + Tw leaf + Tv query : ℕ) : ℝ) ≤ bound ∧
+        ((cost + Sw leaf + Sv query : ℕ) : ℝ) ≤ bound) →
+    (∀ (a : DeclaredCNF) (ψ : CNF ℕ), CountingNormalized k ψ → admissible a ψ →
+      let leaf : DeclaredCNF := ⟨a.numVars, ψ⟩
+      (width leaf : ℝ) ≤ rate a * ((encDeclaredCNF a).length + 1 : ℝ) ^ e ∧
+        (acceptCount (fun x => V x != decide (0 < x.1.formula.modelCount))
+          leaf (width leaf) : ℝ) ≤
+          ((1 / 3 : ℝ) / 2 ^ (a.formula.numVars / countingPowerBudget d a.numVars + 1)) *
+            (2 : ℝ) ^ width leaf) →
+    ∃ q : ℝ, 0 < q ∧ q < 1 ∧ SolvesWithErrorInPowerExpTime
+      (PromiseProblem.ofSet {a : DeclaredCNF |
+        validDeclaredInput k a.numVars a.formula = true ∧ a.formula.Satisfiable})
+      encDeclaredCNF ErrorModel.bounded DeclaredCNF.numVars q := by
+  intro encInput rate admissible hresources hleaf
+  let L (x : DeclaredCNF × List Bool) : ℝ := (encInput x).length + 1
+  let R (x : DeclaredCNF × List Bool) := ⌈rate x.1 * L x ^ e⌉₊
+  obtain ⟨verify, T, S, c, f, hverify, hT, hreject, herror⟩ :=
+    exists_computableInO_seededSearch_powerBudget hk hd hwidth hV (R := R) (Q := R)
+      (fun seed a ψ hw hs hv hl hlen => by
+        obtain ⟨ht, hs'⟩ := hresources a ψ seed ⟨hw, hs, hv, hl, hlen⟩
+        exact ⟨Nat.cast_le.mp (ht.trans (Nat.le_ceil _)),
+          Nat.cast_le.mp (hs'.trans (Nat.le_ceil _))⟩)
+  let q : ℝ := max (1 - (d : ℝ)⁻¹) p
+  have hd₀ : (0 : ℝ) < d := by exact_mod_cast (show 0 < d by omega)
+  have hq₁ : q < 1 := max_lt_iff.mpr ⟨sub_lt_self _ (inv_pos.mpr hd₀), hp⟩
+  have hpq : p ≤ q := le_max_right _ _
+  have hverify' : ComputableInPowerExpTime verify encInput encBool
+      (DeclaredCNF.numVars ∘ Prod.fst) q := by
+    let E := max e f
+    let F (x : DeclaredCNF × List Bool) : ℝ :=
+      2 ^ (((3 + A : ℕ) : ℝ) * (x.1.numVars + 1 : ℝ) ^ q) * L x ^ E
+    have hbound (x : DeclaredCNF × List Bool) : (T x : ℝ) ≤ (6 * (c + 2) : ℕ) * F x := by
+      let X : ℝ := x.1.numVars + 1
+      let Y : ℝ := 2 ^ (3 * X ^ (1 - (d : ℝ)⁻¹))
+      let Z := rate x.1
+      have hX : 1 ≤ X := le_add_of_nonneg_left (Nat.cast_nonneg _)
+      have hL : 1 ≤ L x := le_add_of_nonneg_left (Nat.cast_nonneg _)
+      have hZ : 1 ≤ Z := Real.one_le_rpow one_le_two (by positivity)
+      have hZE : 1 ≤ Z * L x ^ E :=
+        one_le_mul_of_one_le_of_one_le hZ (one_le_pow₀ hL)
+      have hRf : (R x : ℝ) ≤ Z * L x ^ E + Z * L x ^ E := by
+        have h := (Nat.ceil_lt_add_one (show 0 ≤ Z * L x ^ e by positivity)).le
+        exact h.trans (add_le_add
+          (mul_le_mul_of_nonneg_left (pow_le_pow_right₀ hL (le_max_left e f))
+            (zero_le_one.trans hZ)) hZE)
+      have hf' : L x ^ f ≤ Z * L x ^ E :=
+        (pow_le_pow_right₀ hL (le_max_right e f)).trans
+          (le_mul_of_one_le_left (by positivity) hZ)
+      have hrate : Y * Z ≤ (2 : ℝ) ^ (((3 + A : ℕ) : ℝ) * X ^ q) := by
+        change 2 ^ (3 * X ^ (1 - (d : ℝ)⁻¹)) * 2 ^ (A * X ^ p) ≤ _
+        rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
+        apply Real.rpow_le_rpow_of_exponent_le one_le_two
+        have h₁ := Real.rpow_le_rpow_of_exponent_le hX (le_max_left (1 - (d : ℝ)⁻¹) p)
+        have h₂ := Real.rpow_le_rpow_of_exponent_le hX hpq
+        push_cast
+        nlinarith [mul_le_mul_of_nonneg_left h₂ (Nat.cast_nonneg A)]
+      calc
+        _ ≤ 6 * Y * (c * L x ^ f + R x) := hT x
+        _ ≤ 6 * Y * (c * (Z * L x ^ E) + (Z * L x ^ E + Z * L x ^ E)) :=
+          mul_le_mul_of_nonneg_left
+            (add_le_add (mul_le_mul_of_nonneg_left hf' (Nat.cast_nonneg c)) hRf) (by positivity)
+        _ = ((6 * (c + 2) : ℕ) : ℝ) * ((Y * Z) * L x ^ E) := by push_cast; ring
+        _ ≤ _ := mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hrate (by positivity))
+          (Nat.cast_nonneg _)
+    refine ⟨3 + A, E, (ComputableInTimeO.of_computableInO hverify hbound).mono
+      (6 * (c + 2)) (fun _ => le_add_of_nonneg_right (Nat.cast_nonneg _)) (fun _ => by positivity)⟩
+  have hμ : ComputableInPolyTime DeclaredCNF.numVars encDeclaredCNF encUnary :=
+    encDeclaredCNF_numVars_polyTime ComputableInPolyTime.id'
+  let Q := PromiseProblem.ofSet {a : DeclaredCNF |
+    validDeclaredInput k a.numVars a.formula = true ∧ a.formula.Satisfiable}
+  have herr (a : DeclaredCNF) (n : ℕ)
+      (hv : validDeclaredInput k a.numVars a.formula = true)
+      (hn : (2 : ℝ) ^ (A * (a.numVars + 1 : ℝ) ^ q) * ((encDeclaredCNF a).length + 1) ^ e ≤ n) :
+      (acceptCount (fun x => verify x != decide (0 < x.1.formula.modelCount)) a n : ℝ) ≤
+        (1 / 3 : ℝ) * 2 ^ n := by
+    let N := a.formula.numVars / countingPowerBudget d a.numVars + 1
+    let ε := (1 / 3 : ℝ) / 2 ^ N
+    have he := herror a n ε (by positivity) hv (by
+      intro ψ
+      dsimp only
+      intro hnorm hw hs hv' hl hlen
+      obtain ⟨hseed, hcount⟩ := hleaf a ψ hnorm ⟨hw, hs, hv', hl, hlen⟩
+      refine ⟨Nat.cast_le.mp (hseed.trans ?_), hcount⟩
+      have hx : 1 ≤ (a.numVars + 1 : ℝ) := le_add_of_nonneg_left (Nat.cast_nonneg _)
+      exact (two_rpow_mul_pow_le_two_rpow_mul_pow
+        (mul_le_mul_of_nonneg_left (Real.rpow_le_rpow_of_exponent_le hx hpq)
+          (Nat.cast_nonneg A)) le_rfl).trans hn)
+    refine he.trans_eq ?_
+    change (2 : ℝ) ^ N * ((1 / 3 / 2 ^ N) * 2 ^ n) = _
+    field_simp
+  obtain ⟨q', _, hq'₀, hq'₁, h⟩ := SolvesWithErrorInPowerExpTime.of_seededVerifier
+    (Q := Q) (E := ErrorModel.bounded) hμ hq₁ hverify' A e (by
+      intro a ha n hn
+      have ha' : validDeclaredInput k a.numVars a.formula = true ∧ a.formula.Satisfiable := ha
+      have htruth : decide (0 < a.formula.modelCount) = true :=
+        decide_eq_true (CNF.modelCount_pos_iff.mpr ha'.2)
+      have he := herr a n ha'.1 hn
+      rw [acceptCount_congr (W := fun x => !verify x) (fun w => by
+        simpa only [Bool.bne_true] using congrArg (fun b => verify (a, w) != b) htruth) n] at he
+      exact he)
+    (by
+      intro a ha n hn
+      cases hv : validDeclaredInput k a.numVars a.formula with
+      | false =>
+        rw [acceptCount_eq_zero_iff.mpr fun w => hreject (a, List.ofFn w) hv, Nat.cast_zero]
+        exact mul_nonneg ErrorModel.bounded.noErr_nonneg (by positivity)
+      | true =>
+        have htruth : decide (0 < a.formula.modelCount) = false :=
+          decide_eq_false fun hpos => ha ⟨hv, CNF.modelCount_pos_iff.mp hpos⟩
+        have he := herr a n hv hn
+        rw [acceptCount_congr (W := verify) (fun w => by
+          simpa only [Bool.bne_false] using congrArg (fun b => verify (a, w) != b) htruth) n] at he
+        exact he)
+  exact ⟨q', hq'₀, hq'₁, h⟩
 
 private theorem exists_budget_power_lt_one {p : ℝ} (hp1 : p < 1) (k : ℕ) :
     ∃ d : ℕ, 1 ≤ d ∧ (1 + (2 * k : ℝ) / d) * p < 1 := by
