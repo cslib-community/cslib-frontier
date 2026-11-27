@@ -116,7 +116,7 @@ written before it. -/
   (fun bits => bits.headD false) <$> transcript n
 
 /-- The number of `true` replies among `n` independent samples of the step after `bits`. -/
-@[expose] def countTrue (bits : List Bool) : (n : ℕ) → ProbOracleComp StepSpec (Fin (n + 1))
+def countTrue (bits : List Bool) : (n : ℕ) → ProbOracleComp StepSpec (Fin (n + 1))
   | 0 => pure 0
   | n + 1 => do
     let count ← countTrue bits n
@@ -201,7 +201,7 @@ structure Params where
 /-- The verifier's decision after an abort in the round after `bits` with claim `claim`: draw
 `P.verifierSamples` samples of the disputed step and accept exactly when the claim is within
 `P.verifierTolerance` of their mean. -/
-@[expose] noncomputable def verdict (P : Params) (bits : List Bool) (claim : Fin (P.grid + 1)) :
+noncomputable def verdict (P : Params) (bits : List Bool) (claim : Fin (P.grid + 1)) :
     ProbOracleComp StepSpec Bool := do
   let count ← countTrue bits P.verifierSamples
   pure (decide (|(claim : ℝ) / P.grid - (count : ℝ) / P.verifierSamples| < P.verifierTolerance))
@@ -992,6 +992,39 @@ theorem evalWith_verdict_false_le (law : List Bool → PMF Bool) (P : Params)
     ((ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)).2
       (countLaw_tail (law bits) hsamples he))
   exact le_abs_sub_of_le_of_le le_rfl (not_lt.1 (of_decide_eq_false hc.1)) (by linarith)
+
+/-- At a deterministic step every sample is the bit prescribed by the step law, so the count is
+all or nothing. -/
+private theorem evalWith_countTrue_of_pure {law : List Bool → PMF Bool} {bits : List Bool}
+    {bit : Bool} (hlaw : law bits = PMF.pure bit) :
+    ∀ n, OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (countTrue bits n) =
+      PMF.pure (if bit then Fin.last n else 0)
+  | 0 => by
+    rw [countTrue, OracleComp.evalWith_pure]
+    cases bit <;> rfl
+  | n + 1 => by
+    have hquery : OracleComp.evalWith (sumHandler ProbComp.unifOracle law)
+        (ProbOracleComp.query (spec := StepSpec) bits) = law bits :=
+      OracleComp.evalWith_query _ _
+    simp only [countTrue, OracleComp.evalWith_bind, OracleComp.evalWith_pure, hquery, hlaw,
+      evalWith_countTrue_of_pure hlaw n, PMF.pure_bind]
+    cases bit <;> simp
+
+/-- At a deterministic step the verifier accepts every claim within its tolerance of the bit
+prescribed by the step law. -/
+theorem evalWith_verdict_of_pure {law : List Bool → PMF Bool} (P : Params)
+    (hsamples : 0 < P.verifierSamples) {bits : List Bool} {bit : Bool}
+    (hlaw : law bits = PMF.pure bit) (claim : Fin (P.grid + 1))
+    (h : |(claim.val : ℝ) / P.grid - (if bit then 1 else 0)| < P.verifierTolerance) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (verdict P bits claim) =
+      PMF.pure true := by
+  have hr : (P.verifierSamples : ℝ) ≠ 0 := Nat.cast_ne_zero.2 hsamples.ne'
+  simp only [verdict, OracleComp.evalWith_bind, OracleComp.evalWith_pure,
+    evalWith_countTrue_of_pure hlaw, PMF.pure_bind]
+  congr 1
+  rw [decide_eq_true_iff]
+  revert h
+  cases bit <;> intro h <;> simpa [hr] using h
 
 variable {K : ℝ≥0}
 
