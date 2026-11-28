@@ -18,6 +18,9 @@ A multiplicative upper functional assigns a real exponent to each binary wire be
 The ports inequality bounds the mean squared exponent between two uniform vertices by a
 constant times its mean on the edges, for every placement of vertices at parties.
 
+The binary-field ports hypothesis is `Cslib.PartyTensor.HasPorts (ZMod 2)`.
+The graph test can be checked on its vertex set by `RotationMap.hasWirePoincareBound_iff_vertex`.
+
 Here `SpectralPoint` means a multiplicative upper functional. The normalized additive points
 in [OpenAI2026EuclideanSpectrum, §§2.1 and 11.1] satisfy its covering inequality: a sum of
 local restrictions is a restriction of their direct sum. Thus graphs passing the local test
@@ -64,6 +67,17 @@ identify parties. -/
   ∀ (I : Type) [Fintype I] [DecidableEq I] (F : PartyTensor.SpectralPoint K I) (f : V → I),
     (𝔼 i, 𝔼 j, F.wireExponent (f i) (f j) ^ 2) ≤
       b * 𝔼 p : V × D, F.wireExponent (f p.1) (f (G.rot p).1) ^ 2
+
+/-- A graph satisfies the wire bound exactly when it holds for spectral points on the
+vertex set. Pullback along a placement preserves both averages, even when vertices coincide. -/
+theorem hasWirePoincareBound_iff_vertex [DecidableEq V] {b : ℝ} :
+    G.HasWirePoincareBound K b ↔ ∀ F : PartyTensor.SpectralPoint K V,
+      (𝔼 i, 𝔼 j, F.wireExponent i j ^ 2) ≤
+        b * 𝔼 p : V × D, F.wireExponent p.1 (G.rot p).1 ^ 2 := by
+  constructor
+  · exact fun h F => h V F id
+  · intro h I _ _ F f
+    simpa only [PartyTensor.SpectralPoint.pull_wireExponent] using h (F.pull f)
 
 /-- Passing from wire exponents to finite price tables preserves a squared Poincaré bound.
 This applies to placements in price metrics of any cardinality and universe. -/
