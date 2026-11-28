@@ -20,9 +20,9 @@ register_result "krajicek-pudlak-optimal-proof-system-np-subsets" where
     { paper := KrajicekPudlak1989,
       theorem := "§0 (common lower bound, optimality, NP = coNP) and Theorem 2.1(i), (2) → (3)",
       locator := "Journal of Symbolic Logic 54(3), 1989, §0 printed p. 1063, §1 pp. 1065–1066, \
-        §2 Statements (2), (3), (7) and Theorem 2.1(i) printed pp. 1066–1067, implication \
-        diagram p. 1070 (author scan https://karlin.mff.cuni.cz/~krajicek/scan10.pdf, PDF pp. 1, \
-        3–5, 8)" }
+        §2 Statements (2), (3), (7), Theorem 2.1(i), and implication diagram printed \
+        pp. 1066–1067; Part 2 opening paragraph noting (2) → (3) printed p. 1070 (author scan \
+        https://karlin.mff.cuni.cz/~krajicek/scan10.pdf, PDF pp. 1, 3–5, 8)" }
   ]
   theorems := [
     Cslib.Complexity.ProofSystem.join_simulates_left,
