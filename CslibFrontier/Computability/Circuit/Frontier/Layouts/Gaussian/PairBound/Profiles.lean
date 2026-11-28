@@ -870,59 +870,35 @@ private theorem isAdmissibleStar_rawEdgeVector [Finite E] (hloop : G.Loopless)
     nlinarith [sq_pos_of_pos hsc]
   have hsum_int := sum_le_sum hint_z
   rw [← mul_sum, sum_add_distrib, sum_add_distrib, sum_add_distrib, sum_add_distrib] at hsum_int
-  have hext0 : ∑ z ∈ extBall G R u, rawSum G rawRatio R (f 0) z ^ 2 ≤
-      360 * (2 * rawRatio ^ 2) ^ (R - 3) := by
-    classical exact sum_ext_rawSum_sq_le hloop hdeg hR u hu_self (hf 0)
-  have hext1 : ∑ z ∈ extBall G R u, rawSum G rawRatio R (f 1) z ^ 2 ≤
-      360 * (2 * rawRatio ^ 2) ^ (R - 3) := by
-    classical exact sum_ext_rawSum_sq_le hloop hdeg hR u hu_self (hf 1)
-  have hext2 : ∑ z ∈ extBall G R u, rawSum G rawRatio R (f 2) z ^ 2 ≤
-      360 * (2 * rawRatio ^ 2) ^ (R - 3) := by
-    classical exact sum_ext_rawSum_sq_le hloop hdeg hR u hu_self (hf 2)
+  have hext (i : Fin 3) : ∑ z ∈ extBall G R u, rawSum G rawRatio R (f i) z ^ 2 ≤
+      360 * (2 * rawRatio ^ 2) ^ (R - 3) :=
+    sum_ext_rawSum_sq_le hloop hdeg hR u hu_self (hf i)
   have hext_nn (i j : Fin 3) :
       0 ≤ ∑ z ∈ extBall G R u, rawSum G rawRatio R (f i) z * rawSum G rawRatio R (f j) z :=
     sum_nonneg fun z _ => mul_nonneg (rawSum_nonneg hq0 R _ z) (rawSum_nonneg hq0 R _ z)
-  have hn0 := one_le_norm_rawSum (G := G) hq0 R (f 0)
-  have hn1 := one_le_norm_rawSum (G := G) hq0 R (f 1)
-  have hn2 := one_le_norm_rawSum (G := G) hq0 R (f 2)
-  have ht0 : ‖rawSum G rawRatio R (f 0)‖ ^ 2 =
-      ∑ z ∈ intBall G R u, rawSum G rawRatio R (f 0) z ^ 2 +
-        ∑ z ∈ extBall G R u, rawSum G rawRatio R (f 0) z ^ 2 := by
+  have hnorm (i : Fin 3) := one_le_norm_rawSum (G := G) hq0 R (f i)
+  have norm_split (i : Fin 3) : ‖rawSum G rawRatio R (f i)‖ ^ 2 =
+      ∑ z ∈ intBall G R u, rawSum G rawRatio R (f i) z ^ 2 +
+        ∑ z ∈ extBall G R u, rawSum G rawRatio R (f i) z ^ 2 := by
     rw [EuclideanSpace.real_norm_sq_eq, sum_intBall_add_extBall R u]
-  have ht1 : ‖rawSum G rawRatio R (f 1)‖ ^ 2 =
-      ∑ z ∈ intBall G R u, rawSum G rawRatio R (f 1) z ^ 2 +
-        ∑ z ∈ extBall G R u, rawSum G rawRatio R (f 1) z ^ 2 := by
-    rw [EuclideanSpace.real_norm_sq_eq, sum_intBall_add_extBall R u]
-  have ht2 : ‖rawSum G rawRatio R (f 2)‖ ^ 2 =
-      ∑ z ∈ intBall G R u, rawSum G rawRatio R (f 2) z ^ 2 +
-        ∑ z ∈ extBall G R u, rawSum G rawRatio R (f 2) z ^ 2 := by
-    rw [EuclideanSpace.real_norm_sq_eq, sum_intBall_add_extBall R u]
-  have ht01 : ⟪rawEdgeVector G rawRatio R (f 0), rawEdgeVector G rawRatio R (f 1)⟫ *
-        (‖rawSum G rawRatio R (f 0)‖ * ‖rawSum G rawRatio R (f 1)‖) =
-      ∑ z ∈ intBall G R u, rawSum G rawRatio R (f 0) z * rawSum G rawRatio R (f 1) z +
-        ∑ z ∈ extBall G R u, rawSum G rawRatio R (f 0) z * rawSum G rawRatio R (f 1) z := by
-    rw [inner_rawEdgeVector_mul_norms, sum_intBall_add_extBall R u]
-  have ht02 : ⟪rawEdgeVector G rawRatio R (f 0), rawEdgeVector G rawRatio R (f 2)⟫ *
-        (‖rawSum G rawRatio R (f 0)‖ * ‖rawSum G rawRatio R (f 2)‖) =
-      ∑ z ∈ intBall G R u, rawSum G rawRatio R (f 0) z * rawSum G rawRatio R (f 2) z +
-        ∑ z ∈ extBall G R u, rawSum G rawRatio R (f 0) z * rawSum G rawRatio R (f 2) z := by
-    rw [inner_rawEdgeVector_mul_norms, sum_intBall_add_extBall R u]
-  have ht12 : ⟪rawEdgeVector G rawRatio R (f 1), rawEdgeVector G rawRatio R (f 2)⟫ *
-        (‖rawSum G rawRatio R (f 1)‖ * ‖rawSum G rawRatio R (f 2)‖) =
-      ∑ z ∈ intBall G R u, rawSum G rawRatio R (f 1) z * rawSum G rawRatio R (f 2) z +
-        ∑ z ∈ extBall G R u, rawSum G rawRatio R (f 1) z * rawSum G rawRatio R (f 2) z := by
+  have inner_split (i j : Fin 3) :
+      ⟪rawEdgeVector G rawRatio R (f i), rawEdgeVector G rawRatio R (f j)⟫ *
+        (‖rawSum G rawRatio R (f i)‖ * ‖rawSum G rawRatio R (f j)‖) =
+      ∑ z ∈ intBall G R u, rawSum G rawRatio R (f i) z * rawSum G rawRatio R (f j) z +
+        ∑ z ∈ extBall G R u, rawSum G rawRatio R (f i) z * rawSum G rawRatio R (f j) z := by
     rw [inner_rawEdgeVector_mul_norms, sum_intBall_add_extBall R u]
   have hr01_lo : 0 ≤ ⟪rawEdgeVector G rawRatio R (f 0), rawEdgeVector G rawRatio R (f 1)⟫ :=
     (by norm_num : (0 : ℝ) ≤ 9428 / 10000).trans
       (le_inner_rawEdgeVector_same hloop hdeg hR hsmall (hf 0) (hf 1))
   refine star_cubic_of_quad (s1 := ‖rawSum G rawRatio R (f 0)‖)
     (s2 := ‖rawSum G rawRatio R (f 1)‖) (s3 := ‖rawSum G rawRatio R (f 2)‖)
-    hr01_lo (inner_rawEdgeVector_le_one R (f 0) (f 1)) (by linarith) ?_
-  have hnn01 := hext_nn 0 1; have hnn02 := hext_nn 0 2; have hnn12 := hext_nn 1 2
+    hr01_lo (inner_rawEdgeVector_le_one R (f 0) (f 1)) (lt_of_lt_of_le zero_lt_one (hnorm 2)) ?_
   have hsq_sum : 3 ≤ ‖rawSum G rawRatio R (f 0)‖ ^ 2 + ‖rawSum G rawRatio R (f 1)‖ ^ 2 +
-      ‖rawSum G rawRatio R (f 2)‖ ^ 2 := by nlinarith
+      ‖rawSum G rawRatio R (f 2)‖ ^ 2 := by nlinarith [hnorm 0, hnorm 1, hnorm 2]
   have herr : 360 * (2 * rawRatio ^ 2) ^ (R - 3) ≤ 36 / 10 ^ 8 := by linarith
-  nlinarith
+  nlinarith only [hsum_int, hsq_sum, herr, hext 0, hext 1, hext 2, hext_nn 0 1, hext_nn 0 2,
+    hext_nn 1 2, norm_split 0, norm_split 1, norm_split 2, inner_split 0 1, inner_split 0 2,
+    inner_split 1 2]
 
 private theorem le_inner_rawEdgeVector_adj [Finite E] (hloop : G.Loopless)
     (hdeg : G.MaxDegreeLE 3) {R : ℕ} (hR : 3 ≤ R)

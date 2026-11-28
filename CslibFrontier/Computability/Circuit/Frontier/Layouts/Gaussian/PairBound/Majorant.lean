@@ -1635,35 +1635,26 @@ private theorem chkShep_sound {b : Cert.BoxI} {mode ia ib ic0 ic1 ic2 ic3 : Nat}
       rcases hm with ⟨ha, hcd, hr, h_o1, h_o2, ht⟩
       have hrb := admissiblePair_root_bounds hadm ho1 ho12
       have hcs := cross_slos_le hadm ho1 ho12 ⟨ha, hcd, hr, h_o1, h_o2, ht⟩
-      have star_bound (ix : Nat) (q : Cert.QuadI) (hq : Cert.starQI ix = some q)
-          (s_lo : Int) (r : ℝ) (hr_min : q.rmin ≤ s_lo)
+      have endpoint_bound {q : Cert.QuadI} {r : ℝ}
+          (table : valI q.rmin ≤ r → r ≤ 1 → 0 ≤ (q.c2 : ℝ) ∧ arccos r ≤ quadEval q r)
+          (s_lo : Int) (hr_min : q.rmin ≤ s_lo)
           (hsl : 0 ≤ (Cert.ivQslope q (Cert.ivConst s_lo)).lo)
           (hlo : valI s_lo ≤ r) (hhi : r ≤ 1) :
           arccos r ≤ valI (Cert.ivQeval q (Cert.ivConst s_lo)).hi := by
-        obtain ⟨hc2, harc⟩ := arccos_le_starQI hq ((valI_mono hr_min).trans hlo) hhi
+        obtain ⟨hc2, harc⟩ := table ((valI_mono hr_min).trans hlo) hhi
         have hsl_r : 0 ≤ quadSlope q (valI s_lo) :=
           (valI_nonneg hsl).trans (memI_qslope q (memI_const s_lo)).1
         exact (harc.trans (quadEval_anti_on hc2 hsl_r hlo)).trans
           (memI_qeval q (memI_const s_lo)).2
-      have cross_bound (ix : Nat) (q : Cert.QuadI) (hq : Cert.crossQI ix = some q)
-          (s_lo : Int) (r : ℝ) (hr_min : q.rmin ≤ s_lo)
-          (hsl : 0 ≤ (Cert.ivQslope q (Cert.ivConst s_lo)).lo)
-          (hlo : valI s_lo ≤ r) (hhi : r ≤ 1) :
-          arccos r ≤ valI (Cert.ivQeval q (Cert.ivConst s_lo)).hi := by
-        obtain ⟨hc2, harc⟩ := arccos_le_crossQI hq ((valI_mono hr_min).trans hlo) hhi
-        have hsl_r : 0 ≤ quadSlope q (valI s_lo) :=
-          (valI_nonneg hsl).trans (memI_qslope q (memI_const s_lo)).1
-        exact (harc.trans (quadEval_anti_on hc2 hsl_r hlo)).trans
-          (memI_qeval q (memI_const s_lo)).2
-      have hva := star_bound ia qa hqa b.a0 ⟪u 0, u 1⟫ g1.1 g2.1 ha.1 hrb.2.1
-      have hvb := star_bound ib qb hqb b.b0 ⟪u 2, u 3⟫ g1.2 g2.2 hcd.1 hrb.2.2.2.1
-      have hvc0 := cross_bound ic0 qc0 hqc0 _ ⟪u 0, u 2⟫ g3.1.1.1.1.1.1.1 g3.1.1.1.1.1.1.2
+      have hva := endpoint_bound (arccos_le_starQI hqa) b.a0 g1.1 g2.1 ha.1 hrb.2.1
+      have hvb := endpoint_bound (arccos_le_starQI hqb) b.b0 g1.2 g2.2 hcd.1 hrb.2.2.2.1
+      have hvc0 := endpoint_bound (arccos_le_crossQI hqc0) _ g3.1.1.1.1.1.1.1 g3.1.1.1.1.1.1.2
         hcs.1 hcs.2.1
-      have hvc1 := cross_bound ic1 qc1 hqc1 _ ⟪u 1, u 3⟫ g3.1.1.1.1.1.2 g3.1.1.1.1.2
+      have hvc1 := endpoint_bound (arccos_le_crossQI hqc1) _ g3.1.1.1.1.1.2 g3.1.1.1.1.2
         hcs.2.2.2.1 hcs.2.2.2.2.1
-      have hvc2 := cross_bound ic2 qc2 hqc2 _ ⟪u 0, u 3⟫ g3.1.1.1.2 g3.1.1.2
+      have hvc2 := endpoint_bound (arccos_le_crossQI hqc2) _ g3.1.1.1.2 g3.1.1.2
         hcs.2.2.2.2.2.2.1 hcs.2.2.2.2.2.2.2.1
-      have hvc3 := cross_bound ic3 qc3 hqc3 _ ⟪u 1, u 2⟫ g3.1.2 g3.2
+      have hvc3 := endpoint_bound (arccos_le_crossQI hqc3) _ g3.1.2 g3.2
         hcs.2.2.2.2.2.2.2.2.2.1 hcs.2.2.2.2.2.2.2.2.2.2.1
       have hmodes := pairCost_zero_le_shep_mode hadm.1 hva hvb hvc0 hvc1 hvc2 hvc3
       have finish_lhs (lhs : Int) (hpc : pairCost u 0 ≤ valI lhs / (4 * π))

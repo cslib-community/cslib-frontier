@@ -307,6 +307,47 @@ private noncomputable def quadOutTerm (m00 m00p m01 m10 m11 m11p A B : ℝ) : �
      else m01 * m00p * B ^ 2 / (2 * (m00p * m11 + m01 * m10) ^ 2)
    else 0)
 
+private def mixedRegion (a b c d A B : ℝ) : Set (ℝ × ℝ) :=
+  {p | 0 ≤ p.1 ∧ 0 ≤ p.2 ∧ a * p.1 + b * p.2 < A ∧ -c * p.1 + d * p.2 < -B}
+
+private theorem volume_mixedRegion_le {a b c d A B : ℝ}
+    (ha : 0 < a) (hd : 0 < d) (hdet : 0 < a * d + b * c) (hA : 0 ≤ A) (hB : 0 ≤ B) :
+    volume (mixedRegion a b c d A B) ≤ ENNReal.ofReal (if 0 < c then
+      if 0 ≤ b then c * A ^ 2 / (2 * d * a ^ 2)
+      else c * d * A ^ 2 / (2 * (a * d + b * c) ^ 2) else 0) := by
+  by_cases hc : 0 < c
+  · simp only [hc, ↓reduceIte]
+    have triangle {U : ℝ} (hU : 0 ≤ U) (hcut : ∀ p ∈ mixedRegion a b c d A B, p.1 < U) :
+        volume (mixedRegion a b c d A B) ≤ ENNReal.ofReal (c / d * U ^ 2 / 2) := by
+      have hsub : mixedRegion a b c d A B ⊆ {p | 0 ≤ p.1 ∧ p.1 < U ∧
+          0 + 0 * p.1 ≤ p.2 ∧ p.2 < 0 + (c / d) * p.1} := by
+        intro p hp
+        have hpU := hcut p hp
+        obtain ⟨hp1, hp2, _, h2⟩ := hp
+        refine ⟨hp1, hpU, by linarith, ?_⟩
+        rw [zero_add, div_mul_eq_mul_div, lt_div_iff₀ hd]
+        linarith
+      refine (measure_mono hsub).trans ((volume_between_linear_le hU ?_).trans_eq ?_)
+      · intro u hu _
+        simpa only [zero_mul, add_zero, zero_add] using mul_nonneg (div_nonneg hc.le hd.le) hu
+      · congr 1; ring
+    by_cases hb : 0 ≤ b
+    · simp only [hb, ↓reduceIte]
+      refine (triangle (div_nonneg hA ha.le) ?_).trans_eq ?_
+      · rintro p ⟨_, hp2, h1, _⟩
+        exact (lt_div_iff₀ ha).mpr (by nlinarith)
+      · congr 1; field_simp [ha.ne', hd.ne']
+    · simp only [hb, ↓reduceIte]
+      refine (triangle (div_nonneg (mul_nonneg hd.le hA) hdet.le) ?_).trans_eq ?_
+      · rintro p ⟨_, _, h1, h2⟩
+        exact (lt_div_iff₀ hdet).mpr (by nlinarith [not_le.mp hb])
+      · congr 1; field_simp [hd.ne', hdet.ne']
+  · simp only [hc, ↓reduceIte]
+    have hemp : mixedRegion a b c d A B = ∅ := by
+      ext p; simp only [mixedRegion, mem_ofPred_eq, mem_empty_iff_false, iff_false]
+      rintro ⟨hp1, hp2, _, h2⟩; nlinarith [not_lt.mp hc]
+    rw [hemp, measure_empty, ENNReal.ofReal_zero]
+
 private theorem volume_quadrantRectSet_le_out {m00 m00p : ℝ} (m01 m10 : ℝ) {m11 m11p A B : ℝ}
     (hm00 : 0 < m00) (hm00p : 0 < m00p) (hm11 : 0 < m11) (hm11p : 0 < m11p)
     (hdM : 0 < m00 * m11 - m01 * m10)
@@ -316,15 +357,15 @@ private theorem volume_quadrantRectSet_le_out {m00 m00p : ℝ} (m01 m10 : ℝ) {
       ENNReal.ofReal (quadOutTerm m00 m00p m01 m10 m11 m11p A B) := by
   let MM : Set (ℝ × ℝ) := {p | 0 ≤ p.1 ∧ 0 ≤ p.2 ∧
     m00 * p.1 + m01 * p.2 < A ∧ m10 * p.1 + m11 * p.2 < B}
-  let MN : Set (ℝ × ℝ) := {p | 0 ≤ p.1 ∧ 0 ≤ p.2 ∧
-    m00 * p.1 + m01 * p.2 < A ∧ -m10 * p.1 + m11p * p.2 < -B}
-  let NM : Set (ℝ × ℝ) := {p | 0 ≤ p.1 ∧ 0 ≤ p.2 ∧
-    m00p * p.1 - m01 * p.2 < -A ∧ m10 * p.1 + m11 * p.2 < B}
+  let MN := mixedRegion m00 m01 m10 m11p A B
+  let NM := Prod.swap ⁻¹' mixedRegion m11 m10 m01 m00p B A
   have hcover : quadrantRectSet m00 m00p m01 m10 m11 m11p A B ⊆ (MM ∪ MN) ∪ NM := by
     rintro p ⟨hp1, hp2, h1 | h1, h2 | h2⟩
     · exact Or.inl (Or.inl ⟨hp1, hp2, h1, h2⟩)
     · exact Or.inl (Or.inr ⟨hp1, hp2, h1, h2⟩)
-    · exact Or.inr ⟨hp1, hp2, h1, h2⟩
+    · apply Or.inr
+      change 0 ≤ p.2 ∧ 0 ≤ p.1 ∧ m11 * p.2 + m10 * p.1 < B ∧ -m01 * p.2 + m00p * p.1 < -A
+      exact ⟨hp2, hp1, by linarith, by linarith⟩
     · exfalso
       have hp10 : 0 < m01 := by
         by_contra hc; have : m01 ≤ 0 := not_lt.mp hc; nlinarith
@@ -381,76 +422,15 @@ private theorem volume_quadrantRectSet_le_out {m00 m00p : ℝ} (m01 m10 : ℝ) {
         div_nonneg (by nlinarith) hdM.le
       refine (volume_quad_shoelace_le hm00 hm11 hdM hA hB hu_nn hv_nn).trans_eq ?_
       congr 1; ring
-  have hvMN : volume MN ≤ ENNReal.ofReal (
-      if 0 < m10 then
-        if 0 ≤ m01 then m10 * A ^ 2 / (2 * m11p * m00 ^ 2)
-        else m10 * m11p * A ^ 2 / (2 * (m00 * m11p + m01 * m10) ^ 2)
-      else 0) := by
-    by_cases hm10 : 0 < m10
-    · simp only [hm10, ↓reduceIte]
-      by_cases hm01 : 0 ≤ m01
-      · simp only [hm01, ↓reduceIte]
-        have hsub : MN ⊆ {p | 0 ≤ p.1 ∧ p.1 < A / m00 ∧ 0 + 0 * p.1 ≤ p.2 ∧
-            p.2 < 0 + (m10 / m11p) * p.1} := fun p ⟨hp1, hp2, h1, h2⟩ =>
-          ⟨hp1, (lt_div_iff₀ hm00).mpr (by nlinarith), by linarith, by
-            rw [zero_add, div_mul_eq_mul_div, lt_div_iff₀ hm11p]; linarith⟩
-        refine (measure_mono hsub).trans
-          ((volume_between_linear_le (div_nonneg hA hm00.le) fun u hu0 _ => ?_).trans_eq ?_)
-        · rw [zero_mul, add_zero, zero_add]
-          exact mul_nonneg (div_nonneg hm10.le hm11p.le) hu0
-        · congr 1; field_simp [hm00.ne', hm11p.ne']; ring
-      · simp only [hm01, ↓reduceIte]
-        have hm01' : m01 < 0 := not_le.mp hm01
-        have hsub : MN ⊆ {p | 0 ≤ p.1 ∧ p.1 < m11p * A / (m00 * m11p + m01 * m10) ∧
-            0 + 0 * p.1 ≤ p.2 ∧ p.2 < 0 + (m10 / m11p) * p.1} := fun p ⟨hp1, hp2, h1, h2⟩ =>
-          ⟨hp1, (lt_div_iff₀ hdN2).mpr (by nlinarith), by linarith, by
-            rw [zero_add, div_mul_eq_mul_div, lt_div_iff₀ hm11p]; linarith⟩
-        refine (measure_mono hsub).trans
-          ((volume_between_linear_le (div_nonneg (by positivity) hdN2.le) fun u hu0 _ =>
-            ?_).trans_eq ?_)
-        · rw [zero_mul, add_zero, zero_add]
-          exact mul_nonneg (div_nonneg hm10.le hm11p.le) hu0
-        · congr 1; field_simp [hm11p.ne', hdN2.ne']; ring
-    · simp only [hm10, ↓reduceIte]
-      have hemp : MN = ∅ := by
-        ext p; simp only [MN, mem_ofPred_eq, mem_empty_iff_false, iff_false]
-        rintro ⟨hp1, hp2, _, h2⟩; nlinarith [not_lt.mp hm10]
-      rw [hemp, measure_empty, ENNReal.ofReal_zero]
-  have hvNM : volume NM ≤ ENNReal.ofReal (
-      if 0 < m01 then
-        if 0 ≤ m10 then m01 * B ^ 2 / (2 * m00p * m11 ^ 2)
-        else m01 * m00p * B ^ 2 / (2 * (m00p * m11 + m01 * m10) ^ 2)
-      else 0) := by
-    by_cases hm01 : 0 < m01
-    · simp only [hm01, ↓reduceIte]
-      by_cases hm10 : 0 ≤ m10
-      · simp only [hm10, ↓reduceIte]
-        have hsub : NM ⊆ {p | 0 ≤ p.2 ∧ p.2 < B / m11 ∧ 0 + 0 * p.2 ≤ p.1 ∧
-            p.1 < 0 + (m01 / m00p) * p.2} := fun p ⟨hp1, hp2, h1, h2⟩ =>
-          ⟨hp2, (lt_div_iff₀ hm11).mpr (by nlinarith), by linarith, by
-            rw [zero_add, div_mul_eq_mul_div, lt_div_iff₀ hm00p]; linarith⟩
-        refine (measure_mono hsub).trans
-          ((volume_between_linear_swap_le (div_nonneg hB hm11.le) fun v hv0 _ => ?_).trans_eq ?_)
-        · rw [zero_mul, add_zero, zero_add]
-          exact mul_nonneg (div_nonneg hm01.le hm00p.le) hv0
-        · congr 1; field_simp [hm11.ne', hm00p.ne']; ring
-      · simp only [hm10, ↓reduceIte]
-        have hm10' : m10 < 0 := not_le.mp hm10
-        have hsub : NM ⊆ {p | 0 ≤ p.2 ∧ p.2 < m00p * B / (m00p * m11 + m01 * m10) ∧
-            0 + 0 * p.2 ≤ p.1 ∧ p.1 < 0 + (m01 / m00p) * p.2} := fun p ⟨hp1, hp2, h1, h2⟩ =>
-          ⟨hp2, (lt_div_iff₀ hdN1).mpr (by nlinarith), by linarith, by
-            rw [zero_add, div_mul_eq_mul_div, lt_div_iff₀ hm00p]; linarith⟩
-        refine (measure_mono hsub).trans
-          ((volume_between_linear_swap_le (div_nonneg (by positivity) hdN1.le) fun v hv0 _ =>
-            ?_).trans_eq ?_)
-        · rw [zero_mul, add_zero, zero_add]
-          exact mul_nonneg (div_nonneg hm01.le hm00p.le) hv0
-        · congr 1; field_simp [hm00p.ne', hdN1.ne']; ring
-    · simp only [hm01, ↓reduceIte]
-      have hemp : NM = ∅ := by
-        ext p; simp only [NM, mem_ofPred_eq, mem_empty_iff_false, iff_false]
-        rintro ⟨hp1, hp2, h1, _⟩; nlinarith [not_lt.mp hm01]
-      rw [hemp, measure_empty, ENNReal.ofReal_zero]
+  have hvMN := volume_mixedRegion_le hm00 hm11p hdN2 hA hB
+  have hvNM : volume NM ≤ ENNReal.ofReal (if 0 < m01 then
+      if 0 ≤ m10 then m01 * B ^ 2 / (2 * m00p * m11 ^ 2)
+      else m01 * m00p * B ^ 2 / (2 * (m00p * m11 + m01 * m10) ^ 2) else 0) := by
+    dsimp only [NM]
+    rw [Measure.volume_eq_prod, Measure.measurePreserving_swap.measure_preimage_emb
+      MeasurableEquiv.prodComm.measurableEmbedding, ← Measure.volume_eq_prod]
+    simpa only [mul_comm m11 m00p, mul_comm m10 m01] using
+      volume_mixedRegion_le hm11 hm00p (b := m10) (c := m01) (by linarith) hB hA
   have hnn1 : 0 ≤ (if 0 ≤ m01 ∧ 0 ≤ m10 then A * B / (m00 * m11)
       else if 0 ≤ m01 ∧ m10 < 0 then
         A * B / (m00 * m11) + (-m10) * A ^ 2 / (2 * m11 * m00 ^ 2)
