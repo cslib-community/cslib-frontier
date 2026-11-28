@@ -3754,6 +3754,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Advice.Hierarchy
 public import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Detection
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayGateCorrect
+public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.LayerTally
 public import CslibFrontier.MachineLearning.UniformLearning.NonadaptiveCircuit.Oracle
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Activity
 public import CslibFrontier.Crypto.Primitives.SDitH.TweakSalt

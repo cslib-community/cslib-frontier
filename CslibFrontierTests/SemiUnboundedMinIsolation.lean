@@ -6,6 +6,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 module
 
+import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.LayerTally
 import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.MinIsolation
 
 /-!
@@ -160,7 +161,8 @@ example :
     pt7Mixed.weight (exCircuit.seededGateWeight exCode exSeed) = 1 := by
   decide
 
-example : exCircuit.IsMinIsolating (exCircuit.seededGateWeight exCode exSeed) := by
+private theorem exCircuit_isMinIsolating :
+    exCircuit.IsMinIsolating (exCircuit.seededGateWeight exCode exSeed) := by
   apply exCircuit.isMinIsolating_of_separated
   intro g hgor u v hcu hcv hne tu tv _ _
   fin_cases g <;> cases hgor
@@ -210,6 +212,16 @@ example : exCircuit.IsMinIsolating (exCircuit.seededGateWeight exCode exSeed) :=
     · exact (hno5 tu).elim
   · rcases hcu with rfl; rcases hcv with rfl
     exact (hne rfl).elim
+
+-- Layer 2 contains the OR gate with alternative proof trees. The isolating weight makes the
+-- exact tally select a single transcript even though the gate admits multiple valid trees.
+example :
+    let w := exCircuit.seededGateWeight exCode exSeed
+    let ref := LayerTranscript.minimum exCircuit 2 w
+    ∃! t : LayerTranscript exCircuit 2, t.selected.card = ref.selected.card ∧
+      (∑ g ∈ t.selected, t.weightAt w g) = ∑ g ∈ ref.selected, ref.weightAt w g :=
+  exCircuit.existsUnique_layerTranscript_of_min_isolation 2 _
+    (fun g => exCircuit_isMinIsolating g.val)
 
 -- The Justesen family isolates `exCircuit` with explicit seed-length and magnitude bounds.
 example :
