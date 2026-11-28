@@ -842,6 +842,7 @@ public import CslibFrontier.Computability.Complexity.Reduction.LocalSelfReducibi
 public import CslibFrontier.Computability.Automata.MPDA.EmptinessSound
 public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Basic
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Basic
+public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.QueryComplexity
 public import CslibFrontier.Computability.Interactive.Bundle
 public import CslibFrontier.Foundations.Data.MvPolynomial.SliceMatrix
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Syntax
@@ -6497,6 +6498,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.ColorPar
 public import CslibFrontier.Computability.Complexity.FineGrained.PPSZ.Basic
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg.EnsureRoot
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalTensor
+public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.Communication
 public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Context
 public import CslibFrontier.Crypto.Primitives.Garbling.Rerandomizable
 public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.NetworkProg
