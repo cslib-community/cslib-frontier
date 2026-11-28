@@ -92,6 +92,7 @@ import CslibFrontierResults.Entries.ExternalRegret
 import CslibFrontierResults.Entries.UtilityGame
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.SergeevPrefixDepth
+import CslibFrontierResults.Entries.BalancedFlow
 import CslibFrontierResults.Entries.MarketEquilibria
 import CslibFrontierResults.Entries.ExtensiveSequenceLP
 import CslibFrontierResults.Entries.DigitalGoods

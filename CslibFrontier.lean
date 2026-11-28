@@ -2841,6 +2841,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.Edge.Forest.PolyTime
 public import CslibFrontier.Logics.FirstOrder.Trakhtenbrot.Sentence
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.FirstSignal
 public import CslibFrontier.Computability.LogSpaceDerandomization.HierarchyParams
+public import CslibFrontier.GameTheory.Market.BalancedFlow
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 public import CslibFrontier.Foundations.Data.List.Extract
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Next

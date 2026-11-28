@@ -73,7 +73,7 @@ variable {V : Type*} [Fintype V] {K : Type*} [Field K]
 
 /-- The net outflow `∑ w, f (v, w) - ∑ u, f (u, v)` of `f` at `v`. At the source `s` this is the
 value of the flow. -/
-def realNetOut (f : V × V → K) (v : V) : K :=
+@[expose] def realNetOut (f : V × V → K) (v : V) : K :=
   ∑ w, f (v, w) - ∑ u, f (u, v)
 
 theorem realNetOut_add (f g : V × V → K) (v : V) :
@@ -95,12 +95,12 @@ variable [LinearOrder K]
 
 /-- A feasible `s`–`t` flow for the capacities `W`: every arc value `f (u, v)` lies between `0`
 and `W u v`, and inflow equals outflow at every vertex other than `s` and `t`. -/
-def IsFeasibleRealFlow (W : V → V → K) (s t : V) (f : V × V → K) : Prop :=
+@[expose] def IsFeasibleRealFlow (W : V → V → K) (s t : V) (f : V × V → K) : Prop :=
   (∀ u v, 0 ≤ f (u, v)) ∧ (∀ u v, f (u, v) ≤ W u v) ∧
     ∀ v, v ≠ s → v ≠ t → ∑ u, f (u, v) = ∑ w, f (v, w)
 
 /-- `val` is the greatest value of a feasible `s`–`t` flow for the capacities `W`. -/
-def IsMaxRealFlow (W : V → V → K) (s t : V) (val : K) : Prop :=
+@[expose] def IsMaxRealFlow (W : V → V → K) (s t : V) (val : K) : Prop :=
   IsGreatest ((realNetOut · s) '' {f | IsFeasibleRealFlow W s t f}) val
 
 /-! ### Flow across a cut -/
