@@ -406,17 +406,17 @@ private theorem countQueries_evenPazMarkQuery {n : ℕ}
 private def splitFinEquiv {m : ℕ} (k : ℕ) (hk : k ≤ m) :
     Fin k ⊕ Fin (m - k) ≃ Fin m where
   toFun
-    | .inl r => ⟨r.1, by omega⟩
-    | .inr r => ⟨k + r.1, by omega⟩
+    | .inl r => ⟨r.val, by omega⟩
+    | .inr r => ⟨k + r.val, by omega⟩
   invFun j :=
-    if h : j.1 < k then .inl ⟨j.1, h⟩ else .inr ⟨j.1 - k, by omega⟩
+    if h : j.val < k then .inl ⟨j.val, h⟩ else .inr ⟨j.val - k, by omega⟩
   left_inv
-    | .inl r => by simp only [r.2, ↓reduceDIte]
+    | .inl r => by simp only [r.isLt, ↓reduceDIte]
     | .inr r => by
-        have hnot : ¬ k + r.1 < k := by omega
+        have hnot : ¬ k + r.val < k := by omega
         simp only [hnot, ↓reduceDIte, Nat.add_sub_cancel_left]
   right_inv j := by
-    by_cases h : j.1 < k
+    by_cases h : j.val < k
     · simp only [h, ↓reduceDIte]
     · simp only [h, ↓reduceDIte]
       exact Fin.ext (by dsimp only; omega)

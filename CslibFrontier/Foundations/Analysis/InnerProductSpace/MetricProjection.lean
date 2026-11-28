@@ -107,7 +107,7 @@ theorem metricProjection_eq_iff_forall_norm_le (hc : IsComplete K)
     ⟨0, Set.forall_mem_range.mpr fun _ => norm_nonneg _⟩
   have : Nonempty K := ⟨⟨x, hx⟩⟩
   refine ⟨fun h z hz => h ▸ ciInf_le hbdd ⟨z, hz⟩, fun h => ?_⟩
-  exact le_antisymm (le_ciInf fun w => h w w.2) (ciInf_le hbdd ⟨x, hx⟩)
+  exact le_antisymm (le_ciInf fun w => h w w.property) (ciInf_le hbdd ⟨x, hx⟩)
 
 /-- Pythagoras for projections ([Hazan2022] Theorem 2.1): projecting onto `K` does not increase
 the distance to any point of `K`. -/

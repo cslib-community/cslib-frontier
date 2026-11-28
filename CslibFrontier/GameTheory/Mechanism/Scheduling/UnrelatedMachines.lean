@@ -635,7 +635,7 @@ private noncomputable def excludingPivot (i : Machine)
     inferInstance
   Finset.univ.sup' Finset.univ_nonempty
     fun σ : Job → ↥(Finset.univ.erase i) =>
-      ∑ k ∈ Finset.univ.erase i, B k (fun j => (σ j).1)
+      ∑ k ∈ Finset.univ.erase i, B k (fun j => (σ j).val)
 
 omit [Nontrivial Machine] in
 private theorem sum_other_schedulingProfile (t : Machine → Job → ℝ) (i : Machine)
@@ -662,14 +662,14 @@ private theorem excludingPivot_schedulingProfile (t : Machine → Job → ℝ) (
   classical
   have herase := erase_univ_nonempty i
   have hall : ∀ σ : Job → ↥(Finset.univ.erase i),
-      (Finset.univ.filter fun j => (σ j).1 ≠ i) = Finset.univ := fun σ =>
-    Finset.filter_true_of_mem fun j _ => (Finset.mem_erase.mp (σ j).2).1
+      (Finset.univ.filter fun j => (σ j).val ≠ i) = Finset.univ := fun σ =>
+    Finset.filter_true_of_mem fun j _ => (Finset.mem_erase.mp (σ j).property).1
   unfold excludingPivot
   refine le_antisymm (Finset.sup'_le _ _ fun σ _ => ?_) ?_
   · rw [sum_other_schedulingProfile, neg_le_neg_iff, hall]
     exact Finset.sum_le_sum fun j _ =>
-      secondLowestTime_le_of_ne t (Finset.mem_erase.mp (σ j).2).1 j
-  · have hex : ∀ j : Job, ∃ k : ↥(Finset.univ.erase i), t k.1 j = secondLowestTime t i j := by
+      secondLowestTime_le_of_ne t (Finset.mem_erase.mp (σ j).property).1 j
+  · have hex : ∀ j : Job, ∃ k : ↥(Finset.univ.erase i), t k.val j = secondLowestTime t i j := by
       intro j
       obtain ⟨k, hk, hmin⟩ := Finset.exists_mem_eq_inf' herase (fun k => t k j)
       exact ⟨⟨k, hk⟩, by simp [secondLowestTime, herase, hmin]⟩
@@ -875,7 +875,7 @@ theorem card_le_of_minWorkMechanism_hasApproxRatioOn [LinearOrder Machine] [Fint
     refine (optMakespan_le_makespan t σ_opt).trans (makespan_le_iff.mpr fun i => ?_)
     let j_i : S := eSM.symm i
     have hsub : (Finset.univ.filter fun j => σ_opt j = i) ⊆
-        insert j_i.1 (Finset.univ \ S) := by
+        insert j_i.val (Finset.univ \ S) := by
       intro j hj
       have hσ : σ_opt j = i := (Finset.mem_filter.mp hj).2
       by_cases hjS : j ∈ S
@@ -885,15 +885,15 @@ theorem card_le_of_minWorkMechanism_hasApproxRatioOn [LinearOrder Machine] [Fint
       · exact Finset.mem_insert.mpr (Or.inr (Finset.mem_sdiff.mpr ⟨Finset.mem_univ j, hjS⟩))
     unfold load rowLoad
     by_cases hi₀ : i = i₀
-    · have hnot_mem : j_i.1 ∉ Finset.univ \ S := fun h => (Finset.mem_sdiff.mp h).2 j_i.2
+    · have hnot_mem : j_i.val ∉ Finset.univ \ S := fun h => (Finset.mem_sdiff.mp h).2 j_i.property
       calc
         (∑ j with σ_opt j = i, t i j)
-          ≤ ∑ j ∈ insert j_i.1 (Finset.univ \ S), t i j :=
+          ≤ ∑ j ∈ insert j_i.val (Finset.univ \ S), t i j :=
             Finset.sum_le_sum_of_subset_of_nonneg hsub fun j _ _ => (ht_pos i j).le
-        _ = t i j_i.1 + ∑ j ∈ Finset.univ \ S, t i j := Finset.sum_insert hnot_mem
+        _ = t i j_i.val + ∑ j ∈ Finset.univ \ S, t i j := Finset.sum_insert hnot_mem
         _ = 1 + ∑ j ∈ Finset.univ \ S, η := by
             congr 1
-            · simp [t, j_i.2, hi₀]
+            · simp [t, j_i.property, hi₀]
             · exact Finset.sum_congr rfl fun j hj =>
                 by simp [t, (Finset.mem_sdiff.mp hj).2, hi₀]
         _ ≤ 1 + (Fintype.card Job : ℝ) * η := by
@@ -911,7 +911,7 @@ theorem card_le_of_minWorkMechanism_hasApproxRatioOn [LinearOrder Machine] [Fint
               exact mul_le_of_le_one_right hε_pos.le
                 ((div_le_one (by positivity)).mpr (by linarith))
             linarith
-    · have hsingle : (Finset.univ.filter fun j => σ_opt j = i) = {j_i.1} := by
+    · have hsingle : (Finset.univ.filter fun j => σ_opt j = i) = {j_i.val} := by
         ext j
         simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
         constructor
@@ -923,9 +923,9 @@ theorem card_le_of_minWorkMechanism_hasApproxRatioOn [LinearOrder Machine] [Fint
           · simp only [σ_opt, hjS, ↓reduceDIte] at hσ
             exact absurd hσ.symm hi₀
         · rintro rfl
-          simp [σ_opt, j_i.2, j_i]
+          simp [σ_opt, j_i.property, j_i]
       rw [hsingle, Finset.sum_singleton]
-      simp [t, j_i.2, hi₀]
+      simp [t, j_i.property, hi₀]
   have hbound : makespan t (minWorkAlloc t) ≤ c * optMakespan t := happrox t ht_pos
   have hc_le : c * optMakespan t ≤ c' * (1 + ε) :=
     (mul_le_mul_of_nonneg_right (le_max_left c 0) (optMakespan_nonneg ht_pos.isNonnegProfile)).trans

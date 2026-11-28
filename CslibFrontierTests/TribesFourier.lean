@@ -81,7 +81,7 @@ example : fourierCoeff (fun x => signVal (tribes 2 2 x)) {c₀} = 3 / 8 := by
 -- Proposition 4.14 agrees: one coordinate meets `k = 1` tribe, so the coefficient is
 -- `2 (-1) ^ (1 + 1) 2 ^ (-2) (3 / 4) = 3 / 8`.
 example : fourierCoeff (fun x => signVal (tribes 2 2 x)) {c₀} = 3 / 8 := by
-  rw [fourierCoeff_signVal_tribes_of_ne_empty (singleton_ne_empty c₀),
+  rw [fourierCoeff_signVal_tribes_of_ne_empty (singleton_nonempty c₀).ne_empty,
     card_filter_tribePart_c₀, card_singleton]
   norm_num
 

@@ -90,7 +90,7 @@ theorem abs_signedCount_singleLeafDAG_le_one :
 -- Nodes `0..3` are literal leaves (`x₀=F, x₀=T, x₁=F, x₁=T`), `4` is the shared union on `{1}`,
 -- `5 = product 0 4`, `6 = product 1 4`, and `7 = union {5, 6}` is the root.
 private def dScope (v : Fin 8) : Set (Fin 2) :=
-  if v.1 < 2 then {0} else if v.1 < 5 then {1} else univ
+  if v.val < 2 then {0} else if v.val < 5 then {1} else univ
 
 private def dGate : Fin 8 → DecomposableDAG.Gate (Fin 8)
   | 0 => .leaf
@@ -103,7 +103,7 @@ private def dGate : Fin 8 → DecomposableDAG.Gate (Fin 8)
   | 7 => .union {5, 6}
 
 private def dRank (v : Fin 8) : ℕ :=
-  if v.1 < 4 then 0 else if v.1 = 4 then 1 else if v.1 < 7 then 2 else 3
+  if v.val < 4 then 0 else if v.val = 4 then 1 else if v.val < 7 then 2 else 3
 
 private def dValues : (v : Fin 8) → Set (dScope v → Bool)
   | 0 => {fun _ => false}

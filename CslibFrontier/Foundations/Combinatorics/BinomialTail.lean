@@ -99,7 +99,7 @@ theorem sum_choose_mul_pow_mul_exp (Q : ℕ) (p s : ℝ) :
   rw [add_comm ((1 - p) * exp (-s * p)), add_pow]
   refine sum_congr rfl fun k hk => ?_
   have hkQ : k ≤ Q := Nat.lt_succ_iff.mp (mem_range.mp hk)
-  rw [mul_pow, mul_pow, ← exp_nat_mul, ← exp_nat_mul]
+  rw [mul_pow, mul_pow, ← exp_natCast_mul, ← exp_natCast_mul]
   calc (Q.choose k : ℝ) * p ^ k * (1 - p) ^ (Q - k) * exp (s * ((k : ℝ) - Q * p))
       = p ^ k * (1 - p) ^ (Q - k) * (Q.choose k : ℝ) *
           (exp (↑k * (s * (1 - p))) * exp (↑(Q - k) * (-s * p))) := by

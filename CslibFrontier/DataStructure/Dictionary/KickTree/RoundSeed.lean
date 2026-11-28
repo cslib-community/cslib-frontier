@@ -150,7 +150,7 @@ theorem dens_not_injOn_caseAQuot_le {ι₀ : Type*} [Fintype ι₀] [Nonempty ι
     (hma : m ≤ a) {h₀ : ι₀ → Fin (2 ^ m) → Fin (2 ^ (a - m))}
     (S : Finset (Fin (2 ^ a)))
     (hh₀ : IsPairwiseIndependentHash
-      (fun s₀ (x : S.image fun u => (bitDomainEquiv hma u).1) => h₀ s₀ x.1)) :
+      (fun s₀ (x : S.image fun u => (bitDomainEquiv hma u).1) => h₀ s₀ x.val)) :
     (dens {s₀ : ι₀ | ¬ Set.InjOn (caseAQuot hma (h₀ s₀)) (S : Set (Fin (2 ^ a)))} : ℝ) ≤
       ((#S * (#S - 1) : ℕ) : ℝ) / (2 * (2 ^ (a - m) : ℝ)) := by
   classical
@@ -167,7 +167,7 @@ theorem dens_not_injOn_caseAQuot_le {ι₀ : Type*} [Fintype ι₀] [Nonempty ι
   have hd := dens_not_injOn_feistelHead_le hh₀ S_pair
   have hiff (s₀ : ι₀) :
       Set.InjOn (caseAQuot hma (h₀ s₀)) (S : Set (Fin (2 ^ a))) ↔
-        Set.InjOn (feistelHead (fun x : S_L => h₀ s₀ x.1)) (S_pair : Set _) := by
+        Set.InjOn (feistelHead (fun x : S_L => h₀ s₀ x.val)) (S_pair : Set _) := by
     constructor
     · intro h p₁ hp₁ p₂ hp₂ heq
       rcases mem_map.mp hp₁ with ⟨⟨u₁, hu₁⟩, _, rfl⟩
@@ -183,17 +183,17 @@ theorem isKWiseIndependentHash_caseABucketAux_of_comp {ι₁ : Type*} [Fintype �
     {a m b_aux κ : ℕ} (hma : m ≤ a) {g₀ : Fin (2 ^ m) → Fin (2 ^ (a - m))}
     {S : Finset (Fin (2 ^ a))}
     {h₁₂ : ι₁ → Fin (2 ^ (a - m)) → Fin (2 ^ (m + b_aux))}
-    (hcomp : IsKWiseIndependentHash κ (fun s₁ (u : S) => h₁₂ s₁ (caseAQuot hma g₀ u.1))) :
-    IsKWiseIndependentHash κ (fun s₁ (u : S) => caseABucketAux hma g₀ (h₁₂ s₁) u.1) := by
+    (hcomp : IsKWiseIndependentHash κ (fun s₁ (u : S) => h₁₂ s₁ (caseAQuot hma g₀ u.val))) :
+    IsKWiseIndependentHash κ (fun s₁ (u : S) => caseABucketAux hma g₀ (h₁₂ s₁) u.val) := by
   classical
   refine ⟨fun {I} hI vals => ?_⟩
   let vals' : I → Fin (2 ^ (m + b_aux)) := fun u =>
     (splitBucketAuxEquiv m b_aux).symm
-      ((bitDomainEquiv hma u.1.1).1 ^^^ (vals u).1, (vals u).2)
+      ((bitDomainEquiv hma u.val.val).1 ^^^ (vals u).1, (vals u).2)
   have hfilt : (univ.filter fun s₁ : ι₁ =>
-      I.restrict (fun u : S => caseABucketAux hma g₀ (h₁₂ s₁) u.1) = vals) =
+      I.restrict (fun u : S => caseABucketAux hma g₀ (h₁₂ s₁) u.val) = vals) =
       (univ.filter fun s₁ : ι₁ =>
-        I.restrict (fun u : S => h₁₂ s₁ (caseAQuot hma g₀ u.1)) = vals') := by
+        I.restrict (fun u : S => h₁₂ s₁ (caseAQuot hma g₀ u.val)) = vals') := by
     ext s₁
     simp only [mem_filter, mem_univ, true_and, funext_iff, restrict, caseABucketAux,
       caseAEquiv_apply]
@@ -215,11 +215,11 @@ theorem isKWiseIndependentHash_caseABucketAux_of_injOn {ι₁ : Type*} [Fintype 
     {a m b_aux κ : ℕ} (hma : m ≤ a) {g₀ : Fin (2 ^ m) → Fin (2 ^ (a - m))}
     {S : Finset (Fin (2 ^ a))} (hinj : Set.InjOn (caseAQuot hma g₀) (S : Set (Fin (2 ^ a))))
     {h₁₂ : ι₁ → Fin (2 ^ (a - m)) → Fin (2 ^ (m + b_aux))}
-    (hh₁₂ : IsKWiseIndependentHash κ (fun s₁ (q : S.image (caseAQuot hma g₀)) => h₁₂ s₁ q.1)) :
-    IsKWiseIndependentHash κ (fun s₁ (u : S) => caseABucketAux hma g₀ (h₁₂ s₁) u.1) :=
+    (hh₁₂ : IsKWiseIndependentHash κ (fun s₁ (q : S.image (caseAQuot hma g₀)) => h₁₂ s₁ q.val)) :
+    IsKWiseIndependentHash κ (fun s₁ (u : S) => caseABucketAux hma g₀ (h₁₂ s₁) u.val) :=
   isKWiseIndependentHash_caseABucketAux_of_comp hma
-    (hh₁₂.comp (e := fun u : S => ⟨caseAQuot hma g₀ u.1, mem_image_of_mem _ u.2⟩)
-      fun u₁ u₂ h => Subtype.ext (hinj u₁.2 u₂.2 (congrArg Subtype.val h)))
+    (hh₁₂.comp (e := fun u : S => ⟨caseAQuot hma g₀ u.val, mem_image_of_mem _ u.property⟩)
+      fun u₁ u₂ h => Subtype.ext (hinj u₁.property u₂.property (congrArg Subtype.val h)))
 
 /-- **Abstract Case A distributional transfer**: over a three-stage seed `(τ, s₀, s₁)` where
 `τ ∈ GoodTop` (failure probability `≤ δ_top`) makes `h₀ τ` pairwise independent on the active
@@ -235,16 +235,16 @@ theorem dist_caseA_restrict_le {Top ι₀ ι₁ : Type*}
     (GoodTop : Set Top) {δ_top δ₁ : ℝ} (hδ₁ : 0 ≤ δ₁)
     (hδ_top : ((PMF.uniformOfFintype Top).toOuterMeasure GoodTopᶜ).toReal ≤ δ_top)
     (hgood₀ : ∀ τ ∈ GoodTop, IsPairwiseIndependentHash
-      (fun s₀ (x : S.image fun u => (bitDomainEquiv hma u).1) => h₀ τ s₀ x.1))
+      (fun s₀ (x : S.image fun u => (bitDomainEquiv hma u).1) => h₀ τ s₀ x.val))
     (hgood₁₂ : ∀ τ ∈ GoodTop, ∀ s₀ : ι₀,
       Set.InjOn (caseAQuot hma (h₀ τ s₀)) (S : Set (Fin (2 ^ a))) →
       dist ((PMF.uniformOfFintype ι₁).map fun s₁ (u : T) =>
-          caseABucketAux hma (h₀ τ s₀) (h₁₂ τ s₁) u.1)
+          caseABucketAux hma (h₀ τ s₀) (h₁₂ τ s₁) u.val)
         (PMF.uniformOfFintype (T → Fin (2 ^ m) × Fin (2 ^ b_aux))) ≤ δ₁) :
     dist (((PMF.uniformOfFintype Top).bind fun τ =>
         (PMF.uniformOfFintype ι₀).bind fun s₀ =>
           (PMF.uniformOfFintype ι₁).map fun s₁ (u : T) =>
-            caseABucketAux hma (h₀ τ s₀) (h₁₂ τ s₁) u.1))
+            caseABucketAux hma (h₀ τ s₀) (h₁₂ τ s₁) u.val))
       (PMF.uniformOfFintype (T → Fin (2 ^ m) × Fin (2 ^ b_aux))) ≤
       δ_top + ((#S * (#S - 1) : ℕ) : ℝ) / (2 * (2 ^ (a - m) : ℝ)) + δ₁ := by
   classical
@@ -252,7 +252,7 @@ theorem dist_caseA_restrict_le {Top ι₀ ι₁ : Type*}
   have hgood_τ (τ : Top) (hτ : τ ∈ GoodTop) :
       dist ((PMF.uniformOfFintype ι₀).bind fun s₀ =>
           (PMF.uniformOfFintype ι₁).map fun s₁ (u : T) =>
-            caseABucketAux hma (h₀ τ s₀) (h₁₂ τ s₁) u.1) U_target ≤
+            caseABucketAux hma (h₀ τ s₀) (h₁₂ τ s₁) u.val) U_target ≤
         ((#S * (#S - 1) : ℕ) : ℝ) / (2 * (2 ^ (a - m) : ℝ)) + δ₁ := by
     let Good₀ : Set ι₀ := {s₀ | Set.InjOn (caseAQuot hma (h₀ τ s₀)) (S : Set (Fin (2 ^ a)))}
     refine (dist_bind_of_good _ _ U_target Good₀ hδ₁ (hgood₁₂ τ hτ)).trans ?_
@@ -666,13 +666,13 @@ theorem isKWise_reducedDoubleTab_of_injOn {c n s_in s_out k : ℕ}
     {α : Fin (2 ^ (s_in - 1))} {X : Finset (Fin (2 ^ s_in))}
     (hinj : Set.InjOn (reduceBits s_in (quotientPermRedBits c n) α) (X : Set _)) :
     IsKWiseIndependentHash k (fun bot (x : X) =>
-      reducedDoubleTab c n s_in s_out α τ bot x.1) := by
+      reducedDoubleTab c n s_in s_out α τ bot x.val) := by
   have hmin : min s_in (quotientPermRedBits c n) ≤ quotientPermChars c * quotientPermCharBits n :=
     (min_le_right _ _).trans (clog_max_le_eight_mul_charBits hn).2
   have hdt := isKWise_doubleTab_pow_of_le (s_out := s_out) hmin hτ
   have hinj_sub : Function.Injective
-      (fun x : X => reduceBits s_in (quotientPermRedBits c n) α x.1) :=
-    fun x₁ x₂ h => Subtype.ext (hinj x₁.2 x₂.2 h)
+      (fun x : X => reduceBits s_in (quotientPermRedBits c n) α x.val) :=
+    fun x₁ x₂ h => Subtype.ext (hinj x₁.property x₂.property h)
   exact hdt.comp hinj_sub
 
 /-- Concrete 4-stage Case A statistical-distance bound for `caseABucketAux` instantiated with
@@ -695,7 +695,7 @@ theorem dist_caseA_reducedDoubleTab_le {a m b_aux c n : ℕ}
                       (m + b_aux))).map
                   fun botA₁₂ (u : T) =>
                     caseABucketAux hma (reducedDoubleTab c n m (a - m) α₀ τ botA₀)
-                      (reducedDoubleTab c n (a - m) (m + b_aux) α₁ τ botA₁₂) u.1)
+                      (reducedDoubleTab c n (a - m) (m + b_aux) α₁ τ botA₁₂) u.val)
       (PMF.uniformOfFintype (T → Fin (2 ^ m) × Fin (2 ^ b_aux))) ≤
       1 / (n : ℝ) ^ (c + 1) := by
   classical
@@ -735,12 +735,12 @@ theorem dist_caseA_reducedDoubleTab_le {a m b_aux c n : ℕ}
           (PMF.uniformOfFintype (Fin (2 ^ (a - m - 1)))).bind fun α₁ =>
             (PMF.uniformOfFintype BotA₁₂).map fun botA₁₂ (u : T) =>
               caseABucketAux hma (reducedDoubleTab c n m (a - m) α₀ τ botA₀)
-                (reducedDoubleTab c n (a - m) (m + b_aux) α₁ τ botA₁₂) u.1) =
+                (reducedDoubleTab c n (a - m) (m + b_aux) α₁ τ botA₁₂) u.val) =
       (PMF.uniformOfFintype (Top × Fin (2 ^ (m - 1)))).bind fun p =>
         (PMF.uniformOfFintype BotA₀).bind fun botA₀ =>
           (PMF.uniformOfFintype (Fin (2 ^ (a - m - 1)) × BotA₁₂)).map fun q (u : T) =>
             caseABucketAux hma (reducedDoubleTab c n m (a - m) p.2 p.1 botA₀)
-              (reducedDoubleTab c n (a - m) (m + b_aux) q.1 p.1 q.2) u.1 := by
+              (reducedDoubleTab c n (a - m) (m + b_aux) q.1 p.1 q.2) u.val := by
     relabel_uniform (Equiv.prodAssoc Top (Fin (2 ^ (m - 1)))
       (BotA₀ × Fin (2 ^ (a - m - 1)) × BotA₁₂)).symm
   rw [hgroup]
@@ -780,11 +780,11 @@ theorem dist_caseA_reducedDoubleTab_le {a m b_aux c n : ℕ}
       let T_Q : Finset (Fin (2 ^ (a - m))) := T.image (caseAQuot hma g₀)
       have hTQ : #T_Q ≤ n := card_image_le.trans ((card_le_card hTS).trans hS)
       have hprod_map : ((PMF.uniformOfFintype (Fin (2 ^ (a - m - 1)) × BotA₁₂)).map fun q (u : T) =>
-          caseABucketAux hma g₀ (reducedDoubleTab c n (a - m) (m + b_aux) q.1 p.1 q.2) u.1) =
+          caseABucketAux hma g₀ (reducedDoubleTab c n (a - m) (m + b_aux) q.1 p.1 q.2) u.val) =
           (PMF.uniformOfFintype (Fin (2 ^ (a - m - 1)))).bind fun α₁ =>
             (PMF.uniformOfFintype BotA₁₂).map fun botA₁₂ (u : T) =>
               caseABucketAux hma g₀
-                (reducedDoubleTab c n (a - m) (m + b_aux) α₁ p.1 botA₁₂) u.1 := by
+                (reducedDoubleTab c n (a - m) (m + b_aux) α₁ p.1 botA₁₂) u.val := by
         relabel_uniform (Equiv.refl (Fin (2 ^ (a - m - 1)) × BotA₁₂))
       rw [hprod_map]
       let Goodα₁ : Set (Fin (2 ^ (a - m - 1))) :=

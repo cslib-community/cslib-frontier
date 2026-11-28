@@ -342,7 +342,7 @@ private theorem root_three_children {p₁ p₂ p₃ : ℝ} (h1lo : 1 / 2 ≤ p�
   have hcbrt_pow : ∀ {p : ℝ}, 0 < p → cbrt p ^ 3 = p := by
     intro p hp
     dsimp only [cbrt]
-    rw [← Real.exp_nat_mul]
+    rw [← Real.exp_natCast_mul]
     have h3 : (3 : ℕ) * (Real.log p / 3) = Real.log p := by push_cast; ring
     rw [h3, Real.exp_log hp]
   set x₁ := cbrt p₁

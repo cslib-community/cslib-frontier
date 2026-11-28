@@ -84,7 +84,7 @@ theorem mem_puncturedLine_iff (scalar : Fin s ≃ {c : K // c ≠ 0}) {u v w : F
   · rintro ⟨c, hc, rfl⟩
     exact ⟨scalar.symm ⟨c, hc⟩, by rw [Equiv.apply_symm_apply]⟩
   · rintro ⟨c, rfl⟩
-    exact ⟨scalar c, (scalar c).2, rfl⟩
+    exact ⟨scalar c, (scalar c).property, rfl⟩
 
 omit [Fintype K] [DecidableEq K] in
 /-- A line with a nonzero direction lists distinct points. -/

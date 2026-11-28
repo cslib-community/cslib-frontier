@@ -164,16 +164,16 @@ private theorem liftConstWire_toNat {n' s : ℕ} (N : ℕ) (w : Wire n' 2) :
 /-- Feed wire `i : Fin n` of copy `a` either from free input `i` (when `i < n'`) or from the
 constant wire encoding bit `i - n'` of `a`. -/
 private def feedWire (n' n s N : ℕ) (a : ℕ) (i : Fin n) : Wire n' (copySize s N) :=
-  if hi : i.1 < n' then
-    Wire.input ⟨i.1, hi⟩
-  else if a.testBit (i.1 - n') then
+  if hi : i.val < n' then
+    Wire.input ⟨i.val, hi⟩
+  else if a.testBit (i.val - n') then
     liftConstWire N (constTrueWire n')
   else
     liftConstWire N (constFalseWire n')
 
 private theorem feedWire_toNat (n' n s N a : ℕ) (i : Fin n) :
     (feedWire n' n s N a i).toNat =
-      if i.1 < n' then i.1 else if a.testBit (i.1 - n') then n' + 1 else n' := by
+      if i.val < n' then i.val else if a.testBit (i.val - n') then n' + 1 else n' := by
   unfold feedWire
   split_ifs with h1 h2
   · rfl
@@ -217,7 +217,7 @@ private def copyOutWire (n' n s : ℕ) (out : Wire n s) :
 
 /-- Assignment to `Fin n` taking free bits from `x : BitString n'` and fixed bits from `a : ℕ`. -/
 private def assignOfNat (n' n : ℕ) (x : BitString n') (a : ℕ) : BitString n :=
-  fun i => if hi : i.1 < n' then x ⟨i.1, hi⟩ else a.testBit (i.1 - n')
+  fun i => if hi : i.val < n' then x ⟨i.val, hi⟩ else a.testBit (i.val - n')
 
 private theorem appendCopies_trace_liftConst {U : Type*}
     (I : Interpretation Unbounded.extSignature U)
@@ -239,14 +239,14 @@ private theorem appendCopies_trace_feedWire {g : ∀ k, BitString k → Bool}
   · rfl
   · rw [appendCopies_trace_liftConst, constProg_trace_true, h2]
   · rw [appendCopies_trace_liftConst, constProg_trace_false]
-    cases hb : a.testBit (i.1 - n') <;> simp_all
+    cases hb : a.testBit (i.val - n') <;> simp_all
 
 private theorem appendCopies_trace_copyOutWire {g : ∀ k, BitString k → Bool}
     (n' n s : ℕ) (P : Program Unbounded.extSignature n s) (out : Wire n s)
     (x : BitString n') (N : ℕ) (a : Fin N) :
     (appendCopies n' n s P N).trace (Unbounded.extInterpretation g) x
         (copyOutWire n' n s out N a) =
-      P.trace (Unbounded.extInterpretation g) (assignOfNat n' n x a.1) out := by
+      P.trace (Unbounded.extInterpretation g) (assignOfNat n' n x a.val) out := by
   induction N with
   | zero => exact a.elim0
   | succ N ih =>
@@ -329,7 +329,7 @@ private theorem appendCopies_code {n' n : ℕ} (hn' : n' ≤ n) (s : ℕ)
 
 private theorem copyOutWire_toNat {n' n : ℕ} (hn' : n' ≤ n) (s : ℕ) (out : Wire n s)
     (N : ℕ) (a : Fin N) :
-    (copyOutWire n' n s out N a).toNat = orExpandWire n' n s a.1 out.toNat := by
+    (copyOutWire n' n s out N a).toNat = orExpandWire n' n s a.val out.toNat := by
   induction N with
   | zero => exact a.elim0
   | succ N ih =>
@@ -384,7 +384,7 @@ private theorem eval_orExpand {g : ∀ k, BitString k → Bool} (ℓ : ℕ)
     (orExpand ℓ c).2.eval (Unbounded.extInterpretation g) x 0 = true ↔
       ∃ a : Fin (2 ^ min ℓ c.1),
         c.2.eval (Unbounded.extInterpretation g)
-          (assignOfNat (c.1 - min ℓ c.1) c.1 x a.1) 0 = true := by
+          (assignOfNat (c.1 - min ℓ c.1) c.1 x a.val) 0 = true := by
   dsimp only [orExpand, Circuit.eval, Function.comp_apply]
   rw [Program.trace_gate_last]
   simp only [Unbounded.extInterpretation, Unbounded.interpretation_or, decide_eq_true_eq]
@@ -401,23 +401,23 @@ theorem orExpand_mem_SignatureCircuitSAT_iff {g : ∀ k, BitString k → Bool} (
   constructor
   · rintro ⟨x, hx⟩
     obtain ⟨a, ha⟩ := (eval_orExpand ℓ c x).1 hx
-    exact ⟨assignOfNat (c.1 - min ℓ c.1) c.1 x a.1, ha⟩
+    exact ⟨assignOfNat (c.1 - min ℓ c.1) c.1 x a.val, ha⟩
   · rintro ⟨y, hy⟩
     set k := min ℓ c.1
     set n' := c.1 - k
     have hn : n' + k = c.1 := Nat.sub_add_cancel (Nat.min_le_right ℓ c.1)
-    let x : BitString n' := fun i => y ⟨i.1, by omega⟩
-    let yHi : BitString k := fun j => y ⟨n' + j.1, by omega⟩
+    let x : BitString n' := fun i => y ⟨i.val, by omega⟩
+    let yHi : BitString k := fun j => y ⟨n' + j.val, by omega⟩
     let a : Fin (2 ^ k) := BitString.equivFin k yHi
     refine ⟨x, (eval_orExpand ℓ c x).2 ⟨a, ?_⟩⟩
-    have hass : assignOfNat n' c.1 x a.1 = y := by
+    have hass : assignOfNat n' c.1 x a.val = y := by
       funext i
       unfold assignOfNat
       split_ifs with hi
       · rfl
-      · have hj : i.1 - n' < k := by omega
-        have hbit : a.1.testBit (i.1 - n') = yHi ⟨i.1 - n', hj⟩ := by
-          have hsym := congrFun ((BitString.equivFin k).symm_apply_apply yHi) ⟨i.1 - n', hj⟩
+      · have hj : i.val - n' < k := by omega
+        have hbit : a.val.testBit (i.val - n') = yHi ⟨i.val - n', hj⟩ := by
+          have hsym := congrFun ((BitString.equivFin k).symm_apply_apply yHi) ⟨i.val - n', hj⟩
           simpa only [a, BitString.equivFin_symm_apply] using hsym
         rw [hbit]
         dsimp only [yHi]
@@ -778,10 +778,10 @@ theorem symAndSAT_eq_true_iff (q : SymAndInstance × SymOutParam) :
     simpa only [SymAnd.eval, SymAndInstance.toSymAnd, hget] using hev
   · rintro ⟨v, hv⟩
     let k : Fin (2 ^ q.1.n) := BitString.equivFin q.1.n v
-    have hk : k.1 < q.1.countList.length := by simp [k.isLt]
-    refine ⟨q.1.countList[k.1]'hk, List.getElem_mem hk, ?_⟩
-    rw [q.1.getElem_countList q.2.eval k.1 hk]
-    have hv' : (BitString.equivFin q.1.n).symm ⟨k.1, by simp [k.isLt]⟩ = v :=
+    have hk : k.val < q.1.countList.length := by simp [k.isLt]
+    refine ⟨q.1.countList[k.val]'hk, List.getElem_mem hk, ?_⟩
+    rw [q.1.getElem_countList q.2.eval k.val hk]
+    have hv' : (BitString.equivFin q.1.n).symm ⟨k.val, by simp [k.isLt]⟩ = v :=
       (BitString.equivFin q.1.n).symm_apply_apply v
     simpa only [SymAnd.eval, SymAndInstance.toSymAnd, hv'] using hv
 

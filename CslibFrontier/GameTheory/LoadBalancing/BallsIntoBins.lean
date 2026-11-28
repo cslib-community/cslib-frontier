@@ -803,7 +803,7 @@ theorem expectedMakespan_uniformMixedProfile_ge_log_div_log_log {m : ℕ} [NeZer
     have hexp1 : Real.exp 1 < 3 := Real.exp_one_lt_d9.trans (by norm_num)
     have hexp_lt_m : Real.exp (k : ℝ) < (m : ℝ) := by
       have hexpk : Real.exp (k : ℝ) < (3 : ℝ) ^ k := by
-        rw [show (k : ℝ) = (k : ℕ) * (1 : ℝ) by ring, Real.exp_nat_mul]
+        rw [show (k : ℝ) = (k : ℕ) * (1 : ℝ) by ring, Real.exp_natCast_mul]
         exact pow_lt_pow_left₀ hexp1 (Real.exp_pos 1).le (by omega)
       have h3le : 3 ^ k ≤ m := by
         have h4 := Nat.four_pow_le_two_mul_two_pow_mul_factorial (by omega : 1 ≤ k)

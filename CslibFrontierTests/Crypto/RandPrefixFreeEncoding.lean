@@ -31,25 +31,26 @@ open scoped ENNReal
 /-- On `n`-bit blocks the one-key encoding is `2⁻ⁿ`-prefix-free (§6.7, `1/|X|` with `|X| = 2ⁿ`). -/
 example (n : ℕ) :
     IsRandPrefixFreeEncoding (PMF.uniformOfFintype (BitString n))
-      (fun k (m : {m : List (BitString n) // m ≠ []}) => m.1.modifyLast (· + k))
+      (fun k (m : {m : List (BitString n) // m ≠ []}) => m.val.modifyLast (· + k))
       ((2 : ℝ≥0∞) ^ n)⁻¹ := by
   simpa [BitString.card] using isRandPrefixFreeEncoding_modifyLast_add (BitString n)
 
 /-- The one-key encoding restricted to the book's domain `X^{≤ℓ}_{>0}`, through `comp_injective`. -/
 example (X : Type*) [Fintype X] [Nonempty X] [AddGroup X] (ℓ : ℕ) :
     IsRandPrefixFreeEncoding (PMF.uniformOfFintype X)
-      (fun k (m : {m : List X // m ≠ [] ∧ m.length ≤ ℓ}) => m.1.modifyLast (· + k))
+      (fun k (m : {m : List X // m ≠ [] ∧ m.length ≤ ℓ}) => m.val.modifyLast (· + k))
       (Fintype.card X : ℝ≥0∞)⁻¹ :=
   (isRandPrefixFreeEncoding_modifyLast_add X).comp_injective
-    (e := fun m => ⟨m.1, m.2.1⟩) fun _ _ h => Subtype.ext (by simpa using congrArg Subtype.val h)
+    (e := fun m => ⟨m.val, m.property.1⟩) fun _ _ h => Subtype.ext
+        (by simpa using congrArg Subtype.val h)
 
 /-- CMAC's encoding restricted to the book's domain `{0,1}^{≤nℓ}`, with at most `ℓ` blocks. -/
 example {n ℓ : ℕ} (hn : 0 < n) (hℓ : 1 ≤ ℓ) :
     IsRandPrefixFreeEncoding (PMF.uniformOfFintype (BitString n × BitString n))
-        (fun k (m : {m : List Bool // m.length ≤ n * ℓ}) => cmacRpf n k m.1) ((2 : ℝ≥0∞) ^ n)⁻¹ ∧
-      ∀ k (m : {m : List Bool // m.length ≤ n * ℓ}), (cmacRpf n k m.1).length ≤ ℓ :=
+        (fun k (m : {m : List Bool // m.length ≤ n * ℓ}) => cmacRpf n k m.val) ((2 : ℝ≥0∞) ^ n)⁻¹ ∧
+      ∀ k (m : {m : List Bool // m.length ≤ n * ℓ}), (cmacRpf n k m.val).length ≤ ℓ :=
   ⟨(isRandPrefixFreeEncoding_cmacRpf hn).comp_injective Subtype.val_injective,
-    fun k m => length_cmacRpf_le hn hℓ k m.2⟩
+    fun k m => length_cmacRpf_le hn hℓ k m.property⟩
 
 /-! ### Concrete values -/
 

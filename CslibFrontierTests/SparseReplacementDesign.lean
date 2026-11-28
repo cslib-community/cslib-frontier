@@ -129,7 +129,7 @@ def unitReplacementDesign {F : Type*} [Fintype F] {n : ℕ}
 - for variable `2` in equation `1` (`scope = {1, 2}`), the replacement polynomial evaluates to `1`
   at `T = 0` and `0` at `T = nodePoint 0 = 1`, hence is nonconstant of exact degree `1`. -/
 def nonconstSampleVarAssign : Fin 3 → Fin 1 → Fin 2 :=
-  fun v _ => if v.1 < 2 then 0 else 1
+  fun v _ => if v.val < 2 then 0 else 1
 
 /-- Factor group schedule for `nonconstSampleDesign`. -/
 def nonconstSampleFactorAssign : Fin 2 ⊕ Fin 3 → Fin 1 → Fin 2
@@ -140,8 +140,8 @@ def nonconstSampleFactorAssign : Fin 2 ⊕ Fin 3 → Fin 1 → Fin 2
 distinct `(copy, AuxLabel 1 2)` slots. -/
 def nonconstSampleCopy (e : ScopeIncidence (withNeutralScope sampleScope)) : Fin 3 :=
   match e.1 with
-  | Sum.inl 0 => if e.2.1 = 0 then 0 else 1
-  | Sum.inl 1 => if e.2.1 = 1 then 2 else 0
+  | Sum.inl 0 => if e.2.val = 0 then 0 else 1
+  | Sum.inl 1 => if e.2.val = 1 then 2 else 0
   | Sum.inr 0 => 0
   | Sum.inr 1 => 1
   | Sum.inr 2 => 0
@@ -232,7 +232,7 @@ example :
         (scopeVarOf (withNeutralScope sampleScope))).mulVec
           (fun u => bitVal ℚ (sampleAssign₂ u)) := by
     funext p
-    exact absurd p.2.2 (by decide +revert)
+    exact absurd p.2.property (by decide +revert)
   have heval0 :
       (designReplacementMap nonconstSampleDesign Sum.inl sampleAssign₁ 1 2).eval 0 = 1 := by
     rw [eval_zero_designReplacementMap]
@@ -273,7 +273,7 @@ example :
 /-- Explicit equivalence between the unbranched variables `{0, 2}` (`univ \ {1}` in `Fin 3`) and
 `Fin 2`. -/
 def sampleFreeVarEquiv : ↥((univ : Finset (Fin 3)) \ ({1} : Finset (Fin 3))) ≃ Fin 2 where
-  toFun v := if v.1 = 0 then 0 else 1
+  toFun v := if v.val = 0 then 0 else 1
   invFun i := if i = 0 then ⟨0, by decide⟩ else ⟨2, by decide⟩
   left_inv := by decide
   right_inv := by decide

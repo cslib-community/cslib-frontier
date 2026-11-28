@@ -107,24 +107,24 @@ theorem iterateWhileSome {f : Option β → Option β} {Sf : Option β → ℕ}
     refine ⟨m, ?_⟩
     rw [← Function.iterate_succ_apply, Function.iterate_succ_apply', hm, hnone]
   let encP : {o // P o} ↪ List Bool := (Function.Embedding.subtype P).trans (encOption encB)
-  let F : {o // P o} → {o // P o} := fun d => ⟨f d.1, hP d.2⟩
-  have hF : ComputableTidilyInTimeAndSpace F encP encP (fun d => c * (T d.1 + 1))
-      fun d => c * (Sf d.1 + 1) := ⟨k, St, hSt, tm, fun d => htm d.1⟩
-  have hFit (m : ℕ) (d : {o // P o}) : (F^[m] d).1 = f^[m] d.1 := by
+  let F : {o // P o} → {o // P o} := fun d => ⟨f d.val, hP d.property⟩
+  have hF : ComputableTidilyInTimeAndSpace F encP encP (fun d => c * (T d.val + 1))
+      fun d => c * (Sf d.val + 1) := ⟨k, St, hSt, tm, fun d => htm d.val⟩
+  have hFit (m : ℕ) (d : {o // P o}) : (F^[m] d).val = f^[m] d.val := by
     induction m generalizing d with
     | zero => rfl
     | succ m ih => rw [Function.iterate_succ_apply, Function.iterate_succ_apply, ih]
-  have hex (d : {o // P o}) : ∃ n, f^[n + 1] d.1 = none := by
-    obtain ⟨m, hm⟩ := d.2
+  have hex (d : {o // P o}) : ∃ n, f^[n + 1] d.val = none := by
+    obtain ⟨m, hm⟩ := d.property
     refine ⟨m, ?_⟩
     rw [Function.iterate_succ_apply', hm, hnone]
   let rd : {o // P o} → ℕ := fun d => Nat.find (hex d)
   have hrd (d : {o // P o}) : IsLeast {n | encP (F^[n + 1] d) = []} (rd d) := by
     refine ⟨?_, fun n hn => Nat.find_min' (hex d) ?_⟩
-    · change encOption encB (F^[rd d + 1] d).1 = []
+    · change encOption encB (F^[rd d + 1] d).val = []
       rw [hFit, Nat.find_spec (hex d)]
       rfl
-    · change encOption encB (F^[n + 1] d).1 = [] at hn
+    · change encOption encB (F^[n + 1] d).val = [] at hn
       rw [hFit] at hn
       exact (encOption encB).injective (hn.trans rfl)
   obtain ⟨d₀, hW⟩ := ComputableTidilyInTimeAndSpace.iterateWhile hF hrd
@@ -139,19 +139,19 @@ theorem iterateWhileSome {f : Option β → Option β} {Sf : Option β → ℕ}
     exact hlt x (rd ⟨start x, hPs x⟩ + 1) (by omega) (Nat.find_spec (hex ⟨start x, hPs x⟩))
   refine ((hloop.comp hstart').of_enc_eq (encC := encOption encB)
     (g := fun x => f^[r x] (start x)) fun x => ?_).weaken ?_
-  · change _ = encOption encB (F^[_] _).1
+  · change _ = encOption encB (F^[_] _).val
     rw [hFit, hrx]
   refine ⟨d₀ * (c + 1) + 1, fun x => ?_⟩
   dsimp only
   rw [hrx]
-  have h₁ : ((Finset.Iic (r x)).sup fun n => c * (Sf (F^[n] ⟨start x, hPs x⟩).1 + 1)) ≤
+  have h₁ : ((Finset.Iic (r x)).sup fun n => c * (Sf (F^[n] ⟨start x, hPs x⟩).val + 1)) ≤
       c * (Q x + 1) :=
     Finset.sup_le fun n hn => by
       rw [hFit]
       exact Nat.mul_le_mul_left c (Nat.add_le_add_right (hspace x n (Finset.mem_Iic.mp hn)) 1)
   have h₂ : ((Finset.Iic (r x)).sup fun n => (encP (F^[n] ⟨start x, hPs x⟩)).length) ≤ B x :=
     Finset.sup_le fun n hn => by
-      change (encOption encB (F^[n] ⟨start x, hPs x⟩).1).length ≤ B x
+      change (encOption encB (F^[n] ⟨start x, hPs x⟩).val).length ≤ B x
       rw [hFit]
       exact hstate x n (Finset.mem_Iic.mp hn)
   have h₃ : d₀ * (c * (Q x + 1) + B x + 1) ≤ d₀ * (c + 1) * (Si x + Q x + B x + 1) := by

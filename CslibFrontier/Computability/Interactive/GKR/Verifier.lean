@@ -157,7 +157,7 @@ def PrimeInstance (I : Type) : Type :=
 /-- Canonical injective bit-word encoding of `PrimeInstance I` inherited from `encInstance`. -/
 @[expose]
 def encPrimeInstance (I : Type) (encI : I ↪ List Bool) : PrimeInstance I ↪ List Bool :=
-  ⟨fun a => encInstance I encI a.1, fun _ _ h => Subtype.ext ((encInstance I encI).injective h)⟩
+  ⟨fun a => encInstance I encI a.val, fun _ _ h => Subtype.ext ((encInstance I encI).injective h)⟩
 
 /-- Interpret a list of field-element representatives `vals` as a Boolean-cube table
 `(Fin k → Bool) → ZMod p`, reading index `binaryValue (List.ofFn a)` and defaulting to `0`. -/
@@ -2845,9 +2845,9 @@ inst.modulus` and `inst.CorrectOutput F` (general `IsLogSpaceUniform` wiring com
 on `#892`). -/
 theorem UniformGKRFamily.isInteractiveProof_primeInstance {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
-    IsInteractiveProof (fun a : PrimeInstance I => F.verifier a.1)
+    IsInteractiveProof (fun a : PrimeInstance I => F.verifier a.val)
       {a : PrimeInstance I |
-        minModulus (F.circuit a.1.index) ≤ a.1.modulus ∧ a.1.CorrectOutput F}
+        minModulus (F.circuit a.val.index) ≤ a.val.modulus ∧ a.val.CorrectOutput F}
       1 (1 / 3) := by
   refine ⟨fun ⟨inst, hp⟩ ⟨hmin, hcorr⟩ => ?_, fun ⟨inst, hp⟩ hnot P => ?_⟩
   · obtain ⟨P, hP⟩ := F.acceptProb_verifier_complete inst hp hmin hcorr
@@ -2881,7 +2881,7 @@ belongs to `Cslib.Complexity.IP` (general `IsLogSpaceUniform` wiring compilation
 theorem UniformGKRFamily.mem_IP_primeInstance {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
     {a : PrimeInstance I |
-      minModulus (F.circuit a.1.index) ≤ a.1.modulus ∧ a.1.CorrectOutput F} ∈
+      minModulus (F.circuit a.val.index) ≤ a.val.modulus ∧ a.val.CorrectOutput F} ∈
       IP (encPrimeInstance I encI) :=
   mem_IP_of
     (F.isOraclePPTOn_verifier.preprocess

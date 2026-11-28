@@ -137,13 +137,13 @@ theorem realize_independentSetSentence [Finite M] :
     let R : ∀ i, Set (Fin (independentSetArity i) → M) := fun i =>
       Fin.cases (motive := fun i => Set (Fin (independentSetArity i) → M)) {v | v (0 : Fin 1) ∈ s}
         (fun j => Fin.cases (motive := fun j => Set (Fin (independentSetArity j.succ) → M))
-          {v | ∃ h : v (0 : Fin 2) ∈ s, (g ⟨v (0 : Fin 2), h⟩).1 = v (1 : Fin 2)}
+          {v | ∃ h : v (0 : Fin 2) ∈ s, (g ⟨v (0 : Fin 2), h⟩).val = v (1 : Fin 2)}
           (fun k => k.elim0) j) i
-    refine ⟨R, ?_, ?_, ?_, fun x hx => ⟨(g ⟨x, hx⟩).1, hx, rfl⟩, ?_,
+    refine ⟨R, ?_, ?_, ?_, fun x hx => ⟨(g ⟨x, hx⟩).val, hx, rfl⟩, ?_,
       fun _ _ hx hy hxy => hind hx hy hxy⟩
     · rintro x y ⟨hx, hxy⟩
-      change (g ⟨x, hx⟩).1 = y at hxy
-      exact ⟨hx, hxy ▸ (g ⟨x, hx⟩).2⟩
+      change (g ⟨x, hx⟩).val = y at hxy
+      exact ⟨hx, hxy ▸ (g ⟨x, hx⟩).property⟩
     · rintro x _ _ ⟨hx, hxy⟩ ⟨_, hxz⟩
       exact hxy.symm.trans hxz
     · rintro x y _ ⟨hx, hxz⟩ ⟨hy, hyz⟩

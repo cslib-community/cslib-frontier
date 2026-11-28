@@ -59,22 +59,22 @@ private theorem card_filter_sum {A B : Type*} [Fintype A] [Fintype B] (p : A ⊕
 
 /-- Counting the elements of a subtype with a property. -/
 private theorem card_filter_subtype {A : Type*} [Fintype A] (Q : A → Prop) [DecidablePred Q]
-    (f : A → Prop) [DecidablePred f] : #{e : {e // Q e} | f e.1} = #{e | Q e ∧ f e} := by
+    (f : A → Prop) [DecidablePred f] : #{e : {e // Q e} | f e.val} = #{e | Q e ∧ f e} := by
   rw [← Fintype.card_subtype, Fintype.card_congr (Equiv.subtypeSubtypeEquivSubtypeInter Q f),
     Fintype.card_subtype]
 
 /-- **Old degrees are unchanged.** In a child, an old vertex has one port for each edge of `N`
 at it. -/
 theorem card_child_src_inl (β : M → ℕ) (g : G) (v : {v // S.group v = g}) :
-    #{x | (S.child β g).src x = .inl v} = #{e | N.src e = v.1} + #{e | N.tgt e = v.1} := by
+    #{x | (S.child β g).src x = .inl v} = #{e | N.src e = v.val} + #{e | N.tgt e = v.val} := by
   rw [card_filter_sum]
   congr 1
   · simp only [child_src_inl, Sum.inl.injEq, Subtype.ext_iff]
-    rw [card_filter_subtype (fun e => S.group (N.src e) = g) (fun e => N.src e = v.1)]
-    exact congrArg card (filter_congr fun e _ => ⟨fun h => h.2, fun h => ⟨h ▸ v.2, h⟩⟩)
+    rw [card_filter_subtype (fun e => S.group (N.src e) = g) (fun e => N.src e = v.val)]
+    exact congrArg card (filter_congr fun e _ => ⟨fun h => h.2, fun h => ⟨h ▸ v.property, h⟩⟩)
   · simp only [child_src_inr, Sum.inl.injEq, Subtype.ext_iff]
-    rw [card_filter_subtype (fun e => S.group (N.tgt e) = g) (fun e => N.tgt e = v.1)]
-    exact congrArg card (filter_congr fun e _ => ⟨fun h => h.2, fun h => ⟨h ▸ v.2, h⟩⟩)
+    rw [card_filter_subtype (fun e => S.group (N.tgt e) = g) (fun e => N.tgt e = v.val)]
+    exact congrArg card (filter_congr fun e _ => ⟨fun h => h.2, fun h => ⟨h ▸ v.property, h⟩⟩)
 
 /-- Every edge of a child ends at a packet vertex. -/
 theorem card_child_tgt_inl (β : M → ℕ) (g : G) (v : {v // S.group v = g}) :

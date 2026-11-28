@@ -846,7 +846,8 @@ theorem abs_expNegPow_div_sub_exp_le (qBits zFp K : ℕ) (hz : zFp ≤ 2 ^ qBits
   rw [← hS_cast]
   induction K with
   | zero =>
-    rw [expNegPow, Function.iterate_zero, id_eq]
+    dsimp only [expNegPow]
+    rw [Function.iterate_zero, id_eq]
     rw [hS_cast]
     simp
   | succ K ih =>

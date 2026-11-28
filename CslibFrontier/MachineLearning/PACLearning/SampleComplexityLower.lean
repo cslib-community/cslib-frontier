@@ -394,7 +394,7 @@ theorem sample_complexity_lower_bound_vcDim
     (hlearn : IsRPACLearnerFor m ε δ C 𝒟) :
     (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ m := by
   have hne : {n : ℕ | ∃ W : Finset α, W.card = n ∧ SetShatters C (↑W)}.Nonempty :=
-    Set.nonempty_iff_ne_empty.mpr fun h => by simpa using (h ▸ hvc : (2 : ℕ) ≤ sSup (∅ : Set ℕ))
+    Set.ne_empty_iff_nonempty.mp fun h => by simpa using (h ▸ hvc : (2 : ℕ) ≤ sSup (∅ : Set ℕ))
   obtain ⟨W, hWcard, hW⟩ := Nat.sSup_mem hne hbdd
   have hvc_eq : vcDim C = W.card := hWcard.symm
   rw [hvc_eq] at hvc ⊢

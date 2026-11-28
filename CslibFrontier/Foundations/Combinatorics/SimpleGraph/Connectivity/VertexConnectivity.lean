@@ -169,14 +169,14 @@ theorem isVertexConnected_iff_forall_isVertexSeparator {G : SimpleGraph V} {k : 
     have hTcard : T.card < k := mod_cast
       (by simpa [← Set.encard_coe_eq_coe_finsetCard, hTX] using hX :
       (T.card : ℕ∞) < k)
-    have : Nonempty (Xᶜ : Set V) := (Set.nonempty_iff_ne_empty.mpr fun h =>
+    have : Nonempty (Xᶜ : Set V) := (Set.ne_empty_iff_nonempty.mp fun h =>
       lt_irrefl _ ((Set.encard_univ V ▸ Set.compl_empty_iff.mp h ▸ hX).trans hcard)).to_subtype
     refine ⟨fun ⟨u, hu⟩ ⟨v, hv⟩ => ?_⟩
     by_cases huv : u = v
     · subst huv
       exact .rfl
     · by_contra hnr
-      let f : G.induce (T : Set V)ᶜ →g G.induce Xᶜ := ⟨fun y => ⟨y.1, hTX ▸ y.2⟩, id⟩
+      let f : G.induce (T : Set V)ᶜ →g G.induce Xᶜ := ⟨fun y => ⟨y.val, hTX ▸ y.property⟩, id⟩
       exact not_le_of_gt hTcard <| hsep huv T <| isVertexSeparator_iff_not_reachable_induce.mpr
         ⟨fun h => hu (hTX ▸ h), fun h => hv (hTX ▸ h), fun hr => hnr (hr.map f)⟩
 
@@ -219,8 +219,8 @@ theorem card_gt_of_injective_internallyDisjoint {G : SimpleGraph V} {u v : V} (h
     omega
   choose x hxm hxu hxv using fun i (hi : i ∈ I) =>
     exists_internal_mem_support_of_support_ne huv (hW i) (Finset.mem_filter.mp hi).2
-  let S : Finset V := insert u (insert v (I.attach.image fun i => x i.1 i.2))
-  have hxinj : Function.Injective fun i : I => x i.1 i.2 := by
+  let S : Finset V := insert u (insert v (I.attach.image fun i => x i.val i.property))
+  have hxinj : Function.Injective fun i : I => x i.val i.property := by
     rintro ⟨i, hi⟩ ⟨j, hj⟩ (hij : x i hi = x j hj)
     exact by_contra fun hne => (hdisj (fun h => hne (Subtype.ext h)) _ (hxm i hi)
       (hij ▸ hxm j hj)).elim (hxu i hi) (hxv i hi)
@@ -300,9 +300,9 @@ theorem exists_injective_internallyDisjoint_iff_exists_finset {G : SimpleGraph V
       exact hdisj (fun h => hne (congrArg W h))
   · rintro ⟨P, hPcard, hW, hdisj⟩
     let e := (P.equivFinOfCardEq hPcard).symm
-    refine ⟨fun i => (e i).1, fun i j hij => e.injective (Subtype.ext hij),
-      fun i => hW _ (e i).2, fun i j hij => ?_⟩
-    exact hdisj (e i).2 (e j).2 fun h => hij (e.injective (Subtype.ext h))
+    refine ⟨fun i => (e i).val, fun i j hij => e.injective (Subtype.ext hij),
+      fun i => hW _ (e i).property, fun i j hij => ?_⟩
+    exact hdisj (e i).property (e j).property fun h => hij (e.injective (Subtype.ext h))
 
 /-- A simple `u`–`v` path containing the edge `s(u, v)` must be the single-edge walk `[u, v]`. -/
 theorem support_eq_pair_of_mem_edges_of_isPath {G : SimpleGraph V} {u v : V} {w : G.Walk u v}

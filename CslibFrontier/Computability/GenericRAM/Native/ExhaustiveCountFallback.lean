@@ -263,7 +263,7 @@ def countSystemExhaustive (x : ℕ × List (List (List ℕ))) : ℕ :=
 /-- Project a sparse equation `eq : List (List ℕ)` onto `Finset (Finset (Fin n))` by intersecting
 each monomial with `{0, …, n - 1}`. -/
 def equationToFinset (n : ℕ) (eq : List (List ℕ)) : Finset (Finset (Fin n)) :=
-  (eq.map fun m => Finset.univ.filter fun j : Fin n => j.1 ∈ m).toFinset
+  (eq.map fun m => Finset.univ.filter fun j : Fin n => j.val ∈ m).toFinset
 
 /-- At every prefix `j`, the retained payload in `countSystemPrefix x j` equals `x = (n, sys)`. -/
 @[simp] theorem countSystemPrefix_payload (x : ℕ × List (List (List ℕ))) (j : ℕ) :
@@ -300,7 +300,7 @@ private theorem monomialSum_equationToFinset_eq_zero_iff {n : ℕ} {eq : List (L
     (heq : IsCanonicalEquation eq) (hvars : ∀ m ∈ eq, ∀ v ∈ m, v < n) (σ : BitString n) :
     monomialSum (ZMod 2) (equationToFinset n eq) σ = 0 ↔
       evalMonomialList eq (fun v => (List.ofFn σ).getD v false) = false := by
-  let f : List ℕ → Finset (Fin n) := fun m => Finset.univ.filter fun j : Fin n => j.1 ∈ m
+  let f : List ℕ → Finset (Fin n) := fun m => Finset.univ.filter fun j : Fin n => j.val ∈ m
   have hnd_f : (eq.map f).Nodup := by
     refine heq.1.map_on fun m₁ hm₁ m₂ hm₂ h => (heq.2 m₁ hm₁).eq_of_toFinset_eq (heq.2 m₂ hm₂) ?_
     ext v
@@ -323,8 +323,8 @@ private theorem monomialSum_equationToFinset_eq_zero_iff {n : ℕ} {eq : List (L
         rw [List.getD_ofFn_of_lt σ hvn]
         exact hj ⟨v, hvn⟩ (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hvm⟩)
       · intro hv j hj
-        have hjm : j.1 ∈ m := (Finset.mem_filter.mp hj).2
-        have hget := hv j.1 (List.mem_toFinset.mpr hjm)
+        have hjm : j.val ∈ m := (Finset.mem_filter.mp hj).2
+        have hget := hv j.val (List.mem_toFinset.mpr hjm)
         rwa [List.getD_ofFn] at hget
     by_cases h1 : ∀ j ∈ f m, σ j = true
     · rw [ite_eq_left h1, ite_eq_left (hiff.mp h1)]
@@ -514,10 +514,10 @@ theorem countCNFExhaustive_eq_modelCountOn_range (n : ℕ) (φ : CNF ℕ) :
     countCNFExhaustive (n, φ) = φ.modelCountOn (Finset.range n) := by
   rw [countCNFExhaustive_eq_card_filter, CNF.modelCountOn]
   refine Finset.card_bij
-    (fun (σ : BitString n) _ (v : Finset.range n) => σ ⟨v.1, Finset.mem_range.mp v.2⟩)
+    (fun (σ : BitString n) _ (v : Finset.range n) => σ ⟨v.val, Finset.mem_range.mp v.property⟩)
     (fun σ hσ => ?_)
-    (fun σ₁ _ σ₂ _ h => funext fun i => congrFun h ⟨i.1, Finset.mem_range.mpr i.isLt⟩)
-    (fun τ hτ => ⟨fun i => τ ⟨i.1, Finset.mem_range.mpr i.isLt⟩, ?_, funext fun _ => rfl⟩)
+    (fun σ₁ _ σ₂ _ h => funext fun i => congrFun h ⟨i.val, Finset.mem_range.mpr i.isLt⟩)
+    (fun τ hτ => ⟨fun i => τ ⟨i.val, Finset.mem_range.mpr i.isLt⟩, ?_, funext fun _ => rfl⟩)
   · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hσ ⊢
     convert hσ using 2
     funext v

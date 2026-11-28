@@ -27,19 +27,6 @@ open Cslib Cslib.Crypto.Protocols.PIR.Preprocessing.Relocation
 #guard_msgs in
 #print axioms valid_init
 
-/--
-info: 'Cslib.Crypto.Protocols.PIR.Preprocessing.Relocation.inEdge?_perm_castLE_eq_none' depends on axioms: [propext,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms inEdge?_perm_castLE_eq_none
-
-/--
-info: 'Cslib.Crypto.Protocols.PIR.Preprocessing.Relocation.valid_relocate' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs in
-#print axioms valid_relocate
-
 /-! ### Concrete Permutation and Multi-Step Relocation Trace (`m = 2, m' = 4`) -/
 
 /-- Concrete permutation on `Fin 4` swapping `0 ↔ 1` and `2 ↔ 3`:

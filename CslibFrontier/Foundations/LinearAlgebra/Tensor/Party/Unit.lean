@@ -117,7 +117,7 @@ theorem antisymmRel_push_unit {L : Type} [Fintype L] [DecidableEq L] (ρ : L →
     · rw [unit_entry_of h, unit_entry_of, Finset.prod_eq_one, _root_.mul_one]
       · rintro q -
         refine ite_eq_left (show ∀ l l', x q l = x q l' from fun l l' => ?_)
-        rw [← cast l.1 q l.2, ← cast l'.1 q l'.2]
+        rw [← cast l.val q l.property, ← cast l'.val q l'.property]
         exact h _ _
       · intro q q'
         rw [← cast _ _ (hρ q).choose_spec, ← cast _ _ (hρ q').choose_spec]
@@ -163,7 +163,7 @@ theorem push_const_le_one (q : I) (t : PartyTensor K J) : push (fun _ => q) t �
   classical
   refine le_of_map (fun p a => if h : q = p then t.entry fun j => a ⟨j, h⟩ else 1)
     (fun _ _ => ()) fun x => ?_
-  have key : ∀ f : ∀ p, ∀ j : {j : J // q = p}, t.Index j.1, t.entry (fun j => f q ⟨j, rfl⟩) =
+  have key : ∀ f : ∀ p, ∀ j : {j : J // q = p}, t.Index j.val, t.entry (fun j => f q ⟨j, rfl⟩) =
       ∏ p, if h : q = p then t.entry fun j => f p ⟨j, h⟩ else 1 := fun f => by
     rw [Finset.prod_eq_single q (fun p _ hp => dite_eq_right fun h => hp h.symm) (by simp)]
     simp

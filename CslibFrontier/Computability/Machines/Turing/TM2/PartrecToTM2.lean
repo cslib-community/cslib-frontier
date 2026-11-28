@@ -94,8 +94,8 @@ private theorem step_restrict (hS : ∀ q ∈ S, SupportsStmt S (M q)) (d : S) (
   rcases c with ⟨_ | l, v, T⟩
   · rfl
   let : Inhabited Λ := ⟨d⟩
-  have hmem := step_supports M (S := S) ⟨d.2, hS⟩ (c := ⟨some l.1, v, T⟩)
-    (Option.mem_def.2 rfl) (Finset.some_mem_insertNone.2 l.2)
+  have hmem := step_supports M (S := S) ⟨d.property, hS⟩ (c := ⟨some l.val, v, T⟩)
+    (Option.mem_def.2 rfl) (Finset.some_mem_insertNone.2 l.property)
   simp only [step, restrict, stepAux_mapLabel, Option.map_some, Cfg.mapLabel, Option.map_map]
   congr 2
   rcases h : (stepAux (M l) v T).l with _ | l'

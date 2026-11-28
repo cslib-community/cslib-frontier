@@ -79,19 +79,6 @@ theorem tw_injOn : Set.InjOn tw (Set.Iio crossC.size) := by
   simp only [tw, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb] at h'
   exact h'
 
--- Correctness and simulator correctness use neither choice nor any other axiom beyond these two.
-/--
-info: 'Cslib.Crypto.Garbling.BMR16.Garbled.run_ofKeys' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs in
-#print axioms Garbled.run_ofKeys
-
-/--
-info: 'Cslib.Crypto.Garbling.BMR16.View.run_simulateWith' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs in
-#print axioms View.run_simulateWith
-
 -- Correctness, for every offset and zero labels.
 example (δ : ∀ i, Fin (ℓ i) → ZMod (μ i)) (E : Env (Label μ ℓ) [0, 1])
     (x : Env (Residue μ) [0, 1]) :

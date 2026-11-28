@@ -452,7 +452,7 @@ theorem isIndependentOn_iff_Ioo {X : Set α} {rel : PMF α → PMF α → Prop} 
       ∀ ⦃p⦄, p ∈ lotteriesOn X → ∀ ⦃q⦄, q ∈ lotteriesOn X → ∀ ⦃r⦄, r ∈ lotteriesOn X →
         ∀ a : I, 0 < (a : ℝ) → (a : ℝ) < 1 → (rel p q ↔ rel (mix a p r) (mix a q r)) := by
   refine ⟨fun hI p hp q hq r hr a ha0 _ => hI hp hq hr a ha0, fun hI p hp q hq r hr a ha0 => ?_⟩
-  rcases eq_or_lt_of_le a.2.2 with ha1 | ha1
+  rcases eq_or_lt_of_le a.property.2 with ha1 | ha1
   · have ha_eq : a = 1 := Subtype.ext ha1
     rw [ha_eq, mix_one, mix_one]
   · exact hI hp hq hr a ha0 ha1
@@ -477,7 +477,7 @@ theorem mix_right_iff (hI : IsIndependentOn X rel) {p q r : PMF α}
 theorem mix_left_of_rel (hR : IsRationalOn X rel) (hI : IsIndependentOn X rel) {p q r : PMF α}
     (hp : p ∈ lotteriesOn X) (hq : q ∈ lotteriesOn X) (hr : r ∈ lotteriesOn X)
     (a : I) (h : rel p q) : rel (mix a p r) (mix a q r) := by
-  rcases eq_or_lt_of_le a.2.1 with ha0 | ha0
+  rcases eq_or_lt_of_le a.property.1 with ha0 | ha0
   · have ha_eq : a = 0 := Subtype.ext ha0.symm
     rw [ha_eq, mix_zero, mix_zero]
     exact hR.refl hr
@@ -544,10 +544,11 @@ strictly preferred mixture. -/
 private theorem mix_strictPref_mix_of_lt (hI : IsIndependentOn X rel) {p q : PMF α}
     (hp : p ∈ lotteriesOn X) (hq : q ∈ lotteriesOn X) (hpq : strictPref rel p q)
     {a b : I} (hba : (b : ℝ) < a) : strictPref rel (mix a p q) (mix b p q) := by
-  have ha0 : 0 < (a : ℝ) := lt_of_le_of_lt b.2.1 hba
+  have ha0 : 0 < (a : ℝ) := lt_of_le_of_lt b.property.1 hba
   have hmix_q : strictPref rel (mix a p q) q := by
     simpa only [mix_self] using (hI.mix_strictPref_left_iff hp hq hq ha0).mp hpq
-  let t : I := ⟨(b : ℝ) / a, div_nonneg b.2.1 (le_of_lt ha0), (div_le_one ha0).mpr (le_of_lt hba)⟩
+  let t : I := ⟨(b : ℝ) / a, div_nonneg b.property.1 (le_of_lt ha0),
+    (div_le_one ha0).mpr (le_of_lt hba)⟩
   have ht1 : (t : ℝ) < 1 := (div_lt_one ha0).mpr hba
   have hmix_eq : mix t (mix a p q) q = mix b p q := by
     rw [mix_mix_left]
@@ -618,12 +619,12 @@ theorem isContinuousOn_iff_isArchimedeanOn {X : Set α} {rel : PMF α → PMF α
   · obtain ⟨c, hc⟩ := hC hp hq hr hpq.1 hqr.1
     have hpr : strictPref rel p r := hR.strictPref_trans hp hq hr hpq hqr
     have hc1 : (c : ℝ) < 1 := by
-      refine lt_of_le_of_ne c.2.2 fun heq => hpq.2 ?_
+      refine lt_of_le_of_ne c.property.2 fun heq => hpq.2 ?_
       have hc' : c = 1 := Subtype.ext heq
       rw [hc', mix_one] at hc
       exact hc.2
     have hc0 : 0 < (c : ℝ) := by
-      refine lt_of_le_of_ne c.2.1 fun heq => hqr.2 ?_
+      refine lt_of_le_of_ne c.property.1 fun heq => hqr.2 ?_
       have hc' : c = 0 := Subtype.ext heq.symm
       rw [hc', mix_zero] at hc
       exact hc.1
@@ -646,10 +647,10 @@ theorem isContinuousOn_iff_isArchimedeanOn {X : Set α} {rel : PMF α → PMF α
     have hspr : strictPref rel p r := hR.strictPref_trans hp hq hr hspq hsqr
     let S : Set ℝ := {t : ℝ | ∃ a : I, (a : ℝ) = t ∧ rel q (mix a p r)}
     have h0S : (0 : ℝ) ∈ S := ⟨0, rfl, by rw [mix_zero]; exact hqr⟩
-    have hS_bdd : BddAbove S := ⟨1, fun t ⟨a, hat, _⟩ => hat ▸ a.2.2⟩
+    have hS_bdd : BddAbove S := ⟨1, fun t ⟨a, hat, _⟩ => hat ▸ a.property.2⟩
     let s : ℝ := sSup S
     have hs0 : 0 ≤ s := le_csSup hS_bdd h0S
-    have hs1 : s ≤ 1 := csSup_le ⟨0, h0S⟩ fun t ⟨a, hat, _⟩ => hat ▸ a.2.2
+    have hs1 : s ≤ 1 := csSup_le ⟨0, h0S⟩ fun t ⟨a, hat, _⟩ => hat ▸ a.property.2
     let astar : I := ⟨s, hs0, hs1⟩
     have hastar_mem : mix astar p r ∈ lotteriesOn X := mix_mem_lotteriesOn astar hp hr
     have hnot_above : ¬ strictPref rel (mix astar p r) q := by

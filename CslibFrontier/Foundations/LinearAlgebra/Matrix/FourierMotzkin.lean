@@ -95,7 +95,7 @@ theorem combination_nonneg [IsStrictOrderedRing K] (a : ι → K) (r : Row a) (i
   · rw [combination_inl, Pi.single_apply]
     split_ifs <;> norm_num
   · rw [combination_inr, Pi.add_apply, Pi.single_apply, Pi.single_apply]
-    split_ifs <;> linarith [p.2, q.2]
+    split_ifs <;> linarith [p.property, q.property]
 
 variable [Fintype ι]
 
@@ -115,7 +115,7 @@ theorem combination_mulVec_inr (a v : ι → K) (p : {p // 0 < a p}) (q : {q // 
 theorem combination_mulVec_self (a : ι → K) : combination a *ᵥ a = 0 := by
   funext r
   rcases r with i | ⟨p, q⟩
-  · exact (combination_mulVec_inl a a i).trans i.2
+  · exact (combination_mulVec_inl a a i).trans i.property
   · simp only [combination_mulVec_inr, Pi.zero_apply]
     ring
 
@@ -147,8 +147,8 @@ theorem exists_smul_add_le_iff (a v b : ι → K) :
       (fun p : {p // 0 < a p} => (b p - v p) / a p) fun q p => by
         have := h (.inr (p, q))
         rw [combination_mulVec_inr, combination_mulVec_inr] at this
-        rw [div_le_iff_of_neg q.2, div_mul_eq_mul_div, div_le_iff₀ p.2]
-        nlinarith [p.2, q.2]
+        rw [div_le_iff_of_neg q.property, div_mul_eq_mul_div, div_le_iff₀ p.property]
+        nlinarith [p.property, q.property]
     refine ⟨t, fun i => ?_⟩
     rw [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
     rcases lt_trichotomy (a i) 0 with hi | hi | hi

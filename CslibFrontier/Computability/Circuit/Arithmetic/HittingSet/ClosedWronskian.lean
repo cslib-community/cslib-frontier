@@ -203,7 +203,7 @@ theorem exists_wronskian_eq_C [Module.Finite F V] {r : ℕ} (g : Module.Basis (F
   refine (natDegree_det_le _ (fun m : Fin r => (m : ℕ) * n) fun m j => ?_).trans ?_
   · exact natDegree_coeff_iterate_logDeriv_le (g j : MvPolynomial (Fin n) F) m 0
   · calc ∑ m : Fin r, (m : ℕ) * n ≤ ∑ _m : Fin r, r * n :=
-          sum_le_sum fun m _ => Nat.mul_le_mul_right n m.2.le
+          sum_le_sum fun m _ => Nat.mul_le_mul_right n m.isLt.le
       _ = n * r ^ 2 := by simp; ring
 
 end Cslib.Circuits.Arithmetic

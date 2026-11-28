@@ -99,7 +99,7 @@ theorem CNF.IsExactDistinct.satisfiable_of_exp_mul_le {n k d : ℕ} {φ : CNF (F
       rw [inv_pow, mul_comm (Real.exp 1), mul_assoc, inv_mul_le_iff₀ (by positivity), mul_one]
       exact hlll)
   obtain ⟨σ, hσ⟩ : (⋂ i, (A i)ᶜ).Nonempty :=
-    Set.nonempty_iff_ne_empty.2 fun h => by simp [h] at hpos
+    Set.ne_empty_iff_nonempty.1 fun h => by simp [h] at hpos
   refine ⟨σ, (CNF.eval_eq_true_iff σ φ).2 fun c hc => ?_⟩
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
   simpa [A] using Set.mem_iInter.1 hσ ⟨i, hi⟩

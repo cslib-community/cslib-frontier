@@ -81,7 +81,7 @@ private instance {α : Type} (p : ProbComp α) : Finite (EvalSupport p) :=
   (ProbComp.support_eval p ▸ support_finite_probComp p).to_subtype
 
 private noncomputable def evalSupportPMF {α : Type} (p : ProbComp α) : PMF (EvalSupport p) :=
-  ⟨fun x => p.eval x.1, by
+  ⟨fun x => p.eval x.val, by
     have hind : Set.indicator p.eval.support (fun a => p.eval a) = fun a => p.eval a := by
       funext a
       by_cases ha : a ∈ p.eval.support
@@ -89,7 +89,7 @@ private noncomputable def evalSupportPMF {α : Type} (p : ProbComp α) : PMF (Ev
       · simp only [Set.indicator_of_notMem ha]
         rw [PMF.mem_support_iff, not_not] at ha
         exact ha.symm
-    exact hasSum_subtype_iff_indicator.mpr (hind ▸ p.eval.2)⟩
+    exact hasSum_subtype_iff_indicator.mpr (hind ▸ p.eval.property)⟩
 
 private theorem evalSupportPMF_map_val {α : Type} (p : ProbComp α) :
     (evalSupportPMF p).map Subtype.val = p.eval := by
@@ -104,7 +104,7 @@ private theorem evalSupportPMF_map_val {α : Type} (p : ProbComp α) :
     simp only [evalSupportPMF]
     erw [hzero]
     rw [tsum_eq_zero_iff.mpr]
-    exact fun x => ite_eq_right fun (hval : a = x.1) => ha (hval ▸ x.2)
+    exact fun x => ite_eq_right fun (hval : a = x.val) => ha (hval ▸ x.property)
 
 /-- Variant of `ProbComp.eval_pi` without `[∀ j, Finite (α j)]`: restricts each `p j` to its
 finite support subtype `EvalSupport (p j)` so `Probability.PMF.pi` applies to arbitrary state
@@ -112,7 +112,7 @@ types `α j`. Uses `Probability.PMF.pi_fin_succ_dep` in the step case. -/
 private theorem eval_pi_eq_pi_evalSupportPMF :
     ∀ {m : ℕ} {α : Fin m → Type} (p : (j : Fin m) → ProbComp (α j)),
       ProbComp.eval (OracleComp.pi p) =
-        (Probability.PMF.pi fun j => evalSupportPMF (p j)).map (fun t j => (t j).1)
+        (Probability.PMF.pi fun j => evalSupportPMF (p j)).map (fun t j => (t j).val)
   | 0, α, p => by
     ext r
     have hr : r = fun j => j.elim0 := funext fun j => j.elim0
@@ -157,7 +157,7 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
             (r, (Function.update cur j (some st'), cache))
       | _, _ =>
           (initPMF j).bind fun x₀ =>
-            ((Machine.closeProgram (((M j).handle e).run x₀.1)).eval).map fun (r, st') =>
+            ((Machine.closeProgram (((M j).handle e).run x₀.val)).eval).map fun (r, st') =>
               (r, (Function.update cur j (some st'), Function.update cache j (some x₀)))
   let oracleE : (q : ℕ ⊕ (Fin m × ιE)) →
       StateT StateE PMF (probOracleSpec (sessionSpec m E) q)
@@ -173,7 +173,7 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
     fun q s => (Machine.closeProgram ((parFinLazy M).handler q s)).eval
   let relate : StateL → PMF StateE := fun (cur, cache) =>
     (RandomOracle.complete initPMF cache).map fun table =>
-      (fun j => (cur j).getD (table j).1, table)
+      (fun j => (cur j).getD (table j).val, table)
   have hInv : ∀ q (s : StateL), InvL s →
       ∀ a (s' : StateL), (a, s') ∈ (oracleL q s).support → InvL s' := by
     rintro (k | ⟨j, e⟩) ⟨cur, cache⟩ hs a ⟨cur', cache'⟩ hmem
@@ -226,12 +226,12 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
         simp only [oracleL, oracleE, relate, hcur, hcache, PMF.bind_bind, PMF.bind_map,
           PMF.map_comp, Function.comp_def]
         have hcomm (x₀ : InitSup j) :
-            ((Machine.closeProgram (((M j).handle e).run x₀.1)).eval.bind fun p =>
+            ((Machine.closeProgram (((M j).handle e).run x₀.val)).eval.bind fun p =>
               (RandomOracle.complete initPMF (Function.update cache j (some x₀))).map fun table =>
-                (p.1, (fun i => (Function.update cur j (some p.2) i).getD (table i).1, table))) =
+                (p.1, (fun i => (Function.update cur j (some p.2) i).getD (table i).val, table))) =
             (RandomOracle.complete initPMF (Function.update cache j (some x₀))).bind fun table =>
-              (Machine.closeProgram (((M j).handle e).run x₀.1)).eval.map fun p =>
-                (p.1, (Function.update (fun i => (cur i).getD (table i).1) j p.2, table)) := by
+              (Machine.closeProgram (((M j).handle e).run x₀.val)).eval.map fun p =>
+                (p.1, (Function.update (fun i => (cur i).getD (table i).val) j p.2, table)) := by
           simp_rw [← PMF.bind_pure_comp]
           rw [PMF.bind_comm]
           refine congrArg _ (funext fun table => congrArg _ (funext fun ⟨r, st'⟩ => ?_))
@@ -243,13 +243,13 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
         have hpair :
             ((initPMF j).bind fun x₀ =>
               (RandomOracle.complete initPMF (Function.update cache j (some x₀))).bind fun table =>
-                (Machine.closeProgram (((M j).handle e).run x₀.1)).eval.map fun p =>
-                  (p.1, (Function.update (fun i => (cur i).getD (table i).1) j p.2, table))) =
+                (Machine.closeProgram (((M j).handle e).run x₀.val)).eval.map fun p =>
+                  (p.1, (Function.update (fun i => (cur i).getD (table i).val) j p.2, table))) =
             ((initPMF j).bind fun x₀ =>
               (RandomOracle.complete initPMF (Function.update cache j (some x₀))).map
                 (x₀, ·)).bind fun p =>
-              (Machine.closeProgram (((M j).handle e).run p.1.1)).eval.map fun q =>
-                (q.1, (Function.update (fun i => (cur i).getD (p.2 i).1) j q.2, p.2)) := by
+              (Machine.closeProgram (((M j).handle e).run p.1.val)).eval.map fun q =>
+                (q.1, (Function.update (fun i => (cur i).getD (p.2 i).val) j q.2, p.2)) := by
           simp only [PMF.bind_bind]
           refine congrArg (initPMF j).bind (funext fun x₀ => ?_)
           erw [PMF.bind_map]
@@ -271,7 +271,7 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
           (fun x => (x.1, x.2.2))).bind (fun (result, cache') =>
             (RandomOracle.complete initPMF cache').map (result, ·)) =
         (RandomOracle.complete initPMF (fun _ => none)).bind fun table =>
-          (((OracleComp.interpret oracleEClean program).run (fun j => (table j).1)).map
+          (((OracleComp.interpret oracleEClean program).run (fun j => (table j).val)).map
             Prod.fst).map (·, table) := by
     have hproj := congrArg (PMF.map fun x : α × StateE => (x.1, x.2.2)) hSim
     simp only [PMF.map_bind, PMF.map_comp, Function.comp_def] at hproj
@@ -325,7 +325,7 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
     rw [← hL, hproj]
     simp only [relate, PMF.bind_map, Function.comp_def]
     refine congrArg _ (funext fun table => ?_)
-    exact hEclean table (fun j => (table j).1)
+    exact hEclean table (fun j => (table j).val)
   have hPi := RandomOracle.pi_bind_eq_map_fst_of_complete_eq initPMF hComplete
   have hLazyClean :
       (((OracleComp.interpret oracleL program).run (fun _ => none, fun _ => none)).map
@@ -360,7 +360,8 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
     simpa [PMF.map_comp, Function.comp_def] using hfst
   have hParFin : ((parFin M).run program).eval =
       (Probability.PMF.pi initPMF).bind fun table =>
-        ((OracleComp.interpret oracleEClean program).run (fun j => (table j).1)).map Prod.fst := by
+        ((OracleComp.interpret oracleEClean program).run
+          (fun j => (table j).val)).map Prod.fst := by
     rw [eval_run (parFin M) program]
     change (ProbComp.eval (OracleComp.pi fun j => (M j).init)).bind _ = _
     rw [eval_pi_eq_pi_evalSupportPMF]

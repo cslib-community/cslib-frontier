@@ -479,7 +479,7 @@ private lemma cut_ratio_lt {k : ℕ} (hk : 1 ≤ k) :
       calc (n ^ 2 / (n ^ 2 - 1)) ^ m ≤ Real.exp (1 / (n ^ 2 - 1)) ^ m :=
             pow_le_pow_left₀ (div_nonneg (by positivity) hnn.le) hbase m
         _ = Real.exp (1 / (n + 1)) := by
-            rw [← Real.exp_nat_mul, show (m : ℝ) = n - 1 by rw [hn_def]; ring]
+            rw [← Real.exp_natCast_mul, show (m : ℝ) = n - 1 by rw [hn_def]; ring]
             congr 1
             field_simp
             ring
@@ -490,7 +490,7 @@ private lemma cut_ratio_lt {k : ℕ} (hk : 1 ≤ k) :
         _ < _ := Real.add_one_lt_exp (div_neg_of_neg_of_pos (by norm_num) (by positivity)).ne
     calc (n / (n + 1)) ^ 2 < Real.exp (-1 / (n + 1)) ^ 2 :=
           pow_lt_pow_left₀ hlt (by positivity) two_ne_zero
-      _ = Real.exp (-2 / (n + 1)) := by rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+      _ = Real.exp (-2 / (n + 1)) := by rw [← Real.exp_natCast_mul]; congr 1; push_cast; ring
   calc (n ^ 2 / (n ^ 2 - 1)) ^ m * (n / (n + 1)) ^ 2
       < Real.exp (1 / (n + 1)) * Real.exp (-2 / (n + 1)) :=
         mul_lt_mul' h1 h2 (by positivity) (Real.exp_pos _)
@@ -519,7 +519,7 @@ theorem volume_ellipsoid_centralCut_lt (hA : A.PosDef) (ha : a ≠ 0) (c : ι �
       (sub_nonneg.2 (one_le_pow₀ (Nat.one_le_cast.2 hk)))) _) (by positivity)
   rw [Real.sqrt_mul hρ0]
   refine mul_lt_mul_of_pos_right ?_ (Real.sqrt_pos.mpr hdet)
-  rw [Real.sqrt_lt' (Real.exp_pos _), ← Real.exp_nat_mul]
+  rw [Real.sqrt_lt' (Real.exp_pos _), ← Real.exp_natCast_mul]
   convert hρlt using 2
   push_cast
   field_simp

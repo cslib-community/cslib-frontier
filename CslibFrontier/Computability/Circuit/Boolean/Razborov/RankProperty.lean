@@ -109,11 +109,11 @@ monomial of `(I ∪ J)ᶜ`. Over `ZMod 2` it is the sum of `h` over the points v
 (`zeroSumMatrix_apply`). -/
 noncomputable def zeroSumMatrix (a : ℕ) (h : (ι → Bool) → ZMod 2) :
     Matrix {I : Finset ι // #I = a} {I : Finset ι // #I = a} (ZMod 2) :=
-  Matrix.of fun I J => subsetMobius (fun T => h fun i => decide (i ∈ T)) (I.1 ∪ J.1)ᶜ
+  Matrix.of fun I J => subsetMobius (fun T => h fun i => decide (i ∈ T)) (I.val ∪ J.val)ᶜ
 
 /-- The entry of the zero-sum matrix at `(I, J)` is the subset Möbius transform at `(I ∪ J)ᶜ`. -/
 theorem zeroSumMatrix_apply_eq_subsetMobius (a : ℕ) (h : (ι → Bool) → ZMod 2) (I J) :
-    zeroSumMatrix a h I J = subsetMobius (fun T => h fun i => decide (i ∈ T)) (I.1 ∪ J.1)ᶜ := by
+    zeroSumMatrix a h I J = subsetMobius (fun T => h fun i => decide (i ∈ T)) (I.val ∪ J.val)ᶜ := by
   rfl
 
 /-- Over `ZMod 2`, the subset Möbius transform at `S` is the sum over the points vanishing off
@@ -140,7 +140,7 @@ private theorem subsetMobius_eq_sum (h : (ι → Bool) → ZMod 2) (S : Finset �
 /-- **The entries of the zero-sum matrix** over `ZMod 2`: the entry at `(I, J)` is the sum of `h`
 over the points vanishing on `I ∪ J`. -/
 theorem zeroSumMatrix_apply (a : ℕ) (h : (ι → Bool) → ZMod 2) (I J) :
-    zeroSumMatrix a h I J = ∑ x with ∀ i ∈ I.1 ∪ J.1, x i = false, h x := by
+    zeroSumMatrix a h I J = ∑ x with ∀ i ∈ I.val ∪ J.val, x i = false, h x := by
   rw [zeroSumMatrix_apply_eq_subsetMobius, subsetMobius_eq_sum]
   simp only [mem_compl, not_not]
 
@@ -165,7 +165,8 @@ theorem zeroSumMatrix_eq_zero_of_mem_lowDegree {a D : ℕ} {h : (ι → Bool) �
   ext I J
   rw [zeroSumMatrix_apply_eq_subsetMobius, Matrix.zero_apply]
   refine subsetMobius_eq_zero_of_mem_lowDegree hh ?_
-  have hIJ : #(I.1 ∪ J.1) ≤ 2 * a := (card_union_le _ _).trans (by rw [I.2, J.2, two_mul])
+  have hIJ : #(I.val ∪ J.val) ≤ 2 * a :=
+    (card_union_le _ _).trans (by rw [I.property, J.property, two_mul])
   rw [card_compl]
   omega
 
@@ -175,18 +176,18 @@ with `#E` rows, so its rank is at most `#E`. -/
 theorem rank_zeroSumMatrix_le_card {a : ℕ} {h : (ι → Bool) → ZMod 2} {E : Finset (ι → Bool)}
     (hE : ∀ x ∉ E, h x = 0) : (zeroSumMatrix a h).rank ≤ #E := by
   let U : Matrix {I : Finset ι // #I = a} E (ZMod 2) :=
-    Matrix.of fun I x => if ∀ i ∈ I.1, x.1 i = false then 1 else 0
+    Matrix.of fun I x => if ∀ i ∈ I.val, x.val i = false then 1 else 0
   let V : Matrix E {I : Finset ι // #I = a} (ZMod 2) :=
-    Matrix.of fun x J => if ∀ i ∈ J.1, x.1 i = false then h x.1 else 0
+    Matrix.of fun x J => if ∀ i ∈ J.val, x.val i = false then h x.val else 0
   have hUV : zeroSumMatrix a h = U * V := by
     ext I J
     have hterm : ∀ x : E, U I x * V x J =
-        if ∀ i ∈ I.1 ∪ J.1, x.1 i = false then h x.1 else 0 := by
+        if ∀ i ∈ I.val ∪ J.val, x.val i = false then h x.val else 0 := by
       intro x
       simp only [U, V, Matrix.of_apply, forall_mem_union]
       split_ifs <;> simp_all
     rw [zeroSumMatrix_apply, Matrix.mul_apply, sum_filter, Fintype.sum_congr _ _ hterm,
-      sum_coe_sort E fun x => if ∀ i ∈ I.1 ∪ J.1, x i = false then h x else 0]
+      sum_coe_sort E fun x => if ∀ i ∈ I.val ∪ J.val, x i = false then h x else 0]
     exact (sum_subset (subset_univ E) fun x _ hx => by rw [hE x hx, ite_self]).symm
   rw [hUV]
   exact (Matrix.rank_mul_le_left U V).trans ((Matrix.rank_le_card_width U).trans_eq
@@ -212,35 +213,37 @@ theorem zeroSumMatrix_exactWeight (a : ℕ) :
   ext I J
   rw [zeroSumMatrix_apply]
   -- the points vanishing on `I ∪ J` with exactly `a` zeros
-  have key : ∀ x : ι → Bool, ((∀ i ∈ I.1 ∪ J.1, x i = false) ∧
-      weight x = Fintype.card ι - a) ↔ I = J ∧ x = fun i => decide (i ∉ I.1) := by
+  have key : ∀ x : ι → Bool, ((∀ i ∈ I.val ∪ J.val, x i = false) ∧
+      weight x = Fintype.card ι - a) ↔ I = J ∧ x = fun i => decide (i ∉ I.val) := by
     intro x
     constructor
     · rintro ⟨hx, hw⟩
       set S := univ.filter fun i => x i = false
       have hSw : #S = Fintype.card ι - weight x := card_filter_eq_false_eq_card_sub_weight x
       have hwle : weight x ≤ Fintype.card ι := weight_le x
-      have haI : a ≤ Fintype.card ι := I.2 ▸ card_le_univ I.1
+      have haI : a ≤ Fintype.card ι := I.property ▸ card_le_univ I.val
       have hS : #S = a := by omega
-      have hI : I.1 = S := eq_of_subset_of_card_le
-        (fun i hi => mem_filter.mpr ⟨mem_univ i, hx i (mem_union_left _ hi)⟩) (by rw [hS, I.2])
-      have hJ : J.1 = S := eq_of_subset_of_card_le
-        (fun i hi => mem_filter.mpr ⟨mem_univ i, hx i (mem_union_right _ hi)⟩) (by rw [hS, J.2])
+      have hI : I.val = S := eq_of_subset_of_card_le
+        (fun i hi => mem_filter.mpr ⟨mem_univ i, hx i (mem_union_left _ hi)⟩)
+        (by rw [hS, I.property])
+      have hJ : J.val = S := eq_of_subset_of_card_le
+        (fun i hi => mem_filter.mpr ⟨mem_univ i, hx i (mem_union_right _ hi)⟩)
+        (by rw [hS, J.property])
       refine ⟨Subtype.ext (hI.trans hJ.symm), funext fun i => ?_⟩
       rw [hI]
       cases hxi : x i <;> simp [S, hxi]
     · rintro ⟨rfl, rfl⟩
       refine ⟨fun i hi => by simpa using hi, ?_⟩
-      have hfalse : (univ.filter fun i => decide (i ∉ I.1) = false) = I.1 := by
+      have hfalse : (univ.filter fun i => decide (i ∉ I.val) = false) = I.val := by
         ext
         simp
-      have h1 := card_filter_eq_false_eq_card_sub_weight fun i => decide (i ∉ I.1)
-      have h2 := weight_le fun i => decide (i ∉ I.1)
-      rw [hfalse, I.2] at h1
+      have h1 := card_filter_eq_false_eq_card_sub_weight fun i => decide (i ∉ I.val)
+      have h2 := weight_le fun i => decide (i ∉ I.val)
+      rw [hfalse, I.property] at h1
       omega
   rcases eq_or_ne I J with rfl | hIJ
   · rw [Matrix.one_apply_eq]
-    refine (sum_eq_single_of_mem (fun i => decide (i ∉ I.1))
+    refine (sum_eq_single_of_mem (fun i => decide (i ∉ I.val))
       (mem_filter.mpr ⟨mem_univ _, ((key _).mpr ⟨rfl, rfl⟩).1⟩) fun x hx hne => ?_).trans ?_
     · rw [show exactWeight (Fintype.card ι - a) x = false from decide_eq_false
         (fun hw => hne ((key x).mp ⟨(mem_filter.mp hx).2, hw⟩).2), bitVal_false]

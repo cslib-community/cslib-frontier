@@ -220,7 +220,7 @@ theorem SIZE_sub_ssubset_of_isLittleO {T T' : ℕ → ℕ} (hT : ∀ n, n < T n)
     have hT55 : (55 : ℝ) ≤ T n := mod_cast hn55.trans (hT n).le
     have hlog4 : 4 ≤ Real.log (T n) := by
       rw [Real.le_log_iff_exp_le (by linarith), show (4 : ℝ) = (4 : ℕ) * 1 by norm_num,
-        Real.exp_nat_mul]
+        Real.exp_natCast_mul]
       have : Real.exp 1 ^ 4 < 2.7182818286 ^ 4 :=
         pow_lt_pow_left₀ Real.exp_one_lt_d9 (Real.exp_pos 1).le (by decide)
       linarith [show (2.7182818286 : ℝ) ^ 4 < 55 by norm_num]

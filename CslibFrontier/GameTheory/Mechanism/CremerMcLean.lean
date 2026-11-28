@@ -139,11 +139,11 @@ abbrev OppProfile {ι : Type*} (T : ι → Type*) (i : ι) : Type _ :=
 
 /-- Project a full type profile `t` onto the opponents `j ≠ i` of agent `i`. -/
 def oppProj {ι : Type*} {T : ι → Type*} (i : ι) (t : ∀ j, T j) : OppProfile T i :=
-  fun j => t j.1
+  fun j => t j.val
 
 @[simp]
 theorem oppProj_apply {ι : Type*} {T : ι → Type*} (i : ι) (t : ∀ j, T j)
-    (j : {j : ι // j ≠ i}) : oppProj i t j = t j.1 := by
+    (j : {j : ι // j ≠ i}) : oppProj i t j = t j.val := by
   rfl
 
 /-- Updating agent `i`'s own coordinate leaves `oppProj i` unchanged. -/
@@ -151,7 +151,7 @@ theorem oppProj_apply {ι : Type*} {T : ι → Type*} (i : ι) (t : ∀ j, T j)
 theorem oppProj_update {ι : Type*} {T : ι → Type*} [DecidableEq ι] (i : ι) (t : ∀ j, T j)
     (ti' : T i) : oppProj i (Function.update t i ti') = oppProj i t := by
   funext j
-  simp only [oppProj_apply, Function.update_of_ne j.2]
+  simp only [oppProj_apply, Function.update_of_ne j.property]
 
 /-- Combine agent `i`'s type `ti` with an opponent profile `t_opp : OppProfile T i` into a full
 type profile `∀ j, T j`. -/
@@ -173,7 +173,7 @@ theorem extendProfile_of_ne {ι : Type*} {T : ι → Type*} [DecidableEq ι] {i 
 theorem oppProj_extendProfile {ι : Type*} {T : ι → Type*} [DecidableEq ι] (i : ι) (ti : T i)
     (t_opp : OppProfile T i) : oppProj i (extendProfile i ti t_opp) = t_opp := by
   funext j
-  exact extendProfile_of_ne j.2 ti t_opp
+  exact extendProfile_of_ne j.property ti t_opp
 
 @[simp]
 theorem extendProfile_oppProj {ι : Type*} {T : ι → Type*} [DecidableEq ι] (i : ι)
@@ -758,7 +758,7 @@ theorem condBelief_mem_convexHull_iff (P : CorrelatedPrior ι T) (i : ι) [Decid
         convexHull ℝ ((fun ti' => P.condBelief i ti') '' {ti' : T i | ti' ≠ ti}) ↔
       ∃ w : {ti' : T i // ti' ≠ ti} → ℝ,
         IsMixedStrategy w ∧
-        ∑ ti' : {ti' : T i // ti' ≠ ti}, w ti' • P.condBelief i ti'.1 = P.condBelief i ti := by
+        ∑ ti' : {ti' : T i // ti' ≠ ti}, w ti' • P.condBelief i ti'.val = P.condBelief i ti := by
   classical
   constructor
   · intro hmem
@@ -772,20 +772,20 @@ theorem condBelief_mem_convexHull_iff (P : CorrelatedPrior ι T) (i : ι) [Decid
       rw [sum_fiberwise_of_maps_to (fun _ _ => mem_univ _), hw'1]
     · simp only [w]
       calc ∑ ti' : {ti' : T i // ti' ≠ ti},
-            (∑ k ∈ univ.filter (fun k => idx k = ti'), w' k) • P.condBelief i ti'.1
+            (∑ k ∈ univ.filter (fun k => idx k = ti'), w' k) • P.condBelief i ti'.val
           = ∑ ti' : {ti' : T i // ti' ≠ ti},
               ∑ k ∈ univ.filter (fun k => idx k = ti'), w' k • z k := by
               refine sum_congr rfl fun ti' _ => ?_
               rw [sum_smul]
               refine sum_congr rfl fun k hk => ?_
-              have hk' : ti'.1 = τ k := congrArg Subtype.val (mem_filter.1 hk).2.symm
+              have hk' : ti'.val = τ k := congrArg Subtype.val (mem_filter.1 hk).2.symm
               exact congrArg (w' k • ·)
                 ((congrArg (fun x => P.condBelief i x) hk').trans (hτ_eq k))
         _ = ∑ k : κ, w' k • z k := sum_fiberwise_of_maps_to (fun _ _ => mem_univ _) _
         _ = P.condBelief i ti := hsum
   · rintro ⟨w, hw, hsum⟩
-    exact mem_convexHull_of_exists_fintype w (fun ti' => P.condBelief i ti'.1)
-      hw.nonneg hw.sum_eq_one (fun ti' => ⟨ti'.1, ti'.2, rfl⟩) hsum
+    exact mem_convexHull_of_exists_fintype w (fun ti' => P.condBelief i ti'.val)
+      hw.nonneg hw.sum_eq_one (fun ti' => ⟨ti'.val, ti'.property, rfl⟩) hsum
 
 /-- **Farkas separating-lottery characterization** ([CremerMcLean1988]): type `ti`'s conditional
 belief lies outside the convex hull of `{P.condBelief i ti' | ti' ≠ ti}` if and only if there is a
@@ -801,12 +801,12 @@ theorem condBelief_notMem_convexHull_iff_exists_separating_lottery (P : Correlat
   let _ := Classical.decEq (T i)
   rw [P.condBelief_mem_convexHull_iff i ti]
   let A : Matrix (OppProfile T i) {ti' : T i // ti' ≠ ti} ℝ :=
-    Matrix.of fun t_opp ti' => P.condBelief i ti'.1 t_opp
+    Matrix.of fun t_opp ti' => P.condBelief i ti'.val t_opp
   constructor
   · intro hnot
     have hnoA : ¬ ∃ w : {ti' : T i // ti' ≠ ti} → ℝ, 0 ≤ w ∧ A *ᵥ w = P.condBelief i ti := by
       rintro ⟨w, hw0, hwA⟩
-      have hcomb : ∑ ti' : {ti' : T i // ti' ≠ ti}, w ti' • P.condBelief i ti'.1 =
+      have hcomb : ∑ ti' : {ti' : T i // ti' ≠ ti}, w ti' • P.condBelief i ti'.val =
           P.condBelief i ti := funext fun t_opp => by
         simpa only [A, mulVec, dotProduct, Matrix.of_apply, Finset.sum_apply, Pi.smul_apply,
           smul_eq_mul, mul_comm] using congr_fun hwA t_opp
@@ -828,7 +828,8 @@ theorem condBelief_notMem_convexHull_iff_exists_separating_lottery (P : Correlat
           hyA ⟨ti', hne⟩
       linarith [hyb]
   · rintro ⟨h, h0, hpos⟩ ⟨w, hw, hcomb⟩
-    have hdot_pos := hw.dotProduct_pos fun ti' : {ti' : T i // ti' ≠ ti} => hpos ti'.1 ti'.2
+    have hdot_pos :=
+      hw.dotProduct_pos fun ti' : {ti' : T i // ti' ≠ ti} => hpos ti'.val ti'.property
     have hcomb_dot := congrArg (· ⬝ᵥ h) hcomb
     simp only [dotProduct, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, sum_mul, mul_assoc]
       at hcomb_dot
@@ -947,27 +948,27 @@ theorem le_interimUtility_add_sum_of_convexComb (P : CorrelatedPrior ι T) {Ω :
     {val : ∀ i, T i → Ω → ℝ} {D : IndirectMechanism ι T Ω} (hBIC : P.IsBIC val D)
     {i₀ : ι} [DecidableEq (T i₀)] {ti₀ : T i₀} {w : {ti' : T i₀ // ti' ≠ ti₀} → ℝ}
     (hw : ∀ ti', 0 ≤ w ti')
-    (hcomb : ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' • P.condBelief i₀ ti'.1 =
+    (hcomb : ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' • P.condBelief i₀ ti'.val =
       P.condBelief i₀ ti₀) :
     P.interimUtility val D i₀ ti₀ ti₀ +
         (∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
-          ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
-            (val i₀ ti'.1 (D.outcome (extendProfile i₀ ti₀ t_opp)) -
+          ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.val t_opp *
+            (val i₀ ti'.val (D.outcome (extendProfile i₀ ti₀ t_opp)) -
               val i₀ ti₀ (D.outcome (extendProfile i₀ ti₀ t_opp)))) ≤
-      ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' * P.interimUtility val D i₀ ti'.1 ti'.1 := by
+      ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' * P.interimUtility val D i₀ ti'.val ti'.val := by
   have hcomb_pt (t_opp : OppProfile T i₀) :
-      ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' * P.condBelief i₀ ti'.1 t_opp =
+      ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' * P.condBelief i₀ ti'.val t_opp =
         P.condBelief i₀ ti₀ t_opp := by
     simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using congr_fun hcomb t_opp
   refine le_of_eq_of_le ?_
-    (sum_le_sum fun ti' _ => mul_le_mul_of_nonneg_left (hBIC i₀ ti'.1 ti₀) (hw ti'))
+    (sum_le_sum fun ti' _ => mul_le_mul_of_nonneg_left (hBIC i₀ ti'.val ti₀) (hw ti'))
   simp only [interimUtility_apply]
   have hti₀_expand :
       ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti₀ t_opp *
           (val i₀ ti₀ (D.outcome (extendProfile i₀ ti₀ t_opp)) -
             D.payment (extendProfile i₀ ti₀ t_opp) i₀) =
         ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
-          ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
+          ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.val t_opp *
             (val i₀ ti₀ (D.outcome (extendProfile i₀ ti₀ t_opp)) -
               D.payment (extendProfile i₀ ti₀ t_opp) i₀) := by
     simp_rw [← hcomb_pt, sum_mul]
@@ -1008,14 +1009,14 @@ theorem exists_nonneg_val_not_exists_isBIC_of_not_hasConvexIndependentBeliefs
   simp only [hzero, mul_zero, sum_const_zero, zero_add, hout_of_eff D hEff, hval_i₀,
     ↓reduceIte] at hrent
   have h1 : (∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
-      ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
-        ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)) = 1 :=
+      ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.val t_opp *
+        ((if ti'.val = ti₀ then (1 : ℝ) else 2) - 1)) = 1 :=
     calc ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
-          ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
-            ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)
+          ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.val t_opp *
+            ((if ti'.val = ti₀ then (1 : ℝ) else 2) - 1)
         = ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
-            ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp :=
-          sum_congr rfl fun ti' _ => by rw [ite_eq_right ti'.2]; norm_num
+            ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.val t_opp :=
+          sum_congr rfl fun ti' _ => by rw [ite_eq_right ti'.property]; norm_num
       _ = ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' := by
           simp only [P.sum_condBelief_eq_one, mul_one]
       _ = 1 := hw.sum_eq_one
@@ -1046,17 +1047,17 @@ omit [∀ i, Fintype (T i)] in
 private theorem prod_extendProfile (μ : ∀ i, T i → ℝ) (i : ι) (ti : T i)
     (t_opp : OppProfile T i) :
     (∏ j, μ j (extendProfile i ti t_opp j)) =
-      μ i ti * ∏ j : {j : ι // j ≠ i}, μ j.1 (t_opp j) := by
+      μ i ti * ∏ j : {j : ι // j ≠ i}, μ j.val (t_opp j) := by
   rw [← mul_prod_erase _ _ (mem_univ i), extendProfile_self,
     prod_subtype (p := fun j => j ≠ i) (univ.erase i) fun _ => by simp]
   exact congrArg (μ i ti * ·)
-    (prod_congr rfl fun j _ => congrArg (μ j.1) (extendProfile_of_ne j.2 _ _))
+    (prod_congr rfl fun j _ => congrArg (μ j.val) (extendProfile_of_ne j.property _ _))
 
 private theorem sum_oppProfile_prod {μ : ∀ i, T i → ℝ} (hμ : ∀ i, IsMixedStrategy (μ i))
     (i : ι) (ti : T i) :
     ∑ t_opp : OppProfile T i, (∏ j, μ j (extendProfile i ti t_opp j)) = μ i ti := by
   simp_rw [prod_extendProfile, ← mul_sum,
-    ← Fintype.prod_sum (fun j : {j : ι // j ≠ i} => μ j.1), (hμ _).sum_eq_one, prod_const_one,
+    ← Fintype.prod_sum (fun j : {j : ι // j ≠ i} => μ j.val), (hμ _).sum_eq_one, prod_const_one,
     mul_one]
 
 /-- The independent product prior `∏ i, μ i (t i)` formed from strictly positive individual type
@@ -1090,7 +1091,7 @@ depend on `i`'s own type `ti`. -/
 theorem product_condBelief (μ : ∀ i, T i → ℝ) (hμ : ∀ i, IsMixedStrategy (μ i))
     (hpos : ∀ i (ti : T i), 0 < μ i ti) (i : ι) (ti : T i) (t_opp : OppProfile T i) :
     (product μ hμ hpos).condBelief i ti t_opp =
-      ∏ j : {j : ι // j ≠ i}, μ j.1 (t_opp j) := by
+      ∏ j : {j : ι // j ≠ i}, μ j.val (t_opp j) := by
   rw [condBelief_apply, product_marginal, product_prob, prod_extendProfile,
     mul_div_cancel_left₀ _ (hpos i ti).ne']
 

@@ -291,7 +291,7 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
       dsimp [h]; exact_mod_cast (Nat.zero_lt_of_lt hM_lt_V)
     set thr : ℝ := η * h
     have hthr_pos : 0 < thr := by positivity
-    let aWt (B : cmp.blocks) : ℝ := ((A ∩ {v : V | v ∈ B.1}).ncard : ℝ)
+    let aWt (B : cmp.blocks) : ℝ := ((A ∩ {v : V | v ∈ B.val}).ncard : ℝ)
     have haWt_bounds (B : cmp.blocks) : 0 ≤ aWt B ∧ aWt B ≤ M := by
       refine ⟨Nat.cast_nonneg _, Nat.cast_le.mpr <|
         ((ncard_le_ncard inter_subset_right).trans ?_).trans (cmp.blockWeight_le B)⟩

@@ -67,7 +67,7 @@ section Minors
 
 /-- Every finite matrix `A` over a field contains an injective `A.rank × A.rank` submatrix with
 nonzero determinant. -/
-theorem exists_submatrix_det_ne_zero {m n K : Type*} [Field K] [Finite m] [Fintype n]
+theorem exists_submatrix_det_ne_zero {m n K : Type*} [Field K] [Finite m] [Finite n]
     (A : Matrix m n K) :
     ∃ (r : Fin A.rank → m) (c : Fin A.rank → n),
       Function.Injective r ∧ Function.Injective c ∧ (A.submatrix r c).det ≠ 0 := by
@@ -77,15 +77,15 @@ theorem exists_submatrix_det_ne_zero {m n K : Type*} [Field K] [Finite m] [Finty
   have : Finite κ := Finite.of_injective c hc
   let _ : Fintype κ := Fintype.ofFinite κ
   have hcard_c : Fintype.card κ = A.rank := by
-    rw [rank_eq_finrank_span_cols, ← hspan_c, finrank_span_eq_card hli_c]
+    rw [← finrank_span_range_col, ← hspan_c, finrank_span_eq_card hli_c]
   have hrank_sub : (A.submatrix id c).rank = Fintype.card κ := by
-    rw [rank_eq_finrank_span_cols, show (A.submatrix id c).col = A.col ∘ c from rfl,
+    rw [← finrank_span_range_col, show (A.submatrix id c).col = A.col ∘ c from rfl,
       finrank_span_eq_card hli_c]
   obtain ⟨μ, r, hr, hspan_r, hli_r⟩ := exists_linearIndependent' K (A.submatrix id c).row
   have : Finite μ := Finite.of_injective r hr
   let _ : Fintype μ := Fintype.ofFinite μ
   have hcard_r : Fintype.card μ = Fintype.card κ := by
-    rw [← hrank_sub, rank_eq_finrank_span_row, ← hspan_r, finrank_span_eq_card hli_r]
+    rw [← hrank_sub, ← finrank_span_range_row, ← hspan_r, finrank_span_eq_card hli_r]
   let ec : Fin A.rank ≃ κ := (Fintype.equivFinOfCardEq hcard_c).symm
   let er : Fin A.rank ≃ μ := (Fintype.equivFinOfCardEq (hcard_r.trans hcard_c)).symm
   refine ⟨r ∘ er, c ∘ ec, hr.comp er.injective, hc.comp ec.injective,
@@ -133,7 +133,7 @@ section KroneckerRank
 /-- **Multiplicativity of rank under Kronecker product** over a field:
 `(A ⊗ₖ B).rank = A.rank * B.rank`. -/
 @[simp]
-theorem rank_kronecker {l m n p K : Type*} [Field K] [Finite l] [Fintype m] [Finite n] [Fintype p]
+theorem rank_kronecker {l m n p K : Type*} [Field K] [Finite l] [Finite m] [Finite n] [Finite p]
     (A : Matrix l m K) (B : Matrix n p K) :
     (A ⊗ₖ B).rank = A.rank * B.rank := by
   refine le_antisymm (rank_kronecker_le A B) ?_
@@ -286,7 +286,7 @@ theorem prod_vec_ne_zero_iff {m R : Type*} [CommMonoidWithZero R] [NoZeroDivisor
 
 /-- **Rank of a Kronecker power** over a field: `(kroneckerPow A k).rank = A.rank ^ k`. -/
 @[simp]
-theorem rank_kroneckerPow {m n K : Type*} [Field K] [Finite m] [Fintype n]
+theorem rank_kroneckerPow {m n K : Type*} [Field K] [Finite m] [Finite n]
     (A : Matrix m n K) (k : ℕ) :
     (kroneckerPow A k).rank = A.rank ^ k := by
   cases nonempty_fintype m

@@ -316,7 +316,7 @@ private theorem uniformOfFintype_map_eq_of_shift {Ω ι L : Type} [Fintype Ω] [
   rw [hf, ← PMF.map_comp, Cslib.Probability.PMF.uniformOfFintype_map_of_shift]
   intro c
   obtain ⟨e, he⟩ := hshift (fun i => if h : U i then c ⟨i, h⟩ else 0)
-  exact ⟨e, fun ω => funext fun i => by simp [he _ _ i.2, i.2]⟩
+  exact ⟨e, fun ω => funext fun i => by simp [he _ _ i.property, i.property]⟩
 
 variable [Fintype K] [Nonempty K]
 

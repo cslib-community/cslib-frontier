@@ -545,7 +545,7 @@ theorem sum_two_pow_card_eq_subsetPairCount (n q : ℕ) :
 
 private theorem sum_validSubsetPair {M : Type*} [AddCommMonoid M] (n q : ℕ)
     (f : Finset (Fin n) → Finset (Fin n) → M) :
-    (∑ p : ValidSubsetPair n q, f p.1.1 p.1.2) =
+    (∑ p : ValidSubsetPair n q, f p.val.1 p.val.2) =
       ∑ E ∈ (Finset.univ : Finset (Fin n)).powerset.filter (fun E => E.card ≤ q),
         ∑ U ∈ E.powerset, f E U := by
   classical
@@ -562,7 +562,7 @@ private theorem sum_validSubsetPair {M : Type*} [AddCommMonoid M] (n q : ℕ)
       obtain ⟨_, _, rfl⟩ := Finset.mem_image.mp hp₁
       obtain ⟨_, _, hp₂_eq⟩ := Finset.mem_image.mp hp₂; exact hne (Prod.mk.inj hp₂_eq).1.symm
   rw [hbiUnion]
-  exact Finset.sum_bij (fun (p : ValidSubsetPair n q) _ => p.1)
+  exact Finset.sum_bij (fun (p : ValidSubsetPair n q) _ => p.val)
     (fun ⟨⟨E, U⟩, hE, hU⟩ _ => by simp [validSet, hE, hU]) (fun _ _ _ _ h => Subtype.ext h)
     (fun ⟨E, U⟩ hp => ⟨⟨(E, U), by simpa [validSet] using hp⟩, Finset.mem_univ _, rfl⟩)
     (fun _ _ => rfl)
@@ -999,7 +999,7 @@ theorem run_add_eq_sum_validSubsetPairs {M : Type} [AddCommMonoid M]
   rw [← List.foldl_map, ← List.sum_eq_foldl, ← List.sum_toFinset _ List.nodup_range,
     List.toFinset_range, ← Fin.sum_univ_eq_sum_range]
   let φ : ValidSubsetPair n q → M :=
-    fun v => f v.1.1 v.1.2 (decide (Odd (v.1.1.card - v.1.2.card)))
+    fun v => f v.val.1 v.val.2 (decide (Odd (v.val.1.card - v.val.2.card)))
   have hcongr : (∑ j : Fin (subsetPairCount n q),
       f (supportOfList n (unrankSubsetPair n q j.val).indE)
         (supportOfList n (unrankSubsetPair n q j.val).indU)

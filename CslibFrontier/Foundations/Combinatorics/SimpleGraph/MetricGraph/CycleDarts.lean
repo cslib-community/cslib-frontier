@@ -159,7 +159,7 @@ theorem circleMap_eq_edgePoint_of_eventually (hc : c.IsCycle) {d : W.graph.Dart}
   have hEq : Set.EqOn F G (Set.Icc 0 1) := by
     rw [← closure_Ioo zero_ne_one]
     exact Set.EqOn.closure (fun x hx => (hsub hx).2.self_of_nhds) hF hG
-  exact (hEq t.2).trans (by simp only [G, Set.projIcc_val])
+  exact (hEq t.property).trans (by simp only [G, Set.projIcc_val])
 
 /-- The dart case of `circleMap_local_dichotomy` extends to the whole dart: if `circleMap hc` runs
 along `d` near the interior parameter `t₀` at `s`, then
@@ -408,11 +408,11 @@ theorem IsShortestCycle.dist_circleMap_lt_dist_edgePoint [Finite V] {v₀ : V}
   · refine check_end (Walk.fst_mem_support_of_mem_edges c hd_b_edges) _ ?_ (h ▸ hsnd_le)
     rw [hcb, ← edgePoint_zero]
     exact (dist_edgePoint_self_le d_b t_b 0).trans_eq
-      (by rw [Set.Icc.coe_zero, sub_zero, abs_of_nonneg t_b.2.1, mul_comm])
+      (by rw [Set.Icc.coe_zero, sub_zero, abs_of_nonneg t_b.property.1, mul_comm])
   · refine check_end (Walk.snd_mem_support_of_mem_edges c hd_b_edges) _ ?_ (h ▸ hsnd_le)
     rw [hcb, ← edgePoint_one]
     refine (dist_edgePoint_self_le d_b t_b 1).trans_eq ?_
-    rw [Set.Icc.coe_one, abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr t_b.2.2), mul_comm]
+    rw [Set.Icc.coe_one, abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr t_b.property.2), mul_comm]
 
 end ShortestCycle
 

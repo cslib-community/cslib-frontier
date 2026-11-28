@@ -633,7 +633,7 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
   have hq_pos : 0 < q := Real.exp_pos _
   have hq_lt1 : q < 1 := Real.exp_lt_one_iff.2 (div_neg_of_neg_of_pos neg_one_lt_zero hK_pos)
   have hqK : q ^ K = Real.exp (-1) := by
-    rw [← Real.exp_nat_mul]
+    rw [← Real.exp_natCast_mul]
     exact congrArg Real.exp (by field_simp)
   have h1q_le : 1 - q ≤ 1 / (K : ℝ) := by
     dsimp only [q]

@@ -111,8 +111,9 @@ theorem coversVertices_maximumMatching (G : Graph) :
   simp only [coversVertices, List.all_eq_true, mem_distinctVertices, List.any_eq_true,
     maximumMatching, edgesAtPositions, List.mem_map]
   refine ⟨fun h v => ?_, fun h v hv => ?_⟩
-  · obtain ⟨_, ⟨i, hi, rfl⟩, hinc⟩ := h v.val v.2
-    exact (mem_verts_matchingOfPositions_iff hlt v.val v.2).mpr ⟨i, List.mem_toFinset.mpr hi, hinc⟩
+  · obtain ⟨_, ⟨i, hi, rfl⟩, hinc⟩ := h v.val v.property
+    exact (mem_verts_matchingOfPositions_iff hlt v.val v.property).mpr
+      ⟨i, List.mem_toFinset.mpr hi, hinc⟩
   · obtain ⟨i, hi, hinc⟩ := (mem_verts_matchingOfPositions_iff hlt v hv).mp (h ⟨v, hv⟩)
     exact ⟨_, ⟨i, List.mem_toFinset.mp hi, rfl⟩, hinc⟩
 

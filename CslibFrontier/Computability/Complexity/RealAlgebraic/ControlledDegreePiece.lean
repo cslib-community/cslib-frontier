@@ -129,34 +129,39 @@ noncomputable def degreePiece (C : Controlled P enc a) (E : Decoder enc)
     Controlled (fun w => degreePiecePolynomial (P w) (N w) (k w)) enc (a + 2) :=
   (degreePieceWithCutoff C E hn N k hN hk).val
 
+private theorem cutoff_degreePiece_le (C : Controlled P enc a) (E : Decoder enc)
+    (hn : ComputableInPolyTime n enc encUnary) (N k : α → ℕ)
+    (hN : ComputableInPolyTime N enc encNat) (hk : ComputableInPolyTime k enc encNat) (w : α) :
+    (degreePiece C E hn N k hN hk).cutoff w ≤
+      max (C.cutoff w) (max (C.degreeBound w) (max (N w) (k w))) + 1 :=
+  (degreePieceWithCutoff C E hn N k hN hk).property w
+
 /-- A degree choice bounded by the source degree bound uses common degree, coefficient
 norm and prime budgets, independently of the choice. The evaluator is the degree-piece evaluator. -/
 noncomputable def boundedDegreePiece (C : Controlled P enc a) (E : Decoder enc)
     (hn : ComputableInPolyTime n enc encUnary) (k : α → ℕ)
     (hk : ComputableInPolyTime k enc encNat) (hchoice : ∀ w, k w ≤ C.degreeBound w) :
-    Controlled (fun w => degreePiecePolynomial (P w) (C.degreeBound w) (k w)) enc (a + 2) :=
-  let L := degreePieceWithCutoff C E hn C.degreeBound k C.degree_computable hk
-  { arity_computable := unary_add' hn (.const 1)
-    degreeBound := fun w => 2 * (C.degreeBound w + 1)
-    degree_computable := binary_mul' (.const 2) (binary_add' C.degree_computable (.const 1))
-    degree_le := fun w => (totalDegree_degreePiecePolynomial_le _ _ _).trans
-      (Nat.mul_le_mul_left 2 (Nat.add_le_add_right (C.degree_le w) 1))
-    massExponent := fun w => degreePieceMassExponent (C.degreeBound w) (C.massExponent w)
-    mass_computable := by
-      unfold degreePieceMassExponent
-      exact binary_add' (unary_to_binary.comp (binary_size.comp
-        (binary_add' C.degree_computable (.const 2))))
-        (binary_mul' (.const 2) (binary_add' C.mass_computable (.const 1)))
-    mass_le := fun w => coeffNorm1_degreePiecePolynomial_le _ _ _ _ (C.mass_le w)
-    cutoff := fun w => max (C.cutoff w) (C.degreeBound w) + 1
-    cutoff_computable :=
-      binary_add' (binary_max' C.cutoff_computable C.degree_computable) (.const 1)
-    evaluate := L.val.evaluate
-    evaluate_mem := L.val.evaluate_mem
-    evaluate_eq := fun w p z hp hcut => by
-      have h := L.property w
-      rw [max_eq_left (hchoice w), max_self] at h
-      exact L.val.evaluate_eq w p z hp (h.trans_lt hcut) }
+    Controlled (fun w => degreePiecePolynomial (P w) (C.degreeBound w) (k w)) enc (a + 2) where
+  arity_computable := unary_add' hn (.const 1)
+  degreeBound := fun w => 2 * (C.degreeBound w + 1)
+  degree_computable := binary_mul' (.const 2) (binary_add' C.degree_computable (.const 1))
+  degree_le := fun w => (totalDegree_degreePiecePolynomial_le _ _ _).trans
+    (Nat.mul_le_mul_left 2 (Nat.add_le_add_right (C.degree_le w) 1))
+  massExponent := fun w => degreePieceMassExponent (C.degreeBound w) (C.massExponent w)
+  mass_computable := binary_add' (unary_to_binary.comp (binary_size.comp
+    (binary_add' C.degree_computable (.const 2))))
+    (binary_mul' (.const 2) (binary_add' C.mass_computable (.const 1)))
+  mass_le := fun w => coeffNorm1_degreePiecePolynomial_le _ _ _ _ (C.mass_le w)
+  cutoff := fun w => max (C.cutoff w) (C.degreeBound w) + 1
+  cutoff_computable :=
+    binary_add' (binary_max' C.cutoff_computable C.degree_computable) (.const 1)
+  evaluate := (C.degreePiece E hn C.degreeBound k C.degree_computable hk).evaluate
+  evaluate_mem := (C.degreePiece E hn C.degreeBound k C.degree_computable hk).evaluate_mem
+  evaluate_eq := fun w p z hp hcut => by
+    have h := cutoff_degreePiece_le C E hn C.degreeBound k C.degree_computable hk w
+    rw [max_eq_left (hchoice w), max_self] at h
+    exact (C.degreePiece E hn C.degreeBound k C.degree_computable hk).evaluate_eq w p z hp
+      (h.trans_lt hcut)
 
 section BoundedDegreePiece
 

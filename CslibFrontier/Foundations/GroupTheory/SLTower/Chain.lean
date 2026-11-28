@@ -80,26 +80,27 @@ theorem exists_chain (h n : ℕ) [NeZero h] : ∃ Γ : ℕ → Subgroup (G h n),
   have h0 : Nat.card (⊥ : Subgroup (Ker h n)) = 2 ^ (ee h * min 0 (JJ h n)) := by simp
   have step' : ∀ j, ∀ H : {H : Subgroup (Ker h n) // Nat.card H = 2 ^ (ee h * min j (JJ h n))},
       ∃ H' : {H : Subgroup (Ker h n) // Nat.card H = 2 ^ (ee h * min (j + 1) (JJ h n))},
-          H.1 ≤ H'.1 := by
+          H.val ≤ H'.val := by
     intro j H
     by_cases hj : j < JJ h n
-    · obtain ⟨H', h1, h2⟩ := step j H.1 (by rw [H.2, min_eq_left hj.le]) hj
+    · obtain ⟨H', h1, h2⟩ := step j H.val (by rw [H.property, min_eq_left hj.le]) hj
       exact ⟨⟨H', by rw [h1, min_eq_left (Nat.succ_le_of_lt hj)]⟩, h2⟩
-    · refine ⟨⟨H.1, ?_⟩, le_rfl⟩
-      rw [H.2, min_eq_right (not_lt.1 hj), min_eq_right ((not_lt.1 hj).trans (Nat.le_succ j))]
+    · refine ⟨⟨H.val, ?_⟩, le_rfl⟩
+      rw [H.property, min_eq_right (not_lt.1 hj),
+          min_eq_right ((not_lt.1 hj).trans (Nat.le_succ j))]
   choose nxt hnxt using step'
   let f : (j : ℕ) → {H : Subgroup (Ker h n) // Nat.card H = 2 ^ (ee h * min j (JJ h n))} := fun j =>
     Nat.rec ⟨⊥, h0⟩ nxt j
-  have hf : ∀ j, (f j).1 ≤ (f (j + 1)).1 := fun j => hnxt j (f j)
-  refine ⟨fun j => (f j).1.map (Ker h n).subtype, ?_, ?_, ?_, ?_⟩
+  have hf : ∀ j, (f j).val ≤ (f (j + 1)).val := fun j => hnxt j (f j)
+  refine ⟨fun j => (f j).val.map (Ker h n).subtype, ?_, ?_, ?_, ?_⟩
   · exact Subgroup.map_bot _
   · exact fun j => Subgroup.map_mono (hf j)
   · intro j g hg
     obtain ⟨k, -, rfl⟩ := hg
-    exact k.2
+    exact k.property
   · intro j hj
-    rw [Nat.card_congr ((f j).1.equivMapOfInjective _ (Subgroup.subtype_injective _)).toEquiv.symm,
-        (f j).2,
-      min_eq_left hj, pow_mul]
+    rw [Nat.card_congr
+        ((f j).val.equivMapOfInjective _ (Subgroup.subtype_injective _)).toEquiv.symm,
+      (f j).property, min_eq_left hj, pow_mul]
 
 end Cslib.SLTower

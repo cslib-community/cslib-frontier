@@ -76,7 +76,7 @@ private theorem ofProd_views_congr {ℓ : ℕ} {S : Finset (Fin k)}
     assemble_congr (fun e he => by rw [h ⟨e, false⟩ (show e.low ∈ S from he ▸ hi)])
       (fun e he => by rw [h ⟨e, true⟩ (show e.high ∈ S from he ▸ hi)])
   funext i
-  exact Subtype.ext (Prod.ext rfl (key i i.2))
+  exact Subtype.ext (Prod.ext rfl (key i i.property))
 
 /-- **A small circuit routes the network tensor through two hubs** ([AnthropicVPVNP2026], proof of
 Proposition E.5, p. 34, by Lemmas E.4 and A.3). Let `P` be a polynomial over a commutative

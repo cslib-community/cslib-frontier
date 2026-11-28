@@ -129,16 +129,16 @@ theorem exists_index_lt_of_determined (k : ℕ) (State : Type) [Fintype State] :
       omega
     omega
   have hsit : ∀ y, Fintype.equivFin (Situation k State) y < A := fun y => by
-    have := (Fintype.equivFin (Situation k State) y).2
+    have := (Fintype.equivFin (Situation k State) y).isLt
     omega
   have hik : ∀ i : Fin k, (i : ℕ) < A := fun i => by
-    have := i.2
+    have := i.isLt
     omega
   have hstate : ∀ q : Option State, stateIndex q < A := by
     intro q
     rcases q with _ | q
     · simp only [stateIndex, Option.elim_none]; omega
-    · have := (Fintype.equivFin State q).2
+    · have := (Fintype.equivFin State q).isLt
       simp only [stateIndex, Option.elim_some]
       omega
   have hholds : ∀ {t : ℕ} {φ : Feature k State}, t < A → Small A φ →

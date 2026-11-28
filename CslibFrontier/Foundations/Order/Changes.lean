@@ -151,9 +151,9 @@ theorem ChangesAtMost.pi [Preorder α] {ι : Type*} [Fintype ι] {β : ι → Ty
 change bounds. -/
 theorem ChangesAtMost.finset_pi [Preorder α] {ι : Type*} {s : Finset ι} {β : ι → Type*}
     {f : (i : ι) → α → β i} {T : ι → ℕ} (hf : ∀ i ∈ s, ChangesAtMost (f i) (T i)) :
-    ChangesAtMost (fun a (i : s) => f i.1 a) (∑ i ∈ s, T i) := by
+    ChangesAtMost (fun a (i : s) => f i.val a) (∑ i ∈ s, T i) := by
   rw [← s.sum_attach]
-  exact ChangesAtMost.pi fun i => hf i.1 i.2
+  exact ChangesAtMost.pi fun i => hf i.val i.property
 
 /-- `Φ` has at most `M` pieces when it is constant on the level sets of a monotone rank
 function `π : α → ℕ` with values below `M`. -/

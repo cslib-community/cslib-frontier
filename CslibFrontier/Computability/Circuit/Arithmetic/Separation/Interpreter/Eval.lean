@@ -208,7 +208,7 @@ omit [CommRing A] in
 theorem simS_map {t : Bt} {l : List (Run A)} {G : Run A → Run A} (h : ∀ r, (G r).bill = r.bill) :
     simS t (l.map G) = (simS t l).map fun q => ⟨G q.run, q.left⟩ := by
   simp only [simS, List.filterMap_map, List.map_filterMap]
-  exact List.filterMap_congr fun r _ => by simp [Function.comp_def, h]
+  exact List.filterMap_congr rfl fun r _ => by simp [Function.comp_def, h]
 
 omit [CommRing A] in
 theorem simS_append {t : Bt} {l l' : List (Run A)} : simS t (l ++ l') = simS t l ++ simS t l' := by
@@ -231,7 +231,8 @@ theorem simS_flatMap {t : Bt} {la : List (Run A)} {L : Run A → List (Run A)}
     | some t' =>
       simp only [Option.map_some, List.flatMap_cons, List.map_filterMap]
       congr 1
-      exact List.filterMap_congr fun s _ => by simp [Function.comp_def, h, Bt.decAll_append, hd]
+      exact List.filterMap_congr rfl fun s _ => by
+        simp [Function.comp_def, h, Bt.decAll_append, hd]
 
 end Code
 

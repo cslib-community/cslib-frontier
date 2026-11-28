@@ -170,11 +170,11 @@ private def activeSub {U' n' X m : ℕ} (e : Encoded U' n' X m) :
 
 /-- Active key set `S ⊆ Fin U'` stored in `e.header`. -/
 def activeSet {U' n' X m : ℕ} (e : Encoded U' n' X m) : Finset (Fin U') :=
-  (activeSub e).1
+  (activeSub e).val
 
 @[simp]
 theorem card_activeSet {U' n' X m : ℕ} (e : Encoded U' n' X m) : (activeSet e).card = m := by
-  exact (activeSub e).2
+  exact (activeSub e).property
 
 /-- Spillover tuple `Fin m → Fin K` (in increasing order of key in `activeSet e`) in `e.header`. -/
 private def spillVec {U' n' X m : ℕ} (e : Encoded U' n' X m) :
@@ -352,10 +352,11 @@ private theorem unpackPair_eq {U' n' X m : ℕ} (hm : m ≤ n')
   rw [hget]
   have hgen : ∀ (dec : { S : Finset (Fin U') // S.card = m } ×
         (Fin m → Fin (Spillover.spillUniv X n')))
-      (ha' : a ∈ dec.1.1),
+      (ha' : a ∈ dec.1.val),
       (lookupDecoded h dec a).map (fun kb => (kb.1, e.slots kb.2)) =
-        some (dec.2 ((dec.1.1.orderIsoOfFin dec.1.2).symm ⟨a, ha'⟩),
-          e.slots (DynamicMatching.matching h dec.1.1 (dec.1.2.le.trans hm) ⟨a, ha'⟩)) := by
+        some (dec.2 ((dec.1.val.orderIsoOfFin dec.1.property).symm ⟨a, ha'⟩),
+          e.slots (DynamicMatching.matching h dec.1.val (dec.1.property.le.trans hm)
+              ⟨a, ha'⟩)) := by
     rintro ⟨⟨S, hS⟩, sv⟩ ha'
     have hmatch := DynamicMatching.matching_apply h S (hS.le.trans hm) ⟨a, ha'⟩
     simp [lookupDecoded, ha', hmatch]

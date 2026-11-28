@@ -192,7 +192,7 @@ example (x : ℕ → Bool) :
           exact hbool.to_re.of_eq fun _ => by simp
         tsum_lt_top := by
           let u : ({[false]} : Set (List Bool)) := ⟨[false], rfl⟩
-          have hu : ∀ w : ({[false]} : Set (List Bool)), w = u := fun w => Subtype.ext w.2
+          have hu : ∀ w : ({[false]} : Set (List Bool)), w = u := fun w => Subtype.ext w.property
           rw [(hasSum_fintype _).tsum_eq,
             Finset.sum_eq_single u (fun b _ h => absurd (hu b) h)
               (fun h => absurd (Finset.mem_univ u) h)]
@@ -232,9 +232,9 @@ example :
         simp
       tsum_lt_top := by
         let emb : {w : List Bool // ∃ n : ℕ, 1 ≤ n ∧ w = List.replicate n false} ↪ ℕ :=
-          ⟨fun w => w.1.length, fun a b h => by
-            obtain ⟨na, _, ha⟩ := a.2
-            obtain ⟨nb, _, hb⟩ := b.2
+          ⟨fun w => w.val.length, fun a b h => by
+            obtain ⟨na, _, ha⟩ := a.property
+            obtain ⟨nb, _, hb⟩ := b.property
             have hlen : na = nb := by simpa [ha, hb] using h
             exact Subtype.ext (by simp [ha, hb, hlen])⟩
         have hcomp :

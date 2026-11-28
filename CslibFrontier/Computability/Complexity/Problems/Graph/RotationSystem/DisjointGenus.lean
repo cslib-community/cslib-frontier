@@ -25,8 +25,8 @@ open Equiv RotationCertificate Perm.SelectedOrbits
 
 /-- Disjoint union preserves source numerical genus zero component by component. -/
 theorem numericalGenusZero_disjointUnion {G H : Graph} (r : RotationSystem G)
-    (s : RotationSystem H) (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
-    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.1)
+    (s : RotationSystem H) (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.vertices)
     (hr : r.NumericalGenusZero) (hs : s.NumericalGenusZero) :
     (r.disjointUnion s).NumericalGenusZero := by
   classical
@@ -34,7 +34,7 @@ theorem numericalGenusZero_disjointUnion {G H : Graph} (r : RotationSystem G)
   let e := disjointDartEquiv G H
   have hT := endpoints_declared_disjointUnion G H hG hH
   have horbit {K : Graph} (rot : RotationSystem K)
-      (hK : ∀ v ∈ K.incidenceVertices, v ∈ K.1) :
+      (hK : ∀ v ∈ K.incidenceVertices, v ∈ K.vertices) :
       rot.NumericalGenusZero ↔ ∀ x : Dart K,
         Nat.card (OrbitOn rot.rotate (fun b => SameComponent K x.vertex b.vertex)) +
           Nat.card (OrbitOn rot.faceNext (fun b => SameComponent K x.vertex b.vertex)) =

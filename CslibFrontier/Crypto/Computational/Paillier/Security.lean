@@ -236,7 +236,8 @@ private theorem advantage_encrypt_dcrReal_le (d : Desc) (n : ℕ)
   let K : ℕ → Game := fun x => ProbComp.eval (adversary.guess n state
     (encNat (ciphertext d.modulus m (unitOrOne d.modulus x))))
   -- Reduction modulo `N` sends the uniform unit modulo `N ^ 2` to the uniform unit modulo `N`.
-  convert Game.advantage_sampleModNat_units_le d.2.prime_fst d.2.prime_snd d.2.fst_ne_snd
+  convert Game.advantage_sampleModNat_units_le
+    d.property.prime_fst d.property.prime_snd d.property.fst_ne_snd
     hsize.1 hsize.2 K using 2
   rw [← Probability.PMF.uniformOfFintype_map_monoidHom
     (ZMod.unitsMap (dvd_pow_self d.modulus two_ne_zero)) (ZMod.unitsMap_surjective _),

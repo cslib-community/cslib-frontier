@@ -64,7 +64,7 @@ example : (⟨triangle.compl, 3⟩ : CliqueCoverInstance) ∈ CliqueCover :=
 
 -- A graph without declared vertices is covered by no clique at all.
 example : (⟨⟨([] : List ℕ), [(0, 1)]⟩, 0⟩ : CliqueCoverInstance) ∈ CliqueCover :=
-  ⟨∅, by simp, by simp, fun v => absurd v.2 (by simp)⟩
+  ⟨∅, by simp, by simp, fun v => absurd v.property (by simp)⟩
 
 /-! ### Clique covers and colorings of the complement -/
 

@@ -164,10 +164,10 @@ theorem exists_reindex_eq_canonical (a b : ℕ) {m d h : ℕ} (M : Finset (Fin m
       (Fintype.equivFinOfCardEq hcard').symm).trans (Equiv.sumCompl (· ∈ P))
   have hσl : ∀ i, σ (Sum.inl i) ∈ P := fun i => by
     simp only [σ, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inl, Equiv.sumCompl_apply_inl]
-    exact ((Fintype.equivFinOfCardEq hcard).symm i).2
+    exact ((Fintype.equivFinOfCardEq hcard).symm i).property
   have hσr : ∀ i, ¬ σ (Sum.inr i) ∈ P := fun i => by
     simp only [σ, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inr, Equiv.sumCompl_apply_inr]
-    exact ((Fintype.equivFinOfCardEq hcard').symm i).2
+    exact ((Fintype.equivFinOfCardEq hcard').symm i).property
   -- the induced reindexing of the legs
   let e' : (Fin d → Fin (a + b - 1)) × (Fin d → Fin (a + b - 1)) ≃
       (Fin d → Fin (a + b - 1)) × (Fin d → Fin (a + b - 1)) :=

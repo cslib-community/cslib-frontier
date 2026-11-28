@@ -167,7 +167,7 @@ theorem sum_mul_andreevTableScore_eq_zero {b m : ℕ} {S T : Finset (Fin b)} (hS
         h (andreevTableScore b m T w) (andreevAddress b m w) = 0 := by
   -- A coordinate `i` in exactly one of `S` and `T`, and the translation `u = e_i`.
   obtain ⟨i, hi⟩ : (symmDiff S T).Nonempty := by
-    rw [nonempty_iff_ne_empty, Ne, ← bot_eq_empty, symmDiff_eq_bot]
+    rw [← ne_empty_iff_nonempty, Ne, ← bot_eq_empty, symmDiff_eq_bot]
     exact hST
   set u : BitString b := Function.update 0 i true
   have hu : chi ℤ S u * chi ℤ T u = -1 := by
@@ -255,7 +255,7 @@ def andreevPrefixSubsetsNonempty (b r : ℕ) : Finset (Finset (Fin b)) :=
 
 theorem nonempty_of_mem_andreevPrefixSubsetsNonempty {b r : ℕ} {S : Finset (Fin b)}
     (hS : S ∈ andreevPrefixSubsetsNonempty b r) : S.Nonempty :=
-  nonempty_iff_ne_empty.mpr (mem_erase.mp hS).1
+  ne_empty_iff_nonempty.mp (mem_erase.mp hS).1
 
 theorem card_andreevPrefixSubsetsNonempty {b r : ℕ} (hr : r ≤ b) :
     #(andreevPrefixSubsetsNonempty b r) = 2 ^ r - 1 := by
@@ -273,7 +273,7 @@ theorem two_mul_andreevSubcubeScore_eq (b m r : ℕ) (w : BitString (2 ^ b + b *
     ← add_sum_erase _ _ (show ∅ ∈ andreevPrefixSubsets b r by simp), chi_empty, mul_one]
   congr 1
   refine sum_congr rfl fun S hS => ?_
-  rw [andreevReflectionSign_mul_altLinear_add (nonempty_iff_ne_empty.mpr (mem_erase.mp hS).1)]
+  rw [andreevReflectionSign_mul_altLinear_add (ne_empty_iff_nonempty.mp (mem_erase.mp hS).1)]
   ring
 
 /-- The truncated score `P_R`: `P_*` in reflected form with every `φ` replaced by `f_R`; the
@@ -669,7 +669,7 @@ theorem card_andreevTruncatedVote_ne_subcubeEval_le_exp {b r : ℕ} (hr : r ≤ 
     have he2 : 1 ≤ 16 * exp (-2) := by
       have h := add_one_le_exp (-1 / 2 : ℝ)
       have h4 : exp (-2) = exp (-1 / 2) ^ 4 := by
-        rw [← exp_nat_mul]
+        rw [← exp_natCast_mul]
         norm_num
       rw [h4]
       have : (1 / 2 : ℝ) ^ 4 ≤ exp (-1 / 2) ^ 4 := pow_le_pow_left₀ (by norm_num) (by linarith) 4

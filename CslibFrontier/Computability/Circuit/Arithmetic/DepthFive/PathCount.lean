@@ -76,7 +76,7 @@ private abbrev Label (n : ℕ) := (Fin n × Fin n) × (Fin n × Fin n)
 
 /-- The labels of four paths at the vertex `j`. -/
 private def Quad.label (W : Quad n) (j : Fin (n + 1)) : Label n :=
-  ((W.1.1.1 j, W.1.2.1 j), (W.2.1.1 j, W.2.2.1 j))
+  ((W.1.1.val j, W.1.2.val j), (W.2.1.val j, W.2.2.val j))
 
 private theorem Quad.label_injective : Function.Injective (Quad.label (n := n)) := by
   intro W W' h
@@ -87,7 +87,7 @@ private theorem Quad.label_injective : Function.Injective (Quad.label (n := n)) 
     (Prod.ext (Subtype.ext (funext fun j => (h' j).2.1)) (Subtype.ext (funext fun j => (h' j).2.2)))
 
 private theorem edge_eq_iff (P Q : Path n) (t : Fin n) :
-    P.edge t = Q.edge t ↔ P.1 t.castSucc = Q.1 t.castSucc ∧ P.1 t.succ = Q.1 t.succ := by
+    P.edge t = Q.edge t ↔ P.val t.castSucc = Q.val t.castSucc ∧ P.val t.succ = Q.val t.succ := by
   simp [Path.edge]
 
 /-- The condition of layer `t` on the labels at one of its end vertices: the pairing of the type
@@ -110,8 +110,8 @@ private theorem Quad.label_mem {W : Quad n} {τ : Fin n → Bool} {S : Finset (F
   simp only [vset, mem_filter, mem_univ, true_and]
   refine ⟨?_, fun t ht => ⟨?_, fun htS => ?_⟩⟩
   · rintro (rfl | rfl)
-    · simp [Quad.label, W.1.1.2.1, W.1.2.2.1, W.2.1.2.1, W.2.2.2.1]
-    · simp [Quad.label, W.1.1.2.2, W.1.2.2.2, W.2.1.2.2, W.2.2.2.2]
+    · simp [Quad.label, W.1.1.property.1, W.1.2.property.1, W.2.1.property.1, W.2.2.property.1]
+    · simp [Quad.label, W.1.1.property.2, W.1.2.property.2, W.2.1.property.2, W.2.2.property.2]
   · have := h t
     simp only [edge_eq_iff] at this
     rcases ht with rfl | rfl <;> split_ifs at this ⊢ <;>

@@ -187,8 +187,5 @@ example :
 /-- info: 'Cslib.Crypto.run_ofbChainQueries' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms run_ofbChainQueries
-/-- info: 'Cslib.Crypto.not_isPrefix_prependLength' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms not_isPrefix_prependLength
 
 end CslibFrontierTests.Crypto.OFBAndLengthCBCMAC

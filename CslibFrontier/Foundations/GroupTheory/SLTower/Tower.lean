@@ -74,14 +74,14 @@ variable (h n : ℕ) [NeZero h]
   nr := fun _ i => Equiv.ofBijective _ (nearFun_bijective h2 _ i)
   nr_vx0 := fun _ i e => rfl
   nr_vx1 := fun _ i e => by
-    change vert i ((gen h2 e.1.kind : G h n) • e.1.start) = vert i e.1.start
-    rw [gen_idx h2 i _ e.2, vert_th]
+    change vert i ((gen h2 e.val.kind : G h n) • e.val.start) = vert i e.val.start
+    rw [gen_idx h2 i _ e.property, vert_th]
   nr_co := fun _ i e => by
-    change s(cor i e.1.start, cor i ((gen h2 e.1.kind : G h n) • e.1.start)) =
-      s((npair (idx i e.1.kind e.2) (cor i e.1.start)).elt,
-        x h (npair (idx i e.1.kind e.2) (cor i e.1.start)).idx *
-            (npair (idx i e.1.kind e.2) (cor i e.1.start)).elt)
-    rw [gen_idx h2 i _ e.2, cor_th]
+    change s(cor i e.val.start, cor i ((gen h2 e.val.kind : G h n) • e.val.start)) =
+      s((npair (idx i e.val.kind e.property) (cor i e.val.start)).elt,
+        x h (npair (idx i e.val.kind e.property) (cor i e.val.start)).idx *
+            (npair (idx i e.val.kind e.property) (cor i e.val.start)).elt)
+    rw [gen_idx h2 i _ e.property, cor_th]
     exact npair_sym _ _
   π := pr
   πE := prE h2

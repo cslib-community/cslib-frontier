@@ -143,7 +143,7 @@ theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
       (summable_gaussianWeight L s hs c) (summable_gaussianWeight L s hs (cPar : E))
     have hinner : ⟪(z : E) - (cPar : E), c - (cPar : E)⟫ = 0 :=
       (Submodule.mem_orthogonal V _).mp (V.sub_starProjection_mem_orthogonal c) _
-        (V.sub_mem (Submodule.subset_span z.2) cPar.2)
+        (V.sub_mem (Submodule.subset_span z.property) cPar.property)
     have hsq : ‖(z : E) - (cPar : E)‖ ^ 2 ≤ ‖(z : E) - c‖ ^ 2 := by
       have hsub : ‖(z : E) - c‖ ^ 2 =
           ‖(z : E) - (cPar : E)‖ ^ 2 + ‖c - (cPar : E)‖ ^ 2 := by
@@ -159,12 +159,12 @@ theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
     gcongr
   let LV : Submodule ℤ V := L.comap (V.subtype.restrictScalars ℤ)
   let e : LV ≃ₜ L := {
-    toFun := fun x ↦ ⟨(x.1 : E), x.2⟩
-    invFun := fun z ↦ ⟨⟨(z : E), Submodule.subset_span z.2⟩, z.2⟩
+    toFun := fun x ↦ ⟨(x.val : E), x.property⟩
+    invFun := fun z ↦ ⟨⟨(z : E), Submodule.subset_span z.property⟩, z.property⟩
     left_inv := fun _ ↦ rfl
     right_inv := fun _ ↦ rfl
-    continuous_toFun := (continuous_subtype_val.comp continuous_subtype_val).subtype_mk _
-    continuous_invFun := (continuous_subtype_val.subtype_mk _).subtype_mk _
+    continuous_toFun := (continuous_subtypeVal.comp continuous_subtypeVal).subtype_mk _
+    continuous_invFun := (continuous_subtypeVal.subtype_mk _).subtype_mk _
   }
   have hLV_disc : DiscreteTopology LV := e.discreteTopology_iff.mpr inferInstance
   have hLV_lat : IsZLattice ℝ LV := ⟨by

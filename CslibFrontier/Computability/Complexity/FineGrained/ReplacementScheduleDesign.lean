@@ -218,7 +218,7 @@ def toCountingDesign {F : Type*} [Fintype F] {scope : F → Finset (Fin n)}
       (tauRat n))
     (s : Finset F) :
     Cslib.ReplacementCounting.Design (Fin n) s (fun f => {v : Fin n // v ∈ scope f})
-      (fun _ v => v.1) (numGroups n) (numNodes n) (rowBound β n) (auxDim n) (tau n) :=
+      (fun _ v => v.val) (numGroups n) (numNodes n) (rowBound β n) (auxDim n) (tau n) :=
   cast (by rw [cast_tauRat]; rfl)
     (D.toCountingDesign s hF.two_le_numGroups hF.one_le_rowBound hF.rowBound_lt_numNodes
       hF.tauRat_pos hF.tauRat_le_half)

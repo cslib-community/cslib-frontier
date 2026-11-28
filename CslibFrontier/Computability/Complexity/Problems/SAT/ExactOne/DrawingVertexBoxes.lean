@@ -74,13 +74,13 @@ theorem positiveBox_owner_injective {a b q r : Point} (hq : InPositiveLocalBox q
 
 /-- A source clause's incidence-graph vertex is declared. -/
 theorem sourceClause_declared (φ : CNF ℕ) {i : ℕ} (hi : i < φ.length) :
-    φ.distinctVars.length + i ∈ (SAT.incidenceGraph φ).1 := by
+    φ.distinctVars.length + i ∈ (SAT.incidenceGraph φ).vertices := by
   simp only [SAT.incidenceGraph, List.mem_range]
   omega
 
 /-- A used source variable's incidence-graph vertex is declared. -/
 theorem sourceVariable_declared (φ : CNF ℕ) {v : ℕ} (hv : v ∈ φ.vars) :
-    φ.distinctVars.idxOf v ∈ (SAT.incidenceGraph φ).1 := by
+    φ.distinctVars.idxOf v ∈ (SAT.incidenceGraph φ).vertices := by
   have hi := List.idxOf_lt_length_of_mem (CNF.mem_distinctVars.mpr hv)
   simp only [SAT.incidenceGraph, List.mem_range]
   omega

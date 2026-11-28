@@ -190,7 +190,7 @@ variable {σ : Signature.{v}} {n m : ℕ} {U : Type u}
 /-- The set of circuit wires carried by the edges crossing a vertex cut `P`. -/
 @[expose] noncomputable def cutWires (c : Circuit σ n m) (P : Set (Compiler.Vertex c)) :
     Set (Wire n c.size) :=
-  (fun e : Compiler.Edge c => e.signal.1) '' (Compiler.graph c).edgeCut P
+  (fun e : Compiler.Edge c => e.signal.val) '' (Compiler.graph c).edgeCut P
 
 /-- **Splicing across a forward-reduced cut.** If `D ⊆ c.program.forwardDetermined (cutWires c P)`
 and `x` and `y` agree on `cutWires c P \ D`, then splicing `x` inside `P` with `y` outside `P`
@@ -214,8 +214,9 @@ theorem frontierValues_eq_of_eqOn_cutWires_sdiff {c : Circuit σ n m} {I : Inter
     {D : Set (Wire n c.size)}
     (hD : D ⊆ c.program.forwardDetermined (cutWires c (π.initial t))) {x y : Fin n → U}
     (heq : EqOn (c.program.trace I x) (c.program.trace I y) (cutWires c (π.initial t) \ D)) :
-    (Compiler.network c I Acc).frontierValues π t (fun e => c.program.trace I x e.signal.1) =
-      (Compiler.network c I Acc).frontierValues π t (fun e => c.program.trace I y e.signal.1) := by
+    (Compiler.network c I Acc).frontierValues π t (fun e => c.program.trace I x e.signal.val) =
+      (Compiler.network c I Acc).frontierValues π t
+          (fun e => c.program.trace I y e.signal.val) := by
   have hall := c.program.eqOn_of_eqOn_sdiff_forwardDetermined hD heq
   exact ((Compiler.network c I Acc).frontierValues_eq_iff π).mpr fun e he => hall ⟨e, he, rfl⟩
 
@@ -273,13 +274,13 @@ private theorem clauseEdge_irrefl {s : ℕ} (p : Program σ n s) (I : Interpreta
 reading the other through an argument slot satisfying `ForbidsOutputPair`. -/
 def u2ClauseGraph {s : ℕ} (p : Program σ n s) (I : Interpretation σ Bool)
     (R : Set (Wire n s)) : SimpleGraph R where
-  Adj u w := ClauseEdge p I u.1 w.1 ∨ ClauseEdge p I w.1 u.1
+  Adj u w := ClauseEdge p I u.val w.val ∨ ClauseEdge p I w.val u.val
   symm := ⟨fun _ _ h => Or.symm h⟩
-  loopless := ⟨fun u h => h.elim (clauseEdge_irrefl p I u.1) (clauseEdge_irrefl p I u.1)⟩
+  loopless := ⟨fun u h => h.elim (clauseEdge_irrefl p I u.val) (clauseEdge_irrefl p I u.val)⟩
 
 @[simp] theorem u2ClauseGraph_adj {s : ℕ} (p : Program σ n s) (I : Interpretation σ Bool)
     (R : Set (Wire n s)) (u w : R) :
-    (u2ClauseGraph p I R).Adj u w ↔ ClauseEdge p I u.1 w.1 ∨ ClauseEdge p I w.1 u.1 :=
+    (u2ClauseGraph p I R).Adj u w ↔ ClauseEdge p I u.val w.val ∨ ClauseEdge p I w.val u.val :=
   Iff.rfl
 
 /-- **Trace projections on `R` are bounded by `i(u2ClauseGraph p I R)`.** Every edge of
@@ -313,7 +314,7 @@ theorem ncard_frontierValues_le_indepSetCount (c : Circuit σ n m) (I : Interpre
     (hD : D ⊆ c.program.forwardDetermined (cutWires c (π.initial t)))
     (X : Set (Fin n → Bool)) :
     ((fun x => (Compiler.network c I Acc).frontierValues π t
-        (fun e => c.program.trace I x e.signal.1)) '' X).ncard ≤
+        (fun e => c.program.trace I x e.signal.val)) '' X).ncard ≤
       (u2ClauseGraph c.program I (cutWires c (π.initial t) \ D)).indepSetCount := by
   set R := cutWires c (π.initial t) \ D
   refine (ncard_image_le_ncard_image_of_factorsThrough (g := fun x => R.domRestrict
@@ -448,7 +449,7 @@ private def WireRep.evalAtTargets {g' : ℕ} {targets : Finset (Wire n g')}
 private theorem WireRep.evalAtTargets_eq_eval {g' : ℕ} (q : Program (allOpsSignature U) n g')
     {targets : Finset (Wire n g')} (emb : Fin targets.card ≃ targets) (x : Fin n → U) :
     ∀ (r : WireRep U n g') (hw : ∀ w' f, r = .inr (w', f) → w' ∈ targets),
-      WireRep.evalAtTargets emb (fun i => q.trace (allOpsInterpretation U) x (emb i).1) r hw =
+      WireRep.evalAtTargets emb (fun i => q.trace (allOpsInterpretation U) x (emb i).val) r hw =
         WireRep.eval q x r
   | .inl _, _ => rfl
   | .inr (_, _), _ => by simp [WireRep.evalAtTargets, WireRep.eval]
@@ -531,7 +532,7 @@ private noncomputable def elimUnaryAux (I : Interpretation σ U) :
           exact ih.arityExcess_le.trans (Nat.le_add_right _ _) }
     else if hd1 : targets.card = 1 then
       let emb : Fin targets.card ≃ targets := targets.equivFin.symm
-      let w'₀ : Wire n ih.size := (emb ⟨0, by omega⟩).1
+      let w'₀ : Wire n ih.size := (emb ⟨0, by omega⟩).val
       let F : U → U := fun val => I line.op fun a =>
         match ih.rep (line.wires a) with
         | .inl u => u
@@ -576,7 +577,7 @@ private noncomputable def elimUnaryAux (I : Interpretation σ U) :
       let l' : Line (allOpsSignature U) n ih.size :=
         { op := ⟨targets.card, fun v => I line.op fun a =>
             WireRep.evalAtTargets emb v (ih.rep (line.wires a)) (hmem_t a)⟩
-          wires := fun i => (emb i).1 }
+          wires := fun i => (emb i).val }
       { size := ih.size + 1
         program := ih.program.gate l'
         rep := fun w => Wire.lastCases (.inr (.gate (Fin.last ih.size), id))
@@ -624,7 +625,7 @@ private noncomputable def curryLine {g : ℕ} (u₀ : U) (w₀ : Wire n g)
   let emb : Fin (Fintype.card kept) ≃ kept := (Fintype.equivFin kept).symm
   { op := ⟨Fintype.card kept, fun v => l.op.2 fun a =>
       if h : l.wires a = w₀ then u₀ else v (emb.symm ⟨a, h⟩)⟩
-    wires := fun i => l.wires (emb i).1 }
+    wires := fun i => l.wires (emb i).val }
 
 private theorem curryLine_eval {g : ℕ} (u₀ : U) (w₀ : Wire n g)
     (l : Line (allOpsSignature U) n g) (x : Fin n → U) (gates : Fin g → U)
@@ -1062,11 +1063,11 @@ private theorem trace_eq_of_eqOn_readIn {τ : Signature} {n m : ℕ} (c : Circui
     (hW : (Compiler.graph c).edgeCut W = ∅) {x y : Fin n → U}
     (hxy : EqOn x y ((Compiler.network c J Acc).readIn W))
     {e : Compiler.Edge c} (he : e ∈ (Compiler.graph c).touching W) :
-    c.program.trace J x e.signal.1 = c.program.trace J y e.signal.1 := by
+    c.program.trace J x e.signal.val = c.program.trace J y e.signal.val := by
   have hx : (Compiler.network c J fun _ => univ).Satisfies x
-      fun e => c.program.trace J x e.signal.1 := Compiler.satisfies_trace fun _ => mem_univ _
+      fun e => c.program.trace J x e.signal.val := Compiler.satisfies_trace fun _ => mem_univ _
   have hy : (Compiler.network c J fun _ => univ).Satisfies y
-      fun e => c.program.trace J y e.signal.1 := Compiler.satisfies_trace fun _ => mem_univ _
+      fun e => c.program.trace J y e.signal.val := Compiler.satisfies_trace fun _ => mem_univ _
   have hxy' : EqOn y x ((Compiler.network c J fun _ => univ).readIn W) := hxy.symm
   obtain ⟨γ, hγ, hγx, -⟩ := hx.splice hy
     (by rw [show (Compiler.network c J fun _ => univ).edgeCut W = ∅ from hW]; exact eqOn_empty _ _)
@@ -1093,7 +1094,7 @@ private theorem exists_step_ncard_le_of_read_univ [Finite U] {τ : Signature}
               ((Compiler.graph c).component (π.symm ⟨t, ht⟩))).ncard) := by
   set N := Compiler.network c J Acc
   set V := Nat.card (Compiler.Vertex c)
-  let sw := N.frontierSweep (S := N.accepted) π (fun x e => c.program.trace J x e.signal.1)
+  let sw := N.frontierSweep (S := N.accepted) π (fun x e => c.program.trace J x e.signal.val)
     (fun _ _ => ()) (fun _ _ _ _ => rfl)
     fun t _ x hx y hy _ hval z hzx hzy => by
       rw [Compiler.accepted_network] at hx hy ⊢
@@ -1126,8 +1127,8 @@ private theorem exists_step_ncard_le_of_read_univ [Finite U] {τ : Signature}
         (D := ↥(N.readIn W) → U) (fun _ => ()) (fun x => (N.readIn W).domRestrict x)
         fun x _ y _ _ hg => by
           rw [domRestrict_eq_domRestrict_iff] at hg
-          have htouch : EqOn (fun e : Compiler.Edge c => c.program.trace J x e.signal.1)
-              (fun e : Compiler.Edge c => c.program.trace J y e.signal.1)
+          have htouch : EqOn (fun e : Compiler.Edge c => c.program.trace J x e.signal.val)
+              (fun e : Compiler.Edge c => c.program.trace J y e.signal.val)
               ((Compiler.graph c).touching W) :=
             fun e he => trace_eq_of_eqOn_readIn c J Acc hW hg he
           have hsub_t := hsub t ht

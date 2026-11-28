@@ -204,7 +204,7 @@ lemma stepAux_moveStmt (tm : SingleTapeTM Symbol) (q : tm.State) (v : Option Sym
 theorem step_toTM1 (tm : SingleTapeTM Symbol)
     (c : _root_.Turing.TM1.Cfg (Option Symbol) tm.State (Option Symbol)) :
     _root_.Turing.TM1.step tm.toTM1 c =
-      (tm.step (tm.ofTM1Cfg c)).map fun c' => tm.toTM1Cfg c' c.Tape.1 := by
+      (tm.step (tm.ofTM1Cfg c)).map fun c' => tm.toTM1Cfg c' c.Tape.head := by
   rcases c with ⟨_ | q, v, T⟩
   · rfl
   · simp only [_root_.Turing.TM1.step, toTM1, _root_.Turing.TM1.stepAux, stepAux_moveStmt,
@@ -354,7 +354,7 @@ def ofTM0 (M : _root_.Turing.TM0.Machine (Option Symbol) Λ) (S : Finset Λ)
   stateFintype := Finset.fintypeCoeSort S
   q₀ := ⟨default, hs.1⟩
   tr q a :=
-    match M q.1 a with
+    match M q.val a with
     | none => (⟨a, none⟩, none)
     | some (q', .move d) =>
       (⟨a, some d⟩, some (if hq' : q' ∈ S then ⟨q', hq'⟩ else ⟨default, hs.1⟩))

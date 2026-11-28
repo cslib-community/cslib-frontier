@@ -102,10 +102,10 @@ private theorem sum_prod_image_eq_card_le [DecidableEq X] (S : Finset X) (v : X 
     rw [mem_filter, mem_piFinset] at ht
     let I := univ.image t
     let e : I ≃ Fin r := I.equivFin.trans (finCongr ht.2)
-    refine ⟨(fun j => e ⟨t j, mem_image_of_mem t (mem_univ j)⟩, fun k => (e.symm k).1),
+    refine ⟨(fun j => e ⟨t j, mem_image_of_mem t (mem_univ j)⟩, fun k => (e.symm k).val),
       mem_product.mpr ⟨by simp [P_idx], mem_piFinset.mpr fun k => ?_⟩, funext fun j => by simp, ?_⟩
-    · obtain ⟨j, -, hj⟩ := mem_image.mp (e.symm k).2
-      exact show (e.symm k).1 ∈ S from hj ▸ ht.1 j
+    · obtain ⟨j, -, hj⟩ := mem_image.mp (e.symm k).property
+      exact show (e.symm k).val ∈ S from hj ▸ ht.1 j
     · rw [← prod_coe_sort]
       exact (e.symm.prod_comp fun x : I => v x).symm
   rcases isEmpty_or_nonempty ((Fin n → Fin r) × (Fin r → X)) with hE | hE
@@ -322,7 +322,7 @@ theorem dens_fresh_pair_collisions_le {r : ℕ} {H : ι → Z → Y}
   have hmem_b (k : Fin r) : b k ∈ T := subset_union_right (mem_image_of_mem _ (mem_univ k))
   let GoodF : Finset (T → Y) :=
     univ.filter fun f => ∀ k : Fin r, f ⟨a k, hmem_a k⟩ = f ⟨b k, hmem_b k⟩
-  let projR : (T → Y) → (R_rest → Y) := fun f z => f ⟨z.1, sdiff_subset z.2⟩
+  let projR : (T → Y) → (R_rest → Y) := fun f z => f ⟨z.val, sdiff_subset z.property⟩
   have hinj_proj : Set.InjOn projR (GoodF : Set (T → Y)) := by
     intro f₁ hf₁ f₂ hf₂ heq
     have hf₁_eq := (mem_filter.mp hf₁).2
@@ -341,11 +341,11 @@ theorem dens_fresh_pair_collisions_le {r : ℕ} {H : ι → Z → Y}
           exact ih j hj_lt
         · exact congrFun heq ⟨b k, mem_sdiff.mpr ⟨hmem_b k, hbU⟩⟩
     funext z
-    by_cases hzU : z.1 ∈ U_pts
+    by_cases hzU : z.val ∈ U_pts
     · obtain ⟨k, -, hk_z⟩ := mem_image.mp hzU
       rw [← (Subtype.ext hk_z : (⟨a k, hmem_a k⟩ : T) = z)]
       exact hk_eq k
-    · exact congrFun heq ⟨z.1, mem_sdiff.mpr ⟨z.2, hzU⟩⟩
+    · exact congrFun heq ⟨z.val, mem_sdiff.mpr ⟨z.property, hzU⟩⟩
   have hcard_GoodF : #GoodF ≤ Fintype.card Y ^ #R_rest := by
     calc #GoodF = #(GoodF.image projR) := (card_image_of_injOn hinj_proj).symm
       _ ≤ #(univ : Finset (R_rest → Y)) := card_le_card (subset_univ _)

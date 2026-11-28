@@ -79,7 +79,7 @@ private theorem sum_edge_target_le (j : Fin (J + 1)) (w : T.Ed j → ℕ) :
   simp only [← mul_ite_zero]
   rw [sum_congr rfl fun x _ => sum_comm, sum_comm]
   refine sum_le_sum fun e _ => ?_
-  simpa only [edgeLoads_of_lt _ j.2, ← mul_sum] using Nat.mul_le_mul_left _ (sum_relayAlive_le _)
+  simpa only [edgeLoads_of_lt _ j.isLt, ← mul_sum] using Nat.mul_le_mul_left _ (sum_relayAlive_le _)
 
 /-- One channel of a relay whose units lie on an edge of the level `j`. -/
 private theorem le_sum_edge_target {x : Relay T m A} {d : Bool} {j : Fin (J + 1)} {e : T.Ed j}
@@ -208,11 +208,11 @@ private theorem start_le (P : T.Node) :
 /-- The inner relays of an edge: at its ends, and at the parent of its first end. -/
 private theorem inner_le (P : T.Node) (j : Fin J) (e : T.Ed j) :
     ∑ i, relayAt lhat n o P (.inner j i e) ≤
-      ((if Tower.Node.ofChamber j.2.le (T.e0 e) = P then edgeLoads (load lhat n o) j e else 0) +
-        if Tower.Node.ofChamber j.2.le (T.e1 e) = P then edgeLoads (load lhat n o) j e else 0) +
-      ((if Tower.Node.ofChamber j.2 (T.parentChamber hh (edgeLoads (load lhat n o)) (T.e0 e)) = P
+      ((if Tower.Node.ofChamber j.isLt.le (T.e0 e) = P then edgeLoads (load lhat n o) j e else 0) +
+        if Tower.Node.ofChamber j.isLt.le (T.e1 e) = P then edgeLoads (load lhat n o) j e else 0) +
+      ((if Tower.Node.ofChamber j.isLt (T.parentChamber hh (edgeLoads (load lhat n o)) (T.e0 e)) = P
           then edgeLoads (load lhat n o) j e else 0) +
-        if Tower.Node.ofChamber j.2 (T.parentChamber hh (edgeLoads (load lhat n o)) (T.e1 e)) = P
+        if Tower.Node.ofChamber j.isLt (T.parentChamber hh (edgeLoads (load lhat n o)) (T.e1 e)) = P
           then edgeLoads (load lhat n o) j e else 0) := by
   rw [sum_eq_single (T.chosenType hh (edgeLoads (load lhat n o)) j) (fun i _ hi => ?_) (by simp)]
   · have h1 := (relayAlive_inner_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch) j _ e
@@ -227,18 +227,18 @@ private theorem inner_le (P : T.Node) (j : Fin J) (e : T.Ed j) :
 and at the images of its ends with the units of the third step. -/
 private theorem middle_le (hg : ∀ mv, GoodOutcome lhat n o mv) (P : T.Node) (j : Fin J)
     (e : T.Ed j) : ∑ s, relayAt lhat n o P (.middle j e s) ≤
-      4 * ((if Tower.Node.ofChamber j.2.le (T.e0 e) = P then edgeLoads (load lhat n o) j e
+      4 * ((if Tower.Node.ofChamber j.isLt.le (T.e0 e) = P then edgeLoads (load lhat n o) j e
           else 0) +
-        if Tower.Node.ofChamber j.2.le (T.e1 e) = P then edgeLoads (load lhat n o) j e else 0) +
-      2 * ((if Tower.Node.ofChamber j.2
+        if Tower.Node.ofChamber j.isLt.le (T.e1 e) = P then edgeLoads (load lhat n o) j e else 0) +
+      2 * ((if Tower.Node.ofChamber j.isLt
             (T.parentChamber hh (edgeLoads (load lhat n o)) (T.e0 e)) = P then
           edgeLoads (load lhat n o) j e else 0) +
-        if Tower.Node.ofChamber j.2
+        if Tower.Node.ofChamber j.isLt
             (T.parentChamber hh (edgeLoads (load lhat n o)) (T.e1 e)) = P then
           edgeLoads (load lhat n o) j e else 0) +
-      2 * ((if Tower.Node.ofChamber j.2 (T.π (T.e0 e)) = P then
+      2 * ((if Tower.Node.ofChamber j.isLt (T.π (T.e0 e)) = P then
           relayAlive lhat n o (.middle j e 2) false else 0) +
-        if Tower.Node.ofChamber j.2 (T.π (T.e1 e)) = P then
+        if Tower.Node.ofChamber j.isLt (T.π (T.e1 e)) = P then
           relayAlive lhat n o (.middle j e 2) false else 0) := by
   have hM (s) := relayAlive_middle_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch) j e s
     false
@@ -256,19 +256,19 @@ private theorem middle_le (hg : ∀ mv, GoodOutcome lhat n o mv) (P : T.Node) (j
 the next level: at the images of the ends of the edges, at most the units between the chambers of
 the next level and their parents. -/
 private theorem images_le (P : T.Node) (j : Fin J) :
-    ∑ e : T.Ed j, ((if Tower.Node.ofChamber j.2 (T.π (T.e0 e)) = P then
+    ∑ e : T.Ed j, ((if Tower.Node.ofChamber j.isLt (T.π (T.e0 e)) = P then
         relayAlive lhat n o (.middle j e 2) false else 0) +
-      if Tower.Node.ofChamber j.2 (T.π (T.e1 e)) = P then
+      if Tower.Node.ofChamber j.isLt (T.π (T.e1 e)) = P then
         relayAlive lhat n o (.middle j e 2) false else 0) ≤
-      ∑ c : T.X (j + 1), if Tower.Node.ofChamber j.2 c = P then
+      ∑ c : T.X (j + 1), if Tower.Node.ofChamber j.isLt c = P then
         T.parentUnits (edgeLoads (load lhat n o)) (j + 1) c else 0 := by
   refine le_trans ?_ ((sum_edge_target_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch)
-    j.succ (endsAt j.2 P)).trans_eq (sum_endsAt_mul _ P _))
+    j.succ (endsAt j.isLt P)).trans_eq (sum_endsAt_mul _ P _))
   refine sum_le_sum_of_injOn (fun e => Relay.middle j e 2) (fun e _ e' _ he => by cases he; rfl)
     (subset_univ _) (fun e _ => le_trans (le_of_eq ?_) (le_sum_edge_target (d := false)
       (j := j.succ) (e := T.πE e) rfl _)) fun _ _ _ => Nat.zero_le _
   simp only [endsAt, add_mul, ite_mul, one_mul, zero_mul]
-  exact (Sym2.eq_iff.1 (T.π_ends j.2 e)).elim (fun ⟨h3, h4⟩ => by rw [h3, h4])
+  exact (Sym2.eq_iff.1 (T.π_ends j.isLt e)).elim (fun ⟨h3, h4⟩ => by rw [h3, h4])
     fun ⟨h3, h4⟩ => by rw [h3, h4, add_comm]
 
 /-- The relays after the last stage: at the ends of an edge of the last level, and at the root. -/
@@ -297,19 +297,19 @@ theorem sum_unitsAt_relay_le (hg : ∀ mv, GoodOutcome lhat n o mv) (P : T.Node)
     · simp only [hx, ↓reduceDIte, unitsAt, relayAt, relayAlive_eq_moveCount hg hx]; rfl
     · simp [hx, relayAt, relayAlive_of_not_occurs hx]
   have hI : ∑ j, ∑ i, ∑ e, relayAt lhat n o P (.inner j i e) ≤ ∑ j : Fin J,
-      ((∑ c : T.X j, if Tower.Node.ofChamber j.2.le c = P then
+      ((∑ c : T.X j, if Tower.Node.ofChamber j.isLt.le c = P then
         T.parentUnits (edgeLoads (load lhat n o)) j c else 0) +
-      ∑ c : T.X (j + 1), if Tower.Node.ofChamber j.2 c = P then
+      ∑ c : T.X (j + 1), if Tower.Node.ofChamber j.isLt c = P then
         T.childUnits hh (edgeLoads (load lhat n o)) (j + 1) c else 0) :=
     sum_le_sum fun j _ => sum_comm.trans_le ((sum_le_sum fun e _ => inner_le hh P j e).trans_eq
       (by rw [Tower.sum_ite_childUnits, Tower.sum_ite_incidentSum, Tower.sum_ite_incidentSum,
         sum_add_distrib]))
   have hM : ∑ j, ∑ e, ∑ s, relayAt lhat n o P (.middle j e s) ≤ ∑ j : Fin J,
-      (4 * (∑ c : T.X j, if Tower.Node.ofChamber j.2.le c = P then
+      (4 * (∑ c : T.X j, if Tower.Node.ofChamber j.isLt.le c = P then
         T.parentUnits (edgeLoads (load lhat n o)) j c else 0) +
-      2 * (∑ c : T.X (j + 1), if Tower.Node.ofChamber j.2 c = P then
+      2 * (∑ c : T.X (j + 1), if Tower.Node.ofChamber j.isLt c = P then
         T.childUnits hh (edgeLoads (load lhat n o)) (j + 1) c else 0) +
-      2 * ∑ c : T.X (j + 1), if Tower.Node.ofChamber j.2 c = P then
+      2 * ∑ c : T.X (j + 1), if Tower.Node.ofChamber j.isLt c = P then
         T.parentUnits (edgeLoads (load lhat n o)) (j + 1) c else 0) :=
     sum_le_sum fun j _ => (sum_le_sum fun e _ => middle_le hh hg P j e).trans (by
       rw [Tower.sum_ite_childUnits, Tower.sum_ite_incidentSum, Tower.sum_ite_incidentSum]
@@ -349,7 +349,7 @@ private theorem load_edge_le_lift {ν : MoveChannel R ch FL} {j : Fin (J + 1)} {
   have h2 : ν.1.party (ν.1.law.channelEnd ν.2 b) ∈ channelHolders ν := by
     cases b <;> simp [channelHolders]
   rw [← h1, hν, Target.holders, Sym2.mem_iff] at h2
-  refine (edgeLoads_of_lt _ j.2 e).symm.trans_le ?_
+  refine (edgeLoads_of_lt _ j.isLt e).symm.trans_le ?_
   rcases h2 with h2 | h2 <;> rw [h2, Tower.Node.lift_ofChamber] <;>
     exact single_le_sum (fun _ _ => Nat.zero_le _) (mem_filter.2 ⟨mem_univ _, by simp⟩)
 
@@ -383,21 +383,21 @@ theorem sum_unitsAt_vertex_le (hg : ∀ mv, GoodOutcome lhat n o mv)
       · exact le_rfl
     · simp [unitsAt, moveCount_vertex_eq_zero (.inl hi)]
   have h2 (j : Fin J) (i : Fin h) (d : FL.Kind) :
-      ∑ ω, ∑ p : (FL.law d).Role, (if Tower.Node.ofChamber j.2 ((T.chamberEquiv j.2 i).symm
+      ∑ ω, ∑ p : (FL.law d).Role, (if Tower.Node.ofChamber j.isLt ((T.chamberEquiv j.isLt i).symm
         (ω, FL.place d p)) = P then V else 0) =
-        ∑ c : T.X (j + 1), if Tower.Node.ofChamber j.2 c = P then V else 0 := by
+        ∑ c : T.X (j + 1), if Tower.Node.ofChamber j.isLt c = P then V else 0 := by
     rw [← Fintype.sum_prod_type']
     exact (((Equiv.refl _).prodCongr (FL.place d)).sum_comp fun y =>
-      if Tower.Node.ofChamber j.2 ((T.chamberEquiv j.2 i).symm y) = P then V else 0).trans
-      ((T.chamberEquiv j.2 i).symm.sum_comp fun c =>
-        if Tower.Node.ofChamber j.2 c = P then V else 0)
+      if Tower.Node.ofChamber j.isLt ((T.chamberEquiv j.isLt i).symm y) = P then V else 0).trans
+      ((T.chamberEquiv j.isLt i).symm.sum_comp fun c =>
+        if Tower.Node.ofChamber j.isLt c = P then V else 0)
   have h3 (j : Fin J) : ∑ i, ∑ ω, ∑ d, (if T.IsChosenType (edgeLoads (load lhat n o) j) i then
-      ∑ p : (FL.law d).Role, (if Tower.Node.ofChamber j.2 ((T.chamberEquiv j.2 i).symm
+      ∑ p : (FL.law d).Role, (if Tower.Node.ofChamber j.isLt ((T.chamberEquiv j.isLt i).symm
         (ω, FL.place d p)) = P then V else 0) else 0) ≤
       Fintype.card FL.Kind *
-        ∑ c : T.X (j + 1), if Tower.Node.ofChamber j.2 c = P then V else 0 := calc
+        ∑ c : T.X (j + 1), if Tower.Node.ofChamber j.isLt c = P then V else 0 := calc
     _ = ∑ i, if T.IsChosenType (edgeLoads (load lhat n o) j) i then Fintype.card FL.Kind *
-        ∑ c : T.X (j + 1), (if Tower.Node.ofChamber j.2 c = P then V else 0) else 0 :=
+        ∑ c : T.X (j + 1), (if Tower.Node.ofChamber j.isLt c = P then V else 0) else 0 :=
       sum_congr rfl fun i _ => by
         split_ifs with hi
         · rw [sum_comm]

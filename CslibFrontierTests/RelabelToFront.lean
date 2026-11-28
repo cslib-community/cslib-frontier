@@ -42,7 +42,7 @@ open Network.RelabelToFront
 /-- The CLRS 6-vertex network with antiparallel arcs `(1, 2)` and `(2, 1)`. -/
 def clrsNet : Network (Fin 6) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 16
     | 0, 2 => 13
     | 1, 2 => 10
@@ -61,7 +61,7 @@ theorem clrsNet_st : clrsNet.s ≠ clrsNet.t := by decide
 
 /-- Sparse duplicate-free adjacency lists for `clrsNet`. -/
 def clrsAdj (u : Fin 6) : List (Fin 6) :=
-  match u.1 with
+  match u.val with
   | 0 => [1, 2]
   | 1 => [0, 2, 3]
   | 2 => [0, 1, 3, 4]
@@ -146,7 +146,7 @@ example :
 back into `1`, forcing `discharges > |V| - 2 = 3`. -/
 def mtfNet : Network (Fin 5) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 2 => 5
     | 2, 1 => 5
     | 1, 3 => 5
@@ -175,7 +175,7 @@ example :
 /-- Network with a high-capacity self-loop `(1, 1)` of capacity `9`. -/
 def selfLoopNet : Network (Fin 3) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 4
     | 1, 1 => 9
     | 1, 2 => 4
@@ -198,7 +198,7 @@ example : (relabelToFrontExact selfLoopNet).flow.IsMaxFlow ∧
 /-- Network with arcs entering `s = 0` and leaving `t = 2`. -/
 def backArcNet : Network (Fin 3) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 5
     | 1, 2 => 4
     | 1, 0 => 3
@@ -218,7 +218,7 @@ example : (relabelToFrontExact backArcNet).flow.IsMaxFlow :=
 /-- 4-vertex network with antiparallel arcs `1 → 2` and `2 → 1`. -/
 def antiNet : Network (Fin 4) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 2
     | 0, 2 => 2
     | 1, 2 => 1
@@ -237,7 +237,7 @@ example : (relabelToFrontExact antiNet).flow.IsMaxFlow :=
 /-- Network where sink `2` is unreachable from source `0`. -/
 def cutOffNet : Network (Fin 3) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 5
     | 2, 1 => 5
     | _, _ => 0
@@ -249,7 +249,7 @@ example : (relabelToFrontExact cutOffNet).flow.value = 0 ∧
 
 /-- Single arc `s → t`: all non-terminal excesses vanish initially. -/
 def directNet : Network (Fin 2) where
-  cap u v := if u.1 = 0 ∧ v.1 = 1 then 7 else 0
+  cap u v := if u.val = 0 ∧ v.val = 1 then 7 else 0
   s := 0
   t := 1
 

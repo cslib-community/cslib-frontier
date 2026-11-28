@@ -102,7 +102,7 @@ theorem sum_mul_orientedIncMatrix [Fintype V] (f : V → ℤ) (e : G.edgeSet) :
 and `0` elsewhere. -/
 theorem orientedIncMatrix_mul_self (u : V) (e : G.edgeSet) :
     G.orientedIncMatrix u e * G.orientedIncMatrix u e = if u ∈ (e : Sym2 V) then 1 else 0 := by
-  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.2
+  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.property
   have hmem : u ∈ (e : Sym2 V) ↔ u = (e : Sym2 V).out.1 ∨ u = (e : Sym2 V).out.2 := by
     conv_lhs => rw [← Sym2.mk_fst_out_snd_out (e : Sym2 V)]
     exact Sym2.mem_iff
@@ -120,7 +120,7 @@ when `e` joins them and `0` otherwise. -/
 theorem orientedIncMatrix_mul_of_ne {u w : V} (huw : u ≠ w) (e : G.edgeSet) :
     G.orientedIncMatrix u e * G.orientedIncMatrix w e =
       if (e : Sym2 V) = s(u, w) then -1 else 0 := by
-  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.2
+  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.property
   have he : (e : Sym2 V) = s((e : Sym2 V).out.1, (e : Sym2 V).out.2) :=
     (Sym2.mk_fst_out_snd_out _).symm
   set a := (e : Sym2 V).out.1
@@ -162,7 +162,7 @@ private theorem weighted_gram {R : Type*} [CommRing R] (w : Sym2 V → R) :
         fun _ => ⟨fun h => Subtype.ext h, fun h => h ▸ rfl⟩
       simp [hsub, hadj]
     · have hne : ∀ e : G.edgeSet, (e : Sym2 V) ≠ s(u, v) :=
-        fun e h => hadj (h ▸ e.2 : s(u, v) ∈ G.edgeSet)
+        fun e h => hadj (h ▸ e.property : s(u, v) ∈ G.edgeSet)
       simp [hadj, hne]
 
 /-- **The Laplacian is the Gram matrix of the oriented incidence matrix**:

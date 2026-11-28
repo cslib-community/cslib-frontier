@@ -122,10 +122,10 @@ theorem exists_det_glue_eq_mul (rg cg : ι → Prop) [DecidablePred rg] [Decidab
     · congr 1
       · congr 1
         ext i j
-        simp [toSquareBlockProp, glue, h1 i i.2, j.2]
+        simp [toSquareBlockProp, glue, h1 i i.property, j.property]
       · congr 1
         ext i j
-        simp [toSquareBlockProp, glue, h2 i i.2, j.2]
+        simp [toSquareBlockProp, glue, h2 i i.property, j.property]
     · intro i hi j hj
       simp [glue_apply, h2 i hi, hj]
   rw [hb] at hp

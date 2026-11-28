@@ -165,7 +165,7 @@ better off than under honest TTC. -/
 theorem exists_moved_rank_ttc_le {σ : Allocation n} (hσ : σ ≠ 1) :
     ∃ i : Fin n, σ i ≠ i ∧ I.rank i (I.ttc i) ≤ I.rank i (I.preTradeTTC σ i) := by
   let S : Finset (Fin n) := Finset.univ.filter fun i => σ i ≠ i
-  have hSne : S.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hemp =>
+  have hSne : S.Nonempty := Finset.ne_empty_iff_nonempty.1 fun hemp =>
     hσ (Equiv.ext fun i => Classical.byContradiction fun hne =>
       Finset.notMem_empty i (hemp ▸ Finset.mem_filter.2 ⟨Finset.mem_univ i, hne⟩))
   have hnot := I.not_forall_rank_preTradeTTC_lt hSne fun i hi =>

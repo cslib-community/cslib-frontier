@@ -305,8 +305,8 @@ private def evalState (O : List CompoundOrder) (s : Fin (orderVars O).length →
 private theorem exists_evalState_eq_orderPayoff (O : List CompoundOrder) (ω : ℕ → Bool) :
     ∃ s : Fin (orderVars O).length → Bool,
       ∀ o ∈ O, orderPayoff o (evalState O s) = orderPayoff o ω := by
-  refine ⟨fun k => ω (orderVars O)[k.1], fun o ho => ?_⟩
-  have hofFn : List.ofFn (fun k : Fin (orderVars O).length => ω (orderVars O)[k.1]) =
+  refine ⟨fun k => ω (orderVars O)[k.val], fun o ho => ?_⟩
+  have hofFn : List.ofFn (fun k : Fin (orderVars O).length => ω (orderVars O)[k.val]) =
       (orderVars O).map ω := by
     apply List.ext_getElem (by simp)
     intro i hi _
@@ -425,7 +425,7 @@ private theorem exists_small_int_farkas (O : List CompoundOrder) (hno : ¬ HasDi
       simp only [auctioneerPayoff, U, mulVec, dotProduct, Matrix.of_apply, neg_div,
         ← Finset.sum_neg_distrib, sum_div]
       refine sum_congr rfl fun i _ => ?_
-      rw [← hs O[i] (List.getElem_mem i.2)]
+      rw [← hs O[i] (List.getElem_mem i.isLt)]
       ring
     rw [hpay]
     exact div_nonneg (neg_nonneg.mpr hU) hsum_pos.le
@@ -472,7 +472,7 @@ private theorem exists_small_int_farkas (O : List CompoundOrder) (hno : ¬ HasDi
   set T : Finset (Fin N → Bool) := Finset.univ.filter fun s => z (.inl s) ≠ 0
   have hT_card : T.card ≤ m := by
     let φ : (T → ℝ) →ₗ[ℝ] (Fin m → ℝ) :=
-      { toFun := fun v i => ∑ s : T, U s.1 i * v s
+      { toFun := fun v i => ∑ s : T, U s.val i * v s
         map_add' := fun u v => funext fun i => by simp only [Pi.add_apply, mul_add, sum_add_distrib]
         map_smul' := fun r v => funext fun i => by
           simp only [Pi.smul_apply, smul_eq_mul, RingHom.id_apply, mul_left_comm _ r, ← mul_sum] }
@@ -489,20 +489,20 @@ private theorem exists_small_int_farkas (O : List CompoundOrder) (hno : ¬ HasDi
         · rfl
       have hMw : M *ᵥ w = 0 := by
         funext i
-        have hvi : ∑ s : T, U s.1 i * v s = 0 := congrFun hv i
+        have hvi : ∑ s : T, U s.val i * v s = 0 := congrFun hv i
         simp only [M, w, mulVec, dotProduct, Fintype.sum_sum_type, Matrix.of_apply, mul_zero,
           Finset.sum_const_zero, add_zero, Pi.zero_apply]
         calc ∑ s : Fin N → Bool, U s i * (if h : s ∈ T then v ⟨s, h⟩ else 0)
             = ∑ s ∈ T, U s i * (if h : s ∈ T then v ⟨s, h⟩ else 0) :=
               (Finset.sum_subset (Finset.subset_univ T) fun s _ hs => by simp [hs]).symm
-          _ = ∑ s : T, U s.1 i * v s := by
+          _ = ∑ s : T, U s.val i * v s := by
               rw [← Finset.sum_attach T]
-              exact sum_congr rfl fun s _ => by simp [s.2]
+              exact sum_congr rfl fun s _ => by simp [s.property]
           _ = 0 := hvi
       have hw0 := hz_min w hw_supp hMw
       funext s
-      have := congrFun hw0 (.inl s.1)
-      simpa [w, s.2] using this
+      have := congrFun hw0 (.inl s.val)
+      simpa [w, s.property] using this
     calc T.card = Fintype.card T := (Fintype.card_coe T).symm
       _ = Module.finrank ℝ (T → ℝ) := (Module.finrank_fintype_fun_eq_card ℝ).symm
       _ ≤ Module.finrank ℝ (Fin m → ℝ) := LinearMap.finrank_le_finrank_of_injective hinj
@@ -511,18 +511,18 @@ private theorem exists_small_int_farkas (O : List CompoundOrder) (hno : ¬ HasDi
   let Aint : Matrix (Fin m) (T ⊕ Fin m) ℤ :=
     Matrix.of fun i k =>
       match k with
-      | .inl s => intOrderPayoff O[i] (evalState O s.1)
+      | .inl s => intOrderPayoff O[i] (evalState O s.val)
       | .inr j => if i = j then -1 else 0
   let bint : Fin m → ℤ := fun _ => 1
   have hT_ge : ∀ i : Fin m,
-      1 ≤ ∑ s : T, (intOrderPayoff O[i] (evalState O s.1) : ℝ) * z (.inl s.1) := fun i => by
+      1 ≤ ∑ s : T, (intOrderPayoff O[i] (evalState O s.val) : ℝ) * z (.inl s.val) := fun i => by
     have hrow := congrFun hMz i
     simp only [M, mulVec, dotProduct, Fintype.sum_sum_type, Matrix.of_apply, ite_mul, neg_mul,
       one_mul, zero_mul, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte] at hrow
     have hge1 : 1 ≤ ∑ s : Fin N → Bool, U s i * z (.inl s) := by
       have hzi : 0 ≤ z (.inr i) := hz_nn (.inr i)
       linarith
-    have hsub : ∑ s : Fin N → Bool, U s i * z (.inl s) = ∑ s : T, U s.1 i * z (.inl s.1) := by
+    have hsub : ∑ s : Fin N → Bool, U s i * z (.inl s) = ∑ s : T, U s.val i * z (.inl s.val) := by
       rw [← Finset.sum_subset (Finset.subset_univ T) fun s _ hs => by
         have h0 : z (.inl s) = 0 := by simpa [T] using hs
         simp [h0]]
@@ -531,8 +531,8 @@ private theorem exists_small_int_farkas (O : List CompoundOrder) (hno : ¬ HasDi
       have h1 : (1 : ℝ) ≤ O[i].quantity.den := by exact_mod_cast O[i].quantity.pos
       have h2 : (1 : ℝ) ≤ O[i].price.den := by exact_mod_cast O[i].price.pos
       nlinarith
-    have hscale : ∑ s : T, (intOrderPayoff O[i] (evalState O s.1) : ℝ) * z (.inl s.1) =
-        (O[i].quantity.den : ℝ) * (O[i].price.den : ℝ) * ∑ s : T, U s.1 i * z (.inl s.1) := by
+    have hscale : ∑ s : T, (intOrderPayoff O[i] (evalState O s.val) : ℝ) * z (.inl s.val) =
+        (O[i].quantity.den : ℝ) * (O[i].price.den : ℝ) * ∑ s : T, U s.val i * z (.inl s.val) := by
       rw [Finset.mul_sum]
       refine sum_congr rfl fun s _ => ?_
       simp only [U, Matrix.of_apply, intOrderPayoff_cast_eq]
@@ -541,19 +541,19 @@ private theorem exists_small_int_farkas (O : List CompoundOrder) (hno : ¬ HasDi
     rw [hscale]
     nlinarith
   let xint : T ⊕ Fin m → ℝ :=
-    Sum.elim (fun s => z (.inl s.1))
-      fun i => (∑ s : T, (intOrderPayoff O[i] (evalState O s.1) : ℝ) * z (.inl s.1)) - 1
+    Sum.elim (fun s => z (.inl s.val))
+      fun i => (∑ s : T, (intOrderPayoff O[i] (evalState O s.val) : ℝ) * z (.inl s.val)) - 1
   have hxint_nn : 0 ≤ xint := by
     rintro (s | i)
-    · exact hz_nn (.inl s.1)
+    · exact hz_nn (.inl s.val)
     · exact sub_nonneg.mpr (hT_ge i)
   have hAxint : Aint.map (Int.cast : ℤ → ℝ) *ᵥ xint = fun i => (bint i : ℝ) := by
     funext i
     simp only [Aint, bint, xint, mulVec, dotProduct, Fintype.sum_sum_type, Matrix.map_apply,
       Matrix.of_apply, Sum.elim_inl, Sum.elim_inr, Int.cast_one]
     have hdiag : ∑ j : Fin m, ((if i = j then (-1 : ℤ) else 0 : ℤ) : ℝ) *
-        ((∑ s : T, (intOrderPayoff O[j] (evalState O s.1) : ℝ) * z (.inl s.1)) - 1) =
-        -((∑ s : T, (intOrderPayoff O[i] (evalState O s.1) : ℝ) * z (.inl s.1)) - 1) := by
+        ((∑ s : T, (intOrderPayoff O[j] (evalState O s.val) : ℝ) * z (.inl s.val)) - 1) =
+        -((∑ s : T, (intOrderPayoff O[i] (evalState O s.val) : ℝ) * z (.inl s.val)) - 1) := by
       have h1 : ∀ j : Fin m, ((if i = j then (-1 : ℤ) else 0 : ℤ) : ℝ) =
           if i = j then -1 else 0 := fun j => by split_ifs <;> simp
       simp only [h1, ite_mul, neg_mul, one_mul, zero_mul, Finset.sum_ite_eq, Finset.mem_univ,
@@ -564,7 +564,7 @@ private theorem exists_small_int_farkas (O : List CompoundOrder) (hno : ¬ HasDi
   have hAint_le : ∀ i k, |Aint i k| ≤ (B : ℤ) := by
     intro i k
     rcases k with s | j
-    · exact abs_intOrderPayoff_le (List.getElem_mem i.2) (evalState O s.1)
+    · exact abs_intOrderPayoff_le (List.getElem_mem i.isLt) (evalState O s.val)
     · simp only [Aint, Matrix.of_apply]
       split_ifs
       · rw [abs_neg, abs_one]; exact_mod_cast hB1
@@ -617,9 +617,9 @@ private theorem exists_small_int_farkas (O : List CompoundOrder) (hno : ¬ HasDi
       Finset.mem_univ, ↓reduceIte] at hrow
     have hpi : 0 ≤ p (.inr i) := hp_nn (.inr i)
     have hsum_eq : ∑ s ∈ T, w s * intOrderPayoff O[i] (evalState O s) =
-        ∑ s : T, intOrderPayoff O[i] (evalState O s.1) * p (.inl s) := by
+        ∑ s : T, intOrderPayoff O[i] (evalState O s.val) * p (.inl s) := by
       rw [← Finset.sum_attach T]
-      exact sum_congr rfl fun s _ => by simp only [w, s.2, ↓reduceDIte, mul_comm]
+      exact sum_congr rfl fun s _ => by simp only [w, s.property, ↓reduceDIte, mul_comm]
     linarith
 
 /-! ### Small-support Farkas & subset-infeasibility characterizations (p. 661) -/
@@ -750,7 +750,7 @@ private theorem notMem_of_farkasCertCheck {O : List CompoundOrder}
   rintro ⟨α, hbounds, ⟨i₀, hi₀⟩, hpay⟩
   have hord_pos (i : Fin O.length) :
       0 < (cert.map fun p => (p.2 : ℝ) * orderPayoff O[i] (orderAssignment O p.1)).sum := by
-    have hi := hpos O[i] (List.getElem_mem i.2)
+    have hi := hpos O[i] (List.getElem_mem i.isLt)
     have hD_pos : (0 : ℝ) < (O[i].quantity.den : ℝ) * (O[i].price.den : ℝ) :=
       mul_pos (Nat.cast_pos.mpr O[i].quantity.pos) (Nat.cast_pos.mpr O[i].price.pos)
     have hscale := cert_scale_eq O O[i] cert

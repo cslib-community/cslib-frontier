@@ -95,7 +95,7 @@ theorem nonempty_outputApproximator (hw : 2 ≤ w) (hk : w + 1 ≤ k)
   let S := Positive.scheme (n := n) (k := k) (p := p) hw hk
   have hF : (S.failures univ (outputApproximator C) fun _ => true).card ≤
       C.program.cost S.errorCost :=
-    S.card_failures_le_cost univ C fun c _ => hC c.1 (mem_powersetCard.1 c.2).2
+    S.card_failures_le_cost univ C fun c _ => hC c.val (mem_powersetCard.1 c.property).2
   have hcost : C.program.cost S.errorCost ≤ Positive.errorCap n k p w * C.size :=
     (C.program.cost_mono fun op => Positive.errorCost_le op).trans_eq (C.program.cost_const _)
   obtain ⟨c, hc⟩ : ∃ c, c ∉ S.failures univ (outputApproximator C) fun _ => true := by

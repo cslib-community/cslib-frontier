@@ -1302,29 +1302,29 @@ private theorem surplusSqNorm_drop_of_event1 {M : LinearFisherMarket I G} {p : G
   -- Build a saturating flow `fS` on the subtype market `(T1, S1)` using `exists_isBalancedFlow`
   -- and `IsMaxEqualityFlow.sum_buyer_eq`!
   let Msub : LinearFisherMarket {i : I // i ∈ T1} {g : G // g ∈ S1} := {
-    budget := fun i => M.budget i.1
-    supply := fun g => M.supply g.1
-    utility := fun i g => if M.IsEqualityEdge p i.1 g.1 then p' g.1 else 0
-    budget_nonneg := fun i => M.budget_nonneg i.1
-    supply_nonneg := fun g => M.supply_nonneg g.1
+    budget := fun i => M.budget i.val
+    supply := fun g => M.supply g.val
+    utility := fun i g => if M.IsEqualityEdge p i.val g.val then p' g.val else 0
+    budget_nonneg := fun i => M.budget_nonneg i.val
+    supply_nonneg := fun g => M.supply_nonneg g.val
     utility_nonneg := fun i g => by
       split_ifs
-      · simp only [p', scaleActivePrices, hS1_sub g.2, ↓reduceIte]
-        exact mul_nonneg (by linarith) (hp g.1).le
+      · simp only [p', scaleActivePrices, hS1_sub g.property, ↓reduceIte]
+        exact mul_nonneg (by linarith) (hp g.val).le
       · exact le_rfl
   }
-  let psub : {g : G // g ∈ S1} → ℝ := fun g => p' g.1
+  let psub : {g : G // g ∈ S1} → ℝ := fun g => p' g.val
   have hpsub_pos : ∀ g : {g : G // g ∈ S1}, 0 < psub g := fun g => by
-    simp only [psub, p', scaleActivePrices, hS1_sub g.2, ↓reduceIte]
-    exact mul_pos (by linarith) (hp g.1)
+    simp only [psub, p', scaleActivePrices, hS1_sub g.property, ↓reduceIte]
+    exact mul_pos (by linarith) (hp g.val)
   have hMsub_edge : ∀ (i : {i : I // i ∈ T1}) (g : {g : G // g ∈ S1}),
-      Msub.IsEqualityEdge psub i g ↔ M.IsEqualityEdge p i.1 g.1 := by
+      Msub.IsEqualityEdge psub i g ↔ M.IsEqualityEdge p i.val g.val := by
     intro i g
-    have hex : ∃ g₀ : {g : G // g ∈ S1}, M.IsEqualityEdge p i.1 g₀.1 := by
-      obtain ⟨g₀, hg₀S1, hE₀⟩ := mem_buyerNeighborhood.1 (Finset.mem_inter.1 i.2).1
+    have hex : ∃ g₀ : {g : G // g ∈ S1}, M.IsEqualityEdge p i.val g₀.val := by
+      obtain ⟨g₀, hg₀S1, hE₀⟩ := mem_buyerNeighborhood.1 (Finset.mem_inter.1 i.property).1
       exact ⟨⟨g₀, hg₀S1⟩, hE₀⟩
     have hbb (g' : {g : G // g ∈ S1}) :
-        Msub.bangPerBuck psub i g' = if M.IsEqualityEdge p i.1 g'.1 then 1 else 0 := by
+        Msub.bangPerBuck psub i g' = if M.IsEqualityEdge p i.val g'.val then 1 else 0 := by
       simp only [bangPerBuck_eq, Msub, psub]
       split_ifs
       · exact div_self (hpsub_pos g').ne'
@@ -1347,11 +1347,11 @@ private theorem surplusSqNorm_drop_of_event1 {M : LinearFisherMarket I G} {p : G
     have hA'_sub : A' ⊆ S1 := by
       intro g hg
       obtain ⟨g', -, rfl⟩ := Finset.mem_map.1 hg
-      exact g'.2
+      exact g'.property
     have hgv : Msub.goodValue psub A = x1 * M.goodValue p A' := by
       rw [goodValue, goodValue, Finset.mul_sum, Finset.sum_map]
       refine Finset.sum_congr rfl fun g _ => ?_
-      simp only [Function.Embedding.coeFn_mk, Msub, psub, p', scaleActivePrices, hS1_sub g.2,
+      simp only [Function.Embedding.coeFn_mk, Msub, psub, p', scaleActivePrices, hS1_sub g.property,
         ↓reduceIte]
       ring
     have hnbr_eq : (Msub.buyerNeighborhood psub A).map ⟨Subtype.val, Subtype.val_injective⟩ =
@@ -1361,10 +1361,11 @@ private theorem surplusSqNorm_drop_of_event1 {M : LinearFisherMarket I G} {p : G
         mem_buyerNeighborhood, A']
       constructor
       · rintro ⟨⟨i', hi'T1⟩, ⟨g', hg'A, hE⟩, rfl⟩
-        exact ⟨⟨g'.1, ⟨g', hg'A, rfl⟩, (hMsub_edge ⟨i', hi'T1⟩ g').1 hE⟩,
+        exact ⟨⟨g'.val, ⟨g', hg'A, rfl⟩, (hMsub_edge ⟨i', hi'T1⟩ g').1 hE⟩,
           (Finset.mem_inter.1 hi'T1).2⟩
       · rintro ⟨⟨g, ⟨g', hg'A, rfl⟩, hE⟩, hiH⟩
-        have hiT1 : i ∈ T1 := Finset.mem_inter.2 ⟨mem_buyerNeighborhood.2 ⟨g'.1, g'.2, hE⟩, hiH⟩
+        have hiT1 : i ∈ T1 :=
+          Finset.mem_inter.2 ⟨mem_buyerNeighborhood.2 ⟨g'.val, g'.property, hE⟩, hiH⟩
         exact ⟨⟨i, hiT1⟩, ⟨g', hg'A, (hMsub_edge ⟨i, hiT1⟩ g').2 hE⟩, rfl⟩
     have hbud : Msub.budgetSum (Msub.buyerNeighborhood psub A) =
         M.budgetSum (M.buyerNeighborhood p A' ∩ H) := by
@@ -1378,19 +1379,21 @@ private theorem surplusSqNorm_drop_of_event1 {M : LinearFisherMarket I G} {p : G
     exists_isBalancedFlow (M := Msub) (p := psub) fun g => (hpsub_pos g).le
   have hfsub_max := hfsub_bal.isMaxEqualityFlow fun g => (hpsub_pos g).le
   have hfsub_satG : ∀ g : {g : G // g ∈ S1}, ∑ i : {i : I // i ∈ T1}, fsub g i =
-      p' g.1 * M.supply g.1 := fun g =>
+      p' g.val * M.supply g.val := fun g =>
     hfsub_max.sum_buyer_eq (fun g' => (hpsub_pos g').le) hMsub_inv g
-  have hfsub_satB : ∀ i : {i : I // i ∈ T1}, ∑ g : {g : G // g ∈ S1}, fsub g i = M.budget i.1 := by
+  have hfsub_satB : ∀ i : {i : I // i ∈ T1},
+      ∑ g : {g : G // g ∈ S1}, fsub g i = M.budget i.val := by
     have hsum_eq :
-        ∑ i : {i : I // i ∈ T1}, (M.budget i.1 - ∑ g : {g : G // g ∈ S1}, fsub g i) = 0 := by
+        ∑ i : {i : I // i ∈ T1},
+          (M.budget i.val - ∑ g : {g : G // g ∈ S1}, fsub g i) = 0 := by
       rw [Finset.sum_sub_distrib, Finset.sum_comm]
       have h1 : ∑ g : {g : G // g ∈ S1}, ∑ i : {i : I // i ∈ T1}, fsub g i =
           x1 * M.goodValue p S1 := by
         simp_rw [hfsub_satG]
         rw [goodValue, Finset.mul_sum, ← Finset.sum_attach S1]
         refine Finset.sum_congr rfl fun g _ => ?_
-        simp only [p', scaleActivePrices, hS1_sub g.2, ↓reduceIte]; ring
-      have h2 : ∑ i : {i : I // i ∈ T1}, M.budget i.1 = M.budgetSum T1 := by
+        simp only [p', scaleActivePrices, hS1_sub g.property, ↓reduceIte]; ring
+      have h2 : ∑ i : {i : I // i ∈ T1}, M.budget i.val = M.budgetSum T1 := by
         rw [budgetSum, ← Finset.sum_attach T1]; rfl
       rw [h1, h2, hS1_tight, sub_self]
     intro i
@@ -1408,7 +1411,7 @@ private theorem surplusSqNorm_drop_of_event1 {M : LinearFisherMarket I G} {p : G
       ∑ g : G, ftilde g i = ∑ g : {g : G // g ∈ S1}, fsub g ⟨i, hi⟩ := by
     rw [← Finset.sum_subset (Finset.subset_univ S1) fun g _ hg => by simp [ftilde, hg, hi],
       ← Finset.sum_attach S1]
-    exact Finset.sum_congr rfl fun g _ => by simp [ftilde, g.2, hi]
+    exact Finset.sum_congr rfl fun g _ => by simp [ftilde, g.property, hi]
   have hftilde_feas : M.IsEqualityFlow p' ftilde := by
     refine ⟨fun g i => ?_, fun g i hpos => ?_, fun g => ?_, fun i => ?_⟩
     · dsimp only [ftilde]
@@ -1429,7 +1432,7 @@ private theorem surplusSqNorm_drop_of_event1 {M : LinearFisherMarket I G} {p : G
       · have hsum : ∑ i : I, ftilde g i = ∑ i : {i : I // i ∈ T1}, fsub ⟨g, hg⟩ i := by
           rw [← Finset.sum_subset (Finset.subset_univ T1) fun i _ hi => by simp [ftilde, hg, hi],
             ← Finset.sum_attach T1]
-          exact Finset.sum_congr rfl fun i _ => by simp [ftilde, hg, i.2]
+          exact Finset.sum_congr rfl fun i _ => by simp [ftilde, hg, i.property]
         rw [hsum, hfsub_satG ⟨g, hg⟩]
       · exact (Finset.sum_le_sum fun i _ => by
           dsimp only [ftilde]; split_ifs

@@ -87,7 +87,7 @@ theorem homogeneousComponent_mul {q : MvPolynomial σ R} {e : ℕ}
     homogeneousComponent e (r * q) = r.coeff 0 • homogeneousComponent e q := by
   classical
   ext d
-  rw [coeff_smul, coeff_homogeneousComponent, coeff_homogeneousComponent]
+  rw [AddMonoidAlgebra.coeff_smul_apply, coeff_homogeneousComponent, coeff_homogeneousComponent]
   split_ifs with hd
   · rw [coeff_mul, Finset.sum_eq_single (0, d)]
     · rfl

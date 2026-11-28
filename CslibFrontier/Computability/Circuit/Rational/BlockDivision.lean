@@ -188,7 +188,7 @@ theorem rank_gap (φ : D →+* Matrix κ κ E) (A : Matrix m m D) :
   have hrank := (blockEmbedding φ A).vecMulLinear.finrank_range_add_finrank_ker
   have heq : finrank E (blockEmbedding φ A).vecMulLinear.range =
       (blockEmbedding φ A).rank := by
-    rw [← Matrix.mulVecLin_transpose, ← Matrix.rank, Matrix.rank_transpose]
+    rw [← Matrix.mulVecLin_transpose, Matrix.finrank_range_mulVecLin, Matrix.rank_transpose]
   rw [heq] at hrank
   simp only [Module.finrank_pi, Fintype.card_prod] at hdim hrank
   omega

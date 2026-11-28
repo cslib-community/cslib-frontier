@@ -72,8 +72,8 @@ theorem accepts_mulRight (P : MonotoneSpanProgram F Party)
     exact htop
   have hinj : Function.Injective fun w : Fin (P.tailDim + 1) → F => w ᵥ* R :=
     Matrix.vecMul_injective_iff_isUnit.2 ((Matrix.isUnit_iff_isUnit_det R).2 hR)
-  have key : ∀ w : (i : s) → Fin (P.rowDim i.1) → F,
-      ∑ i : s, w i ᵥ* (P.mulRight R).matrix i.1 = (∑ i : s, w i ᵥ* P.matrix i.1) ᵥ* R := by
+  have key : ∀ w : (i : s) → Fin (P.rowDim i.val) → F,
+      ∑ i : s, w i ᵥ* (P.mulRight R).matrix i.val = (∑ i : s, w i ᵥ* P.matrix i.val) ᵥ* R := by
     intro w
     rw [Matrix.sum_vecMul]
     exact Finset.sum_congr rfl fun i _ => (Matrix.vecMul_vecMul _ _ _).symm

@@ -133,8 +133,9 @@ private theorem prop_random_compact {Z : Type*} (A B : Z → Z → ℝ)
   -- the price on T, as a function on all pairs
   let D : Finset Z → Z → Z → ℝ := fun T a b => if h : a ∈ T ∧
       b ∈ T then d T ⟨a, h.1⟩ ⟨b, h.2⟩ else 0
-  have hD : ∀ {S T : Finset Z} (hT : S ⊆ T) (a b : S), D T a b = d T ⟨a, hT a.2⟩ ⟨b, hT b.2⟩ :=
-    fun hT a b => dite_eq_left ⟨hT a.2, hT b.2⟩
+  have hD : ∀ {S T : Finset Z} (hT : S ⊆ T) (a b : S),
+      D T a b = d T ⟨a, hT a.property⟩ ⟨b, hT b.property⟩ :=
+    fun hT a b => dite_eq_left ⟨hT a.property, hT b.property⟩
   let U : Ultrafilter (Finset Z) := Ultrafilter.of atTop
   have hmem : ∀ S : Finset Z, ∀ᶠ T in (U : Filter (Finset Z)), S ⊆ T := fun S =>
     Ultrafilter.of_le _ (eventually_ge_atTop S)
@@ -150,7 +151,7 @@ private theorem prop_random_compact {Z : Type*} (A B : Z → Z → ℝ)
         refine ⟨?_, fun a b => (hD hT a b).le.trans (hAB T _ _).2⟩
         change IsPrice K fun a b : S => D T a b
         rw [funext₂ fun a b => hD hT a b]
-        exact IsPrice.comp (hd T) fun a : S => (⟨a, hT a.2⟩ : T))
+        exact IsPrice.comp (hd T) fun a : S => (⟨a, hT a.property⟩ : T))
     have h1 : Tendsto (fun T (a b : S) => D T a b) U (nhds v) := hlim
     exact ⟨v, hv, fun a b => tendsto_pi_nhds.1 (tendsto_pi_nhds.1 h1 a) b⟩
   choose v hv hlim using key
@@ -158,11 +159,11 @@ private theorem prop_random_compact {Z : Type*} (A B : Z → Z → ℝ)
   have hb : ∀ a b : Z, b ∈ ({a, b} : Finset Z) := fun a b => by simp
   -- the limits fit together
   have hfit : ∀ (S : Finset Z) (a b : S),
-      v S a b = v {a.1, b.1} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩ := fun S a b =>
-    tendsto_nhds_unique (hlim S a b) (hlim {a.1, b.1} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩)
+      v S a b = v {a.val, b.val} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩ := fun S a b =>
+    tendsto_nhds_unique (hlim S a b) (hlim {a.val, b.val} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩)
   refine ⟨fun a b => v {a, b} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩, isPrice_of_finset fun S => ?_,
       fun a b => ⟨?_, ?_⟩⟩
-  · rw [show (fun a b : S => v {a.1, b.1} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩) = v S from
+  · rw [show (fun a b : S => v {a.val, b.val} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩) = v S from
       funext₂ fun a b => (hfit S a b).symm]
     exact (hv S).1
   · refine ge_of_tendsto (hlim {a, b} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩) ?_
@@ -319,14 +320,14 @@ theorem IsPrice.exists_extend_random {Y Q : Type} {w : Y → Y → ℝ} (hw : Is
   have hg : ∀ l (a : S),
       ((Sum.elim id (fun κ => (⟨π l κ, hR l κ⟩ : R)) (g a) : R) : Y) = place (π l) a := by
     rintro l ⟨y | κ, ha⟩ <;> rfl
-  have hσ : ∀ ω (a : S), Sum.elim id (fun κ => σ κ ω) a.1 = place (fun κ : T => σ κ ω) a := by
+  have hσ : ∀ ω (a : S), Sum.elim id (fun κ => σ κ ω) a.val = place (fun κ : T => σ κ ω) a := by
     rintro ω ⟨y | κ, ha⟩ <;> rfl
   refine ⟨fun a b => v (g a) (g b), IsPrice.comp hv g, fun a b => ⟨?_, ?_⟩⟩
   · obtain ⟨y | κ, ha⟩ := a <;> obtain ⟨y' | κ', hb⟩ := b
     · exact (hv1 ⟨y, _⟩ ⟨y', _⟩).ge
     all_goals exact hv.nonneg _ _
   · refine (hv2 (g a) (g b)).trans (le_of_eq ?_)
-    change _ = ∫ ω, w (Sum.elim id (fun κ => σ κ ω) a.1) (Sum.elim id (fun κ => σ κ ω) b.1) ∂μ
+    change _ = ∫ ω, w (Sum.elim id (fun κ => σ κ ω) a.val) (Sum.elim id (fun κ => σ κ ω) b.val) ∂μ
     simp only [hg, hσ]
     exact (hmean fun f => w (place f a) (place f b)).symm
 

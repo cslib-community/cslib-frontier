@@ -103,12 +103,12 @@ private theorem exists_of_comap {W : Type*} (G : SimpleGraph W) (f : V ↪ W) {k
     (∃ s, G.IsNClique k s) ∨ ∃ s, G.IsNIndepSet l s := by
   classical
   rcases h with ⟨s, hs⟩ | ⟨s, hs⟩
-  · refine .inl ⟨s.map f, ⟨?_, by rw [card_map, hs.2]⟩⟩
+  · refine .inl ⟨s.map f, ⟨?_, by rw [card_map, hs.card_eq]⟩⟩
     rw [coe_map, IsClique, f.injective.injOn.pairwise_image]
-    exact hs.1
-  · refine .inr ⟨s.map f, ⟨?_, by rw [card_map, hs.2]⟩⟩
+    exact hs.isClique
+  · refine .inr ⟨s.map f, ⟨?_, by rw [card_map, hs.card_eq]⟩⟩
     rw [coe_map, IsIndepSet, f.injective.injOn.pairwise_image]
-    exact hs.1
+    exact hs.isIndepSet
 
 /-- The **Ramsey number** `R(k, l)`: the least `n` such that every simple graph on `Fin n` has a
 clique of size `k` or an independent set of size `l`. Equivalently, every red/blue colouring of the

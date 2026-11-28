@@ -3759,6 +3759,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Advice.Hierarchy
 public import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Detection
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayGateCorrect
+public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.LayerTally
 public import CslibFrontier.MachineLearning.UniformLearning.NonadaptiveCircuit.Oracle
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Activity
 public import CslibFrontier.Crypto.Primitives.SDitH.TweakSalt
@@ -4401,6 +4402,7 @@ public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.CompressSpec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Flat
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick.EpochTick
+public import CslibFrontier.Foundations.Data.Finset.CountSum
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.Schedule
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Description
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.Tabulation

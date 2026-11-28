@@ -85,13 +85,13 @@ theorem everyIndexOccurs_of_hasWinningStrategy (h : (tilingFrame L).HasWinningSt
       ∀ x, N (f x) c = green d .reverse ∧ N (f x) (f (x + 1)) = step d .forward := by
     have next (o : Direction) (s : {s // N s c = green d .reverse}) :
         ∃ s' : {s // N s c = green d .reverse}, N s s' = step d o := by
-      obtain ⟨p, hp, hpc⟩ := hN (m := s.1) (n := c) (a := step d o) (b := green d .reverse)
-        (by rw [s.2]; exact cycle_step_green_green d o)
+      obtain ⟨p, hp, hpc⟩ := hN (m := s.val) (n := c) (a := step d o) (b := green d .reverse)
+        (by rw [s.property]; exact cycle_step_green_green d o)
       exact ⟨⟨p, hpc⟩, hp⟩
-    obtain ⟨f, hf, hstep⟩ := exists_int_chain (R := fun s s' => N s.1 s'.1 = step d .forward)
+    obtain ⟨f, hf, hstep⟩ := exists_int_chain (R := fun s s' => N s.val s'.val = step d .forward)
       (next .forward) (fun s => (next .reverse s).imp fun s' hs' => by
         rw [← N.conv_label, hs']; rfl) ⟨s₀, hs₀⟩
-    exact ⟨fun x => (f x).1, congrArg Subtype.val hf, fun x => ⟨(f x).2, hstep x⟩⟩
+    exact ⟨fun x => (f x).val, congrArg Subtype.val hf, fun x => ⟨(f x).property, hstep x⟩⟩
   obtain ⟨a, rfl, ha⟩ := chain .one a₀ ha₀
   obtain ⟨b, rfl, hb⟩ := chain .two b₀ (by rw [← N.conv_label, hb₀]; rfl)
   have hcb (y : ℤ) : N c (b y) = green .two .forward := by rw [← N.conv_label, (hb y).1]; rfl

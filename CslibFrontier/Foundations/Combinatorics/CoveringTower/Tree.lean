@@ -139,7 +139,7 @@ private theorem sum_chamber_ite (g : ∀ j, T.X j → M) (P : T.Node) :
 /-- The values of `g` at the chambers of the levels below `J` and of the level `J` that are the
 node `P`. -/
 theorem sum_ofChamber_castSucc (g : ∀ j, T.X j → M) (P : T.Node) :
-    (∑ j : Fin J, ∑ c : T.X j, if ofChamber j.2.le c = P then g j c else 0) +
+    (∑ j : Fin J, ∑ c : T.X j, if ofChamber j.isLt.le c = P then g j c else 0) +
       ∑ c : T.X J, (if ofChamber le_rfl c = P then g J c else 0) = P.lift g 0 :=
   (Fin.sum_univ_castSucc _).symm.trans (sum_chamber_ite g P)
 
@@ -147,7 +147,7 @@ theorem sum_ofChamber_castSucc (g : ∀ j, T.X j → M) (P : T.Node) :
 node `P`. -/
 theorem sum_ofChamber_succ (g : ∀ j, T.X j → M) (P : T.Node) :
     (∑ c : T.X 0, if ofChamber (Nat.zero_le J) c = P then g 0 c else 0) +
-      ∑ j : Fin J, ∑ c : T.X (j + 1), (if ofChamber j.2 c = P then g (j + 1) c else 0) =
+      ∑ j : Fin J, ∑ c : T.X (j + 1), (if ofChamber j.isLt c = P then g (j + 1) c else 0) =
       P.lift g 0 :=
   (Fin.sum_univ_succ _).symm.trans (sum_chamber_ite g P)
 
@@ -257,13 +257,13 @@ namespace Node
 theorem stage_le (P : T.Node) : P.stage ≤ J + 1 := by
   cases P with
   | root => exact le_rfl
-  | chamber j c => exact j.2.le
+  | chamber j c => exact j.isLt.le
 
 /-- Only the root is of the stage `J + 1`. -/
 theorem stage_eq_iff {P : T.Node} : P.stage = J + 1 ↔ P = root := by
   cases P with
   | root => exact iff_of_true rfl rfl
-  | chamber j c => exact iff_of_false j.2.ne (by simp)
+  | chamber j c => exact iff_of_false j.isLt.ne (by simp)
 
 /-- The parent of a node other than the root is in the next stage. -/
 theorem stage_parent {P : T.Node} (hP : P ≠ root) : (P.parent hh Lf).stage = P.stage + 1 := by
@@ -273,7 +273,7 @@ theorem stage_parent {P : T.Node} (hP : P ≠ root) : (P.parent hh Lf).stage = P
     simp only [parent]
     split_ifs with hj
     · rfl
-    · exact (congrArg (· + 1) (Nat.eq_of_lt_succ_of_not_lt j.2 (by omega))).symm
+    · exact (congrArg (· + 1) (Nat.eq_of_lt_succ_of_not_lt j.isLt (by omega))).symm
 
 /-- The children of the root are the chambers of the level `J`. -/
 private theorem filter_parent_eq_root :

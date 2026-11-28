@@ -68,12 +68,12 @@ private theorem kap_le_normBound (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) {j : 
 private theorem load_edge_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (j : Fin (J + 1))
     (e : T.Ed j) : (load lhat n o (.edge j e) : ℝ) ≤ 2 * normBound FL Uu A lhat := by
   have hk := kap_le_normBound (lhat := lhat) (n := n) (o := o) (Uu := Uu) (A := A) hρ hρ1
-    (Nat.le_of_lt_succ j.2)
+    (Nat.le_of_lt_succ j.isLt)
   have hrX : (1 : ℝ) ≤ r * Fintype.card (T.X j) := by
     exact_mod_cast Nat.mul_pos hρ.r_pos (Fintype.card_pos_iff.2 ⟨T.e0 e⟩)
   have h1 : (load lhat n o (.edge j e) : ℝ) ^ 2 ≤
       ∑ e', (edgeLoads (load lhat n o) j e' : ℝ) ^ 2 := by
-    rw [← edgeLoads_of_lt (load lhat n o) j.2 e]
+    rw [← edgeLoads_of_lt (load lhat n o) j.isLt e]
     exact single_le_sum (f := fun e' => (edgeLoads (load lhat n o) j e' : ℝ) ^ 2)
       (fun _ _ => sq_nonneg _) (mem_univ e)
   have h3 := sum_nonneg fun e' (_ : e' ∈ univ) => sq_nonneg (edgeLoads (load lhat n o) j e' : ℝ)
@@ -89,12 +89,12 @@ private theorem minUnits_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (l : Verte
   set nf : T.Ed j → ℕ := fun e => load lhat n o (.edge j.castSucc e)
   have hk : T.kap nf ≤ normBound FL Uu A lhat :=
     (show nf = edgeLoads (load lhat n o) j from
-      funext fun e => (edgeLoads_of_lt (load lhat n o) (Nat.lt_succ_of_lt j.2) e).symm) ▸
-        kap_le_normBound hρ hρ1 j.2.le
+      funext fun e => (edgeLoads_of_lt (load lhat n o) (Nat.lt_succ_of_lt j.isLt) e).symm) ▸
+        kap_le_normBound hρ hρ1 j.isLt.le
   have hb : (1 : ℝ) ≤ b := by exact_mod_cast hρ.b_pos
   have ha : (1 : ℝ) ≤ FL.scale := by exact_mod_cast FL.scale_pos
   have hX : (1 : ℝ) ≤ Fintype.card (T.X (j + 1)) := by
-    rw [← T.card_V (Nat.succ_le_of_lt j.2) i]
+    rw [← T.card_V (Nat.succ_le_of_lt j.isLt) i]
     exact_mod_cast Nat.mul_pos (Fintype.card_pos_iff.2 ⟨ω⟩) hρ.b_pos
   have h1 : (FL.scale : ℝ) * (⟨j, i, ω, d⟩ : VertexMove FL).minUnits (load lhat n o) ≤
       √(T.NN2 (T.nEnd i nf ω)) + FL.scale :=
@@ -109,7 +109,7 @@ private theorem minUnits_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (l : Verte
   have h5 : √(T.NN2 (T.nEnd i nf ω)) ^ 2 ≤ 8 * b * T.kap nf ^ 2 := by
     have h6 := (mul_le_mul_of_nonneg_left h3 (by positivity : (0 : ℝ) ≤
       Fintype.card (T.X (j + 1)) / b)).trans
-        ((T.end_norm j.2 hρ.b_pos hρ.b_le (i := i) (n := nf)).trans
+        ((T.end_norm j.isLt hρ.b_pos hρ.b_le (i := i) (n := nf)).trans
           (mul_le_mul_of_nonneg_left h4 (by norm_num)))
     rw [div_mul_eq_mul_div, div_le_iff₀ (by positivity)] at h6
     nlinarith [sq_nonneg (√(T.NN2 (T.nEnd i nf ω)))]
@@ -155,7 +155,7 @@ of the loads at all stages by `normBound`. -/
 theorem towerPlan_ok_moveCap (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) :
     (towerPlan R FL Pl lhat U0 U1).Ok (moveCap FL U0 Uu A lhat) :=
   towerPlan_ok hρ.r_pos hρ.b_pos fun n _ mv =>
-    moveCount_le_moveCap hρ hρ1 (fun a c => Nat.le_of_lt_succ (n a c).2) mv
+    moveCount_le_moveCap hρ hρ1 (fun a c => Nat.le_of_lt_succ (n a c).isLt) mv
 
 /-! ### The units of the tree -/
 

@@ -162,7 +162,7 @@ private theorem conditionalEntropy_endMem_le (withQueries : Bool) {U V n cells w
   have hdec_at (s : HardKeyValSeed U V n) (t : ℕ) (ht : t ≤ n) :
       decodeDict D_det (n + modeStride withQueries * t)
         (memAt D_det (s.modeOps withQueries) (n + modeStride withQueries * t)) =
-      (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t ht).1 := by
+      (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t ht).val := by
     have hvh := s.validHistory_take_modeOps withQueries ht
     have hlen := s.length_take_modeOps withQueries ht
     have hle : ((s.modeOps withQueries).take (n + modeStride withQueries * t)).length ≤

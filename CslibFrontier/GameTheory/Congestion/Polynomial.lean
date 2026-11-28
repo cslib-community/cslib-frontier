@@ -91,7 +91,7 @@ section CharacteristicRoot
 private theorem exp_one_le_four : Real.exp 1 ≤ 4 := by
   have h := pow_le_pow_left₀ (by norm_num) (Real.add_one_le_exp (-1 / 2 : ℝ)) 2
   have hmul := mul_le_mul_of_nonneg_right h (Real.exp_nonneg 1)
-  rw [← Real.exp_nat_mul, ← Real.exp_add] at hmul
+  rw [← Real.exp_natCast_mul, ← Real.exp_add] at hmul
   norm_num at hmul
   linarith
 
@@ -106,9 +106,9 @@ private theorem add_two_pow_lt_add_one_pow_succ {d : ℕ} (hd : 1 ≤ d) :
   have hu4 : 4 ≤ u := by linarith
   have hu_pos : 0 < u := by linarith
   have hpow : (1 + 1 / u) ^ d ≤ Real.exp (d * (1 / u)) := by
-    rw [Real.exp_nat_mul]
-    gcongr
-    simpa only [add_comm] using Real.add_one_le_exp (1 / u)
+    rw [Real.exp_natCast_mul]
+    exact pow_le_pow_left₀ (by positivity)
+      (by simpa only [add_comm] using Real.add_one_le_exp (1 / u)) d
   have hexp_lt : (1 + 1 / u) ^ d < u :=
     (hpow.trans_lt (Real.exp_lt_exp.2 (by rw [mul_one_div, div_lt_one hu_pos]; linarith))).trans_le
       (exp_one_le_four.trans hu4)

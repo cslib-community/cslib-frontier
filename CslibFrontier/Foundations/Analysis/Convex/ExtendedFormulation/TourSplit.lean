@@ -53,14 +53,14 @@ public section
 
 section FinHelpers
 
-private theorem fin_one_val {n : ℕ} [NeZero n] (hn : 1 < n) : (1 : Fin n).1 = 1 :=
+private theorem fin_one_val {n : ℕ} [NeZero n] (hn : 1 < n) : (1 : Fin n).val = 1 :=
   (Fin.val_one' n).trans (Nat.mod_eq_of_lt hn)
 
 private theorem fin_mk_one {n : ℕ} [NeZero n] (hn : 1 < n) : (⟨1, hn⟩ : Fin n) = 1 :=
   Fin.ext (fin_one_val hn).symm
 
 private theorem fin_val_add_one_eq_ite {n : ℕ} [NeZero n] (hn : 1 < n) (i : Fin n) :
-    (i + 1).1 = if i.1 + 1 = n then 0 else i.1 + 1 := by
+    (i + 1).val = if i.val + 1 = n then 0 else i.val + 1 := by
   rw [Fin.val_add, fin_one_val hn]
   split_ifs with h
   · rw [h, Nat.mod_self]
@@ -100,7 +100,7 @@ theorem tourEdge_mem_top_edgeSet {V : Type*} [Fintype V]
 /-- `F` is a Hamiltonian tour contained in the spanning subgraph `G : SimpleGraph V`. -/
 @[expose] def IsSubgraphTour {V : Type*} [Fintype V] [DecidableEq V] (G : SimpleGraph V)
     (F : Finset ↥(⊤ : SimpleGraph V).edgeSet) : Prop :=
-  IsTourEdgeSet F ∧ ∀ e ∈ F, e.1 ∈ G.edgeSet
+  IsTourEdgeSet F ∧ ∀ e ∈ F, e.val ∈ G.edgeSet
 
 section Polytope
 
@@ -115,7 +115,7 @@ variable (K : Type*) [Semiring K] [PartialOrder K]
 [FioriniMassarPokuttaTiwaryDeWolf2015, Section 3.4]. -/
 @[expose] def tspPolytope (V : Type*) [Fintype V] [DecidableEq V] :
     Set (↥(⊤ : SimpleGraph V).edgeSet → K) :=
-  convexHull K (Set.range fun F : {F // IsTourEdgeSet F} => tspVertex K F.1)
+  convexHull K (Set.range fun F : {F // IsTourEdgeSet F} => tspVertex K F.val)
 
 end Polytope
 
@@ -123,13 +123,13 @@ end Polytope
 theorem tspPolytope_inter_subgraph_eq
     {K : Type*} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
     {V : Type*} [Fintype V] [DecidableEq V] (G : SimpleGraph V) [DecidableRel G.Adj] :
-    let c : ↥(⊤ : SimpleGraph V).edgeSet → K := fun e => if e.1 ∈ G.edgeSet then 0 else -1
+    let c : ↥(⊤ : SimpleGraph V).edgeSet → K := fun e => if e.val ∈ G.edgeSet then 0 else -1
     tspPolytope K V ∩ {x | c ⬝ᵥ x = 0} =
-      convexHull K (Set.range fun F : {F // IsSubgraphTour G F} => tspVertex K F.1) := by
+      convexHull K (Set.range fun F : {F // IsSubgraphTour G F} => tspVertex K F.val) := by
   classical
   intro c
   have hdot (F : Finset ↥(⊤ : SimpleGraph V).edgeSet) :
-      c ⬝ᵥ tspVertex K F = -((F.filter fun e => e.1 ∉ G.edgeSet).card : K) := by
+      c ⬝ᵥ tspVertex K F = -((F.filter fun e => e.val ∉ G.edgeSet).card : K) := by
     simp [dotProduct, c, tspVertex, Finset.sum_ite]
   rw [tspPolytope, convexHull_inter_dotProduct_eq fun F => by simp [hdot]]
   congr 1
@@ -193,11 +193,11 @@ theorem card_splitV {W : Type*} [Fintype W] [DecidableEq W] (v₀ : W) (pad : �
 
 private def splitAdjRel {W : Type*} [DecidableEq W] (v₀ : W) (pad : ℕ)
     (adjD : W → W → Prop) : SplitV W v₀ pad → SplitV W v₀ pad → Prop
-  | .vIn u, .vMid w k => u = w ∧ k.1 = 0
-  | .vMid w k, .vIn u => u = w ∧ k.1 = 0
-  | .vMid u k₁, .vMid w k₂ => u = w ∧ (k₁.1 + 1 = k₂.1 ∨ k₂.1 + 1 = k₁.1)
-  | .vMid w k, .vOut u => u = w ∧ k.1 + 1 = splitMidLen v₀ pad w
-  | .vOut u, .vMid w k => u = w ∧ k.1 + 1 = splitMidLen v₀ pad w
+  | .vIn u, .vMid w k => u = w ∧ k.val = 0
+  | .vMid w k, .vIn u => u = w ∧ k.val = 0
+  | .vMid u k₁, .vMid w k₂ => u = w ∧ (k₁.val + 1 = k₂.val ∨ k₂.val + 1 = k₁.val)
+  | .vMid w k, .vOut u => u = w ∧ k.val + 1 = splitMidLen v₀ pad w
+  | .vOut u, .vMid w k => u = w ∧ k.val + 1 = splitMidLen v₀ pad w
   | .vOut u, .vIn w => adjD u w
   | .vIn w, .vOut u => adjD u w
   | _, _ => False
@@ -219,12 +219,12 @@ private theorem splitMidLen_pos {W : Type*} [DecidableEq W] (v₀ : W) (pad : �
 
 private def midPrev {W : Type*} [DecidableEq W] (v₀ : W) (pad : ℕ) (w : W)
     (k : Fin (splitMidLen v₀ pad w)) : SplitV W v₀ pad :=
-  if h : k.1 = 0 then .vIn w else .vMid w ⟨k.1 - 1, by omega⟩
+  if h : k.val = 0 then .vIn w else .vMid w ⟨k.val - 1, by omega⟩
 
 private def midNext {W : Type*} [DecidableEq W] (v₀ : W) (pad : ℕ) (w : W)
     (k : Fin (splitMidLen v₀ pad w)) : SplitV W v₀ pad :=
-  if h : k.1 + 1 = splitMidLen v₀ pad w then .vOut w
-  else .vMid w ⟨k.1 + 1, by have := k.2; omega⟩
+  if h : k.val + 1 = splitMidLen v₀ pad w then .vOut w
+  else .vMid w ⟨k.val + 1, by have := k.isLt; omega⟩
 
 private theorem adj_vMid_iff {W : Type*} [DecidableEq W] (v₀ : W) (pad : ℕ)
     (adjD : W → W → Prop) (w : W) (k : Fin (splitMidLen v₀ pad w)) (x : SplitV W v₀ pad) :
@@ -274,18 +274,18 @@ private theorem mem_tourEdgeSet_iff {V : Type*} [Fintype V] [DecidableEq V]
 private theorem tourEdgeSet_subset_iff {V : Type*} [Fintype V] [DecidableEq V]
     [NeZero (Fintype.card V)] {G : SimpleGraph V} {σ : Fin (Fintype.card V) ≃ V}
     {hV : 3 ≤ Fintype.card V} :
-    (∀ e ∈ tourEdgeSet σ hV, e.1 ∈ G.edgeSet) ↔ ∀ i, G.Adj (σ i) (σ (i + 1)) := by
+    (∀ e ∈ tourEdgeSet σ hV, e.val ∈ G.edgeSet) ↔ ∀ i, G.Adj (σ i) (σ (i + 1)) := by
   simp [tourEdgeSet, fin_mk_one (n := Fintype.card V) (by omega)]
 
 private def splitPos {W : Type*} [Fintype W] [DecidableEq W]
     (v₀ : W) (pad : ℕ) (τ' : Fin (Fintype.card W) ≃ W) (w : W) : ℕ :=
-  if w = v₀ then 0 else 3 * (τ'.symm w).1 + pad
+  if w = v₀ then 0 else 3 * (τ'.symm w).val + pad
 
 private theorem splitPos_add_bound {W : Type*} [Fintype W] [DecidableEq W]
     (v₀ : W) (pad : ℕ) (τ' : Fin (Fintype.card W) ≃ W) (w : W) :
     splitPos v₀ pad τ' w + 1 + splitMidLen v₀ pad w < 3 * Fintype.card W + pad := by
   dsimp only [splitPos, splitMidLen]
-  have := (τ'.symm w).2
+  have := (τ'.symm w).isLt
   by_cases hw : w = v₀ <;> simp only [hw, ↓reduceIte] <;> omega
 
 private def splitFrom {W : Type*} [Fintype W] [DecidableEq W]
@@ -295,9 +295,9 @@ private def splitFrom {W : Type*} [Fintype W] [DecidableEq W]
       have := splitPos_add_bound v₀ pad τ' w
       have := splitMidLen_pos v₀ pad w
       omega⟩
-  | .vMid w k => ⟨splitPos v₀ pad τ' w + 1 + k.1, by
+  | .vMid w k => ⟨splitPos v₀ pad τ' w + 1 + k.val, by
       have := splitPos_add_bound v₀ pad τ' w
-      have := k.2
+      have := k.isLt
       omega⟩
   | .vOut w => ⟨splitPos v₀ pad τ' w + 1 + splitMidLen v₀ pad w,
       splitPos_add_bound v₀ pad τ' w⟩
@@ -305,13 +305,13 @@ private def splitFrom {W : Type*} [Fintype W] [DecidableEq W]
 private def splitTo {W : Type*} [Fintype W] [DecidableEq W]
     (v₀ : W) (pad : ℕ) (τ' : Fin (Fintype.card W) ≃ W)
     (i : Fin (3 * Fintype.card W + pad)) : SplitV W v₀ pad :=
-  if _ : i.1 = 0 then .vIn v₀
-  else if h1 : i.1 < pad + 2 then
-    .vMid v₀ ⟨i.1 - 1, by simp only [splitMidLen, ↓reduceIte]; omega⟩
-  else if _ : i.1 = pad + 2 then .vOut v₀
+  if _ : i.val = 0 then .vIn v₀
+  else if h1 : i.val < pad + 2 then
+    .vMid v₀ ⟨i.val - 1, by simp only [splitMidLen, ↓reduceIte]; omega⟩
+  else if _ : i.val = pad + 2 then .vOut v₀
   else
-    let j := i.1 - (pad + 3)
-    let t : Fin (Fintype.card W) := ⟨j / 3 + 1, by have := i.2; omega⟩
+    let j := i.val - (pad + 3)
+    let t : Fin (Fintype.card W) := ⟨j / 3 + 1, by have := i.isLt; omega⟩
     if j % 3 = 0 then .vIn (τ' t)
     else if j % 3 = 1 then .vMid (τ' t) ⟨0, splitMidLen_pos v₀ pad _⟩
     else .vOut (τ' t)
@@ -319,7 +319,7 @@ private def splitTo {W : Type*} [Fintype W] [DecidableEq W]
 /-- A directed tour that starts at `v₀` is at `v₀` only at its start. -/
 private theorem dirTour_eq_start_iff {W : Type*} [Fintype W] [NeZero (Fintype.card W)] {v₀ : W}
     {τ' : Fin (Fintype.card W) ≃ W} (hτ'0 : τ' 0 = v₀) (t : Fin (Fintype.card W)) :
-    τ' t = v₀ ↔ t.1 = 0 := by
+    τ' t = v₀ ↔ t.val = 0 := by
   rw [← hτ'0, τ'.apply_eq_iff_eq, Fin.ext_iff, Fin.val_zero]
 
 private theorem splitFrom_splitTo {W : Type*} [Fintype W] [DecidableEq W]
@@ -643,14 +643,14 @@ theorem exists_dirTour_of_paddedSplitTour {W : Type*} [Fintype W] [Nonempty W] [
     rw [Nat.sub_add_cancel (by omega), show pad + 3 + 3 * (Fintype.card W - 1) =
       Fintype.card (SplitV W v₀ pad) by omega, splitStep_card, hσ0] at this
     exact (SplitV.vIn.inj this).symm
-  have hinj : Function.Injective fun t : Fin (Fintype.card W) => next^[t.1] v₀ := fun a b h => by
-    have := splitStep_inj ((hpos a a.2).trans ((congrArg _ h).trans (hpos b b.2).symm))
+  have hinj : Function.Injective fun t : Fin (Fintype.card W) => next^[t.val] v₀ := fun a b h => by
+    have := splitStep_inj ((hpos a a.isLt).trans ((congrArg _ h).trans (hpos b b.isLt).symm))
       (by omega) (by omega)
     exact Fin.ext (by omega)
   let τ : Fin (Fintype.card W) ≃ W := Equiv.ofBijective _
     ((Fintype.bijective_iff_injective_and_card _).2 ⟨hinj, Fintype.card_fin _⟩)
   have hτ : ∀ t, τ (t + 1) = next (τ t) := fun t => by
-    change next^[(t + 1).1] v₀ = next (next^[t.1] v₀)
+    change next^[(t + 1).val] v₀ = next (next^[t.val] v₀)
     rw [← Function.iterate_succ_apply' next, fin_val_add_one_eq_ite (by omega)]
     split_ifs with h
     · simp [h, hm]

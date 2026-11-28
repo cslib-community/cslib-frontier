@@ -469,7 +469,7 @@ private theorem computableInPolyTime_schnorrForkFinish_proj :
         (encPair (encFinishInput F) encSchnorrForkEntry)
         (encFinishInput F) := by fun_prop
     exact (show ComputableInPolyTime (fun p : FinishInput F × SchnorrForkEntry =>
-      p.2.1) _ encBits by fun_prop).beq (hpoint.comp hfst)
+      p.2.point) _ encBits by fun_prop).beq (hpoint.comp hfst)
   have hfind := ComputableInPolyTime.findWithInput
     (test := fun x (entry : SchnorrForkEntry) => entry.point ==
       encPair encBits encBits (x.2.1.1, ((Decoder.bits.pair Decoder.bits).decode x.2.1.2).1))

@@ -167,7 +167,7 @@ theorem ptr_run_le (k t : ℕ) (x : ℕ → Bool) (N : ℕ) : (run φ k t x N).p
     rcases move_cases t (run φ k t x N) with ⟨hm, -, hp, -⟩ | ⟨c, hm, -, hc, -⟩ |
       ⟨_, _, _, hm, -⟩ | ⟨_, _, hm, -⟩ | ⟨hm, -⟩ <;> simp only [step, hm, apply]
     · omega
-    · exact hc ▸ c.2
+    · exact hc ▸ c.isLt
     · exact ih
     · exact ih
     · exact ih
@@ -259,7 +259,7 @@ theorem card_exhausts_lt {k L : ℕ} (hφ : φ.IsExactDistinct k)
         have hlen {z} (hz : z ∈ univ.filter fun y => Exhausts φ k t (ext y)) :
             (i : ℕ) < n + (run φ k t (ext z) (fuel φ t)).trace.length * k := by
           rw [← final, length_trace_final_eq (mem_filter.mp hz).2]
-          exact i.2
+          exact i.isLt
         have h1 := decode_run hφ hL t (ext y) (fuel φ t) i (hlen hy)
         have h2 := decode_run hφ hL t (ext y') (fuel φ t) i (hlen hy')
         rw [← final] at h1 h2

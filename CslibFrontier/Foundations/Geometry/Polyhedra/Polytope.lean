@@ -403,32 +403,32 @@ private lemma mem_convexHull_iff_coords {d m : ℕ} (eE : E ≃ₗ[ℝ] (Fin d �
     {Sf : Finset E} (eS : Fin m ≃ Sf) (x : E) :
     x ∈ convexHull ℝ (Sf : Set E) ↔
       ∃ w : Fin m → ℝ, (∀ j, 0 ≤ w j) ∧ ∑ j, w j = 1 ∧
-        ∀ k : Fin d, ∑ j, w j * eE (eS j).1 k = eE x k := by
+        ∀ k : Fin d, ∑ j, w j * eE (eS j).val k = eE x k := by
   classical
   rw [Finset.mem_convexHull']
   constructor
   · rintro ⟨w', hw'₀, hw'₁, rfl⟩
-    refine ⟨fun j => w' (eS j).1, fun j => hw'₀ _ (eS j).2, ?_, fun k => ?_⟩
-    · exact (Fintype.sum_equiv eS _ (fun u : Sf => w' u.1) fun _ => rfl).trans
+    refine ⟨fun j => w' (eS j).val, fun j => hw'₀ _ (eS j).property, ?_, fun k => ?_⟩
+    · exact (Fintype.sum_equiv eS _ (fun u : Sf => w' u.val) fun _ => rfl).trans
         ((Finset.sum_coe_sort Sf w').trans hw'₁)
     · rw [map_sum]
       simp only [Finset.sum_apply, map_smul, Pi.smul_apply, smul_eq_mul]
-      exact (Fintype.sum_equiv eS _ (fun u : Sf => w' u.1 * eE u.1 k) fun _ => rfl).trans
+      exact (Fintype.sum_equiv eS _ (fun u : Sf => w' u.val * eE u.val k) fun _ => rfl).trans
         (Finset.sum_coe_sort Sf (fun u => w' u * eE u k))
   · rintro ⟨w, hw₀, hw₁, hVk⟩
     let w' : E → ℝ := fun u => if hu : u ∈ Sf then w (eS.symm ⟨u, hu⟩) else 0
     have hw'sum : ∑ u ∈ Sf, w' u = 1 := by
       rw [← Finset.sum_coe_sort Sf w']
-      exact (Fintype.sum_equiv eS.symm (fun u : Sf => w' u.1) w fun u => by
-        simp only [w', dite_eq_left u.2]).trans hw₁
+      exact (Fintype.sum_equiv eS.symm (fun u : Sf => w' u.val) w fun u => by
+        simp only [w', dite_eq_left u.property]).trans hw₁
     refine ⟨w', fun u hu => by simp only [w', dite_eq_left hu]; exact hw₀ _, hw'sum,
       eE.injective <| funext fun k => ?_⟩
     rw [map_sum]
     simp only [Finset.sum_apply, map_smul, Pi.smul_apply, smul_eq_mul, ← hVk k]
     rw [← Finset.sum_coe_sort Sf (fun u => w' u * eE u k)]
-    exact Fintype.sum_equiv eS.symm (fun u : Sf => w' u.1 * eE u.1 k)
-      (fun j => w j * eE (eS j).1 k) fun u => by
-        simp only [w', dite_eq_left u.2, Equiv.apply_symm_apply]
+    exact Fintype.sum_equiv eS.symm (fun u : Sf => w' u.val * eE u.val k)
+      (fun j => w j * eE (eS j).val k) fun u => by
+        simp only [w', dite_eq_left u.property, Equiv.apply_symm_apply]
 
 private lemma fourierMotzkin_convexHull_system {d m : ℕ} (V : Fin m → Fin d → ℝ) :
     ∃ (ι : Type) (_ : Fintype ι) (A : Matrix ι (Fin m) ℝ) (B : Matrix ι (Fin d) ℝ)
@@ -470,7 +470,7 @@ theorem IsVPolytope.isHPolytope {P : Set E} (hP : IsVPolytope P) : IsHPolytope P
     let eE := (Module.finBasis ℝ E).equivFun
     let Sf := hS.toFinset
     let eS := (Fintype.equivFin Sf).symm
-    obtain ⟨ι, _, A, B, rhs, hsys⟩ := fourierMotzkin_convexHull_system fun j => eE (eS j).1
+    obtain ⟨ι, _, A, B, rhs, hsys⟩ := fourierMotzkin_convexHull_system fun j => eE (eS j).val
     obtain ⟨ρ, _, T, _, _, hproj⟩ := Matrix.FourierMotzkin.exists_projection A B rhs
     let ℓ : ρ → E →ᵃ[ℝ] ℝ := fun r =>
       (LinearMap.proj r ∘ₗ (T * B).mulVecLin ∘ₗ eE.toLinearMap).toAffineMap -
@@ -568,7 +568,7 @@ theorem exists_finset_subset_convexHull_of_isExtreme {s : Finset E} {Q R : Set E
   have hw_pos : ∀ v ∈ t, 0 < w v := fun v hv => (Finset.mem_filter.1 hv).2
   have hw_sum : ∑ v ∈ t, w v = 1 :=
     (Finset.sum_subset (Finset.filter_subset _ s) hwt0).trans hw1
-  have htne : t.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt => by simp [hmt] at hw_sum
+  have htne : t.Nonempty := Finset.ne_empty_iff_nonempty.1 fun hmt => by simp [hmt] at hw_sum
   have hx_comb : ∑ v ∈ t, w v • v = x := by
     rw [← hwx]
     exact Finset.sum_subset (Finset.filter_subset _ s) fun v hv hn => by
@@ -657,13 +657,13 @@ private lemma mem_affineSpan_finset_iff_sum {V : Finset E} {x : E}
   obtain ⟨s', w', hw'1, rfl⟩ := hx'
   refine ⟨fun v => if hv : v ∈ V then if ⟨v, hv⟩ ∈ s' then w' ⟨v, hv⟩ else 0 else 0, ?_, ?_⟩
   · rw [← Finset.sum_coe_sort V, ← Finset.sum_subset (Finset.subset_univ s') fun v _ hns => by
-      simp only [v.2, hns, ↓reduceDIte, ↓reduceIte]]
+      simp only [v.property, hns, ↓reduceDIte, ↓reduceIte]]
     exact (Finset.sum_congr rfl fun v hv => by
-      simp only [v.2, hv, ↓reduceDIte, ↓reduceIte]).trans hw'1
+      simp only [v.property, hv, ↓reduceDIte, ↓reduceIte]).trans hw'1
   · rw [Finset.affineCombination_eq_linear_combination _ _ _ hw'1, ← Finset.sum_coe_sort V,
       ← Finset.sum_subset (Finset.subset_univ s') fun v _ hns => by
-        simp only [v.2, hns, ↓reduceDIte, ↓reduceIte, zero_smul]]
-    exact Finset.sum_congr rfl fun v hv => by simp only [v.2, hv, ↓reduceDIte, ↓reduceIte]
+        simp only [v.property, hns, ↓reduceDIte, ↓reduceIte, zero_smul]]
+    exact Finset.sum_congr rfl fun v hv => by simp only [v.property, hv, ↓reduceDIte, ↓reduceIte]
 
 theorem IsPolytopeFace.inter_affineSpan_eq {P F : Set E} (hP : IsPolytope P)
     (hPF : IsPolytopeFace P F) (hne : F.Nonempty) : P ∩ (affineSpan ℝ F : Set E) = F := by
@@ -912,7 +912,7 @@ theorem exists_isPolytopeFace_ssubset_of_ne_vertexCentroid {P : Set E} (hP : IsP
         linarith [hP.apply_vertexCentroid_lt ⟨x, hx⟩ (fun w hw => (hPL ▸ hw) ℓ hℓ) hx
           (((hPL ▸ hx) ℓ hℓ).lt_of_ne hne0)]
       rw [hb0, h0x, sub_zero, mul_zero, add_zero]
-  have hLinc_ne : Linc.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt =>
+  have hLinc_ne : Linc.Nonempty := Finset.ne_empty_iff_nonempty.1 fun hmt =>
     ray_not_bounded hbnd hxne fun t ht => hline (by linarith) (by simp [hmt])
   obtain ⟨ℓ₀, hℓ₀, hmin⟩ := Linc.exists_min_image (fun ℓ => (-ℓ b) / (ℓ x - ℓ b)) hLinc_ne
   obtain ⟨hℓ₀L, hℓ₀_lt, hℓ₀_inc⟩ := by
@@ -943,8 +943,8 @@ private lemma isExtreme_convexHull_of_affineIndependent {s t : Finset E}
   obtain ⟨wy, hwy0, hwy1, rfl⟩ := Finset.mem_convexHull'.1 hy
   obtain ⟨wz, hwz0, hwz1, hwzeq⟩ := Finset.mem_convexHull'.1 hz
   rcases hzx with ⟨a, b, ha, hb, hab, hzeq⟩
-  let c : s → ℝ := fun v => a * wx v.1 + b * wy v.1
-  let d : s → ℝ := fun v => if v.1 ∈ t then wz v.1 else 0
+  let c : s → ℝ := fun v => a * wx v.val + b * wy v.val
+  let d : s → ℝ := fun v => if v.val ∈ t then wz v.val else 0
   have hc_sum : ∑ v : s, c v = 1 := by
     simp only [c, Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_coe_sort, hwx1, hwy1]
     linarith

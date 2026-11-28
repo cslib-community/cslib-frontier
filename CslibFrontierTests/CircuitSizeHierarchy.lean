@@ -35,9 +35,10 @@ example (n : ℕ) (hn : 100 ≤ n) :
     #{f : BooleanFunction n |
       ((complexity interpretation (single f) + n : ℕ) : ℝ) < 2 ^ n / (10 * n)} ≤
       2 ^ (2 ^ n / 4) := by
-  refine (Finset.card_le_card fun f hf => ?_).trans
+  rw [← Set.ncard_coe_finset]
+  refine (Set.ncard_le_ncard fun f hf => ?_).trans
     (card_computableFunctions_two_pow_div_five_mul_le (by omega))
-  rw [Finset.mem_filter] at hf
+  rw [Finset.mem_coe, Finset.mem_filter] at hf
   rw [mem_computableFunctions_iff_complexity_le, Nat.le_div_iff_mul_le (by omega)]
   have hn0 : (0 : ℝ) < n := by exact_mod_cast (by omega : 0 < n)
   rw [lt_div_iff₀ (by positivity)] at hf

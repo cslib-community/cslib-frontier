@@ -460,22 +460,22 @@ private theorem cesUtility_add_ge.{u} {G : Type u} [Fintype G] {α x y : G → �
         have hle : x g + y g ≤ 0 := not_lt.1 fun hlt => hg (mem_filter.2 ⟨mem_univ g, hlt⟩)
         exact ⟨by linarith [hx g, hy g], by linarith [hx g, hy g]⟩
       have hsum_restrict : ∀ (z : G → ℝ), (∀ g, g ∉ S → z g = 0) →
-          ∑ g : G, α g * (z g) ^ ρ = ∑ s : S, α s.1 * (z s.1) ^ ρ := fun z hz => by
+          ∑ g : G, α g * (z g) ^ ρ = ∑ s : S, α s.val * (z s.val) ^ ρ := fun z hz => by
         calc ∑ g : G, α g * (z g) ^ ρ
             = ∑ g ∈ S, α g * (z g) ^ ρ :=
                 (sum_subset (subset_univ S) fun g _ hg => by
                   rw [hz g hg, Real.zero_rpow hpos.ne', mul_zero]).symm
-          _ = ∑ s : S, α s.1 * (z s.1) ^ ρ := (sum_coe_sort S fun g => α g * (z g) ^ ρ).symm
+          _ = ∑ s : S, α s.val * (z s.val) ^ ρ := (sum_coe_sort S fun g => α g * (z g) ^ ρ).symm
       have : Nonempty S := hS.coe_sort
       have hxy_restrict : ∑ g : G, α g * ((x + y) g) ^ ρ =
-          ∑ s : S, α s.1 * (x s.1 + y s.1) ^ ρ :=
+          ∑ s : S, α s.val * (x s.val + y s.val) ^ ρ :=
         hsum_restrict (x + y) fun g hg => by simp [(hzero_out g hg).1, (hzero_out g hg).2]
       rw [hsum_restrict x fun g hg => (hzero_out g hg).1,
         hsum_restrict y fun g hg => (hzero_out g hg).2, hxy_restrict]
-      exact hcore (ι := S) (fun s => α s.1) (fun s => x s.1) (fun s => y s.1)
-        (fun s => hα s.1) (fun s => hx s.1) (fun s => hy s.1)
+      exact hcore (ι := S) (fun s => α s.val) (fun s => x s.val) (fun s => y s.val)
+        (fun s => hα s.val) (fun s => hx s.val) (fun s => hy s.val)
         (fun hlt => (not_lt_of_gt hpos hlt).elim)
-        (fun s => (mem_filter.1 s.2).2)
+        (fun s => (mem_filter.1 s.property).2)
     · rw [Finset.not_nonempty_iff_eq_empty] at hS
       have hall0 : ∀ g : G, x g = 0 ∧ y g = 0 := fun g => by
         have hnot : ¬ 0 < x g + y g := fun hlt => by

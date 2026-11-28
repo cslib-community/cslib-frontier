@@ -216,7 +216,7 @@ theorem volumeExponent_le_learningCoeff (K : E → ℝ) (w : E) {r : ℝ} (hr : 
 theorem learningCoeff_le_iff {K : E → ℝ} {w : E} {a : EReal} :
     learningCoeff K w ≤ a ↔ ∀ r : ℝ, 0 < r → volumeExponent K w r ≤ a := by
   rw [learningCoeff, iSup_le_iff]
-  exact ⟨fun h r hr => h ⟨r, hr⟩, fun h r => h r.1 r.2⟩
+  exact ⟨fun h r hr => h ⟨r, hr⟩, fun h r => h r.val r.property⟩
 
 /-- **Comparison.** If `K ≤ C K'` near `w` for a constant `C > 0`, then the local learning
 coefficient of `K` at `w` is at most that of `K'`: the smaller function has the larger sublevel
@@ -246,7 +246,7 @@ theorem lowerSemicontinuous_learningCoeff (K : E → ℝ) :
     LowerSemicontinuous (learningCoeff K) := by
   intro w y hy
   obtain ⟨r, hr⟩ := lt_iSup_iff.1 hy
-  have hr2 : 0 < r.1 / 2 := half_pos r.2
+  have hr2 : 0 < r.val / 2 := half_pos r.property
   filter_upwards [Metric.ball_mem_nhds w hr2] with w' hw'
   refine hr.trans_le (le_trans ?_ (volumeExponent_le_learningCoeff K w' hr2))
   refine volumeExponent_le_of_ball_subset K fun x hx => ?_

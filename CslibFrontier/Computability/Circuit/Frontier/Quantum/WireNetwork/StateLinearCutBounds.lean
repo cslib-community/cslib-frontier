@@ -48,7 +48,7 @@ private theorem exists_run_glue_cut_factorization {n N : ℕ}
     (hsplit : ∀ y x : Fin N → Bool,
       (C.matrix : Matrix _ _ ℂ) y x =
         (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
-          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1))
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.val) (x q.val))
     {V_fin E_fin : Type} [Fintype V_fin] [Fintype E_fin] [DecidableEq E_fin]
     (G : Multigraph V_fin E_fin) (inVert outVert : ↥A ↪ V_fin)
     (F : V_fin → (↥A → Bool) → (↥A → Bool) → (E_fin → Bool) → ℂ)
@@ -74,7 +74,8 @@ private theorem exists_run_glue_cut_factorization {n N : ℕ}
     hcontract hloc_in hloc_out hloc_edge P
   let glueX := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
   let glueY := (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).symm
-  let c_inact : ℂ := ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (x₀ q.1) (x₀ q.1)
+  let c_inact : ℂ :=
+    ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (x₀ q.val) (x₀ q.val)
   obtain ⟨liftXP, liftXPc, hdom_XP', hdom_XPc'⟩ :=
     exists_lift_domRestrict_glue e x₀ heA {q | inVert q ∈ P}
   obtain ⟨liftYP, liftYPc, hdom_YP', hdom_YPc'⟩ :=
@@ -99,11 +100,11 @@ private theorem exists_run_glue_cut_factorization {n N : ℕ}
   rw [hdom_XP xP xPc, hdom_XPc xP xPc, hdom_YP yP yPc, hdom_YPc yP yPc] at hamp1
   rw [run_ofLp_eq_matrix_apply, hsplit, hamp1]
   have hcin : (∏ q : {q : Fin N // q ∉ A},
-      (inactU q : Matrix Bool Bool ℂ) (Quantum.glue e (glueY (yP, yPc)) x₀ q.1)
-        (Quantum.glue e (glueX (xP, xPc)) x₀ q.1)) = c_inact :=
+      (inactU q : Matrix Bool Bool ℂ) (Quantum.glue e (glueY (yP, yPc)) x₀ q.val)
+        (Quantum.glue e (glueX (xP, xPc)) x₀ q.val)) = c_inact :=
     Finset.prod_congr rfl fun q _ => by
-      rw [Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩)),
-        Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩))]
+      rw [Quantum.glue_of_not e _ x₀ (fun i hi => q.property (heA ⟨i, hi⟩)),
+        Quantum.glue_of_not e _ x₀ (fun i hi => q.property (heA ⟨i, hi⟩))]
   rw [hcin, mul_comm _ c_inact, Finset.mul_sum]
   exact Finset.sum_congr rfl fun _ _ => by ring
 
@@ -119,7 +120,7 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
     (hsplit : ∀ y x : Fin N → Bool,
       (C.matrix : Matrix _ _ ℂ) y x =
         (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
-          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1))
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.val) (x q.val))
     {V_fin E_fin : Type} [Fintype V_fin] [Fintype E_fin] [DecidableEq E_fin]
     (G : Multigraph V_fin E_fin) (inVert outVert : ↥A ↪ V_fin)
     (F : V_fin → (↥A → Bool) → (↥A → Bool) → (E_fin → Bool) → ℂ)
@@ -267,7 +268,7 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
     (hsplit : ∀ y x : Fin N → Bool,
       (C.matrix : Matrix _ _ ℂ) y x =
         (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
-          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1))
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.val) (x q.val))
     {V_fin E_fin : Type} [Fintype V_fin] [Fintype E_fin] [DecidableEq E_fin]
     (G : Multigraph V_fin E_fin) (inVert outVert : ↥A ↪ V_fin)
     (F : V_fin → (↥A → Bool) → (↥A → Bool) → (E_fin → Bool) → ℂ)
@@ -307,8 +308,8 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
       (a : U → Bool) (b : ↥Uᶜ → Bool) (i : Fin n) :
       glueU (a, b) (emb i) =
         (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm
-          ((fun k => a ⟨emb k.1, (hemb k.1).mpr k.2⟩),
-           (fun k => b ⟨emb k.1, fun h => k.2 ((hemb k.1).mp h)⟩)) i := by
+          ((fun k => a ⟨emb k.val, (hemb k.val).mpr k.property⟩),
+           (fun k => b ⟨emb k.val, fun h => k.property ((hemb k.val).mp h)⟩)) i := by
     simp only [glueU, Equiv.piEquivPiSubtypeProd_symm_apply]
     by_cases hi : i ∈ S
     · simp only [hi, (hemb i).mpr hi, ↓reduceDIte]
@@ -318,12 +319,14 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
     change leaf2n (inl2n n i) ∈ P ↔ inVert ⟨e i, heA ⟨i, rfl⟩⟩ ∈ P; rw [hleaf_in]
   have hinr_mem (j : Fin n) : inr2n n j ∈ U ↔ j ∈ Y := by
     change leaf2n (inr2n n j) ∈ P ↔ outVert ⟨e j, heA ⟨j, rfl⟩⟩ ∈ P; rw [hleaf_out]
-  let x_of_a (a : U → Bool) : X → Bool := fun i => a ⟨inl2n n i.1, (hinl_mem i.1).mpr i.2⟩
-  let y_of_a (a : U → Bool) : Y → Bool := fun j => a ⟨inr2n n j.1, (hinr_mem j.1).mpr j.2⟩
+  let x_of_a (a : U → Bool) : X → Bool :=
+    fun i => a ⟨inl2n n i.val, (hinl_mem i.val).mpr i.property⟩
+  let y_of_a (a : U → Bool) : Y → Bool :=
+    fun j => a ⟨inr2n n j.val, (hinr_mem j.val).mpr j.property⟩
   let x_of_b (b : ↥Uᶜ → Bool) : ↥Xᶜ → Bool :=
-    fun i => b ⟨inl2n n i.1, fun h => i.2 ((hinl_mem i.1).mp h)⟩
+    fun i => b ⟨inl2n n i.val, fun h => i.property ((hinl_mem i.val).mp h)⟩
   let y_of_b (b : ↥Uᶜ → Bool) : ↥Yᶜ → Bool :=
-    fun j => b ⟨inr2n n j.1, fun h => j.2 ((hinr_mem j.1).mp h)⟩
+    fun j => b ⟨inr2n n j.val, fun h => j.property ((hinr_mem j.val).mp h)⟩
   have hglue_inl (a : U → Bool) (b : ↥Uᶜ → Bool) :
       (fun i => glueU (a, b) (inl2n n i)) = glueX (x_of_a a, x_of_b b) :=
     funext (hglue_emb (inl2n n) X hinl_mem a b)
@@ -363,9 +366,9 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
         (fun j => if glueU (a, b) (inr2n n j) && glueY (wP, wPc) j then (-1 : ℂ) else 1)]
       congr 1
       · refine Finset.prod_congr rfl fun j _ => ?_
-        simp only [hglue_inr, glueY, Equiv.piEquivPiSubtypeProd_symm_apply, j.2, ↓reduceDIte]
+        simp only [hglue_inr, glueY, Equiv.piEquivPiSubtypeProd_symm_apply, j.property, ↓reduceDIte]
       · refine Finset.prod_congr rfl fun j _ => ?_
-        have hnj : j.1 ∉ Y := j.2
+        have hnj : j.val ∉ Y := j.property
         simp only [hglue_inr, glueY, Equiv.piEquivPiSubtypeProd_symm_apply, hnj, ↓reduceDIte]; rfl
     simp_rw [hprod_y, ← Fintype.sum_prod_type']
     refine (Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool)

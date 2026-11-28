@@ -349,23 +349,23 @@ private theorem mono_all_false {m : ℕ} {u : Fin m → Bool}
 
 private def monoBoolsStepEquiv (m : ℕ) : MonoBools (m + 1) ≃ Unit ⊕ MonoBools m where
   toFun u :=
-    if h0 : u.1 ⟨0, Nat.succ_pos m⟩ = false then
+    if h0 : u.val ⟨0, Nat.succ_pos m⟩ = false then
       Sum.inl ()
     else
-      Sum.inr ⟨fun j => u.1 j.succ, fun j hj hfalse => by
-        simpa [Fin.succ] using u.2 (j + 1) (Nat.succ_lt_succ hj) hfalse⟩
+      Sum.inr ⟨fun j => u.val j.succ, fun j hj hfalse => by
+        simpa [Fin.succ] using u.property (j + 1) (Nat.succ_lt_succ hj) hfalse⟩
   invFun
     | Sum.inl () => ⟨fun _ => false, fun _ _ _ => rfl⟩
     | Sum.inr tail =>
-      ⟨Fin.cons true tail.1, fun j hj hfalse => by
+      ⟨Fin.cons true tail.val, fun j hj hfalse => by
         cases j with
         | zero => simp at hfalse
         | succ k =>
-          change (Fin.cons true tail.1 : Fin (m + 1) → Bool)
+          change (Fin.cons true tail.val : Fin (m + 1) → Bool)
             (Fin.succ (⟨k, by omega⟩ : Fin m)) = false at hfalse
           rw [Fin.cons_succ] at hfalse
-          have ht := tail.2 k (Nat.lt_of_succ_lt_succ hj) hfalse
-          change (Fin.cons true tail.1 : Fin (m + 1) → Bool)
+          have ht := tail.property k (Nat.lt_of_succ_lt_succ hj) hfalse
+          change (Fin.cons true tail.val : Fin (m + 1) → Bool)
             (Fin.succ (⟨k + 1, by omega⟩ : Fin m)) = false
           rw [Fin.cons_succ]
           exact ht⟩
@@ -437,7 +437,7 @@ private theorem card_clauseAuxPred (r : ℕ) (sat : Bool) :
   · subst hr1
     cases sat
     · have e : {p : Bool × (Fin (1 - 1) → Bool) // clauseAuxPred 1 false p} ≃ Bool :=
-        { toFun := fun p => p.1.1
+        { toFun := fun p => p.val.1
           invFun := fun b => ⟨(b, Fin.elim0), by simp [clauseAuxPred]⟩
           left_inv := fun ⟨⟨z, u⟩, _⟩ =>
             Subtype.ext (Prod.ext rfl (funext fun i => Fin.elim0 i))
@@ -465,9 +465,9 @@ private theorem card_clauseAuxPred (r : ℕ) (sat : Bool) :
           invFun
             | Sum.inl () => ⟨(false, fun _ => false), by
                 simp [clauseAuxPred, hr0, hr1]⟩
-            | Sum.inr u => ⟨(true, u.1), by
+            | Sum.inr u => ⟨(true, u.val), by
                 simp only [clauseAuxPred, hr0, ↓reduceDIte, hr1]
-                exact ⟨fun _ => trivial, fun h => Bool.noConfusion h, u.2⟩⟩
+                exact ⟨fun _ => trivial, fun h => Bool.noConfusion h, u.property⟩⟩
           left_inv := fun ⟨⟨z, u⟩, hp⟩ => by
             simp only [clauseAuxPred, hr0, ↓reduceDIte, hr1] at hp
             dsimp only
@@ -501,19 +501,20 @@ private def clauseWeightVarEquiv (φ : CNF ℕ) (r : ℕ) :
     ((clauseWeightTwoSAT φ r).vars.toFinset → Bool) ≃
       (φ.vars.toFinset → Bool) × (∀ _ : Fin φ.length, Bool × (Fin (r - 1) → Bool)) where
   toFun τ :=
-    (fun v => τ ⟨2 * v.1, List.mem_toFinset.mpr
-        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inl ⟨v.1, List.mem_toFinset.mp v.2, rfl⟩))⟩,
+    (fun v => τ ⟨2 * v.val, List.mem_toFinset.mpr
+        ((mem_vars_clauseWeightTwoSAT φ r _).mpr
+          (Or.inl ⟨v.val, List.mem_toFinset.mp v.property, rfl⟩))⟩,
       fun i =>
-        (τ ⟨zVar r i.1, List.mem_toFinset.mpr
-            ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inl rfl⟩))⟩,
-          fun j => τ ⟨uVar r i.1 j.1, List.mem_toFinset.mpr
+        (τ ⟨zVar r i.val, List.mem_toFinset.mpr
+            ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.val, i.isLt, Or.inl rfl⟩))⟩,
+          fun j => τ ⟨uVar r i.val j.val, List.mem_toFinset.mpr
             ((mem_vars_clauseWeightTwoSAT φ r _).mpr
-              (Or.inr ⟨i.1, i.isLt, Or.inr ⟨j.1, j.isLt, rfl⟩⟩))⟩))
+              (Or.inr ⟨i.val, i.isLt, Or.inr ⟨j.val, j.isLt, rfl⟩⟩))⟩))
   invFun p w :=
-    if hev : w.1 % 2 = 0 then
-      let v₀ := w.1 / 2
+    if hev : w.val % 2 = 0 then
+      let v₀ := w.val / 2
       have hv₀ : v₀ ∈ φ.vars.toFinset := by
-        have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
+        have hw := (mem_vars_clauseWeightTwoSAT φ r w.val).mp (List.mem_toFinset.mp w.property)
         rcases hw with ⟨v, hv, hwv⟩ | ⟨i, _, hwz | ⟨j, _, hwu⟩⟩
         · have : v₀ = v := by omega
           exact this ▸ List.mem_toFinset.mpr hv
@@ -521,12 +522,12 @@ private def clauseWeightVarEquiv (φ : CNF ℕ) (r : ℕ) :
         · rw [hwu] at hev; unfold uVar at hev; omega
       p.1 ⟨v₀, hv₀⟩
     else
-      let q := (w.1 - 1) / 2
+      let q := (w.val - 1) / 2
       let i := q / (r + 1)
       let k := q % (r + 1)
       have hi : i < φ.length := by
-        have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
-        change (w.1 - 1) / 2 / (r + 1) < φ.length
+        have hw := (mem_vars_clauseWeightTwoSAT φ r w.val).mp (List.mem_toFinset.mp w.property)
+        change (w.val - 1) / 2 / (r + 1) < φ.length
         rcases hw with ⟨v, _, hwv⟩ | ⟨i', hi', hwz | ⟨j, hj, hwu⟩⟩
         · omega
         · rwa [hwz, (zVar_decode r i').2.1]
@@ -535,9 +536,9 @@ private def clauseWeightVarEquiv (φ : CNF ℕ) (r : ℕ) :
         (p.2 ⟨i, hi⟩).1
       else
         have hklt : k - 1 < r - 1 := by
-          have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
-          change (w.1 - 1) / 2 % (r + 1) = 0 → False at hk
-          change (w.1 - 1) / 2 % (r + 1) - 1 < r - 1
+          have hw := (mem_vars_clauseWeightTwoSAT φ r w.val).mp (List.mem_toFinset.mp w.property)
+          change (w.val - 1) / 2 % (r + 1) = 0 → False at hk
+          change (w.val - 1) / 2 % (r + 1) - 1 < r - 1
           rcases hw with ⟨v, _, hwv⟩ | ⟨i', _, hwz | ⟨j, hj, hwu⟩⟩
           · omega
           · exact absurd (by rw [hwz, (zVar_decode r i').2.2]) hk
@@ -546,9 +547,9 @@ private def clauseWeightVarEquiv (φ : CNF ℕ) (r : ℕ) :
         (p.2 ⟨i, hi⟩).2 ⟨k - 1, hklt⟩
   left_inv τ := by
     ext w
-    have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
+    have hw := (mem_vars_clauseWeightTwoSAT φ r w.val).mp (List.mem_toFinset.mp w.property)
     rcases hw with ⟨v, hv, hwv⟩ | ⟨i, hi, hwz | ⟨j, hj, hwu⟩⟩
-    · have hev : w.1 % 2 = 0 := by omega
+    · have hev : w.val % 2 = 0 := by omega
       simp only [hev, ↓reduceDIte]
       congr 1
       ext
@@ -568,18 +569,18 @@ private def clauseWeightVarEquiv (φ : CNF ℕ) (r : ℕ) :
     obtain ⟨σ, aux⟩ := p
     refine Prod.ext (funext fun x => ?_) (funext fun i => Prod.ext ?_ (funext fun j => ?_))
     · dsimp only
-      have hev : (2 * x.1) % 2 = 0 := by omega
+      have hev : (2 * x.val) % 2 = 0 := by omega
       simp only [hev, ↓reduceDIte]
       congr 1
       ext
       dsimp only
       omega
     · dsimp only
-      obtain ⟨hodd, hdiv, hmod⟩ := zVar_decode r i.1
+      obtain ⟨hodd, hdiv, hmod⟩ := zVar_decode r i.val
       simp only [hodd, ↓reduceDIte, hmod]
       exact congrArg (fun k => (aux k).1) (Fin.ext hdiv)
     · dsimp only
-      obtain ⟨hodd, hdiv, hmod⟩ := uVar_decode i.1 j.2
+      obtain ⟨hodd, hdiv, hmod⟩ := uVar_decode i.val j.isLt
       simp only [hodd, ↓reduceDIte, hmod, Nat.succ_ne_zero, Nat.add_sub_cancel]
       exact congr (congrArg (fun k => (aux k).2) (Fin.ext hdiv)) (Fin.ext rfl)
 
@@ -598,17 +599,18 @@ private theorem eval_clauseWeightTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
     have hw : 2 * v ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
       List.mem_toFinset.mpr ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inl ⟨v, hv, rfl⟩))
     simp only [τExt, σExt, hv', hw, ↓reduceDIte, p, clauseWeightVarEquiv, Equiv.coe_fn_mk]
-  have hzEq : ∀ i : Fin φ.length, τExt (zVar r i.1) = (p.2 i).1 := by
+  have hzEq : ∀ i : Fin φ.length, τExt (zVar r i.val) = (p.2 i).1 := by
     intro i
-    have hw : zVar r i.1 ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
+    have hw : zVar r i.val ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
       List.mem_toFinset.mpr
-        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inl rfl⟩))
+        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.val, i.isLt, Or.inl rfl⟩))
     simp only [τExt, hw, ↓reduceDIte, p, clauseWeightVarEquiv, Equiv.coe_fn_mk]
-  have huEq : ∀ (i : Fin φ.length) (j : Fin (r - 1)), τExt (uVar r i.1 j.1) = (p.2 i).2 j := by
+  have huEq : ∀ (i : Fin φ.length) (j : Fin (r - 1)), τExt (uVar r i.val j.val) = (p.2 i).2 j := by
     intro i j
-    have hw : uVar r i.1 j.1 ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
+    have hw : uVar r i.val j.val ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
       List.mem_toFinset.mpr
-        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inr ⟨j.1, j.isLt, rfl⟩⟩))
+        ((mem_vars_clauseWeightTwoSAT φ r _).mpr
+          (Or.inr ⟨i.val, i.isLt, Or.inr ⟨j.val, j.isLt, rfl⟩⟩))
     simp only [τExt, hw, ↓reduceDIte, p, clauseWeightVarEquiv, Equiv.coe_fn_mk]
   rw [clauseWeightTwoSAT, CNF.eval_append, Bool.and_eq_true, CNF.eval_flatMap_eq_true_iff]
   have htaut : (clauseWeightVarTauts φ).eval τExt = true := by
@@ -619,7 +621,7 @@ private theorem eval_clauseWeightTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
   rw [iff_true_intro htaut, true_and]
   constructor
   · intro h i
-    have hci := h (φ[i], i.1)
+    have hci := h (φ[i], i.val)
       (List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨i.isLt, rfl⟩))
     rw [clauseWeightGadget, CNF.eval_append, Bool.and_eq_true] at hci
     have hlit : (p.2 i).1 = true → φ[i].eval σExt = false := by
@@ -630,7 +632,7 @@ private theorem eval_clauseWeightTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
       obtain ⟨l, hl, hleval⟩ := hsat'
       have hmem : l.1 ∈ φ.vars :=
         List.mem_map.mpr ⟨l, List.mem_flatten.mpr ⟨φ[i], List.getElem_mem .., hl⟩, rfl⟩
-      have hcl : Clause.eval τExt [(zVar r i.1, false), (2 * l.1, !l.2)] = true :=
+      have hcl : Clause.eval τExt [(zVar r i.val, false), (2 * l.1, !l.2)] = true :=
         (CNF.eval_eq_true_iff τExt _).mp hci.1 _ (List.mem_map.mpr ⟨l, hl, rfl⟩)
       simp only [Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.or_eq_true, Literal.eval,
         beq_iff_eq, hzEq i, hz, Bool.true_eq_false, false_or, hσEq l.1 hmem] at hcl
@@ -729,17 +731,17 @@ theorem modelCount_clauseWeightTwoSAT (φ : CNF ℕ) (r : ℕ) :
           ⟨(clauseWeightVarEquiv φ r τ).2 i,
             (eval_clauseWeightTwoSAT_iff φ r τ).mp (by simpa using hτ) i⟩⟩
       invFun := fun ⟨σ, aux⟩ =>
-        ⟨(clauseWeightVarEquiv φ r).symm (σ, fun i => (aux i).1), by
+        ⟨(clauseWeightVarEquiv φ r).symm (σ, fun i => (aux i).val), by
           refine (eval_clauseWeightTwoSAT_iff φ r _).mpr fun i => ?_
-          have hp := (clauseWeightVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).1)
+          have hp := (clauseWeightVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).val)
           exact (congrArg (fun p : (φ.vars.toFinset → Bool) ×
               (∀ _ : Fin φ.length, Bool × (Fin (r - 1) → Bool)) =>
             clauseAuxPred r (φ[i].eval fun v =>
               if hv : v ∈ φ.vars.toFinset then p.1 ⟨v, hv⟩ else false) (p.2 i)) hp).mpr
-              (aux i).2⟩
+              (aux i).property⟩
       left_inv := fun ⟨τ, hτ⟩ => Subtype.ext ((clauseWeightVarEquiv φ r).symm_apply_apply τ)
       right_inv := fun ⟨σ, aux⟩ => by
-        have hp := (clauseWeightVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).1)
+        have hp := (clauseWeightVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).val)
         dsimp only
         refine Sigma.ext (congrArg Prod.fst hp) ?_
         refine Function.hfunext rfl fun i j hij => ?_

@@ -255,9 +255,9 @@ theorem run_cost_isBigO {K Φ₀ : ℕ} (hA : A.Amortized (fun _ _ => K) Φ₀) 
     (hs : A.Pre s) (hroom : Fits w (s.frontier + A.room)) :
     CostIsBigO Filter.atTop (fun m : ℕ => (m : ℝ))
       (fun p : {p : D.Client β // D.ValidHistory A.init (D.clientHistory A.init p)} =>
-        (D.clientHistory A.init p.1).length)
-      (fun p => (spec w).totalCost charge s ((spec w).clientHistory s (A.run p.1))) :=
-  CostIsBigO.of_le_add_mul (A.cost + Φ₀) K fun p => run_cost_le hA p.1 hs hroom p.2
+        (D.clientHistory A.init p.val).length)
+      (fun p => (spec w).totalCost charge s ((spec w).clientHistory s (A.run p.val))) :=
+  CostIsBigO.of_le_add_mul (A.cost + Φ₀) K fun p => run_cost_le hA p.val hs hroom p.property
 
 end Cost
 

@@ -159,11 +159,11 @@ theorem persistentRegCount_le {B : Basis} {r k_init : ℕ} (P : SubroutineCode B
 /-- Canonical order-preserving enumeration of persistent registers
 `Fin (persCount input) → Fin r`. -/
 def persReg {r : ℕ} (input : Fin r → Bool) (k : Fin (persCount input)) : Fin r :=
-  ((persRegs input).orderIsoOfFin rfl k).1
+  ((persRegs input).orderIsoOfFin rfl k).val
 
 theorem persReg_input_eq_false {r : ℕ} (input : Fin r → Bool) (k : Fin (persCount input)) :
     input (persReg input k) = false :=
-  mem_persRegs.mp ((persRegs input).orderIsoOfFin rfl k).2
+  mem_persRegs.mp ((persRegs input).orderIsoOfFin rfl k).property
 
 theorem persReg_injective {r : ℕ} (input : Fin r → Bool) :
     Function.Injective (persReg input) := fun _ _ h =>
@@ -220,10 +220,10 @@ theorem zeroOutside_bounded {r w : ℕ} (base S : ℕ) {x : Data r} (hx : x.Boun
 `Mem (S + persCount input) w`. -/
 @[expose] def packMem {r : ℕ} (input : Fin r → Bool) (base S w : ℕ) (x : Data r) :
     Mem (S + persCount input) w := fun c =>
-  if hc : c.1 < S then
-    wordOfNat w (x.mem (base + c.1))
+  if hc : c.val < S then
+    wordOfNat w (x.mem (base + c.val))
   else
-    wordOfNat w (x.regs (persReg input ⟨c.1 - S, by omega⟩))
+    wordOfNat w (x.regs (persReg input ⟨c.val - S, by omega⟩))
 
 /-- Unpack `m : Mem (S + persCount input) w` with caller-supplied input registers `argRegs` into
 `Data r` (with `0` outside `[base, base + S)`). -/
@@ -231,10 +231,10 @@ theorem zeroOutside_bounded {r w : ℕ} (base S : ℕ) {x : Data r} (hx : x.Boun
     (m : Mem (S + persCount input) w) : Data r where
   regs i :=
     if hi : input i = true then argRegs i
-    else (m (Fin.natAdd S (persIdx input i (Bool.eq_false_iff.mpr hi)))).1
+    else (m (Fin.natAdd S (persIdx input i (Bool.eq_false_iff.mpr hi)))).val
   mem a :=
     if ha : base ≤ a ∧ a < base + S then
-      (m (Fin.castAdd (persCount input) ⟨a - base, by omega⟩)).1
+      (m (Fin.castAdd (persCount input) ⟨a - base, by omega⟩)).val
     else 0
 
 theorem unpackData_bounded {r : ℕ} {input : Fin r → Bool} {argRegs : Fin r → ℕ}
@@ -285,12 +285,12 @@ theorem persCount_mul_le_wideWidth {r : ℕ} (input : Fin r → Bool) (w : ℕ) 
 /-- Encode `k` `w`-bit words as a single natural number `< 2 ^ (k * w)` in base `2 ^ w`. -/
 def packDigits : (k w : ℕ) → (Fin k → Fin (2 ^ w)) → ℕ
   | 0, _, _ => 0
-  | k + 1, w, f => (f 0).1 + 2 ^ w * packDigits k w (fun j => f j.succ)
+  | k + 1, w, f => (f 0).val + 2 ^ w * packDigits k w (fun j => f j.succ)
 
 theorem packDigits_lt : ∀ (k w : ℕ) (f : Fin k → Fin (2 ^ w)), packDigits k w f < 2 ^ (k * w)
   | 0, w, _ => by simp [packDigits]
   | k + 1, w, f => by
-    have hlo : (f 0).1 < 2 ^ w := (f 0).isLt
+    have hlo : (f 0).val < 2 ^ w := (f 0).isLt
     have hhi := Nat.mul_le_mul_left (2 ^ w)
       (Nat.succ_le_of_lt (packDigits_lt k w fun j => f j.succ))
     rw [packDigits, show (k + 1) * w = w + k * w by ring, Nat.pow_add]
@@ -321,15 +321,15 @@ theorem packDigits_eq_zero_of_zero {k w : ℕ} (hk : k = 0) (f : Fin k → Fin (
 
 /-- Invariant asserting that data cells `0 .. S - 1` of a wide-cell memory hold `w`-bit values. -/
 @[expose] def DataCellsBounded (S w wCell : ℕ) (m : Mem (S + 1) wCell) : Prop :=
-  ∀ j : Fin S, (m (Fin.castAdd 1 j)).1 < 2 ^ w
+  ∀ j : Fin S, (m (Fin.castAdd 1 j)).val < 2 ^ w
 
 /-- Pack `x : Data r` into `Mem (S + 1) (wideWidth input w)`: cells `0 .. S - 1` hold
 `x.mem (base + j)`, and cell `S` holds all `persCount input` persistent registers in base `2 ^ w`.
 -/
 @[expose] def packMemWide {r : ℕ} (input : Fin r → Bool) (base S w : ℕ) (x : Data r) :
     Mem (S + 1) (wideWidth input w) := fun c =>
-  if hc : c.1 < S then
-    ⟨(wordOfNat w (x.mem (base + c.1))).1,
+  if hc : c.val < S then
+    ⟨(wordOfNat w (x.mem (base + c.val))).val,
       lt_of_lt_of_le (wordOfNat w _).isLt
         (Nat.pow_le_pow_right (by omega) (le_wideWidth input w))⟩
   else
@@ -351,11 +351,11 @@ theorem dataCellsBounded_packMemWide {r : ℕ} (input : Fin r → Bool) (base S 
   regs i :=
     if hi : input i = true then argRegs i
     else
-      (unpackDigits (persCount input) w (m (Fin.last S)).1
-        (persIdx input i (Bool.eq_false_iff.mpr hi))).1
+      (unpackDigits (persCount input) w (m (Fin.last S)).val
+        (persIdx input i (Bool.eq_false_iff.mpr hi))).val
   mem a :=
     if ha : base ≤ a ∧ a < base + S then
-      (m (Fin.castAdd 1 ⟨a - base, by omega⟩)).1 % 2 ^ w
+      (m (Fin.castAdd 1 ⟨a - base, by omega⟩)).val % 2 ^ w
     else 0
 
 theorem unpackDataWide_bounded {r : ℕ} {input : Fin r → Bool} {argRegs : Fin r → ℕ}
@@ -478,7 +478,7 @@ structure RegLayout (r : ℕ) (input : Fin r → Bool) (base S w regCells wCell 
   ValidMem : Mem (S + regCells) wCell → Prop
   validMem_pack : ∀ (y : Data r), ValidMem (pack y)
   validMem_data : ∀ {m : Mem (S + regCells) wCell}, ValidMem m →
-    ∀ idx : Fin S, (m (Fin.castAdd regCells idx)).1 < 2 ^ w
+    ∀ idx : Fin S, (m (Fin.castAdd regCells idx)).val < 2 ^ w
   unpack_pers_fits : ∀ (argRegs : Fin r → ℕ) (m : Mem (S + regCells) wCell) (i : Fin r),
     input i = false → Fits w ((unpack argRegs m).regs i)
   run_reload : ∀ (argRegs : Fin r → ℕ) (m : Mem (S + regCells) wCell),
@@ -490,18 +490,18 @@ structure RegLayout (r : ℕ) (input : Fin r → Bool) (base S w regCells wCell 
   nextMem_spill_data : ∀ (regs : Fin r → ℕ) (m : Mem (S + regCells) wCell) (idx : Fin S),
     ((spill regs).run m).2 (Fin.castAdd regCells idx) = m (Fin.castAdd regCells idx)
   nextMem_spill_reg : ∀ (y : Data r) (m : Mem (S + regCells) wCell) (c : Fin (S + regCells)),
-    (persCount input = 0 → ∀ d : Fin (S + regCells), S ≤ d.1 → m d = pack y d) →
-    S ≤ c.1 → ((spill y.regs).run m).2 c = pack y c
+    (persCount input = 0 → ∀ d : Fin (S + regCells), S ≤ d.val → m d = pack y d) →
+    S ≤ c.val → ((spill y.regs).run m).2 c = pack y c
   validMem_reg_zero : ∀ {m : Mem (S + regCells) wCell}, ValidMem m →
-    persCount input = 0 → ∀ (y : Data r) (d : Fin (S + regCells)), S ≤ d.1 → m d = pack y d
+    persCount input = 0 → ∀ (y : Data r) (d : Fin (S + regCells)), S ≤ d.val → m d = pack y d
   pack_data : ∀ (y : Data r) (idx : Fin S),
     pack y (Fin.castAdd regCells idx) =
-      ⟨(wordOfNat w (y.mem (base + idx.1))).1,
+      ⟨(wordOfNat w (y.mem (base + idx.val))).val,
         lt_of_lt_of_le (wordOfNat w _).isLt (Nat.pow_le_pow_right (by omega) hw)⟩
   unpack_mem : ∀ (argRegs : Fin r → ℕ) (m : Mem (S + regCells) wCell) (a : ℕ),
     (unpack argRegs m).mem a =
       if ha : base ≤ a ∧ a < base + S then
-        (m (Fin.castAdd regCells ⟨a - base, by omega⟩)).1 % 2 ^ w
+        (m (Fin.castAdd regCells ⟨a - base, by omega⟩)).val % 2 ^ w
       else 0
   unpack_regs_input : ∀ (argRegs : Fin r → ℕ) (m : Mem (S + regCells) wCell) (i : Fin r),
     input i = true → (unpack argRegs m).regs i = argRegs i
@@ -554,7 +554,7 @@ def standardLayout {r : ℕ} (input : Fin r → Bool) (base S w : ℕ) :
     let vals ← readFin (fun k : Fin (persCount input) => Fin.natAdd S k)
     pure fun i =>
       if hi : input i = true then argRegs i
-      else (vals (persIdx input i (Bool.eq_false_iff.mpr hi))).1
+      else (vals (persIdx input i (Bool.eq_false_iff.mpr hi))).val
   spill regs :=
     writeFin (fun k : Fin (persCount input) => Fin.natAdd S k)
       (fun k => wordOfNat w (regs (persReg input k)))
@@ -578,14 +578,14 @@ def standardLayout {r : ℕ} (input : Fin r → Bool) (base S w : ℕ) :
     nextMem_writeFin_of_forall_ne _ _ m (Fin.castAdd (persCount input) idx) fun k heq => by
       fin_index
   nextMem_spill_reg y m c _ hc := by
-    let k : Fin (persCount input) := ⟨c.1 - S, by omega⟩
+    let k : Fin (persCount input) := ⟨c.val - S, by omega⟩
     have hc_eq : c = Fin.natAdd S k := by fin_index [k]
     have hinj : Function.Injective (fun j : Fin (persCount input) => Fin.natAdd S j) := by
       fin_index
     rw [hc_eq, nextMem_writeFin_apply hinj]
-    have hnotlt : ¬ (Fin.natAdd S k).1 < S := by simp
+    have hnotlt : ¬ (Fin.natAdd S k).val < S := by simp
     simp only [packMem, hnotlt, ↓reduceDIte]
-    have hsub : (⟨(Fin.natAdd S k).1 - S, by omega⟩ : Fin (persCount input)) = k := by
+    have hsub : (⟨(Fin.natAdd S k).val - S, by omega⟩ : Fin (persCount input)) = k := by
       ext; simp
     rw [hsub]
   validMem_reg_zero _ h0 _ d hd := by
@@ -647,8 +647,8 @@ def wideLayout {r : ℕ} (input : Fin r → Bool) (base S w : ℕ) :
       pure fun i =>
         if hi : input i = true then argRegs i
         else
-          (unpackDigits (persCount input) w cellVal.1
-            (persIdx input i (Bool.eq_false_iff.mpr hi))).1
+          (unpackDigits (persCount input) w cellVal.val
+            (persIdx input i (Bool.eq_false_iff.mpr hi))).val
   spill regs :=
     if h0 : persCount input = 0 then
       pure PUnit.unit
@@ -663,7 +663,7 @@ def wideLayout {r : ℕ} (input : Fin r → Bool) (base S w : ℕ) :
   pack := packMemWide input base S w
   unpack argRegs m := unpackDataWide input argRegs base S w m
   ValidMem m := DataCellsBounded S w (wideWidth input w) m ∧
-    (persCount input = 0 → (m (Fin.last S)).1 = 0)
+    (persCount input = 0 → (m (Fin.last S)).val = 0)
   validMem_pack y := ⟨dataCellsBounded_packMemWide input base S w y, fun h0 => by
     simp [packMemWide, packDigits_eq_zero_of_zero h0]⟩
   validMem_data hm := hm.1
@@ -739,7 +739,7 @@ theorem wideLayout_validMem_iff {r : ℕ} (input : Fin r → Bool) (base S w : �
     (m : Mem (S + 1) (wideWidth input w)) :
     (wideLayout input base S w).ValidMem m ↔
       DataCellsBounded S w (wideWidth input w) m ∧
-        (persCount input = 0 → (m (Fin.last S)).1 = 0) := by
+        (persCount input = 0 → (m (Fin.last S)).val = 0) := by
   simp [wideLayout]
 
 
@@ -775,8 +775,8 @@ def reconstructData {r S regCells w wCell : ℕ} (base : ℕ) (m : Mem (S + regC
   mem a :=
     if ha : base ≤ a ∧ a < base + S then
       match writeBuf ⟨a - base, by omega⟩ with
-      | some v => v.1
-      | none => (m (Fin.castAdd regCells ⟨a - base, by omega⟩)).1 % 2 ^ w
+      | some v => v.val
+      | none => (m (Fin.castAdd regCells ⟨a - base, by omega⟩)).val % 2 ^ w
     else extMem a
 
 private theorem reconstructData_init {r : ℕ} {input : Fin r → Bool}
@@ -814,7 +814,7 @@ private theorem reconstructData_update_ext {r S regCells w wCell : ℕ} (base : 
 
 /-- Embed a `w`-bit word into `Fin (2 ^ wCell)` when `w ≤ wCell`. -/
 def liftCellWord {w wCell : ℕ} (hw : w ≤ wCell) (v : Fin (2 ^ w)) : Fin (2 ^ wCell) :=
-  ⟨v.1, lt_of_lt_of_le v.isLt (Nat.pow_le_pow_right (by omega) hw)⟩
+  ⟨v.val, lt_of_lt_of_le v.isLt (Nat.pow_le_pow_right (by omega) hw)⟩
 
 /-- Flush modified cells from `writeBuf` (`0 .. j - 1`) to data cells `0 .. S - 1`. -/
 def flushAux {S regCells w wCell : ℕ} (hw : w ≤ wCell)
@@ -840,17 +840,17 @@ private theorem flushAux_spec {S regCells w wCell : ℕ} (hw : w ≤ wCell)
       (flushAux hw writeBuf j hj).probes m =
         (∑ i ∈ Finset.range j, if h : i < S then (if (writeBuf ⟨i, h⟩).isSome then 1 else 0)
           else 0) ∧
-      (∀ idx : Fin S, idx.1 < j →
+      (∀ idx : Fin S, idx.val < j →
         ((flushAux hw writeBuf j hj).run m).2 (Fin.castAdd regCells idx) =
           match writeBuf idx with
           | some v => liftCellWord hw v
           | none => m (Fin.castAdd regCells idx)) ∧
-      (∀ c : Fin (S + regCells), j ≤ c.1 →
+      (∀ c : Fin (S + regCells), j ≤ c.val →
         ((flushAux hw writeBuf j hj).run m).2 c = m c)
   | 0, _, m => ⟨rfl, fun _ h => absurd h (Nat.not_lt_zero _), fun _ _ => rfl⟩
   | k + 1, hk, m => by
     obtain ⟨hpr, hlt, hge⟩ := flushAux_spec hw writeBuf k (by omega) m
-    have hsplit : ∀ idx : Fin S, idx.1 < k + 1 → idx.1 < k ∨ idx = ⟨k, hk⟩ := fun idx h =>
+    have hsplit : ∀ idx : Fin S, idx.val < k + 1 → idx.val < k ∨ idx = ⟨k, hk⟩ := fun idx h =>
       (Nat.lt_succ_iff_lt_or_eq.mp h).imp_right Fin.ext
     simp only [Finset.sum_range_succ, ← hpr, show k < S from hk, ↓reduceDIte, flushAux]
     cases hwb : writeBuf ⟨k, hk⟩ with
@@ -898,8 +898,8 @@ theorem commitHalted_spec {r : ℕ} {input : Fin r → Bool} {base S w regCells 
   refine ⟨funext fun c => ?_, by
     simp only [commitHalted, ProbeTree.probes_bind, probes_flushWriteBuf, L.probes_spill]⟩
   simp only [commitHalted, ProbeTree.run_bind, flushWriteBuf]
-  by_cases hc : c.1 < S
-  · obtain ⟨idx, rfl⟩ : ∃ idx : Fin S, c = Fin.castAdd regCells idx := ⟨⟨c.1, hc⟩, rfl⟩
+  by_cases hc : c.val < S
+  · obtain ⟨idx, rfl⟩ : ∃ idx : Fin S, c = Fin.castAdd regCells idx := ⟨⟨c.val, hc⟩, rfl⟩
     have hlt_m := L.validMem_data hm idx
     cases hwb : writeBuf idx <;>
       · rw [L.nextMem_spill_data, L.pack_data y idx, hlt_f idx hc]
@@ -946,10 +946,10 @@ def simStepDet {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p : Progra
         let idx : Fin S := ⟨addr - base, by omega⟩
         match writeBuf idx with
         | some v =>
-          pure (.running (pc + 1) (Function.update regs d v.1) writeBuf extMem)
+          pure (.running (pc + 1) (Function.update regs d v.val) writeBuf extMem)
         | none => do
           let raw ← ProbeTree.read (Fin.castAdd regCells idx)
-          pure (.running (pc + 1) (Function.update regs d (raw.1 % 2 ^ w)) writeBuf extMem)
+          pure (.running (pc + 1) (Function.update regs d (raw.val % 2 ^ w)) writeBuf extMem)
       else
         pure (.running (pc + 1) (Function.update regs d (extMem addr)) writeBuf extMem)
     | some (.op (.store a src)) =>
@@ -1709,7 +1709,7 @@ noncomputable def simProgRand {B : Basis} {r S regCells w wCell : ℕ} {input : 
       { regs := regs₀
         mem := fun a =>
           if ha : base ≤ a ∧ a < base + S then
-            (dataVals ⟨a - base, by omega⟩).1 % 2 ^ w
+            (dataVals ⟨a - base, by omega⟩).val % 2 ^ w
           else 0 }
     let vy := fallbackOutcome w p x₀
     let _ ← RandProbeTree.ofProbeTree (writeFin (fun c => c) (L.pack vy.2))
@@ -1732,7 +1732,7 @@ private noncomputable def finishSimProgRand {B : Basis} {r S regCells w wCell : 
         { regs := regs₀
           mem := fun a =>
             if ha : base ≤ a ∧ a < base + S then
-              (dataVals ⟨a - base, by omega⟩).1 % 2 ^ w
+              (dataVals ⟨a - base, by omega⟩).val % 2 ^ w
             else 0 }
       let vy := fallbackOutcome w p x₀
       let _ ← RandProbeTree.ofProbeTree (writeFin (fun c => c) (L.pack vy.2))
@@ -1769,7 +1769,7 @@ private theorem finishSimProgRand_fallback_run {B : Basis} {r S regCells w wCell
       ({ regs := (L.unpack argRegs m).regs
          mem := fun a =>
            if ha : base ≤ a ∧ a < base + S then
-             (m (Fin.castAdd regCells ⟨a - base, by omega⟩)).1 % 2 ^ w
+             (m (Fin.castAdd regCells ⟨a - base, by omega⟩)).val % 2 ^ w
            else 0 } : Data r) = L.unpack argRegs m :=
     Data.ext rfl (funext fun a => (L.unpack_mem argRegs m a).symm)
   cases out with

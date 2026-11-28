@@ -185,7 +185,7 @@ example {p : ℝ} (hp : 0 < p) (hp1 : p < 1) : biasedStd p ^ 2 = 1 - (1 - 2 * p)
   simp only [sq, signVal_mul_self, bernoulliAverage_const, biasedFourierCoeff_dictator hp hp1,
     add_mul, mul_add, ite_mul, mul_ite, zero_mul, mul_zero, sum_add_distrib, sum_ite_eq',
     mem_univ, ite_true] at h
-  simp at h
+  simp [(Finset.singleton_nonempty (0 : Fin 2)).ne_empty.symm] at h
   linarith
 
 /-- Plancherel's identity for two dictators gives their correlation `μ²`. -/
@@ -195,7 +195,7 @@ example {p : ℝ} (hp : 0 < p) (hp1 : p < 1) :
   rw [bernoulliAverage_mul_eq_sum_biasedFourierCoeff_mul hp hp1]
   simp only [biasedFourierCoeff_dictator hp hp1, add_mul, mul_add, ite_mul, mul_ite, zero_mul,
     mul_zero, sum_add_distrib, sum_ite_eq', mem_univ, ite_true]
-  simp
+  simp [(Finset.singleton_nonempty (0 : Fin 2)).ne_empty.symm]
   ring
 
 /-- The covariance identity: a bit read as `0` or `1` has variance `p - p²`, for every `p`. -/

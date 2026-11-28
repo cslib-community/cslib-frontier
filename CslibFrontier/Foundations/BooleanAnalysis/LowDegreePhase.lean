@@ -116,10 +116,10 @@ theorem card_le_of_forall_exists_agree {H : ℕ} (G : Finset (ι → Bool))
   classical
   -- restricting to `G` is onto
   let restrict : lowDegree F ι H →ₗ[F] (G → F) :=
-    { toFun p x := p.1 x.1, map_add' _ _ := rfl, map_smul' _ _ := rfl }
+    { toFun p x := p.val x.val, map_add' _ _ := rfl, map_smul' _ _ := rfl }
   have hsurj : Function.Surjective restrict := fun g => by
     obtain ⟨p, hp, hpx⟩ := hG fun x => if hx : x ∈ G then g ⟨x, hx⟩ else 0
-    exact ⟨⟨p, hp⟩, funext fun x => (hpx x.1 x.2).trans (dite_eq_left x.2)⟩
+    exact ⟨⟨p, hp⟩, funext fun x => (hpx x.val x.property).trans (dite_eq_left x.property)⟩
   have h := LinearMap.finrank_range_le restrict
   rw [LinearMap.range_eq_top.2 hsurj, finrank_top, Module.finrank_fintype_fun_eq_card,
     Fintype.card_coe] at h

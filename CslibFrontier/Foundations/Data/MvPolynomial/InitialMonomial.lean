@@ -47,10 +47,10 @@ theorem linearIndependent_of_initial_monomial (ω : (σ →₀ ℕ) → α) {v :
     ⟨i₀, mem_filter.2 ⟨hi₀, hci₀⟩⟩
   rw [mem_filter] at hi
   have h : (∑ i ∈ s, c i • v i).coeff (b i) = 0 := by rw [hc]; rfl
-  rw [coeff_sum, sum_eq_single_of_mem i hi.1, coeff_smul, smul_eq_mul] at h
+  rw [coeff_sum, sum_eq_single_of_mem i hi.1, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul] at h
   · exact mul_ne_zero hi.2 (hv i) h
   · intro i' hi' hne'
-    rw [coeff_smul, smul_eq_mul]
+    rw [AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul]
     by_contra h0
     exact (hmin i' (mem_filter.2 ⟨hi', left_ne_zero_of_mul h0⟩)).not_gt
       (hlt i' (b i) (mem_support_iff.2 (right_ne_zero_of_mul h0)) (hb.ne hne'.symm))

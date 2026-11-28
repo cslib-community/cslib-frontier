@@ -257,13 +257,13 @@ theorem exists_slpTab (hk : 0 < k) {Y : ℕ} (hY : 6 ≤ Y) (hMN : (M * N) ^ C �
       Fin (Y ^ 4) :=
     ⟨Sum.elim (fun q => (x.1 q.1 q.2 : ℕ)) (fun ν => (x.2 ν : ℕ)) (e.symm i), by
       rcases e.symm i with q | ν
-      · exact (Nat.lt_succ_iff.1 (x.1 q.1 q.2).2).trans_lt (hN.trans_lt hY4)
-      · exact (x.2 ν).2.trans_le ((TT.U1_le.trans hMN).trans hY4.le)⟩
+      · exact (Nat.lt_succ_iff.1 (x.1 q.1 q.2).isLt).trans_lt (hN.trans_lt hY4)
+      · exact (x.2 ν).isLt.trans_le ((TT.U1_le.trans hMN).trans hY4.le)⟩
   -- the program of the thin trees, on these inputs
   have hlt (f) (hf : f ∈ TT.program.computed) (x) : f x < (M * N) ^ C :=
     TT.program.slpN.elim fun _ hP => (hP f hf).elim fun _ hj => hj x ▸ Fin.isLt _
   have hσ (i : Fin TT.program.numInputs) : ∃ j, ∀ x, inp j x =
-      ⟨TT.program.input i x, (TT.program.input i x).2.trans_le (hMN.trans hY4.le)⟩ := by
+      ⟨TT.program.input i x, (TT.program.input i x).isLt.trans_le (hMN.trans hY4.le)⟩ := by
     rcases TT.program.input_eq i with ⟨a, c, h⟩ | ⟨ν, h⟩
     · exact ⟨e (.inl (a, c)), fun x => Fin.ext (by simp [inp, h])⟩
     · exact ⟨e (.inr ν), fun x => Fin.ext (by simp [inp, h])⟩
@@ -293,7 +293,7 @@ theorem exists_slpTab (hk : 0 < k) {Y : ℕ} (hY : 6 ≤ Y) (hMN : (M * N) ^ C �
   -- the check of the numbers of units
   have hpair (x : (Fin (K + K) → Fin (K + K) → Fin (N + 1)) × (TT.moves.Channel → Fin TT.U1))
       (p a : Fin (K + K)) : (x.1 p a : ℕ) + x.1 a p ≤ 2 * Y :=
-    (Nat.add_le_add (Nat.lt_succ_iff.1 (x.1 p a).2) (Nat.lt_succ_iff.1 (x.1 a p).2)).trans
+    (Nat.add_le_add (Nat.lt_succ_iff.1 (x.1 p a).isLt) (Nat.lt_succ_iff.1 (x.1 a p).isLt)).trans
       (by omega)
   have hY3 : 2 * Y ≤ 2 * Y ^ 3 := Nat.mul_le_mul_left 2 (Nat.le_self_pow (by norm_num) Y)
   obtain ⟨H3, s3, u3, f3⟩ := hB.stage (a := 6) s2

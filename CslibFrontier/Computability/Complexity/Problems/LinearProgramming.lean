@@ -113,10 +113,10 @@ abbrev encSystem : List LinearInequality ↪ List Bool :=
 
 /-- The constraint matrix of `C` with `n` columns, missing coefficients read as zero. -/
 @[expose] def matrix (C : List LinearInequality) (n : ℕ) : Matrix (Fin C.length) (Fin n) ℤ :=
-  of fun i j => C[i.1].coeffs.getD j 0
+  of fun i j => C[i.val].coeffs.getD j 0
 
 /-- The right-hand side of `C`. -/
-@[expose] def rhs (C : List LinearInequality) : Fin C.length → ℤ := fun i => C[i.1].bound
+@[expose] def rhs (C : List LinearInequality) : Fin C.length → ℤ := fun i => C[i.val].bound
 
 /-- **The matrix form.** When every row has at most `n` coefficients, `C` is feasible iff
 `matrix C n *ᵥ x ≤ rhs C` has a rational solution. -/
@@ -127,10 +127,10 @@ theorem mem_iff_exists_mulVec_le {C : List LinearInequality} {n : ℕ}
   constructor
   · rintro ⟨x, hx⟩
     refine ⟨fun j => x j, fun i => ?_⟩
-    have h := hx _ (List.getElem_mem i.2)
+    have h := hx _ (List.getElem_mem i.isLt)
     simp only [mulVec, dotProduct, map_apply, matrix, of_apply, rhs]
-    rw [Fin.sum_eq_sum_range_of_eq_zero (hn _ (List.getElem_mem i.2))
-      (fun j => ((C[i.1].coeffs.getD j 0 : ℤ) : ℚ) * x j)
+    rw [Fin.sum_eq_sum_range_of_eq_zero (hn _ (List.getElem_mem i.isLt))
+      (fun j => ((C[i.val].coeffs.getD j 0 : ℤ) : ℚ) * x j)
       fun j hj => by rw [List.getD_eq_default _ _ hj, Int.cast_zero, zero_mul]]
     exact h
   · rintro ⟨x, hx⟩
@@ -229,14 +229,14 @@ private theorem abs_matrix_le (C : List LinearInequality) (n : ℕ) (i : Fin C.l
     |matrix C n i j| ≤
       ((2 ^ (encSystem C).length : ℕ) : ℤ) := by
   simp only [matrix, of_apply]
-  by_cases hj : (j : ℕ) < C[i.1].coeffs.length
-  · exact abs_le_two_pow (List.getElem_mem i.2) (Or.inl (List.getD_mem 0 hj))
+  by_cases hj : (j : ℕ) < C[i.val].coeffs.length
+  · exact abs_le_two_pow (List.getElem_mem i.isLt) (Or.inl (List.getD_mem 0 hj))
   · rw [List.getD_eq_default _ _ (not_lt.1 hj), abs_zero]
     positivity
 
 private theorem abs_rhs_le (C : List LinearInequality) (i : Fin C.length) :
     |rhs C i| ≤ ((2 ^ (encSystem C).length : ℕ) : ℤ) :=
-  abs_le_two_pow (List.getElem_mem i.2) (Or.inr rfl)
+  abs_le_two_pow (List.getElem_mem i.isLt) (Or.inr rfl)
 
 /-- An integer of absolute value at most `2 ^ E` has an encoding of length at most `E + 2`. -/
 private theorem length_encIntBin_le {z : ℤ} {E : ℕ} (hz : |z| ≤ ((2 ^ E : ℕ) : ℤ)) :
@@ -314,13 +314,13 @@ private theorem sum_range_eq_of_vanish {M : Type*} [AddCommMonoid M] {k n : ℕ}
 /-- The padded dot product of `C.map f` with `q`, as a sum over the rows. -/
 private theorem dotProduct_map_eq_sum_fin (C : List LinearInequality) (f : LinearInequality → ℤ)
     (q : List ℤ) :
-    ListMatrix.dotProduct q.length (C.map f) q = ∑ i : Fin C.length, q.getD i 0 * f C[i.1] := by
+    ListMatrix.dotProduct q.length (C.map f) q = ∑ i : Fin C.length, q.getD i 0 * f C[i.val] := by
   rw [ListMatrix.dotProduct_eq_sum_map_range, List.sum_map_range_eq_sum_range]
-  have h1 : ∑ i : Fin C.length, q.getD i 0 * f C[i.1] =
+  have h1 : ∑ i : Fin C.length, q.getD i 0 * f C[i.val] =
       ∑ i ∈ range C.length, (C.map f).getD i 0 * q.getD i 0 := by
     rw [← Fin.sum_univ_eq_sum_range (fun i => (C.map f).getD i 0 * q.getD i 0)]
     refine Finset.sum_congr rfl fun i _ => ?_
-    rw [List.getD_eq_getElem (C.map f) 0 (by rw [List.length_map]; exact i.2), List.getElem_map,
+    rw [List.getD_eq_getElem (C.map f) 0 (by rw [List.length_map]; exact i.isLt), List.getElem_map,
       mul_comm]
   rw [h1]
   have hext : ∀ k, C.length ≤ k ∨ q.length ≤ k → (C.map f).getD k 0 * q.getD k 0 = 0 := by grind
@@ -357,7 +357,7 @@ theorem notMem_of_certCheck {C : List LinearInequality} {q : List ℤ}
     simp only [Pi.zero_apply]
     exact_mod_cast this
   · funext j
-    have hz : ∑ i : Fin C.length, q.getD i 0 * C[i.1].coeffs.getD j 0 = 0 := by
+    have hz : ∑ i : Fin C.length, q.getD i 0 * C[i.val].coeffs.getD j 0 = 0 := by
       rw [← dotProduct_map_eq_sum_fin C (fun c => c.coeffs.getD j 0) q]
       by_cases hj : ∃ c ∈ C, (j : ℕ) < c.coeffs.length
       · obtain ⟨c, hc, hjc⟩ := hj
@@ -371,7 +371,7 @@ theorem notMem_of_certCheck {C : List LinearInequality} {q : List ℤ}
         · rw [List.getD_eq_default _ _ (by simpa using not_lt.1 hk), zero_mul]
     simp only [vecMul, dotProduct, map_apply, matrix, of_apply, Pi.zero_apply]
     exact_mod_cast hz
-  · have hz : ∑ i : Fin C.length, q.getD i 0 * C[i.1].bound < 0 := by
+  · have hz : ∑ i : Fin C.length, q.getD i 0 * C[i.val].bound < 0 := by
       rw [← dotProduct_map_eq_sum_fin C LinearInequality.bound q]; exact hrhs
     simp only [dotProduct, rhs]
     exact_mod_cast hz

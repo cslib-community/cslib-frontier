@@ -241,8 +241,8 @@ theorem rsaEval_rsaInvert_mod (desc : RSADesc) (y : ℕ) :
 theorem rsaEval_bijective_fin (desc : RSADesc) : Function.Bijective desc.publicKey.eval := by
   refine Function.bijective_iff_has_inverse.mpr ⟨fun y =>
     ⟨rsaInvert desc.modulus desc.d y, Nat.mod_lt _ desc.modulus_pos⟩, ?_, ?_⟩
-  · exact fun x => Fin.ext (rsaInvert_rsaEval desc x.2)
-  · exact fun y => Fin.ext (rsaEval_rsaInvert desc y.2)
+  · exact fun x => Fin.ext (rsaInvert_rsaEval desc x.isLt)
+  · exact fun y => Fin.ext (rsaEval_rsaInvert desc y.isLt)
 
 /-- RSA evaluation `x ↦ x ^ e` is a bijection on `(ZMod N)ˣ`. -/
 theorem rsaEval_bijective_units (desc : RSADesc) :

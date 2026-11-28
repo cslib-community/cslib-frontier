@@ -54,8 +54,9 @@ theorem card_filter_forall_eq_self (U : Finset α) :
 theorem card_filter_forall_eq_of_injOn (U : Finset α) (f : α → α) (hf : Set.InjOn f U) :
     #{σ : Perm α | ∀ u ∈ U, σ u = f u} = (Fintype.card α - U.card)! := by
   let e : {x // x ∈ U} ≃ {x // x ∈ U.image f} :=
-    Equiv.ofBijective (fun x => ⟨f x, mem_image_of_mem f x.2⟩)
-      ⟨fun a b h => Subtype.ext (hf a.2 b.2 (congrArg Subtype.val h)), fun ⟨y, hy⟩ => by
+    Equiv.ofBijective (fun x => ⟨f x, mem_image_of_mem f x.property⟩)
+      ⟨fun a b h => Subtype.ext
+        (hf a.property b.property (congrArg Subtype.val h)), fun ⟨y, hy⟩ => by
         obtain ⟨x, hx, rfl⟩ := mem_image.1 hy
         exact ⟨⟨x, hx⟩, rfl⟩⟩
   have hτ : ∀ u ∈ U, e.extendSubtype u = f u := fun u hu => extendSubtype_apply_of_mem e u hu

@@ -149,8 +149,8 @@ theorem modelCount_rawFormula (φ : CNF ℕ)
       (raw_assignments_agree_iff hw hv hσ hτ).symm
   · intro hτ
     obtain ⟨σ, hσ, he⟩ := exists_satisfying_extension hw hv (φ.extendAssignment τ) hτ
-    exact ⟨σ, hσ, funext fun v => (he v (List.mem_toFinset.mp v.2)).trans
-      (CNF.extendAssignment_of_mem _ (List.mem_toFinset.mp v.2))⟩
+    exact ⟨σ, hσ, funext fun v => (he v (List.mem_toFinset.mp v.property)).trans
+      (CNF.extendAssignment_of_mem _ (List.mem_toFinset.mp v.property))⟩
   · rintro ⟨σ, hσ, rfl⟩
     simpa only [CNF.eval_extendAssignment_restrict] using eval_source_of_rawFormula hw hv hσ
 

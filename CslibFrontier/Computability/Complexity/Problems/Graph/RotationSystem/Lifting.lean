@@ -205,7 +205,7 @@ This elementary consequence of the primal and dual incidence ranks needs neither
 genus zero nor global connectedness. The supplied dart selects an incident component; this
 statement does not apply to isolated points or assert a geometric realization. -/
 theorem component_euler_le {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (d : Dart G) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) :
     (G.componentVertexSet d.vertex).card + (r.componentFaceIndices d.vertex).card ≤
       (G.componentEdgeSet d.vertex).card + 2 := by
   classical
@@ -245,8 +245,8 @@ theorem exists_vertexSpins_on_component {G : Graph} (r : RotationSystem G)
       ((primalMatrix_gradient G hG d s ⟨i, hi⟩).symm.trans (congrFun hs ⟨i, hi⟩))⟩
 
 private theorem range_transpose_eq_ker_of_faceEven_lifts {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
-    (hlift : ∀ x : Fin G.2.length → Bool, r.FaceEven x →
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hlift : ∀ x : Fin G.edges.length → Bool, r.FaceEven x →
       ∃ spin : ℕ → Bool, G.edgeGradient spin = x) (d : Dart G) :
     LinearMap.range (primalMatrix G hG d).transpose.mulVecLin =
       LinearMap.ker (dualMatrix r hG d).mulVecLin := by
@@ -254,7 +254,7 @@ private theorem range_transpose_eq_ker_of_faceEven_lifts {G : Graph} (r : Rotati
   refine le_antisymm ?_ fun y hy => ?_
   · rw [LinearMap.range_le_ker_iff, ← Matrix.mulVecLin_mul, matrix_product_zero,
       Matrix.mulVecLin_zero]
-  · let x (i : Fin G.2.length) : Bool :=
+  · let x (i : Fin G.edges.length) : Bool :=
       if h : i ∈ G.componentEdgeSet d.vertex then BitString.bitEquiv (y ⟨i, h⟩) else false
     have hrestrict : (fun i : Edge G d.vertex => BitString.bitEquiv.symm (x i.val)) = y :=
       funext fun i => by simp only [x, dite_eq_left i.property, RingEquiv.symm_apply_apply]
@@ -288,14 +288,14 @@ extends edge vectors by zero before applying the hypothesis and reuses the actua
 ranks. Declared points use the separate conventional face and require no invented dart.
 This characterizes numerical genus zero and asserts no geometric realization. -/
 theorem numericalGenusZero_of_faceEven_lifts {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
-    (hlift : ∀ x : Fin G.2.length → Bool, r.FaceEven x →
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hlift : ∀ x : Fin G.edges.length → Bool, r.FaceEven x →
       ∃ spin : ℕ → Bool, G.edgeGradient spin = x) : r.NumericalGenusZero := by
   classical
   refine (r.numericalGenusZero_iff_component_cards hG).mpr fun d => ?_
   have hnull := (dualMatrix r hG d).mulVecLin.finrank_range_add_finrank_ker
   rw [← range_transpose_eq_ker_of_faceEven_lifts r hG hlift d] at hnull
-  change (dualMatrix r hG d).rank + (primalMatrix G hG d).transpose.rank = _ at hnull
+  simp only [Matrix.finrank_range_mulVecLin] at hnull
   rw [Matrix.rank_transpose, Module.finrank_pi] at hnull
   have hp := rank_primalMatrix G hG d
   have hd := rank_dualMatrix r hG d

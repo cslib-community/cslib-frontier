@@ -531,8 +531,8 @@ theorem isolateRoots_complete {cs : List ℚ} (hsep : (ofCoeffList cs).Separable
     fun j ⟨hj_low, hj_up⟩ => by_contra fun hne => ?_⟩
   rw [Fin.getElem_fin] at hj_low hj_up
   rcases lt_or_gt_of_ne (Fin.val_ne_of_ne hne) with hlt | hlt
-  · exact (hpw j.1 k j.2 hk_lt hlt).lt_of_le hj_up (by rw [hk_eq]; exact hlow) hr |>.false
-  · exact (hpw k j.1 hk_lt j.2 hlt).lt_of_le (by rw [hk_eq]; exact hup) hj_low hr |>.false
+  · exact (hpw j.val k j.isLt hk_lt hlt).lt_of_le hj_up (by rw [hk_eq]; exact hlow) hr |>.false
+  · exact (hpw k j.val hk_lt j.isLt hlt).lt_of_le (by rw [hk_eq]; exact hup) hj_low hr |>.false
 
 /-- The number of isolating intervals returned by `isolateRoots cs` equals the number of real
 roots of `(ofCoeffList cs).map (algebraMap ℚ ℝ)`. -/
@@ -551,23 +551,25 @@ noncomputable def isolatedRoot {cs : List ℚ} (hsep : (ofCoeffList cs).Separabl
     (i : Fin (isolateRoots cs).length) :
     {r : ℝ // ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot r} :=
   let I := (isolateRoots cs)[i]
-  let hex := (isolateRoots_isIsolatingFor hsep I (List.getElem_mem i.2)).2.exists
+  let hex := (isolateRoots_isIsolatingFor hsep I (List.getElem_mem i.isLt)).2.exists
   ⟨Classical.choose hex, let ⟨_, _, hroot⟩ := Classical.choose_spec hex; hroot⟩
 
 /-- Membership of `isolatedRoot hsep i` in the `i`-th isolating interval of `isolateRoots cs`. -/
 theorem isolatedRoot_mem {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     (i : Fin (isolateRoots cs).length) :
     let I := (isolateRoots cs)[i]
-    let r := (isolatedRoot hsep i).1
+    let r := (isolatedRoot hsep i).val
     (I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) :=
-  let hex := (isolateRoots_isIsolatingFor hsep (isolateRoots cs)[i] (List.getElem_mem i.2)).2.exists
+  let hex :=
+    (isolateRoots_isIsolatingFor hsep (isolateRoots cs)[i] (List.getElem_mem i.isLt)).2.exists
   ⟨(Classical.choose_spec hex).1, (Classical.choose_spec hex).2.1⟩
 
 /-- The isolated real roots are strictly increasing across `Fin (isolateRoots cs).length`. -/
 theorem isolatedRoot_strictMono {cs : List ℚ} (hsep : (ofCoeffList cs).Separable) :
-    StrictMono (fun i : Fin (isolateRoots cs).length => (isolatedRoot hsep i).1) := fun i j hij =>
-  (List.pairwise_iff_getElem.mp (isolateRoots_intervalGapOk hsep) i.1 j.1 i.2 j.2 hij).lt_of_le
-    (isolatedRoot_mem hsep i).2 (isolatedRoot_mem hsep j).1 (isolatedRoot hsep i).2
+    StrictMono (fun i : Fin (isolateRoots cs).length => (isolatedRoot hsep i).val) := fun i j hij =>
+  (List.pairwise_iff_getElem.mp
+    (isolateRoots_intervalGapOk hsep) i.val j.val i.isLt j.isLt hij).lt_of_le
+    (isolatedRoot_mem hsep i).2 (isolatedRoot_mem hsep j).1 (isolatedRoot hsep i).property
 
 /-- Exact bijection between isolating interval indices `Fin (isolateRoots cs).length` and the set
 of real roots `{r : ℝ // ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot r}`. -/
@@ -576,9 +578,9 @@ theorem isolateRoots_bijective {cs : List ℚ} (hsep : (ofCoeffList cs).Separabl
   ⟨fun _ _ h => (isolatedRoot_strictMono hsep).injective (congrArg Subtype.val h),
     fun ⟨r, hr⟩ => by
       obtain ⟨i, hi_mem, _⟩ := isolateRoots_complete hsep hr
-      have huniq := (isolateRoots_isIsolatingFor hsep _ (List.getElem_mem i.2)).2
+      have huniq := (isolateRoots_isIsolatingFor hsep _ (List.getElem_mem i.isLt)).2
       exact ⟨i, Subtype.ext (huniq.unique
-        ⟨(isolatedRoot_mem hsep i).1, (isolatedRoot_mem hsep i).2, (isolatedRoot hsep i).2⟩
+        ⟨(isolatedRoot_mem hsep i).1, (isolatedRoot_mem hsep i).2, (isolatedRoot hsep i).property⟩
         ⟨hi_mem.1, hi_mem.2, hr⟩)⟩⟩
 
 theorem sturmVariationsList_cauchy_sub_le {cs : List ℚ} (hsep : (ofCoeffList cs).Separable) :
@@ -635,24 +637,24 @@ theorem polySeparable {p : ℚ[X]} (hsq : Squarefree p) :
 noncomputable def polyIsolatedRoot {p : ℚ[X]} (hsq : Squarefree p)
     (i : Fin (isolatePolyRoots p).length) :
     {r : ℝ // (p.map (algebraMap ℚ ℝ)).IsRoot r} :=
-  let r := (isolatedRoot (polySeparable hsq) i).1
+  let r := (isolatedRoot (polySeparable hsq) i).val
   ⟨r, (congrArg (fun q : ℚ[X] => (q.map (algebraMap ℚ ℝ)).IsRoot r)
       (Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree))).mp
-      (isolatedRoot (polySeparable hsq) i).2⟩
+      (isolatedRoot (polySeparable hsq) i).property⟩
 
 /-- Membership of `polyIsolatedRoot hsq i` in the `i`-th isolating interval of
 `isolatePolyRoots p`. -/
 theorem polyIsolatedRoot_mem {p : ℚ[X]} (hsq : Squarefree p)
     (i : Fin (isolatePolyRoots p).length) :
     let I := (isolatePolyRoots p)[i]
-    let r := (polyIsolatedRoot hsq i).1
+    let r := (polyIsolatedRoot hsq i).val
     (I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) :=
   isolatedRoot_mem (polySeparable hsq) i
 
 /-- The isolated real roots of `p.map (algebraMap ℚ ℝ)` are strictly increasing across
 `Fin (isolatePolyRoots p).length`. -/
 theorem polyIsolatedRoot_strictMono {p : ℚ[X]} (hsq : Squarefree p) :
-    StrictMono (fun i : Fin (isolatePolyRoots p).length => (polyIsolatedRoot hsq i).1) :=
+    StrictMono (fun i : Fin (isolatePolyRoots p).length => (polyIsolatedRoot hsq i).val) :=
   isolatedRoot_strictMono (polySeparable hsq)
 
 /-- For any squarefree `p : ℚ[X]`, `polyIsolatedRoot hsq` is a bijection from
@@ -663,6 +665,6 @@ theorem isolatePolyRoots_bijective {p : ℚ[X]} (hsq : Squarefree p) :
   exact ⟨fun _ _ hij => hbij.1 (Subtype.ext (congrArg Subtype.val hij : _)), fun ⟨r, hr⟩ =>
     let ⟨i, hi⟩ := hbij.2 ⟨r,
       (Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree)).symm ▸ hr⟩
-    ⟨i, Subtype.ext (show (polyIsolatedRoot hsq i).1 = r from congrArg Subtype.val hi)⟩⟩
+    ⟨i, Subtype.ext (show (polyIsolatedRoot hsq i).val = r from congrArg Subtype.val hi)⟩⟩
 
 end Cslib.RealRoot

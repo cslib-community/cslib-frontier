@@ -86,8 +86,8 @@ theorem faceNext_disjointUnion {G H : Graph} (r : RotationSystem G) (s : Rotatio
 /-- Two actual disjoint-union darts are connected exactly when they come from the same
 block and were connected in that source graph. Point components are not represented as darts. -/
 theorem sameComponent_disjointUnion_iff {G H : Graph}
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
-    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.1) (a b : Dart G ⊕ Dart H) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.vertices) (a b : Dart G ⊕ Dart H) :
     SameComponent (G.disjointUnion H) (disjointDartEquiv G H a).vertex
       (disjointDartEquiv G H b).vertex ↔
       match a, b with

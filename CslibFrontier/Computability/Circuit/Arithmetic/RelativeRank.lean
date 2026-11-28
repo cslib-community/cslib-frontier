@@ -156,8 +156,8 @@ to choices of one variable per block. -/
 @[simps]
 def blockChoiceCongr (e : σ ≃ τ) (he : ∀ x, blk' (e x) = blk x) (S : Finset (Fin d)) :
     BlockChoice blk S ≃ BlockChoice blk' S where
-  toFun x i := ⟨e (x i), (he _).trans (x i).2⟩
-  invFun y i := ⟨e.symm (y i), by rw [← he, e.apply_symm_apply]; exact (y i).2⟩
+  toFun x i := ⟨e (x i), (he _).trans (x i).property⟩
+  invFun y i := ⟨e.symm (y i), by rw [← he, e.apply_symm_apply]; exact (y i).property⟩
   left_inv x := by
     funext i
     simp
@@ -256,10 +256,12 @@ theorem relRank_le_one (f : MvPolynomial σ K) : relRank blk A B f ≤ 1 := by
   refine div_le_one_of_le₀ (Real.le_sqrt_of_sq_le ?_) (Real.sqrt_nonneg _)
   exact_mod_cast rank_relMatrix_sq_le blk A B f
 
+omit [Fintype σ] in
 /-- **Subadditivity of rank** for relative-rank matrices. -/
-theorem rank_relMatrix_add_le (f g : MvPolynomial σ K) :
+theorem rank_relMatrix_add_le [Finite σ] (f g : MvPolynomial σ K) :
     (relMatrix blk A B (f + g)).rank ≤
       (relMatrix blk A B f).rank + (relMatrix blk A B g).rank := by
+  have := Fintype.ofFinite σ
   rw [relMatrix_add]
   exact Matrix.rank_add_le _ _
 
@@ -290,13 +292,15 @@ theorem relRank_neg (f : MvPolynomial σ K) : relRank blk A B (-f) = relRank blk
 
 variable {blk A B}
 
+omit [Fintype σ] in
 /-- **Rank multiplicativity, as an inequality**: for set-multilinear factors on disjoint blocks, the
 rank of the product's matrix is at most the product of the ranks of the factors' matrices. -/
-theorem rank_relMatrix_mul_le {S T : Finset (Fin d)} {f g : MvPolynomial σ K}
+theorem rank_relMatrix_mul_le [Finite σ] {S T : Finset (Fin d)} {f g : MvPolynomial σ K}
     (hf : IsSetMultilinear blk S f) (hg : IsSetMultilinear blk T g) (hST : Disjoint S T)
     (hA : A ⊆ S ∪ T) (hB : B ⊆ S ∪ T) :
     (relMatrix blk A B (f * g)).rank ≤
       (relMatrix blk (A ∩ S) (B ∩ S) f).rank * (relMatrix blk (A ∩ T) (B ∩ T) g).rank := by
+  have := Fintype.ofFinite σ
   rw [relMatrix_mul hf hg hST hA hB]
   exact (Matrix.rank_submatrix_le _ _ _).trans (Matrix.rank_kronecker_le _ _)
 

@@ -78,11 +78,11 @@ private theorem push_le_push_of_contract {L : Type} [Fintype L] [DecidableEq L] 
     have : IsEmpty (∀ q, (push (fun l => ξ (ρ l)) t).Index q) :=
       ⟨fun y => ht.false fun l => y (ξ (ρ l)) ⟨l, rfl⟩⟩
     rw [localApply, Finset.univ_eq_empty, Finset.sum_empty]
-  let ex : ∀ q, (∀ j : {j : J // π j = q}, s.Index j.1) → ∀ j, s.Index j :=
+  let ex : ∀ q, (∀ j : {j : J // π j = q}, s.Index j.val) → ∀ j, s.Index j :=
     fun q a j => if hj : π j = q then a ⟨j, hj⟩ else x₀ j
-  let ey : ∀ q, (∀ l : {l : L // ξ (ρ l) = q}, t.Index l.1) → ∀ l, t.Index l :=
+  let ey : ∀ q, (∀ l : {l : L // ξ (ρ l) = q}, t.Index l.val) → ∀ l, t.Index l :=
     fun q b l => if hl : ξ (ρ l) = q then b ⟨l, hl⟩ else y₀ l
-  refine ⟨fun q a b => ∏ v : {v : V // ξ v = q}, T v.1 (ex q a) (ey q b), fun x => ?_⟩
+  refine ⟨fun q a b => ∏ v : {v : V // ξ v = q}, T v.val (ex q a) (ey q b), fun x => ?_⟩
   rw [push_entry, h, localApply]
   symm
   refine Fintype.sum_equiv
@@ -119,7 +119,7 @@ theorem antisymmRel_push_outer [DecidableEq κ] [∀ k, Fintype (M k)] [∀ k, D
     (π : (Σ k, M k) → I) (t : ∀ k, PartyTensor K (M k)) :
     AntisymmRel (· ≤ ·) (push π (outer t)) (prod fun k => push (fun m => π ⟨k, m⟩) (t k)) :=
   antisymmRel_of_equiv
-    (fun _ => ⟨fun y k j => y ⟨⟨k, j.1⟩, j.2⟩, fun z l => z l.1.1 ⟨l.1.2, l.2⟩,
+    (fun _ => ⟨fun y k j => y ⟨⟨k, j.val⟩, j.property⟩, fun z l => z l.val.1 ⟨l.val.2, l.property⟩,
       fun _ => rfl, fun _ => rfl⟩)
     fun _ => rfl
 
@@ -147,7 +147,8 @@ theorem antisymmRel_push_outerPair (π : L ⊕ L' → I) (s : PartyTensor K L)
     AntisymmRel (· ≤ ·) (push π (outerPair s t))
       (push (fun l => π (Sum.inl l)) s * push (fun l => π (Sum.inr l)) t) :=
   antisymmRel_of_equiv
-    (fun q => ⟨fun y => (fun l => y ⟨Sum.inl l.1, l.2⟩, fun l => y ⟨Sum.inr l.1, l.2⟩),
+    (fun q => ⟨fun y =>
+        (fun l => y ⟨Sum.inl l.val, l.property⟩, fun l => y ⟨Sum.inr l.val, l.property⟩),
       fun z l => match l with
         | ⟨Sum.inl l, h⟩ => z.1 ⟨l, h⟩
         | ⟨Sum.inr l, h⟩ => z.2 ⟨l, h⟩,

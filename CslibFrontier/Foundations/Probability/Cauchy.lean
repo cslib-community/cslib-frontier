@@ -346,7 +346,7 @@ private theorem pi_cauchyMeasure_map_sum {ι : Type*} [Fintype ι] (w : ι → �
             Finset.restrict {j} := by
         funext a; rfl
       have hg : (fun a : ι → ℝ => ∑ i ∈ s, w i * a i) =
-          (fun f : {i // i ∈ s} → ℝ => ∑ i : s, w i.1 * f i) ∘ Finset.restrict s := by
+          (fun f : {i // i ∈ s} → ℝ => ∑ i : s, w i.val * f i) ∘ Finset.restrict s := by
         funext a
         dsimp only [Function.comp_apply, Finset.restrict]
         exact (Finset.sum_coe_sort s (fun i => w i * a i)).symm

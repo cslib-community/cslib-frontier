@@ -492,7 +492,7 @@ theorem exists_subdivision_embedding_in_disjoint_disks {I : FixedRotationInput} 
     fun _ hv => drawing_center cut hI D hv, ?_, ?_, ?_, ?_⟩
   · intro d
     simp only [PolygonalDrawing.direction, drawing_germ, Complex.real_smul,
-      Complex.arg_real_mul _ (cut d.1 d.2).property.1]
+      Complex.arg_ofReal_mul (cut d.1 d.2).property.1 _]
   · intro d
     exact (drawing_leaf cut hI D d).trans (D.cutPort_eq_eval ρ d).symm
   · intro d

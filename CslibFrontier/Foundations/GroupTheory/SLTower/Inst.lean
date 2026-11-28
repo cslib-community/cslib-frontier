@@ -125,10 +125,11 @@ noncomputable instance instDecVV (j : ℕ) (i : Fin h) : DecidableEq (VV h n j i
 @[expose] noncomputable def vert {j : ℕ} (i : Fin h) (c : XX h n j) : VV h n j i :=
   ⟨(th i (cor i c)⁻¹ : G h n) • c, by rw [cor_th, inv_mul_cancel]⟩
 
-theorem vert_val {j : ℕ} (i : Fin h) (c : XX h n j) : (vert i c).1 = (th i (cor i c)⁻¹ : G h n) •
+theorem vert_val {j : ℕ} (i : Fin h) (c : XX h n j) : (vert i c).val = (th i (cor i c)⁻¹ : G h n) •
     c := by rfl
 
-theorem th_vert {j : ℕ} (i : Fin h) (c : XX h n j) : (th i (cor i c) : G h n) • (vert i c).1 = c :=
+theorem th_vert {j : ℕ} (i : Fin h) (c : XX h n j) :
+    (th i (cor i c) : G h n) • (vert i c).val = c :=
     by
   rw [vert_val, ← mul_smul, ← map_mul, mul_inv_cancel, map_one, one_smul]
 
@@ -138,9 +139,9 @@ theorem vert_th {j : ℕ} (i : Fin h) (u : U h) (c : XX h n j) : vert i ((th i u
   rw [vert_val, vert_val, cor_th, ← mul_smul, ← map_mul, mul_inv_rev, mul_assoc, inv_mul_cancel,
       mul_one]
 
-theorem vert_of {j : ℕ} (i : Fin h) (v : VV h n j i) : vert i v.1 = v := by
+theorem vert_of {j : ℕ} (i : Fin h) (v : VV h n j i) : vert i v.val = v := by
   refine Subtype.ext ?_
-  rw [vert_val, v.2, inv_one, map_one, one_smul]
+  rw [vert_val, v.property, inv_one, map_one, one_smul]
 
 theorem vert_cor_bijective (j : ℕ)
     (i : Fin h) : Function.Bijective fun c : XX h n j => (vert i c, cor i c) := by
@@ -149,9 +150,9 @@ theorem vert_cor_bijective (j : ℕ)
     simp only [Prod.mk.injEq] at e
     rw [← th_vert i c, ← th_vert i c', e.1, e.2]
   · rintro ⟨v, u⟩
-    refine ⟨(th i u : G h n) • v.1, ?_⟩
+    refine ⟨(th i u : G h n) • v.val, ?_⟩
     simp only
-    rw [vert_th, vert_of, cor_th, v.2, mul_one]
+    rw [vert_th, vert_of, cor_th, v.property, mul_one]
 
 variable (h n) in
 /-- The edges of level `j`: pairs `{c, gen k • c}` of type `k`, represented by their first
@@ -197,7 +198,7 @@ theorem tower_cosets {j : ℕ} (h2 : 2 ≤ h) (i : Fin h) (c : XX h n j) (u : U 
   rw [evX_smul, evX_smul, mul_left_inj] at h1
   -- the entry (i−1, i) at s = 0
   have hi : (i - 1 : Fin h) ≠ i := sub_one_ne h2 i
-  have h2' := congrArg (fun M : SL2 h => M.1 (i - 1) i) h1
+  have h2' := congrArg (fun M : SL2 h => M.val (i - 1) i) h1
   simp only [th, MonoidHom.comp_apply, evG_th0] at h2'
   rw [evG_apply, gen_val] at h2'
   simp only [Subgroup.subtype_apply, sub_sub_cancel_left, sub_self, Matrix.transvection, tt,
@@ -350,7 +351,7 @@ theorem gen_idx (h2 : 2 ≤ h) (i k : Fin h) (hk : k ≠ i) : (gen h2 k : G h n)
 /-- The edges of types other than i are the near pairs at the vertices of type i. -/
 @[expose] noncomputable def nearFun (h2 : 2 ≤ h) (j : ℕ) (i : Fin h)
     (e : {e : EE h n h2 j // (e.kind) ≠ i}) : VV h n j i × NN h :=
-  (vert i e.1.start, npair (idx i e.1.kind e.2) (cor i e.1.start))
+  (vert i e.val.start, npair (idx i e.val.kind e.property) (cor i e.val.start))
 
 theorem nearFun_bijective (h2 : 2 ≤ h) (j : ℕ)
     (i : Fin h) : Function.Bijective (nearFun (n := n) h2 j i) := by
@@ -373,7 +374,7 @@ theorem nearFun_bijective (h2 : 2 ≤ h) (j : ℕ)
     rfl
   · rintro ⟨v, ν⟩
     let l := ν.idx
-    let c : XX h n j := (th i ν.elt : G h n) • v.1
+    let c : XX h n j := (th i ν.elt : G h n) • v.val
     have hk : sh i l ≠ i := sh_ne i l
     refine ⟨⟨edge h2 (sh i l) c, by rw [edge_type]; exact hk⟩, ?_⟩
     have h5 : ∀ (k : Fin h) (hk' : k ≠ i), k = sh i l → idx i k hk' = l := by
@@ -389,9 +390,9 @@ theorem nearFun_bijective (h2 : 2 ≤ h) (j : ℕ)
         (cor i (edge h2 (sh i l) c).start) = ν
       rw [h5 _ _ (edge_type h2 (sh i l) c)]
       rcases edge_end h2 (sh i l) c with e | e
-      · rw [e, cor_th, v.2, mul_one]
+      · rw [e, cor_th, v.property, mul_one]
         exact npair_self ν
-      · rw [e, hg, cor_th, npair_x, cor_th, v.2, mul_one]
+      · rw [e, hg, cor_th, npair_x, cor_th, v.property, mul_one]
         exact npair_self ν
 
 /-- The covering on edges. -/
@@ -400,7 +401,7 @@ theorem nearFun_bijective (h2 : 2 ≤ h) (j : ℕ)
 
 /-- The covering on vertices. -/
 @[expose] noncomputable def prV {j : ℕ} {i : Fin h} (v : VV h n j i) : VV h n (j + 1) i :=
-    ⟨pr v.1, by rw [cor_pr, v.2]⟩
+    ⟨pr v.val, by rw [cor_pr, v.property]⟩
 
 theorem vert_pr {j : ℕ} (i : Fin h) (c : XX h n j) : vert i (pr c) = prV (vert i c) := by
   refine Subtype.ext ?_
@@ -464,19 +465,19 @@ coset being given by its
 one element in VV (prop_tower_representatives). -/
 theorem tower_cosets_over {j : ℕ} {i : Fin h} (hj : j < JJ h n) (v : VV h n (j + 1) i) :
     (univ.filter fun w : VV h n j i => prV w = v).card = 2 ^ ee h := by
-  rw [← tower_fibre hj v.1]
-  refine Finset.card_bij (fun w _ => w.1)
+  rw [← tower_fibre hj v.val]
+  refine Finset.card_bij (fun w _ => w.val)
       (fun w hw => mem_filter.2 ⟨mem_univ _, congrArg Subtype.val (mem_filter.1 hw).2⟩)
     (fun w _ w' _ e => Subtype.ext e)
         (fun c hc => ⟨⟨c, ?_⟩, mem_filter.2 ⟨mem_univ _, Subtype.ext (mem_filter.1 hc).2⟩, rfl⟩)
   rw [← cor_pr, (mem_filter.1 hc).2]
-  exact v.2
+  exact v.property
 
 /-- Proposition H.1(a) [AnthropicVPVNP2026, paper Appendix H.1, p. 44]: "We call its orbits
 i-cosets": every i-coset has one
 element in VV. -/
 theorem tower_representatives {j : ℕ} (i : Fin h) (c : XX h n j) :
-    ∃! v : VV h n j i, ∃ u : U h, (th i u : G h n) • v.1 = c := by
+    ∃! v : VV h n j i, ∃ u : U h, (th i u : G h n) • v.val = c := by
   refine ⟨vert i c, ⟨cor i c, th_vert i c⟩, ?_⟩
   rintro v ⟨u, rfl⟩
   rw [vert_th, vert_of]
@@ -492,15 +493,15 @@ theorem exists_host (j : ℕ) (i : Fin h) : ∃ f : VV h n j i → XX h n (j + 1
     let φ : ∀ d : VV h n (j + 1) i, {v : VV h n j i // prV v = d} ↪ U h := fun d => (h1 d).some
     have hφ : ∀ (v : VV h n j i) (d : VV h n (j + 1) i) (hv : prV v = d),
         φ (prV v) ⟨v, rfl⟩ = φ d ⟨v, hv⟩ := by rintro v _ rfl; rfl
-    refine ⟨fun v => (th i (φ (prV v) ⟨v, rfl⟩) : G h n) • (prV v).1, fun _ => ⟨?_, fun v => ?_⟩⟩
+    refine ⟨fun v => (th i (φ (prV v) ⟨v, rfl⟩) : G h n) • (prV v).val, fun _ => ⟨?_, fun v => ?_⟩⟩
     · intro v v' e
       simp only at e
       have e1 : prV v = prV v' := by simpa only [vert_th, vert_of] using congrArg (vert i) e
       have e2 : φ (prV v) ⟨v, rfl⟩ = φ (prV v') ⟨v', rfl⟩ := by
-        simpa only [cor_th, (prV v).2, (prV v').2, mul_one] using congrArg (cor i) e
+        simpa only [cor_th, (prV v).property, (prV v').property, mul_one] using congrArg (cor i) e
       rw [hφ v (prV v') e1] at e2
       exact congrArg Subtype.val ((φ (prV v')).injective e2)
     · rw [vert_th, vert_of]
-  · exact ⟨fun v => pr v.1, fun hj' => absurd hj' hj⟩
+  · exact ⟨fun v => pr v.val, fun hj' => absurd hj' hj⟩
 
 end Cslib.SLTower

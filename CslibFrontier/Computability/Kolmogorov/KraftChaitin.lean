@@ -152,7 +152,7 @@ theorem tsum_two_inv_pow_length_add_le_one_of_incomparable {S : Set (List Bool)}
   have hTS : (T : Set (List Bool)) ⊆ S := by
     intro x hx
     obtain ⟨w, _, rfl⟩ := Finset.mem_image.mp (Finset.mem_coe.mp hx)
-    exact w.2
+    exact w.property
   have hqT : q ∉ T := fun h => hq_not (hTS h)
   have hpf :
       InformationTheory.IsPrefixFree ((insert q T : Finset (List Bool)) : Set (List Bool)) := by
@@ -183,7 +183,8 @@ theorem finsetSum_add_two_inv_pow_le_tsum_of_notMem {S : Set (List Bool)}
   have hU_sub : (U : Set (List Bool)) ⊆ S := by
     simpa [U] using Set.insert_subset hp hT
   let fEmbed : {x : List Bool // x ∈ U} ↪ S :=
-    ⟨fun x => ⟨x.1, hU_sub x.2⟩, fun a b h => Subtype.ext (congrArg (fun z : S => z.1) h)⟩
+    ⟨fun x => ⟨x.val, hU_sub x.property⟩,
+      fun a b h => Subtype.ext (congrArg (fun z : S => z.val) h)⟩
   let F : Finset S := U.attach.map fEmbed
   have hF_sum : ∑ w ∈ F, (2 : ℝ)⁻¹ ^ (w : List Bool).length =
       (∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length) + (2 : ℝ)⁻¹ ^ p.length := by
@@ -282,7 +283,9 @@ private theorem splitFrom_snd_eq (u : List Bool) (d : ℕ) :
   induction d generalizing u with
   | zero => rfl
   | succ d ih =>
-    rw [splitFrom, ih, List.range_succ_eq_map, List.map_cons, List.map_map]
+    rw [splitFrom]
+    dsimp only
+    rw [ih, List.range_succ_eq_map, List.map_cons, List.map_map]
     simp [List.replicate_succ, List.append_assoc]
 
 private theorem prefix_splitFrom_fst (u : List Bool) (d : ℕ) : u <+: (splitFrom u d).1 := by

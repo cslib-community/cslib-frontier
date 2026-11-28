@@ -111,7 +111,7 @@ private theorem exists_forall_sum_mul_pow_add_ne_zero {A : Matrix (Fin n) (Fin n
   have hdeg (i : Fin n) : (q i).natDegree ≤ n :=
     (Polynomial.natDegree_add_le _ _).trans (max_le
       (Polynomial.natDegree_sum_le_of_forall_le _ _ fun j _ =>
-        (Polynomial.natDegree_C_mul_X_pow_le _ _).trans j.2)
+        (Polynomial.natDegree_C_mul_X_pow_le _ _).trans j.isLt)
       ((Polynomial.natDegree_C _).trans_le (Nat.zero_le _)))
   by_contra hall
   refine prod_ne_zero_iff.2 (fun i _ => hne i)

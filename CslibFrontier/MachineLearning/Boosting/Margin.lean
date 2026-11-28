@@ -504,7 +504,7 @@ theorem sqrt_marginFactor_le_exp {γ ρ : ℝ} (hγ₀ : 0 < γ) (hγ₁ : γ < 
       (log_marginFactor_at_edge_neg hγ₀ hγ₁).le
     have h3 : (1 - ρ / γ) * (-(4 * γ ^ 2)) = -(4 * γ * (γ - ρ)) := by field_simp
     linarith
-  rw [Real.sqrt_le_left (by positivity), ← Real.exp_nat_mul, ← exp_log_marginFactor h1m h1p]
+  rw [Real.sqrt_le_left (by positivity), ← Real.exp_natCast_mul, ← exp_log_marginFactor h1m h1p]
   exact Real.exp_le_exp.mpr (hle.trans_eq (by push_cast; ring))
 
 open OnlineLearning.Experts in
@@ -643,7 +643,7 @@ theorem marginCount_normalizedScore_le_exp (S : Fin m → α × Bool)
   calc (√((1 - 2 * γ) ^ (1 - ρ) * (1 + 2 * γ) ^ (1 + ρ))) ^ T
       ≤ (exp (-(2 * γ * (γ - ρ)))) ^ T :=
         pow_le_pow_left₀ (Real.sqrt_nonneg _) (sqrt_marginFactor_le_exp hγ₀ hγ₁ hρ₀ hργ) T
-    _ = exp (-(2 * γ * (γ - ρ) * T)) := by rw [← Real.exp_nat_mul]; ring_nf
+    _ = exp (-(2 * γ * (γ - ρ) * T)) := by rw [← Real.exp_natCast_mul]; ring_nf
 
 /-- **End-to-end margin generalization bound for AdaBoost under an edge assumption**
 [SchapireFreundBartlettLee1998, Theorems 2 and 5] [MohriRostamizadehTalwalkar2018, Section 7.3.3,

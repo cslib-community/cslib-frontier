@@ -105,7 +105,7 @@ theorem card_filter_coord_eq_zero
     (fun g _ j => if h : j = j₀ then 0 else g ⟨j, h⟩)
     (fun _ _ => by simp)
     (fun g₁ _ g₂ _ heq => funext fun ⟨j, hj⟩ => by simpa [hj] using congrFun heq j)
-    (fun z hz => ⟨fun j => z j.1, mem_univ _, funext fun j => by
+    (fun z hz => ⟨fun j => z j.val, mem_univ _, funext fun j => by
       by_cases h : j = j₀ <;> simp [h, (mem_filter.1 hz).2]⟩)
   rw [← hbij, Finset.card_univ, Fintype.card_fun, Fintype.card_subtype]
   congr 1

@@ -170,22 +170,22 @@ group `X`; the book's is `X = {0,1}ⁿ` under XOR. -/
 theorem isRandPrefixFreeEncoding_modifyLast_add (X : Type*) [Fintype X] [Nonempty X]
     [AddGroup X] :
     IsRandPrefixFreeEncoding (PMF.uniformOfFintype X)
-      (fun k (m : {m : List X // m ≠ []}) => m.1.modifyLast (· + k))
+      (fun k (m : {m : List X // m ≠ []}) => m.val.modifyLast (· + k))
       (Fintype.card X : ℝ≥0∞)⁻¹ := by
   classical
-  have key : ∀ m₀ m₁ : {m : List X // m ≠ []}, m₀.1.length < m₁.1.length →
+  have key : ∀ m₀ m₁ : {m : List X // m ≠ []}, m₀.val.length < m₁.val.length →
       (Finset.univ.filter fun k : X =>
-        PrefixCompatible (m₀.1.modifyLast (· + k)) (m₁.1.modifyLast (· + k))).card ≤ 1 := by
+        PrefixCompatible (m₀.val.modifyLast (· + k)) (m₁.val.modifyLast (· + k))).card ≤ 1 := by
     intro m₀ m₁ hlt
-    obtain ⟨c, hc⟩ := exists_key_eq_of_length_lt m₀.2 hlt
+    obtain ⟨c, hc⟩ := exists_key_eq_of_length_lt m₀.property hlt
     exact Finset.card_le_one.mpr fun k₀ hk₀ k₁ hk₁ =>
       (hc _ _ (Finset.mem_filter.mp hk₀).2).trans (hc _ _ (Finset.mem_filter.mp hk₁).2).symm
   simpa using IsRandPrefixFreeEncoding.of_card_le (c := 1)
-    (rpf := fun k (m : {m : List X // m ≠ []}) => m.1.modifyLast (· + k))
-    (fun k m => by simpa [← List.length_pos_iff] using m.2) fun m₀ m₁ hm => by
-      rcases lt_trichotomy m₀.1.length m₁.1.length with hlt | heq | hgt
+    (rpf := fun k (m : {m : List X // m ≠ []}) => m.val.modifyLast (· + k))
+    (fun k m => by simpa [← List.length_pos_iff] using m.property) fun m₀ m₁ hm => by
+      rcases lt_trichotomy m₀.val.length m₁.val.length with hlt | heq | hgt
       · exact key m₀ m₁ hlt
-      · obtain ⟨d, hd⟩ := exists_key_eq_add_of_length_eq m₀.2 heq
+      · obtain ⟨d, hd⟩ := exists_key_eq_add_of_length_eq m₀.property heq
         refine (Finset.card_eq_zero.mpr (Finset.filter_eq_empty_iff.mpr fun k _ hk =>
           hm (Subtype.ext ((hd k k hk).2 rfl)))).trans_le zero_le_one
       · simpa only [prefixCompatible_comm] using key m₁ m₀ hgt

@@ -737,14 +737,14 @@ theorem two_mul_card_antisymPair_add_eq_sq (r : ℕ) :
 transposes of `eigenvec K β` for `β ∈ measurementIndices Q r A₀ R`. -/
 def measurementMatrix (Q r A₀ R : ℕ) (K : Type*) [CommRing K] :
     Matrix (measurementIndices Q r A₀ R) (AuxLabel Q r) K :=
-  fun β u => eigenvec K β.1 u
+  fun β u => eigenvec K β.val u
 
 theorem measurementMatrix_entry_mem (Q r A₀ R : ℕ) (β : measurementIndices Q r A₀ R)
     (u : AuxLabel Q r) :
     measurementMatrix Q r A₀ R ℤ β u = 0 ∨
       measurementMatrix Q r A₀ R ℤ β u = 1 ∨
       measurementMatrix Q r A₀ R ℤ β u = -1 :=
-  eigenvecInt_mem β.1 u
+  eigenvecInt_mem β.val u
 
 theorem measurementMatrix_mulVec_eq_zero_iff (Q r A₀ R : ℕ) (K : Type*) [CommRing K]
     (ξ : AuxLabel Q r → K) :
@@ -928,7 +928,7 @@ theorem card_mismatchSet_le_of_M0ScaledInt_ne_zero {Q r A₀ R : ℕ} {u y : Aux
 
 /-- The 1-based evaluation node `t = s.1 + 1 ∈ {1, ..., Q}` associated to `s : Fin Q`. -/
 def nodePoint {Q : ℕ} (s : Fin Q) : ℚ :=
-  (s.1 : ℚ) + 1
+  (s.val : ℚ) + 1
 
 theorem nodePoint_pos {Q : ℕ} (s : Fin Q) : 0 < nodePoint s := by
   unfold nodePoint; positivity
@@ -1111,8 +1111,8 @@ theorem commonDenom_pos (Q R : ℕ) : 0 < commonDenom Q R :=
 
 /-- The scaled integer polynomial `Q! φ_{u,y}(T) ∈ ℤ[X]` (Lemma 4.6, p. 33). -/
 noncomputable def mismatchAnnihilatorScaledInt {Q r : ℕ} (u y : AuxLabel Q r) : ℤ[X] :=
-  C (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)) *
-    ∏ s ∈ mismatchSet u y, (C ((s.1 : ℤ) + 1) - X)
+  C (∏ s ∈ (mismatchSet u y)ᶜ, ((s.val : ℤ) + 1)) *
+    ∏ s ∈ mismatchSet u y, (C ((s.val : ℤ) + 1) - X)
 
 /-- The scaled integer replacement row `d_den P⃗_u(T)` (Lemma 4.6, p. 33). -/
 noncomputable def auxReplacementRowScaledInt (Q r A₀ R : ℕ) (u y : AuxLabel Q r) : ℤ[X] :=
@@ -1128,18 +1128,18 @@ theorem map_mismatchAnnihilatorScaledInt {Q r : ℕ} (u y : AuxLabel Q r) :
   push_cast
   have hfac :
       ∀ s ∈ mismatchSet u y,
-        Polynomial.map (Int.castRingHom ℚ) (C ((s.1 : ℤ) + 1) - X) =
-          C ((s.1 : ℚ) + 1) * (1 - C (nodePoint s)⁻¹ * X) := by
+        Polynomial.map (Int.castRingHom ℚ) (C ((s.val : ℤ) + 1) - X) =
+          C ((s.val : ℚ) + 1) * (1 - C (nodePoint s)⁻¹ * X) := by
     intro s _
     rw [Polynomial.map_sub, Polynomial.map_C, Polynomial.map_X, eq_intCast]
     push_cast
     rw [mul_sub, mul_one, ← mul_assoc, ← C_mul,
-      show ((s.1 : ℚ) + 1) * (nodePoint s)⁻¹ = 1 from mul_inv_cancel₀ (nodePoint_ne_zero s), C_1,
+      show ((s.val : ℚ) + 1) * (nodePoint s)⁻¹ = 1 from mul_inv_cancel₀ (nodePoint_ne_zero s), C_1,
       one_mul]
   rw [prod_congr rfl hfac, prod_mul_distrib, ← map_prod C, ← mul_assoc, ← C_mul]
   have hcompl :
-      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℚ) + 1)) *
-          (∏ s ∈ mismatchSet u y, ((s.1 : ℚ) + 1)) =
+      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.val : ℚ) + 1)) *
+          (∏ s ∈ mismatchSet u y, ((s.val : ℚ) + 1)) =
         (Q.factorial : ℚ) := by
     rw [prod_compl_mul_prod]
     exact_mod_cast (Fin.prod_univ_eq_prod_range (fun i => i + 1) Q).trans

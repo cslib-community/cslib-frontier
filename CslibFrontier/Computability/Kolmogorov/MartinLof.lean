@@ -677,8 +677,8 @@ private def compressTest : MartinLofTest where
     let H := {q : List Bool | ∃ w : List Bool,
       DescriptionMethod.universalPrefixBits.Produces q w ∧ q.length + m ≤ w.length}
     have hout : ∀ q : H, ∃ w : List Bool,
-        DescriptionMethod.universalPrefixBits.Produces q.1 w ∧ q.1.length + m ≤ w.length :=
-      fun q => q.2
+        DescriptionMethod.universalPrefixBits.Produces q.val w ∧ q.val.length + m ≤ w.length :=
+      fun q => q.property
     choose out hout_prod hout_len using hout
     let S : Set (ℕ → Bool) := ⋃ w ∈ {w | ∃ q : List Bool,
       DescriptionMethod.universalPrefixBits.Produces q w ∧ q.length + m ≤ w.length},
@@ -693,7 +693,7 @@ private def compressTest : MartinLofTest where
       have hsubH : H ⊆ DescriptionMethod.universalPrefixBits.haltingSet :=
         fun q ⟨w, hqw, _⟩ => ⟨w, hqw⟩
       let emb : H ↪ DescriptionMethod.universalPrefixBits.haltingSet :=
-        ⟨fun q => ⟨q.1, hsubH q.2⟩, fun _ _ h => Subtype.ext
+        ⟨fun q => ⟨q.val, hsubH q.property⟩, fun _ _ h => Subtype.ext
           (congrArg (fun z : DescriptionMethod.universalPrefixBits.haltingSet =>
             (z : List Bool)) h)⟩
       have hcomp :
@@ -709,9 +709,9 @@ private def compressTest : MartinLofTest where
       _ = ∑' q : H, (2 : ℝ≥0∞)⁻¹ ^ (out q).length := by
           congr 1; funext q
           rw [coinFlips_prefixCylinderList, ENNReal.inv_pow]
-      _ ≤ ∑' q : H, (2 : ℝ≥0∞)⁻¹ ^ (q.1.length + m) :=
+      _ ≤ ∑' q : H, (2 : ℝ≥0∞)⁻¹ ^ (q.val.length + m) :=
           tsum_le_tsum fun q => pow_le_pow_right_of_le_one' (by norm_num) (hout_len q)
-      _ = (2 : ℝ≥0∞)⁻¹ ^ m * ∑' q : H, (2 : ℝ≥0∞)⁻¹ ^ q.1.length := by
+      _ = (2 : ℝ≥0∞)⁻¹ ^ m * ∑' q : H, (2 : ℝ≥0∞)⁻¹ ^ q.val.length := by
           simp_rw [pow_add, mul_comm _ ((2 : ℝ≥0∞)⁻¹ ^ m), ENNReal.tsum_mul_left]
       _ ≤ (2 : ℝ≥0∞)⁻¹ ^ m * 1 := by gcongr
       _ = (2 : ℝ≥0∞)⁻¹ ^ m := mul_one _
@@ -986,7 +986,7 @@ private def solovayToMLTest (S : SolovayTest) (e : Code)
       have hsub_cov : (Lfin : Set (List Bool)) ⊆ S.cover := fun w hw =>
         (he w).mpr (exists_mem_reWords_iff_dom.mp ⟨n, List.mem_toFinset.mp hw⟩)
       let emb : Lfin ↪ S.cover :=
-        ⟨fun w => ⟨w.1, hsub_cov w.2⟩, fun _ _ h => Subtype.ext
+        ⟨fun w => ⟨w.val, hsub_cov w.property⟩, fun _ _ h => Subtype.ext
           (congrArg (fun z : S.cover => (z : List Bool)) h)⟩
       have hint_g : ∫⁻ x, g x ∂Cslib.BitString.coinFlips ≤ (K : ℝ≥0∞) := by
         calc ∫⁻ x, g x ∂Cslib.BitString.coinFlips
@@ -1040,7 +1040,7 @@ theorem passesSolovayTest_of_isMartinLofRandom (S : SolovayTest) {x : ℕ → Bo
   rw [PassesSolovayTest, Set.not_finite] at hinf
   obtain ⟨F, hF_sub, hF_card⟩ := hinf.exists_subset_card_eq (K * 2 ^ m)
   choose fn hfn using fun w : F =>
-    exists_mem_reWords_iff_dom.mpr ((he w.1).mp (hF_sub w.2).1)
+    exists_mem_reWords_iff_dom.mpr ((he w.val).mp (hF_sub w.property).1)
   let N : ℕ := F.attach.sup fn
   let v : List Bool := List.ofFn fun i : Fin (prefixUnionMaxLen (reWords e N)) => x i
   have hxv : x ∈ prefixCylinderList v := mem_prefixCylinderList.mpr fun _ => by simp [v]
@@ -1405,30 +1405,30 @@ private def martinLofToSolovayTest (T : MartinLofTest) (e : Code)
         (2 : ℝ≥0∞)⁻¹ ^ (k + 1) := by
       intro k
       refine hasSum_le_of_sum_le CompleteLattice.summable.hasSum fun F => ?_
-      have hex_j : ∀ v : D k, ∃ j : ℕ, v.1 ∈ mlDisjList e k j := fun v => v.2
+      have hex_j : ∀ v : D k, ∃ j : ℕ, v.val ∈ mlDisjList e k j := fun v => v.property
       choose fj hfj using hex_j
       let J := F.sup fj
       have hF_in : ∀ v ∈ F, (v : List Bool) ∈ mlDisjList e k J := fun v hv =>
         mlDisjList_mono e k (Finset.le_sup hv) (hfj v)
-      have hdisj : (F : Set (D k)).PairwiseDisjoint fun v => prefixCylinderList v.1 := by
+      have hdisj : (F : Set (D k)).PairwiseDisjoint fun v => prefixCylinderList v.val := by
         intro a ha b hb hne
         have hpa := (mlDisjList_spec e k J).1
-        have ha' : a.1 ∈ mlDisjList e k J := hF_in a ha
-        have hb' : b.1 ∈ mlDisjList e k J := hF_in b hb
-        have hne' : a.1 ≠ b.1 := fun h => hne (Subtype.ext h)
+        have ha' : a.val ∈ mlDisjList e k J := hF_in a ha
+        have hb' : b.val ∈ mlDisjList e k J := hF_in b hb
+        have hne' : a.val ≠ b.val := fun h => hne (Subtype.ext h)
         exact disjoint_prefixCylinderList_of_prefixDisjoint (hdisj_rel hpa ha' hb' hne')
-      have hsub : (⋃ v ∈ F, prefixCylinderList v.1) ⊆
+      have hsub : (⋃ v ∈ F, prefixCylinderList v.val) ⊆
           ⋃ w ∈ T.cover (k + 1), prefixCylinderList w := by
         refine Set.iUnion₂_subset fun v hv => ?_
-        obtain ⟨w, hw_dom, hwv⟩ := (mlDisjList_spec e k J).2 v.1 (hF_in v hv)
+        obtain ⟨w, hw_dom, hwv⟩ := (mlDisjList_spec e k J).2 v.val (hF_in v hv)
         exact (prefixCylinderList_subset_of_isPrefix hwv).trans fun _ hx =>
           Set.mem_iUnion₂.mpr ⟨w, (he (k + 1, w)).mpr hw_dom, hx⟩
       calc ∑ v ∈ F, (2 : ℝ≥0∞)⁻¹ ^ (v : List Bool).length
-        _ = ∑ v ∈ F, Cslib.BitString.coinFlips (prefixCylinderList v.1) := by
+        _ = ∑ v ∈ F, Cslib.BitString.coinFlips (prefixCylinderList v.val) := by
             refine Finset.sum_congr rfl fun v _ => ?_
             rw [coinFlips_prefixCylinderList, ENNReal.inv_pow]
-        _ = Cslib.BitString.coinFlips (⋃ v ∈ F, prefixCylinderList v.1) :=
-            (measure_biUnion_finset hdisj fun v _ => measurableSet_prefixCylinderList v.1).symm
+        _ = Cslib.BitString.coinFlips (⋃ v ∈ F, prefixCylinderList v.val) :=
+            (measure_biUnion_finset hdisj fun v _ => measurableSet_prefixCylinderList v.val).symm
         _ ≤ Cslib.BitString.coinFlips (⋃ w ∈ T.cover (k + 1), prefixCylinderList w) :=
             measure_mono hsub
         _ ≤ (2 : ℝ≥0∞)⁻¹ ^ (k + 1) := T.measure_le (k + 1)
@@ -1437,7 +1437,7 @@ private def martinLofToSolovayTest (T : MartinLofTest) (e : Code)
           (2 : ℝ≥0∞)⁻¹ ^ (v : List Bool).length) ≤ 1 := by
       have hex_k : ∀ v : {v | ∃ kj : ℕ × ℕ, v ∈ mlDisjList e kj.1 kj.2},
           ∃ k : ℕ, (v : List Bool) ∈ D k := fun v => by
-        obtain ⟨⟨k, j⟩, hj⟩ := v.2
+        obtain ⟨⟨k, j⟩, hj⟩ := v.property
         exact ⟨k, j, hj⟩
       choose fk hfk using hex_k
       refine hasSum_le_of_sum_le CompleteLattice.summable.hasSum fun F => ?_
@@ -1450,7 +1450,7 @@ private def martinLofToSolovayTest (T : MartinLofTest) (e : Code)
         intro k _
         let Fk := F.filter (fun v => fk v = k)
         let emb : Fk ↪ D k :=
-          ⟨fun v => ⟨v.1.1, v.2 |> Finset.mem_filter.mp |>.2 ▸ hfk v.1⟩,
+          ⟨fun v => ⟨v.val.val, v.property |> Finset.mem_filter.mp |>.2 ▸ hfk v.val⟩,
             fun a b h => Subtype.ext (Subtype.ext (congrArg (fun z : D k => (z : List Bool)) h))⟩
         calc ∑ v ∈ Fk, (2 : ℝ≥0∞)⁻¹ ^ (v : List Bool).length
           _ = ∑ v ∈ (Finset.univ.map emb : Finset (D k)),
@@ -1661,9 +1661,9 @@ private theorem real_sub_mul_lt_of_nat {n k a b : ℕ} (hn : 0 < n) (hk : 0 < k)
 private theorem mem_deviation_filter {k n : ℕ} (hk : 0 < k) {w : List Bool}
     (hw : w.length = n) (hmem : devTestMem k w) :
     (1 / (2 * (k : ℝ))) * n ≤
-      |(trueCount (fun i : Fin n => w[i.1]'(Nat.lt_of_lt_of_eq i.2 hw.symm)) : ℝ) -
+      |(trueCount (fun i : Fin n => w[i.val]'(Nat.lt_of_lt_of_eq i.isLt hw.symm)) : ℝ) -
         (n : ℝ) / 2| := by
-  let y : Fin n → Bool := fun i => w[i.1]'(Nat.lt_of_lt_of_eq i.2 hw.symm)
+  let y : Fin n → Bool := fun i => w[i.val]'(Nat.lt_of_lt_of_eq i.isLt hw.symm)
   have hcnt : trueCount y = devCount w := by
     rw [← count_ofFn_eq_trueCount,
       show List.ofFn y = w from List.ext_getElem (by simp [hw]) fun i _ _ => by simp [y],
@@ -1709,40 +1709,41 @@ private def deviationSolovayTest (k : ℕ) (hk : 0 < k) : SolovayTest where
     have hr0 : 0 ≤ r := (Real.exp_pos _).le
     have hr1 : r < 1 := Real.exp_lt_one_iff.mpr (by nlinarith)
     have hbound_real : ∀ F : Finset {w : List Bool // devTestMem k w},
-        ∑ w ∈ F, (2 : ℝ)⁻¹ ^ w.1.length ≤ 2 / (1 - r) := by
+        ∑ w ∈ F, (2 : ℝ)⁻¹ ^ w.val.length ≤ 2 / (1 - r) := by
       intro F
-      let N : ℕ := F.sup (fun w => w.1.length) + 1
-      have hmap : ∀ w ∈ F, w.1.length ∈ Finset.range N := fun w hw =>
-        Finset.mem_range.mpr (Nat.lt_succ_of_le (Finset.le_sup (f := fun w : _ => w.1.length) hw))
+      let N : ℕ := F.sup (fun w => w.val.length) + 1
+      have hmap : ∀ w ∈ F, w.val.length ∈ Finset.range N := fun w hw =>
+        Finset.mem_range.mpr (Nat.lt_succ_of_le (Finset.le_sup (f := fun w : _ => w.val.length) hw))
       have hfib : ∀ n ∈ Finset.range N,
-          ∑ w ∈ F.filter (fun w => w.1.length = n), (2 : ℝ)⁻¹ ^ w.1.length ≤
+          ∑ w ∈ F.filter (fun w => w.val.length = n), (2 : ℝ)⁻¹ ^ w.val.length ≤
             2 * r ^ n := by
         intro n _
-        let Fn := F.filter (fun w => w.1.length = n)
+        let Fn := F.filter (fun w => w.val.length = n)
         let Gn := Finset.univ.filter fun y : Fin n → Bool =>
           δ * n ≤ |(trueCount y : ℝ) - (n : ℝ) / 2|
         let f : Fn → Gn := fun w =>
-          ⟨fun i => w.1.1[i.1]'(Nat.lt_of_lt_of_eq i.2 (Finset.mem_filter.mp w.2).2.symm),
+          ⟨fun i =>
+            w.val.val[i.val]'(Nat.lt_of_lt_of_eq i.isLt (Finset.mem_filter.mp w.property).2.symm),
             Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-              mem_deviation_filter hk (Finset.mem_filter.mp w.2).2 w.1.2⟩⟩
+              mem_deviation_filter hk (Finset.mem_filter.mp w.property).2 w.val.property⟩⟩
         have hf_inj : Function.Injective f := by
           intro a b hab
-          have ha_len : a.1.1.length = n := (Finset.mem_filter.mp a.2).2
-          have hb_len : b.1.1.length = n := (Finset.mem_filter.mp b.2).2
-          have hsub := congrArg (fun z : Gn => z.1) hab
+          have ha_len : a.val.val.length = n := (Finset.mem_filter.mp a.property).2
+          have hb_len : b.val.val.length = n := (Finset.mem_filter.mp b.property).2
+          have hsub := congrArg (fun z : Gn => z.val) hab
           refine Subtype.ext (Subtype.ext (List.ext_getElem (ha_len.trans hb_len.symm)
             fun i hi1 _ => congrFun hsub ⟨i, Nat.lt_of_lt_of_eq hi1 ha_len⟩))
         have hcard_le : Fn.card ≤ Gn.card := by
           simpa only [Fintype.card_coe] using Fintype.card_le_of_injective f hf_inj
-        have hsum_fn : ∑ w ∈ Fn, (2 : ℝ)⁻¹ ^ w.1.length = (Fn.card : ℝ) * (2 : ℝ)⁻¹ ^ n := by
-          calc ∑ w ∈ Fn, (2 : ℝ)⁻¹ ^ w.1.length
+        have hsum_fn : ∑ w ∈ Fn, (2 : ℝ)⁻¹ ^ w.val.length = (Fn.card : ℝ) * (2 : ℝ)⁻¹ ^ n := by
+          calc ∑ w ∈ Fn, (2 : ℝ)⁻¹ ^ w.val.length
             _ = ∑ _ ∈ Fn, (2 : ℝ)⁻¹ ^ n :=
                 Finset.sum_congr rfl fun w hw => by rw [(Finset.mem_filter.mp hw).2]
             _ = (Fn.card : ℝ) * (2 : ℝ)⁻¹ ^ n := by rw [Finset.sum_const, nsmul_eq_mul]
         rw [hsum_fn]
         have hr_pow : r ^ n = Real.exp (-2 * δ ^ 2 * n) := by
           dsimp only [r]
-          rw [← Real.exp_nat_mul]
+          rw [← Real.exp_natCast_mul]
           congr 1
           ring
         calc (Fn.card : ℝ) * (2 : ℝ)⁻¹ ^ n
@@ -1754,9 +1755,9 @@ private def deviationSolovayTest (k : ℕ) (hk : 0 < k) : SolovayTest where
               have hpow : (2 ^ n : ℝ) ≠ 0 := by positivity
               field_simp
           _ = 2 * r ^ n := by rw [hr_pow]
-      calc ∑ w ∈ F, (2 : ℝ)⁻¹ ^ w.1.length
+      calc ∑ w ∈ F, (2 : ℝ)⁻¹ ^ w.val.length
         _ = ∑ n ∈ Finset.range N,
-              ∑ w ∈ F.filter (fun w => w.1.length = n), (2 : ℝ)⁻¹ ^ w.1.length :=
+              ∑ w ∈ F.filter (fun w => w.val.length = n), (2 : ℝ)⁻¹ ^ w.val.length :=
             (Finset.sum_fiberwise_of_maps_to hmap _).symm
         _ ≤ ∑ n ∈ Finset.range N, 2 * r ^ n := Finset.sum_le_sum hfib
         _ = 2 * ∑ n ∈ Finset.range N, r ^ n := (Finset.mul_sum _ _ _).symm

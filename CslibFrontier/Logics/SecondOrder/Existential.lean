@@ -78,7 +78,7 @@ instance {ι : Type} (arity : ι → ℕ) : (varLanguage arity).IsRelational :=
 @[instance_reducible]
 def varLanguage.structure {ι : Type} {arity : ι → ℕ} {M : Type w}
     (R : ∀ i, Set (Fin (arity i) → M)) : (varLanguage arity).Structure M where
-  RelMap r x := x ∘ Fin.cast r.2 ∈ R r.1
+  RelMap r x := x ∘ Fin.cast r.property ∈ R r.val
 
 namespace varLanguage
 
@@ -88,16 +88,16 @@ variable {ι ι' : Type} {arity : ι → ℕ} {arity' : ι' → ℕ} {M : Type w
 belongs to `R r.1`. -/
 theorem relMap_structure (R : ∀ i, Set (Fin (arity i) → M)) {n : ℕ}
     (r : (varLanguage arity).Relations n) (x : Fin n → M) :
-    (varLanguage.structure R).RelMap r x ↔ x ∘ Fin.cast r.2 ∈ R r.1 :=
+    (varLanguage.structure R).RelMap r x ↔ x ∘ Fin.cast r.property ∈ R r.val :=
   Iff.rfl
 
 /-- The relation variables of `arity` among those of `Sum.elim arity arity'`. -/
 def sumInl : varLanguage arity →ᴸ varLanguage (Sum.elim arity arity') where
-  onRelation _ r := ⟨.inl r.1, r.2⟩
+  onRelation _ r := ⟨.inl r.val, r.property⟩
 
 /-- The relation variables of `arity'` among those of `Sum.elim arity arity'`. -/
 def sumInr : varLanguage arity' →ᴸ varLanguage (Sum.elim arity arity') where
-  onRelation _ r := ⟨.inr r.1, r.2⟩
+  onRelation _ r := ⟨.inr r.val, r.property⟩
 
 /-- `varLanguage.structure R` is an expansion along `sumInl` of the structure for the left
 relation variables. -/
@@ -254,7 +254,7 @@ def expansionEquiv (Φ : Sentence L) (e : M ≃[L] N) (R : ∀ i, Set (Fin (Φ.a
     map_rel' := fun r x => match r with
       | .inl r => e.map_rel r x
       | .inr r => by
-        change e.symm ∘ (e ∘ x) ∘ Fin.cast r.2 ∈ R r.1 ↔ x ∘ Fin.cast r.2 ∈ R r.1
+        change e.symm ∘ (e ∘ x) ∘ Fin.cast r.property ∈ R r.val ↔ x ∘ Fin.cast r.property ∈ R r.val
         simp [Function.comp_def] }
 
 /-- An isomorphism `M ≃[L] N` transports satisfaction of an existential second-order sentence `Φ`

@@ -48,7 +48,7 @@ theorem sum_not_subset_empty_fourierCoeff_sq_const_le {ε : ℝ} (hε : 0 < ε) 
 theorem variance_dictator :
     𝔼 x : Fin 1 → Bool, (signVal (x 0) - 𝔼 y : Fin 1 → Bool, signVal (y 0)) ^ 2 = 1 := by
   rw [expect_sub_expect_sq_signVal]
-  simp only [← chi_singleton, expect_chi, singleton_ne_empty, ↓reduceIte]
+  simp only [← chi_singleton, expect_chi, (singleton_nonempty _).ne_empty, ↓reduceIte]
   norm_num
 
 /-- The dictator `x ↦ x 0` on one bit has total influence at most `1`. -/

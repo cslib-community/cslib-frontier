@@ -408,7 +408,7 @@ private theorem nine_div_fifty_le {r z : ℕ} (h₁ : 2 ^ r ≤ z) (h₂ : z < 2
       _ = q := by simp
   have hpow : Real.exp (-1) ≤ q ^ (z - 1) := by
     calc Real.exp (-1) ≤ Real.exp (-(p / q)) ^ (z - 1) := by
-          rw [← Real.exp_nat_mul]
+          rw [← Real.exp_natCast_mul]
           refine Real.exp_le_exp.2 ?_
           have hk : ((z - 1 : ℕ) : ℝ) = z - 1 := by rw [Nat.cast_sub hz1, Nat.cast_one]
           rw [hk]

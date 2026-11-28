@@ -109,7 +109,7 @@ theorem card_children_root_le (hh : 0 < h) :
 /-- The base parties are the parties of the chambers of the base. -/
 private theorem exists_base_iff (P : T.Node) :
     (∃ a, Tower.Node.ofChamber (Nat.zero_le J) (ch a) = P) ↔ (Pl.party P : ℕ) < A := by
-  refine ⟨fun ⟨a, ha⟩ => ha ▸ (Pl.party_base a).symm ▸ a.2, fun hP => ⟨⟨_, hP⟩, ?_⟩⟩
+  refine ⟨fun ⟨a, ha⟩ => ha ▸ (Pl.party_base a).symm ▸ a.isLt, fun hP => ⟨⟨_, hP⟩, ?_⟩⟩
   refine Pl.party.injective ((Pl.party_base _).trans (Fin.ext rfl))
 
 /-! ### The units in the end -/
@@ -226,7 +226,7 @@ private theorem treeUnits_le (p : Fin (A + A')) :
   unfold treeUnits
   rcases Pl.party.symm p with _ | ⟨j, c⟩
   · exact Nat.zero_le _
-  · exact parentUnits_le hρ (Nat.le_of_lt_succ j.2) c
+  · exact parentUnits_le hρ (Nat.le_of_lt_succ j.isLt) c
 
 /-- **The units of a party and its children** ([AnthropicVPVNP2026], Theorem H.2(e), p. 46): if
 the bound `b` of the children and the chambers of the last level are at most `c`, the units

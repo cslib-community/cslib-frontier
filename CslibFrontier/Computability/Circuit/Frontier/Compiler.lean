@@ -109,11 +109,11 @@ theorem ncard_incidenceSet_site_le_one {i : Fin n} {v : Vertex c} (hsite : site 
 
 /-- A gate has at most `r` argument slots when the fan-in is at most `r`. -/
 private theorem ncard_slot_le {r : ℕ} (hfan : c.FanInAtMost r) (w : Wire n c.size) :
-    {a : Slot c | Wire.gate a.1.1 = w}.ncard ≤ r := by
-  calc {a : Slot c | Wire.gate a.1.1 = w}.ncard
+    {a : Slot c | Wire.gate a.val.1 = w}.ncard ≤ r := by
+  calc {a : Slot c | Wire.gate a.val.1 = w}.ncard
       ≤ ((Finset.range r : Finset ℕ) : Set ℕ).ncard := by
-        refine ncard_le_ncard_of_injOn (fun a => a.1.2.val) (fun a _ => ?_) ?_ (toFinite _)
-        · simpa using a.1.2.isLt.trans_le (Program.fanInAtMost_iff.mp hfan a.1.1)
+        refine ncard_le_ncard_of_injOn (fun a => a.val.2.val) (fun a _ => ?_) ?_ (toFinite _)
+        · simpa using a.val.2.isLt.trans_le (Program.fanInAtMost_iff.mp hfan a.val.1)
         · rintro ⟨⟨g, a⟩, hg⟩ hw ⟨⟨g', a'⟩, hg'⟩ hw' haa'
           obtain rfl : g = g' := Wire.gate.inj (hw.trans hw'.symm)
           obtain rfl : a = a' := Fin.ext haa'
@@ -143,15 +143,16 @@ theorem maxDegreeLE {r : ℕ} (hr : 2 ≤ r) (hfan : c.FanInAtMost r) :
     -- The first edge of the signal, and the edges delivering the slots of its gate.
     calc ((graph c).incidenceSet (.signal w)).ncard
         ≤ (insert (head w)
-            ((fun a => deliverEdge (.inl a)) '' {a : Slot c | Wire.gate a.1.1 = w.1})).ncard := by
+            ((fun a => deliverEdge (.inl a)) ''
+              {a : Slot c | Wire.gate a.val.1 = w.val})).ncard := by
           refine ncard_le_ncard (fun e he => ?_) (toFinite _)
           rcases he with he | he
           · exact Or.inl (eq_head_of_src_eq_signal he)
           · obtain ⟨a, ha, rfl⟩ := exists_slot_of_tgt_eq_signal he
             exact Or.inr ⟨a, ha, rfl⟩
-      _ ≤ {a : Slot c | Wire.gate a.1.1 = w.1}.ncard + 1 :=
+      _ ≤ {a : Slot c | Wire.gate a.val.1 = w.val}.ncard + 1 :=
           (ncard_insert_le _ _).trans (Nat.add_le_add_right (ncard_image_le (toFinite _)) 1)
-      _ ≤ r + 1 := Nat.add_le_add_right (ncard_slot_le hfan w.1) 1
+      _ ≤ r + 1 := Nat.add_le_add_right (ncard_slot_le hfan w.val) 1
   | junction j =>
     -- Its feed and deliver edges, and the feed edge of the next junction.
     calc ((graph c).incidenceSet (.junction j)).ncard
@@ -254,7 +255,7 @@ theorem exists_reachable_of_eval_ne {o : Fin m} {i : Fin n} {x y : Fin n → U}
   set P : Set (Vertex c) := {v | (graph c).toSimpleGraph.Reachable v (.output o)}
   by_contra! h
   have hcut : ∀ e ∈ (graph c).edgeCut P,
-      c.program.trace I x e.signal.1 = c.program.trace I y e.signal.1 := by
+      c.program.trace I x e.signal.val = c.program.trace I y e.signal.val := by
     intro e he
     have hst := (graph c).reachable_src_tgt e
     exact absurd ⟨fun hs => hst.symm.trans hs, fun ht => hst.trans ht⟩ he
@@ -300,8 +301,8 @@ private def signalEquiv :
     | ⟨.input i, h⟩ => .inl ⟨i, h⟩
     | ⟨.gate g, h⟩ => .inr ⟨g, h⟩
   invFun
-    | .inl i => ⟨.input i.1, i.2⟩
-    | .inr g => ⟨.gate g.1, g.2⟩
+    | .inl i => ⟨.input i.val, i.property⟩
+    | .inr g => ⟨.gate g.val, g.property⟩
   left_inv w := by rcases w with ⟨w | w, h⟩ <;> rfl
   right_inv w := by rcases w with w | w <;> rfl
 
@@ -313,12 +314,12 @@ abbrev InnerGate : Type :=
 variable (c) in
 /-- The reachable inner gates whose vertex lies in `W`. -/
 abbrev InnerGateIn (W : Set (Vertex c)) : Type :=
-  {g : InnerGate c // Vertex.signal ⟨.gate g.1, g.2.1⟩ ∈ W}
+  {g : InnerGate c // Vertex.signal ⟨.gate g.val, g.property.1⟩ ∈ W}
 
 /-- The reachable inner gates are inner gates. -/
 theorem card_innerGate_le : Nat.card (InnerGate c) ≤ c.innerSize := by
   rw [Circuit.innerSize, ← Nat.card_eq_finsetCard]
-  exact Nat.card_le_card_of_injective (fun g => ⟨g.1, Program.mem_innerGates.mpr g.2.2⟩)
+  exact Nat.card_le_card_of_injective (fun g => ⟨g.val, Program.mem_innerGates.mpr g.property.2⟩)
     fun _ _ h => Subtype.ext (congrArg Subtype.val h :)
 
 /-- The reachable inner gates in `W` are inner gates. -/
@@ -329,7 +330,7 @@ private theorem card_innerGateIn_le (W : Set (Vertex c)) :
 /-- There are at least as many reachable gates as reachable inner gates. -/
 theorem card_innerGate_le_card_gate :
     Nat.card (InnerGate c) ≤ Nat.card {g : Fin c.size // Reach c (.gate g)} :=
-  Nat.card_le_card_of_injective (fun g => ⟨g.1, g.2.1⟩) fun _ _ h =>
+  Nat.card_le_card_of_injective (fun g => ⟨g.val, g.property.1⟩) fun _ _ h =>
     Subtype.ext (congrArg Subtype.val h :)
 
 /-- The reachable inner gate in `W` that owns a slot in `W`. -/
@@ -458,14 +459,14 @@ private theorem ncard_readIn_add_card_le (W : Set (Vertex c)) :
     ((network c I Acc).readIn W).ncard + Nat.card (InnerGateIn c W) ≤
       Nat.card {w // Vertex.signal w ∈ W} := by
   have hread : ((network c I Acc).readIn W).ncard =
-      Nat.card {i : {i // Reach c (.input i)} // Vertex.signal ⟨.input i.1, i.2⟩ ∈ W} := by
+      Nat.card {i : {i // Reach c (.input i)} // Vertex.signal ⟨.input i.val, i.property⟩ ∈ W} := by
     rw [readIn_network, ← Nat.card_coe_set_eq]
     exact Nat.card_congr (Equiv.subtypeSubtypeEquivSubtypeExists _
-      fun i : {i // Reach c (.input i)} => Vertex.signal ⟨.input i.1, i.2⟩ ∈ W).symm
+      fun i : {i // Reach c (.input i)} => Vertex.signal ⟨.input i.val, i.property⟩ ∈ W).symm
   rw [Nat.card_subtype_eq_add_of_equiv_sum signalEquiv, hread]
   refine Nat.add_le_add le_rfl ?_
-  exact Nat.card_le_card_of_injective (fun g => ⟨⟨g.1.1, g.1.2.1⟩, g.2⟩) fun _ _ h =>
-    Subtype.ext (Subtype.ext (congrArg (fun g => g.1.1) h))
+  exact Nat.card_le_card_of_injective (fun g => ⟨⟨g.val.val, g.val.property.1⟩, g.property⟩)
+    fun _ _ h => Subtype.ext (Subtype.ext (congrArg (fun g => g.val.val) h))
 
 /-- Whether a reachable inner gate in `W` has syntactic arity `1`. -/
 private def IsUnaryGateIn {W : Set (Vertex c)} : InnerGateIn c W → Prop

@@ -85,7 +85,7 @@ example : StreamComputable indicatorAtZero :=
   ⟨_, computesStream_indicatorAtZero _⟩
 
 /-- A computable partial map is continuous on its domain. -/
-example : Continuous fun x : indicatorAtZero.Dom => (indicatorAtZero x).get x.2 :=
+example : Continuous fun x : indicatorAtZero.Dom => (indicatorAtZero x).get x.property :=
   StreamComputableIn.continuous_get (p := fun _ => 0) ⟨_, computesStream_indicatorAtZero _⟩
 
 /-- The partial map defined on sequences with infinitely many nonzero entries, sending `x` to the
@@ -109,7 +109,7 @@ theorem not_isOpen_dom_nextNonzeroPos : ¬ IsOpen nextNonzeroPos.Dom := by
 
 /-- `nextNonzeroPos` is continuous on its domain. -/
 theorem continuous_get_nextNonzeroPos :
-    Continuous fun x : nextNonzeroPos.Dom => (nextNonzeroPos x).get x.2 := by
+    Continuous fun x : nextNonzeroPos.Dom => (nextNonzeroPos x).get x.property := by
   refine continuous_get_iff_forall_exists_cylinder.2 fun x y hy n => ?_
   obtain ⟨hx, rfl⟩ := hy
   refine ⟨Nat.find (hx n) + 1, fun x' hcyl y' hy' => ?_⟩
@@ -132,7 +132,7 @@ example :
       IsGδ F'.Dom ∧
       (∀ x, ∀ y ∈ nextNonzeroPos x, y ∈ F' x) ∧
       StreamComputableIn p F' ∧
-      Continuous fun x : F'.Dom => (F' x).get x.2 :=
+      Continuous fun x : F'.Dom => (F' x).get x.property :=
   exists_gδ_extension_of_continuous_get continuous_get_nextNonzeroPos
 
 example : (fun _ => 0 : ℕ → ℕ) ∉ nextNonzeroPos.Dom := by

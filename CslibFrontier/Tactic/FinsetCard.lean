@@ -780,8 +780,8 @@ private partial def harvestHyp (ty pf : Expr)
       addRel α u (.disjoint args[3]! args[4]! pf); return
   if fn.isConstOf ``Finset.Nonempty && args.size == 2 && depth > 0 then
     let α := args[0]!; let u := fn.constLevels![0]!; let s := args[1]!
-    let neEmpPf ← mkAppOptM ``Iff.mp
-      #[none, none, some (mkApp2 (mkConst ``Finset.nonempty_iff_ne_empty [u]) α s), some pf]
+    let neEmpPf ← mkAppOptM ``Iff.mpr
+      #[none, none, some (mkApp2 (mkConst ``Finset.ne_empty_iff_nonempty [u]) α s), some pf]
     harvestHyp (← inferType neEmpPf) neEmpPf ref mapImgRef (depth - 1); return
   if fn.isConstOf ``Membership.mem && args.size == 5 then
     if let some (α, u) := finsetCarrier? args[1]! then

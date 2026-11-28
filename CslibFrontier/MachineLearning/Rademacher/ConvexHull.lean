@@ -98,37 +98,37 @@ private theorem expect_signVal_mul_le_of_mem_convexHull {m : ℕ} {A : Set (Fin 
 /-- A real average bound for `A : Set (Fin m → ℝ)` whose coordinates are bounded by `B`. -/
 private theorem bddAbove_range_expect_sub {m : ℕ} {A : Set (Fin m → ℝ)} {B : ℝ}
     (hA : ∀ v ∈ A, ∀ i, |v i| ≤ B) (σ : Fin m → Bool) :
-    BddAbove (Set.range fun v : A => 𝔼 i, signVal (σ i) * v.1 i) := by
+    BddAbove (Set.range fun v : A => 𝔼 i, signVal (σ i) * v.val i) := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · exact ⟨0, by rintro _ ⟨v, rfl⟩; simp⟩
   · have : Nonempty (Fin m) := ⟨⟨0, hm⟩⟩
     refine ⟨B, ?_⟩
     rintro _ ⟨v, rfl⟩
     refine Finset.expect_le Finset.univ_nonempty fun i _ => ?_
-    calc signVal (σ i) * v.1 i ≤ |signVal (σ i) * v.1 i| := le_abs_self _
-      _ = |v.1 i| := by rw [abs_mul, abs_signVal, one_mul]
-      _ ≤ B := hA v.1 v.2 i
+    calc signVal (σ i) * v.val i ≤ |signVal (σ i) * v.val i| := le_abs_self _
+      _ = |v.val i| := by rw [abs_mul, abs_signVal, one_mul]
+      _ ≤ B := hA v.val v.property i
 
 /-- **Rademacher average of a convex hull** [ShalevShwartzBenDavid2014, Lemma 26.7]: taking the
 convex hull of a uniformly bounded set `A : Set (Fin m → ℝ)` preserves its Rademacher average. -/
 theorem rademacherAverage_convexHull {m : ℕ} {A : Set (Fin m → ℝ)} {B : ℝ}
     (hA : ∀ v ∈ A, ∀ i, |v i| ≤ B) :
-    rademacherAverage (fun v : convexHull ℝ A => v.1) =
-      rademacherAverage (fun v : A => v.1) := by
+    rademacherAverage (fun v : convexHull ℝ A => v.val) =
+      rademacherAverage (fun v : A => v.val) := by
   rcases A.eq_empty_or_nonempty with rfl | hne
   · have : IsEmpty (↥(convexHull ℝ (∅ : Set (Fin m → ℝ)))) := by
       simp only [convexHull_empty, Set.isEmpty_coe_sort]
     have : IsEmpty (↥(∅ : Set (Fin m → ℝ))) := Set.isEmpty_coe_sort.mpr rfl
     rw [rademacherAverage_of_isEmpty, rademacherAverage_of_isEmpty]
   refine le_antisymm ?_ (rademacherAverage_le_of_forall_exists
-    (fun v i => abs_le_of_mem_convexHull hA v.2 i)
-    fun v => ⟨⟨v.1, subset_convexHull ℝ A v.2⟩, rfl⟩)
+    (fun v i => abs_le_of_mem_convexHull hA v.property i)
+    fun v => ⟨⟨v.val, subset_convexHull ℝ A v.property⟩, rfl⟩)
   have : Nonempty A := hne.to_subtype
   have : Nonempty (convexHull ℝ A) := (hne.mono (subset_convexHull ℝ A)).to_subtype
   rw [rademacherAverage_def, rademacherAverage_def]
   exact Finset.expect_le_expect fun σ _ => ciSup_le fun v =>
     expect_signVal_mul_le_of_mem_convexHull
-      (fun u hu => le_ciSup (bddAbove_range_expect_sub hA σ) ⟨u, hu⟩) v.2
+      (fun u hu => le_ciSup (bddAbove_range_expect_sub hA σ) ⟨u, hu⟩) v.property
 
 /-- Every element of `convexHull ℝ F` evaluates at `S` inside the convex hull of the images of `F`
 under evaluation at `S`. -/
@@ -151,17 +151,18 @@ theorem empiricalRademacherComplexity_convexHull {Z : Type*} {F : Set (Z → ℝ
   have hA : ∀ v ∈ A, ∀ i, |v i| ≤ B := by
     rintro _ ⟨g, hg, rfl⟩ i
     exact hF g hg (S i)
-  have hF_eq : empiricalRademacherComplexity F S = rademacherAverage (fun v : A => v.1) := by
+  have hF_eq : empiricalRademacherComplexity F S = rademacherAverage (fun v : A => v.val) := by
     rw [empiricalRademacherComplexity_def]
-    exact rademacherAverage_eq_of_forall_exists (fun g i => hF g.1 g.2 (S i))
-      (fun v i => hA v.1 v.2 i) (fun g => ⟨⟨fun i => g.1 (S i), ⟨g.1, g.2, rfl⟩⟩, rfl⟩)
+    exact rademacherAverage_eq_of_forall_exists (fun g i => hF g.val g.property (S i))
+      (fun v i => hA v.val v.property i)
+      (fun g => ⟨⟨fun i => g.val (S i), ⟨g.val, g.property, rfl⟩⟩, rfl⟩)
       fun ⟨_, g, hg, rfl⟩ => ⟨⟨g, hg⟩, rfl⟩
   refine le_antisymm ?_ (empiricalRademacherComplexity_mono (subset_convexHull ℝ F)
     (fun f hf z => abs_le_of_mem_convexHull hF hf z) S)
   rw [hF_eq, ← rademacherAverage_convexHull hA, empiricalRademacherComplexity_def]
   exact rademacherAverage_le_of_forall_exists
-    (fun v i => abs_le_of_mem_convexHull hA v.2 i)
-    fun f => ⟨⟨fun i => f.1 (S i), eval_mem_convexHull S f.2⟩, rfl⟩
+    (fun v i => abs_le_of_mem_convexHull hA v.property i)
+    fun f => ⟨⟨fun i => f.val (S i), eval_mem_convexHull S f.property⟩, rfl⟩
 
 /-- **Rademacher complexity of a convex hull** [MohriRostamizadehTalwalkar2018, Lemma 7.4]:
 for a uniformly bounded function class `F : Set (Z → ℝ)` on a finite domain `Z`,

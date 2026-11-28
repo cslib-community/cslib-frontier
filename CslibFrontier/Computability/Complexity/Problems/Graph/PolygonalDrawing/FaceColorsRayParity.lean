@@ -38,7 +38,7 @@ variable {G : Graph} (D : PolygonalDrawing G)
 Both loop ends and repeated edge occurrences are retained. Internal bends contribute twice,
 including when different listed bends have coincident coordinates. No endpoint-declaration,
 simplicity, connectedness, degree or coordinate assumption is needed for this identity. -/
-theorem segment_endpoints_even (x : Fin G.2.length → Bool) (hx : G.VertexEven x)
+theorem segment_endpoints_even (x : Fin G.edges.length → Bool) (hx : G.VertexEven x)
     (u p : ℂ) :
     (∑ s : D.SegmentIndex, ((if u * D.segmentStart s = p then x s.1 else 0) +
       (if u * D.segmentFinish s = p then x s.1 else 0))) = false := by
@@ -48,7 +48,7 @@ theorem segment_endpoints_even (x : Fin G.2.length → Bool) (hx : G.VertexEven 
     ((if u * (D.route e).point i.castSucc = p then x e else 0) +
       (if u * (D.route e).point i.succ = p then x e else 0))) = false
   simp only [Polygonal.Route.sum_segment_endpoint_incidence]
-  have hends (e : Fin G.2.length) :
+  have hends (e : Fin G.edges.length) :
       (if u * (D.route e).start = p then x e else 0) +
         (if u * (D.route e).finish = p then x e else 0) =
       (∑ b : Bool, if u * D.vertex (Dart.vertex (e, b)) = p then x e else 0) := by
@@ -85,7 +85,7 @@ The multiplier is chosen from the drawing alone, before the edge label or observ
 This is a local geometric theorem, not yet transport along the right side of a face walk. -/
 theorem IsEmbedding.exists_rayParity_locally_constant {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) :
-    ∃ u : ℂ, u ≠ 0 ∧ ∀ x : Fin G.2.length → Bool, G.VertexEven x →
+    ∃ u : ℂ, u ≠ 0 ∧ ∀ x : Fin G.edges.length → Bool, G.VertexEven x →
       ∀ z : ℂ, (∀ s : D.SegmentIndex, x s.1 = true →
         z ∉ segment ℝ (u * D.segmentStart s) (u * D.segmentFinish s)) →
       ∀ᶠ w in nhds z,

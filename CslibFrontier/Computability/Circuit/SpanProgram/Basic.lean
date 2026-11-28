@@ -85,7 +85,7 @@ theorem target_ne_zero (P : MonotoneSpanProgram F Party) : P.target ≠ 0 :=
 ([BonehShoup2023], Definition 22.21, p. 978). -/
 def rowSpan (P : MonotoneSpanProgram F Party) (s : Finset Party) :
     Submodule F (Fin (P.tailDim + 1) → F) :=
-  Submodule.span F (Set.range fun p : (i : s) × Fin (P.rowDim i.1) => P.matrix p.1.val p.2)
+  Submodule.span F (Set.range fun p : (i : s) × Fin (P.rowDim i.val) => P.matrix p.1.val p.2)
 
 /-- A monotone span program `P` accepts coalition `s` iff `P.target ∈ P.rowSpan s`
 ([BonehShoup2023], Definition 22.21, p. 978). -/
@@ -108,8 +108,8 @@ theorem not_accepts_empty (P : MonotoneSpanProgram F Party) : ¬ P.Accepts ∅ :
 weighted sum of rows equals `P.target = e₁` ([BonehShoup2023], Construction 22.2, p. 980). -/
 theorem accepts_iff_exists_vecMul (P : MonotoneSpanProgram F Party) (s : Finset Party) :
     P.Accepts s ↔
-      ∃ w : (i : s) → Fin (P.rowDim i.1) → F,
-        ∑ i : s, Matrix.vecMul (w i) (P.matrix i.1) = P.target := by
+      ∃ w : (i : s) → Fin (P.rowDim i.val) → F,
+        ∑ i : s, Matrix.vecMul (w i) (P.matrix i.val) = P.target := by
   rw [Accepts, rowSpan, Submodule.mem_span_range_iff_exists_fun]
   simp_rw [Fintype.sum_sigma, ← Matrix.vecMul_eq_sum]
   exact ⟨fun ⟨c, hc⟩ => ⟨fun i r => c ⟨i, r⟩, hc⟩, fun ⟨w, hw⟩ => ⟨fun p => w p.1 p.2, hw⟩⟩
@@ -124,7 +124,7 @@ theorem not_accepts_of_exists_nullVector (P : MonotoneSpanProgram F Party) {s : 
   have h0 : dotProduct P.target v = 0 := by
     rw [← hw, sum_dotProduct]
     refine Finset.sum_eq_zero fun i _ => ?_
-    rw [← Matrix.dotProduct_mulVec, hv_null i.1 i.2, dotProduct_zero]
+    rw [← Matrix.dotProduct_mulVec, hv_null i.val i.property, dotProduct_zero]
   rw [target, single_one_dotProduct, hv0] at h0
   exact one_ne_zero h0
 

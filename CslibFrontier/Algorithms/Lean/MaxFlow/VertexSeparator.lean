@@ -97,15 +97,15 @@ the out-copies `n + 2, …, 2n + 1`. -/
 @[expose] def toFin {n : ℕ} : SplitNode n → Fin (n + n + 2)
   | src => ⟨0, by omega⟩
   | snk => ⟨1, by omega⟩
-  | inV v => ⟨v.1 + 2, by have := v.2; omega⟩
-  | outV v => ⟨v.1 + n + 2, by have := v.2; omega⟩
+  | inV v => ⟨v.val + 2, by have := v.isLt; omega⟩
+  | outV v => ⟨v.val + n + 2, by have := v.isLt; omega⟩
 
 /-- The split node with a given index, inverse to `toFin`. -/
 @[expose] def ofFin {n : ℕ} (i : Fin (n + n + 2)) : SplitNode n :=
-  if h0 : i.1 = 0 then src
-  else if h1 : i.1 = 1 then snk
-  else if h : i.1 < n + 2 then inV ⟨i.1 - 2, by omega⟩
-  else outV ⟨i.1 - n - 2, by have := i.2; omega⟩
+  if h0 : i.val = 0 then src
+  else if h1 : i.val = 1 then snk
+  else if h : i.val < n + 2 then inV ⟨i.val - 2, by omega⟩
+  else outV ⟨i.val - n - 2, by have := i.isLt; omega⟩
 
 /-- Split nodes are indexed by `Fin (n + n + 2)`. -/
 @[expose] def equivFin (n : ℕ) : SplitNode n ≃ Fin (n + n + 2) where
@@ -116,17 +116,17 @@ the out-copies `n + 2, …, 2n + 1`. -/
     | src => rfl
     | snk => rfl
     | inV v =>
-      have := v.2
-      simp only [toFin, ofFin, show v.1 + 2 ≠ 0 by omega, show v.1 + 2 ≠ 1 by omega,
-        show v.1 + 2 < n + 2 by omega, ↓reduceDIte, inV.injEq]
+      have := v.isLt
+      simp only [toFin, ofFin, show v.val + 2 ≠ 0 by omega, show v.val + 2 ≠ 1 by omega,
+        show v.val + 2 < n + 2 by omega, ↓reduceDIte, inV.injEq]
       exact Fin.ext (by simp)
     | outV v =>
-      have := v.2
-      simp only [toFin, ofFin, show v.1 + n + 2 ≠ 0 by omega, show v.1 + n + 2 ≠ 1 by omega,
-        show ¬(v.1 + n + 2 < n + 2) by omega, ↓reduceDIte, outV.injEq]
+      have := v.isLt
+      simp only [toFin, ofFin, show v.val + n + 2 ≠ 0 by omega, show v.val + n + 2 ≠ 1 by omega,
+        show ¬(v.val + n + 2 < n + 2) by omega, ↓reduceDIte, outV.injEq]
       exact Fin.ext (by dsimp only; omega)
   right_inv i := by
-    have := i.2
+    have := i.isLt
     apply Fin.ext
     simp only [ofFin]
     split_ifs <;> simp only [toFin] <;> omega

@@ -90,8 +90,8 @@ example : bal4Graph.digraphInArborescenceCount 0 = 2 ∧
     bal4Graph.digraphInArborescenceCount 3 = 2 ∧
     bal4Graph.digraphInArborescenceCount 99 = 0 := by decide
 
-example (h0 : 0 ∈ bal4Graph.1) :
-    Nat.card {T : Digraph {v // v ∈ bal4Graph.1} //
+example (h0 : 0 ∈ bal4Graph.vertices) :
+    Nat.card {T : Digraph {v // v ∈ bal4Graph.vertices} //
       T ≤ bal4Graph.toDigraph ∧ T.IsInArborescence ⟨0, h0⟩} = 2 := by
   have h := bal4Graph.digraphInArborescenceCount_eq_natCard 0
   rw [dite_eq_left h0] at h
@@ -106,8 +106,8 @@ example : doubled2Cycle.multiInArborescenceCount 0 = 2 ∧
     loopAndIsolated.multiInArborescenceCount 0 = 0 ∧
     loopAndIsolated.multiInArborescenceCount 99 = 0 := by decide
 
-example (h0 : 0 ∈ doubled2Cycle.1) :
-    Nat.card {f : {v : {v // v ∈ doubled2Cycle.1} // v ≠ ⟨0, h0⟩} →
+example (h0 : 0 ∈ doubled2Cycle.vertices) :
+    Nat.card {f : {v : {v // v ∈ doubled2Cycle.vertices} // v ≠ ⟨0, h0⟩} →
         Fin doubled2Cycle.validArcs.length //
       Cslib.Multidigraph.IsInArborescence doubled2Cycle.arcSrc doubled2Cycle.arcTgt
         ⟨0, h0⟩ f} = 2 := by
@@ -118,8 +118,8 @@ example (h0 : 0 ∈ doubled2Cycle.1) :
 example :
     ComputableInPolyTime
       (fun p : Graph × ℕ =>
-        if hr : p.2 ∈ p.1.1 then
-          Nat.card {T : Digraph {v // v ∈ p.1.1} //
+        if hr : p.2 ∈ p.1.vertices then
+          Nat.card {T : Digraph {v // v ∈ p.1.vertices} //
             T ≤ p.1.toDigraph ∧ T.IsInArborescence ⟨p.2, hr⟩}
         else 0)
       (encPair encGraph encNat) encNat :=
@@ -128,8 +128,8 @@ example :
 example :
     ComputableInPolyTime
       (fun p : Graph × ℕ =>
-        if hr : p.2 ∈ p.1.1 then
-          Nat.card {f : {v : {v // v ∈ p.1.1} // v ≠ ⟨p.2, hr⟩} → Fin p.1.validArcs.length //
+        if hr : p.2 ∈ p.1.vertices then
+          Nat.card {f : {v : {v // v ∈ p.1.vertices} // v ≠ ⟨p.2, hr⟩} → Fin p.1.validArcs.length //
             Cslib.Multidigraph.IsInArborescence p.1.arcSrc p.1.arcTgt ⟨p.2, hr⟩ f}
         else 0)
       (encPair encGraph encNat) encNat :=

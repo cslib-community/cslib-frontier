@@ -257,7 +257,7 @@ of the classes of rank-`n` equivalence that it meets, finitely many star-free la
 theorem WordFO.isStarFree_language (φ : (wordLanguage α).Sentence) :
     IsStarFree (WordFO.language φ) := by
   have h : WordFO.language φ = ⨆ T : {T // ∃ w ∈ WordFO.language φ,
-      wordRankType (FO.quantifierRank φ) w Fin.elim0 = T}, rankTypeLanguage _ T.1 := by
+      wordRankType (FO.quantifierRank φ) w Fin.elim0 = T}, rankTypeLanguage _ T.val := by
     ext v
     rw [Language.mem_iSup]
     exact ⟨fun hv => ⟨⟨_, v, hv, rfl⟩, rfl⟩,

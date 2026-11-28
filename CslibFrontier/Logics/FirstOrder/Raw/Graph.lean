@@ -185,7 +185,8 @@ modules.) -/
 instance instFiniteTupleVertex [Finite M] : Finite (TupleVertex I K) := by
   have : Finite {l : List M // l.length ≤ K} := (List.finite_length_le M K).to_subtype
   refine Finite.of_injective (β := {l : List M // l.length ≤ K} × Fin (K + 1))
-    (fun q => (⟨q.1.1, q.2.1⟩, ⟨q.1.2, by have := q.2.1; have := q.2.2.1; omega⟩)) ?_
+    (fun q => (⟨q.val.1, q.property.1⟩,
+      ⟨q.val.2, by have := q.property.1; have := q.property.2.1; omega⟩)) ?_
   rintro ⟨⟨l, j⟩, h⟩ ⟨⟨l', j'⟩, h'⟩ he
   simp only [Prod.mk.injEq, Subtype.mk.injEq, Fin.mk.injEq] at he
   obtain ⟨rfl, rfl⟩ := he
@@ -193,11 +194,11 @@ instance instFiniteTupleVertex [Finite M] : Finite (TupleVertex I K) := by
 
 /-- Underlying tuple `q.1.1` of a gadget vertex `q : TupleVertex I K`. -/
 abbrev TupleVertex.elems {I : ℕ → List M → Prop} {K : ℕ} (q : TupleVertex I K) : List M :=
-  q.1.1
+  q.val.1
 
 /-- Position index `q.1.2` of a gadget vertex `q : TupleVertex I K`. -/
 abbrev TupleVertex.index {I : ℕ → List M → Prop} {K : ℕ} (q : TupleVertex I K) : ℕ :=
-  q.1.2
+  q.val.2
 
 /-- The tuple graph on `M ⊕ TupleVertex I K`: loops on `M`, chain edges
 `(l, j + 1) → (l, j)`, and coordinate edges `(l, j) → l[j]`. -/
@@ -219,14 +220,15 @@ theorem isTupleGadget_tupleGraph_iff {bs : List M} (h0 : 0 < bs.length) (hK : bs
       rcases h : u i with a | q
       exacts [(g1 i hi (by rw [h]; exact rfl)).elim, ⟨q, rfl⟩]
     obtain ⟨q0, hq0⟩ := hinr 0 h0
-    have hj0 : q0.1.2 = 0 := by
+    have hj0 : q0.val.2 = 0 := by
       by_contra hne
-      have hv : q0.1.2 - 1 < q0.1.1.length := by have := q0.2.2.1; omega
-      refine g3 (.inr ⟨(q0.1.1, q0.1.2 - 1), q0.2.1, hv, q0.2.2.2⟩) (fun h => ?_) ?_
+      have hv : q0.val.2 - 1 < q0.val.1.length := by have := q0.property.2.1; omega
+      refine g3 (.inr ⟨(q0.val.1, q0.val.2 - 1), q0.property.1, hv, q0.property.2.2⟩)
+        (fun h => ?_) ?_
       · simp only [tupleGraph, TupleVertex.index] at h; omega
       · rw [hq0]; exact ⟨rfl, by simp only [TupleVertex.index]; omega⟩
     have hchain : ∀ i < bs.length,
-        ∃ q : TupleVertex I K, u i = .inr q ∧ q.1.1 = q0.1.1 ∧ q.1.2 = i := by
+        ∃ q : TupleVertex I K, u i = .inr q ∧ q.val.1 = q0.val.1 ∧ q.val.2 = i := by
       intro i hi
       induction i with
       | zero => exact ⟨q0, hq0, rfl, hj0⟩
@@ -237,24 +239,24 @@ theorem isTupleGadget_tupleGraph_iff {bs : List M} (h0 : 0 < bs.length) (hK : bs
         rw [hq, hq'] at this
         exact ⟨q', hq', this.1.trans hl, by
           have h2 := this.2; dsimp only [TupleVertex.index] at h2; omega⟩
-    have hlen : q0.1.1.length = bs.length := by
+    have hlen : q0.val.1.length = bs.length := by
       obtain ⟨q, hq, hl, hj⟩ := hchain (bs.length - 1) (by omega)
-      have h1 : bs.length ≤ q0.1.1.length := by have := q.2.2.1; rw [hl] at this; omega
+      have h1 : bs.length ≤ q0.val.1.length := by have := q.property.2.1; rw [hl] at this; omega
       by_contra hne
-      have hv : bs.length < q0.1.1.length := by omega
-      refine g4 (.inr ⟨(q0.1.1, bs.length), q0.2.1, hv, q0.2.2.2⟩) (fun h => ?_) ?_
+      have hv : bs.length < q0.val.1.length := by omega
+      refine g4 (.inr ⟨(q0.val.1, bs.length), q0.property.1, hv, q0.property.2.2⟩) (fun h => ?_) ?_
       · simp only [tupleGraph, TupleVertex.index] at h; omega
       · rw [hq]; exact ⟨hl.symm, by simp only [TupleVertex.index]; omega⟩
-    have hl : q0.1.1 = bs := by
+    have hl : q0.val.1 = bs := by
       apply List.ext_getElem hlen
       intro i h1 h2
       obtain ⟨q, hq, hql, hqj⟩ := hchain i h2
       have := g5 i h2
       rw [hq] at this
-      change q.1.1[q.1.2]? = some bs[i] at this
+      change q.val.1[q.val.2]? = some bs[i] at this
       rw [hql, hqj, List.getElem?_eq_getElem h1] at this
       exact Option.some_injective _ this
-    rw [← hl]; exact q0.2.2.2
+    rw [← hl]; exact q0.property.2.2
   · intro hI
     let vt : ℕ → TupleVertex I K := fun i =>
       ⟨(bs, min i (bs.length - 1)), hK, by simp only; omega, hI⟩
@@ -264,11 +266,11 @@ theorem isTupleGadget_tupleGraph_iff {bs : List M} (h0 : 0 < bs.length) (hK : bs
     · exact ⟨rfl, by simp only [vt, TupleVertex.index]; omega⟩
     · rcases m with a | q
       · exact hm rfl
-      · change bs = q.1.1 ∧ min 0 (bs.length - 1) = q.1.2 + 1 at h; omega
+      · change bs = q.val.1 ∧ min 0 (bs.length - 1) = q.val.2 + 1 at h; omega
     · rcases m with a | q
       · exact hm rfl
-      · change q.1.1 = bs ∧ q.1.2 = min (bs.length - 1) (bs.length - 1) + 1 at h
-        have := q.2.2.1
+      · change q.val.1 = bs ∧ q.val.2 = min (bs.length - 1) (bs.length - 1) + 1 at h
+        have := q.property.2.1
         rw [h.1] at this
         omega
     · change bs[min i (bs.length - 1)]? = some bs[i]

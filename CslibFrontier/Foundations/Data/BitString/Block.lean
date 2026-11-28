@@ -119,7 +119,7 @@ def listBlock (k : ℕ) (z : List α) (i : ℕ) : List α := (z.drop (i * k)).ta
 /-- Block `i` of the list of a tuple is the list of its block `i`. -/
 theorem listBlock_ofFn (z : Fin (m * k) → α) (i : Fin m) :
     listBlock k (List.ofFn z) i = List.ofFn (block z i) := by
-  have hi : (i + 1) * k ≤ m * k := Nat.mul_le_mul_right _ i.2
+  have hi : (i + 1) * k ≤ m * k := Nat.mul_le_mul_right _ i.isLt
   refine List.ext_getElem (by
     simp only [listBlock, List.length_take, List.length_drop, List.length_ofFn]
     rw [Nat.add_mul] at hi

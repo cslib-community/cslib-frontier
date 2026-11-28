@@ -130,7 +130,7 @@ theorem dens_noise_opNorm_gt_le {n : ℕ} (S : Finset (Fin n)) :
     calc
       (s.card : ℝ) ≤ (5 : ℝ) ^ n := by exact_mod_cast hcard'
       _ ≤ (exp 4) ^ n := by gcongr
-      _ = exp (4 * (n : ℝ)) := by rw [← exp_nat_mul]; congr 1; ring
+      _ = exp (4 * (n : ℝ)) := by rw [← exp_natCast_mul]; congr 1; ring
   calc
     (dens ({ω : Coins n | 36 * sqrt n < ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise S ω)‖} :
         Finset _) : ℝ) ≤ dens B := by exact_mod_cast dens_le_dens hsub

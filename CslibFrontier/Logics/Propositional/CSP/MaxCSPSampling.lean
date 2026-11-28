@@ -616,7 +616,7 @@ theorem exists_boolean_sample_approx (sem : Rel → List Bool → Bool)
           (F.score sem x : ℝ)|}
   have htwo_pow : (2 : ℝ) ^ (F.numVars + 1) = Real.exp ((F.numVars + 1 : ℝ) * Real.log 2) := by
     have hcast : ((F.numVars + 1 : ℕ) : ℝ) = (F.numVars + 1 : ℝ) := by push_cast; rfl
-    rw [← hcast, Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
+    rw [← hcast, Real.exp_natCast_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
   have hlt_one : 2 ^ (F.numVars + 1) * Real.exp (-2 * (s : ℝ) * δ ^ 2) < 1 := by
     rw [htwo_pow, ← Real.exp_add, Real.exp_lt_one_iff]
     linarith

@@ -120,7 +120,7 @@ namespace NatInstance
 
 /-- Sum of all table entries, bounding every intermediate and final zeta entry. -/
 @[expose] def totalSum (I : NatInstance) : ℕ :=
-  ∑ k : Fin (2 ^ I.n), I.entries[k.1]
+  ∑ k : Fin (2 ^ I.n), I.entries[k.val]
 
 /-- Word-size envelope covering indices, addresses, and all intermediate zeta sums. -/
 @[expose] def wordBound (I : NatInstance) : ℕ :=
@@ -135,8 +135,8 @@ abbrev FitsWidth (I : NatInstance) (w : ℕ) : Prop :=
 
 /-- Every table entry is bounded by `I.totalSum`. -/
 theorem entry_le_totalSum (I : NatInstance) (k : Fin (2 ^ I.n)) :
-    I.entries[k.1] ≤ I.totalSum :=
-  Finset.single_le_sum (f := fun j : Fin (2 ^ I.n) => I.entries[j.1])
+    I.entries[k.val] ≤ I.totalSum :=
+  Finset.single_le_sum (f := fun j : Fin (2 ^ I.n) => I.entries[j.val])
     (fun _ _ => Nat.zero_le _) (Finset.mem_univ k)
 
 /-- Every width satisfying `I.FitsWidth w` admits the flat input `I.encode`. -/
@@ -171,7 +171,7 @@ namespace IntInstance
 
 /-- Sum of absolute values of all entries, bounding every intermediate zeta or Möbius entry. -/
 @[expose] def sumAbs (I : IntInstance) : ℕ :=
-  ∑ k : Fin (2 ^ I.n), I.entries[k.1].natAbs
+  ∑ k : Fin (2 ^ I.n), I.entries[k.val].natAbs
 
 /-- Word-size envelope covering `Signed.encode` words, intermediate signed operations, indices,
 and addresses. -/
@@ -187,8 +187,8 @@ abbrev FitsWidth (I : IntInstance) (w : ℕ) : Prop :=
 
 /-- Every entry's magnitude is bounded by `I.sumAbs`. -/
 theorem natAbs_le_sumAbs (I : IntInstance) (k : Fin (2 ^ I.n)) :
-    I.entries[k.1].natAbs ≤ I.sumAbs :=
-  Finset.single_le_sum (f := fun j : Fin (2 ^ I.n) => I.entries[j.1].natAbs)
+    I.entries[k.val].natAbs ≤ I.sumAbs :=
+  Finset.single_le_sum (f := fun j : Fin (2 ^ I.n) => I.entries[j.val].natAbs)
     (fun _ _ => Nat.zero_le _) (Finset.mem_univ k)
 
 /-- Every width satisfying `I.FitsWidth w` admits the flat input `I.encode`. -/
@@ -501,8 +501,8 @@ private theorem butterflyProg_realizes {opProg : ℕ × ℕ → Memory.Prog ℕ}
 
 private def tablePass {α : Type*} {n : ℕ} (op : α → α → α)
     (t : Fin (2 ^ n) → α) (i : Fin n) (k : Fin (2 ^ n)) : α :=
-  if k.1.testBit i.1 then
-    op (t k) (t ⟨k.1 ^^^ 2 ^ i.1, Nat.xor_lt_two_pow k.isLt
+  if k.val.testBit i.val then
+    op (t k) (t ⟨k.val ^^^ 2 ^ i.val, Nat.xor_lt_two_pow k.isLt
       (Nat.pow_lt_pow_right (by norm_num) i.isLt)⟩)
   else t k
 
@@ -528,63 +528,63 @@ private theorem passProg_spec {w n : ℕ}
     (s₀ : Memory.State)
     (hfr : 2 + 2 ^ n ≤ s₀.frontier)
     (hfit_addr : Fits w (2 + 2 ^ n))
-    (harr : ∀ k : Fin (2 ^ n), s₀.mem (2 + k.1) = prev k) :
-    let a : PassArgs := ⟨2 ^ i.1, 2 ^ (n - 1)⟩
+    (harr : ∀ k : Fin (2 ^ n), s₀.mem (2 + k.val) = prev k) :
+    let a : PassArgs := ⟨2 ^ i.val, 2 ^ (n - 1)⟩
     iterationSafe (passStep opProg) (PassStepSafe opSafe) w a a.half 0 s₀ ∧
       Memory.FramedTriple w s₀ (passProg opProg a) (3 * 2 ^ (n - 1)) {x | 2 ≤ x}
-        fun _ t => ∀ k : Fin (2 ^ n), t.mem (2 + k.1) = tablePass opWord prev i k := by
+        fun _ t => ∀ k : Fin (2 ^ n), t.mem (2 + k.val) = tablePass opWord prev i k := by
   intro a
   simp only [a]
   let next := tablePass opWord prev i
   refine Memory.FramedTriple.iterate (fun p cur t => cur = p ∧ ∀ k : Fin (2 ^ n),
-        t.mem (2 + k.1) = if ∃ r < p, hiIdx (2 ^ i.1) r = k.1 then next k else prev k)
+        t.mem (2 + k.val) = if ∃ r < p, hiIdx (2 ^ i.val) r = k.val then next k else prev k)
     ⟨rfl, fun k => by simpa using harr k⟩ (fun p hp cur s ⟨hcur, hs_arr⟩ ⟨hs_fr, _⟩ => ?_)
     fun _ s' ⟨_, harr'⟩ _ k => ?_
   · subst cur
-    have hhi_lt : hiIdx (2 ^ i.1) p < 2 ^ n := hiIdx_lt_two_pow i.isLt hp
-    have hlo_lt : loIdx (2 ^ i.1) p < 2 ^ n :=
-      lt_trans (loIdx_lt_hiIdx (Nat.two_pow_pos i.1) p) hhi_lt
-    let kHi : Fin (2 ^ n) := ⟨hiIdx (2 ^ i.1) p, hhi_lt⟩
-    let kLo : Fin (2 ^ n) := ⟨loIdx (2 ^ i.1) p, hlo_lt⟩
-    have hnot_hi : ¬∃ r < p, hiIdx (2 ^ i.1) r = kHi.1 := by
+    have hhi_lt : hiIdx (2 ^ i.val) p < 2 ^ n := hiIdx_lt_two_pow i.isLt hp
+    have hlo_lt : loIdx (2 ^ i.val) p < 2 ^ n :=
+      lt_trans (loIdx_lt_hiIdx (Nat.two_pow_pos i.val) p) hhi_lt
+    let kHi : Fin (2 ^ n) := ⟨hiIdx (2 ^ i.val) p, hhi_lt⟩
+    let kLo : Fin (2 ^ n) := ⟨loIdx (2 ^ i.val) p, hlo_lt⟩
+    have hnot_hi : ¬∃ r < p, hiIdx (2 ^ i.val) r = kHi.val := by
       rintro ⟨r, hr, heq⟩
-      exact Nat.ne_of_lt (hiIdx_strictMono (2 ^ i.1) hr) heq
-    have hnot_lo : ¬∃ r < p, hiIdx (2 ^ i.1) r = kLo.1 := by
+      exact Nat.ne_of_lt (hiIdx_strictMono (2 ^ i.val) hr) heq
+    have hnot_lo : ¬∃ r < p, hiIdx (2 ^ i.val) r = kLo.val := by
       rintro ⟨r, _, heq⟩
-      have hb1 := hiIdx_testBit_true i.1 r
-      have hb2 := loIdx_testBit_false i.1 p
+      have hb1 := hiIdx_testBit_true i.val r
+      have hb2 := loIdx_testBit_false i.val p
       dsimp only [kLo] at heq
       rw [heq, hb2] at hb1
       cases hb1
-    have hmem_hi : s.mem (2 + hiIdx (2 ^ i.1) p) = prev kHi := by
+    have hmem_hi : s.mem (2 + hiIdx (2 ^ i.val) p) = prev kHi := by
       simpa [kHi, hnot_hi] using hs_arr kHi
-    have hmem_lo : s.mem (2 + loIdx (2 ^ i.1) p) = prev kLo := by
+    have hmem_lo : s.mem (2 + loIdx (2 ^ i.val) p) = prev kLo := by
       simpa [kLo, hnot_lo] using hs_arr kLo
-    obtain ⟨hop_safe, hop_fit, hop⟩ := hop_exec s (s.mem (2 + hiIdx (2 ^ i.1) p))
-      (s.mem (2 + loIdx (2 ^ i.1) p)) (hmem_hi ▸ hP_prev kHi) (hmem_lo ▸ hP_prev kLo)
+    obtain ⟨hop_safe, hop_fit, hop⟩ := hop_exec s (s.mem (2 + hiIdx (2 ^ i.val) p))
+      (s.mem (2 + loIdx (2 ^ i.val) p)) (hmem_hi ▸ hP_prev kHi) (hmem_lo ▸ hP_prev kLo)
     have hnext_hi : opWord (prev kHi) (prev kLo) = next kHi := by
       dsimp only [next, tablePass]
-      rw [ite_eq_left (hiIdx_testBit_true i.1 p)]
-      have hxor : (⟨kHi.1 ^^^ 2 ^ i.1, Nat.xor_lt_two_pow kHi.isLt
+      rw [ite_eq_left (hiIdx_testBit_true i.val p)]
+      have hxor : (⟨kHi.val ^^^ 2 ^ i.val, Nat.xor_lt_two_pow kHi.isLt
           (Nat.pow_lt_pow_right (by norm_num) i.isLt)⟩ : Fin (2 ^ n)) = kLo :=
-        Fin.ext (hiIdx_xor_two_pow i.1 p)
+        Fin.ext (hiIdx_xor_two_pow i.val p)
       rw [hxor]
     have hfit_p1 : Fits w (p + 1) := hfit_addr.of_le (by
       have : 2 ^ (n - 1) ≤ 2 ^ n := Nat.pow_le_pow_right (by norm_num) (Nat.sub_le n 1)
       omega)
-    refine ⟨⟨Nat.ne_of_gt (Nat.two_pow_pos i.1), by region_omega, hfit_p1, hop_safe⟩, ?_⟩
+    refine ⟨⟨Nat.ne_of_gt (Nat.two_pow_pos i.val), by region_omega, hfit_p1, hop_safe⟩, ?_⟩
     unfold passStep
     framed_triple
     · refine ⟨rfl, fun k => ?_⟩
       simp only [hmem_hi, hmem_lo, hnext_hi]
       by_cases hk : k = kHi
-      · have hex : ∃ r < p + 1, hiIdx (2 ^ i.1) r = k.1 := ⟨p, Nat.lt_succ_self p, by rw [hk]⟩
+      · have hex : ∃ r < p + 1, hiIdx (2 ^ i.val) r = k.val := ⟨p, Nat.lt_succ_self p, by rw [hk]⟩
         rw [hk, Function.update_self, ite_eq_left (hk ▸ hex)]
-      · have hne_val : k.1 ≠ hiIdx (2 ^ i.1) p := fun h => hk (Fin.ext h)
+      · have hne_val : k.val ≠ hiIdx (2 ^ i.val) p := fun h => hk (Fin.ext h)
         rw [Function.update_of_ne (by omega), hs_arr k]
         simp only [Nat.exists_lt_succ_right, Ne.symm hne_val, or_false]
   · simp only [harr' k, exists_hiIdx_iff_testBit i.isLt k.isLt]
-    by_cases hbit : k.1.testBit i.1 = true
+    by_cases hbit : k.val.testBit i.val = true
     · simp [hbit, next]
     · simp [hbit, next, tablePass]
 
@@ -601,7 +601,7 @@ private theorem butterflyProg_spec {w n : ℕ}
     (s₀ : Memory.State)
     (hfr : 2 + 2 ^ n ≤ s₀.frontier)
     (hfit_addr : Fits w (2 + 2 ^ n))
-    (harr : ∀ k : Fin (2 ^ n), s₀.mem (2 + k.1) = t₀ k) :
+    (harr : ∀ k : Fin (2 ^ n), s₀.mem (2 + k.val) = t₀ k) :
     let outWords := List.ofFn ((List.finRange n).foldl (tablePass opWord) t₀)
     ButterflyProgSafe opProg opSafe w n s₀ ∧
       Memory.FramedTriple w s₀ (butterflyProg opProg n) (3 * n * 2 ^ n + 1) {x | 1 ≤ x}
@@ -614,9 +614,9 @@ private theorem butterflyProg_spec {w n : ℕ}
   obtain ⟨hit_safe, hloop⟩ := Memory.FramedTriple.iterate (body := outerStep opProg)
     (safe := OuterStepSafe opProg opSafe) (d := half) (n := n) (c := 3 * 2 ^ (n - 1)) (a₀ := 1)
     (s := s₂) (S := {x | 2 ≤ x}) (Q := fun _ t => t.mem 1 = 2 ^ n ∧
-      ∀ k : Fin (2 ^ n), t.mem (2 + k.1) = (List.finRange n).foldl (tablePass opWord) t₀ k)
+      ∀ k : Fin (2 ^ n), t.mem (2 + k.val) = (List.finRange n).foldl (tablePass opWord) t₀ k)
     (fun i step t => step = 2 ^ i ∧ ∀ k : Fin (2 ^ n),
-      t.mem (2 + k.1) = ((List.finRange n).take i).foldl (tablePass opWord) t₀ k)
+      t.mem (2 + k.val) = ((List.finRange n).take i).foldl (tablePass opWord) t₀ k)
     ⟨rfl, fun k => (Function.update_of_ne (by omega) _ _).trans (harr k)⟩
     (fun i hi step s ⟨hstep_eq, hs_arr⟩ ⟨hs_fr, _⟩ => by
       subst hstep_eq
@@ -651,9 +651,10 @@ private theorem butterflyProg_spec {w n : ℕ}
         Memory.FramedTriple.pure (c := 0) ⟨?_, ?_⟩))).mono (by omega) fun _ _ => id
   · rw [outputList_eq_iff]
     refine ⟨by simp [h.1], fun k => ?_⟩
-    have hk_lt : k.1 < 2 ^ n := by simpa using k.isLt
-    change t.mem (1 + 1 + k.1) = (List.ofFn ((List.finRange n).foldl (tablePass opWord) t₀))[k.1]
-    rw [show 1 + 1 + k.1 = 2 + k.1 by omega, List.getElem_ofFn, h.2 ⟨k.1, hk_lt⟩]
+    have hk_lt : k.val < 2 ^ n := by simpa using k.isLt
+    change t.mem (1 + 1 + k.val) =
+      (List.ofFn ((List.finRange n).foldl (tablePass opWord) t₀))[k.val]
+    rw [show 1 + 1 + k.val = 2 + k.val by omega, List.getElem_ofFn, h.2 ⟨k.val, hk_lt⟩]
   · rw [List.length_ofFn]
     exact hfit_addr.of_le (by omega)
 
@@ -662,13 +663,13 @@ private theorem butterflyProg_spec {w n : ℕ}
 private theorem foldl_yatesPass_eq_of_fn {M R : Type*} [AddCommMonoid M] [Monoid R]
     [DistribMulAction R M] {n : ℕ} (c : R) (f₀ : Finset (Fin n) → M) :
     ∀ (l : List (Fin n)) (k : Fin (2 ^ n)),
-      (l.foldl (tablePass (fun a b => a + c • b)) (fun m => f₀ (maskSet n m.1))) k =
-      yatesTransform c l f₀ (maskSet n k.1)
+      (l.foldl (tablePass (fun a b => a + c • b)) (fun m => f₀ (maskSet n m.val))) k =
+      yatesTransform c l f₀ (maskSet n k.val)
   | [], _ => rfl
   | i :: l, k => by
     simp only [List.foldl_cons, yatesTransform_cons]
-    have hstep : tablePass (fun a b => a + c • b) (fun m => f₀ (maskSet n m.1)) i =
-        fun m : Fin (2 ^ n) => yatesPass c i f₀ (maskSet n m.1) := by
+    have hstep : tablePass (fun a b => a + c • b) (fun m => f₀ (maskSet n m.val)) i =
+        fun m : Fin (2 ^ n) => yatesPass c i f₀ (maskSet n m.val) := by
       funext m
       simp only [tablePass, yatesPass, mem_maskSet]
       split_ifs with hm
@@ -684,7 +685,7 @@ private theorem injOn_maskIndex_sdiff {n k : ℕ} (A : Finset (Fin n)) :
   have hU₁S : U₁ ⊆ maskSet n k := (Finset.mem_powerset.mp hU₁).trans Finset.inter_subset_left
   have hU₂S : U₂ ⊆ maskSet n k := (Finset.mem_powerset.mp hU₂).trans Finset.inter_subset_left
   have hset : maskSet n k \ U₁ = maskSet n k \ U₂ := by
-    have := congrArg (fun x => maskSet n x.1) hEq
+    have := congrArg (fun x => maskSet n x.val) hEq
     simpa [maskSet_maskIndex] using this
   calc
     U₁ = maskSet n k \ (maskSet n k \ U₁) := (Finset.sdiff_sdiff_eq_self hU₁S).symm
@@ -693,16 +694,16 @@ private theorem injOn_maskIndex_sdiff {n k : ℕ} (A : Finset (Fin n)) :
 
 private theorem nat_yatesTransform_le (I : NatInstance) {l : List (Fin I.n)} (hl : l.Nodup)
     (k : Fin (2 ^ I.n)) :
-    yatesTransform (1 : ℕ) l (fun S => I.entries[(maskIndex S).1]) (maskSet I.n k.1) ≤
+    yatesTransform (1 : ℕ) l (fun S => I.entries[(maskIndex S).val]) (maskSet I.n k.val) ≤
       I.totalSum := by
   rw [yatesTransform_apply (1 : ℕ) hl]
   simp only [one_pow, one_smul]
-  let φ : Finset (Fin I.n) → Fin (2 ^ I.n) := fun U => maskIndex (maskSet I.n k.1 \ U)
-  have hinj := injOn_maskIndex_sdiff (k := k.1) l.toFinset
+  let φ : Finset (Fin I.n) → Fin (2 ^ I.n) := fun U => maskIndex (maskSet I.n k.val \ U)
+  have hinj := injOn_maskIndex_sdiff (k := k.val) l.toFinset
   calc
-    ∑ U ∈ (maskSet I.n k.1 ∩ l.toFinset).powerset, I.entries[(φ U).1]
-        ≤ ∑ m : Fin (2 ^ I.n), I.entries[m.1] := by
-          rw [← Finset.sum_image (f := fun m : Fin (2 ^ I.n) => I.entries[m.1])
+    ∑ U ∈ (maskSet I.n k.val ∩ l.toFinset).powerset, I.entries[(φ U).val]
+        ≤ ∑ m : Fin (2 ^ I.n), I.entries[m.val] := by
+          rw [← Finset.sum_image (f := fun m : Fin (2 ^ I.n) => I.entries[m.val])
             (fun _ h₁ _ h₂ => hinj h₁ h₂)]
           exact Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
             (fun _ _ _ => Nat.zero_le _)
@@ -710,21 +711,21 @@ private theorem nat_yatesTransform_le (I : NatInstance) {l : List (Fin I.n)} (hl
 
 private theorem int_yatesTransform_natAbs_le (I : IntInstance) (c : ℤ) (hc : c.natAbs = 1)
     {l : List (Fin I.n)} (hl : l.Nodup) (k : Fin (2 ^ I.n)) :
-    (yatesTransform c l (fun S => I.entries[(maskIndex S).1]) (maskSet I.n k.1)).natAbs ≤
+    (yatesTransform c l (fun S => I.entries[(maskIndex S).val]) (maskSet I.n k.val)).natAbs ≤
       I.sumAbs := by
   rw [yatesTransform_apply c hl]
-  let φ : Finset (Fin I.n) → Fin (2 ^ I.n) := fun U => maskIndex (maskSet I.n k.1 \ U)
-  have hinj := injOn_maskIndex_sdiff (k := k.1) l.toFinset
-  have htri : (∑ U ∈ (maskSet I.n k.1 ∩ l.toFinset).powerset,
-        c ^ #U • I.entries[(φ U).1]).natAbs ≤
-      ∑ U ∈ (maskSet I.n k.1 ∩ l.toFinset).powerset, I.entries[(φ U).1].natAbs := by
+  let φ : Finset (Fin I.n) → Fin (2 ^ I.n) := fun U => maskIndex (maskSet I.n k.val \ U)
+  have hinj := injOn_maskIndex_sdiff (k := k.val) l.toFinset
+  have htri : (∑ U ∈ (maskSet I.n k.val ∩ l.toFinset).powerset,
+        c ^ #U • I.entries[(φ U).val]).natAbs ≤
+      ∑ U ∈ (maskSet I.n k.val ∩ l.toFinset).powerset, I.entries[(φ U).val].natAbs := by
     refine (Int.natAbs_sum_le _ _).trans (Finset.sum_le_sum fun U _ => ?_)
     rw [smul_eq_mul, Int.natAbs_mul, Int.natAbs_pow, hc, one_pow, one_mul]
   calc
-    (∑ U ∈ (maskSet I.n k.1 ∩ l.toFinset).powerset, c ^ #U • I.entries[(φ U).1]).natAbs
-        ≤ ∑ U ∈ (maskSet I.n k.1 ∩ l.toFinset).powerset, I.entries[(φ U).1].natAbs := htri
-    _ ≤ ∑ m : Fin (2 ^ I.n), I.entries[m.1].natAbs := by
-        rw [← Finset.sum_image (f := fun m : Fin (2 ^ I.n) => I.entries[m.1].natAbs)
+    (∑ U ∈ (maskSet I.n k.val ∩ l.toFinset).powerset, c ^ #U • I.entries[(φ U).val]).natAbs
+        ≤ ∑ U ∈ (maskSet I.n k.val ∩ l.toFinset).powerset, I.entries[(φ U).val].natAbs := htri
+    _ ≤ ∑ m : Fin (2 ^ I.n), I.entries[m.val].natAbs := by
+        rw [← Finset.sum_image (f := fun m : Fin (2 ^ I.n) => I.entries[m.val].natAbs)
           (fun _ h₁ _ h₂ => hinj h₁ h₂)]
         exact Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
           (fun _ _ _ => Nat.zero_le _)
@@ -732,20 +733,20 @@ private theorem int_yatesTransform_natAbs_le (I : IntInstance) (c : ℤ) (hc : c
 
 private theorem foldl_nat_eq_zeta (I : NatInstance) :
     List.ofFn ((List.finRange I.n).foldl (tablePass (· + ·))
-      (fun m : Fin (2 ^ I.n) => I.entries[m.1])) =
+      (fun m : Fin (2 ^ I.n) => I.entries[m.val])) =
       (Cslib.Algorithms.Lean.Yates.zeta I.entries).toList := by
   refine List.ext_getElem (by simp) fun k hk _ => ?_
   have hk' : k < 2 ^ I.n := by simpa using hk
   rw [List.getElem_ofFn, Vector.getElem_toList]
-  have heq := foldl_yatesPass_eq_of_fn (1 : ℕ) (fun S => I.entries[(maskIndex S).1])
+  have heq := foldl_yatesPass_eq_of_fn (1 : ℕ) (fun S => I.entries[(maskIndex S).val])
     (List.finRange I.n) ⟨k, hk'⟩
   simp only [one_smul] at heq
-  have hbase : (fun m : Fin (2 ^ I.n) => I.entries[(maskIndex (maskSet I.n m.1)).1]) =
-      fun m : Fin (2 ^ I.n) => I.entries[m.1] := by
+  have hbase : (fun m : Fin (2 ^ I.n) => I.entries[(maskIndex (maskSet I.n m.val)).val]) =
+      fun m : Fin (2 ^ I.n) => I.entries[m.val] := by
     funext m; simp
   rw [hbase] at heq
   rw [heq, yatesTransform_one_apply (List.nodup_finRange I.n) _ (by simp),
-    ← getElem_zeta I.entries (fun S => I.entries[(maskIndex S).1])
+    ← getElem_zeta I.entries (fun S => I.entries[(maskIndex S).val])
       (getElem_eq_maskIndex_maskSet I.entries) k hk']
 
 private def signedTableOp (c : ℤ) (wa wb : ℕ) : ℕ :=
@@ -755,13 +756,13 @@ private def signedTableOp (c : ℤ) (wa wb : ℕ) : ℕ :=
 private theorem foldl_int_yatesPass_eq {n : ℕ} (c : ℤ) (F₀ : Finset (Fin n) → ℤ)
     (l : List (Fin n)) (k : Fin (2 ^ n)) :
     (l.foldl (tablePass (signedTableOp c))
-      (fun m => Cslib.WordRAM.Signed.encode (F₀ (maskSet n m.1)))) k =
-      Cslib.WordRAM.Signed.encode (yatesTransform c l F₀ (maskSet n k.1)) := by
+      (fun m => Cslib.WordRAM.Signed.encode (F₀ (maskSet n m.val)))) k =
+      Cslib.WordRAM.Signed.encode (yatesTransform c l F₀ (maskSet n k.val)) := by
   have hhom := List.foldl_hom
     (fun (t : Fin (2 ^ n) → ℤ) m => Cslib.WordRAM.Signed.encode (t m))
     (g₁ := tablePass (fun a b : ℤ => a + c • b))
     (g₂ := tablePass (signedTableOp c))
-    (l := l) (init := fun m => F₀ (maskSet n m.1))
+    (l := l) (init := fun m => F₀ (maskSet n m.val))
     fun t i => tablePass_hom Cslib.WordRAM.Signed.encode _ _
       (fun x y => by simp [signedTableOp, Cslib.WordRAM.Signed.decode_encode]) t i
   exact (congrFun hhom k).trans
@@ -769,38 +770,38 @@ private theorem foldl_int_yatesPass_eq {n : ℕ} (c : ℤ) (F₀ : Finset (Fin n
 
 private theorem foldl_int_eq_transform (I : IntInstance) (c : ℤ) (hc : c = 1 ∨ c = -1) :
     List.ofFn ((List.finRange I.n).foldl (tablePass (signedTableOp c))
-      (fun m : Fin (2 ^ I.n) => Cslib.WordRAM.Signed.encode I.entries[m.1])) =
+      (fun m : Fin (2 ^ I.n) => Cslib.WordRAM.Signed.encode I.entries[m.val])) =
       (if c = 1 then Cslib.Algorithms.Lean.Yates.zeta I.entries
        else Cslib.Algorithms.Lean.Yates.mobius I.entries).toList.map
         Cslib.WordRAM.Signed.encode := by
-  have h0 : (fun m : Fin (2 ^ I.n) => Cslib.WordRAM.Signed.encode I.entries[m.1]) =
-      fun m => Cslib.WordRAM.Signed.encode (I.entries[(maskIndex (maskSet I.n m.1)).1]) := by
+  have h0 : (fun m : Fin (2 ^ I.n) => Cslib.WordRAM.Signed.encode I.entries[m.val]) =
+      fun m => Cslib.WordRAM.Signed.encode (I.entries[(maskIndex (maskSet I.n m.val)).val]) := by
     funext m; simp
   rcases hc with rfl | rfl
   · simp only [↓reduceIte]
     refine List.ext_getElem (by simp) fun k hk _ => ?_
     have hk' : k < 2 ^ I.n := by simpa using hk
     rw [List.getElem_ofFn, List.getElem_map, Vector.getElem_toList]
-    have hlift := foldl_int_yatesPass_eq (1 : ℤ) (fun S => I.entries[(maskIndex S).1])
+    have hlift := foldl_int_yatesPass_eq (1 : ℤ) (fun S => I.entries[(maskIndex S).val])
       (List.finRange I.n) ⟨k, hk'⟩
     rw [← h0] at hlift
     rw [hlift]
     congr 1
     rw [yatesTransform_apply_of_subset (1 : ℤ) (List.nodup_finRange I.n) _ (by simp)]
     simp only [one_pow, one_smul]
-    rw [getElem_zeta I.entries (fun S => I.entries[(maskIndex S).1])
+    rw [getElem_zeta I.entries (fun S => I.entries[(maskIndex S).val])
       (getElem_eq_maskIndex_maskSet I.entries) k hk', subsetZeta]
   · simp only [show (-1 : ℤ) ≠ 1 by decide, ↓reduceIte]
     refine List.ext_getElem (by simp) fun k hk _ => ?_
     have hk' : k < 2 ^ I.n := by simpa using hk
     rw [List.getElem_ofFn, List.getElem_map, Vector.getElem_toList]
-    have hlift := foldl_int_yatesPass_eq (-1 : ℤ) (fun S => I.entries[(maskIndex S).1])
+    have hlift := foldl_int_yatesPass_eq (-1 : ℤ) (fun S => I.entries[(maskIndex S).val])
       (List.finRange I.n) ⟨k, hk'⟩
     rw [← h0] at hlift
     rw [hlift]
     congr 1
     rw [yatesTransform_neg_one_apply (List.nodup_finRange I.n) _ (by simp),
-      ← getElem_mobius I.entries (fun S => I.entries[(maskIndex S).1])
+      ← getElem_mobius I.entries (fun S => I.entries[(maskIndex S).val])
         (getElem_eq_maskIndex_maskSet I.entries) k hk']
 
 /-! ## Lifting to deterministic standard-basis `Program .standard` -/
@@ -864,10 +865,10 @@ private theorem natAddProg_realizes :
 
 private theorem init_mem_entry {xs : List ℕ} (n : ℕ) (hxs : xs.length = 2 ^ n)
     (k : Fin (2 ^ n)) :
-    (Memory.State.init (n :: xs)).mem (2 + k.1) = xs[k.1]'(by omega) := by
+    (Memory.State.init (n :: xs)).mem (2 + k.val) = xs[k.val]'(by omega) := by
   unfold Memory.State.init
   dsimp only
-  rw [show 2 + k.1 = (k.1 + 1) + 1 by omega, Data.init_mem_succ, List.getD_cons_succ,
+  rw [show 2 + k.val = (k.val + 1) + 1 by omega, Data.init_mem_succ, List.getD_cons_succ,
     List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]
   rfl
 
@@ -893,14 +894,15 @@ theorem exists_zetaNat_program :
         simp only [NatInstance.length_encode]
         unfold NatInstance.wordBound; omega))
     fun I {w} hfit => ?_
-  let t₀ : Fin (2 ^ I.n) → ℕ := fun m => I.entries[m.1]
+  let t₀ : Fin (2 ^ I.n) → ℕ := fun m => I.entries[m.val]
   have hP_fold : ∀ m ≤ I.n, ∀ k,
       ((List.finRange I.n).take m).foldl (tablePass (· + ·)) t₀ k ≤ I.totalSum := by
     intro m _ k
-    have heq := foldl_yatesPass_eq_of_fn (1 : ℕ) (fun S => I.entries[(maskIndex S).1])
+    have heq := foldl_yatesPass_eq_of_fn (1 : ℕ) (fun S => I.entries[(maskIndex S).val])
       ((List.finRange I.n).take m) k
     simp only [one_smul] at heq
-    have hbase : (fun x : Fin (2 ^ I.n) => I.entries[(maskIndex (maskSet I.n x.1)).1]) = t₀ := by
+    have hbase :
+        (fun x : Fin (2 ^ I.n) => I.entries[(maskIndex (maskSet I.n x.val)).val]) = t₀ := by
       funext x; simp [t₀]
     rw [hbase] at heq
     rw [heq]
@@ -947,15 +949,15 @@ private theorem signed_butterfly_spec (isMobius : Bool) (I : IntInstance) {w : �
       fun w d _ => Fits w 2 ∧ Fits w (2 * (Prod.fst d / 2 + Prod.snd d / 2) + 1)
   let c : ℤ := if isMobius then -1 else 1
   have hc_abs : c.natAbs = 1 := by cases isMobius <;> simp [c]
-  let t₀ : Fin (2 ^ I.n) → ℕ := fun m => Cslib.WordRAM.Signed.encode I.entries[m.1]
+  let t₀ : Fin (2 ^ I.n) → ℕ := fun m => Cslib.WordRAM.Signed.encode I.entries[m.val]
   let Pval (u : ℕ) : Prop := ∃ z : ℤ, z.natAbs ≤ I.sumAbs ∧ u = Cslib.WordRAM.Signed.encode z
   have hP_fold : ∀ m ≤ I.n, ∀ k,
       Pval (((List.finRange I.n).take m).foldl (tablePass (signedTableOp c)) t₀ k) := by
     intro m _ k
     have h0 : t₀ = fun x => Cslib.WordRAM.Signed.encode
-        (I.entries[(maskIndex (maskSet I.n x.1)).1]) := by
+        (I.entries[(maskIndex (maskSet I.n x.val)).val]) := by
       funext x; simp [t₀]
-    have hlift := foldl_int_yatesPass_eq c (fun S => I.entries[(maskIndex S).1])
+    have hlift := foldl_int_yatesPass_eq c (fun S => I.entries[(maskIndex S).val])
       ((List.finRange I.n).take m) k
     rw [← h0] at hlift
     exact ⟨_, int_yatesTransform_natAbs_le I c hc_abs ((List.nodup_finRange I.n).take) k, hlift⟩

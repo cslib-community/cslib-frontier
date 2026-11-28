@@ -187,7 +187,7 @@ theorem exists_ratWeighted_correlatedAgreement_curve_unique
       (fun z i hi => (mem_filter.1 (subset_filter_curve_eq (fun _ h => (mem_filter.1 h).2) z hi)).2)
       hlt (hclose z hz)
     have hf0 : f i ≠ 0 := fun h0 => hi_not <| mem_filter.2 ⟨mem_univ i, fun j => sub_eq_zero.1 <|
-      by simpa only [f, ofFn_coeff_eq_val_of_lt _ j.2, coeff_zero] using
+      by simpa only [f, ofFn_coeff_eq_val_of_lt _ j.isLt, coeff_zero] using
         congrArg (fun p : F[X] => p.coeff (j : ℕ)) h0⟩
     refine mem_biUnion.2 ⟨i, mem_filter.2 ⟨mem_univ i, hf0⟩,
       Multiset.mem_toFinset.2 ((mem_roots hf0).2 ?_)⟩

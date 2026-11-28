@@ -334,7 +334,7 @@ private theorem exp_lt_card_relatedPureLowerMachine {k : ℕ} (hk : 2 ≤ k) :
     rw [show k = 2 + (k - 2) by omega, pow_add, pow_add, ← mul_assoc]
     gcongr <;> norm_num
   have hexpk : Real.exp (k : ℝ) < (2.72 : ℝ) ^ k := by
-    rw [show (k : ℝ) = (k : ℕ) * (1 : ℝ) by ring, Real.exp_nat_mul]
+    rw [show (k : ℝ) = (k : ℕ) * (1 : ℝ) by ring, Real.exp_natCast_mul]
     exact pow_lt_pow_left₀ hexp1 (Real.exp_pos 1).le (by omega)
   have h4 : (4 : ℝ) ^ k ≤ 2 * ((2 ^ k * k.factorial : ℕ) : ℝ) := by
     exact_mod_cast Nat.four_pow_le_two_mul_two_pow_mul_factorial (by omega : 1 ≤ k)

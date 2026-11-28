@@ -127,7 +127,7 @@ variable {K : Type*} [CommRing K] [Algebra ℚ K]
 /-- The inclusion of `ℤ_(2)` into a subring `B` of a `ℚ`-algebra containing it. -/
 @[expose] noncomputable def integerHom (B : Subring K) (hB : ∀ c ∈ ℤ₍₂₎, algebraMap ℚ K c ∈ B) :
     ℤ₍₂₎ →+* B :=
-  ((algebraMap ℚ K).comp (ℤ₍₂₎).subtype).codRestrict B fun c => hB c c.2
+  ((algebraMap ℚ K).comp (ℤ₍₂₎).subtype).codRestrict B fun c => hB c c.property
 
 theorem subtype_comp_integerHom (B : Subring K) (hB : ∀ c ∈ ℤ₍₂₎, algebraMap ℚ K c ∈ B) :
     B.subtype.comp (integerHom B hB) = (algebraMap ℚ K).comp (ℤ₍₂₎).subtype :=
@@ -193,7 +193,7 @@ theorem exists_recoverFromValues_eq_add (B : Subring K)
     (fun k _ l _ hkl => hζ hkl) hdeg
     (π := 2 ^ (p + 8 * h * 2 ^ (a - padicValInt 2 t) + 8 * Fintype.card E * (a + 1)))
     (fun k _ => hv t ht (by omega) k)
-  refine ⟨(g.coeff j : K), (g.coeff j).2, ?_⟩
+  refine ⟨(g.coeff j : K), (g.coeff j).property, ?_⟩
   rw [← map_localDeformation N side (integerHom B hB) B.subtype (subtype_comp_integerHom B hB)
     hslot htS, coeff_map, coeff_map, hg, coeff_add, coeff_C_mul, map_add, map_mul, map_pow]
   rfl

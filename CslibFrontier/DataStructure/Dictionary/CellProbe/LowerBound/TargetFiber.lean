@@ -70,7 +70,7 @@ private theorem ofSubtype_trans {α : Type*} {p : α → Prop} [DecidablePred p]
   by_cases hz : p z
   · simp only [Equiv.coe_toEmbedding, Function.Embedding.trans_apply,
       Equiv.Perm.ofSubtype_apply_of_mem _ hz, Equiv.trans_apply]
-    exact (Equiv.Perm.ofSubtype_apply_of_mem σ₂ (σ₁ ⟨z, hz⟩).2).symm
+    exact (Equiv.Perm.ofSubtype_apply_of_mem σ₂ (σ₁ ⟨z, hz⟩).property).symm
   · simp only [Equiv.coe_toEmbedding, Function.Embedding.trans_apply,
       Equiv.Perm.ofSubtype_apply_of_not_mem _ hz]
 
@@ -81,7 +81,7 @@ private theorem ofSubtype_symm_eq {α : Type*} {p : α → Prop} [DecidablePred 
     rw [Equiv.apply_symm_apply]
     by_cases hu : p u
     · rw [Equiv.Perm.ofSubtype_apply_of_mem _ hu,
-        Equiv.Perm.ofSubtype_apply_of_mem _ (σ.symm ⟨u, hu⟩).2, σ.apply_symm_apply]
+        Equiv.Perm.ofSubtype_apply_of_mem _ (σ.symm ⟨u, hu⟩).property, σ.apply_symm_apply]
     · rw [Equiv.Perm.ofSubtype_apply_of_not_mem _ hu, Equiv.Perm.ofSubtype_apply_of_not_mem _ hu])
 
 open Classical in
@@ -249,7 +249,7 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
             have hxS : x ∈ S_comp := hK₀_sub hx
             change Equiv.Perm.ofSubtype π_sub x ∈ S_comp
             rw [Equiv.Perm.ofSubtype_apply_of_mem π_sub hxS]
-            exact (π_sub ⟨x, hxS⟩).2
+            exact (π_sub ⟨x, hxS⟩).property
           rw [hemp, Finset.card_empty, zero_mul]; exact Nat.zero_le _
       -- Value-shift bound for each fixed π_sub
       have hval_le (π_sub : Equiv.Perm ↥S_comp) :
@@ -276,7 +276,7 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
           omega
         let F_δ := Finset.univ.filter fun δ : Fin U → Fin V =>
           (target8 t₀ m ht₀ (actG (π_sub, δ) (s, B))).2 = kv_opt
-        have hinj : Set.InjOn (fun (δ : Fin U → Fin V) (u : ↥(Finset.univ \ U_cov)) => δ u.1)
+        have hinj : Set.InjOn (fun (δ : Fin U → Fin V) (u : ↥(Finset.univ \ U_cov)) => δ u.val)
             (F_δ : Set (Fin U → Fin V)) := fun δ₁ h₁ δ₂ h₂ hrest => funext fun u => by
           by_cases hu : u ∈ U_cov
           · have heq1 := congrFun (Finset.mem_filter.mp h₁).2 u

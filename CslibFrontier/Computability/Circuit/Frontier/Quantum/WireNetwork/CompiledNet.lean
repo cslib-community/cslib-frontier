@@ -138,10 +138,11 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
   let leafIn : Fin n ↪ V_fin := embA.trans inVert
   let leafOut : Fin n ↪ V_fin := embA.trans outVert
   let leaf2n : Fin (2 * n) ↪ V_fin :=
-    ⟨fun k => if hk : k.1 < n then leafIn ⟨k.1, hk⟩ else leafOut ⟨k.1 - n, by omega⟩,
+    ⟨fun k => if hk : k.val < n then leafIn ⟨k.val, hk⟩ else leafOut ⟨k.val - n, by omega⟩,
       fun k₁ k₂ hk => by
         dsimp only at hk
-        by_cases h1 : k₁.1 < n <;> by_cases h2 : k₂.1 < n <;> simp only [h1, h2, ↓reduceDIte] at hk
+        by_cases h1 : k₁.val < n <;> by_cases h2 : k₂.val < n <;>
+          simp only [h1, h2, ↓reduceDIte] at hk
         · exact Fin.ext (Fin.mk.inj (leafIn.injective hk))
         · exact (Set.disjoint_left.mp hdisj_io ⟨_, rfl⟩ ⟨_, hk.symm⟩).elim
         · exact (Set.disjoint_left.mp hdisj_io ⟨_, rfl⟩ ⟨_, hk⟩).elim
@@ -149,7 +150,7 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
           ext; omega⟩
   have hleaf_in (i : Fin n) : leaf2n (inl2n n i) = leafIn i := dite_eq_left i.isLt
   have hleaf_out (j : Fin n) : leaf2n (inr2n n j) = leafOut j := by
-    change (if hk : n + j.1 < n then _ else leafOut ⟨n + j.1 - n, _⟩) = _
+    change (if hk : n + j.val < n then _ else leafOut ⟨n + j.val - n, _⟩) = _
     rw [dite_eq_right (by omega)]
     exact congrArg leafOut (Fin.ext (by dsimp; omega))
   have hV_ub : (Nat.card V_fin : ℝ) ≤ 2 * n + 6 * (twoQubitCount C : ℝ) + 2 := by
@@ -181,12 +182,12 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
     cycleRank_leaf2n_le := fun Comp hcut hconn => by
       have hsub2n : {k : Fin (2 * n) | leaf2n k ∈ Comp} ⊆
           inl2n n '' {i | leafIn i ∈ Comp} ∪ inr2n n '' {j | leafOut j ∈ Comp} := fun k hk => by
-        change (if hk : k.1 < n then leafIn ⟨k.1, hk⟩ else leafOut ⟨k.1 - n, _⟩) ∈ Comp at hk
-        by_cases hk_lt : k.1 < n
+        change (if hk : k.val < n then leafIn ⟨k.val, hk⟩ else leafOut ⟨k.val - n, _⟩) ∈ Comp at hk
+        by_cases hk_lt : k.val < n
         · simp only [hk_lt, ↓reduceDIte] at hk
-          exact .inl ⟨⟨k.1, hk_lt⟩, hk, Fin.ext rfl⟩
+          exact .inl ⟨⟨k.val, hk_lt⟩, hk, Fin.ext rfl⟩
         · simp only [hk_lt, ↓reduceDIte] at hk
-          refine .inr ⟨⟨k.1 - n, by omega⟩, hk, Fin.ext ?_⟩
+          refine .inr ⟨⟨k.val - n, by omega⟩, hk, Fin.ext ?_⟩
           simp only [inr2n]
           omega
       have hcard2n : {k : Fin (2 * n) | leaf2n k ∈ Comp}.ncard ≤

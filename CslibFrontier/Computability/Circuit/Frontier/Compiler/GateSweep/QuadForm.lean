@@ -512,11 +512,11 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
     -- Bound the input sum from below and the gate sum from above via the `k₀`-tangents.
     have hin_lb :
         ∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-          (((k₀ + 1 : ℝ) - (Compiler.support c (.input i.1 i.2)).ncard) / (2 : ℝ) ^ k₀) ≤
+          (((k₀ + 1 : ℝ) - (Compiler.support c (.input i.val i.property)).ncard) / (2 : ℝ) ^ k₀) ≤
         ∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-          (1 / 2 : ℝ) ^ (Compiler.support c (.input i.1 i.2)).ncard :=
+          (1 / 2 : ℝ) ^ (Compiler.support c (.input i.val i.property)).ncard :=
       Finset.sum_le_sum fun i _ => Compiler.two_pow_neg_ge_tangent hk₀
-        ((ncard_pos (toFinite _)).mpr (Compiler.support_nonempty (.input i.1 i.2)))
+        ((ncard_pos (toFinite _)).mpr (Compiler.support_nonempty (.input i.val i.property)))
     have hgt_ub :
         ∑ g : Compiler.InnerGate c,
           (1 - (1 / 2 : ℝ) ^ ((Compiler.support c (.gate g)).ncard - 1)) ≤
@@ -528,7 +528,7 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
     -- Combine the support sums into `∑ w : ActiveSignal c, (support c w).ncard`.
     have htot_supp :
         (∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-          ((Compiler.support c (.input i.1 i.2)).ncard : ℝ)) +
+          ((Compiler.support c (.input i.val i.property)).ncard : ℝ)) +
         (∑ g : Compiler.InnerGate c, ((Compiler.support c (.gate g)).ncard : ℝ)) ≤
         (r + 1 : ℝ) * Nat.card (Compiler.InnerGate c) + 1 := by
       have hnat := Compiler.sum_ncard_support_le_card_innerGate (c := c) hfan
@@ -548,15 +548,15 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
     have hexp_diff :
         ((k₀ + 1 : ℝ) * R_in.ncard - D_r * Nat.card (Compiler.InnerGate c) - 1) / (2 : ℝ) ^ k₀ ≤
           (∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-            (1 / 2 : ℝ) ^ (Compiler.support c (.input i.1 i.2)).ncard) -
+            (1 / 2 : ℝ) ^ (Compiler.support c (.input i.val i.property)).ncard) -
           (∑ g : Compiler.InnerGate c,
             (1 - (1 / 2 : ℝ) ^ ((Compiler.support c (.gate g)).ncard - 1))) := by
       have hsum_in :
           ∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-            (((k₀ + 1 : ℝ) - (Compiler.support c (.input i.1 i.2)).ncard) / (2 : ℝ) ^ k₀) =
+            (((k₀ + 1 : ℝ) - (Compiler.support c (.input i.val i.property)).ncard) / (2 : ℝ) ^ k₀) =
           ((k₀ + 1 : ℝ) * R_in.ncard -
             ∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-              ((Compiler.support c (.input i.1 i.2)).ncard : ℝ)) / (2 : ℝ) ^ k₀ := by
+              ((Compiler.support c (.input i.val i.property)).ncard : ℝ)) / (2 : ℝ) ^ k₀ := by
         simp_rw [sub_div]
         rw [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hcard_Rin,
           ← Finset.sum_div, mul_div_assoc']

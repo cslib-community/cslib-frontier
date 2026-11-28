@@ -179,9 +179,11 @@ private theorem ruleCode_code (r s t : Atom (Fin L.length)) :
           | omega
     · obtain ⟨i, _ | _, rfl⟩ := exists_eq_tile_of_le_code (show 28 ≤ t.code by omega)
       · exact h₄ i (eq (u .one .reverse) rfl hr) (eq (green .two .forward) rfl hs) rfl
-      · simp only [Atom.code, Direction.toNat] at ht'; omega
+      · simp only [Atom.code, Direction.toNat] at ht'
+        omega
     · obtain ⟨i, _ | _, rfl⟩ := exists_eq_tile_of_le_code (show 28 ≤ t.code by omega)
-      · simp only [Atom.code, Direction.toNat] at ht'; omega
+      · simp only [Atom.code, Direction.toNat] at ht'
+        omega
       · exact h₅ i (eq (u .two .reverse) rfl hr) (eq (green .one .forward) rfl hs) rfl
     · exact h₆ .forward (eq (v .one .reverse) rfl hr) (eq (green .one .forward) rfl hs)
         (eq (step .one .forward) rfl ht)
@@ -197,7 +199,8 @@ private theorem ruleCode_code (r s t : Atom (Fin L.length)) :
     cases o <;> simp [RuleCode, Atom.code, Axis.toNat, Direction.toNat]
   all_goals
     simp only [RuleCode, tileOfCode_code]
-    simp [Atom.code, Axis.toNat, Direction.toNat]; omega
+    simp [Atom.code, Axis.toNat, Direction.toNat]
+    omega
 
 private theorem cycleCode_code (r s t : Atom (Fin L.length)) :
     CycleCode L r.code s.code t.code ↔ Cycle L r s t := by
@@ -226,57 +229,73 @@ triples of atoms that satisfy `Tiling.CycleCode`, in lexicographic order. -/
 variable {L : List WangTile}
 
 /-- The table of `RA(τ)` presents an atom structure exactly when that structure, with its atoms
-renamed back along the numbering `Tiling.Atom.equivFin`, has the frame `tilingFrame L`: the
+renamed back along the numbering `Tiling.Atom.equivFin`, is `tilingFrame L`: the
 converse list, the identity list and the cycle list of the table are the converse, the units and
 the consistent triangles of `RA(τ)` on the numbers of the atoms. -/
 theorem presents_tilingTable_iff (A : AtomStructure (Fin (2 * L.length + 28))) :
-    (tilingTable L).Presents A ↔ (A.map equivFin.symm).frame = tilingFrame L := by
+    (tilingTable L).Presents A ↔ A.map equivFin.symm = tilingFrame L := by
   have hconv (a : Atom (Fin L.length)) :
       (tilingTable L).conv[(equivFin a : ℕ)]? = some (equivFin a.conv : ℕ) := by
     simp [tilingTable, a.code_lt, code_conv]
   have hid (a : Atom (Fin L.length)) : (equivFin a : ℕ) ∈ (tilingTable L).id ↔ a.IsUnit := by
     rw [isUnit_iff_code_lt, coe_equivFin]
-    simp only [tilingTable, List.mem_cons, List.not_mem_nil, or_false]; omega
+    simp only [tilingTable, List.mem_cons, List.not_mem_nil, or_false]
+    omega
   have hcycles (r s t : Atom (Fin L.length)) : ((equivFin r : ℕ), (equivFin s : ℕ),
       (equivFin t : ℕ)) ∈ (tilingTable L).cycles ↔ Cycle L r s t := by
     simp [tilingTable, code_lt, cycleCode_code]
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · have h₁ : (A.map equivFin.symm).conv = Atom.conv := funext fun a => equivFin.injective <|
-      Fin.ext <| by simpa using (h.conv (equivFin a)).symm.trans (hconv a)
+  constructor
+  · intro h
+    have h₁ : (A.map equivFin.symm).conv = Atom.conv := by
+      funext a
+      apply equivFin.injective
+      apply Fin.ext
+      simpa using (h.conv (equivFin a)).symm.trans (hconv a)
     have h₂ : (A.map equivFin.symm).id = {a | a.IsUnit} := Set.ext fun a =>
       (h.id (equivFin a)).trans (hid a)
     have h₃ : (A.map equivFin.symm).cycles = {(r, s, t) | Cycle L r s t} := Set.ext
       fun ⟨r, s, t⟩ => (h.cycles (equivFin r) (equivFin s) (equivFin t)).trans (hcycles r s t)
-    simp only [AtomStructure.frame, tilingFrame, h₁, h₂, h₃]
-  · have h₁ (a : Atom (Fin L.length)) : A.conv (equivFin a) = equivFin a.conv :=
-      equivFin.symm_apply_eq.mp (congrFun (congrArg AtomFrame.conv h) a)
+    rw [tilingFrame, ← h₁, ← h₂, ← h₃]
+  · intro h
+    have h₁ (a : Atom (Fin L.length)) : A.conv (equivFin a) = equivFin a.conv :=
+      equivFin.symm_apply_eq.mp (congrFun (congrArg AtomStructure.conv h) a)
+    have h₂ (a : Atom (Fin L.length)) : equivFin a ∈ A.id ↔ a.IsUnit :=
+      iff_of_eq (congrArg (a ∈ ·) (congrArg AtomStructure.id h))
+    have h₃ (r s t : Atom (Fin L.length)) :
+        (equivFin r, equivFin s, equivFin t) ∈ A.cycles ↔ Cycle L r s t :=
+      iff_of_eq (congrArg ((r, s, t) ∈ ·) (congrArg AtomStructure.cycles h))
     refine ⟨fun a => ?_, fun a => ?_, fun a b c => ?_⟩
     · obtain ⟨a, rfl⟩ := equivFin.surjective a
       rw [h₁]
       exact hconv a
     · obtain ⟨a, rfl⟩ := equivFin.surjective a
-      exact (iff_of_eq (congrArg (a ∈ ·) (congrArg AtomFrame.id h))).trans (hid a).symm
+      exact (h₂ a).trans (hid a).symm
     · obtain ⟨a, rfl⟩ := equivFin.surjective a
       obtain ⟨b, rfl⟩ := equivFin.surjective b
       obtain ⟨c, rfl⟩ := equivFin.surjective c
-      exact (iff_of_eq (congrArg ((a, b, c) ∈ ·) (congrArg AtomFrame.cycles h))).trans
-        (hcycles a b c).symm
+      exact (h₃ a b c).trans (hcycles a b c).symm
 
-/-- The table of `RA(τ)` presents an atom structure whose complex algebra is representable if and
-only if ∃ has a winning strategy in the game on the frame of `RA(τ)`. From left to right this is
-Theorem 1 of [HirschHodkinson2001]. From right to left, the frame is an atom structure by Lemma 7,
-which the table presents, and its complex algebra is representable by Theorem 1. -/
+/-- The table of `RA(τ)` presents a lawful atom structure whose complex algebra is representable
+if and only if ∃ has a winning strategy in the game on `RA(τ)`. From left to right this is
+Theorem 1 of [HirschHodkinson2001]. From right to left, `RA(τ)` satisfies the laws by Lemma 7, the
+table presents it, and its complex algebra is representable by Theorem 1. -/
 theorem isRepresentable_tilingTable_iff :
     (tilingTable L).IsRepresentable ↔ (tilingFrame L).HasWinningStrategy := by
-  refine ⟨fun ⟨A, hA, hrep⟩ => ?_, fun h => ?_⟩
-  · rw [← (presents_tilingTable_iff A).mp hA]
+  -- The table has `2 * L.length + 28` atoms by definition; stating it so lets instance search
+  -- match the atom type of `equivFin`.
+  change (∃ A : AtomStructure (Fin (2 * L.length + 28)), (tilingTable L).Presents A ∧
+    ∃ _ : LawfulAtomStructure A, Representable (ComplexAlgebra A)) ↔ _
+  constructor
+  · rintro ⟨A, hA, _, hrep⟩
+    rw [← (presents_tilingTable_iff A).mp hA]
     exact (representable_complexAlgebra_iff _).mp
       ((ComplexAlgebra.mapEquiv A equivFin.symm).representable_iff.mp hrep)
-  · let A := AtomStructure.ofHasWinningStrategy (tilingFrame L) h
-    exact ⟨A.map equivFin, (presents_tilingTable_iff (A.map equivFin)).mpr
-      (by rw [A.map_map_symm]; rfl),
-      (ComplexAlgebra.mapEquiv A equivFin).representable_iff.mp
-        ((representable_complexAlgebra_iff A).mpr h)⟩
+  · intro h
+    have := h.lawful
+    exact ⟨(tilingFrame L).map equivFin,
+      (presents_tilingTable_iff _).mpr ((tilingFrame L).map_map_symm equivFin), inferInstance,
+      (ComplexAlgebra.mapEquiv _ equivFin).representable_iff.mp
+        ((representable_complexAlgebra_iff _).mpr h)⟩
 
 /-! ### The reduction -/
 

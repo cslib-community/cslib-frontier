@@ -249,12 +249,12 @@ theorem partitionFunctionOn_relabel_equiv [Semiring R] [DecidableEq V] [Decidabl
     (F.relabel e).partitionFunctionOn wt (declared.map e.toEmbedding) =
       F.partitionFunctionOn wt declared := by
   let eDom : declared ≃ declared.map e.toEmbedding :=
-    { toFun := fun v => ⟨e v.1, Finset.mem_map.mpr ⟨v.1, v.2, rfl⟩⟩
-      invFun := fun w => ⟨e.symm w.1, by
-        rcases Finset.mem_map.mp w.2 with ⟨v, hv, hvw⟩
+    { toFun := fun v => ⟨e v.val, Finset.mem_map.mpr ⟨v.val, v.property, rfl⟩⟩
+      invFun := fun w => ⟨e.symm w.val, by
+        rcases Finset.mem_map.mp w.property with ⟨v, hv, hvw⟩
         simpa [← hvw] using hv⟩
-      left_inv := fun v => Subtype.ext (e.symm_apply_apply v.1)
-      right_inv := fun w => Subtype.ext (e.apply_symm_apply w.1) }
+      left_inv := fun v => Subtype.ext (e.symm_apply_apply v.val)
+      right_inv := fun w => Subtype.ext (e.apply_symm_apply w.val) }
   let eAssign : (declared.map e.toEmbedding → D) ≃ (declared → D) :=
     Equiv.piCongrLeft' (fun _ => D) eDom.symm
   rw [partitionFunctionOn, partitionFunctionOn]
@@ -294,12 +294,13 @@ theorem partitionFunctionOn_denseRelabel [Semiring R] [DecidableEq V] [Fintype D
   have hmem (v : V) (hv : v ∈ S) : F.distinctVars.idxOf v ∈ Rng := by
     rw [Finset.mem_range, ← length_distinctVars]
     exact List.idxOf_lt_length_iff.mpr (mem_distinctVars.mpr (List.mem_toFinset.mp hv))
-  let eVar : S ≃ Rng := Equiv.ofBijective (fun v => ⟨F.distinctVars.idxOf v.1, hmem v.1 v.2⟩)
+  let eVar : S ≃ Rng := Equiv.ofBijective
+    (fun v => ⟨F.distinctVars.idxOf v.val, hmem v.val v.property⟩)
     ⟨fun v w h => Subtype.ext ((List.idxOf_inj
-        (mem_distinctVars.mpr (List.mem_toFinset.mp v.2))).mp (Subtype.mk.inj h)),
+        (mem_distinctVars.mpr (List.mem_toFinset.mp v.property))).mp (Subtype.mk.inj h)),
      fun i => by
-       have hi' : i.1 ∈ F.denseRelabel.vars.toFinset := by
-         simpa only [vars_denseRelabel_toFinset, Rng] using i.2
+       have hi' : i.val ∈ F.denseRelabel.vars.toFinset := by
+         simpa only [vars_denseRelabel_toFinset, Rng] using i.property
        simp only [denseRelabel, vars_relabel, List.mem_toFinset, List.mem_map] at hi'
        obtain ⟨v, hv, hvi⟩ := hi'
        exact ⟨⟨v, List.mem_toFinset.mpr hv⟩, Subtype.ext hvi⟩⟩

@@ -148,7 +148,7 @@ theorem vertexParity_probeEdgeLabels_probe_constraint (F : CSP Rel V) (ports : L
       (incidenceDart (probeOccurrence F ports i) true).vertex = (List.ofFn t).sum := by
   rw [vertexParity_eq_sum_scope]
   have hlen := length_scope_probeOccurrence F ports i
-  change (probeBody F ports)[(probeOccurrence F ports i).1.val].2.length = ports.length at hlen
+  change (probeBody F ports)[(probeOccurrence F ports i).1.val].scope.length = ports.length at hlen
   rw [List.ofFn_congr hlen]
   have he (j : Fin ports.length) :
       probeEdgeLabels F ports t x

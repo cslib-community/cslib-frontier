@@ -132,27 +132,27 @@ theorem exists_oracle_diagonal {ι : Type} [Countable ι]
   obtain ⟨e, he⟩ := exists_surjective_nat ι
   -- a stage is an approximation with a bound on the lengths of its words
   let Data := {p : Set (List Bool) × ℕ // ∀ w ∈ p.1, w.length ≤ p.2}
-  have hstep (k : ℕ) (p : Data) := stage (hbound (e k)) (hqueries (e k)) p.1.1 p.1.2 p.2
+  have hstep (k : ℕ) (p : Data) := stage (hbound (e k)) (hqueries (e k)) p.val.1 p.val.2 p.property
   let seq : ℕ → Data := Nat.rec ⟨(∅, 0), by simp⟩ fun k p =>
     ⟨((hstep k p).choose_spec.choose, (hstep k p).choose),
       (hstep k p).choose_spec.choose_spec.2.2.1⟩
   -- each stage only adds words longer than the previous bound
-  have hmono (k : ℕ) : (seq k).1.2 < (seq (k + 1)).1.2 ∧ (seq k).1.1 ⊆ (seq (k + 1)).1.1 ∧
-      ∀ w ∈ (seq (k + 1)).1.1, w.length ≤ (seq k).1.2 → w ∈ (seq k).1.1 := by
+  have hmono (k : ℕ) : (seq k).val.2 < (seq (k + 1)).val.2 ∧ (seq k).val.1 ⊆ (seq (k + 1)).val.1 ∧
+      ∀ w ∈ (seq (k + 1)).val.1, w.length ≤ (seq k).val.2 → w ∈ (seq k).val.1 := by
     obtain ⟨h₁, h₂, -, h₄, -⟩ := (hstep k (seq k)).choose_spec.choose_spec
     exact ⟨h₁, h₂, h₄⟩
-  have hbound_mono : StrictMono fun k => (seq k).1.2 :=
+  have hbound_mono : StrictMono fun k => (seq k).val.2 :=
     strictMono_nat_of_lt_succ fun k => (hmono k).1
-  have hsub_mono : Monotone fun k => (seq k).1.1 := monotone_nat_of_le_succ fun k => (hmono k).2.1
+  have hsub_mono : Monotone fun k => (seq k).val.1 := monotone_nat_of_le_succ fun k => (hmono k).2.1
   -- later stages agree with stage `k` up to its bound
-  have hstable (k j : ℕ) (hkj : k ≤ j) (w : List Bool) (hw : w.length ≤ (seq k).1.2) :
-      w ∈ (seq j).1.1 ↔ w ∈ (seq k).1.1 := by
+  have hstable (k j : ℕ) (hkj : k ≤ j) (w : List Bool) (hw : w.length ≤ (seq k).val.2) :
+      w ∈ (seq j).val.1 ↔ w ∈ (seq k).val.1 := by
     induction j, hkj using Nat.le_induction with
     | base => exact Iff.rfl
     | succ j hkj ih =>
       exact ⟨fun h => ih.mp ((hmono j).2.2 w h (hw.trans (hbound_mono.monotone hkj))),
         fun h => (hmono j).2.1 (ih.mpr h)⟩
-  refine ⟨⋃ k, (seq k).1.1, fun i => ?_⟩
+  refine ⟨⋃ k, (seq k).val.1, fun i => ?_⟩
   obtain ⟨k, rfl⟩ := he i
   obtain ⟨-, -, -, -, n, hn⟩ := (hstep k (seq k)).choose_spec.choose_spec
   refine ⟨n, hn _ fun w hw => ⟨fun h => ?_, fun h => Set.mem_iUnion.mpr ⟨k + 1, h⟩⟩⟩

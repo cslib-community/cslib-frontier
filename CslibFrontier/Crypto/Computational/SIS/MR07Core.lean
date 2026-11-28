@@ -401,14 +401,14 @@ theorem modParallelepiped_abs_le {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ)
 /-- Embed a `GridRep B q` element into `EuclideanSpace ℝ (Fin n)`. -/
 @[expose] noncomputable def GridRep.toVec {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q : ℕ}
     (c : GridRep B q) : EuclideanSpace ℝ (Fin n) :=
-  ((q : ℝ)⁻¹ : ℝ) • WithLp.toLp 2 (fun i => (c.1 i : ℝ))
+  ((q : ℝ)⁻¹ : ℝ) • WithLp.toLp 2 (fun i => (c.val i : ℝ))
 
 private theorem GridRep.modParallelepiped_toVec {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q : ℕ}
-    (c : GridRep B q) : modParallelepiped B c.toVec = c.toVec := c.2.2
+    (c : GridRep B q) : modParallelepiped B c.toVec = c.toVec := c.property.2
 
 private theorem GridRep.mem_gridLattice {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q : ℕ}
     (c : GridRep B q) : c.toVec ∈ gridLattice n q :=
-  (mem_gridLattice_iff _).2 ⟨c.1, rfl⟩
+  (mem_gridLattice_iff _).2 ⟨c.val, rfl⟩
 
 private theorem GridRep.ext_toVec {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} {q : ℕ} (hq : 0 < q)
     {c₁ c₂ : GridRep B q} (h : c₁.toVec = c₂.toVec) : c₁ = c₂ :=
@@ -428,7 +428,7 @@ noncomputable instance {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (q : ℕ) :
     Fintype (GridRep B q) := by
   let M : Fin n → ℤ := fun i => (q : ℤ) * ∑ j : Fin n, |B i j|
   have : Finite (GridRep B q) := Finite.of_injective
-    (fun c : GridRep B q => (fun i => ⟨c.1 i, Finset.mem_Icc.mpr (abs_le.mp (c.2.1 i))⟩ :
+    (fun c : GridRep B q => (fun i => ⟨c.val i, Finset.mem_Icc.mpr (abs_le.mp (c.property.1 i))⟩ :
       ∀ i : Fin n, { x : ℤ // x ∈ Finset.Icc (-M i) (M i) }))
     fun _ _ h => Subtype.ext (funext fun i => congrArg Subtype.val (congrFun h i))
   exact Fintype.ofFinite (GridRep B q)
@@ -472,7 +472,7 @@ private theorem mem_range_scaleMat_iff {n q : ℕ} (hq : 0 < q) (B : Matrix (Fin
 private noncomputable def gridRepEquivQuot {n q : ℕ} (hq : 0 < q)
     (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0) :
     GridRep B q ≃ ((Fin n → ℤ) ⧸ LinearMap.range (scaleMat q B).mulVecLin) :=
-  Equiv.ofBijective (fun c : GridRep B q => Submodule.Quotient.mk c.1)
+  Equiv.ofBijective (fun c : GridRep B q => Submodule.Quotient.mk c.val)
     ⟨fun c₁ c₂ h => by
       rw [Submodule.Quotient.eq, mem_range_scaleMat_iff hq B] at h
       have hsub : c₁.toVec - c₂.toVec ∈ intLattice B := by
@@ -483,9 +483,9 @@ private noncomputable def gridRepEquivQuot {n q : ℕ} (hq : 0 < q)
     fun z => Quotient.inductionOn' z fun u => by
       let c := mkGridRep B hB q hq (gridVec q u) ((mem_gridLattice_iff _).2 ⟨u, rfl⟩)
       refine ⟨c, ?_⟩
-      change Submodule.Quotient.mk c.1 = Submodule.Quotient.mk u
+      change Submodule.Quotient.mk c.val = Submodule.Quotient.mk u
       rw [Submodule.Quotient.eq, mem_range_scaleMat_iff hq B]
-      have hc : gridVec q (c.1 - u) = c.toVec - gridVec q u := by
+      have hc : gridVec q (c.val - u) = c.toVec - gridVec q u := by
         ext i; simp [GridRep.toVec, sub_eq_add_neg, mul_add]
       rw [hc, ← modParallelepiped_eq_iff_sub_mem hB, c.modParallelepiped_toVec, mkGridRep_toVec]⟩
 
@@ -528,35 +528,35 @@ theorem card_gridRep {n : ℕ} {B : Matrix (Fin n) (Fin n) ℤ} (hB : B.det ≠ 
 and lattice point `y = r + c ∈ L(B)`. -/
 private noncomputable def gridSplit {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
     (q : ℕ) (hq : 0 < q) (r : gridLattice n q) : GridRep B q × intLattice B :=
-  let c := mkGridRep B hB q hq (-r.1) (Submodule.neg_mem _ r.2)
-  have hy : r.1 + c.toVec ∈ intLattice B := by
-    rw [show r.1 + c.toVec = -(-r.1 - modParallelepiped B (-r.1)) by
-      rw [← mkGridRep_toVec B hB q hq (-r.1) (Submodule.neg_mem _ r.2)]; abel]
-    exact Submodule.neg_mem _ (sub_modParallelepiped_mem hB (-r.1))
-  (c, ⟨r.1 + c.toVec, hy⟩)
+  let c := mkGridRep B hB q hq (-r.val) (Submodule.neg_mem _ r.property)
+  have hy : r.val + c.toVec ∈ intLattice B := by
+    rw [show r.val + c.toVec = -(-r.val - modParallelepiped B (-r.val)) by
+      rw [← mkGridRep_toVec B hB q hq (-r.val) (Submodule.neg_mem _ r.property)]; abel]
+    exact Submodule.neg_mem _ (sub_modParallelepiped_mem hB (-r.val))
+  (c, ⟨r.val + c.toVec, hy⟩)
 
 private theorem gridSplit_fst_toVec {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
     (q : ℕ) (hq : 0 < q) (r : gridLattice n q) :
-    (gridSplit B hB q hq r).1.toVec = modParallelepiped B (-r.1) :=
-  mkGridRep_toVec B hB q hq (-r.1) (Submodule.neg_mem _ r.2)
+    (gridSplit B hB q hq r).1.toVec = modParallelepiped B (-r.val) :=
+  mkGridRep_toVec B hB q hq (-r.val) (Submodule.neg_mem _ r.property)
 
 private theorem gridSplit_bijective {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
     (q : ℕ) (hq : 0 < q) : Function.Bijective (gridSplit B hB q hq) := by
   refine ⟨fun r₁ r₂ h => ?_, fun ⟨c, y⟩ => ?_⟩
   · have h1 : (gridSplit B hB q hq r₁).1 = (gridSplit B hB q hq r₂).1 := congrArg Prod.fst h
-    have h2 : r₁.1 + (gridSplit B hB q hq r₁).1.toVec =
-        r₂.1 + (gridSplit B hB q hq r₂).1.toVec :=
+    have h2 : r₁.val + (gridSplit B hB q hq r₁).1.toVec =
+        r₂.val + (gridSplit B hB q hq r₂).1.toVec :=
       congrArg (fun p : GridRep B q × intLattice B => (p.2 : EuclideanSpace ℝ (Fin n))) h
     exact Subtype.ext (add_right_cancel (h1 ▸ h2))
   · let r : gridLattice n q :=
       ⟨(y : EuclideanSpace ℝ (Fin n)) - c.toVec,
-        Submodule.sub_mem _ (intLattice_le_gridLattice hq B y.2) c.mem_gridLattice⟩
+        Submodule.sub_mem _ (intLattice_le_gridLattice hq B y.property) c.mem_gridLattice⟩
     have hc : (gridSplit B hB q hq r).1 = c := GridRep.ext_toVec hq <| by
-      rw [gridSplit_fst_toVec, show -r.1 = c.toVec + -(y : EuclideanSpace ℝ (Fin n)) by
-        simp [r]; abel, modParallelepiped_add_mem hB (Submodule.neg_mem _ y.2),
+      rw [gridSplit_fst_toVec, show -r.val = c.toVec + -(y : EuclideanSpace ℝ (Fin n)) by
+        simp [r]; abel, modParallelepiped_add_mem hB (Submodule.neg_mem _ y.property),
         c.modParallelepiped_toVec]
     exact ⟨r, Prod.ext hc (Subtype.ext (by
-      change r.1 + (gridSplit B hB q hq r).1.toVec = y.1
+      change r.val + (gridSplit B hB q hq r).1.toVec = y.val
       rw [hc]; simp [r]))⟩
 
 /-- Ideal discrete-grid sampler `S_q(B, t, s)` (finite MR07 Lemma 5.7, p. 20). -/
@@ -570,15 +570,15 @@ splitting map `r ↦ (c, y)` satisfying `c = (-r) mod P(B)` and `y = r + c`. -/
 theorem idealGridSample_eq_map {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
     (q : ℕ) (hq : 0 < q) (s : ℝ) (hs : 0 < s) (t : EuclideanSpace ℝ (Fin n))
     (f : gridLattice n q → GridRep B q × intLattice B)
-    (hf_fst : ∀ r, (f r).1.toVec = modParallelepiped B (-r.1))
-    (hf_snd : ∀ r, ((f r).2 : EuclideanSpace ℝ (Fin n)) = r.1 + (f r).1.toVec) :
+    (hf_fst : ∀ r, (f r).1.toVec = modParallelepiped B (-r.val))
+    (hf_snd : ∀ r, ((f r).2 : EuclideanSpace ℝ (Fin n)) = r.val + (f r).1.toVec) :
     idealGridSample B hB q hq s hs t =
       (ZLattice.discreteGaussian (gridLattice n q) s hs t).map f := by
   unfold idealGridSample
   congr 1; funext r
   have h1 := GridRep.ext_toVec hq ((gridSplit_fst_toVec B hB q hq r).trans (hf_fst r).symm)
   exact Prod.ext h1 (Subtype.ext (by
-    change r.1 + (gridSplit B hB q hq r).1.toVec = _; rw [hf_snd, h1]))
+    change r.val + (gridSplit B hB q hq r).1.toVec = _; rw [hf_snd, h1]))
 
 private theorem idealGridSample_apply {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ) (hB : B.det ≠ 0)
     (q : ℕ) (hq : 0 < q) (s : ℝ) (hs : 0 < s) (t : EuclideanSpace ℝ (Fin n))
@@ -588,10 +588,10 @@ private theorem idealGridSample_apply {n : ℕ} (B : Matrix (Fin n) (Fin n) ℤ)
         gaussianMass (gridLattice n q) s t) := by
   have hbij := gridSplit_bijective B hB q hq
   let r : gridLattice n q := ⟨(y : EuclideanSpace ℝ (Fin n)) - c.toVec,
-    Submodule.sub_mem _ (intLattice_le_gridLattice hq B y.2) c.mem_gridLattice⟩
+    Submodule.sub_mem _ (intLattice_le_gridLattice hq B y.property) c.mem_gridLattice⟩
   have hr : gridSplit B hB q hq r = (c, y) := by
     obtain ⟨r', hr'⟩ := hbij.2 (c, y)
-    have h2 : r'.1 + (gridSplit B hB q hq r').1.toVec = y.1 :=
+    have h2 : r'.val + (gridSplit B hB q hq r').1.toVec = y.val :=
       congrArg (fun p : GridRep B q × intLattice B => (p.2 : EuclideanSpace ℝ (Fin n))) hr'
     rw [congrArg Prod.fst hr'] at h2
     exact (Subtype.ext (eq_sub_of_add_eq h2) : r' = r) ▸ hr'
@@ -807,13 +807,13 @@ theorem det_sublatticeMat_ne_zero {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
 /-- Embed a `SublatticeQuot B S` representative into `EuclideanSpace ℝ (Fin n)`. -/
 @[expose] noncomputable def SublatticeQuot.toVec {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
     (v : SublatticeQuot B S) : EuclideanSpace ℝ (Fin n) :=
-  WithLp.toLp 2 (fun i => (v.1 i : ℝ))
+  WithLp.toLp 2 (fun i => (v.val i : ℝ))
 
 private theorem SublatticeQuot.mem_intLattice {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
-    (v : SublatticeQuot B S) : v.toVec ∈ intLattice B := v.2.2.1
+    (v : SublatticeQuot B S) : v.toVec ∈ intLattice B := v.property.2.1
 
 private theorem SublatticeQuot.modParallelepiped_toVec {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
-    (v : SublatticeQuot B S) : modParallelepiped S v.toVec = v.toVec := v.2.2.2
+    (v : SublatticeQuot B S) : modParallelepiped S v.toVec = v.toVec := v.property.2.2
 
 private theorem SublatticeQuot.ext_toVec {n : ℕ} {B S : Matrix (Fin n) (Fin n) ℤ}
     {v₁ v₂ : SublatticeQuot B S} (h : v₁.toVec = v₂.toVec) : v₁ = v₂ :=
@@ -835,7 +835,7 @@ def SublatticeQuot.zero {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) : Sublattic
 
 /-- The coordinate vector of `SublatticeQuot.zero B S` is `0`. -/
 @[simp] theorem SublatticeQuot.zero_val {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) :
-    (SublatticeQuot.zero B S).1 = 0 := by
+    (SublatticeQuot.zero B S).val = 0 := by
   rfl
 
 /-- `SublatticeQuot B S` is always nonempty (`0` is a representative). -/
@@ -847,8 +847,9 @@ noncomputable instance {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) :
     Fintype (SublatticeQuot B S) := by
   let M : Fin n → ℤ := fun i => ∑ j : Fin n, |S i j|
   have : Finite (SublatticeQuot B S) := Finite.of_injective
-    (fun v : SublatticeQuot B S => (fun i => ⟨v.1 i, Finset.mem_Icc.mpr (abs_le.mp (v.2.1 i))⟩ :
-      ∀ i : Fin n, { x : ℤ // x ∈ Finset.Icc (-M i) (M i) }))
+    (fun v : SublatticeQuot B S =>
+      (fun i => ⟨v.val i, Finset.mem_Icc.mpr (abs_le.mp (v.property.1 i))⟩ :
+        ∀ i : Fin n, { x : ℤ // x ∈ Finset.Icc (-M i) (M i) }))
     fun _ _ h => Subtype.ext (funext fun i => congrArg Subtype.val (congrFun h i))
   exact Fintype.ofFinite (SublatticeQuot B S)
 
@@ -1412,7 +1413,7 @@ theorem idealIncGDDStep_support_mem_intLattice {n m q : ℕ} [NeZero q]
     obtain ⟨_, _, CY, _, V, _, z, _, rfl⟩ := hv
     exact Submodule.sub_mem _
       (combineOutput_mem_intLattice B S hS hSB q (NeZero.pos q) V (fun i => (CY i).1) z)
-      (Submodule.sum_mem _ fun i _ => Submodule.smul_mem _ (z i) (CY i).2.2)
+      (Submodule.sum_mem _ fun i _ => Submodule.smul_mem _ (z i) (CY i).2.property)
   · rw [PMF.support_pure, Set.mem_singleton_iff] at hv
     exact hv ▸ (intLattice B).zero_mem
 
@@ -1486,7 +1487,7 @@ private theorem integral_norm_sum_smul_sq_discreteGaussian_le
   have hind : iIndepFun (fun i Y => (Y i : EuclideanSpace ℝ (Fin n)) - centers i)
       (Cslib.Probability.PMF.piFin p).toMeasure := hμ ▸
     ProbabilityTheory.iIndepFun_pi (fun i =>
-      (continuous_subtype_val.sub continuous_const).measurable.aemeasurable)
+      (continuous_subtypeVal.sub continuous_const).measurable.aemeasurable)
   have hcomp {F : Type} [NormedAddCommGroup F] [NormedSpace ℝ F] [MeasurableSpace F]
       [BorelSpace F] [SecondCountableTopology F] (i : Fin m) (f : intLattice B → F)
       (hf : Continuous f) :
@@ -1497,14 +1498,14 @@ private theorem integral_norm_sum_smul_sq_discreteGaussian_le
       ∂(Cslib.Probability.PMF.piFin p).toMeasure ≤
       (1 / (2 * Real.pi) + ε / (1 - ε)) * s ^ 2 * n := by
     rw [hcomp i (fun x : intLattice B => ‖(x : EuclideanSpace ℝ (Fin n)) - centers i‖ ^ 2)
-        ((continuous_subtype_val.sub continuous_const).norm.pow 2),
+        ((continuous_subtypeVal.sub continuous_const).norm.pow 2),
       ZLattice.integral_norm_sub_sq_discreteGaussian_eq_tsum]
     simpa [finrank_euclideanSpace_fin] using
       ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le (intLattice B) s hs (centers i) ε hε1 hdual
   have hmean (i : Fin m) : ‖∫ Y, (Y i : EuclideanSpace ℝ (Fin n)) - centers i
       ∂(Cslib.Probability.PMF.piFin p).toMeasure‖ ^ 2 ≤ (ε / (1 - ε)) ^ 2 * s ^ 2 * n := by
     rw [hcomp i (fun x : intLattice B => (x : EuclideanSpace ℝ (Fin n)) - centers i)
-        (continuous_subtype_val.sub continuous_const),
+        (continuous_subtypeVal.sub continuous_const),
       ZLattice.integral_sub_discreteGaussian_eq_tsum]
     simpa [finrank_euclideanSpace_fin] using
       ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le (intLattice B) s hs (centers i) ε hε1 hdual
@@ -1609,7 +1610,7 @@ private theorem combineOutput_sub_sum_isSolution
     IncGDD.IsSolution g (intLattice B) (intColCast B S hB) t r
       (combineOutput B S q V C z - ∑ i : Fin m, z i • (Y i : EuclideanSpace ℝ (Fin n))) := by
   refine ⟨Submodule.sub_mem _ (combineOutput_mem_intLattice B S hS hSB q hq_pos V C z)
-    (Submodule.sum_mem _ fun i _ => Submodule.smul_mem _ _ (Y i).2), ?_⟩
+    (Submodule.sum_mem _ fun i _ => Submodule.smul_mem _ _ (Y i).property), ?_⟩
   have hsum_eq : ∑ i : Fin m, (z i : ℝ) • ((Y i : EuclideanSpace ℝ (Fin n)) -
       (guessTarget t gu i + (C i).toVec)) =
       (∑ i : Fin m, z i • (Y i : EuclideanSpace ℝ (Fin n))) + t -

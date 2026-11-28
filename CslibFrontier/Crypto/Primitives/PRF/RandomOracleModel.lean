@@ -474,14 +474,14 @@ open BitString
 /-- The book's `k ‖ x` ([BonehShoup2023], Section 8.10.2): a `κ`-bit key followed by a word of
 length at most `L`. -/
 def keyAppend (κ L : ℕ) (k : BitString κ) (x : shortWords L) : shortWords (κ + L) :=
-  ⟨List.ofFn k ++ x.1, mem_shortWords.mpr (by
-    have := mem_shortWords.mp x.2
+  ⟨List.ofFn k ++ x.val, mem_shortWords.mpr (by
+    have := mem_shortWords.mp x.property
     simp only [List.length_append, List.length_ofFn]
     omega)⟩
 
 /-- The word `keyAppend κ L k x` is the bits of `k` followed by the word `x`. -/
 @[simp] theorem coe_keyAppend (κ L : ℕ) (k : BitString κ) (x : shortWords L) :
-    (keyAppend κ L k x).1 = List.ofFn k ++ x.1 := by unfold keyAppend; rfl
+    (keyAppend κ L k x).val = List.ofFn k ++ x.val := by unfold keyAppend; rfl
 
 /-- A key of fixed length followed by a word determines both. -/
 theorem keyAppend_injective2 (κ L : ℕ) : Function.Injective2 (keyAppend κ L) := by

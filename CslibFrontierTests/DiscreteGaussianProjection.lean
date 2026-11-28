@@ -67,7 +67,7 @@ private theorem width_bound :
     (show -27 * Real.pi / 25 < -4 * Real.log 2 by linarith [Real.pi_pos])
   have hr : Real.exp (-4 * Real.log 2) = (1 / 16 : ℝ) := by
     rw [show -4 * Real.log 2 = -((4 : ℕ) * Real.log 2) by ring, Real.exp_neg,
-      Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
+      Real.exp_natCast_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
     norm_num
   rw [hr] at he
   linarith

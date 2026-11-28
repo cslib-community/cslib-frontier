@@ -244,7 +244,7 @@ theorem CNF.sum_eval_satIndicatorPoly_eq_modelCountOn [Fintype V] [DecidableEq V
   simp only [CNF.eval_satIndicatorPoly, Finset.sum_boole, CNF.modelCountOn, Finset.mem_univ,
     ↓reduceDIte]
   congr 1
-  exact Finset.card_bij (fun x _ (v : (Finset.univ : Finset V)) => x v.1)
+  exact Finset.card_bij (fun x _ (v : (Finset.univ : Finset V)) => x v.val)
     (fun _ hx => by simpa using hx)
     (fun _ _ _ _ hxy => funext fun v => congrFun hxy ⟨v, Finset.mem_univ v⟩)
     (fun σ hσ => ⟨fun v => σ ⟨v, Finset.mem_univ v⟩, by simpa using hσ, rfl⟩)
@@ -267,7 +267,7 @@ theorem CNF.sum_range_eval_satIndicatorPoly_distinctVars [DecidableEq V] (φ : C
       (φ.modelCount : R) := by
   simp only [CNF.eval_satIndicatorPoly, Finset.sum_boole, CNF.modelCount]
   congr 1
-  refine Finset.card_bij (fun i _ v => bitsAssignment φ.distinctVars i v.1)
+  refine Finset.card_bij (fun i _ v => bitsAssignment φ.distinctVars i v.val)
     (fun i hi => Finset.mem_filter.2 ⟨Finset.mem_univ _,
       (CNF.eval_congr fun _ hv => CNF.extendAssignment_of_mem _ hv).trans
         (Finset.mem_filter.1 hi).2⟩)
@@ -287,8 +287,8 @@ theorem CNF.sum_range_eval_satIndicatorPoly_distinctVars [DecidableEq V] (φ : C
     refine ⟨i, Finset.mem_filter.2 ⟨Finset.mem_range.2 (CNF.length_distinctVars φ ▸ hi),
       (CNF.eval_congr fun v hv => hiτ v (CNF.mem_distinctVars.2 hv)).trans
         (Finset.mem_filter.1 hτ).2⟩, funext fun v => ?_⟩
-    have hv := List.mem_toFinset.1 v.2
-    exact (hiτ v.1 (CNF.mem_distinctVars.2 hv)).trans (CNF.extendAssignment_of_mem τ hv)
+    have hv := List.mem_toFinset.1 v.property
+    exact (hiτ v.val (CNF.mem_distinctVars.2 hv)).trans (CNF.extendAssignment_of_mem τ hv)
 
 end ModelCounting
 

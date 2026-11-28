@@ -51,7 +51,7 @@ theorem arity_vocabulary (j : Fin m) : (vocabulary arity e).arity j = arity (e j
 /-- A relation variable's table is at its position in the supplied enumeration. -/
 @[simp]
 theorem index_vocabulary (r : Σ k, (varLanguage arity).Relations k) :
-    (vocabulary arity e).index r = (e.symm r.2.1 : ℕ) :=
+    (vocabulary arity e).index r = (e.symm r.2.val : ℕ) :=
   rfl
 
 end varLanguage

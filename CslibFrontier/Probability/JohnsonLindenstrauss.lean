@@ -118,7 +118,7 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 private theorem sqrt_one_add_mul_exp_neg_le {ε : ℝ} (hε : 0 ≤ ε) :
     √(1 + ε) * exp (-(ε / 2)) ≤ exp (-(ε ^ 2 / 4 - ε ^ 3 / 6)) := by
   have hsq : √(1 + ε) ≤ exp ((ε - ε ^ 2 / 2 + ε ^ 3 / 3) / 2) := by
-    rw [Real.sqrt_le_left (exp_pos _).le, ← exp_nat_mul]
+    rw [Real.sqrt_le_left (exp_pos _).le, ← exp_natCast_mul]
     convert one_add_le_exp_sub_sq_div_two_add_cube_div_three hε using 2
     push_cast
     ring
@@ -251,13 +251,13 @@ theorem dens_mul_lt_sum_sq_sum_mul_signVal_le (a : ι → ℝ) (k : ℕ) {ε : �
         rw [← mul_sum]
         exact mul_le_mul_of_nonneg_left (mem_filter.1 hb).2.le ht0
     _ = (√(1 + ε) * exp (-(ε / 2))) ^ k := by
-        rw [h2, h1, Real.sqrt_inv, inv_inv, exp_nat_mul, mul_pow, div_eq_mul_inv, ← inv_pow,
+        rw [h2, h1, Real.sqrt_inv, inv_inv, exp_natCast_mul, mul_pow, div_eq_mul_inv, ← inv_pow,
           ← exp_neg]
     _ ≤ (exp (-(ε ^ 2 / 4 - ε ^ 3 / 6))) ^ k := by
       gcongr
       exact sqrt_one_add_mul_exp_neg_le hε
     _ = exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by
-      rw [← exp_nat_mul]
+      rw [← exp_natCast_mul]
       congr 1
       ring
 
@@ -321,11 +321,11 @@ theorem dens_sum_sq_sum_mul_signVal_lt_mul_le (a : ι → ℝ) (k : ℕ) {ε : �
           rw [sum_neg_distrib, ← mul_sum]
           exact neg_le_neg (mul_le_mul_of_nonneg_left (mem_filter.1 hb).2.le ht0)) hrow
     _ = ((1 - τ + 3 / 2 * τ ^ 2) * exp (τ * (1 - ε))) ^ k := by
-        rw [h2, exp_neg, div_inv_eq_mul, exp_nat_mul, mul_pow]
+        rw [h2, exp_neg, div_inv_eq_mul, exp_natCast_mul, mul_pow]
     _ ≤ (exp (-(ε ^ 2 / 4 - ε ^ 3 / 6))) ^ k :=
         pow_le_pow_left₀ (mul_nonneg hA (exp_pos _).le) (lower_tail_factor_le hε hε1.le) k
     _ = exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by
-      rw [← exp_nat_mul]
+      rw [← exp_natCast_mul]
       congr 1
       ring
 

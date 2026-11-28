@@ -108,7 +108,7 @@ variable {k : ℕ} {h : ι → X → Y}
 
 /-- A `k`-wise independent family has a seed. -/
 theorem nonempty (hh : IsKWiseIndependentHash k h) : Nonempty ι := by
-  let y : (∅ : Finset X) → Y := fun x => (notMem_empty _ x.2).elim
+  let y : (∅ : Finset X) → Y := fun x => (notMem_empty _ x.property).elim
   obtain ⟨i, -⟩ : ({i | (∅ : Finset X).restrict (h i) = y} : Finset ι).Nonempty := by
     rw [← dens_ne_zero, hh.dens_filter_restrict_eq (by simp)]
     simp
@@ -132,12 +132,12 @@ theorem comp {X' : Type*} (hh : IsKWiseIndependentHash k h) {e : X' → X}
     (he : Function.Injective e) : IsKWiseIndependentHash k (fun i x' => h i (e x')) where
   dens_filter_restrict_eq {T} hT y := by
     let emb : X' ↪ X := ⟨e, he⟩
-    have hmem (z : T.map emb) : ∃ x' ∈ T, emb x' = z.1 := mem_map.1 z.2
+    have hmem (z : T.map emb) : ∃ x' ∈ T, emb x' = z.val := mem_map.1 z.property
     let eT : T ≃ T.map emb :=
-      { toFun := fun x => ⟨e x.1, mem_map_of_mem emb x.2⟩
+      { toFun := fun x => ⟨e x.val, mem_map_of_mem emb x.property⟩
         invFun := fun z => ⟨(hmem z).choose, (hmem z).choose_spec.1⟩
         left_inv := fun x =>
-          Subtype.ext (he (hmem ⟨e x.1, mem_map_of_mem emb x.2⟩).choose_spec.2)
+          Subtype.ext (he (hmem ⟨e x.val, mem_map_of_mem emb x.property⟩).choose_spec.2)
         right_inv := fun z => Subtype.ext (hmem z).choose_spec.2 }
     have hcard : #(T.map emb) = #T := card_map emb
     have hmap : #(T.map emb) ≤ k := hcard.le.trans hT
@@ -236,7 +236,7 @@ theorem isPairwiseIndependentHash (hh : IsKWiseIndependentHash k h)
   dens_filter_apply_eq_and_apply_eq {x₁ x₂} hx y₁ y₂ := by
     classical
     have h2 := hh.dens_filter_restrict_eq (T := {x₁, x₂}) (by rw [card_pair hx]; exact hk)
-      fun z => if z.1 = x₁ then y₁ else y₂
+      fun z => if z.val = x₁ then y₁ else y₂
     rw [card_pair hx] at h2
     rw [← h2]
     congr 1
@@ -264,7 +264,7 @@ theorem _root_.Cslib.Probability.isKWiseIndependentHash_two_iff :
   interval_cases hc : #T
   · obtain rfl := card_eq_zero.1 hc
     have : ({i | (∅ : Finset X).restrict (h i) = y} : Finset ι) = univ :=
-      filter_true_of_mem fun i _ => funext fun x => (notMem_empty _ x.2).elim
+      filter_true_of_mem fun i _ => funext fun x => (notMem_empty _ x.property).elim
     rw [this, dens_univ]
     simp
   · obtain ⟨x, rfl⟩ := card_eq_one.1 hc
@@ -297,12 +297,12 @@ theorem _root_.Cslib.Probability.card_filter_card_image_le [DecidableEq X] (S : 
         set I := univ.image t
         let e := I.equivFin
         have hmem (j : Fin n) : t j ∈ I := mem_image_of_mem t (mem_univ j)
-        let v (r : Fin m) : X := if hr : r.1 < #I then (e.symm ⟨r, hr⟩).1 else
-          t ⟨0, lt_of_lt_of_le (Nat.zero_lt_of_lt r.2) hmn⟩
+        let v (r : Fin m) : X := if hr : r.val < #I then (e.symm ⟨r, hr⟩).val else
+          t ⟨0, lt_of_lt_of_le (Nat.zero_lt_of_lt r.isLt) hmn⟩
         refine mem_image.2 ⟨(fun j => Fin.castLE hcard (e ⟨t j, hmem j⟩), v), ?_, ?_⟩
         · refine mem_product.2 ⟨by simp, mem_piFinset.2 fun r => ?_⟩
-          by_cases hr : r.1 < #I
-          · obtain ⟨j, -, hj⟩ := mem_image.1 (e.symm ⟨r, hr⟩).2
+          by_cases hr : r.val < #I
+          · obtain ⟨j, -, hj⟩ := mem_image.1 (e.symm ⟨r, hr⟩).property
             simpa only [v, hr, ↓reduceDIte, ← hj] using htS j
           · simp only [v, hr, ↓reduceDIte]
             exact htS _

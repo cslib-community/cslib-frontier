@@ -261,7 +261,7 @@ private theorem eta_quarter_le_three : ZLattice.smoothingParameter L (1 / 4) ≤
     calc
       (10 : ℝ) < (2.7 : ℝ) ^ 5 := by norm_num
       _ < (Real.exp 1) ^ 5 := pow_lt_pow_left₀ he1 (by norm_num) (by norm_num)
-      _ = Real.exp 5 := by rw [← Real.exp_nat_mul]; norm_num
+      _ = Real.exp 5 := by rw [← Real.exp_natCast_mul]; norm_num
       _ < Real.exp (27 * Real.pi / 16) := Real.exp_lt_exp.mpr hpi
   have hneg : Real.exp (-3 * Real.pi * (3 : ℝ) ^ 2 * (1 / 2 : ℝ) ^ 2 / 4) < 1 / 10 := by
     rw [show -3 * Real.pi * (3 : ℝ) ^ 2 * (1 / 2 : ℝ) ^ 2 / 4 = -(27 * Real.pi / 16) by ring,

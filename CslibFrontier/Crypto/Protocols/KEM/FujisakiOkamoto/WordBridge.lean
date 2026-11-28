@@ -431,7 +431,7 @@ private theorem isHQuery_encHQuery (n : ℕ) (m : BitString (P.msgLen n)) (c : P
     P.isHQuery n (encHQuery (hKeyEmb P n (false, m, c))) = true := by
   unfold isHQuery
   rw [hQueryDecoder.decode_enc, hKeyEmb_apply]
-  simp [c.2]
+  simp [c.property]
 
 private theorem withRO_queryG (n : ℕ) (m : List Bool) :
     P.withRO keyLen n (P.queryG n m) =
@@ -636,7 +636,7 @@ private theorem represents_ccaWordOracle {n : ℕ}
         simp only [hc', hc, ↓reduceIte]
         exact Represents.map_left (((hdecaps w hw).map_right (g := ⇑(encOption encBits))).congr_fun
           fun _ => rfl)
-    · have hc : w ≠ cStar.val := fun h => hw (h ▸ cStar.2)
+    · have hc : w ≠ cStar.val := fun h => hw (h ▸ cStar.property)
       simp only [hw, hc, ↓reduceIte, OracleComp.interpret_pure, hlong w hw, withRO, map_pure,
         encOption_none]
       exact Represents.pure []
@@ -786,8 +786,8 @@ private theorem represents_simFilterWordHandler {n : ℕ}
         simp only [Scheme.simHashH, hKeyEmb_apply]
         refine (represents_simHashG n m).bind fun r => ?_
         have hiff := toCiphertext_inj (P := P) (hfit _ _ (List.length_ofFn (f := m))
-          (List.length_ofFn (f := r))) c.2
-        rw [show P.toCiphertext n c.val = c from Subtype.ext (toCiphertext_val c.2)] at hiff
+          (List.length_ofFn (f := r))) c.property
+        rw [show P.toCiphertext n c.val = c from Subtype.ext (toCiphertext_val c.property)] at hiff
         split_ifs with h₁ h₂ h₂
         · exact represents_simHashHq n c
         · exact absurd (hiff.mp h₁) h₂
@@ -833,9 +833,9 @@ private theorem simBotCheck_simRep {n : ℕ} {pk : List Bool}
   cases st.gCache.lookup e.1 with
   | none => rfl
   | some r =>
-    have hc : P.toCiphertext n c.val = c := Subtype.ext (toCiphertext_val c.2)
+    have hc : P.toCiphertext n c.val = c := Subtype.ext (toCiphertext_val c.property)
     have hiff := toCiphertext_inj (P := P) (hfit _ _ (List.length_ofFn (f := e.1))
-      (List.length_ofFn (f := r))) c.2
+      (List.length_ofFn (f := r))) c.property
     exact decide_eq_decide.mpr (by
       change P.encDet n pk (List.ofFn e.1) (List.ofFn r) = c.val ↔
         P.toCiphertext n (P.encDet n pk (List.ofFn e.1) (List.ofFn r)) = c

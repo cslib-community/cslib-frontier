@@ -149,7 +149,7 @@ private theorem exists_spanning_columns (R : Matrix (Fin k) (Fin k) (ZMod 2))
   refine ⟨Finset.univ.image fun x => (a x : Fin k), ?_, ?_, ?_⟩
   · intro j hj
     obtain ⟨x, -, rfl⟩ := mem_image.mp hj
-    exact (a x).2
+    exact (a x).property
   · rw [show (fun x => (a x : Fin k)) = Subtype.val ∘ a from rfl,
       card_image_of_injective _ (Subtype.val_injective.comp ha), card_univ,
       ← finrank_span_eq_card hli, hspan, ← blockRank_transpose]
@@ -310,7 +310,7 @@ private theorem card_spannedFamily_mul_le {ι : Type*} [Fintype ι] [DecidableEq
       2 ^ (#(T \ T') * #T') * 2 ^ Fintype.card ι := by
   classical
   set D := T \ T'
-  have hDT (j : D) : j.1 ∈ T := (mem_sdiff.mp j.2).1
+  have hDT (j : D) : j.val ∈ T := (mem_sdiff.mp j.property).1
   let W : Finset ι := univ.image fun p : S × D => e (p.1, ⟨p.2, hDT p.2⟩)
   have hcardW : #W = #S * #D := by
     refine (card_image_of_injective _ fun p q h => ?_).trans (by simp)
@@ -331,11 +331,11 @@ private theorem card_spannedFamily_mul_le {ι : Type*} [Fintype ι] [DecidableEq
     simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, colVec] at e₁ e₂
     rw [← hmat u₁ (i, ⟨j, hDT j⟩), ← hmat u₂ (i, ⟨j, hDT j⟩), ← e₁, ← e₂, congrFun hc j]
     refine Finset.sum_congr rfl fun l _ => congrArg _ ?_
-    have hl : e (i, ⟨l, hT'T l.2⟩) ∈ Wᶜ := by
+    have hl : e (i, ⟨l, hT'T l.property⟩) ∈ Wᶜ := by
       simp only [W, mem_compl, mem_image, mem_univ, true_and, not_exists]
       intro p hp
-      have hpl : p.2.1 = l.1 := congrArg (fun x => x.2.1) (he hp)
-      exact (mem_sdiff.mp p.2.2).2 (hpl ▸ l.2)
+      have hpl : p.2.val = l.val := congrArg (fun x => x.2.val) (he hp)
+      exact (mem_sdiff.mp p.2.property).2 (hpl ▸ l.property)
     rw [hmat u₁ (i, ⟨l, _⟩), hmat u₂ (i, ⟨l, _⟩)]
     exact congrFun hz ⟨_, hl⟩
   have hcard := card_le_card_of_injOn Φ (fun _ _ => mem_univ _) hinj
@@ -353,7 +353,7 @@ theorem exists_submatrixRobust_of_lt {t : ℕ} (ht : 3 * k < (t + 1) ^ 2) :
   classical
   obtain ⟨u, hu⟩ := exists_blockRank_ge_of_spanned_bound (by rw [Fintype.card_fun, ZMod.card])
     (fun u : Fin k × Fin k → ZMod 2 => Matrix.of fun i j => u (i, j)) (fun _ _ => True)
-    (fun _ hT'T => card_spannedFamily_mul_le hT'T (fun p => (p.1.1, p.2.1))
+    (fun _ hT'T => card_spannedFamily_mul_le hT'T (fun p => (p.1.val, p.2.val))
       (fun _ _ h => Prod.ext (Subtype.ext (congrArg Prod.fst h))
         (Subtype.ext (congrArg Prod.snd h))) fun _ _ => rfl) ht
   exact ⟨_, fun S T hST => hu S T trivial hST⟩
@@ -399,12 +399,13 @@ private theorem card_spannedUpper_mul_le {S T T' : Finset (Fin k)}
     (hST : Disjoint S T) (hT'T : T' ⊆ T) :
     #(spannedFamily (polarUpper (k := k)) S T T') * 2 ^ (#S * #(T \ T')) ≤
       2 ^ (#(T \ T') * #T') * 2 ^ Fintype.card (UpperIdx k) := by
-  have hne (p : S × T) : p.1.1 ≠ p.2.1 := fun h => disjoint_left.mp hST p.1.2 (h ▸ p.2.2)
+  have hne (p : S × T) : p.1.val ≠ p.2.val :=
+    fun h => disjoint_left.mp hST p.1.property (h ▸ p.2.property)
   refine card_spannedFamily_mul_le hT'T (fun p => ordPair (hne p)) (fun p q h => ?_)
     fun u p => polarUpper_apply_of_ne u (hne p)
   rcases ordPair_eq_iff _ _ h with ⟨h₁, h₂⟩ | ⟨h₁, -⟩
   · exact Prod.ext (Subtype.ext h₁) (Subtype.ext h₂)
-  · exact absurd (h₁ ▸ q.2.2) (disjoint_left.mp hST p.1.2)
+  · exact absurd (h₁ ▸ q.2.property) (disjoint_left.mp hST p.1.property)
 
 /-- **Disjoint-block-robust `polarUpper` witnesses, by counting.** If `3 k < (t + 1) ^ 2`, some
 upper-triangular assignment `u : UpperIdx k → ZMod 2` has `(polarUpper u).DisjointBlockRobust t`. -/

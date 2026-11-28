@@ -92,7 +92,7 @@ theorem exists_of_realize_endPosSentence {u : List Bool}
   obtain ⟨⟨yE, ⟨hE, ⟨yU, hU, hle⟩⟩, hnotMax⟩, huniq⟩ := h
   have hU_eq : (yU 0 : ℕ) = u.length := (huLen (yU 0)).1 hU
   rw [Fin.le_def] at hle
-  have he0 := (yE 0).2
+  have he0 := (yE 0).isLt
   refine ⟨yE 0, by omega, by omega, fun z => ?_⟩
   constructor
   · intro hz

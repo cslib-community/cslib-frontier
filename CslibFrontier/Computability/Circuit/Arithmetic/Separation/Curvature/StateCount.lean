@@ -48,7 +48,7 @@ theorem mem_interleave {k : ℕ} (I : Fin k → Finset ℕ) (r : Fin k) (i : ℕ
   simp only [interleave, mem_biUnion, mem_univ, true_and, mem_image]
   refine ⟨fun ⟨r', i', hi', h⟩ => ?_, fun h => ⟨r, i, h, rfl⟩⟩
   have hr' : r = r' := Fin.ext <| by
-    simpa [Nat.mul_add_mod, Nat.mod_eq_of_lt r.2, Nat.mod_eq_of_lt r'.2] using
+    simpa [Nat.mul_add_mod, Nat.mod_eq_of_lt r.isLt, Nat.mod_eq_of_lt r'.isLt] using
       (congrArg (· % k) h).symm
   subst hr'
   exact Nat.eq_of_mul_eq_mul_left r.pos (Nat.add_right_cancel h) ▸ hi'
@@ -69,7 +69,7 @@ theorem sum_interleave {k : ℕ} (I : Fin k → Finset ℕ) (f : ℕ → ℕ) :
     obtain ⟨i, -, rfl⟩ := mem_image.1 hr
     obtain ⟨i', -, h⟩ := mem_image.1 hr'
     exact hrr' <| Fin.ext <| by
-      simpa [Nat.mul_add_mod, Nat.mod_eq_of_lt r.2, Nat.mod_eq_of_lt r'.2] using
+      simpa [Nat.mul_add_mod, Nat.mod_eq_of_lt r.isLt, Nat.mod_eq_of_lt r'.isLt] using
         (congrArg (· % k) h).symm
 
 theorem card_interleave {k : ℕ} (I : Fin k → Finset ℕ) : (interleave k I).card = ∑ r,

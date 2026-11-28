@@ -128,7 +128,7 @@ variable {Party : Type*} [Fintype Party] [DecidableEq Party]
 /-- Randomness (key) type for Construction 22.1 ([BonehShoup2023], p. 977): for each authorized
 coalition `J ∈ A.authorizedSets`, `J.card - 1` random pads in `G`. -/
 abbrev GenericKey (A : AccessStructure Party) [DecidablePred A.authorized] (G : Type*) : Type _ :=
-  (J : A.authorizedSets) → Fin (J.1.card - 1) → G
+  (J : A.authorizedSets) → Fin (J.val.card - 1) → G
 
 /-- Share type for party `i` in Construction 22.1 ([BonehShoup2023], p. 977): one element of `G`
 for each authorized coalition `J ∈ A^(i) = A.authorizedContaining i` (so `|A^(i)|` elements of `G`
@@ -144,10 +144,10 @@ noncomputable def genericShare (A : AccessStructure Party) [DecidablePred A.auth
     {G : Type*} [AddCommGroup G] (r : GenericKey A G) (secret : G) (i : Party) :
     GenericShare A G i :=
   fun J =>
-    have hJ : A.authorized J.1 ∧ i ∈ J.1 := (A.mem_authorizedContaining i J.1).mp J.2
-    Cslib.ProbComp.completeShares J.1.card secret
-      (r ⟨J.1, (A.mem_authorizedSets J.1).mpr hJ.1⟩)
-      (J.1.equivFin ⟨i, hJ.2⟩)
+    have hJ : A.authorized J.val ∧ i ∈ J.val := (A.mem_authorizedContaining i J.val).mp J.property
+    Cslib.ProbComp.completeShares J.val.card secret
+      (r ⟨J.val, (A.mem_authorizedSets J.val).mpr hJ.1⟩)
+      (J.val.equivFin ⟨i, hJ.2⟩)
 
 /-- Sharing in Construction 22.1 is additively homomorphic in the key and secret. -/
 theorem genericShare_add (A : AccessStructure Party) [DecidablePred A.authorized]
@@ -156,15 +156,15 @@ theorem genericShare_add (A : AccessStructure Party) [DecidablePred A.authorized
       genericShare A r₁ secret₁ i + genericShare A r₂ secret₂ i := by
   ext J
   simp only [genericShare, Pi.add_apply]
-  exact congrFun (Cslib.ProbComp.completeShares_add J.1.card secret₁ secret₂ _ _) _
+  exact congrFun (Cslib.ProbComp.completeShares_add J.val.card secret₁ secret₂ _ _) _
 
 /-- Reconstruction map `C(J, {α_j}_{j ∈ J})` of Construction 22.1 ([BonehShoup2023], p. 977):
 when `s` is authorized, sum the `s`-coordinate of each member `j ∈ s`'s share; otherwise return
 `0`. -/
 @[expose] def genericReconstruct (A : AccessStructure Party) [DecidablePred A.authorized]
-    {G : Type*} [AddCommGroup G] (s : Finset Party) (v : (j : s) → GenericShare A G j.1) : G :=
+    {G : Type*} [AddCommGroup G] (s : Finset Party) (v : (j : s) → GenericShare A G j.val) : G :=
   if hs : A.authorized s then
-    ∑ j : s, v j ⟨s, (A.mem_authorizedContaining j.1 s).mpr ⟨hs, j.2⟩⟩
+    ∑ j : s, v j ⟨s, (A.mem_authorizedContaining j.val s).mpr ⟨hs, j.property⟩⟩
   else
     0
 
@@ -173,8 +173,8 @@ reconstructs `secret` for every key `r`. -/
 theorem genericReconstruct_genericShare (A : AccessStructure Party) [DecidablePred A.authorized]
     {G : Type*} [AddCommGroup G] (hempty : ¬ A.authorized ∅) (r : GenericKey A G) (secret : G)
     {s : Finset Party} (hs : A.authorized s) :
-    genericReconstruct A s (fun j => genericShare A r secret j.1) = secret := by
-  have hne : s.Nonempty := Finset.nonempty_iff_ne_empty.mpr fun h => hempty (h ▸ hs)
+    genericReconstruct A s (fun j => genericShare A r secret j.val) = secret := by
+  have hne : s.Nonempty := Finset.ne_empty_iff_nonempty.mp fun h => hempty (h ▸ hs)
   have : NeZero s.card := ⟨(Finset.card_pos.mpr hne).ne'⟩
   simp only [genericReconstruct, hs, ↓reduceDIte, genericShare]
   rw [Equiv.sum_comp s.equivFin
@@ -186,26 +186,26 @@ there exists a key shift `δ : GenericKey A G` translating the coalition view of
 the coalition view of `m₁`. -/
 private theorem exists_genericKey_shift (A : AccessStructure Party) [DecidablePred A.authorized]
     {G : Type*} [AddCommGroup G] {s : Finset Party} (hs : ¬ A.authorized s)
-    (m₀ m₁ : G) (c : (i : s) → GenericShare A G i.1) :
+    (m₀ m₁ : G) (c : (i : s) → GenericShare A G i.val) :
     ∃ δ : GenericKey A G, ∀ r : GenericKey A G,
-      (fun i : s => genericShare A (r + δ) m₁ i.1) =
-        (fun i : s => genericShare A r m₀ i.1) + c := by
+      (fun i : s => genericShare A (r + δ) m₁ i.val) =
+        (fun i : s => genericShare A r m₀ i.val) + c := by
   classical
-  have hex : ∀ J : A.authorizedSets, ∃ p₀ ∈ J.1, p₀ ∉ s := by
+  have hex : ∀ J : A.authorizedSets, ∃ p₀ ∈ J.val, p₀ ∉ s := by
     intro J
     by_contra! hsub
-    exact hs (A.mono hsub ((A.mem_authorizedSets J.1).mp J.2))
+    exact hs (A.mono hsub ((A.mem_authorizedSets J.val).mp J.property))
   choose p₀ hp₀J hp₀s using hex
-  let base (J : A.authorizedSets) (k : Fin J.1.card) : G :=
-    let p : J.1 := (J.1.equivFin).symm k
-    if hp : p.1 ∈ s then
-      c ⟨p.1, hp⟩ ⟨J.1, (A.mem_authorizedContaining p.1 J.1).mpr
-        ⟨(A.mem_authorizedSets J.1).mp J.2, p.2⟩⟩
+  let base (J : A.authorizedSets) (k : Fin J.val.card) : G :=
+    let p : J.val := (J.val.equivFin).symm k
+    if hp : p.val ∈ s then
+      c ⟨p.val, hp⟩ ⟨J.val, (A.mem_authorizedContaining p.val J.val).mpr
+        ⟨(A.mem_authorizedSets J.val).mp J.property, p.property⟩⟩
     else 0
   let δ : GenericKey A G := fun J =>
-    Cslib.ProbComp.initOfShares J.1.card
-      (Function.update (base J) (J.1.equivFin ⟨p₀ J, hp₀J J⟩)
-        (m₁ - m₀ - ∑ k ∈ Finset.univ.erase (J.1.equivFin ⟨p₀ J, hp₀J J⟩), base J k))
+    Cslib.ProbComp.initOfShares J.val.card
+      (Function.update (base J) (J.val.equivFin ⟨p₀ J, hp₀J J⟩)
+        (m₁ - m₀ - ∑ k ∈ Finset.univ.erase (J.val.equivFin ⟨p₀ J, hp₀J J⟩), base J k))
   refine ⟨δ, fun r => ?_⟩
   ext ⟨i, hi⟩ ⟨J, hJ⟩
   have hJ_auth : A.authorized J ∧ i ∈ J := (A.mem_authorizedContaining i J).mp hJ
@@ -288,7 +288,7 @@ theorem genericUniform_viewDist_eq (A : AccessStructure Party) [DecidablePred A.
     {s : Finset Party} (hs : ¬ A.authorized s) (secret : G) :
     (genericUniformAccessScheme A G hempty).viewDist
         (uniformOfFintype (GenericKey A G)) s secret =
-      uniformOfFintype ((i : s) → GenericShare A G i.1) := by
+      uniformOfFintype ((i : s) → GenericShare A G i.val) := by
   apply Cslib.Probability.PMF.uniformOfFintype_map_of_shift
   intro c
   obtain ⟨δ, hδ⟩ := exists_genericKey_shift A hs secret secret c

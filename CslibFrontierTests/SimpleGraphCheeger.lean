@@ -160,7 +160,7 @@ private theorem card_interedges_top_compl {W : Type*} [Fintype W] [DecidableEq W
 theorem complete_even_isoperimetricNum {m : ℕ} (hm : 1 ≤ m) :
     (⊤ : SimpleGraph (Fin (2 * m))).isoperimetricNum = m := by
   let emb : Fin m ↪ Fin (2 * m) :=
-    ⟨fun i => ⟨i.1, by omega⟩, fun i j h => Fin.ext (by simpa only [Fin.mk.injEq] using h)⟩
+    ⟨fun i => ⟨i.val, by omega⟩, fun i j h => Fin.ext (by simpa only [Fin.mk.injEq] using h)⟩
   let S₀ : Finset (Fin (2 * m)) := (univ : Finset (Fin m)).map emb
   have hS₀_card : #S₀ = m := by
     simp only [S₀, card_map, card_univ, Fintype.card_fin]

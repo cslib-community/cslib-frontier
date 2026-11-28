@@ -155,7 +155,7 @@ indices and strings whose strings on the channels of the role are cut into its n
 theorem roleTable_ne_zero (h : roleTable M x p t ids o y ≠ 0) :
     (∀ e, ∀ id ∈ ids e, y id ≠ none) ∧ ∃ (i : Fin (t * ub) → (M.law x).Index)
       (g : ∀ k, ∀ ν : (M.law x).ChannelAt p, BitString ((M.law x).length (i k) ν)),
-      (∀ ν : (M.law x).ChannelAt p, ChannelOk ⟨x, ν.1⟩ (o ⟨x, ν.1⟩)
+      (∀ ν : (M.law x).ChannelAt p, ChannelOk ⟨x, ν.val⟩ (o ⟨x, ν.val⟩)
         (sideString (M.law x).label (fun j => (M.law x).length j ν) i fun k => g k ν) y) ∧
       ∏ k : Fin (t * ub),
         (M.law x).table p (i k) (fun e => (slotBits t (ids e) y).getD k false) (g k) ≠ 0 := by

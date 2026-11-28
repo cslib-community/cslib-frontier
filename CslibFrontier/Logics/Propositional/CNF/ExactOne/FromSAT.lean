@@ -502,12 +502,12 @@ theorem oneModelCount_formula [DecidableEq V] (φ : CNF V)
     (fun τ => φ.eval (φ.extendAssignment τ) = true) (fun σ τ hσ hτ => ?_) fun τ => ?_
   · rw [← assignments_agree_iff φ hw σ τ hσ hτ]
     exact ⟨fun h v hv => congrFun h ⟨v, List.mem_toFinset.mpr hv⟩,
-      fun h => funext fun v => h v (List.mem_toFinset.mp v.2)⟩
+      fun h => funext fun v => h v (List.mem_toFinset.mp v.property)⟩
   · constructor
     · intro hτ
       refine ⟨assignment φ (φ.extendAssignment τ), ?_, funext fun v => ?_⟩
       · exact (evalOne_formula_assignment φ _ hw).trans hτ
-      · exact CNF.extendAssignment_of_mem τ (List.mem_toFinset.mp v.2)
+      · exact CNF.extendAssignment_of_mem τ (List.mem_toFinset.mp v.property)
     · rintro ⟨σ, hσ, rfl⟩
       have hs := formula_sound φ hw σ hσ
       exact (CNF.eval_congr (fun v hv =>

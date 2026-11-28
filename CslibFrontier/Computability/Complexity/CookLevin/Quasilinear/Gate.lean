@@ -235,7 +235,7 @@ private theorem bitsVal_succ (f : ℕ → Bool) (k : ℕ) :
 /-- The number written by the first `k` digits depends only on those digits. -/
 theorem bitsVal_congr {f g : ℕ → Bool} {k : ℕ} (h : ∀ j < k, f j = g j) :
     bitsVal f k = bitsVal g k :=
-  congrArg Nat.ofBits (funext fun i => h i i.2)
+  congrArg Nat.ofBits (funext fun i => h i i.isLt)
 
 /-- Splitting the digits of a number at `a`. -/
 theorem bitsVal_add (f : ℕ → Bool) (a b : ℕ) :

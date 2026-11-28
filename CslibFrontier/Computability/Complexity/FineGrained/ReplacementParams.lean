@@ -422,7 +422,7 @@ theorem binomTail_lt_tailBudget {β n b : ℕ} (hβ : 1 ≤ β) (hr : 2 ≤ numG
     calc 2 * (2 : ℝ) ^ m = (2 : ℝ) ^ (m + 1) := by rw [pow_succ']
       _ ≤ Real.exp 1 ^ (m + 1) :=
           pow_le_pow_left₀ zero_le_two (by linarith [Real.add_one_le_exp (1 : ℝ)]) (m + 1)
-      _ = Real.exp ((m + 1 : ℕ) : ℝ) := by rw [← Real.exp_nat_mul, mul_one]
+      _ = Real.exp ((m + 1 : ℕ) : ℝ) := by rw [← Real.exp_natCast_mul, mul_one]
       _ < Real.exp (16 * ((β : ℝ) + 3) ^ 2 * nu) := Real.exp_lt_exp.mpr harg_lt
   have hexp_lt_pow : 2 * Real.exp (-(16 * ((β : ℝ) + 3) ^ 2 * nu)) < 1 / (2 : ℝ) ^ m := by
     rwa [Real.exp_neg, ← div_eq_mul_inv, div_lt_div_iff₀ (Real.exp_pos _) (by positivity), one_mul]
@@ -654,7 +654,7 @@ private theorem eventually_thresholds {β : ℕ} :
             linarith
         _ ≤ lam := hnu_sqrt.le
     exact_mod_cast hprod_r
-  have h2pow_n : 2 ^ (lam - 1) ≤ n := (Nat.pow_pred_clog_lt_self one_lt_two (by omega)).le
+  have h2pow_n : 2 ^ (lam - 1) ≤ n := (Nat.pow_pred_clog_lt_self 2 (by omega)).le
   have h16 : (16 : ℝ) ≤ Real.sqrt lam :=
     (Real.le_sqrt (by norm_num) (Nat.cast_nonneg _)).mpr (by exact_mod_cast hlam)
   have hβnu_le : β * nu + nu ≤ lam / 4 := by

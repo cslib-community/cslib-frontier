@@ -155,7 +155,7 @@ theorem integral_trueRisk_sgd_average_le {T : ℕ} (hT : 0 < T) {D : Measure Z}
       fun s x hx => by by_cases h : s < T <;> simp [h, hgρ _ x hx, hρ.le]
     refine (norm_ogd_sub_le hP hx₀ hG (fun _ => hc.le) t).trans ?_
     simp only [sum_const, card_range, nsmul_eq_mul]
-    have : (t : ℝ) ≤ T := by exact_mod_cast t.2.le
+    have : (t : ℝ) ≤ T := by exact_mod_cast t.isLt.le
     have := mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right this hc.le) hρ.le
     linarith [hr]
   have hu' : u ∈ K' := ⟨hu, by

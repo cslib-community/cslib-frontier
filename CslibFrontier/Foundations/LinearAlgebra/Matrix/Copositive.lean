@@ -252,22 +252,22 @@ private theorem exists_nat_dotProduct_lt_zero_of_isSymm_fin {n B : ℕ} {M : Mat
       · rw [hxout i hi, zero_mul, zero_mul]
     simp only [lam, dotProduct, hterm, ← Finset.sum_mul, hx1, one_mul]
   -- Rescale `x` on `S` to a nonnegative solution of `MS z = -1` and round it to integers.
-  let MS : Matrix S S ℤ := Matrix.of fun i j => M i.1 j.1
+  let MS : Matrix S S ℤ := Matrix.of fun i j => M i.val j.val
   let B' : ℕ := max B 1
   have hMS_le : ∀ i j : S, |MS i j| ≤ (B' : ℤ) := fun i j =>
-    (hB i.1 j.1).trans (by exact_mod_cast le_max_left B 1)
+    (hB i.val j.val).trans (by exact_mod_cast le_max_left B 1)
   have hb_le : ∀ _ : S, |(-1 : ℤ)| ≤ (B' : ℤ) := fun _ => by simp [B']
-  let z : S → ℝ := fun j => (-lam)⁻¹ * x j.1
+  let z : S → ℝ := fun j => (-lam)⁻¹ * x j.val
   have hz_nonneg : 0 ≤ z := fun j =>
-    mul_nonneg (inv_nonneg.2 (neg_pos.2 hlam_neg).le) (hx0 j.1)
+    mul_nonneg (inv_nonneg.2 (neg_pos.2 hlam_neg).le) (hx0 j.val)
   have hMSz : MS.map (Int.cast : ℤ → ℝ) *ᵥ z = fun _ => ((-1 : ℤ) : ℝ) := by
     ext i
-    have hxS_sum : ∑ j : S, (M i.1 j.1 : ℝ) * x j.1 = (MR *ᵥ x) i.1 :=
-      (Finset.sum_coe_sort S fun j => (M i.1 j : ℝ) * x j).trans
+    have hxS_sum : ∑ j : S, (M i.val j.val : ℝ) * x j.val = (MR *ᵥ x) i.val :=
+      (Finset.sum_coe_sort S fun j => (M i.val j : ℝ) * x j).trans
         (Finset.sum_subset (Finset.subset_univ S) fun j _ hj => by rw [hxout j hj, mul_zero])
     simp only [mulVec, dotProduct, map_apply, MS, of_apply, z, mul_left_comm _ (-lam)⁻¹,
       ← Finset.mul_sum, Int.cast_neg, Int.cast_one]
-    rw [hxS_sum, (hconst i.1 i.2).trans hlam_eq]
+    rw [hxS_sum, (hconst i.val i.property).trans hlam_eq]
     field_simp [hlam_neg.ne]
   obtain ⟨d, pS, hd_pos, hpS_nonneg, hAp, _, hpS_le⟩ :=
     Matrix.exists_int_nonneg_mulVec_eq (K := ℝ) hMS_le hb_le hz_nonneg hMSz
@@ -280,7 +280,7 @@ private theorem exists_nat_dotProduct_lt_zero_of_isSymm_fin {n B : ℕ} {M : Mat
       gcongr; omega
     · exact Nat.zero_le _
   · have hp (i : S) : (p i : ℤ) = pS i := by
-      simp only [p, i.2, dite_true, Subtype.coe_eta, Int.toNat_of_nonneg (hpS_nonneg i)]
+      simp only [p, i.property, dite_true, Subtype.coe_eta, Int.toNat_of_nonneg (hpS_nonneg i)]
     have hsum (f : Fin n → ℤ) : ∑ j, f j * (p j : ℤ) = ∑ j : S, f j * pS j := by
       rw [← Finset.sum_subset (Finset.subset_univ S) fun j _ hj => by simp [p, hj],
         ← Finset.sum_coe_sort S]

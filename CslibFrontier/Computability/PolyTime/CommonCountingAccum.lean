@@ -179,7 +179,7 @@ private theorem sum_fin_filter_eq_range {M : Type*} [AddCommMonoid M] {N : ℕ} 
   · intro ab hab; simp only [Finset.mem_filter] at hab; exact Finset.mem_range.mpr (by omega)
   · intro ab₁ h₁ ab₂ h₂ h; simp only [Finset.mem_filter] at h₁ h₂
     have e₁ := h₁.2; have e₂ := h₂.2; exact Prod.ext (Fin.ext h) (Fin.ext (by omega))
-  · intro a ha; have hlt := Finset.mem_range.mp ha; have hk : (k : ℕ) < N := k.2
+  · intro a ha; have hlt := Finset.mem_range.mp ha; have hk : (k : ℕ) < N := k.isLt
     refine ⟨(⟨a, by omega⟩, ⟨(k : ℕ) - a, by omega⟩), ?_, rfl⟩
     simp only [Finset.mem_filter, Finset.mem_product, Finset.mem_univ, true_and]; omega
   · intro ab hab; simp only [Finset.mem_filter] at hab
@@ -307,7 +307,7 @@ theorem rowEntry_extractCoordNodeJets_eq_taylor {J ℓ : ℕ} {K : Type*} [CommR
     (Ω : ℤ) (nodes : List ℤ) (nodeJets : List JetRows) (hlen : nodeJets.length = nodes.length)
     (P : Polynomial (Polynomial K))
     (hclear : ∀ i : Fin nodes.length, Ω • taylorOuterVJet J ℓ (nodes[i] : K) P =
-      JetTable.castRingHom K (toJetTable J ℓ (nodeJets[i.1]'(hlen.symm ▸ i.isLt))))
+      JetTable.castRingHom K (toJetTable J ℓ (nodeJets[i.val]'(hlen.symm ▸ i.isLt))))
     (u : Fin ℓ) (i : Fin nodes.length) (j : Fin J) :
     (rowEntry (extractCoordNodeJets J u nodeJets) i j : K) =
       (Ω : K) * (Polynomial.taylor (nodes[i] : K) (P.coeff u)).coeff j := by
@@ -1249,7 +1249,7 @@ theorem hermiteRecoverZero_extractCoordNodeJets_eq {J ℓ : ℕ} {Ω H_zero : �
     (hnodup : nodes.Nodup) (hΩ : Ω ≠ 0) (nodeJets : List JetRows)
     (hlen : nodeJets.length = nodes.length) (P : Polynomial (Polynomial ℚ))
     (hclear : ∀ i : Fin nodes.length, Ω • taylorOuterVJet J ℓ (nodes[i] : ℚ) P =
-      JetTable.castRingHom ℚ (toJetTable J ℓ (nodeJets[i.1]'(hlen.symm ▸ i.isLt))))
+      JetTable.castRingHom ℚ (toJetTable J ℓ (nodeJets[i.val]'(hlen.symm ▸ i.isLt))))
     (u : Fin ℓ) (hdeg : (P.coeff u).natDegree < nodes.length * J)
     (hH0 : (P.coeff u).eval 0 = (H_zero : ℚ)) :
     Cslib.Circuits.Rational.hermiteRecoverZero nodes J Ω (extractCoordNodeJets J u nodeJets) =
@@ -1268,7 +1268,7 @@ theorem recoverOuterJetSumModPowTwo_eq {J ℓ : ℕ} {Ω count : ℤ} {nodes : L
     (hnodup : nodes.Nodup) (hΩ : Ω ≠ 0) (nodeJets : List JetRows)
     (hlen : nodeJets.length = nodes.length) (P : Polynomial (Polynomial ℚ)) (H_zero : Fin ℓ → ℤ)
     (hclear : ∀ i : Fin nodes.length, Ω • taylorOuterVJet J ℓ (nodes[i] : ℚ) P =
-      JetTable.castRingHom ℚ (toJetTable J ℓ (nodeJets[i.1]'(hlen.symm ▸ i.isLt))))
+      JetTable.castRingHom ℚ (toJetTable J ℓ (nodeJets[i.val]'(hlen.symm ▸ i.isLt))))
     (hdeg : ∀ u : Fin ℓ, (P.coeff u).natDegree < nodes.length * J)
     (hH0 : ∀ u : Fin ℓ, (P.coeff u).eval 0 = (H_zero u : ℚ))
     (hcount₀ : 0 ≤ count) (hcount₁ : count < (2 : ℤ) ^ ℓ)

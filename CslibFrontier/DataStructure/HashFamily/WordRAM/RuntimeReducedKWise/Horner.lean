@@ -115,14 +115,14 @@ private theorem realizesBounded_innerClmulStepGen :
       (Nat.mul_lt_mul_of_pos_right (and_two_pow_sub_one_lt _ _)
         (have := reducedChunkBits_pos (rStep w₀ b b'); by omega)).trans_le hpack_le)
   all_goals try omega
-  all_goals try fits [hmem.1]
-  all_goals try wram_omega [hmem.1]
+  all_goals try fits [hmem.frontier_fits]
+  all_goals try wram_omega [hmem.frontier_fits]
   all_goals (try
-    exact Nat.xor_lt_two_pow (hmem.2 _)
+    exact Nat.xor_lt_two_pow (hmem.mem_fits _)
       ((and_two_pow_sub_one_lt _ (rChunk w₀ b b')).trans hpowc))
   refine Nat.xor_lt_two_pow ?_ ((Nat.shiftRight_le _ _).trans_lt
     ((and_two_pow_sub_one_lt _ (2 * rChunk w₀ b b')).trans hpow2c))
-  rw [Function.update_of_ne (by omega)]; exact hmem.2 _
+  rw [Function.update_of_ne (by omega)]; exact hmem.mem_fits _
 
 private theorem innerClmulLoop_spec {w w₀ b b' k hashBase prodBase i uLimb rVal : ℕ}
     {s₀ : Memory.State}
@@ -299,7 +299,7 @@ private theorem realizesBounded_outerClmulStepGen :
     have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _
     have hL_eq : 2 * rHalf w₀ b b' = rLimbs w₀ b b' := rfl)
   all_goals try omega
-  all_goals try fits [hmem.1]
+  all_goals try fits [hmem.frontier_fits]
   rw [hL_eq]
   have haccW : accWords = 54 := rfl
   have hscrW : scratchWords = 162 := rfl
@@ -437,14 +437,15 @@ private theorem realizesBounded_reduceAddStepGen :
     have hL_eq : rLimbs w₀ b b' = 2 * rHalf w₀ b b' := rfl
     have hL0_le : rHalf w₀ b b' ≤ 27 := reducedHalfLimbs_le _
     have hxor3 := Nat.xor_lt_two_pow
-      (Nat.xor_lt_two_pow (Nat.xor_lt_two_pow (hmem.2 (scratchBase + accWords + m))
-        (hmem.2 (scratchBase + accWords + (3 * rHalf w₀ b b' + m))))
-        (hmem.2 (scratchBase + accWords + (2 * rHalf w₀ b b' + m))))
-      (hmem.2 (hashBase + coeffOff + m)))
+      (Nat.xor_lt_two_pow (Nat.xor_lt_two_pow (hmem.mem_fits (scratchBase + accWords + m))
+        (hmem.mem_fits (scratchBase + accWords + (3 * rHalf w₀ b b' + m))))
+        (hmem.mem_fits (scratchBase + accWords + (2 * rHalf w₀ b b' + m))))
+      (hmem.mem_fits (hashBase + coeffOff + m)))
   all_goals try omega
-  all_goals try wram_omega [hmem.1]
-  all_goals try exact Nat.xor_lt_two_pow (hmem.2 _) (hmem.2 _)
-  all_goals exact Nat.xor_lt_two_pow (Nat.xor_lt_two_pow (hmem.2 _) (hmem.2 _)) (hmem.2 _)
+  all_goals try wram_omega [hmem.frontier_fits]
+  all_goals try exact Nat.xor_lt_two_pow (hmem.mem_fits _) (hmem.mem_fits _)
+  all_goals exact Nat.xor_lt_two_pow (Nat.xor_lt_two_pow (hmem.mem_fits _)
+      (hmem.mem_fits _)) (hmem.mem_fits _)
 
 private theorem reduceAddLoop_spec {w w₀ b b' k hashBase scratchBase PVal : ℕ}
     {θ : ReducedPolySeed w₀ b b' k} {coeffIdx : Fin k} {s₀ : Memory.State}
@@ -718,7 +719,7 @@ theorem realizesBounded_hornerStepGen :
     obtain ⟨hsafe_z, hsafe_o, hsafe_r, _⟩ :=
       hornerStep_spec hc_lt hfr_h hfr_s hdisj htab hseed hj_lt hr_fit hr_lt hacc_lt hacc)
   all_goals try ((try rw [h2L0]); omega)
-  all_goals try ((try rw [h2L0]); wram_omega [hmem.1])
+  all_goals try ((try rw [h2L0]); wram_omega [hmem.frontier_fits])
   all_goals first
     | (rw [h4L0]; exact iterationSafe_imp hsafe_z (fun _ => rfl) (fun _ _ hs => hs))
     | (rw [h4L0, h2L0]; exact iterationSafe_imp hsafe_o (fun _ => rfl) (fun _ _ hs => hs))

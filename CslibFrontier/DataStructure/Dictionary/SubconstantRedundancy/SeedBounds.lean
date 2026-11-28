@@ -84,7 +84,8 @@ private theorem choose_add_le_choose_mul_pow_two {U E n Re : ℕ}
     calc (1 + (E : ℝ) / W) ^ n ≤ Real.exp (E / W) ^ n := by
           gcongr; linarith [Real.add_one_le_exp ((E : ℝ) / W)]
       _ ≤ Real.exp 1 ^ Re := by
-          rw [← Real.exp_nat_mul, ← Real.exp_nat_mul, mul_one]; exact Real.exp_le_exp.mpr hnδ
+          rw [← Real.exp_natCast_mul, ← Real.exp_natCast_mul, mul_one]
+          exact Real.exp_le_exp.mpr hnδ
       _ ≤ 2 ^ (2 * Re) := by
           rw [pow_mul]; gcongr; linarith [Real.exp_one_lt_d9]
   have hWE : ((W + E : ℕ) : ℝ) = W * (1 + E / W) := by push_cast; field_simp
@@ -399,7 +400,7 @@ private theorem routerSeedBits_sq_le_of_lt_threshold {U V n R p_min q_min p_max 
     set ly := Nat.clog 2 (2 * max y 1)
     have hly_ge : 72 < ly := (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr (by omega)
     have hly_pow : 2 ^ (ly - 1) < 2 * max y 1 :=
-      Nat.pow_pred_clog_lt_self Nat.one_lt_two (by omega)
+      Nat.pow_pred_clog_lt_self 2 (by omega)
     have hhd : 2 * P.delta ℓ ≤ y := canonicalSchedule_two_mul_delta_le_nFloor h hlt.le
     have hm_le : FeistelPerm.childRouterHalfInd (P.nHigh ℓ) ≤ 4 * ly := by
       have hcl : Nat.clog 2 (max (P.nHigh ℓ) 2) ≤ ly := Nat.clog_mono_right 2 <| by

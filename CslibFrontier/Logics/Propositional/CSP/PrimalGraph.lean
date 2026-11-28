@@ -98,7 +98,7 @@ theorem exists_bag_subset_scope_of_mem [DecidableEq V] {F : CSP Rel V} {n : ℕ}
 
 instance instDecidableRelActivePrimalGraphAdj [DecidableEq V] (F : CSP Rel V) :
     DecidableRel F.activePrimalGraph.Adj := fun u v =>
-  F.instDecidableRelPrimalGraphAdj u.1 v.1
+  F.instDecidableRelPrimalGraphAdj u.val v.val
 
 theorem mem_vars_finset_of_mem [DecidableEq V] {F : CSP Rel V} {c : Constraint Rel V}
     (hc : c ∈ F) {v : V} (hv : v ∈ c.scope) : v ∈ F.vars.toFinset :=
@@ -178,7 +178,7 @@ noncomputable def subtreeSatSet [Finite D] (sem : Rel → List D → Bool)
   classical
   letI := Fintype.ofFinite (↑(S ∩ U) → D)
   exact Finset.univ.filter fun σ =>
-    (∀ v : ↑(S ∩ U), v.1 ∈ B → σ v = α v.1) ∧
+    (∀ v : ↑(S ∩ U), v.val ∈ B → σ v = α v.val) ∧
       ∀ c ∈ F, c.scope.toFinset ⊆ S → c.eval sem (extendSubtree S U σ α) = true
 
 /-- Number of satisfying partial extensions of `α` on `S ∩ U`. -/
@@ -189,7 +189,7 @@ noncomputable def subtreeSatCount [Finite D] (sem : Rel → List D → Bool)
 private theorem mem_subtreeSatSet [Finite D] {sem : Rel → List D → Bool} {F : CSP Rel V}
     {U S B : Finset V} {α : V → D} {σ : ↑(S ∩ U) → D} :
     σ ∈ subtreeSatSet sem F U S B α ↔
-      (∀ v : ↑(S ∩ U), v.1 ∈ B → σ v = α v.1) ∧
+      (∀ v : ↑(S ∩ U), v.val ∈ B → σ v = α v.val) ∧
         ∀ c ∈ F, c.scope.toFinset ⊆ S → c.eval sem (extendSubtree S U σ α) = true := by
   classical
   unfold subtreeSatSet
@@ -211,7 +211,7 @@ private theorem extendSubtree_eval_congr {sem : Rel → List D → Bool} {F : CS
 private theorem extendSubtree_eval_bag {sem : Rel → List D → Bool} {F : CSP Rel V}
     {U S B : Finset V} (hU : F.vars.toFinset ⊆ U) {c : Constraint Rel V} (hc : c ∈ F)
     (hcS : c.scope.toFinset ⊆ S) (hcB : c.scope.toFinset ⊆ B)
-    {σ : ↑(S ∩ U) → D} {α : V → D} (hσB : ∀ v : ↑(S ∩ U), v.1 ∈ B → σ v = α v.1) :
+    {σ : ↑(S ∩ U) → D} {α : V → D} (hσB : ∀ v : ↑(S ∩ U), v.val ∈ B → σ v = α v.val) :
     c.eval sem (extendSubtree S U σ α) = c.eval sem α := by
   refine Constraint.eval_congr fun v hv => ?_
   have hvU : v ∈ U := hU (F.mem_vars_finset_of_mem hc hv)
@@ -240,7 +240,7 @@ theorem subtreeSatCount_congr [Finite D] (sem : Rel → List D → Bool) {F : CS
   ext σ
   rw [mem_subtreeSatSet, mem_subtreeSatSet, forall_eval_extendSubtree_iff hU (α := α) (β := β)]
   refine and_congr_left' (forall_congr' fun v => imp_congr_right fun hvB => ?_)
-  rw [h v.1 (Finset.mem_inter.2 ⟨hvB, (Finset.mem_inter.1 v.2).2⟩)]
+  rw [h v.val (Finset.mem_inter.2 ⟨hvB, (Finset.mem_inter.1 v.property).2⟩)]
 
 theorem subtreeSatCount_empty_eq_modelCountOn [Fintype D] [Inhabited D]
     (sem : Rel → List D → Bool) {F : CSP Rel V}
@@ -274,9 +274,9 @@ theorem subtreeSatCount_leaf [Finite D] [Inhabited D] (sem : Rel → List D → 
     subtreeSatCount sem F U ∅ ∅ α =
       if ∀ c ∈ F, c.scope = [] → c.eval sem (fun _ => default) = true then 1 else 0 := by
   let σ₀ : ↑((∅ : Finset V) ∩ U) → D := fun x =>
-    absurd (Finset.mem_inter.1 x.2).1 (Finset.notMem_empty _)
+    absurd (Finset.mem_inter.1 x.property).1 (Finset.notMem_empty _)
   have huniq : ∀ σ : ↑((∅ : Finset V) ∩ U) → D, σ = σ₀ := fun σ =>
-    funext fun x => absurd (Finset.mem_inter.1 x.2).1 (Finset.notMem_empty _)
+    funext fun x => absurd (Finset.mem_inter.1 x.property).1 (Finset.notMem_empty _)
   have hmem : ∀ σ, σ ∈ subtreeSatSet sem F U ∅ ∅ α ↔
       ∀ c ∈ F, c.scope = [] → c.eval sem (fun _ => default) = true := fun σ => by
     simp only [mem_subtreeSatSet, Finset.notMem_empty, false_implies, implies_true, true_and,
@@ -303,8 +303,8 @@ theorem subtreeSatCount_introduce [Finite D] (sem : Rel → List D → Bool) {F 
   · rw [ite_eq_left hAll]
     unfold subtreeSatCount
     refine Finset.card_bij
-      (fun σ _ => fun x => σ ⟨x.1, by
-        have := Finset.mem_inter.1 x.2
+      (fun σ _ => fun x => σ ⟨x.val, by
+        have := Finset.mem_inter.1 x.property
         exact Finset.mem_inter.2 ⟨Finset.mem_insert_of_mem this.1, this.2⟩⟩)
       ?_ ?_ ?_
     · intro σ hσ
@@ -315,20 +315,20 @@ theorem subtreeSatCount_introduce [Finite D] (sem : Rel → List D → Bool) {F 
     · intro σ₁ hσ₁ σ₂ hσ₂ hEq
       rw [mem_subtreeSatSet] at hσ₁ hσ₂
       ext x
-      have hx := Finset.mem_inter.1 x.2
+      have hx := Finset.mem_inter.1 x.property
       rcases Finset.mem_insert.1 hx.1 with hxv | hxS
-      · have hxB : x.1 ∈ insert v B := Finset.mem_insert.2 (Or.inl hxv)
+      · have hxB : x.val ∈ insert v B := Finset.mem_insert.2 (Or.inl hxv)
         rw [hσ₁.1 x hxB, hσ₂.1 x hxB]
-      · exact congrFun hEq ⟨x.1, Finset.mem_inter.2 ⟨hxS, hx.2⟩⟩
+      · exact congrFun hEq ⟨x.val, Finset.mem_inter.2 ⟨hxS, hx.2⟩⟩
     · intro τ hτ
       rw [mem_subtreeSatSet] at hτ
-      have hσB : ∀ x : ↑(insert v S ∩ U), x.1 ∈ insert v B →
-          (if hx : x.1 ∈ S ∩ U then τ ⟨x.1, hx⟩ else α x.1) = α x.1 := fun x hxB => by
+      have hσB : ∀ x : ↑(insert v S ∩ U), x.val ∈ insert v B →
+          (if hx : x.val ∈ S ∩ U then τ ⟨x.val, hx⟩ else α x.val) = α x.val := fun x hxB => by
         split_ifs with hxS
-        · have hxv : x.1 ≠ v := fun h => hvS (h ▸ (Finset.mem_inter.1 hxS).1)
+        · have hxv : x.val ≠ v := fun h => hvS (h ▸ (Finset.mem_inter.1 hxS).1)
           exact hτ.1 _ ((Finset.mem_insert.1 hxB).resolve_left hxv)
         · rfl
-      refine ⟨fun x => if hx : x.1 ∈ S ∩ U then τ ⟨x.1, hx⟩ else α x.1, ?_, ?_⟩
+      refine ⟨fun x => if hx : x.val ∈ S ∩ U then τ ⟨x.val, hx⟩ else α x.val, ?_, ?_⟩
       · refine mem_subtreeSatSet.2 ⟨hσB, fun c hc hcIS => ?_⟩
         by_cases hvc : v ∈ c.scope
         · have hcIB := (hcov c hc hcIS).resolve_left fun h => hvS (h (List.mem_toFinset.2 hvc))
@@ -339,7 +339,7 @@ theorem subtreeSatCount_introduce [Finite D] (sem : Rel → List D → Bool) {F 
             (σ₂ := τ) (α₂ := α) (fun w _ hwS _ => dite_eq_left hwS)]
           exact hτ.2 c hc hcS
       · ext x
-        simp [x.2]
+        simp [x.property]
   · rw [ite_eq_right hAll]
     push Not at hAll
     obtain ⟨c, hc, hcIB, -, hcEval⟩ := hAll
@@ -366,7 +366,7 @@ theorem subtreeSatCount_forget [Fintype D] [Inhabited D] (sem : Rel → List D �
       constructor
       · rintro ⟨hσB, hσF⟩
         refine ⟨σ ⟨v, hvSU⟩, fun x hxB => ?_, (forall_eval_extendSubtree_iff hU).1 hσF⟩
-        by_cases hxv : x.1 = v
+        by_cases hxv : x.val = v
         · have hx_eq : x = ⟨v, hvSU⟩ := Subtype.ext hxv
           simp [hx_eq]
         · rw [Function.update_of_ne hxv]
@@ -390,7 +390,7 @@ theorem subtreeSatCount_forget [Fintype D] [Inhabited D] (sem : Rel → List D �
     rw [mem_subtreeSatSet, mem_subtreeSatSet,
       forall_eval_extendSubtree_iff hU (α := α) (β := Function.update α v default)]
     refine and_congr_left' (forall_congr' fun x => ?_)
-    have hxv : x.1 ≠ v := fun h => hvU (h ▸ (Finset.mem_inter.1 x.2).2)
+    have hxv : x.val ≠ v := fun h => hvU (h ▸ (Finset.mem_inter.1 x.property).2)
     rw [Function.update_of_ne hxv, Finset.mem_erase, and_iff_right hxv]
 
 theorem subtreeSatCount_join [Finite D] (sem : Rel → List D → Bool) {F : CSP Rel V}
@@ -405,10 +405,12 @@ theorem subtreeSatCount_join [Finite D] (sem : Rel → List D → Bool) {F : CSP
   rw [← Finset.card_product]
   refine Finset.card_bij
     (fun σ _ =>
-      (fun x => σ ⟨x.1, Finset.mem_inter.2
-          ⟨Finset.mem_union_left _ (Finset.mem_inter.1 x.2).1, (Finset.mem_inter.1 x.2).2⟩⟩,
-       fun x => σ ⟨x.1, Finset.mem_inter.2
-          ⟨Finset.mem_union_right _ (Finset.mem_inter.1 x.2).1, (Finset.mem_inter.1 x.2).2⟩⟩))
+      (fun x => σ ⟨x.val, Finset.mem_inter.2
+          ⟨Finset.mem_union_left _ (Finset.mem_inter.1 x.property).1,
+            (Finset.mem_inter.1 x.property).2⟩⟩,
+       fun x => σ ⟨x.val, Finset.mem_inter.2
+          ⟨Finset.mem_union_right _ (Finset.mem_inter.1 x.property).1,
+            (Finset.mem_inter.1 x.property).2⟩⟩))
     ?_ ?_ ?_
   · intro σ hσ
     simp only [Finset.mem_product, mem_subtreeSatSet] at hσ ⊢
@@ -422,18 +424,19 @@ theorem subtreeSatCount_join [Finite D] (sem : Rel → List D → Bool) {F : CSP
     have hL := congrArg Prod.fst hEq
     have hR := congrArg Prod.snd hEq
     ext x
-    have hx := Finset.mem_inter.1 x.2
+    have hx := Finset.mem_inter.1 x.property
     rcases Finset.mem_union.1 hx.1 with hxL | hxR
-    · exact congrFun hL ⟨x.1, Finset.mem_inter.2 ⟨hxL, hx.2⟩⟩
-    · exact congrFun hR ⟨x.1, Finset.mem_inter.2 ⟨hxR, hx.2⟩⟩
+    · exact congrFun hL ⟨x.val, Finset.mem_inter.2 ⟨hxL, hx.2⟩⟩
+    · exact congrFun hR ⟨x.val, Finset.mem_inter.2 ⟨hxR, hx.2⟩⟩
   · rintro ⟨σL, σR⟩ hpair
     simp only [Finset.mem_product, mem_subtreeSatSet] at hpair
     rcases hpair with ⟨⟨hLB, hLF⟩, ⟨hRB, hRF⟩⟩
     let σ : ↑((S_L ∪ S_R) ∩ U) → D := fun x =>
-      if hxL : x.1 ∈ S_L then σL ⟨x.1, Finset.mem_inter.2 ⟨hxL, (Finset.mem_inter.1 x.2).2⟩⟩
-      else σR ⟨x.1, Finset.mem_inter.2
-        ⟨(Finset.mem_union.1 (Finset.mem_inter.1 x.2).1).resolve_left hxL,
-          (Finset.mem_inter.1 x.2).2⟩⟩
+      if hxL : x.val ∈ S_L then
+        σL ⟨x.val, Finset.mem_inter.2 ⟨hxL, (Finset.mem_inter.1 x.property).2⟩⟩
+      else σR ⟨x.val, Finset.mem_inter.2
+        ⟨(Finset.mem_union.1 (Finset.mem_inter.1 x.property).1).resolve_left hxL,
+          (Finset.mem_inter.1 x.property).2⟩⟩
     have hσL : ∀ w (hwL : w ∈ S_L ∩ U) (hw : w ∈ (S_L ∪ S_R) ∩ U),
         σ ⟨w, hw⟩ = σL ⟨w, hwL⟩ := fun w hwL hw => by
       dsimp [σ]
@@ -448,7 +451,8 @@ theorem subtreeSatCount_join [Finite D] (sem : Rel → List D → Bool) {F : CSP
     refine ⟨σ, ?_, ?_⟩
     · simp only [mem_subtreeSatSet]
       refine ⟨fun x hxB => ?_, fun c hc hcU => ?_⟩
-      · exact (hσL x.1 (Finset.mem_inter.2 ⟨hBLS hxB, (Finset.mem_inter.1 x.2).2⟩) x.2).trans
+      · exact (hσL x.val (Finset.mem_inter.2
+          ⟨hBLS hxB, (Finset.mem_inter.1 x.property).2⟩) x.property).trans
           (hLB _ hxB)
       · rcases hcov c hc hcU with hcL | hcR
         · rw [extendSubtree_eval_congr hU hc hcU hcL (fun w hw hwL _ => hσL w hwL hw)]
@@ -456,8 +460,8 @@ theorem subtreeSatCount_join [Finite D] (sem : Rel → List D → Bool) {F : CSP
         · rw [extendSubtree_eval_congr hU hc hcU hcR (fun w hw hwR _ => hσR w hwR hw)]
           exact hRF c hc hcR
     · ext x
-      · exact hσL x.1 x.2 _
-      · exact hσR x.1 x.2 _
+      · exact hσL x.val x.property _
+      · exact hσR x.val x.property _
 
 section FintypeDomain
 

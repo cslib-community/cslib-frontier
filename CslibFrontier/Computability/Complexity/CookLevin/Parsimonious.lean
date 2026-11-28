@@ -340,7 +340,7 @@ theorem modelCount_tableau :
     fun w => ⟨?_, ?_⟩
   · rcases Nat.eq_zero_or_pos T with rfl | hT
     · simp [eval_tableau_zero] at hσ
-    · exact h _ (cert_mem_vars_tableau hT j.2)
+    · exact h _ (cert_mem_vars_tableau hT j.isLt)
   · exact fun ⟨hhalt, hout⟩ => ⟨runAssignment tm u (List.ofFn w),
       eval_tableau_runAssignment (by simp) hhalt hout,
       funext fun j => by simp [runAssignment, List.getD_eq_getElem?_getD]⟩

@@ -76,24 +76,25 @@ theorem ncard_matchedVertices_eq_two_mul (hloop : G.Loopless) {M : Set E} (hM : 
     (G.matchedVertices M).ncard = 2 * M.ncard := by
   classical
   let f : M × Bool → G.matchedVertices M := fun ⟨e, b⟩ =>
-    if b then ⟨G.src e.1, e.1, e.2, Or.inl rfl⟩ else ⟨G.tgt e.1, e.1, e.2, Or.inr rfl⟩
+    if b then ⟨G.src e.val, e.val, e.property, Or.inl rfl⟩
+    else ⟨G.tgt e.val, e.val, e.property, Or.inr rfl⟩
   have hbij : Function.Bijective f := by
     refine ⟨?_, ?_⟩
     · rintro ⟨e₁, b₁⟩ ⟨e₂, b₂⟩ heq
       have hval := congrArg Subtype.val heq
       have he_eq : e₁ = e₂ := by
         by_contra hne
-        have hdis := hM e₁.2 e₂.2 fun h => hne (Subtype.ext h)
-        have hm₁ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₁.1, G.tgt e₁.1} : Set V) := by
+        have hdis := hM e₁.property e₂.property fun h => hne (Subtype.ext h)
+        have hm₁ : (f ⟨e₁, b₁⟩).val ∈ ({G.src e₁.val, G.tgt e₁.val} : Set V) := by
           cases b₁ <;> simp [f]
-        have hm₂ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₂.1, G.tgt e₂.1} : Set V) := by
+        have hm₂ : (f ⟨e₁, b₁⟩).val ∈ ({G.src e₂.val, G.tgt e₂.val} : Set V) := by
           rw [hval]; cases b₂ <;> simp [f]
         exact Set.disjoint_left.mp hdis hm₁ hm₂
       subst he_eq
       cases b₁ <;> cases b₂
       · rfl
-      · exfalso; exact hloop e₁.1 (by simpa [f] using hval.symm)
-      · exfalso; exact hloop e₁.1 (by simpa [f] using hval)
+      · exfalso; exact hloop e₁.val (by simpa [f] using hval.symm)
+      · exfalso; exact hloop e₁.val (by simpa [f] using hval)
       · rfl
     · rintro ⟨v, e, heM, hev⟩
       rcases hev with rfl | rfl
@@ -458,20 +459,20 @@ theorem ncard_edgeCut_add_inactive_le_matchingCost [Finite V] [Finite E]
       obtain ⟨hAB_b, hend_b⟩ := check_outer (G.src e) hkey_lt.1 (Or.inl rfl) b hb_mem
         hstr_s.2 hb_cut
       exact ⟨b, hAB_b, Or.inl rfl, hend_b⟩
-  choose f_of hf_mem _ hf_end using fun e : S₂ => hS₂_witness e.1 e.2
-  let side (e : S₂) : Bool := decide (G.src (f_of e) ∈ ({G.src e.1, G.tgt e.1} : Set V))
+  choose f_of hf_mem _ hf_end using fun e : S₂ => hS₂_witness e.val e.property
+  let side (e : S₂) : Bool := decide (G.src (f_of e) ∈ ({G.src e.val, G.tgt e.val} : Set V))
   have hinj_S₂ : Function.Injective fun e : S₂ =>
       ((⟨f_of e, hf_mem e⟩ : ↑(A_set ∪ B_set)), side e) := by
     rintro e₁ e₂ hpair
     obtain ⟨hf_eq, hs_eq⟩ := Prod.mk.inj hpair
     have hf_val : f_of e₁ = f_of e₂ := congrArg Subtype.val hf_eq
     by_contra hne
-    have hne_val : e₁.1 ≠ e₂.1 := fun h => hne (Subtype.ext h)
-    have hdisj := hM (hclean e₁.2.1) (hclean e₂.2.1) hne_val
-    have hs_iff : G.src (f_of e₁) ∈ ({G.src e₁.1, G.tgt e₁.1} : Set V) ↔
-        G.src (f_of e₂) ∈ ({G.src e₂.1, G.tgt e₂.1} : Set V) :=
+    have hne_val : e₁.val ≠ e₂.val := fun h => hne (Subtype.ext h)
+    have hdisj := hM (hclean e₁.property.1) (hclean e₂.property.1) hne_val
+    have hs_iff : G.src (f_of e₁) ∈ ({G.src e₁.val, G.tgt e₁.val} : Set V) ↔
+        G.src (f_of e₂) ∈ ({G.src e₂.val, G.tgt e₂.val} : Set V) :=
       decide_eq_decide.mp hs_eq
-    by_cases hs₁ : G.src (f_of e₁) ∈ ({G.src e₁.1, G.tgt e₁.1} : Set V)
+    by_cases hs₁ : G.src (f_of e₁) ∈ ({G.src e₁.val, G.tgt e₁.val} : Set V)
     · exact Set.disjoint_left.mp hdisj hs₁ (hf_val ▸ hs_iff.mp hs₁)
     · exact Set.disjoint_left.mp hdisj ((hf_end e₁).resolve_left hs₁)
         (hf_val ▸ (hf_end e₂).resolve_left (hs_iff.not.mp hs₁))
@@ -567,38 +568,39 @@ abbrev PairNode (G : Multigraph V E) (M M_clean : Set E) (score : E → ℝ) : T
 `matchingKey` on equal-key clean pairs. -/
 noncomputable def pairNodeKey (G : Multigraph V E) (M M_clean : Set E) (score : E → ℝ) :
     G.PairNode M M_clean score → ℝ
-  | .inl v => G.matchingKey M score v.1
-  | .inr e => G.matchingKey M score (G.src e.1)
+  | .inl v => G.matchingKey M score v.val
+  | .inr e => G.matchingKey M score (G.src e.val)
 
 /-- Vertex subset of `V` expanded from a set of `PairNode`s. -/
 @[expose]
 def pairNodeVerts (G : Multigraph V E) (M M_clean : Set E) (score : E → ℝ)
     (S : Set (G.PairNode M M_clean score)) : Set V :=
   {v | (∃ hv : v ∉ G.matchedVertices (G.equalKeyPairs M M_clean score), .inl ⟨v, hv⟩ ∈ S) ∨
-    ∃ e : G.equalKeyPairs M M_clean score, (G.src e.1 = v ∨ G.tgt e.1 = v) ∧ .inr e ∈ S}
+    ∃ e : G.equalKeyPairs M M_clean score, (G.src e.val = v ∨ G.tgt e.val = v) ∧ .inr e ∈ S}
 
 theorem mem_pairNodeVerts_of_notMem {G : Multigraph V E} {M M_clean : Set E} {score : E → ℝ}
     {S : Set (G.PairNode M M_clean score)} {v : V}
     (hv : v ∉ G.matchedVertices (G.equalKeyPairs M M_clean score)) :
     v ∈ G.pairNodeVerts M M_clean score S ↔ .inl ⟨v, hv⟩ ∈ S := by
   simp only [pairNodeVerts, mem_ofPred_eq]
-  exact ⟨fun h => h.elim (fun ⟨_, hm⟩ => hm) (fun ⟨e, hev, _⟩ => (hv ⟨e.1, e.2, hev⟩).elim),
+  exact ⟨fun h =>
+      h.elim (fun ⟨_, hm⟩ => hm) (fun ⟨e, hev, _⟩ => (hv ⟨e.val, e.property, hev⟩).elim),
     fun hm => Or.inl ⟨hv, hm⟩⟩
 
 theorem mem_pairNodeVerts_of_mem {G : Multigraph V E} {M M_clean : Set E}
     (hM : G.IsMatching M) (hclean : M_clean ⊆ M) {score : E → ℝ}
     {S : Set (G.PairNode M M_clean score)} (e : G.equalKeyPairs M M_clean score) {v : V}
-    (hev : G.src e.1 = v ∨ G.tgt e.1 = v) :
+    (hev : G.src e.val = v ∨ G.tgt e.val = v) :
     v ∈ G.pairNodeVerts M M_clean score S ↔ .inr e ∈ S := by
-  have hv_mat : v ∈ G.matchedVertices (G.equalKeyPairs M M_clean score) := ⟨e.1, e.2, hev⟩
+  have hv_mat : v ∈ G.matchedVertices (G.equalKeyPairs M M_clean score) := ⟨e.val, e.property, hev⟩
   simp only [pairNodeVerts, mem_ofPred_eq]
   refine ⟨fun h => ?_, fun hm => Or.inr ⟨e, hev, hm⟩⟩
   rcases h with ⟨hnot, _⟩ | ⟨e', he'v, hm⟩
   · exact (hnot hv_mat).elim
   · suffices h_eq : e' = e by rwa [h_eq] at hm
     by_contra hne
-    have hne_val : e'.1 ≠ e.1 := fun h => hne (Subtype.ext h)
-    exact Set.disjoint_left.mp (hM (hclean e'.2.1) (hclean e.2.1) hne_val)
+    have hne_val : e'.val ≠ e.val := fun h => hne (Subtype.ext h)
+    exact Set.disjoint_left.mp (hM (hclean e'.property.1) (hclean e.property.1) hne_val)
       (he'v.imp Eq.symm Eq.symm) (hev.imp Eq.symm Eq.symm)
 
 /-- **Grid bound on `PairNode` prefixes.** Sorting `PairNode G M M_clean score` by `pairNodeKey`
@@ -620,7 +622,7 @@ theorem exists_u2_pairNode_layout [Finite V] [Finite E]
   have hB0 : 0 ≤ B := le_trans (by positivity) low
   have h1lam : 0 ≤ 1 - lam := by linarith
   have := Finite.of_injective
-    (fun x : {v : V // v ∉ G.matchedVertices (G.equalKeyPairs M M_clean score)} => x.1)
+    (fun x : {v : V // v ∉ G.matchedVertices (G.equalKeyPairs M M_clean score)} => x.val)
     Subtype.val_injective
   obtain ⟨σ, hσ⟩ := Layout.exists_threshold (G.pairNodeKey M M_clean score)
   refine ⟨σ, fun s => ?_⟩

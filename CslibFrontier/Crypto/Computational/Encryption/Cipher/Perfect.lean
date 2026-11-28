@@ -208,9 +208,9 @@ theorem advantage_oneTimeExperiment_variableLengthOTPCipher {σ : Type} (L : ℕ
       {w : List Bool // w.length ≤ L} Bool σ) :
     Experiment.advantage
         ((variableLengthOTPCipher L).oneTimeExperiment (ProbComp.uniform (BitString L))
-          (fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)) A false)
+          (fun m₀ m₁ => decide (m₀.val.length = m₁.val.length)) A false)
         ((variableLengthOTPCipher L).oneTimeExperiment (ProbComp.uniform (BitString L))
-          (fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)) A true) = 0 := by
+          (fun m₀ m₁ => decide (m₀.val.length = m₁.val.length)) A true) = 0 := by
   refine advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq _ _ _ (fun m₀ m₁ hm => ?_) A
   have hb := ciphertextDist_eq_encScheme (variableLengthOTPCipher L)
     (ProbComp.uniform (BitString L)) (variableLengthOTP L)

@@ -115,7 +115,8 @@ private theorem sq_sum_matrix_bilinear_le_of_rank_le [Fintype α] [Fintype β] [
     classical
     obtain rfl : M = 0 := Matrix.toLin'.injective <| by
       rw [map_zero, Matrix.toLin'_apply']
-      exact LinearMap.range_eq_bot.1 (Submodule.finrank_eq_zero.1 (Nat.eq_zero_of_le_zero hr))
+      exact LinearMap.range_eq_bot.1
+        (Submodule.finrank_eq_zero.1 (M.finrank_range_mulVecLin.trans (Nat.eq_zero_of_le_zero hr)))
     simp
   | r + 1, M, hr => by
     classical
@@ -166,7 +167,8 @@ private theorem sq_sum_matrix_bilinear_le_of_rank_le [Fintype α] [Fintype β] [
         rw [hx, show v ᵥ* N = 0 from funext horth, zero_dotProduct] at hdot
         have hvv : v ⬝ᵥ v = s := by simp [dotProduct, s, sq]
         linarith
-      have hrank_lt : N.rank < M.rank := Submodule.finrank_lt_finrank_of_lt hN_lt
+      have hrank_lt : N.rank < M.rank := by
+        simpa only [finrank_range_mulVecLin] using Submodule.finrank_lt_finrank_of_lt hN_lt
       have hNrank : N.rank ≤ r := by omega
       set S₁ := ∑ p, ∑ q, v p * c q * (-1 : ℝ) ^ (p ⬝ᵥ B *ᵥ q).val
       set S₂ := ∑ p, ∑ q, N p q * (-1 : ℝ) ^ (p ⬝ᵥ B *ᵥ q).val

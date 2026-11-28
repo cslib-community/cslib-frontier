@@ -24,20 +24,20 @@ open Polygonal RotationSystem
 
 /-- Each source edge occurrence is retained or is the selected final occurrence. -/
 theorem restoration_edge_cases (G : Graph) (u v : ℕ)
-    (e : Fin (lastEdgeGraph G u v).2.length) :
-    (∃ j : Fin G.2.length, e = (retainedLastEdgeDart G u v (j, false)).1) ∨
+    (e : Fin (lastEdgeGraph G u v).edges.length) :
+    (∃ j : Fin G.edges.length, e = (retainedLastEdgeDart G u v (j, false)).1) ∨
       e = (lastEdgeDart G u v false).1 := by
-  by_cases he : e.val < G.2.length
+  by_cases he : e.val < G.edges.length
   · exact Or.inl ⟨⟨e.val, he⟩, Fin.ext rfl⟩
   · right
     apply Fin.ext
-    change e.val = G.2.length
+    change e.val = G.edges.length
     have hi := e.isLt
     simp only [lastEdgeGraph, List.length_append, List.length_singleton] at hi
     omega
 
 /-- An actual retained source edge keeps its original named endpoints. -/
-theorem vertex_restoration_retained (G : Graph) (u v : ℕ) (e : Fin G.2.length) (side : Bool) :
+theorem vertex_restoration_retained (G : Graph) (u v : ℕ) (e : Fin G.edges.length) (side : Bool) :
     Dart.vertex (G := lastEdgeGraph G u v)
       ((retainedLastEdgeDart G u v (e, false)).1, side) = Dart.vertex (G := G) (e, side) := by
   have h : ((retainedLastEdgeDart G u v (e, false)).1, side) =
@@ -55,10 +55,10 @@ theorem vertex_restoration_last (G : Graph) (u v : ℕ) (side : Bool) :
 /-- The actual retained route of the restoration is its two-end attachment constructor. -/
 theorem route_restoration_retained {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (huv : u ≠ v)
-    (ρ : ℝ) (a b : ℂ) (e : Fin G.2.length) :
+    (ρ : ℝ) (a b : ℂ) (e : Fin G.edges.length) :
     (D.restoration huv ρ a b).route (retainedLastEdgeDart G u v (e, false)).1 =
       D.restoredRoute ρ a b e := by
-  change (if h : e.val < G.2.length then D.restoredRoute ρ a b ⟨e.val, h⟩ else _) = _
+  change (if h : e.val < G.edges.length then D.restoredRoute ρ a b ⟨e.val, h⟩ else _) = _
   rw [dite_eq_left e.isLt]
 
 /-- The actual selected route is the oriented single-segment connector. -/
@@ -66,7 +66,8 @@ theorem route_restoration_last {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (huv : u ≠ v)
     (ρ : ℝ) (a b : ℂ) :
     (D.restoration huv ρ a b).route (lastEdgeDart G u v false).1 = Route.line a b := by
-  change (if h : G.2.length < G.2.length then D.restoredRoute ρ a b ⟨G.2.length, h⟩ else _) = _
+  change (if h : G.edges.length < G.edges.length then
+      D.restoredRoute ρ a b ⟨G.edges.length, h⟩ else _) = _
   rw [dite_eq_right (Nat.lt_irrefl _)]
 
 /-- The restored actual drawing is an embedding. Every continuous contact condition is
@@ -74,7 +75,7 @@ proved for its real segments; no abstract patch or assumed target embedding is s
 theorem IsEmbedding.restoration {G : Graph} {u v : ℕ}
     {D : PolygonalDrawing (contractLastEdgeGraph G u v)} (hD : D.IsEmbedding) (huv : u ≠ v)
     {ρ : ℝ} (hρ : 0 < ρ)
-    (hpoints : ∀ w ∈ (contractLastEdgeGraph G u v).1,
+    (hpoints : ∀ w ∈ (contractLastEdgeGraph G u v).vertices,
       D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v)
     (hlen : ∀ d : Dart (contractLastEdgeGraph G u v), d.vertex = v → 3 * ρ < ‖D.germ d‖)
     (hsimple : ∀ e, (D.outsideRoute v ρ e).IsSimple)

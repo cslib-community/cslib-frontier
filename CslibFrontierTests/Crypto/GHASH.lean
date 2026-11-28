@@ -68,9 +68,10 @@ example [Fintype F] {ℓ : ℕ} {encodeLength : Fin ℓ → F} (hencode : Functi
     (fun m m' h => Subtype.ext (List.append_inj_left' h rfl))
     (fun m m' h => by
       simp only [coefficients, List.getLastD_concat] at h
-      have h2 : m.1.length = m'.1.length := congrArg Fin.val (hencode h)
+      have h2 : m.val.length = m'.val.length := congrArg Fin.val (hencode h)
       simp [coefficients, h2])
-    (fun m => by simp only [coefficients, List.length_append, List.length_singleton]; exact m.2)
+    (fun m => by
+      simp only [coefficients, List.length_append, List.length_singleton]; exact m.property)
   have heq : hash encodeLength = fun k m => ghash k (coefficients encodeLength m) := by
     funext k m; exact hash_eq_ghash encodeLength k m
   rwa [heq]
@@ -92,7 +93,7 @@ example [Fintype F] (v : ℕ) :
     IsDeltaUniversalHash (PMF.uniformOfFintype F)
       (fun k (z : {z : List F // z.length = v}) => ghash k z) (v / Fintype.card F) :=
   isDeltaUniversalHash_ghash Subtype.val Subtype.val_injective
-    (fun x x' _ => x.2.trans x'.2.symm) (fun x => x.2.le)
+    (fun x x' _ => x.property.trans x'.property.symm) (fun x => x.property.le)
 
 -- Inputs of one length `v` on 128-bit strings: `v / 2 ^ 128`.
 example (e : F ≃+ BitString 128) (v : ℕ) :
@@ -100,7 +101,7 @@ example (e : F ≃+ BitString 128) (v : ℕ) :
       (fun k (z : {z : List (BitString 128) // z.length = v}) => ghashBits e k z)
       (v / 2 ^ 128) :=
   isDeltaUniversalHash_ghashBits e Subtype.val Subtype.val_injective
-    (fun x x' _ => x.2.trans x'.2.symm) (fun x => x.2.le)
+    (fun x x' _ => x.property.trans x'.property.symm) (fun x => x.property.le)
 
 -- The bit-string theorem at `BinaryField w` with its bit encoding, any `w ≠ 0`.
 example {w ℓ : ℕ} (hw : w ≠ 0) {X : Type*} (enc : X → List (BitString w))

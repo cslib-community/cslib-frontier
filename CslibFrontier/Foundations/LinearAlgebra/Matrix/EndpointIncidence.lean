@@ -67,20 +67,19 @@ noncomputable def endpointIncidenceKernelEquiv (u v : E → V) (root : V)
   map_add' _ _ := rfl
   map_smul' _ _ := rfl
 
-variable [Fintype E] [Fintype F]
-
 /-- A connected indexed incidence matrix has rank one less than its number of vertices.
 This counts endpoint names and indexed columns separately. -/
-theorem rank_endpointIncidence_add_one (u v : E → V) (root : V)
+theorem rank_endpointIncidence_add_one [Finite E] (u v : E → V) (root : V)
     (hconn : ∀ s : V → ZMod 2, (∀ e, s (u e) = s (v e)) → ∀ a b, s a = s b) :
     (endpointIncidence u v).rank + 1 = Fintype.card V := by
   have hk : Module.finrank (ZMod 2) (endpointIncidence u v).transpose.mulVecLin.ker = 1 := by
     rw [← (endpointIncidenceKernelEquiv u v root hconn).finrank_eq]
     exact Module.finrank_self _
   have h := (endpointIncidence u v).transpose.mulVecLin.finrank_range_add_finrank_ker
-  change (endpointIncidence u v).transpose.rank +
-    Module.finrank (ZMod 2) (endpointIncidence u v).transpose.mulVecLin.ker = _ at h
+  rw [finrank_range_mulVecLin] at h
   simpa only [rank_transpose, hk, Module.finrank_pi, Module.finrank_self, mul_one] using h
+
+variable [Fintype E] [Fintype F]
 
 omit [DecidableEq V] in
 /-- A zero matrix product and the connected Euler dimension equation force exactness.
@@ -98,9 +97,9 @@ theorem range_transpose_eq_ker_of_euler (B : Matrix V E (ZMod 2))
     rw [mulVec_mulVec, hzero, zero_mulVec]
   apply Submodule.eq_of_le_of_finrank_eq (K := ZMod 2) hle
   have hnull := D.mulVecLin.finrank_range_add_finrank_ker
-  change D.rank + Module.finrank (ZMod 2) D.mulVecLin.ker = _ at hnull
+  rw [finrank_range_mulVecLin] at hnull
   simp only [Module.finrank_pi] at hnull
-  rw [← rank, rank_transpose]
+  rw [finrank_range_mulVecLin, rank_transpose]
   omega
 
 end Matrix

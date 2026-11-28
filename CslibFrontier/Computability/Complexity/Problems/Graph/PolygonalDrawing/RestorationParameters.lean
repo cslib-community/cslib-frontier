@@ -28,7 +28,7 @@ open Polygonal RotationSystem
 position and retaining both independently attached end occurrences. -/
 theorem restoredRoute_eval_cases {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (huv : u ≠ v)
-    (ρ : ℝ) (a b : ℂ) (e : Fin G.2.length)
+    (ρ : ℝ) (a b : ℂ) (e : Fin G.edges.length)
     (i : Fin (D.restoredRoute ρ a b e).segments) (t : ℝ) :
     let p := D.outsideRoute v ρ (contractedIndex G u v e)
     let w₀ := Dart.vertex (G := G) (e, false)
@@ -93,7 +93,7 @@ theorem restoredRoute_eval_cases {G : Graph} {u v : ℕ}
 restored route. Positive attachments at the other end are counted explicitly. -/
 theorem restoredRoute_atEnd_of_exterior {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (ρ : ℝ) (a b : ℂ)
-    (e : Fin G.2.length) (i : Fin (D.restoredRoute ρ a b e).segments)
+    (e : Fin G.edges.length) (i : Fin (D.restoredRoute ρ a b e).segments)
     (j : Fin (D.outsideRoute v ρ (contractedIndex G u v e)).segments) (t : ℝ) (side : Bool)
     (hpos : (D.restoredRoute ρ a b e).position i t =
       (attachmentCount u v (Dart.vertex (G := G) (e, false)) : ℝ) +
@@ -119,7 +119,7 @@ theorem restoredRoute_atEnd_of_exterior {G : Graph} {u v : ℕ}
 /-- The initial spoke's zero parameter is the restored first end. -/
 theorem restoredRoute_atEnd_first {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (ρ : ℝ) (a b : ℂ)
-    (e : Fin G.2.length) (i : Fin (D.restoredRoute ρ a b e).segments) {t : ℝ}
+    (e : Fin G.edges.length) (i : Fin (D.restoredRoute ρ a b e).segments) {t : ℝ}
     (hpos : (D.restoredRoute ρ a b e).position i t = t) (ht : t = 0) :
     (D.restoredRoute ρ a b e).AtEnd i t false := by
   change (D.restoredRoute ρ a b e).position i t = 0
@@ -128,7 +128,7 @@ theorem restoredRoute_atEnd_first {G : Graph} {u v : ℕ}
 /-- The final spoke's unit parameter is the restored last end. -/
 theorem restoredRoute_atEnd_last {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (ρ : ℝ) (a b : ℂ)
-    (e : Fin G.2.length) (i : Fin (D.restoredRoute ρ a b e).segments) {t : ℝ}
+    (e : Fin G.edges.length) (i : Fin (D.restoredRoute ρ a b e).segments) {t : ℝ}
     (hactive : Dart.vertex (G := G) (e, true) = u ∨ Dart.vertex (e, true) = v)
     (hpos : (D.restoredRoute ρ a b e).position i t =
       ((D.outsideRoute v ρ (contractedIndex G u v e)).segments : ℝ) +
@@ -144,7 +144,7 @@ theorem restoredRoute_atEnd_last {G : Graph} {u v : ℕ}
 The zero outward parameter retains the corresponding actual source end. -/
 theorem restoredRoute_trace_cases {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (huv : u ≠ v)
-    (ρ : ℝ) (a b : ℂ) (e : Fin G.2.length)
+    (ρ : ℝ) (a b : ℂ) (e : Fin G.edges.length)
     (i : Fin (D.restoredRoute ρ a b e).segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
     (∃ j : Fin (D.outsideRoute v ρ (contractedIndex G u v e)).segments,
       (D.restoredRoute ρ a b e).eval i t =

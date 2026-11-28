@@ -75,16 +75,16 @@ variable [Zero K]
 
 /-- Row `i` of `A` is zero on the columns before `k`. -/
 @[expose] def IsFreeBefore (A : Matrix m (Fin c) K) (k : ℕ) (i : m) : Prop :=
-  ∀ l : Fin c, l.1 < k → A i l = 0
+  ∀ l : Fin c, l.val < k → A i l = 0
 
 instance [DecidableEq K] (A : Matrix m (Fin c) K) (k : ℕ) : DecidablePred (IsFreeBefore A k) :=
   -- unfolded explicitly: instance search does not see through a `Matrix` under a binder
-  fun i => inferInstanceAs (Decidable (∀ l : Fin c, l.1 < k → A i l = 0))
+  fun i => inferInstanceAs (Decidable (∀ l : Fin c, l.val < k → A i l = 0))
 
 /-- The invariant after the stages for the columns before `k`: every row is either free before `k`
 or owns a column before `k`, where it is nonzero and every other row is zero. -/
 private def IsReducedBefore (B : Matrix m (Fin c) K) (k : ℕ) : Prop :=
-  ∀ i, IsFreeBefore B k i ∨ ∃ l : Fin c, l.1 < k ∧ B i l ≠ 0 ∧ ∀ i', i' ≠ i → B i' l = 0
+  ∀ i, IsFreeBefore B k i ∨ ∃ l : Fin c, l.val < k ∧ B i l ≠ 0 ∧ ∀ i', i' ≠ i → B i' l = 0
 
 private theorem isReducedBefore_zero (B : Matrix m (Fin c) K) : IsReducedBefore B 0 :=
   fun _ => Or.inl fun _ hl => absurd hl (Nat.not_lt_zero _)
@@ -93,7 +93,7 @@ private theorem isReducedBefore_zero (B : Matrix m (Fin c) K) : IsReducedBefore 
 private theorem exists_pivot_of_isReducedBefore {B : Matrix m (Fin c) K}
     (hB : IsReducedBefore B c) {i : m} (hi : B i ≠ 0) :
     ∃ l, B i l ≠ 0 ∧ ∀ i', i' ≠ i → B i' l = 0 :=
-  (hB i).elim (fun hfree => (hi (funext fun l => hfree l l.2)).elim)
+  (hB i).elim (fun hfree => (hi (funext fun l => hfree l l.isLt)).elim)
     fun ⟨l, _, hne, hcol⟩ => ⟨l, hne, hcol⟩
 
 end Invariant
@@ -247,7 +247,7 @@ theorem rank_reduce (A : Matrix m (Fin c) K) : (reduce A).rank = A.rank :=
 /-- A stage extends the invariant by one column. The pivot row is free before `j`, so it changes no
 earlier pivot column; it becomes the pivot for column `j`, and every other row is cleared there. -/
 private theorem isReducedBefore_stage {A : Matrix m (Fin c) K} {j : Fin c}
-    (hA : IsReducedBefore A j.1) : IsReducedBefore (stage A j) (j.1 + 1) := by
+    (hA : IsReducedBefore A j.val) : IsReducedBefore (stage A j) (j.val + 1) := by
   rcases h : pivotRow A j with _ | p
   · rw [stage_of_pivotRow_eq_none h]
     refine fun i => (hA i).imp (fun hfree l hl => ?_)
@@ -258,7 +258,7 @@ private theorem isReducedBefore_stage {A : Matrix m (Fin c) K} {j : Fin c}
   · obtain ⟨hpfree, hpne, -⟩ := pivotRow_eq_some_iff.mp h
     rw [stage_of_pivotRow_eq_some h]
     -- the columns before `j` are unchanged, since the pivot row is zero there
-    have hpre : ∀ l : Fin c, l.1 < j.1 → ∀ i, eliminate A j p i l = A i l :=
+    have hpre : ∀ l : Fin c, l.val < j.val → ∀ i, eliminate A j p i l = A i l :=
       fun l hl => eliminate_apply_of_eq_zero (hpfree l hl)
     intro i
     by_cases hip : i = p
@@ -295,14 +295,14 @@ private theorem rank_eq_card_of_isReducedBefore {B : Matrix m (Fin c) K}
   refine le_antisymm (rank_le_card_of_support_subset B _ fun i hi =>
     mem_filter.mpr ⟨mem_univ i, hi⟩) ?_
   let N := {i // B.row i ≠ 0}
-  choose piv hpiv using fun i : N => exists_pivot_of_isReducedBefore hB i.2
-  have hdiag : B.submatrix (fun i : N => i.1) piv = diagonal fun i => B i.1 (piv i) :=
+  choose piv hpiv using fun i : N => exists_pivot_of_isReducedBefore hB i.property
+  have hdiag : B.submatrix (fun i : N => i.val) piv = diagonal fun i => B i.val (piv i) :=
     Matrix.ext fun i i' => by
       by_cases h : i = i'
       · simp [h]
-      · simpa [diagonal_apply_ne _ h] using (hpiv i').2 i.1 fun h' => h (Subtype.ext h')
+      · simpa [diagonal_apply_ne _ h] using (hpiv i').2 i.val fun h' => h (Subtype.ext h')
   calc #{i | B.row i ≠ 0} = Fintype.card N := (Fintype.card_subtype _).symm
-    _ = (diagonal fun i => B i.1 (piv i)).rank := by
+    _ = (diagonal fun i => B i.val (piv i)).rank := by
         rw [rank_diagonal]
         exact (Fintype.card_congr (Equiv.subtypeUnivEquiv fun i => (hpiv i).1)).symm
     _ ≤ B.rank := hdiag ▸ rank_submatrix_le B _ _

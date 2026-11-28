@@ -189,7 +189,7 @@ theorem eq_of_read (u v : Fin n → List Γ)
     (h : ∀ k : Fin n, ∀ p ≤ (v k).length,
       (wordOf (List.ofFn u))[base v k + p]? = ((v k).map some ++ [none])[p]?) :
     u = v := by
-  have key : ∀ m : ℕ, ∀ k : Fin n, k.1 = m → u k = v k := by
+  have key : ∀ m : ℕ, ∀ k : Fin n, k.val = m → u k = v k := by
     intro m
     induction m using Nat.strong_induction_on with
     | _ m ih =>

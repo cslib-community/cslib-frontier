@@ -89,7 +89,7 @@ theorem initialTables_ne_none {N : Type*} [Fintype N] {np : N → Bool → Fin (
   | right p =>
     rintro (⟨a, b, k⟩ | ⟨ν, k⟩) hid ⟨d, hd⟩
     · have h1 := congrArg Fin.val hd
-      have h2 := (bif d then b else a).2
+      have h2 := (bif d then b else a).isLt
       simp only [UnitId.holder, Fin.val_castAdd, Fin.val_natAdd] at h1
       omega
     · exact absurd hid new_notMem_initialUnits

@@ -135,7 +135,7 @@ theorem bias_extendUniform_of_not_disjoint {Q S : Finset ι} (hSQ : ¬Disjoint S
         ext i
         simp [S_Q]
       rw [← hmap, prod_map, chi]
-      exact prod_congr rfl fun j _ => by simp [j.2]
+      exact prod_congr rfl fun j _ => by simp [j.property]
     have h2 : (∏ i ∈ S.filter (· ∉ Q),
         (-1 : ℝ) ^ ((if h : i ∈ Q then v ⟨i, h⟩ else u ⟨i, mem_compl.mpr h⟩).toNat)) = c :=
       prod_congr rfl fun i hi => by simp [(mem_filter.mp hi).2]

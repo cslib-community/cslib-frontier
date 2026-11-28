@@ -112,7 +112,7 @@ private theorem pair_node_mem : pairNode ∈ allNodes 2 1 pair := by
     simpa only [ht, hi] using (IsInput.twice (U := 1) (x := pair))
   · change pairNode ∈ nodes (Nat.primesLE (mPar 2 2)) (labelBits 2) 4 {2} {0} {1}
     rw [nodes]
-    simp only [Finset.singleton_ne_empty, false_or, ↓reduceIte, List.mem_cons]
+    simp only [(Finset.singleton_nonempty _).ne_empty, false_or, ↓reduceIte, List.mem_cons]
     exact Or.inl rfl
 
 -- Two equal values have no distinct-position 3SUM solution, yet their exact reduction is nonempty.

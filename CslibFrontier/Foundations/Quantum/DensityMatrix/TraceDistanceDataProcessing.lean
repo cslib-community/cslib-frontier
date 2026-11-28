@@ -373,15 +373,15 @@ theorem traceNorm_kraus_le {ι ι' α : Type*} [Fintype ι] [DecidableEq ι]
     (hK : ∑ j ∈ s, (K j)ᴴ * K j = 1) (Δ : Matrix ι ι ℂ) :
     (∑ j ∈ s, K j * Δ * (K j)ᴴ).traceNorm ≤ Δ.traceNorm := by
   classical
-  let V : Matrix (ι' × ↥s) ι ℂ := fun ⟨p, j⟩ i => K j.1 p i
+  let V : Matrix (ι' × ↥s) ι ℂ := fun ⟨p, j⟩ i => K j.val p i
   have hV : Vᴴ * V = 1 := by
     ext i₁ i₂
-    have hlhs : (Vᴴ * V) i₁ i₂ = ∑ p : ι', ∑ j : ↥s, star (K j.1 p i₁) * K j.1 p i₂ := by
+    have hlhs : (Vᴴ * V) i₁ i₂ = ∑ p : ι', ∑ j : ↥s, star (K j.val p i₁) * K j.val p i₂ := by
       rw [Matrix.mul_apply, Fintype.sum_prod_type]
       rfl
-    have hcomm : (∑ p : ι', ∑ j : ↥s, star (K j.1 p i₁) * K j.1 p i₂) =
-        ∑ j : ↥s, ∑ p : ι', star (K j.1 p i₁) * K j.1 p i₂ := Finset.sum_comm
-    have hcoe : (∑ j : ↥s, ∑ p : ι', star (K j.1 p i₁) * K j.1 p i₂) =
+    have hcomm : (∑ p : ι', ∑ j : ↥s, star (K j.val p i₁) * K j.val p i₂) =
+        ∑ j : ↥s, ∑ p : ι', star (K j.val p i₁) * K j.val p i₂ := Finset.sum_comm
+    have hcoe : (∑ j : ↥s, ∑ p : ι', star (K j.val p i₁) * K j.val p i₂) =
         ∑ x ∈ s, ∑ p : ι', star (K x p i₁) * K x p i₂ :=
       Finset.sum_coe_sort s (fun x => ∑ p : ι', star (K x p i₁) * K x p i₂)
     have hsum : (∑ x ∈ s, ∑ p : ι', star (K x p i₁) * K x p i₂) =

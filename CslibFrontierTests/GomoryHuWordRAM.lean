@@ -142,7 +142,7 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
   obtain ⟨y, steps, res, p, hruns, hhalt, htime, hpar, hroot, htree, hwt⟩ :=
     hprog W 0 4 8 hW hWB (by decide) (by decide)
   have hne : ∀ u : Fin 4, u ≠ 0 → p u ≠ u := fun u hu => ne_self_of_isTree htree.isTree hroot hu
-  have h0 : y.mem (parAddr 4 0) = (p 0).1 := hpar 0
+  have h0 : y.mem (parAddr 4 0) = (p 0).val := hpar 0
   have hw0 : y.mem (wtAddr 4 0) = minCutBetween W 0 (p 0) := hwt 0
   have hw1 : y.mem (wtAddr 4 1) = minCutBetween W 1 (p 1) := hwt 1
   have hw2 : y.mem (wtAddr 4 2) = minCutBetween W 2 (p 2) := hwt 2
@@ -168,7 +168,7 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
   obtain ⟨y, steps, res, p, hruns, hhalt, htime, hpar, hroot, -, hwt⟩ :=
     hprog (fun _ _ : Fin 1 => 0) 0 0 4 ⟨fun _ _ => rfl, fun _ => rfl⟩ (fun _ _ => le_rfl)
       (by decide) (by decide)
-  have h0 : y.mem (parAddr 1 0) = (p 0).1 := hpar 0
+  have h0 : y.mem (parAddr 1 0) = (p 0).val := hpar 0
   have hw0 : y.mem (wtAddr 1 0) = minCutBetween (fun _ _ : Fin 1 => 0) 0 (p 0) := hwt 0
   refine ⟨R, C, pc, hC, prog, y, steps, res, hruns, hhalt, htime, ?_, ?_⟩
   · rw [h0, hroot]
@@ -186,12 +186,12 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
       step 6 prog ⟨pc, y⟩ = .halt res ∧ steps + 1 ≤ C * 4 ^ 6 ∧
       IsGomoryHuTree (cutWeight fun _ _ : Fin 3 => 0) (parentGraph p) ∧
       y.mem (parAddr 3 0) = 0 ∧
-      ∀ u : Fin 3, y.mem (wtAddr 3 u.1) = 0 := by
+      ∀ u : Fin 3, y.mem (wtAddr 3 u.val) = 0 := by
   obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_gomoryHu_program
   obtain ⟨y, steps, res, p, hruns, hhalt, htime, hpar, hroot, htree, hwt⟩ :=
     hprog (fun _ _ : Fin 3 => 0) 0 0 6 ⟨fun _ _ => rfl, fun _ => rfl⟩ (fun _ _ => le_rfl)
       (by decide) (by decide)
-  have h0 : y.mem (parAddr 3 0) = (p 0).1 := hpar 0
+  have h0 : y.mem (parAddr 3 0) = (p 0).val := hpar 0
   refine ⟨R, C, pc, hC, prog, y, steps, res, p, hruns, hhalt, htime, htree,
     by rw [h0, hroot]; rfl, fun u => ?_⟩
   rw [hwt u]

@@ -266,7 +266,8 @@ private theorem exists_submodule_eq_top_of_cover {F : Type*} [Field F] [Fintype 
     exact Finset.card_bij (fun z hz => (⟨z - z_star, (mem_filter.1 hz).2⟩ : K c))
       (fun _ _ => mem_univ _)
       (fun _ _ _ _ h => sub_left_inj.1 (Subtype.ext_iff.1 h))
-      fun d _ => ⟨d.1 + z_star, mem_filter.2 ⟨mem_univ _, by rw [add_sub_cancel_right]; exact d.2⟩,
+      fun d _ => ⟨d.val + z_star,
+        mem_filter.2 ⟨mem_univ _, by rw [add_sub_cancel_right]; exact d.property⟩,
         Subtype.ext (add_sub_cancel_right _ _)⟩
   have hpigeon : (Fintype.card F) ^ ℓ ≤ L * (U c).card := calc
     (Fintype.card F) ^ ℓ = (Finset.univ : Finset (Fin ℓ → F)).card := by
