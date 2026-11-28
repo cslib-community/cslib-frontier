@@ -97,6 +97,7 @@ with conditional payoffs `1 = v_0` at `false` (tight) and `5 > 1 = v_0` at `true
 example :
     marginalWeight chickenHalfCE 0 false = 1 / 2 ∧
       marginalWeight chickenHalfCE 0 true = 1 / 2 ∧
+      chicken.condPayoff chickenHalfCE 0 false = 1 ∧
       chicken.correlatedMinMax 0 ≤ chicken.condPayoff chickenHalfCE 0 false ∧
       chicken.correlatedMinMax 0 ≤ chicken.condPayoff chickenHalfCE 0 true ∧
       chicken.condPayoff chickenHalfCE 0 true = 5 := by
@@ -116,6 +117,16 @@ example :
       split_ifs <;> ring
     rw [marginalWeight_eq, heq, chickenHalfCE_sum]
     norm_num
+  have hcondF : chicken.condPayoff chickenHalfCE 0 false = 1 := by
+    have hnum : (∑ s : Fin 2 → Bool,
+          if s 0 = false then chickenHalfCE.weights s * chicken.payoff 0 s else 0) =
+        chickenHalfCE.weights.sum
+          (fun s w => w * if s 0 = false then chicken.payoff 0 s else 0) := by
+      rw [Finsupp.sum_fintype _ _ (by simp)]
+      refine Finset.sum_congr rfl fun s _ => ?_
+      split_ifs <;> ring
+    rw [condPayoff_eq, hnum, chickenHalfCE_sum, hmF]
+    norm_num [chicken, chickenPayoff]
   have hcondT : chicken.condPayoff chickenHalfCE 0 true = 5 := by
     have hnum : (∑ s : Fin 2 → Bool,
           if s 0 = true then chickenHalfCE.weights s * chicken.payoff 0 s else 0) =
@@ -126,7 +137,7 @@ example :
       split_ifs <;> ring
     rw [condPayoff_eq, hnum, chickenHalfCE_sum, hmT]
     norm_num [chicken, chickenPayoff]
-  exact ⟨hmF, hmT,
+  exact ⟨hmF, hmT, hcondF,
     chicken.correlatedMinMax_le_condPayoff chicken_isCorrelatedEquilibrium_half 0
       (by rw [hmF]; norm_num),
     chicken.correlatedMinMax_le_condPayoff chicken_isCorrelatedEquilibrium_half 0
@@ -214,7 +225,6 @@ example (fallback : Fin 3 → Bool → Bool) :
   isNCC_majority (m := 1) le_rfl
     (correctnessExclusivity_nccUtil (by norm_num))
     (isMixedStrategy_uniformPrior 3)
-    (uniformPrior_pos 3)
     (highCorrectnessPriority_nccUtil (by norm_num))
 
 /-- Concrete 2-player parity is NOT `NCC` (via reversibility). -/
@@ -238,7 +248,6 @@ example (fallback : Fin 5 → Bool → Bool) :
     (fallback := fallback)
     (correctnessExclusivity_nccUtil (M := 500) (by norm_num))
     (isMixedStrategy_uniformPrior 5)
-    (uniformPrior_pos 5)
     (highCorrectnessPriority_nccUtil (M := 500) (by norm_num))
   exact ⟨(hiff 2).mpr le_rfl, fun h => by have := (hiff 3).mp h; omega⟩
 

@@ -61,15 +61,19 @@ This module formalizes two results from Dodis and Rabin's chapter *Cryptography 
    - **Footnote 8** (`IsDominated.isReversible`, and `IsKDominated.isKReversible` for coalitions):
      every dominated non-constant function (in particular under `EveryInputMatters`) is reversible.
    - **Theorem 8.6** (`isNCC_iff_not_dominated_and_not_reversible`, p. 199) and its `k`-coalition
-     characterization (`isKNCC_iff_not_kDominated_and_not_kReversible`): under correctness,
-     exclusivity, high-correctness priority, full-support `D`, `2 ≤ |ι|` (resp. `k < |ι|`), and
-     non-constancy of `f` (strictly weaker than the source's p. 197 assumption `EveryInputMatters`),
-     `f` is (`k`-)`NCC` iff it is neither (`k`-)dominated nor (`k`-)reversible, uniformly in the
-     honest error-fallback strategy `fallback`.
-   - **Canonical Boolean function witnesses** (p. 199): `Cslib.parity n` (`n ≥ 2`) is reversible
-     and not `NCC`; `Cslib.threshold n 1` (`OR`, `n ≥ 2`) and `Cslib.threshold n n` (`AND`,
-     `n ≥ 2`) are dominated and not `NCC`; `Cslib.majority (2 * m + 1)` (`m ≥ 1`) is `k-NCC` if
-     and only if `k ≤ m` (`isKNCC_majority_iff`), and in particular is `NCC` (`isNCC_majority`).
+     characterization (`isKNCC_iff_not_kDominated_and_not_kReversible`, after "Collusions",
+     p. 199): under correctness, exclusivity, high-correctness priority (which together with
+     correctness automatically implies full support `∀ t, 0 < D t`, `HighCorrectnessPriority.pos`),
+     `2 ≤ |ι|` (resp. `k < |ι|`), and non-constancy of `f` (strictly weaker than the source's
+     p. 197 assumption `EveryInputMatters`), `f` is (`k`-)`NCC` iff it is neither (`k`-)dominated
+     nor (`k`-)reversible, uniformly in the honest error-fallback strategy `fallback`.
+   - **Boolean function witnesses:** matching the explicit examples in [DodisRabin2007], p. 199,
+     `Cslib.parity n` (`n ≥ 2`) is reversible and not `NCC` (`not_isNCC_parity`), while odd-player
+     majority `Cslib.majority (2 * m + 1)` (`m ≥ 1`) is `NCC` (`isNCC_majority`); as concrete
+     Boolean corollaries of p. 198's domination rule, `Cslib.threshold n 1` (`OR`, `n ≥ 2`) and
+     `Cslib.threshold n n` (`AND`, `n ≥ 2`) are dominated and not `NCC` (`not_isNCC_or`,
+     `not_isNCC_and`); extending to coalitions, `Cslib.majority (2 * m + 1)` (`m ≥ 1`) is `k-NCC`
+     if and only if `k ≤ m` (`isKNCC_majority_iff`).
 
 ## Main definitions
 
@@ -402,6 +406,16 @@ exclusivity gain on the complementary event `1 - D t`. -/
     c i = true → c' i = true → c'' i = false →
     (1 - D t) * u i c' + D t * u i c'' < u i c
 
+/-- Under `CorrectnessExclusivity` on a nonempty player set, `HighCorrectnessPriority u D` implies
+that the prior `D` has full support (`∀ t, 0 < D t`). -/
+theorem HighCorrectnessPriority.pos [Nonempty ι] {u : ι → (ι → Bool) → ℝ}
+    {D : (∀ i, T i) → ℝ} (hprio : HighCorrectnessPriority u D)
+    (hu : CorrectnessExclusivity u) (t : ∀ j, T j) : 0 < D t := by
+  obtain ⟨i⟩ := ‹Nonempty ι›
+  have hlt := hu.correctness i (fun _ => true) (fun _ => false) rfl rfl
+  have hp := hprio i (fun _ => true) (fun _ => true) (fun _ => false) t rfl rfl rfl
+  nlinarith
+
 /-- Equivalence of `HighCorrectnessPriority` with the explicit minimum-probability inequality
 `u_i(c) > (1 - ε) u_i(c') + ε u_i(c'')` where `ε = min_t D t` ([DodisRabin2007], p. 199). -/
 theorem highCorrectnessPriority_iff_minProb [Fintype ι] [DecidableEq ι] [∀ j, Fintype (T j)]
@@ -547,7 +561,7 @@ structure CoalitionDev (T : ι → Type*) (O : Type*) (C : Finset ι) where
 
 /-- Output produced by player `j` on true input profile `t` when coalition `C` runs `dev` and
 outsiders `j ∉ C` follow the honest strategy with error rule `fallback`. -/
-def coalitionOutput [DecidableEq ι] (f : (∀ i, T i) → O) (fallback : ∀ i, T i → O)
+private def coalitionOutput [DecidableEq ι] (f : (∀ i, T i) → O) (fallback : ∀ i, T i → O)
     (C : Finset ι) (dev : CoalitionDev T O C) (t : ∀ i, T i) (j : ι) : O :=
   let tC : ∀ m : C, T m.1 := fun m => t m.1
   match dev.report tC with
@@ -636,6 +650,14 @@ private theorem singletonVal_self {i : ι} (a : T i) :
     singletonVal a ⟨i, Finset.mem_singleton_self i⟩ = a :=
   rfl
 
+private theorem patchProfile_singleton [DecidableEq ι] {i : ι}
+    (rC : ∀ j : ({i} : Finset ι), T j.1) (t : ∀ j, T j) :
+    patchProfile {i} rC t = update t i (rC ⟨i, Finset.mem_singleton_self i⟩) := by
+  funext j
+  by_cases hj : j = i
+  · subst hj; simp [patchProfile]
+  · simp [patchProfile, hj]
+
 /-- `1`-domination coincides with `IsDominated`. -/
 theorem isKDominated_one_iff_isDominated {f : (∀ i, T i) → O} :
     IsKDominated f 1 ↔ IsDominated f := by
@@ -657,38 +679,26 @@ theorem isKReversible_one_iff_isReversible [DecidableEq ι] {f : (∀ i, T i) �
   constructor
   · rintro ⟨C, hCne, hCcard, tC, rC, g, hg, t₀, ht₀, hne⟩
     obtain ⟨i, rfl⟩ := Finset.card_eq_one.mp (le_antisymm hCcard (Finset.one_le_card.mpr hCne))
-    have hpatch : ∀ t : ∀ j, T j,
-        patchProfile {i} rC t = update t i (rC ⟨i, Finset.mem_singleton_self i⟩) := fun t => by
-      funext j
-      by_cases hj : j = i
-      · subst hj; simp [patchProfile]
-      · simp [patchProfile, hj]
     refine ⟨i, tC ⟨i, Finset.mem_singleton_self i⟩, rC ⟨i, Finset.mem_singleton_self i⟩, g, ?_, ?_⟩
     · intro t hti
-      rw [← hpatch t]
+      rw [← patchProfile_singleton rC t]
       exact hg t fun ⟨j, hj⟩ => by
         obtain rfl := Finset.mem_singleton.mp hj
         exact hti
     · refine ⟨t₀, ht₀ ⟨i, Finset.mem_singleton_self i⟩, ?_⟩
-      rw [← hpatch t₀]
+      rw [← patchProfile_singleton rC t₀]
       exact hne
   · rintro ⟨i, t_i, t'_i, g, hg, t₀, ht₀, hne⟩
-    have hpatch : ∀ t : ∀ j, T j,
-        patchProfile {i} (singletonVal t'_i) t = update t i t'_i := fun t => by
-      funext j
-      by_cases hj : j = i
-      · subst hj; simp [patchProfile, singletonVal_self]
-      · simp [patchProfile, hj]
     refine ⟨{i}, Finset.singleton_nonempty i, by simp, singletonVal t_i, singletonVal t'_i, g,
       ?_, ?_⟩
     · intro t ht
-      rw [hpatch t]
+      rw [patchProfile_singleton, singletonVal_self]
       exact hg t (ht ⟨i, Finset.mem_singleton_self i⟩)
     · refine ⟨t₀, ?_, ?_⟩
       · intro ⟨j, hj⟩
         obtain rfl := Finset.mem_singleton.mp hj
         exact ht₀
-      · rw [hpatch t₀]
+      · rw [patchProfile_singleton, singletonVal_self]
         exact hne
 
 /-- **Footnote 8** ([DodisRabin2007], Section 8.5.1, p. 199): every dominated non-constant function
@@ -775,14 +785,9 @@ theorem isKNCC_one_iff_isNCC {f : (∀ i, T i) → O} {u : ι → (ι → Bool) 
         · subst hj; simp
         · simp [hj, honestProfile]
       | some a =>
-        have hpatch : patchProfile {i} (singletonVal a) t = update t i a := by
-          funext m
-          by_cases hm : m = i
-          · subst hm; simp [patchProfile, singletonVal_self]
-          · simp [patchProfile, hm]
         by_cases hj : j = i
-        · subst hj; simp [hpatch]
-        · simp [hj, hpatch, honestProfile]
+        · subst hj; simp [patchProfile_singleton, singletonVal_self]
+        · simp [hj, patchProfile_singleton, singletonVal_self, honestProfile]
     by_contra hlt
     push Not at hlt
     have hle := hkncc {i} (by simp) cdev
@@ -819,15 +824,9 @@ theorem isKNCC_one_iff_isNCC {f : (∀ i, T i) → O} {u : ι → (ι → Bool) 
         · subst hj; simp
         · simp [hj, honestProfile]
       | some rC =>
-        have hpatch : patchProfile {i} rC t =
-            update t i (rC ⟨i, Finset.mem_singleton_self i⟩) := by
-          funext m
-          by_cases hm : m = i
-          · subst hm; simp [patchProfile]
-          · simp [patchProfile, hm]
         by_cases hj : j = i
-        · subst hj; simp [hpatch]
-        · simp [hj, hpatch, honestProfile]
+        · subst hj; simp [patchProfile_singleton]
+        · simp [hj, patchProfile_singleton, honestProfile]
     rw [hpay]
     exact hncc i udev
 
@@ -1003,18 +1002,20 @@ theorem IsKDominated.not_isKNCC {f : (∀ i, T i) → O} {k : ℕ}
     ¬ IsKNCC f k u D fallback :=
   (hdom.isKReversible hne).not_isKNCC hk hu hDpos
 
-/-- **Coalitional `k-NCC` characterization** ([DodisRabin2007], Section 8.5.1, "Collusions",
-p. 199): for any `k < |ι|`, any non-constant function `f`, full-support prior `D`, and utilities
-satisfying correctness, exclusivity, and high-correctness priority, `f` is `k-NCC` if and only if
-`f` is neither `k`-dominated nor `k`-reversible (uniformly in `fallback`). -/
+/-- **Coalitional `k-NCC` characterization** (after [DodisRabin2007], Section 8.5.1, "Collusions",
+p. 199): for any `k < |ι|`, any non-constant function `f`, prior `D`, and utilities satisfying
+correctness, exclusivity, and high-correctness priority (which implies full support
+`∀ t, 0 < D t` by `HighCorrectnessPriority.pos`), `f` is `k-NCC` if and only if `f` is neither
+`k`-dominated nor `k`-reversible (uniformly in `fallback`). -/
 theorem isKNCC_iff_not_kDominated_and_not_kReversible
     {f : (∀ i, T i) → O} {k : ℕ} {u : ι → (ι → Bool) → ℝ} {D : (∀ i, T i) → ℝ}
     {fallback : ∀ i, T i → O} (hk : k < Fintype.card ι)
     (hne : ∃ t₁ t₂ : ∀ j, T j, f t₁ ≠ f t₂) (hu : CorrectnessExclusivity u)
-    (hD : IsMixedStrategy D) (hDpos : ∀ t, 0 < D t)
-    (hprio : HighCorrectnessPriority u D) :
-    IsKNCC f k u D fallback ↔ ¬ IsKDominated f k ∧ ¬ IsKReversible f k :=
-  ⟨fun h => ⟨fun hd => hd.not_isKNCC hne hk hu hDpos h,
+    (hD : IsMixedStrategy D) (hprio : HighCorrectnessPriority u D) :
+    IsKNCC f k u D fallback ↔ ¬ IsKDominated f k ∧ ¬ IsKReversible f k := by
+  have : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
+  have hDpos : ∀ t, 0 < D t := hprio.pos hu
+  exact ⟨fun h => ⟨fun hd => hd.not_isKNCC hne hk hu hDpos h,
       fun hr => hr.not_isKNCC hk hu hDpos h⟩,
     fun ⟨hnd, hnr⟩ => isKNCC_of_not_kDominated_and_not_kReversible hu hD hprio hnd hnr⟩
 
@@ -1038,7 +1039,8 @@ theorem IsDominated.not_isNCC {f : (∀ i, T i) → O}
   (hdom.isReversible hne).not_isNCC hcard hu hDpos
 
 /-- **Theorem 8.6** ([DodisRabin2007], Section 8.5.1, p. 199): under correctness, exclusivity,
-high-correctness priority, full-support input prior `D`, at least two players (`2 ≤ |ι|`), and
+high-correctness priority (which implies full support `∀ t, 0 < D t` via
+`HighCorrectnessPriority.pos`), input prior `D`, at least two players (`2 ≤ |ι|`), and
 non-constancy of `f` (implied by the source's p. 197 standing assumption `EveryInputMatters f`),
 `f` is non-cooperatively computable (`IsNCC`) if and only if `f` is neither dominated nor
 reversible, uniformly in the honest error-fallback rule `fallback`. -/
@@ -1046,12 +1048,11 @@ theorem isNCC_iff_not_dominated_and_not_reversible
     {f : (∀ i, T i) → O} {u : ι → (ι → Bool) → ℝ} {D : (∀ i, T i) → ℝ}
     {fallback : ∀ i, T i → O} (hcard : 2 ≤ Fintype.card ι)
     (hne : ∃ t₁ t₂ : ∀ j, T j, f t₁ ≠ f t₂) (hu : CorrectnessExclusivity u)
-    (hD : IsMixedStrategy D) (hDpos : ∀ t, 0 < D t)
-    (hprio : HighCorrectnessPriority u D) :
+    (hD : IsMixedStrategy D) (hprio : HighCorrectnessPriority u D) :
     IsNCC f u D fallback ↔ ¬ IsDominated f ∧ ¬ IsReversible f := by
   rw [← isKNCC_one_iff_isNCC, ← isKDominated_one_iff_isDominated,
     ← isKReversible_one_iff_isReversible]
-  exact isKNCC_iff_not_kDominated_and_not_kReversible (by omega) hne hu hD hDpos hprio
+  exact isKNCC_iff_not_kDominated_and_not_kReversible (by omega) hne hu hD hprio
 
 end NCCTheorems
 
@@ -1103,21 +1104,24 @@ private theorem patchProfile_extBit {n : ℕ} (C : Finset (Fin n)) (tC rC : C �
   funext j
   by_cases hj : j ∈ C <;> simp [patchProfile, extBit, hj]
 
+private theorem card_filter_in_eq {n : ℕ} {C : Finset (Fin n)} (aC : C → Bool)
+    (x : BitString n) (hx : ∀ m : C, x m.1 = aC m) :
+    (C.filter fun m => x m = true).card = #{m : C | aC m = true} := by
+  refine Finset.card_bij (fun m hm => ⟨m, (Finset.mem_filter.mp hm).1⟩) ?_ ?_ ?_
+  · intro m hm
+    obtain ⟨hmC, hxm⟩ := Finset.mem_filter.mp hm
+    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by rwa [← hx ⟨m, hmC⟩]⟩
+  · intro _ _ _ _ h; exact congrArg Subtype.val h
+  · intro ⟨m, hmC⟩ hm
+    have ha := (Finset.mem_filter.mp hm).2
+    exact ⟨m, Finset.mem_filter.mpr ⟨hmC, by rwa [hx ⟨m, hmC⟩]⟩, rfl⟩
+
 private theorem weight_extBit {n : ℕ} {C : Finset (Fin n)} (tC : C → Bool)
     {S : Finset (Fin n)} (hS : S ⊆ Cᶜ) :
     weight (extBit C tC S) = #{j : C | tC j = true} + S.card := by
   rw [weight_eq_card_in_add_out C]
   congr 1
-  · refine Finset.card_bij (fun j hj => ⟨j, (Finset.mem_filter.mp hj).1⟩) ?_ ?_ ?_
-    · intro j hj
-      obtain ⟨hjC, hxj⟩ := Finset.mem_filter.mp hj
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-      simpa [extBit, hjC] using hxj
-    · intro j₁ _ j₂ _ h
-      exact congrArg Subtype.val h
-    · intro ⟨j, hjC⟩ hj
-      have htj : tC ⟨j, hjC⟩ = true := (Finset.mem_filter.mp hj).2
-      exact ⟨j, Finset.mem_filter.mpr ⟨hjC, by simp [extBit, hjC, htj]⟩, rfl⟩
+  · exact card_filter_in_eq tC (extBit C tC S) (extBit_mem tC S)
   · suffices (Cᶜ.filter fun j => extBit C tC S j = true) = S by rw [this]
     ext j
     rw [Finset.mem_filter, Finset.mem_compl]
@@ -1217,18 +1221,8 @@ private theorem not_isKReversible_threshold {n j k : ℕ} (hkj : k < j) (hjk : j
         Finset.filter_congr fun m hm => by simp [patchProfile_notMem rC t₀ (Finset.mem_compl.mp hm)]
       rw [hout]
       congr 1
-      have hcard_in (aC : ∀ m : C, Bool) (x : BitString n) (hx : ∀ m : C, x m.1 = aC m) :
-          (C.filter fun m => x m = true).card = #{m : C | aC m = true} := by
-        refine Finset.card_bij (fun m hm => ⟨m, (Finset.mem_filter.mp hm).1⟩) ?_ ?_ ?_
-        · intro m hm
-          obtain ⟨hmC, hxm⟩ := Finset.mem_filter.mp hm
-          exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by rwa [← hx ⟨m, hmC⟩]⟩
-        · intro _ _ _ _ h; exact congrArg Subtype.val h
-        · intro ⟨m, hmC⟩ hm
-          have ha := (Finset.mem_filter.mp hm).2
-          exact ⟨m, Finset.mem_filter.mpr ⟨hmC, by rwa [hx ⟨m, hmC⟩]⟩, rfl⟩
-      rw [hcard_in rC (patchProfile C rC t₀) (fun m => patchProfile_mem rC t₀ m.2),
-        hcard_in tC t₀ ht₀C]
+      rw [card_filter_in_eq rC (patchProfile C rC t₀) (fun m => patchProfile_mem rC t₀ m.2),
+        card_filter_in_eq tC t₀ ht₀C]
       exact heq
     simp only [Cslib.threshold_apply, hw_eq]
   have hstep (S₀ S₁ : Finset (Fin n)) (hS₀ : S₀ ⊆ Cᶜ) (hS₁ : S₁ ⊆ Cᶜ) {b : Bool}
@@ -1257,8 +1251,8 @@ private theorem not_isKReversible_threshold {n j k : ℕ} (hkj : k < j) (hjk : j
       (threshold_extBit_eq_true rC hSsub (by omega))
       (threshold_extBit_eq_false tC hSsub (by omega))
 
-/-- `n`-bit disjunction (`Cslib.threshold n 1`, `n ≥ 2`) is dominated and hence not `NCC`
-([DodisRabin2007], p. 198). -/
+/-- `n`-bit disjunction (`Cslib.threshold n 1`, `n ≥ 2`) is dominated and hence not `NCC`: a
+concrete Boolean corollary of the domination rule in [DodisRabin2007], Section 8.5.1, p. 198. -/
 theorem not_isNCC_or {n : ℕ} (hn : 2 ≤ n) {u : Fin n → (Fin n → Bool) → ℝ}
     {D : BitString n → ℝ} {fallback : Fin n → Bool → Bool}
     (hu : CorrectnessExclusivity u) (hDpos : ∀ t, 0 < D t) :
@@ -1267,8 +1261,8 @@ theorem not_isNCC_or {n : ℕ} (hn : 2 ≤ n) {u : Fin n → (Fin n → Bool) �
     (isKDominated_threshold_of_le le_rfl (by omega) le_rfl)).not_isNCC
     (exists_ne_threshold le_rfl (by omega)) (by simpa using hn) hu hDpos
 
-/-- `n`-bit conjunction (`Cslib.threshold n n`, `n ≥ 2`) is dominated and hence not `NCC`
-([DodisRabin2007], p. 198). -/
+/-- `n`-bit conjunction (`Cslib.threshold n n`, `n ≥ 2`) is dominated and hence not `NCC`: a
+concrete Boolean corollary of the domination rule in [DodisRabin2007], Section 8.5.1, p. 198. -/
 theorem not_isNCC_and {n : ℕ} (hn : 2 ≤ n) {u : Fin n → (Fin n → Bool) → ℝ}
     {D : BitString n → ℝ} {fallback : Fin n → Bool → Bool}
     (hu : CorrectnessExclusivity u) (hDpos : ∀ t, 0 < D t) :
@@ -1278,14 +1272,15 @@ theorem not_isNCC_and {n : ℕ} (hn : 2 ≤ n) {u : Fin n → (Fin n → Bool) �
     (exists_ne_threshold (by omega) le_rfl) (by simpa using hn) hu hDpos
 
 /-- Exact `k-NCC` threshold for odd-player majority (`Cslib.majority (2 * m + 1)`, `m ≥ 1`):
-under correctness, exclusivity, high-correctness priority, and full-support `D`, majority on
-`2 * m + 1` parties is `k-NCC` if and only if `k ≤ m` (no coalition of size `≤ m` dominates or
-reverses majority, whereas `m + 1` parties dominate it). -/
+under correctness, exclusivity, and high-correctness priority (which implies full support of `D`
+by `HighCorrectnessPriority.pos`), majority on `2 * m + 1` parties is `k-NCC` if and only if
+`k ≤ m` (no coalition of size `≤ m` dominates or reverses majority, whereas `m + 1` parties
+dominate it). -/
 theorem isKNCC_majority_iff {m k : ℕ} (hm : 1 ≤ m)
     {u : Fin (2 * m + 1) → (Fin (2 * m + 1) → Bool) → ℝ}
     {D : BitString (2 * m + 1) → ℝ} {fallback : Fin (2 * m + 1) → Bool → Bool}
     (hu : CorrectnessExclusivity u) (hD : IsMixedStrategy D)
-    (hDpos : ∀ t, 0 < D t) (hprio : HighCorrectnessPriority u D) :
+    (hprio : HighCorrectnessPriority u D) :
     IsKNCC (Cslib.majority (2 * m + 1)) k u D fallback ↔ k ≤ m := by
   have hmaj : Cslib.majority (2 * m + 1) = Cslib.threshold (2 * m + 1) (m + 1) := by
     simp [Cslib.majority, show (2 * m + 1 + 1) / 2 = m + 1 by omega]
@@ -1297,7 +1292,7 @@ theorem isKNCC_majority_iff {m k : ℕ} (hm : 1 ≤ m)
     have hdom : IsKDominated (Cslib.threshold (2 * m + 1) (m + 1)) (m + 1) :=
       isKDominated_threshold_of_le (by omega) (by omega) le_rfl
     exact hdom.not_isKNCC (exists_ne_threshold (by omega) (by omega))
-      (by simp; omega) hu hDpos (hkncc.mono hm1_le)
+      (by simp; omega) hu (hprio.pos hu) (hkncc.mono hm1_le)
   · intro hk
     exact isKNCC_of_not_kDominated_and_not_kReversible hu hD hprio
       (not_isKDominated_threshold (by omega) (by omega))
@@ -1309,9 +1304,9 @@ theorem isNCC_majority {m : ℕ} (hm : 1 ≤ m)
     {u : Fin (2 * m + 1) → (Fin (2 * m + 1) → Bool) → ℝ}
     {D : BitString (2 * m + 1) → ℝ} {fallback : Fin (2 * m + 1) → Bool → Bool}
     (hu : CorrectnessExclusivity u) (hD : IsMixedStrategy D)
-    (hDpos : ∀ t, 0 < D t) (hprio : HighCorrectnessPriority u D) :
+    (hprio : HighCorrectnessPriority u D) :
     IsNCC (Cslib.majority (2 * m + 1)) u D fallback :=
-  isKNCC_one_iff_isNCC.mp ((isKNCC_majority_iff hm hu hD hDpos hprio).mpr hm)
+  isKNCC_one_iff_isNCC.mp ((isKNCC_majority_iff hm hu hD hprio).mpr hm)
 
 end BooleanWitnesses
 

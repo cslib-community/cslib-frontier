@@ -52,11 +52,13 @@ register_result "ncc-functions-characterization" where
     Cslib.GameTheory.RationalCrypto.isNCC_majority
   ]
   scope := "Single-output deterministic functions f : (∀ i, T i) → O over finite player sets ι \
-    with 2 ≤ Fintype.card ι, finite input spaces T i, full-support prior D (IsMixedStrategy D and \
-    ∀ t, 0 < D t), and correctness/exclusivity utilities u : ι → (ι → Bool) → ℝ satisfying \
-    high-correctness priority (HighCorrectnessPriority u D, equivalent by \
-    highCorrectnessPriority_iff_minProb to u_i(c) > (1 - ε) u_i(c') + ε u_i(c'') at \
-    ε = min_t D t). \
+    with 2 ≤ Fintype.card ι, finite input spaces T i, prior D (IsMixedStrategy D), and \
+    correctness/exclusivity utilities u : ι → (ι → Bool) → ℝ satisfying high-correctness priority \
+    (HighCorrectnessPriority u D, equivalent by highCorrectnessPriority_iff_minProb to \
+    u_i(c) > (1 - ε) u_i(c') + ε u_i(c'') at ε = min_t D t, which together with \
+    CorrectnessExclusivity u automatically implies full support ∀ t, 0 < D t via \
+    HighCorrectnessPriority.pos; the necessity-only witnesses not_isNCC_parity, not_isNCC_or, and \
+    not_isNCC_and assume ∀ t, 0 < D t directly without HighCorrectnessPriority). \
     IsNCC (Definition 8.5) is stated as PayoffGame.IsPureNash (honestProfile fallback) on the \
     mediated game mediatedGame f u D over deterministic (report : T i → Option (T i), \
     interpret : T i → Option O → O) deviations (which by linearity of expectation is equivalent \
