@@ -136,9 +136,9 @@ structure EvalPost {r : ℕ} (f : BooleanFunction n) (inp base out : Fin r) (spa
 on `r` registers with its calling convention and per-call instruction bound. The certificate
 `exec` holds at every width `w ≥ n + 1`, from any data whose register `inp` holds the packed
 point and register `base` a workspace base `b` with `Fits w (b + space)`, with all other
-registers and all memory arbitrary (the window `[b, b + space)` included). It computes `(f x).toNat` into `out` within
-`cost` instructions, keeps `inp` and `base`, and keeps every memory cell outside the window
-(`EvalPost`). -/
+registers and all memory arbitrary (the window `[b, b + space)` included). It computes
+`(f x).toNat` into `out` within `cost` instructions, keeps `inp` and `base`, and keeps every
+memory cell outside the window (`EvalPost`). -/
 structure FramedEvaluator (n : ℕ) (f : BooleanFunction n) (r : ℕ) where
   /-- The fixed program. -/
   code : Code .standard r
