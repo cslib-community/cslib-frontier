@@ -1041,6 +1041,7 @@ public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.Partition.D
 public import CslibFrontier.Logics.Propositional.CSP.Table.CyclicDifference
 public import CslibFrontier.Computability.Kolmogorov.MartinLof
 public import CslibFrontier.Computability.Circuit.Rational.Runtime.Determinant
+public import CslibFrontier.Algorithms.Lean.BinPacking.HarmonicLimit
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.GoemansWilliamson
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
@@ -3395,6 +3396,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBou
 public import CslibFrontier.Foundations.Combinatorics.Hypergeometric.Miss
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.SumTree
 public import CslibFrontier.Foundations.Data.BitString.ShortWords
+public import CslibFrontier.Algorithms.Lean.BinPacking.OnlineCompetitive
 public import CslibFrontier.Crypto.Protocols.PKE.ExplicitCoin
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TruncatedAlgorithm
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLSynthesis
@@ -6422,6 +6424,7 @@ public import CslibFrontier.Logics.Propositional.CSP.ExactlyOne
 public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
 public import CslibFrontier.Computability.Complexity.Problems.STCON.WeightedSubdivisionCall
 public import CslibFrontier.Crypto.Computational.GGM.Security
+public import CslibFrontier.Algorithms.Lean.BinPacking.Harmonic
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Matrix
 public import CslibFrontier.Computability.MCSP.PartialHardness.Evaluator
 public import CslibFrontier.DataStructure.BTree.NodeAccess.Query
@@ -6886,6 +6889,7 @@ public import CslibFrontier.Foundations.Data.Finset.Quantile
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embedding.Incidence
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Inductive
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Cyclic
+public import CslibFrontier.Algorithms.Lean.BinPacking.BrownLiang
 public import CslibFrontier.Computability.Kolmogorov.Uncomputability
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Contraction.Threshold
 public import CslibFrontier.Crypto.Computational.GGM.Reduction

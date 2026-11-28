@@ -8,6 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.BinPacking.Online
+public import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -43,10 +46,12 @@ the left side is the total weight `30 * m`.
 Bins holding a `6` already exist after the first phase, and bins holding a `6` or a `14` after the
 second (`OnlinePacker.countP_any_runFrom`). So, writing `F₁`, `F₂` and `F₃` for the numbers of
 bins after the three phases, `30 * m ≤ 2 * F₁ + 2 * F₂ + 2 * F₃`
-(`OnlinePacker.sum_map_yaoWeight_le_run`). If `2 * F₁ < 3 * m`, `2 * F₂ < 9 * m` and
-`2 * F₃ < 18 * m`, then `2 * F₁ + 2 * F₂ + 2 * F₃ < 30 * m`, a contradiction. In linear-programming
-terms, the weights are the dual multipliers `3/10`, `3/5` and `3/5` of the three item counts and
-the factor `2` is the multiplier `3/5` of each phase's ratio constraint, scaled by `10/3`; an exact
+(`OnlinePacker.sum_map_yaoWeight_le_run`). This counting holds for any finite set of phases and
+any weight certificate of this form (`OnlinePacker.sum_map_le_sum_mul_length`). If
+`2 * F₁ < 3 * m`, `2 * F₂ < 9 * m` and `2 * F₃ < 18 * m`, then
+`2 * F₁ + 2 * F₂ + 2 * F₃ < 30 * m`, a contradiction. In linear-programming terms, the weights are
+the dual multipliers `3/10`, `3/5` and `3/5` of the three item counts and the factor `2` is the
+multiplier `3/5` of each phase's ratio constraint, scaled by `10/3`; an exact
 rational LP over the 20 patterns gives the optimal ratio `3/2` for this input, so the certificate
 is optimal, and the test file checks an online packer attaining `3/2` after every phase.
 The integer instance and the explicit certificate are a presentation chosen here; the bound and the
@@ -72,6 +77,8 @@ additive constant `c`, every online packer violates `b * ALG ≤ a * OPT + c` on
 * `Cslib.Algorithms.Lean.BinPacking.OnlinePacker.exists_ratio_violation_of_lt`: no ratio below
   `3/2` with any additive constant.
 * `Cslib.Algorithms.Lean.BinPacking.OnlinePacker.four_thirds_lower_bound`: the two-phase `4/3`.
+* `Cslib.Algorithms.Lean.BinPacking.OnlinePacker.sum_map_le_sum_mul_length`: phase counting for a
+  weight certificate over any finite set of phases.
 * `Cslib.Algorithms.Lean.BinPacking.OnlinePacker.sum_map_yaoWeight_le_run`: Yao's counting, for
   every three-phase input whose later phases avoid the earlier sizes.
 * `Cslib.Algorithms.Lean.BinPacking.isPacking_yao₁` and
@@ -93,6 +100,42 @@ public section
 namespace Cslib.Algorithms.Lean.BinPacking
 
 open List
+
+/-! ### Phase counting -/
+
+private theorem sum_map_le_sum_countP {ι : Type*} [Fintype ι] (y : ι → ℕ)
+    (p : ι → List ℕ → Bool) {f : List ℕ → ℕ} :
+    ∀ {B : List (List ℕ)}, (∀ b ∈ B, f b ≤ ∑ j, y j * (p j b).toNat) →
+      (B.map f).sum ≤ ∑ j, y j * B.countP (p j)
+  | [], _ => by simp
+  | b :: B, h => by
+    have ih := sum_map_le_sum_countP y p fun c hc => h c (mem_cons_of_mem _ hc)
+    have hb := h b mem_cons_self
+    simp only [map_cons, sum_cons, countP_cons]
+    refine (Nat.add_le_add hb ih).trans_eq ?_
+    rw [← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun j _ => ?_
+    cases p j b <;> simp [Nat.mul_add, Nat.add_comm]
+
+/-- **Phase counting.** Let the input `l` be cut after each of finitely many phases `j`, into
+`pre j ++ suf j`, where no item after the cut satisfies `p j`. If every bin's weight under `w` is
+at most `∑ j, y j * [the bin holds an item satisfying p j]`, then the total weight of `l` is at
+most `∑ j, y j` times the number of bins `A` uses on `pre j`. -/
+theorem OnlinePacker.sum_map_le_sum_mul_length {C : ℕ} (A : OnlinePacker C) {ι : Type*}
+    [Fintype ι] {l : List ℕ} (hl : ∀ a ∈ l, a ≤ C) (w : ℕ → ℕ) (y : ι → ℕ) (p : ι → ℕ → Bool)
+    (pre suf : ι → List ℕ) (hsplit : ∀ j, pre j ++ suf j = l)
+    (hsuf : ∀ j, ∀ a ∈ suf j, p j a = false)
+    (hcert : ∀ b : List ℕ, b.sum ≤ C → (b.map w).sum ≤ ∑ j, y j * (b.any (p j)).toNat) :
+    (l.map w).sum ≤ ∑ j, y j * (A.run (pre j)).length := by
+  have hP := A.isPacking_run hl
+  rw [← (hP.perm.map w).sum_eq, map_flatten, sum_flatten, map_map]
+  refine (sum_map_le_sum_countP y (fun j b => b.any (p j))
+    fun b hb => hcert b (hP.sum_le b hb)).trans ?_
+  refine Finset.sum_le_sum fun j _ => Nat.mul_le_mul_left _ ?_
+  rw [← hsplit j, OnlinePacker.run_append, A.countP_any_runFrom (hsuf j)]
+  exact countP_le_length
+
+/-! ### Yao's certificate -/
 
 /-- The weight of an item in Yao's certificate: `1` for size `6`, `2` for sizes `14` and `21`,
 and `0` otherwise. -/
@@ -127,17 +170,6 @@ theorem sum_map_yaoWeight_le {b : List ℕ} (hb : b.sum ≤ 41) :
   simp only [e1, e2]
   split_ifs <;> omega
 
-private theorem sum_map_le_of_le {f : List ℕ → ℕ} {p q : List ℕ → Bool} :
-    ∀ {B : List (List ℕ)}, (∀ b ∈ B, f b ≤ 2 + 2 * (if p b then 1 else 0) +
-      2 * (if q b then 1 else 0)) →
-      (B.map f).sum ≤ 2 * B.length + 2 * B.countP p + 2 * B.countP q
-  | [], _ => by simp
-  | b :: B, h => by
-    simp only [map_cons, sum_cons, length_cons, countP_cons]
-    have ih := sum_map_le_of_le fun c hc => h c (mem_cons_of_mem _ hc)
-    have hb := h b mem_cons_self
-    split_ifs at hb ⊢ <;> omega
-
 namespace OnlinePacker
 
 variable (A : OnlinePacker 41)
@@ -148,24 +180,18 @@ theorem sum_map_yaoWeight_le_run {l₁ l₂ l₃ : List ℕ} (h₂ : 6 ∉ l₂)
     (hle : ∀ a ∈ l₁ ++ l₂ ++ l₃, a ≤ 41) :
     ((l₁ ++ l₂ ++ l₃).map yaoWeight).sum ≤ 2 * (A.run l₁).length +
       2 * (A.run (l₁ ++ l₂)).length + 2 * (A.run (l₁ ++ l₂ ++ l₃)).length := by
-  have hP := A.isPacking_run hle
-  rw [← (hP.perm.map yaoWeight).sum_eq, map_flatten, sum_flatten, map_map]
-  have key := sum_map_le_of_le (f := sum ∘ map yaoWeight)
-    (p := fun b => b.any (· == 6)) (q := fun b => b.any (fun a => a == 6 || a == 14))
-    (B := A.run (l₁ ++ l₂ ++ l₃)) fun b hb => sum_map_yaoWeight_le (hP.sum_le b hb)
-  have c1 : (A.run (l₁ ++ l₂ ++ l₃)).countP (fun b => b.any (· == 6)) =
-      (A.run l₁).countP (fun b => b.any (· == 6)) := by
-    rw [append_assoc, run_append]
-    exact A.countP_any_runFrom fun a ha => by simp [show a ≠ 6 by grind]
-  have c2 : (A.run (l₁ ++ l₂ ++ l₃)).countP (fun b => b.any (fun a => a == 6 || a == 14)) =
-      (A.run (l₁ ++ l₂)).countP (fun b => b.any (fun a => a == 6 || a == 14)) := by
-    rw [run_append]
-    exact A.countP_any_runFrom fun a ha => by
-      simp [show a ≠ 6 from fun e => h₃.1 (e ▸ ha), show a ≠ 14 from fun e => h₃.2 (e ▸ ha)]
-  have d1 := countP_le_length (p := fun b => b.any (· == 6)) (l := A.run l₁)
-  have d2 := countP_le_length (p := fun b => b.any (fun a => a == 6 || a == 14))
-    (l := A.run (l₁ ++ l₂))
-  omega
+  have h := A.sum_map_le_sum_mul_length hle yaoWeight (fun _ : Fin 3 => 2)
+    ![(· == 6), fun a => a == 6 || a == 14, fun _ => true] ![l₁, l₁ ++ l₂, l₁ ++ l₂ ++ l₃]
+    ![l₂ ++ l₃, l₃, []] (fun j => by fin_cases j <;> simp)
+    (fun j a ha => by fin_cases j <;> simp at ha ⊢ <;> grind) fun b hb => by
+      rcases b with _ | ⟨x, b⟩
+      · simp
+      have := sum_map_yaoWeight_le hb
+      revert this
+      simp only [Fin.sum_univ_three, Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one,
+        Matrix.cons_val]
+      cases (x :: b).any (· == 6) <;> cases (x :: b).any (fun a => a == 6 || a == 14) <;> simp
+  simpa [Fin.sum_univ_three] using h
 
 /-- **Yao's lower bound.** Against `6 * m` items of size `6`, then `6 * m` of size `14`, then
 `6 * m` of size `21`, in bins of capacity `41`, every online packer uses at least `3/2` times the
