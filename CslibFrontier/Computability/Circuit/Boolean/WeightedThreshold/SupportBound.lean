@@ -211,6 +211,10 @@ private theorem residual_deficit_lt (p : Program signature n g)
     push_cast at h'
     linarith
 
+private theorem card_compl_coe_add_card (F : Finset (Fin n)) :
+    Fintype.card ↥Fᶜ + F.card = n := by
+  simpa only [Fintype.card_coe, Fintype.card_fin] using card_compl_add_card F
+
 /-- After fixing `F`, bounded incidence gives a support-sensitive lower bound. Only effective
 coefficients on original input coordinates are counted. -/
 theorem le_inputGates_of_bounded_incidence (p : Program signature n g)
@@ -230,8 +234,7 @@ theorem le_inputGates_of_bounded_incidence (p : Program signature n g)
       simpa only [mem_residualSupport, inputDegree] using
         hD i.val (mem_compl.mp i.property))
     (residual_deficit_lt p readout hreadout hf hK F)
-  have hcard : Fintype.card ↥Fᶜ + F.card = n := by
-    simpa only [Fintype.card_coe, Fintype.card_fin] using card_compl_add_card F
+  have hcard := card_compl_coe_add_card F
   have hcardR : (Fintype.card ↥Fᶜ : ℝ) + F.card = n := by exact_mod_cast hcard
   have hfc0 : (0 : ℝ) ≤ F.card := Nat.cast_nonneg _
   have hroot : 2 * Real.sqrt (Fintype.card ↥Fᶜ / 2) ≤ Real.sqrt (2 * (n : ℝ)) := by
@@ -299,8 +302,7 @@ theorem two_mul_lt_inputGates_of_inputSupport_card_le_three (p : Program signatu
       simpa only [mem_residualSupport, inputDegree] using
         hdegree i.val (mem_compl.mp i.property))
     (residual_disjoint_deficit_lt p readout hreadout hf hK F)
-  have hcard : Fintype.card ↥Fᶜ + F.card = n := by
-    simpa only [Fintype.card_coe, Fintype.card_fin] using card_compl_add_card F
+  have hcard := card_compl_coe_add_card F
   have hle : Fintype.card ↥Fᶜ ≤ n := by omega
   rw [Fintype.card_coe (inputGates p)] at h
   have hlog := Nat.mul_le_mul_left (max 3 T)

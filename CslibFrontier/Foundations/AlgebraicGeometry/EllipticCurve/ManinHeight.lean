@@ -155,19 +155,26 @@ theorem hgt_eq_of_smul_eq {v w : Fin 3 → k[X]} (hv : IsPrimTriple v) (hw : IsP
 
 /-! ### The symmetric product of two coprime pairs -/
 
+private lemma not_prime_dvd_sym2Pair_of_dvd_left {r s r' s' π : k[X]} (h : IsCoprime r s)
+    (h' : IsCoprime r' s') (hπ : Prime π) (hr : π ∣ r) (h₁ : π ∣ r * s' + s * r')
+    (h₂ : π ∣ s * s') : False := by
+  have hs : ¬ π ∣ s := fun hs ↦ hπ.not_isUnit (h.isUnit_of_dvd' hr hs)
+  have hs' : π ∣ s' := (hπ.dvd_or_dvd h₂).resolve_left hs
+  have hsr' : π ∣ s * r' := (dvd_add_right (dvd_mul_of_dvd_left hr s')).1 h₁
+  exact hπ.not_isUnit (h'.isUnit_of_dvd' ((hπ.dvd_or_dvd hsr').resolve_left hs) hs')
+
 /-- The symmetric product of two coprime pairs is primitive. -/
 theorem isPrim_sym2Pair {r s r' s' : k[X]} (h : IsCoprime r s) (h' : IsCoprime r' s') :
     IsPrimTriple (sym2Pair r s r' s') := by
   intro π hπ hdvd
   rcases hπ.dvd_or_dvd (hdvd 0) with hr | hr'
-  · have hs : ¬ π ∣ s := fun hs ↦ hπ.not_isUnit (h.isUnit_of_dvd' hr hs)
-    have hs' : π ∣ s' := (hπ.dvd_or_dvd (hdvd 2)).resolve_left hs
-    have hsr' : π ∣ s * r' := (dvd_add_right (dvd_mul_of_dvd_left hr s')).1 (hdvd 1)
-    exact hπ.not_isUnit (h'.isUnit_of_dvd' ((hπ.dvd_or_dvd hsr').resolve_left hs) hs')
-  · have hs' : ¬ π ∣ s' := fun hs' ↦ hπ.not_isUnit (h'.isUnit_of_dvd' hr' hs')
-    have hs : π ∣ s := (hπ.dvd_or_dvd (hdvd 2)).resolve_right hs'
-    have hrs' : π ∣ r * s' := (dvd_add_left (dvd_mul_of_dvd_left hs r')).1 (hdvd 1)
-    exact hπ.not_isUnit (h.isUnit_of_dvd' ((hπ.dvd_or_dvd hrs').resolve_right hs') hs)
+  · exact not_prime_dvd_sym2Pair_of_dvd_left h h' hπ hr (hdvd 1) (hdvd 2)
+  · -- the symmetric product is symmetric in the two pairs
+    refine not_prime_dvd_sym2Pair_of_dvd_left h' h hπ hr' ?_ ?_
+    · rw [show r' * s + s' * r = r * s' + s * r' by ring]
+      exact hdvd 1
+    · rw [mul_comm]
+      exact hdvd 2
 
 /-- For a coprime pair, a coefficient at `max (deg r) (deg s)` is nonzero. -/
 private lemma coeff_max_ne_zero {r s : k[X]} (h : IsCoprime r s) :

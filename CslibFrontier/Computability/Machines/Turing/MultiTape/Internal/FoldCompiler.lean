@@ -322,16 +322,16 @@ public theorem foldl {γ α β : Type u} {encIn : γ ↪ List Bool}
     tmf.comp ((tmF.iterateWhile true).comp (tmS.comp tmP true) true) true, fun x => ?_⟩
   have h := ((hstart x).comp (hrun x) true).comp
     (hf (some ([], (list x).foldl step (init x)))) true
+  have hi : (encO (some (list x, init x))).length ≤ cs * (lMax x + 1) := by
+    apply (hcs _).trans (Nat.mul_le_mul_left cs _)
+    have hh := hlMax x 0 (Nat.zero_le _); simpa using Nat.add_le_add_right hh 1
+  have he : (encO (some ([], (list x).foldl step (init x)))).length ≤
+      cs * (lMax x + 1) := by
+    apply (hcs _).trans (Nat.mul_le_mul_left cs _)
+    have hh := hlMax x (list x).length le_rfl
+    simpa using Nat.add_le_add_right hh 1
   apply h.mono
-  · have hi : (encO (some (list x, init x))).length ≤ cs * (lMax x + 1) := by
-      apply (hcs _).trans (Nat.mul_le_mul_left cs _)
-      have hh := hlMax x 0 (Nat.zero_le _); simpa using Nat.add_le_add_right hh 1
-    have he : (encO (some ([], (list x).foldl step (init x)))).length ≤
-        cs * (lMax x + 1) := by
-      apply (hcs _).trans (Nat.mul_le_mul_left cs _)
-      have hh := hlMax x (list x).length le_rfl
-      simpa using Nat.add_le_add_right hh 1
-    have hm : lMax x + 1 ≤ ((list x).length + 1) * (tMax x + lMax x + 1) := by
+  · have hm : lMax x + 1 ≤ ((list x).length + 1) * (tMax x + lMax x + 1) := by
       nlinarith
     change cStart * (t x + lMax x + 1) +
       A * (((list x).length + 1) * (tMax x + lMax x + 1)) +
@@ -344,15 +344,7 @@ public theorem foldl {γ α β : Type u} {encIn : γ ↪ List Bool}
     dsimp only [C]
     ring_nf at hiw hew him ⊢
     omega
-  · have hi : (encO (some (list x, init x))).length ≤ cs * (lMax x + 1) := by
-      apply (hcs _).trans (Nat.mul_le_mul_left cs _)
-      have hh := hlMax x 0 (Nat.zero_le _); simpa using Nat.add_le_add_right hh 1
-    have he : (encO (some ([], (list x).foldl step (init x)))).length ≤
-        cs * (lMax x + 1) := by
-      apply (hcs _).trans (Nat.mul_le_mul_left cs _)
-      have hh := hlMax x (list x).length le_rfl
-      simpa using Nat.add_le_add_right hh 1
-    change cStart * (s x + lMax x + 1) + D * (sMax x + lMax x + 1) +
+  · change cStart * (s x + lMax x + 1) + D * (sMax x + lMax x + 1) +
       5 * (encO (some (list x, init x))).length + K₁ +
       cf * ((encO (some ([], (list x).foldl step (init x)))).length + 1) +
       5 * (encO (some ([], (list x).foldl step (init x)))).length + K₂ ≤ _

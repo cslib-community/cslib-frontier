@@ -326,6 +326,10 @@ theorem Valid.reduction_restrict_of {S : State cfg n} (hS : S.Valid f) {x : ℕ}
 
 /-! ### Deletions -/
 
+private theorem sdiff_singleton_toFinset {α : Type*} [DecidableEq α] (s : Finset α) (a : α) :
+    s \ [a].toFinset = s.erase a := by
+  rw [List.toFinset_cons, List.toFinset_nil, insert_empty_eq, Finset.sdiff_singleton_eq_erase]
+
 /-- Deleting a gate is a reduction; it may reroute only to the parameter read by the literal. -/
 theorem Valid.reduction_deleteGate {S : State cfg n} (hS : S.Valid f) {J : ℕ} {ℓ : Lit}
     (h : S.DeleteGateLocusOK J ℓ) {T : List (ℕ ⊕ ℕ)} (hT : ∀ t, ℓ.Reads t → .inl J ∈ T) :
@@ -339,8 +343,7 @@ theorem Valid.reduction_deleteGate {S : State cfg n} (hS : S.Valid f) {J : ℕ} 
     by_cases hℓu : ℓ.Reads u
     · exact Or.inr ⟨_, hT u hℓu, (SemiCircuit.inl_mem_children _).2 ⟨h.mem, h.reads u hℓu⟩⟩
     · refine Or.inl ?_
-      rw [List.toFinset_cons, List.toFinset_nil, insert_empty_eq,
-        Finset.sdiff_singleton_eq_erase]
+      rw [sdiff_singleton_toFinset]
       exact deleteGate_children_of_ne hS h.mem hu hℓu
   deletable N hN hdel := by
     rcases N with K | e
@@ -371,8 +374,7 @@ theorem Valid.reduction_deleteEqn {S : State cfg n} (hS : S.Valid f) {e v : ℕ}
     by_cases hℓu : ℓ.Reads u
     · exact Or.inr ⟨_, hT u hℓu, (SemiCircuit.inr_mem_children _).2 ⟨h.mem, (h.reads u hℓu).1⟩⟩
     · refine Or.inl ?_
-      rw [List.toFinset_cons, List.toFinset_nil, insert_empty_eq,
-        Finset.sdiff_singleton_eq_erase]
+      rw [sdiff_singleton_toFinset]
       exact deleteEqn_children_of_ne hS h hu hℓu
   deletable N hN hdel := by
     rcases N with K | e'
@@ -389,8 +391,7 @@ private theorem Valid.reduction_dropTrivialEqn {S : State cfg n} (hS : S.Valid f
   pairs := (Finset.filter_true_of_mem fun _ _ => by simp).symm
   size := dropTrivialEqn_size he
   children _ _ := Or.inl (by
-    rw [dropTrivialEqn_children, List.toFinset_cons, List.toFinset_nil, insert_empty_eq,
-      Finset.sdiff_singleton_eq_erase])
+    rw [dropTrivialEqn_children, sdiff_singleton_toFinset])
   deletable N hN hdel := by
     rcases N with K | e'
     · exact hdel

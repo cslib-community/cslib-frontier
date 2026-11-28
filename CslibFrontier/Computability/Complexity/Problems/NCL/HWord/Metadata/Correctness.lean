@@ -41,14 +41,17 @@ private theorem branches_eq : branches q n = (PortGraph.network H n).branches.ma
     List.map_flatMap, List.flatMap_map, List.flatMap_assoc, List.map_map, Function.comp_def,
     List.map_cons, List.map_nil, lowerBranch]
 
+private theorem endpoint_lowerBranch (e : RelationSite q n × Bool) :
+    endpointRow n (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).1.val ∧
+      endpointSymbol (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).2 :=
+  ⟨(PortGraph.network_endpoint_row H e.1 e.2).symm,
+    (PortGraph.network_endpoint_symbol H e.1 e.2).symm⟩
+
 private theorem incident_eq (c : Fin n × Fin q) :
     incident n c.1.val c.2 = ((PortGraph.network H n).incident c).map lowerBranch := by
   rw [incident, SelectorNetwork.incident, branches_eq H, List.filter_map]
   refine congrArg (List.map lowerBranch) (List.filter_congr fun e _ => ?_)
-  have hr : endpointRow n (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).1.val :=
-    (PortGraph.network_endpoint_row H e.1 e.2).symm
-  have hs : endpointSymbol (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).2 :=
-    (PortGraph.network_endpoint_symbol H e.1 e.2).symm
+  obtain ⟨hr, hs⟩ := endpoint_lowerBranch H e
   simp only [Function.comp_def, hr, hs, Prod.ext_iff, Fin.ext_iff]
 
 private theorem filter_product_left {α β : Type*} [DecidableEq α] (xs : List α)
@@ -197,10 +200,7 @@ private theorem branchBit_eq (word : List (Fin q)) (w : Fin n → Fin q)
     (hw : ∀ i, word.getD i.val ⟨0, hq⟩ = w i) (e : RelationSite q n × Bool) :
     branchBit hq n word (lowerBranch e) =
       (PortGraph.network H n).encode (oneHot w) (.inr e) := by
-  have hr : endpointRow n (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).1.val :=
-    (PortGraph.network_endpoint_row H e.1 e.2).symm
-  have hs : endpointSymbol (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).2 :=
-    (PortGraph.network_endpoint_symbol H e.1 e.2).symm
+  obtain ⟨hr, hs⟩ := endpoint_lowerBranch H e
   change decide (word.getD (endpointRow n (lowerBranch e)) ⟨0, hq⟩ =
       endpointSymbol (lowerBranch e)) =
     decide (w ((PortGraph.network H n).endpoint e.1 e.2).1 =

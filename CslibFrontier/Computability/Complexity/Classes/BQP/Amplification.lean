@@ -569,6 +569,12 @@ theorem acceptProb_amplify (F : UniformCircuitFamily) {r : ℕ → ℕ}
 private theorem sum_bernoulli (p : ℝ) : ∑ c : Bool, (if c then p else 1 - p) = 1 := by
   simp
 
+private theorem trial_nonneg (F : UniformCircuitFamily) (x : List Bool) (c : Bool) :
+    0 ≤ if c then F.acceptProb x else 1 - F.acceptProb x := by
+  cases c
+  · exact sub_nonneg.mpr (F.acceptProb_le_one x)
+  · exact F.acceptProb_nonneg x
+
 /-- **Amplifying acceptance**: a family accepting with probability at least `2 / 3` gives a family
 accepting with probability at least `1 - (8 / 9) ^ r(n)`. -/
 theorem one_sub_le_acceptProb_amplify (F : UniformCircuitFamily) {r : ℕ → ℕ}
@@ -577,9 +583,7 @@ theorem one_sub_le_acceptProb_amplify (F : UniformCircuitFamily) {r : ℕ → �
     1 - (8 / 9) ^ r x.length ≤ (F.amplify r hr).acceptProb x := by
   set p := F.acceptProb x
   set R := r x.length
-  have hq : ∀ c : Bool, 0 ≤ if c then p else 1 - p := fun c => by
-    have := F.acceptProb_le_one x
-    cases c <;> simp <;> linarith
+  have hq := trial_nonneg F x
   have hbad := sum_prod_le_of_card_filter_le (fun c : Bool => if c then p else 1 - p) hq
     (sum_bernoulli p) {true} (by simpa using (by linarith : (2 : ℝ) ≤ 3 * p)) R
   simp only [mem_singleton] at hbad
@@ -597,9 +601,7 @@ theorem acceptProb_amplify_le (F : UniformCircuitFamily) {r : ℕ → ℕ}
     (hx : F.acceptProb x ≤ 1 / 3) :
     (F.amplify r hr).acceptProb x ≤ (8 / 9) ^ r x.length := by
   set p := F.acceptProb x
-  have hq : ∀ c : Bool, 0 ≤ if c then p else 1 - p := fun c => by
-    have := F.acceptProb_nonneg x
-    cases c <;> simp <;> linarith
+  have hq := trial_nonneg F x
   have hbad := sum_prod_le_of_card_filter_le (fun c : Bool => if c then p else 1 - p) hq
     (sum_bernoulli p) {false} (by simpa using (by linarith : (2 : ℝ) ≤ 3 * (1 - p))) (r x.length)
   simp only [mem_singleton] at hbad

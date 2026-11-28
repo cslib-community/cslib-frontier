@@ -83,6 +83,44 @@ private theorem copyCompItem_meta_frame {metaBase itemBase U V w N m_cap src dst
   rw [hs']
   exact ⟨rfl, hlm2.trans hlm1, hgm2.trans hgm1, htd2.trans htd1, hdt2.trans hdt1⟩
 
+private theorem compPromoteMoveItems_meta_frame
+    {metaBase itemBase U V w N m_cap b d_u d_top d_last : ℕ}
+    (hw : 0 < w) (h_order : metaBase + offCompItems U w N ≤ itemBase) (hb : b < m_cap)
+    (hd_u : d_u < m_cap) (hd_top : d_top < m_cap) (hd_last : d_last < m_cap)
+    (s sm : Memory.State) (hsm : sm = (Memory.spec 0).clientState s
+      (compPromoteMoveItemsProg (((mkCompParams U V w N, itemBase), b), (d_u, (d_top, d_last))))) :
+    sm.frontier = s.frontier ∧
+    compGmAt metaBase U w N sm.mem = compGmAt metaBase U w N s.mem ∧
+    compTDAt metaBase U w N sm.mem = compTDAt metaBase U w N s.mem ∧
+    compDTAt metaBase U w N sm.mem = compDTAt metaBase U w N s.mem := by
+  have hsm_eq : sm = (Memory.spec 0).clientState
+      ((Memory.spec 0).clientState
+        ((Memory.spec 0).clientState s
+          (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_top, d_u))))
+        (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_last, d_top))))
+      (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (b, d_last))) := by
+    rw [hsm]; dsimp only [compPromoteMoveItemsProg]
+    rw [StateTransitionSpec.clientState_bind, clientState_readCompQuotGenProg,
+      StateTransitionSpec.clientState_bind, clientState_readCompValGenProg,
+      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
+      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
+  have fc1 := copyCompItem_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
+    hw h_order hd_top hd_u s
+  have fc2 := copyCompItem_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
+    hw h_order hd_last hd_top
+    ((Memory.spec 0).clientState s
+      (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_top, d_u))))
+  have fc3 := copyCompItem_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
+    hw h_order hb hd_last
+    ((Memory.spec 0).clientState
+      ((Memory.spec 0).clientState s
+        (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_top, d_u))))
+      (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_last, d_top))))
+  rw [hsm_eq]
+  exact ⟨fc3.1.trans (fc2.1.trans fc1.1), fc3.2.2.1.trans (fc2.2.2.1.trans fc1.2.2.1),
+    fc3.2.2.2.1.trans (fc2.2.2.2.1.trans fc1.2.2.2.1),
+    fc3.2.2.2.2.trans (fc2.2.2.2.2.trans fc1.2.2.2.2)⟩
+
 private theorem realizesBounded_compPromoteReadPtrs :
     RealizesBounded .exact compPromoteReadPtrsProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ))
@@ -417,36 +455,9 @@ private theorem realizesBounded_compPromoteStep :
     set sm := (Memory.spec 0).clientState s
       (compPromoteMoveItemsProg (((mkCompParams U V w N, itemBase), b_win),
         (d_u, (d_top, d_last))))
-    have hsm_eq : sm = (Memory.spec 0).clientState
-        ((Memory.spec 0).clientState
-          ((Memory.spec 0).clientState s
-            (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_top, d_u))))
-          (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_last, d_top))))
-        (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (b_win, d_last))) := by
-      dsimp only [sm, compPromoteMoveItemsProg]
-      rw [StateTransitionSpec.clientState_bind, clientState_readCompQuotGenProg,
-        StateTransitionSpec.clientState_bind, clientState_readCompValGenProg,
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-    have fc1 := copyCompItem_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
-      henv.pos_w henv.meta_le_item hd_top hd_u s
-    have fc2 := copyCompItem_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
-      henv.pos_w henv.meta_le_item hd_last hd_top
-      ((Memory.spec 0).clientState s
-        (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_top, d_u))))
-    have fc3 := copyCompItem_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
-      henv.pos_w henv.meta_le_item hb_cap hd_last
-      ((Memory.spec 0).clientState
-        ((Memory.spec 0).clientState s
-          (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_top, d_u))))
-        (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_last, d_top))))
-    have hsm_fr : sm.frontier = s.frontier := by rw [hsm_eq]; exact fc3.1.trans (fc2.1.trans fc1.1)
-    have hsm_gm : compGmAt metaBase U w N sm.mem = compGmAt metaBase U w N s.mem := by
-      rw [hsm_eq]; exact fc3.2.2.1.trans (fc2.2.2.1.trans fc1.2.2.1)
-    have hsm_td : compTDAt metaBase U w N sm.mem = compTDAt metaBase U w N s.mem := by
-      rw [hsm_eq]; exact fc3.2.2.2.1.trans (fc2.2.2.2.1.trans fc1.2.2.2.1)
-    have hsm_dt : compDTAt metaBase U w N sm.mem = compDTAt metaBase U w N s.mem := by
-      rw [hsm_eq]; exact fc3.2.2.2.2.trans (fc2.2.2.2.2.trans fc1.2.2.2.2)
+    obtain ⟨hsm_fr, hsm_gm, hsm_td, hsm_dt⟩ := compPromoteMoveItems_meta_frame
+      (metaBase := metaBase) (V := V) henv.pos_w henv.meta_le_item hb_cap hd_u hd_top hd_last
+      s sm rfl
     have hn'_max : n' < maxTailItems N := lt_of_lt_of_le (by dsimp only [n']; omega) htail.ntails_le
     exact ⟨U, V, N, m_cap, rfl, henv.of_mem_eq (by rw [hsm_fr]), hb_pos, hb,
       by dsimp only [b_win]; omega, hb_cap, hn'_max,
@@ -569,36 +580,9 @@ private theorem validProg_compPromoteStep {w : ℕ}
   refine validProg_bind_of_eq
     (validProg_compPromoteMoveItems ⟨m_cap, henv.compItemEnv, hb_cap, hd_u, hd_top, hd_last⟩)
     (rfl : _ = qv) fun sm hsm => ?_
-  have hsm_eq : sm = (Memory.spec 0).clientState
-      ((Memory.spec 0).clientState
-        ((Memory.spec 0).clientState s
-          (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_top, d_u))))
-        (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_last, d_top))))
-      (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (b_win, d_last))) := by
-    rw [hsm]; dsimp only [compPromoteMoveItemsProg]
-    rw [StateTransitionSpec.clientState_bind, clientState_readCompQuotGenProg,
-      StateTransitionSpec.clientState_bind, clientState_readCompValGenProg,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-  have fc1 := copyCompItem_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
-    henv.pos_w henv.meta_le_item hd_top hd_u s
-  have fc2 := copyCompItem_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
-    henv.pos_w henv.meta_le_item hd_last hd_top
-    ((Memory.spec 0).clientState s
-      (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_top, d_u))))
-  have fc3 := copyCompItem_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
-    henv.pos_w henv.meta_le_item hb_cap hd_last
-    ((Memory.spec 0).clientState
-      ((Memory.spec 0).clientState s
-        (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_top, d_u))))
-      (copyCompItemGenProg ((mkCompParams U V w N, itemBase), (d_last, d_top))))
-  have hsm_fr : sm.frontier = s.frontier := by rw [hsm_eq]; exact fc3.1.trans (fc2.1.trans fc1.1)
-  have hsm_gm : compGmAt metaBase U w N sm.mem = compGmAt metaBase U w N s.mem := by
-    rw [hsm_eq]; exact fc3.2.2.1.trans (fc2.2.2.1.trans fc1.2.2.1)
-  have hsm_td : compTDAt metaBase U w N sm.mem = compTDAt metaBase U w N s.mem := by
-    rw [hsm_eq]; exact fc3.2.2.2.1.trans (fc2.2.2.2.1.trans fc1.2.2.2.1)
-  have hsm_dt : compDTAt metaBase U w N sm.mem = compDTAt metaBase U w N s.mem := by
-    rw [hsm_eq]; exact fc3.2.2.2.2.trans (fc2.2.2.2.2.trans fc1.2.2.2.2)
+  obtain ⟨hsm_fr, hsm_gm, hsm_td, hsm_dt⟩ := compPromoteMoveItems_meta_frame
+    (metaBase := metaBase) (V := V) henv.pos_w henv.meta_le_item hb_cap hd_u hd_top hd_last
+    s sm hsm
   have hn'_max : n' < maxTailItems N := lt_of_lt_of_le (by dsimp only [n']; omega) htail.ntails_le
   refine validProg_bind_unit
     (validProg_compPromoteFinishStep ⟨U, V, N, m_cap, rfl,

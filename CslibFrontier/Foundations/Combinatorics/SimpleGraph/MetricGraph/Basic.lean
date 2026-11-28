@@ -770,33 +770,18 @@ private theorem rawDist_nonneg (W : WeightedGraph V) (p q : RawPoint W.graph) :
   rcases rawDist_cases W p q with h | ⟨_, _, _, _, -, -, -, h⟩ <;> rw [h]
   exacts [viaEndpoints_nonneg W _ _, directDist_nonneg W _ _ _ _]
 
+private theorem exists_min_bool_eq (f : Bool → ℝ) : ∃ b, min (f false) (f true) = f b :=
+  (min_choice (f false) (f true)).elim (fun h => ⟨false, h⟩) fun h => ⟨true, h⟩
+
 private theorem viaEndpoints_case (W : WeightedGraph V) (p q : RawPoint W.graph) :
     ∃ a b : Bool, viaEndpoints W p q =
       p.endOff W a + vertexDist W.graph W.weight (p.endV a) (q.endV b) + q.endOff W b := by
-  unfold viaEndpoints
-  rcases min_choice
-      (min (p.endOff W false + vertexDist W.graph W.weight (p.endV false) (q.endV false) +
-          q.endOff W false)
-        (p.endOff W false + vertexDist W.graph W.weight (p.endV false) (q.endV true) +
-          q.endOff W true))
-      (min (p.endOff W true + vertexDist W.graph W.weight (p.endV true) (q.endV false) +
-          q.endOff W false)
-        (p.endOff W true + vertexDist W.graph W.weight (p.endV true) (q.endV true) +
-          q.endOff W true)) with h | h <;> rw [h]
-  · rcases min_choice
-        (p.endOff W false + vertexDist W.graph W.weight (p.endV false) (q.endV false) +
-          q.endOff W false)
-        (p.endOff W false + vertexDist W.graph W.weight (p.endV false) (q.endV true) +
-          q.endOff W true) with h' | h' <;> rw [h']
-    · exact ⟨false, false, rfl⟩
-    · exact ⟨false, true, rfl⟩
-  · rcases min_choice
-        (p.endOff W true + vertexDist W.graph W.weight (p.endV true) (q.endV false) +
-          q.endOff W false)
-        (p.endOff W true + vertexDist W.graph W.weight (p.endV true) (q.endV true) +
-          q.endOff W true) with h' | h' <;> rw [h']
-    · exact ⟨true, false, rfl⟩
-    · exact ⟨true, true, rfl⟩
+  let g : Bool → Bool → ℝ := fun a b =>
+    p.endOff W a + vertexDist W.graph W.weight (p.endV a) (q.endV b) + q.endOff W b
+  change ∃ a b, min (min (g false false) (g false true)) (min (g true false) (g true true)) = g a b
+  obtain ⟨a, ha⟩ := exists_min_bool_eq fun a => min (g a false) (g a true)
+  obtain ⟨b, hb⟩ := exists_min_bool_eq (g a)
+  exact ⟨a, b, ha.trans hb⟩
 
 private theorem rawDist_triangle (W : WeightedGraph V) (p q r : RawPoint W.graph) :
     rawDist W p r ≤ rawDist W p q + rawDist W q r := by

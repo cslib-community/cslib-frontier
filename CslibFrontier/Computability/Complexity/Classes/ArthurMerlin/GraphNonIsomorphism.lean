@@ -261,16 +261,23 @@ private theorem decide_val_eq {σ : Equiv.Perm (Fin n)} {i : Fin n} {j : ℕ} (h
     decide (σ i = ⟨j, hj⟩) = decide (j = σ i) :=
   decide_eq_decide.2 ⟨fun h => by rw [h], fun h => Fin.ext h.symm⟩
 
-private theorem decodeMap_code {E : ℕ} (hE : 2 * (n * n) ≤ E) (M : Matrix (Fin n) (Fin n) Bool)
-    (σ : Equiv.Perm (Fin n)) : decodeMap n (n * n) (List.ofFn (code E M σ)) = σ := by
+private theorem decodeMap_eq {k : ℕ} {u : List Bool} {σ : Equiv.Perm (Fin n)}
+    (hu : ∀ (i : Fin n) (j : ℕ) (hj : j < n),
+      u.getD (k + (i * n + j)) false = decide (σ i = ⟨j, hj⟩)) :
+    decodeMap n k u = σ := by
   funext i
   refine Fin.ext (image_eq (σ i).2 fun j hj => ?_)
+  rw [List.getD_eq_getElem?_getD, List.getElem?_drop, ← List.getD_eq_getElem?_getD, hu i j hj,
+    decide_val_eq hj]
+
+private theorem decodeMap_code {E : ℕ} (hE : 2 * (n * n) ≤ E) (M : Matrix (Fin n) (Fin n) Bool)
+    (σ : Equiv.Perm (Fin n)) : decodeMap n (n * n) (List.ofFn (code E M σ)) = σ := by
+  refine decodeMap_eq fun i j hj => ?_
   have hlt : (i : ℕ) * n + j < n * n := index_lt i ⟨j, hj⟩
-  rw [List.getD_eq_getElem?_getD, List.getElem?_drop, ← List.getD_eq_getElem?_getD,
-    List.getD_ofFn_of_lt _ (by omega)]
+  rw [List.getD_ofFn_of_lt _ (by omega)]
   simp only [code, codeBit, show ¬(n * n + (i * n + j) < n * n) by omega, ↓reduceIte,
     Nat.add_sub_cancel_left]
-  rw [matrixBit_index _ i ⟨j, hj⟩, Matrix.of_apply, decide_val_eq hj]
+  rw [matrixBit_index _ i ⟨j, hj⟩, Matrix.of_apply]
 
 private theorem getD_ofFn_cert_zero {C : ℕ} (hC : 0 < C) (b : Bool) (τ : Equiv.Perm (Fin n)) :
     (List.ofFn (cert C b τ)).getD 0 false = b := by
@@ -279,14 +286,12 @@ private theorem getD_ofFn_cert_zero {C : ℕ} (hC : 0 < C) (b : Bool) (τ : Equi
 
 private theorem decodeMap_cert {C : ℕ} (hC : n * n + 1 ≤ C) (b : Bool) (τ : Equiv.Perm (Fin n)) :
     decodeMap n 1 (List.ofFn (cert C b τ)) = τ := by
-  funext i
-  refine Fin.ext (image_eq (τ i).2 fun j hj => ?_)
+  refine decodeMap_eq fun i j hj => ?_
   have hlt : (i : ℕ) * n + j < n * n := index_lt i ⟨j, hj⟩
-  rw [List.getD_eq_getElem?_getD, List.getElem?_drop, ← List.getD_eq_getElem?_getD,
-    List.getD_ofFn_of_lt _ (by omega)]
+  rw [List.getD_ofFn_of_lt _ (by omega)]
   simp only [cert, certBit, show 1 + (i * n + j) ≠ 0 by omega, ↓reduceIte,
     Nat.add_sub_cancel_left]
-  rw [matrixBit_index _ i ⟨j, hj⟩, Matrix.of_apply, decide_val_eq hj]
+  rw [matrixBit_index _ i ⟨j, hj⟩, Matrix.of_apply]
 
 /-! ### The test -/
 

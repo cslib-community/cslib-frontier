@@ -48,12 +48,19 @@ theorem inr (left : α ↪ List Bool) (right : β ↪ List Bool) :
       (fun a => (right a).length) (fun a => (right a).length) :=
   (ComputableInDegree.inr left right).inO_one
 
+private theorem encSum_bits_deg (left : α ↪ List Bool) (right : β ↪ List Bool) :
+    ComputableInDegree (fun s : α ⊕ β => encSum left right s)
+      (encSum left right) encBits 1 1 := .of_eq fun _ => rfl
+
+private theorem nil_bits_deg {γ : Type} (enc : γ ↪ List Bool) :
+    ComputableInDegree (fun _ : γ => ([] : List Bool)) enc encBits 1 1 :=
+  (ComputableInDegree.const (encMid := encBits) []).mono
+
 /-- Testing for a left sum tag takes linear time and constant output size. -/
 @[fun_prop]
 theorem isLeft_deg (left : α ↪ List Bool) (right : β ↪ List Bool) :
     ComputableInDegree (Sum.isLeft (α := α) (β := β)) (encSum left right) encBool 1 0 := by
-  have hraw : ComputableInDegree (fun s : α ⊕ β => encSum left right s)
-      (encSum left right) encBits 1 1 := .of_eq fun _ => rfl
+  have hraw := encSum_bits_deg left right
   have hhead := (ComputableInDegree.headD (enc₁ := encBool) (enc := encBits) true).comp hraw
   have hnot := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
     Bool.not).comp hhead
@@ -63,8 +70,7 @@ theorem isLeft_deg (left : α ↪ List Bool) (right : β ↪ List Bool) :
 @[fun_prop]
 theorem isRight_deg (left : α ↪ List Bool) (right : β ↪ List Bool) :
     ComputableInDegree (Sum.isRight (α := α) (β := β)) (encSum left right) encBool 1 0 := by
-  have hraw : ComputableInDegree (fun s : α ⊕ β => encSum left right s)
-      (encSum left right) encBits 1 1 := .of_eq fun _ => rfl
+  have hraw := encSum_bits_deg left right
   have hhead := (ComputableInDegree.headD (enc₁ := encBool) (enc := encBits) false).comp hraw
   have hid := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
     id).comp hhead
@@ -75,16 +81,13 @@ theorem isRight_deg (left : α ↪ List Bool) (right : β ↪ List Bool) :
 theorem getLeft?_deg (left : α ↪ List Bool) (right : β ↪ List Bool) :
     ComputableInDegree (Sum.getLeft? (α := α) (β := β))
       (encSum left right) (encOption left) 1 1 := by
-  have hraw : ComputableInDegree (fun s : α ⊕ β => encSum left right s)
-      (encSum left right) encBits 1 1 := .of_eq fun _ => rfl
+  have hraw := encSum_bits_deg left right
   have htail := (ComputableInDegree.tail (enc₁ := encBool) (enc := encBits)).comp hraw
   have hsome : ComputableInDegree (fun s : α ⊕ β => true :: (encSum left right s).tail)
       (encSum left right) encBits 1 1 :=
     ((ComputableInDegree.const (encMid := encBool) true).append htail
       (fun _ => rfl)).mono
-  have hnone : ComputableInDegree (fun _ : α ⊕ β => ([] : List Bool))
-      (encSum left right) encBits 1 1 :=
-    (ComputableInDegree.const (encMid := encBits) []).mono
+  have hnone := nil_bits_deg (γ := α ⊕ β) (encSum left right)
   exact (((isLeft_deg left right).ite (hsome.restrict _) (hnone.restrict _)).mono
     (d' := 1) (e' := 1)).of_enc_eq fun s => by cases s <;> rfl
 
@@ -93,11 +96,8 @@ theorem getLeft?_deg (left : α ↪ List Bool) (right : β ↪ List Bool) :
 theorem getRight?_deg (left : α ↪ List Bool) (right : β ↪ List Bool) :
     ComputableInDegree (Sum.getRight? (α := α) (β := β))
       (encSum left right) (encOption right) 1 1 := by
-  have hraw : ComputableInDegree (fun s : α ⊕ β => encSum left right s)
-      (encSum left right) encBits 1 1 := .of_eq fun _ => rfl
-  have hnone : ComputableInDegree (fun _ : α ⊕ β => ([] : List Bool))
-      (encSum left right) encBits 1 1 :=
-    (ComputableInDegree.const (encMid := encBits) []).mono
+  have hraw := encSum_bits_deg left right
+  have hnone := nil_bits_deg (γ := α ⊕ β) (encSum left right)
   exact (((isRight_deg left right).ite (hraw.restrict _) (hnone.restrict _)).mono
     (d' := 1) (e' := 1)).of_enc_eq fun s => by cases s <;> rfl
 

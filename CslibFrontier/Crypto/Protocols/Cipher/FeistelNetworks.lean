@@ -663,6 +663,11 @@ theorem eval_feistel2_feistel2CPAAttack (f₁ f₂ : G → G) (l₀ l₁ r₀ : 
     Equiv.trans_apply, feistelRoundEquiv_apply, feistelRound, Equiv.refl_apply,
     add_sub_add_right_eq_sub, decide_true]
 
+private lemma card_sq_sub_one_ne_zero {H : Type} [Fintype H] (hH : 2 ≤ Fintype.card H) :
+    (Fintype.card H : ℝ) ^ 2 - 1 ≠ 0 := by
+  have hN : (2 : ℝ) ≤ Fintype.card H := by exact_mod_cast hH
+  nlinarith
+
 /-- Against `idealPermGame`, when `l₀ ≠ l₁` and `2 ≤ Fintype.card G`, `feistel2CPAAttack l₀ l₁ r₀`
 accepts with probability at most `|G| / (|G| ^ 2 - 1)` (original bound). -/
 theorem idealPermGame_feistel2CPAAttack_true_le [Nonempty G] {l₀ l₁ : G} (r₀ : G)
@@ -675,9 +680,8 @@ theorem idealPermGame_feistel2CPAAttack_true_le [Nonempty G] {l₀ l₁ : G} (r�
     (fun aw => ![aw.1, (-(l₀ - l₁) + aw.1.1, aw.2)]) fun π hπ =>
       ⟨(π (l₀, r₀), (π (l₁, r₀)).2), Finset.mem_univ _, Fin.forall_fin_two.mpr
         ⟨rfl, Prod.ext (by dsimp; rw [← hπ, neg_sub, sub_add_cancel]) rfl⟩⟩).trans_eq ?_
-  have hN : (2 : ℝ) ≤ Fintype.card G := by exact_mod_cast hG
   have hN0 : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-  have hsq1 : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
+  have hsq1 := card_sq_sub_one_ne_zero hG
   rw [Finset.card_univ, Nat.cast_descFactorial_two ℝ _]
   simp only [Fintype.card_prod, Nat.cast_mul]; field_simp
 
@@ -750,9 +754,8 @@ theorem idealPermGame_feistel3RepeatedKeyCPAAttack_true_le [Nonempty G] (x : G)
       · exact Or.inl ⟨(), Finset.mem_singleton_self _, Fin.forall_fin_one.mpr h⟩
       · exact Or.inr ⟨π p₀, Finset.mem_erase.mpr ⟨h, Finset.mem_univ _⟩,
           Fin.forall_fin_two.mpr ⟨rfl, hπ⟩⟩).trans_eq ?_
-  have hN : (2 : ℝ) ≤ Fintype.card G := by exact_mod_cast hG
   have hN0 : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-  have hM1r : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
+  have hM1r := card_sq_sub_one_ne_zero hG
   rw [Finset.card_singleton, Nat.descFactorial_one, Finset.card_erase_of_mem (Finset.mem_univ _),
     Finset.card_univ, Nat.cast_descFactorial_two ℝ _, Nat.cast_sub Fintype.card_pos]
   simp only [Fintype.card_prod, Nat.cast_mul, Nat.cast_one]
@@ -815,7 +818,7 @@ theorem idealStrongGame_feistel3CCAAttack_true_le_inv_card_sub_one [Nonempty G]
   have hN : (2 : ℝ) ≤ Fintype.card G := by exact_mod_cast hG
   have hN0 : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
   have hN1 : (Fintype.card G : ℝ) - 1 ≠ 0 := by linarith
-  have hM1 : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
+  have hM1 := card_sq_sub_one_ne_zero hG
   have hM2r : (Fintype.card G : ℝ) ^ 2 - 2 ≠ 0 := by nlinarith
   rw [Finset.card_univ, Nat.cast_descFactorial_two ℝ _,
     cast_descFactorial_three (by rw [Fintype.card_prod]; nlinarith)]

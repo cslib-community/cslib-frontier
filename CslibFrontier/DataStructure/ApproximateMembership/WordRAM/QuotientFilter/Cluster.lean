@@ -482,23 +482,23 @@ private def backLenStep (x : ClusterInput × (ℕ × ℕ)) : Memory.Prog (ℕ ×
     let f' ← readFullProg (d, rawIdx)
     if f' = 0 then pure (cnt, 0) else pure (cnt + 1, rem - 1)
 
+private theorem backLenStep_eq (x : ClusterInput × (ℕ × ℕ)) :
+    backLenStep x =
+      readFullProg (x.1, x.1.qVal + x.1.slotCap - (x.2.1 + 1)) >>=
+        fun f' => if f' = 0 then pure (x.2.1, 0) else pure (x.2.1 + 1, x.2.2 - 1) :=
+  rfl
+
 private theorem clientResult_backLenStep (t : Memory.State) (x : ClusterInput × (ℕ × ℕ)) :
     (Memory.spec 0).clientResult t (backLenStep x) =
       if (Memory.spec 0).clientResult t
           (readFullProg (x.1, x.1.qVal + x.1.slotCap - (x.2.1 + 1))) = 0
       then (x.2.1, 0) else (x.2.1 + 1, x.2.2 - 1) := by
-  change (Memory.spec 0).clientResult t
-    (readFullProg (x.1, x.1.qVal + x.1.slotCap - (x.2.1 + 1)) >>=
-    (fun f' => if f' = 0 then pure (x.2.1, 0) else pure (x.2.1 + 1, x.2.2 - 1))) = _
-  rw [clientResult_bind, clientState_readFull]
+  rw [backLenStep_eq, clientResult_bind, clientState_readFull]
   split_ifs <;> rfl
 
 private theorem clientState_backLenStep (t : Memory.State) (x : ClusterInput × (ℕ × ℕ)) :
     (Memory.spec 0).clientState t (backLenStep x) = t := by
-  change (Memory.spec 0).clientState t
-    (readFullProg (x.1, x.1.qVal + x.1.slotCap - (x.2.1 + 1)) >>=
-    (fun f' => if f' = 0 then pure (x.2.1, 0) else pure (x.2.1 + 1, x.2.2 - 1))) = _
-  rw [clientState_bind, clientState_readFull]
+  rw [backLenStep_eq, clientState_bind, clientState_readFull]
   split_ifs <;> rfl
 
 /-- Backward cluster scan from `d.qVal` (`q.val`). -/

@@ -303,13 +303,8 @@ theorem bufDeleteGenProg_spec {c U V w n_max base ep rKey : ℕ}
             (readPacked_writePacked_disjoint hw
               (show 2 * qEpochWhp n_max + id < 6 * qEpochWhp n_max + 6 by omega) hidx3
               (Or.inr (by omega))).trans (hit id hid).2.2⟩⟩
-        have huc_lt : u * 2 ^ bCharWhp n_max + ch' < trieChildEntriesWhp c n_max := by
-          unfold trieChildEntriesWhp
-          calc u * 2 ^ bCharWhp n_max + ch'
-              < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch' _
-            _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-            _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
-        exact (readPacked_writePacked_disjoint hw huc_lt hidx3 (Or.inl (by omega))).trans
+        exact (readPacked_writePacked_disjoint hw (mul_add_lt_trieChildEntriesWhp hu hch') hidx3
+          (Or.inl (by omega))).trans
           (hch u hu ch' hch')
 
 theorem realizes_bufDeleteGen :

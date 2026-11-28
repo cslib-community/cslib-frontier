@@ -117,39 +117,37 @@ def rootSignal (c : Circuit σ n 1) : Wire n c.size → Option (Fin n ⊕ Fin c.
       none
 termination_by w => wireRank w
 
-/-- Every gate returned by `rootSignal` is a multiary gate (`arity ≥ 2`). -/
-theorem rootSignal_mem_multiaryGates (c : Circuit σ n 1) :
-    ∀ (w : Wire n c.size) {k : Fin c.size},
-      rootSignal c w = some (.inr k) → k ∈ c.program.multiaryGates := by
+private theorem rootSignal_inr_induction (c : Circuit σ n 1)
+    {P : Wire n c.size → Fin c.size → Prop}
+    (root : ∀ g, 2 ≤ σ.Arity (c.program.lines g).op → P (.gate g) g)
+    (pass : ∀ g (h0 : 0 < σ.Arity (c.program.lines g).op) {k},
+      P ((c.program.lines g).wires ⟨0, h0⟩) k → P (.gate g) k) :
+    ∀ (w : Wire n c.size) {k : Fin c.size}, rootSignal c w = some (.inr k) → P w k := by
   refine c.program.wire_induction
     (fun i _ h => by unfold rootSignal at h; simp at h) (fun g ih k h => ?_)
   unfold rootSignal at h
   by_cases h2 : 2 ≤ σ.Arity (c.program.lines g).op
   · simp only [h2, ↓reduceIte, Option.some.injEq, Sum.inr.injEq] at h
     subst h
-    exact Program.mem_multiaryGates.mpr h2
+    exact root g h2
   · simp only [h2, ↓reduceIte] at h
     by_cases h0 : 0 < σ.Arity (c.program.lines g).op
     · simp only [h0, ↓reduceDIte] at h
-      exact ih ⟨0, h0⟩ h
+      exact pass g h0 (ih ⟨0, h0⟩ h)
     · simp [h0] at h
+
+/-- Every gate returned by `rootSignal` is a multiary gate (`arity ≥ 2`). -/
+theorem rootSignal_mem_multiaryGates (c : Circuit σ n 1) :
+    ∀ (w : Wire n c.size) {k : Fin c.size},
+      rootSignal c w = some (.inr k) → k ∈ c.program.multiaryGates :=
+  rootSignal_inr_induction c (fun _ h2 => Program.mem_multiaryGates.mpr h2) fun _ _ _ h => h
 
 /-- If `rootSignal c w = some (.inr k)`, then `k + 1 ≤ wireRank w`. -/
 theorem rootSignal_gate_rank_le (c : Circuit σ n 1) :
     ∀ (w : Wire n c.size) {k : Fin c.size},
-      rootSignal c w = some (.inr k) → (k : ℕ) + 1 ≤ wireRank w := by
-  refine c.program.wire_induction
-    (fun i _ h => by unfold rootSignal at h; simp at h) (fun g ih k h => ?_)
-  unfold rootSignal at h
-  by_cases h2 : 2 ≤ σ.Arity (c.program.lines g).op
-  · simp only [h2, ↓reduceIte, Option.some.injEq, Sum.inr.injEq] at h
-    subst h
-    exact le_rfl
-  · simp only [h2, ↓reduceIte] at h
-    by_cases h0 : 0 < σ.Arity (c.program.lines g).op
-    · simp only [h0, ↓reduceDIte] at h
-      exact (ih ⟨0, h0⟩ h).trans (wireRank_arg_lt c.program g ⟨0, h0⟩).le
-    · simp [h0] at h
+      rootSignal c w = some (.inr k) → (k : ℕ) + 1 ≤ wireRank w :=
+  rootSignal_inr_induction c (fun _ _ => le_rfl) fun g h0 _ h =>
+    h.trans (wireRank_arg_lt c.program g ⟨0, h0⟩).le
 
 /-- Evaluate any wire `w` from a valuation `ρ` of inputs and multiary gates by evaluating only
 the nullary and unary gates along the chain to `rootSignal c w`. -/

@@ -1604,13 +1604,13 @@ private theorem computableInO_hkStep :
   obtain ⟨do_, hodds⟩ := computableInO_passOdds
   let encHKParam : (List (List ℕ) × ℕ) ↪ List Bool :=
     encPair (encList (encList encNat)) encUnary
+  have hDp : ComputableInPolyTime (fun p : List (List ℕ) × ℕ => p.1)
+      encHKParam (encList (encList encNat)) := by fun_prop
+  have hip : ComputableInPolyTime (fun p : List (List ℕ) × ℕ => p.2)
+      encHKParam encUnary := by fun_prop
   have hnextParam : ComputableInPolyTime
       (fun p : List (List ℕ) × ℕ => (p.1, if p.2 + 1 = p.1.length - 1 then 0 else p.2 + 1))
       encHKParam encHKParam := by
-    have hDp : ComputableInPolyTime (fun p : List (List ℕ) × ℕ => p.1)
-        encHKParam (encList (encList encNat)) := by fun_prop
-    have hip : ComputableInPolyTime (fun p : List (List ℕ) × ℕ => p.2)
-        encHKParam encUnary := by fun_prop
     have hnp : ComputableInPolyTime (fun p : List (List ℕ) × ℕ => p.1.length - 1)
         encHKParam encUnary :=
       ComputableInDegree.unary_pred.computableInPolyTime.comp ((length_list _).comp hDp)
@@ -1621,10 +1621,6 @@ private theorem computableInO_hkStep :
   have hrowParam : ComputableInPolyTime
       (fun p : List (List ℕ) × ℕ => (p.1.getD (p.2 + 1) [], p.2))
       encHKParam encOddParams := by
-    have hDp : ComputableInPolyTime (fun p : List (List ℕ) × ℕ => p.1)
-        encHKParam (encList (encList encNat)) := by fun_prop
-    have hip : ComputableInPolyTime (fun p : List (List ℕ) × ℕ => p.2)
-        encHKParam encUnary := by fun_prop
     exact (listGetDWithInput hDp (unary_succ.comp hip) []).prod hip
   obtain ⟨T₁, S₁, hT₁, hS₁, hP₁⟩ := hnextParam.exists_computableInO
   obtain ⟨c₁, d₁, hcd₁⟩ := (hT₁.add hS₁).exists_le

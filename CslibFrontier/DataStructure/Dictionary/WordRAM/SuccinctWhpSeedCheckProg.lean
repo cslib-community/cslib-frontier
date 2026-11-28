@@ -778,14 +778,8 @@ theorem initFastGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max}
         hhdr_z 13 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
         fun u hu ch hch => ?_, fun u h1 hlt => by omega, fun u hu => ⟨?_, fun h => absurd rfl h⟩,
         fun _ h => absurd h (Nat.not_lt_zero _)⟩
-      · have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
-          unfold trieChildEntriesWhp
-          calc u * 2 ^ bCharWhp n_max + ch < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max :=
-                Nat.add_lt_add_left hch _
-            _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-            _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
-        exact readPacked_eq_zero_of_zero_range hw hidx fun a ha1 ha2 =>
-          hz_seg a (by omega) (by omega) (Or.inr (by omega)) (Or.inr (by omega))
+      · exact readPacked_eq_zero_of_zero_range hw (mul_add_lt_trieChildEntriesWhp hu hch)
+          fun a ha1 ha2 => hz_seg a (by omega) (by omega) (Or.inr (by omega)) (Or.inr (by omega))
       · have hu0 : u = 0 := by omega
         subst hu0
         exact readPacked_eq_zero_of_zero_range hw
@@ -798,14 +792,8 @@ theorem initFastGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max}
         hhdr_z 15 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
         fun u hu ch hch => ?_, fun u h1 hlt => by omega, fun u hu => ⟨?_, fun h => absurd rfl h⟩,
         fun _ h => absurd h (Nat.not_lt_zero _)⟩
-      · have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
-          unfold trieChildEntriesWhp
-          calc u * 2 ^ bCharWhp n_max + ch < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max :=
-                Nat.add_lt_add_left hch _
-            _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-            _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
-        exact readPacked_eq_zero_of_zero_range hw hidx fun a ha1 ha2 =>
-          hz_seg a (by omega) (by omega) (Or.inr (by omega)) (Or.inr (by omega))
+      · exact readPacked_eq_zero_of_zero_range hw (mul_add_lt_trieChildEntriesWhp hu hch)
+          fun a ha1 ha2 => hz_seg a (by omega) (by omega) (Or.inr (by omega)) (Or.inr (by omega))
       · have hu0 : u = 0 := by omega
         subst hu0
         exact readPacked_eq_zero_of_zero_range hw
