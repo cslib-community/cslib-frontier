@@ -437,6 +437,7 @@ public import CslibFrontier.Computability.Complexity.Fagin.Small
 public import CslibFrontier.Logics.Propositional.CNF.ExactOne.ThreeEncoding
 public import CslibFrontier.Computability.Probabilistic.Presample
 public import CslibFrontier.MachineLearning.PACLearning.MDL
+public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Pedersen
 public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing.CardinalOrder
 public import CslibFrontier.Crypto.Game.Order
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Interface
@@ -10988,6 +10989,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Frontend.Arrays
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Postponed
 public import CslibFrontier.Computability.Complexity.Classes.BQP.TruthTable
 public import CslibFrontier.Foundations.Control.Monad.MapM
+public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Feldman
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Query
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF
 public import CslibFrontier.Computability.QueryComplexity.SensitivitySeparation.Internal.HammingBase
