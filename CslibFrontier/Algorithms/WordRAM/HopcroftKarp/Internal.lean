@@ -185,8 +185,7 @@ theorem exec_initBaseRegsFromCSR {w bOff : ℕ} (inst : SparseInstance) (x : Dat
     ∃ y, ExecWithin w initBaseRegsFromCSR x y 16 ∧
       BaseRegs inst bOff y ∧ y.mem = x.mem := by
   refine WP.exists_execWithin ?_
-  unfold initBaseRegsFromCSR
-  wram_exec [h1, h2, hrm, hrr, hrE, hbOff]
+  wram_exec [initBaseRegsFromCSR, h1, h2, hrm, hrr, hrE, hbOff]
   refine ⟨?_, rfl⟩
   constructor <;> wram_simp [h0, h1, h2, hrm, hrr, hrE, hbOff] <;> omega
 

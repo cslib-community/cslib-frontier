@@ -650,8 +650,7 @@ theorem edgeVisLoad_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (F
   have hd_lt : g.edges[j].dst < slots g := dst_lt_slots (List.getElem_mem hj)
   have : Fits w (visBase g + g.edges[j].src) := fits_top hw (by wram_omega)
   have : Fits w (visBase g + g.edges[j].dst) := fits_top hw (by wram_omega)
-  unfold edgeVisLoad
-  wram_exec [hS.consts.visB, hsrc_reg, hdst_reg]
+  wram_exec [edgeVisLoad, hS.consts.visB, hsrc_reg, hdst_reg]
   exact ⟨by wram_simp [hS.consts], by wram_simp, by wram_simp,
     by wram_simp [Phase3Regs.refl], by wram_simp⟩
 
@@ -672,8 +671,7 @@ theorem extendPrep_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (fromReg toReg
   have : Fits w (tabBase g + u * L) := fits_top hw (by wram_omega)
   have : Fits w (tabBase g + v * L) := fits_top hw (by wram_omega)
   rcases hregs with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
-  · unfold extendPrep
-    wram_exec [hc1.zero, hc1.regL, hc1.tabB, hfrom, hto]
+  · wram_exec [extendPrep, hc1.zero, hc1.regL, hc1.tabB, hfrom, hto]
     exact ⟨by wram_simp [hc1], by wram_simp, by wram_simp, by wram_simp,
       by wram_simp [Phase3Regs.refl], by wram_simp⟩
 

@@ -95,8 +95,7 @@ theorem exec_layout {w n p k scratch : ℕ} (x : Data 128)
     simpa only [Nat.mul_one] using Nat.mul_le_mul_left (4 ^ k) (Nat.succ_le_of_lt hp)
   have hwb : Fits w (scratch + 3 * (n * n) + 2 ^ k + 4 * (4 ^ k * p) + k + 2 * p + 16) := hw
   refine WP.exists_execWithin ?_
-  unfold layout
-  wram_exec [h2, hk]
+  wram_exec [layout, h2, hk]
   wram_call (Power.exec 2 k (by decide) _
     (by wram_simp) (by wram_simp) (hwb.of_le (by omega)))
     canonical (Fin.castLE_injective _) with s ⟨value, _, _, memory, _, _⟩

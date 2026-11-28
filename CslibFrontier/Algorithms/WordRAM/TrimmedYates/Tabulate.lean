@@ -132,8 +132,7 @@ theorem exec_tabulateDom {w d domPtr free T_cell : ℕ}
     have hcf_fit : Fits w (curFree + 2 * d) := hfit_free.of_le (by
       have := Nat.mul_add (2 * d) p 1 ▸ Nat.mul_le_mul_left (2 * d) (Nat.succ_le_of_lt hp)
       omega)
-    unfold tabulateDomStep
-    wram_exec * [hrmk, hrsz]
+    wram_exec * [tabulateDomStep, hrmk, hrsz]
     wram_call (hcell _ p hp (by regs_frame) (by regs_frame) (by regs_frame)
       (hInv_congr x _ (fun a ha => (hsmem a ha).symm) (fun i hi => by
         obtain ⟨_, _, _, _, _, _, _⟩ := hnt i hi; regs_frame) hInv_init)
@@ -244,8 +243,7 @@ theorem exec_tabulateMul {w d domPtr free rootF rootG B : ℕ}
     have hXp : dom[p] ∈ dom := List.getElem_mem hp
     have hfit_bound : Fits w free := hfit_free.of_le (by omega)
     have hfit_key : Fits w (setMask dom[p]) := hfit_mask.of_le (setMask_lt _).le
-    unfold mulCellBody
-    wram_exec [hsrF, hsck]
+    wram_exec [mulCellBody, hsrF, hsck]
     wram_call (exec_trieGet (bound := free) (fn := fnF) _ (by wram_simp [hsz]) (by wram_simp [hso])
       (by wram_simp [hsd]) (by wram_simp) (by wram_simp) (htrieF.congr_below hsmem) hfit_bound
       hfit_d hfit_key) with u₁ ⟨hu₁_val, hu₁_mem, hu₁_regs⟩

@@ -164,8 +164,7 @@ theorem exec_scanStep {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ)
       (∀ i, ¬ScanStepLocal i → y.regs i = x.regs i) := by
   have hmod : Fits w (q % 10) := h10fit.of_le (Nat.le_of_lt (Nat.mod_lt _ (by decide)))
   refine WP.exists_execWithin ?_
-  unfold scanStep scanLoad
-  wram_exec [hq, h10, hread, hmod]
+  wram_exec [scanStep, scanLoad, hq, h10, hread, hmod]
   wram_call (exec_scanDispatch child _ q (by wram_simp) (by wram_simp)
     (by wram_simp [h1]) (by wram_simp [h10]) (by wram_simp [h9])
     (by wram_simp; exact hs) (by wram_simp; exact hl) (by wram_simp; exact hn))

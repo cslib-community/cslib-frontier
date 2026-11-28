@@ -50,8 +50,7 @@ theorem exec_selectArguments {W : ℕ} (x : Data 640) :
     (P := fun j : Fin 640 =>
       143 ≤ j.val ∧ j ≠ CallableFixedPrime.Reg.dimension ∧ j ≠ CallableFixedPrime.Reg.groups)
     (fun j hj => selectArguments_preserves j hj.1 hj.2.1 hj.2.2) ?_
-  unfold selectArguments
-  wram_exec
+  wram_exec [selectArguments]
   intro hpres
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp, by wram_simp, by wram_simp,
@@ -68,8 +67,7 @@ theorem exec_slowArguments {W : ℕ} (x : Data 640) :
       y.regs Reg.free = x.regs CallableFixedPrime.Reg.base ∧
       ∀ j : Fin 640, 6 ≤ j.val → y.regs j = x.regs j := by
   refine WP.exists_execWithin_preserves (fun j hj => slowArguments_preserves j hj) ?_
-  unfold slowArguments
-  wram_exec
+  wram_exec [slowArguments]
   intro hpres
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp, by wram_simp, hpres⟩

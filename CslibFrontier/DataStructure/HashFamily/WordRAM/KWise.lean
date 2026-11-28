@@ -324,8 +324,7 @@ theorem trinomialStepLoop_exec {w : ℕ} (B : ℕ) {acc : ℕ} {x : Data 4}
     have hfit_acc3 : Fits w (acc * 3) :=
       hfit_res.of_le (hmul ▸ Nat.le_mul_of_pos_right _ (by positivity))
     refine WP.Exact.exec (WP.Exact.loop_iter (by simp [Cond.Holds, hrem, htwo]; omega) ?_)
-    unfold trinomialStepBody
-    wram_exec [hrem, hacc, htwo, hthree]
+    wram_exec [trinomialStepBody, hrem, hacc, htwo, hthree]
     refine WP.Exact.of_exec (ih (acc := acc * 3) (by wram_simp) (by wram_simp)
       (by wram_simp [htwo]) (by wram_simp [hthree]) (by fits) (by rwa [hmul])) ⟨by omega, ?_⟩
     have hstep : trinomialStepAux B = trinomialStepAux ((B + 2) / 3) + 1 := by
@@ -427,8 +426,8 @@ theorem clmulTabLoop_exec {w tabBase b : ℕ}
       · have := hprev_lt hv0
         wram_simp [hinv prevIdx this, hprev_u, hprev_v]
     refine WP.Exact.exists_exec (WP.Exact.loop_iter (by simp [Cond.Holds, h1, h2]; omega) ?_)
-    unfold clmulTabBody
-    wram_exec [h0, h1, h3, h4, h5, ← hu, ← hv, ← hprev, hprev_mem, clmul_eq_bit_mul_xor]
+    wram_exec [clmulTabBody,
+      h0, h1, h3, h4, h5, ← hu, ← hv, ← hprev, hprev_mem, clmul_eq_bit_mul_xor]
     wram_call (ih (idx + 1) _ (by omega) (by regs_frame) (by wram_simp) (by regs_frame)
       (by regs_frame) (by regs_frame) (by regs_frame) fun i hi => by
         rcases eq_or_ne i idx with rfl | hne
@@ -504,8 +503,7 @@ theorem chunkBitsCode_exec {w base n_max U M : ℕ} {x : Data 18}
       y.mem = x.mem := by
   have hlog_le : Nat.log 2 (max n_max 2) ≤ max n_max 2 := Nat.log_le_self 2 _
   refine WP.Exact.exists_exec ?_
-  unfold chunkBitsCode
-  wram_exec
+  wram_exec [chunkBitsCode]
   wram_call (maxCode_spec 4 1 4 _) with _ rfl
   wram_exec
   wram_call (log2Loop_spec (max n_max 2)
@@ -563,8 +561,7 @@ theorem trinomialParamsCode_exec {w base U M b : ℕ} {x : Data 18}
   have hr_le_q : 3 ^ trinomialStepAux B ≤ trinomialDeg U M := by
     change 3 ^ trinomialStep U M ≤ 2 * 3 ^ trinomialStep U M; omega
   refine WP.Exact.exists_exec ?_
-  unfold trinomialParamsCode
-  wram_exec
+  wram_exec [trinomialParamsCode]
   wram_call (maxCode_spec 7 2 4 _) with _ rfl
   wram_exec
   wram_call (clog2Loop_spec (max U 2)
@@ -664,9 +661,8 @@ theorem storeHeaderPart1_exec {w base r q M b : ℕ} {x : Data 18}
       (∀ a, (a < base ∨ base + 6 ≤ a) → y.mem a = x.mem a) := by
   have hpow_r : 2 ^ r ≤ 2 ^ q := Nat.pow_le_pow_right two_pos hr_le
   have hpow_M : 2 ^ M ≤ 2 ^ q := Nat.pow_le_pow_right two_pos hM_le
-  unfold storeHeaderPart1
   wram_exec (disch := first | fits | layout_omega)
-    [h0, h1, h2, h3, h4, h5, h6, Nat.shiftLeft_eq, Nat.one_mul]
+    [storeHeaderPart1, h0, h1, h2, h3, h4, h5, h6, Nat.shiftLeft_eq, Nat.one_mul]
   wram_simp [h0, h2, h4, h5, h6]
   exact fun _ _ => by wram_simp
 
@@ -691,9 +687,8 @@ theorem storeHeaderPart2_exec {w base q b k : ℕ} {x : Data 18}
   have h2b_lt : 2 * b < 2 ^ (2 * b) := Nat.lt_two_pow_self
   have hdiv_le : (q - 1) / b ≤ q - 1 := Nat.div_le_self _ _
   have hfit_pow2b : Fits w (2 ^ (2 * b)) := by wram_omega
-  unfold storeHeaderPart2
   wram_exec (disch := first | fits | layout_omega)
-    [h0, h2, h4, h5, h6, h7, Nat.shiftLeft_eq, Nat.one_mul]
+    [storeHeaderPart2, h0, h2, h4, h5, h6, h7, Nat.shiftLeft_eq, Nat.one_mul]
   wram_simp [h0, h2, h4, h5, h6, h7, div_pred_add_one_eq_limbCountFromB hb hq]
   exact ⟨by omega, fun _ _ => by wram_simp⟩
 
@@ -737,8 +732,7 @@ theorem initTableCode_execWithin {w base n_max U M k : ℕ} {x : Data 18}
       (∀ a, (a < base ∨ base + space n_max k ≤ a) → y.mem a = x.mem a) := by
   have hq_pos : 0 < trinomialDeg U M := by dsimp only [trinomialDeg]; positivity
   refine WP.exists_execWithin (WP.Exact.toWP ?_)
-  unfold initTableCode
-  wram_exec
+  wram_exec [initTableCode]
   wram_call (chunkBitsCode_exec h0 h1 h2 h3 hfit_n (by wram_omega))
     with d1 ⟨hd1_0, hd1_2, hd1_3, hd1_5, hd1_6, hd1_mem⟩
   wram_exec
@@ -756,8 +750,7 @@ theorem initTableCode_execWithin {w base n_max U M k : ℕ} {x : Data 18}
   wram_call (clmulTabLoop_exec (by wram_omega) (2 ^ (2 * chunkBits n_max)) 0 d4 (by omega)
     hd4_0 hd4_1 hd4_2 hd4_3 hd4_4 hd4_5 fun _ hi => by omega)
     with d5 ⟨hd5_0, htab, hd5_out⟩
-  unfold restoreBaseCode
-  wram_exec (disch := first | fits | layout_omega) [hd5_0]
+  wram_exec (disch := first | fits | layout_omega) [restoreBaseCode, hd5_0]
   refine ⟨by dsimp only [initTableSteps]; omega, ?_, by wram_simp; omega, fun a ha => ?_⟩
   · wram_simp [TableRep]
     simp (disch := omega) only [hd5_out, hd4_out, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, true_and]
@@ -807,8 +800,7 @@ theorem resampleSetupCode_exec {w base b U M k : ℕ} {x : Data 18}
     (hfit_end : Fits w (base + 8 + k)) :
     Exec w (resampleSetupCode k) x (resampleSetupData base U M k x) 8 := by
   obtain ⟨-, -, -, hm3, -⟩ := htab
-  unfold resampleSetupCode
-  wram_exec [h0, hm3]
+  wram_exec [resampleSetupCode, h0, hm3]
   ext i : 2 <;> [fin_cases i <;> rfl; rfl]
 
 /-- **`KWise.resampleCode k` exact randomized execution**: executes with exact `ProbComp`
@@ -1035,9 +1027,8 @@ theorem innerClmulLoop_exec {w tabBase b q x_rem sh_x : ℕ}
       shiftRight_step_bounds hb hw hy_lt hy_bound (by omega) hfit_sh
     have hfit_sh_next : Fits w (sh_x + sh_y + b) := hfit_sh.of_le (by rw [Nat.succ_mul]; omega)
     refine WP.Exact.exists_exec (WP.Exact.loop_iter (by simp [Cond.Holds, h9, h14]) ?_)
-    unfold innerClmulBody
     wram_exec (disch := first | fits | exact hfit_tabEnd.of_le (by omega) | omega)
-      [h2, h4, h5, h7, h8, h13, h14, h15, h16, ← hxc, ← hyc, ← hidx,
+      [innerClmulBody, h2, h4, h5, h7, h8, h13, h14, h15, h16, ← hxc, ← hyc, ← hidx,
         show s.mem (tabBase + idx) = clmul xc yc by rw [htab idx hidx_lt, hidx_u, hidx_v]]
     wram_call (ih (y_rem >>> b) (sh_y + b) (acc ^^^ (clmul xc yc <<< (sh_x + sh_y))) _ hy_shr_lt
       hy_shr_bound hacc'_lt (by rwa [show sh_x + (sh_y + b) + rem_j * b =
@@ -1112,9 +1103,8 @@ theorem outerClmulLoop_exec {w tabBase b q L u : ℕ}
       Nat.xor_lt_two_pow hacc_lt (clmul_shiftLeft_lt (sh_y := 0)
         ((Nat.mul_le_mul_right _ Nat.and_le_left).trans_lt hx_bound) (by simpa using hu_bound))
     refine WP.Exact.exists_exec (WP.Exact.loop_iter (by simp [Cond.Holds, h9, h10]) ?_)
-    unfold outerClmulBody
     wram_exec (disch := first | fits | exact hfit_tabEnd.of_le (by omega) | omega)
-      [h1, h4, h5, h6, h11, h12, ← hxc]
+      [outerClmulBody, h1, h4, h5, h6, h11, h12, ← hxc]
     wram_call (innerClmulLoop_exec hb hw hfit_tabEnd hx_bound L u 0 acc _ hu_limbs
       (by simpa using hu_bound) hacc_lt (hfit_sh.of_le (by omega)) (by regs_frame) (by regs_frame)
       (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by wram_simp [hxc])
@@ -1179,8 +1169,7 @@ theorem reduceStepCode_exec {w base b U M k c : ℕ} {s : Data 18}
       dsimp only [q, trinomialDeg, r]; omega])).trans_le
       (Nat.pow_le_pow_right two_pos (by dsimp only [q, trinomialDeg, r]; omega))
   obtain ⟨-, hc2_sh_lt, hc2_lt⟩ := (rfl : q = 2 * r) ▸ and_mask_bounds (c >>> q) r
-  unfold reduceStepCode
-  wram_exec [h0, h2, h8, hm0, hm1, hm2, hm3, Nat.add_assoc]
+  wram_exec [reduceStepCode, h0, h2, h8, hm0, hm1, hm2, hm3, Nat.add_assoc]
   · refine ⟨?_, fun _ ⟨_, _⟩ => by wram_simp, rfl⟩
     wram_simp [reduceTrinomialCode, q, trinomialDeg, r,
       show 2 * 3 ^ trinomialStep U M + 3 ^ trinomialStep U M = 3 * 3 ^ trinomialStep U M by ring]
@@ -1292,8 +1281,7 @@ theorem hornerLoop_exec {w base b U M k : ℕ}
     have hfit_acc_next := Fits.mono (TrinomialField.equivFin t acc_next).isLt
       (show 2 * 3 ^ t ≤ w by change 2 * (2 * 3 ^ t) ≤ w at hw; omega)
     refine WP.Exact.exists_exec (WP.Exact.loop_iter (by simp [Cond.Holds, h9, h3]) ?_)
-    unfold hornerBody
-    wram_exec (disch := first | fits | layout_omega) [h2, h3, h6, h8, h9]
+    wram_exec (disch := first | fits | layout_omega) [hornerBody, h2, h3, h6, h8, h9]
     wram_call (outerClmulLoop_exec (tabBase := base + 8 + k) hb hw (by wram_omega)
       (hu_bound.trans_le hpow_q_Lb) hu_bound L acc_val 0 0 _ (hacc_bound.trans_le hpow_q_Lb)
       (by simpa using hacc_bound) (by positivity) (fits_two_mul_limbCount hb hw hfit_space)
@@ -1376,8 +1364,7 @@ theorem evalSetupCode_exec {w base b U M k : ℕ} {x : Data 18}
       y.regs 9 = 0 ∧
       y.mem = x.mem := by
   obtain ⟨-, -, -, -, -, hm5, hm6, hm7, -⟩ := htab
-  unfold evalSetupCode
-  wram_exec [h0, hm5, hm6, hm7]
+  wram_exec [evalSetupCode, h0, hm5, hm6, hm7]
   wram_simp [h0, Nat.add_assoc]
 
 /-- **`KWise.evalCode k` correctness and complexity (general `b`)**: from
@@ -1406,8 +1393,7 @@ theorem evalCode_execWithin_fromB {w base b U M k : ℕ}
       (by change 2 * (2 * 3 ^ t) ≤ w at hw; omega)
   obtain ⟨-, -, -, -, hm4, -⟩ := hrep.1
   refine WP.exists_execWithin (WP.Exact.toWP ?_)
-  unfold evalCode
-  wram_exec
+  wram_exec [evalCode]
   wram_call (evalSetupCode_exec hrep.1 h0 (by wram_omega))
     with d1 ⟨hd1_0, hd1_1, hd1_2, hd1_3, hd1_4, hd1_5, hd1_6, hd1_7, hd1_8, hd1_9, hd1_mem⟩
   wram_exec
@@ -1416,8 +1402,8 @@ theorem evalCode_execWithin_fromB {w base b U M k : ℕ}
     with d2 ⟨hd2_0, hd2_1, hd2_2, hd2_mem⟩
   have hd2_eval : d2.regs 2 = (trinomialPolyEval t k U c u).val := by
     simpa [trinomialPolyEval, polynomialHash] using hd2_2
-  unfold evalMaskCode
-  wram_exec (disch := first | fits | layout_omega) [hd2_0, hd2_mem, hd1_mem, hm4, hd2_eval]
+  wram_exec (disch := first | fits | layout_omega) [evalMaskCode,
+    hd2_0, hd2_mem, hd1_mem, hm4, hd2_eval]
   exact ⟨by dsimp only [evalStepsFromB]; omega, by wram_simp [hd2_0], by wram_simp [hd2_1],
     by wram_simp [t]; exact (val_trinomialPolyHash t k U M c u).symm,
     by wram_simp [hd2_mem, hd1_mem]⟩

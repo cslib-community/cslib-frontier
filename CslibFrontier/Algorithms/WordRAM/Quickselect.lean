@@ -438,8 +438,7 @@ private theorem narrowRange_spec {w vbase n k vlo vlt vgt vhi vpiv : ℕ}
        y.regs hi - y.regs lo = vhi - vgt) := by
   have hcut (t : ℕ) (h₁ : vlt ≤ t) (h₂ : t ≤ vgt) : IsCut vbase n t x.mem :=
     cut_of_between_lt_gt ⟨hlg.1, h₁, h₂, hlg.2.2⟩ hcut_lo hcut_hi hlt_z heq_z hgt_z
-  unfold narrowRange
-  wram_exec [hone, htarget, hlo, hlo1, hhi, hlt_r, hgt_r]
+  wram_exec [narrowRange, hone, htarget, hlo, hlo1, hhi, hlt_r, hgt_r]
   all_goals
     refine ⟨⟨?_, ?_, ?_, hfit, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
     all_goals wram_simp [hone, htarget, hlo, hlo1, hhi, true_or, or_true]
@@ -464,8 +463,7 @@ private theorem partitionAndNarrow_spec {w vbase n k : ℕ} {s₀ : List ℕ} {m
   have hlo : x.regs Quicksort.Reg.lo = vlo := rfl
   have hhi : x.regs Quicksort.Reg.hi = vhi := rfl
   have hfit_end := hI.fits_end; have hhi_end := hI.hi_le_end; have hbase_lo := hI.base_le_lo
-  unfold partitionAndNarrow Quicksort.partInit
-  wram_exec [hlo, hhi, htmp]
+  wram_exec [partitionAndNarrow, Quicksort.partInit, hlo, hhi, htmp]
   refine WP.Exact.name fun p₀ hp₀ => ?_
   have hp₀_inv : Quicksort.PartInv w vlo vhi (x.mem (vlo + off)) p₀.mem p₀ := by
     subst hp₀
@@ -671,8 +669,7 @@ private theorem selectSetup_spec {w : ℕ} {x : Data 16}
       x_init.regs hi = x.regs base + x.regs len ∧
       SelectInv w (x.regs base) (x.regs len) (x.regs rk)
         (memSlice (x.regs base) (x.regs base + x.regs len) x.mem) x.mem x_init := by
-  unfold selectSetup
-  wram_exec
+  wram_exec [selectSetup]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hfit, ?_, ?_, ?_, ?_, .refl _, .refl _ _, fun a b => ?_,
     fun a b => ?_⟩
   all_goals wram_simp
@@ -774,8 +771,8 @@ theorem loadHeader_spec {w k : ℕ} {input : List ℕ} (hfit : InputFits w (k ::
       x_hdr.regs len = input.length := by
   have hfit_len1 : Fits w (input.length + 1) := by
     simpa only [List.length_cons] using hfit.1
-  unfold loadHeader
-  wram_exec [Data.init_regs, Data.init_mem_zero, Data.init_mem_succ, List.getD_cons_zero,
+  wram_exec [loadHeader,
+    Data.init_regs, Data.init_mem_zero, Data.init_mem_succ, List.getD_cons_zero,
     List.length_cons]
   wram_simp
 
@@ -786,8 +783,7 @@ theorem code_out_of_range_spec {w k : ℕ} {input : List ℕ}
       Exec w code (Data.init (k :: input)) y 7 ∧
       y.regs ans = 0 ∧
       y.mem = (Data.init (r := 16) (k :: input)).mem := by
-  unfold code
-  wram_exec
+  wram_exec [code]
   wram_call (loadHeader_spec hfit) with x_hdr ⟨hmem, -, hrk, hlen⟩
   wram_exec [hrk, hlen]
   wram_simp [hmem]

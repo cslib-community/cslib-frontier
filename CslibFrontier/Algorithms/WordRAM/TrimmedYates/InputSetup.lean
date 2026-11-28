@@ -157,8 +157,7 @@ theorem exec_inputSetupCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth w) 
   -- Header decode
   dsimp only [x] at hx0 hm1 hm2 hm3 hm4 hm5
   simp only [exists_and_left]
-  unfold inputSetupCode
-  wram_exec [hx0, hm1, hm2, hm3, hm5]
+  wram_exec [inputSetupCode, hx0, hm1, hm2, hm3, hm5]
   refine WP.name fun u₀ hu₀ => ?_
   obtain ⟨hu₀d, hu₀s, hu₀fr, hu₀cdp, hu₀cdl, hu₀qc, hu₀mem⟩ :
       u₀.regs Reg.dim = inst.d ∧ u₀.regs Reg.thresh = inst.s ∧ u₀.regs Reg.free = initFree ∧
@@ -188,8 +187,7 @@ theorem exec_inputSetupCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth w) 
       rw [hfr_L 4 (Or.inl (by omega)), hu₀mem, hm4]
     have hu₁_cdl : u₁.regs Reg.entryCount = nL := by rw [← hnL_def]; regs_frame
     have hu₁_cdp : u₁.regs Reg.entryPtr = 6 := by regs_frame
-    unfold inputPrepRightCode
-    wram_exec [hu₁_sav, hu₁_cdl, hu₁_cdp, hu₁_m4]
+    wram_exec [inputPrepRightCode, hu₁_sav, hu₁_cdl, hu₁_cdp, hu₁_m4]
     refine ⟨rfl, ?_, rfl, rfl⟩
     wram_simp; omega
   -- Build right input trie
@@ -214,8 +212,7 @@ theorem exec_inputSetupCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth w) 
       u₄.mem = u₃.mem := by
     have hu₃_cdl : u₃.regs Reg.entryCount = nR := by rw [← hnR_def]; regs_frame
     have hu₃_cdp : u₃.regs Reg.entryPtr = 6 + 2 * nL := by regs_frame
-    unfold inputPrepSolveCode
-    wram_exec [hu₃_sav, hu₃_cdl, hu₃_cdp]
+    wram_exec [inputPrepSolveCode, hu₃_sav, hu₃_cdl, hu₃_cdp]
     refine ⟨rfl, ?_, rfl⟩
     wram_simp [hnum_eq]; omega
   have hbf_le := input_bf_le hhi_L hhi_R

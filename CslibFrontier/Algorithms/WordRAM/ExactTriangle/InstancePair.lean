@@ -167,8 +167,7 @@ private theorem exec_header {w : ℕ} (x : Data 32)
       (∀ a, ¬(x.regs base ≤ a ∧ a < x.regs base + 6) → y.mem a = x.mem a) := by
   refine WP.exists_execWithin_preserves
     (P := fun i => 17 ≤ i.val ∧ i.val < 29) (fun i hi => header_preserves i hi.1 hi.2) ?_
-  unfold setup writeHeader
-  wram_exec
+  wram_exec [setup, writeHeader]
   intro hpres
   refine ⟨by wram_simp, by wram_simp, fun i hi hi' => hpres i ⟨hi, hi'⟩, ?_, ?_⟩
   · intro i

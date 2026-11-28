@@ -297,8 +297,7 @@ theorem exec_genLowSubsets {w d coordsPtr domPtr k : ℕ} (coords : List (Fin d)
       have hbit_fit : Fits w (1 <<< c.val) := by
         rw [Nat.shiftLeft_eq, one_mul]
         exact hfit_mask.of_le (Nat.pow_le_pow_right Nat.two_pos c.isLt.le)
-      unfold genOuterStep
-      wram_exec * [hc_read]
+      wram_exec * [genOuterStep, hc_read]
       refine WP.name fun u₀ hu₀ => ?_
       have hu₀pos : u₀.regs rGenPos = 0 := by subst hu₀; wram_simp
       have hu₀P : P_in 0 u₀ := by
@@ -317,8 +316,7 @@ theorem exec_genLowSubsets {w d coordsPtr domPtr k : ℕ} (coords : List (Fin d)
       wram_exec *
       exact ⟨⟨by regs_frame, by wram_simp [hu₁dl], by wram_simp; exact hu₁dom,
         by wram_simp; exact hu₁frame⟩, by wram_simp⟩
-    unfold genLowSubsets
-    wram_exec *
+    wram_exec * [genLowSubsets]
     refine WP.name fun s₀ hs₀ => ?_
     have hs₀idx : s₀.regs rGenIdx = 0 := by subst hs₀; wram_simp
     have hs₀P : P_out 0 s₀ := by
@@ -411,8 +409,7 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
       have hf_cl1 : Fits w (cur.length + 1) := hfit_d.of_le (by omega)
       have hcur1 : curAt (b + 1) = cur ++ [ib] := by
         simp [curAt, cur, htake1, hmemC]
-      unfold extractStep
-      wram_exec [hsz, hso, hscp, hscl, hb_eq, htb.2 hmemC]
+      wram_exec [extractStep, hsz, hso, hscp, hscl, hb_eq, htb.2 hmemC]
       dsimp only [P]
       rw [hcur1]
       simp only [List.length_append, List.length_singleton]
@@ -426,8 +423,7 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
         Nat.and_one_is_mod _ ▸ Nat.mod_two_ne_one.1 (Nat.and_one_is_mod _ ▸ mt htb.1 hmemC)
       have hcur1 : curAt (b + 1) = cur := by
         simp [curAt, cur, htake1, hmemC]
-      unfold extractStep
-      wram_exec [hsz, hso, hscl, hb_eq, hbit0]
+      wram_exec [extractStep, hsz, hso, hscl, hb_eq, hbit0]
       dsimp only [P]
       rw [hcur1]
       exact ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
@@ -504,8 +500,7 @@ theorem exec_flipHighDom {w d domPtr : ℕ} (C : Finset (Fin d))
       rw [← setMask_sdiff hsub_p]; exact hfit_mask.of_le (setMask_lt _).le
     have hcard : #C ≤ d := by simpa using Finset.card_le_univ C
     have h2p : p + p = 2 * p := by omega
-    unfold flipStep
-    wram_exec [hso, hsk, hscl, hsdp, hp_eq, h2p, hmk_p, hsz_p]
+    wram_exec [flipStep, hso, hsk, hscl, hsdp, hp_eq, h2p, hmk_p, hsz_p]
     refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
       fun j hj hj' => ?_, fun j hj hj' => ?_, fun a ha => ?_⟩, by wram_simp [hp_eq]⟩
     · obtain hjp | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj'
@@ -560,8 +555,7 @@ theorem exec_initIdentityCoords {w d coordsPtr : ℕ} (x : Data numRegs)
     obtain ⟨hso, hsd, hscp, hdone, hsframe⟩ := hs
     have hf_addr : Fits w (coordsPtr + b) := hfit_mem.of_le (by omega)
     have hf_b1 : Fits w (b + 1) := hfit_d.of_le (by omega)
-    unfold initCoordsStep
-    wram_exec [hso, hscp, hb_eq.symm]
+    wram_exec [initCoordsStep, hso, hscp, hb_eq.symm]
     refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, fun j hj => ?_, fun a ha => ?_⟩,
       by wram_simp⟩
     · obtain hj | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj

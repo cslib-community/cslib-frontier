@@ -85,8 +85,7 @@ theorem exec_of_count {w D T : ℕ} (counter : Code .standard 128) (score : ℕ 
     refine WP.exists_execWithin_preserves
       (P := fun i => 131 ≤ i.val ∧ i.val ≤ 136)
       (fun i hi => (preserves_input counter i (Or.inl hi)).2) ?_
-    unfold body
-    wram_exec [hf, hsq]
+    wram_exec [body, hf, hsq]
     have huStatic : ∀ i, 131 ≤ i.val ∧ i.val ≤ 136 →
         (y.set Reg.fourSquare (4 * (y.regs Reg.cursor * y.regs Reg.cursor))).regs i = x.regs i :=
       fun i hi => by

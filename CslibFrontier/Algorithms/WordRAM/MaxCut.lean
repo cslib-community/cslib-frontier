@@ -529,8 +529,7 @@ private theorem edgeScanLoop_spec {w n z : ℕ} {edges : List WeightedEdge} {x :
         have : Fits w (3 + 3 * i + 3) := hw.of_le (by unfold wordBound; omega)
         have : Fits w (i + 1) := hw.of_le (by unfold wordBound; omega)
         refine WP.exists_execWithin (w := w) (c := edgeScanBody) ?_
-        unfold edgeScanBody
-        wram_exec [hyf_y.one_eq, hePtr_y, hu_y, hv_y, hw_y]
+        wram_exec [edgeScanBody, hyf_y.one_eq, hePtr_y, hu_y, hv_y, hw_y]
         wram_call (selectOtherCode_spec (w := w) (z := z) edges[i]) [hvIdx_y] with
           y₁ ⟨hy₁_mem, hy₁_sVal⟩
         wram_simp at hy₁_mem
@@ -647,8 +646,7 @@ private theorem vertexLoop_spec {w n : ℕ} (edges : List WeightedEdge) {x : Dat
         have : Fits w (sBase + z) := hw.of_le (by unfold wordBound; omega)
         have : Fits w (z + 1) := hw.of_le (by unfold wordBound; omega)
         refine WP.exists_execWithin (w := w) (c := vertexBody) ?_
-        unfold vertexBody
-        wram_exec [hyf_y.zero_eq, hyf_y.three_eq]
+        wram_exec [vertexBody, hyf_y.zero_eq, hyf_y.three_eq]
         have hy₁_frame : Frame n edges ((((y.set w0 0).set w1 0).set eIdx 0).set ePtr 3) := by
           struct_frame hyf_y
         wram_call (edgeScanLoop_spec (w := w) (n := n) (z := z) (edges := edges) hy₁_frame hz)
@@ -706,8 +704,7 @@ private theorem setupCode_spec {w n : ℕ} (edges : List WeightedEdge)
   have : Fits w (3 * edges.length) := hw.of_le (by unfold wordBound; omega)
   have : Fits w (3 + 3 * edges.length) := hw.of_le (by unfold wordBound; omega)
   refine WP.exists_execWithin (w := w) (c := setupCode) ?_
-  unfold setupCode
-  wram_exec [hm1, hm2]
+  wram_exec [setupCode, hm1, hm2]
   refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, ?_⟩, rfl, rfl⟩
   simpa only [Data.set_mem] using hedges
 

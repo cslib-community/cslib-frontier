@@ -85,7 +85,8 @@ theorem leafInsertCode_spec {w base capNodes t u m slot k v : ℕ} {x : Data 20}
   have hf_ms : Fits w (m - slot) := hfit.of_le (by omega)
   let x₁ := (x.set rDst m).set rLim (m - slot)
   have hp1 : ExecWithin w leafInsertPre1 x x₁ 2 := by
-    unfold leafInsertPre1; dsimp only [x₁]; wram_exec [hnk, hslot_reg, hf_ms]
+    dsimp only [x₁]
+    wram_exec [leafInsertPre1, hnk, hslot_reg, hf_ms]
   obtain ⟨x₂, hs1, hb₂, hmem₂, hreg₂⟩ :=
     shiftLoop_spec (arrBase := au + 2) (upper := m) (count := m - slot)
       (hp1.bounded hbdd) ho hsrc_au rfl rfl (by omega) (hfit.of_le (by omega))

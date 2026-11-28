@@ -370,8 +370,7 @@ theorem mulAddLoop_spec {a Bd : ℕ} (haB : a ≤ Bd) (hf : Fits w (2 * Bd)) (ds
     have hmem : m (x.regs bBase + pre.length) = d := by simpa using hh'.get pre.length (by simp)
     set t := d * a + c with ht
     refine ⟨by omega, ?_⟩
-    unfold mulAddBody
-    wram_exec [hi', hmem, ha, hc', hone, ← ht, Nat.shiftRight_eq_div_pow, Nat.pow_one,
+    wram_exec [mulAddBody, hi', hmem, ha, hc', hone, ← ht, Nat.shiftRight_eq_div_pow, Nat.pow_one,
       Nat.and_one_is_mod]
     wram_simp
     refine ⟨pre ++ [t % 2], t / 2, by omega, fun d' hd' => hds' d' (by simp [hd']), by simp,
@@ -413,8 +412,7 @@ theorem carryLoop_spec (cy : ℕ) (ds : List ℕ) (x : Data 24) (hz : x.regs zer
     have hlen : (Nat.digits 2 cy).length = pre.length + (rest.length + 1) := by
       rw [← hpre]; simp
     refine ⟨by omega, ?_⟩
-    unfold carryBody
-    wram_exec [hl', hone, Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, Nat.pow_one]
+    wram_exec [carryBody, hl', hone, Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, Nat.pow_one]
     wram_simp
     refine ⟨pre ++ [v carry % 2], by simpa using hpre, hrest, by omega, by simp; omega,
       by simpa using hh'.append_one (v carry % 2), fun b hb => ?_⟩
@@ -442,8 +440,7 @@ theorem mulAdd_spec {a cy Bd : ℕ} {ds : List ℕ} {x : Data 24} (hz : x.regs z
     simp [mulAddDigits]
   have hcarry := mulAddPass_carry_le hds haB hcB (cy := cy)
   refine WP.exists_execWithin ?_
-  unfold mulAdd
-  wram_exec [hz]
+  wram_exec [mulAdd, hz]
   wram_call (mulAddLoop_spec haB hf ds _ cy ..) framed with v₂ m₂ ⟨hh₂, hc₂, hm₂⟩
   wram_call (carryLoop_spec (mulAddPass a cy ds).2 (mulAddPass a cy ds).1 _ ..) framed
     [hl, length_mulAddPass] with v₃ m₃ ⟨hh₃, hl₃, hm₃⟩
@@ -492,8 +489,7 @@ theorem divLoop_spec {d : ℕ} (hd : 0 < d) (hfd : Fits w (2 * d)) (ds : List �
     have := Nat.div_le_self t d
     have := Nat.mod_le t d
     refine ⟨by omega, ?_⟩
-    unfold divBody
-    wram_exec [hi', hone, hmem, hr', hdv, ← ht, Nat.add_sub_cancel]
+    wram_exec [divBody, hi', hone, hmem, hr', hdv, ← ht, Nat.add_sub_cancel]
     wram_simp
     refine ⟨t / d :: qs, t % d, Nat.mod_lt _ hd, fun b' h => hb' b' (by simp [h]), by simp; omega,
       rfl, by simpa using holdsList_update (v := t / d) hh', fun a ha => ?_, ?_⟩
@@ -516,8 +512,7 @@ theorem divFloor_spec {d : ℕ} {ds : List ℕ} {x : Data 24} (hd : 0 < d) (hfd 
       HoldsList (x.regs bBase) (divDigits d 0 ds).1 y.mem ∧
       ∀ b, b < x.regs bBase → y.mem b = x.mem b := by
   refine WP.exists_execWithin ?_
-  unfold divFloor
-  wram_exec [hl, hz]
+  wram_exec [divFloor, hl, hz]
   wram_call (divLoop_spec hd hfd ds _ ..) framed with v m ⟨hyh, hym⟩
   exact ⟨by omega, hyh, hym⟩
 
@@ -583,8 +578,7 @@ theorem decCounter_spec {ds : List ℕ} {x : Data 24} (hz : x.regs zero = 0)
       y.regs found = (if ∀ d ∈ ds, d = 0 then 0 else 1) ∧
       ∀ b, b < x.regs bBase → y.mem b = x.mem b := by
   refine WP.exists_execWithin ?_
-  unfold decCounter
-  wram_exec [hz]
+  wram_exec [decCounter, hz]
   wram_call (decLoop_spec ds [] _ ..) framed [List.length_nil, List.nil_append, Nat.zero_add]
     with v m ⟨hyh, hyf, hym⟩
   exact ⟨by omega, hyh, hyf, hym⟩

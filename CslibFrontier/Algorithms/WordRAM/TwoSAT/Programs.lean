@@ -116,10 +116,9 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       s₀.mem = (Data.init G.encode : Data 28).mem ∧
       s₀.regs cZero = 0 ∧ s₀.regs cOne = 1 ∧ s₀.regs cTwo = 2 ∧ s₀.regs cThree = 3 ∧
       s₀.regs outBase = G.outAddrBase ∧ s₀.regs nv = G.n ∧ s₀.regs mClauses = G.φ.length := by
-    unfold headerSetupCode
     have hf_ob : Fits w (G.encode.length + 1) :=
       hf_ob1.of_le (by simp only [Instance.outAddrBase]; omega)
-    wram_exec [Data.init_regs, Data.init_mem_zero, hm1, hm2,
+    wram_exec [headerSetupCode, Data.init_regs, Data.init_mem_zero, hm1, hm2,
       hf3.of_le (Nat.le_succ_of_le (Nat.le_succ_of_le le_rfl)),
       hf3.of_le (Nat.le_succ_of_le le_rfl), hf3, hf_ob]
     exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
@@ -210,8 +209,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           s₃.regs curB = kCurAddr wb N Mc ∧ s₃.regs visB = kVisAddr wb N Mc ∧
           s₃.regs ordB = kOrdAddr wb N Mc ∧ s₃.regs finB = kOrdAddr wb N Mc ∧
           s₃.regs stkB = kStkAddr wb N Mc ∧ s₃.regs compB = kCompAddr wb N Mc := by
-        unfold setupWorkRegsCode
-        wram_exec [hs₂_fr0, hs₀_0, hs₀_1, hs₀_2, hs₀_3, hs₀_ob, hs₀_nv, hs₀_mc]
+        wram_exec [setupWorkRegsCode, hs₂_fr0, hs₀_0, hs₀_1, hs₀_2, hs₀_3, hs₀_ob, hs₀_nv, hs₀_mc]
         · refine ⟨rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
           all_goals wram_simp [hs₂_fr0, hs₀_0, hs₀_1, hs₀_2, hs₀_3, hs₀_nv, hs₀_mc, hs₀_ob]
           all_goals

@@ -47,16 +47,15 @@ theorem exec_initialize {w L Q : ℕ} (x : Data registers) (hL : x.mem 1 = L)
   have hf {k : ℕ} (hk : k ≤ 3 + 10 ^ L + 10 ^ L + Q + Q := by omega) : Fits w k := hs.of_le hk
   let h := (((x.set address 1).set inputDepth L).set address 2).set queryCount Q
   have hheader : ExecWithin w header x h 4 := by
-    unfold header
-    wram_exec [hL, hQ, hf (k := 1), hf (k := 2)]
+    wram_exec [header, hL, hQ, hf (k := 1), hf (k := 2)]
   obtain ⟨p, hpower, hpmem, hpL, hspan, _, hnil, hone, _, hten, hnine, hfour, _⟩ :=
     exec_powers h (by regs_frame) hfit
   have hpQ : p.regs queryCount = Q := by regs_frame
   let u := ((((((p.set arrayA 3).set arrayB (3 + 10 ^ L)).set queries (3 + 10 ^ L + 10 ^ L)).set
     output (3 + 10 ^ L + 10 ^ L + Q)).set scratch (3 + 10 ^ L + 10 ^ L + Q + Q)).set epoch 0)
   have hparameters : ExecWithin w parameters p u 6 := by
-    unfold parameters
-    wram_exec [hspan, hpQ, hf (k := 3), hf (k := 3 + 10 ^ L), hf (k := 3 + 10 ^ L + 10 ^ L),
+    wram_exec [parameters,
+      hspan, hpQ, hf (k := 3), hf (k := 3 + 10 ^ L), hf (k := 3 + 10 ^ L + 10 ^ L),
       hf (k := 3 + 10 ^ L + 10 ^ L + Q), hs]
   have huL : u.regs inputDepth = L := by regs_frame
   have huspan : u.regs span = 10 ^ L := by regs_frame

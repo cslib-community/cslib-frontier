@@ -483,9 +483,8 @@ private theorem dotLoop_spec {w q cols mBase vBase : ℕ} [NeZero q]
         have hpmod_lt : ((u ⟨j, hj⟩).val * (x.mem (vBase + j) % q)) % q < q :=
           Nat.mod_lt _ hqpos
         refine WP.exists_execWithin (w := w) (c := dotBody) ?_
-        unfold dotBody
         wram_exec (disch := first | fits | omega | wram_omega)
-          [hj_eq, h1, hq', hmCur', hvec', hmcell, hvcell, hyacc]
+          [dotBody, hj_eq, h1, hq', hmCur', hvec', hmcell, hvcell, hyacc]
         refine ⟨⟨hym, ?_, fun i hi => by
           simp only [Data.set_regs, Function.update_apply]
           split_ifs <;> first | (subst_vars; exact absurd hi (by decide)) | exact hyregs i hi⟩,
@@ -548,8 +547,7 @@ theorem mulVecCode_spec {w q rows cols mBase vBase oBase : ℕ} [NeZero q]
     have hv_eq : readVec q y.mem vBase cols = v :=
       readVec_frame fun a ha1 ha2 => hout_y a (by rcases hdisj_v with h | h <;> omega)
     apply WP.exists_execWithin
-    unfold mulVecRowBody
-    wram_exec (disch := first | fits | omega | wram_omega) [hz']
+    wram_exec (disch := first | fits | omega | wram_omega) [mulVecRowBody, hz']
     wram_call (dotLoop_spec (w := w) (mBase := mBase + r * cols) (vBase := vBase) (M ⟨r, hr⟩))
       [hM_row, hw_arith, hw_m.of_le hrow_end, hw_v] with y₂ ⟨hym₂, hyacc₂, hyregs₂⟩
     wram_simp at hym₂ hyacc₂
@@ -578,8 +576,7 @@ theorem mulVecCode_spec {w q rows cols mBase vBase oBase : ℕ} [NeZero q]
   have hlim : ∀ y, P (y.regs row) y → y.regs rowsReg = rows :=
     fun y hyP => (hyP.2.2.2 rowsReg (by decide)).trans hrows
   apply WP.exists_execWithin
-  unfold mulVecCode mulVecLoop
-  wram_exec [hz, hmPtr]
+  wram_exec [mulVecCode, mulVecLoop, hz, hmPtr]
   wram_call (ExecWithin.loop_count (B := .standard) (w := w) (N := rows)
     (index := row) (limit := rowsReg) (body := mulVecRowBody) (T := 12 * cols + 8) P
     hlim hstep) with y ⟨⟨_, hpre, hout, hyregs⟩, _⟩
@@ -620,9 +617,8 @@ private theorem vecEqCode_spec {w q l zAddr wAddr : ℕ} [NeZero q]
     by_cases heq : (zvec ⟨j, hj⟩).val = (wvec ⟨j, hj⟩).val
     · have hzweq : zvec ⟨j, hj⟩ = wvec ⟨j, hj⟩ := ZMod.val_injective q heq
       refine WP.exists_execWithin (c := vecEqBody) ?_
-      unfold vecEqBody
       wram_exec (disch := first | fits | omega | wram_omega)
-        [hj_eq, hzPtr', hwPtr', hzj, hwj, heq, ho', hyacc_y]
+        [vecEqBody, hj_eq, hzPtr', hwPtr', hzj, hwj, heq, ho', hyacc_y]
       refine ⟨⟨hym_y, ?_, fun i hi => by
         simp only [Data.set_regs, Function.update_apply]
         split_ifs <;> first | (subst_vars; exact absurd hi (by decide)) | exact hyregs_y i hi⟩,
@@ -637,9 +633,8 @@ private theorem vecEqCode_spec {w q l zAddr wAddr : ℕ} [NeZero q]
       · exact hprev i (by omega)
     · have hzwne : zvec ⟨j, hj⟩ ≠ wvec ⟨j, hj⟩ := fun h => heq (congrArg ZMod.val h)
       refine WP.exists_execWithin (c := vecEqBody) ?_
-      unfold vecEqBody
       wram_exec (disch := first | fits | omega | wram_omega)
-        [hj_eq, hzPtr', hwPtr', hzj, hwj, heq, hz', ho']
+        [vecEqBody, hj_eq, hzPtr', hwPtr', hzj, hwj, heq, hz', ho']
       refine ⟨⟨hym_y, ?_, fun i hi => by
         simp only [Data.set_regs, Function.update_apply]
         split_ifs <;> first | (subst_vars; exact absurd hi (by decide)) | exact hyregs_y i hi⟩,
@@ -652,8 +647,7 @@ private theorem vecEqCode_spec {w q l zAddr wAddr : ℕ} [NeZero q]
   have hlim : ∀ y, P (y.regs row) y → y.regs lReg = l :=
     fun y hyP => (hyP.2.2 lReg (by decide)).trans hl
   apply WP.exists_execWithin
-  unfold vecEqCode vecEqLoop
-  wram_exec [ho, hz]
+  wram_exec [vecEqCode, vecEqLoop, ho, hz]
   wram_call (ExecWithin.loop_count (B := .standard) (w := w) (N := l)
     (index := row) (limit := lReg) (body := vecEqBody) (T := 8) P
     hlim hstep) with y ⟨⟨hym, hyacc, hyregs⟩, _⟩
@@ -961,8 +955,7 @@ private theorem setupCode_spec {w q k l m n : ℕ}
     length_encodeMatrix] at hin
   obtain ⟨-, -, -, -, -, ⟨hA, hB⟩, hC⟩ := hin
   refine WP.exists_execWithin (w := w) (c := setupCode) ?_
-  unfold setupCode
-  wram_exec (disch := first | fits | omega | wram_omega) [hm1, hm2, hm3, hm4, hm5]
+  wram_exec (disch := first | fits | omega | wram_omega) [setupCode, hm1, hm2, hm3, hm4, hm5]
   refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, ?_, ?_, ?_⟩,
     rfl, rfl⟩
   · simpa only [Data.set_mem] using hA

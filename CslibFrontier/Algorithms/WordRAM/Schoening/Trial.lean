@@ -267,8 +267,7 @@ theorem flip_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ} (hw : Fits w
       have : Fits w (A + l.1.val) := hw.of_le (by omega)
       have : Fits w (1 - (σ l.1).toNat) := hw.of_le (by omega)
       refine WP.exists_execWithin ?_
-      unfold flipRest
-      wram_exec [x₂, hx.one_eq, hx.aBase_eq, hlit, litCode_shiftRight, hσ l.1]
+      wram_exec [flipRest, x₂, hx.one_eq, hx.aBase_eq, hlit, litCode_shiftRight, hσ l.1]
       refine ⟨⟨by dsimp only [x₂]; struct_frame hx, fun i hi => ?_⟩, ?_⟩
       · simp only [x₂, Data.set_mem, Data.write_mem, Function.update_apply]
         split_ifs

@@ -87,8 +87,7 @@ theorem exec_entryHeader {W n D g p : ℕ} (values : List ℤ)
   have hgread : initial.mem 2 = g := by rw [← hstart]; simp [Data.init, PreparationInput.input]
   have hnread : initial.mem 3 = n := by rw [← hstart]; simp [Data.init, PreparationInput.input]
   have hpread : initial.mem 4 = p := by rw [← hstart]; simp [Data.init, PreparationInput.input]
-  unfold entryHeader
-  wram_exec [hDread, hgread, hnread, hpread]
+  wram_exec [entryHeader, hDread, hgread, hnread, hpread]
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp, by wram_simp, by wram_simp [workspaceBase]; omega⟩
 

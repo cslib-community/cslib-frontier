@@ -304,8 +304,7 @@ private theorem exec_searchBody {w : ℕ} (y : Data 14) (v : ℕ)
   have hb : Fits w (v.testBit (y.regs rC)).toNat := h1.of_le (Bool.toNat_le _)
   have hs : Fits w (v >>> y.regs rC) := hvf.of_le (Nat.shiftRight_le _ _)
   refine WP.exists_execWithin ?_
-  unfold searchBody
-  wram_exec [hone, hzero, ha, hk, hv, hvf, hb, hs, h1, Nat.shiftRight_and_one]
+  wram_exec [searchBody, hone, hzero, ha, hk, hv, hvf, hb, hs, h1, Nat.shiftRight_and_one]
   all_goals
     refine ⟨by wram_simp, fun i hi => by
         fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
@@ -384,8 +383,7 @@ private theorem exec_search {w : ℕ} (W : List ℕ) (y : Data 14)
       generalize W.getD (z.regs rK) 0 = v
       cases prefPiv c W (z.regs rK) <;> cases v.testBit c <;> simp
   refine WP.exists_execWithin ?_
-  unfold search
-  wram_exec
+  wram_exec [search]
   wram_call (ExecWithin.loop_count P (fun z hz => ((hz.1 rM (by decide)).trans hm)) hbody
     (by wram_simp; omega)
     ⟨fun i hi => by fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
@@ -412,8 +410,7 @@ private theorem exec_elimBody {w : ℕ} (y : Data 14) (v : ℕ)
   have hb : Fits w (v.testBit (y.regs rC)).toNat := h1.of_le (Bool.toNat_le _)
   have hs : Fits w (v >>> y.regs rC) := hvf.of_le (Nat.shiftRight_le _ _)
   refine WP.exists_execWithin ?_
-  unfold elimBody
-  wram_exec [hone, ha, hk, hv, hvf, hb, hs, h1, hx, Nat.shiftRight_and_one]
+  wram_exec [elimBody, hone, ha, hk, hv, hvf, hb, hs, h1, hx, Nat.shiftRight_and_one]
   all_goals
     refine ⟨?_, fun i hi => by
       rcases hi with hi | rfl
@@ -471,8 +468,7 @@ private theorem exec_elim {w n : ℕ} (W : List ℕ) (y : Data 14)
       simp only [mem]
       split_ifs <;> first | rfl | omega
   refine WP.exists_execWithin ?_
-  unfold elim
-  wram_exec
+  wram_exec [elim]
   wram_call (ExecWithin.loop_count P (fun z hz => ((hz.1 rM (by decide)).trans hm)) hbody
     (by wram_simp; omega)
     ⟨fun i hi => by rcases hi with hi | rfl
@@ -540,8 +536,7 @@ private theorem exec_checkBody {w : ℕ} (y : Data 14) (v : ℕ)
   have hb : Fits w (v.testBit (y.regs rN)).toNat := h1.of_le (Bool.toNat_le _)
   have hs : Fits w (v >>> y.regs rN) := hvf.of_le (Nat.shiftRight_le _ _)
   refine WP.exists_execWithin ?_
-  unfold checkBody
-  wram_exec [hone, hzero, ha, hk, hv, hvf, hb, hs, h1, Nat.shiftRight_and_one]
+  wram_exec [checkBody, hone, hzero, ha, hk, hv, hvf, hb, hs, h1, Nat.shiftRight_and_one]
   all_goals
     refine ⟨by wram_simp, fun i hi => by
         fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
@@ -582,8 +577,7 @@ private theorem exec_check {w : ℕ} (W : List ℕ) (y : Data 14)
     generalize (W.take (z.regs rK)).all (fun x => !x.testBit n) = t
     cases v.testBit n <;> cases t <;> simp
   refine WP.exists_execWithin ?_
-  unfold check
-  wram_exec
+  wram_exec [check]
   wram_call (ExecWithin.loop_count P (fun z hz => ((hz.1 rM (by decide)).trans hm)) hbody
     (by wram_simp; omega)
     ⟨fun i hi => by fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
@@ -657,8 +651,7 @@ private theorem exec_code {w : ℕ} (q : Instance) (hw : FitsWidth q w) :
       y₀.mem = (Data.init (encode q) : Data 14).mem ∧ y₀.regs rN = n ∧ y₀.regs rM = m ∧
       y₀.regs rBase = 3 ∧ y₀.regs rOne = 1 ∧ y₀.regs rZero = 0 ∧ y₀.regs rC = 0 := by
     refine WP.exists_execWithin ?_
-    unfold setup
-    wram_exec [hi1, hi2, h1, h2, h3, hnn, hmm]
+    wram_exec [setup, hi1, hi2, h1, h2, h3, hnn, hmm]
     exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp⟩
   obtain ⟨y₀, he₀, hm₀, hN₀, hM₀, hB₀, hO₀, hZ₀, hC₀⟩ := hsetup

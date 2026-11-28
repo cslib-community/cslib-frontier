@@ -64,8 +64,7 @@ theorem exec_invoke {W b m t N s r q : ℕ}
       (∀ a, a < b ∨ b + CallableProduct.windowSize N qs.length ≤ a → y.mem a = x.mem a) ∧
       ∀ i : Fin 320, i.val < 128 → i ≠ Reg.result → y.regs i = x.regs i := by
   refine WP.exists_execWithin ?_
-  unfold invoke
-  wram_exec [hb, hs, hr, hq]
+  wram_exec [invoke, hb, hs, hr, hq]
   wram_call (PointerBoxProduct.exec X Y qs _
     rfl rfl rfl rfl
     hheader hthreshold hsb hrb hqb hleft hright hqueries hX hY ht hN hfit)
