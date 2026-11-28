@@ -1078,8 +1078,8 @@ theorem mul_opNorm_le_mul_maxDiffNorm_of_hammingDist_ge
             by_cases hxy0 : Γ x y = 0
             · simp only [hxy0, mul_zero, zero_mul, le_refl]
             · have hdiff : (k : ℝ) ≤ ∑ i : Fin N, diffMatrix i x y := by
-                simpa only [Finset.card_filter, Nat.cast_sum, diffMatrix_apply, Nat.cast_ite,
-                  Nat.cast_one, Nat.cast_zero] using (Nat.cast_le (α := ℝ)).2 (hk x y hxy0)
+                simpa only [← Finset.sum_boole, diffMatrix_apply] using
+                  (Nat.cast_le (α := ℝ)).2 (hk x y hxy0)
               convert mul_le_mul_of_nonneg_right hdiff
                 (mul_nonneg (mul_nonneg (hnonneg x y) (abs_nonneg (u.ofLp x)))
                   (abs_nonneg (v.ofLp y))) using 1 <;> ring

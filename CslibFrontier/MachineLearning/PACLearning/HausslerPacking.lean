@@ -87,8 +87,7 @@ variable {α ι : Type*}
 
 /-- Sum of `min (μ f) (μ (Function.update f i true))` across all undirected hypercube edges `(i, f)`
 with `f i = false` (weighted analogue of the hypercube edge count in [Haussler1995]). -/
-@[expose] noncomputable def hypercubeEdgeMinSum [DecidableEq ι] [Fintype ι]
-    (μ : (ι → Bool) → ℝ) : ℝ :=
+noncomputable def hypercubeEdgeMinSum [DecidableEq ι] [Fintype ι] (μ : (ι → Bool) → ℝ) : ℝ :=
   ∑ i : ι, ∑ f : ι → Bool,
     if f i = false then min (μ f) (μ (Function.update f i true)) else 0
 

@@ -1025,11 +1025,10 @@ private theorem strongGuess_avg_eq {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign �
       ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
         (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
           then (1 : ℝ) else 0) := by
-    rw [Finset.card_filter, Nat.cast_sum, Finset.sum_div]
+    rw [← Finset.sum_boole, Finset.sum_div]
     refine Finset.sum_congr rfl fun z_i _ => ?_
     rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast, hcard_t,
       div_eq_inv_mul]
-    split_ifs <;> simp
   simp_rw [hcard_sum]
   -- Reorder sums `(w, b, u, x, z_i) -> (x, w, z_i, u, b)`.
   have hreord :

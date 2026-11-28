@@ -255,9 +255,8 @@ theorem drmHadamardCoeff_eq_hammingDist_sub {μ : ℕ} (w : DRMWord μ) (a : RMP
       (∑ x : RMPoint, walshSign a x * drmExpandAndSum w x) =
         (hammingDist (drmEncode μ ⟨false, a⟩) w : ℤ) -
           μ * #{x | a ⬝ᵥ x = true} := by
-    rw [hammingDist, card_filter, Nat.cast_sum, Fintype.sum_prod_type]
-    simp only [drmExpandAndSum, mul_sum, hpoint, sum_sub_distrib, Nat.cast_ite, Nat.cast_one,
-      Nat.cast_zero]
+    rw [hammingDist, ← Finset.sum_boole, Fintype.sum_prod_type]
+    simp only [drmExpandAndSum, mul_sum, hpoint, sum_sub_distrib]
     rw [sum_comm (s := univ) (t := univ)]
     congr 1
     calc

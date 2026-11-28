@@ -62,8 +62,7 @@ private theorem integrable_badCount {Q : Multigraph W F} (hdeg : Q.MaxDegreeLE 3
       fun ω => ∑ e ∈ (Q.incidenceSet B).toFinset,
         if ¬inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e) then (1 : ℝ) else 0 := by
     funext ω
-    rw [badCount, toFinset_eq_of_fintype (Q.incidenceSet B) _, Finset.card_filter, Nat.cast_sum]
-    exact Finset.sum_congr rfl fun e _ => by split_ifs <;> simp
+    rw [badCount, toFinset_eq_of_fintype (Q.incidenceSet B) _, ← Finset.sum_boole]
   have hm_bad : Measurable (fun ω : W → BlockSample => (badCount Q q R ω B : ℝ)) := by
     rw [hfn]
     refine Finset.measurable_sum _ fun e _ => ?_

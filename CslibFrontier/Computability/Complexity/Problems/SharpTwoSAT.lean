@@ -802,7 +802,7 @@ theorem SharpSAT_eq_clauseWeight_sum_int (φ : CNF ℕ) :
           if φ.eval (fun v => if hv : v ∈ φ.vars.toFinset then σ ⟨v, hv⟩ else false) = true then
             (1 : ℤ)
           else 0 := by
-      simp only [Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+      simp only [← Finset.sum_boole]
     rw [hcard]
     refine Finset.sum_congr rfl fun σ _ => ?_
     let σExt (v : ℕ) : Bool := if hv : v ∈ φ.vars.toFinset then σ ⟨v, hv⟩ else false

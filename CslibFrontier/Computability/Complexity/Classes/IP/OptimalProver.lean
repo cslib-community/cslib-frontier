@@ -292,8 +292,7 @@ theorem acceptFrom_after_of_le (hF : IsBounded F D L) (P : Prover Unit) (s : P.S
 private theorem sum_ite_outcome_eq_accepted (h : History) :
     (∑ r : R, if outcome (F r) h = .done true then (1 : ENNReal) else 0) = accepted F h := by
   classical
-  rw [accepted, Finset.card_filter, Nat.cast_sum]
-  exact Finset.sum_congr rfl fun r _ => by split_ifs <;> simp
+  rw [accepted, ← Finset.sum_boole]
 
 private theorem sum_acceptFrom_after_eq (hF : IsBounded F D L) (P : Prover Unit) (s : P.State)
     (h : History) :

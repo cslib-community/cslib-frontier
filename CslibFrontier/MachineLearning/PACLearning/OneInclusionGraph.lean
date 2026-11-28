@@ -10,7 +10,8 @@ module
 public import CslibFrontier.MachineLearning.PACLearning.RealizableSample
 public import CslibFrontier.MachineLearning.PACLearning.VCDimension
 import CslibFrontier.MachineLearning.PACLearning.DualVCDimension
-import CslibFrontier.MachineLearning.PACLearning.HausslerPacking
+-- The indicator-weight argument unfolds `hypercubeEdgeMinSum` in this proof.
+import all CslibFrontier.MachineLearning.PACLearning.HausslerPacking
 import Mathlib.Combinatorics.Hall.Finite
 import Mathlib.Data.Fintype.Pi
 import Mathlib.MeasureTheory.Constructions.Pi

@@ -521,7 +521,7 @@ theorem card_filter_dpDecode_err_le_ge (C' : (Fin k → U) → Fin k → V) (f :
       ∑ x, (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) := by
     refine (card_filter_mul_le_sum univ _ _ (fun _ _ => Nat.cast_nonneg _)
       fun _ _ hv => (not_le.1 hv).le).trans_eq ?_
-    simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+    simp only [← Finset.sum_boole]
     exact sum_comm
   have hbad : (#bad : ℝ) * 2 ≤ N ^ m :=
     le_of_mul_le_mul_right (by linarith [hmarkov.trans hsum]) (mul_pos hε hn)
