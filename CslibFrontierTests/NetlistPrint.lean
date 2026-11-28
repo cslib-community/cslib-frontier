@@ -12,7 +12,7 @@ import CslibFrontier.Languages.Electrical.NetlistPrint
 
 /-! # Tests for printing netlists
 
-* The RC filter read from its exported text (`CslibFrontierTests.NetlistText.rcParsed`) is
+* The RC filter read from its text (`CslibFrontierTests.NetlistText.rcParsed`) is
   printable; its printed text is shown, read back, and the certificate is accepted against it,
   so the guarantee holds for the netlist itself, without the reader in the statement
   (`Cslib.Electrical.Text.guarantee_of_checkText_print`).
