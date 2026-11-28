@@ -46,15 +46,11 @@ theorem exists_algHom_of_rootMultiplicity_lmul_eq_one (v : A) {η : K}
     simpa only [φ, Algebra.coe_lmul_eq_mul, LinearMap.mul_apply'] using hw.apply_eq_smul
   let w' : φ.eigenspace η := ⟨w, hw.1⟩
   have hw' : w' ≠ 0 := fun h => hw.2 (congrArg Subtype.val h)
-  have hupper := LinearMap.finrank_eigenspace_le φ η
-  have hpos : 0 < finrank K (φ.eigenspace η) :=
-    Module.finrank_pos_iff_exists_ne_zero.mpr ⟨w', hw'⟩
-  have hdim : finrank K (φ.eigenspace η) = 1 := by
-    change φ.charpoly.rootMultiplicity η = 1 at hsimple
-    omega
+  have hdim : finrank K (φ.eigenspace η) = 1 :=
+    le_antisymm ((LinearMap.finrank_eigenspace_le φ η).trans_eq hsimple)
+      (Module.finrank_pos_iff_exists_ne_zero.mpr ⟨w', hw'⟩)
   have hline (a : A) : ∃ c : K, c • w = a * w := by
-    have ha : a * w ∈ φ.eigenspace η := by
-      apply Module.End.mem_eigenspace_iff.mpr
+    have ha : a * w ∈ φ.eigenspace η := Module.End.mem_eigenspace_iff.mpr <| by
       change v * (a * w) = η • (a * w)
       rw [mul_left_comm v a w, hvw, mul_smul_comm]
     obtain ⟨c, hc⟩ := exists_smul_eq_of_finrank_eq_one hdim hw' ⟨a * w, ha⟩
@@ -64,20 +60,15 @@ theorem exists_algHom_of_rootMultiplicity_lmul_eq_one (v : A) {η : K}
   refine ⟨{ toFun := c
             map_zero' := hinj (by simpa only [zero_smul, zero_mul] using hc 0)
             map_one' := hinj (by simpa only [one_smul, one_mul] using hc 1)
-            map_mul' := ?_
-            map_add' := ?_
-            commutes' := ?_ }, hinj ((hc v).trans hvw)⟩
-  · intro a b
-    apply hinj
-    change c (a * b) • w = (c a * c b) • w
-    rw [hc, mul_assoc, ← hc b, mul_smul_comm, ← hc a, smul_smul, mul_comm (c b)]
-  · intro a b
-    apply hinj
-    change c (a + b) • w = (c a + c b) • w
-    rw [hc, add_smul, hc, hc, add_mul]
-  · intro t
-    apply hinj
-    change c (algebraMap K A t) • w = t • w
-    rw [hc, Algebra.smul_def]
+            map_mul' := fun a b => hinj (by
+              dsimp only
+              rw [hc, mul_assoc, ← hc b, mul_smul_comm, ← hc a, smul_smul, mul_comm (c b)])
+            map_add' := fun a b => hinj (by
+              dsimp only
+              rw [hc, add_smul, hc, hc, add_mul])
+            commutes' := fun t => hinj (by
+              change c (algebraMap K A t) • w = t • w
+              rw [hc, Algebra.smul_def]) },
+    hinj ((hc v).trans hvw)⟩
 
 end Algebra

@@ -74,8 +74,7 @@ theorem exists_complexity_slice_le_of_computableInTime {α : Type*} {enc : α �
   classical
   obtain ⟨C, hC⟩ := complexity_slice_acceptedWithin_le tm
   refine ⟨acceptedWithin tm t, C, fun a => ?_, hC t⟩
-  obtain ⟨-, hout⟩ := (htm a).runFrom_of_le le_rfl
-  rw [mem_acceptedWithin_iff, hout, encBool_apply]
+  rw [mem_acceptedWithin_iff, ((htm a).runFrom_of_le le_rfl).2, encBool_apply]
   simp [OutView.ofList]
 
 /-- The instances on which a Boolean function computable in polynomial time is true are the
@@ -170,15 +169,15 @@ theorem BPP_subset_PPolyOn : Complexity.BPP enc ⊆ PPolyOn enc := by
       have h := hdec a
       dsimp only [Complexity.BoundedErrorAt] at h
       rw [ha, List.length_ofFn] at h
+      have hv (r : Fin (p.eval n) → Bool) := verifier_eq_true_iff hVL ha _ r rfl
       by_cases haA : a ∈ A
       · rw [(encodesMember_eq_true_iff ha).2 haA]
         exact (h.1 haA).trans_eq (congrArg (3 * ·) (congrArg Finset.card
-          (Finset.filter_congr fun r _ => verifier_eq_true_iff hVL ha _ r rfl)))
-      · rw [show encodesMember enc A n x = false from
-          Bool.eq_false_iff.2 fun e => haA ((encodesMember_eq_true_iff ha).1 e)]
-        refine (h.2 haA).trans_eq (congrArg (3 * ·) (congrArg Finset.card
-          (Finset.filter_congr fun r _ => ?_)))
-        rw [← Bool.not_eq_true, verifier_eq_true_iff hVL ha _ r rfl, Bool.not_eq_true]
+          (Finset.filter_congr fun r _ => hv r)))
+      · rw [Bool.eq_false_iff.2 (mt (encodesMember_eq_true_iff ha).1 haA)]
+        exact (h.2 haA).trans_eq (congrArg (3 * ·) (congrArg Finset.card
+          (Finset.filter_congr fun r _ => by
+            simpa only [← Bool.not_eq_true] using not_congr (hv r))))
   exact ⟨L, hL, mem_iff_of_slice_eq_encodesMember hLg⟩
 
 /-- **RP ⊆ P/poly.** A problem in `RP`, with any encoding `enc` of its instances, is the preimage
@@ -194,12 +193,10 @@ theorem RP_subset_PPolyOn : Complexity.RP enc ⊆ PPolyOn enc := by
       exact h.trans_eq (congrArg (2 * ·) (congrArg Finset.card
         (Finset.filter_congr fun r _ => verifier_eq_true_iff hVL ha _ r rfl))))
     fun n x ⟨a, ha⟩ hx r => by
-      have h := (hdec a).2 fun haA => by
-        rw [(encodesMember_eq_true_iff ha).2 haA] at hx
-        exact Bool.noConfusion hx
+      have h := (hdec a).2 fun haA => Bool.noConfusion (hx.symm.trans
+        ((encodesMember_eq_true_iff ha).2 haA))
       rw [ha, List.length_ofFn] at h
-      rw [← Bool.not_eq_true, ← verifier_eq_true_iff hVL ha _ r rfl, Bool.not_eq_true]
-      exact h r
+      simpa only [← Bool.not_eq_true, ← verifier_eq_true_iff hVL ha _ r rfl] using h r
   exact ⟨L, hL, mem_iff_of_slice_eq_encodesMember hLg⟩
 
 /-- **coRP ⊆ P/poly.** A problem in `coRP`, with any encoding `enc` of its instances, is the

@@ -277,24 +277,11 @@ private theorem retained_polyTime {r : δ → ℕ} {V : δ → List (List ℕ ×
       fun v => decide ((groups x).getD v 0 = g x)) encIn (encList encUnary) := by fun_prop
   have hvtx : ComputableInPolyTime (fun p : δ × ℕ => (V p.1).getD p.2 defaultVertex) e₁
       (encPair (encList encNat) (VertexDesc.enc encT)) := by fun_prop
-  have hxx : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => q.1.1) (encPair e₁ encNat) encIn :=
-    hx.comp (ComputableInPolyTime.fst _ _)
-  have hr' : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => r q.1.1) (encPair e₁ encNat) encNat :=
-    hr.comp hxx
-  have hgroups' : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => groups q.1.1) (encPair e₁ encNat)
-      (encList encNat) := hgroups.comp hxx
-  have hg' : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => g q.1.1) (encPair e₁ encNat) encNat :=
-    hg.comp hxx
-  have hends' : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => ends q.1.1) (encPair e₁ encNat)
-      encEdgeEnds := hends.comp hxx
-  have hv' : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => q.1.2) (encPair e₁ encNat) encNat :=
-    ComputableInPolyTime.unary_to_binary.comp (hy.comp (ComputableInPolyTime.fst _ _))
-  have he' : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => q.2) (encPair e₁ encNat) encNat :=
-    ComputableInPolyTime.snd _ _
   have hce : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ =>
       childEdgeOf (r q.1.1) (groups q.1.1) (g q.1.1) (ends q.1.1) q.1.2 q.2)
       (encPair e₁ encNat) encNat :=
-    computableInPolyTime_childEdgeOf hr' hgroups' hg' hends' hv' he'
+    computableInPolyTime_childEdgeOf
+      (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
   have hports : ComputableInPolyTime (fun p : δ × ℕ =>
       ((V p.1).getD p.2 defaultVertex).1.map (childEdgeOf (r p.1) (groups p.1) (g p.1)
         (ends p.1) p.2)) e₁ (encList encNat) := by fun_prop
@@ -371,9 +358,7 @@ private theorem packetVertices_polyTime {P : δ → ℕ} {cedges : δ → List (
         (ComputableInPolyTime.unary_to_binary.comp hy))))
   have hpqb : ComputableInPolyTime (fun p : δ × ℕ =>
       childPorts (cedges p.1) ((groups p.1).count (g p.1) + p.2)) e₁ (encList encNat) :=
-    (ComputableInPolyTime.mapWithInput (f := fun _ j => j) hpq
-      (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _))).of_enc_eq
-      fun p => by rw [List.map_id']
+    hpq.reencodeList .unary_to_binary
   -- The tags of the ports.
   have hR : ComputableInPolyTime (fun x => (portEdges (groups x) (g x) (ends x) Prod.fst).length)
       encIn encUnary :=
@@ -381,17 +366,9 @@ private theorem packetVertices_polyTime {P : δ → ℕ} {cedges : δ → List (
       (ComputableInPolyTime.fst _ _) hgroups hg hends)
   have hxu : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => q.1.1) (encPair e₁ encUnary) encIn :=
     hx.comp (ComputableInPolyTime.fst _ _)
-  have hgroups' : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => groups q.1.1) (encPair e₁ encUnary)
-      (encList encNat) := hgroups.comp hxu
-  have hg' : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => g q.1.1) (encPair e₁ encUnary) encNat :=
-    hg.comp hxu
-  have hends' : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => ends q.1.1) (encPair e₁ encUnary)
-      encEdgeEnds := hends.comp hxu
-  have hj' : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ => q.2) (encPair e₁ encUnary) encNat :=
-    ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _)
   have hpe : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ =>
       parentEdge (groups q.1.1) (g q.1.1) (ends q.1.1) q.2) (encPair e₁ encUnary) encUnary :=
-    computableInPolyTime_parentEdge hgroups' hg' hends' hj'
+    computableInPolyTime_parentEdge (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
   have htag : ComputableInPolyTime (fun q : (δ × ℕ) × ℕ =>
       (decide (q.2 < (portEdges (groups q.1.1) (g q.1.1) (ends q.1.1) Prod.fst).length),
         ((place q.1.1).getD (parentEdge (groups q.1.1) (g q.1.1) (ends q.1.1) q.2) (0, 0)).2))
@@ -548,18 +525,11 @@ theorem computableInPolyTime_nativeParentPacking (hr : ComputableInPolyTime r en
     ComputableInPolyTime (fun x => nativeParentPacking (r x) (a x) (D x)) encIn
       PacketPacking.encNativePacking := by
   have hends := (DescribedNetwork.computableInPolyTime_edgeEnds (VertexDesc.enc encT)).comp hD
-  have hrb := ComputableInPolyTime.unary_to_binary.comp hr
-  have hshift : ComputableInPolyTime (fun x => (D x).edgeEnds.map fun e => (e.1, e.2 - r x))
-      encIn (encList (encPair encNat encNat)) := by fun_prop
-  have hnC : ComputableInPolyTime (fun x => (D x).vertices.length - r x) encIn encUnary :=
-    ComputableInPolyTime.unary_sub' ((ComputableInPolyTime.length_list _).comp
-      (DescribedNetwork.vertices_polyTime.comp hD)) hr
+  have hvtx := DescribedNetwork.vertices_polyTime.comp hD
   have hin : ComputableInPolyTime (fun x => (((r x, (D x).vertices.length - r x, a x), 64,
       (D x).edgeEnds.map fun e => (e.1, e.2 - r x)) : PacketPacking.PackingInput)) encIn
-      (encPair (encPair encUnary (encPair encUnary encUnary))
-        (encPair encNat (encList (encPair encNat encNat)))) := by fun_prop
-  have h := PacketPacking.computableInPolyTime_nativePacking.comp hin
-  refine h.of_enc_eq fun x => ?_
+      PacketPacking.encPackingInput := by fun_prop
+  refine (PacketPacking.computableInPolyTime_nativePacking.comp hin).of_enc_eq fun x => ?_
   simp only [Function.comp_apply, nativeParentPacking]
 
 /-- **The number of packets of the native parent packing in unary** is polynomial-time, with `a`

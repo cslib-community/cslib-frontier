@@ -45,7 +45,7 @@ on the framed encoding of formulas, for any encoding of the variables [OpenAI202
 * [OpenAI, *The Exponential Time Hypothesis is False*, Appendix A.1][OpenAI2026ETH]
 -/
 
-@[expose] public section
+public section
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
@@ -61,35 +61,29 @@ theorem computableInPolyTime_countingThreshold_le (M : ℕ) :
 
 variable {V : Type} [DecidableEq V] (encV : V ↪ List Bool)
 
-/-- The framed encoding of clauses. -/
-local notation "encC" => encClause encV
-
-/-- The framed encoding of formulas. -/
-local notation "encF" => encCNFOver encV
-
 /-- Tautology testing on a clause is polynomial-time. -/
 theorem computableInPolyTime_isTautology :
-    ComputableInPolyTime (Clause.isTautology (V := V)) encC encBool := by
+    ComputableInPolyTime (Clause.isTautology (V := V)) (encClause encV) encBool := by
   unfold Clause.isTautology Std.Sat.Literal.negate
   fun_prop
 
 /-- Removing tautological clauses from a formula is polynomial-time. -/
 theorem computableInPolyTime_removeTautologies :
-    ComputableInPolyTime (removeTautologies (V := V)) encF encF := by
+    ComputableInPolyTime (removeTautologies (V := V)) (encCNFOver encV) (encCNFOver encV) := by
   have htaut := computableInPolyTime_isTautology encV
   unfold removeTautologies
   fun_prop
 
 /-- Nontautological normalization (`countingNormalize`) is polynomial-time. -/
 theorem computableInPolyTime_countingNormalize :
-    ComputableInPolyTime (countingNormalize (V := V)) encF encF :=
+    ComputableInPolyTime (countingNormalize (V := V)) (encCNFOver encV) (encCNFOver encV) :=
   (computableInPolyTime_normalize encV).comp (computableInPolyTime_removeTautologies encV)
 
 /-- A counting child of a branching node, for a supplied choice, is polynomial-time. -/
 private theorem computableInPolyTime_countingChild :
     ComputableInPolyTime
       (fun x : CNF V × ((ℕ × Clause V) × Bool) => countingChild x.1 x.2.1.1 x.2.1.2 x.2.2)
-      (encPair encF (encPair (encCandidate encV) encBool)) encF := by
+      (encPair (encCNFOver encV) (encPair (encCandidate encV) encBool)) (encCNFOver encV) := by
   have := computableInPolyTime_reduce encV
   have := computableInPolyTime_dedupClauses encV
   have := computableInPolyTime_flower encV
@@ -103,7 +97,7 @@ theorem computableInPolyTime_countingNextWith {P : Type} {encP : P ↪ List Bool
     (hθ : ComputableInPolyTime (fun x : P × ℕ × ℕ => decide (θ x.1 x.2.1 ≤ x.2.2))
       (encUnaryComparison encP) encBool) (k : ℕ) :
     ComputableInPolyTime (fun x : P × (CNF V × Bool) => countingNext (θ x.1) k x.2.1 x.2.2)
-      (encPair encP (encPair encF encBool)) encF :=
+      (encPair encP (encPair (encCNFOver encV) encBool)) (encCNFOver encV) :=
   computableInPolyTime_childAtChoiceWith encV hθ k (f := countingChild)
     (computableInPolyTime_countingChild encV)
 
@@ -112,7 +106,7 @@ theorem computableInPolyTime_countingNext {θ : ℕ → ℕ}
     (hθ : ComputableInPolyTime (fun p : ℕ × ℕ => decide (θ p.1 ≤ p.2))
       (encPair encUnary encUnary) encBool) (k : ℕ) :
     ComputableInPolyTime (fun p : CNF V × Bool => countingNext θ k p.1 p.2)
-      (encPair encF encBool) encF := by
+      (encPair (encCNFOver encV) encBool) (encCNFOver encV) := by
   have h := computableInPolyTime_countingNextWith encV (P := ℕ) (encP := encUnary)
     (θ := fun _ => θ) (computableInPolyTime_const_threshold hθ) k
   simpa only [Function.comp_def] using h.comp ((const (encOut := encUnary) 0).prod id')
@@ -123,7 +117,7 @@ theorem computableInPolyTime_countingNext {θ : ℕ → ℕ}
 polynomial-time for a runtime base `M` in binary, with `j` and the compared number in unary. -/
 theorem computableInPolyTime_countingThreshold_le_binary :
     ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => decide (countingThreshold x.1 x.2.1 ≤ x.2.2))
-      (encPair encNat (encPair encUnary encUnary)) encBool := by
+      (encUnaryComparison encNat) encBool := by
   unfold countingThreshold
   fun_prop
 
@@ -131,7 +125,7 @@ theorem computableInPolyTime_countingThreshold_le_binary :
 `countingThreshold M`, for a base `M` given in binary at runtime, is polynomial-time. -/
 theorem computableInPolyTime_isSparse_countingThreshold (k : ℕ) :
     ComputableInPolyTime (fun x : ℕ × CNF V => isSparse (countingThreshold x.1) k x.2)
-      (encPair encNat encF) encBool :=
+      (encPair encNat (encCNFOver encV)) encBool :=
   computableInPolyTime_isSparseWith encV computableInPolyTime_countingThreshold_le_binary k
 
 /-- **The counting step for a runtime base.** The counting-sparsification step for the thresholds
@@ -139,7 +133,7 @@ theorem computableInPolyTime_isSparse_countingThreshold (k : ℕ) :
 theorem computableInPolyTime_countingNext_countingThreshold (k : ℕ) :
     ComputableInPolyTime
       (fun x : ℕ × (CNF V × Bool) => countingNext (countingThreshold x.1) k x.2.1 x.2.2)
-      (encPair encNat (encPair encF encBool)) encF :=
+      (encPair encNat (encPair (encCNFOver encV) encBool)) (encCNFOver encV) :=
   computableInPolyTime_countingNextWith encV computableInPolyTime_countingThreshold_le_binary k
 
 end Cslib.Logic.PL.CNF.Sparsification

@@ -82,21 +82,16 @@ theorem card_filter_mulVec_eq_mul_card_le
     intro x hx y hy hxy
     simp only [E, Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hx hy
     have hrest : ∀ k, k ≠ j → x k = y k := fun k hk => congrFun hxy ⟨k, hk⟩
-    have hrow : ∀ z : n → S, M *ᵥ (e ∘ z) = N *ᵥ (e ∘ z) →
-        (M - N) i j * e (z j) + ∑ k ∈ Finset.univ.erase j, (M - N) i k * e (z k) = 0 := by
-      intro z hz
-      have h0 : ((M - N) *ᵥ (e ∘ z)) i = 0 := by
-        rw [Matrix.sub_mulVec, Pi.sub_apply, hz, sub_self]
-      rwa [Matrix.mulVec, dotProduct, ← Finset.add_sum_erase _ _ (Finset.mem_univ j)] at h0
-    have hsum : ∑ k ∈ Finset.univ.erase j, (M - N) i k * e (x k) =
-        ∑ k ∈ Finset.univ.erase j, (M - N) i k * e (y k) :=
-      Finset.sum_congr rfl fun k hk => by rw [hrest k (Finset.ne_of_mem_erase hk)]
-    have hx' := hrow x hx
-    rw [hsum] at hx'
-    have hxj : x j = y j := he _ hij (add_right_cancel (hx'.trans (hrow y hy).symm))
+    have h0 : ((M - N) *ᵥ (e ∘ x)) i = ((M - N) *ᵥ (e ∘ y)) i := by
+      simp only [Matrix.sub_mulVec, Pi.sub_apply, hx, hy, sub_self]
+    simp only [Matrix.mulVec, dotProduct, Function.comp_apply] at h0
+    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j),
+      ← Finset.add_sum_erase _ _ (Finset.mem_univ j),
+      Finset.sum_congr rfl fun k hk =>
+        congrArg ((M - N) i k * e ·) (hrest k (Finset.ne_of_mem_erase hk))] at h0
     funext k
-    by_cases hk : k = j
-    · subst hk; exact hxj
+    rcases eq_or_ne k j with rfl | hk
+    · exact he _ hij (add_right_cancel h0)
     · exact hrest k hk
   have hcard := Finset.card_le_card_of_injOn _ (fun _ _ => Finset.mem_univ _) hinj
   rw [Finset.card_univ, Fintype.card_fun] at hcard

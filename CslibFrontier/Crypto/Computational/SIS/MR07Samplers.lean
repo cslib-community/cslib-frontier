@@ -120,8 +120,11 @@ namespace Cslib.Crypto.SIS.MR07
 
 open Turing.MultiTapeTM ComputableInPolyTime Cslib.LinearAlgebra Cslib.Probability Cslib.ProbComp
 open Mathlib.Tactic.Matrix ZLattice
-open scoped IntTable RatTable LinearSystemInput LinearSolveResult
+open scoped IntTable RatTable LinearSystemInput LinearSolveResult SampleZInput
 open scoped ENNReal RealInnerProductSpace _root_.Matrix
+
+attribute [local irreducible] SampleZInput.enc IntTable.enc RatTable.enc
+  LinearSystemInput.enc LinearSolveResult.enc encRat encIntBin encNat encUnary
 
 /-! ### 1. Shared linear-algebra helpers (`ListMatrix.dotProduct`, `Rat.floor`, `solveFloorMul`) -/
 
@@ -131,27 +134,7 @@ private def intTableToRatTable (B : IntTable) : RatTable :=
 
 private theorem computableInPolyTime_intTableToRatTable :
     ComputableInPolyTime intTableToRatTable IntTable.enc RatTable.enc := by
-  have hcast : ComputableInPolyTime (fun p : List ℤ × ℤ => (p.2 : ℚ))
-      (encPair (encList encIntBin) encIntBin) encRat :=
-    (snd (encList encIntBin) encIntBin).trans rat_intCast
-  have hrow : ComputableInPolyTime (fun row : List ℤ => row.map (Int.cast : ℤ → ℚ))
-      (encList encIntBin) (encList encRat) :=
-    mapWithInput (f := fun _ (z : ℤ) => (z : ℚ)) (id' (encIn := encList encIntBin)) hcast
-  have hBrows : ComputableInPolyTime (Cslib.RowTable.rows : IntTable → _) IntTable.enc
-      (encList (encList encIntBin)) := by
-    fun_prop
-  have hrows : ComputableInPolyTime
-      (fun B : IntTable => B.rows.map fun row => row.map (Int.cast : ℤ → ℚ))
-      IntTable.enc (encList (encList encRat)) := by
-    have hstep : ComputableInPolyTime (fun p : IntTable × List ℤ => p.2.map (Int.cast : ℤ → ℚ))
-        (encPair IntTable.enc (encList encIntBin)) (encList encRat) :=
-      (snd IntTable.enc (encList encIntBin)).trans hrow
-    exact mapWithInput (f := fun _ (row : List ℤ) => row.map (Int.cast : ℤ → ℚ)) hBrows hstep
-  have heq : intTableToRatTable = fun B =>
-      Cslib.RowTable.mk (α := ℚ) B.numRows B.numCols
-        (B.rows.map fun row => row.map (Int.cast : ℤ → ℚ)) := rfl
-  rw [heq]
-  fun_prop
+  fun_prop [intTableToRatTable]
 
 /-- Row-wise integer matrix-vector multiplication via `ListMatrix.dotProduct`. -/
 private theorem computableInPolyTime_intTableMulVec :
@@ -207,31 +190,20 @@ private theorem computableInPolyTime_solveFloorMul {α : Type} {encIn : α ↪ L
       (fun a => LinearSystemInput.mk (intTableToRatTable (mat a)) (rhs a))
       encIn LinearSystemInput.enc := by fun_prop
   have hres := ratSolve_computableInPolyTime.comp hsys
-  have hopt : ComputableInPolyTime
-      (fun a => (ratSolve ⟨intTableToRatTable (mat a), rhs a⟩).solution)
-      encIn (encOption (encList encRat)) := by fun_prop
-  have hdef : ComputableInPolyTime (fun a => List.replicate (dim a) (0 : ℚ))
-      encIn (encList encRat) := by fun_prop
-  have hsol := optionGetDWithInput hopt hdef
-  have hrng := unary_range' hdim
+  have hsol : ComputableInPolyTime
+      (fun a => (ratSolve ⟨intTableToRatTable (mat a), rhs a⟩).solution.getD
+        (List.replicate (dim a) 0))
+      encIn (encList encRat) :=
+    optionGetDWithInput (by fun_prop) (by fun_prop)
   have hk : ComputableInPolyTime
       (fun a => (List.range (dim a)).map fun i =>
         (((ratSolve ⟨intTableToRatTable (mat a), rhs a⟩).solution.getD
           (List.replicate (dim a) 0)).getD i 0).floor)
       encIn (encList encIntBin) := by
-    refine mapWithInput hrng ?_
-    exact rat_floor.comp
-      (listGetDWithInput (hsol.comp (fst encIn encUnary)) (snd encIn encUnary) 0)
-  have hmul := (hmat.prod hk).trans computableInPolyTime_intTableMulVec
-  have heq :
-      (fun a => solveFloorMul (dim a) (mat a) (rhs a)) =
-      fun a => (List.range (mat a).numRows).map fun r =>
-        ListMatrix.dotProduct (mat a).numCols ((mat a).rows.getD r [])
-          ((List.range (dim a)).map fun i =>
-            (((ratSolve ⟨intTableToRatTable (mat a), rhs a⟩).solution.getD
-              (List.replicate (dim a) 0)).getD i 0).floor) := rfl
-  rw [heq]
-  exact hmul
+    have := hsol.comp (fst encIn encUnary)
+    exact mapWithInput (unary_range' hdim) (by fun_prop)
+  dsimp only [solveFloorMul, intTableToRatTable] at hk ⊢
+  exact (hmat.prod hk).trans computableInPolyTime_intTableMulVec
 
 private theorem computableInPolyTime_gridRhs {α : Type} {encIn : α ↪ List Bool}
     {dim : α → ℕ} {q : α → ℤ} {r' : α → List ℤ}
@@ -241,12 +213,7 @@ private theorem computableInPolyTime_gridRhs {α : Type} {encIn : α ↪ List Bo
     ComputableInPolyTime
       (fun a => (List.range (dim a)).map fun i => Rat.divInt (-((r' a).getD i 0)) (q a))
       encIn (encList encRat) := by
-  have hrng := unary_range' hdim
-  have hneg := (listGetDWithInput ((fst encIn encUnary).trans hr') (snd encIn encUnary) 0).trans
-    intBin_neg
-  have hqp := (fst encIn encUnary).trans hq
-  exact mapWithInput (f := fun a i => Rat.divInt (-((r' a).getD i 0)) (q a)) hrng
-    (rat_divInt' hneg hqp)
+  fun_prop
 
 private theorem computableInPolyTime_gridPost {α : Type} {encIn : α ↪ List Bool}
     {dim : α → ℕ} {q : α → ℤ} {r' bk : α → List ℤ}
@@ -259,16 +226,7 @@ private theorem computableInPolyTime_gridPost {α : Type} {encIn : α ↪ List B
         ((List.range (dim a)).map fun i => -((r' a).getD i 0) - q a * (bk a).getD i 0,
          (List.range (dim a)).map fun i => -((bk a).getD i 0)))
       encIn (encPair (encList encIntBin) (encList encIntBin)) := by
-  have hrng := unary_range' hdim
-  have hneg := (listGetDWithInput ((fst encIn encUnary).trans hr') (snd encIn encUnary) 0).trans
-    intBin_neg
-  have hqp := (fst encIn encUnary).trans hq
-  have hbki := listGetDWithInput ((fst encIn encUnary).trans hbk) (snd encIn encUnary) 0
-  have hu := mapWithInput
-    (f := fun a i => -((r' a).getD i 0) - q a * (bk a).getD i 0)
-    hrng (intBin_sub' hneg (intBin_mul' hqp hbki))
-  have hy := mapWithInput (f := fun a i => -((bk a).getD i 0)) hrng (hbki.trans intBin_neg)
-  exact hu.prod hy
+  fun_prop
 
 private theorem computableInPolyTime_vecIntToRat {α : Type} {encIn : α ↪ List Bool}
     {dim : α → ℕ} {v : α → List ℤ}
@@ -277,9 +235,7 @@ private theorem computableInPolyTime_vecIntToRat {α : Type} {encIn : α ↪ Lis
     ComputableInPolyTime
       (fun a => (List.range (dim a)).map fun i => ((v a).getD i 0 : ℚ))
       encIn (encList encRat) := by
-  have hvi := listGetDWithInput ((fst encIn encUnary).trans hv) (snd encIn encUnary) 0
-  exact mapWithInput (f := fun a i => ((v a).getD i 0 : ℚ)) (unary_range' hdim)
-    (hvi.trans rat_intCast)
+  fun_prop
 
 private theorem computableInPolyTime_vecSub {α : Type} {encIn : α ↪ List Bool}
     {dim : α → ℕ} {u v : α → List ℤ}
@@ -289,10 +245,7 @@ private theorem computableInPolyTime_vecSub {α : Type} {encIn : α ↪ List Boo
     ComputableInPolyTime
       (fun a => (List.range (dim a)).map fun i => (u a).getD i 0 - (v a).getD i 0)
       encIn (encList encIntBin) := by
-  have hui := listGetDWithInput ((fst encIn encUnary).trans hu) (snd encIn encUnary) 0
-  have hvi := listGetDWithInput ((fst encIn encUnary).trans hv) (snd encIn encUnary) 0
-  exact mapWithInput (f := fun a i => (u a).getD i 0 - (v a).getD i 0) (unary_range' hdim)
-    (intBin_sub' hui hvi)
+  fun_prop
 
 /-! ### 2. Strict-PPT discrete-grid Gaussian sampler (`sampleGridGaussian`) -/
 
@@ -327,6 +280,7 @@ enc_structure enc : GridSampleInput where
 end GridSampleInput
 
 open scoped GridSampleInput
+attribute [local irreducible] GridSampleInput.enc
 
 /-- Exact integer grid reduction: given `r' ∈ ℤ^dim`, computes `bk = solveFloorMul dim B (-r' / q)`
 and returns `(u, y) = (-r' - q • bk, -bk)`. -/
@@ -352,20 +306,17 @@ private theorem computableInPolyTime_gridReduceInt :
       (fun p : GridSampleInput × List ℤ => gridReduceInt p.1.dim p.1.modulus p.1.basis p.2)
       (encPair GridSampleInput.enc (encList encIntBin))
       (encPair (encList encIntBin) (encList encIntBin)) := by
-  let encIn := encPair GridSampleInput.enc (encList encIntBin)
-  have hdim : ComputableInPolyTime (fun p : GridSampleInput × List ℤ => p.1.dim)
-      encIn encUnary := by fun_prop
-  have hmod : ComputableInPolyTime (fun p : GridSampleInput × List ℤ => p.1.modulus)
-      encIn encNat := by fun_prop
-  have hB : ComputableInPolyTime (fun p : GridSampleInput × List ℤ => p.1.basis)
-      encIn IntTable.enc := by fun_prop
-  have hr' : ComputableInPolyTime (fun p : GridSampleInput × List ℤ => p.2)
-      encIn (encList encIntBin) := snd GridSampleInput.enc (encList encIntBin)
-  have hq : ComputableInPolyTime (fun p : GridSampleInput × List ℤ => (p.1.modulus : ℤ))
-      encIn encIntBin := hmod.trans intBin_natCast
-  have hrhs := computableInPolyTime_gridRhs hdim hq hr'
-  have hbk := computableInPolyTime_solveFloorMul hdim hB hrhs
-  exact computableInPolyTime_gridPost hdim hq hr' hbk
+  have hrhs := computableInPolyTime_gridRhs
+    (dim := fun p : GridSampleInput × List ℤ => p.1.dim)
+    (q := fun p => (p.1.modulus : ℤ)) (r' := Prod.snd)
+    (by fun_prop) (by fun_prop) (snd _ _)
+  have hbk := computableInPolyTime_solveFloorMul
+    (dim := fun p : GridSampleInput × List ℤ => p.1.dim)
+    (mat := fun p => p.1.basis) (by fun_prop) (by fun_prop) hrhs
+  exact computableInPolyTime_gridPost
+    (dim := fun p : GridSampleInput × List ℤ => p.1.dim)
+    (q := fun p => (p.1.modulus : ℤ)) (r' := Prod.snd)
+    (by fun_prop) (by fun_prop) (snd _ _) hbk
 
 /-- Strict-PPT certificate for `sampleGridGaussian`. -/
 theorem isPPTOn_sampleGridGaussian :
@@ -373,39 +324,10 @@ theorem isPPTOn_sampleGridGaussian :
       sampleGridGaussian := by
   have hcoord : ComputableInPolyTime (fun p : GridSampleInput × ℕ => gridCoordInput p.1 p.2)
       (encPair GridSampleInput.enc encUnary) SampleZInput.enc := by
-    let encP := encPair GridSampleInput.enc encUnary
-    have hmod : ComputableInPolyTime (fun p : GridSampleInput × ℕ => p.1.modulus)
-        encP encNat := by fun_prop
-    have hsSq : ComputableInPolyTime (fun p : GridSampleInput × ℕ => p.1.sSq)
-        encP encRat := by fun_prop
-    have htargetList : ComputableInPolyTime (fun p : GridSampleInput × ℕ => p.1.target)
-        encP (encList encRat) := by fun_prop
-    have hqRat : ComputableInPolyTime (fun p : GridSampleInput × ℕ => (p.1.modulus : ℚ))
-        encP encRat :=
-      rat_intCast.comp (intBin_natCast.comp hmod)
-    have hqSq : ComputableInPolyTime (fun p : GridSampleInput × ℕ => (p.1.modulus : ℚ) ^ 2)
-        encP encRat := by
-      have : (fun p : GridSampleInput × ℕ => (p.1.modulus : ℚ) ^ 2) =
-          fun p => (p.1.modulus : ℚ) * (p.1.modulus : ℚ) := by funext p; rw [sq]
-      rw [this]
-      exact rat_mul' hqRat hqRat
-    have hsSq' : ComputableInPolyTime
-        (fun p : GridSampleInput × ℕ => (p.1.modulus : ℚ) ^ 2 * p.1.sSq) encP encRat :=
-      rat_mul' hqSq hsSq
-    have htarget : ComputableInPolyTime
-        (fun p : GridSampleInput × ℕ => (p.1.modulus : ℚ) * p.1.target.getD p.2 0) encP encRat :=
-      rat_mul' hqRat (listGetDWithInput htargetList (snd GridSampleInput.enc encUnary) 0)
-    have htail : ComputableInPolyTime (fun p : GridSampleInput × ℕ => p.1.tail) encP encUnary := by
-      fun_prop
-    have hprec : ComputableInPolyTime (fun p : GridSampleInput × ℕ => p.1.prec) encP encUnary := by
-      fun_prop
-    have hmax : ComputableInPolyTime (fun p : GridSampleInput × ℕ => p.1.maxTrials)
-        encP encUnary := by fun_prop
-    exact SampleZInput.enc_mk_polyTime hsSq' htarget htail hprec hmax
-  have hdim : ComputableInPolyTime GridSampleInput.dim GridSampleInput.enc encUnary := by fun_prop
+    fun_prop [gridCoordInput]
   have htrav : IsPPTOn GridSampleInput.enc (encList encIntBin)
       (fun inp => (List.range inp.dim).mapM fun i => sampleZ (gridCoordInput inp i)) :=
-    IsPPTOn.mapMWith (isPPTOn_sampleZ.preprocess hcoord) (unary_range' hdim)
+    IsPPTOn.mapMWith (isPPTOn_sampleZ.preprocess hcoord) (by fun_prop)
   have hres := htrav.map_with
     (f := fun inp r' => gridReduceInt inp.dim inp.modulus inp.basis r')
     computableInPolyTime_gridReduceInt
@@ -461,8 +383,7 @@ theorem closeTo_eval_sampleGridGaussian_pi
         discreteGaussianInt qs hqs_pos
           ((inp.modulus : ℝ) * (inp.target.getD i.val 0 : ℝ)) := by
       congr 1
-    rw [hdgInt_eq] at h
-    exact h
+    rwa [hdgInt_eq] at h
   have hpi := CloseTo.piFin hcoord
   have hmul_eq : (inp.dim : ℝ≥0∞) * ENNReal.ofReal Δ = ENNReal.ofReal ((inp.dim : ℝ) * Δ) := by
     rw [ENNReal.ofReal_mul (Nat.cast_nonneg _), ENNReal.ofReal_natCast]
@@ -531,27 +452,26 @@ enc_structure enc : QuotientSampleInput where
 end QuotientSampleInput
 
 open scoped QuotientSampleInput
+attribute [local irreducible] QuotientSampleInput.enc
 
 /-- Integer quotient index `D = |det S| / |det B|` computed via staged Bird determinants. -/
 def quotientIndex (B S : IntTable) : ℕ :=
   (Cslib.Circuits.Rational.detRows S.rows).natAbs /
     (Cslib.Circuits.Rational.detRows B.rows).natAbs
 
+@[local fun_prop]
 private theorem computableInPolyTime_intTableRows :
     ComputableInPolyTime (Cslib.RowTable.rows : IntTable → _) IntTable.enc Cslib.encIntTable := by
   change ComputableInPolyTime (Cslib.RowTable.rows : IntTable → _) IntTable.enc
     (encList (encList encIntBin))
   fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_quotientIndex :
     ComputableInPolyTime (fun p : IntTable × IntTable => quotientIndex p.1 p.2)
       (encPair IntTable.enc IntTable.enc) encNat := by
-  unfold quotientIndex
-  have hSrows := computableInPolyTime_intTableRows.comp (snd IntTable.enc IntTable.enc)
-  have hBrows := computableInPolyTime_intTableRows.comp (fst IntTable.enc IntTable.enc)
-  have hS := intBin_natAbs.comp (Cslib.Circuits.Rational.detRows_polytime.comp hSrows)
-  have hB := intBin_natAbs.comp (Cslib.Circuits.Rational.detRows_polytime.comp hBrows)
-  exact binary_div' hS hB
+  have := Cslib.Circuits.Rational.detRows_polytime
+  fun_prop [quotientIndex]
 
 /-- Exact integer quotient representative reduction: given `x ∈ ℕ^dim`, computes `v0 = B *ᵥ x` via
 `ListMatrix.dotProduct`, `sk = solveFloorMul dim S v0`, and returns `v0 - sk`. -/
@@ -585,11 +505,7 @@ private theorem computableInPolyTime_quotientReduceInt :
       encIn IntTable.enc := by fun_prop
   have hxInt : ComputableInPolyTime
       (fun p : QuotientSampleInput × List ℕ => p.2.map (Nat.cast : ℕ → ℤ))
-      encIn (encList encIntBin) := by
-    have hcast : ComputableInPolyTime (fun q : (QuotientSampleInput × List ℕ) × ℕ => (q.2 : ℤ))
-        (encPair encIn encNat) encIntBin := (snd encIn encNat).trans intBin_natCast
-    exact mapWithInput (f := fun _ (n : ℕ) => (n : ℤ))
-      (snd QuotientSampleInput.enc (encList encNat)) hcast
+      encIn (encList encIntBin) := by fun_prop
   have hv0 := (hB.prod hxInt).trans computableInPolyTime_intTableMulVec
   have hrhs := computableInPolyTime_vecIntToRat hdim hv0
   have hsk := computableInPolyTime_solveFloorMul hdim hS hrhs
@@ -598,58 +514,25 @@ private theorem computableInPolyTime_quotientReduceInt :
 /-- Strict-PPT certificate for `sampleQuotientModS`. -/
 theorem isPPTOn_sampleQuotientModS :
     IsPPTOn QuotientSampleInput.enc (encList encIntBin) sampleQuotientModS := by
-  have hB : ComputableInPolyTime QuotientSampleInput.basis
-      QuotientSampleInput.enc IntTable.enc := by fun_prop
-  have hS : ComputableInPolyTime QuotientSampleInput.sublattice
-      QuotientSampleInput.enc IntTable.enc := by fun_prop
-  have hextra : ComputableInPolyTime QuotientSampleInput.extraBits
-      QuotientSampleInput.enc encUnary := by fun_prop
-  have hdim : ComputableInPolyTime QuotientSampleInput.dim
-      QuotientSampleInput.enc encUnary := by fun_prop
-  have hD : ComputableInPolyTime
-      (fun inp : QuotientSampleInput => quotientIndex inp.basis inp.sublattice)
-      QuotientSampleInput.enc encNat :=
-    computableInPolyTime_quotientIndex.comp (hB.prod hS)
-  have hD0 : ComputableInPolyTime
-      (fun inp : QuotientSampleInput => decide (quotientIndex inp.basis inp.sublattice = 0))
-      QuotientSampleInput.enc encBool :=
-    decide_eq' hD (const 0)
-  have hwidth : ComputableInPolyTime
-      (fun inp : QuotientSampleInput =>
-        if quotientIndex inp.basis inp.sublattice = 0 then 0
-        else Nat.clog 2 (quotientIndex inp.basis inp.sublattice) + inp.extraBits)
-      QuotientSampleInput.enc encUnary :=
-    ite_decide hD0 (const 0) (unary_add' (binary_clog_two.comp hD) hextra)
   have hcoord : IsPPTOn (encPair QuotientSampleInput.enc encUnary) encNat
       (fun p : QuotientSampleInput × ℕ =>
         sampleModNat
           (if quotientIndex p.1.basis p.1.sublattice = 0 then 0
             else Nat.clog 2 (quotientIndex p.1.basis p.1.sublattice) + p.1.extraBits)
           (quotientIndex p.1.basis p.1.sublattice)) :=
-    isPPTOn_sampleModNat (hwidth.comp (fst QuotientSampleInput.enc encUnary))
-      (hD.comp (fst QuotientSampleInput.enc encUnary))
+    isPPTOn_sampleModNat (by fun_prop) (by fun_prop)
   have htrav : IsPPTOn QuotientSampleInput.enc (encList encNat)
       (fun inp => (List.range inp.dim).mapM fun _ =>
         sampleModNat
           (if quotientIndex inp.basis inp.sublattice = 0 then 0
             else Nat.clog 2 (quotientIndex inp.basis inp.sublattice) + inp.extraBits)
           (quotientIndex inp.basis inp.sublattice)) :=
-    IsPPTOn.mapMWith hcoord (unary_range' hdim)
-  have hrep : ComputableInPolyTime
-      (fun p : QuotientSampleInput × List ℕ => List.replicate p.1.dim (0 : ℤ))
-      (encPair QuotientSampleInput.enc (encList encNat)) (encList encIntBin) := by fun_prop
-  have hpost : ComputableInPolyTime
-      (fun p : QuotientSampleInput × List ℕ =>
-        if quotientIndex p.1.basis p.1.sublattice = 0 then List.replicate p.1.dim (0 : ℤ)
-        else quotientReduceInt p.1.dim p.1.basis p.1.sublattice p.2)
-      (encPair QuotientSampleInput.enc (encList encNat)) (encList encIntBin) :=
-    ite_decide (hD0.comp (fst QuotientSampleInput.enc (encList encNat)))
-      hrep computableInPolyTime_quotientReduceInt
+    IsPPTOn.mapMWith hcoord (by fun_prop)
   have hres := htrav.map_with
     (f := fun inp coords =>
       if quotientIndex inp.basis inp.sublattice = 0 then List.replicate inp.dim (0 : ℤ)
       else quotientReduceInt inp.dim inp.basis inp.sublattice coords)
-    hpost
+    (ite_decide (by fun_prop) (by fun_prop) computableInPolyTime_quotientReduceInt)
   refine hres.congr fun inp => ?_
   simp only [sampleQuotientModS, bind_pure_comp]
 

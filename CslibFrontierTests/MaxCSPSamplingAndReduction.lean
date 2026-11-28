@@ -22,15 +22,17 @@ Exercises `MaxCSP`, `MaxCSPSampling`, and `MaxSAT.Reduction` across the strict `
 * nonvacuous instantiations of the `2 ^ (n + 1) * exp (-2 * s * δ ^ 2)` and
   `|D| ^ n * 2 * exp (-2 * s * δ ^ 2)` subsampling bounds, existence of sparse approximators, and
   tightness of the `2 * δ * m` optimality-loss bound;
-* concrete `thresholdToCNF` compilation, `O(log m)`-query `TimeM` binary-search optimization
-  (`optimumByBinarySearchM`), and native resource transfer (`FixedWidthSATSolver`).
+* concrete `thresholdToCNF` compilation, `O(log m)`-query `FreeM SATQuery` binary-search
+  optimization and witness recovery (`optimumByBinarySearchQ`, `optimizeByBinarySearchQ`,
+  `optimumMaxCSPByBinarySearchQ`), and native resource transfer (`FixedWidthSATSolver`,
+  `optimizeWith`, `maxCSPOptimizeBounded`, `exists_computableInPolyTime_optimize_of_KSAT_mem_P`).
 -/
 
 set_option linter.privateModule false
 
 namespace Cslib.Tests.MaxCSPSamplingAndReduction
 
-open Cslib.Algorithms.Lean Cslib.Complexity Cslib.Complexity.MaxSAT Cslib.Logic.PL
+open Cslib.Algorithms.Lean Cslib.Complexity Cslib.Complexity.MaxSAT Cslib.Logic.PL Cslib.Query
   Turing.MultiTapeTM
 
 /-! ### 1. Finite-domain `Max-CSP` (`Fin 3` 3-coloring on `K₃` and `K₄`) and clamped compilation -/
@@ -237,7 +239,7 @@ example : encMaxCSPInstance encUnit xorCycleCSP =
     encPair encUnary (encList (encPair encUnit (encList encNat)))
       (3, [((), [0, 1]), ((), [1, 2]), ((), [0, 2])]) := rfl
 
-/-! ### 6. Fixed-width SAT reduction, `O(log m)` binary search, and native solver transfer -/
+/-! ### 6. Fixed-width SAT reduction, `FreeM` binary search, and native witness transfer -/
 
 /-- Unsatisfiable 4-clause 2-CNF instance (`optimum = 3`). -/
 def fourClauseInst : StructInstance where
@@ -246,27 +248,32 @@ def fourClauseInst : StructInstance where
 
 example : fourClauseInst.optimum = 3 := by decide
 
-/-- Executable unit-cost `TimeM` SAT oracle backed by `BruteForce.search`. -/
-def bruteSolveM (φ : CNF ℕ) : TimeM ℕ Bool :=
-  ⟨BruteForce.search φ, 1⟩
-
-theorem bruteSolveM_spec (φ : CNF ℕ) (_ : ∀ c ∈ φ, c.length ≤ 3) :
-    (bruteSolveM φ).ret = true ↔ φ.Satisfiable :=
+theorem bruteForce_spec (φ : CNF ℕ) (_ : ∀ c ∈ φ, c.length ≤ 3) :
+    BruteForce.search φ = true ↔ φ.Satisfiable :=
   BruteForce.search_eq_true_iff φ
 
-/-- `optimumByBinarySearchM` finds the exact optimum `3` of `fourClauseInst` in at most
-`⌊log₂ 4⌋ + 1 = 3` oracle calls, and makes `0` calls on an empty formula. -/
-example : (optimumByBinarySearchM bruteSolveM fourClauseInst).ret = 3 :=
-  (optimumByBinarySearchM_ret (k := 3) le_rfl bruteSolveM_spec fourClauseInst).trans (by decide)
+/-- `SATQuery` oracle backed by `BruteForce.search`. -/
+def bruteOracle : {ι : Type} → SATQuery ι → ι :=
+  SATQuery.oracleOf BruteForce.search
 
-example : (optimumByBinarySearchM bruteSolveM fourClauseInst).time ≤ 3 := by
-  have h := optimumByBinarySearchM_time_le fourClauseInst (solveM := bruteSolveM) (C := 1)
-    (fun _ _ _ => le_rfl)
+/-- `optimumByBinarySearch` / `optimumByBinarySearchQ` find the exact optimum `3` of
+`fourClauseInst` in at most `⌊log₂ 4⌋ + 1 = 3` SAT queries, and make `0` queries on an empty
+formula. -/
+example : (optimumByBinarySearchQ fourClauseInst).eval bruteOracle = 3 := by
+  rw [eval_optimumByBinarySearchQ]
+  exact (optimumByBinarySearch_eq_optimum (k := 3) le_rfl bruteForce_spec fourClauseInst).trans
+    (by decide)
+
+example : (optimumByBinarySearchQ fourClauseInst).countQueries bruteOracle ≤ 3 := by
+  have h := countQueries_optimumByBinarySearchQ_le bruteOracle fourClauseInst
   have hlog : Nat.log 2 fourClauseInst.clauses.length + 1 = 3 := by decide
-  exact h.trans_eq (by rw [one_mul, hlog])
+  exact h.trans_eq hlog
 
-example : (optimumByBinarySearchM bruteSolveM ⟨2, []⟩).ret = 0 :=
-  (optimumByBinarySearchM_ret (k := 3) le_rfl bruteSolveM_spec ⟨2, []⟩).trans (by decide)
+example : optimumByBinarySearch BruteForce.search ⟨2, []⟩ = 0 :=
+  (optimumByBinarySearch_eq_optimum (k := 3) le_rfl bruteForce_spec ⟨2, []⟩).trans (by decide)
+
+example : (optimumByBinarySearchQ ⟨2, []⟩).countQueries bruteOracle = 0 :=
+  countQueries_optimumByBinarySearchQ_of_clauses_eq_nil bruteOracle rfl
 
 /-- Nonvacuous instantiation of the `η = 1 / 4` failure-probability sample-size bound on
 `xorCycleCSP` (`n = 3`, `δ = 1 / 2`, `s = 9`: `(3 + 1) * log 2 + log 4 = 6 * log 2 < 4.2 ≤ 4.5`). -/
@@ -295,33 +302,40 @@ theorem nonvacuous_sample_size_eta :
     (s := 9) (by norm_num) (by norm_num) hs
   linarith
 
-/-- Witness recovery (`optimizeByBinarySearchM`) finds both `optimum = 3` and an assignment `xHat`
-scoring `3` on `fourClauseInst` within `⌊log₂ 4⌋ + 1 + 2 = 5` oracle calls. -/
+/-- Witness recovery (`optimizeByBinarySearch` / `optimizeByBinarySearchQ`) finds both `optimum = 3`
+and a 2-bit assignment scoring `3` on `fourClauseInst` within `⌊log₂ 4⌋ + 1 + 2 = 5` SAT queries. -/
 theorem fourClause_optimize_witness :
-    (optimizeByBinarySearchM bruteSolveM fourClauseInst).ret.1 = 3 ∧
-      fourClauseInst.score (optimizeByBinarySearchM bruteSolveM fourClauseInst).ret.2 = 3 ∧
-      (optimizeByBinarySearchM bruteSolveM fourClauseInst).time ≤ 5 := by
-  obtain ⟨hopt, hscore⟩ :=
-    optimizeByBinarySearchM_ret (k := 3) le_rfl bruteSolveM_spec fourClauseInst
+    (optimizeByBinarySearch BruteForce.search fourClauseInst).optValue = 3 ∧
+      (optimizeByBinarySearch BruteForce.search fourClauseInst).assignmentBits.length = 2 ∧
+      fourClauseInst.score
+        (BitString.ofList fourClauseInst.numVars
+          (optimizeByBinarySearch BruteForce.search fourClauseInst).assignmentBits) = 3 ∧
+      (optimizeByBinarySearchQ fourClauseInst).eval bruteOracle =
+        optimizeByBinarySearch BruteForce.search fourClauseInst ∧
+      (optimizeByBinarySearchQ fourClauseInst).countQueries bruteOracle ≤ 5 := by
+  obtain ⟨hopt, hlen, hscore⟩ :=
+    optimizeByBinarySearch_spec (k := 3) le_rfl bruteForce_spec fourClauseInst
   have h3 : fourClauseInst.optimum = 3 := by decide
-  have ht := optimizeByBinarySearchM_time_le fourClauseInst (solveM := bruteSolveM) (C := 1)
-    (fun _ _ _ => le_rfl)
+  have ht := countQueries_optimizeByBinarySearchQ_le bruteOracle fourClauseInst
   have h5 : Nat.log 2 fourClauseInst.clauses.length + 1 + fourClauseInst.numVars = 5 := by decide
-  exact ⟨hopt.trans h3, hscore.trans h3, ht.trans_eq (by rw [one_mul, h5])⟩
+  exact ⟨hopt.trans h3, hlen, hscore.trans h3,
+    eval_optimizeByBinarySearchQ bruteOracle fourClauseInst, ht.trans_eq h5⟩
 
 /-- End-to-end subsampled witness-recovery guarantee under the `η = 1 / 2` sample-size bound on
 `fourClauseInst` (`n = 2`, `w = 2`, `δ = 1 / 2`, `s = 8`: `4 * log 2 < 2.8 ≤ 4`). -/
 theorem fourClause_sample_optimize_eta_spec :
     (∀ ω : Fin 8 → Fin fourClauseInst.clauses.length,
-      (optimizeByBinarySearchM bruteSolveM (fourClauseInst.sample ω)).time ≤ 6) ∧
+      (optimizeByBinarySearchQ (fourClauseInst.sample ω)).countQueries bruteOracle ≤ 6) ∧
     (1 / 2 : ℝ) ≤
       ((fourClauseInst.samplePMF (by decide) 8).toOuterMeasure
         {ω | (fourClauseInst.optimum : ℝ) -
               (fourClauseInst.score
-                (optimizeByBinarySearchM bruteSolveM (fourClauseInst.sample ω)).ret.2 : ℝ) ≤
+                (BitString.ofList fourClauseInst.numVars
+                  (optimizeByBinarySearch BruteForce.search
+                    (fourClauseInst.sample ω)).assignmentBits) : ℝ) ≤
               2 * (1 / 2 : ℝ) * (fourClauseInst.clauses.length : ℝ) ∧
           |(fourClauseInst.clauses.length : ℝ) / (8 : ℝ) *
-              ((optimizeByBinarySearchM bruteSolveM (fourClauseInst.sample ω)).ret.1 : ℝ) -
+              ((optimizeByBinarySearch BruteForce.search (fourClauseInst.sample ω)).optValue : ℝ) -
             (fourClauseInst.optimum : ℝ)| ≤
               (1 / 2 : ℝ) * (fourClauseInst.clauses.length : ℝ)}).toReal := by
   have hs : (fourClauseInst.numVars + 1 : ℝ) * Real.log 2 + Real.log (1 / (1 / 2 : ℝ)) ≤
@@ -331,11 +345,14 @@ theorem fourClause_sample_optimize_eta_spec :
     have hdiv : (1 : ℝ) / (1 / 2 : ℝ) = 2 := by norm_num
     rw [hn, hdiv]
     linarith
-  obtain ⟨ht, hprob⟩ := sample_optimizeByBinarySearchM_spec_of_sample_size (k := 3) (w := 2)
-    le_rfl bruteSolveM_spec (F := fourClauseInst) (by decide) (by decide) (s := 8) (C := 1)
-    (fun _ _ _ => le_rfl) (by norm_num) (η := 1 / 2) (by norm_num) hs
+  obtain ⟨ht, hprob⟩ := sample_optimizeByBinarySearch_spec_of_sample_size (k := 3) (w := 2)
+    le_rfl bruteForce_spec (F := fourClauseInst) (by decide) (by decide) (s := 8)
+    (weight := fun _ => 1) (C := 1) (fun _ _ _ => le_rfl) (by norm_num) (η := 1 / 2)
+    (by norm_num) hs
   have h6 : Nat.log 2 8 + 1 + fourClauseInst.numVars = 6 := by decide
-  exact ⟨fun ω => (ht ω).trans_eq (by rw [one_mul, h6]), by linarith⟩
+  refine ⟨fun ω => ?_, by linarith⟩
+  rw [FreeM.countQueries_eq_cost_one]
+  exact (ht ω).trans_eq (by rw [one_mul, h6])
 
 /-- Exponential-time decision transfer instantiated from `KSAT_decidableInExpTime_one 3`. -/
 theorem thresholdLanguage_expTime_bruteForce :
@@ -357,9 +374,47 @@ theorem exists_bruteForce_optimum_from_solver :
   rw [hrate] at hinO
   exact ⟨d, hinO⟩
 
+/-- Native witness optimization (`optimizeWith` and `maxCSPOptimizeBounded`) checked on
+`fourClauseInst` (`optimum = 3`) and `xorCycleCSP` (`optimum = 2`), plus class-level transfer when
+`ThreeSAT ∈ P encCNF`. -/
+theorem native_optimizeWith_fourClause :
+    (optimizeWith BruteForce.search fourClauseInst).optValue = 3 ∧
+      (optimizeWith BruteForce.search fourClauseInst).assignmentBits.length = 2 ∧
+      fourClauseInst.score
+        (BitString.ofList fourClauseInst.numVars
+          (optimizeWith BruteForce.search fourClauseInst).assignmentBits) = 3 := by
+  obtain ⟨hopt, hlen, hsc⟩ := optimizeWith_spec (k := 3) le_rfl bruteForce_spec fourClauseInst
+  have h3 : fourClauseInst.optimum = 3 := by decide
+  exact ⟨hopt.trans h3, hlen, hsc.trans h3⟩
+
+theorem native_maxCSPOptimize_xorCycle :
+    (maxCSPOptimizeBounded 2 xor2Sem BruteForce.search xorCycleCSP).optValue = 2 ∧
+      (maxCSPOptimizeBounded 2 xor2Sem BruteForce.search xorCycleCSP).assignmentBits.length = 3 ∧
+      xorCycleCSP.score xor2Sem
+        (BitString.ofList xorCycleCSP.numVars
+          (maxCSPOptimizeBounded 2 xor2Sem BruteForce.search xorCycleCSP).assignmentBits) = 2 := by
+  obtain ⟨hopt, hlen, hsc⟩ :=
+    maxCSPOptimizeBounded_spec (w := 2) (k := 3) le_rfl xor2Sem bruteForce_spec
+      (F := xorCycleCSP) (by decide)
+  have h2 : xorCycleCSP.optimum xor2Sem = 2 := by decide
+  exact ⟨hopt.trans h2, hlen, hsc.trans h2⟩
+
+theorem polyTime_optimize_if_ThreeSAT_mem_P (hP : ThreeSAT ∈ P encCNF) :
+    ∃ solveOpt : StructInstance → StructSolution,
+      ComputableInPolyTime solveOpt encStructInstance encStructSolution ∧
+      ∀ F : StructInstance,
+        (solveOpt F).optValue = F.optimum ∧
+        (solveOpt F).assignmentBits.length = F.numVars ∧
+        F.score (BitString.ofList F.numVars (solveOpt F).assignmentBits) = F.optimum :=
+  exists_computableInPolyTime_optimize_of_KSAT_mem_P (k := 3) le_rfl hP
+
 /-- Binary-search `Max-CSP` optimization instantiated on `xorCycleCSP` (`optimum = 2`). -/
-example : (optimumMaxCSPByBinarySearchM 2 xor2Sem bruteSolveM xorCycleCSP).ret = 2 :=
-  (optimumMaxCSPByBinarySearchM_ret (w := 2) (k := 3) le_rfl xor2Sem bruteSolveM_spec
+example : optimumMaxCSPByBinarySearch 2 xor2Sem BruteForce.search xorCycleCSP = 2 :=
+  (optimumMaxCSPByBinarySearch_eq_optimum (w := 2) (k := 3) le_rfl xor2Sem bruteForce_spec
     (by decide)).trans (by decide)
+
+example : (optimumMaxCSPByBinarySearchQ 2 xor2Sem xorCycleCSP).countQueries bruteOracle ≤
+    Nat.log 2 (maxCSPToStruct 2 xor2Sem xorCycleCSP).clauses.length + 1 :=
+  countQueries_optimumMaxCSPByBinarySearchQ_le bruteOracle 2 xor2Sem xorCycleCSP
 
 end Cslib.Tests.MaxCSPSamplingAndReduction

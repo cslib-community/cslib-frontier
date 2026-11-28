@@ -5,6 +5,8 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Complexity.Classes.BQP
+import CslibFrontier.Computability.Complexity.Classes.BQP.ReturnTest
+import CslibFrontier.Computability.Circuit.Quantum.Classical
 
 /-! `BQP`: uniform families that decide a language exactly, interference, closure under
 complement, and a family whose acceptance probability `1 / 2` decides nothing. -/
@@ -54,6 +56,30 @@ theorem acceptProb_readFirst (x : List Bool) :
   simp only [Circuit.ofCodes_nil, Circuit.run, Circuit.eval_nil, measureProb_ket,
     mem_accepting (Nat.succ_pos _), inputState]
   cases x <;> rfl
+
+-- An identity circuit returns to the input with certainty, for either value of the first bit.
+example (x : List Bool) : readFirst.returnTest.acceptProb x = 1 := by
+  rw [UniformCircuitFamily.acceptProb_returnTest]
+  change ‖(Circuit.run (Circuit.ofCodes (x.length + 1) []) (inputState _ x)).ofLp
+    (inputState _ x)‖ ^ 2 = 1
+  rw [Circuit.ofCodes_nil, Circuit.run, Circuit.eval_nil, ket_apply]
+  simp
+
+-- On the empty input the only wire is padding. Flipping that wire rules out a return.
+example : readFirst.appendNot.returnTest.acceptProb [] = 0 := by
+  rw [UniformCircuitFamily.acceptProb_returnTest]
+  change ‖(Circuit.run (Circuit.ofCodes 1 [(false, 0, [])]) (inputState 1 [])).ofLp
+    (inputState 1 [])‖ ^ 2 = 0
+  have hclass : GateCode.IsClassical 1 [(false, 0, [])] := by
+    intro g hg
+    rw [List.mem_singleton.mp hg]
+    decide
+  rw [Circuit.run_ofCodes hclass, ket_apply]
+  have hne : inputState 1 [] ≠ GateCode.classicalRun [(false, 0, [])] (inputState 1 []) := by
+    intro h
+    exact Bool.false_ne_true (congrFun h 0)
+  rw [ite_eq_right hne]
+  norm_num
 
 /-- The words whose first bit is one. -/
 def FirstBit : Set (List Bool) := {x | x.headD false = true}

@@ -54,19 +54,16 @@ variable {R α β : Type*} [CommRing R] [IsDomain R] [Infinite R]
 theorem exists_aeval_sumElim_ne_zero {p : MvPolynomial (α ⊕ β) R} (hp : p ≠ 0) :
     ∃ v : α → R, aeval (Sum.elim (fun a => C (v a)) X) p ≠ 0 := by
   set e := (sumAlgEquiv R β α).toAlgHom.comp (rename Sum.swap)
-  have he : e p ≠ 0 := by
-    simpa [e, map_eq_zero_iff _ (rename_injective _ Sum.swap_leftInverse.injective)] using hp
-  obtain ⟨s, hs⟩ := ne_zero_iff.1 he
+  obtain ⟨s, hs⟩ := ne_zero_iff.1 (show e p ≠ 0 by
+    simpa [e, map_eq_zero_iff _ (rename_injective _ Sum.swap_leftInverse.injective)] using hp)
   obtain ⟨v, hv⟩ : ∃ v : α → R, eval v ((e p).coeff s) ≠ 0 := by
     by_contra! h
     exact hs (funext fun v => by simpa using h v)
   refine ⟨v, fun h => hv ?_⟩
-  have hcomp : (mapAlgHom (aeval v)).comp e = aeval (Sum.elim (fun a => C (v a)) X) := by
-    refine algHom_ext fun x => ?_
-    cases x <;> simp [e]
-  have hmap : map (eval v) (e p) = (mapAlgHom (aeval v)).comp e p := rfl
-  rw [← coeff_map, hmap, hcomp, h]
-  simp
+  have hcomp : (mapAlgHom (aeval v)).comp e = aeval (Sum.elim (fun a => C (v a)) X) :=
+    algHom_ext fun x => by cases x <;> simp [e]
+  rw [← coeff_map, show map (eval v) (e p) = (mapAlgHom (aeval v)).comp e p from rfl, hcomp, h]
+  rfl
 
 end Infinite
 
@@ -108,8 +105,7 @@ private theorem exists_monomial_of_eq_X {g : σ → MvPolynomial τ R} {A : Fins
     ∃ d : σ → τ →₀ ℕ, ∀ i ∈ A, g i = monomial (d i) 1 ∧ (d i).degree = 1 := by
   choose! d hd using fun i (hi : i ∈ A) =>
     let ⟨x, hx⟩ := hA i hi
-    (⟨Finsupp.single x 1, hx, Finsupp.degree_single x 1⟩ :
-      ∃ d : τ →₀ ℕ, g i = monomial d 1 ∧ d.degree = 1)
+    (⟨Finsupp.single x 1, hx, Finsupp.degree_single x 1⟩ : ∃ d, g i = monomial d 1 ∧ d.degree = 1)
   exact ⟨d, hd⟩
 
 /-- Substituting variables for the variables of `A` and constants for the others in a multilinear
@@ -120,7 +116,7 @@ theorem card_support_aeval_le_of_degreeOf_le_one {p : MvPolynomial σ R}
     #(aeval g p).support ≤ 2 ^ #A := by
   classical
   obtain ⟨d, hd⟩ := exists_monomial_of_eq_X hA
-  refine (card_le_card <| support_aeval_subset_of_degreeOf_le_one hp (fun i hi => (hd i hi).1)
+  exact (card_le_card <| support_aeval_subset_of_degreeOf_le_one hp (fun i hi => (hd i hi).1)
     hC).trans (card_image_le.trans (card_powerset A).le)
 
 /-- Substituting variables for the variables of `A` and constants for the others in a multilinear

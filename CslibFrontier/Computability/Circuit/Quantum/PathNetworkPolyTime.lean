@@ -160,7 +160,7 @@ theorem computableInPolyTime_gateVertex {neg : α → ℕ} {X : α → List Bool
   have hg := listGetDWithInput hgs hi default
   have hN := (length_list _).comp (computableInPolyTime_occurrences hgs)
   have hb := computableInPolyTime_base hgs hi
-  refine (ports_unary_to_binary hps).prod
+  refine (hps.reencodeList .unary_to_binary).prod
     (computableInPolyTime_boundedTable 6 ((length_list _).comp hps) fun idx => ?_)
   -- the bits entering the qubits of the gate
   have hins : ComputableInPolyTime (fun a => (qubits ((gs a).getD (i a) default)).map
@@ -199,8 +199,9 @@ theorem computableInPolyTime_glueVertex {S : α → List ℕ}
   have hq := listGetDWithInput hqs hw 0
   unfold glueVertex
   refine ite_decide (decide_eq' (computableInPolyTime_lastOcc hqs hq hN) (optionSome _ |>.comp hw))
-    ((ports_unary_to_binary (cons' (unary_add' (unary_mul' (const 2) hw) (const 1))
-      (cons' (unary_add' (unary_mul' (const 2) (unary_add' hN hw)) (const 1)) (const [])))).prod
+    ((reencodeList (cons' (unary_add' (unary_mul' (const 2) hw) (const 1))
+      (cons' (unary_add' (unary_mul' (const 2) (unary_add' hN hw)) (const 1)) (const [])))
+      .unary_to_binary).prod
       (ite_decide (decide_mem hS hq) (const _) (const _))) (const _)
 
 end Vertices
@@ -246,8 +247,9 @@ theorem computableInPolyTime_network {neg : α → ℕ} {S : α → List ℕ} {X
         (hS.comp (fst _ _)) (snd _ _))))
       (cons' (computableInPolyTime_scalarVertex hS hX hgs) (const [])))
       (mapWithInput (range.comp (unary_mul' (const 2) hN))
-        ((ports_unary_to_binary (cons' (unary_mul' (const 2) (snd _ _))
-          (cons' (unary_add' (unary_mul' (const 2) (snd _ _)) (const 1)) (const [])))).prod
+        ((reencodeList (cons' (unary_mul' (const 2) (snd _ _))
+          (cons' (unary_add' (unary_mul' (const 2) (snd _ _)) (const 1)) (const [])))
+          .unary_to_binary).prod
           (const _)))
   unfold network
   exact (unary_to_binary.comp (unary_add' (unary_add' (unary_mul' (const 2) hL) hN)

@@ -46,9 +46,7 @@ theorem arena_resources (κ n : ℕ) (retained : ℕ → ℕ) :
       (n + 2) ^ envelopeExponent κ :=
     hfit.trans_le (ChanHe.Preprocessing.two_pow_width_le κ n)
   change 65536 * S ^ 4 < (n + 2) ^ envelopeExponent κ at henv
-  dsimp only [S] at hS
-  change a.ceiling < _ ∧ 4 * a.N < _ ∧ 60 * a.U + 40 ≤ _
-  dsimp only [S] at henv
+  dsimp only [S, a] at hS henv ⊢
   omega
 
 /-- Every actual packed value follows from the pending entry's finite input promises. -/
@@ -59,8 +57,7 @@ theorem packed_values {κ n : ℕ} {retained : ℕ → ℕ} {e : ChanHe.Traversa
       (ChanHe.Preprocessing.arena κ n retained).Λ).oneArray
         (ChanHe.Preprocessing.arena κ n retained).U i| ≤
       (((n + 2) ^ envelopeExponent κ : ℕ) : ℤ) := by
-  have hb := (arena_resources κ n retained).2.2
-  exact (h.abs_oneArray_le _ _ i).trans (by exact_mod_cast hb)
+  exact (h.abs_oneArray_le _ _ i).trans (Nat.cast_le.mpr (arena_resources κ n retained).2.2)
 
 /-- The concrete emitted pointer, readback and arena bounds discharge the actual host contract. -/
 theorem exec_consume_emission {r κ n w : ℕ} {a : ChanHe.Traversal.Arena}
@@ -115,9 +112,7 @@ theorem exec_consume_emission {r κ n w : ℕ} {a : ChanHe.Traversal.Arena}
   · intro i _
     exact (hv.abs_oneArray_le _ _ i).trans (by exact_mod_cast hresources.2.2)
   · intro i hi
-    have hi' : i < 4 * x.regs ChanHe.Traversal.groups := by simpa only [hN] using hi
-    have hm := em.packed ⟨i, hi'⟩
     rw [hp]
-    simpa only [Block.read, Data.comap_mem, hU] using hm
+    simpa only [Block.read, Data.comap_mem, hU] using em.packed ⟨i, hN.symm ▸ hi⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision.Visitor

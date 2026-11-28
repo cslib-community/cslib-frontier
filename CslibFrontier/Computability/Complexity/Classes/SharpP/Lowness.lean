@@ -258,24 +258,16 @@ theorem indicator_compl_mem_SharpPWithOracle_self (A : Set (List Bool)) :
 `SharpPWithOracle A encBits = SharpP encBits` if and only if `A ∈ UP encBits ∩ coUP encBits`. -/
 theorem SharpPWithOracle_eq_SharpP_iff :
     SharpPWithOracle A encBits = SharpP encBits ↔ A ∈ UP encBits ∩ coUP encBits := by
-  constructor
-  · intro h
-    refine ⟨?_, ?_⟩
-    · refine ⟨open Classical in fun q => if q ∈ A then 1 else 0,
-        h ▸ indicator_mem_SharpPWithOracle_self A, fun q => ?_, fun q => ?_⟩
-      · dsimp only
-        split_ifs <;> omega
-      · dsimp only
-        split_ifs with hq <;> simp [hq]
-    · refine ⟨open Classical in fun q => if q ∉ A then 1 else 0,
-        h ▸ indicator_compl_mem_SharpPWithOracle_self A, fun q => ?_, fun q => ?_⟩
-      · dsimp only
-        split_ifs <;> omega
-      · dsimp only
-        rw [Set.mem_compl_iff]
-        split_ifs with hq <;> simp [hq]
-  · rintro ⟨hA_up, hA_coup⟩
-    exact SharpPWithOracle_eq_SharpP_of_mem_UP_of_mem_coUP hA_up hA_coup encBits
+  refine ⟨fun h => ⟨?_, ?_⟩, fun ⟨hA_up, hA_coup⟩ =>
+    SharpPWithOracle_eq_SharpP_of_mem_UP_of_mem_coUP hA_up hA_coup encBits⟩
+  · refine ⟨open Classical in fun q => if q ∈ A then 1 else 0,
+      h ▸ indicator_mem_SharpPWithOracle_self A,
+      fun q => by by_cases hq : q ∈ A <;> simp [hq],
+      fun q => by by_cases hq : q ∈ A <;> simp [hq]⟩
+  · refine ⟨open Classical in fun q => if q ∉ A then 1 else 0,
+      h ▸ indicator_compl_mem_SharpPWithOracle_self A,
+      fun q => by by_cases hq : q ∈ A <;> simp [hq],
+      fun q => by by_cases hq : q ∈ A <;> simp [hq]⟩
 
 /-- **`#P^A = #P` for all instance encodings if and only if `A ∈ UP ∩ coUP`.** -/
 theorem forall_SharpPWithOracle_eq_SharpP_iff :
@@ -436,14 +428,11 @@ theorem mem_UPWithOracle_self (A : Set (List Bool)) : A ∈ UPWithOracle A encBi
   PWithOracle_subset_UPWithOracle A encBits (mem_PWithOracle_self A)
 
 /-- `Aᶜ` belongs to `UPWithOracle A encBits`. -/
-theorem mem_UPWithOracle_compl_self (A : Set (List Bool)) : Aᶜ ∈ UPWithOracle A encBits := by
-  refine ⟨open Classical in fun q => if q ∉ A then 1 else 0,
-    indicator_compl_mem_SharpPWithOracle_self A, fun q => ?_, fun q => ?_⟩
-  · dsimp only
-    split_ifs <;> omega
-  · dsimp only
-    rw [Set.mem_compl_iff]
-    split_ifs with hq <;> simp [hq]
+theorem mem_UPWithOracle_compl_self (A : Set (List Bool)) : Aᶜ ∈ UPWithOracle A encBits :=
+  ⟨open Classical in fun q => if q ∉ A then 1 else 0,
+    indicator_compl_mem_SharpPWithOracle_self A,
+    fun q => by by_cases hq : q ∈ A <;> simp [hq],
+    fun q => by by_cases hq : q ∈ A <;> simp [hq]⟩
 
 /-- `A` belongs to `coUPWithOracle A encBits`. -/
 theorem mem_coUPWithOracle_self (A : Set (List Bool)) : A ∈ coUPWithOracle A encBits :=
@@ -575,33 +564,19 @@ theorem indicator_mem_GapPWithOracle_self (A : Set (List Bool)) :
   split_ifs <;> rfl
 
 /-- Every oracle `A` belongs to `SPPWithOracle A encBits`. -/
-theorem mem_SPPWithOracle_self (A : Set (List Bool)) : A ∈ SPPWithOracle A encBits := by
-  refine ⟨open Classical in fun q => if q ∈ A then (1 : ℤ) else 0,
-    indicator_mem_GapPWithOracle_self A, fun q => ?_, fun q => ?_⟩
-  · dsimp only
-    split_ifs with hq
-    · exact Or.inr rfl
-    · exact Or.inl rfl
-  · dsimp only
-    split_ifs with hq <;> simp [hq]
+theorem mem_SPPWithOracle_self (A : Set (List Bool)) : A ∈ SPPWithOracle A encBits :=
+  ⟨open Classical in fun q => if q ∈ A then (1 : ℤ) else 0,
+    indicator_mem_GapPWithOracle_self A,
+    fun q => by by_cases hq : q ∈ A <;> simp [hq],
+    fun q => by by_cases hq : q ∈ A <;> simp [hq]⟩
 
 /-- **Exact characterization of `GapP` oracle lowness (`Low(GapP) = SPP`)**
 ([Fenner, Fortnow and Kurtz, Section 5][FennerFortnowKurtz1994]):
 `GapPWithOracle A encBits = GapP encBits` if and only if `A ∈ SPP encBits`. -/
 theorem GapPWithOracle_eq_GapP_iff :
-    GapPWithOracle A encBits = GapP encBits ↔ A ∈ SPP encBits := by
-  constructor
-  · intro h
-    refine ⟨open Classical in fun q => if q ∈ A then (1 : ℤ) else 0,
-      h ▸ indicator_mem_GapPWithOracle_self A, fun q => ?_, fun q => ?_⟩
-    · dsimp only
-      split_ifs with hq
-      · exact Or.inr rfl
-      · exact Or.inl rfl
-    · dsimp only
-      split_ifs with hq <;> simp [hq]
-  · intro hA
-    exact GapPWithOracle_eq_GapP_of_mem_SPP hA encBits
+    GapPWithOracle A encBits = GapP encBits ↔ A ∈ SPP encBits :=
+  ⟨fun h => by simpa only [SPPWithOracle, h, SPP] using mem_SPPWithOracle_self A,
+    fun hA => GapPWithOracle_eq_GapP_of_mem_SPP hA encBits⟩
 
 /-- **`GapP^A = GapP` for all instance encodings if and only if `A ∈ SPP`.** -/
 theorem forall_GapPWithOracle_eq_GapP_iff :

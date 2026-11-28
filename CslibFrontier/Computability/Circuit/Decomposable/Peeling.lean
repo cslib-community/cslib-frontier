@@ -292,28 +292,18 @@ private theorem accepts_eraseNode_iff (hP : P.DisjointUnions) (v₀ w : N) (x : 
           change (P.scope w).domRestrict y ∈ P.eraseValues v₀ w ↔ _
           rw [eraseValues]
           simp only [hw, ↓reduceIte]
-          split
-          · rfl
-          · rename_i hgw; rw [hg] at hgw; cases hgw
-          · rename_i hgw; rw [hg] at hgw; cases hgw
+          split <;> first | rfl | (rename_i hgw; rw [hg] at hgw; cases hgw)
         rw [hval]
         refine ⟨fun hx => ⟨hx, fun hocc => ?_⟩, fun h => h.1⟩
         cases hocc with
         | refl => exact hw rfl
-        | union hg' => rw [hg] at hg'; cases hg'
-        | left hg' => rw [hg] at hg'; cases hg'
-        | right hg' => rw [hg] at hg'; cases hg'
+        | union hg' | left hg' | right hg' => rw [hg] at hg'; cases hg'
       | union c =>
-        have hgate : (P.eraseNode v₀).gate w = .union c := by
-          change (if w = v₀ then Gate.leaf else P.gate w) = .union c
-          simp [hw, hg]
+        have hgate : (P.eraseNode v₀).gate w = .union c := by simp [eraseNode, hw, hg]
         have hlhs : x ∈ (P.eraseNode v₀).accepts w ↔
-            ∃ u ∈ c, x ∈ P.accepts u ∧ ¬ P.OccursFrom x u v₀ := by
-          rw [show x ∈ (P.eraseNode v₀).accepts w ↔
-              ∃ u ∈ c, x ∈ (P.eraseNode v₀).accepts u from
-            (P.eraseNode v₀).values_union w c hgate x]
-          exact exists_congr fun u => and_congr_right fun hu =>
-            ih _ (P.rank_union w c hg u hu) u rfl
+            ∃ u ∈ c, x ∈ P.accepts u ∧ ¬ P.OccursFrom x u v₀ :=
+          ((P.eraseNode v₀).values_union w c hgate x).trans (exists_congr fun u =>
+            and_congr_right fun hu => ih _ (P.rank_union w c hg u hu) u rfl)
         rw [hlhs, show x ∈ P.accepts w ↔ ∃ u ∈ c, x ∈ P.accepts u from P.values_union w c hg x]
         constructor
         · rintro ⟨u, hu, hxu, hnu⟩
@@ -321,29 +311,20 @@ private theorem accepts_eraseNode_iff (hP : P.DisjointUnions) (v₀ w : N) (x : 
           cases hocc with
           | refl => exact hw rfl
           | @union _ u' _ c' hg' hu' hu'v₀ =>
-            rw [hg] at hg'
-            injection hg' with hc'
-            subst hc'
-            by_cases huu' : u = u'
-            · subst huu'
-              exact hnu hu'v₀
-            · exact (hP w c hg u hu u' hu' huu').le_bot ⟨hxu, hu'v₀.accepts_left⟩
-          | left hg' => rw [hg] at hg'; cases hg'
-          | right hg' => rw [hg] at hg'; cases hg'
+            obtain rfl := Gate.union.inj (hg.symm.trans hg')
+            rcases eq_or_ne u u' with rfl | huu'
+            exacts [hnu hu'v₀, (hP w c hg u hu u' hu' huu').le_bot ⟨hxu, hu'v₀.accepts_left⟩]
+          | left hg' | right hg' => rw [hg] at hg'; cases hg'
         · rintro ⟨⟨u, hu, hxu⟩, hnw⟩
           exact ⟨u, hu, hxu, fun huv₀ => hnw (.union hg hu huv₀)⟩
       | product l r =>
-        have hgate : (P.eraseNode v₀).gate w = .product l r := by
-          change (if w = v₀ then Gate.leaf else P.gate w) = .product l r
-          simp [hw, hg]
+        have hgate : (P.eraseNode v₀).gate w = .product l r := by simp [eraseNode, hw, hg]
         have hrk := P.rank_product w l r hg
         have hlhs : x ∈ (P.eraseNode v₀).accepts w ↔
             (x ∈ P.accepts l ∧ ¬ P.OccursFrom x l v₀) ∧
-              (x ∈ P.accepts r ∧ ¬ P.OccursFrom x r v₀) := by
-          rw [show x ∈ (P.eraseNode v₀).accepts w ↔
-              x ∈ (P.eraseNode v₀).accepts l ∧ x ∈ (P.eraseNode v₀).accepts r from
-            (P.eraseNode v₀).values_product w l r hgate x,
-            ih _ hrk.1 l rfl, ih _ hrk.2 r rfl]
+              (x ∈ P.accepts r ∧ ¬ P.OccursFrom x r v₀) :=
+          ((P.eraseNode v₀).values_product w l r hgate x).trans
+            (and_congr (ih _ hrk.1 l rfl) (ih _ hrk.2 r rfl))
         rw [hlhs, show x ∈ P.accepts w ↔ x ∈ P.accepts l ∧ x ∈ P.accepts r from
           P.values_product w l r hg x]
         constructor
@@ -353,14 +334,10 @@ private theorem accepts_eraseNode_iff (hP : P.DisjointUnions) (v₀ w : N) (x : 
           | refl => exact hw rfl
           | union hg' => rw [hg] at hg'; cases hg'
           | left hg' _ hlv₀ =>
-            rw [hg] at hg'
-            injection hg' with hll _
-            subst hll
+            obtain ⟨rfl, -⟩ := Gate.product.inj (hg.symm.trans hg')
             exact hnl hlv₀
           | right hg' _ hrv₀ =>
-            rw [hg] at hg'
-            injection hg' with _ hrr
-            subst hrr
+            obtain ⟨-, rfl⟩ := Gate.product.inj (hg.symm.trans hg')
             exact hnr hrv₀
         · rintro ⟨⟨hxl, hxr⟩, hnw⟩
           exact ⟨⟨hxl, fun hlv₀ => hnw (.left hg hxr hlv₀)⟩,
@@ -482,8 +459,7 @@ theorem abs_signedCount_accepted_le_size (hP : P.DisjointUnions) {S : Set (ι �
   have hsize : (K - 1) ^ 2 * P.unionEdges + (K - 1) ^ 3 * P.products + (K - 1) ≤
       (K - 1) ^ 3 * P.size + (K - 1) := by
     rw [size, mul_add]
-    exact Nat.add_le_add_right
-      (Nat.add_le_add_right (Nat.mul_le_mul_right _ hpow) _) _
+    gcongr
   have hsizeR : (((K - 1) ^ 2 * P.unionEdges + (K - 1) ^ 3 * P.products + (K - 1) : ℕ) : ℝ) ≤
       (((K - 1) ^ 3 * P.size + (K - 1) : ℕ) : ℝ) := by exact_mod_cast hsize
   linarith [P.abs_signedCount_accepted_le hP hb hS]

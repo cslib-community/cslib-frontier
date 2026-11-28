@@ -102,11 +102,8 @@ theorem ofFinite_mem_AndOrNCLEdge_iff {n m : ℕ} (G : ConstraintGraph (Fin n) (
   have hlegal := (ofFiniteSimulation G).legal_enc_iff (s := (ofFinite G).config s)
   have hreverse := (ofFiniteSimulation G).canReverse_enc_iff
     (e := e) (e' := e) (fun _ => rfl) (s := (ofFinite G).config s)
-  constructor
-  · rintro ⟨_, _, hs, hl, hr⟩
-    exact ⟨hs, hlegal.1 hl, hreverse.1 hr⟩
-  · rintro ⟨hs, hl, hr⟩
-    exact ⟨e.isLt, hv, hs, hlegal.2 hl, hreverse.2 hr⟩
+  exact ⟨fun ⟨_, _, hs, hl, hr⟩ => ⟨hs, hlegal.1 hl, hreverse.1 hr⟩,
+    fun ⟨hs, hl, hr⟩ => ⟨e.isLt, hv, hs, hlegal.2 hl, hreverse.2 hr⟩⟩
 
 /-- Finite graph serialization preserves directional edge-to-edge membership. -/
 theorem ofFinite_mem_AndOrNCLEdgeToEdge_iff {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m))
@@ -115,11 +112,7 @@ theorem ofFinite_mem_AndOrNCLEdgeToEdge_iff {n m : ℕ} (G : ConstraintGraph (Fi
       ∃ s t, G.Legal s ∧ s eA = dA ∧ t eB = dB ∧ G.Reachable s t := by
   have hsem := (ofFiniteSimulation G).exists_legal_reachable_iff
     (eA := eA) (eB := eB) (eA' := eA) (eB' := eB) (fun _ => rfl) (fun _ => rfl) dA dB
-  constructor
-  · rintro ⟨_, _, _, h⟩
-    exact hsem.1 h
-  · intro h
-    exact ⟨eA.isLt, eB.isLt, hv, hsem.2 h⟩
+  exact ⟨fun ⟨_, _, _, h⟩ => hsem.1 h, fun h => ⟨eA.isLt, eB.isLt, hv, hsem.2 h⟩⟩
 
 end AndOrGraph
 

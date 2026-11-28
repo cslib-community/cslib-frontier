@@ -139,10 +139,7 @@ theorem uses_eq_sum_count [Fintype ι] [DecidableEq ι] (w : List ι) (v : V) :
   induction w with
   | nil => simp [uses_nil]
   | cons j w ih =>
-    rw [uses_cons, ih]
-    simp only [List.count_cons, beq_iff_eq, sum_add_distrib]
-    rw [sum_ite_eq]
-    simp
+    simp [uses_cons, ih, List.count_cons, beq_iff_eq, sum_add_distrib, sum_ite_eq]
 
 omit [DecidableEq V] in
 /-- The log after `n` steps has at most `n` entries. -/
@@ -151,23 +148,26 @@ theorem length_run_le (sel : (∀ p : V × ℕ, α p.1) → List ι → Option �
   | 0 => by simp [run_zero]
   | n + 1 => by
     cases h : sel T (run sel T n) with
-    | none => rw [run_succ_of_eq_none h]; exact (length_run_le sel T n).trans n.le_succ
+    | none =>
+      rw [run_succ_of_eq_none h]
+      exact (length_run_le sel T n).trans n.le_succ
     | some i =>
       rw [run_succ_of_eq_some h, List.length_cons]
       exact Nat.succ_le_succ (length_run_le sel T n)
 
 /-- A variable is resampled at most as often as there are steps. -/
-theorem uses_le_length (w : List ι) (v : V) : uses vbl w v ≤ w.length := by
-  unfold uses
-  exact List.length_filter_le _ _
+theorem uses_le_length (w : List ι) (v : V) : uses vbl w v ≤ w.length :=
+  List.length_filter_le _ _
 
 /-- The number of resamplings of a variable grows along the run. -/
 theorem uses_run_mono (sel : (∀ p : V × ℕ, α p.1) → List ι → Option ι) (T : ∀ p : V × ℕ, α p.1)
-    (v : V) : Monotone fun n => uses vbl (run sel T n) v := by
-  refine monotone_nat_of_le_succ fun n => ?_
-  cases h : sel T (run sel T n) with
-  | none => rw [run_succ_of_eq_none h]
-  | some i => rw [run_succ_of_eq_some h, uses_cons]; exact Nat.le_add_right _ _
+    (v : V) : Monotone fun n => uses vbl (run sel T n) v :=
+  monotone_nat_of_le_succ fun n => by
+    cases h : sel T (run sel T n) with
+    | none => rw [run_succ_of_eq_none h]
+    | some i =>
+      rw [run_succ_of_eq_some h, uses_cons]
+      exact Nat.le_add_right _ _
 
 /-- **Agreement.** Under a non-anticipating rule, two tables that agree on every entry read by the
 first `n` steps on `T` give the same log after `n` steps. -/
@@ -182,14 +182,9 @@ theorem run_eq_of_agree (r : List ι → (∀ v, α v) → Option ι) {T T' : �
         current vbl T' (run (historyRule vbl r) T' n) := by
       rw [← ih]
       funext u
-      simp only [current_apply]
       exact h n (Nat.lt_succ_self n) u
-    have hsel : historyRule vbl r T (run (historyRule vbl r) T n) =
-        historyRule vbl r T' (run (historyRule vbl r) T' n) := by
-      simp only [historyRule]
-      rw [hcur, ← ih]
-    simp only [run]
-    rw [hsel, ih]
+    simp only [run, historyRule]
+    rw [hcur, ih]
 
 /-- The table entries read by the first `n + 1` steps, other than `(v, k)`. -/
 @[expose] def horizon [Fintype V] (n : ℕ) (v : V) (k : ℕ) : Finset (V × ℕ) :=
@@ -202,15 +197,16 @@ theorem run_eq_of_agree_horizon [Fintype V] (r : List ι → (∀ v, α v) → O
     (h : ∀ p ∈ horizon n v k, T p = T' p) (hm : m ≤ n)
     (hk : uses vbl (run (historyRule vbl r) T m) v < k) :
     run (historyRule vbl r) T m = run (historyRule vbl r) T' m := by
-  refine run_eq_of_agree r m fun m' hm' u => h _ ?_
-  have hle : uses vbl (run (historyRule vbl r) T m') u ≤ m' :=
-    (uses_le_length _ u).trans (length_run_le _ T m')
-  refine mem_erase.2 ⟨fun he => ?_, mem_product.2 ⟨mem_univ u, mem_range.2 (by omega)⟩⟩
-  obtain ⟨rfl, he⟩ := Prod.mk.inj he
-  have hmono : uses vbl (run (historyRule vbl r) T m') u ≤
-      uses vbl (run (historyRule vbl r) T m) u :=
-    uses_run_mono (historyRule vbl r) T u hm'.le
-  omega
+  refine run_eq_of_agree r m fun m' hm' u => h _ (mem_erase.2 ⟨fun he => ?_,
+    mem_product.2 ⟨mem_univ u, mem_range.2 ?_⟩⟩)
+  · obtain ⟨rfl, he⟩ := Prod.mk.inj he
+    have : uses vbl (run (historyRule vbl r) T m') u ≤
+        uses vbl (run (historyRule vbl r) T m) u :=
+      uses_run_mono (historyRule vbl r) T u hm'.le
+    omega
+  · have := (uses_le_length (vbl := vbl) (run (historyRule vbl r) T m') u).trans
+      (length_run_le _ T m')
+    omega
 
 /-- **Reading `(v, k)` does not depend on `(v, k)`.** Whether `v` has been resampled at least `k`
 times after `n` steps depends only on the entries in `horizon n v k`, which exclude `(v, k)`. -/
@@ -219,17 +215,15 @@ theorem dependsOn_le_uses [Fintype V] (r : List ι → (∀ v, α v) → Option 
     DependsOn (fun T : ∀ p : V × ℕ, α p.1 => k ≤ uses vbl (run (historyRule vbl r) T n) v)
       (horizon n v k : Set (V × ℕ)) := by
   intro T T' h
-  have h' : ∀ p ∈ horizon n v k, T p = T' p := fun p hp => h p (mem_coe.2 hp)
-  have h'' : ∀ p ∈ horizon n v k, T' p = T p := fun p hp => (h' p hp).symm
-  refine propext ⟨fun hT => ?_, fun hT' => ?_⟩
-  · by_contra hlt
+  have step {A B : ∀ p : V × ℕ, α p.1} (hab : ∀ p ∈ horizon n v k, A p = B p)
+      (hA : k ≤ uses vbl (run (historyRule vbl r) A n) v) :
+      k ≤ uses vbl (run (historyRule vbl r) B n) v := by
+    by_contra hlt
     rw [not_le] at hlt
-    rw [run_eq_of_agree_horizon r h'' le_rfl hlt] at hlt
+    rw [run_eq_of_agree_horizon r (fun p hp => (hab p hp).symm) le_rfl hlt] at hlt
     omega
-  · by_contra hlt
-    rw [not_le] at hlt
-    rw [run_eq_of_agree_horizon r h' le_rfl hlt] at hlt
-    omega
+  exact propext ⟨step fun p hp => h p (mem_coe.2 hp),
+    step fun p hp => (h p (mem_coe.2 hp)).symm⟩
 
 end Rule
 
@@ -242,18 +236,14 @@ theorem tsum_ite_exists_le_le {U : ℕ → ℕ} (hU : Monotone U) :
   rw [ENNReal.tsum_eq_iSup_nat]
   refine iSup_le fun N => ?_
   set M := (range N).sup fun k => if h : ∃ n, k ≤ U n then Nat.find h else 0
-  have hk : ∀ k ∈ range N, (if ∃ n, k ≤ U n then (1 : ℝ≥0∞) else 0) ≤
-      if k ≤ U M then 1 else 0 := by
-    intro k hkN
-    by_cases h : ∃ n, k ≤ U n
-    · have hfind : Nat.find h ≤ M := by
-        have := Finset.le_sup (f := fun k => if h : ∃ n, k ≤ U n then Nat.find h else 0) hkN
-        simpa [h] using this
-      have : k ≤ U M := (Nat.find_spec h).trans (hU hfind)
-      simp [h, this]
-    · simp [h]
   calc ∑ k ∈ range N, (if ∃ n, k ≤ U n then (1 : ℝ≥0∞) else 0)
-      ≤ ∑ k ∈ range N, (if k ≤ U M then (1 : ℝ≥0∞) else 0) := sum_le_sum hk
+      ≤ ∑ k ∈ range N, (if k ≤ U M then (1 : ℝ≥0∞) else 0) := sum_le_sum fun k hkN => by
+        by_cases h : ∃ n, k ≤ U n
+        · have hM : k ≤ U M := (Nat.find_spec h).trans (hU (by
+            simpa [h] using
+              Finset.le_sup (f := fun k => if h : ∃ n, k ≤ U n then Nat.find h else 0) hkN))
+          simp [h, hM]
+        · simp [h]
     _ = (((range N).filter fun k => k ≤ U M).card : ℝ≥0∞) := by
         rw [sum_ite, sum_const_zero, add_zero, sum_const, nsmul_one]
     _ ≤ ((range (U M + 1)).card : ℝ≥0∞) := by
@@ -262,7 +252,9 @@ theorem tsum_ite_exists_le_le {U : ℕ → ℕ} (hU : Monotone U) :
         simp only [mem_filter, mem_range] at hk ⊢
         omega
     _ = 1 + (U M : ℝ≥0∞) := by rw [card_range, Nat.cast_add, Nat.cast_one, add_comm]
-    _ ≤ 1 + ⨆ n, (U n : ℝ≥0∞) := by gcongr; exact le_iSup (fun n => (U n : ℝ≥0∞)) M
+    _ ≤ 1 + ⨆ n, (U n : ℝ≥0∞) := by
+        gcongr
+        exact le_iSup (fun n => (U n : ℝ≥0∞)) M
 
 /-- **The symmetric weights.** If `e p (d + 1) ≤ 1`, then `p ≤ x (1 - x) ^ d` for `x = 1 / (d + 2)`,
 since `(1 + 1 / (d + 1)) ^ (d + 1) ≤ e`. -/
@@ -300,15 +292,12 @@ theorem card_filter_mem_le {ι : Type*} [Fintype ι] {V : Type*} [DecidableEq V]
     (hΓd : ∀ i, (Γ i).card ≤ d) (v : V) : (univ.filter fun i => v ∈ vbl i).card ≤ d + 1 := by
   classical
   rcases (univ.filter fun i => v ∈ vbl i).eq_empty_or_nonempty with h | ⟨i₀, hi₀⟩
-  · rw [h, card_empty]
-    omega
-  · have hsub : (univ.filter fun i => v ∈ vbl i) ⊆ insert i₀ (Γ i₀) := by
-      intro j hj
-      rw [mem_filter] at hi₀ hj
-      by_cases hji : j = i₀
-      · exact hji ▸ mem_insert_self _ _
-      · exact mem_insert_of_mem (hΓ i₀ j hji (not_disjoint_iff.2 ⟨v, hi₀.2, hj.2⟩))
-    exact (card_le_card hsub).trans ((card_insert_le _ _).trans (Nat.succ_le_succ (hΓd i₀)))
+  · simp [h]
+  · refine (card_le_card fun j hj => ?_).trans
+      ((card_insert_le i₀ (Γ i₀)).trans (Nat.succ_le_succ (hΓd i₀)))
+    rw [mem_filter] at hi₀ hj
+    exact if hji : j = i₀ then hji ▸ mem_insert_self _ _
+      else mem_insert_of_mem (hΓ i₀ j hji (not_disjoint_iff.2 ⟨v, hi₀.2, hj.2⟩))
 
 section Coupled
 
@@ -376,22 +365,16 @@ theorem setOf_diverge_subset :
     {T | Diverge vbl r T} ⊆ ⋃ v, ⋃ k : ℕ,
       (⋃ n, {T | k ≤ uses vbl (run (historyRule vbl r) (fstTable T) n) v}) ∩
         {T | (T (v, k)).1 ≠ (T (v, k)).2} := by
-  intro T hT
+  intro T ⟨n, hn⟩
   by_contra hno
   simp only [Set.mem_iUnion, Set.mem_inter_iff, Set.mem_ofPred_eq, not_exists, not_and,
     not_not] at hno
-  have hagree : ∀ m u, fstTable T (u, uses vbl (run (historyRule vbl r) (fstTable T) m) u) =
-      sndTable T (u, uses vbl (run (historyRule vbl r) (fstTable T) m) u) :=
-    fun m u => hno u _ ⟨m, le_rfl⟩
-  have hrun : ∀ n, run (historyRule vbl r) (fstTable T) n =
-      run (historyRule vbl r) (sndTable T) n :=
-    fun n => run_eq_of_agree r n fun m _ u => hagree m u
-  obtain ⟨n, hn⟩ := hT
+  have hrun (m) : run (historyRule vbl r) (fstTable T) m =
+      run (historyRule vbl r) (sndTable T) m :=
+    run_eq_of_agree r m fun k _ u => hno u _ ⟨k, le_rfl⟩
   refine hn.elim (fun h => h (hrun n)) fun h => h ?_
   rw [← hrun n]
-  funext u
-  simp only [current_apply]
-  exact hagree n u
+  exact funext fun u => hno u _ ⟨n, le_rfl⟩
 
 omit [Fintype V] in
 /-- **Independence of reading and disagreeing.** The probability that the first run reads entry
@@ -406,40 +389,34 @@ theorem coupledTable_read_inter_disagree [Finite V] (v : V) (k : ℕ) :
   set E : ℕ → Set (∀ p : V × ℕ, α p.1 × α p.1) :=
     fun n => {T | k ≤ uses vbl (run (historyRule vbl r) (fstTable T) n) v}
   set D : Set (∀ p : V × ℕ, α p.1 × α p.1) := {T | (T (v, k)).1 ≠ (T (v, k)).2}
-  have hEdep : ∀ n, DependsOn (· ∈ E n) (horizon n v k : Set (V × ℕ)) := fun n T T' h =>
-    dependsOn_le_uses r n v k (x := fstTable T) (y := fstTable T') fun p hp => by
-      simp only [fstTable]; rw [h p hp]
+  have hEdep (n) : DependsOn (· ∈ E n) (horizon n v k : Set (V × ℕ)) := fun T T' h =>
+    dependsOn_le_uses r n v k (x := fstTable T) (y := fstTable T') fun p hp =>
+      congrArg Prod.fst (h p hp)
   have hDdep : DependsOn (· ∈ D) (({(v, k)} : Finset (V × ℕ)) : Set (V × ℕ)) := fun T T' h => by
-    simp only [D, Set.mem_ofPred_eq]
-    rw [h (v, k) (by simp)]
-  have hEm : ∀ n, MeasurableSet (E n) := fun n => measurableSet_of_dependsOn (hEdep n)
-  have hDm : MeasurableSet D := measurableSet_of_dependsOn hDdep
-  have hmono : Monotone E := fun n n' hnn' T hT =>
-    le_trans hT (uses_run_mono (historyRule vbl r) (fstTable T) v hnn')
-  have hind : ∀ n, coupledTable κ (E n ∩ D) = coupledTable κ (E n) * coupledTable κ D := by
-    intro n
+    simp only [D, Set.mem_ofPred_eq, h (v, k) (by simp)]
+  have hmono : Monotone E := fun _ _ hnn' T hT =>
+    hT.trans (uses_run_mono (historyRule vbl r) (fstTable T) v hnn')
+  have hmono' : Monotone fun n => E n ∩ D := fun _ _ h => Set.inter_subset_inter_left D (hmono h)
+  rw [Set.iUnion_inter, hmono'.measure_iUnion]
+  have hind (n) : coupledTable κ (E n ∩ D) = coupledTable κ (E n) * coupledTable κ D := by
     rw [coupledTable]
-    refine (indepSet_infinitePi_of_dependsOn (hEm n) hDm (hEdep n) hDdep ?_).measure_inter_eq_mul
-    simp [horizon]
-  have hD : coupledTable κ D = κ v {x | x.1 ≠ x.2} := by
-    have hm : MeasurableSet {x : α v × α v | x.1 ≠ x.2} := (Set.to_countable _).measurableSet
-    rw [coupledTable, show D = (fun T : ∀ p : V × ℕ, α p.1 × α p.1 => T (v, k)) ⁻¹'
-      {x : α v × α v | x.1 ≠ x.2} from rfl, ← Measure.map_apply (measurable_pi_apply (v, k)) hm,
-      Measure.infinitePi_map_eval]
-  have hE : coupledTable κ (⋃ n, E n) =
-      table (fun v => (κ v).map Prod.fst)
-        {T | ∃ n, k ≤ uses vbl (run (historyRule vbl r) T n) v} := by
-    have hm1 : MeasurableSet
+    exact (indepSet_infinitePi_of_dependsOn (measurableSet_of_dependsOn (hEdep n))
+      (measurableSet_of_dependsOn hDdep) (hEdep n) hDdep (by simp [horizon])).measure_inter_eq_mul
+  simp only [hind, ← ENNReal.iSup_mul, ← hmono.measure_iUnion]
+  congr 1
+  · have hm1 : MeasurableSet
         {T : ∀ p : V × ℕ, α p.1 | ∃ n, k ≤ uses vbl (run (historyRule vbl r) T n) v} := by
       simp only [Set.ofPred_exists]
-      exact MeasurableSet.iUnion fun n => measurableSet_of_dependsOn (dependsOn_le_uses r n v k)
+      exact .iUnion fun n => measurableSet_of_dependsOn (dependsOn_le_uses r n v k)
     rw [← coupledTable_map_fstTable, Measure.map_apply measurable_fstTable hm1]
     congr 1
     ext T
     simp [E]
-  have hmono' : Monotone fun n => E n ∩ D := fun _ _ h => Set.inter_subset_inter_left D (hmono h)
-  rw [Set.iUnion_inter, hmono'.measure_iUnion, ← hE, ← hD, hmono.measure_iUnion, ENNReal.iSup_mul]
-  exact iSup_congr hind
+  · have hDpre : D = (fun T : ∀ p : V × ℕ, α p.1 × α p.1 => T (v, k)) ⁻¹'
+        {x : α v × α v | x.1 ≠ x.2} := rfl
+    rw [coupledTable, hDpre,
+      ← Measure.map_apply (measurable_pi_apply (v, k)) (Set.to_countable _).measurableSet,
+      Measure.infinitePi_map_eval]
 
 omit [Fintype V] in
 /-- **Expected samples read.** The expected number of samples of `v` read by a run, `1` for the
@@ -614,15 +591,12 @@ theorem coupledTable_not_agreeGood_le [Finite ι] (A : ι → Set (∀ v, α v))
     (hr : ∀ w a i, r w a = some i → a ∈ A i) (hstop : ∀ w a, r w a = none → ∀ i, a ∉ A i) :
     coupledTable κ {T | ¬AgreeGood vbl r A T} ≤ coupledTable κ {T | Diverge vbl r T} := by
   have hae : ∀ᵐ T ∂coupledTable κ,
-      ∃ n, historyRule vbl r (fstTable T) (run (historyRule vbl r) (fstTable T) n) = none := by
-    have h1 : ∀ᵐ T' ∂(coupledTable κ).map fstTable,
-        ∃ n, historyRule vbl r T' (run (historyRule vbl r) T' n) = none := by
-      rw [coupledTable_map_fstTable]
-      exact ae_exists_run_eq_none _ vbl A hAm hA Γ hΓ hx hP (historyRule_valid hr)
-    exact ae_of_ae_map (measurable_fstTable (V := V) (α := α)).aemeasurable h1
-  refine measure_mono_ae (hae.mono fun T hT h => ?_)
-  by_contra hd
-  exact h (agreeGood_of_not_diverge vbl r hstop hd hT)
+      ∃ n, historyRule vbl r (fstTable T) (run (historyRule vbl r) (fstTable T) n) = none :=
+    ae_of_ae_map (measurable_fstTable (V := V) (α := α)).aemeasurable
+      (coupledTable_map_fstTable κ ▸ ae_exists_run_eq_none _ vbl A hAm hA Γ hΓ hx hP
+        (historyRule_valid hr))
+  exact measure_mono_ae (hae.mono fun T hT h =>
+    by_contra fun hd => h (agreeGood_of_not_diverge vbl r hstop hd hT))
 
 omit [∀ v, Countable (α v)] [∀ v, MeasurableSingletonClass (α v)] in
 /-- **Both runs terminate.** If each run's distributions satisfy the asymmetric local-lemma
@@ -639,17 +613,13 @@ theorem coupledTable_ae_terminate [Finite ι] (A : ι → Set (∀ v, α v))
     (hr : ∀ w a i, r w a = some i → a ∈ A i) :
     ∀ᵐ T ∂coupledTable κ,
       (∃ n, historyRule vbl r (fstTable T) (run (historyRule vbl r) (fstTable T) n) = none) ∧
-      ∃ n, historyRule vbl r (sndTable T) (run (historyRule vbl r) (sndTable T) n) = none := by
-  have h1 : ∀ᵐ T' ∂(coupledTable κ).map fstTable,
-      ∃ n, historyRule vbl r T' (run (historyRule vbl r) T' n) = none := by
-    rw [coupledTable_map_fstTable]
-    exact ae_exists_run_eq_none _ vbl A hAm hA Γ hΓ hx hP (historyRule_valid hr)
-  have h2 : ∀ᵐ T' ∂(coupledTable κ).map sndTable,
-      ∃ n, historyRule vbl r T' (run (historyRule vbl r) T' n) = none := by
-    rw [coupledTable_map_sndTable]
-    exact ae_exists_run_eq_none _ vbl A hAm hA Γ hΓ hy hQ (historyRule_valid hr)
-  exact (ae_of_ae_map (measurable_fstTable (V := V) (α := α)).aemeasurable h1).and
-    (ae_of_ae_map (measurable_sndTable (V := V) (α := α)).aemeasurable h2)
+      ∃ n, historyRule vbl r (sndTable T) (run (historyRule vbl r) (sndTable T) n) = none :=
+  (ae_of_ae_map (measurable_fstTable (V := V) (α := α)).aemeasurable
+    (coupledTable_map_fstTable κ ▸ ae_exists_run_eq_none _ vbl A hAm hA Γ hΓ hx hP
+      (historyRule_valid hr))).and
+    (ae_of_ae_map (measurable_sndTable (V := V) (α := α)).aemeasurable
+      (coupledTable_map_sndTable κ ▸ ae_exists_run_eq_none _ vbl A hAm hA Γ hΓ hy hQ
+        (historyRule_valid hr)))
 
 end Coupled
 
@@ -757,9 +727,8 @@ theorem correlated_not_agreeGood_le [Finite ι] (P Q : ∀ v, PMF (α v))
     (hstop : ∀ w a, r w a = none → ∀ i, a ∉ A i) :
     coupledTable (correlatedCoupling P Q) {T | ¬AgreeGood vbl r A T} ≤
       ENNReal.ofReal (4 * ∑ v, dist (P v) (Q v)) := by
-  have hP' : ∀ i, (Measure.pi fun v => (correlatedCoupling P Q v).map Prod.fst).real (A i) ≤ p :=
-    fun i => by simpa only [correlatedCoupling_map_fst] using hP i
-  obtain ⟨hx, hP''⟩ := lll_of_symm _ Γ hΓd hP' hp
+  obtain ⟨hx, hP''⟩ := lll_of_symm (Measure.pi fun v => (correlatedCoupling P Q v).map Prod.fst)
+    Γ hΓd (fun i => by simpa only [correlatedCoupling_map_fst] using hP i) hp
   exact (coupledTable_not_agreeGood_le _ vbl r A hAm hA Γ hΓ hx hP'' hr hstop).trans
     (correlated_diverge_le P Q vbl r A hAm hA Γ hΓ hΓd hP hp hr)
 
@@ -777,12 +746,10 @@ theorem correlated_ae_terminate [Finite ι] (P Q : ∀ v, PMF (α v))
     ∀ᵐ T ∂coupledTable (correlatedCoupling P Q),
       (∃ n, historyRule vbl r (fstTable T) (run (historyRule vbl r) (fstTable T) n) = none) ∧
       ∃ n, historyRule vbl r (sndTable T) (run (historyRule vbl r) (sndTable T) n) = none := by
-  have hP' : ∀ i, (Measure.pi fun v => (correlatedCoupling P Q v).map Prod.fst).real (A i) ≤ p :=
-    fun i => by simpa only [correlatedCoupling_map_fst] using hP i
-  have hQ' : ∀ i, (Measure.pi fun v => (correlatedCoupling P Q v).map Prod.snd).real (A i) ≤ p :=
-    fun i => by simpa only [correlatedCoupling_map_snd] using hQ i
-  obtain ⟨hx, hP''⟩ := lll_of_symm _ Γ hΓd hP' hp
-  obtain ⟨hy, hQ''⟩ := lll_of_symm _ Γ hΓd hQ' hp
+  obtain ⟨hx, hP''⟩ := lll_of_symm (Measure.pi fun v => (correlatedCoupling P Q v).map Prod.fst)
+    Γ hΓd (fun i => by simpa only [correlatedCoupling_map_fst] using hP i) hp
+  obtain ⟨hy, hQ''⟩ := lll_of_symm (Measure.pi fun v => (correlatedCoupling P Q v).map Prod.snd)
+    Γ hΓd (fun i => by simpa only [correlatedCoupling_map_snd] using hQ i) hp
   exact coupledTable_ae_terminate _ vbl r A hAm hA Γ hΓ hx hy hP'' hQ'' hr
 
 end Correlated

@@ -187,12 +187,9 @@ private theorem eval_primeAttempt_apply (n p : ℕ) (b : Bool) :
     ProbComp.eval (primeAttempt n) (p, b) =
       ProbComp.eval (primeCandidate n) p * ProbComp.eval (millerRabinTest p n) b := by
   rw [eval_primeAttempt, PMF.bind_apply, tsum_eq_single p]
-  · rw [PMF.map_apply, tsum_eq_single b]
-    · simp
-    · intro c hc
-      simp [Ne.symm hc]
-  · intro q hq
-    simp [PMF.map_apply, Ne.symm hq]
+  · rw [PMF.map_apply, tsum_eq_single b (fun c hc => by simp [Ne.symm hc])]
+    simp
+  · exact fun q hq => by simp [PMF.map_apply, Ne.symm hq]
 
 /-- An attempt passes the test on a number that is not prime with probability at most `2⁻ⁿ`. -/
 private theorem toOuterMeasure_primeAttempt_not_prime_le (n : ℕ) :
@@ -202,16 +199,9 @@ private theorem toOuterMeasure_primeAttempt_not_prime_le (n : ℕ) :
   refine Probability.PMF.toOuterMeasure_bind_le _ _ _ fun p => ?_
   rw [PMF.toOuterMeasure_map_apply]
   by_cases hp : p.Prime
+  · simp [Set.preimage, hp]
   · have hset : (fun verdict => (p, verdict)) ⁻¹' {a : ℕ × Bool | a.2 = true ∧ ¬ a.1.Prime} =
-        ∅ := by
-      ext verdict
-      simp [hp]
-    rw [hset]
-    simp
-  · have hset : (fun verdict => (p, verdict)) ⁻¹' {a : ℕ × Bool | a.2 = true ∧ ¬ a.1.Prime} =
-        {true} := by
-      ext verdict
-      simp [hp]
+        {true} := Set.ext fun _ => by simp [hp]
     rw [hset, PMF.toOuterMeasure_apply_singleton]
     exact eval_millerRabinTest_le_of_not_prime hp n
 
@@ -347,11 +337,9 @@ theorem mem_support_randomPrime {n p : ℕ}
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp [randomPrime] at hp
   rw [eval_randomPrime, PMF.support_map] at hp
-  obtain ⟨found, hfound, hmap⟩ := hp
-  rcases found with _ | ⟨q, b⟩
+  rcases hp with ⟨_ | ⟨q, b⟩, hfound, hmap⟩
   · simp at hmap
-  have hqp : q = p := by simpa using hmap
-  rw [← hqp]
+  obtain rfl : q = p := by simpa using hmap
   rw [PMF.mem_support_iff, eval_retry_primeAttempt_some] at hfound
   have hattempt : ProbComp.eval (primeAttempt n) (q, b) ≠ 0 := by
     split_ifs at hfound
@@ -455,6 +443,8 @@ theorem toOuterMeasure_genModulus_invalid_le_inv_two_pow {n : ℕ} (hn : 1 < n) 
 
 /-! ### Efficiency -/
 
+attribute [local irreducible] Probability.IsPPTOn
+
 /-- Candidates are a strict PPT program in `n`, given in unary. -/
 theorem isPPTOn_primeCandidate : Probability.IsPPTOn encUnary encNat primeCandidate := by
   have hvalue : ComputableInPolyTime (fun x : ℕ × List Bool => ofBits (x.2 ++ [true]))
@@ -484,12 +474,11 @@ theorem isPPTOn_primeAttempt :
 theorem isPPTOn_randomPrime : Probability.IsPPTOn encUnary (encOption encNat) randomPrime := by
   have hfst : ComputableInPolyTime (fun found : Option (ℕ × Bool) => found.map Prod.fst)
       (encOption (encPair encNat encBool)) (encOption encNat) := by
-    have heq : (fun found : Option (ℕ × Bool) => found.map Prod.fst) =
-        fun found => found.elim none fun a => some a.1 := by
-      funext found
-      cases found <;> rfl
-    rw [heq]
-    fun_prop
+    refine (show ComputableInPolyTime (fun found : Option (ℕ × Bool) =>
+        found.elim none fun a => some a.1)
+      (encOption (encPair encNat encBool)) (encOption encNat) by fun_prop).of_enc_eq
+      fun found => ?_
+    cases found <;> rfl
   refine ((isPPTOn_primeAttempt.retry (good := fun a => a.2) (fuel := fun n => 3 * n ^ 2)
     (by fun_prop) (by fun_prop)).map hfst).congr fun n => ?_
   simp only [randomPrime, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure]
@@ -510,26 +499,19 @@ private theorem computableInPolyTime_combine :
   have hinner : ComputableInPolyTime
       (fun r : (Option ℕ × Option ℕ) × ℕ => r.1.2.elim none fun q => some (r.2 * q, r.2, q))
       (encPair (encPair (encOption encNat) (encOption encNat)) encNat)
-      (encOption (encPair encNat (encPair encNat encNat))) := by
-    refine ComputableInPolyTime.optionElimWithInput (encB := encNat) ?_
-      (ComputableInPolyTime.const _) ?_
-    · exact ComputableInPolyTime.snd' (ComputableInPolyTime.fst _ _)
-    · exact htriple.comp ((ComputableInPolyTime.snd' (ComputableInPolyTime.fst _ _)).prod
-        (ComputableInPolyTime.snd _ _))
+      (encOption (encPair encNat (encPair encNat encNat))) :=
+    ComputableInPolyTime.optionElimWithInput (encB := encNat)
+      (ComputableInPolyTime.snd' (ComputableInPolyTime.fst _ _)) (ComputableInPolyTime.const none)
+      (htriple.comp ((ComputableInPolyTime.snd' (ComputableInPolyTime.fst _ _)).prod
+        (ComputableInPolyTime.snd _ _)))
   have hcombine : ComputableInPolyTime
       (fun x : Option ℕ × Option ℕ =>
         x.1.elim none fun p => x.2.elim none fun q => some (p * q, p, q))
       (encPair (encOption encNat) (encOption encNat))
-      (encOption (encPair encNat (encPair encNat encNat))) := by
-    refine ComputableInPolyTime.optionElimWithInput (encB := encNat) ?_
-      (ComputableInPolyTime.const _) hinner
-    exact ComputableInPolyTime.fst _ _
-  have heq : (fun x : Option ℕ × Option ℕ => x.1.bind fun p => x.2.map fun q => (p * q, p, q)) =
-      fun x => x.1.elim none fun p => x.2.elim none fun q => some (p * q, p, q) := by
-    funext x
-    rcases x with ⟨_ | _, _ | _⟩ <;> rfl
-  rw [heq]
-  exact hcombine
+      (encOption (encPair encNat (encPair encNat encNat))) :=
+    ComputableInPolyTime.optionElimWithInput (encB := encNat)
+      (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.const none) hinner
+  exact hcombine.of_enc_eq fun ⟨a, b⟩ => by cases a <;> cases b <;> rfl
 
 /-- **The modulus generator is a strict PPT program** in `n`, given in unary. -/
 theorem isPPTOn_genModulus :

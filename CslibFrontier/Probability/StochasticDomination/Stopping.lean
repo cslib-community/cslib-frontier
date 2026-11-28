@@ -7,11 +7,8 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
 public import CslibFrontier.Probability.StochasticDomination.Adapted
-public import CslibFrontier.Probability.StochasticDomination.PoissonBinomial
 public import Mathlib.Probability.Process.HittingTime
-import Mathlib.MeasureTheory.Function.ConditionalExpectation.Basic
 import Mathlib.MeasureTheory.Function.ConditionalExpectation.Real
 import Mathlib.MeasureTheory.Integral.Bochner.Basic
 
@@ -72,22 +69,9 @@ theorem withTopToENNReal_eq_tsum_ite (x : WithTop ℕ) :
     simp only [htrue, ↓reduceIte, withTopToENNReal_top]
     exact (ENNReal.tsum_const_eq_top_of_ne_zero one_ne_zero).symm
   | coe k =>
-    have hcoe : (WithTop.some k : WithTop ℕ) = (k : WithTop ℕ) := by simp
-    change withTopToENNReal (WithTop.some k) = _
-    rw [hcoe, withTopToENNReal_coe]
-    symm
-    calc
-      (∑' n : ℕ, if (n : WithTop ℕ) < (k : WithTop ℕ) then (1 : ℝ≥0∞) else 0)
-        = ∑ n ∈ Finset.range k, if n < k then (1 : ℝ≥0∞) else 0 := by
-            simp only [Nat.cast_lt]
-            refine tsum_eq_sum fun n hn => ?_
-            simp only [Finset.mem_range, not_lt] at hn
-            simp [not_lt.mpr hn]
-      _ = ∑ _ ∈ Finset.range k, (1 : ℝ≥0∞) := by
-            refine Finset.sum_congr rfl fun n hn => ?_
-            rw [Finset.mem_range] at hn
-            simp [hn]
-      _ = k := by simp
+    change withTopToENNReal (k : WithTop ℕ) = _
+    rw [withTopToENNReal_coe, tsum_eq_sum (s := Finset.range k) fun n hn => by simp_all]
+    simp [Finset.sum_ite_of_true fun n hn => Finset.mem_range.mp hn]
 
 /-- Tail-sum identity for `WithTop ℕ`-valued measurable random variables:
 `∫⁻ ω, withTopToENNReal (τ ω) ∂P = ∑' n, P {ω | (n : WithTop ℕ) < τ ω}`. -/
@@ -206,10 +190,7 @@ private theorem real_lt_le_binomial_of_dom_replicate {Ω : Type*} [MeasurableSpa
     rw [measureReal_def, Measure.map_apply hm measurableSet_Iio, ← measureReal_def]
     simp only [List.length_replicate]
     rfl
-  have hmapR : (PMF.poissonBinomial (List.replicate n p)).toMeasure.real (Set.Iio r) =
-      (ProbabilityTheory.binomial n p).real (Set.Iio r) := by
-    rw [PMF.toMeasure_poissonBinomial_replicate]
-  rw [hmapL, hmapR] at hle2
+  rw [hmapL, PMF.toMeasure_poissonBinomial_replicate] at hle2
   exact hle1.trans hle2
 
 /-- **General stopping-time mean bound**: if `τ` is a stopping time for `ℱ` that triggers whenever
@@ -237,16 +218,13 @@ theorem stoppingTime_mean_le_of_adaptedCount_le {Ω : Type*} [m : MeasurableSpac
     simpa [ps] using hp' t
   have hsub : {ω | (n : WithTop ℕ) < τ ω} ⊆ {ω | adaptedCount A' n ω < r} := by
     intro ω hω
-    have hnot_le : ¬ τ ω ≤ (n : WithTop ℕ) := not_le.mpr hω
     have heq : adaptedCount A' n ω = adaptedCount A n ω := by
       refine Finset.sum_congr rfl fun t ht => ?_
-      rw [Finset.mem_range] at ht
       have ht_lt : (t : WithTop ℕ) < τ ω :=
-        lt_trans (WithTop.coe_lt_coe.mpr ht) hω
+        lt_trans (WithTop.coe_lt_coe.mpr (Finset.mem_range.mp ht)) hω
       by_cases hAt : ω ∈ A t <;> simp [A', hAt, ht_lt]
     change adaptedCount A' n ω < r
-    rw [heq]
-    exact not_le.mp fun hr => hnot_le (hle n ω hr)
+    exact heq ▸ not_le.mp fun hr => (not_le.mpr hω) (hle n ω hr)
   exact real_lt_le_binomial_of_dom_replicate
     ((measurable_adaptedCount ℱ hA' ps.length).mono (ℱ.le _) le_rfl) hdom hsub
 
@@ -285,10 +263,8 @@ theorem countHittingTime_mean_le {Ω : Type*} [m : MeasurableSpace Ω] {P : Meas
     (isStoppingTime_countHittingTime ℱ hA r)
     (fun n ω hr => (countHittingTime_le_iff A r n ω).mpr hr) ?_
   intro t
-  have hset : {ω | (t : WithTop ℕ) < countHittingTime A r ω} = {ω | adaptedCount A t ω < r} := by
-    ext ω
-    exact lt_countHittingTime_iff A r t ω
-  rw [hset]
+  rw [show {ω | (t : WithTop ℕ) < countHittingTime A r ω} = {ω | adaptedCount A t ω < r} from
+    Set.ext fun ω => lt_countHittingTime_iff A r t ω]
   exact hp t
 
 end StoppingBounds
@@ -356,8 +332,7 @@ theorem trajMeasure_countHittingTime_mean_le {X : ℕ → Type*} [∀ n, Measura
         _ ≤ (Kernel.traj κ t (Preorder.frestrictLe t x)).real (A t) := hx hlt
         _ ≤ (Kernel.traj κ t (Preorder.frestrictLe t x)).real (A' t) :=
             measureReal_mono hsub
-    · have hge : r ≤ adaptedCount A t x := not_lt.mp hlt
-      have hx_le : x ∈ {y | r ≤ adaptedCount A t y} := hge
+    · have hx_le : x ∈ {y | r ≤ adaptedCount A t y} := not_lt.mp hlt
       have htr : {y : Π n, X n | r ≤ adaptedCount A t y} ⊆ A' t := Set.subset_union_right
       have hfre :
           (Kernel.traj κ t (Preorder.frestrictLe t x)).real (A' t) = 1 := by
@@ -369,10 +344,8 @@ theorem trajMeasure_countHittingTime_mean_le {X : ℕ → Type*} [∀ n, Measura
               y ∈ {y | r ≤ adaptedCount A t y} := by
             rw [Filtration.piLE_eq_comap_frestrictLe] at hS
             rcases hS with ⟨B, hBm, hBeq⟩
-            have hB_mem : Preorder.frestrictLe t x ∈ B := by
-              change x ∈ Preorder.frestrictLe t ⁻¹' B
-              rw [hBeq]
-              exact hx_le
+            have hB_mem : Preorder.frestrictLe t x ∈ B :=
+              show x ∈ Preorder.frestrictLe t ⁻¹' B from hBeq ▸ hx_le
             have hdirac :
                 ((Kernel.traj κ t (Preorder.frestrictLe t x)).map
                     (Preorder.frestrictLe t)) B = 1 := by

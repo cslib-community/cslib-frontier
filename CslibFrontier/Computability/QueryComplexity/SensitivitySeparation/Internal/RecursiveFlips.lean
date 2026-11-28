@@ -71,15 +71,8 @@ private theorem rowClause_eq_of_conditions {k r h : ℕ} {I : Type} (T : Tournam
     (hg : ∀ j, T.Adj i j → F (gateIndex q) (recursiveChild x j (label i j)) =
       F (gateIndex q) (recursiveChild y j (label i j))) :
     rowClause T label F q x i = rowClause T label F q y i := by
-  apply Bool.eq_iff_iff.mpr
-  rw [rowClause_eq_true_iff, rowClause_eq_true_iff]
-  constructor
-  · rintro ⟨hxt, hxg⟩
-    exact ⟨fun c => (ht c).symm.trans (hxt c),
-      fun j hij => (hg j hij).symm.trans (hxg j hij)⟩
-  · rintro ⟨hyt, hyg⟩
-    exact ⟨fun c => (ht c).trans (hyt c),
-      fun j hij => (hg j hij).trans (hyg j hij)⟩
+  rw [Bool.eq_iff_iff, rowClause_eq_true_iff, rowClause_eq_true_iff]
+  simp +contextual only [ht, hg]
 
 open scoped Classical in
 /-- Flipping `((j, c), a)` does not change the clause of row `i`, provided it does not change the
@@ -124,15 +117,8 @@ theorem rowClause_flip_change {k r h : ℕ} {I : Type} [DecidableEq ((Fin k × F
     (T.Adj i j ∧ c = label i j ∧
       F (gateIndex q) (BitString.flipOn {a} (recursiveChild x j c)) ≠
         F (gateIndex q) (recursiveChild x j c)) := by
-  by_contra hn
-  apply hc
-  apply rowClause_flip_eq
-  · intro hji
-    by_contra hne
-    exact hn (Or.inl ⟨hji, hne⟩)
-  · intro hij hcl
-    by_contra hne
-    exact hn (Or.inr ⟨hij, hcl, hne⟩)
+  by_contra! hn
+  exact hc (rowClause_flip_eq T label F q x i j c a hn.1 hn.2)
 
 end Internal
 

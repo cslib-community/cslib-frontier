@@ -75,6 +75,34 @@ Record them in an issue (#5293 for cryptography). Domain contracts, such as
 [Security theorems](#security-theorems) for cryptography, refine what counts as a named assumption
 and a generic component in their area.
 
+### Running-time claims
+
+A running time is a theorem about a machine. A theorem, name, docstring, manual page, roadmap
+entry or results-inventory entry that presents a bound as an algorithm's running time states it
+in one of two models, in which cost comes from the machine's semantics rather than from the
+author:
+
+- **Word-RAM** (`Computability/WordRAM/`, `RAMTIME`): instruction counts at a stated word width
+  and basis. This is the default for algorithm running times. Dijkstra
+  (`Algorithms/Lean/Dijkstra/`) and Karger (`Algorithms/Lean/Karger/Memory*`) are worked examples;
+  [Choose a model](../manual/workflows/choosing-models.md) is the entry point.
+- **Multi-tape Turing machines** (`ComputableInO`, `ComputableInPolyTime`): polynomial-time and
+  complexity-class claims, and bounds the source states on Turing machines.
+
+An oracle or comparison count read off a `PFunctor.FreeM` program by its interpreter is
+admissible only when the cited result is itself a query bound.
+
+**`TimeM` is permanently forbidden (#7636, #6301).** Its `time` field holds exactly the charges
+the author wrote with `tick`, and nothing checks them against the program's cost (`pure xs.mergeSort`
+costs zero). A `TimeM` bound is a claim about annotations, so presenting it as a running time is a
+stand-in under [Faithful headlines](#faithful-headlines), whatever its docstring says about
+uncharged work. Frontier `TimeM` support has been deleted, and `scripts/check_timem.py`
+unconditionally rejects any use in masked Lean syntax of `TimeM` (including
+`Cslib.Algorithms.Lean.TimeM` and `CslibFrontier.Algorithms.Lean.TimeM.*`), tick notation `✓`,
+`time_simps`, `time_spec`, and `Cslib.Algorithms.Lean.MergeSort.MergeSort`. Moving the same
+hand-placed charges into another writer or cost monad is also forbidden; `PFunctor.FreeM` query
+counts remain allowed only when the cited result is a query bound.
+
 ### The cited result is the unit of quality
 
 Quality is judged one cited result at a time, by whether the theorem that carries the result's
@@ -96,8 +124,9 @@ not cited results, and nothing here asks them to invent a cited endpoint.
 - **A step.** It is presented as an intermediate step under
   [Faithful headlines](#faithful-headlines) rule 2, and meets every condition of that rule.
 
-Registration requires the independent check of the statement against the source, by a reviewer
-from outside the authoring fleet ([Review cycle](review.md#review-cycle)). A new theorem that
+Registration requires the independent check of the statement against the source, by a non-author
+working in a separate context, who may be an agent of the authoring fleet
+([Review cycle](review.md#review-cycle)). A new theorem that
 presents a cited result therefore lands with its entry, with the check made on its pull request,
 or lands as a step and is registered by a later change once the check has been made.
 The check opens the definitions that the statement names (its games, schemes, predicates and

@@ -68,10 +68,8 @@ def gadgetMatrix (n w : ℕ) : Matrix (Fin (n + 1) × Fin w) (Fin (n + 1)) (ZMod
 theorem gadgetMatrix_apply {n w : ℕ} (i : Fin (n + 1)) (k : Fin w) (j : Fin (n + 1)) :
     gadgetMatrix n w (i, k) j = if i = j then 2 ^ k.val else 0 := by
   classical
-  by_cases h : i = j
-  · subst j
-    simp [gadgetMatrix, recomposeMatrix, bitCompose, _root_.Matrix.one_apply, Prod.mk.injEq]
-  · simp [gadgetMatrix, recomposeMatrix, bitCompose, Prod.mk.injEq, h]
+  by_cases h : i = j <;>
+    simp [gadgetMatrix, recomposeMatrix, bitCompose, _root_.Matrix.one_apply, h]
 
 /-- Encrypt using only the public matrix, the Boolean message, and binary coins. -/
 def encryptWithCoins {n m w : ℕ} (A : Matrix (Fin m) (Fin (n + 1)) (ZMod (2 ^ w)))
@@ -161,9 +159,8 @@ theorem decrypt_encryptWithCoins {n m w bound : ℕ}
     decrypt t (encryptWithCoins (LWE.publicMatrixInt B t error) μ R) = μ := by
   apply decrypt_eq_of_hasError hw t _ μ _ (encryptWithCoins_hasError B t error μ R)
   intro i
-  have hbound : (encryptionError R error i).natAbs ≤ m * bound := by
-    simpa using encryptionError_natAbs_le R error herror i
-  exact (Nat.mul_le_mul_left 4 hbound).trans_lt hmargin
+  exact (Nat.mul_le_mul_left 4 (by simpa using encryptionError_natAbs_le R error herror i)).trans_lt
+    hmargin
 
 /-- NAND is correct under its actual propagated noise bound. The inputs can themselves be
 outputs of earlier operations, provided their integer error equations and bounds hold. -/
@@ -178,9 +175,7 @@ theorem decrypt_nand {n w bound₁ bound₂ : ℕ}
     decrypt t (nand C₁ C₂) = !(μ₁ && μ₂) := by
   apply decrypt_eq_of_hasError hw t _ _ _ (nand_hasError t C₁ C₂ μ₁ μ₂ error₁ error₂ hC₁ hC₂)
   intro i
-  have hbound : (nandError C₁ μ₂ error₁ error₂ i).natAbs ≤
-      bound₁ + ((n + 1) * w) * bound₂ := by
-    simpa using nandError_natAbs_le C₁ μ₂ error₁ error₂ herror₁ herror₂ i
-  exact (Nat.mul_le_mul_left 4 hbound).trans_lt hmargin
+  exact (Nat.mul_le_mul_left 4
+    (by simpa using nandError_natAbs_le C₁ μ₂ error₁ error₂ herror₁ herror₂ i)).trans_lt hmargin
 
 end Cslib.Crypto.Homomorphic.GSW

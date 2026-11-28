@@ -139,12 +139,8 @@ theorem computableInPolyTime_primeThresholdBound :
 @[fun_prop]
 theorem computableInPolyTime_primeDeg :
     ComputableInPolyTime primeDeg encUnary encUnary := by
-  have hl : ComputableInPolyTime
-      (fun N : ℕ =>
-        (List.range (primeThresholdBound N)).map fun i => primeThresholdBound N + 1 + i)
-      encUnary (encList encUnary) :=
-    mapWithInput (by fun_prop) (by fun_prop)
-  exact optionGetDWithInput (findWithInput hl
+  exact optionGetDWithInput (findWithInput
+    (mapWithInput (f := fun N i => primeThresholdBound N + 1 + i) (by fun_prop) (by fun_prop))
     ((by fun_prop : ComputableInPolyTime (fun b : ℕ => decide b.Prime) encUnary encBool).comp
       (snd encUnary encUnary))) (by fun_prop)
 
@@ -158,11 +154,9 @@ theorem computableInPolyTime_ordTwoMod :
       (fun q : ℕ => (List.range (q - 1)).find? fun i => 2 ^ (i + 1) % q == 1)
       encUnary (encOption encUnary) :=
     findWithInput (range.comp (by fun_prop)) (hmod.beq (.const 1))
-  have hadd : ComputableInPolyTime (fun p : ℕ × ℕ => p.2 + 1)
-      (encPair encUnary encUnary) encUnary := by fun_prop
-  have helim := optionElimWithInput (body := fun _ x : ℕ => x + 1) hf (.const 0) hadd
-  convert helim using 1
-  funext q; unfold ordTwoMod
+  convert optionElimWithInput (body := fun _ x : ℕ => x + 1) hf (.const 0) (by fun_prop) using 1
+  funext q
+  unfold ordTwoMod
   cases (List.find? (fun i => 2 ^ (i + 1) % q == 1) (List.range (q - 1))) <;> rfl
 
 /-- `qAdicValTwoPowSubOne` is computable in polynomial time on unary naturals. -/
@@ -238,13 +232,9 @@ private theorem polyTime_polyTrim' {α : Type} {enc : α ↪ List Bool} {f : α 
 theorem computableInPolyTime_polyAdd :
     ComputableInPolyTime (fun p : List Bool × List Bool => polyAdd p.1 p.2)
       (encPair encBits encBits) encBits := by
-  have hmap : ComputableInPolyTime
-      (fun p : List Bool × List Bool =>
-        (List.range (max p.1.length p.2.length)).map fun i =>
-          p.1.getD i false ^^ p.2.getD i false)
-      (encPair encBits encBits) (encList encBool) :=
-    mapWithInput (by fun_prop) (by fun_prop)
-  exact computableInPolyTime_polyTrim.comp (listToBits.comp hmap)
+  exact computableInPolyTime_polyTrim.comp (listToBits.comp
+    (mapWithInput (f := fun (p : List Bool × List Bool) i => p.1.getD i false ^^ p.2.getD i false)
+      (by fun_prop) (by fun_prop)))
 
 @[local fun_prop]
 private theorem polyTime_polyAdd' {α : Type} {enc : α ↪ List Bool} {a b : α → List Bool}
@@ -300,23 +290,14 @@ private theorem polyTime_polyDivModStep :
       (fun p : List Bool × List Bool × List Bool => polyDivModStep p.1 p.2)
       (encPair encBits (encPair encBits encBits)) (encPair encBits encBits) := by
   unfold polyDivModStep
-  let E := encPair encBits (encPair encBits encBits)
   have hrep : ComputableInPolyTime
       (fun p : List Bool × List Bool × List Bool =>
-        List.replicate ((polyTrim p.2.2).length - p.1.length) false) E encBits :=
+        List.replicate ((polyTrim p.2.2).length - p.1.length) false)
+      (encPair encBits (encPair encBits encBits)) encBits :=
     (bitsReplicate false).comp (by fun_prop)
-  have h1 : ComputableInPolyTime
-      (fun p : List Bool × List Bool × List Bool =>
-        polyAdd p.2.1 (List.replicate ((polyTrim p.2.2).length - p.1.length) false ++ [true]))
-      E encBits :=
-    polyTime_polyAdd' (by fun_prop) (bitsAppend hrep (.const [true]))
-  have h2 : ComputableInPolyTime
-      (fun p : List Bool × List Bool × List Bool =>
-        polyAdd (polyTrim p.2.2)
-          (List.replicate ((polyTrim p.2.2).length - p.1.length) false ++ p.1))
-      E encBits :=
-    polyTime_polyAdd' (by fun_prop) (bitsAppend hrep (fst _ _))
-  exact ite' (by fun_prop) (by fun_prop) (h1.prod h2)
+  exact ite' (by fun_prop) (by fun_prop)
+    ((polyTime_polyAdd' (by fun_prop) (bitsAppend hrep (.const [true]))).prod
+      (polyTime_polyAdd' (by fun_prop) (bitsAppend hrep (fst _ _))))
 
 private theorem polyTime_polyDivMod :
     ComputableInPolyTime (fun p : List Bool × List Bool => polyDivMod p.1 p.2)
@@ -393,14 +374,12 @@ theorem computableInPolyTime_polyComposePow :
 private theorem polyTime_kernelStepBits :
     ComputableInPolyTime (fun p : List (List Bool) × List Bool => kernelStepBits p.2 p.1)
       (encPair (encList encBits) encBits) (encList encBits) := by
-  have hvals : ComputableInPolyTime
-      (fun p : List (List Bool) × List Bool => p.1.map (listDot p.2))
-      (encPair (encList encBits) encBits) (encList encBool) :=
-    mapWithInput (by fun_prop) (by fun_prop)
   have hpIdx : ComputableInPolyTime
       (fun p : List (List Bool) × List Bool => (p.1.map (listDot p.2)).idxOf true)
       (encPair (encList encBits) encBits) encUnary :=
-    idxOfWithInput (encA := encBool) hvals (.const true)
+    idxOfWithInput (encA := encBool)
+      (mapWithInput (f := fun (p : List (List Bool) × List Bool) v => listDot p.2 v)
+        (by fun_prop) (by fun_prop)) (.const true)
   have hrow : ComputableInPolyTime
       (fun x : (List (List Bool) × List Bool) × List Bool =>
         if listDot x.1.2 x.2 then
@@ -411,15 +390,15 @@ private theorem polyTime_kernelStepBits :
       ((fst (encList encBits) encBits).comp (fst (encPair (encList encBits) encBits) encBits))
       (hpIdx.comp (fst _ _))
     exact ite' (by fun_prop) (bitsZipWithInput xor (snd _ _) hpiv) (snd _ _)
-  have hlen : ComputableInPolyTime (fun p : List (List Bool) × List Bool => p.1.length)
-      (encPair (encList encBits) encBits) encUnary :=
-    (length_list encBits).comp (fst _ _)
-  have hrow' := mapWithInput (f := fun par v =>
+  convert ite' (unary_lt' hpIdx ((length_list encBits).comp (fst _ _)))
+    (mapWithInput (f := fun par v =>
       if listDot par.2 v then
         List.zipWith xor v (par.1.getD ((par.1.map (listDot par.2)).idxOf true) [])
-      else v) (fst (encList encBits) encBits) hrow
-  convert ite' (unary_lt' hpIdx hlen) hrow' (fst (encList encBits) encBits) using 1
-  funext p; unfold kernelStepBits; simp only [decide_eq_true_eq]
+      else v) (fst (encList encBits) encBits) hrow)
+    (fst (encList encBits) encBits) using 1
+  funext p
+  unfold kernelStepBits
+  simp only [Function.comp_def, decide_eq_true_eq]
 
 private theorem polyTime_kernelBasisBits :
     ComputableInPolyTime (fun p : ℕ × List (List Bool) => kernelBasisBits p.1 p.2)
@@ -459,13 +438,14 @@ private theorem polyTime_berlekampMatrix :
     listToBits.comp (mapWithInput (range.comp (by fun_prop : ComputableInPolyTime
       (fun x : List Bool × ℕ => (x.1.length - 1) - 1) (encPair encBits encUnary) encUnary))
       (by fun_prop))
-  have hres := mapWithInput (f := fun g i =>
+  convert mapWithInput (f := fun g i =>
       (List.range ((g.length - 1) - 1)).map fun k =>
         ((powerTable g).getD (2 * (k + 1)) []).getD i false ^^ (i == k + 1))
     (range.comp (by fun_prop : ComputableInPolyTime
-      (fun g : List Bool => g.length - 1) encBits encUnary)) hrow
-  convert hres using 1
-  funext g; unfold berlekampMatrix; simp [Bool.beq_eq_decide_eq]
+      (fun g : List Bool => g.length - 1) encBits encUnary)) hrow using 1
+  funext g
+  unfold berlekampMatrix
+  simp [Bool.beq_eq_decide_eq]
 
 private theorem polyTime_berlekampStep :
     ComputableInPolyTime berlekampStep encBits encBits := by
@@ -475,17 +455,16 @@ private theorem polyTime_berlekampStep :
     computableInPolyTime_kernelVecBits.comp
       ((by fun_prop : ComputableInPolyTime (fun g : List Bool => (polyTrim g).length - 2)
         encBits encUnary).prod (polyTime_berlekampMatrix.comp computableInPolyTime_polyTrim))
-  have hany : ComputableInPolyTime
-      (fun g : List Bool => (kernelVecBits ((polyTrim g).length - 2)
-        (berlekampMatrix (polyTrim g))).any id) encBits encBool :=
-    bitsAnyWithInput (test := fun _ b => b) hvec (snd _ _)
-  have hgcd := computableInPolyTime_polyGcd.comp
-    (computableInPolyTime_polyTrim.prod (bitsCons (.const false) hvec))
-  have hle2 : ComputableInPolyTime (fun g : List Bool => decide ((polyTrim g).length ≤ 2))
-      encBits encBool := unary_le' (length_bits.comp computableInPolyTime_polyTrim) (.const 2)
-  convert ite' hle2 computableInPolyTime_polyTrim
-    (ite' hany hgcd computableInPolyTime_polyTrim) using 1
-  funext g; unfold berlekampStep; simp only [Function.comp_def, decide_eq_true_eq]
+  convert ite' (unary_le' (length_bits.comp computableInPolyTime_polyTrim) (.const 2))
+    computableInPolyTime_polyTrim
+    (ite' (bitsAnyWithInput (test := fun _ b => b) hvec (snd _ _))
+      (computableInPolyTime_polyGcd.comp
+        (computableInPolyTime_polyTrim.prod (bitsCons (.const false) hvec)))
+      computableInPolyTime_polyTrim) using 1
+  funext g
+  unfold berlekampStep
+  simp only [Function.comp_def, decide_eq_true_eq]
+  rfl
 
 private theorem length_berlekampStep_le (g : List Bool) :
     (berlekampStep g).length ≤ g.length := by
@@ -609,21 +588,16 @@ private theorem polyTime_shoupLMulSum :
           (polyMul (x.1.1.1.1.getD (x.1.1.2.1 + x.2) [])
             (x.1.1.1.2.getD (x.1.1.2.2 - x.2) [])))
       (encPair (encPair EA encBits) encUnary) encBits := by fun_prop
-  have hpar : ComputableInPolyTime
-      (fun p : (List (List Bool) × List (List Bool)) × (ℕ × ℕ × ℕ) => (p.1, p.2.2))
-      (encPair EP (encPair encUnary (encPair encUnary encUnary))) EA := by fun_prop
-  have hlist : ComputableInPolyTime
-      (fun p : (List (List Bool) × List (List Bool)) × (ℕ × ℕ × ℕ) => List.range p.2.1)
-      (encPair EP (encPair encUnary (encPair encUnary encUnary))) (encList encUnary) := by fun_prop
   have hbound : ComputableInPolyTime
       (fun p : (List (List Bool) × List (List Bool)) × (ℕ × ℕ × ℕ) =>
         (encList encBits p.1.1).length + (encList encBits p.1.2).length)
       (encPair EP (encPair encUnary (encPair encUnary encUnary))) encUnary := by fun_prop
-  exact foldlWith (encA := encUnary) (encL := encList encUnary) (encB := encBits)
+  exact foldlWith (encA := encUnary) (encP := EA) (encL := encList encUnary) (encB := encBits)
     (par := fun p => (p.1, p.2.2)) (list := fun p => List.range p.2.1)
     (step := fun par acc t =>
       polyAdd acc (polyMul (par.1.1.getD (par.2.1 + t) []) (par.1.2.getD (par.2.2 - t) [])))
-    hpar hlist (.const []) hstep hbound.polyBounded fun p i _ => by
+    (by fun_prop) (by fun_prop) (.const []) hstep hbound.polyBounded
+    fun p i _ => by
       simpa only [encBits_apply] using
         length_foldl_shoupLMulSum_le p.1.1 p.1.2 p.2.2.1 p.2.2.2 ((List.range p.2.1).take i)
 
@@ -650,26 +624,23 @@ private theorem polyTime_shoupLMul :
         polyMod (polyAdd (shoupLMulSum x.1.2.1 x.1.2.2 (x.2 + 1) 0 x.2)
           (false :: shoupLMulSum x.1.2.1 x.1.2.2 (x.1.1.1 - 1 - x.2) (x.2 + 1) (x.1.1.1 - 1)))
           x.1.1.2)
-      (encPair EP encUnary) encBits := by
-    have hlow : ComputableInPolyTime
-        (fun x : ((ℕ × List Bool) × (List (List Bool) × List (List Bool))) × ℕ =>
-          shoupLMulSum x.1.2.1 x.1.2.2 (x.2 + 1) 0 x.2) (encPair EP encUnary) encBits :=
-      polyTime_shoupLMulSum' (by fun_prop) (by fun_prop) (by fun_prop)
-        (.const 0) (snd _ _)
-    have hhigh : ComputableInPolyTime
-        (fun x : ((ℕ × List Bool) × (List (List Bool) × List (List Bool))) × ℕ =>
-          shoupLMulSum x.1.2.1 x.1.2.2 (x.1.1.1 - 1 - x.2) (x.2 + 1) (x.1.1.1 - 1))
-        (encPair EP encUnary) encBits :=
-      polyTime_shoupLMulSum' (by fun_prop) (by fun_prop) (by fun_prop)
-        (by fun_prop) (by fun_prop)
-    exact polyTime_polyMod' (polyTime_polyAdd' hlow (bitsCons (.const false) hhigh)) (by fun_prop)
-  have hres := mapWithInput
+      (encPair EP encUnary) encBits :=
+    polyTime_polyMod'
+      (polyTime_polyAdd'
+        (polyTime_shoupLMulSum' (by fun_prop) (by fun_prop)
+          (by fun_prop) (.const 0) (snd _ _))
+        (bitsCons (.const false)
+          (polyTime_shoupLMulSum' (by fun_prop) (by fun_prop)
+            (by fun_prop) (by fun_prop)
+            (by fun_prop))))
+      (by fun_prop)
+  convert mapWithInput
     (f := fun (p : (ℕ × List Bool) × (List (List Bool) × List (List Bool))) (k : ℕ) =>
       polyMod (polyAdd (shoupLMulSum p.2.1 p.2.2 (k + 1) 0 k)
         (false :: shoupLMulSum p.2.1 p.2.2 (p.1.1 - 1 - k) (k + 1) (p.1.1 - 1))) p.1.2)
-    (range.comp ((fst encUnary encBits).comp (fst _ _))) hcell
-  convert hres using 1
-  funext p; unfold shoupLMul
+    (range.comp ((fst encUnary encBits).comp (fst _ _))) hcell using 1
+  funext p
+  unfold shoupLMul
   refine congrArg (fun fn => (List.range p.1.1).map fn) (funext fun k => ?_)
   have hidx : ∀ t, p.1.1 + k - (k + 1 + t) = p.1.1 - 1 - t := fun t => by omega
   simp [shoupLMulSum, hidx]
@@ -750,30 +721,25 @@ attribute [local irreducible] shoupLAdd shoupLFrobQBounded shoupBetaStep polyTri
 private theorem polyTime_shoupBetaBounded :
     ComputableInPolyTime (fun p : ℕ × List Bool => shoupBetaBounded p.1 p.2)
       (encPair encUnary encBits) (encList encBits) := by
-  have hinit : ComputableInPolyTime
-      (fun p : ℕ × List Bool => (List.replicate p.1 ([] : List Bool),
-        (List.range p.1).map fun i => if i == 1 then [true] else []))
-      (encPair encUnary encBits) (encPair (encList encBits) (encList encBits)) :=
-    (replicate (fst _ _) (.const [])).prod ((polyTime_shoupUnitVec 1).comp (fst _ _))
   have hstep : ComputableInPolyTime
       (fun x : (ℕ × List Bool) × (List (List Bool) × List (List Bool)) => shoupBetaStep x.1 x.2)
       (encPair (encPair encUnary encBits) (encPair (encList encBits) (encList encBits)))
       (encPair (encList encBits) (encList encBits)) := by
-    have h1 := polyTime_shoupLAdd.comp
+    unfold shoupBetaStep
+    exact (polyTime_shoupLAdd.comp
       (((fst encUnary encBits).comp (fst (encPair encUnary encBits)
         (encPair (encList encBits) (encList encBits)))).prod
-        (snd (encPair encUnary encBits) (encPair (encList encBits) (encList encBits))))
-    have h2 := polyTime_shoupLFrobQBounded.comp
-      ((fst (encPair encUnary encBits) (encPair (encList encBits) (encList encBits))).prod
-        ((snd (encList encBits) (encList encBits)).comp
-          (snd (encPair encUnary encBits) (encPair (encList encBits) (encList encBits)))))
-    convert h1.prod h2 using 1
-    funext x; unfold shoupBetaStep; rfl
+        (snd (encPair encUnary encBits) (encPair (encList encBits) (encList encBits))))).prod
+      (polyTime_shoupLFrobQBounded.comp
+        ((fst (encPair encUnary encBits) (encPair (encList encBits) (encList encBits))).prod
+          ((snd (encList encBits) (encList encBits)).comp
+            (snd (encPair encUnary encBits) (encPair (encList encBits) (encList encBits))))))
   refine (fst (encList encBits) (encList encBits)).comp (iterateWith_spec
     (invariant := fun p _ st =>
       st.1.length ≤ p.1 ∧ st.2.length ≤ p.1 ∧
         (∀ v ∈ st.1, v.length ≤ p.2.length + 1) ∧ ∀ v ∈ st.2, v.length ≤ p.2.length + 1)
-    id' (by fun_prop) hinit hstep
+    id' (by fun_prop)
+    ((replicate (fst _ _) (.const [])).prod ((polyTime_shoupUnitVec 1).comp (fst _ _))) hstep
     (fun _ => ⟨by simp, by simp, fun _ hv => by simp [(List.mem_replicate.mp hv).2],
       fun _ hv => by rcases List.mem_map.mp hv with ⟨_, _, rfl⟩; split_ifs <;> simp⟩)
     (fun p _ st hk hinv => by
@@ -830,27 +796,18 @@ private theorem polyTime_shoupPowersBounded :
       (fun p : (ℕ × List Bool) × List (List Bool) => shoupPowersBounded p.1.1 p.1.2 p.2)
       (encPair (encPair encUnary encBits) (encList encBits))
       (encList (encList encBits)) := by
-  have hinit : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × List (List Bool) =>
-        (([] : List (List (List Bool))),
-          (List.range p.1.1).map fun i => if i == 0 then [true] else []))
-      (encPair (encPair encUnary encBits) (encList encBits))
-      (encPair (encList (encList encBits)) (encList encBits)) :=
-    (const ([] : List (List (List Bool)))).prod
-      ((polyTime_shoupUnitVec 0).comp ((fst encUnary encBits).comp (fst _ _)))
   let EIn := encPair (encPair encUnary encBits) (encList encBits)
   let ESt := encPair (encList (encList encBits)) (encList encBits)
   have hstep : ComputableInPolyTime
       (fun x : ((ℕ × List Bool) × List (List Bool)) ×
           (List (List (List Bool)) × List (List Bool)) =>
         shoupPowersStep x.1 x.2) (encPair EIn ESt) ESt := by
-    have h1 := (snoc (encList encBits)).comp (snd EIn ESt)
-    have h2 := polyTime_shoupLMul.comp
-      (((fst (encPair encUnary encBits) (encList encBits)).comp (fst EIn ESt)).prod
-        (((snd (encList (encList encBits)) (encList encBits)).comp (snd EIn ESt)).prod
-          ((snd (encPair encUnary encBits) (encList encBits)).comp (fst EIn ESt))))
-    convert h1.prod h2 using 1
-    funext x; unfold shoupPowersStep; rfl
+    unfold shoupPowersStep
+    exact ((snoc (encList encBits)).comp (snd EIn ESt)).prod
+      (polyTime_shoupLMul.comp
+        (((fst (encPair encUnary encBits) (encList encBits)).comp (fst EIn ESt)).prod
+          (((snd (encList (encList encBits)) (encList encBits)).comp (snd EIn ESt)).prod
+            ((snd (encPair encUnary encBits) (encList encBits)).comp (fst EIn ESt)))))
   have hbound : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List (List Bool) =>
         2 * ((p.1.1 + 1) * (2 * (p.1.1 * (2 * (p.1.2.length + 1) + 1)) + 1)) + 1 +
@@ -860,7 +817,9 @@ private theorem polyTime_shoupPowersBounded :
       st.1.length = k ∧ st.2.length ≤ p.1.1 ∧
         (∀ u ∈ st.1, u.length ≤ p.1.1 ∧ ∀ v ∈ u, v.length ≤ p.1.2.length + 1) ∧
         ∀ v ∈ st.2, v.length ≤ p.1.2.length + 1)
-    id' (by fun_prop) hinit hstep
+    id' (by fun_prop)
+    ((const ([] : List (List (List Bool)))).prod
+      ((polyTime_shoupUnitVec 0).comp ((fst encUnary encBits).comp (fst _ _)))) hstep
     (fun _ => ⟨by simp, by simp, by simp,
       fun _ hv => by rcases List.mem_map.mp hv with ⟨_, _, rfl⟩; split_ifs <;> simp⟩)
     (fun p _ st hk hinv => by

@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.InputLayout
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Native box-table input adaptation
@@ -29,15 +29,9 @@ theorem exec_inputHeaders {w L m t : ℕ} (x : Data registers)
     (hfit : Fits w 3) :
     ∃ y, ExecWithin w inputHeaders x y 6 ∧ y.regs Reg.levels = L ∧
       y.regs Reg.inner = m ∧ y.regs Reg.threshold = t ∧ y.mem = x.mem := by
-  have h1 : Fits w 1 := hfit.of_le (by decide)
-  have h2 : Fits w 2 := hfit.of_le (by decide)
-  let y := (((((x.set Reg.address 1).set Reg.levels L).set Reg.address 2).set
-    Reg.inner m).set Reg.address 3).set Reg.threshold t
-  have he : ExecWithin w inputHeaders x y 6 := by
-    ram_eval [inputHeaders, y, hL, hm, ht, h1, h2, hfit,
-      Reg.address, Reg.levels, Reg.inner, Reg.threshold, Fin.mk.injEq]
-  exact ⟨y, he, by simp [y, Reg.levels, Reg.inner, Reg.threshold, Reg.address],
-    by simp [y, Reg.inner, Reg.threshold, Reg.address], by simp [y], rfl⟩
+  unfold inputHeaders
+  wram_exec [hL, hm, ht]
+  wram_simp
 
 /-- Complete native initialization from the three actual input header words. -/
 theorem exec_loadInput {w L m t : ℕ} (x : Data registers)
@@ -47,28 +41,19 @@ theorem exec_loadInput {w L m t : ℕ} (x : Data registers)
       y.regs Reg.levels = L ∧ y.regs Reg.inner = m ∧ y.regs Reg.threshold = t ∧
       y.regs Reg.arrayA = 4 ∧ y.regs Reg.arrayB = 4 + 10 ^ L ∧
       y.regs Reg.directory = directoryBase L ∧ y.mem = x.mem := by
-  obtain ⟨a, ha, aL, am, ath, haμ⟩ := exec_inputHeaders x hL hm ht
-    (hfit.of_le (by omega))
-  obtain ⟨b, hb, _, _, b10, _, _, hbμ, bf⟩ := exec_constants a
-    (hfit.of_le ((by decide : 10 ≤ 12).trans (Nat.le_add_left _ _)))
-  have bL : b.regs Reg.levels = L := by regs_frame
-  obtain ⟨c, hc, cT, _, hcμ, cf⟩ := exec_span b bL b10 (hfit.of_le (by omega))
-  have cL : c.regs Reg.levels = L := by regs_frame
-  have cm : c.regs Reg.inner = m := by regs_frame
-  have ct : c.regs Reg.threshold = t := by regs_frame
-  have hfD : Fits w (4 + 10 ^ L + 10 ^ L) := hfit.of_le (by omega)
-  let y := ((c.set Reg.arrayA 4).set Reg.arrayB (4 + 10 ^ L)).set
-    Reg.directory (4 + 10 ^ L + 10 ^ L)
-  have hd : ExecWithin w inputPointers c y 3 := by
-    ram_eval [inputPointers, y, cT, hfD, Reg.arrayA, Reg.arrayB,
-      Reg.directory, Reg.span, Fin.mk.injEq]
-  refine ⟨y, (ha.seq (hb.seq (hc.seq hd))).mono (by omega), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simpa [y, Reg.levels, Reg.arrayA, Reg.arrayB, Reg.directory] using cL
-  · simpa [y, Reg.inner, Reg.arrayA, Reg.arrayB, Reg.directory] using cm
-  · simpa [y, Reg.threshold, Reg.arrayA, Reg.arrayB, Reg.directory] using ct
-  · simp [y, Reg.arrayA, Reg.arrayB, Reg.directory]
-  · simp [y, Reg.arrayB, Reg.directory]
-  · simp [y, directoryBase]; omega
-  · exact hcμ.trans (hbμ.trans haμ)
+  refine WP.exists_execWithin ?_
+  unfold loadInput inputPointers
+  wram_call (exec_inputHeaders x hL hm ht (hfit.of_le (by omega)))
+    with a ⟨aL, am, ath, haμ⟩
+  wram_call (exec_constants a (hfit.of_le (by omega)))
+    with b ⟨_, _, b10, _, _, hbμ, bf⟩
+  wram_call (exec_span b (by regs_frame) b10 (hfit.of_le (by omega)))
+    with c ⟨cT, _, hcμ, cf⟩
+  wram_exec [*]
+  refine ⟨by regs_frame, by regs_frame, by regs_frame,
+    by wram_simp, by wram_simp, ?_, by wram_simp; exact hcμ.trans (hbμ.trans haμ)⟩
+  wram_simp
+  unfold directoryBase
+  omega
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable

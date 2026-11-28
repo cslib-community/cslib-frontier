@@ -190,11 +190,8 @@ theorem inGrid_decodeTriangle {m : ℕ} {w : List Bool} (hw : w.length = 2 * m +
     InGrid (2 ^ m) (2 ^ m) (decodeTriangle m w) := by
   have h1 : (w.tail.take m).length = m := by simp; omega
   have h2 : (w.tail.drop m).length = m := by simp; omega
-  have e1 := lsbValue_lt (w.tail.take m)
-  have e2 := lsbValue_lt (w.tail.drop m)
-  rw [h1] at e1
-  rw [h2] at e2
-  exact ⟨e1, e2⟩
+  exact ⟨(lsbValue_lt (w.tail.take m)).trans_eq (congrArg (2 ^ ·) h1),
+    (lsbValue_lt (w.tail.drop m)).trans_eq (congrArg (2 ^ ·) h2)⟩
 
 /-- The distinguished source `start` has the all-zero code. -/
 theorem encodeTriangle_start (m : ℕ) : encodeTriangle m start = zeroVertex (2 * m + 1) := by
@@ -255,14 +252,9 @@ theorem eq_endOfLineRel :
   obtain ⟨t, ht, rfl⟩ :
       ∃ t, InGrid (2 ^ inst.gridExp) (2 ^ inst.gridExp) t ∧ encodeTriangle inst.gridExp t = u :=
     ⟨_, inGrid_decodeTriangle hu, encodeTriangle_decodeTriangle hu⟩
-  have hs : InGrid (2 ^ inst.gridExp) (2 ^ inst.gridExp) start :=
-    inGrid_start_iff.mpr (Nat.two_pow_pos _)
-  have hin := hasIn_encodeTriangle ht
-  have hout := hasOut_encodeTriangle ht
-  have hz : encodeTriangle inst.gridExp t = zeroVertex (2 * inst.gridExp + 1) ↔ t = start := by
-    rw [← encodeTriangle_start, encodeTriangle_inj ht hs]
   rw [decodeTriangle_encodeTriangle ht, (isSpernerColoring_color inst).trichromatic_iff ht,
-    ← hin, ← hout, ← hz]
+    ← hasIn_encodeTriangle ht, ← hasOut_encodeTriangle ht,
+    ← encodeTriangle_inj ht (inGrid_start_iff.mpr (Nat.two_pow_pos _)), encodeTriangle_start]
   generalize hasIn (fun inst => 2 * inst.gridExp + 1) pred succ inst
     (encodeTriangle inst.gridExp t) = a
   generalize hasOut (fun inst => 2 * inst.gridExp + 1) pred succ inst

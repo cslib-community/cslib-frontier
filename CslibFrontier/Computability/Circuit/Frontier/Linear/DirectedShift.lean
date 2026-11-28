@@ -19,6 +19,7 @@ import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 import CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv
 import CslibFrontier.Foundations.Probability.Gaussian.Real
 import CslibFrontier.Foundations.Probability.SecondMoment
+import CslibFrontier.Foundations.Probability.UnionBound
 import Mathlib.Analysis.Calculus.Deriv.Shift
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
@@ -130,6 +131,13 @@ theorem one_le_abs_divergence_of_cubic [Finite E] (hloop : G.Loopless)
   · rw [divergence, abs_of_neg (by omega)]
     omega
 
+/-- `|V| ≤ ∑ v, |σ(v)|` when no divergence vanishes. -/
+private theorem card_le_sum_abs_divergence [Fintype V]
+    (hodd : ∀ v : V, (1 : ℤ) ≤ |G.divergence v|) :
+    (Fintype.card V : ℝ) ≤ ∑ v : V, |(G.divergence v : ℝ)| := by
+  simpa using Finset.sum_le_sum fun v (_ : v ∈ Finset.univ) =>
+    (by exact_mod_cast hodd v : (1 : ℝ) ≤ |(G.divergence v : ℝ)|)
+
 /-- **Discrete divergence identity.** In any finite loopless multigraph,
 `2 |inCut P| + ∑_{v ∈ P} σ(v) = |edgeCut P|`. -/
 theorem two_mul_ncard_inCut_add_sum_divergence [Fintype V] [Finite E] (hloop : G.Loopless)
@@ -138,59 +146,24 @@ theorem two_mul_ncard_inCut_add_sum_divergence [Fintype V] [Finite E] (hloop : G
       ((G.edgeCut P).ncard : ℤ) := by
   classical
   have := Fintype.ofFinite E
-  have hout_v (v : V) : (G.outDeg v : ℤ) = ∑ e : E, if G.src e = v then 1 else 0 := by
-    have heq : G.outCut {v} = ↑(Finset.univ.filter fun e : E => G.src e = v) := by
-      ext e
-      simp only [mem_outCut, mem_singleton_iff, Finset.mem_coe, Finset.mem_filter,
-        Finset.mem_univ, true_and]
-      exact and_iff_left_iff_imp.mpr fun hs ht => hloop e (hs.trans ht.symm)
-    rw [outDeg, heq, ncard_coe_finset, Finset.sum_boole]
-  have hin_v (v : V) : (G.inDeg v : ℤ) = ∑ e : E, if G.tgt e = v then 1 else 0 := by
-    have heq : G.inCut {v} = ↑(Finset.univ.filter fun e : E => G.tgt e = v) := by
-      ext e
-      simp only [mem_inCut, mem_singleton_iff, Finset.mem_coe, Finset.mem_filter,
-        Finset.mem_univ, true_and, and_iff_right_iff_imp]
-      intro ht hs
-      exact hloop e (hs.trans ht.symm)
-    rw [inDeg, heq, ncard_coe_finset, Finset.sum_boole]
-  have hdiv_sum : (∑ v : V, if v ∈ P then G.divergence v else 0) =
-      ((G.outCut P).ncard : ℤ) - ((G.inCut P).ncard : ℤ) := by
-    have hsplit : (∑ v : V, if v ∈ P then G.divergence v else 0) =
-        (∑ v : V, ∑ e : E, if v ∈ P ∧ G.src e = v then (1 : ℤ) else 0) -
-          ∑ v : V, ∑ e : E, if v ∈ P ∧ G.tgt e = v then (1 : ℤ) else 0 := by
-      rw [← Finset.sum_sub_distrib]
-      refine Finset.sum_congr rfl fun v _ => ?_
-      by_cases hv : v ∈ P
-      · simp only [hv, ↓reduceIte, divergence, hout_v, hin_v, true_and]
-      · simp only [hv, ↓reduceIte, false_and, Finset.sum_const_zero, sub_zero]
-    have hswap (f : E → V) : (∑ v : V, ∑ e : E, if v ∈ P ∧ f e = v then (1 : ℤ) else 0) =
-        ∑ e : E, if f e ∈ P then 1 else 0 := by
-      rw [Finset.sum_comm]
-      refine Finset.sum_congr rfl fun e _ => ?_
-      have heq (v : V) :
-          (if v ∈ P ∧ f e = v then (1 : ℤ) else 0) =
-            if f e = v then (if f e ∈ P then 1 else 0) else 0 := by
-        by_cases hfv : f e = v <;> simp [hfv]
-      simp_rw [heq]
-      simp only [Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte]
-    have hout_c : ((G.outCut P).ncard : ℤ) =
-        ∑ e : E, if G.src e ∈ P ∧ G.tgt e ∉ P then 1 else 0 := by
-      rw [ncard_eq_toFinset_card', Finset.sum_boole]
-      congr 2
-      ext e
-      simp [mem_toFinset]
-    have hin_c : ((G.inCut P).ncard : ℤ) =
-        ∑ e : E, if G.src e ∉ P ∧ G.tgt e ∈ P then 1 else 0 := by
-      rw [ncard_eq_toFinset_card', Finset.sum_boole]
-      congr 2
-      ext e
-      simp [mem_toFinset]
-    rw [hsplit, hswap G.src, hswap G.tgt, hout_c, hin_c,
-      ← Finset.sum_sub_distrib, ← Finset.sum_sub_distrib]
+  have hcard (S : Set E) : (S.ncard : ℤ) = ∑ e : E, if e ∈ S then 1 else 0 := by
+    rw [ncard_eq_toFinset_card', Finset.sum_boole]
+    congr 2
+    ext e
+    simp
+  -- Count `σ(v)` edge by edge, then swap the order of summation.
+  have hdiv (v : V) : G.divergence v =
+      ∑ e : E, ((if G.src e = v then 1 else 0) - if G.tgt e = v then 1 else 0) := by
+    rw [divergence, outDeg, inDeg, hcard, hcard, ← Finset.sum_sub_distrib]
     refine Finset.sum_congr rfl fun e _ => ?_
-    by_cases hs : G.src e ∈ P <;> by_cases ht : G.tgt e ∈ P <;> simp [hs, ht]
-  have htot := G.ncard_edgeCut_eq_add P
-  omega
+    have := hloop e
+    by_cases hs : G.src e = v <;> by_cases ht : G.tgt e = v <;> simp_all [mem_outCut, mem_inCut]
+  simp only [hdiv, ← Finset.sum_filter]
+  rw [Finset.sum_comm, G.ncard_edgeCut_eq_add, Nat.cast_add, hcard (G.inCut P),
+    hcard (G.outCut P), Finset.mul_sum, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun e _ => ?_
+  by_cases hs : G.src e ∈ P <;> by_cases ht : G.tgt e ∈ P <;>
+    simp [Finset.sum_sub_distrib, Finset.sum_ite_eq, hs, ht, mem_outCut, mem_inCut]
 
 /-- In any finite loopless multigraph, the vertex divergences sum to zero: `∑ v, σ(v) = 0`. -/
 theorem sum_divergence [Fintype V] [Finite E] (hloop : G.Loopless) :
@@ -281,14 +254,12 @@ theorem add_ncard_block_le {d : ℕ} (hM : M.IsTotallyRegular)
   let P : ℕ → Set (Vertex c) := fun k => {v | v ∈ B.1.take k}
   let outs : Set (Vertex c) → Set (Fin N) := fun S => {o | Vertex.output o ∈ S}
   let a : ℕ → ℕ := fun k => (Gnet.readIn (P k)).ncard + (outs (P k)).ncard
-  have houts_B : outs {v | v ∈ B.1} = {o | Vertex.output o ∈ B.1} := rfl
   have h0 : a 0 ≤ N := by
     simp [a, P, outs]
-  have hT : N ≤ a B.1.length := by
-    have htake : P B.1.length = {v | v ∈ B.1} := by simp [P]
-    dsimp only [a]
-    rw [htake, houts_B]
-    omega
+  have htake : a B.1.length =
+      (Gnet.readIn {v | v ∈ B.1}).ncard + {o : Fin N | Vertex.output o ∈ B.1}.ncard := by
+    simp [a, P, outs]
+  have hT : N ≤ a B.1.length := by omega
   have hstep : ∀ k < B.1.length, a (k + 1) ≤ a k + 1 := by
     intro k hk
     set w := B.1[k]
@@ -314,13 +285,7 @@ theorem add_ncard_block_le {d : ℕ} (hM : M.IsTotallyRegular)
     dsimp only [a]
     omega
   obtain ⟨k₀, hk₀_le, hk₀_eq⟩ := Nat.exists_eq_of_forall_le_add_one h0 hT hstep
-  have hk₀_lt : k₀ < B.1.length := by
-    rcases hk₀_le.eq_or_lt with rfl | hlt
-    · have htake : P B.1.length = {v | v ∈ B.1} := by simp [P]
-      dsimp only [a] at hk₀_eq
-      rw [htake, houts_B] at hk₀_eq
-      omega
-    · exact hlt
+  have hk₀_lt : k₀ < B.1.length := hk₀_le.lt_of_ne (by rintro rfl; omega)
   have hdem := min_le_ncard_edgeCut hM hc hcap (P k₀)
   change min (a k₀) (2 * N - a k₀) ≤ ((graph c).edgeCut {v | v ∈ B.1.take k₀}).ncard at hdem
   rw [hk₀_eq, show 2 * N - N = N by omega, min_self] at hdem
@@ -460,12 +425,7 @@ theorem sum_measureReal_inCut_shiftedCut_le {Ω V E : Type*} [MeasurableSpace Ω
   have hmeas_in (e : E) : MeasurableSet {ω | e ∈ G.inCut (shiftedCut G (M ω) d)} :=
     (hmeas_v (G.src e)).compl.inter (hmeas_v (G.tgt e))
   have hmeas_ed (e : E) : MeasurableSet {ω | e ∈ G.edgeCut (shiftedCut G (M ω) d)} := by
-    have heq : {ω | e ∈ G.edgeCut (shiftedCut G (M ω) d)} =
-        {ω | e ∈ G.inCut (shiftedCut G (M ω) d)} ∪
-          {ω | e ∈ G.outCut (shiftedCut G (M ω) d)} := by
-      ext ω
-      simp only [mem_ofPred_eq, G.edgeCut_eq_inCut_union_outCut, mem_union]
-    rw [heq]
+    simp only [G.edgeCut_eq_inCut_union_outCut, mem_union, ofPred_or]
     exact (hmeas_in e).union ((hmeas_v (G.src e)).inter (hmeas_v (G.tgt e)).compl)
   -- Integrate the pointwise identity `2 * inCut + sum_div = edgeCut` over `ω ~ P`.
   have hpt (ω : Ω) :
@@ -511,11 +471,9 @@ theorem sum_measureReal_inCut_shiftedCut_le {Ω V E : Type*} [MeasurableSpace Ω
       rw [integral_finsetSum Finset.univ fun v _ => hint_v v]
       refine Finset.sum_congr rfl fun v _ => ?_
       rw [integral_const_mul, integral_indicator_one (hmeas_v v)]
-    rw [hsum_v] at hI
-    exact hI
+    rwa [hsum_v] at hI
   -- Evaluate `∑_v σ(v) P(v ∈ P_d) = (1 / 2 - q) ∑_v |σ(v)| + (1 / 2) ∑_v σ(v)`.
-  have hsum_zero : (∑ v : V, (G.divergence v : ℝ)) = 0 := by
-    exact_mod_cast G.sum_divergence hloop
+  have hsum_zero : (∑ v : V, (G.divergence v : ℝ)) = 0 := mod_cast G.sum_divergence hloop
   have hdiv_eval :
       (∑ v : V, (G.divergence v : ℝ) * P.real {ω | v ∈ shiftedCut G (M ω) d}) =
         (1 - 2 * q) / 2 * (∑ v : V, |(G.divergence v : ℝ)|) := by
@@ -524,31 +482,19 @@ theorem sum_measureReal_inCut_shiftedCut_le {Ω V E : Type*} [MeasurableSpace Ω
       by_cases hv : 0 < G.divergence v
       · have hP : P.real {ω | v ∈ shiftedCut G (M ω) d} = 1 - q := by
           simpa [shiftedCut, hv] using hpos v hv
-        have habs : |(G.divergence v : ℝ)| = (G.divergence v : ℝ) :=
-          abs_of_pos (by exact_mod_cast hv)
-        rw [hP, habs]
+        rw [hP, abs_of_pos (by exact_mod_cast hv)]
         ring
       · have hP : P.real {ω | v ∈ shiftedCut G (M ω) d} = q := by
           simpa [shiftedCut, hv] using hneg v hv
-        have hle : (G.divergence v : ℝ) ≤ 0 := by
-          exact_mod_cast le_of_not_gt hv
-        have habs : |(G.divergence v : ℝ)| = -(G.divergence v : ℝ) := abs_of_nonpos hle
-        rw [hP, habs]
+        rw [hP, abs_of_nonpos (by exact_mod_cast le_of_not_gt hv)]
         ring
     simp_rw [hv_eq]
     rw [Finset.sum_add_distrib, ← Finset.sum_div, hsum_zero, zero_div, zero_add,
       ← Finset.mul_sum]
     ring
-  have habs_ge : (Fintype.card V : ℝ) ≤ ∑ v : V, |(G.divergence v : ℝ)| := by
-    calc (Fintype.card V : ℝ) = ∑ _v : V, (1 : ℝ) := by simp
-      _ ≤ ∑ v : V, |(G.divergence v : ℝ)| := by
-        refine Finset.sum_le_sum fun v _ => ?_
-        exact_mod_cast hodd v
-  have h12 : 0 ≤ 1 - 2 * q := by linarith
-  have hprod := mul_le_mul_of_nonneg_left habs_ge (by linarith : 0 ≤ (1 - 2 * q) / 2)
-  have hrew : (1 - 2 * q) / 2 * (Fintype.card V : ℝ) = 2 * ((1 / 4 - q / 2) * Fintype.card V) := by
-    ring
-  linarith [hmean_eq, hdiv_eval, hprod, hrew]
+  have hprod := mul_le_mul_of_nonneg_left (card_le_sum_abs_divergence G hodd)
+    (by linarith : 0 ≤ (1 - 2 * q) / 2)
+  linarith [hmean_eq, hdiv_eval, hprod]
 
 /-- **Smooth divergence shift theorem.** On a nonempty finite loopless cubic
 multigraph `G`, let `M : Ω → V → ℝ` have symmetric marginal cdf `F` (`F 0 = 1 / 2`,
@@ -631,9 +577,7 @@ theorem exists_pos_shifted_inCut_ratio_lt {Ω V E : Type*} [MeasurableSpace Ω]
     rw [div_le_iff₀ hhpos]
     have hc_def : c d * h = ∑ e : E, P.real {ω | e ∈ G.edgeCut (shiftedCut G (M ω) d)} :=
       div_mul_cancel₀ _ hhpos.ne'
-    have hrew_h : (c d / 2 - (1 / 4 - q d / 2)) * h =
-        c d * h / 2 - (1 / 4 - q d / 2) * h := by ring
-    linarith [hin_le, hc_def, hrew_h]
+    linarith [hin_le, hc_def]
   exact (div_le_div_of_nonneg_right hdiv_h hqd_pos.le).trans_lt hu_lt
 
 end Cslib.Circuits.Frontier.DirectedShift
@@ -654,6 +598,20 @@ at correlation `ρ` and shift `d`. -/
 noncomputable def shiftedSupply (ρ d : ℝ) : ℝ :=
   (correlatedGaussian ρ).real {p | d < p.1 ∧ p.2 ≤ -d} +
     1 / 2 * (correlatedGaussian ρ).real {p | -d < p.1 ∧ p.2 ≤ d}
+
+private theorem shiftedSupply_nonneg (ρ d : ℝ) : 0 ≤ shiftedSupply ρ d := by
+  unfold shiftedSupply
+  positivity
+
+private theorem card_edges_eq_of_cubic {V E : Type*} [Fintype V] [Fintype E]
+    {Q : Multigraph V E} (hloop : Q.Loopless) (h3 : ∀ v, (Q.incidenceSet v).ncard = 3) :
+    (Fintype.card E : ℝ) = 3 / 2 * Fintype.card V := by
+  have hsum := Q.sum_ncard_incidenceSet hloop
+  simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul] at hsum
+  have : ((Fintype.card V * 3 : ℕ) : ℝ) = ((2 * Nat.card E : ℕ) : ℝ) := by exact_mod_cast hsum
+  rw [← Nat.card_eq_fintype_card (α := E)]
+  push_cast at this
+  linarith
 
 /-- **Exact 4-type cubic degree-balance LP.** On any finite loopless 3-regular multigraph `Q`, if
 every adjacent pair has inner product at least `ρ ∈ [0, 1]` and `0 ≤ d`, then the expected size of
@@ -685,11 +643,9 @@ theorem sum_measureReal_inCut_vertexScore_le {V E : Type*} [Fintype V] [Fintype 
     have hu : ‖u‖ = 1 := norm_unitKernelRow q R (Q.src e)
     have hv : ‖v‖ = 1 := norm_unitKernelRow q R (Q.tgt e)
     set ρ_e := ⟪u, v⟫
-    have hρe_lo : ρ ≤ ρ_e := by
-      have hle : 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R ≤ ρ_e := by
-        convert le_inner_unitKernelRow_src_tgt hloop (d := 3) (by norm_num) hdeg hq R e using 2
-        norm_num
-      exact hρ.trans hle
+    have hρe_lo : ρ ≤ ρ_e := hρ.trans <| by
+      convert le_inner_unitKernelRow_src_tgt hloop (d := 3) (by norm_num) hdeg hq R e using 2
+      norm_num
     have hρe_hi : ρ_e ≤ 1 := (real_inner_le_norm u v).trans_eq (by rw [hu, hv, mul_one])
     set tu : ℝ := if 0 < Q.divergence (Q.src e) then d else -d
     set tv : ℝ := if 0 < Q.divergence (Q.tgt e) then d else -d
@@ -707,13 +663,7 @@ theorem sum_measureReal_inCut_vertexScore_le {V E : Type*} [Fintype V] [Fintype 
     exact measureReal_correlatedGaussian_gt_neg_le_neg hρ_abs d
   -- Partition `V` into the 4 cubic divergence classes `(+3, +1, -1, -3)` and bound `∑ e, wt e`.
   set h : ℝ := (Fintype.card V : ℝ)
-  have hE_card : (Fintype.card E : ℝ) = 3 / 2 * h := by
-    have hsum := Q.sum_ncard_incidenceSet hloop
-    simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul] at hsum
-    have : ((Fintype.card V * 3 : ℕ) : ℝ) = ((2 * Nat.card E : ℕ) : ℝ) := by exact_mod_cast hsum
-    rw [← Nat.card_eq_fintype_card (α := E)]
-    push_cast at this
-    linarith
+  have hE_card : (Fintype.card E : ℝ) = 3 / 2 * h := card_edges_eq_of_cubic hloop h3
   set Vpos : Set V := {v | 0 < Q.divergence v}
   set e_pm : ℝ := ((Q.outCut Vpos).ncard : ℝ)
   set e_mp : ℝ := ((Q.inCut Vpos).ncard : ℝ)
@@ -728,17 +678,9 @@ theorem sum_measureReal_inCut_vertexScore_le {V E : Type*} [Fintype V] [Fintype 
           not_true_eq_false, not_false_eq_true, and_self, and_false, false_and] <;> ring
     simp_rw [h1, Finset.sum_add_distrib, ← Finset.sum_mul, Finset.sum_const, Finset.card_univ,
       nsmul_eq_mul, Finset.sum_boole]
-    have ho : ((Finset.univ.filter (· ∈ Q.outCut Vpos)).card : ℝ) = e_pm := by
-      rw [← ncard_coe_finset]
-      congr 2
-      ext e
-      simp
-    have hi : ((Finset.univ.filter (· ∈ Q.inCut Vpos)).card : ℝ) = e_mp := by
-      rw [← ncard_coe_finset]
-      congr 2
-      ext e
-      simp
-    rw [ho, hi]
+    have hcnt (S : Set E) : ((Finset.univ.filter (· ∈ S)).card : ℝ) = (S.ncard : ℝ) := by
+      rw [Set.filter_mem_univ_eq_toFinset, ncard_eq_toFinset_card']
+    rw [hcnt, hcnt]
   -- Divergence identity on `Vpos`: `e_pm - e_mp = ∑_{v ∈ Vpos} σ(v)`.
   have hflux : e_pm - e_mp = ∑ v : V, if 0 < Q.divergence v then (Q.divergence v : ℝ) else 0 := by
     have hdiv := Q.two_mul_ncard_inCut_add_sum_divergence hloop Vpos
@@ -756,40 +698,28 @@ theorem sum_measureReal_inCut_vertexScore_le {V E : Type*} [Fintype V] [Fintype 
       rfl
     linarith [hcast, hlinR]
   -- Total divergence is `0`, so `2 * (e_pm - e_mp) = ∑_v |σ(v)| ≥ |V|`:
-  have hsum_zero : (∑ v : V, (Q.divergence v : ℝ)) = 0 := by
-    exact_mod_cast Q.sum_divergence hloop
+  have hsum_zero : (∑ v : V, (Q.divergence v : ℝ)) = 0 := mod_cast Q.sum_divergence hloop
   have hflux_ge : h / 2 ≤ e_pm - e_mp := by
-    have hsplit_abs (v : V) :
-        2 * (if 0 < Q.divergence v then (Q.divergence v : ℝ) else 0) - (Q.divergence v : ℝ) =
-          |(Q.divergence v : ℝ)| := by
-      by_cases hv : 0 < Q.divergence v
-      · simp only [hv, ↓reduceIte, abs_of_pos (show (0 : ℝ) < Q.divergence v by exact_mod_cast hv)]
+    have hpt (v : V) : |(Q.divergence v : ℝ)| =
+        2 * (if 0 < Q.divergence v then (Q.divergence v : ℝ) else 0) - Q.divergence v := by
+      split_ifs with hv
+      · rw [abs_of_pos (by exact_mod_cast hv)]
         ring
-      · simp only [hv, ↓reduceIte,
-          abs_of_nonpos (show (Q.divergence v : ℝ) ≤ 0 by exact_mod_cast le_of_not_gt hv)]
+      · rw [abs_of_nonpos (by exact_mod_cast le_of_not_gt hv)]
         ring
     have habs_sum : 2 * (e_pm - e_mp) = ∑ v : V, |(Q.divergence v : ℝ)| := by
-      calc 2 * (e_pm - e_mp)
-          = 2 * (∑ v : V, if 0 < Q.divergence v then (Q.divergence v : ℝ) else 0) -
-              ∑ v : V, (Q.divergence v : ℝ) := by rw [hflux, hsum_zero, sub_zero]
-        _ = ∑ v : V, (2 * (if 0 < Q.divergence v then (Q.divergence v : ℝ) else 0) -
-              (Q.divergence v : ℝ)) := by rw [Finset.mul_sum, ← Finset.sum_sub_distrib]
-        _ = ∑ v : V, |(Q.divergence v : ℝ)| := Finset.sum_congr rfl fun v _ => hsplit_abs v
-    have hodd := Q.one_le_abs_divergence_of_cubic hloop h3
-    have hge : h ≤ ∑ v : V, |(Q.divergence v : ℝ)| := by
-      calc h = ∑ _v : V, (1 : ℝ) := by simp [h]
-        _ ≤ ∑ v : V, |(Q.divergence v : ℝ)| :=
-          Finset.sum_le_sum fun v _ => by exact_mod_cast hodd v
+      rw [Finset.sum_congr rfl fun v _ => hpt v, Finset.sum_sub_distrib, hsum_zero, sub_zero,
+        ← Finset.mul_sum, hflux]
+    have hge : h ≤ ∑ v : V, |(Q.divergence v : ℝ)| :=
+      card_le_sum_abs_divergence Q (Q.one_le_abs_divergence_of_cubic hloop h3)
     linarith
   -- Also `e_pm + e_mp = |edgeCut Vpos| ≤ |E| = 3 / 2 * h`:
   have hcross_le : e_pm + e_mp ≤ 3 / 2 * h := by
-    have hadd := Q.ncard_edgeCut_eq_add Vpos
-    have hle : (Q.edgeCut Vpos).ncard ≤ Nat.card E := ncard_le_card _
-    rw [Nat.card_eq_fintype_card] at hle
-    have hleR : ((Q.edgeCut Vpos).ncard : ℝ) ≤ (Fintype.card E : ℝ) := by exact_mod_cast hle
+    have hleR : ((Q.edgeCut Vpos).ncard : ℝ) ≤ (Fintype.card E : ℝ) :=
+      mod_cast (ncard_le_card _).trans_eq Nat.card_eq_fintype_card
     have haddR : ((Q.edgeCut Vpos).ncard : ℝ) = e_mp + e_pm := by
       dsimp only [e_mp, e_pm]
-      exact_mod_cast hadd
+      exact_mod_cast Q.ncard_edgeCut_eq_add Vpos
     linarith [hE_card]
   -- Nonnegativity of `p_mp - p_pm = Φ d - Φ (-d)` and `p_pm + p_mp - 2 * p_dd`:
   have hdiff_nonneg : 0 ≤ p_mp - p_pm := by
@@ -857,6 +787,16 @@ private theorem gaussianPDFReal_eq_inv_sqrt (t : ℝ) :
   congr 2
   ring
 
+private theorem integral_inv_sqrt_mul_one_sub_mul_sq (k a b : ℝ) :
+    ∫ u in a..b, (√(2 * π))⁻¹ * (1 - k * u ^ 2) =
+      (√(2 * π))⁻¹ * ((b - a) - k / 3 * (b ^ 3 - a ^ 3)) := by
+  have hc : Continuous fun u : ℝ => k * u ^ 2 := by fun_prop
+  rw [intervalIntegral.integral_const_mul, intervalIntegral.integral_sub intervalIntegrable_const
+      (hc.intervalIntegrable (μ := volume) a b), intervalIntegral.integral_const,
+    intervalIntegral.integral_const_mul, integral_pow]
+  simp only [smul_eq_mul]
+  ring
+
 /-- Tight rational upper bound on `Φ (-1 / 20)` via `1 - x ^ 2 / 2 ≤ exp (-x ^ 2 / 2)`. -/
 private theorem cdf_neg_one_div_twenty_le :
     Φ (-1 / 20) ≤ 240030599 / 500000000 := by
@@ -875,31 +815,23 @@ private theorem cdf_neg_one_div_twenty_le :
     have hn : Φ (-d) = 1 - Φ d := cdf_gaussianReal_neg one_ne_zero d
     linarith
   have hint_lo : (√(2 * π))⁻¹ * (d - d ^ 3 / 6) ≤ ∫ x in (0 : ℝ)..d, φ x := by
-    have hc : Continuous fun x : ℝ => (√(2 * π))⁻¹ * (1 - x ^ 2 / 2) := by fun_prop
+    have hc : Continuous fun x : ℝ => (√(2 * π))⁻¹ * (1 - 1 / 2 * x ^ 2) := by fun_prop
     have hm := intervalIntegral.integral_mono_on hd_nonneg
       (hc.intervalIntegrable (μ := volume) 0 d)
       ((continuous_gaussianPDFReal 0 1).intervalIntegrable 0 d) fun x _ => by
         rw [gaussianPDFReal_eq_inv_sqrt]
         refine mul_le_mul_of_nonneg_left ?_ (by positivity)
         linarith [add_one_le_exp (-(x ^ 2 / 2))]
-    have hc2 : Continuous fun x : ℝ => x ^ 2 / 2 := by fun_prop
-    have heval : (∫ x in (0 : ℝ)..d, (√(2 * π))⁻¹ * (1 - x ^ 2 / 2)) =
-        (√(2 * π))⁻¹ * (d - d ^ 3 / 6) := by
-      rw [intervalIntegral.integral_const_mul,
-        intervalIntegral.integral_sub intervalIntegrable_const
-          (hc2.intervalIntegrable (μ := volume) 0 d),
-        intervalIntegral.integral_const, intervalIntegral.integral_div, integral_pow]
-      simp only [smul_eq_mul]
-      ring
-    exact heval ▸ hm
+    rw [integral_inv_sqrt_mul_one_sub_mul_sq] at hm
+    exact le_of_eq_of_le (by ring) hm
   have hnum_pos : 0 < d - d ^ 3 / 6 := by dsimp [d]; norm_num
   have hdiv_ge : (d - d ^ 3 / 6) / (250662828 / 100000000) ≤ (√(2 * π))⁻¹ * (d - d ^ 3 / 6) := by
     rw [inv_mul_eq_div]
     exact div_le_div_of_nonneg_left hnum_pos.le hrt_pos hrt_hi.le
   have hrat : 1 / 2 - (d - d ^ 3 / 6) / (250662828 / 100000000) ≤ 240030599 / 500000000 := by
     dsimp [d]; norm_num
-  have hgoal : Φ (-d) ≤ 240030599 / 500000000 := by linarith
-  rwa [show (-1 / 20 : ℝ) = -d by dsimp [d]; norm_num]
+  rw [show (-1 / 20 : ℝ) = -d by dsimp [d]; norm_num]
+  linarith
 
 /-- Polynomial upper-bound helper for the 2-step FTC quadrant shift integral at `d = 1 / 20`. -/
 private noncomputable def shiftPoly (x : ℝ) : ℝ :=
@@ -976,6 +908,10 @@ private theorem two_seven_seven_le_correlatedGaussian_shift :
       1 / 2 - arccos ρ / (2 * π) := by
     rw [← gaussianQuadrant_cdf_cdf, cdf_gaussianReal_zero_zero one_ne_zero, one_div,
       ← one_div, gaussianQuadrant_half_half hρ_abs.le]
+  have hci (f : ℝ → ℝ) (hf : Continuous f) :
+      IntervalIntegrable (fun x => φ x * Φ (f x)) volume 0 d :=
+    ((continuous_gaussianPDFReal 0 1).mul
+      ((continuous_cdf_gaussianReal 0 one_ne_zero).comp hf)).intervalIntegrable 0 d
   have hftc1 : (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ 0} -
       (correlatedGaussian ρ).real {p | p.1 ≤ 0 ∧ p.2 ≤ 0} =
       ∫ x in (0 : ℝ)..d, φ x * Φ (-3 * ρ * x) := by
@@ -984,12 +920,9 @@ private theorem two_seven_seven_le_correlatedGaussian_shift :
         (φ x * Φ (-3 * ρ * x)) x := by
       intro x _
       have h := hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_left hρ_abs x 0
-      rw [hs_eq, show (0 - ρ * x) / (1 / 3) = -3 * ρ * x by ring] at h
-      exact h
-    have hc1 : IntervalIntegrable (fun x => φ x * Φ (-3 * ρ * x)) volume 0 d :=
-      ((continuous_gaussianPDFReal 0 1).mul
-        ((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop))).intervalIntegrable 0 d
-    exact (intervalIntegral.integral_eq_sub_of_hasDerivAt hd1 hc1).symm
+      rwa [hs_eq, show (0 - ρ * x) / (1 / 3) = -3 * ρ * x by ring] at h
+    exact (intervalIntegral.integral_eq_sub_of_hasDerivAt hd1
+      (hci (fun x => -3 * ρ * x) (by fun_prop))).symm
   have hftc2 : (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ -d} -
       (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ 0} =
       ∫ x in (0 : ℝ)..d, -(φ x * Φ (3 * d + 3 * ρ * x)) := by
@@ -999,42 +932,24 @@ private theorem two_seven_seven_le_correlatedGaussian_shift :
       intro x _
       have h := (hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_right hρ_abs d (-x)).comp
         x (hasDerivAt_neg x)
-      rw [hs_eq, gaussianPDFReal_even,
+      rwa [hs_eq, gaussianPDFReal_even,
         show (d - ρ * -x) / (1 / 3) = 3 * d + 3 * ρ * x by ring, mul_neg_one] at h
-      exact h
-    have hc2 : IntervalIntegrable (fun x => -(φ x * Φ (3 * d + 3 * ρ * x))) volume 0 d :=
-      (((continuous_gaussianPDFReal 0 1).mul
-        ((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop))).neg).intervalIntegrable
-        0 d
-    simpa only [neg_zero] using (intervalIntegral.integral_eq_sub_of_hasDerivAt hd2 hc2).symm
+    simpa only [neg_zero] using (intervalIntegral.integral_eq_sub_of_hasDerivAt hd2
+      (hci (fun x => 3 * d + 3 * ρ * x) (by fun_prop)).neg).symm
   have hdiff_eq : (correlatedGaussian ρ).real {p | p.1 ≤ 0 ∧ p.2 ≤ 0} -
       (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ -d} =
       ∫ x in (0 : ℝ)..d, φ x * (Φ (3 * d + 3 * ρ * x) - Φ (-3 * ρ * x)) := by
-    have hc1 : IntervalIntegrable (fun x => φ x * Φ (-3 * ρ * x)) volume 0 d :=
-      ((continuous_gaussianPDFReal 0 1).mul
-        ((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop))).intervalIntegrable 0 d
-    have hc2 : IntervalIntegrable (fun x => φ x * Φ (3 * d + 3 * ρ * x)) volume 0 d :=
-      ((continuous_gaussianPDFReal 0 1).mul
-        ((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop))).intervalIntegrable 0 d
-    have hsub := intervalIntegral.integral_sub hc2 hc1
-    have hneg := intervalIntegral.integral_neg (μ := volume) (a := (0 : ℝ)) (b := d)
-      (f := fun x => φ x * Φ (3 * d + 3 * ρ * x))
-    have hcongr : (∫ x in (0 : ℝ)..d, (φ x * Φ (3 * d + 3 * ρ * x) - φ x * Φ (-3 * ρ * x))) =
-        ∫ x in (0 : ℝ)..d, φ x * (Φ (3 * d + 3 * ρ * x) - Φ (-3 * ρ * x)) :=
-      intervalIntegral.integral_congr fun x _ => by ring
-    linarith [hftc1, hftc2, hsub, hneg, hcongr]
-  have hphi_u {u : ℝ} (hu : u ^ 2 ≤ 9 / 100) :
-      φ u ≤ (√(2 * π))⁻¹ * (1 - 391 / 800 * u ^ 2) := by
+    rw [intervalIntegral.integral_neg] at hftc2
+    simp_rw [mul_sub]
+    rw [intervalIntegral.integral_sub (hci (fun x => 3 * d + 3 * ρ * x) (by fun_prop))
+      (hci (fun x => -3 * ρ * x) (by fun_prop))]
+    linarith
+  -- Quadratic Taylor bound `φ u ≤ (1 - k u²) / √(2π)` for `u² ≤ 8 (1 / 2 - k)`:
+  have hphi {u k : ℝ} (hu : u ^ 2 ≤ 8 * (1 / 2 - k)) :
+      φ u ≤ (√(2 * π))⁻¹ * (1 - k * u ^ 2) := by
     rw [gaussianPDFReal_eq_inv_sqrt]
     refine mul_le_mul_of_nonneg_left ?_ (by positivity)
-    have hexp := Real.exp_neg_le_one_sub_add_sq_div_two (x := u ^ 2 / 2) (by positivity)
-    nlinarith [sq_nonneg u]
-  have hphi_x {x : ℝ} (hx : x ^ 2 ≤ 1 / 400) :
-      φ x ≤ (√(2 * π))⁻¹ * (1 - 1599 / 3200 * x ^ 2) := by
-    rw [gaussianPDFReal_eq_inv_sqrt]
-    refine mul_le_mul_of_nonneg_left ?_ (by positivity)
-    have hexp := Real.exp_neg_le_one_sub_add_sq_div_two (x := x ^ 2 / 2) (by positivity)
-    nlinarith [sq_nonneg x]
+    nlinarith [sq_nonneg u, Real.exp_neg_le_one_sub_add_sq_div_two (x := u ^ 2 / 2) (by positivity)]
   have hpt_le : ∀ x ∈ Icc (0 : ℝ) d,
       φ x * (Φ (3 * d + 3 * ρ * x) - Φ (-3 * ρ * x)) ≤ (2 * π)⁻¹ * shiftPoly x := by
     rintro x ⟨hx0, hxd⟩
@@ -1048,26 +963,17 @@ private theorem two_seven_seven_le_correlatedGaussian_shift :
     have hinner_le : ∫ u in a..b, φ u ≤
         (√(2 * π))⁻¹ * ((b - a) - 391 / 2400 * (b ^ 3 - a ^ 3)) := by
       have hcu : Continuous fun u : ℝ => (√(2 * π))⁻¹ * (1 - 391 / 800 * u ^ 2) := by fun_prop
-      have hcu2 : Continuous fun u : ℝ => 391 / 800 * u ^ 2 := by fun_prop
       have hmono := intervalIntegral.integral_mono_on hab
         ((continuous_gaussianPDFReal 0 1).intervalIntegrable a b)
-        (hcu.intervalIntegrable (μ := volume) a b) fun u hu => hphi_u (by
+        (hcu.intervalIntegrable (μ := volume) a b) fun u hu => hphi (by
           rcases hu with ⟨hua, hub⟩
           have ha_lo : -3 / 20 ≤ a := by dsimp [a, d] at hxd ⊢; nlinarith [hρ_lt]
           have hb_hi : b ≤ 3 / 10 := by dsimp [b, d] at hxd ⊢; nlinarith [hρ_lt]
           have habs : |u| ≤ 3 / 10 := abs_le.mpr ⟨by linarith, by linarith⟩
           nlinarith [sq_abs u, abs_nonneg u])
-      have geval : (∫ u in a..b, (√(2 * π))⁻¹ * (1 - 391 / 800 * u ^ 2)) =
-          (√(2 * π))⁻¹ * ((b - a) - 391 / 2400 * (b ^ 3 - a ^ 3)) := by
-        rw [intervalIntegral.integral_const_mul,
-          intervalIntegral.integral_sub intervalIntegrable_const
-            (hcu2.intervalIntegrable (μ := volume) a b),
-          intervalIntegral.integral_const, intervalIntegral.integral_const_mul, integral_pow]
-        simp only [smul_eq_mul]
-        ring
-      exact hmono.trans_eq geval
+      exact hmono.trans_eq ((integral_inv_sqrt_mul_one_sub_mul_sq _ a b).trans (by ring))
     have hcdf_nonneg : 0 ≤ Φ b - Φ a := sub_nonneg.mpr (monotone_cdf _ hab)
-    have hpx_le := hphi_x (x := x) (by dsimp [d] at hxd; nlinarith)
+    have hpx_le := hphi (u := x) (k := 1599 / 3200) (by dsimp [d] at hxd; nlinarith)
     have hpx_pos : 0 ≤ (√(2 * π))⁻¹ * (1 - 1599 / 3200 * x ^ 2) :=
       (gaussianPDFReal_nonneg 0 1 x).trans hpx_le
     calc φ x * (Φ b - Φ a)
@@ -1102,28 +1008,20 @@ private theorem two_seven_seven_le_correlatedGaussian_shift :
       rw [intervalIntegral.integral_const_mul,
         intervalIntegral.integral_eq_sub_of_hasDerivAt (fun x _ => hasDerivAt_shiftAntideriv x)
           (hcP0.intervalIntegrable (μ := volume) 0 d)]
-    have hanti := shiftAntideriv_diff_le
     have hmul : (2 * π)⁻¹ * (shiftAntideriv d - shiftAntideriv 0) ≤
         (2 * π)⁻¹ * (14461263 / 1000000000) :=
-      mul_le_mul_of_nonneg_left (by simpa [d] using hanti) (by positivity)
+      mul_le_mul_of_nonneg_left (by simpa [d] using shiftAntideriv_diff_le) (by positivity)
     exact hm.trans (hint_P ▸ hmul)
-  have harccos : arccos ρ ≤ 3398371 / 10000000 := arccos_two_sqrt_two_div_three_le
-  have hpos_num : 0 ≤ arccos ρ + 14461263 / 1000000000 := by
-    have := arccos_nonneg ρ
-    positivity
-  have hdiv_le : (arccos ρ + 14461263 / 1000000000) / (2 * π) ≤
-      (3398371 / 10000000 + 14461263 / 1000000000) / (2 * (3141592653 / 1000000000)) :=
-    (div_le_div_of_nonneg_right (by linarith) (by positivity)).trans
+  have hdiv_le : arccos ρ / (2 * π) + (2 * π)⁻¹ * (14461263 / 1000000000) ≤
+      (3398371 / 10000000 + 14461263 / 1000000000) / (2 * (3141592653 / 1000000000)) := by
+    rw [← div_eq_inv_mul, ← add_div]
+    exact (div_le_div_of_nonneg_right (by linarith [arccos_two_sqrt_two_div_three_le])
+      (by positivity)).trans
       (div_le_div_of_nonneg_left (by norm_num) (by norm_num) (by linarith [hpi_lo]))
-  have hsplit : arccos ρ / (2 * π) + (2 * π)⁻¹ * (14461263 / 1000000000) =
-      (arccos ρ + 14461263 / 1000000000) / (2 * π) := by ring
-  have hrat : (27725729 / 62500000 : ℝ) ≤
-      1 / 2 - (3398371 / 10000000 + 14461263 / 1000000000) /
-        (2 * (3141592653 / 1000000000)) := by norm_num
-  have hgoal : (27725729 / 62500000 : ℝ) ≤
-      (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ -d} := by
-    linarith [hf00, hint_le, hsplit, hdiv_le, hrat]
-  rwa [show (-1 / 20 : ℝ) = -d by dsimp [d]; norm_num]
+  rw [show (-1 / 20 : ℝ) = -d by dsimp [d]; norm_num]
+  linarith [hf00, hint_le, hdiv_le, show (27725729 / 62500000 : ℝ) ≤
+    1 / 2 - (3398371 / 10000000 + 14461263 / 1000000000) / (2 * (3141592653 / 1000000000)) by
+      norm_num]
 
 /-- **Strict rational certificate**
 `4217 / 1000 < 1 + Φ(-1/20) / (2 · shiftedSupply (2√2/3) (1/20))`.
@@ -1146,9 +1044,7 @@ theorem four_two_one_seven_lt_shifted_coeff :
     have hsymm : (correlatedGaussian ρ).real {p | p.1 ≤ -d ∧ p.2 ≤ d} =
         (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ -d} := by
       rw [← gaussianQuadrant_cdf_cdf, ← gaussianQuadrant_cdf_cdf, gaussianQuadrant_comm hρ_abs.le]
-    have hcdf : Φ d = 1 - Φ (-d) := by
-      have := cdf_gaussianReal_neg (v := 1) one_ne_zero d
-      linarith
+    have hcdf : Φ d = 1 - Φ (-d) := by linarith [cdf_gaussianReal_neg (v := 1) one_ne_zero d]
     rw [hsymm, hcdf]
     ring
   have hPhi_hi : Φ (-d) ≤ 240030599 / 500000000 := by
@@ -1233,13 +1129,8 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
   have hstrict := DirectedShift.four_two_one_seven_lt_shifted_coeff
   -- Choose `ρ ∈ (0, ρStar)` and `δ > 0` by continuity of `(q₀ - 2 * δ) / (2 * shiftedSupply ρ d₀)`:
   set fStar := DirectedShift.shiftedSupply ρStar d₀
-  have hfStar_pos : 0 < fStar := by
-    by_contra! hle
-    have hge : 0 ≤ fStar := by
-      unfold fStar DirectedShift.shiftedSupply
-      positivity
-    have hf0 : fStar = 0 := le_antisymm hle hge
-    rw [hf0, mul_zero, div_zero, add_zero] at hstrict
+  have hfStar_pos : 0 < fStar := (DirectedShift.shiftedSupply_nonneg _ _).lt_of_ne fun h0 => by
+    rw [show fStar = 0 from h0.symm, mul_zero, div_zero, add_zero] at hstrict
     norm_num at hstrict
   -- Continuous function `(ρ, δ) ↦ 1 + (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀)`:
   have hcont_L : ContinuousAt
@@ -1272,18 +1163,12 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
   have hL_close := hball hdist
   rw [Real.dist_eq, hval_0] at hL_close
   have hL_gt : 4217 / 1000 < 1 + (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀) := by
-    have := neg_abs_le (1 + (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀) -
-      (1 + q₀ / (2 * fStar)))
-    have := min_le_right (ε / 2) ((1 + q₀ / (2 * fStar) - 4217 / 1000) / 2)
-    linarith
-  have hfρ_pos : 0 < DirectedShift.shiftedSupply ρ d₀ := by
-    by_contra! hle
-    have hge : 0 ≤ DirectedShift.shiftedSupply ρ d₀ := by
-      unfold DirectedShift.shiftedSupply
-      positivity
-    have hf0 : DirectedShift.shiftedSupply ρ d₀ = 0 := le_antisymm hle hge
-    rw [hf0, mul_zero, div_zero, add_zero] at hL_gt
-    norm_num at hL_gt
+    linarith [(abs_sub_lt_iff.mp hL_close).2,
+      min_le_right (ε / 2) ((1 + q₀ / (2 * fStar) - 4217 / 1000) / 2)]
+  have hfρ_pos : 0 < DirectedShift.shiftedSupply ρ d₀ :=
+    (DirectedShift.shiftedSupply_nonneg _ _).lt_of_ne fun h0 => by
+      rw [← h0, mul_zero, div_zero, add_zero] at hL_gt
+      norm_num at hL_gt
   -- Obtain kernel decay `q_k ≥ 0` and radius `R` for `ρ < vertexCorrelation 3 = 2√2 / 3`:
   have hvcorr : Gaussian.vertexCorrelation 3 = ρStar := by
     unfold Gaussian.vertexCorrelation ρStar
@@ -1293,25 +1178,16 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
   norm_num at hρ_kern
   set D_ov : ℕ := Gaussian.vertexOverlap 3 R
   -- Choose `N` large enough for `28 ≤ N`, `20 * D_ov / δ ^ 2 < N`, and `2 < ε * N`:
-  have hlarge1 : ∀ᶠ N : ℕ in atTop, 28 ≤ N := eventually_ge_atTop 28
-  have hlarge2 : ∀ᶠ N : ℕ in atTop, 20 * (D_ov : ℝ) / δ ^ 2 < (N : ℝ) := by
-    obtain ⟨N₁, hN₁⟩ := exists_nat_gt (20 * (D_ov : ℝ) / δ ^ 2)
-    filter_upwards [eventually_ge_atTop N₁] with N hN
-    exact hN₁.trans_le (by exact_mod_cast hN)
-  have hlarge3 : ∀ᶠ N : ℕ in atTop, 2 < ε * (N : ℝ) := by
-    obtain ⟨N₂, hN₂⟩ := exists_nat_gt (2 / ε)
-    filter_upwards [eventually_ge_atTop N₂] with N hN
-    have : 2 / ε < (N : ℝ) := hN₂.trans_le (by exact_mod_cast hN)
-    rwa [div_lt_iff₀ hε, mul_comm] at this
-  filter_upwards [hlarge1, hlarge2, hlarge3] with N hN28 hN_ov hN_eps
+  filter_upwards [eventually_ge_atTop 28,
+    (tendsto_natCast_atTop_atTop (R := ℝ)).eventually_gt_atTop (20 * (D_ov : ℝ) / δ ^ 2),
+    (tendsto_natCast_atTop_atTop.const_mul_atTop hε).eventually_gt_atTop (2 : ℝ)]
+    with N hN28 hN_ov hN_eps
   intro F _ σ I M c hM hfan hc hcap
   -- If `5 * N < c.innerSize`, we win immediately since `4.217 - ε < 5`:
   rcases lt_or_ge (5 * N) c.innerSize with hs_big | hs_le
-  · have : (4217 / 1000 - ε) * (N : ℝ) < (5 * N : ℕ) := by
-      push_cast
-      have hNpos : (0 : ℝ) < N := by exact_mod_cast (by omega : 0 < N)
-      nlinarith
-    exact this.trans (by exact_mod_cast hs_big)
+  · have : ((5 * N : ℕ) : ℝ) < c.innerSize := by exact_mod_cast hs_big
+    push_cast at this
+    linarith [mul_nonneg hε.le (Nat.cast_nonneg (α := ℝ) N), Nat.cast_nonneg (α := ℝ) N]
   -- Otherwise `c.innerSize ≤ 5 * N` and `28 ≤ N`: take a saturated budget-3 compression!
   classical
   have hNpos : 0 < N := by omega
@@ -1333,20 +1209,11 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
   have hh_le_rank := hsat.card_blocks_le hconn htwo
   set h : ℝ := (Fintype.card cmp.blocks : ℝ)
   have hh_le_N : h ≤ 9 * N := by
-    have hnat : Fintype.card cmp.blocks ≤ 9 * N := by
-      rw [← Nat.card_eq_fintype_card]
-      omega
-    have hR : (Fintype.card cmp.blocks : ℝ) ≤ ((9 * N : ℕ) : ℝ) := by exact_mod_cast hnat
-    push_cast at hR
-    exact hR
-  have hE_card : (Fintype.card cmp.external : ℝ) = 3 / 2 * h := by
-    have hsum := Q.sum_ncard_incidenceSet hQloop
-    simp only [hQ3, Finset.sum_const, Finset.card_univ, smul_eq_mul] at hsum
-    have : ((Fintype.card cmp.blocks * 3 : ℕ) : ℝ) = ((2 * Nat.card cmp.external : ℕ) : ℝ) := by
-      exact_mod_cast hsum
-    rw [← Nat.card_eq_fintype_card (α := cmp.external)]
-    push_cast at this
-    linarith
+    have : Fintype.card cmp.blocks ≤ 9 * N := by rw [← Nat.card_eq_fintype_card]; omega
+    change (Fintype.card cmp.blocks : ℝ) ≤ 9 * N
+    exact_mod_cast this
+  have hE_card : (Fintype.card cmp.external : ℝ) = 3 / 2 * h :=
+    DirectedShift.card_edges_eq_of_cubic hQloop hQ3
   -- Apply second-moment concentration simultaneously to `inCut`, unread inputs, and held outputs!
   set P := Measure.pi fun _ : cmp.blocks => gaussianReal 0 1
   set c_dev : ℝ := δ * N
@@ -1374,13 +1241,9 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
       fun _ (hz : Q.toSimpleGraph.edist _ _ ≤ R) =>
         (show Q.toSimpleGraph.edist _ _ ≤ ((R + 1 : ℕ) : ℕ∞) from
           hz.trans (by exact_mod_cast Nat.le_succ R))
-    have hsrc : Gaussian.vertexScore Q qk R ω (Q.src e) =
-        Gaussian.vertexScore Q qk R ω' (Q.src e) :=
-      Gaussian.vertexScore_congr fun z hz => hω z (hsub hz)
-    have htgt : Gaussian.vertexScore Q qk R ω (Q.tgt e) =
-        Gaussian.vertexScore Q qk R ω' (Q.tgt e) :=
-      Gaussian.vertexScore_congr fun z hz => hω z (Gaussian.closedBall_tgt_subset e R hz)
-    simp only [A_in, DirectedShift.shiftedCut, Multigraph.mem_inCut, mem_ofPred_eq, hsrc, htgt]
+    simp only [A_in, DirectedShift.shiftedCut, Multigraph.mem_inCut, mem_ofPred_eq,
+      Gaussian.vertexScore_congr fun z hz => hω z (hsub hz),
+      Gaussian.vertexScore_congr fun z hz => hω z (Gaussian.closedBall_tgt_subset e R hz)]
   have hdev_A : P.real (Gaussian.deviation A_in c_dev) ≤
       (3 / 2 * h) * D_ov / c_dev ^ 2 := by
     have hd := Gaussian.measureReal_deviation_le hm_Ain
@@ -1388,32 +1251,20 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
       (fun e => Gaussian.card_not_disjoint_closedBall_src_le hQdeg R e) hc_dev_pos
     rwa [hE_card] at hd
   -- Multiplicity `≤ 3` of `bin` and `bout` in every block `B`:
-  have hbin_mult (B : cmp.blocks) : (Finset.univ.filter fun i : Fin N => bin i = B).card ≤ 3 := by
-    have hin_sub : ↑(Finset.univ.filter fun i : Fin N => bin i = B) ⊆
-        (Compiler.network c I fun _ => univ).readIn {v | v ∈ B.1} := by
-      intro i hi
-      rw [Finset.mem_coe, Finset.mem_filter] at hi
-      have hiB : Compiler.Vertex.signal
-          ⟨.input i, (Compiler.exists_reachable_of_isTotallyRegular hM hc i i).1⟩ ∈ B.1 :=
-        cmp.mem_iff_blockOf_eq.mpr hi.2
-      exact ⟨_, hiB, Compiler.site_of_reach _⟩
-    have hcard := (ncard_le_ncard hin_sub (toFinite _)).trans
-      ((Compiler.ncard_readIn_block_le_outCut hM hc hcap cmp hsmall B).trans
-        ((ncard_le_ncard (fun e he => (Q.edgeCut_eq_inCut_union_outCut {B}) ▸ Or.inr he)
-          (toFinite _)).trans ((Q.edgeCut_singleton hQloop B).symm ▸ (hQ3 B).le)))
-    rwa [ncard_coe_finset] at hcard
-  have hbout_mult (B : cmp.blocks) :
-      (Finset.univ.filter fun o : Fin N => bout o = B).card ≤ 3 := by
-    have hout_sub : ↑(Finset.univ.filter fun o : Fin N => bout o = B) ⊆
-        {o : Fin N | Compiler.Vertex.output o ∈ B.1} := by
-      intro o ho
-      rw [Finset.mem_coe, Finset.mem_filter] at ho
-      exact cmp.mem_iff_blockOf_eq.mpr ho.2
-    have hcard := (ncard_le_ncard hout_sub (toFinite _)).trans
-      ((Compiler.ncard_outputs_block_le_inCut hM hc hcap cmp hsmall B).trans
-        ((ncard_le_ncard (fun e he => (Q.edgeCut_eq_inCut_union_outCut {B}) ▸ Or.inl he)
-          (toFinite _)).trans ((Q.edgeCut_singleton hQloop B).symm ▸ (hQ3 B).le)))
-    rwa [ncard_coe_finset] at hcard
+  have hmult (B : cmp.blocks) (S : Finset (Fin N)) (T : Set (Fin N))
+      (hT : T.ncard ≤ (Q.edgeCut {B}).ncard) (hST : ↑S ⊆ T) : S.card ≤ 3 := by
+    rw [← ncard_coe_finset]
+    exact (ncard_le_ncard hST (toFinite _)).trans
+      (hT.trans ((Q.edgeCut_singleton hQloop B).symm ▸ (hQ3 B).le))
+  have hbin_mult (B : cmp.blocks) : (Finset.univ.filter fun i : Fin N => bin i = B).card ≤ 3 :=
+    hmult B _ _ ((Compiler.ncard_readIn_block_le_outCut hM hc hcap cmp hsmall B).trans
+        (ncard_le_ncard fun e he => (Q.edgeCut_eq_inCut_union_outCut {B}) ▸ Or.inr he))
+      fun i hi => ⟨_, cmp.mem_iff_blockOf_eq.mpr (Finset.mem_filter.mp (Finset.mem_coe.mp hi)).2,
+        Compiler.site_of_reach _⟩
+  have hbout_mult (B : cmp.blocks) : (Finset.univ.filter fun o : Fin N => bout o = B).card ≤ 3 :=
+    hmult B _ _ ((Compiler.ncard_outputs_block_le_inCut hM hc hcap cmp hsmall B).trans
+        (ncard_le_ncard fun e he => (Q.edgeCut_eq_inCut_union_outCut {B}) ▸ Or.inl he))
+      fun o ho => cmp.mem_iff_blockOf_eq.mpr (Finset.mem_filter.mp (Finset.mem_coe.mp ho)).2
   have hdev_term (blk : Fin N → cmp.blocks)
       (hmult : ∀ B : cmp.blocks, (Finset.univ.filter fun i : Fin N => blk i = B).card ≤ 3)
       (pred : cmp.blocks → ℝ → Prop) (hmp : ∀ B, MeasurableSet {x | pred B x}) :
@@ -1446,49 +1297,17 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
       (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 :=
     hdev_term bout hbout_mult (fun B x => x ≤ thr B) fun _ => measurableSet_Iic
   -- Union bound `< 1` gives a good sample `ω₀`:
-  have hsum_lt_one : P.real (Gaussian.deviation A_in c_dev ∪
-      Gaussian.deviation B_unread c_dev ∪ Gaussian.deviation C_out c_dev) < 1 := by
-    have hu1 := measureReal_union_le (μ := P)
-      (Gaussian.deviation A_in c_dev ∪ Gaussian.deviation B_unread c_dev)
-      (Gaussian.deviation C_out c_dev)
-    have hu2 := measureReal_union_le (μ := P)
-      (Gaussian.deviation A_in c_dev) (Gaussian.deviation B_unread c_dev)
-    have hu : P.real (Gaussian.deviation A_in c_dev ∪
-        Gaussian.deviation B_unread c_dev ∪ Gaussian.deviation C_out c_dev) ≤
-        P.real (Gaussian.deviation A_in c_dev) +
-          P.real (Gaussian.deviation B_unread c_dev) +
-          P.real (Gaussian.deviation C_out c_dev) := by linarith [hu1, hu2]
-    have hA_bound : (3 / 2 * h) * D_ov / c_dev ^ 2 ≤ 14 * (N : ℝ) * D_ov / c_dev ^ 2 :=
-      div_le_div_of_nonneg_right
-        (mul_le_mul_of_nonneg_right
-          (by linarith [hh_le_N, show (0 : ℝ) < N from Nat.cast_pos.mpr hNpos])
-          (Nat.cast_nonneg _))
-        (sq_nonneg _)
-    have hcalc : 14 * (N : ℝ) * D_ov / c_dev ^ 2 +
-        (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 +
-        (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 =
-        20 * (D_ov : ℝ) / δ ^ 2 / N := by
-      push_cast
-      dsimp [c_dev]
-      have hN0 : (N : ℝ) ≠ 0 := (Nat.cast_pos.mpr hNpos).ne'
-      have hδ0 : δ ≠ 0 := hδ_pos.ne'
-      field_simp
-      ring
-    have hlt1 : 20 * (D_ov : ℝ) / δ ^ 2 / N < 1 :=
-      (div_lt_one (Nat.cast_pos.mpr hNpos)).mpr hN_ov
-    exact hu.trans_lt (by linarith [hdev_A, hdev_B, hdev_C, hA_bound, hcalc, hlt1])
-  have hex_good : ∃ ω₀, ω₀ ∉ Gaussian.deviation A_in c_dev ∧
-      ω₀ ∉ Gaussian.deviation B_unread c_dev ∧ ω₀ ∉ Gaussian.deviation C_out c_dev := by
-    by_contra! hall
-    have huniv : Gaussian.deviation A_in c_dev ∪ Gaussian.deviation B_unread c_dev ∪
-        Gaussian.deviation C_out c_dev = univ := by
-      ext ω
-      simp only [mem_union, mem_univ, iff_true]
-      by_contra! hnot
-      exact hnot.2 (hall ω hnot.1.1 hnot.1.2)
-    rw [huniv, probReal_univ] at hsum_lt_one
-    exact lt_irrefl _ hsum_lt_one
-  obtain ⟨ω₀, hωA, hωB, hωC⟩ := hex_good
+  obtain ⟨ω₀, hω⟩ := exists_notMem_of_measureReal_lt_one (((measureReal_union_le _ _).trans
+    (add_le_add ((measureReal_union_le _ _).trans (add_le_add hdev_A hdev_B)) hdev_C)).trans_lt
+    (by
+      calc _ ≤ 20 * (D_ov : ℝ) * N / c_dev ^ 2 := by
+            rw [← add_div, ← add_div]
+            gcongr
+            push_cast
+            nlinarith only [hh_le_N, (Nat.cast_nonneg D_ov : (0 : ℝ) ≤ D_ov)]
+        _ < 1 := Gaussian.mul_div_mul_sq_lt_one hδ_pos.ne' (Nat.cast_pos.mpr hNpos) hN_ov))
+  simp only [mem_union, not_or] at hω
+  obtain ⟨⟨hωA, hωB⟩, hωC⟩ := hω
   set T₀ := DirectedShift.shiftedCut Q (Gaussian.vertexScore Q qk R ω₀) d₀
   -- Upper bound on `|Q.inCut T₀|` from `hωA` and the 4-type cubic LP:
   have hin_upper : ((Q.inCut T₀).ncard : ℝ) <
@@ -1504,11 +1323,9 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
       P.real (Gaussian.vertexEvent Q qk R (· ≤ t) B) = cdf (gaussianReal 0 1) t := by
     have hu : ‖Gaussian.unitKernelRow Q.toSimpleGraph qk R B‖ = 1 :=
       Gaussian.norm_unitKernelRow qk R B
-    have hu0 : (fun z => Gaussian.unitKernelRow Q.toSimpleGraph qk R B z) ≠ 0 := by
-      intro h0
+    have hu0 : (fun z => Gaussian.unitKernelRow Q.toSimpleGraph qk R B z) ≠ 0 := fun h0 => by
       have : Gaussian.unitKernelRow Q.toSimpleGraph qk R B = 0 := by ext z; exact congrFun h0 z
-      rw [this, norm_zero] at hu
-      norm_num at hu
+      simp [this] at hu
     have hdot : Gaussian.vertexEvent Q qk R (· ≤ t) B =
         {ω | (fun z => Gaussian.unitKernelRow Q.toSimpleGraph qk R B z) ⬝ᵥ ω ≤ t} := by
       ext ω
@@ -1516,34 +1333,23 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
         RCLike.inner_apply, conj_trivial, dotProduct, mul_comm]
     have hnorm1 : √((fun z => Gaussian.unitKernelRow Q.toSimpleGraph qk R B z) ⬝ᵥ
         (fun z => Gaussian.unitKernelRow Q.toSimpleGraph qk R B z)) = 1 := by
-      rw [sqrt_dotProduct_self_eq_norm]
-      exact hu
+      rw [sqrt_dotProduct_self_eq_norm]; exact hu
     rw [hdot, measureReal_pi_gaussianReal_setOf_dotProduct_le hu0, hnorm1, div_one]
+  have hmono : cdf (gaussianReal 0 1) (-d₀) ≤ cdf (gaussianReal 0 1) d₀ :=
+    monotone_cdf _ (by norm_num [d₀])
   have hB_mean : (N : ℝ) * q₀ ≤ ∑ i : Fin N, P.real (B_unread i) := by
-    calc (N : ℝ) * q₀ = ∑ _i : Fin N, q₀ := by simp
-      _ ≤ ∑ i : Fin N, P.real (B_unread i) := by
-        refine Finset.sum_le_sum fun i _ => ?_
-        have hcompl : B_unread i = (Gaussian.vertexEvent Q qk R (· ≤ thr (bin i)) (bin i))ᶜ := by
-          ext ω; simp [B_unread, Gaussian.vertexEvent]
-        rw [hcompl, probReal_compl_eq_one_sub
-            (Gaussian.measurableSet_vertexEvent qk R measurableSet_Iic _),
-          hmarginal_cdf]
-        dsimp [thr, q₀]
-        split_ifs
-        · linarith [cdf_gaussianReal_neg (v := 1) one_ne_zero d₀]
-        · have hm : cdf (gaussianReal 0 1) (-d₀) ≤ cdf (gaussianReal 0 1) d₀ :=
-            monotone_cdf _ (by dsimp [d₀]; norm_num)
-          rw [cdf_gaussianReal_neg one_ne_zero] at hm ⊢
-          linarith
+    refine le_of_eq_of_le (by simp) (Finset.sum_le_sum (f := fun _ => q₀) fun i _ => ?_)
+    have hcompl : B_unread i = (Gaussian.vertexEvent Q qk R (· ≤ thr (bin i)) (bin i))ᶜ := by
+      ext ω; simp [B_unread, Gaussian.vertexEvent]
+    rw [hcompl, probReal_compl_eq_one_sub
+        (Gaussian.measurableSet_vertexEvent qk R measurableSet_Iic _), hmarginal_cdf]
+    dsimp [thr, q₀]
+    split_ifs <;> linarith [cdf_gaussianReal_neg (v := 1) one_ne_zero d₀]
   have hC_mean : (N : ℝ) * q₀ ≤ ∑ o : Fin N, P.real (C_out o) := by
-    calc (N : ℝ) * q₀ = ∑ _o : Fin N, q₀ := by simp
-      _ ≤ ∑ o : Fin N, P.real (C_out o) := by
-        refine Finset.sum_le_sum fun o _ => ?_
-        rw [hmarginal_cdf]
-        dsimp [thr, q₀]
-        split_ifs
-        · exact monotone_cdf _ (by dsimp [d₀]; norm_num)
-        · exact le_rfl
+    refine le_of_eq_of_le (by simp) (Finset.sum_le_sum (f := fun _ => q₀) fun o _ => ?_)
+    rw [hmarginal_cdf]
+    dsimp [thr, q₀]
+    split_ifs <;> linarith
   have hB_lower : (N : ℝ) * q₀ - c_dev <
       ((N - ((Compiler.network c I fun _ => univ).readIn (cmp.blockOf ⁻¹' T₀)).ncard : ℕ) : ℝ) := by
     have hnot : ¬c_dev ≤ |∑ i, (B_unread i).indicator 1 ω₀ - ∑ i, P.real (B_unread i)| := hωB
@@ -1552,67 +1358,42 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
     -- Every `i` with `ω₀ ∈ B_unread i` lies outside `readIn (cmp.blockOf ⁻¹' T₀)`:
     have hsub : {i : Fin N | ω₀ ∈ B_unread i} ⊆
         ((Compiler.network c I fun _ => univ).readIn (cmp.blockOf ⁻¹' T₀))ᶜ := by
-      intro i hi hmem
-      obtain ⟨v, hvT, hsite⟩ := hmem
+      rintro i hi ⟨v, hvT, hsite⟩
       obtain ⟨hi', rfl⟩ := Compiler.site_eq_some hsite
-      have hbin_eq : bin i = cmp.blockOf (.signal ⟨.input i, hi'⟩) := rfl
-      have hT : bin i ∈ T₀ := hbin_eq ▸ hvT
       have hgt : thr (bin i) < Gaussian.vertexScore Q qk R ω₀ (bin i) := hi
-      exact not_le.mpr hgt hT
-    have hle_compl : {i : Fin N | ω₀ ∈ B_unread i}.ncard ≤
-        N - ((Compiler.network c I fun _ => univ).readIn (cmp.blockOf ⁻¹' T₀)).ncard := by
-      have hc1 := ncard_le_ncard hsub (toFinite _)
-      have hc2 := ncard_add_ncard_compl
-        ((Compiler.network c I fun _ => univ).readIn (cmp.blockOf ⁻¹' T₀))
-      rw [Nat.card_eq_fintype_card, Fintype.card_fin] at hc2
-      omega
+      exact not_le.mpr hgt (hvT : bin i ∈ T₀)
+    have hc2 := ncard_add_ncard_compl
+      ((Compiler.network c I fun _ => univ).readIn (cmp.blockOf ⁻¹' T₀))
+    rw [Nat.card_eq_fintype_card, Fintype.card_fin] at hc2
     have hleR : ({i : Fin N | ω₀ ∈ B_unread i}.ncard : ℝ) ≤
         ((N - ((Compiler.network c I fun _ => univ).readIn (cmp.blockOf ⁻¹' T₀)).ncard : ℕ) : ℝ) :=
-      by exact_mod_cast hle_compl
+      Nat.cast_le.mpr (by have := ncard_le_ncard hsub (toFinite _); omega)
     linarith [hlt, hB_mean, hleR]
   have hC_lower : (N : ℝ) * q₀ - c_dev <
       ({o : Fin N | Compiler.Vertex.output o ∈ cmp.blockOf ⁻¹' T₀}.ncard : ℝ) := by
     have hnot : ¬c_dev ≤ |∑ o, (C_out o).indicator 1 ω₀ - ∑ o, P.real (C_out o)| := hωC
     have hlt := neg_lt_of_abs_lt (not_le.mp hnot)
     rw [← ncard_eq_sum_indicator] at hlt
-    have heq_out : {o : Fin N | ω₀ ∈ C_out o} =
-        {o : Fin N | Compiler.Vertex.output o ∈ cmp.blockOf ⁻¹' T₀} := by
-      ext o
-      rfl
-    rw [heq_out] at hlt
+    change _ < ({o : Fin N | ω₀ ∈ C_out o}.ncard : ℝ)
     linarith [hlt, hC_mean]
   -- Combine demand and supply on `T₀`:
   have hdem_nat := Compiler.min_le_ncard_inCut_quotient hM hc hcap cmp T₀
-  have hdem_real : (N : ℝ) * q₀ - c_dev < ((Q.inCut T₀).ncard : ℝ) := by
-    have hmin_gt : (N : ℝ) * q₀ - c_dev <
-        ((min (N - ((Compiler.network c I fun _ => univ).readIn (cmp.blockOf ⁻¹' T₀)).ncard)
-          {o : Fin N | Compiler.Vertex.output o ∈ cmp.blockOf ⁻¹' T₀}.ncard : ℕ) : ℝ) := by
-      rw [Nat.cast_min]
-      exact lt_min hB_lower hC_lower
-    exact hmin_gt.trans_le (by exact_mod_cast hdem_nat)
+  have hdem_real : (N : ℝ) * q₀ - c_dev < ((Q.inCut T₀).ncard : ℝ) :=
+    (lt_min hB_lower hC_lower).trans_le (by exact_mod_cast hdem_nat)
   have hineq : (N : ℝ) * (q₀ - 2 * δ) < DirectedShift.shiftedSupply ρ d₀ * h := by
     dsimp [c_dev] at hdem_real hin_upper
     linarith [hdem_real, hin_upper]
   have hh_bound : h ≤ 2 * ((c.innerSize : ℝ) - N + 1) := by
     have : Fintype.card cmp.blocks + 2 * N ≤ 2 * c.innerSize + 2 := by
-      rw [← Nat.card_eq_fintype_card]
-      omega
+      rw [← Nat.card_eq_fintype_card]; omega
     have hR : (Fintype.card cmp.blocks : ℝ) + 2 * N ≤ 2 * c.innerSize + 2 := by exact_mod_cast this
     linarith
-  have hs_lower : (1 + (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀)) * (N : ℝ) - 1 <
-      c.innerSize := by
-    have hdiv := (div_lt_iff₀ (mul_pos two_pos hfρ_pos)).mpr
-      (calc (N : ℝ) * (q₀ - 2 * δ) < DirectedShift.shiftedSupply ρ d₀ * h := hineq
-        _ ≤ DirectedShift.shiftedSupply ρ d₀ * (2 * ((c.innerSize : ℝ) - N + 1)) :=
-          mul_le_mul_of_nonneg_left hh_bound hfρ_pos.le
-        _ = ((c.innerSize : ℝ) - N + 1) * (2 * DirectedShift.shiftedSupply ρ d₀) := by ring)
-    have hrew : (1 + (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀)) * (N : ℝ) =
-        N + (N : ℝ) * (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀) := by ring
-    linarith [hdiv, hrew]
-  have hN_nonneg : (0 : ℝ) ≤ N := Nat.cast_nonneg N
+  have hs_lower : (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀) * N <
+      c.innerSize - N + 1 := by
+    rw [div_mul_eq_mul_div, div_lt_iff₀ (mul_pos two_pos hfρ_pos)]
+    linarith [mul_le_mul_of_nonneg_left hh_bound hfρ_pos.le]
   have hstep1 : (4217 / 1000 : ℝ) * N ≤
-      (1 + (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀)) * N :=
-    mul_le_mul_of_nonneg_right hL_gt.le hN_nonneg
+      (1 + (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀)) * N := by gcongr
   linarith [hstep1, hs_lower, hN_eps]
 
 /-- **Shifted `VertexGaussian` lower bound (`4.2170 N`) over finite fields**, for every fan-in-two

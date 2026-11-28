@@ -603,6 +603,8 @@ private theorem programWordHandlerWith_support
           programmingResources digestBound pointBound replyBound logGrowth caller request.2 := by
   obtain ⟨hcache, hlog⟩ := hstate
   obtain ⟨op, word⟩ := request
+  rw [length_encProgrammingState, length_encProgrammingState]
+  unfold programmingResources
   cases op with
   | hash =>
       simp only [programWordHandlerWith] at hresult
@@ -610,13 +612,8 @@ private theorem programWordHandlerWith_support
       obtain ⟨hreply, hcache', hgrowth⟩ := Probability.memoize_call_size_le encBits encBits
         (fun _ => ProbComp.eval (dist caller)) word state.cache (digestBound caller) hcache
         (fun digest hdigest => hdist caller digest hdigest) cached hcached
-      refine ⟨⟨hcache', hlog⟩, ?_, ?_⟩
-      · unfold programmingResources
-        simpa only [encBits_apply] using hreply.trans (by lia)
-      · rw [length_encProgrammingState, length_encProgrammingState]
-        simp only [encBits_apply] at hgrowth
-        unfold programmingResources
-        lia
+      simp only [encBits_apply] at hreply hgrowth
+      refine ⟨⟨hcache', hlog⟩, ?_, ?_⟩ <;> lia
   | program =>
       simp only [programWordHandlerWith] at hresult
       split_ifs at hresult with hactive
@@ -625,21 +622,11 @@ private theorem programWordHandlerWith_support
           hactiveCache caller word coins hcoins state.cache hcache cached hcached
         obtain ⟨hlog', hreply, hlogGrowth⟩ :=
           hfinish caller word coins hcoins cached.1 hdigest state.log hlog
-        refine ⟨⟨hcache', hlog'⟩, ?_, ?_⟩
-        · unfold programmingResources
-          lia
-        · rw [length_encProgrammingState, length_encProgrammingState]
-          unfold programmingResources
-          lia
+        refine ⟨⟨hcache', hlog'⟩, ?_, ?_⟩ <;> lia
       · supp_cases hresult with ⟨inactiveResult, hinactiveResult, rfl⟩
         obtain ⟨hlog', hreply, hlogGrowth⟩ :=
           hinactive caller word state.log hlog inactiveResult hinactiveResult
-        refine ⟨⟨hcache, hlog'⟩, ?_, ?_⟩
-        · unfold programmingResources
-          lia
-        · rw [length_encProgrammingState, length_encProgrammingState]
-          unfold programmingResources
-          lia
+        refine ⟨⟨hcache, hlog'⟩, ?_, ?_⟩ <;> lia
 
 /-- Every supported lazy programmable-oracle call preserves `ProgrammingInvariant`, bounds the
 reply word and grows the complete encoded cache/log state by at most `programmingResources`. -/

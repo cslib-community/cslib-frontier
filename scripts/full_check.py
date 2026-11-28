@@ -65,6 +65,7 @@ STEPS = (
     # runs first.
     Step("Test Python tooling", ("python3 -m unittest discover -s scripts -p 'test_*.py'",)),
     Step("Source hygiene", ("python3 -B scripts/check_hygiene.py --check-simp",)),
+    Step("Forbid TimeM", ("python3 -B scripts/check_timem.py --report",)),
     Step("Encoding readability ratchet (changed modules)",
          ('python3 -B scripts/check_encoding_readability.py --base "$BASE"',)),
     Step("Projection chain ratchet (changed modules)",
@@ -83,26 +84,28 @@ STEPS = (
     Step("Test real Lake cache publication staging",
          ("python3 -B -m unittest scripts.test_cache_publish.RealLakePublicationTests",)),
     Step("lake build",
-         ("lake build --wfail --iofail @cslib-frontier @/mk_all @/checkInitImports "
-          "@mathlib/lint-style",)),
-    Step("lake test", ("lake test --wfail --iofail",)),
+         ("lake build --wfail --iofail @cslib-frontier CslibFrontierTests @/mk_all "
+          "@/checkInitImports @mathlib/lint-style",)),
     Step("lake lint", ("lake lint",)),
-    Step("Tidy statement ratchet",
+    Step("Test post-build Python tooling",
          ("command -v lake",
+          "command -v lean",
           "test -d .lake/packages",
           "python3 -B -m unittest scripts/test_check_tidy_surface.py",
-          "python3 -B scripts/check_tidy_surface.py")),
-    # Advisory: these two fail when the checker's tests fail, the scan cannot run or the baseline
-    # is malformed, never on what the scan finds. Run the second command by hand to read that.
+          "python3 -B -m unittest scripts/test_check_security_premises.py",
+          "python3 -B -m unittest scripts/test_check_reduction_witnesses.py",
+          "python3 -B -m unittest scripts/test_check_hardness_assumptions.py",
+          "python3 -B -m unittest scripts/test_parallel_defs.py",
+          "python3 -B -m unittest scripts/test_check_init_imports.py")),
+    Step("Tidy statement ratchet", ("python3 -B scripts/check_tidy_surface.py",)),
+    # Advisory: these two fail when the scan cannot run or the baseline is malformed, never on
+    # what the scan finds. Run the command by hand to read that.
     Step("Security premise report (changed modules)",
-         ("python3 -B -m unittest scripts/test_check_security_premises.py",
-          'python3 -B scripts/check_security_premises.py --base "$BASE" --advisory')),
+         ('python3 -B scripts/check_security_premises.py --base "$BASE" --advisory',)),
     Step("Reduction witness report (changed modules)",
-         ("python3 -B -m unittest scripts/test_check_reduction_witnesses.py",
-          'python3 -B scripts/check_reduction_witnesses.py --base "$BASE" --advisory')),
+         ('python3 -B scripts/check_reduction_witnesses.py --base "$BASE" --advisory',)),
     Step("Named assumptions (whole library)",
-         ("python3 -B -m unittest scripts/test_check_hardness_assumptions.py",
-          "python3 -B scripts/check_hardness_assumptions.py")),
+         ("python3 -B scripts/check_hardness_assumptions.py",)),
     Step("Result registry references", ("python3 -B scripts/results_registry.py --compiled",)),
     Step("Changed-file lints", ('python3 -B scripts/check_changed_files.py --base "$BASE"',)),
     Step("lake exe mk_all --check", ("lake exe mk_all --check",)),
@@ -110,9 +113,7 @@ STEPS = (
          ("test -x .lake/build/bin/mk_all",
           "python3 -B -m unittest discover -s scripts -p 'test_mk_all.py'")),
     Step("lake exe lint-style", ("lake exe lint-style",)),
-    Step("checkInitImports", ("command -v lean",
-                              "python3 -B -m unittest scripts/test_check_init_imports.py",
-                              "lake exe checkInitImports")),
+    Step("checkInitImports", ("lake exe checkInitImports",)),
 )
 
 # Run after `STEPS`; not CI steps, so `scripts/test_full_check.py` keeps their names apart from CI's.
@@ -134,9 +135,9 @@ CI_ONLY = {
     "Projection chain report":
         "merge groups and main pushes only; reports and always succeeds",
     "Security premise report":
-        "merge groups and main pushes only; reports and always succeeds",
+        "main pushes only; reports and always succeeds",
     "Reduction witness report":
-        "merge groups and main pushes only; reports and always succeeds",
+        "main pushes only; reports and always succeeds",
     "Named assumptions report": "main pushes only; reports and always succeeds",
     "Repeated-proof-block notice (advisory)":
         "advisory; never fails the job. Run `scripts/proof_copies.py --base REF` to see it",
@@ -144,6 +145,8 @@ CI_ONLY = {
         "advisory; never fails the job. Run `scripts/check_hub_impact.py --base REF` to see it",
     "lake lint (affected modules)":
         "pull requests only (#5163); local full_check runs whole-library `lake lint` above",
+    "lake build (merge group, fail fast)":
+        "merge groups only; the `lake build` step with `--fail-fast`, so a failing group ends sooner",
     "Sample runner disk use": "hosted-runner disk telemetry",
     "Report runner disk use": "hosted-runner disk telemetry",
     "Reclaim unused hosted-runner SDK space": "hosted-runner disk cleanup",
@@ -162,8 +165,10 @@ CI_ONLY = {
     "Save .lake to the Actions cache": "main pushes only; CI cache",
     "Parallel-definition and duplicate-statement notices (advisory)":
         "advisory; never fails the job. Run `scripts/parallel_defs.py [--theorems]` to see it",
+    "Upload early Lean advisory notices":
+        "pull requests only; uploads the advisory parallel/duplicate summary before tail checks",
     "PR description names (advisory)":
-        "advisory; reads the pull request event. Run `scripts/check_pr_names.py --pr N`",
+        "advisory; reads the pull request event in `pr-notices`. Run `scripts/check_pr_names.py --pr N`",
     "Stage merge-group build outputs":
         "merge groups only; build handoff to main and to later merge groups",
     "Upload merge-group build outputs":

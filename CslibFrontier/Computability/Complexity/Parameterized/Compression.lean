@@ -139,12 +139,7 @@ theorem IsCompression.computableInPolyTime_comp {encC : γ ↪ List Bool} {κ : 
     exact .of_bounds hc (c + 1) (fun b => by nlinarith) (fun b => by nlinarith)
       fun b => (hK'.length_le b).trans (by nlinarith)
   obtain ⟨d, e, hgd⟩ := hg.exists_degree
-  have hlen : PolyBounded (fun a => (enc a).length) fun a => (encB (g a)).length := by growth_poly
-  have hTg : PolyBounded (fun a => (enc a).length)
-      fun a => T ((encB (g a)).length + κ (g a)) := by growth_poly
-  have hgO := hgd.inO
-  refine (hKO.comp hgO).computableInPolyTime ?_ ?_ <;>
-    exact (PolyBounded.of_forall_le 1 d fun a => by simp).add hTg
+  exact (hKO.comp hgd.inO).computableInPolyTime (by growth_poly) (by growth_poly)
 
 /-- **A polynomial kernel is a polynomial compression**: a kernelization is computable in time
 polynomial in `|enc a|`, hence in `|enc a| + κ a`. -/

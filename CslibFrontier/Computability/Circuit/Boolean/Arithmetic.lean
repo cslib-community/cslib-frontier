@@ -47,61 +47,48 @@ namespace Cslib.Circuits.Boolean
 
 open Synthesis
 
+private theorem mem_inputs (n : ℕ) (i : Fin n) :
+    (fun x : Fin n → Bool => x i) ∈ inputs n :=
+  ⟨i, rfl⟩
+
+private theorem arith_add_comp {n a b : ℕ} {S : Set ((Fin n → Bool) → Bool)}
+    {f g : (Fin n → Bool) → Bool} (hf : Synthesis (arithInterpretation Bool) S {f} a)
+    (hg : Synthesis (arithInterpretation Bool) S {g} b) :
+    Synthesis (arithInterpretation Bool) S {fun x => f x + g x} (a + b + 1) := by
+  simpa only [arithInterpretation, arithInterpretationWith, Fin.val_zero, ↓reduceIte,
+    Fin.val_one, Nat.one_ne_zero] using hf.binary hg ArithOp.add
+
 private theorem arith_gate_synthesis (op : Op) :
     Synthesis (arithInterpretation Bool) (inputs (signature.Arity op)) {interpretation op} 3 := by
   cases op with
   | const c =>
-    exact (Synthesis.arith_const (constant := id) c).mono
-      (Set.Subset.refl _) (Set.Subset.refl _) (by decide)
+    exact (Synthesis.arith_const (constant := id) c).mono Set.Subset.rfl Set.Subset.rfl (by decide)
   | not =>
-    have hx : Synthesis (arithInterpretation Bool) (inputs 1) {fun x => x 0} 0 :=
-      Synthesis.of_mem ⟨0, rfl⟩
-    have hc : Synthesis (arithInterpretation Bool) (inputs 1) {fun _ => true} 1 :=
-      Synthesis.arith_const (constant := id) true
-    have h := hx.binary hc ArithOp.add
+    have h := arith_add_comp (Synthesis.of_mem (mem_inputs 1 0))
+      (Synthesis.arith_const (constant := id) true)
     have he : (fun x : Fin 1 → Bool => x 0 + true) = interpretation Op.not := by
-      funext x
-      simp [interpretation, Bool.add_eq_xor]
-    simp only [arithInterpretation, arithInterpretationWith, Fin.val_zero, ↓reduceIte,
-      Fin.val_one, Nat.one_ne_zero] at h
-    rw [he] at h
-    exact h.mono (Set.Subset.refl _) (Set.Subset.refl _) (by decide)
+      funext x; simp [interpretation, Bool.add_eq_xor]
+    exact (he ▸ h).mono Set.Subset.rfl Set.Subset.rfl (by decide)
   | and =>
-    have h : Synthesis (arithInterpretation Bool) (inputs 2) {fun x => x 0 * x 1} 1 :=
-      Synthesis.arith_mul (constant := id) ⟨0, rfl⟩ ⟨1, rfl⟩
-    exact h.mono (Set.Subset.refl _) (Set.Subset.refl _) (by decide)
+    exact (Synthesis.arith_mul (constant := id) (mem_inputs 2 0) (mem_inputs 2 1)).mono
+      Set.Subset.rfl Set.Subset.rfl (by decide)
   | or =>
-    have hs : Synthesis (arithInterpretation Bool) (inputs 2) {fun x => x 0 + x 1} 1 :=
-      Synthesis.arith_add (constant := id) ⟨0, rfl⟩ ⟨1, rfl⟩
-    have hm : Synthesis (arithInterpretation Bool) (inputs 2) {fun x => x 0 * x 1} 1 :=
-      Synthesis.arith_mul (constant := id) ⟨0, rfl⟩ ⟨1, rfl⟩
-    have h := hs.binary hm ArithOp.add
+    have h := arith_add_comp
+      (Synthesis.arith_add (constant := id) (mem_inputs 2 0) (mem_inputs 2 1))
+      (Synthesis.arith_mul (constant := id) (mem_inputs 2 0) (mem_inputs 2 1))
     have he : (fun x : Fin 2 → Bool => (x 0 + x 1) + x 0 * x 1) = interpretation Op.or := by
-      funext x
-      change (x 0 + x 1) + x 0 * x 1 = (x 0 || x 1)
-      cases x 0 <;> cases x 1 <;> rfl
-    simp only [arithInterpretation, arithInterpretationWith, Fin.val_zero, ↓reduceIte,
-      Fin.val_one, Nat.one_ne_zero] at h
-    rw [he] at h
-    exact h
+      funext x; change (x 0 + x 1) + x 0 * x 1 = (x 0 || x 1); cases x 0 <;> cases x 1 <;> rfl
+    exact he ▸ h
 
 private theorem boolean_gate_synthesis (op : ArithOp Bool) :
     Synthesis interpretation (inputs ((arithSignature Bool).Arity op))
       {arithInterpretation Bool op} 4 := by
   cases op with
-  | const c => exact (Synthesis.const c).mono (Set.Subset.refl _) (Set.Subset.refl _) (by decide)
+  | const c => exact (Synthesis.const c).mono Set.Subset.rfl Set.Subset.rfl (by decide)
   | mul =>
-    have hx : Synthesis interpretation (inputs 2) {fun x => x 0} 0 :=
-      Synthesis.of_mem ⟨0, rfl⟩
-    have hy : Synthesis interpretation (inputs 2) {fun x => x 1} 0 :=
-      Synthesis.of_mem ⟨1, rfl⟩
-    exact (hx.and hy).mono (Set.Subset.refl _) (Set.Subset.refl _) (by decide)
-  | add =>
-    have hx : Synthesis interpretation (inputs 2) {fun x => x 0} 0 :=
-      Synthesis.of_mem ⟨0, rfl⟩
-    have hy : Synthesis interpretation (inputs 2) {fun x => x 1} 0 :=
-      Synthesis.of_mem ⟨1, rfl⟩
-    exact hx.xor hy
+    exact ((Synthesis.of_mem (mem_inputs 2 0)).and (Synthesis.of_mem (mem_inputs 2 1))).mono
+      Set.Subset.rfl Set.Subset.rfl (by decide)
+  | add => exact (Synthesis.of_mem (mem_inputs 2 0)).xor (Synthesis.of_mem (mem_inputs 2 1))
 
 /-- Each De Morgan gate is computed by at most three gates over the two-element arithmetic
 basis. NOT is `x + 1`; OR is `x + y + x * y`. -/

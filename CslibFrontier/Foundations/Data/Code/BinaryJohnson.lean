@@ -160,8 +160,7 @@ theorem card_filter_mul_two_mul_sq_le [Nonempty X] {ι A : Type*} [Fintype ι] [
   have hC : (#C : ℝ) * (2 * ε ^ 2) < 1 :=
     card_mul_two_mul_sq_lt_one E w hε (fun m hm m' hm' hmm' => hfar m m' (hCr hm hm' hmm'))
       fun m hm => (mem_filter.1 (hCL hm)).2
-  calc (#L : ℝ) * (2 * ε ^ 2) ≤ #C * V * (2 * ε ^ 2) :=
-        mul_le_mul_of_nonneg_right hLC (by positivity)
+  calc (#L : ℝ) * (2 * ε ^ 2) ≤ #C * V * (2 * ε ^ 2) := by gcongr
     _ = V * (#C * (2 * ε ^ 2)) := by ring
     _ ≤ V * 1 := mul_le_mul_of_nonneg_left hC.le hV
     _ = V := mul_one V

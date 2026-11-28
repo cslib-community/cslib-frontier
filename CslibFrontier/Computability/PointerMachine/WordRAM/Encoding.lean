@@ -69,23 +69,15 @@ private theorem encodeState_cell {e : M.Value ↪ ℕ} {x : State M L}
 theorem repr_encodeState (e : M.Value ↪ ℕ) (x : State M L) :
     Repr e x (encodeState e x) where
   ptr r := by simp [encodeState, ptrReg, r.isLt]
-  data s := by
-    have hs : L.ptrRegs + s.val < L.ptrRegs + L.dataRegs := by have := s.isLt; omega
-    simp [encodeState, dataReg, hs]
+  data s := by simp [encodeState, dataReg, Nat.add_lt_add_left s.isLt]
   free := by simp [encodeState, freeReg]
   zero := by
-    have hp : ¬L.ptrRegs + L.dataRegs + 1 < L.ptrRegs := by omega
-    have hd : ¬L.ptrRegs + L.dataRegs + 1 < L.ptrRegs + L.dataRegs := by omega
-    simp [encodeState, zeroReg, hp, hd]
+    dsimp only [encodeState, zeroReg]
+    split_ifs <;> omega
   heapPtr a n hn f := by
-    have hf : f.val < stride L := ptrField_lt_stride f
-    rw [encodeState_cell hn hf]
-    simp [f.isLt]
+    simp [encodeState_cell hn (ptrField_lt_stride f), f.isLt]
   heapData a n hn f := by
-    have hf : L.ptrFields + f.val < stride L := dataField_lt_stride f
-    have hsum : L.ptrFields + f.val < L.ptrFields + L.dataFields := by have := f.isLt; omega
-    rw [encodeState_cell hn hf]
-    simp [hsum]
+    simp [encodeState_cell hn (dataField_lt_stride f), Nat.add_lt_add_left f.isLt]
 
 /-- Valid pointers and fitting source data make every encoded register and cell word-bounded. -/
 theorem bounded_encodeState {e : M.Value ↪ ℕ} {w : ℕ} {x : State M L}

@@ -57,8 +57,7 @@ theorem rank_initial_le_budget : rank N width (initial N source) ≤ budget N wi
           ((15 * N ^ 4 + 62 * N ^ 3 + 95 * N ^ 2 + 64 * N + 16) * width +
             13 * N ^ 4 + 54 * N ^ 3 + 79 * N ^ 2 + 52 * N + 15) := Nat.le_add_right _ _
       _ = budget N width := by
-        simp only [budget, roundCost, targetCost, candidateCost]
-        ring
+        simp only [budget, roundCost, targetCost, candidateCost]; ring
   · simp [initial, hs, rank, reject]
 
 /-- Every branch, including every dishonest branch, halts within the polynomial budget. -/
@@ -80,14 +79,10 @@ theorem accepts_complete_bounded (hsource : source < N) (hwidth : N ≤ 2 ^ widt
   by_cases hlen : bs.length ≤ budget N width
   · exact ⟨bs, hlen, hbs⟩
   · have htlen : (bs.take (budget N width)).length = budget N width := by
-      simp only [List.length_take]
-      omega
-    have hh := halted_replay_budget (N := N) (width := width) (source := source)
-      (edge := edge) (bad := bad)
-      (bs.take (budget N width)) (by omega)
+      simp only [List.length_take]; omega
     have he := replay_append (N := N) (width := width) (source := source) (edge := edge)
       (bad := bad) (s := initial N source) (bs.take (budget N width)) (bs.drop (budget N width))
-    rw [List.take_append_drop, replay_halted hh] at he
+    rw [List.take_append_drop, replay_halted (halted_replay_budget _ htlen.ge)] at he
     exact ⟨bs.take (budget N width), htlen.le, he ▸ hbs⟩
 
 /-- Queries made along a semantically valid run use identifiers in the vertex interval. -/
@@ -105,10 +100,8 @@ theorem query_bounds (hsource : source < N) (hi : Invariant N edge bad source s)
   case observe =>
     simp only [Invariant, hp] at hi
     obtain ⟨⟨_, hm⟩, _, hu, _⟩ := hi
-    cases hf : s.finalScan <;> simp only [hf, Bool.false_eq_true, ↓reduceIte] at hq hm
-    · cases hq
-      exact ⟨hu, hm.2.1⟩
-    · cases hq
-      exact hu
+    cases hf : s.finalScan <;> simp only [hf, Bool.false_eq_true, ↓reduceIte] at hq hm <;> cases hq
+    · exact ⟨hu, hm.2.1⟩
+    · exact hu
 
 end Cslib.InductiveCounting

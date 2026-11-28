@@ -248,15 +248,11 @@ theorem mildlyHardOnAverageFor_isDetPolyTime_iff {β : Type}
         let x ← BitString.uniformList n
         (ProbComp.eval (pure (hDet x))).map (correct n x) : PMF Bool) =
         (BitString.uniformList n).map fun x => correct n x (hDet x) := by
-    simp only [ProbComp.eval_pure, PMF.pure_map]
-    rfl
-  constructor
-  · rintro ⟨p, hp, hH⟩
-    refine ⟨p, hp, fun hDet hpoly => ?_⟩
-    simpa only [heval] using hH (fun x => pure (hDet x)) (.of_computableInPolyTime hpoly)
-  · rintro ⟨p, hp, hH⟩
-    refine ⟨p, hp, fun H ⟨hDet, hpoly, hEq⟩ => ?_⟩
-    simpa only [funext hEq, heval] using hH hDet hpoly
+    simp only [ProbComp.eval_pure, PMF.pure_map]; rfl
+  exact ⟨fun ⟨p, hp, hH⟩ => ⟨p, hp, fun hDet hpoly => by
+      simpa only [heval] using hH (fun x => pure (hDet x)) (.of_computableInPolyTime hpoly)⟩,
+    fun ⟨p, hp, hH⟩ => ⟨p, hp, fun H ⟨hDet, hpoly, hEq⟩ => by
+      simpa only [funext hEq, heval] using hH hDet hpoly⟩⟩
 
 /-- Monotonicity of symmetric `g`-approximation hardness on the kernel. -/
 theorem MildlyHardOnAverageFor.approx_mono
@@ -317,12 +313,10 @@ theorem MildlyHardOnAverageFor.approx_zero_iff
     {Admissible : (List Bool → ProbComp ℕ) → Prop}
     {f : List Bool → ℕ} :
     (MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (Nat.dist v (f x) ≤ 0)) ↔
-      MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (v = f x) := by
-  have heq : (fun (_ : ℕ) (x : List Bool) (v : ℕ) => decide (Nat.dist v (f x) ≤ 0)) =
-      fun _ x v => decide (v = f x) := by
-    funext _ x v
-    exact decide_eq_decide.mpr (by unfold Nat.dist; omega)
-  rw [heq]
+      MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (v = f x) :=
+  Iff.of_eq (congrArg (MildlyHardOnAverageFor Quant Admissible)
+    (funext fun _ => funext fun _ => funext fun _ =>
+      decide_eq_decide.mpr (Nat.le_zero.trans ⟨Nat.eq_of_dist_eq_zero, Nat.dist_eq_zero⟩)))
 
 /-- **Zero-gap specialization (one-sided):** one-sided `0`-approximation hardness coincides with
 exact hardness for every quantifier and admissibility predicate. -/
@@ -331,12 +325,9 @@ theorem MildlyHardOnAverageFor.oneSidedApprox_zero_iff
     {Admissible : (List Bool → ProbComp ℕ) → Prop}
     {f : List Bool → ℕ} :
     (MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (f x - 0 ≤ v ∧ v ≤ f x)) ↔
-      MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (v = f x) := by
-  have heq : (fun (_ : ℕ) (x : List Bool) (v : ℕ) => decide (f x - 0 ≤ v ∧ v ≤ f x)) =
-      fun _ x v => decide (v = f x) := by
-    funext _ x v
-    exact decide_eq_decide.mpr (by omega)
-  rw [heq]
+      MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (v = f x) :=
+  Iff.of_eq (congrArg (MildlyHardOnAverageFor Quant Admissible)
+    (funext fun _ => funext fun _ => funext fun _ => decide_eq_decide.mpr (by omega)))
 
 /-- **Parametric `2g → g` gap-shifting bridge:** whenever `Admissible` is closed under shifting
 outputs down by `g x.length`, one-sided `(2 g)`-approximation hardness implies symmetric
@@ -392,18 +383,11 @@ theorem MildlyHardOnAverageFor.not_of_admissible_pure {β : Type}
     ¬ MildlyHardOnAverageFor Quant Admissible correct := by
   refine MildlyHardOnAverageFor.not_of_forall_poly hfalse fun p hp => ⟨fun _ => pure v₀, hadm, ?_⟩
   filter_upwards [hcorr] with n hn
-  have hmap : ((do
-      let x ← BitString.uniformList n
-      (ProbComp.eval (pure v₀)).map (correct n x) : PMF Bool)) = PMF.pure true := by
-    simp only [ProbComp.eval_pure, PMF.pure_map, PMF.monad_bind_eq_bind]
-    refine (PMF.bind_congr_on_support (BitString.uniformList n)
-      (f := fun x => PMF.pure (correct n x v₀))
-      (g := fun _ => PMF.pure true) fun x hx => ?_).trans (PMF.bind_const _ _)
-    rw [hn x (BitString.length_of_mem_support_uniformList hx)]
-  rw [hmap]
+  change 1 - _ < (((BitString.uniformList n).bind _) true).toReal
+  rw [(PMF.bind_congr_on_support (BitString.uniformList n) _ (fun _ => PMF.pure true) fun x hx =>
+    by simp [hn x (BitString.length_of_mem_support_uniformList hx)]).trans (PMF.bind_const _ _)]
   simp only [PMF.pure_apply_self, ENNReal.toReal_one]
-  have hp_pos : (0 : ℝ) < (p.eval n : ℕ) := by exact_mod_cast hp n
-  linarith [one_div_pos.mpr hp_pos]
+  linarith [one_div_pos.mpr ((Nat.cast_pos (α := ℝ)).mpr (hp n))]
 
 /-! ### Specializations of the kernel to PPT, deterministic, and infinitely-often cores -/
 
@@ -689,10 +673,8 @@ theorem nat_clog_two_le_log_two_succ (n : ℕ) : Nat.clog 2 n ≤ Nat.log 2 n + 
 $\log_2 n \le \lfloor \log_2 n \rfloor + 1$. -/
 theorem real_logb_two_le_nat_log_two_succ {n : ℕ} (hn : 1 ≤ n) :
     Real.logb 2 (n : ℝ) ≤ (Nat.log 2 n + 1 : ℕ) := by
-  have hn_pos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
-  rw [Real.logb_le_iff_le_rpow (by norm_num : (1 : ℝ) < 2) hn_pos, Real.rpow_natCast]
-  have hlt := Nat.lt_pow_succ_log_self Nat.one_lt_two n
-  exact_mod_cast hlt.le
+  rw [Real.logb_le_iff_le_rpow (by norm_num) (by exact_mod_cast hn), Real.rpow_natCast]
+  exact_mod_cast (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le
 
 /-- Any real-valued symmetric approximation error $|(v : \mathbb{R}) - (w : \mathbb{R})| \le
 d \log_2 n$ (for $n \ge 1$) implies the upper-rounded integer distance bound
@@ -700,24 +682,14 @@ d \log_2 n$ (for $n \ge 1$) implies the upper-rounded integer distance bound
 theorem nat_dist_le_mul_log_two_succ_of_abs_sub_le_mul_logb {v w d n : ℕ} (hn : 1 ≤ n)
     (h : |(v : ℝ) - (w : ℝ)| ≤ (d : ℝ) * Real.logb 2 (n : ℝ)) :
     Nat.dist v w ≤ d * (Nat.log 2 n + 1) := by
-  have hdist_real : ((Nat.dist v w : ℕ) : ℝ) = |(v : ℝ) - (w : ℝ)| := by
+  have hdist : ((Nat.dist v w : ℕ) : ℝ) = |(v : ℝ) - (w : ℝ)| := by
     rcases le_total v w with hvw | hwv
-    · have h1 : Nat.dist v w = w - v := by
-        unfold Nat.dist
-        omega
-      have hvw_real : (v : ℝ) ≤ (w : ℝ) := by exact_mod_cast hvw
-      rw [h1, Nat.cast_sub hvw, abs_of_nonpos (by linarith)]
-      ring
-    · have h1 : Nat.dist v w = v - w := by
-        unfold Nat.dist
-        omega
-      have hwv_real : (w : ℝ) ≤ (v : ℝ) := by exact_mod_cast hwv
-      rw [h1, Nat.cast_sub hwv, abs_of_nonneg (by linarith)]
-  have hlog := real_logb_two_le_nat_log_two_succ hn
-  have hle : ((Nat.dist v w : ℕ) : ℝ) ≤ ((d * (Nat.log 2 n + 1) : ℕ) : ℝ) := by
-    rw [hdist_real, Nat.cast_mul]
-    exact h.trans (mul_le_mul_of_nonneg_left hlog (Nat.cast_nonneg d))
-  exact_mod_cast hle
+    · rw [Nat.dist_eq_sub_of_le hvw, Nat.cast_sub hvw, abs_sub_comm,
+        abs_of_nonneg (sub_nonneg.2 (Nat.cast_le.mpr hvw))]
+    · rw [Nat.dist_eq_sub_of_le_right hwv, Nat.cast_sub hwv,
+        abs_of_nonneg (sub_nonneg.2 (Nat.cast_le.mpr hwv))]
+  exact_mod_cast (hdist.trans_le (h.trans (mul_le_mul_of_nonneg_left
+    (real_logb_two_le_nat_log_two_succ hn) (Nat.cast_nonneg d)))).trans_eq (Nat.cast_mul ..).symm
 
 /-- **Real-valued $d \log_2 n$ approximation window bridge:** if `f` is mildly hard on average to
 approximate within the upper-rounded integer window `fun n => d * (Nat.log 2 n + 1)`, then `f` is

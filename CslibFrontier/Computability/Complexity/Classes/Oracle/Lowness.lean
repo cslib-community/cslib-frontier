@@ -100,29 +100,23 @@ variable {α β : Type} {enc : α ↪ List Bool} {output : β ↪ List Bool} {A 
 theorem compl_mem_PWithOracle {L : Set α} (hL : L ∈ PWithOracle A enc) :
     Lᶜ ∈ PWithOracle A enc := by
   obtain ⟨f, hf, hL⟩ := hL
-  refine ⟨fun a => !f a, hf.map (by fun_prop), fun a => ?_⟩
-  rw [Set.mem_compl_iff, hL a]
-  cases h : f a <;> simp [h]
+  exact ⟨fun a => !f a, hf.map (by fun_prop), fun a => by simp [hL a]⟩
 
 /-- **`P` relative to an oracle is closed under intersection.** -/
 theorem inter_mem_PWithOracle {L₁ L₂ : Set α} (h₁ : L₁ ∈ PWithOracle A enc)
     (h₂ : L₂ ∈ PWithOracle A enc) : L₁ ∩ L₂ ∈ PWithOracle A enc := by
   obtain ⟨f₁, hf₁, hL₁⟩ := h₁
   obtain ⟨f₂, hf₂, hL₂⟩ := h₂
-  refine ⟨fun a => f₁ a && f₂ a, (hf₁.prod hf₂).map (g := fun p => p.1 && p.2)
-    (by fun_prop),
-    fun a => ?_⟩
-  rw [Set.mem_inter_iff, hL₁ a, hL₂ a, Bool.and_eq_true]
+  exact ⟨fun a => f₁ a && f₂ a, (hf₁.prod hf₂).map (g := fun p => p.1 && p.2) (by fun_prop),
+    fun a => by simp [hL₁ a, hL₂ a]⟩
 
 /-- **`P` relative to an oracle is closed under union.** -/
 theorem union_mem_PWithOracle {L₁ L₂ : Set α} (h₁ : L₁ ∈ PWithOracle A enc)
     (h₂ : L₂ ∈ PWithOracle A enc) : L₁ ∪ L₂ ∈ PWithOracle A enc := by
   obtain ⟨f₁, hf₁, hL₁⟩ := h₁
   obtain ⟨f₂, hf₂, hL₂⟩ := h₂
-  refine ⟨fun a => f₁ a || f₂ a, (hf₁.prod hf₂).map (g := fun p => p.1 || p.2)
-    (by fun_prop),
-    fun a => ?_⟩
-  rw [Set.mem_union, hL₁ a, hL₂ a, Bool.or_eq_true]
+  exact ⟨fun a => f₁ a || f₂ a, (hf₁.prod hf₂).map (g := fun p => p.1 || p.2) (by fun_prop),
+    fun a => by simp [hL₁ a, hL₂ a]⟩
 
 /-- **`P` relative to `A` contains `Aᶜ`.** -/
 theorem mem_PWithOracle_compl_self (A : Set (List Bool)) : Aᶜ ∈ PWithOracle A encBits :=
@@ -148,16 +142,13 @@ theorem ComputableInPolyTimeWithOracle.encoded_mem_NP {f : α → β} {P : α ×
   have hNo' (q : List Bool) : decide (q ∈ A) = false ↔ 0 < fNo q := by
     simp only [decide_eq_false_iff_not, ← Set.mem_compl_iff, hNo q]
   let T : α → ℕ := fun a => p.eval (enc a).length
-  have hT : ComputableInPolyTime T enc encUnary := by
-    dsimp only [T]
-    fun_prop
+  have hT : ComputableInPolyTime T enc encUnary := by fun_prop
   -- weight each transcript by the indicator of `P` on its replayed output
   let F : α × List Bool → ℕ := fun x => if P x then 1 else 0
   have hF : F ∈ SharpP (encPair enc encBits) := SharpP.ite_mem hP SharpP.one_mem SharpP.zero_mem
   refine mem_NP_iff_exists_SharpP.mpr
     ⟨replayWeightedSum machine (fun a => enc a) T fYes fNo F,
-      replayWeightedSum_mem_SharpP machine (.of_eq fun _ => rfl) hT hYes_mem hNo_mem hF,
-      fun a => ?_⟩
+      replayWeightedSum_mem_SharpP machine (.of_eq fun _ => rfl) hT hYes_mem hNo_mem hF, fun a => ?_⟩
   rw [replayWeightedSum_pos_iff machine (fun a => enc a) T hYes' hNo' F a, hout a]
   by_cases h : P (a, output (f a)) = true <;> simp [F, h]
 
@@ -174,10 +165,8 @@ theorem ComputableInPolyTimeWithOracle.mem_NP {f : α → List Bool} {P : α × 
 theorem PWithOracle_subset_NP (hA_np : A ∈ NP encBits) (hA_conp : A ∈ coNP encBits) :
     PWithOracle A enc ⊆ NP enc := by
   rintro L ⟨f, hf, hL⟩
-  have hP : ComputableInPolyTime (fun x : α × List Bool => decide (x.2 = [true]))
-      (encPair enc encBits) encBool := by fun_prop
-  have hmem := hf.encoded_mem_NP hA_np hA_conp hP
-  convert hmem using 1
+  convert hf.encoded_mem_NP hA_np hA_conp (P := fun x => decide (x.2 = [true])) (by fun_prop)
+    using 1
   ext a
   simp [hL a, encBool_apply]
 
@@ -323,17 +312,15 @@ theorem ComputableInPolyTimeWithOracle.encoded_mem_UP {f : α → β} {P : α ×
   obtain ⟨fNo, hNo_mem, hNo_le, hNo_iff⟩ := hA_coup
   obtain ⟨k, m, machine, p, hout⟩ := hf.exists_replayOutput
   have hYes' (q : List Bool) : decide (q ∈ A) = true ↔ 0 < fYes q := by
-    have hle := hYes_le q
-    rw [show (0 < fYes q) ↔ fYes q = 1 by omega]
+    have := hYes_le q
     simp only [decide_eq_true_eq, hYes_iff q]
+    omega
   have hNo' (q : List Bool) : decide (q ∈ A) = false ↔ 0 < fNo q := by
-    have hle := hNo_le q
-    rw [show (0 < fNo q) ↔ fNo q = 1 by omega]
+    have := hNo_le q
     simp only [decide_eq_false_iff_not, ← Set.mem_compl_iff, hNo_iff q]
+    omega
   let T : α → ℕ := fun a => p.eval (enc a).length
-  have hT : ComputableInPolyTime T enc encUnary := by
-    dsimp only [T]
-    fun_prop
+  have hT : ComputableInPolyTime T enc encUnary := by fun_prop
   -- weight each transcript by the indicator of `P` on its replayed output
   let F : α × List Bool → ℕ := fun x => if P x then 1 else 0
   have hF : F ∈ SharpP (encPair enc encBits) := SharpP.ite_mem hP SharpP.one_mem SharpP.zero_mem
@@ -361,10 +348,8 @@ theorem ComputableInPolyTimeWithOracle.mem_UP {f : α → List Bool} {P : α × 
 theorem PWithOracle_subset_UP (hA_up : A ∈ UP encBits) (hA_coup : A ∈ coUP encBits) :
     PWithOracle A enc ⊆ UP enc := by
   rintro L ⟨f, hf, hL⟩
-  have hP : ComputableInPolyTime (fun x : α × List Bool => decide (x.2 = [true]))
-      (encPair enc encBits) encBool := by fun_prop
-  have hmem := hf.encoded_mem_UP hA_up hA_coup hP
-  convert hmem using 1
+  convert hf.encoded_mem_UP hA_up hA_coup (P := fun x => decide (x.2 = [true])) (by fun_prop)
+    using 1
   ext a
   simp [hL a, encBool_apply]
 

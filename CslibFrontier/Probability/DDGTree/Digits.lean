@@ -88,36 +88,24 @@ theorem run_coinOfDigits (n : ℕ) :
   | zero => intro d; simp [coinOfDigits, coinOfDigitsOutput]
   | succ n ih =>
     intro d
-    have hsame : (coinOfDigits d).child (d 0) = coinOfDigits (fun i => d (i + 1)) := by
+    have hsame : (coinOfDigits d).child (d 0) = coinOfDigits fun i => d (i + 1) := by
       ext w
       simp [coinOfDigits, coinOfDigitsOutput]
     have hdiff : ((coinOfDigits d).child (!d 0)).run n = PMF.pure (some (d 0)) :=
       run_eq_pure_of_output_nil (by simp [coinOfDigits, coinOfDigitsOutput]) n
-    obtain ⟨ihn, ihs⟩ := ih (fun i => d (i + 1))
-    have hstep : ∀ o, (coinOfDigits d).run (n + 1) o =
+    obtain ⟨ihn, ihs⟩ := ih fun i => d (i + 1)
+    have hstep (o) : (coinOfDigits d).run (n + 1) o =
         2⁻¹ * (coinOfDigits fun i => d (i + 1)).run n o + 2⁻¹ * PMF.pure (some (d 0)) o := by
-      intro o
       rw [run_succ, PMF.bind_apply, tsum_bool]
       simp only [PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat]
-      cases h0 : d 0
-      · have h1 := hsame; have h2 := hdiff
-        rw [h0] at h1 h2
-        rw [Bool.not_false] at h2
-        rw [h1, h2]
-      · have h1 := hsame; have h2 := hdiff
-        rw [h0] at h1 h2
-        rw [Bool.not_true] at h2
-        rw [h1, h2, add_comm]
-    refine ⟨?_, fun x => ?_⟩
-    · rw [hstep, ihn]
-      simp [pow_succ']
-    · rw [hstep, ihs, Finset.sum_range_succ', Finset.mul_sum]
-      congr 1
-      · refine Finset.sum_congr rfl fun i _ => ?_
-        split_ifs <;> simp [pow_succ']
-      · by_cases hx : d 0 = x
-        · simp [hx]
-        · simp [hx, PMF.pure_apply, Ne.symm hx]
+      cases h0 : d 0 <;> simp only [h0, Bool.not_false, Bool.not_true] at hsame hdiff <;>
+        rw [hsame, hdiff]
+      exact add_comm _ _
+    refine ⟨by simp [hstep, ihn, pow_succ'], fun x => ?_⟩
+    rw [hstep, ihs, Finset.sum_range_succ', Finset.mul_sum]
+    congr 1
+    · exact Finset.sum_congr rfl fun i _ => by split_ifs <;> simp [pow_succ']
+    · cases d 0 <;> cases x <;> simp [PMF.pure_apply]
 
 /-- The comparison stops with probability one: it is running after `n` bits with probability
 `2⁻ⁿ`. -/

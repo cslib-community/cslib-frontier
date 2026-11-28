@@ -184,13 +184,9 @@ theorem mem_SampNP {L : DistProblem} : L ∈ SampNP ↔ L.lang ∈ NP encBits �
 /-- A language decidable in polynomial time is in `AvgP` under every ensemble. -/
 theorem mem_AvgP_of_mem_P {L : DistProblem} (h : L.lang ∈ P encBits) : L ∈ AvgP := by
   obtain ⟨g, hg, hL⟩ := h
-  refine ⟨fun q => some (g q.1), ⟨?_, ?_, ?_⟩⟩
-  · polytime
-  · intro n x k b _ hb
-    cases hb
-    exact (hL x).symm
-  · intro n k
-    simp
+  refine ⟨fun q => some (g q.1), ⟨?_, fun _ x _ _ _ hb => Option.some.inj hb ▸ (hL x).symm,
+    fun _ _ => by simp⟩⟩
+  polytime
 
 /-- Errorless heuristic schemes yield heuristic schemes: answer `false` on failure. -/
 theorem AvgP_subset_HeurP : AvgP ⊆ HeurP := by
@@ -204,9 +200,7 @@ theorem AvgP_subset_HeurP : AvgP ⊆ HeurP := by
     simp only [Set.mem_ofPred_eq] at hx ⊢
     cases hAx : A (x, k) with
     | none => rfl
-    | some b =>
-      rw [hAx, Option.getD_some] at hx
-      exact absurd (hA.correct n x k b hsupp hAx) hx
+    | some b => exact absurd (hA.correct n x k b hsupp hAx) (by simpa [hAx] using hx)
 
 /-- An errorless heuristic scheme run with confidence parameter `q(n)` on length `n` is an
 errorless heuristic algorithm with failure probability `1/(q(n)+1)`. -/
@@ -214,12 +208,10 @@ theorem AvgP_subset_AvgDeltaP (q : Polynomial ℕ) :
     AvgP ⊆ AvgDeltaP (fun n => ((q.eval n + 1 : ℕ) : ℝ≥0∞)⁻¹) := by
   rintro L ⟨A, hA⟩
   have hpt := hA.polyTime
-  refine ⟨fun x => A (x, q.eval x.length), ⟨?_, ?_, ?_⟩⟩
+  refine ⟨fun x => A (x, q.eval x.length), ⟨?_, fun n x b hx hb => hA.correct n x _ b hx hb,
+    fun n => ?_⟩⟩
   · polytime
-  · intro n x b hx hb
-    exact hA.correct n x _ b hx hb
-  · intro n
-    refine le_trans (PMF.toOuterMeasure_mono _ ?_) (hA.failure_le n (q.eval n))
+  · refine le_trans (PMF.toOuterMeasure_mono _ ?_) (hA.failure_le n (q.eval n))
     rintro x ⟨hx, hsupp⟩
     simpa only [Set.mem_ofPred_eq, L.ens.length_eq n x hsupp] using hx
 
@@ -248,8 +240,6 @@ theorem AvgDeltaP_subset_HeurDeltaP (δ : ℕ → ℝ≥0∞) : AvgDeltaP δ ⊆
     simp only [Set.mem_ofPred_eq] at hx ⊢
     cases hAx : A x with
     | none => rfl
-    | some b =>
-      rw [hAx, Option.getD_some] at hx
-      exact absurd (hA.correct n x b hsupp hAx) hx
+    | some b => exact absurd (hA.correct n x b hsupp hAx) (by simpa [hAx] using hx)
 
 end Cslib.Complexity

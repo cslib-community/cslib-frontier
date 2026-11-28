@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ParameterSelecting.Time
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ParameterSelecting.Header
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import CslibFrontier.Foundations.Data.List.GetD
 
 /-!
@@ -61,122 +62,71 @@ theorem exec_at {W n F ap bp cp b : ℕ} (values : List ℤ)
     ((envelope_fits values hW).of_le (Nat.zero_le _))
   obtain ⟨a, ha, an, ablocks, al, ad, ag, aL, aflag, am, ar⟩ := exec_parameters s
     (spn.trans xn) (parameter_fits values hW)
-  have original (j : Fin 640) (hj : j.val < 144 ∨ 160 ≤ j.val) : a.regs j = s.regs j := ar j hj
-  have aF : a.regs Reg.savedBound = F := (original _ (Or.inl (by decide))).trans (sF.trans xF)
-  have aN : a.regs CallableFixedPrime.Reg.n = n :=
-    (original _ (Or.inr (by decide))).trans (sn.trans xn)
-  have aAB : a.regs CallableFixedPrime.Reg.ab = ap :=
-    (original _ (Or.inr (by decide))).trans (sa.trans xap)
-  have aBC : a.regs CallableFixedPrime.Reg.bc = bp :=
-    (original _ (Or.inr (by decide))).trans (sb.trans xbp)
-  have aAC : a.regs CallableFixedPrime.Reg.ac = cp :=
-    (original _ (Or.inr (by decide))).trans (sc.trans xcp)
-  have aBase : a.regs CallableFixedPrime.Reg.base = b :=
-    (original _ (Or.inr (by decide))).trans (sf.trans xb)
-  have aPrime : a.regs CallableFixedPrime.Reg.prime = 0 :=
-    (original _ (Or.inr (by decide))).trans sp
+  obtain ⟨aF, aN, aAB, aBC, aAC, aBase, aPrime⟩ :
+      a.regs Reg.savedBound = F ∧ a.regs CallableFixedPrime.Reg.n = n ∧
+      a.regs CallableFixedPrime.Reg.ab = ap ∧ a.regs CallableFixedPrime.Reg.bc = bp ∧
+      a.regs CallableFixedPrime.Reg.ac = cp ∧ a.regs CallableFixedPrime.Reg.base = b ∧
+      a.regs CallableFixedPrime.Reg.prime = 0 := by clear hs ha; regs_frame
   have aMem : a.mem = x.mem := am.trans sm
   let cond := Cond.lt CallableFixedPrime.Reg.prime (parameterBank DyadicParameters.Reg.fast)
-  have finish (p : ℕ) (mem : ℕ → ℕ) (r : Data 640)
-      (he : ExecWithin W (.branch cond fast slow) a r (stageBudget n p values mem + 2))
-      (hbool : r.regs CallableFixedPrime.Reg.found = 0 ∨ r.regs CallableFixedPrime.Reg.found = 1)
-      (hiff : r.regs CallableFixedPrime.Reg.found = 1 ↔ HasZeroTriangle A B C)
-      (hprime : 0 < ParameterChoice.blocks n →
-        IsSelectedPrime A B C (ParameterChoice.window n) p)
-      (hzero : ¬0 < ParameterChoice.blocks n → p = 0)
-      (hframe : ∀ q, q < b ∨ workspaceEnd n b values ≤ q → r.mem q = a.mem q)
-      (hregs : ∀ j : Fin 640, (143 ≤ j.val ∧ j.val < 160) ∨
-        j = CallableFixedPrime.Reg.n ∨ (604 ≤ j.val ∧ j.val ≤ 607) → r.regs j = a.regs j) :
-      ∃ y, ExecWithin W program x y (timeBound n p values mem) ∧
-        (y.regs Reg.result = 0 ∨ y.regs Reg.result = 1) ∧
-        (y.regs Reg.result = 1 ↔ HasZeroTriangle A B C) ∧
+  obtain ⟨p, mem, r, he, hbool, hiff, hprime, hzero, hframe, hregs⟩ :
+      ∃ (p : ℕ) (mem : ℕ → ℕ) (r : Data 640),
+        ExecWithin W (.branch cond fast slow) a r (stageBudget n p values mem + 2) ∧
+        (r.regs CallableFixedPrime.Reg.found = 0 ∨ r.regs CallableFixedPrime.Reg.found = 1) ∧
+        (r.regs CallableFixedPrime.Reg.found = 1 ↔ HasZeroTriangle A B C) ∧
         (0 < ParameterChoice.blocks n → IsSelectedPrime A B C (ParameterChoice.window n) p) ∧
         (¬0 < ParameterChoice.blocks n → p = 0) ∧
-        (∀ q, q < b ∨ workspaceEnd n b values ≤ q → y.mem q = x.mem q) ∧
-        y.regs Reg.side = n ∧ y.regs Reg.bound = F ∧ y.regs Reg.ab = ap ∧
-        y.regs Reg.bc = bp ∧ y.regs Reg.ac = cp ∧ y.regs Reg.free = b := by
-    obtain ⟨y, hy, ym, yn, yF, ya, yb, yc, yf, yo, _⟩ := exec_restore (W := W) r
-    refine ⟨y, hs.seq (ha.seq (he.seq hy)), ?_, ?_, hprime, hzero, ?_,
-      yn.trans ((hregs _ (Or.inr (Or.inl rfl))).trans aN),
-      yF.trans ((hregs _ (Or.inl ⟨by decide, by decide⟩)).trans aF),
-      ya.trans ((hregs _ (Or.inr (Or.inr ⟨by decide, by decide⟩))).trans aAB),
-      yb.trans ((hregs _ (Or.inr (Or.inr ⟨by decide, by decide⟩))).trans aBC),
-      yc.trans ((hregs _ (Or.inr (Or.inr ⟨by decide, by decide⟩))).trans aAC),
-      yf.trans ((hregs _ (Or.inr (Or.inr ⟨by decide, by decide⟩))).trans aBase)⟩
-    · simpa only [yo] using hbool
-    · simpa only [yo] using hiff
-    · intro q hq
-      exact (congrFun ym q).trans ((hframe q hq).trans (congrFun aMem q))
-  by_cases hfast : 0 < ParameterChoice.blocks n
-  · obtain ⟨p, reference, hp, hout, r, hr, rf, riff, rs, frame, regs⟩ := exec_fast values hlen hv
-      hfast a aN ad ag aBase (by simpa only [aAB] using hab)
-      (by simpa only [aBC] using hbc) (by simpa only [aAC] using hac)
-      (fun q hq => by rw [aAB, aMem]; exact vab q hq)
-      (fun q hq => by rw [aBC, aMem]; exact vbc q hq)
-      (fun q hq => by rw [aAC, aMem]; exact vac q hq)
-      (counter_magnitude_fits (n := n) (F := F) (b := b) (ap := ap) (bp := bp) (cp := cp) values)
-      (by simpa only [aAB, aBC, aAC, ParameterChoice.window,
-        Cslib.Algorithms.MatrixMultiplication.Schonhage.D] using
-        counter_address_fits (n := n) (F := F) (b := b) (ap := ap) (bp := bp) (cp := cp) values)
-      (by simpa only [executionWidth, Nat.add_assoc] using hW)
-      (controller_fits values hW) (callable_fits values hW)
-    have hc : cond.Holds a := by
-      simpa only [cond, Cond.holds_lt, aPrime, aflag, ite_eq_left hfast] using
-        (by decide : 0 < (1 : ℕ))
-    have hstage : ExecWithin W fast a r (stageBudget n p values reference.mem) := by
-      simpa only [stageBudget, dite_eq_left hfast, ParameterChoice.window,
-        Cslib.Algorithms.MatrixMultiplication.Schonhage.D] using hr
-    have hbranch : ExecWithin W (.branch cond fast slow) a r
-        (stageBudget n p values reference.mem + 2) :=
-      (ExecWithin.branch_pos hc hstage).mono (by omega)
-    obtain ⟨y, he, yf, yiff, yp, yz, ym, yn, yF, ya, yb, yc, yfree⟩ :=
-      finish p reference.mem r hbranch rf riff (fun _ => hp)
-        (fun h => False.elim (h hfast)) frame regs
-    exact ⟨p, reference.mem, y, he, yf, yiff, yp, yz, ym, yn, yF, ya, yb, yc, yfree⟩
-  · have value_bound (q : ℕ) (hq : q < 3 * (n * n)) : (V q).natAbs ≤ F :=
-      hv (values.getD q 0) (List.getD_mem 0 (by omega))
-    have abs_bound (q : ℕ) (hq : q < 3 * (n * n)) : |V q| ≤ (F : ℤ) := by
-      have hcast : ((V q).natAbs : ℤ) ≤ (F : ℤ) := by exact_mod_cast value_bound q hq
-      simpa only [Int.natCast_natAbs] using hcast
-    obtain ⟨r, hr, rf, riff, rm, regs⟩ := exec_slow a A B C aN
-      (by simpa only [aAB] using hab) (by simpa only [aBC] using hbc)
-      (by simpa only [aAC] using hac) (slow_fits values hW)
-      (fun i j => by
-        rw [aAB, aMem]
-        simpa only [A, V, pairIndex, Nat.add_assoc] using vab _ (pairIndex_lt (i, j)))
-      (fun i j => by
-        rw [aBC, aMem]
-        simpa only [B, V, pairIndex, Nat.add_assoc] using vbc _ (pairIndex_lt (i, j)))
-      (fun i j => by
-        rw [aAC, aMem]
-        simpa only [C, V, pairIndex, Nat.add_assoc] using vac _ (pairIndex_lt (i, j)))
-      (fun i j => abs_bound _ (by have := pairIndex_lt (i, j); omega))
-      (fun i j => abs_bound _ (by have := pairIndex_lt (i, j); omega))
-      (fun i j => abs_bound _ (by have := pairIndex_lt (i, j); omega))
-    have hc : ¬cond.Holds a := by
-      simp only [cond, Cond.holds_lt, aPrime, aflag, ite_eq_right hfast,
-        lt_self_iff_false, not_false_eq_true]
-    have hstage : ExecWithin W slow a r (stageBudget n 0 values (fun _ => 0)) := by
-      simpa only [stageBudget, dite_eq_right hfast] using hr
-    have hbranch : ExecWithin W (.branch cond fast slow) a r
-        (stageBudget n 0 values (fun _ => 0) + 2) := ExecWithin.branch_neg hc hstage
-    have hkeep (j : Fin 640) (hj : (143 ≤ j.val ∧ j.val < 160) ∨
-        j = CallableFixedPrime.Reg.n ∨ (604 ≤ j.val ∧ j.val ≤ 607)) : r.regs j = a.regs j := by
-      have cases : (143 ≤ j.val ∧ j.val < 160) ∨ j.val = 600 ∨
-          (604 ≤ j.val ∧ j.val ≤ 607) := by
-        rcases hj with h | h | h
-        · exact Or.inl h
-        · exact Or.inr (Or.inl (congrArg Fin.val h))
-        · exact Or.inr (Or.inr h)
-      apply regs j
-      · rcases cases with h | h | h <;> omega
-      · intro h
-        have hh : j.val = 632 := congrArg Fin.val h
-        rcases cases with h | h | h <;> omega
-    obtain ⟨y, he, yf, yiff, yp, yz, ym, yn, yF, ya, yb, yc, yfree⟩ :=
-      finish 0 (fun _ => 0) r hbranch (by omega) riff
-        (fun h => False.elim (hfast h)) (fun _ => rfl)
-        (fun q _ => congrFun rm q) hkeep
-    exact ⟨0, (fun _ => 0), y, he, yf, yiff, yp, yz, ym, yn, yF, ya, yb, yc, yfree⟩
+        (∀ q, q < b ∨ workspaceEnd n b values ≤ q → r.mem q = a.mem q) ∧
+        ∀ j : Fin 640, (143 ≤ j.val ∧ j.val < 160) ∨
+          j = CallableFixedPrime.Reg.n ∨ (604 ≤ j.val ∧ j.val ≤ 607) → r.regs j = a.regs j := by
+    by_cases hfast : 0 < ParameterChoice.blocks n
+    · obtain ⟨p, reference, hp, hout, r, hr, rf, riff, rs, frame, regs⟩ := exec_fast values hlen hv
+        hfast a aN ad ag aBase (aAB ▸ hab) (aBC ▸ hbc) (aAC ▸ hac)
+        (fun q hq => by rw [aAB, aMem]; exact vab q hq)
+        (fun q hq => by rw [aBC, aMem]; exact vbc q hq)
+        (fun q hq => by rw [aAC, aMem]; exact vac q hq)
+        (counter_magnitude_fits (n := n) (F := F) (b := b) (ap := ap) (bp := bp) (cp := cp) values)
+        (by simpa only [aAB, aBC, aAC, ParameterChoice.window,
+          Cslib.Algorithms.MatrixMultiplication.Schonhage.D] using
+          counter_address_fits (n := n) (F := F) (b := b) (ap := ap) (bp := bp) (cp := cp) values)
+        (by simpa only [executionWidth, Nat.add_assoc] using hW)
+        (controller_fits values hW) (callable_fits values hW)
+      have hstage : ExecWithin W fast a r (stageBudget n p values reference.mem) := by
+        simpa only [stageBudget, dite_eq_left hfast, ParameterChoice.window,
+          Cslib.Algorithms.MatrixMultiplication.Schonhage.D] using hr
+      refine ⟨p, reference.mem, r, (ExecWithin.branch_pos ?_ hstage).mono (by omega), rf, riff,
+        fun _ => hp, fun h => False.elim (h hfast), frame, regs⟩
+      simpa only [cond, Cond.holds_lt, aPrime, aflag, ite_eq_left hfast] using (by decide : 0 < 1)
+    · have abs_bound (q : ℕ) (hq : q < 3 * (n * n)) : |V q| ≤ (F : ℤ) := by
+        simpa only [Int.natCast_natAbs] using
+          (Int.ofNat_le.mpr (hv (values.getD q 0) (List.getD_mem 0 (by omega))))
+      obtain ⟨r, hr, rf, riff, rm, regs⟩ := exec_slow a A B C aN (aAB ▸ hab) (aBC ▸ hbc)
+        (aAC ▸ hac) (slow_fits values hW)
+        (fun i j => by
+          rw [aAB, aMem]
+          simpa only [A, V, pairIndex, Nat.add_assoc] using vab _ (pairIndex_lt (i, j)))
+        (fun i j => by
+          rw [aBC, aMem]
+          simpa only [B, V, pairIndex, Nat.add_assoc] using vbc _ (pairIndex_lt (i, j)))
+        (fun i j => by
+          rw [aAC, aMem]
+          simpa only [C, V, pairIndex, Nat.add_assoc] using vac _ (pairIndex_lt (i, j)))
+        (fun i j => abs_bound _ (by have := pairIndex_lt (i, j); omega))
+        (fun i j => abs_bound _ (by have := pairIndex_lt (i, j); omega))
+        (fun i j => abs_bound _ (by have := pairIndex_lt (i, j); omega))
+      have hc : ¬cond.Holds a := by
+        simp only [cond, Cond.holds_lt, aPrime, aflag, ite_eq_right hfast, lt_self_iff_false,
+          not_false_eq_true]
+      have hstage : ExecWithin W slow a r (stageBudget n 0 values (fun _ => 0)) := by
+        simpa only [stageBudget, dite_eq_right hfast] using hr
+      refine ⟨0, fun _ => 0, r, ExecWithin.branch_neg hc hstage, by omega, riff,
+        fun h => False.elim (hfast h), fun _ => rfl, fun q _ => congrFun rm q,
+        fun j hj => regs j ?_ ?_⟩
+      · rcases hj with h | rfl | h <;> first | omega | decide
+      · rintro rfl; exact absurd hj (by decide)
+  obtain ⟨y, hy, ym, yn, yF, ya, yb, yc, yf, yo, _⟩ := exec_restore (W := W) r
+  exact ⟨p, mem, y, hs.seq (ha.seq (he.seq hy)), yo ▸ hbool, yo ▸ hiff, hprime, hzero,
+    fun q hq => (congrFun ym q).trans ((hframe q hq).trans (congrFun aMem q)),
+    by clear hs ha he hy; regs_frame⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting

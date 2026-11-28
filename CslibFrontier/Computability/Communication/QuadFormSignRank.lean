@@ -62,6 +62,11 @@ namespace Cslib.Communication
 open Set Matrix
 open scoped Finset
 
+private theorem card_add_card_compl {ι : Type*} [Fintype ι] (X : Set ι) [Fintype X]
+    [Fintype ↥Xᶜ] : Fintype.card X + Fintype.card ↥Xᶜ = Fintype.card ι := by
+  simp only [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
+  exact ncard_add_ncard_compl X
+
 open Classical in
 /-- **Bilinear operator-norm bound for quadratic-form sign matrices.** Across any coordinate cut
 `X : Set ι`, the `±1` sign matrix `M` of `BitString.quadForm Q` satisfies
@@ -94,54 +99,34 @@ theorem abs_sum_mul_signMatrix_quadForm_le {ι : Type*} [Fintype ι] [DecidableE
     have hq := Matrix.dotProduct_mulVec_self_eq_add Q X
       fun i => BitString.bitVal (ZMod 2) (glue (a, b) i)
     have ha_sub : (X.domRestrict fun i => BitString.bitVal (ZMod 2) (glue (a, b) i)) = eX a := by
-      have h1 : X.domRestrict (glue (a, b)) = a :=
-        congrArg Prod.fst ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).apply_symm_apply _)
       ext i
-      rw [Set.domRestrict_apply, ← BitString.bitEquiv_symm_apply]
-      exact congrArg BitString.bitEquiv.symm (congrFun h1 i)
+      simp only [glue, Equiv.piEquivPiSubtypeProd_symm_apply, domRestrict_apply, Subtype.coe_prop,
+        ↓reduceDIte, Subtype.coe_eta]
+      exact (BitString.bitEquiv_symm_apply _).symm
     have hb_sub : (Xᶜ.domRestrict fun i => BitString.bitVal (ZMod 2) (glue (a, b) i)) = eY b := by
-      have h2 : Xᶜ.domRestrict (glue (a, b)) = b :=
-        congrArg Prod.snd ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).apply_symm_apply _)
       ext j
-      rw [Set.domRestrict_apply, ← BitString.bitEquiv_symm_apply]
-      exact congrArg BitString.bitEquiv.symm (congrFun h2 j)
+      simp only [glue, Equiv.piEquivPiSubtypeProd_symm_apply, domRestrict_apply,
+        notMem_of_mem_compl j.2, ↓reduceDIte, Subtype.coe_eta]
+      exact (BitString.bitEquiv_symm_apply _).symm
     rw [hS, hq, ZMod.neg_one_pow_val_add, ZMod.neg_one_pow_val_add, ha_sub, hb_sub]
   set kerCard := #{z : ↥Xᶜ → ZMod 2 | C *ᵥ z = 0}
   have hker_eq : (kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X =
       (2 : ℝ) ^ Fintype.card ι / (2 : ℝ) ^ (Q + Qᵀ).cutRank X := by
-    have h1 := Matrix.card_ker_mul_two_pow_rank C
-    have hC : C.rank = (Q + Qᵀ).cutRank X := ((Q + Qᵀ).cutRank_eq_rank X).symm
-    rw [hC] at h1
-    have h1r : (kerCard : ℝ) * (2 : ℝ) ^ (Q + Qᵀ).cutRank X = (2 : ℝ) ^ Fintype.card ↥Xᶜ := by
-      exact_mod_cast h1
-    have hn : Fintype.card ↥Xᶜ + Fintype.card X = Fintype.card ι := by
-      rw [add_comm, ← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card,
-        ← Nat.card_eq_fintype_card, Nat.card_coe_set_eq, Nat.card_coe_set_eq]
-      exact ncard_add_ncard_compl X
-    rw [eq_div_iff (by positivity)]
-    calc (kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X * (2 : ℝ) ^ (Q + Qᵀ).cutRank X
-        = ((kerCard : ℝ) * (2 : ℝ) ^ (Q + Qᵀ).cutRank X) * (2 : ℝ) ^ Fintype.card X := by ring
-      _ = (2 : ℝ) ^ Fintype.card ↥Xᶜ * (2 : ℝ) ^ Fintype.card X := by rw [h1r]
-      _ = (2 : ℝ) ^ Fintype.card ι := by rw [← pow_add, hn]
-  have hcs := Matrix.abs_sum_mul_le_sqrt_mul_sqrt M p_vec q_vec
+    have h1 : (kerCard : ℝ) * (2 : ℝ) ^ (Q + Qᵀ).cutRank X = (2 : ℝ) ^ Fintype.card ↥Xᶜ := by
+      rw [(Q + Qᵀ).cutRank_eq_rank X]
+      exact_mod_cast Matrix.card_ker_mul_two_pow_rank C
+    rw [eq_div_iff (by positivity), mul_right_comm, h1, ← pow_add, add_comm, card_add_card_compl]
   suffices hrow : ∑ a, (M *ᵥ q_vec) a ^ 2 ≤
       ((kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X) * ∑ b, q_vec b ^ 2 by
-    calc |∑ a, ∑ b, p_vec a * M a b * q_vec b|
-        ≤ √(∑ a, p_vec a ^ 2) * √(∑ a, (M *ᵥ q_vec) a ^ 2) := hcs
-      _ ≤ √(∑ a, p_vec a ^ 2) *
-            √(((kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X) * ∑ b, q_vec b ^ 2) :=
-          mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hrow) (Real.sqrt_nonneg _)
-      _ = √((2 : ℝ) ^ Fintype.card ι / (2 : ℝ) ^ (Q + Qᵀ).cutRank X) *
-            √(∑ a, p_vec a ^ 2) * √(∑ b, q_vec b ^ 2) := by
-          rw [hker_eq, Real.sqrt_mul (by positivity)]
-          ring
+    refine (Matrix.abs_sum_mul_le_sqrt_mul_sqrt M p_vec q_vec).trans ?_
+    rw [← hker_eq, mul_comm _ √(∑ a, p_vec a ^ 2), mul_assoc,
+      ← Real.sqrt_mul (by positivity : (0 : ℝ) ≤ kerCard * 2 ^ Fintype.card X)]
+    gcongr
   let q' : (↥Xᶜ → ZMod 2) → ℝ := fun w => h w * q_vec (eY.symm w)
   have hgsq (u : X → ZMod 2) : g u ^ 2 = 1 := by
-    dsimp only [g]
-    rw [← pow_mul, mul_comm _ 2, pow_mul, neg_one_sq, one_pow]
+    dsimp only [g]; rw [pow_right_comm, neg_one_sq, one_pow]
   have hhsq (w : ↥Xᶜ → ZMod 2) : h w ^ 2 = 1 := by
-    dsimp only [h]
-    rw [← pow_mul, mul_comm _ 2, pow_mul, neg_one_sq, one_pow]
+    dsimp only [h]; rw [pow_right_comm, neg_one_sq, one_pow]
   have hsum_reidx : (∑ a, (M *ᵥ q_vec) a ^ 2) =
       ∑ u : X → ZMod 2, (∑ w : ↥Xᶜ → ZMod 2, q' w * (-1 : ℝ) ^ (u ⬝ᵥ C *ᵥ w).val) ^ 2 := by
     refine Fintype.sum_equiv eX _ _ fun a => ?_
@@ -153,10 +138,11 @@ theorem abs_sum_mul_signMatrix_quadForm_le {ι : Type*} [Fintype ι] [DecidableE
       simp only [q', Equiv.symm_apply_apply]
       ring
     rw [hmv, mul_pow, hgsq (eX a), one_mul]
+  let K (w w' : ↥Xᶜ → ZMod 2) : ℝ :=
+    if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0
   have hexpand : (∑ u : X → ZMod 2,
         (∑ w : ↥Xᶜ → ZMod 2, q' w * (-1 : ℝ) ^ (u ⬝ᵥ C *ᵥ w).val) ^ 2) =
-      ∑ w, ∑ w', q' w * q' w' *
-        (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) := by
+      ∑ w, ∑ w', q' w * q' w' * K w w' := by
     calc ∑ u : X → ZMod 2, (∑ w, q' w * (-1 : ℝ) ^ (u ⬝ᵥ C *ᵥ w).val) ^ 2
         = ∑ u, ∑ w, ∑ w', q' w * q' w' * (-1 : ℝ) ^ (u ⬝ᵥ (C *ᵥ w + C *ᵥ w')).val := by
             refine Fintype.sum_congr _ _ fun u => ?_
@@ -170,48 +156,29 @@ theorem abs_sum_mul_signMatrix_quadForm_le {ι : Type*} [Fintype ι] [DecidableE
   have hfib_eq (w w' : ↥Xᶜ → ZMod 2) : C *ᵥ w + C *ᵥ w' = 0 ↔ C *ᵥ w' = C *ᵥ w := by
     rw [add_eq_zero_iff_eq_neg, ZModModule.neg_eq_self, eq_comm]
   have hfib_card (w : ↥Xᶜ → ZMod 2) :
-      (∑ w' : ↥Xᶜ → ZMod 2,
-        if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) =
-        (kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X := by
-    simp_rw [hfib_eq]
+      ∑ w', K w w' = (kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X := by
+    simp_rw [K, hfib_eq]
     rw [Finset.sum_ite, Finset.sum_const, Finset.sum_const_zero, add_zero, nsmul_eq_mul]
     congr 1
     exact_mod_cast Matrix.card_filter_mulVec_eq C w
-  have hsymm : (∑ w : ↥Xᶜ → ZMod 2, ∑ w' : ↥Xᶜ → ZMod 2,
-        q' w' ^ 2 * (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0)) =
-      ∑ w, ∑ w', q' w ^ 2 * (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) := by
-    rw [Finset.sum_comm]
-    refine Finset.sum_congr rfl fun w' _ => Finset.sum_congr rfl fun w _ => ?_
-    rw [add_comm (C *ᵥ w) (C *ᵥ w')]
-  have hamgm : ∑ w, ∑ w', q' w * q' w' *
-        (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) ≤
-      ∑ w, ∑ w', ((q' w ^ 2 + q' w' ^ 2) / 2) *
-        (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) :=
-    Finset.sum_le_sum fun w _ => Finset.sum_le_sum fun w' _ =>
-      mul_le_mul_of_nonneg_right (by linarith [two_mul_le_add_sq (q' w) (q' w')])
-        (by by_cases hc0 : C *ᵥ w + C *ᵥ w' = 0 <;> simp only [hc0, ↓reduceIte] <;> positivity)
   have hq'_sum : ∑ w : ↥Xᶜ → ZMod 2, q' w ^ 2 = ∑ b : ↥Xᶜ → Bool, q_vec b ^ 2 := by
     refine Fintype.sum_equiv eY.symm _ _ fun w => ?_
     simp only [q', mul_pow, hhsq w, one_mul]
   rw [hsum_reidx, hexpand]
-  calc ∑ w, ∑ w', q' w * q' w' *
-          (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0)
-      ≤ ∑ w, ∑ w', ((q' w ^ 2 + q' w' ^ 2) / 2) *
-          (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) := hamgm
-    _ = (1 / 2) * (∑ w, ∑ w', q' w ^ 2 *
-          (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) +
-        ∑ w, ∑ w', q' w' ^ 2 *
-          (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0)) := by
-          rw [← Finset.sum_add_distrib, Finset.mul_sum]
-          refine Finset.sum_congr rfl fun w _ => ?_
-          rw [← Finset.sum_add_distrib, Finset.mul_sum]
-          exact Finset.sum_congr rfl fun w' _ => by ring
-    _ = ∑ w, q' w ^ 2 * ((kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X) := by
-          rw [hsymm]
-          have h2 : ∀ x : ℝ, (1 / 2) * (x + x) = x := fun x => by ring
-          rw [h2]
-          exact Finset.sum_congr rfl fun w _ => by rw [← Finset.mul_sum, hfib_card w]
+  calc ∑ w, ∑ w', q' w * q' w' * K w w'
+      ≤ ∑ w, ∑ w', (q' w ^ 2 * K w w' / 2 + q' w' ^ 2 * K w' w / 2) :=
+        Finset.sum_le_sum fun w _ => Finset.sum_le_sum fun w' _ => by
+          have hK : 0 ≤ K w w' := by simp only [K]; split_ifs <;> positivity
+          rw [show K w' w = K w w' by simp only [K, add_comm]]
+          linarith [mul_nonneg (sub_nonneg.2 (two_mul_le_add_sq (q' w) (q' w'))) hK]
+    _ = ∑ w, q' w ^ 2 * ∑ w', K w w' := by
+          simp only [Finset.sum_add_distrib]
+          rw [Finset.sum_comm (f := fun w w' => q' w' ^ 2 * K w' w / 2), ← two_mul, Finset.mul_sum]
+          exact Finset.sum_congr rfl fun w _ => by
+            rw [Finset.mul_sum, Finset.mul_sum]
+            exact Finset.sum_congr rfl fun w' _ => by ring
     _ = ((kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X) * ∑ b, q_vec b ^ 2 := by
+          simp only [hfib_card]
           rw [← Finset.sum_mul, hq'_sum, mul_comm]
 
 open Classical in
@@ -236,24 +203,11 @@ theorem two_pow_cutRank_le_signRank_quadForm_sq {ι : Type*} [Fintype ι] [Decid
   have hsq := pow_le_pow_left₀ (by positivity) hforster 2
   have hcard_prod : (Fintype.card (X → Bool) : ℝ) * Fintype.card (↥Xᶜ → Bool) =
       (2 : ℝ) ^ Fintype.card ι := by
-    have hn : Fintype.card X + Fintype.card ↥Xᶜ = Fintype.card ι := by
-      rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card,
-        Nat.card_coe_set_eq, Nat.card_coe_set_eq]
-      exact ncard_add_ncard_compl X
-    simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat]
-    rw [← pow_add, hn]
-  rw [one_mul, Real.sq_sqrt (by positivity), mul_pow, Real.sq_sqrt (by positivity), hcard_prod]
-    at hsq
-  have hmul := mul_le_mul_of_nonneg_right hsq (by positivity : (0 : ℝ) ≤ 2 ^ (Q + Qᵀ).cutRank X)
-  have hrhs_eq : (2 : ℝ) ^ Fintype.card ι / (2 : ℝ) ^ (Q + Qᵀ).cutRank X *
-      (signRank f : ℝ) ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank X =
-      (2 : ℝ) ^ Fintype.card ι * (signRank f : ℝ) ^ 2 := by
-    field_simp
-  rw [hrhs_eq] at hmul
-  have h2pos : (0 : ℝ) < (2 : ℝ) ^ Fintype.card ι := by positivity
-  have hreal : ((2 : ℝ) ^ (Q + Qᵀ).cutRank X) ≤ (signRank f : ℝ) ^ 2 :=
-    le_of_mul_le_mul_left (by linarith) h2pos
-  exact_mod_cast hreal
+    simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat, ← pow_add,
+      card_add_card_compl]
+  rw [one_mul, Real.sq_sqrt (by positivity), mul_pow, Real.sq_sqrt (by positivity), hcard_prod,
+    div_mul_eq_mul_div, le_div_iff₀ (by positivity)] at hsq
+  exact_mod_cast le_of_mul_le_mul_left hsq (by positivity : (0 : ℝ) < 2 ^ Fintype.card ι)
 
 open Classical in
 /-- **Low-rank Frobenius bilinear bound against quadratic forms.** If `P_mat = U_mat * V_mat`
@@ -278,12 +232,8 @@ theorem sq_sum_mul_signMatrix_quadForm_le_card_of_mul {ι κ : Type*} [Fintype �
   let E := EuclideanSpace ℝ (X → Bool)
   let fLin : EuclideanSpace ℝ κ →ₗ[ℝ] E := Matrix.toEuclideanLin U_mat
   let S : Submodule ℝ E := LinearMap.range fLin
-  have hdim : Module.finrank ℝ S ≤ Fintype.card κ := by
-    have h1 := fLin.finrank_range_add_finrank_ker
-    have h2 : Module.finrank ℝ (EuclideanSpace ℝ κ) = Fintype.card κ :=
-      Module.finrank_eq_card_basis (EuclideanSpace.basisFun κ ℝ).toBasis
-    dsimp only [S]
-    omega
+  have hdim : Module.finrank ℝ S ≤ Fintype.card κ :=
+    fLin.finrank_range_le.trans_eq finrank_euclideanSpace
   let col (b : ↥Xᶜ → Bool) : E := WithLp.toLp 2 fun a => P_mat a b
   have hcol_mem (b : ↥Xᶜ → Bool) : col b ∈ S := by
     refine ⟨WithLp.toLp 2 fun k => V_mat k b, ?_⟩
@@ -310,16 +260,10 @@ theorem sq_sum_mul_signMatrix_quadForm_le_card_of_mul {ι κ : Type*} [Fintype �
       rw [map_sum] at hval
       simp only [LinearMap.comp_apply, Submodule.coe_subtype, map_smul, evala, smul_eq_mul] at hval
       exact hval.symm.trans (Finset.sum_congr rfl fun j _ => mul_comm (w₀ j b) (e₀ j a))
-    · have hn : ‖((onb j : S) : E)‖ = 1 := by
-        rw [Submodule.norm_coe]
-        exact onb.orthonormal.1 j
-      have hsq := EuclideanSpace.real_norm_sq_eq ((onb j : S) : E)
-      rw [hn, one_pow] at hsq
-      exact hsq.symm
-    · have hp := onb.sum_sq_inner_right (⟨col b, hcol_mem b⟩ : S)
-      have hnorm_sub : ‖(⟨col b, hcol_mem b⟩ : S)‖ = ‖col b‖ := rfl
-      rw [hnorm_sub, EuclideanSpace.real_norm_sq_eq] at hp
-      exact hp
+    · exact (EuclideanSpace.real_norm_sq_eq ((onb j : S) : E)).symm.trans
+        (by rw [Submodule.norm_coe, onb.orthonormal.1 j, one_pow])
+    · exact (onb.sum_sq_inner_right (⟨col b, hcol_mem b⟩ : S)).trans
+        (EuclideanSpace.real_norm_sq_eq (col b))
   have hw_tot : ∑ j : Fin r, ∑ b, w_vec j b ^ 2 = ∑ a, ∑ b, P_mat a b ^ 2 := by
     rw [Finset.sum_comm]
     refine (Finset.sum_congr rfl fun b _ => hw_parseval b).trans Finset.sum_comm
@@ -359,15 +303,9 @@ theorem sq_sum_mul_signMatrix_quadForm_le_card_of_mul {ι κ : Type*} [Fintype �
   have hL_sq : L ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank X = (2 : ℝ) ^ Fintype.card ι := by
     rw [Real.sq_sqrt (by positivity)]
     field_simp
-  have hr_le : (r : ℝ) ≤ Fintype.card κ := by exact_mod_cast hdim
-  have hF_nn : 0 ≤ ∑ a, ∑ b, P_mat a b ^ 2 :=
-    Finset.sum_nonneg fun _ _ => Finset.sum_nonneg fun _ _ => sq_nonneg _
   calc (∑ a, ∑ b, M a b * P_mat a b) ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank X
-      ≤ (L ^ 2 * (r : ℝ) * ∑ a, ∑ b, P_mat a b ^ 2) * (2 : ℝ) ^ (Q + Qᵀ).cutRank X :=
-        mul_le_mul_of_nonneg_right hsq (by positivity)
-    _ = (r : ℝ) * (L ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank X) * ∑ a, ∑ b, P_mat a b ^ 2 := by ring
-    _ = (r : ℝ) * (2 : ℝ) ^ Fintype.card ι * ∑ a, ∑ b, P_mat a b ^ 2 := by rw [hL_sq]
-    _ ≤ (Fintype.card κ : ℝ) * (2 : ℝ) ^ Fintype.card ι * ∑ a, ∑ b, P_mat a b ^ 2 :=
-        mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hr_le (by positivity)) hF_nn
+      ≤ (L ^ 2 * (r : ℝ) * ∑ a, ∑ b, P_mat a b ^ 2) * (2 : ℝ) ^ (Q + Qᵀ).cutRank X := by gcongr
+    _ = (r : ℝ) * (2 : ℝ) ^ Fintype.card ι * ∑ a, ∑ b, P_mat a b ^ 2 := by rw [← hL_sq]; ring
+    _ ≤ (Fintype.card κ : ℝ) * (2 : ℝ) ^ Fintype.card ι * ∑ a, ∑ b, P_mat a b ^ 2 := by gcongr
 
 end Cslib.Communication

@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 import CslibFrontier.Algorithms.Lean.CDCL.Dimacs
+import CslibFrontier.Logics.Propositional.CNF.StdSat
 import Std.Tactic.BVDecide.LRAT.Checker
-import Std.Tactic.BVDecide.LRAT.Parser
 
 /-!
 # The CDCL solver on DIMACS files
@@ -23,7 +23,10 @@ checkers expect. With `--check`, it also checks the certificate with Lean core's
 The answer is correct by the solver's theorems: a model satisfies the formula read
 (`Cslib.Algorithms.Lean.CDCL.solveCompactWith_sat`), and a certificate is accepted by the library's
 LRAT checker (`Cslib.Algorithms.Lean.CDCL.solveCompactWith_unsat`). The DIMACS parser
-(`Cslib.Logic.PL.CNF.ofDIMACS`) is not verified.
+(`Cslib.Logic.PL.CNF.ofDIMACS`) is trusted to read a file as intended; it reads back exactly what
+`Cslib.Logic.PL.CNF.toDIMACS` writes (`Cslib.Logic.PL.CNF.ofDIMACS_toDIMACS`), so for a formula
+built in Lean and printed the answer concerns that formula
+(`Cslib.Algorithms.Lean.CDCL.answerDIMACS_toDIMACS`).
 
 Options, as `Cslib.Algorithms.Lean.CDCL.Options`: `--no-vsids`, `--no-phase`, `--no-restarts`,
 `--no-reduce`, `--ccmin=N` (MiniSat's `ccmin_mode`: `0`, `1` or `2`), `--keep-input` (MiniSat's
@@ -31,6 +34,44 @@ Options, as `Cslib.Algorithms.Lean.CDCL.Options`: `--no-vsids`, `--no-phase`, `-
 -/
 
 open Cslib.Logic.PL Cslib.Algorithms.Lean Std.Tactic.BVDecide
+
+/-- The decimal digits of `n`, pushed on `b`. -/
+partial def pushNat (b : ByteArray) (n : ℕ) : ByteArray :=
+  let b := if n < 10 then b else pushNat b (n / 10)
+  b.push (48 + n % 10).toUInt8
+
+/-- The literal `i`, in decimal with its sign, then a space, pushed on `b`. -/
+def pushInt (b : ByteArray) (i : ℤ) : ByteArray :=
+  let b := if i < 0 then b.push 45 else b
+  (pushNat b i.natAbs).push 32
+
+/-- The numbers `ns`, each followed by a space, pushed on `b`. -/
+def pushNats (b : ByteArray) (ns : Array ℕ) : ByteArray :=
+  ns.foldl (fun b n => (pushNat b n).push 32) b
+
+/-- The text line of the step `a` in the LRAT format, pushed on `b`: the same text as Lean core's
+`Std.Tactic.BVDecide.LRAT.lratProofToString`, built in a byte array without intermediate
+strings. -/
+def pushAction (b : ByteArray) : LRAT.IntAction → ByteArray
+  | .addEmpty id hints => (pushNats ((pushNat b id).push 32 |>.push 48 |>.push 32) hints).push 48
+  | .addRup id c hints =>
+    (pushNats ((c.foldl pushInt ((pushNat b id).push 32)).push 48 |>.push 32) hints).push 48
+  | .addRat id c _ rup rat =>
+    let b := pushNats ((c.foldl pushInt ((pushNat b id).push 32)).push 48 |>.push 32) rup
+    (rat.foldl (fun b h => pushNats ((pushNat (b.push 45) h.1).push 32) h.2) b).push 48
+  | .del ids => (pushNats (b.push 49 |>.push 32 |>.push 100 |>.push 32) ids).push 48
+
+/-- **Writing a certificate** to the file `p`, one line per step, flushing the buffer each time it
+passes a megabyte. -/
+def writeCert (p : System.FilePath) (cert : Array LRAT.IntAction) : IO Unit :=
+  IO.FS.withFile p .write fun h => do
+    let mut b := ByteArray.emptyWithCapacity (1 <<< 21)
+    for a in cert do
+      b := (pushAction b a).push 10
+      if b.size ≥ 1 <<< 20 then
+        h.write b
+        b := ByteArray.emptyWithCapacity (1 <<< 21)
+    h.write b
 
 /-- The options set by the command-line flags, and whether to check the certificate. -/
 def parseFlags : List String → CDCL.Options × Bool → Except String (CDCL.Options × Bool)
@@ -79,7 +120,7 @@ def main (args : List String) : IO UInt32 := do
   IO.println s!"c solve time {t₁ - t₀} ms"
   if let some cert := a.cert then
     if let some p := proof? then
-      IO.FS.writeFile p (LRAT.lratProofToString cert)
+      writeCert p cert
     if check then
       unless LRAT.check cert φ.toStdSat do
         IO.eprintln "c Lean core's LRAT checker rejected the certificate"

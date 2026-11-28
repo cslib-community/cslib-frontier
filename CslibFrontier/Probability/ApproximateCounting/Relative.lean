@@ -86,9 +86,9 @@ theorem two_pow_mul_pow_le_add_one_pow (m : ℕ) {p : ℕ} (hp : p ≠ 0) :
     2 ^ m * p ^ (m * p) ≤ (p + 1) ^ (m * p) := by
   -- Bernoulli's inequality: `p ^ p + p ^ p ≤ (p + 1) ^ p`
   have h : 2 * p ^ p ≤ (p + 1) ^ p := by
-    have := pow_add_mul_le_add_pow_of_sq_nonneg (R := ℕ) (a := p) (b := 1) (Nat.zero_le _)
-      (Nat.zero_le _) (Nat.zero_le _) (Nat.zero_le _) p
-    rwa [mul_one, Nat.cast_id, mul_pow_sub_one hp, ← two_mul] at this
+    simpa only [mul_one, Nat.cast_id, mul_pow_sub_one hp, ← two_mul] using
+      pow_add_mul_le_add_pow_of_sq_nonneg (R := ℕ) (a := p) (b := 1) (Nat.zero_le _)
+        (Nat.zero_le _) (Nat.zero_le _) (Nat.zero_le _) p
   rw [mul_comm m, pow_mul, pow_mul, ← mul_pow]
   exact Nat.pow_le_pow_left h m
 
@@ -100,20 +100,17 @@ end Roots
 `2 8 ^ 6 ≤ 9 ^ 6`. -/
 private theorem natCast_add_one_mul_le_inv_two_pow (n t : ℕ) :
     ((n : ℚ≥0) + 1) * (8 / 9) ^ (6 * (n + 1 + t)) ≤ (2 ^ t)⁻¹ := by
-  have key : (n + 1) * 2 ^ t * 8 ^ (6 * (n + 1 + t)) ≤ 9 ^ (6 * (n + 1 + t)) := by
-    have hn : (n + 1) * 2 ^ t ≤ 2 ^ (n + 1 + t) := by
-      rw [pow_add]
-      exact Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le
+  have key : (n + 1) * 2 ^ t * 8 ^ (6 * (n + 1 + t)) ≤ 9 ^ (6 * (n + 1 + t)) :=
     calc (n + 1) * 2 ^ t * 8 ^ (6 * (n + 1 + t))
-        ≤ 2 ^ (n + 1 + t) * 8 ^ (6 * (n + 1 + t)) := Nat.mul_le_mul_right _ hn
+        ≤ 2 ^ (n + 1 + t) * 8 ^ (6 * (n + 1 + t)) :=
+          Nat.mul_le_mul_right _
+            (pow_add 2 (n + 1) t ▸ Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le)
       _ = (2 * 8 ^ 6) ^ (n + 1 + t) := by rw [mul_pow, pow_mul]
       _ ≤ (9 ^ 6) ^ (n + 1 + t) := Nat.pow_le_pow_left (by norm_num) _
       _ = 9 ^ (6 * (n + 1 + t)) := by rw [pow_mul]
-  have key' := Nat.cast_le (α := ℚ≥0).2 key
-  push_cast at key'
   rw [div_pow, mul_div_assoc', div_le_iff₀ (by positivity), ← div_eq_inv_mul,
     le_div_iff₀ (by positivity), mul_right_comm]
-  exact key'
+  exact_mod_cast key
 
 section Hashing
 
@@ -158,9 +155,7 @@ theorem dens_filter_not_relativeHashEstimate_le {k p : ℕ} (h : ∀ j, ι j →
     dens {ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j |
       ¬ (#S ≤ relativeHashEstimate h y S ω ∧
         p * relativeHashEstimate h y S ω ≤ (p + 1) * #S)} ≤ (n + 1) * (8 / 9) ^ r := by
-  have hk : k ≠ 0 := by
-    rintro rfl
-    simp at hp
+  have hk : k ≠ 0 := fun h => by simp [h] at hp
   by_cases hX : Nonempty X
   · obtain ⟨x⟩ := hX
     have : ∀ j, Nonempty (ι j) := fun j => (hh j).nonempty (fun _ => x) (y j)
@@ -172,26 +167,17 @@ theorem dens_filter_not_relativeHashEstimate_le {k p : ℕ} (h : ∀ j, ι j →
     rw [show 128 = 16 * 8 by norm_num, mul_assoc]
     exact Nat.mul_le_mul_left 16 hle
   · have : IsEmpty X := not_nonempty_iff.mp hX
-    have hS0 : S = ∅ := eq_empty_of_isEmpty S
-    subst hS0
+    obtain rfl : S = ∅ := eq_empty_of_isEmpty S
     have hpi : (Fintype.piFinset fun _ : Fin k => (∅ : Finset X)) = ∅ :=
       card_eq_zero.mp (by rw [Fintype.card_piFinset_const, card_empty, zero_pow hk])
-    have hest : ∀ ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j,
-        relativeHashEstimate h y ∅ ω = 0 := fun ω => by
-      have ha : ¬ hashAnswer h y ∅ ω 0 := by
-        rintro ⟨_, hr⟩
-        simp at hr
-      have hhe : hashEstimate h y ∅ ω = 0 := by
-        simp only [hashEstimate, estimate, ha, ↓reduceIte]
-      simp only [relativeHashEstimate, hpi, hhe, mul_zero]
-      by_contra hne
-      have h0 := (Nat.le_nthRoot_iff hk).mp (Nat.one_le_iff_ne_zero.mpr hne)
-      simp at h0
+    have hest (ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j) : relativeHashEstimate h y ∅ ω = 0 := by
+      have ha : ¬ hashAnswer h y ∅ ω 0 := fun ⟨_, hr⟩ => by simp at hr
+      simp only [relativeHashEstimate, hpi, hashEstimate, estimate, ha, ↓reduceIte, mul_zero]
+      exact Nat.eq_zero_of_not_pos fun hpos => by simpa using (Nat.le_nthRoot_iff hk).mp hpos
     have hemp : ({ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j |
         ¬ (#(∅ : Finset X) ≤ relativeHashEstimate h y ∅ ω ∧
-          p * relativeHashEstimate h y ∅ ω ≤ (p + 1) * #(∅ : Finset X))} : Finset _) = ∅ := by
-      ext ω
-      simp [hest ω]
+          p * relativeHashEstimate h y ∅ ω ≤ (p + 1) * #(∅ : Finset X))} : Finset _) = ∅ :=
+      Finset.ext fun ω => by simp [hest ω]
     rw [hemp, dens_empty]
     positivity
 

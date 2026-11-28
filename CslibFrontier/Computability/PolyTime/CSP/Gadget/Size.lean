@@ -42,10 +42,7 @@ theorem length_replaceGadgets (B : ℕ) (templates : Src → CSP Rel (Bool × �
     (replaceGadgets B templates F).length = (F.map fun c => (templates c.rel).length).sum := by
   rw [replaceGadgets, List.length_flatMap]
   conv_rhs => rw [← List.zipIdx_map_fst 0 F, List.map_map]
-  congr 1
-  apply List.map_congr_left
-  intro p _
-  simp [instantiate, relabel]
+  exact congrArg List.sum (List.map_congr_left fun p _ => by simp [instantiate, relabel])
 
 /-- Relabeling template ports preserves their occurrence count, even when ports coincide. -/
 theorem vars_length_replaceGadgets (B : ℕ) (templates : Src → CSP Rel (Bool × ℕ))
@@ -56,9 +53,7 @@ theorem vars_length_replaceGadgets (B : ℕ) (templates : Src → CSP Rel (Bool 
     Constraint.scope).length = _
   rw [List.flatMap_assoc, List.length_flatMap]
   conv_rhs => rw [← List.zipIdx_map_fst 0 F, List.map_map]
-  congr 1
-  apply List.map_congr_left
-  intro p _
+  refine congrArg List.sum (List.map_congr_left fun p _ => ?_)
   change (instantiate B p.2 p.1.scope (templates p.1.rel)).vars.length = _
   simp only [instantiate, vars_relabel, List.length_map, Function.comp_apply]
 
@@ -102,10 +97,7 @@ theorem exists_linear_bound_replaceGadgetsGuarded [Finite Src]
   · exact (numVars_add_length_replaceGadgets_le B templates K hK F).trans
       (Nat.mul_le_mul_right F.length (Nat.le_max_left _ _))
   · rename_i hvalid
-    have hlen : 1 ≤ F.length := by
-      cases F with
-      | nil => exact (hvalid rfl).elim
-      | cons c F => simp
+    have hlen : 1 ≤ F.length := List.length_pos_iff.mpr fun h => hvalid (h ▸ rfl)
     exact (Nat.le_max_right K (reject.numVars + reject.length)).trans
       (by simpa only [Nat.mul_one] using Nat.mul_le_mul_left C hlen)
 

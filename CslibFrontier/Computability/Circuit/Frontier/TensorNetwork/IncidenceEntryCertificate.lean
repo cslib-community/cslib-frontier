@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Inciden
 public import CslibFrontier.Computability.GenericRAM.Native.BooleanFold
 public import CslibFrontier.Computability.GenericRAM.Native.Combinators
 import CslibFrontier.Computability.GenericRAM.Native.ExpTimePolySpace
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeOptionPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePrimitives
 import CslibFrontier.Tactic.EncLen
@@ -218,20 +218,12 @@ theorem rowSumCertificate_bounds :
       (PolyBounded.self.mul (((PolyBounded.const 2).mul .self).add (.const 1))))
     (fun (P, ℓ, tests, sel) j _ => by
       rw [BooleanFold.prefix_accumulator]
-      have hz : (zero (truncFl ℓ)).length = ℓ := by simp
-      have hz' : ∀ x ∈ zero (truncFl ℓ), x < 2 ^ P := fun x hx => by
-        simp only [zero, List.mem_map] at hx
-        obtain ⟨_, -, rfl⟩ := hx
+      have hz' : ∀ x ∈ zero (truncFl ℓ), x < 2 ^ P := fun _ hx => by
+        obtain ⟨_, -, rfl⟩ := List.mem_map.mp hx
         exact Nat.two_pow_pos _
       obtain ⟨h1, h2, h3⟩ := foldl_rowBody P ℓ tests sel sel.length (lowBits sel.length)
-        (List.range j) _ hz hz'
-      have heq : List.foldl (fun acc i => rowBody ((sel.length, lowBits sel.length i), acc))
-          ((P, ℓ, tests, sel), zero (truncFl ℓ)) (List.range j) =
-          ((P, ℓ, tests, sel), (List.foldl (fun acc i => rowBody ((sel.length,
-            lowBits sel.length i), acc)) ((P, ℓ, tests, sel), zero (truncFl ℓ))
-              (List.range j)).2) :=
-        Prod.ext h1 rfl
-      rw [heq]
+        (List.range j) _ (by simp) hz'
+      rw [← Prod.eta (List.foldl _ _ _), h1]
       exact length_encRowState_le P ℓ tests sel _ h2 h3)
   exact ⟨h.1, h.2.imp fun _ hT => ⟨hT.1, fun P ℓ tests sel => hT.2 (P, ℓ, tests, sel)⟩⟩
 
@@ -279,34 +271,22 @@ theorem rowCertificate_bounds :
 /-- The entries of columns and tables are polynomial-time. -/
 theorem restEntry_polyTime :
     ComputableInPolyTime restEntry (encPair encDesc encBits) (encList encNat) := by
-  have hright := (ComputableInO.getRight?_deg encRowDesc (encSum encColDesc (encList encNat))
-    ).computableInPolyTime.comp (ComputableInPolyTime.fst encDesc encBits)
-  have hr := ComputableInPolyTime.optionGetDWithInput hright (ComputableInPolyTime.const (.inr []))
-  have hleft :=
-    (ComputableInO.getLeft?_deg encColDesc (encList encNat)).computableInPolyTime.comp hr
-  have htab :=
-    (ComputableInO.getRight?_deg encColDesc (encList encNat)).computableInPolyTime.comp hr
-  have htab' := ComputableInPolyTime.optionGetDWithInput htab (ComputableInPolyTime.const [])
-  have hfallback := tableEntry_polyTime.comp (htab'.prod (ComputableInPolyTime.snd encDesc encBits))
-  have hbody := colEntry_polyTime.comp ((ComputableInPolyTime.snd _ _).prod
-    ((ComputableInPolyTime.snd encDesc encBits).comp (ComputableInPolyTime.fst _ _)))
-  exact (ComputableInPolyTime.optionElimWithInput hleft hfallback hbody).of_enc_eq fun _ => rfl
+  have htab := tableEntry_polyTime
+  have hcol := colEntry_polyTime
+  unfold restEntry
+  fun_prop
 
 /-- The row descriptor of a descriptor, the default for others, with the bits. -/
 theorem leftInput_polyTime :
     ComputableInPolyTime (fun q : Desc × List Bool => ((q.1.getLeft?).getD default, q.2))
       (encPair encDesc encBits) (encPair encRowDesc encBits) := by
-  have hleft := (ComputableInO.getLeft?_deg encRowDesc (encSum encColDesc (encList encNat))
-    ).computableInPolyTime.comp (ComputableInPolyTime.fst encDesc encBits)
-  exact (ComputableInPolyTime.optionGetDWithInput hleft (ComputableInPolyTime.const default)).prod
-    (ComputableInPolyTime.snd encDesc encBits)
+  fun_prop
 
 /-- Whether a descriptor is a row. -/
 theorem isRow_polyTime :
     ComputableInPolyTime (fun q : Desc × List Bool => (q.1.getLeft?).isSome)
-      (encPair encDesc encBits) encBool :=
-  ((ComputableInO.getLeft?_deg encRowDesc (encSum encColDesc (encList encNat))
-    ).computableInPolyTime.comp (ComputableInPolyTime.fst encDesc encBits)).optionIsSome
+      (encPair encDesc encBits) encBool := by
+  fun_prop
 
 /-- **The native certificate of the entry procedure of the incidence network.** -/
 noncomputable def incCertificate :

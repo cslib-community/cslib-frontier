@@ -12,6 +12,8 @@ public import Mathlib.Algebra.BigOperators.Group.List.Basic
 public import Mathlib.Algebra.Ring.Parity
 public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Fintype.Card
+public import Mathlib.Data.Fintype.Option
+public import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.List.Nodup
 
 /-!
@@ -42,7 +44,8 @@ it accepts and `0` on the others (`BranchingProgram.pathCount_toNBP`), and it ha
 
 ## Main definitions
 
-* `Cslib.BranchingPrograms.NBP.Wire`: a wire to an earlier node, a rectifier or a contact.
+* `Cslib.BranchingPrograms.NBP.Wire`: a wire to an earlier node, a rectifier or a contact;
+  `Cslib.BranchingPrograms.NBP.Wire.equivProd` identifies it with its head and label.
 * `Cslib.BranchingPrograms.NBP`: a nondeterministic branching program.
 * `Cslib.BranchingPrograms.NBP.size`: its number of contacts.
 * `Cslib.BranchingPrograms.NBP.pathCount`: the number of source-to-target paths an input switches
@@ -76,6 +79,28 @@ structure NBP.Wire (ι α : Type*) (n : ℕ) where
   head : Fin n
   /-- `none` for a rectifier, and `some (i, a)` for a contact testing `x i = a`. -/
   label : Option (ι × α)
+  deriving DecidableEq
+
+namespace NBP.Wire
+
+variable {ι α : Type*} {n : ℕ}
+
+/-- A wire is its head and its label. -/
+def equivProd : Wire ι α n ≃ Fin n × Option (ι × α) where
+  toFun w := (w.head, w.label)
+  invFun p := ⟨p.1, p.2⟩
+
+instance [Fintype ι] [Fintype α] : Fintype (Wire ι α n) :=
+  Fintype.ofEquiv _ equivProd.symm
+
+/-- There are `n * (|ι| |α| + 1)` wires to `n` earlier nodes: a rectifier and a contact for each
+test, to each node. -/
+theorem card [Fintype ι] [Fintype α] :
+    Fintype.card (Wire ι α n) = n * (Fintype.card ι * Fintype.card α + 1) := by
+  rw [Fintype.card_congr equivProd, Fintype.card_prod, Fintype.card_fin, Fintype.card_option,
+    Fintype.card_prod]
+
+end NBP.Wire
 
 /-- A *nondeterministic branching program* over inputs `ι → α`, with `n` nodes in topological
 order: the first node is the target, each later node has a list of wires to earlier nodes, and the
@@ -176,15 +201,11 @@ theorem Nodes.size_toNBP_le :
     ∀ {n : ℕ} (P : Nodes ι α n), P.toNBP.size ≤ Fintype.card α * n
   | _, .empty => Nat.zero_le _
   | _, .node P step => by
-    have ih := size_toNBP_le P
-    have hstep : step.wires.countP (·.label.isSome) ≤ Fintype.card α := by
-      cases step with
-      | sink b => cases b <;> simp [Step.wires]
-      | branch i next =>
-        refine (List.countP_le_length).trans ?_
-        simp [Step.wires]
     rw [toNBP, NBP.size, Nat.mul_succ]
-    exact Nat.add_le_add ih hstep
+    refine Nat.add_le_add (size_toNBP_le P) ?_
+    cases step with
+    | sink b => cases b <;> simp [Step.wires]
+    | branch i next => exact List.countP_le_length.trans (by simp [Step.wires])
 
 /-- The nondeterministic program of a deterministic one has at most `Fintype.card α` contacts for
 each node: its size, counting contacts, is at most `Fintype.card α` times the size, counting
@@ -200,9 +221,8 @@ private theorem filter_on_wires (i : ι) {n : ℕ} (next : α → Fin n) (x : ι
       (·.on x)) = [⟨(next (x i)).succ, some (i, x i)⟩] := by
   have hon : ((fun w : NBP.Wire ι α (n + 1) => w.on x) ∘
       fun a => (⟨(next a).succ, some (i, a)⟩ : NBP.Wire ι α (n + 1))) =
-      fun a => decide (a = x i) := by
-    funext a
-    simp [NBP.Wire.on, eq_comm]
+      fun a => decide (a = x i) :=
+    funext fun a => by simp [NBP.Wire.on, eq_comm]
   rw [List.filter_map, hon, List.filter_eq,
     List.count_eq_one_of_mem (Finset.nodup_toList _) (Finset.mem_toList.mpr (Finset.mem_univ _))]
   rfl
@@ -216,12 +236,11 @@ theorem Nodes.paths_toNBP (x : ι → α) :
   | _, .node P step, v => by
     induction v using Fin.lastCases with
     | last =>
-      rw [Fin.succ_last, toNBP, NBP.paths_node_last]
       cases step with
-      | sink b => cases b <;> simp [Step.wires, NBP.Wire.on]
+      | sink b => cases b <;> simp [Fin.succ_last, toNBP, Step.wires, NBP.Wire.on]
       | branch i next =>
-        rw [Step.wires, filter_on_wires, eval_node_last_branch]
-        simp [paths_toNBP x P]
+        simp [Fin.succ_last, toNBP, Step.wires, filter_on_wires, eval_node_last_branch,
+          paths_toNBP x P]
     | cast v =>
       rw [Fin.succ_castSucc, toNBP, NBP.paths_node_castSucc, eval_node_castSucc]
       exact paths_toNBP x P v

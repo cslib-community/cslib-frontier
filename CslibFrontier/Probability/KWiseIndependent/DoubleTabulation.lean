@@ -435,8 +435,7 @@ private theorem sortedFreq_antitone {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ 
   have hi : i < (sortedChars X).length := lt_of_le_of_lt hij hj
   simp only [sortedFreq, hi, hj, ↓reduceDIte]
   rcases eq_or_lt_of_le hij with rfl | hlt
-  · exact le_rfl
-  · exact List.pairwise_iff_getElem.mp (pairwise_sortedChars X) i j hi hj hlt
+  exacts [le_rfl, List.pairwise_iff_getElem.mp (pairwise_sortedChars X) i j hi hj hlt]
 
 private theorem one_le_sortedFreq {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b)))
     {i : ℕ} (hi : i < (sortedChars X).length) :
@@ -573,10 +572,9 @@ character lies inside the prefix of length `r`. -/
 private theorem subset_prefixChars_of_subset_succ {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b)))
     {r : ℕ} (hr : r < (sortedChars X).length) {A : Finset (Fin c × Fin (2 ^ b))}
     (hsub : A ⊆ prefixChars X (r + 1)) (hnot : (sortedChars X)[r] ∉ A) :
-    A ⊆ prefixChars X r := fun β hβ => by
-  rcases Finset.mem_insert.mp (prefixChars_succ X hr ▸ hsub hβ) with rfl | h
-  · exact (hnot hβ).elim
-  · exact h
+    A ⊆ prefixChars X r := fun β hβ =>
+  (Finset.mem_insert.mp (prefixChars_succ X hr ▸ hsub hβ)).resolve_left
+    (by rintro rfl; exact hnot hβ)
 
 /-- A pair `p` that enters `Γ_{≤ r + 1}` at step `r` has a colliding key `x ≠ p.1` whose symmetric
 difference with `p.1` contains the `r`-th sorted character; in particular `p.2 ∈ Φ_r`. -/
@@ -753,8 +751,7 @@ private theorem exists_eq_tuple_of_mem_phiSet {c d b ℓ : ℕ} [NeZero (2 * c)]
     simp only [Finset.mem_image, Finset.mem_univ, true_and, g]
     refine ⟨fun ⟨t, h⟩ => ?_, fun hidx => ?_⟩
     · subst h; split_ifs with ht
-      · exact (B.equivFin.symm ⟨t.val, ht⟩).2
-      · exact hr_B
+      exacts [(B.equivFin.symm ⟨t.val, ht⟩).2, hr_B]
     · let t' := B.equivFin ⟨idx, hidx⟩
       refine ⟨⟨t'.1, t'.2.trans_le hB_card⟩, ?_⟩
       simp only [t'.2, ↓reduceDIte, Fin.eta]
@@ -851,8 +848,7 @@ private theorem card_filter_satisfiesCode_le {c d b q ℓ : ℕ} [NeZero (2 * c)
         Pi.zero_apply, hsum]
     rw [hfilt, show (2 ^ b) ^ (q * ℓ) = Fintype.card (Fin (q * ℓ) → BitString b) by simp]
     exact (card_mul_card_filter_eq_of_shift (f := eval) hshift 0).le
-  · rw [Finset.filter_eq_empty_iff.mpr fun _ _ h => hLM ⟨h.1, h.2.1⟩, Finset.card_empty,
-      Nat.mul_zero]
+  · rw [Finset.filter_eq_empty_iff.mpr fun _ _ h => hLM ⟨h.1, h.2.1⟩, Finset.card_empty]
     exact Nat.zero_le _
 
 /-- Union bound over all codes `(L, M)` of length `ℓ` ([Thorup2013], Section 2, Eq. (6), p. 11). -/

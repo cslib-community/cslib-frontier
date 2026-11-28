@@ -286,9 +286,8 @@ theorem convJet_comm (J ℓ : ℕ) (A B : List (List ℤ)) :
   refine Finset.sum_congr rfl fun u₁ hu₁ => ?_
   simp only [Finset.mem_range] at hu₁
   simp only [Nat.add_sub_cancel]
-  have hj' : j - (j - j₁) = j₁ := by omega
-  have hu' : u - (u - u₁) = u₁ := by omega
-  rw [hj', hu', Int.mul_comm]
+  rw [Nat.sub_sub_self (Nat.lt_succ_iff.mp hj₁), Nat.sub_sub_self (Nat.lt_succ_iff.mp hu₁),
+    Int.mul_comm]
 
 private lemma sum_range_triangle (n : ℕ) (g : ℕ → ℕ → ℕ → ℤ) :
     (∑ ab ∈ Finset.range (n + 1), ∑ a ∈ Finset.range (ab + 1), g a (ab - a) (n - ab)) =
@@ -381,25 +380,33 @@ theorem convJet_zeroJet (J ℓ : ℕ) (A : List (List ℤ)) :
     convJet J ℓ A (zeroJet J ℓ) = zeroJet J ℓ := by
   rw [convJet_comm, zeroJet_convJet]
 
+private lemma sum_range_ite_and_mul (j₀ u₀ j u : ℕ) (c : ℤ) (g f : ℕ → ℕ → ℤ)
+    (hg : ∀ j₁ ≤ j, ∀ u₁ ≤ u, g j₁ u₁ = if j₁ = j₀ ∧ u₁ = u₀ then c else 0) :
+    (∑ j₁ ∈ Finset.range (j + 1), ∑ u₁ ∈ Finset.range (u + 1), g j₁ u₁ * f j₁ u₁) =
+      if j₀ ≤ j ∧ u₀ ≤ u then c * f j₀ u₀ else 0 := by
+  have hcongr :
+      (∑ j₁ ∈ Finset.range (j + 1), ∑ u₁ ∈ Finset.range (u + 1), g j₁ u₁ * f j₁ u₁) =
+        ∑ j₁ ∈ Finset.range (j + 1), ∑ u₁ ∈ Finset.range (u + 1),
+          (if j₁ = j₀ ∧ u₁ = u₀ then c else 0) * f j₁ u₁ :=
+    Finset.sum_congr rfl fun j₁ hj₁ => Finset.sum_congr rfl fun u₁ hu₁ => by
+      rw [hg j₁ (Nat.lt_succ_iff.mp (Finset.mem_range.mp hj₁))
+        u₁ (Nat.lt_succ_iff.mp (Finset.mem_range.mp hu₁))]
+  have hprod (x : ℕ × ℕ) : (x.1 = j₀ ∧ x.2 = u₀) ↔ x = (j₀, u₀) := by
+    cases x
+    simp
+  rw [hcongr, ← Finset.sum_product']
+  simp only [ite_mul, zero_mul, hprod, Finset.sum_ite_eq', Finset.mem_product,
+    Finset.mem_range, Nat.lt_succ_iff]
+
 theorem constJet_convJet (J ℓ : ℕ) (c : ℤ) (A : List (List ℤ)) :
     convJet J ℓ (constJet J ℓ c) A = smulJet J ℓ c A := by
   refine eq_of_isTableShape_of_rowEntry_eq (isTableShape_convJet J ℓ _ A)
     (isTableShape_smulJet J ℓ c A) fun j hj u hu => ?_
-  rw [rowEntry_convJet _ A hj hu, rowEntry_smulJet c A hj hu]
-  trans ∑ j₁ ∈ Finset.range (j + 1), if j₁ = 0 then c * rowEntry A j u else 0
-  · refine Finset.sum_congr rfl fun j₁ hj₁ => ?_
-    simp only [Finset.mem_range] at hj₁
-    trans ∑ u₁ ∈ Finset.range (u + 1),
-      if u₁ = 0 then (if j₁ = 0 then c * rowEntry A j u else 0) else 0
-    · refine Finset.sum_congr rfl fun u₁ hu₁ => ?_
-      simp only [Finset.mem_range] at hu₁
-      rw [rowEntry_constJet c (by omega) (by omega)]
-      by_cases hj0 : j₁ = 0 <;> by_cases hu0 : u₁ = 0 <;>
-        simp only [hj0, hu0, and_self, false_and, and_false, ↓reduceIte, zero_mul, Nat.sub_zero]
-    · rw [Finset.sum_ite_eq' (Finset.range (u + 1)) 0,
-        ite_eq_left (Finset.mem_range.mpr (Nat.zero_lt_succ u))]
-  · rw [Finset.sum_ite_eq' (Finset.range (j + 1)) 0,
-      ite_eq_left (Finset.mem_range.mpr (Nat.zero_lt_succ j))]
+  have hentry (j₁ : ℕ) (hj₁ : j₁ ≤ j) (u₁ : ℕ) (hu₁ : u₁ ≤ u) :=
+    rowEntry_constJet c (lt_of_le_of_lt hj₁ hj) (lt_of_le_of_lt hu₁ hu)
+  rw [rowEntry_convJet _ A hj hu, rowEntry_smulJet c A hj hu,
+    sum_range_ite_and_mul 0 0 j u c _ _ hentry]
+  simp
 
 theorem convJet_constJet (J ℓ : ℕ) (A : List (List ℤ)) (c : ℤ) :
     convJet J ℓ A (constJet J ℓ c) = smulJet J ℓ c A := by
@@ -426,52 +433,22 @@ theorem shiftZJet_eq_convJet (J ℓ : ℕ) (A : List (List ℤ)) :
     shiftZJet J ℓ A = convJet J ℓ (zJet J ℓ) A := by
   refine eq_of_isTableShape_of_rowEntry_eq (isTableShape_shiftZJet J ℓ A)
     (isTableShape_convJet J ℓ _ A) fun j hj u hu => ?_
-  rw [rowEntry_shiftZJet A hj hu, rowEntry_convJet _ A hj hu]
-  symm
-  trans ∑ j₁ ∈ Finset.range (j + 1), if j₁ = 1 then rowEntry A (j - 1) u else 0
-  · refine Finset.sum_congr rfl fun j₁ hj₁ => ?_
-    simp only [Finset.mem_range] at hj₁
-    trans ∑ u₁ ∈ Finset.range (u + 1),
-      if u₁ = 0 then (if j₁ = 1 then rowEntry A (j - 1) u else 0) else 0
-    · refine Finset.sum_congr rfl fun u₁ hu₁ => ?_
-      simp only [Finset.mem_range] at hu₁
-      rw [rowEntry_zJet (by omega) (by omega)]
-      by_cases hj1 : j₁ = 1 <;> by_cases hu0 : u₁ = 0 <;>
-        simp only [hj1, hu0, and_self, false_and, and_false, ↓reduceIte, one_mul, zero_mul,
-          Nat.sub_zero]
-    · rw [Finset.sum_ite_eq' (Finset.range (u + 1)) 0,
-        ite_eq_left (Finset.mem_range.mpr (Nat.zero_lt_succ u))]
-  · rw [Finset.sum_ite_eq' (Finset.range (j + 1)) 1]
-    by_cases hj0 : j = 0
-    · subst hj0; simp
-    · rw [ite_eq_right hj0, ite_eq_left (by simp only [Finset.mem_range]; omega)]
+  have hentry (j₁ : ℕ) (hj₁ : j₁ ≤ j) (u₁ : ℕ) (hu₁ : u₁ ≤ u) :=
+    rowEntry_zJet (lt_of_le_of_lt hj₁ hj) (lt_of_le_of_lt hu₁ hu)
+  rw [rowEntry_shiftZJet A hj hu, rowEntry_convJet _ A hj hu,
+    sum_range_ite_and_mul 1 0 j u 1 _ _ hentry]
+  cases j <;> simp
 
 /-- `shiftVJet` agrees with multiplying by the generator `vJet` under `convJet`. -/
 theorem shiftVJet_eq_convJet (J ℓ : ℕ) (A : List (List ℤ)) :
     shiftVJet J ℓ A = convJet J ℓ (vJet J ℓ) A := by
   refine eq_of_isTableShape_of_rowEntry_eq (isTableShape_shiftVJet J ℓ A)
     (isTableShape_convJet J ℓ _ A) fun j hj u hu => ?_
-  rw [rowEntry_shiftVJet A hj hu, rowEntry_convJet _ A hj hu]
-  symm
-  trans ∑ j₁ ∈ Finset.range (j + 1),
-    if j₁ = 0 then (if u = 0 then 0 else rowEntry A j (u - 1)) else 0
-  · refine Finset.sum_congr rfl fun j₁ hj₁ => ?_
-    simp only [Finset.mem_range] at hj₁
-    trans ∑ u₁ ∈ Finset.range (u + 1),
-      if u₁ = 1 then (if j₁ = 0 then rowEntry A j (u - 1) else 0) else 0
-    · refine Finset.sum_congr rfl fun u₁ hu₁ => ?_
-      simp only [Finset.mem_range] at hu₁
-      rw [rowEntry_vJet (by omega) (by omega)]
-      by_cases hj0 : j₁ = 0 <;> by_cases hu1 : u₁ = 1 <;>
-        simp only [hj0, hu1, and_self, false_and, and_false, ↓reduceIte, one_mul, zero_mul,
-          Nat.sub_zero]
-    · rw [Finset.sum_ite_eq' (Finset.range (u + 1)) 1]
-      by_cases hu0 : u = 0
-      · subst hu0; simp
-      · rw [ite_eq_left (by simp only [Finset.mem_range]; omega)]
-        by_cases hj0 : j₁ = 0 <;> simp only [hj0, hu0, ↓reduceIte]
-  · rw [Finset.sum_ite_eq' (Finset.range (j + 1)) 0,
-      ite_eq_left (Finset.mem_range.mpr (Nat.zero_lt_succ j))]
+  have hentry (j₁ : ℕ) (hj₁ : j₁ ≤ j) (u₁ : ℕ) (hu₁ : u₁ ≤ u) :=
+    rowEntry_vJet (lt_of_le_of_lt hj₁ hj) (lt_of_le_of_lt hu₁ hu)
+  rw [rowEntry_shiftVJet A hj hu, rowEntry_convJet _ A hj hu,
+    sum_range_ite_and_mul 0 1 j u 1 _ _ hentry]
+  cases u <;> simp
 
 /-! ### `ℓ₁` coefficient norm and binary bit-length bounds -/
 

@@ -72,12 +72,9 @@ variable {Γ : List Color → List Color → Type} {I : Interp Γ} {a b c d : Li
 /-- Planar source cells and the crossover family give a planar whole drawing. -/
 theorem planarizeAlong_planar {H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b}
     (hH : ∀ {a b : List Color} (g : Γ a b), (H g).Planar) (D : Diagram Γ a b) :
-    (planarizeAlong H D).Planar := by
-  apply Planar.subst (H := Routed.expand H) ?_ (Route.planar D)
-  intro a b g
-  cases g with
-  | base g => exact hH g
-  | cross c d => exact Crossover.planar c d
+    (planarizeAlong H D).Planar :=
+  Planar.subst (H := Routed.expand H) (fun | .base g => hH g | .cross c d => Crossover.planar c d)
+    (Route.planar D)
 
 /-- Routing and open substitution compose into a whole-diagram reachability simulation. -/
 @[expose] def planarizeAlongSimulation (hI : I.Forward)
@@ -99,8 +96,7 @@ theorem planarizeAlongSimulation_abs (hI : I.Forward)
     {H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b}
     (hH : ∀ {a b : List Color} (g : Γ a b), OpenSim I Prim.interp (gen g) (H g))
     (D : Diagram Γ a b) (t : (planarizeAlong H D).Edge → Bool) (e : D.Edge) :
-    (planarizeAlongSimulation hI hH D).abs t e = t (planarizeAlongEdge hH D e) := by
-  rfl
+    (planarizeAlongSimulation hI hH D).abs t e = t (planarizeAlongEdge hH D e) := rfl
 
 private theorem planarizeAlong_gen
     (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b) (g : Γ a b) :
@@ -142,32 +138,23 @@ private theorem measure_planarizeAlong_le
     (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b) (D : Diagram Γ a b) :
     μ (planarizeAlong H D) ≤ μ (D.subst H) + k * Diagram.swapCount D := by
   induction D with
-  | gen g =>
-    simp only [planarizeAlong_gen, subst, Diagram.swapCount, Nat.mul_zero, Nat.add_zero]
-    exact le_rfl
-  | id a =>
-    simp only [planarizeAlong_id, subst, Diagram.swapCount, Nat.mul_zero, Nat.add_zero]
-    exact le_rfl
+  | gen _ | id _ => simp [planarizeAlong_gen, planarizeAlong_id, subst, Diagram.swapCount]
   | swap c d =>
-    simp only [planarizeAlong_swap, subst, Diagram.swapCount, Nat.mul_one]
     have := hc c d
-    omega
-  | comp D₁ D₂ ih₁ ih₂ =>
-    simp only [planarizeAlong_comp, subst, hcomp, Diagram.swapCount, Nat.mul_add] at ih₁ ih₂ ⊢
-    omega
-  | tensor D₁ D₂ ih₁ ih₂ =>
-    simp only [planarizeAlong_tensor, subst, htensor, Diagram.swapCount, Nat.mul_add] at ih₁ ih₂ ⊢
+    simp only [planarizeAlong_swap, subst, Diagram.swapCount, Nat.mul_one]; omega
+  | comp _ _ ih₁ ih₂ | tensor _ _ ih₁ ih₂ =>
+    simp only [planarizeAlong_comp, planarizeAlong_tensor, subst, hcomp, htensor,
+      Diagram.swapCount, Nat.mul_add] at ih₁ ih₂ ⊢
     omega
 
 /-- Planarization adds at most 286 vertices per syntactic crossing. -/
 theorem length_vertexList_planarizeAlong_le
     (H : ∀ {a b : List Color}, Γ a b → Diagram Prim a b) (D : Diagram Γ a b) :
     (vertexList Prim.interp (planarizeAlong H D)).length ≤
-      (vertexList Prim.interp (D.subst H)).length + 286 * Diagram.swapCount D := by
-  apply measure_planarizeAlong_le (μ := fun D => (vertexList Prim.interp D).length) 286
-    ?_ ?_ Crossover.length_vertexList_le H D
-  · exact length_vertexList_comp Prim.interp
-  · exact length_vertexList_tensor Prim.interp
+      (vertexList Prim.interp (D.subst H)).length + 286 * Diagram.swapCount D :=
+  measure_planarizeAlong_le (fun D => (vertexList Prim.interp D).length) 286
+    (length_vertexList_comp Prim.interp) (length_vertexList_tensor Prim.interp)
+    Crossover.length_vertexList_le H D
 
 /-- Planarization creates at most 429 additional wires per syntactic crossing. -/
 theorem innerCount_planarizeAlong_le

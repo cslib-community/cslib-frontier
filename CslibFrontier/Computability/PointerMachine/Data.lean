@@ -58,14 +58,12 @@ theorem Instr.effect_dataValid_of {P Q : M.Value → Prop}
     cases hn : x.deref base with
     | none => exact old
     | some n =>
-      obtain ⟨a, -, ha⟩ := State.deref_eq_some.mp hn
-      exact set s (old.2 n (List.mem_of_getElem? ha) f)
+      exact set s (old.2 n (List.mem_of_getElem? (State.deref_eq_some.mp hn).choose_spec.2) f)
   case loadPtr r f base => cases x.deref base <;> exact old
   case storePtr f base r =>
     refine ⟨by simpa using old.1, fun n hn f' => ?_⟩
     rcases State.mem_heap_modify hn with hn | ⟨m, hm, rfl⟩
-    · exact old.2 n hn f'
-    · exact old.2 m hm f'
+    exacts [old.2 n hn f', old.2 m hm f']
   case storeData f base s =>
     refine ⟨by simpa using old.1, fun n hn f' => ?_⟩
     rcases State.mem_heap_modify hn with hn | ⟨m, hm, rfl⟩
@@ -75,11 +73,8 @@ theorem Instr.effect_dataValid_of {P Q : M.Value → Prop}
       · exact old.1 s
       · exact old.2 m hm f'
   case create r =>
-    refine ⟨old.1, fun n hn f => ?_⟩
-    rcases List.mem_append.mp hn with hn | hn
-    · exact old.2 n hn f
-    · rw [List.mem_singleton.mp hn]
-      exact undefined
+    refine ⟨old.1, fun n hn f => (List.mem_append.mp hn).elim (old.2 n · f) fun h => ?_⟩
+    exact List.mem_singleton.mp h ▸ undefined
   all_goals exact old
 
 /-- Closed predicates on data survive every instruction. -/
@@ -94,14 +89,14 @@ theorem Runs.dataValid {P : M.Value → Prop} (closed : M.Closed P)
   induction h with
   | refl => exact hx
   | tail _ _ _ _ hxy ih =>
-    obtain ⟨i, -, -, rfl⟩ := step_eq_some_iff.mp hxy
-    exact i.effect_dataValid closed ih
+    let ⟨i, _, _, h⟩ := step_eq_some_iff.mp hxy
+    exact h ▸ i.effect_dataValid closed ih
 
 /-- Closed data predicates survive successful execution. -/
 theorem Executes.dataValid {P : M.Value → Prop} (closed : M.Closed P)
     {code : List (Instr M L)} {x y : State M L} {time : ℕ}
-    (h : Executes code x y time) (hx : x.DataValid P) : y.DataValid P := by
-  obtain ⟨n, hr, -, -⟩ := h
-  exact hr.dataValid closed hx
+    (h : Executes code x y time) (hx : x.DataValid P) : y.DataValid P :=
+  let ⟨_, hr, _, _⟩ := h
+  hr.dataValid closed hx
 
 end Cslib.PointerMachine

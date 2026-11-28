@@ -136,16 +136,8 @@ private theorem poly_stateMk : ComputableInPolyTime
 private def stopped (state : State) (budget : ℕ) : State :=
   ⟨state.current, [], budget, some none⟩
 
-private theorem poly_sumState {α β γ : Type} {ea : α ↪ List Bool} {eb : β ↪ List Bool}
-    {eg : γ ↪ List Bool} {value : γ → α ⊕ β} {left : γ → α → State} {right : γ → β → State}
-    (hv : ComputableInPolyTime value eg (encSum ea eb))
-    (hl : ComputableInPolyTime (fun p : γ × α => left p.1 p.2) (encPair eg ea) encState)
-    (hr : ComputableInPolyTime (fun p : γ × β => right p.1 p.2) (encPair eg eb) encState) :
-    ComputableInPolyTime (fun a => (value a).elim (left a) (right a)) eg encState :=
-  ComputableInPolyTime.sumElimWithInput hv hl hr
-
 attribute [local fun_prop] poly_current poly_frames poly_budget poly_status poly_stateMk
-  poly_pushWith poly_augmentWith poly_liftWith poly_sumState
+  poly_pushWith poly_augmentWith poly_liftWith
 
 private def eventStep (state : State) (result : EdgeForest.ResultCode) : State :=
   result.elim (fun _ => stopped state (state.budget - 1)) fun event =>

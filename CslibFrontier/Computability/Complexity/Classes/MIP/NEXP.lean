@@ -72,8 +72,8 @@ $$\mathsf{MIP}_2 \subseteq \mathsf{MIP} \subseteq \mathsf{NEXP}.$$
    `MultiTapePTM.comp` and converting to `MultiTapeNTM` via `MultiTapePTM.toNTM` places the
    unpadded language in `NEXP`.
 
-The converse inclusion `NEXP ⊆ MIP₂` (which requires the Babai–Fortnow–Lund multilinearity test
-and the arithmetization of `NEXP` verification tableaux) is not formalized here and remains open.
+The converse uses the arithmetized verification tableau and the two-prover simulation of its
+proof oracle. The umbrella module `Classes.MIP` combines the directions.
 
 ## Main definitions
 
@@ -171,26 +171,16 @@ theorem foldl_consistentHistStep_false (h₁ h₂ : History) (ok : Bool) :
 
 theorem foldl_consistentHistStep_true (h₁ h₂ : History) (ok : Bool) :
     (h₁.foldl consistentHistStep (h₂, true, ok)).2.2 = (ok && consistentHist h₁ h₂) := by
-  induction h₁ generalizing h₂ ok with
-  | nil =>
-    simp [consistentHist]
-  | cons e₁ rest₁ ih =>
-    obtain ⟨q₁, r₁⟩ := e₁
-    cases h₂ with
-    | nil =>
-      simp only [List.foldl_cons, consistentHistStep, Bool.not_true, List.isEmpty_nil,
-        Bool.false_or, ↓reduceIte, foldl_consistentHistStep_false, consistentHist, Bool.and_true]
-    | cons e₂ rest₂ =>
-      obtain ⟨q₂, r₂⟩ := e₂
-      simp only [List.foldl_cons, consistentHistStep, Bool.not_true, List.isEmpty_cons,
-        Bool.false_or, Bool.false_eq_true, ↓reduceIte, List.headD_cons, List.tail_cons,
-        consistentHist]
-      by_cases hq : q₁ = q₂
-      · subst hq
-        simp only [beq_self_eq_true, ↓reduceIte, ih, Bool.and_assoc]
-      · have hq' : (q₁ == q₂) = false := beq_false_of_ne hq
-        simp only [hq', Bool.false_eq_true, ↓reduceIte, foldl_consistentHistStep_false,
-          Bool.and_true]
+  fun_induction consistentHist h₁ h₂ generalizing ok with
+  | case1 => simp -- [], _
+  | case2 h₁ hne => -- _ :: _, []
+    cases h₁
+    · exact absurd rfl hne
+    · simp [consistentHistStep, foldl_consistentHistStep_false]
+  -- same query: compare replies
+  | case3 q₁ r₁ rest₁ q₂ r₂ rest₂ hq ih => simp [consistentHistStep, hq, ih, Bool.and_assoc]
+  -- different queries: stop
+  | case4 => simp_all [consistentHistStep, foldl_consistentHistStep_false]
 
 theorem consistentHistStep_suffix {h₂ : History} {s : History × Bool × Bool}
     (hs : s.1 <:+ h₂) (e₁ : List Bool × List Bool) :
@@ -594,43 +584,20 @@ variable [Finite Control]
 theorem computableInPolyTime_checkCert (c d : ℕ) :
     Turing.MultiTapeTM.ComputableInPolyTime (fun q : List Bool × Cert => checkCert M c d q.1 q.2)
       (encPair encBits encCert) encBool := by
-  have haccepts := computableInPolyTime_accepts M
-  have hproj := computableInPolyTime_projHistory
-  have hconsistent := computableInPolyTime_consistentHist
-  have ht : ComputableInPolyTime
-      (fun q : List Bool × Cert => c * (q.1.length + 1) ^ d)
+  dsimp only [checkCert]
+  have ht : ComputableInPolyTime (fun q : List Bool × Cert => c * (q.1.length + 1) ^ d)
       (encPair encBits encCert) encUnary := by fun_prop
-  have h1 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        q.2.all fun e => (e.1.length == c * (q.1.length + 1) ^ d) && accepts M q.1 e.1 e.2)
-      (encPair encBits encCert) encBool := by fun_prop
-  have h2 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        q.2.all fun e₁ => q.2.countP (fun e₂ => e₁.1 == e₂.1) == 1)
-      (encPair encBits encCert) encBool := by fun_prop
-  have h3 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        q.2.all fun e₁ => q.2.all fun e₂ =>
-          (List.range p).all fun i => consistentHist (projHistory i e₁.2) (projHistory i e₂.2))
-      (encPair encBits encCert) encBool := by fun_prop
-  have h4 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        decide (2 ^ (c * (q.1.length + 1) ^ d) < 2 * q.2.length))
-      (encPair encBits encCert) encBool := by fun_prop
-  have h := bool_and.comp ((bool_and.comp ((bool_and.comp (h1.prod h2)).prod h3)).prod h4)
-  exact h
+  refine ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and'
+    (ComputableInPolyTime.bool_and' ?_ ?_) ?_) ?_ <;> fun_prop
 
 /-- `checkPaddedCert` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_checkPaddedCert (c d : ℕ) :
     Turing.MultiTapeTM.ComputableInPolyTime (checkPaddedCert M c d) (encPair encBits encCert)
       encBool := by
-  have hlen : ComputableInPolyTime
-      (fun q : List Bool × Cert => decide ((encCert q.2).length ≤ q.1.length))
-      (encPair encBits encCert) encBool := by fun_prop
-  have h := bool_and.comp (hlen.prod ((computableInPolyTime_checkCert M c d).comp
-    ((unframe.comp (fst encBits encCert)).prod (snd encBits encCert))))
-  exact h
+  unfold checkPaddedCert
+  have := computableInPolyTime_checkCert M c d
+  fun_prop
 
 /-- The padded multiprover language `paddedMIP M c d` belongs to `NP encBits`. -/
 theorem paddedMIP_mem_NP (c d : ℕ) : paddedMIP M c d ∈ NP encBits := by

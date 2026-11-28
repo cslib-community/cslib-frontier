@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Data.BitString.Hamming
 import CslibFrontier.Foundations.Data.BitString.DeltaMatroid.Operations
 import Mathlib.Data.Fintype.Sigma
 import CslibFrontier.Foundations.Data.Finset.SymmDiff
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Defects of Boolean occurrence labelings
@@ -124,21 +125,16 @@ theorem defects_flipOn_singleton (h : EdgeInstance F) (f : OccurrenceLabeling F 
     (o : Occurrence F) :
     defects (flipOn {o} f) = defects f ∆ {o.var} := by
   ext v
-  by_cases hv : v = o.var
-  · subst v
-    rw [mem_defects, h.inconsistent_flipOn_iff]
-    have hp : h.partner o ≠ o := (h.partner_ne o).symm
-    simp [hp, mem_defects, mem_symmDiff]
+  obtain rfl | hv := eq_or_ne v o.var
+  · simp [mem_defects, h.inconsistent_flipOn_iff, (h.partner_ne o).symm, mem_symmDiff]
   · by_cases hi : ∃ p : Occurrence F, p.var = v
     · obtain ⟨p, rfl⟩ := hi
       have hpo : p ≠ o := fun he => hv (congrArg Occurrence.var he)
       have hqo : h.partner p ≠ o := fun he =>
         hv ((h.partner_variable p).trans (congrArg Occurrence.var he))
-      rw [mem_defects, h.inconsistent_flipOn_iff]
-      simp [hpo, hqo, hv, mem_defects, mem_symmDiff]
-    · have hn (l : OccurrenceLabeling F Bool) : ¬ Inconsistent l v :=
-        fun ⟨p, _, hp, _, _⟩ => hi ⟨p, hp⟩
-      simp [mem_defects, hn, hv, mem_symmDiff]
+      simp [mem_defects, h.inconsistent_flipOn_iff, hpo, hqo, hv, mem_symmDiff]
+    · simp [mem_defects, show ∀ l, ¬Inconsistent l v from fun _ ⟨p, _, hp, _, _⟩ => hi ⟨p, hp⟩,
+        hv, mem_symmDiff]
 
 /-- A same-constraint two-coordinate flip toggles two different variable defects. -/
 theorem defects_flipOn_pair (h : EdgeInstance F) (f : OccurrenceLabeling F Bool)
@@ -149,14 +145,14 @@ theorem defects_flipOn_pair (h : EdgeInstance F) (f : OccurrenceLabeling F Bool)
     h.defects_flipOn_singleton, symmDiff_assoc]
   congr 1
   ext v
+  have := h.var_ne_of_constraint_eq hc hne
   simp only [mem_symmDiff, mem_singleton, mem_insert]
-  have hv := h.var_ne_of_constraint_eq hc hne
   aesop
 
 private theorem card_toggle_mod_two (s : Finset V) (v : V) :
     (s ∆ {v}).card % 2 = (s.card + 1) % 2 := by
   by_cases hv : v ∈ s
-  · have he := card_erase_add_one hv
+  · have := card_erase_add_one hv
     rw [symmDiff_singleton_eq, ite_eq_left hv]
     omega
   · rw [symmDiff_singleton_eq, ite_eq_right hv, card_insert_of_notMem hv]
@@ -176,16 +172,10 @@ theorem card_defects_flipOn_pair_le (h : EdgeInstance F) (f : OccurrenceLabeling
     {o p : Occurrence F} (hne : o ≠ p)
     (ho : Inconsistent f o.var) :
     (defects (flipOn {o, p} f)).card ≤ (defects f).card := by
-  have he := card_erase_add_one (mem_defects.mpr ho)
-  have hb := card_symmDiff_singleton_le ((defects f).erase o.var) p.var
-  have heq : (defects f ∆ {p.var}) ∆ {o.var} =
-      (defects f ∆ {o.var}) ∆ {p.var} := by
-    ext v
-    simp only [mem_symmDiff, mem_singleton]
-    tauto
-  rw [flipOn_insert (by simpa using hne), h.defects_flipOn_singleton,
-    h.defects_flipOn_singleton, heq, symmDiff_singleton_eq (defects f) o.var,
-    ite_eq_left (mem_defects.mpr ho)]
+  rw [flipOn_insert (by simpa using hne), h.defects_flipOn_singleton, h.defects_flipOn_singleton,
+    symmDiff_right_comm, symmDiff_singleton_eq (defects f) o.var, ite_eq_left (mem_defects.mpr ho)]
+  have := card_erase_add_one (mem_defects.mpr ho)
+  have := card_symmDiff_singleton_le ((defects f).erase o.var) p.var
   omega
 
 /-- Each constraint relation, on its actual ordered argument positions, is an even delta-matroid.
@@ -200,27 +190,14 @@ theorem validLabeling_flipOn_pair {sem : Rel → List Bool → Bool}
     {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem f)
     (i : Fin F.length) (a b : Fin F[i].scope.length)
     (hab : sem F[i].rel (List.ofFn (flipOn {a, b} (fun j => f ⟨i, j⟩))) = true) :
-    ValidLabeling sem (flipOn {⟨i, a⟩, ⟨i, b⟩} f) := by
-  intro k
-  by_cases hk : k = i
-  · subst k
-    have he : localTuple (flipOn {⟨i, a⟩, ⟨i, b⟩} f) i =
-        List.ofFn (flipOn {a, b} (fun j => f ⟨i, j⟩)) := by
-      apply congrArg List.ofFn
-      funext j
-      simp [flipOn_apply]
-    rw [he]
-    exact hab
-  · have he : localTuple (flipOn {⟨i, a⟩, ⟨i, b⟩} f) k = localTuple f k := by
-      apply congrArg List.ofFn
-      funext j
-      have ha : (⟨k, j⟩ : Occurrence F) ≠ ⟨i, a⟩ :=
-        fun he => hk (congrArg Sigma.fst he)
-      have hb : (⟨k, j⟩ : Occurrence F) ≠ ⟨i, b⟩ :=
-        fun he => hk (congrArg Sigma.fst he)
-      simp [flipOn_apply, ha, hb]
-    rw [he]
-    exact hf k
+    ValidLabeling sem (flipOn {⟨i, a⟩, ⟨i, b⟩} f) := fun k => by
+  obtain rfl | hk := eq_or_ne k i
+  · convert hab using 2
+    exact congrArg List.ofFn (funext fun j => by simp [flipOn_apply])
+  · convert hf k using 2
+    exact congrArg List.ofFn (funext fun j => by
+      simp [flipOn_apply, show (⟨k, j⟩ : Occurrence F) ≠ ⟨i, a⟩ from mt (congrArg Sigma.fst) hk,
+        show (⟨k, j⟩ : Occurrence F) ≠ ⟨i, b⟩ from mt (congrArg Sigma.fst) hk])
 
 omit [DecidableEq V] in
 /-- Symmetric exchange at the actual constraint position gives a valid global two-bit move. -/
@@ -242,18 +219,15 @@ theorem card_defects_mod_two_eq (h : EdgeInstance F) {sem : Rel → List Bool �
     (hM : EvenConstraints sem F) {f g : OccurrenceLabeling F Bool}
     (hf : ValidLabeling sem f) (hg : ValidLabeling sem g) :
     (defects f).card % 2 = (defects g).card % 2 := by
-  generalize hn : hammingDist f g = n
-  induction n using Nat.strong_induction_on generalizing f with
-  | ind n ih =>
-    by_cases he : f = g
-    · subst g
-      rfl
-    · obtain ⟨o, ho⟩ := Function.ne_iff.mp he
-      obtain ⟨p, hc, hne, hp, hv⟩ := exists_valid_exchange hM hf hg o ho
-      have hd := hammingDist_flipOn_pair_add_two hne ho hp
-      have ht : hammingDist (flipOn {o, p} f) g < n := by omega
-      exact (h.card_defects_flipOn_pair_mod_two f hne).symm.trans
-        (ih _ ht hv rfl)
+  by_cases he : f = g
+  · subst g
+    rfl
+  · obtain ⟨o, ho⟩ := Function.ne_iff.mp he
+    obtain ⟨p, hc, hne, hp, hv⟩ := exists_valid_exchange hM hf hg o ho
+    have hd := hammingDist_flipOn_pair_add_two hne ho hp
+    exact (h.card_defects_flipOn_pair_mod_two f hne).symm.trans
+      (h.card_defects_mod_two_eq hM hv hg)
+termination_by hammingDist f g
 
 end EdgeInstance
 

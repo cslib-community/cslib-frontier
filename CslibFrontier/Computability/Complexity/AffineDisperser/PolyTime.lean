@@ -108,13 +108,7 @@ def selectStep (state : ℕ × List ℕ) (p : ℕ) : ℕ × List ℕ :=
 
 private theorem foldl_selectStep (T : ℕ) (ps chosen : List ℕ) :
     (ps.foldl selectStep (T, chosen)).2 = chosen ++ selectBelow T ps := by
-  induction ps generalizing T chosen with
-  | nil => simp [selectBelow]
-  | cons p ps ih =>
-    rw [List.foldl_cons, selectStep, selectBelow]
-    split_ifs
-    · rw [ih, List.append_assoc, List.singleton_append]
-    · exact ih T chosen
+  fun_induction selectBelow T ps generalizing chosen <;> simp [selectStep, *]
 
 /-- The greedy choice of primes below a unary budget. -/
 @[fun_prop]

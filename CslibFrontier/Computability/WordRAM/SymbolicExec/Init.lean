@@ -22,6 +22,7 @@ its lemmas are tagged, so a call that uses it does not index its lemmas again; `
 ## Main definitions
 
 * `wram_simps`: reads of registers and memory after writes, and arithmetic identities.
+* `wram.exec.autoWramOmega`: option controlling silent `wram_omega` fallback in default dischargers.
 -/
 
 public meta section
@@ -29,5 +30,12 @@ public meta section
 /-- The simp set `wram_simps` reads registers and memory after `Data.set` and `Data.write`, and
 simplifies arithmetic identities, for `wram_exec` and `wram_simp`. -/
 register_simp_attr wram_simps
+
+/-- Whether the default discharger of `wram_exec` and `wram_simp` falls back to silent `wram_omega`
+after `fits` and `omega`. -/
+register_option wram.exec.autoWramOmega : Bool := {
+  defValue := true
+  descr := "fall back to silent, heartbeat-bounded `wram_omega` in `wram_exec` / `wram_simp`"
+}
 
 end

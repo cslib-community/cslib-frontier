@@ -48,10 +48,8 @@ variable {Rel V : Type} [DecidableEq V] {F : CSP Rel V}
     r.faceNext (incidenceDart o false) =
       incidenceDart ((argumentPermutation F).symm o) true := by
   change r.rotate.symm (incidenceDart o true) = _
-  rw [Equiv.symm_apply_eq]
-  rw [hOrder]
-  exact congrArg (fun p : F.Occurrence => incidenceDart p true)
-    ((argumentPermutation F).apply_symm_apply o).symm
+  rw [Equiv.symm_apply_eq, hOrder]
+  exact congrArg (incidenceDart · true) ((argumentPermutation F).apply_symm_apply o).symm
 
 /-- From a constraint end, the face successor uses the inverse recovered variable cycle. -/
 @[simp] theorem faceNext_incidenceDart_true (r : Graph.RotationSystem (incidenceGraph F))
@@ -59,8 +57,7 @@ variable {Rel V : Type} [DecidableEq V] {F : CSP Rel V}
     r.faceNext (incidenceDart o true) =
       incidenceDart ((variablePermutation r).symm o) false := by
   change r.rotate.symm (incidenceDart o false) = _
-  rw [Equiv.symm_apply_eq]
-  rw [rotate_incidenceDart_false, Equiv.apply_symm_apply]
+  rw [Equiv.symm_apply_eq, rotate_incidenceDart_false, Equiv.apply_symm_apply]
 
 /-- Coordinates pairing each variable dart with its following incidence-face dart. -/
 @[expose] noncomputable def incidenceBlockEquiv (F : CSP Rel V) :
@@ -84,8 +81,7 @@ theorem faceNext_incidenceBlock (r : Graph.RotationSystem (incidenceGraph F))
     (hOrder : RespectsArgumentOrder r) (x : F.Occurrence × Bool) :
     r.faceNext (incidenceBlockEquiv F x) = incidenceBlockEquiv F
       (Equiv.Perm.doubled (incidenceSquarePermutation r) x) := by
-  rcases x with ⟨o, b⟩
-  cases b <;> simp [Equiv.Perm.doubled, incidenceSquarePermutation, hOrder]
+  rcases x with ⟨o, _ | _⟩ <;> simp [Equiv.Perm.doubled, incidenceSquarePermutation, hOrder]
 
 /-- Complete incidence-face correspondence with the square permutation, including fixed
 points of the square. There is no selection of favorable face cycles. -/
@@ -118,9 +114,7 @@ theorem faceNext_polygonSum (r : Graph.RotationSystem (incidenceGraph F))
     (x : F.Occurrence ⊕ F.Occurrence) :
     (polygonRotation r).faceNext (polygonSumEquiv F x) = polygonSumEquiv F
       (Equiv.sumCongr (argumentPermutation F) (incidenceSquarePermutation r) x) := by
-  cases x with
-  | inl o => simp
-  | inr o => simp [incidenceSquarePermutation]
+  cases x <;> simp [incidenceSquarePermutation]
 
 /-- The full polygon face quotient is the disjoint sum of its black and white orbit
 quotients. In particular, no singleton or white face is omitted. -/
@@ -226,20 +220,16 @@ theorem polygon_edge_faces_distinct (r : Graph.RotationSystem (incidenceGraph F)
 theorem blackFace_eq_mk (r : Graph.RotationSystem (incidenceGraph F))
     (hOrder : RespectsArgumentOrder r)
     (hPos : ∀ i : Fin F.length, 0 < F[i.val].scope.length) (o : F.Occurrence) :
-    blackFace r hOrder hPos o.1 = Quotient.mk _ (polygonDart o false) := by
-  unfold blackFace
-  rw [Equiv.symm_apply_eq]
-  exact (polygonFaceEquiv_black r hOrder hPos o).symm
+    blackFace r hOrder hPos o.1 = Quotient.mk _ (polygonDart o false) :=
+  (Equiv.symm_apply_eq _).mpr (polygonFaceEquiv_black r hOrder hPos o).symm
 
 /-- A variable dart's incidence face gives the white face on the preceding polygon edge. -/
 theorem whiteFace_eq_mk (r : Graph.RotationSystem (incidenceGraph F))
     (hOrder : RespectsArgumentOrder r)
     (hPos : ∀ i : Fin F.length, 0 < F[i.val].scope.length) (o : F.Occurrence) :
     whiteFace r hOrder hPos (Quotient.mk _ (incidenceDart o false)) =
-      Quotient.mk _ (polygonDart ((argumentPermutation F).symm o) true) := by
-  unfold whiteFace
-  rw [Equiv.symm_apply_eq]
-  exact (polygonFaceEquiv_white r hOrder hPos o).symm
+      Quotient.mk _ (polygonDart ((argumentPermutation F).symm o) true) :=
+  (Equiv.symm_apply_eq _).mpr (polygonFaceEquiv_white r hOrder hPos o).symm
 
 /-- Every face is covered by the indexed black or white map. -/
 theorem exists_blackFace_or_whiteFace (r : Graph.RotationSystem (incidenceGraph F))

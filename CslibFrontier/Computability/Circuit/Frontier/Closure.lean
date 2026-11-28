@@ -847,6 +847,13 @@ private theorem transfer_acc_elimUnary {n s : ℕ} (p : Program σ n s) (I : Int
       rw [← hev]
       exact hx wf.1 w wf.2 hrep
 
+private theorem ReducedProgram.fanInAtMost {n s : ℕ} {p : Program σ n s}
+    {I : Interpretation σ U}
+    (red : ReducedProgram p I) {r : ℕ} (h : p.FanInAtMost r) : red.program.FanInAtMost r :=
+  Program.fanInAtMost_iff.mpr fun j =>
+    let ⟨k₀, hk₀⟩ := red.arity_le j
+    hk₀.trans (Program.fanInAtMost_iff.mp h k₀)
+
 /-- Build a circuit exposing every wire of `p : Program τ n g` as one of its `n + g` outputs. -/
 @[expose] def allWiresCircuit {τ : Signature} {n g : ℕ} (p : Program τ n g) :
     Circuit τ n (n + g) where
@@ -913,11 +920,6 @@ theorem exists_sliced_fanout_lt [Finite U] [Nonempty U] {n m r k : ℕ} (hk : 1 
     exact ⟨fun hx w o ho => ho ▸ hx o, fun hx o => hx (c.outputs o) o rfl⟩
   let red₀ := elimUnaryAux I c.program
   obtain ⟨Acc_red₀, hAcc_red₀⟩ := transfer_acc_elimUnary c.program I AccW₀ hS hS₀def
-  have hfan₀ : red₀.program.FanInAtMost r := by
-    rw [Program.fanInAtMost_iff]
-    intro j
-    obtain ⟨k₀, hk₀⟩ := red₀.arity_le j
-    exact hk₀.trans (Program.fanInAtMost_iff.mp hfan k₀)
   -- Strong induction on `q.arityExcess`.
   suffices ∀ E : ℕ, ∀ (g : ℕ) (q : Program (allOpsSignature U) n g)
       (AccW : Wire n g → Set U) (S : Set (Fin n → U)),
@@ -941,8 +943,8 @@ theorem exists_sliced_fanout_lt [Finite U] [Nonempty U] {n m r k : ℕ} (hk : 1 
             (Compiler.network (allWiresCircuit q') (allOpsInterpretation U) Acc').accepted = S' ∧
             S.ncard ≤ Nat.card U ^ t * S'.ncard by
     obtain ⟨t, g', q', Acc', S', h1, h2, h3, h4, h5, h6, hex, hsub, hne, hacc, hcard⟩ :=
-      this red₀.program.arityExcess red₀.size red₀.program Acc_red₀ S₀ rfl hfan₀
-        red₀.two_le_arity red₀.wires_injective hS hAcc_red₀
+      this red₀.program.arityExcess red₀.size red₀.program Acc_red₀ S₀ rfl
+        (ReducedProgram.fanInAtMost red₀ hfan) red₀.two_le_arity red₀.wires_injective hS hAcc_red₀
     exact ⟨t, g', q', Acc', S', h1, h2, h3, h4, h5, h6, hex.trans red₀.arityExcess_le,
       hsub, hne, hacc, hcard⟩
   intro E
@@ -954,12 +956,8 @@ theorem exists_sliced_fanout_lt [Finite U] [Nonempty U] {n m r k : ℕ} (hk : 1 
       obtain ⟨u₀, hu₀⟩ := exists_fiber_ncard_ge S (fun x => q.trace (allOpsInterpretation U) x w₀)
       set S₁ := {x ∈ S | q.trace (allOpsInterpretation U) x w₀ = u₀}
       have hSpos : 0 < S.ncard := (ncard_pos (toFinite S)).mpr hSne
-      have hS₁pos : 0 < S₁.ncard := by
-        by_contra h0
-        have : S₁.ncard = 0 := Nat.eq_zero_of_not_pos h0
-        rw [this, mul_zero] at hu₀
-        omega
-      have hS₁ne : S₁.Nonempty := (ncard_pos (toFinite S₁)).mp hS₁pos
+      have hS₁ne : S₁.Nonempty := (ncard_pos (toFinite S₁)).mp <| Nat.pos_of_ne_zero fun h0 => by
+        rw [h0, mul_zero] at hu₀; omega
       set qc := curryProgram u₀ q w₀
       let AccW₁ : Wire n g → Set U := fun w => if w = w₀ then AccW w ∩ {u₀} else AccW w
       have hS₁def : S₁ = {x | ∀ w, qc.trace (allOpsInterpretation U) x w ∈ AccW₁ w} := by
@@ -969,39 +967,26 @@ theorem exists_sliced_fanout_lt [Finite U] [Nonempty U] {n m r k : ℕ} (hk : 1 
         · rintro ⟨hxS, hxw₀⟩ w
           rw [curryProgram_trace u₀ q w₀ x hxw₀]
           rw [hSdef] at hxS
-          by_cases hw : w = w₀
-          · subst hw
-            simp only [AccW₁, ↓reduceIte]
-            exact ⟨hxS w, hxw₀⟩
+          rcases eq_or_ne w w₀ with rfl | hw
+          · simp only [AccW₁, ↓reduceIte]; exact ⟨hxS _, hxw₀⟩
           · simp [AccW₁, hw, hxS w]
         · intro hx
-          have h0_pair : qc.trace (allOpsInterpretation U) x w₀ ∈ AccW w₀ ∧
-              qc.trace (allOpsInterpretation U) x w₀ = u₀ := by
-            simpa [AccW₁] using hx w₀
-          have hw₀_orig : q.trace (allOpsInterpretation U) x w₀ = u₀ := by
-            rw [← curryProgram_trace_self u₀ q w₀ x]
-            exact h0_pair.2
+          have h0 := hx w₀
+          simp only [AccW₁, ↓reduceIte, mem_inter_iff, mem_singleton_iff] at h0
+          have hw₀_orig : q.trace (allOpsInterpretation U) x w₀ = u₀ :=
+            (curryProgram_trace_self u₀ q w₀ x).symm.trans h0.2
           refine ⟨?_, hw₀_orig⟩
           rw [hSdef]
           intro w
           have hxw := hx w
           rw [curryProgram_trace u₀ q w₀ x hw₀_orig] at hxw
-          by_cases hw : w = w₀
-          · subst hw
-            have hpair : q.trace (allOpsInterpretation U) x w ∈ AccW w ∧
-                q.trace (allOpsInterpretation U) x w = u₀ := by
-              simpa [AccW₁] using hxw
-            exact hpair.1
+          rcases eq_or_ne w w₀ with rfl | hw
+          · simp only [AccW₁, ↓reduceIte, mem_inter_iff] at hxw
+            exact hxw.1
           · simpa [AccW₁, hw] using hxw
       let red₁ := elimUnaryAux (allOpsInterpretation U) qc
       obtain ⟨AccW₂, hAccW₂⟩ :=
         transfer_acc_elimUnary qc (allOpsInterpretation U) AccW₁ hS₁ne hS₁def
-      have hqc_fan : qc.FanInAtMost r := curryProgram_fanInAtMost u₀ q w₀ hqfan
-      have hfan₁ : red₁.program.FanInAtMost r := by
-        rw [Program.fanInAtMost_iff]
-        intro j
-        obtain ⟨k₀, hk₀⟩ := red₁.arity_le j
-        exact hk₀.trans (Program.fanInAtMost_iff.mp hqc_fan k₀)
       have hdrop : red₁.program.arityExcess + k ≤ q.arityExcess := by
         have h1 : red₁.program.arityExcess ≤ (curryProgram u₀ q w₀).arityExcess :=
           red₁.arityExcess_le
@@ -1010,7 +995,8 @@ theorem exists_sliced_fanout_lt [Finite U] [Nonempty U] {n m r k : ℕ} (hk : 1 
         omega
       have hlt : red₁.program.arityExcess < E := by omega
       obtain ⟨t', g', q', Acc', S', hr1, hr2, hr3, hr4, hr5, hr6, hrex, hrsub, hrne, hracc,
-        hrcard⟩ := ih red₁.program.arityExcess hlt red₁.size red₁.program AccW₂ S₁ rfl hfan₁
+        hrcard⟩ := ih red₁.program.arityExcess hlt red₁.size red₁.program AccW₂ S₁ rfl
+          (ReducedProgram.fanInAtMost red₁ (curryProgram_fanInAtMost u₀ q w₀ hqfan))
           red₁.two_le_arity red₁.wires_injective hS₁ne hAccW₂
       refine ⟨t' + 1, g', q', Acc', S', hr1, hr2, hr3, hr4, hr5, hr6, ?_,
         hrsub.trans (fun _ hx => hx.1), hrne, hracc, ?_⟩
@@ -1031,13 +1017,9 @@ theorem exists_sliced_fanout_lt [Finite U] [Nonempty U] {n m r k : ℕ} (hk : 1 
         refine ⟨fun hx w => ?_, fun hx o => hx _⟩
         obtain ⟨o, ho⟩ := outputs_allWiresCircuit_surjective q w
         exact ho ▸ hx o
-      have hg_le : g ≤ q.arityExcess := by
+      have hg_le : g ≤ q.arityExcess :=
         calc g = ∑ _j : Fin g, 1 := by simp
-          _ ≤ ∑ j : Fin g, ((allOpsSignature U).Arity (q.lines j).op - 1) := by
-              refine Finset.sum_le_sum fun j _ => ?_
-              have := hq2 j
-              omega
-          _ = q.arityExcess := rfl
+          _ ≤ q.arityExcess := Finset.sum_le_sum fun j _ => Nat.le_sub_one_of_lt (hq2 j)
       have hg_eq (hr2 : r = 2) : g = q.arityExcess := by
         subst hr2
         have hle := q.arityExcess_le_mul_innerGates hqfan
@@ -1158,11 +1140,7 @@ private theorem exists_step_ncard_le_of_read_univ [Finite U] {τ : Signature}
         (ncard_le_card _).trans_eq (by simp)
       rw [Nat.card_fun, Nat.card_coe_set_eq] at hr
       exact hr.trans ((Nat.mul_le_mul_right _ h1).trans_eq (one_mul _))
-    rcases le_total
-        ((N.frontier π t ∪ N.frontier π (t + 1)).ncard + (N.readAt (π.symm ⟨t, ht⟩)).ncard)
-        ((N.readIn (N.component (π.symm ⟨t, ht⟩))).ncard) with hle | hle
-    · rwa [min_eq_left hle]
-    · rwa [min_eq_right hle]
+    rw [min_def]; split_ifs; exacts [hb1, hb2]
   have hlast : (sw.transition V '' N.accepted).ncard ≤ 1 := by
     have hl : (sw.transition V '' N.accepted).ncard ≤
         ((fun _ : Fin n → U => ((), ())) '' N.accepted).ncard *
@@ -1191,8 +1169,7 @@ private theorem exists_step_ncard_le_of_read_univ [Finite U] {τ : Signature}
   have hbound : N.accepted.ncard ≤
       (K - 1) ^ 2 * (V + 1) * (sw.transition t '' N.accepted).ncard := by
     calc N.accepted.ncard ≤ (K - 1) ^ 2 * sw.transitionCount := sw.ncard_le hfree hKS
-      _ ≤ (K - 1) ^ 2 * ((V + 1) * (sw.transition t '' N.accepted).ncard) :=
-          Nat.mul_le_mul_left _ hsum
+      _ ≤ (K - 1) ^ 2 * ((V + 1) * (sw.transition t '' N.accepted).ncard) := by gcongr
       _ = (K - 1) ^ 2 * (V + 1) * (sw.transition t '' N.accepted).ncard :=
           (mul_assoc _ _ _).symm
   exact hbound.trans (Nat.mul_le_mul_left _ (hstep t ht'))
@@ -1261,9 +1238,7 @@ theorem eventually_slicing_surplus {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 < 
     exists_sliced_fanout_lt hk c I (fun _ => Acc) hfan hSne
   rw [hS_eq] at hsub hcard
   refine ⟨t, g', q, hqfan, hlt_k, hg_le, hex, ?_⟩
-  have hr1_pos : (1 : ℝ) ≤ ((r - 1 : ℕ) : ℝ) := by
-    have : 1 ≤ r - 1 := by omega
-    exact_mod_cast this
+  have hr1_pos : (1 : ℝ) ≤ ((r - 1 : ℕ) : ℝ) := by exact_mod_cast (by omega : 1 ≤ r - 1)
   have hS'pos_nat : 0 < S'.ncard := (ncard_pos (toFinite S')).mpr hS'ne
   have hS'pos_real : (0 : ℝ) < S'.ncard := by exact_mod_cast hS'pos_nat
   have hlog_pigeon : Real.logb qU (S n).ncard ≤ t + Real.logb qU S'.ncard := by
@@ -1276,13 +1251,9 @@ theorem eventually_slicing_surplus {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 < 
             Real.logb_self_eq_one hqU, mul_one]
   have hex_real : ((r - 1 : ℕ) : ℝ) * g' + ((r - 1 : ℕ) : ℝ) * k * t ≤
       ((r - 1 : ℕ) : ℝ) * c.program.arityExcess := by
-    have h1 : g' + k * t ≤ c.program.arityExcess := le_trans (Nat.add_le_add_right hg_le _) hex
-    have h2 : (r - 1) * (g' + k * t) ≤ (r - 1) * c.program.arityExcess :=
-      Nat.mul_le_mul_left (r - 1) h1
-    have h3 : (((r - 1) * (g' + k * t) : ℕ) : ℝ) ≤ (((r - 1) * c.program.arityExcess : ℕ) : ℝ) :=
-      by exact_mod_cast h2
-    push_cast at h3
-    linarith
+    have := Nat.mul_le_mul_left (r - 1) ((Nat.add_le_add_right hg_le (k * t)).trans hex)
+    rw [Nat.mul_add, ← Nat.mul_assoc] at this
+    exact_mod_cast this
   by_cases hsmall : S'.ncard < K n
   · -- Depleted branch: `S'.ncard < K_n` implies `t ≥ n - o(n)`.
     have hlogS'_le : Real.logb qU S'.ncard ≤ Real.logb qU (K n) :=
@@ -1292,11 +1263,8 @@ theorem eventually_slicing_surplus {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 < 
     have herr_bnd := (le_abs_self _).trans herrn
     have hnt : (n : ℝ) - t ≤ ε / (2 * L) * n := by linarith
     have hLnt : L * ((n : ℝ) - t) < ε * n := by
-      have hmul := mul_le_mul_of_nonneg_left hnt hLpos.le
-      have heq : L * (ε / (2 * L) * n) = (ε / 2) * n := by
-        field_simp [hLpos.ne']
-      rw [heq] at hmul
-      linarith [mul_pos hε hn_pos]
+      have heq : L * (ε / (2 * L) * n) = (ε / 2) * n := by field_simp [hLpos.ne']
+      linarith [mul_le_mul_of_nonneg_left hnt hLpos.le, mul_pos hε hn_pos]
     have hkt_le : ((r - 1 : ℕ) : ℝ) * k * t ≥ (k : ℝ) * t := by
       nlinarith [show (0 : ℝ) ≤ (k : ℝ) * t by positivity]
     have hk_ge1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
@@ -1386,9 +1354,7 @@ theorem eventually_slicing_surplus {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 < 
     set ρ_eff : ℝ := N.cycleRankOn W + (t : ℝ) / (A + η)
     set w_eff : ℝ := (N.frontier π t_step).ncard + t
     have hs'_nonneg : 0 ≤ s' := by positivity
-    have hs_eff_ge : s' ≤ s_eff := by
-      have : 0 ≤ (1 + 1 / (A + η)) * t := by positivity
-      linarith
+    have hs_eff_ge : s' ≤ s_eff := le_add_of_nonneg_right (by positivity)
     have hlogK_nonneg : 0 ≤ Real.logb qU (K n) := Real.logb_nonneg hqU (by exact_mod_cast hK1)
     have hmin1 : ((min a nW : ℕ) : ℝ) ≤ a := by exact_mod_cast min_le_left a nW
     have hmin2 : ((min a nW : ℕ) : ℝ) ≤ nW := by exact_mod_cast min_le_right a nW

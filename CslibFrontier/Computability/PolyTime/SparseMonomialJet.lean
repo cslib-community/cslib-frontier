@@ -252,12 +252,11 @@ theorem evalBaselineAt_eq_sum (t : ℤ) (rowCoeffs : List (List ℤ)) (x : List 
     evalBaselineAt t rowCoeffs x =
       ∑ i : Fin rowCoeffs.length,
         (ofCoeffList (rowCoeffs.getD i [])).eval t * bitVal ℤ (x.getD i false) := by
-  unfold evalBaselineAt; rw [List.sum_map_range]
+  unfold evalBaselineAt
+  rw [List.sum_map_range]
   refine Finset.sum_congr rfl fun i _ => ?_
   rw [getD_taylorShiftZJet_of_lt Nat.zero_lt_one, Polynomial.taylor_coeff_zero]
-  cases x.getD i false
-  · simp only [Bool.false_eq_true, ↓reduceIte, Cslib.BitString.bitVal_false, mul_zero]
-  · simp only [↓reduceIte, Cslib.BitString.bitVal_true, mul_one]
+  cases x.getD i false <;> simp [Cslib.BitString.bitVal_false, Cslib.BitString.bitVal_true]
 
 /-- At `t = 0`, `evalBaselineAt 0 rowCoeffs x` sums the constant entries selected by `x`. -/
 theorem evalBaselineAt_zero (rowCoeffs : List (List ℤ)) (x : List Bool) :
@@ -280,23 +279,22 @@ theorem getD_evalTaylorCorrectionZJet_of_lt {J j : ℕ} (hj : j < J) (t : ℤ)
       else ∑ i : Fin rowCoeffs.length,
         bitVal ℤ (U.getD i false) *
           (Polynomial.taylor t (ofCoeffList (rowCoeffs.getD i []))).coeff j := by
-  unfold evalTaylorCorrectionZJet; dsimp only
+  unfold evalTaylorCorrectionZJet
   rw [List.getD_map_range _ 0 hj, List.map_map, List.sum_map_range]
-  by_cases hj0 : j = 0
-  · subst hj0; simp only [↓reduceIte]
+  split_ifs with hj0
+  · subst hj0
     refine Finset.sum_eq_zero fun i _ => ?_
-    simp only [Function.comp_apply]
-    cases U.getD i false
-    · simp only [Bool.false_eq_true, ↓reduceIte, getD_truncZJet_of_lt hj, List.getD_nil]
-    · simp only [↓reduceIte, getD_combineAffineInputZJet_of_lt hj]
-  · simp only [hj0, ↓reduceIte]
-    refine Finset.sum_congr rfl fun i _ => ?_
-    simp only [Function.comp_apply]
-    cases U.getD i false
-    · simp only [Bool.false_eq_true, ↓reduceIte, getD_truncZJet_of_lt hj, List.getD_nil,
-        Cslib.BitString.bitVal_false, zero_mul]
-    · simp only [↓reduceIte, getD_combineAffineInputZJet_of_lt hj, hj0,
-        getD_taylorShiftZJet_of_lt hj, Cslib.BitString.bitVal_true, one_mul]
+    dsimp only [Function.comp_apply]
+    cases U.getD i false <;>
+      simp only [Bool.false_eq_true, ↓reduceIte,
+        getD_truncZJet_of_lt hj, List.getD_nil, getD_combineAffineInputZJet_of_lt hj]
+  · refine Finset.sum_congr rfl fun i _ => ?_
+    dsimp only [Function.comp_apply]
+    cases U.getD i false <;>
+      simp only [Bool.false_eq_true, ↓reduceIte,
+        getD_truncZJet_of_lt hj, List.getD_nil, getD_combineAffineInputZJet_of_lt hj, hj0,
+        getD_taylorShiftZJet_of_lt hj, Cslib.BitString.bitVal_false, Cslib.BitString.bitVal_true,
+        zero_mul, one_mul]
 
 /-- `evalAffineInputZJet` returns a $z$-jet of exact length `J`. -/
 @[simp] theorem length_evalAffineInputZJet (J : ℕ) (t : ℤ) (rowCoeffs : List (List ℤ))
@@ -319,17 +317,15 @@ theorem isTableShape_evalAffineInputZJetTable (J : ℕ) (t : ℤ)
 
 private lemma evalAffineInputZJet_nil (J : ℕ) (t : ℤ) (U x : List Bool) :
     evalAffineInputZJet J t [] U x = truncZJet J [] := by
-  refine List.ext_getElem (by simp only [length_evalAffineInputZJet, length_truncZJet])
-    fun j hj hj2 => ?_
-  have hjlt : j < J := by simpa only [length_evalAffineInputZJet] using hj
+  refine List.ext_getElem (by simp) fun j hj hj2 => ?_
+  have hjlt : j < J := by simpa using hj
   rw [← List.getD_eq_getElem _ 0 hj, ← List.getD_eq_getElem _ 0 hj2,
     getD_truncZJet_of_lt hjlt, List.getD_nil, evalAffineInputZJet,
     getD_combineAffineInputZJet_of_lt hjlt]
-  by_cases hj0 : j = 0
-  · subst hj0; simp only [↓reduceIte, evalBaselineAt, List.length_nil, List.range_zero,
-      List.map_nil, List.sum_nil]
-  · simp only [hj0, ↓reduceIte, getD_evalTaylorCorrectionZJet_of_lt hjlt, List.length_nil,
-      Finset.univ_eq_empty, Finset.sum_empty]
+  split_ifs with hj0
+  · simp [evalBaselineAt]
+  · rw [getD_evalTaylorCorrectionZJet_of_lt hjlt]
+    simp [hj0]
 
 /-- Truncating row `v` of `evalAffineInputZJetTable` to length `J` agrees with
 `evalAffineInputZJet J t (rowsCoeffs.getD v []) U x` at every `v : ℕ`. -/
@@ -477,21 +473,18 @@ private lemma natAbs_getD_evalAffineInputZJet_le {J j : ℕ} (hj : j < J) (t : �
       ∑ i : Fin rowCoeffs.length,
         ((taylorShiftZJet J t (rowCoeffs.getD i [])).getD j 0).natAbs := by
   rw [evalAffineInputZJet, getD_combineAffineInputZJet_of_lt hj]
-  by_cases hj0 : j = 0
-  · subst hj0; simp only [↓reduceIte, evalBaselineAt_eq_sum]
+  split_ifs with hj0
+  · subst hj0
+    rw [evalBaselineAt_eq_sum]
     refine (Finset.le_sum_of_subadditive Int.natAbs Int.natAbs_zero.le Int.natAbs_add_le _ _).trans
       (Finset.sum_le_sum fun i _ => ?_)
     rw [← Polynomial.taylor_coeff_zero, ← getD_taylorShiftZJet_of_lt hj]
-    cases x.getD i false
-    · simp only [Cslib.BitString.bitVal_false, mul_zero, Int.natAbs_zero, Nat.zero_le]
-    · simp only [Cslib.BitString.bitVal_true, mul_one, le_rfl]
-  · simp only [hj0, ↓reduceIte, getD_evalTaylorCorrectionZJet_of_lt hj]
+    cases x.getD i false <;> simp [Cslib.BitString.bitVal_false, Cslib.BitString.bitVal_true]
+  · rw [getD_evalTaylorCorrectionZJet_of_lt hj, ite_eq_right hj0]
     refine (Finset.le_sum_of_subadditive Int.natAbs Int.natAbs_zero.le Int.natAbs_add_le _ _).trans
       (Finset.sum_le_sum fun i _ => ?_)
     rw [← getD_taylorShiftZJet_of_lt hj]
-    cases U.getD i false
-    · simp only [Cslib.BitString.bitVal_false, zero_mul, Int.natAbs_zero, Nat.zero_le]
-    · simp only [Cslib.BitString.bitVal_true, one_mul, le_rfl]
+    cases U.getD i false <;> simp [Cslib.BitString.bitVal_false, Cslib.BitString.bitVal_true]
 
 /-- Coordinatewise shifted-norm bound for `evalAffineInputZJet`. -/
 theorem polyNorm1_evalAffineInputZJet_le_sum_taylorShiftZJet (J : ℕ) (t : ℤ)
@@ -526,16 +519,16 @@ theorem polyNorm1_evalTaylorCorrectionZJet_le (J : ℕ) (t : ℤ) (rowCoeffs : L
     polyNorm1 (evalTaylorCorrectionZJet J t rowCoeffs U) ≤
       (rowCoeffs.map fun c => polyNorm1 c * (t.natAbs + 1) ^ c.length).sum := by
   have heq : evalTaylorCorrectionZJet J t rowCoeffs U = evalAffineInputZJet J t rowCoeffs U [] :=
-    List.ext_getElem (by simp only [length_evalTaylorCorrectionZJet, length_evalAffineInputZJet])
+    List.ext_getElem (by simp)
       fun j hj hj2 => by
-        have hjlt : j < J := by simpa only [length_evalTaylorCorrectionZJet] using hj
-        rw [← List.getD_eq_getElem _ 0 hj, ← List.getD_eq_getElem _ 0 hj2, evalAffineInputZJet,
-          getD_combineAffineInputZJet_of_lt hjlt]
-        by_cases hj0 : j = 0
-        · subst hj0; simp only [↓reduceIte, getD_evalTaylorCorrectionZJet_of_lt hjlt,
-            evalBaselineAt_eq_sum, List.getD_nil, Cslib.BitString.bitVal_false, mul_zero,
-            Finset.sum_const_zero]
-        · simp only [hj0, ↓reduceIte]
+      have hjlt : j < J := by simpa using hj
+      rw [← List.getD_eq_getElem _ 0 hj, ← List.getD_eq_getElem _ 0 hj2, evalAffineInputZJet,
+        getD_combineAffineInputZJet_of_lt hjlt]
+      split_ifs with hj0
+      · subst hj0
+        rw [getD_evalTaylorCorrectionZJet_of_lt hjlt]
+        simp [evalBaselineAt_eq_sum, Cslib.BitString.bitVal_false]
+      · rfl
   simpa only [heq] using polyNorm1_evalAffineInputZJet_le J t rowCoeffs U []
 
 /-- Every row `q ∈ evalAffineInputZJetTable J t rowsCoeffs U x` satisfies
@@ -737,11 +730,10 @@ theorem getD_zero_evalClearedEquationJet {J k : ℕ} (hJ : 1 ≤ J) (dDen : ℤ)
 theorem even_monomialSum_toFinset_iff_evalMonomialList_eq_false {eq : List (List ℕ)}
     (heq : IsCanonicalEquation eq) (x : ℕ → Bool) :
     Even (monomialSum ℤ (eq.map List.toFinset).toFinset x) ↔ evalMonomialList eq x = false := by
-  rw [← monomialSum_zmod_two_eq_zero_iff_even]; unfold monomialSum
+  rw [← monomialSum_zmod_two_eq_zero_iff_even]
+  unfold monomialSum
   rw [← bitVal_evalMonomialList_eq_sum_monomial heq x]
-  cases evalMonomialList eq x
-  · simp only [Cslib.BitString.bitVal_false]
-  · simp only [Cslib.BitString.bitVal_true, one_ne_zero, Bool.true_eq_false]
+  cases evalMonomialList eq x <;> simp [Cslib.BitString.bitVal_false, Cslib.BitString.bitVal_true]
 
 private lemma polyNorm1_prodMonomialJet_le {J B₀ : ℕ} {varJets : List (List ℤ)} {mon : List ℕ}
     (hjets : ∀ v ∈ mon, polyNorm1 (truncZJet J (varJets.getD v [])) ≤ B₀) :
@@ -857,10 +849,10 @@ private lemma coeff_parityFactorCleared_congr_below {J ℓ s : ℕ} (Δ : ℤ) {
 theorem taylor_coeff_parityFactorCleared (t Δ : ℤ) (ℓ s : ℕ) (A : ℤ[X]) :
     Polynomial.taylor t ((parityFactorCleared ℓ (C Δ) A).coeff s) =
       (parityFactorCleared ℓ (C Δ) (Polynomial.taylor t A)).coeff s := by
-  rw [coeff_parityFactorCleared, coeff_parityFactorCleared]; split_ifs with hs
+  rw [coeff_parityFactorCleared, coeff_parityFactorCleared]
+  split_ifs with hs
   · unfold parityBaseDigitCleared hPolyCleared
-    have hcast (c : ℤ) : (c : ℤ[X]) = C c := (eq_intCast C c).symm
-    rw [hcast, hcast]; simp only [taylor_mul, taylor_pow, map_add, map_sub, taylor_C]
+    simp only [← eq_intCast C, taylor_mul, taylor_pow, map_add, map_sub, taylor_C]
   · exact map_zero (Polynomial.taylor t)
 
 /-- **Composite Stage-1 $\to$ Stage-2 specification** ([OpenAI2026ETH], §5.4 and Appendix B.2)
@@ -1009,17 +1001,10 @@ private lemma polyNorm1_truncZJet_getD_le_two_pow (J : ℕ) (varJets : List (Lis
     (hcorr : ComputableInPolyTime corrJet encIn (encList encIntBin)) :
     ComputableInPolyTime (fun a => combineAffineInputZJet (J a) (base a) (corrJet a))
       encIn (encList encIntBin) := by
-  have htrunc := computableInPolyTime_truncZJet hJ hcorr
-  have hcond := decide_eq' hJ (const 0)
-  have hdrop : ComputableInPolyTime (fun a => (truncZJet (J a) (corrJet a)).drop 1)
-      encIn (encList encIntBin) :=
-    (show ComputableInPolyTime (fun l : List ℤ => l.drop 1)
-      (encList encIntBin) (encList encIntBin) by fun_prop).comp htrunc
-  have hcons := (show ComputableInPolyTime (fun p : ℤ × List ℤ => p.1 :: p.2)
-      (encPair encIntBin (encList encIntBin)) (encList encIntBin) by fun_prop).comp
-    (hbase.prod hdrop)
-  simpa only [combineAffineInputZJet, Function.comp_apply, decide_eq_true_eq] using
-    hcond.ite' (const []) hcons
+  simpa only [combineAffineInputZJet, decide_eq_true_eq] using
+    (decide_eq' hJ (const 0)).ite' (const [])
+      (by fun_prop : ComputableInPolyTime (fun a => base a :: (truncZJet (J a) (corrJet a)).drop 1)
+        encIn (encList encIntBin))
 
 /-- Compositional plain polynomial-time certificate for `evalBaselineAt` supporting any sized
 Boolean list encoding `encX` (both `encBits` and `encList encBool`). -/
@@ -1031,15 +1016,14 @@ Boolean list encoding `encX` (both `encBits` and `encList encBool`). -/
     [ListEncoding encBool encX] [SizedListEncoding encBool encX] :
     ComputableInPolyTime (fun a => evalBaselineAt (t a) (rowCoeffs a) (x a)) encIn encIntBin := by
   have hrange := range.comp ((length_list (encList encIntBin)).comp hrow)
-  have ha := fst encIn encUnary; have hu := snd encIn encUnary
-  have hxu := listGetD_binary (encA := encBool) (encL := encX) false
-    (hx.comp ha) (unary_to_binary.comp hu)
-  have hcu :=
-    listGetD_binary (encA := encList encIntBin) [] (hrow.comp ha) (unary_to_binary.comp hu)
-  have hshift := computableInPolyTime_taylorShiftZJet (const 1) (ht.comp ha) hcu
-  have hval := (listGetD (encA := encIntBin) (encL := encList encIntBin) 0).comp
-    (hshift.prod (const 0))
-  exact intBin_sum.comp (mapWithInput hrange (hxu.ite' hval (const 0)))
+  have ha := fst encIn encUnary
+  have hu := unary_to_binary.comp (snd encIn encUnary)
+  have hxu := listGetD_binary (encA := encBool) (encL := encX) false (hx.comp ha) hu
+  have hcu := listGetD_binary (encA := encList encIntBin) [] (hrow.comp ha) hu
+  exact intBin_sum.comp (mapWithInput hrange (hxu.ite'
+    (by fun_prop : ComputableInPolyTime
+      (fun p : α × ℕ => (taylorShiftZJet 1 (t p.1) ((rowCoeffs p.1).getD p.2 [])).getD 0 0)
+      (encPair encIn encUnary) encIntBin) (const 0)))
 
 /-- Compositional plain polynomial-time certificate for `evalTaylorCorrectionZJet` supporting any
 sized Boolean list encoding `encU` (both `encBits` and `encList encBool`). -/
@@ -1052,21 +1036,18 @@ sized Boolean list encoding `encU` (both `encBits` and `encList encBool`). -/
     ComputableInPolyTime (fun a => evalTaylorCorrectionZJet (J a) (t a) (rowCoeffs a) (U a))
       encIn (encList encIntBin) := by
   have hrangeU := range.comp ((length_list (encList encIntBin)).comp hrow)
-  have ha := fst encIn encUnary; have hu := snd encIn encUnary
-  have hUu := listGetD_binary (encA := encBool) (encL := encU) false
-    (hU.comp ha) (unary_to_binary.comp hu)
-  have hcu :=
-    listGetD_binary (encA := encList encIntBin) [] (hrow.comp ha) (unary_to_binary.comp hu)
-  have hshift := computableInPolyTime_taylorShiftZJet (hJ.comp ha) (ht.comp ha) hcu
-  have hjetT := computableInPolyTime_combineAffineInputZJet (hJ.comp ha) (const 0) hshift
-  have hjetF := computableInPolyTime_truncZJet (hJ.comp ha) (const [])
+  have ha := fst encIn encUnary
+  have hu := unary_to_binary.comp (snd encIn encUnary)
+  have hUu := listGetD_binary (encA := encBool) (encL := encU) false (hU.comp ha) hu
+  have hcu := listGetD_binary (encA := encList encIntBin) [] (hrow.comp ha) hu
   have huJets := mapWithInput
     (f := fun a u => if (U a).getD u false then
       combineAffineInputZJet (J a) 0 (taylorShiftZJet (J a) (t a) ((rowCoeffs a).getD u []))
-      else truncZJet (J a) []) hrangeU (hUu.ite' hjetT hjetF)
-  have hcol := (listGetD (encA := encIntBin) (encL := encList encIntBin) 0).comp
-    ((snd (encPair encIn encUnary) (encList encIntBin)).prod
-      ((fst (encPair encIn encUnary) (encList encIntBin)).snd'))
+      else truncZJet (J a) []) hrangeU
+    (hUu.ite' (by fun_prop)
+      (by fun_prop))
+  have hcol : ComputableInPolyTime (fun p : (α × ℕ) × List ℤ => p.2.getD p.1.2 0)
+      (encPair (encPair encIn encUnary) (encList encIntBin)) encIntBin := by fun_prop
   exact mapWithInput (range.comp hJ) (intBin_sum.comp (mapWithInput (huJets.comp ha) hcol))
 
 /-- Compositional plain polynomial-time certificate for `evalAffineInputZJet` supporting both
@@ -1080,9 +1061,8 @@ sized Boolean list encoding `encU` (both `encBits` and `encList encBool`). -/
     [ListEncoding encBool encX] [SizedListEncoding encBool encX] :
     ComputableInPolyTime (fun a => evalAffineInputZJet (J a) (t a) (rowCoeffs a) (U a) (x a))
       encIn (encList encIntBin) := by
-  exact computableInPolyTime_combineAffineInputZJet hJ
-    (computableInPolyTime_evalBaselineAt ht hrow hx)
-    (computableInPolyTime_evalTaylorCorrectionZJet hJ ht hrow hU)
+  unfold evalAffineInputZJet
+  fun_prop
 
 /-- Compositional plain polynomial-time certificate for `evalAffineInputZJetTable` supporting both
 `encBits` and `encList encBool` for `(U, x)`. -/
@@ -1095,11 +1075,8 @@ sized Boolean list encoding `encU` (both `encBits` and `encList encBool`). -/
     [ListEncoding encBool encU] [SizedListEncoding encBool encU]
     [ListEncoding encBool encX] [SizedListEncoding encBool encX] :
     ComputableInPolyTime (fun a => evalAffineInputZJetTable (J a) (t a) (rowsCoeffs a) (U a) (x a))
-      encIn encIntTable := by
-  let encRow := encList (encList encIntBin)
-  have hp1 := fst encIn encRow
-  exact mapWithInput hrows (computableInPolyTime_evalAffineInputZJet
-    (hJ.comp hp1) (ht.comp hp1) (snd encIn encRow) (hU.comp hp1) (hx.comp hp1))
+      encIn encIntTable :=
+  mapWithInput hrows (by fun_prop)
 
 private theorem prodMonomialJet_polytime {J : α → ℕ} {varJets : α → List (List ℤ)}
     {mon : α → List ℕ}
@@ -1118,11 +1095,11 @@ private theorem prodMonomialJet_polytime {J : α → ℕ} {varJets : α → List
         encNat)
       (encList encIntBin) := by
     let encLeft := encPair (encPair encUnary (encList (encList encIntBin))) (encList encIntBin)
-    have hJ' := (fst encLeft encNat).fst'.fst'
     have hget := listGetD_binary (encA := encList encIntBin) []
       (fst encLeft encNat).fst'.snd' (snd encLeft encNat)
-    exact computableInPolyTime_mulZJet hJ' (fst encLeft encNat).snd'
-      (computableInPolyTime_truncZJet hJ' hget)
+    dsimp only [stepFn]
+    exact computableInPolyTime_mulZJet (by fun_prop) (by fun_prop)
+      (computableInPolyTime_truncZJet (by fun_prop) hget)
   let bElem (Lv Lm : ℕ) : ℕ := 2 * Lv * Lm + 2
   let bound (n Lv Lm : ℕ) : ℕ := n * (2 * bElem Lv Lm + 1)
   have hLv := hvarJets.polyBounded_length; have hLm := hmon.polyBounded_length

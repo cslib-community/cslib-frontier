@@ -73,14 +73,11 @@ theorem rankMeasure_upperPoly_le (hp : p.Good) (hv : Fintype.card {i // s i} = p
   set B : ℝ := 2 * p.D * (Real.exp (132 * √(p.n : ℝ)) * (p.n : ℝ) ^ (-√(p.n : ℝ) / 100))
   have hB : 0 ≤ B := by positivity
   suffices h : (rankMeasure s (p.k, p.m) (p.a, p.b) (c.upperPoly t) : ℝ) ≤
-      max (c.lower : ℝ) 1 * B by
-    refine h.trans (le_of_eq ?_)
-    simp only [B]
-    ring
+      max (c.lower : ℝ) 1 * B from h.trans_eq (by simp only [B]; ring)
   by_cases h : ∀ a, 4 * p.s * c.middleDeg (c.upperInputs t a) < p.n
   · calc (rankMeasure s (p.k, p.m) (p.a, p.b) (c.upperPoly t) : ℝ)
         ≤ 2 * p.D * ∏ a, p.H (c.middleDeg (c.upperInputs t a)) :=
-          rankMeasure_prod_le hp hv hu (fun a => c.isHomogeneous_middlePoly _) ht
+          rankMeasure_prod_le hp hv hu (fun _ => c.isHomogeneous_middlePoly _) ht
       _ ≤ B := mul_le_mul_of_nonneg_left (hp.prod_H_le_of_low ht h) (by positivity)
       _ ≤ max (c.lower : ℝ) 1 * B := le_mul_of_one_le_left hB (le_max_right _ _)
   · obtain ⟨a₀, ha₀⟩ := not_forall.1 h
@@ -97,7 +94,7 @@ theorem rankMeasure_upperPoly_le (hp : p.Good) (hv : Fintype.card {i // s i} = p
         rw [mul_assoc, C_mul']
         exact (Nat.cast_le.2 (rankMeasure_smul_le _ _)).trans
           (rankMeasure_lowerPoly_mul_le hp hv hu c i
-            (fun a => c.isHomogeneous_middlePoly _) (hdeg ▸ ha₀) (hdeg ▸ ht))
+            (fun _ => c.isHomogeneous_middlePoly _) (hdeg ▸ ha₀) (hdeg ▸ ht))
     · rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
       exact mul_le_mul_of_nonneg_right (le_max_left _ _) hB
 
@@ -111,14 +108,12 @@ theorem rankMeasure_circuit_le (hp : p.Good) (hv : Fintype.card {i // s i} = p.v
   refine (Nat.cast_le.2 (rankMeasure_sum_le _ _)).trans ?_
   rw [Nat.cast_sum]
   refine (sum_le_sum (g := fun _ => 2 * max (c.lower : ℝ) 1 * p.D *
-    Real.exp (132 * √(p.n : ℝ)) * (p.n : ℝ) ^ (-√(p.n : ℝ) / 100)) fun t _ => ?_).trans ?_
+    Real.exp (132 * √(p.n : ℝ)) * (p.n : ℝ) ^ (-√(p.n : ℝ) / 100)) fun t _ => ?_).trans_eq ?_
   · by_cases ht : c.outCoeff t = 0
-    · simp only [ht, map_zero, zero_mul, rankMeasure_zero, Nat.cast_zero]
-      positivity
+    · simp only [ht, map_zero, zero_mul, rankMeasure_zero, Nat.cast_zero]; positivity
     · rw [C_mul']
       exact (Nat.cast_le.2 (rankMeasure_smul_le _ _)).trans
         (rankMeasure_upperPoly_le hp hv hu c t ((c.out_hom t ht).trans hc))
-  · rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
-    exact le_of_eq (by ring)
+  · rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]; ring
 
 end Cslib.Circuits.DepthFive

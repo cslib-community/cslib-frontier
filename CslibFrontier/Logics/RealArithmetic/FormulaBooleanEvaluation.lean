@@ -143,17 +143,13 @@ theorem formulaWordGateValuesWithAnswers_eq_of_comparisonAnswers (word : List Bo
     | zero => rfl
     | succ k ih =>
       let index := size - (k + 1)
-      have hi : index < size := by dsimp only [index]; omega
-      have hs := ih (by omega)
-      simp only [gateValuesAux, formulaWordGateUpdate, hs]
+      have hi : index < size := Nat.sub_lt (Nat.zero_lt_of_lt hk) (Nat.succ_pos k)
+      simp only [gateValuesAux, formulaWordGateUpdate, ih (Nat.le_of_succ_le hk)]
       congr 1
       apply formulaWordGateValueWithAnswer_congr
       intro hc
-      change (formulaWordComparisonRequest word index).isSome = true at hc
-      change answer index = signAnswer index
-      cases hreq : formulaWordComparisonRequest word index with
-      | none => simp [hreq] at hc
-      | some request => simpa only [signAnswer, hreq, Option.any_some] using h index hi request hreq
+      obtain ⟨request, hreq⟩ := Option.isSome_iff_exists.mp hc
+      simpa only [signAnswer, hreq, Option.any_some] using h index hi request hreq
   exact agree size le_rfl
 
 /-- A polynomial-space comparison-answer computation suffices for the whole backward
@@ -193,16 +189,11 @@ theorem formulaWordGateValuesWithAnswers_polySpace {α : Type} [Inhabited α]
     suffix = gateValuesAux (word a) (answer a) (count a) k
   obtain ⟨hfold, hcorrect⟩ := ComputableInPolySpace.natFold_spec hcount
     (ComputableInPolySpace.of_polyTime (const [])) hstep invariant
-    (fun _ => rfl) (fun a k suffix _ hs => by
-      change suffix = _ at hs
-      change step a k suffix = _
-      rw [hs]
-      rfl)
+    (fun _ => rfl) (fun _ _ _ _ hs => hs ▸ rfl)
     hbound (fun a k suffix hk hs => by
       change suffix = _ at hs
-      rw [encBits_apply, hs, gateValuesAux_length]
-      exact hk)
-  exact hfold.congr fun a => hcorrect a
+      simpa only [encBits_apply, hs, gateValuesAux_length] using hk)
+  exact hfold.congr hcorrect
 
 /-- The term-sign scan uses polynomial space if each indexed comparison with the supplied
 term signs is computable in polynomial space. -/
@@ -235,8 +226,9 @@ private theorem formulaWordGateValues_getD_step (word : List Bool)
       termSign (fun child => if index < child then
         (formulaWordGateValues word termSign).getD child false else false) := by
   obtain ⟨k, hk⟩ : ∃ k, (formulaWordTokens word).length - index = k + 1 :=
-    ⟨(formulaWordTokens word).length - index - 1, by omega⟩
-  have hindex : (formulaWordTokens word).length - (k + 1) = index := by omega
+    Nat.exists_eq_succ_of_ne_zero (Nat.sub_pos_of_lt hi).ne'
+  have hindex : (formulaWordTokens word).length - (k + 1) = index := by
+    rw [← hk, Nat.sub_sub_self hi.le]
   rw [formulaWordGateValues, formulaWordGateValuesWithAnswers, gateValuesAux_getD, hk,
     gateValuesAux, formulaWordGateUpdate_eq_cons, List.getD_cons_zero, hindex]
   congr 1
@@ -245,7 +237,7 @@ private theorem formulaWordGateValues_getD_step (word : List Bool)
   split
   · rw [gateValuesAux_getD, gateValuesAux_getD word _ _ (formulaWordTokens word).length child]
     congr 2
-    omega
+    lia
   · rfl
 
 /-- Reading the value of an encoded subformula from the gate scan agrees with interpreting
@@ -290,19 +282,64 @@ theorem formulaWordGateValues_getD_zero (word : List Bool) (termSign : List Bool
   formulaWordGateValues_getD_of_prefix (Formula.ofWord word) [] []
     (by simpa only [List.nil_append, List.append_nil] using formulaWordTokens_eq word) termSign
 
+/-- Evaluate the total formula view using a finite sign signature indexed by gate. A
+comparison beyond the signature receives `false`. -/
+def formulaWordGateValuesWithSignature {n : ℕ} (word : List Bool)
+    (signature : Fin n → SignType) : List Bool :=
+  formulaWordGateValuesWithAnswers word fun index =>
+    if hi : index < n then formulaWordComparisonAnswer word index (signature ⟨index, hi⟩)
+    else false
+
+/-- The finite-signature scan uses polynomial space when the word and the list of signs in
+gate order are available in polynomial time. The signs use the framed `encList encSign`
+encoding, and each comparison looks up its sign at a binary gate index. -/
+theorem formulaWordGateValuesWithSignature_polySpace {α : Type} [Inhabited α]
+    {input : α ↪ List Bool} {word : α → List Bool} {signs : α → List SignType}
+    (hword : ComputableInPolyTime word input encBits)
+    (hsigns : ComputableInPolyTime signs input (encList encSign)) :
+    ComputableInPolySpace (fun a => formulaWordGateValuesWithSignature (word a)
+      (fun index : Fin (signs a).length => (signs a)[index.val])) input encBits := by
+  have hcontext := fst input encNat
+  have hindex := snd input encNat
+  have hlist := hsigns.comp hcontext
+  have hinBounds := binary_lt' hindex (length_list_binary' hlist)
+  have hsign := listGetD_binary (encA := encSign) 0 hlist hindex
+  have htest := formulaWordComparisonAnswer_polyTime (hword.comp hcontext) hindex hsign
+  have hanswer := ite_decide hinBounds htest (const false)
+  unfold formulaWordGateValuesWithSignature
+  refine formulaWordGateValuesWithAnswers_polySpace hword
+    ((ComputableInPolySpace.of_polyTime hanswer).congr ?_)
+  rintro ⟨a, index⟩
+  by_cases hi : index < (signs a).length
+  · simp only [Function.comp_apply, ite_eq_left hi, dite_eq_left hi, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hi, Option.getD_some]
+  · simp only [Function.comp_apply, ite_eq_right hi, dite_eq_right hi]
+
+/-- A finite gate signature covering the formula word's tokens gives the term-sign value
+of the total formula view if its sign at every comparison agrees with the requested term's
+sign. This adapts `LeanCanny.ETR.FormulaBooleanCircuitSource.value_signature` to the
+frontier token view, which only requests signs at comparison gates. -/
+theorem formulaWordGateValuesWithSignature_getD_zero {n : ℕ} (word : List Bool)
+    (signature : Fin n → SignType) (termSign : List Bool → SignType)
+    (hn : (formulaWordTokens word).length ≤ n)
+    (hsign : ∀ index (hi : index < (formulaWordTokens word).length) request,
+      formulaWordComparisonRequest word index = some request →
+      signature ⟨index, hi.trans_le hn⟩ = termSign request.termWord) :
+    (formulaWordGateValuesWithSignature word signature).getD 0 false =
+      (Formula.ofWord word).evalTermSigns (termSign ∘ encTerm word.length) := by
+  rw [formulaWordGateValuesWithSignature,
+    formulaWordGateValuesWithAnswers_eq_of_comparisonAnswers word _ termSign ?_,
+    formulaWordGateValues_getD_zero]
+  intro index hi request hrequest
+  rw [dite_eq_left (hi.trans_le hn), formulaWordComparisonAnswer, hrequest]
+  change decide (signature ⟨index, hi.trans_le hn⟩ = request.requestedSign) = _
+  rw [hsign index hi request hrequest]
+
 private theorem evalTermSigns_eq_true_iff_of_token_signs {n : ℕ} (p : Formula n)
     (termSign : Term n → SignType) (x : Fin n → ℝ)
     (hsign : ∀ t, .inr (.inl t) ∈ encFormula_tokens n p ∨
         .inr (.inr (.inl t)) ∈ encFormula_tokens n p → termSign t = SignType.sign (t.eval x)) :
     p.evalTermSigns termSign = true ↔ x ∈ p.solutionSet := by
-  have restrict {parent child : Formula n} (hsub : encFormula_tokens n child ⊆
-      encFormula_tokens n parent)
-      (h : ∀ t, .inr (.inl t) ∈ encFormula_tokens n parent ∨
-        .inr (.inr (.inl t)) ∈ encFormula_tokens n parent → termSign t = SignType.sign (t.eval x))
-      (t : Term n) (ht : .inr (.inl t) ∈ encFormula_tokens n child ∨
-        .inr (.inr (.inl t)) ∈ encFormula_tokens n child) :
-      termSign t = SignType.sign (t.eval x) :=
-    h t (ht.imp (fun hm => hsub hm) (fun hm => hsub hm))
   induction p with
   | false => simp [Formula.evalTermSigns, Formula.solutionSet]
   | eqZero t =>
@@ -312,11 +349,15 @@ private theorem evalTermSigns_eq_true_iff_of_token_signs {n : ℕ} (p : Formula 
     have ht := hsign t (.inr (by simp [encFormula_tokens]))
     simp [Formula.evalTermSigns, Formula.solutionSet, ht, sign_eq_neg_one_iff]
   | not p ih =>
-    have hp := ih (restrict (by intro token ht; simp [encFormula_tokens, ht]) hsign)
+    simp only [encFormula_tokens, List.append_nil, List.mem_cons] at hsign
+    have hp := ih fun t ht => hsign t (ht.imp Or.inr Or.inr)
     simp [Formula.evalTermSigns, Formula.solutionSet, Bool.eq_false_iff, hp]
   | and p q ihp ihq | or p q ihp ihq =>
-    have hp := ihp (restrict (by intro token ht; simp [encFormula_tokens, ht]) hsign)
-    have hq := ihq (restrict (by intro token ht; simp [encFormula_tokens, ht]) hsign)
+    simp only [encFormula_tokens, List.append_nil, List.mem_cons, List.mem_append] at hsign
+    have hp := ihp fun t ht =>
+      hsign t (ht.imp (fun hm => .inr (.inl hm)) (fun hm => .inr (.inl hm)))
+    have hq := ihq fun t ht =>
+      hsign t (ht.imp (fun hm => .inr (.inr hm)) (fun hm => .inr (.inr hm)))
     simp [Formula.evalTermSigns, Formula.solutionSet, hp, hq]
 
 /-- The root gate holds at a real point if and only if the total formula view holds there,
@@ -336,5 +377,32 @@ theorem formulaWordGateValues_getD_zero_eq_true_iff (word : List Bool)
   rcases ht with ht | ht
   · exact .inl (List.mem_map_of_mem ht)
   · exact .inr (List.mem_map_of_mem ht)
+
+/-- A gate signature matching the real sign of every requested term gives the truth of the
+total formula view at that point. This is the token-view version of
+`LeanCanny.ETR.FormulaBooleanCircuitSource.signature_holds` at the revision cited above. -/
+theorem formulaWordGateValuesWithSignature_getD_zero_eq_true_iff {n : ℕ} (word : List Bool)
+    (signature : Fin n → SignType) (x : Fin word.length → ℝ)
+    (hn : (formulaWordTokens word).length ≤ n)
+    (hsign : ∀ index (hi : index < (formulaWordTokens word).length) request (t : Term word.length),
+      formulaWordComparisonRequest word index = some request →
+      request.termWord = encTerm word.length t →
+      signature ⟨index, hi.trans_le hn⟩ = SignType.sign (t.eval x)) :
+    (formulaWordGateValuesWithSignature word signature).getD 0 false = true ↔
+      x ∈ (Formula.ofWord word).solutionSet := by
+  let termSign := Function.extend (encTerm word.length) (fun t => SignType.sign (t.eval x))
+    (fun _ => 0)
+  have hterm (t : Term word.length) :
+      termSign (encTerm word.length t) = SignType.sign (t.eval x) :=
+    (encTerm word.length).injective.extend_apply _ _ t
+  have hagrees (index : ℕ) (hi : index < (formulaWordTokens word).length)
+      (request : FormulaComparisonRequest) (hrequest : formulaWordComparisonRequest word index =
+        some request) : signature ⟨index, hi.trans_le hn⟩ = termSign request.termWord := by
+    obtain ⟨t, hword⟩ := formulaWordComparisonRequest_termWord_exists hi hrequest
+    rw [hword, hterm]
+    exact hsign index hi request t hrequest hword
+  rw [formulaWordGateValuesWithSignature_getD_zero word signature termSign hn hagrees,
+    ← formulaWordGateValues_getD_zero]
+  exact formulaWordGateValues_getD_zero_eq_true_iff word termSign x fun t _ => hterm t
 
 end Cslib.Logic.RealArithmetic

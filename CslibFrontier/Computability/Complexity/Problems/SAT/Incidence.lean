@@ -101,26 +101,19 @@ variable names to unary. -/
 theorem computableInPolyTime_incidenceGraph (enc : V ↪ List Bool) :
     ComputableInPolyTime (incidenceGraph (V := V))
       (encList (encList (encPair enc encBool))) encGraph := by
-  let unaryGraph := encPair (encList encUnary) (encList (encPair encUnary encUnary))
   have hd := CNF.computableInPolyTime_distinctVars enc
   have ho := Cslib.Logic.PL.computableInPolyTime_occurrences enc
   have hu : ComputableInPolyTime (fun φ : CNF V =>
       (List.range (φ.distinctVars.length + φ.length),
         (Cslib.Logic.PL.occurrences φ).map fun o =>
           (φ.distinctVars.idxOf o.lit.1, φ.distinctVars.length + o.clause)))
-      (encList (encList (encPair enc encBool))) unaryGraph := by
-    dsimp only [unaryGraph]
-    fun_prop
+      (encList (encList (encPair enc encBool)))
+      (encPair (encList encUnary) (encList (encPair encUnary encUnary))) := by fun_prop
   open ComputableInPolyTime in
-  have hp := (unary_to_binary.comp (fst encUnary encUnary)).prod
-    (unary_to_binary.comp (snd encUnary encUnary))
-  open ComputableInPolyTime in
-  have hV := (map unary_to_binary).comp
-    (fst (encList encUnary) (encList (encPair encUnary encUnary)))
-  have hE := (map hp).comp (snd (encList encUnary) (encList (encPair encUnary encUnary)))
-  have hc := encGraph_mk_polyTime hV hE
-  have hcomp := hc.comp hu
-  convert hcomp using 2 with φ
+  have hc := (encGraph_mk_polyTime ((map unary_to_binary).comp (fst _ _))
+    ((map ((unary_to_binary.comp (fst _ _)).prod (unary_to_binary.comp (snd _ _)))).comp
+      (snd _ _))).comp hu
+  convert hc using 2 with φ
   ext <;> simp [incidenceGraph]
 
 end Cslib.Complexity.SAT

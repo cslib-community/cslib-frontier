@@ -143,7 +143,7 @@ theorem criticalCoefficientValue_eq {p n m : ℕ} [Fact p.Prime]
   · intro s _
     exact criticalObjectiveValue_cast F (d + 1) u _ value hv
   · intro s _
-    exact criticalJacobianValue_cast F (d + 1) u _ value hFp hp hv
+    exact criticalJacobianValue_cast F centers (d + 1) u _ value hFp hp hv
   · intro i s _
     exact criticalLowerValue_cast F (d + 1) u i _ value hFp (by omega) hv
 

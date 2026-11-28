@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding
 import CslibFrontier.Computability.Circuit.Encoding.Evaluation
+import CslibFrontier.Logics.Propositional.CNF.Eval
 import Mathlib.Data.List.GetD
 
 /-!
@@ -206,13 +207,12 @@ theorem shared_lt {n : ℕ} {A : CNF (ℕ ⊕ Y)} {B : CNF (ℕ ⊕ Z)}
     (hA : ∀ d ∈ A, ∀ i b, (.inl i, b) ∈ d → i < n) (hB : ∀ d ∈ B, ∀ i b, (.inl i, b) ∈ d → i < n) :
     ∀ d ∈ ls, ∀ i b, (.inl i, b) ∈ d → i < n := by
   intro d hd i b hl
-  obtain ⟨l, hl', hli⟩ := List.mem_map.1 (h.fst_mem_vars hd hl)
-  obtain ⟨e, he, hle⟩ := List.mem_flatten.1 hl'
+  obtain ⟨e, he, sign, hle⟩ := CNF.mem_vars.1 (h.fst_mem_vars hd hl)
   rcases List.mem_append.1 he with he | he <;> obtain ⟨d', hd', rfl⟩ := List.mem_map.1 he <;>
-    obtain ⟨l', hl'', rfl⟩ := List.mem_map.1 hle <;> rcases l' with ⟨_ | _, b'⟩ <;>
-    simp only [Prod.map, Sum.map_inl, Sum.map_inr, id, reduceCtorEq, Sum.inl.injEq] at hli
-  · exact hA d' hd' _ b' (hli ▸ hl'')
-  · exact hB d' hd' _ b' (hli ▸ hl'')
+    obtain ⟨_ | _, hl', hi⟩ := Clause.mem_relabel_iff.1 hle <;>
+    simp only [Sum.map_inl, Sum.map_inr, id_eq, reduceCtorEq, Sum.inl.injEq] at hi
+  · exact hA d' hd' _ sign (hi ▸ hl')
+  · exact hB d' hd' _ sign (hi ▸ hl')
 
 end CNF.IsProof
 
@@ -224,18 +224,22 @@ section Polymorphic
 
 variable {V Y Z : Type*}
 
-/-- A candidate step names two of the lines, by their positions, and the variable of a literal of
-the first. -/
-private theorem mem_candidates {lines : List (Clause V)} {t : Step V} (ht : t ∈ candidates lines) :
+/-- A found step resolves its indexed premises to the requested clause. -/
+private theorem findStep_spec [DecidableEq V] {lines : List (Clause V)} {c : Clause V}
+    {t : Step V} (ht : findStep lines c = some t) :
     ∃ (h₁ : t.leftIndex < lines.length) (h₂ : t.rightIndex < lines.length),
-      lines[t.leftIndex] = t.left ∧ lines[t.rightIndex] = t.right := by
-  obtain ⟨⟨c₁, i₁⟩, he₁, ht⟩ := List.mem_flatMap.1 ht
-  obtain ⟨⟨c₂, i₂⟩, he₂, ht⟩ := List.mem_flatMap.1 ht
-  obtain ⟨⟨v, _⟩, -, rfl⟩ := List.mem_map.1 ht
+      lines[t.leftIndex] = t.left ∧ lines[t.rightIndex] = t.right ∧
+        (t.pivot, true) ∈ t.left ∧ (t.pivot, false) ∈ t.right ∧
+        t.left.resolvent t.right t.pivot = c := by
+  have htest := List.find?_some ht
+  simp only [decide_eq_true_eq] at htest
+  obtain ⟨⟨c₁, i₁⟩, he₁, hm⟩ := List.mem_flatMap.1 (List.mem_of_find?_eq_some ht)
+  obtain ⟨⟨c₂, i₂⟩, he₂, hm⟩ := List.mem_flatMap.1 hm
+  obtain ⟨⟨v, _⟩, -, rfl⟩ := List.mem_map.1 hm
   obtain ⟨-, h₁, hc₁⟩ := List.mem_zipIdx he₁
   obtain ⟨-, h₂, hc₂⟩ := List.mem_zipIdx he₂
   simp only [Nat.zero_add, Nat.sub_zero] at h₁ h₂ hc₁ hc₂
-  exact ⟨h₁, h₂, hc₁.symm, hc₂.symm⟩
+  exact ⟨h₁, h₂, hc₁.symm, hc₂.symm, htest⟩
 
 /-- A resolution step among the lines is a candidate. -/
 private theorem mem_candidates_of_getElem {lines : List (Clause V)} {k₁ k₂ : ℕ}
@@ -261,10 +265,7 @@ theorem length_lineGatesOf {Op : Type*} {s : ℕ} (constOp : Bool → Op)
     (lines : List (Clause (ℕ ⊕ (Y ⊕ Z)))) (c : Clause (ℕ ⊕ (Y ⊕ Z))) :
     (lineGatesOf s constOp step n A B lines c).length = s := by
   unfold lineGatesOf
-  split_ifs
-  · simp
-  · simp
-  · cases findStep lines c <;> simp [hstep]
+  split_ifs <;> cases findStep lines c <;> simp [hstep]
 
 /-- Reading one more line appends its gates. -/
 theorem gatesOf_append_singleton {Op : Type*} (s : ℕ) (constOp : Bool → Op)
@@ -319,11 +320,9 @@ theorem isCodeFrom_lineGatesOf {s n : ℕ} {constOp : Bool → σ.Op}
   · exact isCodeFrom_replicate_const (hconst true) _ _ _
   rcases hfind : findStep lines c with _ | t
   · exact isCodeFrom_replicate_const (hconst false) _ _ _
-  obtain ⟨h₁, h₂, hc₁, -⟩ := mem_candidates (List.mem_of_find?_eq_some hfind)
-  have htest := List.find?_some hfind
-  simp only [decide_eq_true_eq] at htest
+  obtain ⟨h₁, h₂, hc₁, -, hpivot, -, -⟩ := findStep_spec hfind
   exact hstep_code (wire_lt_of_lt hs h₁) (wire_lt_of_lt hs h₂)
-    fun i hi => hvars t.left (hc₁ ▸ List.getElem_mem _) i true (hi ▸ htest.1)
+    fun i hi => hvars t.left (hc₁ ▸ List.getElem_mem _) i true (hi ▸ hpivot)
 
 /-- All extracted gates are well formed when the shared variables of `lines` are below `n`. -/
 theorem isCodeFrom_gatesOf {s n : ℕ} {constOp : Bool → σ.Op}
@@ -495,9 +494,7 @@ theorem ofCode_gatesOf {I : Interpretation σ Bool} {s n : ℕ} {constOp : Bool 
           obtain ⟨k₂, hk₂, rfl⟩ := List.getElem_of_mem hc₂
           exact List.find?_eq_none.1 hfind _ (mem_candidates_of_getElem hk₁ hk₂ hv₁)
             (by simp [hv₁, hv₂])
-      obtain ⟨h₁, h₂, hc₁, hc₂⟩ := mem_candidates (List.mem_of_find?_eq_some hfind)
-      have htest := List.find?_some hfind
-      simp only [decide_eq_true_eq] at htest
+      obtain ⟨h₁, h₂, hc₁, hc₂, hpivot, -, hres⟩ := findStep_spec hfind
       have hline : lineGatesOf s constOp step n A B lines c =
           step (n + G.length) (n + s * t.leftIndex + (s - 1))
             (n + s * t.rightIndex + (s - 1)) t.pivot := by
@@ -507,10 +504,10 @@ theorem ofCode_gatesOf {I : Interpretation σ Bool} {s n : ℕ} {constOp : Bool 
       rw [hline] at hcode ⊢
       rw [hbase]
       obtain ⟨c₁, k₁, c₂, k₂, v⟩ := t
-      dsimp only at h₁ h₂ hc₁ hc₂ htest hw₁ hw₂ hcode ⊢
-      obtain ⟨hv₁, -, rfl⟩ := htest
+      dsimp only at h₁ h₂ hc₁ hc₂ hpivot hres hw₁ hw₂ hcode ⊢
+      subst c
       exact hInv_step hw₁ hw₂
-        (fun i hi => hv c₁ (List.mem_append_left _ (hc₁ ▸ List.getElem_mem _)) i true (hi ▸ hv₁))
+        (fun i hi => hv c₁ (List.mem_append_left _ (hc₁ ▸ List.getElem_mem _)) i true (hi ▸ hpivot))
         hcode (hc₁ ▸ hinv k₁ h₁) (hc₂ ▸ hinv k₂ h₂)
   have hrev : ∀ {ls' : List (Clause (ℕ ⊕ (Y ⊕ Z)))}, (A.appendShared B).IsProof ls' →
       (∀ d ∈ ls', ∀ i b, (.inl i, b) ∈ d → i < n) →
@@ -530,14 +527,11 @@ theorem ofCode_gatesOf {I : Interpretation σ Bool} {s n : ℕ} {constOp : Bool 
         (Or.inr ⟨c₁, List.mem_reverse.2 h₁, c₂, List.mem_reverse.2 h₂, v, hv₁, hv₂, rfl⟩)
   set k := (ls.reverse.map List.isEmpty).idxOf true with hk_def
   have hk : k < ls.reverse.length := by
-    have := List.idxOf_lt_length_of_mem (a := true) (l := ls.reverse.map List.isEmpty)
-      (List.mem_map.2 ⟨[], List.mem_reverse.2 hnil, rfl⟩)
-    rwa [List.length_map] at this
-  have hempty : ls.reverse[k] = [] := by
-    have h' := List.getElem_idxOf (x := true) (xs := ls.reverse.map List.isEmpty)
-      (by rw [List.length_map]; exact hk)
-    rw [List.getElem_map] at h'
-    exact List.isEmpty_iff.1 h'
+    simpa only [List.length_map] using List.idxOf_lt_length_of_mem (a := true)
+      (l := ls.reverse.map List.isEmpty) (List.mem_map.2 ⟨[], List.mem_reverse.2 hnil, rfl⟩)
+  have hempty : ls.reverse[k] = [] := List.isEmpty_iff.1 <| by
+    rw [← List.getElem_map List.isEmpty]
+    exact List.getElem_idxOf (by rw [List.length_map]; exact hk)
   have hcode := isCodeFrom_gatesOf (A := A) (B := B) hs hconst hstep_len hstep_code hvars'
   have hlen := length_gatesOf constOp hstep_len n A B ls.reverse
   set code := (gatesOf s constOp step n A B ls.reverse, [outputWireOf s n ls.reverse])

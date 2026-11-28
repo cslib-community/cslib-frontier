@@ -16,6 +16,7 @@ public meta import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
 import CslibFrontier.Logics.RealArithmetic.FormulaBooleanEvaluation
+import CslibFrontier.Logics.RealArithmetic.FormulaGatePolynomial
 import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 
 /-! Semantic edge cases and strict decoding for the ported real-arithmetic input convention. -/
@@ -150,6 +151,78 @@ set_option linter.hashCommand false in
     (formulaWordComparisonRequest word (2 ^ 80)).isNone &&
     (formulaWordComparisonRequest [] 0).isNone
 
+-- The term source copies comparison payloads and supplies a canonical zero at unused slots.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 1 (.and (.eqZero (.var 0)) (.ltZero (.const (-2))))
+  formulaWordGateTermWord word 1 == encTerm 1 (.var 0) &&
+    formulaWordGateTermWord word 2 == encTerm 1 (.const (-2)) &&
+    formulaWordGateTermWord word 0 == encTerm 1 (.const 0) &&
+    formulaWordGateTermWord word (2 ^ 80) == encTerm 1 (.const 0) &&
+    formulaWordGateTermWord [] 0 == encTerm 0 (.const 0) &&
+    decide (0 < (formulaWordGateTermWord [] 0).length)
+
+-- The coefficient and outer variables specialize to different coordinates.
+example (x y : ℝ) :
+    let word := encFormula 1 (.eqZero (.var 0))
+    let coordinates : Fin word.length → Polynomial (Polynomial ℤ) :=
+      fun _ => Polynomial.C Polynomial.X + Polynomial.X ^ 2
+    Polynomial.aevalAeval x y (formulaWordGatePolynomial word 0 coordinates) = x + y ^ 2 := by
+  intro word coordinates
+  let formula : Formula 1 := .eqZero (.var 0)
+  have hw : word = encFormula 1 formula := rfl
+  have hnonempty : 0 < word.length := by decide
+  clear_value word
+  let first : Fin word.length := ⟨0, hnonempty⟩
+  have hterm : formulaWordGateTerm word 0 = .var first := by
+    have htokens : formulaWordTokens word =
+        [] ++ ((encFormula_tokens 1 formula).map FormulaToken.encodeTerms ++ []) := by
+      rw [hw, formulaWordTokens, normalizeFormulaWord,
+        ite_eq_left (validFormulaWord_encFormula formula), formulaTokensDecoder_decode_encFormula]
+      simp only [List.nil_append, List.append_nil, Option.getD_some]
+    have hrequest := formulaWordComparisonRequest_of_prefix formula [] [] htokens
+    change formulaWordComparisonRequest word 0 = some ⟨encTerm 1 (.var 0), false⟩ at hrequest
+    apply (encTerm _).injective
+    rw [encTerm_formulaWordGateTerm, formulaWordGateTermWord, hrequest, Option.elim_some]
+    exact (encTerm_rename (fun _ : Fin 1 => first) (fun i => by
+      change 0 = i.val
+      omega) (.var 0)).symm
+  rw [aevalAeval_formulaWordGatePolynomial, hterm]
+  simp only [Term.eval, coordinates, map_add, map_pow, Polynomial.aevalAeval_X,
+    Polynomial.aevalAeval_Y]
+
+example :
+    let word := encFormula 1 (.eqZero (.var 0))
+    let coordinates : Fin word.length → Polynomial (Polynomial ℤ) :=
+      fun _ => Polynomial.C Polynomial.X + Polynomial.X ^ 2
+    (formulaWordGatePolynomial word 0 coordinates).bivariateCoeffNorm1 ≤
+      4 ^ formulaWordGateTermBudget word := by
+  intro word coordinates
+  refine formulaWordGatePolynomial_bivariateCoeffNorm1_le word 0 coordinates (M := 2)
+    (by decide) fun _ => ?_
+  refine (Polynomial.bivariateCoeffNorm1_add_le _ _).trans ?_
+  rw [Polynomial.bivariateCoeffNorm1_C, Polynomial.coeffNorm1_X]
+  have h := Polynomial.bivariateCoeffNorm1_mul_X_pow_le 1 2
+  simp only [one_mul, Polynomial.bivariateCoeffNorm1_one] at h
+  exact Nat.add_le_add_left h 1
+
+-- The same comparison slots evaluate modulo a composite, with missing coordinates set to zero.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 1 (.and (.eqZero (.var 0)) (.ltZero (.const (-2))))
+  formulaWordComparisonResidue word 1 8 [11] == some 3 &&
+    formulaWordComparisonResidue word 1 8 [] == some 0 &&
+    formulaWordComparisonResidue word 2 8 [] == some 6 &&
+    (formulaWordComparisonResidue word 0 8 []).isNone &&
+    (formulaWordComparisonResidue word (2 ^ 80) 8 []).isNone &&
+    (formulaWordComparisonResidue [] 0 8 []).isNone &&
+    formulaWordGateResidue word 1 8 [11] == 3 &&
+    formulaWordGateResidue word 1 8 [] == 0 &&
+    formulaWordGateResidue word 2 8 [] == 6 &&
+    formulaWordGateResidue word 0 8 [] == 0 &&
+    formulaWordGateResidue word (2 ^ 80) 8 [] == 0 &&
+    formulaWordGateResidue [] 0 8 [] == 0
+
 -- The left subtree stops at the right child of the conjunction.
 set_option linter.hashCommand false in
 #guard
@@ -193,6 +266,12 @@ set_option linter.hashCommand false in
   let termSign := fun bits => if bits == encTerm 0 term then (-1 : SignType) else 0
   formulaWordGateValues word termSign == [true, true, false, true, false, true] &&
     formulaWordGateValuesWithAnswers word (· != 2) == [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithAnswers word (fun i => formulaWordComparisonAnswer word i (-1)) ==
+      [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithSignature (n := 6) word (fun _ => -1) ==
+      [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithSignature (n := 5) word (fun _ => -1) ==
+      [false, true, false, false, false, false] &&
     formulaWordGateValues [] termSign == [false]
 
 -- A huge gate index uses the same suffix offsets as a small one. A child at the gate
@@ -228,6 +307,14 @@ example :
   | some request =>
     rcases request with ⟨_, strict⟩
     cases strict <;> simp [Option.any, FormulaComparisonRequest.requestedSign]
+
+-- A raw formula word and a framed sign list are ordinary inputs to the space certificate.
+example :
+    ComputableInPolySpace (fun p : List Bool × List SignType =>
+      formulaWordGateValuesWithSignature p.1 (fun index : Fin p.2.length => p.2[index.val]))
+      (encPair encBits (encList encSign)) encBits :=
+  formulaWordGateValuesWithSignature_polySpace (ComputableInPolyTime.fst _ _)
+    (ComputableInPolyTime.snd _ _)
 
 -- A malformed word has no comparison terms, so its sign reader can be arbitrary.
 example (termSign : List Bool → SignType) (x : Fin 0 → ℝ) :

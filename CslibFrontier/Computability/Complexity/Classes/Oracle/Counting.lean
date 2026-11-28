@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
+public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
@@ -77,6 +78,15 @@ code `encPair encβ encNat (b, i)` is in `A` exactly when bit `i` of `f b` is `1
 not codes may be in `A` or not. -/
 def AnswersBits (encβ : β ↪ List Bool) (f : β → ℕ) (A : Set (List Bool)) : Prop :=
   ∀ b i, encPair encβ encNat (b, i) ∈ A ↔ (f b).testBit i
+
+/-- Reading the first `w` bit answers in order reconstructs exactly the low bits of the value. -/
+theorem AnswersBits.ofFn_eq_lowBits {enc : β ↪ List Bool} {g : β → ℕ} {A : Set (List Bool)}
+    [DecidablePred (· ∈ A)] (hA : AnswersBits enc g A) (b : β) (w : ℕ) :
+    (List.ofFn fun i : Fin w => decide (encPair enc encNat (b, i.val) ∈ A)) =
+      BitString.lowBits w (g b) := by
+  rw [BitString.lowBits_eq_ofFn]
+  refine congrArg List.ofFn (funext fun i => Bool.eq_iff_iff.mpr ?_)
+  exact decide_eq_true_iff.trans (hA b i)
 
 /-- The bit graph of `f : β → ℕ`: the codes `encPair encβ encNat (b, i)` such that bit `i` of
 `f b` is `1`, and no other word. -/

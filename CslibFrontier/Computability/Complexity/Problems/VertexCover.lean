@@ -48,7 +48,8 @@ first-order interpretations.
 ## Main definitions
 
 * `Cslib.Complexity.VertexCoverInstance`, `Cslib.Complexity.VertexCover`.
-* `Cslib.Complexity.VertexCover.declaredEdges`: the listed edges between declared vertices.
+* `Cslib.Complexity.VertexCover.declaredEdges`, `Cslib.Complexity.VertexCover.properEdges`: the
+  listed edges between declared vertices, and those between two distinct ones.
 * `Cslib.Complexity.VertexCover.isUncoveredEdge`, `Cslib.Complexity.VertexCover.uncoveredEdges`,
   `Cslib.Complexity.VertexCover.isCover`, `Cslib.Complexity.VertexCover.verifier`.
 * `Cslib.Complexity.IndependentSet.toVertexCover`.
@@ -177,32 +178,23 @@ theorem toVertexCover_mem_iff (x : IndependentSetInstance) :
   classical
   obtain ⟨G, m⟩ := x
   simp only [toVertexCover, mem_VertexCover_iff, mem_IndependentSet_iff]
-  have hsub : ∀ {S : Finset ℕ}, (∀ v ∈ S, v ∈ G.vertices) → S ⊆ G.vertices.toFinset :=
-    fun hS v hv => List.mem_toFinset.2 (hS v hv)
+  have hsub {S : Finset ℕ} (hS : ∀ v ∈ S, v ∈ G.vertices) : S ⊆ G.vertices.toFinset :=
+    fun v hv => List.mem_toFinset.2 (hS v hv)
   split_ifs with hm
-  · constructor
-    · rintro ⟨T, hTV, hT, hcard⟩
-      refine ⟨G.vertices.toFinset \ T, fun v hv => List.mem_toFinset.1 (Finset.mem_sdiff.1 hv).1,
-        ⟨fun u hu v hv huv hadj => ?_, ?_⟩⟩
-      · simp only [Finset.coe_sdiff, Set.mem_sdiff, Finset.mem_coe, List.mem_toFinset] at hu hv
-        rcases hT u hu.1 v hv.1 hadj with h | h
-        · exact hu.2 h
-        · exact hv.2 h
-      · rw [Finset.card_sdiff_of_subset (hsub hTV), hcard]
-        omega
-    · rintro ⟨S, hSV, hS, hcard⟩
-      refine ⟨G.vertices.toFinset \ S, fun v hv => List.mem_toFinset.1 (Finset.mem_sdiff.1 hv).1,
-        fun u hu v hv hadj => ?_, ?_⟩
-      · by_contra h
-        simp only [Finset.mem_sdiff, List.mem_toFinset, not_or, not_and, not_not] at h
-        exact hS (h.1 hu) (h.2 hv) hadj.ne hadj
-      · rw [Finset.card_sdiff_of_subset (hsub hSV), hcard]
-  · refine ⟨fun ⟨T, hTV, _, hcard⟩ => ?_, fun ⟨S, hSV, hS⟩ => ?_⟩
-    · have := Finset.card_le_card (hsub hTV)
-      omega
-    · have := Finset.card_le_card (hsub hSV)
-      rw [hS.card_eq] at this
-      exact (hm this).elim
+  · refine ⟨fun ⟨T, hTV, hT, hcard⟩ => ⟨G.vertices.toFinset \ T,
+        fun v hv => List.mem_toFinset.1 (Finset.mem_sdiff.1 hv).1,
+        ⟨fun u hu v hv _ hadj => ?_, ?_⟩⟩,
+      fun ⟨S, hSV, hS, hcard⟩ => ⟨G.vertices.toFinset \ S,
+        fun v hv => List.mem_toFinset.1 (Finset.mem_sdiff.1 hv).1,
+        fun u hu v hv hadj => ?_, by rw [Finset.card_sdiff_of_subset (hsub hSV), hcard]⟩⟩
+    · simp only [Finset.coe_sdiff, Set.mem_sdiff, Finset.mem_coe, List.mem_toFinset] at hu hv
+      exact (hT u hu.1 v hv.1 hadj).elim hu.2 hv.2
+    · rw [Finset.card_sdiff_of_subset (hsub hTV), hcard]; omega
+    · by_contra h
+      simp only [Finset.mem_sdiff, List.mem_toFinset, not_or, not_and, not_not] at h
+      exact hS (h.1 hu) (h.2 hv) hadj.ne hadj
+  · exact ⟨fun ⟨T, hTV, _, hcard⟩ => by have := Finset.card_le_card (hsub hTV); omega,
+      fun ⟨S, hSV, hS⟩ => absurd (hS.card_eq ▸ Finset.card_le_card (hsub hSV)) hm⟩
 
 /-- The reduction `toVertexCover` is polynomial-time: the vertex count is computed in unary, and
 the binary target is compared with it by saturating decoding. -/
@@ -218,23 +210,18 @@ theorem computableInPolyTime_toVertexCover :
   have hmin : ComputableInPolyTime
       (fun x : IndependentSetInstance => Cslib.BitString.boundedBinaryValue
         x.graph.vertices.toFinset.card (encNat x.m).reverse) encIndependentSetInstance encUnary :=
-    bitsBoundedBinaryValueWithInput hn
-      (bitsReverse.comp (encoding_comp (by fun_prop)))
-  have heq : toVertexCover = fun x : IndependentSetInstance =>
+    bitsBoundedBinaryValueWithInput hn (bitsReverse.comp (encoding_comp (by fun_prop)))
+  have hfn : toVertexCover = fun x : IndependentSetInstance =>
       ⟨x.graph, if decide (Cslib.BitString.boundedBinaryValue x.graph.vertices.toFinset.card
           (encNat x.m).reverse = x.m)
         then x.graph.vertices.toFinset.card -
           Cslib.BitString.boundedBinaryValue x.graph.vertices.toFinset.card (encNat x.m).reverse
-        else x.graph.vertices.toFinset.card + 1⟩ := by
-    funext x
-    simp only [toVertexCover, Bool.decide_iff, encNat_apply,
-      Cslib.BitString.boundedBinaryValue_eq, Cslib.BitString.binaryValue_reverse_bits,
-      min_eq_right_iff]
-    split_ifs with h
-    · rw [min_eq_right h]
-    · rfl
-  rw [heq]
-  refine encVertexCoverInstance_mk_polyTime (by fun_prop)
+        else x.graph.vertices.toFinset.card + 1⟩ := funext fun x => by
+    simp only [toVertexCover, Bool.decide_iff, encNat_apply, Cslib.BitString.boundedBinaryValue_eq,
+      Cslib.BitString.binaryValue_reverse_bits, min_eq_right_iff]
+    split_ifs with h <;> simp [h]
+  rw [hfn]
+  exact encVertexCoverInstance_mk_polyTime (by fun_prop)
     (ite ((unary_to_binary.comp hmin).decide_eq' (by fun_prop))
       (unary_to_binary.comp (unary_sub.comp (hn.prod hmin)))
       (unary_to_binary.comp (unary_add.comp (hn.prod (const 1)))))
@@ -267,8 +254,24 @@ private theorem computableInPolyTime_isDeclaredEdge :
 /-- Listing the edges between declared vertices is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_declaredEdges :
-    ComputableInPolyTime declaredEdges encGraph (encList (encPair encNat encNat)) := by
+    ComputableInPolyTime declaredEdges encGraph encEdgeList := by
   fun_prop [declaredEdges]
+
+/-- The listed edges of `G` between two distinct declared vertices. -/
+def properEdges (G : Graph) : List (ℕ × ℕ) :=
+  (declaredEdges G).filter fun e => decide (e.1 ≠ e.2)
+
+/-- An edge is proper when it is listed and joins two distinct declared vertices. -/
+theorem mem_properEdges {G : Graph} {e : ℕ × ℕ} :
+    e ∈ properEdges G ↔ e ∈ G.edges ∧ e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices ∧ e.1 ≠ e.2 := by
+  simp only [properEdges, List.mem_filter, mem_declaredEdges, decide_eq_true_eq, and_assoc]
+
+/-- Listing the proper edges is polynomial-time. -/
+@[fun_prop]
+theorem computableInPolyTime_properEdges :
+    ComputableInPolyTime properEdges encGraph encEdgeList := by
+  unfold properEdges
+  fun_prop
 
 /-- Whether the edge `e` joins two distinct declared vertices of `G` and neither endpoint is in
 `C`. -/
@@ -301,16 +304,11 @@ theorem isCover_eq_true_iff {G : Graph} {C : List ℕ} :
       ∀ u ∈ G.vertices, ∀ v ∈ G.vertices, G.toSimpleGraph.Adj u v → u ∈ C ∨ v ∈ C := by
   simp only [isCover, uncoveredEdges, List.isEmpty_iff, List.filter_eq_nil_iff,
     isUncoveredEdge_eq_true_iff, Graph.toSimpleGraph_adj, not_and, not_not, Prod.forall]
-  constructor
-  · rintro h u hu v hv ⟨huv, he | he⟩
-    · by_cases huC : u ∈ C
-      · exact Or.inl huC
-      · exact Or.inr (h u v he hu hv huv huC)
-    · by_cases hvC : v ∈ C
-      · exact Or.inr hvC
-      · exact Or.inl (h v u he hv hu huv.symm hvC)
-  · intro h u v he hu hv huv huC
-    exact (h u hu v hv ⟨huv, Or.inl he⟩).resolve_left huC
+  refine ⟨fun h u hu v hv ⟨huv, he⟩ => ?_,
+    fun h u v he hu hv huv huC => (h u hu v hv ⟨huv, Or.inl he⟩).resolve_left huC⟩
+  rcases he with he | he
+  · exact if huC : u ∈ C then Or.inl huC else Or.inr (h u v he hu hv huv huC)
+  · exact if hvC : v ∈ C then Or.inr hvC else Or.inl (h v u he hv hu huv.symm hvC)
 
 /-- Testing whether an edge is uncovered is polynomial-time. -/
 @[local fun_prop]
@@ -325,7 +323,7 @@ private theorem computableInPolyTime_isUncoveredEdge :
 @[fun_prop]
 theorem computableInPolyTime_uncoveredEdges :
     ComputableInPolyTime (fun p : Graph × List ℕ => uncoveredEdges p.1 p.2)
-      (encPair encGraph (encList encNat)) (encList (encPair encNat encNat)) := by
+      (encPair encGraph (encList encNat)) encEdgeList := by
   fun_prop [uncoveredEdges]
 
 /-- Testing whether `C` is a cover of `G` is polynomial-time. -/
@@ -352,14 +350,12 @@ theorem isVerifier :
         x.graph.toSimpleGraph.Adj u v → u ∈ S ∨ v ∈ S) ∧ S.card = x.k} :=
     Set.ext fun _ => mem_VertexCover_iff
   rw [hset]
-  refine isVerifier_subsetVerifier
-    (fun x => by
-      have := x.graph.length_vertices_le_encGraph
-      rw [encVertexCoverInstance_apply]
-      enc_len [Polynomial.eval_X])
-    fun x l hl _ => ?_
-  simp only [Bool.and_eq_true, decide_eq_true_eq, isCover_eq_true_iff, List.mem_toFinset,
-    List.toFinset_card_of_nodup hl, and_comm]
+  refine isVerifier_subsetVerifier (fun x => ?_) fun x l hl _ => ?_
+  · have := x.graph.length_vertices_le_encGraph
+    rw [encVertexCoverInstance_apply]
+    enc_len [Polynomial.eval_X]
+  · simp only [Bool.and_eq_true, decide_eq_true_eq, isCover_eq_true_iff, List.mem_toFinset,
+      List.toFinset_card_of_nodup hl, and_comm]
 
 /-- The `VertexCover` verifier is polynomial-time. -/
 @[fun_prop]
@@ -419,20 +415,14 @@ theorem vertexCoverNum_le_of_mem_VertexCover {G : Graph} {k : ℕ}
 number of distinct declared vertices minus the independence number. -/
 theorem vertexCoverNum_eq_card_sub_indepNum (G : Graph) :
     G.vertexCoverNum = G.vertices.toFinset.card - G.indepNum := by
-  have hα := indepNum_mem_IndependentSet G
-  have hαn := indepNum_le_card G
-  have hvc : (⟨G, G.vertices.toFinset.card - G.indepNum⟩ : VertexCoverInstance) ∈
-      VertexCover := by
-    have := (IndependentSet.toVertexCover_mem_iff ⟨G, G.indepNum⟩).2 hα
-    rwa [IndependentSet.toVertexCover, ite_eq_left hαn] at this
+  have hvc : (⟨G, G.vertices.toFinset.card - G.indepNum⟩ : VertexCoverInstance) ∈ VertexCover := by
+    simpa [IndependentSet.toVertexCover, ite_eq_left (indepNum_le_card G)] using
+      (IndependentSet.toVertexCover_mem_iff ⟨G, G.indepNum⟩).2 (indepNum_mem_IndependentSet G)
   refine le_antisymm (vertexCoverNum_le_of_mem_VertexCover hvc) ?_
-  have hτ : (⟨G, G.vertexCoverNum⟩ : VertexCoverInstance) ∈ VertexCover :=
-    vertexCoverNum_mem_VertexCover G
-  have hτn : G.vertexCoverNum ≤ G.vertices.toFinset.card :=
-    (mem_VertexCover_iff_exists_card_le.1 hτ).1
+  have hτ := vertexCoverNum_mem_VertexCover G
+  have hτn := (mem_VertexCover_iff_exists_card_le.1 hτ).1
   have hIS : (⟨G, G.vertices.toFinset.card - G.vertexCoverNum⟩ : IndependentSetInstance) ∈
-      IndependentSet := by
-    refine (IndependentSet.toVertexCover_mem_iff _).1 ?_
+      IndependentSet := (IndependentSet.toVertexCover_mem_iff _).1 <| by
     rwa [IndependentSet.toVertexCover, ite_eq_left (Nat.sub_le _ _), Nat.sub_sub_self hτn]
   have := le_indepNum_iff.2 hIS
   omega

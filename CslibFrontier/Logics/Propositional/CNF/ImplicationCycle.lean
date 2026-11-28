@@ -64,38 +64,34 @@ private theorem eval_implication (σ : V → Bool) (a b : V) :
 
 private theorem path_le_first (σ : V → Bool) (first current : V) (rest : List V)
     (h : (implicationPath first current rest).eval σ = true) : σ current ≤ σ first := by
-  induction rest generalizing current with
-  | nil => exact (eval_implication σ current first).1 (by simpa [implicationPath] using h)
-  | cons next rest ih =>
-    simp only [implicationPath, eval_cons, Bool.and_eq_true] at h
-    exact le_trans ((eval_implication σ current next).1 h.1) (ih next h.2)
+  fun_induction implicationPath first current rest with
+  | case1 current => exact (eval_implication σ current first).1 (by simpa using h) -- []
+  | case2 current next rest ih => -- next :: rest
+    simp only [eval_cons, Bool.and_eq_true] at h
+    exact le_trans ((eval_implication σ current next).1 h.1) (ih h.2)
 
 private theorem path_each_le_first (σ : V → Bool) (first current : V) (rest : List V)
     (h : (implicationPath first current rest).eval σ = true) :
     ∀ x ∈ current :: rest, σ x ≤ σ first := by
-  induction rest generalizing current with
-  | nil => simpa using path_le_first σ first current [] h
-  | cons next rest ih =>
+  fun_induction implicationPath first current rest with
+  | case1 current => simpa using path_le_first σ first current [] h -- []
+  | case2 current next rest ih => -- next :: rest
     intro x hx
     rcases List.mem_cons.1 hx with rfl | hx
     · exact path_le_first σ first x (next :: rest) h
-    · have ht := h
-      simp only [implicationPath, eval_cons, Bool.and_eq_true] at ht
-      exact ih next ht.2 x hx
+    · exact ih (by simp only [eval_cons, Bool.and_eq_true] at h; exact h.2) x hx
 
 private theorem root_le_path (σ : V → Bool) (root first current : V) (rest : List V)
     (hr : σ root ≤ σ current) (h : (implicationPath first current rest).eval σ = true) :
     ∀ x ∈ current :: rest, σ root ≤ σ x := by
-  induction rest generalizing current with
-  | nil => simpa using hr
-  | cons next rest ih =>
+  fun_induction implicationPath first current rest with
+  | case1 => simpa using hr -- []
+  | case2 current next rest ih => -- next :: rest
     intro x hx
     rcases List.mem_cons.1 hx with rfl | hx
     · exact hr
-    · have h : Clause.eval σ [(current, false), (next, true)] = true ∧
-          (implicationPath first next rest).eval σ = true := by
-          simpa only [implicationPath, eval_cons, Bool.and_eq_true] using h
-      exact ih next (le_trans hr ((eval_implication σ current next).1 h.1)) h.2 x hx
+    · simp only [eval_cons, Bool.and_eq_true] at h
+      exact ih (le_trans hr ((eval_implication σ current next).1 h.1)) h.2 x hx
 
 /-- A cycle holds exactly when all variables listed in it have the same value. -/
 theorem eval_implicationCycle (σ : V → Bool) (vs : List V) :
@@ -110,19 +106,16 @@ theorem eval_implicationCycle (σ : V → Bool) (vs : List V) :
           (root_le_path σ first first first rest le_rfl h z hz)
       exact (he x hx).trans (he y hy).symm
     · intro h
-      have hp (current : V) (tail : List V) (hc : current ∈ first :: rest)
-          (ht : ∀ x ∈ tail, x ∈ first :: rest) :
+      have hp (current : V) (tail : List V) (hc : σ current = σ first)
+          (ht : ∀ x ∈ tail, σ x = σ first) :
           (implicationPath first current tail).eval σ = true := by
         induction tail generalizing current with
-        | nil =>
-          simpa only [implicationPath, eval_cons, eval_nil, Bool.and_true,
-            eval_implication] using (le_of_eq (h current hc first List.mem_cons_self))
+        | nil => simp [implicationPath, hc]
         | cons next tail ih =>
-          simp only [implicationPath, eval_cons, Bool.and_eq_true, eval_implication]
-          exact ⟨(le_of_eq (h current hc next (ht next List.mem_cons_self))),
-            ih next (ht next List.mem_cons_self)
-              (fun x hx => ht x (List.mem_cons_of_mem _ hx))⟩
-      exact hp first rest List.mem_cons_self (fun _ hx => List.mem_cons_of_mem _ hx)
+          have hn := ht next List.mem_cons_self
+          simpa [implicationPath, eval_implication, hc, hn] using
+            ih next hn fun x hx => ht x (List.mem_cons_of_mem _ hx)
+      exact hp first rest rfl fun x hx => h x (List.mem_cons_of_mem _ hx) first List.mem_cons_self
 
 /-- There is one binary clause per element of the cycle list. -/
 @[simp] theorem length_implicationCycle (vs : List V) :
@@ -156,11 +149,10 @@ theorem count_vars_implicationCycle [DecidableEq V] (vs : List V) (v : V) :
     induction rest generalizing current with
     | nil => simp [implicationPath, vars, List.count_cons, beq_iff_eq, Nat.add_comm]
     | cons next rest ih =>
-      simp only [implicationPath, vars, List.flatten_cons, List.map_append,
-        List.count_append, List.map_cons, List.map_nil] at ih ⊢
+      simp only [implicationPath, vars, List.flatten_cons, List.map_append, List.count_append,
+        List.map_cons, List.map_nil, List.count_cons, List.count_nil, beq_iff_eq] at ih ⊢
       rw [ih next]
-      simp only [List.count_cons, List.count_nil, beq_iff_eq]
-      split_ifs <;> simp_all <;> omega
+      split_ifs <;> omega
   cases vs with
   | nil => simp [implicationCycle, vars]
   | cons first rest =>
