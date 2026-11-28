@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.GameTheory.Mechanism.DigitalGoods.ProfitExtraction
 public import CslibFrontier.GameTheory.Mechanism.MultiUnit
+import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Sort
 import Mathlib.Data.Fintype.EquivFin
@@ -736,22 +737,6 @@ private theorem equalRevWeight_nonneg {m : ℕ} (hm : 0 < m) (N : ℕ) (j : Fin 
     linarith
   · exact div_nonneg zero_le_one (gridVal_pos hm N).le
 
-private theorem sum_equalRevWeight_tail_aux (m : ℕ) : ∀ (d a : ℕ),
-    ∑ j ∈ Finset.Icc a (a + d),
-      (if j < a + d then 1 / gridVal m j - 1 / gridVal m (j + 1) else 1 / gridVal m (a + d)) =
-    1 / gridVal m a
-  | 0, a => by
-      simp only [add_zero, Finset.Icc_self, Finset.sum_singleton, lt_self_iff_false, ↓reduceIte]
-  | d + 1, a => by
-      have hlt : a < a + (d + 1) := by omega
-      have hsplit : Finset.Icc a (a + (d + 1)) = insert a (Finset.Icc (a + 1) (a + (d + 1))) := by
-        ext x; simp only [mem_Icc, mem_insert]; omega
-      have hnotmem : a ∉ Finset.Icc (a + 1) (a + (d + 1)) := by simp only [mem_Icc]; omega
-      rw [hsplit, Finset.sum_insert hnotmem, ite_eq_left hlt]
-      have hrew : a + (d + 1) = (a + 1) + d := by omega
-      rw [hrew, sum_equalRevWeight_tail_aux m d (a + 1)]
-      ring
-
 private theorem sum_equalRevWeight_tail {m : ℕ} (N k : ℕ) (hk : k ≤ N) :
     ∑ j ∈ (univ : Finset (Fin (N + 1))).filter (fun j => k ≤ j.val), equalRevWeight m N j =
       1 / gridVal m k := by
@@ -765,9 +750,16 @@ private theorem sum_equalRevWeight_tail {m : ℕ} (N k : ℕ) (hk : k ≤ N) :
       (fun j hj => ⟨⟨j, Nat.lt_succ_of_le (mem_Icc.1 hj).2⟩,
         mem_filter.2 ⟨mem_univ _, (mem_Icc.1 hj).1⟩, rfl⟩)
       (fun _ _ => rfl)
-  rw [hbij]
-  obtain ⟨d, rfl⟩ : ∃ d, N = k + d := ⟨N - k, (Nat.add_sub_of_le hk).symm⟩
-  exact sum_equalRevWeight_tail_aux m d k
+  rw [hbij, ← Finset.Ico_add_one_right_eq_Icc, Finset.sum_Ico_succ_top hk]
+  simp only [lt_self_iff_false, ↓reduceIte]
+  have hsum : (∑ j ∈ Finset.Ico k N,
+      if j < N then 1 / gridVal m j - 1 / gridVal m (j + 1) else 1 / gridVal m N) =
+      ∑ j ∈ Finset.Ico k N, (1 / gridVal m j - 1 / gridVal m (j + 1)) :=
+    Finset.sum_congr rfl fun j hj => ite_eq_left (Finset.mem_Ico.1 hj).2
+  have htel : (∑ j ∈ Finset.Ico k N, (1 / gridVal m j - 1 / gridVal m (j + 1))) =
+      1 / gridVal m k - 1 / gridVal m N := by
+    simpa only [neg_sub_neg] using Finset.sum_Ico_sub (fun j => -(1 / gridVal m j)) hk
+  rw [hsum, htel, sub_add_cancel]
 
 private theorem sum_equalRevWeight {m : ℕ} (hm : 0 < m) (N : ℕ) :
     ∑ j : Fin (N + 1), equalRevWeight m N j = 1 := by
@@ -780,40 +772,14 @@ private theorem sum_equalRevWeight {m : ℕ} (hm : 0 < m) (N : ℕ) :
 private theorem abel_sum_equalRev (a p : ℕ → ℝ) (N : ℕ) :
     ∑ j : Fin (N + 1), (if j.val < N then a j.val - a (j.val + 1) else a N) * p j.val =
       a 0 * p 0 + ∑ j ∈ Finset.range N, a (j + 1) * (p (j + 1) - p j) := by
-  induction N with
-  | zero =>
-      rw [Fin.sum_univ_succ, Fin.sum_univ_zero]
-      simp only [Fin.val_zero, lt_self_iff_false, ↓reduceIte, add_zero, Finset.range_zero,
-        Finset.sum_empty]
-  | succ N ih =>
-      rw [Fin.sum_univ_castSucc, Finset.sum_range_succ]
-      simp only [Fin.val_last, lt_self_iff_false, ↓reduceIte]
-      have hcast : ∀ j : Fin (N + 1),
-          (if (j.castSucc : Fin (N + 2)).val < N + 1 then
-            a (j.castSucc : Fin (N + 2)).val - a ((j.castSucc : Fin (N + 2)).val + 1)
-          else a (N + 1)) * p (j.castSucc : Fin (N + 2)).val =
-          (if j.val < N then a j.val - a (j.val + 1) else a N) * p j.val -
-            (if j.val = N then a (N + 1) * p N else 0) := by
-        intro j
-        have hlt : j.val < N + 1 := j.isLt
-        simp only [Fin.val_castSucc, hlt, ↓reduceIte]
-        by_cases hj : j.val < N
-        · have hne : j.val ≠ N := hj.ne
-          simp only [hj, hne, ↓reduceIte, sub_zero]
-        · have heq : j.val = N := by omega
-          simp only [heq, lt_self_iff_false, ↓reduceIte]
-          ring
-      simp_rw [hcast, Finset.sum_sub_distrib, ih]
-      have hlast : ∑ j : Fin (N + 1), (if j.val = N then a (N + 1) * p N else 0) =
-          a (N + 1) * p N := by
-        rw [Finset.sum_eq_single (Fin.last N)]
-        · simp only [Fin.val_last, ↓reduceIte]
-        · intro j _ hne
-          have : j.val ≠ N := fun h => hne (Fin.ext h)
-          simp only [this, ↓reduceIte]
-        · intro h; exact absurd (mem_univ _) h
-      rw [hlast]
-      ring
+  rw [Fin.sum_univ_castSucc]
+  have hlt (j : Fin N) : j.val < N := j.isLt
+  simp only [Fin.val_castSucc, Fin.val_last, hlt, lt_self_iff_false, ↓reduceIte]
+  rw [Fin.sum_univ_eq_sum_range (fun j => (a j - a (j + 1)) * p j)]
+  have hshift := (Finset.sum_range_succ' (fun j => a j * p j) N).symm.trans
+    (Finset.sum_range_succ (fun j => a j * p j) N)
+  simp only [sub_mul, mul_sub, Finset.sum_sub_distrib]
+  linarith
 
 /-- One-bidder expectation bound on the fine equal-revenue grid: fixing nonnegative `b_{-i}`,
 for any DSIC, IR, `[0, 1]`-allocated mechanism `M`, the expected payment of bidder `i` under
@@ -945,27 +911,13 @@ private theorem expected_sum_payment_equalRevGrid_le {ι : Type*} [Fintype ι] [
 /-- Telescoping sum `∑_{s ∈ Icc a b} (f s - f (s + 1)) = f a - f (b + 1)` for `a ≤ b`. -/
 private theorem sum_Icc_sub_succ (f : ℕ → ℝ) {a b : ℕ} (hab : a ≤ b) :
     ∑ s ∈ Finset.Icc a b, (f s - f (s + 1)) = f a - f (b + 1) := by
-  obtain ⟨d, rfl⟩ : ∃ d, b = a + d := ⟨b - a, (Nat.add_sub_of_le hab).symm⟩
-  induction d generalizing a with
-  | zero => simp only [add_zero, Finset.Icc_self, Finset.sum_singleton]
-  | succ d ih =>
-      have hsplit : Finset.Icc a (a + (d + 1)) = insert a (Finset.Icc (a + 1) (a + (d + 1))) := by
-        ext x; simp only [mem_Icc, mem_insert]; omega
-      have hnm : a ∉ Finset.Icc (a + 1) (a + (d + 1)) := by simp only [mem_Icc]; omega
-      have hrew : a + (d + 1) = (a + 1) + d := by omega
-      rw [hsplit, Finset.sum_insert hnm, hrew, ih (by omega)]
-      ring
+  simpa only [neg_sub_neg] using Finset.sum_Icc_sub hab (fun j => -f j)
 
 /-- Index shift `∑ r ∈ Icc a b, f (r + d) = ∑ s ∈ Icc (a + d) (b + d), f s`. -/
 private theorem sum_Icc_shift_add (a b d : ℕ) (f : ℕ → ℝ) :
-    ∑ r ∈ Finset.Icc a b, f (r + d) = ∑ s ∈ Finset.Icc (a + d) (b + d), f s :=
-  Finset.sum_bij (fun r _ => r + d)
-    (fun r hr => mem_Icc.2 ⟨by have := (mem_Icc.1 hr).1; omega,
-      by have := (mem_Icc.1 hr).2; omega⟩)
-    (fun _ _ _ _ h => by omega)
-    (fun s hs => ⟨s - d, mem_Icc.2 ⟨by have := (mem_Icc.1 hs).1; omega,
-      by have := (mem_Icc.1 hs).2; omega⟩, by have := (mem_Icc.1 hs).1; omega⟩)
-    fun _ _ => rfl
+    ∑ r ∈ Finset.Icc a b, f (r + d) = ∑ s ∈ Finset.Icc (a + d) (b + d), f s := by
+  rw [← Finset.map_add_right_Icc, Finset.sum_map]
+  rfl
 
 /-- Product equal-revenue weights sum to `1`. -/
 private theorem sum_prod_equalRevWeight {n m N : ℕ} (hm : 0 < m) :
