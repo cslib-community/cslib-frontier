@@ -6,19 +6,29 @@ Authors: Samuel Schlesinger
 
 module
 
+import CslibFrontier.Crypto.Computational.Encryption.Bitwise
 import CslibFrontier.Crypto.Computational.Encryption.LoRCPA.FromSingle
+import CslibFrontier.Crypto.Computational.GoldwasserMicali
 import CslibFrontier.Crypto.Computational.LWE.Regev.Security
+import CslibFrontier.Crypto.Computational.Paillier.Security
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
-import Mathlib.Data.Set.Finite.List
 
 /-!
 # Tests for Left-or-Right CPA from Single-Challenge Semantic Security
 
-Smoke tests for `Cslib.Crypto.Encryption.LoRCPA.FromSingle`: hybrid endpoint identities, concrete
-`dyadicSize (Q n)` and uniform `Q n` advantage equalities, strict-PPT certificates, positive
-asymptotic `INDCPAOf`/`WordLoRINDCPA`/`LoRINDCPA` clients (including Regev under `DecisionLWE`),
-`hctLen` witness on infinite word messages, and nonvacuity via a plaintext-leaking scheme.
+Smoke tests and boundary witnesses for `Cslib.Crypto.Encryption.LoRCPA` and
+`Cslib.Crypto.Encryption.LoRCPA.FromSingle`: hybrid endpoint identities, concrete
+`dyadicSize (Q n)` and uniform `Q n` advantage equalities, strict-PPT certificates, boundary
+witness refuting `LoRAdversaryOf.IsPPT` for an adaptive transcript-doubling adversary, positive
+asymptotic `INDCPAOn`/`INDCPAOf`/`LoRINDCPA`/`WordLoRINDCPA` clients on genuinely correct schemes
+(Regev, bitwise Regev under `DecisionLWE`, Goldwasser–Micali `encrypt` and `encryptWord` under
+`QuadraticResiduosityHard`, and Paillier under `DCR`), and nonvacuity via a plaintext-leaking
+scheme.
 -/
 
 set_option linter.privateModule false
@@ -34,20 +44,37 @@ private def constWordEncrypt (_ : ℕ) (_ _ : List Bool) : ProbComp (List Bool) 
 
 private noncomputable def constWordAdv : WordLoRAdversary where
   start _ _ := pure []
-  query _ st tr := pure ((tr.headD [], [false]), st)
+  query _ st tr := pure (([(tr.headD []).headD false], [false]), st)
   guess _ _ tr := pure (tr.length == 3)
 
 private lemma isPPT_constWordAdv : LoRAdversaryOf.IsPPT encBits constWordAdv where
   start := (ComputableInPolyTime.const ([] : List Bool)).isPPTOn
   query := by
     apply ComputableInPolyTime.isPPTOn
-    polytime
+    have htr : ComputableInPolyTime
+        (fun x : ℕ × List Bool × List (List Bool) => x.2.2.headD [])
+        encLoRStageInput encBits :=
+      (ComputableInPolyTime.headD (encA := encBits) (encL := encList encBits) []).comp
+        (by fun_prop)
+    have hbit : ComputableInPolyTime
+        (fun x : ℕ × List Bool × List (List Bool) => (x.2.2.headD []).headD false)
+        encLoRStageInput encBool :=
+      (ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp htr
+    have hmsg0 : ComputableInPolyTime
+        (fun x : ℕ × List Bool × List (List Bool) => [(x.2.2.headD []).headD false])
+        encLoRStageInput encBits :=
+      (ComputableInPolyTime.of_finite (encIn := encBool) (encOut := encBits) fun b => [b]).comp hbit
+    exact (hmsg0.prod (ComputableInPolyTime.const [false])).prod (by fun_prop)
   guess := by
     apply ComputableInPolyTime.isPPTOn
     polytime
   state_growth := ⟨fun n => n, by fun_prop, fun _ _ _ r hr => by
     simp only [constWordAdv, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hr
     subst hr; simp [ChoiceOut.state]⟩
+  msg_length_le := ⟨4, 0, fun _ _ _ r hr => by
+    simp only [constWordAdv, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hr
+    subst hr
+    simp [ChoiceOut.msgs, encPair_apply, encBits_apply]⟩
 
 /-- Hybrid endpoint identities match left (`bit = false`) at `0` and right (`bit = true`) at
 `split ≥ Q n`. -/
@@ -123,17 +150,10 @@ theorem isPPT_const_lorToSingle :
     by polytime
   have henc : IsPPTOn (encKeyedInput encBits) encBits (fun _ => pure [false]) :=
     (ComputableInPolyTime.const ([false] : List Bool)).isPPTOn
-  have hctB : Cslib.PolynomiallyBounded (fun _ => 1) := by fun_prop
-  have hctL :
-      ∀ n k msg c, c ∈ (ProbComp.eval (constWordEncrypt n k msg)).support → c.length ≤ 1 :=
-    fun _ _ _ c hc => by
-      simp only [constWordEncrypt, ProbComp.eval_pure, PMF.support_pure,
-        Set.mem_singleton_iff] at hc
-      subst hc; simp
   have hQ : ComputableInPolyTime (fun _ : ℕ => 3) encUnary encUnary :=
     ComputableInPolyTime.const 3
-  exact ⟨isPPT_lorToSingleAt hvalid henc hctB hctL hQ isPPT_constWordAdv 1,
-    isPPT_lorToSingle hvalid henc hctB hctL hQ isPPT_constWordAdv⟩
+  exact ⟨isPPT_lorToSingleAt hvalid henc hQ isPPT_constWordAdv 1,
+    isPPT_lorToSingle hvalid henc hQ isPPT_constWordAdv⟩
 
 /-- Positive asymptotic client: constant bit-word encryption satisfies `WordLoRINDCPA` and
 unrestricted `LoRINDCPAOf`. -/
@@ -161,15 +181,8 @@ theorem const_wordLoRINDCPA :
       simp [Game.advantage, hconst false, hconst true]
   have henc : IsPPTOn (encKeyedInput encBits) encBits (fun _ => pure [false]) :=
     (ComputableInPolyTime.const ([false] : List Bool)).isPPTOn
-  have hctB : Cslib.PolynomiallyBounded (fun _ => 1) := by fun_prop
-  have hctL :
-      ∀ n k msg c, c ∈ (ProbComp.eval (constWordEncrypt n k msg)).support → c.length ≤ 1 :=
-    fun _ _ _ c hc => by
-      simp only [constWordEncrypt, ProbComp.eval_pure, PMF.support_pure,
-        Set.mem_singleton_iff] at hc
-      subst hc; simp
-  exact ⟨hssW.wordLoRINDCPA (ctBound := fun _ => 1) henc hctB hctL (ComputableInPolyTime.const 3),
-    hssU.lorINDCPAOf (ctBound := fun _ => 1) henc hctB hctL (ComputableInPolyTime.const 3)⟩
+  exact ⟨hssW.wordLoRINDCPA henc (ComputableInPolyTime.const 3),
+    hssU.lorINDCPAOf henc (ComputableInPolyTime.const 3)⟩
 
 /-- Positive asymptotic client: constant single-bit encryption satisfies `LoRINDCPA`. -/
 theorem const_lorINDCPA : LoRINDCPA constKeyGen constBitEncrypt (fun _ => 3) := by
@@ -182,13 +195,8 @@ theorem const_lorINDCPA : LoRINDCPA constKeyGen constBitEncrypt (fun _ => 3) := 
           adv.guess n c.2 [false]) := by
         simp [gameOn, constBitEncrypt]
       simp [Game.advantage, hconst false, hconst true]
-  exact hss.lorINDCPA (ctBound := fun _ => 1)
+  exact hss.lorINDCPA
     ((ComputableInPolyTime.const ([false] : List Bool)).isPPTOn)
-    (by fun_prop)
-    (fun _ _ _ c hc => by
-      simp only [constBitEncrypt, ProbComp.eval_pure, PMF.support_pure,
-        Set.mem_singleton_iff] at hc
-      subst hc; simp)
     (ComputableInPolyTime.const 3)
 
 /-- Nonvacuity: plaintext-leaking bit-word encryption fails `WordLoRINDCPA` via a 1-query adversary
@@ -208,7 +216,11 @@ theorem leak_not_wordLoRINDCPA :
         polytime
       state_growth := ⟨fun n => n, by fun_prop, fun _ _ _ r hr => by
         simp only [adv, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hr
-        subst hr; simp [ChoiceOut.state]⟩ }
+        subst hr; simp [ChoiceOut.state]⟩
+      msg_length_le := ⟨4, 0, fun _ _ _ r hr => by
+        simp only [adv, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hr
+        subst hr
+        simp [ChoiceOut.msgs, encPair_apply, encBits_apply]⟩ }
   intro hsec
   have hneg := hsec adv hadv
   have hadv1 : ∀ n, Game.advantage
@@ -224,6 +236,57 @@ theorem leak_not_wordLoRINDCPA :
     exact h
   exact one_ne_zero (tendsto_const_nhds_iff.mp hzero)
 
+/-- Boundary witness: an adaptive adversary that doubles the latest transcript ciphertext
+`c ++ c` as its next challenge pair satisfies uniform strict-PPT `start`, `query`, `guess` and
+zero `state_growth`, yet is rejected by `LoRAdversaryOf.IsPPT.msg_length_le`, blocking adaptive
+exponential transcript blowup. -/
+private def doublingWordAdv : WordLoRAdversary where
+  start _ _ := pure []
+  query _ st tr :=
+    let m := tr.headD [false] ++ tr.headD [false]
+    pure ((m, m), st)
+  guess _ _ _ := pure false
+
+theorem doublingWordAdv_stages_and_not_isPPT :
+    Probability.IsPPT encBits doublingWordAdv.start ∧
+    IsPPTOn encLoRStageInput (encChoiceOut encBits)
+      (fun ⟨n, state, transcript⟩ => doublingWordAdv.query n state transcript) ∧
+    IsPPTOn encLoRStageInput encBool
+      (fun ⟨n, state, transcript⟩ => doublingWordAdv.guess n state transcript) ∧
+    (∃ bound : ℕ → ℕ, Cslib.PolynomiallyBounded bound ∧
+      ∀ n state transcript choice,
+        choice ∈ (ProbComp.eval (doublingWordAdv.query n state transcript)).support →
+        (ChoiceOut.state choice).length ≤ state.length + bound n) ∧
+    ¬ LoRAdversaryOf.IsPPT encBits doublingWordAdv := by
+  refine ⟨(ComputableInPolyTime.const ([] : List Bool)).isPPTOn, ?_,
+    (ComputableInPolyTime.const false).isPPTOn, ⟨fun _ => 0, by fun_prop, ?_⟩, ?_⟩
+  · apply ComputableInPolyTime.isPPTOn
+    have htr : ComputableInPolyTime
+        (fun x : ℕ × List Bool × List (List Bool) => x.2.2.headD [false])
+        encLoRStageInput encBits :=
+      (ComputableInPolyTime.headD (encA := encBits) (encL := encList encBits) [false]).comp
+        (by fun_prop)
+    have hdbl : ComputableInPolyTime
+        (fun x : ℕ × List Bool × List (List Bool) =>
+          x.2.2.headD [false] ++ x.2.2.headD [false])
+        encLoRStageInput encBits :=
+      ComputableInPolyTime.bitsAppend htr htr
+    exact (hdbl.prod hdbl).prod (by fun_prop)
+  · intro _ st tr choice hchoice
+    simp only [doublingWordAdv, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hchoice
+    subst hchoice
+    simp [ChoiceOut.state]
+  · intro hadv
+    obtain ⟨cm, dm, hmsg⟩ := hadv.msg_length_le
+    let c : List Bool := List.replicate (cm * 2 ^ dm + 1) false
+    have hmem : ((c ++ c, c ++ c), ([] : List Bool)) ∈
+        (ProbComp.eval (doublingWordAdv.query 0 [] [c])).support := by
+      simp [doublingWordAdv]
+    have hle := hmsg 0 [] [c] ((c ++ c, c ++ c), []) hmem
+    simp only [ChoiceOut.msgs, encPair_apply, encBits_apply, List.length_append, length_frame,
+      List.length_nil, List.length_replicate, zero_add, c] at hle
+    omega
+
 open Turing.MultiTapeTM.ComputableInPolyTime in
 /-- Real-scheme client: `INDCPA.lorINDCPA` turns Regev `INDCPA` under `DecisionLWE` into
 `Regev.LoRINDCPA`. -/
@@ -236,35 +299,83 @@ theorem regev_lorINDCPA_of_decisionLWE {n m w η Q : ℕ → ℕ}
       (n security + 1) * w security + 2 * security ≤ m security)
     (hLWE : DecisionLWE n m w (fun k => LWE.noiseLaw (w k) (η k))) :
     Regev.LoRINDCPA n m w η Q := by
-  have hlen : Cslib.PolynomiallyBounded (fun k => (n k + 1) * w k) := by
-    have h : ComputableInPolyTime (fun k => (n k + 1) * w k) encUnary encUnary := by fun_prop
-    exact h.polynomiallyBounded
   have henc : IsPPTOn (encKeyedInput encBool) encBits
       (fun ⟨security, pk, msg⟩ =>
         Regev.encryptSerialized (n security) (m security) (w security) pk msg) :=
     Regev.isPPTOn_encryptSerialized (hn.comp (by fun_prop)) (hm.comp (by fun_prop))
       (hw.comp (by fun_prop)) (by fun_prop) (by fun_prop)
-  exact (Regev.indCPA_of_decisionLWE hn hm hw hmargin hLWE).lorINDCPA henc hlen
-    (fun _ _ _ _ hc => le_of_eq (Regev.length_of_mem_support_encryptSerialized hc)) hQ
+  exact (Regev.indCPA_of_decisionLWE hn hm hw hmargin hLWE).lorINDCPA henc hQ
 
-/-- On `Msg = List Bool`, no scheme that decrypts every message satisfies `hctLen`. -/
-theorem no_correct_word_scheme_with_hctLen
-    (encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool))
-    (decrypt : List Bool → List Bool → List Bool) (ctBound : ℕ → ℕ) (n : ℕ) (pk sk : List Bool)
-    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
-    (hcorrect : ∀ msg c, c ∈ (ProbComp.eval (encrypt n pk msg)).support → decrypt sk c = msg) :
-    False := by
-  classical
-  let f : List Bool → List Bool :=
-    fun msg => (PMF.support_nonempty (ProbComp.eval (encrypt n pk msg))).some
-  have hf (msg : List Bool) : f msg ∈ (ProbComp.eval (encrypt n pk msg)).support :=
-    (PMF.support_nonempty _).some_mem
-  have hinj : Function.Injective f := fun a b h => by
-    rw [← hcorrect a (f a) (hf a), h, hcorrect b (f b) (hf b)]
-  have hfin : (Set.range f).Finite :=
-    (List.finite_length_le Bool (ctBound n)).subset (by
-      rintro _ ⟨msg, rfl⟩
-      exact hctLen n pk msg _ (hf msg))
-  exact Set.infinite_range_of_injective hinj hfin
+open Turing.MultiTapeTM.ComputableInPolyTime in
+/-- Real-scheme bit-word client: `WordINDCPA.wordLoRINDCPA` instantiates directly on
+`Encryption.bitwiseEncrypt` of Regev under `DecisionLWE` (a genuinely zero-error correct bit-word
+scheme over all of `List Bool`, which was previously excluded by `hctLen`). -/
+theorem regev_bitwise_wordLoRINDCPA_of_decisionLWE {n m w η Q : ℕ → ℕ}
+    (hn : ComputableInPolyTime n encUnary encUnary)
+    (hm : ComputableInPolyTime m encUnary encUnary)
+    (hw : ComputableInPolyTime w encUnary encUnary)
+    (hη : ComputableInPolyTime η encUnary encUnary)
+    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hmargin : ∀ᶠ security in Filter.atTop,
+      (n security + 1) * w security + 2 * security ≤ m security)
+    (hLWE : DecisionLWE n m w (fun k => LWE.noiseLaw (w k) (η k))) :
+    WordLoRINDCPA
+      (fun k => LWE.keyGenSerialized (n k) (m k) (w k) (η k))
+      (bitwiseEncrypt (fun k => Regev.encryptSerialized (n k) (m k) (w k))) Q := by
+  have hkeyGen : IsPPTOn encUnary (encPair encBits encBits)
+      (fun k => LWE.keyGenSerialized (n k) (m k) (w k) (η k)) :=
+    LWE.isPPTOn_keyGenSerialized hn hm hw hη
+  have hencBit : IsPPTOn (encKeyedInput encBool) encBits
+      (fun ⟨security, pk, msg⟩ =>
+        Regev.encryptSerialized (n security) (m security) (w security) pk msg) :=
+    Regev.isPPTOn_encryptSerialized (hn.comp (by fun_prop)) (hm.comp (by fun_prop))
+      (hw.comp (by fun_prop)) (by fun_prop) (by fun_prop)
+  have hwordSS : WordINDCPA
+      (fun k => LWE.keyGenSerialized (n k) (m k) (w k) (η k))
+      (bitwiseEncrypt (fun k => Regev.encryptSerialized (n k) (m k) (w k))) :=
+    (Regev.indCPA_of_decisionLWE hn hm hw hmargin hLWE).wordINDCPA_bitwiseEncrypt hkeyGen hencBit
+  exact hwordSS.wordLoRINDCPA (isPPTOn_bitwiseEncrypt hencBit) hQ
+
+/-- Real-scheme clients on Goldwasser–Micali (whose ciphertext length depends on `pk.length`, so
+both `encrypt` and `encryptWord` previously violated `hctLen`): `INDCPA.lorINDCPA` and
+`WordINDCPA.wordLoRINDCPA` apply directly under `QuadraticResiduosityHard`. -/
+theorem goldwasserMicali_lorINDCPA_of_qr {gen : ℕ → ProbComp ModulusDesc}
+    {sizeBound Q : ℕ → ℕ}
+    (hbound : PolynomiallyBounded sizeBound)
+    (hblum : ∀ n, ∀ d ∈ (ProbComp.eval (gen n)).support, IsBlumModulus d.p d.q)
+    (hsize : ∀ n, ∀ d ∈ (ProbComp.eval (gen n)).support, n ≤ d.p.size ∧ n ≤ d.q.size)
+    (hupper : ∀ n, ∀ d ∈ (ProbComp.eval (gen n)).support,
+      d.p.size ≤ sizeBound n ∧ d.q.size ≤ sizeBound n)
+    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hQR : QuadraticResiduosityHard fun n => ProbComp.eval (gen n)) :
+    LoRINDCPA (GoldwasserMicali.blumKeyGen gen) GoldwasserMicali.encrypt Q ∧
+      WordLoRINDCPA (GoldwasserMicali.blumKeyGen gen) GoldwasserMicali.encryptWord Q :=
+  ⟨(GoldwasserMicali.indcpa_blumGoldwasserMicali hblum hsize hQR).lorINDCPA
+      GoldwasserMicali.isPPTOn_encrypt hQ,
+   (GoldwasserMicali.wordINDCPA_blumGoldwasserMicali hbound hblum hsize hupper hQR).wordLoRINDCPA
+      GoldwasserMicali.isPPTOn_encryptWord hQ⟩
+
+/-- Real-scheme client on Paillier (whose ciphertext length also depends on `pk.length`, previously
+violating `hctLen`): `INDCPAOn.lorINDCPAOn` applies directly under `DCR`. -/
+theorem paillier_lorINDCPAOn_of_dcr {gen : ℕ → ProbComp BalancedModulus.Desc} {Q : ℕ → ℕ}
+    (hsize : ∀ n, ∀ d ∈ (ProbComp.eval (gen n)).support, n ≤ d.p.size ∧ n ≤ d.q.size)
+    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hDCR : DCR fun n => ProbComp.eval (gen n)) :
+    LoRINDCPAOn Paillier.validMessages encNat (Paillier.keyGen gen) Paillier.encrypt Q := by
+  have hvalid : ComputableInPolyTime
+      (fun ⟨n, k, m₀, m₁⟩ => Paillier.validMessages n k m₀ m₁)
+      (encChallengePairInput encNat) encBool := by
+    let E := encChallengePairInput encNat
+    have hk : ComputableInPolyTime (fun p : ℕ × List Bool × ℕ × ℕ => ofBits p.2.1) E encNat :=
+      ComputableInPolyTime.bitsToNat.comp (by dsimp only [E, encChallengePairInput]; fun_prop)
+    have hm0 : ComputableInPolyTime (fun p : ℕ × List Bool × ℕ × ℕ => p.2.2.1) E encNat := by
+      dsimp only [E, encChallengePairInput]; fun_prop
+    have hm1 : ComputableInPolyTime (fun p : ℕ × List Bool × ℕ × ℕ => p.2.2.2) E encNat := by
+      dsimp only [E, encChallengePairInput]; fun_prop
+    simpa only [Paillier.validMessages] using
+      ComputableInPolyTime.decide_and
+        (ComputableInPolyTime.binary_lt' hm0 hk)
+        (ComputableInPolyTime.binary_lt' hm1 hk)
+  exact (Paillier.DCR.indcpaOn_paillier hsize hDCR).lorINDCPAOn hvalid Paillier.isPPTOn_encrypt hQ
 
 end LoRCPAFromSingleTests

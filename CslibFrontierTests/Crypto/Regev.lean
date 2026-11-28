@@ -195,7 +195,7 @@ private theorem wordAdaptiveAdversary_isPPT : wordAdaptiveAdversary.IsPPT := by
       Encryption.encLoRStageInput encBits :=
     (ComputableInPolyTime.headD (encA := encBits) (encL := encList encBits) []).comp
       (by fun_prop)
-  refine ⟨?_, ?_, ?_, ⟨fun _ => 1, by fun_prop, ?_⟩⟩
+  refine ⟨?_, ?_, ?_, ⟨fun _ => 1, by fun_prop, ?_⟩, ⟨4, 0, ?_⟩⟩
   · simp only [wordAdaptiveAdversary]; ppt
   · simp only [wordAdaptiveAdversary]; ppt
   · simp only [wordAdaptiveAdversary]; ppt
@@ -203,6 +203,8 @@ private theorem wordAdaptiveAdversary_isPPT : wordAdaptiveAdversary.IsPPT := by
     simp only [wordAdaptiveAdversary, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hchoice
     subst hchoice
     simp
+  · intro _ _ _ _ _
+    simp [Encryption.ChoiceOut.msgs, encPair_apply, encBool_apply]
 
 -- Both the per-bit and hidden-bit multi-challenge Decision-LWE distinguishers are uniform strict
 -- PPT for any polynomial-time query schedule, and yield asymptotic Q-query security.
