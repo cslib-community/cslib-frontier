@@ -14,6 +14,12 @@ meta import CslibFrontier.Algorithms.Lean.EditDistance.Hirschberg
 # Hirschberg reconstruction on directed costs and tied longest common subsequences
 -/
 
+-- Evaluate the compiled reconstruction on concrete input words.
+set_option linter.hashCommand false
+
+-- This test module exports no library declarations.
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.Hirschberg
 
 open Cslib.Algorithms.Lean.EditDistance
