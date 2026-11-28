@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.Partition.DjpOps
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Contraction.Robust
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Computability.WordRAM.Realization.LoopFrame
 import CslibFrontier.Computability.WordRAM.Realization.ArrayOps
 import CslibFrontier.DataStructure.Memory.Frame
@@ -186,12 +187,6 @@ theorem mem_eq_of_modifies_frontier {α : Type} {w : ℕ} {S : Set ℕ} {s : Mem
   · have ha : ((Memory.spec w).clientState s prog).frontier ≤ x := by
       rw [clientState_width w, hfr]; omega
     simpa only [clientState_width w] using Memory.mem_clientState_of_frontier_le s prog hv ha
-
-/-- Builds `Memory.Modifies S` from unchanged frontier and outside agreement. -/
-private theorem modifies_of_agree_outside (S : Set ℕ) {s s' : Memory.State}
-    (hfr : s'.frontier = s.frontier) (hagree : ∀ x, x ∉ S → s'.mem x = s.mem x) :
-    Memory.Modifies S s s' :=
-  ⟨le_of_eq hfr.symm, fun x _ hx => hagree x hx⟩
 
 /-- Ordered vertex list `[root, vOut 0, ..., vOut (numSteps - 1)]` of `D`. -/
 @[expose] def djpVertsList {n : ℕ} (D : DynamicDJPTree n) : List (Fin n) :=
@@ -426,37 +421,18 @@ theorem partWriteStride4_spec {w dst idx a b c eid : ℕ} {s : Memory.State}
     s'.mem (dst + 4 * idx) = a ∧ s'.mem (dst + 4 * idx + 1) = b ∧
     s'.mem (dst + 4 * idx + 2) = c ∧ s'.mem (dst + 4 * idx + 3) = eid := by
   have hfront := hwf.frontier_fits
-  have hprog_w : partWriteStride4 ⟨dst, idx, a, b, c, eid⟩ =
-      (Memory.write (dst + 4 * idx) a >>= fun _ =>
-        Memory.write (dst + 4 * idx + 1) b >>= fun _ =>
-          Memory.write (dst + 4 * idx + 2) c >>= fun _ =>
-            Memory.write (dst + 4 * idx + 3) eid) := partWriteStride4_def _
-  have hvh : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (partWriteStride4 ⟨dst, idx, a, b, c, eid⟩)) := by
-    rw [hprog_w]
-    exact validHistory_write_bind (by omega) hfa (validHistory_write_bind (by simp; omega) hfb
-      (validHistory_write_bind (by simp; omega) hfc (validHistory_write (by simp; omega) hfid)))
-  have hcost : memoryCost (partWriteStride4 ⟨dst, idx, a, b, c, eid⟩) s = 4 := by
-    rw [hprog_w, memoryCost_bind', memoryCost_write, clientState_write,
-      memoryCost_bind', memoryCost_write, clientState_write,
-      memoryCost_bind', memoryCost_write, memoryCost_write]
-  have hst : (Memory.spec 0).clientState s (partWriteStride4 ⟨dst, idx, a, b, c, eid⟩) =
-      ⟨Function.update (Function.update (Function.update (Function.update s.mem
-        (dst + 4 * idx) a) (dst + 4 * idx + 1) b) (dst + 4 * idx + 2) c)
-        (dst + 4 * idx + 3) eid, s.frontier⟩ := by
-    rw [hprog_w, clientState_bind_write, clientState_bind_write, clientState_bind_write]; rfl
-  refine ⟨by rw [partWriteStride4Safe_def]; exact ⟨h16, hlt⟩, hvh, hcost, by rw [hst],
-    wellFormed_clientState hwf hvh, fun x hx => ?_, ?_, ?_, ?_, ?_⟩
-  · rw [hst]; dsimp only
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-  · rw [hst]; dsimp only
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega), Function.update_self]
-  · rw [hst]; dsimp only
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), Function.update_self]
-  · rw [hst]; dsimp only; rw [Function.update_of_ne (by omega), Function.update_self]
-  · rw [hst]; dsimp only; rw [Function.update_self]
+  obtain ⟨hvh, -, hfr, hS, h0, h1, h2, h3⟩ := FramedTriple.realization_of_frontier_eq (w := w)
+    (s := s) (c := 4) (p := partWriteStride4 ⟨dst, idx, a, b, c, eid⟩)
+    (S := {x | dst + 4 * idx ≤ x ∧ x < dst + 4 * idx + 4})
+    (Q := fun _ t => t.mem (dst + 4 * idx) = a ∧ t.mem (dst + 4 * idx + 1) = b ∧
+      t.mem (dst + 4 * idx + 2) = c ∧ t.mem (dst + 4 * idx + 3) = eid) (by
+    rw [partWriteStride4_def]; framed_triple
+    exact ⟨rfl, by update_simp, by update_simp, by update_simp, by update_simp⟩)
+  refine ⟨by rw [partWriteStride4Safe_def]; exact ⟨h16, hlt⟩, hvh, ?_, hfr,
+    wellFormed_clientState hwf hvh, fun x hx => by_contra fun h => hx (hS x h), h0, h1, h2, h3⟩
+  rw [partWriteStride4_def, memoryCost_bind', memoryCost_write, clientState_write,
+    memoryCost_bind', memoryCost_write, clientState_write,
+    memoryCost_bind', memoryCost_write, memoryCost_write]
 
 /-- Specification of `partCopyIndexedEdge`: copies one stride-4 edge from `srcBase + 4 * srcIdx`
 to `dstBase + 4 * dstIdx` in cost `8` while framing other memory cells. -/
@@ -477,37 +453,19 @@ theorem partCopyIndexedEdge_spec {w srcBase dstBase srcIdx dstIdx : ℕ} {s : Me
      s'.mem (dstBase + 4 * dstIdx + 2) = s.mem (srcBase + 4 * srcIdx + 2) ∧
      s'.mem (dstBase + 4 * dstIdx + 3) = s.mem (srcBase + 4 * srcIdx + 3)) := by
   have hfront := hwf.frontier_fits
-  have hws := partWriteStride4_spec h16 hwf (hwf.mem_fits (srcBase + 4 * srcIdx))
-    (hwf.mem_fits (srcBase + 4 * srcIdx + 1)) (hwf.mem_fits (srcBase + 4 * srcIdx + 2))
-    (hwf.mem_fits (srcBase + 4 * srcIdx + 3)) hd_lt
-  rcases hws with ⟨_, hvh_w, hm_w, hfr_w, hwf_w, hmod_w, h0, h1, h2, h3⟩
-  have hvh : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s
-        (partCopyIndexedEdge ⟨srcBase, dstBase, srcIdx, dstIdx⟩)) := by
-    rw [partCopyIndexedEdge_def]
-    dsimp only
-    refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
-      (validHistory_read_bind (by omega) (validHistory_read_bind (by omega) hvh_w)))
-  have hcost : memoryCost (partCopyIndexedEdge ⟨srcBase, dstBase, srcIdx, dstIdx⟩) s ≤ 8 := by
-    rw [partCopyIndexedEdge_def]
-    dsimp only
-    rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, hm_w]
-  have hst_eq : (Memory.spec 0).clientState s
-      (partCopyIndexedEdge ⟨srcBase, dstBase, srcIdx, dstIdx⟩) =
-      (Memory.spec 0).clientState s (partWriteStride4 ⟨dstBase, dstIdx,
-        s.mem (srcBase + 4 * srcIdx), s.mem (srcBase + 4 * srcIdx + 1),
-        s.mem (srcBase + 4 * srcIdx + 2), s.mem (srcBase + 4 * srcIdx + 3)⟩) := by
-    rw [partCopyIndexedEdge_def]
-    dsimp only
-    rw [clientState_bind_read, clientState_bind_read, clientState_bind_read, clientState_bind_read]
-  refine ⟨by rw [partCopyIndexedEdgeSafe_def]; exact ⟨h16, hs_lt, hd_lt⟩, hvh, hcost,
-    by rw [hst_eq]; exact hfr_w, by rw [hst_eq]; exact hwf_w,
-    fun a ha => by rw [hst_eq]; exact hmod_w a ha,
-    by rw [hst_eq]; exact h0, by rw [hst_eq]; exact h1,
-    by rw [hst_eq]; exact h2, by rw [hst_eq]; exact h3⟩
+  obtain ⟨-, hvh_w, hc_w, hfr_w, hwf_w, hmod_w, h0, h1, h2, h3⟩ := partWriteStride4_spec h16 hwf
+    (hwf.mem_fits (srcBase + 4 * srcIdx)) (hwf.mem_fits (srcBase + 4 * srcIdx + 1))
+    (hwf.mem_fits (srcBase + 4 * srcIdx + 2)) (hwf.mem_fits (srcBase + 4 * srcIdx + 3)) hd_lt
+  have hft_w := FramedTriple.of_realization (S := Set.univ) hvh_w hfr_w fun _ _ => trivial
+  obtain ⟨hvh, hc, -, hst⟩ := (framedTriple_iff_realization (w := w) (s := s) (c := 8)
+    (p := partCopyIndexedEdge ⟨srcBase, dstBase, srcIdx, dstIdx⟩) (S := Set.univ)
+    (Q := fun _ t => t = (Memory.spec 0).clientState s (partWriteStride4 ⟨dstBase, dstIdx,
+      s.mem (srcBase + 4 * srcIdx), s.mem (srcBase + 4 * srcIdx + 1),
+      s.mem (srcBase + 4 * srcIdx + 2), s.mem (srcBase + 4 * srcIdx + 3)⟩))).mp (by
+    rw [partCopyIndexedEdge_def]; framed_triple)
+  refine ⟨by rw [partCopyIndexedEdgeSafe_def]; exact ⟨h16, hs_lt, hd_lt⟩, hvh, hc,
+    hst ▸ hfr_w, hst ▸ hwf_w, fun a ha => hst ▸ hmod_w a ha, hst ▸ h0, hst ▸ h1, hst ▸ h2,
+    hst ▸ h3⟩
 
 /-- Specification of `partSetup`: constructs CSR, allocates Soft-Heap pool (`rankThreshold = 8`),
 zeros initial `dead`, `inCur`, and `edgeState` arrays, and yields a validated `PartLayout`. -/
@@ -543,8 +501,8 @@ theorem partSetup_spec {w n edgeBase maxsize : ℕ} {es : List (IndexedEdge n)}
       L.bufBase = res.env.bufBase ∧ L.initFrontier = s.frontier := by
   let m := es.length
   have hfit_csr : Fits w (s.frontier + (2 * n + 4 * m + 1)) := hfit.of_le (by omega)
-  obtain ⟨hv_csr, hm_csr, hmod_csr, hcsr1, hcsr2, hfr1, hwf1, hcsr_hold⟩ :=
-    framedTriple_iff_realization.mp (buildUndirCSR_spec h16 hwf hin hin_lt hfit_csr)
+  have hft_csr := buildUndirCSR_spec h16 hwf hin hin_lt hfit_csr
+  obtain ⟨-, -, -, hcsr1, hcsr2, hfr1, hwf1, hcsr_hold⟩ := framedTriple_iff_realization.mp hft_csr
   set csr := (Memory.spec 0).clientResult s (buildUndirCSR ⟨n, m, edgeBase⟩)
   set s1 := (Memory.spec 0).clientState s (buildUndirCSR ⟨n, m, edgeBase⟩)
   have hfit_pool : Fits w (s1.frontier + 3 * (2 * m + 1) + 12 * (4 * m + 1) + 16) := by
@@ -560,50 +518,27 @@ theorem partSetup_spec {w n edgeBase maxsize : ℕ} {es : List (IndexedEdge n)}
   have h2n : Fits w (2 * n) := hfit.of_le (by omega)
   have hm : Fits w m := hfit.of_le (by omega)
   have h0_fit : Fits w 0 := h16.of_le (by omega)
-  obtain ⟨hv_z1, hm_z1, hmod_z1, hfr4, hwf4, hval4⟩ := framedTriple_iff_realization.mp
-    (fillConstProg_spec (base := bufBase) (val := 0) (count := 2 * n) hwf3 h0_fit h2n
-      (by dsimp only [s3]; omega))
+  have hft_z1 := fillConstProg_spec (base := bufBase) (val := 0) (count := 2 * n) hwf3 h0_fit h2n
+    (by dsimp only [s3]; omega)
+  obtain ⟨hv_z1, -, hmod_z1, hfr4, hwf4, hval4⟩ := framedTriple_iff_realization.mp hft_z1
   set s4 := (Memory.spec 0).clientState s3 (fillConstProg bufBase 0 (2 * n))
-  obtain ⟨hv_z2, hm_z2, hmod_z2, hfr5, hwf5, hval5⟩ := framedTriple_iff_realization.mp
-    (fillConstProg_spec (base := bufBase + 14 * n) (val := 0) (count := m) hwf4 h0_fit hm
-      (by rw [hfr4]; dsimp only [s3]; omega))
+  have hft_z2 := fillConstProg_spec (base := bufBase + 14 * n) (val := 0) (count := m) hwf4 h0_fit
+    hm (by rw [hfr4]; dsimp only [s3]; omega)
+  obtain ⟨hv_z2, -, hmod_z2, hfr5, hwf5, hval5⟩ := framedTriple_iff_realization.mp hft_z2
   set s5 := (Memory.spec 0).clientState s4 (fillConstProg (bufBase + 14 * n) 0 m)
   have hagree_z1 : ∀ x, x ∉ Set.Ico bufBase (bufBase + 2 * n) → s4.mem x = s3.mem x :=
     mem_eq_of_modifies_frontier hv_z1 hmod_z1 hfr4
   have hagree_z2 : ∀ x, x ∉ Set.Ico (bufBase + 14 * n) (bufBase + 14 * n + m) →
       s5.mem x = s4.mem x :=
     mem_eq_of_modifies_frontier hv_z2 hmod_z2 hfr5
-  have hv_all : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (partSetup ⟨n, m, edgeBase, maxsize⟩)) := by
-    rw [partSetup_def]
-    refine validHistory_bind_step hv_csr (validHistory_bind_step hv_pool ?_)
-    exact validHistory_allocDirty_bind hfit_buf
-      (validHistory_bind_step hv_z1 (validHistory_bind_step hv_z2 (validHistory_pure w _ _)))
-  have hcost_all : memoryCost (partSetup ⟨n, m, edgeBase, maxsize⟩) s ≤ 17 * m + 8 * n + 9 := by
-    rw [partSetup_def]
-    rw [memoryCost_bind', memoryCost_bind', memoryCost_bind',
-      memoryCost_allocDirty, clientResult_allocDirty, clientState_allocDirty,
-      memoryCost_bind', memoryCost_bind', memoryCost_pure]
-    have hcsr_m : memoryCost (buildUndirCSR ⟨n, m, edgeBase⟩) s ≤ 16 * m + 5 * n + 6 := hm_csr
-    have hpool_m : memoryCost (allocPool (2 * m) (4 * m)) s1 = 2 := hm_pool
-    have hz1_m : memoryCost (fillConstProg bufBase 0 (2 * n)) s3 ≤ 2 * n := hm_z1
-    have hz2_m : memoryCost (fillConstProg (bufBase + 14 * n) 0 m) s4 ≤ m := hm_z2
-    change memoryCost (buildUndirCSR ⟨n, m, edgeBase⟩) s +
-      (memoryCost (allocPool (2 * m) (4 * m)) s1 + (1 + (memoryCost (fillConstProg bufBase 0
-        (2 * n)) s3 + (memoryCost (fillConstProg (bufBase + 14 * n) 0 m) s4 + 0)))) ≤ _
-    omega
-  have hres_eq : (Memory.spec 0).clientResult s (partSetup ⟨n, m, edgeBase, maxsize⟩) =
-      ⟨⟨n, m, edgeBase, maxsize, csr.offBase, csr.adjBase, bufBase⟩,
-        ⟨pool.1, pool.2, 0, 0, 0, partRankThreshold⟩⟩ := by
-    rw [partSetup_def]
-    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-      clientResult_bind_allocDirty, StateTransitionSpec.clientResult_bind,
-      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
-  have hs'_eq : (Memory.spec 0).clientState s (partSetup ⟨n, m, edgeBase, maxsize⟩) = s5 := by
-    rw [partSetup_def]
-    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-      clientState_bind_allocDirty, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
+  have hft_pool : FramedTriple w s1 (allocPool (2 * m) (4 * m)) 2 ∅ fun r t => r = pool ∧ t = s2 :=
+    framedTriple_iff_realization.mpr
+      ⟨hv_pool, hm_pool.le, ⟨by rw [hfr2]; omega, fun a ha _ => hmod2 a ha⟩, rfl, rfl⟩
+  obtain ⟨hv_all, hcost_all, hmod_all, hres_eq, hs'_eq⟩ := (framedTriple_iff_realization
+    (w := w) (s := s) (p := partSetup ⟨n, m, edgeBase, maxsize⟩) (c := 17 * es.length + 8 * n + 9)
+    (S := Set.Ici s.frontier) (Q := fun r t => r = ⟨⟨n, m, edgeBase, maxsize, csr.offBase,
+      csr.adjBase, bufBase⟩, ⟨pool.1, pool.2, 0, 0, 0, partRankThreshold⟩⟩ ∧ t = s5)).mp (by
+    rw [partSetup_def]; framed_triple)
   have hs5_below_buf : ∀ a < bufBase, s5.mem a = s2.mem a := fun a ha => by
     have hz2 : a ∉ Set.Ico (bufBase + 14 * n) (bufBase + 14 * n + m) := by
       simp only [Set.mem_Ico]; omega
@@ -611,9 +546,7 @@ theorem partSetup_spec {w n edgeBase maxsize : ℕ} {es : List (IndexedEdge n)}
       simp only [Set.mem_Ico]; omega
     exact (hagree_z2 a hz2).trans (hagree_z1 a hz1)
   have hs5_below_init : ∀ a < s.frontier, s5.mem a = s.mem a := fun a ha => by
-    have ha1 : a < s1.frontier := by rw [hfr1]; omega
-    have ha2 : a < bufBase := by dsimp only [bufBase]; rw [hfr2]; omega
-    exact (hs5_below_buf a ha2).trans ((hmod2 a ha1).trans (hmod_csr.2 a ha (Set.notMem_empty a)))
+    rw [← hs'_eq]; exact hmod_all.2 a ha (not_le.mpr ha)
   have hin' : HoldsIndexedEdges edgeBase es s5.mem :=
     hin.congr fun a _ ha => hs5_below_init a (by omega)
   have hcsr' : HoldsUndirCSR csr.offBase csr.adjBase es s5.mem :=
@@ -653,81 +586,14 @@ theorem partSetup_spec {w n edgeBase maxsize : ℕ} {es : List (IndexedEdge n)}
       hnd_buf := by dsimp only [bufBase]; rw [hp2, hfr2],
       hfit_end := by dsimp only [bufBase]; rw [hfr2, hfr1]; exact hfit.of_le (by omega),
       hfit_fuel := hfit.of_le (by dsimp only [partSHFuel, shFuelBound, partRankThreshold]; omega) }
-  refine ⟨hsafe, hv_all, hcost_all, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    L, ?_⟩
-  · rw [hres_eq]
-  · rw [hres_eq]
-  · rw [hres_eq]
-  · rw [hres_eq]
-  · rw [hres_eq]; dsimp only [bufBase]; rw [hfr2, hfr1]; dsimp only [m]; omega
-  · rw [hres_eq]
-  · rw [hs'_eq, hres_eq, hfr5, hfr4]
-  · rw [hs'_eq]; exact hwf5
-  · intro a ha; rw [hs'_eq]; exact hs5_below_init a ha
-  · rw [hs'_eq]; exact hin'
-  · rw [hs'_eq, hres_eq]; exact hcsr'
-  · rw [hs'_eq, hres_eq]; exact hsh'
-  · rw [hs'_eq, hres_eq]; exact hval4'
-  · rw [hs'_eq, hres_eq]; exact hval5
-  · rw [hres_eq]; refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  dsimp only
+  rw [hres_eq, hs'_eq]
+  refine ⟨hsafe, hv_all, hcost_all, rfl, rfl, rfl, rfl, ?_, rfl, by rw [hfr5, hfr4], hwf5,
+    hs5_below_init, hin', hcsr', hsh', hval4', hval5, L, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+    rfl, rfl⟩
+  dsimp only [bufBase]; rw [hfr2, hfr1]; dsimp only [m]; omega
 
 /-! ## Dynamic Soft-Heap Vertex Expansion (`partTryInsertEdge`, `partExpandVertex`) -/
-
-private theorem partTryInsertEdge_bind_eq {d : PartTryInsertArgs} {s : Memory.State}
-    (hst : s.mem (d.bufBase + 14 * d.n + d.eIdx) = 0)
-    (hnb : s.mem (d.bufBase + d.n + d.nb) ≠ d.cid) :
-    let wt := s.mem (d.edgeBase + 4 * d.eIdx + 2)
-    (Memory.spec 0).clientResult s (partTryInsertEdge d) =
-      (Memory.spec 0).clientResult s (shInsert (d.sh, d.eIdx, wt, 500 * (2 * d.m + 1))) ∧
-    (Memory.spec 0).clientState s (partTryInsertEdge d) =
-      (Memory.spec 0).clientState s (shInsert (d.sh, d.eIdx, wt, 500 * (2 * d.m + 1))) ∧
-    memoryCost (partTryInsertEdge d) s =
-      3 + memoryCost (shInsert (d.sh, d.eIdx, wt, 500 * (2 * d.m + 1))) s := by
-  rw [partTryInsertEdge_def]
-  refine ⟨?_, ?_, ?_⟩
-  · rw [clientResult_bind_read, ite_eq_left hst, clientResult_bind_read, ite_eq_left hnb,
-      clientResult_bind_read]
-  · rw [clientState_bind_read, ite_eq_left hst, clientState_bind_read, ite_eq_left hnb,
-      clientState_bind_read]
-  · rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, ite_eq_left hst,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, ite_eq_left hnb,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]; omega
-
-private theorem partTryInsertEdge_noop {w : ℕ} {d : PartTryInsertArgs} {s : Memory.State}
-    (h16 : Fits w 16) (hfuel : Fits w (500 * (2 * d.m + 1)))
-    (hbuf : Fits w (d.bufBase + 14 * d.n + 14 * d.m))
-    (hst_lt : d.bufBase + 14 * d.n + d.eIdx < s.frontier)
-    (hnb_imp : s.mem (d.bufBase + 14 * d.n + d.eIdx) = 0 →
-      d.bufBase + d.n + d.nb < s.frontier ∧ s.mem (d.bufBase + d.n + d.nb) = d.cid) :
-    partTryInsertEdgeSafe w d s ∧
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (partTryInsertEdge d)) ∧
-    (Memory.spec 0).clientResult s (partTryInsertEdge d) = d.sh ∧
-    (Memory.spec 0).clientState s (partTryInsertEdge d) = s ∧
-    memoryCost (partTryInsertEdge d) s ≤ 2 := by
-  rw [partTryInsertEdgeSafe_def, partTryInsertEdge_def]
-  by_cases hst : s.mem (d.bufBase + 14 * d.n + d.eIdx) = 0
-  · obtain ⟨hnb_fr, hnb_eq⟩ := hnb_imp hst
-    have hnb : ¬(s.mem (d.bufBase + d.n + d.nb) ≠ d.cid) := not_not.mpr hnb_eq
-    refine ⟨⟨h16, hfuel, hbuf, hst_lt, fun _ => ⟨hnb_fr, fun hne => absurd hnb_eq hne⟩⟩,
-      ?_, ?_, ?_, ?_⟩
-    · refine validHistory_read_bind hst_lt ?_; rw [ite_eq_left hst]
-      refine validHistory_read_bind hnb_fr ?_; rw [ite_eq_right hnb]
-      exact validHistory_pure w _ _
-    · rw [clientResult_bind_read, ite_eq_left hst, clientResult_bind_read, ite_eq_right hnb]
-      exact StateTransitionSpec.clientResult_pure _ _
-    · rw [clientState_bind_read, ite_eq_left hst, clientState_bind_read, ite_eq_right hnb]
-      exact StateTransitionSpec.clientState_pure _ _
-    · rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        ite_eq_left hst, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        ite_eq_right hnb, memoryCost_pure]
-  · refine ⟨⟨h16, hfuel, hbuf, hst_lt, fun h0 => absurd h0 hst⟩, ?_, ?_, ?_, ?_⟩
-    · refine validHistory_read_bind hst_lt ?_; rw [ite_eq_right hst]
-      exact validHistory_pure w _ _
-    · rw [clientResult_bind_read, ite_eq_right hst]
-      exact StateTransitionSpec.clientResult_pure _ _
-    · rw [clientState_bind_read, ite_eq_right hst]; exact StateTransitionSpec.clientState_pure _ _
-    · rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        ite_eq_right hst, memoryCost_pure]; omega
 
 /-- Specification of `partTryInsertEdge`: conditionally inserts an active cross edge into the
 Soft Heap with amortized slack `≤ 2445` (`3` reads + `2440` at `rankThreshold = 8`). -/
@@ -793,16 +659,18 @@ theorem partTryInsertEdge_spec {w n : ℕ} (L : PartLayout w n)
     have hsafe : partTryInsertEdgeSafe w d s := by
       rw [partTryInsertEdgeSafe_def]
       exact ⟨h16, hfuel_fit, hbuf_fit, hst_lt, fun _ => ⟨hnb_fr, fun _ => ⟨he_lt_fr, hsafe_ins⟩⟩⟩
-    have hvh : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (partTryInsertEdge d)) := by
-      rw [partTryInsertEdge_def]
-      refine validHistory_read_bind hst_lt ?_
-      rw [ite_eq_left hst]
-      refine validHistory_read_bind hnb_fr ?_
-      rw [ite_eq_left hnb]
-      exact validHistory_read_bind he_lt_fr hv_ins
-    obtain ⟨hres_eq, hs'_eq, hcost_eq⟩ := partTryInsertEdge_bind_eq (d := d) hst hnb
-    dsimp only [d] at hres_eq hs'_eq hcost_eq ⊢
+    have hft_ins := FramedTriple.of_realization (S := Set.univ) hv_ins h_sfr fun _ _ => trivial
+    obtain ⟨hvh, hcost, -, hres_eq, hs'_eq⟩ := (framedTriple_iff_realization (w := w) (s := s)
+      (p := partTryInsertEdge d) (S := Set.univ)
+      (c := 3 + memoryCost (shInsert (h, eIdx, s.mem (L.edgeBase + 4 * eIdx + 2),
+        500 * (2 * m + 1))) s)
+      (Q := fun r t =>
+        r = (Memory.spec 0).clientResult s
+          (shInsert (h, eIdx, s.mem (L.edgeBase + 4 * eIdx + 2), 500 * (2 * m + 1))) ∧
+        t = (Memory.spec 0).clientState s
+          (shInsert (h, eIdx, s.mem (L.edgeBase + 4 * eIdx + 2), 500 * (2 * m + 1))))).mp (by
+      rw [partTryInsertEdge_def]; dsimp only [d]; framed_triple)
+    dsimp only [d] at hres_eq hs'_eq hcost ⊢
     have hwt_eq : s.mem (L.edgeBase + 4 * eIdx + 2) = L.es[eIdx].weight :=
       (hin_edges eIdx he_lt).2.2.1
     have hrt' : ((Memory.spec 0).clientResult s (partTryInsertEdge d)).rankThreshold =
@@ -818,7 +686,7 @@ theorem partTryInsertEdge_spec {w n : ℕ} (L : PartLayout w n)
         have : (240 * ((partRankThreshold : ℕ) : ℚ) + 520 : ℚ) = 2440 := by
           norm_num [partRankThreshold]
         linarith
-      rw [hcost_eq, Nat.cast_add]; push_cast; linarith
+      have hc := (Nat.cast_le (α := ℚ)).2 hcost; push_cast at hc; linarith
     · intro p hp
       rcases hent' p hp with ⟨hp1, hp2⟩ | hc₀
       · exact .inr ⟨hst, hnb, hp1.trans (by rw [hwt_eq]), hwt_eq ▸ hp2⟩
@@ -826,11 +694,17 @@ theorem partTryInsertEdge_spec {w n : ℕ} (L : PartLayout w n)
     · intro _ _
       refine ⟨by rw [hres_eq, h_ic], ?_⟩
       rw [hwt_eq] at hperm'; exact hperm'
-  · have hnb_imp : s.mem (L.bufBase + 14 * n + eIdx) = 0 →
-        L.bufBase + n + nb < s.frontier ∧ s.mem (L.bufBase + n + nb) = cid :=
-      fun h0 => ⟨hnb_fr, not_not.mp fun hne => hcond ⟨h0, hne⟩⟩
-    obtain ⟨hsafe, hvh, hres_eq, hs'_eq, hcost_le⟩ := partTryInsertEdge_noop (d := d)
-      h16 hfuel_fit hbuf_fit hst_lt hnb_imp
+  · have hsafe : partTryInsertEdgeSafe w d s := by
+      rw [partTryInsertEdgeSafe_def]
+      exact ⟨h16, hfuel_fit, hbuf_fit, hst_lt, fun h0 =>
+        ⟨hnb_fr, fun hne => absurd ⟨h0, hne⟩ hcond⟩⟩
+    obtain ⟨hvh, hcost_le, -, hres_eq, hs'_eq⟩ := (framedTriple_iff_realization (w := w) (s := s)
+      (p := partTryInsertEdge d) (S := ∅) (c := 2) (Q := fun r t => r = h ∧ t = s)).mp (by
+      rw [partTryInsertEdge_def]; dsimp only [d]
+      refine FramedTriple.read_bind (c := 1) hst_lt
+        (FramedTriple.ite (fun hst => ?_) fun _ => FramedTriple.pure ⟨rfl, rfl⟩)
+      exact FramedTriple.read_bind hnb_fr (FramedTriple.ite (fun hne => absurd ⟨hst, hne⟩ hcond)
+        fun _ => FramedTriple.pure ⟨rfl, rfl⟩))
     refine ⟨hsafe, hvh, by rw [hs'_eq], by rw [hs'_eq]; exact hwf,
       fun a hne => by rw [hs'_eq] at hne; exact absurd rfl hne,
       by rw [hres_eq], by rw [hres_eq], by rw [hres_eq, hrt], roots, created,
@@ -1060,54 +934,34 @@ theorem partExpandVertex_iter_spec {w n : ℕ} (L : PartLayout w n)
     have hstep_safe : partExpandStepSafe w (stepD, st') s' := by
       rw [partExpandStepSafe_def]
       exact ⟨L.h16, hj1_fit, by rw [hidx_eq]; exact hadj_lt_j, htry_safe'⟩
-    have hstep_vh : (Memory.spec w).ValidHistory s'
-        ((Memory.spec w).clientHistory s' (partExpandStep (stepD, st'))) := by
-      rw [partExpandStep_def]; dsimp only [stepD, m]
-      refine validHistory_read_bind (by rw [hidx_eq]; omega)
-        (validHistory_read_bind (by rw [hidx_eq]; exact hadj_lt_j) ?_)
-      exact validHistory_bind_step
-        (by simpa only [hadj0_eq, hadj1_eq] using htry_vh) (validHistory_pure w _ _)
     let tryD : PartTryInsertArgs := ⟨L.edgeBase, L.bufBase, n, L.es.length, cid,
       s₀.mem (L.adjBase + 2 * j), s₀.mem (L.adjBase + 2 * j + 1), st'.sh⟩
-    have hres_eq : (Memory.spec 0).clientResult s' (partExpandStep (stepD, st')) =
-        ⟨st'.idx + 1, (Memory.spec 0).clientResult s' (partTryInsertEdge tryD)⟩ := by
-      rw [partExpandStep_def]; dsimp only [stepD, tryD, m]
-      rw [clientResult_bind_read, clientResult_bind_read, hadj0_eq, hadj1_eq,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
-    have hs'_eq : (Memory.spec 0).clientState s' (partExpandStep (stepD, st')) =
-        (Memory.spec 0).clientState s' (partTryInsertEdge tryD) := by
-      rw [partExpandStep_def]; dsimp only [stepD, tryD, m]
-      rw [clientState_bind_read, clientState_bind_read, hadj0_eq, hadj1_eq,
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-    have hcost_eq : memoryCost (partExpandStep (stepD, st')) s' =
-        2 + memoryCost (partTryInsertEdge tryD) s' := by
-      rw [partExpandStep_def]; dsimp only [stepD, tryD, m]
-      rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        hadj0_eq, hadj1_eq, memoryCost_bind', memoryCost_pure, add_zero]
-      omega
+    let sh1 := (Memory.spec 0).clientResult s' (partTryInsertEdge tryD)
+    let s1 := (Memory.spec 0).clientState s' (partTryInsertEdge tryD)
     have hpool_eq : ∀ x, InSHPool ic₀ nc₀ (2 * m) (4 * m) st'.sh x ↔
         InSHPool ic₀ nc₀ (2 * m) (4 * m) h₀ x := fun x => by
       simp only [InSHPool]; rw [W.hib, W.hnb]
+    have hft_try : FramedTriple w s' (partTryInsertEdge ⟨L.edgeBase, L.bufBase, n, m, cid,
+        s'.mem (L.adjBase + 2 * st'.idx), s'.mem (L.adjBase + 2 * st'.idx + 1), st'.sh⟩)
+        (memoryCost (partTryInsertEdge tryD) s') S fun r t => r = sh1 ∧ t = s1 := by
+      rw [hadj0_eq, hadj1_eq]
+      exact FramedTriple.of_realization htry_vh htry_fr fun x hx => (hpool_eq x).mp (htry_mod x hx)
+    obtain ⟨hstep_vh, hcost, hmod_step, hres_eq, hs'_eq⟩ := (framedTriple_iff_realization (w := w)
+      (s := s') (p := partExpandStep (stepD, st')) (S := S)
+      (c := 2 + memoryCost (partTryInsertEdge tryD) s')
+      (Q := fun r t => r = ⟨st'.idx + 1, sh1⟩ ∧ t = s1)).mp (by
+      rw [partExpandStep_def]; dsimp only [stepD]; framed_triple)
     have hmod_next : ∀ x, ((Memory.spec 0).clientState s' (partTryInsertEdge tryD)).mem x ≠
         s₀.mem x → InSHPool ic₀ nc₀ (2 * m) (4 * m) h₀ x := fun x hx => by
       by_cases hx1 : ((Memory.spec 0).clientState s' (partTryInsertEdge tryD)).mem x = s'.mem x
       · exact W.hmod x (hx1 ▸ hx)
       · exact (hpool_eq x).mp (htry_mod x hx1)
-    have hmod_step : Memory.Modifies S s'
-        ((Memory.spec 0).clientState s' (partExpandStep (stepD, st'))) := by
-      refine modifies_of_agree_outside S (by rw [hs'_eq, htry_fr]) fun x hxS => ?_
-      rw [hs'_eq]
-      by_contra hne
-      exact hxS ((hpool_eq x).mp (htry_mod x hne))
     have hst_agree : s'.mem (L.bufBase + 14 * n + s₀.mem (L.adjBase + 2 * j + 1)) =
         edgeState0 (s₀.mem (L.adjBase + 2 * j + 1)) :=
       (hagree.2 _ (by omega)).trans (hedgeSt₀ _ he_lt)
     have hin_agree : s'.mem (L.bufBase + n + s₀.mem (L.adjBase + 2 * j)) =
         s₀.mem (L.bufBase + n + s₀.mem (L.adjBase + 2 * j)) :=
       hagree.2 _ (by omega)
-    let sh1 := (Memory.spec 0).clientResult s' (partTryInsertEdge tryD)
-    let s1 := (Memory.spec 0).clientState s' (partTryInsertEdge tryD)
     have hic_bounds : st'.sh.itemCount ≤ sh1.itemCount ∧ sh1.itemCount ≤ st'.sh.itemCount + 1 := by
       by_cases hcond : s'.mem (L.bufBase + 14 * n + s₀.mem (L.adjBase + 2 * j + 1)) = 0 ∧
           s'.mem (L.bufBase + n + s₀.mem (L.adjBase + 2 * j)) ≠ cid
@@ -1284,11 +1138,11 @@ theorem partExpandVertex_iter_spec {w n : ℕ} (L : PartLayout w n)
         W.hic_ge.trans hic_bounds.1, by have := W.hic_le; dsimp only; omega, hsh₁, hok₁, hnd₁,
         hlen₁, hkeep₁, hprev₁, hent₁, hcov₁⟩
     · dsimp only [pot]
-      rw [hcost_eq, Nat.cast_add]
+      have hc := (Nat.cast_le (α := ℚ)).2 hcost
       have hpot_q : (memoryCost (partTryInsertEdge tryD) s' : ℚ) +
           totalPhi partRankThreshold roots₁ ≤
             totalPhi partRankThreshold W.roots + 2445 := htry_cost
-      push_cast; linarith
+      push_cast at hc; linarith
   let hwt₀ : ExpandIterWitness L cid ic₀ nc₀ u h₀ hInit roots₀ rootsInit s₀ edgeState0 j₀ 0
       ⟨j₀, hInit⟩ sInit :=
     ⟨rootsInit, createdInit, rfl, hfr, hmod, hib, hnb, hrtInit, le_rfl, le_rfl, hsh, hok, hnd,
@@ -1390,42 +1244,24 @@ theorem partExpandVertex_spec {w n : ℕ} (L : PartLayout w n)
   have hsafe : partExpandVertexSafe w ⟨L.toEnv, cid, u.val, h₀⟩ s₀ := by
     rw [partExpandVertexSafe_def]
     exact ⟨L.h16, hoff_lt, hle_j, hsafe_it⟩
-  have hvh : (Memory.spec w).ValidHistory s₀
-      ((Memory.spec w).clientHistory s₀ (partExpandVertex ⟨L.toEnv, cid, u.val, h₀⟩)) := by
-    rw [partExpandVertex_def]; dsimp only [PartLayout.toEnv, m]
-    refine validHistory_read_bind (by omega) (validHistory_read_bind hoff_lt ?_)
-    exact validHistory_bind_step hv_it (validHistory_pure w _ _)
-  have hres_eq : (Memory.spec 0).clientResult s₀
-      (partExpandVertex ⟨L.toEnv, cid, u.val, h₀⟩) =
-      ((Memory.spec 0).clientResult s₀
-        (iterate partExpandStep ⟨L.adjBase, L.edgeBase, L.bufBase, n, m, cid⟩
-          deg ⟨startJ, h₀⟩)).sh := by
-    rw [partExpandVertex_def]; dsimp only [PartLayout.toEnv, deg, m]
-    rw [clientResult_bind_read, clientResult_bind_read, StateTransitionSpec.clientResult_bind,
-      StateTransitionSpec.clientResult_pure]
-  have hs'_eq : (Memory.spec 0).clientState s₀
-      (partExpandVertex ⟨L.toEnv, cid, u.val, h₀⟩) =
-      (Memory.spec 0).clientState s₀
-        (iterate partExpandStep ⟨L.adjBase, L.edgeBase, L.bufBase, n, m, cid⟩
-          deg ⟨startJ, h₀⟩) := by
-    rw [partExpandVertex_def]; dsimp only [PartLayout.toEnv, deg, m]
-    rw [clientState_bind_read, clientState_bind_read, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientState_pure]
-  have hcost_eq : memoryCost (partExpandVertex ⟨L.toEnv, cid, u.val, h₀⟩) s₀ =
-      2 + memoryCost (iterate partExpandStep
-        ⟨L.adjBase, L.edgeBase, L.bufBase, n, m, cid⟩ deg ⟨startJ, h₀⟩) s₀ := by
-    rw [partExpandVertex_def]; dsimp only [PartLayout.toEnv, deg, startJ, endJ, m]
-    rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-      memoryCost_bind', memoryCost_pure, add_zero]
-    omega
+  have hft_it := FramedTriple.of_realization (S := Set.univ) hv_it hfr_it fun _ _ => trivial
+  obtain ⟨hvh, hcost, -, hres_eq, hs'_eq⟩ := (framedTriple_iff_realization (w := w) (s := s₀)
+    (p := partExpandVertex ⟨L.toEnv, cid, u.val, h₀⟩) (S := Set.univ)
+    (c := 2 + memoryCost (iterate partExpandStep
+      ⟨L.adjBase, L.edgeBase, L.bufBase, n, L.es.length, cid⟩ deg ⟨startJ, h₀⟩) s₀)
+    (Q := fun r t => r = ((Memory.spec 0).clientResult s₀ (iterate partExpandStep
+        ⟨L.adjBase, L.edgeBase, L.bufBase, n, m, cid⟩ deg ⟨startJ, h₀⟩)).sh ∧
+      t = (Memory.spec 0).clientState s₀
+        (iterate partExpandStep ⟨L.adjBase, L.edgeBase, L.bufBase, n, m, cid⟩ deg ⟨startJ, h₀⟩))).mp
+    (by rw [partExpandVertex_def]; dsimp only [PartLayout.toEnv]
+        framed_triple)
   refine ⟨hsafe, hvh, by rw [hs'_eq, hfr_it], by rw [hs'_eq]; exact hsh'.wf,
     by rw [hs'_eq]; exact hmod_it, by rw [hres_eq, hib_it], by rw [hres_eq, hnb_it],
     by rw [hres_eq, hrt_it], by rw [hres_eq]; exact hic1, by rw [hres_eq]; exact hic2,
     roots', created', by rw [hres_eq, hs'_eq]; exact hsh', ?_, by rw [hres_eq]; exact hlen_it,
     hnd_it, hkeep_it, ?_, ?_⟩
-  · rw [hcost_eq, Nat.cast_add]; dsimp only [deg, startJ, endJ, m] at hpot_it ⊢
-    push_cast; linarith
+  · have hc := (Nat.cast_le (α := ℚ)).2 hcost
+    dsimp only [deg, startJ, endJ, m] at hpot_it hc ⊢; push_cast at hc; linarith
   · intro p hp
     rcases hent_it p hp with hc₀ | ⟨t, ht1, ht2, eIdx, hnb_lt, h1, h2, h3, h4, h5, h6⟩
     · exact .inl hc₀

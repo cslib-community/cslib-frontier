@@ -103,8 +103,7 @@ theorem exec_packBody {w L M R C : ℕ} (x : Data 16) (hx : PackProgress L M R C
     have := hx.code_lt; omega)
   dsimp only [d] at hdf hmul0 hadd0
   refine WP.exists_execWithin ?_
-  unfold packBody
-  wram_exec [hx.fixed.one, hx.fixed.two, hx.fixed.three, hx.fixed.nine, hx.fixed.ten,
+  wram_exec [packBody, hx.fixed.one, hx.fixed.two, hx.fixed.three, hx.fixed.nine, hx.fixed.ten,
     hmfit, hbit, hpfit, hjfit, hrd, hr3, hcd, hdf, hrq, hcq, hmul0, hadd0,
     h9, hmul9, hadd9]
   · have hb : x.regs mask % 2 = 0 := Nat.lt_one_iff.mp hc
@@ -154,8 +153,8 @@ theorem exec_pack {w : ℕ} (L M R C : ℕ) (x : Data 16)
     obtain ⟨u, he, hu, hm, ht⟩ := exec_packBody z hz.1 hc hfit
     exact ⟨u, he, ⟨hu, hm.trans hz.2⟩, ht⟩
   refine WP.exists_execWithin ?_
-  unfold packCode packHead
-  wram_exec [hf 1 (by decide), hf 2 (by decide), hf 3 (by decide), hf 9 (by decide),
+  wram_exec [packCode, packHead,
+    hf 1 (by decide), hf 2 (by decide), hf 3 (by decide), hf 9 (by decide),
     hf 10 (by decide)]
   wram_call (ExecWithin.loop_invariant I (fun z => L - z.regs level) hb
     ⟨⟨by constructor <;> wram_simp [hL], by wram_simp; omega, by wram_simp [hM]; exact le_rfl,

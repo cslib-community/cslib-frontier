@@ -255,16 +255,14 @@ theorem singleSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ} (hn : 2 ≤ n
       y.regs activeK = n ∧ y.regs targetT = 2 := by
   have hws := fits_workspace_of_logWidth_three hn hw
   have hm1 : (Data.init (r := 16) (n :: flattenMatrix W)).mem 1 = n := rfl
-  unfold singleSetup
-  wram_exec [hm1]
+  wram_exec [singleSetup, hm1]
   exact ⟨rfl, by wram_simp⟩
 
 theorem singlePost_exec {w wb : ℕ} {x : Data 16} (hwBase : x.regs wBase = wb)
     (h1 : Fits w 1) (hwb1 : Fits w (wb + 1)) :
     ∃ y : Data 16, Exec w singlePost x y 3 ∧
       y.mem = x.mem ∧ y.regs val1 = x.mem (wb + 1) := by
-  unfold singlePost
-  wram_exec [hwBase]
+  wram_exec [singlePost, hwBase]
   exact ⟨rfl, by wram_simp⟩
 
 /-- **A single trial runs `karger`.** At word size `w ≥ logWidth 3 n` with
@@ -513,8 +511,7 @@ theorem ampTrialPost_exec {w wb i R : ℕ} {x : Data 22}
       y.regs trialIdx = i + 1 ∧
       y.regs bestVal =
         (if i = 0 then x.mem (wb + 1) else min (x.mem (wb + 1)) (x.regs bestVal)) := by
-  unfold ampTrialPost
-  wram_exec -split [hwb]
+  wram_exec -split [ampTrialPost, hwb]
   wram_call (minUpdate_exec (by decide) (by wram_simp)) with s₂ ⟨hm2, hbv2, hfr⟩
   wram_exec [hfr one (by decide), hfr trialIdx (by decide), hti]
   exact ⟨hm2, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
@@ -681,8 +678,7 @@ theorem amplifiedSetup_exec {w R n : ℕ} {W : Fin n → Fin n → ℕ}
   have hws := fits_workspace_of_logWidth_three hn hw
   have hm1 : (Data.init (r := 22) (R :: n :: flattenMatrix W)).mem 1 = R := rfl
   have hm2 : (Data.init (r := 22) (R :: n :: flattenMatrix W)).mem 2 = n := rfl
-  unfold amplifiedSetup
-  wram_exec [hm1, hm2]
+  wram_exec [amplifiedSetup, hm1, hm2]
   exact ⟨rfl, by wram_simp⟩
 
 /-- **`amplifiedCode` runs amplified Karger.** At word size `w ≥ logWidth 3 n` with `1 ≤ R`,
@@ -822,8 +818,7 @@ theorem highProbSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
   have hshr : (n * (n - 1)) >>> 1 = n * (n - 1) / 2 := by rw [Nat.shiftRight_eq_div_pow, pow_one]
   have hhp_eq : n * (n - 1) / 2 * (Nat.log 2 n + 2) = highProbTrials n := rfl
   have hm1 : (Data.init (r := 22) (n :: flattenMatrix W)).mem 1 = n := rfl
-  unfold highProbSetup
-  wram_exec [hm1]
+  wram_exec [highProbSetup, hm1]
   wram_call (logLoop_exec (w := w) (n := n) (by omega) (by wram_simp) (by wram_simp) (by wram_simp)
     (by wram_simp) (by fits) (by fits)) with s₅ ⟨hm5, ho5, hn5, hidx5⟩
   wram_exec [ho5, hn5, hidx5, hshr, hhp_eq]

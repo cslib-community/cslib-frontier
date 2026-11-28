@@ -285,8 +285,7 @@ theorem incCurCode_spec {N w : ℕ} (curBase maxDeg : ℕ)
       (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r) := by
   have hlt := src.isLt
   have hm_src := hmem src
-  unfold incCurCode
-  wram_exec [hc1, hcur, hsrc, hm_src]
+  wram_exec [incCurCode, hc1, hcur, hsrc, hm_src]
   refine ⟨fun u => ?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
   · mem_upd
     by_cases hu : u = src
@@ -355,8 +354,7 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
     have hoff_succ := csrOffset_succ targetAdj hlt
     have hoff_le : csrOffset targetAdj (y.regs iReg + 1) ≤ Mc :=
       (csrOffset_mono targetAdj hlt).trans hmc
-    unfold prefixSumBody
-    wram_exec [hy_fr, hc1, hdegB, hoffB, hy_p, hdeg_k]
+    wram_exec [prefixSumBody, hy_fr, hc1, hdegB, hoffB, hy_p, hdeg_k]
     dsimp only [P]
     refine ⟨⟨fun r hr => ?_, ?_, fun u hu => ?_, fun u => ?_, fun a ha => ?_⟩, by wram_simp⟩
     · wram_simp [hy_fr r hr]
@@ -491,8 +489,7 @@ theorem backfillStepCode_spec {N w : ℕ}
   have hc_lt_N := hc_high.trans_le (csrOffset_mono targetAdj hsrc_lt)
   have hstep := partialCSRAt_step targetAdj part curBase edgeBase Mc hdisj hmc src dst hroom
     x.mem hp
-  unfold backfillStepCode
-  wram_exec [hc1, hcurB, hedgeB, hsrc, hdst]
+  wram_exec [backfillStepCode, hc1, hcurB, hedgeB, hsrc, hdst]
   refine ⟨?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
   · mem_upd; exact hstep.1
   · mem_upd; exact hstep.2 a ha

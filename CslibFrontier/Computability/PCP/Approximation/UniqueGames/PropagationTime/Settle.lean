@@ -109,8 +109,7 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
         ConstRegs g x1 ∧ x1.regs rChosen = 0 ∧ x1.regs rTmp3 = 0 ∧ x1.regs rLabIdx = 0 ∧
         x1.regs rCompLen = S.comp.length ∧ x1.regs rOuterIdx = x.regs rOuterIdx ∧
         x1.mem = x.mem := by
-    unfold settlePickInit
-    wram_exec [hS.consts.zero]
+    wram_exec [settlePickInit, hS.consts.zero]
     and_intros <;> wram_simp [hS.consts, hS.comp_len]
   let optAt (k : ℕ) : Option (Fin L) := ((List.finRange L).take k).find? S.cand
   let Ppick (k : ℕ) (z : Data 34) : Prop :=
@@ -138,8 +137,7 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
           have hnext : optAt (k + 1) = some c := by
             dsimp only [optAt] at hok ⊢
             simp only [htake_succ, List.find?_append, hok, Option.some_or]
-          unfold pickChosenBody
-          wram_exec [hzC.zero, hzC.one, hk_reg, hzOpt.1]
+          wram_exec [pickChosenBody, hzC.zero, hzC.one, hk_reg, hzOpt.1]
           simp only [Ppick, hnext]
           and_intros <;> wram_simp [hzC, hzCL, hzIdx, hzMem, hzOpt.1, hzOpt.2]
         | none =>
@@ -151,11 +149,10 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             simp only [htake_succ, List.find?_append, hok, Option.none_or,
               List.find?_cons, List.find?_nil]
             cases S.cand ⟨k, hk⟩ <;> rfl
-          unfold pickChosenBody
           cases hck : S.cand ⟨k, hk⟩ <;>
           · simp only [hck, Bool.toNat_true, Bool.toNat_false, ite_true,
               Bool.false_eq_true, ite_false] at hck_mem hnext
-            wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem]
+            wram_exec [pickChosenBody, hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem]
             simp only [Ppick, hnext]
             and_intros <;> wram_simp [hzC, hzCL, hzIdx, hzMem, hzOpt.1, hzOpt.2])
       (by rw [hlab1]; exact Nat.zero_le _)
@@ -216,8 +213,8 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
               z1.regs rChosen = chosen.val ∧ z1.regs rRem = k ∧
               z1.regs rCompLen = S.comp.length ∧ z1.regs rOuterIdx = x.regs rOuterIdx ∧
               z1.mem = z.mem := by
-          unfold freezeLoadV
-          wram_exec [hzT.consts.one, hzT.consts.compB, hzT.consts.visB, hzCL, hk_reg, hrev_get]
+          wram_exec [freezeLoadV,
+            hzT.consts.one, hzT.consts.compB, hzT.consts.visB, hzCL, hk_reg, hrev_get]
           and_intros <;> wram_simp [hzT.consts, hzCh, hk_reg, hzCL, hzIdx]
         cases hgv : ({ S with table := tabAt k } : State (Fin L)).get v with
         | none =>
@@ -257,8 +254,7 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
                 z2.mem = z.mem := by
             have hfc_mem : z1.mem (tabBase g + v * L + chosen.val) = (fn chosen).val := by
               rw [hz1m]; simpa only [Fin.eta] using htab_fn chosen.val chosen.isLt
-            unfold freezePrep
-            wram_exec [hz1C.zero, hz1C.regL, hz1C.tabB, hz1S, hz1Ch, hfc_mem]
+            wram_exec [freezePrep, hz1C.zero, hz1C.regL, hz1C.tabB, hz1S, hz1Ch, hfc_mem]
             and_intros <;> wram_simp [hz1C, hz1Ch, hz1Rem, hz1CL, hz1Idx, hz1m]
           let Pslot (a : ℕ) (w0 : Data 34) : Prop :=
             ConstRegs g w0 ∧ w0.regs rTmp2 = tabBase g + v * L ∧
@@ -280,8 +276,7 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
                 have : Fits w (a + 1) := fits_top hw (by wram_omega)
                 have hpws := prefix_write_step (e := fun _ => (fn chosen).val) hwRow hwFr
                   (rfl : Function.update w0.mem (tabBase g + v * L + a) (fn chosen).val = _)
-                unfold freezeSlotBody
-                wram_exec [hwC.one, hwT2, hwT3, ha_reg]
+                wram_exec [freezeSlotBody, hwC.one, hwT2, hwT3, ha_reg]
                 simp only [Pslot, Data.write_mem, Data.set_mem]
                 and_intros <;> first
                   | wram_simp [hwC, hwT2, hwT3, hwCh, hwRem, hwCL, hwIdx]

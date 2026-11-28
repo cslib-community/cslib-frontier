@@ -253,6 +253,10 @@ variable {ι : Type*} {S : ι → Type*} [Fintype ι] [DecidableEq ι] [∀ i, F
 def tableEntries (M : GraphicalGame ι S) [DecidableRel M.graph.Adj] : ℕ :=
   Fintype.card (Σ i : ι, ∀ j : ClosedNeighborhood M.graph i, S j.1)
 
+theorem tableEntries_def (M : GraphicalGame ι S) [DecidableRel M.graph.Adj] :
+    M.tableEntries = Fintype.card (Σ i : ι, ∀ j : ClosedNeighborhood M.graph i, S j.1) := by
+  rw [tableEntries]
+
 /-- `ClosedNeighborhood M.graph i` is canonically equivalent to the finite set
 `insert i (M.graph.neighborFinset i)`. -/
 private def closedNeighborhoodEquiv (M : GraphicalGame ι S) [DecidableRel M.graph.Adj] (i : ι) :

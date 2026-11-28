@@ -78,7 +78,7 @@ private theorem read_hiddenNetwork_zero {σ : Signature} {n m_out : ℕ}
   have hfin : (@finSumFinEquiv n 0) (.inl i) = i := Fin.ext rfl
   rw [hfin]
 
-/-- Combine `exists_u2_saturated`, `Multigraph.exists_isMatching_mul_eight_ge`, and
+/-- Combine `exists_u2_saturated`, `Multigraph.exists_isMatching_seven_eighths`, and
 `U2CubicPairBound p B_pair` to construct `U2PairData` for any `U₂` circuit with uniform constant
 `C₀` depending only on `(p, B_pair, ξ)`. -/
 private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 < p)
@@ -152,7 +152,7 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
     obtain ⟨hclean3, hread_cnt, hdirty_cnt⟩ := hgt1 htwo
     have h3_all : ∀ B : Q.blocks, (Q.quotient.incidenceSet B).ncard = 3 :=
       hsat.ncard_incidenceSet_quotient (connected c) htwo
-    obtain ⟨M_full, hM_full, hcov⟩ := Multigraph.exists_isMatching_mul_eight_ge Q.quotient
+    obtain ⟨M_full, hM_full, -, hcov_nat⟩ := Q.quotient.exists_isMatching_seven_eighths
       Q.quotient_loopless hsat.injective_ends_quotient h3_all
     let M_clean : Set Q.external :=
       {e ∈ M_full | (Q.quotient.src e).1 ∉ dirty ∧ (Q.quotient.tgt e).1 ∉ dirty}
@@ -191,28 +191,12 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
         rwa [Nat.card_coe_set_eq, Nat.card_eq_finsetCard] at h1
       have hpart := ncard_sdiff_add_ncard_of_subset (fun _ he => he.1 : M_clean ⊆ M_full)
       omega
-    have hmv_le : (Q.quotient.matchedVertices M_full).ncard ≤ 2 * M_full.ncard := by
-      have := Fintype.ofFinite (Edge c)
-      have hsub : Q.quotient.matchedVertices M_full ⊆
-          (Q.quotient.src '' M_full) ∪ (Q.quotient.tgt '' M_full) := by
-        rintro B ⟨e, he, rfl | rfl⟩
-        · exact Or.inl ⟨e, he, rfl⟩
-        · exact Or.inr ⟨e, he, rfl⟩
-      calc (Q.quotient.matchedVertices M_full).ncard
-          ≤ ((Q.quotient.src '' M_full) ∪ (Q.quotient.tgt '' M_full)).ncard :=
-            ncard_le_ncard hsub (toFinite _)
-        _ ≤ (Q.quotient.src '' M_full).ncard + (Q.quotient.tgt '' M_full).ncard :=
-            ncard_union_le _ _
-        _ ≤ M_full.ncard + M_full.ncard :=
-            Nat.add_le_add (ncard_image_le (toFinite _)) (ncard_image_le (toFinite _))
-        _ = 2 * M_full.ncard := (two_mul _).symm
     obtain ⟨score, pairLay, hσ⟩ := hN₀ Q.blocks Q.external Q.quotient Q.quotient_loopless
       hsat.injective_ends_quotient h3_all hN_lt M_clean M_clean hM_clean (Subset.refl _)
     refine ⟨U2PairData.mk Q hsat M_clean (fun _ => h3_all) hM_clean hclean_pair score pairLay,
       fun s_idx => ?_⟩
     dsimp only
     refine (hσ s_idx).trans ?_
-    have hcov_nat : 7 * Nat.card Q.blocks ≤ 16 * M_full.ncard := by omega
     have hcovR : 7 * (Nat.card Q.blocks : ℝ) ≤ 16 * (M_full.ncard : ℝ) := by exact_mod_cast hcov_nat
     have hdropR : (M_full.ncard : ℝ) ≤ (M_clean.ncard : ℝ) + (dirty.card : ℝ) := by
       exact_mod_cast hdrop_le

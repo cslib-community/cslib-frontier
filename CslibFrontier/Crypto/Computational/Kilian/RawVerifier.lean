@@ -396,7 +396,6 @@ private theorem computableInPolyTime_listSumUnary :
     funext fun l => (hsum l).symm
   rwa [heq] at hfold
 
-attribute [local irreducible] ComputableInPolyTime in
 /-- `kilianRawProverCap` is computable in polynomial time in unary from `KilianChallengeInput`. -/
 @[program_certificate]
 theorem computableInPolyTime_kilianRawProverCap

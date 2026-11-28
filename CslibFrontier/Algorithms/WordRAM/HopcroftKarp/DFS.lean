@@ -432,8 +432,7 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
             (bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 5 * inst.m + 4)
             (inst.offset u.val) := by
         refine WP.exists_execWithin ?_
-        unfold dfsRootSetup
-        wram_exec [hb_chk.hbStackU, hb_chk.hbOff, hb_chk.hbStackPos, hb_chk.hone,
+        wram_exec [dfsRootSetup, hb_chk.hbStackU, hb_chk.hbOff, hb_chk.hbStackPos, hb_chk.hone,
           hqh_chk, hoff_u]
         refine ⟨fun i hi => by dsimp only [x_chk]; wram_simp, by wram_simp,
           by wram_simp [hal_chk], by wram_simp, ?_⟩
@@ -633,8 +632,7 @@ private theorem exec_applyAugCode {w bOff : ℕ} {inst : SparseInstance}
         y.regs idx) = (augPairs[y.regs idx]'hlt).2.val :=
       (hf_y _ (by omega)).trans (haugM (y.regs idx) hlt).2
     refine WP.exists_execWithin ?_
-    unfold applyAugBody
-    wram_exec [hby.hbAugU, hby.hbAugV, hby.hbColMate, hby.hone, hau, hav]
+    wram_exec [applyAugBody, hby.hbAugU, hby.hbAugV, hby.hbColMate, hby.hone, hau, hav]
     have htake_eq : hkApplyEdges mate (augPairs.take (y.regs idx + 1)) =
         vset (hkApplyEdges mate (augPairs.take (y.regs idx)))
           (augPairs[y.regs idx]'hlt).2 (some (augPairs[y.regs idx]'hlt).1) := by

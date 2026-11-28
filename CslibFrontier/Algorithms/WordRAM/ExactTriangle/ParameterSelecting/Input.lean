@@ -34,8 +34,7 @@ theorem exec_entryHeader {W n F : ℕ} (x : Data 640) (hn : x.mem 1 = n) (hF : x
       y.regs Reg.free = 3 + 3 * (n * n) := by
   let bank := selectorBank ∘ PrimeSelection.counterRegisters
   have inj : Function.Injective bank := fun _ _ h => Fin.ext (congrArg (Fin.val : Fin 640 → ℕ) h)
-  unfold entryHeader
-  wram_exec
+  wram_exec [entryHeader]
   wram_call (CountPrime.exec_header (x.comap bank) hn hF hfit) renamed inj with
     a ⟨⟨sm, an, aF, aa, ab, ac, af⟩, _⟩
   wram_exec [an, aF, aa, ab, ac, af]

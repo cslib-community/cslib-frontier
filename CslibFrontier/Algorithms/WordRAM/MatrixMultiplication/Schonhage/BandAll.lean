@@ -131,8 +131,7 @@ theorem exec_encodeBands {w L m N : ℕ} (hw : 0 < w) (side : Bool) (x : Data 96
       have hinside := catalogue_block_inside side hβ
       rw [hframe b hb (by omega)]
       exact hy.2.2 b hb hc'
-  unfold encodeBands
-  wram_exec *
+  wram_exec * [encodeBands]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.bands) hbody
     (by wram_simp; exact Nat.zero_le _)
     ⟨by regs_frame, by wram_simp; nofun, fun _ _ _ => rfl⟩)

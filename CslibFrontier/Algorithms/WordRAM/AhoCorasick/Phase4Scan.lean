@@ -105,8 +105,7 @@ private theorem exec_emitLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
             (Function.update x.mem (inp.outBase + 1 + acc.length) (x.regs r3))
             (inp.outBase + 1 + acc.length + 1) (inp.trie.depth (x.regs r4)) :=
       WP.exists_execWithin <| by
-        unfold emitStepCode
-        wram_exec [hL.h_depthBase, hL.h_outNextBase, hL.h_one, hr2,
+        wram_exec [emitStepCode, hL.h_depthBase, hL.h_outNextBase, hL.h_one, hr2,
           hM.depth_cell _ hq_maxS, hM.outNext_cell _ hq_maxS, hf_dp, hf_p1, hf_p2, hf_on]
         exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
           by wram_simp⟩

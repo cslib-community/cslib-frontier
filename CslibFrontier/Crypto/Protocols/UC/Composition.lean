@@ -161,7 +161,7 @@ calls, counting private samples and subroutine calls. -/
     (sumHandler
       (fun k => OracleComp.query (spec := probOracleSpec (protocolSpec n In Out NetQ NetR))
         (Sum.inl k))
-      fun p => ProbOracleComp.query (spec := protocolSpec n In Out NetQ NetR) (Sum.inl p))
+      fun p => queryParty p.1 p.2)
     program
 
 /-- The machine of a hybrid protocol with its subroutine calls sent to the party port of an
@@ -175,8 +175,7 @@ imported protocol, whose network port is exposed beside the hybrid protocol's ow
   handle
     | .inl p => fun s => liftParty ((M.handle (.inl p)).run s)
     | .inr (.inl q) => fun s => liftParty ((Sum.inl <$> M.handle (.inr q)).run s)
-    | .inr (.inr q) => StateT.lift
-        (Sum.inr <$> ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (Sum.inr q))
+    | .inr (.inr q) => StateT.lift (Sum.inr <$> queryAdv q)
 
 /-- Static-corruption routing in front of a machine that may make calls, as `corruptRouter` does
 for closed machines. -/
@@ -271,9 +270,7 @@ network port: the call `q` becomes `.inr (.inr q)`. -/
       (fun k => OracleComp.query (spec := probOracleSpec (netSpec
         (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ))
         (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR)))) (Sum.inl k))
-      fun q => subReply <$> ProbOracleComp.query (spec := netSpec
-        (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ))
-        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))) (Sum.inr (Sum.inr q)))
+      fun q => subReply <$> queryNet (.inr (.inr q)))
     program
 
 /-- The composed simulator's machine: queries for `ρ` are forwarded, and queries for the
@@ -288,12 +285,8 @@ subroutine are answered by the subroutine simulator `S`. -/
   State := S.State
   init := S.init
   handle
-    | .inl p => StateT.lift (outerReply <$> ProbOracleComp.query (spec := netSpec
-        (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ₂))
-        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂))) (.inl p))
-    | .inr (.inl q) => StateT.lift (outerReply <$> ProbOracleComp.query (spec := netSpec
-        (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ₂))
-        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂))) (.inr (.inl q)))
+    | .inl p => StateT.lift (outerReply <$> queryNet (.inl p))
+    | .inr (.inl q) => StateT.lift (outerReply <$> queryNet (.inr (.inl q)))
     | .inr (.inr q) => fun s =>
         liftSubNet (((fun r => Sum.inr (Sum.inr r)) <$> S.handle q).run s)
 

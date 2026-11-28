@@ -101,8 +101,7 @@ theorem exec {w : ℕ} (hw : 2 ≤ w) {f : BinOp} (hf : Supported f)
     obtain rfl := List.eq_nil_of_length_eq_zero hab.symm
     obtain rfl := List.eq_nil_of_length_eq_zero had.symm
     refine WP.Exact.exists_exec ?_
-    unfold program
-    wram_exec [List.length_nil]
+    wram_exec [program, List.length_nil]
     rcases hf with rfl | rfl | rfl <;>
       exact ⟨by simp [Bounded], by simp [value, BinOp.eval], frame_set_carry _ _ [], by simp⟩
   | cons a as ih =>

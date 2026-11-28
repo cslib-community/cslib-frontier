@@ -716,8 +716,10 @@ elab_rules : tactic
       if (← cfg.steps.get) == 0 then
         let tgt ← instantiateMVars (← g.getType)
         throwError "wram_exec*: nothing to execute in{indentExpr tgt}\nThe program starts with a \
-          loop, a random sample or a program given by name. Apply its specification with \
-          `WP.of_execWithin`, or unfold it."
+          loop, a random sample, an instruction without a rule or a program given by name. Apply \
+          its specification with `WP.of_execWithin`, or name the program among the hints. A \
+          program already named there has a definition that does not unfold, or starts with one \
+          of these itself."
       let mains ← mains.filterMapM (WP.Exec.closeBound cfg eq exact)
       replaceMainGoal (mains ++ (← cfg.sideGoals.get)).toList
 

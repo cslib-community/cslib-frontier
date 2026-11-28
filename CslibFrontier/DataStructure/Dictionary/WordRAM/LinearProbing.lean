@@ -1069,8 +1069,7 @@ theorem allocSpan_execWithin {w base n_max : ℕ} {x : Data rLP}
       x₁.regs 0 = base ∧
       x₁.regs 18 = base + space n_max := by
   refine WP.exists_execWithin ?_
-  unfold allocSpan
-  wram_exec [hfr, hfit]
+  wram_exec [allocSpan, hfr, hfit]
   wram_simp
 
 /-- `initSetup U n_max` initializes the `5`-wise independent hash table and leaves the zeroed
@@ -1186,8 +1185,8 @@ theorem probeCheckCode_execWithin {U w base n_max : ℕ} (u : Fin U)
   have hts_pos : 0 < tableSize n_max := tableSize_pos n_max
   have hused : x.mem (usedBase base n_max + pos.val) = usedAt base n_max x.mem pos := rfl
   have hkey : x.mem (keyBase base n_max + pos.val) = keyAt base n_max x.mem pos := rfl
-  unfold probeCheckCode
-  wram_exec (disch := first | fits | layout_omega) [h1, h2, h4, h5, h10, hused, hkey]
+  wram_exec (disch := first | fits | layout_omega) [probeCheckCode,
+    h1, h2, h4, h5, h10, hused, hkey]
   all_goals wram_simp [h0, h1, h2, h3, h4, h5, h6, h10]
   all_goals split_ifs <;> omega
 /-- `probeSetupCode n_max` executes in at most `16` deterministic steps, initializing registers
@@ -1218,8 +1217,7 @@ theorem probeSetupCode_execWithin {U w base n_max : ℕ} (u : Fin U)
   have hub : base + KWise.space n_max 5 = usedBase base n_max := rfl
   have hkb : usedBase base n_max + tableSize n_max = keyBase base n_max := rfl
   have hvb : keyBase base n_max + tableSize n_max = valBase base n_max := rfl
-  unfold probeSetupCode
-  wram_exec (disch := first | fits | layout_omega) [h0, hub, hkb, hvb]
+  wram_exec (disch := first | fits | layout_omega) [probeSetupCode, h0, hub, hkb, hvb]
   wram_call (probeCheckCode_execWithin u pos (by regs_frame) (by regs_frame)
     (by regs_frame) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
     (by wram_simp) hfit_space) with y hy
@@ -1260,8 +1258,7 @@ theorem probeBody_execWithin {U w base n_max : ℕ} (u : Fin U)
   have hpos'_lt : pos'.val < tableSize n_max := pos'.isLt
   have hand_eq : (pos.val + 1) &&& (tableSize n_max - 1) = pos'.val :=
     Nat.and_two_pow_sub_one_eq_mod (pos.val + 1) (tableLog n_max)
-  unfold probeBody
-  wram_exec (disch := first | fits | layout_omega) [h2, h3, h10, hand_eq]
+  wram_exec (disch := first | fits | layout_omega) [probeBody, h2, h3, h10, hand_eq]
   wram_call (probeCheckCode_execWithin u pos' (by regs_frame) (by regs_frame)
     (by wram_simp) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
     (by regs_frame) hfit_space) with y hy
@@ -1374,8 +1371,7 @@ theorem insertFinishCode_execWithin {U w base n_max : ℕ} (u : Fin U) (v : ℕ)
       y.regs 0 = base ∧
       y.regs 2 = 0 := by
   have hp_lt : p.val < tableSize n_max := p.isLt
-  unfold insertFinishCode
-  wram_exec (disch := first | fits | layout_omega) [h1, h2, h4, h5, h6, h10, h23]
+  wram_exec (disch := first | fits | layout_omega) [insertFinishCode, h1, h2, h4, h5, h6, h10, h23]
   exact ⟨rfl, by wram_simp [h0], by wram_simp⟩
 
 /-- `queryFinishCode` executes in at most `4` deterministic steps, writing `val[p] + 1` into `reg 2`

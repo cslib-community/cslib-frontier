@@ -48,8 +48,7 @@ theorem exec {w n A B : ℕ} (subtract : Bool) (x : Data 16) (u v : ℕ → ℤ)
         encode (if subtract then u i - v i else u i + v i)) ∧
       (∀ a, a < x.regs Reg.output ∨ x.regs Reg.output + n ≤ a → y.mem a = x.mem a) ∧
       ∀ i, 9 ≤ i.val ∧ i.val ≤ 12 → y.regs i = x.regs i := by
-  unfold program
-  wram_exec
+  wram_exec [program]
   let P (j : ℕ) (y : Data 16) : Prop :=
     (∀ i, 9 ≤ i.val ∧ i.val ≤ 12 → y.regs i = x.regs i) ∧ y.regs Reg.one = 1 ∧
     (∀ i < j, y.mem (x.regs Reg.output + i) =

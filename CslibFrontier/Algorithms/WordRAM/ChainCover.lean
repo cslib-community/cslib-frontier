@@ -552,8 +552,7 @@ private theorem exec_chainLabelsTail {w : ℕ} (inst : PosetInstance)
       hfit_all.of_le (by dsimp only [bOut]; omega)
     have hf_idx1 : Fits w (w_st.regs idx + 1) := hfit_all.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold initLabelsBody
-    wram_exec [hbw_ob, hbw.hone, hf_o1, hf_ok, hf_idx1]
+    wram_exec [initLabelsBody, hbw_ob, hbw.hone, hf_o1, hf_ok, hf_idx1]
     refine ⟨⟨by omega, fun i hi => by wram_simp [hr_i i hi],
       by wram_simp [hob_i],
       fun k hk => ?_, fun a ha => ?_⟩, by wram_simp⟩

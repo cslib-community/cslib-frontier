@@ -88,8 +88,7 @@ theorem exec_accumulateStep {w : ℕ} {a b : ℤ}
   have hmod : Fits (w + 2) (q % 10) :=
     h10fit.of_le (Nat.le_of_lt (Nat.mod_lt _ (by decide)))
   refine WP.exists_execWithin ?_
-  unfold accumulateStep scanLoad
-  wram_exec [hq, h10, hr, hmod]
+  wram_exec [accumulateStep, scanLoad, hq, h10, hr, hmod]
   wram_call (exec_accumulateDispatch ha hb _ q (by wram_simp) (by wram_simp)
     (by wram_simp [h9]) (by wram_simp [h10]) (by wram_simp; exact hleft)
     (by wram_simp; exact hright) (by wram_simp; exact hp) (by wram_simp; exact hc))

@@ -101,8 +101,7 @@ theorem extractVarLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound)
           x₁.regs outBase = G.outAddrBase ∧ x₁.regs compB = compBase ∧
           x₁.regs iReg = idx + 1 ∧
           x₁.regs compIdxReg = (ok && decide (compIdx (v, true) ≠ compIdx (v, false))).toNat := by
-      unfold extractVarBody
-      wram_exec [hc0, hc1, hc2, hnv, hob, hcb, hi, hok, hm_f, hm_t, hf_ct, hf_ob2i]
+      wram_exec [extractVarBody, hc0, hc1, hc2, hnv, hob, hcb, hi, hok, hm_f, hm_t, hf_ct, hf_ob2i]
       · -- equal components: compIdx (v, false) = compIdx (v, true)
         refine ⟨hcomp, fun q hq hne_q => ?_, by wram_simp [hc0], by wram_simp [hc1],
           by wram_simp [hc2], by wram_simp [hnv], by wram_simp [hob], by wram_simp [hcb],

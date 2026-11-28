@@ -69,8 +69,7 @@ theorem computableInPolyTime_keyPair {depth : α → ℕ}
       (hkeys.prod (ComputableInPolyTime.const 0))
   have hlast := (ComputableInPolyTime.listGetD
     (encA := encPair encBits encBits) ([], [])).comp (hkeys.prod hdepth)
-  exact (hpublic.of_enc_eq fun _ => rfl).prod
-    ((hfirst.snd'.prod hlast.snd').of_enc_eq fun _ => rfl)
+  exact hpublic.encoding_comp.prod (hfirst.snd'.prod hlast.snd').encoding_comp
 
 variable {E : Scheme}
   (hkeyGen : IsPPTOn encUnary (encPair encBits encBits) E.keyGen)

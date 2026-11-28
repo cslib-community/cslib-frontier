@@ -160,10 +160,8 @@ theorem SharpP.encoded_comp_mem_of_computableInPolyTimeWithOracle
   have hT : ComputableInPolyTime T enc encUnary := by
     dsimp only [T]
     fun_prop
-  have hinput : ComputableInPolyTime (fun a : α => enc a) enc encBits :=
-    ComputableInPolyTime.id'
-  have hmem := replayWeightedSum_mem_SharpP machine hinput hT hYes_mem hNo_mem hF
-  convert hmem using 1
+  convert replayWeightedSum_mem_SharpP machine (input := enc) (by fun_prop) hT
+    hYes_mem hNo_mem hF using 1
   funext a
   rw [replayWeightedSum_eq_of_le_one machine (fun a => enc a) T hYes_le hNo_le hYes' hNo' F a,
     hout a]

@@ -65,8 +65,7 @@ theorem exec_trieInit {w d free : ℕ} (x : Data numRegs)
       TrieRep y.mem d free {free, free + 1} (fun _ => 0) ∧
       (∀ a, a ≠ free ∧ a ≠ free + 1 → y.mem a = x.mem a) ∧
       ∀ i : Fin numRegs, i ≠ rTrieRoot ∧ i ≠ Reg.free → y.regs i = x.regs i := by
-  unfold trieInit
-  wram_exec [hz, ho, hf]
+  wram_exec [trieInit, hz, ho, hf]
   refine ⟨?_, ?_, TrieRep.fresh_node d hpos ?_ ?_,
     fun a ⟨ha0, ha1⟩ => by wram_simp [ha0, ha1],
     fun i ⟨hi1, hi2⟩ => by wram_simp [hi1, hi2]⟩
@@ -285,8 +284,7 @@ private theorem exec_trieSetLoop :
         u.mem (cur + rem % 2) = u.regs rTrieCur ∧
         (∀ a, a ≠ cur + rem % 2 → a ∉ Set.Ico free (u.regs Reg.free) → u.mem a = s.mem a) ∧
         ∃ S_c ⊆ Sc ∪ Set.Ico free (u.regs Reg.free), TrieRep u.mem k (u.regs rTrieCur) S_c fnc := by
-      unfold trieSetStep
-      wram_exec [hz, ho, hcur, hrem, hfree]
+      wram_exec [trieSetStep, hz, ho, hcur, hrem, hfree]
       · rw [Nat.and_one_is_mod] at hc
         rw [hc] at htc
         obtain rfl : fnc = fun _ => 0 := funext htc.fn_eq_zero

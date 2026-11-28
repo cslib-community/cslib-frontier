@@ -122,7 +122,7 @@ theorem exec_tileValue {w L H D V AA BB A B s : ℕ} (x : Data registers)
       exact Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide) heL)
     let u := (x.set Reg.accumulator 0).set Reg.term 0
     have hstart : ExecWithin (w + 2) childrenStart x u 2 := by
-      unfold childrenStart; wram_exec
+      wram_exec [childrenStart]
     have hrange (d : ℕ) (_hd : d < 10) : rank d ≤ (H + 1) * 10 ^ L := by
       have hc' := childCode_lt hv hepos ⟨d % 10, Nat.mod_lt _ (by decide)⟩
       have hm := Nat.add_one_mul (recordStars L s - 1) (10 ^ L) ▸

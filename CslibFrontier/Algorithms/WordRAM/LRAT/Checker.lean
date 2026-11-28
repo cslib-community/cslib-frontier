@@ -141,8 +141,7 @@ theorem loadLoop_spec (done ψ : CNF ℕ) (x : Data 28) (M T : ℕ)
     have htab' := htab.snoc (done.length + 1) c hnone (x.regs ptr) (by omega) (by omega) hcl
     have hdone : (done ++ [c]).length = done.length + 1 := by simp
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
-    unfold loadBody
-    wram_exec [hid, hT, hone, hlen, hcnt]
+    wram_exec [loadBody, hid, hT, hone, hlen, hcnt]
     wram_call (ih (done ++ [c]) _) [hone, hT, hn, hdone, hfr.of_tcell _ _, hw]
       with z ⟨hzp, hztab, hzfr, hzm⟩
     · wram_simp at hzp hzm
@@ -214,8 +213,7 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
   have hLl : input.length = L := rfl
   have hSW : (stepWords cert.toList).length = C.length := rfl
   refine WP.exists_execWithin ?_
-  unfold checker setup
-  wram_exec [Data.init_regs, Data.init_mem_zero, hm1]
+  wram_exec [checker, setup, Data.init_regs, Data.init_mem_zero, hm1]
   wram_call (loadLoop_spec (w := w) [] φ _ M T)
     [List.length_nil, hFl, hLl, hF, hφM, hw']
     with y ⟨hyp, hytab, hyfr, hym⟩

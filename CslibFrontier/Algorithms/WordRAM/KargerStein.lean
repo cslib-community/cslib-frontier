@@ -325,8 +325,7 @@ private theorem thresholdCode_exec {w k : ℕ} {x : Data 24} (hk : 7 ≤ k)
       simpa only [Nat.mul_assoc] using Nat.mul_le_mul_left 2 this
     have : 2 * (y.regs targetT + 1) ≤ 2 * k * (k - 1) :=
       (Nat.le_mul_of_pos_right _ (by omega : 0 < y.regs targetT)).trans hprod
-    unfold thresholdLoopBody
-    wram_exec [hy1, hyv2]
+    wram_exec [thresholdLoopBody, hy1, hyv2]
     refine ⟨⟨hym, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
     all_goals wram_simp [hy1, hyk, hyrem, hyv2]
     all_goals omega
@@ -334,7 +333,7 @@ private theorem thresholdCode_exec {w k : ℕ} {x : Data 24} (hk : 7 ≤ k)
       ∃ x₀, ExecWithin w thresholdPre x x₀ 7 ∧ I x₀ ∧ x₀.regs targetT = 2 := by
     have hkk : k * (k - 1) ≤ 2 * k * (k - 1) := by rw [Nat.mul_assoc]; omega
     have : k - 1 ≤ k * (k - 1) := Nat.le_mul_of_pos_left _ (by omega : 0 < k)
-    unfold thresholdPre; wram_exec [hactiveK]
+    wram_exec [thresholdPre, hactiveK]
     exact ⟨⟨rfl, by wram_simp, by wram_simp [hactiveK], by wram_simp, by wram_simp,
       by wram_simp, by wram_simp; exact ht_ge2, by wram_simp⟩, by wram_simp⟩
   obtain ⟨y, hex_loop, ⟨hym, _, hyk, hyrem, _, hyt_ge, hyt_le, hyv1⟩, hc_exit⟩ :=
@@ -411,8 +410,7 @@ private theorem copySubRow_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t 
     have := matAddr_lt_end (wb := wb) hstr u v
     have := matAddr_lt_end (wb := dstBase) (le_refl t) u v
     have hread : q.mem (wb + u.val * str + v.val) = W u v := by mem_frame [HoldsMatrix]
-    unfold copySubColBody
-    wram_exec [h1, hidx, hrem, hv, hread]
+    wram_exec [copySubColBody, h1, hidx, hrem, hv, hread]
     refine ⟨⟨by wram_simp [h1], by wram_simp [ht], by wram_simp [hidx], by wram_simp [hrem],
       by wram_simp; exact v.isLt, by mem_frame, fun i j hij => ?_⟩,
       by wram_simp [hv]; exact Nat.sub_succ_lt_self t v.val v.isLt⟩
@@ -433,10 +431,9 @@ private theorem copySubRow_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t 
   have : u.val * t + t ≤ t * t := by stride_omega
   have := u.isLt
   refine WP.exists_execWithin ?_
-  unfold copySubRowBody; wram_exec
+  wram_exec [copySubRowBody]
   refine WP.of_execWithin hex_in ?_
-  unfold copySubRowPost
-  wram_exec [h1, (by regs_frame : q₁.regs stride = str), ht, hidx, hrem,
+  wram_exec [copySubRowPost, h1, (by regs_frame : q₁.regs stride = str), ht, hidx, hrem,
     (by regs_frame : q₁.regs uReg = u.val)]
   exact ⟨by wram_simp, by wram_simp; ring, by wram_simp; ring, hmod, fun i j hij =>
     (Nat.lt_succ_iff_lt_or_eq.mp hij).elim (fun h => hdone i j (Or.inl h))
@@ -469,7 +466,7 @@ private theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t →
       by change t - z.regs uReg < t - u.val; have := u.isLt; omega⟩
   obtain ⟨x₀, hx₀, hx₀I, hu0⟩ :
       ∃ x₀, ExecWithin w copySubPre x x₀ 3 ∧ I x₀ ∧ x₀.regs uReg = 0 := by
-    unfold copySubPre; wram_exec [hwBase, hdst]
+    wram_exec [copySubPre, hwBase, hdst]
     exact ⟨⟨by wram_simp [hone], by wram_simp [hstride], by wram_simp [htargetT],
       by wram_simp; omega, by wram_simp; omega, by wram_simp; omega, Modifies.refl _ _,
       fun _ _ h => by simp at h⟩, by wram_simp⟩
@@ -689,8 +686,7 @@ private theorem stepHeader_exec {w fp k stg : ℕ} {x : Data 24} (hk2 : 2 ≤ k)
       y.regs val1 = 7 := by
   have hfs : fp + (4 + 2 * (k * k) + k) = fp + frameSize k := rfl
   have hkk : 4 ≤ k * k := Nat.mul_le_mul hk2 hk2
-  unfold stepHeader
-  wram_exec [hfp, hmem_k, show (fp + 1) + 1 = fp + 2 from rfl, hmem_stg]
+  wram_exec [stepHeader, hfp, hmem_k, show (fp + 1) + 1 = fp + 2 from rfl, hmem_stg]
   exact ⟨rfl, by wram_simp⟩
 
 private theorem combineAndPop_exec {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
@@ -707,8 +703,7 @@ private theorem combineAndPop_exec {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
       y.regs retVal = min v1 r2 := by
   have : Fits w (fp + 3 + k * k) := hfit.of_le (by
     unfold frameSize; have := Nat.mul_le_mul hk2 hk2; omega)
-  unfold combineAndPop
-  wram_exec [h0, h1, ha2, hfp, hsp, hr2,
+  wram_exec [combineAndPop, h0, h1, ha2, hfp, hsp, hr2,
     show (fp + 2 + k * k) + 1 = fp + 3 + k * k by omega, hmem_p, hmem_v1]
   · exact ⟨rfl, by wram_simp [h0], by wram_simp, by wram_simp,
       by wram_simp; exact (Nat.min_eq_left hc.le).symm⟩
@@ -782,8 +777,7 @@ private theorem baseCaseAndPop_law {n w fp parentFp b k : ℕ} {W₀ : Fin n →
       x_pre.regs stride = k ∧ x_pre.regs activeK = k ∧ x_pre.regs targetT = 2 ∧
       x_pre.regs rem = k * k ∧ x_pre.regs fpReg = fp ∧ x_pre.regs spReg = b + 1 := by
     dsimp only [wb, db] at hdEnd hwd ⊢
-    unfold basePre
-    wram_exec [hk_reg, hrem_reg, ha1_reg, ha2_reg,
+    wram_exec [basePre, hk_reg, hrem_reg, ha1_reg, ha2_reg,
       show (fp + 2 + k * k) + 2 = fp + 4 + k * k by omega, hwd]
     exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp [hk_reg],
       by wram_simp [hk_reg], by wram_simp, by wram_simp [hrem_reg], by wram_simp [hfp],
@@ -811,7 +805,7 @@ private theorem baseCaseAndPop_law {n w fp parentFp b k : ℕ} {W₀ : Fin n →
           ExecWithin w basePost z y_p 6 ∧ y_p.mem = z.mem ∧
           y_p.regs zero = 0 ∧ y_p.regs fpReg = parentFp ∧ y_p.regs spReg = b ∧
           y_p.regs retVal = z.mem (wb + 1) := by
-        unfold basePost; wram_exec [hz_wb, hz_fp, hz_sp, hz_p]
+        wram_exec [basePost, hz_wb, hz_fp, hz_sp, hz_p]
         exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
       have hv : z.mem (wb + 1) = _ := hst_c.mem_add_one hW'
       exact (ExecRandLaw.of_execWithin (f := fun y => y.regs retVal) e_p
@@ -924,8 +918,7 @@ private theorem branchTail_exec {w fp b k t : ℕ} {x : Data 24}
   have hkt_le : k * t ≤ k * k := Nat.mul_le_mul_left k htk
   have hwEnd : Fits w (wb + k * t) := hfit.of_le (by dsimp only [wb]; unfold frameSize; omega)
   refine WP.exists_execWithin ?_
-  unfold branchTail branchCompactPre
-  wram_exec [hdBase, hstride, hcfp_eq]
+  wram_exec [branchTail, branchCompactPre, hdBase, hstride, hcfp_eq]
   wram_call (copySubmatrixCode_exec (W := fun i j => x.mem (wb + i.val * k + j.val))
     (by wram_simp [hwBase]; rfl) (by wram_simp [hstride]) (by wram_simp [htargetT])
     (by wram_simp; dsimp only [childFp, db] at *; omega) (by wram_simp) htk
@@ -937,8 +930,7 @@ private theorem branchTail_exec {w fp b k t : ℕ} {x : Data 24}
   have ht₂ : x₂.regs targetT = t := by regs_frame
   have hfp₂ : x₂.regs fpReg = fp := by regs_frame
   have hsp₂ : x₂.regs spReg = b + 1 := by regs_frame
-  unfold branchPushChild
-  wram_exec [hdb₂', hstr₂, ht₂, hfp₂, hsp₂, hcfp_eq,
+  wram_exec [branchPushChild, hdb₂', hstr₂, ht₂, hfp₂, hsp₂, hcfp_eq,
     show (childFp + 1) + 1 = childFp + 2 from rfl, show (b + 1) + 1 = b + 2 from rfl]
   refine ⟨by rw [← hfs_t]; dsimp only [childFp] at *; mem_frame,
     by wram_simp, by wram_simp; rfl, by wram_simp,
@@ -995,7 +987,7 @@ private theorem branchContractAndPush_law {n w fp b k : ℕ} {W₀ : Fin n → F
       x_s.regs rem = k * k ∧ x_s.regs fpReg = fp ∧ x_s.regs spReg = b + 1 := by
     have : 49 ≤ k * k := Nat.mul_le_mul hk7 hk7
     dsimp only [wb, db] at hdEnd hwd ⊢
-    unfold branchSetup; wram_exec [hk_th, hfp_th, hwd]
+    wram_exec [branchSetup, hk_th, hfp_th, hwd]
     exact ⟨hm_th, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp [hk_th], by wram_simp [hk_th], by wram_simp [ht_th]; rfl, by wram_simp,
       by wram_simp [hfp_th], by wram_simp [hsp_th]⟩
@@ -1172,8 +1164,7 @@ private theorem fastCutStep_stage1_law {n w fp b k v1 : ℕ} {W₀ : Fin n → F
       y_s.mem = Function.update (Function.update x.mem (fp + 2 + k * k) 2) (fp + 3 + k * k) v1 ∧
       y_s.regs activeK = k ∧ y_s.regs fpReg = fp ∧ y_s.regs spReg = b + 1 := by
     have : fp + (4 + 2 * (k * k) + k) = fp + frameSize k := rfl
-    unfold stageOneSaveAndSet
-    wram_exec [h1_h, ha2_h, (by regs_frame : y_h.regs retVal = v1),
+    wram_exec [stageOneSaveAndSet, h1_h, ha2_h, (by regs_frame : y_h.regs retVal = v1),
       show (fp + 2 + k * k) + 1 = fp + 3 + k * k by omega]
     exact ⟨by simp [Data.set_mem, Data.write_mem, hm_h], by regs_frame,
       by regs_frame, by regs_frame⟩
@@ -1526,8 +1517,7 @@ private theorem fastCutRootInit_exec {n w sb : ℕ} {W : Fin n → Fin n → ℕ
   have h1_fit : Fits w 1 := hws_fit.of_le (by omega)
   have hstg_fit : Fits w (fp₀ + 2 + n * n) := hws_fit.of_le (by dsimp only [fp₀]; omega)
   refine WP.exists_execWithin ?_
-  unfold fastCutRootSetup
-  wram_exec [hsb, hnOrig, show (fp₀ + 1) + 1 = fp₀ + 2 from rfl]
+  wram_exec [fastCutRootSetup, hsb, hnOrig, show (fp₀ + 1) + 1 = fp₀ + 2 from rfl]
   have hx₁_src : HoldsMatrix (Function.update (Function.update x.mem fp₀ 0) (fp₀ + 1) n)
       sb n W := fun i j => by
     have := matAddr_lt_end (wb := sb) (le_refl n) i j; dsimp only [fp₀]; mem_frame [HoldsMatrix]
@@ -1536,8 +1526,7 @@ private theorem fastCutRootInit_exec {n w sb : ℕ} {W : Fin n → Fin n → ℕ
     with x₂ ⟨hmat_cp, hmod_cp, hwb₂, _, _, _, _⟩
   have hn_x₂ : x₂.regs nOrig = n := by regs_frame
   have hfp_x₂ : x₂.regs fpReg = fp₀ := by regs_frame
-  unfold fastCutRootFinish
-  wram_exec [hn_x₂, hwb₂]
+  wram_exec [fastCutRootFinish, hn_x₂, hwb₂]
   refine ⟨by wram_simp, by regs_frame, by wram_simp, by dsimp only [fp₀] at *; mem_frame,
     by dsimp only [fp₀] at *; mem_frame, by wram_simp, ?_, by dsimp only [fp₀] at *; mem_frame⟩
   intro i j; have hlt := matAddr_lt_end (wb := fp₀ + 2) (le_refl n) i j
@@ -1669,8 +1658,7 @@ private theorem fastCutSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
       y.regs nOrig = n := by
   have hws := fits_fastCutWorkspace_of_logWidth_four hn hw
   have hm1 : (Data.init (r := 24) (n :: flattenMatrix W)).mem 1 = n := rfl
-  unfold fastCutSetup
-  wram_exec [hm1]
+  wram_exec [fastCutSetup, hm1]
   exact ⟨rfl, by wram_simp⟩
 
 /-- The single-tree code observes the recursive answer law, including the charged input setup. -/
@@ -1880,8 +1868,7 @@ private theorem fastCutHighProbSetup_exec {w n : ℕ} {W : Fin n → Fin n → �
     hhp_fit.of_le (Nat.le_mul_of_pos_left _ (by omega : 0 < Nat.log 2 n + 15))
   have hhp_eq : (Nat.log 2 n + 15) * (Nat.log 2 n + 2) = fastCutTrials n := rfl
   have hm1 : (Data.init (r := 24) (n :: flattenMatrix W)).mem 1 = n := rfl
-  unfold fastCutHighProbSetup
-  wram_exec [hm1]
+  wram_exec [fastCutHighProbSetup, hm1]
   wram_call (ksLogLoop_exec (by omega) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
     hn_fit hlg_fit) with s₅ ⟨hm5, _, hn5, hidx5⟩
   wram_exec [hn5, hidx5, hhp_eq]
@@ -1899,8 +1886,7 @@ private theorem fastCutAmpPost_exec {w i R : ℕ} {x : Data 24}
       y.regs bestVal =
         (if i = 0 then x.regs retVal else min (x.regs retVal) (x.regs bestVal)) := by
   have hi1_fit : Fits w (i + 1) := hR_fit.of_le (by omega)
-  unfold fastCutAmpPost
-  wram_exec -split
+  wram_exec -split [fastCutAmpPost]
   wram_call (minUpdate_exec (by decide) (by wram_simp)) with s₂ ⟨hm2, hbv2, hfr⟩
   wram_exec [(by regs_frame : s₂.regs one = 1), (by regs_frame : s₂.regs trialIdx = i), hti]
   exact ⟨by mem_frame, by regs_frame, by regs_frame, by regs_frame, by wram_simp,

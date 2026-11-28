@@ -273,8 +273,8 @@ theorem litLoop_spec (σ : Fin n → Bool) (ls : Clause (Fin n)) (x : Data 24)
     have := Bool.toNat_le (σ l.1 == l.2)
     have := Bool.toNat_le (s || (σ l.1 == l.2))
     refine ⟨by omega, ?_⟩
-    unfold litBody
-    wram_exec [hone, hlit, litCode_shiftRight, litCode_and_one, hσ l.1, hs', one_sub_toNat_xor,
+    wram_exec [litBody,
+      hone, hlit, litCode_shiftRight, litCode_and_one, hσ l.1, hs', one_sub_toNat_xor,
       toNat_or]
     wram_simp
     exact ⟨s || (σ l.1 == l.2), by omega, hrest, rfl,
@@ -307,8 +307,7 @@ theorem clauseLoop_spec (σ : Fin n → Bool) (ψ : CNF (Fin n)) (x : Data 24)
       rwa [show x.regs ptr + 1 + c.length = x.regs ptr + (c.length + 1) by omega]
     have hc : (Cond.lt ptr aBase).Holds x := by simp only [Cond.holds_lt]; omega
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
-    unfold clauseBody clauseInit
-    wram_exec [hlen, hone, hzero]
+    wram_exec [clauseBody, clauseInit, hlen, hone, hzero]
     wram_call (litLoop_spec (w := w) σ c _ ..) framed with v₂ m₂ ⟨rfl, hs₂, -⟩
     unfold clauseDone
     cases hce : c.eval σ with
@@ -339,8 +338,7 @@ theorem scan_spec (σ : Fin n → Bool) (φ : CNF (Fin n)) (x : Data 24)
     ∃ y, ExecWithin w scan x y (12 * (encodeClauses φ).length + 4) ∧ y.mem = x.mem ∧
       ScanResult σ φ x.mem (x.regs aBase) (y.regs found) (y.regs cPtr) := by
   refine WP.exists_execWithin ?_
-  unfold scan
-  wram_exec [hzero]
+  wram_exec [scan, hzero]
   wram_call (clauseLoop_spec (w := w) σ φ _ ..) framed with v m ⟨rfl, hyr⟩
   exact ⟨by omega, rfl, hyr⟩
 

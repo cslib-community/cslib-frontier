@@ -14,7 +14,7 @@ import CslibFrontier.Tactic.LRATTauto
 
 The tests of `lrat_tauto` without `using` let the CDCL solver generate the certificate. In those
 of `lrat_tauto using`, the certificate of contraposition comes from the test of
-`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRAT`. The others were produced by printing the
+`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRATRat`. The others were produced by printing the
 formula with `lrat_tauto?`, refuting it with CaDiCaL 3.0.0 (`cadical --lrat --no-binary`),
 checking the proof with `lrat-check` of drat-trim, and dropping its deletion steps.
 -/

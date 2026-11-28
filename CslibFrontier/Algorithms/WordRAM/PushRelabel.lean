@@ -1095,8 +1095,7 @@ private theorem zeroOutCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.w
         x₁.mem (4 + 2 * inst.n * inst.n + 4 * inst.n) = 1 + inst.n + inst.n * inst.n ∧
         x₁.mem (4 + 2 * inst.n * inst.n + 4 * inst.n + 1) = 0 := by
     refine WP.exists_execWithin ?_
-    unfold zeroOutPfx
-    wram_exec [hx.hrn, hx.hrnn, hx.hone, hx.houtBase, hx.hzero, hx.hrTwo,
+    wram_exec [zeroOutPfx, hx.hrn, hx.hrnn, hx.hone, hx.houtBase, hx.hzero, hx.hrTwo,
       hf_sum, hf_len, hf_out1, hf_out2]
     refine ⟨((hx.set (by decide)).set (by decide)).write_ge (by nlinarith) |>.set (by decide)
         |>.write_ge (by nlinarith) |>.set (by decide) |>.set (by decide),
@@ -1164,8 +1163,7 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
       ∃ x₁, ExecWithin w initPrefix1 x x₁ 2 ∧ CtxInv inst x₁ ∧
         x₁.regs rVal = inst.n * inst.n + 3 * inst.n ∧ x₁.mem = x.mem := by
     refine WP.exists_execWithin ?_
-    unfold initPrefix1
-    wram_exec [hx.hrnn, hx.hrTwoN, hx.hrn, hf_add1, hf_len]
+    wram_exec [initPrefix1, hx.hrnn, hx.hrTwoN, hx.hrn, hf_add1, hf_len]
     refine ⟨?_, by wram_simp; ring, rfl⟩
     exact (hx.set (by decide)).set (by decide)
   obtain ⟨x₂, hx₂_ex, hx₂_reg, _, hx₂_mem⟩ :=
@@ -1191,8 +1189,7 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
           Preflow.initialHeight inst.toNetwork v) ∧
         (∀ v : Fin inst.n, x₃.mem (4 + 2 * inst.n * inst.n + 2 * inst.n + v.val) = 0) := by
     refine WP.exists_execWithin ?_
-    unfold initMid
-    wram_exec [hx₂_ctx.hbaseH, hx₂_ctx.hrs, hx₂_ctx.hrn, hx₂_ctx.hzero, hf_hs, hf_sn]
+    wram_exec [initMid, hx₂_ctx.hbaseH, hx₂_ctx.hrs, hx₂_ctx.hrn, hx₂_ctx.hzero, hf_hs, hf_sn]
     refine ⟨((hx₂_ctx.set (by decide)).write_ge (by omega)).set (by decide) |>.set (by decide),
       by wram_simp,
       by wram_simp,
@@ -1598,8 +1595,8 @@ private theorem relabelCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.w
             ((s.pr.apply (.relabel u)).height u))
           (4 + 2 * inst.n * inst.n + 2 * inst.n + u.val) 0 := by
     refine WP.exists_execWithin ?_
-    unfold relabelTail
-    wram_exec [hm_eq, hx₂_ctx.hone, hx₂_ctx.hbaseH, hx₂_u, hx₂_ctx.hbaseC, hx₂_ctx.hzero,
+    wram_exec [relabelTail,
+      hm_eq, hx₂_ctx.hone, hx₂_ctx.hbaseH, hx₂_u, hx₂_ctx.hbaseC, hx₂_ctx.hzero,
       hf_hval, hf_hu, hf_cu]
     exact ⟨((((((hx₂_ctx.set (by decide)).set (by decide)).write_ge (by nlinarith)).set
         (by decide)).write_ge (by nlinarith)).set (by decide)).set (by decide),
@@ -1657,8 +1654,7 @@ private theorem resCapCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.wo
   obtain ⟨hf_rem, hf_rc⟩ := fits_resCap hw s.pr.flow u v
   have hrc_eq : inst.cap u v - s.pr.flow u v + s.pr.flow v u = s.pr.flow.resCap u v := rfl
   refine WP.exists_execWithin ?_
-  unfold resCapCode
-  wram_exec [hxu, hx.hrn, hxcur, hx.hrCapBase, hx.hbaseF, hx.cap_eq u v,
+  wram_exec [resCapCode, hxu, hx.hrn, hxcur, hx.hrCapBase, hx.hbaseF, hx.cap_eq u v,
     hxca.hflow u v, hxca.hflow v u, s.pr.flow.le_cap u v, hrc_eq,
     hf_un, hf_unv, hf_c, hf_fuv, hf_rem, hf_vn, hf_vnu, hf_fvu, hf_rc]
   exact ⟨fun i hi => by repeat rw [set_regs_lt hi (by decide)], rfl, by wram_simp⟩
@@ -1785,8 +1781,7 @@ private theorem pushBody_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.word
         d₂.regs rAddr2 = 4 + inst.n * inst.n + (v.val * inst.n + u.val) ∧
         d₂.regs rVal = s.pr.flow v u := by
     refine WP.exists_execWithin ?_
-    unfold pushMid1
-    wram_exec [hd₁_ctx.hrn, hd₁_ctx.hbaseF,
+    wram_exec [pushMid1, hd₁_ctx.hrn, hd₁_ctx.hbaseF,
       show d₁.mem (4 + inst.n * inst.n + (v.val * inst.n + u.val)) = s.pr.flow v u from hfl_vu_mem,
       hf_vn, hf_vnu, hf_fvu,
       show d₁.regs rCur = v.val from by wram_simp [d₁, hxcur],
@@ -1953,8 +1948,7 @@ private theorem advanceCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.w
   obtain ⟨_, _, hf_cu, _⟩ := fits_vtx hw u
   obtain ⟨_, _, _, hf_k1⟩ := fits_vtx hw ⟨k, hk⟩
   refine WP.exists_execWithin ?_
-  unfold advanceCode
-  wram_exec [hxcur, hx.hone, hx.hbaseC, hxu, hf_k1, hf_cu]
+  wram_exec [advanceCode, hxcur, hx.hone, hx.hbaseC, hxu, hf_k1, hf_cu]
   refine ⟨((hx.set (by decide)).set (by decide)).write_ge (by nlinarith), ?_,
     by wram_simp,
     by wram_simp [hxu],
@@ -2017,8 +2011,7 @@ private theorem dischargeCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst
         x₁.regs rEx = (s₀.pr.flow.excess u).toNat ∧ x₁.regs rHU = s₀.pr.height u ∧
         x₁.regs rCur = k₀ := by
     refine WP.exists_execWithin ?_
-    unfold dischargeInit
-    wram_exec [hx.hzero, hx.hbaseE, hx.hbaseH, hx.hbaseC, hxu,
+    wram_exec [dischargeInit, hx.hzero, hx.hbaseE, hx.hbaseH, hx.hbaseC, hxu,
       hxca.hexcess u hus, hxca.hheight u, hkm₀, hf_eu, hf_hu, hf_cu]
     exact ⟨((((((hx.set (by decide)).set (by decide)).set (by decide)).set (by decide)).set
         (by decide)).set (by decide)).set (by decide),
@@ -2203,8 +2196,7 @@ private theorem shiftOrderCode_spec (inst : Instance) {w : ℕ} (hw : Fits w ins
         (done[k - 1]'hk_dl).val :=
       hypref (k - 1) hk_dl (by omega)
     refine WP.exists_execWithin ?_
-    unfold shiftOrderBody
-    wram_exec [hyc.hone, hk_pos, hyc.hbaseO, hread, hf_km1, hf_a1, hf_a2]
+    wram_exec [shiftOrderBody, hyc.hone, hk_pos, hyc.hbaseO, hread, hf_km1, hf_a1, hf_a2]
     refine ⟨⟨((hyc.set (by decide)).set (by decide)).set (by decide) |>.set (by decide)
         |>.write_ge (by omega) |>.set (by decide),
       by wram_simp [hyu],
@@ -2239,8 +2231,7 @@ private theorem shiftOrderCode_spec (inst : Instance) {w : ℕ} (hw : Fits w ins
       ∃ y, ExecWithin w shiftOrderTail y₁ y 2 ∧ CtxInv inst y ∧ y.regs rPos = 1 ∧
         y.mem = Function.update y₁.mem (4 + 2 * inst.n * inst.n + 3 * inst.n) u.val := by
     refine WP.exists_execWithin ?_
-    unfold shiftOrderTail
-    wram_exec [hy₁_ctx.hbaseO, hy₁_u, hy₁_ctx.hone, hf_bO]
+    wram_exec [shiftOrderTail, hy₁_ctx.hbaseO, hy₁_u, hy₁_ctx.hone, hf_bO]
     exact ⟨(hy₁_ctx.write_ge (by omega)).set (by decide), by wram_simp, rfl⟩
   refine ⟨y, (hprep.seq (hy₁_ex.seq hy_ex)).mono (by simp only [x₁, Data.set_regs_self]; omega),
     hy_ctx,
@@ -2529,8 +2520,8 @@ private theorem cutAndOutputCode_spec (inst : Instance) {w : ℕ} (hw : Fits w i
         x₁.regs acc = inst.maxFlowValue ∧ x₁.regs rMinH = inst.n ∧
         x₁.regs rCur = inst.n - 1 := by
     refine WP.exists_execWithin ?_
-    unfold cutPfx
-    wram_exec [hx.hbaseE, hx.hrt, hx.hrn, hx.hone, hxca.hexcess inst.t hst.symm, hf_et, hf_nm1]
+    wram_exec [cutPfx,
+      hx.hbaseE, hx.hrt, hx.hrn, hx.hone, hxca.hexcess inst.t hst.symm, hf_et, hf_nm1]
     exact ⟨(((hx.set (by decide)).set (by decide)).set (by decide)).set (by decide), rfl,
       by wram_simp [hflow_val], by wram_simp, by wram_simp⟩
   let EmptyLevel (j : ℕ) : Prop := 0 < j ∧ j < inst.n ∧ ∀ v : Fin inst.n, h v ≠ j
@@ -2648,8 +2639,8 @@ private theorem cutAndOutputCode_spec (inst : Instance) {w : ℕ} (hw : Fits w i
         x₃.mem (4 + 2 * inst.n * inst.n + 4 * inst.n + 1) = inst.maxFlowValue ∧
         (∀ a, a < 4 + 2 * inst.n * inst.n + 4 * inst.n → x₃.mem a = x.mem a) := by
     refine WP.exists_execWithin ?_
-    unfold cutHdr
-    wram_exec [hx₂_ctx.hrn, hx₂_ctx.hrnn, hx₂_ctx.hone, hx₂_ctx.houtBase, hx₂_ctx.hzero, hx₂_acc,
+    wram_exec [cutHdr,
+      hx₂_ctx.hrn, hx₂_ctx.hrnn, hx₂_ctx.hone, hx₂_ctx.houtBase, hx₂_ctx.hzero, hx₂_acc,
       hf_sum, hf_len, hf_out1, fits_val_of_le_n_maxCap hw inst.maxFlowValue_le]
     refine ⟨(((hx₂_ctx.set (by decide)).set (by decide)).write_ge
         (baseF_le_baseOut inst.n 0)).set (by decide) |>.write_ge
@@ -2746,8 +2737,8 @@ private theorem cutAndOutputCode_spec (inst : Instance) {w : ℕ} (hw : Fits w i
       fits_of_addr hw (by omega)
     have hf_k1 : Fits w (k + 1) := fits_of_addr hw (by omega)
     refine WP.exists_execWithin ?_
-    unfold copyFlowBody
-    wram_exec [hk_def, hsc.hbaseF, hfl_val, hsc.houtBase, hsc.hrTwo, hsc.hrn, hsc.hone,
+    wram_exec [copyFlowBody,
+      hk_def, hsc.hbaseF, hfl_val, hsc.houtBase, hsc.hrTwo, hsc.hrn, hsc.hone,
       hf_f, hf_o2, hf_o2n, hf_o2nk, hf_k1]
     refine ⟨⟨((((((hsc.set (by decide)).set (by decide)).set (by decide)).set (by decide)).set
         (by decide)).write_ge (by omega)).set (by decide),

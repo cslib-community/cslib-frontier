@@ -61,8 +61,6 @@ Adapted from Crypto/Computational/HardCore.lean on the cslib `crypto` branch at
 
 @[expose] public section
 
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
-
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM

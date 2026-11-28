@@ -955,8 +955,7 @@ theorem setupCode_spec (q₀ : Q) (inp : List Bool) (hbound : inp.length + 2 * k
   have hm₀ : x₀.mem 0 = n := by simp [x₀, n]
   have hq := (e q₀).isLt
   refine WP.exists_execWithin ?_
-  unfold setupCode
-  wram_exec [hr₀, hm₀, Fits]
+  wram_exec [setupCode, hr₀, hm₀, Fits]
   refine WP.name fun x₉ hx₉ => ?_
   have h₉ : x₉.regs rEnd = n + 1 := by rw [hx₉]; wram_simp
   obtain ⟨y, hy', ha, hr, hm⟩ := setupTapes_spec (n := n) (w := w) (List.finRange k)

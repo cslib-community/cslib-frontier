@@ -62,8 +62,7 @@ theorem exec_pop {w : ℕ} (x : Data 64) (h7 : x.regs Reg.frameWidth = 7)
         (if x.regs Reg.frames < x.regs Reg.frame then x.regs Reg.active else 0) ∧
       ∀ i, i ≠ Reg.frame → i ≠ Reg.active → y.regs i = x.regs i := by
   apply WP.exists_execWithin
-  unfold pop
-  wram_exec [h7]
+  wram_exec [pop, h7]
   all_goals
     wram_simp [hc]
     exact fun i hf ha => by wram_simp
