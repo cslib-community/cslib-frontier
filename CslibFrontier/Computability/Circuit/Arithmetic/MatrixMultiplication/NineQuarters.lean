@@ -25,7 +25,8 @@ multiplications, is applied recursively to `v × v` arrays of blocks
 **Source and model.** [Pass][Pass2026], Theorem 1.1 (p. 1), states the bound for integer
 arithmetic operations; here the model is cslib's arithmetic circuits over a field `K` of
 characteristic zero with addition, multiplication and constant gates each of cost one, and the
-circuits are exact for every pair of matrices (`ComputesMatMul`). The proof follows the paper:
+circuits compute the product as polynomials in the entries (`ComputesMatMul`). The proof follows
+the paper:
 the primal packing (Theorem 3.1), amplification (Lemma 3.2), separation of the left inputs
 (Lemma 3.4), the round (Lemma 4.2), the finite identity (Theorem 4.3, Corollary 4.4) and block
 recursion (§4.3), with Bini's conversion (Lemma 2.4) removing the formal parameter. The
