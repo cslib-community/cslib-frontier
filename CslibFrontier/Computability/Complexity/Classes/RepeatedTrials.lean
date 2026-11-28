@@ -193,8 +193,9 @@ theorem computableInO_repeatOutputs {β : Type} {enc : α ↪ List Bool} {encOut
         exact Nat.add_le_add_left (Nat.le_mul_of_pos_left _ (by omega)) _
   have hstart : (input p).length + (input p).length + budget p ≤
       (trials p + 1) * (3 * bound) :=
-    (by dsimp only [bound]; omega : (input p).length + (input p).length + budget p ≤ 3 * bound).trans
-      (Nat.le_mul_of_pos_left _ (by omega))
+    calc
+      _ ≤ 3 * bound := by dsimp only [bound]; omega
+      _ ≤ _ := Nat.le_mul_of_pos_left _ (by omega)
   calc
     _ ≤ (trials p + 1) * (3 * bound) + (trials p + 1) * ((1 + 2 * m) * bound) :=
       Nat.add_le_add hstart (Nat.mul_le_mul_left _ hround)
