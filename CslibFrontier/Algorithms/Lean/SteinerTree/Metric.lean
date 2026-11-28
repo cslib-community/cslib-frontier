@@ -313,11 +313,8 @@ private theorem mem_flatMap_indices [DecidableEq α] {R : List α} {s : List α}
   List.mem_flatMap.2 ⟨R[i], hs R[i] (List.getElem_mem _), mem_indices.2 rfl⟩
 
 private theorem map_indices_eq_replicate [DecidableEq α] (R : List α) (x : α) :
-    (indices R x).map (fun i => R[i]) = List.replicate (indices R x).length x := by
-  refine List.ext_getElem (by simp) fun i hi1 hi2 => ?_
-  rw [List.getElem_map, List.getElem_replicate]
-  have hi : i < (indices R x).length := by simpa using hi1
-  exact (mem_indices).1 (List.getElem_mem hi)
+    (indices R x).map (fun i => R[i]) = List.replicate (indices R x).length x :=
+  List.map_eq_replicate_iff.mpr fun _ hi => mem_indices.mp hi
 
 private theorem map_flatMap_indices_eq_expandList [DecidableEq α] (R : List α) (s : List α)
     (hs : ∀ x ∈ s, 0 < (indices R x).length) :

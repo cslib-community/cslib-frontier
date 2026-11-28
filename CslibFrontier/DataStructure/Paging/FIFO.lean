@@ -412,11 +412,10 @@ private theorem lifoFaults_alternating {k : Nat} {base : List α} {a b : α}
 omit [DecidableEq α] in
 private theorem nodup_append_pair {init : List α} {a b : α}
     (hnodup : (init ++ [a, b]).Nodup) :
-    init.Nodup ∧ a ≠ b ∧ a ∉ init ∧ b ∉ init :=
-  ⟨(List.nodup_append.mp hnodup).1,
-    (List.nodup_cons.mp (List.nodup_append.mp hnodup).2.1).1 ∘ List.mem_singleton.mpr,
-    fun ha => (List.nodup_append.mp hnodup).2.2 a ha a (by simp) rfl,
-    fun hb => (List.nodup_append.mp hnodup).2.2 b hb b (by simp) rfl⟩
+    init.Nodup ∧ a ≠ b ∧ a ∉ init ∧ b ∉ init := by
+  have hdisjoint := List.disjoint_left.mp hnodup.disjoint
+  exact ⟨hnodup.of_append_left, hnodup.of_append_right.notMem ∘ List.mem_singleton.mpr,
+    fun ha => hdisjoint ha (by simp), fun hb => hdisjoint hb (by simp)⟩
 
 /-- On `lifoCounterexample init a b t` (`init.length = k - 1`, `(init ++ [a, b]).Nodup`, `1 ≤ k`),
 LIFO from `[]` faults on every single request (`(k - 1) + 2 * (t + 1)` faults). -/

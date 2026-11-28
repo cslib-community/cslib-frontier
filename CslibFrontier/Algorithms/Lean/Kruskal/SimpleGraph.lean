@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.Kruskal.Basic
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MinimumSpanningTree
 public import Mathlib.Combinatorics.SimpleGraph.Acyclic
+import CslibFrontier.Foundations.Data.List.NodupFlatMap
 
 /-!
 # SimpleGraph Bridge for Kruskal's Algorithm
@@ -321,12 +322,10 @@ theorem mem_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n)) [Decidable
 /-- `(graphEdges G w)` contains no duplicate edges. -/
 theorem nodup_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (w : Sym2 (Fin n) → W) : (graphEdges G w).Nodup := by
-  refine List.nodup_flatMap.mpr
-    ⟨fun u _ => ((List.nodup_finRange n).filter _).map fun _ _ => congrArg WeightedEdge.v,
-      (List.nodup_finRange n).imp fun hne e he₁ he₂ => ?_⟩
-  obtain ⟨_, _, rfl⟩ := List.mem_map.mp he₁
-  obtain ⟨_, _, heq₂⟩ := List.mem_map.mp he₂
-  exact hne (congrArg WeightedEdge.u heq₂).symm
+  unfold graphEdges
+  exact List.nodup_flatMap_map (List.nodup_finRange n)
+    (fun _ => (List.nodup_finRange n).filter _)
+    (fun _ _ _ _ h => ⟨congrArg WeightedEdge.u h, congrArg WeightedEdge.v h⟩)
 
 /-- Unordered endpoint pairs in `graphEdges G w` have no duplicates. -/
 theorem nodup_map_sym2_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n))

@@ -57,7 +57,7 @@ theorem inputArm_isWalk (hw : w.IsWalk) (j : Fin w.steps.length) (x : Occurrence
   change (Walk.edgesOf (w.steps.take (j.val + 1))).Nodup at hn
   rw [List.take_succ_eq_append_getElem j.isLt, Walk.edgesOf_append] at hn
   have hno : w.steps[j.val].1 ∉ (w.take j.val).edges := fun he =>
-    (List.nodup_append.mp hn).2.2 _ he _ (by simp [Walk.edgesOf]) rfl
+    List.disjoint_left.mp hn.disjoint he (by simp [Walk.edgesOf])
   have hnx : x ∉ (w.take j.val).edges := fun he => external_not_mem hx
     ((List.take_sublist j.val w.steps).flatMap (fun s => [s.1, s.2]) |>.subset he)
   exact ⟨(hw.take j.val).snoc hl.1 hc (boundary_ne_external hx hstep) hno hnx, rfl, by

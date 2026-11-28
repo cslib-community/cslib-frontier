@@ -218,25 +218,16 @@ private theorem nodup_filterMap_range (m : ℕ) (c lit : ℕ → ℕ) (pol : Boo
     (hlit : ∀ k < m, ∀ k' < m, lit k = lit k' → k = k') :
     (((List.range m).filterMap fun k =>
       if c k = 0 then none else some (c k, (lit k, pol))).map termVar).Nodup := by
-  induction m with
-  | zero => simp
-  | succ m ih =>
-    have e : ((List.range (m + 1)).filterMap fun k =>
-        if c k = 0 then none else some (c k, (lit k, pol))) =
-        ((List.range m).filterMap fun k => if c k = 0 then none else some (c k, (lit k, pol))) ++
-          (if c m = 0 then [] else [(c m, (lit m, pol))]) := by
-      simp only [List.range_succ, List.filterMap_append, List.filterMap_cons, List.filterMap_nil]
-      split_ifs <;> rfl
-    rw [e, List.map_append, List.nodup_append]
-    refine ⟨ih fun k hk k' hk' h => hlit k (by omega) k' (by omega) h, by split_ifs <;> simp, ?_⟩
-    intro x hx y hy
-    split_ifs at hy
-    · simp at hy
-    · simp only [List.map_cons, List.map_nil, List.mem_singleton, termVar_mk] at hy
-      obtain ⟨k, hk, rfl⟩ := vars_filterMap_range hx
-      intro hxy
-      have := hlit k (by omega) m (by omega) (by rw [hxy, hy])
-      omega
+  rw [List.map_filterMap, List.nodup_iff_pairwise_ne, List.pairwise_filterMap]
+  refine List.nodup_range.imp_of_mem fun hk hk' hne x hx y hy hxy => ?_
+  have hdigit (j z : ℕ)
+      (hz : (if c j = 0 then none else some (c j, (lit j, pol))).map termVar = some z) :
+      lit j = z := by
+    by_cases hj : c j = 0
+    · simp [hj] at hz
+    · simpa only [hj, ite_false, Option.map_some, Option.some.injEq, termVar_mk] using hz
+  exact hne (hlit _ (List.mem_range.mp hk) _ (List.mem_range.mp hk')
+    ((hdigit _ x hx).trans (hxy.trans (hdigit _ y hy).symm)))
 
 /-! ### The variables of the items -/
 
