@@ -9,6 +9,10 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.Refuter4n.PackedState
 public import CslibFrontier.Computability.WordRAM.Structured
+-- `import all` for the private one-pass builder of `ofCircuitBinary` and its lemmas:
+-- `programGateLitVector`, `programGateLit`, `programWireLit`, `programBinaryGates`,
+-- `programBinaryGate`, `lineBinaryLit`, `lineBinaryGate`, `programWireLit_gate_last`,
+-- `mem_programBinaryGates_bounds`, `reads_programWireLit`.
 import all CslibFrontier.Computability.Circuit.Boolean.SemiCircuit.OfCircuit
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.WordRAM.CountingLoop
@@ -16,9 +20,66 @@ import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
-# Word layout of the input circuit of the `4n - 9d` refuter
+# Word layout of the input circuit of the `4n - 9d` refuter, and its charged decoding
 
-PART 1 (pure layer, under construction).
+The input layout of the Word-RAM refuter of issue `#4322` (Milestone 4), and a fixed
+standard-basis program `initCode` that decodes it and builds the packed initial state
+`initialPacked C` of `Cslib.Algorithms.WordRAM.Refuter4n.PackedState` in memory, with an
+`ExecWithin` certificate and an explicit instruction bound in the library's Word-RAM cost model.
+No running time is claimed here for the refuter as a whole.
+
+**Input layout** (`encode`). A circuit `C : Circuit (fullSignature 2 Bool) n 1` with `s = C.size`
+program lines is the word list `[n, s]`, then three words `(tag, a, b)` per line in program order
+(`lineTriple`, `progTriples`), then the word of the output wire. Wires are words `input i ↦ i`,
+`gate k ↦ n + k` (`wireCode`). A line `.fn op` has the 4-bit truth table `ttOf` of `op` as tag
+(below `16`) and the words of its two wires; a constant line `.con c` has tag `16 + c` and
+`a = b = 0`. At an admitted width every input word fits (`inputFits_encode`).
+
+**Decoder** (`decodeLines`). One pass in program order, as the one-pass gate-table builder of
+`SemiCircuit.ofCircuitBinary` (`programGateLitVector`): line `j` reads the literal codes
+(`litCode`) of the earlier lines (`wireLit`), absorbs the negations of its operands into its truth
+table (`absorb`), and is either a function of one operand (`unaryLit`) or the binary gate `n + j`
+with gate row `⟨tt, left, right⟩` (`classify`, `lineOut`). The decoded lines agree with the
+builder: the gate rows are the rows of the gates of `initialState C` (`snd_getD_decodeLines`) and
+the output literal is its output (`litCode_out_eq_wireLit`); the proof reuses the builder's own
+definitions, so the program implements that builder rather than a second construction.
+
+**Memory image** (`Layout`, `Stored`). From a base address, the parameter mask, auxiliary mask,
+gate mask, output literal and number of pairs, then `N` gate rows of three words, `E` equation
+words, `n` rows of the parameter map and room for `N` two-word pair records. `layout C` places it
+just past the input (base `4 + 3 s`) with `N = nameBound C` and `E = eqnBound C`; the program keeps
+one literal word per line after it, so its workspace ends at `workEnd C`.
+
+**Width condition** (`FitsWidth`). `w ≥ n + C.size + 2` (the basis of `Rep.fits`), `w ≥ 5` (the
+tags `16, 17`), and the workspace addresses fit; every `w ≥ n + C.size + 5` is admitted
+(`fitsWidth_of_le`). Memory past the input starts at zero, so the zero words of the state (unused
+gate rows, the equation table, the auxiliary mask, the empty pair list) need no stores.
+
+**Bound.** `exec_initCode`: from `encode C`, at every admitted width, `initCode` stores
+`initialPacked C` at `layout C` in at most `initTime C = 6 n + 73 s + 50` instructions, counting
+every load, store, arithmetic and bitwise operation, comparison, branch and loop test, and leaves
+every cell outside `[base, workEnd C)` unchanged. The workspace bound (`workEnd C`, linear in
+`n + s`) and the instruction bound are separate statements.
+
+## Main definitions
+
+* `Cslib.Algorithms.WordRAM.Refuter4n.wireCode`, `lineTriple`, `progTriples`, `encode`: the input
+  layout.
+* `Cslib.Algorithms.WordRAM.Refuter4n.wireLit`, `swapLo`, `swapHi`, `absorb`, `classify`,
+  `lineOut`, `decodeLines`: the decoder.
+* `Cslib.Algorithms.WordRAM.Refuter4n.Layout` (`rowAddr`, `eqnAddr`, `phiAddr`, `pairAddr`,
+  `top`), `Stored`, `layout`, `workEnd`: the memory image of a packed state.
+* `Cslib.Algorithms.WordRAM.Refuter4n.FitsWidth`: the admitted widths.
+* `Cslib.Algorithms.WordRAM.Refuter4n.initCode`, `initTime`: the program and its bound.
+
+## Main results
+
+* `Cslib.Algorithms.WordRAM.Refuter4n.snd_getD_decodeLines`, `litCode_out_eq_wireLit`: the
+  decoder agrees with `initialState`.
+* `Cslib.Algorithms.WordRAM.Refuter4n.inputFits_encode`, `fitsWidth_of_le`: fields and addresses
+  fit at the admitted widths.
+* `Cslib.Algorithms.WordRAM.Refuter4n.exec_initCode`: charged decoding and initial-state
+  construction.
 -/
 
 public section
@@ -96,12 +157,13 @@ its literal code and, for a genuinely binary line, the gate row of gate `n + j`.
 @[expose] def decodeLines (n : ℕ) (trs : List (ℕ × ℕ × ℕ)) : List (ℕ × Option GateRow) :=
   trs.foldl (fun acc tr => acc ++ [lineOut n acc.length (acc.map Prod.fst) tr]) []
 
-theorem decodeLines_append_singleton (l : List (ℕ × ℕ × ℕ)) (tr : ℕ × ℕ × ℕ) :
+private theorem decodeLines_append_singleton (l : List (ℕ × ℕ × ℕ)) (tr : ℕ × ℕ × ℕ) :
     decodeLines n (l ++ [tr]) = decodeLines n l ++
       [lineOut n (decodeLines n l).length ((decodeLines n l).map Prod.fst) tr] := by
   simp [decodeLines, List.foldl_append]
 
-theorem length_decodeLines (l : List (ℕ × ℕ × ℕ)) : (decodeLines n l).length = l.length := by
+private theorem length_decodeLines (l : List (ℕ × ℕ × ℕ)) :
+    (decodeLines n l).length = l.length := by
   induction l using List.reverseRecOn with
   | nil => rfl
   | append_singleton l tr ih => simp [decodeLines_append_singleton, ih]
@@ -292,7 +354,7 @@ private theorem init_encode (C : Circuit (fullSignature 2 Bool) n 1) :
 
 /-! ### Decoding prefixes -/
 
-theorem decodeLines_take (l : List (ℕ × ℕ × ℕ)) (k : ℕ) :
+private theorem decodeLines_take (l : List (ℕ × ℕ × ℕ)) (k : ℕ) :
     decodeLines n (l.take k) = (decodeLines n l).take k := by
   induction l using List.reverseRecOn generalizing k with
   | nil => cases k <;> rfl
@@ -391,6 +453,39 @@ private theorem maskOf_range (k : ℕ) : maskOf (Finset.range k) = 2 ^ k - 1 := 
     have := Nat.one_le_two_pow (n := k)
     omega
 
+/-- **Decoder, gate rows.** Line `j` of the decoded input has a gate row exactly when `n + j` is a
+gate of the initial state, and the row is the row of that gate. -/
+theorem snd_getD_decodeLines (C : Circuit (fullSignature 2 Bool) n 1) {j : ℕ} (hj : j < C.size) :
+    ((decodeLines n (progTriples C.program)).getD j (0, none)).2 =
+      if n + j ∈ (initialState C).gates then some (rowOf ((initialState C).gate (n + j)))
+      else none := by
+  rw [show decodeLines n (progTriples C.program) = outs C from rfl, getD_outs C hj]
+
+/-- **Decoder, output.** The literal code of the output wire, read from the decoded lines, is the
+code of the output literal of the initial state. -/
+theorem litCode_out_eq_wireLit (C : Circuit (fullSignature 2 Bool) n 1) :
+    litCode (initialState C).out =
+      wireLit n ((decodeLines n (progTriples C.program)).map Prod.fst) (wireCode (C.outputs 0)) :=
+  out_eq C
+
+private theorem mem_progTriples : ∀ {g : ℕ} (p : Program (fullSignature 2 Bool) n g),
+    ∀ t ∈ progTriples p, t.1 < 18 ∧ t.2.1 ≤ n + g ∧ t.2.2 ≤ n + g
+  | _, .empty => fun _ h => absurd h List.not_mem_nil
+  | _, @Program.gate _ _ g p line => fun t ht => by
+    rcases List.mem_append.1 ht with ht | ht
+    · obtain ⟨h1, h2, h3⟩ := mem_progTriples p t ht
+      exact ⟨h1, by omega, by omega⟩
+    · rw [List.mem_singleton.1 ht]
+      rcases line with ⟨op | c, w⟩
+      · have := ttOf_lt' fun a b => op ![a, b]
+        have h0 := wireCode_lt (w ⟨0, by simp [fullSignature]⟩)
+        have h1 := wireCode_lt (w ⟨1, by simp [fullSignature]⟩)
+        simp only [lineTriple]
+        omega
+      · have := Bool.toNat_le c
+        simp only [lineTriple]
+        omega
+
 /-! ### The memory image of a packed state -/
 
 /-- Addresses of a packed state in memory, from the base address `base`, with `N` gate rows,
@@ -462,6 +557,33 @@ program keeps one scratch word per line at `top + j`. -/
 `16, 17` of constant lines), and the workspace addresses fit. -/
 @[expose] def FitsWidth (C : Circuit (fullSignature 2 Bool) n 1) (w : ℕ) : Prop :=
   nameBound C + 2 ≤ w ∧ 5 ≤ w ∧ Cslib.WordRAM.Fits w (workEnd C)
+
+/-- **Fit of the input.** At an admitted width, the input length and every input word (`n`, the
+line count, tags below `18`, wire words below `n + C.size`) fit in a word. -/
+theorem inputFits_encode (C : Circuit (fullSignature 2 Bool) n 1) {w : ℕ} (hw : FitsWidth C w) :
+    Cslib.WordRAM.InputFits w (encode C) := by
+  obtain ⟨hwN, hw5, hWE⟩ := hw
+  have hE : workEnd C = 9 + 16 * C.size + 11 * n := by
+    simp only [workEnd, layout, Layout.top, nameBound, eqnBound]; omega
+  have h32 := Nat.pow_le_pow_right (n := 2) two_pos hw5
+  change workEnd C < 2 ^ w at hWE
+  have hl := (progTriples_ok C.program).1
+  refine ⟨?_, fun v hv => ?_⟩
+  · change (encode C).length < 2 ^ w
+    simp only [encode, List.length_append, List.length_cons, length_flatMap_triple, hl,
+      List.length_nil]
+    omega
+  · change v < 2 ^ w
+    simp only [encode, List.mem_append, List.mem_cons, List.mem_flatMap,
+      List.not_mem_nil, or_false] at hv
+    rcases hv with (rfl | rfl | ⟨t, ht, hv⟩) | rfl
+    · omega
+    · omega
+    · obtain ⟨h1, h2, h3⟩ := mem_progTriples C.program t ht
+      have : (2 : ℕ) ^ 5 = 32 := rfl
+      rcases hv with rfl | rfl | rfl <;> omega
+    · have := wireCode_lt (C.outputs 0)
+      omega
 
 /-- Every width `w ≥ n + C.size + 5` is admitted. -/
 theorem fitsWidth_of_le (C : Circuit (fullSignature 2 Bool) n 1) {w : ℕ}
