@@ -1,49 +1,39 @@
 /-
 Copyright (c) 2026 Bolton Bailey. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Bolton Bailey
+Authors: Bolton Bailey, Samuel Schlesinger
 -/
 
 module
 -- upstream: candidate
 
-public import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
-public import Mathlib.LinearAlgebra.Matrix.Adjugate
-public import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
-public import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
-public import Mathlib.LinearAlgebra.Dual.Lemmas
-public import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
+public import CslibFrontier.Init
 public import Mathlib.Algebra.Order.BigOperators.Ring.Finset
-public import Mathlib.Basic.Real.Basic
+public import Mathlib.Data.Nat.Factorial.Basic
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Cramer
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Vertex
+import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
+import Mathlib.LinearAlgebra.Matrix.Adjugate
+import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
+import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
+import Mathlib.LinearAlgebra.Dual.Lemmas
+import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
+import Mathlib.Basic.Real.Basic
 
 /-!
 # Small integer weights for threshold functions
 
-A threshold function `[t ≤ ∑ cᵢ xᵢ]` of `N` Boolean inputs, with arbitrary nonnegative integer
-weights, is also a strict threshold function `[θ < ∑ uᵢ xᵢ]` with integer weights and bias of
-absolute value at most `(N + 1) · (N + 1)!` (`Cslib.SmallWeights.exists_small_threshold`)
-[Muroga][Muroga1971].
+A natural-weight threshold on Boolean inputs has an equivalent strict integer threshold with all
+weights and its bias bounded by `(N + 1) · (N + 1)!`. This is the small-weight step needed to
+simulate a majority gate that reads repeated wires.
 
-The separating weight vectors `v` with `±(x, -1) ⬝ v ≥ 1` on every input `x` form a polyhedron
-whose rows span. Moving a feasible point along a direction orthogonal to its tight rows until a
-further row becomes tight (`Cslib.SmallWeights.exists_tightRank_lt`) reaches a point whose tight
-rows span (`Cslib.SmallWeights.exists_span_tight_eq_top`), so `N + 1` linearly independent rows
-are tight there (`Cslib.SmallWeights.exists_tight_basis`). By Cramer's rule the adjugate of their
-matrix, whose entries lie in `{-1, 0, 1}`, gives an integer point with every row at least `1` and
-coordinates bounded through `Matrix.det_le` (`Cslib.SmallWeights.exists_int_point`).
-
-## Main results
-
-* `Cslib.SmallWeights.exists_tight_basis`: a vertex of a feasible polyhedron whose rows span.
-* `Cslib.SmallWeights.exists_int_point`: integer points from a vertex.
-* `Cslib.SmallWeights.exists_small_threshold`: Muroga's small weights.
-
-## References
-
-* [S. Muroga, *Threshold Logic and Its Applications*][Muroga1971]
+A full-rank set of tight inequalities determines a separating vertex. Cramer's rule clears its
+denominator, and the Leibniz determinant bound controls every coefficient. For the classical
+weight-bound problem see [Muroga, §9.3.2][Muroga1971]. [Håstad, §3, Theorem 3.2][Hastad1994]
+treats signed inputs and proves the sharper bound `2^(-N) (N + 1)^((N + 1)/2)`.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.SmallWeights
 
@@ -52,19 +42,19 @@ open Finset Module Matrix
 variable {ι : Type*} [Finite ι] {m : ℕ}
 
 /-- The rows of `r` tight at `v`: those with `r j ⬝ᵥ v = 1`. -/
-noncomputable def tight (r : ι → Fin m → ℝ) (v : Fin m → ℝ) : Set (Fin m → ℝ) :=
+private noncomputable def tight (r : ι → Fin m → ℝ) (v : Fin m → ℝ) : Set (Fin m → ℝ) :=
   r '' {j | r j ⬝ᵥ v = 1}
 
 /-- The rank of the rows tight at `v`. -/
-noncomputable def tightRank (r : ι → Fin m → ℝ) (v : Fin m → ℝ) : ℕ :=
+private noncomputable def tightRank (r : ι → Fin m → ℝ) (v : Fin m → ℝ) : ℕ :=
   finrank ℝ (Submodule.span ℝ (tight r v))
 
 omit [Finite ι] in
-theorem tightRank_le (r : ι → Fin m → ℝ) (v : Fin m → ℝ) : tightRank r v ≤ m :=
+private theorem tightRank_le (r : ι → Fin m → ℝ) (v : Fin m → ℝ) : tightRank r v ≤ m :=
   (Submodule.finrank_le _).trans_eq (by simp)
 
 /-- A linear functional on `Fin m → ℝ` is the dot product with its values on the basis vectors. -/
-theorem dual_apply_eq_dotProduct (f : Module.Dual ℝ (Fin m → ℝ)) (x : Fin m → ℝ) :
+private theorem dual_apply_eq_dotProduct (f : Module.Dual ℝ (Fin m → ℝ)) (x : Fin m → ℝ) :
     f x = x ⬝ᵥ fun i => f (Pi.single i 1) := by
   rw [LinearMap.pi_apply_eq_sum_univ f x, dotProduct]
   refine Finset.sum_congr rfl fun i _ => ?_
@@ -75,7 +65,7 @@ theorem dual_apply_eq_dotProduct (f : Module.Dual ℝ (Fin m → ℝ)) (x : Fin 
 
 /-- **One step towards a vertex**: if the rows tight at a feasible point do not span, moving along
 a direction orthogonal to them makes a further row tight, so the tight rank grows. -/
-theorem exists_tightRank_lt (r : ι → Fin m → ℝ) (hspan : Submodule.span ℝ (Set.range r) = ⊤)
+private theorem exists_tightRank_lt (r : ι → Fin m → ℝ) (hspan : Submodule.span ℝ (Set.range r) = ⊤)
     {v : Fin m → ℝ} (hv : ∀ j, 1 ≤ r j ⬝ᵥ v) (hlt : Submodule.span ℝ (tight r v) ≠ ⊤) :
     ∃ v' : Fin m → ℝ, (∀ j, 1 ≤ r j ⬝ᵥ v') ∧ tightRank r v < tightRank r v' := by
   have : Fintype ι := Fintype.ofFinite ι
@@ -106,29 +96,21 @@ theorem exists_tightRank_lt (r : ι → Fin m → ℝ) (hspan : Submodule.span �
     split_ifs <;> simp [this]
   set d : Fin m → ℝ := fun i => f (Pi.single i 1)
   have hfd (x : Fin m → ℝ) : f x = x ⬝ᵥ d := dual_apply_eq_dotProduct f x
-  -- the decreasing rows and the step length
-  set J := univ.filter fun j => r j ⬝ᵥ d < 0
-  have hJ : J.Nonempty := ⟨j₀, by simpa [J, ← hfd] using hfj₀⟩
-  let ratio : ι → ℝ := fun j => (r j ⬝ᵥ v - 1) / -(r j ⬝ᵥ d)
-  obtain ⟨j₁, hj₁J, hj₁⟩ := J.exists_min_image ratio hJ
-  have hj₁d : r j₁ ⬝ᵥ d < 0 := (mem_filter.mp hj₁J).2
-  set t := ratio j₁
-  have ht : 0 ≤ t := div_nonneg (by linarith [hv j₁]) (by linarith)
-  set v' := v + t • d
+  let A : Matrix ι (Fin m) ℝ := -(Matrix.of r)
+  have hA (z : Fin m → ℝ) (j : ι) : (A *ᵥ z) j = -(r j ⬝ᵥ z) := by
+    exact congrFun (Matrix.neg_mulVec z (Matrix.of r)) j
+  have hle : A *ᵥ v ≤ fun _ => (-1 : ℝ) := fun j => by
+    rw [hA]
+    exact neg_le_neg (hv j)
+  have hdir : 0 < (A *ᵥ d) j₀ := by simpa only [hA, neg_pos, ← hfd] using hfj₀
+  obtain ⟨t, j₁, hj₁, hfeas, htight⟩ := Matrix.exists_tight_add_smul hle hdir
+  let v' := v + t • d
+  have hj₁d : r j₁ ⬝ᵥ d < 0 := by simpa only [hA, neg_pos] using hj₁
   have hdot (j : ι) : r j ⬝ᵥ v' = r j ⬝ᵥ v + t * (r j ⬝ᵥ d) := by
     simp [v', dotProduct_add, dotProduct_smul]
   refine ⟨v', fun j => ?_, ?_⟩
-  · rw [hdot]
-    by_cases hj : r j ⬝ᵥ d < 0
-    · have hle : t ≤ ratio j := hj₁ j (mem_filter.mpr ⟨mem_univ _, hj⟩)
-      have hpos : 0 < -(r j ⬝ᵥ d) := by linarith
-      have : t * -(r j ⬝ᵥ d) ≤ r j ⬝ᵥ v - 1 := by
-        have := mul_le_mul_of_nonneg_right hle hpos.le
-        rwa [div_mul_cancel₀ _ hpos.ne'] at this
-      linarith
-    · have := mul_nonneg ht (not_lt.mp hj)
-      linarith [hv j]
-  · -- the tight rows at `v` stay tight, and `j₁` becomes tight
+  · simpa only [hA, neg_le_neg_iff] using hfeas j
+  · -- Old tight rows stay tight, and a row outside their span becomes tight.
     have hsub : tight r v ⊆ tight r v' := by
       rintro _ ⟨j, hj, rfl⟩
       refine ⟨j, ?_, rfl⟩
@@ -138,12 +120,8 @@ theorem exists_tightRank_lt (r : ι → Fin m → ℝ) (hspan : Submodule.span �
       rw [hdot, ← hfd, h0, mul_zero, add_zero, hj']
     have hj₁t : r j₁ ∈ tight r v' := by
       refine ⟨j₁, ?_, rfl⟩
-      change r j₁ ⬝ᵥ v' = 1
-      rw [hdot]
-      have hne : r j₁ ⬝ᵥ d ≠ 0 := hj₁d.ne
-      simp only [t, ratio]
-      field_simp
-      ring
+      change r j₁ ⬝ᵥ (v + t • d) = 1
+      simpa only [hA, neg_inj] using htight
     have hnot : r j₁ ∉ Submodule.span ℝ (tight r v) := by
       intro hmem
       have h0 : f (r j₁) = 0 := hfker hmem
@@ -157,7 +135,8 @@ theorem exists_tightRank_lt (r : ι → Fin m → ℝ) (hspan : Submodule.span �
 
 /-- **A vertex of a feasible polyhedron whose rows span**: some feasible point has tight rows
 spanning the whole space. -/
-theorem exists_span_tight_eq_top (r : ι → Fin m → ℝ) (hspan : Submodule.span ℝ (Set.range r) = ⊤)
+private theorem exists_span_tight_eq_top (r : ι → Fin m → ℝ)
+    (hspan : Submodule.span ℝ (Set.range r) = ⊤)
     (hfeas : ∃ v : Fin m → ℝ, ∀ j, 1 ≤ r j ⬝ᵥ v) :
     ∃ v : Fin m → ℝ, (∀ j, 1 ≤ r j ⬝ᵥ v) ∧ Submodule.span ℝ (tight r v) = ⊤ := by
   classical
@@ -175,7 +154,7 @@ theorem exists_span_tight_eq_top (r : ι → Fin m → ℝ) (hspan : Submodule.s
 
 /-- **Tight linearly independent rows at a vertex**: there are a feasible point and `m` linearly
 independent rows that are tight at it. -/
-theorem exists_tight_basis (r : ι → Fin m → ℝ) (hspan : Submodule.span ℝ (Set.range r) = ⊤)
+private theorem exists_tight_basis (r : ι → Fin m → ℝ) (hspan : Submodule.span ℝ (Set.range r) = ⊤)
     (hfeas : ∃ v : Fin m → ℝ, ∀ j, 1 ≤ r j ⬝ᵥ v) :
     ∃ (σ : Fin m → ι) (v : Fin m → ℝ), (∀ j, 1 ≤ r j ⬝ᵥ v) ∧ (∀ k, r (σ k) ⬝ᵥ v = 1) ∧
       LinearIndependent ℝ (fun k => r (σ k)) := by
@@ -198,9 +177,9 @@ theorem exists_tight_basis (r : ι → Fin m → ℝ) (hspan : Submodule.span �
   exact hbli.comp e e.injective
 
 /-- The real vector of an integer vector. -/
-abbrev toReal (x : Fin m → ℤ) : Fin m → ℝ := fun i => (x i : ℝ)
+private abbrev toReal (x : Fin m → ℤ) : Fin m → ℝ := fun i => (x i : ℝ)
 
-theorem toReal_dotProduct (x y : Fin m → ℤ) :
+private theorem toReal_dotProduct (x y : Fin m → ℤ) :
     toReal x ⬝ᵥ toReal y = ((x ⬝ᵥ y : ℤ) : ℝ) := by
   simp [dotProduct]
 
@@ -209,7 +188,7 @@ omit [Finite ι] in
 `[-1, 1]` have a feasible point at which `m` linearly independent rows `R ∘ σ` are tight, there is
 an integer point with every row at least `1` and every coordinate at most `m · m!` in absolute
 value. -/
-theorem exists_int_point (R : ι → Fin m → ℤ) (hR : ∀ j i, |R j i| ≤ 1) (σ : Fin m → ι)
+private theorem exists_int_point (R : ι → Fin m → ℤ) (hR : ∀ j i, |R j i| ≤ 1) (σ : Fin m → ι)
     (v : Fin m → ℝ) (hv : ∀ j, 1 ≤ toReal (R j) ⬝ᵥ v) (htight : ∀ k, toReal (R (σ k)) ⬝ᵥ v = 1)
     (hli : LinearIndependent ℝ (fun k => toReal (R (σ k)))) :
     ∃ u : Fin m → ℤ, (∀ j, 1 ≤ R j ⬝ᵥ u) ∧ ∀ i, |u i| ≤ m * m.factorial := by
@@ -224,20 +203,12 @@ theorem exists_int_point (R : ι → Fin m → ℤ) (hR : ∀ j i, |R j i| ≤ 1
     intro h
     apply hdetR
     rw [show AR.det = ((Int.castRingHom ℝ) A.det) from (RingHom.map_det _ _).symm, h, map_zero]
-  have hAv : AR *ᵥ v = fun _ => 1 := funext fun k => htight k
   let w : Fin m → ℤ := A.adjugate *ᵥ fun _ => 1
   have hw : toReal w = (A.det : ℝ) • v := by
-    have hadj : (Int.castRingHom ℝ).mapMatrix A.adjugate * AR = (A.det : ℝ) • 1 := by
-      rw [← map_mul, Matrix.adjugate_mul]
-      ext i j
-      rw [RingHom.mapMatrix_apply, Matrix.map_apply, Matrix.smul_apply, Matrix.smul_apply,
-        Matrix.one_apply, Matrix.one_apply]
-      split_ifs <;> simp
-    have := congrArg (· *ᵥ v) hadj
-    simp only [← Matrix.mulVec_mulVec, hAv, Matrix.smul_mulVec, Matrix.one_mulVec] at this
-    rw [← this]
-    funext i
-    simp [w, toReal, Matrix.mulVec, dotProduct]
+    have hcast : A.map (Int.cast : ℤ → ℝ) *ᵥ v = fun _ => (1 : ℝ) := funext fun k => htight k
+    have hcramer := Matrix.intCast_cramer_eq_det_smul (c := fun _ => (1 : ℤ))
+      (by simpa only [Int.cast_one] using hcast)
+    simpa only [Matrix.cramer_eq_adjugate_mulVec, toReal, w] using hcramer
   refine ⟨A.det.sign • w, fun j => ?_, fun i => ?_⟩
   · have hreal : ((R j ⬝ᵥ (A.det.sign • w) : ℤ) : ℝ) =
         ((|A.det| : ℤ) : ℝ) * (toReal (R j) ⬝ᵥ v) := by
@@ -272,17 +243,19 @@ theorem exists_int_point (R : ι → Fin m → ℤ) (hR : ∀ j i, |R j i| ≤ 1
       _ = m * m.factorial := by simp
 
 /-- The dot product with an appended last coordinate. -/
-theorem snoc_dotProduct_snoc {R : Type*} [CommSemiring R] {N : ℕ} (x y : Fin N → R) (a b : R) :
+private theorem snoc_dotProduct_snoc {R : Type*} [CommSemiring R] {N : ℕ} (x y : Fin N → R)
+    (a b : R) :
     (Fin.snoc x a : Fin (N + 1) → R) ⬝ᵥ Fin.snoc y b = x ⬝ᵥ y + a * b := by
   simp [dotProduct, Fin.sum_univ_castSucc]
 
 /-- The weight bound `(N + 1) · (N + 1)!` of `N`-input threshold functions. -/
-def weightBound (N : ℕ) : ℕ := (N + 1) * (N + 1).factorial
+@[expose] def weightBound (N : ℕ) : ℕ := (N + 1) * (N + 1).factorial
 
-/-- **Muroga's small weights** [Muroga][Muroga1971]: a threshold
+/-- Small-weight step for a majority gate with repeated wires. A threshold
 function with nonnegative integer weights `c` and threshold `t` on `N` inputs is also a strict
 threshold function with integer weights and threshold of absolute value at most
-`(N + 1) · (N + 1)!`. -/
+`(N + 1) · (N + 1)!`. The non-strict natural cutoff includes ties, while the signed realization
+uses a strict cutoff. Håstad’s signed-input Theorem 3.2 [Hastad1994] gives a sharper bound. -/
 theorem exists_small_threshold {N : ℕ} (c : Fin N → ℕ) (t : ℕ) :
     ∃ (u : Fin N → ℤ) (θ : ℤ), (∀ i, |u i| ≤ weightBound N) ∧ |θ| ≤ weightBound N ∧
       ∀ x : Fin N → Bool, (t ≤ ∑ i, c i * (x i).toNat ↔ θ < ∑ i, u i * (x i).toNat) := by

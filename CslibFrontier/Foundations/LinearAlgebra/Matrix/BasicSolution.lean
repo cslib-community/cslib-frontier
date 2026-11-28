@@ -12,7 +12,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegativeForm
 public import Mathlib.Data.Nat.Factorial.Basic
 import Mathlib.Algebra.Order.Group.MinMax
 import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
-import Mathlib.LinearAlgebra.Matrix.Adjugate
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Cramer
 import Mathlib.LinearAlgebra.Matrix.ToLinearEquiv
 import Mathlib.LinearAlgebra.Matrix.DotProduct
 
@@ -181,26 +181,6 @@ private theorem exists_gram_system [DecidableEq n] {A : Matrix m n ℤ} {b : m �
     · exact (abs_sum_mul_le (fun i => hA i j) (fun i => hA i k)).trans (by push_cast; linarith)
     · exact abs_one.trans_le (by exact_mod_cast Nat.le_add_left 1 _)
     · exact abs_zero.trans_le (Nat.cast_nonneg _)
-
-omit [Fintype m] in
-/-- **Cramer's rule over an extension.** If the integer system `G *ᵥ y = c` holds after casting
-into a commutative ring `R`, then the cast of Cramer's integer vector `cramer G c` is
-`det G • y`. -/
-private theorem intCast_cramer_eq_det_smul {R : Type*} [CommRing R] [DecidableEq n]
-    {G : Matrix n n ℤ} {c : n → ℤ} {y : n → R}
-    (hGy : G.map (Int.cast : ℤ → R) *ᵥ y = fun j => (c j : R)) :
-    (fun j => (cramer G c j : R)) = (G.det : R) • y := by
-  have h := (Int.castRingHom R).map_mulVec (adjugate G) c
-  simp only [eq_intCast, Int.coe_castRingHom] at h
-  have hadj : (adjugate G).map (Int.cast : ℤ → R) = adjugate (G.map Int.cast) :=
-    (Int.castRingHom R).map_adjugate G
-  have hdet : ((G.det : ℤ) : R) = (G.map (Int.cast : ℤ → R)).det := (Int.castRingHom R).map_det G
-  calc (fun j => (cramer G c j : R))
-      = (adjugate G).map (Int.cast : ℤ → R) *ᵥ fun j => (c j : R) := by
-        rw [cramer_eq_adjugate_mulVec]
-        exact funext h
-    _ = (G.det : R) • y := by
-        rw [← hGy, mulVec_mulVec, hadj, adjugate_mul, smul_mulVec, one_mulVec, hdet]
 
 /-- **Small basic solutions.** If an integer system `A *ᵥ x = b` with entries of absolute value at
 most `B` has a nonnegative solution over some linearly ordered field, then it has a nonnegative

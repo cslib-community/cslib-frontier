@@ -34,6 +34,7 @@ public import CslibFrontier.Algorithms.WordRAM.PPSZ.Odometer
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Call
 public import CslibFrontier.GameTheory.LoadBalancing.BallsIntoBins
 public import CslibFrontier.Foundations.Computability.RecursiveInJoin
+public import CslibFrontier.Computability.Circuit.Boolean.TCSubsetNC
 public import CslibFrontier.Probability.PMF.Coupling
 public import CslibFrontier.Computability.WordRAM.Realization.WhileAbsorb
 public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
@@ -860,6 +861,7 @@ public import CslibFrontier.Algorithms.LatticeReduction.NearestPlane
 public import CslibFrontier.Foundations.RelationAlgebra.AtomicNetwork
 public import CslibFrontier.Algorithms.WordRAM.Dijkstra.Fibonacci
 public import CslibFrontier.Computability.DecisionTree.SpectralNorm
+public import CslibFrontier.Computability.Circuit.Boolean.IntThreshold
 public import CslibFrontier.Logics.Propositional.Resolution
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.MeanTail
 public import CslibFrontier.Foundations.Analysis.ODE.StateSpace
@@ -1034,6 +1036,7 @@ public import CslibFrontier.Crypto.Game.FourHop
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.PrvSim
 public import CslibFrontier.Computability.PointerMachine.WordRAM.Compiler
 public import CslibFrontier.Computability.Circuit.Boolean.BarringtonClass
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Cramer
 public import CslibFrontier.Algorithms.Lean.StableMatching.Basic
 public import CslibFrontier.Foundations.Data.Nat.RecursionTree
 public import CslibFrontier.Computability.Circuit.Frontier.Multigraph
@@ -6341,6 +6344,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Tapered
 public import CslibFrontier.Crypto.Computational.Homomorphic.Circuit.PolyTime
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.FixedPrime.Indexing
 public import CslibFrontier.Computability.Complexity.Problems.NCL.HWord.Metadata.Input
+public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.SmallWeights
 public import CslibFrontier.Computability.Distributed.SharedMemory.Universal
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Space
 public import CslibFrontier.Logics.Propositional.CSP.ExactlyOne

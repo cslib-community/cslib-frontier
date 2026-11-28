@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Bolton Bailey. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Bolton Bailey
+Authors: Bolton Bailey, Samuel Schlesinger
 -/
 
 module
@@ -18,8 +18,7 @@ import Mathlib.Data.Nat.Size
 
 An integer threshold gate (`Cslib.Circuits.Boolean.IntThreshold.Op`) is true when `∑ uᵢ xᵢ > θ`.
 Reading each input with a negative weight as its negation, the condition becomes `T ≤ ∑ |uᵢ| ℓᵢ`
-for the literals `ℓᵢ` and a target `T`
-(`Cslib.Circuits.Boolean.IntThreshold.Op.interpretation_iff`).
+for the literals `ℓᵢ` and a target `T`.
 With `W` bits for the sum and the target, the masked words `|uᵢ| · ℓᵢ` and the offset `2 ^ W - T`
 are summed by a balanced carry-save tree with a logarithmic-depth finishing adder
 (`Cslib.Circuits.Boolean.sumPairs`), and bit `W` of the result decides the gate
@@ -47,7 +46,7 @@ are summed by a balanced carry-save tree with a logarithmic-depth finishing adde
 * [R. E. Ladner, M. J. Fischer, *Parallel prefix computation*][LadnerFischer1980]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Boolean
 
@@ -68,7 +67,7 @@ structure Op where
 abbrev signature : Signature := ⟨Op, Op.arity⟩
 
 /-- An integer threshold gate is true when the weighted sum of its inputs exceeds its bias. -/
-def interpretation : Interpretation signature Bool :=
+@[expose] def interpretation : Interpretation signature Bool :=
   fun op x => decide (op.bias < ∑ i, op.weight i * ((x i).toNat : ℤ))
 
 namespace Op
@@ -76,25 +75,25 @@ namespace Op
 variable (op : Op)
 
 /-- The absolute value of a weight. -/
-def absWeight (i : Fin op.arity) : ℕ := (op.weight i).natAbs
+private def absWeight (i : Fin op.arity) : ℕ := (op.weight i).natAbs
 
 /-- The total absolute weight of the negative inputs. -/
-def negMass : ℕ := ∑ i, if op.weight i < 0 then op.absWeight i else 0
+private def negMass : ℕ := ∑ i, if op.weight i < 0 then op.absWeight i else 0
 
 /-- The threshold on the sum of the absolute weights of the true literals. -/
-def target : ℤ := op.bias + op.negMass + 1
+private def target : ℤ := op.bias + op.negMass + 1
 
 /-- The word width: every literal sum and the target are below `2 ^ width`. -/
 def width : ℕ := Nat.size (∑ i, op.absWeight i + op.target.toNat)
 
 /-- The literal of input `i`: the input itself for a nonnegative weight and its negation
 otherwise. -/
-def literal (i : Fin op.arity) (x : Fin op.arity → Bool) : Bool :=
+private def literal (i : Fin op.arity) (x : Fin op.arity → Bool) : Bool :=
   if 0 ≤ op.weight i then x i else !x i
 
 /-- **The threshold through literals**: the weighted sum exceeds the bias exactly when the
 absolute weights of the true literals sum to at least the target. -/
-theorem interpretation_iff (x : Fin op.arity → Bool) :
+private theorem interpretation_iff (x : Fin op.arity → Bool) :
     interpretation op x = decide (op.target ≤
       ((∑ i, op.absWeight i * (op.literal i x).toNat : ℕ) : ℤ)) := by
   have hsum : ∑ i, op.weight i * ((x i).toNat : ℤ) =
@@ -115,7 +114,7 @@ theorem interpretation_iff (x : Fin op.arity → Bool) :
 /-! ### The circuit -/
 
 /-- A natural number below `2 ^ w` is the value of its first `w` binary digits. -/
-theorem sum_testBit_mul_two_pow {w a : ℕ} (ha : a < 2 ^ w) :
+private theorem sum_testBit_mul_two_pow {w a : ℕ} (ha : a < 2 ^ w) :
     ∑ b : Fin w, (a.testBit b).toNat * 2 ^ (b : ℕ) = a := by
   have := val_equivFin_eq_sum ((equivFin w).symm ⟨a, ha⟩)
   simp only [Equiv.apply_symm_apply, equivFin_symm_apply] at this
@@ -123,7 +122,7 @@ theorem sum_testBit_mul_two_pow {w a : ℕ} (ha : a < 2 ^ w) :
 
 /-- Bit `w` of a number below `2 ^ (w + 1)` is set exactly when the number is at least
 `2 ^ w`. -/
-theorem testBit_eq_decide_le {w n : ℕ} (hn : n < 2 ^ (w + 1)) :
+private theorem testBit_eq_decide_le {w n : ℕ} (hn : n < 2 ^ (w + 1)) :
     n.testBit w = decide (2 ^ w ≤ n) := by
   rw [Nat.testBit_eq_decide_div_mod_eq]
   have hlt : n / 2 ^ w < 2 := by
@@ -137,26 +136,26 @@ theorem testBit_eq_decide_le {w n : ℕ} (hn : n < 2 ^ (w + 1)) :
     omega
 
 /-- The sum of all absolute weights and the target is below `2 ^ width`. -/
-theorem lt_two_pow_width : ∑ i, op.absWeight i + op.target.toNat < 2 ^ op.width :=
+private theorem lt_two_pow_width : ∑ i, op.absWeight i + op.target.toNat < 2 ^ op.width :=
   Nat.lt_size_self _
 
 /-- The circuit of the literal of input `i`. -/
-def literalCircuit (i : Fin op.arity) : Circuit Boolean.signature op.arity 1 :=
+private def literalCircuit (i : Fin op.arity) : Circuit Boolean.signature op.arity 1 :=
   if 0 ≤ op.weight i then Circuit.wiring Boolean.signature fun _ => i
   else Circuit.oneGate .not fun _ => i
 
-theorem eval_literalCircuit (i : Fin op.arity) (x : Fin op.arity → Bool) :
+private theorem eval_literalCircuit (i : Fin op.arity) (x : Fin op.arity → Bool) :
     (op.literalCircuit i).eval Boolean.interpretation x 0 = op.literal i x := by
   simp only [literalCircuit, literal]
   split_ifs <;> rfl
 
 /-- Bit `b` of the masked word of input `i`: bit `b` of its absolute weight if its literal is
 true, and `false` otherwise. -/
-def bitCircuit (i : Fin op.arity) (b : ℕ) : Circuit Boolean.signature op.arity 1 :=
+private def bitCircuit (i : Fin op.arity) (b : ℕ) : Circuit Boolean.signature op.arity 1 :=
   if (op.absWeight i).testBit b then op.literalCircuit i
   else Circuit.oneGate (.const false) Fin.elim0
 
-theorem eval_bitCircuit (i : Fin op.arity) (b : ℕ) (x : Fin op.arity → Bool) :
+private theorem eval_bitCircuit (i : Fin op.arity) (b : ℕ) (x : Fin op.arity → Bool) :
     (op.bitCircuit i b).eval Boolean.interpretation x 0 =
       ((op.absWeight i).testBit b && op.literal i x) := by
   simp only [bitCircuit]
@@ -168,10 +167,10 @@ theorem eval_bitCircuit (i : Fin op.arity) (b : ℕ) (x : Fin op.arity → Bool)
 
 /-- The masked word of input `i`: its absolute weight when its literal is true, and `0`
 otherwise, in `width + 1` bits. -/
-def maskWord (i : Fin op.arity) : Circuit Boolean.signature op.arity (op.width + 1) :=
+private def maskWord (i : Fin op.arity) : Circuit Boolean.signature op.arity (op.width + 1) :=
   Circuit.pi fun b => op.bitCircuit i b
 
-theorem val_eval_maskWord (i : Fin op.arity) (x : Fin op.arity → Bool) :
+private theorem val_eval_maskWord (i : Fin op.arity) (x : Fin op.arity → Bool) :
     (equivFin (op.width + 1) ((op.maskWord i).eval Boolean.interpretation x) : ℕ) =
       op.absWeight i * (op.literal i x).toNat := by
   have ha : op.absWeight i < 2 ^ (op.width + 1) := by
@@ -188,27 +187,28 @@ theorem val_eval_maskWord (i : Fin op.arity) (x : Fin op.arity → Bool) :
     exact sum_testBit_mul_two_pow ha
 
 /-- The offset `2 ^ width - target` added to the literal sum. -/
-def offset : ℕ := 2 ^ op.width - op.target.toNat
+private def offset : ℕ := 2 ^ op.width - op.target.toNat
 
-theorem offset_lt : op.offset < 2 ^ (op.width + 1) := by
+private theorem offset_lt : op.offset < 2 ^ (op.width + 1) := by
   have : 2 ^ op.width ≤ 2 ^ (op.width + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
   have : 0 < 2 ^ op.width := by positivity
   simp only [offset]
   omega
 
 /-- The constant word of the offset. -/
-def offsetWord : Circuit Boolean.signature op.arity (op.width + 1) :=
+private def offsetWord : Circuit Boolean.signature op.arity (op.width + 1) :=
   wordConstCircuit op.arity ((equivFin (op.width + 1)).symm ⟨op.offset, op.offset_lt⟩)
 
 /-- The carry-save summands: the masked words and the offset. -/
-def summands : List (Circuit Boolean.signature op.arity ((op.width + 1) + (op.width + 1))) :=
+private def summands :
+    List (Circuit Boolean.signature op.arity ((op.width + 1) + (op.width + 1))) :=
   List.ofFn (fun i => pairWithZero (op.maskWord i)) ++ [pairWithZero op.offsetWord]
 
 /-- The sum of the masked words and the offset. -/
-def sumCircuit : Circuit Boolean.signature op.arity (op.width + 1) :=
+private def sumCircuit : Circuit Boolean.signature op.arity (op.width + 1) :=
   sumPairs op.arity (op.width + 1) op.summands
 
-theorem val_eval_sumCircuit (x : Fin op.arity → Bool) :
+private theorem val_eval_sumCircuit (x : Fin op.arity → Bool) :
     (equivFin (op.width + 1) (op.sumCircuit.eval Boolean.interpretation x) : ℕ) =
       ∑ i, op.absWeight i * (op.literal i x).toNat + op.offset := by
   have hlt : ∑ i, op.absWeight i * (op.literal i x).toNat + op.offset < 2 ^ (op.width + 1) := by
@@ -264,36 +264,36 @@ theorem eval_deMorganCircuit (x : Fin op.arity → Bool) :
 
 /-! ### Size and depth -/
 
-theorem size_literalCircuit_le (i : Fin op.arity) : (op.literalCircuit i).size ≤ 1 := by
+private theorem size_literalCircuit_le (i : Fin op.arity) : (op.literalCircuit i).size ≤ 1 := by
   simp only [literalCircuit]
   split_ifs <;> simp
 
-theorem depth_literalCircuit_le (i : Fin op.arity) : (op.literalCircuit i).depth ≤ 1 := by
+private theorem depth_literalCircuit_le (i : Fin op.arity) : (op.literalCircuit i).depth ≤ 1 := by
   simp only [literalCircuit]
   split_ifs <;> simp
 
-theorem size_bitCircuit_le (i : Fin op.arity) (b : ℕ) : (op.bitCircuit i b).size ≤ 1 := by
+private theorem size_bitCircuit_le (i : Fin op.arity) (b : ℕ) : (op.bitCircuit i b).size ≤ 1 := by
   simp only [bitCircuit]
   split_ifs
   · exact op.size_literalCircuit_le i
   · simp
 
-theorem depth_bitCircuit_le (i : Fin op.arity) (b : ℕ) : (op.bitCircuit i b).depth ≤ 1 := by
+private theorem depth_bitCircuit_le (i : Fin op.arity) (b : ℕ) : (op.bitCircuit i b).depth ≤ 1 := by
   simp only [bitCircuit]
   split_ifs
   · exact op.depth_literalCircuit_le i
   · simp
 
-theorem size_maskWord_le (i : Fin op.arity) : (op.maskWord i).size ≤ op.width + 1 := by
+private theorem size_maskWord_le (i : Fin op.arity) : (op.maskWord i).size ≤ op.width + 1 := by
   rw [maskWord, Circuit.size_pi]
   calc ∑ j : Fin (op.width + 1), (op.bitCircuit i j).size
       ≤ ∑ _j : Fin (op.width + 1), 1 := Finset.sum_le_sum fun j _ => op.size_bitCircuit_le i j
     _ = op.width + 1 := by simp
 
-theorem depth_maskWord_le (i : Fin op.arity) : (op.maskWord i).depth ≤ 1 :=
+private theorem depth_maskWord_le (i : Fin op.arity) : (op.maskWord i).depth ≤ 1 :=
   Circuit.depth_pi_le _ fun b => op.depth_bitCircuit_le i b
 
-theorem size_sumCircuit_le :
+private theorem size_sumCircuit_le :
     op.sumCircuit.size ≤ 21 * (op.width + 2) ^ 2 + 4 + op.arity * (op.width + 2) +
       (op.arity + 1) * (40 * (op.width + 1)) := by
   refine (size_sumPairs_le _).trans ?_
@@ -309,7 +309,7 @@ theorem size_sumCircuit_le :
   rw [hlen]
   nlinarith
 
-theorem depth_sumCircuit_le :
+private theorem depth_sumCircuit_le :
     op.sumCircuit.depth ≤ 9 + 2 * Nat.clog 2 (op.width + 2) + 12 * Nat.clog 2 (op.arity + 1) := by
   have hD : ∀ C ∈ op.summands, C.depth ≤ 1 := by
     intro C hC
