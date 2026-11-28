@@ -23,11 +23,11 @@ hinted `rup C : hints;` of the kernel format (§5.2.1 of the VeriPB/CakePB docum
 
 The engine is untrusted: it has no correctness theorem, and the hints it returns are checked by
 the kernel checker (`Cslib.Logic.PL.VeriPB.rup`). It is written for compiled execution: its state
-is one value, private to this module, held by a mutable reference in `ST` and updated in place by
-pure functions while it is uniquely referenced, and the kernel cannot evaluate it. The engine's
-interface is `Cslib.Logic.PL.VeriPB.Elab.Engine.new` and the operations `add`, `kill`, `rupHints`
-and `extend`. Its loops are total: those over arrays by well-founded recursion, and the
-processing of the trail and the conflict analysis with fuel above the length the trail can reach.
+is one value, private to this module, updated in place by pure functions while it is uniquely
+referenced. The engine's interface is `Cslib.Logic.PL.VeriPB.Elab.Engine.new` and the
+operations `add`, `kill`, `rupHints` and `extend`, pure functions too. Its loops are total: those
+over arrays by well-founded recursion, and the processing of the trail and the conflict analysis
+with fuel above the length the trail can reach.
 
 **Data.** A constraint is stored as its literal codes (`2 i` for the `i`-th variable met, `2 i + 1`
 for its negation) and coefficients, sorted by decreasing coefficient, in two arrays shared by all
@@ -133,14 +133,15 @@ private structure EState where
   /-- Marks on variables, for the conflict analysis; all clear between analyses. -/
   seen : ByteArray := .empty
 
-/-- The propagation engine: its state, as a mutable reference. The state and its transitions are
-private; the engine is used through `new`, `add`, `kill`, `rupHints` and `extend`. -/
+/-- The propagation engine: its state, a value updated in place while it is uniquely referenced.
+The state and its transitions are private; the engine is used through `new`, `add`, `kill`,
+`rupHints` and `extend`. -/
 -- `structureInType` cannot read a private field from outside this module and fails on it.
 @[nolint structureInType]
-structure Engine (σ : Type) where
+structure Engine where
   private mk ::
   /-- The state. -/
-  private st : ST.Ref σ EState
+  private st : EState
 
 /-- The value of a literal code: `0` unassigned, `1` true, `2` false. -/
 @[inline] private def litVal (value : ByteArray) (code : ℕ) : UInt8 := value.get! code
@@ -635,32 +636,33 @@ end EState
 
 namespace Engine
 
-variable {σ : Type}
-
 /-- A new empty engine. -/
-def new : ST σ (Engine σ) := return ⟨← ST.mkRef {}⟩
+def new : Engine := ⟨{}⟩
 
 /-- Add a constraint at the root level, named by the kernel hint `h`, and propagate it there;
 returns its engine index. -/
-def add (e : Engine σ) (c : PBConstr) (h : Hint) : ST σ ℕ :=
-  e.st.modifyGet fun s => let (s, i) := s.add c h; (i, s)
+def add (e : Engine) (c : PBConstr) (h : Hint) : Engine × ℕ :=
+  let (s, i) := e.st.add c h
+  (⟨s⟩, i)
 
 /-- Delete the constraint with engine index `i`; the root level is rebuilt before the next
 step if the constraint was the reason of a root propagation or a root conflict. -/
-def kill (e : Engine σ) (i : ℕ) : ST σ Unit := e.st.modify (·.kill i)
+def kill (e : Engine) (i : ℕ) : Engine := ⟨e.st.kill i⟩
 
 /-- **The hints of `rup C`**, given the negation `neg` of `C`: propagate the database and `neg`,
 and on a conflict return the reasons of the literals the conflict needs, in trail order, then
 the conflicting constraint, `neg` being named `~`. Returns `none` when propagation reaches no
 conflict. The negation is removed again. -/
-def rupHints (e : Engine σ) (neg : PBConstr) : ST σ (Option (Array Hint)) :=
-  e.st.modifyGet fun s => let (s, r) := s.rupHints neg; (r, s)
+def rupHints (e : Engine) (neg : PBConstr) : Engine × Option (Array Hint) :=
+  let (s, r) := e.st.rupHints neg
+  (⟨s⟩, r)
 
 /-- **Extend a partial assignment by propagation**, as VeriPB does for a logged solution
 (§5.8.1): make the literals `ls` true, propagate the database, and return every assigned
 literal; `none` on a conflict. -/
-def extend (e : Engine σ) (ls : List (Literal ℕ)) : ST σ (Option (Array (Literal ℕ))) :=
-  e.st.modifyGet fun s => let (s, r) := s.extend ls; (r, s)
+def extend (e : Engine) (ls : List (Literal ℕ)) : Engine × Option (Array (Literal ℕ)) :=
+  let (s, r) := e.st.extend ls
+  (⟨s⟩, r)
 
 end Engine
 

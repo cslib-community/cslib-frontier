@@ -74,9 +74,13 @@ order of terms.
 **Totality.** Every function of the elaborator, its parser and its propagation engine is total,
 by structural or well-founded recursion. The loops over the proof text and over the trail of the
 engine take fuel, chosen above the number of bytes of the text and the number of literal codes:
-each round consumes a token or a trail entry, so the fuel does not run out. Faithfulness and
-completeness of `elaborate` against the declarative semantics of the augmented format
-(`Cslib.Logic.PL.VeriPB.Elab.AugValid`, for the clausal and `pol` fragment) remain open (#8782).
+each round consumes a token or a trail entry, so the fuel does not run out. Its state, that of
+the lexer and of the propagation engine included, is a value threaded through a state monad and
+updated in place while it is uniquely referenced, not a mutable reference in `ST`, whose
+operations are opaque to proofs. So `Cslib.Logic.PL.VeriPB.Elab.elaborate` is a function with
+equations, as proofs of its faithfulness and completeness against the declarative semantics of
+the augmented format (`Cslib.Logic.PL.VeriPB.Elab.AugValid`, for the clausal and `pol` fragment)
+need; both remain open (#8782).
 
 **Not elaborated**: `rup` without hints inside `def_order` (the kernel checker accepts it, as
 `Cslib.Logic.PL.VeriPB.Step.rupSearch`; CakePB does not), solutions with shrunk variables
@@ -155,64 +159,180 @@ private structure Entry where
 
 private instance : Inhabited Entry := ⟨⟨⟨[], 0⟩, 0, 0, false, false, (#[], 0)⟩⟩
 
-/-- The state of the elaborator, as mutable references. -/
-private structure St (σ : Type) where
-  /-- The lexer. -/
-  L : Lexer σ
+/-- The state of the elaborator: a value, updated in place while it is uniquely referenced. -/
+private structure Ext where
+  /-- The state of the lexer. -/
+  lex : LexState
   /-- The propagation engine. -/
-  eng : Engine σ
+  eng : Engine
   /-- The database, by augmented number; index `0` is unused. -/
-  db : ST.Ref σ (Array Entry)
+  db : Array Entry
   /-- The next kernel number. -/
-  kerNext : ST.Ref σ ℕ
+  kerNext : ℕ
   /-- The labels. -/
-  labels : ST.Ref σ (Std.HashMap String ℕ)
+  labels : Std.HashMap String ℕ
   /-- For each canonical form, the live constraints with it and the kill counter of `del spec`
   (§5.7.3). -/
-  specs : ST.Ref σ (Std.HashMap Key (Array ℕ × ℕ))
+  specs : Std.HashMap Key (Array ℕ × ℕ)
   /-- The constraints tagged with each level (§5.7.2). -/
-  levels : ST.Ref σ (Std.HashMap ℤ (Array ℕ))
+  levels : Std.HashMap ℤ (Array ℕ)
   /-- The current level. -/
-  level : ST.Ref σ (Option ℤ)
+  level : Option ℤ
   /-- The current objective. -/
-  obj : ST.Ref σ (Option Objective)
+  obj : Option Objective
   /-- The current preserved set. -/
-  pres : ST.Ref σ (Option (List ℕ))
+  pres : Option (List ℕ)
   /-- The defined orders. -/
-  orders : ST.Ref σ (Std.HashMap String Order)
+  orders : Std.HashMap String Order
   /-- The loaded order. -/
-  order : ST.Ref σ (Option LoadedOrder)
+  order : Option LoadedOrder
   /-- Strengthening-to-core mode. -/
-  tcb : ST.Ref σ Bool
+  tcb : Bool
   /-- The constraints containing each variable, live or not, for the goals of a witness. -/
-  varOcc : ST.Ref σ (Std.HashMap ℕ (Array ℕ))
+  varOcc : Std.HashMap ℕ (Array ℕ)
 
 /-- The elaborator monad. -/
-private abbrev EM (σ : Type) := ExceptT String (ST σ)
+private abbrev EM := EStateM String Ext
+
+/-- Run a step of the parser, on the state of the lexer taken out of the state, so that it is
+updated in place. -/
+@[inline] private def liftPM {α : Type} (x : PM α) : EM α := fun
+  | ⟨lex, eng, db, kerNext, labels, specs, levels, level, obj, pres, orders, order, tcb, varOcc⟩ =>
+    match x lex with
+    | .ok a lex =>
+      .ok a ⟨lex, eng, db, kerNext, labels, specs, levels, level, obj, pres, orders, order, tcb,
+        varOcc⟩
+    | .error e lex =>
+      .error e ⟨lex, eng, db, kerNext, labels, specs, levels, level, obj, pres, orders, order, tcb,
+        varOcc⟩
+
+private instance : MonadLift PM EM := ⟨liftPM⟩
+
+/-- The elaborator's handle on the proof text, whose state is that of `EM`. -/
+private structure St where
+  /-- The lexer. -/
+  L : Lexer
+
+/-- A field of the elaborator's state. -/
+private structure Field (α : Type) where
+  /-- Read the field. -/
+  read : Ext → α
+  /-- Write the field. -/
+  write : α → Ext → Ext
+
+namespace Field
+
+variable {α : Type}
+
+/-- The value of the field. -/
+@[inline] private def get (f : Field α) : EM α := fun e => .ok (f.read e) e
+
+/-- Set the field. -/
+@[inline] private def set (f : Field α) (a : α) : EM Unit := fun e => .ok () (f.write a e)
+
+/-- Change the field. -/
+@[inline] private def modify (f : Field α) (g : α → α) : EM Unit :=
+  fun e => .ok () (f.write (g (f.read e)) e)
+
+end Field
 
 namespace St
 
-variable {σ : Type}
+/-- The field `db` of the state. -/
+@[inline] private def db (_ : St) : Field (Array Entry) := ⟨(·.db), fun a e => { e with db := a }⟩
+
+/-- The field `kerNext` of the state. -/
+@[inline] private def kerNext (_ : St) : Field (ℕ) :=
+    ⟨(·.kerNext), fun a e => { e with kerNext := a }⟩
+
+/-- The field `labels` of the state. -/
+@[inline] private def labels (_ : St) : Field (Std.HashMap String ℕ) :=
+    ⟨(·.labels), fun a e => { e with labels := a }⟩
+
+/-- The field `specs` of the state. -/
+@[inline] private def specs (_ : St) : Field (Std.HashMap Key (Array ℕ × ℕ)) :=
+    ⟨(·.specs), fun a e => { e with specs := a }⟩
+
+/-- The field `levels` of the state. -/
+@[inline] private def levels (_ : St) : Field (Std.HashMap ℤ (Array ℕ)) :=
+    ⟨(·.levels), fun a e => { e with levels := a }⟩
+
+/-- The field `level` of the state. -/
+@[inline] private def level (_ : St) : Field (Option ℤ) :=
+    ⟨(·.level), fun a e => { e with level := a }⟩
+
+/-- The field `obj` of the state. -/
+@[inline] private def obj (_ : St) : Field (Option Objective) :=
+    ⟨(·.obj), fun a e => { e with obj := a }⟩
+
+/-- The field `pres` of the state. -/
+@[inline] private def pres (_ : St) : Field (Option (List ℕ)) :=
+    ⟨(·.pres), fun a e => { e with pres := a }⟩
+
+/-- The field `orders` of the state. -/
+@[inline] private def orders (_ : St) : Field (Std.HashMap String Order) :=
+    ⟨(·.orders), fun a e => { e with orders := a }⟩
+
+/-- The field `order` of the state. -/
+@[inline] private def order (_ : St) : Field (Option LoadedOrder) :=
+    ⟨(·.order), fun a e => { e with order := a }⟩
+
+/-- The field `tcb` of the state. -/
+@[inline] private def tcb (_ : St) : Field (Bool) := ⟨(·.tcb), fun a e => { e with tcb := a }⟩
+
+/-- The field `varOcc` of the state. -/
+@[inline] private def varOcc (_ : St) : Field (Std.HashMap ℕ (Array ℕ)) :=
+    ⟨(·.varOcc), fun a e => { e with varOcc := a }⟩
+
+/-- Apply `f` to the propagation engine, taken out of the state, so that it is updated in place. -/
+@[inline] private def withEng {α : Type} (_ : St) (f : Engine → Engine × α) : EM α := fun
+  | ⟨lex, eng, db, kerNext, labels, specs, levels, level, obj, pres, orders, order, tcb, varOcc⟩ =>
+    let (eng, a) := f eng
+    .ok a ⟨lex, eng, db, kerNext, labels, specs, levels, level, obj, pres, orders, order, tcb,
+      varOcc⟩
+
+/-- Add a constraint to the engine (`Cslib.Logic.PL.VeriPB.Elab.Engine.add`). -/
+@[inline] private def engAdd (S : St) (c : PBConstr) (h : Hint) : EM ℕ :=
+  S.withEng (·.add c h)
+
+/-- Delete a constraint from the engine (`Cslib.Logic.PL.VeriPB.Elab.Engine.kill`). -/
+@[inline] private def engKill (S : St) (i : ℕ) : EM Unit := S.withEng fun e => (e.kill i, ())
+
+/-- The hints of `rup` from the engine (`Cslib.Logic.PL.VeriPB.Elab.Engine.rupHints`). -/
+@[inline] private def engRupHints (S : St) (neg : PBConstr) : EM (Option (Array Hint)) :=
+  S.withEng (·.rupHints neg)
+
+/-- Extend an assignment by the engine (`Cslib.Logic.PL.VeriPB.Elab.Engine.extend`). -/
+@[inline] private def engExtend (S : St) (ls : List (Literal ℕ)) :
+    EM (Option (Array (Literal ℕ))) :=
+  S.withEng (·.extend ls)
+
+/-- Put the engine `e` in the state, and return the one it replaces. -/
+@[inline] private def swapEng (S : St) (e : Engine) : EM Engine := S.withEng fun e' => (e, e')
+
+end St
+
+namespace St
 
 /-- Fail with a message naming the current line. -/
-private def fail {α : Type} (S : St σ) (msg : String) : EM σ α := Parse.fail S.L msg
+private def fail {α : Type} (S : St) (msg : String) : EM α := liftPM (Parse.fail S.L msg)
 
 /-- Take the next kernel number. -/
-private def takeKid (S : St σ) : EM σ ℕ := do
+private def takeKid (S : St) : EM ℕ := do
   let k ← S.kerNext.get
   S.kerNext.set (k + 1)
   return k
 
 /-- The next augmented number. -/
-private def augNext (S : St σ) : EM σ ℕ := return (← S.db.get).size
+private def augNext (S : St) : EM ℕ := return (← S.db.get).size
 
 /-- Add a constraint, stored by the kernel as `c` under the kernel number `kid`: it takes the
 next augmented number, which is returned. `top` tags it with the current level. Its canonical
 form `key` is computed unless given. -/
-private def add (S : St σ) (c : PBConstr) (kid : ℕ) (core top : Bool) (key? : Option Key := none) :
-    EM σ ℕ := do
+private def add (S : St) (c : PBConstr) (kid : ℕ) (core top : Bool) (key? : Option Key := none) :
+    EM ℕ := do
   let id ← S.augNext
-  let eidx ← S.eng.add c (.id kid)
+  let eidx ← S.engAdd c (.id kid)
   let key := key?.getD (keyOf c)
   S.db.modify (·.push ⟨c, kid, eidx, true, core, key⟩)
   S.varOcc.modify fun m => c.terms.foldl (fun m t => m.alter (termVar t) fun
@@ -229,14 +349,14 @@ private def add (S : St σ) (c : PBConstr) (kid : ℕ) (core top : Bool) (key? :
   return id
 
 /-- The live entry with augmented number `id`. -/
-private def entry (S : St σ) (id : ℕ) : EM σ Entry := do
+private def entry (S : St) (id : ℕ) : EM Entry := do
   let db ← S.db.get
   match db[id]? with
   | some e => if e.alive && id != 0 then return e else S.fail s!"constraint {id} is deleted"
   | none => S.fail s!"no constraint {id}"
 
 /-- The augmented number a reference names. -/
-private def resolve (S : St σ) : Ref → EM σ ℕ
+private def resolve (S : St) : Ref → EM ℕ
   | .abs n => return n
   | .rel k => do
     let n ← S.augNext
@@ -247,26 +367,26 @@ private def resolve (S : St σ) : Ref → EM σ ℕ
     | none => S.fail s!"unknown label {l}"
 
 /-- The live entry a reference names. -/
-private def entryOf (S : St σ) (r : Ref) : EM σ Entry := do S.entry (← S.resolve r)
+private def entryOf (S : St) (r : Ref) : EM Entry := do S.entry (← S.resolve r)
 
 /-- Remove the constraint `id` from the database, the engine and the canonical index. -/
-private def drop (S : St σ) (id : ℕ) : EM σ Unit := do
+private def drop (S : St) (id : ℕ) : EM Unit := do
   let e := (← S.db.get)[id]!
   if !e.alive then return
-  S.eng.kill e.eidx
+  S.engKill e.eidx
   S.db.modify (·.modify id ({ · with alive := false }))
   S.specs.modify fun m => m.alter e.key fun
     | some (ids, k) => some (ids.filter (· != id), k)
     | none => none
 
 /-- Remove the constraints numbered from `start`, the local constraints of a subproof. -/
-private def dropFrom (S : St σ) (start : ℕ) : EM σ Unit := do
+private def dropFrom (S : St) (start : ℕ) : EM Unit := do
   let n ← S.augNext
   for i in [start:n] do S.drop i
 
 /-- A live constraint numbered below `start` equal to `G` up to the order of terms (a core
 constraint if `core`). -/
-private def findBelow (S : St σ) (start : ℕ) (core : Bool) (G : PBConstr) : EM σ (Option ℕ) := do
+private def findBelow (S : St) (start : ℕ) (core : Bool) (G : PBConstr) : EM (Option ℕ) := do
   let db ← S.db.get
   match (← S.specs.get)[keyOf G]? with
   | some (l, _) => return l.find? fun i => i < start && (!core || db[i]!.core)
@@ -274,12 +394,12 @@ private def findBelow (S : St σ) (start : ℕ) (core : Bool) (G : PBConstr) : E
 
 /-- Remove the constraints numbered from `start` and give their numbers back: the premises of a
 goal proved automatically, which take no number in the augmented proof (§5.5). -/
-private def popTo (S : St σ) (start : ℕ) : EM σ Unit := do
+private def popTo (S : St) (start : ℕ) : EM Unit := do
   S.dropFrom start
   S.db.modify (·.shrink start)
 
 /-- The most recent live contradiction numbered from `start`, if any. -/
-private def lastContra (S : St σ) (start : ℕ) : EM σ (Option ℕ) := do
+private def lastContra (S : St) (start : ℕ) : EM (Option ℕ) := do
   let db ← S.db.get
   for k in [0:db.size - start] do
     let i := db.size - 1 - k
@@ -288,24 +408,26 @@ private def lastContra (S : St σ) (start : ℕ) : EM σ (Option ℕ) := do
   return none
 
 /-- The hinted `rup` of the contradiction `0 ≥ 1`, if propagation finds it. -/
-private def rupContra (S : St σ) : EM σ (Option (List Hint)) := do
+private def rupContra (S : St) : EM (Option (List Hint)) := do
   let c : PBConstr := ⟨[], 1⟩
-  return (← S.eng.rupHints c.negate).map (·.toList)
+  return (← S.engRupHints c.negate).map (·.toList)
 
 /-- The kernel deletions of the augmented numbers `ids`, all live: `deld` of the derived ones
 and the unchecked `delc` of the core ones (§5.7.1). -/
-private def kernelDeletions (S : St σ) (ids : Array ℕ) : EM σ (Array TopStep) := do
+private def kernelDeletions (S : St) (ids : Array ℕ) : EM (Array TopStep) := do
+  for i in ids do S.drop i
+  -- Read after the deletions, which keep the kernel numbers and types: a copy of the database
+  -- held across them would be copied by each.
   let db ← S.db.get
   let ds := ids.filter (!db[·]!.core) |>.map (db[·]!.kid)
   let cs := ids.filter (db[·]!.core) |>.map (db[·]!.kid)
-  for i in ids do S.drop i
   return (if ds.isEmpty then #[] else #[.deld ds.toList]) ++
     (if cs.isEmpty then #[] else #[.delc cs.toList])
 
 /-- **Deletion by reference** of the augmented numbers `ids` (§5.7.2, §5.7.3): each is taken off
 its canonical form; a form whose kill counter then reaches the number of its copies loses all of
 them. -/
-private def deleteRefs (S : St σ) (ids : List ℕ) : EM σ (Array TopStep) := do
+private def deleteRefs (S : St) (ids : List ℕ) : EM (Array TopStep) := do
   let mut out : Array ℕ := #[]
   let mut keys : Array Key := #[]
   for i in ids do
@@ -326,7 +448,7 @@ private def deleteRefs (S : St σ) (ids : List ℕ) : EM σ (Array TopStep) := d
   S.kernelDeletions out
 
 /-- **Deletion by specification** of `c` (§5.7.2, §5.7.3). -/
-private def deleteSpec (S : St σ) (c : PBConstr) : EM σ (Array TopStep) := do
+private def deleteSpec (S : St) (c : PBConstr) : EM (Array TopStep) := do
   let key := keyOfParsed c
   match (← S.specs.get)[key]? with
   | some (l, k) =>
@@ -474,36 +596,34 @@ private def mir (c : PBConstr) (d : ℕ) (vf : Bool) : Option (PBConstr × List 
 
 namespace St
 
-variable {σ : Type}
-
 /-- A variable not in the terms `ts`, for the `pol` operation `-`: the one after their largest
 variable if it has a name, else the least named variable not in them, else a new variable
 (`Cslib.Logic.PL.VeriPB.Elab.Lexer.fresh`). So the kernel proof names every variable it uses. -/
-private def lowerVar (S : St σ) (ts : List (ℕ × Literal ℕ)) : EM σ ℕ := do
+private def lowerVar (S : St) (ts : List (ℕ × Literal ℕ)) : EM ℕ := do
   let n ← S.L.nextVar
   let c : PBConstr := ⟨ts, 0⟩
   if freshVar c < n then return freshVar c
   let vs : Std.HashSet ℕ := ts.foldl (fun m t => m.insert (termVar t)) {}
   for v in [0:n] do
     if !vs.contains v then return v
-  S.L.fresh
+  liftPM S.L.fresh
 
 /-- The trivial constraint `0 ≥ 0`, as `x + ¬x`. -/
-private def trivial (S : St σ) : EM σ PVal := do
+private def trivial (S : St) : EM PVal := do
   let x ← S.lowerVar []
   return ⟨fadd (litKey (x, true)) (litKey (x, false)), #[.lit (x, true), .lit (x, false), .add]⟩
 
 /-- The kernel operations pushing a value, as one operation if possible: a `pol` step deriving
 it is emitted otherwise, into `pre`. -/
-private def asSingle (S : St σ) (v : PVal) (pre : Array Step) : EM σ (PVal × Array Step) := do
+private def asSingle (S : St) (v : PVal) (pre : Array Step) : EM (PVal × Array Step) := do
   if v.ops.size == 1 then return (v, pre)
   let k ← S.takeKid
   return (⟨v.k, #[.id k]⟩, pre.push (.pol v.ops.toList))
 
 /-- **A mixed-integer-rounding cut** of the value `v` with divisor `d`, in variable form if
 `vf`: a `pbc` step for the cut, emitted into `pre`, whose subproof refutes its negation. -/
-private def mirStep (S : St σ) (v : PVal) (d : ℕ) (vf : Bool) (pre : Array Step) :
-    EM σ (PVal × Array Step) := do
+private def mirStep (S : St) (v : PVal) (d : ℕ) (vf : Bool) (pre : Array Step) :
+    EM (PVal × Array Step) := do
   if d = 0 then S.fail "division by 0"
   -- The normal form of a canonical form, as the kernel computes it, has the terms reversed.
   let c : PBConstr := ⟨v.c.terms.reverse, v.k.2⟩
@@ -527,7 +647,7 @@ private def mirStep (S : St σ) (v : PVal) (d : ℕ) (vf : Bool) (pre : Array St
 
 /-- **Elaborate a `pol` step**: its constraint, the kernel operations of its final `pol` step,
 and the kernel steps to emit before it. -/
-private def polOps (S : St σ) (ops : List AOp) : EM σ (PVal × Array Step) := do
+private def polOps (S : St) (ops : List AOp) : EM (PVal × Array Step) := do
   let mut st : Array PVal := #[]
   let mut pre : Array Step := #[]
   for op in ops do
@@ -614,7 +734,7 @@ private def impOps (v : PVal) (t : Key) (x : ℕ) : PVal := Id.run do
 
 /-- The premise of `i` or `ia`: the given one, or a constraint of the database implying the
 constraint of canonical form `t`, equal ones first (VeriPB 3.0.2, `check_implication`). -/
-private def implPremise (S : St σ) (t : Key) (hint : Option Ref) : EM σ ℕ := do
+private def implPremise (S : St) (t : Key) (hint : Option Ref) : EM ℕ := do
   match hint with
   | some r =>
     let i ← S.resolve r
@@ -632,7 +752,7 @@ private def implPremise (S : St σ) (t : Key) (hint : Option Ref) : EM σ ℕ :=
 
 /-- The constraint of `e t [: r]` and `ea t [: r]`, `t` a canonical form: the one `r` names if it
 has the form `t`, else the latest live one with it. -/
-private def equalPremise (S : St σ) (t : Key) (hint : Option Ref) : EM σ ℕ := do
+private def equalPremise (S : St) (t : Key) (hint : Option Ref) : EM ℕ := do
   match hint with
   | some r =>
     let i ← S.resolve r
@@ -674,7 +794,7 @@ private def setHintsLoop (cs : List (Hint × PBConstr)) :
 
 /-- The hints of `rup c` with the augmented set annotation `hs` (§5.2.1): propagate the hinted
 constraints and `¬c` until a conflict or a fixpoint, and list those that propagated, in order. -/
-private def setHints (S : St σ) (c : PBConstr) (hs : List AHint) : EM σ (List Hint) := do
+private def setHints (S : St) (c : PBConstr) (hs : List AHint) : EM (List Hint) := do
   let neg := negateParsed c
   let mut cs : Array (Hint × PBConstr) := #[(.neg, neg)]
   for h in hs do
@@ -690,11 +810,11 @@ private def setHints (S : St σ) (c : PBConstr) (hs : List AHint) : EM σ (List 
   | none => S.fail "rup: the hints do not propagate to a conflict"
 
 /-- The hints of `rup c`. -/
-private def rupHintsOf (S : St σ) (c : PBConstr) (hs : Option (List AHint)) : EM σ (List Hint) := do
+private def rupHintsOf (S : St) (c : PBConstr) (hs : Option (List AHint)) : EM (List Hint) := do
   match hs with
   | some hs => S.setHints c hs
   | none =>
-    match ← S.eng.rupHints (negateParsed c) with
+    match ← S.engRupHints (negateParsed c) with
     | some h => return h.toList
     | none => S.fail "rup: propagation finds no conflict"
 
@@ -708,8 +828,8 @@ given one, or the most recent contradiction, or else a hinted `rup` of `0 ≥ 1`
 propagation, or, for a subproof refuting `¬G` (`goal`, with the kernel number of `¬G`), a `pol`
 step adding `¬G` to `G` derived from a constraint of the database that implies it. The extra step
 is returned, to append. -/
-private def closing (S : St σ) (start : ℕ) (q : Option Ref) (goal : Option (ℕ × PBConstr)) :
-    EM σ (Array Step × ℕ) := do
+private def closing (S : St) (start : ℕ) (q : Option Ref) (goal : Option (ℕ × PBConstr)) :
+    EM (Array Step × ℕ) := do
   match q with
   | some r => return (#[], (← S.entryOf r).kid)
   | none =>
@@ -734,7 +854,7 @@ mutual
 
 /-- **Elaborate an implicational step**, in a subproof or at top level: the kernel steps, and
 the augmented number of the constraint the step names, for a label. -/
-private def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Step × Returned) := do
+private def step (S : St) (top : Bool) (s : AStep) : EM (Array Step × Returned) := do
   match s with
   | .labeled l s =>
     let (ks, r) ← S.step top s
@@ -787,8 +907,8 @@ private def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Step × Ret
   | _ => S.fail "this rule is allowed only at top level"
 
 /-- Elaborate implicational steps, after the kernel steps `out`. -/
-private def steps (S : St σ) (top : Bool) : List AStep → (out : Array Step := #[]) →
-    EM σ (Array Step)
+private def steps (S : St) (top : Bool) : List AStep → (out : Array Step := #[]) →
+    EM (Array Step)
   | [], out => return out
   | s :: ss, out => do S.steps top ss (out ++ (← S.step top s).1)
 
@@ -798,15 +918,15 @@ end
 the constraints it adds; for a scope, its constraints. -/
 private structure Premises where
   /-- The premises of a goal. -/
-  goal : AGoal → EM σ (GoalId × List PBConstr)
+  goal : AGoal → EM (GoalId × List PBConstr)
   /-- The premises of a scope. -/
   scope : Bool → Option (List PBConstr)
 
 /-- **Elaborate the items of a subproof** of `red`, `dom`, a checked deletion, `obju` or a change
 of the preserved set. A `proofgoal` block without a closing contradiction gets the most recent
 one, or a hinted `rup` of `0 ≥ 1`. -/
-private def items (S : St σ) (P : Premises (σ := σ)) :
-    List AStep → (out : Array RedItem := #[]) → EM σ (Array RedItem)
+private def items (S : St) (P : Premises) :
+    List AStep → (out : Array RedItem := #[]) → EM (Array RedItem)
   | [], out => return out
   | .goal g sub q :: ss, out => do
     let (kg, ps) ← P.goal g
@@ -835,12 +955,12 @@ private def hashAt {α : Type} (l : List α) (k : ℕ) : Option α := if k = 0 t
 
 /-- The premises of the subproof of `red C : ω` (`dom = false`) or `dom C : ω`, with the database
 `db₀` of the step given by its augmented numbers. -/
-private def redPremises (S : St σ) (dom : Bool) (c : PBConstr) (ω : Witness) :
-    EM σ (Premises (σ := σ)) := do
+private def redPremises (S : St) (dom : Bool) (c : PBConstr) (ω : Witness) :
+    EM Premises := do
   let obj ← S.obj.get
   let ord ← S.order.get
   let db₀ ← S.db.get
-  let dbGoal (r : Ref) : EM σ (GoalId × List PBConstr) := do
+  let dbGoal (r : Ref) : EM (GoalId × List PBConstr) := do
     let i ← S.resolve r
     let some e := db₀[i]? | S.fail s!"proofgoal: no constraint {i}"
     if !e.alive || (dom && !e.core) then S.fail s!"proofgoal: constraint {i} is not a goal"
@@ -859,7 +979,7 @@ private def redPremises (S : St σ) (dom : Bool) (c : PBConstr) (ω : Witness) :
     | .ref r => dbGoal r, redScope ord ω⟩
 
 /-- The premises of a subproof whose goals are only `#k`, the constraints `gs`. -/
-private def hashPremises (S : St σ) (gs : List PBConstr) : Premises (σ := σ) :=
+private def hashPremises (S : St) (gs : List PBConstr) : Premises :=
   ⟨fun
     | .hash k => match hashAt gs k with
       | some G => pure (.hash k, [G.negate])
@@ -874,8 +994,8 @@ after normalization, or weakly syntactically implied by `negC`, or, for a databa
 is, up to the order of terms, a live constraint numbered below `start`, a core constraint if
 `core`. (The Lean checker also accepts the last case for `#k` goals and `obju`; CakePB does not, so
 such goals get a subproof.) -/
-private def covered (S : St σ) (start : ℕ) (core db : Bool) (negC : Option PBConstr)
-    (G : PBConstr) : EM σ Bool := do
+private def covered (S : St) (start : ℕ) (core db : Bool) (negC : Option PBConstr)
+    (G : PBConstr) : EM Bool := do
   if G.normalize.degree == 0 then return true
   if negC.any (weakImplies · G) then return true
   if !db then return false
@@ -931,8 +1051,8 @@ number `pk`) and `M'` times the units (`M'` the largest coefficient of `G`), a c
 substituted implication (`write_substituted_implication_subproof`), whose `ia` step becomes the
 weakening, saturation and literal axioms of `impOps`. `none` if the result is not a
 contradiction. -/
-private def implRefute (S : St σ) (e : Entry) (G : PBConstr) (t : Key) (pk : ℕ)
-    (u : Option (Key × ℕ)) : EM σ (Option (List PolOp)) := do
+private def implRefute (S : St) (e : Entry) (G : PBConstr) (t : Key) (pk : ℕ)
+    (u : Option (Key × ℕ)) : EM (Option (List PolOp)) := do
   let v₀ : PVal := match u with
     | some (ku, ui) =>
       let m := maxCoeff e.key
@@ -965,14 +1085,14 @@ literal of `G|ρ` can succeed, since with no conflict at the root no `D|ρ` is a
 a constraint sharing no literal with `G|ρ` implies it only if `G|ρ` is trivial, when the goal is
 RUP. So the constraints tried are those containing a variable of `G|ρ`, from `varOcc`, the
 variables with fewer occurrences first. -/
-private def implGoal (S : St σ) (start : ℕ) (core : Bool) (direct skip : List ℕ) (G : PBConstr)
-    (pk : ℕ) : EM σ (Option (Array Step)) := do
+private def implGoal (S : St) (start : ℕ) (core : Bool) (direct skip : List ℕ) (G : PBConstr)
+    (pk : ℕ) : EM (Option (Array Step)) := do
   let t := keyOf G
   for i in direct do
     let e ← S.entry i
     if implies e.key t then
       if let some ops ← S.implRefute e G t pk none then return some #[.pol ops]
-  let some tr ← S.eng.extend [] | return none
+  let some tr ← S.engExtend [] | return none
   let ρ : Std.HashMap ℕ Bool := tr.foldl (fun m l => m.insert l.1 l.2) {}
   let st := substKey ρ t
   let db ← S.db.get
@@ -995,7 +1115,7 @@ private def implGoal (S : St σ) (start : ℕ) (core : Bool) (direct skip : List
         let some ops ← S.implRefute e G st pk none | return none
         return some #[.pol ops]
       let U : PBConstr := ⟨us.toList.map ((1, ·)), us.size⟩
-      let some h ← S.eng.rupHints (negateParsed U) | return none
+      let some h ← S.engRupHints (negateParsed U) | return none
       let u ← S.takeKid
       let some ops ← S.implRefute e G st pk (some (keyOfParsed U, u)) | return none
       return some #[.rup U h.toList, .pol ops]
@@ -1008,8 +1128,8 @@ for a goal that is a constraint of the database numbered below `start` (a core c
 implication (`implGoal`) from the additional premise `prem` or a database constraint other than
 those of `skip` (a core constraint or one numbered from `start` if `core`). A goal none proves
 fails the elaboration, as in VeriPB. The premises take kernel numbers but no augmented ones. -/
-private def autoGoals (S : St σ) (start : ℕ) (core : Bool) (proved : List GoalId) (gs : List Goal)
-    (prem : Option ℕ := none) (skip : List ℕ := []) : EM σ (Array RedItem) := do
+private def autoGoals (S : St) (start : ℕ) (core : Bool) (proved : List GoalId) (gs : List Goal)
+    (prem : Option ℕ := none) (skip : List ℕ := []) : EM (Array RedItem) := do
   let mut out := #[]
   for (g, ps, G?, src) in gs do
     if proved.contains g then continue
@@ -1041,8 +1161,8 @@ private def autoGoals (S : St σ) (start : ℕ) (core : Bool) (proved : List Goa
 
 /-- The live constraints numbered below `start` that contain a variable the witness sets (core
 constraints if `core`, and other than `skip`). -/
-private def touched (S : St σ) (start : ℕ) (core : Bool) (ω : Witness) (skip : ℕ := 0) :
-    EM σ (Array ℕ) := do
+private def touched (S : St) (start : ℕ) (core : Bool) (ω : Witness) (skip : ℕ := 0) :
+    EM (Array ℕ) := do
   let occ ← S.varOcc.get
   let db ← S.db.get
   let mut seen : Std.HashMap ℕ Unit := {}
@@ -1057,8 +1177,8 @@ private def touched (S : St σ) (start : ℕ) (core : Bool) (ω : Witness) (skip
 
 /-- The goals of a database constraint `D` under `ω` that are not covered: `D|ω`, unless `ω` sets
 every literal of `D` it touches true, or `D` implies `D|ω`, or `D|ω` is covered. -/
-private def dbGoals (S : St σ) (start : ℕ) (core : Bool) (negC : Option PBConstr) (ω : Witness)
-    (ids : Array ℕ) : EM σ (List Goal) := do
+private def dbGoals (S : St) (start : ℕ) (core : Bool) (negC : Option PBConstr) (ω : Witness)
+    (ids : Array ℕ) : EM (List Goal) := do
   let db ← S.db.get
   let mut out := #[]
   for i in ids do
@@ -1073,8 +1193,8 @@ private def dbGoals (S : St σ) (start : ℕ) (core : Bool) (negC : Option PBCon
 numbered below `start`: `#1` is `C|ω`, then the order goals (if the witness touches the loaded
 order), the objective goal, and `D|ω` for the constraints `D` touched by `ω` (core constraints in
 strengthening-to-core mode, `gsCore`). -/
-private def redGoals (S : St σ) (start : ℕ) (gsCore : Bool) (c : PBConstr) (ω : Witness)
-    (skip : ℕ := 0) : EM σ (List Goal) := do
+private def redGoals (S : St) (start : ℕ) (gsCore : Bool) (c : PBConstr) (ω : Witness)
+    (skip : ℕ := 0) : EM (List Goal) := do
   let obj ← S.obj.get
   let ord ← S.order.get
   let negC := c.negate
@@ -1092,8 +1212,8 @@ private def redGoals (S : St σ) (start : ℕ) (gsCore : Bool) (c : PBConstr) (�
 /-- The goals of `dom C : ω` that are not covered (§5.4.2): the order goals, goal `#N + 1` with the
 constraints `O⪯(z, z↾ω, a)` to refute, the objective goal, and `D|ω` for the core constraints
 `D` touched by `ω`. -/
-private def domGoals (S : St σ) (start : ℕ) (L : LoadedOrder) (c : PBConstr) (ω : Witness) :
-    EM σ (List Goal) := do
+private def domGoals (S : St) (start : ℕ) (L : LoadedOrder) (c : PBConstr) (ω : Witness) :
+    EM (List Goal) := do
   let obj ← S.obj.get
   let negC := c.negate
   let le := L.leGoals ω
@@ -1120,18 +1240,23 @@ private def givenGoals : List RedItem → List GoalId
 `skip`) and the constraints numbered from `start`: the goals of `obju`, of the changes of the
 preserved set and of checked deletion are derived from the core set alone (§5.9, §5.10,
 §5.7.1), to which VeriPB 3.0.2 adds the constraints of the subproof. -/
-private def withCoreEngine {α : Type} (S : St σ) (start : ℕ) (skip : ℕ) (act : St σ → EM σ α) :
-    EM σ α := do
-  let eng ← (Engine.new : ST σ (Engine σ))
+private def withCoreEngine {α : Type} (S : St) (start : ℕ) (skip : ℕ) (act : St → EM α) :
+    EM α := do
+  let mut eng := Engine.new
   let db ← S.db.get
   let mut db' := db
   for i in [1:db.size] do
     let e := db[i]!
     if e.alive && i != skip && (e.core || start ≤ i) then
-      db' := db'.set! i { e with eidx := ← eng.add e.c (.id e.kid) }
+      let (eng', k) := eng.add e.c (.id e.kid)
+      eng := eng'
+      db' := db'.set! i { e with eidx := k }
   let saved := db
   S.db.set db'
-  let r ← act { S with eng := eng }
+  -- The fresh engine replaces the main one while `act` runs.
+  let main ← S.swapEng eng
+  let r ← act S
+  let _ ← S.swapEng main
   -- Restore the engine indices of the main engine.
   let after ← S.db.get
   S.db.set (after.mapIdx fun i e => if h : i < saved.size then
@@ -1139,16 +1264,16 @@ private def withCoreEngine {α : Type} (S : St σ) (start : ℕ) (skip : ℕ) (a
   return r
 
 /-- Mark every live constraint as a core constraint. -/
-private def allCore (S : St σ) : EM σ Unit :=
+private def allCore (S : St) : EM Unit :=
   S.db.modify (·.map fun e => { e with core := true })
 
 /-- A logged solution, extended by propagation and completed with the other variables of the
 database false (§5.8.1). -/
-private def completeSolution (S : St σ) (ρ : List (Literal ℕ)) : EM σ (List (Literal ℕ)) := do
+private def completeSolution (S : St) (ρ : List (Literal ℕ)) : EM (List (Literal ℕ)) := do
   let db ← S.db.get
   let cs := (db.filter (·.alive)).toList.map (·.c)
   if solves ρ cs then return ρ
-  let some ext ← S.eng.extend ρ | S.fail "sol: the solution propagates to a conflict"
+  let some ext ← S.engExtend ρ | S.fail "sol: the solution propagates to a conflict"
   let mut seen : Std.HashMap ℕ Unit := {}
   for l in ext do seen := seen.insert l.1 ()
   let mut out := ext
@@ -1160,7 +1285,7 @@ private def completeSolution (S : St σ) (ρ : List (Literal ℕ)) : EM σ (List
   return out.toList
 
 /-- **Elaborate a top-level rule**. -/
-private def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
+private def top (S : St) (s : AStep) : EM (Array TopStep) := do
   match s with
   | .labeled l s' =>
     match s' with
@@ -1229,7 +1354,7 @@ private def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
     let n ← S.takeKid
     let start ← S.augNext
     let _ ← S.add e.c.negate n false false
-    let P : Premises (σ := σ) := ⟨fun
+    let P : Premises := ⟨fun
       | .hash k => match hashAt (redHashGoals obj ord ω e.c) k with
         | some G => pure (.hash k, [G.negate])
         | none => S.fail s!"proofgoal: no goal #{k}"
@@ -1361,7 +1486,7 @@ private def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
   | s => return (← S.step true s).1.map .step
 
 /-- The kernel conclusion of an augmented one. -/
-private def conclusion (S : St σ) : AConclusion → EM σ Conclusion
+private def conclusion (S : St) : AConclusion → EM Conclusion
   | .unsat q => do
     match q with
     | some r => return .unsat (← S.entryOf r).kid
@@ -1532,8 +1657,8 @@ structure Result where
 with the kernel number of its constraint if it may be trimmed); whether no rule forbids
 trimming (`trimmable`). At most `fuel` rules are read, which
 `Cslib.Logic.PL.VeriPB.Elab.Parse.fuelOf` takes above the number of bytes. -/
-private def St.topSteps {σ : Type} (S : St σ) :
-    ℕ → Array (TopStep × Option ℕ) → Bool → EM σ (Array (TopStep × Option ℕ) × Bool)
+private def St.topSteps (S : St) :
+    ℕ → Array (TopStep × Option ℕ) → Bool → EM (Array (TopStep × Option ℕ) × Bool)
   | 0, _, _ => S.fail "internal error: out of fuel"
   | fuel + 1, out, trimmable => do
     match ← Parse.step (Parse.fuelOf S.L) S.L with
@@ -1562,28 +1687,25 @@ private def St.topSteps {σ : Type} (S : St σ) :
     | none => return (out, trimmable)
 
 /-- Run the elaborator. -/
-private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
-    (pbp : String) (N : Text.Names) (labels : List (String × ℕ)) : EM σ Result := do
-  let L ← (Lexer.new pbp N : ST σ (Lexer σ))
-  let eng ← (Engine.new : ST σ (Engine σ))
-  -- The labels of the instance name its constraints, which keep their numbers `1, 2, …`.
-  let S : St σ := ⟨L, eng, ← ST.mkRef #[default], ← ST.mkRef (F.length + 1),
-    ← ST.mkRef (Std.HashMap.ofList labels),
-    ← ST.mkRef {}, ← ST.mkRef {}, ← ST.mkRef none, ← ST.mkRef obj, ← ST.mkRef pres,
-    ← ST.mkRef {}, ← ST.mkRef none, ← ST.mkRef false, ← ST.mkRef {}⟩
+private def St.run (S : St) (F : List PBConstr) : EM Result := do
   let mut kid := 1
   for c in F do
     let _ ← S.add c.normalize kid true false
     kid := kid + 1
-  let n ← Parse.header L
+  let n ← Parse.header S.L
   if let some n := n then
     if n != F.length then S.fail s!"f {n}: the formula has {F.length} constraints"
-  let (out, trimmable) ← S.topSteps (Parse.fuelOf L) #[] true
-  let (sec, concl) ← Parse.tail L
+  let (out, trimmable) ← S.topSteps (Parse.fuelOf S.L) #[] true
+  let (sec, concl) ← Parse.tail S.L
   let c ← S.conclusion concl
   let next ← S.kerNext.get
+  let names ← liftPM S.L.namesOf
+  -- Release the database, the engine and the tables before trimming, which builds a second copy
+  -- of the kernel proof.
+  set (⟨Lexer.init ⟨[], 0⟩, Engine.new, #[], 0, {}, {}, {}, none, none, none, {}, none, false,
+    {}⟩ : Ext)
   let (steps, c) := if trimmable && sec.isNone then trim out c next else (out.map (·.1), c)
-  return ⟨⟨steps.toList, c⟩, sec, ← L.namesOf⟩
+  return ⟨⟨steps.toList, c⟩, sec, names⟩
 
 /-- **The elaborator**: the kernel proof of the augmented proof text `pbp` for the formula `F`,
 the objective `obj` and the preserved set `pres`, whose variables are named by `N` (for an OPB
@@ -1595,7 +1717,12 @@ Untrusted: the result is meant to be checked by `Cslib.Logic.PL.VeriPB.checkRed`
 def elaborate (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
     (pbp : String) (N : Text.Names := Text.stdNames ⟨F, obj, pres⟩)
     (labels : List (String × ℕ) := []) : Except String Result :=
-  runST fun _ => (run F obj pres pbp N labels).run
+  -- The labels of the instance name its constraints, which keep their numbers `1, 2, …`.
+  let e : Ext := ⟨Lexer.init N, Engine.new, #[default], F.length + 1, Std.HashMap.ofList labels, {},
+    {}, none, obj, pres, {}, none, false, {}⟩
+  match (St.run ⟨Lexer.new pbp N⟩ F).run e with
+  | .ok r _ => .ok r
+  | .error e _ => .error e
 
 end Cslib.Logic.PL.VeriPB.Elab
 
