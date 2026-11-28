@@ -36,7 +36,10 @@ of the parser is needed. It reads the bytes of the proof with a lexer modelled o
 VeriPB 3.0.2: identifiers start with a letter, `_`, `@` or `$` and continue with letters,
 digits and `_ [ ] { } ^ -`; `~`, `:`, `;` and `*` are tokens of their own; `%` starts a comment.
 The parser is total: each loop over the tokens takes fuel above the number of bytes of the text
-(`Cslib.Logic.PL.VeriPB.Elab.Parse.fuelOf`), and consumes a token per round.
+(`Cslib.Logic.PL.VeriPB.Elab.Parse.fuelOf`), and consumes a token per round. Its state, the
+position in the text, the tokens read ahead and the names read so far
+(`Cslib.Logic.PL.VeriPB.Elab.LexState`), is a value threaded through a state monad
+(`Cslib.Logic.PL.VeriPB.Elab.PM`), so the parser is a function with equations.
 
 **Variables.** Names are read with the names of the instance (`Cslib.Logic.PL.VeriPB.Text.Names`,
 for an OPB text `Cslib.Logic.PL.VeriPB.Text.opbNames`), as `Cslib.Logic.PL.VeriPB.Text.Names.var?`
@@ -202,31 +205,32 @@ inductive AConclusion where
 
 /-! ### The lexer -/
 
-/-- The lexer and the variable names, as mutable references. -/
-structure Lexer (σ : Type) where
+/-- The text of a proof and the base of its names: the part of the lexer that does not change. -/
+structure Lexer where
   /-- The text. -/
   bytes : ByteArray
   /-- The standard names `xN` with `N - 1` below `base` are the variables below `base`
   (`Cslib.Logic.PL.VeriPB.Text.Names.base`). -/
   base : ℕ
+
+/-- The state of the lexer and the variable names. -/
+structure LexState where
   /-- The position of the next byte. -/
-  pos : ST.Ref σ ℕ
+  pos : ℕ
   /-- Tokens read ahead. -/
-  ahead : ST.Ref σ (Array String)
+  ahead : Array String
   /-- The start of the token read last, whose line error messages name. -/
-  last : ST.Ref σ ℕ
+  last : ℕ
   /-- The numbers of the other names (`Cslib.Logic.PL.VeriPB.Text.Names.others`). -/
-  names : ST.Ref σ (Std.HashMap String ℕ)
+  names : Std.HashMap String ℕ
   /-- The other names, those of the instance first, then those of the proof in order of first
   appearance; the `i`-th is the variable `base + i`. -/
-  others : ST.Ref σ (Array String)
+  others : Array String
 
 /-- The parser monad. -/
-abbrev PM (σ : Type) := ExceptT String (ST σ)
+abbrev PM := EStateM String LexState
 
 namespace Lexer
-
-variable {σ : Type}
 
 private def isIdStart (c : UInt8) : Bool :=
   (c ≥ 65 && c ≤ 90) || (c ≥ 97 && c ≤ 122) || c == 95 || c == 64 || c == 36
@@ -237,24 +241,65 @@ private def isIdChar (c : UInt8) : Bool :=
 
 private def isDigit (c : UInt8) : Bool := c ≥ 48 && c ≤ 57
 
-/-- A new lexer for the text `s` of a proof, with the names `N` of its instance. -/
-def new (s : String) (N : Text.Names) : ST σ (Lexer σ) := do
+/-- The lexer for the text `s` of a proof, with the names `N` of its instance. -/
+def new (s : String) (N : Text.Names) : Lexer := ⟨s.toUTF8, N.base⟩
+
+/-- The initial state of the lexer, for the names `N` of the instance. -/
+def init (N : Text.Names) : LexState :=
   let others := N.others.toArray
   let names := others.zipIdx.foldl (fun m (t, i) => m.insert t (N.base + i)) {}
-  return ⟨s.toUTF8, N.base, ← ST.mkRef 0, ← ST.mkRef #[], ← ST.mkRef 0, ← ST.mkRef names,
-    ← ST.mkRef others⟩
+  ⟨0, #[], 0, names, others⟩
+
+/-- The position of the next byte. -/
+@[inline] private def getPos : PM ℕ := fun s => .ok s.pos s
+
+/-- Set the position of the next byte. -/
+@[inline] private def setPos (p : ℕ) : PM Unit :=
+  fun s => .ok () { s with pos := p }
+
+/-- The tokens read ahead. -/
+@[inline] private def getAhead : PM (Array String) := fun s => .ok s.ahead s
+
+/-- Set the tokens read ahead. -/
+@[inline] private def setAhead (a : Array String) : PM Unit :=
+  fun s => .ok () { s with ahead := a }
+
+/-- Change the tokens read ahead. -/
+@[inline] private def modifyAhead (f : Array String → Array String) : PM Unit :=
+  fun s => .ok () { s with ahead := f s.ahead }
+
+/-- The start of the token read last. -/
+@[inline] private def getLast : PM ℕ := fun s => .ok s.last s
+
+/-- Set the start of the token read last. -/
+@[inline] private def setLast (p : ℕ) : PM Unit :=
+  fun s => .ok () { s with last := p }
+
+/-- The numbers of the other names. -/
+@[inline] private def getNames : PM (Std.HashMap String ℕ) := fun s => .ok s.names s
+
+/-- Change the numbers of the other names. -/
+@[inline] private def modifyNames (f : Std.HashMap String ℕ → Std.HashMap String ℕ) : PM Unit :=
+  fun s => .ok () { s with names := f s.names }
+
+/-- The other names. -/
+@[inline] private def getOthers : PM (Array String) := fun s => .ok s.others s
+
+/-- Change the other names. -/
+@[inline] private def modifyOthers (f : Array String → Array String) : PM Unit :=
+  fun s => .ok () { s with others := f s.others }
 
 /-- The names read so far: those of the instance, extended by those of the proof. -/
-def namesOf (L : Lexer σ) : ST σ Text.Names := return ⟨(← L.others.get).toList, L.base⟩
+def namesOf (L : Lexer) : PM Text.Names := return ⟨(← Lexer.getOthers).toList, L.base⟩
 
 /-- The first variable without a name yet (`Cslib.Logic.PL.VeriPB.Text.Names.next`). -/
-def nextVar (L : Lexer σ) : ST σ ℕ := return L.base + (← L.others.get).size
+def nextVar (L : Lexer) : PM ℕ := return L.base + (← Lexer.getOthers).size
 
 /-- A new variable, with a new name `_elabK`, for a variable the elaborator introduces. The
 variables it introduces occur in no constraint (the `pol` operation `-` adds `k x` and `k ¬x`),
 so a later name of the proof equal to it may share the variable. -/
-def fresh (L : Lexer σ) : ST σ ℕ := do
-  let m ← L.names.get
+def fresh (L : Lexer) : PM ℕ := do
+  let m ← Lexer.getNames
   -- One of the `m.size + 1` names `_elab0`, …, `_elab{m.size}` is not taken.
   let mut k := m.size
   for i in [0:m.size + 1] do
@@ -262,8 +307,8 @@ def fresh (L : Lexer σ) : ST σ ℕ := do
       k := i
       break
   let v ← L.nextVar
-  L.names.modify (·.insert s!"_elab{k}" v)
-  L.others.modify (·.push s!"_elab{k}")
+  Lexer.modifyNames (·.insert s!"_elab{k}" v)
+  Lexer.modifyOthers (·.push s!"_elab{k}")
   return v
 
 /-- The position of the first byte from `p` on that is not whitespace or in a comment. -/
@@ -291,15 +336,15 @@ private def digitsVal (b : ByteArray) (p e acc : ℕ) : ℕ :=
 termination_by e - p
 
 /-- Read the next token from the text, or `""` at its end. -/
-private def scan (L : Lexer σ) : ST σ String := do
+private def scan (L : Lexer) : PM String := do
   let b := L.bytes
-  let p := skipWs b (← L.pos.get)
-  L.last.set p
-  if p ≥ b.size then L.pos.set p; return ""
+  let p := skipWs b (← Lexer.getPos)
+  Lexer.setLast p
+  if p ≥ b.size then Lexer.setPos p; return ""
   let start := p
   let c := b.get! p
-  let single (n : ℕ) : ST σ String := do
-    L.pos.set (start + n)
+  let single (n : ℕ) : PM String := do
+    Lexer.setPos (start + n)
     return String.fromUTF8! (b.extract start (start + n))
   if isIdStart c then single (runEnd b isIdChar (p + 1) - start)
   else if isDigit c || ((c == 43 || c == 45) && p + 1 < b.size && isDigit (b.get! (p + 1))) then
@@ -311,31 +356,31 @@ private def scan (L : Lexer σ) : ST σ String := do
   else single 1
 
 /-- The next token, without consuming it. -/
-private def peek (L : Lexer σ) : ST σ String := do
-  let a ← L.ahead.get
+private def peek (L : Lexer) : PM String := do
+  let a ← Lexer.getAhead
   if h : 0 < a.size then return a[0]
   let t ← L.scan
-  L.ahead.set #[t]
+  Lexer.setAhead #[t]
   return t
 
 /-- The token after the next one, without consuming either. -/
-private def peek2 (L : Lexer σ) : ST σ String := do
+private def peek2 (L : Lexer) : PM String := do
   let _ ← L.peek
-  let a ← L.ahead.get
+  let a ← Lexer.getAhead
   if h : 1 < a.size then return a[1]
   let t ← L.scan
-  L.ahead.set (a.push t)
+  Lexer.setAhead (a.push t)
   return t
 
 /-- Consume the next token. -/
-private def next (L : Lexer σ) : ST σ String := do
+private def next (L : Lexer) : PM String := do
   let t ← L.peek
-  L.ahead.modify (·.eraseIdx! 0)
+  Lexer.modifyAhead (·.eraseIdx! 0)
   return t
 
 /-- The current line, for error messages: that of the token read last. -/
-private def lineNo (L : Lexer σ) : ST σ ℕ := do
-  let p ← L.last.get
+private def lineNo (L : Lexer) : PM ℕ := do
+  let p ← Lexer.getLast
   return (L.bytes.extract 0 p).foldl (fun n c => if c == 10 then n + 1 else n) 1
 
 end Lexer
@@ -344,21 +389,19 @@ end Lexer
 
 namespace Parse
 
-variable {σ : Type}
-
 /-- Fail with a message naming the current line. -/
-def fail {α : Type} (L : Lexer σ) (msg : String) : PM σ α := do
+def fail {α : Type} (L : Lexer) (msg : String) : PM α := do
   throw s!"line {← L.lineNo}: {msg}"
 
 /-- Fail when a loop over the tokens has run out of fuel. Every loop over the tokens of the proof
 `L` gets more fuel than it has bytes and consumes a token in each round, so this never happens. -/
-private def noFuel {α : Type} (L : Lexer σ) : PM σ α := fail L "internal error: out of fuel"
+private def noFuel {α : Type} (L : Lexer) : PM α := fail L "internal error: out of fuel"
 
 /-- The fuel of a loop over the tokens of the proof `L`: more than its number of bytes. -/
-def fuelOf (L : Lexer σ) : ℕ := L.bytes.size + 1
+def fuelOf (L : Lexer) : ℕ := L.bytes.size + 1
 
 /-- Consume the tokens up to `t`, which is consumed too; fail at the end of the text. -/
-private def skipPast (L : Lexer σ) (t : String) (fuel : ℕ := fuelOf L) : PM σ Unit := do
+private def skipPast (L : Lexer) (t : String) (fuel : ℕ := fuelOf L) : PM Unit := do
   match fuel with
   | 0 => noFuel L
   | fuel + 1 =>
@@ -368,7 +411,7 @@ private def skipPast (L : Lexer σ) (t : String) (fuel : ℕ := fuelOf L) : PM �
     skipPast L t fuel
 
 /-- Consume the token `t`, or fail. -/
-private def expect (L : Lexer σ) (t : String) : PM σ Unit := do
+private def expect (L : Lexer) (t : String) : PM Unit := do
   let u ← L.next
   if u != t then fail L s!"expected `{t}`, found `{u}`"
 
@@ -384,21 +427,21 @@ private def int? (t : String) : Option ℤ :=
 
 /-- The number of a variable name, as `Cslib.Logic.PL.VeriPB.Text.Names.var?` reads it with the
 names read so far; a new name is the next variable. -/
-private def var (L : Lexer σ) (t : String) : PM σ ℕ := do
+private def var (L : Lexer) (t : String) : PM ℕ := do
   if let some v := Text.stdVar? t then
     if v < L.base then return v
-  let m ← L.names.get
+  let m ← Lexer.getNames
   match m[t]? with
   | some v => return v
   | none =>
     if !Text.isName t then fail L s!"expected a variable, found `{t}`"
     let v ← L.nextVar
-    L.names.modify (·.insert t v)
-    L.others.modify (·.push t)
+    Lexer.modifyNames (·.insert t v)
+    Lexer.modifyOthers (·.push t)
     return v
 
 /-- A literal `x` or `~ x`. -/
-private def lit (L : Lexer σ) : PM σ (Literal ℕ) := do
+private def lit (L : Lexer) : PM (Literal ℕ) := do
   let t ← L.next
   if t == "~" then return (← var L (← L.next), false)
   return (← var L t, true)
@@ -412,14 +455,14 @@ private def ref? (t : String) : Option Ref :=
     | _ => none
 
 /-- A constraint reference, or fail. -/
-private def ref (L : Lexer σ) : PM σ Ref := do
+private def ref (L : Lexer) : PM Ref := do
   let t ← L.next
   match ref? t with
   | some r => return r
   | none => fail L s!"expected a constraint reference, found `{t}`"
 
 /-- References up to `;`, which is consumed. -/
-private def refs (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List Ref) := do
+private def refs (L : Lexer) (fuel : ℕ := fuelOf L) : PM (List Ref) := do
   match fuel with
   | 0 => noFuel L
   | fuel + 1 =>
@@ -429,7 +472,7 @@ private def refs (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List Ref) := d
     return r :: (← refs L fuel)
 
 /-- References up to `;` or `:`, not consumed. -/
-private def refsTo (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List Ref) := do
+private def refsTo (L : Lexer) (fuel : ℕ := fuelOf L) : PM (List Ref) := do
   match fuel with
   | 0 => noFuel L
   | fuel + 1 =>
@@ -448,7 +491,7 @@ private def refsTo (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List Ref) :=
 /-- The literal whose `~` or name starts at `q`, read from the bytes: the variable, its sign and
 the end of the literal; `none` if it is not a `~` followed by a name, or a name (the slow path
 then reads it, or fails). A standard name below the base is read without making a string. -/
-private def litAt (L : Lexer σ) (q : ℕ) : PM σ (Option (ℕ × Bool × ℕ)) := do
+private def litAt (L : Lexer) (q : ℕ) : PM (Option (ℕ × Bool × ℕ)) := do
   let b := L.bytes
   let neg := q < b.size && b.get! q == 126
   let r := if neg then Lexer.skipWs b (q + 1) else q
@@ -463,8 +506,8 @@ private def litAt (L : Lexer σ) (q : ℕ) : PM σ (Option (ℕ × Bool × ℕ))
 /-- The fast path of `terms`: read terms straight from the bytes from `p` on, while no token has
 been read ahead, a coefficient being a plain integer followed by a literal. It stops before the
 first token it does not read this way, which the slow path then reads. -/
-private def termsFast (L : Lexer σ) (p : ℕ) (lin : Array (ℕ × ℤ)) (idx : Std.HashMap ℕ ℕ)
-    (k : ℤ) (fuel : ℕ := fuelOf L) : PM σ (ℕ × Array (ℕ × ℤ) × Std.HashMap ℕ ℕ × ℤ) := do
+private def termsFast (L : Lexer) (p : ℕ) (lin : Array (ℕ × ℤ)) (idx : Std.HashMap ℕ ℕ)
+    (k : ℤ) (fuel : ℕ := fuelOf L) : PM (ℕ × Array (ℕ × ℤ) × Std.HashMap ℕ ℕ × ℤ) := do
   match fuel with
   | 0 => return (p, lin, idx, k)
   | fuel + 1 =>
@@ -496,17 +539,17 @@ private def termsFast (L : Lexer σ) (p : ℕ) (lin : Array (ℕ × ℤ)) (idx :
 
 /-- The terms `a ℓ` of a constraint or objective up to a non-term token: the linear form, merged
 by variable, and the constant moved out of negative literals. -/
-private def terms (L : Lexer σ) : PM σ (Array (ℕ × ℤ) × ℤ) := do
-  let (lin₀, idx₀, k₀) ← if (← L.ahead.get).isEmpty then do
-      let (p, r) ← termsFast L (← L.pos.get) #[] {} 0
-      L.pos.set p
+private def terms (L : Lexer) : PM (Array (ℕ × ℤ) × ℤ) := do
+  let (lin₀, idx₀, k₀) ← if (← Lexer.getAhead).isEmpty then do
+      let (p, r) ← termsFast L (← Lexer.getPos) #[] {} 0
+      Lexer.setPos p
       pure r
     else pure (#[], {}, 0)
   slow lin₀ idx₀ k₀ (fuelOf L)
 where
   /-- The slow path, token by token. -/
   slow (lin : Array (ℕ × ℤ)) (idx : Std.HashMap ℕ ℕ) (k : ℤ) :
-      ℕ → PM σ (Array (ℕ × ℤ) × ℤ)
+      ℕ → PM (Array (ℕ × ℤ) × ℤ)
     | 0 => noFuel L
     | fuel + 1 => do
       let t ← L.peek
@@ -527,7 +570,7 @@ where
 
 /-- A constraint `∑ aᵢ ℓᵢ ⋈ A` with `⋈` one of `>=`, `<=`: as `fromLinear` does in the kernel text
 front end. -/
-private def constr (L : Lexer σ) : PM σ PBConstr := do
+private def constr (L : Lexer) : PM PBConstr := do
   let (lin, k) ← terms L
   let rel ← L.next
   let d ← L.next
@@ -537,7 +580,7 @@ private def constr (L : Lexer σ) : PM σ PBConstr := do
   else fail L s!"expected `>=` or `<=`, found `{rel}`"
 
 /-- An objective `∑ wᵢ ℓᵢ [k]` up to `;` or `:`. -/
-private def objective (L : Lexer σ) : PM σ Objective := do
+private def objective (L : Lexer) : PM Objective := do
   let (lin, k) ← terms L
   let t ← L.peek
   let c ← match int? t with
@@ -546,7 +589,7 @@ private def objective (L : Lexer σ) : PM σ Objective := do
   return ⟨lin.toList.filter (·.2 != 0), k + c⟩
 
 /-- Literals up to `;`, which is consumed, or up to `: v;`, the value `v` being ignored. -/
-private def lits (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List (Literal ℕ)) := do
+private def lits (L : Lexer) (fuel : ℕ := fuelOf L) : PM (List (Literal ℕ)) := do
   match fuel with
   | 0 => noFuel L
   | fuel + 1 =>
@@ -560,7 +603,7 @@ private def lits (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List (Literal 
     return l :: (← lits L fuel)
 
 /-- Variables up to `;`, which is consumed. -/
-private def vars (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List ℕ) := do
+private def vars (L : Lexer) (fuel : ℕ := fuelOf L) : PM (List ℕ) := do
   match fuel with
   | 0 => noFuel L
   | fuel + 1 =>
@@ -570,7 +613,7 @@ private def vars (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List ℕ) := d
     return v :: (← vars L fuel)
 
 /-- The pairs `x -> b` of a witness, up to `:` or `;`, not consumed. -/
-private def witness (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ Witness := do
+private def witness (L : Lexer) (fuel : ℕ := fuelOf L) : PM Witness := do
   match fuel with
   | 0 => noFuel L
   | fuel + 1 =>
@@ -585,7 +628,7 @@ private def witness (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ Witness := d
     return (x, w) :: (← witness L fuel)
 
 /-- The operations of a `pol` step, up to `;`, which is consumed, read token by token. -/
-private def polOpsSlow (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List AOp) := do
+private def polOpsSlow (L : Lexer) (fuel : ℕ := fuelOf L) : PM (List AOp) := do
   match fuel with
   | 0 => noFuel L
   | fuel + 1 =>
@@ -618,8 +661,8 @@ private def polOpsSlow (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List AOp
 has been read ahead: `+`, `s`, `k *`, `k d`, `k c`, `k n`, `k m`, `k -`, and the references
 `k` and `-k`, `k > 0`; whether the closing `;` was read. It stops before the first other token,
 which the slow path then reads. -/
-private def polFast (L : Lexer σ) (p : ℕ) (ops : Array AOp) (fuel : ℕ := fuelOf L) :
-    ST σ (ℕ × Array AOp × Bool) := do
+private def polFast (L : Lexer) (p : ℕ) (ops : Array AOp) (fuel : ℕ := fuelOf L) :
+    PM (ℕ × Array AOp × Bool) := do
   match fuel with
   | 0 => return (p, ops, false)
   | fuel + 1 =>
@@ -629,7 +672,7 @@ private def polFast (L : Lexer σ) (p : ℕ) (ops : Array AOp) (fuel : ℕ := fu
   let c := b.get! p
   let at? (q : ℕ) : UInt8 := if q < b.size then b.get! q else 0
   if c == 59 then
-    L.last.set p
+    Lexer.setLast p
     return (p + 1, ops, true)
   if c == 43 && !Lexer.isDigit (at? (p + 1)) then return ← polFast L (p + 1) (ops.push .add) fuel
   if c == 115 && !Lexer.isIdChar (at? (p + 1)) then return ← polFast L (p + 1) (ops.push .sat) fuel
@@ -657,16 +700,16 @@ private def polFast (L : Lexer σ) (p : ℕ) (ops : Array AOp) (fuel : ℕ := fu
   | none => polFast L e (ops.push (.ref (.abs k))) fuel
 
 /-- The operations of a `pol` step up to `;`, which is consumed. -/
-private def polOps (L : Lexer σ) : PM σ (List AOp) := do
-  if (← L.ahead.get).isEmpty then
-    let (p, ops, done) ← polFast L (← L.pos.get) #[]
-    L.pos.set p
+private def polOps (L : Lexer) : PM (List AOp) := do
+  if (← Lexer.getAhead).isEmpty then
+    let (p, ops, done) ← polFast L (← Lexer.getPos) #[]
+    Lexer.setPos p
     if done then return ops.toList
     return ops.toList ++ (← polOpsSlow L)
   polOpsSlow L
 
 /-- RUP hints up to `;`, which is consumed. -/
-private def hints (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List AHint) := do
+private def hints (L : Lexer) (fuel : ℕ := fuelOf L) : PM (List AHint) := do
   match fuel with
   | 0 => noFuel L
   | fuel + 1 =>
@@ -677,7 +720,7 @@ private def hints (L : Lexer σ) (fuel : ℕ := fuelOf L) : PM σ (List AHint) :
     return .ref r :: (← hints L fuel)
 
 /-- An optional `: id` before `;`, both consumed. -/
-private def optRef (L : Lexer σ) : PM σ (Option Ref) := do
+private def optRef (L : Lexer) : PM (Option Ref) := do
   let t ← L.next
   if t == ";" then return none
   if t != ":" then fail L s!"expected `:` or `;`, found `{t}`"
@@ -686,14 +729,14 @@ private def optRef (L : Lexer σ) : PM σ (Option Ref) := do
   return some r
 
 /-- The end `qed [label] [: id];` of a subproof. -/
-private def qed (L : Lexer σ) : PM σ (Option Ref) := do
+private def qed (L : Lexer) : PM (Option Ref) := do
   expect L "qed"
   let t ← L.peek
   if t != ":" && t != ";" then let _ ← L.next
   optRef L
 
 /-- The end `end [words];` of a section. -/
-private def endSection (L : Lexer σ) : PM σ Unit := do
+private def endSection (L : Lexer) : PM Unit := do
   expect L "end"
   skipPast L ";"
 
@@ -796,8 +839,8 @@ private def toKernelItems (lbl : Std.HashMap String ℕ) (items : List AStep) (n
       | none => (acc, n, lbl)) ([], next, lbl)
 
 /-- A `proof … qed [: id];` block of an order, its rules read by `steps`. -/
-private def orderProof (steps : PM σ (List AStep)) (L : Lexer σ) :
-    PM σ (List AStep × Option Ref) := do
+private def orderProof (steps : PM (List AStep)) (L : Lexer) :
+    PM (List AStep × Option Ref) := do
   expect L "proof"
   let items ← steps
   let q ← qed L
@@ -807,8 +850,8 @@ private def orderProof (steps : PM σ (List AStep)) (L : Lexer σ) :
 its `end`. The subproofs are in the kernel syntax, with local numbers: the specification is
 numbered from `1`, the transitivity proof after its premises, and the reflexivity proof after the
 transitivity proof and its premises (`Cslib.Logic.PL.VeriPB.Order.defCheck`). -/
-private def orderBody (steps : PM σ (List AStep)) (L : Lexer σ) (full : Bool) :
-    PM σ (Order × List SpecStep × TransVars × OrderProof × OrderProof) := do
+private def orderBody (steps : PM (List AStep)) (L : Lexer) (full : Bool) :
+    PM (Order × List SpecStep × TransVars × OrderProof × OrderProof) := do
   expect L "vars"
   expect L "left"
   let u ← vars L
@@ -886,7 +929,7 @@ where
   constraints, and their labels, witnesses, subproofs and closing references. -/
   specSteps (spec : Array PBConstr)
       (sps : Array (Option String × Witness × Option (List AStep) × Option Ref)) :
-      ℕ → PM σ (Array PBConstr × Array (Option String × Witness × Option (List AStep) ×
+      ℕ → PM (Array PBConstr × Array (Option String × Witness × Option (List AStep) ×
         Option Ref))
     | 0 => noFuel L
     | fuel + 1 => do
@@ -911,7 +954,7 @@ where
         expect L ";"
         specSteps (spec.push c) sps fuel
   /-- The constraints `C;` up to `end`, not consumed, after `defn`. -/
-  constrs (defn : Array PBConstr) : ℕ → PM σ (Array PBConstr)
+  constrs (defn : Array PBConstr) : ℕ → PM (Array PBConstr)
     | 0 => noFuel L
     | fuel + 1 => do
       if (← L.peek) == "end" then return defn
@@ -925,7 +968,7 @@ mutual
 consumed. The depth of nested subproofs and the number of rules in each are bounded by `fuel`,
 which `Cslib.Logic.PL.VeriPB.Elab.Parse.fuelOf` takes above the number of bytes: each rule
 consumes a token. -/
-def step (fuel : ℕ) (L : Lexer σ) : PM σ (Option AStep) := do
+def step (fuel : ℕ) (L : Lexer) : PM (Option AStep) := do
   match fuel with
   | 0 => noFuel L
   | fuel + 1 =>
@@ -1090,7 +1133,7 @@ def step (fuel : ℕ) (L : Lexer σ) : PM σ (Option AStep) := do
   | _ => fail L s!"unsupported rule `{t}`"
 
 /-- Rules up to `output`, `qed`, `end` or `conclusion`, after those of `acc`. -/
-private def steps (fuel : ℕ) (L : Lexer σ) (acc : Array AStep := #[]) : PM σ (List AStep) := do
+private def steps (fuel : ℕ) (L : Lexer) (acc : Array AStep := #[]) : PM (List AStep) := do
   match fuel with
   | 0 => noFuel L
   | fuel + 1 =>
@@ -1101,7 +1144,7 @@ private def steps (fuel : ℕ) (L : Lexer σ) (acc : Array AStep := #[]) : PM σ
 end
 
 /-- A bound of `BOUNDS`: an integer, or `INF`. -/
-private def bound (L : Lexer σ) : PM σ (Option ℤ) := do
+private def bound (L : Lexer) : PM (Option ℤ) := do
   let t ← L.next
   if t == "INF" then return none
   match int? t with
@@ -1109,14 +1152,14 @@ private def bound (L : Lexer σ) : PM σ (Option ℤ) := do
   | none => fail L s!"expected a bound, found `{t}`"
 
 /-- A natural number, the count of an `ENUMERATION` conclusion. -/
-private def count (L : Lexer σ) : PM σ ℕ := do
+private def count (L : Lexer) : PM ℕ := do
   let t ← L.next
   match nat? t with
   | some n => return n
   | none => fail L s!"expected a number, found `{t}`"
 
 /-- An optional assignment `: ρ` before `;`, both consumed. -/
-private def asgOpt (L : Lexer σ) : PM σ (Option (List (Literal ℕ))) := do
+private def asgOpt (L : Lexer) : PM (Option (List (Literal ℕ))) := do
   let t ← L.next
   if t == ";" then return none
   if t != ":" then fail L s!"expected `:` or `;`, found `{t}`"
@@ -1124,7 +1167,7 @@ private def asgOpt (L : Lexer σ) : PM σ (Option (List (Literal ℕ))) := do
 
 /-- The output section (`none` for `NONE`, else the guarantee and `FILE` (`true`) or `IMPLICIT`),
 the conclusion and the end of the proof. -/
-def tail (L : Lexer σ) : PM σ (Option (Guarantee × Bool) × AConclusion) := do
+def tail (L : Lexer) : PM (Option (Guarantee × Bool) × AConclusion) := do
   expect L "output"
   let g ← L.next
   let sec ← if g == "NONE" then pure none else do
@@ -1164,7 +1207,7 @@ def tail (L : Lexer σ) : PM σ (Option (Guarantee × Bool) × AConclusion) := d
   return (sec, concl)
 
 /-- The header `pseudo-Boolean proof version 3.0`, and `f N;` if present: `N`. -/
-def header (L : Lexer σ) : PM σ (Option ℕ) := do
+def header (L : Lexer) : PM (Option ℕ) := do
   expect L "pseudo-Boolean"
   expect L "proof"
   expect L "version"

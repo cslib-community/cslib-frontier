@@ -46,6 +46,7 @@ its slack at every assignment (`Cslib.Logic.PL.VeriPB.slack_normalize`).
 * `Cslib.Logic.PL.VeriPB.TrailConsistent`: a trail without complementary literals.
 * `Cslib.Logic.PL.VeriPB.RupOk`: every consistent trail containing the given literals leads the
   hints to a conflict.
+* `Cslib.Logic.PL.VeriPB.Forces`: a constraint forces a literal on a trail.
 
 ## Main results
 
@@ -56,6 +57,11 @@ its slack at every assignment (`Cslib.Logic.PL.VeriPB.slack_normalize`).
   accepted when its hints are justified by implications.
 * `Cslib.Logic.PL.VeriPB.slack_normalize`, `Cslib.Logic.PL.VeriPB.holds_add_iff`: the slack of a
   normalized constraint and of a sum.
+* `Cslib.Logic.PL.VeriPB.Forces.propagate`, `Cslib.Logic.PL.VeriPB.rupHints_of_forces`: a literal
+  that a constraint forces on a trail is propagated from every larger trail, so a chain of forced
+  literals ending in a constraint of negative slack is a run of hints that reaches a conflict.
+  Unlike `Cslib.Logic.PL.VeriPB.RupOk`, this needs no distinct variables: it is stated with the
+  slack, which only falls as the trail grows (`Cslib.Logic.PL.VeriPB.slack_anti`).
 -/
 
 @[expose] public section
@@ -381,6 +387,156 @@ theorem holds_add_iff (σ : ℕ → Bool) (c d : PBConstr) :
     (c.add d).Holds σ ↔ (c.degree : ℤ) + d.degree ≤ lhs σ c.terms + lhs σ d.terms := by
   rw [PBConstr.add, holds_normalize, Holds, lhs_append]
   simp only
+  omega
+
+/-! ### Forced literals -/
+
+/-- The constraint `c` **forces** the literal `l` on the trail `ρ`: `ρ` does not falsify `l`, and
+a term of `c` on `l` has a coefficient above the slack of `c`. Unit propagation of `c` then makes
+`l` true (`Cslib.Logic.PL.VeriPB.Forces.propagate`). -/
+def Forces (ρ : List (Literal ℕ)) (c : PBConstr) (l : Literal ℕ) : Prop :=
+  Std.Sat.Literal.negate l ∉ ρ ∧ ∃ a, (a, l) ∈ c.terms ∧ slack ρ c < a
+
+private theorem coeffSum_filter_mono {ts : List (ℕ × Literal ℕ)} {p q : ℕ × Literal ℕ → Bool}
+    (h : ∀ t ∈ ts, p t = true → q t = true) :
+    coeffSum (ts.filter p) ≤ coeffSum (ts.filter q) := by
+  induction ts with
+  | nil => simp
+  | cons t ts ih =>
+    have ih := ih fun u hu => h u (List.mem_cons_of_mem _ hu)
+    have ht := h t List.mem_cons_self
+    by_cases hp : p t = true
+    · rw [List.filter_cons_of_pos hp, List.filter_cons_of_pos (ht hp), coeffSum_cons,
+        coeffSum_cons]
+      omega
+    · rw [List.filter_cons_of_neg hp]
+      by_cases hq : q t = true
+      · rw [List.filter_cons_of_pos hq, coeffSum_cons]; omega
+      · rw [List.filter_cons_of_neg hq]; exact ih
+
+private theorem not_falsified_of_sub {ρ ρ' : List (Literal ℕ)} (h : ∀ l ∈ ρ, l ∈ ρ')
+    {t : ℕ × Literal ℕ} (ht : (!falsified ρ' t) = true) : (!falsified ρ t) = true := by
+  unfold falsified at *
+  cases h1 : ρ.contains (Std.Sat.Literal.negate t.2)
+  · rfl
+  · exact absurd (h _ (List.contains_iff_mem.1 h1)) (by simpa using ht)
+
+/-- **The slack only falls as the trail grows.** -/
+theorem slack_anti {ρ ρ' : List (Literal ℕ)} (h : ∀ l ∈ ρ, l ∈ ρ') (c : PBConstr) :
+    slack ρ' c ≤ slack ρ c := by
+  unfold slack
+  have := coeffSum_filter_mono (ts := c.terms) fun t _ => not_falsified_of_sub h (t := t)
+  omega
+
+/-- A term the larger trail falsifies, and the smaller does not, lowers the slack by its
+coefficient. -/
+private theorem slack_add_le {ρ ρ' : List (Literal ℕ)} (h : ∀ l ∈ ρ, l ∈ ρ') {c : PBConstr}
+    {a : ℕ} {l : Literal ℕ} (hl : (a, l) ∈ c.terms) (hn : Std.Sat.Literal.negate l ∉ ρ)
+    (hn' : Std.Sat.Literal.negate l ∈ ρ') : slack ρ' c + a ≤ slack ρ c := by
+  unfold slack
+  have hsplit := coeffSum_filter_add c.terms (fun t => !falsified ρ t) (fun t => !falsified ρ' t)
+  have h1 : (c.terms.filter fun t => !falsified ρ t && !falsified ρ' t) =
+      c.terms.filter fun t => !falsified ρ' t :=
+    List.filter_congr fun t _ => by
+      cases h' : falsified ρ' t
+      · simp [not_falsified_of_sub h (t := t) (by simp [h'])]
+      · simp
+  have h2 : a ≤ coeffSum (c.terms.filter fun t => !falsified ρ t && !!falsified ρ' t) :=
+    le_coeffSum_of_mem (t := (a, l)) (List.mem_filter.2 ⟨hl, by simp [falsified, hn, hn']⟩)
+  rw [h1] at hsplit
+  omega
+
+/-- **A forced literal is propagated**: on any larger trail, propagating `c` finds a conflict or
+makes `l` true. -/
+theorem Forces.propagate {ρ ρ' : List (Literal ℕ)} {c : PBConstr} {l : Literal ℕ}
+    (hF : Forces ρ c l) (h : ∀ m ∈ ρ, m ∈ ρ') :
+    VeriPB.propagate ρ' c = none ∨
+      ∃ ρ'', VeriPB.propagate ρ' c = some ρ'' ∧ l ∈ ρ'' ∧ ∀ m ∈ ρ', m ∈ ρ'' := by
+  obtain ⟨hn, a, hl, hs⟩ := hF
+  unfold VeriPB.propagate
+  by_cases h0 : slack ρ' c < 0
+  · left; simp [h0]
+  right
+  simp only [h0, ↓reduceIte, Option.some.injEq, exists_eq_left']
+  refine ⟨?_, fun m hm => List.mem_append_right _ hm⟩
+  by_cases hl' : l ∈ ρ'
+  · exact List.mem_append_right _ hl'
+  have hn' : Std.Sat.Literal.negate l ∉ ρ' := fun hn' => by
+    have := slack_add_le h hl hn hn'
+    omega
+  have := slack_anti h c
+  refine List.mem_append_left _ (List.mem_map.2 ⟨(a, l), List.mem_filter.2 ⟨hl, ?_⟩, rfl⟩)
+  simp [falsified, hn', hl']
+  omega
+
+/-- **A chain of forced literals closes a RUP run**: if each hint of `xs` names a constraint
+forcing its literal on the literals before it (after those of `B`), and the hint `h` names a
+constraint whose slack on all of them is negative, then the hints `xs` and then `h` reach a
+conflict from every trail containing `B`. -/
+theorem rupHints_of_forces {db : List (ℕ × PBConstr)} {neg : PBConstr} {h : Hint} :
+    ∀ (xs : List (Hint × Literal ℕ)) (B ρ : List (Literal ℕ)), (∀ l ∈ B, l ∈ ρ) →
+      (∀ (k : ℕ) (hk : k < xs.length), ∃ c, resolve db neg xs[k].1 = some c ∧
+        Forces (B ++ (xs.take k).map (·.2)) c xs[k].2) →
+      (∃ c, resolve db neg h = some c ∧ slack (B ++ xs.map (·.2)) c < 0) →
+      rupHints db neg (xs.map (·.1) ++ [h]) ρ = true
+  | [], B, ρ, hB, _, ⟨c, hc, hs⟩ => by
+    have : VeriPB.propagate ρ c = none := by
+      have := slack_anti hB c
+      simp only [List.map_nil, List.append_nil] at hs
+      simp [VeriPB.propagate]
+      omega
+    simp [rupHints, hc, this]
+  | x :: xs, B, ρ, hB, hx, hc => by
+    obtain ⟨c, hcx, hF⟩ := hx 0 (by simp)
+    simp only [List.getElem_cons_zero, List.take_zero, List.map_nil, List.append_nil] at hcx hF
+    simp only [List.map_cons, List.cons_append, rupHints, hcx]
+    rcases hF.propagate hB with hp | ⟨ρ'', hp, hl, hsub⟩
+    · simp [hp]
+    · simp only [hp]
+      refine rupHints_of_forces xs (B ++ [x.2]) ρ'' (fun m hm => ?_) (fun k hk => ?_) ?_
+      · rcases List.mem_append.1 hm with hm | hm
+        · exact hsub m (hB m hm)
+        · simp only [List.mem_singleton] at hm; exact hm ▸ hl
+      · obtain ⟨c, h1, h2⟩ := hx (k + 1) (by simp; omega)
+        exact ⟨c, by simpa using h1, by simpa using h2⟩
+      · simpa using hc
+
+/-- **Adding a literal to the trail** lowers the slack by the coefficients of the terms on its
+negation. -/
+theorem slack_append_singleton {ρ : List (Literal ℕ)} {m : Literal ℕ} (hm : m ∉ ρ) (c : PBConstr) :
+    slack (ρ ++ [m]) c = slack ρ c -
+      (((c.terms.filter fun t => t.2 == Std.Sat.Literal.negate m).map (·.1)).sum : ℕ) := by
+  unfold slack
+  have key : ∀ ts : List (ℕ × Literal ℕ), (∀ t ∈ ts, True) →
+      (coeffSum (ts.filter fun t => !falsified (ρ ++ [m]) t) : ℤ) =
+        coeffSum (ts.filter fun t => !falsified ρ t) -
+          (((ts.filter fun t => t.2 == Std.Sat.Literal.negate m).map (·.1)).sum : ℕ) := by
+    intro ts _
+    induction ts with
+    | nil => simp
+    | cons t ts ih =>
+      simp only [forall_const] at ih
+      have hneg : Std.Sat.Literal.negate t.2 = m ↔ t.2 = Std.Sat.Literal.negate m := by
+        constructor
+        · rintro rfl; simp
+        · rintro h; rw [h]; simp
+      by_cases ht : t.2 = Std.Sat.Literal.negate m
+      · have h1 : falsified (ρ ++ [m]) t = true := by
+          simp [falsified, hneg.2 ht]
+        have h2 : falsified ρ t = false := by
+          simp only [falsified, Bool.eq_false_iff, ne_eq, List.contains_iff_mem]
+          rw [hneg.2 ht]; exact hm
+        simp [h1, h2, ht, ih]
+      · have h1 : falsified (ρ ++ [m]) t = falsified ρ t := by
+          simp only [falsified, List.contains_append, List.contains_cons, List.contains_nil,
+            Bool.or_false]
+          have : (Std.Sat.Literal.negate t.2 == m) = false := by
+            simpa [beq_iff_eq] using fun h => ht (hneg.1 h)
+          simp [this]
+        cases hf : falsified ρ t
+        · simp [h1, hf, ht, ih]; omega
+        · simp [h1, hf, ht, ih]
+  rw [key c.terms (fun _ _ => trivial)]
   omega
 
 end Cslib.Logic.PL.VeriPB
