@@ -459,8 +459,10 @@ evaluation (`expectedCost = 1/4` at `1/2`), and `constantZero2` failing every ap
 ## Deterministic Strategyproof Location on Intervals, Trees, and Cyclic Graphs
 
 Building on single-peaked metric preferences over `MetricGraph` tree and cycle geometry, three
-modules characterize deterministic strategyproof onto mechanisms following
-[Moulin][moulin80] (primary paper not read directly) and [Schummer and Vohra][schummervohra02] (author preprint, Theorems 1 and 2):
+modules formalize deterministic strategyproof onto mechanisms following
+[Moulin][moulin80] (primary paper not read directly) and [Schummer and Vohra][schummervohra02]
+(author preprint: Theorem 1 on trees, and the shortest-cycle / pure-cycle-graph step toward
+Theorem 2; arbitrary-cycle dictatorship remains open under issue #4327):
 
 * [FacilityLocation.Interval](../../CslibFrontier/GameTheory/Mechanism/FacilityLocation/Interval.lean):
   formalizes Moulin's generalized median rules via
@@ -481,7 +483,9 @@ modules characterize deterministic strategyproof onto mechanisms following
   describes the correspondence. The source's Theorem 1 (p. 15) states only strategyproofness; the
   strong group strategyproofness is an extension proved here.
 * [FacilityLocation.Cycle](../../CslibFrontier/GameTheory/Mechanism/FacilityLocation/Cycle.lean):
-  proves cycle dictatorship on graphs with cycles: for any shortest closed cycle (`IsShortestCycle W c`),
+  proves the shortest-cycle and pure-cycle-graph step toward Theorem 2 (not arbitrary-cycle
+  dictatorship, which remains open under issue #4327): for any shortest closed cycle
+  (`IsShortestCycle W c`),
   `exists_cycleDictator_of_isShortestCycle` shows every deterministic strategyproof onto mechanism
   restricts to a dictatorship on profiles supported on `Set.range (circleMap ...)`,
   `exists_cycleDictator_of_not_isAcyclic` yields a shortest-cycle dictatorship whenever
