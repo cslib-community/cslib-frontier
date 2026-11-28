@@ -70,13 +70,6 @@ def evalMany (E : FramedEvaluator n f r) : Code .standard (r + 6) :=
 @[simp] private theorem ne_bank (i : Fin r) (j : Fin 6) : Fin.natAdd r j ≠ bank r i :=
   (bank_ne i j).symm
 
-@[simp] private theorem natAdd_eq_iff {j k : Fin 6} :
-    (Fin.natAdd r j : Fin (r + 6)) = Fin.natAdd r k ↔ j = k :=
-  ⟨fun h => Fin.ext (by have := congrArg Fin.val h; simpa using this), fun h => h ▸ rfl⟩
-
-@[simp] private theorem bank_eq_iff {i j : Fin r} : bank r i = bank r j ↔ i = j :=
-  ⟨fun h => Fin.ext (by have := congrArg Fin.val h; simpa using this), fun h => h ▸ rfl⟩
-
 /-- The window `[b, b + space)` misses the address `a`. -/
 abbrev Outside (b space a : ℕ) : Prop := a < b ∨ b + space ≤ a
 
@@ -87,7 +80,7 @@ the packed point `xs[j]` at `src + j`. If the source block, the output block and
 `(f xs[j]).toNat` at `dst + j` for every `j < k` within `k * (E.cost + 7) + 4` instructions, and
 keeps every cell outside the window and the output block. -/
 theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List (BitString n))
-    (s : Data (r + 6)) (hw : E.minWidth ≤ w) (hw1 : 1 ≤ w) (hcnt : s.regs (cCnt r) = xs.length)
+    (s : Data (r + 6)) (hw : n + 1 ≤ w) (hcnt : s.regs (cCnt r) = xs.length)
     (hsrc : s.regs (cSrc r) = src) (hdst : s.regs (cDst r) = dst)
     (hb : s.regs (bank r E.base) = b)
     (hpts : ∀ (j : ℕ) (hj : j < xs.length), s.mem (src + j) = pointWord xs[j])
@@ -117,7 +110,7 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
     refine ⟨?_, ?_, ?_, ?_, ?_, fun j _ hj => absurd hj (Nat.not_lt_zero j), fun a _ _ => rfl⟩ <;>
       simp [s₀, hcnt, hsrc, hdst, hb]
   have hstep (y : Data (r + 6)) (hy : P (y.regs (cK r)) y) (hlt : y.regs (cK r) < xs.length) :
-      ∃ a x, ExecWithin w (evalPrep E) y a 2 ∧ E.minWidth ≤ w ∧
+      ∃ a x, ExecWithin w (evalPrep E) y a 2 ∧
         Fits w (a.regs (bank r E.base) + E.space) ∧ a.regs (bank r E.inp) = pointWord x ∧
         ∀ t, E.CallPost (bank r) x a t → ∃ z, ExecWithin w (evalCont E) t z 3 ∧
           P (y.regs (cK r) + 1) z ∧ z.regs (cK r) = y.regs (cK r) + 1 := by
@@ -130,7 +123,7 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
       rw [hyfr _ (hsw k hlt) ?_, hpts k hlt]
       by_contra hc
       exact hsd (src + k - dst) (by omega) k hlt (by omega)
-    refine ⟨_, xs[k], ((Exec.bin hsrcf).within.seq Exec.load.within), hw, ?_, ?_, ?_⟩
+    refine ⟨_, xs[k], ((Exec.bin hsrcf).within.seq Exec.load.within), ?_, ?_, ?_⟩
     · simpa [Function.update_apply, Ne.symm hib, hyb] using hfb
     · simp [hys, hk, hsk]
     intro t ⟨hout, _, hbase, hregs, hmem⟩
@@ -169,7 +162,7 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
         BinOp.eval, htd, htk]
       rw [Function.update_of_ne (by omega), htm a ha, hyfr a ha (by omega)]
     · simp [htk, hto]
-  obtain ⟨y, hy, hP, -⟩ := E.exec_loop (g := bank r) (fun _ _ h => bank_eq_iff.1 h)
+  obtain ⟨y, hy, hP, -⟩ := E.exec_loop (g := bank r) (Fin.castAdd_injective r 6) hw
     (tPrep := 2) (tCont := 3) (index := cK r) (limit := cCnt r) (prep := evalPrep E)
     (cont := evalCont E) P (fun y hy => hy.1) hstep (by rw [hk₀]; omega) hP₀
   refine ⟨y, (he₀.seq hy).mono (le_of_eq ?_), fun j hj => hP.2.2.2.2.2.1 j hj hj,
@@ -195,7 +188,7 @@ example {w b src dst : ℕ} (xs : List (BitString 3)) (s : Data 13) (hw : 4 ≤ 
     (hsd : ∀ i < xs.length, ∀ j < xs.length, dst + i ≠ src + j) :
     ∃ t, ExecWithin w (evalMany (parityEvaluator 3)) s t (xs.length * 31 + 4) ∧
       ∀ (j : ℕ) (hj : j < xs.length), t.mem (dst + j) = (parity 3 xs[j]).toNat := by
-  obtain ⟨t, ht, hres, -⟩ := exec_evalMany (parityEvaluator 3) xs s hw (by omega) hcnt hsrc hdst
+  obtain ⟨t, ht, hres, -⟩ := exec_evalMany (parityEvaluator 3) xs s hw hcnt hsrc hdst
     hb hpts (by simpa [parityEvaluator] using hfb) hfs hfd
     (fun j _ => show src + j < b ∨ b + 0 ≤ src + j by omega)
     (fun j _ => show dst + j < b ∨ b + 0 ≤ dst + j by omega)

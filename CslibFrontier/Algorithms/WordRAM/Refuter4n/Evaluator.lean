@@ -12,6 +12,8 @@ public import CslibFrontier.Computability.WordRAM.CountingLoop
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import CslibFrontier.Foundations.Data.BitString.Parity
 import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Foundations.Data.BitString.ListParity
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Sparse
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
@@ -24,27 +26,35 @@ caller charges its calls. No running time is claimed for the refuter here, and n
 polynomial-time instantiation: adapting `ComputableInPolyTime.exists_wordRAM` (a flat program on
 bit-per-word inputs) to this calling convention is separate work.
 
-**Packed input.** A point `x : BitString n` is passed as one word, `pointWord x`, the number of
-`x` in `BitString.equivFin n`: bit `i` is `x i` (`testBit_pointWord`), and the word is below
-`2 ^ n`, so it fits at every width `w ≥ n` (`fits_pointWord`).
+**Packed input.** A point `x : BitString n` is passed as one word, `pointWord x`, its number in
+the existing `BitString.equivFin n` (an abbreviation naming the calling convention, so the
+`equivFin` lemmas such as `testBit_equivFin` apply to it directly). The word is below `2 ^ n`,
+so it fits at every width `w ≥ n` (`fits_pointWord`).
 
 **Contract.** A `FramedEvaluator n f r` is a fixed standard-basis program `code` on `r`
 registers, with an input register `inp`, a workspace base register `base`, a result register
-`out` (`inp ≠ base`), a workspace size `space`, a per-call instruction bound `cost` and a
-minimum word width `minWidth ≥ n`. The admitted widths are all `w ≥ minWidth`, so a caller may
-run at any larger width its own addresses need. The certificate `exec` holds for every admitted
-width, every point `x`, every base address `b` with `Fits w (b + space)`, and every data whose
-register `inp` holds `pointWord x` and register `base` holds `b`; the other registers and all
-memory, including the workspace window `[b, b + space)`, are arbitrary. From such data `code`
-runs within `cost` instructions to data with `(f x).toNat` in `out`, registers `inp` and
-`base` unchanged, and every memory cell outside the window unchanged. Window cells and the
-other registers are left unspecified.
+`out` (`inp ≠ base`), a workspace size `space` and a per-call instruction bound `cost`. The
+certificate `exec` holds at every word width `w ≥ n + 1`, for every point `x`, every base
+address `b` with `Fits w (b + space)`, and every data whose register `inp` holds `pointWord x`
+and register `base` holds `b`; the other registers and all memory, including the workspace
+window `[b, b + space)`, are arbitrary. From such data `code` runs within `cost` instructions to
+data with `(f x).toNat` in `out`, registers `inp` and `base` unchanged, and every memory cell
+outside the window unchanged. Window cells and the other registers are left unspecified.
+
+The admitted widths are fixed rather than chosen by the evaluator: `n + 1` bits hold the packed
+point and a counter up to `n`, and a caller may run at any larger width its own addresses need.
+An evaluator that could demand a larger width could hide a `2 ^ n`-bit truth table of `f` in a
+single constant and answer within a constant `cost`. The code itself is not bounded in length,
+so for one `n` a branching program over the bits gives cost `O(n)` for every `f`; uniformity in
+`n` is the role of the polynomial-time instantiation, which stays open.
 
 Since the certificate starts from arbitrary window contents and scratch registers, a call needs
 no reset before it, and any initialisation the code performs is part of `cost`: every call,
 with its setup, is charged by `cost`. Since memory outside the window is arbitrary and the result
 is fixed, the result cannot depend on it; since it is preserved, so is any refuter state stored
-there.
+there. This is a stateless calling convention: unlike `SubroutineBase`, which carries a
+representation invariant and zero-fills its block before setup (`initClear`), an evaluator keeps
+no state between calls and starts from dirty memory without any reset pass.
 
 **Calls.** A caller runs `code` in an injective register bank `g` of its own register file
 (`Code.rename`). `FramedEvaluator.exec_rename` gives the call postcondition `CallPost`: the
@@ -60,7 +70,8 @@ instructions.
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.Refuter4n.pointWord`: the packed word of a point.
+* `Cslib.Algorithms.WordRAM.Refuter4n.pointWord`, `fits_pointWord`: the packed word of a point
+  and its fit.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator`: a fixed Word-RAM program for `f` with
   its calling convention, cost and execution certificate.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator.CallPost`: the postcondition of one call
@@ -69,8 +80,6 @@ instructions.
 
 ## Main results
 
-* `Cslib.Algorithms.WordRAM.Refuter4n.testBit_pointWord`, `pointWord_lt`, `fits_pointWord`,
-  `pointWord_eq_lsbValue`: the packed word of a point.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator.exec_rename`: one call in a caller's
   register bank, within `cost`.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator.exec_loop`: a counting loop with one call
@@ -88,32 +97,22 @@ variable {n : ℕ}
 
 /-! ### Packed points -/
 
-/-- The packed word of a point: its number in `BitString.equivFin n`, with `x i` at bit `i`. -/
-@[expose] def pointWord (x : BitString n) : ℕ := (equivFin n x : ℕ)
-
-/-- Bit `i` of the packed word of `x` is `x i`. -/
-theorem testBit_pointWord (x : BitString n) (i : Fin n) : (pointWord x).testBit i = x i :=
-  testBit_equivFin x i
-
-/-- The packed word of a point of `BitString n` is below `2 ^ n`. -/
-theorem pointWord_lt (x : BitString n) : pointWord x < 2 ^ n := (equivFin n x).isLt
+/-- The packed word of a point: its number in `BitString.equivFin n`, with `x i` at bit `i`
+(`testBit_equivFin`). -/
+abbrev pointWord (x : BitString n) : ℕ := (equivFin n x : ℕ)
 
 /-- The packed word of a point fits at every width `w ≥ n`. -/
 theorem fits_pointWord {w : ℕ} (x : BitString n) (h : n ≤ w) : Fits w (pointWord x) :=
-  (pointWord_lt x).trans_le (Nat.pow_le_pow_right (by decide) h)
-
-/-- The packed word of a point is the value of its bits, least significant first. -/
-theorem pointWord_eq_lsbValue (x : BitString n) : pointWord x = lsbValue (List.ofFn x) :=
-  (lsbValue_ofFn x).symm
+  (equivFin n x).isLt.trans_le (Nat.pow_le_pow_right (by decide) h)
 
 /-! ### The evaluator contract -/
 
 /-- A **framed Word-RAM evaluator** for `f : BitString n → Bool`: a fixed standard-basis program
 on `r` registers with its calling convention and per-call instruction bound. The certificate
-`exec` holds from any data whose register `inp` holds the packed point and register `base` the
-workspace base `b`, with all other registers and all memory arbitrary (the window
-`[b, b + space)` included). It computes `(f x).toNat` into `out` within `cost` instructions,
-keeps `inp` and `base`, and keeps every memory cell outside the window. -/
+`exec` holds at every width `w ≥ n + 1`, from any data whose register `inp` holds the packed
+point and register `base` the workspace base `b`, with all other registers and all memory
+arbitrary (the window `[b, b + space)` included). It computes `(f x).toNat` into `out` within
+`cost` instructions, keeps `inp` and `base`, and keeps every memory cell outside the window. -/
 structure FramedEvaluator (n : ℕ) (f : BitString n → Bool) (r : ℕ) where
   /-- The fixed program. -/
   code : Code .standard r
@@ -127,14 +126,10 @@ structure FramedEvaluator (n : ℕ) (f : BitString n → Bool) (r : ℕ) where
   space : ℕ
   /-- The instruction bound of one call, setup and reset included. -/
   cost : ℕ
-  /-- The minimum admitted word width: every `w ≥ minWidth` is admitted. -/
-  minWidth : ℕ
   /-- The input and base registers are distinct, so a caller can set both. -/
   inp_ne_base : inp ≠ base
-  /-- At an admitted width, packed points fit a word. -/
-  le_minWidth : n ≤ minWidth
-  /-- The execution certificate, for every admitted width, point, base and data. -/
-  exec : ∀ {w b : ℕ} (x : BitString n) (s : Data r), minWidth ≤ w → Fits w (b + space) →
+  /-- The execution certificate, for every width `w ≥ n + 1`, point, base and data. -/
+  exec : ∀ {w b : ℕ} (x : BitString n) (s : Data r), n + 1 ≤ w → Fits w (b + space) →
     s.regs inp = pointWord x → s.regs base = b →
     ∃ t, ExecWithin w code s t cost ∧ t.regs out = (f x).toNat ∧
       t.regs inp = s.regs inp ∧ t.regs base = s.regs base ∧
@@ -157,7 +152,7 @@ outside the window at the base held in `g E.base` is kept. -/
 point `x` and the window at the base held in `g E.base` fits, the renamed program runs within
 `E.cost` instructions and establishes `CallPost`. -/
 theorem exec_rename {g : Fin r → Fin r'} (hg : g.Injective) {w : ℕ} (x : BitString n)
-    (s : Data r') (hw : E.minWidth ≤ w) (hfit : Fits w (s.regs (g E.base) + E.space))
+    (s : Data r') (hw : n + 1 ≤ w) (hfit : Fits w (s.regs (g E.base) + E.space))
     (hx : s.regs (g E.inp) = pointWord x) :
     ∃ t, ExecWithin w (E.code.rename g) s t E.cost ∧ E.CallPost g x s t := by
   obtain ⟨t, ht, hQ, hframe⟩ := ExecWithin.rename_post hg
@@ -165,24 +160,26 @@ theorem exec_rename {g : Fin r → Fin r'} (hg : g.Injective) {w : ℕ} (x : Bit
   exact ⟨t, ht, hQ.1, hQ.2.1, hQ.2.2.1, hframe, hQ.2.2.2⟩
 
 /-- **A counting loop with one call per iteration.** The body is a charged preparation `prep`,
-one call of `E` in the bank `g` and a charged continuation `cont`. At each iteration below `N`,
-the preparation reaches data at which the call is admitted on some point, and the continuation
-re-establishes the invariant at the next index from any data satisfying `CallPost`. Then the
-loop runs within `(N - i₀) * (tPrep + E.cost + tCont + 2) + 2` instructions from index `i₀`:
-every call and its setup is charged. -/
+one call of `E` in the bank `g` and a charged continuation `cont`, at a width `w ≥ n + 1`. At
+each iteration below `N`, the preparation reaches data at which the call is admitted on some
+point, and the continuation re-establishes the invariant at the next index from any data
+satisfying `CallPost`. Then the loop runs within
+`(N - i₀) * (tPrep + E.cost + tCont + 2) + 2` instructions from index `i₀`: every call and its
+setup is charged. -/
 theorem exec_loop {g : Fin r → Fin r'} (hg : g.Injective) {w N tPrep tCont : ℕ}
-    {index limit : Fin r'} {prep cont : Code .standard r'} (P : ℕ → Data r' → Prop)
+    (hw : n + 1 ≤ w) {index limit : Fin r'} {prep cont : Code .standard r'}
+    (P : ℕ → Data r' → Prop)
     (hlimit : ∀ y, P (y.regs index) y → y.regs limit = N)
     (hstep : ∀ y, P (y.regs index) y → y.regs index < N →
-      ∃ a x, ExecWithin w prep y a tPrep ∧ E.minWidth ≤ w ∧
-        Fits w (a.regs (g E.base) + E.space) ∧ a.regs (g E.inp) = pointWord x ∧
+      ∃ a x, ExecWithin w prep y a tPrep ∧ Fits w (a.regs (g E.base) + E.space) ∧
+        a.regs (g E.inp) = pointWord x ∧
         ∀ t, E.CallPost g x a t → ∃ z, ExecWithin w cont t z tCont ∧
           P (y.regs index + 1) z ∧ z.regs index = y.regs index + 1)
     {s : Data r'} (hle : s.regs index ≤ N) (hs : P (s.regs index) s) :
     ∃ y, ExecWithin w (.loop (.lt index limit) (.seq prep (.seq (E.code.rename g) cont))) s y
       ((N - s.regs index) * (tPrep + E.cost + tCont + 2) + 2) ∧ P N y ∧ y.regs index = N :=
   ExecWithin.loop_count P hlimit (fun y hy hlt => by
-    obtain ⟨a, x, hprep, hw, hfit, hx, hcont⟩ := hstep y hy hlt
+    obtain ⟨a, x, hprep, hfit, hx, hcont⟩ := hstep y hy hlt
     exact ExecWithin.call hg hprep (E.exec x (a.comap g) hw hfit hx rfl)
       fun t hQ hframe => hcont t ⟨hQ.1, hQ.2.1, hQ.2.2.1, hframe, hQ.2.2.2⟩) hle hs
 
@@ -216,29 +213,15 @@ register `2`, with registers `3` to `6` as scratch. -/
 def parityCode (n : ℕ) : Code .standard 7 :=
   .seq (ram[ pOut ← #0; pI ← #0; pLim ← #n; pOne ← #1 ]) (.loop (.lt pI pLim) parityBody)
 
-/-- Bit `c` of `x`, as a word. -/
-private theorem shiftRight_and_one (x c : ℕ) : (x >>> c) &&& 1 = (x.testBit c).toNat := by
-  rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, Nat.toNat_testBit]
-
 private theorem toNat_xor (a b : Bool) : a.toNat ^^^ b.toNat = (a ^^ b).toNat := by
   cases a <;> cases b <;> rfl
 
-/-- The bits of a point below `k`. -/
-private def lowSet (n k : ℕ) : Finset (Fin n) := Finset.univ.filter fun i => i.val < k
-
-private theorem lowSet_succ {k : ℕ} (hk : k < n) :
-    lowSet n (k + 1) = insert ⟨k, hk⟩ (lowSet n k) := by
-  ext i
-  simp only [lowSet, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
-    Fin.ext_iff]
-  omega
-
-private theorem notMem_lowSet {k : ℕ} (hk : k < n) : (⟨k, hk⟩ : Fin n) ∉ lowSet n k := by
-  simp [lowSet]
-
-private theorem lowSet_self : lowSet n n = Finset.univ := by
-  ext i
-  simp [lowSet]
+/-- The parity of the first `k + 1` bits of a point is that of the first `k`, exclusive-or
+bit `k`. -/
+private theorem wordParity_take_succ (x : BitString n) {k : ℕ} (hk : k < n) :
+    wordParity ((List.ofFn x).take (k + 1)) = (wordParity ((List.ofFn x).take k) ^^ x ⟨k, hk⟩) := by
+  rw [List.take_add_one, List.getElem?_ofFn, wordParity_eq_sum, wordParity_eq_sum, List.sum_append]
+  simp [hk, Bool.add_eq_xor]
 
 private theorem exec_parityBody {w : ℕ} (y : Data 7) (hone : y.regs pOne = 1)
     (hi : Fits w (y.regs pI + 1)) (hinp : Fits w (y.regs pInp)) (h1 : Fits w 1) (b : Bool)
@@ -252,7 +235,7 @@ private theorem exec_parityBody {w : ℕ} (y : Data 7) (hone : y.regs pOne = 1)
   have hb : ∀ c : Bool, Fits w c.toNat := fun c => h1.of_le (Bool.toNat_le c)
   refine WP.exists_execWithin ?_
   unfold parityBody
-  wram_exec [hone, hout, hs, hi, shiftRight_and_one, toNat_xor, hb]
+  wram_exec [hone, hout, hs, hi, Nat.shiftRight_and_one, toNat_xor, hb]
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp⟩
 
@@ -270,7 +253,8 @@ theorem exec_parityCode {w : ℕ} (x : BitString n) (s : Data 7) (hw : n + 1 ≤
   have hinp : Fits w (s.regs pInp) := hx ▸ fits_pointWord x (by omega)
   let P (k : ℕ) (z : Data 7) : Prop :=
     z.regs pInp = s.regs pInp ∧ z.regs pBase = s.regs pBase ∧ z.regs pLim = n ∧
-      z.regs pOne = 1 ∧ z.mem = s.mem ∧ z.regs pOut = (parityOn (lowSet n k) x).toNat
+      z.regs pOne = 1 ∧ z.mem = s.mem ∧
+        z.regs pOut = (wordParity ((List.ofFn x).take k)).toNat
   have hbody (y : Data 7) (hy : P (y.regs pI) y) (hlt : y.regs pI < n) :
       ∃ z, ExecWithin w parityBody y z 4 ∧ P (y.regs pI + 1) z ∧
         z.regs pI = y.regs pI + 1 := by
@@ -279,17 +263,16 @@ theorem exec_parityCode {w : ℕ} (x : BitString n) (s : Data 7) (hw : n + 1 ≤
       (hn.of_le (by omega)) (hyi ▸ hinp) h1 _ hyout
     refine ⟨z, he, ⟨hzinp.trans hyi, hzb.trans hyb, hzl.trans hyl, hzo.trans hyo,
       hzm.trans hym, ?_⟩, hzi⟩
-    rw [hzout, lowSet_succ hlt, parityOn_insert (notMem_lowSet hlt), hyi, hx,
-      testBit_pointWord x ⟨_, hlt⟩, Bool.xor_comm]
+    rw [hzout, wordParity_take_succ x hlt, hyi, hx, testBit_equivFin x ⟨_, hlt⟩]
   refine WP.exists_execWithin ?_
   unfold parityCode
   wram_exec [hn, h1]
   wram_call (ExecWithin.loop_count P (fun z hz => hz.2.2.1) hbody (by wram_simp; omega)
     ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-      by wram_simp; simp [lowSet]⟩)
+      by wram_simp; simp⟩)
     with z ⟨⟨hzi, hzb, -, -, hzm, hzout⟩, -⟩
   refine ⟨by wram_simp; omega, ?_, hzi, hzb, hzm⟩
-  rw [hzout, lowSet_self]
+  rw [hzout, List.take_of_length_le (by simp), wordParity_ofFn]
   rfl
 
 /-- **The parity evaluator**: `parityCode n` as a framed evaluator for `Cslib.parity n`, with the
@@ -302,9 +285,7 @@ workspace, at the widths `w ≥ n + 1`, within `6 n + 6` instructions per call. 
   out := 2
   space := 0
   cost := 6 * n + 6
-  minWidth := n + 1
   inp_ne_base := by decide
-  le_minWidth := by omega
   exec x s hw _ hx _ := by
     obtain ⟨t, ht, hout, hinp, hbase, hmem⟩ := exec_parityCode x s hw hx
     exact ⟨t, ht, hout, hinp, hbase, fun a _ => by rw [hmem]⟩

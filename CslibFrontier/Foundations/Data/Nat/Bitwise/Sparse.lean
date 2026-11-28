@@ -24,6 +24,7 @@ natural-number arithmetic, independently of a machine word width or execution co
 * `Nat.testBit_sum_two_pow`: the set bits of a sum of distinct powers of two.
 * `Nat.testBit_sum_injective`: injectively placed Boolean coefficients are recovered exactly.
 * `Nat.and_sum_two_pow`: masking by sparse positions is their Boolean-weighted sum.
+* `Nat.shiftRight_and_one`: masking a right shift with `1` reads one bit.
 
 ## References
 
@@ -35,6 +36,10 @@ public section
 namespace Nat
 
 open Finset
+
+/-- Masking a right shift by `c` with `1` reads bit `c`, as a number. -/
+theorem shiftRight_and_one (x c : ℕ) : (x >>> c) &&& 1 = (x.testBit c).toNat := by
+  rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, Nat.toNat_testBit]
 
 /-- A sum of distinct powers of two has exactly the specified set bits. -/
 theorem testBit_sum_two_pow (s : Finset ℕ) (k : ℕ) :
