@@ -87,18 +87,14 @@ private theorem computableInPolyTime_boundaryPrefix (count : ℕ) :
     (ComputableInPolyTime.of_finite (fun i : Fin count => i.val)).comp
       (ComputableInPolyTime.snd (encList encBool) (encFinEnum (Fin count)))
   have hread : ComputableInPolyTime (fun p : List Bool × Fin count => p.1.getD p.2.val false)
-      (encPair (encList encBool) (encFinEnum (Fin count))) encBool := by
-    fun_prop
-  have hlist : ComputableInPolyTime (fun bits : List Bool =>
-      (List.finRange count).map (fun i => bits.getD i.val false))
-      (encList encBool) (encList encBool) :=
-    ComputableInPolyTime.mapWithInput (ComputableInPolyTime.const (List.finRange count)) hread
-  exact hlist.of_enc_eq (fun bits => by simp only [encFinFn_apply, List.ofFn_eq_map])
+      (encPair (encList encBool) (encFinEnum (Fin count))) encBool := by fun_prop
+  exact (ComputableInPolyTime.mapWithInput (f := fun bits (i : Fin count) => bits.getD i.val false)
+    (ComputableInPolyTime.const (List.finRange count)) hread).of_enc_eq
+      fun bits => by simp only [encFinFn_apply, List.ofFn_eq_map]
 
 private theorem boundary_length_le {budget : ℕ} (c : Bounded budget) :
-    c.val.top.length + c.val.bottom.length ≤ budget + 2 := by
-  have hb : c.val.bottom.length ≤ 2 := by cases c.val <;> simp [bottom]
-  exact Nat.add_le_add c.property hb
+    c.val.top.length + c.val.bottom.length ≤ budget + 2 :=
+  Nat.add_le_add c.property (by cases c.val <;> simp [bottom])
 
 /-- Canonical private directions are polynomial-time at each fixed local arity budget. -/
 theorem computableInPolyTime_privateBits (budget : ℕ) :
@@ -108,13 +104,11 @@ theorem computableInPolyTime_privateBits (budget : ℕ) :
     (Diagram.Replacement.innerList p.1.val.openSim).map fun e =>
       p.1.val.openSim.enc (fun x => p.2
         ((finSumFinEquiv x).castLE (boundary_length_le p.1))) e.val
-  have ht : ComputableInPolyTime lookup
-      (encPair (encBounded budget) (encFinFn (budget + 2) encBool)) (encList encBool) :=
-    ComputableInPolyTime.of_finite _
   have hs := (computableInPolyTime_boundaryPrefix (budget + 2)).comp
     (ComputableInPolyTime.snd (encBounded budget) (encList encBool))
-  have h := ht.comp ((ComputableInPolyTime.fst (encBounded budget) (encList encBool)).prod hs)
-  simpa only [lookup, privateBits, Function.comp_def, Fin.val_castLE] using h
+  simpa only [lookup, privateBits, Function.comp_def, Fin.val_castLE] using
+    (ComputableInPolyTime.of_finite lookup).comp
+      ((ComputableInPolyTime.fst (encBounded budget) (encList encBool)).prod hs)
 
 end Cell
 end Cslib.Complexity.NCL.SelectorNetwork.AndOr

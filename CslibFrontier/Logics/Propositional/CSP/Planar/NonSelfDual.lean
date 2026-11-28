@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CSP.Planar.RelationMinor
+import CslibFrontier.Foundations.BooleanAnalysis.OddForm
 import CslibFrontier.Logics.Propositional.CSP.Affine
 import CslibFrontier.Foundations.Data.BitString.Hamming
 import Mathlib.Tactic.FinCases
@@ -88,51 +89,45 @@ private theorem exists_normalized_minimal_failure {R : Set (Fin m → Bool)} {k 
   intro l U ⟨tail⟩ hl
   exact hmin l U ⟨(Trace.refl.translate t).trans tail⟩ hl
 
+private theorem parity_const (b : Bool) : Cslib.parity 3 (fun _ => b) = b := by
+  cases b <;> decide
+
 private theorem parity_translate (a : Fin 3 → Bool) (b : Bool) :
     Cslib.parity 3 (fun j => a j + b) = Cslib.parity 3 a + b := by
-  have heq : a = ![a 0, a 1, a 2] := by ext j; fin_cases j <;> rfl
-  rw [heq]
-  generalize a 0 = x, a 1 = y, a 2 = z
-  cases x <;> cases y <;> cases z <;> cases b <;> decide
+  change Cslib.parity 3 (a + fun _ => b) = _
+  rw [Cslib.parity, Cslib.parityOn_add]
+  exact congrArg (Cslib.parity 3 a + ·) (parity_const b)
 
 private theorem majority_translate (a : Fin 3 → Bool) (b : Bool) :
     Cslib.majority 3 (fun j => a j + b) = Cslib.majority 3 a + b := by
-  have heq : a = ![a 0, a 1, a 2] := by ext j; fin_cases j <;> rfl
-  rw [heq]
-  generalize a 0 = x, a 1 = y, a 2 = z
-  cases x <;> cases y <;> cases z <;> cases b <;> decide
+  revert a b
+  decide
 
 /-- Every relation of arity at most one is preserved by ternary parity, including empty
 and nullary relations. -/
 theorem parity_preserves_of_arity_le_one {R : Set (Fin n → Bool)} (hn : n ≤ 1) :
-    IsPolymorphism (Cslib.parity 3) R := by
-  have choose (a : Fin 3 → Fin n → Bool) :
-      ∃ j, (fun i => Cslib.parity 3 (fun k => a k i)) = a j := by
+    IsPolymorphism (Cslib.parity 3) R := fun a ha => by
+  obtain ⟨j, hj⟩ : ∃ j, (fun i => Cslib.parity 3 (fun k => a k i)) = a j := by
+    clear ha R
     interval_cases n
     · exact ⟨0, Subsingleton.elim _ _⟩
     · revert a
       decide
-  intro a ha
-  obtain ⟨j, hj⟩ := choose a
-  rw [hj]
-  exact ha j
+  exact hj ▸ ha j
 
 /-- Every relation of arity at most two is majority-preserved, including empty and nullary
 relations. The finite check concerns the operation's two-coordinate selector law only. -/
 theorem majority_preserves_of_arity_le_two {R : Set (Fin n → Bool)} (hn : n ≤ 2) :
-    IsPolymorphism (Cslib.majority 3) R := by
-  have choose (a : Fin 3 → Fin n → Bool) :
-      ∃ j, (fun i => Cslib.majority 3 (fun k => a k i)) = a j := by
+    IsPolymorphism (Cslib.majority 3) R := fun a ha => by
+  obtain ⟨j, hj⟩ : ∃ j, (fun i => Cslib.majority 3 (fun k => a k i)) = a j := by
+    clear ha R
     interval_cases n
     · exact ⟨0, Subsingleton.elim _ _⟩
     · revert a
       decide
     · revert a
       decide
-  intro a ha
-  obtain ⟨j, hj⟩ := choose a
-  rw [hj]
-  exact ha j
+  exact hj ▸ ha j
 
 /-- If a projected zero output is forced by closure, its unique feasible lift is the unit
 at the deleted port. This works for any operation fixing the constant zero input. -/
@@ -143,11 +138,9 @@ theorem units_of_projection_closure {R : Set (Fin (n + 1) → Bool)} {k : ℕ}
     (hp : ∀ j, IsPolymorphism f (project R j)) :
     ∀ j, Pi.single j true ∈ R := by
   intro j
-  apply single_mem_of_zero_mem_project hz j
-  have h := hp j (fun k => j.removeNth (a k)) (fun k => remove_mem_project (ha k) j)
-  have he : (fun i => f (fun k => j.removeNth (a k) i)) = (0 : Fin n → Bool) :=
-    congrArg j.removeNth hout
-  exact he ▸ h
+  have he : (fun i => f (fun k => j.removeNth (a k) i)) = 0 := congrArg j.removeNth hout
+  exact single_mem_of_zero_mem_project hz j <|
+    he ▸ hp j (fun k => j.removeNth (a k)) fun k => remove_mem_project (ha k) j
 
 /-- Cofactor closure applied to tuples sharing the pinned bit, lifted back to the original
 relation. The operation must fix that constant bit. -/
@@ -156,22 +149,28 @@ theorem mem_of_cofactor_closure {R : Set (Fin (n + 1) → Bool)} {k : ℕ}
     (hf : f (fun _ => b) = b) (h : IsPolymorphism f (cofactor R j b))
     (a : Fin k → Fin (n + 1) → Bool) (ha : ∀ i, a i ∈ R)
     (hb : ∀ i, a i j = b) : (fun i => f (fun k => a k i)) ∈ R := by
-  have hm (i : Fin k) : j.removeNth (a i) ∈ cofactor R j b := by
-    rw [← hb i]
-    exact remove_mem_cofactor (ha i) j
-  have hout := h (fun i => j.removeNth (a i)) hm
-  change j.insertNth b _ ∈ R at hout
+  have hout : j.insertNth b _ ∈ R :=
+    h (fun i => j.removeNth (a i)) (fun i => hb i ▸ remove_mem_cofactor (ha i) j)
   convert hout using 1
-  apply (Fin.eq_insertNth_iff).mpr
-  constructor
-  · simpa only [hb] using hf
-  · rfl
+  exact Fin.eq_insertNth_iff.mpr ⟨funext hb ▸ hf, rfl⟩
 
 private theorem majority_const (b : Bool) : Cslib.majority 3 (fun _ => b) = b := by
   cases b <;> decide
 
-private theorem parity_const (b : Bool) : Cslib.parity 3 (fun _ => b) = b := by
-  cases b <;> decide
+private theorem parity_three_pointwise {ι : Type*} (a : Fin 3 → ι → Bool) :
+    (fun i => Cslib.parity 3 (fun j => a j i)) = a 0 + a 1 + a 2 := by
+  funext i
+  simp only [Cslib.parity, Cslib.parityOn_eq_sum, Fin.sum_univ_three, Pi.add_apply, add_assoc]
+
+private theorem sum_three_mem_of_cofactor {R : Set (Fin (n + 1) → Bool)}
+    {j : Fin (n + 1)} {b : Bool} (h : IsPolymorphism (Cslib.parity 3) (cofactor R j b))
+    {x y z : Fin (n + 1) → Bool} (hx : x ∈ R) (hy : y ∈ R) (hz : z ∈ R)
+    (hxj : x j = b) (hyj : y j = b) (hzj : z j = b) : x + y + z ∈ R := by
+  simpa only [parity_three_pointwise, Matrix.cons_val_zero, Matrix.cons_val_one,
+    Matrix.cons_val_two, Matrix.head_cons, Matrix.tail_cons] using
+    mem_of_cofactor_closure (parity_const b) h ![x, y, z]
+      (Fin.forall_fin_succ.mpr ⟨hx, Fin.forall_fin_two.mpr ⟨hy, hz⟩⟩)
+      (Fin.forall_fin_succ.mpr ⟨hxj, Fin.forall_fin_two.mpr ⟨hyj, hzj⟩⟩)
 
 private theorem median_units {i j k : Fin n} (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) :
     median (Pi.single i true) (Pi.single j true) (Pi.single k true) = 0 := by
@@ -193,9 +192,7 @@ theorem exists_majority_minor {R : Set (Fin m → Bool)}
       (0 : Fin 3 → Bool) ∉ S ∧ (∀ i, Pi.single i true ∈ S) := by
   obtain ⟨n, S, trace, hz, hb, ⟨a, ha, hout⟩, hmin⟩ :=
     exists_normalized_minimal_failure majority_translate h
-  have hn : 3 ≤ n := by
-    by_contra hh
-    exact hb (majority_preserves_of_arity_le_two (by omega))
+  have hn : 3 ≤ n := not_lt.1 fun hh => hb (majority_preserves_of_arity_le_two (by omega))
   obtain ⟨n, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : n ≠ 0)
   have hp (j : Fin (n + 1)) : IsPolymorphism (Cslib.majority 3) (project S j) :=
     hmin n _ ⟨.project .refl j⟩ (by omega)
@@ -212,17 +209,13 @@ theorem exists_majority_minor {R : Set (Fin m → Bool)}
       ![Pi.single i true, Pi.single j true, Pi.single k true]
       (by intro q; fin_cases q <;> exact hu _)
       (by intro q; fin_cases q <;> simp [i, j, k, l, Bool.zero_eq_false])
-    have he := median_units (n := n + 1) (i := i) (j := j) (k := k)
-      (by simp [i, j]) (by simp [i, k]) (by simp [j, k])
     have he' : (fun p => Cslib.majority 3
         (fun q => (![Pi.single i true, Pi.single j true, Pi.single k true] :
-          Fin 3 → Fin (n + 1) → Bool) q p)) = 0 := by
-      rw [← he]
-      ext p
-      exact (median_apply_eq_majority _ _ _ _).symm
+          Fin 3 → Fin (n + 1) → Bool) q p)) = 0 :=
+      (funext fun p => (median_apply_eq_majority _ _ _ p).symm).trans
+        (median_units (by simp [i, j]) (by simp [i, k]) (by simp [j, k]))
     exact hz (he' ▸ hm)
-  have hn2 : n = 2 := by omega
-  subst n
+  obtain rfl : n = 2 := by omega
   exact ⟨S, trace, hz, hu⟩
 
 private theorem parity_eq_true_of_units {R : Set (Fin n → Bool)}
@@ -233,9 +226,8 @@ private theorem parity_eq_true_of_units {R : Set (Fin n → Bool)}
   obtain ⟨⟨vs, b⟩, he, he0⟩ := exists_separating_affineEquation hp hz
   have hb : b = true := by
     cases b
-    · apply False.elim
-      apply he0
-      change (vs.map (fun _ => (0 : Bool))).sum = 0
+    · refine False.elim (he0 ?_)
+      change (vs.map fun _ => (0 : Bool)).sum = 0
       simp
     · rfl
   let f : (Fin n → Bool) → Bool := fun a => (vs.map a).sum
@@ -248,27 +240,17 @@ private theorem parity_eq_true_of_units {R : Set (Fin n → Bool)}
     intro i
     have hi := he _ (hu i)
     change f (Pi.single i true) = b at hi
-    rw [hs, hb, Cslib.parityOn_eq_sum] at hi
-    by_contra hnot
-    have hzsum : (∑ j ∈ s, (Pi.single i true : Fin n → Bool) j) = 0 := by
-      apply Finset.sum_eq_zero
-      intro j hj
-      have hji : j ≠ i := by intro heq; exact hnot (heq ▸ hj)
-      exact Pi.single_eq_of_ne (M := fun _ : Fin n => Bool) hji true
-    rw [hzsum] at hi
-    exact Bool.false_ne_true hi
-  have h := he x hx
-  change f x = b at h
+    rw [hs, hb, parityOn_single] at hi
+    exact of_decide_eq_true hi
+  have h : f x = b := he x hx
   rwa [hs, hsall, hb] at h
 
 private theorem insert_false_single (j : Fin (n + 1)) (i : Fin n) :
     j.insertNth false (Pi.single i true) =
       (Pi.single (j.succAbove i) true : Fin (n + 1) → Bool) := by
-  apply (Fin.insertNth_eq_iff).mpr
-  constructor
-  · simp [Ne.symm (Fin.succAbove_ne j i), Bool.zero_eq_false]
-  · ext k
-    simp [Fin.removeNth, Pi.single_apply, Fin.succAbove_inj]
+  refine Fin.insertNth_eq_iff.mpr ⟨by simp [Ne.symm (Fin.succAbove_ne j i), Bool.zero_eq_false], ?_⟩
+  ext k
+  simp [Fin.removeNth, Pi.single_apply, Fin.succAbove_inj]
 
 private theorem proper_even_impossible {R : Set (Fin (n + 1) → Bool)}
     (hz : (0 : Fin (n + 1) → Bool) ∉ R) (hu : ∀ i, Pi.single i true ∈ R)
@@ -276,32 +258,16 @@ private theorem proper_even_impossible {R : Set (Fin (n + 1) → Bool)}
     {v : Fin (n + 1) → Bool} (hv : v ∈ R)
     (heven : Cslib.parityOn Finset.univ v = false) (j : Fin (n + 1)) : v j = true := by
   by_contra hh
-  have hj : v j = false := by cases h : v j <;> simp_all
-  have hz' : (0 : Fin n → Bool) ∉ cofactor R j false := by
-    intro h
-    apply hz
-    change j.insertNth false (0 : Fin n → Bool) ∈ R at h
-    have heq : (j.insertNth false (0 : Fin n → Bool) : Fin (n + 1) → Bool) = 0 := by
-      ext i
-      rcases Fin.eq_self_or_eq_succAbove j i with rfl | ⟨k, rfl⟩ <;>
-        simp [Bool.zero_eq_false]
-    exact heq ▸ h
-  have hu' (i : Fin n) : Pi.single i true ∈ cofactor R j false := by
-    change j.insertNth false _ ∈ R
-    rw [insert_false_single]
-    exact hu _
-  have hv' : j.removeNth v ∈ cofactor R j false := by
-    rw [← hj]
-    exact remove_mem_cofactor hv j
-  have hodd := parity_eq_true_of_units (hc j) hz' hu' hv'
-  have hsum : Cslib.parityOn Finset.univ v =
-      Cslib.parityOn Finset.univ (j.removeNth v) := by
-    simp only [Cslib.parityOn_eq_sum]
-    rw [Fin.sum_univ_succAbove _ j, hj]
-    simp only [← Bool.zero_eq_false, zero_add]
-    rfl
-  rw [hsum, hodd] at heven
-  contradiction
+  have hj : v j = false := Bool.eq_false_iff.mpr hh
+  have hz' : (0 : Fin n → Bool) ∉ cofactor R j false := fun h =>
+    hz ((Fin.insertNth_eq_iff.2 ⟨rfl, rfl⟩ : j.insertNth (α := fun _ => Bool) false 0 = 0) ▸ h)
+  have hodd := parity_eq_true_of_units (hc j) hz'
+    (fun i => show j.insertNth false (Pi.single i true) ∈ R from
+      (insert_false_single j i).symm ▸ hu _)
+    (hj ▸ remove_mem_cofactor hv j)
+  simp only [Cslib.parityOn_eq_sum, Fin.sum_univ_succAbove _ j, hj, ← Bool.zero_eq_false,
+    zero_add] at heven hodd
+  exact Bool.false_ne_true (heven.symm.trans hodd)
 
 /-- Every parity-failing Boolean relation has a binary parity-failing ordered minor. This
 arbitrary-arity reconstruction uses actual projection/cofactor/twist traces. Affine separation
@@ -312,9 +278,7 @@ theorem exists_binary_parity_minor {R : Set (Fin m → Bool)}
       (0 : Fin 2 → Bool) ∉ S ∧ (∀ i, Pi.single i true ∈ S) := by
   obtain ⟨n, S, trace, hz, hb, ⟨a, ha, hout⟩, hmin⟩ :=
     exists_normalized_minimal_failure parity_translate h
-  have hn : 2 ≤ n := by
-    by_contra hh
-    exact hb (parity_preserves_of_arity_le_one (by omega))
+  have hn : 2 ≤ n := not_lt.1 fun hh => hb (parity_preserves_of_arity_le_one (by omega))
   obtain ⟨n, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : n ≠ 0)
   have hp (j : Fin (n + 1)) : IsPolymorphism (Cslib.parity 3) (project S j) :=
     hmin n _ ⟨.project .refl j⟩ (by omega)
@@ -326,78 +290,36 @@ theorem exists_binary_parity_minor {R : Set (Fin m → Bool)}
       (he : Cslib.parityOn Finset.univ v = false) : v = fun _ => true := by
     ext j
     exact proper_even_impossible hz hu (fun j => hc j false) hv he j
-  have hex : ∃ k : Fin 3, Cslib.parityOn Finset.univ (a k) = false := by
+  obtain ⟨q, hq⟩ : ∃ k : Fin 3, Cslib.parityOn Finset.univ (a k) = false := by
     by_contra hh
-    have hall (k : Fin 3) : Cslib.parityOn Finset.univ (a k) = true := by
-      have : Cslib.parityOn Finset.univ (a k) ≠ false := fun h => hh ⟨k, h⟩
-      cases h : Cslib.parityOn Finset.univ (a k) <;> simp_all
-    have heq : a 0 + a 1 + a 2 = (0 : Fin (n + 1) → Bool) := by
-      convert hout using 1
-      ext i
-      simp [Cslib.parity, Cslib.parityOn_eq_sum, Fin.sum_univ_succ, add_assoc]
+    simp only [not_exists, Bool.not_eq_false] at hh
+    have heq := (parity_three_pointwise a).symm.trans hout
     have he := congrArg (Cslib.parityOn Finset.univ) heq
-    rw [Cslib.parityOn_add, Cslib.parityOn_add, hall, hall, hall] at he
-    have hzpar : Cslib.parityOn Finset.univ (0 : Fin (n + 1) → Bool) = false := by
-      rw [Cslib.parityOn_eq_sum]
-      change (∑ _ : Fin (n + 1), (0 : Bool)) = 0
-      simp
-    rw [hzpar] at he
-    exact (by decide : (true : Bool) ≠ false) he
-  obtain ⟨q, hq⟩ := hex
+    rw [Cslib.parityOn_add, Cslib.parityOn_add, hh, hh, hh, Cslib.parityOn_eq_sum] at he
+    simp at he
   have hfull : (fun _ : Fin (n + 1) => true) ∈ S := heven_full (ha q) hq ▸ ha q
   have hefull : Cslib.parityOn Finset.univ (fun _ : Fin (n + 1) => true) = false := by
     rwa [heven_full (ha q) hq] at hq
   have hn2 : n + 1 = 2 := by
     by_contra hh
-    have hn3 : 3 ≤ n + 1 := by omega
-    have hne3 : n + 1 ≠ 3 := by
-      intro hn3
-      have hn' : n = 2 := by omega
-      subst n
-      revert hefull
-      decide
-    have hn4 : 4 ≤ n + 1 := by omega
-    let i : Fin (n + 1) := ⟨0, by omega⟩
-    let j : Fin (n + 1) := ⟨1, by omega⟩
-    let k : Fin (n + 1) := ⟨2, by omega⟩
-    let l : Fin (n + 1) := ⟨3, by omega⟩
+    have hmod : (n + 1) % 2 ≠ 1 := by simpa [Cslib.parityOn] using hefull
+    have hn4 : 4 ≤ n + 1 := by lia
+    let i : Fin (n + 1) := ⟨0, by lia⟩
+    let j : Fin (n + 1) := ⟨1, by lia⟩
+    let k : Fin (n + 1) := ⟨2, by lia⟩
+    let l : Fin (n + 1) := ⟨3, by lia⟩
     let w : Fin (n + 1) → Bool := Pi.single i true + Pi.single j true + Pi.single k true
-    have hw : w ∈ S := by
-      have hm := mem_of_cofactor_closure (parity_const false) (hc l false)
-        ![Pi.single i true, Pi.single j true, Pi.single k true]
-        (by intro q; fin_cases q <;> exact hu _)
-        (by intro q; fin_cases q <;> simp [i, j, k, l, Bool.zero_eq_false])
-      convert hm using 1
-      ext p
-      simp [w, Cslib.parity, Cslib.parityOn_eq_sum, Fin.sum_univ_succ, add_assoc]
-    have hv : (fun _ : Fin (n + 1) => true) + Pi.single i true + w ∈ S := by
-      have hm := mem_of_cofactor_closure (parity_const true) (hc i true)
-        ![fun _ => true, Pi.single i true, w]
-        (by
-          intro q
-          fin_cases q
-          · exact hfull
-          · exact hu i
-          · exact hw)
-        (by intro q; fin_cases q <;> simp [w, i, j, k])
-      convert hm using 1
-      ext p
-      simp [Cslib.parity, Cslib.parityOn_eq_sum, Fin.sum_univ_succ, add_assoc]
+    have hw : w ∈ S := sum_three_mem_of_cofactor (hc l false) (hu i) (hu j) (hu k)
+      (by simp [i, l, Bool.zero_eq_false]) (by simp [j, l, Bool.zero_eq_false])
+      (by simp [k, l, Bool.zero_eq_false])
+    have hv := sum_three_mem_of_cofactor (hc i true) hfull (hu i) hw
+      rfl (Pi.single_eq_same i _) (by simp [w, i, j, k])
     have he : Cslib.parityOn Finset.univ
         ((fun _ : Fin (n + 1) => true) + Pi.single i true + w) = false := by
-      have hunit (p : Fin (n + 1)) : Cslib.parityOn Finset.univ (Pi.single p true) = true := by
-        simp only [Cslib.parityOn_eq_sum, Pi.single_apply, Finset.sum_ite_eq',
-          Finset.mem_univ, ite_true]
-      change Cslib.parityOn Finset.univ
-        ((fun _ : Fin (n + 1) => true) + Pi.single i true +
-          (Pi.single i true + Pi.single j true + Pi.single k true)) = false
-      rw [Cslib.parityOn_add, Cslib.parityOn_add, Cslib.parityOn_add,
-        Cslib.parityOn_add, hefull, hunit i, hunit j, hunit k]
-      rfl
+      simp [w, Cslib.parityOn_add, hefull, parityOn_single]
     have hj := congrFun (heven_full hv he) j
     simp [w, i, j, k] at hj
-  have hn1 : n = 1 := by omega
-  subst n
+  obtain rfl : n = 1 := by omega
   exact ⟨S, trace, hb, hz, hu⟩
 
 /-- A normalized binary parity failure has exactly the three nonzero tuples. In particular
@@ -414,19 +336,24 @@ theorem binary_parity_failure_eq {S : Set (Fin 2 → Bool)}
       rcases rows x with rfl | rfl | rfl | rfl <;>
         simp [disequality, hz, hu, hh]
     rw [he] at h
-    exact h (by unfold IsPolymorphism disequality; decide)
+    apply h
+    intro a ha
+    have hcol : (fun i => a i 0) = fun i => a i 1 + true := funext fun i => by
+      simpa only [Bool.add_eq_xor, Bool.xor_true] using Bool.eq_not_of_ne (ha i)
+    change Cslib.parity 3 (fun i => a i 0) ≠ Cslib.parity 3 (fun i => a i 1)
+    rw [hcol, parity_translate, Bool.add_eq_xor, Bool.xor_true]
+    exact (Bool.not_eq_self _).mp
+  have hne0 : (fun _ : Fin 2 => true) ≠ 0 := by decide
   ext x
-  rcases rows x with rfl | rfl | rfl | rfl <;>
-    simp [hz, hu, hfull, show (fun _ : Fin 2 => true) ≠ 0 by decide]
+  rcases rows x with rfl | rfl | rfl | rfl <;> simp [hz, hu, hfull, hne0]
 
 /-- Every relation failing ternary parity has an actual finite ordered trace to NAND.
 Only projections, cofactors and single-port twists occur in the returned trace. -/
 theorem exists_nand_trace {R : Set (Fin m → Bool)}
     (h : ¬IsPolymorphism (Cslib.parity 3) R) : Nonempty (Trace R nand) := by
   obtain ⟨S, ⟨trace⟩, hb, hz, hu⟩ := exists_binary_parity_minor h
-  have he := binary_parity_failure_eq hb hz hu
   have ht : twist S (fun _ => true) = nand := by
-    rw [he]
+    rw [binary_parity_failure_eq hb hz hu]
     ext x
     change (x + (fun _ => true) ≠ 0) ↔ ¬(x 0 = true ∧ x 1 = true)
     revert x

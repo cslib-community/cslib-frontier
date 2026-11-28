@@ -585,6 +585,10 @@ private theorem mul_twoW0_sub_apply {Q r : ℕ} (P : Matrix (AuxLabel Q r) (AuxL
     simp only [mul_ite, mul_one, mul_zero, hinv, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
   simp_rw [hterm]; rw [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
     nsmul_eq_mul]; ring
+private theorem fallingOrbitWeights_succ (m A₀ j : ℕ) : fallingOrbitWeights m A₀ (j + 1) =
+    orbitWeightStep m (2 * ((A₀ : ℤ) + (j : ℤ))) (fallingOrbitWeights m A₀ j) := by
+  simp only [fallingOrbitWeights, List.range_succ, List.foldl_append, List.foldl_cons,
+    List.foldl_nil]
 private theorem fallingProdMatrixInt_eq_fallingOrbitWeights (Q r A₀ j : ℕ) (z y : AuxLabel Q r) :
     fallingProdMatrixInt Q r A₀ j z y =
       if IsSwapOrbit z y then
@@ -618,12 +622,7 @@ private theorem fallingProdMatrixInt_eq_fallingOrbitWeights (Q r A₀ j : ℕ) (
         fallingProdMatrixInt Q r A₀ j * (twoW0 Q r ℤ - (2 * ((A₀ : ℤ) + (j : ℤ))) • 1) := by
       simp only [fallingProdMatrixInt, List.range_succ, List.map_append, List.map_singleton,
         List.prod_append, List.prod_singleton]
-    have hstep_wt : fallingOrbitWeights #(offDiagSet z) A₀ (j + 1) =
-        orbitWeightStep #(offDiagSet z) (2 * ((A₀ : ℤ) + (j : ℤ)))
-          (fallingOrbitWeights #(offDiagSet z) A₀ j) := by
-      simp only [fallingOrbitWeights, List.range_succ, List.foldl_append, List.foldl_cons,
-        List.foldl_nil]
-    rw [hstep_mat, mul_twoW0_sub_apply, hstep_wt]
+    rw [hstep_mat, mul_twoW0_sub_apply, fallingOrbitWeights_succ]
     set f : List ℤ := fallingOrbitWeights #(offDiagSet z) A₀ j
     by_cases horb : IsSwapOrbit z y
     · simp only [horb, ↓reduceIte]; rw [ih y]; simp only [horb, ↓reduceIte]
@@ -834,11 +833,11 @@ theorem getD_auxReplacementTable {Q r A₀ R u_idx y_idx : ℕ}
 
 private theorem length_fallingOrbitWeights (m A₀ j : ℕ) :
     (fallingOrbitWeights m A₀ j).length = m + 1 := by
-  unfold fallingOrbitWeights; induction j with
-  | zero => simp only [List.range_zero, List.foldl_nil, List.length_cons, List.length_replicate]
-  | succ j _ =>
-    rw [List.range_succ]; simp only [List.foldl_append, List.foldl_cons, List.foldl_nil,
-      orbitWeightStep, List.length_map, List.length_range]
+  cases j with
+  | zero => simp only [fallingOrbitWeights, List.range_zero, List.foldl_nil, List.length_cons,
+      List.length_replicate]
+  | succ j => simp only [fallingOrbitWeights_succ, orbitWeightStep, List.length_map,
+      List.length_range]
 private theorem natAbs_mem_fallingOrbitWeights_le (m A₀ j : ℕ) :
     ∀ x ∈ fallingOrbitWeights m A₀ j, x.natAbs ≤ (2 * (m + A₀ + j)) ^ j := by
   induction j with
@@ -849,11 +848,8 @@ private theorem natAbs_mem_fallingOrbitWeights_le (m A₀ j : ℕ) :
       simp only [Int.natAbs_one, Int.natAbs_zero, pow_zero, Nat.zero_le, le_refl]
   | succ j ih =>
     intro x hx
-    have hstep : fallingOrbitWeights m A₀ (j + 1) =
-        orbitWeightStep m (2 * ((A₀ : ℤ) + (j : ℤ))) (fallingOrbitWeights m A₀ j) := by
-      simp only [fallingOrbitWeights, List.range_succ, List.foldl_append, List.foldl_cons,
-        List.foldl_nil]
-    rw [hstep] at hx; unfold orbitWeightStep at hx; obtain ⟨d, hd, rfl⟩ := List.mem_map.1 hx
+    rw [fallingOrbitWeights_succ] at hx; unfold orbitWeightStep at hx
+    obtain ⟨d, hd, rfl⟩ := List.mem_map.1 hx
     have hdm : d ≤ m := Nat.lt_succ_iff.1 (List.mem_range.1 hd)
     set f := fallingOrbitWeights m A₀ j; set B := (2 * (m + A₀ + (j + 1))) ^ j
     have hfB : ∀ z ∈ f, z.natAbs ≤ B := fun z hz =>
@@ -993,7 +989,7 @@ theorem sum_row_natAbs_auxReplacementRowCoeffs_le {Q r A₀ R : ℕ} (hQ : 0 < Q
 section PolyTime
 open ComputableInPolyTime
 
-attribute [local irreducible] ComputableInPolyTime encIntBin encNat encUnary
+attribute [local irreducible] encIntBin encNat encUnary
 
 local notation "CPT" => ComputableInPolyTime
 variable {α : Type} {input : α ↪ List Bool}

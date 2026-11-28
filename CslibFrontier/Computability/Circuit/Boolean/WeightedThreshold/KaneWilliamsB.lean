@@ -263,13 +263,11 @@ theorem kaneWilliamsParities_embedUpdate (n k ℓ : ℕ) (σ : Fin k → Fin ℓ
       (fun t => embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u (kaneWilliamsBlockVar n k ℓ j t)) =
     (u j ^^ kaneWilliamsResidualParities n k ℓ σ w j)
   rw [parityOn_eq_xor_erase (mem_univ (σ j))]
-  congr 1
-  · exact embedUpdate_emb (kaneWilliamsLiveVar_injective n k ℓ σ) w u j
-  · refine parityOn_congr fun t ht => embedUpdate_of_notMem w u ?_
-    simp only [mem_image, mem_univ, true_and, not_exists]
-    intro j' hj'
-    obtain ⟨rfl, h2⟩ := kaneWilliamsBlockVar_joint_injective n k ℓ j' (σ j') j t hj'
-    exact (mem_erase.mp ht).1 h2.symm
+  refine congrArg₂ xor (embedUpdate_emb (kaneWilliamsLiveVar_injective n k ℓ σ) w u j)
+    (parityOn_congr fun t ht => embedUpdate_of_notMem w u ?_)
+  simp only [mem_image, mem_univ, true_and, not_exists]
+  exact fun j' hj' => let ⟨h1, h2⟩ := kaneWilliamsBlockVar_joint_injective n k ℓ j' (σ j') j t hj'
+    (mem_erase.mp ht).1 (h2.symm.trans (congrArg σ h1))
 
 /-- Along `u ↦ embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u`, the Kane–Williams function reads
 the row `r (u + c)` for the residual parities `c` of `w`. -/
@@ -325,15 +323,13 @@ private theorem card_badMessages_mul_le {r : BitString k → BitString n} {δ γ
       univ.biUnion fun σ => univ.biUnion fun c => (H σ).biUnion fun h => L h c := by
     intro x hx
     obtain ⟨σ, c, h, hh, hcorr⟩ := (mem_filter.mp hx).2
-    refine mem_biUnion.mpr ⟨σ, mem_univ σ, mem_biUnion.mpr ⟨c, mem_univ c,
-      mem_biUnion.mpr ⟨h, mem_filter.mpr ⟨mem_univ h, hh⟩, mem_filter.mpr ⟨mem_univ x, ?_⟩⟩⟩⟩
-    rw [hcardZ]
-    exact hcorr
+    exact mem_biUnion.mpr ⟨σ, mem_univ σ, mem_biUnion.mpr ⟨c, mem_univ c,
+      mem_biUnion.mpr ⟨h, mem_filter.mpr ⟨mem_univ h, hh⟩,
+        mem_filter.mpr ⟨mem_univ x, hcardZ.symm ▸ hcorr⟩⟩⟩⟩
   have hL (h : BitString k → Bool) (c : BitString k) : (#(L h c) : ℝ) * (γ ^ 2 - δ) ≤ 1 :=
     card_le_abs_sum_signVal_mul_signVal_dotProduct_mul_le hδ hγ hr fun u => h (u + c)
   have hH (σ : Fin k → Fin ℓ) : (#(H σ) : ℝ) ≤ C := by
-    have hcount := card_isDepthTwoOverWeights_le (κ := Fin k) (W σ) Q
-    rw [Fintype.card_fin] at hcount
+    have hcount := Fintype.card_fin k ▸ card_isDepthTwoOverWeights_le (κ := Fin k) (W σ) Q
     exact_mod_cast hcount.trans (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left
       (Nat.mul_le_mul_left _ ((min_le_left _ _).trans (hM σ))) Q))
   have hcard : (#(badMessages r W Q γ) : ℝ) ≤ ∑ σ, ∑ c, ∑ h ∈ H σ, (#(L h c) : ℝ) := by
@@ -400,14 +396,16 @@ private theorem two_mul_card_agree_eq {r : BitString k → BitString n} (σ : Fi
   rw [sum_signVal_add_eq, sum_signVal_mul_signVal_eq_two_mul_card_sub]
   simp
 
-/-- Markov's inequality for the survivor counts: if `U` has mean at most `B` over all block
-restrictions `(σ, w)`, then the restrictions with more than `Q` survivors number at most
-`|Fin k → Fin ℓ| * 2 ^ (n + k * ℓ) * (B / (Q + 1))`. -/
-private theorem sum_card_lt_survivors_le (U : (Fin k → Fin ℓ) → BitString (n + k * ℓ) → ℕ)
-    {B : ℝ} (hmean : (∑ σ : Fin k → Fin ℓ, ∑ w : BitString (n + k * ℓ), (U σ w : ℝ)) ≤
+-- Charge bad messages uniformly over the blocks, and bound excess survivors by Markov.
+private theorem sum_bad_restrictions_le
+    (bad : Finset (BitString (n + k * ℓ))) (U : (Fin k → Fin ℓ) → BitString (n + k * ℓ) → ℕ)
+    {C B : ℝ} (hbad : (#bad : ℝ) ≤ 2 ^ (n + k * ℓ) * C)
+    (hmean : (∑ σ : Fin k → Fin ℓ, ∑ w : BitString (n + k * ℓ), (U σ w : ℝ)) ≤
       (Fintype.card (Fin k → Fin ℓ) : ℝ) * 2 ^ (n + k * ℓ) * B) (Q : ℕ) :
-    (∑ σ : Fin k → Fin ℓ, (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ)) ≤
-      (Fintype.card (Fin k → Fin ℓ) : ℝ) * 2 ^ (n + k * ℓ) * (B / (Q + 1)) := by
+    (∑ σ : Fin k → Fin ℓ, ((#bad : ℝ) + (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ))) ≤
+      (Fintype.card (Fin k → Fin ℓ) : ℝ) * 2 ^ (n + k * ℓ) * (C + B / (Q + 1)) := by
+  rw [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, mul_add, mul_assoc _ _ C]
+  refine add_le_add (mul_le_mul_of_nonneg_left hbad (Nat.cast_nonneg _)) ?_
   rw [mul_div_assoc', le_div_iff₀ (by positivity), mul_comm, mul_sum]
   refine (sum_le_sum fun σ _ => (mul_comm _ _).trans_le <|
     card_filter_mul_le_sum univ _ (fun w => (U σ w : ℝ)) (fun _ _ => Nat.cast_nonneg _)
@@ -435,7 +433,7 @@ theorem card_eval_eq_kaneWilliamsB_le_of_unforced_mean_le (hℓ : 0 < ℓ)
       (ℓ : ℝ) ^ k * 2 ^ k * ((((2 ^ k + 1) * M) ^ Q * (2 ^ k + 1) ^ (Q + k + 1) : ℕ) : ℝ) /
         ((γ ^ 2 - δ) * 2 ^ n) + B / (Q + 1)) := by
   classical
-  set bad := badMessages r W Q γ with hbad
+  set bad := badMessages r W Q γ
   set CT : ℝ := (ℓ : ℝ) ^ k * 2 ^ k *
     ((((2 ^ k + 1) * M) ^ Q * (2 ^ k + 1) ^ (Q + k + 1) : ℕ) : ℝ) / ((γ ^ 2 - δ) * 2 ^ n)
   set N : ℝ := 2 ^ (n + k * ℓ) with hN
@@ -451,59 +449,45 @@ theorem card_eval_eq_kaneWilliamsB_le_of_unforced_mean_le (hℓ : 0 < ℓ)
         kaneWilliamsB r ℓ (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u)} : ℝ) ≤ 2 ^ k := by
       exact_mod_cast (card_le_univ _).trans_eq (by simp)
     have hγ2 : 0 ≤ 2 ^ k * ((1 + γ) / 2) := by positivity
-    by_cases hb : kaneWilliamsMessage n k ℓ w ∈ bad
-    · have : (0 : ℝ) ≤ 2 ^ k * (if Q < U σ w then 1 else 0) := by positivity
-      simp only [hb, ↓reduceIte, mul_one]; linarith only [hle, hγ2, this]
-    by_cases hq : Q < U σ w
-    · simp only [hq, ↓reduceIte, mul_one]
-      have : (0 : ℝ) ≤ 2 ^ k * (if kaneWilliamsMessage n k ℓ w ∈ bad then 1 else 0) := by
-        positivity
-      linarith only [hle, hγ2, this]
-    simp only [hb, hq, ↓reduceIte, mul_zero, add_zero]
+    split_ifs with hb hq hq
+    any_goals linarith only [hle, hγ2, h2k]
     have hh : IsDepthTwoOverWeights (W σ) Q
         fun u => f (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u) :=
       (hU σ w).mono (not_lt.mp hq)
     have hcorr : |∑ u, signVal (f (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w
         (u + kaneWilliamsResidualParities n k ℓ σ w))) *
-          signVal (r u ⬝ᵥ kaneWilliamsMessage n k ℓ w)| < γ * 2 ^ k := by
-      by_contra hge
-      exact hb (mem_filter.mpr ⟨mem_univ _, σ, _, _, hh, not_lt.mp hge⟩)
+          signVal (r u ⬝ᵥ kaneWilliamsMessage n k ℓ w)| < γ * 2 ^ k :=
+      lt_of_not_ge fun hge => hb (mem_filter.mpr ⟨mem_univ _, σ, _, _, hh, hge⟩)
     have hagree := two_mul_card_agree_eq (r := r) σ w
       fun u => f (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u)
-    have hlt := (le_abs_self _).trans_lt hcorr
-    linarith only [hagree, hlt, show 2 * ((2 : ℝ) ^ k * ((1 + γ) / 2)) = 2 ^ k + γ * 2 ^ k by ring]
+    have hring : 2 * ((2 : ℝ) ^ k * ((1 + γ) / 2)) = 2 ^ k + γ * 2 ^ k := by ring
+    linarith only [hagree, (le_abs_self _).trans_lt hcorr, hring]
   -- summing over the fixed values, for each block selection
   have hbadw : (#{w : BitString (n + k * ℓ) | kaneWilliamsMessage n k ℓ w ∈ bad} : ℝ) ≤
       N * CT := card_filter_badMessages_le hδ hγ hγδ hr W hM Q
   have hσ (σ : Fin k → Fin ℓ) : 2 ^ k * A ≤ N * (2 ^ k * ((1 + γ) / 2)) +
-      2 ^ k * (N * CT) + 2 ^ k * (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ) := by
+      2 ^ k * ((#{w : BitString (n + k * ℓ) | kaneWilliamsMessage n k ℓ w ∈ bad} : ℝ) +
+        (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ)) := by
     have hsum := sum_card_filter_embedUpdate (kaneWilliamsLiveVar_injective n k ℓ σ)
       fun y => f y = kaneWilliamsB r ℓ y
     rw [Fintype.card_fin] at hsum
-    have hA' : 2 ^ k * A = ∑ w : BitString (n + k * ℓ),
-        (#{u : BitString k | f (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u) =
-          kaneWilliamsB r ℓ (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u)} : ℝ) := by
-      rw [hA]; exact_mod_cast hsum.symm
-    rw [hA']
-    refine (sum_le_sum fun w _ => hpt σ w).trans ?_
+    rw [hA, ← Nat.cast_ofNat, ← Nat.cast_pow, ← Nat.cast_mul, ← hsum, Nat.cast_sum]
+    refine (sum_le_sum fun w _ => hpt σ w).trans_eq ?_
     rw [sum_add_distrib, sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, ← mul_sum,
       ← mul_sum, sum_boole, sum_boole]
-    have hcardN : (Fintype.card (BitString (n + k * ℓ)) : ℝ) = N := by rw [hN]; simp
-    rw [hcardN]; gcongr
+    simp only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Nat.cast_pow,
+      Nat.cast_ofNat, ← hN, add_assoc, ← mul_add]
   -- summing over the block selections, with Markov's inequality for the survivors
   set S : ℝ := (Fintype.card (Fin k → Fin ℓ) : ℝ) with hS
   have hS0 : 0 < S := by
     rw [hS, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]; positivity
   have hsumσ := sum_le_sum fun σ (_ : σ ∈ (univ : Finset (Fin k → Fin ℓ))) => hσ σ
-  rw [sum_const, card_univ, nsmul_eq_mul, sum_add_distrib, sum_add_distrib, sum_const, sum_const,
-    card_univ, nsmul_eq_mul, nsmul_eq_mul, ← mul_sum, ← hS] at hsumσ
-  have hmarkov' : (∑ σ : Fin k → Fin ℓ, (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ)) ≤
-      S * N * (B / (Q + 1)) := sum_card_lt_survivors_le U hmean Q
+  rw [sum_const, card_univ, nsmul_eq_mul, sum_add_distrib, sum_const, card_univ,
+    nsmul_eq_mul, ← mul_sum, ← hS] at hsumσ
+  have hcharge := sum_bad_restrictions_le _ U hbadw hmean Q
   have hkey : S * (2 ^ k * A) ≤ S * (2 ^ k * (N * ((1 + γ) / 2 + CT + B / (Q + 1)))) := by
-    have hm := mul_le_mul_of_nonneg_left hmarkov' h2k.le
-    linarith only [hsumσ, hm, show S * (2 ^ k * (N * ((1 + γ) / 2 + CT + B / (Q + 1)))) =
-      S * (N * (2 ^ k * ((1 + γ) / 2))) + S * (2 ^ k * (N * CT)) +
-        2 ^ k * (S * N * (B / (Q + 1))) by ring]
+    refine hsumσ.trans ((add_le_add le_rfl (mul_le_mul_of_nonneg_left hcharge h2k.le)).trans_eq ?_)
+    ring
   exact le_of_mul_le_mul_left (le_of_mul_le_mul_left hkey hS0) h2k
 
 /-- **Worst-case core** (original; [KaneWilliams2016], `arXiv:1511.07860v1`, Theorem 1.3 fixes the
@@ -531,7 +515,7 @@ theorem one_le_of_threshold_eq_kaneWilliamsB_of_unforced_mean_le {t : ℕ} (hℓ
     1 ≤ (ℓ : ℝ) ^ k * 2 ^ k * ((((2 ^ k + 1) * M) ^ Q * (2 ^ k + 1) ^ (Q + k + 1) : ℕ) : ℝ) /
         ((γ ^ 2 - δ) * 2 ^ n) + B / (Q + 1) := by
   classical
-  set bad := badMessages r W Q γ with hbad
+  set bad := badMessages r W Q γ
   set CT : ℝ := (ℓ : ℝ) ^ k * 2 ^ k *
     ((((2 ^ k + 1) * M) ^ Q * (2 ^ k + 1) ^ (Q + k + 1) : ℕ) : ℝ) / ((γ ^ 2 - δ) * 2 ^ n)
   set N : ℝ := 2 ^ (n + k * ℓ) with hN
@@ -541,38 +525,27 @@ theorem one_le_of_threshold_eq_kaneWilliamsB_of_unforced_mean_le {t : ℕ} (hℓ
   have hN0 : 0 < N := by positivity
   have h2k : (0 : ℝ) < 2 ^ k := by positivity
   have hcardZ : (Fintype.card (BitString k) : ℝ) = 2 ^ k := by simp
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   -- some restriction has a good message and at most `Q` survivors
   obtain ⟨σ, w, hgood, hq⟩ : ∃ σ w, kaneWilliamsMessage n k ℓ w ∉ bad ∧ U σ w ≤ Q := by
-    by_contra hno
-    push Not at hno
+    by_contra! hno
     have hcover (σ : Fin k → Fin ℓ) : N ≤
         (#{w : BitString (n + k * ℓ) | kaneWilliamsMessage n k ℓ w ∈ bad} : ℝ) +
           #{w : BitString (n + k * ℓ) | Q < U σ w} := by
       have hsub : (univ : Finset (BitString (n + k * ℓ))) ⊆
           (univ.filter fun w => kaneWilliamsMessage n k ℓ w ∈ bad) ∪
-            univ.filter fun w => Q < U σ w := fun w _ => by
-        by_cases hb : kaneWilliamsMessage n k ℓ w ∈ bad
-        · exact mem_union_left _ (mem_filter.mpr ⟨mem_univ w, hb⟩)
-        · exact mem_union_right _ (mem_filter.mpr ⟨mem_univ w, hno σ w hb⟩)
-      have hcard := (card_le_card hsub).trans (card_union_le _ _)
-      rw [card_univ] at hcard
-      have hcardN : (Fintype.card (BitString (n + k * ℓ)) : ℝ) = N := by rw [hN]; simp
-      rw [← hcardN]
-      exact_mod_cast hcard
-    have hbadw : (#{w : BitString (n + k * ℓ) | kaneWilliamsMessage n k ℓ w ∈ bad} : ℝ) ≤
-        N * CT := card_filter_badMessages_le hδ hγ hγδ hr W hM Q
+            univ.filter fun w => Q < U σ w := fun w _ =>
+        mem_union.2 <| (em (kaneWilliamsMessage n k ℓ w ∈ bad)).imp
+          (mem_filter.mpr ⟨mem_univ w, ·⟩) (mem_filter.mpr ⟨mem_univ w, hno σ w ·⟩)
+      simpa only [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Nat.cast_pow,
+        Nat.cast_ofNat, ← hN, Nat.cast_add] using
+        Nat.cast_le (α := ℝ).mpr ((card_le_card hsub).trans (card_union_le _ _))
     have hsumσ := sum_le_sum fun σ (_ : σ ∈ (univ : Finset (Fin k → Fin ℓ))) => hcover σ
-    rw [sum_const, card_univ, nsmul_eq_mul, sum_add_distrib, sum_const, card_univ,
-      nsmul_eq_mul, ← hS] at hsumσ
-    have hmarkov' : (∑ σ : Fin k → Fin ℓ, (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ)) ≤
-        S * N * (B / (Q + 1)) := sum_card_lt_survivors_le U hmean Q
-    have hkey : S * N * 1 ≤ S * N * (CT + B / (Q + 1)) := by
-      have hm := mul_le_mul_of_nonneg_left hbadw hS0.le
-      linarith only [hsumσ, hmarkov', hm,
-        show S * N * (CT + B / (Q + 1)) = S * (N * CT) + S * N * (B / (Q + 1)) by ring]
-    exact not_le.mpr hlt (le_of_mul_le_mul_left hkey (mul_pos hS0 hN0))
+    rw [sum_const, card_univ, nsmul_eq_mul, ← hS] at hsumσ
+    have hcharge := sum_bad_restrictions_le _ U
+      (card_filter_badMessages_le hδ hγ hγδ hr W hM Q) hmean Q
+    refine not_le.mpr hlt (le_of_mul_le_mul_left ?_ (mul_pos hS0 hN0))
+    simpa only [mul_one] using hsumσ.trans hcharge
   set x := kaneWilliamsMessage n k ℓ w with hx
   set c := kaneWilliamsResidualParities n k ℓ σ w with hc
   have hx0 : x ≠ 0 := fun h0 => hgood (h0 ▸ zero_mem_badMessages r hℓ W Q hγ1)
@@ -580,32 +553,22 @@ theorem one_le_of_threshold_eq_kaneWilliamsB_of_unforced_mean_le {t : ℕ} (hℓ
   -- on the restriction, the translated votes compute the word of `x`
   set V : BitString k → BitString t :=
     fun u => v (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w (u + c)) with hVdef
-  have hV (u : BitString k) : threshold t θ (V u) = r u ⬝ᵥ x := by
+  have hdisc := sub_le_sum_sum_signVal_mul_of_threshold_eq V (fun u => r u ⬝ᵥ x) fun u => by
     rw [hVdef, hv, kaneWilliamsB_embedUpdate, add_assoc, hcc, add_zero]
-  have hdisc := sub_le_sum_sum_signVal_mul_of_threshold_eq V (fun u => r u ⬝ᵥ x) hV
   rw [hcardZ] at hdisc
   -- the word of `x ≠ 0` is nearly balanced
   have hbal : |∑ u, signVal (r u ⬝ᵥ x)| ≤ δ * 2 ^ k := by
-    have h := abs_sum_signVal_dotProduct_le hr hx0
-    rwa [hcardZ] at h
+    simpa only [hcardZ] using abs_sum_signVal_dotProduct_le hr hx0
   -- every restricted vote has correlation below `γ`
-  have hsmall (o : Fin t) : ∑ u, signVal (V u o) * signVal (r u ⬝ᵥ x) ≤ γ * 2 ^ k := by
-    have hh : IsDepthTwoOverWeights (W σ) Q
-        fun u => v (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u) o := (hU σ w o).mono hq
-    by_contra hgt
-    push Not at hgt
-    exact hgood (mem_filter.mpr ⟨mem_univ _, σ, c, _, hh, hgt.le.trans (le_abs_self _)⟩)
+  have hsmall (o : Fin t) : ∑ u, signVal (V u o) * signVal (r u ⬝ᵥ x) ≤ γ * 2 ^ k :=
+    le_of_not_gt fun hgt => hgood
+      (mem_filter.mpr ⟨mem_univ _, σ, c, _, (hU σ w o).mono hq, hgt.le.trans (le_abs_self _)⟩)
   have hsum : ∑ o, ∑ u, signVal (V u o) * signVal (r u ⬝ᵥ x) ≤ t * (γ * 2 ^ k) := by
-    refine (sum_le_sum fun o _ => hsmall o).trans ?_
-    rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
-  have ht0 : (0 : ℝ) ≤ t + 1 := by positivity
-  have hcomb : 2 ^ k * (1 - (t + 1) * δ) ≤ 2 ^ k * (t * γ) := by
-    have hm := mul_le_mul_of_nonneg_left hbal ht0
-    linarith only [hdisc, hsum, hm,
-      show (2 : ℝ) ^ k * (1 - (t + 1) * δ) = 2 ^ k - (t + 1) * (δ * 2 ^ k) by ring,
-      show (2 : ℝ) ^ k * (t * γ) = t * (γ * 2 ^ k) by ring]
-  have := le_of_mul_le_mul_left hcomb h2k
-  linarith only [this, htγδ]
+    simpa using sum_le_sum fun o (_ : o ∈ univ) => hsmall o
+  have hm := mul_le_mul_of_nonneg_left hbal (by positivity : (0 : ℝ) ≤ t + 1)
+  have hring : ((t : ℝ) * γ + (t + 1) * δ) * 2 ^ k = t * (γ * 2 ^ k) + (t + 1) * (δ * 2 ^ k) := by
+    ring
+  linarith only [hdisc, hsum, hm, mul_lt_mul_of_pos_right htγδ h2k, hring]
 
 /-! ### Average case: depth-two circuits correlate weakly with the function -/
 
@@ -629,10 +592,8 @@ theorem card_eval_eq_kaneWilliamsB_le_of_depth_le_two_size (hℓ : 0 < ℓ)
     (fun σ => circuitLiveWeights c o (kaneWilliamsLiveVar n k ℓ σ))
     (fun σ => Nat.add_le_add_right (card_circuitLiveWeights_le_size c o _) 1)
     (fun σ w => circuitUnforcedConstCount c o (blockLiveSet (kaneWilliamsBlockVar n k ℓ) σ) w)
-    (fun σ w => by
-      rw [← univ_image_kaneWilliamsLiveVar_eq_blockLiveSet]
-      exact isDepthTwoOverWeights_eval_embedUpdate_const c hd o
-        (kaneWilliamsLiveVar_injective n k ℓ σ) w) ?_ Q
+    (fun σ => isDepthTwoOverWeights_eval_embedUpdate_const c hd o
+      (kaneWilliamsLiveVar_injective n k ℓ σ)) ?_ Q
   simpa [Fintype.card_fin] using sum_circuitUnforcedConstCount_blockLiveSet_le c o
     (kaneWilliamsBlockVar n k ℓ) (kaneWilliamsBlockVar_joint_injective n k ℓ)
 
@@ -654,10 +615,8 @@ theorem card_eval_eq_kaneWilliamsB_le_of_depth_le_two_wireCount (hℓ : 0 < ℓ)
     (fun σ => circuitLiveWeights c o (kaneWilliamsLiveVar n k ℓ σ))
     (fun σ => Nat.add_le_add_right (card_circuitLiveWeights_le_wireCount c o _) 1)
     (fun σ w => circuitUnforcedAtMostOneCount c o (blockLiveSet (kaneWilliamsBlockVar n k ℓ) σ) w)
-    (fun σ w => by
-      rw [← univ_image_kaneWilliamsLiveVar_eq_blockLiveSet]
-      exact isDepthTwoOverWeights_eval_embedUpdate c hd o
-        (kaneWilliamsLiveVar_injective n k ℓ σ) w) ?_ Q
+    (fun σ => isDepthTwoOverWeights_eval_embedUpdate c hd o
+      (kaneWilliamsLiveVar_injective n k ℓ σ)) ?_ Q
   simpa [Fintype.card_fin] using sum_circuitUnforcedAtMostOneCount_blockLiveSet_le c o
     (kaneWilliamsBlockVar n k ℓ) (kaneWilliamsBlockVar_joint_injective n k ℓ)
 
@@ -686,10 +645,8 @@ theorem one_le_of_threshold_eval_eq_kaneWilliamsB_size {t : ℕ} (hℓ : 0 < ℓ
     (fun σ => Nat.add_le_add_right
       ((card_circuitBottomWeights_le c _).trans (card_circuitBottomGates_le_size c)) 1)
     (fun σ w => circuitBottomUnforcedConstCount c (blockLiveSet (kaneWilliamsBlockVar n k ℓ) σ) w)
-    (fun σ w o => by
-      rw [← univ_image_kaneWilliamsLiveVar_eq_blockLiveSet]
-      exact isDepthTwoOverWeights_eval_embedUpdate_circuitBottom_const c hd
-        (kaneWilliamsLiveVar_injective n k ℓ σ) w o) ?_ Q
+    (fun σ => isDepthTwoOverWeights_eval_embedUpdate_circuitBottom_const c hd
+      (kaneWilliamsLiveVar_injective n k ℓ σ)) ?_ Q
   simpa [Fintype.card_fin] using sum_circuitBottomUnforcedConstCount_blockLiveSet_le c
     (kaneWilliamsBlockVar n k ℓ) (kaneWilliamsBlockVar_joint_injective n k ℓ)
 
@@ -714,10 +671,8 @@ theorem one_le_of_threshold_eval_eq_kaneWilliamsB_wireCount {t : ℕ} (hℓ : 0 
       ((card_circuitBottomWeights_le c _).trans (card_circuitBottomGates_le_wireCount c)) 1)
     (fun σ w =>
       circuitBottomUnforcedAtMostOneCount c (blockLiveSet (kaneWilliamsBlockVar n k ℓ) σ) w)
-    (fun σ w o => by
-      rw [← univ_image_kaneWilliamsLiveVar_eq_blockLiveSet]
-      exact isDepthTwoOverWeights_eval_embedUpdate_circuitBottom c hd
-        (kaneWilliamsLiveVar_injective n k ℓ σ) w o) ?_ Q
+    (fun σ => isDepthTwoOverWeights_eval_embedUpdate_circuitBottom c hd
+      (kaneWilliamsLiveVar_injective n k ℓ σ)) ?_ Q
   simpa [Fintype.card_fin] using sum_circuitBottomUnforcedAtMostOneCount_blockLiveSet_le c
     (kaneWilliamsBlockVar n k ℓ) (kaneWilliamsBlockVar_joint_injective n k ℓ)
 
@@ -737,8 +692,8 @@ private theorem countTerm_le (hp : 1 ≤ p) (hℓp : ℓ ≤ 2 ^ p) {M : ℕ} (h
         ((((2 ^ (16 * p) + 1) * M) ^ Q * (2 ^ (16 * p) + 1) ^ (Q + 16 * p + 1) : ℕ) : ℝ) /
           ((((1 / 2 : ℝ) ^ (3 * p)) ^ 2 - (1 / 2) ^ (7 * p)) * 2 ^ n) ≤
       2 ^ ((36 * p + 2) * Q + 272 * p ^ 2 + 54 * p + 2) / 2 ^ n := by
-  have h2 : 2 ^ (16 * p) + 1 ≤ 2 ^ (16 * p + 1) := by
-    rw [pow_succ]; have := Nat.one_le_two_pow (n := 16 * p); omega
+  have h2 : 2 ^ (16 * p) + 1 ≤ 2 ^ (16 * p + 1) :=
+    (Nat.add_le_add_left (Nat.one_le_two_pow (n := 16 * p)) _).trans_eq (by rw [pow_succ, mul_two])
   have hnat : ℓ ^ (16 * p) * 2 ^ (16 * p) *
       (((2 ^ (16 * p) + 1) * M) ^ Q * (2 ^ (16 * p) + 1) ^ (Q + 16 * p + 1)) ≤
       2 ^ ((36 * p + 2) * Q + 272 * p ^ 2 + 48 * p + 1) := by
@@ -748,24 +703,19 @@ private theorem countTerm_le (hp : 1 ≤ p) (hℓp : ℓ ≤ 2 ^ p) {M : ℕ} (h
           ((2 ^ (16 * p + 1) * 2 ^ (4 * p)) ^ Q * (2 ^ (16 * p + 1)) ^ (Q + 16 * p + 1)) := by
           gcongr
       _ = 2 ^ ((36 * p + 2) * Q + 272 * p ^ 2 + 48 * p + 1) := by ring
-  have hnat' : (ℓ : ℝ) ^ (16 * p) * 2 ^ (16 * p) *
-      ((((2 ^ (16 * p) + 1) * M) ^ Q * (2 ^ (16 * p) + 1) ^ (Q + 16 * p + 1) : ℕ) : ℝ) ≤
-      2 ^ ((36 * p + 2) * Q + 272 * p ^ 2 + 48 * p + 1) := by
-    exact_mod_cast hnat
   have hden : (1 / 2 : ℝ) ^ (6 * p + 1) ≤ ((1 / 2 : ℝ) ^ (3 * p)) ^ 2 - (1 / 2) ^ (7 * p) := by
     have h7 : (1 / 2 : ℝ) ^ (7 * p) ≤ (1 / 2) ^ (6 * p + 1) :=
       pow_le_pow_of_le_one (by norm_num) (by norm_num) (by omega)
     have h6 : ((1 / 2 : ℝ) ^ (3 * p)) ^ 2 = 2 * (1 / 2) ^ (6 * p + 1) := by
       rw [← pow_mul, pow_succ]; ring_nf
     linarith
-  have hpos : (0 : ℝ) < (1 / 2) ^ (6 * p + 1) := by positivity
   calc (ℓ : ℝ) ^ (16 * p) * 2 ^ (16 * p) *
         ((((2 ^ (16 * p) + 1) * M) ^ Q * (2 ^ (16 * p) + 1) ^ (Q + 16 * p + 1) : ℕ) : ℝ) /
           ((((1 / 2 : ℝ) ^ (3 * p)) ^ 2 - (1 / 2) ^ (7 * p)) * 2 ^ n)
       ≤ 2 ^ ((36 * p + 2) * Q + 272 * p ^ 2 + 48 * p + 1) /
-          ((1 / 2 : ℝ) ^ (6 * p + 1) * 2 ^ n) := by
-        refine div_le_div₀ (by positivity) hnat' (by positivity) ?_
-        exact mul_le_mul_of_nonneg_right hden (by positivity)
+          ((1 / 2 : ℝ) ^ (6 * p + 1) * 2 ^ n) :=
+        div_le_div₀ (by positivity) (by exact_mod_cast hnat) (by positivity)
+          (mul_le_mul_of_nonneg_right hden (by positivity))
     _ = 2 ^ ((36 * p + 2) * Q + 272 * p ^ 2 + 54 * p + 2) / 2 ^ n := by
         rw [one_div_pow, div_mul_eq_mul_div, one_mul, div_div_eq_mul_div, ← pow_add]
         congr 2
@@ -787,10 +737,7 @@ private theorem discriminator_condition (hp : 1 ≤ p) {t : ℕ} (ht : 4 * t ≤
   have h7 : (1 / 2 : ℝ) ^ (7 * p) ≤ a ^ 2 := by
     rw [ha, ← pow_mul]; exact pow_le_pow_of_le_one (by norm_num) (by norm_num) (by omega)
   have hb1 : ((t : ℝ) + 1) * (1 / 2) ^ (7 * p) ≤ ((t : ℝ) + 1) * a ^ 2 := by gcongr
-  have hb2 : ((t : ℝ) + 1) * a ^ 2 ≤ (1 / 4 + 1 / 8) * (1 / 8) := by
-    rw [show ((t : ℝ) + 1) * a ^ 2 = (t * a + a) * a by ring]
-    exact mul_le_mul (by linarith only [hta, ha8]) ha8 ha0.le (by norm_num)
-  linarith only [hta, hb1, hb2]
+  nlinarith only [hta, ha8, ha0, hb1]
 
 /-- The parameters `γ = 2 ^ (-3 p)` and `δ = 2 ^ (-7 p)` satisfy `δ < γ ^ 2`. -/
 private theorem bias_lt_sq (hp : 1 ≤ p) :
@@ -810,18 +757,16 @@ private theorem two_pow_div_two_pow_le {E j : ℕ} (h : E + j ≤ n) :
 private theorem exists_survivorBudget {R : ℕ} (hR : R ≤ n) :
     ∃ Q : ℕ, (36 * p + 2) * Q + R ≤ n ∧ (n : ℝ) - R ≤ (36 * p + 2) * (Q + 1) := by
   refine ⟨(n - R) / (36 * p + 2), by have := Nat.mul_div_le (n - R) (36 * p + 2); omega, ?_⟩
-  have h' : ((n - R : ℕ) : ℝ) ≤ ((36 * p + 2) * ((n - R) / (36 * p + 2) + 1) : ℕ) := by
-    exact_mod_cast (Nat.lt_mul_div_succ (n - R) (by omega : 0 < 36 * p + 2)).le
-  rw [Nat.cast_sub hR] at h'; push_cast at h'; exact h'
+  rw [← Nat.cast_sub hR]
+  exact_mod_cast (Nat.lt_mul_div_succ (n - R) (by omega)).le
 
 /-- For `0 < ℓ ≤ 2 ^ p`, `ℓ √ℓ ≤ 2 ^ (3 p)`. -/
 private theorem mul_sqrt_le_two_pow (hℓ : 0 < ℓ) (hℓp : ℓ ≤ 2 ^ p) :
     (ℓ : ℝ) * Real.sqrt ℓ ≤ 2 ^ (3 * p) := by
-  have hℓ0 : (0 : ℝ) < ℓ := by exact_mod_cast hℓ
   have hℓ1 : (1 : ℝ) ≤ ℓ := by exact_mod_cast hℓ
   have hℓ' : (ℓ : ℝ) ≤ 2 ^ p := by exact_mod_cast hℓp
   have hsℓ : Real.sqrt ℓ ≤ ℓ :=
-    (Real.sqrt_le_left hℓ0.le).mpr (by simpa only [sq] using le_mul_of_one_le_left hℓ0.le hℓ1)
+    Real.sqrt_le_iff.mpr ⟨by linarith, by nlinarith⟩
   calc (ℓ : ℝ) * Real.sqrt ℓ ≤ 2 ^ p * 2 ^ p :=
         mul_le_mul hℓ' (hsℓ.trans hℓ') (Real.sqrt_nonneg _) (by positivity)
     _ ≤ 2 ^ (3 * p) := by
@@ -830,7 +775,7 @@ private theorem mul_sqrt_le_two_pow (hℓ : 0 < ℓ) (hℓp : ℓ ≤ 2 ^ p) :
 private theorem mul_le_of_two_pow_lt_succ (hn : n ≤ 2 ^ p) {M : ℕ} {A D X : ℝ}
     (hA : A ≤ 2 ^ (3 * p)) (hD0 : 0 ≤ D) (hDn : D ≤ n) (hM : 2 ^ (4 * p) < M + 1)
     (hMX : (M : ℝ) ≤ X) : A * D ≤ X := by
-  have hs : (2 : ℝ) ^ (4 * p) ≤ M := by exact_mod_cast (show 2 ^ (4 * p) ≤ M by omega)
+  have hs : (2 : ℝ) ^ (4 * p) ≤ M := by exact_mod_cast Nat.le_of_lt_succ hM
   have hn' : (n : ℝ) ≤ 2 ^ p := by exact_mod_cast hn
   calc A * D ≤ 2 ^ (3 * p) * 2 ^ p := mul_le_mul hA (hDn.trans hn') hD0 (by positivity)
     _ = 2 ^ (4 * p) := by rw [← pow_add]; ring_nf
@@ -851,32 +796,23 @@ private theorem le_mul_of_one_le_survivor (hp : 1 ≤ p) (hn : n ≤ 2 ^ p) (h�
   have hX0 : 0 ≤ X := (Nat.cast_nonneg M).trans hMX
   -- the bound is trivial for short messages
   by_cases hnR : n < 272 * p ^ 2 + 54 * p + 3
-  · have hneg : (n : ℝ) - (272 * p ^ 2 + 54 * p + 3) ≤ 0 := by
-      have : (n : ℝ) < ((272 * p ^ 2 + 54 * p + 3 : ℕ) : ℝ) := by exact_mod_cast hnR
-      push_cast at this; linarith only [this]
-    exact (mul_nonpos_of_nonneg_of_nonpos hA0.le hneg).trans (mul_nonneg (by positivity) hX0)
+  · exact (mul_nonpos_of_nonneg_of_nonpos hA0.le
+      (sub_nonpos.mpr (by exact_mod_cast hnR.le))).trans (by positivity)
   push Not at hnR
   -- and when `M` exceeds `2 ^ (4 p)`
   by_cases hM : 2 ^ (4 * p) < M + 1
-  · have hD0 : (0 : ℝ) ≤ n - (272 * p ^ 2 + 54 * p + 3) := by
-      have : ((272 * p ^ 2 + 54 * p + 3 : ℕ) : ℝ) ≤ n := by exact_mod_cast hnR
-      push_cast at this; linarith only [this]
-    exact (mul_le_of_two_pow_lt_succ hn hA hD0
-      (by linarith only [(by positivity : (0 : ℝ) ≤ 272 * p ^ 2 + 54 * p + 3)]) hM hMX).trans
+  · exact (mul_le_of_two_pow_lt_succ hn hA (sub_nonneg.mpr (by exact_mod_cast hnR))
+      (sub_le_self _ (by positivity)) hM hMX).trans
       (le_mul_of_one_le_left hX0 (by linarith only [hp1]))
   push Not at hM
   -- choose the survivor budget `Q` as large as the counting allows
   obtain ⟨Q, hQ1, hQ2⟩ := exists_survivorBudget (p := p) hnR
   push_cast at hQ2
   have hCT := (countTerm_le (n := n) hp hℓp hM Q).trans
-    (two_pow_div_two_pow_le (j := 1) (by omega))
-  rw [pow_one] at hCT
+    (by simpa only [pow_one] using two_pow_div_two_pow_le (n := n) (j := 1) (by omega))
   -- so many survivors are expected: `(Q + 1) A ≤ 8 X`
-  have hQA : (0 : ℝ) ≤ A * (Q + 1) := by have := hA0.le; positivity
-  have hB : (Q + 1 : ℝ) * A ≤ 8 * X := by
-    have h1 := mul_le_mul_of_nonneg_right
-      (show (1 / 2 : ℝ) ≤ σ Q by linarith only [hmain hM Q, hCT]) hQA
-    rw [hσ Q] at h1; linarith only [h1, show (1 / 2 : ℝ) * (A * (Q + 1)) = (Q + 1) * A / 2 by ring]
+  have hQA : (0 : ℝ) ≤ A * (Q + 1) := by positivity
+  have hB : (Q + 1 : ℝ) * A ≤ 8 * X := by nlinarith only [hmain hM Q, hCT, hQA, hσ Q]
   calc A * (n - (272 * p ^ 2 + 54 * p + 3)) ≤ A * ((36 * p + 2) * (Q + 1)) := by gcongr
     _ = (36 * p + 2) * ((Q + 1 : ℝ) * A) := by ring
     _ ≤ (36 * p + 2) * (8 * X) := mul_le_mul_of_nonneg_left hB (by positivity)
@@ -900,16 +836,13 @@ private theorem le_of_le_survivor (hp : 1 ≤ p) (hn : n ≤ 2 ^ p) (hℓp : ℓ
   set D : ℝ := (n : ℝ) - (272 * p ^ 2 + 57 * p + 3) with hDdef
   have hp1 : (1 : ℝ) ≤ p := by exact_mod_cast hp
   have hX0 : 0 ≤ X := (Nat.cast_nonneg M).trans hMX
-  have hD : 0 < D := by
-    have : ((272 * p ^ 2 + 57 * p + 3 : ℕ) : ℝ) < n := by exact_mod_cast hnR
-    push_cast at this; linarith only [hDdef, this]
+  have hD : 0 < D := sub_pos.mpr (by exact_mod_cast hnR)
   have hAD : 0 < A * D := mul_pos hA0 hD
   have h3 : (0 : ℝ) ≤ (1 / 2) ^ (3 * p) := by positivity
   by_cases hM : 2 ^ (4 * p) < M + 1
   · -- a measure above `2 ^ (4 p)` makes the bound trivial
     have hterm : 1 ≤ 152 * p * X / (A * D) := (le_div_iff₀ hAD).mpr <| (one_mul _).trans_le <|
-      (mul_le_of_two_pow_lt_succ hn hA hD.le (by
-        linarith only [hDdef, (by positivity : (0 : ℝ) ≤ 272 * p ^ 2 + 57 * p + 3)]) hM hMX).trans
+      (mul_le_of_two_pow_lt_succ hn hA hD.le (sub_le_self _ (by positivity)) hM hMX).trans
         (le_mul_of_one_le_left hX0 (by linarith only [hp1]))
     exact hC.trans (le_mul_of_one_le_right (by positivity) (by linarith only [h3, hterm]))
   push Not at hM
@@ -1052,16 +985,14 @@ private theorem le_two_pow_of_balanced (hp : 1 ≤ p) (hnℓ : n = 16 * p * ℓ)
 /-- In the balanced case `n = 16 p ℓ`, `√n = 4 √p √ℓ`. -/
 private theorem sqrt_balanced (hnℓ : n = 16 * p * ℓ) :
     Real.sqrt n = 4 * Real.sqrt p * Real.sqrt ℓ := by
-  have h16 : Real.sqrt 16 = 4 := by
-    rw [show (16 : ℝ) = 4 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
-  rw [hnℓ, Nat.cast_mul, Nat.cast_mul, Nat.cast_ofNat,
-    Real.sqrt_mul (show (0 : ℝ) ≤ 16 * p by positivity),
-    Real.sqrt_mul (show (0 : ℝ) ≤ 16 by norm_num), h16]
+  have h16 : Real.sqrt 16 = 4 := by rw [Real.sqrt_eq_iff_eq_sq] <;> norm_num
+  rw [hnℓ, Nat.cast_mul, Nat.cast_mul, Nat.cast_ofNat, Real.sqrt_mul (by positivity),
+    Real.sqrt_mul (by positivity), h16]
 
 private theorem mul_sqrt_balanced (hnℓ : n = 16 * p * ℓ) :
     (n : ℝ) * Real.sqrt n = 64 * p * Real.sqrt p * (ℓ * Real.sqrt ℓ) := by
-  have hn' : (n : ℝ) = 16 * p * ℓ := by exact_mod_cast hnℓ
-  rw [sqrt_balanced hnℓ, hn']
+  rw [sqrt_balanced hnℓ, hnℓ]
+  push_cast
   ring
 
 private theorem balanced_threshold_bound {t : ℕ} (hp : 1 ≤ p) (hnℓ : n = 16 * p * ℓ)
@@ -1071,8 +1002,7 @@ private theorem balanced_threshold_bound {t : ℕ} (hp : 1 ≤ p) (hnℓ : n = 1
       A * (n - (272 * p ^ 2 + 54 * p + 3)) ≤ 304 * p * X) :
     B * (n - (272 * p ^ 2 + 54 * p + 3)) ≤ R := by
   rcases Nat.eq_zero_or_pos ℓ with rfl | hℓ
-  · rw [hBK, hA0 rfl, mul_zero, zero_mul]
-    exact hR0
+  · simpa only [hBK, hA0 rfl, mul_zero, zero_mul] using hR0
   · have ht' : 4 * t ≤ 2 ^ (3 * p) :=
       ht.trans (by rw [pow_mul']; exact Nat.pow_le_pow_left hn 3)
     calc B * (n - (272 * p ^ 2 + 54 * p + 3))
@@ -1115,9 +1045,8 @@ theorem size_ge_of_threshold_eval_eq_kaneWilliamsB_balanced {t : ℕ} (hp : 1 �
   refine balanced_threshold_bound hp hnℓ hn ht (K := 16 * p) (A := ℓ)
     (X := c.size * Real.sqrt (2 * n)) (by exact_mod_cast hnℓ) (by ring)
     (fun h0 => by simp [h0]) (by positivity) (by positivity) fun hℓ hℓp ht' => ?_
-  have h := size_ge_of_threshold_eval_eq_kaneWilliamsB_of_le_two_pow hp hn hℓ hℓp ht' hr c hd θ hc
-  rw [h2n] at h
-  simpa only [mul_assoc] using h
+  simpa only [← h2n, mul_assoc] using
+    size_ge_of_threshold_eval_eq_kaneWilliamsB_of_le_two_pow hp hn hℓ hℓp ht' hr c hd θ hc
 
 /-- **`MAJ ∘ THR ∘ THR` wire lower bound for the balanced function** (original, improving
 [KaneWilliams2016], `arXiv:1511.07860v1`, Theorem 1.3 from `Ω(n ^ (5 / 2) / log^(7/2) n)` to
@@ -1155,12 +1084,11 @@ theorem card_eval_eq_kaneWilliamsB_le_balanced_size (hp : 1 ≤ p) (hnℓ : n = 
       (1 / 2 + (1 / 2) ^ (3 * p) + 2432 * p ^ 2 * c.size * Real.sqrt (2 * n) /
         (n * (n - (272 * p ^ 2 + 57 * p + 3)))) := by
   have h2n : ((n + 16 * p * ℓ : ℕ) : ℝ) = 2 * n := by rw [← hnℓ]; push_cast; ring
-  have hK : (16 * (p : ℝ)) ≠ 0 := by positivity
   refine balanced_corr_bound hp hnℓ hn (by omega) (K := 16 * p) (A := ℓ)
-    (X := c.size * Real.sqrt (2 * n)) (by exact_mod_cast hnℓ) hK (by ring) fun hℓ hℓp => ?_
-  have h := card_eval_eq_kaneWilliamsB_le_of_le_two_pow_size hp hn hℓ hℓp hnR hr c hd o
-  rw [h2n] at h
-  simpa only [mul_assoc] using h
+    (X := c.size * Real.sqrt (2 * n)) (by exact_mod_cast hnℓ) (by positivity) (by ring)
+    fun hℓ hℓp => ?_
+  simpa only [← h2n, mul_assoc] using
+    card_eval_eq_kaneWilliamsB_le_of_le_two_pow_size hp hn hℓ hℓp hnR hr c hd o
 
 /-- **Average-case wire bound for the balanced function** (original): under the hypotheses of
 `card_eval_eq_kaneWilliamsB_le_balanced_size`, a depth-two weighted threshold circuit agrees with
@@ -1176,11 +1104,9 @@ theorem card_eval_eq_kaneWilliamsB_le_balanced_wireCount (hp : 1 ≤ p) (hnℓ :
       (1 / 2 + (1 / 2) ^ (3 * p) + 9728 * p ^ 2 * Real.sqrt p * c.wireCount /
         (n * Real.sqrt n * (n - (272 * p ^ 2 + 57 * p + 3)))) := by
   have hp0 : (0 : ℝ) < p := Nat.cast_pos.mpr hp
-  have hK : 64 * (p : ℝ) * Real.sqrt p ≠ 0 := by positivity
-  refine balanced_corr_bound hp hnℓ hn (by omega) (K := 64 * p * Real.sqrt p)
-    (A := ℓ * Real.sqrt ℓ) (X := c.wireCount) (mul_sqrt_balanced hnℓ) hK (by ring)
-    fun hℓ hℓp => ?_
-  exact card_eval_eq_kaneWilliamsB_le_of_le_two_pow_wireCount hp hn hℓ hℓp hnR hr c hd o
+  exact balanced_corr_bound hp hnℓ hn (by omega) (K := 64 * p * Real.sqrt p)
+    (A := ℓ * Real.sqrt ℓ) (X := c.wireCount) (mul_sqrt_balanced hnℓ) (by positivity) (by ring)
+    fun hℓ hℓp => card_eval_eq_kaneWilliamsB_le_of_le_two_pow_wireCount hp hn hℓ hℓp hnR hr c hd o
 
 /-- **Rows exist**: for `p ≥ 1` and `n ≤ 2 ^ p` there are `2 ^ (-7 p)`-biased rows
 `r : BitString (16 p) → BitString n`, namely the powering construction of

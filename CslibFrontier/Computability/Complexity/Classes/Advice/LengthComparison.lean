@@ -77,14 +77,10 @@ private def decodePattern (p : List Bool × List Bool) : Bool :=
 
 private theorem computableInPolyTime_decodePattern :
     ComputableInPolyTime decodePattern (encPair encBits encBits) encBool := by
-  have he : ComputableInPolyTime (List.isEmpty (α := Bool)) encBits encBool :=
-    ComputableInPolyTime.bitsIsEmpty
-  have hh : ComputableInPolyTime (fun l : List Bool => l.headD false) encBits encBool :=
-    (ListEncoding.headD (enc₁ := encBool) (enc := encBits) false).computableInPolyTime
+  have he := ComputableInPolyTime.bitsIsEmpty
+  have hh := (ListEncoding.headD (enc₁ := encBool) (enc := encBits) false).computableInPolyTime
   unfold decodePattern
-  exact (he.comp (ComputableInPolyTime.fst encBits encBits)).ite (ComputableInPolyTime.const false)
-    ((hh.comp (ComputableInPolyTime.fst encBits encBits)).ite
-      (hh.comp (ComputableInPolyTime.snd encBits encBits)) (ComputableInPolyTime.const true))
+  fun_prop
 
 private theorem decodePattern_code (c : Fin 3) (x : List Bool) :
     decodePattern (patternCode c, x) =
@@ -157,88 +153,54 @@ theorem exists_nonmonotone_advice_bounds :
   let upper : ℕ → ℕ := fun n => if n % 2 = 0 then n else 1
   let gap : ℕ → ℕ := fun n => upper n - lower n
   let L : Set (List Bool) := {x | decodePattern (advice x.length, x) = true}
-  have hlow : ∀ n, lower n ≤ 1 := by
-    intro n
+  have hlow (n : ℕ) : lower n ≤ 1 := by
     dsimp only [lower, advice]
     split_ifs
     · exact length_patternCode _
     · decide
-  have heven : ∀ n, n % 2 = 0 → advice n = [] := by
-    intro n hn
-    simp [advice, hn]
-  have hle : ∀ n, lower n ≤ upper n := by
-    intro n
+  have heven (n : ℕ) (hn : n % 2 = 0) : advice n = [] := by simp [advice, hn]
+  have hle (n : ℕ) : lower n ≤ upper n := by
     by_cases hn : n % 2 = 0
     · simp [lower, upper, heven n hn, hn]
     · simpa [upper, hn] using hlow n
-  have hsum : (fun n => lower n + gap n) = upper := by
-    funext n
-    exact Nat.add_sub_of_le (hle n)
-  have hu : ∀ n, upper n ≤ n + 1 := by
-    intro n
-    dsimp only [upper]
-    split_ifs <;> omega
+  have hsum : (fun n => lower n + gap n) = upper := funext fun n => Nat.add_sub_of_le (hle n)
   have hlowPoly : PolynomiallyBounded lower :=
     (show PolynomiallyBounded (fun _ : ℕ => 1) by fun_prop).mono_of_le hlow
   have hgapPoly : PolynomiallyBounded gap :=
-    (show PolynomiallyBounded (fun n : ℕ => n + 1) by fun_prop).mono_of_le
-      (fun n => (Nat.sub_le _ _).trans (hu n))
-  have hcap : ∀ n, lower n < 2 ^ (n - 1) := by
-    intro n
+    (show PolynomiallyBounded (fun n : ℕ => n + 1) by fun_prop).mono_of_le fun n =>
+      (Nat.sub_le _ _).trans (by dsimp only [upper]; split_ifs <;> omega)
+  have hcap (n : ℕ) : lower n < 2 ^ (n - 1) := by
     by_cases hn : n % 2 = 1 ∧ 3 ≤ n
-    · have hp : 2 ≤ 2 ^ (n - 1) := by
-        simpa using Nat.pow_le_pow_right (by decide : 0 < 2) (by omega : 1 ≤ n - 1)
-      exact (hlow n).trans_lt ((by decide : 1 < 2).trans_le hp)
-    · have hz : lower n = 0 := by simp [lower, advice, hn]
-      rw [hz]
-      exact Nat.two_pow_pos _
-  have hupperPow : ∀ n, upper n ≤ 2 ^ n := by
-    intro n
+    · exact (hlow n).trans_lt (lt_of_lt_of_le (by decide)
+        (Nat.pow_le_pow_right (by decide : 0 < 2) (by omega : 1 ≤ n - 1)))
+    · simp [lower, advice, hn]
+  have hupperPow (n : ℕ) : upper n ≤ 2 ^ n := by
     dsimp only [upper]
     split_ifs
     · exact (Nat.lt_two_pow_self (n := n)).le
     · exact Nat.two_pow_pos n
-  have hunbounded : ∀ b, ∃ n, b < gap n := by
-    intro b
-    let n := 2 * (b + 1)
-    have hn : n % 2 = 0 := by dsimp [n]; omega
-    refine ⟨n, ?_⟩
-    have hz : lower n = 0 := by simp [lower, heven n hn]
-    simp only [gap, upper, hn, ↓reduceIte, hz, Nat.sub_zero]
-    dsimp [n]
-    omega
-  have hL : L ∈ PWithAdvice lower := by
-    exact ⟨advice, fun _ => rfl, {p | decodePattern p = true},
-      ⟨decodePattern, computableInPolyTime_decodePattern, fun _ => Iff.rfl⟩,
-      fun _ => Iff.rfl⟩
+  have hunbounded (b : ℕ) : ∃ n, b < gap n :=
+    ⟨2 * (b + 1), by simp [gap, upper, lower, advice]; omega⟩
+  have hL : L ∈ PWithAdvice lower :=
+    ⟨advice, fun _ => rfl, {p | decodePattern p = true},
+      ⟨decodePattern, computableInPolyTime_decodePattern, fun _ => Iff.rfl⟩, fun _ => Iff.rfl⟩
   have hnot : L ∉ PWithAdvice upper := by
     rintro ⟨otherAdvice, hlength, A, hA, hLA⟩
-    rw [hpredicates] at hA
-    obtain ⟨j, hj⟩ := hA
+    obtain ⟨j, hj⟩ := hpredicates ▸ hA
     let n := 2 * j + 3
-    have hodd : n % 2 = 1 := by dsimp [n]; omega
-    have hge : 3 ≤ n := by dsimp [n]; omega
-    have hidx : (n - 3) / 2 = j := by dsimp [n]; omega
-    have hlen : (otherAdvice n).length = 1 := by
-      simpa [upper, hodd] using hlength n
-    obtain ⟨b, hb⟩ := List.length_eq_one_iff.mp hlen
-    have hadvice : advice n = patternCode (color j) := by
-      simp [advice, hodd, hge, hidx]
-    have heval (w : List Bool) (hw : w.length = n) :
-        decodePattern (advice n, w) = decide (([b], w) ∈ predicates j) := by
-      apply Bool.eq_iff_iff.mpr
-      simpa only [L, Set.mem_ofPred_eq, hw, hb, ← hj, decide_eq_true_eq] using hLA w
-    apply hcolor j b
-    apply Prod.ext
-    · have h := heval (List.replicate n false) (by simp)
-      rw [hadvice, decodePattern_code] at h
-      simpa [n, observations, List.replicate_succ] using h
-    · have h := heval (List.replicate n true) (by simp)
-      rw [hadvice, decodePattern_code] at h
-      simpa [n, observations, List.replicate_succ] using h
-  refine ⟨lower, gap, L, hlowPoly, hgapPoly, hcap, ?_, hunbounded, hL, ?_⟩
-  · intro n
-    simpa only [congrFun hsum n] using hupperPow n
-  · simpa only [hsum] using hnot
+    have hodd : n % 2 = 1 := by omega
+    obtain ⟨b, hb⟩ := List.length_eq_one_iff.mp (by simpa [upper, hodd] using hlength n)
+    have hadvice : advice n = patternCode (color j) := by simp [advice, n, hodd]
+    have hrep (c : Bool) : (if c then (pattern (color j)).2 else (pattern (color j)).1) =
+        decide (([b], List.replicate n c) ∈ predicates j) := by
+      have hc := decodePattern_code (color j) (List.replicate n c)
+      rw [← hadvice, show (List.replicate n c).headD false = c from rfl] at hc
+      rw [← hc, Bool.eq_iff_iff]
+      simpa only [L, Set.mem_ofPred_eq, List.length_replicate, hb, ← hj, decide_eq_true_eq]
+        using hLA (List.replicate n c)
+    exact hcolor j b (Prod.ext (hrep false) (hrep true))
+  refine ⟨lower, gap, L, hlowPoly, hgapPoly, hcap, ?_, hunbounded, hL, hsum ▸ hnot⟩
+  intro n
+  simpa only [congrFun hsum n] using hupperPow n
 
 end Cslib.Complexity

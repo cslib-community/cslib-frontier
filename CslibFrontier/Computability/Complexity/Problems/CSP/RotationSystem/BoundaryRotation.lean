@@ -57,36 +57,27 @@ actual occurrence and port counts. Empty and singleton boundaries retain the ent
 
 /-- LEFT boundary movement retains the entire actual body. -/
 theorem rotateLeft_body (I : State Rel) : (rotateLeft I).body = I.body := by
-  rcases I with ⟨F, ports, c⟩
-  cases ports with
-  | nil => rfl
-  | cons x ps => cases ps <;> rfl
+  rcases I with ⟨F, _ | ⟨x, _ | ⟨y, ps⟩⟩, c⟩ <;> rfl
 
 /-- LEFT boundary movement rotates the ordered raw port word by one position. -/
 theorem rotateLeft_ports (I : State Rel) :
     (rotateLeft I).ports = I.ports.rotate 1 := by
-  rcases I with ⟨F, ports, c⟩
-  cases ports with
-  | nil => rfl
-  | cons x ps =>
-    cases ps <;> simp [rotateLeft, List.rotate_cons_succ]
+  rcases I with ⟨F, _ | ⟨x, _ | ⟨y, ps⟩⟩, c⟩
+  · rfl
+  · simp [rotateLeft, List.rotate_cons_succ]
+  · simp [rotateLeft, List.rotate_cons_succ]
 
 /-- The source witness and the static constructor's full table equation supply both full
 checks internally. The computed output requires no target rotation or genus provider. -/
 theorem accepted_rotateLeft (I : State Rel) (hI : I.Accepted) :
     (rotateLeft I).Accepted := by
-  rcases I with ⟨F, ports, c⟩
-  cases ports with
-  | nil => exact hI
-  | cons x ps =>
-    cases ps with
-    | nil => exact hI
-    | cons y ps =>
-      let w : Witness F (x :: y :: ps) := ⟨c, hI.2⟩
-      have h := (w.rotateCons hI.1).accepted
-      rw [Witness.rotateCons_certificate] at h
-      refine ⟨?_, h⟩
-      exact hI.1.perm (List.perm_append_comm (l₁ := [x]) (l₂ := y :: ps))
+  rcases I with ⟨F, _ | ⟨x, _ | ⟨y, ps⟩⟩, c⟩
+  · exact hI
+  · exact hI
+  · let w : Witness F (x :: y :: ps) := ⟨c, hI.2⟩
+    have h := (w.rotateCons hI.1).accepted
+    rw [Witness.rotateCons_certificate] at h
+    exact ⟨hI.1.perm (List.perm_append_comm (l₁ := [x]) (l₂ := y :: ps)), h⟩
 
 /-- Forward boundary rotation preserves evaluation under every global assignment. -/
 theorem eval_rotateLeft (sem : Rel → List Bool → Bool) (I : State Rel) (σ : ℕ → Bool) :
@@ -122,10 +113,9 @@ theorem rotateRight_snoc (F : CSP Rel ℕ) (ps : List ℕ) (p : ℕ)
     (c : Graph.RotationCertificate) :
     rotateRight (⟨F, ps ++ [p], c⟩ : State Rel) =
       ⟨F, p :: ps, rotateBoundaryCertificateRight F.occurrences.length (ps.length + 1) c⟩ := by
-  cases ps with
-  | nil => simp [rotateRight, rotateBoundaryCertificateRight]
-  | cons x xs =>
-    cases xs <;> simp [rotateRight, List.reverse_append, List.reverse_cons]
+  rcases ps with _ | ⟨x, xs⟩
+  · simp [rotateRight, rotateBoundaryCertificateRight]
+  · cases xs <;> simp [rotateRight, List.reverse_append, List.reverse_cons]
 
 /-- RIGHT boundary movement retains the entire actual body. -/
 theorem rotateRight_body (I : State Rel) : (rotateRight I).body = I.body := by

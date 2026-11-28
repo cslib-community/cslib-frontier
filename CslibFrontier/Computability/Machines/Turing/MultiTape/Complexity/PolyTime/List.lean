@@ -94,6 +94,13 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
 variable {α β γ π : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
   {encIn : γ ↪ List Bool} {encP : π ↪ List Bool}
 
+/-- Change the element encoding of a computed framed list using a polynomial-time conversion. -/
+theorem reencodeList {encA' : α ↪ List Bool} {f : γ → List α}
+    (hf : ComputableInPolyTime f encIn (encList encA))
+    (convert : ComputableInPolyTime id encA encA') :
+    ComputableInPolyTime f encIn (encList encA') := by
+  simpa using (map convert).comp hf
+
 /-- Concatenate raw bit strings, charging for both computed words. -/
 @[fun_prop]
 theorem bitsAppend {left right : γ → List Bool}

@@ -184,10 +184,8 @@ private theorem challenges_split : ∀ (s₁ s₂ : Spec) (τ : Transcript (s₁
   | [], _, _ => rfl
   | .prover _ _ :: s₁, s₂, τ => challenges_split s₁ s₂ τ.2
   | .verifier _ :: s₁, s₂, τ => by
-    change ((τ.1, (PerChallenge.split s₁ s₂ (Transcript.challenges (s₁ ++ s₂) τ.2)).1),
-      (PerChallenge.split s₁ s₂ (Transcript.challenges (s₁ ++ s₂) τ.2)).2) = _
-    rw [challenges_split s₁ s₂ τ.2]
-    rfl
+    simp only [List.cons_append, Transcript.challenges, PerChallenge.split, Transcript.split,
+      challenges_split s₁ s₂ τ.2]
 
 /-- Lifted message queries of the first half are answered by the first half of the transcript. -/
 private theorem interpret_liftMsgLeft : ∀ (s₁ s₂ : Spec) (τ : Transcript (s₁ ++ s₂))
@@ -195,26 +193,20 @@ private theorem interpret_liftMsgLeft : ∀ (s₁ s₂ : Spec) (τ : Transcript 
     OracleComp.interpret (m := Id) (Transcript.answer (s₁ ++ s₂) τ) (liftMsgLeft s₁ s₂ q) =
       Transcript.answer s₁ (Transcript.split s₁ s₂ τ).1 q
   | [], _, _, q => q.elim
-  | .prover M I :: s₁, s₂, τ, .inl q => rfl
-  | .prover M I :: s₁, s₂, τ, .inr q => by
-    rw [liftMsgLeft, OracleComp.interpret_interpret]
-    exact interpret_liftMsgLeft s₁ s₂ τ.2 q
-  | .verifier C :: s₁, s₂, τ, q => by
-    rw [liftMsgLeft, OracleComp.interpret_interpret]
-    exact interpret_liftMsgLeft s₁ s₂ τ.2 q
+  | .prover _ _ :: _, _, _, .inl _ => rfl
+  | .prover _ _ :: s₁, s₂, τ, .inr q =>
+    (OracleComp.interpret_interpret _ _ _).trans (interpret_liftMsgLeft s₁ s₂ τ.2 q)
+  | .verifier _ :: s₁, s₂, τ, q =>
+    (OracleComp.interpret_interpret _ _ _).trans (interpret_liftMsgLeft s₁ s₂ τ.2 q)
 
 /-- Lifted message queries of the second half are answered by the second half of the transcript. -/
 private theorem interpret_liftMsgRight : ∀ (s₁ s₂ : Spec) (τ : Transcript (s₁ ++ s₂))
     (q : MsgQuery s₂),
     OracleComp.interpret (m := Id) (Transcript.answer (s₁ ++ s₂) τ) (liftMsgRight s₁ s₂ q) =
       Transcript.answer s₂ (Transcript.split s₁ s₂ τ).2 q
-  | [], _, _, q => rfl
-  | .prover M I :: s₁, s₂, τ, q => by
-    rw [liftMsgRight, OracleComp.interpret_interpret]
-    exact interpret_liftMsgRight s₁ s₂ τ.2 q
-  | .verifier C :: s₁, s₂, τ, q => by
-    rw [liftMsgRight, OracleComp.interpret_interpret]
-    exact interpret_liftMsgRight s₁ s₂ τ.2 q
+  | [], _, _, _ => rfl
+  | .prover _ _ :: s₁, s₂, τ, q | .verifier _ :: s₁, s₂, τ, q =>
+    (OracleComp.interpret_interpret _ _ _).trans (interpret_liftMsgRight s₁ s₂ τ.2 q)
 
 
 
@@ -231,28 +223,22 @@ private theorem outputOn_eq (V : Verifier OracleSpec.empty s₁ S₁ S₂) (x : 
 private theorem interpret_liftDecisionLeft {α : Type} (τ : Transcript (s₁ ++ s₂))
     (p : OracleComp (OracleSpec.empty ⊕ₒ msgSpec s₁) α) :
     OracleComp.interpret (m := Id) (answerAll (s₁ ++ s₂) τ) (liftDecisionLeft s₁ s₂ p) =
-      OracleComp.interpret (m := Id) (answerAll s₁ (Transcript.split s₁ s₂ τ).1) p := by
-  rw [liftDecisionLeft]
-  refine (OracleComp.interpret_interpret (m := Id) _ _ _).trans ?_
-  congr 1
-  funext q
-  rcases q with e | q
-  · exact e.elim
-  · rw [OracleComp.interpret_sumHandler_liftRight]
-    exact interpret_liftMsgLeft s₁ s₂ τ q
+      OracleComp.interpret (m := Id) (answerAll s₁ (Transcript.split s₁ s₂ τ).1) p :=
+  (OracleComp.interpret_interpret (m := Id) _ _ _).trans <| congrArg (OracleComp.interpret · p) <|
+    funext fun
+      | .inl e => e.elim
+      | .inr q => (OracleComp.interpret_sumHandler_liftRight _ _ _).trans
+          (interpret_liftMsgLeft s₁ s₂ τ q)
 
 private theorem interpret_liftDecisionRight {α : Type} (τ : Transcript (s₁ ++ s₂))
     (p : OracleComp (OracleSpec.empty ⊕ₒ msgSpec s₂) α) :
     OracleComp.interpret (m := Id) (answerAll (s₁ ++ s₂) τ) (liftDecisionRight s₁ s₂ p) =
-      OracleComp.interpret (m := Id) (answerAll s₂ (Transcript.split s₁ s₂ τ).2) p := by
-  rw [liftDecisionRight]
-  refine (OracleComp.interpret_interpret (m := Id) _ _ _).trans ?_
-  congr 1
-  funext q
-  rcases q with e | q
-  · exact e.elim
-  · rw [OracleComp.interpret_sumHandler_liftRight]
-    exact interpret_liftMsgRight s₁ s₂ τ q
+      OracleComp.interpret (m := Id) (answerAll s₂ (Transcript.split s₁ s₂ τ).2) p :=
+  (OracleComp.interpret_interpret (m := Id) _ _ _).trans <| congrArg (OracleComp.interpret · p) <|
+    funext fun
+      | .inl e => e.elim
+      | .inr q => (OracleComp.interpret_sumHandler_liftRight _ _ _).trans
+          (interpret_liftMsgRight s₁ s₂ τ q)
 
 /-- The composed verifier's output is the second verifier's output on the first one's. -/
 theorem outputOn_append (V₁ : Verifier OracleSpec.empty s₁ S₁ S₂)
@@ -269,8 +255,7 @@ theorem outputOn_append (V₁ : Verifier OracleSpec.empty s₁ S₁ S₂)
       (V₁.decide x (Transcript.challenges s₁ (Transcript.split s₁ s₂ τ).1)) with
   | none => rfl
   | some x' =>
-    refine (interpret_liftDecisionRight τ _).trans ?_
-    exact (outputOn_eq V₂ x' _).symm
+    exact (interpret_liftDecisionRight τ _).trans (outputOn_eq V₂ x' _).symm
 
 
 /-- The state function of a composition: that of the first half, then, once the first half is
@@ -307,16 +292,13 @@ theorem RbrFrom.congr : ∀ {s : Spec} {smp : PerChallenge ProbComp s}
     (∀ p, S p ↔ S' p) → (∀ τ, wins τ ↔ wins' τ) → RbrFrom s smp ε S wins →
       RbrFrom s smp ε S' wins'
   | [], _, _, _, _, _, _, hS, hw, h => fun h' hw' => h (mt (hS ()).1 h') ((hw ()).2 hw')
-  | .prover _ _ :: s, _, _, _, _, _, _, hS, hw, h =>
+  | .prover _ _ :: _, _, _, _, _, _, _, hS, hw, h =>
     ⟨fun h0 m h1 => h.1 (mt (hS none).1 h0) m ((hS _).2 h1),
-      fun m => RbrFrom.congr (fun p => hS _) (fun τ => hw _) (h.2 m)⟩
-  | .verifier _ :: s, smp, _, S, S', _, _, hS, hw, h =>
-    ⟨fun h0 => by
-        have hset : {c | S' (some (c, Prefix.empty s))} = {c | S (some (c, Prefix.empty s))} :=
-          Set.ext fun c => (hS _).symm
-        rw [hset]
-        exact h.1 (mt (hS none).1 h0),
-      fun c => RbrFrom.congr (fun p => hS _) (fun τ => hw _) (h.2 c)⟩
+      fun m => RbrFrom.congr (fun _ => hS _) (fun _ => hw _) (h.2 m)⟩
+  | .verifier _ :: s, _, _, S, S', _, _, hS, hw, h =>
+    ⟨fun h0 => (show {c | S' (some (c, Prefix.empty s))} = {c | S (some (c, Prefix.empty s))} from
+        Set.ext fun _ => (hS _).symm) ▸ h.1 (mt (hS none).1 h0),
+      fun c => RbrFrom.congr (fun _ => hS _) (fun _ => hw _) (h.2 c)⟩
 
 /-- **Round-by-round composition, per prefix.** -/
 theorem rbrFrom_append : ∀ (s₁ s₂ : Spec) (smp₁ : PerChallenge ProbComp s₁)
@@ -358,24 +340,17 @@ theorem Verifier.RbrSound.append {V₁ : Verifier OracleSpec.empty s₁ S₁ S�
     by_cases hx' : x' ∈ L₂
     · exact hw ⟨x', hx', hout⟩
     · exact hinit₂ x' hx' hT
-  have hsecond : ∀ x τ₁, RbrFrom s₂ V₂.samplers ε₂ (next x τ₁)
-      (fun τ₂ => ∃ x'' ∈ L₃, (V₁.outputOn x τ₁).bind (fun x' => V₂.outputOn x' τ₂) = some x'') := by
-    intro x τ₁
-    cases hout : V₁.outputOn x τ₁ with
-    | none =>
-      refine RbrFrom.congr (fun p => ?_) (fun τ => ?_) (rbrFrom_false s₂ V₂.samplers ε₂)
-      · simp [next, hout]
-      · simp
-    | some x' =>
-      refine RbrFrom.congr (fun p => ?_) (fun τ => ?_) (hr₂ x')
-      · simp [next, hout]
-      · simp
+  have hsecond (x : S₁) (τ₁ : Transcript s₁) : RbrFrom s₂ V₂.samplers ε₂ (next x τ₁)
+      (fun τ₂ => ∃ x'' ∈ L₃, (V₁.outputOn x τ₁).bind (fun x' => V₂.outputOn x' τ₂) = some x'') :=
+    match hout : V₁.outputOn x τ₁ with
+    | none => RbrFrom.congr (fun _ => by simp [next, hout]) (fun _ => by simp)
+        (rbrFrom_false s₂ V₂.samplers ε₂)
+    | some x' => RbrFrom.congr (fun _ => by simp [next, hout]) (fun _ => by simp) (hr₂ x')
   refine ⟨fun x => compState s₁ s₂ (T₁ x) (next x),
     fun x hx => not_compState_empty (hr₁ x) (hjunc x) (hinit₁ x hx), fun x => ?_⟩
-  refine RbrFrom.congr (fun p => Iff.rfl) (fun τ => ?_)
+  exact RbrFrom.congr (fun _ => Iff.rfl) (fun τ => by rw [outputOn_append])
     (rbrFrom_append s₁ s₂ V₁.samplers V₂.samplers ε₁ ε₂ (T₁ x) _ (next x) _ (hr₁ x) (hjunc x)
       (hsecond x))
-  rw [outputOn_append]
 
 end Rbr
 
@@ -580,15 +555,13 @@ theorem Reduction.Complete.append {R₁ : Reduction OracleSpec.empty OracleSpec.
   rw [Reduction.plainLaw_run_append]
   refine le_trans (Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _
     fun ⟨τ₁, x₂, w₂⟩ _ hr₁ => ?_) (add_le_add hl₁ le_rfl)
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, not_not, Execution.output, Execution.result]
-    at hr₁
-  obtain ⟨hout, hrel⟩ := hr₁
+  obtain ⟨hout, hrel⟩ : R₁.verifier.outputOn x τ₁ = some x₂ ∧ rel₂ x₂ w₂ := by
+    simpa [Execution.output, Execution.result] using hr₁
   have hl₂ := h₂ x₂ w₂ hrel
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₂
   rw [PMF.toOuterMeasure_map_apply]
-  convert hl₂ using 2
-  ext ⟨τ₂, yw⟩
-  simp [Reduction.append, outputOn_append, Spec.Transcript.split_append, hout]
+  exact (MeasureTheory.measure_mono fun ⟨τ₂, yw⟩ => by
+    simp [Reduction.append, outputOn_append, Spec.Transcript.split_append, hout]).trans hl₂
 
 
 /-- A run against a composed verifier is a run of the split strategy against the first, then
@@ -621,21 +594,12 @@ theorem Verifier.Sound.append {V₁ : Verifier OracleSpec.empty s₁ S₁ S₂}
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, not_exists, not_and] at hr₁
   rw [PMF.toOuterMeasure_map_apply]
   cases hout : V₁.outputOn x r₁.1 with
-  | none =>
-    have hset : (fun r₂ : Transcript s₂ × α => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2)) ⁻¹'
-        ((fun r : Transcript (s₁ ++ s₂) × α => (r.1, (V₁.append V₂).outputOn x r.1, r.2)) ⁻¹'
-          {r | ∃ x' ∈ L₃, r.2.1 = some x'}) = ∅ := by
-      ext r₂
-      simp [outputOn_append, Spec.Transcript.split_append, hout]
-    rw [hset, MeasureTheory.measure_empty]
-    exact zero_le
+  | none => simp [outputOn_append, Spec.Transcript.split_append, hout]
   | some y =>
-    have hy : y ∉ L₂ := fun hy => hr₁ y hy hout
-    have hl₂ := h₂ y hy _ (pure r₁.2)
-    rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₂
-    simp only [plainLaw_bind, plainLaw_pure, PMF.pure_bind] at hl₂
-    convert hl₂ using 2
-    ext r₂
+    have hl₂ := h₂ y (fun hy => hr₁ y hy hout) _ (pure r₁.2)
+    simp only [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, plainLaw_bind,
+      plainLaw_pure, PMF.pure_bind] at hl₂
+    refine (MeasureTheory.measure_mono fun _ => ?_).trans hl₂
     simp [outputOn_append, Spec.Transcript.split_append, hout]
 
 
@@ -667,9 +631,7 @@ theorem Verifier.KnowledgeSound.append {V₁ : Verifier OracleSpec.empty s₁ S�
     simp only [outputOn_append] at hout
     obtain ⟨y, hy, hy₂⟩ := Option.bind_eq_some_iff.mp hout
     by_cases h : rel₂ y (E₂ y (Transcript.split s₁ s₂ τ).2 w₃)
-    · left
-      refine ⟨y, hy, h, ?_⟩
-      simpa [Verifier.extractAppend, hy] using hnot
+    · exact Or.inl ⟨y, hy, h, by simpa [Verifier.extractAppend, hy] using hnot⟩
     · exact Or.inr ⟨y, hy, ⟨x'', hy₂, hrel⟩, h⟩
   refine le_trans (MeasureTheory.measure_mono hsub)
     (le_trans (MeasureTheory.measure_union_le _ _) (add_le_add ?_ ?_))
@@ -679,38 +641,23 @@ theorem Verifier.KnowledgeSound.append {V₁ : Verifier OracleSpec.empty s₁ S�
         fun τ₁ st₂ => (fun r₂ => E₂ ((V₁.outputOn x τ₁).getD y₀) r₂.1 r₂.2) <$>
           runStrategy s₂ V₂.samplers st₂
     have hl₁ := h₁ x P₁
-    rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₁
-    have hlaw₁ : plainLaw (P₁ >>= runStrategy s₁ V₁.samplers) =
-        (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ V₁.samplers)).bind
-          fun r₁ => (plainLaw (runStrategy s₂ V₂.samplers r₁.2)).map
-            fun r₂ => (r₁.1, E₂ ((V₁.outputOn x r₁.1).getD y₀) r₂.1 r₂.2) :=
+    rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply,
       plainLaw_split_bindLeaf_run s₁ s₂ V₁.samplers V₂.samplers P
-        fun τ₁ r₂ => E₂ ((V₁.outputOn x τ₁).getD y₀) r₂.1 r₂.2
-    rw [hlaw₁] at hl₁
-    refine le_trans (le_of_eq ?_) hl₁
-    rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-    refine tsum_congr fun r₁ => ?_
-    congr 1
-    rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
-    congr 1
+        fun τ₁ r₂ => E₂ ((V₁.outputOn x τ₁).getD y₀) r₂.1 r₂.2] at hl₁
+    refine le_of_eq_of_le ?_ hl₁
+    simp only [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_map_apply]
+    refine tsum_congr fun r₁ => congrArg _ (congrArg _ ?_)
     ext r₂
     cases hout : V₁.outputOn x r₁.1 <;> simp [T₁, Spec.Transcript.split_append, hout]
   · refine Probability.PMF.toOuterMeasure_bind_le _ _ _ fun r₁ => ?_
     rw [PMF.toOuterMeasure_map_apply]
     cases hout : V₁.outputOn x r₁.1 with
-    | none =>
-      have hset : (fun r₂ : Transcript s₂ × W₃ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2)) ⁻¹'
-          T₂ = ∅ := by
-        ext r₂
-        simp [T₂, Spec.Transcript.split_append, hout]
-      rw [hset, MeasureTheory.measure_empty]
-      exact zero_le
+    | none => simp [T₂, Spec.Transcript.split_append, hout]
     | some y =>
       have hl₂ := h₂ y (pure r₁.2)
-      rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₂
-      simp only [plainLaw_bind, plainLaw_pure, PMF.pure_bind] at hl₂
-      convert hl₂ using 2
-      ext r₂
+      simp only [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, plainLaw_bind,
+        plainLaw_pure, PMF.pure_bind] at hl₂
+      refine (MeasureTheory.measure_mono fun _ => ?_).trans hl₂
       simp [T₂, Spec.Transcript.split_append, hout]
 
 end Compose
@@ -751,19 +698,13 @@ theorem Reduction.id_complete (rel : T → U → Prop) :
       0 := by
   intro x w hxw
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
-  simp only [Reduction.id, runStrategy, bind_pure_comp, map_pure, plainLaw_pure,
-    Verifier.outputOn, OracleComp.interpret_pure, not_and, Set.preimage_ofPred_eq,
-    PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq, hxw, not_true_eq_false, imp_false,
-    nonpos_iff_eq_zero, ite_eq_right_iff, one_ne_zero, not_not]
-  rfl
+  simp [Reduction.id, runStrategy, Verifier.outputOn, hxw]; rfl
 
 /-- The reduction without rounds is round-by-round sound without error. -/
 theorem Reduction.id_rbrSound (L : Set T) :
     (Reduction.id (oP := OracleSpec.empty) (oV := OracleSpec.empty) (W := U)).verifier.RbrSound
-      L L () := by
-  refine ⟨fun x _ => x ∈ L, fun x hx => hx, fun x hS ⟨x', hx', hout⟩ => hS ?_⟩
-  have : x = x' := Option.some.inj hout
-  exact this ▸ hx'
+      L L () :=
+  ⟨fun x _ => x ∈ L, fun _ hx => hx, fun _ hS ⟨_, hx', hout⟩ => hS (Option.some.inj hout ▸ hx')⟩
 
 end Identity
 

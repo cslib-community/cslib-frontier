@@ -78,7 +78,7 @@ private theorem finishWeight_inSpace :
   have hctx := SeedDigits.encState_context_budget Context encContext hid
   have hlayer := encContext_layer_budget hctx
   have hacc := SeedDigits.encState_accumulator_budget Context encContext hid
-  have hzero := budget_const (encB := encNat) 0 (.refl fun s => (e s).length)
+  have hzero := budget_const (encIn := e) (Bs := fun s => (e s).length) (encB := encNat) 0
   have hscaled := budget_comp_linear scaleAccumulatedWeight_inSpace (budget_prod hlayer hacc)
   exact (budget_ite (budget_natEq hlayer hzero) hzero hscaled).of_enc_eq fun s => by
     by_cases h : s.context.layer = 0 <;> simp [finishWeight, h]
@@ -145,9 +145,8 @@ theorem generatedWeight_run_length_le_encodedDimensions :
       (∀ t, (e (M.run raw t)).length ≤ C * budget) ∧
         (encNat (generatedWeight seed z)).length ≤ C * budget := by
   obtain ⟨A, hA⟩ := length_fieldContext_le_encodedDimensions
-  have hseed : (fun p : ℕ × ℕ => codeLength p.1 p.2) ≼
+  obtain ⟨S, hS⟩ : (fun p : ℕ × ℕ => codeLength p.1 p.2) ≼
       fun p => (encPair encNat encNat p).length := ⟨_, codeLength_le_encodedDimensions⟩
-  obtain ⟨S, hS⟩ := hseed
   obtain ⟨D, hD⟩ := finishWeight_inSpace.length_le
   let K := 4 * A + 8 * S + 12
   refine ⟨max K (D * (K + 1)), fun {w n} seed z => ?_⟩
@@ -176,12 +175,9 @@ theorem generatedWeight_run_length_le_encodedDimensions :
     omega
   refine ⟨fun t => (hstates t).trans (Nat.mul_le_mul_right budget (le_max_left _ _)), ?_⟩
   let last := M.run raw (raw.length + 1)
-  have hfinish : finishWeight last = generatedWeight seed z := by
-    have hend : last =
-        ⟨ctx, raw.length, SeedDigits.maskedPrefix (codeBit ctx) raw raw.length, true⟩ :=
-      SeedDigits.run_at_end codeBit ctx raw
-    rw [hend]
-    exact weight_eq_generatedWeight seed z
+  have hfinish : finishWeight last = generatedWeight seed z :=
+    (congrArg finishWeight (SeedDigits.run_at_end codeBit ctx raw)).trans
+      (weight_eq_generatedWeight seed z)
   have hlast : (e last).length + 1 ≤ (K + 1) * budget := by
     have hb : 1 ≤ budget := Nat.le_add_left _ _
     rw [Nat.add_mul K 1, Nat.one_mul]
@@ -244,9 +240,9 @@ private theorem enter_budget {α : Type} {enc : α ↪ List Bool}
     (h : ComputableInSpace loc enc (encLocated Context encContext) budget) :
     ComputableInSpace (fun x => enter (loc x)) enc encRuntimeState budget := by
   have hzero : ComputableInSpace (fun _ : α => 0) enc encNat budget :=
-    (constZero 0).weaken (.of_le fun _ => Nat.zero_le _)
+    budget_const 0
   have hflag : ComputableInSpace (fun _ : α => false) enc encBool budget :=
-    (constZero false).weaken (.of_le fun _ => Nat.zero_le _)
+    budget_const false
   exact encLocated_mk_budget ScanState encScanState
     (QueryMachine.encLocated_offset_budget Context encContext h)
     (SeedDigits.encState_mk_budget Context encContext
@@ -307,11 +303,7 @@ private theorem executor_finish_enter (word : List Bool) (loc : Located Context)
     executor.halted last = true ∧ executor.finish last = encNat (weight loc.inner seed) := by
   dsimp only
   rw [executor_runFrom_enter word loc hseed]
-  have hend : (machine loc.inner).run seed (seed.length + 1) =
-      ⟨loc.inner, seed.length, SeedDigits.maskedPrefix (codeBit loc.inner) seed seed.length,
-        true⟩ :=
-    SeedDigits.run_at_end codeBit loc.inner seed
-  rw [hend]
+  erw [SeedDigits.run_at_end codeBit loc.inner seed]
   exact ⟨rfl, rfl⟩
 
 /-- The loaded executor halts at the end of the seed with the native pass's scaled weight. -/
@@ -411,9 +403,8 @@ private theorem length_canonicalInput_le_encodedDimensions :
       (encInput (canonicalInput seed z)).length + 2 ≤
         C * ((encPair encNat encNat (w, n)).length + 1) := by
   obtain ⟨A, hA⟩ := generatedWeight_run_length_le_encodedDimensions
-  have hseed : (fun p : ℕ × ℕ => codeLength p.1 p.2) ≼
+  obtain ⟨S, hS⟩ : (fun p : ℕ × ℕ => codeLength p.1 p.2) ≼
       fun p => (encPair encNat encNat p).length := ⟨_, codeLength_le_encodedDimensions⟩
-  obtain ⟨S, hS⟩ := hseed
   refine ⟨2 * A + S + 3, fun {w n} seed z => ?_⟩
   let x := canonicalInput seed z
   let dim := (encPair encNat encNat (w, n)).length + 1

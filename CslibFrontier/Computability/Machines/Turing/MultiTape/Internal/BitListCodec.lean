@@ -48,4 +48,20 @@ theorem bitsToBoolListT_run (word : List Bool) :
     rw [ih]
     rfl
 
+/-- Read the payload of each three-symbol Boolean element. -/
+@[expose] def listBitsT : Transducer Bool (Fin 3) where
+  q₀ := 0
+  step q b := if q = 0 then (1, []) else if q = 1 then (2, [b]) else (0, [])
+  final _ := []
+  length_step_le q b := by split_ifs <;> simp
+  length_final_le _ := by decide
+
+theorem listBitsT_run (word : List Bool) :
+    listBitsT.run 0 (encList encBool word) = word := by
+  induction word with
+  | nil => rfl
+  | cons b word ih =>
+    change b :: listBitsT.run 0 (encList encBool word) = _
+    rw [ih]
+
 end Turing.MultiTapeTM.Internal

@@ -177,25 +177,25 @@ private theorem zLoop_spec (s : Array α) (i l r : ℕ) (z : Array ℕ) (hi1 : 1
     (zLoop s i l r z).toList = zFunction s.toList := by
   fun_induction zLoop s i l r z with
   | case3 i l r z his =>
-    apply List.ext_getElem (by simp only [Array.length_toList, length_zFunction]; omega)
-    intro j h1 h2
+    refine List.ext_getElem (by simp only [Array.length_toList, length_zFunction]; omega)
+      fun j h1 h2 => ?_
     simp only [Array.length_toList] at h1
     rw [Array.getElem_toList, getElem_zFunction, hzs j (hz ▸ h1)]
   | case1 i l r z his hcopy ih =>
     have hir : i < r := by omega
-    have hzil := getD_sub_eq_lcpLen hi1 hl0 hir hz hzs
-    have hmin := min_lcpLen_zBox s.toList (Nat.le_of_lt hl) (Nat.le_of_lt hir) hrl
-    have hval : z.getD (i - l) 0 = List.lcpLen s.toList (s.toList.drop i) := by grind
+    have hval : z.getD (i - l) 0 = List.lcpLen s.toList (s.toList.drop i) := by
+      have := getD_sub_eq_lcpLen hi1 hl0 hir hz hzs
+      have := min_lcpLen_zBox s.toList hl.le hir.le hrl
+      grind
     exact ih (by omega) (by omega) (by rw [Array.size_push, hz]) (z_push_getElem hz hzs hval)
       (by omega) hl0 hrl hr
   | case2 i l r z his hncopy k ih =>
     have hh : r - i ≤ List.lcpLen s.toList (s.toList.drop i) := by
       by_cases hir : i < r
-      · have hzil := getD_sub_eq_lcpLen hi1 hl0 hir hz hzs
-        have hmin := min_lcpLen_zBox s.toList (Nat.le_of_lt hl) (Nat.le_of_lt hir) hrl
+      · have := getD_sub_eq_lcpLen hi1 hl0 hir hz hzs
+        have := min_lcpLen_zBox s.toList hl.le hir.le hrl
         grind
-      · rw [Nat.sub_eq_zero_of_le (Nat.not_lt.mp hir)]
-        exact Nat.zero_le _
+      · simp [Nat.sub_eq_zero_of_le (Nat.not_lt.mp hir)]
     have hext : k = List.lcpLen s.toList (s.toList.drop i) := by
       dsimp only [k]
       rw [extend_eq_add_lcpLen, List.lcpLen_eq_add_lcpLen_drop hh, List.drop_drop, Nat.zero_add]
@@ -221,9 +221,8 @@ theorem zArray_toList (s : Array α) : (zArray s).toList = zFunction s.toList :=
 
 theorem getElem_zArray (s : Array α) (i : ℕ) (hi : i < (zArray s).size) :
     (zArray s)[i]'hi = List.lcpLen s.toList (s.toList.drop i) := by
-  have hi' : i < (zFunction s.toList).length := by
-    rwa [length_zFunction, Array.length_toList, ← size_zArray]
-  rw [← Array.getElem_toList hi, ← getElem_zFunction s.toList i hi']
+  rw [← Array.getElem_toList hi, ← getElem_zFunction s.toList i
+    (by rwa [length_zFunction, Array.length_toList, ← size_zArray])]
   congr 1
   exact zArray_toList s
 

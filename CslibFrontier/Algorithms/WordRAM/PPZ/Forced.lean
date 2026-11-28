@@ -67,10 +67,7 @@ def optCode : Option Bool → ℕ
   | some b => b.toNat
   | none => 2
 
-theorem optCode_le_two (o : Option Bool) : optCode o ≤ 2 := by
-  rcases o with _ | b
-  · exact le_rfl
-  · cases b <;> decide
+theorem optCode_le_two (o : Option Bool) : optCode o ≤ 2 := by rcases o with _ | _ | _ <;> decide
 
 /-- The partial assignment `τ` is stored as the words `optCode (τ i)` from address `base`. -/
 def PartialAt (mem : ℕ → ℕ) (base : ℕ) (τ : Fin n → Option Bool) : Prop :=
@@ -107,8 +104,7 @@ theorem forced_eq_ite (φ : CNF (Fin n)) (τ : Fin n → Option Bool) (x : Fin n
       else none := by
   have key (b : Bool) : (∃ c ∈ φ, IsUnitOn τ x b c) ↔ φ.any (unitTest τ x b) = true := by
     simp only [isUnitOn_iff, unitTest, List.any_eq_true, Bool.and_eq_true]
-  unfold forced
-  simp only [key]
+  simp only [forced, key]
 
 private theorem toNat_and (a b : Bool) : a.toNat &&& b.toNat = (a && b).toNat := by
   cases a <;> cases b <;> rfl
@@ -117,9 +113,7 @@ private theorem toNat_and (a b : Bool) : a.toNat &&& b.toNat = (a && b).toNat :=
 `1 - s`. -/
 theorem optCode_eq_one_sub_iff (o : Option Bool) (s : Bool) :
     optCode o = 1 - s.toNat ↔ o = some (!s) := by
-  rcases o with _ | a
-  · cases s <;> simp [optCode]
-  · cases a <;> cases s <;> simp [optCode]
+  rcases o with _ | _ | _ <;> cases s <;> decide
 
 /-! ### Registers -/
 

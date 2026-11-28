@@ -117,6 +117,14 @@ theorem card_symArcs_le_card_sq [DecidableEq V] :
     N.symArcs.card ≤ Fintype.card V * Fintype.card V :=
   (Finset.card_le_univ _).trans_eq (Fintype.card_prod V V)
 
+theorem card_symArcs_le_mul_pred [DecidableEq V] :
+    N.symArcs.card ≤ Fintype.card V * (Fintype.card V - 1) := by
+  have hsub : N.symArcs ⊆ Finset.univ.offDiag := fun e he => by
+    simp only [symArcs, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_offDiag] at he ⊢
+    exact he.1
+  exact (Finset.card_le_card hsub).trans_eq <| by
+    rw [Finset.offDiag_card, Finset.card_univ, ← Nat.mul_sub_one]
+
 namespace Flow
 
 variable {N}
@@ -719,10 +727,8 @@ private theorem scanNeighbors_preserves {n : ℕ} {N : Network (Fin n)} {f : N.F
       obtain ⟨hpos', hnone⟩ := Bool.and_eq_true_iff.mp hcond
       have hpos : 0 < f.resCap u v := of_decide_eq_true hpos'
       have hnone_st : vget st.revPath v = none := Option.isNone_iff_eq_none.mp hnone
-      have hnone_base : vget baseTbl v = none := by
-        cases hb : vget baseTbl v with
-        | none => rfl
-        | some rp => exact absurd (hst.mono_base v rp hb) (by simp [hnone_st])
+      have hnone_base : vget baseTbl v = none := Option.eq_none_iff_forall_ne_some.mpr
+        fun rp hb => by simpa [hnone_st] using hst.mono_base v rp hb
       have hv_lt : f.resDist v < n := by
         have hu_r := (f.resDist_lt_card_iff_resReachable u).mp (by simpa [Fintype.card_fin])
         simpa [Fintype.card_fin] using (f.resDist_lt_card_iff_resReachable v).mpr (hu_r.tail hpos)

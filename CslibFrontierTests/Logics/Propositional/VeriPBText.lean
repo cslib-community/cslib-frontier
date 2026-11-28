@@ -12,12 +12,14 @@ import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBPresFixtures
+import CslibFrontierTests.Logics.Propositional.VeriPBFast
 -- `#guard` evaluates the checkers and the fixtures at compile time.
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBPresFixtures
+public meta import CslibFrontierTests.Logics.Propositional.VeriPBFast
 
 /-! The text front end of the VeriPB kernel-proof checker on proofs elaborated to the kernel format
 by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate`):
@@ -1987,5 +1989,80 @@ example (h : (checkOPBOutput enum3 enumPartialProof).map (·.1) = some (.enumPar
 example (h : checkDIMACS php43 php43Kernel = some (.unsat 39)) :
     ∃ φ, parseDIMACS php43 = some φ ∧ ¬ φ.Satisfiable :=
   not_satisfiable_of_checkDIMACS h
+
+
+/-! ### The compiled checker
+
+The compiled checker `Cslib.Logic.PL.VeriPB.checkRedFast` reaches the same final state as the
+reference run on each fixture, or both reject
+(`CslibFrontierTests.Logics.Propositional.VeriPBFast.agree`). -/
+
+open CslibFrontierTests.Logics.Propositional.VeriPBFast in
+section
+
+#guard agreeOPB php32 php32Proof
+#guard agreeOPB php32 (php32Proof.replace "UNSAT : 12" "UNSAT : 11")
+#guard agreeDIMACS php43 php43Kernel
+#guard agreeDIMACS php43 php43Logged
+#guard agreeDIMACS php43 php43DropHint
+#guard agreeDIMACS php43 php43DeleteTwice
+#guard agreeOPB rotation rotationProof
+#guard agreeOPB rotation rotationNoGoal1
+#guard agreeOPB cover coverProof
+#guard agreeOPB cover coverBadRed
+#guard agreeOPB coverDecision coverDecisionSat
+#guard agreeOPB coverDecision objiDecision
+#guard agreeOPB cover objiProof
+#guard agreeOPB delOpt delOptProof
+#guard agreeOPB delDec delDecProof
+#guard agreeOPB ck ckProof
+#guard agreeOPB one coreProof
+#guard agreeOPB one deldProof
+#guard agreeOPB one uncheckedProof
+#guard agreeOPB one redNumProof
+#guard agreeOPB one redNumSubProof
+#guard agreeOPB one tcbProof
+#guard agreeOPB one tcbCheckedProof
+#guard agreeOPB one tcbDeleteProof
+#guard agreeOPB one satAsgProof
+#guard agreeOPB eqOpt objuProof
+#guard agreeOPB eqOpt objuLoggedProof
+#guard agreeOPB twoOpt objuCoreProof
+#guard agreeOPB twoOpt objuConstProof
+#guard agreeOPB cancelOpt cancelProof
+#guard agreeOPB enum3 enumProof
+#guard agreeOPB enum3 enumPartialProof
+#guard agreeOPB enum3 solxNone
+#guard agreeOPB enum3 delcPresProof
+#guard agreeOPB presOnly presOnlyProof
+#guard agreeOPB amo3Opt amo3OptImplicit
+#guard agreeOPB amo3OptPres amo3OptEnum
+#guard agreeOPB enumOut enumOutProof
+#guard agreeOPB sym2 domObjProof
+
+/-! Through ordinary imports: the compiled checker of output sections accepts `enumOut` with
+its output `EQUIENUMERABLE IMPLICIT`, and the equality theorems carry an acceptance by a
+reference checker over to the compiled one. -/
+
+#guard match parseOPB enumOut with
+  | some I =>
+    match parseProof I.constraints.length 1000 (noOutput enumOutProof) with
+    | some P =>
+      (checkRedOutputFast I.constraints I.objective P I.preserved ⟨.equienumerable, none⟩).isSome
+    | none => false
+  | none => false
+
+example (F : List PBConstr) (obj : Option Objective) (P : RedProof) (pres : Option (List ℕ))
+    (h : checkRed F obj P pres = true) : checkRedFast F obj P pres = true := by
+  rw [checkRedFast_eq_checkRed]
+  exact h
+
+example (F : List PBConstr) (obj : Option Objective) (P : RedProof) (pres : Option (List ℕ))
+    (sec : OutputSection) (o : Output) (h : checkRedOutput F obj P pres sec = some o) :
+    checkRedOutputFast F obj P pres sec = some o := by
+  rw [checkRedOutputFast_eq_checkRedOutput]
+  exact h
+
+end
 
 end CslibFrontierTests.Logics.Propositional.VeriPBText

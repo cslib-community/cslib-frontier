@@ -39,10 +39,9 @@ namespace Cslib.Algorithms.MatrixMultiplication.Schonhage
 theorem K_le_pow (m : ℕ) : (K (19 * m) m : ℝ) ≤ (19 * Real.exp 1) ^ m := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simp [K]
-  · have hm' : (m : ℝ) ≠ 0 := by exact_mod_cast hm.ne'
-    have hbase : Real.exp 1 * ((19 * m : ℕ) : ℝ) / (m : ℝ) = 19 * Real.exp 1 := by
-      push_cast
-      field_simp
+  · have hbase : Real.exp 1 * ((19 * m : ℕ) : ℝ) / (m : ℝ) = 19 * Real.exp 1 := by
+      rw [Nat.cast_mul, Nat.cast_ofNat, ← mul_assoc,
+        mul_div_cancel_right₀ _ (Nat.cast_ne_zero.mpr hm.ne'), mul_comm]
     exact hbase ▸ Nat.choose_le_exp_mul_div_pow (19 * m) m
 
 /-- The real constant `19 * exp 1 * 3 ^ 18` is strictly less than `4 ^ 18`. -/
@@ -58,19 +57,15 @@ private theorem four_pow_eq (m : ℕ) : ((4 : ℝ) ^ 18) ^ m = (D m : ℝ) ^ 18 
 
 /-- At `L = 19 * m`, the product `K L m * N0 L m` is at most `D m ^ 18`. -/
 theorem K_mul_N0_le_D_pow (m : ℕ) : K (19 * m) m * N0 (19 * m) m ≤ D m ^ 18 := by
-  have hK := K_le_pow m
-  have key : (K (19 * m) m : ℝ) * (N0 (19 * m) m : ℝ) ≤ (D m : ℝ) ^ 18 := by
-    calc (K (19 * m) m : ℝ) * (N0 (19 * m) m : ℝ)
+  exact_mod_cast calc
+    (K (19 * m) m : ℝ) * (N0 (19 * m) m : ℝ)
         ≤ (19 * Real.exp 1) ^ m * ((3 : ℝ) ^ 18) ^ m := by
-          rw [N0_nineteen_mul m]
-          push_cast
-          rw [pow_mul]
-          exact mul_le_mul_of_nonneg_right hK (by positivity)
+          rw [N0_nineteen_mul m, Nat.cast_pow, Nat.cast_ofNat, pow_mul]
+          exact mul_le_mul_of_nonneg_right (K_le_pow m) (by positivity)
       _ = (19 * Real.exp 1 * (3 : ℝ) ^ 18) ^ m := (mul_pow _ _ _).symm
       _ ≤ ((4 : ℝ) ^ 18) ^ m :=
           pow_le_pow_left₀ (by positivity) nineteen_mul_exp_mul_three_pow_lt.le m
       _ = (D m : ℝ) ^ 18 := four_pow_eq m
-  exact_mod_cast key
 
 /-- The size condition `D m ^ 18 ≤ N` bounds `K (19 * m) m * N0 (19 * m) m` by `N`. -/
 theorem K_mul_N0_le (m N : ℕ) (hN : D m ^ 18 ≤ N) : K (19 * m) m * N0 (19 * m) m ≤ N :=
@@ -100,14 +95,11 @@ theorem ten_pow_mul_two_rpow_div_three_pow_lt :
 theorem ten_pow_div_N0_le (m : ℕ) :
     (10 : ℝ) ^ (19 * m) * (2 : ℝ) ^ ((m : ℝ) / 9) / (N0 (19 * m) m : ℝ) ≤ (D m : ℝ) ^ 18 := by
   have hroot : (2 : ℝ) ^ ((m : ℝ) / 9) = ((2 : ℝ) ^ (1 / 9 : ℝ)) ^ m := by
-    rw [← Real.rpow_natCast _ m, ← Real.rpow_mul (by norm_num)]
-    congr 1
-    ring
+    rw [← Real.rpow_natCast _ m, ← Real.rpow_mul zero_le_two, one_div_mul_eq_div]
   calc (10 : ℝ) ^ (19 * m) * (2 : ℝ) ^ ((m : ℝ) / 9) / (N0 (19 * m) m : ℝ)
       = ((10 : ℝ) ^ 19 * (2 : ℝ) ^ (1 / 9 : ℝ) / (3 : ℝ) ^ 18) ^ m := by
-        rw [N0_nineteen_mul m, hroot]
-        push_cast
-        rw [pow_mul, pow_mul, div_pow, mul_pow]
+        rw [N0_nineteen_mul m, hroot, Nat.cast_pow, Nat.cast_ofNat, pow_mul, pow_mul,
+          div_pow, mul_pow]
     _ ≤ ((4 : ℝ) ^ 18) ^ m := pow_le_pow_left₀ (by positivity)
         ten_pow_mul_two_rpow_div_three_pow_lt.le m
     _ = (D m : ℝ) ^ 18 := four_pow_eq m
@@ -116,10 +108,8 @@ theorem ten_pow_div_N0_le (m : ℕ) :
 / 9) * N * N0 L m`, as a real inequality (cf. [AlmanWilliams2026, equation (6)]). -/
 theorem encoding_size_le (m N : ℕ) (hN : D m ^ 18 ≤ N) :
     (10 : ℝ) ^ (19 * m) ≤ (2 : ℝ) ^ (-(m : ℝ) / 9) * (N : ℝ) * (N0 (19 * m) m : ℝ) := by
-  have hN0 : (0 : ℝ) < (N0 (19 * m) m : ℝ) := by exact_mod_cast N0_pos _ _
   have hN' : (D m : ℝ) ^ 18 ≤ (N : ℝ) := by exact_mod_cast hN
-  have h := (ten_pow_div_N0_le m).trans hN'
-  rw [div_le_iff₀ hN0] at h
+  have h := (div_le_iff₀ (Nat.cast_pos.mpr (N0_pos _ _))).mp ((ten_pow_div_N0_le m).trans hN')
   calc (10 : ℝ) ^ (19 * m)
       = (10 : ℝ) ^ (19 * m) * (2 : ℝ) ^ ((m : ℝ) / 9) * saving m := by
         rw [mul_assoc, mul_comm _ (saving m), saving_mul_two_rpow, mul_one]

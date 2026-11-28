@@ -54,7 +54,7 @@ at `5ff69ca93402e7c947208dc56396d6d86203ccd8`, using typed saved seeds and the t
 
 @[expose] public section
 
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime Cslib.Probability.IsPPTOn
+attribute [local irreducible] Cslib.Probability.IsPPTOn
 
 namespace Cslib.Crypto.GoldreichLevin
 
@@ -87,17 +87,14 @@ theorem isPPTOn_parityPredictionGame {f : List Bool → List Bool} {adversary : 
     (ComputableInPolyTime.id' (encIn := encUnary))).bind_with
   apply (ComputableInPolyTime.sampleList
     (ComputableInPolyTime.fst encUnary encBits)).bind_with
-  have hprepare : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × List Bool => f q.1.2 ++ q.2)
-      (encPair (encPair encUnary encBits) encBits) encBits := by fun_prop
-  have hcall := ha.preprocess
+  simpa only [bind_pure_comp, Function.comp_def] using (ha.preprocess
     (ComputableInPolyTime.fst encUnary encBits |>.comp
-      (ComputableInPolyTime.fst (encPair encUnary encBits) encBits)) hprepare
-  have hresult : ComputableInPolyTime
-      (fun q : ((ℕ × List Bool) × List Bool) × Bool =>
-        q.2 == listDot q.1.1.2 q.1.2)
-      (encPair (encPair (encPair encUnary encBits) encBits) encBool) encBool := by fun_prop
-  simpa only [bind_pure_comp, Function.comp_def] using hcall.map_with hresult
+      (ComputableInPolyTime.fst (encPair encUnary encBits) encBits))
+    (by fun_prop : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => f q.1.2 ++ q.2)
+      (encPair (encPair encUnary encBits) encBits) encBits)).map_with
+    (by fun_prop : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) × List Bool) × Bool => q.2 == listDot q.1.1.2 q.1.2)
+      (encPair (encPair (encPair encUnary encBits) encBits) encBool) encBool)
 
 /-- Sample one sign, one predictor seed and independent masks, then decode and check candidates. -/
 noncomputable def wordInverter (f : List Bool → List Bool)
@@ -173,11 +170,8 @@ theorem fixedPredictor_distribution (adversary : Distinguisher)
     (PMF.uniformOfFintype (BitString (coinBudget c d n image.length))).map
         (fun coins => fixedPredictor evaluate c d n image coins query) =
       ProbComp.eval (adversary n (image ++ List.ofFn query)) := by
-  rw [hrealize]
-  have hlen : (encPair encUnary encBits (n, image ++ List.ofFn query)).length + 1 =
-      3 * n + image.length + 2 := by
-    enc_len [List.length_ofFn]
-  rw [hlen]
+  rw [hrealize, show (encPair encUnary encBits (n, image ++ List.ofFn query)).length + 1 =
+    3 * n + image.length + 2 by enc_len [List.length_ofFn]]
   simp only [uniformList, PMF.map_comp, Function.comp_def, coinBudget, fixedPredictor]
   rfl
 

@@ -13,8 +13,8 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
-import Mathlib.Analysis.Normed.Module.Convex
 import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.NormNum
 
 /-!
 # Subdividing an embedded listed graph
@@ -64,10 +64,8 @@ private def node (I : FixedRotationInput) (i : Edge I.graph) : Fin 4 → ℕ :=
 
 private theorem endpoint_lt {I : FixedRotationInput} (hI : Valid I)
     (i : Edge I.graph) (b : Bool) : Dart.vertex (i, b) < I.graph.vertices.length := by
-  have h : I.graph.edges[i].1 < I.graph.vertices.length ∧
-      I.graph.edges[i].2 < I.graph.vertices.length :=
-    hI.edge_endpoints_lt (List.getElem_mem i.isLt)
-  rw [Dart.edge_eq_vertices i] at h
+  have h := hI.edge_endpoints_lt (List.getElem_mem i.isLt)
+  rw [← Fin.getElem_fin, Dart.edge_eq_vertices i] at h
   cases b
   · exact h.1
   · exact h.2
@@ -79,16 +77,10 @@ private theorem old_mem {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
 private theorem name_cases {I : FixedRotationInput} {v : ℕ}
     (hv : v ∈ (subdivisionGraph I).vertices) :
     v < I.graph.vertices.length ∨ ∃ (i : Edge I.graph) (b : Bool), v = fresh I i b := by
-  change v ∈ List.range (subdivisionSize I) at hv
-  have hsize := List.mem_range.mp hv
-  unfold subdivisionSize at hsize
-  by_cases hb : v < I.graph.vertices.length
-  · exact Or.inl hb
-  · let d := v - I.graph.vertices.length
-    let i : Edge I.graph := ⟨d / 2, by dsimp [d]; omega⟩
-    by_cases hpar : d % 2 = 0
-    · exact Or.inr ⟨i, false, by dsimp [fresh, i, d] at *; omega⟩
-    · exact Or.inr ⟨i, true, by dsimp [fresh, i, d] at *; omega⟩
+  have hsize : v < I.graph.vertices.length + 2 * I.graph.edges.length := List.mem_range.mp hv
+  refine or_iff_not_imp_left.mpr fun hb =>
+    ⟨⟨(v - I.graph.vertices.length) / 2, by omega⟩, decide ((v - I.graph.vertices.length) % 2 = 1),
+      by by_cases hb' : (v - I.graph.vertices.length) % 2 = 1 <;> simp [fresh, hb'] <;> omega⟩
 
 private noncomputable def cutPoint {I : FixedRotationInput} (cut : CutTable I)
     (D : PolygonalDrawing I.graph) (i : Edge I.graph) (b : Bool) : ℂ :=
@@ -116,17 +108,8 @@ private theorem place_fresh {I : FixedRotationInput} (cut : CutTable I)
   have hr : (fresh I i b - I.graph.vertices.length) % 2 = b.toNat := by
     cases b <;> simp only [fresh, Bool.toNat_false, Bool.toNat_true] <;> omega
   have hv : ¬fresh I i b < I.graph.vertices.length := by unfold fresh; omega
-  unfold place
-  rw [ite_eq_right hv]
-  dsimp only
-  split
-  · rename_i h
-    have hi : (⟨(fresh I i b - I.graph.vertices.length) / 2, h⟩ : Edge I.graph) = i :=
-      Fin.ext hq
-    rw [hi, hr]
-    cases b <;> rfl
-  · rename_i h
-    exact (h (hq ▸ i.isLt)).elim
+  simp only [place, hv, ↓reduceIte, hq, i.isLt, ↓reduceDIte, Fin.eta, hr]
+  cases b <;> rfl
 
 private theorem dart_node {I : FixedRotationInput} (e : Edge (subdivisionGraph I)) (b : Bool) :
     Dart.vertex (e, b) = node I (subdivisionEdgeIndex I e).original
@@ -135,17 +118,10 @@ private theorem dart_node {I : FixedRotationInput} (e : Edge (subdivisionGraph I
   obtain ⟨i, k⟩ := d
   have hpair := subdivision_edge_endpoints I e
   rw [hd, Dart.edge_eq_vertices e] at hpair
-  have hleft := congrArg Prod.fst (Dart.edge_eq_vertices i)
-  have hright := congrArg Prod.snd (Dart.edge_eq_vertices i)
-  fin_cases k <;> cases b
-  all_goals simp only [SubdivisionEdgeIndex.endpoints, Fin.getElem_fin, List.getElem_cons_zero,
-    List.getElem_cons_succ] at hpair
-  · exact (congrArg Prod.fst hpair).trans hleft
-  · exact congrArg Prod.snd hpair
-  · exact congrArg Prod.fst hpair
-  · exact congrArg Prod.snd hpair
-  · exact congrArg Prod.fst hpair
-  · exact (congrArg Prod.snd hpair).trans hright
+  fin_cases k <;> cases b <;>
+    simp only [SubdivisionEdgeIndex.endpoints, Fin.getElem_fin, List.getElem_cons_zero,
+      List.getElem_cons_succ, Dart.edge_eq_vertices i, Prod.mk.injEq] at hpair <;>
+    simp [node, boundary, fresh, hpair.1, hpair.2]
 
 private theorem piece_endpoint {I : FixedRotationInput} (cut : CutTable I) (hI : Valid I)
     (D : PolygonalDrawing I.graph) (i : Edge I.graph) (k : Fin 3) (b : Bool) :
@@ -264,18 +240,12 @@ private theorem Trace.at_boundary (cut : EndCuts) {p : Route} {k : Fin 3}
     ∃ b, (p.trisect (cut false).val (cut true).val k).AtEnd i u b ∧ boundary k b = a := by
   have hm := p.strictMono_trisectionBounds
     (cut false).property.1 (cut true).property.1 (cut_small cut)
-  obtain ⟨hl, hu⟩ := L.interval
-  rw [he] at hl hu
-  have hlo := hm.le_iff_le.mp hl
-  have hhi := hm.le_iff_le.mp hu
-  change k.val ≤ a.val at hlo
-  change a.val ≤ k.val + 1 at hhi
-  rcases (show a.val = k.val ∨ a.val = k.val + 1 by omega) with hv | hv
-  · have hb : a = k.castSucc := Fin.ext hv
-    subst a
+  have hlo : k.val ≤ a.val := hm.le_iff_le.mp (he ▸ L.interval.1)
+  have hhi : a.val ≤ k.val + 1 := hm.le_iff_le.mp (he ▸ L.interval.2)
+  rcases (by omega : a.val = k.val ∨ a.val = k.val + 1) with hv | hv
+  · obtain rfl : a = k.castSucc := Fin.ext hv
     exact ⟨false, L.atLower he, rfl⟩
-  · have hb : a = k.succ := Fin.ext hv
-    subst a
+  · obtain rfl : a = k.succ := Fin.ext hv
     exact ⟨true, L.atUpper he, rfl⟩
 
 private theorem Trace.at_original_end (cut : EndCuts) {p : Route} {k : Fin 3}
@@ -375,14 +345,9 @@ private theorem edge_contacts {I : FixedRotationInput} (cut : CutTable I) (hI : 
   obtain ⟨L⟩ := trace_exists (cut a.original) (D.route a.original) a.piece i s hs
   obtain ⟨M⟩ := trace_exists (cut b.original) (D.route b.original) b.piece j t ht
   have heq := L.value_eq.trans (he.trans M.value_eq.symm)
-  rcases sample_contact hI hD L.source M.source heq with ⟨hi, hp⟩ | ⟨b, c, hb, hc, hn⟩
-  · have hpiece : a.piece ≠ b.piece := by
-      intro h
-      apply hef
-      apply Fin.ext
-      have he' : e.val = 3 * a.original.val + a.piece.val := subdivisionEdgeIndex_val I e
-      have hf' : f.val = 3 * b.original.val + b.piece.val := subdivisionEdgeIndex_val I f
-      exact he'.trans (by rw [hi, h, ← hf'])
+  rcases sample_contact hI hD L.source M.source heq with ⟨hi, hp⟩ | ⟨b', c', hb, hc, hn⟩
+  · have hpiece : a.piece ≠ b.piece := fun h => hef <| Fin.ext <|
+      (subdivisionEdgeIndex_val I e).trans (by rw [hi, h, ← subdivisionEdgeIndex_val I f])
     have hfint : L.source.position ∈ Set.Icc
         ((D.route a.original).trisectionBounds (cut a.original false).val
           (cut a.original true).val b.piece.castSucc)
@@ -393,7 +358,7 @@ private theorem edge_contacts {I : FixedRotationInput} (cut : CutTable I) (hI : 
     obtain ⟨k, hk⟩ := interval_contact (cut a.original) (D.route a.original) hpiece L.interval hfint
     have hM : M.source.position =
         (D.route b.original).trisectionBounds
-          (cut b.original false).val (cut b.original true).val k := by
+          (cut b.original false).val (cut b.original true).val k :=
       calc
         _ = L.source.position := hp.symm
         _ = (D.route a.original).trisectionBounds
@@ -402,11 +367,10 @@ private theorem edge_contacts {I : FixedRotationInput} (cut : CutTable I) (hI : 
     obtain ⟨side, hb, hbe⟩ := Trace.at_boundary (cut a.original) L k hk
     obtain ⟨other, hc, hcf⟩ := Trace.at_boundary (cut b.original) M k hM
     exact ⟨side, other, hb, hc, by rw [dart_node e, dart_node f, hbe, hcf, hi]⟩
-  · obtain ⟨b', hb', hbe⟩ := Trace.at_original_end (cut a.original) L b hb
-    obtain ⟨c', hc', hcf⟩ := Trace.at_original_end (cut (subdivisionEdgeIndex I f).original) M c hc
-    refine ⟨b', c', hb', hc', ?_⟩
-    rw [dart_node e, dart_node f, hbe, hcf, original_node, original_node]
-    exact hn
+  · obtain ⟨b₁, hb₁, hbe⟩ := Trace.at_original_end (cut a.original) L b' hb
+    obtain ⟨c₁, hc₁, hcf⟩ := Trace.at_original_end (cut b.original) M c' hc
+    exact ⟨b₁, c₁, hb₁, hc₁, by rw [dart_node e, dart_node f, hbe, hcf, original_node,
+      original_node, hn]⟩
 
 private theorem cut_endpoint (cut : EndCuts) (p : Route) (b : Bool) :
     (p.cutEnds (cut false).val (cut true).val).endpoint b =
@@ -518,45 +482,13 @@ theorem exists_subdivision_embedding_in_disjoint_disks {I : FixedRotationInput} 
           z ∈ (E.route e).support → z ∈ Metric.closedBall (D.vertex v) ρ →
           ∃ b : Bool, Dart.vertex ((subdivisionEdgeIndex I e).original, b) = v ∧
             z = D.cutPort ρ ((subdivisionEdgeIndex I e).original, b) := by
-  classical
-  choose radius hpos hpoints hlocal hlength using
-    fun v : Fin I.graph.vertices.length => hD.exists_restriction_radius v (old_mem hI v.isLt)
-  let radii := insert (1 : ℝ) (Finset.univ.image fun v => radius v / 2)
-  have hnonempty : radii.Nonempty := ⟨1, Finset.mem_insert_self _ _⟩
-  let ε := radii.min' hnonempty
-  have hε : 0 < ε := by
-    apply (Finset.lt_min'_iff radii hnonempty).2
-    intro x hx
-    rcases Finset.mem_insert.mp hx with rfl | hx
-    · exact zero_lt_one
-    · obtain ⟨v, _, rfl⟩ := Finset.mem_image.mp hx
-      exact half_pos (hpos v)
-  have hbound (v : Fin I.graph.vertices.length) : ε ≤ radius v / 2 :=
-    Finset.min'_le _ _ (Finset.mem_insert_of_mem
-      (Finset.mem_image.mpr ⟨v, Finset.mem_univ _, rfl⟩))
-  have hvertex (v : ℕ) (hv : v ∈ I.graph.vertices) : v < I.graph.vertices.length := by
-    rw [hI.1] at hv
-    exact List.mem_range.mp hv
-  refine ⟨ε, hε, fun ρ hρ => ⟨?_, ?_⟩⟩
-  · intro v hv w hw hne
-    refine Set.disjoint_left.mpr fun z hzv hzw => ?_
-    let i : Fin I.graph.vertices.length := ⟨v, hvertex v hv⟩
-    have hdist := dist_triangle (D.vertex w) z (D.vertex v)
-    rw [dist_comm (D.vertex w) z] at hdist
-    have hwi : D.vertex w ∈ Metric.closedBall (D.vertex i) (radius i) := by
-      apply Metric.mem_closedBall.mpr
-      change dist (D.vertex w) (D.vertex v) ≤ radius i
-      linarith [Metric.mem_closedBall.mp hzv, Metric.mem_closedBall.mp hzw, hρ.2, hbound i]
-    exact hne (hpoints i w hw hwi).symm
-  have htime (d : Dart I.graph) : ρ / ‖D.germ d‖ ∈ Set.Ioo (0 : ℝ) (1 / 2) := by
-    let i : Fin I.graph.vertices.length := ⟨d.vertex, by
-      rcases d with ⟨e, b⟩
-      exact endpoint_lt hI e b⟩
-    have hlen := hlength i d rfl
-    have hd : 0 < ‖D.germ d‖ := norm_pos_iff.mpr (hD.germ_ne_zero d)
-    exact ⟨div_pos hρ.1 hd, (div_lt_iff₀ hd).mpr (by linarith [hpos i, hρ.2, hbound i])⟩
-  let cut : CutTable I := fun i b => ⟨ρ / ‖D.germ (i, b)‖, htime (i, b)⟩
-  refine ⟨drawing cut hI D, drawing_isEmbedding cut hI hD,
+  obtain ⟨ε, hε, huniform⟩ := D.exists_uniform_restriction hD.vertex_contacts hD.vertices_injective
+    (fun d => old_mem hI (endpoint_lt hI d.1 d.2)) hD.germ_ne_zero
+  refine ⟨ε, hε, fun ρ hρ => ?_⟩
+  obtain ⟨hdisks, htime, _, hcontact⟩ := huniform ρ hρ
+  let cut : CutTable I := fun i b => ⟨ρ / ‖D.germ (i, b)‖, (htime (i, b)).1,
+    (htime (i, b)).2.trans (by norm_num)⟩
+  refine ⟨hdisks, drawing cut hI D, drawing_isEmbedding cut hI hD,
     fun _ hv => drawing_center cut hI D hv, ?_, ?_, ?_, ?_⟩
   · intro d
     simp only [PolygonalDrawing.direction, drawing_germ, Complex.real_smul,
@@ -572,26 +504,19 @@ theorem exists_subdivision_embedding_in_disjoint_disks {I : FixedRotationInput} 
       (cut a.original true).val a.piece).support ⊆ Metric.closedBall z ρ
     dsimp only [a]
     rw [subdivisionEdgeIndex_subdivisionDart]
-    have hc : p.endpoint b ∈ Metric.closedBall z ρ := by
-      have he : p.endpoint b = z := D.endpoint_eq i b
-      rw [he]
-      exact Metric.mem_closedBall_self hρ.1.le
-    have hx : (p.cutEnds (cut i false).val (cut i true).val).endpoint b ∈
-        Metric.closedBall z ρ := by
-      have he : (p.cutEnds (cut i false).val (cut i true).val).endpoint b = D.cutPort ρ (i, b) := by
-        rw [cut_endpoint (cut i), D.endpoint_eq, PolygonalDrawing.cutPort]
-        rfl
-      rw [he, Metric.mem_closedBall, hD.dist_cutPort hρ.1.le]
+    have he : (p.cutEnds (cut i false).val (cut i true).val).endpoint b = D.cutPort ρ (i, b) := by
+      rw [cut_endpoint (cut i), D.endpoint_eq, PolygonalDrawing.cutPort]
+      rfl
+    have hstub := D.cutPort_segment_subset_closedBall hρ.1.le (i, b) (hD.germ_ne_zero (i, b))
     cases b
-    · change (Route.line p.start (p.cutEnds (cut i false).val (cut i true).val).start).support ⊆ _
-      rw [Route.support_line]
-      exact (convex_closedBall z ρ).segment_subset hc hx
-    · change (Route.line (p.cutEnds (cut i false).val (cut i true).val).finish p.finish).support ⊆ _
-      rw [Route.support_line]
-      exact (convex_closedBall z ρ).segment_subset hx hc
+    · change (Route.line (p.endpoint false)
+        ((p.cutEnds (cut i false).val (cut i true).val).endpoint false)).support ⊆ _
+      rwa [Route.support_line, he, D.endpoint_eq]
+    · change (Route.line ((p.cutEnds (cut i false).val (cut i true).val).endpoint true)
+        (p.endpoint true)).support ⊆ _
+      rwa [Route.support_line, he, D.endpoint_eq, segment_symm]
   · intro e he v hv z hz hball
     let a := subdivisionEdgeIndex I e
-    let j : Fin I.graph.vertices.length := ⟨v, hvertex v hv⟩
     have hroute : (drawing cut hI D).route e =
         (D.route a.original).cutEnds (cut a.original false).val (cut a.original true).val := by
       change (D.route a.original).trisect (cut a.original false).val (cut a.original true).val
@@ -601,13 +526,7 @@ theorem exists_subdivision_embedding_in_disjoint_disks {I : FixedRotationInput} 
     rw [hroute] at hz
     obtain ⟨k, u, hu, hval⟩ := ((D.route a.original).cutEnds (cut a.original false).val
       (cut a.original true).val).mem_support_iff z |>.mp hz
-    have hsmall : ρ ≤ radius j := by linarith [hpos j, hρ.2, hbound j]
-    obtain ⟨b, _, hb, hport⟩ := hD.cutEnds_ball_contact v
-      (fun e' k' z' hball' hs => hlocal j e' k' z'
-        (Metric.closedBall_subset_closedBall hsmall hball') hs)
-      a.original (cut a.original false).property.1.le (cut a.original true).property.1.le
-      (cut_small (cut a.original)) (by intro b _; cases b <;> rfl) k hu
-      (hval ▸ hball)
+    obtain ⟨b, _, hb, hport⟩ := hcontact a.original v hv k u hu (hval ▸ hball)
     exact ⟨b, hb, hval.symm.trans hport⟩
 
 /-- Subdivide the routes at their actual common-radius cut ports. Every sufficiently small

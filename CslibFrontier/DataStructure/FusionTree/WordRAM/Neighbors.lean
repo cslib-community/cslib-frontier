@@ -112,22 +112,14 @@ private theorem selectIndex_spec (score : ℕ → ℕ) {n t : ℕ} (hn : 0 < n) 
       ∀ i < n, (i + 1 = t ∨ i = t) → score (selectIndex score n t) ≤ score i := by
   have hi := indices_lt hn ht
   have hneighbor := indices_neighbors hn ht
-  have hcover (i : ℕ) (hi : i < n) (hc : i + 1 = t ∨ i = t) :
+  have hcover (i : ℕ) (_ : i < n) (_ : i + 1 = t ∨ i = t) :
       i = left t ∨ i = right n t := by wram_omega
   unfold selectIndex
-  split
-  · rename_i hs
-    refine ⟨hi.2, hneighbor.2, ?_⟩
-    intro i hi hc
-    rcases hcover i hi hc with rfl | rfl
-    · exact hs.le
-    · exact le_rfl
-  · rename_i hs
-    refine ⟨hi.1, hneighbor.1, ?_⟩
-    intro i hi hc
-    rcases hcover i hi hc with rfl | rfl
-    · exact le_rfl
-    · omega
+  split_ifs with hs
+  · exact ⟨hi.2, hneighbor.2, fun i h1 h2 =>
+      (hcover i h1 h2).elim (fun e => e ▸ hs.le) fun e => e ▸ le_rfl⟩
+  · exact ⟨hi.1, hneighbor.1, fun i h1 h2 =>
+      (hcover i h1 h2).elim (fun e => e ▸ le_rfl) fun e => by rw [e]; omega⟩
 
 /-- Thirteen instructions load the candidates. Selection adds four or five instructions,
 including control flow, and prefers the left candidate when exclusive-or values tie. -/
@@ -195,19 +187,15 @@ theorem result_sketchNeighbor {w n q a d : ℕ} (x : Data 17) (keys : Fin n → 
       IsSketchNeighbor w keys q j ∧
       ∀ i, IsSketchNeighbor w keys q i → keys j ^^^ q ≤ keys i ^^^ q := by
   let t := sketchRank w keys q
-  let score := fun i => x.mem (a + i * d) ^^^ q
-  have ht : t ≤ n := upperRank_le _ _
-  have hs := selectIndex_spec score hn ht
+  let score (i : ℕ) := x.mem (a + i * d) ^^^ q
+  have hs := selectIndex_spec score hn (upperRank_le _ _ : t ≤ n)
   let j : Fin n := ⟨selectIndex score n t, hs.1⟩
   have hout := result_spec x q n t a d
-  refine ⟨j, hout.1, ?_, ?_, ?_, ?_⟩
-  · exact hout.2.1.trans (hkeys j)
-  · exact hout.2.2.trans (congrArg (fun k => k ^^^ q) (hkeys j))
-  · exact hs.2.1
-  · intro i hi
-    have hscore := hs.2.2 i i.isLt hi
-    change score j.val ≤ score i.val at hscore
-    simpa only [score, hkeys] using hscore
+  exact ⟨j, hout.1, hout.2.1.trans (hkeys j), hout.2.2.trans (congrArg (· ^^^ q) (hkeys j)),
+    hs.2.1, fun i hi => by
+      have h := hs.2.2 i i.isLt hi
+      change score j.val ≤ score i.val at h
+      simpa only [score, hkeys] using h⟩
 
 /-- Loading two clamped neighbors and selecting one takes at most eighteen actual checked
 instructions. The address premise covers the last array key; every accessed address and

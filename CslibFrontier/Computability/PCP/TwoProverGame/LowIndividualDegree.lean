@@ -62,16 +62,10 @@ theorem mem_linePoints (u v : Point F m) (t : F) : u + t • v ∈ linePoints u 
 /-- Moving the base point along an affine line leaves its set of points unchanged. -/
 theorem linePoints_translate_direction (u v : Point F m) (t : F) :
     linePoints (u + t • v) v = linePoints u v := by
-  unfold linePoints
   ext x
-  constructor
-  · rintro h
-    obtain ⟨s, _, rfl⟩ := mem_image.mp h
-    exact mem_image.mpr ⟨t + s, mem_univ _, by rw [add_smul, add_assoc]⟩
-  · rintro h
-    obtain ⟨s, _, rfl⟩ := mem_image.mp h
-    refine mem_image.mpr ⟨s - t, mem_univ _, ?_⟩
-    rw [add_assoc, ← add_smul, add_comm t (s - t), sub_add_cancel]
+  simp only [linePoints, mem_image, mem_univ, true_and]
+  exact ⟨fun ⟨s, hs⟩ => ⟨t + s, by rw [add_smul, ← add_assoc, hs]⟩,
+    fun ⟨s, hs⟩ => ⟨s - t, by rw [← hs, add_assoc, ← add_smul, add_comm t, sub_add_cancel]⟩⟩
 
 /-- A function on a line has degree at most `d` if it admits a parameterization by such a
 univariate polynomial. This also describes the constant functions on singleton lines. -/
@@ -87,37 +81,22 @@ theorem LineHasDegree.exists_polynomial {u v : Point F m} {f : linePoints u v �
     ∃ p : Polynomial F, p.natDegree ≤ d ∧
       ∀ t : F, f ⟨u + t • v, mem_linePoints u v t⟩ = p.eval t := by
   obtain ⟨u₀, v₀, hL, p, hp, he⟩ := h
-  have hu : u ∈ linePoints u₀ v₀ := by
-    rw [hL]
-    simpa using mem_linePoints u v (0 : F)
-  have huv : u + v ∈ linePoints u₀ v₀ := by
-    rw [hL]
-    simpa using mem_linePoints u v (1 : F)
-  obtain ⟨a, _, ha⟩ := mem_image.mp hu
-  obtain ⟨b, _, hb⟩ := mem_image.mp huv
+  obtain ⟨a, -, ha⟩ := mem_image.mp
+    (hL ▸ show u ∈ linePoints u v by simpa using mem_linePoints u v (0 : F))
+  obtain ⟨b, -, hb⟩ := mem_image.mp
+    (hL ▸ show u + v ∈ linePoints u v by simpa using mem_linePoints u v (1 : F))
   let q : Polynomial F := Polynomial.C a + Polynomial.C (b - a) * Polynomial.X
-  have hq : q.natDegree ≤ 1 := by
-    refine Polynomial.natDegree_add_le_of_degree_le (by simp) ?_
-    exact (Polynomial.natDegree_C_mul_le _ _).trans Polynomial.natDegree_X_le
-  refine ⟨p.comp q, (Polynomial.natDegree_comp_le.trans ?_), ?_⟩
-  · simpa only [Nat.mul_one] using Nat.mul_le_mul hp hq
-  · intro t
-    have ht : u + t • v = u₀ + (a + (b - a) * t) • v₀ := by
-      funext i
-      have hai : u₀ i + a * v₀ i = u i := congrFun ha i
-      have hbi : u₀ i + b * v₀ i = u i + v i := congrFun hb i
-      have hvi : v i = (b - a) * v₀ i := by
-        linear_combination hai - hbi
-      change u i + t * v i = u₀ i + (a + (b - a) * t) * v₀ i
-      rw [hvi, ← hai]
-      ring
-    rw [Polynomial.eval_comp]
-    change f _ = p.eval (q.eval t)
-    have hqt : q.eval t = a + (b - a) * t := by
-      simp only [q, Polynomial.eval_add, Polynomial.eval_C, Polynomial.eval_C_mul,
-        Polynomial.eval_X]
-    rw [hqt, ← he]
-    exact congrArg f (Subtype.ext ht)
+  have hq : q.natDegree ≤ 1 := Polynomial.natDegree_add_le_of_degree_le (by simp)
+    ((Polynomial.natDegree_C_mul_le _ _).trans Polynomial.natDegree_X_le)
+  refine ⟨p.comp q, Polynomial.natDegree_comp_le.trans (by simpa using Nat.mul_le_mul hp hq),
+    fun t => ?_⟩
+  have ht : u + t • v = u₀ + (a + (b - a) * t) • v₀ := funext fun i => by
+    have hai : u₀ i + a * v₀ i = u i := congrFun ha i
+    have hbi : u₀ i + b * v₀ i = u i + v i := congrFun hb i
+    change u i + t * v i = u₀ i + (a + (b - a) * t) * v₀ i
+    rw [show v i = (b - a) * v₀ i by linear_combination hai - hbi, ← hai]; ring
+  rw [Polynomial.eval_comp, show q.eval t = a + (b - a) * t by simp [q], ← he]
+  exact congrArg f (Subtype.ext ht)
 
 /-- The line answer must have the right domain and degree, and agree with the point answer. -/
 @[expose] def lineAgrees (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
@@ -167,9 +146,8 @@ theorem exists_agree_of_acceptsAtDegrees_point_diagonal (d D : ℕ) (L : Finset 
 /-- Accepted diagonal and point answers agree at the queried point. -/
 theorem exists_agree_of_accepts_point_diagonal (d : ℕ) (L : Finset (Point F m))
     (u : Point F m) (a b : Answer F m) (h : accepts d (.point u) (.diagonal L) a b) :
-    ∃ g z, a = .inl z ∧ b = .inr g ∧ ∃ hu : u ∈ g.1, g.2 ⟨u, hu⟩ = z := by
-  rw [accepts_eq_withDiagonalCap] at h
-  exact exists_agree_of_acceptsAtDegrees_point_diagonal d (m * d) L u a b h
+    ∃ g z, a = .inl z ∧ b = .inr g ∧ ∃ hu : u ∈ g.1, g.2 ⟨u, hu⟩ = z :=
+  exists_agree_of_acceptsAtDegrees_point_diagonal d (m * d) L u a b h
 
 theorem accepts_point_axis_iff (d : ℕ) (L : Finset (Point F m)) (u : Point F m)
     (a b : Answer F m) :
@@ -204,9 +182,8 @@ theorem exists_eq_of_accepts_points (d : ℕ) (u v : Point F m) (a b : Answer F 
 
 omit [Fintype F] [DecidableEq F] in
 @[simp] theorem prefixDirection_zero (i : Fin m) :
-    prefixDirection (F := F) i 0 = 0 := by
-  funext j
-  simp [prefixDirection]
+    prefixDirection (F := F) i 0 = 0 :=
+  funext fun _ => by simp [prefixDirection]
 
 /-- Zero padding gives every direction in the prefix exactly once. -/
 def prefixDirectionEquiv (i : Fin m) :
@@ -236,9 +213,8 @@ that prefix. Zero directions occur with the sampling probability specified in Fi
 omit [Fintype F] [DecidableEq F] in
 /-- At the full prefix, extending the direction is the identity. -/
 @[simp] theorem prefixDirection_last {n : ℕ} (v : Point F (n + 1)) :
-    prefixDirection (Fin.last n) v = v := by
-  funext j
-  simp [prefixDirection, j.isLt]
+    prefixDirection (Fin.last n) v = v :=
+  funext fun j => by simp [prefixDirection, j.isLt]
 
 /-- Every prefix direction and either role assignment occurs in the diagonal branch. -/
 theorem mem_diagonalQuestions_support {n : ℕ} {q : Question F (n + 1) × Question F (n + 1)} :
@@ -283,41 +259,32 @@ noncomputable def branchGame (n d : ℕ) (b : Branch) :
 
 theorem branchGame_eq_withDiagonalCap (n d : ℕ) (b : Branch) :
     branchGame (F := F) n d b = branchGameWithDiagonalCap n d ((n + 1) * d) b := by
-  unfold branchGame
-  rfl
+  rw [branchGame]
 
 theorem branchGameWithDiagonalCap_questions (n d D : ℕ) (b : Branch) :
     (branchGameWithDiagonalCap (F := F) n d D b).questions = branchQuestions n b := by
-  unfold branchGameWithDiagonalCap
-  rfl
+  rw [branchGameWithDiagonalCap]
 
 theorem branchGameWithDiagonalCap_accepts (n d D : ℕ) (b : Branch) :
     (branchGameWithDiagonalCap (F := F) n d D b).accepts = acceptsWithDiagonalCap d D := by
-  unfold branchGameWithDiagonalCap
-  rfl
+  rw [branchGameWithDiagonalCap]
 
 theorem branchGame_questions (n d : ℕ) (b : Branch) :
     (branchGame (F := F) n d b).questions = branchQuestions n b := by
-  unfold branchGame
-  rfl
+  rw [branchGame, branchGameWithDiagonalCap]
 
 theorem branchQuestions_axis (n : ℕ) :
-    branchQuestions (F := F) n .axis = axisQuestions n := by
-  unfold branchQuestions
-  rfl
+    branchQuestions (F := F) n .axis = axisQuestions n := by rw [branchQuestions]
 
 theorem branchQuestions_diagonal (n : ℕ) :
-    branchQuestions (F := F) n .diagonal = diagonalQuestions n := by
-  unfold branchQuestions
-  rfl
+    branchQuestions (F := F) n .diagonal = diagonalQuestions n := by rw [branchQuestions]
 
 theorem branchQuestions_consistency (n : ℕ) :
-    branchQuestions (F := F) n .consistency = consistencyQuestions := by
-  unfold branchQuestions
-  rfl
+    branchQuestions (F := F) n .consistency = consistencyQuestions := by rw [branchQuestions]
 
 theorem branchGame_accepts (n d : ℕ) (b : Branch) :
-    (branchGame (F := F) n d b).accepts = accepts d := by unfold branchGame; rfl
+    (branchGame (F := F) n d b).accepts = accepts d := by
+  rw [branchGame, branchGameWithDiagonalCap, accepts]
 
 /-- The low individual degree game in positive ambient dimension `n + 1`. -/
 noncomputable def game (n d : ℕ) :
@@ -330,9 +297,8 @@ private theorem average_branches (f : Branch → ℝ) :
     ∑ b, ((uniformOfFintype Branch) b).toReal * f b =
       (f .axis + f .consistency + f .diagonal) / 3 := by
   have hc : Fintype.card Branch = 3 := by decide
-  have hu : (univ : Finset Branch) = {.axis, .consistency, .diagonal} := rfl
   simp only [Cslib.Probability.PMF.uniformOfFintype_apply, hc, ENNReal.toReal_inv,
-    ENNReal.toReal_natCast, hu]
+    ENNReal.toReal_natCast, show (univ : Finset Branch) = {.axis, .consistency, .diagonal} from rfl]
   norm_num [Finset.sum_insert, Finset.sum_singleton]
   ring
 
@@ -379,19 +345,15 @@ def honest (P : MvPolynomial (Fin m) F) : Question F m → Answer F m
 omit [Fintype F] [DecidableEq F] in
 /-- The honest point answer is the polynomial's value at that point. -/
 theorem honest_point (P : MvPolynomial (Fin m) F) (u : Point F m) :
-    honest P (.point u) = .inl (MvPolynomial.eval u P) := by
-  unfold honest
-  rfl
+    honest P (.point u) = .inl (MvPolynomial.eval u P) := by rw [honest]
 
 private theorem honest_lineAgrees (P : MvPolynomial (Fin m) F) (u v : Point F m) (d : ℕ)
     (hd : (P.restrictAffineLine u v).natDegree ≤ d) :
     lineAgrees d (linePoints u v) u
-      ⟨linePoints u v, fun x => MvPolynomial.eval x.val P⟩ (MvPolynomial.eval u P) := by
-  refine ⟨rfl, ⟨u, v, rfl, P.restrictAffineLine u v, hd, ?_⟩, ?_⟩
-  · intro t
-    exact (P.eval_restrictAffineLine u v t).symm
-  · have hu : u ∈ linePoints u v := by simpa using mem_linePoints u v (0 : F)
-    exact ⟨hu, rfl⟩
+      ⟨linePoints u v, fun x => MvPolynomial.eval x.val P⟩ (MvPolynomial.eval u P) :=
+  ⟨rfl, ⟨u, v, rfl, P.restrictAffineLine u v, hd,
+    fun t => (P.eval_restrictAffineLine u v t).symm⟩,
+    by simpa using mem_linePoints u v (0 : F), rfl⟩
 
 omit [Fintype F] [DecidableEq F] in
 private theorem honest_axis_degree {n d : ℕ} (P : MvPolynomial (Fin (n + 1)) F)
@@ -407,7 +369,7 @@ private theorem honest_diagonal_degree {n d : ℕ} (P : MvPolynomial (Fin (n + 1
   refine (P.natDegree_restrictAffineLine_le_sum_degreeOf u v).trans ?_
   calc
     _ ≤ ∑ i : Fin (n + 1), P.degreeOf i :=
-      sum_le_sum_of_subset_of_nonneg (filter_subset _ _) (fun _ _ _ => Nat.zero_le _)
+      sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun _ _ _ => Nat.zero_le _
     _ ≤ ∑ _ : Fin (n + 1), d := sum_le_sum fun i _ => hP i
     _ = _ := by simp
 
@@ -420,25 +382,22 @@ theorem accepts_honest_of_mem_branch {n d : ℕ} (P : MvPolynomial (Fin (n + 1))
   cases b
   · simp only [branchQuestions, axisQuestions, PMF.mem_support_bind_iff,
       assignLineRoles, PMF.support_map, Set.mem_image] at hq
-    obtain ⟨u, _, i, _, r, _, rfl⟩ := hq
-    cases r <;> exact honest_lineAgrees P u (Pi.single i (1 : F)) d (honest_axis_degree P hP u i)
-  · simp only [branchQuestions, consistencyQuestions, PMF.support_map, Set.mem_image] at hq
-    obtain ⟨u, _, rfl⟩ := hq
+    obtain ⟨u, _, i, _, _ | _, _, rfl⟩ := hq <;>
+      exact honest_lineAgrees P u (Pi.single i (1 : F)) d (honest_axis_degree P hP u i)
+  · obtain ⟨u, _, rfl⟩ := by simpa [branchQuestions, consistencyQuestions] using hq
     rfl
-  · obtain ⟨u, i, v, r, rfl⟩ := mem_diagonalQuestions_support.mp hq
-    cases r <;> exact honest_lineAgrees P u (prefixDirection i v) ((n + 1) * d)
-      (honest_diagonal_degree P hP u (prefixDirection i v))
+  · obtain ⟨u, i, v, _ | _, rfl⟩ := mem_diagonalQuestions_support.mp hq <;>
+      exact honest_lineAgrees P u (prefixDirection i v) ((n + 1) * d)
+        (honest_diagonal_degree P hP u (prefixDirection i v))
 
 /-- Honest play wins each of the three branches with probability one. -/
 theorem winProb_branch_honest {n d : ℕ} (P : MvPolynomial (Fin (n + 1)) F)
     (hP : ∀ i, P.degreeOf i ≤ d) (b : Branch) :
     (branchGame (F := F) n d b).winProb (honest P) (honest P) = 1 := by
-  have h : (branchQuestions n b).toOuterMeasure
-      {q | accepts d q.1 q.2 (honest P q.1) (honest P q.2)} = 1 := by
-    rw [PMF.toOuterMeasure_apply_eq_one_iff]
-    exact fun _ hq => accepts_honest_of_mem_branch P hP b hq
-  rw [TwoProverGame.winProb, branchGame_questions, branchGame_accepts]
-  rw [h, ENNReal.toReal_one]
+  rw [TwoProverGame.winProb, branchGame_questions, branchGame_accepts,
+    ((branchQuestions n b).toOuterMeasure_apply_eq_one_iff _).mpr
+      fun _ => accepts_honest_of_mem_branch P hP b,
+    ENNReal.toReal_one]
 
 /-- The honest strategy wins the low individual degree game with probability one. -/
 theorem winProb_honest {n d : ℕ} (P : MvPolynomial (Fin (n + 1)) F)

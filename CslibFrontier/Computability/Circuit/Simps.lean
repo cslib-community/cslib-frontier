@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Circuit.Balanced
 public import CslibFrontier.Computability.Circuit.Iteration
 public import CslibFrontier.Computability.Circuit.MapOp
 public import CslibFrontier.Computability.Circuit.Simulation
@@ -73,16 +74,18 @@ attribute [circuit_simps]
   -- sizes and formula costs
   Circuit.size_comp Circuit.size_append Circuit.size_pi Circuit.size_wiring Circuit.size_wiringOn
   Circuit.size_oneGate Circuit.size_mapOp Circuit.size_iterate Formula.size_toCircuit
-  Formula.size_input Formula.size_gate Formula.cost_input Formula.cost_gate
+  Formula.size_input Formula.size_gate Formula.leafSize_input Formula.leafSize_gate
+  Formula.cost_input Formula.cost_gate
   -- exact depths
   Circuit.depth_wiring Circuit.depth_oneGate Circuit.depth_mapOp Circuit.depthWith_wiring
   Circuit.depthWith_oneGate Formula.depth_input Formula.depth_gate Formula.depthWith_input
   Formula.depthWith_gate
-  -- reading blocks, small-arity tuples, and sums or suprema of constants over the outputs
+  -- reading blocks, small-arity tuples, list summaries, and constant sums or suprema
   Fin.append_left Fin.append_right Function.comp_apply Finset.sum_const Finset.card_univ
   Fintype.card_fin smul_eq_mul Fin.sum_univ_zero Fin.sum_univ_one Fin.sum_univ_two
   sup_univ_fin_zero sup_univ_fin_one sup_univ_fin_two Nat.bot_eq_zero Matrix.cons_val_zero
-  Matrix.cons_val_one
+  Matrix.cons_val_one List.map_ofFn List.sum_ofFn List.length_ofFn List.map_append
+  List.sum_append List.length_append List.map_map List.length_map
 
 open Lean Meta in
 /-- Rewrites the program cost of a circuit built with a combinator to the costs of its parts, by
@@ -114,8 +117,9 @@ simproc [circuit_simps] Circuit.costProgram (Program.cost _ _) := fun e => do
 attribute [circuit_bound]
   Circuit.depth_comp_le Circuit.depth_append_le Circuit.depth_pi_le Circuit.depth_iterate_le
   Circuit.depthWith_comp_le Circuit.depthWith_append_le Circuit.depthWith_pi_le
-  Circuit.depthWith_iterate_le Formula.depth_toCircuit_le Formula.depthWith_toCircuit_le
-  Formula.depth_bind_le Formula.size_bind_le
+  Circuit.depthWith_iterate_le Circuit.size_balanced_le Circuit.depth_balanced_le_max
+  Formula.depth_toCircuit_le Formula.depthWith_toCircuit_le Formula.depth_bind_le
+  Formula.size_bind_le
 
 end Cslib.Circuits
 

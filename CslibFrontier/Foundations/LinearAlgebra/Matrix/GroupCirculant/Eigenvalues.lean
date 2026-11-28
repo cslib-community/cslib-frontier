@@ -57,10 +57,8 @@ theorem circulant_mulVec_addChar [CommSemiring R] (w : G → R) (ψ : AddChar G 
   simp only [mulVec, dotProduct, circulant_apply, Pi.smul_apply, smul_eq_mul,
     circulantEigenvalue, sum_mul]
   refine Fintype.sum_equiv (Equiv.subLeft x) _ _ fun y => ?_
-  have hy : y = x + -(x - y) := by abel
-  have hψ : ψ y = ψ x * ψ (-(x - y)) := by
-    conv_lhs => rw [hy]
-    exact ψ.map_add_eq_mul _ _
+  have hψ : ψ y = ψ x * ψ (-(x - y)) :=
+    (congrArg ψ (by abel : y = x + -(x - y))).trans (ψ.map_add_eq_mul _ _)
   rw [Equiv.subLeft_apply, hψ, mul_comm (ψ x), ← mul_assoc]
 
 @[simp]
@@ -103,13 +101,10 @@ product of the character eigenvalues of `u` and `v`. -/
 theorem circulantEigenvalue_mulVec [CommSemiring R] (u v : G → R) (ψ : AddChar G R) :
     circulantEigenvalue (circulant u *ᵥ v) ψ =
       circulantEigenvalue u ψ * circulantEigenvalue v ψ := by
-  have h1 := congrFun (circulant_mulVec_addChar (circulant u *ᵥ v) ψ) 0
-  have h2 : (circulant (circulant u *ᵥ v) *ᵥ (⇑ψ)) 0 =
-      (circulantEigenvalue u ψ * circulantEigenvalue v ψ) * ψ 0 := by
-    rw [← circulant_mul, ← mulVec_mulVec, circulant_mulVec_addChar, mulVec_smul,
-      circulant_mulVec_addChar, smul_smul]
-    simp [mul_comm]
-  simpa using h1.symm.trans h2
+  have h := congrFun (circulant_mulVec_addChar (circulant u *ᵥ v) ψ) 0
+  rw [← circulant_mul, ← mulVec_mulVec, circulant_mulVec_addChar, mulVec_smul,
+    circulant_mulVec_addChar, smul_smul] at h
+  simpa [mul_comm] using h.symm
 
 /-- Scalar homomorphisms commute with `circulantEigenvalue`. -/
 theorem map_circulantEigenvalue {S : Type*} [CommSemiring R] [CommSemiring S]

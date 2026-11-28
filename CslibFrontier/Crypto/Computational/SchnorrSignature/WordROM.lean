@@ -64,8 +64,8 @@ noncomputable def schnorrWordSigma :
 theorem schnorrWordSigma_accepts_iff (u : F.Carrier d) (t z : List Bool) (c : BitString m) :
     (F.schnorrWordSigma d hm).Accepts u t c z ↔
       t = F.encode d ((ofBits z : ZMod (F.order d)) • F.generator d -
-        F.challengeEmbedding d hm c • u) := by
-  exact F.encodeSchnorrVerify_eq_true_iff d u t (List.ofFn c) z
+        F.challengeEmbedding d hm c • u) :=
+  F.encodeSchnorrVerify_eq_true_iff d u t (List.ofFn c) z
 
 /-- On encoded commitments, the word verifier agrees with typed Schnorr after interpreting the
 response scalar. No assumption on the response word is required. -/
@@ -76,11 +76,7 @@ theorem schnorrWordSigma_accepts_encode_iff (u t : F.Carrier d) (z : List Bool)
   rw [F.schnorrWordSigma_accepts_iff, (F.encode_injective d).eq_iff]
   change t = _ ↔ (schnorr _ _).Accepts _ _ _ _
   rw [schnorr_accepts_iff]
-  constructor
-  · intro h
-    rw [h, sub_add_cancel]
-  · intro h
-    exact eq_sub_iff_add_eq.mpr h.symm
+  exact ⟨fun h => by rw [h, sub_add_cancel], fun h => eq_sub_iff_add_eq.mpr h.symm⟩
 
 /-- An accepting typed transcript stays accepting after encoding its commitment and response,
 since decoding the encoded response returns the scalar. -/
@@ -97,8 +93,7 @@ theorem schnorrWordSigma_transcript (x : ZMod (F.order d)) (u : F.Carrier d)
     (F.schnorrWordSigma d hm).transcript x u c =
       ((F.schnorrBitSigma d hm).transcript x u c).map
         (Prod.map (F.encode d) (F.encScalar d)) := by
-  simp only [SigmaProtocol.transcript, schnorrWordSigma, PMF.map_comp]
-  rfl
+  simp only [SigmaProtocol.transcript, schnorrWordSigma, PMF.map_comp]; rfl
 
 /-- The word instance retains honest completeness. -/
 theorem schnorrWordSigma_complete :
@@ -153,15 +148,13 @@ theorem schnorrWordSigma_commit_map_fst_le (x : ZMod (F.order d)) (u : F.Carrier
   classical
   have hmap : ((F.schnorrWordSigma d hm).commit x u).map Prod.fst =
       (((F.schnorrBitSigma d hm).commit x u).map Prod.fst).map (F.encode d) := by
-    simp only [schnorrWordSigma, PMF.map_comp]
-    rfl
+    simp only [schnorrWordSigma, PMF.map_comp]; rfl
   rw [hmap, PMF.map_apply]
   by_cases ht : ∃ v, F.encode d v = t
   · obtain ⟨v, rfl⟩ := ht
     simp only [(F.encode_injective d).eq_iff, tsum_ite_eq']
     exact schnorr_commit_map_fst_le (F.generator_ne_zero d) x u v
-  · have hne (v : F.Carrier d) : t ≠ F.encode d v := fun h => ht ⟨v, h.symm⟩
-    simp only [hne, ite_false, tsum_zero, zero_le]
+  · simp [show ∀ v, t ≠ F.encode d v from fun v h => ht ⟨v, h.symm⟩]
 
 /-- Canonical word Schnorr signatures in the existing shared random-oracle game. Public keys
 remain actual group elements; messages, signature components and every hash query are words.

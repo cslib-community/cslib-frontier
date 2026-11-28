@@ -110,25 +110,19 @@ theorem Circuit.mem_functionsAtMost_iff {I : Interpretation σ U} {n m G : ℕ}
   classical
   simp only [Circuit.functionsAtMost, Finset.mem_biUnion, Finset.mem_range, Finset.mem_image,
     Finset.mem_univ, true_and, Nat.lt_succ_iff, Prod.exists]
-  constructor
-  · rintro ⟨g, hg, p, out, rfl⟩
-    exact ⟨⟨p, out⟩, hg, fun _ => rfl⟩
-  · rintro ⟨⟨p, out⟩, hs, hc⟩
-    exact ⟨_, hs, p, out, funext hc⟩
+  exact ⟨fun ⟨_, hg, p, out, h⟩ => ⟨⟨p, out⟩, hg, congrFun h⟩,
+    fun ⟨⟨p, out⟩, hs, hc⟩ => ⟨_, hs, p, out, funext hc⟩⟩
 
 /-- At most `σ.orderedBudget n m G` functions are computed by circuits of size at most `G`. -/
 theorem Circuit.card_functionsAtMost_le (I : Interpretation σ U) {n m G : ℕ} :
     (Circuit.functionsAtMost I n m G).card ≤ σ.orderedBudget n m G := by
   classical
-  refine Finset.card_biUnion_le.trans ?_
-  unfold Signature.orderedBudget
-  apply Finset.sum_le_sum
-  intro g _
+  refine Finset.card_biUnion_le.trans (Finset.sum_le_sum fun g _ => ?_)
   let := Fintype.ofFinite (Program σ n g × (Fin m → Wire n g))
   refine Finset.card_image_le.trans ?_
   rw [Finset.card_univ, ← Nat.card_eq_fintype_card, Nat.card_prod, Program.card,
     Nat.card_fun, Nat.card_eq_fintype_card, Wire.card, Nat.card_fin]
-  simp only [Signature.lineCount, finsum_eq_sum_of_fintype, le_rfl]
+  simp [Signature.lineCount, finsum_eq_sum_of_fintype]
 
 /-- Any finite family of functions larger than `σ.orderedBudget n m G` contains a function
 requiring more than `G` gates. -/
@@ -212,9 +206,9 @@ theorem square_le_exponential (k : ℕ) (hk : 64 ≤ k) :
   induction k, hk using Nat.le_induction with
   | base => norm_num
   | succ k hk ih =>
-    rw [show 2 ^ (k + 1) = 2 ^ k * 2 by rw [Nat.pow_succ]]
-    have hsq : (k + 1 + 2) ^ 2 ≤ 2 * (k + 2) ^ 2 := by nlinarith
-    nlinarith
+    rw [pow_succ 2 k]
+    have : (k + 1 + 2) ^ 2 ≤ 2 * (k + 2) ^ 2 := by nlinarith
+    linarith
 
 /-- Explicit exponential gate threshold `2 ^ k / (1024 * (k + 1))` for `2 k`-bit modular
 counters. -/
@@ -228,15 +222,12 @@ theorem lowerBudget_description_margin (k : ℕ) (hk : 64 ≤ k) :
   dsimp only
   have hq : lowerBudget k * (1024 * (k + 1)) ≤ 2 ^ k := Nat.div_mul_le_self _ _
   have hs := square_le_exponential k hk
-  have hpoly : (k + 2) * (k + k + 1) + k + 2 ≤ 4 * (k + 2) ^ 2 := by nlinarith
-  have hcoef : (2 * (k + 2) + 3) * 128 ≤ 1024 * (k + 1) := by omega
-  have hq' := Nat.mul_le_mul_right (lowerBudget k) hcoef
+  have hq' := Nat.mul_le_mul_right (lowerBudget k)
+    (show (2 * (k + 2) + 3) * 128 ≤ 1024 * (k + 1) by omega)
   have htotal : 128 * (3 * lowerBudget k +
-      (k + 2) * (2 * lowerBudget k + (k + k) + 1) + k + 2) ≤ 5 * 2 ^ k := by
-    nlinarith
-  have hhalf : 2 ^ (k - 1) * 2 = 2 ^ k := by
-    rw [← pow_succ, Nat.sub_add_cancel (by omega : 1 ≤ k)]
-  have hN : 1 ≤ 2 ^ k := Nat.one_le_two_pow
+      (k + 2) * (2 * lowerBudget k + (k + k) + 1) + k + 2) ≤ 5 * 2 ^ k := by nlinarith
+  have hhalf : 2 ^ (k - 1) * 2 = 2 ^ k := by rw [← pow_succ, Nat.sub_add_cancel (by omega)]
+  have := Nat.one_le_two_pow (n := k)
   omega
 
 /-- The number of descriptions below `lowerBudget k` has binary logarithm strictly below
@@ -245,9 +236,8 @@ theorem lowerBudget_description_exponent (k : ℕ) (hk : 64 ≤ k) :
     let q := lowerBudget k
     3 * q + (k + 2) * (2 * q + (k + k) + 1) + k < 2 ^ k - 1 := by
   have h := lowerBudget_description_margin k hk
-  have hpos : 0 < 2 ^ (k - 1) := Nat.two_pow_pos _
-  dsimp only at h ⊢
-  omega
+  have := Nat.two_pow_pos (k - 1)
+  dsimp only at h ⊢; omega
 
 /-- The wire count for `2 k` inputs and `lowerBudget k` gates fits in `2 ^ (k + 2)`. -/
 theorem lowerBudget_wire_bound (k : ℕ) (hk : 64 ≤ k) :
@@ -268,14 +258,11 @@ theorem exists_hard_power_of_budget_lt {n : ℕ} (g : BitString n → BitString 
   let family := Finset.univ.image
     (fun i : Fin (maxTransientDepth g + cyclePeriod g) => g^[i.val])
   have hcard : family.card = maxTransientDepth g + cyclePeriod g := by
-    rw [Finset.card_image_of_injective _ (iterate_injective_below g)]
-    simp
-  obtain ⟨target, ht, hh⟩ := Circuit.exists_hard_in_family (G := q)
-    interpretation family (by rw [hcard]; exact large)
+    simp [family, Finset.card_image_of_injective _ (iterate_injective_below g)]
+  obtain ⟨_, ht, hh⟩ := Circuit.exists_hard_in_family (G := q)
+    interpretation family (hcard ▸ large)
   obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp ht
-  refine ⟨i.val, i.isLt, fun out hcomp => ?_⟩
-  by_contra hn
-  exact hh out (by omega) hcomp
+  exact ⟨i.val, i.isLt, fun out hc => Nat.lt_of_not_ge fun hn => hh out hn hc⟩
 
 /-- An explicit exponent form of the counting step, via `boolean_orderedBudget_le_pow`. -/
 theorem exists_hard_power {n : ℕ} (g : BitString n → BitString n) (q h : ℕ)

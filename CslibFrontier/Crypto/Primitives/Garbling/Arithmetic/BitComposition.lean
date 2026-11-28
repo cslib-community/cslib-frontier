@@ -62,7 +62,6 @@ rows, which that proof simulates by random strings in the random-oracle model, a
 
 ## Main results
 
-* `Cslib.Crypto.Garbling.Arithmetic.sum_testBit_mul_pow`: the bits of a base-`p` digit recover it.
 * `Cslib.Crypto.Garbling.Arithmetic.bitComp_bitDecomp`: composition inverts decomposition.
 * `Cslib.Crypto.Garbling.Arithmetic.linCompEval_linCompTable`: correctness of the gadget.
 * `Cslib.Crypto.Garbling.Arithmetic.eval_activeShares`: the active rows are a uniform sharing of
@@ -88,13 +87,6 @@ open Probability Cslib.Radix
 theorem lt_two_pow_digitWidth {p x : ℕ} (hx : x < p) : x < 2 ^ digitWidth p :=
   hx.trans_le (Nat.le_pow_clog one_lt_two p)
 
-/-- The bits of a base-`p` digit `x < p` recover it. -/
-theorem sum_testBit_mul_pow {p x : ℕ} (hx : x < p) :
-    ∑ j : Fin (digitWidth p), 2 ^ (j : ℕ) * (x.testBit j).toNat = x := by
-  rw [Fin.sum_univ_eq_sum_range (fun j => 2 ^ j * (x.testBit j).toNat)]
-  simp only [toNat_testBit_eq_digit]
-  rw [sum_digit_mul_pow, Nat.mod_eq_of_lt (lt_two_pow_digitWidth hx)]
-
 variable {p k : ℕ}
 
 /-- **Bit decomposition** over `ℤ/p^k`: bit `j` of base-`p` digit `i` of `x`. -/
@@ -113,7 +105,8 @@ theorem bitComp_bitDecomp [NeZero p] (x : ZMod (p ^ k)) : bitComp p k (bitDecomp
   have hdigit (i : Fin k) :
       ∑ j : Fin (digitWidth p), p ^ (i : ℕ) * 2 ^ (j : ℕ) * ((digit p x.val i).testBit j).toNat =
         p ^ (i : ℕ) * digit p x.val i := by
-    simp only [mul_assoc, ← Finset.mul_sum, sum_testBit_mul_pow (digit_lt hp x.val i)]
+    simp only [mul_assoc, ← Finset.mul_sum,
+      Nat.sum_two_pow_mul_testBit (lt_two_pow_digitWidth (digit_lt hp x.val i))]
   simp only [bitComp, bitDecomp, ← Nat.cast_sum, hdigit]
   rw [Fin.sum_univ_eq_sum_range (fun i => p ^ i * digit p x.val i), sum_digit_mul_pow,
     Nat.mod_eq_of_lt (ZMod.val_lt x), ZMod.natCast_zmod_val]

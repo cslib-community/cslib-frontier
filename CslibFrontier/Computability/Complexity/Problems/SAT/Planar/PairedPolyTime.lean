@@ -51,10 +51,6 @@ namespace Cslib.Complexity.SAT.ParsimoniousPlanar
 
 open Cslib.Logic.PL Cslib.Logic.PL.CNF Orthogonal Turing.MultiTapeTM
 
--- `fun_prop` tries lemmas whose encodings do not match the goal; keep each failed attempt from
--- unfolding `ComputableInPolyTime` down to the machine semantics.
-attribute [local irreducible] ComputableInPolyTime
-
 /-- Explicit constructive enumeration of the eight split internal crossover variables. -/
 local instance : FinEnum Crossover.Internal :=
   FinEnum.ofList [.aInnerLeft, .upperLeft, .lowerLeft, .bInnerTop, .bInnerBottom,
@@ -105,38 +101,25 @@ private theorem computable_center : ComputableInPolyTime center encPoint encPoin
 
 private theorem computable_dropLast :
     ComputableInPolyTime (List.dropLast (α := Point)) encRoute encRoute := by
-  have htake : ComputableInPolyTime (fun p : Route × ℕ => p.1.take p.2)
-      (encPair encRoute encUnary) encRoute := by
-    unfold encRoute
-    fun_prop
   change ComputableInPolyTime (fun r : Route => r.dropLast) encRoute encRoute
   simp only [List.dropLast_eq_take]
-  exact htake.comp (ComputableInPolyTime.id'.prod
-    (ComputableInPolyTime.unary_sub' (ComputableInPolyTime.length_list encPoint) (.const 1)))
+  unfold encRoute
+  fun_prop
 
 attribute [local fun_prop] computable_side computable_cellOrigin computable_center
   computableInPolyTime_translate computableInPolyTime_pointAdd computable_dropLast
 
 open PlanarCompile (computable_distinctPoints)
 
+attribute [local fun_prop] PlanarCompile.computableInPolyTime_paths
+  PlanarCompile.computableInPolyTime_crossingSites computable_distinctPoints in
 /-- Ordinary cells are selected from polynomial-size retained paths, without enumerating a
 coordinate box or a domain depending on the numeric magnitude of an input label. -/
 @[fun_prop]
 theorem computableInPolyTime_ordinaryCells :
     ComputableInPolyTime ordinaryCells encCNF encRoute := by
-  have hp := PlanarCompile.computableInPolyTime_paths
-  have hs := PlanarCompile.computableInPolyTime_crossingSites
-  have hd := computable_dropLast.comp (ComputableInPolyTime.snd encCNF encRoute)
-  have hl := ComputableInPolyTime.flatMapWithInput
-    (f := fun (_ : CNF ℕ) (r : Route) => r.dropLast) (encB := encPoint) hp hd
-  have ht : ComputableInPolyTime (fun p : CNF ℕ × Point =>
-      decide (p.2 ∉ crossingSites p.1)) (encPair encCNF encPoint) encBool :=
-    .decide_not (.decide_mem (hs.comp (.fst _ _)) (.snd _ _))
-  have ho : ComputableInPolyTime (fun φ : CNF ℕ =>
-      ((paths φ).flatMap List.dropLast).filter fun p => decide (p ∉ crossingSites φ))
-      encCNF encRoute := .filterWithInput hl ht
-  change ComputableInPolyTime (fun φ => ordinaryCells φ) _ _
-  simpa only [ordinaryCells, Function.comp_def] using computable_distinctPoints.comp ho
+  unfold ordinaryCells encRoute
+  fun_prop
 
 private theorem computable_port :
     ComputableInPolyTime (fun p : List Point × Point × Fin 4 × Fin 2 =>
@@ -152,21 +135,9 @@ private theorem computable_port :
         (Sum.inr (PairedCrossover.terminal p.1 p.2) : (Fin 4 × Fin 2) ⊕ PairedCrossover.Variable))
       (encPair (encFinEnum (Fin 4)) (encFinEnum (Fin 2)))
       (encFinEnum ((Fin 4 × Fin 2) ⊕ PairedCrossover.Variable)) := .of_finite _
-  let input := encPair encRoute (encPair encPoint
-    (encPair (encFinEnum (Fin 4)) (encFinEnum (Fin 2))))
-  have hs : ComputableInPolyTime
-      (fun p : List Point × Point × Fin 4 × Fin 2 => p.1) input encRoute := .fst _ _
-  have hp : ComputableInPolyTime
-      (fun p : List Point × Point × Fin 4 × Fin 2 => p.2.1) input encPoint := by
-    unfold input
-    fun_prop
-  have ha : ComputableInPolyTime
-      (fun p : List Point × Point × Fin 4 × Fin 2 => (p.2.2.1, p.2.2.2)) input
-      (encPair (encFinEnum (Fin 4)) (encFinEnum (Fin 2))) := by
-    unfold input
-    fun_prop
-  have hm := ComputableInPolyTime.decide_mem hs hp
-  exact hp.prod (hm.ite_decide (ht.comp ha) (hi.comp ha))
+  unfold port encRoute encVariable
+  exact ComputableInPolyTime.prod (by fun_prop)
+    (ComputableInPolyTime.ite_decide (by fun_prop) (ht.comp (by fun_prop)) (hi.comp (by fun_prop)))
 
 attribute [local fun_prop] computable_port
 
@@ -221,20 +192,8 @@ attribute [local fun_prop] computable_link
 private theorem computable_links :
     ComputableInPolyTime (fun p : List Point × Route => links p.1 p.2)
       (encPair encRoute encRoute) (encList encPlacedClause) := by
-  have hzip : ComputableInPolyTime (fun p : Route × Route => p.1.zip p.2)
-      (encPair encRoute encRoute) (encList (encPair encPoint encPoint)) := by
-    unfold encRoute
-    fun_prop
-  have htail : ComputableInPolyTime (List.tail (α := Point)) encRoute encRoute := by
-    unfold encRoute
-    fun_prop
-  have hcons : ComputableInPolyTime (List.consecutivePairs (α := Point)) encRoute
-      (encList (encPair encPoint encPoint)) := by
-    unfold List.consecutivePairs
-    exact hzip.comp (ComputableInPolyTime.id'.prod htail)
-  unfold links
-  exact ComputableInPolyTime.flatMapWithInput
-    (hcons.comp (computable_dropLast.comp (ComputableInPolyTime.snd _ _))) (by fun_prop)
+  unfold links List.consecutivePairs encRoute
+  fun_prop
 
 private theorem computable_lastLiteral :
     ComputableInPolyTime (fun p : List Point × Route × Bool => lastLiteral p.1 p.2.1 p.2.2)
@@ -244,11 +203,9 @@ private theorem computable_lastLiteral :
       (encFinEnum (Fin 4)) (encFinEnum (Fin 2)) := .of_finite _
   have he : ComputableInPolyTime PairedPorts.spokeElbow
       (encFinEnum (Fin 4)) encPoint := .of_finite _
-  have hr : ComputableInPolyTime (fun p : List Point × Route × Bool => p.2.1)
-      (encPair encRoute (encPair encRoute encBool)) encRoute := by fun_prop
   have hrlen : ComputableInPolyTime (fun p : List Point × Route × Bool => p.2.1.length)
       (encPair encRoute (encPair encRoute encBool)) encUnary :=
-    (ComputableInPolyTime.length_list encPoint).comp hr
+    (ComputableInPolyTime.length_list encPoint).comp (by fun_prop)
   dsimp only [lastLiteral]
   simp only [List.getLastD_eq_getLast?, List.getLast?_eq_head?_reverse, ← List.headD_eq_head?_getD]
   unfold encRoute at *
@@ -295,20 +252,15 @@ private theorem computable_templateClauses {A : Type} [FinEnum A]
         (encPair encPoint rowEncoding) encPoint := by
       unfold rowEncoding encRoute at *
       fun_prop
-    have hroutes : ComputableInPolyTime
-        (fun _ : Point × (Clause A × ℕ) => incidenceRoutes)
-        (encPair encPoint rowEncoding) (encList routeEntry) := .const _
     have hfroutes : ComputableInPolyTime
         (fun p : Point × (Clause A × ℕ) => incidenceRoutes.filter fun e => e.1 == p.2.2)
         (encPair encPoint rowEncoding) (encList routeEntry) :=
-      ComputableInPolyTime.filterWithInput hroutes (by
+      ComputableInPolyTime.filterWithInput (.const _) (by
         unfold rowEncoding routeEntry
         fun_prop)
     unfold rowEncoding routeEntry encPlacedClause Clause.relabel encVariable Prod.map at *
     fun_prop
-  have hlist : ComputableInPolyTime (fun _ : Point => ψ.zipIdx)
-      encPoint (encList rowEncoding) := .const _
-  simpa only [Function.comp_def] using ComputableInPolyTime.mapWithInput hlist hbody
+  simpa only [Function.comp_def] using ComputableInPolyTime.mapWithInput (.const _) hbody
 
 private theorem computable_ordinaryClauses :
     ComputableInPolyTime ordinaryClauses encPoint (encList encPlacedClause) := by
@@ -347,10 +299,8 @@ theorem computableInPolyTime_rawFormula :
 Compact ranks are computed as unary counters and then encoded in binary. -/
 @[fun_prop]
 theorem computableInPolyTime_formula : ComputableInPolyTime formula encCNF encCNF := by
-  have hu := (CNF.isPolyTime_compact encVariable).comp computableInPolyTime_rawFormula
-  have hi : ComputableInPolyTime (fun n : ℕ => n) encUnary encNat :=
-    ComputableInPolyTime.unary_to_binary
-  have hr := (CNF.computableInPolyTime_relabel hi).comp hu
+  have hr := (CNF.computableInPolyTime_relabel ComputableInPolyTime.unary_to_binary).comp
+    ((CNF.isPolyTime_compact encVariable).comp computableInPolyTime_rawFormula)
   have he (ψ : CNF ℕ) : ψ.relabel (fun n : ℕ => n) = ψ := CNF.relabel_id ψ
   change ComputableInPolyTime (fun φ => (rawFormula φ).compact) _ _
   simpa only [Function.comp_def, he, encCNF] using hr

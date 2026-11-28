@@ -79,215 +79,115 @@ theorem card_filter_card_ge_le {α : Type*} {p d : ℕ} (hp : 1 ≤ p) {Δ : Fin
   | base =>
     simp only [Nat.sub_self, pow_zero, one_mul]
     rw [Nat.factorial_one, one_mul, pow_one] at hcap
-    have h1 : #{I ∈ Δ | 1 ≤ #I} ≤ #Δ := card_filter_le _ _
-    have h2 : #Δ ≤ 2 ^ #(Δ.biUnion id) := by
-      simpa only [card_powerset] using card_le_card (subset_biUnion_powerset Δ)
-    rw [card_biUnion_eq_card_singletons hdown] at h2
-    exact (h1.trans h2).trans (Nat.pow_le_pow_right (by decide : 0 < 2) hcap)
+    have h2 := card_le_card (subset_biUnion_powerset Δ)
+    rw [card_powerset, card_biUnion_eq_card_singletons hdown] at h2
+    exact (card_filter_le _ _).trans (h2.trans (Nat.pow_le_pow_right two_pos hcap))
   | succ q hq ih_p =>
     simp only [Nat.add_sub_cancel]
-    rcases Nat.eq_zero_or_pos d with rfl | hdpos
-    · rw [zero_pow (by omega)] at hcap
-      have hemp0 : #{I ∈ Δ | #I = q + 1} = 0 :=
-        (Nat.mul_eq_zero.mp (Nat.le_zero.mp hcap)).resolve_left (Nat.factorial_pos (q + 1)).ne'
-      have hemp : ({I ∈ Δ | q + 1 ≤ #I} : Finset _) = ∅ := by
-        rw [eq_empty_iff_forall_notMem]
-        intro I hI
-        obtain ⟨hIΔ, hIq⟩ := mem_filter.mp hI
-        obtain ⟨J, hJI, hJcard⟩ := exists_subset_card_eq hIq
-        have hJmem : J ∈ ({I ∈ Δ | #I = q + 1} : Finset _) :=
-          mem_filter.mpr ⟨hdown hJI hIΔ, hJcard⟩
-        have hpos : 0 < #{I ∈ Δ | #I = q + 1} := card_pos.mpr ⟨J, hJmem⟩
-        omega
-      rw [hemp, card_empty]
-      exact Nat.zero_le _
-    · suffices ∀ v (Γ : Finset (Finset α)),
-          (∀ ⦃I J : Finset α⦄, J ⊆ I → I ∈ Γ → J ∈ Γ) →
-          (q + 1).factorial * #{I ∈ Γ | #I = q + 1} ≤ d ^ (q + 1) →
-          #{I ∈ Γ | #I = 1} = v →
-          #{I ∈ Γ | q + 1 ≤ #I} ≤ v ^ q * 2 ^ d from
-        this _ Δ hdown hcap rfl
-      intro v
-      induction v using Nat.strong_induction_on with
-      | ind v ih_v =>
-        intro Γ hΓ hΓcap hv
-        set U₁ : Finset α := Γ.biUnion id
-        have hU₁ : #U₁ = v := (card_biUnion_eq_card_singletons hΓ).trans hv
-        rcases Nat.eq_zero_or_pos v with rfl | hvpos
-        · have hU₁_emp : U₁ = ∅ := card_eq_zero.mp hU₁
-          have hemp : ({I ∈ Γ | q + 1 ≤ #I} : Finset _) = ∅ := by
-            rw [eq_empty_iff_forall_notMem]
-            intro I hI
-            obtain ⟨hIΓ, hIq⟩ := mem_filter.mp hI
-            have hsubI : I ⊆ U₁ := mem_powerset.mp (subset_biUnion_powerset Γ hIΓ)
-            rw [hU₁_emp, subset_empty] at hsubI
-            subst hsubI
-            simp at hIq
-          rw [hemp, card_empty]
-          exact Nat.zero_le _
-        · by_cases hvd : v ≤ d
-          · have h1 : #{I ∈ Γ | q + 1 ≤ #I} ≤ #Γ := card_filter_le _ _
-            have h2 : #Γ ≤ 2 ^ v := by
-              rw [← hU₁]
-              simpa only [card_powerset] using card_le_card (subset_biUnion_powerset Γ)
-            calc #{I ∈ Γ | q + 1 ≤ #I} ≤ 2 ^ v := h1.trans h2
-              _ ≤ 2 ^ d := Nat.pow_le_pow_right (by decide : 0 < 2) hvd
-              _ = 1 * 2 ^ d := (one_mul _).symm
-              _ ≤ v ^ q * 2 ^ d := Nat.mul_le_mul_right _ (Nat.one_le_pow q v hvpos)
-          · push Not at hvd
-            set Γtop : Finset (Finset α) := {E ∈ Γ | #E = q + 1}
-            let deg (i : α) : ℕ := #{E ∈ Γtop | i ∈ E}
-            have hU₁_ne : U₁.Nonempty := card_pos.mp (hU₁.symm ▸ hvpos)
-            obtain ⟨i₀, hi₀U, hmin⟩ := exists_min_image U₁ deg hU₁_ne
-            have hsum_deg : ∑ i ∈ U₁, deg i = (q + 1) * #Γtop := by
-              have hswap : (∑ i ∈ U₁, ∑ E ∈ Γtop, if i ∈ E then 1 else 0) =
-                  ∑ E ∈ Γtop, ∑ i ∈ U₁, if i ∈ E then 1 else 0 := sum_comm
-              have hinner_i (i : α) :
-                  (∑ E ∈ Γtop, if i ∈ E then 1 else 0) = deg i := by
-                simp only [deg, sum_boole, Nat.cast_id]
-              have hinner_E (E : Finset α) (hE : E ∈ Γtop) :
-                  (∑ i ∈ U₁, if i ∈ E then 1 else 0) = q + 1 := by
-                obtain ⟨hEΓ, hEq⟩ := mem_filter.mp hE
-                have hEU : E ⊆ U₁ := mem_powerset.mp (subset_biUnion_powerset Γ hEΓ)
-                rw [sum_boole, Nat.cast_id, filter_mem_eq_inter, inter_eq_right.mpr hEU, hEq]
-              rw [← sum_congr rfl fun i _ => hinner_i i, hswap,
-                sum_congr rfl hinner_E, sum_const, nsmul_eq_mul, Nat.cast_id, mul_comm]
-            have hmul_deg : v * deg i₀ ≤ (q + 1) * #Γtop := by
-              calc v * deg i₀ = ∑ _i ∈ U₁, deg i₀ := by
-                    rw [sum_const, hU₁, nsmul_eq_mul, Nat.cast_id]
-                _ ≤ ∑ i ∈ U₁, deg i := sum_le_sum fun i hi => hmin i hi
-                _ = (q + 1) * #Γtop := hsum_deg
-            have hdeg_cap : q.factorial * deg i₀ ≤ d ^ q := by
-              have h1 : v * (q.factorial * deg i₀) ≤ d * d ^ q := by
-                calc v * (q.factorial * deg i₀)
-                    = q.factorial * (v * deg i₀) := by ring
-                  _ ≤ q.factorial * ((q + 1) * #Γtop) := Nat.mul_le_mul_left _ hmul_deg
-                  _ = (q + 1).factorial * #Γtop := by rw [Nat.factorial_succ]; ring
-                  _ ≤ d ^ (q + 1) := hΓcap
-                  _ = d * d ^ q := by rw [pow_succ']
-              by_contra! hgt
-              have h3 : d * d ^ q + 1 ≤ (d + 1) * (d ^ q + 1) := by ring_nf; omega
-              have h4 : (d + 1) * (d ^ q + 1) ≤ v * (q.factorial * deg i₀) :=
-                Nat.mul_le_mul hvd hgt
-              omega
-            set Γdel : Finset (Finset α) := {I ∈ Γ | i₀ ∉ I}
-            set Γlink : Finset (Finset α) := ({E ∈ Γ | i₀ ∈ E}).image (·.erase i₀)
-            have hmem_link (J : Finset α) : J ∈ Γlink ↔ i₀ ∉ J ∧ insert i₀ J ∈ Γ := by
-              simp only [Γlink, mem_image, mem_filter]
-              constructor
-              · rintro ⟨E, ⟨hEΓ, hiE⟩, rfl⟩
-                exact ⟨notMem_erase i₀ E, (insert_erase hiE).symm ▸ hEΓ⟩
-              · rintro ⟨hni, hins⟩
-                exact ⟨insert i₀ J, ⟨hins, mem_insert_self i₀ J⟩, erase_insert hni⟩
-            have hdel_down : ∀ ⦃I J : Finset α⦄, J ⊆ I → I ∈ Γdel → J ∈ Γdel := by
-              intro I J hJI hI
-              obtain ⟨hIΓ, hni⟩ := mem_filter.mp hI
-              exact mem_filter.mpr ⟨hΓ hJI hIΓ, fun hj => hni (hJI hj)⟩
-            have hdel_cap : (q + 1).factorial * #{I ∈ Γdel | #I = q + 1} ≤ d ^ (q + 1) := by
-              refine (Nat.mul_le_mul_left _ (card_le_card fun I hI => ?_)).trans hΓcap
-              obtain ⟨hIdel, hIq⟩ := mem_filter.mp hI
-              exact mem_filter.mpr ⟨(mem_filter.mp hIdel).1, hIq⟩
-            have hdel_1 : #{I ∈ Γdel | #I = 1} = v - 1 := by
-              obtain ⟨E₀, hE₀, hi₀E⟩ := mem_biUnion.mp hi₀U
-              have hi₀_mem : ({i₀} : Finset α) ∈ ({I ∈ Γ | #I = 1} : Finset _) :=
-                mem_filter.mpr ⟨hΓ (singleton_subset_iff.mpr hi₀E) hE₀, card_singleton i₀⟩
-              have heq : ({I ∈ Γdel | #I = 1} : Finset _) =
-                  ({I ∈ Γ | #I = 1} : Finset _).erase {i₀} := by
-                ext I
-                simp only [Γdel, mem_filter, mem_erase]
-                constructor
-                · rintro ⟨⟨hI, hni⟩, hc⟩
-                  exact ⟨fun h => hni (h ▸ mem_singleton_self i₀), hI, hc⟩
-                · rintro ⟨hne, hI, hc⟩
-                  obtain ⟨j, rfl⟩ := card_eq_one.mp hc
-                  refine ⟨⟨hI, fun hj => hne ?_⟩, card_singleton j⟩
-                  rw [mem_singleton.mp hj]
-              rw [heq, card_erase_of_mem hi₀_mem, hv]
-            have hdel_bound : #{I ∈ Γdel | q + 1 ≤ #I} ≤ (v - 1) ^ q * 2 ^ d :=
-              ih_v (v - 1) (by omega) Γdel hdel_down hdel_cap hdel_1
-            have hlink_down : ∀ ⦃I J : Finset α⦄, J ⊆ I → I ∈ Γlink → J ∈ Γlink := by
-              intro I J hJI hI
-              obtain ⟨hni, hins⟩ := (hmem_link I).mp hI
-              exact (hmem_link J).mpr ⟨fun hj => hni (hJI hj),
-                hΓ (insert_subset_insert i₀ hJI) hins⟩
-            have hlink_1 : #{J ∈ Γlink | #J = 1} ≤ v - 1 := by
-              rw [← hdel_1]
-              refine card_le_card fun J hJ => ?_
-              obtain ⟨hJl, hJq⟩ := mem_filter.mp hJ
-              obtain ⟨hni, hins⟩ := (hmem_link J).mp hJl
-              exact mem_filter.mpr ⟨mem_filter.mpr ⟨hΓ (subset_insert i₀ J) hins, hni⟩, hJq⟩
-            have hlink_q : #{J ∈ Γlink | #J = q} = deg i₀ := by
-              refine card_bij (fun J _ => insert i₀ J)
-                (fun J hJ => by
-                  obtain ⟨hJl, hJq⟩ := mem_filter.mp hJ
-                  obtain ⟨hni, hins⟩ := (hmem_link J).mp hJl
-                  exact mem_filter.mpr ⟨mem_filter.mpr ⟨hins, by
-                    rw [card_insert_of_notMem hni, hJq]⟩, mem_insert_self i₀ J⟩)
-                (fun J₁ hJ₁ J₂ hJ₂ heq => by
-                  have hni₁ := ((hmem_link J₁).mp (mem_filter.mp hJ₁).1).1
-                  have hni₂ := ((hmem_link J₂).mp (mem_filter.mp hJ₂).1).1
-                  have h := congrArg (fun S => S.erase i₀) heq
-                  rwa [erase_insert hni₁, erase_insert hni₂] at h)
-                fun E hE => by
-                  obtain ⟨hEt, hiE⟩ := mem_filter.mp hE
-                  obtain ⟨hEΓ, hEq⟩ := mem_filter.mp hEt
-                  refine ⟨E.erase i₀, mem_filter.mpr ⟨(hmem_link _).mpr ⟨notMem_erase i₀ E, ?_⟩,
-                    ?_⟩, insert_erase hiE⟩
-                  · rw [insert_erase hiE]; exact hEΓ
-                  · have := card_erase_of_mem hiE; omega
-            have hlink_cap : q.factorial * #{J ∈ Γlink | #J = q} ≤ d ^ q := by
-              rwa [hlink_q]
-            have hlink_bound : #{J ∈ Γlink | q ≤ #J} ≤ (v - 1) ^ (q - 1) * 2 ^ d := by
-              calc #{J ∈ Γlink | q ≤ #J}
-                  ≤ #{J ∈ Γlink | #J = 1} ^ (q - 1) * 2 ^ d := ih_p hlink_down hlink_cap
-                _ ≤ (v - 1) ^ (q - 1) * 2 ^ d :=
-                    Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hlink_1 _)
-            have hwith_card : #{I ∈ Γ | q + 1 ≤ #I ∧ i₀ ∈ I} = #{J ∈ Γlink | q ≤ #J} := by
-              refine card_bij (fun I _ => I.erase i₀)
-                (fun I hI => by
-                  obtain ⟨hIΓ, hIq, hiI⟩ := mem_filter.mp hI
-                  refine mem_filter.mpr ⟨(hmem_link _).mpr ⟨notMem_erase i₀ I, ?_⟩, ?_⟩
-                  · rw [insert_erase hiI]; exact hIΓ
-                  · have := card_erase_of_mem hiI; omega)
-                (fun I₁ hI₁ I₂ hI₂ heq => by
-                  have hi₁ := (mem_filter.mp hI₁).2.2
-                  have hi₂ := (mem_filter.mp hI₂).2.2
-                  rw [← insert_erase hi₁, ← insert_erase hi₂, heq])
-                fun J hJ => by
-                  obtain ⟨hJl, hJq⟩ := mem_filter.mp hJ
-                  obtain ⟨hni, hins⟩ := (hmem_link J).mp hJl
-                  refine ⟨insert i₀ J, mem_filter.mpr ⟨hins, ?_, mem_insert_self i₀ J⟩,
-                    erase_insert hni⟩
-                  rw [card_insert_of_notMem hni]
-                  omega
-            have hsplit : #{I ∈ Γ | q + 1 ≤ #I} =
-                #{I ∈ Γdel | q + 1 ≤ #I} + #{I ∈ Γ | q + 1 ≤ #I ∧ i₀ ∈ I} := by
-              set BIG := ({I ∈ Γ | q + 1 ≤ #I} : Finset _)
-              have hp1 : ({I ∈ Γdel | q + 1 ≤ #I} : Finset _) =
-                  BIG.filter (fun I => ¬ i₀ ∈ I) := by
-                ext I; simp only [BIG, Γdel, mem_filter]; tauto
-              have hp2 : ({I ∈ Γ | q + 1 ≤ #I ∧ i₀ ∈ I} : Finset _) =
-                  BIG.filter (fun I => i₀ ∈ I) := by
-                ext I; simp only [BIG, mem_filter]; tauto
-              have hsum := card_filter_add_card_filter_not (s := BIG) (fun I => i₀ ∈ I)
-              rw [hp1, hp2]
-              omega
-            have hpow_step : (v - 1) ^ q + (v - 1) ^ (q - 1) ≤ v ^ q := by
-              set u := v - 1
-              have huv : v = u + 1 := by omega
-              have hqu : u ^ q = u * u ^ (q - 1) := by
-                conv_lhs => rw [show q = q - 1 + 1 by omega, pow_succ']
-              calc u ^ q + u ^ (q - 1) = (u + 1) * u ^ (q - 1) := by rw [hqu]; ring
-                _ ≤ (u + 1) * (u + 1) ^ (q - 1) :=
-                    Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Nat.le_succ u) _)
-                _ = (u + 1) ^ q := by
-                    conv_rhs => rw [show q = q - 1 + 1 by omega, pow_succ']
-                _ = v ^ q := by rw [← huv]
-            calc #{I ∈ Γ | q + 1 ≤ #I}
-                = #{I ∈ Γdel | q + 1 ≤ #I} + #{J ∈ Γlink | q ≤ #J} := by
-                  rw [hsplit, hwith_card]
-              _ ≤ (v - 1) ^ q * 2 ^ d + (v - 1) ^ (q - 1) * 2 ^ d := by gcongr
-              _ = ((v - 1) ^ q + (v - 1) ^ (q - 1)) * 2 ^ d := (add_mul _ _ _).symm
-              _ ≤ v ^ q * 2 ^ d := Nat.mul_le_mul_right _ hpow_step
+    suffices ∀ v (Γ : Finset (Finset α)),
+        (∀ ⦃I J : Finset α⦄, J ⊆ I → I ∈ Γ → J ∈ Γ) →
+        (q + 1).factorial * #{I ∈ Γ | #I = q + 1} ≤ d ^ (q + 1) →
+        #{I ∈ Γ | #I = 1} = v →
+        #{I ∈ Γ | q + 1 ≤ #I} ≤ v ^ q * 2 ^ d from
+      this _ Δ hdown hcap rfl
+    intro v
+    induction v using Nat.strong_induction_on with
+    | ind v ih_v =>
+      intro Γ hΓ hΓcap hv
+      set U₁ : Finset α := Γ.biUnion id
+      have hU₁ : #U₁ = v := (card_biUnion_eq_card_singletons hΓ).trans hv
+      have hsub {I : Finset α} (hI : I ∈ Γ) : I ⊆ U₁ :=
+        mem_powerset.mp (subset_biUnion_powerset Γ hI)
+      rcases Nat.eq_zero_or_pos v with rfl | hvpos
+      · refine (card_eq_zero.mpr (filter_eq_empty_iff.mpr fun I hI => ?_)).trans_le (Nat.zero_le _)
+        simp [subset_empty.mp (le_of_le_of_eq (hsub hI) (card_eq_zero.mp hU₁))]
+      by_cases hvd : v ≤ d
+      · have h2 : #Γ ≤ #U₁.powerset := card_le_card (subset_biUnion_powerset Γ)
+        rw [card_powerset, hU₁] at h2
+        exact (card_filter_le _ _).trans <| h2.trans <| (Nat.pow_le_pow_right two_pos hvd).trans
+          (Nat.le_mul_of_pos_left _ (pow_pos hvpos q))
+      push Not at hvd
+      set Γtop : Finset (Finset α) := {E ∈ Γ | #E = q + 1}
+      let deg (i : α) : ℕ := #{E ∈ Γtop | i ∈ E}
+      obtain ⟨i₀, hi₀U, hmin⟩ := exists_min_image U₁ deg (card_pos.mp (hU₁.symm ▸ hvpos))
+      have hsum_deg : ∑ i ∈ U₁, deg i = #Γtop * (q + 1) := by
+        simp only [deg, card_filter]
+        rw [sum_comm]
+        refine sum_const_nat fun E hE => ?_
+        rw [← card_filter, filter_mem_eq_inter, inter_eq_right.mpr (hsub (mem_filter.mp hE).1),
+          (mem_filter.mp hE).2]
+      have hdeg_cap : q.factorial * deg i₀ ≤ d ^ q := by
+        refine Nat.le_of_mul_le_mul_left ?_ hvpos
+        have hmul : v * deg i₀ ≤ #Γtop * (q + 1) := by
+          simpa only [hU₁, hsum_deg, nsmul_eq_mul, Nat.cast_id] using
+            card_nsmul_le_sum U₁ deg (deg i₀) hmin
+        calc v * (q.factorial * deg i₀) = q.factorial * (v * deg i₀) := by ring
+          _ ≤ q.factorial * (#Γtop * (q + 1)) := Nat.mul_le_mul_left _ hmul
+          _ = (q + 1).factorial * #Γtop := by rw [Nat.factorial_succ]; ring
+          _ ≤ d ^ (q + 1) := hΓcap
+          _ ≤ v * d ^ q := by rw [pow_succ']; exact Nat.mul_le_mul_right _ hvd.le
+      set Γdel : Finset (Finset α) := {I ∈ Γ | i₀ ∉ I}
+      set Γlink : Finset (Finset α) := ({E ∈ Γ | i₀ ∈ E}).image (·.erase i₀)
+      have hmem_link (J : Finset α) : J ∈ Γlink ↔ i₀ ∉ J ∧ insert i₀ J ∈ Γ := by
+        simp only [Γlink, mem_image, mem_filter]
+        exact ⟨fun ⟨E, ⟨hEΓ, hiE⟩, hJE⟩ => hJE ▸ ⟨notMem_erase i₀ E, (insert_erase hiE).symm ▸ hEΓ⟩,
+          fun ⟨hni, hins⟩ => ⟨insert i₀ J, ⟨hins, mem_insert_self i₀ J⟩, erase_insert hni⟩⟩
+      have hdel_down : ∀ ⦃I J : Finset α⦄, J ⊆ I → I ∈ Γdel → J ∈ Γdel := fun _ _ hJI hI =>
+        mem_filter.mpr ⟨hΓ hJI (mem_filter.mp hI).1, fun hj => (mem_filter.mp hI).2 (hJI hj)⟩
+      have hdel_cap : (q + 1).factorial * #{I ∈ Γdel | #I = q + 1} ≤ d ^ (q + 1) :=
+        (Nat.mul_le_mul_left _ (card_le_card (filter_subset_filter _ (filter_subset _ _)))).trans
+          hΓcap
+      have hdel_1 : #{I ∈ Γdel | #I = 1} = v - 1 := by
+        obtain ⟨E₀, hE₀, hi₀E⟩ := mem_biUnion.mp hi₀U
+        have heq : ({I ∈ Γdel | #I = 1} : Finset _) =
+            ({I ∈ Γ | #I = 1} : Finset _).erase {i₀} := Finset.ext fun I => by
+          simp only [Γdel, mem_filter, mem_erase]
+          refine ⟨fun ⟨⟨hI, hni⟩, hc⟩ => ⟨fun h => hni (h ▸ mem_singleton_self i₀), hI, hc⟩, ?_⟩
+          rintro ⟨hne, hI, hc⟩
+          obtain ⟨j, rfl⟩ := card_eq_one.mp hc
+          exact ⟨⟨hI, fun hj => hne (by rw [mem_singleton.mp hj])⟩, card_singleton j⟩
+        rw [heq, card_erase_of_mem (mem_filter.mpr ⟨hΓ (singleton_subset_iff.mpr hi₀E) hE₀,
+          card_singleton i₀⟩), hv]
+      have hlink_down : ∀ ⦃I J : Finset α⦄, J ⊆ I → I ∈ Γlink → J ∈ Γlink := fun I J hJI hI =>
+        let ⟨hni, hins⟩ := (hmem_link I).mp hI
+        (hmem_link J).mpr ⟨fun hj => hni (hJI hj), hΓ (insert_subset_insert i₀ hJI) hins⟩
+      have hlink_1 : #{J ∈ Γlink | #J = 1} ≤ v - 1 := by
+        rw [← hdel_1]
+        refine card_le_card (filter_subset_filter _ fun J hJ => ?_)
+        obtain ⟨hni, hins⟩ := (hmem_link J).mp hJ
+        exact mem_filter.mpr ⟨hΓ (subset_insert i₀ J) hins, hni⟩
+      have hlink_card (P : ℕ → Prop) [DecidablePred P] :
+          #{J ∈ Γlink | P (#J + 1)} = #{I ∈ Γ | P #I ∧ i₀ ∈ I} := by
+        refine card_nbij' (insert i₀) (·.erase i₀) (fun J hJ => ?_) (fun I hI => ?_)
+          (fun J hJ => erase_insert ((hmem_link J).mp (mem_filter.mp hJ).1).1)
+          fun I hI => insert_erase (mem_filter.mp hI).2.2
+        · obtain ⟨hJl, hJP⟩ := mem_filter.mp hJ
+          obtain ⟨hni, hins⟩ := (hmem_link J).mp hJl
+          exact mem_filter.mpr ⟨hins, by rwa [card_insert_of_notMem hni], mem_insert_self i₀ J⟩
+        · obtain ⟨hIΓ, hIP, hiI⟩ := mem_filter.mp hI
+          exact mem_filter.mpr ⟨(hmem_link _).mpr ⟨notMem_erase i₀ I,
+            (insert_erase hiI).symm ▸ hIΓ⟩, (card_erase_add_one hiI).symm ▸ hIP⟩
+      have hlink_bound : #{J ∈ Γlink | q ≤ #J} ≤ (v - 1) ^ (q - 1) * 2 ^ d := by
+        refine (ih_p hlink_down ?_).trans (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hlink_1 _))
+        simpa only [← hlink_card (· = q + 1), Nat.add_right_cancel_iff, deg, Γtop,
+          filter_filter] using hdeg_cap
+      have hsplit : #{I ∈ Γ | q + 1 ≤ #I} =
+          #{I ∈ Γdel | q + 1 ≤ #I} + #{I ∈ Γ | q + 1 ≤ #I ∧ i₀ ∈ I} := by
+        rw [← card_filter_add_card_filter_not (s := ({I ∈ Γ | q + 1 ≤ #I} : Finset _))
+          (fun I => i₀ ∉ I)]
+        simp only [Γdel, filter_filter, not_not, and_comm]
+      have hpow_step : (v - 1) ^ q + (v - 1) ^ (q - 1) ≤ v ^ q := by
+        obtain ⟨u, rfl⟩ : ∃ u, v = u + 1 := ⟨v - 1, by omega⟩
+        obtain ⟨r, rfl⟩ : ∃ r, q = r + 1 := ⟨q - 1, by omega⟩
+        simp only [Nat.add_sub_cancel]
+        calc u ^ (r + 1) + u ^ r = (u + 1) * u ^ r := by ring
+          _ ≤ (u + 1) * (u + 1) ^ r := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) r)
+          _ = (u + 1) ^ (r + 1) := (pow_succ' _ _).symm
+      calc #{I ∈ Γ | q + 1 ≤ #I}
+          = #{I ∈ Γdel | q + 1 ≤ #I} + #{J ∈ Γlink | q ≤ #J} := by
+            simp only [hsplit, ← hlink_card (q + 1 ≤ ·), Nat.add_le_add_iff_right]
+        _ ≤ (v - 1) ^ q * 2 ^ d + (v - 1) ^ (q - 1) * 2 ^ d :=
+          add_le_add (ih_v (v - 1) (by omega) Γdel hdel_down hdel_cap hdel_1) hlink_bound
+        _ ≤ v ^ q * 2 ^ d := by rw [← add_mul]; exact Nat.mul_le_mul_right _ hpow_step
 
 end Finset

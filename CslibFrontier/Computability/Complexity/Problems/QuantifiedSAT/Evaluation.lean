@@ -40,13 +40,12 @@ private theorem updates_assigned (vs : List ℕ) (w : List Bool) (σ : ℕ → B
       rw [QBF.updates, ih]
       simp only [assigned, List.zip_cons_cons, List.reverse_cons, List.find?_append,
         List.find?_cons, List.find?_nil]
-      generalize (vs.zip w).reverse.find? (fun p => p.1 == v) = found
-      cases found with
+      cases (vs.zip w).reverse.find? (fun p => p.1 == v) with
       | none =>
-        by_cases h : x = v
-        · subst x; simp
+        rcases eq_or_ne x v with rfl | h
+        · simp
         · simp [Ne.symm h, beq_eq_false_iff_ne.mpr h]
-      | some p => simp
+      | some _ => simp
 
 /-- A list whose indicator is the assignment made by `w` along `vs`, starting with every
 variable false. Duplicate variable names obey the usual last-assignment convention. -/
@@ -55,19 +54,15 @@ def trueVars (vs : List ℕ) (w : List Bool) : List ℕ :=
 
 private theorem assigned_none_of_notMem {vs : List ℕ} {v : ℕ} (h : v ∉ vs) (w : List Bool) :
     assigned vs w v = none := by
-  suffices (vs.zip w).reverse.find? (fun p => p.1 == v) = none by simp [assigned, this]
-  rw [List.find?_eq_none]
-  intro p hp
-  have hp' := (List.of_mem_zip (List.mem_reverse.mp hp)).1
-  simpa only [beq_iff_eq] using (fun heq : p.1 = v => h (heq ▸ hp'))
+  simp only [assigned, Option.map_eq_none_iff, List.find?_eq_none, List.mem_reverse, beq_iff_eq]
+  rintro p hp rfl
+  exact h (List.of_mem_zip hp).1
 
 /-- The indicator list computes the assignment made by the word. -/
 theorem contains_trueVars (vs : List ℕ) (w : List Bool) (v : ℕ) :
     (trueVars vs w).contains v = QBF.updates (fun _ => false) vs w v := by
   rw [updates_assigned]
-  by_cases hv : v ∈ vs
-  · simp [trueVars, hv]
-  · simp [trueVars, hv, assigned_none_of_notMem hv]
+  by_cases hv : v ∈ vs <;> simp [trueVars, hv, assigned_none_of_notMem]
 
 private theorem assigned_polyTime :
     ComputableInPolyTime (fun p : (List ℕ × List Bool) × ℕ => assigned p.1.1 p.1.2 p.2)

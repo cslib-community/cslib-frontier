@@ -84,7 +84,7 @@ theorem labels_inSpace (k : ℕ) :
   have hwidth := of_inO encArgs_width_inO
   have hlabel (child : ℕ) := budget_comp_linear AssignmentLabels.label_bits_inSpace
     (budget_prod hlimit (budget_prod hcounter (budget_prod hstride
-      (budget_prod hwidth (budget_const (encB := encNat) child (.refl _))))))
+      (budget_prod hwidth (budget_const (encB := encNat) child)))))
   have hproviders := pi_linear fun h : Fin k => pi_linear fun δ : Fin 3 =>
     hlabel (1 + 3 * h.val + δ.val)
   exact encWords_mk_budget (hlabel 0) hproviders

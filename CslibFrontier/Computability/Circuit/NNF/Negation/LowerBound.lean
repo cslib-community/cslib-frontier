@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.NNF.Rectangle
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CubicEdgeColoring
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
@@ -111,12 +112,7 @@ theorem mate_mate_mem_otherNbrs {c c' : Fin 3} (h : c' ≠ c) (u : V) :
   mem_union_right _ (mem_image.mpr ⟨c', mem_erase.mpr ⟨h, mem_univ _⟩, rfl⟩)
 
 theorem card_otherNbrs_le (c : Fin 3) (u : V) : (M.otherNbrs c u).card ≤ 4 := by
-  have h : ((univ : Finset (Fin 3)).erase c).card = 2 := by simp
-  refine (card_union_le _ _).trans ?_
-  have h1 := card_image_le (s := (univ : Finset (Fin 3)).erase c) (f := fun c' => M.mate c' u)
-  have h2 := card_image_le (s := (univ : Finset (Fin 3)).erase c)
-    (f := fun c' => M.mate c' (M.mate c u))
-  omega
+  exact (card_union_le _ _).trans ((add_le_add card_image_le card_image_le).trans_eq (by simp))
 
 theorem self_notMem_otherNbrs (c : Fin 3) (u : V) : u ∉ M.otherNbrs c u := by
   simp only [otherNbrs, mem_union, mem_image, mem_erase, mem_univ, and_true, not_or, not_exists,
@@ -143,21 +139,15 @@ theorem mem_edgeNbhd_iff {c : Fin 3} {u t : V} :
       M.toSimpleGraph.Adj (M.mate c u) t := by
   simp only [edgeNbhd, mem_insert, toSimpleGraph_adj]
   constructor
-  · rintro (h | h | h)
-    · exact .inl h
-    · exact .inr (.inl h)
-    · simp only [otherNbrs, mem_union, mem_image, mem_erase, mem_univ, and_true] at h
-      rcases h with ⟨c', -, h⟩ | ⟨c', -, h⟩
-      exacts [.inr (.inr (.inl ⟨c', h⟩)), .inr (.inr (.inr ⟨c', h⟩))]
+  · simp only [otherNbrs, mem_union, mem_image, mem_erase, mem_univ, and_true]
+    rintro (h | h | ⟨c', -, h⟩ | ⟨c', -, h⟩)
+    exacts [.inl h, .inr (.inl h), .inr (.inr (.inl ⟨c', h⟩)), .inr (.inr (.inr ⟨c', h⟩))]
   · rintro (h | h | ⟨c', rfl⟩ | ⟨c', rfl⟩)
     · exact .inl h
     · exact .inr (.inl h)
-    · by_cases hc : c' = c
-      · exact .inr (.inl (hc ▸ rfl))
-      · exact .inr (.inr (mate_mem_otherNbrs hc u))
-    · by_cases hc : c' = c
-      · subst hc; exact .inl (M.mate_mate c' u)
-      · exact .inr (.inr (mate_mate_mem_otherNbrs hc u))
+    · exact if hc : c' = c then .inr (.inl (hc ▸ rfl)) else .inr (.inr (mate_mem_otherNbrs hc u))
+    · exact if hc : c' = c then .inl (hc ▸ M.mate_mate c' u)
+        else .inr (.inr (mate_mate_mem_otherNbrs hc u))
 
 variable (M) in
 /-- `S` lists the ends in `A` of edges of colour `c` crossing from `A` to its complement, with
@@ -249,14 +239,11 @@ theorem notMem_edgeNbhd {u u' : V} (hu : u ∈ S) (hu' : u' ∈ S) (hne : u ≠ 
 theorem otherNbrs_notMem_ends {u t : V} (hu : u ∈ S) (ht : t ∈ M.otherNbrs c u) :
     t ∉ M.ends c S := by
   rw [mem_ends]
-  rintro ⟨u', hu', htu⟩
-  by_cases h : u = u'
-  · rw [← h] at htu
-    rcases htu with htu | htu <;> rw [htu] at ht
-    exacts [self_notMem_otherNbrs c u ht, mate_notMem_otherNbrs c u ht]
-  · have hn := hS.notMem_edgeNbhd hu hu' h (otherNbrs_subset_edgeNbhd c u ht)
-    rcases htu with htu | htu <;> rw [htu] at hn
-    exacts [hn (self_mem_edgeNbhd c u'), hn (mate_mem_edgeNbhd c u')]
+  rintro ⟨u', hu', rfl | rfl⟩
+  · exact if h : u = t then self_notMem_otherNbrs c t (h ▸ ht)
+      else hS.notMem_edgeNbhd hu hu' h (otherNbrs_subset_edgeNbhd c u ht) (self_mem_edgeNbhd c _)
+  · exact if h : u = u' then mate_notMem_otherNbrs c u' (h ▸ ht)
+      else hS.notMem_edgeNbhd hu hu' h (otherNbrs_subset_edgeNbhd c u ht) (mate_mem_edgeNbhd c _)
 
 /-- An edge of another colour at an end of a listed edge leads off the ends. -/
 theorem mate_notMem_ends {a : V} (ha : a ∈ M.ends c S) {c' : Fin 3} (hc' : c' ≠ c) :
@@ -293,14 +280,11 @@ noncomputable def witness (u : V) (x : V → Bool) : V :=
 
 theorem witness_congr {u : V} {x x' : V → Bool} (h : ∀ t ∉ M.ends c S, x t = x' t) :
     M.witness c S R u x = M.witness c S R u x' := by
-  have hiff : (∃ y ∈ R, M.IsIndep y ∧ (∀ t ∉ M.ends c S, y t = x t) ∧ y u = true) ↔
-      (∃ y ∈ R, M.IsIndep y ∧ (∀ t ∉ M.ends c S, y t = x' t) ∧ y u = true) :=
-    exists_congr fun y => and_congr_right fun _ => and_congr_right fun _ => and_congr_left
-      fun _ => forall₂_congr fun t ht => by rw [h t ht]
+  classical
   unfold witness
-  by_cases h1 : ∃ y ∈ R, M.IsIndep y ∧ (∀ t ∉ M.ends c S, y t = x t) ∧ y u = true
-  · rw [ite_eq_left h1, ite_eq_left (hiff.mp h1)]
-  · rw [ite_eq_right h1, ite_eq_right (mt hiff.mpr h1)]
+  refine if_congr ?_ rfl rfl
+  exact exists_congr fun y => and_congr_right fun _ => and_congr_right fun _ => and_congr_left
+    fun _ => forall₂_congr fun t ht => by rw [h t ht]
 
 theorem witness_eq (u : V) (x : V → Bool) :
     M.witness c S R u x = u ∨ M.witness c S R u x = M.mate c u := by
@@ -315,37 +299,28 @@ theorem witness_eq_false (hS : M.IsSeparatedCrossing A c S)
   unfold witness
   split_ifs with h
   · obtain ⟨y, hyR, hy, hyx, hyu⟩ := h
-    by_contra hxv
-    rw [Bool.not_eq_false] at hxv
+    refine Bool.eq_false_iff.2 fun hxv => ?_
     have hz : ∀ t, A.piecewise y x t = true → x t = true ∨ y t = true := fun t ht => by
-      by_cases htA : t ∈ A
-      · rw [Finset.piecewise_eq_of_mem _ _ _ htA] at ht; exact .inr ht
-      · rw [Finset.piecewise_eq_of_notMem _ _ _ htA] at ht; exact .inl ht
+      simp only [Finset.piecewise] at ht; split_ifs at ht <;> simp [ht]
     -- `z` contains the edge at `u`, of colour `c` ...
-    have hzc : M.HasColor (A.piecewise y x) c := ⟨u, by
-      rw [Finset.piecewise_eq_of_mem _ _ _ (hS.mem u hu)]; exact hyu, by
-      rw [Finset.piecewise_eq_of_notMem _ _ _ (hS.mate_notMem u hu)]; exact hxv⟩
+    have hzc : M.HasColor (A.piecewise y x) c :=
+      ⟨u, (A.piecewise_eq_of_mem y x (hS.mem u hu)).trans hyu,
+        (A.piecewise_eq_of_notMem y x (hS.mate_notMem u hu)).trans hxv⟩
     -- ... and no edge of another colour.
     have hzc' : ∀ c', c' ≠ c → ¬M.HasColor (A.piecewise y x) c' := by
       rintro c' hc' ⟨a, ha, hb⟩
       have hboth : ∀ t ∉ M.ends c S, A.piecewise y x t = true → x t = true ∧ y t = true :=
-          fun t ht hzt => by
-        rcases hz t hzt with h | h
-        · exact ⟨h, (hyx t ht).trans h⟩
-        · exact ⟨(hyx t ht).symm.trans h, h⟩
+          fun t ht hzt =>
+        (hz t hzt).elim (fun h => ⟨h, (hyx t ht).trans h⟩) fun h => ⟨(hyx t ht).symm.trans h, h⟩
       by_cases haE : a ∈ M.ends c S
       · obtain ⟨hxb, hyb⟩ := hboth _ (hS.mate_notMem_ends haE hc') hb
-        rcases hz a ha with h | h
-        exacts [hx c' a ⟨h, hxb⟩, hy c' a ⟨h, hyb⟩]
+        exact (hz a ha).elim (fun h => hx c' a ⟨h, hxb⟩) fun h => hy c' a ⟨h, hyb⟩
       · obtain ⟨hxa, hya⟩ := hboth a haE ha
-        rcases hz _ hb with h | h
-        exacts [hx c' a ⟨hxa, h⟩, hy c' a ⟨hya, h⟩]
+        exact (hz _ hb).elim (fun h => hx c' a ⟨hxa, h⟩) fun h => hy c' a ⟨hya, h⟩
     have hf := hR0 _ (hR y hyR x hxR)
     simp only [someButNotAllColors, decide_eq_false_iff_not, not_and, not_exists, not_not] at hf
     exact hzc' (c + 1) (by omega) (hf ⟨c, hzc⟩ (c + 1))
-  · cases hxu : x u
-    · rfl
-    · exact absurd ⟨x, hxR, hx, fun _ _ => rfl, hxu⟩ h
+  · exact Bool.eq_false_iff.2 fun hxu => h ⟨x, hxR, hx, fun _ _ => rfl, hxu⟩
 
 /-- **Most edges are free.** Clearing the other neighbours of one edge at a time,
 `∑_{x ∈ I} (3/2)^{#non-free edges of J} ≤ (47/32)^{|J|} |I|`. -/
@@ -392,16 +367,12 @@ theorem sum_pow_card_filter_not_isFree_le (hS : M.IsSeparatedCrossing A c S) :
           have hcard : #(I.filter fun y => clearOn T y = b) ≤ 16 :=
             (card_filter_clearOn_le I T b).trans
               ((Nat.pow_le_pow_right (by norm_num) (card_otherNbrs_le c u)).trans (by norm_num))
-          have hle : ∀ y, a y ≤ 3 / 2 := fun y => by simp only [a]; split_ifs <;> norm_num
-          rw [← add_sum_erase _ _ hbF, hab]
-          have h1 := card_erase_add_one hbF
           have hsum : ∑ y ∈ (I.filter fun y => clearOn T y = b).erase b, a y ≤
               #((I.filter fun y => clearOn T y = b).erase b) * (3 / 2 : ℝ) := by
-            rw [← nsmul_eq_mul, ← sum_const]; exact sum_le_sum fun y _ => hle y
-          have hc : (#((I.filter fun y => clearOn T y = b).erase b) : ℝ) + 1 =
-              #(I.filter fun y => clearOn T y = b) := by exact_mod_cast h1
-          have hc16 : (#(I.filter fun y => clearOn T y = b) : ℝ) ≤ 16 := by exact_mod_cast hcard
-          nlinarith
+            simpa only [nsmul_eq_mul] using sum_le_card_nsmul _ a (3 / 2) fun y _ => by
+              by_cases hf : M.IsFree c u y <;> simp only [a, hf, ↓reduceIte] <;> norm_num
+          rw [← add_sum_erase _ _ hbF, hab]
+          cast_nlinarith [hcard, card_erase_add_one hbF]
       _ = 47 / 32 * ∑ x ∈ I, g x := by rw [mul_sum]
       _ ≤ 47 / 32 * ((47 / 32 : ℝ) ^ #J * #I) := by gcongr; exact ih hJS
       _ = (47 / 32 : ℝ) ^ #(insert u J) * #I := by rw [card_insert_of_notMem hu, pow_succ]; ring
@@ -452,18 +423,18 @@ theorem sum_witness_le (hS : M.IsSeparatedCrossing A c S) :
             eq_of_clearOn_eq hxy fun h => ht (hT t h)
           have hP : P x ↔ P y := forall₂_congr fun v hv => by
             have hne : v ≠ u := fun h => hu (h ▸ hv)
-            have hwT : M.witness c S R v y ∉ T := fun hw => by
-              refine hS.end_notMem_edgeNbhd huS (hJS hv) hne (witness_eq (S := S) (R := R) v y) ?_
-              simp only [T, mem_insert, mem_singleton] at hw
-              rcases hw with hw | hw <;> rw [hw]
-              exacts [self_mem_edgeNbhd c u, mate_mem_edgeNbhd c u]
+            have hwT : M.witness c S R v y ∉ T := fun hw =>
+              hS.end_notMem_edgeNbhd huS (hJS hv) hne (witness_eq (S := S) (R := R) v y)
+                (insert_subset (self_mem_edgeNbhd c u)
+                  (singleton_subset_iff.mpr (mate_mem_edgeNbhd c u)) hw)
             rw [witness_congr hZ, eq_of_clearOn_eq hxy hwT]
           simp only [g, hP, hh x y hZ]
         · simp only [g]; split_ifs <;> simp [h0 x]
         · intro x hx
           set b := clearOn T x
           set F := I.filter fun y => clearOn T y = b
-          have hale : ∀ y, a y ≤ 1 := fun y => by simp only [a]; split_ifs <;> norm_num
+          have hale (s : Finset (V → Bool)) : ∑ y ∈ s, a y ≤ #s := by
+            simpa using sum_le_card_nsmul s a 1 fun y _ => by simp only [a]; split_ifs <;> norm_num
           by_cases hfree : M.IsFree c u b
           · -- The fibre has at most three elements, one of which has its witness true.
             simp only [k, ite_eq_left hfree]
@@ -474,70 +445,48 @@ theorem sum_witness_le (hS : M.IsSeparatedCrossing A c S) :
             set y := Function.update b w true
             have hyb : ∀ t, t ≠ w → y t = b t := fun t ht => Function.update_of_ne ht _ _
             have hnbr : ∀ c', b (M.mate c' w) = false := fun c' => by
+              simp only [T, mem_insert, mem_singleton] at hwT
               by_cases hc' : c' = c
-              · subst hc'
-                refine clearOn_eq_of_mem ?_
-                simp only [T, mem_insert, mem_singleton] at hwT ⊢
-                rcases hwT with hw | hw <;> rw [hw]
-                · exact .inr rfl
-                · exact .inl (M.mate_mate c' u)
-              · simp only [T, mem_insert, mem_singleton] at hwT
-                rcases hwT with hw | hw <;> rw [hw]
-                · exact hfree _ (mate_mem_otherNbrs hc' u)
-                · exact hfree _ (mate_mate_mem_otherNbrs hc' u)
+              · rcases hwT with hw | hw <;>
+                  exact clearOn_eq_of_mem (by simp [T, hc', hw, M.mate_mate])
+              · rcases hwT with hw | hw <;> rw [hw]
+                exacts [hfree _ (mate_mem_otherNbrs hc' u), hfree _ (mate_mate_mem_otherNbrs hc' u)]
             have hbI : M.IsIndep b := (mem_filter.mp hx).2.clearOn T
-            have hyI : M.IsIndep y := by
-              rintro c' v ⟨h1, h2⟩
+            have hyI : M.IsIndep y := fun c' v ⟨h1, h2⟩ => by
               by_cases hv : v = w
-              · subst hv
-                rw [hyb _ (M.mate_ne c' _), hnbr] at h2; exact absurd h2 (by simp)
+              · rw [hv, hyb _ (M.mate_ne c' w), hnbr] at h2
+                exact Bool.false_ne_true h2
               by_cases hmv : M.mate c' v = w
-              · have : v = M.mate c' w := by rw [← hmv, M.mate_mate]
-                rw [hyb v hv, this, hnbr] at h1; exact absurd h1 (by simp)
-              · rw [hyb v hv] at h1; rw [hyb _ hmv] at h2; exact hbI c' v ⟨h1, h2⟩
-            have hyF : y ∈ F := by
-              refine mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, hyI⟩, ?_⟩
-              funext t
-              by_cases ht : t ∈ T
-              · rw [clearOn_eq_of_mem ht]; exact (clearOn_eq_of_mem ht).symm
-              · rw [clearOn_eq_of_notMem ht, hyb t fun h => ht (h ▸ hwT)]
+              · rw [hyb v hv, ← M.mate_eq_iff.mpr hmv, hnbr] at h1
+                exact Bool.false_ne_true h1
+              · exact hbI c' v ⟨(hyb v hv).symm.trans h1, (hyb _ hmv).symm.trans h2⟩
+            have hyF : y ∈ F := mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, hyI⟩, funext fun t =>
+              if ht : t ∈ T then (clearOn_eq_of_mem ht).trans (clearOn_eq_of_mem ht).symm
+              else (clearOn_eq_of_notMem ht).trans (hyb t fun h => ht (h ▸ hwT))⟩
             have hay : a y = 0 := by
-              have hwy : M.witness c S R u y = w := by
-                rw [witness_congr (x' := x) fun t ht => ?_]
-                rw [hyb t fun h => ht (h ▸ hT w hwT)]
-                exact hoff x t ht
+              have hwy : M.witness c S R u y = w := witness_congr fun t ht =>
+                (hyb t fun h => ht (h ▸ hT w hwT)).trans (hoff x t ht)
               simp [a, hwy, y]
             have hcard : #F ≤ 3 := by
               calc #F ≤ ((univ : Finset (Bool × Bool)).erase (true, true)).card := by
                     refine card_le_card_of_injOn (fun y => (y u, y (M.mate c u))) ?_ ?_
-                    · intro z hz
-                      refine mem_erase.mpr ⟨fun h => ?_, mem_univ _⟩
-                      simp only [Prod.mk.injEq] at h
-                      exact (mem_filter.mp (mem_filter.mp hz).1).2 c u h
+                    · exact fun z hz => mem_erase.mpr
+                        ⟨fun h => (mem_filter.mp (mem_filter.mp hz).1).2 c u (Prod.mk.inj h),
+                          mem_univ _⟩
                     · intro z hz z' hz' hzz
-                      simp only [Prod.mk.injEq] at hzz
+                      obtain ⟨h1, h2⟩ := Prod.mk.inj hzz
                       funext t
                       by_cases ht : t ∈ T
-                      · simp only [T, mem_insert, mem_singleton] at ht
-                        rcases ht with rfl | rfl
-                        exacts [hzz.1, hzz.2]
-                      · exact eq_of_clearOn_eq ((mem_filter.mp hz).2.trans
-                          (mem_filter.mp hz').2.symm) ht
+                      · exact (mem_insert.mp ht).elim (· ▸ h1) fun h => (mem_singleton.mp h) ▸ h2
+                      · exact eq_of_clearOn_eq
+                          ((mem_filter.mp hz).2.trans (mem_filter.mp hz').2.symm) ht
                 _ = 3 := by simp
             rw [← add_sum_erase _ _ hyF, hay, zero_add]
-            have hsum : ∑ z ∈ F.erase y, a z ≤ #(F.erase y) := by
-              rw [← mul_one (#(F.erase y) : ℝ), ← nsmul_eq_mul, ← sum_const]
-              exact sum_le_sum fun z _ => hale z
-            have hc : (#(F.erase y) : ℝ) + 1 = #F := by exact_mod_cast card_erase_add_one hyF
-            have hc3 : (#F : ℝ) ≤ 3 := by exact_mod_cast hcard
-            linarith
+            cast_linarith [hcard, card_erase_add_one hyF, hale (F.erase y)]
           · simp only [k, ite_eq_right hfree, one_mul]
-            rw [← mul_one (#F : ℝ), ← nsmul_eq_mul, ← sum_const]
-            exact sum_le_sum fun z _ => hale z
-      _ = ∑ x ∈ I, (if P x then (1 : ℝ) else 0) * (k x * h x) := by
-        refine sum_congr rfl fun x _ => ?_
-        simp only [k, g, hfreeT]
-        ring
+            exact hale F
+      _ = ∑ x ∈ I, (if P x then (1 : ℝ) else 0) * (k x * h x) :=
+        sum_congr rfl fun x _ => by simp only [k, g, hfreeT]; ring
       _ ≤ ∑ x ∈ I, (2 / 3 : ℝ) ^ #(J.filter fun u => M.IsFree c u x) * (k x * h x) := by
         refine ih hJS _ (fun x => mul_nonneg (by simp only [k]; split_ifs <;> norm_num) (h0 x))
           fun x y hxy => ?_
@@ -571,12 +520,10 @@ theorem card_filter_mem_le [DecidablePred (· ∈ R)] (hS : M.IsSeparatedCrossin
       = ∑ x ∈ I, if x ∈ R then (1 : ℝ) else 0 := by rw [sum_boole]
     _ ≤ ∑ x ∈ I, (if ∀ u ∈ S, x (M.witness c S R u x) = false then (1 : ℝ) else 0) * 1 := by
         refine sum_le_sum fun x hx => ?_
-        rw [mul_one]
         split_ifs with h1 h2
-        · exact le_rfl
-        · exact absurd (fun u hu => witness_eq_false hS hR hR0 h1 (mem_filter.mp hx).2 hu) h2
         · norm_num
-        · exact le_rfl
+        · exact absurd (fun u hu => witness_eq_false hS hR hR0 h1 (mem_filter.mp hx).2 hu) h2
+        all_goals norm_num
     _ ≤ ∑ x ∈ I, (2 / 3 : ℝ) ^ #(S.filter fun u => M.IsFree c u x) * 1 :=
         sum_witness_le hS S subset_rfl _ (fun _ => zero_le_one) fun _ _ _ => rfl
     _ = (2 / 3 : ℝ) ^ #S * ∑ x ∈ I, (3 / 2 : ℝ) ^ #(S.filter fun u => ¬M.IsFree c u x) := by
@@ -615,10 +562,8 @@ private theorem exists_subset_pairwise_not {α : Type*} (r : α → α → Prop)
       · exact (mem_filter.mp (hSU hv')).2
       · exact fun h => (mem_filter.mp (hSU hv)).2 (hsymm _ _ h)
       · exact hS v hv v' hv' hne
-    · have := card_filter_add_card_filter_not (s := U) (r u)
-      rw [card_insert_of_notMem huS]
-      have := hK u hu
-      nlinarith
+    · rw [card_insert_of_notMem huS]
+      nlinarith [card_filter_add_card_filter_not (s := U) (r u), hK u hu]
 
 /-- The vertices `u'` whose edge of colour `c` has `t` in its neighbourhood. -/
 private def nbhdPre (c : Fin 3) (t : V) : Finset V :=
@@ -635,21 +580,13 @@ private theorem mem_nbhdPre {c : Fin 3} {t u' : V} (h : t ∈ M.edgeNbhd c u') :
   · exact .inr (.inl ⟨c', M.mate_eq_iff.mp h⟩)
   · exact .inr (.inr ⟨c', by rw [M.mate_eq_iff.mp h, M.mate_mate]⟩)
 
-private theorem card_nbhdPre_le (c : Fin 3) (t : V) : #(M.nbhdPre c t) ≤ 7 := by
-  refine (card_insert_le _ _).trans ?_
-  have h1 := card_image_le (s := (univ : Finset (Fin 3))) (f := fun c' => M.mate c' t)
-  have h2 := card_image_le (s := (univ : Finset (Fin 3))) (f := fun c' => M.mate c (M.mate c' t))
-  have := card_union_le (univ.image fun c' => M.mate c' t)
-    (univ.image fun c' => M.mate c (M.mate c' t))
-  simp only [card_univ, Fintype.card_fin] at h1 h2
-  omega
+private theorem card_nbhdPre_le (c : Fin 3) (t : V) : #(M.nbhdPre c t) ≤ 7 :=
+  (card_insert_le _ _).trans (Nat.succ_le_succ ((card_union_le _ _).trans
+    ((add_le_add card_image_le card_image_le).trans (by simp))))
 
 theorem card_edgeNbhd_le (c : Fin 3) (u : V) : #(M.edgeNbhd c u) ≤ 6 := by
-  have := card_otherNbrs_le (M := M) c u
-  have h1 := card_insert_le (M.mate c u) (M.otherNbrs c u)
-  have h2 := card_insert_le u (insert (M.mate c u) (M.otherNbrs c u))
-  simp only [edgeNbhd]
-  omega
+  refine (card_insert_le _ _).trans (Nat.succ_le_succ ((card_insert_le _ _).trans ?_))
+  exact Nat.succ_le_succ (card_otherNbrs_le c u)
 
 /-- An edge's neighbourhood meets the neighbourhoods of at most `42` edges of its colour. -/
 private theorem card_filter_not_disjoint_le (c : Fin 3) (U : Finset V) (u : V) :
@@ -678,8 +615,7 @@ theorem exists_isSeparatedCrossing {γ : ℝ} (hG : IsBalancedCutExpander M.toSi
   -- Some colour carries a third of the crossing edges.
   obtain ⟨c, hc⟩ : ∃ c : Fin 3, γ * Fintype.card V ≤ 3 * #(A.filter fun u => M.mate c u ∉ A) := by
     by_contra! h
-    push_cast at hcross
-    linarith [h 0, h 1, h 2]
+    cast_linarith [h 0, h 1, h 2]
   obtain ⟨S, hSU, hS, hcard⟩ := exists_subset_pairwise_not
     (fun u u' => ¬Disjoint (M.edgeNbhd c u) (M.edgeNbhd c u'))
     (fun _ _ h h' => h h'.symm)
@@ -687,8 +623,7 @@ theorem exists_isSeparatedCrossing {γ : ℝ} (hG : IsBalancedCutExpander M.toSi
     42 _ fun u _ => card_filter_not_disjoint_le c _ u
   refine ⟨c, S, ⟨fun u hu => (mem_filter.mp (hSU hu)).1, fun u hu => (mem_filter.mp (hSU hu)).2,
     fun u hu u' hu' hne => not_not.mp (hS u hu u' hu' hne)⟩, ?_⟩
-  have : (#(A.filter fun u => M.mate c u ∉ A) : ℝ) ≤ 42 * #S := by exact_mod_cast hcard
-  linarith
+  cast_linarith [hcard]
 
 /-! ### The cover number of the zeros of `f_G` -/
 
@@ -702,25 +637,17 @@ theorem le_card_of_isCover {γ : ℝ} (hG : IsBalancedCutExpander M.toSimpleGrap
   classical
   set I : Finset (V → Bool) := univ.filter M.IsIndep
   set e : ℝ := γ * Fintype.card V / 126
-  have hIpos : (0 : ℝ) < #I := by
-    exact_mod_cast card_pos.mpr ⟨fun _ => false, mem_filter.mpr ⟨mem_univ _, by
-      simp [IsIndep]⟩⟩
+  have hIpos : (0 : ℝ) < #I := mod_cast card_pos.mpr
+    ⟨fun _ => false, mem_filter.mpr ⟨mem_univ _, by simp [IsIndep]⟩⟩
   -- Each rectangle holds at most a `(47/48)^e` fraction of the independent sets.
   have hrect : ∀ i, (#{x ∈ I | x ∈ R i} : ℝ) ≤ (47 / 48 : ℝ) ^ e * #I := fun i => by
     obtain ⟨X, ⟨hX1, hX2⟩, P, Q, hRi⟩ := hR.1 i
-    have hsub : ∀ x ∈ R i, M.someButNotAllColors x = false := fun x hx => by
-      have : x ∈ ⋃ j, R j := Set.mem_iUnion.mpr ⟨i, hx⟩
-      rw [hR.2] at this
-      exact this
+    have hsub : ∀ x ∈ R i, M.someButNotAllColors x = false := fun x hx =>
+      hR.2.subset (Set.mem_iUnion.mpr ⟨i, hx⟩)
     have hmix : ∀ x ∈ R i, ∀ y ∈ R i, X.piecewise x y ∈ R i := fun x hx y hy => by
       rw [hRi] at hx hy ⊢
-      refine ⟨?_, ?_⟩
-      · convert hx.1 using 1
-        funext ⟨t, ht⟩
-        exact Finset.piecewise_eq_of_mem _ _ _ ht
-      · convert hy.2 using 1
-        funext ⟨t, ht⟩
-        exact Finset.piecewise_eq_of_notMem _ _ _ ht
+      exact ⟨(congrArg (· ∈ P) (funext fun ⟨_, ht⟩ => X.piecewise_eq_of_mem x y ht)).mpr hx.1,
+        (congrArg (· ∈ Q) (funext fun ⟨_, ht⟩ => X.piecewise_eq_of_notMem x y ht)).mpr hy.2⟩
     obtain ⟨c, S, hS, hcard⟩ := M.exists_isSeparatedCrossing hG hX1 hX2
     refine (card_filter_mem_le hS hmix hsub).trans (mul_le_mul_of_nonneg_right ?_ hIpos.le)
     rw [← Real.rpow_natCast]
@@ -730,9 +657,8 @@ theorem le_card_of_isCover {γ : ℝ} (hG : IsBalancedCutExpander M.toSimpleGrap
     calc (#I : ℝ) ≤ ∑ i : Fin k, (#{x ∈ I | x ∈ R i} : ℝ) := by
           rw [← Nat.cast_sum]
           refine Nat.cast_le.mpr ((card_le_card fun x hx => ?_).trans card_biUnion_le)
-          have : x ∈ ⋃ j, R j := by
-            rw [hR.2]; exact someButNotAllColors_of_isIndep M (mem_filter.mp hx).2
-          obtain ⟨j, hj⟩ := Set.mem_iUnion.mp this
+          obtain ⟨j, hj⟩ := Set.mem_iUnion.mp
+            (hR.2.symm.subset (someButNotAllColors_of_isIndep M (mem_filter.mp hx).2))
           exact mem_biUnion.mpr ⟨j, mem_univ _, mem_filter.mpr ⟨hx, hj⟩⟩
       _ ≤ ∑ _i : Fin k, (47 / 48 : ℝ) ^ e * #I := sum_le_sum fun i _ => hrect i
       _ = k * ((47 / 48 : ℝ) ^ e * #I) := by simp
@@ -740,10 +666,9 @@ theorem le_card_of_isCover {γ : ℝ} (hG : IsBalancedCutExpander M.toSimpleGrap
   have hinv : (48 / 47 : ℝ) ^ e * (47 / 48 : ℝ) ^ e = 1 := by
     rw [← Real.mul_rpow (by norm_num) (by norm_num)]; norm_num
   have hpos : (0 : ℝ) < (48 / 47 : ℝ) ^ e := Real.rpow_pos_of_pos (by norm_num) e
-  calc (48 / 47 : ℝ) ^ e = (48 / 47 : ℝ) ^ e * 1 := (mul_one _).symm
-    _ ≤ (48 / 47 : ℝ) ^ e * (k * (47 / 48 : ℝ) ^ e) := by gcongr
-    _ = k * ((48 / 47 : ℝ) ^ e * (47 / 48 : ℝ) ^ e) := by ring
-    _ = k := by rw [hinv, mul_one]
+  calc (48 / 47 : ℝ) ^ e ≤ (48 / 47 : ℝ) ^ e * (k * (47 / 48 : ℝ) ^ e) :=
+        le_mul_of_one_le_right hpos.le hone
+    _ = k := by rw [mul_left_comm, hinv, mul_one]
 
 /-- **[ArenasBroadrickLiewVanDenBroeck2026, Theorem 5.3], the cover number.** For a balanced-cut
 `γ`-edge expander on at least two vertices, `(48/47)^(γ |V| / 126) ≤ Cov^m_0(f_G) ≤ 2^|V|`. -/
@@ -756,11 +681,10 @@ theorem le_coverNumberFun {γ : ℝ} (hG : IsBalancedCutExpander M.toSimpleGraph
   classical
   obtain ⟨R, hR⟩ := Communication.MultiPartition.exists_isCover_card hn
     (M.someButNotAllColors ⁻¹' {false})
-  refine ⟨?_, hR.coverNumber_le.trans ?_⟩
-  · obtain ⟨R', hR'⟩ := Nat.sInf_mem (s := {k | ∃ R : Fin k → Set (V → Bool),
-      Communication.MultiPartition.IsCover (M.someButNotAllColors ⁻¹' {false}) R}) ⟨_, R, hR⟩
-    exact le_card_of_isCover hG hR'
-  · exact (card_filter_le _ _).trans (by simp)
+  refine ⟨?_, hR.coverNumber_le.trans ((card_filter_le _ _).trans (by simp))⟩
+  obtain ⟨R', hR'⟩ := Nat.sInf_mem (s := {k | ∃ R : Fin k → Set (V → Bool),
+    Communication.MultiPartition.IsCover (M.someButNotAllColors ⁻¹' {false}) R}) ⟨_, R, hR⟩
+  exact le_card_of_isCover hG hR'
 
 /-- **[ArenasBroadrickLiewVanDenBroeck2026, Theorem 5.3], DNNF size.** For a balanced-cut
 `γ`-edge expander on at least two vertices, every DNNF computing `¬f_G` has at least
@@ -771,9 +695,8 @@ theorem le_size_of_isDecomposable {γ : ℝ} (hG : IsBalancedCutExpander M.toSim
     (hf : ∀ x, D.toFun x = !M.someButNotAllColors x) :
     (48 / 47 : ℝ) ^ (γ * Fintype.card V / 126) ≤ D.size := by
   obtain ⟨R, hR⟩ := Circuits.NNF.exists_isCover hD hn
-  have : D.toFun ⁻¹' {true} = M.someButNotAllColors ⁻¹' {false} := by ext x; simp [hf]
-  rw [this] at hR
-  exact le_card_of_isCover hG hR
+  have : D.toFun ⁻¹' {true} = M.someButNotAllColors ⁻¹' {false} := Set.ext fun x => by simp [hf]
+  exact le_card_of_isCover hG (this ▸ hR)
 
 end Expander
 

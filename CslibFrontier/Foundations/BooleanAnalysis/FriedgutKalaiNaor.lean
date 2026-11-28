@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.BooleanAnalysis.Anticoncentration
 public import CslibFrontier.Foundations.BooleanAnalysis.LevelWeight
+import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeMoments
 import CslibFrontier.Probability.BitString.Rademacher
 import CslibFrontier.Probability.KWiseIndependent.TugOfWar
 
@@ -68,31 +69,18 @@ open scoped BigOperators
 /-- Exercise 9.5 normalised to `f = 1` and `u = √δ`. -/
 private theorem sq_mul_le_sq_one_sub {l u : ℝ} (hu₀ : 0 ≤ u) (hu₁ : u ≤ 1 / 40)
     (hl : 39 * u < |l ^ 2 - 1|) : 169 * u ^ 2 ≤ (1 - l) ^ 2 := by
-  by_contra hlt
-  push Not at hlt
-  have h13 : |1 - l| < 13 * u := abs_lt_of_sq_lt_sq (by nlinarith only [hlt]) (by positivity)
-  have hplus : |l + 1| ≤ |1 - l| + 2 := by
-    calc |l + 1| = |2 - (1 - l)| := by ring_nf
-      _ ≤ |(2 : ℝ)| + |1 - l| := abs_sub _ _
-      _ = |1 - l| + 2 := by rw [abs_of_pos (by norm_num : (0 : ℝ) < 2)]; ring
-  have hfac : |l ^ 2 - 1| = |1 - l| * |l + 1| := by
-    rw [← abs_mul, show l ^ 2 - 1 = -((1 - l) * (l + 1)) by ring, abs_neg]
-  have h1 : |l ^ 2 - 1| ≤ 13 * u * (13 * u + 2) := by
-    rw [hfac]
-    calc |1 - l| * |l + 1| ≤ 13 * u * (|1 - l| + 2) :=
-          mul_le_mul h13.le hplus (abs_nonneg _) (by positivity)
-      _ ≤ 13 * u * (13 * u + 2) := by gcongr
-  nlinarith only [hu₀, hu₁, hl, h1]
+  by_contra! hlt
+  obtain ⟨h₁, h₂⟩ := abs_lt.mp (abs_lt_of_sq_lt_sq (by nlinarith only [hlt]) (by positivity) :
+    |1 - l| < 13 * u)
+  rcases abs_cases (l ^ 2 - 1) with ⟨h, -⟩ | ⟨h, -⟩ <;> rw [h] at hl <;>
+    nlinarith only [hu₀, hu₁, hl, h₁, h₂]
 
 /-- **A sign far from a near-unit square**: if `f ^ 2 = 1`, `0 ≤ δ ≤ 1 / 1600` and
 `|ℓ ^ 2 - 1| > 39 √δ`, then `(f - ℓ) ^ 2 ≥ 169 δ` [O'Donnell, Exercise 9.5][ODonnell2014]. -/
 theorem mul_le_sq_sub_of_sq_eq_one {f l δ : ℝ} (hf : f ^ 2 = 1) (hδ₀ : 0 ≤ δ)
     (hδ₁ : δ ≤ 1 / 1600) (hl : 39 * √δ < |l ^ 2 - 1|) : 169 * δ ≤ (f - l) ^ 2 := by
   have hu₀ := Real.sqrt_nonneg δ
-  have hu₁ : √δ ≤ 1 / 40 := by
-    rw [show (1 / 40 : ℝ) = √(1 / 1600) by
-      rw [show (1 / 1600 : ℝ) = (1 / 40) ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]]
-    exact Real.sqrt_le_sqrt hδ₁
+  have hu₁ : √δ ≤ 1 / 40 := Real.sqrt_le_iff.mpr ⟨by norm_num, by linarith only [hδ₁]⟩
   have hsq : √δ ^ 2 = δ := Real.sq_sqrt hδ₀
   rcases sq_eq_one_iff.mp hf with rfl | rfl
   · simpa only [hsq] using sq_mul_le_sq_one_sub hu₀ hu₁ hl
@@ -127,7 +115,6 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
   set a : ι → ℝ := fun i => fourierCoeff F {i} with ha
   set ℓ : (ι → Bool) → ℝ := fun x => ∑ i, a i * signVal (x i) with hℓ
   set A := ∑ i, a i ^ 2 with hA
-  have hWA : levelWeight 1 F = A := levelWeight_one F
   -- `𝔼 F ℓ = 𝔼 ℓ ^ 2 = A` and `𝔼 F ^ 2 = 1`
   have hFℓ : 𝔼 x, F x * ℓ x = A := by
     simp only [hℓ, mul_sum, expect_sum_comm]
@@ -146,75 +133,47 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
       hℓℓ]
     ring
   have hδ'0 : 0 ≤ δ' := expect_nonneg fun x _ => sq_nonneg _
-  have hδ'δ : δ' ≤ δ := by rw [hδ'A, ← hWA]; linarith
+  have hδ'δ : δ' ≤ δ := by linarith [hδ'A, levelWeight_one F, hW]
   have hδ'1 : δ' ≤ 1 / 1600 := hδ'δ.trans hδ
   -- the variance of `ℓ ^ 2` is at most `6400 δ'`
   set V := 𝔼 x, (ℓ x ^ 2 - 𝔼 y, ℓ y ^ 2) ^ 2 with hV
   have hVeq : V = 2 * (A ^ 2 - ∑ i, a i ^ 4) := expect_sum_mul_signVal_sq_sub_expect_sq a
   have hVle : V ≤ 6400 * δ' := by
-    by_contra hVgt
-    push Not at hVgt
+    by_contra! hVgt
     have hVpos : 0 < V := lt_of_le_of_lt (by positivity) hVgt
-    have hℓdeg : (fun x => ℓ x ^ 2) ∈ lowDegree ℝ ι 2 := by
-      have h1 : ℓ ∈ lowDegree ℝ ι 1 := by
-        have : ℓ = ∑ i, a i • chi ℝ {i} := by
-          funext x
-          simp only [hℓ, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, chi_singleton]
-        rw [this]
-        exact sum_mem_lowDegree _ fun i _ =>
-          Submodule.smul_mem _ _ (by simpa using chi_mem_lowDegree (F := ℝ) {i})
-      exact pow_mem_lowDegree h1 2
+    have hℓdeg : (fun x => ℓ x ^ 2) ∈ lowDegree ℝ ι 2 :=
+      pow_mem_lowDegree (sum_mul_signVal_mem_lowDegree_one a) 2
     -- by anticoncentration, `|ℓ ^ 2 - A| > √V / 2` with probability at least `1 / 144`
     have h97 : (1 / 144 : ℝ) ≤ (dens {x | √V / 2 < |ℓ x ^ 2 - A|} : ℝ) := by
       have h := nine_div_sixteen_div_nine_pow_le_dens hℓdeg hVpos
       rw [← hV, hℓℓ] at h
-      calc (1 / 144 : ℝ) = 9 / 16 / 9 ^ 2 := by norm_num
-        _ ≤ _ := h
-    have hsqrt : 40 * √δ' < √V / 2 := by
-      have : √(6400 * δ') < √V := Real.sqrt_lt_sqrt (by positivity) hVgt
-      rw [Real.sqrt_mul (by norm_num), show √(6400 : ℝ) = 80 by
-        rw [show (6400 : ℝ) = 80 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]] at this
-      linarith
-    have hδsq : δ' ≤ √δ' := by
-      have h1 : √δ' ≤ 1 := by
-        rw [Real.sqrt_le_one]; linarith
-      calc δ' = √δ' * √δ' := (Real.mul_self_sqrt hδ'0).symm
-        _ ≤ √δ' * 1 := mul_le_mul_of_nonneg_left h1 (Real.sqrt_nonneg _)
-        _ = √δ' := mul_one _
+      exact le_of_eq_of_le (by norm_num) h
+    have hsqrt : 80 * √δ' < √V :=
+      Real.lt_sqrt_of_sq_lt (by rw [mul_pow, Real.sq_sqrt hδ'0]; linarith only [hVgt])
+    have hδsq : δ' ≤ √δ' := (Real.le_sqrt hδ'0 hδ'0).2 (by nlinarith only [hδ'0, hδ'1])
     -- on that event, `(F - ℓ) ^ 2 ≥ 169 δ'`
-    have hsub : ({x | √V / 2 < |ℓ x ^ 2 - A|} : Finset (ι → Bool)) ⊆
-        ({x | 169 * δ' ≤ (F x - ℓ x) ^ 2} : Finset (ι → Bool)) := by
-      intro x hx
-      simp only [mem_filter, mem_univ, true_and] at hx ⊢
-      have h39 : 39 * √δ' < |ℓ x ^ 2 - 1| := by
-        have htri : |ℓ x ^ 2 - A| ≤ |ℓ x ^ 2 - 1| + |1 - A| := abs_sub_le _ _ _
-        have h1A : |1 - A| = δ' := by rw [← hδ'A]; exact abs_of_nonneg hδ'0
-        linarith
-      exact mul_le_sq_sub_of_sq_eq_one (hFsq x) hδ'0 hδ'1 h39
     have hd : (dens ({x | √V / 2 < |ℓ x ^ 2 - A|} : Finset (ι → Bool)) : ℝ) ≤
         (dens ({x | 169 * δ' ≤ (F x - ℓ x) ^ 2} : Finset (ι → Bool)) : ℝ) := by
-      exact_mod_cast dens_le_dens hsub
+      refine NNRat.cast_le.mpr (dens_le_dens fun x hx => ?_)
+      simp only [mem_filter, mem_univ, true_and] at hx ⊢
+      refine mul_le_sq_sub_of_sq_eq_one (hFsq x) hδ'0 hδ'1 ?_
+      have htri : |ℓ x ^ 2 - A| ≤ |ℓ x ^ 2 - 1| + |1 - A| := abs_sub_le _ _ _
+      rw [← hδ'A, abs_of_nonneg hδ'0] at htri
+      linarith only [htri, hx, hsqrt, hδsq]
     -- so by Markov, `δ' ≥ 169 δ' / 144`, forcing `δ' = 0`
     have hmk := Fintype.mul_dens_filter_le_expect (f := fun x => (F x - ℓ x) ^ 2)
       (fun x => sq_nonneg _) (169 * δ')
     rw [← hδ'] at hmk
     rcases hδ'0.lt_or_eq with hpos | hzero
     · nlinarith only [hpos, h97, hd, hmk]
-    · -- `δ' = 0`: then `F = ℓ`, so `ℓ ^ 2 = 1 = A` everywhere, and the event is empty
-      have hFℓ0 : ∀ x, F x = ℓ x := by
-        have := (Fintype.expect_eq_zero_iff_of_nonneg (fun x => sq_nonneg (F x - ℓ x))).mp
-          hzero.symm
-        intro x
-        have hx := congrFun this x
-        simp only [Pi.zero_apply, sq_eq_zero_iff] at hx
-        linarith only [hx]
-      have hempty : ({x | √V / 2 < |ℓ x ^ 2 - A|} : Finset (ι → Bool)) = ∅ := by
-        ext x
-        simp only [mem_filter, mem_univ, true_and, Finset.notMem_empty, iff_false, not_lt]
-        rw [← hFℓ0 x, show A = 1 by linarith only [hzero, hδ'A], hFsq x, sub_self, abs_zero]
-        positivity
-      rw [hempty, dens_empty, NNRat.cast_zero] at h97
-      norm_num at h97
+    · -- `δ' = 0`: then `F = ℓ` and `A = 1`, so `ℓ ^ 2 = A` and the event is empty
+      obtain ⟨x, hx⟩ := dens_pos.1 (NNRat.cast_pos.1 (lt_of_lt_of_le (by norm_num) h97))
+      have hx0 := congrFun ((Fintype.expect_eq_zero_iff_of_nonneg
+        fun x => sq_nonneg (F x - ℓ x)).mp hzero.symm) x
+      simp only [mem_filter, mem_univ, true_and, Pi.zero_apply, sq_eq_zero_iff, sub_eq_zero]
+        at hx hx0
+      rw [← hx0, show A = 1 by linarith only [hzero, hδ'A], hFsq x, sub_self, abs_zero] at hx
+      linarith only [hx, Real.sqrt_nonneg V]
   -- hence `∑ᵢ aᵢ ^ 4 ≥ 1 - 3202 δ'`, and the largest `aᵢ ^ 2` bounds it
   have h4 : 1 - 3202 * δ' ≤ ∑ i, a i ^ 4 := by
     nlinarith only [hVle, hVeq, hδ'A, hδ'0]
@@ -226,21 +185,15 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
   | inr h =>
     obtain ⟨i₀, -, hi₀⟩ := exists_max_image univ (fun i => a i ^ 2) univ_nonempty
     have hA1 : A ≤ 1 := by linarith only [hδ'A, hδ'0]
-    have hsum4 : ∑ i, a i ^ 4 ≤ a i₀ ^ 2 := by
-      calc ∑ i, a i ^ 4 = ∑ i, a i ^ 2 * a i ^ 2 := sum_congr rfl fun i _ => by ring
-        _ ≤ ∑ i, a i₀ ^ 2 * a i ^ 2 :=
-            sum_le_sum fun i _ => mul_le_mul_of_nonneg_right (hi₀ i (mem_univ _)) (sq_nonneg _)
-        _ = a i₀ ^ 2 * A := by rw [← mul_sum]
-        _ ≤ a i₀ ^ 2 * 1 := mul_le_mul_of_nonneg_left hA1 (sq_nonneg _)
-        _ = a i₀ ^ 2 := mul_one _
-    have habs1 : |a i₀| ≤ 1 := by
-      rw [← sq_le_one_iff_abs_le_one]
+    have hsum4 : ∑ i, a i ^ 4 ≤ a i₀ ^ 2 * A := by
+      rw [mul_sum]
+      exact sum_le_sum fun i _ => by nlinarith only [hi₀ i (mem_univ _), sq_nonneg (a i)]
+    have habs1 : |a i₀| ≤ 1 := (sq_le_one_iff_abs_le_one _).mp <| by
       linarith only [hA1, single_le_sum (f := fun i => a i ^ 2) (fun j _ => sq_nonneg _)
         (mem_univ i₀)]
-    have hsqabs : a i₀ ^ 2 ≤ |a i₀| := by
-      rw [← sq_abs, sq]
-      exact mul_le_of_le_one_left (abs_nonneg _) habs1
-    exact ⟨i₀, by linarith only [h4, hsum4, hsqabs, hδ'δ]⟩
+    refine ⟨i₀, ?_⟩
+    nlinarith only [h4, hsum4, hδ'δ, hA1, habs1, abs_nonneg (a i₀), sq_abs (a i₀),
+      sq_nonneg (a i₀)]
 
 /-- **The Friedgut–Kalai–Naor (FKN) Theorem**: if a Boolean function `f`, read as signs, has
 Fourier weight `W^1[f] ≥ 1 - δ` at degree one, then `f` is `1601 δ`-close to a dictator or a
@@ -253,36 +206,27 @@ theorem exists_hammingDist_xor_div_le_of_le_levelWeight_one [Nonempty ι]
     ∃ (i : ι) (b : Bool),
       (hammingDist f (fun x => b ^^ x i) : ℝ) / 2 ^ Fintype.card ι ≤ 1601 * δ := by
   classical
-  by_cases hδ : δ ≤ 1 / 1600
+  rcases le_or_gt δ (1 / 1600) with hδ | hδ
   · obtain ⟨i, hi⟩ := exists_one_sub_le_abs_fourierCoeff_singleton hδ hW
     set a := fourierCoeff (fun x => signVal (f x)) {i}
     refine ⟨i, decide (a < 0), ?_⟩
     -- the correlation of `f` with `x ↦ b ⊕ x_i` is `signVal b * a = |a|`
     have hcorr := expect_signVal_mul_signVal f (fun x => decide (a < 0) ^^ x i)
     have hcorr' : 𝔼 x, signVal (f x) * signVal (decide (a < 0) ^^ x i) = |a| := by
-      have : 𝔼 x, signVal (f x) * signVal (decide (a < 0) ^^ x i) =
+      have hmul : 𝔼 x, signVal (f x) * signVal (decide (a < 0) ^^ x i) =
           signVal (decide (a < 0)) * a := by
         rw [show a = 𝔼 x, signVal (f x) * chi ℝ {i} x from rfl, mul_expect]
-        refine expect_congr rfl fun x _ => ?_
-        rw [signVal_xor, chi_singleton]
-        ring
-      rw [this]
-      by_cases ha : a < 0
-      · rw [decide_eq_true ha, signVal_true, abs_of_neg ha]; ring
-      · rw [decide_eq_false ha, signVal_false, abs_of_nonneg (not_lt.mp ha), one_mul]
+        exact expect_congr rfl fun _ _ => by rw [signVal_xor, chi_singleton]; ring
+      rw [hmul]
+      rcases lt_or_ge a 0 with ha | ha <;> simp [ha, not_lt.mpr, abs_of_neg, abs_of_nonneg]
     rw [hcorr', mul_div_assoc] at hcorr
     linarith only [hi, hcorr]
   · -- for `δ > 1 / 1600` the bound exceeds one and holds for any `i` and `b`
-    push Not at hδ
-    refine ⟨Classical.arbitrary ι, false, ?_⟩
+    refine ⟨Classical.arbitrary ι, false, (div_le_iff₀ (by positivity)).mpr ?_⟩
     have h1 : (hammingDist f (fun x => false ^^ x (Classical.arbitrary ι)) : ℝ) ≤
-        2 ^ Fintype.card ι := by
-      have := hammingDist_le_card_fintype (x := f)
-        (y := fun x => false ^^ x (Classical.arbitrary ι))
-      rw [Fintype.card_fun, Fintype.card_bool] at this
-      exact_mod_cast this
-    rw [div_le_iff₀ (by positivity)]
-    nlinarith only [hδ, h1, pow_pos (by norm_num : (0 : ℝ) < 2) (Fintype.card ι)]
+        2 ^ Fintype.card ι :=
+      mod_cast (hammingDist_le_card_fintype (x := f) (y := _)).trans_eq (by simp)
+    nlinarith only [hδ, h1, pow_pos (zero_lt_two' ℝ) (Fintype.card ι)]
 
 /-- **Boolean functions of degree-one weight one are signed dictators**: if `W^1[f] = 1`, then
 `f x = b ⊕ x_i` for some coordinate `i` and bit `b` [O'Donnell, Exercise 1.19(a)][ODonnell2014].
@@ -296,9 +240,8 @@ theorem exists_eq_xor_of_levelWeight_one_eq_one {f : (ι → Bool) → Bool}
     exact absurd hW zero_ne_one
   | inr h =>
     obtain ⟨i, b, hib⟩ := exists_hammingDist_xor_div_le_of_le_levelWeight_one (f := f) (δ := 0)
-      (by rw [hW]; norm_num)
-    refine ⟨i, b, hammingDist_eq_zero.mp ?_⟩
+      (by linarith)
     rw [mul_zero, div_le_iff₀ (by positivity), zero_mul] at hib
-    exact_mod_cast le_antisymm hib (Nat.cast_nonneg _)
+    exact ⟨i, b, hammingDist_eq_zero.mp (Nat.le_zero.mp (mod_cast hib))⟩
 
 end Cslib.BitString

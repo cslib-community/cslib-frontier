@@ -69,31 +69,20 @@ private theorem exists_residue_shifts_aux {r : ℕ} (hr : 0 < r)
         _ < r * (r * r) := Nat.mul_lt_mul_of_pos_right (by omega) (by positivity)
         _ = (Finset.univ : Finset (ZMod (r ^ 3))).card := by simp [pow_succ, Nat.mul_assoc]
     obtain ⟨a, _, ha⟩ := Finset.exists_mem_notMem_of_card_lt_card hc
-    have ha' (i : Fin t) (k l : Fin r) : a ≠ b k + m i - b l := by
-      intro he
-      apply ha
-      exact Finset.mem_image.mpr ⟨(i, k, l), Finset.mem_univ _, he.symm⟩
+    have ha' (i : Fin t) (k l : Fin r) : a ≠ b k + m i - b l := fun he =>
+      ha (Finset.mem_image.mpr ⟨(i, k, l), Finset.mem_univ _, he.symm⟩)
     refine ⟨Fin.snoc m a, ?_⟩
-    refine Fin.lastCases ?_ (fun i => ?_)
-    · refine Fin.lastCases ?_ (fun j => ?_)
-      · intro hij
-        exact (hij rfl).elim
-      · intro _ k l
-        simp only [Fin.snoc_last, Fin.snoc_castSucc]
-        intro he
-        apply ha' j l k
-        rw [eq_sub_iff_add_eq]
-        simpa only [add_comm] using he
-    · refine Fin.lastCases ?_ (fun j => ?_)
-      · intro _ k l
-        simp only [Fin.snoc_last, Fin.snoc_castSucc]
-        intro he
-        apply ha' i k l
-        rw [eq_sub_iff_add_eq]
-        simpa only [add_comm] using he.symm
-      · intro hij k l
-        simp only [Fin.snoc_castSucc]
-        exact hm i j (fun he => hij (congrArg Fin.castSucc he)) k l
+    refine Fin.lastCases ?_ (fun i => ?_) <;> refine Fin.lastCases ?_ (fun j => ?_)
+    · exact fun hij => (hij rfl).elim
+    · intro _ k l he
+      simp only [Fin.snoc_last, Fin.snoc_castSucc] at he
+      exact ha' j l k (eq_sub_iff_add_eq.mpr (by simpa only [add_comm] using he))
+    · intro _ k l he
+      simp only [Fin.snoc_last, Fin.snoc_castSucc] at he
+      exact ha' i k l (eq_sub_iff_add_eq.mpr (by simpa only [add_comm] using he.symm))
+    · intro hij k l
+      simp only [Fin.snoc_castSucc]
+      exact hm i j (fun he => hij (congrArg Fin.castSucc he)) k l
 
 /-- Choose `r` translates separated modulo `r³`. Positions may have equal residues:
 only translates with different shift indices are required to be disjoint. -/
@@ -103,11 +92,9 @@ theorem exists_residue_shifts {r : ℕ} (hr : 0 < r) (b : Fin r → ℕ) :
         (b k + m i) % r ^ 3 ≠ (b l + m j) % r ^ 3 := by
   let : NeZero (r ^ 3) := ⟨by positivity⟩
   obtain ⟨m, hm⟩ := exists_residue_shifts_aux hr (fun i => (b i : ZMod (r ^ 3))) r le_rfl
-  refine ⟨fun i => (m i).val, fun i => ZMod.val_lt _, ?_⟩
-  intro i j hij k l he
-  apply hm i j hij k l
-  have hc := (ZMod.natCast_eq_natCast_iff' _ _ (r ^ 3)).mpr he
-  simpa only [Nat.cast_add, ZMod.natCast_zmod_val] using hc
+  refine ⟨fun i => (m i).val, fun i => ZMod.val_lt _, fun i j hij k l he => hm i j hij k l ?_⟩
+  simpa only [Nat.cast_add, ZMod.natCast_zmod_val] using
+    (ZMod.natCast_eq_natCast_iff' _ _ (r ^ 3)).mpr he
 
 /-- Lift a residue by a multiple of `M`. Two modulus-sized slots per diagonal term
 leave room for both the input position's residue and the chosen shift's residue. -/
@@ -146,27 +133,18 @@ theorem exists_spread_shifts {r w : ℕ} (hr : 0 < r) (b : Fin r → ℕ)
   refine ⟨m, ?_, ?_, ?_⟩
   · intro p q hpq
     change b p.1 + m p.2 = b q.1 + m q.2 at hpq
-    have hj : p.2 = q.2 := by
-      by_contra hne
-      apply hsep p.2 q.2 hne p.1 q.1
-      have he := congrArg (fun n => n % r ^ 3) hpq
-      rw [Nat.add_mod (b p.1) (m p.2), Nat.add_mod (b q.1) (m q.2)] at he
-      dsimp only [m] at he
-      rw [spreadShift_mod, spreadShift_mod] at he
-      simpa only [← Nat.add_mod] using he
+    have hj : p.2 = q.2 := by_contra fun hne => hsep p.2 q.2 hne p.1 q.1 <| by
+      have he := congrArg (· % r ^ 3) hpq
+      simpa only [m, Nat.add_mod _ (spreadShift ..), spreadShift_mod, ← Nat.add_mod] using he
     rw [hj] at hpq
-    have hi : p.1 = q.1 := hb (Nat.add_right_cancel hpq)
-    exact Prod.ext hi hj
+    exact Prod.ext (hb (Nat.add_right_cancel hpq)) hj
   · intro i j hij
     have hs : (2 * i.val + 2) * r ^ 3 ≤ 2 * j.val * r ^ 3 :=
       Nat.mul_le_mul_right _ (by omega)
     exact (hm i).2.trans_le ((Nat.add_le_add_left hs w).trans (hm j).1.le)
   · intro i
-    have hs : (2 * i.val + 2) * r ^ 3 ≤ 2 * r ^ 4 := by
-      calc
-        (2 * i.val + 2) * r ^ 3 ≤ (2 * r) * r ^ 3 :=
-          Nat.mul_le_mul_right _ (by omega)
-        _ = 2 * r ^ 4 := by ring
+    have hs : (2 * i.val + 2) * r ^ 3 ≤ 2 * r ^ 4 :=
+      (Nat.mul_le_mul_right _ (by omega : 2 * i.val + 2 ≤ 2 * r)).trans_eq (by ring)
     exact ⟨lt_of_le_of_lt (by omega) (hm i).1,
       (hm i).2.trans_le (Nat.add_le_add_left hs w)⟩
 
@@ -203,12 +181,8 @@ private theorem maskedProduct_testBit {r : ℕ} (b m : Fin r → ℕ)
   apply Bool.eq_iff_iff.mpr
   rw [maskedProduct_eq b m hb, Nat.testBit_sum_injective _ _
     (fun _ _ _ _ he => h he)]
-  constructor
-  · rintro ⟨p, _, hp, he⟩
-    have he' : p = (i, j) := h he
-    simpa only [he'] using hp
-  · intro hx
-    exact ⟨(i, j), Finset.mem_univ _, hx, rfl⟩
+  refine ⟨fun ⟨p, _, hp, he⟩ => ?_, fun hx => ⟨(i, j), Finset.mem_univ _, hx, rfl⟩⟩
+  simpa only [show p = (i, j) from h he] using hp
 
 /-- A masked multiplication, right shift, and final mask retaining its diagonal terms.
 This expression uses unbounded arithmetic; a RAM implementation must separately account
@@ -224,26 +198,16 @@ theorem approximateSketch_eq {r w : ℕ} (b m : Fin r → ℕ)
     (hb : Function.Injective b) (hw : ∀ i, w ≤ b i + m i) (x : ℕ) :
     approximateSketch w b m x =
       ∑ i, (x.testBit (b i)).toNat * 2 ^ (b i + m i - w) := by
-  have hf : Function.Injective (fun i => b i + m i - w) := by
-    intro i j he
-    change b i + m i - w = b j + m j - w at he
-    have hd : b i + m i = b j + m j := by have := hw i; have := hw j; omega
-    exact congrArg Prod.fst (h (show b (i, i).1 + m (i, i).2 =
-      b (j, j).1 + m (j, j).2 from hd))
-  apply Nat.eq_of_testBit_eq
-  intro k
-  apply Bool.eq_iff_iff.mpr
+  have hf : Function.Injective (fun i => b i + m i - w) := fun i j he =>
+    congrArg Prod.fst (h (show b (i, i).1 + m (i, i).2 = b (j, j).1 + m (j, j).2 by
+      have := hw i; have := hw j; dsimp only at he ⊢; omega))
+  refine Nat.eq_of_testBit_eq fun k => Bool.eq_iff_iff.mpr ?_
   rw [approximateSketch, Nat.testBit_land, Bool.and_eq_true,
     positionMask_testBit _ hf, Nat.testBit_sum_injective _ _
       (fun _ _ _ _ he => hf he)]
-  constructor
-  · rintro ⟨hp, i, hi⟩
-    refine ⟨i, Finset.mem_univ _, ?_, hi⟩
-    have he : w + k = b i + m i := by have := hw i; omega
-    simpa only [Nat.testBit_shiftRight, he, maskedProduct_testBit b m h hb] using hp
-  · rintro ⟨i, _, hx, hi⟩
-    refine ⟨?_, i, hi⟩
-    have he : w + k = b i + m i := by have := hw i; omega
-    simpa only [Nat.testBit_shiftRight, he, maskedProduct_testBit b m h hb] using hx
+  simp only [Nat.testBit_shiftRight, Finset.mem_univ, true_and, ← exists_and_left]
+  refine exists_congr fun i => and_congr_left fun hi => ?_
+  have he : w + k = b i + m i := by have := hw i; omega
+  rw [he, maskedProduct_testBit b m h hb]
 
 end Cslib.DataStructure.FusionTree

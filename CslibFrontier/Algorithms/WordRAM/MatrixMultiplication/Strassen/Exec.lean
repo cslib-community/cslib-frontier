@@ -49,9 +49,7 @@ theorem exec {w p k A B a b out scratch : ℕ} (x : Data 64) (u v : ℕ → ℤ)
     ∃ y, ExecWithin (w + 2) program x y (traceBudget p k + 4 * k + 32) ∧
       NodeResult p k out scratch (scratch + 4 ^ k * p) (scratch + 4 ^ k * p) u v x y := by
   let frames := scratch + 4 ^ k * p
-  have hpow : 4 ^ k ≤ 4 ^ k * p := by
-    have hm := Nat.mul_le_mul_left (4 ^ k) (Nat.succ_le_of_lt hp)
-    simpa only [Nat.mul_one] using hm
+  have hpow : 4 ^ k ≤ 4 ^ k * p := Nat.le_mul_of_pos_right _ hp
   have hsetupFit : Fits (w + 2) (x.regs Reg.scratch + x.regs Reg.modulus *
       4 ^ x.regs Reg.depth + 4 ^ x.regs Reg.depth + x.regs Reg.depth + 16) := by
     rw [hsr, hpr, hkr, Nat.mul_comm p]
@@ -67,16 +65,11 @@ theorem exec {w p k A B a b out scratch : ℕ} (x : Data 64) (u v : ℕ → ℤ)
     (by intro i hi; rw [smem _ (Or.inl (by omega))]; exact hleft i hi)
     (by intro i hi; rw [smem _ (Or.inl (by omega))]; exact hright i hi) hmag haddr
   have hexit : ¬(Cond.lt Reg.zero Reg.active).Holds y := by
-    simp only [Cond.holds_lt, result.zero_eq, result.active_eq, lt_self_iff_false, ite_false]
-    decide
-  have hcontroller := continuation y 2 (ExecWithin.loop_exit hexit)
+    simp [Cond.holds_lt, result.zero_eq, result.active_eq]
   have he : ExecWithin (w + 2) program x y (traceBudget p k + 4 * k + 32) :=
-    (setupRun.seq hcontroller).mono (by rw [hkr]; omega)
-  refine ⟨y, he, { result with outside := ?_ }⟩
-  intro d hd
-  rw [result.outside d hd]
-  apply smem
-  have hframes : ¬(frames ≤ d ∧ d < frames + 7 * (k + 1)) := fun h => hd (Or.inr (Or.inr h))
+    (setupRun.seq (continuation y 2 (ExecWithin.loop_exit hexit))).mono (by rw [hkr]; omega)
+  refine ⟨y, he, { result with outside := fun d hd => (result.outside d hd).trans (smem d ?_) }⟩
+  have : ¬(frames ≤ d ∧ d < frames + 7 * (k + 1)) := fun h => hd (Or.inr (Or.inr h))
   omega
 
 /-- The proved native instruction count is polynomial in the cyclic coefficient length

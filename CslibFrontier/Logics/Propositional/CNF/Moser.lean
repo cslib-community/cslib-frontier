@@ -126,12 +126,10 @@ theorem unresample_resample {c : Clause (Fin n)} {σ : Fin n → Bool} (hc : c.e
     simp only [unresample, h]
     rw [← hlv, (Clause.eval_eq_false_iff σ c).1 hc l (List.mem_of_find?_eq_some h)]
   | none =>
-    have hv : v ∉ vbl c := by
-      intro hv
+    simp only [unresample, h]
+    exact resample_of_not_mem fun hv => by
       obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hv
       exact List.find?_eq_none.1 h l hl (by simp)
-    simp only [unresample, h]
-    exact resample_of_not_mem hv
 
 theorem eval_resample_of_not_shares {c d : Clause (Fin n)} (h : ¬Shares c d) (x : ℕ → Bool)
     (o : ℕ) (σ : Fin n → Bool) : d.eval (resample c x o σ) = d.eval σ :=
@@ -255,13 +253,10 @@ theorem length_neighbors_le (c : Fin φ.length) : (neighbors φ c).length ≤ de
   rw [← List.toFinset_card_of_nodup hnd]
   calc #(neighbors φ c).toFinset
       ≤ #(insert c ({j : Fin φ.length | j ≠ c ∧ Shares φ[c] φ[j]} : Finset _)) := by
-        apply card_le_card
-        intro j hj
+        refine card_le_card fun j hj => ?_
         rw [List.mem_toFinset, mem_neighbors] at hj
         rw [mem_insert, mem_filter]
-        by_cases h : j = c
-        · exact Or.inl h
-        · exact Or.inr ⟨mem_univ _, h, hj⟩
+        exact (eq_or_ne j c).imp_right fun h => ⟨mem_univ _, h, hj⟩
     _ ≤ degree φ c + 1 := card_insert_le _ _
 
 theorem getElem_mem_fin (c : Fin φ.length) : φ[c] ∈ φ := List.getElem_mem c.2
@@ -285,27 +280,24 @@ theorem move_cases (t : ℕ) (s : State n φ.length) :
   | nil =>
     by_cases hp : ptr < φ.length
     · by_cases hc : φ[ptr].eval σ = true
-      · exact Or.inl ⟨by simp [move, hp, hc], rfl, hp, hc⟩
+      · exact .inl ⟨by simp [move, hp, hc], rfl, hp, hc⟩
       · by_cases ht : trace.length < t
-        · exact Or.inr (Or.inl ⟨⟨ptr, hp⟩, by simp [move, hp, hc, ht], rfl, rfl,
-            by simpa using hc, ht⟩)
-        · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨by simp [move, hp, hc, ht],
-            Or.inl (Nat.le_of_not_lt ht)⟩)))
-    · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨by simp [move, hp],
-        Or.inr ⟨rfl, Nat.le_of_not_lt hp⟩⟩)))
+        · exact .inr <| .inl ⟨⟨ptr, hp⟩, by simp [move, hp, hc, ht], rfl, rfl,
+            by simpa using hc, ht⟩
+        · exact .inr <| .inr <| .inr <| .inr ⟨by simp [move, hp, hc, ht],
+            .inl (Nat.le_of_not_lt ht)⟩
+    · exact .inr <| .inr <| .inr <| .inr ⟨by simp [move, hp], .inr ⟨rfl, Nat.le_of_not_lt hp⟩⟩
   | cons e st =>
     cases hf : (neighbors φ e).find? (fun d => !φ[d].eval σ) with
     | some d =>
-      have hd := List.mem_of_find?_eq_some hf
-      have hev : φ[d].eval σ = false := by simpa using List.find?_some hf
       by_cases ht : trace.length < t
-      · exact Or.inr (Or.inr (Or.inl ⟨e, st, d, by simp only [move, hf, ht, ite_true], rfl, hd,
-          hev, ht⟩))
-      · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨by simp only [move, hf, ht, ite_false],
-          Or.inl (Nat.le_of_not_lt ht)⟩)))
+      · exact .inr <| .inr <| .inl ⟨e, st, d, by simp only [move, hf, ht, ite_true], rfl,
+          List.mem_of_find?_eq_some hf, by simpa using List.find?_some hf, ht⟩
+      · exact .inr <| .inr <| .inr <| .inr ⟨by simp only [move, hf, ht, ite_false],
+          .inl (Nat.le_of_not_lt ht)⟩
     | none =>
-      refine Or.inr (Or.inr (Or.inr (Or.inl ⟨e, st, by simp only [move, hf], rfl, fun d hd => ?_⟩)))
-      simpa using List.find?_eq_none.1 hf d hd
+      exact .inr <| .inr <| .inr <| .inl ⟨e, st, by simp only [move, hf], rfl,
+        fun d hd => by simpa using List.find?_eq_none.1 hf d hd⟩
 
 /-! ### Correctness -/
 
@@ -321,52 +313,40 @@ theorem sound_init (x : ℕ → Bool) : Sound φ (init φ x) := fun _ _ => Or.in
 theorem sound_step (hne : ∀ c ∈ φ, c ≠ []) (k t : ℕ) (x : ℕ → Bool) {s : State n φ.length}
     (hs : Sound φ s) : Sound φ (step φ k t x s) := by
   rcases move_cases t s with ⟨hm, hst, hp, hev⟩ | ⟨c, hm, hst, hc, -, -⟩ |
-    ⟨e, st, d, hm, -, -, -, -⟩ | ⟨e, st, hm, hst, hall⟩ | ⟨hm, -⟩
+    ⟨e, st, d, hm, -, -, -, -⟩ | ⟨e, st, hm, hst, hall⟩ | ⟨hm, -⟩ <;>
+    simp only [step, hm, apply]
   · intro j hj
-    simp only [step, hm, apply] at hj ⊢
     rcases hs j hj with h | ⟨e, he, -⟩
-    · rcases Nat.lt_or_eq_of_le h with h | h
-      · exact Or.inl h
-      · have hj' : j = ⟨s.ptr, hp⟩ := Fin.ext h.symm
-        subst hj'
-        rw [hev] at hj
-        exact absurd hj (by decide)
-    · rw [hst] at he
-      exact absurd he List.not_mem_nil
+    · refine .inl (h.lt_or_eq.resolve_right fun h' => ?_)
+      have hj' : j = ⟨s.ptr, hp⟩ := Fin.ext h'.symm
+      subst hj'
+      rw [hev] at hj
+      cases hj
+    · simp [hst] at he
   · intro j hj
-    simp only [step, hm, apply] at hj ⊢
     by_cases hsh : Shares φ[c] φ[j]
-    · exact Or.inr ⟨c, List.mem_singleton_self c, hsh⟩
+    · exact .inr ⟨c, List.mem_singleton_self c, hsh⟩
     · rw [eval_resample_of_not_shares hsh] at hj
-      left
       rcases hs j hj with h | ⟨e, he, -⟩
-      · rcases Nat.lt_or_eq_of_le h with h | h
-        · exact h
-        · have hjc : j = c := Fin.ext (h.symm.trans hc.symm)
-          subst hjc
-          exact absurd (shares_self (hne _ (getElem_mem_fin j))) hsh
-      · rw [hst] at he
-        exact absurd he List.not_mem_nil
+      · refine .inl (h.lt_or_eq.resolve_right fun h' => ?_)
+        have hjc : j = c := Fin.ext (h'.symm.trans hc.symm)
+        subst hjc
+        exact hsh (shares_self (hne _ (getElem_mem_fin j)))
+      · simp [hst] at he
   · intro j hj
-    simp only [step, hm, apply] at hj ⊢
     by_cases hsh : Shares φ[d] φ[j]
-    · exact Or.inr ⟨d, List.mem_cons_self, hsh⟩
+    · exact .inr ⟨d, List.mem_cons_self, hsh⟩
     · rw [eval_resample_of_not_shares hsh] at hj
-      rcases hs j hj with h | ⟨e, he, hshe⟩
-      · exact Or.inl h
-      · exact Or.inr ⟨e, List.mem_cons_of_mem _ he, hshe⟩
+      exact (hs j hj).imp id fun ⟨e, he, hshe⟩ => ⟨e, List.mem_cons_of_mem _ he, hshe⟩
   · intro j hj
-    simp only [step, hm, apply] at hj ⊢
-    rcases hs j hj with h | ⟨e', he', hshe⟩
-    · exact Or.inl h
-    · rw [hst] at he' ⊢
-      rw [List.tail_cons]
-      rcases List.mem_cons.1 he' with rfl | he'
-      · rw [hall j (mem_neighbors.2 hshe)] at hj
-        exact absurd hj (by decide)
-      · exact Or.inr ⟨e', he', hshe⟩
-  · simp only [step, hm, apply]
-    exact hs
+    refine (hs j hj).imp id ?_
+    rw [hst, List.tail_cons]
+    rintro ⟨e', he', hshe⟩
+    rcases List.mem_cons.1 he' with rfl | he'
+    · rw [hall j (mem_neighbors.2 hshe)] at hj
+      cases hj
+    · exact ⟨e', he', hshe⟩
+  · exact hs
 
 /-- When `Solve` has finished its scan with no active `Fix` call, the assignment satisfies `φ`. -/
 theorem eval_of_sound {s : State n φ.length} (hs : Sound φ s) (hst : s.stack = [])
@@ -375,11 +355,9 @@ theorem eval_of_sound {s : State n φ.length} (hs : Sound φ s) (hst : s.stack =
   intro c hc
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.1 hc
   by_contra hf
-  rw [Bool.not_eq_true] at hf
-  rcases hs ⟨i, hi⟩ hf with h | ⟨e, he, -⟩
-  · exact absurd (lt_of_lt_of_le hi hp) (not_lt.2 h)
-  · rw [hst] at he
-    exact absurd he List.not_mem_nil
+  rcases hs ⟨i, hi⟩ (Bool.eq_false_iff.2 hf) with h | ⟨e, he, -⟩
+  · omega
+  · simp [hst] at he
 
 theorem sound_run (hne : ∀ c ∈ φ, c ≠ []) (k t : ℕ) (x : ℕ → Bool) (N : ℕ) :
     Sound φ (run φ k t x N) := by
@@ -392,15 +370,13 @@ it fixes is satisfied. -/
 theorem eval_of_lt_of_move_eq_root {t : ℕ} {s : State n φ.length} (hs : Sound φ s)
     {c : Fin φ.length} (hm : move φ t s = .root c) {j : Fin φ.length} (hj : j < c) :
     φ[j].eval s.assignment = true := by
-  rcases move_cases t s with ⟨hm', -⟩ | ⟨c', hm', hst, hc', -⟩ | ⟨e, st, d, hm', -⟩ |
-    ⟨e, st, hm', -⟩ | ⟨hm', -⟩ <;> rw [hm] at hm' <;> cases hm'
+  rcases move_cases t s with ⟨hm', -⟩ | ⟨c', hm', hst, hc', -⟩ | ⟨_, _, _, hm', -⟩ |
+    ⟨_, _, hm', -⟩ | ⟨hm', -⟩ <;> rw [hm] at hm' <;> cases hm'
   by_contra hf
-  rw [Bool.not_eq_true] at hf
-  rcases hs j hf with h | ⟨e, he, -⟩
+  rcases hs j (Bool.eq_false_iff.2 hf) with h | ⟨e, he, -⟩
   · have : j.1 < c.1 := hj
     omega
-  · rw [hst] at he
-    exact absurd he List.not_mem_nil
+  · simp [hst] at he
 
 /-! ### Termination -/
 
@@ -412,7 +388,7 @@ def potential (t : ℕ) (s : State n φ.length) : ℕ :=
 theorem potential_step_lt (k t : ℕ) (x : ℕ → Bool) {s : State n φ.length}
     (hm : move φ t s ≠ .stop) : potential φ t (step φ k t x s) < potential φ t s := by
   rcases move_cases t s with ⟨hm', -, hp, -⟩ | ⟨c, hm', hst, hc, -, ht⟩ |
-    ⟨e, st, d, hm', -, -, -, ht⟩ | ⟨e, st, hm', hst, -⟩ | ⟨hm', -⟩
+    ⟨_, _, _, hm', -, -, -, ht⟩ | ⟨_, _, hm', hst, -⟩ | ⟨hm', -⟩
   · simp only [potential, step, hm', apply]
     omega
   · have := c.2
@@ -426,8 +402,8 @@ theorem potential_step_lt (k t : ℕ) (x : ℕ → Bool) {s : State n φ.length}
 
 theorem move_eq_stop_of_potential_eq_zero {t : ℕ} {s : State n φ.length}
     (h : potential φ t s = 0) : move φ t s = .stop := by
-  rcases move_cases t s with ⟨-, -, hp, -⟩ | ⟨c, -, -, -, -, ht⟩ |
-    ⟨e, st, d, -, -, -, -, ht⟩ | ⟨e, st, -, hst, -⟩ | ⟨hm, -⟩
+  rcases move_cases t s with ⟨-, -, hp, -⟩ | ⟨_, -, -, -, -, ht⟩ |
+    ⟨_, _, _, -, -, -, -, ht⟩ | ⟨_, _, -, hst, -⟩ | ⟨hm, -⟩
   · simp only [potential] at h
     omega
   · simp only [potential] at h
@@ -445,22 +421,15 @@ theorem step_eq_self {k t : ℕ} {x : ℕ → Bool} {s : State n φ.length} (h :
 theorem potential_run_add_le (k t : ℕ) (x : ℕ → Bool) (N : ℕ) :
     move φ t (run φ k t x N) = .stop ∨ potential φ t (run φ k t x N) + N ≤ fuel φ t := by
   induction N with
-  | zero =>
-    right
-    simp [potential, run, init, fuel]
+  | zero => exact .inr (by simp [potential, run, init, fuel])
   | succ N ih =>
     rcases ih with h | h
-    · left
-      rw [run_succ, step_eq_self h]
-      exact h
+    · exact .inl (by rwa [run_succ, step_eq_self h])
     · by_cases hm : move φ t (run φ k t x N) = .stop
-      · left
-        rw [run_succ, step_eq_self hm]
-        exact hm
-      · right
-        have := potential_step_lt k t x hm
+      · exact .inl (by rwa [run_succ, step_eq_self hm])
+      · have := potential_step_lt k t x hm
         rw [run_succ]
-        omega
+        exact .inr (by omega)
 
 /-- **Termination.** Every run with a budget of `t` resamplings stops within `m + 2 t` steps. -/
 theorem move_final_eq_stop (k t : ℕ) (x : ℕ → Bool) : move φ t (final φ k t x) = .stop := by
@@ -479,12 +448,8 @@ theorem run_eq_final {k t : ℕ} {x : ℕ → Bool} {N : ℕ} (hN : fuel φ t �
 finished scan. -/
 theorem final_halted {k t : ℕ} {x : ℕ → Bool} (h : ¬Exhausts φ k t x) :
     (final φ k t x).stack = [] ∧ φ.length ≤ (final φ k t x).ptr := by
-  rcases move_cases t (final φ k t x) with ⟨hm, -⟩ | ⟨c, hm, -⟩ | ⟨e, st, d, hm, -⟩ |
-    ⟨e, st, hm, -⟩ | ⟨-, ht | hh⟩
-  · simp [move_final_eq_stop] at hm
-  · simp [move_final_eq_stop] at hm
-  · simp [move_final_eq_stop] at hm
-  · simp [move_final_eq_stop] at hm
+  rcases move_cases t (final φ k t x) with ⟨hm, -⟩ | ⟨_, hm, -⟩ | ⟨_, _, _, hm, -⟩ |
+    ⟨_, _, hm, -⟩ | ⟨-, ht | hh⟩ <;> try simp [move_final_eq_stop] at hm
   · exact absurd ht h
   · exact hh
 
@@ -527,17 +492,13 @@ theorem move_eq_move_of_lt {t t' : ℕ} {s : State n φ.length} (h : s.trace.len
 theorem run_budget {k t t' : ℕ} (ht : t ≤ t') (x : ℕ → Bool) (N : ℕ) :
     t ≤ (run φ k t x N).trace.length ∨ run φ k t x N = run φ k t' x N := by
   induction N with
-  | zero => exact Or.inr rfl
+  | zero => exact .inr rfl
   | succ N ih =>
     by_cases hl : t ≤ (run φ k t x N).trace.length
-    · exact Or.inl (hl.trans (length_trace_le_step k t x _))
-    · rcases ih with h | h
-      · exact absurd h hl
-      · right
-        rw [run_succ, run_succ, ← h]
-        simp only [step]
-        rw [move_eq_move_of_lt (t := t) (t' := t') (Nat.lt_of_not_le hl)
-          (lt_of_lt_of_le (Nat.lt_of_not_le hl) ht)]
+    · exact .inl (hl.trans (length_trace_le_step k t x _))
+    · rw [run_succ, run_succ, ← ih.resolve_left hl, step,
+        move_eq_move_of_lt (Nat.lt_of_not_le hl) ((Nat.lt_of_not_le hl).trans_le ht)]
+      exact .inr rfl
 
 /-- **Budget dichotomy.** For budgets `t ≤ t'`, either the run uses up the budget `t`, or the larger
 budget does not change the final state. -/
@@ -545,19 +506,13 @@ theorem exhausts_or_final_eq {k t t' : ℕ} (ht : t ≤ t') (x : ℕ → Bool) :
     Exhausts φ k t x ∨ final φ k t' x = final φ k t x := by
   have hf : run φ k t x (fuel φ t') = final φ k t x :=
     run_eq_final (by simp only [fuel]; omega)
-  rcases run_budget (k := k) ht x (fuel φ t') with h' | h'
-  · rw [hf] at h'
-    exact Or.inl h'
-  · rw [hf] at h'
-    exact Or.inr h'.symm
+  exact (run_budget (k := k) ht x (fuel φ t')).imp
+    (fun h' => show t ≤ (final φ k t x).trace.length from hf ▸ h') fun h' => (hf ▸ h').symm
 
 /-- A run that uses up a budget of `t'` resamplings uses up any budget `t ≤ t'`. -/
 theorem Exhausts.mono {k t t' : ℕ} {x : ℕ → Bool} (ht : t ≤ t') (h : Exhausts φ k t' x) :
     Exhausts φ k t x :=
-  (exhausts_or_final_eq ht x).elim id fun h' => by
-    unfold Exhausts
-    rw [← h']
-    exact ht.trans h
+  (exhausts_or_final_eq ht x).elim id fun h' => ht.trans (h' ▸ h)
 
 /-- A run that stops within its budget is not affected by a larger budget. -/
 theorem final_eq_of_not_exhausts {k t t' : ℕ} {x : ℕ → Bool} (ht : t ≤ t')
@@ -580,14 +535,12 @@ theorem run_congr {k : ℕ} (hφ : φ.IsExactDistinct k) {t : ℕ} {x y : ℕ �
     (hxy : ∀ i < n + t * k, x i = y i) (N : ℕ) : run φ k t x N = run φ k t y N := by
   induction N with
   | zero =>
-    have h : (fun v : Fin n => x v) = fun v : Fin n => y v :=
-      funext fun v => hxy _ (lt_of_lt_of_le v.2 (Nat.le_add_right _ _))
-    simp only [run, init, h]
+    simp [run, init, funext fun v : Fin n => hxy _ (v.2.trans_le (Nat.le_add_right _ _))]
   | succ N ih =>
     rw [run_succ, run_succ, ← ih]
     simp only [step]
     rcases move_cases t (run φ k t x N) with ⟨hm, -⟩ | ⟨c, hm, -, -, -, ht⟩ |
-      ⟨e, st, d, hm, -, -, -, ht⟩ | ⟨e, st, hm, -⟩ | ⟨hm, -⟩
+      ⟨_, _, d, hm, -, -, -, ht⟩ | ⟨_, _, hm, -⟩ | ⟨hm, -⟩
     · simp only [hm, apply]
     · simp only [hm, apply, resample_congr_block hφ hxy c ht]
     · simp only [hm, apply, resample_congr_block hφ hxy d ht]

@@ -179,9 +179,7 @@ variable {n : ℕ}
   ⟨4 * n + i.1, by omega⟩
 
 private theorem xVar_injective : Function.Injective (xVar (n := n)) := by
-  intro i j h
-  ext
-  exact Fin.mk.inj h
+  fin_index [xVar]
 
 private theorem yVar_injective : Function.Injective (yVar (n := n)) := by
   fin_index [yVar]
@@ -226,15 +224,11 @@ private theorem mem_zSet {v : Fin (6 * n)} : v ∈ zSet n ↔ ∃ i, v = zVar i 
 @[simp] private theorem zVar_mem_zSet (i : Fin (2 * n)) : zVar i ∈ zSet n :=
   mem_zSet.mpr ⟨i, rfl⟩
 
-@[simp] private theorem xVar_notMem_zSet (i : Fin (2 * n)) : xVar i ∉ zSet n := by
-  rw [mem_zSet]
-  rintro ⟨j, hj⟩
-  exact xVar_ne_zVar i j hj
+@[simp] private theorem xVar_notMem_zSet (i : Fin (2 * n)) : xVar i ∉ zSet n :=
+  mt mem_zSet.mp fun ⟨j, hj⟩ => xVar_ne_zVar i j hj
 
-@[simp] private theorem yVar_notMem_zSet (i : Fin (2 * n)) : yVar i ∉ zSet n := by
-  rw [mem_zSet]
-  rintro ⟨j, hj⟩
-  exact yVar_ne_zVar i j hj
+@[simp] private theorem yVar_notMem_zSet (i : Fin (2 * n)) : yVar i ∉ zSet n :=
+  mt mem_zSet.mp fun ⟨j, hj⟩ => yVar_ne_zVar i j hj
 
 @[simp] private theorem card_zSet (n : ℕ) : (zSet n).card = 2 * n := by
   rw [zSet, Finset.card_image_of_injective _ zVar_injective, Finset.card_univ, Fintype.card_fin]
@@ -384,11 +378,8 @@ threshold $s = 6n - 1$. -/
 
 @[simp] theorem ilangoInstance_partialFunction (G : BipartitePermutationGraph) :
     (ilangoInstance G).partialFunction = ilangoGamma G := by
-  change (fun w : BitString (6 * G.1) =>
-    (ilangoInstance G).table (BitString.equivFin (6 * G.1) w)) = ilangoGamma G
   funext w
-  dsimp [ilangoInstance]
-  rw [Equiv.symm_apply_apply]
+  exact congrArg (ilangoGamma G) (Equiv.symm_apply_apply _ w)
 
 /-! ### Evaluation of `ilangoGamma` on each of the seven clauses -/
 
@@ -435,10 +426,7 @@ threshold $s = 6n - 1$. -/
   split_ifs with hx0 hx1 hz1
   · simp
   · simp
-  · congr 2
-    simp only [decide_eq_false_iff_not, not_exists]
-    intro i
-    exact absurd (congrFun hz1 i) Bool.false_ne_true
+  · exact congrArg some (decide_eq_false fun ⟨i, _⟩ => Bool.false_ne_true (congrFun hz1 i))
   · rfl
 
 private theorem ilangoGamma_half_aux (G : BipartitePermutationGraph) (x : BitString (2 * G.1))
@@ -585,20 +573,17 @@ private theorem numAnd_le_two_mul_of_clause3 {F : PosFormula (6 * n)} (hro : F.I
     (hC3 : ∀ x y : BitString (2 * n),
       F.eval (packXYZ x y ones2n) = decide (∃ i, x i = true ∨ y i = true)) :
     4 * n ≤ F.numOr + 1 ∧ F.numAnd ≤ 2 * n := by
-  have hsupp : F.leafSupport = Finset.univ := by
-    have hcard : F.leafSupport.card = 6 * n :=
-      ((F.isReadOnce_iff_card_leafSupport_eq_leafSize).mp hro).trans hleaf
-    exact Finset.eq_univ_of_card F.leafSupport (by simpa using hcard)
+  have hsupp : F.leafSupport = Finset.univ :=
+    Finset.eq_univ_of_card F.leafSupport
+      (by simpa using ((F.isReadOnce_iff_card_leafSupport_eq_leafSize).mp hro).trans hleaf)
   let w₀ : BitString (6 * n) := packXYZ zeros2n zeros2n ones2n
   have hw₀ : F.eval w₀ = false := by
     simpa [w₀] using hC3 zeros2n zeros2n
   have hsub : xSet n ∪ ySet n ⊆ PosFormula.flipSensitive w₀ F := by
     intro v hv
-    have hvz : v ∉ zSet n := fun h => by
-      rcases mem_zSet.mp h with ⟨i, rfl⟩
-      rcases Finset.mem_union.mp hv with h | h
-      · exact xVar_ne_zVar (mem_xSet.mp h).choose i (mem_xSet.mp h).choose_spec.symm
-      · exact yVar_ne_zVar (mem_ySet.mp h).choose i (mem_ySet.mp h).choose_spec.symm
+    have hvz : v ∉ zSet n := by
+      rcases (Finset.mem_union.mp hv).imp mem_xSet.mp mem_ySet.mp with ⟨i, rfl⟩ | ⟨i, rfl⟩ <;>
+        simp
     simp only [PosFormula.flipSensitive, hsupp, Finset.mem_filter, Finset.mem_univ, hw₀,
       Bool.not_false, Bool.true_and, true_and]
     exact (eval_update_packXYZ_ones2n hC3 hvz).2
@@ -939,13 +924,7 @@ private theorem ZDecomp.eval_packXYZ_of_clause4 {F : PosFormula (6 * n)} (hd : Z
           ∃ v ∈ zPartnerVars i F, packXYZ x y z v = true) := by
     simpa [htop_empty] using hd.eval_eq (packXYZ x y z)
   refine ⟨heval', fun x y i => ?_⟩
-  rw [heval', decide_eq_decide]
-  refine ⟨?_, fun ⟨v, hv, hwv⟩ => ⟨i, by simp, v, hv, hwv⟩⟩
-  rintro ⟨j, hj, v, hv, hwv⟩
-  have hji : j = i := by
-    by_contra hne
-    simp [Function.update_of_ne hne] at hj
-  exact ⟨v, hji ▸ hv, hwv⟩
+  simp [heval', Function.update_apply]
 
 private theorem exists_perm_and_mem_iff_of_disjoint
     {P : Fin (2 * n) → Finset (Fin (6 * n))}
@@ -1038,19 +1017,15 @@ theorem _root_.Cslib.Circuits.Boolean.PosFormula.exists_perm_of_agreesWith_ilang
   rw [heval', decide_eq_decide]
   refine exists_congr fun i => ?_
   simp only [Bool.and_eq_true, Bool.or_eq_true]
-  constructor
-  · rintro ⟨hz, v, hv, hwv⟩
-    refine ⟨?_, hz⟩
-    have hv_notZ : v ∉ zSet n := Finset.disjoint_left.mp (hhd.disjoint_partner i) hv
-    rcases eq_xVar_or_yVar_or_zVar v with ⟨k, rfl⟩ | ⟨k, rfl⟩ | ⟨k, rfl⟩
-    · rw [(hx_iff i k).mp hv] at hwv
-      exact Or.inl (by simpa using hwv)
-    · rw [(hy_iff i k).mp hv] at hwv
-      exact Or.inr (by simpa using hwv)
-    · exact absurd (zVar_mem_zSet k) hv_notZ
-  · rintro ⟨hx | hy, hz⟩
-    · exact ⟨hz, xVar (π i), (hx_iff i (π i)).mpr rfl, by simpa using hx⟩
-    · exact ⟨hz, yVar i, (hy_iff i i).mpr rfl, by simpa using hy⟩
+  rw [and_comm]
+  refine and_congr_left fun _ => ⟨fun ⟨v, hv, hwv⟩ => ?_, ?_⟩
+  · rcases eq_xVar_or_yVar_or_zVar v with ⟨k, rfl⟩ | ⟨k, rfl⟩ | ⟨k, rfl⟩
+    · exact .inl (by simpa [(hx_iff i k).mp hv] using hwv)
+    · exact .inr (by simpa [(hy_iff i k).mp hv] using hwv)
+    · exact absurd (zVar_mem_zSet k) (Finset.disjoint_left.mp (hhd.disjoint_partner i) hv)
+  · rintro (hx | hy)
+    · exact ⟨xVar (π i), (hx_iff i (π i)).mpr rfl, by simpa using hx⟩
+    · exact ⟨yVar i, (hy_iff i i).mpr rfl, by simpa using hy⟩
 
 /-! ## Section 5: Ilango's Theorem 11 (Exact Equivalence for $n \ge 2$) -/
 
@@ -1510,18 +1485,13 @@ private theorem ilangoRawFromFuel_eq (G : BipartitePermutationGraph) :
       (List.ofFn (ilangoReduction G).table, (ilangoReduction G).threshold) := by
   change ilangoRawFromFuel (G, 2 ^ (6 * G.1)) =
     (fun I : Instance => (List.ofFn I.table, I.threshold)) (ilangoReduction G)
-  unfold ilangoRawFromFuel
-  dsimp only
   by_cases hG : G.1 < 2
-  · by_cases hsmall : decideSmallBPIS G
-    · have hred : ilangoReduction G = trivialYesInstance := by simp [ilangoReduction, hG, hsmall]
-      rw [hred]; simp [hG, hsmall, trivialYesInstance]
-    · have hred : ilangoReduction G = trivialNoInstance := by simp [ilangoReduction, hG, hsmall]
-      rw [hred]; simp [hG, hsmall, trivialNoInstance]
-  · have hred : ilangoReduction G = ilangoInstance G := by simp [ilangoReduction, hG]
-    rw [hred]
-    simp only [hG, decide_false, Bool.false_eq_true, ↓reduceIte, Prod.mk.injEq]
-    exact ⟨(ofFn_ilangoInstance_table G).symm, rfl⟩
+  · rw [show ilangoReduction G =
+      if decideSmallBPIS G then trivialYesInstance else trivialNoInstance from ite_eq_left hG]
+    cases hsmall : decideSmallBPIS G <;>
+      simp [ilangoRawFromFuel, hG, hsmall, trivialYesInstance, trivialNoInstance]
+  · rw [show ilangoReduction G = ilangoInstance G from ite_eq_right hG]
+    simp [ilangoRawFromFuel, hG, ← ofFn_ilangoInstance_table]
 
 attribute [local fun_prop] ComputableInPolyTime.unary_range'
 

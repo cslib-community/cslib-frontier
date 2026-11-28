@@ -4,10 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Complexity.FineGrained.Reduction
-import CslibFrontier.Computability.Complexity.Problems.Coloring
-import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Sparse
-import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Sparse
+import CslibFrontier.Computability.Complexity.FineGrained.GraphProblems
 
 /-!
 # Tests: linear-size reductions from 3SAT to graph problems
@@ -19,7 +16,8 @@ with no clauses and one with an empty clause; the sparse diamond reduction: its 
 Sipser's construction on a formula with many occurrences of one variable, and its correctness for
 directed paths, directed cycles and undirected cycles on satisfiable and unsatisfiable formulas,
 including the formula with no clauses and the empty clause; the size of the 3-coloring reduction;
-the non-vacuity of the subexponential time predicate; and the axioms of the reductions.
+the subexponential-time predicate on the empty language, the SH lower bounds at exponent `1/2`,
+and the axioms of the reductions.
 -/
 
 namespace CslibFrontierTests.FineGrained.GraphProblems
@@ -128,6 +126,21 @@ example : DecidableInSubexpTime (∅ : Set Graph) encGraph fun G =>
     have h₀ : (0 : ℝ) ≤ (encGraph G).length := Nat.cast_nonneg _
     simp only [Nat.cast_one, pow_one, one_mul]
     nlinarith
+
+/-- The SH transfer specializes to a square-root exponent with polynomial input overhead. -/
+example (h : SH) :
+    ¬DecidableInPowerExpTime ThreeColoring encGraph
+      (fun G => G.vertices.length + G.edges.length) (1 / 2) :=
+  h.not_decidableInPowerExpTime_ThreeColoring (by norm_num) (by norm_num)
+
+/-- The square-root bound specializes to a vertex-only measure and to directed path instances. -/
+example (h : SH) :
+    (¬DecidableInPowerExpTime IndependentSet encIndependentSetInstance
+      (fun x => x.graph.vertices.length) (1 / 2)) ∧
+    (¬DecidableInPowerExpTime DirHamPath encPathInstance
+      (fun x => x.graph.vertices.length + x.graph.edges.length) (1 / 2)) :=
+  ⟨h.not_decidableInPowerExpTime_IndependentSet_vertices (by norm_num) (by norm_num),
+    h.not_decidableInPowerExpTime_DirHamPath (by norm_num) (by norm_num)⟩
 
 /-! ### Axioms -/
 

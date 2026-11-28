@@ -54,24 +54,18 @@ private theorem ring_gate_synthesis (op : Op) :
   | not =>
     have hx : Synthesis (arithInterpretation R) (inputs 1) {fun x => x 0} 0 :=
       Synthesis.of_mem ⟨0, rfl⟩
-    have hm : Synthesis (arithInterpretation R) (inputs 1) {fun _ => (-1 : R)} 1 :=
-      Synthesis.arith_const (constant := id) (-1)
-    have hc : Synthesis (arithInterpretation R) (inputs 1) {fun _ => (1 : R)} 1 :=
-      Synthesis.arith_const (constant := id) 1
-    have h := hc.binary (hm.binary hx ArithOp.mul) ArithOp.add
-    exact h.mono Set.Subset.rfl Set.Subset.rfl (by decide)
-  | and =>
-    exact (Synthesis.arith_mul (constant := id) (R := R)
-      (s := inputs 2) ⟨0, rfl⟩ ⟨1, rfl⟩).mono
+    exact ((Synthesis.arith_const (constant := id) (1 : R)).binary
+      ((Synthesis.arith_const (constant := id) (-1 : R)).binary hx .mul) .add).mono
       Set.Subset.rfl Set.Subset.rfl (by decide)
+  | and =>
+    exact (Synthesis.arith_mul (constant := id) (R := R) (s := inputs 2)
+      ⟨0, rfl⟩ ⟨1, rfl⟩).mono Set.Subset.rfl Set.Subset.rfl (by decide)
   | or =>
     have hs : Synthesis (arithInterpretation R) (inputs 2) {fun x => x 0 + x 1} 1 :=
       Synthesis.arith_add (constant := id) ⟨0, rfl⟩ ⟨1, rfl⟩
     have hp : Synthesis (arithInterpretation R) (inputs 2) {fun x => x 0 * x 1} 1 :=
       Synthesis.arith_mul (constant := id) ⟨0, rfl⟩ ⟨1, rfl⟩
-    have hm : Synthesis (arithInterpretation R) (inputs 2) {fun _ => (-1 : R)} 1 :=
-      Synthesis.arith_const (constant := id) (-1)
-    exact hs.binary (hm.binary hp ArithOp.mul) ArithOp.add
+    exact hs.binary ((Synthesis.arith_const (constant := id) (-1 : R)).binary hp .mul) .add
 
 /-- Every De Morgan circuit has an arithmetic simulation over any ring with at most five
 arithmetic gates per Boolean gate. Inputs and outputs represent false by zero and true by one.
@@ -82,20 +76,15 @@ theorem exists_ring_simulation {n m : ℕ} (c : Circuit signature n m) :
         d.eval (arithInterpretation R) (fun i => (x i).toNat) =
           fun j => ((c.eval interpretation x j).toNat : R) := by
   let hom : Homomorphism interpretation (ringInterpretation (R := R)) :=
-    ⟨(fun b => (b.toNat : R)), by
-      intro op input
+    ⟨fun b => (b.toNat : R), fun op input => by
       cases op with
       | const b => rfl
       | not => cases h : input 0 <;> simp [interpretation, ringInterpretation, h]
-      | and => cases h : input 0 <;> cases k : input 1 <;>
-          simp [interpretation, ringInterpretation, h, k]
-      | or => cases h : input 0 <;> cases k : input 1 <;>
+      | and | or =>
+        cases h : input 0 <;> cases k : input 1 <;>
           simp [interpretation, ringInterpretation, h, k]⟩
-  obtain ⟨d, hd, hsize⟩ := c.exists_simulation_le
-    (fun op => (ring_gate_synthesis (R := R) op).exists_circuit)
-  refine ⟨d, hsize, ?_⟩
-  intro x
-  rw [hd]
-  exact (c.map_eval hom x).symm
+  obtain ⟨d, hd, hsize⟩ := c.exists_simulation_le fun op =>
+    (ring_gate_synthesis (R := R) op).exists_circuit
+  exact ⟨d, hsize, fun x => congrFun hd (fun i => (x i).toNat) ▸ (c.map_eval hom x).symm⟩
 
 end Cslib.Circuits.Boolean

@@ -62,54 +62,41 @@ private theorem coeff_add_mul {p q : F⟦X⟧} {e e₁ : ℕ} (hp : ∀ i < e, c
     rw [mem_antidiagonal] at hij
     rcases lt_or_ge i e with hi | hi
     · rw [hp i hi, zero_mul]
-    · have hj : j < e₁ := by
-        rcases lt_or_ge j e₁ with hj | hj
-        · exact hj
-        · exact absurd (Prod.ext (by simp only at hij ⊢; omega) (by simp only at hij ⊢; omega)) hne
-      rw [hq j hj, mul_zero]
-  · intro h
-    exact absurd (by simp) h
+    · rw [hq j (lt_of_le_of_ne (by omega) fun h => hne (Prod.ext (by omega) h)), mul_zero]
+  · exact fun h => (h (mem_antidiagonal.2 rfl)).elim
 
 private theorem coeff_X_mul_derivative (h : F⟦X⟧) (k : ℕ) :
     coeff k (X * d⁄dX h) = k * coeff k h := by
   cases k with
   | zero => simp
-  | succ k => rw [coeff_succ_X_mul, coeff_derivative]; push_cast; ring
+  | succ k =>
+    rw [coeff_succ_X_mul, coeff_derivative]
+    push_cast; ring
 
 private theorem order_toNat_eq [CharZero F] {a b : F⟦X⟧} (ha : a ≠ 0) (hb : b ≠ 0)
     (h : b * d⁄dX a = a * d⁄dX b) : a.order.toNat = b.order.toNat := by
   have hX : b * (X * d⁄dX a) = a * (X * d⁄dX b) := by linear_combination X * h
-  have hθ (g : F⟦X⟧) : ∀ j < g.order.toNat, coeff j (X * d⁄dX g) = 0 := fun j hj => by
+  have hθ (g : F⟦X⟧) (j) (hj : j < g.order.toNat) : coeff j (X * d⁄dX g) = 0 := by
     rw [coeff_X_mul_derivative, coeff_of_lt_order_toNat j hj, mul_zero]
-  have h₁ := coeff_add_mul (fun i hi => coeff_of_lt_order_toNat i hi) (hθ a)
-    (p := b) (q := X * d⁄dX a)
-  have h₂ := coeff_add_mul (fun i hi => coeff_of_lt_order_toNat i hi) (hθ b)
-    (p := a) (q := X * d⁄dX b)
+  have h₁ := coeff_add_mul (fun i => coeff_of_lt_order_toNat i) (hθ a) (p := b)
+  have h₂ := coeff_add_mul (fun i => coeff_of_lt_order_toNat i) (hθ b) (p := a)
   rw [hX, add_comm, h₂, coeff_X_mul_derivative, coeff_X_mul_derivative] at h₁
-  have hne : coeff a.order.toNat a * coeff b.order.toNat b ≠ 0 :=
-    mul_ne_zero (coeff_order ha) (coeff_order hb)
-  have hcast : (a.order.toNat : F) = b.order.toNat := by
-    have h₃ : ((a.order.toNat : F) - b.order.toNat) *
-        (coeff a.order.toNat a * coeff b.order.toNat b) = 0 := by linear_combination -h₁
-    exact sub_eq_zero.1 ((mul_eq_zero.1 h₃).resolve_right hne)
-  exact_mod_cast hcast
+  have h₃ : ((a.order.toNat : F) - b.order.toNat) *
+      (coeff a.order.toNat a * coeff b.order.toNat b) = 0 := by linear_combination -h₁
+  exact_mod_cast sub_eq_zero.1 ((mul_eq_zero.1 h₃).resolve_right
+    (mul_ne_zero (coeff_order ha) (coeff_order hb)))
 
 /-- Over a field of characteristic zero, if `b * a' = a * b'` and `b ≠ 0` then `a` is a scalar
 multiple of `b`: the field of constants of the derivative is the base field. -/
 theorem exists_eq_smul_of_mul_derivative_eq [CharZero F] {a b : F⟦X⟧} (hb : b ≠ 0)
     (h : b * d⁄dX a = a * d⁄dX b) : ∃ c : F, a = c • b := by
   set e := b.order.toNat
-  refine ⟨coeff e a / coeff e b, ?_⟩
-  by_contra hne
+  refine ⟨coeff e a / coeff e b, by_contra fun hne => ?_⟩
   have ha₁ : a - (coeff e a / coeff e b) • b ≠ 0 := sub_ne_zero.2 hne
-  have h' : b * d⁄dX (a - (coeff e a / coeff e b) • b) =
-      (a - (coeff e a / coeff e b) • b) * d⁄dX b := by
+  have hord := order_toNat_eq ha₁ hb (by
     rw [map_sub, Derivation.map_smul, mul_sub, sub_mul, h, smul_mul_assoc, mul_smul_comm,
-      mul_comm b]
-  have hord := order_toNat_eq ha₁ hb h'
-  have hcoeff := coeff_order ha₁
-  rw [hord] at hcoeff
-  refine hcoeff ?_
-  rw [map_sub, coeff_smul, smul_eq_mul, div_mul_cancel₀ _ (coeff_order hb), sub_self]
+      mul_comm b])
+  exact (hord ▸ coeff_order ha₁) (by
+    rw [map_sub, coeff_smul, smul_eq_mul, div_mul_cancel₀ _ (coeff_order hb), sub_self])
 
 end PowerSeries

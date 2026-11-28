@@ -49,47 +49,37 @@ def graph (S : κ → Finset ι) : Multigraph (ι ⊕ κ) {p : ι × κ // p.1 �
   tgt e := .inr e.val.2
 
 /-- Every incidence edge joins the two different vertex classes. -/
-theorem loopless (S : κ → Finset ι) : (graph S).Loopless := by
-  intro e
-  exact Sum.inl_ne_inr
+theorem loopless (S : κ → Finset ι) : (graph S).Loopless :=
+  fun _ => Sum.inl_ne_inr
+
+private theorem exists_adj_endpoints {S : κ → Finset ι} {u v : ι ⊕ κ}
+    (h : (graph S).toSimpleGraph.Adj u v) :
+    ∃ i j, i ∈ S j ∧ ((u = .inl i ∧ v = .inr j) ∨ (u = .inr j ∧ v = .inl i)) := by
+  obtain ⟨⟨⟨i, j⟩, hij⟩, he⟩ := (Multigraph.toSimpleGraph_adj.mp h).2
+  exact ⟨i, j, hij, Sym2.eq_iff.mp he.symm⟩
 
 /-- Adjacency between an input vertex and a support vertex is support membership. -/
 @[simp]
 theorem adj_inl_inr (S : κ → Finset ι) (i : ι) (j : κ) :
-    (graph S).toSimpleGraph.Adj (.inl i) (.inr j) ↔ i ∈ S j := by
-  rw [Multigraph.toSimpleGraph_adj]
-  constructor
-  · rintro ⟨_, ⟨⟨⟨i', j'⟩, hij⟩, he⟩⟩
-    change s(Sum.inl i', Sum.inr j') = s(Sum.inl i, Sum.inr j) at he
-    rcases Sym2.eq_iff.mp he with he | he
-    · have hi := Sum.inl.inj he.1
-      have hj := Sum.inr.inj he.2
-      simpa only [hi, hj] using hij
-    · exact (Sum.inl_ne_inr he.1).elim
-  · intro hij
-    exact ⟨Sum.inl_ne_inr, ⟨(i, j), hij⟩, rfl⟩
+    (graph S).toSimpleGraph.Adj (.inl i) (.inr j) ↔ i ∈ S j :=
+  ⟨fun h => by
+      rcases exists_adj_endpoints h with ⟨_, _, hij, ⟨⟨⟩, ⟨⟩⟩ | ⟨h1, _⟩⟩
+      exacts [hij, (Sum.inl_ne_inr h1).elim],
+    fun hij => Multigraph.toSimpleGraph_adj.mpr ⟨Sum.inl_ne_inr, ⟨(i, j), hij⟩, rfl⟩⟩
 
 /-- Two input vertices are never adjacent in an incidence graph. -/
 @[simp]
 theorem not_adj_inl_inl (S : κ → Finset ι) (i i' : ι) :
-    ¬(graph S).toSimpleGraph.Adj (.inl i) (.inl i') := by
-  intro h
-  obtain ⟨e, he⟩ := (Multigraph.toSimpleGraph_adj.mp h).2
-  change s(Sum.inl e.val.1, Sum.inr e.val.2) = s(Sum.inl i, Sum.inl i') at he
-  rcases Sym2.eq_iff.mp he with he | he
-  · exact Sum.inr_ne_inl he.2
-  · exact Sum.inr_ne_inl he.2
+    ¬(graph S).toSimpleGraph.Adj (.inl i) (.inl i') :=
+  fun h => by
+    rcases exists_adj_endpoints h with ⟨_, _, _, ⟨_, h⟩ | ⟨h, _⟩⟩ <;> exact Sum.inl_ne_inr h
 
 /-- Two support vertices are never adjacent in an incidence graph. -/
 @[simp]
 theorem not_adj_inr_inr (S : κ → Finset ι) (j j' : κ) :
-    ¬(graph S).toSimpleGraph.Adj (.inr j) (.inr j') := by
-  intro h
-  obtain ⟨e, he⟩ := (Multigraph.toSimpleGraph_adj.mp h).2
-  change s(Sum.inl e.val.1, Sum.inr e.val.2) = s(Sum.inr j, Sum.inr j') at he
-  rcases Sym2.eq_iff.mp he with he | he
-  · exact Sum.inl_ne_inr he.1
-  · exact Sum.inl_ne_inr he.1
+    ¬(graph S).toSimpleGraph.Adj (.inr j) (.inr j') :=
+  fun h => by
+    rcases exists_adj_endpoints h with ⟨_, _, _, ⟨h, _⟩ | ⟨_, h⟩⟩ <;> exact Sum.inr_ne_inl h
 
 /-- The edge count of an incidence multigraph is the sum of the support sizes. -/
 theorem card_edges [Fintype κ] (S : κ → Finset ι) :
@@ -101,7 +91,7 @@ theorem card_edges [Fintype κ] (S : κ → Finset ι) :
       left_inv := fun p => by cases p; rfl
       right_inv := fun p => by cases p; rfl }
   rw [Nat.card_congr e, Nat.card_eq_fintype_card, Fintype.card_sigma]
-  simp
+  simp only [Fintype.card_coe]
 
 /-- Input-vertex degree is the number of supports containing that input. -/
 theorem ncard_incidence_inl [DecidableEq ι] [Fintype κ] (S : κ → Finset ι) (i : ι) :
@@ -115,11 +105,8 @@ theorem ncard_incidence_inl [DecidableEq ι] [Fintype κ] (S : κ → Finset ι)
     { toFun := fun p => ⟨p.val.val.2, mem_filter.mpr
         ⟨mem_univ _, by simpa only [hi p] using p.val.property⟩⟩
       invFun := fun p => ⟨⟨(i, p.val), (mem_filter.mp p.property).2⟩, Or.inl rfl⟩
-      left_inv := fun p => by
-        apply Subtype.ext
-        apply Subtype.ext
-        exact Prod.ext (hi p).symm rfl
-      right_inv := fun p => by apply Subtype.ext; rfl }
+      left_inv := fun p => Subtype.ext (Subtype.ext (Prod.ext (hi p).symm rfl))
+      right_inv := fun _ => rfl }
   rw [← Nat.card_coe_set_eq, Nat.card_congr e, Nat.card_eq_finsetCard]
 
 /-- Support-vertex degree is the size of that support. -/
@@ -132,26 +119,18 @@ theorem ncard_incidence_inr (S : κ → Finset ι) (j : κ) :
   let e : (graph S).incidenceSet (.inr j) ≃ ↥(S j) :=
     { toFun := fun p => ⟨p.val.val.1, by simpa only [hj p] using p.val.property⟩
       invFun := fun p => ⟨⟨(p.val, j), p.property⟩, Or.inr rfl⟩
-      left_inv := fun p => by
-        apply Subtype.ext
-        apply Subtype.ext
-        exact Prod.ext rfl (hj p).symm
-      right_inv := fun p => by apply Subtype.ext; rfl }
+      left_inv := fun p => Subtype.ext (Subtype.ext (Prod.ext rfl (hj p).symm))
+      right_inv := fun _ => rfl }
   rw [← Nat.card_coe_set_eq, Nat.card_congr e, Nat.card_eq_finsetCard]
 
 /-- Bounds on support sizes and input incidences bound both classes of incidence-graph degrees. -/
 theorem maxDegreeLE [Finite ι] [DecidableEq ι] [Fintype κ] (S : κ → Finset ι) {d T : ℕ}
     (hs : ∀ j, (S j).card ≤ d)
     (hT : ∀ i, (univ.filter fun j => i ∈ S j).card ≤ T) :
-    (graph S).MaxDegreeLE (max d T) := by
-  intro v
+    (graph S).MaxDegreeLE (max d T) := fun v => by
   cases v with
-  | inl i =>
-    rw [ncard_incidence_inl]
-    exact (hT i).trans (le_max_right _ _)
-  | inr j =>
-    rw [ncard_incidence_inr]
-    exact (hs j).trans (le_max_left _ _)
+  | inl i => exact (ncard_incidence_inl S i).le.trans ((hT i).trans (le_max_right _ _))
+  | inr j => exact (ncard_incidence_inr S j).le.trans ((hs j).trans (le_max_left _ _))
 
 variable [Fintype ι]
 
@@ -172,10 +151,8 @@ theorem inputPrefix_zero (π : Layout (ι ⊕ κ)) : inputPrefix π 0 = ∅ := b
 
 /-- The full layout prefix contains every input. -/
 theorem inputPrefix_last (π : Layout (ι ⊕ κ)) :
-    inputPrefix π (Nat.card (ι ⊕ κ)) = univ := by
-  ext i
-  simp only [mem_inputPrefix, mem_univ, iff_true]
-  exact (π (.inl i)).isLt
+    inputPrefix π (Nat.card (ι ⊕ κ)) = univ :=
+  eq_univ_iff_forall.mpr fun i => (mem_inputPrefix π _ i).mpr (π (.inl i)).isLt
 
 /-- Input prefixes grow with the layout position. -/
 theorem inputPrefix_mono (π : Layout (ι ⊕ κ)) : Monotone (inputPrefix π) := by
@@ -187,21 +164,13 @@ theorem card_inputPrefix_succ_le (π : Layout (ι ⊕ κ)) (t : ℕ) :
     (inputPrefix π (t + 1)).card ≤ (inputPrefix π t).card + 1 := by
   classical
   let A := univ.filter fun i => (π (.inl i) : ℕ) = t
-  have hA : A.card ≤ 1 := by
-    apply card_le_one.mpr
-    intro i hi j hj
-    apply Sum.inl.inj
-    apply π.injective
-    apply Fin.ext
-    exact (mem_filter.mp hi).2.trans (mem_filter.mp hj).2.symm
-  have hsub : inputPrefix π (t + 1) ⊆ inputPrefix π t ∪ A := by
-    intro i hi
-    have hi' := (mem_inputPrefix π (t + 1) i).mp hi
-    by_cases hit : (π (.inl i) : ℕ) < t
-    · exact mem_union_left _ ((mem_inputPrefix π t i).mpr hit)
-    · exact mem_union_right _ (mem_filter.mpr ⟨mem_univ _, by omega⟩)
-  exact (card_le_card hsub).trans
-    ((card_union_le _ _).trans (Nat.add_le_add_left hA _))
+  have hA : A.card ≤ 1 := card_le_one.mpr fun _ hi _ hj => Sum.inl.inj <| π.injective <|
+    Fin.ext ((mem_filter.mp hi).2.trans (mem_filter.mp hj).2.symm)
+  have hsub : inputPrefix π (t + 1) ⊆ inputPrefix π t ∪ A := fun i hi => by
+    rcases Nat.lt_succ_iff_lt_or_eq.mp ((mem_inputPrefix π (t + 1) i).mp hi) with hit | hit
+    exacts [mem_union_left _ ((mem_inputPrefix π t i).mpr hit),
+      mem_union_right _ (mem_filter.mpr ⟨mem_univ _, hit⟩)]
+  exact (card_le_card hsub).trans ((card_union_le _ _).trans (Nat.add_le_add_left hA _))
 
 variable [DecidableEq ι] [Fintype κ]
 
@@ -225,10 +194,8 @@ theorem card_crossing_le_width (S : κ → Finset ι) (π : Layout (ι ⊕ κ)) 
       exact ⟨i, hiS, fun h => hj (h.mp hi')⟩
   let edge (j : C) : (graph S).frontier π t :=
     ⟨⟨((hw j).choose, j.val), (hw j).choose_spec.1⟩, (hw j).choose_spec.2⟩
-  have hinj : Function.Injective edge := by
-    intro j j' h
-    apply Subtype.ext
-    exact congrArg (fun e : (graph S).frontier π t => e.val.val.2) h
+  have hinj : Function.Injective edge := fun _ _ h =>
+    Subtype.ext (congrArg (fun e : (graph S).frontier π t => e.val.val.2) h)
   calc
     C.card = Nat.card C := (Nat.card_eq_finsetCard C).symm
     _ ≤ Nat.card ((graph S).frontier π t) := Nat.card_le_card_of_injective edge hinj

@@ -75,21 +75,13 @@ variable [Inhabited Q]
 theorem step_native (M : TM0.Machine Γ Q) (c : Cfg Γ Q) :
     (step M c).map Cfg.native = TM0.step M c.native := by
   rcases c with ⟨⟨q, T⟩, p⟩
-  cases h : M q T.head with
-  | none => simp only [step, TM0.step, h, Option.map_none]
-  | some result =>
-    rcases result with ⟨q', action⟩
-    cases action with
-    | write a => simp only [step, TM0.step, h, Option.map_some]
-    | move d => cases d <;> simp only [step, TM0.step, h, Option.map_some]
+  rcases h : M q T.head with _ | ⟨q', ⟨_ | _⟩ | a⟩ <;>
+    simp only [step, TM0.step, h, Option.map_none, Option.map_some]
 
 /-- A bounded coordinate path is a path of the original single-tape machine. -/
 theorem ReachesWithin.native {M : TM0.Machine Γ Q} {lo hi : ℤ} {c d : Cfg Γ Q}
     (h : ReachesWithin M lo hi c d) : TM0.Reaches M c.native d.native :=
-  h.lift Cfg.native fun a b hab => by
-    have hs := step_native M a
-    rw [hab.1] at hs
-    exact hs.symm
+  h.lift Cfg.native fun a _ hab => by simpa [hab.1] using (step_native M a).symm
 
 /-- Enlarging the coordinate interval retains every bounded path. -/
 theorem ReachesWithin.mono {M : TM0.Machine Γ Q} {lo hi lo' hi' : ℤ} {c d : Cfg Γ Q}
@@ -104,9 +96,7 @@ private theorem transGen_of_step_eq {M : TM0.Machine Γ Q} {lo hi : ℤ}
     (h : Relation.TransGen (StepWithin M lo hi) b c) :
     Relation.TransGen (StepWithin M lo hi) a c := by
   obtain ⟨d, hd, hdc⟩ := Relation.TransGen.head'_iff.mp h
-  apply Relation.TransGen.head'_iff.mpr
-  refine ⟨d, ?_, hdc⟩
-  exact ⟨he.trans hd.1, hp.symm ▸ hd.2⟩
+  exact Relation.TransGen.head'_iff.mpr ⟨d, ⟨he.trans hd.1, hp.symm ▸ hd.2⟩, hdc⟩
 
 end
 
@@ -121,11 +111,7 @@ theorem liftCfg_mk {S : Set Q} (q : S) (T : Tape Γ) (p : ℤ) :
 
 theorem liftCfg_injective {S : Set Q} : Function.Injective (liftCfg (Γ := Γ) (S := S)) := by
   rintro ⟨⟨q, T⟩, p⟩ ⟨⟨q', T'⟩, p'⟩ h
-  simp only [liftCfg_mk, Cfg.mk.injEq, TM0.Cfg.mk.injEq] at h
-  obtain ⟨⟨hq, rfl⟩, rfl⟩ := h
-  have he : q = q' := Subtype.ext hq
-  subst q'
-  rfl
+  simpa only [liftCfg_mk, Cfg.mk.injEq, TM0.Cfg.mk.injEq, Subtype.val_inj] using h
 
 section
 
@@ -136,16 +122,9 @@ theorem step_liftCfg (M : TM0.Machine Γ Q) {S : Set Q} (hS : TM0.Supports M S)
     [Inhabited S] (c : Cfg Γ S) :
     (step (TM0.restrict M hS) c).map liftCfg = step M (liftCfg c) := by
   rcases c with ⟨⟨q, T⟩, p⟩
-  cases hM : M q.val T.head with
-  | none => simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM, Option.pmap_none,
-      Option.map_none]
-  | some result =>
-    rcases result with ⟨q', action⟩
-    cases action with
-    | write a => simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM, Option.pmap_some,
-        Option.map_some]
-    | move d => cases d <;> simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM,
-        Option.pmap_some, Option.map_some]
+  rcases hM : M q.val T.head with _ | ⟨q', ⟨_ | _⟩ | a⟩ <;>
+    simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM, Option.pmap_none, Option.pmap_some,
+      Option.map_none, Option.map_some]
 
 /-- A bounded native path lifts to the machine restricted to any supporting finite control set. -/
 theorem ReachesWithin.restrict {M : TM0.Machine Γ Q} {S : Set Q}
@@ -155,15 +134,11 @@ theorem ReachesWithin.restrict {M : TM0.Machine Γ Q} {S : Set Q}
   induction h with
   | refl => exact ⟨c', hc, .refl⟩
   | @tail b d _ hs ih =>
-    obtain ⟨b', hb', hr⟩ := ih
+    obtain ⟨b', rfl, hr⟩ := ih
     have hm := step_liftCfg M hS b'
-    rw [hb', hs.1] at hm
-    obtain ⟨d', hd', he⟩ := Option.map_eq_some_iff.mp hm
-    refine ⟨d', he, hr.tail ⟨hd', ?_⟩⟩
-    have hp : b'.position = b.position := congrArg Cfg.position hb'
-    have hq : d'.position = d.position := congrArg Cfg.position he
-    rw [hp, hq]
-    exact hs.2
+    rw [hs.1] at hm
+    obtain ⟨d', hd', rfl⟩ := Option.map_eq_some_iff.mp hm
+    exact ⟨d', rfl, hr.tail ⟨hd', hs.2⟩⟩
 
 end
 
@@ -210,10 +185,8 @@ theorem HeadRange.endpoints {lo hi : ℤ} {q : Stmt Γ Λ σ} {v T p}
   | branch f q r ihq ihr =>
     cases hf : f T.head v <;> simp only [HeadRange, headAfter, hf, Bool.false_eq_true,
       ↓reduceIte] at h ⊢
-    · exact ihr h
-    · exact ihq h
-  | goto f => exact ⟨h, h⟩
-  | halt => exact ⟨h, h⟩
+    exacts [ihr h, ihq h]
+  | goto _ | halt => exact ⟨h, h⟩
 
 end TM1
 
@@ -232,16 +205,9 @@ theorem headRange_reaches {lo hi : ℤ} (q : TM1.Stmt Γ Λ σ) (v : σ) (T : Ta
       ⟨trCfg M (TM1.stepAux q v T), TM1.headAfter q v T p⟩ := by
   induction q generalizing v T p with
   | move d q ih =>
-    cases d with
-    | left =>
-      refine Relation.TransGen.head ?_ (ih _ _ _ h.2.2)
-      exact ⟨rfl, h.1, h.2.1, (TM1.HeadRange.endpoints h.2.2).1⟩
-    | right =>
-      refine Relation.TransGen.head ?_ (ih _ _ _ h.2.2)
-      exact ⟨rfl, h.1, h.2.1, (TM1.HeadRange.endpoints h.2.2).1⟩
-  | write f q ih =>
-    refine Relation.TransGen.head ?_ (ih _ _ _ h.2.2)
-    exact ⟨rfl, h.1, h.2.1, h.1, h.2.1⟩
+    cases d <;>
+      exact .head ⟨rfl, h.1, h.2.1, (TM1.HeadRange.endpoints h.2.2).1⟩ (ih _ _ _ h.2.2)
+  | write f q ih => exact .head ⟨rfl, h.1, h.2.1, h.1, h.2.1⟩ (ih _ _ _ h.2.2)
   | load f q ih =>
     exact HeadPosition.transGen_of_step_eq
       (b := ⟨⟨(some q, f T.head v), T⟩, p⟩) rfl rfl (ih (f T.head v) T p h)
@@ -253,13 +219,8 @@ theorem headRange_reaches {lo hi : ℤ} (q : TM1.Stmt Γ Λ σ) (v : σ) (T : Ta
         (by simp only [HeadPosition.step, tr, trAux, hf, Bool.cond_false]) rfl (ihr v T p h)
     · exact HeadPosition.transGen_of_step_eq (b := ⟨⟨(some q, v), T⟩, p⟩)
         (by simp only [HeadPosition.step, tr, trAux, hf, Bool.cond_true]) rfl (ihq v T p h)
-  | goto f =>
-    apply Relation.TransGen.single
-    exact ⟨by simp only [HeadPosition.step, tr, trAux, TM1.stepAux, trCfg,
-      Option.map_some, Tape.write_self]; rfl, h.1, h.2, h.1, h.2⟩
-  | halt =>
-    apply Relation.TransGen.single
-    exact ⟨by simp only [HeadPosition.step, tr, trAux, TM1.stepAux, trCfg,
+  | goto _ | halt =>
+    exact .single ⟨by simp only [HeadPosition.step, tr, trAux, TM1.stepAux, trCfg,
       Option.map_none, Option.map_some, Tape.write_self]; rfl, h.1, h.2, h.1, h.2⟩
 
 end TM1to0
@@ -288,14 +249,9 @@ private theorem TrCfg.right_unique {c : TM2.Cfg Γ Λ σ}
     {a b : TM1.Cfg (Γ' K Γ) (Λ' K Γ Λ σ) σ} (ha : TrCfg c a) (hb : TrCfg c b) : a = b := by
   rcases ha with @⟨q, v, S, L, hL⟩
   rcases hb with @⟨_, _, _, L', hL'⟩
-  have he : L = L' := by
-    apply ListBlank.ext
-    intro n
-    funext k
-    have hk := congrArg (fun T : ListBlank (Option (Γ k)) => T.nth n)
-      ((hL k).trans (hL' k).symm)
-    simpa only [ListBlank.nth_map, proj, PointedMap.mk_val] using hk
-  subst L'
+  obtain rfl : L = L' := ListBlank.ext fun n => funext fun k => by
+    simpa only [ListBlank.nth_map, proj, PointedMap.mk_val] using
+      congrArg (fun T : ListBlank (Option (Γ k)) => T.nth n) ((hL k).trans (hL' k).symm)
   rfl
 
 private theorem TrCfg.with_label {c : TM2.Cfg Γ Λ σ}
@@ -312,11 +268,8 @@ private theorem headRange_trStAct {R : ℤ} {k : K} (o : StAct K Γ σ k)
     (hq : ∀ v T p, -1 ≤ p → p ≤ R → TM1.HeadRange (-1) R q v T p) :
     TM1.HeadRange (-1) R (trStAct q o) v T p := by
   cases o with
-  | push f =>
-    exact ⟨by omega, by omega, by omega, by omega, hq _ _ _ (by omega) hR⟩
-  | peek f =>
-    refine ⟨by omega, by omega, ?_⟩
-    exact ⟨by omega, by omega, hq _ _ _ (by omega) (by omega)⟩
+  | push f | peek f =>
+    exact ⟨by omega, by omega, by omega, by omega, hq _ _ _ (by omega) (by omega)⟩
   | pop f =>
     simp only [trStAct, TM1.HeadRange]
     cases T.head.1
@@ -343,8 +296,7 @@ private theorem headAfter_trStAct {k : K} (o : StAct K Γ σ k)
     | cons a s =>
       rw [List.length_cons, Tape.move_right_n_head, Tape.mk'_nth_nat,
         addBottom_nth_succ_fst]
-      simp only [Bool.false_eq_true, ↓reduceIte, hq, List.tail_cons, Int.natCast_succ]
-      omega
+      simp only [Bool.false_eq_true, ↓reduceIte, hq, List.tail_cons, Int.natCast_succ]; omega
 
 variable [Inhabited Λ] [Inhabited σ]
 variable (M : Λ → TM2.Stmt Γ Λ σ)
@@ -412,8 +364,7 @@ private theorem ret_within {R : ℤ} (q : TM2.Stmt Γ Λ σ) (v : σ)
       simp only [TM1.stepAux, Function.iterate_succ_apply', Tape.move_right_left]
     have hp : TM1.headAfter (tr M (.ret q)) v
         ((Tape.move .right)^[n + 1] (Tape.mk' ∅ (addBottom L))) (n + 1) = n := by
-      simp only [tr, TM1.headAfter, hbit, Bool.false_eq_true, ↓reduceIte]
-      omega
+      simp only [tr, TM1.headAfter, hbit, Bool.false_eq_true, ↓reduceIte]; omega
     rw [he, hp] at hr
     exact hr.to_reflTransGen.trans (ih (by omega))
 
@@ -473,15 +424,12 @@ private theorem stackAction_within :
   have hg := go_within M o q v (hL k) (S k).length le_rfl hR
   have hr := ret_within M q (stVar v (S k) o) L' (stWrite v (S k) o).length (R := R)
     (by have := stWrite_length o v (S k); omega)
+  have h0R : (-1 : ℤ) ≤ 0 ∧ (0 : ℤ) ≤ R := by omega
   have hg0 : StepWithin (compiler M) (-1) R
       ⟨⟨(some (trNormal (stRun o q)), v), Tape.mk' ∅ (addBottom L)⟩, 0⟩
-      (atLabel M (.go k o q) v (Tape.mk' ∅ (addBottom L)) 0) := by
-    refine ⟨?_, by change -1 ≤ (0 : ℤ); omega, by change (0 : ℤ) ≤ R; omega,
-      by change -1 ≤ (0 : ℤ); omega, by change (0 : ℤ) ≤ R; omega⟩
-    rw [trNormal_run]
-    simp only [HeadPosition.step, compiler, TM1to0.tr, TM1to0.trAux, Option.map_some,
-      Tape.write_self]
-    rfl
+      (atLabel M (.go k o q) v (Tape.mk' ∅ (addBottom L)) 0) :=
+    ⟨by simp only [trNormal_run, HeadPosition.step, atLabel, TM1to0.trCfg, compiler, TM1to0.tr,
+      TM1to0.trAux, Option.map_some, Tape.write_self], h0R.1, h0R.2, h0R.1, h0R.2⟩
   exact ⟨L', hL', (Relation.TransGen.single hg0).trans_left (hg.trans (ha.trans hr))⟩
 
 end
@@ -501,70 +449,45 @@ private theorem stmt_within {R : ℤ} (q : TM2.Stmt Γ Λ σ) (v : σ)
   induction q using stmtStRec generalizing v S L B with
   | run k o q ih =>
     let S' := Function.update S k (stWrite v (S k) o)
-    have hB' : ∀ k', (S' k').length ≤ B + 1 := by
-      intro k'
+    have hB' : ∀ k', (S' k').length ≤ B + 1 := fun k' => by
       by_cases hk : k' = k
       · subst k'
         simpa only [S', Function.update_self] using
           (stWrite_length o v (S k)).trans (Nat.add_le_add_right (hB k) 1)
       · simpa only [S', Function.update_of_ne hk] using (hB k').trans (Nat.le_add_right B 1)
-    have hR' : (B + 1 : ℕ) + (stackDepth q : ℤ) + 1 ≤ R := by
-      rw [stackDepth_run] at hR
-      omega
-    obtain ⟨L', hL', ha⟩ := stackAction_within M o q v S L hL (R := R) (by
-      have := hB k
-      rw [stackDepth_run] at hR
-      omega)
-    obtain ⟨L'', hL'', hc⟩ := ih (stVar v (S k) o) S' L' (B + 1) hL' hB' hR'
-    refine ⟨L'', ?_, ?_⟩
-    · simpa only [step_run] using hL''
-    · have hc' := HeadPosition.transGen_of_step_eq
-        (a := atLabel M (.ret q) (stVar v (S k) o) (Tape.mk' ∅ (addBottom L')) 0)
-        (b := ⟨⟨(some (trNormal q), stVar v (S k) o), Tape.mk' ∅ (addBottom L')⟩, 0⟩)
-        (by simp only [HeadPosition.step, atLabel, TM1to0.trCfg, Option.map_some, tr,
-          TM1to0.tr, TM1to0.trAux, Tape.mk'_head, addBottom_head_fst, Bool.cond_true]) rfl hc
-      rw [step_run]
-      exact ha.trans hc'
+    rw [stackDepth_run] at hR
+    obtain ⟨L', hL', ha⟩ := stackAction_within M o q v S L hL (R := R) (by have := hB k; omega)
+    obtain ⟨L'', hL'', hc⟩ := ih (stVar v (S k) o) S' L' (B + 1) hL' hB' (by omega)
+    refine ⟨L'', by simpa only [step_run] using hL'', ?_⟩
+    rw [step_run]
+    exact ha.trans (HeadPosition.transGen_of_step_eq
+      (b := ⟨⟨(some (trNormal q), stVar v (S k) o), Tape.mk' ∅ (addBottom L')⟩, 0⟩)
+      (by simp only [HeadPosition.step, atLabel, TM1to0.trCfg, Option.map_some, tr,
+        TM1to0.tr, TM1to0.trAux, Tape.mk'_head, addBottom_head_fst, Bool.cond_true]) rfl hc)
   | load f q ih =>
     obtain ⟨L', hL', hr⟩ := ih (f v) S L B hL hB hR
-    refine ⟨L', hL', ?_⟩
-    exact HeadPosition.transGen_of_step_eq
-      (b := ⟨⟨(some (trNormal q), f v), Tape.mk' ∅ (addBottom L)⟩, 0⟩) rfl rfl hr
+    exact ⟨L', hL', HeadPosition.transGen_of_step_eq
+      (b := ⟨⟨(some (trNormal q), f v), Tape.mk' ∅ (addBottom L)⟩, 0⟩) rfl rfl hr⟩
   | branch f q r ihq ihr =>
-    have hq : (B : ℤ) + stackDepth q + 1 ≤ R := by
-      simp only [stackDepth] at hR
-      have := Nat.le_max_left (stackDepth q) (stackDepth r)
-      omega
-    have hr : (B : ℤ) + stackDepth r + 1 ≤ R := by
-      simp only [stackDepth] at hR
-      have := Nat.le_max_right (stackDepth q) (stackDepth r)
-      omega
-    cases hf : f v with
-    | false =>
-      obtain ⟨L', hL', hc⟩ := ihr v S L B hL hB hr
-      refine ⟨L', ?_, ?_⟩
-      · simpa only [TM2.stepAux, hf, Bool.cond_false] using hL'
-      · simp only [TM2.stepAux, hf, Bool.cond_false]
-        exact HeadPosition.transGen_of_step_eq
-          (b := ⟨⟨(some (trNormal r), v), Tape.mk' ∅ (addBottom L)⟩, 0⟩)
-          (by simp only [HeadPosition.step, trNormal, TM1to0.tr, TM1to0.trAux, hf,
-            Bool.cond_false]) rfl hc
-    | true =>
-      obtain ⟨L', hL', hc⟩ := ihq v S L B hL hB hq
-      refine ⟨L', ?_, ?_⟩
-      · simpa only [TM2.stepAux, hf, Bool.cond_true] using hL'
-      · simp only [TM2.stepAux, hf, Bool.cond_true]
-        exact HeadPosition.transGen_of_step_eq
-          (b := ⟨⟨(some (trNormal q), v), Tape.mk' ∅ (addBottom L)⟩, 0⟩)
-          (by simp only [HeadPosition.step, trNormal, TM1to0.tr, TM1to0.trAux, hf,
-            Bool.cond_true]) rfl hc
+    simp only [stackDepth] at hR
+    have := Nat.le_max_left (stackDepth q) (stackDepth r)
+    have := Nat.le_max_right (stackDepth q) (stackDepth r)
+    cases hf : f v <;> simp only [TM2.stepAux, hf, Bool.cond_false, Bool.cond_true]
+    · obtain ⟨L', hL', hc⟩ := ihr v S L B hL hB (by omega)
+      exact ⟨L', hL', HeadPosition.transGen_of_step_eq
+        (b := ⟨⟨(some (trNormal r), v), Tape.mk' ∅ (addBottom L)⟩, 0⟩)
+        (by simp only [HeadPosition.step, trNormal, TM1to0.tr, TM1to0.trAux, hf,
+          Bool.cond_false]) rfl hc⟩
+    · obtain ⟨L', hL', hc⟩ := ihq v S L B hL hB (by omega)
+      exact ⟨L', hL', HeadPosition.transGen_of_step_eq
+        (b := ⟨⟨(some (trNormal q), v), Tape.mk' ∅ (addBottom L)⟩, 0⟩)
+        (by simp only [HeadPosition.step, trNormal, TM1to0.tr, TM1to0.trAux, hf,
+          Bool.cond_true]) rfl hc⟩
   | goto _ | halt =>
-    refine ⟨L, hL, Relation.TransGen.single ?_⟩
-    refine ⟨?_, by change -1 ≤ (0 : ℤ); omega, by change (0 : ℤ) ≤ R; omega,
-      by change -1 ≤ (0 : ℤ); omega, by change (0 : ℤ) ≤ R; omega⟩
-    simp only [HeadPosition.step, compiler, trNormal, TM1to0.tr, TM1to0.trAux,
-      Option.map_some, Tape.write_self]
-    rfl
+    have h0R : (-1 : ℤ) ≤ 0 ∧ (0 : ℤ) ≤ R := by omega
+    exact ⟨L, hL, .single ⟨by simp only [HeadPosition.step, TM2.stepAux, TM1to0.trCfg, compiler,
+      trNormal, TM1to0.tr, TM1to0.trAux, Option.map_some, Option.map_none, Tape.write_self],
+      h0R.1, h0R.2, h0R.1, h0R.2⟩⟩
 
 /-- The constant head-range overhead of the standard stack-machine compilation. -/
 def headOverhead [Fintype Λ] : ℕ :=
@@ -588,14 +511,11 @@ theorem tr_reachesWithin [Fintype Λ] {c d : TM2.Cfg Γ Λ σ}
     cases l with
     | none => cases hed
     | some l =>
-      have he : d = TM2.stepAux (M l) v S := Option.some.inj hed.symm
-      subst d
+      obtain rfl : d = TM2.stepAux (M l) v S := Option.some.inj hed.symm
       obtain ⟨L', hL', hp⟩ := stmt_within M (M l) v S L B hL (hB _ hce)
         (R := B + headOverhead M) (by
-          have hm : stackDepth (M l) ≤ Finset.univ.sup (fun l => stackDepth (M l)) :=
-            Finset.le_sup (f := fun l => stackDepth (M l)) (Finset.mem_univ l)
-          simp only [headOverhead]
-          omega)
+          have := Finset.le_sup (f := fun l => stackDepth (M l)) (Finset.mem_univ l)
+          simp only [headOverhead]; omega)
       exact ⟨_, TrCfg.mk L' hL', hpath.trans hp.to_reflTransGen⟩
 
 private theorem trCfg_halt (k : K) (L : List (Γ k)) :
@@ -614,9 +534,7 @@ theorem tr_reachesWithin_halt [Fintype Λ] (ki ko : K) (input : List (Γ ki))
       ⟨TM0.init (trInit ki input), 0⟩
       ⟨⟨(none, default), Tape.mk₁ (trInit ko output)⟩, 0⟩ := by
   obtain ⟨b, hb, hp⟩ := tr_reachesWithin M (trCfg_init ki input) hr B hB
-  have he := hb.right_unique (trCfg_halt ko output)
-  subst b
-  exact hp
+  rwa [hb.right_unique (trCfg_halt ko output)] at hp
 
 end TM2to1
 

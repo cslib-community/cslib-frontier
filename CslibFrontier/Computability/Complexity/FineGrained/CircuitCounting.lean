@@ -178,22 +178,17 @@ private theorem computableInPolyTime_reachStep (encOp : σ.Op ↪ List Bool) :
 private theorem computableInPolyTime_reachWiresRaw (encOp : σ.Op ↪ List Bool) :
     ComputableInPolyTime (fun r : RawCode σ => Compiler.reachWiresCode r.1 r.2)
       (encRaw encOp) (encList encNat) := by
-  have hn : ComputableInPolyTime (fun r : RawCode σ => r.1) (encRaw encOp) encUnary := by fun_prop
   have hgates : ComputableInPolyTime (fun r : RawCode σ => r.2.1)
       (encRaw encOp) (encList (Circuit.encGate encOp)) := by fun_prop
-  have houts : ComputableInPolyTime (fun r : RawCode σ => r.2.2)
-      (encRaw encOp) (encList encNat) := by fun_prop
-  have hlist : ComputableInPolyTime (fun r : RawCode σ => r.2.1.zipIdx.reverse)
-      (encRaw encOp) (encList (encPair (Circuit.encGate encOp) encUnary)) := by fun_prop
-  refine foldlWith_of_bounded_growth hn hlist houts (computableInPolyTime_reachStep encOp)
+  refine foldlWith_of_bounded_growth (by fun_prop) (by fun_prop) (by fun_prop)
+    (computableInPolyTime_reachStep encOp)
     (growth := fun r => (encList (Circuit.encGate encOp) r.2.1).length)
     hgates.polyBounded_length fun r seen gj hmem => ?_
   unfold Compiler.reachStep
   split_ifs
   · rw [encList_append, List.length_append]
-    have hmem_zip : gj ∈ r.2.1.zipIdx := List.mem_reverse.mp hmem
-    rw [List.mem_zipIdx_iff_getElem?] at hmem_zip
-    have hmem_g : gj.1 ∈ r.2.1 := List.mem_of_getElem? hmem_zip
+    have hmem_g : gj.1 ∈ r.2.1 :=
+      List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.mp (List.mem_reverse.mp hmem))
     have hg_le := length_le_encList_of_mem (Circuit.encGate encOp) hmem_g
     have harg_le : (encList encNat gj.1.2).length ≤ (Circuit.encGate encOp gj.1).length := by
       rw [Circuit.encGate, length_encPair]
@@ -502,14 +497,10 @@ public theorem decidableInSubexpTime_signatureCircuitSAT_size {σ : Signature} [
     (harity : ∀ op : σ.Op, σ.Arity op ≤ k) :
     DecidableInSubexpTime (SignatureCircuitSAT I)
       (Circuit.encCircuit encOp 1) (fun c => c.2.size) := by
-  have hall_fan (c : Σ n, Circuit σ n 1) : c.2.FanInAtMost k :=
-    Program.fanInAtMost_iff.mpr fun j => harity (c.2.program.lines j).op
-  have heq : {c : Σ n, Circuit σ n 1 | c.2.FanInAtMost k ∧ c ∈ SignatureCircuitSAT I} =
-      SignatureCircuitSAT I := by
-    ext c
-    exact ⟨fun h => h.2, fun h => ⟨hall_fan c, h⟩⟩
-  rw [← heq]
-  exact decidableInSubexpTime_fanInSignatureCircuitSAT_size encOp I k
+  convert decidableInSubexpTime_fanInSignatureCircuitSAT_size encOp I k using 1
+  ext c
+  exact ⟨fun h => ⟨Program.fanInAtMost_iff.mpr fun j => harity (c.2.program.lines j).op, h⟩,
+    And.right⟩
 
 /-- De Morgan `CircuitSAT` satisfies `DecidableInSubexpTime` with respect to gate count `c.2.size`
 (for every `δ > 0`, some decider runs in `O(2 ^ (δ * c.2.size) * (|c| + 1) ^ e)`; see
@@ -552,22 +543,19 @@ public theorem decidableInSubexpTime_linearSizeSignatureCircuitSAT {σ : Signatu
       simp only [hgc, ↓reduceIte, KSAT, Set.mem_ofPred_eq, hcond.1, hcond.2, true_and,
         Compiler.satisfiable_toSatCNF_iff]
       exact ⟨fun h => ⟨fun cl hcl => Compiler.length_le_of_mem_toCNF I _ hcond.1 hcl, h⟩,
-        fun h => h.2⟩
-    · have hgc : (fanInCheck k ⟨n, c⟩ && linearSizeCheck C ⟨n, c⟩) = false := by
-        rw [Bool.eq_false_iff]
-        intro h
-        simp only [Bool.and_eq_true, fanInCheck_eq_true_iff, linearSizeCheck_eq_true_iff] at h
-        exact hcond h
+        And.right⟩
+    · have hgc : (fanInCheck k ⟨n, c⟩ && linearSizeCheck C ⟨n, c⟩) = false :=
+        Bool.eq_false_iff.mpr fun h => hcond <| by
+          simpa only [Bool.and_eq_true, fanInCheck_eq_true_iff, linearSizeCheck_eq_true_iff] using h
       simp only [hgc, Bool.false_eq_true, ↓reduceIte, KSAT, Set.mem_ofPred_eq]
-      exact ⟨fun h => absurd ⟨h.1, h.2.1⟩ hcond, fun ⟨_, τ, hτ⟩ => by simp at hτ⟩
+      exact ⟨fun h => absurd ⟨h.1, h.2.1⟩ hcond, fun ⟨_, _, hτ⟩ => by simp at hτ⟩
   · dsimp only [red]
     split_ifs with hgc
     · simp only [Bool.and_eq_true, fanInCheck_eq_true_iff, linearSizeCheck_eq_true_iff] at hgc
       have hnum := Compiler.numVars_toCNF_le I (fun _ b => b) hgc.1
-      have hmul := Nat.mul_le_mul_left k hgc.2
       change (Compiler.toCNF c.2 I (fun _ b => b)).numVars ≤
         (k * C + k + 1) * c.1 + (k * C + k + 1)
-      nlinarith
+      nlinarith [Nat.mul_le_mul_left k hgc.2]
     · simp only [CNF.numVars, CNF.vars, List.flatten_cons, List.flatten_nil, List.append_nil,
         List.map_nil, List.toFinset_nil, Finset.card_empty, Nat.zero_le]
 
@@ -580,17 +568,11 @@ public theorem decidableInSubexpTime_linearSizeCircuitSAT (C : ℕ) :
     DecidableInSubexpTime
       {c : Σ n, Circuit Boolean.signature n 1 | c.2.size ≤ C * c.1 + C ∧ c ∈ CircuitSAT}
       (Boolean.encCircuit 1) Sigma.fst := by
-  have heq : {c : Σ n, Circuit Boolean.signature n 1 |
-      c.2.FanInAtMost 2 ∧ c.2.size ≤ C * c.1 + C ∧
-        c ∈ SignatureCircuitSAT Boolean.interpretation} =
-      {c : Σ n, Circuit Boolean.signature n 1 | c.2.size ≤ C * c.1 + C ∧ c ∈ CircuitSAT} := by
-    ext c
-    simp only [Set.mem_ofPred_eq, signatureCircuitSAT_boolean]
-    exact ⟨fun h => h.2, fun h => ⟨c.2.fanInAtMost_two, h⟩⟩
-  have h0 := decidableInSubexpTime_linearSizeSignatureCircuitSAT (σ := Boolean.signature)
-    Boolean.encOp Boolean.interpretation 2 C
-  exact Eq.ndrec (motive := fun s => DecidableInSubexpTime s (Boolean.encCircuit 1) Sigma.fst)
-    h0 heq
+  convert decidableInSubexpTime_linearSizeSignatureCircuitSAT (σ := Boolean.signature)
+    Boolean.encOp Boolean.interpretation 2 C using 1
+  ext c
+  simp only [Set.mem_ofPred_eq, signatureCircuitSAT_boolean]
+  exact ⟨fun h => ⟨c.2.fanInAtMost_two, h⟩, And.right⟩
 
 end SubexpDecision
 

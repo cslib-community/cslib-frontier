@@ -332,11 +332,11 @@ private theorem ncard_edgeCut_insert_add [Finite E] {G : Multigraph V E} (hloop 
   exact hu
 
 /-- **Greedy `1`-vertex flips.** Starting from any subset `A₀` of a finite loopless cubic
-multigraph `G` and any `0 ≤ μ ≤ 3 / 20`, repeatedly moving vertices with at least two incident cut
+multigraph `G` and any `μ ≤ 3 / 20`, repeatedly moving vertices with at least two incident cut
 edges to the opposite side yields `A*` such that both `A*` and `A*ᶜ` have at most one cut edge per
 vertex, without increasing `|G.edgeCut|`, `lyap μ G`, or `|X| + |G.edgeCut X|` on either side. -/
 private theorem exists_greedy_flipped [Finite V] [Finite E] {G : Multigraph V E}
-    (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3) {μ : ℝ} (hμ0 : 0 ≤ μ)
+    (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3) {μ : ℝ}
     (hμ : μ ≤ 3 / 20) (A₀ : Set V) :
     ∃ A : Set V,
       (G.edgeCut A).ncard ≤ (G.edgeCut A₀).ncard ∧
@@ -346,88 +346,40 @@ private theorem exists_greedy_flipped [Finite V] [Finite E] {G : Multigraph V E}
       (Aᶜ).ncard + (G.edgeCut A).ncard ≤ (A₀ᶜ).ncard + (G.edgeCut A₀).ncard ∧
       (∀ v ∈ A, (G.incidenceSet v ∩ G.edgeCut A).ncard ≤ 1) ∧
       (∀ v ∈ Aᶜ, (G.incidenceSet v ∩ G.edgeCut A).ncard ≤ 1) := by
-  classical
-  have := Fintype.ofFinite V
-  let Adm : Set (Finset V) := {F : Finset V |
-    let A : Set V := (F : Set V)
-    (G.edgeCut A).ncard ≤ (G.edgeCut A₀).ncard ∧
-    lyap μ G A ≤ lyap μ G A₀ ∧
-    lyap μ G Aᶜ ≤ lyap μ G A₀ᶜ ∧
-    A.ncard + (G.edgeCut A).ncard ≤ A₀.ncard + (G.edgeCut A₀).ncard ∧
-    (Aᶜ).ncard + (G.edgeCut A).ncard ≤ (A₀ᶜ).ncard + (G.edgeCut A₀).ncard}
-  have hA₀_mem : A₀.toFinset ∈ Adm := by
-    have hcoe : ((A₀.toFinset : Finset V) : Set V) = A₀ := Set.coe_toFinset A₀
-    dsimp only [Adm]
-    rw [mem_ofPred_eq]
-    simp only [hcoe]
-    exact ⟨le_rfl, le_rfl, le_rfl, le_rfl, le_rfl⟩
-  obtain ⟨F, hF, hmin⟩ :=
-    (measure fun F : Finset V => (G.edgeCut (F : Set V)).ncard).wf.has_min
-      Adm ⟨A₀.toFinset, hA₀_mem⟩
-  set A : Set V := (F : Set V)
-  obtain ⟨hb, hLA, hLAc, hsumA, hsumAc⟩ := hF
-  -- Flipping `v ∉ S` into `S` when `2 ≤ |inc(v) ∩ ∂S|` strictly decreases cut, `lyap`, and `|·|+b`.
+  -- `Le T S`: `T` is no worse than `S` in each of the five tracked quantities.
+  let Le (T S : Set V) : Prop :=
+    (G.edgeCut T).ncard ≤ (G.edgeCut S).ncard ∧ lyap μ G T ≤ lyap μ G S ∧
+      lyap μ G Tᶜ ≤ lyap μ G Sᶜ ∧ T.ncard + (G.edgeCut T).ncard ≤ S.ncard + (G.edgeCut S).ncard ∧
+      (Tᶜ).ncard + (G.edgeCut T).ncard ≤ (Sᶜ).ncard + (G.edgeCut S).ncard
+  have le_compl {S T : Set V} (h : Le T S) : Le Tᶜ Sᶜ := by
+    simp only [Le, compl_compl, G.edgeCut_compl]
+    exact ⟨h.1, h.2.2.1, h.2.1, h.2.2.2.2, h.2.2.2.1⟩
+  obtain ⟨A, hA, hmin⟩ := (measure fun S : Set V => (G.edgeCut S).ncard).wf.has_min
+    {S | Le S A₀} ⟨A₀, le_rfl, le_rfl, le_rfl, le_rfl, le_rfl⟩
+  have hno {T : Set V} (hT : Le T A) (hlt : (G.edgeCut T).ncard < (G.edgeCut A).ncard) : False :=
+    hmin T ⟨hT.1.trans hA.1, hT.2.1.trans hA.2.1, hT.2.2.1.trans hA.2.2.1,
+      hT.2.2.2.1.trans hA.2.2.2.1, hT.2.2.2.2.trans hA.2.2.2.2⟩ hlt
+  -- Flipping `v ∉ S` into `S` when `2 ≤ |inc(v) ∩ ∂S|` strictly decreases the cut, keeping `Le`.
   have step_insert {S : Set V} {v : V} (hv : v ∉ S)
       (h2 : 2 ≤ (G.incidenceSet v ∩ G.edgeCut S).ncard) :
-      (G.edgeCut (insert v S)).ncard < (G.edgeCut S).ncard ∧
-      lyap μ G (insert v S) ≤ lyap μ G S ∧
-      lyap μ G (insert v S)ᶜ ≤ lyap μ G Sᶜ ∧
-      (insert v S).ncard + (G.edgeCut (insert v S)).ncard ≤ S.ncard + (G.edgeCut S).ncard ∧
-      ((insert v S)ᶜ).ncard + (G.edgeCut (insert v S)).ncard ≤
-        (Sᶜ).ncard + (G.edgeCut S).ncard := by
+      (G.edgeCut (insert v S)).ncard < (G.edgeCut S).ncard ∧ Le (insert v S) S := by
     have hcut := ncard_edgeCut_insert_add hloop h3 hv
-    have hlt_cut : (G.edgeCut (insert v S)).ncard + 1 ≤ (G.edgeCut S).ncard := by omega
-    have hcard_ins : (insert v S).ncard = S.ncard + 1 := ncard_insert_of_notMem hv (toFinite S)
-    have hcompl_eq : Sᶜ = insert v (insert v S)ᶜ := by
-      ext x; simp only [mem_compl_iff, mem_insert_iff]; by_cases hx : x = v <;> simp [hx, hv]
-    have hcard_compl : (Sᶜ).ncard = ((insert v S)ᶜ).ncard + 1 := by
-      rw [hcompl_eq, ncard_insert_of_notMem (by simp) (toFinite _)]
-    have hlt_real : ((G.edgeCut (insert v S)).ncard : ℝ) + 1 ≤ ((G.edgeCut S).ncard : ℝ) := by
-      exact_mod_cast hlt_cut
-    have hins_real : ((insert v S).ncard : ℝ) = (S.ncard : ℝ) + 1 := by exact_mod_cast hcard_ins
-    have hc_real : (((insert v S)ᶜ).ncard : ℝ) + 1 = ((Sᶜ).ncard : ℝ) := by
-      exact_mod_cast hcard_compl.symm
-    refine ⟨by omega, ?_, ?_, by omega, by omega⟩
-    · simp only [lyap, hins_real]
-      nlinarith
-    · simp only [lyap, G.edgeCut_compl]
-      nlinarith
-  refine ⟨A, hb, hLA, hLAc, hsumA, hsumAc, ?_, ?_⟩
-  · intro v hv
+    have hins : (insert v S).ncard = S.ncard + 1 := ncard_insert_of_notMem hv (toFinite S)
+    have hcompl : (Sᶜ).ncard = ((insert v S)ᶜ).ncard + 1 := by
+      rw [← ncard_insert_of_notMem (show v ∉ (insert v S)ᶜ by simp) (toFinite _)]
+      congr 1; ext x; by_cases hx : x = v <;> simp [hx, hv]
+    have hlt : ((G.edgeCut (insert v S)).ncard : ℝ) + 1 ≤ (G.edgeCut S).ncard := by
+      exact_mod_cast (by omega : (G.edgeCut (insert v S)).ncard + 1 ≤ (G.edgeCut S).ncard)
+    refine ⟨by omega, by omega, ?_, ?_, by omega, by omega⟩ <;>
+      simp only [lyap, G.edgeCut_compl, hins, hcompl, Nat.cast_add, Nat.cast_one] <;> nlinarith
+  refine ⟨A, hA.1, hA.2.1, hA.2.2.1, hA.2.2.2.1, hA.2.2.2.2, fun v hv => ?_, fun v hv => ?_⟩ <;>
     by_contra hgt
-    have h2 : 2 ≤ (G.incidenceSet v ∩ G.edgeCut Aᶜ).ncard := by
-      rw [G.edgeCut_compl]; omega
-    have hv_not : v ∉ Aᶜ := by simp [hv]
-    obtain ⟨hlt, hL1, hL2, hs1, hs2⟩ := step_insert hv_not h2
-    have hcompl : (insert v Aᶜ)ᶜ = (F.erase v : Set V) := by
-      ext x
-      simp only [A, mem_compl_iff, mem_insert_iff, Finset.mem_coe, Finset.mem_erase, not_or,
-        not_not, ne_eq]
-    let F' := F.erase v
-    have hA' : (F' : Set V) = (insert v Aᶜ)ᶜ := hcompl.symm
-    have hcut_eq : (G.edgeCut (F' : Set V)).ncard = (G.edgeCut (insert v Aᶜ)).ncard := by
-      rw [hA', G.edgeCut_compl]
-    have hlt' : (G.edgeCut (F' : Set V)).ncard < (G.edgeCut A).ncard := by
-      rw [hcut_eq]; rw [G.edgeCut_compl] at hlt; exact hlt
-    rw [compl_compl] at hL2 hs2
-    rw [G.edgeCut_compl] at hs1 hs2
-    refine hmin F' ⟨hlt'.le.trans hb, ?_, ?_, ?_, ?_⟩ hlt'
-    · rw [hA']; exact hL2.trans hLA
-    · rw [hA', compl_compl]; exact hL1.trans hLAc
-    · rw [hA', G.edgeCut_compl]; exact hs2.trans hsumA
-    · rw [hA', compl_compl, G.edgeCut_compl]; exact hs1.trans hsumAc
-  · intro v hv
-    by_contra hgt
-    have h2 : 2 ≤ (G.incidenceSet v ∩ G.edgeCut A).ncard := by omega
-    obtain ⟨hlt, hL1, hL2, hs1, hs2⟩ := step_insert hv h2
-    let F' := insert v F
-    have hA' : (F' : Set V) = insert v A := by simp [F', A]
-    have hlt' : (G.edgeCut (F' : Set V)).ncard < (G.edgeCut A).ncard := by rwa [hA']
-    refine hmin F' ⟨hlt'.le.trans hb, ?_, ?_, ?_, ?_⟩ hlt'
-    · rw [hA']; exact hL1.trans hLA
-    · rw [hA']; exact hL2.trans hLAc
-    · rw [hA']; exact hs1.trans hsumA
-    · rw [hA']; exact hs2.trans hsumAc
+  · obtain ⟨hlt, hle⟩ :=
+      step_insert (S := Aᶜ) (v := v) (by simpa using hv) (by rw [G.edgeCut_compl]; omega)
+    rw [G.edgeCut_compl] at hlt
+    exact hno (by simpa only [compl_compl] using le_compl hle) (by rwa [G.edgeCut_compl])
+  · obtain ⟨hlt, hle⟩ := step_insert hv (by omega)
+    exact hno hle hlt
 
 end GreedyFlips
 
@@ -1235,12 +1187,8 @@ private theorem quotient_cut_add_slack_le_lyap {qCut lCard q3Card xCard cutX sBo
   have hp_lt1 : gaussianCoefficient ≤ 1 :=
     gaussianCoefficient_lt_three_twentieths.le.trans (by norm_num)
   have hprod : q3Card * sBound ≤ q3Card * gaussianCoefficient + δ / 8 * h := by
-    calc q3Card * sBound
-        ≤ q3Card * (gaussianCoefficient + δ / 8) :=
-          mul_le_mul_of_nonneg_left hstrad hq3_nonneg
-      _ = q3Card * gaussianCoefficient + q3Card * (δ / 8) := by ring
-      _ ≤ q3Card * gaussianCoefficient + h * (δ / 8) := by gcongr
-      _ = q3Card * gaussianCoefficient + δ / 8 * h := by ring
+    linarith only [mul_le_mul_of_nonneg_left hstrad hq3_nonneg,
+      mul_le_mul_of_nonneg_right hq3_le_h (by positivity : (0 : ℝ) ≤ δ / 8)]
   have hq3_p : q3Card * gaussianCoefficient ≤ (xCard - cutX) * gaussianCoefficient + lCard := by
     have hmul := mul_le_mul_of_nonneg_right
       (by linarith only [hq3_le] : q3Card ≤ xCard - cutX + lCard) hp_pos.le
@@ -1381,6 +1329,13 @@ end DepthOne
 
 section DeeperLevels
 
+/-- The number of indices in `F` whose event holds at `ω`, as a sum of indicators over `F`. -/
+private theorem ncard_mem_and_eq_sum_indicator {κ Ω : Type*} (F : Finset κ) (A : κ → Set Ω)
+    (ω : Ω) : ({k | k ∈ F ∧ ω ∈ A k}.ncard : ℝ) = ∑ k ∈ F, (A k).indicator (1 : Ω → ℝ) ω := by
+  classical
+  simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
+  rw [← ncard_coe_finset, Finset.coe_filter]
+
 /-- **Single-step `t = 0` subset bisection on `G`.** Any subset `Y ⊆ V` of a large loopless cubic
 multigraph `G` splits into `Y₁ ⊔ Y₂` with `|Y_i| ≤ |Y| / 2 + η |V|` and
 `|G.edgeCut Y_i| ≤ straddleBound ρ₀ * |Y| + |G.edgeCut Y| / 2 + 2 η |V|`. -/
@@ -1457,12 +1412,10 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     rw [← Set.ncard_eq_toFinset_card']
     exact Nat.cast_le.mpr (ncard_le_card Y)
   have hFe_le : (Fe.card : ℝ) ≤ 3 / 2 * h := by
+    have h2r : (2 * (G.edgeCut Y).ncard : ℝ) ≤ 3 * Nat.card V := by
+      exact_mod_cast (Nat.mul_le_mul_left 2 (ncard_le_card (G.edgeCut Y))).trans
+        (two_mul_card_edges_eq_cubic hloop h3).le
     rw [← Set.ncard_eq_toFinset_card']
-    have hE := two_mul_card_edges_eq_cubic hloop h3
-    have hleE : (G.edgeCut Y).ncard ≤ Nat.card E := ncard_le_card _
-    have h2r : ((2 * (G.edgeCut Y).ncard : ℕ) : ℝ) ≤ ((3 * Nat.card V : ℕ) : ℝ) :=
-      Nat.cast_le.mpr (by omega)
-    push_cast at h2r
     linarith only [h2r, (rfl : h = (Nat.card V : ℝ))]
   obtain ⟨ω, hω⟩ := exists_notMem_of_measureReal_lt_one (((measureReal_union_le _ _).trans
     (add_le_add ((measureReal_union_le _ _).trans (add_le_add hdevV hdevE)) hdevS)).trans_lt
@@ -1482,11 +1435,6 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
   have hdisjY : Disjoint Y₁ Y₂ := disjoint_left.mpr fun _ h1 h2 => h2.2 h1.2
   have hunionY : Y₁ ∪ Y₂ = Y := inter_union_sdiff Y L0
   -- Vertex sizes of `Y₁` and `Y₂`.
-  have hY₁_sum : (Y₁.ncard : ℝ) = ∑ v ∈ Fv, (Av v).indicator (1 : (V → ℝ) → ℝ) ω := by
-    have h1 : Y₁.ncard = (Fv.filter fun v => ω ∈ Av v).card := by
-      rw [← ncard_coe_finset]; congr 1; ext v; simp [Y₁, L0, Fv, Av]
-    rw [h1]
-    simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
   have hmeanV : ∑ v ∈ Fv, P.real (Av v) = 1 / 2 * (Y.ncard : ℝ) := by
     have hpv (v : V) : P.real (Av v) = 1 / 2 :=
       measureReal_lowSide_zero_eq_half hloop hdeg hq (by linarith only [hρ₀]) hρ (h3 v)
@@ -1494,21 +1442,11 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     rw [Finset.sum_const, nsmul_eq_mul, ← Set.ncard_eq_toFinset_card']
     ring
   have hv_abs : |(Y₁.ncard : ℝ) - 1 / 2 * (Y.ncard : ℝ)| < c := by
-    rwa [← hY₁_sum, hmeanV] at hωV
+    have hY₁ : Y₁ = {v | v ∈ Fv ∧ ω ∈ Av v} := by ext v; simp [Y₁, L0, Fv, Av]
+    rwa [hY₁, ncard_mem_and_eq_sum_indicator, ← hmeanV]
   have hY₂_eq : (Y₂.ncard : ℝ) = (Y.ncard : ℝ) - (Y₁.ncard : ℝ) :=
     ncard_eq_sub_of_union hdisjY hunionY
   -- External boundary edges of `Y` landing in `Y₁` and `Y₂`.
-  have hE₁_sum : ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) =
-      ∑ e ∈ Fe, (Ae e).indicator (1 : (V → ℝ) → ℝ) ω := by
-    have h1 : {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard =
-        (Fe.filter fun e => ω ∈ Ae e).card := by
-      rw [← ncard_coe_finset]
-      congr 1; ext e
-      simp only [Finset.mem_coe, Finset.mem_filter, Fe, Set.mem_toFinset, mem_ofPred_eq, Y₁,
-        mem_inter_iff, Ae, L0]
-      exact ⟨fun ⟨he, _, hl⟩ => ⟨he, hl⟩, fun ⟨he, hl⟩ => ⟨he, (endIn_mem he).1, hl⟩⟩
-    rw [h1]
-    simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
   have hmeanE : ∑ e ∈ Fe, P.real (Ae e) = 1 / 2 * ((G.edgeCut Y).ncard : ℝ) := by
     have hpe (e : E) : P.real (Ae e) = 1 / 2 :=
       measureReal_lowSide_zero_eq_half hloop hdeg hq (by linarith only [hρ₀]) hρ (h3 (endIn G Y e))
@@ -1517,7 +1455,11 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     ring
   have he_abs : |({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) -
       1 / 2 * ((G.edgeCut Y).ncard : ℝ)| < c := by
-    rwa [← hE₁_sum, hmeanE] at hωE
+    have hE₁ : {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁} = {e | e ∈ Fe ∧ ω ∈ Ae e} := by
+      ext e
+      simp only [Fe, Set.mem_toFinset, mem_ofPred_eq, Y₁, mem_inter_iff, Ae, L0]
+      exact ⟨fun ⟨he, _, hl⟩ => ⟨he, hl⟩, fun ⟨he, hl⟩ => ⟨he, (endIn_mem he).1, hl⟩⟩
+    rwa [hE₁, ncard_mem_and_eq_sum_indicator, ← hmeanE]
   have hE₂_eq : ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂}.ncard : ℝ) =
       ((G.edgeCut Y).ncard : ℝ) - ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) :=
     ncard_edgeCut_endIn_eq_sub hdisjY hunionY
@@ -1536,19 +1478,12 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
         (fun v _ => h3 v) (edgeScore G q R ω) 0 fun _ _ => Iff.rfl))
   have hstrad_Y : ({v : V | v ∈ Y ∧ ω ∈ As v}.ncard : ℝ) ≤
       straddleBound ρ₀ * (Y.ncard : ℝ) + c := by
-    have hsum_eq : ({v : V | v ∈ Y ∧ ω ∈ As v}.ncard : ℝ) =
-        ∑ v ∈ Fv, (As v).indicator (1 : (V → ℝ) → ℝ) ω := by
-      have h1 : {v : V | v ∈ Y ∧ ω ∈ As v}.ncard = (Fv.filter fun v => ω ∈ As v).card := by
-        rw [← ncard_coe_finset]; congr 1; ext v; simp [Fv]
-      rw [h1]
-      simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
-    have hmeanS : ∑ v ∈ Fv, P.real (As v) ≤ straddleBound ρ₀ * (Y.ncard : ℝ) := by
-      calc ∑ v ∈ Fv, P.real (As v)
-          ≤ ∑ _v ∈ Fv, straddleBound ρ₀ :=
-            Finset.sum_le_sum fun v _ => measureReal_straddleEvent_le hloop h3 hq hρ₀ hρ 0 v
-        _ = straddleBound ρ₀ * (Y.ncard : ℝ) := by
-            rw [Finset.sum_const, nsmul_eq_mul, ← Set.ncard_eq_toFinset_card', mul_comm]
-    rw [← hsum_eq] at hωS
+    have hmeanS : ∑ v ∈ Fv, P.real (As v) ≤ straddleBound ρ₀ * (Y.ncard : ℝ) :=
+      (Finset.sum_le_sum fun v _ => measureReal_straddleEvent_le hloop h3 hq hρ₀ hρ 0 v).trans_eq
+        (by rw [Finset.sum_const, nsmul_eq_mul, ← Set.ncard_eq_toFinset_card', mul_comm])
+    have hY : {v : V | v ∈ Y ∧ ω ∈ As v} = {v | v ∈ Fv ∧ ω ∈ As v} := by
+      simp only [Fv, Set.mem_toFinset]
+    rw [hY, ncard_mem_and_eq_sum_indicator]
     linarith only [(abs_lt.mp hωS).2, hmeanS]
   have hint_cut_compl : ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₂}).ncard =
       ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard := by
@@ -1771,10 +1706,6 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
   have hcut_A₀ : (G.edgeCut A₀).ncard ≤ k₁ + k₂ := ncard_edgeCut_lowSide_le h3 score t₀
   have hhalf_edge : 2 * E_lt + k₂ = 3 * A₀.ncard + k₁ :=
     two_mul_ncard_score_lt_eq hloop h3 score t₀
-  have hcompl_card : A₀.ncard + (A₀ᶜ).ncard = Nat.card V := by
-    have hn := ncard_union_eq disjoint_compl_right (s := A₀) (t := A₀ᶜ) (toFinite _) (toFinite _)
-    rw [union_compl_self, ncard_univ] at hn
-    exact hn.symm
   -- Two-sided deviation on `E_lt` and upper deviation on `S_tot`.
   have hmean_E : ∑ e : E, P.real (Ae e) = 3 / 2 * h * cdf (gaussianReal 0 1) t₀ := by
     have hpe (e : E) : P.real (Ae e) = cdf (gaussianReal 0 1) t₀ :=
@@ -1785,31 +1716,20 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
     have hnot : ¬c ≤ |∑ e : E, (Ae e).indicator (1 : (V → ℝ) → ℝ) ω - ∑ e : E, P.real (Ae e)| :=
       hωE
     rwa [not_le, ← ncard_eq_sum_indicator, hmean_E] at hnot
+  have hexp_le1 : exp (-t₀ ^ 2 / 2) ≤ 1 := exp_le_one_iff.mpr (by nlinarith only)
   have hS_upper : (S_tot : ℝ) ≤ (exp (-t₀ ^ 2 / 2) * gaussianCoefficient + 3 * δ / 16) * h := by
-    have hcnt := ncard_lt_of_notMem_deviation hωS
-    have hmean_S : ∑ v : V, P.real (As v) ≤ h * (exp (-t₀ ^ 2 / 2) * straddleBound ρ₀) := by
-      calc ∑ v : V, P.real (As v)
-          ≤ ∑ _v : V, exp (-t₀ ^ 2 / 2) * straddleBound ρ₀ :=
-            Finset.sum_le_sum fun v _ =>
-              measureReal_straddleEvent_le_exp_mul hloop h3 hq hρ₀ hρ t₀ v
-        _ = h * (exp (-t₀ ^ 2 / 2) * straddleBound ρ₀) := by
-            rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hV_card]
-    have hexp_le1 : exp (-t₀ ^ 2 / 2) ≤ 1 := exp_le_one_iff.mpr (by nlinarith only)
-    have hexp_pos : 0 ≤ exp (-t₀ ^ 2 / 2) := (exp_pos _).le
+    have hmean_S : ∑ v : V, P.real (As v) ≤ h * (exp (-t₀ ^ 2 / 2) * straddleBound ρ₀) :=
+      (Finset.sum_le_sum fun v _ =>
+        measureReal_straddleEvent_le_exp_mul hloop h3 hq hρ₀ hρ t₀ v).trans_eq
+        (by rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hV_card])
     have hprod : exp (-t₀ ^ 2 / 2) * straddleBound ρ₀ ≤
         exp (-t₀ ^ 2 / 2) * gaussianCoefficient + δ / 8 := by
-      calc exp (-t₀ ^ 2 / 2) * straddleBound ρ₀
-          ≤ exp (-t₀ ^ 2 / 2) * (gaussianCoefficient + δ / 8) :=
-            mul_le_mul_of_nonneg_left hstrad hexp_pos
-        _ = exp (-t₀ ^ 2 / 2) * gaussianCoefficient + exp (-t₀ ^ 2 / 2) * (δ / 8) := by ring
-        _ ≤ exp (-t₀ ^ 2 / 2) * gaussianCoefficient + 1 * (δ / 8) := by gcongr
-        _ = exp (-t₀ ^ 2 / 2) * gaussianCoefficient + δ / 8 := by ring
+      linarith only [mul_le_mul_of_nonneg_left hstrad (exp_pos (-t₀ ^ 2 / 2)).le,
+        mul_le_mul_of_nonneg_right hexp_le1 (by positivity : (0 : ℝ) ≤ δ / 8)]
+    have hcnt := ncard_lt_of_notMem_deviation hωS
     have h1 : (S_tot : ℝ) < ∑ v : V, P.real (As v) + c := hcnt
-    have h2 : h * (exp (-t₀ ^ 2 / 2) * straddleBound ρ₀) ≤
-        h * (exp (-t₀ ^ 2 / 2) * gaussianCoefficient + δ / 8) :=
-      mul_le_mul_of_nonneg_left hprod hh_pos.le
     have hc_eq : c = δ / 16 * h := rfl
-    linarith only [h1, hmean_S, h2, hc_eq]
+    linarith only [h1, hmean_S, mul_le_mul_of_nonneg_left hprod hh_pos.le, hc_eq]
   -- Bounds on `A₀` and `A₀ᶜ` before flips.
   set μ := gaussianCoefficient
   have hμ_pos : 0 < μ := gaussianCoefficient_pos
@@ -1825,16 +1745,10 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
   have hhalf_r : 2 * (E_lt : ℝ) + (k₂ : ℝ) = 3 * (A₀.ncard : ℝ) + (k₁ : ℝ) := by
     exact_mod_cast hhalf_edge
   have hcompl_r : (A₀.ncard : ℝ) + ((A₀ᶜ).ncard : ℝ) = h := by
-    have hr : ((A₀.ncard + (A₀ᶜ).ncard : ℕ) : ℝ) = ((Nat.card V : ℕ) : ℝ) :=
-      congrArg Nat.cast hcompl_card
-    push_cast at hr
-    exact hr
+    rw [← Nat.cast_add, ncard_add_ncard_compl]
   have hk1_0 : 0 ≤ (k₁ : ℝ) := Nat.cast_nonneg _
   have hk2_0 : 0 ≤ (k₂ : ℝ) := Nat.cast_nonneg _
-  have hE_hi : (E_lt : ℝ) ≤ 3 / 2 * h * cdf (gaussianReal 0 1) t₀ + c := by
-    have h2 := (abs_lt.mp hE_abs).2; linarith only [h2]
-  have hE_lo : 3 / 2 * h * cdf (gaussianReal 0 1) t₀ - c ≤ (E_lt : ℝ) := by
-    have h1 := (abs_lt.mp hE_abs).1; linarith only [h1]
+  obtain ⟨hE_lo, hE_hi⟩ := abs_lt.mp hE_abs
   have hc_eq : c = δ / 16 * h := rfl
   have hμ_δ : μ * (δ / 16 * h) ≤ 3 / 20 * (δ / 16 * h) :=
     mul_le_mul_of_nonneg_right hμ_lt.le (by positivity)
@@ -1885,18 +1799,11 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
       (by linarith only [hcompl_r, hhalf_r]) (by linarith only [hE_lo, hc_eq, hcomm, hδh_nonneg])
   have hδh : δ * h ≤ 1 / 1000 * h := mul_le_mul_of_nonneg_right hδ_small hh_pos.le
   have hS_151 : (S_tot : ℝ) ≤ 151 / 1000 * h := by
-    have hexp : exp (-t₀ ^ 2 / 2) ≤ 1 := exp_le_one_iff.mpr (by nlinarith only)
-    have hexp1 : exp (-t₀ ^ 2 / 2) * μ ≤ 3 / 20 := by
-      calc exp (-t₀ ^ 2 / 2) * μ ≤ 1 * (3 / 20) :=
-            mul_le_mul hexp hμ_lt.le hμ_pos.le zero_le_one
-        _ = 3 / 20 := one_mul _
-    have hexph : exp (-t₀ ^ 2 / 2) * μ * h ≤ 3 / 20 * h :=
-      mul_le_mul_of_nonneg_right hexp1 hh_pos.le
-    linarith only [hS_upper', hexph, hδh]
+    linarith only [hS_upper', hδh, mul_le_mul_of_nonneg_right
+      (mul_le_mul hexp_le1 hμ_lt.le hμ_pos.le zero_le_one) hh_pos.le]
   have hsum_A₀_b : (A₀.ncard : ℝ) + ((G.edgeCut A₀).ncard : ℝ) ≤ 43 / 50 * h := by
-    have hcdf_h : h * cdf (gaussianReal 0 1) t₀ ≤ 1 / 2 * h := by
-      rw [mul_comm]; exact mul_le_mul_of_nonneg_right hcdf_half hh_pos.le
-    linarith only [hhalf_r, hk_sum_r, hcut_r, hk1_0, hk2_0, hE_hi, hc_eq, hcdf_h, hδh, hS_151]
+    linarith only [hhalf_r, hk_sum_r, hcut_r, hk1_0, hk2_0, hE_hi, hc_eq, hδh, hS_151,
+      mul_le_mul_of_nonneg_left hcdf_half hh_pos.le]
   have hsum_R₀_b : ((A₀ᶜ).ncard : ℝ) + ((G.edgeCut A₀).ncard : ℝ) ≤ 43 / 50 * h := by
     have hcdf_h : (1 - cdf (gaussianReal 0 1) t₀) * h ≤ 13 / 20 * h :=
       mul_le_mul_of_nonneg_right hcdf_13_20 hh_pos.le
@@ -1908,21 +1815,16 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
     linarith only [hcut_r, hk_sum_r, hS_upper', hcarv_h, hδh_nonneg]
   -- Apply greedy flips to `A₀`.
   obtain ⟨A, hbA, hLA, hLAc, hsumA, hsumAc, hminA, hminAc⟩ :=
-    exists_greedy_flipped hloop h3 hμ_pos.le hμ_lt.le A₀
+    exists_greedy_flipped hloop h3 hμ_lt.le A₀
   refine ⟨A, Aᶜ, disjoint_compl_right, union_compl_self A, ?_, ?_, ?_,
-    hLA.trans hlyap_A₀, hLAc.trans hlyap_R₀, hminA, ?_⟩
+    hLA.trans hlyap_A₀, hLAc.trans hlyap_R₀, hminA, by simpa only [G.edgeCut_compl] using hminAc⟩
   · have hr : (A.ncard : ℝ) + ((G.edgeCut A).ncard : ℝ) ≤
         (A₀.ncard : ℝ) + ((G.edgeCut A₀).ncard : ℝ) := by exact_mod_cast hsumA
-    have hb0 : 0 ≤ ((G.edgeCut A).ncard : ℝ) := Nat.cast_nonneg _
-    linarith only [hr, hb0, hsum_A₀_b]
+    linarith only [hr, Nat.cast_nonneg (α := ℝ) (G.edgeCut A).ncard, hsum_A₀_b]
   · have hr : ((Aᶜ).ncard : ℝ) + ((G.edgeCut A).ncard : ℝ) ≤
         ((A₀ᶜ).ncard : ℝ) + ((G.edgeCut A₀).ncard : ℝ) := by exact_mod_cast hsumAc
-    have hb0 : 0 ≤ ((G.edgeCut A).ncard : ℝ) := Nat.cast_nonneg _
-    linarith only [hr, hb0, hsum_R₀_b]
+    linarith only [hr, Nat.cast_nonneg (α := ℝ) (G.edgeCut A).ncard, hsum_R₀_b]
   · exact (Nat.cast_le.mpr hbA).trans hcut_carv
-  · intro v hv
-    rw [G.edgeCut_compl]
-    exact hminAc v hv
 
 end LevelZero
 
@@ -1977,11 +1879,7 @@ theorem exists_carvingWidth_le_carvingAt {t₀ : ℝ} (ht₀ : t₀ ∈ Icc (-3 
   obtain ⟨A, Rset, hdisjAR, hunionAR, hA_sz, hR_sz, hA_cut, hLA, hLR, hminA, hminR⟩ :=
     exists_levelZero_partition hloop h3 ht₀ hδ hδ_small hq₁ hρ₁ hcorr₁ hstrad₁ hlarge0
   have hR_cut : ((G.edgeCut Rset).ncard : ℝ) ≤ β * Nat.card V := by
-    have hcompl : Rset = Aᶜ := by
-      ext v
-      exact ⟨fun hv ha => disjoint_left.mp hdisjAR ha hv,
-        fun hna => (hunionAR.ge (trivial : v ∈ Set.univ)).resolve_left hna⟩
-    rwa [hcompl, G.edgeCut_compl]
+    rwa [← (IsCompl.of_eq hdisjAR.eq_bot hunionAR).compl_eq, G.edgeCut_compl]
   -- Step 2: Build carving subtree on each half `X ∈ {A, Rset}` via Depth 1 + Depths 2–5 + peeling.
   have build_half (X : Set V) (hX_sz : (X.ncard : ℝ) ≤ 43 / 50 * Nat.card V)
       (hX_cut : ((G.edgeCut X).ncard : ℝ) ≤ β * Nat.card V)

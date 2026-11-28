@@ -39,7 +39,6 @@ theorem source_mixed_pair (s t : Fin J) (hst : t ≠ s) (Ls Lt : ℕ)
       frameRetains P 4 Lt (σ t) b ∧ frameRetains P 4 (side P k) (σ t) w} : ℝ) ≤
     32 * rate k * #{σ : Environment P J |
       frameRetains P 4 Ls (σ s) a ∧ frameRetains P 4 Lt (σ t) b} := by
-  classical
   have hi := dens_filter_pi_eval_and_pi_eval hst
     (fun A : FrameChannel P 4 1 => frameRetains P 4 Ls A a)
     (fun A : FrameChannel P 4 1 => frameRetains P 4 Lt A b ∧ frameRetains P 4 (side P k) A w)
@@ -56,18 +55,14 @@ theorem source_mixed_pair (s t : Fin J) (hst : t ≠ s) (Ls Lt : ℕ)
       frameRetains P 4 Lt (σ t) b ∧ frameRetains P 4 (side P k) (σ t) w} : ℝ) ≤
       32 * rate k * dens {σ : Environment P J | frameRetains P 4 Ls (σ s) a ∧ frameRetains P 4 Lt
         (σ t) b} by
-    have hh := card_filter_and_le_of_dens_le
-      (A := fun (σ : Environment P J) => frameRetains P 4 Ls (σ s) a ∧ frameRetains P 4 Lt (σ t) b)
+    simpa only [and_assoc] using card_filter_and_le_of_dens_le
+      (A := fun σ : Environment P J => frameRetains P 4 Ls (σ s) a ∧ frameRetains P 4 Lt (σ t) b)
       (B := fun σ => frameRetains P 4 (side P k) (σ t) w)
-      (q := 32 * rate k) (by simpa only [and_assoc, and_comm, and_left_comm] using h)
-    simpa only [and_assoc] using hh
+      (by simpa only [and_assoc, and_comm, and_left_comm] using h)
   have hh := mul_le_mul_of_nonneg_left hp'
     (show (0 : ℝ) ≤ dens {A : FrameChannel P 4 1 | frameRetains P 4 Ls A a} by positivity)
-  have hiR := congrArg (fun q : ℚ≥0 => (q : ℝ)) hi
-  have hjR := congrArg (fun q : ℚ≥0 => (q : ℝ)) hj
-  simp only [NNRat.cast_mul] at hiR hjR
-  rw [hiR, hjR]
-  nlinarith
+  rw [hi, hj, NNRat.cast_mul, NNRat.cast_mul]
+  exact hh.trans_eq (mul_left_comm ..)
 
 variable (HP : FourthRootHierarchyParams 16 1 16 32 8)
 open Classical in
@@ -90,29 +85,22 @@ open Classical in
 lemma genuineMean_range (s t : Fin J) (Ls Lt : ℕ) (a D : ZMod P)
     (suffix : List (ZMod P)) (k : ℕ) (G : Matrix (ZMod P) (ZMod P) ℝ) (x y : ZMod P) :
     genuineMean HP s t Ls Lt a D suffix k G x y ∈ Set.Icc 0 1 := by
-  classical
   let T : Finset (Environment P J) := {σ | frameRetains P 4 Ls (σ s) a ∧
     frameRetains P 4 Lt (σ t) (CopyPadding.identifier D suffix y)}
   change (𝔼 σ ∈ T, genuinePrep HP t D suffix k G σ x y) ∈ Set.Icc 0 1
-  constructor
-  · apply expect_nonneg
-    intro σ _
-    exact mul_nonneg (polynomialPrepCutoff4_nonneg _ _) (HP.ρ_nonneg _)
-  · rcases T.eq_empty_or_nonempty with h | h
-    · rw [h]; norm_num
-    · apply expect_le h
-      intro σ _
-      exact (mul_le_of_le_one_right (polynomialPrepCutoff4_nonneg _ _) (HP.ρ_le_one _)).trans
+  refine ⟨expect_nonneg fun _ _ =>
+    mul_nonneg (polynomialPrepCutoff4_nonneg _ _) (HP.ρ_nonneg _), ?_⟩
+  rcases T.eq_empty_or_nonempty with h | h
+  · simp [h]
+  · exact expect_le h fun _ _ =>
+      (mul_le_of_le_one_right (polynomialPrepCutoff4_nonneg _ _) (HP.ρ_le_one _)).trans
         (polynomialPrepCutoff4_le_one _ _)
 
 open Classical in
 lemma genuineMean_zero (s t : Fin J) (Ls Lt : ℕ) (a D : ZMod P)
     (suffix : List (ZMod P)) (k : ℕ) (G : Matrix (ZMod P) (ZMod P) ℝ) (x y : ZMod P)
     (hd : G x y / rate k ≤ HP.θ / 2) : genuineMean HP s t Ls Lt a D suffix k G x y = 0 := by
-  classical
-  unfold genuineMean rowSliceMean
-  apply expect_eq_zero
-  intro σ _
+  refine expect_eq_zero fun _ _ => ?_
   simp only [genuinePrep, DenseRowRecipe.preparation, atomPrep,
     polynomialPrepCutoff4_eq_zero HP.θ_pos hd, zero_mul]
 
@@ -138,11 +126,7 @@ theorem actual_conditional_rarity (s t : Fin J) (hst : t ≠ s) (Ls Lt : ℕ)
     (#{σ ∈ T | heavyCountEvent Y univ (fun w => G x w / rate k) floor n σ} : ℝ) / #T ≤
       (2 + 8 * 32 * M / floor) / (n : ℝ) := by
   classical
-  dsimp only
-  let T : Finset (Environment P J) := {σ | frameRetains P 4 Ls (σ s) a ∧
-    frameRetains P 4 Lt (σ t) (CopyPadding.identifier D suffix y)}
-  let Y := fun (σ : Environment P J) w => frameRetains P 4 (side P k) (σ t)
-    (CopyPadding.identifier D suffix w)
+  intro T Y
   have hM : 0 ≤ M := (sum_nonneg (fun w _ => hG x w)).trans (hmass x)
   have hd (w : ZMod P) (_hw : w ∈ (univ : Finset (ZMod P))) : 0 ≤ G x w / rate k :=
     div_nonneg (hG x w) (rate_pos k).le
@@ -164,9 +148,8 @@ theorem actual_conditional_rarity (s t : Fin J) (hst : t ≠ s) (Ls Lt : ℕ)
       congr 2
       ext σ
       simp only [mem_filter]) n
-  change (#{σ ∈ T | heavyCountEvent Y univ (fun w => G x w / rate k) floor n σ} : ℝ) / #T ≤ _
   rcases T.eq_empty_or_nonempty with hT | hT
-  · rw [hT]; simp only [filter_empty, card_empty, Nat.cast_zero, zero_div]
+  · simp only [hT, filter_empty, card_empty, Nat.cast_zero, zero_div]
     positivity
   · have hT0 : (0 : ℝ) < #T := by exact_mod_cast hT.card_pos
     have hn0 : (0 : ℝ) < n := by exact_mod_cast hn
@@ -206,28 +189,23 @@ lemma actual_rarity_card (s t : Fin J) (hst : t ≠ s) (Ls Lt : ℕ)
   let T : Finset (Environment P J) := {σ | frameRetains P 4 Ls (σ s)
     (CopyPadding.identifier D sourceSuffix x) ∧ frameRetains P 4 Lt (σ t)
       (CopyPadding.identifier D suffix y)}
+  let E : Environment P J → Prop := heavyCountEvent (fun τ w => frameRetains P 4 (side P k) (τ t)
+    (CopyPadding.identifier D suffix w)) univ (fun w => G x w / rate k) floor n
   have h := actual_conditional_rarity s t hst Ls Lt
     (CopyPadding.identifier D sourceSuffix x) D hD suffix H hk hLt G hG hmass hf hn x y
   dsimp only at h
+  have hfilt : ({σ : Environment P J | frameRetains P 4 Ls (σ s)
+      (CopyPadding.identifier D sourceSuffix x) ∧ frameRetains P 4 Lt (σ t)
+      (CopyPadding.identifier D suffix y) ∧ E σ} : Finset _) = {σ ∈ T | E σ} := by
+    simp only [T, filter_filter, and_assoc]
+  change (#{σ : Environment P J | frameRetains P 4 Ls (σ s)
+      (CopyPadding.identifier D sourceSuffix x) ∧ frameRetains P 4 Lt (σ t)
+      (CopyPadding.identifier D suffix y) ∧ E σ} : ℝ) ≤ ((2 + 256 * M / floor) / (n : ℝ)) * #T
+  rw [hfilt]
   rcases T.eq_empty_or_nonempty with hT | hT
-  · have hz : #{σ : Environment P J | frameRetains P 4 Ls (σ s) (CopyPadding.identifier D
-    sourceSuffix x) ∧
-        frameRetains P 4 Lt (σ t) (CopyPadding.identifier D suffix y)} = 0 := by
-      change #T = 0
-      rw [hT]; rfl
-    have hsub : ({σ | frameRetains P 4 Ls (σ s) (CopyPadding.identifier D sourceSuffix x) ∧
-      frameRetains P 4 Lt (σ t) (CopyPadding.identifier D suffix y) ∧
-      heavyCountEvent (fun τ w => frameRetains P 4 (side P k) (τ t)
-        (CopyPadding.identifier D suffix w)) univ (fun w => G x w / rate k) floor n σ} : Finset _)
-          ⊆ T :=
-      fun σ hσ => mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hσ).2.1, (mem_filter.mp hσ).2.2.1⟩
-    have hzero := card_le_card hsub
-    rw [hT] at hzero
-    simp only [card_empty, Nat.le_zero] at hzero
-    rw [hzero, hz, Nat.cast_zero, mul_zero]
+  · simp [hT]
   · have ht : (0 : ℝ) < #T := by exact_mod_cast hT.card_pos
-    have hh := (div_le_iff₀ ht).mp h
-    simpa only [T, filter_filter, and_assoc, show (8 : ℝ) * 32 = 256 by norm_num] using hh
+    simpa only [show (8 : ℝ) * 32 = 256 by norm_num] using (div_le_iff₀ ht).mp h
 
 open Classical in
 /-- Actual mixed-rate H4 rarity contracts any deterministic endpoint mean discrepancy.
@@ -252,8 +230,6 @@ theorem actual_mean_event_moment (s t : Fin J) (hst : t ≠ s) (Ls Lt : ℕ)
     vertexNormPow 4 N u X (fun σ x =>
       if heavyCountEvent Y univ (fun y => G x y / rate k) floor n σ then v σ x else 0) ≤
       ((2 + 256 * M / floor) / (n : ℝ)) * rowNormPow 4 N u X Yt (fun _ x y => b x y) := by
-  classical
-  dsimp only
-  refine vertexNormPow_event_le_rowNormPow (by norm_num) hNu (fun x y => ?_) b v hv
-  exact actual_rarity_card s t hst Ls Lt D hD sourceSuffix suffix H hk hLt G hG hmass hf hn x y
+  exact vertexNormPow_event_le_rowNormPow (by norm_num) hNu
+    (actual_rarity_card s t hst Ls Lt D hD sourceSuffix suffix H hk hLt G hG hmass hf hn) b v hv
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments

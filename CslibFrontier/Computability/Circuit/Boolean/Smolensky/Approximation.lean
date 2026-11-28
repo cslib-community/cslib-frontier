@@ -149,12 +149,9 @@ private theorem snd_trace_pair_eq {x : BitString n} (hx : ∀ k, x ∉ errorSet 
     bitVal R ((P.trace (pairInterpretation R p hℓ) inputPair w).1 x)) (fun i => rfl)
     (fun k ih => ?_) w
   rw [trace_pair_gate]
-  have := hx k
-  simp only [errorSet, mem_filter, mem_univ, true_and, not_not] at this
-  change gateApprox R p hℓ (P.lines k).op _ (fun a => (P.trace
-    (pairInterpretation R p hℓ) inputPair ((P.lines k).wires a)).2 x) = _
-  simp only [ih]
-  exact this
+  have h := hx k
+  simp only [errorSet, mem_filter, mem_univ, true_and, not_not] at h
+  exact (congrArg (gateApprox R p hℓ (P.lines k).op _) (funext ih)).trans h
 
 /-- **Smolensky's approximation theorem.** A circuit of the AC⁰[p] basis of depth `d` agrees with a
 function of degree at most `((p - 1) ℓ) ^ d` over a commutative ring `R` of characteristic `p` on
@@ -175,12 +172,9 @@ theorem exists_lowDegree_approx (hℓ : 1 ≤ ℓ) (C : Circuit Unbounded.extSig
       (C.program.trace (pairInterpretation R p hℓ) inputPair (C.outputs 0)).2 x ≠
         bitVal R (C.eval (Unbounded.extInterpretation (modGate p)) x 0)) ⊆
       univ.biUnion (errorSet R p hℓ C.program) := fun x hx => by
-    rw [mem_filter] at hx
     by_contra hno
-    simp only [mem_biUnion, mem_univ, true_and, not_exists] at hno
-    exact hx.2 ((snd_trace_pair_eq hℓ C.program hno _).trans (by
-      rw [fst_trace_pair]
-      rfl))
+    exact (mem_filter.1 hx).2 ((snd_trace_pair_eq hℓ C.program (by simpa using hno) _).trans
+      (congrArg (bitVal R) (fst_trace_pair hℓ C.program _ x)))
   calc _ ≤ #(univ.biUnion (errorSet R p hℓ C.program)) * 2 ^ ℓ :=
         Nat.mul_le_mul_right _ (card_le_card hsub)
     _ ≤ (∑ k, #(errorSet R p hℓ C.program k)) * 2 ^ ℓ :=

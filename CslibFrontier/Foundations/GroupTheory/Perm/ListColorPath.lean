@@ -42,18 +42,15 @@ theorem isChain_colorPairs_cut_formPerm [DecidableEq α] (a : α) (tail : List �
       ((Q a, Q a) :: tail.map (fun b => (P b, Q b)) ++ [(P a, P a)]) := by
   have hc := isChain_colorPairs_of_formPerm (a :: tail) hn P Q h
   have hl : Q ((a :: tail).getLast (cons_ne_nil _ _)) = P a := by
-    have he := h _ (getLast_mem (cons_ne_nil a tail))
-    rw [formPerm_apply_getLast] at he
-    exact he.symm
-  have hc' := hc.append (IsChain.singleton (P a, P a)) (by
-    intro x hx y hy
-    simp only [getLast?_map, getLast?_eq_some_getLast (cons_ne_nil a tail), Option.map_some,
-      Option.mem_some_iff] at hx
-    simp only [head?_cons, Option.mem_some_iff] at hy
-    subst x
-    subst y
-    exact hl)
-  simpa only [map_cons, cons_append, isChain_cons] using hc'
+    simpa only [formPerm_apply_getLast] using (h _ (getLast_mem (cons_ne_nil a tail))).symm
+  simpa only [map_cons, cons_append, isChain_cons] using
+    hc.append (IsChain.singleton (P a, P a)) fun x hx y hy => by
+      simp only [getLast?_map, getLast?_eq_some_getLast (cons_ne_nil a tail), Option.map_some,
+        Option.mem_some_iff] at hx
+      simp only [head?_cons, Option.mem_some_iff] at hy
+      subst hx
+      subst hy
+      exact hl
 
 /-- A complete directed cycle is a closed entry/exit color path, anchored at its actual
 first entry. No nonempty condition on subsequently substituted blocks is needed. -/
@@ -64,9 +61,9 @@ theorem isChain_colorPairs_cycle_formPerm [DecidableEq α] (a : α) (tail : List
       ((P a, P a) :: (a :: tail).map (fun b => (P b, Q b)) ++ [(P a, P a)]) := by
   have hc := isChain_colorPairs_cut_formPerm a tail hn P Q h
   have hp : IsChain (fun p q : β × β => p.2 = q.1)
-      ((P a, P a) :: [(P a, Q a)] ++ [(Q a, Q a)]) := by simp
-  have hfull := isChain_colorPairs_append hp hc
-  simpa only [map_cons, cons_append, nil_append] using hfull
+      ((P a, P a) :: [(P a, Q a)] ++ [(Q a, Q a)]) := by
+    simp only [cons_append, nil_append, isChain_cons_cons, isChain_singleton, and_self]
+  simpa only [map_cons, cons_append, nil_append] using isChain_colorPairs_append hp hc
 
 /-- A closed path of entry/exit colors supplies the exact forward cycle equations of the
 original duplicate-free word. Empty words are allowed and have no equations to check. -/
@@ -78,38 +75,22 @@ theorem formPerm_colorPairs_of_isChain [DecidableEq α] (word : List α) (hn : w
   simp only [cons_append] at h
   intro a ha
   obtain ⟨i, hi, rfl⟩ := mem_iff_getElem.mp ha
-  have hpos : 0 < word.length := by omega
-  have hzero : 0 < (word.map fun a => (P a, Q a)).length := by
-    simpa only [length_map] using hpos
   have hfirst := (isChain_iff_getElem.mp h) 0 (by
-    simp only [length_append, length_cons, length_map, length_nil]
-    omega)
+    simp only [length_append, length_cons, length_map, length_nil]; omega)
   simp only [getElem_cons_zero, getElem_cons_succ] at hfirst
-  rw [getElem_append_left hzero, getElem_map] at hfirst
+  rw [getElem_append_left (by simpa only [length_map] using Nat.zero_lt_of_lt hi),
+    getElem_map] at hfirst
   have hs := (isChain_iff_getElem.mp h) (i + 1) (by
-    simp only [length_append, length_cons, length_map, length_nil]
-    omega)
+    simp only [length_append, length_cons, length_map, length_nil]; omega)
   simp only [getElem_cons_succ] at hs
-  have himap : i < (word.map fun a => (P a, Q a)).length := by
-    simpa only [length_map] using hi
-  rw [getElem_append_left himap, getElem_map] at hs
+  rw [getElem_append_left (by simpa only [length_map] using hi), getElem_map] at hs
   rw [formPerm_apply_getElem word hn i hi]
   by_cases hj : i + 1 < word.length
-  · simp only [Nat.mod_eq_of_lt hj]
-    have hjmap : i + 1 < (word.map fun a => (P a, Q a)).length := by
-      simpa only [length_map] using hj
-    rw [getElem_append_left hjmap, getElem_map] at hs
-    exact hs.symm
+  · rw [getElem_append_left (by simpa only [length_map] using hj), getElem_map] at hs
+    simpa only [Nat.mod_eq_of_lt hj] using hs.symm
   · have hlast : i + 1 = word.length := by omega
-    simp only [hlast, Nat.mod_self]
-    have hjmap : (word.map fun a => (P a, Q a)).length ≤ i + 1 := by
-      simp only [length_map]
-      omega
-    rw [getElem_append_right hjmap] at hs
-    have hz : i + 1 - (word.map fun a => (P a, Q a)).length = 0 := by
-      simp only [length_map]
-      omega
-    simp only [hz, getElem_cons_zero] at hs
-    exact hfirst.symm.trans hs.symm
+    rw [getElem_append_right (by simp only [length_map, hlast, le_rfl])] at hs
+    simp only [hlast, length_map, Nat.sub_self, getElem_cons_zero] at hs
+    simpa only [hlast, Nat.mod_self] using hfirst.symm.trans hs.symm
 
 end List

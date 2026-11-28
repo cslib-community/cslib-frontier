@@ -69,8 +69,7 @@ def successfulSlices (g : ι → Option (BoundedPolynomial F m d)) : Finset ι :
 
 @[simp] theorem mem_successfulSlices {g : ι → Option (BoundedPolynomial F m d)} {j : ι} :
     j ∈ successfulSlices g ↔ (g j).isSome := by
-  unfold successfulSlices
-  simp
+  simp [successfulSlices]
 
 /-- Each successful slice outcome is the indicated specialization of the global polynomial. -/
 @[expose] def FitsSlices (x : ι → F) (g : ι → Option (BoundedPolynomial F m d))
@@ -81,26 +80,19 @@ omit [Fintype ι] in
 theorem fitsSlices_iff_eq_sliceTranscript (x : ι → F)
     (g : ι → Option (BoundedPolynomial F m d)) (p : BoundedPolynomial F (m + 1) d) :
     FitsSlices x g p ↔ g = sliceTranscript x p (fun j => (g j).isSome) := by
-  constructor
-  · intro h
-    funext j
-    cases hg : g j with
-    | none => simp [hg, sliceTranscript]
-    | some q => simp [hg, sliceTranscript, h j q hg]
-  · intro h j q hq
-    have hj := congrFun h j
-    simpa [sliceTranscript, hq, eq_comm] using hj
+  refine ⟨fun h => funext fun j => ?_, fun h j q hq => by
+    simpa [sliceTranscript, hq, eq_comm] using congrFun h j⟩
+  cases hg : g j with
+  | none => simp [hg, sliceTranscript]
+  | some q => simp [hg, sliceTranscript, h j q hg]
 
 theorem eq_of_fitsSlices {x : ι ↪ F} {g : ι → Option (BoundedPolynomial F m d)}
     (hcard : d < (successfulSlices g).card) {p q : BoundedPolynomial F (m + 1) d}
-    (hp : FitsSlices x g p) (hq : FitsSlices x g q) : p = q := by
-  apply Subtype.ext
-  refine eq_of_specializeLast_eq x.injective.injOn
-    ((p.prop (Fin.last m)).trans_lt hcard) ((q.prop (Fin.last m)).trans_lt hcard) ?_
-  intro i hi
-  have hi' : (g i).isSome := (mem_filter.mp hi).2
-  obtain ⟨r, hr⟩ := Option.isSome_iff_exists.mp hi'
-  exact congrArg Subtype.val ((hp i r hr).trans (hq i r hr).symm)
+    (hp : FitsSlices x g p) (hq : FitsSlices x g q) : p = q :=
+  Subtype.ext <| eq_of_specializeLast_eq x.injective.injOn
+    ((p.prop (Fin.last m)).trans_lt hcard) ((q.prop (Fin.last m)).trans_lt hcard) fun i hi => by
+    obtain ⟨r, hr⟩ := Option.isSome_iff_exists.mp (mem_filter.mp hi).2
+    exact congrArg Subtype.val ((hp i r hr).trans (hq i r hr).symm)
 
 /-- Decode a joint outcome to the uniquely matching polynomial when there are enough
 successful slices. Discard the outcome when there are too few slices or they are incompatible. -/
@@ -115,16 +107,11 @@ theorem pasteOutcome_eq_some_iff (x : ι ↪ F) (g : ι → Option (BoundedPolyn
     pasteOutcome x g = some p ↔ d < (successfulSlices g).card ∧ FitsSlices x g p := by
   classical
   unfold pasteOutcome
-  split
-  · rename_i h
-    have hp := Classical.choose_spec h.2
-    constructor
-    · intro he
-      rw [Option.some.inj he] at hp
-      exact ⟨h.1, hp⟩
-    · exact fun he => congrArg some (eq_of_fitsSlices h.1 hp he.2)
-  · rename_i h
-    exact ⟨by simp, fun he => (h ⟨he.1, p, he.2⟩).elim⟩
+  split_ifs with h
+  · have hp := Classical.choose_spec h.2
+    exact ⟨fun he => ⟨h.1, Option.some.inj he ▸ hp⟩,
+      fun he => congrArg some (eq_of_fitsSlices h.1 hp he.2)⟩
+  · exact ⟨by simp, fun he => (h ⟨he.1, p, he.2⟩).elim⟩
 
 /-- With exactly `d + 1` successful slice outcomes, interpolation fits all of them. -/
 theorem pasteOutcome_eq_some_of_card (x : ι ↪ F) (g : ι → Option (BoundedPolynomial F m d))
@@ -133,13 +120,12 @@ theorem pasteOutcome_eq_some_of_card (x : ι ↪ F) (g : ι → Option (BoundedP
   let s := successfulSlices g
   let f (j : ι) : BoundedPolynomial F m d := (g j).getD ⟨0, by simp⟩
   let p := interpolateLast s x fun j => (f j).val
-  have hp (i : Fin (m + 1)) : p.degreeOf i ≤ d := by
-    refine Fin.lastCases ?_ (fun j => ?_) i
-    · have h := degreeOf_last_interpolateLast_le (s := s) x.injective.injOn fun j => (f j).val
-      exact h.trans (by simp [s, hcard])
-    · exact degreeOf_castSucc_interpolateLast_le s x _ j fun k _ => (f k).prop j
-  refine ⟨⟨p, hp⟩, (pasteOutcome_eq_some_iff _ _ _).mpr ⟨by omega, ?_⟩⟩
-  intro j q hj
+  have hp (i : Fin (m + 1)) : p.degreeOf i ≤ d :=
+    Fin.lastCases
+      ((degreeOf_last_interpolateLast_le (s := s) x.injective.injOn
+        (fun j => (f j).val)).trans (by simp [s, hcard]))
+      (fun j => degreeOf_castSucc_interpolateLast_le s x _ j fun k _ => (f k).prop j) i
+  refine ⟨⟨p, hp⟩, (pasteOutcome_eq_some_iff _ _ _).mpr ⟨by omega, fun j q hj => ?_⟩⟩
   have hjs : j ∈ s := by simp [s, successfulSlices, hj]
   apply Subtype.ext
   change specializeLast (x j) p = q.val
@@ -186,9 +172,8 @@ theorem pasteProjectiveSlices_effect_some {k : ℕ} (x : Fin k ↪ F)
     (hM : ∀ t, (M t).IsProjective) (p : BoundedPolynomial F (m + 1) d) :
     (pasteProjectiveSlices x M hM).effect (some p) = ∑ g with
       d < (successfulSlices g).card ∧ FitsSlices x g p,
-        (Measurement.sequentialProjective (fun j => M (x j)) (fun j => hM (x j))).effect g := by
-  unfold pasteProjectiveSlices
-  exact pasteMeasurement_effect_some _ _ _
+        (Measurement.sequentialProjective (fun j => M (x j)) (fun j => hM (x j))).effect g :=
+  pasteMeasurement_effect_some _ _ _
 
 variable [Module ℝ A] [PosSMulMono ℝ A]
 

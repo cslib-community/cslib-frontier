@@ -164,20 +164,19 @@ theorem eval_routeCircuit_value_eq_true_iff {h k o depth width : ℕ}
   let y := (routeCircuit.broadcast key tag depth width).eval interpretation x
   let z := (keyedSortCircuit
     (order.comp (Circuit.wiring signature (Fin.castAdd width))) depth true).eval interpretation y
-  change header z destination tag = true at htag
-  change value z destination bit = true ↔
-    ∃ source, header x source ∘ key = header z destination ∘ key ∧
-      header x source tag = false ∧ value x source bit = true
-  have perm := keyedSortCircuit_perm
-    (order.comp (Circuit.wiring signature (Fin.castAdd width))) depth true y
-  obtain ⟨d, hd⟩ := List.mem_ofFn.mp (perm.mem_iff.mp (List.mem_ofFn.mpr ⟨destination, rfl⟩))
+  obtain ⟨d, hd⟩ := List.mem_ofFn.mp ((keyedSortCircuit_perm
+    (order.comp (Circuit.wiring signature (Fin.castAdd width))) depth true y).mem_iff.mp
+    (List.mem_ofFn.mpr ⟨destination, rfl⟩))
   have hh : header z destination = header y d :=
     congrArg (fun row : BitString (h + width) => row ∘ Fin.castAdd width) hd.symm
   have hv : value z destination = value y d :=
     congrArg (fun row : BitString (h + width) => row ∘ Fin.natAdd h) hd.symm
-  rw [hh] at htag
+  change header z destination tag = true at htag
+  change value z destination bit = true ↔
+    ∃ source, header x source ∘ key = header z destination ∘ key ∧
+      header x source tag = false ∧ value x source bit = true
   rw [hv, hh]
-  exact routeCircuit.value_eq_true_iff key tag x d htag bit
+  exact routeCircuit.value_eq_true_iff key tag x d (hh ▸ htag) bit
 
 open scoped Classical in
 /-- A uniquely keyed destination header is restored to its rank in the original input. -/
@@ -235,14 +234,10 @@ theorem eval_routeCircuit_value_of_unique_source {h k o depth width : ℕ}
     value ((routeCircuit key tag order depth width).eval interpretation x) target =
       value x source := by
   funext bit
-  apply Bool.eq_iff_iff.mpr
-  rw [eval_routeCircuit_value_eq_true_iff_of_rank key tag order x destination target
-    uniqueDestination rank hdestination bit]
-  constructor
-  · rintro ⟨i, hi, ht, hv⟩
-    exact uniqueSource i (hi.trans hkey.symm) ht ▸ hv
-  · intro hv
-    exact ⟨source, hkey, hsource, hv⟩
+  rw [Bool.eq_iff_iff, eval_routeCircuit_value_eq_true_iff_of_rank key tag order x destination
+    target uniqueDestination rank hdestination bit]
+  exact ⟨fun ⟨i, hi, ht, hv⟩ => uniqueSource i (hi.trans hkey.symm) ht ▸ hv,
+    fun hv => ⟨source, hkey, hsource, hv⟩⟩
 
 /-- Exact additive weighted cost of the two sorting circuits and shared broadcast. -/
 theorem cost_program_routeCircuit {h k o : ℕ}
