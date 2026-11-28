@@ -2696,6 +2696,16 @@ FOCS 2022, 968–979. https://doi.org/10.1109/FOCS54457.2022.00095 . Full versio
 Checked against the FOCS proceedings text on 2026-11-11: the partial-string problems `MKTP*` and `MINKT*` (Section I, p. 971), consistency with a partial string (footnote 5, p. 971), the KT-style time measure of Theorem I.2 (footnote 6, p. 971), Theorem I.2 (p. 971; its "In particular" clause, NP-hardness of Partial MCSP and of `MINKT*` under randomized reductions, is `PartialMCSP.rpHard` and `MINKTStar.rpHard`), and the account of Ko's `MINKT` and relativization barrier (abstract, p. 968; Section I, p. 970).
 The ECCC numbering was not checked.
 
+<a id="hirschberg75"></a>
+## hirschberg75
+
+D. S. Hirschberg.
+“A Linear Space Algorithm for Computing Maximal Common Subsequences.”
+*Communications of the ACM* 18(6), 341–343, 1975.
+Page 342 gives Algorithm B for the final row and Algorithm C for reconstructing a common subsequence at a maximizing split.
+Page 343 finishes the correctness proof, gives the minimum-trace-cost variant, and analyzes the recurrence and the shared-array space convention.
+[Author’s copy](https://ics.uci.edu/~dhirschb/pubs/p341-hirschberg.pdf)
+
 <a id="hirvonensuomela2020"></a>
 ## hirvonensuomela2020
 

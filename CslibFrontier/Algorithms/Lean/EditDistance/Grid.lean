@@ -112,10 +112,10 @@ theorem tail_row (b : α) (y : List α) : ∀ x : List α, (D.row (b :: y) x).ta
   | cons b y ih =>
     have h := congrArg List.length (D.tail_row b y x)
     have hn : D.row (b :: y) x ≠ [] := by cases x <;> simp [row, nilRow, stepRow]
-    simpa [List.length_tail, hn, ih] using (show (D.row (b :: y) x).length = y.length + 2 by
-      have := List.length_pos_iff.mpr hn
-      rw [List.length_tail, ih] at h
-      omega)
+    have := List.length_pos_iff.mpr hn
+    rw [List.length_tail, ih] at h
+    simp only [List.length_cons]
+    omega
 
 /-- Column `k` holds the value for the suffix starting at position `k`. -/
 theorem getElem_row (y x : List α) (k : ℕ) (hk : k < (D.row y x).length) :
