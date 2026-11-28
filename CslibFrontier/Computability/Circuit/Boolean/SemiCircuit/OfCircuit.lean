@@ -40,18 +40,19 @@ circuit's output on every consistent assignment (`SemiCircuit.out_eval_ofCircuit
 
 ## Main results
 
-* `Cslib.Circuits.Boolean.SemiCircuit.programWireLit_input`, `programWireLit_gate`,
+* `Cslib.Circuits.Boolean.SemiCircuit.programGateLit_castSucc`, `programGateLit_last`,
   `programWireLit_gate_castSucc`, `programWireLit_gate_last`, `mem_programBinaryGates_gate_of_lt`,
-  `mem_programBinaryGates_gate_last`, `programBinaryGate_gate_of_ne`,
-  `programBinaryGate_gate_last`: appending a line keeps the earlier literals, gates and gate map,
-  gives the new gate the literal of its line, and makes the new name a binary gate, with the gate
-  of its line, exactly when the line has binary cost `1`.
+  `programBinaryGate_gate_of_ne`, `mem_programBinaryGates_gate_last`,
+  `programBinaryGate_gate_last`: appending a line keeps the earlier literals, binary gates and
+  gate map; the new gate carries the literal of its line, the new name is a binary gate exactly
+  when the line has binary cost `1`, and the gate map gives it the gate of its line.
+* `Cslib.Circuits.Boolean.SemiCircuit.programWireLit_input`, `programWireLit_gate`: the literals
+  of input and gate wires.
 * `Cslib.Circuits.Boolean.SemiCircuit.mem_programBinaryGates_bounds`, `reads_programWireLit`:
   binary gates are named `n + k` for earlier lines, and literals read only parameters and earlier
   binary gates.
 * `Cslib.Circuits.Boolean.SemiCircuit.ofCircuitBinary_gates`, `ofCircuitBinary_gate`,
   `ofCircuitBinary_out`: `ofCircuitBinary` in terms of the builder.
-
 * `Cslib.Circuits.Boolean.SemiCircuit.cost_binaryB2Cost_le_size`,
   `Cslib.Circuits.Boolean.SemiCircuit.size_ofCircuitBinary`,
   `Cslib.Circuits.Boolean.SemiCircuit.mem_gates_ofCircuitBinary`,
@@ -156,16 +157,28 @@ theorem programWireLit_gate {g : ℕ} (p : Program (fullSignature 2 Bool) n g) (
 
 /-- **Last line.** The new gate carries the literal of its line, on the literals of the earlier
 wires. -/
-theorem programWireLit_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+theorem programGateLit_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) :
-    programWireLit (p.gate line) (.gate (Fin.last g)) = lineBinaryLit (programWireLit p) line := by
+    programGateLit (p.gate line) (Fin.last g) = lineBinaryLit (programWireLit p) line := by
   exact Vector.getElem_push_last
 
 /-- **Prefix.** Appending a line keeps the literals of the earlier gates. -/
+theorem programGateLit_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+    (line : Line (fullSignature 2 Bool) n g) (j : Fin g) :
+    programGateLit (p.gate line) j.castSucc = programGateLit p j := by
+  exact Vector.getElem_push_lt j.isLt
+
+/-- **Last line**, on wires: `programGateLit_last`. -/
+theorem programWireLit_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+    (line : Line (fullSignature 2 Bool) n g) :
+    programWireLit (p.gate line) (.gate (Fin.last g)) = lineBinaryLit (programWireLit p) line :=
+  programGateLit_last p line
+
+/-- **Prefix**, on wires: `programGateLit_castSucc`. -/
 theorem programWireLit_gate_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) (j : Fin g) :
-    programWireLit (p.gate line) (.gate j.castSucc) = programWireLit p (.gate j) := by
-  exact Vector.getElem_push_lt j.isLt
+    programWireLit (p.gate line) (.gate j.castSucc) = programWireLit p (.gate j) :=
+  programGateLit_castSucc p line j
 
 /-- The indices `n + k` of genuinely binary gates in `p`. -/
 def programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Finset ℕ :=
@@ -275,7 +288,7 @@ theorem reads_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) 
           simp only [Lit.Reads, Lit.node, Arg.node.injEq] at ht'
           subst ht'
           have hc : binaryB2Cost (.fn op) = 1 := by simp [binaryB2Cost, h1, h2]
-          exact ⟨Or.inr (by simp [programBinaryGates, hc]), by omega⟩
+          exact ⟨Or.inr ((mem_programBinaryGates_gate_last p _).2 hc), by omega⟩
         · simp [lineBinaryLit, Lit.Reads, Lit.const] at ht'
       · rw [programWireLit_gate_castSucc]
         exact fun ht' => lift (ih (.gate j) ht')
@@ -288,17 +301,16 @@ private theorem reads_programBinaryGate {g : ℕ} (p : Program (fullSignature 2 
   | @gate g p line ih =>
     intro J hJ t ht
     rcases eq_or_ne J (n + g) with rfl | hJg
-    · simp only [programBinaryGate, ↓reduceIte] at ht
+    · rw [programBinaryGate_gate_last] at ht
       obtain ⟨op | c, w⟩ := line
       · rcases ht with ht | ht <;>
           exact (reads_programWireLit p _ ht).imp_left
             (Or.imp_right (subset_programBinaryGates_gate p _ ·))
       · rcases ht with ht | ht <;> cases ht
-    · simp only [programBinaryGate, hJg, ↓reduceIte] at ht
-      have hJp : J ∈ programBinaryGates p := by
-        dsimp only [programBinaryGates] at hJ
-        split_ifs at hJ
-        exacts [(Finset.mem_insert.1 hJ).resolve_left hJg, hJ]
+    · rw [programBinaryGate_gate_of_ne p line hJg] at ht
+      have hJp : J ∈ programBinaryGates p :=
+        (mem_programBinaryGates_gate_of_lt p line
+          (by have := mem_programBinaryGates_bounds hJ; omega)).1 hJ
       exact (ih hJp ht).imp_left (Or.imp_right (subset_programBinaryGates_gate p line ·))
 
 private theorem fn_indep_snd {op : (Fin 2 → Bool) → Bool}
@@ -352,7 +364,8 @@ private theorem eval_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool
     have hval_p : ∀ J ∈ programBinaryGates p, val J = (programBinaryGate p J).eval val :=
       fun J hJ => by
         have hne : J ≠ n + g := by have := mem_programBinaryGates_bounds hJ; omega
-        simpa [programBinaryGate, hne] using hval J (subset_programBinaryGates_gate p line hJ)
+        rw [← programBinaryGate_gate_of_ne p line hne]
+        exact hval J (subset_programBinaryGates_gate p line hJ)
     rintro (i | k)
     · simp [programWireLit]
     · refine Fin.lastCases ?_ (fun j => ?_) k
@@ -360,8 +373,8 @@ private theorem eval_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool
         · congr 1 with a : 1
           exact ih hval_p (line.wires a)
         · intro hc
-          simpa [programBinaryGate] using
-            hval (n + g) (by simp [programBinaryGates, hc])
+          rw [← programBinaryGate_gate_last]
+          exact hval (n + g) ((mem_programBinaryGates_gate_last p line).2 hc)
       · rw [programWireLit_gate_castSucc,
           show (Wire.gate j.castSucc : Wire n (g + 1)) = (Wire.gate j).castSucc from rfl,
           Program.trace_gate_castSucc]

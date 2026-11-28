@@ -274,18 +274,13 @@ private theorem decodeLines_progWords : ∀ {g : ℕ} (p : Program (fullSignatur
     congr 1
     · refine List.ofFn_inj.2 (funext fun j => ?_)
       rw [Fin.val_castSucc]
-      have hgl : programGateLit (p.gate line) j.castSucc = programGateLit p j := by
-        rw [← programWireLit_gate, ← programWireLit_gate, programWireLit_gate_castSucc]
       have hj : n + (j : ℕ) < n + g := by have := j.isLt; omega
-      simp only [hgl, mem_programBinaryGates_gate_of_lt p line hj,
+      simp only [programGateLit_castSucc, mem_programBinaryGates_gate_of_lt p line hj,
         programBinaryGate_gate_of_ne p line (hne j)]
     · rw [lineOut_lineWords (programWireLit p) _ (programWireLit_input p) (fun k => by
           rw [List.getD_eq_getElem _ _ (by simp), List.getElem_map, List.getElem_ofFn,
             programWireLit_gate])]
-      have hgl : programGateLit (p.gate line) (Fin.last g) =
-          lineBinaryLit (programWireLit p) line := by
-        rw [← programWireLit_gate, programWireLit_gate_last]
-      simp only [Fin.val_last, hgl, mem_programBinaryGates_gate_last,
+      simp only [Fin.val_last, programGateLit_last, mem_programBinaryGates_gate_last,
         programBinaryGate_gate_last]
 
 /-! ### Validity of the encoding -/
