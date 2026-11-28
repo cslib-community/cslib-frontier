@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+module
+-- upstream: local-only (test)
+
 import CslibFrontier.Crypto.Protocols.UC.DistributedProtocol
 
 /-!
@@ -22,6 +25,8 @@ Exercises `CslibFrontier.Crypto.Protocols.UC.DistributedProtocol` on concrete tw
   view (`toAdaptive_corruptionReport_current`).
 * Adaptive-to-static round-trip (`toAdaptive_toStatic_of_onCorrupt_eq`).
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.UCDistributedProtocol
 
@@ -63,7 +68,8 @@ theorem P_msg_polyBounded : P_msg.PolyBounded 1 0 0 0 where
     · simp only [P_msg, hi, ↓reduceIte, Polynomial.eval_one]
       exact (OracleComp.IsCostBounded.pure (none : Option Bool) 0).mono (by omega)
   initNet _ := by
-    simpa only [P_msg, Polynomial.eval_zero] using OracleComp.IsCostBounded.pure (none : Option Bool) 0
+    simpa only [P_msg, Polynomial.eval_zero] using
+      OracleComp.IsCostBounded.pure (none : Option Bool) 0
   onInput _ _ inp ps ns := by
     cases inp <;> simpa only [P_msg, Polynomial.eval_zero, StateT.run] using
       OracleComp.IsCostBounded.pure _ 0
@@ -72,7 +78,8 @@ theorem P_msg_polyBounded : P_msg.PolyBounded 1 0 0 0 where
 
 /-- Call-budget check for `P_msg.toMachine` via `toMachine_isBounded`. -/
 theorem P_msg_toMachine_isBounded (κ : ℕ) : (P_msg.toMachine κ).IsBounded (2 * 1 + 0 + 0 + 0) :=
-  P_msg.toMachine_isBounded (by simpa only [Polynomial.eval_one] using P_msg_polyBounded.initParty κ)
+  P_msg.toMachine_isBounded
+    (by simpa only [Polynomial.eval_one] using P_msg_polyBounded.initParty κ)
     (by simpa only [Polynomial.eval_zero] using P_msg_polyBounded.initNet κ)
     (by simpa only [Polynomial.eval_zero] using P_msg_polyBounded.onInput κ)
     (by simpa only [Polynomial.eval_zero] using P_msg_polyBounded.onNet κ)
@@ -200,12 +207,12 @@ theorem P_corruptMark_onCorrupt_ne (mem : PartyMemory) (κ : ℕ)
 /-- Adaptive environment program that activates party `0`, queries the network, and adaptively
 corrupts party `0`, never touching party `1`. -/
 def adaptiveEnvProg :
-    ProbOracleComp (adaptiveProtocolSpec 2 MsgIn Bool Unit Bool Bool) (Option Bool) := do
+    ProbOracleComp (adaptiveProtocolSpec 2 MsgIn Bool Unit Bool Bool)
+      (AdaptiveNetR Bool Bool Bool) := do
   let _ ← ProbOracleComp.query (.inl (.party 0 .send))
   let _ ← ProbOracleComp.query (.inr (.net ()))
-  let rep : Option (CorruptionReport Bool) ← ProbOracleComp.query
+  ProbOracleComp.query
     (spec := adaptiveProtocolSpec 2 MsgIn Bool Unit Bool Bool) (.inr (.corrupt 0))
-  pure (rep.map (·.current))
 
 private theorem adaptiveEnvProg_queriesSatisfy :
     OracleComp.QueriesSatisfy
@@ -216,19 +223,17 @@ private theorem adaptiveEnvProg_queriesSatisfy :
     (OracleComp.QueriesSatisfy.query ?_) fun _ =>
     OracleComp.QueriesSatisfy.bind
       (OracleComp.QueriesSatisfy.query ?_) fun _ =>
-      OracleComp.QueriesSatisfy.bind
-        (OracleComp.QueriesSatisfy.query ?_) fun _ =>
-        OracleComp.QueriesSatisfy.pure _
-  · exact ⟨fun _ h => by simp at h, by simp⟩
-  · exact ⟨fun _ h => by cases h, by simp⟩
-  · exact ⟨fun _ h => by cases h, by simp⟩
+      OracleComp.QueriesSatisfy.query ?_
+  · exact ⟨(fun _ h => by simp at h), by simp⟩
+  · exact ⟨(fun _ h => by simp at h), by simp⟩
+  · exact ⟨(fun _ h => by simp at h), by simp⟩
 
 /-- Under `.adaptive` routing on `P_corruptMark`, activating and corrupting party `0` (plus a
 network query) leaves honest party `1` uncorrupted and preserves its local state. -/
 theorem P_corruptMark_adaptive_honest_isolated (mem : PartyMemory) (κ : ℕ)
     (s : AdaptiveRouterState (DistributedState 2 Bool Bool) Bool 2)
     (hs : (1 : Fin 2) ∉ s.corrupted)
-    {y : Option Bool × AdaptiveRouterState (DistributedState 2 Bool Bool) Bool 2}
+    {y : AdaptiveNetR Bool Bool Bool × AdaptiveRouterState (DistributedState 2 Bool Bool) Bool 2}
     (hy : y ∈ (Machine.closeEval
       ((adaptiveRouter .adaptive (P_corruptMark.toAdaptive mem) κ ∅).runFrom
         adaptiveEnvProg s)).support) :
@@ -236,29 +241,72 @@ theorem P_corruptMark_adaptive_honest_isolated (mem : PartyMemory) (κ : ℕ)
   P_corruptMark.adaptiveRouter_runFrom_parties_eq .adaptive mem κ ∅ 1 adaptiveEnvProg
     adaptiveEnvProg_queriesSatisfy s hs hy
 
-/-- Under `.adaptive` routing on `P_corruptMark`, when party `0` starts uncorrupted, activating
-party `0` with `.send` and then corrupting party `0` returns `some true` (party `0`'s exact
-local state via `CorruptionReport.current`). -/
-theorem P_corruptMark_adaptive_corrupt_reveals (mem : PartyMemory) (κ : ℕ)
-    (s : AdaptiveRouterState (DistributedState 2 Bool Bool) Bool 2)
+/-- Under `.adaptive` routing on `P_msg` (where `onCorrupt` is the identity), when party `0` starts
+uncorrupted, activating party `0`, querying the network, and corrupting party `0` returns
+`.corrupt (some report)` revealing party `0`'s exact local state `s.inner.parties 0`. -/
+theorem P_msg_adaptive_corrupt_reveals (mem : PartyMemory) (κ : ℕ)
+    (s : AdaptiveRouterState (DistributedState 2 (Option Bool) (Option Bool)) (Option Bool) 2)
     (hs0 : (0 : Fin 2) ∉ s.corrupted)
-    {y : Option Bool × AdaptiveRouterState (DistributedState 2 Bool Bool) Bool 2}
+    {y : AdaptiveNetR Bool (Option Bool) (Option Bool) ×
+      AdaptiveRouterState (DistributedState 2 (Option Bool) (Option Bool)) (Option Bool) 2}
     (hy : y ∈ (Machine.closeEval
-      ((adaptiveRouter .adaptive (P_corruptMark.toAdaptive mem) κ ∅).runFrom
-        adaptiveEnvProg s)).support) :
-    y.1 = some true := by
-  simp only [adaptiveEnvProg, Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
-    Machine.mem_support_closeEval_bind, Machine.mem_support_closeEval_pure] at hy
-  obtain ⟨⟨_, s₁⟩, hs₁, ⟨_, s₂⟩, hs₂, ⟨rep, s₃⟩, hs₃, rfl⟩ := hy
-  simp only [adaptiveRouter, hs0, ↓reduceIte, StateT.run_bind, StateT.run_pure, StateT.run,
-    DistributedProtocol.toAdaptive, DistributedProtocol.toMachine, P_corruptMark,
-    ProbOracleComp.sample, Machine.mem_support_closeEval_bind, Machine.mem_support_closeEval_pure,
-    Machine.closeEval_sample, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hs₁ hs₂
-  obtain ⟨⟨_, ⟨ps₁, ns₁⟩⟩, ⟨rfl, rfl⟩, _, rfl⟩ := hs₁
-  obtain ⟨⟨_, ns₂⟩, ⟨rfl, rfl⟩, _, rfl⟩ := hs₂
-  simp only [adaptiveRouter, hs0, ↓reduceIte, StateT.run_pure,
-    Machine.mem_support_closeEval_pure] at hs₃
-  obtain ⟨rfl, _⟩ := hs₃
-  rfl
+      ((adaptiveRouter .adaptive (P_msg.toAdaptive mem) κ ∅).runFrom
+        (do
+          let _ ← ProbOracleComp.query (.inl (.party (0 : Fin 2) MsgIn.send))
+          let _ ← ProbOracleComp.query (.inr (.net ()))
+          ProbOracleComp.query
+            (spec := adaptiveProtocolSpec 2 MsgIn Bool Unit (Option Bool) (Option Bool))
+            (.inr (.corrupt 0))) s)).support) :
+    ∃ report, y.1 = .corrupt (some report) ∧ report.current = s.inner.parties 0 := by
+  let M := adaptiveRouter .adaptive (P_msg.toAdaptive mem) κ ∅
+  let q₁ : AdaptivePartyQ 2 MsgIn ⊕ AdaptiveNetQ 2 MsgIn Unit := .inl (.party 0 .send)
+  let q₂ : AdaptivePartyQ 2 MsgIn ⊕ AdaptiveNetQ 2 MsgIn Unit := .inr (.net ())
+  let q₃ : AdaptivePartyQ 2 MsgIn ⊕ AdaptiveNetQ 2 MsgIn Unit := .inr (.corrupt 0)
+  let sM : M.State := s
+  let yM : AdaptiveNetR Bool (Option Bool) (Option Bool) × M.State := y
+  have hy' : yM ∈ (Machine.closeEval (M.runFrom
+      (ProbOracleComp.query q₁ >>= fun _ =>
+        ProbOracleComp.query q₂ >>= fun _ => ProbOracleComp.query q₃) sM)).support := hy
+  rw [Machine.runFrom_bind, Machine.runFrom_query, Machine.mem_support_closeEval_bind] at hy'
+  obtain ⟨⟨_, s₁⟩, hs₁, hy'⟩ := hy'
+  rw [Machine.runFrom_bind, Machine.runFrom_query, Machine.mem_support_closeEval_bind] at hy'
+  obtain ⟨⟨_, s₂⟩, hs₂, hy'⟩ := hy'
+  rw [Machine.runFrom_query] at hy'
+  have hs₁_step : s₁.corrupted = s.corrupted ∧ s₁.inner.parties 0 = s.inner.parties 0 := by
+    dsimp only [M, q₁, sM, adaptiveRouter, StateT.run] at hs₁
+    simp only [hs0, ↓reduceIte] at hs₁
+    erw [Machine.mem_support_closeEval_bind] at hs₁
+    obtain ⟨⟨_, inner₁⟩, hinner₁, hs₁'⟩ := hs₁
+    erw [Machine.mem_support_closeEval_pure] at hs₁'
+    have hcor : s₁.corrupted = s.corrupted := congrArg (fun p => p.2.corrupted) hs₁'
+    have hin : s₁.inner = inner₁ := congrArg (fun p => p.2.inner) hs₁'
+    dsimp only [DistributedProtocol.toAdaptive, DistributedProtocol.toMachine, P_msg,
+      StateT.run] at hinner₁
+    erw [Machine.mem_support_closeEval_bind] at hinner₁
+    obtain ⟨⟨_, ps₁, ns₁⟩, hps₁, hinner₁'⟩ := hinner₁
+    erw [Machine.closeEval_sample, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hps₁
+    erw [Machine.mem_support_closeEval_pure] at hinner₁'
+    have hps : ps₁ = s.inner.parties 0 := congrArg (fun p => p.2.1) hps₁
+    have h0 : inner₁.parties 0 = ps₁ := by
+      have := congrArg (fun p => p.2.parties 0) hinner₁'
+      simpa only [Function.update_self] using this
+    exact ⟨hcor, (congrArg (fun st => st.parties 0) hin).trans (h0.trans hps)⟩
+  have hs₂_step : s₂.corrupted = s.corrupted ∧ s₂.inner.parties 0 = s.inner.parties 0 := by
+    dsimp only [M, q₂, adaptiveRouter, StateT.run] at hs₂
+    erw [Machine.mem_support_closeEval_bind] at hs₂
+    obtain ⟨⟨_, inner₂⟩, hinner₂, hs₂'⟩ := hs₂
+    erw [Machine.mem_support_closeEval_pure] at hs₂'
+    have hnet : inner₂.parties = s₁.inner.parties :=
+      P_msg.mem_support_closeEval_handle_net κ () s₁.inner hinner₂
+    exact ⟨(congrArg (fun p => p.2.corrupted) hs₂').trans hs₁_step.1,
+      (congrArg (fun p => p.2.inner.parties 0) hs₂').trans
+        ((congrFun hnet 0).trans hs₁_step.2)⟩
+  have hs₂0 : (0 : Fin 2) ∉ s₂.corrupted := hs₂_step.1 ▸ hs0
+  dsimp only [M, q₃, adaptiveRouter, StateT.run] at hy'
+  simp only [hs₂0, ↓reduceIte] at hy'
+  erw [Machine.mem_support_closeEval_pure] at hy'
+  refine ⟨_, congrArg Prod.fst hy', ?_⟩
+  simp only [AdaptiveProtocol.corruptionReport, DistributedProtocol.toAdaptive, P_msg,
+    Function.update_self, hs₂_step.2]
 
 end CslibFrontierTests.Crypto.UCDistributedProtocol

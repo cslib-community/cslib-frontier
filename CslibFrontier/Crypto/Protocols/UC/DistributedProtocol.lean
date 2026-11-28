@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Protocols.UC.Adaptive
-public import CslibFrontier.Languages.Probabilistic.Vector
-import CslibFrontier.Languages.Probabilistic.Oracle.Vector
+public import CslibFrontier.Languages.Probabilistic.Oracle.Vector
+import CslibFrontier.Languages.Probabilistic.Vector
 
 /-!
 # Distributed protocols with per-party state isolation
@@ -54,7 +54,6 @@ public section
 
 namespace Cslib.Crypto.Protocols.UC
 
-open OracleComp (sumHandler)
 open Polynomial (eval)
 
 /-- Library construction (no cited definition): state of an `n`-party distributed protocol,
