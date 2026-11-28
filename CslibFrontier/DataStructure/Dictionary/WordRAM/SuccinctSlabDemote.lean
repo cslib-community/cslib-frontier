@@ -306,25 +306,26 @@ theorem demoteStepProg_effect {U V w n_max h_space base b k : ℕ}
   have hr_vl := clientResult_readValProg (U := U) (V := V) (w := w) (h_space := h_space)
     (base := base) s hg_last_lt
   dsimp only [g_del, p_del, gmSlabTopIdx, gm, g_last, p_last, u] at hr_qd hr_vd hr_ql hr_vl
-  let outcome (state : Memory.State) (p : Memory.Prog ℕ) :=
-    ((Memory.spec 0).clientResult state p, (Memory.spec 0).clientState state p)
-  have outcome_bind {α : Type} (state : Memory.State) (p : Memory.Prog α)
-      (next : α → Memory.Prog ℕ) :
-      outcome state (p >>= next) =
-        outcome ((Memory.spec 0).clientState state p)
-          (next ((Memory.spec 0).clientResult state p)) :=
-    Prod.ext ((Memory.spec 0).clientResult_bind p next state)
-      ((Memory.spec 0).clientState_bind p next state)
-  have hrun : outcome s (demoteStepProg U V w n_max h_space ((base, b), k)) =
+  have eval_eq {α : Type} {p : Memory.Prog α} {a : α} {t : Memory.State}
+      (ha : (Memory.spec 0).clientResult s p = a) (ht : (Memory.spec 0).clientState s p = t) :
+      Cslib.DataStructure.eval (Memory.spec 0) p s = (a, t) :=
+    Prod.ext ha ht
+  have hrun : Cslib.DataStructure.eval (Memory.spec 0)
+      (demoteStepProg U V w n_max h_space ((base, b), k)) s =
       (k + 1, s₅) := by
     simp only [demoteStepProg, demoteStepGenProg, succinct_param_simps, readGMGenProg_mk,
       readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk,
-      appendTailItemGenProg_mk]
-    rw [outcome_bind, clientState_readGMProg, hr_top, outcome_bind, clientState_readGMProg, hr_0,
-      outcome_bind, clientState_readQuotProg, hr_qd, outcome_bind, clientState_readValProg, hr_vd,
-      outcome_bind, clientState_readQuotProg, hr_ql, outcome_bind, clientState_readValProg, hr_vl,
-      outcome_bind, hres_app]
-    repeat rw [outcome_bind]
+      appendTailItemGenProg_mk, ← PFunctor.FreeM.bind_eq_bind]
+    rw [eval_bind, eval_eq hr_top (clientState_readGMProg ..),
+      eval_bind, eval_eq hr_0 (clientState_readGMProg ..),
+      eval_bind, eval_eq hr_qd (clientState_readQuotProg ..),
+      eval_bind, eval_eq hr_vd (clientState_readValProg ..),
+      eval_bind, eval_eq hr_ql (clientState_readQuotProg ..),
+      eval_bind, eval_eq hr_vl (clientState_readValProg ..),
+      eval_bind, eval_eq hres_app (show _ = s₁ from rfl)]
+    repeat rw [eval_bind]
+    rw [eval_pure']
+    dsimp only [Cslib.DataStructure.eval]
     rfl
   have hres_eq := congrArg Prod.fst hrun
   have hst : s' = s₅ := congrArg Prod.snd hrun
