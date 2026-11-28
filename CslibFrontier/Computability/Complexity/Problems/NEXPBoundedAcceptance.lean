@@ -73,6 +73,8 @@ that some certificate `c : List Bool` of length `|c| ≤ T` makes the machine de
   of a machine.
 * `Cslib.Complexity.NEXPBoundedAcceptance.mem_NE`,
   `Cslib.Complexity.NEXPBoundedAcceptance.mem_NEXP`: membership in `NE` and `NEXP`.
+* `Cslib.Complexity.NEXPBoundedAcceptance.exists_instance_of_mem_NTIME`: a language in
+  `NTIME enc (fun n => 2 ^ p n)` is decided by a fixed description and constant.
 * `Cslib.Complexity.NEXPBoundedAcceptance.polyTimeReducible`: reduction from
   `NTIME enc (fun n => 2 ^ p n)` for polynomial-time `p`.
 * `Cslib.Complexity.NEXPBoundedAcceptance.polyTimeHard_NE`,
@@ -288,13 +290,16 @@ theorem mem_NEXP : NEXPBoundedAcceptance ∈ NEXP encNEXPBoundedAcceptanceInstan
 
 /-! ### Hardness and completeness for `NE` and `NEXP` -/
 
-/-- **Nondeterministic exponential-time problems reduce to `NEXPBoundedAcceptance`.**
-Every language in `NTIME enc (fun n => 2 ^ p n)` for a polynomial-time unary function `p` reduces
-to `NEXPBoundedAcceptance` in polynomial time. -/
-theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p : ℕ → ℕ}
-    (hp : ComputableInPolyTime p encUnary encUnary)
+/-- **A fixed machine description and constant decide a language in `NTIME (2 ^ p n)`.**
+For `A ∈ NTIME enc (fun n => 2 ^ p n)` there are a description `m` and a constant `C`, depending
+on `A` only, such that `a ∈ A` exactly when `⟨m, enc a, 2 ^ (p |enc a| + |enc a| + C)⟩` is in
+`NEXPBoundedAcceptance`. This is the reduction of `polyTimeReducible`, with its dependence on `A`
+isolated: the description and the constant come from a machine deciding `A`. -/
+theorem exists_instance_of_mem_NTIME {α : Type} {enc : α ↪ List Bool} {A : Set α} {p : ℕ → ℕ}
     (hA : A ∈ NTIME enc (fun n => 2 ^ p n)) :
-    PolyTimeReducible enc encNEXPBoundedAcceptanceInstance A NEXPBoundedAcceptance := by
+    ∃ (m : Desc) (C : ℕ), ∀ a, a ∈ A ↔
+      (⟨m, enc a, 2 ^ (p (enc a).length + (enc a).length + C)⟩ :
+        NEXPBoundedAcceptanceInstance) ∈ NEXPBoundedAcceptance := by
   obtain ⟨c₁, c₂, k, State, hfinite, ntm, hdec⟩ := hA
   have := Fintype.ofFinite State
   obtain ⟨cV, ⟨kV, StateV, hfinV, tm, htm⟩, -⟩ :=
@@ -305,52 +310,63 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
   let C := (cV + 1) * (M + 1) * (c₁ + c₂ + 4)
   let stepBound (a : α) : ℕ := 2 ^ (p (enc a).length + (enc a).length + C)
   let tV (q : List Bool × List Bool) : ℕ := cV * ((encPair encBits encBits q).length + 1)
-  refine ⟨fun a => ⟨desc eSV eBit tm, enc a, stepBound a⟩, ?_, fun a => ?_⟩
-  · have hp_comp : ComputableInPolyTime (fun a => p (enc a).length) enc encUnary :=
-      hp.comp (by fun_prop)
-    have hsteps : ComputableInPolyTime stepBound enc encNat :=
-      ComputableInPolyTime.binary_two_pow.comp (by fun_prop)
-    fun_prop
-  · rw [mem_iff]
-    constructor
-    · intro ha
-      obtain ⟨c, hc_len, hc_acc⟩ :=
-        (hdec.mem_iff_exists_checkChoices (a := a)
-          (L := M * (c₁ * 2 ^ p (enc a).length + c₂)) le_rfl).mp ha
-      set E := 2 ^ (p (enc a).length + (enc a).length) with hE
-      have hE1 : 1 ≤ E := Nat.one_le_two_pow
-      have hnE : (enc a).length ≤ E :=
-        Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right (by omega) (by omega))
-      -- `|c| + 2 n + 2 ≤ (M + 1) (c₁ + c₂ + 4) E` and `(cV + 1)` times this is below the clock.
-      have h1 : c₁ * 2 ^ p (enc a).length + c₂ ≤ (c₁ + c₂) * E :=
-        (Nat.add_le_add
-          (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right two_pos (Nat.le_add_right _ _)))
-          (Nat.le_mul_of_pos_right _ hE1)).trans_eq (add_mul ..).symm
-      have hbound : c.length + 2 * (enc a).length + 2 ≤ (M + 1) * (c₁ + c₂ + 4) * E := by
-        rw [hc_len]
-        linarith [Nat.mul_le_mul_left M h1, Nat.zero_le (M * E), Nat.zero_le (c₁ * E),
-          Nat.zero_le (c₂ * E)]
-      have hstep_eq : stepBound a = 2 ^ C * E := by rw [hE, ← Nat.pow_add, Nat.add_comm C]
-      have hCE : (cV + 1) * ((M + 1) * (c₁ + c₂ + 4) * E) ≤ stepBound a := by
-        rw [hstep_eq, ← mul_assoc, ← mul_assoc]
-        exact Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le
-      have hc_step : c.length ≤ stepBound a := (Nat.le_add_right _ _).trans <|
-        (Nat.le_add_right _ _).trans <| hbound.trans <|
-          (Nat.le_mul_of_pos_left _ (Nat.succ_pos cV)).trans hCE
-      have htV_step : tV (enc a, c) ≤ stepBound a := by
-        refine (Nat.mul_le_mul (Nat.le_succ cV) ?_).trans hCE
-        simp only [length_encPair, encBits, Function.Embedding.refl_apply]; omega
-      obtain ⟨hhalt, hout⟩ := (htm (enc a, c)).runFrom_of_le htV_step
-      exact ⟨c, hc_step, (NEXPBoundedAcceptanceInstance.accepts_desc_iff eSV tm (enc a)
-        (stepBound a) c).mpr ⟨hhalt, hout.trans (congrArg List.singleton hc_acc)⟩⟩
-    · rintro ⟨c, -, hacc⟩
-      obtain ⟨hhalt, hout⟩ := (NEXPBoundedAcceptanceInstance.accepts_desc_iff _ _ _ _ _).mp hacc
-      have hrun_eq := tm.runFrom_eq_of_halt _ (Nat.le_max_left (stepBound a) (tV (enc a, c))) hhalt
-      obtain ⟨-, hout'⟩ := (htm (enc a, c)).runFrom_of_le (Nat.le_max_right (stepBound a) _)
-      have hout_eq : [true] = [ntm.checkChoices encBits (enc a, c)] :=
-        hout.symm.trans ((congrArg Cfg.output hrun_eq).symm.trans hout')
-      exact (hdec a).2.mpr (ntm.accepts_of_runClosedCoins_choiceTable
-        (of_decide_eq_true (List.singleton_injective hout_eq).symm))
+  refine ⟨desc eSV eBit tm, C, fun a => ?_⟩
+  rw [NEXPBoundedAcceptance.mem_iff]
+  constructor
+  · intro ha
+    obtain ⟨c, hc_len, hc_acc⟩ :=
+      (hdec.mem_iff_exists_checkChoices (a := a)
+        (L := M * (c₁ * 2 ^ p (enc a).length + c₂)) le_rfl).mp ha
+    set E := 2 ^ (p (enc a).length + (enc a).length) with hE
+    have hE1 : 1 ≤ E := Nat.one_le_two_pow
+    have hnE : (enc a).length ≤ E :=
+      Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right (by omega) (by omega))
+    -- `|c| + 2 n + 2 ≤ (M + 1) (c₁ + c₂ + 4) E` and `(cV + 1)` times this is below the clock.
+    have h1 : c₁ * 2 ^ p (enc a).length + c₂ ≤ (c₁ + c₂) * E :=
+      (Nat.add_le_add
+        (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right two_pos (Nat.le_add_right _ _)))
+        (Nat.le_mul_of_pos_right _ hE1)).trans_eq (add_mul ..).symm
+    have hbound : c.length + 2 * (enc a).length + 2 ≤ (M + 1) * (c₁ + c₂ + 4) * E := by
+      rw [hc_len]
+      linarith [Nat.mul_le_mul_left M h1, Nat.zero_le (M * E), Nat.zero_le (c₁ * E),
+        Nat.zero_le (c₂ * E)]
+    have hstep_eq : stepBound a = 2 ^ C * E := by rw [hE, ← Nat.pow_add, Nat.add_comm C]
+    have hCE : (cV + 1) * ((M + 1) * (c₁ + c₂ + 4) * E) ≤ stepBound a := by
+      rw [hstep_eq, ← mul_assoc, ← mul_assoc]
+      exact Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le
+    have hc_step : c.length ≤ stepBound a := (Nat.le_add_right _ _).trans <|
+      (Nat.le_add_right _ _).trans <| hbound.trans <|
+        (Nat.le_mul_of_pos_left _ (Nat.succ_pos cV)).trans hCE
+    have htV_step : tV (enc a, c) ≤ stepBound a := by
+      refine (Nat.mul_le_mul (Nat.le_succ cV) ?_).trans hCE
+      simp only [length_encPair, encBits, Function.Embedding.refl_apply]; omega
+    obtain ⟨hhalt, hout⟩ := (htm (enc a, c)).runFrom_of_le htV_step
+    exact ⟨c, hc_step, (NEXPBoundedAcceptanceInstance.accepts_desc_iff eSV tm (enc a)
+      (stepBound a) c).mpr ⟨hhalt, hout.trans (congrArg List.singleton hc_acc)⟩⟩
+  · rintro ⟨c, -, hacc⟩
+    obtain ⟨hhalt, hout⟩ := (NEXPBoundedAcceptanceInstance.accepts_desc_iff _ _ _ _ _).mp hacc
+    have hrun_eq := tm.runFrom_eq_of_halt _ (Nat.le_max_left (stepBound a) (tV (enc a, c))) hhalt
+    obtain ⟨-, hout'⟩ := (htm (enc a, c)).runFrom_of_le (Nat.le_max_right (stepBound a) _)
+    have hout_eq : [true] = [ntm.checkChoices encBits (enc a, c)] :=
+      hout.symm.trans ((congrArg Cfg.output hrun_eq).symm.trans hout')
+    exact (hdec a).2.mpr (ntm.accepts_of_runClosedCoins_choiceTable
+      (of_decide_eq_true (List.singleton_injective hout_eq).symm))
+
+/-- **Nondeterministic exponential-time problems reduce to `NEXPBoundedAcceptance`.**
+Every language in `NTIME enc (fun n => 2 ^ p n)` for a polynomial-time unary function `p` reduces
+to `NEXPBoundedAcceptance` in polynomial time. -/
+theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p : ℕ → ℕ}
+    (hp : ComputableInPolyTime p encUnary encUnary)
+    (hA : A ∈ NTIME enc (fun n => 2 ^ p n)) :
+    PolyTimeReducible enc encNEXPBoundedAcceptanceInstance A NEXPBoundedAcceptance := by
+  obtain ⟨m, C, h⟩ := exists_instance_of_mem_NTIME hA
+  refine ⟨fun a => ⟨m, enc a, 2 ^ (p (enc a).length + (enc a).length + C)⟩, ?_, h⟩
+  have hp_comp : ComputableInPolyTime (fun a => p (enc a).length) enc encUnary :=
+    hp.comp (by fun_prop)
+  have hsteps : ComputableInPolyTime (fun a => 2 ^ (p (enc a).length + (enc a).length + C))
+      enc encNat :=
+    ComputableInPolyTime.binary_two_pow.comp (by fun_prop)
+  fun_prop
 
 /-- **`NEXPBoundedAcceptance` is hard for `NE`** under polynomial-time many-one reductions. -/
 theorem polyTimeHard_NE : PolyTimeHard @NE encNEXPBoundedAcceptanceInstance NEXPBoundedAcceptance :=
