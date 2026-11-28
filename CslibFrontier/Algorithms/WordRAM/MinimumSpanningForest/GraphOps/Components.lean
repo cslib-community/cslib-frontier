@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.GraphOps.In
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Contraction.Threshold
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.DecisionTree.Basic
 import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.GraphOps.CSR
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.Realize
 import CslibFrontier.Tactic.UpdateSimp
@@ -394,17 +395,21 @@ private theorem ccRelax_spec {w n offBase adjBase compBase queueBase cid startJ 
   have hend_2m : endJ ≤ 2 * es.length := by rw [← hslice_end]; exact hcsr.offset_le_end _ u.isLt
   let cfg : RelaxCfg := ⟨adjBase, compBase, queueBase, n, cid⟩
   let S : Set ℕ := Set.Ico compBase s.frontier
-  let inv (k : ℕ) (st : BfsPos) (t : Memory.State) : Prop :=
-    t.frontier = s.frontier ∧ Memory.WellFormed w t ∧ (∀ a, a < compBase → t.mem a = s.mem a) ∧
-    CompStable compBase cid (n := n) s t ∧
-    (∀ i, i < q₀.length → t.mem (queueBase + i) = s.mem (queueBase + i)) ∧
-    ∃ q : List (Fin n), st = ⟨startJ + k, q.length⟩ ∧ q₀.Sublist q ∧
-      BfsInv compBase queueBase cid es r q t ∧
-      (∀ p' < k, ∃ v' : Fin n, t.mem (adjBase + 2 * (startJ + p')) = v'.val ∧ v' ∈ q)
-  obtain ⟨hsafe, hft⟩ := iterate_framedTriple_of_step ccRelaxStep ccRelaxStepSafe w cfg 4
-      (endJ - startJ) inv S (fun k hk st t
-        ⟨htfr, hwt, hframe, hold_comp, hold_q, q, hst_eq, hsub, hb, hvis_prev⟩ => by
+  obtain ⟨hsafe, hft⟩ := Memory.FramedTriple.iterate (s := s) (body := ccRelaxStep)
+    (safe := ccRelaxStepSafe) (d := ⟨adjBase, compBase, queueBase, n, cid⟩) (c := 4) (S := S)
+    (n := endJ - startJ)
+    (a₀ := ⟨startJ, q₀.length⟩)
+    (fun k st t => t.frontier = s.frontier ∧ CompStable compBase cid (n := n) s t ∧
+      (∀ i, i < q₀.length → t.mem (queueBase + i) = s.mem (queueBase + i)) ∧
+      ∃ q : List (Fin n), st = ⟨startJ + k, q.length⟩ ∧ q₀.Sublist q ∧
+        BfsInv compBase queueBase cid es r q t ∧
+        (∀ p' < k, ∃ v' : Fin n, t.mem (adjBase + 2 * (startJ + p')) = v'.val ∧ v' ∈ q))
+    ⟨rfl, CompStable.refl _ _ _ _, fun _ _ => rfl, q₀, by simp, List.Sublist.refl q₀, hb₀,
+      fun _ h => absurd h (Nat.not_lt_zero _)⟩
+    (fun k hk st t ⟨htfr, hold_comp, hold_q, q, hst_eq, hsub, hb, hvis_prev⟩ ⟨_, hmod⟩ => by
         subst st
+        have hframe : ∀ a < compBase, t.mem a = s.mem a := fun a ha =>
+          hmod a (by omega) (by region_omega)
         have hcsr_t : HoldsUndirCSR offBase adjBase es t.mem :=
           hcsr.congr (fun a _ ha => hframe a (by omega)) (fun a _ ha => hframe a (by omega))
         have hs1 : t.mem (offBase + u.val) = startJ := by rw [hframe _ (by omega), hslice_start]
@@ -430,68 +435,29 @@ private theorem ccRelax_spec {w n offBase adjBase compBase queueBase cid startJ 
         have hrel_rv := (edgePartition _).trans hr_rel hrel_uv
         have hq_len_le : q.length ≤ n := by simpa only [Fintype.card_fin] using hb.nd.length_le_card
         have hnb_eq : t.mem (adjBase + 2 * (startJ + k)) = v.val := rfl
-        have hu_lt := u.isLt; have hv_isLt := v.isLt
-        let stepProg := ccRelaxStep (cfg, ⟨startJ + k, q.length⟩)
-        have hsafe : ccRelaxStepSafe w (cfg, ⟨startJ + k, q.length⟩) t := by
-          dsimp only [ccRelaxStepSafe, cfg]
-          refine ⟨h16, hfit_j.of_le (by omega), hfit_n1.of_le (by omega), hfit_n1.of_le (by omega),
-            by rw [htfr]; omega, by rw [htfr]; omega, fun hcv => ?_⟩
-          rw [hnb_eq] at hcv
-          have hq_lt_n := (hb.push hcomp_lt hcid_lt hcv hrel_rv).2.1
-          exact ⟨hfit_n1.of_le (by omega), by rw [htfr]; omega⟩
-        have hvh : (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t stepProg) := by
-          dsimp only [stepProg, ccRelaxStep, cfg]; valid_prog with [htfr, hnb_eq]
-          all_goals try dsimp only
-          all_goals rw [hnb_eq] at *
-          all_goals
-            first
-            | exact hfit_n1.of_le (by omega)
-            | exact (hsafe.2.2.2.2.2.2 (by assumption)).2
-            | omega
-        have hcost : memoryCost stepProg t ≤ 4 := by
-          dsimp only [stepProg, ccRelaxStep, cfg]; prog_cost
-        by_cases hcv : t.mem (compBase + v.val) = n
-        · obtain ⟨_, _, hcs_step, hb'⟩ := hb.push hcomp_lt hcid_lt hcv hrel_rv
-          let t' : Memory.State :=
-            ⟨Function.update (Function.update t.mem (compBase + v.val) cid)
-              (queueBase + q.length) v.val, t.frontier⟩
-          have hst : (Memory.spec 0).clientState t stepProg = t' := by
-            dsimp only [stepProg, ccRelaxStep, cfg]
-            rw [clientState_bind_read, hnb_eq, clientState_bind_read]
-            simp only [hcv, ↓reduceIte]; rfl
-          have hres : (Memory.spec 0).clientResult t stepProg = ⟨startJ + k + 1, q.length + 1⟩ := by
-            dsimp only [stepProg, ccRelaxStep, cfg]
-            rw [clientResult_bind_read, hnb_eq, clientResult_bind_read]
-            simp only [hcv, ↓reduceIte, clientResult_bind_write,
-              StateTransitionSpec.clientResult_pure]
-          have hmod : ∀ a, a ∉ S → t'.mem a = t.mem a := fun a ha => by
-            dsimp only [t']; simp only [S, Set.mem_Ico, not_and, not_lt] at ha; update_simp
+        have hu_lt := u.isLt
+        have hq_lt : t.mem (compBase + t.mem (adjBase + 2 * (startJ + k))) = n → q.length < n :=
+          fun hcv => (hb.push hcomp_lt hcid_lt hcv hrel_rv).2.1
+        refine ⟨by
+          dsimp only [ccRelaxStepSafe]
+          exact ⟨h16, by fits, by fits, by fits, by omega, by omega,
+            fun hcv => ⟨by fits, by omega⟩⟩, ?_⟩
+        unfold ccRelaxStep
+        framed_walk
+        · rename_i hcv; dsimp only
+          obtain ⟨_, _, hcs_step, hb'⟩ := hb.push hcomp_lt hcid_lt hcv hrel_rv
           have hq₀_le := hsub.length_le
-          refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
-            ⟨hvh, hcost, ⟨by rw [hst], fun a _ ha => by rw [hst]; exact hmod a ha⟩, ?_⟩⟩
-          rw [hst, hres]; refine ⟨htfr, hst ▸ wellFormed_clientState hwt hvh,
-            fun a ha => (hmod a (by simp only [S, Set.mem_Ico]; omega)).trans (hframe a ha),
-            hold_comp.trans hcs_step,
-            fun i hi => by dsimp only [t']; update_simp; exact hold_q i hi,
+          refine ⟨htfr, hold_comp.trans hcs_step, fun i hi => by update_simp; exact hold_q i hi,
             q ++ [v], by simp only [List.length_append, List.length_singleton, Nat.add_assoc],
             hsub.trans (List.sublist_append_left q [v]), hb', fun p' hp' => ?_⟩
-          dsimp only [t']; by_cases hp : p' = k
+          by_cases hp : p' = k
           · subst hp
             exact ⟨v, by update_simp, List.mem_append.mpr (.inr (List.mem_singleton.mpr rfl))⟩
           · obtain ⟨v', hv', hv'_q⟩ := hvis_prev p' (by omega)
             exact ⟨v', by update_simp; exact hv', List.mem_append.mpr (.inl hv'_q)⟩
-        · have hst : (Memory.spec 0).clientState t stepProg = t := by
-            dsimp only [stepProg, ccRelaxStep, cfg]
-            rw [clientState_bind_read, hnb_eq, clientState_bind_read]
-            simp only [hcv, ↓reduceIte]; rfl
-          have hres : (Memory.spec 0).clientResult t stepProg = ⟨startJ + k + 1, q.length⟩ := by
-            dsimp only [stepProg, ccRelaxStep, cfg]
-            rw [clientResult_bind_read, hnb_eq, clientResult_bind_read]
-            simp only [hcv, ↓reduceIte, StateTransitionSpec.clientResult_pure]
-          refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
-            ⟨hvh, hcost, ⟨by rw [hst], fun _ _ _ => by rw [hst]⟩, ?_⟩⟩
-          rw [hst, hres]; refine ⟨htfr, hwt, hframe, hold_comp, hold_q, q,
-            by simp only [Nat.add_assoc], hsub, hb, fun p' hp' => ?_⟩
+        · rename_i hcv
+          refine ⟨htfr, hold_comp, hold_q, q, by simp only [Nat.add_assoc], hsub, hb,
+            fun p' hp' => ?_⟩
           by_cases hp : p' = k
           · subst hp; refine ⟨v, hnb_eq, ?_⟩
             rcases hb.comp_range v with h_n | h_le
@@ -503,11 +469,9 @@ private theorem ccRelax_spec {w n offBase adjBase compBase queueBase cid startJ 
                 omega
               · exact (hb.comp_cid v).mp h_eq_cid
           · exact hvis_prev p' (by omega))
-      ⟨startJ, q₀.length⟩ s
-      ⟨rfl, hwf, fun _ _ => rfl, CompStable.refl _ _ _ _, fun _ _ => rfl,
-        q₀, by simp, List.Sublist.refl q₀, hb₀, fun _ h => absurd h (Nat.not_lt_zero _)⟩
-  obtain ⟨hv, hm, hmod, hfr, hwf', _, hold_comp, hold_q, q₁, hst_end, hsub₁, hb₁, hvis₁⟩ :=
-    framedTriple_iff_realization.mp hft
+    fun _ _ h _ => h
+  obtain ⟨hv, hm, hmod, ⟨hfr, hold_comp, hold_q, q₁, hst_end, hsub₁, hb₁, hvis₁⟩, hwf'⟩ :=
+    framedTriple_iff_realization.mp (hft.wellFormed hwf)
   have hcsr' := holdsUndirCSR_of_ico hcsr hmod (by omega) (by omega) (by omega)
   have hs_end : ((Memory.spec 0).clientState s
       (iterate ccRelaxStep cfg (endJ - startJ) ⟨startJ, q₀.length⟩)).mem (offBase + u.val) =
@@ -630,38 +594,24 @@ private theorem ccBfsStep_spec {w n offBase adjBase compBase queueBase cid head 
     @ccRelax_spec w n offBase adjBase compBase queueBase cid startJ endJ es r u q₀ s h16 hwf
       (hfit_2m1.of_le (by omega)) hfit_n1 hcsr hoff_lt hadj_lt hcomp_lt hq_lt hcid_lt rfl rfl hb₀
       hcomp_old hu_cid (hb₀.q_rel u (List.getElem_mem hhead_lt))
-  obtain ⟨hv_it, hm_it, hmod_it, hfr_it, hwf'⟩ := framedTriple_iff_realization.mp hft_it
+  obtain ⟨-, -, hmod_it, hfr_it, hwf'⟩ := framedTriple_iff_realization.mp hft_it
   set itProg := iterate ccRelaxStep ⟨adjBase, compBase, queueBase, n, cid⟩ (endJ - startJ)
     ⟨startJ, q₀.length⟩
   set s' := (Memory.spec 0).clientState s itProg
   let cfg : BfsCfg := ⟨offBase, adjBase, compBase, queueBase, n, cid⟩
-  have hprog : ccBfsStep (cfg, ⟨head, q₀.length⟩) =
-      (Memory.read (queueBase + head) >>= fun u' => Memory.read (offBase + u') >>= fun sJ =>
-        Memory.read (offBase + u' + 1) >>= fun eJ => iterate ccRelaxStep
-          ⟨adjBase, compBase, queueBase, n, cid⟩ (eJ - sJ) ⟨sJ, q₀.length⟩ >>= fun st =>
-            pure ⟨head + 1, st.tail⟩) := rfl
-  let stepProg := ccBfsStep (cfg, ⟨head, q₀.length⟩)
   have hu_lt := u.isLt
   have hsafe : ccBfsStepSafe w (cfg, ⟨head, q₀.length⟩) s := by
     dsimp only [ccBfsStepSafe, cfg]
     refine ⟨h16, hfit_n1.of_le (by omega), by omega, by rw [hu_mem]; omega,
       by rw [hu_mem]; exact hle_slice, by simpa only [hu_mem] using hsafe_it⟩
-  have hvh : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s stepProg) := by
-    dsimp only [stepProg]; rw [hprog]; refine validHistory_read_bind (by omega) ?_; rw [hu_mem]
-    exact validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
-      (validHistory_bind_step hv_it (validHistory_pure w _ _)))
-  have hst : (Memory.spec 0).clientState s stepProg = s' := by
-    dsimp only [stepProg]; rw [hprog, clientState_bind_read, hu_mem, clientState_bind_read,
-      clientState_bind_read, StateTransitionSpec.clientState_bind]; rfl
-  have hres : (Memory.spec 0).clientResult s stepProg = ⟨head + 1, q₁.length⟩ := by
-    dsimp only [stepProg]; rw [hprog, clientResult_bind_read, hu_mem, clientResult_bind_read,
-      clientResult_bind_read, StateTransitionSpec.clientResult_bind, hlen₁]; rfl
-  have hcost : memoryCost stepProg s ≤ 3 + 4 * (endJ - startJ) := by
-    dsimp only [stepProg]
-    rw [hprog, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, hu_mem,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, memoryCost_bind',
-      memoryCost_read, clientResult_read, clientState_read, memoryCost_bind', memoryCost_pure,
-      add_zero]; change 1 + (1 + (1 + memoryCost itProg s)) ≤ _; omega
+  obtain ⟨hvh, hcost, -, hres, hst⟩ := (framedTriple_iff_realization (w := w) (s := s)
+    (p := ccBfsStep (cfg, ⟨head, q₀.length⟩)) (c := 2 + 4 * (endJ - startJ) + 1)
+    (S := Set.Ico compBase s.frontier) (Q := fun r t => r = ⟨head + 1, q₁.length⟩ ∧ t = s')).mp
+    (by
+      unfold ccBfsStep; dsimp only [cfg]
+      refine Memory.FramedTriple.read_bind (by omega) ?_
+      rw [hu_mem]; framed_triple
+      exact ⟨congrArg _ hlen₁, rfl⟩)
   have hpop_old : ¬(s.mem (compBase + u.val) < cid ∨
       ∃ i < head, s.mem (queueBase + i) = u.val) := by
     rintro (hlt | ⟨i, hi_lt, hi_eq⟩)
@@ -687,7 +637,7 @@ private theorem ccBfsStep_spec {w n offBase adjBase compBase queueBase cid head 
     by rw [hst]; exact hwf', fun x => by rw [hst]; exact hold_comp x,
     fun i hi => by rw [hst]; exact hold_q i hi, q₁, hsub₁, by rw [hres], by rw [hst]; exact hb₁,
     hneigh₁⟩
-  rw [hst]; dsimp only [startJ, endJ, itProg, stepProg, cfg] at hcost hpot ⊢; omega
+  rw [hst]; dsimp only [startJ, endJ, itProg, cfg] at hcost hpot ⊢; omega
 
 private theorem ccBfs_spec {w n offBase adjBase compBase queueBase cid : ℕ}
     {es : List (IndexedEdge n)} {r : Fin n} {s : Memory.State}
@@ -939,12 +889,6 @@ private theorem ccOuter_spec {w n offBase adjBase compBase queueBase : ℕ}
             ∀ y : Fin n, (edgePartition (es.map IndexedEdge.toWeighted)).rel x y = true →
               t.mem (compBase + y.val) = t.mem (compBase + x.val) := fun x hx y hxy =>
           (hconn x hx y).mp hxy
-        have hprog : ccOuterStep (cfg, ⟨k, cid⟩) =
-            (Memory.read (compBase + k) >>= fun c => if c = n then
-                Memory.write (compBase + k) cid >>= fun _ => Memory.write queueBase k >>= fun _ =>
-                  boundedWhile (fun (_ : BfsCfg) (b : BfsPos) => b.edgePos < b.tail) ccBfsStep
-                    ⟨offBase, adjBase, compBase, queueBase, n, cid⟩ n ⟨0, 1⟩ >>= fun _ =>
-                      pure ⟨k + 1, cid + 1⟩ else pure ⟨k + 1, cid⟩) := rfl
         let stepProg := ccOuterStep (cfg, ⟨k, cid⟩)
         by_cases hcv : t.mem (compBase + k) = n
         · let r : Fin n := ⟨k, hk⟩
@@ -955,38 +899,22 @@ private theorem ccOuter_spec {w n offBase adjBase compBase queueBase : ℕ}
           let s₀ : Memory.State := ⟨Function.update mem₁ queueBase k, t.frontier⟩
           let bwProg := boundedWhile (fun (_ : BfsCfg) (b : BfsPos) => b.edgePos < b.tail)
             ccBfsStep ⟨offBase, adjBase, compBase, queueBase, n, cid⟩ n ⟨0, 1⟩
-          have hmod_step : Memory.Modifies S t ((Memory.spec 0).clientState s₀ bwProg) := by
-            have hmod0 : Memory.Modifies S t s₀ := ⟨le_rfl, fun a _ ha => by
-              dsimp only [s₀, mem₁]; simp only [S, Set.mem_Ico, not_and, not_lt] at ha; update_simp⟩
-            exact hmod0.trans (by
-              dsimp only [s₀, mem₁, r]; rw [htfr] at hmod_bw ⊢; exact hmod_bw)
+          have hft_bw : Memory.FramedTriple w s₀ bwProg (memoryCost bwProg s₀)
+              (Set.Ico compBase t.frontier) fun r' t' =>
+                r' = (Memory.spec 0).clientResult s₀ bwProg ∧
+                  t' = (Memory.spec 0).clientState s₀ bwProg :=
+            framedTriple_iff_realization.mpr ⟨hv_bw, le_rfl, hmod_bw, rfl, rfl⟩
           have hsafe : ccOuterStepSafe w (cfg, ⟨k, cid⟩) t := by
             dsimp only [ccOuterStepSafe, cfg]
             exact ⟨h16, hfit_n1.of_le (by omega), hfit_n1.of_le (by omega), by rw [htfr]; omega,
               fun _ => ⟨by rw [htfr]; omega, hsafe_bw⟩⟩
-          have hvh : (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t stepProg) := by
-            dsimp only [stepProg]; rw [hprog]
-            refine validHistory_read_bind (by rw [htfr]; omega) ?_
-            simp only [hcv, ↓reduceIte]
-            exact validHistory_write_bind (by rw [htfr]; omega) (hfit_n1.of_le (by omega))
-              (validHistory_write_bind (by rw [htfr]; omega) (hfit_n1.of_le (by omega))
-                (validHistory_bind_step hv_bw (validHistory_pure w _ _)))
-          have hst : (Memory.spec 0).clientState t stepProg =
-              (Memory.spec 0).clientState s₀ bwProg := by
-            dsimp only [stepProg]; rw [hprog, clientState_bind_read]; simp only [hcv, ↓reduceIte]
-            rw [clientState_bind_write, clientState_bind_write,
-              StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-          have hres : (Memory.spec 0).clientResult t stepProg = ⟨k + 1, cid + 1⟩ := by
-            dsimp only [stepProg]; rw [hprog, clientResult_bind_read]
-            simp only [hcv, ↓reduceIte, StateTransitionSpec.clientResult_bind,
-              StateTransitionSpec.clientResult_pure]
-          have hcost : memoryCost stepProg t ≤ 3 + memoryCost bwProg s₀ := by
-            dsimp only [stepProg]; rw [hprog]; prog_cost
-            change 1 + (1 + (1 + memoryCost bwProg s₀)) ≤ _; omega
-          refine ⟨hsafe, hvh, ?_, by rw [hst]; exact hmod_step,
-            by rw [hst]; exact hfr_bw.trans htfr, by rw [hst]; exact hwf', fun a ha => by
-              rw [hst]; exact (hmod_step.mem_eq_of_not_mem (by rw [htfr]; omega)
-                (by simp only [S, Set.mem_Ico]; omega)).trans (hframe a ha),
+          obtain ⟨hvh, hcost, hmod_step, hres, hst⟩ := (framedTriple_iff_realization (w := w)
+            (s := t) (p := stepProg) (c := 3 + memoryCost bwProg s₀) (S := S) (Q := fun r' t' =>
+              r' = ⟨k + 1, cid + 1⟩ ∧ t' = (Memory.spec 0).clientState s₀ bwProg)).mp
+            (by unfold stepProg ccOuterStep; dsimp only [cfg]; framed_triple)
+          refine ⟨hsafe, hvh, ?_, hmod_step, by rw [hst]; exact hfr_bw.trans htfr,
+            by rw [hst]; exact hwf', fun a ha => (hmod_step.mem_eq_of_not_mem
+              (by omega) (by region_omega)).trans (hframe a ha),
             cid + 1, hres, by omega, fun x => by rw [hst]; exact hcr' x, fun x hx => ?_,
             fun c hc => ?_, fun x hx y => ?_⟩
           · rw [hst, hres]
@@ -1017,22 +945,15 @@ private theorem ccOuter_spec {w n offBase adjBase compBase queueBase : ℕ}
             dsimp only [ccOuterStepSafe, cfg]
             exact ⟨h16, hfit_n1.of_le (by omega), hfit_n1.of_le (by omega), by rw [htfr]; omega,
               fun h => absurd h hcv⟩
-          have hvh : (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t stepProg) := by
-            dsimp only [stepProg]; rw [hprog]
-            exact validHistory_read_bind (by rw [htfr]; omega) (by
-              simp only [hcv, ↓reduceIte]; exact validHistory_pure w _ _)
-          have hst : (Memory.spec 0).clientState t stepProg = t := by
-            dsimp only [stepProg]; rw [hprog, clientState_bind_read]
-            simp only [hcv, ↓reduceIte]; rfl
-          have hres : (Memory.spec 0).clientResult t stepProg = ⟨k + 1, cid⟩ := by
-            dsimp only [stepProg]; rw [hprog, clientResult_bind_read]
-            simp only [hcv, ↓reduceIte, StateTransitionSpec.clientResult_pure]
-          have hcost : memoryCost stepProg t ≤ 1 := by
-            dsimp only [stepProg]; rw [hprog, memoryCost_bind', memoryCost_read,
-              clientResult_read, clientState_read]; simp only [hcv, ↓reduceIte,
-              memoryCost_pure, add_zero]; omega
+          obtain ⟨hvh, hcost, hmod_step, hres, hst⟩ := (framedTriple_iff_realization (w := w)
+            (s := t) (p := stepProg) (c := 1) (S := S)
+            (Q := fun r' t' => r' = ⟨k + 1, cid⟩ ∧ t' = t)).mp
+            (by
+              unfold stepProg ccOuterStep; dsimp only [cfg]
+              exact Memory.FramedTriple.read_bind (by omega) (Memory.FramedTriple.ite
+                (fun h => absurd h hcv) fun _ => Memory.FramedTriple.pure ⟨rfl, rfl⟩))
           refine ⟨hsafe, hvh, by rw [hst, hres]; dsimp only [stepProg, pot] at hcost ⊢; omega,
-            ⟨by rw [hst], fun _ _ _ => by rw [hst]⟩, by rw [hst]; exact htfr,
+            hmod_step, by rw [hst]; exact htfr,
             by rw [hst]; exact hwt, fun a ha => by rw [hst]; exact hframe a ha, cid, hres, by omega,
             fun x => by rw [hst]; exact hcr x, fun x hx => ?_,
             fun c hc => let ⟨x, hx⟩ := hsurj c hc; ⟨x, by rw [hst]; exact hx⟩,
@@ -1351,67 +1272,34 @@ private theorem contractEdges_loop_spec {w : ℕ} {d : ContractEdgesArgs} {s : M
           t.mem (outBase + 4 * i + 1) = s.mem (d.compBase + s.mem (d.edgeBase + 4 * i + 1)) ∧
           t.mem (outBase + 4 * i + 2) = s.mem (d.edgeBase + 4 * i + 2) ∧
           t.mem (outBase + 4 * i + 3) = s.mem (d.edgeBase + 4 * i + 3) := by
-  let outBase := s.frontier
-  let fEnd := outBase + 4 * d.numEdges
-  let s₀ : Memory.State := ⟨s.mem, fEnd⟩
-  have hwf₀ : Memory.WellFormed w s₀ := ⟨hfit, hwf.mem_fits⟩
-  let S : Set ℕ := Set.Ico outBase fEnd
-  let inv (k st : ℕ) (t : Memory.State) : Prop :=
-    st = k ∧ t.frontier = fEnd ∧ Memory.WellFormed w t ∧ (∀ a < outBase, t.mem a = s.mem a) ∧
-    ∀ i < k,
+  intro outBase fEnd
+  exact Memory.FramedTriple.iterate (fun k a t => (a = k ∧ t.frontier = fEnd ∧ ∀ i < k,
       t.mem (outBase + 4 * i) = s.mem (d.compBase + s.mem (d.edgeBase + 4 * i)) ∧
       t.mem (outBase + 4 * i + 1) = s.mem (d.compBase + s.mem (d.edgeBase + 4 * i + 1)) ∧
       t.mem (outBase + 4 * i + 2) = s.mem (d.edgeBase + 4 * i + 2) ∧
-      t.mem (outBase + 4 * i + 3) = s.mem (d.edgeBase + 4 * i + 3)
-  obtain ⟨hsafe, hft⟩ := iterate_framedTriple_of_step contractEdgeStep contractEdgeStepSafe w
-      ⟨d.edgeBase, d.compBase, outBase⟩ 10 d.numEdges inv S
-      (fun k hk st t ⟨hst_eq, htfr, hwf_t, hframe, hpref⟩ => by
-        subst st; obtain ⟨hb1, hb2, hb3⟩ := hbounds k hk
-        have hu : t.mem (d.edgeBase + 4 * k) = s.mem (d.edgeBase + 4 * k) := hframe _ (by omega)
-        have hv : t.mem (d.edgeBase + 4 * k + 1) = s.mem (d.edgeBase + 4 * k + 1) :=
-          hframe _ (by omega)
-        let stepProg := contractEdgeStep (⟨d.edgeBase, d.compBase, outBase⟩, k)
-        have hsafe : contractEdgeStepSafe w (⟨d.edgeBase, d.compBase, outBase⟩, k) t := by
-          dsimp only [contractEdgeStepSafe]
-          exact ⟨h16, hfit.of_le (by omega), by rw [htfr]; dsimp only [fEnd, outBase]; omega,
-            by rw [htfr, hu]; dsimp only [fEnd, outBase]; omega,
-            by rw [htfr, hv]; dsimp only [fEnd, outBase]; omega,
-            by rw [htfr]; dsimp only [fEnd, outBase]; omega⟩
-        have hmem_t : ∀ a, Fits w (t.mem a) := hwf_t.mem_fits
-        have hvh : (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t stepProg) := by
-          dsimp only [stepProg, contractEdgeStep]; valid_prog with [htfr, hu, hv]
-          all_goals dsimp only [outBase, fEnd] at *
-          all_goals first | exact hmem_t _ | rw [htfr]; omega
-        have hcost : memoryCost stepProg t ≤ 10 := by
-          dsimp only [stepProg, contractEdgeStep]; prog_cost
-        have hres : (Memory.spec 0).clientResult t stepProg = k + 1 := by
-          dsimp only [stepProg, contractEdgeStep]
-          simp only [clientResult_bind_read, clientResult_bind_write,
-            StateTransitionSpec.clientResult_pure]
-        let t' : Memory.State :=
-          ⟨Function.update (Function.update (Function.update (Function.update t.mem
-            (outBase + 4 * k) (t.mem (d.compBase + t.mem (d.edgeBase + 4 * k))))
-            (outBase + 4 * k + 1) (t.mem (d.compBase + t.mem (d.edgeBase + 4 * k + 1))))
-            (outBase + 4 * k + 2) (t.mem (d.edgeBase + 4 * k + 2)))
-            (outBase + 4 * k + 3) (t.mem (d.edgeBase + 4 * k + 3)), t.frontier⟩
-        have hst : (Memory.spec 0).clientState t stepProg = t' := by
-          dsimp only [stepProg, contractEdgeStep]; repeat rw [clientState_bind_read]; rfl
-        have hmod : ∀ x, x ∉ S → t'.mem x = t.mem x := fun x hx => by
-          dsimp only [t']; simp only [S, Set.mem_Ico, not_and, not_lt] at hx; update_simp
-        refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
-          ⟨hvh, hcost, ⟨by rw [hst], fun x _ hx => by rw [hst]; exact hmod x hx⟩, ?_⟩⟩
-        rw [hst, hres]; refine ⟨rfl, htfr, hst ▸ wellFormed_clientState hwf_t hvh,
-          fun a ha => (hmod a (by simp only [S, Set.mem_Ico]; omega)).trans (hframe a ha),
-          fun i hi => ?_⟩
-        dsimp only [t']; by_cases hik : i = k
-        · subst i; refine ⟨?_, ?_, ?_, ?_⟩ <;> update_simp
-          · exact (hframe _ (by omega)).trans (by rw [hu])
-          · exact (hframe _ (by omega)).trans (by rw [hv])
-          all_goals exact hframe _ (by omega)
-        · obtain ⟨h1, h2, h3, h4⟩ := hpref i (by omega)
-          refine ⟨?_, ?_, ?_, ?_⟩ <;> (update_simp; assumption))
-      0 s₀ ⟨rfl, rfl, hwf₀, fun _ _ => rfl, fun _ h => absurd h (Nat.not_lt_zero _)⟩
-  exact ⟨hsafe, hft.mono le_rfl fun _ _ ⟨_, hfr, hw, hfrm, hv⟩ => ⟨hfr, hw, hfrm, hv⟩⟩
+      t.mem (outBase + 4 * i + 3) = s.mem (d.edgeBase + 4 * i + 3)) ∧ Memory.WellFormed w t)
+    ⟨⟨rfl, rfl, fun _ h => absurd h (Nat.not_lt_zero _)⟩, hfit, hwf.mem_fits⟩
+    (fun k hk a t ⟨⟨ha, htfr, hpref⟩, hwt⟩ ⟨_, hframe⟩ => by
+      subst a; obtain ⟨hb1, hb2, hb3⟩ := hbounds k hk
+      have hm : ∀ a < outBase, t.mem a = s.mem a := fun a ha =>
+        hframe a (by region_omega) (by region_omega)
+      have hu := hm (d.edgeBase + 4 * k) (by omega)
+      have hv := hm (d.edgeBase + 4 * k + 1) (by omega)
+      refine ⟨by dsimp only [contractEdgeStepSafe]; exact ⟨h16, by fits, by region_omega,
+        by region_omega, by region_omega, by region_omega⟩, Memory.FramedTriple.wellFormed hwt ?_⟩
+      unfold contractEdgeStep
+      framed_walk
+      all_goals try exact hwt.mem_fits _
+      refine ⟨rfl, htfr, fun i hi => ?_⟩
+      by_cases hik : i = k
+      · subst i; refine ⟨?_, ?_, ?_, ?_⟩ <;> update_simp
+        · rw [hu, hm _ (by omega)]
+        · rw [hv, hm _ (by omega)]
+        all_goals exact hm _ (by omega)
+      · obtain ⟨h1, h2, h3, h4⟩ := hpref i (by omega)
+        refine ⟨?_, ?_, ?_, ?_⟩ <;> (update_simp; assumption))
+    fun _ _ ⟨⟨_, hfr, hv⟩, hw⟩ ⟨_, hframe⟩ =>
+      ⟨hfr, hw, fun a ha => hframe a (by region_omega) (by region_omega), hv⟩
 
 private theorem contractEdgesProg_word_spec {w n n' : ℕ} {d : ContractEdgesArgs}
     {es : List (IndexedEdge n)} {compFn : Fin n → ℕ} {s : Memory.State}
@@ -1453,28 +1341,16 @@ private theorem contractEdgesProg_word_spec {w n n' : ℕ} {d : ContractEdgesArg
     ⟨⟨compFn (es[i.val]'i.isLt).u, (hcomp_lt _ (List.getElem_mem i.isLt)).1⟩,
      ⟨compFn (es[i.val]'i.isLt).v, (hcomp_lt _ (List.getElem_mem i.isLt)).2⟩,
      (es[i.val]'i.isLt).weight, (es[i.val]'i.isLt).id⟩
-  have hiter_ft : Memory.FramedTriple w ⟨s.mem, s.frontier + 4 * es.length⟩
-      (iterate contractEdgeStep ⟨d.edgeBase, d.compBase, s.frontier⟩ es.length 0 >>=
-        fun _ => pure s.frontier)
-      (10 * es.length + 0) (Set.Ico s.frontier (s.frontier + 4 * es.length)) fun out s' =>
-        out = s.frontier ∧ s'.frontier = s.frontier + 4 * es.length ∧ Memory.WellFormed w s' ∧
-        ∃ esOut : List (IndexedEdge n'), esOut.length = es.length ∧
-          HoldsIndexedEdges out esOut s'.mem ∧
-          ∀ i (hi : i < es.length) (hi' : i < esOut.length),
-            (esOut[i]'hi').u.val = compFn (es[i]'hi).u ∧
-            (esOut[i]'hi').v.val = compFn (es[i]'hi).v ∧
-            (esOut[i]'hi').weight = (es[i]'hi).weight ∧ (esOut[i]'hi').id = (es[i]'hi).id :=
-    framedTriple_seq_frame hft_it le_rfl (Set.empty_subset _) fun ⟨hfr, hwf', _, hvals⟩ =>
-      Memory.FramedTriple.pure ⟨rfl, hfr, hwf', esOut, by simp [esOut], fun i hi => by
-        have hi_len : i < es.length := by simpa [esOut] using hi
-        obtain ⟨hu, hv, hw, hid⟩ := hin i hi_len; obtain ⟨m0, m1, m2, m3⟩ := hvals i hi_len
-        simp only [esOut, List.getElem_ofFn]
-        exact ⟨m0.trans (by rw [hu, hcomp]), m1.trans (by rw [hv, hcomp]),
-          m2.trans hw, m3.trans hid⟩,
-        fun _ _ _ => by simp [esOut]⟩
-  exact ((Memory.FramedTriple.allocBlockDirty_bind hfit hiter_ft).frame_empty_of_ge_frontier
-    (S := Set.Ico s.frontier (s.frontier + 4 * es.length))
-    fun _ ha => ha.1).mono (by omega) fun _ _ h => h
+  refine ((Memory.FramedTriple.allocBlockDirty_bind hfit ?_).frame_empty_of_ge_frontier
+    (S := Set.Ico s.frontier (s.frontier + 4 * es.length)) fun _ ha => ha.1).mono
+    (c := 10 * es.length + 0 + 1) (by omega) fun _ _ h => h
+  exact Memory.FramedTriple.call hft_it le_rfl fun _ _ ⟨hfr, hwf', _, hvals⟩ _ =>
+    Memory.FramedTriple.pure ⟨rfl, hfr, hwf', esOut, by simp [esOut], fun i hi => by
+      have hi_len : i < es.length := by simpa [esOut] using hi
+      obtain ⟨hu, hv, hw, hid⟩ := hin i hi_len; obtain ⟨m0, m1, m2, m3⟩ := hvals i hi_len
+      simp only [esOut, List.getElem_ofFn]
+      exact ⟨m0.trans (by rw [hu, hcomp]), m1.trans (by rw [hv, hcomp]), m2.trans hw, m3.trans hid⟩,
+      fun _ _ _ => by simp [esOut]⟩
 
 /-- Uniform `Realizes .exact` certificate for `contractEdgesProg` with `work = 0`. -/
 theorem realizes_contractEdgesProg :
@@ -1586,65 +1462,48 @@ private theorem compactMark_spec {w n edgeBase markBase : ℕ}
       (fun _ t => t = s' ∧ t.frontier = s.frontier ∧ Memory.WellFormed w t) ∧
     (∀ x : Fin n, s'.mem (markBase + x.val) = 0 ∨ s'.mem (markBase + x.val) = 1) ∧
     ∀ x : Fin n, s'.mem (markBase + x.val) = 1 ↔ ∃ e ∈ es, e.u = x ∨ e.v = x := by
-  let S : Set ℕ := Set.Ico markBase (markBase + n)
-  let inv (k st : ℕ) (t : Memory.State) : Prop :=
-    st = k ∧ t.frontier = s.frontier ∧ Memory.WellFormed w t ∧
-    (∀ a, a < markBase → t.mem a = s.mem a) ∧
-    (∀ x : Fin n, t.mem (markBase + x.val) = 0 ∨ t.mem (markBase + x.val) = 1) ∧
-    ∀ x : Fin n, t.mem (markBase + x.val) = 1 ↔
-      ∃ i, ∃ (_ : i < k) (hlt : i < es.length), (es[i]'hlt).u = x ∨ (es[i]'hlt).v = x
-  obtain ⟨hsafe, hft⟩ := iterate_framedTriple_of_step compactMarkStep compactMarkStepSafe w
-      ⟨edgeBase, markBase⟩ 4 es.length inv S
-      (fun k hk st t ⟨hst_eq, htfr, hwt, hframe, h01, hmark⟩ => by
-        subst st
-        obtain ⟨hu, hv, _, _⟩ := (hin.congr fun a _ ha => hframe a (by omega)) k hk
-        let ek := es[k]'hk
-        have hu' : t.mem (edgeBase + 4 * k) = ek.u.val := hu
-        have hv' : t.mem (edgeBase + 4 * k + 1) = ek.v.val := hv
-        have hu_lt := ek.u.isLt; have hv_lt := ek.v.isLt
-        let stepProg := compactMarkStep (⟨edgeBase, markBase⟩, k)
-        have hsafe : compactMarkStepSafe w (⟨edgeBase, markBase⟩, k) t := by
-          dsimp only [compactMarkStepSafe]
-          exact ⟨h16, hfit_m1.of_le (by omega), by rw [htfr]; omega, by rw [htfr, hu']; omega,
-            by rw [htfr, hv']; omega⟩
-        have hvh : (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t stepProg) := by
-          dsimp only [stepProg, compactMarkStep]; valid_prog with [htfr, hu', hv']
-          all_goals try dsimp only
-          all_goals first | exact h16.of_le (by decide) | omega
-        have hcost : memoryCost stepProg t ≤ 4 := by
-          dsimp only [stepProg, compactMarkStep]; prog_cost
-        have hres : (Memory.spec 0).clientResult t stepProg = k + 1 := by
-          dsimp only [stepProg, compactMarkStep]; simp only [clientResult_bind_read,
-            clientResult_bind_write, StateTransitionSpec.clientResult_pure]
-        let t' : Memory.State := ⟨Function.update (Function.update t.mem (markBase + ek.u.val) 1)
-          (markBase + ek.v.val) 1, t.frontier⟩
-        have hst : (Memory.spec 0).clientState t stepProg = t' := by
-          dsimp only [stepProg, compactMarkStep]; repeat rw [clientState_bind_read]
-          rw [hu', hv']; rfl
-        have hmod : ∀ a, a ∉ S → t'.mem a = t.mem a := fun a ha => by
-          dsimp only [t']; simp only [S, Set.mem_Ico, not_and, not_lt] at ha; update_simp
-        have hup : ∀ x : Fin n, t'.mem (markBase + x.val) =
-            if x = ek.v ∨ x = ek.u then 1 else t.mem (markBase + x.val) := fun x => by
-          dsimp only [t']; rw [Function.update_apply, Function.update_apply]
-          simp only [Nat.add_left_cancel_iff, Fin.val_inj]
-          by_cases hxv : x = ek.v <;> by_cases hxu : x = ek.u <;> simp [hxv, hxu]
-        refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
-          ⟨hvh, hcost, ⟨by rw [hst], fun a _ ha => by rw [hst]; exact hmod a ha⟩, ?_⟩⟩
-        rw [hst, hres]; refine ⟨rfl, htfr, hst ▸ wellFormed_clientState hwt hvh,
-          fun a ha => (hmod a (by simp only [S, Set.mem_Ico]; omega)).trans (hframe a ha),
-          fun x => by rw [hup x]; split <;> [exact .inr rfl; exact h01 x], fun x => ?_⟩
-        rw [hup x]; by_cases hor : x = ek.v ∨ x = ek.u
-        · simp only [hor, ↓reduceIte, true_iff]
-          exact ⟨k, Nat.lt_succ_self k, hk, hor.elim (fun h => .inr h.symm) (fun h => .inl h.symm)⟩
-        · simp only [hor, ↓reduceIte, hmark x]
-          refine ⟨fun ⟨i, hi, hl, h_or⟩ => ⟨i, Nat.lt_succ_of_lt hi, hl, h_or⟩,
-            fun ⟨i, hi, hl, h_or⟩ => ?_⟩
-          rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hi) with hik' | rfl
-          · exact ⟨i, hik', hl, h_or⟩
-          · exfalso; exact hor (h_or.elim (fun h => .inr h.symm) (fun h => .inl h.symm)))
-      0 s ⟨rfl, rfl, hwf, fun _ _ => rfl, fun x => .inl (hinit x), fun x =>
-        ⟨fun h => by rw [hinit x] at h; omega, fun ⟨_, h, _⟩ => absurd h (Nat.not_lt_zero _)⟩⟩
-  obtain ⟨hv, hm, hmod, _, hfr, hwf', _, h01_end, hmark_end⟩ := framedTriple_iff_realization.mp hft
+  obtain ⟨hsafe, hft⟩ := Memory.FramedTriple.iterate (s := s) (body := compactMarkStep)
+    (safe := compactMarkStepSafe) (d := ⟨edgeBase, markBase⟩) (c := 4)
+    (S := Set.Ico markBase (markBase + n)) (n := es.length)
+    (fun k a t => (a = k ∧ t.frontier = s.frontier ∧
+      (∀ x : Fin n, t.mem (markBase + x.val) = 0 ∨ t.mem (markBase + x.val) = 1) ∧
+      ∀ x : Fin n, t.mem (markBase + x.val) = 1 ↔
+        ∃ i, ∃ (_ : i < k) (hlt : i < es.length), (es[i]'hlt).u = x ∨ (es[i]'hlt).v = x) ∧
+      Memory.WellFormed w t)
+    ⟨⟨rfl, rfl, fun x => .inl (hinit x), fun x =>
+      ⟨fun h => by rw [hinit x] at h; omega, fun ⟨_, h, _⟩ => absurd h (Nat.not_lt_zero _)⟩⟩, hwf⟩
+    (fun k hk a t ⟨⟨ha, htfr, h01, hmark⟩, hwt⟩ ⟨_, hframe⟩ => by
+      subst a
+      obtain ⟨hu, hv, _, _⟩ :=
+        (hin.congr fun a _ ha => hframe a (by omega) (by region_omega)) k hk
+      let ek := es[k]'hk
+      have hu' : t.mem (edgeBase + 4 * k) = ek.u.val := hu
+      have hv' : t.mem (edgeBase + 4 * k + 1) = ek.v.val := hv
+      have hu_lt := ek.u.isLt; have hv_lt := ek.v.isLt
+      refine ⟨by dsimp only [compactMarkStepSafe]; exact ⟨h16, by fits, by region_omega,
+        by region_omega, by region_omega⟩, Memory.FramedTriple.wellFormed hwt ?_⟩
+      unfold compactMarkStep
+      framed_walk
+      dsimp only; rw [hu', hv']
+      have hup : ∀ x : Fin n, Function.update (Function.update t.mem (markBase + ek.u.val) 1)
+          (markBase + ek.v.val) 1 (markBase + x.val) =
+          if x = ek.v ∨ x = ek.u then 1 else t.mem (markBase + x.val) := fun x => by
+        rw [Function.update_apply, Function.update_apply]
+        simp only [Nat.add_left_cancel_iff, Fin.val_inj]
+        by_cases hxv : x = ek.v <;> by_cases hxu : x = ek.u <;> simp [hxv, hxu]
+      refine ⟨rfl, htfr, fun x => by rw [hup x]; split <;> [exact .inr rfl; exact h01 x],
+        fun x => ?_⟩
+      rw [hup x]; by_cases hor : x = ek.v ∨ x = ek.u
+      · simp only [hor, ↓reduceIte, true_iff]
+        exact ⟨k, Nat.lt_succ_self k, hk, hor.elim (fun h => .inr h.symm) (fun h => .inl h.symm)⟩
+      · simp only [hor, ↓reduceIte, hmark x]
+        refine ⟨fun ⟨i, hi, hl, h_or⟩ => ⟨i, Nat.lt_succ_of_lt hi, hl, h_or⟩,
+          fun ⟨i, hi, hl, h_or⟩ => ?_⟩
+        rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hi) with hik' | rfl
+        · exact ⟨i, hik', hl, h_or⟩
+        · exfalso; exact hor (h_or.elim (fun h => .inr h.symm) (fun h => .inl h.symm)))
+    fun _ _ h _ => h
+  obtain ⟨hv, hm, hmod, ⟨_, hfr, h01_end, hmark_end⟩, hwf'⟩ := framedTriple_iff_realization.mp hft
   refine ⟨hsafe, framedTriple_iff_realization.mpr ⟨hv, hm, hmod, rfl, hfr, hwf'⟩, h01_end,
     fun x => (hmark_end x).trans ⟨fun ⟨i, hi, _, h_or⟩ => ⟨es[i], List.getElem_mem hi, h_or⟩,
       fun ⟨e, he, h_or⟩ => by
@@ -1709,91 +1568,61 @@ private theorem compactAssign_spec {w n markBase : ℕ} {s : Memory.State}
       (∀ y : Fin res.count, s.mem (markBase + (lift y).val) = 1) ∧
       (∀ x : Fin n, s.mem (markBase + x.val) = 1 → ∃ y : Fin res.count, lift y = x) ∧
       ∀ y : Fin res.count, s'.mem (markBase + (lift y).val) = y.val := by
-  let S : Set ℕ := Set.Ico markBase (markBase + n)
-  let inv (k : ℕ) (st : AssignPos) (t : Memory.State) : Prop :=
-    t.frontier = s.frontier ∧ Memory.WellFormed w t ∧
-    ∃ active : List (Fin n),
+  obtain ⟨hsafe, hft⟩ := Memory.FramedTriple.iterate (s := s) (body := compactAssignStep)
+    (safe := compactAssignStepSafe) (d := markBase) (c := 2)
+    (S := Set.Ico markBase (markBase + n)) (n := n) (a₀ := ⟨0, 0⟩)
+    (fun k st t => t.frontier = s.frontier ∧ ∃ active : List (Fin n),
       st = ⟨k, active.length⟩ ∧ active.Nodup ∧ (∀ x ∈ active, x.val < k) ∧
       (∀ x : Fin n, x.val < k → (s.mem (markBase + x.val) = 1 ↔ x ∈ active)) ∧
       (∀ i (hi : i < active.length), t.mem (markBase + (active[i]'hi).val) = i) ∧
-      ∀ x : Fin n, k ≤ x.val → t.mem (markBase + x.val) = s.mem (markBase + x.val)
-  obtain ⟨hsafe, hft⟩ := iterate_framedTriple_of_step compactAssignStep compactAssignStepSafe w
-      markBase 2 n inv S
-      (fun k hk st t ⟨htfr, hwt, active, hst_eq, hnd, hlt_k, hact_iff, hvals, htail⟩ => by
-        subst st
-        let x₀ : Fin n := ⟨k, hk⟩
-        have htx₀ : t.mem (markBase + k) = s.mem (markBase + k) := htail x₀ (le_refl _)
-        have hx₀_not : x₀ ∉ active := fun hx => absurd (hlt_k x₀ hx) (Nat.lt_irrefl k)
-        have hact_len_le : active.length < n := Nat.lt_of_succ_le (by
-          simpa only [List.length_cons, Fintype.card_fin] using
-            (List.nodup_cons.mpr ⟨hx₀_not, hnd⟩).length_le_card)
-        let stepProg := compactAssignStep (markBase, ⟨k, active.length⟩)
-        have hsafe : compactAssignStepSafe w (markBase, ⟨k, active.length⟩) t := by
-          dsimp only [compactAssignStepSafe]
-          exact ⟨h16, hfit_n1.of_le (by omega), hfit_n1.of_le (by omega), by rw [htfr]; omega⟩
-        have hvh : (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t stepProg) := by
-          dsimp only [stepProg, compactAssignStep]; valid_prog with [htfr, htx₀]
-          all_goals first | exact hfit_n1.of_le (by omega) | omega
-        have hcost : memoryCost stepProg t ≤ 2 := by
-          dsimp only [stepProg, compactAssignStep]; prog_cost
-        by_cases hf : s.mem (markBase + k) = 1
-        · have htf : t.mem (markBase + k) = 1 := htx₀.trans hf
-          have hres : (Memory.spec 0).clientResult t stepProg = ⟨k + 1, active.length + 1⟩ := by
-            dsimp only [stepProg, compactAssignStep]; rw [clientResult_bind_read]
-            simp only [htf, ↓reduceIte, clientResult_bind_write,
-              StateTransitionSpec.clientResult_pure]
-          let t' : Memory.State := ⟨Function.update t.mem (markBase + k) active.length, t.frontier⟩
-          have hst : (Memory.spec 0).clientState t stepProg = t' := by
-            dsimp only [stepProg, compactAssignStep]; rw [clientState_bind_read]
-            simp only [htf, ↓reduceIte]; rfl
-          have hmod : ∀ a, a ∉ S → t'.mem a = t.mem a := fun a ha => by
-            dsimp only [t']; simp only [S, Set.mem_Ico, not_and, not_lt] at ha; update_simp
-          refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
-            ⟨hvh, hcost, ⟨by rw [hst], fun a _ ha => by rw [hst]; exact hmod a ha⟩, ?_⟩⟩
-          rw [hst, hres]; refine ⟨htfr, hst ▸ wellFormed_clientState hwt hvh, active ++ [x₀],
-            by simp only [List.length_append, List.length_singleton],
-            List.nodup_append.mpr ⟨hnd, List.nodup_singleton x₀, fun a ha b hb => by
-              simp only [List.mem_singleton] at hb; subst hb; rintro rfl; exact hx₀_not ha⟩,
-            fun x hx => (List.mem_append.mp hx).elim (fun h => Nat.lt_succ_of_lt (hlt_k x h))
-              (fun h => by simp only [List.mem_singleton] at h; subst h; exact Nat.lt_succ_self k),
-            fun x hx => ?_, fun i hi => ?_,
-            fun x hx => by dsimp only [t']; update_simp; exact htail x (by omega)⟩
-          · rw [List.mem_append, List.mem_singleton]; by_cases hxk : x.val < k
-            · have hxne : x ≠ x₀ := fun h => by rw [h] at hxk; exact Nat.lt_irrefl k hxk
-              simp only [hxne, or_false]; exact hact_iff x hxk
-            · obtain rfl : x = x₀ := Fin.ext (by dsimp only [x₀]; omega)
-              rw [show x₀.val = k from rfl, hf]; simp
-          · dsimp only [t']; simp only [List.length_append, List.length_singleton] at hi
-            by_cases hi_old : i < active.length
-            · rw [List.getElem_append_left hi_old]
-              have hne : (active[i]'hi_old).val ≠ k := by
-                have := hlt_k (active[i]'hi_old) (List.getElem_mem hi_old); omega
-              update_simp; exact hvals i hi_old
-            · obtain rfl : i = active.length := by omega
-              rw [List.getElem_append_right (le_refl _)]
-              simp only [Nat.sub_self, List.getElem_singleton, x₀, Function.update_self]
-        · have htf : t.mem (markBase + k) ≠ 1 := by rw [htx₀]; exact hf
-          have hres : (Memory.spec 0).clientResult t stepProg = ⟨k + 1, active.length⟩ := by
-            dsimp only [stepProg, compactAssignStep]; rw [clientResult_bind_read]
-            simp only [htf, ↓reduceIte, StateTransitionSpec.clientResult_pure]
-          have hst : (Memory.spec 0).clientState t stepProg = t := by
-            dsimp only [stepProg, compactAssignStep]; rw [clientState_bind_read]
-            simp only [htf, ↓reduceIte]; rfl
-          refine ⟨fun _ => hsafe, framedTriple_iff_realization.mpr
-            ⟨hvh, hcost, ⟨by rw [hst], fun _ _ _ => by rw [hst]⟩, ?_⟩⟩
-          rw [hst, hres]
-          refine ⟨htfr, hwt, active, rfl, hnd, fun x hx => Nat.lt_succ_of_lt (hlt_k x hx),
-            fun x hx => by
-              by_cases hxk : x.val < k
-              · exact hact_iff x hxk
-              · obtain rfl : x = x₀ := Fin.ext (by dsimp only [x₀]; omega)
-                exact ⟨fun h => absurd h hf, fun hm => absurd hm hx₀_not⟩,
-            hvals, fun x hx => htail x (by omega)⟩)
-      ⟨0, 0⟩ s ⟨rfl, hwf, [], rfl, List.nodup_nil, fun _ h => absurd h List.not_mem_nil,
-        fun _ h => absurd h (Nat.not_lt_zero _), fun _ h => absurd h (Nat.not_lt_zero _),
-        fun _ _ => rfl⟩
-  obtain ⟨hv, hm, hmod, hfr, hwf', active, hres_eq, hnd_act, _, hact_iff, hvals_act, _⟩ :=
-    framedTriple_iff_realization.mp hft
+      ∀ x : Fin n, k ≤ x.val → t.mem (markBase + x.val) = s.mem (markBase + x.val))
+    ⟨rfl, [], rfl, List.nodup_nil, fun _ h => absurd h List.not_mem_nil,
+      fun _ h => absurd h (Nat.not_lt_zero _), fun _ h => absurd h (Nat.not_lt_zero _),
+      fun _ _ => rfl⟩
+    (fun k hk st t ⟨htfr, active, hst_eq, hnd, hlt_k, hact_iff, hvals, htail⟩ _ => by
+      subst st
+      let x₀ : Fin n := ⟨k, hk⟩
+      have htx₀ : t.mem (markBase + k) = s.mem (markBase + k) := htail x₀ (le_refl _)
+      have hx₀_not : x₀ ∉ active := fun hx => absurd (hlt_k x₀ hx) (Nat.lt_irrefl k)
+      have hact_len_le : active.length < n := Nat.lt_of_succ_le (by
+        simpa only [List.length_cons, Fintype.card_fin] using
+          (List.nodup_cons.mpr ⟨hx₀_not, hnd⟩).length_le_card)
+      refine ⟨by dsimp only [compactAssignStepSafe]; exact ⟨h16, by fits, by fits, by omega⟩, ?_⟩
+      unfold compactAssignStep
+      framed_walk
+      · rename_i htf; dsimp only
+        have hf : s.mem (markBase + k) = 1 := htx₀ ▸ htf
+        refine ⟨htfr, active ++ [x₀], by simp only [List.length_append, List.length_singleton],
+          List.nodup_append.mpr ⟨hnd, List.nodup_singleton x₀, fun a ha b hb => by
+            simp only [List.mem_singleton] at hb; subst hb; rintro rfl; exact hx₀_not ha⟩,
+          fun x hx => (List.mem_append.mp hx).elim (fun h => Nat.lt_succ_of_lt (hlt_k x h))
+            (fun h => by simp only [List.mem_singleton] at h; subst h; exact Nat.lt_succ_self k),
+          fun x hx => ?_, fun i hi => ?_, fun x hx => by update_simp; exact htail x (by omega)⟩
+        · rw [List.mem_append, List.mem_singleton]; by_cases hxk : x.val < k
+          · have hxne : x ≠ x₀ := fun h => by rw [h] at hxk; exact Nat.lt_irrefl k hxk
+            simp only [hxne, or_false]; exact hact_iff x hxk
+          · obtain rfl : x = x₀ := Fin.ext (by dsimp only [x₀]; omega)
+            rw [show x₀.val = k from rfl, hf]; simp
+        · simp only [List.length_append, List.length_singleton] at hi
+          by_cases hi_old : i < active.length
+          · rw [List.getElem_append_left hi_old]
+            have hne : (active[i]'hi_old).val ≠ k := by
+              have := hlt_k (active[i]'hi_old) (List.getElem_mem hi_old); omega
+            update_simp; exact hvals i hi_old
+          · obtain rfl : i = active.length := by omega
+            rw [List.getElem_append_right (le_refl _)]
+            simp only [Nat.sub_self, List.getElem_singleton, x₀, Function.update_self]
+      · rename_i htf
+        have hf : s.mem (markBase + k) ≠ 1 := htx₀ ▸ htf
+        refine ⟨htfr, active, rfl, hnd, fun x hx => Nat.lt_succ_of_lt (hlt_k x hx),
+          fun x hx => ?_, hvals, fun x hx => htail x (by omega)⟩
+        by_cases hxk : x.val < k
+        · exact hact_iff x hxk
+        · obtain rfl : x = x₀ := Fin.ext (by dsimp only [x₀]; omega)
+          exact ⟨fun h => absurd h hf, fun hm => absurd hm hx₀_not⟩)
+    fun _ _ h _ => h
+  obtain ⟨hv, hm, hmod, ⟨hfr, active, hres_eq, hnd_act, _, hact_iff, hvals_act, _⟩, hwf'⟩ :=
+    framedTriple_iff_realization.mp (hft.wellFormed hwf)
   have hact_len : active.length ≤ n := by simpa only [Fintype.card_fin] using hnd_act.length_le_card
   set itP := iterate compactAssignStep markBase n ⟨0, 0⟩
   have hres1 : ((Memory.spec 0).clientResult s itP).k = n := by rw [hres_eq]

@@ -146,7 +146,7 @@ theorem computeThreshProg_spec {w n mRef : ℕ} {s : Memory.State}
     ⟨by simp [min_eq_right hn1], rfl⟩ (fun k _ a t ⟨ha, ht⟩ _ =>
       ⟨⟨h2n, by rw [ha]; exact min_le_left _ _, hn1⟩, by
         subst ha; unfold threshStep
-        framed_triple <;> refine ⟨?_, ht⟩ <;> rw [Nat.pow_succ'] <;> omega⟩)
+        framed_triple⟩)
     fun _ _ h _ => ⟨h.1.trans hmin_eq, h.2⟩
   obtain ⟨hv, hc, -, hres, hst⟩ := framedTriple_iff_realization.mp hft
   rw [hprog_eq]
