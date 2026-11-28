@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.ThresholdNC1
 public import CslibFrontier.Computability.Circuit.Boolean.CarrySave.Reduce
 import CslibFrontier.Computability.Circuit.CompositionDepth
 import CslibFrontier.Foundations.Data.BitString.Binary
+import CslibFrontier.Foundations.Data.Nat.Bits
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -113,13 +114,6 @@ private theorem interpretation_iff (x : Fin op.arity → Bool) :
 
 /-! ### The circuit -/
 
-/-- A natural number below `2 ^ w` is the value of its first `w` binary digits. -/
-private theorem sum_testBit_mul_two_pow {w a : ℕ} (ha : a < 2 ^ w) :
-    ∑ b : Fin w, (a.testBit b).toNat * 2 ^ (b : ℕ) = a := by
-  have := val_equivFin_eq_sum ((equivFin w).symm ⟨a, ha⟩)
-  simp only [Equiv.apply_symm_apply, equivFin_symm_apply] at this
-  exact this.symm
-
 /-- Bit `w` of a number below `2 ^ (w + 1)` is set exactly when the number is at least
 `2 ^ w`. -/
 private theorem testBit_eq_decide_le {w n : ℕ} (hn : n < 2 ^ (w + 1)) :
@@ -184,7 +178,7 @@ private theorem val_eval_maskWord (i : Fin op.arity) (x : Fin op.arity → Bool)
   cases op.literal i x
   · simp
   · simp only [Bool.and_true, Bool.toNat_true, mul_one]
-    exact sum_testBit_mul_two_pow ha
+    exact Nat.sum_testBit_mul_two_pow ha
 
 /-- The offset `2 ^ width - target` added to the literal sum. -/
 private def offset : ℕ := 2 ^ op.width - op.target.toNat

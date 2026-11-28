@@ -10,8 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Data.Matrix.Mul
 public import Mathlib.Data.ZMod.Basic
-import Mathlib.Algebra.BigOperators.Fin
-import Mathlib.Data.Nat.Bitwise
+import CslibFrontier.Foundations.Data.Nat.Bits
 
 /-!
 # Binary gadgets for GSW encryption
@@ -91,26 +90,12 @@ def flattenMatrix (w : ℕ) (C : Matrix ρ (ι × Fin w) (ZMod (2 ^ w))) :
     Matrix ρ (ι × Fin w) Bool :=
   decomposeMatrix w (recomposeMatrix w C)
 
-private theorem sum_testBit_two_pow (w n : ℕ) (hn : n < 2 ^ w) :
-    (∑ j : Fin w, (n.testBit j.val).toNat * 2 ^ j.val) = n := by
-  induction w generalizing n with
-  | zero => simp only [pow_zero, Nat.lt_one_iff] at hn; subst n; simp
-  | succ w ih =>
-    have hdiv : n / 2 < 2 ^ w := by
-      rw [pow_succ] at hn
-      omega
-    simp only [Fin.sum_univ_succ, Fin.val_zero, Fin.val_succ, Nat.testBit_succ,
-      pow_zero, mul_one, pow_succ, ← mul_assoc, ← Finset.sum_mul]
-    rw [ih (n / 2) hdiv, Nat.toNat_testBit]
-    simp only [pow_zero, Nat.div_one]
-    omega
-
 /-- Recomposition recovers a row from its actual binary digits. -/
 @[simp] theorem bitCompose_bitDecomp (w : ℕ) (v : ι → ZMod (2 ^ w)) :
     bitCompose w (fun j => ((bitDecomp w v j).toNat : ZMod (2 ^ w))) = v := by
   funext i
   simp only [bitCompose, bitDecomp]
-  have h := sum_testBit_two_pow w (v i).val (ZMod.val_lt (v i))
+  have h := Nat.sum_testBit_mul_two_pow (ZMod.val_lt (v i))
   have hc := congrArg (fun n : ℕ => (n : ZMod (2 ^ w))) h
   simpa only [Nat.cast_sum, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat,
     ZMod.natCast_zmod_val] using hc
