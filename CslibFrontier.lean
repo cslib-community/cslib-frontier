@@ -3190,6 +3190,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BPP.Collapse
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.InitialVector
 public import CslibFrontier.Probability.BitString
 public import CslibFrontier.Foundations.NumberTheory.AKS.Criterion
+public import CslibFrontier.Algorithms.Lean.Search.GraphSearch
 public import CslibFrontier.Computability.Complexity.Problems.SharpDNF.KarpLubyMadras
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.SaksZhou.SweepSpace
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid.DEMCCA
@@ -5542,6 +5543,7 @@ public import CslibFrontier.Logics.Propositional.CNF.Johnson.PolyTime
 public import CslibFrontier.Computability.QueryComplexity.NisanSzegedy
 public import CslibFrontier.Algorithms.ThreeSum.ChanHe.SelectorBounds
 public import CslibFrontier.Crypto.Game.StatisticalIndistinguishability
+public import CslibFrontier.Algorithms.Lean.Search.Uninformed
 public import CslibFrontier.Algorithms.Lean.BinPacking.FirstFitWeight
 public import CslibFrontier.Crypto.Computational.Encryption.LoRCPA.FromSingle
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ScopeReindex
@@ -9017,6 +9019,7 @@ public import CslibFrontier.Computability.PCP.AssignmentTester
 public import CslibFrontier.Computability.MCSP.Magnification.GapMCSP
 public import CslibFrontier.Computability.Circuit.Boolean.Nondeterminism
 public import CslibFrontier.Computability.LogSpaceDerandomization.HierarchyRankEnvironment
+public import CslibFrontier.Algorithms.Lean.Search.AStar
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Walk
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.WordReduction
 public import CslibFrontier.Computability.Circuit.Boolean.Zhegalkin.ParameterBounds

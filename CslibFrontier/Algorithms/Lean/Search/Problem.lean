@@ -33,9 +33,11 @@ initial state to a goal state.
 * `Problem.toLTS`: the labelled transition system of applicable actions.
 * `Problem.pathCost`: the cost of a path.
 * `Problem.IsSolution`: a path from the initial state to a goal state.
+* `Problem.IsOptimalSolution`: a solution of least path cost.
 
 ## Main results
 
+* `Problem.deterministic_toLTS`: the transition system of a problem is deterministic.
 * `Problem.toLTS_mTr_cons_iff`: a path `a :: as` leads from `s` to `t` iff `a` is applicable in
   `s` and `as` leads from the result to `t`.
 * `Problem.pathCost_append_of_mTr`: path costs add along a concatenation.
@@ -87,6 +89,16 @@ when the action `a` is applicable in `s` and leads to `s'`. Its multistep transi
 /-- A solution ([RussellNorvig2020], §3.1.1): a path from the initial state to a goal state. -/
 @[expose] def IsSolution (as : List A) : Prop :=
   ∃ t, P.toLTS.MTr P.initial as t ∧ P.isGoal t = true
+
+/-- An optimal solution ([RussellNorvig2020], §3.1.1): a solution whose path cost is at most the
+path cost of every solution. -/
+@[expose] def IsOptimalSolution (as : List A) : Prop :=
+  P.IsSolution as ∧ ∀ bs, P.IsSolution bs → P.pathCost P.initial as ≤ P.pathCost P.initial bs
+
+/-- The transition system of a problem is deterministic: an action leads to at most one
+state. -/
+instance deterministic_toLTS : P.toLTS.Deterministic :=
+  ⟨fun _ _ _ _ h h' => h.2.symm.trans h'.2⟩
 
 @[simp] theorem toLTS_tr (s s' : S) (a : A) :
     P.toLTS.Tr s a s' ↔ a ∈ P.actions s ∧ P.result s a = s' := Iff.rfl

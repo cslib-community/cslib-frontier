@@ -40,6 +40,7 @@ tree rather than annotated by hand.
 * `Problem.oracle`: the oracle a problem and a heuristic induce.
 * `SearchQuery.expansionWeight`, `SearchQuery.generationWeight`: query weights counting
   expansions and generations.
+* `SearchQuery.expansionWeightAt`: the query weight counting the expansions of one state.
 
 ## References
 
@@ -105,6 +106,15 @@ end Oracle
 @[expose] def SearchQuery.generationWeight : {ι : Type} → SearchQuery S A ι → ℕ
   | _, .actions _ => 0
   | _, .result _ _ => 1
+  | _, .isGoal _ => 0
+  | _, .stepCost _ _ => 0
+  | _, .heuristic _ => 0
+
+/-- Query weight counting the expansions of the state `s₀`: one per `actions s₀` query. -/
+@[expose] def SearchQuery.expansionWeightAt [DecidableEq S] (s₀ : S) :
+    {ι : Type} → SearchQuery S A ι → ℕ
+  | _, .actions s => if s = s₀ then 1 else 0
+  | _, .result _ _ => 0
   | _, .isGoal _ => 0
   | _, .stepCost _ _ => 0
   | _, .heuristic _ => 0

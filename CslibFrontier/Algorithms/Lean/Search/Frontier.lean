@@ -38,6 +38,8 @@ the most recently inserted element first.
 ## Main results
 
 * `Frontier.lawful_sortedList`: the sorted-list frontier satisfies the specification.
+* `Frontier.Lawful.exists_mem_of_popMin?`, `Frontier.Lawful.mem_of_mem_popMin?`,
+  `Frontier.Lawful.mem_popMin?_of_ne`: membership before and after a pop.
 
 ## References
 
@@ -82,6 +84,35 @@ structure Lawful [LE κ] (F : Frontier Q κ α) : Prop where
   /-- A successful pop removes a keyed element whose key is at most every remaining key. -/
   exists_of_popMin?_eq_some {q q' : Q} {a : α} (h : F.popMin? q = some (a, q')) :
     ∃ k, F.contents q = (k, a) ::ₘ F.contents q' ∧ ∀ p ∈ F.contents q', k ≤ p.1
+
+namespace Lawful
+
+variable [LE κ] {F : Frontier Q κ α} {q q' : Q} {a : α}
+
+/-- The element a successful pop returns was held, under some key, before the pop. -/
+theorem exists_mem_of_popMin? (hF : F.Lawful) (h : F.popMin? q = some (a, q')) :
+    ∃ k, (k, a) ∈ F.contents q := by
+  obtain ⟨k, hq, -⟩ := hF.exists_of_popMin?_eq_some h
+  exact ⟨k, by rw [hq]; exact Multiset.mem_cons_self _ _⟩
+
+/-- Every keyed element held after a successful pop was held before it. -/
+theorem mem_of_mem_popMin? (hF : F.Lawful) (h : F.popMin? q = some (a, q')) {p : κ × α}
+    (hp : p ∈ F.contents q') : p ∈ F.contents q := by
+  obtain ⟨k, hq, -⟩ := hF.exists_of_popMin?_eq_some h
+  rw [hq]
+  exact Multiset.mem_cons_of_mem hp
+
+/-- A keyed element held before a successful pop, whose element is not the popped one, is held
+after it. -/
+theorem mem_popMin?_of_ne (hF : F.Lawful) (h : F.popMin? q = some (a, q')) {p : κ × α}
+    (hp : p ∈ F.contents q) (hne : p.2 ≠ a) : p ∈ F.contents q' := by
+  obtain ⟨k, hq, -⟩ := hF.exists_of_popMin?_eq_some h
+  rw [hq, Multiset.mem_cons] at hp
+  rcases hp with rfl | hp
+  · exact absurd rfl hne
+  · exact hp
+
+end Lawful
 
 end Frontier
 
