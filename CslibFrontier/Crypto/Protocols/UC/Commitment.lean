@@ -15,7 +15,7 @@ public import CslibFrontier.Crypto.Protocols.UC.Impossibility.Commitment
 
 Umbrella module re-exporting the ideal bit-commitment functionality `fcom` and plain-model
 commitment scheme interface (`CslibFrontier.Crypto.Protocols.UC.Functionality.Commitment`)
-together with the Canetti–Fischlin plain-model impossibility theorem
-(`CslibFrontier.Crypto.Protocols.UC.Impossibility.Commitment`, [CanettiFischlin2001], Theorem 6)
-for backward compatibility.
+together with the statistical, call-bounded special case of the Canetti–Fischlin plain-model
+impossibility theorem (`CslibFrontier.Crypto.Protocols.UC.Impossibility.Commitment`,
+[CanettiFischlin2001], Theorem 6) for backward compatibility.
 -/
