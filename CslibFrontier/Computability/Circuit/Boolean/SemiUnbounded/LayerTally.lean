@@ -107,22 +107,46 @@ noncomputable def LayerTranscript.minimum (C : LayeredSemiUnboundedCircuit G) (k
     some (Function.argmin (ProofTree.weight w))
   else none
 
+private theorem LayerTranscript.minimum_apply_of_eval {w : G → ℕ}
+    (g : {g // C.layer g = k}) (hg : C.Eval g.val) :
+    ∃ p, LayerTranscript.minimum C k w g = some p ∧
+      IsMinOn (ProofTree.weight w) Set.univ p := by
+  let : Nonempty (ProofTree C g.val) := (C.eval_iff_nonempty_proofTree _).mp hg
+  refine ⟨Function.argmin (ProofTree.weight w), ?_, ?_⟩
+  · simp only [LayerTranscript.minimum, dite_eq_left hg]
+  · exact isMinOn_univ_iff.mpr fun q => le_of_not_gt (Function.not_lt_argmin _ q)
+
+open Classical in
+/-- The expected count counts exactly the true gates of the layer. -/
+theorem LayerTranscript.selected_minimum [Fintype G] (C : LayeredSemiUnboundedCircuit G)
+    (k : ℕ) (w : G → ℕ) :
+    (LayerTranscript.minimum C k w).selected = univ.filter (fun g => C.Eval g.val) := by
+  ext g
+  by_cases hg : C.Eval g.val
+  · obtain ⟨p, hp, _⟩ := LayerTranscript.minimum_apply_of_eval (w := w) g hg
+    simp [LayerTranscript.selected, hp, hg]
+  · simp [LayerTranscript.selected, LayerTranscript.minimum, hg]
+
+/-- The expected weight contribution of a true gate is its minimum proof-tree weight. -/
+theorem LayerTranscript.weightAt_minimum {w : G → ℕ}
+    (g : {g // C.layer g = k}) (hg : C.Eval g.val) :
+    ∃ p : ProofTree C g.val, IsMinOn (ProofTree.weight w) Set.univ p ∧
+      (LayerTranscript.minimum C k w).weightAt w g = p.weight w := by
+  obtain ⟨p, hp, hmin⟩ := LayerTranscript.minimum_apply_of_eval (w := w) g hg
+  exact ⟨p, hmin, by simp [LayerTranscript.weightAt, hp]⟩
+
 /-- Under layer min-isolation, the exact count and weight sum admit exactly one valid
 transcript. This is the branch-counting step of the circuit weight scan. -/
 theorem existsUnique_layerTranscript_of_min_isolation [Fintype G]
     (C : LayeredSemiUnboundedCircuit G) (k : ℕ) (w : G → ℕ)
     (hisolated : ∀ g : {g // C.layer g = k}, C.Eval g.val →
       ∃! p : ProofTree C g.val, IsMinOn (ProofTree.weight w) Set.univ p) :
-    let ref := LayerTranscript.minimum C k w
-    ∃! t : LayerTranscript C k, t.selected.card = ref.selected.card ∧
-      (∑ g ∈ t.selected, t.weightAt w g) = ∑ g ∈ ref.selected, ref.weightAt w g := by
-  classical
-  intro ref
-  refine ⟨ref, ⟨rfl, rfl⟩, fun t ht => ?_⟩
-  refine LayerTranscript.eq_of_matching_tally (fun g hg => ?_) hisolated ht.1 ht.2
-  let : Nonempty (ProofTree C g.val) := (C.eval_iff_nonempty_proofTree _).mp hg
-  refine ⟨Function.argmin (ProofTree.weight w), ?_, ?_⟩
-  · simp only [ref, LayerTranscript.minimum, dite_eq_left hg]
-  · exact isMinOn_univ_iff.mpr fun q => le_of_not_gt (Function.not_lt_argmin _ q)
+    ∃! t : LayerTranscript C k, t.selected.card = (LayerTranscript.minimum C k w).selected.card ∧
+      (∑ g ∈ t.selected, t.weightAt w g) =
+        ∑ g ∈ (LayerTranscript.minimum C k w).selected,
+          (LayerTranscript.minimum C k w).weightAt w g := by
+  refine ⟨LayerTranscript.minimum C k w, ⟨rfl, rfl⟩, fun t ht => ?_⟩
+  exact LayerTranscript.eq_of_matching_tally
+    LayerTranscript.minimum_apply_of_eval hisolated ht.1 ht.2
 
 end Cslib.Circuits.Boolean.LayeredSemiUnboundedCircuit
