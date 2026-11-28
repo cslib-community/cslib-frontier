@@ -5652,9 +5652,11 @@ Joachim von zur Gathen and Jürgen Gerhard.
 
 Robert A. Wagner and Michael J. Fischer.
 "The String-to-String Correction Problem."
-*Journal of the ACM* 21(1), 168–173, 1974. https://doi.org/10.1145/321796.321811 . The bibliographic data come from search summaries of the publisher record (2026-11-08).
-The full text is paywalled and was not inspected, so the paper's internal theorem and algorithm numbering is unverified and is not cited.
-The manual credits it with the edit-distance dynamic program under general letter costs, with traces (alignments) as the objects of minimum cost and with the `O(|x| |y|)` table, as these are standardly described.
+*Journal of the ACM* 21(1), 168–173, 1974. https://doi.org/10.1145/321796.321811 . Checked the [published paper](https://computingbiology.github.io/docs/wagner1974.pdf) on 2026-11-28.
+Section 2, p. 169, defines single-letter edits at arbitrary positions in successive words and gives the metric criterion.
+Section 3, properties (P1) and (P2), pp. 169–170, and Theorem 1, p. 171, identify the minimum sequence cost with the minimum trace cost under the paper’s letter-cost conditions.
+The Lean theorem `isLeast_editDist_unit` specializes this equality to one per insertion, deletion or change of letter, with free matches.
+Section 4, Theorem 2, p. 171, gives the dynamic programming recurrence.
 
 <a id="wang81"></a>
 ## wang81

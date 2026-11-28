@@ -36,8 +36,9 @@ the table.
 Costs are natural numbers and arbitrary: no triangle inequality or symmetry is assumed. The
 theorem is about scripts (alignments, traces). Wagner and Fischer also consider sequences of edit
 operations applied one after another at arbitrary positions, and show that under their cost
-conditions the least cost of such a sequence equals the least cost of a trace. That equivalence is
-not formalized here.
+conditions the least cost of such a sequence equals the least cost of a trace.
+`CslibFrontier.Algorithms.Lean.EditDistance.Unit` proves this equivalence for unit costs and derives
+the Levenshtein metric laws. The weighted sequence equivalence remains open.
 
 Mathlib used to have `Levenshtein.Cost` and `levenshtein` (`Mathlib/Data/List/EditDistance`), with
 the same three cost fields over separate source and target alphabets and the same recurrence, but
