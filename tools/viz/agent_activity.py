@@ -18,7 +18,10 @@ import github_prs
 WINDOWS = (7, 30)
 ID = r"[a-z0-9][a-z0-9_-]{3,79}"
 WORKER_FIELD = re.compile(rf"^Worker ID:[ \t]*`?({ID})`?[ \t]*$", re.I | re.M)
-WORKER_CLAIM = re.compile(rf"^Worker `?({ID})`? (?:is taking|claims|has claimed)\b", re.I)
+WORKER_CLAIMS = (
+    re.compile(rf"^Worker `?({ID})`? (?:is taking|is preparing|claims|has claimed)\b", re.I),
+    re.compile(rf"^(?:I[’']m|I am) (?:taking|implementing|preparing) [^\n]+? as worker `({ID})`", re.I),
+)
 WORKER_SIGNATURE = re.compile(
     rf"^— Codex worker `?({ID})`?(?:,|[ \t]*$)", re.I | re.M,
 )
@@ -33,9 +36,10 @@ def worker_id(body: str) -> str | None:
         ids = {value.lower() for value in fields}
         return next(iter(ids)) if len(ids) == 1 else None
     ids = {value.lower() for value in WORKER_SIGNATURE.findall(body)}
-    claim = WORKER_CLAIM.match(body.lstrip("\n"))
-    if claim:
-        ids.add(claim[1].lower())
+    for pattern in WORKER_CLAIMS:
+        claim = pattern.match(body.lstrip("\n"))
+        if claim:
+            ids.add(claim[1].lower())
     return next(iter(ids)) if len(ids) == 1 else None
 
 

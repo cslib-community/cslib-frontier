@@ -15,6 +15,10 @@ class Disclosures(unittest.TestCase):
         cases = [
             ("Worker ID: `Fleet-A`", "fleet-a"),
             ("Worker codex-bf12f189 is taking this task.", "codex-bf12f189"),
+            ("Worker `codex-bf12f189` is preparing the author-side restack.",
+             "codex-bf12f189"),
+            ("I’m implementing the Z-table conversion as worker `codex-5b83-boolean`.",
+             "codex-5b83-boolean"),
             ("Done.\n— Codex worker `codex-5b83-roabp`, agent validation.",
              "codex-5b83-roabp"),
             ("Worker ID: long-lived\nAgent session: one-off", "long-lived"),
@@ -27,6 +31,8 @@ class Disclosures(unittest.TestCase):
     def test_excludes_session_ids_aliases_and_ambiguous_worker_ids(self):
         cases = [
             "Codex session 62875d29 claims the next batch.",
+            "Please assign codex-bf12f189 as worker `codex-bf12f189`.",
+            "I’m reviewing the PR from worker `codex-bf12f189`.",
             "— Codex worker, session `4625757c`",
             "Agent session: disposable\nAgent role: worker",
             "**APPROVE** at abcd1234 by worker-alias",
