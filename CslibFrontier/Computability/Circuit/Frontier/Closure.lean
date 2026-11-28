@@ -787,8 +787,7 @@ private theorem exists_fiber_ncard_ge {α : Type*} [Finite α] [Finite U] [Nonem
   cases nonempty_fintype α
   cases nonempty_fintype U
   let sS : Finset α := S.toFinset
-  obtain ⟨u₀, -, hu₀⟩ := Finset.exists_max_image Finset.univ
-    (fun u => (sS.filter fun x => f x = u).card) Finset.univ_nonempty
+  obtain ⟨u₀, hu₀⟩ := Finite.exists_max (fun u => (sS.filter fun x => f x = u).card)
   refine ⟨u₀, ?_⟩
   have hsum : sS.card = ∑ u : U, (sS.filter fun x => f x = u).card := by
     rw [← Finset.card_biUnion]
@@ -801,7 +800,7 @@ private theorem exists_fiber_ncard_ge {α : Type*} [Finite α] [Finite U] [Nonem
   have hle : sS.card ≤ Fintype.card U * (sS.filter fun x => f x = u₀).card := by
     rw [hsum]
     simpa [Finset.card_univ] using Finset.sum_le_card_nsmul Finset.univ
-      (fun u => (sS.filter fun x => f x = u).card) _ fun u hu => hu₀ u hu
+      (fun u => (sS.filter fun x => f x = u).card) _ fun u _ => hu₀ u
   have h1 : sS.card = S.ncard := by rw [← Set.ncard_coe_finset, Set.coe_toFinset]
   have h2 : (sS.filter fun x => f x = u₀).card = {x ∈ S | f x = u₀}.ncard := by
     rw [← Set.ncard_coe_finset]

@@ -281,10 +281,10 @@ variable {K : ℕ}
 /-- Some mask does no worse than the average. -/
 private theorem exists_le_bernoulliAverage {p : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1)
     (F : (Fin K → Bool) → ℝ) : ∃ S, F S ≤ bernoulliAverage p F := by
-  obtain ⟨S, -, hS⟩ := exists_min_image univ F univ_nonempty
+  obtain ⟨S, hS⟩ := Finite.exists_min F
   refine ⟨S, ?_⟩
   calc F S = bernoulliAverage p fun _ => F S := (bernoulliAverage_const p _).symm
-    _ ≤ bernoulliAverage p F := bernoulliAverage_mono hp0 hp1 fun S' => hS S' (mem_univ _)
+    _ ≤ bernoulliAverage p F := bernoulliAverage_mono hp0 hp1 hS
 
 /-- **Greedy choice of `s` sets.** If, at every point of positive weight, a random mask of rate
 `p` gives the nonnegative failure `f x` an average at most `q`, then `s` masks can be chosen so that

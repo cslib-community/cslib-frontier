@@ -513,13 +513,12 @@ private theorem eq_default_of_litMass_lt_one {N : ℕ} (hN : 1 ≤ N) (φ : CNF 
     hsym.isBestResponse₂_iff_isBestResponse₁.1 (isNash_iff.1 hNash).2
   have hx := hbr₁.isMixedStrategy
   have hy := hbr₂.isMixedStrategy
-  have hFinNe : (Finset.univ : Finset (Fin N)).Nonempty :=
-    Finset.univ_nonempty_iff.2 ⟨⟨0, hN⟩⟩
-  obtain ⟨v₀, -, hv₀min⟩ := Finset.exists_min_image Finset.univ (varMass y) hFinNe
+  have : Nonempty (Fin N) := Fin.pos_iff_nonempty.1 hN
+  obtain ⟨v₀, hv₀min⟩ := Finite.exists_min (varMass y)
   have hN_mul_le : (N : ℝ) * varMass y v₀ ≤ litMass y := by
     calc (N : ℝ) * varMass y v₀
         = ∑ _v : Fin N, varMass y v₀ := by simp [Finset.sum_const]
-      _ ≤ ∑ v : Fin N, varMass y v := Finset.sum_le_sum fun v _ => hv₀min v (Finset.mem_univ v)
+      _ ≤ ∑ v : Fin N, varMass y v := Finset.sum_le_sum fun v _ => hv₀min v
       _ = litMass y := rfl
   have hvar_ge :
       ((N : ℝ) - 1) * litMass y - (1 - litMass y) ≤ ((gilboaZemelGame N φ).A *ᵥ y) (.var v₀) := by

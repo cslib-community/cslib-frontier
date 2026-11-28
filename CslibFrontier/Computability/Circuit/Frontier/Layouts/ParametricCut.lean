@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Local
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.SwitchedLayout
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Data.Fintype.Powerset
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -176,10 +177,8 @@ theorem IsRFIMMinCut.union [DecidableEq V] [Finite E] {G : Multigraph V E} {y : 
 /-- Existence of a global minimizer of `rfimEnergy G y α t`. -/
 theorem exists_isRFIMMinCut [Finite V] (G : Multigraph V E) (y : V → ℝ) (α t : ℝ) :
     ∃ S : Finset V, G.IsRFIMMinCut y α t S := by
-  have := Fintype.ofFinite V
-  obtain ⟨S, -, hS⟩ := Finset.exists_min_image (Finset.univ : Finset (Finset V))
-    (G.rfimEnergy y α t) ⟨∅, Finset.mem_univ ∅⟩
-  exact ⟨S, fun T => hS T (Finset.mem_univ T)⟩
+  let _ := Fintype.ofFinite V
+  exact Finite.exists_min (G.rfimEnergy y α t)
 
 /-- Canonical minimal minimizer `S_α(t)` of `rfimEnergy G y α t`: the intersection of all global
 minimizers. -/

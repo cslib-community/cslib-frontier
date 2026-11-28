@@ -59,10 +59,10 @@ theorem exists_coverScore_majorant {q b : ℝ} (hq : 0 < q) (f : Finset ι → �
   obtain ⟨η, hη⟩ := PMF.exists_forall_sum_mul_le
     (fun I J : Finset ι => f J - b * upperKernel q I J) (ε := 0) (fun ν => by
       let moment (I : Finset ι) := ∑ J, (ν J).toReal * upperKernel q I J
-      obtain ⟨I, _, hI⟩ := exists_max_image univ moment univ_nonempty
+      obtain ⟨I, hI⟩ := Finite.exists_max moment
       let m := moment I
       have hm : 1 ≤ m := by
-        have hh := hI ∅ (mem_univ ∅)
+        have hh := hI ∅
         simpa only [moment, upperKernel_empty, mul_one, PMF.sum_toReal] using hh
       have hm0 : 0 < m := by linarith
       let r : Set.Icc (0 : ℝ) 1 := ⟨1 / m, by
@@ -77,7 +77,7 @@ theorem exists_coverScore_majorant {q b : ℝ} (hq : 0 < q) (f : Finset ι → �
         · have he : upperKernel q K ∅ = 0 := by simp [upperKernel, hK]
           calc (∑ J, (μ J).toReal * upperKernel q K J) = (1 / m) * moment K := by
                 simp only [μ, dilute_mean, he, mul_zero, add_zero, r, moment]
-            _ ≤ (1 / m) * m := mul_le_mul_of_nonneg_left (hI K (mem_univ K))
+            _ ≤ (1 / m) * m := mul_le_mul_of_nonneg_left (hI K)
                 (by positivity)
             _ = 1 := by field_simp
       have hμf := h μ hμ

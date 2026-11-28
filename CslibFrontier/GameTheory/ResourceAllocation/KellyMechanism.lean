@@ -1042,12 +1042,12 @@ private theorem linear_three_fourths_bound [Nonempty ι] {C μ : ℝ} (hC : 0 < 
     (hx0 : ∀ i, 0 ≤ x i) (hsum_x : ∑ i, x i ≤ C) :
     3 / 4 * ∑ i, α i * x i ≤ ∑ i, α i * d i := by
   classical
-  obtain ⟨k, -, hkmax⟩ := Finset.exists_max_image Finset.univ α Finset.univ_nonempty
+  obtain ⟨k, hkmax⟩ := Finite.exists_max α
   have hopt_ub : ∑ i, α i * x i ≤ α k * C :=
     calc ∑ i, α i * x i
         ≤ ∑ i, α k * x i :=
           Finset.sum_le_sum fun i _ =>
-            mul_le_mul_of_nonneg_right (hkmax i (Finset.mem_univ i)) (hx0 i)
+            mul_le_mul_of_nonneg_right (hkmax i) (hx0 i)
       _ = α k * ∑ i, x i := (Finset.mul_sum ..).symm
       _ ≤ α k * C := mul_le_mul_of_nonneg_left hsum_x (hα k)
   have hterm_ge : ∀ i, μ * d i ≤ α i * d i := fun i => by

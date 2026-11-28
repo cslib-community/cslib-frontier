@@ -162,10 +162,8 @@ theorem idealProb_le_zero {r t : ℝ} (hr : 0 < r) (hr1 : r < 1) (ht : 0 ≤ t) 
     simp only [O, Set.mem_ofPred_eq, not_forall, not_lt] at h0 ht'
     obtain ⟨j₀, hj₀⟩ := ht'
     -- the minimizing neighbor
-    obtain ⟨k, -, hk⟩ := Finset.exists_min_image Finset.univ (fun j => ⟪bstar r j, y⟫)
-      ⟨0, Finset.mem_univ _⟩
-    exact mem_iUnion.mpr ⟨k, h0 k, (hk j₀ (Finset.mem_univ _)).trans hj₀,
-      fun j => hk j (Finset.mem_univ _)⟩
+    obtain ⟨k, hk⟩ := Finite.exists_min (fun j => ⟪bstar r j, y⟫)
+    exact mem_iUnion.mpr ⟨k, h0 k, (hk j₀).trans hj₀, hk⟩
   have hAk (k i j : Fin 3) (h : k ≠ i ∧ k ≠ j ∧ i ≠ j) :
       μ.real (A k) ≤ 1 / 3 * γ.real (Ioc 0 t) := by
     refine le_trans (measureReal_mono ?_ (measure_ne_top _ _))

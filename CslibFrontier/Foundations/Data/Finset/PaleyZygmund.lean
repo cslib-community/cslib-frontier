@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Algebra.Order.BigOperators.Expect
+import Mathlib.Data.Fintype.Lattice
 
 /-!
 # The Paley–Zygmund inequality and reasonable random variables
@@ -142,7 +143,7 @@ theorem mul_expect_pow_four_le_of_le_dens {f : ι → 𝕜} {l : 𝕜}
   cases isEmpty_or_nonempty ι with
   | inl h => simp [Finset.univ_eq_empty]
   | inr h =>
-    obtain ⟨i₀, -, hi₀⟩ := Finset.exists_max_image univ (fun i => f i ^ 2) univ_nonempty
+    obtain ⟨i₀, hi₀⟩ := Finite.exists_max (fun i => f i ^ 2)
     set M := f i₀ ^ 2
     have hm0 : 0 ≤ 𝔼 i, f i ^ 2 := expect_nonneg fun i _ => sq_nonneg _
     -- `𝔼 f ^ 4 ≤ M 𝔼 f ^ 2`, where `M = ‖f‖_∞ ^ 2`
@@ -150,7 +151,7 @@ theorem mul_expect_pow_four_le_of_le_dens {f : ι → 𝕜} {l : 𝕜}
       rw [mul_expect]
       exact expect_le_expect fun i _ => by
         rw [show f i ^ 4 = f i ^ 2 * f i ^ 2 by ring]
-        exact mul_le_mul_of_nonneg_right (hi₀ i (mem_univ _)) (sq_nonneg _)
+        exact mul_le_mul_of_nonneg_right (hi₀ i) (sq_nonneg _)
     -- `l M ≤ 𝔼 f ^ 2`, since `f ^ 2 = M` with probability at least `l`
     have hlM : l * M ≤ 𝔼 i, f i ^ 2 := by
       have hmk := Fintype.mul_dens_filter_le_expect (f := fun i => f i ^ 2)

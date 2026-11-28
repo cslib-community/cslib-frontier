@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Mechanism.CriticalBid
-import Mathlib.Data.Finset.Max
-import Mathlib.Data.Fintype.EquivFin
+import Mathlib.Data.Fintype.Lattice
+import Mathlib.Order.Prod.Lex.Basic
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -131,15 +131,10 @@ private theorem allocation_eq_zero_of_wins {b : ι → ℝ} {i j : ι} (hi : Win
 
 /-- With at least one bidder, some bidder wins: the smallest index among the highest bidders. -/
 theorem exists_wins [Finite ι] [Nonempty ι] (b : ι → ℝ) : ∃ i, Wins b i := by
-  have := Fintype.ofFinite ι
-  obtain ⟨i0, -, hi0⟩ := Finset.exists_max_image Finset.univ b Finset.univ_nonempty
-  set S := Finset.univ.filter fun j => b j = b i0
-  have hS : S.Nonempty := ⟨i0, Finset.mem_filter.2 ⟨Finset.mem_univ _, rfl⟩⟩
-  have hmem : b (S.min' hS) = b i0 := (Finset.mem_filter.1 (Finset.min'_mem S hS)).2
-  refine ⟨S.min' hS, fun j _ => ?_⟩
-  rw [hmem]
-  exact ⟨hi0 j (Finset.mem_univ j), fun hlt => (hi0 j (Finset.mem_univ j)).lt_of_ne fun h =>
-    hlt.not_ge (Finset.min'_le S j (Finset.mem_filter.2 ⟨Finset.mem_univ _, h⟩))⟩
+  obtain ⟨i, hi⟩ := Finite.exists_max fun j => toLex (b j, OrderDual.toDual j)
+  refine ⟨i, fun j _ => ?_⟩
+  obtain ⟨hle, htie⟩ := Prod.Lex.toLex_le_toLex'.1 (hi j)
+  exact ⟨hle, fun hlt => hle.lt_of_ne fun heq => hlt.not_ge (htie heq)⟩
 
 variable [Fintype ι]
 

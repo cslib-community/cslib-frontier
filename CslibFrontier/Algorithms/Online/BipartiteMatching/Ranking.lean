@@ -185,33 +185,31 @@ theorem minByKey_eq_none_iff (key : L → ℕ) (hkey : Function.Injective key) (
 theorem minByKey_eq_some_iff (key : L → ℕ) (hkey : Function.Injective key) (U : Finset L) (u : L) :
     minByKey key hkey U = some u ↔ u ∈ U ∧ ∀ w ∈ U, key u ≤ key w := by
   classical
-  induction U using Finset.induction_on generalizing u with
-  | empty => simp
-  | insert a s ha ih =>
-    rw [minByKey_insert key hkey ha]
-    cases hs : minByKey key hkey s with
-    | none =>
-      have hse : s = ∅ := (minByKey_eq_none_iff key hkey s).mp hs
-      subst hse
-      simp only [minOpt, Option.some.injEq, Finset.mem_insert, Finset.notMem_empty, or_false,
-        forall_eq]
-      exact ⟨fun h => ⟨h.symm, by rw [h]⟩, fun h => h.1.symm⟩
-    | some b =>
-      obtain ⟨hbs, hbmin⟩ := (ih b).mp hs
-      simp only [minOpt, Option.some.injEq, Finset.mem_insert, forall_eq_or_imp]
-      split_ifs with hab
-      · constructor
-        · rintro rfl
-          exact ⟨Or.inl rfl, le_rfl, fun w hw => hab.trans (hbmin w hw)⟩
-        · rintro ⟨rfl | hus, hua, humin⟩
-          · rfl
-          · exact hkey (le_antisymm (hab.trans (hbmin u hus)) hua)
-      · constructor
-        · rintro rfl
-          exact ⟨Or.inr hbs, by omega, hbmin⟩
-        · rintro ⟨rfl | hus, hua, humin⟩
-          · exact absurd (humin b hbs) hab
-          · exact hkey (le_antisymm (hbmin u hus) (humin b hbs))
+  have hspec : ∀ v, minByKey key hkey U = some v → v ∈ U ∧ ∀ w ∈ U, key v ≤ key w := by
+    induction U using Finset.induction_on with
+    | empty => simp
+    | insert a s ha ih =>
+      intro v hv
+      rw [minByKey_insert key hkey ha] at hv
+      cases hs : minByKey key hkey s with
+      | none =>
+        have hse := (minByKey_eq_none_iff key hkey s).mp hs
+        simp only [hs, minOpt, Option.some.injEq] at hv
+        simp [hse, ← hv]
+      | some b =>
+        obtain ⟨hbs, hbmin⟩ := ih b hs
+        simp only [hs, minOpt, Option.some.injEq] at hv
+        subst v
+        simp only [mem_insert, forall_eq_or_imp]
+        split_ifs with hab
+        · exact ⟨Or.inl rfl, le_rfl, fun w hw => hab.trans (hbmin w hw)⟩
+        · exact ⟨Or.inr hbs, (lt_of_not_ge hab).le, hbmin⟩
+  refine ⟨hspec u, fun ⟨hu, hmin⟩ => ?_⟩
+  cases hv : minByKey key hkey U with
+  | none => exact (notMem_empty u ((minByKey_eq_none_iff key hkey U).mp hv ▸ hu)).elim
+  | some v =>
+    obtain ⟨hvU, hvmin⟩ := hspec v hv
+    exact congrArg some (hkey (le_antisymm (hvmin u hu) (hmin v hvU)))
 
 theorem minByKey_congr_order {key₁ key₂ : L → ℕ} (h₁ : Function.Injective key₁)
     (h₂ : Function.Injective key₂) {U : Finset L}

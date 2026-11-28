@@ -47,12 +47,11 @@ theorem exists_quantile (source : PMF α) (score : α → β) {δ : ℝ}
   classical
   let cumulative := fun cutoff => ∑ x, if score x ≤ cutoff then (source x).toReal else 0
   let candidates := Finset.univ.filter (fun x => δ ≤ cumulative (score x))
-  have hnonempty : (Finset.univ : Finset α).Nonempty :=
-    ⟨_, Finset.mem_univ source.support_nonempty.some⟩
+  have : Nonempty α := ⟨source.support_nonempty.some⟩
   have hcandidates : candidates.Nonempty := by
-    obtain ⟨x, _, hx⟩ := Finset.exists_max_image Finset.univ score hnonempty
+    obtain ⟨x, hx⟩ := Finite.exists_max score
     refine ⟨x, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩⟩
-    simpa only [cumulative, ite_eq_left (hx _ (Finset.mem_univ _)), sum_toReal] using hδone
+    simpa only [cumulative, ite_eq_left (hx _), sum_toReal] using hδone
   obtain ⟨cut, hcut, hmin⟩ := Finset.exists_min_image candidates score hcandidates
   refine ⟨score cut, ⟨cut, rfl⟩, ?_, (Finset.mem_filter.mp hcut).2⟩
   let below := Finset.univ.filter (fun x => score x < score cut)

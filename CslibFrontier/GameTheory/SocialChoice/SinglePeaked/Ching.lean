@@ -141,12 +141,10 @@ theorem eval_eq_maxMinEval (E : MoulinScheme ι a b) (x : ι → Set.Icc a b) :
 /-- A `MoulinScheme` always evaluates within the convex hull of the reported peaks. -/
 theorem eval_mem_peaks_bounds [Nonempty ι] (E : MoulinScheme ι a b) (x : ι → Set.Icc a b) :
     (∃ i : ι, (x i : ℝ) ≤ E.eval x) ∧ (∃ j : ι, (E.eval x : ℝ) ≤ x j) := by
-  obtain ⟨i, _, hi⟩ :=
-    Finset.exists_min_image Finset.univ (fun k => (x k : ℝ)) Finset.univ_nonempty
-  obtain ⟨j, _, hj⟩ :=
-    Finset.exists_max_image Finset.univ (fun k => (x k : ℝ)) Finset.univ_nonempty
-  exact ⟨⟨i, by simpa only [E.eval_const] using E.eval_mono fun k => hi k (Finset.mem_univ k)⟩,
-    ⟨j, by simpa only [E.eval_const] using E.eval_mono fun k => hj k (Finset.mem_univ k)⟩⟩
+  obtain ⟨i, hi⟩ := Finite.exists_min (fun k => (x k : ℝ))
+  obtain ⟨j, hj⟩ := Finite.exists_max (fun k => (x k : ℝ))
+  exact ⟨⟨i, by simpa only [E.eval_const] using E.eval_mono hi⟩,
+    ⟨j, by simpa only [E.eval_const] using E.eval_mono hj⟩⟩
 
 end MoulinDuality
 

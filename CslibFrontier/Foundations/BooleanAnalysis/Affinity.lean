@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.BooleanAnalysis.Linearity
 import CslibFrontier.Foundations.Data.Finset.Expect
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -190,11 +191,11 @@ theorem exists_sum_fourierCoeff_signVal_pow_four_le (f : (ι → Bool) → Bool)
     ∃ S, ∑ T, fourierCoeff (fun x => signVal (f x)) T ^ 4 ≤
       fourierCoeff (fun x => signVal (f x)) S ^ 2 := by
   set c := fourierCoeff fun x => signVal (f x)
-  obtain ⟨S, -, hS⟩ := exists_max_image univ (fun S => c S ^ 2) univ_nonempty
+  obtain ⟨S, hS⟩ := Finite.exists_max (fun S => c S ^ 2)
   refine ⟨S, ?_⟩
   calc ∑ T, c T ^ 4 ≤ ∑ T, c S ^ 2 * c T ^ 2 := sum_le_sum fun T _ => by
         rw [show c T ^ 4 = c T ^ 2 * c T ^ 2 by ring]
-        exact mul_le_mul_of_nonneg_right (hS T (mem_univ T)) (sq_nonneg _)
+        exact mul_le_mul_of_nonneg_right (hS T) (sq_nonneg _)
     _ = c S ^ 2 := by rw [← mul_sum, sum_fourierCoeff_sq_signVal, mul_one]
 
 /-- **A large Fourier coefficient gives a nearby affine function**: if `t ≤ |F̂(S)|` for the

@@ -138,11 +138,11 @@ private theorem exists_min_distributionalCost [Finite ι] (ν : StdSimplex ℝ (
   classical
   let := Fintype.ofFinite ι
   have := costProfile_nonempty f
-  obtain ⟨p, _, hp⟩ := Finset.exists_min_image Finset.univ
-    (fun p : CostProfile f => (profileTree f p).distributionalCost ν) Finset.univ_nonempty
+  obtain ⟨p, hp⟩ :=
+    Finite.exists_min (fun p : CostProfile f => (profileTree f p).distributionalCost ν)
   exact ⟨profileTree f p, profileTree_computes f p, fun t ht =>
     let ⟨q, hq⟩ := exists_costProfile_le f t ht
-    (hp q (Finset.mem_univ q)).trans (DecisionTree.distributionalCost_mono
+    (hp q).trans (DecisionTree.distributionalCost_mono
       (fun x => (profileTree_cost f q x).trans_le (hq x)) ν)⟩
 
 /-- Finite-game saddle witnesses obtained from the bounded cost profiles. -/

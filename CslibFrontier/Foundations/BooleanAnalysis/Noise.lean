@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Influence
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.Algebra.Order.Ring.Pow
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -217,11 +218,11 @@ theorem noiseOp_zero (f : (ι → Bool) → ℝ) (x : ι → Bool) : noiseOp 0 f
 /-- For `|ρ| ≤ 1`, the noise operator maps positive functions to positive functions. -/
 theorem noiseOp_pos {ρ : ℝ} (hρ : -1 ≤ ρ) (hρ' : ρ ≤ 1) {g : (ι → Bool) → ℝ}
     (hg : ∀ x, 0 < g x) (x : ι → Bool) : 0 < noiseOp ρ g x := by
-  obtain ⟨y, -, hy⟩ := exists_min_image univ g univ_nonempty
+  obtain ⟨y, hy⟩ := Finite.exists_min g
   calc 0 < g y := hg y
     _ = bernoulliAverage ((1 - ρ) / 2) fun _ => g y := (bernoulliAverage_const _ _).symm
     _ ≤ noiseOp ρ g x :=
-        bernoulliAverage_mono (by linarith) (by linarith) fun P => hy _ (mem_univ _)
+        bernoulliAverage_mono (by linarith) (by linarith) fun P => hy _
 
 /-- For `|ρ| ≤ 1`, the noise operator maps nonnegative functions to nonnegative functions. -/
 theorem noiseOp_nonneg {ρ : ℝ} (hρ : -1 ≤ ρ) (hρ' : ρ ≤ 1) {g : (ι → Bool) → ℝ}

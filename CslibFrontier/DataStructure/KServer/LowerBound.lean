@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.KServer.Basic
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Data.Fintype.Lattice
 
 /-!
 # Deterministic lower bound `k` for the `k`-server problem
@@ -288,14 +289,14 @@ theorem exists_shadow_le {s₀ : Fin k → α} (hs₀ : Function.Injective s₀)
     congr 1
     rw [← sum_holeCost M S hrest hzS, Finset.erase_insert (by simpa using hz),
       Finset.sum_image fun _ _ _ _ h => hs₀ h]
-  obtain ⟨i, _, hi⟩ := Finset.exists_min_image Finset.univ
-    (fun i => holeCost M z (s₀ i) (z :: rest)) ⟨⟨0, hk⟩, Finset.mem_univ _⟩
+  have : Nonempty (Fin k) := Fin.pos_iff_nonempty.1 hk
+  obtain ⟨i, hi⟩ := Finite.exists_min (fun i => holeCost M z (s₀ i) (z :: rest))
   refine ⟨shadowStates s₀ (s₀ i) (z :: rest), (hspec i).1, ?_⟩
   rw [(hspec i).2, ← hsum]
   calc k * holeCost M z (s₀ i) (z :: rest)
       = ∑ _j : Fin k, holeCost M z (s₀ i) (z :: rest) := by
         rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-    _ ≤ _ := Finset.sum_le_sum fun j _ => hi j (Finset.mem_univ j)
+    _ ≤ _ := Finset.sum_le_sum fun j _ => hi j
 
 end Shadow
 

@@ -183,11 +183,11 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
     have h0 : A = 0 := by simp [hA, Finset.univ_eq_empty]
     linarith only [h0, hδ'A, hδ'1]
   | inr h =>
-    obtain ⟨i₀, -, hi₀⟩ := exists_max_image univ (fun i => a i ^ 2) univ_nonempty
+    obtain ⟨i₀, hi₀⟩ := Finite.exists_max (fun i => a i ^ 2)
     have hA1 : A ≤ 1 := by linarith only [hδ'A, hδ'0]
     have hsum4 : ∑ i, a i ^ 4 ≤ a i₀ ^ 2 * A := by
       rw [mul_sum]
-      exact sum_le_sum fun i _ => by nlinarith only [hi₀ i (mem_univ _), sq_nonneg (a i)]
+      exact sum_le_sum fun i _ => by nlinarith only [hi₀ i, sq_nonneg (a i)]
     have habs1 : |a i₀| ≤ 1 := (sq_le_one_iff_abs_le_one _).mp <| by
       linarith only [hA1, single_le_sum (f := fun i => a i ^ 2) (fun j _ => sq_nonneg _)
         (mem_univ i₀)]

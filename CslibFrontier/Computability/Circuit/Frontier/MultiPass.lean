@@ -291,8 +291,7 @@ theorem exists_le_mul_ncard_restrictSlice [Finite ι] [Finite U] [Nonempty U] (S
   classical
   let _ : Fintype ι := Fintype.ofFinite ι
   let _ : Fintype U := Fintype.ofFinite U
-  obtain ⟨a₀, -, ha₀⟩ := Finset.exists_max_image Finset.univ
-    (fun a : O → U => (restrictSlice S O a).ncard) Finset.univ_nonempty
+  obtain ⟨a₀, ha₀⟩ := Finite.exists_max (fun a : O → U => (restrictSlice S O a).ncard)
   refine ⟨a₀, ?_⟩
   have hpart : S.ncard = ∑ a : O → U, (restrictSlice S O a).ncard := by
     have hfib := ncard_eq_sum_ncard_fiberwise (f := O.domRestrict) (s := S) (toFinite S)
@@ -312,7 +311,7 @@ theorem exists_le_mul_ncard_restrictSlice [Finite ι] [Finite U] [Nonempty U] (S
   calc S.ncard
       = ∑ a : O → U, (restrictSlice S O a).ncard := hpart
     _ ≤ ∑ _a : O → U, (restrictSlice S O a₀).ncard :=
-        Finset.sum_le_sum fun a ha => ha₀ a ha
+        Finset.sum_le_sum fun a _ => ha₀ a
     _ = Nat.card U ^ O.ncard * (restrictSlice S O a₀).ncard := by
         rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, hcardO]
 

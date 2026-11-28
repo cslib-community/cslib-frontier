@@ -12,6 +12,7 @@ public import Mathlib.Topology.Instances.Real.Lemmas
 import CslibFrontier.Foundations.Data.Fintype.UpdateInduction
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Fintype.Card
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -525,18 +526,15 @@ theorem isParetoOptimal_iff_peaks_bounds [Finite ι] [Nonempty ι] :
     f.IsParetoOptimal ↔
       ∀ P : Profile ι a b,
         (∃ i : ι, ((P i).peak : ℝ) ≤ f P) ∧ (∃ j : ι, (f P : ℝ) ≤ (P j).peak) := by
-  let _ := Fintype.ofFinite ι
   refine ⟨fun hPO P => ⟨?_, ?_⟩, fun hbounds P x hpref => ?_⟩
   · by_contra! h
-    obtain ⟨i₀, _, hi₀⟩ :=
-      Finset.exists_min_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
+    obtain ⟨i₀, hi₀⟩ := Finite.exists_min (fun i => ((P i).peak : ℝ))
     exact hPO P (P i₀).peak fun i =>
-      (P i).prefers_of_between_left (h i₀) (hi₀ i (Finset.mem_univ i))
+      (P i).prefers_of_between_left (h i₀) (hi₀ i)
   · by_contra! h
-    obtain ⟨j₀, _, hj₀⟩ :=
-      Finset.exists_max_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
+    obtain ⟨j₀, hj₀⟩ := Finite.exists_max (fun i => ((P i).peak : ℝ))
     exact hPO P (P j₀).peak fun i =>
-      (P i).prefers_of_between_right (hj₀ i (Finset.mem_univ i)) (h j₀)
+      (P i).prefers_of_between_right (hj₀ i) (h j₀)
   · obtain ⟨⟨i, hi⟩, ⟨j, hj⟩⟩ := hbounds P
     rcases lt_trichotomy (x : ℝ) (f P) with hlt | heq | hgt
     · exact (P j).prefers_asymm ((P j).prefers_of_between_left hlt hj) (hpref j)
@@ -587,40 +585,37 @@ pp. 245–246). -/
 theorem IsStrategyProof.isParetoOptimal_of_isUnanimous [Finite ι] [Nonempty ι]
     (hf : f.IsStrategyProof) (hU : f.IsUnanimous) : f.IsParetoOptimal := by
   classical
-  let _ := Fintype.ofFinite ι
+  have eq_peak (P Q : Profile ι a b) (p : Set.Icc a b) (hpeak : ∀ i, (Q i).peak = p)
+      (hcmp : ∀ i, P i ≠ Q i → ∀ y,
+        (P i).AtLeast (f P) y → (Q i).AtLeast y (f P) → y = f P) : f P = p :=
+    (hf.eq_of_update_comparisons rfl hcmp).symm.trans (hU Q p hpeak)
   refine isParetoOptimal_iff_peaks_bounds.mpr fun P => ⟨?_, ?_⟩
   · by_contra! h
-    obtain ⟨i₀, _, hi₀⟩ :=
-      Finset.exists_min_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
+    obtain ⟨i₀, hi₀⟩ := Finite.exists_min (fun i => ((P i).peak : ℝ))
     let p₁ := (P i₀).peak
     let Q : Profile ι a b := fun _ => Preference.preferLeft p₁
-    have hQ : f Q = f P := by
-      apply hf.eq_of_update_comparisons (P := P) rfl
-      intro i _ y hsp1 hsp2
-      have hy_ge : (f P : ℝ) ≤ y := not_lt.mp fun hlt =>
-        (Q i).prefers_of_between_left hlt (h i₀).le hsp2
-      have hy_le : (y : ℝ) ≤ p₁ := not_lt.mp fun hgt =>
-        Preference.preferLeft_prefers_of_le_of_gt (h i₀).le hgt hsp2
-      exact Subtype.ext <| le_antisymm (not_lt.mp fun hgt =>
-        (P i).prefers_of_between_left hgt (hy_le.trans (hi₀ i (Finset.mem_univ i))) hsp1) hy_ge
-    linarith [h i₀,
-      congrArg Subtype.val (hQ.symm.trans (hU Q p₁ fun _ => Preference.preferLeft_peak p₁))]
+    refine (h i₀).ne (congrArg Subtype.val ?_)
+    refine eq_peak P Q p₁ (fun _ => Preference.preferLeft_peak p₁) ?_
+    intro i _ y hsp1 hsp2
+    have hy_ge : (f P : ℝ) ≤ y := not_lt.mp fun hlt =>
+      (Q i).prefers_of_between_left hlt (h i₀).le hsp2
+    have hy_le : (y : ℝ) ≤ p₁ := not_lt.mp fun hgt =>
+      Preference.preferLeft_prefers_of_le_of_gt (h i₀).le hgt hsp2
+    exact Subtype.ext <| le_antisymm (not_lt.mp fun hgt =>
+      (P i).prefers_of_between_left hgt (hy_le.trans (hi₀ i)) hsp1) hy_ge
   · by_contra! h
-    obtain ⟨j₀, _, hj₀⟩ :=
-      Finset.exists_max_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
+    obtain ⟨j₀, hj₀⟩ := Finite.exists_max (fun i => ((P i).peak : ℝ))
     let pₙ := (P j₀).peak
     let Q : Profile ι a b := fun _ => Preference.preferRight pₙ
-    have hQ : f Q = f P := by
-      apply hf.eq_of_update_comparisons (P := P) rfl
-      intro i _ y hsp1 hsp2
-      have hy_le : (y : ℝ) ≤ f P := not_lt.mp fun hgt =>
-        (Q i).prefers_of_between_right (h j₀).le hgt hsp2
-      have hy_ge : (pₙ : ℝ) ≤ y := not_lt.mp fun hlt =>
-        Preference.preferRight_prefers_of_ge_of_lt (h j₀).le hlt hsp2
-      exact Subtype.ext <| le_antisymm hy_le (not_lt.mp fun hlt =>
-        (P i).prefers_of_between_right ((hj₀ i (Finset.mem_univ i)).trans hy_ge) hlt hsp1)
-    linarith [h j₀,
-      congrArg Subtype.val (hQ.symm.trans (hU Q pₙ fun _ => Preference.preferRight_peak pₙ))]
+    refine (h j₀).ne' (congrArg Subtype.val ?_)
+    refine eq_peak P Q pₙ (fun _ => Preference.preferRight_peak pₙ) ?_
+    intro i _ y hsp1 hsp2
+    have hy_le : (y : ℝ) ≤ f P := not_lt.mp fun hgt =>
+      (Q i).prefers_of_between_right (h j₀).le hgt hsp2
+    have hy_ge : (pₙ : ℝ) ≤ y := not_lt.mp fun hlt =>
+      Preference.preferRight_prefers_of_ge_of_lt (h j₀).le hlt hsp2
+    exact Subtype.ext <| le_antisymm hy_le (not_lt.mp fun hlt =>
+      (P i).prefers_of_between_right ((hj₀ i).trans hy_ge) hlt hsp1)
 
 /-- **Lemma 10.1** ([SchummerVohra2007], §10.2, pp. 245–246): for a strategy-proof rule on
 single-peaked preferences, surjectivity is equivalent to unanimity. -/
