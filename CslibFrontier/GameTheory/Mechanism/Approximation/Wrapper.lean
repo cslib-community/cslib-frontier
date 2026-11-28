@@ -3143,24 +3143,25 @@ theorem dominateOneCaStrategy_weaklyDominates [Nonempty M] (p : SingleValuePlaye
         have hsNext_eq : Function.update accBefore.bundles i (cur.1.bundle i) =
             accBefore.bundles := by
           rw [← hbi_eq, Function.update_eq_self]
+        have hreject (A : Finset N) (hnot : i ∉ A)
+            (hblocked : ¬ ((cur.1.bundle i).card ≤ Nat.sqrt (Fintype.card M) ∧
+              cur.1.bundle i ⊆ freeItems A accBefore.bundles)) :
+            i ∉ (if (cur.1.bundle i).card ≤ Nat.sqrt (Fintype.card M) then
+              if cur.1.bundle i ⊆ freeItems A accBefore.bundles then insert i A else A
+              else A) := by
+          split_ifs with hc hf
+          · exact (hblocked ⟨hc, hf⟩).elim
+          · exact hnot
+          · exact hnot
         have hstep_notW : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).wSet := by
-          simp only [oneCaStep_eq, hsilent, hsNext_eq]
-          split_ifs with hc hf
-          · exact absurd ⟨hc, Or.inl hf⟩ hnotFree
-          · exact hiNotW0
-          · exact hiNotW0
+          simpa only [oneCaStep_eq, hsilent, hsNext_eq] using
+            hreject _ hiNotW0 (fun h => hnotFree ⟨h.1, Or.inl h.2⟩)
         have hstep_notM : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).mSet := by
-          simp only [oneCaStep_eq, hsilent, hsNext_eq]
-          split_ifs with hc hf
-          · exact absurd ⟨hc, Or.inr (Or.inl hf)⟩ hnotFree
-          · exact hiNotM0
-          · exact hiNotM0
+          simpa only [oneCaStep_eq, hsilent, hsNext_eq] using
+            hreject _ hiNotM0 (fun h => hnotFree ⟨h.1, Or.inr (Or.inl h.2)⟩)
         have hstep_notG : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).gSet := by
-          simp only [oneCaStep_eq, hsilent, hsNext_eq]
-          split_ifs with hc hf
-          · exact absurd ⟨hc, Or.inr (Or.inr hf)⟩ hnotFree
-          · exact hiNotG0
-          · exact hiNotG0
+          simpa only [oneCaStep_eq, hsilent, hsNext_eq] using
+            hreject _ hiNotG0 (fun h => hnotFree ⟨h.1, Or.inr (Or.inr h.2)⟩)
         have hiNotW_j1 : i ∉ (wrapperState P σ₁ (j + 1)).winners := by
           have hW1 : (wrapperState P σ₁ (j + 1)).winners =
               oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1) :=
@@ -3382,34 +3383,22 @@ theorem oneCaProc_isLocalApproxOn [Nonempty M] (players : N → SingleValuePlaye
         dsimp only [sNext]
         rw [Function.update_of_ne hli]
         exact (hf l hl).mono_left hb_sub
+      have hadmit (A : Finset N) (hnot : i ∉ A)
+          (hfree : st.bundle i ⊆ freeItems A accBefore.bundles) :
+          i ∈ (if bNew.card ≤ Nat.sqrt m then
+            if bNew ⊆ freeItems A sNext then insert i A else A
+            else A) := by
+        simp only [hb_card, hfree_trans A hnot hfree, ↓reduceIte, Finset.mem_insert_self]
       rcases hfree_or with hfW | hfM | hfG
-      · have hmem : i ∈ (oneCaStep σ cur.2 st accBefore i).wSet := by
-          simp only [oneCaStep_eq]
-          have hfw : bNew ⊆ freeItems accBefore.wSet sNext := hfree_trans _ hiNotW0 hfW
-          change i ∈ if bNew.card ≤ Nat.sqrt m then
-            if bNew ⊆ freeItems accBefore.wSet sNext then insert i accBefore.wSet
-            else accBefore.wSet
-            else accBefore.wSet
-          simp only [hb_card, hfw, ↓reduceIte, Finset.mem_insert_self]
-        exact hiNotW (hW_step_sub hmem)
-      · have hmem : i ∈ (oneCaStep σ cur.2 st accBefore i).mSet := by
-          simp only [oneCaStep_eq]
-          have hfm : bNew ⊆ freeItems accBefore.mSet sNext := hfree_trans _ hiNotM0 hfM
-          change i ∈ if bNew.card ≤ Nat.sqrt m then
-            if bNew ⊆ freeItems accBefore.mSet sNext then insert i accBefore.mSet
-            else accBefore.mSet
-            else accBefore.mSet
-          simp only [hb_card, hfm, ↓reduceIte, Finset.mem_insert_self]
-        exact hiNotM (hM_step_sub hmem)
-      · have hmem : i ∈ (oneCaStep σ cur.2 st accBefore i).gSet := by
-          simp only [oneCaStep_eq]
-          have hfg : bNew ⊆ freeItems accBefore.gSet sNext := hfree_trans _ hiNotG0 hfG
-          change i ∈ if bNew.card ≤ Nat.sqrt m then
-            if bNew ⊆ freeItems accBefore.gSet sNext then insert i accBefore.gSet
-            else accBefore.gSet
-            else accBefore.gSet
-          simp only [hb_card, hfg, ↓reduceIte, Finset.mem_insert_self]
-        exact hiNotG (hG_step_sub hmem)
+      · apply hiNotW
+        apply hW_step_sub
+        simpa only [oneCaStep_eq] using hadmit _ hiNotW0 hfW
+      · apply hiNotM
+        apply hM_step_sub
+        simpa only [oneCaStep_eq] using hadmit _ hiNotM0 hfM
+      · apply hiNotG
+        apply hG_step_sub
+        simpa only [oneCaStep_eq] using hadmit _ hiNotG0 hfG
     -- Therefore NO valid desired shrink exists for `i` at `view` (else `i` would enter `gSet`).
     have hno_valid : ¬ IsValidShrink accBefore.gSet accBefore.bundles (st.bundle i) (alloc i) := by
       intro hval_alloc
