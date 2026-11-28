@@ -6338,6 +6338,7 @@ public import CslibFrontier.Logics.FirstOrder.Ordered.FullTuple.Encoding
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffProd
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.PolyTime
 public import CslibFrontier.Foundations.GroupTheory.Perm.RemoveTwo
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Symmetry
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExplicitBlockNetwork.GraphPolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelTransducer
 public import CslibFrontier.Computability.TreeEval.Ary.Packed.Executable

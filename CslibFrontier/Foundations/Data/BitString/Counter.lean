@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Algebra.Order.Monoid.Unbundled.Pow
+public import Mathlib.Data.List.Lex
 public import Mathlib.Data.Nat.Basic
 public import Mathlib.Data.Nat.Bits
 
@@ -23,10 +24,16 @@ of ones to the word of zeros. Counting from the word of `m` zeros enumerates the
 (`Cslib.BitString.iterate_increment_lsbValue`). Exhaustive searches in polynomial space enumerate
 their candidates in this way, storing only the current one.
 
+Read most significant bit first, a word has the value `Cslib.BitString.msbValue`, the value of the
+reversed word. Words of the same length then compare lexicographically like their values
+(`Cslib.BitString.msbValue_lt_msbValue_iff`), so the lexicographic order on them is an order of
+numbers.
+
 ## Main definitions
 
 * `Cslib.BitString.increment`: binary increment, least significant bit first.
 * `Cslib.BitString.lsbValue`: the value of a word, least significant bit first.
+* `Cslib.BitString.msbValue`: the value of a word, most significant bit first.
 
 ## Main results
 
@@ -39,6 +46,9 @@ their candidates in this way, storing only the current one.
   digits `Nat.bits n` of a number.
 * `Cslib.BitString.lsbValue_eq_foldr_bit`: `lsbValue` is a right fold of `Nat.bit`.
 * `Cslib.BitString.testBit_lsbValue`: binary digit `i` of `lsbValue w` is the bit `w[i]`.
+* `Cslib.BitString.msbValue_eq_lsbValue_reverse`: `msbValue` is `lsbValue` of the reversed word.
+* `Cslib.BitString.msbValue_lt_msbValue_iff`, `Cslib.BitString.msbValue_le_msbValue_iff`: words
+  of the same length compare lexicographically like their most-significant-first values.
 -/
 
 @[expose] public section
@@ -184,5 +194,64 @@ theorem lsbValue_eq_foldr_bit (w : List Bool) : lsbValue w = w.foldr Nat.bit 0 :
     cases i with
     | zero => simp
     | succ i => simp [Nat.testBit_bit_succ, testBit_lsbValue w i]
+
+/-! ### Most significant bit first -/
+
+/-- The value of a word in binary, most significant bit first: the value of the reversed word
+(`Cslib.BitString.msbValue_eq_lsbValue_reverse`). Words of the same length compare
+lexicographically like their values (`Cslib.BitString.msbValue_lt_msbValue_iff`). -/
+def msbValue : List Bool → ℕ
+  | [] => 0
+  | b :: w => 2 ^ w.length * b.toNat + msbValue w
+
+/-- **The most-significant-first value is the value of the reversed word.** -/
+theorem msbValue_eq_lsbValue_reverse : ∀ w, msbValue w = lsbValue w.reverse
+  | [] => rfl
+  | b :: w => by
+    rw [msbValue, msbValue_eq_lsbValue_reverse w, List.reverse_cons, lsbValue_append,
+      lsbValue_singleton, List.length_reverse]
+    lia
+
+/-- A word of length `m` has most-significant-first value below `2 ^ m`. -/
+theorem msbValue_lt (w : List Bool) : msbValue w < 2 ^ w.length := by
+  simpa [msbValue_eq_lsbValue_reverse] using lsbValue_lt w.reverse
+
+/-- **Words of the same length compare lexicographically like their most-significant-first
+values**, `false` before `true`. -/
+theorem msbValue_lt_msbValue_iff : ∀ {x y : List Bool}, x.length = y.length →
+    (msbValue x < msbValue y ↔ x < y)
+  | [], [], _ => by simp [msbValue]
+  | [], _ :: _, h | _ :: _, [], h => by simp at h
+  | a :: x, b :: y, h => by
+    simp only [List.length_cons, Nat.add_right_cancel_iff] at h
+    have hx := msbValue_lt x
+    have hy := msbValue_lt y
+    simp only [msbValue, List.cons_lt_cons_iff, h] at hx ⊢
+    generalize 2 ^ y.length = p at *
+    have hft : false < true := by decide
+    have htf : ¬ true < false := by decide
+    cases a <;> cases b <;> simp [msbValue_lt_msbValue_iff h, hft, htf] <;> lia
+
+/-- Words of the same length compare lexicographically like their most-significant-first values,
+non-strictly. -/
+theorem msbValue_le_msbValue_iff {x y : List Bool} (h : x.length = y.length) :
+    msbValue x ≤ msbValue y ↔ x ≤ y := by
+  rw [← not_lt, msbValue_lt_msbValue_iff h.symm]
+  exact not_lt
+
+/-- The word of ones has the largest most-significant-first value of its length. -/
+theorem msbValue_le_of_forall_true {x y : List Bool} (h : x.length = y.length)
+    (hy : ∀ b ∈ y, b = true) : msbValue x ≤ msbValue y := by
+  rw [List.eq_replicate_iff.2 ⟨rfl, hy⟩, msbValue_eq_lsbValue_reverse (List.replicate _ _),
+    List.reverse_replicate]
+  have := lsbValue_replicate_true y.length
+  have := msbValue_lt x
+  rw [h] at this
+  lia
+
+/-- A word without `true` has most-significant-first value `0`. -/
+theorem msbValue_eq_zero {x : List Bool} (h : ∀ b ∈ x, b = false) : msbValue x = 0 := by
+  rw [msbValue_eq_lsbValue_reverse]
+  exact lsbValue_eq_zero_of_true_not_mem fun ht => by simpa using h _ (List.mem_reverse.1 ht)
 
 end Cslib.BitString
